@@ -89,7 +89,14 @@ name = "fandhe-frontend-animation"
 # merge base（0.11.0）から独立に同一版数（0.12.0）へ到達しており衝突。
 # `.claude/rules/coding-rust.md` #638 条項の「同一版数も衝突として +1」
 # 運用に従い、+1 して 0.13.0 とする。
-version = "0.13.0"
+#
+# PR #2580 レビュー是正（codex-review P1 指摘・Bugbot Medium 指摘）:
+# `TextTarget`/`write_final`/`start` の `self_write: Rc<Cell<bool>>` を
+# `self_write_count: Rc<Cell<u32>>` へ変更した（自己書き込みと外部更新が
+# 同じ同期処理内で両方発生した場合に外部更新を取りこぼす回帰の是正、新規
+# 公開関数 `has_external_mutation` の追加）。既存公開関数のシグネチャ変更
+# を伴う破壊的変更のため minor バンプする（#638 条項）。
+version = "0.14.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"

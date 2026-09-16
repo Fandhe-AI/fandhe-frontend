@@ -317,6 +317,7 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.34.0 | `ViewTransitionPreset` へ 8 バリアント追加（イシュー #2537。既存 exhaustive match 利用者への破壊的変更のため minor バンプ） |
 | 0.35.0 | `text-animation` feature（イシュー #2532、typewriter/scramble 配線）。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.11.0 → 0.12.0 へ追随した。本 PR（#2532）と origin/main（#2537、`view-transition-preset` の破壊的バリアント追加）が同じ merge base（0.33.0）から独立に 0.34.0 へ到達したため、#638 条項に従いさらに +1 して 0.35.0 とする |
 | 0.36.0 | `count-up` feature（イシュー #2539）。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.12.0 → 0.13.0 へ追随した。本 PR（#2539）と origin/main（#2532 到達の 0.35.0）が同じ merge base（0.34.0）から独立に 0.35.0 へ到達したため、#638 条項に従いさらに +1 して 0.36.0 とする |
+| 0.36.1 | PR #2580 レビュー是正: `count_up.rs` の自己書き込み検知を `fandhe-frontend-animation` の `self_write_count` へ追随させた（内部実装のみ、公開 API 不変）ため patch バンプ。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.13.0 → 0.14.0 へ追随した |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
@@ -326,7 +327,7 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.36.0"
+version = "0.36.1"
 default-features = false
 features = [
   "wasm-bindgen-exports",

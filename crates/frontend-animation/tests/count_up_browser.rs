@@ -75,7 +75,7 @@ async fn start_interpolates_from_zero_to_final_value() {
     let (element, _guard) = create_div();
     let format = NumberText::parse("100").expect("\"100\" must parse");
     let last_written = Rc::new(RefCell::new(String::new()));
-    let self_write = Rc::new(Cell::new(false));
+    let self_write_count = Rc::new(Cell::new(0u32));
 
     let _handle = start(
         element.clone(),
@@ -84,7 +84,7 @@ async fn start_interpolates_from_zero_to_final_value() {
         100.0,
         80.0,
         last_written,
-        self_write,
+        self_write_count,
     );
 
     // 開始直後（1 フレーム目付近）は目標値未満のはず。
@@ -107,11 +107,11 @@ fn write_final_writes_formatted_value_immediately_and_updates_last_written() {
     let (element, _guard) = create_div();
     let format = NumberText::parse("$0.00").expect("\"$0.00\" must parse");
     let last_written = Rc::new(RefCell::new(String::new()));
-    let self_write = Rc::new(Cell::new(false));
+    let self_write_count = Rc::new(Cell::new(0u32));
 
-    write_final(&element, &format, 1234.5, &last_written, &self_write);
+    write_final(&element, &format, 1234.5, &last_written, &self_write_count);
 
     assert_eq!(element.text_content().unwrap(), "$1,234.50");
     assert_eq!(*last_written.borrow(), "$1,234.50");
-    assert!(self_write.get());
+    assert_eq!(self_write_count.get(), 1);
 }

@@ -1277,7 +1277,13 @@ name = "fandhe-frontend-wasm-full"
 # マージコミット注記: 本 PR（#2539）と origin/main（#2537 統合後の
 # 0.35.0）が独立に同一版数（0.35.0）へ到達しており衝突。#638 条項の
 # 「同一版数も衝突として +1」運用に従い、さらに +1 して 0.36.0 とする。
-version = "0.36.0"
+#
+# PR #2580 レビュー是正: `count_up.rs` の自己書き込み検知を
+# `fandhe-frontend-animation` の `self_write_count`（`Rc<Cell<u32>>`）へ
+# 追随させた（内部実装のみ、公開 API のシグネチャは不変）ため patch
+# バンプする。あわせて `fandhe-frontend-animation` の依存 `version` 要求
+# を 0.13.0 → 0.14.0 へ追随した（`xtask check-dep-versions --fix` 相当）。
+version = "0.36.1"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1603,7 +1609,7 @@ js-sys = "0.3"
 # イシュー #2539: `fandhe-frontend-animation` 0.11.0 → 0.13.0（`count_up`
 # モジュール新設・マージコミットでの同一版数衝突 +1、#638 条項）に追随
 # する。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.13.0", optional = true }
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.14.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の

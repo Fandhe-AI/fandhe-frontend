@@ -152,7 +152,7 @@ mod wiring {
         duration_ms: f64,
         last_written: Rc<RefCell<String>>,
         active: &ActiveCountUp,
-        self_write: &Rc<Cell<bool>>,
+        self_write_count: &Rc<Cell<u32>>,
     ) {
         let handle = count_up::start(
             element.clone(),
@@ -161,7 +161,7 @@ mod wiring {
             to,
             duration_ms,
             last_written,
-            Rc::clone(self_write),
+            Rc::clone(self_write_count),
         );
         *active.borrow_mut() = handle;
     }
@@ -183,14 +183,19 @@ mod wiring {
 
         let last_written: Rc<RefCell<String>> = Rc::new(RefCell::new(initial));
         let active: ActiveCountUp = Rc::new(RefCell::new(None));
-        // 自己書き込み検知フラグ（`fandhe_frontend_animation::count_up::
-        // TextTarget::write`/`write_final` が書き込みのたびに true を立て、
-        // `wire_mutation_observer` が消費する）。`last_written` との文字列
-        // 一致だけで自己書き込みを判定すると、外部更新がたまたま同じ
-        // 文字列を書いた場合（例: in-view 待機中に開始値と同じ文字列へ
-        // 外部更新された場合）に誤って無視してしまう（PR #2580
-        // codex-review P1・Bugbot Medium 指摘の是正）。
-        let self_write: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+        // 自己書き込み検知カウンタ（`fandhe_frontend_animation::count_up::
+        // TextTarget::write`/`write_final` が書き込みのたびにインクリメント
+        // し、`wire_mutation_observer` が `MutationRecord` 件数と突き合わせて
+        // 消費する）。`last_written` との文字列一致だけで自己書き込みを
+        // 判定すると、外部更新がたまたま同じ文字列を書いた場合（例:
+        // in-view 待機中に開始値と同じ文字列へ外部更新された場合）に誤って
+        // 無視してしまう（PR #2580 codex-review P1・Bugbot Medium 指摘の
+        // 是正）。さらに真偽値 1 個の `self_write` フラグでは、自己書き込み
+        // と外部更新が同じ同期処理内で両方発生し 1 回のバッチとして通知
+        // された場合に外部更新側を取りこぼす（PR #2580 レビュー是正・
+        // codex-review P1 指摘）。`count_up::has_external_mutation` doc
+        // 参照。
+        let self_write_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
         // 補間が実際に開始済みか。`Immediate` は配線時点で true、`InView`
         // は `IntersectionObserver` 発火時に true へ切り替わる。false の間
         // に [`wire_mutation_observer`] が外部更新を検知しても
@@ -203,11 +208,12 @@ mod wiring {
         // 初期書き込み（`write_final`/`start_count_up`）より必ず先に登録
         // する。`MutationObserverInit::characterData` はコールバックが
         // マイクロタスクとして実行される仕様上、登録直後の同期的な初期
-        // 書き込みも正しく捕捉・消費できる（このモジュール doc「`self_write`
-        // フラグ」節と同じ前提）。逆順（初期書き込み → 登録）だと、その
-        // 書き込みが立てた `self_write` フラグを消費する購読者が存在せず
-        // 残留し、次に来る最初の実外部更新を誤って自己書き込みとして無視
-        // してしまう（PR #2580 codex-review P1 再指摘の回帰原因）。
+        // 書き込みも正しく捕捉・消費できる（[`wire_mutation_observer`]
+        // doc「自己書き込み回数カウンタ」節と同じ前提）。逆順（初期書き込み
+        // → 登録）だと、その書き込みが立てた `self_write_count` を消費する
+        // 購読者が存在せず残留し、次に来る最初の実外部更新を誤って自己
+        // 書き込みとして無視してしまう（PR #2580 codex-review P1 再指摘の
+        // 回帰原因）。
         wire_mutation_observer(
             element,
             duration_ms,
@@ -215,7 +221,7 @@ mod wiring {
             Rc::clone(&active),
             Rc::clone(&pending),
             Rc::clone(&started),
-            Rc::clone(&self_write),
+            Rc::clone(&self_write_count),
         );
 
         match trigger {
@@ -228,11 +234,11 @@ mod wiring {
                     duration_ms,
                     Rc::clone(&last_written),
                     &active,
-                    &self_write,
+                    &self_write_count,
                 );
             }
             Trigger::InView => {
-                count_up::write_final(element, &parsed, 0.0, &last_written, &self_write);
+                count_up::write_final(element, &parsed, 0.0, &last_written, &self_write_count);
                 if supports_intersection_observer() {
                     wire_in_view_trigger(
                         element,
@@ -241,7 +247,7 @@ mod wiring {
                         &last_written,
                         &active,
                         &started,
-                        &self_write,
+                        &self_write_count,
                     );
                 } else {
                     // 非対応環境ではプログレッシブエンハンスメントとして
@@ -256,7 +262,7 @@ mod wiring {
                         duration_ms,
                         Rc::clone(&last_written),
                         &active,
-                        &self_write,
+                        &self_write_count,
                     );
                 }
             }
@@ -274,13 +280,13 @@ mod wiring {
         last_written: &Rc<RefCell<String>>,
         active: &ActiveCountUp,
         started: &Rc<Cell<bool>>,
-        self_write: &Rc<Cell<bool>>,
+        self_write_count: &Rc<Cell<u32>>,
     ) {
         let element_for_callback = element.clone();
         let last_written_for_callback = Rc::clone(last_written);
         let active_for_callback = Rc::clone(active);
         let started_for_callback = Rc::clone(started);
-        let self_write_for_callback = Rc::clone(self_write);
+        let self_write_count_for_callback = Rc::clone(self_write_count);
         let callback = Closure::<dyn FnMut(js_sys::Array, IntersectionObserver)>::new(
             move |entries: js_sys::Array, observer: IntersectionObserver| {
                 let entered = entries.iter().any(|entry| {
@@ -306,7 +312,7 @@ mod wiring {
                             duration_ms,
                             Rc::clone(&last_written_for_callback),
                             &active_for_callback,
-                            &self_write_for_callback,
+                            &self_write_count_for_callback,
                         );
                     }
                 }
@@ -324,15 +330,18 @@ mod wiring {
     /// `subtree: true`）を監視し、自己書き込み以外（アプリの `set_text`
     /// 等の外部更新）を検知したら現在表示中の値 → 新しい値へ再補間する。
     ///
-    /// 自己書き込みの除外は `self_write` フラグ（[`count_up::TextTarget::
-    /// write`]/[`count_up::write_final`] が書き込みのたびに立てる）で判定
-    /// する。`MutationObserver` コールバックはマイクロタスクとして直後に
-    /// 実行されるため、この間に他の同期コードは割り込まない。「直前に
-    /// 自分が書いた文字列 (`last_written`) と現在の `textContent` が一致
-    /// するか」の文字列比較のみに頼る旧実装は、外部更新がたまたま同じ
-    /// 文字列を書いた場合（例: in-view 待機中に開始値と同じ文字列へ外部
-    /// 更新された場合）に自己書き込みと誤認し、その外部更新を無視して
-    /// しまう回帰があった（PR #2580 codex-review P1・Bugbot Medium 指摘）。
+    /// 自己書き込みの除外は自己書き込み回数カウンタ（[`count_up::
+    /// TextTarget::write`]/[`count_up::write_final`] が書き込みのたびに
+    /// インクリメントする）と、このコールバックが受け取ったバッチ内
+    /// `MutationRecord` 件数を突き合わせて判定する
+    /// （[`count_up::has_external_mutation`]）。`MutationObserver` は
+    /// 同期処理が終わった後に変更をまとめて 1 回のコールバックで通知
+    /// するため、自己書き込みと外部更新が同じ同期処理内で両方発生する
+    /// ことがある。真偽値 1 個（「直前に自分が書いた文字列
+    /// (`last_written`) と現在の `textContent` が一致するか」、あるいは
+    /// 単純な `self_write` フラグ）だけで通知全体を除外すると、この場合に
+    /// 外部更新を取りこぼす（PR #2580 codex-review P1・Bugbot Medium
+    /// 指摘、およびレビュー是正・codex-review P1 再指摘）。
     fn wire_mutation_observer(
         element: &HtmlElement,
         duration_ms: f64,
@@ -340,13 +349,13 @@ mod wiring {
         active: ActiveCountUp,
         pending: PendingTarget,
         started: Rc<Cell<bool>>,
-        self_write: Rc<Cell<bool>>,
+        self_write_count: Rc<Cell<u32>>,
     ) {
         let element_for_callback = element.clone();
         let callback = Closure::<dyn FnMut(js_sys::Array, MutationObserver)>::new(
-            move |_records: js_sys::Array, _observer: MutationObserver| {
-                if self_write.get() {
-                    self_write.set(false);
+            move |records: js_sys::Array, _observer: MutationObserver| {
+                let self_writes = self_write_count.replace(0);
+                if !count_up::has_external_mutation(records.length(), self_writes) {
                     return;
                 }
                 let current = element_for_callback.text_content().unwrap_or_default();
@@ -375,16 +384,16 @@ mod wiring {
                     // `wire_in_view_trigger` の `start_count_up` が 0 から
                     // 書き始め、最終値 → 0 のちらつきが再発する。初回配線
                     // 時の `Trigger::InView` 分岐と同じ 0 起点で揃える）。
-                    // `write_final` はこの書き込み自体を `self_write` へ
-                    // 記録する（自己書き込みフラグは呼び出しごとに独立して
-                    // 消費される）ため、待機中に受理した更新の値へ再び外部
-                    // 更新された際も正しく外部更新として検知できる。
+                    // `write_final` はこの書き込み自体を `self_write_count`
+                    // へ記録する（次回のバッチで正しく差し引かれる）ため、
+                    // 待機中に受理した更新の値へ再び外部更新された際も
+                    // 正しく外部更新として検知できる。
                     count_up::write_final(
                         &element_for_callback,
                         &new_parsed,
                         0.0,
                         &last_written,
-                        &self_write,
+                        &self_write_count,
                     );
                     *pending.borrow_mut() = Some((new_parsed, to));
                     return;
@@ -400,7 +409,7 @@ mod wiring {
                     duration_ms,
                     Rc::clone(&last_written),
                     &active,
-                    &self_write,
+                    &self_write_count,
                 );
             },
         );

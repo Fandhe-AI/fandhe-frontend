@@ -55,6 +55,21 @@ fn is_sep(c: char) -> bool {
     matches!(c, ',' | '.' | ' ' | '_')
 }
 
+/// [`NumberText::parse`] が受理する小数桁数の上限（PR #2580 レビュー
+/// 是正・codex-review P1 指摘）。
+///
+/// [`NumberText::render`] は `10f64.powi(self.decimals as i32)` で桁数を
+/// スケール係数へ変換するため、桁数が大きすぎる（例: `10f64.powi(309)`）
+/// と `f64::INFINITY` へオーバーフローし、`value != self.value` の
+/// フレーム（`render` の `source` 短絡が効かない、初回書き込み含む
+/// ほぼ全フレーム）で `value * scale` が常に `NaN` になる
+/// （`0 × ∞ = NaN`）。f64 は 15〜17 桁の有効十進数字しか正確に保持
+/// できないため、実用上意味のある桁数の範囲内（15 桁、`10f64.powi(15)`
+/// は `f64::MAX`（約 `1.8e308`）から十分離れており安全）に絞り、これを
+/// 超える入力は書式を一意に決定できない非対応入力として解析しない
+/// （fail-safe、`parse` の他の拒否条件と同じ設計）。
+const MAX_DECIMALS: usize = 15;
+
 /// `digits`（先頭に符号を含まない数字文字列）を `sep` の 3 桁区切りへ再挿入する。
 fn group_digits(digits: &str, sep: char) -> String {
     let bytes = digits.as_bytes();
@@ -98,15 +113,25 @@ impl NumberText {
     pub fn parse(text: &str) -> Option<Self> {
         let chars: Vec<char> = text.chars().collect();
 
-        // 数値スパンの開始位置（最初の数字。直前が '-' ならそこを含める）。
+        // 数値スパンの開始位置（最初の数字。直前の 1 文字が小数点候補
+        // （'.'/','）ならそこも含め、さらにその前が '-' ならそこも含める。
+        // 最初に見つかる数字より前に他の数字は存在し得ない（存在すれば
+        // それがより早く見つかっているはず）ため、直前の '.'/',' は常に
+        // 地の文の句読点ではなく数値スパンの先頭小数点（例 ".5"/"-.5"/
+        // "$.99"）とみなせる。空白・'_' は桁区切りとしての意味しか持たず
+        // 小数点候補には含めない（`"No. 5"` のような地の文を誤って数値へ
+        // 取り込まないため）。PR #2580 レビュー是正（Bugbot Medium 指摘）。
         let mut start = None;
         for (i, &c) in chars.iter().enumerate() {
             if c.is_ascii_digit() {
-                start = Some(if i > 0 && chars[i - 1] == '-' {
-                    i - 1
-                } else {
-                    i
-                });
+                let mut s = i;
+                if s > 0 && matches!(chars[s - 1], '.' | ',') {
+                    s -= 1;
+                }
+                if s > 0 && chars[s - 1] == '-' {
+                    s -= 1;
+                }
+                start = Some(s);
                 break;
             }
         }
@@ -172,7 +197,12 @@ impl NumberText {
                         if after.is_empty() || !after.chars().all(|c| c.is_ascii_digit()) {
                             return None;
                         }
-                        if before.is_empty() || !before.chars().all(|c| c.is_ascii_digit()) {
+                        // `before` が空（例 ".5"/"$.99"/"-.5"、整数部の暗黙の
+                        // ゼロ）は許容する。整数部が非空なら数字のみで
+                        // 構成されていることを要求する（PR #2580 レビュー
+                        // 是正・Bugbot Medium 指摘: 先頭が小数点の入力が
+                        // 整数として誤解釈されていた回帰）。
+                        if !before.is_empty() && !before.chars().all(|c| c.is_ascii_digit()) {
                             return None;
                         }
                         (None, Some(sep), after.chars().count())
@@ -218,6 +248,14 @@ impl NumberText {
             }
             _ => return None,
         };
+
+        if decimals > MAX_DECIMALS {
+            // 巨大な小数桁数は `render` の `10f64.powi(decimals)` が
+            // オーバーフローして無限大になり、以降のフレームで
+            // `value * scale` が常に `NaN` になる入力（codex-review P1
+            // 指摘）。`MAX_DECIMALS` doc 参照。
+            return None;
+        }
 
         // 正規化した数値文字列（区切りを取り除き、小数点は '.' へ統一）へ組み立てる。
         let mut normalized = String::with_capacity(span.len());
@@ -353,7 +391,7 @@ struct TextTarget {
     element: web_sys::HtmlElement,
     format: NumberText,
     last_written: Rc<RefCell<String>>,
-    self_write: Rc<Cell<bool>>,
+    self_write_count: Rc<Cell<u32>>,
 }
 
 impl Target<f64> for TextTarget {
@@ -362,14 +400,17 @@ impl Target<f64> for TextTarget {
         self.element.set_text_content(Some(&text));
         *self.last_written.borrow_mut() = text;
         // `wasm-full` の `MutationObserver` が自己書き込みと外部更新を
-        // 区別するためのフラグ（PR #2580 codex-review P1・Bugbot Medium
-        // 指摘の是正）。`last_written` の文字列比較のみに頼ると、外部
-        // 更新がたまたま自己書き込みと同じ文字列を書いた場合に外部更新
-        // として検知できない（例: in-view 待機中に開始値と同じ文字列へ
-        // 外部更新された場合）。書き込みのたびに true を立て、
-        // `MutationObserver` コールバック（マイクロタスクとして直後に
-        // 実行される）側が消費・判定する。
-        self.self_write.set(true);
+        // 区別するための回数カウンタ（PR #2580 レビュー是正・codex-review
+        // P1 指摘）。真偽値 1 個（`self_write` フラグ）だと、自己書き込み
+        // と外部更新が同じ同期処理内で両方発生し `MutationObserver`
+        // コールバックへ 1 回のバッチとして通知された場合に、フラグが
+        // 立っているというだけで通知全体を「自己書き込みのみ」として
+        // 無視してしまい、同居していた外部更新を取りこぼす
+        // （`Element.textContent` の setter は必ず 1 回の `childList` 型
+        // `MutationRecord` を生成し、同一タスク内の複数回書き込みも記録が
+        // 結合されない仕様のため、レコード件数とこのカウンタを突き合わせ
+        // れば両者を区別できる。[`has_external_mutation`] doc 参照）。
+        self.self_write_count.set(self.self_write_count.get() + 1);
     }
 }
 
@@ -379,22 +420,34 @@ pub struct CountUp {
     _loop_handle: AnimationLoop,
 }
 
+/// `record_count`（`MutationObserver` コールバックが受け取ったバッチ内
+/// レコード件数）が `self_write_count`（[`TextTarget::write`]/
+/// [`write_final`] が同区間で書き込んだ回数）を上回るかを判定する（DOM
+/// 非依存の純粋関数、native `cargo test` で検証可能。`TextTarget::write`
+/// doc 参照）。呼び出し側（`wasm-full`）は `self_write_count` を消費した
+/// ら 0 へリセットしてから次のバッチへ備える。
+#[must_use]
+pub fn has_external_mutation(record_count: u32, self_write_count: u32) -> bool {
+    record_count > self_write_count
+}
+
 /// 補間なしで最終値を即座に書き込む（`prefers-reduced-motion: reduce`・
 /// `RafDriver` 非対応環境向けのフェイルセーフ経路）。
 ///
-/// `self_write` は [`TextTarget::write`] と同じ自己書き込みフラグ
-/// （呼び出し側の `MutationObserver` が外部更新と区別するために読む）。
+/// `self_write_count` は [`TextTarget::write`] と同じ自己書き込み回数
+/// カウンタ（呼び出し側の `MutationObserver` が外部更新と区別するために
+/// 読む）。
 pub fn write_final(
     element: &web_sys::HtmlElement,
     format: &NumberText,
     value: f64,
     last_written: &Rc<RefCell<String>>,
-    self_write: &Rc<Cell<bool>>,
+    self_write_count: &Rc<Cell<u32>>,
 ) {
     let text = format.render(value);
     element.set_text_content(Some(&text));
     *last_written.borrow_mut() = text;
-    self_write.set(true);
+    self_write_count.set(self_write_count.get() + 1);
 }
 
 /// `from` から `to` へ `duration_ms` かけて ease-out 補間しながら `element`
@@ -406,8 +459,8 @@ pub fn write_final(
 ///
 /// `last_written` は呼び出し側（`wasm-full`）が自己書き込みを検知して
 /// 外部更新と区別するための共有セル（`TextTarget::write` が毎回更新する）。
-/// `self_write` は同じ目的の自己書き込みフラグ（[`TextTarget::write`]
-/// ドキュメント参照）。
+/// `self_write_count` は同じ目的の自己書き込み回数カウンタ
+/// （[`TextTarget::write`] ドキュメント参照）。
 pub fn start(
     element: web_sys::HtmlElement,
     format: NumberText,
@@ -415,10 +468,10 @@ pub fn start(
     to: f64,
     duration_ms: f64,
     last_written: Rc<RefCell<String>>,
-    self_write: Rc<Cell<bool>>,
+    self_write_count: Rc<Cell<u32>>,
 ) -> Option<CountUp> {
     let Some(mut driver) = RafDriver::new() else {
-        write_final(&element, &format, to, &last_written, &self_write);
+        write_final(&element, &format, to, &last_written, &self_write_count);
         return None;
     };
 
@@ -426,7 +479,7 @@ pub fn start(
         element,
         format,
         last_written,
-        self_write,
+        self_write_count,
     };
     // SSR ハイドレーション直後の最終値ちらつき対策（Bugbot High 指摘）:
     // `RafDriver::tick` の最初の呼び出しは基準時刻の記録のみで `None` を
@@ -463,7 +516,7 @@ pub fn start(
 
 #[cfg(test)]
 mod tests {
-    use super::{count_up_progress, eased, NumberText};
+    use super::{count_up_progress, eased, has_external_mutation, NumberText};
 
     fn roundtrip(input: &str, expected_value: f64) -> NumberText {
         let parsed =
@@ -593,5 +646,56 @@ mod tests {
     fn eased_endpoints() {
         assert_eq!(eased(0.0), 0.0);
         assert_eq!(eased(1.0), 1.0);
+    }
+
+    // PR #2580 レビュー是正の回帰テスト。
+
+    /// Bugbot Medium 指摘: 先頭が小数点の入力（`.5`/`$.99`/`-.5`）が整数
+    /// として誤解釈されていた回帰。
+    #[test]
+    fn parses_leading_decimal_point() {
+        roundtrip(".5", 0.5);
+    }
+
+    #[test]
+    fn parses_prefixed_leading_decimal_point() {
+        roundtrip("$.99", 0.99);
+    }
+
+    #[test]
+    fn parses_negative_leading_decimal_point() {
+        roundtrip("-.5", -0.5);
+    }
+
+    /// codex-review P1 指摘: 「1.」+ ゼロ 309 個は f64 としては有限値だが
+    /// `render` の `10f64.powi(decimals)` がオーバーフローし `value *
+    /// scale` が常に NaN になる入力。解析自体を拒否する。
+    #[test]
+    fn rejects_excessive_decimal_digits() {
+        let overflowing = format!("1.{}", "0".repeat(309));
+        assert!(NumberText::parse(&overflowing).is_none());
+    }
+
+    #[test]
+    fn accepts_decimal_digits_within_bound() {
+        // 上限ちょうど（15 桁）は引き続き受理する。
+        let within_bound = format!("1.{}", "0".repeat(15));
+        assert!(NumberText::parse(&within_bound).is_some());
+    }
+
+    /// codex-review P1 指摘: 自己書き込みと外部更新が同じ同期処理内で
+    /// 両方発生し `MutationObserver` へ 1 回のバッチとして通知された
+    /// 場合でも、外部更新を取りこぼさないこと。
+    #[test]
+    fn has_external_mutation_detects_extra_records() {
+        // 自己書き込み 1 回のみ（外部更新なし）。
+        assert!(!has_external_mutation(1, 1));
+        // レコードなし。
+        assert!(!has_external_mutation(0, 0));
+        // 自己書き込み 1 回 + 同一タスク内の外部更新 1 回（初期書き込み
+        // 直後に同じ同期処理内で外部更新された、再現シナリオ）。
+        assert!(has_external_mutation(2, 1));
+        // 自己書き込みなしで外部更新のみ。
+        assert!(has_external_mutation(1, 0));
     }
 }
