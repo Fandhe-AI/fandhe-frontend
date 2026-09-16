@@ -201,7 +201,7 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
 | 定数 | 値 | 超過時の扱い |
 |---|---|---|
 | `MAX_PAGE_TEXT_BYTES` | 4,096 バイト | **決定的に切り詰める**（エラーにしない）。UTF-8 文字境界で切る（`char_indices` で境界を求め、バイト単位切断で不正 UTF-8 を作らない）。切り詰め痕跡の付加文字（`…` 等）は付けない（決定性と単純さを優先する） |
-| `MAX_INDEX_BYTES` | 1,048,576 バイト（1 MiB） | **fail-closed**。`BuildError::SearchIndexTooLarge { bytes, limit }` を返し、**ページ書き出し前**に打ち切る |
+| `MAX_INDEX_BYTES` | 1,179,648 バイト（1.125 MiB。#2552 で 1 MiB から引き上げ、§10 参照） | **fail-closed**。`BuildError::SearchIndexTooLarge { bytes, limit }` を返し、**ページ書き出し前**に打ち切る |
 
 - 選定根拠: 現行 121 ページで全ページが per-page 上限に張り付いた
   最悪ケースでも 121 × 4 KiB ≒ 496 KiB であり、1 MiB は「ページ数が
@@ -223,7 +223,7 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
   - `pub const REL_PATH: &str = "assets/search-index.json";`
   - `pub const SCHEMA_VERSION: u32 = 1;`
   - `pub const MAX_PAGE_TEXT_BYTES: usize = 4096;`
-  - `pub const MAX_INDEX_BYTES: usize = 1_048_576;`
+  - `pub const MAX_INDEX_BYTES: usize = 1_179_648;`（#2552 で `1_048_576` から引き上げ、§10 参照）
   - `pub struct PageEntry { href, title, sections: Vec<SectionEntry>, text }`
   - `pub struct SectionEntry { id, level, title }`
   - `pub fn page_entry(href: &str, title: &str, body: &Node) -> PageEntry`
@@ -557,3 +557,33 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
 `docs-site-api-reference-split.md` / `docs/policy/intentional-non-adoption.md` /
 `docs/design/opt-in-thin-js-glue.md` / `.claude/rules/ci.md`
 （`docs-site.yml` paths 契約） / `.claude/rules/security.md`。
+
+## 10. `MAX_INDEX_BYTES` 引き上げ（#2552）実装記録
+
+§1 実測（250 ページ、Blocks セクション拡充前の時点）は 1 MiB の
+「十分な余裕がある」判断だったが、その後の Blocks セクションの拡充
+（大きめの Rust コードフェンスを持つ block ページが多数追加）により
+実サイトのインデックス JSON が 1 MiB へ接近し、イシュー #2552
+（`game-ui-modal` block 追加）で実際に `SearchIndexError::TooLarge`
+が発火した（実測: 追加前で約 1,048,301 バイト、追加後で
+1,051,427 バイト、旧上限比で約 2,851 バイト超過）。
+
+- **§8 再評価トリガー 1（512 KiB 超過）は当初の「per-page 上限の
+  引き下げ・セクション分割」の再評価を促すが、既に大半のページが
+  per-page 上限（4,096 バイト）近傍まで切り詰められた状態にあり、
+  per-page 上限の引き下げは既存ページの索引品質をさらに損なう。
+  セクション粒度への分割は既存 IA（`site/nav.toml`）を横断する大改修
+  になり、1 block ページ追加への対処として不釣り合いに大きい。
+- **採用した対処は `MAX_INDEX_BYTES` の引き上げ**（1 MiB →
+  1.125 MiB、`1_048_576 + 131_072`）。fail-closed の性質（超過時は
+  ページ書き出し前に打ち切る）自体は変更しない。将来の block/部品
+  追加に対する余裕（引き上げ後、#2552 時点の実測で約 124 KiB の
+  空き）を確保する。
+- 個別ページの索引テキストを不必要に切り詰める・見出しを削るといった
+  「その場しのぎ」でページ単体の内容を犠牲にする対処は取らない（索引
+  精度の劣化は利用者体験を損なう恒久的なコストであり、1 回限りの
+  容量調整より重い）。
+- 再評価トリガー: 本引き上げ後もインデックスが 1 MiB を再び超える
+  水準まで肥大化した場合、または引き上げ後の実測が新上限の 80% を
+  超えた場合は、§8 トリガー 1 の対応（per-page 上限見直し・セクション
+  粒度分割）を改めて検討する。
