@@ -112,6 +112,26 @@ name = "fandhe-frontend-animation"
 # `.claude/rules/coding-rust.md` #638 条項に従いさらに +1 minor して
 # 0.15.0 とする。
 #
+# PR #2582 レビュー指摘対応: `ticker::Ticker::start` の rAF ループが
+# content 長（+ gap）の変化も複製数再計算の契機にするよう修正した
+# （従来は viewport 長〔root の実測サイズ〕変化のみ）。既存公開 API は
+# 不変の実装修正のため patch バンプして 0.15.1 とした。
+#
+# マージコミット注記（origin/main #2544/#2585 との統合）: origin/main は
+# イシュー #2544（`presence`: keyed list 削除行の退場ゴースト配置・除去を
+# 新設）で 0.15.0 → 0.16.0 へ minor バンプし、PR #2585 codex-review P1
+# 是正（`insert_exit_ghost` の radio button group 隔離）で 0.16.0 →
+# 0.16.1 へ patch バンプしていた。origin/main の到達値 0.16.1 は本ブランチ
+# の到達値 0.15.1 を上回るが、本ブランチの `ticker` モジュール新設（origin/
+# main の 0.16.1 には含まれない公開 API 追加）を統合するため、`.claude/
+# rules/coding-rust.md` #638 条項に従い origin/main の到達値から +1 して
+# 0.16.2 とする。
+# PR #2582 codex-review P1・Cursor Bugbot 是正（0.16.2 に含める、公開 API
+# の追加のみ）: `ticker` の周期計測を `offsetWidth`/`offsetHeight` へ変更、
+# `read_gap_px` に `axis` 引数を追加して `column-gap`/`row-gap` longhand を
+# 読む、`ensure_copies` で追加複製内の radio 隔離・入れ子 ticker 静的化、
+# `TICKER_ATTR`/`TICKER_ACTIVE_ATTR` 定数を追加。
+#
 # イシュー #2536: `shared_layout` モジュール（共有レイアウト遷移、
 # motion.dev `layoutId` 相当。`pair_by_id`/`snapshot`/`play_shared` の
 # 新規公開 API）を追加した（レビュー是正〔入れ子・名前衝突修正、d3c27c0f〕
@@ -148,7 +168,12 @@ name = "fandhe-frontend-animation"
 # マージコミット注記（origin/main #2578 との統合）: origin/main は 0.16.2 へ
 # 到達したが、本ブランチの到達値 0.17.0 はこれを上回るため、そのまま
 # 0.17.0 を維持する（さらなる衝突バンプ不要）。
-version = "0.17.0"
+#
+# マージコミット注記（origin/main #2580 との統合、PR #2582）: origin/main は
+# `count_up` 新設で 0.17.0 へ到達し、本ブランチ（`ticker` 新設・レビュー
+# 是正込み、独立到達値 0.16.3）を統合するため main の到達値からさらに +1
+# して 0.17.1 とする（#638 条項）。
+version = "0.17.1"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"
@@ -322,4 +347,10 @@ features = [
   "HtmlHeadElement",
   "ImageData",
   "HtmlInputElement",
+  # PR #2582 codex-review P1 是正の browser テスト（`ticker_browser.rs`）が
+  # フォーム内 ticker の追加複製で `form.checkValidity()`・`FormData` の
+  # 同名エントリ数を検証するために `HtmlFormElement`/`FormData` を追加する
+  # （テスト専用の feature 拡張、新規クレート追加なし）。
+  "HtmlFormElement",
+  "FormData",
 ]

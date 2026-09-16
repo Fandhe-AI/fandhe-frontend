@@ -61,8 +61,11 @@
 //! カスタムプロパティ書き込み、イシュー #2550）も実装済み。text_animation
 //! （[`text_animation::typewriter_frame`]・[`text_animation::scramble_frame`]、
 //! typewriter/scramble のフレーム計算・DOM 書き込み、イシュー #2532）も
-//! 実装済み。cursor（[`cursor::CursorFollower`]・[`cursor::CursorAnimator`]、
-//! カスタムカーソルのポインタ追従 spring 演算・rAF 駆動、イシュー #2542）も
+//! 実装済み。ticker
+//! （[`ticker::Ticker`]、marquee の JS 駆動拡張——実測複製数・rAF offset
+//! 前進・hover/scroll 速度連動、イシュー #2540）も実装済み。cursor
+//! （[`cursor::CursorFollower`]・[`cursor::CursorAnimator`]、カスタム
+//! カーソルのポインタ追従 spring 演算・rAF 駆動、イシュー #2542）も
 //! 実装済み。共有レイアウト遷移（[`shared_layout`]、motion.dev `layoutId`
 //! 相当。旧要素→新要素の id 突合 + [`flip`] 再利用による FLIP、イシュー
 //! #2536）も実装済み。presence（[`presence::insert_exit_ghost`]・
@@ -89,6 +92,7 @@ pub mod scroll_driver;
 pub mod shared_layout;
 pub mod svg_path;
 pub mod text_animation;
+pub mod ticker;
 
 // `fandhe-animation`（演算基幹）の型（`Keyframes`/`Keyframe` 等）は、本クレートの
 // `[dependencies]` にのみ存在し推移依存としてアプリの名前解決に公開されない。

@@ -813,6 +813,8 @@ pub mod listbox;
 pub mod mark;
 pub mod marker;
 pub mod marquee;
+#[cfg(feature = "motion")]
+pub mod marquee_motion;
 pub mod menu;
 pub mod menubar;
 pub mod message;

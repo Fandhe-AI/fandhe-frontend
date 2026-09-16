@@ -73,6 +73,7 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 | `Runtime::wire_carousel_motion` | `carousel-motion` |
 | `Runtime::wire_count_up` | `count-up` |
 | `Runtime::wire_text_animation` | `text-animation` |
+| `Runtime::wire_ticker` | `ticker` |
 | `Runtime::wire_cursor` | `cursor` |
 
 `cursor` feature（0.36.0 で追加、イシュー #2542）は `scroll-driver`/
@@ -116,6 +117,15 @@ count-up-trigger="in-view"`）・`MutationObserver` による外部更新の再�
 `words`）は SSR + CSS `@keyframes` のみで完結する
 `fandhe_frontend_pre_styled_ui::text_reveal`（`motion` feature）側の責務
 であり、本 feature の対象外です。
+
+`ticker` feature（0.36.0 で追加、イシュー #2540）は `magnetic` と同型
+（配線群かつ `dep:fandhe-frontend-animation` 有効化）で、marquee の JS
+駆動拡張（実測に基づく複製数決定・rAF による offset 前進・hover/scroll
+速度連動）を `data-fandhe-ticker` opt-in 要素へ配線します。純計算・DOM
+駆動は `fandhe-frontend-animation::ticker::Ticker` の責務であり、本
+feature は opt-in 要素の走査・イベント委譲・`prefers-reduced-motion`
+判定のみを担います（`crates/wasm-full/src/ticker.rs` モジュール doc
+参照）。
 
 `carousel-motion` feature（0.36.0 で追加、イシュー #2541）も同型で、
 `data-fandhe-carousel-drag` opt-in root 配下の `item-group` へのポインタ
@@ -384,22 +394,28 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | （merge） | base main 再取り込み時（イシュー #2518 codex-review 追加ラウンド是正、`view-transition-preset` feature 追加）: main 側はさらにイシュー #2516（`view-transition-preset` feature）で 0.32.2 → 0.32.3 へ独立にバンプしていた。本 PR 側の到達値 0.33.0 は main の到達値 0.32.3 をすでに上回っており同一版数の衝突には該当しないため、本 PR の到達値 0.33.0 をそのまま維持する（さらなる衝突バンプ不要） |
 | 0.34.0 | `ViewTransitionPreset` へ 8 バリアント追加（イシュー #2537。既存 exhaustive match 利用者への破壊的変更のため minor バンプ） |
 | 0.35.0 | `text-animation` feature（イシュー #2532、typewriter/scramble 配線）。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.11.0 → 0.12.0 へ追随した。本 PR（#2532）と origin/main（#2537、`view-transition-preset` の破壊的バリアント追加）が同じ merge base（0.33.0）から独立に 0.34.0 へ到達したため、#638 条項に従いさらに +1 して 0.35.0 とする |
+| （0.36.0、PR #2582 ブランチ側） | `ticker` feature（イシュー #2540、marquee の JS 駆動拡張）。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.12.0 → 0.13.0 へ追随した。本 PR（#2540）と origin/main（#2532、`text-animation` feature）が同じ merge base（0.34.0）から独立に 0.35.0 へ到達したため、#638 条項に従いさらに +1 して 0.36.0 とする |
 | 0.36.0 | `cursor` feature（イシュー #2542、カスタムカーソル配線）。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.12.0 → 0.13.0 へ追随した |
 | 0.37.0 | `presence` feature（イシュー #2544、keyed list 削除行の退場ゴースト配線）。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.13.0 → 0.14.0 へ追随した |
 | 0.36.0 | `count-up` feature（イシュー #2539）。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.12.0 → 0.13.0 へ追随した。本 PR（#2539）と origin/main（#2532 到達の 0.35.0）が同じ merge base（0.34.0）から独立に 0.35.0 へ到達したため、#638 条項に従いさらに +1 して 0.36.0 とする |
 | 0.36.1 | PR #2580 レビュー是正: `count_up.rs` の自己書き込み検知を `fandhe-frontend-animation` の `self_write_count` へ追随させた（内部実装のみ、公開 API 不変）ため patch バンプ。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.13.0 → 0.14.0 へ追随した |
+| 0.40.0 | PR #2582 で本ブランチ（#2540、`ticker` feature）を origin/main（#2541/#2542 の `carousel-motion`/`cursor` feature、独立到達値 0.39.0）へ統合し 0.40.0 とする |
+| 0.40.1 | PR #2582 レビュー指摘対応: `ticker::wiring::resolve_ticker_targets` で入れ子 ticker の祖先すべてへ hover/focus 一時停止を及ぼす修正（公開 API 不変のため patch バンプ）。origin/main も独立に 0.40.1（`fandhe-frontend-animation` 0.16.1 追随）へ到達 |
+| 0.40.2 | PR #2582 で本ブランチ（0.40.1）を origin/main（#2544 の `presence` feature、独立到達値 0.40.1）へ統合。同一版数の衝突のため #638 条項に従い +1 して 0.40.2 とする |
 | 0.40.2 | `count-up` feature の統合（イシュー #2539、PR #2580。本 PR は独立に 0.36.1 まで到達していたが、origin/main が `carousel-motion`/`presence` 等で 0.40.1 まで進んでいたため、main の到達値に本 PR の patch 分を +1 して 0.40.2 とする。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.17.0 へ追随した） |
+| 0.40.3 | PR #2582 で origin/main（#2536 の `shared_layout`〔`layout-animation` feature 配下、feature 追加なし〕統合で 0.40.2 到達）を再取り込み。本 PR 側も 0.40.2 のため同一版数の衝突として #638 条項に従い +1 して 0.40.3 とする。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.16.3 へ追随した |
 | 0.40.3 | 版数衝突の再バンプ（PR #2580 の main 再取り込み。main 側が #2536 shared_layout の統合で 0.40.2 へ到達し本 PR と同版になったため +1。feature 追加なし） |
+| 0.40.4 | PR #2582 で origin/main（#2539 の `count-up` feature 統合で 0.40.3 到達）を再取り込み。本 PR 側も 0.40.3 のため同一版数の衝突として #638 条項に従い +1 して 0.40.4 とする。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.17.1 へ追随した |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
 従来どおりの挙動を維持するには、`Cargo.toml` の依存指定へ `default` 配列
-と同じ 51 件を明示してください（`entry` 機能を使わないアプリは
+と同じ 56 件を明示してください（`entry` 機能を使わないアプリは
 `wasm-bindgen-exports` を省略できます）。
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.40.3"
+version = "0.40.4"
 default-features = false
 features = [
   "wasm-bindgen-exports",
@@ -428,6 +444,7 @@ features = [
   "hold-to-confirm",
   "add-to-basket",
   "magnetic",
+  "ticker",
   "carousel-motion",
   "text-animation",
   "cursor",

@@ -221,6 +221,7 @@
 //! | `Runtime::wire_hold_to_confirm` | `hold-to-confirm` |
 //! | `Runtime::wire_add_to_basket` | `add-to-basket` |
 //! | `Runtime::wire_magnetic` | `magnetic` |
+//! | `Runtime::wire_ticker` | `ticker` |
 //! | `Runtime::wire_carousel_motion` | `carousel-motion` |
 //! | `Runtime::wire_text_animation` | `text-animation` |
 //! | `Runtime::wire_cursor` | `cursor` |
@@ -519,6 +520,8 @@ pub mod svg_path;
 pub mod tabs_indicator;
 #[cfg(feature = "text-animation")]
 pub mod text_animation;
+#[cfg(feature = "ticker")]
+pub mod ticker;
 pub mod tooltip;
 pub mod view_transition;
 pub mod view_transition_name;
@@ -2021,6 +2024,8 @@ where
         Self::wire_add_to_basket(root.clone())?;
         #[cfg(feature = "magnetic")]
         Self::wire_magnetic(root.clone())?;
+        #[cfg(feature = "ticker")]
+        Self::wire_ticker(root.clone())?;
         #[cfg(feature = "carousel-motion")]
         Self::wire_carousel_motion(
             component.clone(),
@@ -2234,6 +2239,8 @@ where
         Self::wire_add_to_basket(root.clone())?;
         #[cfg(feature = "magnetic")]
         Self::wire_magnetic(root.clone())?;
+        #[cfg(feature = "ticker")]
+        Self::wire_ticker(root.clone())?;
         #[cfg(feature = "carousel-motion")]
         Self::wire_carousel_motion(
             component.clone(),
@@ -3312,6 +3319,20 @@ where
     #[cfg(feature = "magnetic")]
     fn wire_magnetic(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         magnetic::wire_magnetic(root)
+    }
+
+    /// marquee の JS 駆動拡張（ticker）の配線（[`ticker::wire_ticker`]、
+    /// イシュー #2540）を登録する。`dispatch` チャネルを持たない属性専用
+    /// 配線のため（`Self::wire_gesture`/`Self::wire_magnetic` と同型）、
+    /// `Component`/`binding_table`/`keyed_list_cache` を必要としない。
+    ///
+    /// # Errors
+    ///
+    /// [`ticker::wire_ticker`]（`add_event_listener_with_callback` の
+    /// 失敗）を伝播する。
+    #[cfg(feature = "ticker")]
+    fn wire_ticker(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        ticker::wire_ticker(root)
     }
 
     /// stat の数値カウントアップ（[`count_up::wire_count_up`]、イシュー

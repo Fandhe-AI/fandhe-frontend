@@ -706,6 +706,7 @@ const NON_PAGE_TOP_LEVEL: &[&str] = &[
     "forms_motion",
     "lib",
     "list_motion",
+    "marquee_motion",
     "motion",
     "recipe",
     "stat_motion",
@@ -1092,10 +1093,12 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        134,
+        135,
         "src/*.rs の総数が想定と異なります（マージコミット注記（origin/main #2589 到達点との統合）: origin/main は \
          133（list_motion 込み）へ到達済みで、本ブランチの stat_motion.rs を \
-         統合し 133 → 134。イシュー #2539 で \
+         統合し 133 → 134。PR #2582 で本ブランチ（#2540、marquee_motion.rs 新設、\
+         `motion` feature 配下の marquee 縦方向・ticker opt-in 拡張で単体の Themes \
+         ページを持たないため NON_PAGE_TOP_LEVEL 分類）を統合し 134 → 135。イシュー #2539 で \
          stat_motion.rs を新設。`motion` feature 配下の \
          stat 数値カウントアップ opt-in（既存 stat 部品への追加装飾）で \
          単体の Themes ページを持たないため NON_PAGE_TOP_LEVEL 分類 \
