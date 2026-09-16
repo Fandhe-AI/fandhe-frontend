@@ -20,7 +20,7 @@
 #![cfg(feature = "layout-animation")]
 
 use fandhe_frontend_core::keyed::keyed_list;
-use fandhe_frontend_core::{el, text, Node};
+use fandhe_frontend_core::{bind_attr_tokens, el, text, Node};
 use fandhe_frontend_interactive::{Component, DirtyTracked};
 use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
 use fandhe_frontend_wasm_full::layout_flip::FLIP_AUTO_ATTR;
@@ -455,5 +455,191 @@ fn inner_only_update_stops_in_progress_shared_layout_in_ancestor_flip_row() {
         "内側リストのみの更新でも、祖先の FLIP リスト配下にある進行中の \
          共有レイアウト遷移は DOM 更新前に停止・復元されているはず \
          （旧実装は外側行のハンドルを停止せず transform が残った）"
+    );
+}
+
+/// フラット（入れ子でない）な [`FLIP_AUTO_ATTR`] keyed list の行の中に、
+/// 待避位置から引き継がれる `data-fandhe-layout-id="badge"` の span と、
+/// 別 field `label` へ束縛された `data-bind-attr` の span が同居する
+/// component（Cursor Bugbot 指摘「Stop scope includes non-playing lists」
+/// の再現条件: `label` のみの更新は走査 (ii) でこのリストを捕捉するが、
+/// `chain.len() == 1` のため list FLIP は再生しない）。
+#[derive(Debug, Clone)]
+struct FlatSideState {
+    badge_in_row: bool,
+    label: String,
+    dirty: Vec<&'static str>,
+}
+
+impl FlatSideState {
+    const FIELD_SIDE: &'static str = "side";
+    const FIELD_BADGES: &'static str = "badges";
+    const FIELD_LABEL: &'static str = "label";
+
+    fn new() -> Self {
+        Self {
+            badge_in_row: false,
+            label: "before".to_string(),
+            dirty: Vec::new(),
+        }
+    }
+}
+
+enum FlatSideAction {
+    /// バッジを待避位置からフラットリストの行の中へ移す（dirty: `side` +
+    /// `badges`）。
+    MoveBadgeIntoRow,
+    /// 束縛値 `label` だけを更新する（dirty: `label` のみ。keyed list の
+    /// 構造変化なし）。
+    BumpLabel,
+}
+
+impl Component for FlatSideState {
+    type Action = FlatSideAction;
+
+    fn update(&mut self, action: Self::Action) {
+        self.dirty.clear();
+        match action {
+            FlatSideAction::MoveBadgeIntoRow => {
+                self.badge_in_row = true;
+                self.dirty.push(Self::FIELD_SIDE);
+                self.dirty.push(Self::FIELD_BADGES);
+            }
+            FlatSideAction::BumpLabel => {
+                self.label = "after".to_string();
+                self.dirty.push(Self::FIELD_LABEL);
+            }
+        }
+    }
+
+    fn view(&self) -> Node {
+        let badge = |style: &str| {
+            el(
+                "span",
+                vec![
+                    ("data-testid", "badge"),
+                    (LAYOUT_ID_ATTR, "badge"),
+                    ("style", style),
+                ],
+                vec![],
+            )
+        };
+        let bind_attr = bind_attr_tokens(&[("title", Self::FIELD_LABEL)]);
+        let mut row_children = vec![el(
+            "span",
+            vec![
+                ("data-testid", "label"),
+                ("data-bind-attr", bind_attr.as_str()),
+            ],
+            vec![text("label")],
+        )];
+        if self.badge_in_row {
+            row_children.push(badge(
+                "position:absolute;left:0px;top:0px;width:20px;height:20px;",
+            ));
+        }
+        let side = keyed_list(
+            "ul",
+            vec![("id", "side-list"), (FLIP_AUTO_ATTR, "")],
+            Self::FIELD_SIDE,
+            vec![
+                (
+                    "1".to_string(),
+                    el(
+                        "li",
+                        vec![
+                            ("data-testid", "side-item"),
+                            ("style", "position:relative;"),
+                        ],
+                        row_children,
+                    ),
+                ),
+                (
+                    "2".to_string(),
+                    el("li", vec![("data-testid", "side-item")], vec![text("b")]),
+                ),
+            ],
+        )
+        .expect("test fixture keyed items must be valid");
+        let parked: Vec<(String, Node)> = if self.badge_in_row {
+            Vec::new()
+        } else {
+            vec![(
+                "badge".to_string(),
+                badge("position:absolute;left:300px;top:300px;width:20px;height:20px;"),
+            )]
+        };
+        let badges = keyed_list(
+            "div",
+            vec![("id", "badge-slot")],
+            Self::FIELD_BADGES,
+            parked,
+        )
+        .expect("test fixture keyed badges must be valid");
+        el("div", vec![("id", "flip-root")], vec![side, badges])
+    }
+
+    fn decode_action(name: &str, _payload: &str) -> Option<Self::Action> {
+        match name {
+            "move_badge_into_row" => Some(FlatSideAction::MoveBadgeIntoRow),
+            "bump_label" => Some(FlatSideAction::BumpLabel),
+            _ => None,
+        }
+    }
+}
+
+impl DirtyTracked for FlatSideState {
+    fn dirty_fields(&self) -> &[&'static str] {
+        &self.dirty
+    }
+}
+
+impl BindingSource for FlatSideState {
+    fn bound_value(&self, field: &str) -> Option<BoundValue> {
+        match field {
+            Self::FIELD_LABEL => Some(BoundValue::Text(self.label.clone())),
+            _ => None,
+        }
+    }
+}
+
+/// 受け入れ条件（Cursor Bugbot 指摘是正、イシュー #2578「Stop scope
+/// includes non-playing lists」）: フラットな `FLIP_AUTO_ATTR` リストの
+/// 行で共有レイアウト遷移が進行中のとき、同じ行内の別要素へ束縛された
+/// field だけを更新しても（走査 (ii) はこのリストを捕捉するが list FLIP
+/// は再生しない）、進行中ハンドルは停止されず補正 transform が残る。
+/// 束縛値の反映自体は行われる。
+#[wasm_bindgen_test]
+fn binding_only_update_keeps_in_progress_shared_layout_in_non_playing_flat_list() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let placeholder = create_placeholder(&document, "flat-side-shared-layout-root");
+    let _guard = RemoveOnDrop(placeholder.clone());
+
+    let runtime = Runtime::mount("flat-side-shared-layout-root", FlatSideState::new())
+        .expect("mount must succeed");
+    let root = runtime.root();
+
+    dispatch_action(&document, root, "move_badge_into_row");
+    assert!(
+        !badge_transform(root).is_empty(),
+        "行へ引き継がれたバッジは共有レイアウト遷移の補正 transform を \
+         受け取り進行中のはず（前提条件）"
+    );
+
+    dispatch_action(&document, root, "bump_label");
+    let label = root
+        .query_selector("[data-testid='label']")
+        .expect("query_selector must not fail")
+        .expect("label must exist");
+    assert_eq!(
+        label.get_attribute("title").as_deref(),
+        Some("after"),
+        "束縛値の更新自体は反映されているはず"
+    );
+    assert!(
+        !badge_transform(root).is_empty(),
+        "list FLIP を再生しないフラットリスト内の進行中の共有レイアウト \
+         遷移は、束縛のみの更新では停止されず補正 transform が残るはず \
+         （旧実装は flip_captured 全体を scope にしていたため中断された）"
     );
 }

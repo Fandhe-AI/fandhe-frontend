@@ -1327,16 +1327,20 @@ where
         // `root` 全体を対象に停止する。
         //
         // 加えて、この更新で list FLIP（`layout_flip::play_after_reporting`）
-        // が transform を書き込み得る keyed list——上記走査 (i)/(ii) で
-        // 停止・捕捉した `flip_captured` の全リスト（dirty field 自身の
-        // リストだけでなく、それを包含する祖先の `FLIP_AUTO_ATTR` リスト
-        // を含む）——も scope に含める（Cursor Bugbot 指摘「Ancestor FLIP
-        // lists skip stop scope」是正、イシュー #2578）。祖先リストの行に
-        // 進行中の共有レイアウト遷移が残っていると、その行へ書き込まれる
-        // list FLIP の transform を旧アニメーションが次フレームで上書き
-        // し、収束時に `OriginalStyle::restore` が更新前の値を復元して
-        // しまうため。`flip_target_lists`（実際に play する最外側）は
-        // `flip_captured` の部分集合なので、後者を走査すれば足りる。
+        // が実際に transform を書き込む keyed list——`flip_target_lists`
+        // （dirty field 自身のリストと、それを包含して FLIP を再生する
+        // 祖先の `FLIP_AUTO_ATTR` リスト）——も scope に含める（Cursor
+        // Bugbot 指摘「Ancestor FLIP lists skip stop scope」是正、イシュー
+        // #2578）。祖先リストの行に進行中の共有レイアウト遷移が残って
+        // いると、その行へ書き込まれる list FLIP の transform を旧アニメー
+        // ションが次フレームで上書きし、収束時に `OriginalStyle::restore`
+        // が更新前の値を復元してしまうため。走査対象は `flip_captured`
+        // ではなく `flip_target_lists` に限定する: 走査 (ii) が束縛のみの
+        // 更新で捕捉するだけで再生しないフラットな `FLIP_AUTO_ATTR`
+        // リスト（`chain.len() == 1`）には新たな transform は書き込まれ
+        // ないため、そこまで scope に入れると無関係な属性/テキスト更新が
+        // 同リスト内の進行中の共有レイアウト遷移を中断してしまう（Cursor
+        // Bugbot 指摘「Stop scope includes non-playing lists」是正）。
         #[cfg(feature = "layout-animation")]
         {
             for field in dirty {
@@ -1349,8 +1353,8 @@ where
                     crate::shared_layout::stop_within(root, &element);
                 }
             }
-            for (captured_list, _) in &flip_captured {
-                crate::shared_layout::stop_within(root, captured_list);
+            for (target_list, _) in &flip_target_lists {
+                crate::shared_layout::stop_within(root, target_list);
             }
         }
 
