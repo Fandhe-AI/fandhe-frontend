@@ -70,6 +70,7 @@
 
 pub mod animate;
 pub mod canvas_target;
+pub mod carousel;
 pub mod confetti;
 pub mod cursor;
 pub mod dom_target;

@@ -221,6 +221,7 @@
 //! | `Runtime::wire_hold_to_confirm` | `hold-to-confirm` |
 //! | `Runtime::wire_add_to_basket` | `add-to-basket` |
 //! | `Runtime::wire_magnetic` | `magnetic` |
+//! | `Runtime::wire_carousel_motion` | `carousel-motion` |
 //! | `Runtime::wire_text_animation` | `text-animation` |
 //! | `Runtime::wire_cursor` | `cursor` |
 //!
@@ -461,6 +462,8 @@ pub mod add_to_basket;
 pub mod angle_slider;
 #[cfg(feature = "animation-driver")]
 pub mod animation_driver;
+#[cfg(feature = "carousel-motion")]
+pub mod carousel_motion;
 pub mod chart;
 pub mod chart_range;
 pub mod command;
@@ -1916,6 +1919,13 @@ where
         Self::wire_add_to_basket(root.clone())?;
         #[cfg(feature = "magnetic")]
         Self::wire_magnetic(root.clone())?;
+        #[cfg(feature = "carousel-motion")]
+        Self::wire_carousel_motion(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
         #[cfg(feature = "text-animation")]
         let text_animation_loops = std::rc::Rc::new(std::cell::RefCell::new(
             Self::wire_text_animation(root.clone())?,
@@ -2120,6 +2130,13 @@ where
         Self::wire_add_to_basket(root.clone())?;
         #[cfg(feature = "magnetic")]
         Self::wire_magnetic(root.clone())?;
+        #[cfg(feature = "carousel-motion")]
+        Self::wire_carousel_motion(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
         #[cfg(feature = "text-animation")]
         let text_animation_loops = std::rc::Rc::new(std::cell::RefCell::new(
             Self::wire_text_animation(root.clone())?,
@@ -3189,6 +3206,32 @@ where
     #[cfg(feature = "magnetic")]
     fn wire_magnetic(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         magnetic::wire_magnetic(root)
+    }
+
+    /// carousel のドラッグ + spring スナップ配線
+    /// （[`carousel_motion::wire_carousel_motion_events`]、イシュー #2541）
+    /// を登録する。settle 完了時に `"goto"` を dispatch するため
+    /// `Self::wire` の閉包（[`Self::wire_angle_slider`] と同型）を渡す。
+    ///
+    /// # Errors
+    ///
+    /// [`carousel_motion::wire_carousel_motion_events`]
+    /// （`add_event_listener_with_callback` の失敗）を伝播する。
+    #[cfg(feature = "carousel-motion")]
+    fn wire_carousel_motion(
+        component: std::rc::Rc<std::cell::RefCell<C>>,
+        root: web_sys::Element,
+        binding_table: std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
+    ) -> Result<(), wasm_bindgen::JsValue> {
+        carousel_motion::wire_carousel_motion_events(
+            root.clone(),
+            Self::wire(component, root, binding_table, keyed_list_cache),
+        )
     }
 
     /// typewriter/scramble の配線（[`text_animation::wire_text_animation`]、
