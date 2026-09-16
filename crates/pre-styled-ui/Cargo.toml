@@ -3529,9 +3529,17 @@ name = "fandhe-frontend-pre-styled-ui"
 # origin/main の到達値 0.211.0 より低いため、list_motion モジュール新設を
 # 統合するにあたり origin/main の到達値からさらに +1 minor して 0.212.0
 # とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
-version = "0.212.0"
-
-
+#
+# イシュー #2539: `stat_motion`（`motion` feature 配下）を新設し、stat の
+# 数値カウントアップ opt-in（`count_up_value_text`/`Theme::
+# to_css_with_stat_motion`）を追加した。新規公開 API 純追加のため minor
+# バンプする。
+#
+# マージコミット注記（origin/main #2589 到達点との統合）: origin/main は
+# 0.212.0（list_motion 込み）へ到達済み。本ブランチの `stat_motion` 新設を
+# 統合するにあたり、origin/main の到達値からさらに +1 して 0.213.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+version = "0.213.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

@@ -692,7 +692,10 @@ const FIELD_CROSS_WRAPPERS: &[&str] = &["field", "input", "native_select", "text
 /// （`motion` feature 配下の opt-in 追加装飾。既存 `carousel` 部品への
 /// coverflow/ドラッグ + spring スナップ拡張であり、独立した
 /// `/themes/carousel-motion/` ページは持たない——`button_motion`/
-/// `border_beam` と同型）を同じ理由で追加した。
+/// `border_beam` と同型）を同じ理由で追加した。イシュー #2539 で `stat_motion`（`motion`
+/// feature 配下の stat 数値カウントアップ opt-in。既存 `stat` 部品への
+/// 追加装飾であり独立した `/themes/stat-motion/` ページは持たない、
+/// `crate::stat_motion` モジュール doc 参照）を同じ理由で追加した。
 const NON_PAGE_TOP_LEVEL: &[&str] = &[
     "border_beam",
     "button_motion",
@@ -705,6 +708,7 @@ const NON_PAGE_TOP_LEVEL: &[&str] = &[
     "list_motion",
     "motion",
     "recipe",
+    "stat_motion",
     "stylesheet",
     "text_reveal",
     "theme",
@@ -1088,8 +1092,14 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        133,
-        "src/*.rs の総数が想定と異なります（イシュー #2544 で \
+        134,
+        "src/*.rs の総数が想定と異なります（マージコミット注記（origin/main #2589 到達点との統合）: origin/main は \
+         133（list_motion 込み）へ到達済みで、本ブランチの stat_motion.rs を \
+         統合し 133 → 134。イシュー #2539 で \
+         stat_motion.rs を新設。`motion` feature 配下の \
+         stat 数値カウントアップ opt-in（既存 stat 部品への追加装飾）で \
+         単体の Themes ページを持たないため NON_PAGE_TOP_LEVEL 分類 \
+         （`button_motion`/`forms_motion` と同型）。イシュー #2544 で \
          list_motion.rs を新設し 132 → 133。`motion` feature 配下の \
          list 追加・削除 opt-in 遷移 CSS（enter_css()・exit_css()）で \
          単体の Themes ページを持たないため NON_PAGE_TOP_LEVEL 分類 \

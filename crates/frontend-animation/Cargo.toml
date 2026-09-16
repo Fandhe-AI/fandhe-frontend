@@ -132,7 +132,23 @@ name = "fandhe-frontend-animation"
 # 0.16.1（上記 PR #2578 レビュー是正の patch バンプ）と同一版数へ衝突した
 # ため、`.claude/rules/coding-rust.md` #638 条項の「同一版数も衝突として
 # +1」運用に従いさらに +1 して 0.16.2 とする。
-version = "0.16.2"
+#
+# イシュー #2539（本マージで判明した並行差分）: `count_up` モジュール
+# （数値カウントアップ、`NumberText`/`start`/`write_final` 等の新規公開
+# API）を新設。新規公開 API 追加のため minor バンプする（#638 条項）。
+#
+# PR #2580 レビュー是正（codex-review P1 指摘・Bugbot Medium 指摘）:
+# `TextTarget`/`write_final`/`start` の `self_write: Rc<Cell<bool>>` を
+# `self_write_count: Rc<Cell<u32>>` へ変更した（自己書き込みと外部更新が
+# 同じ同期処理内で両方発生した場合に外部更新を取りこぼす回帰の是正、新規
+# 公開関数 `has_external_mutation` の追加）。既存公開関数のシグネチャ変更
+# を伴う破壊的変更のため minor バンプする。origin/main の到達値 0.16.1 と
+# 組み合わせるため 0.17.0 とする（#638 条項）。
+#
+# マージコミット注記（origin/main #2578 との統合）: origin/main は 0.16.2 へ
+# 到達したが、本ブランチの到達値 0.17.0 はこれを上回るため、そのまま
+# 0.17.0 を維持する（さらなる衝突バンプ不要）。
+version = "0.17.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"
@@ -262,6 +278,14 @@ web-sys = { version = "0.3", features = [
   # の inherent メソッドであり、別 feature の有効化を要しない）。新規
   # 外部パッケージの追加はない。
   "NodeList",
+  # イシュー #2539（PR #2580 codex-review P1 是正）: `count_up::value_text_node`
+  # が stat の数値テキストノードだけを書き換える（`value_unit`/
+  # `up_indicator` 等の兄弟子要素を保持する）ために `Text`（`Node` からの
+  # `dyn_into`）と `CharacterData`（`data()`/`set_data()`）を追加する。
+  # 新規外部パッケージの追加はない（既存 `web-sys` の feature 追加のみ、
+  # wasm-full は両 feature を既に有効化済み）。
+  "Text",
+  "CharacterData",
 ] }
 wasm-bindgen-futures = "0.4"
 

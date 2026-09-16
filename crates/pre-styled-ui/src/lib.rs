@@ -850,6 +850,8 @@ pub mod sparkline;
 pub mod spinner;
 pub mod splitter;
 pub mod stat;
+#[cfg(feature = "motion")]
+pub mod stat_motion;
 pub mod status;
 pub mod steps;
 pub mod strong;
