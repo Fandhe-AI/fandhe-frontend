@@ -3528,7 +3528,7 @@ name = "fandhe-frontend-pre-styled-ui"
 # への CSS 漏れ（coverflow/drag 双方の item-group/item セレクタ）を
 # `:not()` ガードで塞ぐ実装変更のため、`.claude/rules/coding-rust.md`
 # #638 条項に従いさらに +1 minor して 0.210.0 とする。
-version = "0.210.0"
+version = "0.211.0"
 
 
 edition = "2021"

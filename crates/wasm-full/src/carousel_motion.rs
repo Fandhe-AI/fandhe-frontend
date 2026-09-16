@@ -205,7 +205,7 @@ mod wiring {
     use crate::events::ActionRef;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Element, Event};
+    use web_sys::{Element, Event, Node};
 
     /// `[data-fandhe-carousel-drag]` を `closest()` で辿るためのセレクタ。
     const CAROUSEL_ROOT_SELECTOR: &str = "[data-fandhe-carousel-drag]";
@@ -870,6 +870,24 @@ mod wiring {
     /// 全く無関係な次の `click`（別の trigger/indicator クリック等）まで
     /// 誤って止めてしまっていた。是正として `pointerup` のときのみ
     /// `suppress_click` を設定する。
+    ///
+    /// # `lostpointercapture` を pointer_id だけで終了扱いしない理由
+    /// （codex-review 指摘 是正、イシュー #2541）
+    ///
+    /// [`handle_pointermove`] は移動閾値超過の最初の 1 回のみ
+    /// `item_group.set_pointer_capture()` を呼ぶが、タッチ環境では
+    /// `pointerdown` した子要素（item 自身）が暗黙 capture を既に
+    /// 保持していることがある。この状態で `item_group` へ明示 capture
+    /// すると、ブラウザは暗黙 capture 元の要素から `item_group` へ
+    /// capture を移管し、**喪失元の旧要素**で `lostpointercapture` が
+    /// 発火してバブルする（Pointer Events 仕様の capture 移管手順）。
+    /// この委譲リスナーは `pointer_id` の一致だけで [`DragMeta`] を
+    /// 取り出していたため、指を離していないのにこの移管イベントを
+    /// ドラッグ終了と誤認し `"goto"` を dispatch していた。是正として
+    /// `lostpointercapture` に限り `event.target()` が現在の capture
+    /// 保持先（`meta.item_group` 自身）と一致する場合のみ終了処理へ進み、
+    /// 一致しない（＝他要素からの移管に伴う副次発火）場合は [`DragMeta`]
+    /// を取り出さずドラッグを継続する。
     fn handle_pointer_release(
         event: &Event,
         root: &Element,
@@ -884,6 +902,21 @@ mod wiring {
             return;
         };
         let mut drag_guard = drag.borrow_mut();
+        if event.type_() == "lostpointercapture" {
+            let Some(meta_ref) = drag_guard.as_ref() else {
+                return;
+            };
+            let item_node: &Node = &meta_ref.item_group;
+            let is_item_group = event
+                .target()
+                .and_then(|target| target.dyn_into::<Node>().ok())
+                .is_some_and(|target| target.is_same_node(Some(item_node)));
+            if !is_item_group {
+                // capture 移管に伴う旧要素側の副次発火（doc 上記参照）。
+                // ドラッグは継続中のため DragMeta を取り出さない。
+                return;
+            }
+        }
         let meta = drag_guard
             .take()
             .expect("find_active_slot が Some を確認済み");

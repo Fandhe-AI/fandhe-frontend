@@ -1303,7 +1303,7 @@ name = "fandhe-frontend-wasm-full"
 # root/item-group 誤結合の是正・release 時の途中進行値フラッシュ防止の
 # 実装変更のため、`.claude/rules/coding-rust.md` #638 条項に従いさらに +1
 # minor して 0.38.0 とする。
-version = "0.38.0"
+version = "0.39.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
