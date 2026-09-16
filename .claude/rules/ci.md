@@ -192,7 +192,13 @@
   `blocks/text-split-reveal/index.html`（イシュー #2546、`heading`/`text`/
   `button` を合成した hero。見出しは `text_reveal::chars`、リード文は
   `text_reveal::words` で SSR のみの reveal を行い、Blocks が
-  `text_reveal::TEXT_REVEAL_CSS` を初めて `push_css` する消費者となった）
+  `text_reveal::TEXT_REVEAL_CSS` を初めて `push_css` する消費者となった）/
+  `blocks/game-ui-modal/index.html`（イシュー #2552、Motion+
+  `examples/game-ui` を参照した `dialog`/`badge`/`button` の合成 block。
+  scale + spring 入場は既存の `motion::ZOOM_IN_KEYFRAMES_NAME` +
+  `theme::SPRING_EASING_LINEAR`、報酬行の順送り出現は既存の
+  `recipe::STAGGER_INDEX_VAR` を再利用し、新規部品・wasm-full/
+  frontend-animation の変更は行わない）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

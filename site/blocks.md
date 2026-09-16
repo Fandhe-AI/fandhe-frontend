@@ -35,4 +35,5 @@ UI コンポーネントを追加するものではありません**。ログイ
 - [hero-parallax-layers](./blocks/hero-parallax-layers.md)
 - [hero-terminal](./blocks/hero-terminal.md)
 - [text-split-reveal](./blocks/text-split-reveal.md)
+- [game-ui-modal](./blocks/game-ui-modal.md)
 

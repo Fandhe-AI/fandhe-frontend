@@ -240,6 +240,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-parallax-layers/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-terminal/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/text-split-reveal/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/game-ui-modal/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/blocks.css"
 
       - name: Upload dist artifact

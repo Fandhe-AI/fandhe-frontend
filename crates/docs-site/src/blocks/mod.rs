@@ -77,6 +77,7 @@ mod cta_signup_celebrate;
 mod cursor_hover_cards;
 mod dashboard_01;
 mod feature_expand;
+mod game_ui_modal;
 mod hero_editorial_stagger;
 mod hero_parallax_layers;
 mod hero_terminal;
@@ -196,6 +197,7 @@ pub const BLOCKS: &[Block] = &[
     hero_parallax_layers::BLOCK,
     hero_terminal::BLOCK,
     text_split_reveal::BLOCK,
+    game_ui_modal::BLOCK,
 ];
 
 /// `page_path` に対応する [`Block`] を返す（block ページでなければ `None`）。
@@ -292,6 +294,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(hero_terminal::LAYOUT_CSS)?;
     sheet.push_css(fandhe_frontend_pre_styled_ui::text_reveal::TEXT_REVEAL_CSS)?;
     sheet.push_css(text_split_reveal::LAYOUT_CSS)?;
+    sheet.push_css(&game_ui_modal::layout_css())?;
     Ok(sheet)
 }
 

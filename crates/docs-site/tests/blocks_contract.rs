@@ -2106,3 +2106,145 @@ fn text_split_reveal_composes_expected_parts() {
         );
     }
 }
+
+/// game-ui-modal ページの Demo クラス・両スタイルシート・
+/// `data-blocks-game-ui-modal-*` CSS フックが実際に出力され、
+/// `blocks::stylesheet()` にも対応するセレクタ・keyframes 名・spring
+/// イージング・stagger 変数が存在することを固定する（イシュー #2552）。
+#[test]
+fn game_ui_modal_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/game-ui-modal/index.html"))
+        .expect("blocks/game-ui-modal/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-game-ui-modal\""),
+        "game-ui-modal page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "game-ui-modal page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "game-ui-modal page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-game-ui-modal-root=\"\"",
+        "data-blocks-game-ui-modal-content=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "game-ui-modal page should output the {hook} CSS hook attribute"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-game-ui-modal-reward=\"\"")
+            .count(),
+        3,
+        "game-ui-modal should render exactly 3 reward rows"
+    );
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        ".blocks-game-ui-modal [data-scope=\"dialog\"][data-part=\"backdrop\"]",
+        ".blocks-game-ui-modal [data-scope=\"dialog\"][data-part=\"positioner\"]",
+        "[data-blocks-game-ui-modal-reward]",
+        fandhe_frontend_pre_styled_ui::motion::ZOOM_IN_KEYFRAMES_NAME,
+        fandhe_frontend_pre_styled_ui::motion::SLIDE_FROM_BOTTOM_KEYFRAMES_NAME,
+        fandhe_frontend_pre_styled_ui::theme::SPRING_EASING_LINEAR,
+        fandhe_frontend_pre_styled_ui::recipe::STAGGER_INDEX_VAR,
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare/reference {needle} for game-ui-modal"
+        );
+    }
+}
+
+/// game-ui-modal の合成部品（dialog/badge/button）が期待どおりの構成で
+/// 実際に出力されていること（backdrop/positioner/content/title/footer の
+/// `data-scope="dialog"`・報酬 badge・ボタン 2 個・`aria-labelledby` の id
+/// 対応）、`<form>`・`data-part="trigger"`・`<script` を持ち込んでいないこと
+/// を固定する（イシュー #2552）。
+#[test]
+fn game_ui_modal_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/game-ui-modal/index.html"))
+        .expect("blocks/game-ui-modal/index.html should be generated");
+    for needle in [
+        "data-scope=\"dialog\" data-part=\"backdrop\"",
+        "data-scope=\"dialog\" data-part=\"positioner\"",
+        "data-scope=\"dialog\" data-part=\"content\"",
+        "data-scope=\"dialog\" data-part=\"title\"",
+        "data-scope=\"dialog\" data-part=\"description\"",
+        "data-scope=\"dialog\" data-part=\"body\"",
+        "data-scope=\"dialog\" data-part=\"footer\"",
+        "data-scope=\"badge\"",
+        "data-state=\"open\"",
+    ] {
+        assert!(
+            html.contains(needle),
+            "game-ui-modal page should contain {needle}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-scope=\"button\"").count(),
+        2,
+        "game-ui-modal should render exactly 2 buttons (Later / Claim rewards)"
+    );
+    assert!(
+        html.contains(r#"id="blocks-game-ui-modal-title""#)
+            && html.contains(r#"aria-labelledby="blocks-game-ui-modal-title""#),
+        "game-ui-modal content should be labelled by the title id"
+    );
+    // "<script" はページ全体に site.js 読み込みタグが常に存在するため
+    // ここでは検査しない（demo() 出力自体の検査は
+    // `demo_output_never_leaks_an_unescaped_script_tag` が全 block 横断で
+    // 既に担う）。
+    for absent in ["<form", "data-part=\"trigger\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "game-ui-modal should never contain {absent}"
+        );
+    }
+}
+
+/// game-ui-modal の CSS が生の `ms` 数値・無限反復（`infinite`）・
+/// scroll-driven（`animation-timeline`）を持ち込まず、`animation-duration`/
+/// `-delay` が `--fandhe-motion-duration-*` トークン参照のみで組み立てられ
+/// ていることを固定する（`testimonials_stack_uses_motion_tokens_not_raw_durations`
+/// と同型、イシュー #2552）。
+///
+/// 検証範囲は `game_ui_modal::layout_css()` に相当する連結済み CSS 中の
+/// 範囲（`.blocks-game-ui-modal.blocks-demo` セレクタから次 block
+/// （`game-ui-modal` は Blocks レジストリ末尾に登録済みのため CSS 末尾）
+/// までの部分文字列）に限定する。`bento-staggered` が
+/// `animation-timeline: view()` を、`motion::KEYFRAMES_CSS` 側が
+/// `infinite`（bounce/shake keyframes 向け rustdoc 例示、CSS 本体には
+/// 出現しない）をそれぞれ別ブロックで正当に使うため、結合済み
+/// `blocks.css` 全体に対する `!contains` はそれらを誤検知する。
+#[test]
+fn game_ui_modal_css_uses_motion_tokens_and_no_infinite_keyframes() {
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    let start = sheet_css
+        .find(".blocks-game-ui-modal.blocks-demo")
+        .expect("blocks.css should declare the game-ui-modal layout block");
+    let game_ui_modal_css = &sheet_css[start..];
+    assert!(
+        !game_ui_modal_css.contains("infinite"),
+        "game-ui-modal should not declare an infinitely repeating animation"
+    );
+    assert!(
+        !game_ui_modal_css.contains("animation-timeline"),
+        "game-ui-modal should not use scroll-driven animation-timeline"
+    );
+    assert!(
+        game_ui_modal_css.contains("var(--fandhe-motion-duration-"),
+        "game-ui-modal CSS should reference a --fandhe-motion-duration-* token"
+    );
+}
