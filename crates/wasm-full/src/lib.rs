@@ -225,6 +225,7 @@
 //! | `Runtime::wire_carousel_motion` | `carousel-motion` |
 //! | `Runtime::wire_text_animation` | `text-animation` |
 //! | `Runtime::wire_cursor` | `cursor` |
+//! | `Runtime::wire_count_up` | `count-up` |
 //!
 //! [`overlay`]/[`tooltip`]/[`position`]/[`focus_trap`]/[`headless_file_upload`]/
 //! [`headless_select`] は `Runtime` を経由しないアプリ側直接利用 API のため
@@ -471,6 +472,8 @@ pub mod command;
 #[cfg(feature = "confetti")]
 pub mod confetti;
 pub mod content_height;
+#[cfg(feature = "count-up")]
+pub mod count_up;
 pub mod csr;
 #[cfg(feature = "cursor")]
 pub mod cursor;
@@ -2036,6 +2039,8 @@ where
         ));
         #[cfg(feature = "cursor")]
         Self::wire_cursor(root.clone())?;
+        #[cfg(feature = "count-up")]
+        Self::wire_count_up(root.clone())?;
 
         Ok(Self {
             component,
@@ -2249,6 +2254,8 @@ where
         ));
         #[cfg(feature = "cursor")]
         Self::wire_cursor(root.clone())?;
+        #[cfg(feature = "count-up")]
+        Self::wire_count_up(root.clone())?;
 
         Ok(Self {
             component,
@@ -3326,6 +3333,20 @@ where
     #[cfg(feature = "ticker")]
     fn wire_ticker(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         ticker::wire_ticker(root)
+    }
+
+    /// stat の数値カウントアップ（[`count_up::wire_count_up`]、イシュー
+    /// #2539）を登録する。`dispatch` チャネルを持たない属性専用配線の
+    /// ため（`Self::wire_magnetic`/`Self::wire_hold_to_confirm` と同型）、
+    /// `Component`/`binding_table`/`keyed_list_cache` を必要としない。
+    ///
+    /// # Errors
+    ///
+    /// 本関数自体は失敗しない（`count_up::wire_count_up` が `Result` を
+    /// 返すシグネチャのため伝播する）。
+    #[cfg(feature = "count-up")]
+    fn wire_count_up(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        count_up::wire_count_up(&root)
     }
 
     /// carousel のドラッグ + spring スナップ配線

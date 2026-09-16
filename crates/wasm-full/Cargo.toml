@@ -1372,7 +1372,33 @@ name = "fandhe-frontend-wasm-full"
 # 0.40.2 へ到達していたため、`.claude/rules/coding-rust.md` #638 条項の
 # 「同一版数も衝突として +1」運用に従い 0.40.3 とする。`fandhe-frontend-
 # animation` の依存 `version` 要求は統合バンプ値 0.16.3 へ追随する。
-version = "0.40.3"
+#
+# イシュー #2539（本マージで判明した並行差分）: `count_up` モジュール
+# （stat の数値カウントアップ配線、`Self::wire_count_up`・feature
+# `count-up`〔既定 on〕）を新設。新規公開 API 追加のため minor バンプ
+# する（#638 条項）。
+#
+# PR #2580 レビュー是正: `count_up.rs` の自己書き込み検知を
+# `fandhe-frontend-animation` の `self_write_count`（`Rc<Cell<u32>>`）へ
+# 追随させた（内部実装のみ、公開 API のシグネチャは不変）ため patch
+# バンプする。あわせて `fandhe-frontend-animation` の依存 `version` 要求
+# を本マージでの統合バンプ値 0.17.0 へ追随する（`xtask
+# check-dep-versions --fix` 相当）。origin/main の到達値 0.40.1 と
+# 組み合わせるため 0.40.2 とする。
+#
+# マージコミット注記（origin/main #2578 との統合）: origin/main はイシュー
+# #2536（shared_layout）統合で 0.40.2 へ到達しており、本ブランチの到達値
+# 0.40.2 と同一版数で衝突したため、`.claude/rules/coding-rust.md` #638 条項の
+# 「同一版数も衝突として +1」運用に従いさらに +1 して 0.40.3 とする。
+# `fandhe-frontend-animation` の依存 `version` 要求は本ブランチの到達値
+# 0.17.0（main の 0.16.2 より上）を維持する。
+#
+# マージコミット注記（origin/main #2580 との統合、PR #2582）: origin/main は
+# `count-up` feature 統合で 0.40.3 へ到達し、本ブランチも独立に 0.40.3 へ
+# 到達していたため、#638 条項の「同一版数も衝突として +1」運用に従い
+# 0.40.4 とする。`fandhe-frontend-animation` の依存 `version` 要求は統合
+# バンプ値 0.17.1 へ追随する。
+version = "0.40.4"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1725,11 +1751,11 @@ js-sys = "0.3"
 # check-dep-versions --fix` 相当）。
 #
 # マージコミット注記（origin/main #2585 との統合、本クレート package
-# version 0.40.2 への統合バンプに追随）: `fandhe-frontend-animation` の
-# 依存 `version` 要求を統合到達値 0.16.2 へ追随する（`xtask
-# check-dep-versions --fix` 相当）。PR #2582 の再取り込み（origin/main
-# #2578 統合）で 0.16.3 へ追随する。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.16.3", optional = true }
+# version 0.40.3 への統合バンプに追随）: `fandhe-frontend-animation` の
+# 依存 `version` 要求を統合到達値 0.17.0 へ追随する。PR #2582 の再取り込み（origin/main
+# #2580 統合）で 0.17.1 へ追随する（`xtask
+# check-dep-versions --fix` 相当）。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.17.1", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の
@@ -1969,6 +1995,7 @@ default = [
   "carousel-motion",
   "text-animation",
   "cursor",
+  "count-up",
   "position",
   "stagger",
   "animation-driver",
@@ -2145,6 +2172,16 @@ text-animation = ["dep:fandhe-frontend-animation"]
 # `fandhe-frontend-animation::cursor`（`CursorAnimator`）の責務であり、
 # `cursor` モジュール自体は本 feature でのみコンパイルする。
 cursor = ["dep:fandhe-frontend-animation"]
+# イシュー #2539（親 #2528）: stat の数値カウントアップ（Motion+
+# AnimateNumber 相当）配線（`Runtime::mount`/`hydrate` の `Self::wire_count_up`
+# 呼び出し）専用の feature（既定 on）。`magnetic`/`hold-to-confirm` と同型
+# ——配線群かつ `dep:fandhe-frontend-animation` を有効化する feature。補間・
+# rAF ループ・textContent 書き込みは `fandhe-frontend-animation::count_up`
+# の責務であり、本 feature 配下の `count_up` モジュール自体は候補収集・
+# 属性パース・IntersectionObserver/MutationObserver 購読のみを担う
+# （`fandhe-frontend-animation::count_up` の型を直接使うため、`gesture` 等の
+# feature 非依存モジュールとは異なり本 feature でのみコンパイルする）。
+count-up = ["dep:fandhe-frontend-animation"]
 # イシュー #2209（親 #2208）: `headless::wire_headless_component` 内の
 # 自動 positioning 呼び出し（`ensure_global_controller`・
 # `reposition_within`）専用の feature。`position` モジュール自体・

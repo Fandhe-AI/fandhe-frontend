@@ -1086,6 +1086,18 @@ jobs:
           WASM_BINDGEN_TEST_TIMEOUT: "120"
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test carousel_motion_browser
 
+      # イシュー #2539: stat の数値カウントアップ（Motion+ AnimateNumber 相当）
+      # 統合テスト（crates/wasm-full/tests/count_up_browser.rs）。他の
+      # wasm-full ステップと同じ check-wasm-full 存在ガードを再利用し、
+      # 新規ガードは追加しない。`fandhe-frontend-animation::count_up` 自体の
+      # 補間・rAF ループの検証は crates/frontend-animation/tests/
+      # count_up_browser.rs が担う（上記「wasm-pack test: fandhe-frontend-
+      # animation」ステップ群、`--test` フィルタなしで新規追加分も自動的に
+      # 拾われるため ci.yml 側の追加ステップは不要）。
+      - name: Run wasm-full count-up browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test count_up_browser
+
       # イシュー #2532（text アニメーション部品）: text_animation
       # （crates/wasm-full/src/text_animation.rs）の候補走査・reduced-motion
       # 抑制・typewriter/scramble 完了時の全文一致の実ブラウザ統合テスト
@@ -2606,6 +2618,8 @@ jobs:
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,magnetic --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: carousel-motion, issue #2541)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,carousel-motion --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: count-up, issue #2539)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,count-up --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: text-animation, issue #2532)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,text-animation --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: ticker, issue #2540)"
