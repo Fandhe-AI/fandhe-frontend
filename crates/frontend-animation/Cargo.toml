@@ -99,7 +99,12 @@ name = "fandhe-frontend-animation"
 # モジュール新設という本ブランチに含まれない公開 API 追加を取り込むため、
 # `.claude/rules/coding-rust.md` #638 条項に従いさらに +1 minor して
 # 0.14.0 とする。
-version = "0.14.0"
+# PR #2581 レビュー是正（イシュー #2541 第 5 ラウンド）: settle 後の外部
+# index 変更との再同期（`resume_pointer_down`）・release 時の途中進行値
+# フラッシュ防止（`flush_current_progress`）を追加する実装変更のため、
+# `.claude/rules/coding-rust.md` #638 条項に従いさらに +1 minor して
+# 0.15.0 とする。
+version = "0.15.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"

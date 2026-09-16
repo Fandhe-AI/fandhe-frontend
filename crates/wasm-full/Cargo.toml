@@ -1299,7 +1299,11 @@ name = "fandhe-frontend-wasm-full"
 # `fandhe-frontend-animation` の依存 `version` 要求は 0.13.0 → 0.14.0
 # （本マージでの frontend-animation 統合バンプ値）へ追随する
 # （`xtask check-dep-versions --fix` 相当）。
-version = "0.37.0"
+# PR #2581 レビュー是正（イシュー #2541 第 5 ラウンド）: 入れ子 carousel の
+# root/item-group 誤結合の是正・release 時の途中進行値フラッシュ防止の
+# 実装変更のため、`.claude/rules/coding-rust.md` #638 条項に従いさらに +1
+# minor して 0.38.0 とする。
+version = "0.38.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1634,7 +1638,7 @@ js-sys = "0.3"
 # `fandhe-frontend-animation` 自体を 0.14.0 へ統合バンプしたため、
 # `version` 要求もその到達値 0.14.0 へ追随する（`xtask check-dep-versions
 # --fix` 相当）。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.14.0", optional = true }
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.15.0", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の

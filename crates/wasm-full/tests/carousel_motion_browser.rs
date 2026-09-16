@@ -56,9 +56,17 @@ async fn sleep_ms(ms: i32) {
 
 /// `root`（opt-in `drag_attr_value` 付き）> `item-group`（3 `item`、各
 /// `width: 100px`）を組み立てて返す。`drag_attr_value` が `None` なら
-/// opt-in 属性自体を付けない。
+/// opt-in 属性自体を付けない。`root` には実際の headless-ui 出力
+/// （`crates/headless-ui/src/carousel.rs::root`）と同じ
+/// `data-scope="carousel"`/`data-part="root"` を付与する（codex-review
+/// 指摘 是正 P1「入れ子 carousel の root/item-group 誤結合」の回帰検知
+/// （[`nested_carousel_...`] 系テスト）が `ANATOMY_ROOT_SELECTOR`
+/// （`[data-scope="carousel"][data-part="root"]`）による carousel root
+/// 解決へ依存するため、イシュー #2541 第 5 ラウンド）。
 fn build_dom(document: &Document, drag_attr_value: Option<&str>) -> (Element, Element) {
     let root = document.create_element("div").unwrap();
+    root.set_attribute("data-scope", "carousel").unwrap();
+    root.set_attribute("data-part", "root").unwrap();
     if let Some(value) = drag_attr_value {
         root.set_attribute(CAROUSEL_DRAG_ATTR, value).unwrap();
     }
@@ -727,5 +735,54 @@ async fn tap_during_settle_resumes_to_committed_target() {
     assert!(
         !root.has_attribute(CAROUSEL_DRAGGING_STATE_ATTR),
         "dragging state attribute should be cleared once the resumed settle completes"
+    );
+}
+
+/// codex-review 指摘 是正 P1 の回帰（イシュー #2541 第 5 ラウンド）:
+/// opt-in（drag）していない carousel が、opt-in している別の carousel の
+/// `item` 内へ入れ子で存在する構成で、内側 carousel 上をドラッグしても
+/// 外側の opt-in・状態（`TrackSlot`/`slide_count`）を借用してはならない。
+/// `handle_pointerdown` の `carousel_root`（[`CAROUSEL_ROOT_SELECTOR`]、
+/// opt-in 属性を持つ最も近い祖先）と `item_group_el` の anatomy 上の
+/// carousel root（`ANATOMY_ROOT_SELECTOR`、opt-in の有無を問わない）が
+/// 一致することを検証してから操作を開始する是正の直接確認。
+#[wasm_bindgen_test]
+async fn nested_non_opt_in_carousel_does_not_borrow_outer_drag_state() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (outer_root, outer_item_group) = build_dom(&document, Some(""));
+    let _outer_guard = RemoveOnDrop(outer_root.clone());
+
+    // 内側 carousel（opt-in なし）を外側の item-group 内へ入れ子で追加する。
+    let (inner_root, inner_item_group) = build_dom(&document, None);
+    inner_root.remove();
+    outer_item_group.append_child(&inner_root).unwrap();
+
+    let dispatched: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    let dispatched_for_cb = dispatched.clone();
+    wire_carousel_motion_events(outer_root.clone(), move |action_ref: ActionRef| {
+        dispatched_for_cb.borrow_mut().push(action_ref);
+    })
+    .unwrap();
+
+    // 内側 carousel の item 上でドラッグ操作を行う。
+    dispatch_pointer_event(&inner_item_group, "pointerdown", 0, 1);
+    dispatch_pointer_event(&inner_item_group, "pointermove", -150, 1);
+    dispatch_pointer_event(&inner_item_group, "pointerup", -150, 1);
+
+    assert!(
+        !outer_root.has_attribute(CAROUSEL_DRAGGING_STATE_ATTR),
+        "内側 carousel への操作が外側の opt-in root を巻き込んではならない"
+    );
+    assert!(
+        dispatched.borrow().is_empty(),
+        "opt-in していない内側 carousel の操作は goto を dispatch してはならない"
+    );
+    assert!(
+        read_index(&inner_item_group).is_none(),
+        "内側 carousel の item-group へ外側の spring が書き込んではならない"
+    );
+    assert!(
+        read_index(&outer_item_group).is_none(),
+        "外側の item-group も無関係な内側操作で書き換えられてはならない"
     );
 }

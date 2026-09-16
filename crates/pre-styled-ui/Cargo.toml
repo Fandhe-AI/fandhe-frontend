@@ -3524,7 +3524,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # cursor / toast_motion）はいずれも `border_beam`/`button_motion` と同型の
 # 新規公開 API 純追加であり、無効時の出力・依存グラフは不変
 # （`tests/motion_zero_cost.rs` 不変）。
-version = "0.209.0"
+# PR #2581 レビュー是正（イシュー #2541 第 5 ラウンド）: 入れ子 carousel
+# への CSS 漏れ（coverflow/drag 双方の item-group/item セレクタ）を
+# `:not()` ガードで塞ぐ実装変更のため、`.claude/rules/coding-rust.md`
+# #638 条項に従いさらに +1 minor して 0.210.0 とする。
+version = "0.210.0"
 
 
 edition = "2021"

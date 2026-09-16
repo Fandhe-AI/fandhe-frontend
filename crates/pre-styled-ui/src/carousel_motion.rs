@@ -78,8 +78,38 @@ pub const CAROUSEL_DRAG_ATTR: &str = "data-fandhe-carousel-drag";
 /// `transition` の競合を防ぐ。
 pub const CAROUSEL_DRAGGING_STATE_ATTR: &str = "data-fandhe-carousel-dragging";
 
+/// [`CAROUSEL_COVERFLOW_CSS`]/[`CAROUSEL_SPRING_SNAP_CSS`] 共通の入れ子
+/// carousel 除外ガード（codex-review/Cursor Bugbot 指摘 是正 P1、イシュー
+/// #2541 第 5 ラウンド）。
+///
+/// 素朴な子孫セレクタ `[data-fandhe-carousel-coverflow] [data-scope=
+/// "carousel"][data-part="item-group"]` は、外側 carousel だけへ
+/// coverflow/drag を opt-in した状態で、その `item` の中に**別の**
+/// （opt-in していない）carousel が丸ごと入れ子で存在する構成において、
+/// 内側 carousel の `item-group`/`item` にも一致してしまう（`root`/
+/// `item-group`/`item` は `[data-scope="carousel"]` を共有する anatomy
+/// のため、CSS の子孫結合子は入れ子の境界を区別できない）。内側が opt-in
+/// していないのに coverflow の絶対配置・transform や drag 用
+/// `touch-action`/`transition: none` を受け取ると、内側 carousel の表示が
+/// 壊れる（Cursor Bugbot 指摘の症状「item-group まで absolute 配置・
+/// transform 解除」・「touch-action/transition の漏れ」）。
+///
+/// 是正として、`[data-scope="carousel"][data-part="root"]`
+/// （`crates/headless-ui/src/carousel.rs::root` が必ず出力する anatomy
+/// root）のうち **opt-in 属性を持たないもの**を挟んで item-group/item に
+/// 到達する経路を `:not()` で除外する。外側 root（opt-in 属性あり）から
+/// 内側 root（opt-in 属性なし）を経て内側 item-group/item に至る経路は
+/// この `:not()` の内側セレクタに一致するため除外され、外側自身の
+/// item-group/item（間に opt-in なし root を挟まない）だけが残る。
+/// 内側 carousel 自身にも同じ opt-in 属性が付与されていれば、内側は
+/// 自分自身の opt-in root からの子孫として独立に一致し続けるため、
+/// 深さに関わらず両者とも意図どおりに表示される。`concat!` はリテラル
+/// トークンしか結合できないため、ガード文字列は各セレクタへ直接
+/// リテラルとしてインライン展開する（`const` 経由の再利用はしない）。
+///
 /// coverflow 3D 表示の CSS（[`COVERFLOW_ATTR`] 付き root の子孫のみに
-/// 閉じる）。
+/// 閉じる。入れ子 carousel への漏れは各セレクタの `:not(...)` ガードが
+/// 塞ぐ）。
 ///
 /// `--_o`（並び順の相対オフセット、`stagger-index - carousel-index`）から
 /// `translateX`/`rotateY`/`translateZ` を合成する。`abs()`/`sign()` は
@@ -98,7 +128,9 @@ pub const CAROUSEL_DRAGGING_STATE_ATTR: &str = "data-fandhe-carousel-dragging";
 /// 広げる（寸法を `item-group` と厳密に一致させ、`overflow: hidden` と
 /// 組み合わせても中身が隠れない）。
 pub const CAROUSEL_COVERFLOW_CSS: &str = concat!(
-    "[data-fandhe-carousel-coverflow] [data-scope=\"carousel\"][data-part=\"item-group\"] {\n",
+    "[data-fandhe-carousel-coverflow] [data-scope=\"carousel\"][data-part=\"item-group\"]",
+    ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-coverflow]) [data-scope=\"carousel\"][data-part=\"item-group\"])",
+    " {\n",
     "  transform: none;\n",
     "  perspective: var(--fandhe-carousel-coverflow-perspective, 800px);\n",
     "  transform-style: preserve-3d;\n",
@@ -106,7 +138,9 @@ pub const CAROUSEL_COVERFLOW_CSS: &str = concat!(
     "  position: relative;\n",
     "  height: var(--fandhe-carousel-coverflow-height, var(--fandhe-carousel-height, 20rem));\n",
     "}\n",
-    "[data-fandhe-carousel-coverflow] [data-scope=\"carousel\"][data-part=\"item\"] {\n",
+    "[data-fandhe-carousel-coverflow] [data-scope=\"carousel\"][data-part=\"item\"]",
+    ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-coverflow]) [data-scope=\"carousel\"][data-part=\"item\"])",
+    " {\n",
     "  --_o: calc(var(--fandhe-motion-stagger-index, 0) - var(--fandhe-carousel-index, 0));\n",
     "  --_abs-o: max(var(--_o), calc(-1 * var(--_o)));\n",
     "  position: absolute;\n",
@@ -129,7 +163,9 @@ pub const CAROUSEL_COVERFLOW_CSS: &str = concat!(
     // 縦方向は translateY/rotateX に置換した同型の 1 ブロック（`--_o`/
     // `--_abs-o` は orientation を問わない上のブロックが既に定義済みの
     // ため、ここでは `transform` の上書きのみで足りる）。
-    "[data-fandhe-carousel-coverflow] [data-scope=\"carousel\"][data-part=\"item\"][data-orientation=\"vertical\"] {\n",
+    "[data-fandhe-carousel-coverflow] [data-scope=\"carousel\"][data-part=\"item\"][data-orientation=\"vertical\"]",
+    ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-coverflow]) [data-scope=\"carousel\"][data-part=\"item\"])",
+    " {\n",
     "  transform: translateY(calc(var(--_o) * var(--fandhe-carousel-coverflow-spread, 55%)))\n",
     "    rotateX(calc(clamp(-1, var(--_o), 1) * var(--fandhe-carousel-coverflow-angle, 45deg)))\n",
     "    translateZ(calc(-1 * var(--_abs-o) * var(--fandhe-carousel-coverflow-depth, 60px)));\n",
@@ -154,15 +190,22 @@ pub const CAROUSEL_COVERFLOW_CSS: &str = concat!(
 /// 競合し `pointercancel` を誘発する。縦方向は軸を反転し
 /// `pan-x`（横方向のみ委譲、縦方向はドラッグ処理が専有）を宣言する。
 pub const CAROUSEL_SPRING_SNAP_CSS: &str = concat!(
-    "[data-fandhe-carousel-drag] [data-scope=\"carousel\"][data-part=\"item-group\"] {\n",
+    "[data-fandhe-carousel-drag] [data-scope=\"carousel\"][data-part=\"item-group\"]",
+    ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-drag]) [data-scope=\"carousel\"][data-part=\"item-group\"])",
+    " {\n",
     "  touch-action: pan-y;\n",
     "  cursor: grab;\n",
     "}\n",
-    "[data-fandhe-carousel-drag] [data-scope=\"carousel\"][data-part=\"item-group\"][data-orientation=\"vertical\"] {\n",
+    "[data-fandhe-carousel-drag] [data-scope=\"carousel\"][data-part=\"item-group\"][data-orientation=\"vertical\"]",
+    ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-drag]) [data-scope=\"carousel\"][data-part=\"item-group\"])",
+    " {\n",
     "  touch-action: pan-x;\n",
     "}\n",
-    "[data-fandhe-carousel-drag][data-fandhe-carousel-dragging] [data-scope=\"carousel\"][data-part=\"item-group\"],\n",
-    "[data-fandhe-carousel-drag][data-fandhe-carousel-dragging] [data-scope=\"carousel\"][data-part=\"item\"] {\n",
+    "[data-fandhe-carousel-drag][data-fandhe-carousel-dragging] [data-scope=\"carousel\"][data-part=\"item-group\"]",
+    ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-drag]) [data-scope=\"carousel\"][data-part=\"item-group\"]),\n",
+    "[data-fandhe-carousel-drag][data-fandhe-carousel-dragging] [data-scope=\"carousel\"][data-part=\"item\"]",
+    ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-drag]) [data-scope=\"carousel\"][data-part=\"item\"])",
+    " {\n",
     "  transition: none;\n",
     "  cursor: grabbing;\n",
     "}\n",
@@ -242,6 +285,30 @@ mod tests {
     fn spring_snap_css_flips_touch_action_axis_for_vertical() {
         let css = carousel_motion_css();
         assert!(css.contains("touch-action: pan-y;"));
-        assert!(css.contains("[data-orientation=\"vertical\"] {\n  touch-action: pan-x;"));
+        assert!(css.contains("[data-orientation=\"vertical\"]:not("));
+        assert!(css.contains(") {\n  touch-action: pan-x;"));
+    }
+
+    /// 入れ子 carousel への漏れ防止ガード（codex-review/Cursor Bugbot 指摘
+    /// 是正 P1、イシュー #2541 第 5 ラウンド）の回帰防止: coverflow/drag
+    /// いずれの CSS も、opt-in 属性を持たない `[data-part="root"]` を挟む
+    /// item-group/item への到達経路を `:not()` で除外する。
+    #[test]
+    fn coverflow_and_drag_css_exclude_nested_non_opt_in_carousel() {
+        let coverflow = CAROUSEL_COVERFLOW_CSS;
+        assert!(coverflow.contains(
+            ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-coverflow]) [data-scope=\"carousel\"][data-part=\"item-group\"])"
+        ));
+        assert!(coverflow.contains(
+            ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-coverflow]) [data-scope=\"carousel\"][data-part=\"item\"])"
+        ));
+
+        let drag = CAROUSEL_SPRING_SNAP_CSS;
+        assert!(drag.contains(
+            ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-drag]) [data-scope=\"carousel\"][data-part=\"item-group\"])"
+        ));
+        assert!(drag.contains(
+            ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-drag]) [data-scope=\"carousel\"][data-part=\"item\"])"
+        ));
     }
 }

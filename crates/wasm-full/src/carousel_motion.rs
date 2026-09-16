@@ -135,6 +135,22 @@
 //! [`ACTION_INPUT_ATTR`]/[`ACTION_CHANGE_ATTR`] と同型の「著者が明示指定
 //! するアクション名属性」契約）を carousel root へ付与できるようにし、
 //! 指定があればそれを、無ければ後方互換のため `"goto"` を使う。
+//!
+//! # 入れ子 carousel の root/item-group 誤結合（codex-review 指摘 是正
+//! P1、イシュー #2541 第 5 ラウンド）
+//!
+//! `handle_pointerdown` は `carousel_root`（[`wiring::CAROUSEL_ROOT_SELECTOR`]、
+//! opt-in 属性を持つ最も近い祖先）と `item_group_el`（[`wiring::
+//! ITEM_GROUP_SELECTOR`]、最も近い `item-group` 祖先）を独立した 2 回の
+//! `closest()` で解決する。opt-in していない carousel が opt-in している
+//! 別の carousel の `item` 内へ丸ごと入れ子で存在する構成では、内側
+//! carousel の要素を操作した際にこの 2 つの `closest()` が異なる
+//! carousel（外側の opt-in root と内側の item-group）を指してしまい、
+//! 内側の操作が外側の `TrackSlot`/`slide_count` を借用して誤った
+//! `"goto"` を dispatch する。是正として `item_group_el` の anatomy 上の
+//! 最も近い carousel root（opt-in の有無を問わない
+//! `[data-scope="carousel"][data-part="root"]`）を別途解決し、
+//! `carousel_root` と一致しない場合は no-op にする。
 
 /// opt-in（著者が SSR 出力に静的に付与）: root へ付与するとドラッグ +
 /// spring スナップを有効化するマーカー属性。値は `""`（非 loop）または
@@ -193,6 +209,13 @@ mod wiring {
 
     /// `[data-fandhe-carousel-drag]` を `closest()` で辿るためのセレクタ。
     const CAROUSEL_ROOT_SELECTOR: &str = "[data-fandhe-carousel-drag]";
+    /// carousel の anatomy root（opt-in 属性の有無を問わない、
+    /// `crates/headless-ui/src/carousel.rs::root` が必ず出力する）を
+    /// `closest()` で辿るためのセレクタ。[`handle_pointerdown`] が
+    /// [`CAROUSEL_ROOT_SELECTOR`] と組み合わせて「入れ子 carousel の
+    /// root/item-group 誤結合」（codex-review 指摘 是正 P1、イシュー
+    /// #2541 第 5 ラウンド）を検知するために使う。
+    const ANATOMY_ROOT_SELECTOR: &str = "[data-scope=\"carousel\"][data-part=\"root\"]";
     /// `item-group` を `closest()` で辿るためのセレクタ
     /// （`crates/headless-ui/src/carousel.rs` の ANATOMY `data-scope`/
     /// `data-part` と一致）。
@@ -565,6 +588,27 @@ mod wiring {
         let Ok(Some(item_group_el)) = target.closest(ITEM_GROUP_SELECTOR) else {
             return;
         };
+        // `carousel_root`（[`CAROUSEL_ROOT_SELECTOR`]、opt-in 属性を持つ
+        // 祖先）と `item_group_el`（[`ITEM_GROUP_SELECTOR`]、最も近い
+        // item-group 祖先）は独立した 2 回の `closest()` で解決するため、
+        // opt-in していない carousel が opt-in している carousel の
+        // `item` 内へ入れ子で存在する構成では、`target` が内側 carousel
+        // 上にある場合に `carousel_root` は外側（内側に opt-in 属性が
+        // 無いため `closest()` が外側まで辿り着く）、`item_group_el` は
+        // 内側（`item-group` は内側の方が近い）という食い違った組が
+        // 得られてしまう（codex-review 指摘 是正 P1「入れ子 carousel の
+        // root/item-group 誤結合」、イシュー #2541 第 5 ラウンド）。
+        // `item_group_el` の**anatomy 上の**最も近い carousel root
+        // （opt-in の有無を問わない [`ANATOMY_ROOT_SELECTOR`]）を
+        // `carousel_root` と突き合わせ、一致しない場合は
+        // `item_group_el` が別の（opt-in していない）carousel に属する
+        // と判定して no-op にする。
+        let Ok(Some(owning_root)) = item_group_el.closest(ANATOMY_ROOT_SELECTOR) else {
+            return;
+        };
+        if !owning_root.is_same_node(Some(carousel_root.as_ref())) {
+            return;
+        }
         let Ok(item_group) = item_group_el.clone().dyn_into::<HtmlElement>() else {
             return;
         };
@@ -845,6 +889,19 @@ mod wiring {
         // `apply_subtree_swap` doc 参照）では `carousel_root.is_connected()`
         // が常に真のまま残るため、`item_group`（実際に書き込み先となる
         // 要素）の切断も合わせて判定する。
+        // ノードが切断されず（同一ノードのまま属性のみ再描画される
+        // キー付き diff 構成で）残っている場合、SSR が確定済み baseline
+        // 値でインライン style を上書きし得るため、次の rAF tick を待たず
+        // 現在の進行度を即座に書き戻す（codex-review 指摘 是正 P2「同一
+        // ノードへの更新後にも途中進行値を復元すべき」、イシュー #2541
+        // 第 5 ラウンド）。切断された場合は下の retarget 経路が同じ防止策
+        // （`CarouselTrack::retarget` 内の同種フラッシュ）を担う。
+        if meta.carousel_root.is_connected() && meta.item_group.is_connected() {
+            if let Some(t) = track.borrow().as_ref() {
+                t.flush_current_progress();
+            }
+        }
+
         if !meta.carousel_root.is_connected() || !meta.item_group.is_connected() {
             let mut track_guard = track.borrow_mut();
             if let Some(t) = track_guard.as_mut() {

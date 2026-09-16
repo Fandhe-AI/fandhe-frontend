@@ -248,6 +248,27 @@ mod wiring {
             self.settling.get()
         }
 
+        /// 現在の進行度（[`Self::progress`]）を [`Self::element`] へ
+        /// 即座に書き戻す（codex-review 指摘 是正 P2、イシュー #2541 第 5
+        /// ラウンド）。
+        ///
+        /// `"goto"` dispatch（同期）が `item_group` を切断せず**同一
+        /// ノードのまま**属性のみ再描画した場合（キー付き diff が DOM
+        /// ノードを再利用する構成）、SSR は確定済みの baseline 値
+        /// （整数の着地 index）でインライン style を上書きするため、次の
+        /// rAF tick が発火するまでの 1 フレーム分、DOM は着地点を表示
+        /// した直後に spring の途中経過値へ巻き戻る見た目のフラッシュを
+        /// 起こす（[`Self::retarget`] の「差し替え直後...フラッシュを
+        /// 防ぐ」節と同じ現象だが、ノードが切断されない＝
+        /// `is_connected()` が真のままの経路では `retarget` 自体が
+        /// 呼ばれず素通りしていた）。呼び出し側（wasm-full）は dispatch
+        /// 直後、`item_group`/`carousel_root` が**切断されていない**
+        /// （＝ [`Self::retarget`] を経由しない）場合にこれを呼び、
+        /// 同じ「即座に現在値を書き込む」防止策を適用する。
+        pub fn flush_current_progress(&self) {
+            self.write_progress(self.progress.get());
+        }
+
         /// `pointerdown` 相当の入力。進行中の spring を打ち切り、ドラッグ
         /// 起点を記録する。
         pub fn on_pointer_down(&mut self, client_x: f64, time_ms: f64) {
@@ -277,6 +298,27 @@ mod wiring {
         /// on_tap_release`]）が来た際、確定済みの着地先ではなく中断時点の
         /// 進行度から着地 index を再計算してしまい、既に確定した状態
         /// （dispatch 済みの index）と表示が食い違う不具合があった。
+        ///
+        /// # settle 後の外部 index 変更との再同期（codex-review/Cursor
+        /// Bugbot 指摘 是正、イシュー #2541 第 5 ラウンド）
+        ///
+        /// 本インスタンスは carousel root ごとに保持され続ける
+        /// （`crates/wasm-full/src/carousel_motion.rs` モジュール doc
+        /// 「`CarouselTrack` の保持責任」節参照）ため、settle 完了後に
+        /// アプリ側がこの track を経由しない別経路（例: 自動再生・別
+        /// アクションでの index 変更）で carousel の index を変え DOM が
+        /// 再描画されると、[`Self::progress`]/[`Self::last_target`] は
+        /// 古い値を保持し続ける。この状態で移動なしのタップが来ると
+        /// [`Self::on_tap_release`] が古い `last_target` へ収束させて
+        /// しまい、`"goto"` を dispatch しないまま DOM の
+        /// `--fandhe-carousel-index` を外部変更前の値へ巻き戻す（状態と
+        /// 表示の食い違い、Cursor Bugbot 指摘「Reused track keeps stale
+        /// snap target」）。是正として、新しい `item_group` の現在の
+        /// `--fandhe-carousel-index` インライン style（[`Self::attach`]
+        /// と同じ読み方）を確認し、保持中の進行度と食い違っていれば
+        /// 「外部で index が変わった」と判定して `progress`/`last_target`
+        /// を DOM の値へ再同期する（`last_target` は `None` へ戻し、次の
+        /// 着地先計算を現在の進行度からの通常計算へ戻す）。
         pub fn resume_pointer_down(
             &mut self,
             item_group: HtmlElement,
@@ -288,7 +330,37 @@ mod wiring {
             self.element = item_group;
             self.slide_count = slide_count;
             self.loop_ = loop_;
+            self.resync_progress_from_dom();
             self.on_pointer_down(client_x, time_ms);
+        }
+
+        /// [`Self::element`] の現在の `--fandhe-carousel-index` インライン
+        /// style を読み、保持中の [`Self::progress`] と食い違っていれば
+        /// DOM の値を正として取り込み直す（[`Self::resume_pointer_down`]
+        /// doc「settle 後の外部 index 変更との再同期」節参照）。差異が
+        /// あった場合は [`Self::last_target`] も `None` へ戻し、次の
+        /// タップが古い着地先へ収束しないようにする。パース不能・未設定
+        /// の場合は何もしない（fail-safe、[`Self::attach`] と同じ扱い）。
+        fn resync_progress_from_dom(&mut self) {
+            let Ok(raw) = self
+                .element
+                .style()
+                .get_property_value(super::CAROUSEL_INDEX_PROPERTY)
+            else {
+                return;
+            };
+            let Some(dom_value) = raw
+                .trim()
+                .parse::<f64>()
+                .ok()
+                .filter(|value| value.is_finite())
+            else {
+                return;
+            };
+            if (dom_value - self.progress.get()).abs() > 1e-6 {
+                self.progress.set(dom_value);
+                self.last_target = None;
+            }
         }
 
         /// `pointermove` 相当の入力。`slide_px`（1 スライド分の幅/高さ、
