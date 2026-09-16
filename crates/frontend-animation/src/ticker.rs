@@ -419,6 +419,49 @@ mod dom {
         }
     }
 
+    /// `element` が marquee/ticker の **2 番目以降の content コピー**
+    /// （SSR が出力する `aria-hidden` 付きの既存複製、または
+    /// [`ensure_copies`] の追加複製）の配下にあるか。
+    ///
+    /// 判定は祖先チェーン上の `[data-part="content"]` のうち、親が
+    /// marquee/ticker root（`[data-fandhe-ticker]` または
+    /// `[data-scope="marquee"]`）であるものについて「親の最初の content
+    /// 子ではない」または `aria-hidden="true"` を持つ、のいずれかが成立
+    /// するかで行う（`tabs` 等の別 scope が持つ `data-part="content"` を
+    /// 誤って複製扱いしないため親の scope を要求する）。
+    ///
+    /// `wasm-full::ticker::wire_ticker*` は SSR 由来の 2 コピー目に含まれる
+    /// 入れ子 ticker を本関数で起動対象から外し
+    /// [`neutralize_nested_tickers`] で静的化する（Cursor Bugbot 指摘:
+    /// SSR コピー内の内側 ticker が独立 rAF で駆動され、元の内側・追加
+    /// 複製の静的な内側と位相がずれていた）。
+    #[must_use]
+    pub fn is_in_secondary_copy(element: &Element) -> bool {
+        const CONTENT_SELECTOR: &str = "[data-part=\"content\"]";
+        const COPY_HOST_SELECTOR: &str = "[data-fandhe-ticker], [data-scope=\"marquee\"]";
+        let mut cursor = element.parent_element();
+        while let Some(ancestor) = cursor {
+            if ancestor.matches(CONTENT_SELECTOR).unwrap_or(false) {
+                if let Some(host) = ancestor.parent_element() {
+                    if host.matches(COPY_HOST_SELECTOR).unwrap_or(false) {
+                        let aria_hidden =
+                            ancestor.get_attribute("aria-hidden").as_deref() == Some("true");
+                        let first = host
+                            .query_selector(&format!(":scope > {CONTENT_SELECTOR}"))
+                            .ok()
+                            .flatten();
+                        let is_first = first.is_some_and(|f| f.is_same_node(Some(&ancestor)));
+                        if aria_hidden || !is_first {
+                            return true;
+                        }
+                    }
+                }
+            }
+            cursor = ancestor.parent_element();
+        }
+        false
+    }
+
     /// `clone`（自身 + 子孫）に含まれる入れ子 ticker（[`TICKER_ATTR`]）を
     /// 静的化する: [`TICKER_ACTIVE_ATTR`] を付与して CSS `@keyframes`
     /// 駆動を止め、[`TICKER_OFFSET_VAR`] をインラインで `0px` に固定する
@@ -433,7 +476,7 @@ mod dom {
     /// `Ticker` を起動する案は rAF ループが複製数倍に増え、かつ位相同期を
     /// 別途要するため採らず、「複製内の入れ子 ticker は駆動しない」設計に
     /// 固定する（モジュール doc「ponytail 割り切り」節）。
-    fn neutralize_nested_tickers(clone: &Element) {
+    pub fn neutralize_nested_tickers(clone: &Element) {
         let selector = format!("[{TICKER_ATTR}]");
         let mut targets: Vec<Element> = Vec::new();
         if clone.matches(&selector).unwrap_or(false) {
@@ -724,7 +767,10 @@ mod dom {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub use dom::{ensure_copies, measure_len, read_gap_px, write_offset, Ticker};
+pub use dom::{
+    ensure_copies, is_in_secondary_copy, measure_len, neutralize_nested_tickers, read_gap_px,
+    write_offset, Ticker,
+};
 
 #[cfg(test)]
 mod tests {

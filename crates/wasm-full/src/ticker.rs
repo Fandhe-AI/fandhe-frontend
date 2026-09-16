@@ -73,7 +73,8 @@ mod wiring {
     };
     use crate::gesture::is_touch_pointer;
     use fandhe_frontend_animation::ticker::{
-        parse_factor, parse_speed, Axis, Ticker, TickerConfig,
+        is_in_secondary_copy, neutralize_nested_tickers, parse_factor, parse_speed, Axis, Ticker,
+        TickerConfig,
     };
     use std::cell::RefCell;
     use std::rc::Rc;
@@ -317,6 +318,16 @@ mod wiring {
         }
         let active: ActiveTickers = Rc::new(RefCell::new(Vec::new()));
         for ticker_root in ticker_roots {
+            // SSR（`pre-styled-ui::marquee_motion::ticker`）は同じ children の
+            // content を 2 コピー出力するため、入れ子 ticker は最初から
+            // 2 回現れる。2 コピー目以降の内側は起動せず、`ensure_copies`
+            // の追加複製と同じ静的化を適用して「駆動される内側は元の 1 個
+            // だけ」に揃える（Cursor Bugbot 指摘: SSR コピー内の内側が
+            // 独立 rAF で駆動され位相がずれていた）。
+            if is_in_secondary_copy(&ticker_root) {
+                neutralize_nested_tickers(&ticker_root);
+                continue;
+            }
             let Some(content) = first_content(&ticker_root) else {
                 continue;
             };

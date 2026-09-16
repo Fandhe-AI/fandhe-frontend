@@ -270,3 +270,64 @@ async fn nested_ticker_clones_are_static_and_not_driven() {
         "前提: 内側 ticker の複製が 2 個以上あるはず"
     );
 }
+
+/// SSR 相当の 2 コピー構造（`pre-styled-ui::marquee_motion::ticker` は
+/// 同じ children の content を `aria-hidden`/`inert` 付きで 2 回出力する）
+/// で外側 + 内側 ticker を配線したとき、JS 駆動される内側は 1 コピー目の
+/// 1 個だけで、2 コピー目の内側は静的（`data-fandhe-ticker-active` あり・
+/// offset `0px` 固定・rAF 駆動なし）であること（Cursor Bugbot 指摘:
+/// `ensure_copies` の静的化は追加複製にしか効かず、SSR コピー内の内側が
+/// 独立駆動されていた）。
+#[wasm_bindgen_test]
+async fn nested_ticker_in_ssr_copy_is_static_and_not_driven() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (outer, inner, _inner_link) = build_nested_dom(&document, "ticker-nest-ssr-1");
+    let _guard = RemoveOnDrop(outer.clone());
+    // outer 200px / content 400px × 2 コピー → 追加複製は不要（SSR コピー
+    // だけが 2 個目の content になる）。
+    let outer_content = outer.first_element_child().unwrap();
+    let ssr_copy = outer_content
+        .clone_node_with_deep(true)
+        .unwrap()
+        .dyn_into::<Element>()
+        .unwrap();
+    ssr_copy.set_attribute("aria-hidden", "true").unwrap();
+    ssr_copy.set_attribute("inert", "").unwrap();
+    outer.append_child(&ssr_copy).unwrap();
+    let ssr_inner = ssr_copy
+        .query_selector("[data-fandhe-ticker]")
+        .unwrap()
+        .expect("SSR コピーにも内側 ticker が含まれるはず");
+
+    wire_ticker_with_reduced_motion(outer.clone(), false)
+        .expect("wire_ticker_with_reduced_motion must not fail");
+
+    let mut advanced = false;
+    for _ in 0..40 {
+        sleep_ms(50).await;
+        if px_value(&ticker_offset(&inner)) != 0.0 {
+            advanced = true;
+            break;
+        }
+    }
+    assert!(
+        advanced,
+        "1 コピー目の内側 ticker は JS 駆動で前進しているはず"
+    );
+    assert!(
+        ssr_inner.has_attribute("data-fandhe-ticker-active"),
+        "SSR コピー内の内側 ticker は CSS 駆動へ落ちないよう active 属性を持つはず"
+    );
+    assert_eq!(
+        ticker_offset(&ssr_inner),
+        "0px",
+        "SSR コピー内の内側 ticker は offset 0px 固定のはず"
+    );
+    sleep_ms(200).await;
+    assert_eq!(
+        ticker_offset(&ssr_inner),
+        "0px",
+        "SSR コピー内の内側 ticker は rAF で駆動されないはず"
+    );
+    assert_eq!(outer.child_element_count(), 2, "追加複製は生成されないはず");
+}
