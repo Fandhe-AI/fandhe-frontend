@@ -180,3 +180,36 @@ async fn nested_ticker_focus_pauses_all_ancestor_tickers() {
         "入れ子内側へのフォーカスで内側 ticker の offset は停止するはず"
     );
 }
+
+/// 配線ルート自身が opt-in 要素（`data-fandhe-ticker`）である場合も配線
+/// されること（`data-fandhe-ticker-active` が付与され rAF ループが動く
+/// こと）を固定する。修正前は `querySelectorAll` の結果（子孫のみ）しか
+/// 走査せず、ルート自身は起動しなかった（Cursor Bugbot 指摘）。
+#[wasm_bindgen_test]
+async fn wiring_root_itself_marked_as_ticker_is_started() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (outer, _inner, _inner_link) = build_nested_dom(&document, "ticker-root-self-1");
+    let _guard = RemoveOnDrop(outer.clone());
+
+    wire_ticker_with_reduced_motion(outer.clone(), false)
+        .expect("wire_ticker_with_reduced_motion must not fail");
+
+    assert!(
+        outer.has_attribute("data-fandhe-ticker-active"),
+        "配線ルート自身が data-fandhe-ticker を持つ場合は active 属性が付与されるはず"
+    );
+    // 最初の rAF フレームは（ページ読み込み直後など）遅延し得るため、
+    // 固定の 1 回待ちではなく上限付きで offset の前進を待つ。
+    let mut advanced = false;
+    for _ in 0..40 {
+        sleep_ms(50).await;
+        if px_value(&ticker_offset(&outer)) != 0.0 {
+            advanced = true;
+            break;
+        }
+    }
+    assert!(
+        advanced,
+        "配線ルート自身の ticker の offset が前進しているはず"
+    );
+}

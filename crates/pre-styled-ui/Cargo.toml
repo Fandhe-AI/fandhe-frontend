@@ -3546,6 +3546,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # "vertical"]`）へ複製数から独立した固定 `height`（`--fandhe-marquee-
 # height` custom property + 既定 200px）を追加した。既存公開 API・golden
 # テストは不変の実装修正（CSS 追記のみ）のため patch バンプする。
+# Cursor Bugbot 指摘対応（同 PR）: reduced-motion 環境で静止 content が
+# 固定 height + `overflow: hidden` により切り落とされるため、`@media
+# (prefers-reduced-motion: reduce)` の縦方向 root 上書きへ `height: auto`
+# を追記した（CSS 追記のみ、0.212.1 に含める）。
 #
 # マージコミット注記（origin/main #2544/#2585/#2589 との統合、PR #2582）: origin/main は
 # `list_motion` 新設で 0.212.0 へ到達し、本ブランチ（marquee_motion 縦方向

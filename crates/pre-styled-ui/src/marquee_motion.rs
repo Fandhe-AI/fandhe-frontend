@@ -173,7 +173,7 @@ pub fn ticker<'a>(
 ///    `transform: translate(var(--fandhe-marquee-ticker-offset, 0px))`
 ///    （JS が毎フレーム書き込む値で駆動する。縦方向は `translateY`）。
 /// 3. `@media (prefers-reduced-motion: reduce)`: 縦方向 content の
-///    `@keyframes` を停止する（`marquee.rs` の水平版縮退は既存のまま、
+///    `@keyframes` を停止し、root の固定 `height` と両端フェードを解除する（`marquee.rs` の水平版縮退は既存のまま、
 ///    モジュール doc「reduced-motion」節参照）。
 pub const MARQUEE_MOTION_CSS: &str = concat!(
     "\n[data-scope=\"marquee\"][data-part=\"root\"][data-axis=\"vertical\"] {\n",
@@ -247,6 +247,14 @@ pub const MARQUEE_MOTION_CSS: &str = concat!(
     // 隠れたままにならないようにする。
     "  [data-scope=\"marquee\"][data-part=\"root\"][data-axis=\"vertical\"] {\n",
     "    mask-image: none;\n",
+    // 上の縦方向 `root` ルールの固定 `height`（`--fandhe-marquee-height`、
+    // 既定 200px）は JS 駆動時の複製数の自己拡大ループ防止が目的だが、
+    // reduced-motion 環境では配線自体が行われず（`wasm-full::ticker`）
+    // content は静止する。固定 height + `overflow: hidden`（`marquee.rs`
+    // 既定）のままだと静止 content の超過分が読めないまま切り落とされる
+    // （Cursor Bugbot 指摘）ため、水平版と同じく auto height へ戻して
+    // 全文を表示する（静止状態では複製が生成されないためループも起きない）。
+    "    height: auto;\n",
     "  }\n",
     "}\n",
 );

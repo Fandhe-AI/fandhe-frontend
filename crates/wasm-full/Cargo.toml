@@ -1324,6 +1324,10 @@ name = "fandhe-frontend-wasm-full"
 # （入れ子祖先すべてを返す）へ置き換え、hover/focus の一時停止が
 # 入れ子 ticker の祖先すべてに正しく及ぶよう修正した。既存公開 API は
 # 不変の実装修正のため patch バンプする。
+# Cursor Bugbot 指摘対応（同 PR）: `wire_ticker_with_reduced_motion` が
+# `querySelectorAll`（子孫のみ）しか走査せず配線ルート自身の
+# `[data-fandhe-ticker]` を起動しなかった不具合を修正した（実装修正のみ、
+# 0.40.2 に含める）。
 #
 # マージコミット注記（origin/main #2544/#2585 との統合）: origin/main は
 # イシュー #2544（PR #2585 codex-review P1 是正）で `fandhe-frontend-

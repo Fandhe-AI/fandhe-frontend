@@ -55,3 +55,39 @@ fn vertical_root_has_fixed_height_independent_of_copy_count() {
         "縦方向 root の height はコンテンツ依存サイズであってはならない: {height_decl}"
     );
 }
+
+/// `@media (prefers-reduced-motion: reduce)` ブロック内の縦方向 root 規則
+/// 本文を抜き出す。
+fn reduced_motion_vertical_root_rule_body() -> String {
+    let media = "@media (prefers-reduced-motion: reduce) {\n";
+    let media_start = MARQUEE_MOTION_CSS
+        .find(media)
+        .expect("MARQUEE_MOTION_CSS must contain the reduced-motion block");
+    let block = &MARQUEE_MOTION_CSS[media_start..];
+    let selector = "  [data-scope=\"marquee\"][data-part=\"root\"][data-axis=\"vertical\"] {\n";
+    let start = block
+        .find(selector)
+        .expect("reduced-motion block must contain the vertical root rule")
+        + selector.len();
+    let end = block[start..]
+        .find("  }\n")
+        .expect("reduced-motion vertical root rule must be closed");
+    block[start..start + end].to_string()
+}
+
+/// reduced-motion 環境では配線が行われず content が静止するため、固定
+/// `height`（JS 駆動時の自己拡大ループ防止用）を維持したままだと
+/// `overflow: hidden` で静止 content が切り落とされる（Cursor Bugbot 指摘）。
+/// 縦方向 root の reduced-motion 上書きが `height: auto` を持つことを固定する。
+#[test]
+fn vertical_root_reduced_motion_releases_fixed_height() {
+    let body = reduced_motion_vertical_root_rule_body();
+    assert!(
+        body.lines().any(|line| line.trim() == "height: auto;"),
+        "reduced-motion の縦方向 root は固定 height を解除する必要がある: {body}"
+    );
+    assert!(
+        body.lines().any(|line| line.trim() == "mask-image: none;"),
+        "reduced-motion の縦方向 root は両端フェードを解除する必要がある: {body}"
+    );
+}

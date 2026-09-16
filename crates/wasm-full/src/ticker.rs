@@ -297,15 +297,26 @@ mod wiring {
             return Ok(());
         }
 
+        // `querySelectorAll` は呼び出し元の要素自身を含まないため、配線
+        // ルート自身が opt-in 要素（`[data-fandhe-ticker]`）の場合も対象に
+        // 含める（`headless_select::instance_boundary` と同じ `matches`
+        // 先行判定。Cursor Bugbot 指摘: ルート自身が ticker だと配線されず
+        // 起動しなかった）。
+        let mut ticker_roots: Vec<Element> = Vec::new();
+        if root.matches(TICKER_SELECTOR).unwrap_or(false) {
+            ticker_roots.push(root.clone());
+        }
         let nodes = root.query_selector_all(TICKER_SELECTOR)?;
-        let active: ActiveTickers = Rc::new(RefCell::new(Vec::new()));
         for i in 0..nodes.length() {
-            let Some(node) = nodes.item(i) else {
-                continue;
-            };
-            let Ok(ticker_root) = node.dyn_into::<Element>() else {
-                continue;
-            };
+            if let Some(element) = nodes
+                .item(i)
+                .and_then(|node| node.dyn_into::<Element>().ok())
+            {
+                ticker_roots.push(element);
+            }
+        }
+        let active: ActiveTickers = Rc::new(RefCell::new(Vec::new()));
+        for ticker_root in ticker_roots {
             let Some(content) = first_content(&ticker_root) else {
                 continue;
             };
