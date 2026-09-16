@@ -64,6 +64,9 @@
 //! 前進・hover/scroll 速度連動、イシュー #2540）も実装済み。cursor
 //! （[`cursor::CursorFollower`]・[`cursor::CursorAnimator`]、カスタム
 //! カーソルのポインタ追従 spring 演算・rAF 駆動、イシュー #2542）も
+//! 実装済み。presence（[`presence::insert_exit_ghost`]・
+//! [`presence::remove_when_settled`]、keyed list 削除行の退場ゴースト
+//! 配置・実測 CSS アニメーション時間経過後の除去、イシュー #2544）も
 //! 実装済み。残りの実装は
 //! Phase 4 の各後続 issue で追加する
 //! （`docs/design/animation-core-architecture.md` §6.2 参照）。
@@ -77,6 +80,7 @@ pub mod dom_target;
 pub mod drag;
 pub mod flip;
 pub mod magnetic;
+pub mod presence;
 pub mod raf_driver;
 pub mod reduced_motion;
 pub mod scroll_driver;

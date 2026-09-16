@@ -3529,11 +3529,30 @@ name = "fandhe-frontend-pre-styled-ui"
 # `:not()` ガードで塞ぐ実装変更のため、`.claude/rules/coding-rust.md`
 # #638 条項に従いさらに +1 minor して 0.210.0 とする。
 #
+# イシュー #2544: `list_motion`（list の追加・削除 opt-in 遷移 CSS、
+# `motion` feature 配下）を新設した。`forms_motion`/`cursor` と同型の
+# 新規公開モジュール純追加のため minor バンプする（無効時の出力・依存
+# グラフは不変、`tests/motion_zero_cost.rs` 不変）。
+#
+# マージコミット注記（origin/main #2541 との統合）: origin/main は
+# carousel_motion/cursor/toast_motion の同衝突運用（0.209.0）に加え、
+# PR #2581 レビュー是正（入れ子 carousel の CSS 漏れ対策）で 0.211.0 へ
+# 到達していた。本ブランチの到達値 0.209.0（list_motion 込み）は
+# origin/main の到達値 0.211.0 より低いため、list_motion モジュール新設を
+# 統合するにあたり origin/main の到達値からさらに +1 minor して 0.212.0
+# とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
 # PR #2582 レビュー指摘対応: `marquee_motion` 縦方向 root（`[data-axis=
 # "vertical"]`）へ複製数から独立した固定 `height`（`--fandhe-marquee-
 # height` custom property + 既定 200px）を追加した。既存公開 API・golden
 # テストは不変の実装修正（CSS 追記のみ）のため patch バンプする。
-version = "0.212.0"
+#
+# マージコミット注記（origin/main #2544/#2585/#2589 との統合、PR #2582）: origin/main は
+# `list_motion` 新設で 0.212.0 へ到達し、本ブランチ（marquee_motion 縦方向
+# 固定 height の patch 修正込み）も独立に 0.212.0 へ到達していたため、
+# `.claude/rules/coding-rust.md` #638 条項の「同一版数も衝突として +1」運用
+# に従い 0.212.1 とする。
+version = "0.212.1"
 
 
 edition = "2021"

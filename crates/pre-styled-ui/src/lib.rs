@@ -807,6 +807,8 @@ pub mod line_chart;
 pub mod link;
 pub mod link_overlay;
 pub mod list;
+#[cfg(feature = "motion")]
+pub mod list_motion;
 pub mod listbox;
 pub mod mark;
 pub mod marker;

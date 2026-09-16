@@ -702,6 +702,7 @@ const NON_PAGE_TOP_LEVEL: &[&str] = &[
     "cursor",
     "forms_motion",
     "lib",
+    "list_motion",
     "marquee_motion",
     "motion",
     "recipe",
@@ -1088,15 +1089,21 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        133,
+        134,
         "src/*.rs の総数が想定と異なります（PR #2582 で本ブランチ（#2540、\
-         marquee_motion.rs 新設、129 → 130）を origin/main（#2541/#2543 が \
-         同じ merge base 130 から独立に 132 へ到達）へ統合したため \
-         130 → 133（同衝突運用）。イシュー #2540 で \
-         marquee_motion.rs を新設し 129 → 130。`motion` feature 配下の \
-         marquee 縦方向・ticker opt-in 拡張で単体の Themes ページを持たない \
-         ため NON_PAGE_TOP_LEVEL 分類（`border_beam`/`motion` と同型）。\
-         イシュー #2543 で \
+         marquee_motion.rs 新設）を origin/main（#2544 の list_motion.rs 新設で \
+         133 到達）へ統合したため 133 → 134。marquee_motion は `motion` \
+         feature 配下の marquee 縦方向・ticker opt-in 拡張で単体の Themes \
+         ページを持たないため NON_PAGE_TOP_LEVEL 分類（`border_beam`/`motion` \
+         と同型）。イシュー #2544 で \
+         list_motion.rs を新設し 132 → 133。`motion` feature 配下の \
+         list 追加・削除 opt-in 遷移 CSS（enter_css()・exit_css()）で \
+         単体の Themes ページを持たないため NON_PAGE_TOP_LEVEL 分類 \
+         （`border_beam`/`motion` と同型）。マージコミット注記
+         （origin/main #2541 との統合）: origin/main はイシュー #2541
+         （carousel_motion）と #2543（toast_motion）が同じ merge base
+         （130）から独立に 131 へ到達しマージで合流したため 130 → 132
+         （同衝突運用、実装順は本文の積み上げ記録どおり）。イシュー #2543 で \
          toast_motion.rs を新設し 130 → 131。`motion` feature 配下の \
          toast stack 表示（積層・hover/focus-within 展開）opt-in 装飾で \
          既存 toast 部品への追加のため単体の Themes ページを持たない \

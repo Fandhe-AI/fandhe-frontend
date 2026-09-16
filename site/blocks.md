@@ -36,4 +36,6 @@ UI コンポーネントを追加するものではありません**。ログイ
 - [hero-terminal](./blocks/hero-terminal.md)
 - [text-split-reveal](./blocks/text-split-reveal.md)
 - [game-ui-modal](./blocks/game-ui-modal.md)
+- [footer-sticky-reveal](./blocks/footer-sticky-reveal.md)
+- [footer-newsletter](./blocks/footer-newsletter.md)
 

@@ -95,6 +95,12 @@ enum ListAction {
     Append { id: u64, content: String },
     /// 先頭と末尾を入れ替える（`Move` を誘発。要素数 2 件以上が前提）。
     SwapFirstLast,
+    /// 全行を逆順に並べ替える（`Move` を誘発）。`SwapFirstLast` と異なり
+    /// 3 件以上でも全行の DOM 順位置が変わるため、既存 index が書き込み
+    /// 済みの状態で発火すると「凍結（巻き戻り防止）が非 presence リスト
+    /// へ誤適用されていないか」（codex-review P1 是正、イシュー #2544
+    /// fix ラウンド）を検証できる。
+    ReverseAll,
     /// `id` の項目を削除する（`Remove` を誘発）。
     Remove { id: u64 },
 }
@@ -115,6 +121,10 @@ impl Component for ListState {
                     self.items.swap(0, len - 1);
                     self.dirty.push(Self::FIELD_ITEMS);
                 }
+            }
+            ListAction::ReverseAll => {
+                self.items.reverse();
+                self.dirty.push(Self::FIELD_ITEMS);
             }
             ListAction::Remove { id } => {
                 let before = self.items.len();
@@ -161,6 +171,7 @@ impl Component for ListState {
                 })
             }
             "swap_first_last" => Some(ListAction::SwapFirstLast),
+            "reverse_all" => Some(ListAction::ReverseAll),
             // payload 形式: "<id>"。
             "remove" => Some(ListAction::Remove {
                 id: payload.parse::<u64>().ok()?,
@@ -320,5 +331,43 @@ fn stagger_auto_first_attr_absent_leaves_index_untouched() {
         read_stagger_indices(root),
         vec!["", "", "", ""],
         "オプトイン属性が無いリストは index を一切書き込まれないこと"
+    );
+}
+
+/// 受け入れ条件（codex-review P1 是正、イシュー #2544 fix ラウンド）:
+/// `list_presence::PRESENCE_AUTO_ATTR` を持たない（stagger 単独利用の）
+/// リストは、既存行の index が書き込み済みの状態で全行を逆順に並べ
+/// 替えても、巻き戻り防止の凍結（`PRESENCE_AUTO_ATTR` 併用リスト専用）
+/// を誤って適用されず DOM 順位置へ完全に追随する。1 回目の並べ替えで
+/// 初回 sync（0,1,2 の書き込み）を確定させたうえで 2 回目の全反転を
+/// 発火し、退行時の症状（一部の行が凍結され `0,1,0` のような重複値が
+/// 残る）が起きないことを固定する。
+#[wasm_bindgen_test]
+fn reverse_after_initial_sync_renumbers_without_freezing_when_presence_absent() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let placeholder = create_placeholder(&document, "stagger-root-container-5");
+    let _guard = RemoveOnDrop(placeholder.clone());
+
+    let state = ListState::new(&[(1, "a"), (2, "b"), (3, "c")]);
+    let runtime = Runtime::mount("stagger-root-container-5", state).expect("mount must succeed");
+    let root = runtime.root();
+
+    // 1 回目: 全行反転で初回 sync を確定させる（各行の style は初期状態
+    // で未設定のため、この時点では凍結条件に触れない）。
+    dispatch_action(&document, root, "reverse_all", "");
+    assert_eq!(
+        read_stagger_indices(root),
+        vec!["0", "1", "2"],
+        "初回 sync は DOM 順の連番になること"
+    );
+
+    // 2 回目: 既存 index が書き込み済みの状態で再度全行反転する。
+    // 退行時（凍結が非 presence リストへ誤適用される）は先頭行の index
+    // が凍結され `["0", "1", "0"]` のような重複値になる。
+    dispatch_action(&document, root, "reverse_all", "");
+    assert_eq!(
+        read_stagger_indices(root),
+        vec!["0", "1", "2"],
+        "2 回目の全反転後も凍結されず DOM 順の連番へ追随すること"
     );
 }

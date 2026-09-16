@@ -457,6 +457,47 @@ fn is_matrix3d(value: &str) -> bool {
 /// fail-safe）。computed 値は `"1"`（既定）・`"normal"`（`zoom` 未対応
 /// ブラウザの `getPropertyValue` フォールバック）・空文字列（プロパティ
 /// 自体が未サポート）のいずれも恒等として扱う。
+/// `property`（`"scale"`/`"rotate"`/`"translate"`）の computed 値
+/// `value` が、そのプロパティの恒等変換（見た目に変形を与えない値）
+/// と等価かどうかを判定する（DOM 非依存の純粋関数、codex-review 指摘
+/// 是正、イシュー #2544）。空白区切りの各成分が恒等値（`scale` は
+/// `1`、`rotate` は `0deg`/`0`、`translate` は `0px`）であれば `true`。
+/// 不明な単位・パース不能な成分が 1 つでもあれば安全側（恒等ではない
+/// = FLIP 省略）に倒し `false` を返す。
+///
+/// `wiring::has_independent_transform_property` から呼ばれる。
+/// `pre-styled-ui::list_motion::enter_css` は `animation-fill-mode:
+/// both` の `to` キーフレームに `scale: 1`（視覚的には恒等変換）を
+/// 含むため、enter アニメーション再生済みの行の computed `scale` は
+/// `"none"` ではなく `"1"` のまま残留する。この値を非恒等値として
+/// 誤検知すると list の並べ替え（FLIP）が無条件で省略されてしまう
+/// （FLIP 非干渉契約違反）。
+#[cfg(any(target_arch = "wasm32", test))]
+#[must_use]
+fn is_identity_independent_transform_value(property: &str, value: &str) -> bool {
+    let components: Vec<&str> = value.split_whitespace().collect();
+    if components.is_empty() {
+        return false;
+    }
+    components.iter().all(|component| match property {
+        "scale" => component.parse::<f64>() == Ok(1.0),
+        "rotate" => {
+            let numeric = component
+                .strip_suffix("deg")
+                .or_else(|| component.strip_suffix("grad"))
+                .or_else(|| component.strip_suffix("rad"))
+                .or_else(|| component.strip_suffix("turn"))
+                .unwrap_or(component);
+            numeric.parse::<f64>() == Ok(0.0)
+        }
+        "translate" => component
+            .strip_suffix("px")
+            .and_then(|numeric| numeric.parse::<f64>().ok())
+            .is_some_and(|numeric| numeric == 0.0),
+        _ => false,
+    })
+}
+
 #[cfg(any(target_arch = "wasm32", test))]
 #[must_use]
 fn is_non_identity_zoom(value: &str) -> bool {
@@ -1054,12 +1095,23 @@ mod wiring {
     /// [`ancestor_linear_matrix`] が `None` を返す経路、いずれも
     /// fail-safe）。値が空文字列（ブラウザがそのプロパティ自体を
     /// サポートしない、`getPropertyValue` が未知のプロパティ名に対し
-    /// 空文字列を返す仕様）または `"none"` の場合は「値を持たない」と
-    /// 判定する。
+    /// 空文字列を返す仕様）・`"none"`、または恒等変形と等価な値
+    /// （[`is_identity_independent_transform_value`] doc 参照）の場合は
+    /// 「値を持たない」と判定する。
+    ///
+    /// codex-review 指摘是正（イシュー #2544）: `pre-styled-ui::
+    /// list_motion::enter_css` は `animation-fill-mode: both` の `to`
+    /// キーフレームに `scale: 1`（視覚的には恒等変換）を含むため、enter
+    /// アニメーション再生済みの行の computed `scale` は `"none"` では
+    /// なく `"1"` のまま残留する。旧実装はこれを非恒等値として誤検知し、
+    /// list の並べ替え（FLIP）を無条件で省略してしまっていた
+    /// （FLIP 非干渉契約違反）。
     fn has_independent_transform_property(computed: &CssStyleDeclaration) -> bool {
         ["scale", "rotate", "translate"].iter().any(|property| {
             let value = computed.get_property_value(property).unwrap_or_default();
-            !value.is_empty() && value != "none"
+            !value.is_empty()
+                && value != "none"
+                && !super::is_identity_independent_transform_value(property, &value)
         })
     }
 
@@ -2351,6 +2403,41 @@ mod tests {
         assert!(is_non_identity_zoom("2"));
         assert!(is_non_identity_zoom("0.5"));
         assert!(is_non_identity_zoom("150%"));
+    }
+
+    // codex-review 指摘是正（イシュー #2544）: `list_motion::enter_css`
+    // の `scale: 1`（fill-mode: both で再生後も残留する恒等値）を非恒等
+    // 値と誤検知しない回帰テスト。
+
+    #[test]
+    fn is_identity_independent_transform_value_treats_identity_as_true() {
+        assert!(is_identity_independent_transform_value("scale", "1"));
+        assert!(is_identity_independent_transform_value("scale", "1 1"));
+        assert!(is_identity_independent_transform_value("rotate", "0deg"));
+        assert!(is_identity_independent_transform_value("rotate", "0"));
+        assert!(is_identity_independent_transform_value("translate", "0px"));
+        assert!(is_identity_independent_transform_value(
+            "translate",
+            "0px 0px"
+        ));
+    }
+
+    #[test]
+    fn is_identity_independent_transform_value_detects_non_identity() {
+        assert!(!is_identity_independent_transform_value("scale", "2"));
+        assert!(!is_identity_independent_transform_value("scale", "1 2"));
+        assert!(!is_identity_independent_transform_value("rotate", "45deg"));
+        assert!(!is_identity_independent_transform_value(
+            "translate",
+            "10px"
+        ));
+    }
+
+    #[test]
+    fn is_identity_independent_transform_value_empty_is_not_identity() {
+        // fail-safe: パース不能・空成分は「恒等ではない」側へ倒す。
+        assert!(!is_identity_independent_transform_value("scale", ""));
+        assert!(!is_identity_independent_transform_value("scale", "auto"));
     }
 
     // Bugbot 指摘対応（codex-review 第 10 ラウンド、イシュー #2518。
