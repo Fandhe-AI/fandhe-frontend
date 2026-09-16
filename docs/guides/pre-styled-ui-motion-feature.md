@@ -159,6 +159,22 @@ fandhe-frontend-pre-styled-ui = { version = "0.192", features = ["motion"] }
     transition のみで構成され、`Theme::to_css` が既に duration トークンを
     reduced motion 下で `0ms` へ上書きするため個別ブロックは不要です。
 
+- **カスタムカーソル（イシュー #2542、`crates/pre-styled-ui/src/cursor.rs`）**:
+  ポインタに spring で追従するカスタムカーソル（Motion+ Cursor 相当）です。
+  - `cursor::cursor(attrs)`: カーソル要素本体（`<div>`）を組み立てる。
+    `data-fandhe-cursor`（値なし存在属性）・`aria-hidden="true"` を持つ。
+    hover 対象は利用者が任意の要素へ `data-fandhe-cursor-target`（バリアント
+    名）・`data-fandhe-cursor-target-label`・`data-fandhe-cursor-target-magnetic`
+    を静的に付与する。
+  - `cursor::CURSOR_CSS`: カーソル要素の固定位置スタイル・hover バリアント
+    （`ring`）・ラベル表示・`@media (prefers-reduced-motion: reduce),
+    (pointer: coarse), (hover: none)` フェイルセーフの CSS 全文。
+    `Theme::to_css_with_cursor()`: `Theme::to_css()` の出力へ追記する
+    opt-in メソッド。
+  - 追従の spring 演算・rAF 駆動・hover 対象の `data-*` 写し配線は
+    `fandhe-frontend-wasm-full` の `cursor` feature（既定 on）が担う
+    （本クレートは `wasm-full` に依存しない）。
+
 - **spring 近似 easing プリセット（イシュー #2381）**: `theme::Theme::
   push_spring_easing()` を呼ぶと、`motion.dev spring()` 既定値
   （stiffness=100/damping=10/mass=1）を `from=0.0`/`to=1.0`/
@@ -219,6 +235,16 @@ fandhe-frontend-pre-styled-ui = { version = "0.192", features = ["motion"] }
     プリセットの静的 `mask-*` 宣言は `animation: revert;` だけでは戻ら
     ないため、同ブロックで `mask-image: none;` も併せて再宣言します。
 
+- **toast の stack 表示（イシュー #2543、`crates/pre-styled-ui/src/
+  toast_motion.rs`）**: 既存 `toast` 部品への opt-in 追加装飾です。
+  `toast_motion::STACK_ATTR`（`"data-fandhe-toast-stack"`）を `toast::group`
+  の `attrs` へ渡すと積層表示（後ろの通知ほど縮小・オフセット）になり、
+  `:hover`/`:focus-within` で展開します。動的な追加・削除・並べ替えを
+  行う場合は `toast_motion::stack_group_keyed` が stagger 書き戻し
+  （`stagger`）+ layout FLIP（`layout-animation`）を自動配線します。
+  `Theme::to_css_with_toast_motion()`: `Theme::to_css()` の出力へ
+  `toast_motion::TOAST_STACK_CSS` を追記して返す opt-in メソッド。
+
 ## 3. 無効時ゼロコスト保証の内容
 
 | 指標 | 保証内容 | 対応する契約テスト |
@@ -247,6 +273,8 @@ CI では `.github/workflows/ci.yml` の `clippy` ジョブが
 - 共通 `@keyframes`（#2382）は feature 配下に実装済みです（`motion::KEYFRAMES_CSS`、
   §2 参照）。stagger（#2384）も feature 配下に実装済みです（§2 参照）。
   scroll-driven（#2385）は同文書 §4 各行の採用方針に従い、追加時に判断します。
+- カスタムカーソル（#2542）も feature 配下に実装済みです（`cursor`
+  モジュール、§2 参照。C 群のみに分類され実装対象と定められた拡張出力）。
 
 ## 5. 消費者別の指定方針
 

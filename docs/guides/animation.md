@@ -227,7 +227,50 @@ hover/press は opt-in を分離しているため、必要な方だけ属性を
 **フォールバック挙動**: JS なしでは属性が付かず、通常の CSS 疑似クラス
 のみが効きます。
 
-## 9. View Transitions
+## 9. cursor（カスタムカーソル追従）
+
+**目的**: ネイティブカーソルを置き換え、ポインタに spring で追従する
+カスタムカーソル（Motion+ Cursor 相当）を実装します。hover 対象へ乗る
+とバリアント切替・ラベル表示・中心吸着ができます。
+
+**有効化する feature**: pre-styled-ui `motion`（カーソル要素・CSS）+
+wasm-full `cursor`（既定 on、追従の配線）。
+
+**最小実装例**:
+
+```rust
+use fandhe_frontend_pre_styled_ui::cursor;
+
+// root 配下に 1 個だけ配置する。
+let cursor_el = cursor::cursor(vec![]);
+```
+
+```html
+<button data-fandhe-cursor-target="ring" data-fandhe-cursor-target-label="View">
+  ...
+</button>
+<div data-fandhe-cursor aria-hidden="true"></div>
+```
+
+`crates/pre-styled-ui/src/cursor.rs`: `cursor::CURSOR_ATTR`
+（`"data-fandhe-cursor"`）・`cursor::CURSOR_TARGET_ATTR`
+（`"data-fandhe-cursor-target"`、値はバリアント名）・
+`cursor::CURSOR_TARGET_LABEL_ATTR`（`"data-fandhe-cursor-target-label"`）・
+`cursor::CURSOR_TARGET_MAGNETIC_ATTR`
+（`"data-fandhe-cursor-target-magnetic"`、値なし存在属性。中心へ吸着）。
+`crates/wasm-full/src/cursor.rs` が `root` へのポインタイベント委譲・
+hover 対象の解決・`data-*` 写しを担い、`crates/frontend-animation/src/
+cursor.rs` の `CursorAnimator` が spring 追従の演算・rAF 駆動・
+`--fandhe-motion-cursor-x`/`-y` への DOM 書き込みを担います。
+
+**フォールバック挙動**: `prefers-reduced-motion: reduce`・
+`pointer: coarse` のいずれかが真なら配線自体を行わず、`cursor::CURSOR_CSS`
+側の `@media` フェイルセーフでもカーソル要素を非表示にしてネイティブ
+カーソルを戻します（JS 側・CSS 側の二重のフェイルセーフ）。JS なしでは
+`data-fandhe-cursor-state` が一度も付かないため、カーソル要素は
+`display: none` のまま表示されません。
+
+## 10. View Transitions
 
 **目的**: `document.startViewTransition()` によるページ遷移・状態更新の
 見た目を制御します。
@@ -293,7 +336,7 @@ view_transition_name_declaration` を使います）を使います。
 **フォールバック挙動**: `document.startViewTransition` 非対応ブラウザでは
 通常の即時更新にフォールバックします。
 
-## 10. layout FLIP（keyed list の並べ替えアニメーション）
+## 11. layout FLIP（keyed list の並べ替えアニメーション）
 
 **目的**: keyed list の構造変化（Insert/Move）を、要素を実際に動かして
 見せます（FLIP 手法）。
@@ -323,7 +366,30 @@ doc「入れ子 FLIP リストの所有権契約」節、
 **フォールバック挙動**: feature off・属性なしの keyed list は従来どおり
 即座に並べ替わります（アニメーションなしの安全な劣化）。
 
-## 11. SVG path drawing
+**消費者の例（toast stack、イシュー #2543）**: `pre-styled-ui` の
+`toast_motion::stack_group_keyed` は stagger（§5）と layout FLIP を同時に
+自動配線する薄いラッパーです。
+
+```rust
+use fandhe_frontend_pre_styled_ui::toast::{root, ToastPlacement, ToastStatus};
+use fandhe_frontend_pre_styled_ui::toast_motion::stack_group_keyed;
+
+let node = stack_group_keyed(
+    ToastPlacement::BottomEnd,
+    "Notifications",
+    vec![],
+    "toasts",
+    vec![("t-1".to_string(), root(ToastStatus::Info, vec![], vec![]))],
+)?;
+```
+
+`toast::group` へ `STAGGER_AUTO_FIRST_ATTR`/`FLIP_AUTO_ATTR`/
+`toast_motion::STACK_ATTR` を付けたうえで `keyed_list` を呼ぶだけで、通知の
+追加・削除・並べ替え時に積層オフセット（`--fandhe-motion-stagger-index`）の
+書き戻しと移動アニメーションが自動で動きます。詳細は
+[`/themes/toast/`](../../site/themes/toast.md) を参照してください。
+
+## 12. SVG path drawing
 
 **目的**: `<path>` 等の `SVGGeometryElement` を、マウント時に 1 回だけ
 線を描くように見せます。
@@ -348,14 +414,14 @@ duration/easing は持ちません（固定既定値のみ、YAGNI）。
 **フォールバック挙動**: feature off・属性なしでは通常どおり静的に
 表示されます。
 
-## 12. animate() を直接呼ぶケース（宣言的配線の対象外）
+## 13. animate() を直接呼ぶケース（宣言的配線の対象外）
 
 `animate`/`animation-driver` feature（既定 on）は、`data-*` からの自動
 トリガー配線を**持ちません**。`element.animate()`（WAAPI）を Rust コード
 から直接呼び出す使い方は `docs/guides/animation-core.md` §3.4/§4 を参照
 してください（本ガイドでは扱いません）。
 
-## 13. feature 有効化早見表
+## 14. feature 有効化早見表
 
 `default-features = false` 利用者が明示指定すべき feature 名です。
 
@@ -367,6 +433,7 @@ duration/easing は持ちません（固定既定値のみ、YAGNI）。
 | scroll-driven | `motion` | `scroll-driver` |
 | in-view | 不要 | `in-view` |
 | hover/press | 不要 | `gesture` |
+| cursor（カスタムカーソル追従） | `motion` | `cursor` |
 | View Transitions（汎用） | 不要 | `view-transitions` |
 | View Transitions（named preset） | `motion` | `view-transitions` + `view-transition-preset` |
 | View Transitions（動的名前） | 不要 | `view-transition-name` |
@@ -378,7 +445,7 @@ duration/easing は持ちません（固定既定値のみ、YAGNI）。
 詳細は [wasm-full feature 選択ガイド](./wasm-full-features.md) §7 を
 参照してください。
 
-## 14. reduced-motion 対応
+## 15. reduced-motion 対応
 
 `prefers-reduced-motion: reduce` を**自動的に**尊重する機能:
 
@@ -404,8 +471,15 @@ duration/easing は持ちません（固定既定値のみ、YAGNI）。
   none`（`sticky_progress`。`@supports not` フォールバックの
   `opacity`/`scale` 宣言も凍結）を出力順で後勝ちさせて確実に無効化します。
   利用者側の追加対応は不要です。
+- **cursor**: `cursor::CURSOR_CSS` 自身が個別の `@media
+  (prefers-reduced-motion: reduce), (pointer: coarse), (hover: none)`
+  ブロックを持ち、カーソル要素を `display: none` にしてネイティブ
+  カーソルを `cursor: auto` へ戻します。wasm-full 側の `wire_cursor` も
+  `prefers-reduced-motion: reduce`・`pointer: coarse` のいずれかが真なら
+  配線自体を行わない二重のフェイルセーフです（利用者側の追加対応は
+  不要です）。
 
-## 15. 検証方法
+## 16. 検証方法
 
 ```sh
 # nav.toml パース・ページ件数・登録内容の整合性
@@ -422,7 +496,7 @@ cargo test -p fandhe-frontend-docs-site
 cargo run -p fandhe-frontend-cli --locked -- gate --project .
 ```
 
-## 16. 関連ドキュメント
+## 17. 関連ドキュメント
 
 - [fandhe-animation / fandhe-frontend-animation API ガイド](./animation-core.md)
   — Rust コードから直接呼び出す API リファレンス

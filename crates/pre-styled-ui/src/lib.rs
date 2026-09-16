@@ -758,6 +758,8 @@ pub mod calendar;
 pub mod callout;
 pub mod card;
 pub mod carousel;
+#[cfg(feature = "motion")]
+pub mod carousel_motion;
 pub mod charts;
 pub mod checkbox;
 pub mod checkbox_card;
@@ -771,6 +773,8 @@ pub mod color_swatch;
 pub mod combobox;
 pub mod command;
 pub mod css;
+#[cfg(feature = "motion")]
+pub mod cursor;
 pub mod data_list;
 pub mod data_table;
 pub mod date_input;
@@ -864,6 +868,8 @@ pub mod theme;
 pub mod timeline;
 pub mod timer;
 pub mod toast;
+#[cfg(feature = "motion")]
+pub mod toast_motion;
 pub mod toggle;
 pub mod toggle_group;
 pub mod toggle_tip;

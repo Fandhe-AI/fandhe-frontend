@@ -47,7 +47,13 @@ pub const SCHEMA_VERSION: u32 = 1;
 pub const MAX_PAGE_TEXT_BYTES: usize = 4096;
 
 /// インデックス JSON 全体の最大バイト数。超過時は fail-closed（設計文書 §3-4）。
-pub const MAX_INDEX_BYTES: usize = 1_048_576;
+///
+/// 設計時点（#957）は 1 MiB（`1_048_576`）で「十分な余裕がある」前提だったが、
+/// ページ数・Blocks セクションの大きめの Rust コードフェンスの蓄積により
+/// 実サイトが上限へ接近し、イシュー #2552（`game-ui-modal` block 追加）で
+/// 実際に超過した。将来の追加に対する余裕を確保するため 1.125 MiB
+/// （`1_048_576 + 131_072`）へ引き上げる（設計文書 §3-4 追記節参照）。
+pub const MAX_INDEX_BYTES: usize = 1_179_648;
 
 /// ページ内目次の 1 見出しに対応するインデックスエントリ。
 ///

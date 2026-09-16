@@ -81,13 +81,30 @@ name = "fandhe-frontend-animation"
 # DOM 書き込み）を新設した。`magnetic`/`svg_path` と同型の新規公開 API
 # 純追加のため minor バンプする。
 #
-# イシュー #2540: marquee の JS 駆動拡張（ticker）を新設。新規公開モジュール
-# `ticker`（`Ticker`/`TickerConfig`/`Axis`/純粋計算関数群）の追加のみで
-# 既存公開 API への破壊的変更はないため minor バンプ。origin/main が
-# #2532 を先に取り込み 0.12.0 へ到達済みで本ブランチの到達値（0.12.0）と
-# 同一版数へ衝突したため、`.claude/rules/coding-rust.md` #638 条項の
-# 「同一版数も衝突として +1」運用に従いさらに +1 して 0.13.0 とする。
-version = "0.13.0"
+# イシュー #2541: `carousel`（`snap_target`/`CarouselTrack`、ドラッグ +
+# spring スナップの演算・rAF 実行）を新設した。既存モジュールと同型の
+# 新規公開 API 純追加のため minor バンプする。
+#
+# イシュー #2541（PR #2581 レビュー是正）: `CarouselTrack` へ `retarget`/
+# `is_settling` を新設した（release 時の再描画で settle 中の書き込み先
+# 要素が切断された場合に、進行中の spring を継続させるための新規公開
+# API 純追加）。既存 API に破壊的変更はないため patch バンプする。
+#
+# マージコミット注記（origin/main #2542 との統合）: origin/main はイシュー
+# #2542（`cursor`: `CursorFollower`/`CursorAnimator`、カスタムカーソルの
+# ポインタ追従 spring 演算・rAF 駆動を新設）で 0.12.0 → 0.13.0 へ独立に
+# minor バンプしていた。本ブランチの到達値 0.13.1（#2541 の carousel minor
+# バンプ + retarget/is_settling の patch バンプ）は origin/main の到達値
+# 0.13.0 をすでに上回っており同一版数の衝突には該当しないが、cursor
+# モジュール新設という本ブランチに含まれない公開 API 追加を取り込むため、
+# `.claude/rules/coding-rust.md` #638 条項に従いさらに +1 minor して
+# 0.14.0 とする。
+# PR #2581 レビュー是正（イシュー #2541 第 5 ラウンド）: settle 後の外部
+# index 変更との再同期（`resume_pointer_down`）・release 時の途中進行値
+# フラッシュ防止（`flush_current_progress`）を追加する実装変更のため、
+# `.claude/rules/coding-rust.md` #638 条項に従いさらに +1 minor して
+# 0.15.0 とする。
+version = "0.15.0"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"

@@ -1012,6 +1012,31 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test magnetic_browser
 
+      # イシュー #2541（carousel の Motion+ Carousel 相当拡張、親
+      # #2530/#2476）: carousel_motion
+      # （crates/wasm-full/src/carousel_motion.rs）の opt-in root/item-group
+      # 解決・ドラッグ中の連続値書き込み・settle 後の "goto" dispatch・
+      # opt-in 属性なし carousel への無影響の実ブラウザ統合テスト
+      # （crates/wasm-full/tests/carousel_motion_browser.rs）。他の
+      # wasm-full ステップと同じ check-wasm-full 存在ガードを再利用し、
+      # 新規ガードは追加しない。`fandhe-frontend-animation::carousel::
+      # CarouselTrack` 自体の spring 収束・進行度計算の検証は
+      # crates/frontend-animation/tests/carousel_track_browser.rs が担う
+      # （`--test` フィルタなしの既存ステップ群が新規追加分も自動的に
+      # 拾うため ci.yml 側の追加ステップは不要）。
+      #
+      # codex-review 指摘 是正の回帰テスト追加（イシュー #2541 第 6
+      # ラウンド）に伴うテスト件数増加（13 → 15 件、うち複数が `sleep_ms`
+      # 4 秒超の spring 収束待ちを直列実行）で合計所要時間が
+      # wasm-bindgen-test-runner の既定タイムアウト（20 秒）を超えた
+      # （ローカル実測で合計約 27 秒）。`layout_flip_browser` ステップと
+      # 同型の是正として `WASM_BINDGEN_TEST_TIMEOUT` を明示指定する。
+      - name: Run wasm-full carousel-motion browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        env:
+          WASM_BINDGEN_TEST_TIMEOUT: "120"
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test carousel_motion_browser
+
       # イシュー #2532（text アニメーション部品）: text_animation
       # （crates/wasm-full/src/text_animation.rs）の候補走査・reduced-motion
       # 抑制・typewriter/scramble 完了時の全文一致の実ブラウザ統合テスト
@@ -1026,6 +1051,21 @@ jobs:
       - name: Run wasm-full text-animation browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test text_animation_browser
+
+      # イシュー #2542（カスタムカーソル、親 #2530/#2476）: cursor
+      # （crates/wasm-full/src/cursor.rs）の opt-in 要素解決・hover 対象の
+      # data-* 写し・magnetic 吸着・タッチ除外・reduced-motion/
+      # coarse-pointer 抑制の実ブラウザ統合テスト
+      # （crates/wasm-full/tests/cursor_browser.rs）。他の wasm-full
+      # ステップと同じ check-wasm-full 存在ガードを再利用し、新規ガードは
+      # 追加しない。`fandhe-frontend-animation::cursor::CursorAnimator`
+      # 自体の spring 収束の検証は crates/frontend-animation/tests/
+      # cursor_browser.rs が担う（上記「wasm-pack test:
+      # fandhe-frontend-animation」ステップ群、`--test` フィルタなしで
+      # 新規追加分も自動的に拾われるため ci.yml 側の追加ステップは不要）。
+      - name: Run wasm-full cursor browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test cursor_browser
 
       # イシュー #2403/#2517: rAF Driver（fandhe-frontend-animation::raf_driver）+
       # DOM Target（dom_target）で spring を実ブラウザ上で駆動し収束することを
@@ -2515,10 +2555,14 @@ jobs:
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,add-to-basket --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: magnetic, issue #2550)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,magnetic --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: carousel-motion, issue #2541)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,carousel-motion --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: text-animation, issue #2532)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,text-animation --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: ticker, issue #2540)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,ticker --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: cursor, issue #2542)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,cursor --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: animation-driver, issue #2403)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,animation-driver --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: view-transitions, issue #2400)"

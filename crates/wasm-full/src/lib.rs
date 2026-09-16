@@ -222,7 +222,9 @@
 //! | `Runtime::wire_add_to_basket` | `add-to-basket` |
 //! | `Runtime::wire_magnetic` | `magnetic` |
 //! | `Runtime::wire_ticker` | `ticker` |
+//! | `Runtime::wire_carousel_motion` | `carousel-motion` |
 //! | `Runtime::wire_text_animation` | `text-animation` |
+//! | `Runtime::wire_cursor` | `cursor` |
 //!
 //! [`overlay`]/[`tooltip`]/[`position`]/[`focus_trap`]/[`headless_file_upload`]/
 //! [`headless_select`] は `Runtime` を経由しないアプリ側直接利用 API のため
@@ -453,6 +455,8 @@ pub mod add_to_basket;
 pub mod angle_slider;
 #[cfg(feature = "animation-driver")]
 pub mod animation_driver;
+#[cfg(feature = "carousel-motion")]
+pub mod carousel_motion;
 pub mod chart;
 pub mod chart_range;
 pub mod command;
@@ -460,6 +464,8 @@ pub mod command;
 pub mod confetti;
 pub mod content_height;
 pub mod csr;
+#[cfg(feature = "cursor")]
+pub mod cursor;
 pub mod data_table;
 #[cfg(feature = "drag-gesture")]
 pub mod drag_gesture;
@@ -1866,10 +1872,19 @@ where
         Self::wire_magnetic(root.clone())?;
         #[cfg(feature = "ticker")]
         Self::wire_ticker(root.clone())?;
+        #[cfg(feature = "carousel-motion")]
+        Self::wire_carousel_motion(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
         #[cfg(feature = "text-animation")]
         let text_animation_loops = std::rc::Rc::new(std::cell::RefCell::new(
             Self::wire_text_animation(root.clone())?,
         ));
+        #[cfg(feature = "cursor")]
+        Self::wire_cursor(root.clone())?;
 
         Ok(Self {
             component,
@@ -2070,10 +2085,19 @@ where
         Self::wire_magnetic(root.clone())?;
         #[cfg(feature = "ticker")]
         Self::wire_ticker(root.clone())?;
+        #[cfg(feature = "carousel-motion")]
+        Self::wire_carousel_motion(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
         #[cfg(feature = "text-animation")]
         let text_animation_loops = std::rc::Rc::new(std::cell::RefCell::new(
             Self::wire_text_animation(root.clone())?,
         ));
+        #[cfg(feature = "cursor")]
+        Self::wire_cursor(root.clone())?;
 
         Ok(Self {
             component,
@@ -3153,6 +3177,32 @@ where
         ticker::wire_ticker(root)
     }
 
+    /// carousel のドラッグ + spring スナップ配線
+    /// （[`carousel_motion::wire_carousel_motion_events`]、イシュー #2541）
+    /// を登録する。settle 完了時に `"goto"` を dispatch するため
+    /// `Self::wire` の閉包（[`Self::wire_angle_slider`] と同型）を渡す。
+    ///
+    /// # Errors
+    ///
+    /// [`carousel_motion::wire_carousel_motion_events`]
+    /// （`add_event_listener_with_callback` の失敗）を伝播する。
+    #[cfg(feature = "carousel-motion")]
+    fn wire_carousel_motion(
+        component: std::rc::Rc<std::cell::RefCell<C>>,
+        root: web_sys::Element,
+        binding_table: std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
+    ) -> Result<(), wasm_bindgen::JsValue> {
+        carousel_motion::wire_carousel_motion_events(
+            root.clone(),
+            Self::wire(component, root, binding_table, keyed_list_cache),
+        )
+    }
+
     /// typewriter/scramble の配線（[`text_animation::wire_text_animation`]、
     /// イシュー #2532）を登録する。`dispatch` チャネルを持たない属性専用
     /// 配線のため（`Self::wire_magnetic`/`Self::wire_confetti` と同型）、
@@ -3170,6 +3220,20 @@ where
     ) -> Result<Vec<fandhe_frontend_animation::raf_driver::AnimationLoop>, wasm_bindgen::JsValue>
     {
         text_animation::wire_text_animation(root)
+    }
+
+    /// カスタムカーソルの配線（[`cursor::wire_cursor`]、イシュー #2542）を
+    /// 登録する。`dispatch` チャネルを持たない属性専用配線のため
+    /// （`Self::wire_magnetic`/`Self::wire_text_animation` と同型）、
+    /// `Component`/`binding_table`/`keyed_list_cache` を必要としない。
+    ///
+    /// # Errors
+    ///
+    /// [`cursor::wire_cursor`]（`add_event_listener_with_callback` の
+    /// 失敗）を伝播する。
+    #[cfg(feature = "cursor")]
+    fn wire_cursor(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        cursor::wire_cursor(root)
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて
