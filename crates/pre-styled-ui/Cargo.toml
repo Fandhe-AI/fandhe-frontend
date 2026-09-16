@@ -3573,7 +3573,16 @@ name = "fandhe-frontend-pre-styled-ui"
 #
 # イシュー #2440: Heading/Text の size variant に xl5/xl6 を純追加。公開
 # API（enum variant）の純追加のため minor バンプする。
-version = "0.214.0"
+#
+# イシュー #2441: empty_state の indicator（Lg サイズのみ）の font-size
+# リテラル（3.75rem）を、#2438 で追加された `font-size-6xl` トークン参照
+# （`var(--fandhe-font-font-size-6xl)`）へ置換した。出力バイトは値として
+# 同一だが `var()` 参照に変わり、利用者がテーマで `font-size-6xl` を
+# 上書きすると Lg indicator のサイズにも追随するようになる観測可能な
+# 挙動変化のため minor バンプする（Xl の 4.5rem は一致するトークンが
+# ないため対象外・リテラルのまま維持。イシュー本文の「Lg/Xl 2 箇所」の
+# 記載はコード実測と不一致であり、本 PR で訂正済み）。
+version = "0.215.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

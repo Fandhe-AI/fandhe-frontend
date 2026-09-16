@@ -189,7 +189,7 @@ const EMPTY_STATE_GOLDEN_CSS: &str = r#"[data-scope="empty-state"][data-part="ro
   --fandhe-empty-state-padding: var(--fandhe-space-16) var(--fandhe-space-12);
   --fandhe-empty-state-gap: var(--fandhe-space-3);
   --fandhe-empty-state-section-gap: var(--fandhe-space-5);
-  --fandhe-empty-state-indicator-size: 3.75rem;
+  --fandhe-empty-state-indicator-size: var(--fandhe-font-font-size-6xl);
   --fandhe-empty-state-title-size: var(--fandhe-font-font-size-xl);
   --fandhe-empty-state-description-size: var(--fandhe-font-font-size-md);
 }
