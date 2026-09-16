@@ -293,20 +293,51 @@ mod wiring {
     /// spring を継続する」節参照）。この場合は位置ヒューリスティックを
     /// 使わず、`root` 自身を新 carousel root として `item-group` のみを
     /// 再解決する。
+    /// `item_group` 配下（[`ITEM_SELECTOR`]、直接の子のみ）の枚数を返す。
+    fn slide_count_of(item_group: &Element) -> usize {
+        item_group
+            .query_selector_all(ITEM_SELECTOR)
+            .map(|list| list.length() as usize)
+            .unwrap_or(0)
+    }
+
+    /// `old_carousel_root` の再描画後の置き換え先を解決する。
+    ///
+    /// # 文書順の位置ヒューリスティックが指す先を枚数で検証する
+    /// （codex-review 指摘 是正 P1、イシュー #2541 第 6 ラウンド）
+    ///
+    /// [`position_of_carousel_root`]/[`replacement_item_group`] は要素の
+    /// 同一性ではなく**文書順の位置**のみで再描画後の carousel を
+    /// 突き合わせる（`root` 自身が old root の特別扱いを除く）。dispatch
+    /// した `"goto"` が carousel 自体の追加・削除・並べ替えを伴う構成
+    /// （例: 一覧の carousel をフィルタで絞り込む）では、同じ位置に
+    /// **別の carousel** が現れてしまい、無関係な carousel へ進行中の
+    /// spring を retarget してしまう。`old_carousel_root` に紐づいていた
+    /// `expected_slide_count`（pointerdown 時点で計測した枚数）と解決先
+    /// `item-group` の実際の枚数が食い違えば「別 carousel」と判定し
+    /// `None` を返す（既存の「見つからなければ spring を打ち切ってリーク
+    /// を防ぐ」フォールバックへ合流させる、完全な識別ではなく明白な
+    /// 食い違いだけを検知する fail-safe）。
     fn resolve_replacement(
         root: &Element,
         old_carousel_root: &Element,
         position: Option<usize>,
+        expected_slide_count: usize,
     ) -> Option<(Element, HtmlElement)> {
-        if old_carousel_root.is_same_node(Some(root.as_ref())) {
+        let (new_root, new_item_group) = if old_carousel_root.is_same_node(Some(root.as_ref())) {
             let new_item_group = root
                 .query_selector(ITEM_GROUP_SELECTOR)
                 .ok()
                 .flatten()
                 .and_then(|el| el.dyn_into::<HtmlElement>().ok())?;
-            return Some((root.clone(), new_item_group));
+            (root.clone(), new_item_group)
+        } else {
+            replacement_item_group(root, position?)?
+        };
+        if slide_count_of(&new_item_group) != expected_slide_count {
+            return None;
         }
-        replacement_item_group(root, position?)
+        Some((new_root, new_item_group))
     }
 
     /// アクティブなドラッグの付随情報（[`CarouselTrack`] 本体とは別に
@@ -317,6 +348,10 @@ mod wiring {
         item_group: HtmlElement,
         slide_px: f64,
         vertical: bool,
+        // 再描画後の carousel 識別（[`resolve_replacement`] doc「文書順の
+        // 位置ヒューリスティックが指す先を枚数で検証する」節参照、
+        // イシュー #2541 第 6 ラウンド）。
+        slide_count: usize,
         origin_coord: f64,
         moved: bool,
         /// `item_group.set_pointer_capture()` を実行済みかどうか（モジュール
@@ -413,7 +448,14 @@ mod wiring {
             return;
         }
         let (track, _) = slot_for(registry, &carousel_root);
-        if track.borrow_mut().take().is_some() {
+        let mut track_guard = track.borrow_mut();
+        if let Some(mut t) = track_guard.take() {
+            // 打ち切る前に確定 index を DOM へ即座に書き戻す（codex-review
+            // 指摘 是正、イシュー #2541 第 6 ラウンド「同一 index への
+            // no-op 更新だと途中の小数 progress が復元されない」）。
+            // 続く action dispatch が状態を変えない no-op でも、この
+            // 書き込みだけで表示は確定 index と一致する。
+            t.cancel_and_snap();
             let _ = carousel_root.remove_attribute(CAROUSEL_DRAGGING_STATE_ATTR);
         }
     }
@@ -696,6 +738,7 @@ mod wiring {
             item_group,
             slide_px,
             vertical,
+            slide_count,
             origin_coord: coord,
             moved: false,
             captured: false,
@@ -905,7 +948,12 @@ mod wiring {
         if !meta.carousel_root.is_connected() || !meta.item_group.is_connected() {
             let mut track_guard = track.borrow_mut();
             if let Some(t) = track_guard.as_mut() {
-                match resolve_replacement(root, &meta.carousel_root, carousel_position) {
+                match resolve_replacement(
+                    root,
+                    &meta.carousel_root,
+                    carousel_position,
+                    meta.slide_count,
+                ) {
                     Some((new_root, new_item_group)) => {
                         let attr_root = new_root.clone();
                         t.retarget(new_item_group, move |_index| {

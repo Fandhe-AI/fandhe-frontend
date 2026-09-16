@@ -139,6 +139,20 @@ mod wiring {
         mass: 1.0,
     };
 
+    /// `element` の現在の `--fandhe-carousel-index` インライン style を
+    /// 読む（パース不能・未設定は `None`）。[`CarouselTrack::attach`]/
+    /// [`CarouselTrack::resync_progress_from_dom`] と同じ読み方を settle
+    /// tick クロージャからも使うための自由関数（`&mut self` を持たない
+    /// クロージャ内から呼べるようにする）。
+    fn read_progress(element: &HtmlElement) -> Option<f64> {
+        element
+            .style()
+            .get_property_value(super::CAROUSEL_INDEX_PROPERTY)
+            .ok()
+            .and_then(|value| value.trim().parse::<f64>().ok())
+            .filter(|value| value.is_finite())
+    }
+
     /// 1 つの `item-group` に紐づくドラッグ + spring スナップのセッション。
     ///
     /// `Drop` で進行中の rAF ループ（[`AnimationLoop`]）を確実に止める
@@ -166,8 +180,11 @@ mod wiring {
         settling: Rc<Cell<bool>>,
         // 直近 `settle_to` に渡した着地 index（[`Self::retarget`] が同じ
         // target へ再収束させるために保持する、イシュー #2541 codex-review/
-        // Cursor Bugbot 指摘 是正）。
-        last_target: Option<usize>,
+        // Cursor Bugbot 指摘 是正）。`Rc<Cell<_>>` にする理由は
+        // [`Self::settle_to`] の tick クロージャからも書き換える必要が
+        // あるため（下記「収束中の外部 index 更新を検知して中断する」
+        // 節参照、イシュー #2541 codex-review 指摘 是正 第 6 ラウンド）。
+        last_target: Rc<Cell<Option<usize>>>,
     }
 
     impl CarouselTrack {
@@ -192,7 +209,7 @@ mod wiring {
                 latest_sample: None,
                 settle_anim: None,
                 settling: Rc::new(Cell::new(false)),
-                last_target: None,
+                last_target: Rc::new(Cell::new(None)),
             }
         }
 
@@ -226,7 +243,7 @@ mod wiring {
             on_settle: impl FnOnce(usize) + 'static,
         ) {
             self.element = new_element;
-            if let Some(target) = self.last_target {
+            if let Some(target) = self.last_target.get() {
                 if self.settling.get() {
                     // 差し替え直後、次の rAF tick が発火するまでの 1 フレーム
                     // 分、新要素は再描画時の SSR ベースライン値（確定済み
@@ -359,7 +376,7 @@ mod wiring {
             };
             if (dom_value - self.progress.get()).abs() > 1e-6 {
                 self.progress.set(dom_value);
-                self.last_target = None;
+                self.last_target.set(None);
             }
         }
 
@@ -442,7 +459,7 @@ mod wiring {
         /// fail-safe）。
         pub fn on_tap_release(&mut self, on_settle: impl FnOnce(usize) + 'static) -> usize {
             self.drag_origin = None;
-            let target = self.last_target.unwrap_or_else(|| {
+            let target = self.last_target.get().unwrap_or_else(|| {
                 snap_target(self.progress.get(), 0.0, self.slide_count, self.loop_)
             });
             self.settle_to(target, 0.0, on_settle);
@@ -492,7 +509,7 @@ mod wiring {
         ) {
             let from = self.progress.get();
             let to = target as f64;
-            self.last_target = Some(target);
+            self.last_target.set(Some(target));
             if prefers_reduced_motion() {
                 self.settle_anim = None;
                 self.settling.set(false);
@@ -521,15 +538,42 @@ mod wiring {
             let element = self.element.clone();
             let progress_cell = self.progress.clone();
             let settling_cell = self.settling.clone();
+            let last_target_cell = self.last_target.clone();
+            // 直前に自分が書き込んだ値（`state.value`）を憶える。tick 毎に
+            // DOM の現在値と突き合わせ、自分の書き込み以外の経路（例:
+            // 自動再生等で `"goto"` が別途 dispatch され、settle 未完了の
+            // まま SSR 再描画が `item_group` のインライン style を直接
+            // 書き換えた）で値が変わっていないかを検知する（codex-review
+            // 指摘 是正、イシュー #2541 第 6 ラウンド「収束中、外部による
+            // index 更新を検知せず古い着地先へ毎フレーム上書きし続ける」）。
+            let mut last_written = from;
             let mut elapsed_s = 0.0;
             let mut on_settle = Some(on_settle);
             self.settle_anim = Some(AnimationLoop::start(move || {
+                if let Some(dom_value) = read_progress(&element) {
+                    if (dom_value - last_written).abs() > 1e-6 {
+                        // 外部書き込みを検知: この spring はもう正しい
+                        // 着地先を追っていないため、上書きせず即座に
+                        // 打ち切る（`on_settle` は呼ばない——目標未到達の
+                        // まま完了扱いにすると、呼び出し側の「settle 完了」
+                        // 処理〔dragging 属性の除去等〕が誤って走る）。
+                        // `last_target` も外部値との対応が失われたため
+                        // `None` へ戻し、次のタップが古い着地先へ収束
+                        // しないようにする（[`Self::resync_progress_from_dom`]
+                        // と同じ安全策）。
+                        progress_cell.set(dom_value);
+                        settling_cell.set(false);
+                        last_target_cell.set(None);
+                        return false;
+                    }
+                }
                 let dt = driver.tick().unwrap_or(0.0);
                 elapsed_s += dt;
                 let state = spring.at(elapsed_s);
                 progress_cell.set(state.value);
                 DomTarget::custom_property(element.clone(), super::CAROUSEL_INDEX_PROPERTY)
                     .write(state.value);
+                last_written = state.value;
                 if state.done {
                     settling_cell.set(false);
                     if let Some(cb) = on_settle.take() {
@@ -545,6 +589,31 @@ mod wiring {
         fn write_progress(&self, value: f64) {
             DomTarget::custom_property(self.element.clone(), super::CAROUSEL_INDEX_PROPERTY)
                 .write(value);
+        }
+
+        /// 進行中の spring を打ち切り、直前に確定していた着地 index
+        /// （[`Self::last_target`]、未確定なら現在の進行度を最寄りへ
+        /// 丸めた値）を即座に DOM へ書き込む（codex-review 指摘 是正、
+        /// イシュー #2541 第 6 ラウンド）。
+        ///
+        /// 呼び出し側（wasm-full の nav-trigger click ハンドラ）は
+        /// トリガークリックのたびに進行中の spring を打ち切るが、
+        /// その先の action dispatch が**同じ index への no-op 更新**
+        /// （例: 非 loop の末尾で `next` を押す）だと、状態が変わらない
+        /// ため SSR 再描画が発生せず `item_group` のインライン style
+        /// （途中の小数 progress）が誰にも上書きされないまま取り残される。
+        /// dispatch の結果を待たずここで確定値へ即座に書き戻すことで、
+        /// 再描画の有無に関わらず表示が確定 index と一致する。
+        pub fn cancel_and_snap(&mut self) {
+            self.settle_anim = None;
+            self.settling.set(false);
+            let target = self.last_target.get().unwrap_or_else(|| {
+                snap_target(self.progress.get(), 0.0, self.slide_count, self.loop_)
+            });
+            self.last_target.set(Some(target));
+            let to = target as f64;
+            self.progress.set(to);
+            self.write_progress(to);
         }
     }
 

@@ -276,6 +276,18 @@ async fn nav_trigger_click_cancels_pending_settle_without_reverting_dispatch() {
     next_trigger.dispatch_event(&genuine_click).unwrap();
 
     let frozen_value = read_index(&item_group).expect("progress must remain written");
+    // 打ち切り直後、まだ 1 tick も走っていない spring は途中の小数
+    // progress（この操作では 2.0 未満）を書いたままのはずだが、
+    // `CarouselTrack::cancel_and_snap` が確定 index（dispatch した
+    // `"2"`）へ即座に書き戻す（codex-review 指摘 是正、イシュー #2541
+    // 第 6 ラウンド「同一 index への no-op 更新だと途中の小数 index が
+    // 復元されない」）。呼び出し側の action ハンドラがこの genuine click
+    // に対して何も再描画しない（no-op）構成でも、この書き込みだけで
+    // 表示は確定 index と一致する。
+    assert!(
+        (frozen_value - 2.0).abs() < 1e-9,
+        "cancelled settle must snap immediately to the confirmed target index: {frozen_value}"
+    );
     sleep_ms(300).await;
     let after_click_value = read_index(&item_group).expect("progress must remain written");
     assert!(
@@ -784,5 +796,130 @@ async fn nested_non_opt_in_carousel_does_not_borrow_outer_drag_state() {
     assert!(
         read_index(&outer_item_group).is_none(),
         "外側の item-group も無関係な内側操作で書き換えられてはならない"
+    );
+}
+
+/// [`build_dom`] と同型だが `item` の枚数を明示できる（既定は常に 3
+/// 枚固定のため、枚数が異なる「別の carousel」を模すテスト専用）。
+fn build_dom_with_item_count(
+    document: &Document,
+    drag_attr_value: Option<&str>,
+    item_count: usize,
+) -> (Element, Element) {
+    let root = document.create_element("div").unwrap();
+    root.set_attribute("data-scope", "carousel").unwrap();
+    root.set_attribute("data-part", "root").unwrap();
+    if let Some(value) = drag_attr_value {
+        root.set_attribute(CAROUSEL_DRAG_ATTR, value).unwrap();
+    }
+
+    let item_group = document.create_element("div").unwrap();
+    item_group.set_attribute("data-scope", "carousel").unwrap();
+    item_group.set_attribute("data-part", "item-group").unwrap();
+
+    for _ in 0..item_count {
+        let item = document.create_element("div").unwrap();
+        item.set_attribute("data-scope", "carousel").unwrap();
+        item.set_attribute("data-part", "item").unwrap();
+        let html_item = item.clone().dyn_into::<HtmlElement>().unwrap();
+        let style = html_item.style();
+        style.set_property("display", "inline-block").unwrap();
+        style.set_property("width", "100px").unwrap();
+        style.set_property("height", "40px").unwrap();
+        item_group.append_child(&item).unwrap();
+    }
+    root.append_child(&item_group).unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    (root, item_group)
+}
+
+/// codex-review 指摘 是正の回帰（イシュー #2541 第 6 ラウンド）: 再描画後の
+/// carousel を文書順の位置だけで同一視すると、位置は同じでも構造が違う
+/// （＝別の）carousel を「同じ carousel の再描画」と誤認してしまう
+/// （例: 一覧をフィルタで絞り込み、同じ位置に枚数の異なる別 carousel が
+/// 現れる）。`resolve_replacement` は再描画先の `item` 枚数が pointerdown
+/// 時点の枚数と食い違えば「別 carousel」と判定し、無関係な spring の
+/// retarget を行わずに打ち切る（見つからなかった場合と同じフォール
+/// バック）。
+#[wasm_bindgen_test]
+async fn redraw_with_mismatched_slide_count_does_not_retarget_spring() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let wrapper = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&wrapper).unwrap();
+    let _wrapper_guard = RemoveOnDrop(wrapper.clone());
+
+    let (root, item_group) = build_dom(&document, Some(""));
+    wrapper.append_child(&root).unwrap();
+
+    let new_item_group_cell: Rc<RefCell<Option<Element>>> = Rc::new(RefCell::new(None));
+    let redraw_document = document.clone();
+    let redraw_wrapper = wrapper.clone();
+    let redraw_cell = new_item_group_cell.clone();
+    wire_carousel_motion_events(wrapper.clone(), move |_action_ref: ActionRef| {
+        // 同じ位置へ、枚数の異なる（＝構造上別の）carousel を差し替える。
+        while let Some(child) = redraw_wrapper.first_child() {
+            let _ = redraw_wrapper.remove_child(&child);
+        }
+        let (new_root, new_item_group) = build_dom_with_item_count(&redraw_document, Some(""), 2);
+        new_root.remove();
+        let _ = redraw_wrapper.append_child(&new_root);
+        *redraw_cell.borrow_mut() = Some(new_item_group);
+    })
+    .unwrap();
+
+    dispatch_pointer_event(&item_group, "pointerdown", 0, 1);
+    dispatch_pointer_event(&item_group, "pointermove", -150, 1);
+    dispatch_pointer_event(&item_group, "pointerup", -150, 1);
+
+    let new_item_group = new_item_group_cell
+        .borrow()
+        .clone()
+        .expect("dispatch must have installed a replacement carousel synchronously");
+
+    sleep_ms(4_000).await;
+
+    assert!(
+        read_index(&new_item_group).is_none(),
+        "枚数の異なる別 carousel へ旧 spring を retarget してはならない"
+    );
+}
+
+/// codex-review 指摘 是正の回帰（イシュー #2541 第 6 ラウンド）: 収束中の
+/// spring が、この `CarouselTrack` を経由しない別経路（例: 自動再生の
+/// `"goto"` が SSR 再描画で `item_group` のインライン style を直接書き
+/// 換える）による外部書き込みを検知した場合、古い着地先で毎フレーム
+/// 上書きし続けてはならない。
+#[wasm_bindgen_test]
+async fn external_index_write_during_settle_stops_stale_spring() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, item_group) = build_dom(&document, Some(""));
+    let _guard = RemoveOnDrop(root.clone());
+
+    wire_carousel_motion_events(root.clone(), move |_action_ref: ActionRef| {}).unwrap();
+
+    dispatch_pointer_event(&item_group, "pointerdown", 0, 1);
+    dispatch_pointer_event(&item_group, "pointermove", -150, 1);
+    dispatch_pointer_event(&item_group, "pointerup", -150, 1);
+
+    // spring が数フレーム書き込むまで少し待つ（着地先 2.0 へ向けて収束中、
+    // まだ完了していない）。
+    sleep_ms(50).await;
+
+    // この `CarouselTrack` を経由しない外部書き込みを模す。
+    let html_item_group = item_group.clone().dyn_into::<HtmlElement>().unwrap();
+    html_item_group
+        .style()
+        .set_property("--fandhe-carousel-index", "0.75")
+        .unwrap();
+
+    // 元の spring が生きていれば着地先 2.0 へ向けて上書きを続けるはず
+    // だが、収束完了まで十分な時間（他テストの `sleep_ms(4_000)` 相当）
+    // 待っても外部書き込みの値のまま変わらないことを確認する。
+    sleep_ms(4_000).await;
+
+    let value = read_index(&item_group).expect("value must remain set");
+    assert!(
+        (value - 0.75).abs() < 1e-6,
+        "打ち切られた spring が外部書き込みを上書きし続けてはならない: {value}"
     );
 }

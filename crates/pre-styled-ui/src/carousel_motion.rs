@@ -96,14 +96,22 @@ pub const CAROUSEL_DRAGGING_STATE_ATTR: &str = "data-fandhe-carousel-dragging";
 ///
 /// 是正として、`[data-scope="carousel"][data-part="root"]`
 /// （`crates/headless-ui/src/carousel.rs::root` が必ず出力する anatomy
-/// root）のうち **opt-in 属性を持たないもの**を挟んで item-group/item に
-/// 到達する経路を `:not()` で除外する。外側 root（opt-in 属性あり）から
-/// 内側 root（opt-in 属性なし）を経て内側 item-group/item に至る経路は
-/// この `:not()` の内側セレクタに一致するため除外され、外側自身の
-/// item-group/item（間に opt-in なし root を挟まない）だけが残る。
-/// 内側 carousel 自身にも同じ opt-in 属性が付与されていれば、内側は
-/// 自分自身の opt-in root からの子孫として独立に一致し続けるため、
-/// 深さに関わらず両者とも意図どおりに表示される。`concat!` はリテラル
+/// root、**opt-in 属性の有無を問わない**）を挟んで item-group/item に
+/// 到達する経路を `:not()` で除外する。CSS `:not(A B)` は「A を祖先に
+/// 持つ B」という経路が **1 つでも**存在すれば除外する意味論（最も近い
+/// 祖先だけを見るわけではない）ため、除外対象を「opt-in 属性を持たない
+/// root」に限定すると、外側が非 opt-in・内側が opt-in という逆向きの
+/// 入れ子（内側の opt-in item-group から見て、非 opt-in の外側 root も
+/// 「祖先の非 opt-in root」に該当してしまう）で内側自身の item-group まで
+/// 誤って除外されていた（codex-review/Cursor Bugbot 指摘 是正、イシュー
+/// #2541 第 6 ラウンド）。除外条件を「opt-in の有無を問わない root」へ
+/// 一般化することで、item-group/item は常に**最も近い** root だけに
+/// 帰属するようになる: 外側 root（opt-in あり）の item-group は、内側に
+/// 別の root（opt-in の有無を問わない）を挟まない場合のみ一致し、内側に
+/// 何らかの root が挟まれば必ず除外される。内側 carousel 自身が opt-in
+/// していれば、内側は「自分自身の opt-in root からの子孫かつ内側に別の
+/// root を挟まない」という同じ条件で独立に一致するため、深さ・入れ子の
+/// 向きに関わらず両者とも意図どおりに表示される。`concat!` はリテラル
 /// トークンしか結合できないため、ガード文字列は各セレクタへ直接
 /// リテラルとしてインライン展開する（`const` 経由の再利用はしない）。
 ///
@@ -129,7 +137,7 @@ pub const CAROUSEL_DRAGGING_STATE_ATTR: &str = "data-fandhe-carousel-dragging";
 /// 組み合わせても中身が隠れない）。
 pub const CAROUSEL_COVERFLOW_CSS: &str = concat!(
     "[data-fandhe-carousel-coverflow] [data-scope=\"carousel\"][data-part=\"item-group\"]",
-    ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-coverflow]) [data-scope=\"carousel\"][data-part=\"item-group\"])",
+    ":not([data-scope=\"carousel\"][data-part=\"root\"] [data-scope=\"carousel\"][data-part=\"item-group\"])",
     " {\n",
     "  transform: none;\n",
     "  perspective: var(--fandhe-carousel-coverflow-perspective, 800px);\n",
@@ -139,7 +147,7 @@ pub const CAROUSEL_COVERFLOW_CSS: &str = concat!(
     "  height: var(--fandhe-carousel-coverflow-height, var(--fandhe-carousel-height, 20rem));\n",
     "}\n",
     "[data-fandhe-carousel-coverflow] [data-scope=\"carousel\"][data-part=\"item\"]",
-    ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-coverflow]) [data-scope=\"carousel\"][data-part=\"item\"])",
+    ":not([data-scope=\"carousel\"][data-part=\"root\"] [data-scope=\"carousel\"][data-part=\"item\"])",
     " {\n",
     "  --_o: calc(var(--fandhe-motion-stagger-index, 0) - var(--fandhe-carousel-index, 0));\n",
     "  --_abs-o: max(var(--_o), calc(-1 * var(--_o)));\n",
@@ -164,7 +172,7 @@ pub const CAROUSEL_COVERFLOW_CSS: &str = concat!(
     // `--_abs-o` は orientation を問わない上のブロックが既に定義済みの
     // ため、ここでは `transform` の上書きのみで足りる）。
     "[data-fandhe-carousel-coverflow] [data-scope=\"carousel\"][data-part=\"item\"][data-orientation=\"vertical\"]",
-    ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-coverflow]) [data-scope=\"carousel\"][data-part=\"item\"])",
+    ":not([data-scope=\"carousel\"][data-part=\"root\"] [data-scope=\"carousel\"][data-part=\"item\"])",
     " {\n",
     "  transform: translateY(calc(var(--_o) * var(--fandhe-carousel-coverflow-spread, 55%)))\n",
     "    rotateX(calc(clamp(-1, var(--_o), 1) * var(--fandhe-carousel-coverflow-angle, 45deg)))\n",
@@ -191,20 +199,20 @@ pub const CAROUSEL_COVERFLOW_CSS: &str = concat!(
 /// `pan-x`（横方向のみ委譲、縦方向はドラッグ処理が専有）を宣言する。
 pub const CAROUSEL_SPRING_SNAP_CSS: &str = concat!(
     "[data-fandhe-carousel-drag] [data-scope=\"carousel\"][data-part=\"item-group\"]",
-    ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-drag]) [data-scope=\"carousel\"][data-part=\"item-group\"])",
+    ":not([data-scope=\"carousel\"][data-part=\"root\"] [data-scope=\"carousel\"][data-part=\"item-group\"])",
     " {\n",
     "  touch-action: pan-y;\n",
     "  cursor: grab;\n",
     "}\n",
     "[data-fandhe-carousel-drag] [data-scope=\"carousel\"][data-part=\"item-group\"][data-orientation=\"vertical\"]",
-    ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-drag]) [data-scope=\"carousel\"][data-part=\"item-group\"])",
+    ":not([data-scope=\"carousel\"][data-part=\"root\"] [data-scope=\"carousel\"][data-part=\"item-group\"])",
     " {\n",
     "  touch-action: pan-x;\n",
     "}\n",
     "[data-fandhe-carousel-drag][data-fandhe-carousel-dragging] [data-scope=\"carousel\"][data-part=\"item-group\"]",
-    ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-drag]) [data-scope=\"carousel\"][data-part=\"item-group\"]),\n",
+    ":not([data-scope=\"carousel\"][data-part=\"root\"] [data-scope=\"carousel\"][data-part=\"item-group\"]),\n",
     "[data-fandhe-carousel-drag][data-fandhe-carousel-dragging] [data-scope=\"carousel\"][data-part=\"item\"]",
-    ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-drag]) [data-scope=\"carousel\"][data-part=\"item\"])",
+    ":not([data-scope=\"carousel\"][data-part=\"root\"] [data-scope=\"carousel\"][data-part=\"item\"])",
     " {\n",
     "  transition: none;\n",
     "  cursor: grabbing;\n",
@@ -290,25 +298,47 @@ mod tests {
     }
 
     /// 入れ子 carousel への漏れ防止ガード（codex-review/Cursor Bugbot 指摘
-    /// 是正 P1、イシュー #2541 第 5 ラウンド）の回帰防止: coverflow/drag
-    /// いずれの CSS も、opt-in 属性を持たない `[data-part="root"]` を挟む
-    /// item-group/item への到達経路を `:not()` で除外する。
+    /// 是正 P1、イシュー #2541 第 5〜6 ラウンド）の回帰防止: coverflow/drag
+    /// いずれの CSS も、opt-in の有無を問わない `[data-part="root"]` を
+    /// 挟む item-group/item への到達経路を `:not()` で除外する（除外を
+    /// 「opt-in なし root」に限定すると、非 opt-in の外側に opt-in の
+    /// 内側が入れ子になる逆向きの構成で内側自身まで誤って除外される、
+    /// モジュール doc 参照）。
     #[test]
-    fn coverflow_and_drag_css_exclude_nested_non_opt_in_carousel() {
+    fn coverflow_and_drag_css_exclude_nested_carousel() {
         let coverflow = CAROUSEL_COVERFLOW_CSS;
         assert!(coverflow.contains(
-            ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-coverflow]) [data-scope=\"carousel\"][data-part=\"item-group\"])"
+            ":not([data-scope=\"carousel\"][data-part=\"root\"] [data-scope=\"carousel\"][data-part=\"item-group\"])"
         ));
         assert!(coverflow.contains(
-            ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-coverflow]) [data-scope=\"carousel\"][data-part=\"item\"])"
+            ":not([data-scope=\"carousel\"][data-part=\"root\"] [data-scope=\"carousel\"][data-part=\"item\"])"
         ));
 
         let drag = CAROUSEL_SPRING_SNAP_CSS;
         assert!(drag.contains(
-            ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-drag]) [data-scope=\"carousel\"][data-part=\"item-group\"])"
+            ":not([data-scope=\"carousel\"][data-part=\"root\"] [data-scope=\"carousel\"][data-part=\"item-group\"])"
         ));
         assert!(drag.contains(
-            ":not([data-scope=\"carousel\"][data-part=\"root\"]:not([data-fandhe-carousel-drag]) [data-scope=\"carousel\"][data-part=\"item\"])"
+            ":not([data-scope=\"carousel\"][data-part=\"root\"] [data-scope=\"carousel\"][data-part=\"item\"])"
         ));
+    }
+
+    /// 上記テストの回帰防止の裏返し（イシュー #2541 第 6 ラウンド）:
+    /// 除外ガードが opt-in 属性の有無で intervening root を選り好み
+    /// **しない**こと自体を固定する。以前の実装は `:not([data-part=
+    /// "root"]:not([opt-in]) ...)` のように opt-in なし root だけを
+    /// 除外対象にしていたため、非 opt-in の外側に opt-in の内側が入れ子
+    /// になる逆向きの構成で、外側（非 opt-in）root が「祖先の非 opt-in
+    /// root」に該当し、CSS `:not(A B)` の「A を祖先に持つ経路が 1 つでも
+    /// あれば除外」という意味論により内側自身の item-group まで誤って
+    /// 除外されていた。この古い形（`root"]:not([data-fandhe-carousel-
+    /// coverflow])`/`-drag])`）が再導入されていないことを確認する。
+    #[test]
+    fn coverflow_and_drag_css_guard_does_not_special_case_opt_in_ancestor() {
+        let coverflow = CAROUSEL_COVERFLOW_CSS;
+        assert!(!coverflow.contains(r#"root"]:not([data-fandhe-carousel-coverflow])"#));
+
+        let drag = CAROUSEL_SPRING_SNAP_CSS;
+        assert!(!drag.contains(r#"root"]:not([data-fandhe-carousel-drag])"#));
     }
 }
