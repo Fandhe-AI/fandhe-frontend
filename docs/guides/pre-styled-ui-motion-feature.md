@@ -102,6 +102,28 @@ fandhe-frontend-pre-styled-ui = { version = "0.192", features = ["motion"] }
   - `prefers-reduced-motion: reduce` 下では回転を止め、静的な `border`
     へフォールバックします。
 
+- **text アニメーション部品（イシュー #2532、
+  `crates/pre-styled-ui/src/text_reveal.rs`）**: split-text reveal
+  （`chars`/`words`、SSR + CSS のみで完結）と typewriter/scramble（マーク
+  アップのみ。実際の文字送り・乱数置換は wasm-full 側 `text-animation`
+  feature 既定 on が担う）を提供します。
+  - `text_reveal::chars(content)`/`text_reveal::words(content)`: 分割前の
+    全文を visually-hidden な `.fd-text-reveal__sr` で保持しつつ、
+    `aria-hidden="true"` の分割済みレイヤー（`.fd-text-reveal__unit`）を
+    `@keyframes fd-text-reveal-in` で `--fandhe-motion-stagger-index`
+    （`recipe::stagger_index_style`）に応じて順に現します。
+  - `text_reveal::typewriter(content, duration_ms)`/
+    `text_reveal::scramble(content, duration_ms)`: `data-fandhe-typewriter`/
+    `data-fandhe-scramble` を付与し、`.fd-text-reveal__display` へ初期表示
+    として全文を書きます（JS 不在・reduced-motion のいずれでも全文が
+    見える）。`duration_ms` に `Some(ms)` を渡すと属性値へ上書きします。
+  - `text_reveal::TEXT_REVEAL_CSS`/`Theme::to_css_with_text_reveal()`:
+    `border_beam` と同型の pure append。公開トークンは
+    `--fandhe-text-reveal-step`（既定 `40ms`）1 件のみです。
+  - `prefers-reduced-motion: reduce` 下では `.fd-text-reveal__unit` の
+    `animation` を `none` へ縮退します（typewriter/scramble は元々全文
+    表示のため追加の CSS は不要）。
+
 - **field / input の Motion+ 由来フォームアニメーション（イシュー #2545、
   `crates/pre-styled-ui/src/forms_motion.rs`）**: `field`/`input` 自体は
   変更せず、既存 anatomy へ参照するだけの opt-in 追加 CSS 4 種です。
@@ -136,6 +158,22 @@ fandhe-frontend-pre-styled-ui = { version = "0.192", features = ["motion"] }
     error-text presence は `var(--fandhe-motion-duration-*)` 経由の
     transition のみで構成され、`Theme::to_css` が既に duration トークンを
     reduced motion 下で `0ms` へ上書きするため個別ブロックは不要です。
+
+- **カスタムカーソル（イシュー #2542、`crates/pre-styled-ui/src/cursor.rs`）**:
+  ポインタに spring で追従するカスタムカーソル（Motion+ Cursor 相当）です。
+  - `cursor::cursor(attrs)`: カーソル要素本体（`<div>`）を組み立てる。
+    `data-fandhe-cursor`（値なし存在属性）・`aria-hidden="true"` を持つ。
+    hover 対象は利用者が任意の要素へ `data-fandhe-cursor-target`（バリアント
+    名）・`data-fandhe-cursor-target-label`・`data-fandhe-cursor-target-magnetic`
+    を静的に付与する。
+  - `cursor::CURSOR_CSS`: カーソル要素の固定位置スタイル・hover バリアント
+    （`ring`）・ラベル表示・`@media (prefers-reduced-motion: reduce),
+    (pointer: coarse), (hover: none)` フェイルセーフの CSS 全文。
+    `Theme::to_css_with_cursor()`: `Theme::to_css()` の出力へ追記する
+    opt-in メソッド。
+  - 追従の spring 演算・rAF 駆動・hover 対象の `data-*` 写し配線は
+    `fandhe-frontend-wasm-full` の `cursor` feature（既定 on）が担う
+    （本クレートは `wasm-full` に依存しない）。
 
 - **spring 近似 easing プリセット（イシュー #2381）**: `theme::Theme::
   push_spring_easing()` を呼ぶと、`motion.dev spring()` 既定値
@@ -197,6 +235,16 @@ fandhe-frontend-pre-styled-ui = { version = "0.192", features = ["motion"] }
     プリセットの静的 `mask-*` 宣言は `animation: revert;` だけでは戻ら
     ないため、同ブロックで `mask-image: none;` も併せて再宣言します。
 
+- **toast の stack 表示（イシュー #2543、`crates/pre-styled-ui/src/
+  toast_motion.rs`）**: 既存 `toast` 部品への opt-in 追加装飾です。
+  `toast_motion::STACK_ATTR`（`"data-fandhe-toast-stack"`）を `toast::group`
+  の `attrs` へ渡すと積層表示（後ろの通知ほど縮小・オフセット）になり、
+  `:hover`/`:focus-within` で展開します。動的な追加・削除・並べ替えを
+  行う場合は `toast_motion::stack_group_keyed` が stagger 書き戻し
+  （`stagger`）+ layout FLIP（`layout-animation`）を自動配線します。
+  `Theme::to_css_with_toast_motion()`: `Theme::to_css()` の出力へ
+  `toast_motion::TOAST_STACK_CSS` を追記して返す opt-in メソッド。
+
 ## 3. 無効時ゼロコスト保証の内容
 
 | 指標 | 保証内容 | 対応する契約テスト |
@@ -225,6 +273,8 @@ CI では `.github/workflows/ci.yml` の `clippy` ジョブが
 - 共通 `@keyframes`（#2382）は feature 配下に実装済みです（`motion::KEYFRAMES_CSS`、
   §2 参照）。stagger（#2384）も feature 配下に実装済みです（§2 参照）。
   scroll-driven（#2385）は同文書 §4 各行の採用方針に従い、追加時に判断します。
+- カスタムカーソル（#2542）も feature 配下に実装済みです（`cursor`
+  モジュール、§2 参照。C 群のみに分類され実装対象と定められた拡張出力）。
 
 ## 5. 消費者別の指定方針
 
@@ -277,5 +327,6 @@ cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_bo
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_parallax_css --test motion_sticky_progress_css --locked
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_forms_css --locked
 cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_view_transition_css --locked
+cargo test   -p fandhe-frontend-pre-styled-ui --features motion --test motion_text_reveal_css --locked
 cargo tree   -p fandhe-frontend-pre-styled-ui -e normal --prefix none --locked | grep -c fandhe-animation   # 0
 ```

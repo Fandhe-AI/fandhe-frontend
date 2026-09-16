@@ -232,8 +232,13 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // #2550 で Blocks セクションへ cta-banner-magnetic・
     // cta-signup-celebrate の 2 ページが加わり、241 → 243 になった。イシュー
     // #2523 でアニメーション機能ガイド（Guides セクション）が加わり、
-    // 243 → 244 になった。
-    assert_eq!(pages.len(), 244, "expected 244 pages, got {pages:?}");
+    // 243 → 244 になった。イシュー #2542 で Blocks セクションへ
+    // cursor-hover-cards が加わり、244 → 245 になった。イシュー #2546 で
+    // Blocks セクションへ hero-editorial-stagger・hero-parallax-layers・
+    // hero-terminal・text-split-reveal の 4 ページが加わり、245 → 249
+    // になった。イシュー #2552 で Blocks セクションへ game-ui-modal が
+    // 加わり、249 → 250 になった。
+    assert_eq!(pages.len(), 250, "expected 250 pages, got {pages:?}");
 
     // イシュー #2088: `/blocks/` 配下は索引ページ（`/blocks/` 自身）1 件 +
     // login-01 1 件の 2 件。イシュー #2089 で dashboard-01 が加わり 3 件。
@@ -245,15 +250,19 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // testimonials-stack が加わり 10 → 11 件になった。イシュー #2549 で
     // bento-staggered・feature-expand が加わり 11 → 13 件になった。イシュー
     // #2550 で cta-banner-magnetic・cta-signup-celebrate が加わり
-    // 13 → 15 件になった。
+    // 13 → 15 件になった。イシュー #2542 で cursor-hover-cards が加わり
+    // 15 → 16 件になった。イシュー #2546 で hero-editorial-stagger・
+    // hero-parallax-layers・hero-terminal・text-split-reveal の 4 件が
+    // 加わり 16 → 20 件になった。イシュー #2552 で game-ui-modal が加わり
+    // 20 → 21 件になった。
     let blocks_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/blocks/"))
         .collect();
     assert_eq!(
         blocks_pages.len(),
-        15,
-        "expected 15 /blocks/ pages (index + login-01 + login-04 + dashboard-01 + sidebar-07 + sidebar-03 + signup-01 + signup-05 + pricing-tiers-morph + pricing-usage-slider + testimonials-stack + bento-staggered + feature-expand + cta-banner-magnetic + cta-signup-celebrate), got {blocks_pages:?}"
+        21,
+        "expected 21 /blocks/ pages (index + login-01 + login-04 + dashboard-01 + sidebar-07 + sidebar-03 + signup-01 + signup-05 + pricing-tiers-morph + pricing-usage-slider + testimonials-stack + bento-staggered + feature-expand + cta-banner-magnetic + cta-signup-celebrate + cursor-hover-cards + hero-editorial-stagger + hero-parallax-layers + hero-terminal + text-split-reveal + game-ui-modal), got {blocks_pages:?}"
     );
     assert!(
         pages.contains(&("site/blocks.md", "/blocks/")),

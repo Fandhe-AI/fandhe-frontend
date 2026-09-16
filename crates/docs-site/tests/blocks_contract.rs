@@ -1367,15 +1367,24 @@ fn testimonials_stack_uses_motion_tokens_not_raw_durations() {
     // が存在しないことは主張できなくなった。testimonials-stack 自身が
     // 追加の `@keyframes` を持ち込んでいないことのみを、結合済み CSS 中の
     // `@keyframes` 出現数が共有 `KEYFRAMES_CSS` 由来の出現数と一致するかで
-    // 固定する。
+    // 固定する。イシュー #2546 で `text-split-reveal`（`text_reveal::
+    // TEXT_REVEAL_CSS` の `fd-text-reveal-in`）と `hero-parallax-layers`
+    // （`SlotRecipe::parallax` の `fandhe-motion-parallax`）が、
+    // `KEYFRAMES_CSS` 由来ではない自前の `@keyframes` を新たに 2 件
+    // 導入したため、期待値へその 2 件分を明示的に加算する
+    // （testimonials-stack 自身が新規 `@keyframes` を持ち込んでいないこと
+    // を固定する不変条件は変えない）。
+    const NEW_KEYFRAMES_OUTSIDE_SHARED_MOTION_CSS: usize = 2;
     let keyframes_in_sheet = sheet_css.matches("@keyframes").count();
     let keyframes_in_shared_motion_css = fandhe_frontend_pre_styled_ui::motion::KEYFRAMES_CSS
         .matches("@keyframes")
         .count();
     assert_eq!(
-        keyframes_in_sheet, keyframes_in_shared_motion_css,
+        keyframes_in_sheet,
+        keyframes_in_shared_motion_css + NEW_KEYFRAMES_OUTSIDE_SHARED_MOTION_CSS,
         "testimonials-stack should not introduce @keyframes beyond the shared \
-         motion::KEYFRAMES_CSS import (no reduced-motion @media override needed)"
+         motion::KEYFRAMES_CSS import and the known text-split-reveal/\
+         hero-parallax-layers additions (no reduced-motion @media override needed)"
     );
 }
 
@@ -1785,5 +1794,457 @@ fn cta_signup_celebrate_composes_expected_parts() {
         html.contains(r#"data-fandhe-confetti-trigger="cta-signup-celebrate-canvas""#)
             && html.contains(r#"id="cta-signup-celebrate-canvas""#),
         "confetti trigger value must match the canvas id for the locator contract to resolve"
+    );
+}
+
+/// hero-editorial-stagger ページが `blocks-demo blocks-hero-editorial-
+/// stagger` class・両 stylesheet の `<link>`・stagger 用 CSS フックを
+/// 実際に出力し、`blocks::stylesheet()` にも対応するセレクタが存在する
+/// こと（イシュー #2546）。
+#[test]
+fn hero_editorial_stagger_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-editorial-stagger/index.html"))
+        .expect("blocks/hero-editorial-stagger/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-hero-editorial-stagger\""),
+        "hero-editorial-stagger page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "hero-editorial-stagger page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "hero-editorial-stagger page should link the Blocks-specific stylesheet"
+    );
+    assert_eq!(
+        html.matches("data-blocks-hero-editorial-stagger-item=\"\"")
+            .count(),
+        4,
+        "hero-editorial-stagger should mark exactly 4 stagger items"
+    );
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        "[data-blocks-hero-editorial-stagger-item]",
+        "animation-delay: calc(var(--fandhe-motion-stagger-index",
+        "@media (prefers-reduced-motion: reduce)",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare {needle} for hero-editorial-stagger"
+        );
+    }
+}
+
+/// hero-editorial-stagger の合成部品（badge/heading/text/button）が期待
+/// どおりの構成で出力され、stagger index が 0〜3 の連番で各要素へ書き出
+/// されていること、`<form>`/`data:` URI を持ち込んでいないことを固定
+/// する（イシュー #2546）。
+#[test]
+fn hero_editorial_stagger_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-editorial-stagger/index.html"))
+        .expect("blocks/hero-editorial-stagger/index.html should be generated");
+    for i in 0..4 {
+        let needle = format!("--fandhe-motion-stagger-index: {i}");
+        assert!(
+            html.contains(&needle),
+            "hero-editorial-stagger should output {needle}"
+        );
+    }
+    for needle in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "Get started",
+        "View docs",
+    ] {
+        assert!(
+            html.contains(needle),
+            "hero-editorial-stagger page should contain {needle}"
+        );
+    }
+    for absent in ["<form", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "hero-editorial-stagger should never contain {absent}"
+        );
+    }
+}
+
+/// hero-parallax-layers ページが `blocks-demo blocks-hero-parallax-
+/// layers` class・両 stylesheet の `<link>`・3 レイヤーの `data-scope`/
+/// `data-part` を実際に出力し、`blocks::stylesheet()` にも
+/// `SlotRecipe::parallax` のプログレッシブエンハンスメント契約（
+/// ネイティブ/reduced-motion の 2 ブロック）が存在すること（イシュー
+/// #2546）。
+#[test]
+fn hero_parallax_layers_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-parallax-layers/index.html"))
+        .expect("blocks/hero-parallax-layers/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-hero-parallax-layers\""),
+        "hero-parallax-layers page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "hero-parallax-layers page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "hero-parallax-layers page should link the Blocks-specific stylesheet"
+    );
+    for part in ["layer-back", "layer-mid", "layer-front", "content"] {
+        let needle = format!("data-scope=\"blocks-hero-parallax\" data-part=\"{part}\"");
+        assert!(
+            html.contains(&needle),
+            "hero-parallax-layers page should output {needle}"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        "@supports (animation-timeline: view())",
+        "@media (prefers-reduced-motion: reduce)",
+        "--fandhe-motion-parallax-distance",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare {needle} for hero-parallax-layers"
+        );
+    }
+}
+
+/// hero-parallax-layers の合成部品（heading/text/button）が期待どおりの
+/// 構成で出力されていること、`<form>`/`data:` URI・`data-fandhe-scroll-
+/// progress` 属性を持ち込んでいないこと（モジュール doc「`data-fandhe-
+/// scroll-progress` を付与しない理由」節）を固定する（イシュー #2546）。
+#[test]
+fn hero_parallax_layers_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-parallax-layers/index.html"))
+        .expect("blocks/hero-parallax-layers/index.html should be generated");
+    for needle in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "A workspace that moves with you",
+        "Explore",
+    ] {
+        assert!(
+            html.contains(needle),
+            "hero-parallax-layers page should contain {needle}"
+        );
+    }
+    // `data-fandhe-scroll-progress=` (属性としての出現、`=` 込み) のみを
+    // 禁止する。導入文の説明文（`<code>data-fandhe-scroll-progress</code>`)
+    // は属性ではなくプレーンテキストとして正当に許容される（`=` を持たない）。
+    for absent in ["<form", "src=\"data:", "data-fandhe-scroll-progress="] {
+        assert!(
+            !html.contains(absent),
+            "hero-parallax-layers should never contain {absent}"
+        );
+    }
+}
+
+/// hero-terminal ページが `blocks-demo blocks-hero-terminal` class・両
+/// stylesheet の `<link>`・行ごとの stagger CSS フックを実際に出力し、
+/// `blocks::stylesheet()` にも対応するセレクタが存在すること（イシュー
+/// #2546）。
+#[test]
+fn hero_terminal_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-terminal/index.html"))
+        .expect("blocks/hero-terminal/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-hero-terminal\""),
+        "hero-terminal page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "hero-terminal page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "hero-terminal page should link the Blocks-specific stylesheet"
+    );
+    assert_eq!(
+        html.matches("data-blocks-hero-terminal-line=\"\"").count(),
+        4,
+        "hero-terminal should mark exactly 4 lines (3 commands + typewriter)"
+    );
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        "[data-blocks-hero-terminal-line]",
+        "animation-delay: calc(var(--fandhe-motion-stagger-index",
+        "@media (prefers-reduced-motion: reduce)",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare {needle} for hero-terminal"
+        );
+    }
+}
+
+/// hero-terminal の合成部品（code/kbd）・typewriter opt-in マーカーが
+/// 期待どおりに 1 回だけ出力されていること、`<form>`/`data:` URI を持ち
+/// 込んでいないことを固定する（イシュー #2546）。
+#[test]
+fn hero_terminal_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-terminal/index.html"))
+        .expect("blocks/hero-terminal/index.html should be generated");
+    assert_eq!(
+        html.matches("data-scope=\"code\"").count(),
+        3,
+        "hero-terminal should render exactly 3 code lines"
+    );
+    assert_eq!(
+        html.matches("data-fandhe-typewriter").count(),
+        1,
+        "hero-terminal should carry exactly one typewriter opt-in marker"
+    );
+    for needle in [
+        "fw new my-app",
+        "cd my-app",
+        "cargo run",
+        "data-scope=\"kbd\"",
+    ] {
+        assert!(
+            html.contains(needle),
+            "hero-terminal page should contain {needle}"
+        );
+    }
+    for absent in ["<form", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "hero-terminal should never contain {absent}"
+        );
+    }
+}
+
+/// text-split-reveal ページが `blocks-demo blocks-text-split-reveal`
+/// class・両 stylesheet の `<link>`・`text_reveal::TEXT_REVEAL_CSS` の
+/// `@keyframes`/reduced-motion 縮退を実際に出力していることを固定する
+/// （イシュー #2546）。
+#[test]
+fn text_split_reveal_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/text-split-reveal/index.html"))
+        .expect("blocks/text-split-reveal/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-text-split-reveal\""),
+        "text-split-reveal page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "text-split-reveal page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "text-split-reveal page should link the Blocks-specific stylesheet"
+    );
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        ".fd-text-reveal__unit",
+        "@media (prefers-reduced-motion: reduce)",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare {needle} for text-split-reveal"
+        );
+    }
+}
+
+/// text-split-reveal の合成部品（heading/text/button）が
+/// `text_reveal::chars`/`words` をそれぞれ 1 回ずつ使い、SR 用の分割前
+/// テキストレイヤーと `aria-hidden` の分割済み表示レイヤーの両方を持つ
+/// こと、`<form>`/`data:` URI を持ち込んでいないことを固定する（イシュー
+/// #2546）。
+#[test]
+fn text_split_reveal_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/text-split-reveal/index.html"))
+        .expect("blocks/text-split-reveal/index.html should be generated");
+    assert_eq!(
+        html.matches("data-fandhe-text-reveal=\"chars\"").count(),
+        1,
+        "text-split-reveal should use chars() exactly once"
+    );
+    assert_eq!(
+        html.matches("data-fandhe-text-reveal=\"words\"").count(),
+        1,
+        "text-split-reveal should use words() exactly once"
+    );
+    assert_eq!(
+        html.matches("fd-text-reveal__sr").count(),
+        2,
+        "text-split-reveal should carry the SR layer for both reveals"
+    );
+    for needle in ["Built for clarity", "Try it out", "data-scope=\"heading\""] {
+        assert!(
+            html.contains(needle),
+            "text-split-reveal page should contain {needle}"
+        );
+    }
+    for absent in ["<form", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "text-split-reveal should never contain {absent}"
+        );
+    }
+}
+
+/// game-ui-modal ページの Demo クラス・両スタイルシート・
+/// `data-blocks-game-ui-modal-*` CSS フックが実際に出力され、
+/// `blocks::stylesheet()` にも対応するセレクタ・keyframes 名・spring
+/// イージング・stagger 変数が存在することを固定する（イシュー #2552）。
+#[test]
+fn game_ui_modal_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/game-ui-modal/index.html"))
+        .expect("blocks/game-ui-modal/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-game-ui-modal\""),
+        "game-ui-modal page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "game-ui-modal page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "game-ui-modal page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-game-ui-modal-root=\"\"",
+        "data-blocks-game-ui-modal-content=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "game-ui-modal page should output the {hook} CSS hook attribute"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-game-ui-modal-reward=\"\"")
+            .count(),
+        3,
+        "game-ui-modal should render exactly 3 reward rows"
+    );
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        ".blocks-game-ui-modal [data-scope=\"dialog\"][data-part=\"backdrop\"]",
+        ".blocks-game-ui-modal [data-scope=\"dialog\"][data-part=\"positioner\"]",
+        "[data-blocks-game-ui-modal-reward]",
+        fandhe_frontend_pre_styled_ui::motion::ZOOM_IN_KEYFRAMES_NAME,
+        fandhe_frontend_pre_styled_ui::motion::SLIDE_FROM_BOTTOM_KEYFRAMES_NAME,
+        fandhe_frontend_pre_styled_ui::theme::SPRING_EASING_LINEAR,
+        fandhe_frontend_pre_styled_ui::recipe::STAGGER_INDEX_VAR,
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare/reference {needle} for game-ui-modal"
+        );
+    }
+}
+
+/// game-ui-modal の合成部品（dialog/badge/button）が期待どおりの構成で
+/// 実際に出力されていること（backdrop/positioner/content/title/footer の
+/// `data-scope="dialog"`・報酬 badge・ボタン 2 個・`aria-labelledby` の id
+/// 対応）、`<form>`・`data-part="trigger"`・`<script` を持ち込んでいないこと
+/// を固定する（イシュー #2552）。
+#[test]
+fn game_ui_modal_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/game-ui-modal/index.html"))
+        .expect("blocks/game-ui-modal/index.html should be generated");
+    for needle in [
+        "data-scope=\"dialog\" data-part=\"backdrop\"",
+        "data-scope=\"dialog\" data-part=\"positioner\"",
+        "data-scope=\"dialog\" data-part=\"content\"",
+        "data-scope=\"dialog\" data-part=\"title\"",
+        "data-scope=\"dialog\" data-part=\"description\"",
+        "data-scope=\"dialog\" data-part=\"body\"",
+        "data-scope=\"dialog\" data-part=\"footer\"",
+        "data-scope=\"badge\"",
+        "data-state=\"open\"",
+    ] {
+        assert!(
+            html.contains(needle),
+            "game-ui-modal page should contain {needle}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-scope=\"button\"").count(),
+        2,
+        "game-ui-modal should render exactly 2 buttons (Later / Claim rewards)"
+    );
+    assert!(
+        html.contains(r#"id="blocks-game-ui-modal-title""#)
+            && html.contains(r#"aria-labelledby="blocks-game-ui-modal-title""#),
+        "game-ui-modal content should be labelled by the title id"
+    );
+    // "<script" はページ全体に site.js 読み込みタグが常に存在するため
+    // ここでは検査しない（demo() 出力自体の検査は
+    // `demo_output_never_leaks_an_unescaped_script_tag` が全 block 横断で
+    // 既に担う）。
+    for absent in ["<form", "data-part=\"trigger\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "game-ui-modal should never contain {absent}"
+        );
+    }
+}
+
+/// game-ui-modal の CSS が生の `ms` 数値・無限反復（`infinite`）・
+/// scroll-driven（`animation-timeline`）を持ち込まず、`animation-duration`/
+/// `-delay` が `--fandhe-motion-duration-*` トークン参照のみで組み立てられ
+/// ていることを固定する（`testimonials_stack_uses_motion_tokens_not_raw_durations`
+/// と同型、イシュー #2552）。
+///
+/// 検証範囲は `game_ui_modal::layout_css()` に相当する連結済み CSS 中の
+/// 範囲（`.blocks-game-ui-modal.blocks-demo` セレクタから次 block
+/// （`game-ui-modal` は Blocks レジストリ末尾に登録済みのため CSS 末尾）
+/// までの部分文字列）に限定する。`bento-staggered` が
+/// `animation-timeline: view()` を、`motion::KEYFRAMES_CSS` 側が
+/// `infinite`（bounce/shake keyframes 向け rustdoc 例示、CSS 本体には
+/// 出現しない）をそれぞれ別ブロックで正当に使うため、結合済み
+/// `blocks.css` 全体に対する `!contains` はそれらを誤検知する。
+#[test]
+fn game_ui_modal_css_uses_motion_tokens_and_no_infinite_keyframes() {
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    let start = sheet_css
+        .find(".blocks-game-ui-modal.blocks-demo")
+        .expect("blocks.css should declare the game-ui-modal layout block");
+    let game_ui_modal_css = &sheet_css[start..];
+    assert!(
+        !game_ui_modal_css.contains("infinite"),
+        "game-ui-modal should not declare an infinitely repeating animation"
+    );
+    assert!(
+        !game_ui_modal_css.contains("animation-timeline"),
+        "game-ui-modal should not use scroll-driven animation-timeline"
+    );
+    assert!(
+        game_ui_modal_css.contains("var(--fandhe-motion-duration-"),
+        "game-ui-modal CSS should reference a --fandhe-motion-duration-* token"
     );
 }

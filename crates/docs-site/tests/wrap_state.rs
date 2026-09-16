@@ -688,18 +688,26 @@ const FIELD_CROSS_WRAPPERS: &[&str] = &["field", "input", "native_select", "text
 /// `forms_motion`（`motion` feature 配下の opt-in フォームアニメーション、
 /// field/input の既存 anatomy へ参照するだけの追加 CSS で単体部品では
 /// ないため専用ページを持たない。`crate::forms_motion` モジュール doc
-/// 参照）を同じ理由で追加した。
+/// 参照）を同じ理由で追加した。イシュー #2541 で `carousel_motion`
+/// （`motion` feature 配下の opt-in 追加装飾。既存 `carousel` 部品への
+/// coverflow/ドラッグ + spring スナップ拡張であり、独立した
+/// `/themes/carousel-motion/` ページは持たない——`button_motion`/
+/// `border_beam` と同型）を同じ理由で追加した。
 const NON_PAGE_TOP_LEVEL: &[&str] = &[
     "border_beam",
     "button_motion",
+    "carousel_motion",
     "class_attr",
     "css",
+    "cursor",
     "forms_motion",
     "lib",
     "motion",
     "recipe",
     "stylesheet",
+    "text_reveal",
     "theme",
+    "toast_motion",
     "view_transition",
 ];
 
@@ -1079,8 +1087,28 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        128,
-        "src/*.rs の総数が想定と異なります（イシュー #2516 で \
+        132,
+        "src/*.rs の総数が想定と異なります（イシュー #2541（carousel_motion）と \
+         #2543（toast_motion）が同じ merge base（130）から独立に 131 へ \
+         到達しマージで合流したため 130 → 132（同衝突運用、実装順は本文の \
+         積み上げ記録どおり）。イシュー #2543 で \
+         toast_motion.rs を新設し 130 → 131。`motion` feature 配下の \
+         toast stack 表示（積層・hover/focus-within 展開）opt-in 装飾で \
+         既存 toast 部品への追加のため単体の Themes ページを持たない \
+         NON_PAGE_TOP_LEVEL 分類（`border_beam`/`button_motion` と同型）。\
+         イシュー #2542 で \
+         cursor.rs を新設し 129 → 130。`motion` feature 配下のカスタム \
+         カーソル（cursor()・CURSOR_CSS）で単体の Themes ページを持たない \
+         ため NON_PAGE_TOP_LEVEL 分類（`border_beam`/`motion` と同型）。 \
+         イシュー #2541 で \
+         carousel_motion.rs を新設し 129 → 130。`motion` feature 配下の \
+         carousel coverflow/ドラッグ + spring スナップ拡張で単体の \
+         Themes ページを持たないため NON_PAGE_TOP_LEVEL 分類 \
+         （`button_motion`/`border_beam` と同型）。イシュー #2532 で \
+         text_reveal.rs を新設し 128 → 129。`motion` feature 配下の \
+         text アニメーション部品（split-text reveal / typewriter / scramble）\
+         で単体の Themes ページを持たないため NON_PAGE_TOP_LEVEL 分類\
+         （`border_beam`/`motion` と同型）。イシュー #2516 で \
          view_transition.rs を新設し 127 → 128。`motion` feature 配下の \
          named view transition CSS プリセット（fade/slide/wipe）で単体の \
          Themes ページを持たないため NON_PAGE_TOP_LEVEL 分類（`border_beam`/\

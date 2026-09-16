@@ -42,11 +42,11 @@
 | presence（enter/exit アニメーション） | A（transition ベース） | 既定出力に含める opt-in ではない実装対象（判断記録 2） |
 | SVG path drawing（`pathLength` 等の線描画アニメーション） | C（`stroke-dashoffset` の連続更新を伴う場合）/ A（静的な `stroke-dasharray` + CSS transition で足りる場合） | A の範囲は pre-styled-ui で実装対象、C は `fandhe-frontend-animation` で実装対象 |
 | Ticker（Motion+） | C | evaluation-only（Phase 6、#2413/#2414/#2415） |
-| Carousel（Motion+） | B/C（ドラッグ・慣性を伴う場合は C） | evaluation-only（Phase 6） |
-| Cursor（Motion+） | C | evaluation-only（Phase 6） |
+| Carousel（Motion+） | A（coverflow 3D）/C（ドラッグ + spring スナップ） | 実装対象（ユーザー確定 2026-09-14、#2541）。coverflow は `fandhe_frontend_pre_styled_ui::carousel_motion`（`motion` feature、CSS のみ）、ドラッグ + spring スナップは `fandhe_frontend_animation::carousel` + `fandhe_frontend_wasm_full::carousel_motion`（`carousel-motion` feature） |
+| Cursor（Motion+） | C | **実装対象**（ユーザー確定 2026-09-14、イシュー #2542。confetti 行と同型の例外注記。`fandhe_frontend_pre_styled_ui::cursor` + `fandhe_frontend_wasm_full::cursor` + `fandhe_frontend_animation::cursor::CursorAnimator`） |
 | AnimateNumber（Motion+） | C（spring ベースのカウントアップ） | evaluation-only（Phase 6） |
-| Typewriter（Motion+） | B（タイマーベースの文字送りのみなら B、spring 併用なら C） | evaluation-only（Phase 6） |
-| ScrambleText（Motion+） | B/C | evaluation-only（Phase 6） |
+| Typewriter（Motion+） | C（`AnimationLoop`/`RafDriver` によるフレームループ） | 実装対象（ユーザー確定 2026-09-14、#2532）。`fandhe_frontend_pre_styled_ui::text_reveal::typewriter` + `fandhe_frontend_wasm_full::text_animation` |
+| ScrambleText（Motion+） | C（同上） | 実装対象（ユーザー確定 2026-09-14、#2532）。`fandhe_frontend_pre_styled_ui::text_reveal::scramble` + `fandhe_frontend_wasm_full::text_animation` |
 | confetti（Motion+） | C | **実装対象**（Motion+ 由来だが evaluation-only の既定方針の例外、イシュー #2533。判断根拠は本表直後の注記参照） |
 
 **confetti が Motion+ 由来にもかかわらず実装対象である理由（イシュー #2533）**:
@@ -68,6 +68,21 @@ Motion+ 機能は本表で原則 evaluation-only（Phase 6）とする既定方�
 Rust/CSS 再実装（§9 のライセンス制約の遵守、`motiondivision/plus` の
 TypeScript コード転写は行わない）。
 
+**Cursor が Motion+ 由来にもかかわらず実装対象である理由（イシュー
+#2542、confetti 行と同型の例外注記）**:
+confetti と同じ 3 点の理由がそのまま成立する。(1) カスタムカーソルは
+`headless-ui` 部品ではなく本文書が扱う `fandhe-animation`/
+`fandhe-frontend-animation` の装飾・追従エフェクトであり、§3.22 が
+canvas 系入力部品（ImageCropper 等）を見送った理由（ポインタ座標
+ストリームの非決定性・canvas ピクセル出力の機械検証困難性）の対象範囲外
+（本文書 §1 の区分と整合）。(2) アプリが消費する永続状態・出力データを
+持たない純粋な視覚効果であり、業務データの機械検証困難性が生じない。
+(3) 追従演算（spring、`fandhe_animation::spring` の既存ソルバ再利用）は
+固定シード不要（乱数を用いない）で、固定のポインタ座標列・固定 `dt` 列に
+対して常に同一の軌跡を返す純粋計算であり、§3.22 のトリガー1と同種の
+決定的検証基盤が最初から成立する。実装はゼロからの Rust/CSS 再実装
+（§9 のライセンス制約の遵守）。
+
 ## 5. 既存実装の棚卸し表
 
 | 機能 | 現状実装箇所（file:line） | Motion 相当機能 | 分類群 |
@@ -81,6 +96,7 @@ TypeScript コード転写は行わない）。
 | nav の View Transitions ラッパ | `crates/wasm-full/src/nav.rs`（`document.startViewTransition` の機能検出・呼び出し、#404） | View Transitions API（Motion の `layout` とは別系統のブラウザ機能） | B |
 | named view transition CSS プリセット（fade/slide/wipe + curtains 残り 6〔iris/doors/shutter/blinds/strips/pixels〕+ mask 2〔mask-wipe/mask-radial〕、#2537） | `crates/pre-styled-ui/src/view_transition.rs`（`motion` feature 配下、#2516・#2537）・`crates/wasm-full/src/view_transition_preset.rs`（プリセット選択の属性配線） | Motion+ `Curtains` 相当（ページ全体の root 遷移、11 プリセット） | A |
 | confetti パーティクル物理・canvas 発火 | `crates/animation/src/confetti.rs`（決定的物理演算）・`crates/frontend-animation/src/{canvas_target,confetti}.rs`（canvas 2D 描画・rAF 駆動）・`crates/wasm-full/src/confetti.rs`（クリック委譲配線、#2533） | Motion+ `components/confetti` | C |
+| カスタムカーソル・ポインタ追従 | `crates/animation/src/spring.rs`（既存 spring ソルバを再利用）・`crates/frontend-animation/src/cursor.rs`（`CursorFollower`/`CursorAnimator`、spring 再構築・rAF 駆動）・`crates/wasm-full/src/cursor.rs`（hover 対象解決・`data-*` 写し配線、#2542）・`crates/pre-styled-ui/src/cursor.rs`（`motion` feature 配下、カーソル要素・CSS） | Motion+ `components/cursor` | C |
 
 ## 6. 3層構成（判断記録5/9の具体化）
 
@@ -96,7 +112,7 @@ TypeScript コード転写は行わない）。
 
 ## 7. ゼロコスト方針（判断記録8の具体化）
 
-本節が対象とするのは §4 の分類表で **C 群のみに分類され、かつ「実装対象」と定められた機能**（spring・timeline/stagger・layout（FLIP）・animate や SVG path drawing の C 範囲等）である。分類群（A/B/C）は「どこで実装するか」の軸にすぎず、「既定出力に含むか opt-in か」「実装対象か evaluation-only か」は分類群と独立に §4 の各行の採用方針が個別に定める。したがって A 群・B 群に分類された機能を一律に既定出力対象とみなしてはならない。実例: keyframes の A 範囲は Phase 2 で opt-in 提供（§4 判断記録2）、hover/press の A 範囲は既存実装済みの範囲のみで新規配線を追加しない、Motion+ の Carousel/Typewriter/ScrambleText（B/C）は evaluation-only であり実装対象外（§4）。presence（§4 該当行）は A 群（transition ベース）に分類され、かつ §4 の採用方針が「既定出力に含める opt-in ではない実装対象」と明示しているため、本節の feature ゲート・4 指標比較の対象外であり既定出力に無条件で含む（§4 判断記録2 と整合）。
+本節が対象とするのは §4 の分類表で **C 群のみに分類され、かつ「実装対象」と定められた機能**（spring・timeline/stagger・layout（FLIP）・animate や SVG path drawing の C 範囲等）である。分類群（A/B/C）は「どこで実装するか」の軸にすぎず、「既定出力に含むか opt-in か」「実装対象か evaluation-only か」は分類群と独立に §4 の各行の採用方針が個別に定める。したがって A 群・B 群に分類された機能を一律に既定出力対象とみなしてはならない。実例: keyframes の A 範囲は Phase 2 で opt-in 提供（§4 判断記録2）、hover/press の A 範囲は既存実装済みの範囲のみで新規配線を追加しない、Motion+ の AnimateNumber は evaluation-only であり実装対象外（§4。Typewriter/ScrambleText は #2532、Carousel は #2541、Cursor は #2542 で実装対象へ改訂済み、上記§4 表参照）。presence（§4 該当行）は A 群（transition ベース）に分類され、かつ §4 の採用方針が「既定出力に含める opt-in ではない実装対象」と明示しているため、本節の feature ゲート・4 指標比較の対象外であり既定出力に無条件で含む（§4 判断記録2 と整合）。
 
 - `crates/pre-styled-ui/` は Cargo feature `motion`（既定 off）で、§4 の分類表で C 群のみに分類され「実装対象」と定められた拡張出力（`fandhe-frontend-animation` 経由の spring・layout FLIP・SVG path drawing の C 範囲等）をコンパイル除外する。presence 等、§4 が既定出力に含める実装対象と明示した機能はこの feature の有無に関わらず常に出力される。それ以外の A/B 群機能（keyframes の opt-in 提供、evaluation-only の Motion+ 機能等）の出力可否は本節の feature ゲートとは別に、§4 の各行の採用方針に従う。
 - `fandhe-animation` は `crates/wasm-full/` から見て optional 依存とし、`motion` 相当 feature が無効なら依存グラフに現れない。
