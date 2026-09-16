@@ -1292,7 +1292,13 @@ name = "fandhe-frontend-wasm-full"
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。あわせて
 # `fandhe-frontend-animation` の依存 `version` 要求を本マージでの統合
 # バンプ値 0.16.0 へ追随する（`xtask check-dep-versions --fix` 相当）。
-version = "0.40.0"
+#
+# イシュー #2544（PR #2585 codex-review P1 是正）: `fandhe-frontend-
+# animation` の依存 `version` 要求を、退場ゴースト radio group 隔離修正
+# （patch バンプ）に伴い 0.16.0 → 0.16.1 へ追随した（`xtask
+# check-dep-versions --fix` 相当）。本クレート自身の `src/`/機能は不変
+# のため patch バンプする。
+version = "0.40.1"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1625,7 +1631,12 @@ js-sys = "0.3"
 # version 0.40.0 への統合バンプに追随）: `fandhe-frontend-animation` の
 # 依存 `version` 要求を統合到達値 0.16.0 へ追随する（`xtask
 # check-dep-versions --fix` 相当）。
-fandhe-frontend-animation = { path = "../frontend-animation", version = "0.16.0", optional = true }
+#
+# イシュー #2544（PR #2585 codex-review P1 是正、本クレート package
+# version 0.40.1 への patch バンプに追随）: `fandhe-frontend-animation`
+# の依存 `version` 要求を 0.16.0 → 0.16.1 へ追随する（`xtask
+# check-dep-versions --fix` 相当）。
+fandhe-frontend-animation = { path = "../frontend-animation", version = "0.16.1", optional = true }
 
 # イシュー #2130（charts のポインタ追従・キーボード移動・タッチ操作配線）:
 # `chart::wiring` が hit-area の `SvgElement::focus()`（キーボード移動時の

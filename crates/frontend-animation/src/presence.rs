@@ -180,10 +180,48 @@ mod wiring {
         set_dom_attribute(ghost, "aria-hidden", "true");
         set_dom_attribute(ghost, "data-state", "exiting");
         disable_form_controls(ghost);
+        isolate_radio_groups(ghost);
         if list.append_child(ghost).is_err() {
             return None;
         }
         Some(ghost.clone())
+    }
+
+    /// `ghost`（自身 + 子孫）に含まれる `input[type=radio]` を、元の
+    /// radio button group から隔離する（codex-review 指摘是正、イシュー
+    /// #2544 PR #2585 レビュー）。HTML Standard の radio button group は
+    /// 同一ツリー・同一 form owner・同一 `name` を持つ要素の集合であり、
+    /// `disabled`/`inert`/`aria-hidden` のいずれもこのグループ membership
+    /// から要素を除外する条件ではない。そのため、選択済み radio A の行を
+    /// 削除し同じ更新で同一 form/name の radio B を選択すると、A をゴースト
+    /// として再度 DOM へ接続した際に「checkedness が true の要素が
+    /// ツリーへ挿入されると、同じグループの他要素の checkedness を
+    /// false にする」という仕様上の同期規則が発火し、B の選択が意図せず
+    /// 解除される（[HTML Standard, radio button state]
+    /// (https://html.spec.whatwg.org/multipage/input.html#radio-button-state-(type=radio))）。
+    /// `name` 属性を除去してグループ membership 自体を断つことで、
+    /// 再接続時に他グループへ一切干渉しなくなる（`append_child` による
+    /// 再接続の**前**に呼ぶ必要がある。同期規則は要素がツリーへ挿入
+    /// される時点で評価されるため）。ゴーストはこの後 `disabled` にも
+    /// なっており送信対象にも含まれないため、`name` 除去による他の
+    /// 副作用（フォーム送信データの構築等）は生じない。
+    fn isolate_radio_groups(ghost: &Element) {
+        const RADIO_SELECTOR: &str = "input[type=radio]";
+        if ghost.matches(RADIO_SELECTOR).unwrap_or(false) {
+            let _ = ghost.remove_attribute("name");
+        }
+        let Ok(nodes) = ghost.query_selector_all(RADIO_SELECTOR) else {
+            return;
+        };
+        for i in 0..nodes.length() {
+            let Some(node) = nodes.item(i) else {
+                continue;
+            };
+            let Ok(el) = node.dyn_into::<Element>() else {
+                continue;
+            };
+            let _ = el.remove_attribute("name");
+        }
     }
 
     /// `ghost`（自身 + 子孫）に含まれるフォームコントロール

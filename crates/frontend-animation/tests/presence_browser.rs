@@ -15,7 +15,7 @@ use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use wasm_bindgen_test::*;
-use web_sys::{Document, Element, HtmlElement};
+use web_sys::{Document, Element, HtmlElement, HtmlInputElement};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -195,6 +195,73 @@ fn insert_exit_ghost_disables_form_controls_in_self_and_descendants() {
     assert!(
         descendant_input.has_attribute("disabled"),
         "ゴースト内の input は送信対象から除外するため disabled になること"
+    );
+}
+
+#[wasm_bindgen_test]
+fn insert_exit_ghost_isolates_radio_from_original_group() {
+    // codex-review 指摘の回帰（イシュー #2544、PR #2585 レビュー）:
+    // 選択済み radio A の行を削除し、同じ更新で同一 name の radio B を
+    // 選択すると、A をゴーストとして再挿入する際に「checkedness が true
+    // の要素がツリーへ挿入されると同じグループの他要素の checkedness を
+    // false にする」という HTML Standard の同期規則が発火し、B の選択が
+    // 意図せず解除されていた。`disabled` はグループ membership からの
+    // 除外条件ではないため、`name` 属性の除去でグループ自体から隔離する。
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "presence-root-9");
+    let _guard = RemoveOnDrop(container.clone());
+
+    let row_a = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    row_a.set_attribute(KEY_ATTR, "a").unwrap();
+    let radio_a = document
+        .create_element("input")
+        .expect("create_element must not fail for input")
+        .dyn_into::<HtmlInputElement>()
+        .expect("input element must cast to HtmlInputElement");
+    radio_a.set_type("radio");
+    radio_a.set_name("grp");
+    radio_a.set_checked(true);
+    row_a.append_child(&radio_a).unwrap();
+
+    let row_b = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    row_b.set_attribute(KEY_ATTR, "b").unwrap();
+    let radio_b = document
+        .create_element("input")
+        .expect("create_element must not fail for input")
+        .dyn_into::<HtmlInputElement>()
+        .expect("input element must cast to HtmlInputElement");
+    radio_b.set_type("radio");
+    radio_b.set_name("grp");
+    row_b.append_child(&radio_b).unwrap();
+
+    container.append_child(&row_a).unwrap();
+    container.append_child(&row_b).unwrap();
+
+    let rows = snapshot_rows(&container, KEY_ATTR);
+    row_a.remove();
+    // 同じ更新で B を選択する（A のゴースト再挿入前に発生する想定）。
+    radio_b.set_checked(true);
+
+    let ghost =
+        insert_exit_ghost(&container, &rows[0], false).expect("切り離された行はゴースト化される");
+
+    assert!(
+        radio_b.checked(),
+        "A のゴースト再挿入で B の選択が解除されてはならない"
+    );
+    let ghost_radio = ghost
+        .query_selector("input")
+        .expect("query_selector must not fail")
+        .expect("input が子孫に存在すること")
+        .dyn_into::<HtmlInputElement>()
+        .expect("input element must cast to HtmlInputElement");
+    assert!(
+        !ghost_radio.has_attribute("name"),
+        "ゴースト内の radio は元の group から隔離するため name を持たないこと"
     );
 }
 

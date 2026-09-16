@@ -96,7 +96,13 @@ name = "fandhe-frontend-animation"
 # は origin/main の到達値 0.15.0 より低いため、carousel モジュール新設を
 # 統合するにあたり origin/main の到達値からさらに +1 minor して 0.16.0
 # とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
-version = "0.16.0"
+#
+# イシュー #2544（PR #2585 codex-review P1 是正）: `insert_exit_ghost` が
+# 再挿入前に `input[type=radio]` の `name` 属性を除去し、退場ゴーストを
+# 元の radio button group から隔離するようにした（`disable_form_controls`
+# と同じ内部実装の追加修正で、公開 API のシグネチャは不変）ため patch
+# バンプする。
+version = "0.16.1"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"
 license = "MIT OR Apache-2.0"
@@ -248,6 +254,18 @@ wasm-bindgen-test = "0.3"
 # 生成（`HtmlCanvasElement`、本体側の feature を再利用）・描画結果検証
 # （`CanvasRenderingContext2d::get_image_data` の戻り値型 `ImageData`）に
 # 使う。`ImageData` はテスト専用のためここにのみ追加する。
+#
+# イシュー #2544（PR #2585 レビュー是正）: `tests/presence_browser.rs` の
+# 退場ゴースト radio group 隔離回帰テストが `HtmlInputElement`
+# （`set_type`/`set_name`/`set_checked`/`checked`）を使うため、テスト専用
+# のためここにのみ追加する。
 [dev-dependencies.web-sys]
 version = "0.3"
-features = ["Document", "Element", "Node", "HtmlHeadElement", "ImageData"]
+features = [
+  "Document",
+  "Element",
+  "Node",
+  "HtmlHeadElement",
+  "ImageData",
+  "HtmlInputElement",
+]
