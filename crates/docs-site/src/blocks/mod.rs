@@ -77,6 +77,10 @@ mod cta_signup_celebrate;
 mod cursor_hover_cards;
 mod dashboard_01;
 mod feature_expand;
+mod game_ui_modal;
+mod hero_editorial_stagger;
+mod hero_parallax_layers;
+mod hero_terminal;
 mod login_01;
 mod login_04;
 mod pricing_tiers_morph;
@@ -86,6 +90,7 @@ mod sidebar_07;
 mod signup_01;
 mod signup_05;
 mod testimonials_stack;
+mod text_split_reveal;
 
 use fandhe_frontend_core::{a, div, h2, li, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
@@ -188,6 +193,11 @@ pub const BLOCKS: &[Block] = &[
     cta_banner_magnetic::BLOCK,
     cta_signup_celebrate::BLOCK,
     cursor_hover_cards::BLOCK,
+    hero_editorial_stagger::BLOCK,
+    hero_parallax_layers::BLOCK,
+    hero_terminal::BLOCK,
+    text_split_reveal::BLOCK,
+    game_ui_modal::BLOCK,
 ];
 
 /// `page_path` に対応する [`Block`] を返す（block ページでなければ `None`）。
@@ -279,6 +289,12 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(cta_signup_celebrate::LAYOUT_CSS)?;
     sheet.push_css(fandhe_frontend_pre_styled_ui::cursor::CURSOR_CSS)?;
     sheet.push_css(cursor_hover_cards::LAYOUT_CSS)?;
+    sheet.push_css(hero_editorial_stagger::LAYOUT_CSS)?;
+    sheet.push_css(&hero_parallax_layers::layout_css())?;
+    sheet.push_css(hero_terminal::LAYOUT_CSS)?;
+    sheet.push_css(fandhe_frontend_pre_styled_ui::text_reveal::TEXT_REVEAL_CSS)?;
+    sheet.push_css(text_split_reveal::LAYOUT_CSS)?;
+    sheet.push_css(&game_ui_modal::layout_css())?;
     Ok(sheet)
 }
 
