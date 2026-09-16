@@ -126,6 +126,11 @@ name = "fandhe-frontend-animation"
 # main の 0.16.1 には含まれない公開 API 追加）を統合するため、`.claude/
 # rules/coding-rust.md` #638 条項に従い origin/main の到達値から +1 して
 # 0.16.2 とする。
+# PR #2582 codex-review P1・Cursor Bugbot 是正（0.16.2 に含める、公開 API
+# の追加のみ）: `ticker` の周期計測を `offsetWidth`/`offsetHeight` へ変更、
+# `read_gap_px` に `axis` 引数を追加して `column-gap`/`row-gap` longhand を
+# 読む、`ensure_copies` で追加複製内の radio 隔離・入れ子 ticker 静的化、
+# `TICKER_ATTR`/`TICKER_ACTIVE_ATTR` 定数を追加。
 version = "0.16.2"
 edition = "2021"
 description = "fandhe-frontend-animation: fandhe-animation の演算結果を wasm-bindgen / web-sys / js-sys で DOM / Web Animations API へ適用する Web アダプタ層。"

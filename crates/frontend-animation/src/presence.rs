@@ -205,7 +205,10 @@ mod wiring {
     /// される時点で評価されるため）。ゴーストはこの後 `disabled` にも
     /// なっており送信対象にも含まれないため、`name` 除去による他の
     /// 副作用（フォーム送信データの構築等）は生じない。
-    fn isolate_radio_groups(ghost: &Element) {
+    ///
+    /// `crate::ticker::ensure_copies`（marquee の追加複製）も同じ理由で
+    /// 挿入前に本関数を適用する（PR #2582 codex-review P1 指摘）。
+    pub(crate) fn isolate_radio_groups(ghost: &Element) {
         const RADIO_SELECTOR: &str = "input[type=radio]";
         if ghost.matches(RADIO_SELECTOR).unwrap_or(false) {
             let _ = ghost.remove_attribute("name");
@@ -313,6 +316,9 @@ mod wiring {
         );
     }
 }
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) use wiring::isolate_radio_groups;
 
 #[cfg(target_arch = "wasm32")]
 pub use wiring::{

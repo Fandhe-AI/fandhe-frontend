@@ -213,3 +213,60 @@ async fn wiring_root_itself_marked_as_ticker_is_started() {
         "配線ルート自身の ticker の offset が前進しているはず"
     );
 }
+
+/// 外側が 3 個以上の複製を必要とする入れ子構成で、追加複製内の内側 ticker
+/// が駆動されず静的（`data-fandhe-ticker-active` + offset `0px` 固定）で
+/// あること、元の内側 ticker だけが JS 駆動されることを固定する
+/// （PR #2582 codex-review P1・Cursor Bugbot 指摘: 追加複製内の内側
+/// ticker は wire 時の走査後に生成されるため `active` に登録されず、
+/// 元は JS 駆動・複製は CSS 駆動と位相がばらばらだった）。
+#[wasm_bindgen_test]
+async fn nested_ticker_clones_are_static_and_not_driven() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (outer, inner, _inner_link) = build_nested_dom(&document, "ticker-nest-clone-1");
+    let _guard = RemoveOnDrop(outer.clone());
+    // outer 200px / content 60px → 必要複製数 ceil(200/60)+1 = 5（3 個以上）。
+    let outer_content = outer.first_element_child().unwrap();
+    style_box(&outer_content, 60, 40);
+
+    wire_ticker_with_reduced_motion(outer.clone(), false)
+        .expect("wire_ticker_with_reduced_motion must not fail");
+
+    let mut advanced = false;
+    for _ in 0..40 {
+        sleep_ms(50).await;
+        if px_value(&ticker_offset(&inner)) != 0.0 {
+            advanced = true;
+            break;
+        }
+    }
+    assert!(advanced, "元の内側 ticker は JS 駆動で前進しているはず");
+    assert!(
+        outer.child_element_count() >= 3,
+        "前提: 外側は 3 個以上の複製を持つはず（実際 {}）",
+        outer.child_element_count()
+    );
+
+    let nested = outer.query_selector_all("[data-fandhe-ticker]").unwrap();
+    let mut clone_count = 0;
+    for i in 0..nested.length() {
+        let el = nested.item(i).unwrap().dyn_into::<Element>().unwrap();
+        if el.is_same_node(Some(&inner)) {
+            continue;
+        }
+        clone_count += 1;
+        assert!(
+            el.has_attribute("data-fandhe-ticker-active"),
+            "複製内の内側 ticker は CSS 駆動へ落ちないよう active 属性を持つはず"
+        );
+        assert_eq!(
+            ticker_offset(&el),
+            "0px",
+            "複製内の内側 ticker は offset 0px 固定（駆動されない）はず"
+        );
+    }
+    assert!(
+        clone_count >= 2,
+        "前提: 内側 ticker の複製が 2 個以上あるはず"
+    );
+}

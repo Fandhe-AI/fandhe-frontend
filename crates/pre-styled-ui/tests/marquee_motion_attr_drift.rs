@@ -47,6 +47,32 @@ fn assert_const_matches(content: &str, const_name: &str, expected_value: &str, s
     );
 }
 
+/// `fandhe-frontend-animation::ticker` は追加複製内の入れ子 ticker を
+/// 静的化するために `TICKER_ATTR`/`TICKER_ACTIVE_ATTR` の写しを持つ
+/// （PR #2582 codex-review P1 是正）。wasm-full 側と同じ方法で固定する。
+#[test]
+fn ticker_literals_match_frontend_animation() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("frontend-animation")
+        .join("src")
+        .join("ticker.rs");
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("{} を読めること（fail-closed）: {err}", path.display()));
+    assert_const_matches(
+        &content,
+        "TICKER_ATTR",
+        TICKER_ATTR,
+        "frontend-animation/ticker.rs",
+    );
+    assert_const_matches(
+        &content,
+        "TICKER_ACTIVE_ATTR",
+        TICKER_ACTIVE_ATTR,
+        "frontend-animation/ticker.rs",
+    );
+}
+
 #[test]
 fn ticker_literals_match_wasm_full() {
     let content = read_source("ticker.rs");

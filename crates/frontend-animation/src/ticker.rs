@@ -20,12 +20,25 @@
 //!   実装しない）。
 //! - 動的に追加された ticker 要素は wire 時の `querySelectorAll` の対象外
 //!   （`svg_path`/`in_view` と同じ制約）。
+//! - 入れ子 ticker（ticker の content 内に別の ticker）では、外側の追加
+//!   複製に含まれる内側 ticker のクローンは**駆動しない**（静的、offset
+//!   0px 固定）。元の内側 ticker だけが JS 駆動される。クローンごとに
+//!   独立駆動すると位相がずれ、外側の継ぎ目が崩れるうえ rAF ループが
+//!   複製数倍に増えるため、「クローンは重複駆動しない」ことを保証する
+//!   側に倒す（PR #2582 codex-review P1・Cursor Bugbot 指摘）。
 
 /// [`Ticker`] が DOM の CSS カスタムプロパティへ毎フレーム書き込む変数名。
 /// `fandhe-frontend-pre-styled-ui::marquee_motion::TICKER_OFFSET_VAR` /
 /// `fandhe-frontend-wasm-full::ticker::TICKER_OFFSET_VAR` と同値のリテラル
 /// （drift テストで固定、`crates/pre-styled-ui/tests/marquee_motion_attr_drift.rs`）。
 pub const TICKER_OFFSET_VAR: &str = "--fandhe-marquee-ticker-offset";
+
+/// opt-in 属性名・JS 駆動中マーカー属性名。
+/// `fandhe-frontend-wasm-full::ticker::{TICKER_ATTR, TICKER_ACTIVE_ATTR}` と
+/// 同値のリテラル（同じ drift テストで固定）。[`ensure_copies`] が追加複製
+/// 内の入れ子 ticker を静的化するために使う。
+pub const TICKER_ATTR: &str = "data-fandhe-ticker";
+pub const TICKER_ACTIVE_ATTR: &str = "data-fandhe-ticker-active";
 
 /// 速度の既定値（px/s）・上限。
 pub const DEFAULT_SPEED_PX_S: f64 = 80.0;
@@ -204,7 +217,7 @@ pub fn decay_velocity(velocity: f64) -> f64 {
 
 #[cfg(target_arch = "wasm32")]
 mod dom {
-    use super::{Axis, TickerConfig, TICKER_OFFSET_VAR};
+    use super::{Axis, TickerConfig, TICKER_ACTIVE_ATTR, TICKER_ATTR, TICKER_OFFSET_VAR};
     use crate::raf_driver::AnimationLoop;
     use std::cell::Cell;
     use std::rc::Rc;
@@ -309,9 +322,29 @@ mod dom {
     }
 
     /// `element` の内容領域の長さ（`Axis::Horizontal` なら幅・`Vertical`
-    /// なら高さ）を `getBoundingClientRect()` から読む。
+    /// なら高さ）をレイアウト座標（`offsetWidth`/`offsetHeight`）で読む。
+    ///
+    /// `getBoundingClientRect()` は祖先の `transform: scale()` 等を反映した
+    /// 画面上の寸法を返すが、本モジュールが書き込む offset は content の
+    /// `transform: translate()` のローカル px（transform 適用前の座標系）
+    /// であり、両者を混ぜると祖先 scale 時に周期が実際のコピー間隔と
+    /// ずれて空白・ジャンプが生じる（PR #2582 codex-review P1 指摘）。
+    /// `offsetWidth`/`offsetHeight` は transform 非反映のレイアウト値の
+    /// ため座標系が揃う。`HtmlElement` でない要素（SVG 等）のみ
+    /// `getBoundingClientRect()` へフォールバックする。
+    ///
+    /// ponytail: `offsetWidth`/`offsetHeight` は整数へ丸められるため小数px
+    /// 幅の content では周期に最大 0.5px の誤差が残る。目視できる継ぎ目に
+    /// なった場合は `getBoundingClientRect` を `offsetWidth` 比で除して
+    /// scale 補正する方式へ置き換える。
     #[must_use]
     pub fn measure_len(element: &Element, axis: Axis) -> f64 {
+        if let Some(html) = element.dyn_ref::<HtmlElement>() {
+            return match axis {
+                Axis::Horizontal => f64::from(html.offset_width()),
+                Axis::Vertical => f64::from(html.offset_height()),
+            };
+        }
         let rect = element.get_bounding_client_rect();
         match axis {
             Axis::Horizontal => rect.width(),
@@ -319,17 +352,25 @@ mod dom {
         }
     }
 
-    /// `element` の `gap`（px）を `getComputedStyle` から読む。取得・
-    /// パース失敗は `0.0` へ fail-safe する。
+    /// `element` の複製間 gap（px）を `getComputedStyle` から読む。
+    /// `gap` shorthand（`row-gap column-gap` の 2 値になり得る）を自前で
+    /// パースせず、軸に対応する longhand（`Horizontal` → `column-gap`、
+    /// `Vertical` → `row-gap`）の computed value を直接読む（Cursor Bugbot
+    /// 指摘: 2 値のとき gap が 0 扱いになり継ぎ目が見えていた）。
+    /// `normal`・取得・パース失敗は `0.0` へ fail-safe する。
     #[must_use]
-    pub fn read_gap_px(element: &HtmlElement) -> f64 {
+    pub fn read_gap_px(element: &HtmlElement, axis: Axis) -> f64 {
         let Some(window) = web_sys::window() else {
             return 0.0;
         };
         let Ok(Some(style)) = window.get_computed_style(element) else {
             return 0.0;
         };
-        let Ok(gap) = style.get_property_value("gap") else {
+        let property = match axis {
+            Axis::Horizontal => "column-gap",
+            Axis::Vertical => "row-gap",
+        };
+        let Ok(gap) = style.get_property_value(property) else {
             return 0.0;
         };
         gap.trim()
@@ -357,10 +398,53 @@ mod dom {
             };
             set_dom_attribute(&clone_element, "aria-hidden", "true");
             set_dom_attribute(&clone_element, "inert", "");
+            // `cloneNode(true)` は radio の checked 状態も複製する。`inert`/
+            // `aria-hidden` は radio button group からの除外条件ではないため、
+            // そのまま挿入すると元の可視 radio の選択が解除され操作不能な
+            // 複製へ選択が移る（PR #2582 codex-review P1 指摘）。
+            // `presence::isolate_radio_groups` と同じく挿入**前**に `name` を
+            // 除去してグループ membership を断つ。
+            crate::presence::isolate_radio_groups(&clone_element);
+            neutralize_nested_tickers(&clone_element);
             if root.append_child(&clone_element as &Node).is_err() {
                 break;
             }
             current += 1;
+        }
+    }
+
+    /// `clone`（自身 + 子孫）に含まれる入れ子 ticker（[`TICKER_ATTR`]）を
+    /// 静的化する: [`TICKER_ACTIVE_ATTR`] を付与して CSS `@keyframes`
+    /// 駆動を止め、[`TICKER_OFFSET_VAR`] をインラインで `0px` に固定する
+    /// （外側 root へ書き込まれる外側の offset を継承して二重に translate
+    /// されないようにする）。
+    ///
+    /// 外側 ticker の追加複製は wire 時の走査（`wasm-full::ticker`）の
+    /// 後に生成されるため、複製内の内側 ticker は `Ticker` を持たない。
+    /// 放置すると「元の内側は JS 駆動・複製内は CSS 駆動（または複製時点の
+    /// offset で静止）」と位相がばらばらになり、外側の継ぎ目が崩れる
+    /// （PR #2582 codex-review P1・Cursor Bugbot 指摘）。複製ごとに
+    /// `Ticker` を起動する案は rAF ループが複製数倍に増え、かつ位相同期を
+    /// 別途要するため採らず、「複製内の入れ子 ticker は駆動しない」設計に
+    /// 固定する（モジュール doc「ponytail 割り切り」節）。
+    fn neutralize_nested_tickers(clone: &Element) {
+        let selector = format!("[{TICKER_ATTR}]");
+        let mut targets: Vec<Element> = Vec::new();
+        if clone.matches(&selector).unwrap_or(false) {
+            targets.push(clone.clone());
+        }
+        if let Ok(nodes) = clone.query_selector_all(&selector) {
+            for i in 0..nodes.length() {
+                if let Some(el) = nodes.item(i).and_then(|n| n.dyn_into::<Element>().ok()) {
+                    targets.push(el);
+                }
+            }
+        }
+        for nested in targets {
+            set_dom_attribute(&nested, TICKER_ACTIVE_ATTR, "");
+            if let Some(html) = nested.dyn_ref::<HtmlElement>() {
+                let _ = html.style().set_property(TICKER_OFFSET_VAR, "0px");
+            }
         }
     }
 
@@ -427,7 +511,8 @@ mod dom {
             };
 
             let viewport_len = measure_len(&root, config.axis);
-            let content_len = measure_len(&content, config.axis) + read_gap_px(&content_html);
+            let content_len =
+                measure_len(&content, config.axis) + read_gap_px(&content_html, config.axis);
             ensure_copies(
                 &root,
                 &content,
@@ -518,8 +603,8 @@ mod dom {
                 // 毎フレーム content 長も実測する（後段の offset 前進計算でも
                 // 使う値と同一の測り方のため、`ensure_copies` 判定と offset
                 // 計算で二重に測って値が食い違うことはない）。
-                let current_content_len =
-                    measure_len(&step_content, config.axis) + read_gap_px(&step_content_html);
+                let current_content_len = measure_len(&step_content, config.axis)
+                    + read_gap_px(&step_content_html, config.axis);
                 // `resize` イベント経由の明示要求に加え、viewport 長・content
                 // 長のいずれかが前フレームから変化していれば（`display:none`
                 // → 表示等、`resize` が発火しない経路も含む）複製数を
@@ -807,5 +892,11 @@ mod tests {
     #[test]
     fn offset_var_is_stable_literal() {
         assert_eq!(TICKER_OFFSET_VAR, "--fandhe-marquee-ticker-offset");
+    }
+
+    #[test]
+    fn ticker_attr_literals_are_stable() {
+        assert_eq!(TICKER_ATTR, "data-fandhe-ticker");
+        assert_eq!(TICKER_ACTIVE_ATTR, "data-fandhe-ticker-active");
     }
 }
