@@ -58,7 +58,9 @@ fn dummy_content() -> Node {
     )
 }
 
-/// footer リンク列（見出し + リンク群）。
+/// footer リンク列（見出し + リンク群）。`heading_text` は `nav_list::heading`
+/// （固定 `h2`）ではなく `p` で表現する（モジュール doc「`nav_list::heading`
+/// を使わない理由」節参照）。
 fn footer_nav_group(heading_text: &str, links: &[(&str, &str)]) -> Node {
     let items: Vec<Node> = links
         .iter()
@@ -72,7 +74,10 @@ fn footer_nav_group(heading_text: &str, links: &[(&str, &str)]) -> Node {
     div(
         vec![("class", "blocks-footer-sticky-reveal-group")],
         vec![
-            nav_list::heading(vec![], vec![text(heading_text)]),
+            p(
+                vec![("class", "blocks-footer-sticky-reveal-group-title")],
+                vec![text(heading_text)],
+            ),
             nav_list::list(vec![], items),
         ],
     )
@@ -93,7 +98,7 @@ fn footer_element() -> Node {
     const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
     let nav = nav_list::root(
         "Footer",
-        vec![("class", "blocks-footer-sticky-reveal-nav")],
+        vec![("data-blocks-footer-sticky-reveal-nav", "")],
         vec![
             footer_nav_group("Product", &[(REPO, "Guide"), (REPO, "API Reference")]),
             footer_nav_group("Community", &[(REPO, "Spec"), (REPO, "GitHub")]),

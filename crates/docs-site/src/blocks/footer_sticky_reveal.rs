@@ -59,14 +59,30 @@
 //!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
-//! `card::root`/`heading::heading`/`link::root` は `drop_class_attr` により
-//! 呼び出し側 `attrs` の `class` を黙って除去する契約を持つため、Demo
-//! 固有スタイルは `data-blocks-footer-sticky-reveal-*` 属性で渡し、
-//! [`LAYOUT_CSS`] 側も同じ属性セレクタで対応する（`crate::blocks`
+//! `card::root`/`heading::heading`/`link::root`/`nav_list::root` は
+//! `drop_class_attr` により呼び出し側 `attrs` の `class` を黙って除去する
+//! 契約を持つため、Demo 固有スタイルは `data-blocks-footer-sticky-reveal-*`
+//! 属性で渡し、[`LAYOUT_CSS`] 側も同じ属性セレクタで対応する（`crate::blocks`
 //! モジュール doc「CSS フックが `class` と `[data-*]` で混在する理由」節
-//! 参照）。一方 `card::header`/`body`（variant を持たず `attrs` をそのまま
-//! 連結する）や `nav_list::heading`/`list`/`item`/`link`（headless
-//! そのまま）と素の `div`/`footer`/`p` には `class` がそのまま効く。
+//! 参照）。`nav_list::root` は `pre-styled-ui` 側の薄いラッパー（headless の
+//! 自由関数と名前衝突するため styled 版のみ再定義される、
+//! `pre-styled-ui::nav_list` モジュール doc「選択的 re-export」節参照）で
+//! あり、`heading`/`list`/`item`/`link` は headless から選択的
+//! 再エクスポートされるため `class` がそのまま効く。一方 `card::header`/
+//! `body`（variant を持たず `attrs` をそのまま連結する）や素の
+//! `div`/`footer`/`p` にも `class` がそのまま効く。
+//!
+//! # `nav_list::heading`（固定 `h2`）を使わない理由
+//!
+//! `nav_list::heading` は headless 側で `h2` 固定（レベル引数を持たない）
+//! であり、本 block 内で使うと「Product」「Community」が Demo 節見出し
+//! （`crate::blocks::insert_generated_sections` が生成する `h2`）と同じ
+//! アウトライン階層になってしまう。[`super::footer_newsletter`] が
+//! 同種の列見出しに `nav_list::heading` ではなく素の `p`
+//! （`.blocks-footer-sticky-reveal-group-title`）を使う先例に倣い、本
+//! block も `nav_list::heading` を使わず `p` で表現する（`nav_list` 自体は
+//! `root`/`list`/`item`/`link` で引き続き使用しており [`BLOCK`] の
+//! `parts` 契約は変わらない）。
 
 use super::{Block, Part};
 
@@ -118,7 +134,9 @@ fn dummy_content() -> Node {
     )
 }
 
-/// footer リンク列（見出し + リンク群）。
+/// footer リンク列（見出し + リンク群）。`heading_text` は `nav_list::heading`
+/// （固定 `h2`）ではなく `p` で表現する（モジュール doc「`nav_list::heading`
+/// を使わない理由」節参照）。
 fn footer_nav_group(heading_text: &str, links: &[(&str, &str)]) -> Node {
     let items: Vec<Node> = links
         .iter()
@@ -132,7 +150,10 @@ fn footer_nav_group(heading_text: &str, links: &[(&str, &str)]) -> Node {
     div(
         vec![("class", "blocks-footer-sticky-reveal-group")],
         vec![
-            nav_list::heading(vec![], vec![text(heading_text)]),
+            p(
+                vec![("class", "blocks-footer-sticky-reveal-group-title")],
+                vec![text(heading_text)],
+            ),
             nav_list::list(vec![], items),
         ],
     )
@@ -153,7 +174,7 @@ fn footer_element() -> Node {
     const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
     let nav = nav_list::root(
         "Footer",
-        vec![("class", "blocks-footer-sticky-reveal-nav")],
+        vec![("data-blocks-footer-sticky-reveal-nav", "")],
         vec![
             footer_nav_group("Product", &[(REPO, "Guide"), (REPO, "API Reference")]),
             footer_nav_group("Community", &[(REPO, "Spec"), (REPO, "GitHub")]),
@@ -224,8 +245,9 @@ pub(super) const LAYOUT_CSS: &str = "\
 [data-blocks-footer-sticky-reveal-content] {\n  position: relative;\n  z-index: 1;\n  background: var(--fandhe-color-bg);\n  display: flex;\n  flex-direction: column;\n  gap: 1rem;\n  padding: 1.5rem;\n}\n\
 [data-blocks-footer-sticky-reveal-footer] {\n  position: sticky;\n  bottom: 0;\n  z-index: 0;\n  background: var(--fandhe-color-bg-subtle);\n  border-top: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-footer-sticky-reveal-footer-inner] {\n  display: flex;\n  flex-direction: column;\n  gap: 1rem;\n  padding: 1.5rem;\n}\n\
-.blocks-footer-sticky-reveal-nav {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 2rem;\n}\n\
+[data-blocks-footer-sticky-reveal-nav] {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 2rem;\n}\n\
 .blocks-footer-sticky-reveal-group {\n  display: flex;\n  flex-direction: column;\n  gap: 0.5rem;\n}\n\
+.blocks-footer-sticky-reveal-group-title {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n}\n\
 @supports (animation-timeline: scroll()) {\n  [data-blocks-footer-sticky-reveal-footer-inner] {\n    animation-name: fd-motion-fade-in;\n    animation-timing-function: linear;\n    animation-fill-mode: backwards;\n    animation-timeline: scroll(nearest);\n    animation-range: 70% 100%;\n  }\n}\n\
 @media (prefers-reduced-motion: reduce) {\n  [data-blocks-footer-sticky-reveal-footer-inner] {\n    animation: none;\n  }\n}\n";
 
