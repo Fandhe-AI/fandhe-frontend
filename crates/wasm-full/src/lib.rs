@@ -1312,6 +1312,31 @@ where
             }
         }
 
+        // イシュー #2578（Cursor Bugbot 指摘「Unrelated updates abort
+        // shared layout」是正）: 進行中の共有レイアウト遷移の停止は、この
+        // 更新で DOM 書き込みが及ぶ範囲——dirty field の keyed list 本体と
+        // 束縛先要素——の配下にある要素だけに限定する（`shared_layout::
+        // stop_within` doc 参照。`layout_flip::capture_before` が「実際に
+        // 更新されるリストだけを停止する」のと同じ粒度）。無関係な
+        // テキスト/属性更新で進行中の spring を中断しない一方、
+        // codex-review P1「DOM 更新前に進行中の共有 FLIP を停止する」の
+        // 契約（書き換わる要素は停止・復元してから DOM 更新へ進む）は、
+        // `apply_dirty`（束縛点の `set_attribute` 等）と keyed list 構造
+        // コミットの**前**であるこの位置で維持する。unresolved field に
+        // よる全再描画フォールバックは下記 `rerender_subtree` 直前で
+        // `root` 全体を対象に停止する。
+        #[cfg(feature = "layout-animation")]
+        for field in dirty {
+            if let Ok(Some(list_element)) =
+                fandhe_frontend_wasm_client::find_list_element(root, field)
+            {
+                crate::shared_layout::stop_within(root, &list_element);
+            }
+            for element in crate::layout_flip::elements_bound_to_field(root, field) {
+                crate::shared_layout::stop_within(root, &element);
+            }
+        }
+
         if let Some(table) = binding_table.borrow().as_ref() {
             table.apply_dirty(dirty, state);
         }
@@ -1641,7 +1666,7 @@ where
             // `data-fandhe-layout-id` 要素まで丸ごと除外すると、それらが
             // 共有レイアウト遷移から取りこぼされてしまうため
             // （`shared_layout.rs::play_after_excluding` doc 参照）。
-            let played_rows = crate::layout_flip::play_after(&live_target, before);
+            let played_rows = crate::layout_flip::play_after_reporting(&live_target, before);
             flip_played_targets.extend(played_rows.into_iter().map(web_sys::Element::from));
         }
 
@@ -1660,6 +1685,11 @@ where
         // 1 件でもあれば、`root` サブツリーを丸ごと差し替える全再描画へ
         // フォールバックする（従来の黙った no-op を解消）。
         if unresolved_field {
+            // `root` サブツリー全体が差し替わるため、進行中の共有レイアウト
+            // 遷移も全件停止する（上記 `stop_within` の範囲限定の補集合、
+            // イシュー #2578）。
+            #[cfg(feature = "layout-animation")]
+            crate::shared_layout::stop_within(root, root);
             Self::rerender_subtree(state, root, binding_table, keyed_list_cache);
         }
 
@@ -3360,6 +3390,11 @@ where
         // 共有レイアウト遷移は常に起動する。
         #[cfg(feature = "layout-animation")]
         let shared_layout_before = crate::shared_layout::capture_before(&self.root);
+        // `root` サブツリー全体が差し替わるため、捕捉後に進行中の共有
+        // レイアウト遷移を全件停止してから DOM を更新する（`shared_layout::
+        // stop_within` doc 参照、イシュー #2578）。
+        #[cfg(feature = "layout-animation")]
+        crate::shared_layout::stop_within(&self.root, &self.root);
         Self::rerender_subtree(
             &state,
             &self.root,
@@ -3517,6 +3552,14 @@ where
         let shared_layout_before = shared_flip
             .then(|| crate::shared_layout::capture_before(root))
             .flatten();
+        // `root` サブツリー全体が差し替わるため、捕捉後に進行中の共有
+        // レイアウト遷移を全件停止してから DOM を更新する（`rerender` と
+        // 同じ、イシュー #2578）。UA 委譲時（`shared_flip == false`）は
+        // 本モジュールの FLIP ハンドル自体が起動されないため対象外。
+        #[cfg(feature = "layout-animation")]
+        if shared_flip {
+            crate::shared_layout::stop_within(root, root);
+        }
         Self::apply_subtree_swap(root, &new_node, binding_table, keyed_list_cache);
         #[cfg(feature = "layout-animation")]
         if shared_flip {

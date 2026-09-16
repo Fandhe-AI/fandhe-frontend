@@ -48,12 +48,6 @@
 //!
 //! ## DOM 更新前の停止契約（codex-review P1 是正、イシュー #2578）
 //!
-//! [`capture_before`] は、このルート（`root_id`）の視覚矩形を捕捉した
-//! **直後**（構造変化を DOM へ適用する**前**）に、このルートの [`ACTIVE`]
-//! エントリを収束・未収束を問わず**すべて**停止・復元する（他ルートの
-//! エントリは収束済み〔`is_done()`〕のもののみ prune し、id 数で有界に
-//! 保つ）。
-//!
 //! 同じ id・同じ DOM 要素が旧要素・新要素の両方として残る更新（構造変化
 //! を伴わない更新、あるいは [`fandhe_frontend_animation::shared_layout::
 //! pair_by_id`] が `same_node` として除外する「id を維持したまま残る
@@ -64,9 +58,18 @@
 //! `transform-origin`/`transition` を設定すると、旧アニメーションの
 //! 次フレーム書き込みがそれを上書きし、収束時には `OriginalStyle::
 //! restore` が更新**前**の値を復元して更新後の状態を破壊してしまう。
-//! `capture_before` が DOM 更新前に必ず全ハンドルを停止・復元することで、
-//! 後続の DOM 更新は常にクリーンな（進行中の FLIP 補正を持たない）
-//! ベース状態へ適用される。
+//!
+//! そのため呼び出し元は、[`capture_before`] で視覚矩形を捕捉した**後**・
+//! DOM 更新の**前**に [`stop_within`] を呼び、**この更新で書き換わる
+//! 範囲**（dirty field の keyed list 本体・束縛先要素。全再描画なら
+//! `root` 全体）の配下にある進行中ハンドルを停止・復元する。範囲を
+//! 限定するのは、無関係なテキスト/属性更新のたびに進行中の共有レイア
+//! ウト遷移を中断して目的地へ跳ばせないため（Cursor Bugbot 指摘
+//! 「Unrelated updates abort shared layout」、イシュー #2578。
+//! `layout_flip::capture_before` が「実際に更新されるリストだけを停止
+//! する」のと同じ粒度）。`capture_before` 自体は全ルート横断で収束済み
+//! （`is_done()`）エントリを prune するだけで、進行中ハンドルには触れ
+//! ない。
 //!
 //! `root_id`（`u64`、[`wiring::root_scope_id`]）は `capture_before`/
 //! `play_after` に渡される `root`（`Runtime` のマウント先要素）の DOM
@@ -164,6 +167,9 @@ mod wiring {
     struct ActiveEntry {
         token: u64,
         animation: FlipAnimation,
+        /// アニメーション対象（新要素側）。[`stop_within`] の範囲判定用
+        /// （`FlipAnimation` は対象要素を公開しないため併記する）。
+        element: HtmlElement,
     }
 
     thread_local! {
@@ -367,7 +373,6 @@ mod wiring {
     /// は空の iterator に対して `measure` を 0 回呼ぶ）。
     #[must_use]
     pub fn capture_before(root: &Element) -> Option<SharedSnapshot> {
-        let root_id = root_scope_id(root);
         // `PREV_TRANSITION_NAMES` の prune（codex-review 指摘、イシュー
         // #2578）。`assign_transition_names` の retain は同じ root_id が
         // 再度呼ばれた時にのみ走るため、ルート自体が DOM から除去され
@@ -384,33 +389,37 @@ mod wiring {
         } else {
             Some(shared_layout::snapshot(entries))
         };
-        // codex-review P1 是正（イシュー #2578「DOM 更新前に進行中の
-        // 共有 FLIP を停止する」）: 現在の視覚矩形を捕捉した**後**、この
-        // ルートの進行中ハンドルを DOM 更新前に停止・復元する
-        // （`HashMap::retain` が偽を返したエントリを drop し、未収束
-        // なら `FlipAnimation::drop` が元のスタイルへ復元する）。
-        //
-        // 同じ要素が旧要素・新要素の両方として突合される場合（構造変化を
-        // 伴わない更新、あるいは `pair_by_id` が `same_node` として除外
-        // する「id を維持したまま残る要素」）、`play_after`/
-        // `play_after_excluding` は当該 id のハンドルを新規に `insert`
-        // せず、ここで停止しなかった旧ハンドルが DOM 更新後もそのまま
-        // rAF ループで書き込みを続ける。この間に構造変化コミット
-        // （`apply_dirty` 等）が同じ要素へ新しい `transform`/
-        // `transform-origin`/`transition` を設定すると、旧アニメーション
-        // の次フレーム書き込みがそれを上書きし、収束時には
-        // `OriginalStyle::restore` が更新**前**の値を復元して更新後の
-        // 状態を破壊する（codex-review 指摘）。DOM 更新の前にここで
-        // 全ハンドルを停止・復元しておけば、後続の DOM 更新は常に
-        // クリーンな（進行中の FLIP 補正を持たない）ベース状態へ適用
-        // される。他ルート（別 `root_id`）の収束済みエントリも同じ
-        // 走査で prune する（モジュール doc「ハンドル保持」参照。判定は
-        // 要素固有の状態のみで、他ルートへの書き込み・削除は行わない）。
+        // 収束済み（`is_done()`）エントリを全ルート横断で prune する
+        // （モジュール doc「ハンドル保持」参照。判定は要素固有の状態のみ
+        // で、他ルートへの書き込み・削除は行わない）。進行中ハンドルの
+        // 停止はここでは行わず、呼び出し元が DOM 更新範囲に限定して
+        // [`stop_within`] で行う（モジュール doc「DOM 更新前の停止契約」）。
         ACTIVE.with(|cell| {
             cell.borrow_mut()
-                .retain(|(pid, _), entry| *pid != root_id && !entry.animation.is_done());
+                .retain(|_, entry| !entry.animation.is_done());
         });
         snapshot
+    }
+
+    /// `root` に属する進行中の共有レイアウト遷移のうち、対象要素が
+    /// `scope` 配下（`scope` 自身を含む）にあるものを停止・復元する
+    /// （[`ACTIVE`] からの drop。未収束なら [`FlipAnimation`] の [`Drop`]
+    /// が元のスタイルへ復元する）。
+    ///
+    /// [`capture_before`] で視覚矩形を捕捉した**後**・DOM 更新の**前**に
+    /// 呼ぶ（モジュール doc「DOM 更新前の停止契約」）。`Runtime::
+    /// apply_update_for_dirty` は dirty field ごとの keyed list 本体と
+    /// 束縛先要素を `scope` として渡し、`rerender`/全再描画フォール
+    /// バック/`apply_with_view_transition` の FLIP 経路は `root` 自身を
+    /// 渡す。`scope` 外の要素の遷移には触れないため、無関係な更新では
+    /// 進行中の spring が継続する（Cursor Bugbot 指摘是正、イシュー
+    /// #2578）。他ルート（別 `root_id`）のエントリには触れない。
+    pub fn stop_within(root: &Element, scope: &Element) {
+        let root_id = root_scope_id(root);
+        ACTIVE.with(|cell| {
+            cell.borrow_mut()
+                .retain(|(pid, _), entry| *pid != root_id || !scope.contains(Some(&entry.element)));
+        });
     }
 
     /// `snapshot`（[`capture_before`] の結果）と `root` 配下の構造変化
@@ -481,14 +490,25 @@ mod wiring {
                 .map(|spring| spring.settle_duration() * 1000.0)
                 .unwrap_or(10_000.0);
         for (id, animation) in played {
+            // `play_shared` は after 側の重複 id を先頭 1 件のみ再生する
+            // （`pair_by_id` doc）ため、先頭一致の要素が対象要素である。
+            let Some((_, element)) = after.iter().find(|(after_id, _)| *after_id == id) else {
+                continue;
+            };
             let token = NEXT_TOKEN.with(|cell| {
                 let next = cell.get().wrapping_add(1);
                 cell.set(next);
                 next
             });
             ACTIVE.with(|cell| {
-                cell.borrow_mut()
-                    .insert((root_id, id.clone()), ActiveEntry { token, animation });
+                cell.borrow_mut().insert(
+                    (root_id, id.clone()),
+                    ActiveEntry {
+                        token,
+                        animation,
+                        element: element.clone(),
+                    },
+                );
             });
             schedule_cleanup(root_id, id, token, settle_ms);
         }
@@ -625,13 +645,10 @@ mod wiring {
             root.remove();
         }
 
-        /// codex-review P1 是正回帰テスト（イシュー #2578「DOM 更新前に
-        /// 進行中の共有 FLIP を停止する」）: 別要素への引き継ぎ FLIP が
-        /// 進行中のまま次の `capture_before` が呼ばれると、DOM 更新前に
-        /// 停止・復元されるべきである。
-        #[wasm_bindgen_test]
-        fn capture_before_stops_in_progress_handle_before_dom_update() {
-            let root = make_root();
+        /// 位置 A の旧要素 X1 → 位置 B の新規要素 X2 への「別要素への
+        /// 引き継ぎ」FLIP を起動し、進行中の X2 を返す（下記 2 テスト共通
+        /// の前段）。
+        fn start_in_progress_handoff(root: &Element) -> HtmlElement {
             let document = web_sys::window().unwrap().document().unwrap();
 
             // 1 回目のサイクル: 位置 A の旧要素 X1 → 位置 B の新規要素 X2
@@ -650,7 +667,7 @@ mod wiring {
             .unwrap();
             root.append_child(&x1).unwrap();
 
-            let snapshot1 = capture_before(&root);
+            let snapshot1 = capture_before(root);
             assert!(snapshot1.is_some(), "初回 capture は対象要素を捕捉するはず");
 
             x1.remove();
@@ -664,9 +681,9 @@ mod wiring {
             .unwrap();
             root.append_child(&x2).unwrap();
 
-            play_after(&root, snapshot1);
+            play_after(root, snapshot1);
 
-            let x2_html = x2.clone().dyn_into::<HtmlElement>().unwrap();
+            let x2_html = x2.dyn_into::<HtmlElement>().unwrap();
             assert!(
                 !x2_html
                     .style()
@@ -676,12 +693,23 @@ mod wiring {
                 "play_after 直後は補正 transform が書き込まれ、アニメーション \
                  が進行中のはず"
             );
+            x2_html
+        }
 
-            // 2 回目の `capture_before`（DOM 更新自体はまだ起きていない）:
-            // 本テストの検証対象。旧実装は `is_done()` の収束済みエントリ
-            // しか prune せず、未収束の進行中ハンドルはここで停止されない
-            // ため transform は書き込まれたまま残った。
+        /// codex-review P1 是正回帰テスト（イシュー #2578「DOM 更新前に
+        /// 進行中の共有 FLIP を停止する」）: 別要素への引き継ぎ FLIP が
+        /// 進行中のまま、その要素を含む範囲の DOM 更新が始まる（次の
+        /// `capture_before` + `stop_within`）と、DOM 更新前に停止・復元
+        /// されるべきである。
+        #[wasm_bindgen_test]
+        fn stop_within_stops_in_progress_handle_before_dom_update() {
+            let root = make_root();
+            let x2_html = start_in_progress_handoff(&root);
+
+            // 2 回目の更新サイクル（DOM 更新自体はまだ起きていない）:
+            // 本テストの検証対象。`root` 全体が書き換わる更新を模す。
             let _snapshot2 = capture_before(&root);
+            stop_within(&root, &root);
 
             assert!(
                 x2_html
@@ -692,6 +720,49 @@ mod wiring {
                 "DOM 更新前に進行中のハンドルを停止・復元しているはず \
                  （codex-review P1「DOM 更新前に進行中の共有 FLIP を \
                  停止する」是正の検証）"
+            );
+
+            root.remove();
+        }
+
+        /// Cursor Bugbot 指摘是正回帰テスト（イシュー #2578「Unrelated
+        /// updates abort shared layout」）: 進行中の共有レイアウト遷移の
+        /// 対象要素を含まない範囲だけが書き換わる更新（無関係なテキスト/
+        /// 属性更新）では、`capture_before` + `stop_within(無関係な範囲)`
+        /// を経てもハンドルは残り、補正 transform が維持される。
+        #[wasm_bindgen_test]
+        fn unrelated_update_keeps_in_progress_handle() {
+            let root = make_root();
+            let document = web_sys::window().unwrap().document().unwrap();
+            let unrelated = document.create_element("p").unwrap();
+            root.append_child(&unrelated).unwrap();
+            let x2_html = start_in_progress_handoff(&root);
+
+            let _snapshot2 = capture_before(&root);
+            stop_within(&root, &unrelated);
+
+            assert!(
+                !x2_html
+                    .style()
+                    .get_property_value("transform")
+                    .unwrap()
+                    .is_empty(),
+                "無関係な範囲の更新では進行中のハンドルが維持され、補正 \
+                 transform が残るはず"
+            );
+            let retained = ACTIVE.with(|cell| cell.borrow().keys().any(|(_, id)| id == "target"));
+            assert!(retained, "ACTIVE のエントリも維持されるはず");
+
+            // 対象要素を含む範囲なら停止する（`stop_within` の範囲判定が
+            // `scope` 自身と子孫の双方に効くことの確認）。
+            stop_within(&root, &x2_html);
+            assert!(
+                x2_html
+                    .style()
+                    .get_property_value("transform")
+                    .unwrap()
+                    .is_empty(),
+                "対象要素自身を scope に渡せば停止・復元されるはず"
             );
 
             root.remove();
@@ -736,4 +807,4 @@ mod wiring {
 #[cfg(any(feature = "view-transitions", feature = "view-transition-preset"))]
 pub(crate) use wiring::assign_transition_names;
 #[cfg(target_arch = "wasm32")]
-pub use wiring::{capture_before, play_after, play_after_excluding};
+pub use wiring::{capture_before, play_after, play_after_excluding, stop_within};

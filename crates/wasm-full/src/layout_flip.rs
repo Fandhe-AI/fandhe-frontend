@@ -471,8 +471,13 @@ mod wiring {
     /// 行のみへ絞ることで、同一 keyed list 内の新規挿入・移動行に含まれる
     /// `data-fandhe-layout-id` 要素が共有レイアウト遷移から取りこぼされ
     /// なくなる）。
+    ///
+    /// 公開 API [`play_after`]（戻り値 `()`）はこの関数の薄いラッパーで
+    /// あり、既存利用者との戻り値互換性を維持する（codex-review P1 指摘、
+    /// イシュー #2578: 0.40.1 → 0.40.2 の patch 更新で公開再エクスポート
+    /// 済み関数の戻り値を変えると破壊的変更になる）。
     #[must_use]
-    pub fn play_after(
+    pub fn play_after_reporting(
         list_element: &Element,
         before: HashMap<String, flip::Rect>,
     ) -> Vec<HtmlElement> {
@@ -619,6 +624,16 @@ mod wiring {
         schedule_cleanup(list_id, key, token, settle_ms);
     }
 
+    /// [`play_after_reporting`] の戻り値互換ラッパー（戻り値 `()`）。
+    /// 従来どおり `list_element` の Last 計測・Invert・Play を行い、実際に
+    /// transform を適用した行の一覧は破棄する。外部利用者向けの公開
+    /// シグネチャはこちらを維持し、除外対象の行一覧が必要な
+    /// `Runtime::apply_update_for_dirty` だけが [`play_after_reporting`]
+    /// を呼ぶ（codex-review P1 指摘、イシュー #2578）。
+    pub fn play_after(list_element: &Element, before: HashMap<String, flip::Rect>) {
+        let _ = play_after_reporting(list_element, before);
+    }
+
     /// `settle_ms`（+ 余裕マージン）経過後に、[`FLIP_LOOPS`] の
     /// `(list_id, key)` エントリがまだ同じ `token` を持つ場合に限り除去
     /// する。`token` が不一致（既に新しいアニメーションへ置き換え済み）
@@ -661,4 +676,7 @@ mod wiring {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub use wiring::{capture_before, elements_bound_to_field, flip_lists_containing, play_after};
+pub use wiring::{
+    capture_before, elements_bound_to_field, flip_lists_containing, play_after,
+    play_after_reporting,
+};
