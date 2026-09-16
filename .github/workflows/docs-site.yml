@@ -235,6 +235,14 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-expand/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-banner-magnetic/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-signup-celebrate/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cursor-hover-cards/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-editorial-stagger/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-parallax-layers/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-terminal/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/text-split-reveal/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/game-ui-modal/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-sticky-reveal/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-newsletter/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/blocks.css"
 
       - name: Upload dist artifact

@@ -70,8 +70,20 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 | `Runtime::wire_hold_to_confirm` | `hold-to-confirm` |
 | `Runtime::wire_add_to_basket` | `add-to-basket` |
 | `Runtime::wire_magnetic` | `magnetic` |
+| `Runtime::wire_carousel_motion` | `carousel-motion` |
 | `Runtime::wire_count_up` | `count-up` |
 | `Runtime::wire_text_animation` | `text-animation` |
+| `Runtime::wire_cursor` | `cursor` |
+
+`cursor` feature（0.36.0 で追加、イシュー #2542）は `scroll-driver`/
+`confetti`/`hold-to-confirm`/`magnetic`/`text-animation` と同型（配線群かつ
+`dep:fandhe-frontend-animation` 有効化）で、カスタムカーソル要素
+（`data-fandhe-cursor` opt-in）をポインタに spring で追従させます。hover 対象
+（`data-fandhe-cursor-target`）の `data-*` 値をカーソル要素へ写してバリアント
+切替・ラベル表示を行い、`data-fandhe-cursor-target-magnetic` 付き対象では
+中心へ吸着します。`fandhe-frontend-animation::cursor::CursorAnimator` が
+spring 演算・rAF 駆動・DOM 書き込みを担い、`prefers-reduced-motion: reduce`・
+`pointer: coarse` のいずれかが真なら配線自体を行いません。
 
 `magnetic` feature（0.31.0 で追加、イシュー #2550）は `scroll-driver`/
 `confetti`/`hold-to-confirm` と同型（配線群かつ
@@ -104,6 +116,24 @@ count-up-trigger="in-view"`）・`MutationObserver` による外部更新の再�
 `words`）は SSR + CSS `@keyframes` のみで完結する
 `fandhe_frontend_pre_styled_ui::text_reveal`（`motion` feature）側の責務
 であり、本 feature の対象外です。
+
+`carousel-motion` feature（0.36.0 で追加、イシュー #2541）も同型で、
+`data-fandhe-carousel-drag` opt-in root 配下の `item-group` へのポインタ
+ドラッグを `fandhe-frontend-animation::carousel::CarouselTrack`（spring
+スナップ + `AnimationLoop`/`RafDriver`）で追従させ、release 後に `"goto"`
+を dispatch します。coverflow 3D 表示（CSS のみ）は
+`fandhe_frontend_pre_styled_ui::carousel_motion`（`motion` feature）側の
+責務であり、本 feature とは独立です。
+
+`magnetic` feature（0.31.0 で追加、イシュー #2550）は `scroll-driver`/
+`confetti`/`hold-to-confirm` と同型（配線群かつ
+`dep:fandhe-frontend-animation` 有効化）で、ポインタに追従して吸い付く
+CTA ボタン（`data-fandhe-magnetic` opt-in）のオフセットを
+`fandhe-frontend-animation::magnetic::compute_pull`/`write_offset` で
+計算・書き込みます。rAF ループ・spring 計算は使わず、`pointermove` ごとに
+直接 CSS カスタムプロパティ（`--fandhe-motion-magnetic-x`/`-y`）へ書き込み、
+実際の追従感は既存の CSS motion トークンによる `transition` へ委ねる設計
+です（`crates/frontend-animation/src/magnetic.rs` モジュール doc参照）。
 
 `hold-to-confirm` feature（0.30.0 で追加、イシュー #2538）は `scroll-driver`/
 `confetti` と同型（配線群かつ `dep:fandhe-frontend-animation` 有効化）で、
@@ -236,6 +266,35 @@ capture_before`/`play_after`）をゲートします。`layout_flip` モジュ�
 サブツリー全体の Invert 変形を所有する設計上のスコープ外であり、将来の
 課題として扱います）。
 
+`presence` feature（イシュー #2544、既定 on）も `layout-animation` と
+同型の別枠です。`Runtime::apply_update_for_dirty` の keyed list 構造
+変化コミットの前後で、`fandhe_frontend_animation::presence`（削除行の
+座標スナップショット撮影・退場ゴースト配置・実測 CSS アニメーション時間
+経過後の除去）を起動する呼び出し（`list_presence::capture_before`/
+`play_exit_after`）をゲートします。`list_presence` モジュール自体・
+座標計測やタイマー処理のロジックは `fandhe-frontend-animation` 側の
+責務であり、本クレートはいつ呼ぶかのみを担います。対象リストは親要素に
+`data-fandhe-flip-auto` と同型の `data-fandhe-presence-auto` 属性を持つ
+keyed list へオプトインで限定されるため、off にすると当該属性を付けた
+リストでも削除行の退場アニメーションが起動しなくなります（並べ替え
+〔`layout-animation`〕・追加行の入場（`fandhe-frontend-pre-styled-ui`
+`motion` feature の `list_motion` が提供する CSS、`stagger` feature の
+`--fandhe-motion-stagger-index` 同期）とは独立の feature です）。
+
+**ゴースト方式**: 削除された行は DOM から即座に取り除かれるのではなく、
+元の座標（`offsetTop`/`offsetLeft`/`offsetWidth`/`offsetHeight`）へ
+`position: absolute` で list 末尾へ再挿入され、`inert`・
+`aria-hidden="true"`・`data-state="exiting"` を付与されます
+（Motion の `AnimatePresence`〔`popLayout`〕相当）。ゴーストからは
+`data-key`/`data-bind-*`/`data-action` を剥がすため、次回の keyed list
+差分・FLIP・束縛点走査・イベント委譲のいずれにも拾われません。除去は
+`animationend` イベントに依存せず、computed `animation-duration`/
+`animation-delay` から求めた実測時間 + 50ms 後のタイマーで行うため、
+`motion` feature 未読み込み・`prefers-reduced-motion: reduce`・
+`animation-duration: 0s` のいずれでもゴーストは即座に除去されます
+（fail-safe）。ゴーストは絶対配置のため後続行は FLIP で即座に詰まります
+（既知の視覚的挙動、Motion popLayout と同じ見え方）。
+
 ## 4. scope feature 対応表（イシュー #2327、0.20.0 で追加）
 
 feature 名は `headless::MAPPING_TABLE` の `scope` 文字列と一致します
@@ -316,8 +375,11 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | （merge） | base main 再取り込み時（イシュー #2518 codex-review 追加ラウンド是正、`view-transition-preset` feature 追加）: main 側はさらにイシュー #2516（`view-transition-preset` feature）で 0.32.2 → 0.32.3 へ独立にバンプしていた。本 PR 側の到達値 0.33.0 は main の到達値 0.32.3 をすでに上回っており同一版数の衝突には該当しないため、本 PR の到達値 0.33.0 をそのまま維持する（さらなる衝突バンプ不要） |
 | 0.34.0 | `ViewTransitionPreset` へ 8 バリアント追加（イシュー #2537。既存 exhaustive match 利用者への破壊的変更のため minor バンプ） |
 | 0.35.0 | `text-animation` feature（イシュー #2532、typewriter/scramble 配線）。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.11.0 → 0.12.0 へ追随した。本 PR（#2532）と origin/main（#2537、`view-transition-preset` の破壊的バリアント追加）が同じ merge base（0.33.0）から独立に 0.34.0 へ到達したため、#638 条項に従いさらに +1 して 0.35.0 とする |
+| 0.36.0 | `cursor` feature（イシュー #2542、カスタムカーソル配線）。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.12.0 → 0.13.0 へ追随した |
+| 0.37.0 | `presence` feature（イシュー #2544、keyed list 削除行の退場ゴースト配線）。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.13.0 → 0.14.0 へ追随した |
 | 0.36.0 | `count-up` feature（イシュー #2539）。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.12.0 → 0.13.0 へ追随した。本 PR（#2539）と origin/main（#2532 到達の 0.35.0）が同じ merge base（0.34.0）から独立に 0.35.0 へ到達したため、#638 条項に従いさらに +1 して 0.36.0 とする |
 | 0.36.1 | PR #2580 レビュー是正: `count_up.rs` の自己書き込み検知を `fandhe-frontend-animation` の `self_write_count` へ追随させた（内部実装のみ、公開 API 不変）ため patch バンプ。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.13.0 → 0.14.0 へ追随した |
+| 0.40.2 | `count-up` feature の統合（イシュー #2539、PR #2580。本 PR は独立に 0.36.1 まで到達していたが、origin/main が `carousel-motion`/`presence` 等で 0.40.1 まで進んでいたため、main の到達値に本 PR の patch 分を +1 して 0.40.2 とする。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.17.0 へ追随した） |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
@@ -327,7 +389,7 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.36.1"
+version = "0.40.2"
 default-features = false
 features = [
   "wasm-bindgen-exports",
@@ -356,8 +418,10 @@ features = [
   "hold-to-confirm",
   "add-to-basket",
   "magnetic",
-  "count-up",
+  "carousel-motion",
   "text-animation",
+  "cursor",
+  "count-up",
   "position",
   "stagger",
   "animation-driver",
@@ -366,6 +430,7 @@ features = [
   "view-transition-preset",
   "animate",
   "layout-animation",
+  "presence",
   "accordion",
   "calendar",
   "collapsible",

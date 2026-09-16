@@ -172,7 +172,41 @@
   `blocks/cta-signup-celebrate/index.html`（イシュー #2550、`card`/`field`/
   `input`/`button` を合成したサインアップ CTA。既存の `confetti` feature
   向け opt-in 属性〔`data-fandhe-confetti-trigger`/`-canvas`〕をそのまま
-  「使う側」として合成し、送信前/送信完了の 2 状態を静的に併記する）
+  「使う側」として合成し、送信前/送信完了の 2 状態を静的に併記する）/
+  `blocks/cursor-hover-cards/index.html`（イシュー #2542、`card` 3 枚へ
+  `data-fandhe-cursor-target`（バリアント・ラベル・magnetic 吸着の 3 種）を
+  付与した合成 block。カスタムカーソルの追従・hover バリアント変化の実演は
+  wasm-full の `cursor` feature 配下のみで発生し、無 JS の本サイトでは
+  静的な実演に留まる）/
+  `blocks/footer-sticky-reveal/index.html`（イシュー #2551、`card`/
+  `heading`/`link`/`nav_list` を合成した footer。Demo 枠自体を固定高の
+  スクロールコンテナにし、`position: sticky` のみで footer が本文の下から
+  現れる sticky reveal を再現する合成 block）/
+  `blocks/footer-newsletter/index.html`（イシュー #2551、`field`/`input`/
+  `button`/`link` を合成した newsletter footer。presence 同型 CSS（`opacity`/
+  `transform` + `allow-discrete`）で「入力」「完了」2 panel の遷移を表現し、
+  無 JS のため Before/After の 2 インスタンスを静的に併記する合成 block）/
+  `blocks/hero-editorial-stagger/index.html`（イシュー #2546、`badge`/
+  `heading`/`text`/`button` を合成した hero。eyebrow badge → 見出し →
+  リード文 → CTA 群の順に時間軸 stagger（`animation-delay`）でフェード＋
+  スライドインする）/
+  `blocks/hero-parallax-layers/index.html`（イシュー #2546、背景・中景・
+  前景の抽象図形 3 レイヤーへ `SlotRecipe::parallax` を直接適用した hero。
+  `heading`/`text`/`button` を最前面に合成し、`data-fandhe-scroll-progress`
+  は無 JS のため付与しない）/
+  `blocks/hero-terminal/index.html`（イシュー #2546、`code`/`kbd` を合成
+  したターミナル風 hero。3 行のコマンドが時間軸 stagger でフェードインし、
+  最終行は `text_reveal::typewriter` の opt-in マーカーのみを持つ静的表示）/
+  `blocks/text-split-reveal/index.html`（イシュー #2546、`heading`/`text`/
+  `button` を合成した hero。見出しは `text_reveal::chars`、リード文は
+  `text_reveal::words` で SSR のみの reveal を行い、Blocks が
+  `text_reveal::TEXT_REVEAL_CSS` を初めて `push_css` する消費者となった）/
+  `blocks/game-ui-modal/index.html`（イシュー #2552、Motion+
+  `examples/game-ui` を参照した `dialog`/`badge`/`button` の合成 block。
+  scale + spring 入場は既存の `motion::ZOOM_IN_KEYFRAMES_NAME` +
+  `theme::SPRING_EASING_LINEAR`、報酬行の順送り出現は既存の
+  `recipe::STAGGER_INDEX_VAR` を再利用し、新規部品・wasm-full/
+  frontend-animation の変更は行わない）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

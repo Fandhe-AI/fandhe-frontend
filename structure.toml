@@ -42,7 +42,7 @@ version = 1
 role = "core"
 crate = "fandhe-frontend-core"
 description = "外部依存ゼロのレンダリングコア（ノード木 API・render・既定エスケープ）"
-allowed_dependents = ["interactive", "app", "server", "wasm-full", "wasm-thin", "wasm-client", "dist-server", "docs-site", "headless-ui", "xtask"]
+allowed_dependents = ["interactive", "app", "server", "wasm-full", "wasm-thin", "wasm-client", "dist-server", "docs-site", "headless-ui", "xtask", "frontend-animation"]
 path = "crates/core"
 
 [directories.interactive]
@@ -128,7 +128,7 @@ path = "crates/wasm-thin"
 role = "client-entrypoint"
 crate = "fandhe-frontend-animation"
 description = "Web アニメーションアダプタ（`fandhe-animation` の演算結果を wasm-bindgen / web-sys / js-sys で DOM/Web Animations API へ適用する。fandhe-frontend-wasm-full には依存しない）"
-depends_on = ["animation"]
+depends_on = ["animation", "core"]
 allowed_dependents = ["wasm-full"]
 path = "crates/frontend-animation"
 

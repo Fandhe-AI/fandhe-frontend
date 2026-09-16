@@ -221,8 +221,10 @@
 //! | `Runtime::wire_hold_to_confirm` | `hold-to-confirm` |
 //! | `Runtime::wire_add_to_basket` | `add-to-basket` |
 //! | `Runtime::wire_magnetic` | `magnetic` |
-//! | `Runtime::wire_count_up` | `count-up` |
+//! | `Runtime::wire_carousel_motion` | `carousel-motion` |
 //! | `Runtime::wire_text_animation` | `text-animation` |
+//! | `Runtime::wire_cursor` | `cursor` |
+//! | `Runtime::wire_count_up` | `count-up` |
 //!
 //! [`overlay`]/[`tooltip`]/[`position`]/[`focus_trap`]/[`headless_file_upload`]/
 //! [`headless_select`] は `Runtime` を経由しないアプリ側直接利用 API のため
@@ -272,6 +274,14 @@
 //! と同型のパターン）。keyed list の `Insert`/`Move`/`Remove` に伴う
 //! 自動書き戻しは持たない（値が呼び出し側の業務キー由来で DOM 順位置と
 //! 無関係なため）。
+//!
+//! [`list_presence`] モジュール（イシュー #2544）も [`stagger_index`] と
+//! 同型の別枠 feature を持つ。`Self::apply_update_for_dirty` 内、keyed
+//! list の構造変化コミットの前後（Before スナップショット・Remove 後の
+//! ゴースト挿入）のみを feature `"presence"`（既定 on）でゲートし、
+//! `list_presence` モジュール自体はゲート対象外のまま維持する。本呼び
+//! 出しも `Runtime::mount`/`hydrate` の配線群呼び出しではない（`dirty`
+//! 更新経路から呼ばれる）ため上記対応表には含めない。
 //!
 //! feature `"animate"`（既定 on、イシュー #2398）は上記いずれとも異なる
 //! 特殊枠である: optional 依存 `fandhe-frontend-animation`
@@ -453,6 +463,8 @@ pub mod add_to_basket;
 pub mod angle_slider;
 #[cfg(feature = "animation-driver")]
 pub mod animation_driver;
+#[cfg(feature = "carousel-motion")]
+pub mod carousel_motion;
 pub mod chart;
 pub mod chart_range;
 pub mod command;
@@ -462,6 +474,8 @@ pub mod content_height;
 #[cfg(feature = "count-up")]
 pub mod count_up;
 pub mod csr;
+#[cfg(feature = "cursor")]
+pub mod cursor;
 pub mod data_table;
 #[cfg(feature = "drag-gesture")]
 pub mod drag_gesture;
@@ -483,6 +497,8 @@ pub mod in_view;
 pub mod keynav;
 #[cfg(feature = "layout-animation")]
 pub mod layout_flip;
+#[cfg(feature = "presence")]
+pub mod list_presence;
 #[cfg(feature = "magnetic")]
 pub mod magnetic;
 pub mod message_scroller;
@@ -1267,6 +1283,28 @@ where
             }
         }
 
+        // イシュー #2544: `apply_dirty`（テキスト/属性/keyed list 構造の
+        // 適用）が Remove を実行する**前**に、dirty field 自身の keyed
+        // list（`PRESENCE_AUTO_ATTR` 付きのもののみ）の全行座標を撮る。
+        // `field` ごとに集めておき、当該 field の構造変化コミット直後
+        // （下記 `stagger`/`drag-gesture` 再同期と同じ位置）でゴースト化
+        // する（`list_presence.rs` モジュール doc 参照）。
+        #[cfg(feature = "presence")]
+        let mut presence_captured: Vec<(
+            &'static str,
+            Vec<fandhe_frontend_animation::presence::RowSnapshot>,
+        )> = Vec::new();
+        #[cfg(feature = "presence")]
+        for field in dirty {
+            if let Ok(Some(list_element)) =
+                fandhe_frontend_wasm_client::find_list_element(root, field)
+            {
+                if let Some(snapshot) = crate::list_presence::capture_before(&list_element) {
+                    presence_captured.push((field, snapshot));
+                }
+            }
+        }
+
         if let Some(table) = binding_table.borrow().as_ref() {
             table.apply_dirty(dirty, state);
         }
@@ -1436,6 +1474,26 @@ where
                                     fandhe_frontend_wasm_client::find_list_element(root, field)
                                 {
                                     crate::stagger_index::sync_stagger_index(&current_list_element);
+                                }
+                                // イシュー #2544: この field の構造変化
+                                // コミット直後、`presence_captured`（`apply_dirty`
+                                // より前に撮った Before スナップショット）
+                                // のうち DOM から切り離された行をゴースト化
+                                // する。`stagger`/`drag-gesture` と同じく
+                                // タグ変更に備えライブ要素を再取得する。
+                                #[cfg(feature = "presence")]
+                                if let Some((_, snapshot)) = presence_captured
+                                    .iter()
+                                    .find(|(captured_field, _)| captured_field == field)
+                                {
+                                    if let Ok(Some(current_list_element)) =
+                                        fandhe_frontend_wasm_client::find_list_element(root, field)
+                                    {
+                                        crate::list_presence::play_exit_after(
+                                            &current_list_element,
+                                            snapshot.clone(),
+                                        );
+                                    }
                                 }
                                 // イシュー #2518: Before 計測（上記走査）と
                                 // 対になる After 計測・Invert・Play
@@ -1864,12 +1922,21 @@ where
         Self::wire_add_to_basket(root.clone())?;
         #[cfg(feature = "magnetic")]
         Self::wire_magnetic(root.clone())?;
-        #[cfg(feature = "count-up")]
-        Self::wire_count_up(root.clone())?;
+        #[cfg(feature = "carousel-motion")]
+        Self::wire_carousel_motion(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
         #[cfg(feature = "text-animation")]
         let text_animation_loops = std::rc::Rc::new(std::cell::RefCell::new(
             Self::wire_text_animation(root.clone())?,
         ));
+        #[cfg(feature = "cursor")]
+        Self::wire_cursor(root.clone())?;
+        #[cfg(feature = "count-up")]
+        Self::wire_count_up(root.clone())?;
 
         Ok(Self {
             component,
@@ -2068,12 +2135,21 @@ where
         Self::wire_add_to_basket(root.clone())?;
         #[cfg(feature = "magnetic")]
         Self::wire_magnetic(root.clone())?;
-        #[cfg(feature = "count-up")]
-        Self::wire_count_up(root.clone())?;
+        #[cfg(feature = "carousel-motion")]
+        Self::wire_carousel_motion(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
         #[cfg(feature = "text-animation")]
         let text_animation_loops = std::rc::Rc::new(std::cell::RefCell::new(
             Self::wire_text_animation(root.clone())?,
         ));
+        #[cfg(feature = "cursor")]
+        Self::wire_cursor(root.clone())?;
+        #[cfg(feature = "count-up")]
+        Self::wire_count_up(root.clone())?;
 
         Ok(Self {
             component,
@@ -3153,6 +3229,32 @@ where
         count_up::wire_count_up(&root)
     }
 
+    /// carousel のドラッグ + spring スナップ配線
+    /// （[`carousel_motion::wire_carousel_motion_events`]、イシュー #2541）
+    /// を登録する。settle 完了時に `"goto"` を dispatch するため
+    /// `Self::wire` の閉包（[`Self::wire_angle_slider`] と同型）を渡す。
+    ///
+    /// # Errors
+    ///
+    /// [`carousel_motion::wire_carousel_motion_events`]
+    /// （`add_event_listener_with_callback` の失敗）を伝播する。
+    #[cfg(feature = "carousel-motion")]
+    fn wire_carousel_motion(
+        component: std::rc::Rc<std::cell::RefCell<C>>,
+        root: web_sys::Element,
+        binding_table: std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
+    ) -> Result<(), wasm_bindgen::JsValue> {
+        carousel_motion::wire_carousel_motion_events(
+            root.clone(),
+            Self::wire(component, root, binding_table, keyed_list_cache),
+        )
+    }
+
     /// typewriter/scramble の配線（[`text_animation::wire_text_animation`]、
     /// イシュー #2532）を登録する。`dispatch` チャネルを持たない属性専用
     /// 配線のため（`Self::wire_magnetic`/`Self::wire_confetti` と同型）、
@@ -3170,6 +3272,20 @@ where
     ) -> Result<Vec<fandhe_frontend_animation::raf_driver::AnimationLoop>, wasm_bindgen::JsValue>
     {
         text_animation::wire_text_animation(root)
+    }
+
+    /// カスタムカーソルの配線（[`cursor::wire_cursor`]、イシュー #2542）を
+    /// 登録する。`dispatch` チャネルを持たない属性専用配線のため
+    /// （`Self::wire_magnetic`/`Self::wire_text_animation` と同型）、
+    /// `Component`/`binding_table`/`keyed_list_cache` を必要としない。
+    ///
+    /// # Errors
+    ///
+    /// [`cursor::wire_cursor`]（`add_event_listener_with_callback` の
+    /// 失敗）を伝播する。
+    #[cfg(feature = "cursor")]
+    fn wire_cursor(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
+        cursor::wire_cursor(root)
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて

@@ -30,4 +30,12 @@ UI コンポーネントを追加するものではありません**。ログイ
 - [feature-expand](./blocks/feature-expand.md)
 - [cta-banner-magnetic](./blocks/cta-banner-magnetic.md)
 - [cta-signup-celebrate](./blocks/cta-signup-celebrate.md)
+- [cursor-hover-cards](./blocks/cursor-hover-cards.md)
+- [hero-editorial-stagger](./blocks/hero-editorial-stagger.md)
+- [hero-parallax-layers](./blocks/hero-parallax-layers.md)
+- [hero-terminal](./blocks/hero-terminal.md)
+- [text-split-reveal](./blocks/text-split-reveal.md)
+- [game-ui-modal](./blocks/game-ui-modal.md)
+- [footer-sticky-reveal](./blocks/footer-sticky-reveal.md)
+- [footer-newsletter](./blocks/footer-newsletter.md)
 
