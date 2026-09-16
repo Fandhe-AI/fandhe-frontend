@@ -413,6 +413,17 @@ jobs:
         # リテラルのドリフトを fail-closed に検知する契約テスト。
         run: cargo test -p fandhe-frontend-pre-styled-ui --features motion --test stagger_index_var_drift --locked
 
+      - name: "cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_list_css（issue #2544）"
+        # list の追加・削除 opt-in 遷移 CSS（list_motion モジュール、
+        # motion feature 配下）の golden・決定性・FLIP 非干渉契約テスト。
+        run: cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_list_css --locked
+
+      - name: "cargo test -p fandhe-frontend-pre-styled-ui --features motion --test presence_auto_attr_drift（issue #2544）"
+        # list_motion::PRESENCE_AUTO_ATTR（motion feature 配下）と
+        # crates/wasm-full/src/list_presence.rs の DOM 属性名リテラルの
+        # ドリフトを fail-closed に検知する契約テスト。
+        run: cargo test -p fandhe-frontend-pre-styled-ui --features motion --test presence_auto_attr_drift --locked
+
       - name: "cargo test -p fandhe-frontend-pre-styled-ui --features motion --test motion_spring_css（issue #2381）"
         # spring 近似 linear() easing プリセット（theme::Theme::push_spring_easing、
         # motion feature 配下）の fandhe-animation とのパリティ・CssValue
@@ -976,6 +987,18 @@ jobs:
         env:
           WASM_BINDGEN_TEST_TIMEOUT: "120"
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test layout_flip_browser
+
+      # イシュー #2544（list の並べ替え・追加削除遷移、`feature =
+      # "presence"` 既定 on）: keyed list の `Remove` 前後で
+      # `list_presence::capture_before`/`play_exit_after` が起動する
+      # 退場ゴーストの実ブラウザ統合テスト
+      # （crates/wasm-full/tests/list_presence_browser.rs）。並べ替え
+      # （FLIP）自体は上記 `layout_flip_browser` ステップが既に検証済み
+      # のため本ファイルの対象外。他の wasm-full ステップと同じ
+      # check-wasm-full 存在ガードを再利用し、新規ガードは追加しない。
+      - name: Run wasm-full list presence browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test list_presence_browser
 
       # イシュー #2538（button の Motion+ 由来 variant）: hold-to-confirm
       # （crates/wasm-full/src/hold_to_confirm.rs）の保持検知・進行度計算・
@@ -2573,6 +2596,8 @@ jobs:
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,layout-animation --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: view-transition-preset, issue #2516)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,view-transition-preset --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: presence, issue #2544)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,presence --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
 
   # イシュー #2328: scope feature（イシュー #2327 で新設した MAPPING_TABLE
   # 行・keynav match arm 単位の 16 件）を `wasm-bindgen-exports` のみと
