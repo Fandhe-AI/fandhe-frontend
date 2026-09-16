@@ -263,3 +263,197 @@ fn newly_inserted_row_carries_shared_layout_element_despite_list_flip() {
          一切書き込まれなかった）"
     );
 }
+
+/// 入れ子 keyed list（外側・内側とも [`FLIP_AUTO_ATTR`]）の外側行の中へ
+/// `data-fandhe-layout-id="badge"` の span が待避位置から引き継がれ、その
+/// 後に**内側リストだけ**が dirty になる更新が続く component（Cursor
+/// Bugbot 指摘「Ancestor FLIP lists skip stop scope」の再現条件）。
+#[derive(Debug, Clone)]
+struct NestedBadgeState {
+    outer: Vec<u64>,
+    inner: Vec<u64>,
+    badge_in_outer: bool,
+    dirty: Vec<&'static str>,
+}
+
+impl NestedBadgeState {
+    const FIELD_OUTER: &'static str = "outer";
+    const FIELD_INNER: &'static str = "inner";
+    const FIELD_BADGES: &'static str = "badges";
+
+    fn new() -> Self {
+        Self {
+            outer: vec![1, 2],
+            inner: vec![10, 20],
+            badge_in_outer: false,
+            dirty: Vec::new(),
+        }
+    }
+}
+
+enum NestedBadgeAction {
+    /// バッジを待避位置から外側行（`id == 2`、内側リストを含まない
+    /// 行）の中へ移す（dirty: `outer` + `badges`）。
+    MoveBadgeIntoOuterRow,
+    /// 内側リストのみ並べ替える（dirty: `inner` のみ。外側リストは dirty
+    /// ではないが、内側の祖先として `flip_lists_containing` で捕捉され
+    /// list FLIP の対象になる）。
+    SwapInnerOnly,
+}
+
+impl Component for NestedBadgeState {
+    type Action = NestedBadgeAction;
+
+    fn update(&mut self, action: Self::Action) {
+        self.dirty.clear();
+        match action {
+            NestedBadgeAction::MoveBadgeIntoOuterRow => {
+                self.badge_in_outer = true;
+                self.dirty.push(Self::FIELD_OUTER);
+                self.dirty.push(Self::FIELD_BADGES);
+            }
+            NestedBadgeAction::SwapInnerOnly => {
+                let len = self.inner.len();
+                if len >= 2 {
+                    self.inner.swap(0, len - 1);
+                }
+                self.dirty.push(Self::FIELD_INNER);
+            }
+        }
+    }
+
+    fn view(&self) -> Node {
+        let badge = |style: &str| {
+            el(
+                "span",
+                vec![
+                    ("data-testid", "badge"),
+                    (LAYOUT_ID_ATTR, "badge"),
+                    ("style", style),
+                ],
+                vec![],
+            )
+        };
+        let outer_items: Vec<(String, Node)> = self
+            .outer
+            .iter()
+            .map(|id| {
+                let node = if *id == 1 {
+                    let inner_items: Vec<(String, Node)> = self
+                        .inner
+                        .iter()
+                        .map(|inner_id| {
+                            (
+                                inner_id.to_string(),
+                                el(
+                                    "li",
+                                    vec![("data-testid", "inner-item")],
+                                    vec![text("inner row")],
+                                ),
+                            )
+                        })
+                        .collect();
+                    let inner_list = keyed_list(
+                        "ul",
+                        vec![("data-testid", "inner-list"), (FLIP_AUTO_ATTR, "")],
+                        Self::FIELD_INNER,
+                        inner_items,
+                    )
+                    .expect("test fixture keyed items must be valid");
+                    el("li", vec![("data-testid", "outer-item")], vec![inner_list])
+                } else {
+                    let mut children = vec![text("plain outer row")];
+                    if self.badge_in_outer {
+                        children.push(badge(
+                            "position:absolute;left:0px;top:0px;width:20px;height:20px;",
+                        ));
+                    }
+                    el(
+                        "li",
+                        vec![
+                            ("data-testid", "outer-item"),
+                            ("style", "position:relative;"),
+                        ],
+                        children,
+                    )
+                };
+                (id.to_string(), node)
+            })
+            .collect();
+        let outer_list = keyed_list(
+            "ul",
+            vec![("id", "outer-list"), (FLIP_AUTO_ATTR, "")],
+            Self::FIELD_OUTER,
+            outer_items,
+        )
+        .expect("test fixture keyed items must be valid");
+        let parked: Vec<(String, Node)> = if self.badge_in_outer {
+            Vec::new()
+        } else {
+            vec![(
+                "badge".to_string(),
+                badge("position:absolute;left:300px;top:300px;width:20px;height:20px;"),
+            )]
+        };
+        let badges = keyed_list(
+            "div",
+            vec![("id", "badge-slot")],
+            Self::FIELD_BADGES,
+            parked,
+        )
+        .expect("test fixture keyed badges must be valid");
+        el("div", vec![("id", "flip-root")], vec![outer_list, badges])
+    }
+
+    fn decode_action(name: &str, _payload: &str) -> Option<Self::Action> {
+        match name {
+            "move_badge_into_outer_row" => Some(NestedBadgeAction::MoveBadgeIntoOuterRow),
+            "swap_inner_only" => Some(NestedBadgeAction::SwapInnerOnly),
+            _ => None,
+        }
+    }
+}
+
+impl DirtyTracked for NestedBadgeState {
+    fn dirty_fields(&self) -> &[&'static str] {
+        &self.dirty
+    }
+}
+
+impl BindingSource for NestedBadgeState {
+    fn bound_value(&self, _field: &str) -> Option<BoundValue> {
+        None
+    }
+}
+
+/// 受け入れ条件（Cursor Bugbot 指摘是正、イシュー #2578「Ancestor FLIP
+/// lists skip stop scope」）: 外側行の中で共有レイアウト遷移が進行中の
+/// とき、内側リストだけが dirty になる更新でも、その祖先である外側
+/// リスト（list FLIP が transform を書き込み得る範囲）配下の進行中
+/// ハンドルは DOM 更新前に停止・復元される（旧実装は dirty field 自身の
+/// keyed list と束縛先しか scope にせず、外側行のハンドルが残った）。
+#[wasm_bindgen_test]
+fn inner_only_update_stops_in_progress_shared_layout_in_ancestor_flip_row() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let placeholder = create_placeholder(&document, "nested-flip-shared-layout-root");
+    let _guard = RemoveOnDrop(placeholder.clone());
+
+    let runtime = Runtime::mount("nested-flip-shared-layout-root", NestedBadgeState::new())
+        .expect("mount must succeed");
+    let root = runtime.root();
+
+    dispatch_action(&document, root, "move_badge_into_outer_row");
+    assert!(
+        !badge_transform(root).is_empty(),
+        "外側行へ引き継がれたバッジは共有レイアウト遷移の補正 transform を \
+         受け取り進行中のはず（前提条件）"
+    );
+
+    dispatch_action(&document, root, "swap_inner_only");
+    assert!(
+        badge_transform(root).is_empty(),
+        "内側リストのみの更新でも、祖先の FLIP リスト配下にある進行中の \
+         共有レイアウト遷移は DOM 更新前に停止・復元されているはず \
+         （旧実装は外側行のハンドルを停止せず transform が残った）"
+    );
+}

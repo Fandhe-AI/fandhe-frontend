@@ -1325,15 +1325,32 @@ where
         // コミットの**前**であるこの位置で維持する。unresolved field に
         // よる全再描画フォールバックは下記 `rerender_subtree` 直前で
         // `root` 全体を対象に停止する。
+        //
+        // 加えて、この更新で list FLIP（`layout_flip::play_after_reporting`）
+        // が transform を書き込み得る keyed list——上記走査 (i)/(ii) で
+        // 停止・捕捉した `flip_captured` の全リスト（dirty field 自身の
+        // リストだけでなく、それを包含する祖先の `FLIP_AUTO_ATTR` リスト
+        // を含む）——も scope に含める（Cursor Bugbot 指摘「Ancestor FLIP
+        // lists skip stop scope」是正、イシュー #2578）。祖先リストの行に
+        // 進行中の共有レイアウト遷移が残っていると、その行へ書き込まれる
+        // list FLIP の transform を旧アニメーションが次フレームで上書き
+        // し、収束時に `OriginalStyle::restore` が更新前の値を復元して
+        // しまうため。`flip_target_lists`（実際に play する最外側）は
+        // `flip_captured` の部分集合なので、後者を走査すれば足りる。
         #[cfg(feature = "layout-animation")]
-        for field in dirty {
-            if let Ok(Some(list_element)) =
-                fandhe_frontend_wasm_client::find_list_element(root, field)
-            {
-                crate::shared_layout::stop_within(root, &list_element);
+        {
+            for field in dirty {
+                if let Ok(Some(list_element)) =
+                    fandhe_frontend_wasm_client::find_list_element(root, field)
+                {
+                    crate::shared_layout::stop_within(root, &list_element);
+                }
+                for element in crate::layout_flip::elements_bound_to_field(root, field) {
+                    crate::shared_layout::stop_within(root, &element);
+                }
             }
-            for element in crate::layout_flip::elements_bound_to_field(root, field) {
-                crate::shared_layout::stop_within(root, &element);
+            for (captured_list, _) in &flip_captured {
+                crate::shared_layout::stop_within(root, captured_list);
             }
         }
 
