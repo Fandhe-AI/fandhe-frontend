@@ -411,6 +411,92 @@ async fn redraw_during_dispatch_retargets_spring_to_new_dom() {
     );
 }
 
+/// codex-review 指摘 是正の回帰（イシュー #2541 第 4 ラウンド）:
+/// carousel root 自身が `Runtime` の mount root と**異なる**（`root` 配下に
+/// nest された）構成で redraw が起きると、`TrackRegistry` は旧
+/// carousel root をキーに持ち続けてしまう。是正前は、redraw 後に**別の**
+/// carousel への pointerdown が [`slot_for`] の遅延掃除
+/// （`retain(|(root,_,_)| root.is_connected())`）を誘発した時点で、旧
+/// （切断済み）キーのエントリが間引かれ、進行中の spring を保持する
+/// `TrackSlot` ごと drop されて `AnimationLoop` が中断していた
+/// （`redraw_during_dispatch_retargets_spring_to_new_dom` は carousel
+/// root == mount root の特別扱い経路〔`resolve_replacement` 参照〕を通る
+/// ため、この回帰を検知できない）。
+#[wasm_bindgen_test]
+async fn redraw_of_nested_carousel_root_survives_other_carousel_pointerdown() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let wrapper = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&wrapper).unwrap();
+    let _wrapper_guard = RemoveOnDrop(wrapper.clone());
+
+    // `build_dom` は既定で `<body>` 直下へ追加するため、mount root
+    // （`wrapper`）と carousel root（`root`）が異なる要素になるよう
+    // 明示的に `wrapper` 配下へ付け替える。
+    let (root, item_group) = build_dom(&document, Some(""));
+    wrapper.append_child(&root).unwrap();
+
+    let new_root_cell: Rc<RefCell<Option<Element>>> = Rc::new(RefCell::new(None));
+    let redraw_document = document.clone();
+    let redraw_wrapper = wrapper.clone();
+    let redraw_cell = new_root_cell.clone();
+    wire_carousel_motion_events(wrapper.clone(), move |_action_ref: ActionRef| {
+        // `Runtime::apply_subtree_swap` を模す: `wrapper` 配下の carousel
+        // root ごと新規要素（同じ opt-in 属性・item 構成）へ差し替える。
+        // 旧 `root` はこの時点で文書から切断される。
+        while let Some(child) = redraw_wrapper.first_child() {
+            let _ = redraw_wrapper.remove_child(&child);
+        }
+        let (new_root, _new_item_group) = build_dom(&redraw_document, Some(""));
+        new_root.remove();
+        let _ = redraw_wrapper.append_child(&new_root);
+        *redraw_cell.borrow_mut() = Some(new_root);
+    })
+    .unwrap();
+
+    dispatch_pointer_event(&item_group, "pointerdown", 0, 1);
+    dispatch_pointer_event(&item_group, "pointermove", -150, 1);
+    dispatch_pointer_event(&item_group, "pointerup", -150, 1);
+
+    let new_root = new_root_cell
+        .borrow()
+        .clone()
+        .expect("dispatch must have installed a replacement carousel root synchronously");
+    assert!(
+        !root.is_connected(),
+        "old carousel root must be detached by the simulated redraw"
+    );
+
+    // 別の（無関係な）carousel への pointerdown で `slot_for` の遅延掃除を
+    // 誘発する。retarget と同時にレジストリのキーが新 root へ移されて
+    // いなければ、ここで進行中の spring を保持する `TrackSlot` が間引かれ
+    // `AnimationLoop` が中断する。タップのみ（move なし）で `"goto"` は
+    // dispatch しないため、`wrapper` を再度全消去する競合は起きない。
+    let (other_root, other_item_group) = build_dom(&document, Some(""));
+    wrapper.append_child(&other_root).unwrap();
+    let _other_guard = RemoveOnDrop(other_root.clone());
+    dispatch_pointer_event(&other_item_group, "pointerdown", 0, 2);
+    dispatch_pointer_event(&other_item_group, "pointerup", 0, 2);
+
+    sleep_ms(4_000).await;
+
+    let new_item_group = new_root
+        .query_selector("[data-scope=\"carousel\"][data-part=\"item-group\"]")
+        .unwrap()
+        .expect("replacement item-group must exist under the replacement carousel root");
+    let new_value = read_index(&new_item_group)
+        .expect("spring must keep writing to the replacement item-group after registry cleanup");
+    assert!(
+        (new_value - 2.0).abs() < 0.01,
+        "spring must keep converging on the replacement carousel root even after another \
+         carousel's pointerdown triggers registry cleanup: {new_value}"
+    );
+    assert!(
+        !new_root.has_attribute(CAROUSEL_DRAGGING_STATE_ATTR),
+        "dragging state attribute should be cleared on the replacement root once the \
+         retargeted settle completes"
+    );
+}
+
 /// codex-review 指摘 是正（PR #2581 レビュー）の回帰: 主ボタン
 /// （`button() == 0`）以外の pointerdown（右クリック・中クリック等）は
 /// ドラッグを開始しない。
@@ -553,10 +639,15 @@ async fn pointerup_outside_root_before_capture_is_recovered_via_window() {
     let body: Element = document.body().unwrap().dyn_into().unwrap();
     dispatch_pointer_event(&body, "pointerup", 2, 1);
 
-    assert_eq!(
-        dispatched.borrow().len(),
-        1,
-        "window-level release listener must still finalize the drag"
+    // `CLICK_GUARD_PX` 未満の移動しかしていないタップは `"goto"` を
+    // dispatch しない（イシュー #2541 codex-review 指摘 是正「ドラッグ
+    // していないタップでは goto を dispatch しない」）。window 経由の
+    // 回収自体は起きている——後続の `!root.has_attribute(...)` アサーション
+    // が dragging 状態属性の除去（`track` 側の後始末）で「確実に処理
+    // された」ことを検証する。
+    assert!(
+        dispatched.borrow().is_empty(),
+        "a tap-level move below CLICK_GUARD_PX must not dispatch goto"
     );
 
     // 2px の微小な移動は着地 index も起点と同じになり得るため、settle

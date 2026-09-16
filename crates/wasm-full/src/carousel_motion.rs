@@ -336,6 +336,29 @@ mod wiring {
         (track, drag)
     }
 
+    /// `registry` 内で `old_root` をキーに持つエントリを `new_root` へ
+    /// 差し替える（codex-review 指摘 是正「再描画後の carousel root へ
+    /// レジストリの保持先も移す」、イシュー #2541）。
+    ///
+    /// [`CarouselTrack::retarget`] は書き込み先の DOM 要素を差し替える
+    /// だけで、`TrackRegistry` のキー（旧 `carousel_root`）はそのまま
+    /// 切断済み要素を指し続ける。次に別の carousel が [`slot_for`] を
+    /// 呼ぶと、旧キーの `is_connected() == false` により当該エントリが
+    /// `retain` で間引かれ、進行中の spring を保持する [`TrackSlot`]
+    /// （この呼び出し内のローカル変数以外に参照を持たない）が丸ごと
+    /// drop されて `AnimationLoop` が中断してしまう。retarget と対で
+    /// 必ずキーも新 root へ移すことで、以降の `slot_for`/`find_active_slot`
+    /// が新 root 上の操作から同じ `TrackSlot` を引けるようにする。
+    fn rekey_carousel_root(registry: &TrackRegistry, old_root: &Element, new_root: &Element) {
+        let mut entries = registry.borrow_mut();
+        if let Some(entry) = entries
+            .iter_mut()
+            .find(|(root, _, _)| root.is_same_node(Some(old_root.as_ref())))
+        {
+            entry.0 = new_root.clone();
+        }
+    }
+
     /// `next-trigger`/`prev-trigger`/`indicator`（[`NAV_TRIGGER_SELECTOR`]）
     /// のクリックを検知したら、その carousel root の進行中の spring
     /// （settle 未完了の [`CarouselTrack`]）を打ち切る（モジュール doc
@@ -400,6 +423,18 @@ mod wiring {
         )?;
         pointerdown_closure.forget();
 
+        // `pointermove` も `root` に加え `window` に登録する（Cursor Bugbot
+        // 指摘 是正「Moves lost before pointer capture」、イシュー #2541）。
+        // pointer capture は `CLICK_GUARD_PX` を超えるまで確定しない
+        // （モジュール doc「ドラッグ確定前は pointer capture しない」節）
+        // ため、素早いフリックで指が `root` の外へ出てから閾値を超えると、
+        // `root` 単独の委譲登録では以降の `pointermove` が実際の
+        // ヒットテスト対象（`root` の外）へ配信され取りこぼす——進行度が
+        // 更新されないまま release され、意図した方向とは逆に元の位置へ
+        // 戻ってしまう。`handle_pointermove` は `pointer_id` をキーに
+        // [`find_active_slot`] で引くため、`root`/`window` 双方から同じ
+        // イベントが届いても（`root` が `window` の子孫の場合）2 回目は
+        // 同じ状態へ同じ値を書き込むだけで安全に冪等。
         let pointermove_registry = registry.clone();
         let pointermove_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             handle_pointermove(&event, &pointermove_registry);
@@ -408,6 +443,12 @@ mod wiring {
             "pointermove",
             pointermove_closure.as_ref().unchecked_ref(),
         )?;
+        if let Some(window) = web_sys::window() {
+            let _ = window.add_event_listener_with_callback(
+                "pointermove",
+                pointermove_closure.as_ref().unchecked_ref(),
+            );
+        }
         pointermove_closure.forget();
 
         // `pointerup`/`pointercancel`/`lostpointercapture` は `root` に加え
@@ -741,10 +782,21 @@ mod wiring {
             let _ = carousel_root.remove_attribute(CAROUSEL_DRAGGING_STATE_ATTR);
         });
         drop(track_guard);
-        (on_action.borrow_mut())(ActionRef {
-            action: action_name,
-            payload: target.to_string(),
-        });
+        // `CLICK_GUARD_PX` 未満の移動しかないタップは `"goto"` を
+        // dispatch しない（codex-review 指摘 是正「ドラッグしていない
+        // タップでは goto を dispatch しない」、イシュー #2541）。
+        // `t.on_release` 自体は呼び続ける（progress が origin からわずかに
+        // ずれ得るため、正規 index への spring 収束・完了時の
+        // `CAROUSEL_DRAGGING_STATE_ATTR` 除去は通常どおり必要）が、
+        // 同期 dispatch による `apply_subtree_swap` を避けることで、
+        // スライド内のリンク/ボタンへの後続 `click` が押下対象の切断で
+        // 失われるのを防ぐ（通常のタップ動作を壊さない契約）。
+        if meta.moved {
+            (on_action.borrow_mut())(ActionRef {
+                action: action_name,
+                payload: target.to_string(),
+            });
+        }
 
         // dispatch が同期的に DOM 部分木を差し替えた場合、settle 中の
         // spring が書き込んでいた要素は既に切断されている。同じ位置の
@@ -761,9 +813,28 @@ mod wiring {
             if let Some(t) = track_guard.as_mut() {
                 match resolve_replacement(root, &meta.carousel_root, carousel_position) {
                     Some((new_root, new_item_group)) => {
+                        let attr_root = new_root.clone();
                         t.retarget(new_item_group, move |_index| {
-                            let _ = new_root.remove_attribute(CAROUSEL_DRAGGING_STATE_ATTR);
+                            let _ = attr_root.remove_attribute(CAROUSEL_DRAGGING_STATE_ATTR);
                         });
+                        // `retarget` が実際に spring を再起動した（settle
+                        // 未完了だった）場合のみ、新 root にも
+                        // `CAROUSEL_DRAGGING_STATE_ATTR` を引き継ぐ
+                        // （codex-review 指摘 是正「再生成された root に
+                        // dragging 属性を引き継ぐ」、イシュー #2541）。旧
+                        // root にしか付与していないと、旧 DOM 前提の
+                        // `carousel_motion.rs`（pre-styled-ui）側 CSS の
+                        // `transition: none` セレクタが新 root へ効かず、
+                        // CSS transition と毎フレームの spring 書き込みが
+                        // 競合する。
+                        if t.is_settling() {
+                            let _ = set_dom_attribute(&new_root, CAROUSEL_DRAGGING_STATE_ATTR, "");
+                        }
+                        // レジストリのキーも新 root へ移す（`rekey_carousel_root`
+                        // doc 参照。移さないと次の `slot_for` の遅延掃除で
+                        // このエントリが切断済みキーのまま間引かれ、進行中の
+                        // spring を保持する `TrackSlot` ごと drop される）。
+                        rekey_carousel_root(registry, &meta.carousel_root, &new_root);
                     }
                     None => {
                         *track_guard = None;

@@ -131,6 +131,13 @@ mod wiring {
         previous_sample: Option<(Vec2, f64)>,
         latest_sample: Option<(Vec2, f64)>,
         settle_anim: Option<AnimationLoop>,
+        // rAF tick クロージャから完了時に false へ倒す共有セル（codex-review
+        // 指摘 是正、イシュー #2541）。`settle_anim` は完了後も
+        // `Some`（停止済み `AnimationLoop`）のまま残るため、`is_settling`
+        // の判定に使うと収束完了後も true を返し続け、公開 API の
+        // 「完了済みではない」契約に違反する。tick 側で実際の完了時点を
+        // 唯一知り得るため、このセルへ書き込ませて判定を委ねる。
+        settling: Rc<Cell<bool>>,
         // 直近 `settle_to` に渡した着地 index（[`Self::retarget`] が同じ
         // target へ再収束させるために保持する、イシュー #2541 codex-review/
         // Cursor Bugbot 指摘 是正）。
@@ -158,6 +165,7 @@ mod wiring {
                 previous_sample: None,
                 latest_sample: None,
                 settle_anim: None,
+                settling: Rc::new(Cell::new(false)),
                 last_target: None,
             }
         }
@@ -193,7 +201,7 @@ mod wiring {
         ) {
             self.element = new_element;
             if let Some(target) = self.last_target {
-                if self.settle_anim.is_some() {
+                if self.settling.get() {
                     self.settle_to(target, 0.0, on_settle);
                 }
             }
@@ -205,13 +213,14 @@ mod wiring {
         /// retarget、そうでなければ何もしない」を判断するために使う。
         #[must_use]
         pub fn is_settling(&self) -> bool {
-            self.settle_anim.is_some()
+            self.settling.get()
         }
 
         /// `pointerdown` 相当の入力。進行中の spring を打ち切り、ドラッグ
         /// 起点を記録する。
         pub fn on_pointer_down(&mut self, client_x: f64, time_ms: f64) {
             self.settle_anim = None;
+            self.settling.set(false);
             self.drag_origin = Some((self.progress.get(), client_x));
             self.previous_sample = None;
             self.latest_sample = Some((
@@ -337,6 +346,7 @@ mod wiring {
             self.last_target = Some(target);
             if prefers_reduced_motion() {
                 self.settle_anim = None;
+                self.settling.set(false);
                 self.progress.set(to);
                 self.write_progress(to);
                 on_settle(target);
@@ -344,6 +354,7 @@ mod wiring {
             }
             let Some(spring) = Spring::new(SNAP_SPRING_CONFIG, from, to, initial_velocity) else {
                 self.settle_anim = None;
+                self.settling.set(false);
                 self.progress.set(to);
                 self.write_progress(to);
                 on_settle(target);
@@ -351,13 +362,16 @@ mod wiring {
             };
             let Some(mut driver) = RafDriver::new() else {
                 self.settle_anim = None;
+                self.settling.set(false);
                 self.progress.set(to);
                 self.write_progress(to);
                 on_settle(target);
                 return;
             };
+            self.settling.set(true);
             let element = self.element.clone();
             let progress_cell = self.progress.clone();
+            let settling_cell = self.settling.clone();
             let mut elapsed_s = 0.0;
             let mut on_settle = Some(on_settle);
             self.settle_anim = Some(AnimationLoop::start(move || {
@@ -368,6 +382,7 @@ mod wiring {
                 DomTarget::custom_property(element.clone(), super::CAROUSEL_INDEX_PROPERTY)
                     .write(state.value);
                 if state.done {
+                    settling_cell.set(false);
                     if let Some(cb) = on_settle.take() {
                         cb(target);
                     }
