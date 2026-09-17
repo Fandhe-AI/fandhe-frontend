@@ -25,7 +25,6 @@
 //! 含むファイルをソースレベル共有するが、build script のコンパイルは
 //! `cfg(test)` が常に偽であるため本モジュール（および参照元の
 //! `#[cfg(test)] mod tests`）は build.rs 側の成果物には一切含まれない。
-#![cfg(test)]
 
 use std::path::PathBuf;
 

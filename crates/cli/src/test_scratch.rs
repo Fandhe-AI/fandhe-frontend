@@ -19,7 +19,6 @@
 //!    （`<repo>/target/tmp`。`.cargo/config.toml` の `build.target-dir`
 //!    指定は環境変数からは見えない既知の限界だが、その場合もリポジトリ内
 //!    `target/tmp` に収まり `/tmp` へは落ちない）
-#![cfg(test)]
 
 use std::path::PathBuf;
 
