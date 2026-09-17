@@ -1,22 +1,24 @@
-//! `build.rs` の `OUT_DIR` から、そのビルドが使っている `CARGO_TARGET_DIR` を
-//! 逆算する純粋関数。
+//! `OUT_DIR` から、そのビルドが使っている `CARGO_TARGET_DIR` を逆算する
+//! 純粋関数。
 //!
-//! `build.rs` 自身はパッケージ自身の lib を `build-dependencies` にできない
-//! （循環依存）ため、`src/wasm_stage_cache.rs`・`src/workspace_detect.rs` と
-//! 同型のパターンで `#[path]` によりこのファイルをソースレベル共有する
-//! （`build.rs` 冒頭の `mod` 宣言参照）。`lib.rs` 側（通常のクレートモジュール）
-//! では `cargo test -p fandhe-frontend-dist-server` によるユニットテスト対象と
-//! する。
+//! かつて `build.rs` が `#[path]` でソースレベル共有し、`PATH` 上の
+//! Cargo 自身の生成物ディレクトリ（`target/<profile>` 等）を
+//! `rerun-if-changed` 監視から除外する用途に使っていたが、その呼び出し元
+//! （PATH 全ディレクトリの監視登録トリガー）自体がローカルビルドを長時間
+//! 停止させる原因だったため削除した（イシュー #2594）。本ファイルは
+//! `lib.rs` 経由の通常クレートモジュールとしてのみ残り、
+//! `cargo test -p fandhe-frontend-dist-server` のユニットテスト対象である。
 
 use std::path::{Path, PathBuf};
 
 /// `OUT_DIR`（cargo が保証する固定階層 `<CARGO_TARGET_DIR>/[<triple>/]<profile>/
 /// build/<pkg>-<hash>/out`）から、このビルドが使っている `CARGO_TARGET_DIR` を
-/// 逆算する。呼び出し元（`build.rs::run_wasm_stage`）が `PATH` 監視ループで
+/// 逆算する。かつて `build.rs::run_wasm_stage` の `PATH` 監視ループが
 /// Cargo 自身の生成物ディレクトリ（`target/<profile>`・`target/<profile>/deps`、
 /// `--target` 指定時は `target/<triple>/<profile>`・
-/// `target/<triple>/<profile>/deps`）を除外するために使う（PR #1980 レビュー
-/// 指摘）。
+/// `target/<triple>/<profile>/deps`）を除外するために使っていた（PR #1980
+/// レビュー指摘）が、その監視ループ自体をイシュー #2594 で削除したため、
+/// 現在この関数は `lib.rs` 経由のユニットテストからのみ呼ばれる。
 ///
 /// # ホストビルドと `--target` 指定ビルドの両階層に対応する
 ///

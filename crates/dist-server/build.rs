@@ -144,13 +144,6 @@ mod wasm_build_gate;
 #[path = "src/workspace_detect.rs"]
 mod workspace_detect;
 
-// `OUT_DIR` からこのビルドの `CARGO_TARGET_DIR` を逆算する純粋関数
-// （ホストビルド・`--target <triple>` ビルド双方の階層に対応）。
-// `wasm_stage_cache`・`wasm_build_gate`・`workspace_detect` と同型のパターンで
-// ソースレベル共有する（`src/target_dir.rs` 冒頭コメント参照）。
-#[path = "src/target_dir.rs"]
-mod target_dir;
-
 // 配布する `fandhe-frontend-wasm-full` の feature 集合（最小インタラクティブ
 // 構成、イシュー #2329）。`crates/wasm-full/tests/bundle_size.rs` も同じ
 // ファイルを `#[path]` で取り込み、両者が単一定義を参照する（手書き複製に
@@ -347,7 +340,7 @@ fn run_wasm_stage(workspace_root: &Path, out_dir: &Path) -> Result<Vec<(String, 
     // `static/`・ワークスペースソース等のトリガー（`main` 末尾）が一切
     // 変化しないまま「未導入 → 導入」「バージョン更新」「削除」が起きても
     // 検知できず、fingerprint 比較そのものに到達しない（PATH やツール実体は
-    // cargo の標準トリガーの監視対象外なため）。以下の 3 種のトリガーで
+    // cargo の標準トリガーの監視対象外なため）。以下の 2 種のトリガーで
     // これを補う:
     // 1. `PATH` 環境変数自体の変更（新しいディレクトリの追加・既存の
     //    再配置等）。
@@ -357,63 +350,19 @@ fn run_wasm_stage(workspace_root: &Path, out_dir: &Path) -> Result<Vec<(String, 
     if let Some(wasm_opt_path) = locate_on_path("wasm-opt") {
         println!("cargo:rerun-if-changed={}", wasm_opt_path.display());
     }
-    // 3. `PATH` 上の各ディレクトリ（`wasm-opt` が新規に追加された場合、
-    //    ディレクトリ自体の mtime が変わるため検知できる。「未導入 → 導入」
-    //    への変化は 2. では拾えず、この経路でしか検知できない）。
-    //    `PATH` の要素は初回ビルド時点で未作成のディレクトリ（例:
-    //    `~/.local/bin`）を含みうる。`dir.is_dir()` が false のまま
-    //    監視登録をスキップすると、後日そのディレクトリ自体と `wasm-opt`
-    //    が新規作成されても `PATH` 文字列も既存の監視対象ファイルも
-    //    変化しないため build.rs が再実行されず、導入を検知できない
-    //    （PR #1980 レビュー指摘）。Cargo は `rerun-if-changed` に存在しない
-    //    パスを指定した場合、そのパスが出現するまで毎回ビルドスクリプトを
-    //    再実行する仕様を持つ（`cargo::rerun-if-changed` のドキュメント
-    //    「If a path pointing to a file... doesn't exist and its ancestor
-    //    directory doesn't exist... the build script is always rerun.」）ため、
-    //    存在しないディレクトリもそのまま監視対象に含めることで作成を
-    //    確実に検知できる。ネストビルド自体は cargo 標準の増分キャッシュが
-    //    効くため（直後のコメント参照）、この間 build.rs が毎回再実行されて
-    //    も後段の `wasm_stage_cache_hit` 判定でコストの大部分は回避される。
+    // かつて 3 番目のトリガーとして `PATH` 上の全ディレクトリを
+    // `rerun-if-changed` へ個別登録し「未導入 → 導入」（PATH 文字列も既存
+    // 監視対象ファイルも変化しないケース）を検知していたが、cargo はディレクトリ
+    // 監視を配下全体の再帰走査で行う仕様のため、PATH 上に巨大なディレクトリ
+    // ツリー（パッケージマネージャのグローバル領域等、数万ファイル規模）が
+    // 含まれる環境では fingerprint 判定のたびにその走査が発生し、ローカル
+    // ビルドが実用に耐えない長さで停止した（イシュー #2594）。このトリガーは
+    // 削除し、上記 1./2. のみへ縮小する。トレードオフとして、`PATH` 文字列
+    // 自体を変えないまま既存ディレクトリへ `wasm-opt` が新規導入されたケース
+    // は、次回の `PATH` 変更または `cargo clean -p fandhe-frontend-dist-server`
+    // まで検知されない（`wasm-opt` はイシュー #1972 の判断で CI・Dockerfile へ
+    // 導入しないローカル限定 soft-skip 最適化のため、この縮退は許容する）。
     //
-    //    ただし Windows では Cargo が動的ライブラリ探索のため現在のビルドの
-    //    `target/<profile>`・`target/<profile>/deps`（例: `target\debug`・
-    //    `target\debug\deps`）を `PATH` へ自動追加する（Cargo の環境変数仕様）。
-    //    これらは cargo 自身の生成物ディレクトリであり、上記「未導入 → 導入」
-    //    検知のために存在確認なしで丸ごと `rerun-if-changed` 登録すると、
-    //    ディレクトリ監視は配下全体を走査する仕様のため自身の `OUT_DIR` や
-    //    コンパイル成果物の更新が次回の build.rs 再実行を誘発し、ソース変更が
-    //    なくてもビルドが繰り返される無限ループになる（PR #1980 レビュー
-    //    指摘）。`OUT_DIR` からこのビルドの `target` ディレクトリ
-    //    （[`target_dir::cargo_target_dir_from_out_dir`]）を逆算し、その配下に
-    //    ある `PATH` エントリは監視対象から除外する。`--target <triple>`
-    //    指定ビルド（本リポジトリの Docker イメージが該当）では cargo が
-    //    `OUT_DIR` に `<triple>` セグメントを追加で挟むため、host ビルドの
-    //    4 段上りだけでは `<CARGO_TARGET_DIR>/<triple>` までしか遡れず
-    //    `target/<profile>`・`target/<profile>/deps` が除外漏れになる
-    //    （Cursor Bugbot 指摘）。build script に常に設定される `TARGET`
-    //    環境変数を渡し、triple 名の一致でさらに 1 段遡るかを判定させる。
-    //    `current_dir` は `OUT_DIR` からの逆算が失敗した場合のみ使われる
-    //    フォールバック専用の絶対化基準（`CARGO_TARGET_DIR` 環境変数が
-    //    相対値のときに `Path::starts_with` 比較不能な相対パスを返さない
-    //    ための保険、`target_dir::cargo_target_dir_from_out_dir` 参照）。
-    let current_dir = env::current_dir().ok();
-    let cargo_target_dir = target_dir::cargo_target_dir_from_out_dir(
-        out_dir,
-        env::var("TARGET").ok().as_deref(),
-        env::var("CARGO_TARGET_DIR").ok().as_deref(),
-        current_dir.as_deref(),
-    );
-    if let Some(path_var) = env::var_os("PATH") {
-        for dir in env::split_paths(&path_var) {
-            if let Some(target_dir) = &cargo_target_dir {
-                if dir.starts_with(target_dir) {
-                    continue;
-                }
-            }
-            println!("cargo:rerun-if-changed={}", dir.display());
-        }
-    }
-
     // ネストビルド自体は cargo 標準の増分キャッシュが効くため常に実行する。
     // キャッシュ制御の対象はこの後段の `wasm-bindgen`/`wasm-opt` 実行のみ。
     let wasm_binary_path = run_wasm_build(workspace_root)?;
