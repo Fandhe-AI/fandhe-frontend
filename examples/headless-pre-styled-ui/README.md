@@ -42,7 +42,8 @@ UI 部品実演追加の要否精査）で本サンプルへ Navigation Menu / M
 2 系統の破壊的変更へ `src/main.rs` の該当呼び出しを追随させました。
 
 イシュー #2219 で `fandhe-frontend-pre-styled-ui` を v0.185.0
-（`fandhe-frontend-headless-ui` v0.69.1）へ追随しました。`tabs::tabs()` の
+（`fandhe-frontend-headless-ui` v0.69.1）へ追随し、その後 v0.215.0
+（`fandhe-frontend-headless-ui` v0.69.2）へ追随しました。`tabs::tabs()` の
 第 1 引数に `TabsVariant`（Line/Enclosed、イシュー #2039）が追加されたため
 `src/main.rs` の呼び出しへ `TabsVariant::Line`（従来の見た目＝下線スタイル
 を維持）を追加しました。`slider::marker` の orientation 引数（イシュー

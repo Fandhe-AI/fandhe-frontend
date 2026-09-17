@@ -17,7 +17,7 @@ publish = false
 # `fandhe-frontend-dist-server` の hyper トランスポート層（`src/main.rs`）を
 # 雛形にした薄いバイナリを自前で持つため、hyper 系クレートを直接依存に含める。
 [dependencies]
-fandhe-frontend-dist-server = "0.2.0"
+fandhe-frontend-dist-server = "0.3.1"
 hyper = { version = "1", default-features = false, features = ["http1", "server"] }
 hyper-util = { version = "0.1", default-features = false, features = ["http1", "server", "tokio"] }
 http-body-util = { version = "0.1", default-features = false }
