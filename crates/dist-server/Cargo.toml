@@ -21,7 +21,7 @@ name = "fandhe-frontend-dist-server"
 # （公開項目追加）したことも踏まえ 0.2.8 から 0.3.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項、0.x の破壊的変更相当は
 # マイナーバンプ）。
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 description = "fandhe-frontend-dist-server: TASK-9.1b。fandhe-frontend-core / fandhe-frontend-app / fandhe-frontend-server を単一実行ファイルへ統合し、コンパイル時埋め込みの静的アセットと fandhe-frontend-app の SSR ページを配信する配布用サーバー。"
 license = "MIT OR Apache-2.0"
