@@ -13,9 +13,9 @@ publish = false
 # イシュー #1159 で 0.2.0 系（イシュー #1141 公開、破壊的変更の起点は
 # コミット b09e9ec「feat(core)!: void 要素を自己終端出力へ変更する」）へ追随。
 [dependencies]
-fandhe-frontend-core = "0.2.0"
-fandhe-frontend-app = "0.2.0"
-fandhe-frontend-server = "0.2.0"
+fandhe-frontend-core = "0.4.3"
+fandhe-frontend-app = "0.2.6"
+fandhe-frontend-server = "0.2.6"
 
 [dev-dependencies]
 

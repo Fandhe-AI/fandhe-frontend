@@ -5,7 +5,7 @@
 `fandhe-frontend` フレームワークの SSG（静的サイト生成）正本サンプルです
 （イシュー #501）。`examples/ssr-routing`（イシュー #499、SSR + ルーティング）
 に続く examples 規約の 2 件目のサンプルであり、crates.io へ公開済みの
-`fandhe-frontend-core` / `fandhe-frontend-server`（いずれも v0.2.0）を
+`fandhe-frontend-core` / `fandhe-frontend-server`（v0.4.3/v0.2.6）を
 バージョン依存として実際に使う「正本」です。記事一覧 + 各記事詳細ページを
 静的 HTML として `dist/` へ書き出す最小ブログサイトを実演します。加えて
 `generate_assets`（イシュー #1119）による `sitemap.xml` / `robots.txt` の

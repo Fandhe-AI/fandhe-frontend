@@ -10,9 +10,9 @@ checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
 name = "cfg-if"
-version = "1.0.4"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
+checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
 
 [[package]]
 name = "fandhe-animation"
@@ -22,11 +22,12 @@ checksum = "29666ebcb0657baf278f2082172d0611f5836f7441dc1058fd6af91223d708d3"
 
 [[package]]
 name = "fandhe-frontend-animation"
-version = "0.11.0"
+version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "256a506ed86d2a535d60c8bae7fd16040bda613f8740c2f0989e1fe841c82c3a"
+checksum = "156514cea11d3725cad9483171e2e2f9d484a74e2c83817f76249606ce342727"
 dependencies = [
  "fandhe-animation",
+ "fandhe-frontend-core",
  "js-sys",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -82,9 +83,9 @@ dependencies = [
 
 [[package]]
 name = "fandhe-frontend-wasm-full"
-version = "0.33.0"
+version = "0.40.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d479b4935e57d00c56a36a27cfb5a7f61cc154bd6e116235f962ec6fec1c01f"
+checksum = "923ffd97a504b0634c492e3738f6d595d815af96ab6dbfed0207bcdb9b1c1823"
 dependencies = [
  "fandhe-frontend-animation",
  "fandhe-frontend-app",
@@ -189,9 +190,9 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "syn"
-version = "3.0.5"
+version = "3.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12df2e0110f65b775f769bb17ef989067a1d931b2eb822bd4346631eeada89f9"
+checksum = "8593e8e72159ed2257d083c7a454a85cbf854f37a0966d8d483aff8c8a3ebcee"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -200,9 +201,9 @@ dependencies = [
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.24"
+version = "1.0.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+checksum = "ab72a15cf68d77cb0987d3684aa8a45c5ef827e8cb49ee2f30bfd7ba2feb519f"
 
 [[package]]
 name = "wasm-bindgen"

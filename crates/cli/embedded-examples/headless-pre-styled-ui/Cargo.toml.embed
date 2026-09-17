@@ -41,7 +41,7 @@ publish = false
 # slider を未使用のため呼び出し追随は発生しない。
 [dependencies]
 fandhe-frontend-core = "0.4.3"
-fandhe-frontend-pre-styled-ui = "0.185.0"
+fandhe-frontend-pre-styled-ui = "0.215.0"
 
 [dev-dependencies]
 
