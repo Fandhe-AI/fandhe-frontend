@@ -9,7 +9,7 @@ UI 部品スタイル調整（参考サイト基準への調整、ルート issu
 - 例外的な取得元: `shadcn-typography-<n>.png` は `/docs/components/base/typography` がコード例のみでデモを持たないため、レンダリング済みの文字組みを示す `/typeset`（プリセット 01 / 03 / 05）のデモ枠を取得している。`shadcn-sidebar-1.png` は同ページ唯一のレンダリング済みデモ（`figure` 内の iframe）1 枚のみで、残りのサイドバー比較資料は `shadcn-block-sidebar-*.png` が担う（コードブロック・インストールコマンドは取得対象にしない）
 - `themes-<kebab>.png` / `primitives-<kebab>.png`: 本リポジトリ docs サイト（`make docs` 出力）の各部品ページ Demo 領域（ライトテーマ、同日取得）
 - `blocks-<kebab>.png`: 本リポジトリ docs サイトの `/blocks/<kebab>/` フルページ（Blocks セクション、イシュー #2089。合成部品ページのため部品 Demo 領域限定ではなくページ全体を対象とする）
-- `wireframe-<kebab>.png` は **意図的に追加しない**。`fandhe-frontend-wireframe-ui`（イシュー #2599 ツリー）の一次参照元 blocks.pm（https://www.blocks.pm/）は積極的な再配布許諾根拠を持たないため、本ディレクトリへの画像取り込みは見送りと確定した（イシュー #2602。詳細は下記「出典・ライセンス・再配布根拠」節）
+- `wireframe-<kebab>.png` は **意図的に追加しない**。`fandhe-frontend-wireframe-ui`（イシュー #2599 ツリー）が対応範囲の参考とする blocks.pm（https://www.blocks.pm/）は積極的な再配布許諾根拠を持たないため、本ディレクトリへの画像取り込みは見送りと確定した（イシュー #2602。詳細は下記「出典・ライセンス・再配布根拠」節）
 
 ## 命名・配置規約（確定版、イシュー #1428）
 
@@ -166,4 +166,4 @@ blocks.pm は下記のとおり画像取り込みの対象外であり、`THIRD_
 
 issue 本文からはコミット SHA 固定の raw URL で参照する（詳細は上記「issue への貼り付け手順」節）。
 
-**blocks.pm は上記 4 サイトと異なり画像取り込みの対象外とする（イシュー #2602、fail-closed 判断）。**MIT ライセンスの GitHub リポジトリという積極的な再配布許諾根拠を持つ他 4 サイトに対し、blocks.pm の配布元ライセンス（Community Free Resource License）は第三者再配布・derivative work を明示的に禁止し、スクリーンショット掲載を許諾する記載を持たない（沈黙）。「明示的に禁止されていない」ことを取り込みの根拠にはせず、参照は https://www.blocks.pm/ への外部リンクに限る。**再評価トリガー**: 作者 Hexa（love@blocks.pm）から書面での明示的な再配布許諾が得られた場合。
+**blocks.pm は上記 4 サイトと異なり画像取り込みの対象外とする（イシュー #2602、fail-closed 判断）。**MIT ライセンスの GitHub リポジトリという積極的な再配布許諾根拠を持つ他 4 サイトに対し、blocks.pm の配布元ライセンス（Community Free Resource License）は第三者再配布・derivative work を明示的に禁止し、スクリーンショット掲載を許諾する記載を持たない（沈黙）。「明示的に禁止されていない」ことを取り込みの根拠にはせず、参照は https://www.blocks.pm/ への外部リンクに限る。この derivative work 禁止は画像取り込みに限らず、blocks.pm の外観・anatomy・プロパティ構成を `fandhe-frontend-wireframe-ui` の実装へ翻案する行為にも及ぶため、`docs/design/wireframe-ui-architecture.md` §2 のとおり実装への転用も書面許諾が得られるまで保留する。**再評価トリガー**: 作者 Hexa（love@blocks.pm）から derivative work 作成（画像取り込み・実装への翻案の双方を含む）についての書面での明示的な許諾が得られた場合。
