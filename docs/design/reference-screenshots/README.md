@@ -158,7 +158,10 @@ Issue コメント・PR 本文へ画像を貼る際は、**コミット SHA 固�
 | shadcn/ui (https://ui.shadcn.com) | https://github.com/shadcn-ui/ui（原稿・デモ・部品実装・charts・blocks を同一リポジトリで管理） | MIT | Copyright (c) 2023 shadcn |
 | blocks.pm (https://www.blocks.pm/、Figma プラグイン「Blocks – Wireframe」) | https://www.figma.com/community/plugin/1332372435133832847/blocks-wireframe（Figma Community 配布） | Community Free Resource License（`https://www.figma.com/legal/community-free-resource-license/`。第三者への再配布・derivative work 作成を明示的に禁止し、出力物へのスクリーンショット掲載を許諾する記載はない） | 作者 Hexa（連絡先 love@blocks.pm） |
 
-各リポジトリの LICENSE 全文（MIT 許諾表示）は `THIRD_PARTY_NOTICES.md` に同梱する（画像との対応は `SOURCES.md`）。各サイトのロゴ・商標は本ディレクトリに
+上記のうち MIT ライセンスの既存 4 サイト（chakra-ui / Ark UI / Radix Primitives・Themes / shadcn/ui）
+各リポジトリの LICENSE 全文（MIT 許諾表示）は `THIRD_PARTY_NOTICES.md` に同梱する（画像との対応は `SOURCES.md`）。
+blocks.pm は下記のとおり画像取り込みの対象外であり、`THIRD_PARTY_NOTICES.md` への LICENSE 全文同梱の対象にも
+含めない（表への記載は出典・ライセンス条件の記録のみを目的とする）。各サイトのロゴ・商標は本ディレクトリに
 含めない（取得対象はデモ領域のみ）。
 
 issue 本文からはコミット SHA 固定の raw URL で参照する（詳細は上記「issue への貼り付け手順」節）。

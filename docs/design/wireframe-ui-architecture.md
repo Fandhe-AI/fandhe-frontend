@@ -135,9 +135,10 @@ blocks.pm の Figma コンポーネントプロパティを Rust API へ落と�
 | 8 | #2659 | Media・Data | image:#2660 / media:#2661 / table:#2662 / chart:#2663 / map:#2664 |
 | 9 | #2665 | 仕上げ | golden-tests:#2666 / example:#2667 / crates-io-publish:#2668 |
 
-`media` の kebab は blocks.pm 表示名 `Placeholder` ではなく **`media`** を正とする。#2602 の
-`wireframe-<kebab>.png` と #2607 の `/wireframes/<kebab>/` が参照する kebab と一致させるため、本表で
-明示的に固定する。
+`media` の kebab は blocks.pm 表示名 `Placeholder` ではなく **`media`** を正とする。#2607 の
+`/wireframes/<kebab>/`（docs サイトのページ URL）および Rust API 側の識別子（showcase 関数名・コンポーネント名）
+が参照する kebab と一致させるため、本表で明示的に固定する（#2602 の結論により `wireframe-<kebab>.png` は
+配置しないため、画像ファイル名を命名根拠とはしない）。
 
 各部品の blocks.pm 由来／追加の区分は以下のとおりである（本文書が正）。
 
