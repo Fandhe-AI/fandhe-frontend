@@ -682,3 +682,22 @@ optional 依存であっても registry 上の解決を要求するため、
 初回公開（本節 C 手順）完了・sparse index への反映確認が前提となる
 （`release.yml` の該当コメント参照。`fandhe-frontend-wasm-full` と同型の
 制約だが、pre-styled-ui は publish 頻度が高いため個別に明記する）。
+
+**`fandhe-frontend-wireframe-ui` の実施状況（#2604 時点）**: A のうち、
+1（依存グラフ計測）・3（release.yml）・4（unsafe 境界。`forbid(unsafe_code)`
+safe 域として §2 表へ追加）・5（依存グラフポリシー §12 への実測値記録）・6
+（CLAUDE.md）は本 PR で完了。2（`ZERO_DEP_CRATES` への登録）は非該当と判断した
+（`docs/policy/dependency-graph-policy.md` §12 参照。headless-ui と同じ判断軸で
+`check-core-deps` へは載せず、依存契約は `structure.toml`/`deps-check` の実測
+1/1 が機械検証する）。B は確認済み: `forbid-unsafe` ジョブ（`crates/*` glob の
+自動展開対象）、`cargo test --workspace`、`fw gate`、`version-bump-guard`
+（crates.io 未公開の間は `check-version-bump` が `NotPublished` → PASS を
+返すため機械強制は初回公開まで発動しない）、`dep-version-check`
+（`crate=fandhe-frontend-wireframe-ui dep=fandhe-frontend-core kind=normal
+req=^0.4.3 actual=0.4.3 result=PASS`）、`deny.toml`（workspace 全体適用のため
+差分なし）、`ci-complete`/ruleset（新規 CI ジョブを追加しないため更新不要）の
+いずれも追加作業不要と確認した。C は未実施（実公開は #2668 のスコープ）。
+依存先は `fandhe-frontend-core`（公開済み）のみのため、他クレートのような
+依存順待ちはなく、sparse index 上の `fandhe-frontend-core` が
+`version = "0.4.3"` 要求を満たすことのみを確認すれば公開できる
+（`release.yml` の依存順コメント参照）。

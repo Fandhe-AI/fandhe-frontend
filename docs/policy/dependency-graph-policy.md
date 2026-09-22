@@ -88,7 +88,7 @@ CI 組み込みは `.github/workflows/deps-check.yml` が担い、fail-closed（
 
 ## 4. 計測対象パッケージ
 
-現時点の計測対象は次の 8 パッケージです（`.github/workflows/deps-check.yml` と一致）。
+現時点の計測対象は次の 9 パッケージです（`.github/workflows/deps-check.yml` と一致）。
 
 - `fandhe-frontend-core`（ディレクトリは `crates/core/`。外部依存ゼロ契約）
 - `xtask`（外部依存ゼロ契約）
@@ -102,6 +102,9 @@ CI 組み込みは `.github/workflows/deps-check.yml` が担い、fail-closed（
   `fandhe-frontend-headless-ui` への path 依存のみ、実測 3 packages/depth 3）
 - `fandhe-animation`（ディレクトリは `crates/animation/`。イシュー #2372 で追加。`[dependencies]` を持たない
   アニメーション演算基幹クレートで、実測 0 packages/depth 0。`ZERO_DEP_CRATES` にも登録済み）
+- `fandhe-frontend-wireframe-ui`（ディレクトリは `crates/wireframe-ui/`。イシュー #2604 で追加。
+  `fandhe-frontend-core` への path 依存のみ、実測 1 packages/depth 1。`ZERO_DEP_CRATES` には非登録。
+  詳細は第 12 節参照）
 
 `fandhe-frontend-headless-ui`/`fandhe-frontend-pre-styled-ui` は UI コンポーネント層であり、サーバー構成へ
 組み込まれ得るライブラリクレートとして REQ-3 の対象に含めます（外部依存はいずれも workspace 内 path 依存のみで、
@@ -336,3 +339,42 @@ deps-check: packages=19/60 depth=9/6 result=FAIL  (参考値、計測対象外)
 （`fandhe-frontend-dist-server` は `fandhe-frontend-wasm-full` に依存せず、配布 WASM の
 feature 集合〔`crates/dist-server/src/wasm_dist_features.rs::WASM_DIST_FEATURES`〕にも
 `animation-driver` を含めないため、そもそも影響を受けない）。
+
+## 12. fandhe-frontend-wireframe-ui の組み込み（イシュー #2604）
+
+`fandhe-frontend-wireframe-ui`（`crates/wireframe-ui/`、#2603 で雛形追加）は
+`fandhe-frontend-core` への path 依存のみを持つ SSR 専用・非インタラクティブな
+UI コンポーネント層である。実測（xtask バイナリ直接実行、`--locked`）は次のとおり。
+
+```
+deps-check: packages=1/60 depth=1/6 result=PASS
+build-scripts: target=fandhe-frontend-wireframe-ui count=0
+```
+
+第 4 節の `fandhe-frontend-headless-ui`/`fandhe-frontend-pre-styled-ui` と同じ判断軸
+（UI コンポーネント層はサーバー構成へ組み込まれ得るライブラリクレートであり REQ-3 の対象と
+判断する）により、第 4 節の計測対象（`deps-check.yml` の `check-deps`/`list-build-scripts`）へ
+追加した。
+
+`ZERO_DEP_CRATES`（第 2/3 節）には登録しない。`ZERO_DEP_CRATES` は REQ-3 受け入れ基準 1
+「コアクレートの外部依存ゼロ」を専用ゲートとして強制する枠であり、現行は
+`fandhe-frontend-core`/`fandhe-frontend-interactive`/`fandhe-animation` の 3 件に限定している。
+最も近い先例の `fandhe-frontend-headless-ui`（workspace 内 path 依存のみの UI 層）も
+#553 で `ZERO_DEP_CRATES` へは登録されず第 4 節（60/6 判定）のみに追加された。
+`fandhe-frontend-wireframe-ui` の「依存は `fandhe-frontend-core` のみ」という設計契約
+（`docs/design/wireframe-ui-architecture.md` §1/§7）は、`structure.toml` の
+`depends_on = ["core"]` + `fw structure`/`fw gate` の `cargo metadata` 突合と、
+`deps-check` の実測 1/1 で既に機械検証されるため、`check-core-deps` へ載せなくても
+契約は保たれる。将来外部依存ゼロを専用ゲートとして強制したくなった場合は、
+`crates/xtask/src/check_deps.rs` の `ZERO_DEP_CRATES` へ追加し
+`crates/xtask/tests/cli_check_core_deps.rs` の assert も更新する（本 PR ではいずれも
+変更しない）。
+
+`deny.toml` はワークスペース全体へ適用されるため、`fandhe-frontend-wireframe-ui` も
+既に自動対象であり、設定変更は不要である（外部依存ゼロのため差分もない）。
+
+crates.io 公開については、雛形の `Cargo.toml` が既に license / description / keywords /
+categories / readme を備え公開前提で作られていること、Phase 9（#2668）が v0.1.0 初回公開を
+予定していることから、`publish = false` は付けない（公開クレート化）。初回公開手順は
+第 11 節「新規クレートの CI 組み込み・初回公開チェックリスト」の C（`docs/ci/version-bump-publish-order-gap.md`
+§11 C）に従い #2668 で実施する。

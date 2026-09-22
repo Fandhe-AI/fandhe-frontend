@@ -183,7 +183,7 @@ instance swap・サイズ／強調の組み合わせ等）を Rust API へ落と
 
 - **#2602（参照スクリーンショット取り込み、完了）**: §2 のとおりスクリーンショット取り込みは不可（fail-closed）と確定した。各部品からの視覚参照は https://www.blocks.pm/ への外部リンクに限る。加えて §2 のとおり、外観・anatomy・プロパティ構成の実装への転用も書面許諾が得られるまで保留する（PR #2670 codex レビュー指摘、2026-09-22）
 - **#2603（crate 雛形）**: §1 の位置づけ・依存方針（`fandhe-frontend-core` のみ、Primitives/Themes 非依存）を前提とする
-- **#2604（CI 組み込み）**: §7 の共通前提（`forbid(unsafe_code)`・REQ-1 既定エスケープ・wasm-full 非配線・非インタラクティブ制約）を前提とする
+- **#2604（CI 組み込み、完了）**: §7 の共通前提（`forbid(unsafe_code)`・REQ-1 既定エスケープ・wasm-full 非配線・非インタラクティブ制約）を前提に、`deps-check` 計測対象化（実測 packages=1/60 depth=1/6）・`release.yml` 選択肢追加・`ZERO_DEP_CRATES` 非登録・公開クレート化（`publish = false` なし、初回公開は #2668）を実施した。詳細は `docs/ci/version-bump-publish-order-gap.md` §11 参照
 - **#2605（共通 API）**: §4 の `Size` 軸命名規約・§6 の Figma プロパティ変換規約を前提とする
 - **#2606（アイコン基盤）**: §6 の instance swap（`Node` スロット引数）規約を前提とする
 - **#2607（docs サイトセクション）**: §7 の「`/wireframes/<kebab>/` ページ同梱」方針と、§8 の kebab 命名（特に `media`）を前提とする
