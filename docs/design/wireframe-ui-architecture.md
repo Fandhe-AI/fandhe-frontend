@@ -2,7 +2,11 @@
 
 **本文書のステータス**: 確定（イシュー #2601。ツリー全体はルート #2599、Phase 0 は #2600）。
 
-- **関連**: `_/local-plans/wireframe-ui-tree.md`（本ツリーの計画原本）・`docs/design/animation-core-architecture.md`（新規クレート位置づけ文書の書式先例）・`docs/design/docs-site-blocks-section.md`（同型の書式先例）・`docs/policy/intentional-non-adoption.md` §3.25（責務境界の判断軸）・`docs/design/pre-styled-ui-size-and-color-palette-axes.md`（`Size`/`ColorPalette` 軸の先例）
+- **関連**: `docs/design/animation-core-architecture.md`（新規クレート位置づけ文書の書式先例）・`docs/design/docs-site-blocks-section.md`（同型の書式先例）・`docs/policy/intentional-non-adoption.md` §3.25（責務境界の判断軸）・`docs/design/pre-styled-ui-size-and-color-palette-axes.md`（`Size`/`ColorPalette` 軸の先例）
+
+本文書自身が 49 部品一覧（§8）・視覚差分方針（§3）・`Size` 軸命名規約（§4）・責務境界（§5）・Figma
+プロパティ変換規約（§6）の正である。起票時の作業メモ（`_/local-plans/wireframe-ui-tree.md` 等）は
+git 追跡対象外のローカル作業ファイルであり、本文書とは独立に破棄され得るため正としては参照しない。
 
 ## 1. 位置づけ・スコープ
 
@@ -22,7 +26,7 @@
 ## 2. blocks.pm 参照方針
 
 blocks.pm（https://www.blocks.pm/）の 35 部品を一次参照とする。ただし**忠実再現ではなく Rust API として
-使いやすい形へ調整してよい**（ユーザー承認 2026-09-22、出典は `_/local-plans/wireframe-ui-tree.md`）。
+使いやすい形へ調整してよい**（ユーザー承認 2026-09-22）。
 
 参照スクリーンショットは `docs/design/reference-screenshots/wireframe-<kebab>.png` に配置する運用を
 予定しているが、**blocks.pm の利用条件確認・実際の取り込みは別イシュー #2602 のスコープ**である。本文書
@@ -68,8 +72,7 @@ blocks.pm の Figma コンポーネントプロパティを Rust API へ落と�
 - **instance swap の受け方**: アイコン差し替え等の instance swap は **`Node` スロット引数**で受ける
   （`fandhe-frontend-core` のノード木 API に従う）。
 - **Text/Paragraph 系の共通パターン**: `Text`/`Paragraph` 系は `Size` + `Bold`(bool) + `Text`(文字列)
-  の 3 点セットで表現する（blocks.pm カタログの Text/Paragraph に共通する構成、`_/local-plans/wireframe-ui-tree.md`
-  参照）。
+  の 3 点セットで表現する（blocks.pm カタログの Text/Paragraph に共通する構成）。
 
 ## 7. 全 49 部品共通の前提
 
@@ -85,9 +88,9 @@ blocks.pm の Figma コンポーネントプロパティを Rust API へ落と�
 
 ## 8. 49 部品一覧（Phase 別表）
 
-`_/local-plans/wireframe-ui-tree.created.tsv` を正とする。実イシュー番号はこの tsv に基づく（同計画の
-プロース記述「11 Phase / 66 件」は誤りで、実際は **Phase 0〜9 の 10 Phase・子イシュー計 59 件**である。
-`_/local-plans/wireframe-ui-tree.md` の訂正注記「子 issue 計 59 件」とも整合する）。
+本節の表を正とする（実イシュー番号を含む）。Phase 構成は **Phase 0〜9 の 10 Phase・子イシュー計 59 件**
+である。起票時の作業メモ（`_/local-plans/wireframe-ui-tree.md` 等）に記載されていた「11 Phase / 66 件」
+というプロース記述は誤りであり、本節の表が最終的な正となる。
 
 | Phase | 親イシュー | 内容 | 子部品（kebab: イシュー番号） |
 |---|---|---|---|
@@ -106,8 +109,7 @@ blocks.pm の Figma コンポーネントプロパティを Rust API へ落と�
 `wireframe-<kebab>.png` と #2607 の `/wireframes/<kebab>/` が参照する kebab と一致させるため、本表で
 明示的に固定する。
 
-各部品の blocks.pm 由来／追加の区分は以下のとおり（`_/local-plans/wireframe-ui-tree.md` の部品一覧を
-出典とする要約）。
+各部品の blocks.pm 由来／追加の区分は以下のとおりである（本文書が正）。
 
 - **blocks.pm 由来（35）**: annotation, avatar, brand, breadcrumbs, button, card-basic, chart,
   checkbox, counter, cursor, divider, emoji, icon, image, input, link, map, menu, nav-item,
