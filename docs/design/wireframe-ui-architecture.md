@@ -23,6 +23,16 @@ git 追跡対象外のローカル作業ファイルであり、本文書とは�
 （静的 SSR 専用）。このため REQ-11 の gzip 200KB 計測（既存の `wasm-full`/`dist-server` 経路）には非影響
 である。
 
+この静的 SSR 専用という制約に伴い、`wireframe-ui` の全部品は**非インタラクティブな表示専用の
+プレースホルダー**として設計する。modal・tooltip・accordion・tabs・select・slider のような、
+Primitives/Themes では通常キーボード操作・フォーカス管理・状態遷移を伴う部品についても、
+`wireframe-ui` 版は画面設計上の見た目（anatomy・配置イメージ）のみを静的に示し、対話的な
+WAI-ARIA セマンティクス（`role`・`aria-expanded`・`aria-haspopup` 等）や `tabindex`・キーボード
+イベントハンドラは付与しない（§5・§7 参照）。ネイティブに対話セマンティクスを持つ HTML 要素
+（`button`/`input`/`select`/`a[href]` 等）自体も出力せず、`div`/`span` 等の非対話要素でレイアウトの
+みを表現する。実際に操作可能・アクセシブルな同種部品が必要な場合は `fandhe-frontend-headless-ui`
+（Primitives）／`fandhe-frontend-pre-styled-ui`（Themes）を利用する。
+
 ## 2. blocks.pm 参照方針
 
 blocks.pm（https://www.blocks.pm/）の 35 部品を一次参照とする。ただし**忠実再現ではなく Rust API として
@@ -59,8 +69,17 @@ blocks.pm 側のプロパティ段階数は部品ごとに揺れがある（例:
 状態管理・実インタラクションといった**アプリケーションロジックは持たない**。
 
 これは `docs/policy/intentional-non-adoption.md` §3.25（規則 1: アプリケーションロジックを内包する
-部品は実装しない）と同型の判断軸である。UI コンポーネント層が担うのは anatomy・アクセシビリティ・
-表示状態（`data-*`）までとする既存原則を、`wireframe-ui` にも同様に適用する。
+部品は実装しない）と同型の判断軸である。ただし headless-ui／pre-styled-ui が担う「anatomy・
+アクセシビリティ（WAI-ARIA・キーボード操作）・表示状態（`data-*`）まで」という既存原則は、
+`wireframe-ui` にはそのまま適用しない。`wasm-full` 配線を持たない静的 SSR 専用（§1）という制約の
+もとでは、対話部品に対してキーボード操作・フォーカス管理・状態遷移のアクセシビリティ契約を実際には
+満たせないため、見た目上は操作可能に見えて実際には操作不能な UI を提供する不整合を避ける。
+`wireframe-ui` が担うのは構造（anatomy）と、選択済み・無効化等の見た目上の表示状態を示す `data-*`
+属性までとし、対話的な WAI-ARIA セマンティクス（`role`・`aria-expanded`・`aria-haspopup` 等）・
+キーボード操作・フォーカス管理・状態遷移は一切実装しない（§1）。modal・tooltip・accordion・tabs・
+select・slider を含む全部品は非インタラクティブな表示専用プレースホルダーであり、実際にアクセシブルな
+同種部品が必要な利用者は `fandhe-frontend-headless-ui`／`fandhe-frontend-pre-styled-ui` を再利用・
+配線すること。
 
 ## 6. Figma プロパティ変換規約
 
@@ -83,6 +102,11 @@ blocks.pm の Figma コンポーネントプロパティを Rust API へ落と�
 - テキスト引数は `fandhe-frontend-core` の既定エスケープ経由（REQ-1）。各部品イシューの受け入れ条件に
   XSS 回帰テストを含める
 - `wasm-full` 配線は行わない（静的 SSR のみ）
+- 非インタラクティブな表示専用プレースホルダーとする（§1/§5）。対話的な WAI-ARIA セマンティクス
+  （`role`・`aria-expanded`・`aria-haspopup` 等）・`tabindex`・キーボードイベントハンドラ・
+  フォーカス管理・状態遷移は付与しない。`button`/`input`/`select`/`a[href]` 等ネイティブに対話
+  セマンティクスを持つ HTML 要素も出力しない（`div`/`span` 等の非対話要素でレイアウトのみを表現する）。
+  modal・tooltip・accordion・tabs・select・slider を含む全部品にこの制約が適用される
 - 各部品イシューは showcase 実装 + `/wireframes/<kebab>/` ページ（docs サイト、#2607 が基盤整備）+
   テストを同梱する
 
@@ -122,7 +146,7 @@ blocks.pm の Figma コンポーネントプロパティを Rust API へ落と�
 
 - **#2602（参照スクリーンショット取り込み）**: §2 の参照スクリーンショット配置方針（`docs/design/reference-screenshots/wireframe-<kebab>.png`）を前提とする
 - **#2603（crate 雛形）**: §1 の位置づけ・依存方針（`fandhe-frontend-core` のみ、Primitives/Themes 非依存）を前提とする
-- **#2604（CI 組み込み）**: §7 の共通前提（`forbid(unsafe_code)`・REQ-1 既定エスケープ・wasm-full 非配線）を前提とする
+- **#2604（CI 組み込み）**: §7 の共通前提（`forbid(unsafe_code)`・REQ-1 既定エスケープ・wasm-full 非配線・非インタラクティブ制約）を前提とする
 - **#2605（共通 API）**: §4 の `Size` 軸命名規約・§6 の Figma プロパティ変換規約を前提とする
 - **#2606（アイコン基盤）**: §6 の instance swap（`Node` スロット引数）規約を前提とする
 - **#2607（docs サイトセクション）**: §7 の「`/wireframes/<kebab>/` ページ同梱」方針と、§8 の kebab 命名（特に `media`）を前提とする
