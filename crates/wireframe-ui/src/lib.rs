@@ -35,8 +35,9 @@
 //! 共通基盤 API 実装済み（イシュー #2605）: [`Size`]・[`Bold`]/[`Primary`]/
 //! [`Active`]/[`Disabled`]/[`Orientation`]（共通型）・モノクロトークン
 //! （[`tokens`]）・[`wireframe_css`]（CSS 集約出力）・[`class_list`]。
-//! SVG アイコン基盤は #2606、個別部品実装は Phase 1 以降（#2608〜）で
-//! 追加する。
+//! SVG アイコン基盤（[`icon`]、イシュー #2606）実装済み: 12 種以上の
+//! ラインアートアイコンと `Node` スロット規約（`docs/design/wireframe-ui-architecture.md`
+//! §11）。個別部品実装は Phase 1 以降（#2608〜）で追加する。
 //!
 //! # class 命名規約
 //!
@@ -46,11 +47,13 @@
 //! `fw-wire-bold` / `fw-wire-primary` / `fw-wire-horizontal|vertical`。
 //! 表示状態は class ではなく `data-active`/`data-disabled` で表す。CSS
 //! カスタムプロパティは `--fw-wire-*`（pre-styled-ui の `--fandhe-*` とは
-//! 意図的に別プレフィックス）。詳細・追記契約は
-//! `docs/design/wireframe-ui-architecture.md` §10 を参照。
+//! 意図的に別プレフィックス）。部品ルートなしで単独使用する唯一の例外的
+//! パート class として `fw-wire-icon-glyph`（[`icon`] のグリフ）を持つ。
+//! 詳細・追記契約は `docs/design/wireframe-ui-architecture.md` §10 を参照。
 
 pub mod class;
 pub mod css;
+pub mod icon;
 pub mod props;
 pub mod size;
 pub mod tokens;
