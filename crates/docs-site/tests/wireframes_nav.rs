@@ -136,7 +136,7 @@ fn site_wireframes_dir_manuscripts_match_the_registry_exactly() {
 
     assert_eq!(
         on_disk, expected,
-        "site/wireframes/*.md の実在ファイル集合と wireframes::WIREFRAMES から導出した期待集合が一致しない          （未登録の孤児原稿ファイル、または登録済みだがファイルが無い wireframe のいずれか）"
+        "site/wireframes/*.md の実在ファイル集合と wireframes::WIREFRAMES から導出した期待集合が一致しない （未登録の孤児原稿ファイル、または登録済みだがファイルが無い wireframe のいずれか）"
     );
 }
 

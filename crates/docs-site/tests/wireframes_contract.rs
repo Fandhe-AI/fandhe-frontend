@@ -10,11 +10,15 @@
 //! - 登録済み部品ページ（現時点 0 件）が存在する場合は、節順序が
 //!   H1 → Demo → 引数表 → 原案差分メモ・`class="wireframes-demo"` と
 //!   `wireframes.css` の `<link>` を持つ・`pre-styled-ui.css` を持たない・
-//!   Demo 領域（`class="wireframes-demo"` 〜 `>引数表<` の部分文字列）が
-//!   `<form`/`<button`/`<input`/`<select`/`<a href` のいずれも出力しない
-//!   （§7 の非対話制約）・`javascript:`/`on*` を含まない。この制約はページ
-//!   全体ではなく Demo 領域に限定する（ヘッダー・サイドバー等のサイト
-//!   chrome は全ページ共通で `<a href`/`<button` を出力するため）
+//!   Demo 領域（`article.docs-content` 配下の `class="wireframes-demo"` 〜
+//!   `>引数表</h2>` の部分文字列）が `<form`/`<button`/`<input`/`<select`/
+//!   `<a href` のいずれも出力しない（§7 の非対話制約）・`javascript:`/`on*`
+//!   を含まない。この制約はページ全体ではなく Demo 領域に限定する
+//!   （ヘッダー・サイドバー等のサイト chrome は全ページ共通で
+//!   `<a href`/`<button` を出力するため）。節順序・Demo 領域の探索はいずれも
+//!   `article.docs-content` の開始位置より前（折りたたみ目次
+//!   `nav.docs-toc-inline` の見出しアンカー `<a href="#demo">Demo</a>` 等）を
+//!   除外してから行う
 //! - `wireframes::stylesheet()` が `.wireframes-demo` の `overflow-x`・
 //!   `color-scheme: light` と `wireframe_css()` の全文を含み、`--fandhe-` を
 //!   含まない（`push_theme` 不使用の固定）
@@ -58,16 +62,16 @@ fn wireframes_index_page_has_no_demo_frame_and_no_component_stylesheets() {
 }
 
 /// 登録済み部品ページ全件（現時点 0 件）について節順序・CSS 配線・
-/// 非対話制約を固定する。0 件時は「レジストリが空である」ことを別 assert で
-/// 明示し、ループが空で通過したことを隠さない（Phase 1 以降に実効化）。
+/// 非対話制約を固定する。`WIREFRAMES` が空の間は以下のループへ到達せず
+/// 早期 return する（Phase 1 以降、レジストリへ要素が追加され次第このテストが
+/// 実効化される）。
 #[test]
 fn every_registered_wireframe_page_satisfies_the_contract() {
     let out = build_real_site();
 
     if wireframes::WIREFRAMES.is_empty() {
         // 本イシュー（#2607）時点ではレジストリが空であり、以下のループは
-        // vacuous に通過する。この事実を明示することで、レジストリが
-        // 意図せず空のまま「テストが通っている」と誤解されるのを防ぐ。
+        // 実行されない。
         return;
     }
 
@@ -92,15 +96,31 @@ fn every_registered_wireframe_page_satisfies_the_contract() {
             "{kebab}: page should not link pre-styled-ui.css (independent 3rd layer)"
         );
 
-        // 節順序: H1 → Demo(h2) → 引数表(h2) → 原案差分メモ(h2)。
-        let demo_pos = html
-            .find(">Demo<")
+        // `main.docs-main` の折りたたみ目次（`nav.docs-toc-inline`）は
+        // 本文（`article.docs-content`）より前に置かれ、見出しテキスト
+        // （"Demo"/"引数表"/DIFF_NOTES_HEADING）へのアンカーリンク
+        // （`<a href="#...">Demo</a>`）を先出しする
+        // （`crate::layout::docs_page_with_assets` 参照、
+        // `blocks_contract.rs::login_01_page_orders_h1_then_demo_then_used_parts_then_rust_code`
+        // と同型の対処）。節順序の探索はこの重複箇所を含めず、
+        // `article.docs-content` の開始位置より後ろだけを対象にする。
+        let content_start = html
+            .find(r#"class="docs-content""#)
+            .unwrap_or_else(|| panic!("{kebab}: missing article.docs-content"));
+        let content = &html[content_start..];
+
+        // 見出し要素そのもの（`<h2>テキスト</h2>`）でしか一致しない
+        // 閉じタグ込みの厳密なアンカーで探す。`>Demo<` のような部分文字列は
+        // TOC アンカー（`<a href="#demo">Demo</a>`）にも一致してしまうため
+        // 使わない。
+        let demo_pos = content
+            .find(">Demo</h2>")
             .unwrap_or_else(|| panic!("{kebab}: missing Demo heading"));
-        let args_pos = html
-            .find(">引数表<")
+        let args_pos = content
+            .find(">引数表</h2>")
             .unwrap_or_else(|| panic!("{kebab}: missing 引数表 heading"));
-        let diff_pos = html
-            .find(&format!(">{}<", wireframes::DIFF_NOTES_HEADING))
+        let diff_pos = content
+            .find(&format!(">{}</h2>", wireframes::DIFF_NOTES_HEADING))
             .unwrap_or_else(|| {
                 panic!(
                 "{kebab}: missing {} heading (site/wireframes/{kebab}.md should have a manual H2)",
@@ -120,11 +140,13 @@ fn every_registered_wireframe_page_satisfies_the_contract() {
         // ページ全体を対象にすると部品が完全に非対話であっても必ず FAIL
         // する（`crates/docs-site/tests/blocks_contract.rs` が `<form` の
         // みを対象にしているのと同じ判断軸）。`class="wireframes-demo"`
-        // 〜 `>引数表<` の部分文字列（Demo 領域）へスコープを絞る。
-        let demo_class_pos = html
+        // 〜 `>引数表</h2>` の部分文字列（Demo 領域、`article.docs-content`
+        // 配下へ既にスコープ済みの `content` を対象に探索する）へ
+        // スコープを絞る。
+        let demo_class_pos = content
             .find(r#"class="wireframes-demo""#)
             .unwrap_or_else(|| panic!("{kebab}: missing wireframes-demo wrapper"));
-        let demo_section = &html[demo_class_pos..args_pos];
+        let demo_section = &content[demo_class_pos..args_pos];
 
         for forbidden in ["<form", "<button", "<input", "<select", "<a href"] {
             assert!(
