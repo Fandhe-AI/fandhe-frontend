@@ -38,9 +38,15 @@ WAI-ARIA セマンティクス（`role`・`aria-expanded`・`aria-haspopup` 等�
 blocks.pm（https://www.blocks.pm/）の 35 部品を一次参照とする。ただし**忠実再現ではなく Rust API として
 使いやすい形へ調整してよい**（ユーザー承認 2026-09-22）。
 
-参照スクリーンショットは `docs/design/reference-screenshots/wireframe-<kebab>.png` に配置する運用を
-予定しているが、**blocks.pm の利用条件確認・実際の取り込みは別イシュー #2602 のスコープ**である。本文書
-は方針の記載に留め、画像の埋め込み・ライセンス判断は行わない。
+**参照スクリーンショットの本リポジトリへの取り込みは不採用と確定した（イシュー #2602）。**
+blocks.pm は Figma プラグイン「Blocks – Wireframe」（Figma Community 配布）であり、
+配布元ライセンス（Community Free Resource License）は第三者への再配布・derivative work 作成を
+明示的に禁止し、スクリーンショット掲載を許諾する記載を持たない。本リポジトリの既存参照 4 サイト
+（chakra-ui / Ark UI / Radix Primitives・Themes / shadcn/ui）が持つ「MIT ライセンスの GitHub
+リポジトリ」という積極的な再配布許諾根拠を blocks.pm は持たないため、`docs/design/
+reference-screenshots/wireframe-<kebab>.png` は配置しない（fail-closed 判断、詳細・出典表は
+`docs/design/reference-screenshots/README.md` の「出典・ライセンス・再配布根拠」節を参照）。
+各部品からの視覚参照は https://www.blocks.pm/ への外部リンクに限る。
 
 ## 3. 視覚差分方針（原案からの調整基準）
 
@@ -144,7 +150,7 @@ blocks.pm の Figma コンポーネントプロパティを Rust API へ落と�
 
 ## 9. 後続イシューへの委譲
 
-- **#2602（参照スクリーンショット取り込み）**: §2 の参照スクリーンショット配置方針（`docs/design/reference-screenshots/wireframe-<kebab>.png`）を前提とする
+- **#2602（参照スクリーンショット取り込み、完了）**: §2 のとおり取り込み不可（fail-closed）と確定した。各部品からの視覚参照は https://www.blocks.pm/ への外部リンクに限る
 - **#2603（crate 雛形）**: §1 の位置づけ・依存方針（`fandhe-frontend-core` のみ、Primitives/Themes 非依存）を前提とする
 - **#2604（CI 組み込み）**: §7 の共通前提（`forbid(unsafe_code)`・REQ-1 既定エスケープ・wasm-full 非配線・非インタラクティブ制約）を前提とする
 - **#2605（共通 API）**: §4 の `Size` 軸命名規約・§6 の Figma プロパティ変換規約を前提とする
