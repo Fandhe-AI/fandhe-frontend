@@ -9,7 +9,11 @@
 /// （`docs/design/wireframe-ui-architecture.md` §10 の追記契約）。
 ///
 /// イシュー #2606 で最初の登録（[`crate::icon::ICON_GLYPH_CSS`]）が入った。
-pub const PARTS: &[&str] = &[crate::icon::ICON_GLYPH_CSS];
+/// イシュー #2617 で [`crate::annotation::ANNOTATION_CSS`] が続いた。
+pub const PARTS: &[&str] = &[
+    crate::icon::ICON_GLYPH_CSS,
+    crate::annotation::ANNOTATION_CSS,
+];
 
 static CSS: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 

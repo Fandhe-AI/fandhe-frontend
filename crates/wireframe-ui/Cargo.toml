@@ -6,7 +6,8 @@ name = "fandhe-frontend-wireframe-ui"
 # イシュー #2606）。coding-rust.md #638 条項に従い 0.x のマイナーバンプ
 # とする（crates.io 未公開のため check-version-bump は NotPublished →
 # PASS だが、運用規約に従いバンプする）。
-version = "0.3.0"
+# 0.3.0 → 0.4.0: 公開 API 新設（annotation 部品、イシュー #2617）。
+version = "0.4.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
 license = "MIT OR Apache-2.0"
