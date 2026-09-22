@@ -32,6 +32,30 @@
 //!
 //! # 現状
 //!
-//! 雛形段階（イシュー #2603）。公開 API は未実装。`Size` 列挙・共通型・
-//! `WIREFRAME_CSS` はイシュー #2605、SVG アイコン基盤は #2606、個別部品
-//! 実装は Phase 1 以降（#2608〜）で追加する。
+//! 共通基盤 API 実装済み（イシュー #2605）: [`Size`]・[`Bold`]/[`Primary`]/
+//! [`Active`]/[`Disabled`]/[`Orientation`]（共通型）・モノクロトークン
+//! （[`tokens`]）・[`wireframe_css`]（CSS 集約出力）・[`class_list`]。
+//! SVG アイコン基盤は #2606、個別部品実装は Phase 1 以降（#2608〜）で
+//! 追加する。
+//!
+//! # class 命名規約
+//!
+//! 全 class は [`CLASS_PREFIX`]（`fw-wire-`）で始まる。部品ルートは
+//! `fw-wire-<kebab>`、部品内パートは `fw-wire-<kebab>-<part>`、共通修飾
+//! （部品名を含まない横断 class）は `fw-wire-size-<xs|sm|md|lg|xl>` /
+//! `fw-wire-bold` / `fw-wire-primary` / `fw-wire-horizontal|vertical`。
+//! 表示状態は class ではなく `data-active`/`data-disabled` で表す。CSS
+//! カスタムプロパティは `--fw-wire-*`（pre-styled-ui の `--fandhe-*` とは
+//! 意図的に別プレフィックス）。詳細・追記契約は
+//! `docs/design/wireframe-ui-architecture.md` §10 を参照。
+
+pub mod class;
+pub mod css;
+pub mod props;
+pub mod size;
+pub mod tokens;
+
+pub use class::{class_list, CLASS_PREFIX};
+pub use css::{wireframe_css, PARTS};
+pub use props::{Active, Bold, Disabled, Orientation, Primary};
+pub use size::Size;

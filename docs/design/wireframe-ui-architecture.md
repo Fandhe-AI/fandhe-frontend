@@ -184,6 +184,66 @@ instance swap・サイズ／強調の組み合わせ等）を Rust API へ落と
 - **#2602（参照スクリーンショット取り込み、完了）**: §2 のとおりスクリーンショット取り込みは不可（fail-closed）と確定した。各部品からの視覚参照は https://www.blocks.pm/ への外部リンクに限る。加えて §2 のとおり、外観・anatomy・プロパティ構成の実装への転用も書面許諾が得られるまで保留する（PR #2670 codex レビュー指摘、2026-09-22）
 - **#2603（crate 雛形）**: §1 の位置づけ・依存方針（`fandhe-frontend-core` のみ、Primitives/Themes 非依存）を前提とする
 - **#2604（CI 組み込み、完了）**: §7 の共通前提（`forbid(unsafe_code)`・REQ-1 既定エスケープ・wasm-full 非配線・非インタラクティブ制約）を前提に、`deps-check` 計測対象化（実測 packages=1/60 depth=1/6）・`release.yml` 選択肢追加・`ZERO_DEP_CRATES` 非登録・公開クレート化（`publish = false` なし、初回公開は #2668）を実施した。詳細は `docs/ci/version-bump-publish-order-gap.md` §11 参照
-- **#2605（共通 API）**: §4 の `Size` 軸命名規約・§6 の Figma プロパティ変換規約を前提とする
+- **#2605（共通 API、完了）**: §4 の `Size` 軸命名規約・§6 の Figma プロパティ変換規約を前提に、`Size` 列挙・共通型（`Bold`/`Primary`/`Active`/`Disabled`/`Orientation`）・モノクロトークン・`wireframe_css()` 出力関数を実装した。詳細は §10 参照
 - **#2606（アイコン基盤）**: §6 の instance swap（`Node` スロット引数）規約を前提とする
 - **#2607（docs サイトセクション）**: §7 の「`/wireframes/<kebab>/` ページ同梱」方針と、§8 の kebab 命名（特に `media`）を前提とする
+
+## 10. class 命名規約・CSS 出力規約（イシュー #2605）
+
+本節は `crates/wireframe-ui/src/`（`class.rs`/`css.rs`/`size.rs`/`tokens.rs`/`props.rs`）の実装契約を記す。
+Rust 側の値表（`size::SCALE`〔非公開 const〕・`tokens::TOKENS` 等）を正とし、本節では値を書き写さない（二重管理回避）。
+
+### 10.1 class 命名規約
+
+全 class は `class::CLASS_PREFIX`（`fw-wire-`）で始まる。
+
+- **部品ルート**: `fw-wire-<kebab>`（kebab は §8 の表の値。例: `fw-wire-button`）
+- **部品内パート**: `fw-wire-<kebab>-<part>`（例: `fw-wire-button-label`）。BEM の `__`/`--` は使わず
+  単一ハイフン連結に統一する（`fw-wire-size-md` と同じ形）
+- **共通修飾**（部品名を含まない横断 class。`.fw-wire-button.fw-wire-size-md` のように部品ルートと
+  結合して使う）:
+  - `fw-wire-size-<xs|sm|md|lg|xl>`（`size::Size::class()`）
+  - `fw-wire-bold`（`props::Bold::class()`）
+  - `fw-wire-primary`（`props::Primary::class()`）
+  - `fw-wire-horizontal` / `fw-wire-vertical`（`props::Orientation::class()`）
+- **表示状態は class ではなく `data-*` 属性**で表す（`data-active`/`data-disabled`。今後追加する
+  `data-selected` 等も同様。`props::Active`/`props::Disabled` が `fandhe_frontend_core::attr_if`
+  経由で生成する）
+- **CSS カスタムプロパティ**は `--fw-wire-*` プレフィックス。pre-styled-ui の `--fandhe-*`・`fd-*` class
+  とは意図的に別プレフィックスとし、docs サイト（#2607）で両スタイルシートが同一ページに載っても
+  衝突しない
+
+`class::class_list(base, modifiers)` は `base` に `Some` の修飾子のみを半角スペース連結する。引数は
+`&'static str` に限定し、利用者入力が class へ流れ込む経路を型で塞ぐ（REQ-1・A03 対応）。
+
+### 10.2 共通型（`props.rs`）
+
+`Bold`/`Primary`/`Active`/`Disabled`/`Orientation` は blocks.pm のプロパティ schema をそのまま転写した
+ものではなく、「wireframe/UI キット表現として独立に定義した」最小集合である（§2 のライセンス保留）。
+視覚修飾型（`Bold`/`Primary`）は class を、表示状態型（`Active`/`Disabled`）は `data-*` 属性を返す。
+対話セマンティクス（`role`/`aria-*`/`tabindex`）に相当する型は持たない（§1/§5/§7 の制約の一般化）。
+
+### 10.3 モノクロトークン
+
+`tokens::TOKENS` がグレースケール固定値（`paper`/`fill-subtle`/`fill`/`line-subtle`/`line`/`ink-muted`/`ink`
+の 7 段）と補助トークン（`line-width`/`radius`/`font-family`）を保持する唯一の正である。固定 light 値の
+みを持ち `prefers-color-scheme` による分岐は行わない。ダークモード対応・docs サイトのテーマトグル配下
+での扱いは #2607 側の判断事項とする（§8「スコープ外候補」）。
+
+### 10.4 `wireframe_css()` / `PARTS` 追記契約
+
+`css::wireframe_css() -> &'static str` が全部品 CSS を集約する唯一の入口関数である（イシューでの呼称
+`WIREFRAME_CSS` に対応する。`concat!` はリテラルしか受け付けずモジュール間の `const` 連結ができないため、
+`std::sync::OnceLock` による遅延構築を採用する）。出力順は `:root` トークン（`tokens::css()`）→ `Size` 5 段
+のスコープ付きカスタムプロパティ（`size::css()`）→ `css::PARTS` 登録順、で連結する。
+
+Phase 1 以降の部品イシューは、自分のモジュールに `pub const <PART>_CSS: &str` を定義し `css::PARTS` へ
+1 要素追記する以外の場所で CSS を出力してはならない（意図的な摩擦点。`crates/wireframe-ui/tests/common_api.rs`
+がセレクタ行の `fw-wire-` プレフィックス一致・`PARTS` の重複禁止を機械固定する）。
+
+### 10.5 `Size` と pre-styled-ui の段階名パリティ
+
+wireframe-ui `size::Size` は pre-styled-ui `recipe::Size`（`crates/pre-styled-ui/src/recipe.rs`）と段階名
+（`Xs`/`Sm`/`Md`/`Lg`/`Xl`、既定 `Md`）を一致させるが、依存は追加しない（§4）。両者が同時に段階を増減する
+変更は `crates/xtask/tests/wireframe_ui_size_parity.rs`（ソース走査による variant 名突合）の更新を伴う
+（意図的な摩擦点）。
