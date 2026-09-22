@@ -10,8 +10,11 @@
 //! - 登録済み部品ページ（現時点 0 件）が存在する場合は、節順序が
 //!   H1 → Demo → 引数表 → 原案差分メモ・`class="wireframes-demo"` と
 //!   `wireframes.css` の `<link>` を持つ・`pre-styled-ui.css` を持たない・
+//!   Demo 領域（`class="wireframes-demo"` 〜 `>引数表<` の部分文字列）が
 //!   `<form`/`<button`/`<input`/`<select`/`<a href` のいずれも出力しない
-//!   （§7 の非対話制約）・`javascript:`/`on*` を含まない
+//!   （§7 の非対話制約）・`javascript:`/`on*` を含まない。この制約はページ
+//!   全体ではなく Demo 領域に限定する（ヘッダー・サイドバー等のサイト
+//!   chrome は全ページ共通で `<a href`/`<button` を出力するため）
 //! - `wireframes::stylesheet()` が `.wireframes-demo` の `overflow-x`・
 //!   `color-scheme: light` と `wireframe_css()` の全文を含み、`--fandhe-` を
 //!   含まない（`push_theme` 不使用の固定）
@@ -110,18 +113,30 @@ fn every_registered_wireframe_page_satisfies_the_contract() {
             wireframes::DIFF_NOTES_HEADING
         );
 
-        // §7 の非対話制約: ネイティブ対話要素を一切出力しない。
+        // §7 の非対話制約は部品自体（Demo 領域）の出力に対する制約であり、
+        // 全ページ生成 HTML（ヘッダー・サイドバー等のサイト chrome を含む）
+        // に対して課すものではない。chrome は GitHub リンク（`<a href`）・
+        // テーマトグルボタン（`<button`）を全ページ共通で出力するため、
+        // ページ全体を対象にすると部品が完全に非対話であっても必ず FAIL
+        // する（`crates/docs-site/tests/blocks_contract.rs` が `<form` の
+        // みを対象にしているのと同じ判断軸）。`class="wireframes-demo"`
+        // 〜 `>引数表<` の部分文字列（Demo 領域）へスコープを絞る。
+        let demo_class_pos = html
+            .find(r#"class="wireframes-demo""#)
+            .unwrap_or_else(|| panic!("{kebab}: missing wireframes-demo wrapper"));
+        let demo_section = &html[demo_class_pos..args_pos];
+
         for forbidden in ["<form", "<button", "<input", "<select", "<a href"] {
             assert!(
-                !html.contains(forbidden),
-                "{kebab}: page should not contain interactive element {forbidden}"
+                !demo_section.contains(forbidden),
+                "{kebab}: Demo should not contain interactive element {forbidden}"
             );
         }
         assert!(
-            !html.contains("javascript:")
-                && !html.contains(" onclick")
-                && !html.contains(" onload"),
-            "{kebab}: page should not contain inline JS handlers or javascript: URLs"
+            !demo_section.contains("javascript:")
+                && !demo_section.contains(" onclick")
+                && !demo_section.contains(" onload"),
+            "{kebab}: Demo should not contain inline JS handlers or javascript: URLs"
         );
     }
 }
