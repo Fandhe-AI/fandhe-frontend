@@ -11,6 +11,7 @@
 | `crates/core/`（fandhe-frontend-core: 描画コア） | core-builder | sonnet |
 | `crates/interactive/`（fandhe-frontend-interactive: 状態管理コア） | core-builder | sonnet |
 | `crates/animation/`（fandhe-animation: アニメーション演算基幹） | core-builder | sonnet |
+| `crates/wireframe-ui/`（fandhe-frontend-wireframe-ui: ワイヤーフレーム UI コンポーネント層） | core-builder | sonnet |
 | `crates/headless-ui/`（fandhe-frontend-headless-ui: headless UI コンポーネント層） | core-builder | sonnet |
 | `crates/pre-styled-ui/`（fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層） | core-builder | sonnet |
 | `crates/app/`（fandhe-frontend-app: アプリ構築層） | server-builder | sonnet |

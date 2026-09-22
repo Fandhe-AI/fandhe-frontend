@@ -42,7 +42,7 @@ version = 1
 role = "core"
 crate = "fandhe-frontend-core"
 description = "外部依存ゼロのレンダリングコア（ノード木 API・render・既定エスケープ）"
-allowed_dependents = ["interactive", "app", "server", "wasm-full", "wasm-thin", "wasm-client", "dist-server", "docs-site", "headless-ui", "xtask", "frontend-animation"]
+allowed_dependents = ["interactive", "app", "server", "wasm-full", "wasm-thin", "wasm-client", "dist-server", "docs-site", "headless-ui", "xtask", "frontend-animation", "wireframe-ui"]
 path = "crates/core"
 
 [directories.interactive]
@@ -168,6 +168,13 @@ description = "pre-styled UI コンポーネント層（headless-ui 上層のス
 depends_on = ["headless-ui", "animation"]
 allowed_dependents = ["docs-site"]
 path = "crates/pre-styled-ui"
+
+[directories.wireframe-ui]
+role = "component"
+crate = "fandhe-frontend-wireframe-ui"
+description = "blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（headless-ui/pre-styled-ui とは独立した第 3 の UI 層、SSR 専用・非インタラクティブ、イシュー #2599/#2600/#2603）"
+depends_on = ["core"]
+path = "crates/wireframe-ui"
 
 [directories.static]
 role = "asset"
