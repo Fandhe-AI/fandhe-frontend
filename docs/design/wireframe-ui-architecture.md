@@ -41,8 +41,12 @@ blocks.pm（https://www.blocks.pm/）が持つ 35 部品分のカタログ構成
 blocks.pm から直接転用してよいか）は下記のライセンス保留により制約される。
 
 **参照スクリーンショットの本リポジトリへの取り込みは不採用と確定した（イシュー #2602）。**
-blocks.pm は Figma プラグイン「Blocks – Wireframe」（Figma Community 配布）であり、
-配布元ライセンス（Community Free Resource License）は第三者への再配布・derivative work 作成を
+blocks.pm は Figma プラグイン「Blocks – Wireframe」（Figma Community 配布）である。プラグインページ
+本体（`https://www.figma.com/community/plugin/1332372435133832847/blocks-wireframe`）下部の明示リンクと
+Figma 公式ヘルプセンター記事（無料プラグインは既定で Community Free Resource License の下で公開される
+旨の記載）を一次情報として突き合わせ、当該プラグインへの Community Free Resource License 適用を確認済み
+である（確認日 2026-09-23、根拠・引用は `docs/design/reference-screenshots/README.md` の「blocks.pm
+ライセンス適用の一次情報確認」節を参照）。同ライセンスは第三者への再配布・derivative work 作成を
 明示的に禁止し、スクリーンショット掲載を許諾する記載を持たない。本リポジトリの既存参照 4 サイト
 （chakra-ui / Ark UI / Radix Primitives・Themes / shadcn/ui）が持つ「MIT ライセンスの GitHub
 リポジトリ」という積極的な再配布許諾根拠を blocks.pm は持たないため、`docs/design/
