@@ -244,20 +244,24 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // 加わり、249 → 250 になった。イシュー #2551 で Blocks セクションへ
     // footer-sticky-reveal・footer-newsletter の 2 ページが加わり、
     // 250 → 252 になった。イシュー #2607 で Wireframes セクション
-    // （索引 1）が新設され、252 → 253 になった。
-    assert_eq!(pages.len(), 253, "expected 253 pages, got {pages:?}");
+    // （索引 1）が新設され、252 → 253 になった。イシュー #2617 で
+    // Wireframes セクションへ Annotation 部品ページが加わり、
+    // 253 → 254 になった。
+    assert_eq!(pages.len(), 254, "expected 254 pages, got {pages:?}");
 
     // イシュー #2607: `/wireframes/` 配下は索引ページ（`/wireframes/` 自身）
-    // 1 件のみ（本イシュー時点では個別部品ページを同梱しない、設計文書
-    // §12 D2）。Phase 1〜8（#2608〜#2665）の各部品イシューが増分する。
+    // 1 件のみだった（同イシュー時点では個別部品ページを同梱しない、設計
+    // 文書 §12 D2）。イシュー #2617 で最初の部品ページ（Annotation）が
+    // 加わり 2 件になった。Phase 1・3 以降（#2608〜#2665）の各部品イシューが
+    // 増分する。
     let wireframes_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/wireframes/"))
         .collect();
     assert_eq!(
         wireframes_pages.len(),
-        1,
-        "expected 1 /wireframes/ page (index only), got {wireframes_pages:?}"
+        2,
+        "expected 2 /wireframes/ pages (index + annotation), got {wireframes_pages:?}"
     );
     assert!(
         pages.contains(&("site/wireframes.md", "/wireframes/")),

@@ -207,12 +207,12 @@
   `theme::SPRING_EASING_LINEAR`、報酬行の順送り出現は既存の
   `recipe::STAGGER_INDEX_VAR` を再利用し、新規部品・wasm-full/
   frontend-animation の変更は行わない）/
-  `wireframes/index.html`（イシュー #2607、Wireframes セクションの索引。
-  `assets/wireframes.css` は該当部品ページが登録されるまで書き出されない
-  ため〔`crate::wireframes::WIREFRAMES` が本イシュー時点で空、
-  `crate::build::build_site` の「使われているページだけ」書き出し〕、
-  Phase 1（#2608〜）の最初の部品イシューが個別部品ページ・専用 CSS と
-  一緒に追加する）
+  `wireframes/index.html`（イシュー #2607、Wireframes セクションの索引）/
+  `wireframes/annotation/index.html`・`assets/wireframes.css`（イシュー
+  #2617、Phase 2「テキスト・注釈」の最初の部品ページ〔Annotation〕の登録
+  により `crate::wireframes::WIREFRAMES` が空でなくなり、
+  `crate::build::build_site` の「使われているページだけ」書き出し契約に
+  従って `assets/wireframes.css` が初めて書き出された）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

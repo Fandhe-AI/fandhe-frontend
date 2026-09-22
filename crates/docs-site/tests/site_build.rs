@@ -251,10 +251,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // になった。イシュー #2551 で Blocks セクションへ
     // footer-sticky-reveal・footer-newsletter の 2 ページが加わり、
     // 250 → 252 になった。イシュー #2607 で Wireframes セクション（索引 1）
-    // が新設され、252 → 253 になった。
+    // が新設され、252 → 253 になった。イシュー #2617 で Wireframes
+    // セクションへ Annotation 部品ページが加わり、253 → 254 になった。
     assert_eq!(
         report.written.len(),
-        253,
+        254,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -348,8 +349,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // primitives-showcase.css が加わり 6 → 7 になり、イシュー #1562 で
     // Image 節 demo のビルド時生成 SVG（`showcase::image_demo_svg`）が
     // 加わり 7 → 8 になった）。イシュー #2088 で Blocks 専用 CSS
-    // （`blocks.css`）が加わり 8 → 9 になった。
-    assert_eq!(report.assets.len(), 9, "{:?}", report.assets);
+    // （`blocks.css`）が加わり 8 → 9 になった。イシュー #2617 で
+    // Wireframes 専用 CSS（`wireframes.css`）が初めて書き出され、
+    // 9 → 10 になった（Annotation 部品ページの登録により
+    // `crate::wireframes::WIREFRAMES` が空でなくなったため、
+    // 「使われているページだけ」書き出す既定契約に従って生成される）。
+    assert_eq!(report.assets.len(), 10, "{:?}", report.assets);
 
     // イシュー #1016: リダイレクトページは `written`（本体ページ）にも
     // `assets` にも含めない独立フィールド（`BuildReport::redirects`）。
@@ -454,9 +459,12 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
         ("blocks/index.html", false),
         ("blocks/login-01/index.html", true),
         // イシュー #2607: Wireframes 索引ページも Rust 生成コンテンツを
-        // 持たず pre-styled-ui.css を配線しない（`crate::wireframes` は
-        // 部品ページ 0 件のため個別部品ページの代表エントリはまだ無い）。
+        // 持たず pre-styled-ui.css を配線しない。イシュー #2617 で
+        // Annotation が最初の部品ページとして登録され、代表エントリを
+        // 追加した（`wireframes.css` は配線するが `pre-styled-ui.css` は
+        // 配線しない、独立した第 3 の UI 層のため is_showcase=false）。
         ("wireframes/index.html", false),
+        ("wireframes/annotation/index.html", false),
         ("api/component-api/index.html", false),
     ];
 

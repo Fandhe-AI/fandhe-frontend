@@ -246,12 +246,13 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-newsletter/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/blocks.css"
           # イシュー #2607: Wireframes セクションの索引ページ。
-          # `assets/wireframes.css` は該当部品ページが登録されるまで書き出され
-          # ないため（`crate::wireframes::WIREFRAMES` が本イシュー時点で空、
-          # `crate::build::build_site` の「使われているページだけ」書き出し）、
-          # Phase 1 の最初の部品イシューが `wireframes/<kebab>/index.html` と
-          # 一緒に追加する。
+          # イシュー #2617: 最初の部品ページ（Annotation）の登録により
+          # `crate::wireframes::WIREFRAMES` が空でなくなり、
+          # `assets/wireframes.css`（`crate::build::build_site` の
+          # 「使われているページだけ」書き出し）が初めて書き出される。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/annotation/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact
         # 汎用 artifact として dist を渡し、Pages 専用形式への変換以降は

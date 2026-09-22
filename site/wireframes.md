@@ -25,9 +25,13 @@
 - **引数表**: Rust API の引数・型・既定値・説明
 - **原案差分メモ**: 独自設計の判断（blocks.pm との対応範囲・Primitives/Themes の同名部品との違い等）
 
+## 掲載済み
+
+- [Annotation](./wireframes/annotation.md)
+
 ## 掲載予定
 
-以下は Phase 1〜8（#2608〜#2665）で順次掲載する 49 部品です（Phase ごとの内訳）。
+以下は Phase 1〜8（#2608〜#2665）で順次掲載する 48 部品です（Phase ごとの内訳）。
 掲載が完了した部品は本節へリンク付きの「掲載済み」一覧として追記されます（現時点では
 未掲載のため本節はリンクなしの一覧です）。
 
@@ -43,7 +47,6 @@
 - text
 - paragraph
 - rich-text
-- annotation
 - link
 - tag
 

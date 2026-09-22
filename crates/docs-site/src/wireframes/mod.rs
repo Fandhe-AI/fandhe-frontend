@@ -25,10 +25,11 @@
 //!
 //! # レジストリ契約（Phase 1〜8 が複製する契約、設計文書 §12）
 //!
-//! [`Wireframe`] 1 件 = 1 部品ページ。[`WIREFRAMES`] は本イシュー時点では
-//! 空レジストリである（掲載予定 49 部品の kebab はすべて Phase 1〜8
-//! （#2608〜#2665）の各部品イシューが所有するため、本イシューで雛形実例
-//! ページを同梱すると kebab の衝突が起きる、設計文書 §12 D2）。
+//! [`Wireframe`] 1 件 = 1 部品ページ。#2607 時点では空レジストリだった
+//! （掲載予定 49 部品の kebab はすべて Phase 1〜8（#2608〜#2665）の各部品
+//! イシューが所有するため、#2607 で雛形実例ページを同梱すると kebab の
+//! 衝突が起きる、設計文書 §12 D2）。Phase 2「テキスト・注釈」の
+//! `annotation` 部品（イシュー #2617）が最初の要素を追加した。
 //!
 //! # CSS の置き場
 //!
@@ -51,6 +52,8 @@
 //! `raw_html()`・HTML 文字列の直接組み立て（`format!("<div>{}</div>", …)`）は
 //! 使わない。[`ArgRow`] の各フィールドは `&'static str` に限定し、利用者入力が
 //! 引数表へ流れ込む経路を型で塞ぐ。
+
+mod annotation;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
 use fandhe_frontend_pre_styled_ui::{StyleSheet, StylesheetError};
@@ -97,9 +100,11 @@ pub struct Wireframe {
 
 /// Wireframes レジストリ本体。`site/nav.toml` の `/wireframes/*` ページ
 /// （索引を除く）との三方突合を `crates/docs-site/tests/wireframes_nav.rs`
-/// が固定する。本イシュー（#2607）時点では空。Phase 1〜8（#2608〜#2665）の
-/// 各部品イシューが自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
-pub const WIREFRAMES: &[Wireframe] = &[];
+/// が固定する。#2607 時点では空だったが、Phase 2「テキスト・注釈」の
+/// [`annotation::WIREFRAME`]（イシュー #2617）を皮切りに Phase 1〜8
+/// （#2608〜#2665）の各部品イシューが自分の [`Wireframe`] 定数を
+/// 1 要素ずつ追記する。
+pub const WIREFRAMES: &[Wireframe] = &[annotation::WIREFRAME];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。
 /// `crate::build::build_site` が「このページを Wireframes 専用分岐に乗せるか」
