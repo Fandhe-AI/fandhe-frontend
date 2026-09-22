@@ -1,0 +1,19 @@
+[package]
+name = "fandhe-frontend-wireframe-ui"
+version = "0.1.0"
+edition = "2021"
+description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Fandhe-AI/fandhe-frontend"
+readme = "../../README.md"
+keywords = ["frontend", "wireframe", "ui", "components", "prototyping"]
+categories = ["web-programming", "gui"]
+
+# REQ-3 / coding-rust.md: fandhe-frontend-core への path 依存のみ。
+# headless-ui/pre-styled-ui への依存は持たない（独立した第 3 の UI 層、
+# docs/design/wireframe-ui-architecture.md §1）。
+# 新規クレートを追加する場合は事前にユーザー承認を得ること。
+[dependencies]
+fandhe-frontend-core = { path = "../core", version = "0.4.3" }
+
+[dev-dependencies]

@@ -23,6 +23,7 @@ main セッションのコンテキスト消費を抑え、指揮・統合・ユ
 
 `crates/animation/`・`crates/frontend-animation/` の実装委譲先は
 `delegation-impl.md` に従う（core-builder / wasm-builder）。
+`crates/wireframe-ui/` も同様に `delegation-impl.md` に従う（core-builder）。
 
 ## 設計フェーズ
 
