@@ -212,7 +212,9 @@
   #2617、Phase 2「テキスト・注釈」の最初の部品ページ〔Annotation〕の登録
   により `crate::wireframes::WIREFRAMES` が空でなくなり、
   `crate::build::build_site` の「使われているページだけ」書き出し契約に
-  従って `assets/wireframes.css` が初めて書き出された）
+  従って `assets/wireframes.css` が初めて書き出された）/
+  `wireframes/frame/index.html`（イシュー #2609、Phase 1「レイアウト骨格」
+  の最初の部品〔Frame〕）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

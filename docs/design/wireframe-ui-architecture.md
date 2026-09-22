@@ -216,6 +216,9 @@ Rust 側の値表（`size::SCALE`〔非公開 const〕・`tokens::TOKENS` 等）
 - **基盤パート class（唯一の例外）**: `fw-wire-icon-glyph`（`icon` モジュール、§11）は部品ルートを持たずに
   単独使用する唯一の例外的パート class である。`data-icon` 属性はアイコン名の識別子であり、表示状態を
   表す `data-*`（前項）ではない
+- **部品固有の修飾 class**（`fw-wire-<kebab>-<modifier>`、例: `fw-wire-frame-bordered`、イシュー #2609）は
+  部品ルートと結合して使う横断修飾ではない、1 部品専用の修飾 class である。共通修飾（前項の 4 種）とは
+  別物であり、`props.rs` の共通型へ昇格させるかは部品横断で再利用が見えた時点で判断する
 
 `class::class_list(base, modifiers)` は `base` に `Some` の修飾子のみを半角スペース連結する。引数は
 `&'static str` に限定し、利用者入力が class へ流れ込む経路を型で塞ぐ（REQ-1・A03 対応）。

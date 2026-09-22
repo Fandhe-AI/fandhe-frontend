@@ -38,9 +38,10 @@
 //! SVG アイコン基盤（[`icon`]、イシュー #2606）実装済み: 12 種以上の
 //! ラインアートアイコンと `Node` スロット規約（`docs/design/wireframe-ui-architecture.md`
 //! §11）。個別部品は Phase 2「テキスト・注釈」の [`annotation`]
-//! （イシュー #2617）から実装を開始した。残りは Phase 2 の他部品
-//! （text/paragraph/rich-text/link/tag 等）および Phase 1・3 以降
-//! （#2608〜）で順次追加する。
+//! （イシュー #2617）から実装を開始し、Phase 1「レイアウト骨格」の
+//! [`frame`]（イシュー #2609）が続いた。残りは Phase 1 の他部品
+//! （stack/grid/divider）・Phase 2 の他部品（text/paragraph/rich-text/
+//! link/tag 等）および Phase 3 以降（#2610〜）で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -57,6 +58,7 @@
 pub mod annotation;
 pub mod class;
 pub mod css;
+pub mod frame;
 pub mod icon;
 pub mod props;
 pub mod size;
@@ -65,5 +67,6 @@ pub mod tokens;
 pub use annotation::annotation;
 pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
+pub use frame::frame;
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
 pub use size::Size;

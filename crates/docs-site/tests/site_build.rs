@@ -253,9 +253,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // 250 → 252 になった。イシュー #2607 で Wireframes セクション（索引 1）
     // が新設され、252 → 253 になった。イシュー #2617 で Wireframes
     // セクションへ Annotation 部品ページが加わり、253 → 254 になった。
+    // イシュー #2609 で Wireframes セクションへ Frame 部品ページが加わり、
+    // 254 → 255 になった。
     assert_eq!(
         report.written.len(),
-        254,
+        255,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -465,6 +467,9 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
         // 配線しない、独立した第 3 の UI 層のため is_showcase=false）。
         ("wireframes/index.html", false),
         ("wireframes/annotation/index.html", false),
+        // イシュー #2609: Frame が 2 件目の部品ページとして登録された
+        // （同じく pre-styled-ui.css は配線しない）。
+        ("wireframes/frame/index.html", false),
         ("api/component-api/index.html", false),
     ];
 
