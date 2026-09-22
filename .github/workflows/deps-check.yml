@@ -57,6 +57,11 @@ name: deps-check
 #   （参考実測: packages=19/60 depth=9/6、result=FAIL）であり、スコープ外の理由も
 #   同一（上記「WASM クライアントクレートのスコープ」を参照。詳細は
 #   docs/policy/dependency-graph-policy.md 第 11 節）。
+#   イシュー #2604 で fandhe-frontend-wireframe-ui（crates/wireframe-ui/、
+#   fandhe-frontend-core への path 依存のみ）を計測対象に追加した。SSR 専用の
+#   UI コンポーネント層でありサーバー構成に組み込まれ得るため、headless-ui/
+#   pre-styled-ui と同じ判断軸で REQ-3 の対象とする。実測:
+#   packages=1/60 depth=1/6（PASS）。計測対象は 8 → 9 パッケージへ拡張。
 # - `check-core-deps` は引数を取らず、`check_deps::ZERO_DEP_CRATES` と実 workspace
 #   メンバーの積集合を xtask 内部で自動解決する（`fandhe-frontend-interactive` 追加時も
 #   ワークフロー変更は不要）。
@@ -114,7 +119,7 @@ jobs:
         # 一致しなくなる（fail-closed の前提が崩れる）ため必須。
         run: |
           set -o pipefail
-          cargo run --locked -p xtask -- check-deps --package fandhe-frontend-core --package xtask --package fandhe-frontend-app --package fandhe-frontend-dist-server --package fandhe-frontend-server --package fandhe-frontend-headless-ui --package fandhe-frontend-pre-styled-ui --package fandhe-animation | tee deps-check.log
+          cargo run --locked -p xtask -- check-deps --package fandhe-frontend-core --package xtask --package fandhe-frontend-app --package fandhe-frontend-dist-server --package fandhe-frontend-server --package fandhe-frontend-headless-ui --package fandhe-frontend-pre-styled-ui --package fandhe-animation --package fandhe-frontend-wireframe-ui | tee deps-check.log
 
       - name: Publish deps-check summary
         if: always()
@@ -178,7 +183,7 @@ jobs:
         if: always()
         run: |
           set -o pipefail
-          cargo run --locked -p xtask -- list-build-scripts --package fandhe-frontend-core --package xtask --package fandhe-frontend-app --package fandhe-frontend-dist-server --package fandhe-frontend-server --package fandhe-frontend-headless-ui --package fandhe-frontend-pre-styled-ui --package fandhe-animation | tee build-scripts.log
+          cargo run --locked -p xtask -- list-build-scripts --package fandhe-frontend-core --package xtask --package fandhe-frontend-app --package fandhe-frontend-dist-server --package fandhe-frontend-server --package fandhe-frontend-headless-ui --package fandhe-frontend-pre-styled-ui --package fandhe-animation --package fandhe-frontend-wireframe-ui | tee build-scripts.log
 
       - name: Publish build-scripts summary
         if: always()

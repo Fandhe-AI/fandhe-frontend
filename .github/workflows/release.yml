@@ -57,6 +57,12 @@ name: release
 # 同様に fandhe-frontend-animation の公開・反映確認が前提となる
 # （`cargo publish` は optional 依存であっても registry 上の解決を要求するため）。
 #
+# fandhe-frontend-wireframe-ui を公開する場合の依存順の注意（イシュー #2604）:
+# 依存先は fandhe-frontend-core（version = "0.4.3"、公開済み）のみであり、
+# 他クレートのような未公開クレートへの依存待ちはない。sparse index 上の
+# fandhe-frontend-core が `version = "0.4.3"` 要求を満たすことのみを確認すれば
+# 公開できる（初回公開手順は `docs/ci/version-bump-publish-order-gap.md` §11 C）。
+#
 # GitHub Environments `crates-io-release` による承認ゲート（fandhe-backend の
 # release.yml と同型）: publish ジョブのみ job レベルで
 # `environment: crates-io-release` を参照する。verify ジョブ（ガード群 +
@@ -90,6 +96,7 @@ on:
           - fandhe-frontend-pre-styled-ui
           - fandhe-animation
           - fandhe-frontend-animation
+          - fandhe-frontend-wireframe-ui
       version:
         description: "公開しようとするバージョン（例: 0.1.1）。crate の Cargo.toml の version と完全一致する必要がある"
         type: string
