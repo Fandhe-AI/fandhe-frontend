@@ -53,9 +53,9 @@
 //! 使わない。[`ArgRow`] の各フィールドは `&'static str` に限定し、利用者入力が
 //! 引数表へ流れ込む経路を型で塞ぐ。
 
-use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
-
 mod annotation;
+
+use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
 use fandhe_frontend_pre_styled_ui::{StyleSheet, StylesheetError};
 
 /// Wireframes 専用 CSS の出力先（`out_dir` 起点の相対パス）。`crate::build::build_site`

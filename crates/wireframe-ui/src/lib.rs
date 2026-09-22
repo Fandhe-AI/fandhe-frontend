@@ -38,7 +38,8 @@
 //! SVG アイコン基盤（[`icon`]、イシュー #2606）実装済み: 12 種以上の
 //! ラインアートアイコンと `Node` スロット規約（`docs/design/wireframe-ui-architecture.md`
 //! §11）。個別部品は Phase 2「テキスト・注釈」の [`annotation`]
-//! （イシュー #2617）から実装を開始した。残りは Phase 1・3 以降
+//! （イシュー #2617）から実装を開始した。残りは Phase 2 の他部品
+//! （text/paragraph/rich-text/link/tag 等）および Phase 1・3 以降
 //! （#2608〜）で順次追加する。
 //!
 //! # class 命名規約
