@@ -64,12 +64,14 @@ fn site_nav_parses_successfully() {
 /// Examples の後・Themes の前へ加わり、セクション数は 5 → 6 になった
 /// （ヘッダー上の並びは設計 §2「Primitives → Themes」）。
 #[test]
-fn site_nav_registers_seven_sections_with_expected_titles() {
+fn site_nav_registers_eight_sections_with_expected_titles() {
     let nav = load_nav();
     let titles: Vec<&str> = nav.sections.iter().map(|s| s.title.as_str()).collect();
     // イシュー #2088: Blocks セクション（shadcn/ui Blocks 相当の既存部品
     // 合成例）が Themes の直後・API Reference の直前へ加わり、
-    // セクション数は 6 → 7 になった。
+    // セクション数は 6 → 7 になった。イシュー #2607: Wireframes セクション
+    // （`fandhe-frontend-wireframe-ui` の部品ページ）が Blocks の直後・
+    // API Reference の直前へ加わり、セクション数は 7 → 8 になった。
     assert_eq!(
         titles,
         vec![
@@ -79,6 +81,7 @@ fn site_nav_registers_seven_sections_with_expected_titles() {
             "Primitives",
             "Themes",
             "Blocks",
+            "Wireframes",
             "API Reference"
         ]
     );
@@ -112,6 +115,7 @@ fn site_nav_declares_index_path_for_every_section() {
             ("Primitives", "/primitives/"),
             ("Themes", "/themes/"),
             ("Blocks", "/blocks/"),
+            ("Wireframes", "/wireframes/"),
             ("API Reference", "/api/"),
         ]
     );
@@ -239,8 +243,26 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // になった。イシュー #2552 で Blocks セクションへ game-ui-modal が
     // 加わり、249 → 250 になった。イシュー #2551 で Blocks セクションへ
     // footer-sticky-reveal・footer-newsletter の 2 ページが加わり、
-    // 250 → 252 になった。
-    assert_eq!(pages.len(), 252, "expected 252 pages, got {pages:?}");
+    // 250 → 252 になった。イシュー #2607 で Wireframes セクション
+    // （索引 1）が新設され、252 → 253 になった。
+    assert_eq!(pages.len(), 253, "expected 253 pages, got {pages:?}");
+
+    // イシュー #2607: `/wireframes/` 配下は索引ページ（`/wireframes/` 自身）
+    // 1 件のみ（本イシュー時点では個別部品ページを同梱しない、設計文書
+    // §12 D2）。Phase 1〜8（#2608〜#2665）の各部品イシューが増分する。
+    let wireframes_pages: Vec<&(&str, &str)> = pages
+        .iter()
+        .filter(|(_, path)| path.starts_with("/wireframes/"))
+        .collect();
+    assert_eq!(
+        wireframes_pages.len(),
+        1,
+        "expected 1 /wireframes/ page (index only), got {wireframes_pages:?}"
+    );
+    assert!(
+        pages.contains(&("site/wireframes.md", "/wireframes/")),
+        "nav.toml is missing the Wireframes index page"
+    );
 
     // イシュー #2088: `/blocks/` 配下は索引ページ（`/blocks/` 自身）1 件 +
     // login-01 1 件の 2 件。イシュー #2089 で dashboard-01 が加わり 3 件。

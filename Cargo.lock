@@ -112,6 +112,7 @@ dependencies = [
  "fandhe-frontend-core",
  "fandhe-frontend-pre-styled-ui",
  "fandhe-frontend-server",
+ "fandhe-frontend-wireframe-ui",
 ]
 
 [[package]]

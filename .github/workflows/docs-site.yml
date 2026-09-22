@@ -35,6 +35,7 @@ on:
       - "crates/pre-styled-ui/**" # 骨格 CSS（assets/site.css）の生成元（Theme::to_css、イシュー #905） + showcase ページの styled 部品掲載
       - "crates/headless-ui/**" # showcase の Tabs/Accordion マークアップ（pre-styled-ui が再エクスポート）
       - "crates/interactive/**" # headless-ui の状態機械が依存（推移的にマークアップへ影響）
+      - "crates/wireframe-ui/**" # Wireframes セクション（wireframes.css・Demo の生成元、イシュー #2607）
       - "examples/*/README.md" # site/nav.toml が Examples セクションの source として参照（イシュー #504）
       - ".github/workflows/docs-site.yml" # image-size.yml と同じ自己参照パターン
   workflow_dispatch:
@@ -244,6 +245,13 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-sticky-reveal/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-newsletter/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/blocks.css"
+          # イシュー #2607: Wireframes セクションの索引ページ。
+          # `assets/wireframes.css` は該当部品ページが登録されるまで書き出され
+          # ないため（`crate::wireframes::WIREFRAMES` が本イシュー時点で空、
+          # `crate::build::build_site` の「使われているページだけ」書き出し）、
+          # Phase 1 の最初の部品イシューが `wireframes/<kebab>/index.html` と
+          # 一緒に追加する。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/index.html"
 
       - name: Upload dist artifact
         # 汎用 artifact として dist を渡し、Pages 専用形式への変換以降は

@@ -187,7 +187,7 @@ instance swap・サイズ／強調の組み合わせ等）を Rust API へ落と
 - **#2605（共通 API、完了）**: §4 の `Size` 軸命名規約・§6 の Figma プロパティ変換規約を前提に、`Size` 列挙・共通型（`Bold`/`Primary`/`Active`/`Disabled`/`Orientation`）・モノクロトークン・`wireframe_css()` 出力関数を実装した。詳細は §10 参照
 - **#2606（アイコン基盤、完了）**: §6 の instance swap（`Node` スロット引数）規約を前提に、SVG ラインアート
   アイコンセット（`icon::<name>(Size) -> Node`、21 種、`ALL` レジストリ）を実装した。詳細は §11 参照
-- **#2607（docs サイトセクション）**: §7 の「`/wireframes/<kebab>/` ページ同梱」方針と、§8 の kebab 命名（特に `media`）を前提とする
+- **#2607（docs サイトセクション、完了）**: §7 の「`/wireframes/<kebab>/` ページ同梱」方針と、§8 の kebab 命名（特に `media`）を前提に、`/wireframes/` セクション基盤（nav 登録・レジストリ・簡略レンダラ・契約テスト・CI dist check）を実装した。詳細は §12 参照
 
 ## 10. class 命名規約・CSS 出力規約（イシュー #2605）
 
@@ -263,8 +263,9 @@ wireframe-ui `size::Size` は pre-styled-ui `recipe::Size`（`crates/pre-styled-
   `size` のみで、方向付きキャレットは列挙型ではなく `caret_up`/`caret_down`/`caret_left`/`caret_right`
   の関数 4 本に分ける
 - `icon::ALL: &[IconEntry]`（`IconEntry = (&'static str, fn(Size) -> Node)`）が名前 → コンストラクタの
-  レジストリ（宣言順）。#2607（docs サイト showcase）・#2652（`icon` 部品）の一覧表示元、および契約
-  テスト（`tests/icon.rs`）が全アイコン × 全 `Size` を走査する基点
+  レジストリ（宣言順）。#2652（`/wireframes/icon/` ページ）の一覧表示元、および契約
+  テスト（`tests/icon.rs`）が全アイコン × 全 `Size` を走査する基点（#2607 時点では `/wireframes/`
+  セクション自体は基盤のみで個別部品ページを持たないため、一覧表示元の実装は #2652 が担う。§12 D8）
 - `icon::ICON_GLYPH_CSS: &str` がグリフの CSS（1 セレクタ）。`css::PARTS` へ最初に登録された要素
 - クレートルートでは `pub mod icon;` のみを公開し、`pub use` による関数再エクスポートは行わない
   （`icon::plus` の名前空間で使わせる）
@@ -328,3 +329,53 @@ Lucide / Feather / Heroicons 等の既存アイコンセットのパスデータ
 ### 11.7 追記契約
 
 新規アイコン追加は `icon::ALL` への登録を必須とする（`tests/icon.rs` の契約テストが自動網羅するため）。
+
+## 12. docs サイト `/wireframes/` セクション（イシュー #2607）
+
+本節は `crates/docs-site/src/wireframes/mod.rs` の実装契約を記す。§7 の
+「各部品イシューは `/wireframes/<kebab>/` ページを同梱する」方針の受け皿
+（nav 登録・レジストリ・簡略レンダラ・契約テスト・CI dist check）を、
+Phase 1〜8（#2608〜#2665）の着手前に本イシューで固定する。設計判断は
+以下の決定表（D1〜D8）を正とする。
+
+| # | 論点 | 決定 |
+|---|---|---|
+| D1 | `component_page::Layer` 統合 vs 独立分岐 | **独立分岐**（`crate::blocks` と同型）。`Layer::from_page_path` は `/primitives/` 以外を全部 `Themes` と判定する全域関数であり、Wireframes を通すと `pre-styled-ui.css` 配線判定と混線するため統合しない |
+| D2 | 雛形実例ページを同梱するか | **同梱しない**（`WIREFRAMES` は空レジストリ）。掲載予定 49 部品の kebab は Phase 1〜8 の各部品イシューが所有するため、本イシューで作ると衝突する |
+| D3 | docs-site → wireframe-ui の path 依存 | **本イシューで追加**。Phase 1 の全部品イシューが同時に依存追加すると `Cargo.toml`/`Cargo.lock`/`structure.toml` が PR 間で衝突するため、基盤側で 1 回だけ入れる |
+| D4 | 専用 CSS の構成 | `assets/wireframes.css` = `wireframe_css()`（wireframe-ui 側で全部品 CSS を `PARTS` 集約済み）+ docs 専用のデモ枠 CSS（`.wireframes-demo`）のみ。部品追加時に docs-site 側の `stylesheet()` を編集しない契約（`crate::blocks` の部品ごと `LAYOUT_CSS` 追記点とは異なる） |
+| D5 | ダークモード | デモ枠 `.wireframes-demo` に `color-scheme: light` を固定し、docs サイトのテーマトグルで反転させない（wireframe トークンは固定 light 値のみ、紙面メタファーとして最も単純で決定的） |
+| D6 | Rust コードのドリフト検知（`blocks_code_drift.rs` 相当） | **持たない**。テンプレート（Demo + 引数表 + 原案差分メモ）に Rust コード節がなく、引数表はレジストリから機械生成する |
+| D7 | 「原案差分メモ」の扱い | Markdown 原稿側の手書き H2（見出し文言は `原案差分メモ` 固定、`wireframes::DIFF_NOTES_HEADING`）。§2 のライセンス保留により blocks.pm の外観は参照できないため、内容は「独自設計の判断・Primitives/Themes 同名部品との違い」を書く欄と位置づける |
+| D8 | アイコン一覧（§11.1）の表示元 | **#2652（`/wireframes/icon/`）へ委譲**。本イシューでは表示しない（D2 と同じ衝突回避） |
+
+### 12.1 ページ組み立て方式
+
+`crate::blocks` と同型に、Markdown 本文の**最初の `h2` の直前**へ「Demo」
+「引数表」の 2 節を挿入する（後方追記ではない）。`wireframes::insert_generated_sections`
+が `crate::build::build_site` の `render_markdown` 直後・`linkcheck::rewrite_md_links`
+前で呼ばれる。
+
+### 12.2 レジストリ契約（Phase 1〜8 が複製する契約）
+
+`Wireframe { path, title, args, demo }` 1 件 = 1 部品ページ。Phase 1〜8 の
+各部品イシューが触る箇所は以下の定型である。
+
+- `site/nav.toml` の Wireframes セクションへ `[[section.page]]` を 1 ブロック追記
+- `site/wireframes/<kebab>.md` を 1 件追加（H1 → 導入 → `## 原案差分メモ`）
+- `crates/docs-site/src/wireframes/<snake>.rs` の `WIREFRAME` 定数を追加し、
+  `mod.rs` の `WIREFRAMES` へ 1 行追記
+- `crates/docs-site/tests/site_nav.rs`・`site_build.rs` のページ数 +1
+- `.github/workflows/docs-site.yml` の `verify: dist sanity check` へ
+  `test -f` を 1 行追加（最初の 1 件は `assets/wireframes.css` の
+  `test -f` も併せて追加する）
+- `site/wireframes.md` の「掲載予定」冒頭に「掲載済み」節を新設し
+  （最初の部品イシューのみ）、以降はリンクを 1 行追加
+
+### 12.3 セキュリティ不変条件
+
+生成コンテンツはすべて `fandhe_frontend_core` のノード木 API で組み立て、
+`raw_html()`・HTML 文字列の直接組み立てを使わない。`ArgRow` の各フィールドは
+`&'static str` に限定し、利用者入力が引数表へ流れ込む経路を型で塞ぐ。
+`wireframes_contract.rs` が XSS 回帰・非対話制約（`<form>`/`<button>`/
+`<input>`/`<select>`/`<a href>` 不在）・CSS 配線を固定する。

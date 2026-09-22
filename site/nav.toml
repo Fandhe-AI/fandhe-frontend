@@ -1298,6 +1298,23 @@ title = "footer-newsletter"
 source = "site/blocks/footer-newsletter.md"
 path = "/blocks/footer-newsletter/"
 
+# Wireframes セクション（イシュー #2607 / 設計 docs/design/wireframe-ui-architecture.md §12）。
+# fandhe-frontend-wireframe-ui（blocks.pm 参照のローファイ・モノクロ UI 部品層、
+# Primitives/Themes と独立した第 3 の UI 層）の 49 部品を掲載するセクション。
+# Blocks の直後・API Reference の直前へ配置する。1 部品 = 1 ページ（`[[section.group]]`
+# は使わずフラット構成、Blocks と同じ理由）。本イシューでは索引ページのみを登録し、
+# 個別部品ページは Phase 1〜8（#2608〜）の各部品イシューが `[[section.page]]` を
+# 1 件ずつ追記する。`path` は `docs/design/wireframe-ui-architecture.md` §8 の kebab
+# （`media` 等）と一致させること。
+[[section]]
+title = "Wireframes"
+index_path = "/wireframes/"
+
+[[section.page]]
+title = "Wireframes 一覧"
+source = "site/wireframes.md"
+path = "/wireframes/"
+
 # API Reference セクション（イシュー #955 / 設計 docs/design/docs-site-api-reference-split.md）。
 # - docs/internal/*-implementation-notes.md は本マニフェストへ登録しない。
 #   サイト非出力は「nav 未登録」だけで構造的に担保する（同文書 §3-3 / §4 A05）。
