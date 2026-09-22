@@ -191,7 +191,7 @@ instance swap・サイズ／強調の組み合わせ等）を Rust API へ落と
 ## 10. class 命名規約・CSS 出力規約（イシュー #2605）
 
 本節は `crates/wireframe-ui/src/`（`class.rs`/`css.rs`/`size.rs`/`tokens.rs`/`props.rs`）の実装契約を記す。
-Rust 側の値表（`Size::SCALE`・`tokens::TOKENS` 等）を正とし、本節では値を書き写さない（二重管理回避）。
+Rust 側の値表（`size::SCALE`〔非公開 const〕・`tokens::TOKENS` 等）を正とし、本節では値を書き写さない（二重管理回避）。
 
 ### 10.1 class 命名規約
 
