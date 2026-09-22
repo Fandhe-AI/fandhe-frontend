@@ -185,7 +185,8 @@ instance swap・サイズ／強調の組み合わせ等）を Rust API へ落と
 - **#2603（crate 雛形）**: §1 の位置づけ・依存方針（`fandhe-frontend-core` のみ、Primitives/Themes 非依存）を前提とする
 - **#2604（CI 組み込み、完了）**: §7 の共通前提（`forbid(unsafe_code)`・REQ-1 既定エスケープ・wasm-full 非配線・非インタラクティブ制約）を前提に、`deps-check` 計測対象化（実測 packages=1/60 depth=1/6）・`release.yml` 選択肢追加・`ZERO_DEP_CRATES` 非登録・公開クレート化（`publish = false` なし、初回公開は #2668）を実施した。詳細は `docs/ci/version-bump-publish-order-gap.md` §11 参照
 - **#2605（共通 API、完了）**: §4 の `Size` 軸命名規約・§6 の Figma プロパティ変換規約を前提に、`Size` 列挙・共通型（`Bold`/`Primary`/`Active`/`Disabled`/`Orientation`）・モノクロトークン・`wireframe_css()` 出力関数を実装した。詳細は §10 参照
-- **#2606（アイコン基盤）**: §6 の instance swap（`Node` スロット引数）規約を前提とする
+- **#2606（アイコン基盤、完了）**: §6 の instance swap（`Node` スロット引数）規約を前提に、SVG ラインアート
+  アイコンセット（`icon::<name>(Size) -> Node`、21 種、`ALL` レジストリ）を実装した。詳細は §11 参照
 - **#2607（docs サイトセクション）**: §7 の「`/wireframes/<kebab>/` ページ同梱」方針と、§8 の kebab 命名（特に `media`）を前提とする
 
 ## 10. class 命名規約・CSS 出力規約（イシュー #2605）
@@ -212,6 +213,9 @@ Rust 側の値表（`size::SCALE`〔非公開 const〕・`tokens::TOKENS` 等）
 - **CSS カスタムプロパティ**は `--fw-wire-*` プレフィックス。pre-styled-ui の `--fandhe-*`・`fd-*` class
   とは意図的に別プレフィックスとし、docs サイト（#2607）で両スタイルシートが同一ページに載っても
   衝突しない
+- **基盤パート class（唯一の例外）**: `fw-wire-icon-glyph`（`icon` モジュール、§11）は部品ルートを持たずに
+  単独使用する唯一の例外的パート class である。`data-icon` 属性はアイコン名の識別子であり、表示状態を
+  表す `data-*`（前項）ではない
 
 `class::class_list(base, modifiers)` は `base` に `Some` の修飾子のみを半角スペース連結する。引数は
 `&'static str` に限定し、利用者入力が class へ流れ込む経路を型で塞ぐ（REQ-1・A03 対応）。
@@ -247,3 +251,80 @@ wireframe-ui `size::Size` は pre-styled-ui `recipe::Size`（`crates/pre-styled-
 （`Xs`/`Sm`/`Md`/`Lg`/`Xl`、既定 `Md`）を一致させるが、依存は追加しない（§4）。両者が同時に段階を増減する
 変更は `crates/xtask/tests/wireframe_ui_size_parity.rs`（ソース走査による variant 名突合）の更新を伴う
 （意図的な摩擦点）。
+
+## 11. SVG アイコン基盤・`Node` スロット規約（イシュー #2606）
+
+本節は `crates/wireframe-ui/src/icon.rs` の実装契約を記す。値の正は Rust 側であり、表の項目名以外の
+値（座標・CSS 宣言本文等）は本節へ書き写さない（§10 と同じ二重管理回避方針）。
+
+### 11.1 モジュール構成
+
+- `icon::<name>(size: Size) -> Node`（例: `icon::search(Size::Md)`）が個別アイコンの公開関数。引数は
+  `size` のみで、方向付きキャレットは列挙型ではなく `caret_up`/`caret_down`/`caret_left`/`caret_right`
+  の関数 4 本に分ける
+- `icon::ALL: &[IconEntry]`（`IconEntry = (&'static str, fn(Size) -> Node)`）が名前 → コンストラクタの
+  レジストリ（宣言順）。#2607（docs サイト showcase）・#2652（`icon` 部品）の一覧表示元、および契約
+  テスト（`tests/icon.rs`）が全アイコン × 全 `Size` を走査する基点
+- `icon::ICON_GLYPH_CSS: &str` がグリフの CSS（1 セレクタ）。`css::PARTS` へ最初に登録された要素
+- クレートルートでは `pub mod icon;` のみを公開し、`pub use` による関数再エクスポートは行わない
+  （`icon::plus` の名前空間で使わせる）
+
+### 11.2 出力契約
+
+各アイコンは次の `<svg>` ルート属性を持つ（すべて `&'static str` の固定リテラル。利用者入力を含まない）:
+
+| 属性 | 値 | 根拠 |
+|---|---|---|
+| `class` | `fw-wire-icon-glyph fw-wire-size-<段階>` | §10.1 命名規約（`class_list`） |
+| `data-icon` | アイコン名（`ALL` の名前と同一） | 識別子。表示状態ではない |
+| `viewBox` | `0 0 24 24` | 24 グリッド固定 |
+| `width` / `height` | `1em` | CSS 未読込時のフォールバック |
+| `fill` | `none` | 線画契約 |
+| `stroke` | `currentColor` | モノクロ・祖先文字色追従 |
+| `stroke-width` | `1.5` | `tokens::TOKENS` の `line-width` と同値 |
+| `stroke-linecap` / `stroke-linejoin` | `round` | 線画の統一 |
+| `aria-hidden` | `true` | 装飾用途。対話的 ARIA は付与しない |
+| `focusable` | `false` | 非インタラクティブ（§7） |
+
+子要素は `path`/`circle`/`line`/`polyline`/`polygon`/`rect` のみで、属性は固定リテラル。`href`/
+`xlink:href`/`on*`/`style` は一切出力しない。子要素にも `fill` は付けない（ルートの `fill="none"` を
+継承する）。
+
+### 11.3 サイズ機構
+
+`ICON_GLYPH_CSS` が `.fw-wire-icon-glyph { width: 1em; height: 1em; font-size: var(--fw-wire-font-size,
+1rem); ... }` を宣言し、`<svg>` 自身に付与した `fw-wire-size-<段階>`（`size::css()` が定義する
+`--fw-wire-font-size`）が同一要素上で実寸を決める。`size::SCALE` の値はここへ書き写さない。
+
+### 11.4 `Node` スロット規約
+
+アイコン差し替え（Figma の instance swap 相当）を受ける部品は、`Option<Node>` のスロット引数として
+`icon::<name>(size)` の戻り値をそのまま受け取る設計を標準とする（例: `leading: Option<Node>` /
+`trailing: Option<Node>`）。呼び出し側は `Some(icon::search(size))` を渡し、部品側は children へ合成
+する。ホスト要素は `div`/`span` のような非対話要素を使う（`button` 等の対話要素は出力しない、§7）。
+`Node` はエスケープ済みの構築済みノードであるため、スロットへ渡すこと自体が REQ-1 の既定エスケープを
+損なうことはない（`render()` の既定エスケープ・属性名ホワイトリスト・URL 検証を通る）。最小例は
+`icon` モジュールの rustdoc（doctest として実行される）を参照する。部品イシュー（button / input /
+link / nav-item / menu / select / tag 等）はこの形を標準とする。
+
+### 11.5 ジオメトリの出自
+
+全アイコンは 24×24 グリッド上の単純図形として独自に描く。§2 の blocks.pm 外観書き写し禁止に加え、
+Lucide / Feather / Heroicons 等の既存アイコンセットのパスデータもコピーしない（帰属表示付きライセンス
+であり、本リポジトリにその受け入れ方針の記録がないため。`docs/policy/intentional-non-adoption.md` 系の
+先例と同じ fail-closed 判断）。
+
+### 11.6 #2652 との継ぎ目
+
+イシュー #2652（`icon` 部品、Phase 7）は本モジュールへ `pub fn icon`（部品ルート `fw-wire-icon`・
+`role="img"`/`aria-label` 付与の判断込み）・`ICON_CSS`・docs ページ相当の拡張を追加する見込みである。
+名前衝突を避けるため、#2606 では以下の名前を使わない:
+
+- `pub fn icon`（個別アイコンは `icon::plus` のように公開する）
+- 部品ルート class `fw-wire-icon`（グリフ class は `fw-wire-icon-glyph` とし、将来の `icon` 部品の
+  パート class としても整合させる）
+- CSS 定数名 `ICON_CSS`（`ICON_GLYPH_CSS` とする）
+
+### 11.7 追記契約
+
+新規アイコン追加は `icon::ALL` への登録を必須とする（`tests/icon.rs` の契約テストが自動網羅するため）。

@@ -8,8 +8,8 @@
 /// CSS 定数をここへ 1 要素追記する以外の場所で CSS を出力してはならない
 /// （`docs/design/wireframe-ui-architecture.md` §10 の追記契約）。
 ///
-/// 現時点（イシュー #2605）では部品未実装のため空。
-pub const PARTS: &[&str] = &[];
+/// イシュー #2606 で最初の登録（[`crate::icon::ICON_GLYPH_CSS`]）が入った。
+pub const PARTS: &[&str] = &[crate::icon::ICON_GLYPH_CSS];
 
 static CSS: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 
