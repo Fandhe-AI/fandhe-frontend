@@ -78,9 +78,18 @@
 //!   経路には乗せず [`build`] から独立分岐で呼ばれる（詳細は
 //!   [`blocks`] モジュール doc 参照）。専用 CSS（`assets/blocks.css`）は
 //!   `crates/docs-site/tests/blocks_contract.rs` 等が固定する
+//! - [`wireframes`][]: Wireframes（`/wireframes/`）セクションのレジストリ・
+//!   簡略レンダラ（イシュー #2607）。`fandhe-frontend-wireframe-ui`
+//!   （Primitives/Themes と独立した第 3 の UI 層、SSR 専用・非インタラクティブ）
+//!   の部品ページを掲載する第 4 の Rust 生成コンテンツ供給元であり、
+//!   [`blocks`] と同型に [`component_page`] の `generated_content`/`Layer`
+//!   経路には乗せない（詳細は [`wireframes`] モジュール doc 参照）。専用 CSS
+//!   （`assets/wireframes.css`）は `crates/docs-site/tests/wireframes_contract.rs`
+//!   等が固定する
 //!
 //! `fandhe-frontend-core` / `fandhe-frontend-app` / `fandhe-frontend-server` /
-//! `fandhe-frontend-pre-styled-ui` のみに依存し、外部クレートは追加しない
+//! `fandhe-frontend-pre-styled-ui` / `fandhe-frontend-wireframe-ui` のみに
+//! 依存し、外部クレートは追加しない
 //! （`Cargo.toml` の REQ-3 非影響コメント参照）。headless 型が必要な場合は
 //! pre-styled-ui のルート再エクスポート（イシュー #685）経由で得るため
 //! headless-ui への直接依存は持たない（イシュー #693）。
@@ -122,3 +131,4 @@ pub mod site_theme;
 pub mod skip_nav;
 #[cfg(test)]
 mod test_scratch;
+pub mod wireframes;

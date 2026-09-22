@@ -378,3 +378,9 @@ categories / readme を備え公開前提で作られていること、Phase 9�
 予定していることから、`publish = false` は付けない（公開クレート化）。初回公開手順は
 `docs/ci/version-bump-publish-order-gap.md` 第 11 節「新規クレートの CI 組み込み・初回公開
 チェックリスト」の C（同文書 §11 C）に従い #2668 で実施する。
+
+イシュー #2607 で `fandhe-frontend-docs-site`（`publish = false`、REQ-3 計測対象外）が
+`fandhe-frontend-wireframe-ui` へ path 依存を追加した（Wireframes セクション `/wireframes/`
+の Demo・CSS 生成元、`crates/docs-site/src/wireframes/`）。docs-site は deps-check 計測対象
+（`check-deps`/`list-build-scripts`）に含まれないため、本節冒頭の実測値（packages=1/60
+depth=1/6）には影響しない。

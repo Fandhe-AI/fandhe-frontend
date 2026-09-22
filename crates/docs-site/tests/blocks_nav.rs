@@ -27,9 +27,10 @@ fn load_nav() -> Nav {
     parse_nav(&input).expect("site/nav.toml should conform to the fail-closed TOML subset")
 }
 
-/// Blocks セクションが Themes の直後・API Reference の直前（Primitives の
+/// Blocks セクションが Themes の直後・Wireframes の直前（Primitives の
 /// 次の次）に存在し、`index_path`・group 非使用（フラット構成、設計 §6）が
-/// 期待どおりであること。
+/// 期待どおりであること（イシュー #2607 で Wireframes セクションが
+/// Blocks の直後・API Reference の直前へ新設され、隣接関係が変わった）。
 #[test]
 fn blocks_section_is_registered_immediately_after_themes() {
     let nav = load_nav();
@@ -39,7 +40,7 @@ fn blocks_section_is_registered_immediately_after_themes() {
         .position(|s| s.title == "Blocks")
         .expect("Blocks section should be registered");
     assert_eq!(nav.sections[index - 1].title, "Themes");
-    assert_eq!(nav.sections[index + 1].title, "API Reference");
+    assert_eq!(nav.sections[index + 1].title, "Wireframes");
 
     let section = &nav.sections[index];
     assert_eq!(section.index_path, "/blocks/");

@@ -99,7 +99,7 @@
   `crates/interactive/**` は showcase 限定の例外ではなく**全ページに影響する
   paths 必須項目**である。レンダラ側（core / app / server）は従来どおり
   paths 対象外（反映が必要なときは `workflow_dispatch`）。
-- **`docs-site.yml` の verify ステップ契約（イシュー #944/#951/#957/#1016/#1017/#1018/#1021/#1022/#2088）**: `site/**` の
+- **`docs-site.yml` の verify ステップ契約（イシュー #944/#951/#957/#1016/#1017/#1018/#1021/#1022/#2088/#2607）**: `site/**` の
   glob は `site/themes/*.md`（イシュー #1017 で `site/components/*.md` から
   移行）と `site/primitives/*.md`（イシュー #1021）・`site/blocks.md`/
   `site/blocks/*.md`（イシュー #2088）を包含するため、部品ページ・block ページ
@@ -206,7 +206,13 @@
   scale + spring 入場は既存の `motion::ZOOM_IN_KEYFRAMES_NAME` +
   `theme::SPRING_EASING_LINEAR`、報酬行の順送り出現は既存の
   `recipe::STAGGER_INDEX_VAR` を再利用し、新規部品・wasm-full/
-  frontend-animation の変更は行わない）
+  frontend-animation の変更は行わない）/
+  `wireframes/index.html`（イシュー #2607、Wireframes セクションの索引。
+  `assets/wireframes.css` は該当部品ページが登録されるまで書き出されない
+  ため〔`crate::wireframes::WIREFRAMES` が本イシュー時点で空、
+  `crate::build::build_site` の「使われているページだけ」書き出し〕、
+  Phase 1（#2608〜）の最初の部品イシューが個別部品ページ・専用 CSS と
+  一緒に追加する）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
@@ -226,7 +232,11 @@
   `blocks_code_drift.rs`〔`crate::blocks` 配下の手書き実装と Markdown 原稿の
   `rust` フェンスとのマーカー突合、イシュー #2088〕/ `blocks_contract.rs`
   〔Blocks ページの節順序・`<form>` 不在・CSS 配線・XSS 回帰、イシュー
-  #2088〕）が担い、yml・ci.md では
+  #2088〕/ `wireframes_nav.rs`〔nav.toml の `/wireframes/*` ⇔
+  `crate::wireframes::WIREFRAMES` ⇔ `site/wireframes/*.md` の三方突合、
+  イシュー #2607〕/ `wireframes_contract.rs`〔Wireframes ページの節順序・
+  非対話制約（`<form>`/`<button>`/`<input>`/`<select>`/`<a href>` 不在）・
+  CSS 配線・XSS 回帰、イシュー #2607〕）が担い、yml・ci.md では
   二重管理しない（ページ件数・部品数を ci.md へ書かないのはこの二重管理回避のため）。
 - **`fw gate`（`crates/cli/src/gate.rs`）系のツール（clippy component / cargo-deny / wasm32-unknown-unknown rustup target）**: `tools/ci/ensure-gate-tools.sh` を標準ブートストラップとする（イシュー #292。wasm32 target の常設は `lint_wasm32` チェック向けにイシュー #1174 で追加）。CI（`.github/workflows/ci.yml` の test ジョブ・`gate-self-apply`/`gate-self-apply-lint-wasm32`/`gate-self-apply-test` の 3 ジョブ、イシュー #2306 でチェック群ごとに分割済み）・ローカル開発・AI 自己保守フックのいずれも `fw gate` 実行前にこのスクリプトを前置する運用を推奨する。バージョン固定・SHA256 チェックサム検証はスクリプト側に一元化し、CI ワークフロー側との二重管理でドリフトさせない。前置されなかった場合でも `fw gate` 側のプリフライト検出（`docs/design/gate-design.md` §2.3a・§2.6）が「環境エラーであること」を決定的なメッセージ（是正コマンド付き）で示し、コード起因の FAIL との区別を保つ
 - **`forbid-unsafe`/`test` ジョブの workspace テスト重複排除と docs-site 分離（イシュー #2299）**: `forbid-unsafe` ジョブ末尾の `cargo test --workspace`（`FANDHE_FRONTEND_WASM_BUILD: "0"` 下）は `gate-self-apply` ジョブの `fw gate` `test` チェックと完全に重複していたため削除し、`forbid-unsafe` は unsafe 境界回帰テストと `cargo check --workspace`（forbid 属性の三重防御）のみを担う軽量ジョブへ縮小した（`ensure-gate-tools.sh` 前置も不要になったため削除）。`test` ジョブは `fandhe-frontend-docs-site` のテスト（workspace テスト所要時間の大半を占める）を `--exclude fandhe-frontend-docs-site` で除外し、新設した並列ジョブ `test-docs-site`（`cargo test -p fandhe-frontend-docs-site`、wasm ツール・cargo-deny 不要）へ分離した。いずれもテストの削除・弱体化ではなく重複排除・並列化であり、`test-docs-site` は `ci-complete` の `needs:` に追加済み。あわせて docs-site テストの実行時間そのものも、実サイトビルドのテストバイナリ内共有（`crates/docs-site/tests/support/shared_site.rs`、`LazyLock` で 1 バイナリ 1 回）と、ルート `Cargo.toml` の `[profile.dev.package.*] opt-level = 1`（docs-site と描画チェーン 6 クレートのみ。イシュー #2308 で `[profile.test.package.*]` から移設済み、詳細は次項参照）で短縮した。

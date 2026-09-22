@@ -142,8 +142,8 @@ path = "crates/dist-server"
 [directories.docs-site]
 role = "tooling"
 crate = "fandhe-frontend-docs-site"
-description = "docs サイトジェネレータ（外部依存ゼロ・配布物に含めない開発者/CI 用ツール。イシュー #465/#458）。UI コンポーネントショーケースページ（src/showcase.rs）のために pre-styled-ui にも依存する"
-depends_on = ["core", "app", "server", "pre-styled-ui"]
+description = "docs サイトジェネレータ（外部依存ゼロ・配布物に含めない開発者/CI 用ツール。イシュー #465/#458）。UI コンポーネントショーケースページ（src/showcase.rs）のために pre-styled-ui にも依存する。Wireframes セクション（src/wireframes/）のために wireframe-ui にも依存する（イシュー #2607）"
+depends_on = ["core", "app", "server", "pre-styled-ui", "wireframe-ui"]
 path = "crates/docs-site"
 
 [directories.headless-ui]
@@ -174,6 +174,7 @@ role = "component"
 crate = "fandhe-frontend-wireframe-ui"
 description = "blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（headless-ui/pre-styled-ui とは独立した第 3 の UI 層、SSR 専用・非インタラクティブ、イシュー #2599/#2600/#2603）"
 depends_on = ["core"]
+allowed_dependents = ["docs-site"]
 path = "crates/wireframe-ui"
 
 [directories.static]

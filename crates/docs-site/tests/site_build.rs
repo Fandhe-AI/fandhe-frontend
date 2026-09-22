@@ -250,10 +250,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // #2552 で Blocks セクションへ game-ui-modal が加わり、249 → 250
     // になった。イシュー #2551 で Blocks セクションへ
     // footer-sticky-reveal・footer-newsletter の 2 ページが加わり、
-    // 250 → 252 になった。
+    // 250 → 252 になった。イシュー #2607 で Wireframes セクション（索引 1）
+    // が新設され、252 → 253 になった。
     assert_eq!(
         report.written.len(),
-        252,
+        253,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -452,6 +453,10 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
         // を配線する（`crate::blocks` モジュール doc「CSS の置き場」節）。
         ("blocks/index.html", false),
         ("blocks/login-01/index.html", true),
+        // イシュー #2607: Wireframes 索引ページも Rust 生成コンテンツを
+        // 持たず pre-styled-ui.css を配線しない（`crate::wireframes` は
+        // 部品ページ 0 件のため個別部品ページの代表エントリはまだ無い）。
+        ("wireframes/index.html", false),
         ("api/component-api/index.html", false),
     ];
 

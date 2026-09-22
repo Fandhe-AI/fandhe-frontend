@@ -62,6 +62,19 @@
 //! 全幅ラッパ・block 固有レイアウト）の 2 本を配線する。CSS 本体の組み立ては
 //! showcase/admonition と同じく書き出しより前に完了させる（fail-closed）。
 //!
+//! # Wireframes ページ（[`crate::wireframes`]、イシュー #2607）
+//!
+//! `/wireframes/<kebab>/` も [`blocks`] と同型の独立した第 4 の経路である。
+//! `component_page::generated_content`/[`Layer`] を経由せず、ステップ 2
+//! （`render_markdown` の直後）で [`wireframes::insert_generated_sections`]
+//! を呼び、生成した「Demo」「引数表」の 2 節を Markdown 本文の**最初の `h2`
+//! の直前**へ挿入する。該当ページには Wireframes 専用
+//! [`wireframes::STYLESHEET_REL_PATH`] のみを配線する（[`blocks`] と異なり
+//! Themes 側の [`showcase::STYLESHEET_REL_PATH`] は配線しない。Wireframes
+//! 部品は他部品の合成ではなく独立した表示専用プレースホルダーのため）。
+//! CSS 本体の組み立ては他の生成 CSS と同じく書き出しより前に完了させる
+//! （fail-closed）。
+//!
 //! # admonition 構文（[`crate::markdown`]）が使う CSS（イシュー #715）
 //!
 //! `> [!NOTE]` 等の admonition マーカーは [`markdown::render_markdown`](crate::markdown::render_markdown) が
@@ -138,6 +151,7 @@ use crate::search_index::{self, SearchIndexError};
 use crate::showcase;
 use crate::site_theme::{self, SiteThemeError};
 use crate::skip_nav;
+use crate::wireframes;
 
 /// `site/assets/` 配下に存在すると [`BuildError::ReservedAssetName`] で
 /// 拒否するファイル名（ビルド時生成アセットと同名のファイル名）。
@@ -145,7 +159,8 @@ use crate::skip_nav;
 /// [`showcase::STYLESHEET_REL_PATH`]/[`admonition::STYLESHEET_REL_PATH`]/
 /// [`primitive_showcase::STYLESHEET_REL_PATH`]/[`script::SCRIPT_REL_PATH`]/
 /// [`search_index::REL_PATH`]/[`showcase::IMAGE_DEMO_ASSET_REL_PATH`]/
-/// [`blocks::STYLESHEET_REL_PATH`]（イシュー #2088）
+/// [`blocks::STYLESHEET_REL_PATH`]（イシュー #2088）/
+/// [`wireframes::STYLESHEET_REL_PATH`]（イシュー #2607）
 /// （イシュー #1562）はいずれも `assets/<basename>` の形をしており、
 /// `site/assets/` 直下との名前衝突は basename の一致だけで判定できる。
 const RESERVED_ASSET_NAMES: &[&str] = &[
@@ -158,6 +173,7 @@ const RESERVED_ASSET_NAMES: &[&str] = &[
     "search-index.json",
     "image-demo.svg",
     "blocks.css",
+    "wireframes.css",
 ];
 
 /// [`build_site`] が成功時に返すビルド結果のサマリ。
@@ -388,6 +404,11 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
     // するため、本フラグが立った場合は `has_showcase_page` も併せて立てる
     // （`crate::blocks` モジュール doc「CSS の置き場」節参照）。
     let mut has_blocks_page = false;
+    // Wireframes ページ（イシュー #2607）を 1 件以上組み込んだか。
+    // showcase/blocks とは異なり `pre-styled-ui.css` は必要としない
+    // （`crate::wireframes` モジュール doc「CSS の置き場」節参照）ため
+    // `has_showcase_page` は立てない。
+    let mut has_wireframes_page = false;
     // 検索インデックス（イシュー #957）用に収集するページエントリ。
     // `nav.all_pages()` の宣言順（= サイドバー順）で積まれ、この順序が
     // #958 の検索結果スコア同点時のタイブレークの正となる（設計文書 §3-1）。
@@ -412,6 +433,12 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
         // モジュール doc「ページ組み立て方式」節参照。
         let markdown_blocks =
             blocks::insert_generated_sections(&page.path, &nav.site.base_path, markdown_blocks);
+        // Wireframes ページ（イシュー #2607）専用の途中挿入。`blocks` と同型
+        // の独立分岐であり、`crate::wireframes::Wireframe::path` に一致しない
+        // ページでは no-op。`crate::wireframes` モジュール doc「ページ組み立て
+        // 方式」節参照。
+        let markdown_blocks =
+            wireframes::insert_generated_sections(&page.path, &nav.site.base_path, markdown_blocks);
         let raw_body = div(vec![], markdown_blocks);
         let rewritten_body = linkcheck::rewrite_md_links(
             raw_body,
@@ -467,6 +494,14 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
             has_blocks_page = true;
             extra_stylesheets.push(showcase::STYLESHEET_REL_PATH);
             extra_stylesheets.push(blocks::STYLESHEET_REL_PATH);
+        }
+        // Wireframes ページ専用 CSS の配線（イシュー #2607）。`blocks` と
+        // 同型に `crate::wireframes` のレジストリを直接照会する。Themes 側
+        // の `pre-styled-ui.css` は配線しない（`has_showcase_page` を立てない、
+        // モジュール doc「CSS の置き場」節参照）。
+        if wireframes::wireframe_for_path(&page.path).is_some() {
+            has_wireframes_page = true;
+            extra_stylesheets.push(wireframes::STYLESHEET_REL_PATH);
         }
 
         let mut body_children = vec![rewritten_body];
@@ -545,6 +580,19 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
             blocks::STYLESHEET_REL_PATH,
         ));
         Some(blocks::stylesheet()?)
+    } else {
+        None
+    };
+    // Wireframes 専用 CSS（イシュー #2607）。blocks_sheet と同型の
+    // 「該当ページが実在するときだけ書き出し・href 登録する」判定。
+    // `WIREFRAMES` が空の間（本イシュー時点）は `has_wireframes_page` が
+    // 常に false のため `assets/wireframes.css` は書き出されない。
+    let wireframes_sheet = if has_wireframes_page {
+        asset_hrefs.push(layout::asset_href(
+            &nav.site.base_path,
+            wireframes::STYLESHEET_REL_PATH,
+        ));
+        Some(wireframes::stylesheet()?)
     } else {
         None
     };
@@ -627,6 +675,12 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
     if let Some(sheet) = blocks_sheet {
         generated_assets.push((
             format!("/{}", blocks::STYLESHEET_REL_PATH),
+            sheet.as_css().to_string(),
+        ));
+    }
+    if let Some(sheet) = wireframes_sheet {
+        generated_assets.push((
+            format!("/{}", wireframes::STYLESHEET_REL_PATH),
             sheet.as_css().to_string(),
         ));
     }
@@ -973,6 +1027,22 @@ path = "/next/"
         let out_dir = temp.0.join("dist");
         let err = build_site(&temp.0, &out_dir)
             .expect_err("reserved asset name site.js should fail the build");
+        assert!(matches!(err, BuildError::ReservedAssetName(_)));
+        assert!(!out_dir.exists());
+    }
+
+    /// イシュー #2607: `site/assets/` にビルド時生成 CSS と同名のファイル
+    /// （`wireframes.css`）を置くと、静的ファイルの黙った上書き・生成物の
+    /// すり替わりを防ぐため `BuildError::ReservedAssetName` で拒否される
+    /// （CSS 群と同じ fail-closed 検証、[`RESERVED_ASSET_NAMES`] 参照）。
+    #[test]
+    fn build_site_rejects_reserved_asset_name_wireframes_css_under_assets() {
+        let temp = TempDir::new("reserved-asset-name-wireframes-css");
+        write_fixture_site(&temp.0);
+        fs::write(temp.0.join("site/assets/wireframes.css"), "body{}\n").unwrap();
+        let out_dir = temp.0.join("dist");
+        let err = build_site(&temp.0, &out_dir)
+            .expect_err("reserved asset name wireframes.css should fail the build");
         assert!(matches!(err, BuildError::ReservedAssetName(_)));
         assert!(!out_dir.exists());
     }
