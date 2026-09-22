@@ -94,13 +94,14 @@ fn annotation_css_is_registered_exactly_once_in_parts_and_in_aggregate_css() {
 }
 
 #[test]
-fn annotation_css_declares_the_four_selectors_with_fw_wire_prefix_only() {
+fn annotation_css_declares_the_five_selectors_with_fw_wire_prefix_only() {
     let css = fandhe_frontend_wireframe_ui::annotation::ANNOTATION_CSS;
     for selector in [
         ".fw-wire-annotation {",
         ".fw-wire-annotation-title {",
         ".fw-wire-annotation-description {",
         ".fw-wire-annotation.fw-wire-primary {",
+        ".fw-wire-annotation.fw-wire-primary .fw-wire-annotation-description {",
     ] {
         assert!(css.contains(selector), "missing selector {selector:?}");
     }

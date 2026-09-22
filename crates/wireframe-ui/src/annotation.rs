@@ -29,7 +29,7 @@ use crate::size::Size;
 const TITLE_CLASS: &str = "fw-wire-annotation-title";
 const DESCRIPTION_CLASS: &str = "fw-wire-annotation-description";
 
-/// 注釈ボックス CSS（4 セレクタ）。[`crate::css::PARTS`] へ登録される。
+/// 注釈ボックス CSS（5 セレクタ）。[`crate::css::PARTS`] へ登録される。
 ///
 /// `Primary(true)`（強調）時は背景・文字色を反転する。反転時の
 /// description は `--fw-wire-ink-muted` ではなく `--fw-wire-fill`（明るい
