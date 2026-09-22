@@ -88,8 +88,8 @@
 //!
 //! - `pub fn icon`（個別アイコンは `icon::plus` のように公開する）
 //! - 部品ルート class `fw-wire-icon`（グリフ class は
-//!   [`fw-wire-icon-glyph`](https://github.com/Fandhe-AI/fandhe-frontend)
-//!   とし、将来の `icon` 部品のパート class としても整合させる）
+//!   `fw-wire-icon-glyph` とし、将来の `icon` 部品のパート class
+//!   としても整合させる）
 //! - CSS 定数名 `ICON_CSS`（[`ICON_GLYPH_CSS`] とする）
 
 use fandhe_frontend_core::{el, el_owned, Node};
