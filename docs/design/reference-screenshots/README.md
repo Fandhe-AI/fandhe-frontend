@@ -9,6 +9,7 @@ UI 部品スタイル調整（参考サイト基準への調整、ルート issu
 - 例外的な取得元: `shadcn-typography-<n>.png` は `/docs/components/base/typography` がコード例のみでデモを持たないため、レンダリング済みの文字組みを示す `/typeset`（プリセット 01 / 03 / 05）のデモ枠を取得している。`shadcn-sidebar-1.png` は同ページ唯一のレンダリング済みデモ（`figure` 内の iframe）1 枚のみで、残りのサイドバー比較資料は `shadcn-block-sidebar-*.png` が担う（コードブロック・インストールコマンドは取得対象にしない）
 - `themes-<kebab>.png` / `primitives-<kebab>.png`: 本リポジトリ docs サイト（`make docs` 出力）の各部品ページ Demo 領域（ライトテーマ、同日取得）
 - `blocks-<kebab>.png`: 本リポジトリ docs サイトの `/blocks/<kebab>/` フルページ（Blocks セクション、イシュー #2089。合成部品ページのため部品 Demo 領域限定ではなくページ全体を対象とする）
+- `wireframe-<kebab>.png` は **意図的に追加しない**。`fandhe-frontend-wireframe-ui`（イシュー #2599 ツリー）が対応範囲の参考とする blocks.pm（https://www.blocks.pm/）は積極的な再配布許諾根拠を持たないため、本ディレクトリへの画像取り込みは見送りと確定した（イシュー #2602。詳細は下記「出典・ライセンス・再配布根拠」節）
 
 ## 命名・配置規約（確定版、イシュー #1428）
 
@@ -155,8 +156,31 @@ Issue コメント・PR 本文へ画像を貼る際は、**コミット SHA 固�
 | Ark UI (https://ark-ui.com) | https://github.com/chakra-ui/ark | MIT | Copyright (c) Chakra UI |
 | Radix Primitives / Radix Themes (https://www.radix-ui.com) | https://github.com/radix-ui/website（原稿・デモ）, https://github.com/radix-ui/primitives, https://github.com/radix-ui/themes | MIT | Copyright (c) WorkOS |
 | shadcn/ui (https://ui.shadcn.com) | https://github.com/shadcn-ui/ui（原稿・デモ・部品実装・charts・blocks を同一リポジトリで管理） | MIT | Copyright (c) 2023 shadcn |
+| blocks.pm (https://www.blocks.pm/、Figma プラグイン「Blocks – Wireframe」) | https://www.figma.com/community/plugin/1332372435133832847/blocks-wireframe（Figma Community 配布） | Community Free Resource License（`https://www.figma.com/legal/community-free-resource-license/`。プラグインページ本体下部に「Licensed under Community Free Resource License」の明示リンクがあり、当該プラグインが無料公開であることも踏まえ本ライセンスの適用を一次情報で確認済み〔確認日 2026-09-22、根拠は下記「blocks.pm ライセンス適用の一次情報確認」節〕。第三者への再配布・derivative work 作成を明示的に禁止し、出力物へのスクリーンショット掲載を許諾する記載はない） | 作者 Hexa（連絡先 love@blocks.pm） |
 
-各リポジトリの LICENSE 全文（MIT 許諾表示）は `THIRD_PARTY_NOTICES.md` に同梱する（画像との対応は `SOURCES.md`）。各サイトのロゴ・商標は本ディレクトリに
+上記のうち MIT ライセンスの既存 4 サイト（chakra-ui / Ark UI / Radix Primitives・Themes / shadcn/ui）
+各リポジトリの LICENSE 全文（MIT 許諾表示）は `THIRD_PARTY_NOTICES.md` に同梱する（画像との対応は `SOURCES.md`）。
+blocks.pm は下記のとおり画像取り込みの対象外であり、`THIRD_PARTY_NOTICES.md` への LICENSE 全文同梱の対象にも
+含めない（表への記載は出典・ライセンス条件の記録のみを目的とする）。各サイトのロゴ・商標は本ディレクトリに
 含めない（取得対象はデモ領域のみ）。
 
 issue 本文からはコミット SHA 固定の raw URL で参照する（詳細は上記「issue への貼り付け手順」節）。
+
+### blocks.pm ライセンス適用の一次情報確認
+
+`https://www.figma.com/community/plugin/1332372435133832847/blocks-wireframe`（blocks.pm の Figma
+Community プラグインページ本体）を一次情報として確認したところ、ページ下部のライセンス表示欄に
+「Licensed under Community Free Resource License」という明示リンク（リンク先は
+`https://www.figma.com/legal/community-free-resource-license/`）があり、当該プラグインは価格表示のない
+無料公開（Free）である（確認日 2026-09-22）。Community Free Resource License 自体は条文中で
+「このライセンスにリンクするウェブサイト上のダウンロード可能なリソースを対象とする」という一般的な
+適用範囲しか定めていないが、Figma 公式ヘルプセンター記事（`Figma Community copyright and licensing`、
+`https://help.figma.com/hc/en-us/articles/360042296374-Figma-Community-copyright-and-licensing`）が
+「By default, free plugins are published under the Community Free Resource License（無料プラグインは
+既定で Community Free Resource License の下で公開される）」と明記しており、この 2 点（プラグインページ
+本体の明示リンク + Figma 公式ヘルプセンターの一般規則）を一次情報として突き合わせることで、
+blocks.pm（無料プラグイン）への Community Free Resource License 適用を確認済みとする。したがって
+下表・下記段落の「Community Free Resource License が適用される」という記述は推測ではなく確認済みの
+事実として扱う。
+
+**blocks.pm は上記 4 サイトと異なり画像取り込みの対象外とする（イシュー #2602、fail-closed 判断）。**MIT ライセンスの GitHub リポジトリという積極的な再配布許諾根拠を持つ他 4 サイトに対し、blocks.pm の配布元ライセンス（Community Free Resource License、上記「blocks.pm ライセンス適用の一次情報確認」節のとおり適用を一次情報で確認済み）は第三者再配布・derivative work を明示的に禁止し、スクリーンショット掲載を許諾する記載を持たない（沈黙）。「明示的に禁止されていない」ことを取り込みの根拠にはせず、参照は https://www.blocks.pm/ への外部リンクに限る。この derivative work 禁止は画像取り込みに限らず、blocks.pm の外観・anatomy・プロパティ構成を `fandhe-frontend-wireframe-ui` の実装へ翻案する行為にも及ぶため、`docs/design/wireframe-ui-architecture.md` §2 のとおり実装への転用も書面許諾が得られるまで保留する。**再評価トリガー**: 作者 Hexa（love@blocks.pm）から derivative work 作成（画像取り込み・実装への翻案の双方を含む）についての書面での明示的な許諾が得られた場合。

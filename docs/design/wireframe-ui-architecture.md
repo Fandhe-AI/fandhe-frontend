@@ -35,17 +35,42 @@ WAI-ARIA セマンティクス（`role`・`aria-expanded`・`aria-haspopup` 等�
 
 ## 2. blocks.pm 参照方針
 
-blocks.pm（https://www.blocks.pm/）の 35 部品を一次参照とする。ただし**忠実再現ではなく Rust API として
-使いやすい形へ調整してよい**（ユーザー承認 2026-09-22）。
+blocks.pm（https://www.blocks.pm/）が持つ 35 部品分のカタログ構成を**対応範囲（どの部品を含めるか）
+の参考**とする。忠実再現を目標とせず Rust API として使いやすい形へ調整してよいという裁量
+（ユーザー承認 2026-09-22）自体は維持するが、その裁量の使い方（外観・anatomy・プロパティ構成を
+blocks.pm から直接転用してよいか）は下記のライセンス保留により制約される。
 
-参照スクリーンショットは `docs/design/reference-screenshots/wireframe-<kebab>.png` に配置する運用を
-予定しているが、**blocks.pm の利用条件確認・実際の取り込みは別イシュー #2602 のスコープ**である。本文書
-は方針の記載に留め、画像の埋め込み・ライセンス判断は行わない。
+**参照スクリーンショットの本リポジトリへの取り込みは不採用と確定した（イシュー #2602）。**
+blocks.pm は Figma プラグイン「Blocks – Wireframe」（Figma Community 配布）である。プラグインページ
+本体（`https://www.figma.com/community/plugin/1332372435133832847/blocks-wireframe`）下部の明示リンクと
+Figma 公式ヘルプセンター記事（無料プラグインは既定で Community Free Resource License の下で公開される
+旨の記載）を一次情報として突き合わせ、当該プラグインへの Community Free Resource License 適用を確認済み
+である（確認日 2026-09-22、根拠・引用は `docs/design/reference-screenshots/README.md` の「blocks.pm
+ライセンス適用の一次情報確認」節を参照）。同ライセンスは第三者への再配布・derivative work 作成を
+明示的に禁止し、スクリーンショット掲載を許諾する記載を持たない。本リポジトリの既存参照 4 サイト
+（chakra-ui / Ark UI / Radix Primitives・Themes / shadcn/ui）が持つ「MIT ライセンスの GitHub
+リポジトリ」という積極的な再配布許諾根拠を blocks.pm は持たないため、`docs/design/
+reference-screenshots/wireframe-<kebab>.png` は配置しない（fail-closed 判断、詳細・出典表は
+`docs/design/reference-screenshots/README.md` の「出典・ライセンス・再配布根拠」節を参照）。
+各部品からの視覚参照は https://www.blocks.pm/ への外部リンクに限る。
 
-## 3. 視覚差分方針（原案からの調整基準）
+**blocks.pm の外観・anatomy・プロパティ構成の実装への転用は保留する（PR #2670 codex レビュー
+P1 指摘、2026-09-22）。** derivative work 作成を禁止する配布元ライセンスの下では、スクリーンショット
+を保存しないだけでは「blocks.pm の Figma コンポーネント構造を Rust API へ翻案する」という実装行為
+自体の許諾問題は解消しない。したがって Phase 1〜9 の各部品実装は、blocks.pm の Figma プロパティ
+（variant 列挙・boolean スロット構成・具体的な instance swap 構造等）を閲覧・書き写して構造的に
+一致させる作業を行わない。§4 の `Size` 軸・§6 の変換規約は blocks.pm 固有の schema ではなく、
+一般的な wireframe/UI キット設計で広く使われる汎用パターン（段階的サイズ軸・固定スロットの
+boolean 爆発畳み込み等）として独立に設計し直したものである（§4・§6 参照）。blocks.pm への外部
+リンクは、対応範囲の確認・画面設計上のインスピレーション確認用に限り、部品ごとの厳密な仕様書
+としては用いない。**再評価トリガー**: 作者 Hexa（love@blocks.pm）から derivative work 作成
+（実装への翻案）を含む書面での明示的な許諾が得られた場合。それまでは §4・§6・§8 の変換規約・
+分類は本節の保留の範囲内でのみ有効とする。
 
-blocks.pm の原案は黒塗り二値（白黒二値）表現を基本とするが、モノクロ・グレースケールへの調整は
-**読みやすさ優先**の基準で行う（黒塗り二値表現をそのまま強制しない）。
+## 3. 視覚差分方針
+
+`wireframe-ui` の配色はモノクロ・グレースケールとし、黒塗り二値（白黒二値）表現を強制しない。
+**読みやすさ優先**の基準で独自に調整する（§2 のとおり blocks.pm の原案を模写しない）。
 
 色トークン（`fandhe-frontend-pre-styled-ui::ColorPalette`）には依存しない。`ColorPalette` 軸自体を
 `wireframe-ui` へ持ち込まない。
@@ -56,9 +81,10 @@ blocks.pm の原案は黒塗り二値（白黒二値）表現を基本とする�
 5 段階**（`Xs`/`Sm`/`Md`/`Lg`/`Xl`）を `wireframe-ui` 独自の `Size` 列挙型として定義する。
 `pre-styled-ui` への依存はしない（独自定義で名前のみ揃える）。
 
-blocks.pm 側のプロパティ段階数は部品ごとに揺れがある（例: Avatar は `Size(XXL)` まで持つ）。
-`wireframe-ui` は常にこの 5 段階のみを採用し、blocks.pm 側で 5 段階を超える最大値（例: `XXL`）は
-最大バケットである `Xl` へ畳み込む。この変換規約は個別部品ごとの判断揺れを防ぐため本文書に集約する。
+部品によってはこの 5 段階を超えるサイズ区分が必要に見える場合があるが、`wireframe-ui` は常に
+この 5 段階のみを採用し、5 段階を超える最大値は最大バケットである `Xl` へ畳み込む（§2 のとおり
+blocks.pm 側の具体的な段階数・命名を実装の根拠にはしない、独立設計）。この変換規約は個別部品
+ごとの判断揺れを防ぐため本文書に集約する。
 
 全部品が 5 段階すべてを使う必要はなく、部品によっては一部バケットのみ使用してよい（既定値は
 原則 `Md`）。
@@ -81,17 +107,21 @@ select・slider を含む全部品は非インタラクティブな表示専用�
 同種部品が必要な利用者は `fandhe-frontend-headless-ui`／`fandhe-frontend-pre-styled-ui` を再利用・
 配線すること。
 
-## 6. Figma プロパティ変換規約
+## 6. Figma ライクなプロパティを Rust API へ落とす際の共通規約
 
-blocks.pm の Figma コンポーネントプロパティを Rust API へ落とす際の共通規約を以下に定める。
+Figma のコンポーネントプロパティパネルに典型的に現れる表現（固定スロットの boolean 爆発・
+instance swap・サイズ／強調の組み合わせ等）を Rust API へ落とす際の共通規約を以下に定める。
+これは blocks.pm 固有の schema を書き写したものではなく、Figma ベースの wireframe/UI キットに
+広く見られる汎用的な表現パターンから独立に設計した変換規約である（§2 のライセンス保留により、
+個別部品の実装時に blocks.pm の具体的なプロパティ定義を参照・転記することはしない）。
 
-- **boolean 爆発の畳み込み**: Pagination の `A〜Z`（アルファベット単位の個別 boolean）、Ratings の
-  星ごと `bool`、Tabs の `Tab1〜5` のような、固定スロットを boolean で個別に持つパターンは、Rust では
-  **スライス／数値引数**へ畳む（例: Ratings は `rating: u8` 1 引数、Tabs は `&[TabItem]` 等）。
+- **boolean 爆発の畳み込み**: ページ番号・星評価・タブのような、固定スロットを個別の boolean
+  で持つ表現パターンは、Rust では**スライス／数値引数**へ畳む（例: 星評価は `rating: u8` 1 引数、
+  タブ項目は `&[TabItem]` 等）。
 - **instance swap の受け方**: アイコン差し替え等の instance swap は **`Node` スロット引数**で受ける
   （`fandhe-frontend-core` のノード木 API に従う）。
 - **Text/Paragraph 系の共通パターン**: `Text`/`Paragraph` 系は `Size` + `Bold`(bool) + `Text`(文字列)
-  の 3 点セットで表現する（blocks.pm カタログの Text/Paragraph に共通する構成）。
+  の 3 点セットで表現する（テキスト系 wireframe 部品に共通して現れる一般的な構成）。
 
 ## 7. 全 49 部品共通の前提
 
@@ -109,6 +139,9 @@ blocks.pm の Figma コンポーネントプロパティを Rust API へ落と�
   modal・tooltip・accordion・tabs・select・slider を含む全部品にこの制約が適用される
 - 各部品イシューは showcase 実装 + `/wireframes/<kebab>/` ページ（docs サイト、#2607 が基盤整備）+
   テストを同梱する
+- **blocks.pm の Figma プラグイン・スクリーンショットを開いて外観・プロパティ構成を書き写さない**
+  （§2 のライセンス保留）。blocks.pm 由来（35）に区分される部品も、anatomy・variant・プロパティ
+  構成は本文書（§4・§6）と各部品イシューの記述に基づいて独立に設計する
 
 ## 8. 49 部品一覧（Phase 別表）
 
@@ -129,22 +162,26 @@ blocks.pm の Figma コンポーネントプロパティを Rust API へ落と�
 | 8 | #2659 | Media・Data | image:#2660 / media:#2661 / table:#2662 / chart:#2663 / map:#2664 |
 | 9 | #2665 | 仕上げ | golden-tests:#2666 / example:#2667 / crates-io-publish:#2668 |
 
-`media` の kebab は blocks.pm 表示名 `Placeholder` ではなく **`media`** を正とする。#2602 の
-`wireframe-<kebab>.png` と #2607 の `/wireframes/<kebab>/` が参照する kebab と一致させるため、本表で
-明示的に固定する。
+`media` の kebab は blocks.pm 表示名 `Placeholder` ではなく **`media`** を正とする。#2607 の
+`/wireframes/<kebab>/`（docs サイトのページ URL）および Rust API 側の識別子（showcase 関数名・コンポーネント名）
+が参照する kebab と一致させるため、本表で明示的に固定する（#2602 の結論により `wireframe-<kebab>.png` は
+配置しないため、画像ファイル名を命名根拠とはしない）。
 
-各部品の blocks.pm 由来／追加の区分は以下のとおりである（本文書が正）。
+各部品の対応範囲の区分（blocks.pm カタログの同名部品と対応範囲を揃えるか／`wireframe-ui` 独自に
+追加するか）は以下のとおりである（本文書が正）。§2 のとおり、対応範囲を揃えることと外観・
+プロパティ構成を転用することは別であり、以下の区分はあくまで「同名の部品を用意するかどうか」の
+対応範囲一覧であって、実装が blocks.pm の具体的な Figma 構造に由来することを意味しない。
 
-- **blocks.pm 由来（35）**: annotation, avatar, brand, breadcrumbs, button, card-basic, chart,
-  checkbox, counter, cursor, divider, emoji, icon, image, input, link, map, menu, nav-item,
-  pagination, paragraph, media（blocks.pm 表示名は Placeholder）, progress, question, radio,
-  ratings, rich-text, select, slider, switch, table, tabs, tag, text, tooltip
-- **追加（14）**: frame, stack, grid, textarea, modal, alert, toast, accordion, stepper, list, stat,
-  calendar, file-drop, spinner
+- **blocks.pm カタログと対応範囲を揃える部品（35）**: annotation, avatar, brand, breadcrumbs,
+  button, card-basic, chart, checkbox, counter, cursor, divider, emoji, icon, image, input, link,
+  map, menu, nav-item, pagination, paragraph, media（blocks.pm 表示名は Placeholder）, progress,
+  question, radio, ratings, rich-text, select, slider, switch, table, tabs, tag, text, tooltip
+- **`wireframe-ui` 独自に追加する部品（14）**: frame, stack, grid, textarea, modal, alert, toast,
+  accordion, stepper, list, stat, calendar, file-drop, spinner
 
 ## 9. 後続イシューへの委譲
 
-- **#2602（参照スクリーンショット取り込み）**: §2 の参照スクリーンショット配置方針（`docs/design/reference-screenshots/wireframe-<kebab>.png`）を前提とする
+- **#2602（参照スクリーンショット取り込み、完了）**: §2 のとおりスクリーンショット取り込みは不可（fail-closed）と確定した。各部品からの視覚参照は https://www.blocks.pm/ への外部リンクに限る。加えて §2 のとおり、外観・anatomy・プロパティ構成の実装への転用も書面許諾が得られるまで保留する（PR #2670 codex レビュー指摘、2026-09-22）
 - **#2603（crate 雛形）**: §1 の位置づけ・依存方針（`fandhe-frontend-core` のみ、Primitives/Themes 非依存）を前提とする
 - **#2604（CI 組み込み）**: §7 の共通前提（`forbid(unsafe_code)`・REQ-1 既定エスケープ・wasm-full 非配線・非インタラクティブ制約）を前提とする
 - **#2605（共通 API）**: §4 の `Size` 軸命名規約・§6 の Figma プロパティ変換規約を前提とする
