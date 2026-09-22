@@ -28,17 +28,17 @@
 ## 掲載済み
 
 - [Annotation](./wireframes/annotation.md)
+- [Stack](./wireframes/stack.md)
 
 ## 掲載予定
 
-以下は Phase 1〜8（#2608〜#2665）で順次掲載する 48 部品です（Phase ごとの内訳）。
+以下は Phase 1〜8（#2608〜#2665）で順次掲載する 47 部品です（Phase ごとの内訳）。
 掲載が完了した部品は本節へリンク付きの「掲載済み」一覧として追記されます（現時点では
 未掲載のため本節はリンクなしの一覧です）。
 
 ### Phase 1: レイアウト骨格
 
 - frame
-- stack
 - grid
 - divider
 

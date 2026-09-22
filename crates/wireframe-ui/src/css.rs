@@ -10,9 +10,11 @@
 ///
 /// イシュー #2606 で最初の登録（[`crate::icon::ICON_GLYPH_CSS`]）が入った。
 /// イシュー #2617 で [`crate::annotation::ANNOTATION_CSS`] が続いた。
+/// イシュー #2610 で [`crate::stack::STACK_CSS`] が続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
     crate::annotation::ANNOTATION_CSS,
+    crate::stack::STACK_CSS,
 ];
 
 static CSS: std::sync::OnceLock<String> = std::sync::OnceLock::new();

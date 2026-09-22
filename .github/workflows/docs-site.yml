@@ -252,6 +252,8 @@ jobs:
           # 「使われているページだけ」書き出し）が初めて書き出される。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/annotation/index.html"
+          # イシュー #2610: Stack が 2 番目の部品ページとして登録された。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/stack/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact
