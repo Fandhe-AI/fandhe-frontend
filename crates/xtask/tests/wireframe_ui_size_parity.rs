@@ -33,12 +33,12 @@ fn extract_size_variants(path: &PathBuf) -> Vec<String> {
     let content = std::fs::read_to_string(path)
         .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
 
-    let mut lines = content.lines();
+    let lines = content.lines();
     let mut found_header = false;
     let mut depth: i32 = 0;
     let mut variants = Vec::new();
 
-    while let Some(line) = lines.next() {
+    for line in lines {
         let trimmed = line.trim();
         if !found_header {
             // `pub enum Size {`（末尾にトレイト由来の空白・タブ差異があり得るため
@@ -50,6 +50,13 @@ fn extract_size_variants(path: &PathBuf) -> Vec<String> {
             continue;
         }
 
+        // コメント・属性行はブロック終端判定（`{`/`}` カウント）より先に
+        // スキップする。`///` doc コメント等に `{`/`}` を含む文言が
+        // 混入しても深さ計算を乱さないための順序（堅牢性）。
+        if trimmed.is_empty() || trimmed.starts_with("//") || trimmed.starts_with('#') {
+            continue;
+        }
+
         // ブロック終端の判定（ネストした `{`/`}` を数える。variant 自体は
         // 単純な識別子のみで `{`/`}` を含まないため、ここでの深さ計算は
         // 属性・derive 等がブロック内に現れない本ファイル群の実態に対して
@@ -58,10 +65,6 @@ fn extract_size_variants(path: &PathBuf) -> Vec<String> {
         depth -= trimmed.matches('}').count() as i32;
         if depth <= 0 {
             break;
-        }
-
-        if trimmed.is_empty() || trimmed.starts_with("//") || trimmed.starts_with('#') {
-            continue;
         }
 
         // `Xs,` / `Xs` のように末尾カンマの有無を許容し、識別子部分のみを取る。
