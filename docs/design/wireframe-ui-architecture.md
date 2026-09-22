@@ -45,7 +45,7 @@ blocks.pm は Figma プラグイン「Blocks – Wireframe」（Figma Community 
 本体（`https://www.figma.com/community/plugin/1332372435133832847/blocks-wireframe`）下部の明示リンクと
 Figma 公式ヘルプセンター記事（無料プラグインは既定で Community Free Resource License の下で公開される
 旨の記載）を一次情報として突き合わせ、当該プラグインへの Community Free Resource License 適用を確認済み
-である（確認日 2026-09-23、根拠・引用は `docs/design/reference-screenshots/README.md` の「blocks.pm
+である（確認日 2026-09-22、根拠・引用は `docs/design/reference-screenshots/README.md` の「blocks.pm
 ライセンス適用の一次情報確認」節を参照）。同ライセンスは第三者への再配布・derivative work 作成を
 明示的に禁止し、スクリーンショット掲載を許諾する記載を持たない。本リポジトリの既存参照 4 サイト
 （chakra-ui / Ark UI / Radix Primitives・Themes / shadcn/ui）が持つ「MIT ライセンスの GitHub
@@ -55,7 +55,7 @@ reference-screenshots/wireframe-<kebab>.png` は配置しない（fail-closed �
 各部品からの視覚参照は https://www.blocks.pm/ への外部リンクに限る。
 
 **blocks.pm の外観・anatomy・プロパティ構成の実装への転用は保留する（PR #2670 codex レビュー
-P1 指摘、2026-09-23）。** derivative work 作成を禁止する配布元ライセンスの下では、スクリーンショット
+P1 指摘、2026-09-22）。** derivative work 作成を禁止する配布元ライセンスの下では、スクリーンショット
 を保存しないだけでは「blocks.pm の Figma コンポーネント構造を Rust API へ翻案する」という実装行為
 自体の許諾問題は解消しない。したがって Phase 1〜9 の各部品実装は、blocks.pm の Figma プロパティ
 （variant 列挙・boolean スロット構成・具体的な instance swap 構造等）を閲覧・書き写して構造的に
@@ -181,7 +181,7 @@ instance swap・サイズ／強調の組み合わせ等）を Rust API へ落と
 
 ## 9. 後続イシューへの委譲
 
-- **#2602（参照スクリーンショット取り込み、完了）**: §2 のとおりスクリーンショット取り込みは不可（fail-closed）と確定した。各部品からの視覚参照は https://www.blocks.pm/ への外部リンクに限る。加えて §2 のとおり、外観・anatomy・プロパティ構成の実装への転用も書面許諾が得られるまで保留する（PR #2670 codex レビュー指摘、2026-09-23）
+- **#2602（参照スクリーンショット取り込み、完了）**: §2 のとおりスクリーンショット取り込みは不可（fail-closed）と確定した。各部品からの視覚参照は https://www.blocks.pm/ への外部リンクに限る。加えて §2 のとおり、外観・anatomy・プロパティ構成の実装への転用も書面許諾が得られるまで保留する（PR #2670 codex レビュー指摘、2026-09-22）
 - **#2603（crate 雛形）**: §1 の位置づけ・依存方針（`fandhe-frontend-core` のみ、Primitives/Themes 非依存）を前提とする
 - **#2604（CI 組み込み）**: §7 の共通前提（`forbid(unsafe_code)`・REQ-1 既定エスケープ・wasm-full 非配線・非インタラクティブ制約）を前提とする
 - **#2605（共通 API）**: §4 の `Size` 軸命名規約・§6 の Figma プロパティ変換規約を前提とする

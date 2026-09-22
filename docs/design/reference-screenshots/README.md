@@ -156,7 +156,7 @@ Issue コメント・PR 本文へ画像を貼る際は、**コミット SHA 固�
 | Ark UI (https://ark-ui.com) | https://github.com/chakra-ui/ark | MIT | Copyright (c) Chakra UI |
 | Radix Primitives / Radix Themes (https://www.radix-ui.com) | https://github.com/radix-ui/website（原稿・デモ）, https://github.com/radix-ui/primitives, https://github.com/radix-ui/themes | MIT | Copyright (c) WorkOS |
 | shadcn/ui (https://ui.shadcn.com) | https://github.com/shadcn-ui/ui（原稿・デモ・部品実装・charts・blocks を同一リポジトリで管理） | MIT | Copyright (c) 2023 shadcn |
-| blocks.pm (https://www.blocks.pm/、Figma プラグイン「Blocks – Wireframe」) | https://www.figma.com/community/plugin/1332372435133832847/blocks-wireframe（Figma Community 配布） | Community Free Resource License（`https://www.figma.com/legal/community-free-resource-license/`。プラグインページ本体下部に「Licensed under Community Free Resource License」の明示リンクがあり、当該プラグインが無料公開であることも踏まえ本ライセンスの適用を一次情報で確認済み〔確認日 2026-09-23、根拠は下記「blocks.pm ライセンス適用の一次情報確認」節〕。第三者への再配布・derivative work 作成を明示的に禁止し、出力物へのスクリーンショット掲載を許諾する記載はない） | 作者 Hexa（連絡先 love@blocks.pm） |
+| blocks.pm (https://www.blocks.pm/、Figma プラグイン「Blocks – Wireframe」) | https://www.figma.com/community/plugin/1332372435133832847/blocks-wireframe（Figma Community 配布） | Community Free Resource License（`https://www.figma.com/legal/community-free-resource-license/`。プラグインページ本体下部に「Licensed under Community Free Resource License」の明示リンクがあり、当該プラグインが無料公開であることも踏まえ本ライセンスの適用を一次情報で確認済み〔確認日 2026-09-22、根拠は下記「blocks.pm ライセンス適用の一次情報確認」節〕。第三者への再配布・derivative work 作成を明示的に禁止し、出力物へのスクリーンショット掲載を許諾する記載はない） | 作者 Hexa（連絡先 love@blocks.pm） |
 
 上記のうち MIT ライセンスの既存 4 サイト（chakra-ui / Ark UI / Radix Primitives・Themes / shadcn/ui）
 各リポジトリの LICENSE 全文（MIT 許諾表示）は `THIRD_PARTY_NOTICES.md` に同梱する（画像との対応は `SOURCES.md`）。
@@ -172,7 +172,7 @@ issue 本文からはコミット SHA 固定の raw URL で参照する（詳細
 Community プラグインページ本体）を一次情報として確認したところ、ページ下部のライセンス表示欄に
 「Licensed under Community Free Resource License」という明示リンク（リンク先は
 `https://www.figma.com/legal/community-free-resource-license/`）があり、当該プラグインは価格表示のない
-無料公開（Free）である（確認日 2026-09-23）。Community Free Resource License 自体は条文中で
+無料公開（Free）である（確認日 2026-09-22）。Community Free Resource License 自体は条文中で
 「このライセンスにリンクするウェブサイト上のダウンロード可能なリソースを対象とする」という一般的な
 適用範囲しか定めていないが、Figma 公式ヘルプセンター記事（`Figma Community copyright and licensing`、
 `https://help.figma.com/hc/en-us/articles/360042296374-Figma-Community-copyright-and-licensing`）が
