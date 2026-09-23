@@ -31,37 +31,74 @@ use crate::size::Size;
 /// 部品固有の修飾 class（`bordered=true` のときのみ付与）。
 const BORDERED_CLASS: &str = "fw-wire-frame-bordered";
 
-/// フレーム CSS（2 セレクタ）。[`crate::css::PARTS`] へ登録される。
+/// フレーム CSS（7 セレクタ: ルート・bordered 修飾・padding 5 段）。
+/// [`crate::css::PARTS`] へ登録される。
 ///
-/// padding は `Size` 段階の `--fw-wire-control-size` の 1/2（xs 0.75rem〜
-/// xl 1.5rem）を `calc()` で参照する（`size::css` が定義済みのスコープ付き
-/// カスタムプロパティを再利用し、値を書き写さない）。非 bordered でも
-/// `transparent` の境界線幅を確保し、`bordered` の切り替えで子の配置が
-/// ずれない（決定的なレイアウト）。`font-size` は設定しない
-/// （コンテナの padding 段階が子のフォントサイズへ波及しないようにする。
-/// 子部品は自分の `fw-wire-size-*` class を持つため custom property の
-/// 継承は自己上書きされる）。`background` も設定しない（入れ子時に紙面が
+/// padding は `crate::size::css` が生成する共有 `fw-wire-size-*`
+/// （`--fw-wire-font-size`/`--fw-wire-control-size` を同時定義し子孫へ
+/// 継承される）を経由せず、Frame 専用の `fw-wire-frame-padding-<段階>`
+/// class（[`padding_class`]）で padding 値を直接宣言する。共有 class を
+/// ルートへ付けると、独自に size class を再宣言しない任意の子部品
+/// （呼び出し側が `Vec<Node>` に何を渡すかは Frame の関知しない契約。
+/// 例: 自身の `fw-wire-size-*` を持たない子）の文字・コントロールサイズ
+/// まで暗黙に変更してしまう（コードレビュー指摘、イシュー #2609。
+/// `crate::stack` が `fw-wire-stack-gap-*` で同種の問題を先に回避した
+/// 前例と同じ設計）。値は `size::SCALE` の `control_size` の 1/2
+/// （xs 0.75rem〜xl 1.5rem）。非 bordered でも `transparent` の境界線幅を
+/// 確保し、`bordered` の切り替えで子の配置がずれない（決定的な
+/// レイアウト）。`font-size` は設定しない（レイアウトコンテナの責務は
+/// padding に限定する）。`background` も設定しない（入れ子時に紙面が
 /// 透けるようにする）。
 pub const FRAME_CSS: &str = "\
 .fw-wire-frame {
   display: block;
   box-sizing: border-box;
   min-width: 0;
-  padding: calc(var(--fw-wire-control-size, 2rem) / 2);
   border: var(--fw-wire-line-width) solid transparent;
   border-radius: var(--fw-wire-radius);
 }
 .fw-wire-frame.fw-wire-frame-bordered {
   border-color: var(--fw-wire-line);
 }
+.fw-wire-frame.fw-wire-frame-padding-xs {
+  padding: 0.75rem;
+}
+.fw-wire-frame.fw-wire-frame-padding-sm {
+  padding: 0.875rem;
+}
+.fw-wire-frame.fw-wire-frame-padding-md {
+  padding: 1rem;
+}
+.fw-wire-frame.fw-wire-frame-padding-lg {
+  padding: 1.25rem;
+}
+.fw-wire-frame.fw-wire-frame-padding-xl {
+  padding: 1.5rem;
+}
 ";
+
+/// `padding`（[`Size`]）を Frame 専用の padding class 名
+/// （`fw-wire-frame-padding-<段階>`）へ変換する。
+///
+/// [`crate::size::css`] が生成する共有 `fw-wire-size-*` class は
+/// `--fw-wire-font-size`/`--fw-wire-control-size` を同時に定義するため
+/// 使わない（モジュール doc「フレーム CSS」節参照）。
+const fn padding_class(padding: Size) -> &'static str {
+    match padding {
+        Size::Xs => "fw-wire-frame-padding-xs",
+        Size::Sm => "fw-wire-frame-padding-sm",
+        Size::Md => "fw-wire-frame-padding-md",
+        Size::Lg => "fw-wire-frame-padding-lg",
+        Size::Xl => "fw-wire-frame-padding-xl",
+    }
+}
 
 /// 配置コンテナを組み立てる。
 ///
 /// - `children`: 子ノード群。空の場合でも空要素（`<div class="...">
 ///   </div>`）を出力する（配置枠として空の領域を示す用途があるため）。
-/// - `padding`: [`Size`] 5 段。ルート class `fw-wire-size-<段階>` として
-///   付与し、padding は `--fw-wire-control-size` を参照する。
+/// - `padding`: [`Size`] 5 段。ルート class `fw-wire-frame-padding-<段階>`
+///   （[`padding_class`]）として付与し、padding 値を直接決める。
 /// - `bordered`: `true` のとき部品固有の修飾 class
 ///   [`BORDERED_CLASS`]（`fw-wire-frame-bordered`）を付与し境界線を
 ///   表示する。
@@ -77,7 +114,7 @@ pub const FRAME_CSS: &str = "\
 ///
 /// let node = frame(vec![text("子要素")], Size::Md, true);
 /// let html = render(&node);
-/// assert!(html.contains(r#"class="fw-wire-frame fw-wire-size-md fw-wire-frame-bordered""#));
+/// assert!(html.contains(r#"class="fw-wire-frame fw-wire-frame-padding-md fw-wire-frame-bordered""#));
 /// assert!(html.contains("子要素"));
 ///
 /// // bordered=false では修飾 class が付かない。
@@ -85,7 +122,7 @@ pub const FRAME_CSS: &str = "\
 /// assert!(!render(&without_border).contains("fw-wire-frame-bordered"));
 ///
 /// // 子が空でも空要素を出力する。
-/// assert!(render(&without_border).contains(r#"class="fw-wire-frame fw-wire-size-md"></div>"#));
+/// assert!(render(&without_border).contains(r#"class="fw-wire-frame fw-wire-frame-padding-md"></div>"#));
 ///
 /// // XSS 回帰: 子テキストは core の既定エスケープを経由する（テキスト
 /// // 引数を持たない部品のため子テキスト経由で固定する）。
@@ -98,7 +135,10 @@ pub const FRAME_CSS: &str = "\
 pub fn frame(children: Vec<Node>, padding: Size, bordered: bool) -> Node {
     let class = class_list(
         "fw-wire-frame",
-        &[Some(padding.class()), bordered.then_some(BORDERED_CLASS)],
+        &[
+            Some(padding_class(padding)),
+            bordered.then_some(BORDERED_CLASS),
+        ],
     );
 
     el_owned("div", vec![("class".to_string(), class)], children)

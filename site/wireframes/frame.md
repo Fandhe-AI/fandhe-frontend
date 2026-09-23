@@ -29,6 +29,15 @@ header/body/footer の anatomy を持つのに対し、Frame は境界線と pad
   本部品は blocks.pm 原案が存在しないためそもそも参照画像がありません。
 - **非インタラクティブ**: `role`/`aria-*`/`tabindex` は一切付与せず、
   `button`/`a[href]` のような対話要素も出力しません（設計文書 §5/§7）。
-- **`size.rs` は変更していません**: padding のサイズ段階は既存の
-  `Size::class()`/`--fw-wire-control-size` トークンをそのまま参照しており、
-  frame 専用の間隔トークンは追加していません。
+- **padding は Frame 専用 class で表現（コードレビュー指摘、PR #2679 で
+  是正）**: 当初は `Size::class()` が返す共有 `fw-wire-size-*` class を
+  ルートへ直接付与し、`--fw-wire-control-size` を `calc()` で参照して
+  padding を決めていましたが、この共有 class は `--fw-wire-font-size` も
+  同時に定義し子孫へ継承されるため、独自の size class を再宣言しない
+  子部品の文字サイズまで Frame の padding 引数で意図せず変化させてしまう
+  問題がありました。[Stack](../wireframes/stack.md) が同種の問題を
+  `fw-wire-stack-gap-*` 専用 class で先に回避した設計に倣い、Frame も
+  `fw-wire-frame-padding-<段階>`（`.fw-wire-frame.fw-wire-frame-padding-xs`
+  〜`-xl`、`0.75rem`〜`1.5rem`）を `FRAME_CSS` 内に 5 段明示する専用 class
+  へ変更し、共有変数を子孫へ漏らさないようにしています。`size.rs` 自体は
+  変更していません。

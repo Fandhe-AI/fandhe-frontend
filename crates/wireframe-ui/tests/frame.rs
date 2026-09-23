@@ -11,7 +11,10 @@ fn renders_root_class_for_every_padding_size() {
     for size in Size::ALL {
         let node = frame(vec![], size, false);
         let html = render(&node);
-        let expected_class = format!(r#"class="fw-wire-frame {}""#, size.class());
+        let expected_class = format!(
+            r#"class="fw-wire-frame fw-wire-frame-padding-{}""#,
+            size.as_str()
+        );
         assert!(
             html.contains(&expected_class),
             "expected {expected_class:?} in {html:?}"
@@ -24,7 +27,8 @@ fn renders_root_class_for_every_padding_size() {
 #[test]
 fn bordered_true_appends_bordered_class_and_false_omits_it() {
     let with_border = render(&frame(vec![], Size::Md, true));
-    assert!(with_border.contains(r#"class="fw-wire-frame fw-wire-size-md fw-wire-frame-bordered""#));
+    assert!(with_border
+        .contains(r#"class="fw-wire-frame fw-wire-frame-padding-md fw-wire-frame-bordered""#));
 
     let without_border = render(&frame(vec![], Size::Md, false));
     assert!(!without_border.contains("fw-wire-frame-bordered"));
@@ -39,7 +43,7 @@ fn children_are_rendered_in_the_given_order_and_empty_vec_leaves_an_empty_elemen
     assert!(pos_first < pos_second);
 
     let empty = render(&frame(vec![], Size::Md, false));
-    assert!(empty.contains(r#"class="fw-wire-frame fw-wire-size-md"></div>"#));
+    assert!(empty.contains(r#"class="fw-wire-frame fw-wire-frame-padding-md"></div>"#));
 }
 
 #[test]
@@ -47,8 +51,10 @@ fn nested_frames_render_both_root_classes() {
     let inner = frame(vec![text("内側")], Size::Sm, true);
     let outer = frame(vec![inner], Size::Lg, false);
     let html = render(&outer);
-    assert!(html.contains(r#"class="fw-wire-frame fw-wire-size-lg""#));
-    assert!(html.contains(r#"class="fw-wire-frame fw-wire-size-sm fw-wire-frame-bordered""#));
+    assert!(html.contains(r#"class="fw-wire-frame fw-wire-frame-padding-lg""#));
+    assert!(
+        html.contains(r#"class="fw-wire-frame fw-wire-frame-padding-sm fw-wire-frame-bordered""#)
+    );
     assert!(html.contains("内側"));
 }
 
@@ -104,11 +110,16 @@ fn frame_css_is_registered_exactly_once_in_parts_and_in_aggregate_css() {
 }
 
 #[test]
-fn frame_css_declares_the_two_selectors_with_fw_wire_prefix_only_and_no_font_size() {
+fn frame_css_declares_the_seven_selectors_with_fw_wire_prefix_only_and_no_font_size() {
     let css = fandhe_frontend_wireframe_ui::frame::FRAME_CSS;
     for selector in [
         ".fw-wire-frame {",
         ".fw-wire-frame.fw-wire-frame-bordered {",
+        ".fw-wire-frame.fw-wire-frame-padding-xs {",
+        ".fw-wire-frame.fw-wire-frame-padding-sm {",
+        ".fw-wire-frame.fw-wire-frame-padding-md {",
+        ".fw-wire-frame.fw-wire-frame-padding-lg {",
+        ".fw-wire-frame.fw-wire-frame-padding-xl {",
     ] {
         assert!(css.contains(selector), "missing selector {selector:?}");
     }
@@ -126,4 +137,21 @@ fn frame_css_declares_the_two_selectors_with_fw_wire_prefix_only_and_no_font_siz
     assert!(!css.contains("--fandhe-"));
     assert!(!css.contains(" fd-"));
     assert!(!css.contains("font-size"));
+}
+
+#[test]
+fn padding_class_does_not_share_the_size_scoped_custom_property_class() {
+    // コードレビュー指摘（イシュー #2609、PR #2679）の回帰: padding は
+    // Frame 専用の `fw-wire-frame-padding-*` class のみで表現し、
+    // `crate::size::css` が生成する共有 `fw-wire-size-*`
+    // （`--fw-wire-font-size`/`--fw-wire-control-size` を同時定義する）を
+    // 経由しない。共有 class を子孫が継承すると、独自の size class を
+    // 再宣言しない子部品の寸法が Frame の padding 引数で意図せず変化する
+    // （`crate::stack` の同種回帰テストと対をなす）。
+    let html = render(&frame(vec![text("a")], Size::Md, true));
+    assert!(!html.contains("fw-wire-size-"));
+
+    let css = fandhe_frontend_wireframe_ui::frame::FRAME_CSS;
+    assert!(!css.contains("--fw-wire-font-size"));
+    assert!(!css.contains("--fw-wire-control-size"));
 }
