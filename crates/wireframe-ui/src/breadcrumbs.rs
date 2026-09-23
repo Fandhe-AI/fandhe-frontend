@@ -71,10 +71,21 @@ const ITEM_CLASS: &str = "fw-wire-breadcrumbs-item";
 /// （`docs/design/wireframe-ui-architecture.md` §10.4）。区切り記号は
 /// 隣接項目の `::before` 擬似要素にのみ存在し、DOM のテキストノードとは
 /// 無関係（利用者入力と混ざらない）。
+///
+/// 行は折り返さない（`flex-wrap: nowrap` + `overflow-x: auto`）。区切りは
+/// 直前項目の隣接セレクタ（`+`）で「次の項目の前」にのみ描くため、
+/// 折り返しを許すと折り返し後の行頭にも区切りが出現してしまう
+/// （区切りは行の境界ではなく DOM 順の隣接関係にのみ従うため）。深い階層は
+/// 折り返しではなく横スクロールで示す。
+/// `.fw-wire-breadcrumbs-item[data-active]::before` へ `font-weight: normal`
+/// を明示するのは、区切り記号（`::before`）が現在項目（常に最後の項目、
+/// `data-active` 付き）の太字を継承して区切りまで太くなるのを防ぐため
+/// （擬似要素は既定でホスト要素の `font-weight` を継承する）。
 pub const BREADCRUMBS_CSS: &str = "\
 .fw-wire-breadcrumbs {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
   align-items: center;
   box-sizing: border-box;
   font-family: var(--fw-wire-font-family);
@@ -98,6 +109,9 @@ pub const BREADCRUMBS_CSS: &str = "\
 .fw-wire-breadcrumbs-item[data-active] {
   color: var(--fw-wire-ink);
   font-weight: 600;
+}
+.fw-wire-breadcrumbs-item[data-active]::before {
+  font-weight: normal;
 }
 ";
 
