@@ -1326,6 +1326,11 @@ source = "site/wireframes/grid.md"
 path = "/wireframes/grid/"
 
 [[section.page]]
+title = "Divider"
+source = "site/wireframes/divider.md"
+path = "/wireframes/divider/"
+
+[[section.page]]
 title = "Rich text"
 source = "site/wireframes/rich-text.md"
 path = "/wireframes/rich-text/"
