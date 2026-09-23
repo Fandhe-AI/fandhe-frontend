@@ -18,10 +18,16 @@ fn probe_action(label: &str) -> Node {
 
 #[test]
 fn renders_root_class_for_every_size() {
-    for size in Size::ALL {
+    for (size, max_width_class) in [
+        (Size::Xs, "fw-wire-modal-max-width-xs"),
+        (Size::Sm, "fw-wire-modal-max-width-sm"),
+        (Size::Md, "fw-wire-modal-max-width-md"),
+        (Size::Lg, "fw-wire-modal-max-width-lg"),
+        (Size::Xl, "fw-wire-modal-max-width-xl"),
+    ] {
         let node = modal("タイトル", probe_body(), vec![], size);
         let html = render(&node);
-        let expected_class = format!(r#"class="fw-wire-modal {}""#, size.class());
+        let expected_class = format!(r#"class="fw-wire-modal {max_width_class}""#);
         assert!(
             html.contains(&expected_class),
             "expected {expected_class:?} in {html:?}"
@@ -29,6 +35,19 @@ fn renders_root_class_for_every_size() {
         assert!(html.starts_with("<div"));
         assert!(html.trim_end().ends_with("</div>"));
     }
+}
+
+#[test]
+fn root_class_is_modal_specific_and_does_not_leak_shared_size_class() {
+    // コードレビュー指摘（イシュー #2645）: 共有 `fw-wire-size-*` class を
+    // ルートへ付けると `--fw-wire-font-size` がパネル・タイトル・
+    // `body`/`actions` スロットへ暗黙に継承されてしまう
+    // （`crate::frame`/`crate::stack` が同種の問題を先に回避した前例と
+    // 同じ設計、`crates/wireframe-ui/src/modal.rs` の `MODAL_CSS` doc
+    // 参照）。Modal 専用の修飾 class のみを使うことを固定する。
+    let html = render(&modal("タイトル", probe_body(), vec![], Size::Md));
+    assert!(html.contains("fw-wire-modal-max-width-md"));
+    assert!(!html.contains("fw-wire-size-"));
 }
 
 #[test]
@@ -140,11 +159,11 @@ fn modal_css_declares_expected_selectors_with_fw_wire_prefix_only_and_no_fixed_p
         ".fw-wire-modal-title {",
         ".fw-wire-modal-body {",
         ".fw-wire-modal-actions {",
-        ".fw-wire-modal.fw-wire-size-xs .fw-wire-modal-panel {",
-        ".fw-wire-modal.fw-wire-size-sm .fw-wire-modal-panel {",
-        ".fw-wire-modal.fw-wire-size-md .fw-wire-modal-panel {",
-        ".fw-wire-modal.fw-wire-size-lg .fw-wire-modal-panel {",
-        ".fw-wire-modal.fw-wire-size-xl .fw-wire-modal-panel {",
+        ".fw-wire-modal.fw-wire-modal-max-width-xs .fw-wire-modal-panel {",
+        ".fw-wire-modal.fw-wire-modal-max-width-sm .fw-wire-modal-panel {",
+        ".fw-wire-modal.fw-wire-modal-max-width-md .fw-wire-modal-panel {",
+        ".fw-wire-modal.fw-wire-modal-max-width-lg .fw-wire-modal-panel {",
+        ".fw-wire-modal.fw-wire-modal-max-width-xl .fw-wire-modal-panel {",
     ] {
         assert!(css.contains(selector), "missing selector {selector:?}");
     }
@@ -164,4 +183,9 @@ fn modal_css_declares_expected_selectors_with_fw_wire_prefix_only_and_no_fixed_p
     assert!(!css.contains("position: fixed"));
     assert!(!css.contains("position: absolute"));
     assert!(!css.contains("z-index"));
+
+    // コードレビュー指摘（イシュー #2645）: `.fw-wire-modal-panel` は
+    // 共有 `--fw-wire-font-size` を参照しない（パネル・スロットへの
+    // タイポグラフィ暗黙継承を避ける、`MODAL_CSS` doc 参照）。
+    assert!(!css.contains("fw-wire-font-size"));
 }

@@ -59,6 +59,18 @@ const ACTIONS_CLASS: &str = "fw-wire-modal-actions";
 /// `crate::css` の非 `PARTS` 経路例外（`size::SCALE` 由来の動的生成関数）
 /// には該当しない静的な 5 ルールとして本定数へ直書きする
 /// （`docs/design/wireframe-ui-architecture.md` §10.4）。
+///
+/// 最大幅ルールは共有 `fw-wire-size-*`（`--fw-wire-font-size`/
+/// `--fw-wire-control-size` を同時定義し子孫へ継承される）ではなく
+/// Modal 専用の修飾 class `fw-wire-modal-max-width-<段階>`
+/// （[`max_width_class`]）で宣言する。共有 class をルートへ付けると、
+/// `body`/`actions` スロットへ渡される任意の `Node`（呼び出し側が
+/// 何を渡すかは Modal の関知しない契約）や `panel`/`title` のタイポ
+/// グラフィまで暗黙に変更してしまう（コードレビュー指摘。
+/// `crate::frame` が `fw-wire-frame-padding-*` で・`crate::stack` が
+/// `fw-wire-stack-gap-*` で同種の問題を先に回避した前例と同じ設計、
+/// イシュー #2609）。このため `.fw-wire-modal-panel` は `font-size` を
+/// 設定しない（レイアウト・サイズ責務をパネル最大幅に限定する）。
 pub const MODAL_CSS: &str = "\
 .fw-wire-modal {
   display: grid;
@@ -80,7 +92,6 @@ pub const MODAL_CSS: &str = "\
   border-radius: var(--fw-wire-radius);
   color: var(--fw-wire-ink);
   font-family: var(--fw-wire-font-family);
-  font-size: var(--fw-wire-font-size, 1rem);
   line-height: 1.4;
 }
 .fw-wire-modal-title {
@@ -96,22 +107,38 @@ pub const MODAL_CSS: &str = "\
   gap: 0.5em;
   flex-wrap: wrap;
 }
-.fw-wire-modal.fw-wire-size-xs .fw-wire-modal-panel {
+.fw-wire-modal.fw-wire-modal-max-width-xs .fw-wire-modal-panel {
   max-width: 20rem;
 }
-.fw-wire-modal.fw-wire-size-sm .fw-wire-modal-panel {
+.fw-wire-modal.fw-wire-modal-max-width-sm .fw-wire-modal-panel {
   max-width: 26rem;
 }
-.fw-wire-modal.fw-wire-size-md .fw-wire-modal-panel {
+.fw-wire-modal.fw-wire-modal-max-width-md .fw-wire-modal-panel {
   max-width: 32rem;
 }
-.fw-wire-modal.fw-wire-size-lg .fw-wire-modal-panel {
+.fw-wire-modal.fw-wire-modal-max-width-lg .fw-wire-modal-panel {
   max-width: 40rem;
 }
-.fw-wire-modal.fw-wire-size-xl .fw-wire-modal-panel {
+.fw-wire-modal.fw-wire-modal-max-width-xl .fw-wire-modal-panel {
   max-width: 50rem;
 }
 ";
+
+/// `size`（[`Size`]）を Modal 専用の最大幅修飾 class 名
+/// （`fw-wire-modal-max-width-<段階>`）へ変換する。
+///
+/// [`crate::size::css`] が生成する共有 `fw-wire-size-*` class は
+/// `--fw-wire-font-size`/`--fw-wire-control-size` を同時に定義するため
+/// 使わない（[`MODAL_CSS`] doc 参照）。
+const fn max_width_class(size: Size) -> &'static str {
+    match size {
+        Size::Xs => "fw-wire-modal-max-width-xs",
+        Size::Sm => "fw-wire-modal-max-width-sm",
+        Size::Md => "fw-wire-modal-max-width-md",
+        Size::Lg => "fw-wire-modal-max-width-lg",
+        Size::Xl => "fw-wire-modal-max-width-xl",
+    }
+}
 
 /// モーダルダイアログの配置イメージを組み立てる。
 ///
@@ -123,8 +150,11 @@ pub const MODAL_CSS: &str = "\
 /// - `actions`: アクション行のスロット群（[`crate::button`] 等の戻り値を
 ///   そのまま渡す）。空のときはアクション行のパート要素自体を出力しない
 ///   （空要素を残さない）。
-/// - `size`: [`Size`] 5 段。ルート class `fw-wire-size-<段階>` として
-///   付与し、パネルの最大幅に効く。
+/// - `size`: [`Size`] 5 段。ルート class `fw-wire-modal-max-width-<段階>`
+///   （[`max_width_class`]）として付与し、パネルの最大幅にのみ効く
+///   （共有 `fw-wire-size-*` は使わないため、`body`/`actions` スロットや
+///   `title`/`panel` のフォントサイズには影響しない。[`MODAL_CSS`] doc
+///   参照）。
 ///
 /// タイトルは [`fandhe_frontend_core::text`] のみで流し込み（REQ-1 既定
 /// エスケープ）、`<dialog>`/`role`/`aria-*`/`tabindex`/`style`/`data-*` は
@@ -144,7 +174,7 @@ pub const MODAL_CSS: &str = "\
 /// let cancel = div(vec![("class", "probe-cancel")], vec![text("キャンセル")]);
 /// let node = modal("確認", body, vec![cancel, ok], Size::Md);
 /// let html = render(&node);
-/// assert!(html.contains(r#"class="fw-wire-modal fw-wire-size-md""#));
+/// assert!(html.contains(r#"class="fw-wire-modal fw-wire-modal-max-width-md""#));
 /// assert!(html.contains(r#"class="fw-wire-modal-panel""#));
 /// assert!(html.contains(r#"class="fw-wire-modal-title""#));
 /// assert!(html.contains("確認"));
@@ -174,7 +204,7 @@ pub const MODAL_CSS: &str = "\
 /// ```
 #[must_use]
 pub fn modal(title: &str, body: Node, actions: Vec<Node>, size: Size) -> Node {
-    let class = class_list("fw-wire-modal", &[Some(size.class())]);
+    let class = class_list("fw-wire-modal", &[Some(max_width_class(size))]);
 
     let mut panel_children: Vec<Node> = vec![
         div(vec![("class", TITLE_CLASS)], vec![text(title)]),

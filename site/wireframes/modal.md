@@ -52,3 +52,13 @@ blocks.pm には対応部品がなく、`fandhe-frontend-wireframe-ui` 独自追
 - **スクリーンショット非掲載**: `docs/design/reference-screenshots/` への
   blocks.pm 画像取り込みは #2602 で fail-closed に非掲載と確定しています。
   本ページも画像は置かず、上記の外部リンクのみで代替します。
+- **`size` はパネル最大幅にのみ効き、共有 `fw-wire-size-*` は使わない**:
+  レビュー指摘（codex-review・Cursor Bugbot、イシュー #2645）を受けて
+  是正しました。当初はルートへ共有 `fw-wire-size-*` class を付与しており、
+  `--fw-wire-font-size` がパネル・タイトルや `body`/`actions` スロットへ
+  暗黙に継承され、「パネル最大幅にのみ効く」という公開契約と実装が
+  食い違っていました。`crate::frame`（`fw-wire-frame-padding-*`、
+  イシュー #2609）・`crate::stack`（`fw-wire-stack-gap-*`）が同種の問題を
+  先に回避した前例に合わせ、Modal 専用の修飾 class
+  `fw-wire-modal-max-width-<段階>` を新設して `.fw-wire-modal-panel` から
+  `font-size: var(--fw-wire-font-size, ...)` を削除しました。
