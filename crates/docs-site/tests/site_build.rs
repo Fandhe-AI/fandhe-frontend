@@ -294,12 +294,16 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // #2644 で Wireframes セクションへ Tooltip 部品ページ（Phase 6
     // 「Overlay・Feedback」の最初の部品）が加わり、281 → 282 になった。
     // イシュー #2647 で Wireframes セクションへ Toast 部品ページ（Phase 6
-    // の 2 番目の部品）が加わり、282 → 283 になった。イシュー #2651 で
-    // Wireframes セクションへ Avatar 部品ページ（Phase 7「Data display」の
-    // 最初の部品）が加わり、283 → 284 になった。
+    // の 2 番目の部品）が加わり、282 → 283 になった。イシュー #2648 で
+    // Progress 部品ページ（同 Phase の 3 番目の部品）が加わり、
+    // 283 → 284 になった。イシュー #2649 で Wireframes セクションへ
+    // Spinner 部品ページ（Phase 6 の 4 番目の部品）が加わり、
+    // 284 → 285 になった。イシュー #2651 で Wireframes セクションへ
+    // Avatar 部品ページ（Phase 7「Data display」の最初の部品）が加わり、
+    // 285 → 286 になった。
     assert_eq!(
         report.written.len(),
-        284,
+        286,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );

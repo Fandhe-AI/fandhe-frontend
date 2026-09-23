@@ -69,12 +69,14 @@ mod link;
 mod nav_item;
 mod pagination;
 mod paragraph;
+mod progress;
 mod question;
 mod radio;
 mod ratings;
 mod rich_text;
 mod select;
 mod slider;
+mod spinner;
 mod stack;
 mod stepper;
 mod switch;
@@ -164,8 +166,12 @@ pub struct Wireframe {
 /// する）・Phase 6「Overlay・Feedback」の [`tooltip::WIREFRAME`]
 /// （イシュー #2644、最初の部品）・[`toast::WIREFRAME`]（イシュー #2647、
 /// Phase 6 の 2 番目の部品。閉じるグリフは `icon::x` 固定で
-/// `dismissible: bool` の 1 引数だけで有無を切り替える）・Phase 7
-/// 「Data display」の [`avatar::WIREFRAME`]（イシュー #2651、最初の部品。
+/// `dismissible: bool` の 1 引数だけで有無を切り替える）・
+/// [`progress::WIREFRAME`]（イシュー #2648、同 Phase の 3 番目の部品。
+/// 形状は部品ローカルの `fandhe_frontend_wireframe_ui::ProgressShape` による
+/// 修飾 class（Bar/Circle）で表す）・[`spinner::WIREFRAME`]（イシュー
+/// #2649、Phase 6 の 4 番目の部品）・Phase 7「Data display」の
+/// [`avatar::WIREFRAME`]（イシュー #2651、最初の部品。
 /// `content: Option<Node>` が `None` のとき `icon::user` へフォールバック
 /// する §11.4 からの意図的な逸脱）が続いた。
 /// Phase 1・3・4・5・6・7 以降（#2608〜#2665）の残りの各部品イシューが
@@ -201,6 +207,8 @@ pub const WIREFRAMES: &[Wireframe] = &[
     cursor::WIREFRAME,
     tooltip::WIREFRAME,
     toast::WIREFRAME,
+    progress::WIREFRAME,
+    spinner::WIREFRAME,
     avatar::WIREFRAME,
 ];
 

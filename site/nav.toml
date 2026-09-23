@@ -1466,6 +1466,16 @@ source = "site/wireframes/toast.md"
 path = "/wireframes/toast/"
 
 [[section.page]]
+title = "Progress"
+source = "site/wireframes/progress.md"
+path = "/wireframes/progress/"
+
+[[section.page]]
+title = "Spinner"
+source = "site/wireframes/spinner.md"
+path = "/wireframes/spinner/"
+
+[[section.page]]
 title = "Avatar"
 source = "site/wireframes/avatar.md"
 path = "/wireframes/avatar/"
