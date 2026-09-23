@@ -118,7 +118,11 @@
 //! display」の最初の部品 [`avatar`]（イシュー #2651、`content: Option<Node>`
 //! が `None` のとき [`icon::user`] へフォールバックする §11.4 からの意図的な
 //! 逸脱。円形表示は `crate::frame` の `bordered` と同型の部品固有修飾 class
-//! で表す）が続いた。
+//! で表す）・Phase 7 の 2 番目の部品 [`list`]（イシュー #2657、箇条書き/
+//! 番号付きリストの配置イメージ。`items: Vec<Node>` を項目ラッパー class
+//! で包み、`ordered: bool` は部品固有の修飾 class、マーカー・番号は
+//! CSS 擬似要素/カウンタのみで描く。`<ul>`/`<ol>`/`<li>` は出力しない）
+//! が続いた。
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
 //! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
 //! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
@@ -154,6 +158,7 @@ pub mod grid;
 pub mod icon;
 pub mod input;
 pub mod link;
+pub mod list;
 pub mod menu;
 pub mod modal;
 pub mod nav_item;
@@ -197,6 +202,7 @@ pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
 pub use input::input;
 pub use link::link;
+pub use list::list;
 pub use menu::{menu, MenuItem};
 pub use modal::modal;
 pub use nav_item::nav_item;

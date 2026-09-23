@@ -352,6 +352,10 @@ jobs:
           # ページ（content: Option<Node> が None のとき icon::user へ
           # フォールバックする §11.4 からの意図的な逸脱）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/avatar/index.html"
+          # イシュー #2657: Phase 7「Data display」の 2 番目の部品、List
+          # 部品ページ（items: Vec<Node> と ordered: bool の 2 引数のみ。
+          # マーカー・番号は CSS 擬似要素/カウンタのみで描く）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/list/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact

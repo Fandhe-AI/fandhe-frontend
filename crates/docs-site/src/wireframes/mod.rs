@@ -68,6 +68,7 @@ mod frame;
 mod grid;
 mod input;
 mod link;
+mod list;
 mod menu;
 mod modal;
 mod nav_item;
@@ -185,7 +186,10 @@ pub struct Wireframe {
 /// Phase 7「Data display」の
 /// [`avatar::WIREFRAME`]（イシュー #2651、最初の部品。
 /// `content: Option<Node>` が `None` のとき `icon::user` へフォールバック
-/// する §11.4 からの意図的な逸脱）が続いた。
+/// する §11.4 からの意図的な逸脱）・[`list::WIREFRAME`]（イシュー #2657、
+/// Phase 7 の 2 番目の部品。`items: Vec<Node>` と `ordered: bool` の
+/// 2 引数のみを持ち、マーカー・番号は CSS 擬似要素/カウンタのみで描く）
+/// が続いた。
 /// Phase 1・3・4・5・6・7 以降（#2608〜#2665）の残りの各部品イシューが
 /// 自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -226,6 +230,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     spinner::WIREFRAME,
     modal::WIREFRAME,
     avatar::WIREFRAME,
+    list::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。
