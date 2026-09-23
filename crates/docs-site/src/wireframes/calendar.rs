@@ -11,37 +11,38 @@ use fandhe_frontend_wireframe_ui::{calendar, Size};
 
 use super::{ArgRow, Wireframe};
 
-/// 2026 年 9 月相当の 5 週（1 日が火曜始まりの想定で先頭 2 マスが空き）。
+/// 2026 年 9 月相当の 5 週（2026-09-01 は火曜のため、日曜始まりの先頭行は
+/// `None` が 2 個続く）。
 const SEPTEMBER_WEEKS: [[Option<u32>; 7]; 5] = [
-    [None, Some(1), Some(2), Some(3), Some(4), Some(5), Some(6)],
+    [None, None, Some(1), Some(2), Some(3), Some(4), Some(5)],
     [
+        Some(6),
         Some(7),
         Some(8),
         Some(9),
         Some(10),
         Some(11),
         Some(12),
-        Some(13),
     ],
     [
+        Some(13),
         Some(14),
         Some(15),
         Some(16),
         Some(17),
         Some(18),
         Some(19),
-        Some(20),
     ],
     [
+        Some(20),
         Some(21),
         Some(22),
         Some(23),
         Some(24),
         Some(25),
         Some(26),
-        Some(27),
     ],
-    [Some(28), Some(29), Some(30), None, None, None, None],
+    [Some(27), Some(28), Some(29), Some(30), None, None, None],
 ];
 
 /// 6 週にまたがる月の例（1 日が土曜始まりで、末尾が翌月まで届くケース）。
