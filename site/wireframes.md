@@ -56,6 +56,7 @@
 - [Pagination](./wireframes/pagination.md)
 - [Cursor](./wireframes/cursor.md)
 - [Tooltip](./wireframes/tooltip.md)
+- [Toast](./wireframes/toast.md)
 - [Spinner](./wireframes/spinner.md)
 
 ## 掲載予定
@@ -81,7 +82,6 @@
 
 - modal
 - alert
-- toast
 - progress
 
 ### Phase 7: Data display

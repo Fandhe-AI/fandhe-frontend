@@ -1461,6 +1461,11 @@ source = "site/wireframes/tooltip.md"
 path = "/wireframes/tooltip/"
 
 [[section.page]]
+title = "Toast"
+source = "site/wireframes/toast.md"
+path = "/wireframes/toast/"
+
+[[section.page]]
 title = "Spinner"
 source = "site/wireframes/spinner.md"
 path = "/wireframes/spinner/"

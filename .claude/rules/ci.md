@@ -293,6 +293,9 @@
   `wireframes/tooltip/index.html`（イシュー #2644、Phase 6「Overlay・
   Feedback」の最初の部品。方向は部品ローカルの `TooltipSide` による
   修飾 class で表す）/
+  `wireframes/toast/index.html`（イシュー #2647、Phase 6「Overlay・
+  Feedback」の 2 番目の部品。閉じるグリフは `icon::x` 固定で instance
+  swap にせず `dismissible: bool` の 1 引数だけで有無を切り替える）/
   `wireframes/spinner/index.html`（イシュー #2649、Phase 6「Overlay・
   Feedback」の Spinner。静的な円弧のみ・引数は Size のみ）
   である。
