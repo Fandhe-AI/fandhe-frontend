@@ -61,6 +61,7 @@ mod frame;
 mod grid;
 mod input;
 mod link;
+mod nav_item;
 mod paragraph;
 mod question;
 mod radio;
@@ -134,8 +135,9 @@ pub struct Wireframe {
 /// （イシュー #2619）・[`input::WIREFRAME`]（イシュー #2622）・
 /// Phase 4「Forms B」の [`question::WIREFRAME`]（イシュー #2630、最初の
 /// 部品）・[`ratings::WIREFRAME`]（イシュー #2631、`icon::star` を再利用
-/// する 2 番目の部品）が続いた。
-/// Phase 1・3・4 以降（#2608〜#2665）の残りの各部品イシューが自分の
+/// する 2 番目の部品）、Phase 5「Navigation」の最初の部品
+/// [`nav_item::WIREFRAME`]（イシュー #2636）が続いた。
+/// Phase 1・3・4・5 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
@@ -157,6 +159,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     input::WIREFRAME,
     question::WIREFRAME,
     ratings::WIREFRAME,
+    nav_item::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

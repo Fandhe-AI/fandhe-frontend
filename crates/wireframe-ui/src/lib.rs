@@ -61,9 +61,14 @@
 //! [`question`]（イシュー #2630、ラベル + 補足説明 + `Node` スロットの
 //! コントロール + ヒント。表示状態軸を持たずスロット側へ委ねる）・
 //! [`ratings`]（イシュー #2631、`icon::star` を再利用し塗り数を
-//! `data-active` で表現する）が続いた。
-//! 残りは Phase 2 の他部品（text 等）・Phase 3 の他部品（#2608〜）および
-//! Phase 4 の他部品（calendar/file-drop/stepper）で順次追加する。
+//! `data-active` で表現する）、Phase 5「Navigation」の最初の部品
+//! [`nav_item`]（イシュー #2636、先頭・末尾の `Option<Node>` アイコン
+//! スロットに加え `Option<&str>` の件数カウンター内部パートを持ち、
+//! `Active` はアクティブ状態のグレースケール反転配色として消費する）が
+//! 続いた。
+//! 残りは Phase 2 の他部品（text 等）・Phase 3 の他部品（#2608〜）・
+//! Phase 4 の他部品（calendar/file-drop/stepper）および Phase 5 の他部品
+//! で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -88,6 +93,7 @@ pub mod grid;
 pub mod icon;
 pub mod input;
 pub mod link;
+pub mod nav_item;
 pub mod paragraph;
 pub mod props;
 pub mod question;
@@ -113,6 +119,7 @@ pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
 pub use input::input;
 pub use link::link;
+pub use nav_item::nav_item;
 pub use paragraph::paragraph;
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
 pub use question::question;
