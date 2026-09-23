@@ -73,6 +73,7 @@ mod slider;
 mod stack;
 mod switch;
 mod tag;
+mod text;
 mod textarea;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
@@ -139,7 +140,8 @@ pub struct Wireframe {
 /// する 2 番目の部品）・[`calendar::WIREFRAME`]（イシュー #2632、選択日は
 /// `props::Active` を再利用する 3 番目の部品）・[`file_drop::WIREFRAME`]
 /// （イシュー #2633、blocks.pm に対応部品がない独自追加部品、4 番目の
-/// 部品）が続いた。
+/// 部品）・Phase 2「テキスト・注釈」の [`text::WIREFRAME`]（イシュー
+/// #2614、同 Phase 最後の部品）が続いた。
 /// Phase 1・3・4 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -164,6 +166,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     ratings::WIREFRAME,
     calendar::WIREFRAME,
     file_drop::WIREFRAME,
+    text::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

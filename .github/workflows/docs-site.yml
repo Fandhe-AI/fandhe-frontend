@@ -298,6 +298,8 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/calendar/index.html"
           # イシュー #2633: 同 Phase の File drop 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/file-drop/index.html"
+          # イシュー #2614: Phase 2「テキスト・注釈」の Text 部品ページ。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/text/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact
