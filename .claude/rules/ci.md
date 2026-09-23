@@ -279,8 +279,12 @@
   `wireframes/nav-item/index.html`（イシュー #2636、Phase 5「Navigation」の
   2 番目の部品。先頭・末尾の `Option<Node>` アイコンスロット + 件数表示
   〔`Option<&str>`〕、`Active` はアクティブ状態のグレースケール反転配色）/
+  `wireframes/accordion/index.html`（イシュー #2641、Phase 5「Navigation」の
+  3 番目の部品。blocks.pm に対応部品がない独自追加部品。展開状態は
+  `props::Active` を項目単位で再利用し、折りたたみ項目の本文スロットは
+  出力しない）/
   `wireframes/cursor/index.html`（イシュー #2642、Phase 5「Navigation」の
-  3 番目の部品。代わりに使える既存アイコンがないため
+  4 番目の部品。代わりに使える既存アイコンがないため
   `icon::cursor_arrow`/`icon::cursor_hand` を新規追加して消費する）
   である。
   いずれも

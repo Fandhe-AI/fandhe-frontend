@@ -78,7 +78,10 @@
 //! [`nav_item`]（イシュー #2636、先頭・末尾の `Option<Node>` アイコン
 //! スロットに加え `Option<&str>` の件数カウンター内部パートを持ち、
 //! `Active` はアクティブ状態のグレースケール反転配色として消費する）・
-//! [`cursor`]（イシュー #2642、代わりに使える既存アイコンがないため
+//! [`accordion`]（イシュー #2641、blocks.pm に対応部品がない独自追加部品。
+//! 展開状態は新型を新設せず `props::Active` を項目単位で再利用し、
+//! 折りたたみ項目の本文スロットは出力しない）・[`cursor`]（イシュー
+//! #2642、代わりに使える既存アイコンがないため
 //! `icon::cursor_arrow`/`icon::cursor_hand` を新規追加して消費する。部品
 //! ローカルの列挙型 [`CursorKind`] をクレートルートから再エクスポートする
 //! 初めての例）も続いた。
@@ -97,6 +100,7 @@
 //! パート class として `fw-wire-icon-glyph`（[`icon`] のグリフ）を持つ。
 //! 詳細・追記契約は `docs/design/wireframe-ui-architecture.md` §10 を参照。
 
+pub mod accordion;
 pub mod annotation;
 pub mod button;
 pub mod calendar;
@@ -130,6 +134,7 @@ pub mod text;
 pub mod textarea;
 pub mod tokens;
 
+pub use accordion::accordion;
 pub use annotation::annotation;
 pub use button::button;
 pub use calendar::{calendar, MAX_WEEKS};

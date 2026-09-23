@@ -53,6 +53,7 @@
 //! 使わない。[`ArgRow`] の各フィールドは `&'static str` に限定し、利用者入力が
 //! 引数表へ流れ込む経路を型で塞ぐ。
 
+mod accordion;
 mod annotation;
 mod button;
 mod calendar;
@@ -151,9 +152,11 @@ pub struct Wireframe {
 /// Phase 4「Forms B」の [`stepper::WIREFRAME`]（イシュー #2634、blocks.pm
 /// 対応部品を持たない独自追加部品、5 番目の部品）・Phase 5「Navigation」の
 /// [`nav_item::WIREFRAME`]（イシュー #2636、Phase 5 の 2 番目の部品）・
-/// [`cursor::WIREFRAME`]（イシュー #2642、Phase 5 の 3 番目の部品。代わりに
-/// 使える既存アイコンがないため `icon::cursor_arrow`/`icon::cursor_hand` を
-/// 新規追加して消費する）が続いた。
+/// [`accordion::WIREFRAME`]（イシュー #2641、Phase 5 の 3 番目の部品。
+/// blocks.pm に対応部品がない独自追加部品）・[`cursor::WIREFRAME`]
+/// （イシュー #2642、Phase 5 の 4 番目の部品。代わりに使える既存アイコンが
+/// ないため `icon::cursor_arrow`/`icon::cursor_hand` を新規追加して消費
+/// する）が続いた。
 /// Phase 1・3・4・5 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -182,6 +185,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     tabs::WIREFRAME,
     stepper::WIREFRAME,
     nav_item::WIREFRAME,
+    accordion::WIREFRAME,
     cursor::WIREFRAME,
 ];
 

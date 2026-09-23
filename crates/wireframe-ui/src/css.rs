@@ -47,7 +47,8 @@
 /// [`crate::text::TEXT_CSS`]・イシュー #2638 で
 /// [`crate::tabs::TABS_CSS`]・イシュー #2634 で
 /// [`crate::stepper::STEPPER_CSS`]・イシュー #2636 で
-/// [`crate::nav_item::NAV_ITEM_CSS`]・イシュー #2642 で
+/// [`crate::nav_item::NAV_ITEM_CSS`]・イシュー #2641 で
+/// [`crate::accordion::ACCORDION_CSS`]・イシュー #2642 で
 /// [`crate::cursor::CURSOR_CSS`] が続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
@@ -76,6 +77,7 @@ pub const PARTS: &[&str] = &[
     crate::tabs::TABS_CSS,
     crate::stepper::STEPPER_CSS,
     crate::nav_item::NAV_ITEM_CSS,
+    crate::accordion::ACCORDION_CSS,
     crate::cursor::CURSOR_CSS,
 ];
 
