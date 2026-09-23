@@ -231,6 +231,8 @@
   `select` 部品）/
   `wireframes/switch/index.html`（イシュー #2627、Phase 3「Forms A」の
   `switch` 部品。`Active` を ON 状態の意味で使い `Disabled` を併用する）/
+  `wireframes/checkbox/index.html`（イシュー #2625、Phase 3「Forms A」の
+  `checkbox` 部品〔`props::Active` を「チェック済み」状態として消費〕）/
   `wireframes/input/index.html`（イシュー #2622、Phase 3「Forms A」の
   `input` 部品〔`<input>` 非出力、`props::Active` と `props::Disabled` を
   併用する 3 例目の部品〕）

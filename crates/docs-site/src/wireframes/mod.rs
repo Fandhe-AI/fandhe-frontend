@@ -55,6 +55,7 @@
 
 mod annotation;
 mod button;
+mod checkbox;
 mod divider;
 mod grid;
 mod input;
@@ -117,7 +118,8 @@ pub struct Wireframe {
 /// [`rich_text::WIREFRAME`]（イシュー #2616）・Phase 3「Forms A」の
 /// [`button::WIREFRAME`]（イシュー #2621）・[`select::WIREFRAME`]
 /// （イシュー #2624）・[`switch::WIREFRAME`]（イシュー #2627）・
-/// [`input::WIREFRAME`]（イシュー #2622）が続いた。
+/// [`checkbox::WIREFRAME`]（イシュー #2625）・[`input::WIREFRAME`]
+/// （イシュー #2622）が続いた。
 /// Phase 1・3 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -130,6 +132,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     button::WIREFRAME,
     select::WIREFRAME,
     switch::WIREFRAME,
+    checkbox::WIREFRAME,
     input::WIREFRAME,
 ];
 

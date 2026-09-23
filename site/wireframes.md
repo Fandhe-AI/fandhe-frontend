@@ -36,6 +36,7 @@
 - [Button](./wireframes/button.md)
 - [Select](./wireframes/select.md)
 - [Switch](./wireframes/switch.md)
+- [Checkbox](./wireframes/checkbox.md)
 - [Input](./wireframes/input.md)
 
 ## 掲載予定
@@ -57,7 +58,6 @@
 ### Phase 3: Forms A
 
 - textarea
-- checkbox
 - radio
 - slider
 

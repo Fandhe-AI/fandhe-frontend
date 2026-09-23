@@ -270,6 +270,9 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/select/index.html"
           # イシュー #2627: 同 Phase の Switch 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/switch/index.html"
+          # イシュー #2625: Phase 3「Forms A」の Checkbox 部品ページ
+          # （props::Active を「チェック済み」状態として消費）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/checkbox/index.html"
           # イシュー #2622: 同 Phase の Input 部品ページ（<input> 非出力）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/input/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
