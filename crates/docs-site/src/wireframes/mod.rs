@@ -72,6 +72,7 @@ mod select;
 mod slider;
 mod stack;
 mod switch;
+mod tabs;
 mod tag;
 mod text;
 mod textarea;
@@ -141,8 +142,10 @@ pub struct Wireframe {
 /// `props::Active` を再利用する 3 番目の部品）・[`file_drop::WIREFRAME`]
 /// （イシュー #2633、blocks.pm に対応部品がない独自追加部品、4 番目の
 /// 部品）・Phase 2「テキスト・注釈」の [`text::WIREFRAME`]（イシュー
-/// #2614、同 Phase 最後の部品）が続いた。
-/// Phase 1・3・4 以降（#2608〜#2665）の残りの各部品イシューが自分の
+/// #2614、同 Phase 最後の部品）・Phase 5「Navigation」の
+/// [`tabs::WIREFRAME`]（イシュー #2638、最初の部品。選択状態は項目ごとの
+/// `Active` ではなく `active: Option<usize>` 1 引数で表す）が続いた。
+/// Phase 1・3・4・5 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
@@ -167,6 +170,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     calendar::WIREFRAME,
     file_drop::WIREFRAME,
     text::WIREFRAME,
+    tabs::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。
