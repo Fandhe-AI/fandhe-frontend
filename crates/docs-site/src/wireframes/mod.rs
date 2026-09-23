@@ -57,6 +57,7 @@ mod annotation;
 mod divider;
 mod grid;
 mod rich_text;
+mod stack;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
 use fandhe_frontend_pre_styled_ui::{StyleSheet, StylesheetError};
@@ -106,14 +107,15 @@ pub struct Wireframe {
 /// が固定する。#2607 時点では空だったが、Phase 2「テキスト・注釈」の
 /// [`annotation::WIREFRAME`]（イシュー #2617）を皮切りに、Phase 1
 /// 「レイアウト骨格」の [`grid::WIREFRAME`]（イシュー #2611）・
-/// [`divider::WIREFRAME`]（イシュー #2612）・Phase 2「テキスト・注釈」の
-/// [`rich_text::WIREFRAME`]（イシュー #2616）が続いた。Phase 1〜8
-/// （#2608〜#2665）の残りの各部品イシューが自分の [`Wireframe`] 定数を
-/// 1 要素ずつ追記する。
+/// [`divider::WIREFRAME`]（イシュー #2612）・[`stack::WIREFRAME`]
+/// （イシュー #2610）・Phase 2「テキスト・注釈」の [`rich_text::WIREFRAME`]
+/// （イシュー #2616）が続いた。Phase 1〜8（#2608〜#2665）の残りの各部品
+/// イシューが自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
     grid::WIREFRAME,
     divider::WIREFRAME,
+    stack::WIREFRAME,
     rich_text::WIREFRAME,
 ];
 
