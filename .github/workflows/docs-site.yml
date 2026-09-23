@@ -266,6 +266,9 @@ jobs:
           # イシュー #2621: Phase 3「Forms A」の Button 部品ページ
           # （props::Disabled の最初の実消費者）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/button/index.html"
+          # イシュー #2625: Phase 3「Forms A」の Checkbox 部品ページ
+          # （props::Active を「チェック済み」状態として消費）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/checkbox/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact
