@@ -127,6 +127,7 @@ pub const SLIDER_CSS: &str = "\
   color: var(--fw-wire-ink);
   user-select: none;
   padding-inline: calc(var(--fw-wire-control-size, 2rem) * 0.25);
+  padding-block: calc(var(--fw-wire-control-size, 2rem) * 0.15);
 }
 .fw-wire-slider-track {
   position: relative;
@@ -159,7 +160,7 @@ pub const SLIDER_CSS: &str = "\
 .fw-wire-slider.fw-wire-vertical {
   width: auto;
   height: calc(var(--fw-wire-control-size, 2rem) * 6);
-  padding-inline: 0;
+  padding-inline: calc(var(--fw-wire-control-size, 2rem) * 0.15);
   padding-block: calc(var(--fw-wire-control-size, 2rem) * 0.25);
 }
 .fw-wire-slider.fw-wire-vertical .fw-wire-slider-track {
