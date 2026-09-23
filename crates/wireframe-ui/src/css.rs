@@ -63,11 +63,13 @@
 /// の最初の部品）・イシュー #2655 で [`crate::counter::COUNTER_CSS`]
 /// （2 番目の部品）・イシュー #2654 で [`crate::emoji::EMOJI_CSS`]
 /// （同 Phase の 3 番目の部品）・イシュー #2656 で
-/// [`crate::stat::STAT_CSS`]（4 番目の部品）・イシュー #2660 で
-/// [`crate::image::IMAGE_CSS`]（Phase 8「Media・Data」の最初の部品）・
-/// イシュー #2663 で [`crate::chart::CHART_CSS`]（同 Phase の 2 番目の
-/// 部品）・イシュー #2661 で [`crate::media::MEDIA_CSS`]（同 Phase の
-/// 3 番目の部品）が続いた。
+/// [`crate::stat::STAT_CSS`]（4 番目の部品）・イシュー #2658 で
+/// [`crate::card_basic::CARD_BASIC_CSS`]（Phase 7「Data display」の
+/// 5 番目の部品）が続き、イシュー #2660 で [`crate::image::IMAGE_CSS`]
+/// （Phase 8「Media・Data」の最初の部品）・イシュー #2663 で
+/// [`crate::chart::CHART_CSS`]（同 Phase の 2 番目の部品）・イシュー
+/// #2661 で [`crate::media::MEDIA_CSS`]（同 Phase の 3 番目の部品）が
+/// 続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
     crate::annotation::ANNOTATION_CSS,
@@ -110,6 +112,7 @@ pub const PARTS: &[&str] = &[
     crate::counter::COUNTER_CSS,
     crate::emoji::EMOJI_CSS,
     crate::stat::STAT_CSS,
+    crate::card_basic::CARD_BASIC_CSS,
     crate::image::IMAGE_CSS,
     crate::chart::CHART_CSS,
     crate::media::MEDIA_CSS,

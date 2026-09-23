@@ -67,6 +67,7 @@
 - [Counter](./wireframes/counter.md)
 - [Emoji](./wireframes/emoji.md)
 - [Stat](./wireframes/stat.md)
+- [Card basic](./wireframes/card-basic.md)
 - [Chart](./wireframes/chart.md)
 - [Image](./wireframes/image.md)
 - [Media](./wireframes/media.md)
@@ -94,7 +95,6 @@
 - icon
 - brand
 - list
-- card-basic
 
 ### Phase 8: Media・Data
 
