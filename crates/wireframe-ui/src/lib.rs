@@ -38,11 +38,11 @@
 //! SVG アイコン基盤（[`icon`]、イシュー #2606）実装済み: 12 種以上の
 //! ラインアートアイコンと `Node` スロット規約（`docs/design/wireframe-ui-architecture.md`
 //! §11）。個別部品は Phase 2「テキスト・注釈」の [`annotation`]
-//! （イシュー #2617）から実装を開始した。Phase 1「レイアウト骨格」の
-//! [`divider`]（イシュー #2612、`props::Orientation` の最初の消費者）が
-//! 続いた。残りは Phase 1 の他部品（frame/stack/grid）・Phase 2 の他部品
-//! （text/paragraph/rich-text/link/tag 等）および Phase 3 以降（#2608〜）で
-//! 順次追加する。
+//! （イシュー #2617）から実装を開始し、Phase 1「レイアウト骨格」の
+//! [`grid`]（イシュー #2611）・[`divider`]（イシュー #2612、
+//! `props::Orientation` の最初の消費者）が続いた。残りは Phase 1 の他部品
+//! （frame/stack）・Phase 2 の他部品（text/paragraph/rich-text/link/tag 等）
+//! および Phase 3 以降（#2608〜）で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -60,6 +60,7 @@ pub mod annotation;
 pub mod class;
 pub mod css;
 pub mod divider;
+pub mod grid;
 pub mod icon;
 pub mod props;
 pub mod size;
@@ -69,5 +70,6 @@ pub use annotation::annotation;
 pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
 pub use divider::divider;
+pub use grid::{grid, MAX_COLUMNS};
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
 pub use size::Size;

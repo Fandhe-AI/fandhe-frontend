@@ -253,11 +253,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // 250 → 252 になった。イシュー #2607 で Wireframes セクション（索引 1）
     // が新設され、252 → 253 になった。イシュー #2617 で Wireframes
     // セクションへ Annotation 部品ページが加わり、253 → 254 になった。
-    // イシュー #2612 で Wireframes セクションへ Divider 部品ページが
-    // 加わり、254 → 255 になった。
+    // イシュー #2611 で Wireframes セクションへ Grid 部品ページが加わり、
+    // 254 → 255 になった。イシュー #2612 で Wireframes セクションへ
+    // Divider 部品ページが加わり、255 → 256 になった。
     assert_eq!(
         report.written.len(),
-        255,
+        256,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );

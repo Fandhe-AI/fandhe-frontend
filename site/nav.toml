@@ -1321,6 +1321,11 @@ source = "site/wireframes/annotation.md"
 path = "/wireframes/annotation/"
 
 [[section.page]]
+title = "Grid"
+source = "site/wireframes/grid.md"
+path = "/wireframes/grid/"
+
+[[section.page]]
 title = "Divider"
 source = "site/wireframes/divider.md"
 path = "/wireframes/divider/"
