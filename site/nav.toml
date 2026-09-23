@@ -1341,10 +1341,14 @@ source = "site/wireframes/link.md"
 path = "/wireframes/link/"
 
 [[section.page]]
+title = "Rich text"
+source = "site/wireframes/rich-text.md"
+path = "/wireframes/rich-text/"
+
+[[section.page]]
 title = "Tag"
 source = "site/wireframes/tag.md"
 path = "/wireframes/tag/"
-
 
 # API Reference セクション（イシュー #955 / 設計 docs/design/docs-site-api-reference-split.md）。
 # - docs/internal/*-implementation-notes.md は本マニフェストへ登録しない。

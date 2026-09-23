@@ -40,11 +40,12 @@
 //! §11）。個別部品は Phase 2「テキスト・注釈」の [`annotation`]
 //! （イシュー #2617）から実装を開始し、Phase 1「レイアウト骨格」の
 //! [`grid`]（イシュー #2611）・[`divider`]（イシュー #2612、
-//! `props::Orientation` の最初の消費者）・[`stack`]（イシュー #2610）が
-//! 続き、Phase 2 の [`link`]（イシュー #2618、`Option<Node>` アイコン
-//! スロット規約 §11.4 の実例、`a[href]` 非出力）・[`tag`]（イシュー
-//! #2619）が続いた。残りは Phase 1 の他部品（frame）・Phase 2 の他部品
-//! （text/paragraph/rich-text 等）および Phase 3 以降
+//! `props::Orientation` の最初の消費者）・[`stack`]（イシュー #2610）・
+//! Phase 2 の [`rich_text`]（イシュー #2616）・[`link`]（イシュー #2618、
+//! `Option<Node>` アイコンスロット規約 §11.4 の実例、`a[href]` 非出力）・
+//! [`tag`]（イシュー #2619）が続いた。残りは Phase 1 の他部品（frame）・
+//! Phase 2 の他部品（text/paragraph 等）
+//! および Phase 3 以降
 //! （#2608〜）で順次追加する。
 //!
 //! # class 命名規約
@@ -67,6 +68,7 @@ pub mod grid;
 pub mod icon;
 pub mod link;
 pub mod props;
+pub mod rich_text;
 pub mod size;
 pub mod stack;
 pub mod tag;
@@ -79,6 +81,7 @@ pub use divider::divider;
 pub use grid::{grid, MAX_COLUMNS};
 pub use link::link;
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
+pub use rich_text::rich_text;
 pub use size::Size;
 pub use stack::stack;
 pub use tag::tag;

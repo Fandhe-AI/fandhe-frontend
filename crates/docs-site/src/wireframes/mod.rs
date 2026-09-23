@@ -57,6 +57,7 @@ mod annotation;
 mod divider;
 mod grid;
 mod link;
+mod rich_text;
 mod stack;
 mod tag;
 
@@ -110,7 +111,8 @@ pub struct Wireframe {
 /// 「レイアウト骨格」の [`grid::WIREFRAME`]（イシュー #2611）・
 /// [`divider::WIREFRAME`]（イシュー #2612）・[`stack::WIREFRAME`]
 /// （イシュー #2610）、Phase 2 の [`link::WIREFRAME`]（イシュー #2618）・
-/// [`tag::WIREFRAME`]（イシュー #2619）が続いた。Phase 1〜8
+/// [`rich_text::WIREFRAME`]（イシュー #2616）・[`tag::WIREFRAME`]
+/// （イシュー #2619）が続いた。Phase 1〜8
 /// （#2608〜#2665）の残りの各部品イシューが自分の [`Wireframe`] 定数を
 /// 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -119,6 +121,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     divider::WIREFRAME,
     stack::WIREFRAME,
     link::WIREFRAME,
+    rich_text::WIREFRAME,
     tag::WIREFRAME,
 ];
 
