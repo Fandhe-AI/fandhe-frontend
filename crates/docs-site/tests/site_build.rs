@@ -309,10 +309,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // Wireframes セクションへ Breadcrumbs 部品ページ（Phase 5
     // 「Navigation」の 7 番目の部品）が加わり、289 → 290 になった。イシュー
     // #2655 で Wireframes セクションへ Counter 部品ページ（Phase 7
-    // 「Data display」の 2 番目の部品）が加わり、290 → 291 になった。
+    // 「Data display」の 2 番目の部品）が加わり、290 → 291 になった。イシュー
+    // #2654 で Wireframes セクションへ Emoji 部品ページ（Phase 7「Data
+    // display」の 3 番目の部品）が加わり、291 → 292 になった。
     assert_eq!(
         report.written.len(),
-        291,
+        292,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );

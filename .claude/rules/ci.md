@@ -323,7 +323,10 @@
   フォールバックする §11.4 からの意図的な逸脱）/
   `wireframes/counter/index.html`（イシュー #2655、Phase 7「Data display」の
   2 番目の部品。件数は `u32` ではなく `&str` で受け、強調配色は部品
-  ローカルの新型を新設せず共通型 `props::Primary` を再利用する）
+  ローカルの新型を新設せず共通型 `props::Primary` を再利用する）/
+  `wireframes/emoji/index.html`（イシュー #2654、Phase 7「Data display」の
+  3 番目の部品。絵文字は `Option<Node>` アイコンスロットではなく
+  `glyph: &str` の 1 引数へ畳み込む §11.4 からの意図的な逸脱）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
