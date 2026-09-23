@@ -81,13 +81,21 @@ const LABEL_CLASS: &str = "fw-wire-stepper-label";
 /// ステップ 1 直前の連結線が未完了色のまま残る）。
 ///
 /// 連結線の位置・長さは `right`/`width` を自身の padding box に対する
-/// 割合で算出するため、`:first-child`/`:last-child` で左右いずれかの
-/// `padding-inline-*` だけを 0 にすると、その要素は `align-items: center`
-/// で中央寄せされるインジケータの中心が padding box の中心からずれ、連結線
-/// が届かなくなる（先頭ステップ自体は `::before` を持たないため無害だが、
-/// 末尾ステップは直前ステップとの連結線を持つため影響する）。そのため
-/// `:first-child` の `padding-inline-start: 0` のみを残し、`:last-child`
-/// の `padding-inline-end: 0` は設けない（左右非対称にしない）。
+/// 割合で算出する（`:not(:first-child)::before` は自身の padding box 幅
+/// `calc(100% - control-size)` だけから前ステップの中心までの距離を
+/// 導出する）。この式は「全ステップの padding box 幅が等しく、かつ
+/// インジケータが各 padding box 内で対称に中央寄せされている」ことを
+/// 暗黙に前提としている。いずれかのステップだけ左右の
+/// `padding-inline-*` を非対称にすると、当該ステップ自身の
+/// `align-items: center` によるインジケータ中心が padding box の中心
+/// からずれ、この前提が崩れる。ずれは非対称にした当該ステップ自身の
+/// 連結線だけでなく、そのステップを「前ステップ」として参照する
+/// **次のステップ**の連結線にも波及する（先頭ステップにのみ
+/// `padding-inline-start: 0` を与えていた過去の実装は、先頭ステップ
+/// 自身が `::before` を持たないことだけを見て「無害」と判断しており、
+/// 次ステップの連結線がこの前提に依存していることを見落としていた）。
+/// そのため全ステップの `padding-inline-*` は対称のまま揃え、個別
+/// ステップの `padding-inline-*` を 0 にする特別扱いは行わない。
 pub const STEPPER_CSS: &str = "\
 .fw-wire-stepper {
   display: flex;
@@ -106,9 +114,6 @@ pub const STEPPER_CSS: &str = "\
   min-width: 0;
   padding-inline-start: 0.5em;
   padding-inline-end: 0.5em;
-}
-.fw-wire-stepper-step:first-child {
-  padding-inline-start: 0;
 }
 .fw-wire-stepper-step:not(:first-child)::before {
   content: \"\";
