@@ -14,20 +14,24 @@
 //!
 //! # API 設計の由来
 //!
-//! blocks.pm の Button 部品が持つ Figma プロパティ（Size / Primary /
-//! Type〔アイコン+テキスト・テキストのみ〕/ Icon〔instance swap〕/ Text）を、
 //! `docs/design/wireframe-ui-architecture.md` §6 の汎用変換規約と §11.4 の
-//! `Option<Node>` アイコンスロット規約でそのまま Rust 引数へ変換した
-//! （`site/wireframes/button.md` の「原案差分メモ」節も参照）。Type
-//! （アイコン+テキスト / テキストのみ）は独立した列挙型を持たず `icon`
-//! 引数の `Some`/`None` へ畳み込む。アイコンのみ（テキストなし）の
-//! variant は本イシューでは実装しない（意図的な絞り込み、原案差分メモ
-//! 参照）。
+//! `Option<Node>` アイコンスロット規約から独立設計した（`site/wireframes/button.md`
+//! の「原案差分メモ」節も参照）。blocks.pm の外観・anatomy・プロパティ構成の
+//! 実装への転用は書面許諾が得られるまで保留されている（同文書 §2、イシュー
+//! #2602）ため、本部品の引数構成は blocks.pm の Figma プロパティを参照・
+//! 書き写さず、一般的な UI キット設計で広く使われる汎用パターンから独立に
+//! 起こした。アイコン付きボタンはラベルの前に任意のアイコンを 1 つだけ置く
+//! 構成が広く使われるため、「アイコン付き」「テキストのみ」の区別に専用の
+//! 列挙型は導入せず、[`crate::link`] と同型の `icon: Option<Node>` スロット
+//! （`Some`/`None`）へ畳み込む（公開面を増やさない判断）。アイコンのみ
+//! （テキストなし）の variant は本イシューでは実装しない（意図的な絞り込み、
+//! 原案差分メモ参照）。
 //!
-//! `Disabled`（`docs/design/wireframe-ui-architecture.md` §5 の表示状態
-//! 軸）は blocks.pm の列挙外だが、Forms 部品向けに用意済みの共通型
-//! [`crate::props::Disabled`] をそのまま使う。`Bold`/`Active` は付与しない
-//! （Button に太字強調・アクティブ状態を持たせる根拠がないため）。
+//! `Disabled`（`docs/design/wireframe-ui-architecture.md` §5 の表示状態軸）
+//! は、押下可能な操作要素が無効化されている状態を表す一般的な UI パターン
+//! として、Forms 部品向けに用意済みの共通型 [`crate::props::Disabled`] を
+//! そのまま使う。`Bold`/`Active` は付与しない（Button に太字強調・
+//! アクティブ状態を持たせる根拠がないため）。
 //!
 //! # `<button>` 要素は出力しない（最重要）
 //!
