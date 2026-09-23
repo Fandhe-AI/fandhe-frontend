@@ -78,8 +78,11 @@
 //! [`nav_item`]（イシュー #2636、先頭・末尾の `Option<Node>` アイコン
 //! スロットに加え `Option<&str>` の件数カウンター内部パートを持ち、
 //! `Active` はアクティブ状態のグレースケール反転配色として消費する）・
-//! Phase 5 の [`menu::menu`]（イシュー #2637、検索欄は `Option<&str>` +
-//! 固定パートの [`icon::search`] で表し `<input>` は出力しない。項目は
+//! [`accordion`]（イシュー #2641、blocks.pm に対応部品がない独自追加部品。
+//! 展開状態は新型を新設せず `props::Active` を項目単位で再利用し、
+//! 折りたたみ項目の本文スロットは出力しない）・Phase 5 の [`menu::menu`]
+//! （イシュー #2637、検索欄は `Option<&str>` + 固定パートの
+//! [`icon::search`] で表し `<input>` は出力しない。項目は
 //! [`menu::MenuItem`] のスライスで受け、強調状態は無効項目を指す添字なら
 //! 優先して外す fail-closed な `active: Option<usize>`）も続いた。
 //! 残りは Phase 3 の他部品（#2608〜）および Phase 5 の他部品（breadcrumbs
@@ -97,6 +100,7 @@
 //! パート class として `fw-wire-icon-glyph`（[`icon`] のグリフ）を持つ。
 //! 詳細・追記契約は `docs/design/wireframe-ui-architecture.md` §10 を参照。
 
+pub mod accordion;
 pub mod annotation;
 pub mod button;
 pub mod calendar;
@@ -130,6 +134,7 @@ pub mod text;
 pub mod textarea;
 pub mod tokens;
 
+pub use accordion::accordion;
 pub use annotation::annotation;
 pub use button::button;
 pub use calendar::{calendar, MAX_WEEKS};
