@@ -33,6 +33,7 @@
 - [Stack](./wireframes/stack.md)
 - [Link](./wireframes/link.md)
 - [Rich text](./wireframes/rich-text.md)
+- [Input](./wireframes/input.md)
 
 ## 掲載予定
 
@@ -53,7 +54,6 @@
 ### Phase 3: Forms A
 
 - button
-- input
 - textarea
 - select
 - checkbox

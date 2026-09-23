@@ -263,6 +263,8 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/link/index.html"
           # イシュー #2616: Phase 2「テキスト・注釈」の Rich text 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/rich-text/index.html"
+          # イシュー #2622: Phase 3「Forms A」の Input 部品ページ（<input> 非出力）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/input/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact
