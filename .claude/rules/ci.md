@@ -278,7 +278,11 @@
   ステップは既存 `props::Active` を再利用する）/
   `wireframes/nav-item/index.html`（イシュー #2636、Phase 5「Navigation」の
   2 番目の部品。先頭・末尾の `Option<Node>` アイコンスロット + 件数表示
-  〔`Option<&str>`〕、`Active` はアクティブ状態のグレースケール反転配色）
+  〔`Option<&str>`〕、`Active` はアクティブ状態のグレースケール反転配色）/
+  `wireframes/breadcrumbs/index.html`（イシュー #2639、Phase 5「Navigation」の
+  3 番目の部品。現在階層は選択引数を持たず、items の最後の項目へ常に
+  `props::Active` を付与する。区切りは `stepper` と同じく CSS 擬似要素
+  のみで描く）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

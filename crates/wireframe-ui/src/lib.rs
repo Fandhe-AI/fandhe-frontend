@@ -77,8 +77,11 @@
 //! ステップは既存 [`props::Active`] を再利用する）・Phase 5「Navigation」の
 //! [`nav_item`]（イシュー #2636、先頭・末尾の `Option<Node>` アイコン
 //! スロットに加え `Option<&str>` の件数カウンター内部パートを持ち、
-//! `Active` はアクティブ状態のグレースケール反転配色として消費する）も
-//! 続いた。
+//! `Active` はアクティブ状態のグレースケール反転配色として消費する）・
+//! [`breadcrumbs`]（イシュー #2639、`tabs` の `Option<usize>` とは異なり
+//! 選択引数を持たず、`items` が空でない限り常に最後の項目へ
+//! `props::Active` を付与する。区切りは `stepper` と同じく CSS
+//! 擬似要素のみで描く）も続いた。
 //! 残りは Phase 3 の他部品（#2608〜）および Phase 5 の他部品（menu 等）で
 //! 順次追加する。
 //!
@@ -95,6 +98,7 @@
 //! 詳細・追記契約は `docs/design/wireframe-ui-architecture.md` §10 を参照。
 
 pub mod annotation;
+pub mod breadcrumbs;
 pub mod button;
 pub mod calendar;
 pub mod checkbox;
@@ -127,6 +131,7 @@ pub mod textarea;
 pub mod tokens;
 
 pub use annotation::annotation;
+pub use breadcrumbs::breadcrumbs;
 pub use button::button;
 pub use calendar::{calendar, MAX_WEEKS};
 pub use checkbox::checkbox;
