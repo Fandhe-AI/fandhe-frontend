@@ -224,6 +224,15 @@ fn active_test_fn_bodies(source: &str) -> Vec<String> {
 /// 規約上ローカル変数は snake_case のため、行頭（インデントなし）から始ま
 /// る `const`/`pub const` 宣言だけを対象にする単純な走査で、関数内の記述
 /// と安全に区別できる。
+///
+/// 加えて、初期化子（`=` の右辺）が独立した文字列リテラル（`"..."` または
+/// `r#"..."#`/`r"..."` 等の raw string）で**始まっている**ことも要求する。
+/// これにより `const EXPECTED_CSS: &str = fandhe_frontend_wireframe_ui::
+/// button::BUTTON_CSS;` のような、実装定数への単なる別名（識別子参照）を
+/// 装った期待値は「独立した golden」として数えない（イシュー #2666
+/// codex-review P1 再指摘対応）。golden ファイルの初期化子は本リポジトリの
+/// 実例が示すとおり常に raw string リテラルであり、宣言と同じ行で開始する
+/// （複数行にまたがる本体は許容し、閉じクォートの位置までは検証しない）。
 fn top_level_expected_consts(source: &str) -> std::collections::HashSet<String> {
     let mut set = std::collections::HashSet::new();
     for line in source.lines() {
@@ -235,7 +244,7 @@ fn top_level_expected_consts(source: &str) -> std::collections::HashSet<String> 
             .strip_prefix("pub const ")
             .or_else(|| line.strip_prefix("const "));
         let Some(rest) = rest else { continue };
-        let Some(name) = rest.split(':').next() else {
+        let Some((name, ty_and_init)) = rest.split_once(':') else {
             continue;
         };
         let name = name.trim();
@@ -243,7 +252,20 @@ fn top_level_expected_consts(source: &str) -> std::collections::HashSet<String> 
             && name
                 .chars()
                 .all(|c| c.is_ascii_uppercase() || c == '_' || c.is_ascii_digit());
-        if is_expected_const {
+        if !is_expected_const {
+            continue;
+        }
+        // `ty_and_init` は `&str = r#"..."#` のような型注釈 + 初期化子。
+        // `=` の右辺（初期化子）だけを取り出し、識別子参照ではなく文字列
+        // リテラルの開始トークンであることを確認する。
+        let Some((_ty, init)) = ty_and_init.split_once('=') else {
+            continue;
+        };
+        let init = init.trim_start();
+        let is_string_literal = init.starts_with('"')
+            || init.starts_with("r\"")
+            || (init.starts_with("r#") && init[1..].trim_start_matches('#').starts_with('"'));
+        if is_string_literal {
             set.insert(name.to_string());
         }
     }
@@ -526,5 +548,56 @@ fn skipped() {
 "#;
         let bodies = active_test_fn_bodies(source);
         assert!(bodies.is_empty());
+    }
+
+    /// codex-review 指摘の迂回パターン 3: `EXPECTED_*` という名前だけを
+    /// 満たし、初期化子が実装定数への識別子参照（別名）になっている場合は
+    /// 独立した golden 期待値として数えない（イシュー #2666 codex-review
+    /// P1 再指摘対応）。
+    #[test]
+    fn alias_to_implementation_const_is_not_independent_golden() {
+        let source = r#"
+const EXPECTED_CSS: &str = fandhe_frontend_wireframe_ui::button::BUTTON_CSS;
+
+#[test]
+fn fake_coverage() {
+    assert_eq!(crate::button::BUTTON_CSS, EXPECTED_CSS);
+}
+"#;
+        let expected = top_level_expected_consts(source);
+        assert!(
+            expected.is_empty(),
+            "初期化子が文字列リテラルでない EXPECTED_* は独立した golden \
+             として収集してはならない"
+        );
+        let bodies = active_test_fn_bodies(source);
+        assert_eq!(bodies.len(), 1);
+        let names = asserted_const_names(&bodies[0], &expected);
+        assert!(
+            names.is_empty(),
+            "実装定数への別名との比較はカバレッジに数えてはならない"
+        );
+    }
+
+    /// raw string リテラル（`r#"..."#`）で書かれた golden 期待値は、
+    /// 引き続き独立した golden として認識される（実運用の全 golden ファイル
+    /// が採用する記法の回帰防止）。
+    #[test]
+    fn raw_string_literal_expected_const_is_recognized() {
+        // 外側の Rust リテラルは `r##"..."##`（2 段ハッシュ）を使い、
+        // 内側（golden ファイル側）の `r#"..."#`（1 段ハッシュ）が誤って
+        // 外側の終端として解釈されないようにする。
+        let source = r##"
+const EXPECTED_CSS: &str = r#".fw-wire-button {
+  display: inline-flex;
+}
+"#;
+"##;
+        let expected = top_level_expected_consts(source);
+        assert!(
+            expected.contains("EXPECTED_CSS"),
+            "raw string リテラルで始まる EXPECTED_CSS は独立した golden \
+             として認識されなければならない"
+        );
     }
 }
