@@ -78,6 +78,9 @@
 //! [`nav_item`]（イシュー #2636、先頭・末尾の `Option<Node>` アイコン
 //! スロットに加え `Option<&str>` の件数カウンター内部パートを持ち、
 //! `Active` はアクティブ状態のグレースケール反転配色として消費する）・
+//! [`accordion`]（イシュー #2641、blocks.pm に対応部品がない独自追加部品。
+//! 展開状態は新型を新設せず `props::Active` を項目単位で再利用し、
+//! 折りたたみ項目の本文スロットは出力しない）・
 //! [`breadcrumbs`]（イシュー #2639、`tabs` の `Option<usize>` とは異なり
 //! 選択引数を持たず、`items` が空でない限り常に最後の項目へ
 //! `props::Active` を付与する。区切りは `stepper` と同じく CSS
@@ -97,6 +100,7 @@
 //! パート class として `fw-wire-icon-glyph`（[`icon`] のグリフ）を持つ。
 //! 詳細・追記契約は `docs/design/wireframe-ui-architecture.md` §10 を参照。
 
+pub mod accordion;
 pub mod annotation;
 pub mod breadcrumbs;
 pub mod button;
@@ -130,6 +134,7 @@ pub mod text;
 pub mod textarea;
 pub mod tokens;
 
+pub use accordion::accordion;
 pub use annotation::annotation;
 pub use breadcrumbs::breadcrumbs;
 pub use button::button;

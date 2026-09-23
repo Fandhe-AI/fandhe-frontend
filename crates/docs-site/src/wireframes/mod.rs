@@ -53,6 +53,7 @@
 //! 使わない。[`ArgRow`] の各フィールドは `&'static str` に限定し、利用者入力が
 //! 引数表へ流れ込む経路を型で塞ぐ。
 
+mod accordion;
 mod annotation;
 mod breadcrumbs;
 mod button;
@@ -151,7 +152,9 @@ pub struct Wireframe {
 /// Phase 4「Forms B」の [`stepper::WIREFRAME`]（イシュー #2634、blocks.pm
 /// 対応部品を持たない独自追加部品、5 番目の部品）・Phase 5「Navigation」の
 /// [`nav_item::WIREFRAME`]（イシュー #2636、Phase 5 の 2 番目の部品）・
-/// [`breadcrumbs::WIREFRAME`]（イシュー #2639、Phase 5 の 3 番目の部品。
+/// [`accordion::WIREFRAME`]（イシュー #2641、Phase 5 の 3 番目の部品。
+/// blocks.pm に対応部品がない独自追加部品）・
+/// [`breadcrumbs::WIREFRAME`]（イシュー #2639、Phase 5 の 4 番目の部品。
 /// 現在階層は選択引数を持たず items の最後の項目へ常に付与される）が
 /// 続いた。
 /// Phase 1・3・4・5 以降（#2608〜#2665）の残りの各部品イシューが自分の
@@ -182,6 +185,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     tabs::WIREFRAME,
     stepper::WIREFRAME,
     nav_item::WIREFRAME,
+    accordion::WIREFRAME,
     breadcrumbs::WIREFRAME,
 ];
 

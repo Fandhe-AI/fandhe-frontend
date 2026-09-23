@@ -309,7 +309,10 @@ jobs:
           # イシュー #2636: Phase 5「Navigation」の 2 番目の部品、Nav item 部品
           # ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/nav-item/index.html"
-          # イシュー #2639: Phase 5「Navigation」の 3 番目の部品、Breadcrumbs
+          # イシュー #2641: Phase 5「Navigation」の 3 番目の部品、Accordion 部品
+          # ページ（blocks.pm に対応部品がない独自追加部品）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/accordion/index.html"
+          # イシュー #2639: Phase 5「Navigation」の 4 番目の部品、Breadcrumbs
           # 部品ページ（現在階層は items の最後の項目へ常に自動付与）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/breadcrumbs/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
