@@ -85,8 +85,12 @@
 //! `&[Option<&str>]`（`None` がギャップ）で表し、選択状態は
 //! `tabs`/`radio` と同じく既存の `props::Active` を再利用する。先頭/前/次/
 //! 末尾コントロールは `prev_next`/`first_last` の 2 bool へ畳む）も続いた。
-//! 残りは Phase 3 の他部品（#2608〜）および Phase 5 の他部品（menu 等）で
-//! 順次追加する。
+//! Phase 6「Overlay・Feedback」の [`modal`]（イシュー #2645、blocks.pm に
+//! 対応部品がない独自追加部品。中央配置は `position: fixed` ではなく
+//! in-flow の背景領域 + `place-items: center` で表現し、パネル最大幅は
+//! `Size` 5 段の静的ルールとして [`crate::css::PARTS`] へ直書きする）が
+//! Phase 6 の最初の部品として続いた。残りは Phase 3 の他部品（#2608〜）
+//! および Phase 5・6 の他部品で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -114,6 +118,7 @@ pub mod grid;
 pub mod icon;
 pub mod input;
 pub mod link;
+pub mod modal;
 pub mod nav_item;
 pub mod pagination;
 pub mod paragraph;
@@ -147,6 +152,7 @@ pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
 pub use input::input;
 pub use link::link;
+pub use modal::modal;
 pub use nav_item::nav_item;
 pub use pagination::pagination;
 pub use paragraph::paragraph;

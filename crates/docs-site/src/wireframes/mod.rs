@@ -64,6 +64,7 @@ mod frame;
 mod grid;
 mod input;
 mod link;
+mod modal;
 mod nav_item;
 mod pagination;
 mod paragraph;
@@ -154,8 +155,10 @@ pub struct Wireframe {
 /// [`nav_item::WIREFRAME`]（イシュー #2636、Phase 5 の 2 番目の部品）・
 /// [`accordion::WIREFRAME`]（イシュー #2641、Phase 5 の 3 番目の部品。
 /// blocks.pm に対応部品がない独自追加部品）・[`pagination::WIREFRAME`]
-/// （イシュー #2640、Phase 5 の 4 番目の部品）が続いた。
-/// Phase 1・3・4・5 以降（#2608〜#2665）の残りの各部品イシューが自分の
+/// （イシュー #2640、Phase 5 の 4 番目の部品）・[`modal::WIREFRAME`]
+/// （イシュー #2645、Phase 6「Overlay・Feedback」の最初の部品。blocks.pm に
+/// 対応部品がない独自追加部品）が続いた。
+/// Phase 1・3・4・5・6 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
@@ -185,6 +188,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     nav_item::WIREFRAME,
     accordion::WIREFRAME,
     pagination::WIREFRAME,
+    modal::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

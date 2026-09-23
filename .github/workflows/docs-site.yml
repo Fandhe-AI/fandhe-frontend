@@ -316,6 +316,10 @@ jobs:
           # 部品ページ（選択状態は props::Active を再利用、先頭/前/次/末尾
           # コントロールは prev_next/first_last の 2 bool へ畳む）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/pagination/index.html"
+          # イシュー #2645: Phase 6「Overlay・Feedback」の最初の部品、Modal
+          # 部品ページ（blocks.pm に対応部品がない独自追加部品。中央配置は
+          # position: fixed ではなく in-flow の背景領域で表現する）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/modal/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact
