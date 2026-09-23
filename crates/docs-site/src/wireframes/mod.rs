@@ -57,14 +57,18 @@ mod annotation;
 mod button;
 mod checkbox;
 mod divider;
+mod frame;
 mod grid;
 mod link;
+mod paragraph;
 mod radio;
 mod rich_text;
 mod select;
+mod slider;
 mod stack;
 mod switch;
 mod tag;
+mod textarea;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
 use fandhe_frontend_pre_styled_ui::{StyleSheet, StylesheetError};
@@ -116,11 +120,14 @@ pub struct Wireframe {
 /// 「レイアウト骨格」の [`grid::WIREFRAME`]（イシュー #2611）・
 /// [`divider::WIREFRAME`]（イシュー #2612）・[`stack::WIREFRAME`]
 /// （イシュー #2610）、Phase 2 の [`link::WIREFRAME`]（イシュー #2618）・
-/// [`rich_text::WIREFRAME`]（イシュー #2616）・Phase 3「Forms A」の
-/// [`button::WIREFRAME`]（イシュー #2621）・[`select::WIREFRAME`]
-/// （イシュー #2624）・[`radio::WIREFRAME`]（イシュー #2626、選択状態は
-/// `props::Active` を再利用）・[`switch::WIREFRAME`]（イシュー #2627）・
-/// [`checkbox::WIREFRAME`]（イシュー #2625）・Phase 2 の [`tag::WIREFRAME`]
+/// [`rich_text::WIREFRAME`]（イシュー #2616）・[`paragraph::WIREFRAME`]
+/// （イシュー #2615）・Phase 3「Forms A」の [`button::WIREFRAME`]
+/// （イシュー #2621）・[`select::WIREFRAME`]（イシュー #2624）・
+/// [`radio::WIREFRAME`]（イシュー #2626、選択状態は `props::Active` を
+/// 再利用）・[`switch::WIREFRAME`]（イシュー #2627）・
+/// [`checkbox::WIREFRAME`]（イシュー #2625）・[`textarea::WIREFRAME`]
+/// （イシュー #2623）・[`slider::WIREFRAME`]（イシュー #2628）・Phase 1 の
+/// [`frame::WIREFRAME`]（イシュー #2609）・Phase 2 の [`tag::WIREFRAME`]
 /// （イシュー #2619）が続いた。
 /// Phase 1・3 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
@@ -131,11 +138,15 @@ pub const WIREFRAMES: &[Wireframe] = &[
     stack::WIREFRAME,
     link::WIREFRAME,
     rich_text::WIREFRAME,
+    paragraph::WIREFRAME,
     button::WIREFRAME,
     select::WIREFRAME,
     radio::WIREFRAME,
     switch::WIREFRAME,
     checkbox::WIREFRAME,
+    textarea::WIREFRAME,
+    slider::WIREFRAME,
+    frame::WIREFRAME,
     tag::WIREFRAME,
 ];
 
