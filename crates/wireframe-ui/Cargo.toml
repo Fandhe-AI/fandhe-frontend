@@ -119,7 +119,15 @@ name = "fandhe-frontend-wireframe-ui"
 # icon::search で表し <input> は出力しない）。main 取り込み時点で 0.38.0
 # まで進んでいたため main セッションが本 PR 用に一意採番した 0.39.0 を
 # 採用する。
-version = "0.39.0"
+# 0.39.0 → 0.40.0: 公開 API 新設（breadcrumbs 部品、イシュー #2639。
+# Phase 5「Navigation」の 7 番目の部品。tabs と異なり選択引数を持たず、
+# items が空でない限り常に最後の項目へ props::Active を付与する）。main
+# 側で 0.29.0 を accordion、0.30.0 を pagination、0.31.0 を tooltip、
+# 0.32.0 を cursor、0.33.0 を toast、0.34.0 を progress、0.35.0 を
+# spinner、0.36.0 を avatar、0.37.0 を alert、0.38.0 を modal、0.39.0 を
+# menu が先に確保したため main セッションが本 PR 用に一意採番した
+# 0.40.0 を採用する。
+version = "0.40.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
 license = "MIT OR Apache-2.0"

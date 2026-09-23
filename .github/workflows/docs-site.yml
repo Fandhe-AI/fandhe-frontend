@@ -324,6 +324,9 @@ jobs:
           # ページ（検索欄は Option<&str> + 固定パートの icon::search で表し
           # <input> は出力しない）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/menu/index.html"
+          # イシュー #2639: Phase 5「Navigation」の 7 番目の部品、Breadcrumbs
+          # 部品ページ（現在階層は items の最後の項目へ常に自動付与）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/breadcrumbs/index.html"
           # イシュー #2644: Phase 6「Overlay・Feedback」の最初の部品、Tooltip
           # 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/tooltip/index.html"

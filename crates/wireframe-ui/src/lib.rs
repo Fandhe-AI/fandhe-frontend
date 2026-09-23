@@ -93,7 +93,11 @@
 //! `Option<&str>` + 固定パートの [`icon::search`] で表し `<input>` は
 //! 出力しない。項目は [`menu::MenuItem`] のスライスで受け、強調状態は
 //! 無効項目を指す添字なら優先して外す fail-closed な
-//! `active: Option<usize>`）も続いた。
+//! `active: Option<usize>`）・
+//! [`breadcrumbs`]（イシュー #2639、Phase 5 の 7 番目の部品。`tabs` の
+//! `Option<usize>` とは異なり選択引数を持たず、`items` が空でない限り
+//! 常に最後の項目へ `props::Active` を付与する。区切りは `stepper` と
+//! 同じく CSS 擬似要素のみで描く）も続いた。
 //! Phase 6「Overlay・Feedback」の最初の部品 [`tooltip`]（イシュー #2644、
 //! 方向は部品ローカルの [`tooltip::TooltipSide`] による修飾 class で表す）・
 //! Phase 6 の 2 番目の部品 [`toast`]（イシュー #2647、閉じるグリフは
@@ -115,8 +119,10 @@
 //! が `None` のとき [`icon::user`] へフォールバックする §11.4 からの意図的な
 //! 逸脱。円形表示は `crate::frame` の `bordered` と同型の部品固有修飾 class
 //! で表す）が続いた。
-//! 残りは Phase 3 の他部品（#2608〜）・Phase 5 の他部品（breadcrumbs 等）・
-//! Phase 6 の他部品・Phase 7 の他部品で順次追加する。
+//! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
+//! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
+//! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
+//! 全部品が出揃った。残りは Phase 7 の他部品・Phase 8 で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -134,6 +140,7 @@ pub mod accordion;
 pub mod alert;
 pub mod annotation;
 pub mod avatar;
+pub mod breadcrumbs;
 pub mod button;
 pub mod calendar;
 pub mod checkbox;
@@ -177,6 +184,7 @@ pub use accordion::accordion;
 pub use alert::{alert, Severity};
 pub use annotation::annotation;
 pub use avatar::avatar;
+pub use breadcrumbs::breadcrumbs;
 pub use button::button;
 pub use calendar::{calendar, MAX_WEEKS};
 pub use checkbox::checkbox;

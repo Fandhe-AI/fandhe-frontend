@@ -299,7 +299,9 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // （Phase 6 の 6 番目の部品）が加わり、287 → 288 になった。イシュー
     // #2651 で Wireframes セクションへ Avatar 部品ページ
     // （Phase 7「Data display」の最初の部品）が加わり、288 → 289 になった。
-    assert_eq!(pages.len(), 289, "expected 289 pages, got {pages:?}");
+    // イシュー #2639 で Wireframes セクションへ Breadcrumbs 部品ページ
+    // （Phase 5「Navigation」の 7 番目の部品）が加わり、289 → 290 になった。
+    assert_eq!(pages.len(), 290, "expected 290 pages, got {pages:?}");
 
     // イシュー #2607: `/wireframes/` 配下は索引ページ（`/wireframes/` 自身）
     // 1 件のみだった（同イシュー時点では個別部品ページを同梱しない、設計
@@ -335,6 +337,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // 5 番目の部品）が加わり 35 件になった。イシュー #2645 で Modal
     // （Phase 6 の 6 番目の部品）が加わり 36 件になった。イシュー #2651 で
     // Avatar（Phase 7「Data display」の最初の部品）が加わり 37 件になった。
+    // イシュー #2639 で Breadcrumbs（Phase 5「Navigation」の 7 番目の部品）
+    // が加わり 38 件になった。
     // Phase 1・3・4・5・6・7 以降（#2608〜#2665）の各部品イシューが増分する。
     let wireframes_pages: Vec<&(&str, &str)> = pages
         .iter()
@@ -342,8 +346,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .collect();
     assert_eq!(
         wireframes_pages.len(),
-        37,
-        "expected 37 /wireframes/ pages (index + annotation + grid + divider + stack + link + rich-text + paragraph + button + select + radio + switch + checkbox + textarea + slider + frame + tag + input + question + ratings + calendar + file-drop + text + tabs + stepper + nav-item + accordion + pagination + cursor + menu + tooltip + toast + alert + progress + spinner + modal + avatar), got {wireframes_pages:?}"
+        38,
+        "expected 38 /wireframes/ pages (index + annotation + grid + divider + stack + link + rich-text + paragraph + button + select + radio + switch + checkbox + textarea + slider + frame + tag + input + question + ratings + calendar + file-drop + text + tabs + stepper + nav-item + accordion + pagination + cursor + menu + breadcrumbs + tooltip + toast + alert + progress + spinner + modal + avatar), got {wireframes_pages:?}"
     );
     assert!(
         pages.contains(&("site/wireframes.md", "/wireframes/")),

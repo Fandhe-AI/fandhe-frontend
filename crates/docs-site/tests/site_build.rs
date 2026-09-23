@@ -305,10 +305,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // Wireframes セクションへ Modal 部品ページ（Phase 6 の 6 番目の部品）
     // が加わり、287 → 288 になった。イシュー #2651 で
     // Wireframes セクションへ Avatar 部品ページ（Phase 7「Data display」
-    // の最初の部品）が加わり、288 → 289 になった。
+    // の最初の部品）が加わり、288 → 289 になった。イシュー #2639 で
+    // Wireframes セクションへ Breadcrumbs 部品ページ（Phase 5
+    // 「Navigation」の 7 番目の部品）が加わり、289 → 290 になった。
     assert_eq!(
         report.written.len(),
-        289,
+        290,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );

@@ -294,6 +294,10 @@
   6 番目の部品。検索欄は `Option<&str>` + 固定パートの `icon::search` で表し
   `<input>` は出力しない。項目は `MenuItem` のスライス、強調は無効項目を
   指す添字なら外す fail-closed な `active: Option<usize>`）/
+  `wireframes/breadcrumbs/index.html`（イシュー #2639、Phase 5「Navigation」の
+  7 番目の部品。現在階層は選択引数を持たず、items の最後の項目へ常に
+  `props::Active` を付与する。区切りは `stepper` と同じく CSS 擬似要素
+  のみで描く）/
   `wireframes/tooltip/index.html`（イシュー #2644、Phase 6「Overlay・
   Feedback」の最初の部品。方向は部品ローカルの `TooltipSide` による
   修飾 class で表す）/

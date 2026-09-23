@@ -57,6 +57,7 @@ mod accordion;
 mod alert;
 mod annotation;
 mod avatar;
+mod breadcrumbs;
 mod button;
 mod calendar;
 mod checkbox;
@@ -168,6 +169,8 @@ pub struct Wireframe {
 /// ないため `icon::cursor_arrow`/`icon::cursor_hand` を新規追加して消費
 /// する）・[`menu::WIREFRAME`]（イシュー #2637、Phase 5 の 6 番目の部品。
 /// 検索欄は `Option<&str>` + 固定パートの `icon::search` で表す）・
+/// [`breadcrumbs::WIREFRAME`]（イシュー #2639、Phase 5 の 7 番目の部品。
+/// 現在階層は選択引数を持たず items の最後の項目へ常に付与される）・
 /// Phase 6「Overlay・Feedback」の [`tooltip::WIREFRAME`]
 /// （イシュー #2644、最初の部品）・[`toast::WIREFRAME`]（イシュー #2647、
 /// Phase 6 の 2 番目の部品。閉じるグリフは `icon::x` 固定で
@@ -215,6 +218,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     pagination::WIREFRAME,
     cursor::WIREFRAME,
     menu::WIREFRAME,
+    breadcrumbs::WIREFRAME,
     tooltip::WIREFRAME,
     toast::WIREFRAME,
     alert::WIREFRAME,
