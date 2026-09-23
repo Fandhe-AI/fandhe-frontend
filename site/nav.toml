@@ -1511,6 +1511,11 @@ source = "site/wireframes/emoji.md"
 path = "/wireframes/emoji/"
 
 [[section.page]]
+title = "Stat"
+source = "site/wireframes/stat.md"
+path = "/wireframes/stat/"
+
+[[section.page]]
 title = "Image"
 source = "site/wireframes/image.md"
 path = "/wireframes/image/"

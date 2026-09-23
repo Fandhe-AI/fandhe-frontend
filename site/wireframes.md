@@ -66,6 +66,7 @@
 - [Avatar](./wireframes/avatar.md)
 - [Counter](./wireframes/counter.md)
 - [Emoji](./wireframes/emoji.md)
+- [Stat](./wireframes/stat.md)
 - [Image](./wireframes/image.md)
 
 ## 掲載予定
@@ -90,7 +91,6 @@
 
 - icon
 - brand
-- stat
 - list
 - card-basic
 
