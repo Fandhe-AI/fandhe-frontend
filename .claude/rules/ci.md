@@ -331,9 +331,12 @@
   4 番目の部品。増減インジケータは `Option<&str>` ではなく `StatDelta`
   〔`menu::MenuItem` と同型の公開構造体〕で表し、向きのある `Up`/`Down` は
   `icon::caret_up`/`icon::caret_down` を再利用する）/
-  `wireframes/table/index.html`（イシュー #2662、Phase 8「Media・Data」の
-  最初の部品。`<table>` は使わず `div`/`span` + CSS grid で表現する、
-  `calendar` と同型の判断）
+  `wireframes/chart/index.html`（イシュー #2663、Phase 8「Media・データ
+  表示」の最初の部品。棒グラフの配置イメージを `values: &[u8]` から
+  組み立て、`props::Orientation` を再利用する）/
+  `wireframes/table/index.html`（イシュー #2662、Phase 8「Media・データ
+  表示」の 2 番目の部品。`<table>` は使わず `div`/`span` + CSS grid で
+  表現する、`calendar` と同型の判断）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

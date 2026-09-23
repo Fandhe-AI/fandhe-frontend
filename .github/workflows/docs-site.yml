@@ -364,9 +364,13 @@ jobs:
           # ページ（増減インジケータは Option<&str> ではなく StatDelta で
           # 表す）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/stat/index.html"
-          # イシュー #2662: Phase 8「Media・Data」の最初の部品、Table 部品
-          # ページ（<table> は使わず div/span + CSS grid で表現する、
-          # calendar と同型の判断）。
+          # イシュー #2663: Phase 8「Media・データ表示」の最初の部品、Chart
+          # 部品ページ（棒グラフの配置イメージ。values は &[u8]、
+          # props::Orientation を再利用する）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/chart/index.html"
+          # イシュー #2662: Phase 8「Media・データ表示」の 2 番目の部品、
+          # Table 部品ページ（<table> は使わず div/span + CSS grid で
+          # 表現する、calendar と同型の判断）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/table/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 

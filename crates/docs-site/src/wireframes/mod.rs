@@ -60,6 +60,7 @@ mod avatar;
 mod breadcrumbs;
 mod button;
 mod calendar;
+mod chart;
 mod checkbox;
 mod counter;
 mod cursor;
@@ -197,10 +198,12 @@ pub struct Wireframe {
 /// 畳み込む §11.4 からの意図的な逸脱）・[`stat::WIREFRAME`]（イシュー
 /// #2656、4 番目の部品。増減インジケータは `Option<&str>` ではなく
 /// `StatDelta`（`menu::MenuItem` と同型の公開構造体）で表す）・
-/// [`table::WIREFRAME`]（イシュー #2662、Phase 8「Media・Data」の最初の
-/// 部品。`<table>` は使わず `div`/`span` + CSS grid で表現する、
-/// `calendar` と同型の判断）が続いた。
-/// Phase 1・3・4・5・6・7 以降（#2608〜#2665）の残りの各部品イシューが
+/// Phase 8「Media・データ表示」の [`chart::WIREFRAME`]（イシュー #2663、
+/// 最初の部品。値は `&[u8]` で受け取り `props::Orientation` を再利用する）・
+/// [`table::WIREFRAME`]（イシュー #2662、同 Phase の 2 番目の部品。
+/// `<table>` は使わず `div`/`span` + CSS grid で表現する、`calendar` と
+/// 同型の判断）が続いた。
+/// Phase 1・3・4・5・6・7・8 以降（#2608〜#2665）の残りの各部品イシューが
 /// 自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
@@ -243,6 +246,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     counter::WIREFRAME,
     emoji::WIREFRAME,
     stat::WIREFRAME,
+    chart::WIREFRAME,
     table::WIREFRAME,
 ];
 
