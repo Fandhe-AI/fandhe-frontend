@@ -229,6 +229,9 @@
   `button` 部品〔`props::Disabled` の最初の実消費者〕）/
   `wireframes/select/index.html`（イシュー #2624、Phase 3「Forms A」の
   `select` 部品）/
+  `wireframes/radio/index.html`（イシュー #2626、Phase 3「Forms A」の
+  `radio` 部品。選択状態は `props::Active` を再利用し、新規の
+  `Selected`/`Checked` 型は新設しない）/
   `wireframes/switch/index.html`（イシュー #2627、Phase 3「Forms A」の
   `switch` 部品。`Active` を ON 状態の意味で使い `Disabled` を併用する）/
   `wireframes/checkbox/index.html`（イシュー #2625、Phase 3「Forms A」の
