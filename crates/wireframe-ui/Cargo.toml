@@ -80,7 +80,10 @@ name = "fandhe-frontend-wireframe-ui"
 # 再利用し、先頭/前/次/末尾コントロールは prev_next/first_last の 2 bool
 # へ畳む）。main 側で 0.28.0 → 0.29.0 を accordion が先に確保したため
 # 衝突回避で +1。
-version = "0.30.0"
+# 0.30.0 → 0.31.0: 公開 API 新設（tooltip 部品、イシュー #2644、Phase 6
+# 「Overlay・Feedback」の最初の部品）。main 側で 0.29.0 → 0.30.0 を
+# pagination が先に確保したため衝突回避で +1。
+version = "0.31.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
 license = "MIT OR Apache-2.0"

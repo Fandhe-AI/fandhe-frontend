@@ -286,7 +286,10 @@
   `wireframes/pagination/index.html`（イシュー #2640、Phase 5「Navigation」の
   4 番目の部品。ページ項目は `&[Option<&str>]`〔`None` がギャップ〕、選択
   状態は既存 `props::Active` を再利用し、先頭/前/次/末尾コントロールは
-  `prev_next`/`first_last` の 2 bool へ畳む）
+  `prev_next`/`first_last` の 2 bool へ畳む）/
+  `wireframes/tooltip/index.html`（イシュー #2644、Phase 6「Overlay・
+  Feedback」の最初の部品。方向は部品ローカルの `TooltipSide` による
+  修飾 class で表す）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
