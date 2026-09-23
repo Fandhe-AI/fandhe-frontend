@@ -125,7 +125,11 @@
 //! 部品 [`emoji`]（イシュー #2654、絵文字は `Option<Node>` アイコン
 //! スロットではなく `glyph: &str` の 1 引数へ畳み込む §11.4 からの意図的な
 //! 逸脱。空文字列は CSS の `:empty` 規則で破線の円プレースホルダーに
-//! する）が続いた。
+//! する）・4 番目の部品 [`stat`]（イシュー #2656、blocks.pm に対応部品が
+//! ない独自追加部品。増減インジケータは `Option<&str>` ではなく
+//! [`stat::StatDelta`]（`menu::MenuItem` と同型の公開構造体）で表し、
+//! 向きのある `Up`/`Down` は [`icon::caret_up`]/[`icon::caret_down`] を
+//! 再利用する）が続いた。
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
 //! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
 //! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
@@ -179,6 +183,7 @@ pub mod size;
 pub mod slider;
 pub mod spinner;
 pub mod stack;
+pub mod stat;
 pub mod stepper;
 pub mod switch;
 pub mod tabs;
@@ -224,6 +229,7 @@ pub use size::Size;
 pub use slider::slider;
 pub use spinner::spinner;
 pub use stack::stack;
+pub use stat::{stat, StatDelta, StatTrend};
 pub use stepper::stepper;
 pub use switch::switch;
 pub use tabs::tabs;

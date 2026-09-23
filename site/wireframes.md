@@ -66,10 +66,11 @@
 - [Avatar](./wireframes/avatar.md)
 - [Counter](./wireframes/counter.md)
 - [Emoji](./wireframes/emoji.md)
+- [Stat](./wireframes/stat.md)
 
 ## 掲載予定
 
-以下は Phase 1〜8（#2608〜#2665）で順次掲載する 11 部品です（Phase ごとの内訳）。
+以下は Phase 1〜8（#2608〜#2665）で順次掲載する 9 部品です（Phase ごとの内訳）。
 掲載が完了した部品は本節へリンク付きの「掲載済み」一覧として追記されます（現時点では
 未掲載のため本節はリンクなしの一覧です）。
 
@@ -89,7 +90,6 @@
 
 - icon
 - brand
-- stat
 - list
 - card-basic
 

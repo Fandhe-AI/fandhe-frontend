@@ -326,7 +326,11 @@
   ローカルの新型を新設せず共通型 `props::Primary` を再利用する）/
   `wireframes/emoji/index.html`（イシュー #2654、Phase 7「Data display」の
   3 番目の部品。絵文字は `Option<Node>` アイコンスロットではなく
-  `glyph: &str` の 1 引数へ畳み込む §11.4 からの意図的な逸脱）
+  `glyph: &str` の 1 引数へ畳み込む §11.4 からの意図的な逸脱）/
+  `wireframes/stat/index.html`（イシュー #2656、Phase 7「Data display」の
+  4 番目の部品。増減インジケータは `Option<&str>` ではなく `StatDelta`
+  〔`menu::MenuItem` と同型の公開構造体〕で表し、向きのある `Up`/`Down` は
+  `icon::caret_up`/`icon::caret_down` を再利用する）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
