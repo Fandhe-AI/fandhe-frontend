@@ -78,7 +78,10 @@
 //! [`nav_item`]（イシュー #2636、先頭・末尾の `Option<Node>` アイコン
 //! スロットに加え `Option<&str>` の件数カウンター内部パートを持ち、
 //! `Active` はアクティブ状態のグレースケール反転配色として消費する）・
-//! [`pagination`]（イシュー #2640、Phase 5 の 3 番目の部品。ページ項目は
+//! [`accordion`]（イシュー #2641、blocks.pm に対応部品がない独自追加部品。
+//! 展開状態は新型を新設せず `props::Active` を項目単位で再利用し、
+//! 折りたたみ項目の本文スロットは出力しない）・[`pagination`]
+//! （イシュー #2640、Phase 5 の 4 番目の部品。ページ項目は
 //! `&[Option<&str>]`（`None` がギャップ）で表し、選択状態は
 //! `tabs`/`radio` と同じく既存の `props::Active` を再利用する。先頭/前/次/
 //! 末尾コントロールは `prev_next`/`first_last` の 2 bool へ畳む）も続いた。
@@ -97,6 +100,7 @@
 //! パート class として `fw-wire-icon-glyph`（[`icon`] のグリフ）を持つ。
 //! 詳細・追記契約は `docs/design/wireframe-ui-architecture.md` §10 を参照。
 
+pub mod accordion;
 pub mod annotation;
 pub mod button;
 pub mod calendar;
@@ -130,6 +134,7 @@ pub mod text;
 pub mod textarea;
 pub mod tokens;
 
+pub use accordion::accordion;
 pub use annotation::annotation;
 pub use button::button;
 pub use calendar::{calendar, MAX_WEEKS};

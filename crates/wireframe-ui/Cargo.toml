@@ -72,11 +72,15 @@ name = "fandhe-frontend-wireframe-ui"
 # Phase 5「Navigation」の部品。main セッションが並行 PR との衝突回避の
 # ため本 PR 用に一意採番した 0.28.0 を採用する（main マージ後の値より
 # 大きい値）。
-# 0.28.0 → 0.29.0: 公開 API 新設（pagination 部品、イシュー #2640。
-# Phase 5「Navigation」の 3 番目の部品。選択状態は既存の props::Active を
+# 0.28.0 → 0.29.0: 公開 API 新設（accordion 部品、イシュー #2641。
+# blocks.pm に対応部品がない独自追加部品。展開状態は既存の
+# props::Active を項目単位で再利用し、新規の Expanded 型は新設しない）。
+# 0.29.0 → 0.30.0: 公開 API 新設（pagination 部品、イシュー #2640。
+# Phase 5「Navigation」の 4 番目の部品。選択状態は既存の props::Active を
 # 再利用し、先頭/前/次/末尾コントロールは prev_next/first_last の 2 bool
-# へ畳む）。
-version = "0.29.0"
+# へ畳む）。main 側で 0.28.0 → 0.29.0 を accordion が先に確保したため
+# 衝突回避で +1。
+version = "0.30.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
 license = "MIT OR Apache-2.0"
