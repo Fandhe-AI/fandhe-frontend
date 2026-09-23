@@ -90,18 +90,13 @@ const fn columns_class(columns: usize) -> &'static str {
     }
 }
 
-/// テーブル CSS（`fw-wire-table-cols-*` 12 種を含む計 18 セレクタ）。
+/// テーブル CSS（`fw-wire-table-cols-*` 12 種を含む計 17 セレクタ）。
 /// [`crate::css::PARTS`] へ登録される。
 ///
 /// ヘッダーの黒塗り（原案）はグレースケール（`--fw-wire-fill-subtle`）へ
 /// 調整する（`site/wireframes/table.md` 参照）。行間の区切り線は
 /// `--fw-wire-line-subtle` を使い、外枠は `--fw-wire-line` を使う（
-/// [`crate::calendar`] 等、既存部品と同じトークンの使い分け）。ヘッダーが
-/// 空で本文行がコンテナの先頭子要素になる場合は、その先頭行の
-/// `border-top` も外す（[`crate::accordion::ACCORDION_CSS`] の
-/// `:last-child` と同型の「コンテナ自身の枠線と隣接する内部要素の区切り
-/// 線が二重線化するのを防ぐ」判断。付けないと外枠の `--fw-wire-line` の
-/// すぐ内側に `--fw-wire-line-subtle` が隣接し二重線に見える）。
+/// [`crate::calendar`] 等、既存部品と同じトークンの使い分け）。
 pub const TABLE_CSS: &str = "\
 .fw-wire-table {
   display: block;
@@ -127,9 +122,6 @@ pub const TABLE_CSS: &str = "\
   border-top: var(--fw-wire-line-width) solid var(--fw-wire-line-subtle);
 }
 .fw-wire-table-header .fw-wire-table-row {
-  border-top: none;
-}
-.fw-wire-table-body:first-child .fw-wire-table-row:first-child {
   border-top: none;
 }
 .fw-wire-table-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }

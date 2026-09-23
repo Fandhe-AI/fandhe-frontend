@@ -372,9 +372,13 @@ jobs:
           # ページ（content: Option<Node> が None のときバツ印プレース
           # ホルダーを描く §11.4 準拠のスロット規約）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/image/index.html"
-          # イシュー #2662: Phase 8「Media・データ表示」の 3 番目の部品、
-          # Table 部品ページ（<table> は使わず div/span + CSS grid で
-          # 表現する、calendar と同型の判断）。
+          # イシュー #2658: Phase 7「Data display」の 5 番目の部品、Card basic
+          # 部品ページ（先頭・末尾スロットは §11.4 の Option<Node> 規約へ統一し
+          # avatar を内蔵しない独自設計）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/card-basic/index.html"
+          # イシュー #2662: Phase 8「Media・Data」の 3 番目の部品、Table 部品
+          # ページ（<table> は使わず div/span + CSS grid で表現する、
+          # calendar と同型の判断）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/table/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 

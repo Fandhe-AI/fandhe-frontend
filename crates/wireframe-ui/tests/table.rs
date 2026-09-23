@@ -174,23 +174,6 @@ fn table_css_is_registered_exactly_once_in_parts_and_in_aggregate_css() {
 }
 
 #[test]
-fn table_css_removes_border_top_from_first_body_row_when_header_is_absent() {
-    // ヘッダーが空のとき `.fw-wire-table-body` がコンテナの先頭子要素になり、
-    // その中の先頭行がコンテナ自身の外枠 border（`--fw-wire-line`）と
-    // 隣接する。区切り線（`--fw-wire-line-subtle`）を残すと二重線に見える
-    // ため、`.fw-wire-table-body:first-child .fw-wire-table-row:first-child`
-    // で先頭行の `border-top` を外していることを固定する
-    // （`crate::accordion::ACCORDION_CSS` の `:last-child` と同型の判断）。
-    let css = fandhe_frontend_wireframe_ui::table::TABLE_CSS;
-    assert!(
-        css.contains(
-            ".fw-wire-table-body:first-child .fw-wire-table-row:first-child {\n  border-top: none;\n}"
-        ),
-        "missing no-header first-row border-top removal rule: {css:?}"
-    );
-}
-
-#[test]
 fn table_css_declares_expected_selectors_with_fw_wire_prefix_only() {
     let css = fandhe_frontend_wireframe_ui::table::TABLE_CSS;
     for selector in [

@@ -129,7 +129,10 @@
 //! ない独自追加部品。増減インジケータは `Option<&str>` ではなく
 //! [`stat::StatDelta`]（`menu::MenuItem` と同型の公開構造体）で表し、
 //! 向きのある `Up`/`Down` は [`icon::caret_up`]/[`icon::caret_down`] を
-//! 再利用する）が続いた。
+//! 再利用する）・5 番目の部品 [`card_basic`]（イシュー #2658、先頭・末尾
+//! スロットは §11.4 の `Option<Node>` 規約へ統一し `avatar` を内蔵しない
+//! 独自設計。`secondary` は [`nav_item`] の `counter` と同じ
+//! `Option<&str>` で表す）が続いた。
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
 //! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
 //! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
@@ -145,9 +148,8 @@
 //! で組み立てる。折れ線・面・円・散布・凡例・軸ラベル・複数系列はスコープ
 //! 外とする）・3 番目の部品 [`table`]（イシュー #2662、N 列 × M 行の
 //! データ表プレースホルダー。[`calendar`] と同型の判断で `<table>` を
-//! 使わず `div`/`span` + CSS grid で表現し、列数は `headers`/`rows` の
-//! 形から導く）が続いた。残りは Phase 8 の他部品で
-//! 順次追加する。
+//! 使わず `div`/`span` + CSS grid で表現し、列数は `headers`/`rows` の形
+//! から導く）が続いた。残りは Phase 8 の他部品で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -168,6 +170,7 @@ pub mod avatar;
 pub mod breadcrumbs;
 pub mod button;
 pub mod calendar;
+pub mod card_basic;
 pub mod chart;
 pub mod checkbox;
 pub mod class;
@@ -218,6 +221,7 @@ pub use avatar::avatar;
 pub use breadcrumbs::breadcrumbs;
 pub use button::button;
 pub use calendar::{calendar, MAX_WEEKS};
+pub use card_basic::card_basic;
 pub use chart::{chart, MAX_BARS};
 pub use checkbox::checkbox;
 pub use class::{class_list, CLASS_PREFIX};
