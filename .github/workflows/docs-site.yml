@@ -295,6 +295,9 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/ratings/index.html"
           # イシュー #2633: Phase 4「Forms B」の File drop 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/file-drop/index.html"
+          # イシュー #2638: Phase 5「Navigation」の最初の部品、Tabs 部品ページ
+          # （選択状態は props::Active ではなく active: Option<usize> で表す）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/tabs/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact

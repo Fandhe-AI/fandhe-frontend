@@ -47,10 +47,11 @@
 - [Question](./wireframes/question.md)
 - [Ratings](./wireframes/ratings.md)
 - [File drop](./wireframes/file-drop.md)
+- [Tabs](./wireframes/tabs.md)
 
 ## 掲載予定
 
-以下は Phase 1〜8（#2608〜#2665）で順次掲載する 30 部品です（Phase ごとの内訳）。
+以下は Phase 1〜8（#2608〜#2665）で順次掲載する 29 部品です（Phase ごとの内訳）。
 掲載が完了した部品は本節へリンク付きの「掲載済み」一覧として追記されます（現時点では
 未掲載のため本節はリンクなしの一覧です）。
 
@@ -71,7 +72,6 @@
 
 - nav-item
 - menu
-- tabs
 - breadcrumbs
 - pagination
 - accordion

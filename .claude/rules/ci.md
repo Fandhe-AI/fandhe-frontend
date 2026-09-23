@@ -260,7 +260,11 @@
   で先頭から表現する）/
   `wireframes/file-drop/index.html`（イシュー #2633、同 Phase の 3 番目の
   部品。アイコンは `Option<Node>` スロット、表示状態軸なし、
-  `<input type=file>` 非出力）
+  `<input type=file>` 非出力）/
+  `wireframes/tabs/index.html`（イシュー #2638、Phase 5「Navigation」の
+  最初の部品。選択状態は項目ごとの `props::Active` ではなく
+  `active: Option<usize>` 1 引数で表し、選択中は高々 1 件という不変条件を
+  型で保証する）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
