@@ -298,7 +298,9 @@
   swap にせず `dismissible: bool` の 1 引数だけで有無を切り替える）/
   `wireframes/progress/index.html`（イシュー #2648、Phase 6「Overlay・
   Feedback」の 3 番目の部品。形状は部品ローカルの `ProgressShape` による
-  修飾 class〔Bar/Circle〕で表す）
+  修飾 class〔Bar/Circle〕で表す）/
+  `wireframes/spinner/index.html`（イシュー #2649、Phase 6「Overlay・
+  Feedback」の 4 番目の部品。静的な円弧のみ・引数は Size のみ）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

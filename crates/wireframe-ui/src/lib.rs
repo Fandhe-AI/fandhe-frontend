@@ -96,7 +96,9 @@
 //! だけで有無を切り替える）・3 番目の部品 [`progress`]（イシュー #2648、
 //! 形状は部品ローカルの [`progress::ProgressShape`] による修飾 class
 //! （Bar/Circle）で表し、進捗値は `slider` と同型の 5 刻み固定 class 集合へ
-//! 量子化する。表示専用のため `Active`/`Disabled` を持たない）が続いた。
+//! 量子化する。表示専用のため `Active`/`Disabled` を持たない）・
+//! 4 番目の部品 [`spinner`]（イシュー #2649、円弧だけを描く静的表示で
+//! `@keyframes`/`animation` は持たない）が続いた。
 //! 残りは Phase 3 の他部品（#2608〜）・Phase 5 の他部品（menu 等）・
 //! Phase 6 の他部品で順次追加する。
 //!
@@ -139,6 +141,7 @@ pub mod rich_text;
 pub mod select;
 pub mod size;
 pub mod slider;
+pub mod spinner;
 pub mod stack;
 pub mod stepper;
 pub mod switch;
@@ -176,6 +179,7 @@ pub use rich_text::rich_text;
 pub use select::select;
 pub use size::Size;
 pub use slider::slider;
+pub use spinner::spinner;
 pub use stack::stack;
 pub use stepper::stepper;
 pub use switch::switch;
