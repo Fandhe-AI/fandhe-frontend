@@ -283,8 +283,12 @@
   3 番目の部品。blocks.pm に対応部品がない独自追加部品。展開状態は
   `props::Active` を項目単位で再利用し、折りたたみ項目の本文スロットは
   出力しない）/
+  `wireframes/pagination/index.html`（イシュー #2640、Phase 5「Navigation」の
+  4 番目の部品。ページ項目は `&[Option<&str>]`〔`None` がギャップ〕、選択
+  状態は既存 `props::Active` を再利用し、先頭/前/次/末尾コントロールは
+  `prev_next`/`first_last` の 2 bool へ畳む）/
   `wireframes/breadcrumbs/index.html`（イシュー #2639、Phase 5「Navigation」の
-  4 番目の部品。現在階層は選択引数を持たず、items の最後の項目へ常に
+  5 番目の部品。現在階層は選択引数を持たず、items の最後の項目へ常に
   `props::Active` を付与する。区切りは `stepper` と同じく CSS 擬似要素
   のみで描く）
   である。
