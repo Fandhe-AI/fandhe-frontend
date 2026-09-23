@@ -352,8 +352,12 @@ jobs:
           # ページ（content: Option<Node> が None のとき icon::user へ
           # フォールバックする §11.4 からの意図的な逸脱）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/avatar/index.html"
-          # イシュー #2658: Phase 7「Data display」の部品、Card basic 部品
-          # ページ（先頭・末尾スロットは §11.4 の Option<Node> 規約へ統一し
+          # イシュー #2655: Phase 7「Data display」の 2 番目の部品、Counter
+          # 部品ページ（件数は u32 ではなく &str で受け、強調配色は共通型
+          # props::Primary を再利用する）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/counter/index.html"
+          # イシュー #2658: Phase 7「Data display」の 3 番目の部品、Card basic
+          # 部品ページ（先頭・末尾スロットは §11.4 の Option<Node> 規約へ統一し
           # avatar を内蔵しない独自設計）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/card-basic/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
