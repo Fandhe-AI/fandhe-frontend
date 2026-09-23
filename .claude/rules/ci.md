@@ -341,7 +341,10 @@
   `wireframes/card-basic/index.html`（イシュー #2658、Phase 7「Data
   display」の 5 番目の部品。先頭・末尾スロットは §11.4 の `Option<Node>`
   規約へ統一し `avatar` を内蔵しない独自設計。`secondary` は `nav_item` の
-  `counter` と同じ `Option<&str>`）
+  `counter` と同じ `Option<&str>`）/
+  `wireframes/map/index.html`（イシュー #2664、Phase 8 の 3 番目の
+  部品。地図タイルの配置イメージを部品ローカル列挙型 `MapZoom` 3 段・
+  `Option<Node>` マーカースロットで構成する）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
