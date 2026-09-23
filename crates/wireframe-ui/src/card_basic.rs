@@ -64,6 +64,8 @@ pub const CARD_BASIC_CSS: &str = "\
   align-items: center;
   gap: 0.75em;
   box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
   padding: 0.75em 1em;
   border: var(--fw-wire-line-width) solid var(--fw-wire-line);
   border-radius: var(--fw-wire-radius);
