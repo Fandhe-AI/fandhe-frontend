@@ -83,7 +83,13 @@ name = "fandhe-frontend-wireframe-ui"
 # 0.30.0 → 0.31.0: 公開 API 新設（tooltip 部品、イシュー #2644、Phase 6
 # 「Overlay・Feedback」の最初の部品）。main 側で 0.29.0 → 0.30.0 を
 # pagination が先に確保したため衝突回避で +1。
-version = "0.31.0"
+# 0.31.0 → 0.32.0: 公開 API 新設（alert 部品、イシュー #2646、Phase 6
+# 「Overlay・Feedback」の 2 番目の部品。重要度は部品ローカルの Severity
+# による修飾 class で表し、アイコンは link/file_drop と同じ Option<Node>
+# スロット）。open な並行 PR（#2702/#2703/#2705 は 0.28.0→0.29.0、#2707 は
+# 0.30.0→0.31.0）との衝突を避けるため main 現行値 0.31.0 より大きい値を
+# 採用する。
+version = "0.32.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
 license = "MIT OR Apache-2.0"

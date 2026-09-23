@@ -54,6 +54,7 @@
 //! 引数表へ流れ込む経路を型で塞ぐ。
 
 mod accordion;
+mod alert;
 mod annotation;
 mod button;
 mod calendar;
@@ -156,8 +157,9 @@ pub struct Wireframe {
 /// [`accordion::WIREFRAME`]（イシュー #2641、Phase 5 の 3 番目の部品。
 /// blocks.pm に対応部品がない独自追加部品）・[`pagination::WIREFRAME`]
 /// （イシュー #2640、Phase 5 の 4 番目の部品）・Phase 6「Overlay・
-/// Feedback」の [`tooltip::WIREFRAME`]（イシュー #2644、最初の部品）が
-/// 続いた。
+/// Feedback」の [`tooltip::WIREFRAME`]（イシュー #2644、最初の部品）・
+/// [`alert::WIREFRAME`]（イシュー #2646、同 Phase の 2 番目の部品。
+/// 重要度は部品ローカルの `Severity` による修飾 class で表す）が続いた。
 /// Phase 1・3・4・5・6 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -189,6 +191,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     accordion::WIREFRAME,
     pagination::WIREFRAME,
     tooltip::WIREFRAME,
+    alert::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

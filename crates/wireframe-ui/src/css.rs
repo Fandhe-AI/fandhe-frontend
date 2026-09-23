@@ -51,7 +51,8 @@
 /// [`crate::accordion::ACCORDION_CSS`]・イシュー #2640 で
 /// [`crate::pagination::PAGINATION_CSS`]・イシュー #2644 で
 /// [`crate::tooltip::TOOLTIP_CSS`]（Phase 6「Overlay・Feedback」の最初の
-/// 部品）が続いた。
+/// 部品）・イシュー #2646 で [`crate::alert::ALERT_CSS`]（同 Phase の
+/// 2 番目の部品）が続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
     crate::annotation::ANNOTATION_CSS,
@@ -82,6 +83,7 @@ pub const PARTS: &[&str] = &[
     crate::accordion::ACCORDION_CSS,
     crate::pagination::PAGINATION_CSS,
     crate::tooltip::TOOLTIP_CSS,
+    crate::alert::ALERT_CSS,
 ];
 
 static CSS: std::sync::OnceLock<String> = std::sync::OnceLock::new();

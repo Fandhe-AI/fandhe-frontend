@@ -86,8 +86,11 @@
 //! `tabs`/`radio` と同じく既存の `props::Active` を再利用する。先頭/前/次/
 //! 末尾コントロールは `prev_next`/`first_last` の 2 bool へ畳む）も続いた。
 //! Phase 6「Overlay・Feedback」の最初の部品 [`tooltip`]（イシュー #2644、
-//! 方向は部品ローカルの [`tooltip::TooltipSide`] による修飾 class で表す）
-//! が続いた。
+//! 方向は部品ローカルの [`tooltip::TooltipSide`] による修飾 class で表す）・
+//! 同 Phase の 2 番目の部品 [`alert`]（イシュー #2646、横長の警告バナー。
+//! 重要度は部品ローカルの [`alert::Severity`] による修飾 class で表し、
+//! `props.rs` へは昇格しない。アイコンは `link`/`file_drop` と同じ
+//! `Option<Node>` スロット）が続いた。
 //! 残りは Phase 3 の他部品（#2608〜）・Phase 5 の他部品（menu 等）・
 //! Phase 6 の他部品で順次追加する。
 //!
@@ -104,6 +107,7 @@
 //! 詳細・追記契約は `docs/design/wireframe-ui-architecture.md` §10 を参照。
 
 pub mod accordion;
+pub mod alert;
 pub mod annotation;
 pub mod button;
 pub mod calendar;
@@ -139,6 +143,7 @@ pub mod tokens;
 pub mod tooltip;
 
 pub use accordion::accordion;
+pub use alert::{alert, Severity};
 pub use annotation::annotation;
 pub use button::button;
 pub use calendar::{calendar, MAX_WEEKS};

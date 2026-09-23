@@ -291,10 +291,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // なった。イシュー #2640 で Wireframes セクションへ Pagination 部品
     // ページが加わり、279 → 280 になった。イシュー #2644 で Wireframes
     // セクションへ Tooltip 部品ページ（Phase 6「Overlay・Feedback」の
-    // 最初の部品）が加わり、280 → 281 になった。
+    // 最初の部品）が加わり、280 → 281 になった。イシュー #2646 で
+    // Wireframes セクションへ Alert 部品ページ（同 Phase の 2 番目の部品）が
+    // 加わり、281 → 282 になった。
     assert_eq!(
         report.written.len(),
-        281,
+        282,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -520,6 +522,9 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
         // イシュー #2614: Text が Phase 2「テキスト・注釈」の最後の部品
         // ページとして登録され、同 Phase が全部品出揃った。
         ("wireframes/text/index.html", false),
+        // イシュー #2646: Alert が Phase 6「Overlay・Feedback」の 2 番目の
+        // 部品ページとして登録された。
+        ("wireframes/alert/index.html", false),
         ("api/component-api/index.html", false),
     ];
 

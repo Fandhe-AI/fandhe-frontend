@@ -289,7 +289,11 @@
   `prev_next`/`first_last` の 2 bool へ畳む）/
   `wireframes/tooltip/index.html`（イシュー #2644、Phase 6「Overlay・
   Feedback」の最初の部品。方向は部品ローカルの `TooltipSide` による
-  修飾 class で表す）
+  修飾 class で表す）/
+  `wireframes/alert/index.html`（イシュー #2646、Phase 6「Overlay・
+  Feedback」の 2 番目の部品。重要度は部品ローカルの `Severity` による
+  修飾 class で表し、アイコンは `link`/`file_drop` と同じ `Option<Node>`
+  スロット）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
