@@ -284,9 +284,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // セクションへ Text 部品ページが加わり、274 → 275 になった
     // （Phase 2「テキスト・注釈」の全部品が出揃った）。イシュー #2638 で
     // Wireframes セクションへ Tabs 部品ページが加わり、275 → 276 になった。
+    // イシュー #2634 で Wireframes セクションへ Stepper 部品ページが加わり、
+    // 276 → 277 になった。
     assert_eq!(
         report.written.len(),
-        276,
+        277,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );

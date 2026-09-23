@@ -271,7 +271,11 @@
   `wireframes/tabs/index.html`（イシュー #2638、Phase 5「Navigation」の
   最初の部品。選択状態は項目ごとの `props::Active` ではなく
   `active: Option<usize>` 1 引数で表し、選択中は高々 1 件という不変条件を
-  型で保証する）
+  型で保証する）/
+  `wireframes/stepper/index.html`（イシュー #2634、Phase 4「Forms B」の
+  Stepper 部品。blocks.pm に対応部品を持たない独自追加部品で、完了ステップは
+  `props.rs` へ新型を追加せず部品ローカルの `data-complete` とし、現在
+  ステップは既存 `props::Active` を再利用する）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

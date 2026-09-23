@@ -71,9 +71,12 @@
 //! Phase 2「テキスト・注釈」は全部品が出揃った。Phase 5「Navigation」の
 //! [`tabs`]（イシュー #2638、選択状態は項目ごとの `Active` ではなく
 //! `active: Option<usize>` 1 引数で表し、選択中は高々 1 件という不変条件を
-//! 型で保証する）も続いた。
-//! 残りは Phase 3 の他部品（#2608〜）および Phase 4/5 の他部品
-//! （stepper/menu 等）で順次追加する。
+//! 型で保証する）・Phase 4「Forms B」の [`stepper`]（イシュー #2634、
+//! blocks.pm 対応部品を持たない独自追加部品。完了ステップの状態は
+//! `props.rs` へ新型を追加せず部品ローカルの `data-complete` とし、現在
+//! ステップは既存 [`props::Active`] を再利用する）も続いた。
+//! 残りは Phase 3 の他部品（#2608〜）および Phase 5 の他部品（menu 等）で
+//! 順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -110,6 +113,7 @@ pub mod select;
 pub mod size;
 pub mod slider;
 pub mod stack;
+pub mod stepper;
 pub mod switch;
 pub mod tabs;
 pub mod tag;
@@ -139,6 +143,7 @@ pub use select::select;
 pub use size::Size;
 pub use slider::slider;
 pub use stack::stack;
+pub use stepper::stepper;
 pub use switch::switch;
 pub use tabs::tabs;
 pub use tag::tag;

@@ -71,6 +71,7 @@ mod rich_text;
 mod select;
 mod slider;
 mod stack;
+mod stepper;
 mod switch;
 mod tabs;
 mod tag;
@@ -144,7 +145,9 @@ pub struct Wireframe {
 /// 部品）・Phase 2「テキスト・注釈」の [`text::WIREFRAME`]（イシュー
 /// #2614、同 Phase 最後の部品）・Phase 5「Navigation」の
 /// [`tabs::WIREFRAME`]（イシュー #2638、最初の部品。選択状態は項目ごとの
-/// `Active` ではなく `active: Option<usize>` 1 引数で表す）が続いた。
+/// `Active` ではなく `active: Option<usize>` 1 引数で表す）・
+/// Phase 4「Forms B」の [`stepper::WIREFRAME`]（イシュー #2634、blocks.pm
+/// 対応部品を持たない独自追加部品、5 番目の部品）が続いた。
 /// Phase 1・3・4・5 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -171,6 +174,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     file_drop::WIREFRAME,
     text::WIREFRAME,
     tabs::WIREFRAME,
+    stepper::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。
