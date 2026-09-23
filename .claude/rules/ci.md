@@ -219,7 +219,10 @@
   「レイアウト骨格」の `divider` 部品〔`props::Orientation` の最初の
   実消費者〕）/
   `wireframes/stack/index.html`（イシュー #2610、Phase 1「レイアウト骨格」の
-  Stack 部品ページ）
+  Stack 部品ページ）/
+  `wireframes/link/index.html`（イシュー #2618、Phase 2「テキスト・注釈」の
+  `link` 部品〔`Option<Node>` アイコンスロット規約 §11.4 の実例、`a[href]`
+  非出力〕）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
