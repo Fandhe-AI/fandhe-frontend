@@ -530,7 +530,7 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
         // イシュー #2614: Text が Phase 2「テキスト・注釈」の最後の部品
         // ページとして登録され、同 Phase が全部品出揃った。
         ("wireframes/text/index.html", false),
-        // イシュー #2646: Alert が Phase 6「Overlay・Feedback」の 2 番目の
+        // イシュー #2646: Alert が Phase 6「Overlay・Feedback」の 3 番目の
         // 部品ページとして登録された。
         ("wireframes/alert/index.html", false),
         ("api/component-api/index.html", false),
