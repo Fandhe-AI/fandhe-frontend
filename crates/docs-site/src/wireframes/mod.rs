@@ -81,6 +81,7 @@ mod tabs;
 mod tag;
 mod text;
 mod textarea;
+mod tooltip;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
 use fandhe_frontend_pre_styled_ui::{StyleSheet, StylesheetError};
@@ -157,8 +158,9 @@ pub struct Wireframe {
 /// blocks.pm に対応部品がない独自追加部品）・[`pagination::WIREFRAME`]
 /// （イシュー #2640、Phase 5 の 4 番目の部品）・[`menu::WIREFRAME`]
 /// （イシュー #2637、Phase 5 の 5 番目の部品。検索欄は `Option<&str>` +
-/// 固定パートの `icon::search` で表す）が続いた。
-/// Phase 1・3・4・5 以降（#2608〜#2665）の残りの各部品イシューが自分の
+/// 固定パートの `icon::search` で表す）・Phase 6「Overlay・Feedback」の
+/// [`tooltip::WIREFRAME`]（イシュー #2644、最初の部品）が続いた。
+/// Phase 1・3・4・5・6 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
@@ -189,6 +191,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     accordion::WIREFRAME,
     pagination::WIREFRAME,
     menu::WIREFRAME,
+    tooltip::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

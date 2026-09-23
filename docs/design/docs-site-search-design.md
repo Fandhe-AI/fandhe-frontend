@@ -201,7 +201,7 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
 | 定数 | 値 | 超過時の扱い |
 |---|---|---|
 | `MAX_PAGE_TEXT_BYTES` | 4,096 バイト | **決定的に切り詰める**（エラーにしない）。UTF-8 文字境界で切る（`char_indices` で境界を求め、バイト単位切断で不正 UTF-8 を作らない）。切り詰め痕跡の付加文字（`…` 等）は付けない（決定性と単純さを優先する） |
-| `MAX_INDEX_BYTES` | 1,179,648 バイト（1.125 MiB。#2552 で 1 MiB から引き上げ、§10 参照） | **fail-closed**。`BuildError::SearchIndexTooLarge { bytes, limit }` を返し、**ページ書き出し前**に打ち切る |
+| `MAX_INDEX_BYTES` | 1,572,864 バイト（1.5 MiB。#2552 で 1 MiB → 1.125 MiB、イシュー #2637/#2644（Menu/Tooltip 同時合流）で 1.125 MiB → 1.5 MiB へ引き上げ、§10 参照） | **fail-closed**。`BuildError::SearchIndexTooLarge { bytes, limit }` を返し、**ページ書き出し前**に打ち切る |
 
 - 選定根拠: 現行 121 ページで全ページが per-page 上限に張り付いた
   最悪ケースでも 121 × 4 KiB ≒ 496 KiB であり、1 MiB は「ページ数が
@@ -223,7 +223,7 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
   - `pub const REL_PATH: &str = "assets/search-index.json";`
   - `pub const SCHEMA_VERSION: u32 = 1;`
   - `pub const MAX_PAGE_TEXT_BYTES: usize = 4096;`
-  - `pub const MAX_INDEX_BYTES: usize = 1_179_648;`（#2552 で `1_048_576` から引き上げ、§10 参照）
+  - `pub const MAX_INDEX_BYTES: usize = 1_572_864;`（#2552 で `1_048_576` から `1_179_648` へ、イシュー #2637/#2644 で `1_179_648` から `1_572_864` へ引き上げ、§10 参照）
   - `pub struct PageEntry { href, title, sections: Vec<SectionEntry>, text }`
   - `pub struct SectionEntry { id, level, title }`
   - `pub fn page_entry(href: &str, title: &str, body: &Node) -> PageEntry`
@@ -587,3 +587,25 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
   水準まで肥大化した場合、または引き上げ後の実測が新上限の 80% を
   超えた場合は、§8 トリガー 1 の対応（per-page 上限見直し・セクション
   粒度分割）を改めて検討する。
+
+## 11. `MAX_INDEX_BYTES` 再引き上げ（イシュー #2637/#2644）実装記録
+
+§10 の引き上げ（1.125 MiB）後、Wireframes セクションの部品追加が
+継続する中で、イシュー #2637（Menu）とイシュー #2644（Tooltip）の
+2 部品が別々の PR として並行開発され、PR #2703（Menu）の base 取り込み
+時に main 側で Tooltip が先に合流済みという状況が生じた。両部品の
+索引テキストが合算された結果、実測が再び上限（1,179,648 バイト）を
+約 451 バイト超過した。
+
+- §10 と同じ理由（per-page 切り詰め・セクション分割はいずれも
+  不釣り合いに大きい・索引精度を損なう）により、今回も
+  `MAX_INDEX_BYTES` の引き上げを採用する。
+- 複数部品・block の並行合流が今後も起こり得ることを踏まえ、§10 の
+  128 KiB 刻みではなく余裕を大きく取り、1.125 MiB → 1.5 MiB
+  （`1_179_648` → `1_572_864`）へ引き上げる。引き上げ後の実測
+  （約 1,180,099 バイト）は新上限の約 75% であり、§10 の再評価
+  トリガー（新上限の 80% 超過）に対して §10 時点（約 89%）より
+  大きな余裕を確保した。
+- 再評価トリガーは §10 と同一（インデックスが 1.125 MiB を再び
+  超える水準まで肥大化した場合、または実測が新上限の 80% を超えた
+  場合に per-page 上限見直し・セクション粒度分割を改めて検討する）。

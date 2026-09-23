@@ -88,9 +88,12 @@
 //! Phase 5 の [`menu::menu`]（イシュー #2637、検索欄は `Option<&str>` +
 //! 固定パートの [`icon::search`] で表し `<input>` は出力しない。項目は
 //! [`menu::MenuItem`] のスライスで受け、強調状態は無効項目を指す添字なら
-//! 優先して外す fail-closed な `active: Option<usize>`）も続いた。
-//! 残りは Phase 3 の他部品（#2608〜）および Phase 5 の他部品（breadcrumbs
-//! 等）で順次追加する。
+//! 優先して外す fail-closed な `active: Option<usize>`）・
+//! Phase 6「Overlay・Feedback」の最初の部品 [`tooltip`]（イシュー #2644、
+//! 方向は部品ローカルの [`tooltip::TooltipSide`] による修飾 class で表す）
+//! が続いた。
+//! 残りは Phase 3 の他部品（#2608〜）・Phase 5 の他部品（breadcrumbs 等）・
+//! Phase 6 の他部品で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -138,6 +141,7 @@ pub mod tag;
 pub mod text;
 pub mod textarea;
 pub mod tokens;
+pub mod tooltip;
 
 pub use accordion::accordion;
 pub use annotation::annotation;
@@ -171,3 +175,4 @@ pub use tabs::tabs;
 pub use tag::tag;
 pub use text::text;
 pub use textarea::{textarea, MAX_ROWS};
+pub use tooltip::{tooltip, TooltipSide};
