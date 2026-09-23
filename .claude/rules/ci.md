@@ -223,8 +223,21 @@
   `wireframes/link/index.html`（イシュー #2618、Phase 2「テキスト・注釈」の
   `link` 部品〔`Option<Node>` アイコンスロット規約 §11.4 の実例、`a[href]`
   非出力〕）/
-  `wireframes/frame/index.html`（イシュー #2609、同じく Phase 1
-  「レイアウト骨格」の Frame 部品ページ）
+  `wireframes/rich-text/index.html`（イシュー #2616、Phase 2「テキスト・
+  注釈」の Rich text 部品ページ）/
+  `wireframes/button/index.html`（イシュー #2621、Phase 3「Forms A」の
+  `button` 部品〔`props::Disabled` の最初の実消費者〕）/
+  `wireframes/select/index.html`（イシュー #2624、Phase 3「Forms A」の
+  `select` 部品）/
+  `wireframes/radio/index.html`（イシュー #2626、Phase 3「Forms A」の
+  `radio` 部品。選択状態は `props::Active` を再利用し、新規の
+  `Selected`/`Checked` 型は新設しない）/
+  `wireframes/switch/index.html`（イシュー #2627、Phase 3「Forms A」の
+  `switch` 部品。`Active` を ON 状態の意味で使い `Disabled` を併用する）/
+  `wireframes/checkbox/index.html`（イシュー #2625、Phase 3「Forms A」の
+  `checkbox` 部品〔`props::Active` を「チェック済み」状態として消費〕）/
+  `wireframes/frame/index.html`（イシュー #2609、Phase 1「レイアウト骨格」の
+  Frame 部品ページ）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
