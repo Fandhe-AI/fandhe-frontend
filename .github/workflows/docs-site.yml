@@ -364,10 +364,15 @@ jobs:
           # ページ（増減インジケータは Option<&str> ではなく StatDelta で
           # 表す）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/stat/index.html"
-          # イシュー #2661: Phase 8「Media・Data」の最初の部品、Media 部品
-          # ページ（blocks.pm 上の表示名は Placeholder。content: Option<Node>
-          # が None のとき icon::play へフォールバックする §11.4 からの
-          # 意図的な逸脱。枠は 16:9 固定で <video>/<iframe> は出力しない）。
+          # イシュー #2663: Phase 8「Media・データ表示」の最初の部品、Chart
+          # 部品ページ（棒グラフの配置イメージ。values は &[u8]、
+          # props::Orientation を再利用する）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/chart/index.html"
+          # イシュー #2661: Phase 8「Media・データ表示」の 2 番目の部品、
+          # Media 部品ページ（blocks.pm 上の表示名は Placeholder。
+          # content: Option<Node> が None のとき icon::play へフォール
+          # バックする §11.4 からの意図的な逸脱。枠は 16:9 固定で
+          # <video>/<iframe> は出力しない）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/media/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 

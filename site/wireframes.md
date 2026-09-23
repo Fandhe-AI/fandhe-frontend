@@ -67,6 +67,7 @@
 - [Counter](./wireframes/counter.md)
 - [Emoji](./wireframes/emoji.md)
 - [Stat](./wireframes/stat.md)
+- [Chart](./wireframes/chart.md)
 - [Media](./wireframes/media.md)
 
 ## 掲載予定
@@ -98,5 +99,4 @@
 
 - image
 - table
-- chart
 - map

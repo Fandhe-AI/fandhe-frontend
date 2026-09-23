@@ -60,6 +60,7 @@ mod avatar;
 mod breadcrumbs;
 mod button;
 mod calendar;
+mod chart;
 mod checkbox;
 mod counter;
 mod cursor;
@@ -196,11 +197,13 @@ pub struct Wireframe {
 /// `Option<Node>` アイコンスロットではなく `glyph: &str` の 1 引数へ
 /// 畳み込む §11.4 からの意図的な逸脱）・[`stat::WIREFRAME`]（イシュー
 /// #2656、4 番目の部品。増減インジケータは `Option<&str>` ではなく
-/// `StatDelta`（`menu::MenuItem` と同型の公開構造体）で表す）が続いた。
-/// Phase 8「Media・Data」の最初の部品 [`media::WIREFRAME`]（イシュー
-/// #2661、blocks.pm 上の表示名は Placeholder。`content: Option<Node>` が
-/// `None` のとき `icon::play` へフォールバックする §11.4 からの意図的な
-/// 逸脱。動画か静止画かは bool ではなくスロット差し替えで表す）も続いた。
+/// `StatDelta`（`menu::MenuItem` と同型の公開構造体）で表す）・
+/// Phase 8「Media・データ表示」の [`chart::WIREFRAME`]（イシュー #2663、
+/// 最初の部品。値は `&[u8]` で受け取り `props::Orientation` を再利用する）・
+/// [`media::WIREFRAME`]（イシュー #2661、2 番目の部品。blocks.pm 上の
+/// 表示名は Placeholder。`content: Option<Node>` が `None` のとき
+/// `icon::play` へフォールバックする §11.4 からの意図的な逸脱。動画か
+/// 静止画かは bool ではなくスロット差し替えで表す）が続いた。
 /// Phase 1・3・4・5・6・7・8 以降（#2608〜#2665）の残りの各部品イシューが
 /// 自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -244,6 +247,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     counter::WIREFRAME,
     emoji::WIREFRAME,
     stat::WIREFRAME,
+    chart::WIREFRAME,
     media::WIREFRAME,
 ];
 
