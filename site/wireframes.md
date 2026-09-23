@@ -33,6 +33,7 @@
 - [Stack](./wireframes/stack.md)
 - [Link](./wireframes/link.md)
 - [Rich text](./wireframes/rich-text.md)
+- [Paragraph](./wireframes/paragraph.md)
 - [Button](./wireframes/button.md)
 - [Select](./wireframes/select.md)
 - [Radio](./wireframes/radio.md)
@@ -44,7 +45,7 @@
 
 ## 掲載予定
 
-以下は Phase 1〜8（#2608〜#2665）で順次掲載する 35 部品です（Phase ごとの内訳）。
+以下は Phase 1〜8（#2608〜#2665）で順次掲載する 34 部品です（Phase ごとの内訳）。
 掲載が完了した部品は本節へリンク付きの「掲載済み」一覧として追記されます（現時点では
 未掲載のため本節はリンクなしの一覧です）。
 
@@ -53,7 +54,6 @@
 ### Phase 2: テキスト・注釈
 
 - text
-- paragraph
 - tag
 
 ### Phase 3: Forms A

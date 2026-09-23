@@ -259,21 +259,23 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // Wireframes セクションへ Stack 部品ページが加わり、256 → 257 になった。
     // イシュー #2618 で Wireframes セクションへ Link 部品ページが加わり、
     // 257 → 258 になった。イシュー #2616 で Wireframes セクションへ
-    // Rich text 部品ページが加わり、258 → 259 になった。イシュー #2621 で
-    // Wireframes セクションへ Button 部品ページが加わり、259 → 260 になった。
+    // Rich text 部品ページが加わり、258 → 259 になった。イシュー #2615 で
+    // Wireframes セクションへ Paragraph 部品ページが加わり、
+    // 259 → 260 になった。イシュー #2621 で Wireframes セクションへ
+    // Button 部品ページが加わり、260 → 261 になった。
     // イシュー #2624 で Wireframes セクションへ Select 部品ページが加わり、
-    // 260 → 261 になった。イシュー #2626 で Wireframes セクションへ Radio
-    // 部品ページが加わり、261 → 262 になった。イシュー #2627 で Wireframes
-    // セクションへ Switch 部品ページが加わり、262 → 263 になった。イシュー
+    // 261 → 262 になった。イシュー #2626 で Wireframes セクションへ Radio
+    // 部品ページが加わり、262 → 263 になった。イシュー #2627 で Wireframes
+    // セクションへ Switch 部品ページが加わり、263 → 264 になった。イシュー
     // #2625 で Wireframes セクションへ Checkbox 部品ページが加わり、
-    // 263 → 264 になった。イシュー #2623 で Wireframes セクションへ
-    // Textarea 部品ページが加わり、264 → 265 になった。イシュー #2628 で
-    // Wireframes セクションへ Slider 部品ページが加わり、265 → 266 になった。
+    // 264 → 265 になった。イシュー #2623 で Wireframes セクションへ
+    // Textarea 部品ページが加わり、265 → 266 になった。イシュー #2628 で
+    // Wireframes セクションへ Slider 部品ページが加わり、266 → 267 になった。
     // イシュー #2609 で Wireframes セクションへ Frame 部品ページが加わり、
-    // 266 → 267 になった。
+    // 267 → 268 になった。
     assert_eq!(
         report.written.len(),
-        267,
+        268,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );

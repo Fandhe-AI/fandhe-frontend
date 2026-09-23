@@ -35,7 +35,10 @@ name = "fandhe-frontend-wireframe-ui"
 # 0.15.0 を textarea が先に確保したため main セッションが 0.16.0 を割り当て。
 # 0.16.0 → 0.17.0: 公開 API 新設（frame 部品、イシュー #2609。main 取り込み
 # 時点で 0.16.0 まで進んでいたため衝突回避で +1。
-version = "0.17.0"
+# 0.17.0 → 0.18.0: 公開 API 新設（paragraph 部品、イシュー #2615）。main
+# セッションが PR ごとに割り当てた一意値へ合わせて確保（main 0.17.0 より
+# 大きい値、衝突回避で +1）。
+version = "0.18.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
 license = "MIT OR Apache-2.0"

@@ -263,6 +263,8 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/link/index.html"
           # イシュー #2616: Phase 2「テキスト・注釈」の Rich text 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/rich-text/index.html"
+          # イシュー #2615: Phase 2「テキスト・注釈」の Paragraph 部品ページ。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/paragraph/index.html"
           # イシュー #2621: Phase 3「Forms A」の Button 部品ページ
           # （props::Disabled の最初の実消費者）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/button/index.html"

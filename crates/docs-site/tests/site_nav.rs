@@ -253,18 +253,20 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // 加わり、256 → 257 になった。イシュー #2618 で Wireframes セクションへ
     // Link 部品ページが加わり、257 → 258 になった。イシュー #2616 で
     // Wireframes セクションへ Rich text 部品ページが加わり、258 → 259 に
-    // なった。イシュー #2621 で Wireframes セクションへ Button 部品ページが
-    // 加わり、259 → 260 になった。イシュー #2624 で Wireframes セクションへ
-    // Select 部品ページが加わり、260 → 261 になった。イシュー #2626 で
-    // Wireframes セクションへ Radio 部品ページが加わり、261 → 262 になった。
+    // なった。イシュー #2615 で Wireframes セクションへ Paragraph 部品
+    // ページが加わり、259 → 260 になった。イシュー #2621 で Wireframes
+    // セクションへ Button 部品ページが加わり、260 → 261 になった。イシュー
+    // #2624 で Wireframes セクションへ Select 部品ページが加わり、
+    // 261 → 262 になった。イシュー #2626 で Wireframes セクションへ Radio
+    // 部品ページが加わり、262 → 263 になった。
     // イシュー #2627 で Wireframes セクションへ Switch 部品ページが加わり、
-    // 262 → 263 になった。イシュー #2625 で Wireframes セクションへ
-    // Checkbox 部品ページが加わり、263 → 264 になった。イシュー #2623 で
-    // Wireframes セクションへ Textarea 部品ページが加わり、264 → 265 に
+    // 263 → 264 になった。イシュー #2625 で Wireframes セクションへ
+    // Checkbox 部品ページが加わり、264 → 265 になった。イシュー #2623 で
+    // Wireframes セクションへ Textarea 部品ページが加わり、265 → 266 に
     // なった。イシュー #2628 で Wireframes セクションへ Slider 部品ページが
-    // 加わり、265 → 266 になった。イシュー #2609 で Wireframes セクションへ
-    // Frame 部品ページが加わり、266 → 267 になった。
-    assert_eq!(pages.len(), 267, "expected 267 pages, got {pages:?}");
+    // 加わり、266 → 267 になった。イシュー #2609 で Wireframes セクションへ
+    // Frame 部品ページが加わり、267 → 268 になった。
+    assert_eq!(pages.len(), 268, "expected 268 pages, got {pages:?}");
 
     // イシュー #2607: `/wireframes/` 配下は索引ページ（`/wireframes/` 自身）
     // 1 件のみだった（同イシュー時点では個別部品ページを同梱しない、設計
@@ -273,12 +275,13 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // イシュー #2612 で Divider が加わり 4 件になった。イシュー #2610 で
     // Stack が加わり 5 件になった。イシュー #2618 で Link が加わり 6 件に
     // なった。イシュー #2616 で Rich text が加わり 7 件になった。
-    // イシュー #2621 で Button が加わり 8 件になった。イシュー #2624 で
-    // Select が加わり 9 件になった。イシュー #2626 で Radio が加わり
-    // 10 件になった。イシュー #2627 で Switch が加わり 11 件になった。
-    // イシュー #2625 で Checkbox が加わり 12 件になった。イシュー #2623 で
-    // Textarea が加わり 13 件になった。イシュー #2628 で Slider が加わり
-    // 14 件になった。イシュー #2609 で Frame が加わり 15 件になった。
+    // イシュー #2615 で Paragraph が加わり 8 件になった。
+    // イシュー #2621 で Button が加わり 9 件になった。イシュー #2624 で
+    // Select が加わり 10 件になった。イシュー #2626 で Radio が加わり
+    // 11 件になった。イシュー #2627 で Switch が加わり 12 件になった。
+    // イシュー #2625 で Checkbox が加わり 13 件になった。イシュー #2623 で
+    // Textarea が加わり 14 件になった。イシュー #2628 で Slider が加わり
+    // 15 件になった。イシュー #2609 で Frame が加わり 16 件になった。
     // Phase 1・3 以降（#2608〜#2665）の各部品イシューが増分する。
     let wireframes_pages: Vec<&(&str, &str)> = pages
         .iter()
@@ -286,8 +289,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .collect();
     assert_eq!(
         wireframes_pages.len(),
-        15,
-        "expected 15 /wireframes/ pages (index + annotation + grid + divider + stack + link + rich-text + button + select + radio + switch + checkbox + textarea + slider + frame), got {wireframes_pages:?}"
+        16,
+        "expected 16 /wireframes/ pages (index + annotation + grid + divider + stack + link + rich-text + paragraph + button + select + radio + switch + checkbox + textarea + slider + frame), got {wireframes_pages:?}"
     );
     assert!(
         pages.contains(&("site/wireframes.md", "/wireframes/")),
