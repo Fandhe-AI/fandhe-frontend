@@ -69,6 +69,7 @@
 - [Stat](./wireframes/stat.md)
 - [Card basic](./wireframes/card-basic.md)
 - [Chart](./wireframes/chart.md)
+- [Image](./wireframes/image.md)
 
 ## 掲載予定
 
@@ -96,7 +97,6 @@
 
 ### Phase 8: Media・Data
 
-- image
 - media
 - table
 - map

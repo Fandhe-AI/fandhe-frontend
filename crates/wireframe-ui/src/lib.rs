@@ -136,13 +136,17 @@
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
 //! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
 //! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
-//! 全部品が出揃った。Phase 8「Media・データ表示」の最初の部品として
-//! [`chart`]（イシュー #2663、棒グラフの配置イメージ。値は `u8` 列
-//! `values: &[u8]` として受け取り、[`progress`] と同型の 5 刻み量子化・
-//! [`props::Orientation`] の再利用（4 例目の消費者）・
-//! [`grid::MAX_COLUMNS`] と同じ資源有界化（[`chart::MAX_BARS`]）で
-//! 組み立てる。折れ線・面・円・散布・凡例・軸ラベル・複数系列はスコープ
-//! 外とする）が続いた。残りは Phase 7 の他部品・Phase 8 の他部品で
+//! 全部品が出揃った。Phase 8「Media・データ表示」の最初の部品 [`image`]
+//! （イシュー #2660、`content: Option<Node>` が `None` のときバツ印
+//! プレースホルダーを描き、`Some(node)` のときは子要素を差し替える
+//! §11.4 準拠の実例。強調は共通型 [`props::Primary`] を再利用し、バツ印
+//! の色は CSS カスタムプロパティ `--fw-wire-image-x-color` の上書きで
+//! 反転させる）・2 番目の部品 [`chart`]（イシュー #2663、棒グラフの配置
+//! イメージ。値は `u8` 列 `values: &[u8]` として受け取り、[`progress`]
+//! と同型の 5 刻み量子化・[`props::Orientation`] の再利用（4 例目の
+//! 消費者）・[`grid::MAX_COLUMNS`] と同じ資源有界化（[`chart::MAX_BARS`]）
+//! で組み立てる。折れ線・面・円・散布・凡例・軸ラベル・複数系列はスコープ
+//! 外とする）が続いた。残りは Phase 8 の他部品で
 //! 順次追加する。
 //!
 //! # class 命名規約
@@ -177,6 +181,7 @@ pub mod file_drop;
 pub mod frame;
 pub mod grid;
 pub mod icon;
+pub mod image;
 pub mod input;
 pub mod link;
 pub mod menu;
@@ -225,6 +230,7 @@ pub use emoji::emoji;
 pub use file_drop::file_drop;
 pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
+pub use image::image;
 pub use input::input;
 pub use link::link;
 pub use menu::{menu, MenuItem};
