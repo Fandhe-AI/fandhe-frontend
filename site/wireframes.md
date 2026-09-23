@@ -68,6 +68,7 @@
 - [Emoji](./wireframes/emoji.md)
 - [Stat](./wireframes/stat.md)
 - [Chart](./wireframes/chart.md)
+- [Image](./wireframes/image.md)
 - [Map](./wireframes/map.md)
 
 ## 掲載予定
@@ -97,6 +98,5 @@
 
 ### Phase 8: Media・Data
 
-- image
 - media
 - table

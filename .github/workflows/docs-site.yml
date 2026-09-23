@@ -368,7 +368,11 @@ jobs:
           # 部品ページ（棒グラフの配置イメージ。values は &[u8]、
           # props::Orientation を再利用する）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/chart/index.html"
-          # イシュー #2664: Phase 8「Media・データ表示」の chart に続く
+          # イシュー #2660: Phase 8 の 2 番目の部品、Image 部品
+          # ページ（content: Option<Node> が None のときバツ印プレース
+          # ホルダーを描く §11.4 準拠のスロット規約）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/image/index.html"
+          # イシュー #2664: Phase 8「Media・データ表示」の 3 番目の
           # 部品、Map 部品ページ（地図タイルの配置イメージ。zoom は部品
           # ローカル列挙型 MapZoom 3 段、marker は Option<Node> アイコン
           # スロット）。

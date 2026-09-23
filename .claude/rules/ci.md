@@ -334,7 +334,11 @@
   `wireframes/chart/index.html`（イシュー #2663、Phase 8「Media・データ
   表示」の最初の部品。棒グラフの配置イメージを `values: &[u8]` から
   組み立て、`props::Orientation` を再利用する）/
-  `wireframes/map/index.html`（イシュー #2664、Phase 8 の chart に続く
+  `wireframes/image/index.html`（イシュー #2660、Phase 8 の 2 番目の
+  部品。`content: Option<Node>` が `None` のときバツ印プレース
+  ホルダーを描く §11.4 準拠のスロット規約。強調は共通型 `props::Primary`
+  を再利用する）/
+  `wireframes/map/index.html`（イシュー #2664、Phase 8 の 3 番目の
   部品。地図タイルの配置イメージを部品ローカル列挙型 `MapZoom` 3 段・
   `Option<Node>` マーカースロットで構成する）
   である。

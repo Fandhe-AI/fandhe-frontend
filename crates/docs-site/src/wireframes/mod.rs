@@ -69,6 +69,7 @@ mod emoji;
 mod file_drop;
 mod frame;
 mod grid;
+mod image;
 mod input;
 mod link;
 mod map;
@@ -197,10 +198,14 @@ pub struct Wireframe {
 /// `Option<Node>` アイコンスロットではなく `glyph: &str` の 1 引数へ
 /// 畳み込む §11.4 からの意図的な逸脱）・[`stat::WIREFRAME`]（イシュー
 /// #2656、4 番目の部品。増減インジケータは `Option<&str>` ではなく
-/// `StatDelta`（`menu::MenuItem` と同型の公開構造体）で表す）・
-/// Phase 8「Media・データ表示」の [`chart::WIREFRAME`]（イシュー #2663、
-/// 最初の部品。値は `&[u8]` で受け取り `props::Orientation` を再利用する）
-/// に続き [`map::WIREFRAME`]（イシュー #2664、地図タイルの配置イメージ。
+/// `StatDelta`（`menu::MenuItem` と同型の公開構造体）で表す）が続いた。
+/// Phase 8「Media・データ表示」の最初の部品 [`image::WIREFRAME`]（イシュー
+/// #2660、対角のバツ印が入った正方形/円形の枠。`content: Option<Node>`
+/// が `None` のときバツ印プレースホルダーを描き `Some(node)` のときは
+/// 子要素を差し替える §11.4 準拠のスロット規約。強調は共通型 `Primary`
+/// を再利用する）・2 番目の部品 [`chart::WIREFRAME`]（イシュー #2663、
+/// 値は `&[u8]` で受け取り `props::Orientation` を再利用する）・3 番目の
+/// 部品 [`map::WIREFRAME`]（イシュー #2664、地図タイルの配置イメージ。
 /// ズームは部品ローカル列挙型 `MapZoom` 3 段、マーカーは `Option<Node>`
 /// アイコンスロット）が続いた。
 /// Phase 1・3・4・5・6・7・8 以降（#2608〜#2665）の残りの各部品イシューが
@@ -246,6 +251,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     counter::WIREFRAME,
     emoji::WIREFRAME,
     stat::WIREFRAME,
+    image::WIREFRAME,
     chart::WIREFRAME,
     map::WIREFRAME,
 ];
