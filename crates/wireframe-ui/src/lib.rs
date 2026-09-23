@@ -91,10 +91,12 @@
 //! クレートルートから再エクスポートする初めての例）も続いた。
 //! Phase 6「Overlay・Feedback」の最初の部品 [`tooltip`]（イシュー #2644、
 //! 方向は部品ローカルの [`tooltip::TooltipSide`] による修飾 class で表す）・
-//! 同 Phase の 2 番目の部品 [`alert`]（イシュー #2646、横長の警告バナー。
-//! 重要度は部品ローカルの [`alert::Severity`] による修飾 class で表し、
-//! `props.rs` へは昇格しない。アイコンは `link`/`file_drop` と同じ
-//! `Option<Node>` スロット）が続いた。
+//! Phase 6 の 2 番目の部品 [`toast`]（イシュー #2647、閉じるグリフは
+//! [`icon::x`] 固定で instance swap にせず `dismissible: bool` の 1 引数
+//! だけで有無を切り替える）・3 番目の部品 [`alert`]（イシュー #2646、
+//! 横長の警告バナー。重要度は部品ローカルの [`alert::Severity`] による
+//! 修飾 class で表し、`props.rs` へは昇格しない。アイコンは
+//! `link`/`file_drop` と同じ `Option<Node>` スロット）が続いた。
 //! 残りは Phase 3 の他部品（#2608〜）・Phase 5 の他部品（menu 等）・
 //! Phase 6 の他部品で順次追加する。
 //!
@@ -144,6 +146,7 @@ pub mod tabs;
 pub mod tag;
 pub mod text;
 pub mod textarea;
+pub mod toast;
 pub mod tokens;
 pub mod tooltip;
 
@@ -180,4 +183,5 @@ pub use tabs::tabs;
 pub use tag::tag;
 pub use text::text;
 pub use textarea::{textarea, MAX_ROWS};
+pub use toast::toast;
 pub use tooltip::{tooltip, TooltipSide};

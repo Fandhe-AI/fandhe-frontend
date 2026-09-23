@@ -82,6 +82,7 @@ mod tabs;
 mod tag;
 mod text;
 mod textarea;
+mod toast;
 mod tooltip;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
@@ -161,9 +162,11 @@ pub struct Wireframe {
 /// （イシュー #2642、Phase 5 の 5 番目の部品。代わりに使える既存アイコンが
 /// ないため `icon::cursor_arrow`/`icon::cursor_hand` を新規追加して消費
 /// する）・Phase 6「Overlay・Feedback」の [`tooltip::WIREFRAME`]
-/// （イシュー #2644、最初の部品）・[`alert::WIREFRAME`]（イシュー #2646、
-/// 同 Phase の 2 番目の部品。重要度は部品ローカルの `Severity` による
-/// 修飾 class で表す）が続いた。
+/// （イシュー #2644、最初の部品）・[`toast::WIREFRAME`]（イシュー #2647、
+/// Phase 6 の 2 番目の部品。閉じるグリフは `icon::x` 固定で
+/// `dismissible: bool` の 1 引数だけで有無を切り替える）・
+/// [`alert::WIREFRAME`]（イシュー #2646、同 Phase の 3 番目の部品。
+/// 重要度は部品ローカルの `Severity` による修飾 class で表す）が続いた。
 /// Phase 1・3・4・5・6 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -196,6 +199,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     pagination::WIREFRAME,
     cursor::WIREFRAME,
     tooltip::WIREFRAME,
+    toast::WIREFRAME,
     alert::WIREFRAME,
 ];
 
