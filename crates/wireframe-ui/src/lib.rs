@@ -129,7 +129,11 @@
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
 //! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
 //! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
-//! 全部品が出揃った。残りは Phase 7 の他部品・Phase 8 で順次追加する。
+//! 全部品が出揃った。Phase 8「Media・Data」の最初の部品 [`table`]
+//! （イシュー #2662、N 列 × M 行のデータ表プレースホルダー。
+//! [`calendar`] と同型の判断で `<table>` を使わず `div`/`span` + CSS grid
+//! で表現し、列数は `headers`/`rows` の形から導く）が続いた。残りは
+//! Phase 7 の他部品・Phase 8 の他部品で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -181,6 +185,7 @@ pub mod spinner;
 pub mod stack;
 pub mod stepper;
 pub mod switch;
+pub mod table;
 pub mod tabs;
 pub mod tag;
 pub mod text;
@@ -226,6 +231,7 @@ pub use spinner::spinner;
 pub use stack::stack;
 pub use stepper::stepper;
 pub use switch::switch;
+pub use table::{table, MAX_TABLE_COLUMNS, MAX_TABLE_ROWS};
 pub use tabs::tabs;
 pub use tag::tag;
 pub use text::text;
