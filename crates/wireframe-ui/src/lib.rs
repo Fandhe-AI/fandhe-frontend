@@ -74,7 +74,11 @@
 //! 型で保証する）・Phase 4「Forms B」の [`stepper`]（イシュー #2634、
 //! blocks.pm 対応部品を持たない独自追加部品。完了ステップの状態は
 //! `props.rs` へ新型を追加せず部品ローカルの `data-complete` とし、現在
-//! ステップは既存 [`props::Active`] を再利用する）も続いた。
+//! ステップは既存 [`props::Active`] を再利用する）・Phase 5「Navigation」の
+//! [`nav_item`]（イシュー #2636、先頭・末尾の `Option<Node>` アイコン
+//! スロットに加え `Option<&str>` の件数カウンター内部パートを持ち、
+//! `Active` はアクティブ状態のグレースケール反転配色として消費する）も
+//! 続いた。
 //! 残りは Phase 3 の他部品（#2608〜）および Phase 5 の他部品（menu 等）で
 //! 順次追加する。
 //!
@@ -103,6 +107,7 @@ pub mod grid;
 pub mod icon;
 pub mod input;
 pub mod link;
+pub mod nav_item;
 pub mod paragraph;
 pub mod props;
 pub mod question;
@@ -133,6 +138,7 @@ pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
 pub use input::input;
 pub use link::link;
+pub use nav_item::nav_item;
 pub use paragraph::paragraph;
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
 pub use question::question;

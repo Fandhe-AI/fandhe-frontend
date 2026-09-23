@@ -275,7 +275,10 @@
   `wireframes/stepper/index.html`（イシュー #2634、Phase 4「Forms B」の
   Stepper 部品。blocks.pm に対応部品を持たない独自追加部品で、完了ステップは
   `props.rs` へ新型を追加せず部品ローカルの `data-complete` とし、現在
-  ステップは既存 `props::Active` を再利用する）
+  ステップは既存 `props::Active` を再利用する）/
+  `wireframes/nav-item/index.html`（イシュー #2636、Phase 5「Navigation」の
+  2 番目の部品。先頭・末尾の `Option<Node>` アイコンスロット + 件数表示
+  〔`Option<&str>`〕、`Active` はアクティブ状態のグレースケール反転配色）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

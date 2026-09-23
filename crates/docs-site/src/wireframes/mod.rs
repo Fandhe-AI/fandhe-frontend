@@ -63,6 +63,7 @@ mod frame;
 mod grid;
 mod input;
 mod link;
+mod nav_item;
 mod paragraph;
 mod question;
 mod radio;
@@ -147,7 +148,9 @@ pub struct Wireframe {
 /// [`tabs::WIREFRAME`]（イシュー #2638、最初の部品。選択状態は項目ごとの
 /// `Active` ではなく `active: Option<usize>` 1 引数で表す）・
 /// Phase 4「Forms B」の [`stepper::WIREFRAME`]（イシュー #2634、blocks.pm
-/// 対応部品を持たない独自追加部品、5 番目の部品）が続いた。
+/// 対応部品を持たない独自追加部品、5 番目の部品）・Phase 5「Navigation」の
+/// [`nav_item::WIREFRAME`]（イシュー #2636、Phase 5 の 2 番目の部品）が
+/// 続いた。
 /// Phase 1・3・4・5 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -175,6 +178,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     text::WIREFRAME,
     tabs::WIREFRAME,
     stepper::WIREFRAME,
+    nav_item::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。
