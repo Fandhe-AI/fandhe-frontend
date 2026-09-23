@@ -59,9 +59,13 @@
 //! `props::Disabled` の `.attr()` を Select・Switch・Checkbox・Radio・
 //! Textarea・Slider に続いて併用する 7 例目の実消費者）・Phase 4「Forms B」の
 //! [`question`]（イシュー #2630、ラベル + 補足説明 + `Node` スロットの
-//! コントロール + ヒント。表示状態軸を持たずスロット側へ委ねる）が続いた。
-//! 残りは Phase 2 の他部品（text 等）・Phase 3 の他部品（#2608〜）および
-//! Phase 4 の他部品（ratings/calendar/file-drop/stepper）で順次追加する。
+//! コントロール + ヒント。表示状態軸を持たずスロット側へ委ねる）・
+//! [`stepper`]（イシュー #2634、blocks.pm 対応部品を持たない独自追加部品。
+//! 完了ステップの状態は `props.rs` へ新型を追加せず部品ローカルの
+//! `data-complete` とし、現在ステップは既存 [`props::Active`] を再利用する）
+//! が続いた。残りは Phase 2 の他部品（text 等）・Phase 3 の他部品
+//! （#2608〜）および Phase 4 の他部品（ratings/calendar/file-drop）で
+//! 順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -95,6 +99,7 @@ pub mod select;
 pub mod size;
 pub mod slider;
 pub mod stack;
+pub mod stepper;
 pub mod switch;
 pub mod tag;
 pub mod textarea;
@@ -119,6 +124,7 @@ pub use select::select;
 pub use size::Size;
 pub use slider::slider;
 pub use stack::stack;
+pub use stepper::stepper;
 pub use switch::switch;
 pub use tag::tag;
 pub use textarea::{textarea, MAX_ROWS};

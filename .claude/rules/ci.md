@@ -254,7 +254,11 @@
   併用する 7 例目の実消費者〕）/
   `wireframes/question/index.html`（イシュー #2630、Phase 4「Forms B」の
   最初の部品。ラベル + 補足説明 + `Node` スロットのコントロール + ヒント。
-  表示状態軸を持たずスロット側へ委ねる）
+  表示状態軸を持たずスロット側へ委ねる）/
+  `wireframes/stepper/index.html`（イシュー #2634、同 Phase の Stepper
+  部品。blocks.pm に対応部品を持たない独自追加部品で、完了ステップは
+  `props.rs` へ新型を追加せず部品ローカルの `data-complete` とし、現在
+  ステップは既存 `props::Active` を再利用する）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

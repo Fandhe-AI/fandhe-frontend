@@ -291,6 +291,9 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/input/index.html"
           # イシュー #2630: Phase 4「Forms B」の最初の部品、Question 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/question/index.html"
+          # イシュー #2634: 同 Phase の Stepper 部品ページ（blocks.pm 対応部品を
+          # 持たない独自追加部品）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/stepper/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact
