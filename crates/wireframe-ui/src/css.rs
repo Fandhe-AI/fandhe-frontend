@@ -12,13 +12,15 @@
 /// イシュー #2617 で [`crate::annotation::ANNOTATION_CSS`] が続いた。
 /// イシュー #2611 で [`crate::grid::GRID_CSS`]・イシュー #2612 で
 /// [`crate::divider::DIVIDER_CSS`]・イシュー #2610 で
-/// [`crate::stack::STACK_CSS`] が続いた。
+/// [`crate::stack::STACK_CSS`]・イシュー #2619 で [`crate::tag::TAG_CSS`]
+/// が続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
     crate::annotation::ANNOTATION_CSS,
     crate::grid::GRID_CSS,
     crate::divider::DIVIDER_CSS,
     crate::stack::STACK_CSS,
+    crate::tag::TAG_CSS,
 ];
 
 static CSS: std::sync::OnceLock<String> = std::sync::OnceLock::new();

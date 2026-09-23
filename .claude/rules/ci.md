@@ -219,7 +219,10 @@
   「レイアウト骨格」の `divider` 部品〔`props::Orientation` の最初の
   実消費者〕）/
   `wireframes/stack/index.html`（イシュー #2610、Phase 1「レイアウト骨格」の
-  Stack 部品ページ）
+  Stack 部品ページ）/
+  `wireframes/tag/index.html`（イシュー #2619、Phase 2「テキスト・注釈」の
+  Tag 部品ページ。削除「×」パートは `icon::x` 再利用、`removable: bool` で
+  有無トグル）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

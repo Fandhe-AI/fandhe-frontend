@@ -257,9 +257,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // 254 → 255 になった。イシュー #2612 で Wireframes セクションへ
     // Divider 部品ページが加わり、255 → 256 になった。イシュー #2610 で
     // Wireframes セクションへ Stack 部品ページが加わり、256 → 257 になった。
+    // イシュー #2619 で Wireframes セクションへ Tag 部品ページが加わり、
+    // 257 → 258 になった。
     assert_eq!(
         report.written.len(),
-        257,
+        258,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -473,6 +475,9 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
         ("wireframes/annotation/index.html", false),
         // イシュー #2610: Stack が 2 番目の部品ページとして登録された。
         ("wireframes/stack/index.html", false),
+        // イシュー #2619: Tag が Phase 2「テキスト・注釈」の 2 番目の
+        // 部品ページとして登録された。
+        ("wireframes/tag/index.html", false),
         ("api/component-api/index.html", false),
     ];
 

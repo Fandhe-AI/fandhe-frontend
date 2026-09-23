@@ -41,9 +41,9 @@
 //! （イシュー #2617）から実装を開始し、Phase 1「レイアウト骨格」の
 //! [`grid`]（イシュー #2611）・[`divider`]（イシュー #2612、
 //! `props::Orientation` の最初の消費者）・[`stack`]（イシュー #2610）が
-//! 続いた。残りは Phase 1 の他部品（frame）・Phase 2 の他部品
-//! （text/paragraph/rich-text/link/tag 等）および Phase 3 以降
-//! （#2608〜）で順次追加する。
+//! 続いた。Phase 2 は [`tag`]（イシュー #2619）が続いた。残りは Phase 1
+//! の他部品（frame）・Phase 2 の他部品（text/paragraph/rich-text/link 等）
+//! および Phase 3 以降（#2608〜）で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -66,6 +66,7 @@ pub mod icon;
 pub mod props;
 pub mod size;
 pub mod stack;
+pub mod tag;
 pub mod tokens;
 
 pub use annotation::annotation;
@@ -76,3 +77,4 @@ pub use grid::{grid, MAX_COLUMNS};
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
 pub use size::Size;
 pub use stack::stack;
+pub use tag::tag;
