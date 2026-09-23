@@ -85,6 +85,7 @@ mod select;
 mod slider;
 mod spinner;
 mod stack;
+mod stat;
 mod stepper;
 mod switch;
 mod tabs;
@@ -193,7 +194,9 @@ pub struct Wireframe {
 /// 部品ローカルの新型を新設せず共通型 `Primary` を再利用する）・
 /// [`emoji::WIREFRAME`]（イシュー #2654、3 番目の部品。絵文字は
 /// `Option<Node>` アイコンスロットではなく `glyph: &str` の 1 引数へ
-/// 畳み込む §11.4 からの意図的な逸脱）が続いた。
+/// 畳み込む §11.4 からの意図的な逸脱）・[`stat::WIREFRAME`]（イシュー
+/// #2656、4 番目の部品。増減インジケータは `Option<&str>` ではなく
+/// `StatDelta`（`menu::MenuItem` と同型の公開構造体）で表す）が続いた。
 /// Phase 8「Media・Data」の最初の部品 [`media::WIREFRAME`]（イシュー
 /// #2661、blocks.pm 上の表示名は Placeholder。`content: Option<Node>` が
 /// `None` のとき `icon::play` へフォールバックする §11.4 からの意図的な
@@ -240,6 +243,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     avatar::WIREFRAME,
     counter::WIREFRAME,
     emoji::WIREFRAME,
+    stat::WIREFRAME,
     media::WIREFRAME,
 ];
 

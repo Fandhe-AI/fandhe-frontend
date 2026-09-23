@@ -62,7 +62,8 @@
 /// イシュー #2651 で [`crate::avatar::AVATAR_CSS`]（Phase 7「Data display」
 /// の最初の部品）・イシュー #2655 で [`crate::counter::COUNTER_CSS`]
 /// （2 番目の部品）・イシュー #2654 で [`crate::emoji::EMOJI_CSS`]
-/// （同 Phase の 3 番目の部品）・イシュー #2661 で
+/// （同 Phase の 3 番目の部品）・イシュー #2656 で
+/// [`crate::stat::STAT_CSS`]（4 番目の部品）・イシュー #2661 で
 /// [`crate::media::MEDIA_CSS`]（Phase 8「Media・Data」の最初の部品）が
 /// 続いた。
 pub const PARTS: &[&str] = &[
@@ -106,6 +107,7 @@ pub const PARTS: &[&str] = &[
     crate::avatar::AVATAR_CSS,
     crate::counter::COUNTER_CSS,
     crate::emoji::EMOJI_CSS,
+    crate::stat::STAT_CSS,
     crate::media::MEDIA_CSS,
 ];
 

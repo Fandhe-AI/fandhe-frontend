@@ -327,6 +327,10 @@
   `wireframes/emoji/index.html`（イシュー #2654、Phase 7「Data display」の
   3 番目の部品。絵文字は `Option<Node>` アイコンスロットではなく
   `glyph: &str` の 1 引数へ畳み込む §11.4 からの意図的な逸脱）/
+  `wireframes/stat/index.html`（イシュー #2656、Phase 7「Data display」の
+  4 番目の部品。増減インジケータは `Option<&str>` ではなく `StatDelta`
+  〔`menu::MenuItem` と同型の公開構造体〕で表し、向きのある `Up`/`Down` は
+  `icon::caret_up`/`icon::caret_down` を再利用する）/
   `wireframes/media/index.html`（イシュー #2661、Phase 8「Media・Data」の
   最初の部品。blocks.pm 上の表示名は Placeholder。`content: None` で
   `icon::play` へフォールバック、16:9 固定、`<video>`/`<iframe>` は
