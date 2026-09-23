@@ -212,3 +212,30 @@ fn primary_rule_does_not_reset_placeholder_background_image() {
         }
     }
 }
+
+/// XSS ではなく可視性の回帰テスト: `.fw-wire-image.fw-wire-primary` は
+/// `--fw-wire-image-x-color` を上書きするだけでなく `color` も明示的に
+/// その値へ合わせる契約を固定する。`content: Some(node)`（アイコン等の
+/// スロット差し替え）で渡された子要素が `currentColor` を使う実装の場合、
+/// `color` が未設定のままだと継承された `--fw-wire-ink` 相当の色が
+/// `Primary(true)` の近黒背景へそのまま重なり実質的に不可視になる
+/// （Cursor Bugbot 指摘、PR #2719）。
+#[test]
+fn primary_rule_sets_color_to_x_color_variable_for_slotted_content_visibility() {
+    let css = fandhe_frontend_wireframe_ui::image::IMAGE_CSS;
+    let primary_start = css
+        .find(".fw-wire-image.fw-wire-primary")
+        .expect("primary selector must exist");
+    let primary_end = css[primary_start..]
+        .find('}')
+        .map(|end| primary_start + end)
+        .expect("primary rule must be closed");
+    let primary_rule = &css[primary_start..primary_end];
+
+    assert!(
+        primary_rule.contains("color: var(--fw-wire-image-x-color)"),
+        "primary rule must set color to --fw-wire-image-x-color so currentColor-based \
+         slotted content (e.g. icons) stays visible against the inverted background, \
+         found rule: {primary_rule:?}"
+    );
+}

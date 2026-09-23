@@ -98,6 +98,7 @@ pub const IMAGE_CSS: &str = "\
 }
 .fw-wire-image.fw-wire-primary {
   --fw-wire-image-x-color: var(--fw-wire-paper);
+  color: var(--fw-wire-image-x-color);
   background-color: var(--fw-wire-ink);
   border-color: var(--fw-wire-ink);
 }
