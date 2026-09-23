@@ -43,7 +43,10 @@ name = "fandhe-frontend-wireframe-ui"
 # 0.19.0 → 0.20.0: 公開 API 新設（input 部品、イシュー #2622。
 # `props::Active` と `props::Disabled` を併用する部品）。main セッションが
 # 並行 PR との衝突回避のため割り当てた値（main 0.19.0 より大きい値）。
-version = "0.20.0"
+# 0.20.0 → 0.21.0: 公開 API 新設（question 部品、イシュー #2630）。main 取り
+# 込み時点で他の並行 PR が 0.15.0〜0.20.0 を確保済みのため、main セッション
+# が本 PR 用に一意採番した 0.21.0 を採用する（main 0.20.0 より大きい値）。
+version = "0.21.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
 license = "MIT OR Apache-2.0"

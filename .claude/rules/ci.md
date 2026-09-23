@@ -251,7 +251,10 @@
   `wireframes/input/index.html`（イシュー #2622、Phase 3「Forms A」の
   `input` 部品〔`<input>` 非出力、`props::Active`/`props::Disabled` の
   `.attr()` を Select・Switch・Checkbox・Radio・Textarea・Slider に続いて
-  併用する 7 例目の実消費者〕）
+  併用する 7 例目の実消費者〕）/
+  `wireframes/question/index.html`（イシュー #2630、Phase 4「Forms B」の
+  最初の部品。ラベル + 補足説明 + `Node` スロットのコントロール + ヒント。
+  表示状態軸を持たずスロット側へ委ねる）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

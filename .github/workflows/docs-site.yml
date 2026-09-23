@@ -289,6 +289,8 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/tag/index.html"
           # イシュー #2622: 同 Phase の Input 部品ページ（<input> 非出力）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/input/index.html"
+          # イシュー #2630: Phase 4「Forms B」の最初の部品、Question 部品ページ。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/question/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact

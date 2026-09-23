@@ -57,8 +57,11 @@
 //! 集合へ量子化する）・Phase 1 の [`frame`]（イシュー #2609）・Phase 2 の
 //! [`tag`]（イシュー #2619）・[`input`]（イシュー #2622、`props::Active`/
 //! `props::Disabled` の `.attr()` を Select・Switch・Checkbox・Radio・
-//! Textarea・Slider に続いて併用する 7 例目の実消費者）が続いた。残りは
-//! Phase 2 の他部品（text 等）以降（#2608〜）で順次追加する。
+//! Textarea・Slider に続いて併用する 7 例目の実消費者）・Phase 4「Forms B」の
+//! [`question`]（イシュー #2630、ラベル + 補足説明 + `Node` スロットの
+//! コントロール + ヒント。表示状態軸を持たずスロット側へ委ねる）が続いた。
+//! 残りは Phase 2 の他部品（text 等）・Phase 3 の他部品（#2608〜）および
+//! Phase 4 の他部品（ratings/calendar/file-drop/stepper）で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -85,6 +88,7 @@ pub mod input;
 pub mod link;
 pub mod paragraph;
 pub mod props;
+pub mod question;
 pub mod radio;
 pub mod rich_text;
 pub mod select;
@@ -108,6 +112,7 @@ pub use input::input;
 pub use link::link;
 pub use paragraph::paragraph;
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
+pub use question::question;
 pub use radio::radio;
 pub use rich_text::rich_text;
 pub use select::select;

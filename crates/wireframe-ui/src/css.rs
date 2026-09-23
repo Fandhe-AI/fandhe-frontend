@@ -39,7 +39,8 @@
 /// [`crate::slider::SLIDER_CSS`]・イシュー #2609 で
 /// [`crate::frame::FRAME_CSS`]・イシュー #2619 で
 /// [`crate::tag::TAG_CSS`]・イシュー #2622 で
-/// [`crate::input::INPUT_CSS`] が続いた。
+/// [`crate::input::INPUT_CSS`]・イシュー #2630 で
+/// [`crate::question::QUESTION_CSS`] が続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
     crate::annotation::ANNOTATION_CSS,
@@ -59,6 +60,7 @@ pub const PARTS: &[&str] = &[
     crate::frame::FRAME_CSS,
     crate::tag::TAG_CSS,
     crate::input::INPUT_CSS,
+    crate::question::QUESTION_CSS,
 ];
 
 static CSS: std::sync::OnceLock<String> = std::sync::OnceLock::new();
