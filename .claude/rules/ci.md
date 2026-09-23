@@ -292,7 +292,10 @@
   `icon::cursor_arrow`/`icon::cursor_hand` を新規追加して消費する）/
   `wireframes/tooltip/index.html`（イシュー #2644、Phase 6「Overlay・
   Feedback」の最初の部品。方向は部品ローカルの `TooltipSide` による
-  修飾 class で表す）
+  修飾 class で表す）/
+  `wireframes/avatar/index.html`（イシュー #2651、Phase 7「Data display」の
+  最初の部品。`content: Option<Node>` が `None` のとき `icon::user` へ
+  フォールバックする §11.4 からの意図的な逸脱）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

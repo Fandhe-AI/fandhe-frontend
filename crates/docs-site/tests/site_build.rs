@@ -293,9 +293,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // セクションへ Cursor 部品ページが加わり、280 → 281 になった。イシュー
     // #2644 で Wireframes セクションへ Tooltip 部品ページ（Phase 6
     // 「Overlay・Feedback」の最初の部品）が加わり、281 → 282 になった。
+    // イシュー #2651 で Wireframes セクションへ Avatar 部品ページ
+    // （Phase 7「Data display」の最初の部品）が加わり、282 → 283 に
+    // なった。
     assert_eq!(
         report.written.len(),
-        282,
+        283,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );

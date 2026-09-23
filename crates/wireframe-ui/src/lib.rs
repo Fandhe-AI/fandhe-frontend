@@ -91,9 +91,13 @@
 //! クレートルートから再エクスポートする初めての例）も続いた。
 //! Phase 6「Overlay・Feedback」の最初の部品 [`tooltip`]（イシュー #2644、
 //! 方向は部品ローカルの [`tooltip::TooltipSide`] による修飾 class で表す）
-//! が続いた。
+//! が続いた。Phase 7「Data display」の最初の部品 [`avatar`]（イシュー
+//! #2651、`content: Option<Node>` が `None` のとき [`icon::user`] へ
+//! フォールバックする §11.4 からの意図的な逸脱。円形表示は
+//! `crate::frame` の `bordered` と同型の部品固有修飾 class で表す）が
+//! 続いた。
 //! 残りは Phase 3 の他部品（#2608〜）・Phase 5 の他部品（menu 等）・
-//! Phase 6 の他部品で順次追加する。
+//! Phase 6 の他部品・Phase 7 の他部品で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -109,6 +113,7 @@
 
 pub mod accordion;
 pub mod annotation;
+pub mod avatar;
 pub mod button;
 pub mod calendar;
 pub mod checkbox;
@@ -145,6 +150,7 @@ pub mod tooltip;
 
 pub use accordion::accordion;
 pub use annotation::annotation;
+pub use avatar::avatar;
 pub use button::button;
 pub use calendar::{calendar, MAX_WEEKS};
 pub use checkbox::checkbox;

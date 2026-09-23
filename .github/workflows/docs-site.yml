@@ -323,6 +323,10 @@ jobs:
           # イシュー #2644: Phase 6「Overlay・Feedback」の最初の部品、Tooltip
           # 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/tooltip/index.html"
+          # イシュー #2651: Phase 7「Data display」の最初の部品、Avatar 部品
+          # ページ（content: Option<Node> が None のとき icon::user へ
+          # フォールバックする §11.4 からの意図的な逸脱）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/avatar/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact
