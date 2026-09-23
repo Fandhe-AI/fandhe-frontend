@@ -228,7 +228,10 @@
   `wireframes/button/index.html`（イシュー #2621、Phase 3「Forms A」の
   `button` 部品〔`props::Disabled` の最初の実消費者〕）/
   `wireframes/select/index.html`（イシュー #2624、Phase 3「Forms A」の
-  `select` 部品）
+  `select` 部品）/
+  `wireframes/radio/index.html`（イシュー #2626、Phase 3「Forms A」の
+  `radio` 部品。選択状態は `props::Active` を再利用し、新規の
+  `Selected`/`Checked` 型は新設しない）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

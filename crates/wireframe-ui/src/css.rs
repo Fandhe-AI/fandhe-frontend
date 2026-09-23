@@ -16,7 +16,8 @@
 /// [`crate::link::LINK_CSS`]・イシュー #2616 で
 /// [`crate::rich_text::RICH_TEXT_CSS`]・イシュー #2621 で
 /// [`crate::button::BUTTON_CSS`]・イシュー #2624 で
-/// [`crate::select::SELECT_CSS`] が続いた。
+/// [`crate::select::SELECT_CSS`]・イシュー #2626 で
+/// [`crate::radio::RADIO_CSS`] が続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
     crate::annotation::ANNOTATION_CSS,
@@ -27,6 +28,7 @@ pub const PARTS: &[&str] = &[
     crate::rich_text::RICH_TEXT_CSS,
     crate::button::BUTTON_CSS,
     crate::select::SELECT_CSS,
+    crate::radio::RADIO_CSS,
 ];
 
 static CSS: std::sync::OnceLock<String> = std::sync::OnceLock::new();
