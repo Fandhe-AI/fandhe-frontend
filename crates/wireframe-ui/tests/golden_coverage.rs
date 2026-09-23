@@ -89,19 +89,10 @@ const ALL_PARTS: [(&str, u32); 49] = [
 ///   の出現有無で判定する）
 /// - brand（#2653）
 /// - list（#2657）
-/// - card-basic（#2658）
 /// - media（#2661）
 /// - table（#2662）
 /// - map（#2664）
-const PENDING: &[&str] = &[
-    "icon",
-    "brand",
-    "list",
-    "card-basic",
-    "media",
-    "table",
-    "map",
-];
+const PENDING: &[&str] = &["icon", "brand", "list", "media", "table", "map"];
 
 /// `src/css.rs` の `PARTS` 配列本体から `crate::<mod>::<CONST>` を機械
 /// 抽出する。パース漏れによる fail-open を防ぐため、抽出件数が
