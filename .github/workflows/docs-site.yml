@@ -252,7 +252,9 @@ jobs:
           # 「使われているページだけ」書き出し）が初めて書き出される。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/annotation/index.html"
-          # イシュー #2609: Phase 1「レイアウト骨格」の最初の部品（Frame）。
+          # イシュー #2611: Phase 1「レイアウト骨格」の Grid 部品ページ。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/grid/index.html"
+          # イシュー #2609: Phase 1「レイアウト骨格」の Frame 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/frame/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 

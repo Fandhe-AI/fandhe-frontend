@@ -28,6 +28,7 @@
 ## 掲載済み
 
 - [Annotation](./wireframes/annotation.md)
+- [Grid](./wireframes/grid.md)
 - [Frame](./wireframes/frame.md)
 
 ## 掲載予定
@@ -39,7 +40,6 @@
 ### Phase 1: レイアウト骨格
 
 - stack
-- grid
 - divider
 
 ### Phase 2: テキスト・注釈
