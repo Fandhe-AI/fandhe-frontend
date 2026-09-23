@@ -334,8 +334,12 @@
   `wireframes/chart/index.html`（イシュー #2663、Phase 8「Media・データ
   表示」の最初の部品。棒グラフの配置イメージを `values: &[u8]` から
   組み立て、`props::Orientation` を再利用する）/
+  `wireframes/image/index.html`（イシュー #2660、Phase 8 の 2 番目の
+  部品。`content: Option<Node>` が `None` のときバツ印プレース
+  ホルダーを描く §11.4 準拠のスロット規約。強調は共通型 `props::Primary`
+  を再利用する）/
   `wireframes/media/index.html`（イシュー #2661、Phase 8「Media・データ
-  表示」の 2 番目の部品。blocks.pm 上の表示名は Placeholder。
+  表示」の 3 番目の部品。blocks.pm 上の表示名は Placeholder。
   `content: None` で `icon::play` へフォールバック、16:9 固定、
   `<video>`/`<iframe>` は出力しない）
   である。

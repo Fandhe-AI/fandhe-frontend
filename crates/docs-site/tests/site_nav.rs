@@ -309,10 +309,11 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // （Phase 7「Data display」の 4 番目の部品）が加わり、292 → 293 に
     // なった。イシュー #2663 で Wireframes セクションへ Chart 部品ページ
     // （Phase 8「Media・データ表示」の最初の部品）が加わり、293 → 294 に
-    // なった。イシュー #2661 で Wireframes セクションへ Media 部品ページ
-    // （Phase 8「Media・データ表示」の 2 番目の部品）が加わり、
-    // 294 → 295 になった。
-    assert_eq!(pages.len(), 295, "expected 295 pages, got {pages:?}");
+    // なった。イシュー #2660 で Wireframes セクションへ Image 部品ページ
+    // （Phase 8 の 2 番目の部品）が加わり、294 → 295 になった。イシュー
+    // #2661 で Wireframes セクションへ Media 部品ページ（Phase 8
+    // 「Media・データ表示」の 3 番目の部品）が加わり、295 → 296 になった。
+    assert_eq!(pages.len(), 296, "expected 296 pages, got {pages:?}");
 
     // イシュー #2607: `/wireframes/` 配下は索引ページ（`/wireframes/` 自身）
     // 1 件のみだった（同イシュー時点では個別部品ページを同梱しない、設計
@@ -354,9 +355,10 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // Emoji（Phase 7「Data display」の 3 番目の部品）が加わり 40 件になった。
     // イシュー #2656 で Stat（Phase 7「Data display」の 4 番目の部品）が
     // 加わり 41 件になった。イシュー #2663 で Chart（Phase 8「Media・
-    // データ表示」の最初の部品）が加わり 42 件になった。イシュー #2661 で
-    // Media（Phase 8「Media・データ表示」の 2 番目の部品）が加わり
-    // 43 件になった。
+    // データ表示」の最初の部品）が加わり 42 件になった。イシュー #2660 で
+    // Image（Phase 8 の 2 番目の部品）が加わり 43 件になった。イシュー
+    // #2661 で Media（Phase 8「Media・データ表示」の 3 番目の部品）が
+    // 加わり 44 件になった。
     // Phase 1・3・4・5・6・7・8 以降（#2608〜#2665）の各部品イシューが増分する。
     let wireframes_pages: Vec<&(&str, &str)> = pages
         .iter()
@@ -364,8 +366,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .collect();
     assert_eq!(
         wireframes_pages.len(),
-        43,
-        "expected 43 /wireframes/ pages (index + annotation + grid + divider + stack + link + rich-text + paragraph + button + select + radio + switch + checkbox + textarea + slider + frame + tag + input + question + ratings + calendar + file-drop + text + tabs + stepper + nav-item + accordion + pagination + cursor + menu + breadcrumbs + tooltip + toast + alert + progress + spinner + modal + avatar + counter + emoji + stat + chart + media), got {wireframes_pages:?}"
+        44,
+        "expected 44 /wireframes/ pages (index + annotation + grid + divider + stack + link + rich-text + paragraph + button + select + radio + switch + checkbox + textarea + slider + frame + tag + input + question + ratings + calendar + file-drop + text + tabs + stepper + nav-item + accordion + pagination + cursor + menu + breadcrumbs + tooltip + toast + alert + progress + spinner + modal + avatar + counter + emoji + stat + chart + image + media), got {wireframes_pages:?}"
     );
     assert!(
         pages.contains(&("site/wireframes.md", "/wireframes/")),
