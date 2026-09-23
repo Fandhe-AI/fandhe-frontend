@@ -290,7 +290,10 @@
   `wireframes/breadcrumbs/index.html`（イシュー #2639、Phase 5「Navigation」の
   5 番目の部品。現在階層は選択引数を持たず、items の最後の項目へ常に
   `props::Active` を付与する。区切りは `stepper` と同じく CSS 擬似要素
-  のみで描く）
+  のみで描く）/
+  `wireframes/tooltip/index.html`（イシュー #2644、Phase 6「Overlay・
+  Feedback」の最初の部品。方向は部品ローカルの `TooltipSide` による
+  修飾 class で表す）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

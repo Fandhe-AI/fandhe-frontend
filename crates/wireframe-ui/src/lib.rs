@@ -89,8 +89,11 @@
 //! 選択引数を持たず、`items` が空でない限り常に最後の項目へ
 //! `props::Active` を付与する。区切りは `stepper` と同じく CSS
 //! 擬似要素のみで描く）も続いた。
-//! 残りは Phase 3 の他部品（#2608〜）および Phase 5 の他部品（menu 等）で
-//! 順次追加する。
+//! Phase 6「Overlay・Feedback」の最初の部品 [`tooltip`]（イシュー #2644、
+//! 方向は部品ローカルの [`tooltip::TooltipSide`] による修飾 class で表す）
+//! が続いた。
+//! 残りは Phase 3 の他部品（#2608〜）・Phase 5 の他部品（menu 等）・
+//! Phase 6 の他部品で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -138,6 +141,7 @@ pub mod tag;
 pub mod text;
 pub mod textarea;
 pub mod tokens;
+pub mod tooltip;
 
 pub use accordion::accordion;
 pub use annotation::annotation;
@@ -171,3 +175,4 @@ pub use tabs::tabs;
 pub use tag::tag;
 pub use text::text;
 pub use textarea::{textarea, MAX_ROWS};
+pub use tooltip::{tooltip, TooltipSide};
