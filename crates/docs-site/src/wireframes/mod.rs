@@ -54,9 +54,16 @@
 //! 引数表へ流れ込む経路を型で塞ぐ。
 
 mod annotation;
+mod button;
+mod checkbox;
 mod divider;
 mod grid;
+mod link;
+mod radio;
+mod rich_text;
+mod select;
 mod stack;
+mod switch;
 mod tag;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
@@ -108,14 +115,27 @@ pub struct Wireframe {
 /// [`annotation::WIREFRAME`]（イシュー #2617）を皮切りに、Phase 1
 /// 「レイアウト骨格」の [`grid::WIREFRAME`]（イシュー #2611）・
 /// [`divider::WIREFRAME`]（イシュー #2612）・[`stack::WIREFRAME`]
-/// （イシュー #2610）が続き、Phase 2 は [`tag::WIREFRAME`]
-/// （イシュー #2619）が続いた。Phase 1〜8（#2608〜#2665）の残りの各部品
-/// イシューが自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
+/// （イシュー #2610）、Phase 2 の [`link::WIREFRAME`]（イシュー #2618）・
+/// [`rich_text::WIREFRAME`]（イシュー #2616）・Phase 3「Forms A」の
+/// [`button::WIREFRAME`]（イシュー #2621）・[`select::WIREFRAME`]
+/// （イシュー #2624）・[`radio::WIREFRAME`]（イシュー #2626、選択状態は
+/// `props::Active` を再利用）・[`switch::WIREFRAME`]（イシュー #2627）・
+/// [`checkbox::WIREFRAME`]（イシュー #2625）・Phase 2 の [`tag::WIREFRAME`]
+/// （イシュー #2619）が続いた。
+/// Phase 1・3 以降（#2608〜#2665）の残りの各部品イシューが自分の
+/// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
     grid::WIREFRAME,
     divider::WIREFRAME,
     stack::WIREFRAME,
+    link::WIREFRAME,
+    rich_text::WIREFRAME,
+    button::WIREFRAME,
+    select::WIREFRAME,
+    radio::WIREFRAME,
+    switch::WIREFRAME,
+    checkbox::WIREFRAME,
     tag::WIREFRAME,
 ];
 
@@ -263,7 +283,10 @@ mod tests {
 
     #[test]
     fn wireframe_for_path_finds_nothing_in_empty_registry() {
-        assert!(wireframe_for_path("/wireframes/button/").is_none());
+        // `/wireframes/input/` は Phase 3「Forms A」の未実装部品（イシュー
+        // #2624 時点では button/select のみ登録済み）であり、恒久的に
+        // 未登録のパスとして使える。
+        assert!(wireframe_for_path("/wireframes/input/").is_none());
     }
 
     #[test]
