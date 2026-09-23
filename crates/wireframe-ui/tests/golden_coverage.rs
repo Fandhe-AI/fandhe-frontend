@@ -128,9 +128,115 @@ fn read_manifest_file(rel: &str) -> String {
     fs::read_to_string(&path).unwrap_or_else(|e| panic!("{} の読み込みに失敗: {e}", path.display()))
 }
 
-fn all_golden_source() -> String {
+/// `tests/*_css.rs` の 1 ファイル分のソースから、「`#[ignore]` の付いて
+/// いない `#[test]` 関数」の本体だけを構造的に抽出する。
+///
+/// コメント・rustdoc・`#[ignore]` 済みテスト中に定数名の文字列が現れても
+/// カバレッジとして誤検知しないための最小限のパーサ（イシュー #2666
+/// codex-review P1 指摘対応: `::CONST_NAME` の部分文字列検索だけでは、
+/// 各追加ファイル先頭の rustdoc コメントにも同名参照があるため、テスト
+/// 関数本体や `assert_eq!` を削除しても・`#[ignore]` を付けてもすり抜ける）。
+///
+/// golden ファイルのテスト関数本体は `assert_eq!` 呼び出しのみで CSS
+/// 文字列リテラル（`{`/`}` を含む）を持たない規約（`EXPECTED_*` は関数外の
+/// トップレベル `const`）であるため、素朴な波括弧の対応カウントで安全に
+/// 関数本体を切り出せる。
+fn active_test_fn_bodies(source: &str) -> Vec<String> {
+    let lines: Vec<&str> = source.lines().collect();
+    let mut bodies = Vec::new();
+    let mut pending_attrs: Vec<String> = Vec::new();
+    let mut i = 0usize;
+
+    while i < lines.len() {
+        let trimmed = lines[i].trim();
+
+        if trimmed.starts_with("#[") {
+            pending_attrs.push(trimmed.to_string());
+            i += 1;
+            continue;
+        }
+        if trimmed.is_empty() || trimmed.starts_with("//") {
+            // 空行・コメント行は属性の蓄積を崩さない（属性直前の
+            // doc コメント等を許容するため）。
+            i += 1;
+            continue;
+        }
+        if trimmed.starts_with("fn ") {
+            let is_test = pending_attrs.iter().any(|a| a == "#[test]");
+            let is_ignored = pending_attrs.iter().any(|a| a.starts_with("#[ignore"));
+            pending_attrs.clear();
+
+            let mut depth = 0i32;
+            let mut started = false;
+            let mut body = String::new();
+            let mut j = i;
+            while j < lines.len() {
+                for ch in lines[j].chars() {
+                    match ch {
+                        '{' => {
+                            depth += 1;
+                            started = true;
+                        }
+                        '}' => depth -= 1,
+                        _ => {}
+                    }
+                }
+                if started {
+                    body.push_str(lines[j]);
+                    body.push('\n');
+                }
+                j += 1;
+                if started && depth <= 0 {
+                    break;
+                }
+            }
+
+            if is_test && !is_ignored {
+                bodies.push(body);
+            }
+            i = j;
+            continue;
+        }
+
+        // 属性が付いていない他の項目（`const` 宣言等）に来たら蓄積をリセット。
+        pending_attrs.clear();
+        i += 1;
+    }
+
+    bodies
+}
+
+/// テスト関数本体から、`assert_eq!` の第 1 引数として実際に比較されている
+/// `crate::<mod>::<CONST>` 形式の参照の `<CONST>` 部分だけを抽出する。
+/// `fandhe_frontend_wireframe_ui::<mod>::css()` のような関数呼び出し（定数
+/// 比較ではない）は `<CONST>` 相当部分が全大文字にならないため除外される。
+fn asserted_const_names(body: &str) -> Vec<String> {
+    const MACRO: &str = "assert_eq!(";
+    let mut out = Vec::new();
+    let mut rest = body;
+    while let Some(pos) = rest.find(MACRO) {
+        rest = &rest[pos + MACRO.len()..];
+        let arg_end = rest.find(',').unwrap_or(rest.len());
+        let first_arg = rest[..arg_end].trim();
+        if let Some(name) = first_arg.rsplit("::").next() {
+            let is_const_like = !name.is_empty()
+                && name
+                    .chars()
+                    .all(|c| c.is_ascii_uppercase() || c == '_' || c.is_ascii_digit());
+            if is_const_like {
+                out.push(name.to_string());
+            }
+        }
+    }
+    out
+}
+
+/// `tests/*_css.rs` 全体を走査し、実際に `assert_eq!` で比較されている
+/// 定数名の集合を返す（`active_test_fn_bodies` の構造的抽出を経由するため、
+/// コメント中の参照・`#[ignore]` 済みテストは含まれない）。
+fn all_asserted_consts() -> std::collections::HashSet<String> {
     let tests_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let mut combined = String::new();
+    let mut set = std::collections::HashSet::new();
     for entry in fs::read_dir(&tests_dir).expect("tests/ ディレクトリの読み取りに失敗")
     {
         let entry = entry.expect("tests/ エントリの読み取りに失敗");
@@ -140,15 +246,16 @@ fn all_golden_source() -> String {
             .and_then(|n| n.to_str())
             .map(|n| n.ends_with("_css.rs"))
             .unwrap_or(false);
-        if is_css_golden {
-            combined.push_str(
-                &fs::read_to_string(&path)
-                    .unwrap_or_else(|e| panic!("{} の読み込みに失敗: {e}", path.display())),
-            );
-            combined.push('\n');
+        if !is_css_golden {
+            continue;
+        }
+        let source = fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("{} の読み込みに失敗: {e}", path.display()));
+        for body in active_test_fn_bodies(&source) {
+            set.extend(asserted_const_names(&body));
         }
     }
-    combined
+    set
 }
 
 #[test]
@@ -167,27 +274,23 @@ fn parts_extraction_matches_runtime_parts_len() {
 fn every_parts_const_has_a_golden_file() {
     let css_rs = read_manifest_file("src/css.rs");
     let consts = extract_parts_consts(&css_rs);
-    let golden_source = all_golden_source();
+    // 単純な部分文字列検索（コメント・`#[ignore]` 済みテストも拾ってしまい
+    // fail-open になる）ではなく、`#[ignore]` の付いていない `#[test]`
+    // 関数本体内で実際に `assert_eq!` の第 1 引数として比較されている
+    // 定数だけを構造的に集計する（イシュー #2666 codex-review P1 指摘対応）。
+    let asserted = all_asserted_consts();
 
-    let mut missing = Vec::new();
-    for const_name in &consts {
-        // `contains(const_name)` という素朴な部分文字列一致だと、
-        // 例えば `TEXT_CSS` は `RICH_TEXT_CSS` の部分文字列であるため
-        // `tests/text_css.rs` を削除しても `tests/rich_text_css.rs`
-        // 内の `crate::rich_text::RICH_TEXT_CSS` 参照にヒットしてしまい
-        // 欠落検知が fail-open になる（イシュー #2666 レビュー指摘）。
-        // `::` 区切りを含めて照合し、`::TEXT_CSS` が `::RICH_TEXT_CSS`
-        // の部分文字列にならないようにする。
-        let needle = format!("::{const_name}");
-        if !golden_source.contains(needle.as_str()) {
-            missing.push(const_name.clone());
-        }
-    }
+    let missing: Vec<&String> = consts
+        .iter()
+        .filter(|const_name| !asserted.contains(const_name.as_str()))
+        .collect();
 
     assert!(
         missing.is_empty(),
-        "以下の CSS 定数が golden ファイル（tests/*_css.rs）に見つからない。\
-         対応する `tests/<snake>_css.rs`（基盤 4 件は tests/base_css.rs）を追加すること: {missing:?}"
+        "以下の CSS 定数が golden ファイル（tests/*_css.rs）の `#[test]`（`#[ignore]` \
+         なし）関数内で `assert_eq!` により実際に比較されていない。コメント中の参照・\
+         `#[ignore]` 済みテストは検知対象外。対応する `tests/<snake>_css.rs`\
+         （基盤 4 件は tests/base_css.rs）を追加すること: {missing:?}"
     );
 }
 
