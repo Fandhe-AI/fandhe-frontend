@@ -315,10 +315,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // #2656 で Wireframes セクションへ Stat 部品ページ（Phase 7
     // 「Data display」の 4 番目の部品）が加わり、292 → 293 になった。イシュー
     // #2663 で Wireframes セクションへ Chart 部品ページ（Phase 8「Media・
-    // データ表示」の最初の部品）が加わり、293 → 294 になった。
+    // データ表示」の最初の部品）が加わり、293 → 294 になった。イシュー
+    // #2660 で Wireframes セクションへ Image 部品ページ（Phase 8 の 2 番目
+    // の部品）が加わり、294 → 295 になった。
     assert_eq!(
         report.written.len(),
-        294,
+        295,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );

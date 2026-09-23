@@ -333,7 +333,11 @@
   `icon::caret_up`/`icon::caret_down` を再利用する）/
   `wireframes/chart/index.html`（イシュー #2663、Phase 8「Media・データ
   表示」の最初の部品。棒グラフの配置イメージを `values: &[u8]` から
-  組み立て、`props::Orientation` を再利用する）
+  組み立て、`props::Orientation` を再利用する）/
+  `wireframes/image/index.html`（イシュー #2660、Phase 8 の 2 番目の
+  部品。`content: Option<Node>` が `None` のときバツ印プレース
+  ホルダーを描く §11.4 準拠のスロット規約。強調は共通型 `props::Primary`
+  を再利用する）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

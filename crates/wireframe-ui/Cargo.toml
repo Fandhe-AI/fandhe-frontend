@@ -144,8 +144,14 @@ name = "fandhe-frontend-wireframe-ui"
 # 組み立て、progress と同型の 5 刻み量子化・props::Orientation の再利用・
 # grid::MAX_COLUMNS と同じ資源有界化〔MAX_BARS〕で構成する）。main 側で
 # 0.43.0 を open PR #2714（card-basic）・#2718（media）が共に主張して
-# いたため（同一版数は衝突扱い）main の値 +1 を採用する。
-version = "0.44.0"
+# いたため（同一版数は衝突扱い）main の値 +1 を採用する（main 側で確定）。
+# 0.44.0 → 0.45.0: 公開 API 新設（image 部品、イシュー #2660、Phase 8
+# 「Media・Data」の 2 番目の部品。対角のバツ印が入った正方形/円形の枠。
+# content: Option<Node> が None のときバツ印プレースホルダーを描き、
+# Some(node) のときは子要素を差し替える §11.4 準拠のスロット規約。強調は
+# 部品ローカルの新型を新設せず共通型 props::Primary を再利用する）。main 側で
+# 0.44.0 を chart が先に確保したため衝突回避で +1。
+version = "0.45.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
 license = "MIT OR Apache-2.0"
