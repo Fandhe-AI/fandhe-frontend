@@ -118,7 +118,10 @@
 //! display」の最初の部品 [`avatar`]（イシュー #2651、`content: Option<Node>`
 //! が `None` のとき [`icon::user`] へフォールバックする §11.4 からの意図的な
 //! 逸脱。円形表示は `crate::frame` の `bordered` と同型の部品固有修飾 class
-//! で表す）が続いた。
+//! で表す）・2 番目の部品 [`emoji`]（イシュー #2654、絵文字は
+//! `Option<Node>` アイコンスロットではなく `glyph: &str` の 1 引数へ
+//! 畳み込む §11.4 からの意図的な逸脱。空文字列は CSS の `:empty` 規則で
+//! 破線の円プレースホルダーにする）が続いた。
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
 //! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
 //! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
@@ -148,6 +151,7 @@ pub mod class;
 pub mod css;
 pub mod cursor;
 pub mod divider;
+pub mod emoji;
 pub mod file_drop;
 pub mod frame;
 pub mod grid;
@@ -192,6 +196,7 @@ pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
 pub use cursor::{cursor, CursorKind};
 pub use divider::divider;
+pub use emoji::emoji;
 pub use file_drop::file_drop;
 pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};

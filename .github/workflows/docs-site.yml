@@ -352,6 +352,10 @@ jobs:
           # ページ（content: Option<Node> が None のとき icon::user へ
           # フォールバックする §11.4 からの意図的な逸脱）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/avatar/index.html"
+          # イシュー #2654: Phase 7「Data display」の 2 番目の部品、Emoji
+          # 部品ページ（絵文字は Option<Node> アイコンスロットではなく
+          # glyph: &str の 1 引数へ畳み込む §11.4 からの意図的な逸脱）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/emoji/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact
