@@ -164,6 +164,16 @@ fn active_test_fn_bodies(source: &str) -> Vec<String> {
         if trimmed.starts_with("fn ") {
             let is_test = pending_attrs.iter().any(|a| a == "#[test]");
             let is_ignored = pending_attrs.iter().any(|a| a.starts_with("#[ignore"));
+            // `#[cfg(any())]` 等の条件付きコンパイル属性が付いた `#[test]`
+            // 関数は、そのコンパイル対象可否を本パーサが静的評価できない
+            // （`cfg` 述語を Rust コンパイラと同じ規則で解釈するには構文木
+            // レベルの評価が要る）。安全側に倒し、`#[cfg(...)]` が付いた
+            // テストは常に非アクティブ（`#[ignore]` と同様にカバレッジから
+            // 除外）として扱う。これにより
+            // `#[test] #[cfg(any())] fn ... { assert_eq!(X, X); }` のような
+            // 実行されない自己比較でゲートを通過する迂回を閉じる
+            // （イシュー #2666 codex-review P1 再指摘対応）。
+            let is_cfg_gated = pending_attrs.iter().any(|a| a.starts_with("#[cfg("));
             pending_attrs.clear();
 
             let mut depth = 0i32;
@@ -191,7 +201,7 @@ fn active_test_fn_bodies(source: &str) -> Vec<String> {
                 }
             }
 
-            if is_test && !is_ignored {
+            if is_test && !is_ignored && !is_cfg_gated {
                 bodies.push(body);
             }
             i = j;
@@ -206,11 +216,56 @@ fn active_test_fn_bodies(source: &str) -> Vec<String> {
     bodies
 }
 
+/// ソース全体（1 ファイル分）から、関数本体の外＝トップレベルで宣言され
+/// ている `const EXPECTED_*: ...` の定数名を抽出する。
+///
+/// golden ファイルの規約では、比較対象の期待値は関数内ローカル変数では
+/// なく関数外のトップレベル `const`（`EXPECTED_CSS` 等、`EXPECTED_` 接頭辞）
+/// として書く（`tests/card_basic_css.rs` 等の実例を参照）。Rust の変数命名
+/// 規約上ローカル変数は snake_case のため、行頭（インデントなし）から始ま
+/// る `const`/`pub const` 宣言だけを対象にする単純な走査で、関数内の記述
+/// と安全に区別できる。
+fn top_level_expected_consts(source: &str) -> std::collections::HashSet<String> {
+    let mut set = std::collections::HashSet::new();
+    for line in source.lines() {
+        if line.starts_with(' ') || line.starts_with('\t') {
+            // インデントされた行は関数本体内（トップレベルではない）。
+            continue;
+        }
+        let rest = line
+            .strip_prefix("pub const ")
+            .or_else(|| line.strip_prefix("const "));
+        let Some(rest) = rest else { continue };
+        let Some(name) = rest.split(':').next() else {
+            continue;
+        };
+        let name = name.trim();
+        let is_expected_const = name.starts_with("EXPECTED_")
+            && name
+                .chars()
+                .all(|c| c.is_ascii_uppercase() || c == '_' || c.is_ascii_digit());
+        if is_expected_const {
+            set.insert(name.to_string());
+        }
+    }
+    set
+}
+
 /// テスト関数本体から、`assert_eq!` の第 1 引数として実際に比較されている
 /// `crate::<mod>::<CONST>` 形式の参照の `<CONST>` 部分だけを抽出する。
 /// `fandhe_frontend_wireframe_ui::<mod>::css()` のような関数呼び出し（定数
 /// 比較ではない）は `<CONST>` 相当部分が全大文字にならないため除外される。
-fn asserted_const_names(body: &str) -> Vec<String> {
+///
+/// 加えて、`assert_eq!` の**第 2 引数**が同ファイルのトップレベルに独立
+/// 宣言された `EXPECTED_*` 定数（`expected_consts`）と一致することも要求
+/// する。これにより `assert_eq!(crate::x::X_CSS, crate::x::X_CSS)` のような
+/// 自己比較（比較相手が golden ではなく検証対象自身）はカバレッジとして
+/// 数えない（イシュー #2666 codex-review P1 再指摘対応: 第 1 引数の形式
+/// だけを見る判定は、実質的な golden 比較を伴わないテストも通してしまう）。
+fn asserted_const_names(
+    body: &str,
+    expected_consts: &std::collections::HashSet<String>,
+) -> Vec<String> {
     const MACRO: &str = "assert_eq!(";
     let mut out = Vec::new();
     let mut rest = body;
@@ -218,12 +273,22 @@ fn asserted_const_names(body: &str) -> Vec<String> {
         rest = &rest[pos + MACRO.len()..];
         let arg_end = rest.find(',').unwrap_or(rest.len());
         let first_arg = rest[..arg_end].trim();
+
+        // 第 2 引数（golden 期待値側）を取り出す。任意の `message` 引数
+        // （3 引数形式）が続く場合があるため、次の `,` または `)` の
+        // いずれか早い方までを区切りとする。
+        let after_first = &rest[arg_end.min(rest.len())..];
+        let after_comma = after_first.strip_prefix(',').unwrap_or(after_first);
+        let second_end = after_comma.find([',', ')']).unwrap_or(after_comma.len());
+        let second_arg = after_comma[..second_end].trim();
+        let is_independent_golden = expected_consts.contains(second_arg);
+
         if let Some(name) = first_arg.rsplit("::").next() {
             let is_const_like = !name.is_empty()
                 && name
                     .chars()
                     .all(|c| c.is_ascii_uppercase() || c == '_' || c.is_ascii_digit());
-            if is_const_like {
+            if is_const_like && is_independent_golden {
                 out.push(name.to_string());
             }
         }
@@ -233,7 +298,9 @@ fn asserted_const_names(body: &str) -> Vec<String> {
 
 /// `tests/*_css.rs` 全体を走査し、実際に `assert_eq!` で比較されている
 /// 定数名の集合を返す（`active_test_fn_bodies` の構造的抽出を経由するため、
-/// コメント中の参照・`#[ignore]` 済みテストは含まれない）。
+/// コメント中の参照・`#[ignore]`／`#[cfg(...)]` 済みテストは含まれず、
+/// `top_level_expected_consts` によって比較相手が独立した golden 定数で
+/// あることも要求される）。
 fn all_asserted_consts() -> std::collections::HashSet<String> {
     let tests_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
     let mut set = std::collections::HashSet::new();
@@ -251,8 +318,9 @@ fn all_asserted_consts() -> std::collections::HashSet<String> {
         }
         let source = fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("{} の読み込みに失敗: {e}", path.display()));
+        let expected_consts = top_level_expected_consts(&source);
         for body in active_test_fn_bodies(&source) {
-            set.extend(asserted_const_names(&body));
+            set.extend(asserted_const_names(&body, &expected_consts));
         }
     }
     set
@@ -363,4 +431,101 @@ fn covered_count_matches_parts_minus_icon_glyph_base() {
          不一致。PENDING の更新漏れ、または ALL_PARTS の不整合の可能性がある",
         runtime_parts - 1
     );
+}
+
+/// カバレッジパーサ自体（`active_test_fn_bodies`/`asserted_const_names`/
+/// `top_level_expected_consts`）の単体テスト。
+///
+/// イシュー #2666 codex-review の P1 再指摘（「有効な golden 比較がなくて
+/// もカバレッジゲートを通過できる」）が挙げた 2 つの迂回パターンを、本物の
+/// `tests/*_css.rs` ファイル群に埋め込まず、直接この最小再現ケースで検証
+/// する（実ファイルへ迂回コードを混入させると golden カバレッジ自体を
+/// 汚染するため）。
+#[cfg(test)]
+mod parser_self_test {
+    use super::{active_test_fn_bodies, asserted_const_names, top_level_expected_consts};
+
+    /// 正規の golden テスト（`EXPECTED_CSS` という独立定数との比較）は
+    /// 引き続きカバレッジとして数えられることを確認する（回帰防止）。
+    #[test]
+    fn genuine_golden_comparison_is_counted() {
+        let source = r#"
+const EXPECTED_CSS: &str = "body {}";
+
+#[test]
+fn matches_golden() {
+    assert_eq!(crate::button::BUTTON_CSS, EXPECTED_CSS);
+}
+"#;
+        let expected = top_level_expected_consts(source);
+        let bodies = active_test_fn_bodies(source);
+        assert_eq!(bodies.len(), 1, "アクティブなテスト本体は 1 件のはず");
+        let names = asserted_const_names(&bodies[0], &expected);
+        assert_eq!(names, vec!["BUTTON_CSS".to_string()]);
+    }
+
+    /// codex-review 指摘の迂回パターン 1: `assert_eq!` の第 2 引数が
+    /// トップレベルの独立した `EXPECTED_*` 定数ではなく検証対象自身の
+    /// 自己比較（`assert_eq!(X, X)`）である場合はカバレッジとして数えない。
+    #[test]
+    fn self_comparison_without_independent_golden_is_not_counted() {
+        let source = r#"
+#[test]
+fn fake_coverage() {
+    assert_eq!(crate::button::BUTTON_CSS, crate::button::BUTTON_CSS);
+}
+"#;
+        let expected = top_level_expected_consts(source);
+        assert!(
+            expected.is_empty(),
+            "この迂回パターンはトップレベル EXPECTED_* 定数を持たない"
+        );
+        let bodies = active_test_fn_bodies(source);
+        assert_eq!(bodies.len(), 1);
+        let names = asserted_const_names(&bodies[0], &expected);
+        assert!(
+            names.is_empty(),
+            "独立した golden 定数と比較していない自己比較はカバレッジに \
+             数えてはならない"
+        );
+    }
+
+    /// codex-review 指摘の迂回パターン 2: `#[cfg(any())]` 等の条件付き
+    /// コンパイル属性が付いたテストはコンパイル対象外になり得るため、
+    /// （`EXPECTED_CSS` との正規の比較を装っていても）アクティブなテスト
+    /// 本体として抽出されない。
+    #[test]
+    fn cfg_gated_test_is_not_active() {
+        let source = r#"
+const EXPECTED_CSS: &str = "body {}";
+
+#[test]
+#[cfg(any())]
+fn never_compiled() {
+    assert_eq!(crate::button::BUTTON_CSS, EXPECTED_CSS);
+}
+"#;
+        let bodies = active_test_fn_bodies(source);
+        assert!(
+            bodies.is_empty(),
+            "#[cfg(any())] が付いたテストはアクティブなテスト本体として \
+             抽出してはならない"
+        );
+    }
+
+    /// `#[ignore]` 済みテストは従来どおり非アクティブ（既存契約の回帰確認）。
+    #[test]
+    fn ignored_test_is_not_active() {
+        let source = r#"
+const EXPECTED_CSS: &str = "body {}";
+
+#[test]
+#[ignore]
+fn skipped() {
+    assert_eq!(crate::button::BUTTON_CSS, EXPECTED_CSS);
+}
+"#;
+        let bodies = active_test_fn_bodies(source);
+        assert!(bodies.is_empty());
+    }
 }
