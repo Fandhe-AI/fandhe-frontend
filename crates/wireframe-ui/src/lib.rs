@@ -90,8 +90,9 @@
 //! 新規追加して消費する。部品ローカルの列挙型 [`CursorKind`] を
 //! クレートルートから再エクスポートする初めての例）も続いた。
 //! Phase 6「Overlay・Feedback」の最初の部品 [`tooltip`]（イシュー #2644、
-//! 方向は部品ローカルの [`tooltip::TooltipSide`] による修飾 class で表す）
-//! が続いた。
+//! 方向は部品ローカルの [`tooltip::TooltipSide`] による修飾 class で表す）・
+//! [`spinner`]（イシュー #2649、Phase 6 の 2 番目の部品。円弧だけを描く
+//! 静的表示で `@keyframes`/`animation` は持たない）が続いた。
 //! 残りは Phase 3 の他部品（#2608〜）・Phase 5 の他部品（menu 等）・
 //! Phase 6 の他部品で順次追加する。
 //!
@@ -133,6 +134,7 @@ pub mod rich_text;
 pub mod select;
 pub mod size;
 pub mod slider;
+pub mod spinner;
 pub mod stack;
 pub mod stepper;
 pub mod switch;
@@ -168,6 +170,7 @@ pub use rich_text::rich_text;
 pub use select::select;
 pub use size::Size;
 pub use slider::slider;
+pub use spinner::spinner;
 pub use stack::stack;
 pub use stepper::stepper;
 pub use switch::switch;

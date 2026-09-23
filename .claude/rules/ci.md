@@ -292,7 +292,9 @@
   `icon::cursor_arrow`/`icon::cursor_hand` を新規追加して消費する）/
   `wireframes/tooltip/index.html`（イシュー #2644、Phase 6「Overlay・
   Feedback」の最初の部品。方向は部品ローカルの `TooltipSide` による
-  修飾 class で表す）
+  修飾 class で表す）/
+  `wireframes/spinner/index.html`（イシュー #2649、Phase 6「Overlay・
+  Feedback」の Spinner。静的な円弧のみ・引数は Size のみ）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

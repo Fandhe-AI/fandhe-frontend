@@ -323,6 +323,10 @@ jobs:
           # イシュー #2644: Phase 6「Overlay・Feedback」の最初の部品、Tooltip
           # 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/tooltip/index.html"
+          # イシュー #2649: Phase 6「Overlay・Feedback」の 2 番目の部品、
+          # Spinner 部品ページ（円弧だけを描く静的表示、@keyframes/animation
+          # は持たない）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/spinner/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact
