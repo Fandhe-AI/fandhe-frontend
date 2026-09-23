@@ -127,11 +127,15 @@ name = "fandhe-frontend-wireframe-ui"
 # spinner、0.36.0 を avatar、0.37.0 を alert、0.38.0 を modal、0.39.0 を
 # menu が先に確保したため main セッションが本 PR 用に一意採番した
 # 0.40.0 を採用する。
-# 0.40.0 → 0.41.0: 公開 API 新設（list 部品、イシュー #2657、Phase 7
-# 「Data display」の 2 番目の部品。items: Vec<Node> を項目ラッパーで包み、
+# 0.40.0 → 0.41.0: 公開 API 新設（counter 部品、イシュー #2655、Phase 7
+# 「Data display」の 2 番目の部品。件数は u32 ではなく &str で受け、強調
+# 配色は部品ローカルの新型を新設せず共通型 props::Primary を再利用する）。
+# 0.41.0 → 0.42.0: 公開 API 新設（list 部品、イシュー #2657、Phase 7
+# 「Data display」の 3 番目の部品。items: Vec<Node> を項目ラッパーで包み、
 # ordered: bool は部品固有の修飾 class、マーカー・番号は CSS 擬似要素/
-# カウンタのみで描く。<ul>/<ol>/<li> は出力しない）。
-version = "0.41.0"
+# カウンタのみで描く。<ul>/<ol>/<li> は出力しない）。main 側で 0.41.0 を
+# counter が先に確保したため本 PR 用に一意採番した 0.42.0 を採用する。
+version = "0.42.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
 license = "MIT OR Apache-2.0"

@@ -321,8 +321,11 @@
   `wireframes/avatar/index.html`（イシュー #2651、Phase 7「Data display」の
   最初の部品。`content: Option<Node>` が `None` のとき `icon::user` へ
   フォールバックする §11.4 からの意図的な逸脱）/
+  `wireframes/counter/index.html`（イシュー #2655、Phase 7「Data display」の
+  2 番目の部品。件数は `u32` ではなく `&str` で受け、強調配色は部品
+  ローカルの新型を新設せず共通型 `props::Primary` を再利用する）/
   `wireframes/list/index.html`（イシュー #2657、Phase 7「Data display」の
-  2 番目の部品。`items: Vec<Node>` と `ordered: bool` の 2 引数のみを持ち、
+  3 番目の部品。`items: Vec<Node>` と `ordered: bool` の 2 引数のみを持ち、
   マーカー・番号は CSS 擬似要素/カウンタのみで描く）
   である。
   いずれも

@@ -118,11 +118,14 @@
 //! display」の最初の部品 [`avatar`]（イシュー #2651、`content: Option<Node>`
 //! が `None` のとき [`icon::user`] へフォールバックする §11.4 からの意図的な
 //! 逸脱。円形表示は `crate::frame` の `bordered` と同型の部品固有修飾 class
-//! で表す）・Phase 7 の 2 番目の部品 [`list`]（イシュー #2657、箇条書き/
-//! 番号付きリストの配置イメージ。`items: Vec<Node>` を項目ラッパー class
-//! で包み、`ordered: bool` は部品固有の修飾 class、マーカー・番号は
-//! CSS 擬似要素/カウンタのみで描く。`<ul>`/`<ol>`/`<li>` は出力しない）
-//! が続いた。
+//! で表す）・2 番目の部品 [`counter`]（イシュー #2655、件数を収めた
+//! ピルバッジ。件数は `u32` ではなく `&str` で受け、強調配色は部品
+//! ローカルの新型を新設せず共通型 [`props::Primary`] を再利用する。
+//! `crate::nav_item` の内部カウンターパートとは独立した部品）・3 番目の
+//! 部品 [`list`]（イシュー #2657、箇条書き/番号付きリストの配置イメージ。
+//! `items: Vec<Node>` を項目ラッパー class で包み、`ordered: bool` は
+//! 部品固有の修飾 class、マーカー・番号は CSS 擬似要素/カウンタのみで
+//! 描く。`<ul>`/`<ol>`/`<li>` は出力しない）が続いた。
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
 //! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
 //! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
@@ -149,6 +152,7 @@ pub mod button;
 pub mod calendar;
 pub mod checkbox;
 pub mod class;
+pub mod counter;
 pub mod css;
 pub mod cursor;
 pub mod divider;
@@ -194,6 +198,7 @@ pub use button::button;
 pub use calendar::{calendar, MAX_WEEKS};
 pub use checkbox::checkbox;
 pub use class::{class_list, CLASS_PREFIX};
+pub use counter::counter;
 pub use css::{wireframe_css, PARTS};
 pub use cursor::{cursor, CursorKind};
 pub use divider::divider;
