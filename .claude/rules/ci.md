@@ -231,6 +231,8 @@
   `select` 部品）/
   `wireframes/switch/index.html`（イシュー #2627、Phase 3「Forms A」の
   `switch` 部品。`Active` を ON 状態の意味で使い `Disabled` を併用する）/
+  `wireframes/checkbox/index.html`（イシュー #2625、Phase 3「Forms A」の
+  `checkbox` 部品〔`props::Active` を「チェック済み」状態として消費〕）/
   `wireframes/slider/index.html`（イシュー #2628、Phase 3「Forms A」の
   `slider` 部品〔Progress を 5 刻み固定 class へ量子化、`Orientation` 併用〕）
   である。
