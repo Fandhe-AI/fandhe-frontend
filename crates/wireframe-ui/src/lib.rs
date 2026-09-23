@@ -149,7 +149,12 @@
 //! 外とする）・3 番目の部品 [`table`]（イシュー #2662、N 列 × M 行の
 //! データ表プレースホルダー。[`calendar`] と同型の判断で `<table>` を
 //! 使わず `div`/`span` + CSS grid で表現し、列数は `headers`/`rows` の形
-//! から導く）が続いた。残りは Phase 8 の他部品で順次追加する。
+//! から導く）に続き、4 番目の部品 [`map`]（イシュー #2664、地図タイルの
+//! 配置イメージ。ズームは部品ローカル列挙型 [`map::MapZoom`] 3 段、
+//! マーカーは [`link`]/[`file_drop`]/[`alert`] と同型の `Option<Node>`
+//! アイコンスロット。街路・区画・道路の位置はすべて CSS の固定ルールで
+//! 描き、`&str` 引数を持たない）が続いた。残りは Phase 8 の他部品で
+//! 順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -186,6 +191,7 @@ pub mod icon;
 pub mod image;
 pub mod input;
 pub mod link;
+pub mod map;
 pub mod menu;
 pub mod modal;
 pub mod nav_item;
@@ -236,6 +242,7 @@ pub use grid::{grid, MAX_COLUMNS};
 pub use image::image;
 pub use input::input;
 pub use link::link;
+pub use map::{map, MapZoom};
 pub use menu::{menu, MenuItem};
 pub use modal::modal;
 pub use nav_item::nav_item;

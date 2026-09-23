@@ -344,7 +344,10 @@
   `counter` と同じ `Option<&str>`）/
   `wireframes/table/index.html`（イシュー #2662、Phase 8「Media・Data」の
   3 番目の部品。`<table>` は使わず `div`/`span` + CSS grid で表現する、
-  `calendar` と同型の判断）
+  `calendar` と同型の判断）/
+  `wireframes/map/index.html`（イシュー #2664、Phase 8 の 4 番目の
+  部品。地図タイルの配置イメージを部品ローカル列挙型 `MapZoom` 3 段・
+  `Option<Node>` マーカースロットで構成する）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

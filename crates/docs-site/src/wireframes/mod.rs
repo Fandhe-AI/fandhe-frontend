@@ -73,6 +73,7 @@ mod grid;
 mod image;
 mod input;
 mod link;
+mod map;
 mod menu;
 mod modal;
 mod nav_item;
@@ -211,7 +212,10 @@ pub struct Wireframe {
 /// を再利用する）・2 番目の部品 [`chart::WIREFRAME`]（イシュー #2663、
 /// 値は `&[u8]` で受け取り `props::Orientation` を再利用する）・
 /// 3 番目の部品 [`table::WIREFRAME`]（イシュー #2662、`<table>` は使わず
-/// `div`/`span` + CSS grid で表現する、`calendar` と同型の判断）が続いた。
+/// `div`/`span` + CSS grid で表現する、`calendar` と同型の判断）・4 番目の
+/// 部品 [`map::WIREFRAME`]（イシュー #2664、地図タイルの配置イメージ。
+/// ズームは部品ローカル列挙型 `MapZoom` 3 段、マーカーは `Option<Node>`
+/// アイコンスロット）が続いた。
 /// Phase 1・3・4・5・6・7・8 以降（#2608〜#2665）の残りの各部品イシューが
 /// 自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -259,6 +263,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     image::WIREFRAME,
     chart::WIREFRAME,
     table::WIREFRAME,
+    map::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

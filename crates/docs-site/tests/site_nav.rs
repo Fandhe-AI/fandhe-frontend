@@ -314,8 +314,10 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // #2658 で Wireframes セクションへ Card basic 部品ページ（Phase 7
     // 「Data display」の 5 番目の部品）が加わり、295 → 296 になった。イシュー
     // #2662 で Wireframes セクションへ Table 部品ページ（Phase 8 の
-    // 3 番目の部品）が加わり、296 → 297 になった。
-    assert_eq!(pages.len(), 297, "expected 297 pages, got {pages:?}");
+    // 3 番目の部品）が加わり、296 → 297 になった。イシュー #2664 で
+    // Wireframes セクションへ Map 部品ページ（Phase 8 の 4 番目の部品）が
+    // 加わり、297 → 298 になった。
+    assert_eq!(pages.len(), 298, "expected 298 pages, got {pages:?}");
 
     // イシュー #2607: `/wireframes/` 配下は索引ページ（`/wireframes/` 自身）
     // 1 件のみだった（同イシュー時点では個別部品ページを同梱しない、設計
@@ -361,7 +363,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // Image（Phase 8 の 2 番目の部品）が加わり 43 件になった。イシュー
     // #2658 で Card basic（Phase 7「Data display」の 5 番目の部品）が
     // 加わり 44 件になった。イシュー #2662 で Table（Phase 8 の
-    // 3 番目の部品）が加わり 45 件になった。
+    // 3 番目の部品）が加わり 45 件になった。イシュー #2664 で Map
+    // （Phase 8 の 4 番目の部品）が加わり 46 件になった。
     // Phase 1・3・4・5・6・7・8 以降（#2608〜#2665）の各部品イシューが増分する。
     let wireframes_pages: Vec<&(&str, &str)> = pages
         .iter()
@@ -369,8 +372,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .collect();
     assert_eq!(
         wireframes_pages.len(),
-        45,
-        "expected 45 /wireframes/ pages (index + annotation + grid + divider + stack + link + rich-text + paragraph + button + select + radio + switch + checkbox + textarea + slider + frame + tag + input + question + ratings + calendar + file-drop + text + tabs + stepper + nav-item + accordion + pagination + cursor + menu + breadcrumbs + tooltip + toast + alert + progress + spinner + modal + avatar + counter + emoji + stat + chart + image + card-basic + table), got {wireframes_pages:?}"
+        46,
+        "expected 46 /wireframes/ pages (index + annotation + grid + divider + stack + link + rich-text + paragraph + button + select + radio + switch + checkbox + textarea + slider + frame + tag + input + question + ratings + calendar + file-drop + text + tabs + stepper + nav-item + accordion + pagination + cursor + menu + breadcrumbs + tooltip + toast + alert + progress + spinner + modal + avatar + counter + emoji + stat + chart + image + card-basic + table + map), got {wireframes_pages:?}"
     );
     assert!(
         pages.contains(&("site/wireframes.md", "/wireframes/")),

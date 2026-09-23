@@ -321,10 +321,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // #2658 で Wireframes セクションへ Card basic 部品ページ（Phase 7 の
     // 5 番目の部品）が加わり、295 → 296 になった。イシュー
     // #2662 で Wireframes セクションへ Table 部品ページ（Phase 8 の
-    // 3 番目の部品）が加わり、296 → 297 になった。
+    // 3 番目の部品）が加わり、296 → 297 になった。イシュー #2664 で
+    // Wireframes セクションへ Map 部品ページ（Phase 8 の 4 番目の部品）が
+    // 加わり、297 → 298 になった。
     assert_eq!(
         report.written.len(),
-        297,
+        298,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
