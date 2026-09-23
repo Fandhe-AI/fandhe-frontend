@@ -255,8 +255,25 @@
   `wireframes/question/index.html`（イシュー #2630、Phase 4「Forms B」の
   最初の部品。ラベル + 補足説明 + `Node` スロットのコントロール + ヒント。
   表示状態軸を持たずスロット側へ委ねる）/
-  `wireframes/stepper/index.html`（イシュー #2634、同 Phase の Stepper
-  部品。blocks.pm に対応部品を持たない独自追加部品で、完了ステップは
+  `wireframes/ratings/index.html`（イシュー #2631、同 Phase の 2 番目の
+  部品。`icon::star` を再利用し、塗り数を `props::Active` の `data-active`
+  で先頭から表現する）/
+  `wireframes/calendar/index.html`（イシュー #2632、同 Phase の 3 番目の
+  Calendar 部品〔月表示グリッド型カレンダー。選択日は `props::Active` を
+  再利用し `MAX_WEEKS` で 6 週へ飽和させる〕）/
+  `wireframes/file-drop/index.html`（イシュー #2633、同 Phase の 4 番目の
+  部品。アイコンは `Option<Node>` スロット、表示状態軸なし、
+  `<input type=file>` 非出力）/
+  `wireframes/text/index.html`（イシュー #2614、Phase 2「テキスト・注釈」の
+  最後の部品。`<span>` ルート + `white-space: nowrap` +
+  `text-overflow: ellipsis` で 1 行固定表示、`paragraph` の複数行許容とは
+  対になる判断）/
+  `wireframes/tabs/index.html`（イシュー #2638、Phase 5「Navigation」の
+  最初の部品。選択状態は項目ごとの `props::Active` ではなく
+  `active: Option<usize>` 1 引数で表し、選択中は高々 1 件という不変条件を
+  型で保証する）/
+  `wireframes/stepper/index.html`（イシュー #2634、同 Phase 4「Forms B」の
+  Stepper 部品。blocks.pm に対応部品を持たない独自追加部品で、完了ステップは
   `props.rs` へ新型を追加せず部品ローカルの `data-complete` とし、現在
   ステップは既存 `props::Active` を再利用する）
   である。

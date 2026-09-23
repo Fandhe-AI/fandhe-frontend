@@ -55,8 +55,10 @@
 
 mod annotation;
 mod button;
+mod calendar;
 mod checkbox;
 mod divider;
+mod file_drop;
 mod frame;
 mod grid;
 mod input;
@@ -64,13 +66,16 @@ mod link;
 mod paragraph;
 mod question;
 mod radio;
+mod ratings;
 mod rich_text;
 mod select;
 mod slider;
 mod stack;
 mod stepper;
 mod switch;
+mod tabs;
 mod tag;
+mod text;
 mod textarea;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
@@ -132,10 +137,17 @@ pub struct Wireframe {
 /// （イシュー #2623）・[`slider::WIREFRAME`]（イシュー #2628）・Phase 1 の
 /// [`frame::WIREFRAME`]（イシュー #2609）・Phase 2 の [`tag::WIREFRAME`]
 /// （イシュー #2619）・[`input::WIREFRAME`]（イシュー #2622）・
-/// Phase 4「Forms B」の [`question::WIREFRAME`]（イシュー #2630、最初の
-/// 部品）・[`stepper::WIREFRAME`]（イシュー #2634、blocks.pm 対応部品を
-/// 持たない独自追加部品）が続いた。
-/// Phase 1・3・4 以降（#2608〜#2665）の残りの各部品イシューが自分の
+/// 部品）・[`ratings::WIREFRAME`]（イシュー #2631、`icon::star` を再利用
+/// する 2 番目の部品）・[`calendar::WIREFRAME`]（イシュー #2632、選択日は
+/// `props::Active` を再利用する 3 番目の部品）・[`file_drop::WIREFRAME`]
+/// （イシュー #2633、blocks.pm に対応部品がない独自追加部品、4 番目の
+/// 部品）・Phase 2「テキスト・注釈」の [`text::WIREFRAME`]（イシュー
+/// #2614、同 Phase 最後の部品）・Phase 5「Navigation」の
+/// [`tabs::WIREFRAME`]（イシュー #2638、最初の部品。選択状態は項目ごとの
+/// `Active` ではなく `active: Option<usize>` 1 引数で表す）・
+/// [`stepper::WIREFRAME`]（イシュー #2634、blocks.pm 対応部品を持たない
+/// 独自追加部品）が続いた。
+/// Phase 1・3・4・5 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
@@ -156,6 +168,11 @@ pub const WIREFRAMES: &[Wireframe] = &[
     tag::WIREFRAME,
     input::WIREFRAME,
     question::WIREFRAME,
+    ratings::WIREFRAME,
+    calendar::WIREFRAME,
+    file_drop::WIREFRAME,
+    text::WIREFRAME,
+    tabs::WIREFRAME,
     stepper::WIREFRAME,
 ];
 
@@ -303,10 +320,11 @@ mod tests {
 
     #[test]
     fn wireframe_for_path_finds_nothing_in_empty_registry() {
-        // `/wireframes/ratings/` は Phase 4「Forms B」の未実装部品であり、
-        // 恒久的に未登録のパスとして使える（`question` は本イシュー #2630 で
-        // 登録済みのため代替パスへ差し替え）。
-        assert!(wireframe_for_path("/wireframes/ratings/").is_none());
+        // `/wireframes/__unregistered__/` は実在しない kebab であり、
+        // Phase 1〜8（#2608〜#2665）のどの部品イシューとも衝突しない恒久的に
+        // 未登録のパスとして使える（`ratings` は本イシュー #2631 で登録済み
+        // のため代替パスへ差し替え）。
+        assert!(wireframe_for_path("/wireframes/__unregistered__/").is_none());
     }
 
     #[test]

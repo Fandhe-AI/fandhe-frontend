@@ -60,11 +60,22 @@
 //! Textarea・Slider に続いて併用する 7 例目の実消費者）・Phase 4「Forms B」の
 //! [`question`]（イシュー #2630、ラベル + 補足説明 + `Node` スロットの
 //! コントロール + ヒント。表示状態軸を持たずスロット側へ委ねる）・
-//! [`stepper`]（イシュー #2634、blocks.pm 対応部品を持たない独自追加部品。
-//! 完了ステップの状態は `props.rs` へ新型を追加せず部品ローカルの
-//! `data-complete` とし、現在ステップは既存 [`props::Active`] を再利用する）
-//! が続いた。残りは Phase 2 の他部品（text 等）・Phase 3 の他部品
-//! （#2608〜）および Phase 4 の他部品（ratings/calendar/file-drop）で
+//! [`ratings`]（イシュー #2631、`icon::star` を再利用し塗り数を
+//! `data-active` で表現する）・[`calendar`]（イシュー #2632、選択日は
+//! `props::Active` を再利用し `MAX_WEEKS` で 6 週へ飽和させる）・
+//! [`file_drop`]（イシュー #2633、blocks.pm に対応部品がない独自追加部品。
+//! アイコンは `link` と同じ `Option<Node>` スロット、表示状態軸を持たない）・
+//! Phase 2 の [`text`]（イシュー #2614、単一行テキスト。`<span>` ルート +
+//! `white-space: nowrap` + `text-overflow: ellipsis` で 1 行固定表示する。
+//! [`paragraph`] の複数行許容とは対になる判断）が続いた。これで
+//! Phase 2「テキスト・注釈」は全部品が出揃った。Phase 5「Navigation」の
+//! [`tabs`]（イシュー #2638、選択状態は項目ごとの `Active` ではなく
+//! `active: Option<usize>` 1 引数で表し、選択中は高々 1 件という不変条件を
+//! 型で保証する）・Phase 4「Forms B」の [`stepper`]（イシュー #2634、
+//! blocks.pm 対応部品を持たない独自追加部品。完了ステップの状態は
+//! `props.rs` へ新型を追加せず部品ローカルの `data-complete` とし、現在
+//! ステップは既存 [`props::Active`] を再利用する）も続いた。
+//! 残りは Phase 3 の他部品（#2608〜）および Phase 5 の他部品（menu 等）で
 //! 順次追加する。
 //!
 //! # class 命名規約
@@ -81,10 +92,12 @@
 
 pub mod annotation;
 pub mod button;
+pub mod calendar;
 pub mod checkbox;
 pub mod class;
 pub mod css;
 pub mod divider;
+pub mod file_drop;
 pub mod frame;
 pub mod grid;
 pub mod icon;
@@ -94,6 +107,7 @@ pub mod paragraph;
 pub mod props;
 pub mod question;
 pub mod radio;
+pub mod ratings;
 pub mod rich_text;
 pub mod select;
 pub mod size;
@@ -101,16 +115,20 @@ pub mod slider;
 pub mod stack;
 pub mod stepper;
 pub mod switch;
+pub mod tabs;
 pub mod tag;
+pub mod text;
 pub mod textarea;
 pub mod tokens;
 
 pub use annotation::annotation;
 pub use button::button;
+pub use calendar::{calendar, MAX_WEEKS};
 pub use checkbox::checkbox;
 pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
 pub use divider::divider;
+pub use file_drop::file_drop;
 pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
 pub use input::input;
@@ -119,6 +137,7 @@ pub use paragraph::paragraph;
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
 pub use question::question;
 pub use radio::radio;
+pub use ratings::{ratings, STAR_COUNT};
 pub use rich_text::rich_text;
 pub use select::select;
 pub use size::Size;
@@ -126,5 +145,7 @@ pub use slider::slider;
 pub use stack::stack;
 pub use stepper::stepper;
 pub use switch::switch;
+pub use tabs::tabs;
 pub use tag::tag;
+pub use text::text;
 pub use textarea::{textarea, MAX_ROWS};
