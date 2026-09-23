@@ -287,8 +287,11 @@
   4 番目の部品。ページ項目は `&[Option<&str>]`〔`None` がギャップ〕、選択
   状態は既存 `props::Active` を再利用し、先頭/前/次/末尾コントロールは
   `prev_next`/`first_last` の 2 bool へ畳む）/
+  `wireframes/cursor/index.html`（イシュー #2642、Phase 5「Navigation」の
+  5 番目の部品。代わりに使える既存アイコンがないため
+  `icon::cursor_arrow`/`icon::cursor_hand` を新規追加して消費する）/
   `wireframes/menu/index.html`（イシュー #2637、Phase 5「Navigation」の
-  5 番目の部品。検索欄は `Option<&str>` + 固定パートの `icon::search` で表し
+  6 番目の部品。検索欄は `Option<&str>` + 固定パートの `icon::search` で表し
   `<input>` は出力しない。項目は `MenuItem` のスライス、強調は無効項目を
   指す添字なら外す fail-closed な `active: Option<usize>`）/
   `wireframes/tooltip/index.html`（イシュー #2644、Phase 6「Overlay・

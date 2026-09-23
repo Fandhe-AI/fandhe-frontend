@@ -316,7 +316,11 @@ jobs:
           # 部品ページ（選択状態は props::Active を再利用、先頭/前/次/末尾
           # コントロールは prev_next/first_last の 2 bool へ畳む）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/pagination/index.html"
-          # イシュー #2637: Phase 5「Navigation」の 5 番目の部品、Menu 部品
+          # イシュー #2642: Phase 5「Navigation」の 5 番目の部品、Cursor 部品
+          # ページ（代わりに使える既存アイコンがないため icon::cursor_arrow/
+          # icon::cursor_hand を新規追加して消費する）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/cursor/index.html"
+          # イシュー #2637: Phase 5「Navigation」の 6 番目の部品、Menu 部品
           # ページ（検索欄は Option<&str> + 固定パートの icon::search で表し
           # <input> は出力しない）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/menu/index.html"
