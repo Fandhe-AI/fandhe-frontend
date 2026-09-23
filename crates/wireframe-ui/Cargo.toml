@@ -92,10 +92,10 @@ name = "fandhe-frontend-wireframe-ui"
 # グリフは icon::x 固定で instance swap にせず、dismissible: bool の
 # 1 引数だけで有無を切り替える）。
 # 0.33.0 → 0.34.0: 公開 API 新設（progress 部品、イシュー #2648、
-# Phase 6「Overlay・Feedback」の 3 番目の部品）。main 側で 0.33.0 を
+# Phase 6「Overlay・Feedback」の 4 番目の部品）。main 側で 0.33.0 を
 # toast が先に確保したため衝突回避で +1。
 # 0.34.0 → 0.35.0: 公開 API 新設（spinner 部品、イシュー #2649、Phase 6
-# 「Overlay・Feedback」の 4 番目の部品。円弧だけを描く静的表示で
+# 「Overlay・Feedback」の 5 番目の部品。円弧だけを描く静的表示で
 # @keyframes/animation は持たない）。main 側で 0.34.0 を progress が先に
 # 確保したため main セッションが本 PR 用に一意採番した 0.35.0 を採用する。
 # 0.35.0 → 0.36.0: 公開 API 新設（avatar 部品、イシュー #2651、Phase 7
