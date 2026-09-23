@@ -61,6 +61,7 @@ mod breadcrumbs;
 mod button;
 mod calendar;
 mod checkbox;
+mod counter;
 mod cursor;
 mod divider;
 mod emoji;
@@ -186,10 +187,12 @@ pub struct Wireframe {
 /// Phase 7「Data display」の
 /// [`avatar::WIREFRAME`]（イシュー #2651、最初の部品。
 /// `content: Option<Node>` が `None` のとき `icon::user` へフォールバック
-/// する §11.4 からの意図的な逸脱）・[`emoji::WIREFRAME`]（イシュー #2654、
-/// 同 Phase の 2 番目の部品。絵文字は `Option<Node>` アイコンスロット
-/// ではなく `glyph: &str` の 1 引数へ畳み込む §11.4 からの意図的な逸脱）
-/// が続いた。
+/// する §11.4 からの意図的な逸脱）・[`counter::WIREFRAME`]（イシュー
+/// #2655、2 番目の部品。件数は `u32` ではなく `&str` で受け、強調配色は
+/// 部品ローカルの新型を新設せず共通型 `Primary` を再利用する）・
+/// [`emoji::WIREFRAME`]（イシュー #2654、3 番目の部品。絵文字は
+/// `Option<Node>` アイコンスロットではなく `glyph: &str` の 1 引数へ
+/// 畳み込む §11.4 からの意図的な逸脱）が続いた。
 /// Phase 1・3・4・5・6・7 以降（#2608〜#2665）の残りの各部品イシューが
 /// 自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -230,6 +233,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     spinner::WIREFRAME,
     modal::WIREFRAME,
     avatar::WIREFRAME,
+    counter::WIREFRAME,
     emoji::WIREFRAME,
 ];
 

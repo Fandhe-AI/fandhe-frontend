@@ -64,6 +64,7 @@
 - [Spinner](./wireframes/spinner.md)
 - [Modal](./wireframes/modal.md)
 - [Avatar](./wireframes/avatar.md)
+- [Counter](./wireframes/counter.md)
 - [Emoji](./wireframes/emoji.md)
 
 ## 掲載予定
@@ -88,7 +89,6 @@
 
 - icon
 - brand
-- counter
 - stat
 - list
 - card-basic
