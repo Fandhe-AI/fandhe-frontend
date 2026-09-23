@@ -254,7 +254,10 @@
   併用する 7 例目の実消費者〕）/
   `wireframes/question/index.html`（イシュー #2630、Phase 4「Forms B」の
   最初の部品。ラベル + 補足説明 + `Node` スロットのコントロール + ヒント。
-  表示状態軸を持たずスロット側へ委ねる）
+  表示状態軸を持たずスロット側へ委ねる）/
+  `wireframes/calendar/index.html`（イシュー #2632、同 Phase の Calendar
+  部品〔月表示グリッド型カレンダー。選択日は `props::Active` を再利用し
+  `MAX_WEEKS` で 6 週へ飽和させる〕）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

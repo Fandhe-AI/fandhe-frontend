@@ -55,6 +55,7 @@
 
 mod annotation;
 mod button;
+mod calendar;
 mod checkbox;
 mod divider;
 mod frame;
@@ -132,7 +133,8 @@ pub struct Wireframe {
 /// [`frame::WIREFRAME`]（イシュー #2609）・Phase 2 の [`tag::WIREFRAME`]
 /// （イシュー #2619）・[`input::WIREFRAME`]（イシュー #2622）・
 /// Phase 4「Forms B」の [`question::WIREFRAME`]（イシュー #2630、最初の
-/// 部品）が続いた。
+/// 部品）・[`calendar::WIREFRAME`]（イシュー #2632、選択日は
+/// `props::Active` を再利用）が続いた。
 /// Phase 1・3・4 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -154,6 +156,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     tag::WIREFRAME,
     input::WIREFRAME,
     question::WIREFRAME,
+    calendar::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

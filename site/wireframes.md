@@ -45,10 +45,11 @@
 - [Tag](./wireframes/tag.md)
 - [Input](./wireframes/input.md)
 - [Question](./wireframes/question.md)
+- [Calendar](./wireframes/calendar.md)
 
 ## 掲載予定
 
-以下は Phase 1〜8（#2608〜#2665）で順次掲載する 31 部品です（Phase ごとの内訳）。
+以下は Phase 1〜8（#2608〜#2665）で順次掲載する 30 部品です（Phase ごとの内訳）。
 掲載が完了した部品は本節へリンク付きの「掲載済み」一覧として追記されます（現時点では
 未掲載のため本節はリンクなしの一覧です）。
 
@@ -63,7 +64,6 @@
 ### Phase 4: Forms B
 
 - ratings
-- calendar
 - file-drop
 - stepper
 

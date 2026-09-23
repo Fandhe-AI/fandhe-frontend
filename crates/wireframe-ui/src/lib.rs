@@ -59,9 +59,11 @@
 //! `props::Disabled` の `.attr()` を Select・Switch・Checkbox・Radio・
 //! Textarea・Slider に続いて併用する 7 例目の実消費者）・Phase 4「Forms B」の
 //! [`question`]（イシュー #2630、ラベル + 補足説明 + `Node` スロットの
-//! コントロール + ヒント。表示状態軸を持たずスロット側へ委ねる）が続いた。
+//! コントロール + ヒント。表示状態軸を持たずスロット側へ委ねる）・
+//! [`calendar`]（イシュー #2632、選択日は `props::Active` を再利用し
+//! `MAX_WEEKS` で 6 週へ飽和させる）が続いた。
 //! 残りは Phase 2 の他部品（text 等）・Phase 3 の他部品（#2608〜）および
-//! Phase 4 の他部品（ratings/calendar/file-drop/stepper）で順次追加する。
+//! Phase 4 の他部品（ratings/file-drop/stepper）で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -77,6 +79,7 @@
 
 pub mod annotation;
 pub mod button;
+pub mod calendar;
 pub mod checkbox;
 pub mod class;
 pub mod css;
@@ -102,6 +105,7 @@ pub mod tokens;
 
 pub use annotation::annotation;
 pub use button::button;
+pub use calendar::{calendar, MAX_WEEKS};
 pub use checkbox::checkbox;
 pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
