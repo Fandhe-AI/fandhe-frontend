@@ -60,11 +60,12 @@
 //! Textarea・Slider に続いて併用する 7 例目の実消費者）・Phase 4「Forms B」の
 //! [`question`]（イシュー #2630、ラベル + 補足説明 + `Node` スロットの
 //! コントロール + ヒント。表示状態軸を持たずスロット側へ委ねる）・
-//! [`file_drop`]（イシュー #2633、blocks.pm に対応部品がない独自追加
-//! 部品。アイコンは `link` と同じ `Option<Node>` スロット、表示状態軸を
-//! 持たない）が続いた。
+//! [`ratings`]（イシュー #2631、`icon::star` を再利用し塗り数を
+//! `data-active` で表現する）・[`file_drop`]（イシュー #2633、
+//! blocks.pm に対応部品がない独自追加部品。アイコンは `link` と同じ
+//! `Option<Node>` スロット、表示状態軸を持たない）が続いた。
 //! 残りは Phase 2 の他部品（text 等）・Phase 3 の他部品（#2608〜）および
-//! Phase 4 の他部品（ratings/calendar/stepper）で順次追加する。
+//! Phase 4 の他部品（calendar/stepper）で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -94,6 +95,7 @@ pub mod paragraph;
 pub mod props;
 pub mod question;
 pub mod radio;
+pub mod ratings;
 pub mod rich_text;
 pub mod select;
 pub mod size;
@@ -119,6 +121,7 @@ pub use paragraph::paragraph;
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
 pub use question::question;
 pub use radio::radio;
+pub use ratings::{ratings, STAR_COUNT};
 pub use rich_text::rich_text;
 pub use select::select;
 pub use size::Size;

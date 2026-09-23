@@ -255,8 +255,11 @@
   `wireframes/question/index.html`（イシュー #2630、Phase 4「Forms B」の
   最初の部品。ラベル + 補足説明 + `Node` スロットのコントロール + ヒント。
   表示状態軸を持たずスロット側へ委ねる）/
-  `wireframes/file-drop/index.html`（イシュー #2633、Phase 4「Forms B」の
-  File drop 部品。アイコンは `Option<Node>` スロット、表示状態軸なし、
+  `wireframes/ratings/index.html`（イシュー #2631、同 Phase の 2 番目の
+  部品。`icon::star` を再利用し、塗り数を `props::Active` の `data-active`
+  で先頭から表現する）/
+  `wireframes/file-drop/index.html`（イシュー #2633、同 Phase の 3 番目の
+  部品。アイコンは `Option<Node>` スロット、表示状態軸なし、
   `<input type=file>` 非出力）
   である。
   いずれも

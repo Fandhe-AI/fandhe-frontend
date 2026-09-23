@@ -65,6 +65,7 @@ mod link;
 mod paragraph;
 mod question;
 mod radio;
+mod ratings;
 mod rich_text;
 mod select;
 mod slider;
@@ -133,8 +134,9 @@ pub struct Wireframe {
 /// [`frame::WIREFRAME`]（イシュー #2609）・Phase 2 の [`tag::WIREFRAME`]
 /// （イシュー #2619）・[`input::WIREFRAME`]（イシュー #2622）・
 /// Phase 4「Forms B」の [`question::WIREFRAME`]（イシュー #2630、最初の
-/// 部品）・[`file_drop::WIREFRAME`]（イシュー #2633、blocks.pm に対応部品
-/// がない独自追加部品）が続いた。
+/// 部品）・[`ratings::WIREFRAME`]（イシュー #2631、`icon::star` を再利用
+/// する 2 番目の部品）・[`file_drop::WIREFRAME`]（イシュー #2633、
+/// blocks.pm に対応部品がない独自追加部品）が続いた。
 /// Phase 1・3・4 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -156,6 +158,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     tag::WIREFRAME,
     input::WIREFRAME,
     question::WIREFRAME,
+    ratings::WIREFRAME,
     file_drop::WIREFRAME,
 ];
 
@@ -303,10 +306,11 @@ mod tests {
 
     #[test]
     fn wireframe_for_path_finds_nothing_in_empty_registry() {
-        // `/wireframes/ratings/` は Phase 4「Forms B」の未実装部品であり、
-        // 恒久的に未登録のパスとして使える（`question` は本イシュー #2630 で
-        // 登録済みのため代替パスへ差し替え）。
-        assert!(wireframe_for_path("/wireframes/ratings/").is_none());
+        // `/wireframes/__unregistered__/` は実在しない kebab であり、
+        // Phase 1〜8（#2608〜#2665）のどの部品イシューとも衝突しない恒久的に
+        // 未登録のパスとして使える（`ratings` は本イシュー #2631 で登録済み
+        // のため代替パスへ差し替え）。
+        assert!(wireframe_for_path("/wireframes/__unregistered__/").is_none());
     }
 
     #[test]
