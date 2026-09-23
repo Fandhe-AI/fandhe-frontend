@@ -16,15 +16,13 @@ bold)` の 4 引数（詳細は下の引数表を参照）で、props 構造体�
 
 ## 原案差分メモ
 
-- **API は独自設計**: blocks.pm の Figma プロパティ構成（`External`/`Icon`
-  相当のトグル群）をそのまま転写せず、
-  `docs/design/wireframe-ui-architecture.md` §6 の汎用変換規約から独立設計
-  しました。
-- **アイコンスロットへ畳む**: `External`/`Icon` の bool は
-  `trailing: Option<Node>` へ畳み、外部リンク表示は呼び出し側が
-  `Some(icon::external(size))` を渡すことで表現します（同文書 §11.4 の
-  `Option<Node>` アイコンスロット規約の実例）。`External` 型や第 2 の bool
-  引数、`external_link` のような便宜ラッパは追加していません。
+- **API は独自設計**: `docs/design/wireframe-ui-architecture.md` §6 の
+  汎用変換規約から独立設計しました。
+- **アイコンスロットで表現**: 末尾アイコンは `trailing: Option<Node>` で
+  受け取り、外部リンク表示は呼び出し側が `Some(icon::external(size))` を
+  渡すことで表現します（同文書 §11.4 の `Option<Node>` アイコンスロット
+  規約の実例）。専用の型や第 2 の bool 引数、`external_link` のような
+  便宜ラッパは追加していません。
 - **`a[href]` は出力しない**: ルートは `span` とし、`href`/`rel`/`target`
   は一切出力しません（同文書 §7 の非対話制約）。
 - **スクリーンショット非掲載**: `docs/design/reference-screenshots/` への

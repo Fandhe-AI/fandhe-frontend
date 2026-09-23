@@ -13,15 +13,13 @@
 //!
 //! # API 設計の由来
 //!
-//! blocks.pm の Link 部品の Figma プロパティ構成（`External`/`Icon` 相当の
-//! bool トグル群）をそのまま転写したものではなく、
 //! `docs/design/wireframe-ui-architecture.md` §6 の汎用変換規約と §11.4 の
-//! `Option<Node>` アイコンスロット規約から独立設計した（イシュー #2618
-//! 実装計画 §2、`site/wireframes/link.md` の「原案差分メモ」節も参照）。
-//! 外部リンク表示は呼び出し側が `Some(icon::external(size))` を渡すことで
-//! 表現し、`External` 型・第 2 の bool 引数・`external_link` のような
-//! 便宜ラッパは追加しない（`Some(icon::external(size))` で十分表現できる
-//! ため、公開面を増やさない判断）。
+//! `Option<Node>` アイコンスロット規約から独立設計した（`site/wireframes/link.md`
+//! の「原案差分メモ」節も参照）。外部リンク表示は呼び出し側が
+//! `Some(icon::external(size))` を渡すことで表現し、`External` 型・第 2 の
+//! bool 引数・`external_link` のような便宜ラッパは追加しない
+//! （`Some(icon::external(size))` で十分表現できるため、公開面を増やさない
+//! 判断）。
 //!
 //! # `a[href]` は出力しない（最重要）
 //!
