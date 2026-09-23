@@ -45,11 +45,12 @@
 //! `Option<Node>` アイコンスロット規約 §11.4 の実例、`a[href]` 非出力）、
 //! Phase 3「Forms A」の [`button`]（イシュー #2621、`props::Disabled` の
 //! 最初の実消費者）・[`select`]（イシュー #2624、`props::Active` と
-//! `props::Disabled` を併用する初の部品）・[`input`]（イシュー #2622、
-//! `props::Active` と `props::Disabled` を併用する 2 例目の部品）が続いた。
-//! 残りは Phase 1 の他部品（frame）・Phase 2 の他部品（text/paragraph/tag 等）
-//! および Phase 3 の他部品（textarea/checkbox/radio/switch/slider）
-//! 以降（#2608〜）で順次追加する。
+//! `props::Disabled` を併用する初の部品）・[`switch`]（イシュー #2627、
+//! `Active` を ON 状態の意味で使い `Disabled` を併用する部品）・[`input`]
+//! （イシュー #2622、`props::Active` と `props::Disabled` を併用する
+//! 3 例目の部品）が続いた。残りは Phase 1 の他部品（frame）・Phase 2 の
+//! 他部品（text/paragraph/tag 等）および Phase 3 の他部品
+//! （textarea/checkbox/radio/slider）以降（#2608〜）で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -77,6 +78,7 @@ pub mod rich_text;
 pub mod select;
 pub mod size;
 pub mod stack;
+pub mod switch;
 pub mod tokens;
 
 pub use annotation::annotation;
@@ -92,3 +94,4 @@ pub use rich_text::rich_text;
 pub use select::select;
 pub use size::Size;
 pub use stack::stack;
+pub use switch::switch;

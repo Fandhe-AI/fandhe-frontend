@@ -268,6 +268,8 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/button/index.html"
           # イシュー #2624: 同 Phase の Select 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/select/index.html"
+          # イシュー #2627: 同 Phase の Switch 部品ページ。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/switch/index.html"
           # イシュー #2622: 同 Phase の Input 部品ページ（<input> 非出力）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/input/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
