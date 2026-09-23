@@ -1451,6 +1451,16 @@ source = "site/wireframes/pagination.md"
 path = "/wireframes/pagination/"
 
 [[section.page]]
+title = "Cursor"
+source = "site/wireframes/cursor.md"
+path = "/wireframes/cursor/"
+
+[[section.page]]
+title = "Menu"
+source = "site/wireframes/menu.md"
+path = "/wireframes/menu/"
+
+[[section.page]]
 title = "Breadcrumbs"
 source = "site/wireframes/breadcrumbs.md"
 path = "/wireframes/breadcrumbs/"
@@ -1459,6 +1469,36 @@ path = "/wireframes/breadcrumbs/"
 title = "Tooltip"
 source = "site/wireframes/tooltip.md"
 path = "/wireframes/tooltip/"
+
+[[section.page]]
+title = "Toast"
+source = "site/wireframes/toast.md"
+path = "/wireframes/toast/"
+
+[[section.page]]
+title = "Alert"
+source = "site/wireframes/alert.md"
+path = "/wireframes/alert/"
+
+[[section.page]]
+title = "Progress"
+source = "site/wireframes/progress.md"
+path = "/wireframes/progress/"
+
+[[section.page]]
+title = "Spinner"
+source = "site/wireframes/spinner.md"
+path = "/wireframes/spinner/"
+
+[[section.page]]
+title = "Modal"
+source = "site/wireframes/modal.md"
+path = "/wireframes/modal/"
+
+[[section.page]]
+title = "Avatar"
+source = "site/wireframes/avatar.md"
+path = "/wireframes/avatar/"
 
 # API Reference セクション（イシュー #955 / 設計 docs/design/docs-site-api-reference-split.md）。
 # - docs/internal/*-implementation-notes.md は本マニフェストへ登録しない。

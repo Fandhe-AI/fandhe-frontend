@@ -282,12 +282,26 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // Nav item 部品ページが加わり、277 → 278 になった。イシュー #2641 で
     // Wireframes セクションへ Accordion 部品ページが加わり、278 → 279 に
     // なった。イシュー #2640 で Wireframes セクションへ Pagination 部品
-    // ページが加わり、279 → 280 になった。イシュー #2639 で Wireframes
-    // セクションへ Breadcrumbs 部品ページが加わり、280 → 281 になった。
-    // イシュー #2644 で Wireframes セクションへ Tooltip 部品ページ
-    // （Phase 6「Overlay・Feedback」の最初の部品）が加わり、281 → 282 に
-    // なった。
-    assert_eq!(pages.len(), 282, "expected 282 pages, got {pages:?}");
+    // ページが加わり、279 → 280 になった。イシュー #2642 で Wireframes
+    // セクションへ Cursor 部品ページが加わり、280 → 281 になった。イシュー
+    // #2644 で Wireframes セクションへ Tooltip 部品ページ（Phase 6
+    // 「Overlay・Feedback」の最初の部品）が加わり、281 → 282 になった。
+    // イシュー #2637 で Wireframes セクションへ Menu 部品ページ（Phase 5
+    // 「Navigation」の 6 番目の部品）が加わり、282 → 283 になった。イシュー
+    // #2647 で Wireframes セクションへ Toast 部品ページ（Phase 6
+    // の 2 番目の部品）が加わり、283 → 284 になった。イシュー #2646 で
+    // Wireframes セクションへ Alert 部品ページ（Phase 6 の 3 番目の部品）
+    // が加わり、284 → 285 になった。イシュー #2648 で Wireframes セクション
+    // へ Progress 部品ページ（Phase 6 の 4 番目の部品）が加わり、
+    // 285 → 286 になった。イシュー #2649 で Wireframes セクションへ
+    // Spinner 部品ページ（Phase 6 の 5 番目の部品）が加わり、286 → 287 に
+    // なった。イシュー #2645 で Wireframes セクションへ Modal 部品ページ
+    // （Phase 6 の 6 番目の部品）が加わり、287 → 288 になった。イシュー
+    // #2651 で Wireframes セクションへ Avatar 部品ページ
+    // （Phase 7「Data display」の最初の部品）が加わり、288 → 289 になった。
+    // イシュー #2639 で Wireframes セクションへ Breadcrumbs 部品ページ
+    // （Phase 5「Navigation」の 7 番目の部品）が加わり、289 → 290 になった。
+    assert_eq!(pages.len(), 290, "expected 290 pages, got {pages:?}");
 
     // イシュー #2607: `/wireframes/` 配下は索引ページ（`/wireframes/` 自身）
     // 1 件のみだった（同イシュー時点では個別部品ページを同梱しない、設計
@@ -312,19 +326,28 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // #2638 で Tabs が加わり 24 件になった。イシュー #2634 で Stepper が
     // 加わり 25 件になった。イシュー #2636 で Nav item が加わり 26 件に
     // なった。イシュー #2641 で Accordion が加わり 27 件になった。イシュー
-    // #2640 で Pagination が加わり 28 件になった。イシュー #2639 で
-    // Breadcrumbs が加わり 29 件になった。イシュー #2644 で
-    // Tooltip（Phase 6「Overlay・Feedback」の最初の部品）が加わり 30 件に
-    // なった。
-    // Phase 1・3・4・5・6 以降（#2608〜#2665）の各部品イシューが増分する。
+    // #2640 で Pagination が加わり 28 件になった。イシュー #2642 で Cursor
+    // が加わり 29 件になった。イシュー #2644 で Tooltip（Phase 6
+    // 「Overlay・Feedback」の最初の部品）が加わり 30 件になった。イシュー
+    // #2637 で Menu（Phase 5「Navigation」の 6 番目の部品）が加わり 31 件に
+    // なった。イシュー #2647 で Toast（Phase 6 の 2 番目の部品）が加わり
+    // 32 件になった。イシュー #2646 で Alert（Phase 6 の 3 番目の部品）が
+    // 加わり 33 件になった。イシュー #2648 で Progress（Phase 6 の 4 番目の
+    // 部品）が加わり 34 件になった。イシュー #2649 で Spinner（Phase 6 の
+    // 5 番目の部品）が加わり 35 件になった。イシュー #2645 で Modal
+    // （Phase 6 の 6 番目の部品）が加わり 36 件になった。イシュー #2651 で
+    // Avatar（Phase 7「Data display」の最初の部品）が加わり 37 件になった。
+    // イシュー #2639 で Breadcrumbs（Phase 5「Navigation」の 7 番目の部品）
+    // が加わり 38 件になった。
+    // Phase 1・3・4・5・6・7 以降（#2608〜#2665）の各部品イシューが増分する。
     let wireframes_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/wireframes/"))
         .collect();
     assert_eq!(
         wireframes_pages.len(),
-        30,
-        "expected 30 /wireframes/ pages (index + annotation + grid + divider + stack + link + rich-text + paragraph + button + select + radio + switch + checkbox + textarea + slider + frame + tag + input + question + ratings + calendar + file-drop + text + tabs + stepper + nav-item + accordion + pagination + breadcrumbs + tooltip), got {wireframes_pages:?}"
+        38,
+        "expected 38 /wireframes/ pages (index + annotation + grid + divider + stack + link + rich-text + paragraph + button + select + radio + switch + checkbox + textarea + slider + frame + tag + input + question + ratings + calendar + file-drop + text + tabs + stepper + nav-item + accordion + pagination + cursor + menu + breadcrumbs + tooltip + toast + alert + progress + spinner + modal + avatar), got {wireframes_pages:?}"
     );
     assert!(
         pages.contains(&("site/wireframes.md", "/wireframes/")),

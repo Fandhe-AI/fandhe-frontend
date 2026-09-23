@@ -289,14 +289,28 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // Nav item 部品ページが加わり、277 → 278 になった。イシュー #2641 で
     // Wireframes セクションへ Accordion 部品ページが加わり、278 → 279 に
     // なった。イシュー #2640 で Wireframes セクションへ Pagination 部品
-    // ページが加わり、279 → 280 になった。イシュー #2639 で Wireframes
-    // セクションへ Breadcrumbs 部品ページが加わり、280 → 281 になった。
-    // イシュー #2644 で Wireframes セクションへ Tooltip 部品ページ
-    // （Phase 6「Overlay・Feedback」の最初の部品）が加わり、281 → 282 に
-    // なった。
+    // ページが加わり、279 → 280 になった。イシュー #2642 で Wireframes
+    // セクションへ Cursor 部品ページが加わり、280 → 281 になった。イシュー
+    // #2644 で Wireframes セクションへ Tooltip 部品ページ（Phase 6
+    // 「Overlay・Feedback」の最初の部品）が加わり、281 → 282 になった。
+    // イシュー #2637 で Wireframes セクションへ Menu 部品ページ（Phase 5
+    // 「Navigation」の 6 番目の部品）が加わり、282 → 283 になった。イシュー
+    // #2647 で Wireframes セクションへ Toast 部品ページ（Phase 6
+    // の 2 番目の部品）が加わり、283 → 284 になった。イシュー #2646 で
+    // Wireframes セクションへ Alert 部品ページ（Phase 6 の 3 番目の部品）
+    // が加わり、284 → 285 になった。イシュー #2648 で Progress 部品ページ
+    // （Phase 6 の 4 番目の部品）が加わり、285 → 286 になった。イシュー
+    // #2649 で Wireframes セクションへ Spinner 部品ページ（Phase 6 の
+    // 5 番目の部品）が加わり、286 → 287 になった。イシュー #2645 で
+    // Wireframes セクションへ Modal 部品ページ（Phase 6 の 6 番目の部品）
+    // が加わり、287 → 288 になった。イシュー #2651 で
+    // Wireframes セクションへ Avatar 部品ページ（Phase 7「Data display」
+    // の最初の部品）が加わり、288 → 289 になった。イシュー #2639 で
+    // Wireframes セクションへ Breadcrumbs 部品ページ（Phase 5
+    // 「Navigation」の 7 番目の部品）が加わり、289 → 290 になった。
     assert_eq!(
         report.written.len(),
-        282,
+        290,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -522,6 +536,9 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
         // イシュー #2614: Text が Phase 2「テキスト・注釈」の最後の部品
         // ページとして登録され、同 Phase が全部品出揃った。
         ("wireframes/text/index.html", false),
+        // イシュー #2646: Alert が Phase 6「Overlay・Feedback」の 3 番目の
+        // 部品ページとして登録された。
+        ("wireframes/alert/index.html", false),
         ("api/component-api/index.html", false),
     ];
 

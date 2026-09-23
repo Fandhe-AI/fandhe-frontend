@@ -316,12 +316,42 @@ jobs:
           # 部品ページ（選択状態は props::Active を再利用、先頭/前/次/末尾
           # コントロールは prev_next/first_last の 2 bool へ畳む）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/pagination/index.html"
-          # イシュー #2639: Phase 5「Navigation」の 5 番目の部品、Breadcrumbs
+          # イシュー #2642: Phase 5「Navigation」の 5 番目の部品、Cursor 部品
+          # ページ（代わりに使える既存アイコンがないため icon::cursor_arrow/
+          # icon::cursor_hand を新規追加して消費する）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/cursor/index.html"
+          # イシュー #2637: Phase 5「Navigation」の 6 番目の部品、Menu 部品
+          # ページ（検索欄は Option<&str> + 固定パートの icon::search で表し
+          # <input> は出力しない）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/menu/index.html"
+          # イシュー #2639: Phase 5「Navigation」の 7 番目の部品、Breadcrumbs
           # 部品ページ（現在階層は items の最後の項目へ常に自動付与）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/breadcrumbs/index.html"
           # イシュー #2644: Phase 6「Overlay・Feedback」の最初の部品、Tooltip
           # 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/tooltip/index.html"
+          # イシュー #2647: Phase 6「Overlay・Feedback」の 2 番目の部品、Toast
+          # 部品ページ（閉じるグリフは icon::x 固定で instance swap にせず
+          # dismissible: bool の 1 引数だけで有無を切り替える）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/toast/index.html"
+          # イシュー #2646: Phase 6「Overlay・Feedback」の 3 番目の部品、Alert
+          # 部品ページ（重要度は部品ローカルの Severity による修飾 class で表す）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/alert/index.html"
+          # イシュー #2648: Phase 6「Overlay・Feedback」の 4 番目の部品、
+          # Progress 部品ページ。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/progress/index.html"
+          # イシュー #2649: Phase 6「Overlay・Feedback」の 5 番目の部品、
+          # Spinner 部品ページ（円弧だけを描く静的表示、@keyframes/animation
+          # は持たない）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/spinner/index.html"
+          # イシュー #2645: Phase 6「Overlay・Feedback」の 6 番目の部品、Modal
+          # 部品ページ（blocks.pm に対応部品がない独自追加部品。中央配置は
+          # position: fixed ではなく in-flow の背景領域で表現する）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/modal/index.html"
+          # イシュー #2651: Phase 7「Data display」の最初の部品、Avatar 部品
+          # ページ（content: Option<Node> が None のとき icon::user へ
+          # フォールバックする §11.4 からの意図的な逸脱）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/avatar/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact

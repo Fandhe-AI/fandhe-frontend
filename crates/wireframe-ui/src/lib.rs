@@ -85,15 +85,44 @@
 //! `&[Option<&str>]`（`None` がギャップ）で表し、選択状態は
 //! `tabs`/`radio` と同じく既存の `props::Active` を再利用する。先頭/前/次/
 //! 末尾コントロールは `prev_next`/`first_last` の 2 bool へ畳む）・
-//! [`breadcrumbs`]（イシュー #2639、`tabs` の `Option<usize>` とは異なり
-//! 選択引数を持たず、`items` が空でない限り常に最後の項目へ
-//! `props::Active` を付与する。区切りは `stepper` と同じく CSS
-//! 擬似要素のみで描く）も続いた。
+//! [`cursor`]（イシュー #2642、Phase 5 の 5 番目の部品。代わりに使える
+//! 既存アイコンがないため `icon::cursor_arrow`/`icon::cursor_hand` を
+//! 新規追加して消費する。部品ローカルの列挙型 [`CursorKind`] を
+//! クレートルートから再エクスポートする初めての例）・
+//! [`menu::menu`]（イシュー #2637、Phase 5 の 6 番目の部品。検索欄は
+//! `Option<&str>` + 固定パートの [`icon::search`] で表し `<input>` は
+//! 出力しない。項目は [`menu::MenuItem`] のスライスで受け、強調状態は
+//! 無効項目を指す添字なら優先して外す fail-closed な
+//! `active: Option<usize>`）・
+//! [`breadcrumbs`]（イシュー #2639、Phase 5 の 7 番目の部品。`tabs` の
+//! `Option<usize>` とは異なり選択引数を持たず、`items` が空でない限り
+//! 常に最後の項目へ `props::Active` を付与する。区切りは `stepper` と
+//! 同じく CSS 擬似要素のみで描く）も続いた。
 //! Phase 6「Overlay・Feedback」の最初の部品 [`tooltip`]（イシュー #2644、
-//! 方向は部品ローカルの [`tooltip::TooltipSide`] による修飾 class で表す）
-//! が続いた。
-//! 残りは Phase 3 の他部品（#2608〜）・Phase 5 の他部品（menu 等）・
-//! Phase 6 の他部品で順次追加する。
+//! 方向は部品ローカルの [`tooltip::TooltipSide`] による修飾 class で表す）・
+//! Phase 6 の 2 番目の部品 [`toast`]（イシュー #2647、閉じるグリフは
+//! [`icon::x`] 固定で instance swap にせず `dismissible: bool` の 1 引数
+//! だけで有無を切り替える）・3 番目の部品 [`alert`]（イシュー #2646、
+//! 横長の警告バナー。重要度は部品ローカルの [`alert::Severity`] による
+//! 修飾 class で表し、`props.rs` へは昇格しない。アイコンは
+//! `link`/`file_drop` と同じ `Option<Node>` スロット）・4 番目の部品
+//! [`progress`]（イシュー #2648、形状は部品ローカルの
+//! [`progress::ProgressShape`] による修飾 class（Bar/Circle）で表し、進捗値は
+//! `slider` と同型の 5 刻み固定 class 集合へ量子化する。表示専用のため
+//! `Active`/`Disabled` を持たない）・5 番目の部品 [`spinner`]（イシュー
+//! #2649、円弧だけを描く静的表示で `@keyframes`/`animation` は持たない）・
+//! 6 番目の部品 [`modal`]（イシュー #2645、blocks.pm に対応部品がない
+//! 独自追加部品。中央配置は `position: fixed` ではなく in-flow の背景領域 +
+//! `place-items: center` で表現し、パネル最大幅は `Size` 5 段の静的ルール
+//! として [`crate::css::PARTS`] へ直書きする）が続いた。Phase 7「Data
+//! display」の最初の部品 [`avatar`]（イシュー #2651、`content: Option<Node>`
+//! が `None` のとき [`icon::user`] へフォールバックする §11.4 からの意図的な
+//! 逸脱。円形表示は `crate::frame` の `bordered` と同型の部品固有修飾 class
+//! で表す）が続いた。
+//! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
+//! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
+//! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
+//! 全部品が出揃った。残りは Phase 7 の他部品・Phase 8 で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -108,13 +137,16 @@
 //! 詳細・追記契約は `docs/design/wireframe-ui-architecture.md` §10 を参照。
 
 pub mod accordion;
+pub mod alert;
 pub mod annotation;
+pub mod avatar;
 pub mod breadcrumbs;
 pub mod button;
 pub mod calendar;
 pub mod checkbox;
 pub mod class;
 pub mod css;
+pub mod cursor;
 pub mod divider;
 pub mod file_drop;
 pub mod frame;
@@ -122,9 +154,12 @@ pub mod grid;
 pub mod icon;
 pub mod input;
 pub mod link;
+pub mod menu;
+pub mod modal;
 pub mod nav_item;
 pub mod pagination;
 pub mod paragraph;
+pub mod progress;
 pub mod props;
 pub mod question;
 pub mod radio;
@@ -133,6 +168,7 @@ pub mod rich_text;
 pub mod select;
 pub mod size;
 pub mod slider;
+pub mod spinner;
 pub mod stack;
 pub mod stepper;
 pub mod switch;
@@ -140,26 +176,33 @@ pub mod tabs;
 pub mod tag;
 pub mod text;
 pub mod textarea;
+pub mod toast;
 pub mod tokens;
 pub mod tooltip;
 
 pub use accordion::accordion;
+pub use alert::{alert, Severity};
 pub use annotation::annotation;
+pub use avatar::avatar;
 pub use breadcrumbs::breadcrumbs;
 pub use button::button;
 pub use calendar::{calendar, MAX_WEEKS};
 pub use checkbox::checkbox;
 pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
+pub use cursor::{cursor, CursorKind};
 pub use divider::divider;
 pub use file_drop::file_drop;
 pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
 pub use input::input;
 pub use link::link;
+pub use menu::{menu, MenuItem};
+pub use modal::modal;
 pub use nav_item::nav_item;
 pub use pagination::pagination;
 pub use paragraph::paragraph;
+pub use progress::{progress, ProgressShape};
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
 pub use question::question;
 pub use radio::radio;
@@ -168,6 +211,7 @@ pub use rich_text::rich_text;
 pub use select::select;
 pub use size::Size;
 pub use slider::slider;
+pub use spinner::spinner;
 pub use stack::stack;
 pub use stepper::stepper;
 pub use switch::switch;
@@ -175,4 +219,5 @@ pub use tabs::tabs;
 pub use tag::tag;
 pub use text::text;
 pub use textarea::{textarea, MAX_ROWS};
+pub use toast::toast;
 pub use tooltip::{tooltip, TooltipSide};

@@ -201,7 +201,7 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
 | 定数 | 値 | 超過時の扱い |
 |---|---|---|
 | `MAX_PAGE_TEXT_BYTES` | 4,096 バイト | **決定的に切り詰める**（エラーにしない）。UTF-8 文字境界で切る（`char_indices` で境界を求め、バイト単位切断で不正 UTF-8 を作らない）。切り詰め痕跡の付加文字（`…` 等）は付けない（決定性と単純さを優先する） |
-| `MAX_INDEX_BYTES` | 1,310,720 バイト（1.25 MiB。#2552 で 1 MiB → 1.125 MiB、PR #2702（イシュー #2639/#2644 の並行マージ合算超過）で 1.125 MiB → 1.25 MiB、§10 参照） | **fail-closed**。`BuildError::SearchIndexTooLarge { bytes, limit }` を返し、**ページ書き出し前**に打ち切る |
+| `MAX_INDEX_BYTES` | 1,310,720 バイト（1.25 MiB。#2552 で 1 MiB から 1.125 MiB へ、#2645 で 1.125 MiB から 1.25 MiB へ引き上げ、§10 参照。イシュー #2637（Menu）の base 取り込み時点で実測は 1.25 MiB の範囲内に収まっており、追加の引き上げは不要だった。PR #2702（イシュー #2639 Breadcrumbs）の base 取り込み時点でも実測は範囲内に収まっており、追加の引き上げは不要だった） | **fail-closed**。`BuildError::SearchIndexTooLarge { bytes, limit }` を返し、**ページ書き出し前**に打ち切る |
 
 - 選定根拠: 現行 121 ページで全ページが per-page 上限に張り付いた
   最悪ケースでも 121 × 4 KiB ≒ 496 KiB であり、1 MiB は「ページ数が
@@ -223,7 +223,7 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
   - `pub const REL_PATH: &str = "assets/search-index.json";`
   - `pub const SCHEMA_VERSION: u32 = 1;`
   - `pub const MAX_PAGE_TEXT_BYTES: usize = 4096;`
-  - `pub const MAX_INDEX_BYTES: usize = 1_310_720;`（#2552 で `1_048_576` から引き上げ、PR #2702 で再度引き上げ、§10 参照）
+  - `pub const MAX_INDEX_BYTES: usize = 1_310_720;`（#2552 で `1_048_576` から `1_179_648` へ、#2645 で `1_179_648` から引き上げ、§10 参照。イシュー #2637・PR #2702（イシュー #2639 Breadcrumbs）の base 取り込み時点でも実測は範囲内）
   - `pub struct PageEntry { href, title, sections: Vec<SectionEntry>, text }`
   - `pub struct SectionEntry { id, level, title }`
   - `pub fn page_entry(href: &str, title: &str, body: &Node) -> PageEntry`
@@ -588,25 +588,41 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
   超えた場合は、§8 トリガー 1 の対応（per-page 上限見直し・セクション
   粒度分割）を改めて検討する。
 
-## 11. `MAX_INDEX_BYTES` 再引き上げ（PR #2702）実装記録
+### 10-1 `MAX_INDEX_BYTES` 再引き上げ（#2645）実装記録
 
-Wireframes セクションへ Breadcrumbs（イシュー #2639）・Tooltip
-（イシュー #2644）を追加する 2 本の PR は、それぞれ単独ではインデックス
-JSON を 1.125 MiB の範囲内に収めていたが、両者が並行に main へ
-マージされたことで base 取り込み（PR #2702）が両ページ分の索引
-テキストを合算した結果、1.125 MiB（1,179,648 バイト）を実測
-1,179,992 バイト（約 344 バイト超過）で `SearchIndexError::TooLarge`
-が発火した。
+Wireframes セクションの部品ページ追加が Phase 5「Navigation」〜
+Phase 6「Overlay・Feedback」まで進み、イシュー #2645（`modal` 部品ページ
+追加）と #2644（`tooltip` 部品ページ追加、並行マージ）の統合後、実サイト
+のインデックス JSON が 1,180,096 バイトへ達し、§10 で引き上げた
+1.125 MiB（1,179,648 バイト）を約 448 バイト超過して再び
+`SearchIndexError::TooLarge` が発火した。
 
-- 並行マージによる合算超過は §10 が想定した「1 PR 単位での漸進的な
-  肥大化」とは異なる発生経路だが、対処方針（個別ページの索引テキストを
-  切り詰めない・`MAX_INDEX_BYTES` を引き上げる）は §10 の判断をそのまま
-  踏襲する。超過幅（約 344 バイト）自体は小さいが、Wireframes セクション
-  は Phase 1〜8 で今後も部品ページが並行追加されるため、同種の合算超過が
-  繰り返し起こりうる。
-- **採用した対処は `MAX_INDEX_BYTES` の引き上げ**（1.125 MiB →
-  1.25 MiB、`1_048_576 + 262_144`）。§10 と同様、fail-closed の性質は
-  変更しない。
-- 再評価トリガーは §10 と同一（1.25 MiB を再び超える、または実測が
-  新上限の 80% を超えた場合に per-page 上限見直し・セクション粒度分割を
-  改めて検討する）。
+- §10 と同じ判断軸（per-page 上限の引き下げ・セクション分割は
+  Wireframes 1 セクション分の部品追加という規模に対して不釣り合いに
+  大きい）に従い、`MAX_INDEX_BYTES` を再度引き上げる対処を採る。
+- 前回と同じ +131,072 バイト刻みで 1.25 MiB（`1_048_576 + 262_144` =
+  `1_310_720`）へ引き上げる。引き上げ後の実測（1,180,096 バイト）は
+  新上限の約 90.0%（1,180,096 / 1,310,720）であり、
+  §8 トリガー 1 の 80% 基準を既に超えている。Wireframes セクションは
+  Phase 7・8 でさらに部品ページが増える予定（`docs/design/wireframe-ui-architecture.md`
+  参照）であるため、次回超過時は本節の刻み幅（+131,072 バイト固定）を
+  機械的に繰り返すのではなく、§8 トリガー 1 の対応（per-page 上限見直し・
+  セクション粒度分割）を実際に検討すること。
+
+### 10-2 イシュー #2637（Menu）base 取り込み時点の実測確認
+
+PR #2703（イシュー #2637 Menu）を main（10-1 時点で `MAX_INDEX_BYTES`
+は 1.25 MiB = `1_310_720`）へ取り込んだ時点で `cargo test -p
+fandhe-frontend-docs-site` を実行し実サイトの検索インデックスサイズを
+再測した。実測は 1.25 MiB の範囲内（80% 未満）に収まっており §8
+トリガー 1 の再評価基準に到達しなかったため、本 PR では
+`MAX_INDEX_BYTES` の追加引き上げを行わない。
+
+### 10-3 PR #2702（イシュー #2639 Breadcrumbs）base 取り込み時点の実測確認
+
+PR #2702（イシュー #2639 Breadcrumbs、Phase 5「Navigation」の 7 番目の
+部品）を main（10-2 時点で `MAX_INDEX_BYTES` は 1.25 MiB =
+`1_310_720`）へ取り込んだ時点で `cargo test -p fandhe-frontend-docs-site`
+を実行し実サイトの検索インデックスサイズを再測した。実測は 1.25 MiB の
+範囲内（80% 未満）に収まっており §8 トリガー 1 の再評価基準に到達
+しなかったため、本 PR でも `MAX_INDEX_BYTES` の追加引き上げを行わない。
