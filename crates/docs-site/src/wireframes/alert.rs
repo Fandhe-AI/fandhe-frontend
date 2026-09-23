@@ -5,6 +5,10 @@
 //! から `demo()` が呼ばれる。`crate::wireframes` モジュール doc の「CSS の
 //! 置き場」節どおり、本ファイルは `wireframes.css`/`LAYOUT_CSS` を編集
 //! しない（デモ間の余白は既存タイポグラフィの `p` キャプションで確保する）。
+//! `alert` はフル幅の枠線付きバナーであるため、連続して並べる場合は
+//! **1 バナーごとに `p` キャプションを挟む**（`tag`/`accordion` 等の
+//! バリアント列挙と異なり、キャプションなしで隣接させると枠線同士が
+//! 密着し 1 本の帯に見えてしまうため、イシュー #2708 レビュー指摘で修正）。
 
 use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::alert::Severity;
@@ -60,6 +64,7 @@ fn demo() -> Node {
                 vec![],
                 vec![text("3 段の重要度（アイコン + タイトル + 説明文）")],
             ),
+            p(vec![], vec![text("Info")]),
             alert(
                 Severity::Info,
                 "新しい機能が利用できます",
@@ -67,6 +72,7 @@ fn demo() -> Node {
                 Some(icon::bell(Size::Md)),
                 Size::Md,
             ),
+            p(vec![], vec![text("Warning")]),
             alert(
                 Severity::Warning,
                 "ストレージ容量が残りわずかです",
@@ -74,6 +80,7 @@ fn demo() -> Node {
                 Some(icon::bell(Size::Md)),
                 Size::Md,
             ),
+            p(vec![], vec![text("Error")]),
             alert(
                 Severity::Error,
                 "保存に失敗しました",
@@ -91,7 +98,7 @@ fn demo() -> Node {
                 None,
                 Size::Md,
             ),
-            p(vec![], vec![text("Sm / Lg")]),
+            p(vec![], vec![text("Sm")]),
             alert(
                 Severity::Info,
                 "小サイズの例",
@@ -99,6 +106,7 @@ fn demo() -> Node {
                 Some(icon::bell(Size::Sm)),
                 Size::Sm,
             ),
+            p(vec![], vec![text("Lg")]),
             alert(
                 Severity::Error,
                 "大サイズの例",
