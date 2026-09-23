@@ -255,6 +255,9 @@
   `wireframes/question/index.html`（イシュー #2630、Phase 4「Forms B」の
   最初の部品。ラベル + 補足説明 + `Node` スロットのコントロール + ヒント。
   表示状態軸を持たずスロット側へ委ねる）/
+  `wireframes/ratings/index.html`（イシュー #2631、同 Phase の 2 番目の
+  部品。`icon::star` を再利用し、塗り数を `props::Active` の `data-active`
+  で先頭から表現する）/
   `wireframes/stepper/index.html`（イシュー #2634、同 Phase の Stepper
   部品。blocks.pm に対応部品を持たない独自追加部品で、完了ステップは
   `props.rs` へ新型を追加せず部品ローカルの `data-complete` とし、現在

@@ -45,6 +45,7 @@
 - [Tag](./wireframes/tag.md)
 - [Input](./wireframes/input.md)
 - [Question](./wireframes/question.md)
+- [Ratings](./wireframes/ratings.md)
 - [Stepper](./wireframes/stepper.md)
 
 ## 掲載予定
@@ -63,7 +64,6 @@
 
 ### Phase 4: Forms B
 
-- ratings
 - calendar
 - file-drop
 
