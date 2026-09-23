@@ -39,7 +39,18 @@
 //!   連結線と同じ先例）。
 //! - **入れ子リスト**: 項目セレクタを子結合子 `>` で書き、カウンタは
 //!   ルート単位でリセットする（[`LIST_CSS`] 参照）。入れ子にしたとき、
-//!   内側のリストへ外側の番号・マーカーが漏れない。
+//!   内側のリストへ外側の番号・マーカーが漏れない。加えて、項目の直接の
+//!   子として渡された入れ子 `list()`（`.fw-wire-list-item > .fw-wire-list`）
+//!   は `flex-basis: 100%; width: 100%;` で常に自身の行いっぱいの幅を
+//!   要求し（マーカー `::before` の直後で強制的に折り返す。折り返し自体は
+//!   入れ子を**持つ**項目にのみ `:has(> .fw-wire-list)` で限定して
+//!   `flex-wrap: wrap` を付与し、通常項目〔テキストのみ〕の折り返しには
+//!   影響させない（`crates/pre-styled-ui/src/list.rs` の
+//!   `:has(> [data-part="root"])` による同型対処の先例に倣う）、左
+//!   マージンで字下げする。これにより、親項目の並びに埋没せず「入れ子」
+//!   であることが視覚的に判別できる（イシュー #2657 Review 指摘、
+//!   `crates/docs-site/src/wireframes/list.rs` の Demo「入れ子」節が
+//!   字下げなしで平坦に見えていた不具合の是正）。
 //! - **行頭アイコンはスロット化しない**: 行頭にアイコンを置きたい場合は
 //!   呼び出し側が項目 `Node` 自体（例: [`crate::rich_text`] や
 //!   `icon::*` + `text` の組み合わせ）で表現する。マーカー差し替え用の
@@ -69,7 +80,8 @@ const ORDERED_CLASS: &str = "fw-wire-list-ordered";
 /// スコープ付きカスタムプロパティ（`--fw-wire-control-size` 等）は
 /// 参照しない（モジュール doc「API 設計の由来」参照）。項目セレクタは
 /// 子結合子 `>` で書き、入れ子リストへ外側のカウンタ・マーカーが漏れない
-/// ようにする。
+/// ようにする。加えて項目の直接の子である入れ子 `.fw-wire-list` へ
+/// 左マージンの字下げ規則を持つ（モジュール doc「入れ子リスト」参照）。
 pub const LIST_CSS: &str = "\
 .fw-wire-list {
   display: flex;
@@ -93,6 +105,14 @@ pub const LIST_CSS: &str = "\
   height: 0.35em;
   border-radius: 50%;
   background: var(--fw-wire-ink-muted);
+}
+.fw-wire-list > .fw-wire-list-item:has(> .fw-wire-list) {
+  flex-wrap: wrap;
+}
+.fw-wire-list > .fw-wire-list-item > .fw-wire-list {
+  flex-basis: 100%;
+  width: 100%;
+  margin-left: 1.5em;
 }
 .fw-wire-list.fw-wire-list-ordered {
   counter-reset: fw-wire-list;

@@ -121,6 +121,60 @@ fn list_css_selectors_use_fw_wire_prefix_and_no_pre_styled_ui_prefix() {
 }
 
 #[test]
+fn nested_list_item_is_indented_and_wraps_to_its_own_line() {
+    let css = fandhe_frontend_wireframe_ui::list::LIST_CSS;
+
+    // 入れ子 `.fw-wire-list`（項目の直接の子）は字下げされ、行いっぱいの
+    // 幅を要求して折り返される（イシュー #2657 Review 指摘の是正）。
+    assert!(
+        css.contains(".fw-wire-list > .fw-wire-list-item > .fw-wire-list {"),
+        "missing nested list indentation rule: {css:?}"
+    );
+    let nested_rule_start = css
+        .find(".fw-wire-list > .fw-wire-list-item > .fw-wire-list {")
+        .unwrap();
+    let nested_rule_end = css[nested_rule_start..].find('}').unwrap() + nested_rule_start;
+    let nested_rule_body = &css[nested_rule_start..nested_rule_end];
+    assert!(nested_rule_body.contains("margin-left:"));
+    assert!(nested_rule_body.contains("flex-basis: 100%"));
+
+    // 折り返し（`flex-wrap: wrap`）は入れ子を持つ項目にのみ `:has()` で
+    // 限定し、テキストのみの通常項目の折り返しには影響させない。
+    assert!(
+        css.contains(
+            ".fw-wire-list > .fw-wire-list-item:has(> .fw-wire-list) {\n  flex-wrap: wrap;\n}"
+        ),
+        ":has() 限定の flex-wrap: wrap ルールが見つからない: {css:?}"
+    );
+    let base_item_rule_start = css.find(".fw-wire-list > .fw-wire-list-item {").unwrap();
+    let base_item_rule_end = css[base_item_rule_start..].find('}').unwrap() + base_item_rule_start;
+    assert!(!css[base_item_rule_start..base_item_rule_end].contains("flex-wrap"));
+}
+
+#[test]
+fn nested_list_renders_as_item_child_without_new_dom_semantics() {
+    // list() 自身が Node を受け取るだけの部品であるため、項目に別の
+    // list() 呼び出しを渡すと単純にネストした div.fw-wire-list が
+    // 項目ラッパーの子として出力される（新しいスロット API は追加しない）。
+    let nested = list(vec![text("子項目 A-1"), text("子項目 A-2")], false);
+    let node = list(vec![text("親項目 A"), nested, text("親項目 B")], true);
+    let html = render(&node);
+
+    assert_eq!(html.matches(r#"class="fw-wire-list""#).count(), 1);
+    assert_eq!(
+        html.matches(r#"class="fw-wire-list fw-wire-list-ordered""#)
+            .count(),
+        1
+    );
+    assert!(html.contains("子項目 A-1"));
+    assert!(html.contains("子項目 A-2"));
+    // 入れ子リストにも対話セマンティクスが混入しない。
+    assert!(!html.contains("<ul"));
+    assert!(!html.contains("<ol"));
+    assert!(!html.contains("<li"));
+}
+
+#[test]
 fn counter_rules_are_scoped_to_ordered_modifier() {
     let css = fandhe_frontend_wireframe_ui::list::LIST_CSS;
 
