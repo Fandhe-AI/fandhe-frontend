@@ -13,9 +13,9 @@ fn renders_root_class_for_every_size_and_orientation() {
             let node = stack(vec![text("a")], orientation, size);
             let html = render(&node);
             let expected_class = format!(
-                r#"class="fw-wire-stack {} {}""#,
+                r#"class="fw-wire-stack {} fw-wire-stack-gap-{}""#,
                 orientation.class(),
-                size.class()
+                size.as_str()
             );
             assert!(
                 html.contains(&expected_class),
@@ -49,7 +49,7 @@ fn empty_children_still_renders_root_div() {
     let html = render(&node);
     assert!(html.starts_with("<div"));
     assert!(html.trim_end().ends_with("</div>"));
-    assert!(html.contains(r#"class="fw-wire-stack fw-wire-horizontal fw-wire-size-md""#));
+    assert!(html.contains(r#"class="fw-wire-stack fw-wire-horizontal fw-wire-stack-gap-md""#));
 }
 
 #[test]
@@ -114,11 +114,11 @@ fn stack_css_declares_the_eight_selectors_with_fw_wire_prefix_only() {
         ".fw-wire-stack {",
         ".fw-wire-stack.fw-wire-horizontal {",
         ".fw-wire-stack.fw-wire-vertical {",
-        ".fw-wire-stack.fw-wire-size-xs {",
-        ".fw-wire-stack.fw-wire-size-sm {",
-        ".fw-wire-stack.fw-wire-size-md {",
-        ".fw-wire-stack.fw-wire-size-lg {",
-        ".fw-wire-stack.fw-wire-size-xl {",
+        ".fw-wire-stack.fw-wire-stack-gap-xs {",
+        ".fw-wire-stack.fw-wire-stack-gap-sm {",
+        ".fw-wire-stack.fw-wire-stack-gap-md {",
+        ".fw-wire-stack.fw-wire-stack-gap-lg {",
+        ".fw-wire-stack.fw-wire-stack-gap-xl {",
     ] {
         assert!(css.contains(selector), "missing selector {selector:?}");
     }
@@ -135,4 +135,18 @@ fn stack_css_declares_the_eight_selectors_with_fw_wire_prefix_only() {
 
     assert!(!css.contains("--fandhe-"));
     assert!(!css.contains(" fd-"));
+}
+
+#[test]
+fn gap_class_does_not_share_the_size_scoped_custom_property_class() {
+    // コードレビュー指摘（イシュー #2610）の回帰: gap は Stack 専用の
+    // `fw-wire-stack-gap-*` class のみで表現し、`crate::size::css` が
+    // 生成する共有 `fw-wire-size-*`（`--fw-wire-font-size`/
+    // `--fw-wire-control-size` を同時定義する）を経由しない。
+    let html = render(&stack(vec![text("a")], Orientation::Horizontal, Size::Md));
+    assert!(!html.contains("fw-wire-size-"));
+
+    let css = fandhe_frontend_wireframe_ui::stack::STACK_CSS;
+    assert!(!css.contains("--fw-wire-font-size"));
+    assert!(!css.contains("--fw-wire-control-size"));
 }

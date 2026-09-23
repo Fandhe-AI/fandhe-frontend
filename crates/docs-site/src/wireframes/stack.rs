@@ -5,9 +5,10 @@
 //! から `demo()` が呼ばれる。`crate::wireframes` モジュール doc の
 //! 「CSS の置き場」節どおり、本ファイルは `wireframes.css`/`LAYOUT_CSS` を
 //! 編集しない（デモ間の余白は既存タイポグラフィの `p` キャプションで
-//! 確保する）。子要素には `annotation`（自身のルートで size class を
-//! 再宣言する部品）のみを使い、`fw-wire-size-*` の継承副作用（stack.rs
-//! モジュール doc参照）を回避する。
+//! 確保する）。子要素には `annotation` を使う（Stack の gap は専用の
+//! `fw-wire-stack-gap-*` class のみで表現され、`crate::size::css` の
+//! 共有 `fw-wire-size-*` を経由しないため、子部品の size 表現へ副作用は
+//! 及ばない。stack.rs モジュール doc参照）。
 
 use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::{annotation, stack, Orientation, Primary, Size};

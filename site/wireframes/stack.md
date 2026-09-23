@@ -20,12 +20,18 @@ Primitives・Themes には同名の "Stack" 部品はありません（本部品
   他部品（divider 等）からも横断利用される型です。
 - **children は所有渡し**: `Vec<Node>` を受け取ります。core の `div`/
   `el_owned` と同じ設計で、`&[Node]` のような借用渡しにはしていません。
-- **gap は Size 5 段を明示**: `Size` のスコープ付きカスタムプロパティ
-  （`--fw-wire-font-size`/`--fw-wire-control-size`）には gap 用の値がない
-  ため、`.fw-wire-stack.fw-wire-size-<段階>` の 5 セレクタへ `gap` を
-  直接明示しています（`0.25rem`〜`2rem`）。
-- **size class 継承の注記**: ルートへ `fw-wire-size-*` を付与すると
-  `--fw-wire-font-size` も配下へ継承されます。子要素が自身のルートで
-  size class を再宣言する部品（annotation 等）であれば実害はありません。
+- **gap は Size 5 段を明示・専用 class で表現**: `Size` のスコープ付き
+  カスタムプロパティ（`--fw-wire-font-size`/`--fw-wire-control-size`）
+  には gap 用の値がないため、`.fw-wire-stack.fw-wire-stack-gap-<段階>`
+  の 5 セレクタへ `gap` を直接明示しています（`0.25rem`〜`2rem`）。
+  gap は `crate::size::css` が生成する共有 `fw-wire-size-*` class では
+  なく、Stack 専用の `fw-wire-stack-gap-*` class で表現します（コード
+  レビュー指摘、イシュー #2610）。共有 `fw-wire-size-*` は
+  `--fw-wire-font-size`/`--fw-wire-control-size` を同時に定義するため
+  ルートへ付与すると子孫へ意図せず継承されてしまい、独自に size class
+  を再宣言しない任意の子部品の文字・コントロールサイズまで暗黙に変更
+  してしまいます。レイアウトコンテナの責務を gap に限定するため、
+  Stack は共有 class を使わず専用 class で子孫への副作用を遮断して
+  います。
 - **非インタラクティブ**: `role`/`aria-*`/`tabindex`/`style`/`data-*` は
   一切付与せず、対話要素も出力しません（設計文書 §5/§7）。

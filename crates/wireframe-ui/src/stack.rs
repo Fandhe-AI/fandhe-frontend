@@ -17,13 +17,17 @@
 //! （同型の rustdoc が stack を消費者として明記済み、
 //! `docs/design/wireframe-ui-architecture.md` §10.1 が
 //! `fw-wire-horizontal`/`fw-wire-vertical` を割り当て済み）。間隔は
-//! [`Size`] 5 段を再利用するが、[`crate::size::css`] のスコープ付き変数
-//! （`--fw-wire-font-size`/`--fw-wire-control-size`）には gap 用の値が
-//! 無いため、[`STACK_CSS`] 内に `gap` を 5 段明示する（イシュー #2610
-//! 実装計画 §2「gap の表現」）。副作用として、ルートへ `fw-wire-size-*`
-//! を付けると `--fw-wire-font-size` も配下へ継承されるが、既存部品
-//! （annotation・icon glyph）はいずれも自身のルートで size class を
-//! 再宣言するため実害はない。
+//! [`Size`] 5 段の名称を再利用するが、値は [`crate::size::css`] の
+//! スコープ付き変数（`--fw-wire-font-size`/`--fw-wire-control-size`）を
+//! 経由しない。`fw-wire-size-*`（`crate::size::css` が生成する共有
+//! class）をルートへ付けると、この 2 変数が意図せず子孫へ継承され、
+//! 独自に size class を再宣言しない任意の子部品（呼び出し側が
+//! `Vec<Node>` に何を渡すかは Stack の関知しない契約）の文字・
+//! コントロールサイズまで暗黙に変更してしまう（コードレビュー指摘、
+//! イシュー #2610）。レイアウトコンテナの責務を gap に限定するため、
+//! Stack は共有 `fw-wire-size-*` を使わず、専用の
+//! `fw-wire-stack-gap-<段階>` class（[`gap_class`]）を [`STACK_CSS`] 内に
+//! 5 段明示する（イシュー #2610 実装計画 §2「gap の表現」の改訂）。
 
 use fandhe_frontend_core::{el_owned, Node};
 
@@ -49,22 +53,44 @@ pub const STACK_CSS: &str = "\
   flex-direction: column;
   align-items: stretch;
 }
-.fw-wire-stack.fw-wire-size-xs {
+.fw-wire-stack.fw-wire-stack-gap-xs {
   gap: 0.25rem;
 }
-.fw-wire-stack.fw-wire-size-sm {
+.fw-wire-stack.fw-wire-stack-gap-sm {
   gap: 0.5rem;
 }
-.fw-wire-stack.fw-wire-size-md {
+.fw-wire-stack.fw-wire-stack-gap-md {
   gap: 1rem;
 }
-.fw-wire-stack.fw-wire-size-lg {
+.fw-wire-stack.fw-wire-stack-gap-lg {
   gap: 1.5rem;
 }
-.fw-wire-stack.fw-wire-size-xl {
+.fw-wire-stack.fw-wire-stack-gap-xl {
   gap: 2rem;
 }
 ";
+
+/// `gap`（[`Size`]）を Stack 専用の gap class 名（`fw-wire-stack-gap-<段階>`）
+/// へ変換する。
+///
+/// [`crate::size::css`] が生成する共有 `fw-wire-size-*` class は
+/// `--fw-wire-font-size`/`--fw-wire-control-size` を同時に定義するため
+/// 使わない（モジュール doc「API 設計の由来」参照）。Stack はレイアウト
+/// （gap）にのみ責務を持つため、独自 class で子孫への副作用を遮断する。
+///
+/// [`crate::class::class_list`] の modifiers は `&'static str` に限定
+/// （利用者入力が class へ流れ込む経路を型で塞ぐ、イシュー #2605 実装
+/// 計画 §3.3）されているため、`Size::class` と同じくリテラルを返す
+/// `match` で実装する（`format!` の動的 `String` は使わない）。
+const fn gap_class(gap: Size) -> &'static str {
+    match gap {
+        Size::Xs => "fw-wire-stack-gap-xs",
+        Size::Sm => "fw-wire-stack-gap-sm",
+        Size::Md => "fw-wire-stack-gap-md",
+        Size::Lg => "fw-wire-stack-gap-lg",
+        Size::Xl => "fw-wire-stack-gap-xl",
+    }
+}
 
 /// スタックを組み立てる。
 ///
@@ -73,7 +99,7 @@ pub const STACK_CSS: &str = "\
 /// - `orientation`: [`Orientation`]。`Horizontal`（既定）は行方向、
 ///   `Vertical` は列方向に並べる。
 /// - `gap`: [`Size`] 5 段。子要素間の間隔を [`STACK_CSS`] の対応セレクタ
-///   （`.fw-wire-stack.fw-wire-size-<段階>`）で決める。
+///   （`.fw-wire-stack.fw-wire-stack-gap-<段階>`）で決める。
 ///
 /// ルートは `div.fw-wire-stack` のみで、子要素はラップせずそのまま
 /// flex アイテムとして描画する。`role`/`aria-*`/`tabindex`/`style`/`data-*`
@@ -87,13 +113,13 @@ pub const STACK_CSS: &str = "\
 ///
 /// let node = stack(vec![text("A"), text("B")], Orientation::Horizontal, Size::Md);
 /// let html = render(&node);
-/// assert!(html.contains(r#"class="fw-wire-stack fw-wire-horizontal fw-wire-size-md""#));
+/// assert!(html.contains(r#"class="fw-wire-stack fw-wire-horizontal fw-wire-stack-gap-md""#));
 /// assert!(html.starts_with("<div"));
 /// assert!(html.trim_end().ends_with("</div>"));
 ///
 /// // Vertical 方向。
 /// let vertical = stack(vec![text("A")], Orientation::Vertical, Size::Sm);
-/// assert!(render(&vertical).contains(r#"class="fw-wire-stack fw-wire-vertical fw-wire-size-sm""#));
+/// assert!(render(&vertical).contains(r#"class="fw-wire-stack fw-wire-vertical fw-wire-stack-gap-sm""#));
 ///
 /// // 空の children でもルート div は出力される。
 /// let empty = stack(vec![], Orientation::Horizontal, Size::Md);
@@ -113,7 +139,7 @@ pub const STACK_CSS: &str = "\
 pub fn stack(children: Vec<Node>, orientation: Orientation, gap: Size) -> Node {
     let class = class_list(
         "fw-wire-stack",
-        &[Some(orientation.class()), Some(gap.class())],
+        &[Some(orientation.class()), Some(gap_class(gap))],
     );
 
     el_owned("div", vec![("class".to_string(), class)], children)
