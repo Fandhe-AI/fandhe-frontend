@@ -59,9 +59,12 @@
 //! `props::Disabled` の `.attr()` を Select・Switch・Checkbox・Radio・
 //! Textarea・Slider に続いて併用する 7 例目の実消費者）・Phase 4「Forms B」の
 //! [`question`]（イシュー #2630、ラベル + 補足説明 + `Node` スロットの
-//! コントロール + ヒント。表示状態軸を持たずスロット側へ委ねる）が続いた。
+//! コントロール + ヒント。表示状態軸を持たずスロット側へ委ねる）・
+//! [`file_drop`]（イシュー #2633、blocks.pm に対応部品がない独自追加
+//! 部品。アイコンは `link` と同じ `Option<Node>` スロット、表示状態軸を
+//! 持たない）が続いた。
 //! 残りは Phase 2 の他部品（text 等）・Phase 3 の他部品（#2608〜）および
-//! Phase 4 の他部品（ratings/calendar/file-drop/stepper）で順次追加する。
+//! Phase 4 の他部品（ratings/calendar/stepper）で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -81,6 +84,7 @@ pub mod checkbox;
 pub mod class;
 pub mod css;
 pub mod divider;
+pub mod file_drop;
 pub mod frame;
 pub mod grid;
 pub mod icon;
@@ -106,6 +110,7 @@ pub use checkbox::checkbox;
 pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
 pub use divider::divider;
+pub use file_drop::file_drop;
 pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
 pub use input::input;
