@@ -226,7 +226,9 @@
   `wireframes/rich-text/index.html`（イシュー #2616、Phase 2「テキスト・
   注釈」の Rich text 部品ページ）/
   `wireframes/button/index.html`（イシュー #2621、Phase 3「Forms A」の
-  `button` 部品〔`props::Disabled` の最初の実消費者〕）
+  `button` 部品〔`props::Disabled` の最初の実消費者〕）/
+  `wireframes/select/index.html`（イシュー #2624、Phase 3「Forms A」の
+  `select` 部品）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
