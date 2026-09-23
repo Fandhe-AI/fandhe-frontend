@@ -91,8 +91,7 @@ const ALL_PARTS: [(&str, u32); 49] = [
 /// - list（#2657）
 /// - media（#2661）
 /// - table（#2662）
-/// - map（#2664）
-const PENDING: &[&str] = &["icon", "brand", "list", "media", "table", "map"];
+const PENDING: &[&str] = &["icon", "brand", "list", "media", "table"];
 
 /// `src/css.rs` の `PARTS` 配列本体から `crate::<mod>::<CONST>` を機械
 /// 抽出する。パース漏れによる fail-open を防ぐため、抽出件数が

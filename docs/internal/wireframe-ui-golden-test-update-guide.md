@@ -60,9 +60,9 @@ golden であり、golden と実装の実質的な内容は同じである。gol
 
 ## 3. 部品 → テストファイル対応表
 
-イシュー #2666 実装時点（2026-09-24、origin/main 先頭 `5cff2f9c`）の実測
+イシュー #2666 実装時点（2026-09-24、origin/main 先頭 `8844d360`）の実測
 です。`docs/design/wireframe-ui-architecture.md` §8 が定める 49 部品の
-うち、43 部品が golden でカバーされ、6 部品が未マージ（`PENDING`）です。
+うち、44 部品が golden でカバーされ、5 部品が未マージ（`PENDING`）です。
 後続部品 PR がマージされたら本表・`tests/golden_coverage.rs` の
 `PENDING` 定数の両方を更新してください（更新しないと
 `golden_coverage.rs` が fail-closed に検知します。§7 参照）。
@@ -76,7 +76,7 @@ golden であり、golden と実装の実質的な内容は同じである。gol
 | `frame::frame_padding_css()` | `crates/wireframe-ui/src/frame.rs` |
 | `icon::ICON_GLYPH_CSS` | `crates/wireframe-ui/src/icon.rs`（#2606 の SVG アイコン基盤） |
 
-### 3.2 カバー済み部品（43 件）
+### 3.2 カバー済み部品（44 件）
 
 | Phase | kebab | イシュー | テストファイル |
 |---|---|---|---|
@@ -123,8 +123,9 @@ golden であり、golden と実装の実質的な内容は同じである。gol
 | 7 | card-basic | #2658 | `tests/card_basic_css.rs` |
 | 8 | image | #2660 | `tests/image_css.rs` |
 | 8 | chart | #2663 | `tests/chart_css.rs` |
+| 8 | map | #2664 | `tests/map_css.rs` |
 
-### 3.3 保留部品（6 件、golden 未整備）
+### 3.3 保留部品（5 件、golden 未整備）
 
 `crates/wireframe-ui/tests/golden_coverage.rs` の `PENDING` 定数と同期
 させること。
@@ -136,9 +137,8 @@ golden であり、golden と実装の実質的な内容は同じである。gol
 | 7 | list | #2657 | PR #2717 open |
 | 8 | media | #2661 | PR #2718 open |
 | 8 | table | #2662 | PR #2721 open |
-| 8 | map | #2664 | PR #2722 open |
 
-合計: 43（カバー済み）+ 6（保留）= **49**（`docs/design/wireframe-ui-architecture.md`
+合計: 44（カバー済み）+ 5（保留）= **49**（`docs/design/wireframe-ui-architecture.md`
 §8 の全部品数と一致）。
 
 ## 4. 解決コマンド
