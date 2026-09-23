@@ -312,6 +312,9 @@ jobs:
           # イシュー #2641: Phase 5「Navigation」の 3 番目の部品、Accordion 部品
           # ページ（blocks.pm に対応部品がない独自追加部品）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/accordion/index.html"
+          # イシュー #2644: Phase 6「Overlay・Feedback」の最初の部品、Tooltip
+          # 部品ページ。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/tooltip/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact

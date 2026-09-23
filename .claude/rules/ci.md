@@ -282,7 +282,10 @@
   `wireframes/accordion/index.html`（イシュー #2641、Phase 5「Navigation」の
   3 番目の部品。blocks.pm に対応部品がない独自追加部品。展開状態は
   `props::Active` を項目単位で再利用し、折りたたみ項目の本文スロットは
-  出力しない）
+  出力しない）/
+  `wireframes/tooltip/index.html`（イシュー #2644、Phase 6「Overlay・
+  Feedback」の最初の部品。方向は部品ローカルの `TooltipSide` による
+  修飾 class で表す）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

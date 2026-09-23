@@ -80,9 +80,12 @@
 //! `Active` はアクティブ状態のグレースケール反転配色として消費する）・
 //! [`accordion`]（イシュー #2641、blocks.pm に対応部品がない独自追加部品。
 //! 展開状態は新型を新設せず `props::Active` を項目単位で再利用し、
-//! 折りたたみ項目の本文スロットは出力しない）も続いた。
-//! 残りは Phase 3 の他部品（#2608〜）および Phase 5 の他部品（menu 等）で
-//! 順次追加する。
+//! 折りたたみ項目の本文スロットは出力しない）も続いた。Phase 6
+//! 「Overlay・Feedback」の最初の部品 [`tooltip`]（イシュー #2644、方向は
+//! 部品ローカルの [`tooltip::TooltipSide`] による修飾 class で表す）が
+//! 続いた。
+//! 残りは Phase 3 の他部品（#2608〜）・Phase 5 の他部品（menu 等）・
+//! Phase 6 の他部品で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -128,6 +131,7 @@ pub mod tag;
 pub mod text;
 pub mod textarea;
 pub mod tokens;
+pub mod tooltip;
 
 pub use accordion::accordion;
 pub use annotation::annotation;
@@ -159,3 +163,4 @@ pub use tabs::tabs;
 pub use tag::tag;
 pub use text::text;
 pub use textarea::{textarea, MAX_ROWS};
+pub use tooltip::{tooltip, TooltipSide};

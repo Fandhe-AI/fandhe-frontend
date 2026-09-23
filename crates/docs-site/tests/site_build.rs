@@ -288,10 +288,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // 276 → 277 になった。イシュー #2636 で Wireframes セクションへ
     // Nav item 部品ページが加わり、277 → 278 になった。イシュー #2641 で
     // Wireframes セクションへ Accordion 部品ページが加わり、278 → 279 に
-    // なった。
+    // なった。イシュー #2644 で Wireframes セクションへ Tooltip 部品
+    // ページ（Phase 6「Overlay・Feedback」の最初の部品）が加わり、
+    // 279 → 280 になった。
     assert_eq!(
         report.written.len(),
-        279,
+        280,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
