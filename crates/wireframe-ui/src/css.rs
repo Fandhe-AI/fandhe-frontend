@@ -8,6 +8,20 @@
 /// CSS 定数をここへ 1 要素追記する以外の場所で CSS を出力してはならない
 /// （`docs/design/wireframe-ui-architecture.md` §10 の追記契約）。
 ///
+/// **例外（`size::SCALE` から動的に導出する生成 CSS）**: [`crate::size::css`]
+/// （既存、`Size` 5 段のスコープ付きカスタムプロパティ）と
+/// [`crate::frame::frame_padding_css`]（イシュー #2609/PR #2679、Frame の
+/// padding 5 段）は `pub const <PART>_CSS: &str` として `const` 化できない
+/// （値が `size::SCALE` という実行時に走査する配列から導出されるため）。
+/// この 2 つに限り [`wireframe_css`] が `PARTS` を経由せず個別に連結する
+/// 唯一の許容経路とする。新規の非 `const` CSS 生成関数を追加する場合は
+/// 「`size::SCALE` 等の共有値表から動的に導出する必要がある」ことを
+/// 追加条件とし、単に `const` 化が面倒という理由での逸脱は許容しない。
+/// **未反映の残課題**: `docs/design/wireframe-ui-architecture.md` §10.4
+/// の追記契約本文はこの例外を明文化していない（本 PR のスコープは
+/// `crates/wireframe-ui/` に限定されるため）。同文書側の追随は
+/// docs-writer への別途委譲が必要。
+///
 /// イシュー #2606 で最初の登録（[`crate::icon::ICON_GLYPH_CSS`]）が入った。
 /// イシュー #2617 で [`crate::annotation::ANNOTATION_CSS`] が続いた。
 /// イシュー #2611 で [`crate::grid::GRID_CSS`]・イシュー #2612 で
@@ -19,7 +33,13 @@
 /// [`crate::select::SELECT_CSS`]・イシュー #2626 で
 /// [`crate::radio::RADIO_CSS`]・イシュー #2627 で
 /// [`crate::switch::SWITCH_CSS`]・イシュー #2625 で
-/// [`crate::checkbox::CHECKBOX_CSS`]・イシュー #2630 で
+/// [`crate::checkbox::CHECKBOX_CSS`]・イシュー #2615 で
+/// [`crate::paragraph::PARAGRAPH_CSS`]・イシュー #2623 で
+/// [`crate::textarea::TEXTAREA_CSS`]・イシュー #2628 で
+/// [`crate::slider::SLIDER_CSS`]・イシュー #2609 で
+/// [`crate::frame::FRAME_CSS`]・イシュー #2619 で
+/// [`crate::tag::TAG_CSS`]・イシュー #2622 で
+/// [`crate::input::INPUT_CSS`]・イシュー #2630 で
 /// [`crate::question::QUESTION_CSS`] が続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
@@ -34,6 +54,12 @@ pub const PARTS: &[&str] = &[
     crate::radio::RADIO_CSS,
     crate::switch::SWITCH_CSS,
     crate::checkbox::CHECKBOX_CSS,
+    crate::paragraph::PARAGRAPH_CSS,
+    crate::textarea::TEXTAREA_CSS,
+    crate::slider::SLIDER_CSS,
+    crate::frame::FRAME_CSS,
+    crate::tag::TAG_CSS,
+    crate::input::INPUT_CSS,
     crate::question::QUESTION_CSS,
 ];
 
@@ -44,8 +70,15 @@ static CSS: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 ///
 /// 出力順は `:root` トークン（[`crate::tokens::css`]）→ `Size` 5 段の
 /// スコープ付きカスタムプロパティ（[`crate::size::css`]）→ [`PARTS`]
-/// 登録順、の順で連結する。内容は `OnceLock` により初回呼び出し時にのみ
-/// 構築され、以降は同一の `&'static str` 実体を返す。
+/// 登録順 → Frame の padding 5 段（[`crate::frame::frame_padding_css`]）、
+/// の順で連結する。内容は `OnceLock` により初回呼び出し時にのみ構築され、
+/// 以降は同一の `&'static str` 実体を返す。
+///
+/// Frame の padding は [`crate::size::css`] と同じく [`PARTS`] を経由
+/// しない（[`crate::frame::FRAME_CSS`] は `const` のため `size::SCALE`
+/// から動的に導出する padding 値を持てず、`crate::frame::frame_padding_css`
+/// が別途生成する。padding 値の複製を避けるための設計、コードレビュー
+/// 指摘、イシュー #2609/PR #2679）。
 pub fn wireframe_css() -> &'static str {
     CSS.get_or_init(|| {
         let mut out = String::new();
@@ -56,6 +89,8 @@ pub fn wireframe_css() -> &'static str {
             out.push('\n');
             out.push_str(part);
         }
+        out.push('\n');
+        out.push_str(&crate::frame::frame_padding_css());
         out
     })
 }

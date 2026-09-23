@@ -263,6 +263,8 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/link/index.html"
           # イシュー #2616: Phase 2「テキスト・注釈」の Rich text 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/rich-text/index.html"
+          # イシュー #2615: Phase 2「テキスト・注釈」の Paragraph 部品ページ。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/paragraph/index.html"
           # イシュー #2621: Phase 3「Forms A」の Button 部品ページ
           # （props::Disabled の最初の実消費者）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/button/index.html"
@@ -276,6 +278,17 @@ jobs:
           # イシュー #2625: Phase 3「Forms A」の Checkbox 部品ページ
           # （props::Active を「チェック済み」状態として消費）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/checkbox/index.html"
+          # イシュー #2623: 同 Phase の Textarea 部品ページ。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/textarea/index.html"
+          # イシュー #2628: 同 Phase の Slider 部品ページ（Progress を 5 刻み
+          # 固定 class へ量子化、Orientation 併用）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/slider/index.html"
+          # イシュー #2609: Phase 1「レイアウト骨格」の Frame 部品ページ。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/frame/index.html"
+          # イシュー #2619: Phase 2「テキスト・注釈」の Tag 部品ページ。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/tag/index.html"
+          # イシュー #2622: 同 Phase の Input 部品ページ（<input> 非出力）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/input/index.html"
           # イシュー #2630: Phase 4「Forms B」の最初の部品、Question 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/question/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"

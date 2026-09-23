@@ -57,14 +57,20 @@ mod annotation;
 mod button;
 mod checkbox;
 mod divider;
+mod frame;
 mod grid;
+mod input;
 mod link;
+mod paragraph;
 mod question;
 mod radio;
 mod rich_text;
 mod select;
+mod slider;
 mod stack;
 mod switch;
+mod tag;
+mod textarea;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
 use fandhe_frontend_pre_styled_ui::{StyleSheet, StylesheetError};
@@ -116,12 +122,17 @@ pub struct Wireframe {
 /// 「レイアウト骨格」の [`grid::WIREFRAME`]（イシュー #2611）・
 /// [`divider::WIREFRAME`]（イシュー #2612）・[`stack::WIREFRAME`]
 /// （イシュー #2610）、Phase 2 の [`link::WIREFRAME`]（イシュー #2618）・
-/// [`rich_text::WIREFRAME`]（イシュー #2616）・Phase 3「Forms A」の
-/// [`button::WIREFRAME`]（イシュー #2621）・[`select::WIREFRAME`]
-/// （イシュー #2624）・[`radio::WIREFRAME`]（イシュー #2626、選択状態は
-/// `props::Active` を再利用）・[`switch::WIREFRAME`]（イシュー #2627）・
-/// [`checkbox::WIREFRAME`]（イシュー #2625）・[`question::WIREFRAME`]
-/// （イシュー #2630、Phase 4「Forms B」の最初の部品）が続いた。
+/// [`rich_text::WIREFRAME`]（イシュー #2616）・[`paragraph::WIREFRAME`]
+/// （イシュー #2615）・Phase 3「Forms A」の [`button::WIREFRAME`]
+/// （イシュー #2621）・[`select::WIREFRAME`]（イシュー #2624）・
+/// [`radio::WIREFRAME`]（イシュー #2626、選択状態は `props::Active` を
+/// 再利用）・[`switch::WIREFRAME`]（イシュー #2627）・
+/// [`checkbox::WIREFRAME`]（イシュー #2625）・[`textarea::WIREFRAME`]
+/// （イシュー #2623）・[`slider::WIREFRAME`]（イシュー #2628）・Phase 1 の
+/// [`frame::WIREFRAME`]（イシュー #2609）・Phase 2 の [`tag::WIREFRAME`]
+/// （イシュー #2619）・[`input::WIREFRAME`]（イシュー #2622）・
+/// Phase 4「Forms B」の [`question::WIREFRAME`]（イシュー #2630、最初の
+/// 部品）が続いた。
 /// Phase 1・3・4 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -131,11 +142,17 @@ pub const WIREFRAMES: &[Wireframe] = &[
     stack::WIREFRAME,
     link::WIREFRAME,
     rich_text::WIREFRAME,
+    paragraph::WIREFRAME,
     button::WIREFRAME,
     select::WIREFRAME,
     radio::WIREFRAME,
     switch::WIREFRAME,
     checkbox::WIREFRAME,
+    textarea::WIREFRAME,
+    slider::WIREFRAME,
+    frame::WIREFRAME,
+    tag::WIREFRAME,
+    input::WIREFRAME,
     question::WIREFRAME,
 ];
 
@@ -283,10 +300,10 @@ mod tests {
 
     #[test]
     fn wireframe_for_path_finds_nothing_in_empty_registry() {
-        // `/wireframes/input/` は Phase 3「Forms A」の未実装部品（イシュー
-        // #2624 時点では button/select のみ登録済み）であり、恒久的に
-        // 未登録のパスとして使える。
-        assert!(wireframe_for_path("/wireframes/input/").is_none());
+        // `/wireframes/ratings/` は Phase 4「Forms B」の未実装部品であり、
+        // 恒久的に未登録のパスとして使える（`question` は本イシュー #2630 で
+        // 登録済みのため代替パスへ差し替え）。
+        assert!(wireframe_for_path("/wireframes/ratings/").is_none());
     }
 
     #[test]
