@@ -151,12 +151,17 @@ name = "fandhe-frontend-wireframe-ui"
 # Some(node) のときは子要素を差し替える §11.4 準拠のスロット規約。強調は
 # 部品ローカルの新型を新設せず共通型 props::Primary を再利用する）。main 側で
 # 0.44.0 を chart が先に確保したため衝突回避で +1。
-# 0.45.0 → 0.46.0: 公開 API 新設（map 部品、イシュー #2664、Phase 8
+# 0.45.0 → 0.46.0: 公開 API 新設（card_basic 部品、イシュー #2658、
+# Phase 7「Data display」の 5 番目の部品。先頭・末尾スロットは §11.4 の
+# Option<Node> 規約へ統一し avatar を内蔵しない独自設計。secondary は
+# nav_item の counter と同じ Option<&str>）。main 側で 0.45.0 を image が
+# 先に確保したため衝突回避で +1。
+# 0.46.0 → 0.47.0: 公開 API 新設（map 部品、イシュー #2664、Phase 8
 # 「Media・データ表示」の 3 番目の部品。地図タイルの配置イメージを
 # 部品ローカル列挙型 MapZoom 3 段・Option<Node> マーカースロットで構成
-# し、街路・区画・道路の位置は CSS の固定ルールで描く）。main 側で 0.45.0
-# を image が先に確保したため（同一版数は衝突扱い）衝突回避で +1。
-version = "0.46.0"
+# し、街路・区画・道路の位置は CSS の固定ルールで描く）。main 側で 0.46.0
+# を card_basic が先に確保したため（同一版数は衝突扱い）衝突回避で +1。
+version = "0.47.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
 license = "MIT OR Apache-2.0"

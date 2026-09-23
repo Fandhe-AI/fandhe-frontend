@@ -60,6 +60,7 @@ mod avatar;
 mod breadcrumbs;
 mod button;
 mod calendar;
+mod card_basic;
 mod chart;
 mod checkbox;
 mod counter;
@@ -198,7 +199,11 @@ pub struct Wireframe {
 /// `Option<Node>` アイコンスロットではなく `glyph: &str` の 1 引数へ
 /// 畳み込む §11.4 からの意図的な逸脱）・[`stat::WIREFRAME`]（イシュー
 /// #2656、4 番目の部品。増減インジケータは `Option<&str>` ではなく
-/// `StatDelta`（`menu::MenuItem` と同型の公開構造体）で表す）が続いた。
+/// `StatDelta`（`menu::MenuItem` と同型の公開構造体）で表す）・
+/// [`card_basic::WIREFRAME`]（イシュー #2658、5 番目の部品。先頭・末尾
+/// スロットは §11.4 の `Option<Node>` 規約へ統一し `avatar` を内蔵しない
+/// 独自設計。`secondary` は `nav_item` の `counter` と同じ
+/// `Option<&str>`）が続いた。
 /// Phase 8「Media・データ表示」の最初の部品 [`image::WIREFRAME`]（イシュー
 /// #2660、対角のバツ印が入った正方形/円形の枠。`content: Option<Node>`
 /// が `None` のときバツ印プレースホルダーを描き `Some(node)` のときは
@@ -251,6 +256,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     counter::WIREFRAME,
     emoji::WIREFRAME,
     stat::WIREFRAME,
+    card_basic::WIREFRAME,
     image::WIREFRAME,
     chart::WIREFRAME,
     map::WIREFRAME,
