@@ -64,8 +64,9 @@
 /// （2 番目の部品）・イシュー #2654 で [`crate::emoji::EMOJI_CSS`]
 /// （同 Phase の 3 番目の部品）・イシュー #2656 で
 /// [`crate::stat::STAT_CSS`]（4 番目の部品）・イシュー #2658 で
-/// [`crate::card_basic::CARD_BASIC_CSS`]（5 番目の部品）が
-/// 続いた。
+/// [`crate::card_basic::CARD_BASIC_CSS`]（Phase 7「Data display」の
+/// 5 番目の部品）が続き、イシュー #2663 で [`crate::chart::CHART_CSS`]
+/// （Phase 8「Media・データ表示」の最初の部品）が続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
     crate::annotation::ANNOTATION_CSS,
@@ -109,6 +110,7 @@ pub const PARTS: &[&str] = &[
     crate::emoji::EMOJI_CSS,
     crate::stat::STAT_CSS,
     crate::card_basic::CARD_BASIC_CSS,
+    crate::chart::CHART_CSS,
 ];
 
 static CSS: std::sync::OnceLock<String> = std::sync::OnceLock::new();

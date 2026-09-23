@@ -136,7 +136,14 @@
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
 //! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
 //! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
-//! 全部品が出揃った。残りは Phase 7 の他部品・Phase 8 で順次追加する。
+//! 全部品が出揃った。Phase 8「Media・データ表示」の最初の部品として
+//! [`chart`]（イシュー #2663、棒グラフの配置イメージ。値は `u8` 列
+//! `values: &[u8]` として受け取り、[`progress`] と同型の 5 刻み量子化・
+//! [`props::Orientation`] の再利用（4 例目の消費者）・
+//! [`grid::MAX_COLUMNS`] と同じ資源有界化（[`chart::MAX_BARS`]）で
+//! 組み立てる。折れ線・面・円・散布・凡例・軸ラベル・複数系列はスコープ
+//! 外とする）が続いた。残りは Phase 7 の他部品・Phase 8 の他部品で
+//! 順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -158,6 +165,7 @@ pub mod breadcrumbs;
 pub mod button;
 pub mod calendar;
 pub mod card_basic;
+pub mod chart;
 pub mod checkbox;
 pub mod class;
 pub mod counter;
@@ -206,6 +214,7 @@ pub use breadcrumbs::breadcrumbs;
 pub use button::button;
 pub use calendar::{calendar, MAX_WEEKS};
 pub use card_basic::card_basic;
+pub use chart::{chart, MAX_BARS};
 pub use checkbox::checkbox;
 pub use class::{class_list, CLASS_PREFIX};
 pub use counter::counter;

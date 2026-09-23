@@ -61,6 +61,7 @@ mod breadcrumbs;
 mod button;
 mod calendar;
 mod card_basic;
+mod chart;
 mod checkbox;
 mod counter;
 mod cursor;
@@ -200,8 +201,10 @@ pub struct Wireframe {
 /// [`card_basic::WIREFRAME`]（イシュー #2658、5 番目の部品。先頭・末尾
 /// スロットは §11.4 の `Option<Node>` 規約へ統一し `avatar` を内蔵しない
 /// 独自設計。`secondary` は `nav_item` の `counter` と同じ
-/// `Option<&str>`）が続いた。
-/// Phase 1・3・4・5・6・7 以降（#2608〜#2665）の残りの各部品イシューが
+/// `Option<&str>`）・Phase 8「Media・データ表示」の [`chart::WIREFRAME`]
+/// （イシュー #2663、最初の部品。値は `&[u8]` で受け取り
+/// `props::Orientation` を再利用する）が続いた。
+/// Phase 1・3・4・5・6・7・8 以降（#2608〜#2665）の残りの各部品イシューが
 /// 自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
@@ -245,6 +248,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     emoji::WIREFRAME,
     stat::WIREFRAME,
     card_basic::WIREFRAME,
+    chart::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

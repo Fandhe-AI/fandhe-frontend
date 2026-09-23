@@ -331,6 +331,9 @@
   4 番目の部品。増減インジケータは `Option<&str>` ではなく `StatDelta`
   〔`menu::MenuItem` と同型の公開構造体〕で表し、向きのある `Up`/`Down` は
   `icon::caret_up`/`icon::caret_down` を再利用する）/
+  `wireframes/chart/index.html`（イシュー #2663、Phase 8「Media・データ
+  表示」の最初の部品。棒グラフの配置イメージを `values: &[u8]` から
+  組み立て、`props::Orientation` を再利用する）/
   `wireframes/card-basic/index.html`（イシュー #2658、Phase 7「Data
   display」の 5 番目の部品。先頭・末尾スロットは §11.4 の `Option<Node>`
   規約へ統一し `avatar` を内蔵しない独自設計。`secondary` は `nav_item` の
