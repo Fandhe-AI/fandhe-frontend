@@ -254,6 +254,8 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/annotation/index.html"
           # イシュー #2611: Phase 1「レイアウト骨格」の Grid 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/grid/index.html"
+          # イシュー #2612: Divider 部品ページ（props::Orientation の最初の消費者）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/divider/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact
