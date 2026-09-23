@@ -255,6 +255,13 @@ Phase 1 以降の部品イシューは、自分のモジュールに `pub const 
 `size::SCALE` 等の単一の正（別モジュールが既に持つ値表）から導出される場合に限る。単に `const` 化が面倒と
 いう理由での逸脱は許容しない。
 
+**golden テストの追記契約（イシュー #2666）**: `css::PARTS` へ `<PART>_CSS` を追記する部品 PR は、対応する
+`crates/wireframe-ui/tests/<snake>_css.rs`（バイト一致 golden）を同じ PR に同梱し、その部品が
+`crates/wireframe-ui/tests/golden_coverage.rs` の `PENDING` 定数に載っている場合はそこから削除すること。
+golden の機械生成手順・部品対応表は `docs/internal/wireframe-ui-golden-test-update-guide.md` を正とする。
+`golden_coverage.rs` は `PARTS` 定数と golden ファイルの対応、および `PENDING` に残る部品が実際にはまだ
+CSS を出力していないことを fail-closed に検証するため、この手順を怠るとテストが FAIL する。
+
 ### 10.5 `Size` と pre-styled-ui の段階名パリティ
 
 wireframe-ui `size::Size` は pre-styled-ui `recipe::Size`（`crates/pre-styled-ui/src/recipe.rs`）と段階名
