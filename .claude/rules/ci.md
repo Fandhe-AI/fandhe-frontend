@@ -296,11 +296,15 @@
   `wireframes/toast/index.html`（イシュー #2647、Phase 6「Overlay・
   Feedback」の 2 番目の部品。閉じるグリフは `icon::x` 固定で instance
   swap にせず `dismissible: bool` の 1 引数だけで有無を切り替える）/
+  `wireframes/alert/index.html`（イシュー #2646、Phase 6「Overlay・
+  Feedback」の 3 番目の部品。重要度は部品ローカルの `Severity` による
+  修飾 class で表し、アイコンは `link`/`file_drop` と同じ `Option<Node>`
+  スロット）/
   `wireframes/progress/index.html`（イシュー #2648、Phase 6「Overlay・
-  Feedback」の 3 番目の部品。形状は部品ローカルの `ProgressShape` による
+  Feedback」の 4 番目の部品。形状は部品ローカルの `ProgressShape` による
   修飾 class〔Bar/Circle〕で表す）/
   `wireframes/spinner/index.html`（イシュー #2649、Phase 6「Overlay・
-  Feedback」の 4 番目の部品。静的な円弧のみ・引数は Size のみ）/
+  Feedback」の 5 番目の部品。静的な円弧のみ・引数は Size のみ）/
   `wireframes/avatar/index.html`（イシュー #2651、Phase 7「Data display」の
   最初の部品。`content: Option<Node>` が `None` のとき `icon::user` へ
   フォールバックする §11.4 からの意図的な逸脱）

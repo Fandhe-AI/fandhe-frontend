@@ -54,6 +54,7 @@
 //! 引数表へ流れ込む経路を型で塞ぐ。
 
 mod accordion;
+mod alert;
 mod annotation;
 mod avatar;
 mod button;
@@ -167,10 +168,12 @@ pub struct Wireframe {
 /// （イシュー #2644、最初の部品）・[`toast::WIREFRAME`]（イシュー #2647、
 /// Phase 6 の 2 番目の部品。閉じるグリフは `icon::x` 固定で
 /// `dismissible: bool` の 1 引数だけで有無を切り替える）・
-/// [`progress::WIREFRAME`]（イシュー #2648、同 Phase の 3 番目の部品。
+/// [`alert::WIREFRAME`]（イシュー #2646、Phase 6 の 3 番目の部品。
+/// 重要度は部品ローカルの `Severity` による修飾 class で表す）・
+/// [`progress::WIREFRAME`]（イシュー #2648、Phase 6 の 4 番目の部品。
 /// 形状は部品ローカルの `fandhe_frontend_wireframe_ui::ProgressShape` による
 /// 修飾 class（Bar/Circle）で表す）・[`spinner::WIREFRAME`]（イシュー
-/// #2649、Phase 6 の 4 番目の部品）・Phase 7「Data display」の
+/// #2649、Phase 6 の 5 番目の部品）・Phase 7「Data display」の
 /// [`avatar::WIREFRAME`]（イシュー #2651、最初の部品。
 /// `content: Option<Node>` が `None` のとき `icon::user` へフォールバック
 /// する §11.4 からの意図的な逸脱）が続いた。
@@ -207,6 +210,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     cursor::WIREFRAME,
     tooltip::WIREFRAME,
     toast::WIREFRAME,
+    alert::WIREFRAME,
     progress::WIREFRAME,
     spinner::WIREFRAME,
     avatar::WIREFRAME,
