@@ -47,11 +47,13 @@
 //! 最初の実消費者）・[`select`]（イシュー #2624、`props::Active` と
 //! `props::Disabled` を併用する初の部品）・[`switch`]（イシュー #2627、
 //! `Active` を ON 状態の意味で使い `Disabled` を併用する部品）・
-//! Phase 4「Forms B」の [`question`]（イシュー #2630、ラベル + 補足説明 +
-//! `Node` スロットのコントロール + ヒント。表示状態軸を持たずスロット側へ
-//! 委ねる）が続いた。残りは Phase 1 の他部品（frame）・Phase 2 の他部品
-//! （text/paragraph/tag 等）・Phase 3 の他部品（#2608〜）および Phase 4 の
-//! 他部品（ratings/calendar/file-drop/stepper）で順次追加する。
+//! [`checkbox`]（イシュー #2625、`props::Active` を「チェック済み」状態
+//! として消費）・Phase 4「Forms B」の [`question`]（イシュー #2630、
+//! ラベル + 補足説明 + `Node` スロットのコントロール + ヒント。表示状態軸を
+//! 持たずスロット側へ委ねる）が続いた。残りは Phase 1 の他部品（frame）・
+//! Phase 2 の他部品（text/paragraph/tag 等）・Phase 3 の他部品（#2608〜）
+//! および Phase 4 の他部品（ratings/calendar/file-drop/stepper）で順次
+//! 追加する。
 //!
 //! # class 命名規約
 //!
@@ -67,6 +69,7 @@
 
 pub mod annotation;
 pub mod button;
+pub mod checkbox;
 pub mod class;
 pub mod css;
 pub mod divider;
@@ -84,6 +87,7 @@ pub mod tokens;
 
 pub use annotation::annotation;
 pub use button::button;
+pub use checkbox::checkbox;
 pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
 pub use divider::divider;

@@ -1361,6 +1361,11 @@ source = "site/wireframes/switch.md"
 path = "/wireframes/switch/"
 
 [[section.page]]
+title = "Checkbox"
+source = "site/wireframes/checkbox.md"
+path = "/wireframes/checkbox/"
+
+[[section.page]]
 title = "Question"
 source = "site/wireframes/question.md"
 path = "/wireframes/question/"
