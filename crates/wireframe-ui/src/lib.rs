@@ -85,12 +85,14 @@
 //! `&[Option<&str>]`（`None` がギャップ）で表し、選択状態は
 //! `tabs`/`radio` と同じく既存の `props::Active` を再利用する。先頭/前/次/
 //! 末尾コントロールは `prev_next`/`first_last` の 2 bool へ畳む）も続いた。
-//! Phase 6「Overlay・Feedback」の [`modal`]（イシュー #2645、blocks.pm に
-//! 対応部品がない独自追加部品。中央配置は `position: fixed` ではなく
-//! in-flow の背景領域 + `place-items: center` で表現し、パネル最大幅は
-//! `Size` 5 段の静的ルールとして [`crate::css::PARTS`] へ直書きする）が
-//! Phase 6 の最初の部品として続いた。残りは Phase 3 の他部品（#2608〜）
-//! および Phase 5・6 の他部品で順次追加する。
+//! Phase 6「Overlay・Feedback」の最初の部品 [`tooltip`]（イシュー #2644、
+//! 方向は部品ローカルの [`tooltip::TooltipSide`] による修飾 class で表す）・
+//! Phase 6 の 2 番目の部品 [`modal`]（イシュー #2645、blocks.pm に対応部品
+//! がない独自追加部品。中央配置は `position: fixed` ではなく in-flow の
+//! 背景領域 + `place-items: center` で表現し、パネル最大幅は `Size` 5 段の
+//! 静的ルールとして [`crate::css::PARTS`] へ直書きする）が続いた。
+//! 残りは Phase 3 の他部品（#2608〜）・Phase 5 の他部品（menu 等）・
+//! Phase 6 の他部品で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -138,6 +140,7 @@ pub mod tag;
 pub mod text;
 pub mod textarea;
 pub mod tokens;
+pub mod tooltip;
 
 pub use accordion::accordion;
 pub use annotation::annotation;
@@ -171,3 +174,4 @@ pub use tabs::tabs;
 pub use tag::tag;
 pub use text::text;
 pub use textarea::{textarea, MAX_ROWS};
+pub use tooltip::{tooltip, TooltipSide};
