@@ -21,13 +21,13 @@
 - **`div` ルート・非対話制約**: `docs/design/wireframe-ui-architecture.md`
   §7 に従い、ルートは `div` とし `role`/`aria-*`/`tabindex`/`on*` は一切
   出力しません。
-- **Label(bool) + Text は `Option<&str>` へ畳み込む**: `docs/design/
+- **ラベル有無は `Option<&str>` へ畳み込む**: `docs/design/
   wireframe-ui-architecture.md` §2 の保留（イシュー #2602）に従い、
-  blocks.pm の Figma プロパティ構成（`Size`/`Active`/`Label(bool)`/`Text`）を
-  参照・書き写さず、§6 の汎用変換規約と Forms A 既存部品（`button`/
-  `select`）の先例から独立に設計しました。「ラベルあり」「ラベルなし」の
-  区別に専用の bool 引数は導入せず、`label: Option<&str>` の `Some`/`None`
-  へ畳み込みます（`None` のときラベルパート要素自体を出力しません）。
+  blocks.pm を参照・書き写さず、§6 の汎用変換規約と Forms A 既存部品
+  （`button`/`select`）の先例から独立に設計しました。「ラベルあり」
+  「ラベルなし」の区別に専用の bool 引数は導入せず、`label: Option<&str>`
+  の `Some`/`None` へ畳み込みます（`None` のときラベルパート要素自体を
+  出力しません）。
 - **選択状態は既存の共通型 `Active` を再利用する**: 専用の `Selected`/
   `Checked` 型は新設していません。`props.rs` は checkbox（イシュー #2625）・
   switch（イシュー #2627）も同じ共有ファイルとして触るため、選択状態を表す
