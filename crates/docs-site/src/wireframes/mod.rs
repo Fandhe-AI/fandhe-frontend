@@ -67,6 +67,7 @@ mod select;
 mod slider;
 mod stack;
 mod switch;
+mod tag;
 mod textarea;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
@@ -126,7 +127,8 @@ pub struct Wireframe {
 /// 再利用）・[`switch::WIREFRAME`]（イシュー #2627）・
 /// [`checkbox::WIREFRAME`]（イシュー #2625）・[`textarea::WIREFRAME`]
 /// （イシュー #2623）・[`slider::WIREFRAME`]（イシュー #2628）・Phase 1 の
-/// [`frame::WIREFRAME`]（イシュー #2609）が続いた。
+/// [`frame::WIREFRAME`]（イシュー #2609）・Phase 2 の [`tag::WIREFRAME`]
+/// （イシュー #2619）が続いた。
 /// Phase 1・3 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -145,6 +147,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     textarea::WIREFRAME,
     slider::WIREFRAME,
     frame::WIREFRAME,
+    tag::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

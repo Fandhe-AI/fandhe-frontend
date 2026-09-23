@@ -272,10 +272,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // Textarea 部品ページが加わり、265 → 266 になった。イシュー #2628 で
     // Wireframes セクションへ Slider 部品ページが加わり、266 → 267 になった。
     // イシュー #2609 で Wireframes セクションへ Frame 部品ページが加わり、
-    // 267 → 268 になった。
+    // 267 → 268 になった。イシュー #2619 で Wireframes セクションへ Tag
+    // 部品ページが加わり、268 → 269 になった。
     assert_eq!(
         report.written.len(),
-        268,
+        269,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -495,6 +496,9 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
         // イシュー #2609: Frame が Phase 1 の部品ページとして登録された
         // （同じく pre-styled-ui.css は配線しない）。
         ("wireframes/frame/index.html", false),
+        // イシュー #2619: Tag が Phase 2「テキスト・注釈」の 2 番目の
+        // 部品ページとして登録された。
+        ("wireframes/tag/index.html", false),
         ("api/component-api/index.html", false),
     ];
 

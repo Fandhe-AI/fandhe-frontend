@@ -54,9 +54,9 @@
 //! 表現とし `style`・ネイティブ `<textarea>` を使わない設計）・
 //! [`slider`]（イシュー #2628、`props::Orientation` と `Active`/
 //! `Disabled` を併用する部品。進捗値は 5 刻みの固定 class 集合へ量子化
-//! する）・Phase 1 の [`frame`]（イシュー #2609）が続いた。残りは
-//! Phase 2 の他部品（text/tag 等）および Phase 3 の他部品（#2608〜）で
-//! 順次追加する。
+//! する）・Phase 1 の [`frame`]（イシュー #2609）・Phase 2 の [`tag`]
+//! （イシュー #2619）が続いた。残りは Phase 2 の他部品（text 等）および
+//! Phase 3 の他部品（#2608〜）で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -89,6 +89,7 @@ pub mod size;
 pub mod slider;
 pub mod stack;
 pub mod switch;
+pub mod tag;
 pub mod textarea;
 pub mod tokens;
 
@@ -110,4 +111,5 @@ pub use size::Size;
 pub use slider::slider;
 pub use stack::stack;
 pub use switch::switch;
+pub use tag::tag;
 pub use textarea::{textarea, MAX_ROWS};
