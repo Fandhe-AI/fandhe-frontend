@@ -240,7 +240,9 @@
   Textarea 部品ページ。`rows` を行プレースホルダー要素の構造表現とし
   `style`・ネイティブ `<textarea>` を使わない設計）/
   `wireframes/slider/index.html`（イシュー #2628、Phase 3「Forms A」の
-  `slider` 部品〔Progress を 5 刻み固定 class へ量子化、`Orientation` 併用〕）
+  `slider` 部品〔Progress を 5 刻み固定 class へ量子化、`Orientation` 併用〕）/
+  `wireframes/frame/index.html`（イシュー #2609、Phase 1「レイアウト骨格」の
+  Frame 部品ページ）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

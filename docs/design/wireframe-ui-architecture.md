@@ -216,6 +216,9 @@ Rust 側の値表（`size::SCALE`〔非公開 const〕・`tokens::TOKENS` 等）
 - **基盤パート class（唯一の例外）**: `fw-wire-icon-glyph`（`icon` モジュール、§11）は部品ルートを持たずに
   単独使用する唯一の例外的パート class である。`data-icon` 属性はアイコン名の識別子であり、表示状態を
   表す `data-*`（前項）ではない
+- **部品固有の修飾 class**（`fw-wire-<kebab>-<modifier>`、例: `fw-wire-frame-bordered`、イシュー #2609）は
+  部品ルートと結合して使う横断修飾ではない、1 部品専用の修飾 class である。共通修飾（前項の 4 種）とは
+  別物であり、`props.rs` の共通型へ昇格させるかは部品横断で再利用が見えた時点で判断する
 
 `class::class_list(base, modifiers)` は `base` に `Some` の修飾子のみを半角スペース連結する。引数は
 `&'static str` に限定し、利用者入力が class へ流れ込む経路を型で塞ぐ（REQ-1・A03 対応）。
@@ -244,6 +247,13 @@ Rust 側の値表（`size::SCALE`〔非公開 const〕・`tokens::TOKENS` 等）
 Phase 1 以降の部品イシューは、自分のモジュールに `pub const <PART>_CSS: &str` を定義し `css::PARTS` へ
 1 要素追記する以外の場所で CSS を出力してはならない（意図的な摩擦点。`crates/wireframe-ui/tests/common_api.rs`
 がセレクタ行の `fw-wire-` プレフィックス一致・`PARTS` の重複禁止を機械固定する）。
+
+**例外（`size::SCALE` 等の単一の正から動的に導出する生成 CSS）**: `size::css()`（`Size` 5 段のスコープ付き
+カスタムプロパティ）と `frame::frame_padding_css()`（Frame の padding 5 段、イシュー #2609）は値が実行時に
+`size::SCALE` を走査して決まるため `pub const <PART>_CSS: &str` として `const` 化できない。この 2 つに限り
+`wireframe_css()` が `PARTS` を経由せず個別に連結する。新たな非 `PARTS` 経路を追加してよいのは、その CSS が
+`size::SCALE` 等の単一の正（別モジュールが既に持つ値表）から導出される場合に限る。単に `const` 化が面倒と
+いう理由での逸脱は許容しない。
 
 ### 10.5 `Size` と pre-styled-ui の段階名パリティ
 

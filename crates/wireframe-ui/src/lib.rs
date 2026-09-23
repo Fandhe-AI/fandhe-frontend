@@ -53,9 +53,9 @@
 //! ホルダー要素の構造表現とし `style`・ネイティブ `<textarea>` を使わない
 //! 設計）・[`slider`]（イシュー #2628、`props::Orientation` と
 //! `Active`/`Disabled` を併用する部品。進捗値は 5 刻みの固定 class 集合へ
-//! 量子化する）が続いた。残りは Phase 1 の他部品（frame）・Phase 2 の
-//! 他部品（text/paragraph/tag 等）および Phase 3 の他部品（#2608〜）で
-//! 順次追加する。
+//! 量子化する）・Phase 1 の [`frame`]（イシュー #2609）が続いた。
+//! 残りは Phase 2 の他部品（text/paragraph/tag 等）および Phase 3 の
+//! 他部品（#2608〜）で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -75,6 +75,7 @@ pub mod checkbox;
 pub mod class;
 pub mod css;
 pub mod divider;
+pub mod frame;
 pub mod grid;
 pub mod icon;
 pub mod link;
@@ -95,6 +96,7 @@ pub use checkbox::checkbox;
 pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
 pub use divider::divider;
+pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
 pub use link::link;
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
