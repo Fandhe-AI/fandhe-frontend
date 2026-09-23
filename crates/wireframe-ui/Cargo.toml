@@ -48,7 +48,11 @@ name = "fandhe-frontend-wireframe-ui"
 # が本 PR 用に一意採番した 0.21.0 を採用する（main 0.20.0 より大きい値）。
 # 0.21.0 → 0.22.0: 公開 API 新設（ratings 部品、イシュー #2631。
 # icon::star を再利用し塗り数を data-active で表現する）。
-version = "0.22.0"
+# 0.22.0 → 0.23.0: 公開 API 新設（file_drop 部品、イシュー #2633。
+# blocks.pm に対応部品がない独自追加部品、アイコンは link と同じ
+# Option<Node> スロット）。main 側で 0.22.0 を ratings が先に確保した
+# ため衝突回避で +1。
+version = "0.23.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
 license = "MIT OR Apache-2.0"

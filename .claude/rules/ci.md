@@ -257,7 +257,10 @@
   表示状態軸を持たずスロット側へ委ねる）/
   `wireframes/ratings/index.html`（イシュー #2631、同 Phase の 2 番目の
   部品。`icon::star` を再利用し、塗り数を `props::Active` の `data-active`
-  で先頭から表現する）
+  で先頭から表現する）/
+  `wireframes/file-drop/index.html`（イシュー #2633、同 Phase の 3 番目の
+  部品。アイコンは `Option<Node>` スロット、表示状態軸なし、
+  `<input type=file>` 非出力）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

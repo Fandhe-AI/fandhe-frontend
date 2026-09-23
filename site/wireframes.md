@@ -46,6 +46,7 @@
 - [Input](./wireframes/input.md)
 - [Question](./wireframes/question.md)
 - [Ratings](./wireframes/ratings.md)
+- [File drop](./wireframes/file-drop.md)
 
 ## 掲載予定
 
@@ -64,7 +65,6 @@
 ### Phase 4: Forms B
 
 - calendar
-- file-drop
 - stepper
 
 ### Phase 5: Navigation
