@@ -360,6 +360,10 @@ jobs:
           # 部品ページ（絵文字は Option<Node> アイコンスロットではなく
           # glyph: &str の 1 引数へ畳み込む §11.4 からの意図的な逸脱）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/emoji/index.html"
+          # イシュー #2656: Phase 7「Data display」の 4 番目の部品、Stat 部品
+          # ページ（増減インジケータは Option<&str> ではなく StatDelta で
+          # 表す）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/stat/index.html"
           # イシュー #2662: Phase 8「Media・Data」の最初の部品、Table 部品
           # ページ（<table> は使わず div/span + CSS grid で表現する、
           # calendar と同型の判断）。
