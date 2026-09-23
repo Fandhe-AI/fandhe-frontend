@@ -12,7 +12,8 @@
 /// イシュー #2617 で [`crate::annotation::ANNOTATION_CSS`] が続いた。
 /// イシュー #2611 で [`crate::grid::GRID_CSS`]・イシュー #2612 で
 /// [`crate::divider::DIVIDER_CSS`]・イシュー #2610 で
-/// [`crate::stack::STACK_CSS`]・イシュー #2609 で
+/// [`crate::stack::STACK_CSS`]・イシュー #2618 で
+/// [`crate::link::LINK_CSS`]・イシュー #2609 で
 /// [`crate::frame::FRAME_CSS`] が続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
@@ -20,6 +21,7 @@ pub const PARTS: &[&str] = &[
     crate::grid::GRID_CSS,
     crate::divider::DIVIDER_CSS,
     crate::stack::STACK_CSS,
+    crate::link::LINK_CSS,
     crate::frame::FRAME_CSS,
 ];
 
