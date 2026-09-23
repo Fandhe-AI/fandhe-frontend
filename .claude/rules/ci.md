@@ -255,9 +255,12 @@
   `wireframes/question/index.html`（イシュー #2630、Phase 4「Forms B」の
   最初の部品。ラベル + 補足説明 + `Node` スロットのコントロール + ヒント。
   表示状態軸を持たずスロット側へ委ねる）/
-  `wireframes/calendar/index.html`（イシュー #2632、同 Phase の Calendar
-  部品〔月表示グリッド型カレンダー。選択日は `props::Active` を再利用し
-  `MAX_WEEKS` で 6 週へ飽和させる〕）
+  `wireframes/ratings/index.html`（イシュー #2631、同 Phase の 2 番目の
+  部品。`icon::star` を再利用し、塗り数を `props::Active` の `data-active`
+  で先頭から表現する）/
+  `wireframes/calendar/index.html`（イシュー #2632、同 Phase の 3 番目の
+  Calendar 部品〔月表示グリッド型カレンダー。選択日は `props::Active` を
+  再利用し `MAX_WEEKS` で 6 週へ飽和させる〕）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

@@ -1406,6 +1406,11 @@ source = "site/wireframes/question.md"
 path = "/wireframes/question/"
 
 [[section.page]]
+title = "Ratings"
+source = "site/wireframes/ratings.md"
+path = "/wireframes/ratings/"
+
+[[section.page]]
 title = "Calendar"
 source = "site/wireframes/calendar.md"
 path = "/wireframes/calendar/"
