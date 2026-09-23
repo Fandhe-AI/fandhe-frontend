@@ -230,7 +230,10 @@
   `wireframes/select/index.html`（イシュー #2624、Phase 3「Forms A」の
   `select` 部品）/
   `wireframes/switch/index.html`（イシュー #2627、Phase 3「Forms A」の
-  `switch` 部品。`Active` を ON 状態の意味で使い `Disabled` を併用する）
+  `switch` 部品。`Active` を ON 状態の意味で使い `Disabled` を併用する）/
+  `wireframes/question/index.html`（イシュー #2630、Phase 4「Forms B」の
+  最初の部品。ラベル + 補足説明 + `Node` スロットのコントロール + ヒント。
+  表示状態軸を持たずスロット側へ委ねる）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

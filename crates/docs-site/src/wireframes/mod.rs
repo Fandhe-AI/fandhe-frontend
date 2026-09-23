@@ -58,6 +58,7 @@ mod button;
 mod divider;
 mod grid;
 mod link;
+mod question;
 mod rich_text;
 mod select;
 mod stack;
@@ -115,9 +116,10 @@ pub struct Wireframe {
 /// （イシュー #2610）、Phase 2 の [`link::WIREFRAME`]（イシュー #2618）・
 /// [`rich_text::WIREFRAME`]（イシュー #2616）・Phase 3「Forms A」の
 /// [`button::WIREFRAME`]（イシュー #2621）・[`select::WIREFRAME`]
-/// （イシュー #2624）・[`switch::WIREFRAME`]（イシュー #2627）が続いた。
-/// Phase 1・3 以降（#2608〜#2665）の残りの各部品イシューが自分の
-/// [`Wireframe`] 定数を 1 要素ずつ追記する。
+/// （イシュー #2624）・[`switch::WIREFRAME`]（イシュー #2627）・
+/// [`question::WIREFRAME`]（イシュー #2630、Phase 4「Forms B」の最初の
+/// 部品）が続いた。Phase 1・3・4 以降（#2608〜#2665）の残りの各部品
+/// イシューが自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
     grid::WIREFRAME,
@@ -128,6 +130,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     button::WIREFRAME,
     select::WIREFRAME,
     switch::WIREFRAME,
+    question::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。
