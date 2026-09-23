@@ -122,10 +122,14 @@
 //! ピルバッジ。件数は `u32` ではなく `&str` で受け、強調配色は部品
 //! ローカルの新型を新設せず共通型 [`props::Primary`] を再利用する。
 //! `crate::nav_item` の内部カウンターパートとは独立した部品）・3 番目の
-//! 部品 [`stat`]（イシュー #2656、blocks.pm に対応部品がない独自追加部品。
-//! 増減インジケータは `Option<&str>` ではなく [`stat::StatDelta`]
-//! （`menu::MenuItem` と同型の公開構造体）で表し、向きのある `Up`/`Down`
-//! は [`icon::caret_up`]/[`icon::caret_down`] を再利用する）が続いた。
+//! 部品 [`emoji`]（イシュー #2654、絵文字は `Option<Node>` アイコン
+//! スロットではなく `glyph: &str` の 1 引数へ畳み込む §11.4 からの意図的な
+//! 逸脱。空文字列は CSS の `:empty` 規則で破線の円プレースホルダーに
+//! する）・4 番目の部品 [`stat`]（イシュー #2656、blocks.pm に対応部品が
+//! ない独自追加部品。増減インジケータは `Option<&str>` ではなく
+//! [`stat::StatDelta`]（`menu::MenuItem` と同型の公開構造体）で表し、
+//! 向きのある `Up`/`Down` は [`icon::caret_up`]/[`icon::caret_down`] を
+//! 再利用する）が続いた。
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
 //! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
 //! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
@@ -156,6 +160,7 @@ pub mod counter;
 pub mod css;
 pub mod cursor;
 pub mod divider;
+pub mod emoji;
 pub mod file_drop;
 pub mod frame;
 pub mod grid;
@@ -202,6 +207,7 @@ pub use counter::counter;
 pub use css::{wireframe_css, PARTS};
 pub use cursor::{cursor, CursorKind};
 pub use divider::divider;
+pub use emoji::emoji;
 pub use file_drop::file_drop;
 pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
