@@ -61,6 +61,7 @@ pub const SPINNER_CSS: &str = "\
   border-top-color: var(--fw-wire-ink);
   border-radius: 50%;
   vertical-align: middle;
+  flex-shrink: 0;
 }
 ";
 
