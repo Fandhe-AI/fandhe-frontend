@@ -3,7 +3,7 @@
 //! `crates/wireframe-ui/tests/avatar.rs` と同型の観点（非対話制約・XSS
 //! 回帰・CSS 配線）を単体固定する。
 
-use fandhe_frontend_core::{render, text};
+use fandhe_frontend_core::{el_owned, render, text};
 use fandhe_frontend_wireframe_ui::{icon, media, wireframe_css, Size, PARTS};
 
 #[test]
@@ -92,6 +92,46 @@ fn output_has_no_interactive_semantics_style_or_media_elements() {
     let default_html = render(&media(None, Size::Md));
     assert!(default_html.contains(r#"aria-hidden="true""#));
     assert!(!default_html.contains(" aria-expanded"));
+}
+
+/// `content` スロットは §11.4 の `Node` スロット規約どおり任意の `Node`
+/// を受け取り、本部品はその中身をサニタイズしない（`avatar`/`link`/`tag`
+/// 等の他スロット部品と同じ、rustdoc に明記した既知の限界）。ただし
+/// `on*` イベントハンドラ属性だけは content の出所によらず core の
+/// `render()` が構造的に出力を拒否する（不変条件 9）ことを、部品側の
+/// 追加対策なしに固定する回帰テスト（codex-review PR #2718 指摘対応）。
+#[test]
+fn content_slot_event_handler_attributes_are_stripped_by_core_structurally() {
+    let malicious = el_owned(
+        "div",
+        vec![
+            ("onclick".to_string(), "alert(1)".to_string()),
+            ("onerror".to_string(), "alert(1)".to_string()),
+            ("data-safe".to_string(), "kept".to_string()),
+        ],
+        vec![text("caller-supplied")],
+    );
+    let html = render(&media(Some(malicious), Size::Md));
+
+    assert!(!html.contains("onclick"));
+    assert!(!html.contains("onerror"));
+    // イベントハンドラ以外の通常属性は影響を受けず出力される
+    // （on* だけを対象にした判定であることの対照確認）。
+    assert!(html.contains(r#"data-safe="kept""#));
+    assert!(html.contains("caller-supplied"));
+}
+
+/// `content` スロットへ呼び出し側が対話的なタグ（`<button>` 等）を
+/// 直接構築して渡した場合、core はタグ名の語彙を制限しないため、その
+/// タグ名はそのまま出力される。これは型では防げない既知の限界であり、
+/// `avatar`/`link`/`tag` 等の他スロット部品と共通（rustdoc「content
+/// スロットに渡した Node の内容は呼び出し側の責務」節参照）。本テストは
+/// その契約を裏付ける記録であり、将来の意図しない挙動変化を検知する。
+#[test]
+fn content_slot_interactive_tag_names_are_the_caller_responsibility_by_design() {
+    let caller_supplied_button = el_owned("button", vec![], vec![text("play")]);
+    let html = render(&media(Some(caller_supplied_button), Size::Md));
+    assert!(html.contains("<button>play</button>"));
 }
 
 #[test]

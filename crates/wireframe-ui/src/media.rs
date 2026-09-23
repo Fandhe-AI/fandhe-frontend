@@ -96,11 +96,29 @@ pub const MEDIA_CSS: &str = "\
 ///   付与し、中央のディスク・グリフの大きさにのみ効く（枠自体は親の幅
 ///   いっぱいに広がる）。
 ///
-/// ルート要素は `div`。`role`/`aria-*`/`tabindex`/`style`/`href`/`src`/
+/// ルート要素は `div`。本部品自身が組み立てるマークアップ（ルート `div`・
+/// ディスクパート・`content: None` 時の既定グリフ）は `role`/`aria-*`
+/// （既定グリフの `aria-hidden` を除く）/`tabindex`/`style`/`href`/`src`/
 /// `poster`/`controls`/`on*`/`<video>`/`<iframe>`/`<source>`/`<img>`/
-/// `<a>`/`<button>`/表示状態の `data-*` は一切出力しない
+/// `<a>`/`<button>`/表示状態の `data-*` を一切出力しない
 /// （`docs/design/wireframe-ui-architecture.md` §5/§7）。メディア URL を
 /// 受け取る引数も持たない（外部リソースを読み込む経路を作らない）。
+///
+/// # `content` スロットに渡した `Node` の内容は呼び出し側の責務
+///
+/// `content` は §11.4 の `Node` スロット規約に従う任意の [`Node`] を
+/// 受け取り、本部品はその内容を検査・サニタイズしない（`crate::avatar`・
+/// `crate::link`・`crate::tag` 等、同規約に従う他の全スロット部品と同じ
+/// 扱い）。呼び出し側が [`fandhe_frontend_core::el`]/`el_owned` で
+/// `<button>`/`<a href>`/`<video>` 等の対話的タグを直接組み立てて渡せば、
+/// そのタグ名はそのまま出力される（core はタグ名を構文的に検証するのみで
+/// 語彙を `div`/`span` 等へ制限しない）。一方、`on*` イベントハンドラ
+/// 属性は content の出所によらず core の `render()` が構造的に出力を
+/// 拒否する（[`fandhe_frontend_core::is_event_handler_attr`]、不変条件 9。
+/// `crate::media` を含むどの部品も個別に対策する必要はない）。この crate
+/// は SSR 専用・非対話プレースホルダーとして自部品の出力を設計する
+/// ものであり、呼び出し側が意図的に対話要素を注入する誤用までは型で
+/// 防がない（他のスロット部品と共通の既知の限界）。
 ///
 /// # Examples
 ///
