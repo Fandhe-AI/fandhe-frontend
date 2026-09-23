@@ -39,18 +39,18 @@
 //!   連結線と同じ先例）。
 //! - **入れ子リスト**: 項目セレクタを子結合子 `>` で書き、カウンタは
 //!   ルート単位でリセットする（[`LIST_CSS`] 参照）。入れ子にしたとき、
-//!   内側のリストへ外側の番号・マーカーが漏れない。加えて、項目の直接の
-//!   子として渡された入れ子 `list()`（`.fw-wire-list-item > .fw-wire-list`）
-//!   は `flex-basis: 100%; width: 100%;` で常に自身の行いっぱいの幅を
-//!   要求し（マーカー `::before` の直後で強制的に折り返す。折り返し自体は
-//!   入れ子を**持つ**項目にのみ `:has(> .fw-wire-list)` で限定して
-//!   `flex-wrap: wrap` を付与し、通常項目〔テキストのみ〕の折り返しには
-//!   影響させない（`crates/pre-styled-ui/src/list.rs` の
-//!   `:has(> [data-part="root"])` による同型対処の先例に倣う）、左
-//!   マージンで字下げする。これにより、親項目の並びに埋没せず「入れ子」
-//!   であることが視覚的に判別できる（イシュー #2657 Review 指摘、
-//!   `crates/docs-site/src/wireframes/list.rs` の Demo「入れ子」節が
-//!   字下げなしで平坦に見えていた不具合の是正）。
+//!   内側のリストへ外側の番号・マーカーが漏れない。`list()` は
+//!   `items` の各要素をそのまま 1 項目としてラップするため、ある項目に
+//!   「本文 + 入れ子 `list()`」を持たせたい場合は、呼び出し側が
+//!   `fandhe_frontend_core::div(vec![], vec![text("本文"), list(...)])`
+//!   のように 1 つの `Node` へ合成してから渡す（入れ子 `list()` を
+//!   `items` の**別要素**として並べると、ネストではなく単なる隣接項目
+//!   になり `ordered` のカウンタも余分に 1 つ進む。イシュー #2657
+//!   Review 指摘、当初の `crates/docs-site/src/wireframes/list.rs`
+//!   Demo「入れ子」節がこの誤用パターンだったため、番号がずれたうえ
+//!   字下げもされていなかった）。[`LIST_CSS`] は項目内のどの深さに
+//!   現れた入れ子 `.fw-wire-list` も子孫セレクタで字下げするため、上記の
+//!   合成方法であれば呼び出し側が追加の CSS を書く必要はない。
 //! - **行頭アイコンはスロット化しない**: 行頭にアイコンを置きたい場合は
 //!   呼び出し側が項目 `Node` 自体（例: [`crate::rich_text`] や
 //!   `icon::*` + `text` の組み合わせ）で表現する。マーカー差し替え用の
@@ -80,8 +80,9 @@ const ORDERED_CLASS: &str = "fw-wire-list-ordered";
 /// スコープ付きカスタムプロパティ（`--fw-wire-control-size` 等）は
 /// 参照しない（モジュール doc「API 設計の由来」参照）。項目セレクタは
 /// 子結合子 `>` で書き、入れ子リストへ外側のカウンタ・マーカーが漏れない
-/// ようにする。加えて項目の直接の子である入れ子 `.fw-wire-list` へ
-/// 左マージンの字下げ規則を持つ（モジュール doc「入れ子リスト」参照）。
+/// ようにする。項目内に現れた入れ子 `.fw-wire-list`（直接の子・孫の
+/// いずれも）へは子孫セレクタで左マージンの字下げ規則を適用する
+/// （モジュール doc「入れ子リスト」参照）。
 pub const LIST_CSS: &str = "\
 .fw-wire-list {
   display: flex;
@@ -106,13 +107,9 @@ pub const LIST_CSS: &str = "\
   border-radius: 50%;
   background: var(--fw-wire-ink-muted);
 }
-.fw-wire-list > .fw-wire-list-item:has(> .fw-wire-list) {
-  flex-wrap: wrap;
-}
-.fw-wire-list > .fw-wire-list-item > .fw-wire-list {
-  flex-basis: 100%;
-  width: 100%;
+.fw-wire-list > .fw-wire-list-item .fw-wire-list {
   margin-left: 1.5em;
+  margin-top: 0.25em;
 }
 .fw-wire-list.fw-wire-list-ordered {
   counter-reset: fw-wire-list;
@@ -179,6 +176,23 @@ pub const LIST_CSS: &str = "\
 /// assert!(!html.contains("<li"));
 /// assert!(!html.contains(" role=\""));
 /// assert!(!html.contains(" aria-"));
+///
+/// // 入れ子: 「本文 + 入れ子 list()」を持たせたい項目は
+/// // `fandhe_frontend_core::div` で 1 つの Node に合成してから渡す
+/// // （入れ子 list() を items の別要素として並べない。モジュール doc
+/// // 「入れ子リスト」参照）。
+/// use fandhe_frontend_core::div;
+/// let nested = list(vec![text("子項目 A-1"), text("子項目 A-2")], false);
+/// let parent_item = div(vec![], vec![text("親項目 A"), nested]);
+/// let outer = list(vec![parent_item, text("親項目 B")], true);
+/// let outer_html = render(&outer);
+/// // 項目ラッパーは外側 2 件 + 入れ子 2 件の計 4 件。外側の並びは
+/// // 「親項目 A（本文 + 入れ子）」「親項目 B」の 2 件のまま。
+/// assert_eq!(outer_html.matches(r#"class="fw-wire-list-item""#).count(), 4);
+/// assert_eq!(
+///     outer_html.matches(r#"class="fw-wire-list fw-wire-list-ordered""#).count(),
+///     1
+/// );
 /// ```
 #[must_use]
 pub fn list(items: Vec<Node>, ordered: bool) -> Node {

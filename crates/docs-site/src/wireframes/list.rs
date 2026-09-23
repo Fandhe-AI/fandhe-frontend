@@ -56,10 +56,21 @@ fn demo() -> Node {
                 vec![],
                 vec![text("入れ子（外側は番号付き、内側は箇条書き）")],
             ),
+            // 「親項目 A」に入れ子 list() を持たせるには、両者を
+            // div() で 1 つの Node へ合成してから items の 1 要素として
+            // 渡す（list::list rustdoc「入れ子リスト」節参照）。入れ子
+            // list() を items の別要素として並べると、ネストではなく
+            // 単なる隣接項目になり ordered のカウンタも余分に 1 つ進む
+            // （イシュー #2657 Review 指摘、当初はこの誤用パターンだった）。
             list(
                 vec![
-                    text("親項目 A"),
-                    list(vec![text("子項目 A-1"), text("子項目 A-2")], false),
+                    div(
+                        vec![],
+                        vec![
+                            text("親項目 A"),
+                            list(vec![text("子項目 A-1"), text("子項目 A-2")], false),
+                        ],
+                    ),
                     text("親項目 B"),
                 ],
                 true,

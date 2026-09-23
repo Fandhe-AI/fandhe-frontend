@@ -121,51 +121,63 @@ fn list_css_selectors_use_fw_wire_prefix_and_no_pre_styled_ui_prefix() {
 }
 
 #[test]
-fn nested_list_item_is_indented_and_wraps_to_its_own_line() {
+fn nested_list_anywhere_inside_an_item_is_indented() {
     let css = fandhe_frontend_wireframe_ui::list::LIST_CSS;
 
-    // 入れ子 `.fw-wire-list`（項目の直接の子）は字下げされ、行いっぱいの
-    // 幅を要求して折り返される（イシュー #2657 Review 指摘の是正）。
+    // 項目内に現れた入れ子 `.fw-wire-list`（直接の子・孫のいずれも）は
+    // 子孫セレクタで左マージンの字下げを受ける（イシュー #2657 Review
+    // 指摘の是正）。子結合子 `>` ではなく子孫結合子（空白）を使うのは、
+    // 正しい使い方（`div(vec![], vec![text(..), list(..)])` で本文と
+    // 入れ子を 1 項目へ合成する）だと入れ子リストが項目ラッパーの孫に
+    // なるため。
     assert!(
-        css.contains(".fw-wire-list > .fw-wire-list-item > .fw-wire-list {"),
+        css.contains(".fw-wire-list > .fw-wire-list-item .fw-wire-list {"),
         "missing nested list indentation rule: {css:?}"
     );
     let nested_rule_start = css
-        .find(".fw-wire-list > .fw-wire-list-item > .fw-wire-list {")
+        .find(".fw-wire-list > .fw-wire-list-item .fw-wire-list {")
         .unwrap();
     let nested_rule_end = css[nested_rule_start..].find('}').unwrap() + nested_rule_start;
     let nested_rule_body = &css[nested_rule_start..nested_rule_end];
     assert!(nested_rule_body.contains("margin-left:"));
-    assert!(nested_rule_body.contains("flex-basis: 100%"));
 
-    // 折り返し（`flex-wrap: wrap`）は入れ子を持つ項目にのみ `:has()` で
-    // 限定し、テキストのみの通常項目の折り返しには影響させない。
-    assert!(
-        css.contains(
-            ".fw-wire-list > .fw-wire-list-item:has(> .fw-wire-list) {\n  flex-wrap: wrap;\n}"
-        ),
-        ":has() 限定の flex-wrap: wrap ルールが見つからない: {css:?}"
-    );
-    let base_item_rule_start = css.find(".fw-wire-list > .fw-wire-list-item {").unwrap();
-    let base_item_rule_end = css[base_item_rule_start..].find('}').unwrap() + base_item_rule_start;
-    assert!(!css[base_item_rule_start..base_item_rule_end].contains("flex-wrap"));
+    // 直接の子限定（子結合子 `>`）の規則は残っていない（誤用パターン
+    // 〔入れ子 list() を items の別要素として並べる〕を暗黙に想定した
+    // セレクタを持ち込まない）。
+    assert!(!css.contains(".fw-wire-list > .fw-wire-list-item > .fw-wire-list {"));
+    assert!(!css.contains(":has("));
 }
 
 #[test]
-fn nested_list_renders_as_item_child_without_new_dom_semantics() {
-    // list() 自身が Node を受け取るだけの部品であるため、項目に別の
-    // list() 呼び出しを渡すと単純にネストした div.fw-wire-list が
-    // 項目ラッパーの子として出力される（新しいスロット API は追加しない）。
+fn nested_list_composed_via_div_stays_within_a_single_item_and_ordinal() {
+    // 正しい入れ子の作り方: 「本文 + 入れ子 list()」を 1 つの Node へ
+    // 合成してから items の 1 要素として渡す（list::list rustdoc
+    // 「入れ子リスト」節参照）。入れ子 list() を items の別要素として
+    // 並べると、ネストではなく単なる隣接項目になりカウンタも余分に
+    // 1 つ進んでしまう（イシュー #2657 Review 指摘、当初の docs デモは
+    // この誤用パターンだった）。
     let nested = list(vec![text("子項目 A-1"), text("子項目 A-2")], false);
-    let node = list(vec![text("親項目 A"), nested, text("親項目 B")], true);
+    let parent_item = fandhe_frontend_core::div(vec![], vec![text("親項目 A"), nested]);
+    let node = list(vec![parent_item, text("親項目 B")], true);
     let html = render(&node);
 
-    assert_eq!(html.matches(r#"class="fw-wire-list""#).count(), 1);
+    // 項目ラッパーは外側 2 件 + 入れ子 2 件の計 4 件（入れ子 list() 自身の
+    // 項目も同じ ITEM_CLASS でラップされるため）。外側の並び順そのものは
+    // 「親項目 A（本文 + 入れ子）」「親項目 B」の 2 件のままで、入れ子側が
+    // 外側 items の別要素として増えるわけではない点が誤用パターンとの差。
+    assert_eq!(html.matches(r#"class="fw-wire-list-item""#).count(), 4);
+    // 外側は ordered（`fw-wire-list-ordered` 付き）、内側は unordered
+    // （付かない）で 1 件ずつ。カウンタ（CSS カウンタ、DOM には現れない）
+    // は `.fw-wire-list.fw-wire-list-ordered > .fw-wire-list-item` に限り
+    // 子結合子で適用されるため、内側 unordered 側の項目は外側の番号
+    // カウンタを消費しない（`counter_rules_are_scoped_to_ordered_modifier`
+    // が CSS 側のスコープを別途固定する）。
     assert_eq!(
         html.matches(r#"class="fw-wire-list fw-wire-list-ordered""#)
             .count(),
         1
     );
+    assert_eq!(html.matches(r#"class="fw-wire-list""#).count(), 1);
     assert!(html.contains("子項目 A-1"));
     assert!(html.contains("子項目 A-2"));
     // 入れ子リストにも対話セマンティクスが混入しない。
