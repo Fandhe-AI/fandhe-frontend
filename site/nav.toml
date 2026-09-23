@@ -1341,6 +1341,11 @@ source = "site/wireframes/link.md"
 path = "/wireframes/link/"
 
 [[section.page]]
+title = "Rich text"
+source = "site/wireframes/rich-text.md"
+path = "/wireframes/rich-text/"
+
+[[section.page]]
 title = "Button"
 source = "site/wireframes/button.md"
 path = "/wireframes/button/"
