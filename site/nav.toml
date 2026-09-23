@@ -1481,6 +1481,11 @@ source = "site/wireframes/spinner.md"
 path = "/wireframes/spinner/"
 
 [[section.page]]
+title = "Modal"
+source = "site/wireframes/modal.md"
+path = "/wireframes/modal/"
+
+[[section.page]]
 title = "Avatar"
 source = "site/wireframes/avatar.md"
 path = "/wireframes/avatar/"

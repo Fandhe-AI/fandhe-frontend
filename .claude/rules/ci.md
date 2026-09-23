@@ -305,6 +305,11 @@
   修飾 class〔Bar/Circle〕で表す）/
   `wireframes/spinner/index.html`（イシュー #2649、Phase 6「Overlay・
   Feedback」の 5 番目の部品。静的な円弧のみ・引数は Size のみ）/
+  `wireframes/modal/index.html`（イシュー #2645、Phase 6「Overlay・
+  Feedback」の 6 番目の部品。blocks.pm に対応部品がない独自追加部品。中央
+  配置は `position: fixed` ではなく in-flow の背景領域 +
+  `place-items: center` で表現し、パネル最大幅は `Size` 5 段の静的ルールと
+  して直書きする）/
   `wireframes/avatar/index.html`（イシュー #2651、Phase 7「Data display」の
   最初の部品。`content: Option<Node>` が `None` のとき `icon::user` へ
   フォールバックする §11.4 からの意図的な逸脱）

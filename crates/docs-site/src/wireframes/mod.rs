@@ -67,6 +67,7 @@ mod frame;
 mod grid;
 mod input;
 mod link;
+mod modal;
 mod nav_item;
 mod pagination;
 mod paragraph;
@@ -173,7 +174,9 @@ pub struct Wireframe {
 /// [`progress::WIREFRAME`]（イシュー #2648、Phase 6 の 4 番目の部品。
 /// 形状は部品ローカルの `fandhe_frontend_wireframe_ui::ProgressShape` による
 /// 修飾 class（Bar/Circle）で表す）・[`spinner::WIREFRAME`]（イシュー
-/// #2649、Phase 6 の 5 番目の部品）・Phase 7「Data display」の
+/// #2649、Phase 6 の 5 番目の部品）・[`modal::WIREFRAME`]（イシュー #2645、
+/// Phase 6 の 6 番目の部品。blocks.pm に対応部品がない独自追加部品）・
+/// Phase 7「Data display」の
 /// [`avatar::WIREFRAME`]（イシュー #2651、最初の部品。
 /// `content: Option<Node>` が `None` のとき `icon::user` へフォールバック
 /// する §11.4 からの意図的な逸脱）が続いた。
@@ -213,6 +216,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     alert::WIREFRAME,
     progress::WIREFRAME,
     spinner::WIREFRAME,
+    modal::WIREFRAME,
     avatar::WIREFRAME,
 ];
 

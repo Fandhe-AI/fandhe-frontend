@@ -101,11 +101,15 @@
 //! [`progress::ProgressShape`] による修飾 class（Bar/Circle）で表し、進捗値は
 //! `slider` と同型の 5 刻み固定 class 集合へ量子化する。表示専用のため
 //! `Active`/`Disabled` を持たない）・5 番目の部品 [`spinner`]（イシュー
-//! #2649、円弧だけを描く静的表示で `@keyframes`/`animation` は持たない）が
-//! 続いた。Phase 7「Data display」の最初の部品 [`avatar`]（イシュー #2651、
-//! `content: Option<Node>` が `None` のとき [`icon::user`] へフォールバック
-//! する §11.4 からの意図的な逸脱。円形表示は `crate::frame` の `bordered`
-//! と同型の部品固有修飾 class で表す）が続いた。
+//! #2649、円弧だけを描く静的表示で `@keyframes`/`animation` は持たない）・
+//! 6 番目の部品 [`modal`]（イシュー #2645、blocks.pm に対応部品がない
+//! 独自追加部品。中央配置は `position: fixed` ではなく in-flow の背景領域 +
+//! `place-items: center` で表現し、パネル最大幅は `Size` 5 段の静的ルール
+//! として [`crate::css::PARTS`] へ直書きする）が続いた。Phase 7「Data
+//! display」の最初の部品 [`avatar`]（イシュー #2651、`content: Option<Node>`
+//! が `None` のとき [`icon::user`] へフォールバックする §11.4 からの意図的な
+//! 逸脱。円形表示は `crate::frame` の `bordered` と同型の部品固有修飾 class
+//! で表す）が続いた。
 //! 残りは Phase 3 の他部品（#2608〜）・Phase 5 の他部品（menu 等）・
 //! Phase 6 の他部品・Phase 7 の他部品で順次追加する。
 //!
@@ -138,6 +142,7 @@ pub mod grid;
 pub mod icon;
 pub mod input;
 pub mod link;
+pub mod modal;
 pub mod nav_item;
 pub mod pagination;
 pub mod paragraph;
@@ -178,6 +183,7 @@ pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
 pub use input::input;
 pub use link::link;
+pub use modal::modal;
 pub use nav_item::nav_item;
 pub use pagination::pagination;
 pub use paragraph::paragraph;

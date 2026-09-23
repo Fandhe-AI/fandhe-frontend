@@ -56,6 +56,7 @@
 /// イシュー #2646 で [`crate::alert::ALERT_CSS`]（3 番目の部品）・
 /// イシュー #2648 で [`crate::progress::PROGRESS_CSS`]（4 番目の部品）・
 /// イシュー #2649 で [`crate::spinner::SPINNER_CSS`]（5 番目の部品）・
+/// イシュー #2645 で [`crate::modal::MODAL_CSS`]（6 番目の部品）・
 /// イシュー #2651 で [`crate::avatar::AVATAR_CSS`]（Phase 7「Data display」
 /// の最初の部品）が
 /// 続いた。
@@ -94,6 +95,7 @@ pub const PARTS: &[&str] = &[
     crate::alert::ALERT_CSS,
     crate::progress::PROGRESS_CSS,
     crate::spinner::SPINNER_CSS,
+    crate::modal::MODAL_CSS,
     crate::avatar::AVATAR_CSS,
 ];
 
