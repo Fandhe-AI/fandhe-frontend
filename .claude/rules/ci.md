@@ -224,7 +224,10 @@
   `link` 部品〔`Option<Node>` アイコンスロット規約 §11.4 の実例、`a[href]`
   非出力〕）/
   `wireframes/rich-text/index.html`（イシュー #2616、Phase 2「テキスト・
-  注釈」の Rich text 部品ページ）
+  注釈」の Rich text 部品ページ）/
+  `wireframes/textarea/index.html`（イシュー #2623、Phase 3「Forms A」の
+  Textarea 部品ページ。`rows` を行プレースホルダー要素の構造表現とし
+  `style`・ネイティブ `<textarea>` を使わない設計）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

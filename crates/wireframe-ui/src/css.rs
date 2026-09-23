@@ -14,7 +14,8 @@
 /// [`crate::divider::DIVIDER_CSS`]・イシュー #2610 で
 /// [`crate::stack::STACK_CSS`]・イシュー #2618 で
 /// [`crate::link::LINK_CSS`]・イシュー #2616 で
-/// [`crate::rich_text::RICH_TEXT_CSS`] が続いた。
+/// [`crate::rich_text::RICH_TEXT_CSS`]・イシュー #2623 で
+/// [`crate::textarea::TEXTAREA_CSS`] が続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
     crate::annotation::ANNOTATION_CSS,
@@ -23,6 +24,7 @@ pub const PARTS: &[&str] = &[
     crate::stack::STACK_CSS,
     crate::link::LINK_CSS,
     crate::rich_text::RICH_TEXT_CSS,
+    crate::textarea::TEXTAREA_CSS,
 ];
 
 static CSS: std::sync::OnceLock<String> = std::sync::OnceLock::new();

@@ -43,8 +43,10 @@
 //! `props::Orientation` の最初の消費者）・[`stack`]（イシュー #2610）・
 //! Phase 2 の [`rich_text`]（イシュー #2616）・[`link`]（イシュー #2618、
 //! `Option<Node>` アイコンスロット規約 §11.4 の実例、`a[href]` 非出力）が
-//! 続いた。残りは Phase 1 の他部品（frame）・Phase 2 の他部品
-//! （text/paragraph/tag 等）
+//! 続いた。Phase 3「Forms A」の [`textarea`]（イシュー #2623、`rows` を
+//! 行プレースホルダー要素の構造表現とし `style`・ネイティブ `<textarea>`
+//! を使わない設計）が続いた。残りは Phase 1 の他部品（frame）・Phase 2 の
+//! 他部品（text/paragraph/tag 等）
 //! および Phase 3 以降
 //! （#2608〜）で順次追加する。
 //!
@@ -71,6 +73,7 @@ pub mod props;
 pub mod rich_text;
 pub mod size;
 pub mod stack;
+pub mod textarea;
 pub mod tokens;
 
 pub use annotation::annotation;
@@ -83,3 +86,4 @@ pub use props::{Active, Bold, Disabled, Orientation, Primary};
 pub use rich_text::rich_text;
 pub use size::Size;
 pub use stack::stack;
+pub use textarea::{textarea, MAX_ROWS};
