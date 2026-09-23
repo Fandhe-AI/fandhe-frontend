@@ -17,8 +17,12 @@ name = "fandhe-frontend-wireframe-ui"
 # 0.7.0 を stack が先に確保したため衝突回避で +1。
 # 0.8.0 → 0.9.0: 公開 API 新設（rich_text 部品、イシュー #2616）。main 側で
 # 0.8.0 を link が先に確保したため衝突回避で +1。
-# 0.9.0 → 0.10.0: 公開 API 新設（textarea 部品、イシュー #2623）。
-version = "0.10.0"
+# 0.9.0 → 0.10.0: 公開 API 新設（button 部品、イシュー #2621。
+# props::Disabled の最初の実消費者）。main 側で 0.9.0 を rich_text が
+# 先に確保したため衝突回避で +1。
+# 0.10.0 → 0.11.0: 公開 API 新設（textarea 部品、イシュー #2623）。main 側で
+# 0.10.0 を button が先に確保したため衝突回避で +1。
+version = "0.11.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
 license = "MIT OR Apache-2.0"

@@ -42,12 +42,12 @@
 //! [`grid`]（イシュー #2611）・[`divider`]（イシュー #2612、
 //! `props::Orientation` の最初の消費者）・[`stack`]（イシュー #2610）・
 //! Phase 2 の [`rich_text`]（イシュー #2616）・[`link`]（イシュー #2618、
-//! `Option<Node>` アイコンスロット規約 §11.4 の実例、`a[href]` 非出力）が
-//! 続いた。Phase 3「Forms A」の [`textarea`]（イシュー #2623、`rows` を
-//! 行プレースホルダー要素の構造表現とし `style`・ネイティブ `<textarea>`
-//! を使わない設計）が続いた。残りは Phase 1 の他部品（frame）・Phase 2 の
-//! 他部品（text/paragraph/tag 等）
-//! および Phase 3 以降
+//! `Option<Node>` アイコンスロット規約 §11.4 の実例、`a[href]` 非出力）、
+//! Phase 3「Forms A」の [`button`]（イシュー #2621、`props::Disabled` の
+//! 最初の実消費者）・[`textarea`]（イシュー #2623、`rows` を行プレース
+//! ホルダー要素の構造表現とし `style`・ネイティブ `<textarea>` を使わない
+//! 設計）が続いた。残りは Phase 1 の他部品（frame）・Phase 2 の他部品
+//! （text/paragraph/tag 等）および Phase 3 の他部品
 //! （#2608〜）で順次追加する。
 //!
 //! # class 命名規約
@@ -63,6 +63,7 @@
 //! 詳細・追記契約は `docs/design/wireframe-ui-architecture.md` §10 を参照。
 
 pub mod annotation;
+pub mod button;
 pub mod class;
 pub mod css;
 pub mod divider;
@@ -77,6 +78,7 @@ pub mod textarea;
 pub mod tokens;
 
 pub use annotation::annotation;
+pub use button::button;
 pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
 pub use divider::divider;
