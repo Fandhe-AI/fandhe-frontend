@@ -53,7 +53,14 @@
 /// [`crate::cursor::CURSOR_CSS`]・イシュー #2637 で
 /// [`crate::menu::MENU_CSS`]・イシュー #2644 で
 /// [`crate::tooltip::TOOLTIP_CSS`]（Phase 6「Overlay・Feedback」の最初の
-/// 部品）が続いた。
+/// 部品）・イシュー #2647 で [`crate::toast::TOAST_CSS`]（2 番目の部品）・
+/// イシュー #2646 で [`crate::alert::ALERT_CSS`]（3 番目の部品）・
+/// イシュー #2648 で [`crate::progress::PROGRESS_CSS`]（4 番目の部品）・
+/// イシュー #2649 で [`crate::spinner::SPINNER_CSS`]（5 番目の部品）・
+/// イシュー #2645 で [`crate::modal::MODAL_CSS`]（6 番目の部品）・
+/// イシュー #2651 で [`crate::avatar::AVATAR_CSS`]（Phase 7「Data display」
+/// の最初の部品）が
+/// 続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
     crate::annotation::ANNOTATION_CSS,
@@ -86,6 +93,12 @@ pub const PARTS: &[&str] = &[
     crate::cursor::CURSOR_CSS,
     crate::menu::MENU_CSS,
     crate::tooltip::TOOLTIP_CSS,
+    crate::toast::TOAST_CSS,
+    crate::alert::ALERT_CSS,
+    crate::progress::PROGRESS_CSS,
+    crate::spinner::SPINNER_CSS,
+    crate::modal::MODAL_CSS,
+    crate::avatar::AVATAR_CSS,
 ];
 
 static CSS: std::sync::OnceLock<String> = std::sync::OnceLock::new();

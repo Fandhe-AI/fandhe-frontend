@@ -54,7 +54,9 @@
 //! 引数表へ流れ込む経路を型で塞ぐ。
 
 mod accordion;
+mod alert;
 mod annotation;
+mod avatar;
 mod button;
 mod calendar;
 mod checkbox;
@@ -66,15 +68,18 @@ mod grid;
 mod input;
 mod link;
 mod menu;
+mod modal;
 mod nav_item;
 mod pagination;
 mod paragraph;
+mod progress;
 mod question;
 mod radio;
 mod ratings;
 mod rich_text;
 mod select;
 mod slider;
+mod spinner;
 mod stack;
 mod stepper;
 mod switch;
@@ -82,6 +87,7 @@ mod tabs;
 mod tag;
 mod text;
 mod textarea;
+mod toast;
 mod tooltip;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
@@ -162,10 +168,23 @@ pub struct Wireframe {
 /// ないため `icon::cursor_arrow`/`icon::cursor_hand` を新規追加して消費
 /// する）・[`menu::WIREFRAME`]（イシュー #2637、Phase 5 の 6 番目の部品。
 /// 検索欄は `Option<&str>` + 固定パートの `icon::search` で表す）・
-/// Phase 6「Overlay・Feedback」の [`tooltip::WIREFRAME`]（イシュー #2644、
-/// 最初の部品）が続いた。
-/// Phase 1・3・4・5・6 以降（#2608〜#2665）の残りの各部品イシューが自分の
-/// [`Wireframe`] 定数を 1 要素ずつ追記する。
+/// Phase 6「Overlay・Feedback」の [`tooltip::WIREFRAME`]
+/// （イシュー #2644、最初の部品）・[`toast::WIREFRAME`]（イシュー #2647、
+/// Phase 6 の 2 番目の部品。閉じるグリフは `icon::x` 固定で
+/// `dismissible: bool` の 1 引数だけで有無を切り替える）・
+/// [`alert::WIREFRAME`]（イシュー #2646、Phase 6 の 3 番目の部品。
+/// 重要度は部品ローカルの `Severity` による修飾 class で表す）・
+/// [`progress::WIREFRAME`]（イシュー #2648、Phase 6 の 4 番目の部品。
+/// 形状は部品ローカルの `fandhe_frontend_wireframe_ui::ProgressShape` による
+/// 修飾 class（Bar/Circle）で表す）・[`spinner::WIREFRAME`]（イシュー
+/// #2649、Phase 6 の 5 番目の部品）・[`modal::WIREFRAME`]（イシュー #2645、
+/// Phase 6 の 6 番目の部品。blocks.pm に対応部品がない独自追加部品）・
+/// Phase 7「Data display」の
+/// [`avatar::WIREFRAME`]（イシュー #2651、最初の部品。
+/// `content: Option<Node>` が `None` のとき `icon::user` へフォールバック
+/// する §11.4 からの意図的な逸脱）が続いた。
+/// Phase 1・3・4・5・6・7 以降（#2608〜#2665）の残りの各部品イシューが
+/// 自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
     grid::WIREFRAME,
@@ -197,6 +216,12 @@ pub const WIREFRAMES: &[Wireframe] = &[
     cursor::WIREFRAME,
     menu::WIREFRAME,
     tooltip::WIREFRAME,
+    toast::WIREFRAME,
+    alert::WIREFRAME,
+    progress::WIREFRAME,
+    spinner::WIREFRAME,
+    modal::WIREFRAME,
+    avatar::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

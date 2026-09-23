@@ -296,7 +296,27 @@
   指す添字なら外す fail-closed な `active: Option<usize>`）/
   `wireframes/tooltip/index.html`（イシュー #2644、Phase 6「Overlay・
   Feedback」の最初の部品。方向は部品ローカルの `TooltipSide` による
-  修飾 class で表す）
+  修飾 class で表す）/
+  `wireframes/toast/index.html`（イシュー #2647、Phase 6「Overlay・
+  Feedback」の 2 番目の部品。閉じるグリフは `icon::x` 固定で instance
+  swap にせず `dismissible: bool` の 1 引数だけで有無を切り替える）/
+  `wireframes/alert/index.html`（イシュー #2646、Phase 6「Overlay・
+  Feedback」の 3 番目の部品。重要度は部品ローカルの `Severity` による
+  修飾 class で表し、アイコンは `link`/`file_drop` と同じ `Option<Node>`
+  スロット）/
+  `wireframes/progress/index.html`（イシュー #2648、Phase 6「Overlay・
+  Feedback」の 4 番目の部品。形状は部品ローカルの `ProgressShape` による
+  修飾 class〔Bar/Circle〕で表す）/
+  `wireframes/spinner/index.html`（イシュー #2649、Phase 6「Overlay・
+  Feedback」の 5 番目の部品。静的な円弧のみ・引数は Size のみ）/
+  `wireframes/modal/index.html`（イシュー #2645、Phase 6「Overlay・
+  Feedback」の 6 番目の部品。blocks.pm に対応部品がない独自追加部品。中央
+  配置は `position: fixed` ではなく in-flow の背景領域 +
+  `place-items: center` で表現し、パネル最大幅は `Size` 5 段の静的ルールと
+  して直書きする）/
+  `wireframes/avatar/index.html`（イシュー #2651、Phase 7「Data display」の
+  最初の部品。`content: Option<Node>` が `None` のとき `icon::user` へ
+  フォールバックする §11.4 からの意図的な逸脱）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

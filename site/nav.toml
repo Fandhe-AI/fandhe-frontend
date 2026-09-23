@@ -1465,6 +1465,36 @@ title = "Tooltip"
 source = "site/wireframes/tooltip.md"
 path = "/wireframes/tooltip/"
 
+[[section.page]]
+title = "Toast"
+source = "site/wireframes/toast.md"
+path = "/wireframes/toast/"
+
+[[section.page]]
+title = "Alert"
+source = "site/wireframes/alert.md"
+path = "/wireframes/alert/"
+
+[[section.page]]
+title = "Progress"
+source = "site/wireframes/progress.md"
+path = "/wireframes/progress/"
+
+[[section.page]]
+title = "Spinner"
+source = "site/wireframes/spinner.md"
+path = "/wireframes/spinner/"
+
+[[section.page]]
+title = "Modal"
+source = "site/wireframes/modal.md"
+path = "/wireframes/modal/"
+
+[[section.page]]
+title = "Avatar"
+source = "site/wireframes/avatar.md"
+path = "/wireframes/avatar/"
+
 # API Reference セクション（イシュー #955 / 設計 docs/design/docs-site-api-reference-split.md）。
 # - docs/internal/*-implementation-notes.md は本マニフェストへ登録しない。
 #   サイト非出力は「nav 未登録」だけで構造的に担保する（同文書 §3-3 / §4 A05）。
