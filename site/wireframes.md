@@ -32,6 +32,7 @@
 - [Divider](./wireframes/divider.md)
 - [Stack](./wireframes/stack.md)
 - [Link](./wireframes/link.md)
+- [Rich text](./wireframes/rich-text.md)
 - [Paragraph](./wireframes/paragraph.md)
 
 ## 掲載予定
@@ -47,7 +48,6 @@
 ### Phase 2: テキスト・注釈
 
 - text
-- rich-text
 - tag
 
 ### Phase 3: Forms A

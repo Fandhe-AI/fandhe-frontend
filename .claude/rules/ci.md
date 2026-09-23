@@ -223,6 +223,8 @@
   `wireframes/link/index.html`（イシュー #2618、Phase 2「テキスト・注釈」の
   `link` 部品〔`Option<Node>` アイコンスロット規約 §11.4 の実例、`a[href]`
   非出力〕）/
+  `wireframes/rich-text/index.html`（イシュー #2616、Phase 2「テキスト・
+  注釈」の Rich text 部品ページ）/
   `wireframes/paragraph/index.html`（イシュー #2615、Phase 2「テキスト・
   注釈」の Paragraph 部品ページ）
   である。
