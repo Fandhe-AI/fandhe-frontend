@@ -233,7 +233,9 @@
   `radio` 部品。選択状態は `props::Active` を再利用し、新規の
   `Selected`/`Checked` 型は新設しない）/
   `wireframes/switch/index.html`（イシュー #2627、Phase 3「Forms A」の
-  `switch` 部品。`Active` を ON 状態の意味で使い `Disabled` を併用する）
+  `switch` 部品。`Active` を ON 状態の意味で使い `Disabled` を併用する）/
+  `wireframes/checkbox/index.html`（イシュー #2625、Phase 3「Forms A」の
+  `checkbox` 部品〔`props::Active` を「チェック済み」状態として消費〕）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
