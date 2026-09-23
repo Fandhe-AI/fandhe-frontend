@@ -1501,6 +1501,11 @@ source = "site/wireframes/avatar.md"
 path = "/wireframes/avatar/"
 
 [[section.page]]
+title = "Counter"
+source = "site/wireframes/counter.md"
+path = "/wireframes/counter/"
+
+[[section.page]]
 title = "Stat"
 source = "site/wireframes/stat.md"
 path = "/wireframes/stat/"

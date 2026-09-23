@@ -321,8 +321,11 @@
   `wireframes/avatar/index.html`（イシュー #2651、Phase 7「Data display」の
   最初の部品。`content: Option<Node>` が `None` のとき `icon::user` へ
   フォールバックする §11.4 からの意図的な逸脱）/
+  `wireframes/counter/index.html`（イシュー #2655、Phase 7「Data display」の
+  2 番目の部品。件数は `u32` ではなく `&str` で受け、強調配色は部品
+  ローカルの新型を新設せず共通型 `props::Primary` を再利用する）/
   `wireframes/stat/index.html`（イシュー #2656、Phase 7「Data display」の
-  2 番目の部品。増減インジケータは `Option<&str>` ではなく `StatDelta`
+  3 番目の部品。増減インジケータは `Option<&str>` ではなく `StatDelta`
   〔`menu::MenuItem` と同型の公開構造体〕で表し、向きのある `Up`/`Down` は
   `icon::caret_up`/`icon::caret_down` を再利用する）
   である。
