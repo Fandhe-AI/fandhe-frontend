@@ -266,10 +266,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // 部品ページが加わり、261 → 262 になった。イシュー #2627 で Wireframes
     // セクションへ Switch 部品ページが加わり、262 → 263 になった。イシュー
     // #2625 で Wireframes セクションへ Checkbox 部品ページが加わり、
-    // 263 → 264 になった。
+    // 263 → 264 になった。イシュー #2623 で Wireframes セクションへ
+    // Textarea 部品ページが加わり、264 → 265 になった。
     assert_eq!(
         report.written.len(),
-        264,
+        265,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
