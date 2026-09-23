@@ -107,8 +107,7 @@ pub struct Wireframe {
 /// （#2608〜#2665）の各部品イシューが自分の [`Wireframe`] 定数を
 /// 1 要素ずつ追記する。Phase 1「レイアウト骨格」の [`grid::WIREFRAME`]
 /// （イシュー #2611）・[`stack::WIREFRAME`]（イシュー #2610）が続いた。
-pub const WIREFRAMES: &[Wireframe] =
-    &[annotation::WIREFRAME, grid::WIREFRAME, stack::WIREFRAME];
+pub const WIREFRAMES: &[Wireframe] = &[annotation::WIREFRAME, grid::WIREFRAME, stack::WIREFRAME];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。
 /// `crate::build::build_site` が「このページを Wireframes 専用分岐に乗せるか」
