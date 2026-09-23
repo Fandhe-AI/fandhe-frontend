@@ -337,7 +337,11 @@
   `wireframes/image/index.html`（イシュー #2660、Phase 8 の 2 番目の
   部品。`content: Option<Node>` が `None` のときバツ印プレース
   ホルダーを描く §11.4 準拠のスロット規約。強調は共通型 `props::Primary`
-  を再利用する）
+  を再利用する）/
+  `wireframes/card-basic/index.html`（イシュー #2658、Phase 7「Data
+  display」の 5 番目の部品。先頭・末尾スロットは §11.4 の `Option<Node>`
+  規約へ統一し `avatar` を内蔵しない独自設計。`secondary` は `nav_item` の
+  `counter` と同じ `Option<&str>`）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
