@@ -8,7 +8,7 @@
 //! しない（デモ間の余白は既存タイポグラフィの `p` キャプションで確保する）。
 
 use fandhe_frontend_core::{div, p, text, Node};
-use fandhe_frontend_wireframe_ui::{avatar, card_basic, icon, Size};
+use fandhe_frontend_wireframe_ui::{avatar, card_basic, icon, stack, Orientation, Size};
 
 use super::{ArgRow, Wireframe};
 
@@ -78,8 +78,7 @@ fn demo() -> Node {
             p(vec![], vec![text("スロットを省略（テキストだけ）")]),
             card_basic("見出し", Some("補足テキスト"), None, None, Size::Md),
             p(vec![], vec![text("サイズ比較（Xs〜Xl）")]),
-            div(
-                vec![],
+            stack(
                 Size::ALL
                     .into_iter()
                     .map(|size| {
@@ -92,6 +91,8 @@ fn demo() -> Node {
                         )
                     })
                     .collect(),
+                Orientation::Vertical,
+                Size::Sm,
             ),
         ],
     )
