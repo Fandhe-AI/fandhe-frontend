@@ -323,7 +323,11 @@
   フォールバックする §11.4 からの意図的な逸脱）/
   `wireframes/counter/index.html`（イシュー #2655、Phase 7「Data display」の
   2 番目の部品。件数は `u32` ではなく `&str` で受け、強調配色は部品
-  ローカルの新型を新設せず共通型 `props::Primary` を再利用する）
+  ローカルの新型を新設せず共通型 `props::Primary` を再利用する）/
+  `wireframes/media/index.html`（イシュー #2661、Phase 8「Media・Data」の
+  最初の部品。blocks.pm 上の表示名は Placeholder。`content: None` で
+  `icon::play` へフォールバック、16:9 固定、`<video>`/`<iframe>` は
+  出力しない）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

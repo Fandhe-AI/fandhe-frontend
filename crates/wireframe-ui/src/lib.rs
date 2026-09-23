@@ -125,7 +125,12 @@
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
 //! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
 //! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
-//! 全部品が出揃った。残りは Phase 7 の他部品・Phase 8 で順次追加する。
+//! 全部品が出揃った。Phase 8「Media・Data」の最初の部品 [`media`]
+//! （イシュー #2661、blocks.pm 上の表示名は Placeholder。`content:
+//! Option<Node>` が `None` のとき [`icon::play`] へフォールバックする
+//! §11.4 からの意図的な逸脱。動画か静止画かは bool ではなくスロット
+//! 差し替えで表し、枠は 16:9 固定で `<video>`/`<iframe>` は出力しない）
+//! が続いた。残りは Phase 7 の他部品・Phase 8 の他部品で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -158,6 +163,7 @@ pub mod grid;
 pub mod icon;
 pub mod input;
 pub mod link;
+pub mod media;
 pub mod menu;
 pub mod modal;
 pub mod nav_item;
@@ -202,6 +208,7 @@ pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
 pub use input::input;
 pub use link::link;
+pub use media::media;
 pub use menu::{menu, MenuItem};
 pub use modal::modal;
 pub use nav_item::nav_item;

@@ -69,6 +69,7 @@ mod frame;
 mod grid;
 mod input;
 mod link;
+mod media;
 mod menu;
 mod modal;
 mod nav_item;
@@ -189,7 +190,11 @@ pub struct Wireframe {
 /// する §11.4 からの意図的な逸脱）・[`counter::WIREFRAME`]（イシュー
 /// #2655、2 番目の部品。件数は `u32` ではなく `&str` で受け、強調配色は
 /// 部品ローカルの新型を新設せず共通型 `Primary` を再利用する）が続いた。
-/// Phase 1・3・4・5・6・7 以降（#2608〜#2665）の残りの各部品イシューが
+/// Phase 8「Media・Data」の最初の部品 [`media::WIREFRAME`]（イシュー
+/// #2661、blocks.pm 上の表示名は Placeholder。`content: Option<Node>` が
+/// `None` のとき `icon::play` へフォールバックする §11.4 からの意図的な
+/// 逸脱。動画か静止画かは bool ではなくスロット差し替えで表す）も続いた。
+/// Phase 1・3・4・5・6・7・8 以降（#2608〜#2665）の残りの各部品イシューが
 /// 自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
@@ -230,6 +235,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     modal::WIREFRAME,
     avatar::WIREFRAME,
     counter::WIREFRAME,
+    media::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。
