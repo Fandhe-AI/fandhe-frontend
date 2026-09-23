@@ -91,12 +91,27 @@
 //! クレートルートから再エクスポートする初めての例）も続いた。
 //! Phase 6「Overlay・Feedback」の最初の部品 [`tooltip`]（イシュー #2644、
 //! 方向は部品ローカルの [`tooltip::TooltipSide`] による修飾 class で表す）・
-//! Phase 6 の 2 番目の部品 [`modal`]（イシュー #2645、blocks.pm に対応部品
-//! がない独自追加部品。中央配置は `position: fixed` ではなく in-flow の
-//! 背景領域 + `place-items: center` で表現し、パネル最大幅は `Size` 5 段の
-//! 静的ルールとして [`crate::css::PARTS`] へ直書きする）が続いた。
+//! Phase 6 の 2 番目の部品 [`toast`]（イシュー #2647、閉じるグリフは
+//! [`icon::x`] 固定で instance swap にせず `dismissible: bool` の 1 引数
+//! だけで有無を切り替える）・3 番目の部品 [`alert`]（イシュー #2646、
+//! 横長の警告バナー。重要度は部品ローカルの [`alert::Severity`] による
+//! 修飾 class で表し、`props.rs` へは昇格しない。アイコンは
+//! `link`/`file_drop` と同じ `Option<Node>` スロット）・4 番目の部品
+//! [`progress`]（イシュー #2648、形状は部品ローカルの
+//! [`progress::ProgressShape`] による修飾 class（Bar/Circle）で表し、進捗値は
+//! `slider` と同型の 5 刻み固定 class 集合へ量子化する。表示専用のため
+//! `Active`/`Disabled` を持たない）・5 番目の部品 [`spinner`]（イシュー
+//! #2649、円弧だけを描く静的表示で `@keyframes`/`animation` は持たない）・
+//! 6 番目の部品 [`modal`]（イシュー #2645、blocks.pm に対応部品がない
+//! 独自追加部品。中央配置は `position: fixed` ではなく in-flow の背景領域 +
+//! `place-items: center` で表現し、パネル最大幅は `Size` 5 段の静的ルール
+//! として [`crate::css::PARTS`] へ直書きする）が続いた。Phase 7「Data
+//! display」の最初の部品 [`avatar`]（イシュー #2651、`content: Option<Node>`
+//! が `None` のとき [`icon::user`] へフォールバックする §11.4 からの意図的な
+//! 逸脱。円形表示は `crate::frame` の `bordered` と同型の部品固有修飾 class
+//! で表す）が続いた。
 //! 残りは Phase 3 の他部品（#2608〜）・Phase 5 の他部品（menu 等）・
-//! Phase 6 の他部品で順次追加する。
+//! Phase 6 の他部品・Phase 7 の他部品で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -111,7 +126,9 @@
 //! 詳細・追記契約は `docs/design/wireframe-ui-architecture.md` §10 を参照。
 
 pub mod accordion;
+pub mod alert;
 pub mod annotation;
+pub mod avatar;
 pub mod button;
 pub mod calendar;
 pub mod checkbox;
@@ -129,6 +146,7 @@ pub mod modal;
 pub mod nav_item;
 pub mod pagination;
 pub mod paragraph;
+pub mod progress;
 pub mod props;
 pub mod question;
 pub mod radio;
@@ -137,6 +155,7 @@ pub mod rich_text;
 pub mod select;
 pub mod size;
 pub mod slider;
+pub mod spinner;
 pub mod stack;
 pub mod stepper;
 pub mod switch;
@@ -144,11 +163,14 @@ pub mod tabs;
 pub mod tag;
 pub mod text;
 pub mod textarea;
+pub mod toast;
 pub mod tokens;
 pub mod tooltip;
 
 pub use accordion::accordion;
+pub use alert::{alert, Severity};
 pub use annotation::annotation;
+pub use avatar::avatar;
 pub use button::button;
 pub use calendar::{calendar, MAX_WEEKS};
 pub use checkbox::checkbox;
@@ -165,6 +187,7 @@ pub use modal::modal;
 pub use nav_item::nav_item;
 pub use pagination::pagination;
 pub use paragraph::paragraph;
+pub use progress::{progress, ProgressShape};
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
 pub use question::question;
 pub use radio::radio;
@@ -173,6 +196,7 @@ pub use rich_text::rich_text;
 pub use select::select;
 pub use size::Size;
 pub use slider::slider;
+pub use spinner::spinner;
 pub use stack::stack;
 pub use stepper::stepper;
 pub use switch::switch;
@@ -180,4 +204,5 @@ pub use tabs::tabs;
 pub use tag::tag;
 pub use text::text;
 pub use textarea::{textarea, MAX_ROWS};
+pub use toast::toast;
 pub use tooltip::{tooltip, TooltipSide};
