@@ -19,7 +19,8 @@
 /// [`crate::select::SELECT_CSS`]・イシュー #2626 で
 /// [`crate::radio::RADIO_CSS`]・イシュー #2627 で
 /// [`crate::switch::SWITCH_CSS`]・イシュー #2625 で
-/// [`crate::checkbox::CHECKBOX_CSS`]・イシュー #2628 で
+/// [`crate::checkbox::CHECKBOX_CSS`]・イシュー #2623 で
+/// [`crate::textarea::TEXTAREA_CSS`]・イシュー #2628 で
 /// [`crate::slider::SLIDER_CSS`] が続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
@@ -34,6 +35,7 @@ pub const PARTS: &[&str] = &[
     crate::radio::RADIO_CSS,
     crate::switch::SWITCH_CSS,
     crate::checkbox::CHECKBOX_CSS,
+    crate::textarea::TEXTAREA_CSS,
     crate::slider::SLIDER_CSS,
 ];
 

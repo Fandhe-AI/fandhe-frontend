@@ -65,6 +65,7 @@ mod select;
 mod slider;
 mod stack;
 mod switch;
+mod textarea;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
 use fandhe_frontend_pre_styled_ui::{StyleSheet, StylesheetError};
@@ -120,8 +121,8 @@ pub struct Wireframe {
 /// [`button::WIREFRAME`]（イシュー #2621）・[`select::WIREFRAME`]
 /// （イシュー #2624）・[`radio::WIREFRAME`]（イシュー #2626、選択状態は
 /// `props::Active` を再利用）・[`switch::WIREFRAME`]（イシュー #2627）・
-/// [`checkbox::WIREFRAME`]（イシュー #2625）・[`slider::WIREFRAME`]
-/// （イシュー #2628）が続いた。
+/// [`checkbox::WIREFRAME`]（イシュー #2625）・[`textarea::WIREFRAME`]
+/// （イシュー #2623）・[`slider::WIREFRAME`]（イシュー #2628）が続いた。
 /// Phase 1・3 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -136,6 +137,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     radio::WIREFRAME,
     switch::WIREFRAME,
     checkbox::WIREFRAME,
+    textarea::WIREFRAME,
     slider::WIREFRAME,
 ];
 

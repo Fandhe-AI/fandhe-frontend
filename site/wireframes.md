@@ -38,11 +38,12 @@
 - [Radio](./wireframes/radio.md)
 - [Switch](./wireframes/switch.md)
 - [Checkbox](./wireframes/checkbox.md)
+- [Textarea](./wireframes/textarea.md)
 - [Slider](./wireframes/slider.md)
 
 ## 掲載予定
 
-以下は Phase 1〜8（#2608〜#2665）で順次掲載する 37 部品です（Phase ごとの内訳）。
+以下は Phase 1〜8（#2608〜#2665）で順次掲載する 36 部品です（Phase ごとの内訳）。
 掲載が完了した部品は本節へリンク付きの「掲載済み」一覧として追記されます（現時点では
 未掲載のため本節はリンクなしの一覧です）。
 
@@ -59,7 +60,6 @@
 ### Phase 3: Forms A
 
 - input
-- textarea
 
 ### Phase 4: Forms B
 
