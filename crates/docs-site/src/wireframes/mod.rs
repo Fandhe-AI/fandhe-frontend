@@ -57,14 +57,17 @@ mod annotation;
 mod button;
 mod checkbox;
 mod divider;
+mod frame;
 mod grid;
 mod link;
 mod paragraph;
 mod radio;
 mod rich_text;
 mod select;
+mod slider;
 mod stack;
 mod switch;
+mod textarea;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
 use fandhe_frontend_pre_styled_ui::{StyleSheet, StylesheetError};
@@ -121,7 +124,9 @@ pub struct Wireframe {
 /// （イシュー #2621）・[`select::WIREFRAME`]（イシュー #2624）・
 /// [`radio::WIREFRAME`]（イシュー #2626、選択状態は `props::Active` を
 /// 再利用）・[`switch::WIREFRAME`]（イシュー #2627）・
-/// [`checkbox::WIREFRAME`]（イシュー #2625）が続いた。
+/// [`checkbox::WIREFRAME`]（イシュー #2625）・[`textarea::WIREFRAME`]
+/// （イシュー #2623）・[`slider::WIREFRAME`]（イシュー #2628）・Phase 1 の
+/// [`frame::WIREFRAME`]（イシュー #2609）が続いた。
 /// Phase 1・3 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -137,6 +142,9 @@ pub const WIREFRAMES: &[Wireframe] = &[
     radio::WIREFRAME,
     switch::WIREFRAME,
     checkbox::WIREFRAME,
+    textarea::WIREFRAME,
+    slider::WIREFRAME,
+    frame::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

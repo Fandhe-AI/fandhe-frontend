@@ -49,9 +49,13 @@
 //! 部品）・[`radio`]（イシュー #2626、選択状態は新型を新設せず
 //! `props::Active` を再利用）・[`switch`]（イシュー #2627、`Active` を
 //! ON 状態の意味で使い `Disabled` を併用する部品）・[`checkbox`]
-//! （イシュー #2625、`props::Active` を「チェック済み」状態として消費）
-//! が続いた。残りは Phase 1 の他部品（frame）・Phase 2 の他部品
-//! （text/tag 等）および Phase 3 の他部品（#2608〜）で
+//! （イシュー #2625、`props::Active` を「チェック済み」状態として消費）・
+//! [`textarea`]（イシュー #2623、`rows` を行プレースホルダー要素の構造
+//! 表現とし `style`・ネイティブ `<textarea>` を使わない設計）・
+//! [`slider`]（イシュー #2628、`props::Orientation` と `Active`/
+//! `Disabled` を併用する部品。進捗値は 5 刻みの固定 class 集合へ量子化
+//! する）・Phase 1 の [`frame`]（イシュー #2609）が続いた。残りは
+//! Phase 2 の他部品（text/tag 等）および Phase 3 の他部品（#2608〜）で
 //! 順次追加する。
 //!
 //! # class 命名規約
@@ -72,6 +76,7 @@ pub mod checkbox;
 pub mod class;
 pub mod css;
 pub mod divider;
+pub mod frame;
 pub mod grid;
 pub mod icon;
 pub mod link;
@@ -81,8 +86,10 @@ pub mod radio;
 pub mod rich_text;
 pub mod select;
 pub mod size;
+pub mod slider;
 pub mod stack;
 pub mod switch;
+pub mod textarea;
 pub mod tokens;
 
 pub use annotation::annotation;
@@ -91,6 +98,7 @@ pub use checkbox::checkbox;
 pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
 pub use divider::divider;
+pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
 pub use link::link;
 pub use paragraph::paragraph;
@@ -99,5 +107,7 @@ pub use radio::radio;
 pub use rich_text::rich_text;
 pub use select::select;
 pub use size::Size;
+pub use slider::slider;
 pub use stack::stack;
 pub use switch::switch;
+pub use textarea::{textarea, MAX_ROWS};

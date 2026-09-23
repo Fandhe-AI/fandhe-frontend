@@ -60,7 +60,16 @@ impl Size {
 /// 各部品 CSS はここで定義される `--fw-wire-font-size`/`--fw-wire-control-size`
 /// を参照することで、部品ごとに 5 段の宣言を書かずに済む（設計判断は
 /// イシュー #2605 実装計画 §3.1）。
-const SCALE: [(Size, &str, &str); 5] = [
+///
+/// クレート内限定で公開する（`pub(crate)`）。[`crate::frame::frame_padding_css`]
+/// が padding 値（`control_size` を使う `calc()` 式）を導出するために
+/// 直接走査する唯一の消費経路であり、`control_size` の値を他所へ
+/// 書き写さず常にこの配列を単一の正として参照させる（コードレビュー
+/// 指摘、イシュー #2609/PR #2679）。`.find()`/`.expect()` を要する
+/// ルックアップ関数は設けない（ライブラリコードでの `expect()` を避ける
+/// 規約、`.claude/rules/coding-rust.md`）。全 5 段の直接走査で足りる
+/// 呼び出し側のみが本配列を参照する設計とする。
+pub(crate) const SCALE: [(Size, &str, &str); 5] = [
     (Size::Xs, "0.75rem", "1.5rem"),
     (Size::Sm, "0.875rem", "1.75rem"),
     (Size::Md, "1rem", "2rem"),
