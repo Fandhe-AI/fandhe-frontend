@@ -175,3 +175,27 @@ fn tabs_css_declares_expected_selectors_with_fw_wire_prefix_only() {
     assert!(!css.contains("--fandhe-"));
     assert!(!css.contains(" fd-"));
 }
+
+#[test]
+fn tabs_css_vertical_shrinks_to_content_width() {
+    // レビュー指摘（Cursor Bugbot, crates/wireframe-ui/src/tabs.rs#L78-L83）:
+    // 縦向き tabs は display: flex（ブロックレベル）のまま align-self:
+    // flex-start だけを持つと、親が flex/grid コンテナでない既定のブロック
+    // 文脈（/wireframes/tabs/ デモ含む）では効果がなく全幅に伸びる。
+    // display: inline-flex へ変え、align-self: flex-start には依存しない
+    // ことを固定する回帰テスト。
+    let css = fandhe_frontend_wireframe_ui::tabs::TABS_CSS;
+    let vertical_rule = css
+        .split(".fw-wire-tabs.fw-wire-vertical {")
+        .nth(1)
+        .and_then(|rest| rest.split('}').next())
+        .expect("vertical rule block should exist");
+    assert!(
+        vertical_rule.contains("display: inline-flex;"),
+        "vertical rule should switch to inline-flex to shrink to content width: {vertical_rule:?}"
+    );
+    assert!(
+        !vertical_rule.contains("align-self: flex-start;"),
+        "align-self: flex-start has no effect outside a flex/grid parent and should not be relied on: {vertical_rule:?}"
+    );
+}

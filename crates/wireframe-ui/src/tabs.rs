@@ -77,9 +77,9 @@ pub const TABS_CSS: &str = "\
   border-bottom: var(--fw-wire-line-width) solid var(--fw-wire-line);
 }
 .fw-wire-tabs.fw-wire-vertical {
+  display: inline-flex;
   flex-direction: column;
   border-right: var(--fw-wire-line-width) solid var(--fw-wire-line);
-  align-self: flex-start;
 }
 .fw-wire-tabs-item {
   box-sizing: border-box;
