@@ -259,12 +259,18 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // Wireframes セクションへ Stack 部品ページが加わり、256 → 257 になった。
     // イシュー #2618 で Wireframes セクションへ Link 部品ページが加わり、
     // 257 → 258 になった。イシュー #2616 で Wireframes セクションへ
-    // Rich text 部品ページが加わり、258 → 259 になった。イシュー #2623 で
-    // Wireframes セクションへ Textarea 部品ページが加わり、259 → 260 に
-    // なった。
+    // Rich text 部品ページが加わり、258 → 259 になった。イシュー #2621 で
+    // Wireframes セクションへ Button 部品ページが加わり、259 → 260 になった。
+    // イシュー #2624 で Wireframes セクションへ Select 部品ページが加わり、
+    // 260 → 261 になった。イシュー #2626 で Wireframes セクションへ Radio
+    // 部品ページが加わり、261 → 262 になった。イシュー #2627 で Wireframes
+    // セクションへ Switch 部品ページが加わり、262 → 263 になった。イシュー
+    // #2625 で Wireframes セクションへ Checkbox 部品ページが加わり、
+    // 263 → 264 になった。イシュー #2623 で Wireframes セクションへ
+    // Textarea 部品ページが加わり、264 → 265 になった。
     assert_eq!(
         report.written.len(),
-        260,
+        265,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -478,6 +484,9 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
         ("wireframes/annotation/index.html", false),
         // イシュー #2610: Stack が 2 番目の部品ページとして登録された。
         ("wireframes/stack/index.html", false),
+        // イシュー #2621: Button が Phase 3「Forms A」の最初の部品ページ
+        // として登録された。
+        ("wireframes/button/index.html", false),
         ("api/component-api/index.html", false),
     ];
 

@@ -263,7 +263,20 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/link/index.html"
           # イシュー #2616: Phase 2「テキスト・注釈」の Rich text 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/rich-text/index.html"
-          # イシュー #2623: Phase 3「Forms A」の Textarea 部品ページ。
+          # イシュー #2621: Phase 3「Forms A」の Button 部品ページ
+          # （props::Disabled の最初の実消費者）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/button/index.html"
+          # イシュー #2624: 同 Phase の Select 部品ページ。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/select/index.html"
+          # イシュー #2626: 同 Phase の Radio 部品ページ（選択状態は
+          # props::Active を再利用、新規の Selected/Checked 型は新設しない）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/radio/index.html"
+          # イシュー #2627: 同 Phase の Switch 部品ページ。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/switch/index.html"
+          # イシュー #2625: Phase 3「Forms A」の Checkbox 部品ページ
+          # （props::Active を「チェック済み」状態として消費）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/checkbox/index.html"
+          # イシュー #2623: 同 Phase の Textarea 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/textarea/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
