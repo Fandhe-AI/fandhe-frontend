@@ -77,10 +77,13 @@
 //! ステップは既存 [`props::Active`] を再利用する）・Phase 5「Navigation」の
 //! [`nav_item`]（イシュー #2636、先頭・末尾の `Option<Node>` アイコン
 //! スロットに加え `Option<&str>` の件数カウンター内部パートを持ち、
-//! `Active` はアクティブ状態のグレースケール反転配色として消費する）も
-//! 続いた。
-//! 残りは Phase 3 の他部品（#2608〜）および Phase 5 の他部品（menu 等）で
-//! 順次追加する。
+//! `Active` はアクティブ状態のグレースケール反転配色として消費する）・
+//! Phase 5 の [`menu::menu`]（イシュー #2637、検索欄は `Option<&str>` +
+//! 固定パートの [`icon::search`] で表し `<input>` は出力しない。項目は
+//! [`menu::MenuItem`] のスライスで受け、強調状態は無効項目を指す添字なら
+//! 優先して外す fail-closed な `active: Option<usize>`）も続いた。
+//! 残りは Phase 3 の他部品（#2608〜）および Phase 5 の他部品（breadcrumbs
+//! 等）で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -107,6 +110,7 @@ pub mod grid;
 pub mod icon;
 pub mod input;
 pub mod link;
+pub mod menu;
 pub mod nav_item;
 pub mod paragraph;
 pub mod props;
@@ -138,6 +142,7 @@ pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
 pub use input::input;
 pub use link::link;
+pub use menu::{menu, MenuItem};
 pub use nav_item::nav_item;
 pub use paragraph::paragraph;
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
