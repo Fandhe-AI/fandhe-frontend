@@ -60,6 +60,7 @@ mod avatar;
 mod breadcrumbs;
 mod button;
 mod calendar;
+mod chart;
 mod checkbox;
 mod counter;
 mod cursor;
@@ -197,11 +198,12 @@ pub struct Wireframe {
 /// 畳み込む §11.4 からの意図的な逸脱）・[`stat::WIREFRAME`]（イシュー
 /// #2656、4 番目の部品。増減インジケータは `Option<&str>` ではなく
 /// `StatDelta`（`menu::MenuItem` と同型の公開構造体）で表す）が続いた。
-/// Phase 8「Media・Data」の最初の部品 [`image::WIREFRAME`]（イシュー
+/// Phase 8「Media・データ表示」の最初の部品 [`image::WIREFRAME`]（イシュー
 /// #2660、対角のバツ印が入った正方形/円形の枠。`content: Option<Node>`
 /// が `None` のときバツ印プレースホルダーを描き `Some(node)` のときは
 /// 子要素を差し替える §11.4 準拠のスロット規約。強調は共通型 `Primary`
-/// を再利用する）が続いた。
+/// を再利用する）・2 番目の部品 [`chart::WIREFRAME`]（イシュー #2663、
+/// 値は `&[u8]` で受け取り `props::Orientation` を再利用する）が続いた。
 /// Phase 1・3・4・5・6・7・8 以降（#2608〜#2665）の残りの各部品イシューが
 /// 自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -246,6 +248,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     emoji::WIREFRAME,
     stat::WIREFRAME,
     image::WIREFRAME,
+    chart::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

@@ -1516,6 +1516,11 @@ source = "site/wireframes/stat.md"
 path = "/wireframes/stat/"
 
 [[section.page]]
+title = "Chart"
+source = "site/wireframes/chart.md"
+path = "/wireframes/chart/"
+
+[[section.page]]
 title = "Image"
 source = "site/wireframes/image.md"
 path = "/wireframes/image/"

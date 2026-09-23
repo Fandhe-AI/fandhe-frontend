@@ -331,8 +331,11 @@
   4 番目の部品。増減インジケータは `Option<&str>` ではなく `StatDelta`
   〔`menu::MenuItem` と同型の公開構造体〕で表し、向きのある `Up`/`Down` は
   `icon::caret_up`/`icon::caret_down` を再利用する）/
-  `wireframes/image/index.html`（イシュー #2660、Phase 8「Media・Data」の
-  最初の部品。`content: Option<Node>` が `None` のときバツ印プレース
+  `wireframes/chart/index.html`（イシュー #2663、Phase 8「Media・データ
+  表示」の最初の部品。棒グラフの配置イメージを `values: &[u8]` から
+  組み立て、`props::Orientation` を再利用する）/
+  `wireframes/image/index.html`（イシュー #2660、Phase 8 の 2 番目の
+  部品。`content: Option<Node>` が `None` のときバツ印プレース
   ホルダーを描く §11.4 準拠のスロット規約。強調は共通型 `props::Primary`
   を再利用する）
   である。

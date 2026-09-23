@@ -364,7 +364,11 @@ jobs:
           # ページ（増減インジケータは Option<&str> ではなく StatDelta で
           # 表す）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/stat/index.html"
-          # イシュー #2660: Phase 8「Media・Data」の最初の部品、Image 部品
+          # イシュー #2663: Phase 8「Media・データ表示」の最初の部品、Chart
+          # 部品ページ（棒グラフの配置イメージ。values は &[u8]、
+          # props::Orientation を再利用する）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/chart/index.html"
+          # イシュー #2660: Phase 8 の 2 番目の部品、Image 部品
           # ページ（content: Option<Node> が None のときバツ印プレース
           # ホルダーを描く §11.4 準拠のスロット規約）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/image/index.html"
