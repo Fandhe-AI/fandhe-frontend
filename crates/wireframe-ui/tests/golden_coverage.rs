@@ -180,7 +180,15 @@ fn every_parts_const_has_a_golden_file() {
 
     let mut missing = Vec::new();
     for const_name in &consts {
-        if !golden_source.contains(const_name.as_str()) {
+        // `contains(const_name)` という素朴な部分文字列一致だと、
+        // 例えば `TEXT_CSS` は `RICH_TEXT_CSS` の部分文字列であるため
+        // `tests/text_css.rs` を削除しても `tests/rich_text_css.rs`
+        // 内の `crate::rich_text::RICH_TEXT_CSS` 参照にヒットしてしまい
+        // 欠落検知が fail-open になる（イシュー #2666 レビュー指摘）。
+        // `::` 区切りを含めて照合し、`::TEXT_CSS` が `::RICH_TEXT_CSS`
+        // の部分文字列にならないようにする。
+        let needle = format!("::{const_name}");
+        if !golden_source.contains(needle.as_str()) {
             missing.push(const_name.clone());
         }
     }
