@@ -248,6 +248,13 @@ Phase 1 以降の部品イシューは、自分のモジュールに `pub const 
 1 要素追記する以外の場所で CSS を出力してはならない（意図的な摩擦点。`crates/wireframe-ui/tests/common_api.rs`
 がセレクタ行の `fw-wire-` プレフィックス一致・`PARTS` の重複禁止を機械固定する）。
 
+**例外（`size::SCALE` 等の単一の正から動的に導出する生成 CSS）**: `size::css()`（`Size` 5 段のスコープ付き
+カスタムプロパティ）と `frame::frame_padding_css()`（Frame の padding 5 段、イシュー #2609）は値が実行時に
+`size::SCALE` を走査して決まるため `pub const <PART>_CSS: &str` として `const` 化できない。この 2 つに限り
+`wireframe_css()` が `PARTS` を経由せず個別に連結する。新たな非 `PARTS` 経路を追加してよいのは、その CSS が
+`size::SCALE` 等の単一の正（別モジュールが既に持つ値表）から導出される場合に限る。単に `const` 化が面倒と
+いう理由での逸脱は許容しない。
+
 ### 10.5 `Size` と pre-styled-ui の段階名パリティ
 
 wireframe-ui `size::Size` は pre-styled-ui `recipe::Size`（`crates/pre-styled-ui/src/recipe.rs`）と段階名
