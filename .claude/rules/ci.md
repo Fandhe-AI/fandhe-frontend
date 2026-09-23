@@ -292,7 +292,10 @@
   `icon::cursor_arrow`/`icon::cursor_hand` を新規追加して消費する）/
   `wireframes/tooltip/index.html`（イシュー #2644、Phase 6「Overlay・
   Feedback」の最初の部品。方向は部品ローカルの `TooltipSide` による
-  修飾 class で表す）
+  修飾 class で表す）/
+  `wireframes/toast/index.html`（イシュー #2647、Phase 6「Overlay・
+  Feedback」の 2 番目の部品。閉じるグリフは `icon::x` 固定で instance
+  swap にせず `dismissible: bool` の 1 引数だけで有無を切り替える）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
