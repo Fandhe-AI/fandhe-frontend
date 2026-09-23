@@ -49,7 +49,11 @@
 //! 選択状態は新型を新設せず `props::Active` を再利用）・[`switch`]
 //! （イシュー #2627、`Active` を ON 状態の意味で使い `Disabled` を併用する
 //! 部品）・[`checkbox`]（イシュー #2625、`props::Active` を「チェック済み」
-//! 状態として消費）・Phase 1 の [`frame`]（イシュー #2609）が続いた。
+//! 状態として消費）・[`textarea`]（イシュー #2623、`rows` を行プレース
+//! ホルダー要素の構造表現とし `style`・ネイティブ `<textarea>` を使わない
+//! 設計）・[`slider`]（イシュー #2628、`props::Orientation` と
+//! `Active`/`Disabled` を併用する部品。進捗値は 5 刻みの固定 class 集合へ
+//! 量子化する）・Phase 1 の [`frame`]（イシュー #2609）が続いた。
 //! 残りは Phase 2 の他部品（text/paragraph/tag 等）および Phase 3 の
 //! 他部品（#2608〜）で順次追加する。
 //!
@@ -80,8 +84,10 @@ pub mod radio;
 pub mod rich_text;
 pub mod select;
 pub mod size;
+pub mod slider;
 pub mod stack;
 pub mod switch;
+pub mod textarea;
 pub mod tokens;
 
 pub use annotation::annotation;
@@ -98,5 +104,7 @@ pub use radio::radio;
 pub use rich_text::rich_text;
 pub use select::select;
 pub use size::Size;
+pub use slider::slider;
 pub use stack::stack;
 pub use switch::switch;
+pub use textarea::{textarea, MAX_ROWS};

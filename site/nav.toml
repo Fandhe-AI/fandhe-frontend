@@ -1371,6 +1371,16 @@ source = "site/wireframes/checkbox.md"
 path = "/wireframes/checkbox/"
 
 [[section.page]]
+title = "Textarea"
+source = "site/wireframes/textarea.md"
+path = "/wireframes/textarea/"
+
+[[section.page]]
+title = "Slider"
+source = "site/wireframes/slider.md"
+path = "/wireframes/slider/"
+
+[[section.page]]
 title = "Frame"
 source = "site/wireframes/frame.md"
 path = "/wireframes/frame/"
