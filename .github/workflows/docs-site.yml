@@ -376,6 +376,11 @@ jobs:
           # 部品ページ（先頭・末尾スロットは §11.4 の Option<Node> 規約へ統一し
           # avatar を内蔵しない独自設計）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/card-basic/index.html"
+          # イシュー #2664: Phase 8「Media・データ表示」の 3 番目の
+          # 部品、Map 部品ページ（地図タイルの配置イメージ。zoom は部品
+          # ローカル列挙型 MapZoom 3 段、marker は Option<Node> アイコン
+          # スロット）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/map/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact
