@@ -277,13 +277,14 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // Wireframes セクションへ Input 部品ページが加わり、269 → 270 になった。
     // イシュー #2630 で Wireframes セクションへ Question 部品ページが加わり、
     // 270 → 271 になった。イシュー #2631 で Wireframes セクションへ
-    // Ratings 部品ページが加わり、271 → 272 になった。イシュー #2633 で
-    // Wireframes セクションへ File drop 部品ページが加わり、272 → 273 に
-    // なった。イシュー #2638 で Wireframes セクションへ Tabs 部品ページが
-    // 加わり、273 → 274 になった。
+    // Ratings 部品ページが加わり、271 → 272 になった。イシュー #2632 で
+    // Wireframes セクションへ Calendar 部品ページが加わり、272 → 273 に
+    // なった。イシュー #2633 で Wireframes セクションへ File drop 部品
+    // ページが加わり、273 → 274 になった。イシュー #2638 で Wireframes
+    // セクションへ Tabs 部品ページが加わり、274 → 275 になった。
     assert_eq!(
         report.written.len(),
-        274,
+        275,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );

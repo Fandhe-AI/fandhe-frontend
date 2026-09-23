@@ -55,6 +55,7 @@
 
 mod annotation;
 mod button;
+mod calendar;
 mod checkbox;
 mod divider;
 mod file_drop;
@@ -136,11 +137,13 @@ pub struct Wireframe {
 /// （イシュー #2619）・[`input::WIREFRAME`]（イシュー #2622）・
 /// Phase 4「Forms B」の [`question::WIREFRAME`]（イシュー #2630、最初の
 /// 部品）・[`ratings::WIREFRAME`]（イシュー #2631、`icon::star` を再利用
-/// する 2 番目の部品）・[`file_drop::WIREFRAME`]（イシュー #2633、
-/// blocks.pm に対応部品がない独自追加部品）・Phase 5「Navigation」の
-/// [`tabs::WIREFRAME`]（イシュー #2638、最初の部品。選択状態は項目ごとの
-/// `Active` ではなく `active: Option<usize>` 1 引数で表す）が続いた。
-/// Phase 1・3・5 以降（#2608〜#2665）の残りの各部品イシューが自分の
+/// する 2 番目の部品）・[`calendar::WIREFRAME`]（イシュー #2632、選択日は
+/// `props::Active` を再利用する 3 番目の部品）・[`file_drop::WIREFRAME`]
+/// （イシュー #2633、blocks.pm に対応部品がない独自追加部品、4 番目の
+/// 部品）・Phase 5「Navigation」の [`tabs::WIREFRAME`]（イシュー #2638、
+/// 最初の部品。選択状態は項目ごとの `Active` ではなく
+/// `active: Option<usize>` 1 引数で表す）が続いた。
+/// Phase 1・3・4・5 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
@@ -162,6 +165,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     input::WIREFRAME,
     question::WIREFRAME,
     ratings::WIREFRAME,
+    calendar::WIREFRAME,
     file_drop::WIREFRAME,
     tabs::WIREFRAME,
 ];

@@ -61,14 +61,15 @@
 //! [`question`]（イシュー #2630、ラベル + 補足説明 + `Node` スロットの
 //! コントロール + ヒント。表示状態軸を持たずスロット側へ委ねる）・
 //! [`ratings`]（イシュー #2631、`icon::star` を再利用し塗り数を
-//! `data-active` で表現する）・[`file_drop`]（イシュー #2633、
-//! blocks.pm に対応部品がない独自追加部品。アイコンは `link` と同じ
-//! `Option<Node>` スロット、表示状態軸を持たない）・Phase 5「Navigation」の
-//! [`tabs`]（イシュー #2638、選択状態は項目ごとの `Active` ではなく
-//! `active: Option<usize>` 1 引数で表し、選択中は高々 1 件という不変条件を
-//! 型で保証する）が続いた。
+//! `data-active` で表現する）・[`calendar`]（イシュー #2632、選択日は
+//! `props::Active` を再利用し `MAX_WEEKS` で 6 週へ飽和させる）・
+//! [`file_drop`]（イシュー #2633、blocks.pm に対応部品がない独自追加部品。
+//! アイコンは `link` と同じ `Option<Node>` スロット、表示状態軸を持たない）・
+//! Phase 5「Navigation」の [`tabs`]（イシュー #2638、選択状態は項目ごとの
+//! `Active` ではなく `active: Option<usize>` 1 引数で表し、選択中は高々
+//! 1 件という不変条件を型で保証する）が続いた。
 //! 残りは Phase 2 の他部品（text 等）・Phase 3 の他部品（#2608〜）および
-//! Phase 4/5 の他部品（calendar/stepper/menu 等）で順次追加する。
+//! Phase 4/5 の他部品（stepper/menu 等）で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -84,6 +85,7 @@
 
 pub mod annotation;
 pub mod button;
+pub mod calendar;
 pub mod checkbox;
 pub mod class;
 pub mod css;
@@ -112,6 +114,7 @@ pub mod tokens;
 
 pub use annotation::annotation;
 pub use button::button;
+pub use calendar::{calendar, MAX_WEEKS};
 pub use checkbox::checkbox;
 pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
