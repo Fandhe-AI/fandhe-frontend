@@ -82,6 +82,7 @@ mod select;
 mod slider;
 mod spinner;
 mod stack;
+mod stat;
 mod stepper;
 mod switch;
 mod tabs;
@@ -185,7 +186,9 @@ pub struct Wireframe {
 /// Phase 7「Data display」の
 /// [`avatar::WIREFRAME`]（イシュー #2651、最初の部品。
 /// `content: Option<Node>` が `None` のとき `icon::user` へフォールバック
-/// する §11.4 からの意図的な逸脱）が続いた。
+/// する §11.4 からの意図的な逸脱）・[`stat::WIREFRAME`]（イシュー #2656、
+/// 2 番目の部品。増減インジケータは `Option<&str>` ではなく `StatDelta`
+/// （`menu::MenuItem` と同型の公開構造体）で表す）が続いた。
 /// Phase 1・3・4・5・6・7 以降（#2608〜#2665）の残りの各部品イシューが
 /// 自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -226,6 +229,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     spinner::WIREFRAME,
     modal::WIREFRAME,
     avatar::WIREFRAME,
+    stat::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

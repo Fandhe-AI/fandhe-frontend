@@ -352,6 +352,10 @@ jobs:
           # ページ（content: Option<Node> が None のとき icon::user へ
           # フォールバックする §11.4 からの意図的な逸脱）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/avatar/index.html"
+          # イシュー #2656: Phase 7「Data display」の 2 番目の部品、Stat 部品
+          # ページ（増減インジケータは Option<&str> ではなく StatDelta で
+          # 表す）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/stat/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact
