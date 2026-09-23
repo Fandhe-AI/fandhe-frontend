@@ -16,7 +16,8 @@
 /// [`crate::link::LINK_CSS`]・イシュー #2616 で
 /// [`crate::rich_text::RICH_TEXT_CSS`]・イシュー #2621 で
 /// [`crate::button::BUTTON_CSS`]・イシュー #2624 で
-/// [`crate::select::SELECT_CSS`]・イシュー #2625 で
+/// [`crate::select::SELECT_CSS`]・イシュー #2627 で
+/// [`crate::switch::SWITCH_CSS`]・イシュー #2625 で
 /// [`crate::checkbox::CHECKBOX_CSS`] が続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
@@ -28,6 +29,7 @@ pub const PARTS: &[&str] = &[
     crate::rich_text::RICH_TEXT_CSS,
     crate::button::BUTTON_CSS,
     crate::select::SELECT_CSS,
+    crate::switch::SWITCH_CSS,
     crate::checkbox::CHECKBOX_CSS,
 ];
 
