@@ -247,7 +247,11 @@
   Frame 部品ページ）/
   `wireframes/tag/index.html`（イシュー #2619、Phase 2「テキスト・注釈」の
   Tag 部品ページ。削除「×」パートは `link` と同型の `remove: Option<Node>`
-  アイコンスロット規約 §11.4 に従う）
+  アイコンスロット規約 §11.4 に従う）/
+  `wireframes/input/index.html`（イシュー #2622、Phase 3「Forms A」の
+  `input` 部品〔`<input>` 非出力、`props::Active`/`props::Disabled` の
+  `.attr()` を Select・Switch・Checkbox・Radio・Textarea・Slider に続いて
+  併用する 7 例目の実消費者〕）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

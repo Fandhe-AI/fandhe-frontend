@@ -59,6 +59,7 @@ mod checkbox;
 mod divider;
 mod frame;
 mod grid;
+mod input;
 mod link;
 mod paragraph;
 mod radio;
@@ -128,7 +129,7 @@ pub struct Wireframe {
 /// [`checkbox::WIREFRAME`]（イシュー #2625）・[`textarea::WIREFRAME`]
 /// （イシュー #2623）・[`slider::WIREFRAME`]（イシュー #2628）・Phase 1 の
 /// [`frame::WIREFRAME`]（イシュー #2609）・Phase 2 の [`tag::WIREFRAME`]
-/// （イシュー #2619）が続いた。
+/// （イシュー #2619）・[`input::WIREFRAME`]（イシュー #2622）が続いた。
 /// Phase 1・3 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -148,6 +149,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     slider::WIREFRAME,
     frame::WIREFRAME,
     tag::WIREFRAME,
+    input::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。
@@ -294,10 +296,9 @@ mod tests {
 
     #[test]
     fn wireframe_for_path_finds_nothing_in_empty_registry() {
-        // `/wireframes/input/` は Phase 3「Forms A」の未実装部品（イシュー
-        // #2624 時点では button/select のみ登録済み）であり、恒久的に
-        // 未登録のパスとして使える。
-        assert!(wireframe_for_path("/wireframes/input/").is_none());
+        // `/wireframes/question/` は Phase 4「Forms B」の未実装部品であり、
+        // 恒久的に未登録のパスとして使える。
+        assert!(wireframe_for_path("/wireframes/question/").is_none());
     }
 
     #[test]

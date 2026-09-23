@@ -267,7 +267,9 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // 加わり、266 → 267 になった。イシュー #2609 で Wireframes セクションへ
     // Frame 部品ページが加わり、267 → 268 になった。イシュー #2619 で
     // Wireframes セクションへ Tag 部品ページが加わり、268 → 269 になった。
-    assert_eq!(pages.len(), 269, "expected 269 pages, got {pages:?}");
+    // イシュー #2622 で Wireframes セクションへ Input 部品ページが加わり、
+    // 269 → 270 になった。
+    assert_eq!(pages.len(), 270, "expected 270 pages, got {pages:?}");
 
     // イシュー #2607: `/wireframes/` 配下は索引ページ（`/wireframes/` 自身）
     // 1 件のみだった（同イシュー時点では個別部品ページを同梱しない、設計
@@ -283,7 +285,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // イシュー #2625 で Checkbox が加わり 13 件になった。イシュー #2623 で
     // Textarea が加わり 14 件になった。イシュー #2628 で Slider が加わり
     // 15 件になった。イシュー #2609 で Frame が加わり 16 件になった。
-    // イシュー #2619 で Tag が加わり 17 件になった。
+    // イシュー #2619 で Tag が加わり 17 件になった。イシュー #2622 で
+    // Input が加わり 18 件になった。
     // Phase 1・3 以降（#2608〜#2665）の各部品イシューが増分する。
     let wireframes_pages: Vec<&(&str, &str)> = pages
         .iter()
@@ -291,8 +294,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .collect();
     assert_eq!(
         wireframes_pages.len(),
-        17,
-        "expected 17 /wireframes/ pages (index + annotation + grid + divider + stack + link + rich-text + paragraph + button + select + radio + switch + checkbox + textarea + slider + frame + tag), got {wireframes_pages:?}"
+        18,
+        "expected 18 /wireframes/ pages (index + annotation + grid + divider + stack + link + rich-text + paragraph + button + select + radio + switch + checkbox + textarea + slider + frame + tag + input), got {wireframes_pages:?}"
     );
     assert!(
         pages.contains(&("site/wireframes.md", "/wireframes/")),

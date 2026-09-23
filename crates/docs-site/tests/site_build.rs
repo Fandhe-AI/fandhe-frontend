@@ -273,10 +273,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // Wireframes セクションへ Slider 部品ページが加わり、266 → 267 になった。
     // イシュー #2609 で Wireframes セクションへ Frame 部品ページが加わり、
     // 267 → 268 になった。イシュー #2619 で Wireframes セクションへ Tag
-    // 部品ページが加わり、268 → 269 になった。
+    // 部品ページが加わり、268 → 269 になった。イシュー #2622 で
+    // Wireframes セクションへ Input 部品ページが加わり、269 → 270 になった。
     assert_eq!(
         report.written.len(),
-        269,
+        270,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
