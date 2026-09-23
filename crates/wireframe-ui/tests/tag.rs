@@ -1,18 +1,18 @@
 //! `tag` 部品の契約テスト（イシュー #2619）。
 //!
 //! `crates/wireframe-ui/tests/annotation.rs` と同型の観点（非対話制約・
-//! XSS 回帰・CSS 配線）を固定する。`removable` の非対話制約テストは、
+//! XSS 回帰・CSS 配線）を固定する。`remove` の非対話制約テストは、
 //! [`crate::icon::x`] が付与する `data-icon="x"` のみを唯一の許容
 //! `data-` 出現として検証する（共通の禁止リストから `data-` を削って
 //! 弱体化しない）。
 
 use fandhe_frontend_core::render;
-use fandhe_frontend_wireframe_ui::{tag, wireframe_css, Primary, Size, PARTS};
+use fandhe_frontend_wireframe_ui::{icon, tag, wireframe_css, Primary, Size, PARTS};
 
 #[test]
 fn renders_root_class_for_every_size() {
     for size in Size::ALL {
-        let node = tag("draft", size, Primary(false), false);
+        let node = tag("draft", size, Primary(false), None);
         let html = render(&node);
         let expected_class = format!(r#"class="fw-wire-tag {}""#, size.class());
         assert!(
@@ -26,21 +26,21 @@ fn renders_root_class_for_every_size() {
 
 #[test]
 fn primary_true_appends_primary_class_and_false_omits_it() {
-    let with_primary = render(&tag("t", Size::Md, Primary(true), false));
+    let with_primary = render(&tag("t", Size::Md, Primary(true), None));
     assert!(with_primary.contains(r#"class="fw-wire-tag fw-wire-size-md fw-wire-primary""#));
 
-    let without_primary = render(&tag("t", Size::Md, Primary(false), false));
+    let without_primary = render(&tag("t", Size::Md, Primary(false), None));
     assert!(!without_primary.contains("fw-wire-primary"));
 }
 
 #[test]
-fn removable_true_renders_remove_icon_part_and_false_omits_it_entirely() {
-    let with_remove = render(&tag("t", Size::Md, Primary(false), true));
+fn some_remove_renders_remove_icon_part_and_none_omits_it_entirely() {
+    let with_remove = render(&tag("t", Size::Md, Primary(false), Some(icon::x(Size::Md))));
     assert!(with_remove.contains(r#"class="fw-wire-tag-remove""#));
     assert!(with_remove.contains(r#"data-icon="x""#));
     assert!(with_remove.contains("<svg"));
 
-    let without_remove = render(&tag("t", Size::Md, Primary(false), false));
+    let without_remove = render(&tag("t", Size::Md, Primary(false), None));
     assert!(!without_remove.contains("fw-wire-tag-remove"));
     assert!(!without_remove.contains("<svg"));
 }
@@ -50,18 +50,18 @@ fn xss_regression_label_is_escaped() {
     let payload_a = "<script>alert(1)</script>";
     let payload_b = "\"><img src=x onerror=alert(1)>";
 
-    let html_a = render(&tag(payload_a, Size::Md, Primary(false), false));
+    let html_a = render(&tag(payload_a, Size::Md, Primary(false), None));
     assert!(!html_a.contains(payload_a));
     assert!(html_a.contains("&lt;script&gt;"));
 
-    let html_b = render(&tag(payload_b, Size::Md, Primary(false), false));
+    let html_b = render(&tag(payload_b, Size::Md, Primary(false), None));
     assert!(!html_b.contains(payload_b));
     assert!(html_b.contains("&quot;"));
 }
 
 #[test]
 fn output_has_no_interactive_semantics_or_style_or_unexpected_data_attributes_when_not_removable() {
-    let html = render(&tag("t", Size::Md, Primary(true), false));
+    let html = render(&tag("t", Size::Md, Primary(true), None));
     for forbidden in [
         " role=\"",
         " aria-",
@@ -84,7 +84,7 @@ fn output_has_no_interactive_semantics_or_style_or_unexpected_data_attributes_wh
 
 #[test]
 fn removable_output_has_no_interactive_semantics_and_the_only_data_attribute_is_icon_data_icon() {
-    let html = render(&tag("t", Size::Md, Primary(true), true));
+    let html = render(&tag("t", Size::Md, Primary(true), Some(icon::x(Size::Md))));
     for forbidden in [
         "data-active",
         "data-disabled",
