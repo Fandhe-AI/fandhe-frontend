@@ -42,7 +42,14 @@ const LABEL_CLASS: &str = "fw-wire-divider-label";
 /// （docs サイトの `wireframes-demo` 枠内、`style=` を付与できない非
 /// インタラクティブ部品のため）で 0 高さに潰れないよう `min-height` を
 /// `--fw-wire-control-size`（[`crate::size::css`] が `Size` 段階ごとに
-/// 定義）で自立させる。
+/// 定義）で自立させる。ただしこのコンテナ `min-height` はラベルが無い
+/// ときの下限に過ぎず、ラベル文字列の実高さ（フォントサイズ + 縦
+/// `padding`）が `--fw-wire-control-size` を超える場合はコンテナが
+/// 内容に合わせて伸びるだけで `::before`/`::after`（`flex-basis: 0`）
+/// に配分される余白が生まれず線が消える。このため `::before`/`::after`
+/// 自体にも `min-height`（固定 `0.75em`、`Size` に連動しない下限）を
+/// 与え、ラベル有無・サイズ段階によらず線分が可視のまま残ることを保証
+/// する（イシュー #2612 PR レビュー指摘の是正）。
 pub const DIVIDER_CSS: &str = "\
 .fw-wire-divider {
   display: flex;
@@ -74,6 +81,7 @@ pub const DIVIDER_CSS: &str = "\
 .fw-wire-divider.fw-wire-vertical::before,
 .fw-wire-divider.fw-wire-vertical::after {
   border-left: var(--fw-wire-line-width) solid var(--fw-wire-line);
+  min-height: 0.75em;
 }
 .fw-wire-divider-label {
   padding: 0 0.75em;
