@@ -121,9 +121,12 @@
 //! で表す）・2 番目の部品 [`counter`]（イシュー #2655、件数を収めた
 //! ピルバッジ。件数は `u32` ではなく `&str` で受け、強調配色は部品
 //! ローカルの新型を新設せず共通型 [`props::Primary`] を再利用する。
-//! `crate::nav_item` の内部カウンターパートとは独立した部品）・
-//! 3 番目の部品 [`card_basic`]（イシュー #2658、先頭・末尾スロットは
-//! §11.4 の `Option<Node>` 規約へ統一し `avatar` を内蔵しない独自設計。
+//! `crate::nav_item` の内部カウンターパートとは独立した部品）・3 番目の
+//! 部品 [`emoji`]（イシュー #2654、絵文字は `Option<Node>` アイコン
+//! スロットではなく `glyph: &str` の 1 引数へ畳み込む §11.4 からの意図的な
+//! 逸脱。空文字列は CSS の `:empty` 規則で破線の円プレースホルダーに
+//! する）・4 番目の部品 [`card_basic`]（イシュー #2658、先頭・末尾スロット
+//! は §11.4 の `Option<Node>` 規約へ統一し `avatar` を内蔵しない独自設計。
 //! `secondary` は [`nav_item`] の `counter` と同じ `Option<&str>` で
 //! 表す）が続いた。
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
@@ -157,6 +160,7 @@ pub mod counter;
 pub mod css;
 pub mod cursor;
 pub mod divider;
+pub mod emoji;
 pub mod file_drop;
 pub mod frame;
 pub mod grid;
@@ -203,6 +207,7 @@ pub use counter::counter;
 pub use css::{wireframe_css, PARTS};
 pub use cursor::{cursor, CursorKind};
 pub use divider::divider;
+pub use emoji::emoji;
 pub use file_drop::file_drop;
 pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};

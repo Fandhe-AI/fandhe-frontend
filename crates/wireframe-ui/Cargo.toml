@@ -130,12 +130,17 @@ name = "fandhe-frontend-wireframe-ui"
 # 0.40.0 → 0.41.0: 公開 API 新設（counter 部品、イシュー #2655、Phase 7
 # 「Data display」の 2 番目の部品。件数は u32 ではなく &str で受け、強調
 # 配色は部品ローカルの新型を新設せず共通型 props::Primary を再利用する）。
-# 0.41.0 → 0.42.0: 公開 API 新設（card_basic 部品、イシュー #2658、
-# Phase 7「Data display」の部品。先頭・末尾スロットは §11.4 の
+# 0.41.0 → 0.42.0: 公開 API 新設（emoji 部品、イシュー #2654、Phase 7
+# 「Data display」の 3 番目の部品。絵文字は Option<Node> アイコンスロット
+# ではなく glyph: &str の 1 引数へ畳み込む §11.4 からの意図的な逸脱。
+# 空文字列は CSS の :empty 規則で破線の円プレースホルダーにする）。main 側で
+# 0.41.0 を counter が先に確保したため衝突回避で +1。
+# 0.42.0 → 0.43.0: 公開 API 新設（card_basic 部品、イシュー #2658、
+# Phase 7「Data display」の 4 番目の部品。先頭・末尾スロットは §11.4 の
 # Option<Node> 規約へ統一し avatar を内蔵しない独自設計。secondary は
-# nav_item の counter と同じ Option<&str>）。main 側で 0.41.0 を counter
+# nav_item の counter と同じ Option<&str>）。main 側で 0.42.0 を emoji
 # が先に確保したため衝突回避で +1。
-version = "0.42.0"
+version = "0.43.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
 license = "MIT OR Apache-2.0"

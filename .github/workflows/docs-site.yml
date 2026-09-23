@@ -356,7 +356,11 @@ jobs:
           # 部品ページ（件数は u32 ではなく &str で受け、強調配色は共通型
           # props::Primary を再利用する）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/counter/index.html"
-          # イシュー #2658: Phase 7「Data display」の 3 番目の部品、Card basic
+          # イシュー #2654: Phase 7「Data display」の 3 番目の部品、Emoji
+          # 部品ページ（絵文字は Option<Node> アイコンスロットではなく
+          # glyph: &str の 1 引数へ畳み込む §11.4 からの意図的な逸脱）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/emoji/index.html"
+          # イシュー #2658: Phase 7「Data display」の 4 番目の部品、Card basic
           # 部品ページ（先頭・末尾スロットは §11.4 の Option<Node> 規約へ統一し
           # avatar を内蔵しない独自設計）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/card-basic/index.html"
