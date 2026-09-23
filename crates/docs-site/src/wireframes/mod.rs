@@ -67,6 +67,7 @@ mod frame;
 mod grid;
 mod input;
 mod link;
+mod menu;
 mod modal;
 mod nav_item;
 mod pagination;
@@ -165,7 +166,9 @@ pub struct Wireframe {
 /// （イシュー #2640、Phase 5 の 4 番目の部品）・[`cursor::WIREFRAME`]
 /// （イシュー #2642、Phase 5 の 5 番目の部品。代わりに使える既存アイコンが
 /// ないため `icon::cursor_arrow`/`icon::cursor_hand` を新規追加して消費
-/// する）・Phase 6「Overlay・Feedback」の [`tooltip::WIREFRAME`]
+/// する）・[`menu::WIREFRAME`]（イシュー #2637、Phase 5 の 6 番目の部品。
+/// 検索欄は `Option<&str>` + 固定パートの `icon::search` で表す）・
+/// Phase 6「Overlay・Feedback」の [`tooltip::WIREFRAME`]
 /// （イシュー #2644、最初の部品）・[`toast::WIREFRAME`]（イシュー #2647、
 /// Phase 6 の 2 番目の部品。閉じるグリフは `icon::x` 固定で
 /// `dismissible: bool` の 1 引数だけで有無を切り替える）・
@@ -211,6 +214,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     accordion::WIREFRAME,
     pagination::WIREFRAME,
     cursor::WIREFRAME,
+    menu::WIREFRAME,
     tooltip::WIREFRAME,
     toast::WIREFRAME,
     alert::WIREFRAME,

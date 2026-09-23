@@ -320,6 +320,10 @@ jobs:
           # ページ（代わりに使える既存アイコンがないため icon::cursor_arrow/
           # icon::cursor_hand を新規追加して消費する）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/cursor/index.html"
+          # イシュー #2637: Phase 5「Navigation」の 6 番目の部品、Menu 部品
+          # ページ（検索欄は Option<&str> + 固定パートの icon::search で表し
+          # <input> は出力しない）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/menu/index.html"
           # イシュー #2644: Phase 6「Overlay・Feedback」の最初の部品、Tooltip
           # 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/tooltip/index.html"

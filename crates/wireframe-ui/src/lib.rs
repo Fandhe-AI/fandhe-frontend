@@ -88,7 +88,12 @@
 //! [`cursor`]（イシュー #2642、Phase 5 の 5 番目の部品。代わりに使える
 //! 既存アイコンがないため `icon::cursor_arrow`/`icon::cursor_hand` を
 //! 新規追加して消費する。部品ローカルの列挙型 [`CursorKind`] を
-//! クレートルートから再エクスポートする初めての例）も続いた。
+//! クレートルートから再エクスポートする初めての例）・
+//! [`menu::menu`]（イシュー #2637、Phase 5 の 6 番目の部品。検索欄は
+//! `Option<&str>` + 固定パートの [`icon::search`] で表し `<input>` は
+//! 出力しない。項目は [`menu::MenuItem`] のスライスで受け、強調状態は
+//! 無効項目を指す添字なら優先して外す fail-closed な
+//! `active: Option<usize>`）も続いた。
 //! Phase 6「Overlay・Feedback」の最初の部品 [`tooltip`]（イシュー #2644、
 //! 方向は部品ローカルの [`tooltip::TooltipSide`] による修飾 class で表す）・
 //! Phase 6 の 2 番目の部品 [`toast`]（イシュー #2647、閉じるグリフは
@@ -110,7 +115,7 @@
 //! が `None` のとき [`icon::user`] へフォールバックする §11.4 からの意図的な
 //! 逸脱。円形表示は `crate::frame` の `bordered` と同型の部品固有修飾 class
 //! で表す）が続いた。
-//! 残りは Phase 3 の他部品（#2608〜）・Phase 5 の他部品（menu 等）・
+//! 残りは Phase 3 の他部品（#2608〜）・Phase 5 の他部品（breadcrumbs 等）・
 //! Phase 6 の他部品・Phase 7 の他部品で順次追加する。
 //!
 //! # class 命名規約
@@ -142,6 +147,7 @@ pub mod grid;
 pub mod icon;
 pub mod input;
 pub mod link;
+pub mod menu;
 pub mod modal;
 pub mod nav_item;
 pub mod pagination;
@@ -183,6 +189,7 @@ pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
 pub use input::input;
 pub use link::link;
+pub use menu::{menu, MenuItem};
 pub use modal::modal;
 pub use nav_item::nav_item;
 pub use pagination::pagination;

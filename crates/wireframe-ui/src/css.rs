@@ -50,7 +50,8 @@
 /// [`crate::nav_item::NAV_ITEM_CSS`]・イシュー #2641 で
 /// [`crate::accordion::ACCORDION_CSS`]・イシュー #2640 で
 /// [`crate::pagination::PAGINATION_CSS`]・イシュー #2642 で
-/// [`crate::cursor::CURSOR_CSS`]・イシュー #2644 で
+/// [`crate::cursor::CURSOR_CSS`]・イシュー #2637 で
+/// [`crate::menu::MENU_CSS`]・イシュー #2644 で
 /// [`crate::tooltip::TOOLTIP_CSS`]（Phase 6「Overlay・Feedback」の最初の
 /// 部品）・イシュー #2647 で [`crate::toast::TOAST_CSS`]（2 番目の部品）・
 /// イシュー #2646 で [`crate::alert::ALERT_CSS`]（3 番目の部品）・
@@ -90,6 +91,7 @@ pub const PARTS: &[&str] = &[
     crate::accordion::ACCORDION_CSS,
     crate::pagination::PAGINATION_CSS,
     crate::cursor::CURSOR_CSS,
+    crate::menu::MENU_CSS,
     crate::tooltip::TOOLTIP_CSS,
     crate::toast::TOAST_CSS,
     crate::alert::ALERT_CSS,

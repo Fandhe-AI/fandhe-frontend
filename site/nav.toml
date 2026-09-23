@@ -1456,6 +1456,11 @@ source = "site/wireframes/cursor.md"
 path = "/wireframes/cursor/"
 
 [[section.page]]
+title = "Menu"
+source = "site/wireframes/menu.md"
+path = "/wireframes/menu/"
+
+[[section.page]]
 title = "Tooltip"
 source = "site/wireframes/tooltip.md"
 path = "/wireframes/tooltip/"

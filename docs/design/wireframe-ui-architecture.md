@@ -316,7 +316,14 @@ wireframe-ui `size::Size` は pre-styled-ui `recipe::Size`（`crates/pre-styled-
 `Node` はエスケープ済みの構築済みノードであるため、スロットへ渡すこと自体が REQ-1 の既定エスケープを
 損なうことはない（`render()` の既定エスケープ・属性名ホワイトリスト・URL 検証を通る）。最小例は
 `icon` モジュールの rustdoc（doctest として実行される）を参照する。部品イシュー（button / input /
-link / nav-item / menu / select / tag 等）はこの形を標準とする。
+link / nav-item / select / tag 等）はこの形を標準とする。
+
+**例外（menu、イシュー #2637）**: `menu` は項目ごとのアイコン差し替え（Figma instance swap 相当）を
+対応範囲外とし、`Option<Node>` スロットを持たない（`MenuItem` はラベル + 無効状態のみ）。検索行先頭の
+アイコンも固定パートの `icon::search` とし `Option<Node>` 化しない（`select` のドロップダウン指示子
+`caret_down` と同じ判断: 利用者が省略・差し替えできない部品の同一性を担う要素のため）。将来項目アイコン
+が必要になった場合は別イシューで本節の対象へ追加する（`crate::menu` モジュール doc・
+`site/wireframes/menu.md` の「原案差分メモ」参照）。
 
 ### 11.5 ジオメトリの出自
 
