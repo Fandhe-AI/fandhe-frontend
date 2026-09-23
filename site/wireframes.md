@@ -29,6 +29,7 @@
 
 - [Annotation](./wireframes/annotation.md)
 - [Grid](./wireframes/grid.md)
+- [Divider](./wireframes/divider.md)
 - [Paragraph](./wireframes/paragraph.md)
 
 ## 掲載予定
@@ -41,7 +42,6 @@
 
 - frame
 - stack
-- divider
 
 ### Phase 2: テキスト・注釈
 
