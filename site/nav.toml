@@ -1446,6 +1446,11 @@ source = "site/wireframes/accordion.md"
 path = "/wireframes/accordion/"
 
 [[section.page]]
+title = "Pagination"
+source = "site/wireframes/pagination.md"
+path = "/wireframes/pagination/"
+
+[[section.page]]
 title = "Menu"
 source = "site/wireframes/menu.md"
 path = "/wireframes/menu/"

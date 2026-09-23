@@ -80,9 +80,13 @@
 //! `Active` はアクティブ状態のグレースケール反転配色として消費する）・
 //! [`accordion`]（イシュー #2641、blocks.pm に対応部品がない独自追加部品。
 //! 展開状態は新型を新設せず `props::Active` を項目単位で再利用し、
-//! 折りたたみ項目の本文スロットは出力しない）・Phase 5 の [`menu::menu`]
-//! （イシュー #2637、検索欄は `Option<&str>` + 固定パートの
-//! [`icon::search`] で表し `<input>` は出力しない。項目は
+//! 折りたたみ項目の本文スロットは出力しない）・[`pagination`]
+//! （イシュー #2640、Phase 5 の 4 番目の部品。ページ項目は
+//! `&[Option<&str>]`（`None` がギャップ）で表し、選択状態は
+//! `tabs`/`radio` と同じく既存の `props::Active` を再利用する。先頭/前/次/
+//! 末尾コントロールは `prev_next`/`first_last` の 2 bool へ畳む）・
+//! Phase 5 の [`menu::menu`]（イシュー #2637、検索欄は `Option<&str>` +
+//! 固定パートの [`icon::search`] で表し `<input>` は出力しない。項目は
 //! [`menu::MenuItem`] のスライスで受け、強調状態は無効項目を指す添字なら
 //! 優先して外す fail-closed な `active: Option<usize>`）も続いた。
 //! 残りは Phase 3 の他部品（#2608〜）および Phase 5 の他部品（breadcrumbs
@@ -116,6 +120,7 @@ pub mod input;
 pub mod link;
 pub mod menu;
 pub mod nav_item;
+pub mod pagination;
 pub mod paragraph;
 pub mod props;
 pub mod question;
@@ -149,6 +154,7 @@ pub use input::input;
 pub use link::link;
 pub use menu::{menu, MenuItem};
 pub use nav_item::nav_item;
+pub use pagination::pagination;
 pub use paragraph::paragraph;
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
 pub use question::question;

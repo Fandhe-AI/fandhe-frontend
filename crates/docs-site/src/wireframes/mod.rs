@@ -66,6 +66,7 @@ mod input;
 mod link;
 mod menu;
 mod nav_item;
+mod pagination;
 mod paragraph;
 mod question;
 mod radio;
@@ -153,8 +154,9 @@ pub struct Wireframe {
 /// 対応部品を持たない独自追加部品、5 番目の部品）・Phase 5「Navigation」の
 /// [`nav_item::WIREFRAME`]（イシュー #2636、Phase 5 の 2 番目の部品）・
 /// [`accordion::WIREFRAME`]（イシュー #2641、Phase 5 の 3 番目の部品。
-/// blocks.pm に対応部品がない独自追加部品）・[`menu::WIREFRAME`]
-/// （イシュー #2637、Phase 5 の 4 番目の部品。検索欄は `Option<&str>` +
+/// blocks.pm に対応部品がない独自追加部品）・[`pagination::WIREFRAME`]
+/// （イシュー #2640、Phase 5 の 4 番目の部品）・[`menu::WIREFRAME`]
+/// （イシュー #2637、Phase 5 の 5 番目の部品。検索欄は `Option<&str>` +
 /// 固定パートの `icon::search` で表す）が続いた。
 /// Phase 1・3・4・5 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
@@ -185,6 +187,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     stepper::WIREFRAME,
     nav_item::WIREFRAME,
     accordion::WIREFRAME,
+    pagination::WIREFRAME,
     menu::WIREFRAME,
 ];
 
