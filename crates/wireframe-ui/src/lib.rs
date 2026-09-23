@@ -50,9 +50,11 @@
 //! （イシュー #2627、`Active` を ON 状態の意味で使い `Disabled` を併用する
 //! 部品）・[`checkbox`]（イシュー #2625、`props::Active` を「チェック済み」
 //! 状態として消費）・[`input`]（イシュー #2622、`props::Active`/
-//! `props::Disabled` の `.attr()` の実消費者）が続いた。残りは Phase 1 の
-//! 他部品（frame）・Phase 2 の他部品（text/paragraph/tag 等）および
-//! Phase 3 の他部品（textarea/slider 等）以降（#2608〜）で順次追加する。
+//! `props::Disabled` の `.attr()` を Select・Switch に続いて併用する 3 例目の
+//! 実消費者）が続いた。
+//! 残りは Phase 1 の他部品（frame）・Phase 2 の他部品（text/paragraph/tag
+//! 等）および Phase 3 の他部品（textarea/slider 等）以降（#2608〜）で
+//! 順次追加する。
 //!
 //! # class 命名規約
 //!

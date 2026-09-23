@@ -238,7 +238,7 @@
   `checkbox` 部品〔`props::Active` を「チェック済み」状態として消費〕）/
   `wireframes/input/index.html`（イシュー #2622、Phase 3「Forms A」の
   `input` 部品〔`<input>` 非出力、`props::Active`/`props::Disabled` の
-  `.attr()` の最初の実消費者〕）
+  `.attr()` を Select・Switch に続いて併用する 3 例目の実消費者〕）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

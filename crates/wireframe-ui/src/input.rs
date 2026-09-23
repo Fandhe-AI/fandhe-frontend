@@ -16,11 +16,15 @@
 //!
 //! `docs/design/wireframe-ui-architecture.md` §6 の汎用変換規約と §11.4 の
 //! `Option<Node>` アイコンスロット規約から独立設計した（`site/wireframes/input.md`
-//! の「原案差分メモ」節も参照）。blocks.pm の Figma プロパティ構成（Icon
-//! bool + swap・State 列挙等）をそのまま転写したものではなく、アイコンは
+//! の「原案差分メモ」節も参照）。blocks.pm の外観・anatomy・プロパティ構成の
+//! 実装への転用は書面許諾が得られるまで保留されている（同文書 §2、イシュー
+//! #2602）ため、本部品の引数構成は blocks.pm の Figma プロパティを参照・
+//! 書き写さず、一般的な UI キット設計で広く使われる汎用パターンおよび
+//! 本クレート内の既存共通規約から独立に起こした。アイコンは
 //! `leading: Option<Node>` スロットへ、状態は共通型 [`crate::props::Active`]/
-//! [`crate::props::Disabled`]（`data-*`）へそれぞれ畳み込む。専用の
-//! `Icon` bool 型・`InputState` 列挙は追加しない。
+//! [`crate::props::Disabled`]（`data-*`）へそれぞれ畳み込む（`docs/design/wireframe-ui-architecture.md`
+//! §5 の表示状態軸、[`crate::link`]/[`crate::button`] と同型の設計）。専用の
+//! 状態列挙・アイコン有無フラグ型は追加しない（公開面を増やさない判断）。
 //!
 //! `text` はプレースホルダー風（`--fw-wire-ink-muted`）で描画する 1 種類の
 //! みとし、実際の入力値とプレースホルダーの区別はモデル化しない
@@ -36,10 +40,11 @@
 //! フィールドが必要な利用者には Themes の Input（`/themes/input/`）を
 //! 案内する（`site/wireframes/input.md` 参照）。
 //!
-//! [`crate::props::Active`]/[`crate::props::Disabled`] の `.attr()` は
-//! wireframe-ui 内で本モジュールが最初の実消費者である（イシュー #2605 で
-//! 型自体は定義済みだったが、`data-active`/`data-disabled` を実際に出力する
-//! 部品はこれまで存在しなかった）。
+//! [`crate::props::Active`]`.attr()` と [`crate::props::Disabled`]`.attr()`
+//! を併用する部品は、本モジュールより先に main へマージされた
+//! `select`（イシュー #2624）が最初の実消費者、`switch`（イシュー #2627）
+//! が 2 例目の実消費者であり、本モジュールは Select・Switch に続く
+//! 3 例目の実消費者である。
 
 use fandhe_frontend_core::{el_owned, span, text, Node};
 

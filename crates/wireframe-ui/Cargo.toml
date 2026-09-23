@@ -29,9 +29,10 @@ name = "fandhe-frontend-wireframe-ui"
 # 0.13.0 → 0.14.0: 公開 API 新設（checkbox 部品、イシュー #2625。
 # `Active` を「チェック済み」状態として消費する Forms 部品）。main 側で
 # 0.13.0 を switch が先に確保したため衝突回避で +1。
-# 0.14.0 → 0.20.0: 公開 API 新設（input 部品、イシュー #2622）。main 側で
-# 0.14.0〜0.19.0 が他 PR に確保されている可能性があるため main セッションが
-# 一意に割り当てた版数を使用。
+# 0.14.0 → 0.20.0: 公開 API 新設（input 部品、イシュー #2622。
+# `props::Active` と `props::Disabled` を併用する 3 例目の部品）。main 側で
+# 0.13.0 を checkbox が先に確保しており、0.14.0 は main と同値の衝突と
+# なるため main セッションが一意に割り当てた版数（0.20.0）を使用。
 version = "0.20.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
