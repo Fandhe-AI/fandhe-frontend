@@ -60,12 +60,13 @@
 //! Textarea・Slider に続いて併用する 7 例目の実消費者）・Phase 4「Forms B」の
 //! [`question`]（イシュー #2630、ラベル + 補足説明 + `Node` スロットの
 //! コントロール + ヒント。表示状態軸を持たずスロット側へ委ねる）・
-//! Phase 2 の [`text`]（イシュー #2614、単一行テキスト。`<span>` ルート +
-//! `white-space: nowrap` + `text-overflow: ellipsis` で 1 行固定表示する。
-//! [`paragraph`] の複数行許容とは対になる判断）が続いた。これで Phase 2
-//! 「テキスト・注釈」は全部品が出揃った。残りは Phase 3 の他部品
-//! （#2608〜）および Phase 4 の他部品（ratings/calendar/file-drop/stepper）
-//! で順次追加する。
+//! [`ratings`]（イシュー #2631、`icon::star` を再利用し塗り数を
+//! `data-active` で表現する）・Phase 2 の [`text`]（イシュー #2614、
+//! 単一行テキスト。`<span>` ルート + `white-space: nowrap` +
+//! `text-overflow: ellipsis` で 1 行固定表示する。[`paragraph`] の
+//! 複数行許容とは対になる判断）が続いた。これで Phase 2「テキスト・注釈」
+//! は全部品が出揃った。残りは Phase 3 の他部品（#2608〜）および Phase 4
+//! の他部品（calendar/file-drop/stepper）で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -94,6 +95,7 @@ pub mod paragraph;
 pub mod props;
 pub mod question;
 pub mod radio;
+pub mod ratings;
 pub mod rich_text;
 pub mod select;
 pub mod size;
@@ -119,6 +121,7 @@ pub use paragraph::paragraph;
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
 pub use question::question;
 pub use radio::radio;
+pub use ratings::{ratings, STAR_COUNT};
 pub use rich_text::rich_text;
 pub use select::select;
 pub use size::Size;
