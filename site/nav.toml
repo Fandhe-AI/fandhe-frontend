@@ -1351,6 +1351,11 @@ source = "site/wireframes/button.md"
 path = "/wireframes/button/"
 
 [[section.page]]
+title = "Select"
+source = "site/wireframes/select.md"
+path = "/wireframes/select/"
+
+[[section.page]]
 title = "Input"
 source = "site/wireframes/input.md"
 path = "/wireframes/input/"

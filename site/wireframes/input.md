@@ -18,8 +18,11 @@ active, disabled)` の 5 引数（詳細は下の引数表を参照）で、prop
 ## 原案差分メモ
 
 - **API は独自設計**: `docs/design/wireframe-ui-architecture.md` §6 の
-  汎用変換規約から独立設計しました。blocks.pm の Figma プロパティ構成
-  （Icon bool + swap・State 列挙等）をそのまま転写したものではありません。
+  汎用変換規約から独立設計しました。同文書 §2 の保留（イシュー #2602）に
+  従い、blocks.pm の Figma プロパティ構成を参照・書き写さず、テキスト
+  フィールドで広く使われる一般的な UI パターンおよび本クレート内の
+  既存共通規約（`leading: Option<Node>` アイコンスロット・`Active`/
+  `Disabled` 共通型）から独立に設計しました。
 - **アイコンスロットで表現**: 先頭アイコンは `leading: Option<Node>` で
   受け取ります（同文書 §11.4 の `Option<Node>` アイコンスロット規約の実例）。
   専用の `Icon` bool 型や第 2 の引数は追加していません。

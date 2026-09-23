@@ -34,6 +34,7 @@
 - [Link](./wireframes/link.md)
 - [Rich text](./wireframes/rich-text.md)
 - [Button](./wireframes/button.md)
+- [Select](./wireframes/select.md)
 - [Input](./wireframes/input.md)
 
 ## 掲載予定
@@ -55,7 +56,6 @@
 ### Phase 3: Forms A
 
 - textarea
-- select
 - checkbox
 - radio
 - switch
