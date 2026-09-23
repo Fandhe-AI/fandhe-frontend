@@ -55,8 +55,10 @@
 
 mod annotation;
 mod button;
+mod calendar;
 mod checkbox;
 mod divider;
+mod file_drop;
 mod frame;
 mod grid;
 mod input;
@@ -70,8 +72,11 @@ mod rich_text;
 mod select;
 mod slider;
 mod stack;
+mod stepper;
 mod switch;
+mod tabs;
 mod tag;
+mod text;
 mod textarea;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
@@ -135,8 +140,17 @@ pub struct Wireframe {
 /// （イシュー #2619）・[`input::WIREFRAME`]（イシュー #2622）・
 /// Phase 4「Forms B」の [`question::WIREFRAME`]（イシュー #2630、最初の
 /// 部品）・[`ratings::WIREFRAME`]（イシュー #2631、`icon::star` を再利用
-/// する 2 番目の部品）、Phase 5「Navigation」の最初の部品
-/// [`nav_item::WIREFRAME`]（イシュー #2636）が続いた。
+/// する 2 番目の部品）・[`calendar::WIREFRAME`]（イシュー #2632、選択日は
+/// `props::Active` を再利用する 3 番目の部品）・[`file_drop::WIREFRAME`]
+/// （イシュー #2633、blocks.pm に対応部品がない独自追加部品、4 番目の
+/// 部品）・Phase 2「テキスト・注釈」の [`text::WIREFRAME`]（イシュー
+/// #2614、同 Phase 最後の部品）・Phase 5「Navigation」の
+/// [`tabs::WIREFRAME`]（イシュー #2638、最初の部品。選択状態は項目ごとの
+/// `Active` ではなく `active: Option<usize>` 1 引数で表す）・
+/// Phase 4「Forms B」の [`stepper::WIREFRAME`]（イシュー #2634、blocks.pm
+/// 対応部品を持たない独自追加部品、5 番目の部品）・Phase 5「Navigation」の
+/// [`nav_item::WIREFRAME`]（イシュー #2636、Phase 5 の 2 番目の部品）が
+/// 続いた。
 /// Phase 1・3・4・5 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -159,6 +173,11 @@ pub const WIREFRAMES: &[Wireframe] = &[
     input::WIREFRAME,
     question::WIREFRAME,
     ratings::WIREFRAME,
+    calendar::WIREFRAME,
+    file_drop::WIREFRAME,
+    text::WIREFRAME,
+    tabs::WIREFRAME,
+    stepper::WIREFRAME,
     nav_item::WIREFRAME,
 ];
 

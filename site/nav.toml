@@ -1411,6 +1411,31 @@ source = "site/wireframes/ratings.md"
 path = "/wireframes/ratings/"
 
 [[section.page]]
+title = "Calendar"
+source = "site/wireframes/calendar.md"
+path = "/wireframes/calendar/"
+
+[[section.page]]
+title = "File drop"
+source = "site/wireframes/file-drop.md"
+path = "/wireframes/file-drop/"
+
+[[section.page]]
+title = "Text"
+source = "site/wireframes/text.md"
+path = "/wireframes/text/"
+
+[[section.page]]
+title = "Tabs"
+source = "site/wireframes/tabs.md"
+path = "/wireframes/tabs/"
+
+[[section.page]]
+title = "Stepper"
+source = "site/wireframes/stepper.md"
+path = "/wireframes/stepper/"
+
+[[section.page]]
 title = "Nav item"
 source = "site/wireframes/nav-item.md"
 path = "/wireframes/nav-item/"
