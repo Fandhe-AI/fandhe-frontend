@@ -190,3 +190,74 @@ fn media_css_selectors_use_fw_wire_prefix_and_reference_tokens_not_literals() {
         }
     }
 }
+
+/// codex-review PR #2718 P1 指摘対応の回帰テスト:
+/// `.fw-wire-media .fw-wire-icon-glyph`（および disc パート）は
+/// `--fw-wire-control-size` を直接参照せず、ルート `.fw-wire-media` 上で
+/// 一度だけ確定させた `--fw-wire-media-control-size` のみを参照する。
+///
+/// `content` スロットに渡した `Node`（`icon::image` 等）は自身の
+/// `fw-wire-size-<段階>` class により、そのノード自身の要素上で
+/// `--fw-wire-control-size` を再定義する。もしグリフ側が
+/// `--fw-wire-control-size` を直接読んでいると、CSS カスタムプロパティの
+/// 解決規則（同一要素上の宣言が祖先からの継承値より優先される）により、
+/// `content` 側の `Size` がルートの `size` 引数を上書きしてしまう
+/// （rustdoc「size は中央のディスク・グリフの大きさに効く」契約違反）。
+/// 本テストは文字列レベルでその配線を固定する（wireframe-ui にはブラウザ
+/// 計算スタイルを検証するハーネスがないため、CSS ルールブロックの
+/// テキスト内容を直接検査する）。
+#[test]
+fn glyph_and_disc_size_are_independent_of_content_slots_own_size_class() {
+    let css = fandhe_frontend_wireframe_ui::media::MEDIA_CSS;
+
+    // ルートブロックが専用変数を一度だけ確定させる。
+    let root_block_start = css.find(".fw-wire-media {").expect("root block");
+    let root_block_end = css[root_block_start..]
+        .find('}')
+        .map(|i| root_block_start + i)
+        .expect("root block end");
+    let root_block = &css[root_block_start..root_block_end];
+    assert!(
+        root_block.contains("--fw-wire-media-control-size: var(--fw-wire-control-size, 2rem)"),
+        "root block should declare --fw-wire-media-control-size from --fw-wire-control-size: {root_block:?}"
+    );
+
+    // ディスク・グリフの両パートは専用変数のみを参照し、
+    // `--fw-wire-control-size` を直接参照しない
+    // （直接参照が残っていると content スロットの Size 漏れが再発する）。
+    for part_selector in [".fw-wire-media-disc", ".fw-wire-icon-glyph"] {
+        let block_header = format!(".fw-wire-media {part_selector} {{");
+        let block_start = css
+            .find(&block_header)
+            .unwrap_or_else(|| panic!("expected block for {part_selector} in {css:?}"));
+        let block_end = css[block_start..]
+            .find('}')
+            .map(|i| block_start + i)
+            .unwrap_or_else(|| panic!("expected closing brace for {part_selector}"));
+        let block = &css[block_start..block_end];
+
+        assert!(
+            block.contains("var(--fw-wire-media-control-size)"),
+            "{part_selector} block should reference --fw-wire-media-control-size: {block:?}"
+        );
+        assert!(
+            !block.contains("--fw-wire-control-size"),
+            "{part_selector} block should not reference --fw-wire-control-size directly \
+             (it would let a content slot's own Size class override the root size): {block:?}"
+        );
+    }
+}
+
+/// `media(Some(icon::image(Size::Xs)), Size::Xl)` のようにルートと
+/// content スロットで異なる Size を渡しても、マークアップ上は両者の
+/// class がそれぞれの要素にそのまま出力される（ルートは size 引数、
+/// content は呼び出し側が渡した Node のまま）ことを固定する。CSS 側の
+/// 実際の計算値の独立性は
+/// `glyph_and_disc_size_are_independent_of_content_slots_own_size_class`
+/// が CSS 配線として固定する。
+#[test]
+fn root_and_content_slot_size_classes_are_independent_in_markup() {
+    let html = render(&media(Some(icon::image(Size::Xs)), Size::Xl));
+    assert!(html.contains(r#"class="fw-wire-media fw-wire-size-xl""#));
+    assert!(html.contains(r#"class="fw-wire-icon-glyph fw-wire-size-xs""#));
+}

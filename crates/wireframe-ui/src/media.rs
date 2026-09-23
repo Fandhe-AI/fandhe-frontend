@@ -54,6 +54,24 @@ const DISC_CLASS: &str = "fw-wire-media-disc";
 /// `--fw-wire-control-size` を `var()` で参照するのみで `size::SCALE` の
 /// 値そのものはここへ書き写さない（同文書 §10）。`@keyframes`/
 /// `animation` は持たない（表示専用）。
+///
+/// # `content` スロットの `Size` から独立させるための専用変数
+///
+/// ルート `.fw-wire-media` は自身の `fw-wire-size-<段階>`（`size` 引数）
+/// が定める `--fw-wire-control-size` の値を、ルート自身の上で
+/// `--fw-wire-media-control-size` として一度だけ確定させる。ディスク・
+/// グリフは以後この専用変数のみを参照し、`--fw-wire-control-size` を
+/// 直接は読まない。これは `content` に `icon::image(size)` のような
+/// 別 [`Size`] のアイコンを渡した場合の対策である: アイコン自身の
+/// `fw-wire-size-<段階>` class は `--fw-wire-control-size` を
+/// **アイコン要素自身の上で** 再定義するため、もしグリフ側が
+/// `--fw-wire-control-size` を直接参照すると、CSS カスタムプロパティの
+/// 解決規則（同一要素上の宣言が祖先からの継承値より優先される）により
+/// `content` 側の `Size` がルートの `size` 引数を上書きしてしまう
+/// （codex-review PR #2718 指摘対応、rustdoc「size は中央のディスク・
+/// グリフの大きさに効く」契約を守るための配線）。`--fw-wire-media-control-size`
+/// はルート要素上でのみ確定するため、子要素側の `--fw-wire-control-size`
+/// 再定義の影響を受けない。
 pub const MEDIA_CSS: &str = "\
 .fw-wire-media {
   display: flex;
@@ -67,6 +85,7 @@ pub const MEDIA_CSS: &str = "\
   background: var(--fw-wire-fill-subtle);
   color: var(--fw-wire-ink-muted);
   overflow: hidden;
+  --fw-wire-media-control-size: var(--fw-wire-control-size, 2rem);
 }
 .fw-wire-media .fw-wire-media-disc {
   display: inline-flex;
@@ -74,14 +93,14 @@ pub const MEDIA_CSS: &str = "\
   justify-content: center;
   flex-shrink: 0;
   box-sizing: border-box;
-  width: calc(var(--fw-wire-control-size, 2rem) * 1.5);
-  height: calc(var(--fw-wire-control-size, 2rem) * 1.5);
+  width: calc(var(--fw-wire-media-control-size) * 1.5);
+  height: calc(var(--fw-wire-media-control-size) * 1.5);
   border: var(--fw-wire-line-width) solid var(--fw-wire-line);
   border-radius: 50%;
   background: var(--fw-wire-paper);
 }
 .fw-wire-media .fw-wire-icon-glyph {
-  font-size: calc(var(--fw-wire-control-size, 2rem) * 0.6);
+  font-size: calc(var(--fw-wire-media-control-size) * 0.6);
 }
 ";
 
@@ -94,7 +113,11 @@ pub const MEDIA_CSS: &str = "\
 ///   メディア枠を表す）。
 /// - `size`: [`Size`] 5 段。ルート class `fw-wire-size-<段階>` として
 ///   付与し、中央のディスク・グリフの大きさにのみ効く（枠自体は親の幅
-///   いっぱいに広がる）。
+///   いっぱいに広がる）。`content` に渡した `Node`（例:
+///   [`crate::icon::image`]）が別の [`Size`] を持っていても、ディスク・
+///   グリフの大きさはこの `size` 引数の値のみに従う（[`MEDIA_CSS`] の
+///   専用変数 `--fw-wire-media-control-size` による配線、同定数の
+///   rustdoc 参照）。
 ///
 /// ルート要素は `div`。本部品自身が組み立てるマークアップ（ルート `div`・
 /// ディスクパート・`content: None` 時の既定グリフ）は `role`/`aria-*`
@@ -150,6 +173,15 @@ pub const MEDIA_CSS: &str = "\
 /// let escaped_html = render(&escaped);
 /// assert!(!escaped_html.contains("<script>alert(1)</script>"));
 /// assert!(escaped_html.contains("&lt;script&gt;"));
+///
+/// // content に渡すアイコンの Size はルートの size 引数と独立している
+/// // （両者のマークアップ上の class は各要素にそのまま残るが、CSS 側は
+/// // `--fw-wire-media-control-size` が size（ここでは Xl）の値だけを
+/// // ディスク・グリフへ伝える。MEDIA_CSS rustdoc 参照）。
+/// let mismatched = media(Some(icon::image(Size::Xs)), Size::Xl);
+/// let mismatched_html = render(&mismatched);
+/// assert!(mismatched_html.contains(r#"class="fw-wire-media fw-wire-size-xl""#));
+/// assert!(mismatched_html.contains("fw-wire-size-xs"));
 /// ```
 #[must_use]
 pub fn media(content: Option<Node>, size: Size) -> Node {
