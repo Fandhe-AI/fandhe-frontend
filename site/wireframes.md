@@ -56,10 +56,11 @@
 - [Pagination](./wireframes/pagination.md)
 - [Cursor](./wireframes/cursor.md)
 - [Tooltip](./wireframes/tooltip.md)
+- [Progress](./wireframes/progress.md)
 
 ## 掲載予定
 
-以下は Phase 1〜8（#2608〜#2665）で順次掲載する 20 部品です（Phase ごとの内訳）。
+以下は Phase 1〜8（#2608〜#2665）で順次掲載する 19 部品です（Phase ごとの内訳）。
 掲載が完了した部品は本節へリンク付きの「掲載済み」一覧として追記されます（現時点では
 未掲載のため本節はリンクなしの一覧です）。
 
@@ -81,7 +82,6 @@
 - modal
 - alert
 - toast
-- progress
 - spinner
 
 ### Phase 7: Data display

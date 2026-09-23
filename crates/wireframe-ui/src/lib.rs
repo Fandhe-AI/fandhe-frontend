@@ -90,8 +90,11 @@
 //! 新規追加して消費する。部品ローカルの列挙型 [`CursorKind`] を
 //! クレートルートから再エクスポートする初めての例）も続いた。
 //! Phase 6「Overlay・Feedback」の最初の部品 [`tooltip`]（イシュー #2644、
-//! 方向は部品ローカルの [`tooltip::TooltipSide`] による修飾 class で表す）
-//! が続いた。
+//! 方向は部品ローカルの [`tooltip::TooltipSide`] による修飾 class で表す）・
+//! 同 Phase の 2 番目の部品 [`progress`]（イシュー #2648、形状は部品
+//! ローカルの [`progress::ProgressShape`] による修飾 class（Bar/Circle）で
+//! 表し、進捗値は `slider` と同型の 5 刻み固定 class 集合へ量子化する。
+//! 表示専用のため `Active`/`Disabled` を持たない）が続いた。
 //! 残りは Phase 3 の他部品（#2608〜）・Phase 5 の他部品（menu 等）・
 //! Phase 6 の他部品で順次追加する。
 //!
@@ -125,6 +128,7 @@ pub mod link;
 pub mod nav_item;
 pub mod pagination;
 pub mod paragraph;
+pub mod progress;
 pub mod props;
 pub mod question;
 pub mod radio;
@@ -160,6 +164,7 @@ pub use link::link;
 pub use nav_item::nav_item;
 pub use pagination::pagination;
 pub use paragraph::paragraph;
+pub use progress::{progress, ProgressShape};
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
 pub use question::question;
 pub use radio::radio;

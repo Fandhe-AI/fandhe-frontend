@@ -68,6 +68,7 @@ mod link;
 mod nav_item;
 mod pagination;
 mod paragraph;
+mod progress;
 mod question;
 mod radio;
 mod ratings;
@@ -160,7 +161,10 @@ pub struct Wireframe {
 /// （イシュー #2642、Phase 5 の 5 番目の部品。代わりに使える既存アイコンが
 /// ないため `icon::cursor_arrow`/`icon::cursor_hand` を新規追加して消費
 /// する）・Phase 6「Overlay・Feedback」の [`tooltip::WIREFRAME`]
-/// （イシュー #2644、最初の部品）が続いた。
+/// （イシュー #2644、最初の部品）・[`progress::WIREFRAME`]（イシュー #2648、
+/// 同 Phase の 2 番目の部品。形状は部品ローカルの
+/// `fandhe_frontend_wireframe_ui::ProgressShape` による修飾 class
+/// （Bar/Circle）で表す）が続いた。
 /// Phase 1・3・4・5・6 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -193,6 +197,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     pagination::WIREFRAME,
     cursor::WIREFRAME,
     tooltip::WIREFRAME,
+    progress::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。
