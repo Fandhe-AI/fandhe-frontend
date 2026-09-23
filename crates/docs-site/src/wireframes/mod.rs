@@ -58,6 +58,7 @@ mod button;
 mod calendar;
 mod checkbox;
 mod divider;
+mod file_drop;
 mod frame;
 mod grid;
 mod input;
@@ -136,7 +137,9 @@ pub struct Wireframe {
 /// Phase 4「Forms B」の [`question::WIREFRAME`]（イシュー #2630、最初の
 /// 部品）・[`ratings::WIREFRAME`]（イシュー #2631、`icon::star` を再利用
 /// する 2 番目の部品）・[`calendar::WIREFRAME`]（イシュー #2632、選択日は
-/// `props::Active` を再利用する 3 番目の部品）が続いた。
+/// `props::Active` を再利用する 3 番目の部品）・[`file_drop::WIREFRAME`]
+/// （イシュー #2633、blocks.pm に対応部品がない独自追加部品、4 番目の
+/// 部品）が続いた。
 /// Phase 1・3・4 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -160,6 +163,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     question::WIREFRAME,
     ratings::WIREFRAME,
     calendar::WIREFRAME,
+    file_drop::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

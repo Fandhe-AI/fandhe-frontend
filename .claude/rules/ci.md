@@ -260,7 +260,10 @@
   で先頭から表現する）/
   `wireframes/calendar/index.html`（イシュー #2632、同 Phase の 3 番目の
   Calendar 部品〔月表示グリッド型カレンダー。選択日は `props::Active` を
-  再利用し `MAX_WEEKS` で 6 週へ飽和させる〕）
+  再利用し `MAX_WEEKS` で 6 週へ飽和させる〕）/
+  `wireframes/file-drop/index.html`（イシュー #2633、同 Phase の 4 番目の
+  部品。アイコンは `Option<Node>` スロット、表示状態軸なし、
+  `<input type=file>` 非出力）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

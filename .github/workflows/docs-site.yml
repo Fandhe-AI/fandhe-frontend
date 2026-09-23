@@ -296,6 +296,8 @@ jobs:
           # イシュー #2632: 同 Phase の Calendar 部品ページ（選択日は
           # props::Active 再利用・MAX_WEEKS 6 週飽和）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/calendar/index.html"
+          # イシュー #2633: 同 Phase の File drop 部品ページ。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/file-drop/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact

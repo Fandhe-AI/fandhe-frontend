@@ -62,9 +62,12 @@
 //! コントロール + ヒント。表示状態軸を持たずスロット側へ委ねる）・
 //! [`ratings`]（イシュー #2631、`icon::star` を再利用し塗り数を
 //! `data-active` で表現する）・[`calendar`]（イシュー #2632、選択日は
-//! `props::Active` を再利用し `MAX_WEEKS` で 6 週へ飽和させる）が続いた。
+//! `props::Active` を再利用し `MAX_WEEKS` で 6 週へ飽和させる）・
+//! [`file_drop`]（イシュー #2633、blocks.pm に対応部品がない独自追加部品。
+//! アイコンは `link` と同じ `Option<Node>` スロット、表示状態軸を持たない）
+//! が続いた。
 //! 残りは Phase 2 の他部品（text 等）・Phase 3 の他部品（#2608〜）および
-//! Phase 4 の他部品（file-drop/stepper）で順次追加する。
+//! Phase 4 の他部品（stepper）で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -85,6 +88,7 @@ pub mod checkbox;
 pub mod class;
 pub mod css;
 pub mod divider;
+pub mod file_drop;
 pub mod frame;
 pub mod grid;
 pub mod icon;
@@ -112,6 +116,7 @@ pub use checkbox::checkbox;
 pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
 pub use divider::divider;
+pub use file_drop::file_drop;
 pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
 pub use input::input;
