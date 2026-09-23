@@ -179,3 +179,36 @@ fn image_css_places_linear_gradient_only_in_placeholder_rule() {
     assert!(!css[..placeholder_start].contains("linear-gradient"));
     assert!(css[placeholder_start..].contains("linear-gradient"));
 }
+
+/// CSS カスケード回帰テスト: `.fw-wire-image.fw-wire-primary` は同一詳細度で
+/// `.fw-wire-image.fw-wire-image-placeholder` より後段に定義されるため、
+/// `background` shorthand を使うと後者が設定した `background-image`
+/// （バツ印のグラデーション）を `none` へリセットしてしまう
+/// （`Primary(true)` かつ `content: None` の組み合わせでバツ印が消える不具合、
+/// codex-review/Bugbot 双方の指摘）。`primary` ルールは `background-color`
+/// のみを上書きし、`background-image` を保持する契約を固定する。
+#[test]
+fn primary_rule_does_not_reset_placeholder_background_image() {
+    let css = fandhe_frontend_wireframe_ui::image::IMAGE_CSS;
+    let primary_start = css
+        .find(".fw-wire-image.fw-wire-primary")
+        .expect("primary selector must exist");
+    let primary_end = css[primary_start..]
+        .find('}')
+        .map(|end| primary_start + end)
+        .expect("primary rule must be closed");
+    let primary_rule = &css[primary_start..primary_end];
+
+    // shorthand `background:` はまだ書かれていないことだけでなく、
+    // 単語境界で `background-color` 以外の `background` プロパティが
+    // 無いことも確認する（`background-` で始まる他プロパティの追加は許容）。
+    for line in primary_rule.lines() {
+        let trimmed = line.trim_start();
+        if let Some(rest) = trimmed.strip_prefix("background") {
+            assert!(
+                rest.starts_with("-color:"),
+                "primary rule must only use background-color (not the background shorthand, which resets background-image), found: {line:?}"
+            );
+        }
+    }
+}
