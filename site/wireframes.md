@@ -53,6 +53,7 @@
 - [Stepper](./wireframes/stepper.md)
 - [Nav item](./wireframes/nav-item.md)
 - [Accordion](./wireframes/accordion.md)
+- [Pagination](./wireframes/pagination.md)
 - [Tooltip](./wireframes/tooltip.md)
 
 ## 掲載予定
@@ -73,7 +74,6 @@
 
 - menu
 - breadcrumbs
-- pagination
 - cursor
 
 ### Phase 6: Overlay・Feedback
