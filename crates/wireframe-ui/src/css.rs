@@ -61,8 +61,9 @@
 /// イシュー #2645 で [`crate::modal::MODAL_CSS`]（6 番目の部品）・
 /// イシュー #2651 で [`crate::avatar::AVATAR_CSS`]（Phase 7「Data display」
 /// の最初の部品）・イシュー #2655 で [`crate::counter::COUNTER_CSS`]
-/// （2 番目の部品）・イシュー #2661 で [`crate::media::MEDIA_CSS`]
-/// （Phase 8「Media・Data」の最初の部品）が
+/// （2 番目の部品）・イシュー #2654 で [`crate::emoji::EMOJI_CSS`]
+/// （同 Phase の 3 番目の部品）・イシュー #2661 で
+/// [`crate::media::MEDIA_CSS`]（Phase 8「Media・Data」の最初の部品）が
 /// 続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
@@ -104,6 +105,7 @@ pub const PARTS: &[&str] = &[
     crate::modal::MODAL_CSS,
     crate::avatar::AVATAR_CSS,
     crate::counter::COUNTER_CSS,
+    crate::emoji::EMOJI_CSS,
     crate::media::MEDIA_CSS,
 ];
 

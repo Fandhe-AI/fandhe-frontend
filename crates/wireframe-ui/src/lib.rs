@@ -121,7 +121,11 @@
 //! で表す）・2 番目の部品 [`counter`]（イシュー #2655、件数を収めた
 //! ピルバッジ。件数は `u32` ではなく `&str` で受け、強調配色は部品
 //! ローカルの新型を新設せず共通型 [`props::Primary`] を再利用する。
-//! `crate::nav_item` の内部カウンターパートとは独立した部品）が続いた。
+//! `crate::nav_item` の内部カウンターパートとは独立した部品）・3 番目の
+//! 部品 [`emoji`]（イシュー #2654、絵文字は `Option<Node>` アイコン
+//! スロットではなく `glyph: &str` の 1 引数へ畳み込む §11.4 からの意図的な
+//! 逸脱。空文字列は CSS の `:empty` 規則で破線の円プレースホルダーに
+//! する）が続いた。
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
 //! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
 //! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
@@ -157,6 +161,7 @@ pub mod counter;
 pub mod css;
 pub mod cursor;
 pub mod divider;
+pub mod emoji;
 pub mod file_drop;
 pub mod frame;
 pub mod grid;
@@ -203,6 +208,7 @@ pub use counter::counter;
 pub use css::{wireframe_css, PARTS};
 pub use cursor::{cursor, CursorKind};
 pub use divider::divider;
+pub use emoji::emoji;
 pub use file_drop::file_drop;
 pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};

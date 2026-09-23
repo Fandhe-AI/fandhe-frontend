@@ -65,6 +65,7 @@
 - [Modal](./wireframes/modal.md)
 - [Avatar](./wireframes/avatar.md)
 - [Counter](./wireframes/counter.md)
+- [Emoji](./wireframes/emoji.md)
 - [Media](./wireframes/media.md)
 
 ## 掲載予定
@@ -89,7 +90,6 @@
 
 - icon
 - brand
-- emoji
 - stat
 - list
 - card-basic
