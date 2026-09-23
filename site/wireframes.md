@@ -35,6 +35,7 @@
 - [Rich text](./wireframes/rich-text.md)
 - [Button](./wireframes/button.md)
 - [Select](./wireframes/select.md)
+- [Switch](./wireframes/switch.md)
 - [Slider](./wireframes/slider.md)
 
 ## 掲載予定
@@ -59,7 +60,6 @@
 - textarea
 - checkbox
 - radio
-- switch
 
 ### Phase 4: Forms B
 
