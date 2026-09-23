@@ -303,8 +303,8 @@ jobs:
           # イシュー #2638: Phase 5「Navigation」の最初の部品、Tabs 部品ページ
           # （選択状態は props::Active ではなく active: Option<usize> で表す）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/tabs/index.html"
-          # イシュー #2634: 同 Phase の Stepper 部品ページ（blocks.pm 対応部品を
-          # 持たない独自追加部品）。
+          # イシュー #2634: Phase 4「Forms B」の Stepper 部品ページ（blocks.pm
+          # 対応部品を持たない独自追加部品）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/stepper/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
