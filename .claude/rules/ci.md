@@ -213,8 +213,10 @@
   により `crate::wireframes::WIREFRAMES` が空でなくなり、
   `crate::build::build_site` の「使われているページだけ」書き出し契約に
   従って `assets/wireframes.css` が初めて書き出された）/
+  `wireframes/grid/index.html`（イシュー #2611、Phase 1「レイアウト骨格」の
+  Grid 部品ページ）/
   `wireframes/stack/index.html`（イシュー #2610、Phase 1「レイアウト骨格」の
-  Stack 部品ページ。2 番目の Wireframes 部品ページ）
+  Stack 部品ページ）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

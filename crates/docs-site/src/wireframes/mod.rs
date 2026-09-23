@@ -54,6 +54,7 @@
 //! 引数表へ流れ込む経路を型で塞ぐ。
 
 mod annotation;
+mod grid;
 mod stack;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
@@ -104,8 +105,10 @@ pub struct Wireframe {
 /// が固定する。#2607 時点では空だったが、Phase 2「テキスト・注釈」の
 /// [`annotation::WIREFRAME`]（イシュー #2617）を皮切りに Phase 1〜8
 /// （#2608〜#2665）の各部品イシューが自分の [`Wireframe`] 定数を
-/// 1 要素ずつ追記する。[`stack::WIREFRAME`]（イシュー #2610）が続いた。
-pub const WIREFRAMES: &[Wireframe] = &[annotation::WIREFRAME, stack::WIREFRAME];
+/// 1 要素ずつ追記する。Phase 1「レイアウト骨格」の [`grid::WIREFRAME`]
+/// （イシュー #2611）・[`stack::WIREFRAME`]（イシュー #2610）が続いた。
+pub const WIREFRAMES: &[Wireframe] =
+    &[annotation::WIREFRAME, grid::WIREFRAME, stack::WIREFRAME];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。
 /// `crate::build::build_site` が「このページを Wireframes 専用分岐に乗せるか」
