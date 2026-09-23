@@ -289,7 +289,10 @@
   `prev_next`/`first_last` の 2 bool へ畳む）/
   `wireframes/cursor/index.html`（イシュー #2642、Phase 5「Navigation」の
   5 番目の部品。代わりに使える既存アイコンがないため
-  `icon::cursor_arrow`/`icon::cursor_hand` を新規追加して消費する）
+  `icon::cursor_arrow`/`icon::cursor_hand` を新規追加して消費する）/
+  `wireframes/tooltip/index.html`（イシュー #2644、Phase 6「Overlay・
+  Feedback」の最初の部品。方向は部品ローカルの `TooltipSide` による
+  修飾 class で表す）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
