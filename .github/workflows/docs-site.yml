@@ -368,7 +368,11 @@ jobs:
           # 部品ページ（棒グラフの配置イメージ。values は &[u8]、
           # props::Orientation を再利用する）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/chart/index.html"
-          # イシュー #2662: Phase 8「Media・データ表示」の 2 番目の部品、
+          # イシュー #2660: Phase 8 の 2 番目の部品、Image 部品
+          # ページ（content: Option<Node> が None のときバツ印プレース
+          # ホルダーを描く §11.4 準拠のスロット規約）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/image/index.html"
+          # イシュー #2662: Phase 8「Media・データ表示」の 3 番目の部品、
           # Table 部品ページ（<table> は使わず div/span + CSS grid で
           # 表現する、calendar と同型の判断）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/table/index.html"

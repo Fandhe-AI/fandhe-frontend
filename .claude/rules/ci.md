@@ -334,8 +334,12 @@
   `wireframes/chart/index.html`（イシュー #2663、Phase 8「Media・データ
   表示」の最初の部品。棒グラフの配置イメージを `values: &[u8]` から
   組み立て、`props::Orientation` を再利用する）/
+  `wireframes/image/index.html`（イシュー #2660、Phase 8 の 2 番目の
+  部品。`content: Option<Node>` が `None` のときバツ印プレース
+  ホルダーを描く §11.4 準拠のスロット規約。強調は共通型 `props::Primary`
+  を再利用する）/
   `wireframes/table/index.html`（イシュー #2662、Phase 8「Media・データ
-  表示」の 2 番目の部品。`<table>` は使わず `div`/`span` + CSS grid で
+  表示」の 3 番目の部品。`<table>` は使わず `div`/`span` + CSS grid で
   表現する、`calendar` と同型の判断）
   である。
   いずれも
