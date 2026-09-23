@@ -278,7 +278,11 @@
   ステップは既存 `props::Active` を再利用する）/
   `wireframes/nav-item/index.html`（イシュー #2636、Phase 5「Navigation」の
   2 番目の部品。先頭・末尾の `Option<Node>` アイコンスロット + 件数表示
-  〔`Option<&str>`〕、`Active` はアクティブ状態のグレースケール反転配色）
+  〔`Option<&str>`〕、`Active` はアクティブ状態のグレースケール反転配色）/
+  `wireframes/accordion/index.html`（イシュー #2641、Phase 5「Navigation」の
+  3 番目の部品。blocks.pm に対応部品がない独自追加部品。展開状態は
+  `props::Active` を項目単位で再利用し、折りたたみ項目の本文スロットは
+  出力しない）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
