@@ -323,6 +323,10 @@ jobs:
           # イシュー #2644: Phase 6「Overlay・Feedback」の最初の部品、Tooltip
           # 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/tooltip/index.html"
+          # イシュー #2647: Phase 6「Overlay・Feedback」の 2 番目の部品、Toast
+          # 部品ページ（閉じるグリフは icon::x 固定で instance swap にせず
+          # dismissible: bool の 1 引数だけで有無を切り替える）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/toast/index.html"
           # イシュー #2651: Phase 7「Data display」の最初の部品、Avatar 部品
           # ページ（content: Option<Node> が None のとき icon::user へ
           # フォールバックする §11.4 からの意図的な逸脱）。

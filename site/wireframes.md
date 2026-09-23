@@ -56,6 +56,7 @@
 - [Pagination](./wireframes/pagination.md)
 - [Cursor](./wireframes/cursor.md)
 - [Tooltip](./wireframes/tooltip.md)
+- [Toast](./wireframes/toast.md)
 - [Avatar](./wireframes/avatar.md)
 
 ## 掲載予定
@@ -81,7 +82,6 @@
 
 - modal
 - alert
-- toast
 - progress
 - spinner
 

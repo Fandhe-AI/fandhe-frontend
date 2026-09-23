@@ -293,6 +293,9 @@
   `wireframes/tooltip/index.html`（イシュー #2644、Phase 6「Overlay・
   Feedback」の最初の部品。方向は部品ローカルの `TooltipSide` による
   修飾 class で表す）/
+  `wireframes/toast/index.html`（イシュー #2647、Phase 6「Overlay・
+  Feedback」の 2 番目の部品。閉じるグリフは `icon::x` 固定で instance
+  swap にせず `dismissible: bool` の 1 引数だけで有無を切り替える）/
   `wireframes/avatar/index.html`（イシュー #2651、Phase 7「Data display」の
   最初の部品。`content: Option<Node>` が `None` のとき `icon::user` へ
   フォールバックする §11.4 からの意図的な逸脱）
