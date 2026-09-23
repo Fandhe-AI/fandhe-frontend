@@ -214,7 +214,9 @@
   `crate::build::build_site` の「使われているページだけ」書き出し契約に
   従って `assets/wireframes.css` が初めて書き出された）/
   `wireframes/grid/index.html`（イシュー #2611、Phase 1「レイアウト骨格」の
-  Grid 部品ページ）
+  Grid 部品ページ）/
+  `wireframes/paragraph/index.html`（イシュー #2615、Phase 2「テキスト・
+  注釈」の Paragraph 部品ページ）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
