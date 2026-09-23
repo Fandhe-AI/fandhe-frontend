@@ -312,7 +312,11 @@ jobs:
           # イシュー #2641: Phase 5「Navigation」の 3 番目の部品、Accordion 部品
           # ページ（blocks.pm に対応部品がない独自追加部品）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/accordion/index.html"
-          # イシュー #2642: Phase 5「Navigation」の 4 番目の部品、Cursor 部品
+          # イシュー #2640: Phase 5「Navigation」の 4 番目の部品、Pagination
+          # 部品ページ（選択状態は props::Active を再利用、先頭/前/次/末尾
+          # コントロールは prev_next/first_last の 2 bool へ畳む）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/pagination/index.html"
+          # イシュー #2642: Phase 5「Navigation」の 5 番目の部品、Cursor 部品
           # ページ（代わりに使える既存アイコンがないため icon::cursor_arrow/
           # icon::cursor_hand を新規追加して消費する）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/cursor/index.html"
