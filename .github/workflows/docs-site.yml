@@ -258,6 +258,9 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/divider/index.html"
           # イシュー #2610: 同 Phase の Stack 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/stack/index.html"
+          # イシュー #2618: Link 部品ページ（Option<Node> アイコンスロット規約
+          # §11.4 の実例、a[href] 非出力）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/link/index.html"
           # イシュー #2619: Phase 2「テキスト・注釈」の Tag 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/tag/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"

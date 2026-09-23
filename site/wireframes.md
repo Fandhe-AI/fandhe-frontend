@@ -31,6 +31,7 @@
 - [Grid](./wireframes/grid.md)
 - [Divider](./wireframes/divider.md)
 - [Stack](./wireframes/stack.md)
+- [Link](./wireframes/link.md)
 - [Tag](./wireframes/tag.md)
 
 ## 掲載予定
@@ -48,7 +49,6 @@
 - text
 - paragraph
 - rich-text
-- link
 
 ### Phase 3: Forms A
 

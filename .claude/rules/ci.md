@@ -220,6 +220,9 @@
   実消費者〕）/
   `wireframes/stack/index.html`（イシュー #2610、Phase 1「レイアウト骨格」の
   Stack 部品ページ）/
+  `wireframes/link/index.html`（イシュー #2618、Phase 2「テキスト・注釈」の
+  `link` 部品〔`Option<Node>` アイコンスロット規約 §11.4 の実例、`a[href]`
+  非出力〕）/
   `wireframes/tag/index.html`（イシュー #2619、Phase 2「テキスト・注釈」の
   Tag 部品ページ。削除「×」パートは `icon::x` 再利用、`removable: bool` で
   有無トグル）
