@@ -66,12 +66,28 @@ const INDICATOR_CLASS: &str = "fw-wire-stepper-indicator";
 /// ラベルのパート class（部品ルートなしで単独使用しない、[`stepper`] 専用）。
 const LABEL_CLASS: &str = "fw-wire-stepper-label";
 
-/// ステッパー CSS（6 セレクタ）。[`crate::css::PARTS`] へ登録される。
+/// ステッパー CSS。[`crate::css::PARTS`] へ登録される。
 ///
 /// 値は [`crate::size::css`] が定義するカスタムプロパティと
 /// [`crate::tokens`] のトークン（`--fw-wire-*`）を `var()` で参照するのみ
 /// で書き写さない。連結線は `::before` 疑似要素のみで描き、追加ノードを
 /// 持たない（先頭ステップには `::before` を出さない）。
+///
+/// 連結線（`::before`）の完了色は「自身が `data-complete`」だけでなく
+/// 「自身が `data-active`」でも点灯させる。`data-active` は「直前までの
+/// 全ステップが完了済み」を意味するため、現在ステップの直前セグメントも
+/// 完了扱いにしないと進捗線が実際の進捗より 1 区間遅れて見える不具合になる
+/// （例: 3 ステップ中 `active=1` の既定デモで、ステップ 0 は完了済みなのに
+/// ステップ 1 直前の連結線が未完了色のまま残る）。
+///
+/// 連結線の位置・長さは `right`/`width` を自身の padding box に対する
+/// 割合で算出するため、`:first-child`/`:last-child` で左右いずれかの
+/// `padding-inline-*` だけを 0 にすると、その要素は `align-items: center`
+/// で中央寄せされるインジケータの中心が padding box の中心からずれ、連結線
+/// が届かなくなる（先頭ステップ自体は `::before` を持たないため無害だが、
+/// 末尾ステップは直前ステップとの連結線を持つため影響する）。そのため
+/// `:first-child` の `padding-inline-start: 0` のみを残し、`:last-child`
+/// の `padding-inline-end: 0` は設けない（左右非対称にしない）。
 pub const STEPPER_CSS: &str = "\
 .fw-wire-stepper {
   display: flex;
@@ -94,9 +110,6 @@ pub const STEPPER_CSS: &str = "\
 .fw-wire-stepper-step:first-child {
   padding-inline-start: 0;
 }
-.fw-wire-stepper-step:last-child {
-  padding-inline-end: 0;
-}
 .fw-wire-stepper-step:not(:first-child)::before {
   content: \"\";
   position: absolute;
@@ -106,7 +119,8 @@ pub const STEPPER_CSS: &str = "\
   height: var(--fw-wire-line-width);
   background: var(--fw-wire-line-subtle);
 }
-.fw-wire-stepper-step[data-complete]:not(:first-child)::before {
+.fw-wire-stepper-step[data-complete]:not(:first-child)::before,
+.fw-wire-stepper-step[data-active]:not(:first-child)::before {
   background: var(--fw-wire-line);
 }
 .fw-wire-stepper-indicator {
