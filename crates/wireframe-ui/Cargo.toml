@@ -145,7 +145,11 @@ name = "fandhe-frontend-wireframe-ui"
 # grid::MAX_COLUMNS と同じ資源有界化〔MAX_BARS〕で構成する）。main 側で
 # 0.43.0 を open PR #2714（card-basic）・#2718（media）が共に主張して
 # いたため（同一版数は衝突扱い）main の値 +1 を採用する。
-version = "0.44.0"
+# 0.44.0 → 0.45.0: 公開 API 新設（map 部品、イシュー #2664、Phase 8
+# 「Media・データ表示」の chart に続く部品。地図タイルの配置イメージを
+# 部品ローカル列挙型 MapZoom 3 段・Option<Node> マーカースロットで構成
+# し、街路・区画・道路の位置は CSS の固定ルールで描く）。
+version = "0.45.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
 license = "MIT OR Apache-2.0"

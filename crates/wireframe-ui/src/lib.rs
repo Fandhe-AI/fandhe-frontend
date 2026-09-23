@@ -139,8 +139,12 @@
 //! [`props::Orientation`] の再利用（4 例目の消費者）・
 //! [`grid::MAX_COLUMNS`] と同じ資源有界化（[`chart::MAX_BARS`]）で
 //! 組み立てる。折れ線・面・円・散布・凡例・軸ラベル・複数系列はスコープ
-//! 外とする）が続いた。残りは Phase 7 の他部品・Phase 8 の他部品で
-//! 順次追加する。
+//! 外とする）に続き、[`map`]（イシュー #2664、地図タイルの配置イメージ。
+//! ズームは部品ローカル列挙型 [`map::MapZoom`] 3 段、マーカーは
+//! [`link`]/[`file_drop`]/[`alert`] と同型の `Option<Node>` アイコン
+//! スロット。街路・区画・道路の位置はすべて CSS の固定ルールで描き、
+//! `&str` 引数を持たない）が続いた。残りは Phase 7 の他部品・Phase 8 の
+//! 他部品で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -175,6 +179,7 @@ pub mod grid;
 pub mod icon;
 pub mod input;
 pub mod link;
+pub mod map;
 pub mod menu;
 pub mod modal;
 pub mod nav_item;
@@ -222,6 +227,7 @@ pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
 pub use input::input;
 pub use link::link;
+pub use map::{map, MapZoom};
 pub use menu::{menu, MenuItem};
 pub use modal::modal;
 pub use nav_item::nav_item;

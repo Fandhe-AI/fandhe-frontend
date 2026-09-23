@@ -333,7 +333,10 @@
   `icon::caret_up`/`icon::caret_down` を再利用する）/
   `wireframes/chart/index.html`（イシュー #2663、Phase 8「Media・データ
   表示」の最初の部品。棒グラフの配置イメージを `values: &[u8]` から
-  組み立て、`props::Orientation` を再利用する）
+  組み立て、`props::Orientation` を再利用する）/
+  `wireframes/map/index.html`（イシュー #2664、Phase 8 の chart に続く
+  部品。地図タイルの配置イメージを部品ローカル列挙型 `MapZoom` 3 段・
+  `Option<Node>` マーカースロットで構成する）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

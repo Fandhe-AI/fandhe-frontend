@@ -71,6 +71,7 @@ mod frame;
 mod grid;
 mod input;
 mod link;
+mod map;
 mod menu;
 mod modal;
 mod nav_item;
@@ -199,7 +200,9 @@ pub struct Wireframe {
 /// `StatDelta`（`menu::MenuItem` と同型の公開構造体）で表す）・
 /// Phase 8「Media・データ表示」の [`chart::WIREFRAME`]（イシュー #2663、
 /// 最初の部品。値は `&[u8]` で受け取り `props::Orientation` を再利用する）
-/// が続いた。
+/// に続き [`map::WIREFRAME`]（イシュー #2664、地図タイルの配置イメージ。
+/// ズームは部品ローカル列挙型 `MapZoom` 3 段、マーカーは `Option<Node>`
+/// アイコンスロット）が続いた。
 /// Phase 1・3・4・5・6・7・8 以降（#2608〜#2665）の残りの各部品イシューが
 /// 自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -244,6 +247,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     emoji::WIREFRAME,
     stat::WIREFRAME,
     chart::WIREFRAME,
+    map::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。
