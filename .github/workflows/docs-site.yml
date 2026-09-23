@@ -360,6 +360,10 @@ jobs:
           # 部品ページ（絵文字は Option<Node> アイコンスロットではなく
           # glyph: &str の 1 引数へ畳み込む §11.4 からの意図的な逸脱）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/emoji/index.html"
+          # イシュー #2660: Phase 8「Media・Data」の最初の部品、Image 部品
+          # ページ（content: Option<Node> が None のときバツ印プレース
+          # ホルダーを描く §11.4 準拠のスロット規約）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact

@@ -326,7 +326,11 @@
   ローカルの新型を新設せず共通型 `props::Primary` を再利用する）/
   `wireframes/emoji/index.html`（イシュー #2654、Phase 7「Data display」の
   3 番目の部品。絵文字は `Option<Node>` アイコンスロットではなく
-  `glyph: &str` の 1 引数へ畳み込む §11.4 からの意図的な逸脱）
+  `glyph: &str` の 1 引数へ畳み込む §11.4 からの意図的な逸脱）/
+  `wireframes/image/index.html`（イシュー #2660、Phase 8「Media・Data」の
+  最初の部品。`content: Option<Node>` が `None` のときバツ印プレース
+  ホルダーを描く §11.4 準拠のスロット規約。強調は共通型 `props::Primary`
+  を再利用する）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

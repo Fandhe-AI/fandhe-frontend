@@ -129,7 +129,13 @@
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
 //! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
 //! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
-//! 全部品が出揃った。残りは Phase 7 の他部品・Phase 8 で順次追加する。
+//! 全部品が出揃った。Phase 8「Media・Data」の最初の部品 [`image`]
+//! （イシュー #2660、`content: Option<Node>` が `None` のときバツ印
+//! プレースホルダーを描き、`Some(node)` のときは子要素を差し替える
+//! §11.4 準拠の実例。強調は共通型 [`props::Primary`] を再利用し、バツ印
+//! の色は CSS カスタムプロパティ `--fw-wire-image-x-color` の上書きで
+//! 反転させる）が続いた。残りは Phase 7 の他部品・Phase 8 の他部品で
+//! 順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -161,6 +167,7 @@ pub mod file_drop;
 pub mod frame;
 pub mod grid;
 pub mod icon;
+pub mod image;
 pub mod input;
 pub mod link;
 pub mod menu;
@@ -206,6 +213,7 @@ pub use emoji::emoji;
 pub use file_drop::file_drop;
 pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
+pub use image::image;
 pub use input::input;
 pub use link::link;
 pub use menu::{menu, MenuItem};
