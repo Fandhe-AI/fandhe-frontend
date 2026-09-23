@@ -133,6 +133,8 @@ pub const ALL: &[IconEntry] = &[
     ("calendar", calendar),
     ("menu", menu),
     ("bell", bell),
+    ("cursor-arrow", cursor_arrow),
+    ("cursor-hand", cursor_hand),
 ];
 
 /// [`el`] の所有属性値版で `<line>` 子要素を組み立てる内部ヘルパ。
@@ -429,6 +431,39 @@ pub fn bell(size: Size) -> Node {
         vec![
             path("M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"),
             path("M10 20a2 2 0 0 0 4 0"),
+        ],
+    )
+}
+
+/// マウスカーソル（矢印）アイコン。イシュー #2642 で [`crate::cursor`] のため
+/// 追加。24×24 グリッド上で独自に描いた閉じた輪郭（`path` 1 個、単一 `Z`
+/// 閉路）で、Lucide/Feather/Heroicons 等の既存アイコンセットのパスデータは
+/// コピーしていない（本モジュール doc「ジオメトリの出自」節）。
+#[must_use]
+pub fn cursor_arrow(size: Size) -> Node {
+    glyph(
+        "cursor-arrow",
+        size,
+        vec![path(
+            "M5,3 L5,19 L9.2,15.3 L12,21.5 L15,20 L12.2,13.8 L18,13.8 Z",
+        )],
+    )
+}
+
+/// マウスカーソル（手のひら）アイコン。イシュー #2642 で [`crate::cursor`]
+/// のため追加。外形は 1 本の閉じた `path`（丸みを持つグローブ状の輪郭）で
+/// 描き、指の区切りは内部の `line` 3 本で表現する（`docs/design/wireframe-ui-architecture.md`
+/// §11.7 の追記どおり、外形と区切り線を分離する構成）。
+#[must_use]
+pub fn cursor_hand(size: Size) -> Node {
+    glyph(
+        "cursor-hand",
+        size,
+        vec![
+            path("M7,21 L7,10 Q7,4 12,4 Q17,4 17,10 L17,21 Z"),
+            line("9.5", "6", "9.5", "11"),
+            line("12", "4.5", "12", "11"),
+            line("14.5", "6", "14.5", "11"),
         ],
     )
 }

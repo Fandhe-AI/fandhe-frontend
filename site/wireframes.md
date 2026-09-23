@@ -54,6 +54,7 @@
 - [Nav item](./wireframes/nav-item.md)
 - [Accordion](./wireframes/accordion.md)
 - [Pagination](./wireframes/pagination.md)
+- [Cursor](./wireframes/cursor.md)
 - [Tooltip](./wireframes/tooltip.md)
 - [Alert](./wireframes/alert.md)
 
@@ -75,7 +76,6 @@
 
 - menu
 - breadcrumbs
-- cursor
 
 ### Phase 6: Overlay・Feedback
 
