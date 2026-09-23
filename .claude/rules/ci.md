@@ -218,8 +218,10 @@
   `wireframes/divider/index.html`（イシュー #2612、Phase 1
   「レイアウト骨格」の `divider` 部品〔`props::Orientation` の最初の
   実消費者〕）/
-  `wireframes/frame/index.html`（イシュー #2609、Phase 1「レイアウト骨格」の
-  Frame 部品ページ）
+  `wireframes/stack/index.html`（イシュー #2610、Phase 1「レイアウト骨格」の
+  Stack 部品ページ）/
+  `wireframes/frame/index.html`（イシュー #2609、同じく Phase 1
+  「レイアウト骨格」の Frame 部品ページ）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

@@ -11,13 +11,15 @@
 /// イシュー #2606 で最初の登録（[`crate::icon::ICON_GLYPH_CSS`]）が入った。
 /// イシュー #2617 で [`crate::annotation::ANNOTATION_CSS`] が続いた。
 /// イシュー #2611 で [`crate::grid::GRID_CSS`]・イシュー #2612 で
-/// [`crate::divider::DIVIDER_CSS`]・イシュー #2609 で
+/// [`crate::divider::DIVIDER_CSS`]・イシュー #2610 で
+/// [`crate::stack::STACK_CSS`]・イシュー #2609 で
 /// [`crate::frame::FRAME_CSS`] が続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
     crate::annotation::ANNOTATION_CSS,
     crate::grid::GRID_CSS,
     crate::divider::DIVIDER_CSS,
+    crate::stack::STACK_CSS,
     crate::frame::FRAME_CSS,
 ];
 

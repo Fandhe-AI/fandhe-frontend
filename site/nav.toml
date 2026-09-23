@@ -1331,6 +1331,11 @@ source = "site/wireframes/divider.md"
 path = "/wireframes/divider/"
 
 [[section.page]]
+title = "Stack"
+source = "site/wireframes/stack.md"
+path = "/wireframes/stack/"
+
+[[section.page]]
 title = "Frame"
 source = "site/wireframes/frame.md"
 path = "/wireframes/frame/"

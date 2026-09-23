@@ -40,8 +40,8 @@
 //! §11）。個別部品は Phase 2「テキスト・注釈」の [`annotation`]
 //! （イシュー #2617）から実装を開始し、Phase 1「レイアウト骨格」の
 //! [`grid`]（イシュー #2611）・[`divider`]（イシュー #2612、
-//! `props::Orientation` の最初の消費者）・[`frame`]（イシュー #2609）が
-//! 続いた。残りは Phase 1 の他部品（stack）・Phase 2 の他部品
+//! `props::Orientation` の最初の消費者）・[`stack`]（イシュー #2610）・
+//! [`frame`]（イシュー #2609）が続いた。残りは Phase 2 の他部品
 //! （text/paragraph/rich-text/link/tag 等）および Phase 3 以降（#2608〜）
 //! で順次追加する。
 //!
@@ -66,6 +66,7 @@ pub mod grid;
 pub mod icon;
 pub mod props;
 pub mod size;
+pub mod stack;
 pub mod tokens;
 
 pub use annotation::annotation;
@@ -76,3 +77,4 @@ pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
 pub use size::Size;
+pub use stack::stack;

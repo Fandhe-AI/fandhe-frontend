@@ -30,6 +30,7 @@
 - [Annotation](./wireframes/annotation.md)
 - [Grid](./wireframes/grid.md)
 - [Divider](./wireframes/divider.md)
+- [Stack](./wireframes/stack.md)
 - [Frame](./wireframes/frame.md)
 
 ## 掲載予定
@@ -39,8 +40,6 @@
 未掲載のため本節はリンクなしの一覧です）。
 
 ### Phase 1: レイアウト骨格
-
-- stack
 
 ### Phase 2: テキスト・注釈
 
