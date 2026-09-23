@@ -68,7 +68,8 @@ pub const SPINNER_CSS: &str = "\
 /// ローディングインジケータを組み立てる。
 ///
 /// - `size`: [`Size`] 5 段。ルート class `fw-wire-size-<段階>` として
-///   付与し、リングの直径・線幅は `var()` 経由でこの段階に連動する。
+///   付与し、リングの直径は `var()` 経由でこの段階に連動する（線幅は
+///   `--fw-wire-line-width` 固定で size 非連動）。
 ///
 /// 子要素を持たない単一の `<span>` として出力する。`role`/`aria-*`/
 /// `tabindex`/`style`/`data-*` は一切出力しない。
