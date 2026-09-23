@@ -282,7 +282,11 @@
   `wireframes/accordion/index.html`（イシュー #2641、Phase 5「Navigation」の
   3 番目の部品。blocks.pm に対応部品がない独自追加部品。展開状態は
   `props::Active` を項目単位で再利用し、折りたたみ項目の本文スロットは
-  出力しない）
+  出力しない）/
+  `wireframes/pagination/index.html`（イシュー #2640、Phase 5「Navigation」の
+  4 番目の部品。ページ項目は `&[Option<&str>]`〔`None` がギャップ〕、選択
+  状態は既存 `props::Active` を再利用し、先頭/前/次/末尾コントロールは
+  `prev_next`/`first_last` の 2 bool へ畳む）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

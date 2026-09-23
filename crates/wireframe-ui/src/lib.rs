@@ -80,7 +80,11 @@
 //! `Active` はアクティブ状態のグレースケール反転配色として消費する）・
 //! [`accordion`]（イシュー #2641、blocks.pm に対応部品がない独自追加部品。
 //! 展開状態は新型を新設せず `props::Active` を項目単位で再利用し、
-//! 折りたたみ項目の本文スロットは出力しない）も続いた。
+//! 折りたたみ項目の本文スロットは出力しない）・[`pagination`]
+//! （イシュー #2640、Phase 5 の 4 番目の部品。ページ項目は
+//! `&[Option<&str>]`（`None` がギャップ）で表し、選択状態は
+//! `tabs`/`radio` と同じく既存の `props::Active` を再利用する。先頭/前/次/
+//! 末尾コントロールは `prev_next`/`first_last` の 2 bool へ畳む）も続いた。
 //! 残りは Phase 3 の他部品（#2608〜）および Phase 5 の他部品（menu 等）で
 //! 順次追加する。
 //!
@@ -111,6 +115,7 @@ pub mod icon;
 pub mod input;
 pub mod link;
 pub mod nav_item;
+pub mod pagination;
 pub mod paragraph;
 pub mod props;
 pub mod question;
@@ -143,6 +148,7 @@ pub use grid::{grid, MAX_COLUMNS};
 pub use input::input;
 pub use link::link;
 pub use nav_item::nav_item;
+pub use pagination::pagination;
 pub use paragraph::paragraph;
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
 pub use question::question;
