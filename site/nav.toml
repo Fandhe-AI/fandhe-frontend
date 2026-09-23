@@ -1421,6 +1421,11 @@ source = "site/wireframes/file-drop.md"
 path = "/wireframes/file-drop/"
 
 [[section.page]]
+title = "Text"
+source = "site/wireframes/text.md"
+path = "/wireframes/text/"
+
+[[section.page]]
 title = "Tabs"
 source = "site/wireframes/tabs.md"
 path = "/wireframes/tabs/"

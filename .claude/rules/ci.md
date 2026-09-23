@@ -264,6 +264,10 @@
   `wireframes/file-drop/index.html`（イシュー #2633、同 Phase の 4 番目の
   部品。アイコンは `Option<Node>` スロット、表示状態軸なし、
   `<input type=file>` 非出力）/
+  `wireframes/text/index.html`（イシュー #2614、Phase 2「テキスト・注釈」の
+  最後の部品。`<span>` ルート + `white-space: nowrap` +
+  `text-overflow: ellipsis` で 1 行固定表示、`paragraph` の複数行許容とは
+  対になる判断）/
   `wireframes/tabs/index.html`（イシュー #2638、Phase 5「Navigation」の
   最初の部品。選択状態は項目ごとの `props::Active` ではなく
   `active: Option<usize>` 1 引数で表し、選択中は高々 1 件という不変条件を

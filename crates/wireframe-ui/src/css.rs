@@ -43,7 +43,8 @@
 /// [`crate::question::QUESTION_CSS`]・イシュー #2631 で
 /// [`crate::ratings::RATINGS_CSS`]・イシュー #2632 で
 /// [`crate::calendar::CALENDAR_CSS`]・イシュー #2633 で
-/// [`crate::file_drop::FILE_DROP_CSS`]・イシュー #2638 で
+/// [`crate::file_drop::FILE_DROP_CSS`]・イシュー #2614 で
+/// [`crate::text::TEXT_CSS`]・イシュー #2638 で
 /// [`crate::tabs::TABS_CSS`] が続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
@@ -68,6 +69,7 @@ pub const PARTS: &[&str] = &[
     crate::ratings::RATINGS_CSS,
     crate::calendar::CALENDAR_CSS,
     crate::file_drop::FILE_DROP_CSS,
+    crate::text::TEXT_CSS,
     crate::tabs::TABS_CSS,
 ];
 

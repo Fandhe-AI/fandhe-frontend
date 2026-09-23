@@ -280,11 +280,13 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // Ratings 部品ページが加わり、271 → 272 になった。イシュー #2632 で
     // Wireframes セクションへ Calendar 部品ページが加わり、272 → 273 に
     // なった。イシュー #2633 で Wireframes セクションへ File drop 部品
-    // ページが加わり、273 → 274 になった。イシュー #2638 で Wireframes
-    // セクションへ Tabs 部品ページが加わり、274 → 275 になった。
+    // ページが加わり、273 → 274 になった。イシュー #2614 で Wireframes
+    // セクションへ Text 部品ページが加わり、274 → 275 になった
+    // （Phase 2「テキスト・注釈」の全部品が出揃った）。イシュー #2638 で
+    // Wireframes セクションへ Tabs 部品ページが加わり、275 → 276 になった。
     assert_eq!(
         report.written.len(),
-        275,
+        276,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -507,6 +509,9 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
         // イシュー #2619: Tag が Phase 2「テキスト・注釈」の 2 番目の
         // 部品ページとして登録された。
         ("wireframes/tag/index.html", false),
+        // イシュー #2614: Text が Phase 2「テキスト・注釈」の最後の部品
+        // ページとして登録され、同 Phase が全部品出揃った。
+        ("wireframes/text/index.html", false),
         ("api/component-api/index.html", false),
     ];
 

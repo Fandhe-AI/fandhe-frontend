@@ -65,11 +65,15 @@
 //! `props::Active` を再利用し `MAX_WEEKS` で 6 週へ飽和させる）・
 //! [`file_drop`]（イシュー #2633、blocks.pm に対応部品がない独自追加部品。
 //! アイコンは `link` と同じ `Option<Node>` スロット、表示状態軸を持たない）・
-//! Phase 5「Navigation」の [`tabs`]（イシュー #2638、選択状態は項目ごとの
-//! `Active` ではなく `active: Option<usize>` 1 引数で表し、選択中は高々
-//! 1 件という不変条件を型で保証する）が続いた。
-//! 残りは Phase 2 の他部品（text 等）・Phase 3 の他部品（#2608〜）および
-//! Phase 4/5 の他部品（stepper/menu 等）で順次追加する。
+//! Phase 2 の [`text`]（イシュー #2614、単一行テキスト。`<span>` ルート +
+//! `white-space: nowrap` + `text-overflow: ellipsis` で 1 行固定表示する。
+//! [`paragraph`] の複数行許容とは対になる判断）が続いた。これで
+//! Phase 2「テキスト・注釈」は全部品が出揃った。Phase 5「Navigation」の
+//! [`tabs`]（イシュー #2638、選択状態は項目ごとの `Active` ではなく
+//! `active: Option<usize>` 1 引数で表し、選択中は高々 1 件という不変条件を
+//! 型で保証する）も続いた。
+//! 残りは Phase 3 の他部品（#2608〜）および Phase 4/5 の他部品
+//! （stepper/menu 等）で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -109,6 +113,7 @@ pub mod stack;
 pub mod switch;
 pub mod tabs;
 pub mod tag;
+pub mod text;
 pub mod textarea;
 pub mod tokens;
 
@@ -137,4 +142,5 @@ pub use stack::stack;
 pub use switch::switch;
 pub use tabs::tabs;
 pub use tag::tag;
+pub use text::text;
 pub use textarea::{textarea, MAX_ROWS};
