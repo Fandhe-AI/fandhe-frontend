@@ -57,6 +57,7 @@ mod annotation;
 mod button;
 mod checkbox;
 mod divider;
+mod file_drop;
 mod frame;
 mod grid;
 mod input;
@@ -135,8 +136,9 @@ pub struct Wireframe {
 /// （イシュー #2619）・[`input::WIREFRAME`]（イシュー #2622）・
 /// Phase 4「Forms B」の [`question::WIREFRAME`]（イシュー #2630、最初の
 /// 部品）・[`ratings::WIREFRAME`]（イシュー #2631、`icon::star` を再利用
-/// する 2 番目の部品）・Phase 2「テキスト・注釈」の [`text::WIREFRAME`]
-/// （イシュー #2614、同 Phase 最後の部品）が続いた。
+/// する 2 番目の部品）・[`file_drop::WIREFRAME`]（イシュー #2633、
+/// blocks.pm に対応部品がない独自追加部品）・Phase 2「テキスト・注釈」の
+/// [`text::WIREFRAME`]（イシュー #2614、同 Phase 最後の部品）が続いた。
 /// Phase 1・3・4 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -159,6 +161,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     input::WIREFRAME,
     question::WIREFRAME,
     ratings::WIREFRAME,
+    file_drop::WIREFRAME,
     text::WIREFRAME,
 ];
 

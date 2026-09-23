@@ -61,12 +61,14 @@
 //! [`question`]（イシュー #2630、ラベル + 補足説明 + `Node` スロットの
 //! コントロール + ヒント。表示状態軸を持たずスロット側へ委ねる）・
 //! [`ratings`]（イシュー #2631、`icon::star` を再利用し塗り数を
-//! `data-active` で表現する）・Phase 2 の [`text`]（イシュー #2614、
-//! 単一行テキスト。`<span>` ルート + `white-space: nowrap` +
-//! `text-overflow: ellipsis` で 1 行固定表示する。[`paragraph`] の
-//! 複数行許容とは対になる判断）が続いた。これで Phase 2「テキスト・注釈」
-//! は全部品が出揃った。残りは Phase 3 の他部品（#2608〜）および Phase 4
-//! の他部品（calendar/file-drop/stepper）で順次追加する。
+//! `data-active` で表現する）・[`file_drop`]（イシュー #2633、
+//! blocks.pm に対応部品がない独自追加部品。アイコンは `link` と同じ
+//! `Option<Node>` スロット、表示状態軸を持たない）・Phase 2 の [`text`]
+//! （イシュー #2614、単一行テキスト。`<span>` ルート +
+//! `white-space: nowrap` + `text-overflow: ellipsis` で 1 行固定表示する。
+//! [`paragraph`] の複数行許容とは対になる判断）が続いた。これで
+//! Phase 2「テキスト・注釈」は全部品が出揃った。残りは Phase 3 の他部品
+//! （#2608〜）および Phase 4 の他部品（calendar/stepper）で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -86,6 +88,7 @@ pub mod checkbox;
 pub mod class;
 pub mod css;
 pub mod divider;
+pub mod file_drop;
 pub mod frame;
 pub mod grid;
 pub mod icon;
@@ -113,6 +116,7 @@ pub use checkbox::checkbox;
 pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
 pub use divider::divider;
+pub use file_drop::file_drop;
 pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
 pub use input::input;

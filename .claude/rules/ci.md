@@ -258,6 +258,9 @@
   `wireframes/ratings/index.html`（イシュー #2631、同 Phase の 2 番目の
   部品。`icon::star` を再利用し、塗り数を `props::Active` の `data-active`
   で先頭から表現する）/
+  `wireframes/file-drop/index.html`（イシュー #2633、同 Phase の 3 番目の
+  部品。アイコンは `Option<Node>` スロット、表示状態軸なし、
+  `<input type=file>` 非出力）/
   `wireframes/text/index.html`（イシュー #2614、Phase 2「テキスト・注釈」の
   最後の部品。`<span>` ルート + `white-space: nowrap` +
   `text-overflow: ellipsis` で 1 行固定表示、`paragraph` の複数行許容とは
