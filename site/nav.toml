@@ -1346,6 +1346,31 @@ source = "site/wireframes/rich-text.md"
 path = "/wireframes/rich-text/"
 
 [[section.page]]
+title = "Button"
+source = "site/wireframes/button.md"
+path = "/wireframes/button/"
+
+[[section.page]]
+title = "Select"
+source = "site/wireframes/select.md"
+path = "/wireframes/select/"
+
+[[section.page]]
+title = "Radio"
+source = "site/wireframes/radio.md"
+path = "/wireframes/radio/"
+
+[[section.page]]
+title = "Switch"
+source = "site/wireframes/switch.md"
+path = "/wireframes/switch/"
+
+[[section.page]]
+title = "Checkbox"
+source = "site/wireframes/checkbox.md"
+path = "/wireframes/checkbox/"
+
+[[section.page]]
 title = "Input"
 source = "site/wireframes/input.md"
 path = "/wireframes/input/"
