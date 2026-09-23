@@ -40,12 +40,10 @@
 //! フィールドが必要な利用者には Themes の Input（`/themes/input/`）を
 //! 案内する（`site/wireframes/input.md` 参照）。
 //!
-//! [`crate::props::Active`]`.attr()` は wireframe-ui 内で本モジュールが
-//! 最初の実消費者である（イシュー #2605 で型自体は定義済みだったが、
-//! `data-active` を実際に出力する部品はこれまで存在しなかった）。
-//! [`crate::props::Disabled`]`.attr()` は本モジュールより先に main へ
-//! マージされた `button`（イシュー #2621）が最初の実消費者であり、
-//! 本モジュールは 2 例目の実消費者である。
+//! [`crate::props::Active`]`.attr()` と [`crate::props::Disabled`]`.attr()`
+//! を併用する部品は、本モジュールより先に main へマージされた
+//! `select`（イシュー #2624）が最初の実消費者であり、本モジュールは
+//! Select に続く 2 例目の実消費者である。
 
 use fandhe_frontend_core::{el_owned, span, text, Node};
 
