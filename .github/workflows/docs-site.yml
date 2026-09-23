@@ -256,6 +256,9 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/grid/index.html"
           # イシュー #2612: Divider 部品ページ（props::Orientation の最初の消費者）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/divider/index.html"
+          # イシュー #2618: Link 部品ページ（Option<Node> アイコンスロット規約
+          # §11.4 の実例、a[href] 非出力）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/link/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact

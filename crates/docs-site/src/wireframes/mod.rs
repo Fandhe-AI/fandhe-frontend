@@ -56,6 +56,7 @@
 mod annotation;
 mod divider;
 mod grid;
+mod link;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
 use fandhe_frontend_pre_styled_ui::{StyleSheet, StylesheetError};
@@ -105,10 +106,16 @@ pub struct Wireframe {
 /// が固定する。#2607 時点では空だったが、Phase 2「テキスト・注釈」の
 /// [`annotation::WIREFRAME`]（イシュー #2617）を皮切りに、Phase 1
 /// 「レイアウト骨格」の [`grid::WIREFRAME`]（イシュー #2611）・
-/// [`divider::WIREFRAME`]（イシュー #2612）が続いた。Phase 1〜8
+/// [`divider::WIREFRAME`]（イシュー #2612）、Phase 2 の
+/// [`link::WIREFRAME`]（イシュー #2618）が続いた。Phase 1〜8
 /// （#2608〜#2665）の残りの各部品イシューが自分の [`Wireframe`] 定数を
 /// 1 要素ずつ追記する。
-pub const WIREFRAMES: &[Wireframe] = &[annotation::WIREFRAME, grid::WIREFRAME, divider::WIREFRAME];
+pub const WIREFRAMES: &[Wireframe] = &[
+    annotation::WIREFRAME,
+    grid::WIREFRAME,
+    divider::WIREFRAME,
+    link::WIREFRAME,
+];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。
 /// `crate::build::build_site` が「このページを Wireframes 専用分岐に乗せるか」
