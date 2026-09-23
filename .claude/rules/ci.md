@@ -278,7 +278,11 @@
   ステップは既存 `props::Active` を再利用する）/
   `wireframes/nav-item/index.html`（イシュー #2636、Phase 5「Navigation」の
   2 番目の部品。先頭・末尾の `Option<Node>` アイコンスロット + 件数表示
-  〔`Option<&str>`〕、`Active` はアクティブ状態のグレースケール反転配色）
+  〔`Option<&str>`〕、`Active` はアクティブ状態のグレースケール反転配色）/
+  `wireframes/pagination/index.html`（イシュー #2640、Phase 5「Navigation」の
+  3 番目の部品。ページ項目は `&[Option<&str>]`〔`None` がギャップ〕、選択
+  状態は既存 `props::Active` を再利用し、先頭/前/次/末尾コントロールは
+  `prev_next`/`first_last` の 2 bool へ畳む）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

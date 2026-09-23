@@ -77,8 +77,11 @@
 //! ステップは既存 [`props::Active`] を再利用する）・Phase 5「Navigation」の
 //! [`nav_item`]（イシュー #2636、先頭・末尾の `Option<Node>` アイコン
 //! スロットに加え `Option<&str>` の件数カウンター内部パートを持ち、
-//! `Active` はアクティブ状態のグレースケール反転配色として消費する）も
-//! 続いた。
+//! `Active` はアクティブ状態のグレースケール反転配色として消費する）・
+//! [`pagination`]（イシュー #2640、Phase 5 の 3 番目の部品。ページ項目は
+//! `&[Option<&str>]`（`None` がギャップ）で表し、選択状態は
+//! `tabs`/`radio` と同じく既存の `props::Active` を再利用する。先頭/前/次/
+//! 末尾コントロールは `prev_next`/`first_last` の 2 bool へ畳む）も続いた。
 //! 残りは Phase 3 の他部品（#2608〜）および Phase 5 の他部品（menu 等）で
 //! 順次追加する。
 //!
@@ -108,6 +111,7 @@ pub mod icon;
 pub mod input;
 pub mod link;
 pub mod nav_item;
+pub mod pagination;
 pub mod paragraph;
 pub mod props;
 pub mod question;
@@ -139,6 +143,7 @@ pub use grid::{grid, MAX_COLUMNS};
 pub use input::input;
 pub use link::link;
 pub use nav_item::nav_item;
+pub use pagination::pagination;
 pub use paragraph::paragraph;
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
 pub use question::question;
