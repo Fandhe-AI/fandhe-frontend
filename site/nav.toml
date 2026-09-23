@@ -1356,6 +1356,21 @@ source = "site/wireframes/select.md"
 path = "/wireframes/select/"
 
 [[section.page]]
+title = "Radio"
+source = "site/wireframes/radio.md"
+path = "/wireframes/radio/"
+
+[[section.page]]
+title = "Switch"
+source = "site/wireframes/switch.md"
+path = "/wireframes/switch/"
+
+[[section.page]]
+title = "Checkbox"
+source = "site/wireframes/checkbox.md"
+path = "/wireframes/checkbox/"
+
+[[section.page]]
 title = "Slider"
 source = "site/wireframes/slider.md"
 path = "/wireframes/slider/"

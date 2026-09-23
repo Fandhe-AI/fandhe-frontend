@@ -45,11 +45,15 @@
 //! `Option<Node>` アイコンスロット規約 §11.4 の実例、`a[href]` 非出力）、
 //! Phase 3「Forms A」の [`button`]（イシュー #2621、`props::Disabled` の
 //! 最初の実消費者）・[`select`]（イシュー #2624、`props::Active` と
-//! `props::Disabled` を併用する初の部品）・[`slider`]（イシュー #2628、
-//! `props::Orientation` と `Active`/`Disabled` を併用する部品。進捗値は
-//! 5 刻みの固定 class 集合へ量子化する）が続いた。残りは Phase 1 の他部品
-//! （frame）・Phase 2 の他部品（text/paragraph/tag 等）および Phase 3 の
-//! 他部品（#2608〜）で順次追加する。
+//! `props::Disabled` を併用する初の部品）・[`radio`]（イシュー #2626、
+//! 選択状態は新型を新設せず `props::Active` を再利用）・[`switch`]
+//! （イシュー #2627、`Active` を ON 状態の意味で使い `Disabled` を併用する
+//! 部品）・[`checkbox`]（イシュー #2625、`props::Active` を「チェック済み」
+//! 状態として消費）・[`slider`]（イシュー #2628、`props::Orientation` と
+//! `Active`/`Disabled` を併用する部品。進捗値は 5 刻みの固定 class 集合へ
+//! 量子化する）が続いた。残りは Phase 1 の他部品（frame）・Phase 2 の
+//! 他部品（text/paragraph/tag 等）および Phase 3 の他部品（#2608〜）で
+//! 順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -65,6 +69,7 @@
 
 pub mod annotation;
 pub mod button;
+pub mod checkbox;
 pub mod class;
 pub mod css;
 pub mod divider;
@@ -72,23 +77,28 @@ pub mod grid;
 pub mod icon;
 pub mod link;
 pub mod props;
+pub mod radio;
 pub mod rich_text;
 pub mod select;
 pub mod size;
 pub mod slider;
 pub mod stack;
+pub mod switch;
 pub mod tokens;
 
 pub use annotation::annotation;
 pub use button::button;
+pub use checkbox::checkbox;
 pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
 pub use divider::divider;
 pub use grid::{grid, MAX_COLUMNS};
 pub use link::link;
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
+pub use radio::radio;
 pub use rich_text::rich_text;
 pub use select::select;
 pub use size::Size;
 pub use slider::slider;
 pub use stack::stack;
+pub use switch::switch;
