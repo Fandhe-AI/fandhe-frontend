@@ -225,9 +225,11 @@
   非出力〕）/
   `wireframes/rich-text/index.html`（イシュー #2616、Phase 2「テキスト・
   注釈」の Rich text 部品ページ）/
+  `wireframes/button/index.html`（イシュー #2621、Phase 3「Forms A」の
+  `button` 部品〔`props::Disabled` の最初の実消費者〕）/
   `wireframes/input/index.html`（イシュー #2622、Phase 3「Forms A」の
-  `input` 部品〔`<input>` 非出力、`props::Active`/`props::Disabled` の
-  `.attr()` の最初の実消費者〕）
+  `input` 部品〔`<input>` 非出力、`props::Active` の最初の実消費者・
+  `props::Disabled` の 2 例目の実消費者〕）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

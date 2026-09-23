@@ -14,7 +14,8 @@
 /// [`crate::divider::DIVIDER_CSS`]・イシュー #2610 で
 /// [`crate::stack::STACK_CSS`]・イシュー #2618 で
 /// [`crate::link::LINK_CSS`]・イシュー #2616 で
-/// [`crate::rich_text::RICH_TEXT_CSS`]・イシュー #2622 で
+/// [`crate::rich_text::RICH_TEXT_CSS`]・イシュー #2621 で
+/// [`crate::button::BUTTON_CSS`]・イシュー #2622 で
 /// [`crate::input::INPUT_CSS`] が続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
@@ -24,6 +25,7 @@ pub const PARTS: &[&str] = &[
     crate::stack::STACK_CSS,
     crate::link::LINK_CSS,
     crate::rich_text::RICH_TEXT_CSS,
+    crate::button::BUTTON_CSS,
     crate::input::INPUT_CSS,
 ];
 
