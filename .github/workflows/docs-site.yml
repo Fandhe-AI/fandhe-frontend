@@ -327,7 +327,10 @@ jobs:
           # 部品ページ（閉じるグリフは icon::x 固定で instance swap にせず
           # dismissible: bool の 1 引数だけで有無を切り替える）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/toast/index.html"
-          # イシュー #2649: Phase 6「Overlay・Feedback」の 3 番目の部品、
+          # イシュー #2648: Phase 6「Overlay・Feedback」の 3 番目の部品、
+          # Progress 部品ページ。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/progress/index.html"
+          # イシュー #2649: Phase 6「Overlay・Feedback」の 4 番目の部品、
           # Spinner 部品ページ（円弧だけを描く静的表示、@keyframes/animation
           # は持たない）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/spinner/index.html"
