@@ -320,7 +320,11 @@
   して直書きする）/
   `wireframes/avatar/index.html`（イシュー #2651、Phase 7「Data display」の
   最初の部品。`content: Option<Node>` が `None` のとき `icon::user` へ
-  フォールバックする §11.4 からの意図的な逸脱）
+  フォールバックする §11.4 からの意図的な逸脱）/
+  `wireframes/card-basic/index.html`（イシュー #2658、Phase 7「Data
+  display」の部品。先頭・末尾スロットは §11.4 の `Option<Node>` 規約へ
+  統一し `avatar` を内蔵しない独自設計。`secondary` は `nav_item` の
+  `counter` と同じ `Option<&str>`）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

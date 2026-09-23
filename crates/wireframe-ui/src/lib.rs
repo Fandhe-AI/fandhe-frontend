@@ -118,7 +118,9 @@
 //! display」の最初の部品 [`avatar`]（イシュー #2651、`content: Option<Node>`
 //! が `None` のとき [`icon::user`] へフォールバックする §11.4 からの意図的な
 //! 逸脱。円形表示は `crate::frame` の `bordered` と同型の部品固有修飾 class
-//! で表す）が続いた。
+//! で表す）・[`card_basic`]（イシュー #2658、先頭・末尾スロットは §11.4 の
+//! `Option<Node>` 規約へ統一し `avatar` を内蔵しない独自設計。`secondary`
+//! は [`nav_item`] の `counter` と同じ `Option<&str>` で表す）が続いた。
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
 //! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
 //! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
@@ -143,6 +145,7 @@ pub mod avatar;
 pub mod breadcrumbs;
 pub mod button;
 pub mod calendar;
+pub mod card_basic;
 pub mod checkbox;
 pub mod class;
 pub mod css;
@@ -187,6 +190,7 @@ pub use avatar::avatar;
 pub use breadcrumbs::breadcrumbs;
 pub use button::button;
 pub use calendar::{calendar, MAX_WEEKS};
+pub use card_basic::card_basic;
 pub use checkbox::checkbox;
 pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};

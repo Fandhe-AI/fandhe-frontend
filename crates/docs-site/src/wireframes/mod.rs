@@ -60,6 +60,7 @@ mod avatar;
 mod breadcrumbs;
 mod button;
 mod calendar;
+mod card_basic;
 mod checkbox;
 mod cursor;
 mod divider;
@@ -185,7 +186,10 @@ pub struct Wireframe {
 /// Phase 7「Data display」の
 /// [`avatar::WIREFRAME`]（イシュー #2651、最初の部品。
 /// `content: Option<Node>` が `None` のとき `icon::user` へフォールバック
-/// する §11.4 からの意図的な逸脱）が続いた。
+/// する §11.4 からの意図的な逸脱）・[`card_basic::WIREFRAME`]（イシュー
+/// #2658、先頭・末尾スロットは §11.4 の `Option<Node>` 規約へ統一し
+/// `avatar` を内蔵しない独自設計。`secondary` は `nav_item` の `counter`
+/// と同じ `Option<&str>`）が続いた。
 /// Phase 1・3・4・5・6・7 以降（#2608〜#2665）の残りの各部品イシューが
 /// 自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -226,6 +230,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     spinner::WIREFRAME,
     modal::WIREFRAME,
     avatar::WIREFRAME,
+    card_basic::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。
