@@ -254,11 +254,24 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // が新設され、252 → 253 になった。イシュー #2617 で Wireframes
     // セクションへ Annotation 部品ページが加わり、253 → 254 になった。
     // イシュー #2611 で Wireframes セクションへ Grid 部品ページが加わり、
-    // 254 → 255 になった。イシュー #2615 で Wireframes セクションへ
-    // Paragraph 部品ページが加わり、255 → 256 になった。
+    // 254 → 255 になった。イシュー #2612 で Wireframes セクションへ
+    // Divider 部品ページが加わり、255 → 256 になった。イシュー #2610 で
+    // Wireframes セクションへ Stack 部品ページが加わり、256 → 257 になった。
+    // イシュー #2618 で Wireframes セクションへ Link 部品ページが加わり、
+    // 257 → 258 になった。イシュー #2616 で Wireframes セクションへ
+    // Rich text 部品ページが加わり、258 → 259 になった。イシュー #2615 で
+    // Wireframes セクションへ Paragraph 部品ページが加わり、
+    // 259 → 260 になった。イシュー #2621 で Wireframes セクションへ
+    // Button 部品ページが加わり、260 → 261 になった。
+    // イシュー #2624 で Wireframes セクションへ Select 部品ページが加わり、
+    // 261 → 262 になった。イシュー #2626 で Wireframes セクションへ Radio
+    // 部品ページが加わり、262 → 263 になった。イシュー #2627 で Wireframes
+    // セクションへ Switch 部品ページが加わり、263 → 264 になった。イシュー
+    // #2625 で Wireframes セクションへ Checkbox 部品ページが加わり、
+    // 264 → 265 になった。
     assert_eq!(
         report.written.len(),
-        256,
+        265,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -466,8 +479,15 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
         // Annotation が最初の部品ページとして登録され、代表エントリを
         // 追加した（`wireframes.css` は配線するが `pre-styled-ui.css` は
         // 配線しない、独立した第 3 の UI 層のため is_showcase=false）。
+        // イシュー #2612 で Divider が加わったが、代表エントリの追加は
+        // Annotation で既に確認済みのため 1 件のみを代表として維持する。
         ("wireframes/index.html", false),
         ("wireframes/annotation/index.html", false),
+        // イシュー #2610: Stack が 2 番目の部品ページとして登録された。
+        ("wireframes/stack/index.html", false),
+        // イシュー #2621: Button が Phase 3「Forms A」の最初の部品ページ
+        // として登録された。
+        ("wireframes/button/index.html", false),
         ("api/component-api/index.html", false),
     ];
 

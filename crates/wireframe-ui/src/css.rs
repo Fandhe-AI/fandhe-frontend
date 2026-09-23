@@ -10,12 +10,30 @@
 ///
 /// イシュー #2606 で最初の登録（[`crate::icon::ICON_GLYPH_CSS`]）が入った。
 /// イシュー #2617 で [`crate::annotation::ANNOTATION_CSS`] が続いた。
-/// イシュー #2611 で [`crate::grid::GRID_CSS`] が続いた。
-/// イシュー #2615 で [`crate::paragraph::PARAGRAPH_CSS`] が続いた。
+/// イシュー #2611 で [`crate::grid::GRID_CSS`]・イシュー #2612 で
+/// [`crate::divider::DIVIDER_CSS`]・イシュー #2610 で
+/// [`crate::stack::STACK_CSS`]・イシュー #2618 で
+/// [`crate::link::LINK_CSS`]・イシュー #2616 で
+/// [`crate::rich_text::RICH_TEXT_CSS`]・イシュー #2621 で
+/// [`crate::button::BUTTON_CSS`]・イシュー #2624 で
+/// [`crate::select::SELECT_CSS`]・イシュー #2626 で
+/// [`crate::radio::RADIO_CSS`]・イシュー #2627 で
+/// [`crate::switch::SWITCH_CSS`]・イシュー #2625 で
+/// [`crate::checkbox::CHECKBOX_CSS`]・イシュー #2615 で
+/// [`crate::paragraph::PARAGRAPH_CSS`] が続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
     crate::annotation::ANNOTATION_CSS,
     crate::grid::GRID_CSS,
+    crate::divider::DIVIDER_CSS,
+    crate::stack::STACK_CSS,
+    crate::link::LINK_CSS,
+    crate::rich_text::RICH_TEXT_CSS,
+    crate::button::BUTTON_CSS,
+    crate::select::SELECT_CSS,
+    crate::radio::RADIO_CSS,
+    crate::switch::SWITCH_CSS,
+    crate::checkbox::CHECKBOX_CSS,
     crate::paragraph::PARAGRAPH_CSS,
 ];
 

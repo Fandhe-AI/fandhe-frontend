@@ -54,8 +54,17 @@
 //! 引数表へ流れ込む経路を型で塞ぐ。
 
 mod annotation;
+mod button;
+mod checkbox;
+mod divider;
 mod grid;
+mod link;
 mod paragraph;
+mod radio;
+mod rich_text;
+mod select;
+mod stack;
+mod switch;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
 use fandhe_frontend_pre_styled_ui::{StyleSheet, StylesheetError};
@@ -103,13 +112,32 @@ pub struct Wireframe {
 /// Wireframes レジストリ本体。`site/nav.toml` の `/wireframes/*` ページ
 /// （索引を除く）との三方突合を `crates/docs-site/tests/wireframes_nav.rs`
 /// が固定する。#2607 時点では空だったが、Phase 2「テキスト・注釈」の
-/// [`annotation::WIREFRAME`]（イシュー #2617）を皮切りに Phase 1〜8
-/// （#2608〜#2665）の各部品イシューが自分の [`Wireframe`] 定数を
-/// 1 要素ずつ追記する。Phase 1「レイアウト骨格」の [`grid::WIREFRAME`]
-/// （イシュー #2611）、Phase 2 の [`paragraph::WIREFRAME`]（イシュー
-/// #2615）が続いた。
-pub const WIREFRAMES: &[Wireframe] =
-    &[annotation::WIREFRAME, grid::WIREFRAME, paragraph::WIREFRAME];
+/// [`annotation::WIREFRAME`]（イシュー #2617）を皮切りに、Phase 1
+/// 「レイアウト骨格」の [`grid::WIREFRAME`]（イシュー #2611）・
+/// [`divider::WIREFRAME`]（イシュー #2612）・[`stack::WIREFRAME`]
+/// （イシュー #2610）、Phase 2 の [`link::WIREFRAME`]（イシュー #2618）・
+/// [`rich_text::WIREFRAME`]（イシュー #2616）・[`paragraph::WIREFRAME`]
+/// （イシュー #2615）・Phase 3「Forms A」の [`button::WIREFRAME`]
+/// （イシュー #2621）・[`select::WIREFRAME`]（イシュー #2624）・
+/// [`radio::WIREFRAME`]（イシュー #2626、選択状態は `props::Active` を
+/// 再利用）・[`switch::WIREFRAME`]（イシュー #2627）・
+/// [`checkbox::WIREFRAME`]（イシュー #2625）が続いた。
+/// Phase 1・3 以降（#2608〜#2665）の残りの各部品イシューが自分の
+/// [`Wireframe`] 定数を 1 要素ずつ追記する。
+pub const WIREFRAMES: &[Wireframe] = &[
+    annotation::WIREFRAME,
+    grid::WIREFRAME,
+    divider::WIREFRAME,
+    stack::WIREFRAME,
+    link::WIREFRAME,
+    rich_text::WIREFRAME,
+    paragraph::WIREFRAME,
+    button::WIREFRAME,
+    select::WIREFRAME,
+    radio::WIREFRAME,
+    switch::WIREFRAME,
+    checkbox::WIREFRAME,
+];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。
 /// `crate::build::build_site` が「このページを Wireframes 専用分岐に乗せるか」
@@ -255,7 +283,10 @@ mod tests {
 
     #[test]
     fn wireframe_for_path_finds_nothing_in_empty_registry() {
-        assert!(wireframe_for_path("/wireframes/button/").is_none());
+        // `/wireframes/input/` は Phase 3「Forms A」の未実装部品（イシュー
+        // #2624 時点では button/select のみ登録済み）であり、恒久的に
+        // 未登録のパスとして使える。
+        assert!(wireframe_for_path("/wireframes/input/").is_none());
     }
 
     #[test]

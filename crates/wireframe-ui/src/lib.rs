@@ -39,9 +39,19 @@
 //! ラインアートアイコンと `Node` スロット規約（`docs/design/wireframe-ui-architecture.md`
 //! §11）。個別部品は Phase 2「テキスト・注釈」の [`annotation`]
 //! （イシュー #2617）から実装を開始し、Phase 1「レイアウト骨格」の
-//! [`grid`]（イシュー #2611）、Phase 2 の [`paragraph`]（イシュー #2615）
-//! が続いた。残りは Phase 1 の他部品（frame/stack/divider）・Phase 2 の
-//! 他部品（text/rich-text/link/tag 等）および Phase 3 以降（#2608〜）で
+//! [`grid`]（イシュー #2611）・[`divider`]（イシュー #2612、
+//! `props::Orientation` の最初の消費者）・[`stack`]（イシュー #2610）・
+//! Phase 2 の [`rich_text`]（イシュー #2616）・[`link`]（イシュー #2618、
+//! `Option<Node>` アイコンスロット規約 §11.4 の実例、`a[href]` 非出力）・
+//! [`paragraph`]（イシュー #2615）、Phase 3「Forms A」の [`button`]
+//! （イシュー #2621、`props::Disabled` の最初の実消費者）・[`select`]
+//! （イシュー #2624、`props::Active` と `props::Disabled` を併用する初の
+//! 部品）・[`radio`]（イシュー #2626、選択状態は新型を新設せず
+//! `props::Active` を再利用）・[`switch`]（イシュー #2627、`Active` を
+//! ON 状態の意味で使い `Disabled` を併用する部品）・[`checkbox`]
+//! （イシュー #2625、`props::Active` を「チェック済み」状態として消費）
+//! が続いた。残りは Phase 1 の他部品（frame）・Phase 2 の他部品
+//! （text/tag 等）および Phase 3 の他部品（#2608〜）で
 //! 順次追加する。
 //!
 //! # class 命名規約
@@ -57,19 +67,37 @@
 //! 詳細・追記契約は `docs/design/wireframe-ui-architecture.md` §10 を参照。
 
 pub mod annotation;
+pub mod button;
+pub mod checkbox;
 pub mod class;
 pub mod css;
+pub mod divider;
 pub mod grid;
 pub mod icon;
+pub mod link;
 pub mod paragraph;
 pub mod props;
+pub mod radio;
+pub mod rich_text;
+pub mod select;
 pub mod size;
+pub mod stack;
+pub mod switch;
 pub mod tokens;
 
 pub use annotation::annotation;
+pub use button::button;
+pub use checkbox::checkbox;
 pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
+pub use divider::divider;
 pub use grid::{grid, MAX_COLUMNS};
+pub use link::link;
 pub use paragraph::paragraph;
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
+pub use radio::radio;
+pub use rich_text::rich_text;
+pub use select::select;
 pub use size::Size;
+pub use stack::stack;
+pub use switch::switch;

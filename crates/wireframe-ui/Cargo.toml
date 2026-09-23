@@ -8,8 +8,30 @@ name = "fandhe-frontend-wireframe-ui"
 # PASS だが、運用規約に従いバンプする）。
 # 0.3.0 → 0.4.0: 公開 API 新設（annotation 部品、イシュー #2617）。
 # 0.4.0 → 0.5.0: 公開 API 新設（grid 部品、イシュー #2611）。
-# 0.5.0 → 0.6.0: 公開 API 新設（paragraph 部品、イシュー #2615）。
-version = "0.6.0"
+# 0.5.0 → 0.6.0: 公開 API 新設（divider 部品、イシュー #2612。
+# props::Orientation の最初の実消費者）。
+# 0.6.0 → 0.7.0: 公開 API 新設（stack 部品、イシュー #2610）。main 側で
+# 0.5.0 を grid、0.6.0 を divider が先に確保したため衝突回避で +1。
+# 0.7.0 → 0.8.0: 公開 API 新設（link 部品、イシュー #2618。
+# Option<Node> アイコンスロット規約 §11.4 の実例、a[href] 非出力）。main 側で
+# 0.7.0 を stack が先に確保したため衝突回避で +1。
+# 0.8.0 → 0.9.0: 公開 API 新設（rich_text 部品、イシュー #2616）。main 側で
+# 0.8.0 を link が先に確保したため衝突回避で +1。
+# 0.9.0 → 0.10.0: 公開 API 新設（button 部品、イシュー #2621。
+# props::Disabled の最初の実消費者）。main 側で 0.9.0 を rich_text が
+# 先に確保したため衝突回避で +1。
+# 0.10.0 → 0.11.0: 公開 API 新設（select 部品、イシュー #2624）。
+# 0.11.0 → 0.12.0: 公開 API 新設（radio 部品、イシュー #2626。選択状態は
+# 既存の props::Active を再利用し、新規の Selected/Checked 型は新設
+# しない）。
+# 0.12.0 → 0.13.0: 公開 API 新設（switch 部品、イシュー #2627）。main 側で
+# 0.12.0 を radio が先に確保したため衝突回避で +1。
+# 0.13.0 → 0.14.0: 公開 API 新設（checkbox 部品、イシュー #2625。
+# `Active` を「チェック済み」状態として消費する Forms 部品）。main 側で
+# 0.13.0 を switch が先に確保したため衝突回避で +1。
+# 0.14.0 → 0.18.0: 公開 API 新設（paragraph 部品、イシュー #2615）。main
+# セッションが PR ごとに割り当てた一意値へ合わせて確保（衝突回避で +4）。
+version = "0.18.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
 license = "MIT OR Apache-2.0"
