@@ -42,19 +42,23 @@
 //! [`grid`]（イシュー #2611）・[`divider`]（イシュー #2612、
 //! `props::Orientation` の最初の消費者）・[`stack`]（イシュー #2610）・
 //! Phase 2 の [`rich_text`]（イシュー #2616）・[`link`]（イシュー #2618、
-//! `Option<Node>` アイコンスロット規約 §11.4 の実例、`a[href]` 非出力）、
-//! Phase 3「Forms A」の [`button`]（イシュー #2621、`props::Disabled` の
-//! 最初の実消費者）・[`select`]（イシュー #2624、`props::Active` と
-//! `props::Disabled` を併用する初の部品）・[`radio`]（イシュー #2626、
-//! 選択状態は新型を新設せず `props::Active` を再利用）・[`switch`]
-//! （イシュー #2627、`Active` を ON 状態の意味で使い `Disabled` を併用する
-//! 部品）・[`checkbox`]（イシュー #2625、`props::Active` を「チェック済み」
-//! 状態として消費）・[`input`]（イシュー #2622、`props::Active`/
-//! `props::Disabled` の `.attr()` を Select・Switch に続いて併用する 3 例目の
-//! 実消費者）が続いた。
-//! 残りは Phase 1 の他部品（frame）・Phase 2 の他部品（text/paragraph/tag
-//! 等）および Phase 3 の他部品（textarea/slider 等）以降（#2608〜）で
-//! 順次追加する。
+//! `Option<Node>` アイコンスロット規約 §11.4 の実例、`a[href]` 非出力）・
+//! [`paragraph`]（イシュー #2615）、Phase 3「Forms A」の [`button`]
+//! （イシュー #2621、`props::Disabled` の最初の実消費者）・[`select`]
+//! （イシュー #2624、`props::Active` と `props::Disabled` を `.attr()` で
+//! 併用する初の部品）・[`switch`]（イシュー #2627、`Active` を ON 状態の
+//! 意味で使い `Disabled` を併用する 2 例目）・[`checkbox`]（イシュー
+//! #2625、`props::Active` を「チェック済み」状態として消費する 3 例目）・
+//! [`radio`]（イシュー #2626、選択状態は新型を新設せず `props::Active` を
+//! 再利用する 4 例目）・[`textarea`]（イシュー #2623、`rows` を行
+//! プレースホルダー要素の構造表現とし `style`・ネイティブ `<textarea>` を
+//! 使わない設計の 5 例目）・[`slider`]（イシュー #2628、`props::Orientation`
+//! と `Active`/`Disabled` を併用する 6 例目。進捗値は 5 刻みの固定 class
+//! 集合へ量子化する）・Phase 1 の [`frame`]（イシュー #2609）・Phase 2 の
+//! [`tag`]（イシュー #2619）・[`input`]（イシュー #2622、`props::Active`/
+//! `props::Disabled` の `.attr()` を Select・Switch・Checkbox・Radio・
+//! Textarea・Slider に続いて併用する 7 例目の実消費者）が続いた。残りは
+//! Phase 2 の他部品（text 等）以降（#2608〜）で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -74,17 +78,22 @@ pub mod checkbox;
 pub mod class;
 pub mod css;
 pub mod divider;
+pub mod frame;
 pub mod grid;
 pub mod icon;
 pub mod input;
 pub mod link;
+pub mod paragraph;
 pub mod props;
 pub mod radio;
 pub mod rich_text;
 pub mod select;
 pub mod size;
+pub mod slider;
 pub mod stack;
 pub mod switch;
+pub mod tag;
+pub mod textarea;
 pub mod tokens;
 
 pub use annotation::annotation;
@@ -93,13 +102,18 @@ pub use checkbox::checkbox;
 pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
 pub use divider::divider;
+pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
 pub use input::input;
 pub use link::link;
+pub use paragraph::paragraph;
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
 pub use radio::radio;
 pub use rich_text::rich_text;
 pub use select::select;
 pub use size::Size;
+pub use slider::slider;
 pub use stack::stack;
 pub use switch::switch;
+pub use tag::tag;
+pub use textarea::{textarea, MAX_ROWS};

@@ -225,6 +225,8 @@
   非出力〕）/
   `wireframes/rich-text/index.html`（イシュー #2616、Phase 2「テキスト・
   注釈」の Rich text 部品ページ）/
+  `wireframes/paragraph/index.html`（イシュー #2615、Phase 2「テキスト・
+  注釈」の Paragraph 部品ページ）/
   `wireframes/button/index.html`（イシュー #2621、Phase 3「Forms A」の
   `button` 部品〔`props::Disabled` の最初の実消費者〕）/
   `wireframes/select/index.html`（イシュー #2624、Phase 3「Forms A」の
@@ -236,9 +238,20 @@
   `switch` 部品。`Active` を ON 状態の意味で使い `Disabled` を併用する）/
   `wireframes/checkbox/index.html`（イシュー #2625、Phase 3「Forms A」の
   `checkbox` 部品〔`props::Active` を「チェック済み」状態として消費〕）/
+  `wireframes/textarea/index.html`（イシュー #2623、Phase 3「Forms A」の
+  Textarea 部品ページ。`rows` を行プレースホルダー要素の構造表現とし
+  `style`・ネイティブ `<textarea>` を使わない設計）/
+  `wireframes/slider/index.html`（イシュー #2628、Phase 3「Forms A」の
+  `slider` 部品〔Progress を 5 刻み固定 class へ量子化、`Orientation` 併用〕）/
+  `wireframes/frame/index.html`（イシュー #2609、Phase 1「レイアウト骨格」の
+  Frame 部品ページ）/
+  `wireframes/tag/index.html`（イシュー #2619、Phase 2「テキスト・注釈」の
+  Tag 部品ページ。削除「×」パートは `link` と同型の `remove: Option<Node>`
+  アイコンスロット規約 §11.4 に従う）/
   `wireframes/input/index.html`（イシュー #2622、Phase 3「Forms A」の
   `input` 部品〔`<input>` 非出力、`props::Active`/`props::Disabled` の
-  `.attr()` を Select・Switch に続いて併用する 3 例目の実消費者〕）
+  `.attr()` を Select・Switch・Checkbox・Radio・Textarea・Slider に続いて
+  併用する 7 例目の実消費者〕）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

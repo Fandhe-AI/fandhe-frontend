@@ -43,8 +43,10 @@
 //! [`crate::props::Active`]`.attr()` と [`crate::props::Disabled`]`.attr()`
 //! を併用する部品は、本モジュールより先に main へマージされた
 //! `select`（イシュー #2624）が最初の実消費者、`switch`（イシュー #2627）
-//! が 2 例目の実消費者であり、本モジュールは Select・Switch に続く
-//! 3 例目の実消費者である。
+//! が 2 例目、`checkbox`（イシュー #2625）が 3 例目、`radio`（イシュー
+//! #2626）が 4 例目、`textarea`（イシュー #2623）が 5 例目、`slider`
+//! （イシュー #2628）が 6 例目であり、本モジュールは Select・Switch・
+//! Checkbox・Radio・Textarea・Slider に続く 7 例目の実消費者である。
 
 use fandhe_frontend_core::{el_owned, span, text, Node};
 
