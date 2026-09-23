@@ -83,11 +83,15 @@ name = "fandhe-frontend-wireframe-ui"
 # 0.30.0 → 0.31.0: 公開 API 新設（tooltip 部品、イシュー #2644、Phase 6
 # 「Overlay・Feedback」の最初の部品）。main 側で 0.29.0 → 0.30.0 を
 # pagination が先に確保したため衝突回避で +1。
-# 0.31.0 → 0.32.0: 公開 API 新設（modal 部品、イシュー #2645、Phase 6
+# 0.31.0 → 0.32.0: 公開 API 新設（cursor 部品、イシュー #2642。
+# Phase 5「Navigation」の部品。代わりに使える既存アイコンがないため
+# icon::cursor_arrow/icon::cursor_hand を新規追加する）。main 側で
+# 0.31.0 を tooltip が先に確保したため衝突回避で +1。
+# 0.32.0 → 0.33.0: 公開 API 新設（modal 部品、イシュー #2645、Phase 6
 # 「Overlay・Feedback」の 2 番目の部品。blocks.pm に対応部品がない独自
-# 追加部品）。main 側で 0.30.0 → 0.31.0 を tooltip が先に確保したため
+# 追加部品）。main 側で 0.31.0 → 0.32.0 を cursor が先に確保したため
 # 衝突回避で +1。
-version = "0.32.0"
+version = "0.33.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
 license = "MIT OR Apache-2.0"

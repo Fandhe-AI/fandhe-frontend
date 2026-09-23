@@ -1451,6 +1451,11 @@ source = "site/wireframes/pagination.md"
 path = "/wireframes/pagination/"
 
 [[section.page]]
+title = "Cursor"
+source = "site/wireframes/cursor.md"
+path = "/wireframes/cursor/"
+
+[[section.page]]
 title = "Tooltip"
 source = "site/wireframes/tooltip.md"
 path = "/wireframes/tooltip/"
