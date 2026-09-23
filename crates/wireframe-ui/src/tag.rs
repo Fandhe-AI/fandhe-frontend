@@ -67,6 +67,9 @@ pub const TAG_CSS: &str = "\
   line-height: 1.4;
 }
 .fw-wire-tag-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .fw-wire-tag-remove {

@@ -122,6 +122,36 @@ fn tag_css_is_registered_exactly_once_in_parts_and_in_aggregate_css() {
 }
 
 #[test]
+fn tag_label_css_can_shrink_below_content_and_truncates_with_ellipsis() {
+    // codex-review P2 対応: ルートは `max-width: 100%` を持つが、flex 子の
+    // ラベルは既定 `min-width: auto` のため縮小できず、長いラベル（特に
+    // 空白を含まない文字列）がコンテナ外へはみ出す不具合があった。
+    // `min-width: 0` で縮小を許可し、`overflow: hidden` +
+    // `text-overflow: ellipsis` で `max-width` 内へ収める契約を固定する。
+    let css = fandhe_frontend_wireframe_ui::tag::TAG_CSS;
+    let label_block = css
+        .split(".fw-wire-tag-label {")
+        .nth(1)
+        .expect("label selector block should exist")
+        .split('}')
+        .next()
+        .expect("label selector block should be closed");
+
+    assert!(
+        label_block.contains("min-width: 0"),
+        "label block should allow shrinking below content: {label_block:?}"
+    );
+    assert!(
+        label_block.contains("overflow: hidden"),
+        "label block should hide overflow: {label_block:?}"
+    );
+    assert!(
+        label_block.contains("text-overflow: ellipsis"),
+        "label block should truncate with ellipsis: {label_block:?}"
+    );
+}
+
+#[test]
 fn tag_css_declares_the_five_selectors_with_fw_wire_prefix_only() {
     let css = fandhe_frontend_wireframe_ui::tag::TAG_CSS;
     for selector in [
