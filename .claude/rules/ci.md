@@ -227,7 +227,9 @@
   注釈」の Rich text 部品ページ）/
   `wireframes/tag/index.html`（イシュー #2619、Phase 2「テキスト・注釈」の
   Tag 部品ページ。削除「×」パートは `link` と同型の `remove: Option<Node>`
-  アイコンスロット規約 §11.4 に従う）
+  アイコンスロット規約 §11.4 に従う）/
+  `wireframes/button/index.html`（イシュー #2621、Phase 3「Forms A」の
+  `button` 部品〔`props::Disabled` の最初の実消費者〕）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
