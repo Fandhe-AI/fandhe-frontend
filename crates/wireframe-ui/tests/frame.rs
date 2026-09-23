@@ -107,11 +107,19 @@ fn frame_css_is_registered_exactly_once_in_parts_and_in_aggregate_css() {
 
     let css = wireframe_css();
     assert!(css.contains(fandhe_frontend_wireframe_ui::frame::FRAME_CSS));
+    // padding 5 段は PARTS を経由しない別経路
+    // （`crate::frame::frame_padding_css`）で連結される
+    // （`crate::size::css` と同型、css.rs のモジュール doc参照）。
+    assert!(css.contains(&fandhe_frontend_wireframe_ui::frame::frame_padding_css()));
 }
 
 #[test]
 fn frame_css_declares_the_seven_selectors_with_fw_wire_prefix_only_and_no_font_size() {
-    let css = fandhe_frontend_wireframe_ui::frame::FRAME_CSS;
+    // ルート・bordered 修飾の 2 セレクタは const [`FRAME_CSS`] が、
+    // padding 5 段は [`frame_padding_css`] が担う（イシュー #2609/PR
+    // #2679 の分割）。集約出力（`wireframe_css()`）で 7 セレクタすべてを
+    // 確認する。
+    let css = wireframe_css();
     for selector in [
         ".fw-wire-frame {",
         ".fw-wire-frame.fw-wire-frame-bordered {",
@@ -124,19 +132,24 @@ fn frame_css_declares_the_seven_selectors_with_fw_wire_prefix_only_and_no_font_s
         assert!(css.contains(selector), "missing selector {selector:?}");
     }
 
-    for line in css.lines() {
-        let trimmed = line.trim_start();
-        if trimmed.starts_with('.') {
-            assert!(
-                trimmed.starts_with(".fw-wire-"),
-                "selector line should start with .fw-wire-: {line:?}"
-            );
+    for part in [
+        fandhe_frontend_wireframe_ui::frame::FRAME_CSS,
+        &fandhe_frontend_wireframe_ui::frame::frame_padding_css(),
+    ] {
+        for line in part.lines() {
+            let trimmed = line.trim_start();
+            if trimmed.starts_with('.') {
+                assert!(
+                    trimmed.starts_with(".fw-wire-"),
+                    "selector line should start with .fw-wire-: {line:?}"
+                );
+            }
         }
-    }
 
-    assert!(!css.contains("--fandhe-"));
-    assert!(!css.contains(" fd-"));
-    assert!(!css.contains("font-size"));
+        assert!(!part.contains("--fandhe-"));
+        assert!(!part.contains(" fd-"));
+        assert!(!part.contains("font-size"));
+    }
 }
 
 #[test]
@@ -154,4 +167,49 @@ fn padding_class_does_not_share_the_size_scoped_custom_property_class() {
     let css = fandhe_frontend_wireframe_ui::frame::FRAME_CSS;
     assert!(!css.contains("--fw-wire-font-size"));
     assert!(!css.contains("--fw-wire-control-size"));
+
+    let padding_css = fandhe_frontend_wireframe_ui::frame::frame_padding_css();
+    assert!(!padding_css.contains("--fw-wire-font-size"));
+    assert!(!padding_css.contains("--fw-wire-control-size"));
+}
+
+#[test]
+fn frame_padding_css_is_derived_from_size_scale_control_size_not_duplicated() {
+    // コードレビュー指摘（P1、イシュー #2609/PR #2679）の回帰: Frame の
+    // padding 値は `size::SCALE` を唯一の正として動的に導出しなければ
+    // ならない（直接リテラルを列挙してはならない）。`size::css()`
+    // （公開 API、`--fw-wire-control-size` の出力元）から段階ごとの
+    // control_size 文字列を読み取り、`frame_padding_css()` の padding
+    // 宣言が同じ文字列をそのまま `calc(<control_size> / 2)` へ埋め込んで
+    // いることを確認する（数値変換なしの文字列一致で「複製ではなく
+    // 同一ソースからの通過」を固定する）。
+    let size_css = fandhe_frontend_wireframe_ui::size::css();
+    let padding_css = fandhe_frontend_wireframe_ui::frame::frame_padding_css();
+
+    for size in Size::ALL {
+        let selector = format!(".fw-wire-size-{}", size.as_str());
+        let selector_pos = size_css
+            .find(&selector)
+            .unwrap_or_else(|| panic!("{selector} が size::css() に見つからない"));
+        let tail = &size_css[selector_pos..];
+        let marker = "--fw-wire-control-size: ";
+        let value_start = tail
+            .find(marker)
+            .unwrap_or_else(|| panic!("{marker} が {selector} の宣言に見つからない"))
+            + marker.len();
+        let value_tail = &tail[value_start..];
+        let value_end = value_tail
+            .find(';')
+            .expect("--fw-wire-control-size の宣言は ';' で終わる");
+        let control_size = &value_tail[..value_end];
+
+        let expected_rule = format!(
+            ".fw-wire-frame.fw-wire-frame-padding-{} {{\n  padding: calc({control_size} / 2);\n}}\n",
+            size.as_str()
+        );
+        assert!(
+            padding_css.contains(&expected_rule),
+            "expected {expected_rule:?} (derived from size::SCALE control_size {control_size:?}) in {padding_css:?}"
+        );
+    }
 }
