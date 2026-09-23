@@ -291,6 +291,8 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/input/index.html"
           # イシュー #2630: Phase 4「Forms B」の最初の部品、Question 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/question/index.html"
+          # イシュー #2631: 同 Phase の Ratings 部品ページ（icon::star 再利用）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/ratings/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact

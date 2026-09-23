@@ -254,7 +254,10 @@
   併用する 7 例目の実消費者〕）/
   `wireframes/question/index.html`（イシュー #2630、Phase 4「Forms B」の
   最初の部品。ラベル + 補足説明 + `Node` スロットのコントロール + ヒント。
-  表示状態軸を持たずスロット側へ委ねる）
+  表示状態軸を持たずスロット側へ委ねる）/
+  `wireframes/ratings/index.html`（イシュー #2631、同 Phase の 2 番目の
+  部品。`icon::star` を再利用し、塗り数を `props::Active` の `data-active`
+  で先頭から表現する）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
