@@ -54,7 +54,9 @@
 /// [`crate::tooltip::TOOLTIP_CSS`]（Phase 6「Overlay・Feedback」の最初の
 /// 部品）・イシュー #2647 で [`crate::toast::TOAST_CSS`]（2 番目の部品）・
 /// イシュー #2648 で [`crate::progress::PROGRESS_CSS`]（3 番目の部品）・
-/// イシュー #2649 で [`crate::spinner::SPINNER_CSS`]（4 番目の部品）が
+/// イシュー #2649 で [`crate::spinner::SPINNER_CSS`]（4 番目の部品）・
+/// イシュー #2651 で [`crate::avatar::AVATAR_CSS`]（Phase 7「Data display」
+/// の最初の部品）が
 /// 続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
@@ -90,6 +92,7 @@ pub const PARTS: &[&str] = &[
     crate::toast::TOAST_CSS,
     crate::progress::PROGRESS_CSS,
     crate::spinner::SPINNER_CSS,
+    crate::avatar::AVATAR_CSS,
 ];
 
 static CSS: std::sync::OnceLock<String> = std::sync::OnceLock::new();

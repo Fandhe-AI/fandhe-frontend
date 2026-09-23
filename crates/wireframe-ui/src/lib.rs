@@ -98,9 +98,13 @@
 //! （Bar/Circle）で表し、進捗値は `slider` と同型の 5 刻み固定 class 集合へ
 //! 量子化する。表示専用のため `Active`/`Disabled` を持たない）・
 //! 4 番目の部品 [`spinner`]（イシュー #2649、円弧だけを描く静的表示で
-//! `@keyframes`/`animation` は持たない）が続いた。
+//! `@keyframes`/`animation` は持たない）が続いた。Phase 7「Data display」の
+//! 最初の部品 [`avatar`]（イシュー #2651、`content: Option<Node>` が
+//! `None` のとき [`icon::user`] へフォールバックする §11.4 からの意図的な
+//! 逸脱。円形表示は `crate::frame` の `bordered` と同型の部品固有修飾
+//! class で表す）が続いた。
 //! 残りは Phase 3 の他部品（#2608〜）・Phase 5 の他部品（menu 等）・
-//! Phase 6 の他部品で順次追加する。
+//! Phase 6 の他部品・Phase 7 の他部品で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -116,6 +120,7 @@
 
 pub mod accordion;
 pub mod annotation;
+pub mod avatar;
 pub mod button;
 pub mod calendar;
 pub mod checkbox;
@@ -155,6 +160,7 @@ pub mod tooltip;
 
 pub use accordion::accordion;
 pub use annotation::annotation;
+pub use avatar::avatar;
 pub use button::button;
 pub use calendar::{calendar, MAX_WEEKS};
 pub use checkbox::checkbox;

@@ -55,6 +55,7 @@
 
 mod accordion;
 mod annotation;
+mod avatar;
 mod button;
 mod calendar;
 mod checkbox;
@@ -169,9 +170,12 @@ pub struct Wireframe {
 /// [`progress::WIREFRAME`]（イシュー #2648、同 Phase の 3 番目の部品。
 /// 形状は部品ローカルの `fandhe_frontend_wireframe_ui::ProgressShape` による
 /// 修飾 class（Bar/Circle）で表す）・[`spinner::WIREFRAME`]（イシュー
-/// #2649、Phase 6 の 4 番目の部品）が続いた。
-/// Phase 1・3・4・5・6 以降（#2608〜#2665）の残りの各部品イシューが自分の
-/// [`Wireframe`] 定数を 1 要素ずつ追記する。
+/// #2649、Phase 6 の 4 番目の部品）・Phase 7「Data display」の
+/// [`avatar::WIREFRAME`]（イシュー #2651、最初の部品。
+/// `content: Option<Node>` が `None` のとき `icon::user` へフォールバック
+/// する §11.4 からの意図的な逸脱）が続いた。
+/// Phase 1・3・4・5・6・7 以降（#2608〜#2665）の残りの各部品イシューが
+/// 自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
     grid::WIREFRAME,
@@ -205,6 +209,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     toast::WIREFRAME,
     progress::WIREFRAME,
     spinner::WIREFRAME,
+    avatar::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

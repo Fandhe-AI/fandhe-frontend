@@ -300,7 +300,10 @@
   Feedback」の 3 番目の部品。形状は部品ローカルの `ProgressShape` による
   修飾 class〔Bar/Circle〕で表す）/
   `wireframes/spinner/index.html`（イシュー #2649、Phase 6「Overlay・
-  Feedback」の 4 番目の部品。静的な円弧のみ・引数は Size のみ）
+  Feedback」の 4 番目の部品。静的な円弧のみ・引数は Size のみ）/
+  `wireframes/avatar/index.html`（イシュー #2651、Phase 7「Data display」の
+  最初の部品。`content: Option<Node>` が `None` のとき `icon::user` へ
+  フォールバックする §11.4 からの意図的な逸脱）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
