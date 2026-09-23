@@ -261,6 +261,9 @@ jobs:
           # イシュー #2618: Link 部品ページ（Option<Node> アイコンスロット規約
           # §11.4 の実例、a[href] 非出力）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/link/index.html"
+          # イシュー #2621: Phase 3「Forms A」の Button 部品ページ
+          # （props::Disabled の最初の実消費者）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/button/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact

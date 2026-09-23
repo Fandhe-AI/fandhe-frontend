@@ -42,9 +42,10 @@
 //! [`grid`]（イシュー #2611）・[`divider`]（イシュー #2612、
 //! `props::Orientation` の最初の消費者）・[`stack`]（イシュー #2610）が
 //! 続き、Phase 2 の [`link`]（イシュー #2618、`Option<Node>` アイコン
-//! スロット規約 §11.4 の実例、`a[href]` 非出力）が続いた。残りは Phase 1
-//! の他部品（frame）・Phase 2 の他部品（text/paragraph/rich-text/tag 等）
-//! および Phase 3 以降
+//! スロット規約 §11.4 の実例、`a[href]` 非出力）、Phase 3「Forms A」の
+//! [`button`]（イシュー #2621、`props::Disabled` の最初の実消費者）が
+//! 続いた。残りは Phase 1 の他部品（frame）・Phase 2 の他部品
+//! （text/paragraph/rich-text/tag 等）および Phase 3 の他部品
 //! （#2608〜）で順次追加する。
 //!
 //! # class 命名規約
@@ -60,6 +61,7 @@
 //! 詳細・追記契約は `docs/design/wireframe-ui-architecture.md` §10 を参照。
 
 pub mod annotation;
+pub mod button;
 pub mod class;
 pub mod css;
 pub mod divider;
@@ -72,6 +74,7 @@ pub mod stack;
 pub mod tokens;
 
 pub use annotation::annotation;
+pub use button::button;
 pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
 pub use divider::divider;

@@ -54,6 +54,7 @@
 //! 引数表へ流れ込む経路を型で塞ぐ。
 
 mod annotation;
+mod button;
 mod divider;
 mod grid;
 mod link;
@@ -108,8 +109,9 @@ pub struct Wireframe {
 /// [`annotation::WIREFRAME`]（イシュー #2617）を皮切りに、Phase 1
 /// 「レイアウト骨格」の [`grid::WIREFRAME`]（イシュー #2611）・
 /// [`divider::WIREFRAME`]（イシュー #2612）・[`stack::WIREFRAME`]
-/// （イシュー #2610）、Phase 2 の [`link::WIREFRAME`]（イシュー #2618）が
-/// 続いた。Phase 1〜8（#2608〜#2665）の残りの各部品イシューが自分の
+/// （イシュー #2610）、Phase 2 の [`link::WIREFRAME`]（イシュー #2618）・
+/// Phase 3「Forms A」の [`button::WIREFRAME`]（イシュー #2621）が続いた。
+/// Phase 1・3 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
@@ -117,6 +119,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     divider::WIREFRAME,
     stack::WIREFRAME,
     link::WIREFRAME,
+    button::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。
@@ -263,7 +266,10 @@ mod tests {
 
     #[test]
     fn wireframe_for_path_finds_nothing_in_empty_registry() {
-        assert!(wireframe_for_path("/wireframes/button/").is_none());
+        // `/wireframes/input/` は Phase 3「Forms A」の未実装部品（イシュー
+        // #2621 時点では button のみ登録済み）であり、恒久的に未登録の
+        // パスとして使える。
+        assert!(wireframe_for_path("/wireframes/input/").is_none());
     }
 
     #[test]
