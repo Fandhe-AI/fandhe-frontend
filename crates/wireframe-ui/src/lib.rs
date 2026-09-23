@@ -77,8 +77,11 @@
 //! ステップは既存 [`props::Active`] を再利用する）・Phase 5「Navigation」の
 //! [`nav_item`]（イシュー #2636、先頭・末尾の `Option<Node>` アイコン
 //! スロットに加え `Option<&str>` の件数カウンター内部パートを持ち、
-//! `Active` はアクティブ状態のグレースケール反転配色として消費する）も
-//! 続いた。
+//! `Active` はアクティブ状態のグレースケール反転配色として消費する）・
+//! [`cursor`]（イシュー #2642、代わりに使える既存アイコンがないため
+//! `icon::cursor_arrow`/`icon::cursor_hand` を新規追加して消費する。部品
+//! ローカルの列挙型 [`CursorKind`] をクレートルートから再エクスポートする
+//! 初めての例）も続いた。
 //! 残りは Phase 3 の他部品（#2608〜）および Phase 5 の他部品（menu 等）で
 //! 順次追加する。
 //!
@@ -100,6 +103,7 @@ pub mod calendar;
 pub mod checkbox;
 pub mod class;
 pub mod css;
+pub mod cursor;
 pub mod divider;
 pub mod file_drop;
 pub mod frame;
@@ -132,6 +136,7 @@ pub use calendar::{calendar, MAX_WEEKS};
 pub use checkbox::checkbox;
 pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
+pub use cursor::{cursor, CursorKind};
 pub use divider::divider;
 pub use file_drop::file_drop;
 pub use frame::frame;

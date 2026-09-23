@@ -278,7 +278,10 @@
   ステップは既存 `props::Active` を再利用する）/
   `wireframes/nav-item/index.html`（イシュー #2636、Phase 5「Navigation」の
   2 番目の部品。先頭・末尾の `Option<Node>` アイコンスロット + 件数表示
-  〔`Option<&str>`〕、`Active` はアクティブ状態のグレースケール反転配色）
+  〔`Option<&str>`〕、`Active` はアクティブ状態のグレースケール反転配色）/
+  `wireframes/cursor/index.html`（イシュー #2642、Phase 5「Navigation」の
+  3 番目の部品。代わりに使える既存アイコンがないため
+  `icon::cursor_arrow`/`icon::cursor_hand` を新規追加して消費する）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
