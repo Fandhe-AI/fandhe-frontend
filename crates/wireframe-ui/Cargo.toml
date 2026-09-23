@@ -8,9 +8,11 @@ name = "fandhe-frontend-wireframe-ui"
 # PASS だが、運用規約に従いバンプする）。
 # 0.3.0 → 0.4.0: 公開 API 新設（annotation 部品、イシュー #2617）。
 # 0.4.0 → 0.5.0: 公開 API 新設（grid 部品、イシュー #2611）。
-# 0.5.0 → 0.6.0: 公開 API 新設（stack 部品、イシュー #2610）。main 側で
-# 0.5.0 を grid が先に確保したため衝突回避で +1。
-version = "0.6.0"
+# 0.5.0 → 0.6.0: 公開 API 新設（divider 部品、イシュー #2612。
+# props::Orientation の最初の実消費者）。
+# 0.6.0 → 0.7.0: 公開 API 新設（stack 部品、イシュー #2610）。main 側で
+# 0.5.0 を grid、0.6.0 を divider が先に確保したため衝突回避で +1。
+version = "0.7.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
 license = "MIT OR Apache-2.0"

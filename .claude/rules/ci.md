@@ -215,6 +215,9 @@
   従って `assets/wireframes.css` が初めて書き出された）/
   `wireframes/grid/index.html`（イシュー #2611、Phase 1「レイアウト骨格」の
   Grid 部品ページ）/
+  `wireframes/divider/index.html`（イシュー #2612、Phase 1
+  「レイアウト骨格」の `divider` 部品〔`props::Orientation` の最初の
+  実消費者〕）/
   `wireframes/stack/index.html`（イシュー #2610、Phase 1「レイアウト骨格」の
   Stack 部品ページ）
   である。
