@@ -1411,6 +1411,11 @@ source = "site/wireframes/ratings.md"
 path = "/wireframes/ratings/"
 
 [[section.page]]
+title = "Calendar"
+source = "site/wireframes/calendar.md"
+path = "/wireframes/calendar/"
+
+[[section.page]]
 title = "File drop"
 source = "site/wireframes/file-drop.md"
 path = "/wireframes/file-drop/"
