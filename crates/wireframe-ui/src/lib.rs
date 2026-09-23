@@ -84,7 +84,11 @@
 //! （イシュー #2640、Phase 5 の 4 番目の部品。ページ項目は
 //! `&[Option<&str>]`（`None` がギャップ）で表し、選択状態は
 //! `tabs`/`radio` と同じく既存の `props::Active` を再利用する。先頭/前/次/
-//! 末尾コントロールは `prev_next`/`first_last` の 2 bool へ畳む）も続いた。
+//! 末尾コントロールは `prev_next`/`first_last` の 2 bool へ畳む）・
+//! [`cursor`]（イシュー #2642、Phase 5 の 5 番目の部品。代わりに使える
+//! 既存アイコンがないため `icon::cursor_arrow`/`icon::cursor_hand` を
+//! 新規追加して消費する。部品ローカルの列挙型 [`CursorKind`] を
+//! クレートルートから再エクスポートする初めての例）も続いた。
 //! Phase 6「Overlay・Feedback」の最初の部品 [`tooltip`]（イシュー #2644、
 //! 方向は部品ローカルの [`tooltip::TooltipSide`] による修飾 class で表す）
 //! が続いた。
@@ -110,6 +114,7 @@ pub mod calendar;
 pub mod checkbox;
 pub mod class;
 pub mod css;
+pub mod cursor;
 pub mod divider;
 pub mod file_drop;
 pub mod frame;
@@ -145,6 +150,7 @@ pub use calendar::{calendar, MAX_WEEKS};
 pub use checkbox::checkbox;
 pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
+pub use cursor::{cursor, CursorKind};
 pub use divider::divider;
 pub use file_drop::file_drop;
 pub use frame::frame;

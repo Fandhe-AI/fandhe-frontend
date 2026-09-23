@@ -49,7 +49,8 @@
 /// [`crate::stepper::STEPPER_CSS`]・イシュー #2636 で
 /// [`crate::nav_item::NAV_ITEM_CSS`]・イシュー #2641 で
 /// [`crate::accordion::ACCORDION_CSS`]・イシュー #2640 で
-/// [`crate::pagination::PAGINATION_CSS`]・イシュー #2644 で
+/// [`crate::pagination::PAGINATION_CSS`]・イシュー #2642 で
+/// [`crate::cursor::CURSOR_CSS`]・イシュー #2644 で
 /// [`crate::tooltip::TOOLTIP_CSS`]（Phase 6「Overlay・Feedback」の最初の
 /// 部品）が続いた。
 pub const PARTS: &[&str] = &[
@@ -81,6 +82,7 @@ pub const PARTS: &[&str] = &[
     crate::nav_item::NAV_ITEM_CSS,
     crate::accordion::ACCORDION_CSS,
     crate::pagination::PAGINATION_CSS,
+    crate::cursor::CURSOR_CSS,
     crate::tooltip::TOOLTIP_CSS,
 ];
 

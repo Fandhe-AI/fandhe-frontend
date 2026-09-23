@@ -340,6 +340,10 @@ Lucide / Feather / Heroicons 等の既存アイコンセットのパスデータ
 
 新規アイコン追加は `icon::ALL` への登録を必須とする（`tests/icon.rs` の契約テストが自動網羅するため）。
 
+イシュー #2642 で `cursor-arrow`/`cursor-hand` の 2 種を追加した（計 23 種）。`cursor`（Phase 5
+「Navigation」）が使う既存アイコンが 1 つもなかったため、`file_drop`（#2633）とは異なりアイコン追加
+経路を選んだ（`crate::cursor` モジュール doc・`crate::file_drop` モジュール doc 参照）。
+
 ## 12. docs サイト `/wireframes/` セクション（イシュー #2607）
 
 本節は `crates/docs-site/src/wireframes/mod.rs` の実装契約を記す。§7 の

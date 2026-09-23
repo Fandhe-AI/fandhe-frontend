@@ -58,6 +58,7 @@ mod annotation;
 mod button;
 mod calendar;
 mod checkbox;
+mod cursor;
 mod divider;
 mod file_drop;
 mod frame;
@@ -155,9 +156,11 @@ pub struct Wireframe {
 /// [`nav_item::WIREFRAME`]（イシュー #2636、Phase 5 の 2 番目の部品）・
 /// [`accordion::WIREFRAME`]（イシュー #2641、Phase 5 の 3 番目の部品。
 /// blocks.pm に対応部品がない独自追加部品）・[`pagination::WIREFRAME`]
-/// （イシュー #2640、Phase 5 の 4 番目の部品）・Phase 6「Overlay・
-/// Feedback」の [`tooltip::WIREFRAME`]（イシュー #2644、最初の部品）が
-/// 続いた。
+/// （イシュー #2640、Phase 5 の 4 番目の部品）・[`cursor::WIREFRAME`]
+/// （イシュー #2642、Phase 5 の 5 番目の部品。代わりに使える既存アイコンが
+/// ないため `icon::cursor_arrow`/`icon::cursor_hand` を新規追加して消費
+/// する）・Phase 6「Overlay・Feedback」の [`tooltip::WIREFRAME`]
+/// （イシュー #2644、最初の部品）が続いた。
 /// Phase 1・3・4・5・6 以降（#2608〜#2665）の残りの各部品イシューが自分の
 /// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -188,6 +191,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     nav_item::WIREFRAME,
     accordion::WIREFRAME,
     pagination::WIREFRAME,
+    cursor::WIREFRAME,
     tooltip::WIREFRAME,
 ];
 
