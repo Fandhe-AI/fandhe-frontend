@@ -41,8 +41,10 @@
 //! （イシュー #2617）から実装を開始し、Phase 1「レイアウト骨格」の
 //! [`grid`]（イシュー #2611）・[`divider`]（イシュー #2612、
 //! `props::Orientation` の最初の消費者）・[`stack`]（イシュー #2610）・
-//! Phase 2 の [`rich_text`]（イシュー #2616）が続いた。残りは Phase 1 の
-//! 他部品（frame）・Phase 2 の他部品（text/paragraph/link/tag 等）
+//! Phase 2 の [`rich_text`]（イシュー #2616）・[`link`]（イシュー #2618、
+//! `Option<Node>` アイコンスロット規約 §11.4 の実例、`a[href]` 非出力）が
+//! 続いた。残りは Phase 1 の他部品（frame）・Phase 2 の他部品
+//! （text/paragraph/tag 等）
 //! および Phase 3 以降
 //! （#2608〜）で順次追加する。
 //!
@@ -64,6 +66,7 @@ pub mod css;
 pub mod divider;
 pub mod grid;
 pub mod icon;
+pub mod link;
 pub mod props;
 pub mod rich_text;
 pub mod size;
@@ -75,6 +78,7 @@ pub use class::{class_list, CLASS_PREFIX};
 pub use css::{wireframe_css, PARTS};
 pub use divider::divider;
 pub use grid::{grid, MAX_COLUMNS};
+pub use link::link;
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
 pub use rich_text::rich_text;
 pub use size::Size;
