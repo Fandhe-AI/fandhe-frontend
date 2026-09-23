@@ -8,7 +8,7 @@
 //! 確保する）。
 
 use fandhe_frontend_core::{div, p, span, text, Node};
-use fandhe_frontend_wireframe_ui::{tag, Primary, Size};
+use fandhe_frontend_wireframe_ui::{icon, tag, Primary, Size};
 
 use super::{ArgRow, Wireframe};
 
@@ -36,10 +36,10 @@ pub const WIREFRAME: Wireframe = Wireframe {
             description: "true のとき強調（反転色）バリアントにする。",
         },
         ArgRow {
-            name: "removable",
-            kind: "bool",
-            default: "false",
-            description: "true のとき削除「×」パートを出力する（見た目のみ、対話操作は行わない）。",
+            name: "remove",
+            kind: "Option<Node>",
+            default: "None",
+            description: "Some(icon::x(size)) を渡すと削除「×」パートを出力する（見た目のみ、対話操作は行わない）。",
         },
     ],
     demo,
@@ -51,31 +51,46 @@ fn demo() -> Node {
         vec![],
         vec![
             p(vec![], vec![text("既定（Md）")]),
-            tag("draft", Size::Md, Primary(false), false),
+            tag("draft", Size::Md, Primary(false), None),
             p(vec![], vec![text("強調（Primary）")]),
-            tag("重要", Size::Md, Primary(true), false),
-            p(vec![], vec![text("削除アイコン付き（removable）")]),
-            tag("removable", Size::Md, Primary(false), true),
+            tag("重要", Size::Md, Primary(true), None),
+            p(vec![], vec![text("削除アイコン付き（remove）")]),
+            tag(
+                "removable",
+                Size::Md,
+                Primary(false),
+                Some(icon::x(Size::Md)),
+            ),
             p(vec![], vec![text("強調 + 削除アイコン付き")]),
-            tag("urgent", Size::Md, Primary(true), true),
+            tag("urgent", Size::Md, Primary(true), Some(icon::x(Size::Md))),
             p(vec![], vec![text("Sm / Lg")]),
             span(
                 vec![],
                 vec![
-                    tag("小サイズ", Size::Sm, Primary(false), false),
+                    tag("小サイズ", Size::Sm, Primary(false), None),
                     text(" "),
-                    tag("大サイズ", Size::Lg, Primary(false), false),
+                    tag("大サイズ", Size::Lg, Primary(false), None),
                 ],
             ),
             p(vec![], vec![text("複数タグの横並び")]),
             span(
                 vec![],
                 vec![
-                    tag("design", Size::Md, Primary(false), true),
+                    tag("design", Size::Md, Primary(false), Some(icon::x(Size::Md))),
                     text(" "),
-                    tag("frontend", Size::Md, Primary(false), true),
+                    tag(
+                        "frontend",
+                        Size::Md,
+                        Primary(false),
+                        Some(icon::x(Size::Md)),
+                    ),
                     text(" "),
-                    tag("wireframe", Size::Md, Primary(false), true),
+                    tag(
+                        "wireframe",
+                        Size::Md,
+                        Primary(false),
+                        Some(icon::x(Size::Md)),
+                    ),
                 ],
             ),
         ],
