@@ -66,12 +66,36 @@ const INDICATOR_CLASS: &str = "fw-wire-stepper-indicator";
 /// ラベルのパート class（部品ルートなしで単独使用しない、[`stepper`] 専用）。
 const LABEL_CLASS: &str = "fw-wire-stepper-label";
 
-/// ステッパー CSS（6 セレクタ）。[`crate::css::PARTS`] へ登録される。
+/// ステッパー CSS。[`crate::css::PARTS`] へ登録される。
 ///
 /// 値は [`crate::size::css`] が定義するカスタムプロパティと
 /// [`crate::tokens`] のトークン（`--fw-wire-*`）を `var()` で参照するのみ
 /// で書き写さない。連結線は `::before` 疑似要素のみで描き、追加ノードを
 /// 持たない（先頭ステップには `::before` を出さない）。
+///
+/// 連結線（`::before`）の完了色は「自身が `data-complete`」だけでなく
+/// 「自身が `data-active`」でも点灯させる。`data-active` は「直前までの
+/// 全ステップが完了済み」を意味するため、現在ステップの直前セグメントも
+/// 完了扱いにしないと進捗線が実際の進捗より 1 区間遅れて見える不具合になる
+/// （例: 3 ステップ中 `active=1` の既定デモで、ステップ 0 は完了済みなのに
+/// ステップ 1 直前の連結線が未完了色のまま残る）。
+///
+/// 連結線の位置・長さは `right`/`width` を自身の padding box に対する
+/// 割合で算出する（`:not(:first-child)::before` は自身の padding box 幅
+/// `calc(100% - control-size)` だけから前ステップの中心までの距離を
+/// 導出する）。この式は「全ステップの padding box 幅が等しく、かつ
+/// インジケータが各 padding box 内で対称に中央寄せされている」ことを
+/// 暗黙に前提としている。いずれかのステップだけ左右の
+/// `padding-inline-*` を非対称にすると、当該ステップ自身の
+/// `align-items: center` によるインジケータ中心が padding box の中心
+/// からずれ、この前提が崩れる。ずれは非対称にした当該ステップ自身の
+/// 連結線だけでなく、そのステップを「前ステップ」として参照する
+/// **次のステップ**の連結線にも波及する（先頭ステップにのみ
+/// `padding-inline-start: 0` を与えていた過去の実装は、先頭ステップ
+/// 自身が `::before` を持たないことだけを見て「無害」と判断しており、
+/// 次ステップの連結線がこの前提に依存していることを見落としていた）。
+/// そのため全ステップの `padding-inline-*` は対称のまま揃え、個別
+/// ステップの `padding-inline-*` を 0 にする特別扱いは行わない。
 pub const STEPPER_CSS: &str = "\
 .fw-wire-stepper {
   display: flex;
@@ -91,12 +115,6 @@ pub const STEPPER_CSS: &str = "\
   padding-inline-start: 0.5em;
   padding-inline-end: 0.5em;
 }
-.fw-wire-stepper-step:first-child {
-  padding-inline-start: 0;
-}
-.fw-wire-stepper-step:last-child {
-  padding-inline-end: 0;
-}
 .fw-wire-stepper-step:not(:first-child)::before {
   content: \"\";
   position: absolute;
@@ -106,7 +124,8 @@ pub const STEPPER_CSS: &str = "\
   height: var(--fw-wire-line-width);
   background: var(--fw-wire-line-subtle);
 }
-.fw-wire-stepper-step[data-complete]:not(:first-child)::before {
+.fw-wire-stepper-step[data-complete]:not(:first-child)::before,
+.fw-wire-stepper-step[data-active]:not(:first-child)::before {
   background: var(--fw-wire-line);
 }
 .fw-wire-stepper-indicator {
