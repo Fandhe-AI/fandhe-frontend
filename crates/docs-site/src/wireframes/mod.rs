@@ -70,6 +70,7 @@ mod slider;
 mod stack;
 mod switch;
 mod tag;
+mod text;
 mod textarea;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
@@ -154,6 +155,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     tag::WIREFRAME,
     input::WIREFRAME,
     question::WIREFRAME,
+    text::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

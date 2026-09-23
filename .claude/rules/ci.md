@@ -254,7 +254,11 @@
   併用する 7 例目の実消費者〕）/
   `wireframes/question/index.html`（イシュー #2630、Phase 4「Forms B」の
   最初の部品。ラベル + 補足説明 + `Node` スロットのコントロール + ヒント。
-  表示状態軸を持たずスロット側へ委ねる）
+  表示状態軸を持たずスロット側へ委ねる）/
+  `wireframes/text/index.html`（イシュー #2614、Phase 2「テキスト・注釈」の
+  最後の部品。`<span>` ルート + `white-space: nowrap` +
+  `text-overflow: ellipsis` で 1 行固定表示、`paragraph` の複数行許容とは
+  対になる判断）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

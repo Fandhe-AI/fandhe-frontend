@@ -59,9 +59,13 @@
 //! `props::Disabled` の `.attr()` を Select・Switch・Checkbox・Radio・
 //! Textarea・Slider に続いて併用する 7 例目の実消費者）・Phase 4「Forms B」の
 //! [`question`]（イシュー #2630、ラベル + 補足説明 + `Node` スロットの
-//! コントロール + ヒント。表示状態軸を持たずスロット側へ委ねる）が続いた。
-//! 残りは Phase 2 の他部品（text 等）・Phase 3 の他部品（#2608〜）および
-//! Phase 4 の他部品（ratings/calendar/file-drop/stepper）で順次追加する。
+//! コントロール + ヒント。表示状態軸を持たずスロット側へ委ねる）・
+//! Phase 2 の [`text`]（イシュー #2614、単一行テキスト。`<span>` ルート +
+//! `white-space: nowrap` + `text-overflow: ellipsis` で 1 行固定表示する。
+//! [`paragraph`] の複数行許容とは対になる判断）が続いた。これで Phase 2
+//! 「テキスト・注釈」は全部品が出揃った。残りは Phase 3 の他部品
+//! （#2608〜）および Phase 4 の他部品（ratings/calendar/file-drop/stepper）
+//! で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -97,6 +101,7 @@ pub mod slider;
 pub mod stack;
 pub mod switch;
 pub mod tag;
+pub mod text;
 pub mod textarea;
 pub mod tokens;
 
@@ -121,4 +126,5 @@ pub use slider::slider;
 pub use stack::stack;
 pub use switch::switch;
 pub use tag::tag;
+pub use text::text;
 pub use textarea::{textarea, MAX_ROWS};

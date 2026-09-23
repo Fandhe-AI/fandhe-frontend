@@ -276,10 +276,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // 部品ページが加わり、268 → 269 になった。イシュー #2622 で
     // Wireframes セクションへ Input 部品ページが加わり、269 → 270 になった。
     // イシュー #2630 で Wireframes セクションへ Question 部品ページが加わり、
-    // 270 → 271 になった。
+    // 270 → 271 になった。イシュー #2614 で Wireframes セクションへ Text
+    // 部品ページが加わり、271 → 272 になった（Phase 2「テキスト・注釈」の
+    // 全部品が出揃った）。
     assert_eq!(
         report.written.len(),
-        271,
+        272,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -502,6 +504,9 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
         // イシュー #2619: Tag が Phase 2「テキスト・注釈」の 2 番目の
         // 部品ページとして登録された。
         ("wireframes/tag/index.html", false),
+        // イシュー #2614: Text が Phase 2「テキスト・注釈」の最後の部品
+        // ページとして登録され、同 Phase が全部品出揃った。
+        ("wireframes/text/index.html", false),
         ("api/component-api/index.html", false),
     ];
 
