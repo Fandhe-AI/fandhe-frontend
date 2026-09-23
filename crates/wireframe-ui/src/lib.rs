@@ -45,7 +45,9 @@
 //! `Option<Node>` アイコンスロット規約 §11.4 の実例、`a[href]` 非出力）、
 //! Phase 3「Forms A」の [`button`]（イシュー #2621、`props::Disabled` の
 //! 最初の実消費者）・[`select`]（イシュー #2624、`props::Active` と
-//! `props::Disabled` を併用する初の部品）が続いた。残りは Phase 1 の他部品
+//! `props::Disabled` を併用する初の部品）・[`slider`]（イシュー #2628、
+//! `props::Orientation` と `Active`/`Disabled` を併用する部品。進捗値は
+//! 5 刻みの固定 class 集合へ量子化する）が続いた。残りは Phase 1 の他部品
 //! （frame）・Phase 2 の他部品（text/paragraph/tag 等）および Phase 3 の
 //! 他部品（#2608〜）で順次追加する。
 //!
@@ -73,6 +75,7 @@ pub mod props;
 pub mod rich_text;
 pub mod select;
 pub mod size;
+pub mod slider;
 pub mod stack;
 pub mod tokens;
 
@@ -87,4 +90,5 @@ pub use props::{Active, Bold, Disabled, Orientation, Primary};
 pub use rich_text::rich_text;
 pub use select::select;
 pub use size::Size;
+pub use slider::slider;
 pub use stack::stack;

@@ -60,6 +60,7 @@ mod grid;
 mod link;
 mod rich_text;
 mod select;
+mod slider;
 mod stack;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
@@ -114,8 +115,9 @@ pub struct Wireframe {
 /// （イシュー #2610）、Phase 2 の [`link::WIREFRAME`]（イシュー #2618）・
 /// [`rich_text::WIREFRAME`]（イシュー #2616）・Phase 3「Forms A」の
 /// [`button::WIREFRAME`]（イシュー #2621）・[`select::WIREFRAME`]
-/// （イシュー #2624）が続いた。Phase 1・3 以降（#2608〜#2665）の残りの
-/// 各部品イシューが自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
+/// （イシュー #2624）・[`slider::WIREFRAME`]（イシュー #2628）が続いた。
+/// Phase 1・3 以降（#2608〜#2665）の残りの各部品イシューが自分の
+/// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
     grid::WIREFRAME,
@@ -125,6 +127,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     rich_text::WIREFRAME,
     button::WIREFRAME,
     select::WIREFRAME,
+    slider::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

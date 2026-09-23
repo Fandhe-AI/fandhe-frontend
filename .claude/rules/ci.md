@@ -228,7 +228,9 @@
   `wireframes/button/index.html`（イシュー #2621、Phase 3「Forms A」の
   `button` 部品〔`props::Disabled` の最初の実消費者〕）/
   `wireframes/select/index.html`（イシュー #2624、Phase 3「Forms A」の
-  `select` 部品）
+  `select` 部品）/
+  `wireframes/slider/index.html`（イシュー #2628、Phase 3「Forms A」の
+  `slider` 部品〔Progress を 5 刻み固定 class へ量子化、`Orientation` 併用〕）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

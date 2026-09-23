@@ -268,6 +268,9 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/button/index.html"
           # イシュー #2624: 同 Phase の Select 部品ページ。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/select/index.html"
+          # イシュー #2628: 同 Phase の Slider 部品ページ（Progress を 5 刻み
+          # 固定 class へ量子化、Orientation 併用）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/slider/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact
