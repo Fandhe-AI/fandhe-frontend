@@ -55,6 +55,7 @@
 
 mod annotation;
 mod grid;
+mod rich_text;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
 use fandhe_frontend_pre_styled_ui::{StyleSheet, StylesheetError};
@@ -105,8 +106,10 @@ pub struct Wireframe {
 /// [`annotation::WIREFRAME`]（イシュー #2617）を皮切りに Phase 1〜8
 /// （#2608〜#2665）の各部品イシューが自分の [`Wireframe`] 定数を
 /// 1 要素ずつ追記する。Phase 1「レイアウト骨格」の [`grid::WIREFRAME`]
-/// （イシュー #2611）が続いた。
-pub const WIREFRAMES: &[Wireframe] = &[annotation::WIREFRAME, grid::WIREFRAME];
+/// （イシュー #2611）・Phase 2「テキスト・注釈」の [`rich_text::WIREFRAME`]
+/// （イシュー #2616）が続いた。
+pub const WIREFRAMES: &[Wireframe] =
+    &[annotation::WIREFRAME, grid::WIREFRAME, rich_text::WIREFRAME];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。
 /// `crate::build::build_site` が「このページを Wireframes 専用分岐に乗せるか」
