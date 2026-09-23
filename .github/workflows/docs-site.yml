@@ -271,6 +271,8 @@ jobs:
           # イシュー #2626: 同 Phase の Radio 部品ページ（選択状態は
           # props::Active を再利用、新規の Selected/Checked 型は新設しない）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/radio/index.html"
+          # イシュー #2627: 同 Phase の Switch 部品ページ。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/switch/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact

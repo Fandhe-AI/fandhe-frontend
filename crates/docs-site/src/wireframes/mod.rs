@@ -62,6 +62,7 @@ mod radio;
 mod rich_text;
 mod select;
 mod stack;
+mod switch;
 
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
 use fandhe_frontend_pre_styled_ui::{StyleSheet, StylesheetError};
@@ -116,8 +117,9 @@ pub struct Wireframe {
 /// [`rich_text::WIREFRAME`]（イシュー #2616）・Phase 3「Forms A」の
 /// [`button::WIREFRAME`]（イシュー #2621）・[`select::WIREFRAME`]
 /// （イシュー #2624）・[`radio::WIREFRAME`]（イシュー #2626、選択状態は
-/// `props::Active` を再利用）が続いた。Phase 1・3 以降（#2608〜#2665）の
-/// 残りの各部品イシューが自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
+/// `props::Active` を再利用）・[`switch::WIREFRAME`]（イシュー #2627）が
+/// 続いた。Phase 1・3 以降（#2608〜#2665）の残りの各部品イシューが自分の
+/// [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
     grid::WIREFRAME,
@@ -128,6 +130,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     button::WIREFRAME,
     select::WIREFRAME,
     radio::WIREFRAME,
+    switch::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。
