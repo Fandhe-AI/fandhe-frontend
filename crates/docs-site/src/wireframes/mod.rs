@@ -56,6 +56,7 @@
 mod accordion;
 mod alert;
 mod annotation;
+mod avatar;
 mod button;
 mod calendar;
 mod checkbox;
@@ -69,12 +70,14 @@ mod link;
 mod nav_item;
 mod pagination;
 mod paragraph;
+mod progress;
 mod question;
 mod radio;
 mod ratings;
 mod rich_text;
 mod select;
 mod slider;
+mod spinner;
 mod stack;
 mod stepper;
 mod switch;
@@ -165,10 +168,17 @@ pub struct Wireframe {
 /// （イシュー #2644、最初の部品）・[`toast::WIREFRAME`]（イシュー #2647、
 /// Phase 6 の 2 番目の部品。閉じるグリフは `icon::x` 固定で
 /// `dismissible: bool` の 1 引数だけで有無を切り替える）・
-/// [`alert::WIREFRAME`]（イシュー #2646、同 Phase の 3 番目の部品。
-/// 重要度は部品ローカルの `Severity` による修飾 class で表す）が続いた。
-/// Phase 1・3・4・5・6 以降（#2608〜#2665）の残りの各部品イシューが自分の
-/// [`Wireframe`] 定数を 1 要素ずつ追記する。
+/// [`alert::WIREFRAME`]（イシュー #2646、Phase 6 の 3 番目の部品。
+/// 重要度は部品ローカルの `Severity` による修飾 class で表す）・
+/// [`progress::WIREFRAME`]（イシュー #2648、Phase 6 の 4 番目の部品。
+/// 形状は部品ローカルの `fandhe_frontend_wireframe_ui::ProgressShape` による
+/// 修飾 class（Bar/Circle）で表す）・[`spinner::WIREFRAME`]（イシュー
+/// #2649、Phase 6 の 5 番目の部品）・Phase 7「Data display」の
+/// [`avatar::WIREFRAME`]（イシュー #2651、最初の部品。
+/// `content: Option<Node>` が `None` のとき `icon::user` へフォールバック
+/// する §11.4 からの意図的な逸脱）が続いた。
+/// Phase 1・3・4・5・6・7 以降（#2608〜#2665）の残りの各部品イシューが
+/// 自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
     grid::WIREFRAME,
@@ -201,6 +211,9 @@ pub const WIREFRAMES: &[Wireframe] = &[
     tooltip::WIREFRAME,
     toast::WIREFRAME,
     alert::WIREFRAME,
+    progress::WIREFRAME,
+    spinner::WIREFRAME,
+    avatar::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

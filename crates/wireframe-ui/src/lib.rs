@@ -96,9 +96,18 @@
 //! だけで有無を切り替える）・3 番目の部品 [`alert`]（イシュー #2646、
 //! 横長の警告バナー。重要度は部品ローカルの [`alert::Severity`] による
 //! 修飾 class で表し、`props.rs` へは昇格しない。アイコンは
-//! `link`/`file_drop` と同じ `Option<Node>` スロット）が続いた。
+//! `link`/`file_drop` と同じ `Option<Node>` スロット）・4 番目の部品
+//! [`progress`]（イシュー #2648、形状は部品ローカルの
+//! [`progress::ProgressShape`] による修飾 class（Bar/Circle）で表し、進捗値は
+//! `slider` と同型の 5 刻み固定 class 集合へ量子化する。表示専用のため
+//! `Active`/`Disabled` を持たない）・5 番目の部品 [`spinner`]（イシュー
+//! #2649、円弧だけを描く静的表示で `@keyframes`/`animation` は持たない）が
+//! 続いた。Phase 7「Data display」の最初の部品 [`avatar`]（イシュー #2651、
+//! `content: Option<Node>` が `None` のとき [`icon::user`] へフォールバック
+//! する §11.4 からの意図的な逸脱。円形表示は `crate::frame` の `bordered`
+//! と同型の部品固有修飾 class で表す）が続いた。
 //! 残りは Phase 3 の他部品（#2608〜）・Phase 5 の他部品（menu 等）・
-//! Phase 6 の他部品で順次追加する。
+//! Phase 6 の他部品・Phase 7 の他部品で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -115,6 +124,7 @@
 pub mod accordion;
 pub mod alert;
 pub mod annotation;
+pub mod avatar;
 pub mod button;
 pub mod calendar;
 pub mod checkbox;
@@ -131,6 +141,7 @@ pub mod link;
 pub mod nav_item;
 pub mod pagination;
 pub mod paragraph;
+pub mod progress;
 pub mod props;
 pub mod question;
 pub mod radio;
@@ -139,6 +150,7 @@ pub mod rich_text;
 pub mod select;
 pub mod size;
 pub mod slider;
+pub mod spinner;
 pub mod stack;
 pub mod stepper;
 pub mod switch;
@@ -153,6 +165,7 @@ pub mod tooltip;
 pub use accordion::accordion;
 pub use alert::{alert, Severity};
 pub use annotation::annotation;
+pub use avatar::avatar;
 pub use button::button;
 pub use calendar::{calendar, MAX_WEEKS};
 pub use checkbox::checkbox;
@@ -168,6 +181,7 @@ pub use link::link;
 pub use nav_item::nav_item;
 pub use pagination::pagination;
 pub use paragraph::paragraph;
+pub use progress::{progress, ProgressShape};
 pub use props::{Active, Bold, Disabled, Orientation, Primary};
 pub use question::question;
 pub use radio::radio;
@@ -176,6 +190,7 @@ pub use rich_text::rich_text;
 pub use select::select;
 pub use size::Size;
 pub use slider::slider;
+pub use spinner::spinner;
 pub use stack::stack;
 pub use stepper::stepper;
 pub use switch::switch;
