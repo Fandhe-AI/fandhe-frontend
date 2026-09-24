@@ -3210,10 +3210,13 @@ fn blog_split_header_grid_page_wires_demo_class_and_css_hooks() {
     }
 }
 
-/// careers-card-grid の合成部品（heading/text/badge/card/icon/button）が
-/// 期待どおりの構成で実際に出力されていること（求人カード 4 件）、
+/// careers-card-grid の合成部品（heading/text/badge/card/icon/link）が
+/// 期待どおりの構成で実際に出力されていること（求人カード 4 件、各カードの
+/// 詳細リンクが固定リポジトリ URL へ遷移すること）、
 /// `<form>`・`href="#"`・`src="data:`・`id="` を持ち込んでいないことを
-/// 固定する（イシュー #2815）。
+/// 固定する（イシュー #2815。詳細への導線は当初 dead button だったが、
+/// codex レビュー指摘を受けて `blog_split_header_grid` と同型の
+/// `link::root` + 固定 URL へ置き換えた）。
 #[test]
 fn careers_card_grid_composes_expected_parts() {
     let out = build_real_site();
@@ -3225,7 +3228,7 @@ fn careers_card_grid_composes_expected_parts() {
         "data-scope=\"badge\"",
         "data-scope=\"card\"",
         "data-scope=\"icon\"",
-        "data-scope=\"button\"",
+        "data-scope=\"link\"",
     ] {
         assert!(
             html.contains(scope),
@@ -3241,7 +3244,39 @@ fn careers_card_grid_composes_expected_parts() {
     assert_eq!(
         html.matches("aria-label=\"詳細を見る（").count(),
         4,
-        "careers-card-grid should render exactly 4 job-detail buttons"
+        "careers-card-grid should render exactly 4 job-detail links"
+    );
+    // ページ全体にはヘッダーの GitHub リンクなど block 外にも REPO への
+    // href が存在する（`docs-github-link`）ため、全体の href 出現数では
+    // 断定せず、各 aria-label を持つ要素そのものの開始タグに REPO への
+    // href が含まれることを確認する（`blog_split_header_grid` と同型の
+    // 判断）。
+    let mut search_from = 0;
+    let mut job_link_count = 0;
+    while let Some(hook_pos) = html[search_from..].find("aria-label=\"詳細を見る（") {
+        let hook_pos = search_from + hook_pos;
+        let tag_start = html[..hook_pos]
+            .rfind('<')
+            .expect("job-detail link should have an opening tag");
+        let tag_end = html[tag_start..]
+            .find('>')
+            .map(|offset| tag_start + offset)
+            .expect("job-detail link's opening tag should be well-formed");
+        let tag = &html[tag_start..tag_end];
+        assert!(
+            tag.starts_with("<a "),
+            "careers-card-grid's job-detail control should be a real <a> link, not a dead button: {tag}"
+        );
+        assert!(
+            tag.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend\""),
+            "careers-card-grid's job-detail link should point at the fixed repository URL: {tag}"
+        );
+        job_link_count += 1;
+        search_from = tag_end;
+    }
+    assert_eq!(
+        job_link_count, 4,
+        "careers-card-grid should render exactly 4 job-detail links"
     );
     assert!(
         html.contains("一緒に働く仲間を募集しています"),

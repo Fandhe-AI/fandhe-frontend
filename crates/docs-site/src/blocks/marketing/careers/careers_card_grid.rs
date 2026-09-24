@@ -6,9 +6,15 @@
 //!
 //! # 使用部品
 //!
-//! `heading` / `text` / `badge` / `card` / `icon` / `button` の 6 部品を
+//! `heading` / `text` / `badge` / `card` / `icon` / `link` の 6 部品を
 //! 合成する（[`BLOCK`] の `parts` に一致させる契約、
 //! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証する）。
+//! 詳細への導線は当初 `button`（`type="button"` 固定・送信先なし）で
+//! 実装していたが、遷移を示す文言・矢印を持つ操作要素が実際には
+//! 何も起きない dead control になっているという指摘（codex レビュー、
+//! `blog_split_header_grid` の view-all リンクを `link::root` へ置き換えた
+//! 経緯〔PR #3165〕と同型の問題）を受けて `link::root` + 固定 URL（[`REPO`]）
+//! へ置き換えた。
 //!
 //! # レイアウト（md = 48rem をブレークポイントとする理由）
 //!
@@ -41,7 +47,7 @@
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
 //! `heading::heading`/`text::text`/`badge::badge`/`card::root`/
-//! `button::button`/`icon::icon` はいずれも `drop_class_attr` により
+//! `link::root`/`icon::icon` はいずれも `drop_class_attr` により
 //! 呼び出し側 `attrs` の `class` を黙って除去する契約を持つため、Demo
 //! 固有のスタイルフックは `data-blocks-careers-card-grid-*` 属性で渡し、
 //! [`LAYOUT_CSS`] 側も同じ属性セレクタで対応する（`crate::blocks`
@@ -60,9 +66,9 @@
 //! いずれも隣に可視テキストがあるため装飾扱い（`IconProps::label` は
 //! `None` のまま、`aria-hidden="true"`）とする。
 //!
-//! # 同名ボタンが 4 つ並ぶ問題への対処
+//! # 同名リンクが 4 つ並ぶ問題への対処
 //!
-//! 各求人カードの「詳細を見る」ボタンへ `aria-label="詳細を見る
+//! 各求人カードの「詳細を見る」リンクへ `aria-label="詳細を見る
 //! （<職種名>）"` を付与して区別する（可視テキストをアクセシブルネームに
 //! 含める形なので WCAG 2.5.3 label-in-name に適合、`blog_list_image` の
 //! 著者リンクとは異なる手段だが目的は同じ）。`id`/`aria-describedby` は
@@ -74,22 +80,23 @@
 //! `crate::blocks` モジュール doc「`<form>` を使わない」節・「セキュリティ
 //! 不変条件」節に従い、本 Demo はフォーム・状態機械を持たない静的な合成例
 //! である。文言・部署名・勤務地はすべて架空のもの（実企業名・実クレデン
-//! シャル・PII を含まない）。詳細への導線は使用部品として指定された
-//! `button`（`type="button"` 固定、送信先を持たない）で表す静的な例であり、
-//! 実アプリでページ遷移させる場合は `link` 部品を使うべきである
-//! （原稿「原案差分メモ」参照）。
+//! シャル・PII を含まない）。詳細への導線は `link::root` + 固定 URL
+//! （[`REPO`]。`blog_split_header_grid`/`blog_overlay_cards` 等と同型の
+//! 判断）で表し、フォーム送信・XHR は一切行わない。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
+const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
 use fandhe_frontend_pre_styled_ui::heading::{
     heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
 };
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
+use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
 use fandhe_frontend_pre_styled_ui::recipe::ColorPalette;
 use fandhe_frontend_pre_styled_ui::text::{
     self as styled_text, TextProps, TextSize, TextVariant, TextWeight,
@@ -240,11 +247,12 @@ fn job_card(job: &Job) -> Node {
             ),
             card::footer(
                 vec![("class", "blocks-careers-card-grid-card-footer")],
-                vec![button::button(
-                    &ButtonProps {
-                        variant: ButtonVariant::Ghost,
+                vec![link::root(
+                    REPO,
+                    &LinkProps {
+                        variant: LinkVariant::Underline,
                         palette: ColorPalette::Neutral,
-                        ..ButtonProps::default()
+                        ..LinkProps::default()
                     },
                     vec![("aria-label", aria_label.as_str())],
                     vec![text("詳細を見る"), arrow_icon()],
@@ -333,8 +341,8 @@ pub const BLOCK: Block = Block {
             path: "/themes/icon/",
         },
         Part {
-            label: "Button",
-            path: "/themes/button/",
+            label: "Link",
+            path: "/themes/link/",
         },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
@@ -377,7 +385,7 @@ const LAYOUT_CSS: &str = "\
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, LAYOUT_CSS};
+    use super::{demo, LAYOUT_CSS, REPO};
     use fandhe_frontend_core::render;
 
     /// Demo が期待する部品・構造・非対話制約を満たしていることの単体
@@ -392,7 +400,7 @@ mod tests {
             "data-scope=\"badge\"",
             "data-scope=\"card\"",
             "data-scope=\"icon\"",
-            "data-scope=\"button\"",
+            "data-scope=\"link\"",
         ] {
             assert!(html.contains(scope), "demo output should contain {scope}");
         }
@@ -400,7 +408,11 @@ mod tests {
             html.matches("data-part=\"root\" class=\"fd-card").count(),
             4
         );
-        assert_eq!(html.matches("type=\"button\"").count(), 4);
+        assert_eq!(
+            html.matches(&format!("href=\"{REPO}\"")).count(),
+            4,
+            "each job card should link to the fixed repository URL"
+        );
         assert!(html.contains("詳細を見る（フロントエンドエンジニア）"));
         assert!(!html.contains("<form"));
         assert!(!html.contains("href=\"#\""));

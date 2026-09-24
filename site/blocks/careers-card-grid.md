@@ -1,28 +1,30 @@
 # careers-card-grid
 
-`heading` / `text` / `badge` / `card` / `icon` / `button` の 6 部品を合成した
+`heading` / `text` / `badge` / `card` / `icon` / `link` の 6 部品を合成した
 求人カードグリッドです。ページ見出し（タグライン + 見出し + 説明）の下へ
 求人カードを並べ、狭い幅では 1 列、`md`（48rem）以上では 2 列に切り替わり
 ます。各カードは部署 badge・職種名・短い説明・勤務地と雇用形態のアイコン
-付きメタ行・詳細へ進む矢印付きの操作要素で構成されます。
+付きメタ行・詳細へ進む矢印付きのリンクで構成されます。
 
-文言・部署名・勤務地はすべて架空のものです。`<form>` は使わず、ボタンは
-`type="button"` のままで送信先を持たない静的な表示例です（実際の応募処理は
-利用者自身の Rust コードで実装してください）。
+文言・部署名・勤務地はすべて架空のものです。`<form>` は使わず、詳細への
+導線は固定のリポジトリ URL へ遷移する `link::root`（送信・状態変更は一切
+行わない静的な表示例）です。
 
 集約元は 1 件のみ（対応表 ID R0033）です。
 
 ## Rust コード
 
 ```rust
+const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
 use fandhe_frontend_pre_styled_ui::heading::{
     heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
 };
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
+use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
 use fandhe_frontend_pre_styled_ui::recipe::ColorPalette;
 use fandhe_frontend_pre_styled_ui::text::{
     self as styled_text, TextProps, TextSize, TextVariant, TextWeight,
@@ -173,11 +175,12 @@ fn job_card(job: &Job) -> Node {
             ),
             card::footer(
                 vec![("class", "blocks-careers-card-grid-card-footer")],
-                vec![button::button(
-                    &ButtonProps {
-                        variant: ButtonVariant::Ghost,
+                vec![link::root(
+                    REPO,
+                    &LinkProps {
+                        variant: LinkVariant::Underline,
                         palette: ColorPalette::Neutral,
-                        ..ButtonProps::default()
+                        ..LinkProps::default()
                     },
                     vec![("aria-label", aria_label.as_str())],
                     vec![text("詳細を見る"), arrow_icon()],
@@ -250,8 +253,10 @@ pub fn demo() -> Node {
 - 文言（部署名・職種名・勤務地・雇用形態・説明文）はすべて独自に
   書き直しました。
 - 配色・余白は本リポジトリの既存トークン（`--fandhe-*`）に従わせました。
-- 同名ボタンが並ぶ問題は `id`/`aria-describedby` ではなく `aria-label`
+- 同名リンクが並ぶ問題は `id`/`aria-describedby` ではなく `aria-label`
   （可視テキストを含む形）で区別しました。
-- 詳細への導線はナビゲーション（`<a>`）ではなく、使用部品として指定
-  された `button` で表した静的な例です。実アプリでページ遷移させる
-  場合は `link` 部品を使うべきです。
+- 詳細への導線は当初 `button`（`type="button"` 固定、送信先なし）で
+  表していましたが、遷移を示す文言・矢印を持つ操作要素が実際には何も
+  起きない dead control になっているという指摘（`blog_split_header_grid`
+  の view-all リンクを `link::root` へ置き換えた経緯と同型の問題）を
+  受け、`link::root` + 固定リポジトリ URL へ置き換えました。
