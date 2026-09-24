@@ -348,7 +348,10 @@
   `wireframes/media/index.html`（イシュー #2661、Phase 8「Media・データ
   表示」の 4 番目の部品。blocks.pm 上の表示名は Placeholder。
   `content: None` で `icon::play` へフォールバック、16:9 固定、
-  `<video>`/`<iframe>` は出力しない）
+  `<video>`/`<iframe>` は出力しない）/
+  `wireframes/icon/index.html`（イシュー #2652、Phase 7「Data display」の
+  7 番目の部品。`glyph` は `Node` ではなく `fn(Size) -> Node` で受け取り、
+  サイズ指定を 1 か所に固定する。`role`/`aria-label` は付けない）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

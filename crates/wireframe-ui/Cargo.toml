@@ -168,7 +168,14 @@ name = "fandhe-frontend-wireframe-ui"
 # ではなくスロット差し替えで表し、枠は 16:9 固定で <video>/<iframe> は
 # 出力しない）。main 側で 0.46.0 を card_basic、0.47.0 を map が先に
 # 確保したため main セッションが本 PR 用に一意採番した 0.48.0 を採用する。
-version = "0.48.0"
+# 0.48.0 → 0.51.0: 公開 API 新設（icon 部品、イシュー #2652、Phase 7
+# 「Data display」の 7 番目の部品〔Avatar=1/Counter=2/Emoji=3/Stat=4/
+# Card basic=5/List=6（並行 PR）に続く〕。icon モジュールへ pub fn icon・
+# ICON_CSS を追記する。glyph は Node ではなく fn(Size) -> Node（icon::ALL
+# の要素型と同じ関数ポインタ）で受け取り、サイズ指定を 1 か所に固定する
+# 設計とした。main セッションが本 PR 用に一意採番した 0.51.0 を採用する
+# （List（#2657）・Brand（#2653）の並行実装との衝突回避余地を見込む）。
+version = "0.51.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
 license = "MIT OR Apache-2.0"

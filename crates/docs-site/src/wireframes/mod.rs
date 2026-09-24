@@ -70,6 +70,7 @@ mod emoji;
 mod file_drop;
 mod frame;
 mod grid;
+mod icon;
 mod image;
 mod input;
 mod link;
@@ -217,6 +218,10 @@ pub struct Wireframe {
 /// blocks.pm 上の表示名は Placeholder。`content: Option<Node>` が
 /// `None` のとき `icon::play` へフォールバックする §11.4 からの意図的な
 /// 逸脱。動画か静止画かは bool ではなくスロット差し替えで表す）が続いた。
+/// Phase 7「Data display」の 7 番目の部品 [`icon::WIREFRAME`]（イシュー
+/// #2652、`glyph: fn(Size) -> Node` を受け取るアイコン単体部品。
+/// `icon::ALL`（SVG ラインアートアイコン基盤、イシュー #2606）全種の一覧
+/// 表示元を §12 D8 のとおり本 showcase が担う）が続いた。
 /// Phase 1・3・4・5・6・7・8 以降（#2608〜#2665）の残りの各部品イシューが
 /// 自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -265,6 +270,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     chart::WIREFRAME,
     map::WIREFRAME,
     media::WIREFRAME,
+    icon::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

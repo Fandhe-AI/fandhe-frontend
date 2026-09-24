@@ -35,7 +35,7 @@
 //! 共通基盤 API 実装済み（イシュー #2605）: [`Size`]・[`Bold`]/[`Primary`]/
 //! [`Active`]/[`Disabled`]/[`Orientation`]（共通型）・モノクロトークン
 //! （[`tokens`]）・[`wireframe_css`]（CSS 集約出力）・[`class_list`]。
-//! SVG アイコン基盤（[`icon`]、イシュー #2606）実装済み: 12 種以上の
+//! SVG アイコン基盤（[`icon`](mod@icon)、イシュー #2606）実装済み: 12 種以上の
 //! ラインアートアイコンと `Node` スロット規約（`docs/design/wireframe-ui-architecture.md`
 //! §11）。個別部品は Phase 2「テキスト・注釈」の [`annotation`]
 //! （イシュー #2617）から実装を開始し、Phase 1「レイアウト骨格」の
@@ -155,8 +155,13 @@
 //! blocks.pm 上の表示名は Placeholder。`content: Option<Node>` が
 //! `None` のとき [`icon::play`] へフォールバックする §11.4 からの意図的
 //! な逸脱。動画か静止画かは bool ではなくスロット差し替えで表し、枠は
-//! 16:9 固定で `<video>`/`<iframe>` は出力しない）が続いた。残りは
-//! Phase 8 の他部品で順次追加する。
+//! 16:9 固定で `<video>`/`<iframe>` は出力しない）が続いた。Phase 7
+//! 「Data display」の 7 番目の部品 [`icon()`](fn@icon)（イシュー #2652、
+//! アイコン単体を示す部品。`Node` ではなく `fn(Size) -> Node`（[`icon::IconEntry`]
+//! の要素型と同じ関数ポインタ）をコンストラクタ引数として受け取り、サイズ
+//! 指定を 1 か所に固定する。`role`/`aria-label` は付けない。[`icon`](mod@icon)
+//! モジュールへの追記として実装した）が続いた。残りは Phase 7 の
+//! `brand`/`list`・Phase 8 の他部品で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -166,8 +171,11 @@
 //! `fw-wire-bold` / `fw-wire-primary` / `fw-wire-horizontal|vertical`。
 //! 表示状態は class ではなく `data-active`/`data-disabled` で表す。CSS
 //! カスタムプロパティは `--fw-wire-*`（pre-styled-ui の `--fandhe-*` とは
-//! 意図的に別プレフィックス）。部品ルートなしで単独使用する唯一の例外的
-//! パート class として `fw-wire-icon-glyph`（[`icon`] のグリフ）を持つ。
+//! 意図的に別プレフィックス）。`fw-wire-icon-glyph`（[`icon`](mod@icon) モジュールの
+//! 各グリフ関数が返す `<svg>` の class）は、単独使用（他部品の `Node`
+//! スロットへ直接渡す場合）と [`icon()`](fn@icon) 部品（イシュー #2652）
+//! のパート class としての使用の両方を持つ（`icon()` のルート
+//! `fw-wire-icon` の子要素として現れる）。
 //! 詳細・追記契約は `docs/design/wireframe-ui-architecture.md` §10 を参照。
 
 pub mod accordion;
@@ -241,6 +249,7 @@ pub use emoji::emoji;
 pub use file_drop::file_drop;
 pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
+pub use icon::icon;
 pub use image::image;
 pub use input::input;
 pub use link::link;
