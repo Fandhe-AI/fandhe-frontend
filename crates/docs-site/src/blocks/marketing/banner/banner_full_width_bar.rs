@@ -33,6 +33,21 @@
 //! 詳細度 (0,4,0)）で上書きする（`testimonials_stack` の
 //! `caption_meta_selector_outweighs_recipe_base` と同じ判断軸）。
 //!
+//! 閉じるボタン（[`dismiss_button`]）の `color: inherit` 上書きも同じ罠を
+//! 踏んでいた（イシュー #2743 PR #3160 の Bugbot 指摘）: 当初は
+//! `[data-blocks-banner-full-width-bar-tone="dark"]
+//! [data-blocks-banner-full-width-bar-close]`（tone 属性 + close 属性の
+//! 2 属性、詳細度 (0,2,0)）だけで宣言していたが、`button::close_button` の
+//! ghost variant recipe は `[data-scope="button"][data-part="root"]
+//! .fd-button--variant-ghost`（2 属性 + 1 クラス、詳細度 (0,3,0)）で登録
+//! されており後者が勝つため、dark/accent tone のボタン地色（`--fandhe-
+//! color-fg`/`--fandhe-color-accent`）の上にアイコンが `--fandhe-palette`
+//! （accent）のまま残りコントラストを失っていた。`[data-scope="button"]
+//! [data-part="root"][data-blocks-banner-full-width-bar-close]` を tone
+//! セレクタへ追加する（tone 属性 + scope 属性 + part 属性 + close 属性の
+//! 4 属性、詳細度 (0,4,0)）ことで ghost variant recipe を確実に上書きする
+//! よう是正した。
+//!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
 //! `callout::root`/`button::button`/`button::close_button`/`link::root`/
@@ -447,7 +462,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-banner-full-width-bar [data-scope=\"callout\"][data-part=\"root\"][data-blocks-banner-full-width-bar-bar][data-blocks-banner-full-width-bar-position=\"bottom\"] {\n  border-width: 1px 0 0;\n}\n\
 .blocks-banner-full-width-bar [data-scope=\"callout\"][data-part=\"root\"][data-blocks-banner-full-width-bar-bar][data-blocks-banner-full-width-bar-tone=\"dark\"] {\n  background: var(--fandhe-color-fg);\n  color: var(--fandhe-color-bg);\n  border-color: var(--fandhe-color-fg);\n}\n\
 .blocks-banner-full-width-bar [data-scope=\"callout\"][data-part=\"root\"][data-blocks-banner-full-width-bar-bar][data-blocks-banner-full-width-bar-tone=\"accent\"] {\n  background: var(--fandhe-color-accent);\n  color: var(--fandhe-color-accent-fg);\n  border-color: var(--fandhe-color-accent);\n}\n\
-[data-blocks-banner-full-width-bar-tone=\"dark\"] [data-scope=\"link\"][data-part=\"root\"],\n[data-blocks-banner-full-width-bar-tone=\"accent\"] [data-scope=\"link\"][data-part=\"root\"],\n[data-blocks-banner-full-width-bar-tone=\"dark\"] [data-blocks-banner-full-width-bar-close],\n[data-blocks-banner-full-width-bar-tone=\"accent\"] [data-blocks-banner-full-width-bar-close] {\n  color: inherit;\n}\n\
+[data-blocks-banner-full-width-bar-tone=\"dark\"] [data-scope=\"link\"][data-part=\"root\"],\n[data-blocks-banner-full-width-bar-tone=\"accent\"] [data-scope=\"link\"][data-part=\"root\"] {\n  color: inherit;\n}\n\
+[data-blocks-banner-full-width-bar-tone=\"dark\"] [data-scope=\"button\"][data-part=\"root\"][data-blocks-banner-full-width-bar-close],\n[data-blocks-banner-full-width-bar-tone=\"accent\"] [data-scope=\"button\"][data-part=\"root\"][data-blocks-banner-full-width-bar-close] {\n  color: inherit;\n}\n\
 .blocks-banner-full-width-bar-row {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  width: 100%;\n}\n\
 .blocks-banner-full-width-bar-content {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  flex: 1;\n  min-width: 0;\n}\n\
 .blocks-banner-full-width-bar-content p {\n  margin: 0;\n}\n\
@@ -547,6 +563,24 @@ mod tests {
         assert!(LAYOUT_CSS.contains(
             r#".blocks-banner-full-width-bar [data-scope="callout"][data-part="root"][data-blocks-banner-full-width-bar-bar][data-blocks-banner-full-width-bar-tone="dark"]"#
         ));
+    }
+
+    /// 詳細度ガード: 閉じるボタンの `color: inherit` 上書きが ghost variant
+    /// recipe（`[data-scope="button"][data-part="root"].fd-button--variant-
+    /// ghost`、詳細度 (0,3,0)）に負けない (0,4,0) 以上のセレクタで宣言され
+    /// ている（イシュー #2743 PR #3160 の Bugbot 指摘の回帰防止、モジュール
+    /// doc「配色 tone と詳細度 (0,4,0) の理由」節参照）。
+    #[test]
+    fn layout_css_close_button_selector_outweighs_ghost_variant() {
+        for tone in ["dark", "accent"] {
+            let selector = format!(
+                r#"[data-blocks-banner-full-width-bar-tone="{tone}"] [data-scope="button"][data-part="root"][data-blocks-banner-full-width-bar-close]"#
+            );
+            assert!(
+                LAYOUT_CSS.contains(&selector),
+                "LAYOUT_CSS に {selector} が無い"
+            );
+        }
     }
 
     /// `demo()` は決定的（2 回の `render` が一致する）。
