@@ -132,7 +132,11 @@
 //! 再利用する）・5 番目の部品 [`card_basic`]（イシュー #2658、先頭・末尾
 //! スロットは §11.4 の `Option<Node>` 規約へ統一し `avatar` を内蔵しない
 //! 独自設計。`secondary` は [`nav_item`] の `counter` と同じ
-//! `Option<&str>` で表す）が続いた。
+//! `Option<&str>` で表す）・6 番目の部品 [`list`]（イシュー #2657、
+//! 箇条書き/番号付きリストの配置イメージ。`items: Vec<Node>` を項目
+//! ラッパー class で包み、`ordered: bool` は部品固有の修飾 class、
+//! マーカー・番号は CSS 擬似要素/カウンタのみで描く。`<ul>`/`<ol>`/`<li>`
+//! は出力しない）が続いた。
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
 //! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
 //! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
@@ -193,6 +197,7 @@ pub mod icon;
 pub mod image;
 pub mod input;
 pub mod link;
+pub mod list;
 pub mod map;
 pub mod media;
 pub mod menu;
@@ -244,6 +249,7 @@ pub use grid::{grid, MAX_COLUMNS};
 pub use image::image;
 pub use input::input;
 pub use link::link;
+pub use list::list;
 pub use map::{map, MapZoom};
 pub use media::media;
 pub use menu::{menu, MenuItem};

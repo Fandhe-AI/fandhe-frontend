@@ -1516,6 +1516,16 @@ source = "site/wireframes/stat.md"
 path = "/wireframes/stat/"
 
 [[section.page]]
+title = "Card basic"
+source = "site/wireframes/card-basic.md"
+path = "/wireframes/card-basic/"
+
+[[section.page]]
+title = "List"
+source = "site/wireframes/list.md"
+path = "/wireframes/list/"
+
+[[section.page]]
 title = "Chart"
 source = "site/wireframes/chart.md"
 path = "/wireframes/chart/"
@@ -1524,11 +1534,6 @@ path = "/wireframes/chart/"
 title = "Image"
 source = "site/wireframes/image.md"
 path = "/wireframes/image/"
-
-[[section.page]]
-title = "Card basic"
-source = "site/wireframes/card-basic.md"
-path = "/wireframes/card-basic/"
 
 [[section.page]]
 title = "Map"

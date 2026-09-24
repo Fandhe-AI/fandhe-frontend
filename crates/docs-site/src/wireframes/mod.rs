@@ -73,6 +73,7 @@ mod grid;
 mod image;
 mod input;
 mod link;
+mod list;
 mod map;
 mod media;
 mod menu;
@@ -204,7 +205,9 @@ pub struct Wireframe {
 /// [`card_basic::WIREFRAME`]（イシュー #2658、5 番目の部品。先頭・末尾
 /// スロットは §11.4 の `Option<Node>` 規約へ統一し `avatar` を内蔵しない
 /// 独自設計。`secondary` は `nav_item` の `counter` と同じ
-/// `Option<&str>`）が続いた。
+/// `Option<&str>`）・[`list::WIREFRAME`]（イシュー #2657、6 番目の部品。
+/// `items: Vec<Node>` と `ordered: bool` の 2 引数のみを持ち、マーカー・
+/// 番号は CSS 擬似要素/カウンタのみで描く）が続いた。
 /// Phase 8「Media・データ表示」の最初の部品 [`chart::WIREFRAME`]（イシュー
 /// #2663、値は `&[u8]` で受け取り `props::Orientation` を再利用する）・
 /// 2 番目の部品 [`image::WIREFRAME`]（イシュー #2660、対角のバツ印が
@@ -261,6 +264,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     emoji::WIREFRAME,
     stat::WIREFRAME,
     card_basic::WIREFRAME,
+    list::WIREFRAME,
     image::WIREFRAME,
     chart::WIREFRAME,
     map::WIREFRAME,
