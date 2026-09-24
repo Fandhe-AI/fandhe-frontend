@@ -2805,7 +2805,7 @@ fn blog_list_image_composes_expected_parts() {
 /// スタイルシート・各セルの配置フック（`data-blocks-bento-three-column-
 /// tall-cell`）を実際に出力し、`blocks::stylesheet()` にも対応するグリッド
 /// 配置規則・ブレークポイント条件が存在することを固定する（イシュー
-/// #2748）。
+/// #2748/#2749）。
 #[test]
 fn bento_three_column_tall_page_wires_demo_class_and_css_hooks() {
     let out = build_real_site();
@@ -2828,6 +2828,12 @@ fn bento_three_column_tall_page_wires_demo_class_and_css_hooks() {
         "data-blocks-bento-three-column-tall-cell=\"center-top\"",
         "data-blocks-bento-three-column-tall-cell=\"center-bottom\"",
         "data-blocks-bento-three-column-tall-cell=\"end\"",
+        "data-blocks-bento-three-column-tall-cell=\"end-top\"",
+        "data-blocks-bento-three-column-tall-cell=\"end-bottom\"",
+        "data-blocks-bento-three-column-tall-media=\"terminal\"",
+        "data-blocks-bento-three-column-tall-media=\"code\"",
+        "data-blocks-bento-three-column-tall-variant=\"both-tall\"",
+        "data-blocks-bento-three-column-tall-variant=\"start-tall\"",
     ] {
         assert!(
             html.contains(hook),
@@ -2840,7 +2846,9 @@ fn bento_three_column_tall_page_wires_demo_class_and_css_hooks() {
         .to_string();
     for selector in [
         "[data-blocks-bento-three-column-tall-cell",
+        "[data-blocks-bento-three-column-tall-media",
         ".blocks-bento-three-column-tall-grid",
+        ".blocks-bento-three-column-tall-header",
         "@media (min-width: 64rem)",
     ] {
         assert!(
@@ -2850,10 +2858,10 @@ fn bento_three_column_tall_page_wires_demo_class_and_css_hooks() {
     }
 }
 
-/// bento-three-column-tall の合成部品（badge/heading/text/card/image）が
-/// 期待どおりの構成（カード 4 枚）で実際に出力されていること、`<form>`・
-/// `data:` URI・`href="#"` を持ち込んでいないことを固定する（イシュー
-/// #2748）。
+/// bento-three-column-tall の合成部品（badge/heading/text/button/card/
+/// image/code）が期待どおりの構成（カード 9 枚・CTA ボタン 1 個）で実際に
+/// 出力されていること、`<form>`・`data:` URI・`href="#"` を持ち込んで
+/// いないことを固定する（イシュー #2748/#2749）。
 #[test]
 fn bento_three_column_tall_composes_expected_parts() {
     let out = build_real_site();
@@ -2863,8 +2871,10 @@ fn bento_three_column_tall_composes_expected_parts() {
         "data-scope=\"badge\"",
         "data-scope=\"heading\"",
         "data-scope=\"text\"",
+        "data-scope=\"button\"",
         "data-scope=\"card\" data-part=\"root\"",
         "data-scope=\"image\"",
+        "data-scope=\"code\"",
     ] {
         assert!(
             html.contains(scope),
@@ -2874,8 +2884,12 @@ fn bento_three_column_tall_composes_expected_parts() {
     assert_eq!(
         html.matches("data-scope=\"card\" data-part=\"root\"")
             .count(),
-        4,
-        "bento-three-column-tall should render exactly 4 cards"
+        9,
+        "bento-three-column-tall should render exactly 9 cards (4 + 5)"
+    );
+    assert!(
+        html.contains("type=\"button\""),
+        "bento-three-column-tall should render a CTA button"
     );
     for absent in ["<form", "src=\"data:", "href=\"#\""] {
         assert!(
