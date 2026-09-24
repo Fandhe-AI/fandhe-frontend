@@ -2498,6 +2498,56 @@ fn blog_grid_image_page_wires_demo_class_and_css_hooks() {
     }
 }
 
+/// banner-announcement-pill ページが `blocks-demo blocks-banner-
+/// announcement-pill` class・両 stylesheet の `<link>`・ピル/矢印/アバター/
+/// 明暗面の CSS フックを実際に出力し、`blocks::stylesheet()` にも対応する
+/// セレクタが存在すること（イシュー #2739）。
+#[test]
+fn banner_announcement_pill_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/banner-announcement-pill/index.html"))
+        .expect("blocks/banner-announcement-pill/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-banner-announcement-pill\""),
+        "banner-announcement-pill page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "banner-announcement-pill page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "banner-announcement-pill page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-banner-announcement-pill-pill=\"\"",
+        "data-blocks-banner-announcement-pill-tone=\"dark\"",
+        "data-blocks-banner-announcement-pill-surface=\"dark\"",
+        "data-blocks-banner-announcement-pill-arrow=\"\"",
+        "data-blocks-banner-announcement-pill-avatar=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "banner-announcement-pill page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector_or_decl in [
+        "[data-blocks-banner-announcement-pill-pill]",
+        "[data-blocks-banner-announcement-pill-surface=\"dark\"]",
+        "[data-blocks-banner-announcement-pill-tone=\"dark\"]",
+        "var(--fandhe-radius-full)",
+    ] {
+        assert!(
+            sheet_css.contains(selector_or_decl),
+            "blocks.css should contain {selector_or_decl} for banner-announcement-pill"
+        );
+    }
+}
+
 /// `banner-floating-card` の実ビルド出力が Demo class・CSS 配線
 /// （`pre-styled-ui.css`/`blocks.css`）・CSS フック属性・生成 CSS 中の
 /// 対応セレクタを持つことを固定する（`login_04_page_wires_demo_class_and_css_hooks`
@@ -2715,6 +2765,76 @@ fn blog_grid_image_composes_expected_parts() {
     }
 }
 
+/// banner-announcement-pill の合成部品（`link`/`icon`/`avatar`）が期待
+/// どおり出力され、基準形/アバター付きの 4 ピル（明暗 2 種 x 2
+/// バリエーション）が独自ダミー文言で構成され、`<form>`/`href="#"`/
+/// `data:` を持ち込んでいないこと、アバター群が `aria-hidden` であること
+/// を固定する（イシュー #2739）。
+#[test]
+fn banner_announcement_pill_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/banner-announcement-pill/index.html"))
+        .expect("blocks/banner-announcement-pill/index.html should be generated");
+
+    let link_root_count = html
+        .matches(r#"data-scope="link" data-part="root""#)
+        .count();
+    assert_eq!(
+        link_root_count, 4,
+        "expected 4 link roots (2 tones x 2 variations), got {link_root_count}"
+    );
+    let avatar_group_count = html
+        .matches(r#"data-scope="avatar" data-part="group""#)
+        .count();
+    assert_eq!(
+        avatar_group_count, 2,
+        "expected 2 avatar groups (light/dark x with-avatars only), got {avatar_group_count}"
+    );
+    assert!(
+        html.contains(r#"data-scope="icon""#),
+        "banner-announcement-pill should render an icon part for the arrow"
+    );
+    assert!(
+        html.contains(r#"href="https://github.com/Fandhe-AI/fandhe-frontend""#),
+        "banner-announcement-pill should link to the project repository"
+    );
+    for needle in [
+        "New",
+        "Blocks gallery just got a big update",
+        "Trusted by thousands of builders",
+        "Light",
+        "Dark",
+    ] {
+        assert!(
+            html.contains(needle),
+            "banner-announcement-pill page should contain {needle}"
+        );
+    }
+    // "<script" はページ全体に site.js 読み込みタグが常に存在するため
+    // ここでは検査しない（`game_ui_modal_page_wires_demo_class_and_css_hooks`
+    // と同じ判断。demo() 出力自体の検査は
+    // `demo_output_never_leaks_an_unescaped_script_tag` が全 block 横断で
+    // 既に担う）。
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "banner-announcement-pill should never contain {absent}"
+        );
+    }
+
+    // アバター群は装飾的な社会的証明であり、リンクのアクセシブルネームが
+    // 架空イニシャルに汚染されないよう `aria-hidden` を持つこと
+    // （モジュール doc「アバター群を `aria-hidden` にする a11y 判断」。
+    // `avatar::group` は `attrs` を素通しするため、渡した順のとおり
+    // `class` の次に `aria-hidden` が出力される）。
+    assert!(
+        html.contains(
+            r#"data-scope="avatar" data-part="group" class="blocks-banner-announcement-pill-avatars" aria-hidden="true""#
+        ),
+        "banner-announcement-pill avatar group should be aria-hidden"
+    );
+}
+
 /// `banner-floating-card` の合成部品（callout/link/icon/button）が
 /// 実ビルド HTML へ現れ、`<form>`・`href="#"`・`src="data:` を持ち込まない
 /// ことを固定する（`game_ui_modal_composes_expected_parts` と同型、
@@ -2786,7 +2906,6 @@ fn blog_featured_article_composes_expected_parts() {
         );
     }
 }
-
 /// `blog-featured-with-list` が使用部品どおりに合成され、非対話制約
 /// （`<form>`/死リンク/`data:` URI 不在）を満たすことの回帰。
 #[test]
@@ -3020,6 +3139,99 @@ fn blog_list_image_composes_expected_parts() {
     }
 }
 
+/// blog-overlay-cards ページの Demo クラス・両スタイルシート・
+/// `data-blocks-blog-overlay-cards-*` CSS フックが実際に出力され、
+/// `blocks::stylesheet()` にも対応するセレクタ・`@media` クエリ・
+/// 詳細度引き上げセレクタが存在することを固定する（イシュー #2813）。
+#[test]
+fn blog_overlay_cards_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-overlay-cards/index.html"))
+        .expect("blocks/blog-overlay-cards/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-blog-overlay-cards\""),
+        "blog-overlay-cards page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "blog-overlay-cards page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "blog-overlay-cards page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-blog-overlay-cards-card=\"\"",
+        "data-blocks-blog-overlay-cards-link=\"\"",
+        "data-blocks-blog-overlay-cards-bg=\"\"",
+        "data-blocks-blog-overlay-cards-title=\"\"",
+        "data-blocks-blog-overlay-cards-avatar=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "blog-overlay-cards page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        ".blocks-blog-overlay-cards-grid",
+        "grid-auto-rows: 1fr",
+        "@media (min-width: 64rem)",
+        "[data-scope=\"card\"][data-part=\"root\"][data-blocks-blog-overlay-cards-card]",
+        "[data-scope=\"image\"][data-part=\"root\"][data-blocks-blog-overlay-cards-bg]",
+        ".blocks-blog-overlay-cards-scrim",
+        "var(--fandhe-color-fg)",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare/reference {needle} for blog-overlay-cards"
+        );
+    }
+}
+
+/// blog-overlay-cards の合成部品（heading/text/card/image/avatar/
+/// link-overlay）が期待どおりの構成で実際に出力されていること（記事カード
+/// 3 件が出力される）、`<form>`・`href="#"`・`src="data:` を持ち込んで
+/// いないことを固定する（イシュー #2813）。
+#[test]
+fn blog_overlay_cards_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-overlay-cards/index.html"))
+        .expect("blocks/blog-overlay-cards/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"card\"",
+        "data-scope=\"image\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"link-overlay\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "blog-overlay-cards page should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-blog-overlay-cards-card=\"\"")
+            .count(),
+        3,
+        "blog-overlay-cards should render exactly 3 overlay cards"
+    );
+    assert!(
+        html.contains(r#"data-scope="link-overlay" data-part="overlay""#),
+        "blog-overlay-cards should render the link-overlay overlay part"
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "blog-overlay-cards should never contain {absent}"
+        );
+    }
+}
+
 #[test]
 fn blog_split_header_grid_page_wires_demo_class_and_css_hooks() {
     let out = build_real_site();
@@ -3231,6 +3443,55 @@ fn bento_three_column_tall_composes_expected_parts() {
     }
 }
 
+/// careers-split-photo-list ページが `blocks-demo`/固有 demo_class・
+/// 専用スタイルシート 2 種・Demo 固有 CSS フックを配線していること
+/// （イシュー #2817）。
+#[test]
+fn careers_split_photo_list_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/careers-split-photo-list/index.html"))
+        .expect("blocks/careers-split-photo-list/index.html should be generated");
+    assert!(
+        html.contains(r#"class="blocks-demo blocks-careers-split-photo-list""#),
+        "careers-split-photo-list page should wire the shared and block-specific demo class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "careers-split-photo-list page should link the pre-styled-ui stylesheet"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "careers-split-photo-list page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-careers-split-photo-list-job=\"\"",
+        "data-blocks-careers-split-photo-list-photo=\"\"",
+        "data-blocks-careers-split-photo-list-separator=\"\"",
+        "data-blocks-careers-split-photo-list-salary=\"\"",
+        "data-blocks-careers-split-photo-list-location=\"\"",
+        "data-blocks-careers-split-photo-list-all-link=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "careers-split-photo-list page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        ".blocks-careers-split-photo-list-layout",
+        "[data-blocks-careers-split-photo-list-job]",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
 #[test]
 fn changelog_accordion_page_wires_demo_class_and_css_hooks() {
     let out = build_real_site();
@@ -3369,6 +3630,70 @@ fn bento_two_column_page_wires_demo_class_and_css_hooks() {
         assert!(
             sheet_css.contains(selector),
             "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// careers-split-photo-list の合成部品（heading/text/image/separator/link/
+/// link-overlay/visually-hidden）が期待どおりの構成（求人 3 件・区切り線
+/// 2 本）で実際に出力されていること、`<form>`・`data:` URI・`href="#"` を
+/// 持ち込んでいないことを固定する（イシュー #2817）。
+#[test]
+fn careers_split_photo_list_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/careers-split-photo-list/index.html"))
+        .expect("blocks/careers-split-photo-list/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"image\"",
+        "data-scope=\"separator\"",
+        "data-scope=\"link\"",
+        "data-scope=\"link-overlay\"",
+        "data-scope=\"visually-hidden\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "careers-split-photo-list page should contain {scope}"
+        );
+    }
+    // 「## Rust コード」節の手書きソース表示にも同じ
+    // `data-blocks-careers-split-photo-list-*` 属性名がリテラル文字列として
+    // 現れるため（`Block::demo` の実装そのものを表示する節、
+    // `crate::blocks` モジュール doc「マーカー規約」参照）、件数の厳密な
+    // 検証は「Demo」節（`>Rust コード</h2>` より前）に限定する
+    // （`login_01_page_orders_h1_then_demo_then_used_parts_then_rust_code`
+    // と同じ境界検出手法）。
+    let rust_code_pos = html
+        .find(">Rust コード</h2>")
+        .expect("page should have a Rust コード heading");
+    let demo_html = &html[..rust_code_pos];
+    assert_eq!(
+        demo_html
+            .matches("data-blocks-careers-split-photo-list-job")
+            .count(),
+        3,
+        "careers-split-photo-list should render exactly 3 job rows"
+    );
+    assert_eq!(
+        demo_html
+            .matches("data-blocks-careers-split-photo-list-separator")
+            .count(),
+        2,
+        "careers-split-photo-list should render exactly 2 separators"
+    );
+    assert!(
+        demo_html.contains(r#"aria-label="バックエンドエンジニア""#),
+        "careers-split-photo-list should label the overlay with the visible job title"
+    );
+    assert!(
+        demo_html.contains("一緒にプロダクトを育てる仲間を募集しています"),
+        "careers-split-photo-list should render the section heading text"
+    );
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "careers-split-photo-list should never contain {absent}"
         );
     }
 }
