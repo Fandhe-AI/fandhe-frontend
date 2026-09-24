@@ -90,6 +90,23 @@
 //! 記事タイトルは `H3`、本文小見出しは `H4` とする（ページ側の `h1` と
 //! `## Demo` の `h2` に続く階層として、本文中に `h1`/`h2` を持ち込まない
 //! 既存 block と同じ判断）。
+//!
+//! # カバー画像の角丸セレクタに詳細度が必要な理由
+//!
+//! [`cover`] が出力する `<img>` は `image::image` 経由で
+//! `data-scope="image" data-part="root"` も同時に持つ。`image` 部品の
+//! `ImageShape` recipe は既定 `Square` で
+//! `[data-scope="image"][data-part="root"].fd-image--shape-square`
+//! （詳細度 `(0,3,0)`）に `border-radius: var(--fandhe-radius-none)` を
+//! 割り当てるため、単純な `[data-blocks-content-article-toc-cover]`
+//! （詳細度 `(0,1,0)`）で角丸を上書きしようとしても常に負ける
+//! （Bugbot 指摘、イシュー #2752 PR #3175）。[`LAYOUT_CSS`] は角丸だけを
+//! `.blocks-content-article-toc-header
+//! [data-scope="image"][data-part="root"][data-blocks-content-article-toc-cover]`
+//! （詳細度 `(0,4,0)`）へ分離し、recipe 側の詳細度を確実に上回ることで
+//! ソース順（`pre-styled-ui.css`/`blocks.css` の読み込み順）に依存せず
+//! 角丸を反映する。`width: 100%` は recipe と競合しないため従来どおり
+//! `[data-blocks-content-article-toc-cover]` 単体に残す。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -458,7 +475,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-content-article-toc-byline {\n  display: flex;\n  align-items: center;\n  gap: 0.75rem;\n}\n\
 .blocks-content-article-toc-byline p {\n  margin: 0;\n}\n\
 .blocks-content-article-toc-header-text {\n  display: flex;\n  flex-direction: column;\n  gap: 0.75rem;\n}\n\
-[data-blocks-content-article-toc-cover] {\n  width: 100%;\n  border-radius: var(--fandhe-radius-md, 0.5rem);\n}\n\
+[data-blocks-content-article-toc-cover] {\n  width: 100%;\n}\n\
+.blocks-content-article-toc-header [data-scope=\"image\"][data-part=\"root\"][data-blocks-content-article-toc-cover] {\n  border-radius: var(--fandhe-radius-md, 0.5rem);\n}\n\
 .blocks-content-article-toc-layout {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-8, 2rem);\n}\n\
 .blocks-content-article-toc-body {\n  display: flex;\n  flex-direction: column;\n  gap: 1rem;\n  min-width: 0;\n}\n\
 .blocks-content-article-toc-body p {\n  margin: 0;\n}\n\
