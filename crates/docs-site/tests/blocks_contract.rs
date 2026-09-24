@@ -2889,3 +2889,87 @@ fn blog_split_header_grid_composes_expected_parts() {
         "blog-split-header-grid's view-all control should be a non-submitting button"
     );
 }
+
+/// bento-three-column-tall ページが `blocks-demo` + block 固有 class・両
+/// スタイルシート・各セルの配置フック（`data-blocks-bento-three-column-
+/// tall-cell`）を実際に出力し、`blocks::stylesheet()` にも対応するグリッド
+/// 配置規則・ブレークポイント条件が存在することを固定する（イシュー
+/// #2748）。
+#[test]
+fn bento_three_column_tall_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/bento-three-column-tall/index.html"))
+        .expect("blocks/bento-three-column-tall/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-bento-three-column-tall\""),
+        "bento-three-column-tall page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "bento-three-column-tall page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "bento-three-column-tall page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-bento-three-column-tall-cell=\"start\"",
+        "data-blocks-bento-three-column-tall-cell=\"center-top\"",
+        "data-blocks-bento-three-column-tall-cell=\"center-bottom\"",
+        "data-blocks-bento-three-column-tall-cell=\"end\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "bento-three-column-tall page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-bento-three-column-tall-cell",
+        ".blocks-bento-three-column-tall-grid",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// bento-three-column-tall の合成部品（badge/heading/text/card/image）が
+/// 期待どおりの構成（カード 4 枚）で実際に出力されていること、`<form>`・
+/// `data:` URI・`href="#"` を持ち込んでいないことを固定する（イシュー
+/// #2748）。
+#[test]
+fn bento_three_column_tall_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/bento-three-column-tall/index.html"))
+        .expect("blocks/bento-three-column-tall/index.html should be generated");
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"card\" data-part=\"root\"",
+        "data-scope=\"image\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "bento-three-column-tall page should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-scope=\"card\" data-part=\"root\"")
+            .count(),
+        4,
+        "bento-three-column-tall should render exactly 4 cards"
+    );
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "bento-three-column-tall should never contain {absent}"
+        );
+    }
+}

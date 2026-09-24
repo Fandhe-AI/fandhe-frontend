@@ -1336,6 +1336,11 @@ title = "bento-staggered"
 source = "site/blocks/bento-staggered.md"
 path = "/blocks/bento-staggered/"
 
+[[section.group.page]]
+title = "bento-three-column-tall"
+source = "site/blocks/bento-three-column-tall.md"
+path = "/blocks/bento-three-column-tall/"
+
 [[section.group]]
 title = "Sidebar"
 
