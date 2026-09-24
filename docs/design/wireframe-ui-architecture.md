@@ -255,12 +255,16 @@ Phase 1 以降の部品イシューは、自分のモジュールに `pub const 
 `size::SCALE` 等の単一の正（別モジュールが既に持つ値表）から導出される場合に限る。単に `const` 化が面倒と
 いう理由での逸脱は許容しない。
 
-**golden テストの追記契約（イシュー #2666）**: `css::PARTS` へ `<PART>_CSS` を追記する部品 PR は、対応する
-`crates/wireframe-ui/tests/<snake>_css.rs`（バイト一致 golden）を同じ PR に同梱し、その部品が
-`crates/wireframe-ui/tests/golden_coverage.rs` の `PENDING` 定数に載っている場合はそこから削除すること。
-golden の機械生成手順・部品対応表は `docs/internal/wireframe-ui-golden-test-update-guide.md` を正とする。
-`golden_coverage.rs` は `PARTS` 定数と golden ファイルの対応、および `PENDING` に残る部品が実際にはまだ
-CSS を出力していないことを fail-closed に検証するため、この手順を怠るとテストが FAIL する。
+**golden テストの追記契約（イシュー #2666、2026-09-24 に値ベース全単射検証へ全面刷新）**: `css::PARTS` へ
+`<PART>_CSS` を追記する部品 PR は、対応する golden 期待値サブモジュール（`crates/wireframe-ui/tests/golden/<snake>.rs`、
+`pub const EXPECTED_CSS: &str` のみを持つ）を新規追加し、`crates/wireframe-ui/tests/golden_css.rs` の
+`goldens()` レジストリへ当該部品の `GoldenEntry`（実装定数への参照・golden 参照・`in_parts: true`）を
+追記することを同じ PR に同梱すること。手順の詳細（サブモジュールの追加手順・`goldens()` への登録手順・
+機械ダンプ手順・部品対応表）は `docs/internal/wireframe-ui-golden-test-update-guide.md` を正とし、本節
+では手順を重複して書かない。`crates/wireframe-ui/tests/golden_css.rs` はソーステキストを走査せず、
+`PARTS` の値の多重集合と `in_parts` な golden エントリの `actual` 値の多重集合が一致することを実行時に
+検証するため、この手順を怠るとテストが FAIL する（旧方式が使っていた `tests/<snake>_css.rs`・
+`golden_coverage.rs`・`PENDING` 定数はいずれも廃止済みであり、本節・更新手順書のいずれからも参照しない）。
 
 ### 10.5 `Size` と pre-styled-ui の段階名パリティ
 
