@@ -1,6 +1,6 @@
 //! `banner-full-width-bar` block（イシュー #2743。親トラッキング #2738
 //! 「Phase 1: Blocks マーケティング A」配下、Marketing / Banner カテゴリ
-//! 3 番目の block。集約元は対応表 ID R0007/R0009/R0010/R0011/R0013/R0014/
+//! 4 番目の block。集約元は対応表 ID R0007/R0009/R0010/R0011/R0013/R0014/
 //! R0404/R0405/R0754〜R0760 の 15 件）。
 //!
 //! # 使用部品
@@ -68,6 +68,22 @@
 //! 告知文を折り返し可にし、`data-blocks-banner-full-width-bar-aux` を持つ
 //! 補助要素（ピル型リンク・右リンク群・2 個目のボタン）を隠す（閉じる
 //! ボタンは残す）。
+//!
+//! この非表示規則も冒頭「配色 tone と詳細度 (0,4,0) の理由」節・閉じる
+//! ボタン節と同じ罠を踏んでいた（イシュー #2743 PR #3160 の Bugbot/
+//! cursor[bot] 指摘）: `[data-blocks-banner-full-width-bar-aux]`
+//! （1 属性、詳細度 (0,1,0)）だけでは、`badge::link`（ピル型リンク）・
+//! `button::button`（2 個目のボタン）の recipe base（`[data-scope="badge"]
+//! [data-part="root"]`/`[data-scope="button"][data-part="root"]`、いずれも
+//! 2 属性、詳細度 (0,2,0)）の `display: inline-flex` に負け、`< 48rem` でも
+//! 非表示にならず残っていた（右リンク群の素の `div` ラッパーには
+//! `data-scope`/`data-part` が付かないため元の規則のままで問題なく隠れて
+//! いた）。同一要素へ `[data-scope]`/`[data-part]` の存在チェック属性を
+//! 追加した `[data-blocks-banner-full-width-bar-aux][data-scope]
+//! [data-part]`（3 属性、詳細度 (0,3,0)）を併記することで、badge/button の
+//! recipe base を確実に上回りつつ、`data-scope`/`data-part` を持たない
+//! 素の `div` ラッパーには影響しない（元の 1 属性規則がそちらを担当する
+//! ため二重管理にならない）。
 //!
 //! # 下端固定の形を通常配置で見せる理由
 //!
@@ -473,7 +489,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-banner-full-width-bar-links {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n  flex-wrap: wrap;\n}\n\
 .blocks-banner-full-width-bar-actions {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  flex-wrap: wrap;\n}\n\
 [data-blocks-banner-full-width-bar-caption] {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-@media (max-width: 47.99rem) {\n  .blocks-banner-full-width-bar-content {\n    flex-wrap: wrap;\n  }\n  .blocks-banner-full-width-bar-content p {\n    min-width: 0;\n  }\n  [data-blocks-banner-full-width-bar-aux] {\n    display: none;\n  }\n}\n";
+@media (max-width: 47.99rem) {\n  .blocks-banner-full-width-bar-content {\n    flex-wrap: wrap;\n  }\n  .blocks-banner-full-width-bar-content p {\n    min-width: 0;\n  }\n  [data-blocks-banner-full-width-bar-aux] {\n    display: none;\n  }\n  [data-blocks-banner-full-width-bar-aux][data-scope][data-part] {\n    display: none;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -581,6 +597,18 @@ mod tests {
                 "LAYOUT_CSS に {selector} が無い"
             );
         }
+    }
+
+    /// 詳細度ガード: `< 48rem` の補助要素非表示規則が `badge::link`/
+    /// `button::button` の recipe base（`[data-scope="*"][data-part="root"]`、
+    /// 詳細度 (0,2,0)）に負けない (0,3,0) 以上のセレクタを併記している
+    /// （イシュー #2743 PR #3160 の Bugbot/cursor[bot] 指摘の回帰防止、
+    /// モジュール doc「レイアウトとレスポンシブ」節参照）。
+    #[test]
+    fn layout_css_aux_hide_selector_outweighs_badge_and_button_recipe_base() {
+        assert!(
+            LAYOUT_CSS.contains("[data-blocks-banner-full-width-bar-aux][data-scope][data-part]")
+        );
     }
 
     /// `demo()` は決定的（2 回の `render` が一致する）。
