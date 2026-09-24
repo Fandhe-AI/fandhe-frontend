@@ -2898,6 +2898,99 @@ fn blog_list_image_composes_expected_parts() {
     }
 }
 
+/// blog-overlay-cards ページの Demo クラス・両スタイルシート・
+/// `data-blocks-blog-overlay-cards-*` CSS フックが実際に出力され、
+/// `blocks::stylesheet()` にも対応するセレクタ・`@media` クエリ・
+/// 詳細度引き上げセレクタが存在することを固定する（イシュー #2813）。
+#[test]
+fn blog_overlay_cards_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-overlay-cards/index.html"))
+        .expect("blocks/blog-overlay-cards/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-blog-overlay-cards\""),
+        "blog-overlay-cards page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "blog-overlay-cards page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "blog-overlay-cards page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-blog-overlay-cards-card=\"\"",
+        "data-blocks-blog-overlay-cards-link=\"\"",
+        "data-blocks-blog-overlay-cards-bg=\"\"",
+        "data-blocks-blog-overlay-cards-title=\"\"",
+        "data-blocks-blog-overlay-cards-avatar=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "blog-overlay-cards page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        ".blocks-blog-overlay-cards-grid",
+        "grid-auto-rows: 1fr",
+        "@media (min-width: 64rem)",
+        "[data-scope=\"card\"][data-part=\"root\"][data-blocks-blog-overlay-cards-card]",
+        "[data-scope=\"image\"][data-part=\"root\"][data-blocks-blog-overlay-cards-bg]",
+        ".blocks-blog-overlay-cards-scrim",
+        "var(--fandhe-color-fg)",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare/reference {needle} for blog-overlay-cards"
+        );
+    }
+}
+
+/// blog-overlay-cards の合成部品（heading/text/card/image/avatar/
+/// link-overlay）が期待どおりの構成で実際に出力されていること（記事カード
+/// 3 件が出力される）、`<form>`・`href="#"`・`src="data:` を持ち込んで
+/// いないことを固定する（イシュー #2813）。
+#[test]
+fn blog_overlay_cards_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-overlay-cards/index.html"))
+        .expect("blocks/blog-overlay-cards/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"card\"",
+        "data-scope=\"image\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"link-overlay\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "blog-overlay-cards page should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-blog-overlay-cards-card=\"\"")
+            .count(),
+        3,
+        "blog-overlay-cards should render exactly 3 overlay cards"
+    );
+    assert!(
+        html.contains(r#"data-scope="link-overlay" data-part="overlay""#),
+        "blog-overlay-cards should render the link-overlay overlay part"
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "blog-overlay-cards should never contain {absent}"
+        );
+    }
+}
+
 #[test]
 fn blog_split_header_grid_page_wires_demo_class_and_css_hooks() {
     let out = build_real_site();
