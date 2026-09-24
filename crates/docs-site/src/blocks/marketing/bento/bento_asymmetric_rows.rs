@@ -30,6 +30,16 @@
 //! `card::cover`/`card::body` と素の `div` には `class` がそのまま効くため、
 //! それらは `class` で渡す。
 //!
+//! # セル本文の見出し・説明文の間隔
+//!
+//! `card::body` は `card::header` と異なり `gap` を持たない base スタイル
+//! （`fandhe_frontend_pre_styled_ui::card` 参照）のため、`heading::heading`
+//! と `card::description` をそのまま入れると余白なしで密着表示になる。
+//! `card::title` を使わず素の `heading::heading` を消費する本 block では
+//! `card::header` へ差し替える判断は採らず、`card::body` に
+//! `blocks-bento-asymmetric-rows-body` class を付与して `gap` を持たせる
+//! （[`LAYOUT_CSS`] 参照。Bugbot 指摘 #3162 で是正）。
+//!
 //! # 見出しレベル（H3/H4）の理由
 //!
 //! Demo は本文の `h2`「Demo」配下に挿入されるため、block 側の最上位見出しは
@@ -174,7 +184,7 @@ fn cell(item: &Cell) -> Node {
                 )],
             ),
             card::body(
-                vec![],
+                vec![("class", "blocks-bento-asymmetric-rows-body")],
                 vec![
                     heading::heading(
                         HeadingLevel::H4,
@@ -246,6 +256,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-bento-asymmetric-rows-header {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-2);\n  margin-bottom: var(--fandhe-space-6);\n}\n\
 .blocks-bento-asymmetric-rows-grid {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-bento-asymmetric-rows-cover img {\n  width: 100%;\n}\n\
+.blocks-bento-asymmetric-rows-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1-5);\n}\n\
 @media (min-width: 48rem) {\n  .blocks-bento-asymmetric-rows-grid {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n  [data-blocks-bento-asymmetric-rows-cell] {\n    grid-column: span 1;\n  }\n}\n\
 @media (min-width: 64rem) {\n  .blocks-bento-asymmetric-rows-grid {\n    grid-template-columns: repeat(6, minmax(0, 1fr));\n  }\n  [data-blocks-bento-asymmetric-rows-cell=\"wide\"] {\n    grid-column: span 4;\n  }\n  [data-blocks-bento-asymmetric-rows-cell=\"narrow\"] {\n    grid-column: span 2;\n  }\n}\n";
 

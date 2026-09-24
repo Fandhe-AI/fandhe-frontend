@@ -135,7 +135,7 @@ fn cell(item: &Cell) -> Node {
                 )],
             ),
             card::body(
-                vec![],
+                vec![("class", "blocks-bento-asymmetric-rows-body")],
                 vec![
                     heading::heading(
                         HeadingLevel::H4,
