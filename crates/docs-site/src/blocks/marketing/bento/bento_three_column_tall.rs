@@ -507,7 +507,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-bento-three-column-tall-lines {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-bento-three-column-tall-line {\n  display: flex;\n  align-items: baseline;\n}\n\
 .blocks-bento-three-column-tall-prompt {\n  opacity: 0.6;\n  margin-right: 0.25rem;\n}\n\
-@media (min-width: 64rem) {\n  .blocks-bento-three-column-tall-header {\n    flex-direction: row;\n    justify-content: space-between;\n    align-items: flex-end;\n  }\n  .blocks-bento-three-column-tall-grid {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n    grid-template-rows: repeat(2, auto);\n  }\n  [data-blocks-bento-three-column-tall-cell=\"start\"] {\n    grid-column: 1;\n    grid-row: 1 / span 2;\n  }\n  [data-blocks-bento-three-column-tall-cell=\"center-top\"] {\n    grid-column: 2;\n    grid-row: 1;\n  }\n  [data-blocks-bento-three-column-tall-cell=\"center-bottom\"] {\n    grid-column: 2;\n    grid-row: 2;\n  }\n  [data-blocks-bento-three-column-tall-cell=\"end\"] {\n    grid-column: 3;\n    grid-row: 1 / span 2;\n  }\n  [data-blocks-bento-three-column-tall-cell=\"end-top\"] {\n    grid-column: 3;\n    grid-row: 1;\n  }\n  [data-blocks-bento-three-column-tall-cell=\"end-bottom\"] {\n    grid-column: 3;\n    grid-row: 2;\n  }\n  [data-blocks-bento-three-column-tall-cell=\"start\"] [data-blocks-bento-three-column-tall-cover],\n  [data-blocks-bento-three-column-tall-cell=\"end\"] [data-blocks-bento-three-column-tall-cover] {\n    flex: 1;\n  }\n}\n";
+@media (min-width: 64rem) {\n  .blocks-bento-three-column-tall-header {\n    flex-direction: row;\n    justify-content: space-between;\n    align-items: flex-end;\n  }\n  [data-blocks-bento-three-column-tall-cta] {\n    flex-shrink: 0;\n  }\n  .blocks-bento-three-column-tall-grid {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n    grid-template-rows: repeat(2, auto);\n  }\n  [data-blocks-bento-three-column-tall-cell=\"start\"] {\n    grid-column: 1;\n    grid-row: 1 / span 2;\n  }\n  [data-blocks-bento-three-column-tall-cell=\"center-top\"] {\n    grid-column: 2;\n    grid-row: 1;\n  }\n  [data-blocks-bento-three-column-tall-cell=\"center-bottom\"] {\n    grid-column: 2;\n    grid-row: 2;\n  }\n  [data-blocks-bento-three-column-tall-cell=\"end\"] {\n    grid-column: 3;\n    grid-row: 1 / span 2;\n  }\n  [data-blocks-bento-three-column-tall-cell=\"end-top\"] {\n    grid-column: 3;\n    grid-row: 1;\n  }\n  [data-blocks-bento-three-column-tall-cell=\"end-bottom\"] {\n    grid-column: 3;\n    grid-row: 2;\n  }\n  [data-blocks-bento-three-column-tall-cell=\"start\"] [data-blocks-bento-three-column-tall-cover],\n  [data-blocks-bento-three-column-tall-cell=\"end\"] [data-blocks-bento-three-column-tall-cover] {\n    flex: 1;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -595,6 +595,10 @@ mod tests {
         assert!(LAYOUT_CSS.contains("[data-blocks-bento-three-column-tall-cell"));
         assert!(LAYOUT_CSS.contains("[data-blocks-bento-three-column-tall-cell=\"end-top\"]"));
         assert!(LAYOUT_CSS.contains("[data-blocks-bento-three-column-tall-cell=\"end-bottom\"]"));
+        assert!(
+            LAYOUT_CSS.contains("[data-blocks-bento-three-column-tall-cta]"),
+            "CTA の data-* フックには対応するスタイルルールを持たせる"
+        );
         assert!(
             !LAYOUT_CSS.contains("@keyframes"),
             "bento-three-column-tall media should be a static display without animation"
