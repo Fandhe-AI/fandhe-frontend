@@ -166,13 +166,23 @@ fn meta_row() -> Node {
 }
 
 /// 著者行（アバター + 氏名・役職）。
+///
+/// 本 block は JS ハイドレーションを行わない docs サイト内で静的な
+/// 完成状態のみを描く（`ImageStatus` は状態遷移せず固定）。
+/// `avatar::image`/`avatar::fallback` の可視判定は
+/// `ImageStatus::is_image_visible` の真偽が逆（`image` は
+/// `Loaded` で可視、`fallback` は非 `Loaded` で可視）であるため、
+/// [`dummy_assets::AVATAR_SRC`] の画像を表示する意図であれば両方へ
+/// `ImageStatus::Loaded` を渡す必要がある（`Loading` を両方へ渡すと
+/// `image` が恒久的に非表示のまま `fallback` の頭文字だけが表示され
+/// 続ける）。
 fn byline() -> Node {
     let avatar_node = avatar::root(
         &AvatarProps::default(),
         vec![],
         vec![
-            avatar::image(ImageStatus::Loading, dummy_assets::AVATAR_SRC, "", vec![]),
-            avatar::fallback(ImageStatus::Loading, vec![], vec![text("HF")]),
+            avatar::image(ImageStatus::Loaded, dummy_assets::AVATAR_SRC, "", vec![]),
+            avatar::fallback(ImageStatus::Loaded, vec![], vec![text("HF")]),
         ],
     );
     div(
