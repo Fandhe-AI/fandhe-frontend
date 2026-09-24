@@ -16,16 +16,25 @@
 //! DOM 順そのまま見出しの下にアコーディオンが縦続する（CSS 側の並び替え
 //! は行わない）。
 //!
-//! # 先頭 1 件だけ開いた静的固定表示（無 JS）
+//! # 無 JS のため全件展開で固定表示
 //!
-//! docs サイトは JS ハイドレーションを行わない。開閉状態を切り替える手段が
-//! ないため、先頭項目（`job-1`）のみ [`OpenState::Open`] で固定し、残り
-//! 3 件は `OpenState::Closed`（`item_content` に `hidden`）のまま表示する
-//! （`pricing_tiers_morph`/`sidebar_07` 等、他 block の「無 JS では代表状態を
-//! 1 つ固定表示する」判断と同型。ここでは複数状態の併記ではなく単一の
-//! 代表状態のみで足りると判断した。理由は本 block が単一インスタンスの
-//! アコーディオンであり、「開いた状態の見た目」を 1 件示せば anatomy 全体
-//! （開/閉双方の視覚差分）を Demo 上で確認できるため）。
+//! docs サイトは JS ハイドレーションを行わない。当初は先頭項目（`job-1`）
+//! のみ [`OpenState::Open`] とし残り 3 件を `OpenState::Closed`（
+//! `item_content` に `hidden`）で表示していたが、開閉を切り替える手段が
+//! ない無 JS 環境ではこの `hidden` が恒久的な到達不能を意味し、閲覧者
+//! （キーボード利用者を含む）が 2〜4 件目の求人説明・勤務地・雇用形態・
+//! 応募ボタンへ一切到達できないという不具合だった（codex レビュー P1
+//! 指摘、イシュー #2816）。「見かけの開閉可能な操作契約」と「実際には
+//! 開閉できない静的表示」の不一致を解消するため、4 件すべてを
+//! [`OpenState::Open`] で固定表示する（トリガーの `<button>`/
+//! `aria-expanded` 自体は headless-ui の accordion anatomy をそのまま
+//! 使うため残るが、これは見た目上のアコーディオン UI を維持しつつ
+//! 中身を常時アクセス可能にするための選択であり、無 JS で押しても
+//! 状態は変化しない）。`pricing_tiers_morph`/`sidebar_07` 等の他 block が
+//! 採る「無 JS では代表状態を 1 つ固定表示する」判断は、複数状態を
+//! 併記しない分にはコンテンツ到達性を損なわない場面（見た目の差分確認が
+//! 目的の状態）でのみ有効であり、本 block のように閉状態が実データへの
+//! 到達を阻む場合には適用しない。
 //!
 //! # トリガーを `h4` で包む理由（目次への漏れ防止）
 //!
@@ -101,8 +110,8 @@ struct Job {
     employment: &'static str,
 }
 
-/// 4 件の求人定義。先頭（index 0）だけ Demo で開いた状態にする
-/// （モジュール doc「先頭 1 件だけ開いた静的固定表示」参照）。
+/// 4 件の求人定義。無 JS のため全件を開いた状態で Demo 表示する
+/// （モジュール doc「無 JS のため全件展開で固定表示」参照）。
 const JOBS: &[Job] = &[
     Job {
         dept: "エンジニアリング",
@@ -189,11 +198,11 @@ fn meta_item(item_icon: Node, label: &str) -> Node {
 
 /// 求人 1 件分の `item`（トリガー + 本文）を組み立てる。
 fn job_item(index: usize, job: &Job, accordion_props: &AccordionProps) -> Node {
-    let state = if index == 0 {
-        OpenState::Open
-    } else {
-        OpenState::Closed
-    };
+    // 無 JS のため開閉を切り替える手段がなく、`OpenState::Closed` にすると
+    // `item_content` に `hidden` が付与され本文（勤務地・雇用形態・応募
+    // ボタン）へ到達不能になる（P1 指摘、イシュー #2816）。全件を
+    // `OpenState::Open` に固定し、求人内容を常時閲覧・操作可能にする。
+    let state = OpenState::Open;
     let value = format!("job-{}", index + 1);
     let trigger_id = format!("blocks-careers-split-accordion-job-{}-trigger", index + 1);
     let content_id = format!("blocks-careers-split-accordion-job-{}-content", index + 1);
@@ -412,16 +421,20 @@ mod tests {
     }
 
     #[test]
-    fn demo_has_four_items_with_exactly_one_open() {
+    fn demo_has_four_items_all_open_for_no_js_content_reachability() {
         let html = render(&demo());
         assert_eq!(html.matches(r#"data-part="item""#).count(), 4);
-        // `data-state="open"` は開いた項目 1 件につき item/item-trigger/
-        // item-indicator/item-content の 4 パーツが揃って出力する
-        // （`fandhe_frontend_headless_ui::accordion` の各パーツ関数が
-        // それぞれ `data_state(state.as_data_state())` を付与する契約）ため、
-        // 「開いている項目が何件か」は `aria-expanded` の真偽件数で数える。
-        assert_eq!(html.matches(r#"aria-expanded="true""#).count(), 1);
-        assert_eq!(html.matches(r#"aria-expanded="false""#).count(), 3);
+        // 無 JS では開閉を切り替えられないため、4 件すべてを
+        // `OpenState::Open` で固定表示する（P1 是正、イシュー #2816
+        // モジュール doc「無 JS のため全件展開で固定表示」参照）。
+        // `hidden` 属性が 1 件も出力されないことを閉状態が残っていない
+        // ことの直接証拠として確認する。
+        assert_eq!(html.matches(r#"aria-expanded="true""#).count(), 4);
+        assert_eq!(html.matches(r#"aria-expanded="false""#).count(), 0);
+        // `hidden=""` は `item_content` が closed のときのみ付与される
+        // （`crates/headless-ui/src/accordion.rs::item_content` 参照）。
+        // `aria-hidden="true"`（indicator の装飾用属性）とは区別する。
+        assert!(!html.contains(r#"hidden="""#));
         assert!(html.contains("blocks-careers-split-accordion-job-1-trigger"));
     }
 

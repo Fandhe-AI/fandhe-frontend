@@ -3045,10 +3045,14 @@ fn careers_split_accordion_composes_expected_parts() {
         4,
         "careers-split-accordion should render exactly 4 apply buttons"
     );
+    // 無 JS のため開閉を切り替えられず、閉状態は `item_content` の
+    // `hidden` により本文（求人説明・勤務地・雇用形態・応募ボタン）を
+    // 恒久的に到達不能にする（P1 是正、イシュー #2816）。4 件すべてを
+    // 開いた状態で固定表示し、全求人へ到達可能であることを固定する。
     assert_eq!(
         html.matches("aria-expanded=\"true\"").count(),
-        1,
-        "careers-split-accordion should render exactly one open item"
+        4,
+        "careers-split-accordion should render all four items open (no-JS reachability)"
     );
     assert!(
         html.contains("一緒にチームを育てる仲間を募集しています"),

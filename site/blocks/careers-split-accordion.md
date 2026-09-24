@@ -8,10 +8,10 @@
 
 幅 md（48rem）以上では 2 カラム（左に見出し・説明、右に求人アコーディオン
 一覧）になり、それより狭い幅では見出しの下にアコーディオンが縦に続きます。
-アコーディオンの各項目トリガーには職種名と部署 badge を、開いた本文には
+アコーディオンの各項目トリガーには職種名と部署 badge を、本文には
 説明文・勤務地/雇用形態のメタ行（アイコン付き）・応募ボタンを配置します。
-docs サイトは JS ハイドレーションを行わないため、先頭 1 件（バックエンド
-エンジニア）だけを開いた状態で固定表示します。
+docs サイトは JS ハイドレーションを行わず開閉を切り替える手段がないため、
+4 件すべてを開いた状態で固定表示し、求人内容へ常時到達できるようにします。
 
 本 Demo は静的な表示例であり、`<form>` 要素を持たず、送信処理・応募処理を
 一切行いません。応募ボタンは `type="button"` のまま送信先を持たない静的な
@@ -45,8 +45,8 @@ struct Job {
     employment: &'static str,
 }
 
-/// 4 件の求人定義。先頭（index 0）だけ Demo で開いた状態にする
-/// （モジュール doc「先頭 1 件だけ開いた静的固定表示」参照）。
+/// 4 件の求人定義。無 JS のため全件を開いた状態で Demo 表示する
+/// （モジュール doc「無 JS のため全件展開で固定表示」参照）。
 const JOBS: &[Job] = &[
     Job {
         dept: "エンジニアリング",
@@ -133,11 +133,11 @@ fn meta_item(item_icon: Node, label: &str) -> Node {
 
 /// 求人 1 件分の `item`（トリガー + 本文）を組み立てる。
 fn job_item(index: usize, job: &Job, accordion_props: &AccordionProps) -> Node {
-    let state = if index == 0 {
-        OpenState::Open
-    } else {
-        OpenState::Closed
-    };
+    // 無 JS のため開閉を切り替える手段がなく、`OpenState::Closed` にすると
+    // `item_content` に `hidden` が付与され本文（勤務地・雇用形態・応募
+    // ボタン）へ到達不能になる（P1 指摘、イシュー #2816）。全件を
+    // `OpenState::Open` に固定し、求人内容を常時閲覧・操作可能にする。
+    let state = OpenState::Open;
     let value = format!("job-{}", index + 1);
     let trigger_id = format!("blocks-careers-split-accordion-job-{}-trigger", index + 1);
     let content_id = format!("blocks-careers-split-accordion-job-{}-content", index + 1);
@@ -301,8 +301,10 @@ pub fn demo() -> Node {
   4 種を自作の単純な線画（`icon` + `path`）として描きました。
 - 求人件数は 4 件に固定し、文言（職種名・部署・説明・勤務地・雇用形態）は
   すべて独自の架空のものへ書き直しました。
-- 開閉状態は無 JS のため単一の代表状態（先頭 1 件のみ開いた状態）だけを
-  示します。複数状態の併記（`pricing-tiers-morph` 等）は行っていません。
+- 開閉状態は無 JS のため切り替えられません。当初は先頭 1 件のみ開いた
+  状態で固定していましたが、閉状態の本文（求人説明・勤務地・雇用形態・
+  応募ボタン）へ閲覧者が到達できなくなるため、4 件すべてを開いた状態で
+  固定表示するよう変更しました。
 - 配色・余白・角丸は独自実装せず、既存のテーマトークンにそのまま従います。
 
 関連情報: [Heading](../themes/heading.md) / [Text](../themes/text.md) /
