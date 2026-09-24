@@ -1327,6 +1327,11 @@ path = "/blocks/footer-sticky-reveal/"
 title = "Banner"
 
 [[section.group.page]]
+title = "banner-announcement-pill"
+source = "site/blocks/banner-announcement-pill.md"
+path = "/blocks/banner-announcement-pill/"
+
+[[section.group.page]]
 title = "banner-cookie-consent"
 source = "site/blocks/banner-cookie-consent.md"
 path = "/blocks/banner-cookie-consent/"
@@ -1389,6 +1394,11 @@ title = "Changelog"
 title = "changelog-accordion"
 source = "site/blocks/changelog-accordion.md"
 path = "/blocks/changelog-accordion/"
+
+[[section.group.page]]
+title = "changelog-timeline"
+source = "site/blocks/changelog-timeline.md"
+path = "/blocks/changelog-timeline/"
 
 [[section.group]]
 title = "Sidebar"
