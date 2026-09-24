@@ -35,7 +35,7 @@
 //! 共通基盤 API 実装済み（イシュー #2605）: [`Size`]・[`Bold`]/[`Primary`]/
 //! [`Active`]/[`Disabled`]/[`Orientation`]（共通型）・モノクロトークン
 //! （[`tokens`]）・[`wireframe_css`]（CSS 集約出力）・[`class_list`]。
-//! SVG アイコン基盤（[`icon`]、イシュー #2606）実装済み: 12 種以上の
+//! SVG アイコン基盤（[`icon`](mod@icon)、イシュー #2606）実装済み: 12 種以上の
 //! ラインアートアイコンと `Node` スロット規約（`docs/design/wireframe-ui-architecture.md`
 //! §11）。個別部品は Phase 2「テキスト・注釈」の [`annotation`]
 //! （イシュー #2617）から実装を開始し、Phase 1「レイアウト骨格」の
@@ -132,26 +132,50 @@
 //! 再利用する）・5 番目の部品 [`card_basic`]（イシュー #2658、先頭・末尾
 //! スロットは §11.4 の `Option<Node>` 規約へ統一し `avatar` を内蔵しない
 //! 独自設計。`secondary` は [`nav_item`] の `counter` と同じ
-//! `Option<&str>` で表す）が続いた。
+//! `Option<&str>` で表す）・6 番目の部品 [`list`]（イシュー #2657、
+//! 箇条書き/番号付きリストの配置イメージ。`items: Vec<Node>` を項目
+//! ラッパー class で包み、`ordered: bool` は部品固有の修飾 class、
+//! マーカー・番号は CSS 擬似要素/カウンタのみで描く。`<ul>`/`<ol>`/`<li>`
+//! は出力しない）が続いた。
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
 //! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
 //! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
-//! 全部品が出揃った。Phase 8「Media・データ表示」の最初の部品 [`image`]
-//! （イシュー #2660、`content: Option<Node>` が `None` のときバツ印
-//! プレースホルダーを描き、`Some(node)` のときは子要素を差し替える
-//! §11.4 準拠の実例。強調は共通型 [`props::Primary`] を再利用し、バツ印
-//! の色は CSS カスタムプロパティ `--fw-wire-image-x-color` の上書きで
-//! 反転させる）・2 番目の部品 [`chart`]（イシュー #2663、棒グラフの配置
-//! イメージ。値は `u8` 列 `values: &[u8]` として受け取り、[`progress`]
-//! と同型の 5 刻み量子化・[`props::Orientation`] の再利用（4 例目の
-//! 消費者）・[`grid::MAX_COLUMNS`] と同じ資源有界化（[`chart::MAX_BARS`]）
-//! で組み立てる。折れ線・面・円・散布・凡例・軸ラベル・複数系列はスコープ
-//! 外とする）に続き、3 番目の部品 [`map`]（イシュー #2664、地図タイルの
-//! 配置イメージ。ズームは部品ローカル列挙型 [`map::MapZoom`] 3 段、
-//! マーカーは [`link`]/[`file_drop`]/[`alert`] と同型の `Option<Node>`
-//! アイコンスロット。街路・区画・道路の位置はすべて CSS の固定ルールで
-//! 描き、`&str` 引数を持たない）が続いた。残りは Phase 8 の他部品で
-//! 順次追加する。
+//! 全部品が出揃った。Phase 8「Media・データ表示」の最初の部品 [`chart`]
+//! （イシュー #2663、棒グラフの配置イメージ。値は `u8` 列
+//! `values: &[u8]` として受け取り、[`progress`] と同型の 5 刻み量子化・
+//! [`props::Orientation`] の再利用（4 例目の消費者）・
+//! [`grid::MAX_COLUMNS`] と同じ資源有界化（[`chart::MAX_BARS`]）で
+//! 組み立てる。折れ線・面・円・散布・凡例・軸ラベル・複数系列はスコープ
+//! 外とする）・2 番目の部品 [`image`]（イシュー #2660、
+//! `content: Option<Node>` が `None` のときバツ印プレースホルダーを描き、
+//! `Some(node)` のときは子要素を差し替える §11.4 準拠の実例。強調は
+//! 共通型 [`props::Primary`] を再利用し、バツ印の色は CSS カスタム
+//! プロパティ `--fw-wire-image-x-color` の上書きで反転させる）・
+//! 3 番目の部品 [`map`]（イシュー #2664、地図タイルの配置イメージ。
+//! ズームは部品ローカル列挙型 [`map::MapZoom`] 3 段、マーカーは
+//! [`link`]/[`file_drop`]/[`alert`] と同型の `Option<Node>` アイコン
+//! スロット。街路・区画・道路の位置はすべて CSS の固定ルールで描き、
+//! `&str` 引数を持たない）・4 番目の部品 [`media`]（イシュー #2661、
+//! blocks.pm 上の表示名は Placeholder。`content: Option<Node>` が
+//! `None` のとき [`icon::play`] へフォールバックする §11.4 からの意図的
+//! な逸脱。動画か静止画かは bool ではなくスロット差し替えで表し、枠は
+//! 16:9 固定で `<video>`/`<iframe>` は出力しない）・5 番目の部品
+//! [`table`]（イシュー #2662、N 列 × M 行のデータ表プレースホルダー。
+//! [`calendar`] と同型の判断で `<table>` を使わず `div`/`span` + CSS
+//! grid で表現し、列数は `headers`/`rows` の形から導く）が続き、
+//! Phase 8「Media・データ表示」（chart/image/map/media/table の 5 部品）
+//! も全部品が出揃った。Phase 7「Data display」の 7 番目の部品
+//! [`icon()`](fn@icon)（イシュー #2652、アイコン単体を示す部品。
+//! `Node` ではなく `fn(Size) -> Node`（[`icon::IconEntry`] の要素型と
+//! 同じ関数ポインタ）をコンストラクタ引数として受け取り、サイズ指定を
+//! 1 か所に固定する。`role`/`aria-label` は付けない。[`icon`](mod@icon)
+//! モジュールへの追記として実装した）・8 番目の部品 [`brand`]（イシュー
+//! #2653、`content: Option<Node>` が `None` のとき既定の汎用抽象
+//! ブランドマーク [`icon::brand`] へフォールバックする §11.4 からの
+//! 意図的な逸脱（`avatar` と同型の判断）。実在ブランドのロゴ・商標を
+//! 模した SVG は持ち込まない）が続き、これで Phase 7「Data display」
+//! （avatar/counter/emoji/stat/card_basic/list/icon/brand の 8 部品）も
+//! 全部品が出揃った。
 //!
 //! # class 命名規約
 //!
@@ -161,14 +185,18 @@
 //! `fw-wire-bold` / `fw-wire-primary` / `fw-wire-horizontal|vertical`。
 //! 表示状態は class ではなく `data-active`/`data-disabled` で表す。CSS
 //! カスタムプロパティは `--fw-wire-*`（pre-styled-ui の `--fandhe-*` とは
-//! 意図的に別プレフィックス）。部品ルートなしで単独使用する唯一の例外的
-//! パート class として `fw-wire-icon-glyph`（[`icon`] のグリフ）を持つ。
+//! 意図的に別プレフィックス）。`fw-wire-icon-glyph`（[`icon`](mod@icon) モジュールの
+//! 各グリフ関数が返す `<svg>` の class）は、単独使用（他部品の `Node`
+//! スロットへ直接渡す場合）と [`icon()`](fn@icon) 部品（イシュー #2652）
+//! のパート class としての使用の両方を持つ（`icon()` のルート
+//! `fw-wire-icon` の子要素として現れる）。
 //! 詳細・追記契約は `docs/design/wireframe-ui-architecture.md` §10 を参照。
 
 pub mod accordion;
 pub mod alert;
 pub mod annotation;
 pub mod avatar;
+pub mod brand;
 pub mod breadcrumbs;
 pub mod button;
 pub mod calendar;
@@ -188,7 +216,9 @@ pub mod icon;
 pub mod image;
 pub mod input;
 pub mod link;
+pub mod list;
 pub mod map;
+pub mod media;
 pub mod menu;
 pub mod modal;
 pub mod nav_item;
@@ -208,6 +238,7 @@ pub mod stack;
 pub mod stat;
 pub mod stepper;
 pub mod switch;
+pub mod table;
 pub mod tabs;
 pub mod tag;
 pub mod text;
@@ -220,6 +251,7 @@ pub use accordion::accordion;
 pub use alert::{alert, Severity};
 pub use annotation::annotation;
 pub use avatar::avatar;
+pub use brand::brand;
 pub use breadcrumbs::breadcrumbs;
 pub use button::button;
 pub use calendar::{calendar, MAX_WEEKS};
@@ -235,10 +267,13 @@ pub use emoji::emoji;
 pub use file_drop::file_drop;
 pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
+pub use icon::icon;
 pub use image::image;
 pub use input::input;
 pub use link::link;
+pub use list::list;
 pub use map::{map, MapZoom};
+pub use media::media;
 pub use menu::{menu, MenuItem};
 pub use modal::modal;
 pub use nav_item::nav_item;
@@ -258,6 +293,7 @@ pub use stack::stack;
 pub use stat::{stat, StatDelta, StatTrend};
 pub use stepper::stepper;
 pub use switch::switch;
+pub use table::{table, MAX_TABLE_COLUMNS, MAX_TABLE_ROWS};
 pub use tabs::tabs;
 pub use tag::tag;
 pub use text::text;

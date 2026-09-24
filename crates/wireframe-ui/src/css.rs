@@ -65,10 +65,18 @@
 /// （同 Phase の 3 番目の部品）・イシュー #2656 で
 /// [`crate::stat::STAT_CSS`]（4 番目の部品）・イシュー #2658 で
 /// [`crate::card_basic::CARD_BASIC_CSS`]（Phase 7「Data display」の
-/// 5 番目の部品）が続き、イシュー #2660 で [`crate::image::IMAGE_CSS`]
-/// （Phase 8「Media・データ表示」の最初の部品）・イシュー #2663 で
-/// [`crate::chart::CHART_CSS`]（同 Phase の 2 番目の部品）・イシュー #2664 で
-/// [`crate::map::MAP_CSS`]（同 Phase の 3 番目の部品）が続いた。
+/// 5 番目の部品）・イシュー #2657 で [`crate::list::LIST_CSS`]
+/// （Phase 7「Data display」の 6 番目の部品）が続き、イシュー #2663 で
+/// [`crate::chart::CHART_CSS`]（Phase 8「Media・データ表示」の最初の
+/// 部品）・イシュー #2660 で [`crate::image::IMAGE_CSS`]（同 Phase の
+/// 2 番目の部品）・イシュー #2664 で [`crate::map::MAP_CSS`]（同 Phase の
+/// 3 番目の部品）・イシュー #2661 で [`crate::media::MEDIA_CSS`]
+/// （同 Phase の 4 番目の部品）・イシュー #2662 で [`crate::table::TABLE_CSS`]
+/// （同 Phase の 5 番目の部品、これで Phase 8 が全部品出揃った）が続いた。
+/// イシュー #2652 で [`crate::icon::ICON_CSS`]（Phase 7「Data display」の
+/// 7 番目の部品、`icon` 部品ルート）・イシュー #2653 で
+/// [`crate::brand::BRAND_CSS`]（Phase 7「Data display」の 8 番目の部品、
+/// これで Phase 7 が全部品出揃った）が続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
     crate::annotation::ANNOTATION_CSS,
@@ -112,9 +120,14 @@ pub const PARTS: &[&str] = &[
     crate::emoji::EMOJI_CSS,
     crate::stat::STAT_CSS,
     crate::card_basic::CARD_BASIC_CSS,
+    crate::list::LIST_CSS,
     crate::image::IMAGE_CSS,
     crate::chart::CHART_CSS,
+    crate::table::TABLE_CSS,
     crate::map::MAP_CSS,
+    crate::media::MEDIA_CSS,
+    crate::icon::ICON_CSS,
+    crate::brand::BRAND_CSS,
 ];
 
 static CSS: std::sync::OnceLock<String> = std::sync::OnceLock::new();

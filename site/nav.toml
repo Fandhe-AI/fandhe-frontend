@@ -1516,6 +1516,16 @@ source = "site/wireframes/stat.md"
 path = "/wireframes/stat/"
 
 [[section.page]]
+title = "Card basic"
+source = "site/wireframes/card-basic.md"
+path = "/wireframes/card-basic/"
+
+[[section.page]]
+title = "List"
+source = "site/wireframes/list.md"
+path = "/wireframes/list/"
+
+[[section.page]]
 title = "Chart"
 source = "site/wireframes/chart.md"
 path = "/wireframes/chart/"
@@ -1526,14 +1536,29 @@ source = "site/wireframes/image.md"
 path = "/wireframes/image/"
 
 [[section.page]]
-title = "Card basic"
-source = "site/wireframes/card-basic.md"
-path = "/wireframes/card-basic/"
-
-[[section.page]]
 title = "Map"
 source = "site/wireframes/map.md"
 path = "/wireframes/map/"
+
+[[section.page]]
+title = "Media"
+source = "site/wireframes/media.md"
+path = "/wireframes/media/"
+
+[[section.page]]
+title = "Table"
+source = "site/wireframes/table.md"
+path = "/wireframes/table/"
+
+[[section.page]]
+title = "Icon"
+source = "site/wireframes/icon.md"
+path = "/wireframes/icon/"
+
+[[section.page]]
+title = "Brand"
+source = "site/wireframes/brand.md"
+path = "/wireframes/brand/"
 
 # API Reference セクション（イシュー #955 / 設計 docs/design/docs-site-api-reference-split.md）。
 # - docs/internal/*-implementation-notes.md は本マニフェストへ登録しない。

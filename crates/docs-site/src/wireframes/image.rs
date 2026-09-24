@@ -1,5 +1,5 @@
 //! `/wireframes/image/` の Demo・引数表データ（イシュー #2660、Phase 8
-//! 「Media・Data」の最初の部品）。
+//! 「Media・データ表示」の 2 番目の部品（`chart` に続く）。
 //!
 //! `fandhe_frontend_wireframe_ui::image` の呼び出し側。Wireframes
 //! セクションの原稿組み立て（`crate::wireframes::insert_generated_sections`）
