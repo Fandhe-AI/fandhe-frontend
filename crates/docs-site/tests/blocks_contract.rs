@@ -2800,3 +2800,104 @@ fn blog_list_image_composes_expected_parts() {
         );
     }
 }
+
+/// `careers-card-grid`（イシュー #2815）の CSS フック配線検証。
+/// `blog_list_image_page_wires_demo_class_and_css_hooks` と同型。
+#[test]
+fn careers_card_grid_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/careers-card-grid/index.html"))
+        .expect("blocks/careers-card-grid/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-careers-card-grid\""),
+        "careers-card-grid page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "careers-card-grid page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "careers-card-grid page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-careers-card-grid-tagline=\"\"",
+        "data-blocks-careers-card-grid-card=\"\"",
+        "data-blocks-careers-card-grid-dept=\"\"",
+        "data-blocks-careers-card-grid-meta-item=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "careers-card-grid page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-careers-card-grid-tagline]",
+        "[data-blocks-careers-card-grid-card]",
+        "[data-blocks-careers-card-grid-dept]",
+        "[data-blocks-careers-card-grid-meta-item]",
+        ".blocks-careers-card-grid-grid",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// careers-card-grid の合成部品（heading/text/badge/card/icon/button）が
+/// 期待どおりの構成で実際に出力されていること（求人カード 4 件）、
+/// `<form>`・`href="#"`・`src="data:`・`id="` を持ち込んでいないことを
+/// 固定する（イシュー #2815）。
+#[test]
+fn careers_card_grid_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/careers-card-grid/index.html"))
+        .expect("blocks/careers-card-grid/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"card\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"button\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "careers-card-grid page should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-careers-card-grid-card=\"\"")
+            .count(),
+        4,
+        "careers-card-grid should render exactly 4 job cards"
+    );
+    assert_eq!(
+        html.matches("aria-label=\"詳細を見る（").count(),
+        4,
+        "careers-card-grid should render exactly 4 job-detail buttons"
+    );
+    assert!(
+        html.contains("一緒に働く仲間を募集しています"),
+        "careers-card-grid should render the page heading text"
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "careers-card-grid should never contain {absent}"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    assert!(
+        sheet_css.contains("@media (min-width: 48rem)") && sheet_css.contains("repeat(2"),
+        "blocks.css should declare the md breakpoint two-column switch for careers-card-grid"
+    );
+}

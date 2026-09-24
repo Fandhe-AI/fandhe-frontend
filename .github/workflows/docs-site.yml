@@ -264,6 +264,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-staggered/index.html"
           # Marketing / Comparison
           # Marketing / Careers
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/careers-card-grid/index.html"
           # Marketing / Changelog
           # Marketing / Error Page
           # Marketing / Gallery

@@ -1332,6 +1332,14 @@ source = "site/blocks/bento-staggered.md"
 path = "/blocks/bento-staggered/"
 
 [[section.group]]
+title = "Careers"
+
+[[section.group.page]]
+title = "careers-card-grid"
+source = "site/blocks/careers-card-grid.md"
+path = "/blocks/careers-card-grid/"
+
+[[section.group]]
 title = "Sidebar"
 
 [[section.group.page]]
