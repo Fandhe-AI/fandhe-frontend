@@ -181,12 +181,12 @@ fn site_nav_registers_all_pages_with_expected_paths() {
 
     // イシュー #2732: Blocks セクションは親トラッキング #2730（301 block の
     // 大量追加を予定）により今後 block ごとに本テストを書き換える運用が
-    // 破綻するため、Blocks 分のページ数は `blocks::BLOCKS`（唯一の正）から
+    // 破綻するため、Blocks 分のページ数は `blocks::all_blocks()`（唯一の正）から
     // 導出する。Blocks 以外の合計ページ数は 280 で固定する。内訳
     // （Getting Started / Guides / Examples / Primitives / Themes /
     // Wireframes / API Reference）の増減履歴はコミット履歴を参照する
     // （逐次カウント記録によるコメント肥大化を避けるため要約した）。
-    let expected_blocks_page_count = blocks::BLOCKS.len() + 1; // + 索引ページ
+    let expected_blocks_page_count = blocks::all_blocks().len() + 1; // + 索引ページ
     let non_blocks_page_count = pages.len() - expected_blocks_page_count;
     assert_eq!(
         non_blocks_page_count,
@@ -263,12 +263,12 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         "nav.toml is missing the Wireframes index page"
     );
 
-    // イシュー #2732: `/blocks/` 配下のページ件数は `blocks::BLOCKS`（唯一の
+    // イシュー #2732: `/blocks/` 配下のページ件数は `blocks::all_blocks()`（唯一の
     // 正）から導出する。親トラッキング #2730 で 301 件の block が今後
     // 大量追加される予定であり、block 1 件の追加ごとに本テストを書き換える
     // 運用は破綻するため、件数はレジストリから導出し、個別 block ごとの
     // 存在検証は `crates/docs-site/tests/blocks_nav.rs` の三方突合
-    // （nav.toml ⇔ `blocks::BLOCKS` ⇔ `site/blocks/*.md`）へ委譲する。
+    // （nav.toml ⇔ `blocks::all_blocks()` ⇔ `site/blocks/*.md`）へ委譲する。
     let blocks_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/blocks/"))
@@ -278,7 +278,7 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         expected_blocks_page_count,
         "expected {expected_blocks_page_count} /blocks/ pages (registry \
          {} block(s) + 1 index), got {blocks_pages:?}",
-        blocks::BLOCKS.len()
+        blocks::all_blocks().len()
     );
     assert!(
         pages.contains(&("site/blocks.md", "/blocks/")),
