@@ -357,7 +357,13 @@
   表現する、`calendar` と同型の判断）/
   `wireframes/icon/index.html`（イシュー #2652、Phase 7「Data display」の
   7 番目の部品。`glyph` は `Node` ではなく `fn(Size) -> Node` で受け取り、
-  サイズ指定を 1 か所に固定する。`role`/`aria-label` は付けない）
+  サイズ指定を 1 か所に固定する。`role`/`aria-label` は付けない）/
+  `wireframes/brand/index.html`（イシュー #2653、Phase 7「Data display」の
+  8 番目の部品、これで Phase 7 が全部品出揃った。`content: Option<Node>`
+  が `None` のとき既定の汎用抽象ブランドマーク `icon::brand`（代わりに
+  使える既存アイコンがないため新規追加、`icon.rs` は計 24 種）へ
+  フォールバックする §11.4 からの意図的な逸脱（`avatar` と同型の判断）。
+  実在ブランドのロゴ・商標を模した SVG は持ち込まない）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

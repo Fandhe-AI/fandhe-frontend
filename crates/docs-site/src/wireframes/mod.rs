@@ -57,6 +57,7 @@ mod accordion;
 mod alert;
 mod annotation;
 mod avatar;
+mod brand;
 mod breadcrumbs;
 mod button;
 mod calendar;
@@ -228,8 +229,15 @@ pub struct Wireframe {
 /// Phase 7「Data display」の 7 番目の部品 [`icon::WIREFRAME`]（イシュー
 /// #2652、`glyph: fn(Size) -> Node` を受け取るアイコン単体部品。
 /// `icon::ALL`（SVG ラインアートアイコン基盤、イシュー #2606）全種の一覧
-/// 表示元を §12 D8 のとおり本 showcase が担う）が続いた。
-/// Phase 1・3・4・7 以降（#2608〜#2665）の残りの各部品イシューが
+/// 表示元を §12 D8 のとおり本 showcase が担う）・8 番目の部品
+/// [`brand::WIREFRAME`]（イシュー #2653、`content: Option<Node>` が
+/// `None` のとき既定の汎用抽象ブランドマーク `icon::brand`（代わりに
+/// 使える既存アイコンがないため新規追加、`icon.rs` は計 24 種）へ
+/// フォールバックする §11.4 からの意図的な逸脱。実在ブランドのロゴ・商標を
+/// 模した SVG は持ち込まない）が続き、これで Phase 7「Data display」
+/// （avatar/counter/emoji/stat/card_basic/list/icon/brand の 8 部品）も
+/// 全部品が出揃った。
+/// Phase 1・3・4 以降（#2608〜#2665）の残りの各部品イシューが
 /// 自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
@@ -280,6 +288,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     map::WIREFRAME,
     media::WIREFRAME,
     icon::WIREFRAME,
+    brand::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

@@ -169,8 +169,13 @@
 //! `Node` ではなく `fn(Size) -> Node`（[`icon::IconEntry`] の要素型と
 //! 同じ関数ポインタ）をコンストラクタ引数として受け取り、サイズ指定を
 //! 1 か所に固定する。`role`/`aria-label` は付けない。[`icon`](mod@icon)
-//! モジュールへの追記として実装した）が続いた。残りは Phase 7 の
-//! `brand`（8 番目）のみとなった。
+//! モジュールへの追記として実装した）・8 番目の部品 [`brand`]（イシュー
+//! #2653、`content: Option<Node>` が `None` のとき既定の汎用抽象
+//! ブランドマーク [`icon::brand`] へフォールバックする §11.4 からの
+//! 意図的な逸脱（`avatar` と同型の判断）。実在ブランドのロゴ・商標を
+//! 模した SVG は持ち込まない）が続き、これで Phase 7「Data display」
+//! （avatar/counter/emoji/stat/card_basic/list/icon/brand の 8 部品）も
+//! 全部品が出揃った。
 //!
 //! # class 命名規約
 //!
@@ -191,6 +196,7 @@ pub mod accordion;
 pub mod alert;
 pub mod annotation;
 pub mod avatar;
+pub mod brand;
 pub mod breadcrumbs;
 pub mod button;
 pub mod calendar;
@@ -245,6 +251,7 @@ pub use accordion::accordion;
 pub use alert::{alert, Severity};
 pub use annotation::annotation;
 pub use avatar::avatar;
+pub use brand::brand;
 pub use breadcrumbs::breadcrumbs;
 pub use button::button;
 pub use calendar::{calendar, MAX_WEEKS};

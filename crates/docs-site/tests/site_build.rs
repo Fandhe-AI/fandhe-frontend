@@ -329,10 +329,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // Table 部品ページ（Phase 8 の 5 番目の部品）が加わり、299 → 300 に
     // なった。イシュー #2652 で Wireframes セクションへ Icon 部品ページ
     // （Phase 7「Data display」の 7 番目の部品）が加わり、300 → 301 に
-    // なった。
+    // なった。イシュー #2653 で Wireframes セクションへ Brand 部品ページ
+    // （Phase 7「Data display」の 8 番目の部品、これで Phase 7 が全部品
+    // 出揃った）が加わり、301 → 302 になった。
     assert_eq!(
         report.written.len(),
-        301,
+        302,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );

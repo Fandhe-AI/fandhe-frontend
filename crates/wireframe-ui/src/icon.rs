@@ -153,6 +153,7 @@ pub const ALL: &[IconEntry] = &[
     ("bell", bell),
     ("cursor-arrow", cursor_arrow),
     ("cursor-hand", cursor_hand),
+    ("brand", brand),
 ];
 
 /// [`el`] の所有属性値版で `<line>` 子要素を組み立てる内部ヘルパ。
@@ -482,6 +483,23 @@ pub fn cursor_hand(size: Size) -> Node {
             line("9.5", "6", "9.5", "11"),
             line("12", "4.5", "12", "11"),
             line("14.5", "6", "14.5", "11"),
+        ],
+    )
+}
+
+/// 汎用ブランドマークアイコン。イシュー #2653 で [`crate::brand`] の既定
+/// フォールバックのため追加。六角形の外形（`polygon` 1 個）の中心に円
+/// （`circle` 1 個）を置いた、実在ブランドを想起させない抽象的な
+/// バッジ状の図形で独自に描いた（本モジュール doc「ジオメトリの出自」
+/// 節、Lucide/Feather/Heroicons 等のパスデータはコピーしていない）。
+#[must_use]
+pub fn brand(size: Size) -> Node {
+    glyph(
+        "brand",
+        size,
+        vec![
+            polygon("12,3 20,7.5 20,16.5 12,21 4,16.5 4,7.5"),
+            circle("12", "12", "3"),
         ],
     )
 }

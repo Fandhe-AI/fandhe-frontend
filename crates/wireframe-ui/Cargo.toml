@@ -187,7 +187,14 @@ name = "fandhe-frontend-wireframe-ui"
 # で受け取り、サイズ指定を 1 か所に固定する設計とした。main 取り込み時点で
 # 0.50.0 まで進んでいたため main セッションが本 PR 用に一意採番した
 # 0.51.0 を採用する（Brand（#2653）の並行実装との衝突回避余地を見込む）。
-version = "0.51.0"
+# 0.51.0 → 0.52.0: 公開 API 新設（brand 部品、イシュー #2653、Phase 7
+# 「Data display」の 8 番目の部品、これで Phase 7 が全部品出揃った。
+# content: Option<Node> が None のとき既定の汎用抽象ブランドマーク
+# icon::brand へフォールバックする §11.4 からの意図的な逸脱（avatar と
+# 同型の判断）。実在ブランドのロゴ・商標を模した SVG は一切含まない）。
+# main 取り込み時点で 0.51.0 まで進んでいたため main セッションが本 PR
+# 用に一意採番した 0.52.0 を採用する。
+version = "0.52.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"
 license = "MIT OR Apache-2.0"

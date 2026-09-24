@@ -399,6 +399,12 @@ jobs:
           # 部品ページ（glyph は Node ではなく fn(Size) -> Node で受け取り、
           # サイズ指定を 1 か所に固定する。role/aria-label は付けない）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/icon/index.html"
+          # イシュー #2653: Phase 7「Data display」の 8 番目の部品、Brand
+          # 部品ページ（これで Phase 7 が全部品出揃った。content: Option<Node>
+          # が None のとき既定の汎用抽象ブランドマーク icon::brand へ
+          # フォールバックする §11.4 からの意図的な逸脱。実在ブランドの
+          # ロゴ・商標を模した SVG は持ち込まない）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/brand/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact
