@@ -1332,6 +1332,11 @@ path = "/blocks/footer-sticky-reveal/"
 title = "Banner"
 
 [[section.group.page]]
+title = "banner-announcement-pill"
+source = "site/blocks/banner-announcement-pill.md"
+path = "/blocks/banner-announcement-pill/"
+
+[[section.group.page]]
 title = "banner-cookie-consent"
 source = "site/blocks/banner-cookie-consent.md"
 path = "/blocks/banner-cookie-consent/"
@@ -1375,12 +1380,25 @@ source = "site/blocks/bento-two-column.md"
 path = "/blocks/bento-two-column/"
 
 [[section.group]]
+title = "Careers"
+
+[[section.group.page]]
+title = "careers-split-photo-list"
+source = "site/blocks/careers-split-photo-list.md"
+path = "/blocks/careers-split-photo-list/"
+
+[[section.group]]
 title = "Changelog"
 
 [[section.group.page]]
 title = "changelog-accordion"
 source = "site/blocks/changelog-accordion.md"
 path = "/blocks/changelog-accordion/"
+
+[[section.group.page]]
+title = "changelog-timeline"
+source = "site/blocks/changelog-timeline.md"
+path = "/blocks/changelog-timeline/"
 
 [[section.group]]
 title = "Sidebar"

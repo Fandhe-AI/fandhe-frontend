@@ -201,7 +201,7 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
 | 定数 | 値 | 超過時の扱い |
 |---|---|---|
 | `MAX_PAGE_TEXT_BYTES` | 4,096 バイト | **決定的に切り詰める**（エラーにしない）。UTF-8 文字境界で切る（`char_indices` で境界を求め、バイト単位切断で不正 UTF-8 を作らない）。切り詰め痕跡の付加文字（`…` 等）は付けない（決定性と単純さを優先する） |
-| `MAX_INDEX_BYTES` | 1,703,936 バイト（1.625 MiB。#2552 で 1 MiB から 1.125 MiB へ、#2645 で 1.125 MiB から 1.25 MiB へ、イシュー #2814 で 1.25 MiB から 1.625 MiB へ引き上げ、§10・§10-4 参照。イシュー #2637（Menu）・#2639（Breadcrumbs）の base 取り込み時点では実測が 1.25 MiB の範囲内に収まり引き上げ不要だったが、イシュー #2750（`bento-two-column` block ページ追加）・#2814（`blog-split-header-grid` block 追加）の双方が並行して 1.25 MiB 超過を検知し、#2814 の実測に基づく引き上げが採用された、§10-4・§10-5 参照） | **fail-closed**。`BuildError::SearchIndexTooLarge { bytes, limit }` を返し、**ページ書き出し前**に打ち切る |
+| `MAX_INDEX_BYTES` | 1,703,936 バイト（1.625 MiB。#2552 で 1 MiB から 1.125 MiB へ、#2645 で 1.125 MiB から 1.25 MiB へ、イシュー #2814 で 1.25 MiB から 1.625 MiB へ引き上げ、§10・§10-4 参照。イシュー #2637（Menu）・#2639（Breadcrumbs）の base 取り込み時点では実測が 1.25 MiB の範囲内に収まり引き上げ不要だったが、イシュー #2750（`bento-two-column` block ページ追加）・#2814（`blog-split-header-grid` block 追加）の双方が並行して 1.25 MiB 超過を検知し、#2814 の実測に基づく引き上げが採用された、§10-4・§10-5 参照。イシュー #2817（careers-split-photo-list）の base 取り込み時点では実測が 1.625 MiB の範囲内に収まっており、追加の引き上げは不要だった、§10-7 参照） | **fail-closed**。`BuildError::SearchIndexTooLarge { bytes, limit }` を返し、**ページ書き出し前**に打ち切る |
 
 - 選定根拠（#957 設計時点、121 ページ）: 全ページが per-page 上限に
   張り付いた最悪ケースでも 121 × 4 KiB ≒ 496 KiB であり、1 MiB は
@@ -232,7 +232,7 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
   - `pub const REL_PATH: &str = "assets/search-index.json";`
   - `pub const SCHEMA_VERSION: u32 = 1;`
   - `pub const MAX_PAGE_TEXT_BYTES: usize = 4096;`
-  - `pub const MAX_INDEX_BYTES: usize = 1_703_936;`（#2552 で `1_048_576` から `1_179_648` へ、#2645 で `1_179_648` から `1_310_720` へ、イシュー #2814 で `1_310_720` から `1_703_936` へ引き上げ、§10・§10-4 参照。イシュー #2637・#2639 の base 取り込み時点でも実測は範囲内だったが、#2750・#2814 の双方が並行して超過を検知し、#2814 の実測に基づく引き上げが採用された）
+  - `pub const MAX_INDEX_BYTES: usize = 1_703_936;`（#2552 で `1_048_576` から `1_179_648` へ、#2645 で `1_179_648` から `1_310_720` へ、イシュー #2814 で `1_310_720` から `1_703_936` へ引き上げ、§10・§10-4 参照。イシュー #2637・#2639 の base 取り込み時点でも実測は範囲内だったが、#2750・#2814 の双方が並行して超過を検知し、#2814 の実測に基づく引き上げが採用された。イシュー #2817 の base 取り込み時点でも実測は範囲内、§10-7 参照）
   - `pub struct PageEntry { href, title, sections: Vec<SectionEntry>, text }`
   - `pub struct SectionEntry { id, level, title }`
   - `pub fn page_entry(href: &str, title: &str, body: &Node) -> PageEntry`
@@ -804,3 +804,16 @@ per-page 上限見直し・セクション分割を再検討する」という �
 トリガーの再評価は「セクション粒度分割の実装（イシュー #3173）」で
 恒久的に解消する前提へ切り替わっており、以後は `MAX_INDEX_BYTES` の
 追加引き上げでの再評価は行わない。
+
+### 10-7 イシュー #2817（careers-split-photo-list）base 取り込み時点の実測確認
+
+イシュー #2817（Blocks に `careers-split-photo-list` を追加、Blocks
+セクション拡充ツリー #2730 配下）の PR を、§10-4 で
+`MAX_INDEX_BYTES` が 1.625 MiB（`1_703_936` バイト）へ引き上げられた後の
+main へ base 取り込みした時点で `cargo test -p fandhe-frontend-docs-site`
+を実行し、実サイトの検索インデックスサイズを再測した。実測は 1.625 MiB
+の範囲内（80% 未満）に収まっており §8 トリガー 1 の再評価基準に到達
+しなかったため、本 PR では `MAX_INDEX_BYTES` の追加引き上げを行わない
+（§10-6 のハードルールにも抵触しない）。§10-4 が引き上げた際に
+見込んだ「約 300 block 規模の並行拡充」の余裕枠が、同時期に base
+取り込みされた本イシューの block 追加を吸収した形である。
