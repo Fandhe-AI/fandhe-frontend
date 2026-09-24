@@ -1275,6 +1275,14 @@ source = "site/blocks/testimonials-stack.md"
 path = "/blocks/testimonials-stack/"
 
 [[section.group]]
+title = "Blog"
+
+[[section.group.page]]
+title = "blog-featured-article"
+source = "site/blocks/blog-featured-article.md"
+path = "/blocks/blog-featured-article/"
+
+[[section.group]]
 title = "Footer"
 
 [[section.group.page]]

@@ -2445,3 +2445,95 @@ fn game_ui_modal_css_uses_motion_tokens_and_no_infinite_keyframes() {
         "game-ui-modal CSS should reference a --fandhe-motion-duration-* token"
     );
 }
+
+/// blog-featured-article ページの Demo クラス・両スタイルシート・
+/// `data-blocks-blog-featured-article-*` CSS フックが実際に出力され、
+/// `blocks::stylesheet()` にも対応するセレクタ・`@media` クエリ・
+/// アクセントトークン参照が存在することを固定する（イシュー #2808）。
+#[test]
+fn blog_featured_article_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-featured-article/index.html"))
+        .expect("blocks/blog-featured-article/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-blog-featured-article\""),
+        "blog-featured-article page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "blog-featured-article page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "blog-featured-article page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-blog-featured-article-feature=\"\"",
+        "data-blocks-blog-featured-article-category=\"\"",
+        "data-blocks-blog-featured-article-avatar=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "blog-featured-article page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        ".blocks-blog-featured-article-feature-layout",
+        ".blocks-blog-featured-article-band",
+        ".blocks-blog-featured-article-grid",
+        "@media (max-width: 47.99rem)",
+        "var(--fandhe-color-accent)",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare/reference {needle} for blog-featured-article"
+        );
+    }
+}
+
+/// blog-featured-article の合成部品（heading/text/badge/card/image/avatar/
+/// link）が期待どおりの構成で実際に出力されていること（基本形 +
+/// バリエーションの 2 インスタンス併記で特集記事カードが 2 件・下段
+/// グリッドカードが 3 件出力される）、`<form>`・`href="#"`・`src="data:`
+/// を持ち込んでいないことを固定する（イシュー #2808）。
+#[test]
+fn blog_featured_article_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-featured-article/index.html"))
+        .expect("blocks/blog-featured-article/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"card\"",
+        "data-scope=\"image\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"link\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "blog-featured-article page should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-blog-featured-article-feature=\"\"")
+            .count(),
+        2,
+        "blog-featured-article should render exactly 2 featured-article instances \
+         (basic form + banded variant)"
+    );
+    assert!(
+        html.contains("blocks-blog-featured-article-grid"),
+        "blog-featured-article should render the banded variant's grid wrapper"
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "blog-featured-article should never contain {absent}"
+        );
+    }
+}
