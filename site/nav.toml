@@ -1182,8 +1182,13 @@ path = "/themes/sparkline/"
 # （粒度: 合成例）という読み手の導線を優先し、Themes の直後・API Reference の
 # 直前へ配置する（crates/docs-site/tests/primitives_nav.rs が固定する
 # 「Primitives は index 3・直後が Themes」を変えないための配置判断でもある）。
-# [[section.group]] は使わずフラットな [[section.page]] のみで構成する
-# （設計文書 §6。1 block = 1 ページのみで階層化する動機がない）。
+# サイドバーのカテゴリ見出し導入（イシュー #2735）に伴い、
+# `[[section.group]]`（カテゴリ見出し）+ `[[section.group.page]]`（各 block）
+# の構成へ変更した。索引ページ（`/blocks/`）本体のみ `[[section.page]]` の
+# ままとする（カテゴリに属さないため）。旧来の「`[[section.group]]` は
+# 使わずフラット構成」という設計文書 §6 の判断（1 block = 1 ページのみで
+# 階層化する動機がない）は、カテゴリ数の増加に伴いサイドバーの可読性向上
+# のため本イシューで見直された。
 [[section]]
 title = "Blocks"
 index_path = "/blocks/"
@@ -1350,9 +1355,15 @@ title = "dashboard-01"
 source = "site/blocks/dashboard-01.md"
 path = "/blocks/dashboard-01/"
 
-# --- 以下は block 追加時の挿入先アンカー（イシュー #2734）。カテゴリ単位で
-# 行ブロックを分け、新規 block の [[section.page]] は該当カテゴリの見出し
-# 直後へ追記する。既存 22 件（上記）は前後ナビ順序保持のため移動しない
+# --- 以下は block 追加時の挿入先アンカー（イシュー #2734、#2735 でカテゴリ
+# 見出し導入に伴い運用を更新）。カテゴリ単位で行ブロックを分ける点は不変
+# だが、新規 block は該当カテゴリの既存 `[[section.group]]` があればその
+# 直後へ `[[section.group.page]]` として追記し、まだ 1 件も block を持たず
+# `[[section.group]]` 自体が存在しないカテゴリでは `[[section.group]]` 見出し
+# 本体もあわせて新設する（`crates/docs-site/tests/blocks_nav.rs` の
+# `blocks_section_groups_match_registry_category_order` が `BlockCategory::ALL`
+# のうち 1 件以上 block を持つカテゴリのみを列挙順どおりに要求するため）。
+# 既存 22 件（上記）は前後ナビ順序保持のため移動しない
 # （並べ替えると `/blocks/**` の前後ナビ href が変わってしまうため）。
 # Marketing / Hero
 # Marketing / Feature
