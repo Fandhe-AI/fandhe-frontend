@@ -449,9 +449,30 @@ mod tests {
     }
 
     #[test]
-    fn all_blocks_registers_all_22_existing_blocks() {
-        // カテゴリ別モジュール分割（イシュー #2734）の前後で登録件数が
-        // 変わっていないことの回帰。
-        assert_eq!(all_blocks().len(), 22);
+    fn all_blocks_keeps_at_least_the_22_pre_split_blocks_with_unique_paths() {
+        // カテゴリ別モジュール分割（イシュー #2734）時点の 22 件からの
+        // 欠落が無いことの回帰。厳密な件数一致（増分含む）は
+        // `tests/blocks_nav.rs::nav_toml_block_pages_match_the_registry_exactly`
+        // が nav.toml とレジストリの完全一致で別途保証するため、本テストを
+        // 固定件数の `assert_eq!` にはしない（イシュー #2740）。並列で
+        // block を追加する複数 PR が同一の固定値書き換え（例: `22` →
+        // `23`）を独立に行うと、git は衝突なくマージしてしまい、main 上の
+        // 実件数が 24 件以上でも期待値が 23 のまま取り残されて main が
+        // 赤くなる（`>=` 判定と path 一意性判定にすることでこの偽陽性を
+        // 構造的に避ける）。
+        let all = all_blocks();
+        assert!(
+            all.len() >= 22,
+            "block registry should not shrink below the pre-split 22"
+        );
+
+        let mut seen = std::collections::HashSet::new();
+        for block in &all {
+            assert!(
+                seen.insert(block.path),
+                "duplicate block path registered: {}",
+                block.path
+            );
+        }
     }
 }

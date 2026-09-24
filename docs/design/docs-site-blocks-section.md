@@ -837,6 +837,7 @@ pub enum LayoutCss {
 | hero-terminal | #2546 | §15, `marketing/hero/hero_terminal.rs` |
 | text-split-reveal | #2546 | §15, `marketing/hero/text_split_reveal.rs` |
 | game-ui-modal | #2552 | §16, `application/dialog/game_ui_modal.rs` |
+| banner-cookie-consent | #2740 | `marketing/banner/banner_cookie_consent.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 22 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の

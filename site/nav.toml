@@ -1288,6 +1288,14 @@ source = "site/blocks/footer-sticky-reveal.md"
 path = "/blocks/footer-sticky-reveal/"
 
 [[section.group]]
+title = "Banner"
+
+[[section.group.page]]
+title = "banner-cookie-consent"
+source = "site/blocks/banner-cookie-consent.md"
+path = "/blocks/banner-cookie-consent/"
+
+[[section.group]]
 title = "Bento"
 
 [[section.group.page]]
