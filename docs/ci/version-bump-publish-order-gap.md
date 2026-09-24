@@ -674,6 +674,15 @@ wasm-bindgen/web-sys へ依存するため非該当、3（release.yml）・4（u
 `fandhe-frontend-wasm-full` の公開（0.20.11 以降）は `fandhe-animation`→
 `fandhe-frontend-animation` の初回公開完了が前提となる（`release.yml` の依存順コメント参照）。
 
+**C の実施（2026-09-24）**: `release.yml` を `crate=fandhe-frontend-wireframe-ui` /
+`version=0.52.0` で dry-run（run 35947327779、green）→ publish（run 35953496575、
+verify・publish とも green）の順に実行し、
+`https://index.crates.io/fa/nd/fandhe-frontend-wireframe-ui` に 0.52.0 の反映を確認した。
+依存先 `fandhe-frontend-core` 0.4.3 は sparse index 上で公開済みだった。版はイシュー案の
+0.1.0 ではなく本節 C 手順 2 のとおり `Cargo.toml` と一致する main の現行版を用いた
+（`fandhe-frontend-animation` 0.11.0 と同じ扱い）。以後 `version-bump-guard` が
+`fandhe-frontend-wireframe-ui` に対して実効化する。
+
 **`fandhe-frontend-pre-styled-ui` 0.187.0 以降の公開前提（イシュー #2416）**:
 `crates/pre-styled-ui/Cargo.toml` へ `fandhe-animation` を Cargo feature
 `motion`（既定 off）の optional 依存として追加した。`cargo publish` は
