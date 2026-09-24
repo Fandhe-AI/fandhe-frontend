@@ -1351,6 +1351,11 @@ title = "bento-three-column-tall"
 source = "site/blocks/bento-three-column-tall.md"
 path = "/blocks/bento-three-column-tall/"
 
+[[section.group.page]]
+title = "bento-two-column"
+source = "site/blocks/bento-two-column.md"
+path = "/blocks/bento-two-column/"
+
 [[section.group]]
 title = "Careers"
 

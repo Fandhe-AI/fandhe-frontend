@@ -266,6 +266,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-asymmetric-rows/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-staggered/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-three-column-tall/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-two-column/index.html"
           # Marketing / Comparison
           # Marketing / Careers
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/careers-split-photo-list/index.html"
