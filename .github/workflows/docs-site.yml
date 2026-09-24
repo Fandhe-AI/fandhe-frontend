@@ -271,6 +271,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-two-column/index.html"
           # Marketing / Comparison
           # Marketing / Careers
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/careers-split-photo-list/index.html"
           # Marketing / Changelog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/changelog-accordion/index.html"
           # Marketing / Error Page
