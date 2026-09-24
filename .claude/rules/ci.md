@@ -99,7 +99,18 @@
   `crates/interactive/**` は showcase 限定の例外ではなく**全ページに影響する
   paths 必須項目**である。レンダラ側（core / app / server）は従来どおり
   paths 対象外（反映が必要なときは `workflow_dispatch`）。
-- **`docs-site.yml` の verify ステップ契約（イシュー #944/#951/#957/#1016/#1017/#1018/#1021/#1022/#2088/#2607）**: `site/**` の
+- **block 追加時に `CLAUDE.md`・`ci.md` を編集しない（イシュー #2736）**:
+  `crates/docs-site/src/blocks/` への block 追加のたびに `CLAUDE.md`・本
+  ファイルへ経緯を長文追記する運用は、約 300 件規模の蓄積でいずれも
+  可読性を失い全 PR の競合点になっていたため廃止した。block の説明は
+  `site/blocks/<kebab>.md` と `crates/docs-site/src/blocks/mod.rs` レジスト
+  リが正、個別の設計判断の索引は `docs/design/docs-site-blocks-section.md`
+  §19 を参照する。block 追加時に本ファイルへ加える変更は次項「verify ス
+  テップ契約」内の `test -f` 対象パスへの 1 行追加のみであり、この
+  `test -f` 群（`.github/workflows/docs-site.yml`）および
+  `crates/docs-site/tests/blocks_nav.rs`/`blocks_code_drift.rs`/
+  `blocks_contract.rs` の契約テストは削除・弱体化しない。
+- **`docs-site.yml` の verify ステップ契約（イシュー #944/#951/#957/#1016/#1017/#1018/#1021/#1022/#2088/#2607/#2736）**: `site/**` の
   glob は `site/themes/*.md`（イシュー #1017 で `site/components/*.md` から
   移行）と `site/primitives/*.md`（イシュー #1021）・`site/blocks.md`/
   `site/blocks/*.md`（イシュー #2088）を包含するため、部品ページ・block ページ
@@ -127,86 +138,13 @@
   `assets/image-demo.svg`（イシュー #1562、`showcase::image_demo_svg` が
   生成。Image 節 demo の `src` が `data:` URI で core の `is_safe_url` に
   拒否され属性ごと欠落していた不具合を、ビルド時生成 SVG の相対パス参照へ
-  切り替えて是正した）/ `blocks/index.html`・`blocks/login-01/index.html`・
-  `assets/blocks.css`（イシュー #2088、Blocks セクションの索引・雛形実例・
-  専用 CSS。`crate::blocks::stylesheet` が生成）/
-  `blocks/dashboard-01/index.html`（イシュー #2089、sidebar + stat cards +
-  area chart + data table + tabs の合成 block）/
-  `blocks/sidebar-07/index.html`（イシュー #2090、icon 折りたたみ可能な
-  サイドバー。expanded/collapsed 2 インスタンスを静的に併記する合成
-  block）/
-  `blocks/sidebar-03/index.html`（イシュー #2091、submenu 付きサイドバー。
-  `size="lg"` のブランド header・`menu-sub` 入れ子ナビゲーションを持つ
-  合成 block）/
-  `blocks/login-04/index.html`（イシュー #2093、フォーム + 画像の 2 カラム
-  ログインページ。`field::separator`・`image`・自作幾何アイコンの
-  `icon_button` 3 個を持つ合成 block）/
-  `blocks/signup-01/index.html`（イシュー #2094、カード型のシンプルな
-  サインアップフォーム。`field::helper_text` 3 件を持つ合成 block）/
-  `blocks/signup-05/index.html`（イシュー #2095、ソーシャルプロバイダ付き
-  サインアップフォーム。`heading`・`field::separator`・アイコン付き
-  Outline ボタン 2 個を持つ合成 block）/
-  `blocks/pricing-tiers-morph/index.html`（イシュー #2547、月額/年額
-  billing 切替で 3 段ティアカードがクロスフェードする合成 block。`tabs`
-  の `content` へ `presence_transition` 同型のスコープ限定 CSS を手書きで
-  再現し、中央ティアへ `border_beam` の opt-in 装飾を付与する）/
-  `blocks/pricing-usage-slider/index.html`（イシュー #2547、利用量
-  スライダーの固定初期値と `stat` の価格表示を静的な組で示す合成 block。
-  ライブ連動は実装しない）/
-  `blocks/testimonials-stack/index.html`（イシュー #2548、Motion+ の
-  testimonials 系レイアウトを参照した積層 testimonial カード。
-  `card`・`blockquote`・`avatar` を合成し、積層オフセットは
-  `pre-styled-ui::recipe::STAGGER_INDEX_VAR`（`--fandhe-motion-stagger-index`）
-  を直接 import して表現する合成 block）/
-  `blocks/bento-staggered/index.html`（イシュー #2549、`animation-timeline:
-  view()` + `animation-range` の開始点オフセットで stagger を表現する
-  scroll-driven な bento グリッド。`animation-delay` は使わない）/
-  `blocks/feature-expand/index.html`（イシュー #2549、`grid-template-rows:
-  0fr → 1fr` の CSS のみで hover/`:focus-within` 展開を実装するカード
-  グリッド。`content_height.rs`（wasm-full の JS 機構）は無 JS の docs
-  サイトでは使わない）/
-  `blocks/cta-banner-magnetic/index.html`（イシュー #2550、`data-fandhe-
-  magnetic` opt-in を付与した CTA ボタン 1 個の合成 block。ポインタ追従の
-  実演は wasm-full の `magnetic` feature 配下のみで発生し、無 JS の本サイト
-  では静的な実演に留まる）/
-  `blocks/cta-signup-celebrate/index.html`（イシュー #2550、`card`/`field`/
-  `input`/`button` を合成したサインアップ CTA。既存の `confetti` feature
-  向け opt-in 属性〔`data-fandhe-confetti-trigger`/`-canvas`〕をそのまま
-  「使う側」として合成し、送信前/送信完了の 2 状態を静的に併記する）/
-  `blocks/cursor-hover-cards/index.html`（イシュー #2542、`card` 3 枚へ
-  `data-fandhe-cursor-target`（バリアント・ラベル・magnetic 吸着の 3 種）を
-  付与した合成 block。カスタムカーソルの追従・hover バリアント変化の実演は
-  wasm-full の `cursor` feature 配下のみで発生し、無 JS の本サイトでは
-  静的な実演に留まる）/
-  `blocks/footer-sticky-reveal/index.html`（イシュー #2551、`card`/
-  `heading`/`link`/`nav_list` を合成した footer。Demo 枠自体を固定高の
-  スクロールコンテナにし、`position: sticky` のみで footer が本文の下から
-  現れる sticky reveal を再現する合成 block）/
-  `blocks/footer-newsletter/index.html`（イシュー #2551、`field`/`input`/
-  `button`/`link` を合成した newsletter footer。presence 同型 CSS（`opacity`/
-  `transform` + `allow-discrete`）で「入力」「完了」2 panel の遷移を表現し、
-  無 JS のため Before/After の 2 インスタンスを静的に併記する合成 block）/
-  `blocks/hero-editorial-stagger/index.html`（イシュー #2546、`badge`/
-  `heading`/`text`/`button` を合成した hero。eyebrow badge → 見出し →
-  リード文 → CTA 群の順に時間軸 stagger（`animation-delay`）でフェード＋
-  スライドインする）/
-  `blocks/hero-parallax-layers/index.html`（イシュー #2546、背景・中景・
-  前景の抽象図形 3 レイヤーへ `SlotRecipe::parallax` を直接適用した hero。
-  `heading`/`text`/`button` を最前面に合成し、`data-fandhe-scroll-progress`
-  は無 JS のため付与しない）/
-  `blocks/hero-terminal/index.html`（イシュー #2546、`code`/`kbd` を合成
-  したターミナル風 hero。3 行のコマンドが時間軸 stagger でフェードインし、
-  最終行は `text_reveal::typewriter` の opt-in マーカーのみを持つ静的表示）/
-  `blocks/text-split-reveal/index.html`（イシュー #2546、`heading`/`text`/
-  `button` を合成した hero。見出しは `text_reveal::chars`、リード文は
-  `text_reveal::words` で SSR のみの reveal を行い、Blocks が
-  `text_reveal::TEXT_REVEAL_CSS` を初めて `push_css` する消費者となった）/
-  `blocks/game-ui-modal/index.html`（イシュー #2552、Motion+
-  `examples/game-ui` を参照した `dialog`/`badge`/`button` の合成 block。
-  scale + spring 入場は既存の `motion::ZOOM_IN_KEYFRAMES_NAME` +
-  `theme::SPRING_EASING_LINEAR`、報酬行の順送り出現は既存の
-  `recipe::STAGGER_INDEX_VAR` を再利用し、新規部品・wasm-full/
-  frontend-animation の変更は行わない）/
+  切り替えて是正した）/ `blocks/<kebab>/index.html`（block 追加ごとに
+  `dist sanity check` へ 1 行追加する対象。イシュー #2088〜#2552 の 22 件
+  分の個別記述はイシュー #2736 で撤去し、一覧・個別の設計判断は
+  `docs/design/docs-site-blocks-section.md` §19 と各
+  `crates/docs-site/src/blocks/<section>/<category>/<snake>.rs` のモジュール
+  doc へ集約した。以後 block を追加しても本節・CLAUDE.md は編集せず
+  `test -f` 行の追加のみを行う）/
   `wireframes/index.html`（イシュー #2607、Wireframes セクションの索引）/
   `wireframes/annotation/index.html`・`assets/wireframes.css`（イシュー
   #2617、Phase 2「テキスト・注釈」の最初の部品ページ〔Annotation〕の登録
