@@ -449,9 +449,10 @@ mod tests {
     }
 
     #[test]
-    fn all_blocks_registers_all_22_existing_blocks() {
+    fn all_blocks_registers_all_23_existing_blocks() {
         // カテゴリ別モジュール分割（イシュー #2734）の前後で登録件数が
-        // 変わっていないことの回帰。
-        assert_eq!(all_blocks().len(), 22);
+        // 変わっていないことの回帰。banner-announcement-pill（イシュー
+        // #2739）の追加で 22 → 23 件になった。
+        assert_eq!(all_blocks().len(), 23);
     }
 }
