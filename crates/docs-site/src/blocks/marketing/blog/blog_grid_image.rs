@@ -85,7 +85,7 @@ use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, text as core_text, Node};
+use fandhe_frontend_core::{div, el, text as core_text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarProps, ImageStatus};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
@@ -171,7 +171,11 @@ const ARTICLES_PLAIN: [Article; 2] = [
     },
 ];
 
-/// 記事カード共通のメタ行（カテゴリ badge + 日付・読了時間）。
+/// 記事カード共通のメタ行（カテゴリ badge + 日付・読了時間）。日付は
+/// `<time datetime>` でマークアップする（レビュー指摘対応: 読了時間と
+/// 結合した通常テキストのままでは機械可読な公開日として認識できない）。
+/// `article.date` は ISO 8601 表記のためそのまま `datetime` 属性と表示
+/// 文字列の両方に使い、表示・機械可読値の食い違いを持ち込まない。
 fn meta_row(category: &str, date: &str, read_time: &str) -> Node {
     div(
         vec![("class", "blocks-blog-grid-image-meta")],
@@ -184,7 +188,10 @@ fn meta_row(category: &str, date: &str, read_time: &str) -> Node {
                     ..TextProps::default()
                 },
                 vec![],
-                vec![core_text(format!("{date} ・ {read_time}"))],
+                vec![
+                    el("time", vec![("datetime", date)], vec![core_text(date)]),
+                    core_text(format!(" ・ {read_time}")),
+                ],
             ),
         ],
     )
@@ -238,12 +245,16 @@ fn author_row(author_index: usize) -> Node {
 /// かつ 16:9 画像（インスタンス A）、`false` のとき枠なしかつ正方形画像
 /// （インスタンス B）になる。
 fn article_card(article: &Article, framed: bool) -> Node {
+    // レビュー指摘対応: 全記事で同一の汎用 alt テキストを使うと記事ごとの
+    // 識別ができないため、記事タイトルを差し込んで 1 件ずつ異なる alt に
+    // する（`article.title` は架空の日本語文でありユーザー入力ではない）。
+    let alt = format!("{}の記事サムネイル画像", article.title);
     let image_node = if framed {
-        let mut props = ImageProps::new(dummy_assets::SCREENSHOT_SRC, "記事のサムネイル画像");
+        let mut props = ImageProps::new(dummy_assets::SCREENSHOT_SRC, &alt);
         props.aspect_ratio = AspectRatio::Video;
         image::image(&props, vec![])
     } else {
-        let mut props = ImageProps::new(dummy_assets::PRODUCT_SRC, "記事のサムネイル画像");
+        let mut props = ImageProps::new(dummy_assets::PRODUCT_SRC, &alt);
         props.aspect_ratio = AspectRatio::Square;
         props.shape = ImageShape::Rounded;
         image::image(&props, vec![])
