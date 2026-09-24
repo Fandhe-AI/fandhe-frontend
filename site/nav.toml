@@ -1309,6 +1309,11 @@ path = "/blocks/footer-sticky-reveal/"
 title = "Banner"
 
 [[section.group.page]]
+title = "banner-cookie-consent"
+source = "site/blocks/banner-cookie-consent.md"
+path = "/blocks/banner-cookie-consent/"
+
+[[section.group.page]]
 title = "banner-email-signup"
 source = "site/blocks/banner-email-signup.md"
 path = "/blocks/banner-email-signup/"
