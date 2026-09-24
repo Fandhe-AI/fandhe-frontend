@@ -2705,3 +2705,98 @@ fn blog_featured_with_list_composes_expected_parts() {
         );
     }
 }
+
+/// `blog-list-image`（イシュー #2812）の CSS フック配線検証。
+/// `blog_featured_with_list_page_wires_demo_class_and_css_hooks` と同型。
+#[test]
+fn blog_list_image_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-list-image/index.html"))
+        .expect("blocks/blog-list-image/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-blog-list-image\""),
+        "blog-list-image page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "blog-list-image page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "blog-list-image page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-blog-list-image-image=\"\"",
+        "data-blocks-blog-list-image-main=\"\"",
+        "data-blocks-blog-list-image-category=\"\"",
+        "data-blocks-blog-list-image-separator=\"\"",
+        "data-blocks-blog-list-image-author=\"\"",
+        "data-blocks-blog-list-image-author-link=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "blog-list-image page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-blog-list-image-image]",
+        "[data-blocks-blog-list-image-main]",
+        "[data-blocks-blog-list-image-separator]",
+        "[data-blocks-blog-list-image-author]",
+        "[data-blocks-blog-list-image-author-link]",
+        ".blocks-blog-list-image-list",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// blog-list-image の合成部品（heading/text/badge/image/avatar/separator/
+/// link/link-overlay）が期待どおりの構成で実際に出力されていること
+/// （記事 3 件・外部リンクのみ）、`<form>`・`href="#"`・`src="data:` を
+/// 持ち込んでいないことを固定する（イシュー #2812）。
+#[test]
+fn blog_list_image_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-list-image/index.html"))
+        .expect("blocks/blog-list-image/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"image\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"separator\"",
+        "data-scope=\"link\"",
+        "data-scope=\"link-overlay\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "blog-list-image page should contain {scope}"
+        );
+    }
+    // ページ本文全体を包む `article.docs-content`（`crate::layout`）が別に
+    // 1 件存在するため、`<article` の総数ではなく block 固有 class を数える。
+    assert_eq!(
+        html.matches("class=\"blocks-blog-list-image-article\"")
+            .count(),
+        3,
+        "blog-list-image should render exactly 3 article instances"
+    );
+    assert!(
+        html.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend\""),
+        "blog-list-image should link to the fixed repository URL"
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "blog-list-image should never contain {absent}"
+        );
+    }
+}
