@@ -6,12 +6,15 @@
 ものではなく、既存の Themes/Primitives 部品を組み合わせた実例集である
 ことに注意してください。
 
-幅 md（48rem）以上では 2 カラム（左に見出し・説明、右に求人アコーディオン
-一覧）になり、それより狭い幅では見出しの下にアコーディオンが縦に続きます。
-アコーディオンの各項目トリガーには職種名と部署 badge を、本文には
-説明文・勤務地/雇用形態のメタ行（アイコン付き）・応募ボタンを配置します。
-docs サイトは JS ハイドレーションを行わず開閉を切り替える手段がないため、
-4 件すべてを開いた状態で固定表示し、求人内容へ常時到達できるようにします。
+幅 md（48rem）以上では 2 カラム（左に見出し・説明、右に求人一覧）になり、
+それより狭い幅では見出しの下に求人一覧が縦に続きます。各求人の見出しには
+職種名と部署 badge を、本文には説明文・勤務地/雇用形態のメタ行
+（アイコン付き）・応募ボタンを配置します。docs サイトは JS ハイドレーション
+を行わず開閉を切り替える手段がないため、4 件すべてを開いた状態で固定表示し、
+求人内容へ常時到達できるようにします。求人の見出しは非操作の `h4` として
+描画し、`<button>`・`aria-expanded`・`aria-controls`・開閉インジケータの
+いずれも出力しません（無 JS では押しても状態が変わらない操作要素を
+公開しないための判断です）。
 
 本 Demo は静的な表示例であり、`<form>` 要素を持たず、送信処理・応募処理を
 一切行いません。応募ボタンは `type="button"` のまま送信先を持たない静的な
@@ -103,11 +106,6 @@ fn geo_icon(path_d: &'static str) -> Node {
     )
 }
 
-/// シェブロン（下向き、アコーディオンの開閉インジケータ）。
-fn chevron_icon() -> Node {
-    geo_icon("M6 9l6 6 6-6")
-}
-
 /// ピン（勤務地メタ行）。
 fn pin_icon() -> Node {
     geo_icon("M12 21s7-7.5 7-12a7 7 0 1 0-14 0c0 4.5 7 12 7 12zM12 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4z")
@@ -131,14 +129,22 @@ fn meta_item(item_icon: Node, label: &str) -> Node {
     )
 }
 
-/// 求人 1 件分の `item`（トリガー + 本文）を組み立てる。
+/// 求人 1 件分の `item`（見出し + 本文）を組み立てる。
 fn job_item(index: usize, job: &Job, accordion_props: &AccordionProps) -> Node {
     // 無 JS のため開閉を切り替える手段がなく、`OpenState::Closed` にすると
     // `item_content` に `hidden` が付与され本文（勤務地・雇用形態・応募
-    // ボタン）へ到達不能になる（P1 指摘、イシュー #2816）。全件を
-    // `OpenState::Open` に固定し、求人内容を常時閲覧・操作可能にする。
+    // ボタン）へ到達不能になる（P1 是正 1 回目、イシュー #2816）ため
+    // `OpenState::Open` に固定する。加えて `accordion::item_trigger` は
+    // 操作可能な `<button>`・`aria-expanded`・`aria-controls`・開閉
+    // インジケータを出力する契約だが、docs サイトには hydration がなく
+    // 押下しても状態が変わらないため、この見た目上の操作可能性それ自体が
+    // 「反応しない操作要素」として利用者に誤ったアフォーダンスを伝える
+    // （P1 是正 2 回目、codex レビュー指摘）。本 block は無 JS 前提で
+    // 全件を常時開いた状態のまま固定表示する（開閉状態を持たない）ため、
+    // `item_trigger`/`item_indicator`（開閉シェブロン）は使わず、見出しを
+    // 素の `h4` として描画する（トリガーの `id` は `item_content` の
+    // `aria-labelledby` 参照先として `h4` 自身へ引き続き付与する）。
     let state = OpenState::Open;
-    let value = format!("job-{}", index + 1);
     let trigger_id = format!("blocks-careers-split-accordion-job-{}-trigger", index + 1);
     let content_id = format!("blocks-careers-split-accordion-job-{}-content", index + 1);
     let apply_label = format!("応募する（{}）", job.title);
@@ -161,26 +167,11 @@ fn job_item(index: usize, job: &Job, accordion_props: &AccordionProps) -> Node {
 
     let trigger = el(
         "h4",
-        vec![("class", "blocks-careers-split-accordion-item-heading")],
-        vec![accordion::item_trigger(
-            state,
-            false,
-            accordion_props,
-            value.as_str(),
-            Some(trigger_id.as_str()),
-            Some(content_id.as_str()),
-            vec![],
-            vec![
-                trigger_label,
-                accordion::item_indicator(
-                    state,
-                    false,
-                    accordion_props,
-                    vec![],
-                    vec![chevron_icon()],
-                ),
-            ],
-        )],
+        vec![
+            ("class", "blocks-careers-split-accordion-item-heading"),
+            ("id", trigger_id.as_str()),
+        ],
+        vec![trigger_label],
     );
 
     let body = div(
@@ -294,17 +285,23 @@ pub fn demo() -> Node {
 
 - ブレークポイントを md（48rem）へ変更し、`grid-template-columns` による
   シンプルな 2 カラム切り替え（左固定幅・右 2 倍幅）にしました。
-- アコーディオンの見出し（トリガー）ラッパーには `h3` ではなく `h4` を
-  使いました（ページ側目次収集が h2/h3 のみを対象とするため、求人名が
-  目次へ混入するのを避けています）。
-- アイコンは既存アイコンセットの複製ではなく、シェブロン/ピン/時計/矢印の
-  4 種を自作の単純な線画（`icon` + `path`）として描きました。
+- 求人の見出しには `h3` ではなく `h4` を使いました（ページ側目次収集が
+  h2/h3 のみを対象とするため、求人名が目次へ混入するのを避けています）。
+- アイコンは既存アイコンセットの複製ではなく、ピン/時計/矢印の 3 種を
+  自作の単純な線画（`icon` + `path`）として描きました。
 - 求人件数は 4 件に固定し、文言（職種名・部署・説明・勤務地・雇用形態）は
   すべて独自の架空のものへ書き直しました。
 - 開閉状態は無 JS のため切り替えられません。当初は先頭 1 件のみ開いた
   状態で固定していましたが、閉状態の本文（求人説明・勤務地・雇用形態・
-  応募ボタン）へ閲覧者が到達できなくなるため、4 件すべてを開いた状態で
-  固定表示するよう変更しました。
+  応募ボタン）へ閲覧者が到達できなくなるため、いったん 4 件すべてを
+  `accordion::item_trigger`（操作可能な `<button>`）付きの開いた状態で
+  固定表示するよう変更しました。しかし無 JS では押しても状態が変わらない
+  ため、この `<button>`・`aria-expanded`・`aria-controls`・開閉インジケータ
+  自体が「反応しない操作要素」を公開する問題として残っていました
+  （codex レビュー指摘）。最終的に、求人の見出しを非操作の `h4` として
+  描画し（`accordion::item_trigger`/`item_indicator` は使わず、`accordion`
+  部品は `root`/`item`/`item_content` のみを使用）、`<button>` は応募
+  ボタンのみが持つ構成へ変更しました。
 - 配色・余白・角丸は独自実装せず、既存のテーマトークンにそのまま従います。
 
 関連情報: [Heading](../themes/heading.md) / [Text](../themes/text.md) /

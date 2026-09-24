@@ -3059,14 +3059,43 @@ fn careers_split_accordion_composes_expected_parts() {
         4,
         "careers-split-accordion should render exactly 4 apply buttons"
     );
+    // ページ全体（ヘッダーの検索・テーマ切替等）には無関係な `hidden=""`/
+    // `aria-expanded`/`aria-controls`/`type="button"` が既に存在するため、
+    // 以下の 4 件は本 block の合成関数出力（Demo 部分のみ）に対して検証
+    // する（`demo_output_never_leaks_an_unescaped_script_tag` と同型に
+    // `blocks::all_blocks()` から本 block を引く）。
+    let block = blocks::all_blocks()
+        .into_iter()
+        .find(|b| b.path == "/blocks/careers-split-accordion/")
+        .expect("careers-split-accordion should be registered in blocks::all_blocks()");
+    let demo_html = render(&(block.demo)());
     // 無 JS のため開閉を切り替えられず、閉状態は `item_content` の
     // `hidden` により本文（求人説明・勤務地・雇用形態・応募ボタン）を
-    // 恒久的に到達不能にする（P1 是正、イシュー #2816）。4 件すべてを
-    // 開いた状態で固定表示し、全求人へ到達可能であることを固定する。
+    // 恒久的に到達不能にする（P1 是正 1 回目、イシュー #2816）。4 件すべて
+    // 開いた状態（`hidden` なし）で固定表示し、全求人へ到達可能であること
+    // を固定する。
+    assert!(
+        !demo_html.contains("hidden=\"\""),
+        "careers-split-accordion demo should never hide item content (no-JS reachability)"
+    );
+    // 求人見出しは無 JS では押しても状態が変わらないため、非操作の `h4`
+    // として描画し `<button>`・`aria-expanded`・`aria-controls`・開閉
+    // インジケータを一切出力しない（P1 是正 2 回目、codex レビュー指摘、
+    // イシュー #2816）。
     assert_eq!(
-        html.matches("aria-expanded=\"true\"").count(),
+        demo_html.matches("aria-expanded").count(),
+        0,
+        "careers-split-accordion demo should never expose aria-expanded (non-operable headings)"
+    );
+    assert_eq!(
+        demo_html.matches("aria-controls").count(),
+        0,
+        "careers-split-accordion demo should never expose aria-controls (non-operable headings)"
+    );
+    assert_eq!(
+        demo_html.matches("type=\"button\"").count(),
         4,
-        "careers-split-accordion should render all four items open (no-JS reachability)"
+        "careers-split-accordion demo should render exactly 4 <button> elements (apply CTAs only)"
     );
     assert!(
         html.contains("一緒にチームを育てる仲間を募集しています"),
