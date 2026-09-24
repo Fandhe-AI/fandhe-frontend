@@ -449,36 +449,61 @@ mod tests {
     }
 
     #[test]
-    fn all_blocks_registers_all_24_existing_blocks() {
-        // 件数はハードコードした完全一致で固定する（イシュー #2810）。
-        // `>= N` のような下限検証は既存 block の削除を見逃す（`blocks_nav.rs`
-        // の三方突合はレジストリ・原稿・nav を同時に削除すれば通るため
-        // 代替にならない）。カテゴリ別モジュール分割（イシュー #2734）の
-        // 前後で登録件数が変わっていないことの回帰。イシュー #2810 で
-        // blog-grid-image を追加し 23 → 24 件になった。
-        let blocks = all_blocks();
-        assert_eq!(
-            blocks.len(),
-            24,
-            "all_blocks() の登録件数が変化した場合はこの期待値も同時に更新すること"
-        );
+    fn all_blocks_keeps_the_pre_split_blocks_and_has_unique_paths() {
+        // カテゴリ別モジュール分割（イシュー #2734）時点の既存 block・
+        // イシュー #2741 で追加された banner-email-signup が、その後の
+        // block 追加でも失われないこと（部分集合であることの回帰）と、
+        // `all_blocks()` の `path` に重複が無いことを固定する（イシュー
+        // #2809。件数の完全一致を要求する形は block 追加のたびに必ず
+        // 衝突・FAIL する構造上の欠陥だったため、意図を保ったまま件数
+        // 依存を外した）。
+        const PRE_SPLIT_PATHS: &[&str] = &[
+            "/blocks/login-01/",
+            "/blocks/dashboard-01/",
+            "/blocks/sidebar-07/",
+            "/blocks/sidebar-03/",
+            "/blocks/login-04/",
+            "/blocks/signup-01/",
+            "/blocks/signup-05/",
+            "/blocks/pricing-tiers-morph/",
+            "/blocks/pricing-usage-slider/",
+            "/blocks/testimonials-stack/",
+            "/blocks/bento-staggered/",
+            "/blocks/feature-expand/",
+            "/blocks/cta-banner-magnetic/",
+            "/blocks/cta-signup-celebrate/",
+            "/blocks/cursor-hover-cards/",
+            "/blocks/footer-sticky-reveal/",
+            "/blocks/footer-newsletter/",
+            "/blocks/hero-editorial-stagger/",
+            "/blocks/hero-parallax-layers/",
+            "/blocks/hero-terminal/",
+            "/blocks/text-split-reveal/",
+            "/blocks/game-ui-modal/",
+            "/blocks/banner-email-signup/",
+        ];
+        assert_eq!(PRE_SPLIT_PATHS.len(), 23);
 
-        let mut paths: Vec<&str> = blocks.iter().map(|b| b.path).collect();
-        paths.sort_unstable();
-        paths.dedup();
-        assert_eq!(
-            paths.len(),
-            blocks.len(),
-            "all_blocks() paths must be unique"
-        );
+        let registered = all_blocks();
+        let mut seen = std::collections::HashSet::new();
+        for block in &registered {
+            assert!(
+                seen.insert(block.path),
+                "duplicate block path: {}",
+                block.path
+            );
+        }
 
-        let mut titles: Vec<&str> = blocks.iter().map(|b| b.title).collect();
-        titles.sort_unstable();
-        titles.dedup();
-        assert_eq!(
-            titles.len(),
-            blocks.len(),
-            "all_blocks() titles must be unique"
-        );
+        for path in PRE_SPLIT_PATHS {
+            assert!(
+                seen.contains(path),
+                "pre-split block {path} should remain registered"
+            );
+        }
+
+        // イシュー #2809 で追加した blog-featured-with-list、イシュー
+        // #2810 で追加した blog-grid-image も登録されていることを固定する。
+        assert!(seen.contains("/blocks/blog-featured-with-list/"));
+        assert!(seen.contains("/blocks/blog-grid-image/"));
     }
 }

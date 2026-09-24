@@ -2498,6 +2498,55 @@ fn blog_grid_image_page_wires_demo_class_and_css_hooks() {
     }
 }
 
+/// `blog-featured-with-list`（イシュー #2809）の CSS フック配線検証。
+/// `testimonials_stack_page_wires_demo_class_and_css_hooks` と同型
+/// （`crate::blocks` モジュール doc「CSS フックが `class` と `[data-*]` で
+/// 混在する理由」節参照）。
+#[test]
+fn blog_featured_with_list_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-featured-with-list/index.html"))
+        .expect("blocks/blog-featured-with-list/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-blog-featured-with-list\""),
+        "blog-featured-with-list page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "blog-featured-with-list page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "blog-featured-with-list page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-blog-featured-with-list-article=\"\"",
+        "data-blocks-blog-featured-with-list-author=\"\"",
+        "data-blocks-blog-featured-with-list-separator=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "blog-featured-with-list page should output the {hook} CSS hook attribute"
+        );
+    }
+
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-blog-featured-with-list-article]",
+        "[data-blocks-blog-featured-with-list-author]",
+        "[data-blocks-blog-featured-with-list-separator]",
+        ".blocks-blog-featured-with-list-list",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
 /// `blog-grid-image` が heading/text/badge/card/image/avatar/link/
 /// link-overlay の 8 部品すべてを実際に合成していること、5 記事ぶんの
 /// `link-overlay` overlay が `aria-label` を持つこと、送信処理・`<form>`・
@@ -2563,6 +2612,47 @@ fn blog_grid_image_composes_expected_parts() {
         assert!(
             !demo_html.contains(absent),
             "blog-grid-image should never contain {absent}"
+        );
+    }
+}
+
+/// `blog-featured-with-list` が使用部品どおりに合成され、非対話制約
+/// （`<form>`/死リンク/`data:` URI 不在）を満たすことの回帰。
+#[test]
+fn blog_featured_with_list_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-featured-with-list/index.html"))
+        .expect("blocks/blog-featured-with-list/index.html should be generated");
+    for needle in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"separator\"",
+        "data-scope=\"link\"",
+        "data-scope=\"link-overlay\"",
+        "<time class=\"blocks-blog-featured-with-list-date\" datetime=",
+    ] {
+        assert!(
+            html.contains(needle),
+            "blog-featured-with-list page should contain {needle}"
+        );
+    }
+    assert!(
+        html.contains(r#"data-scope="link-overlay" data-part="overlay""#),
+        "blog-featured-with-list should render the link-overlay overlay part"
+    );
+    // overlay の `<a>` が `aria-label` を持つこと（宙に浮いた記事タイトル
+    // クリック領域に読み上げ用のラベルを与える）。
+    assert!(
+        html.contains(
+            r#"data-part="overlay" href="https://github.com/Fandhe-AI/fandhe-frontend" aria-label=""#
+        ),
+        "blog-featured-with-list overlay links should carry an aria-label"
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "blog-featured-with-list should never contain {absent}"
         );
     }
 }
