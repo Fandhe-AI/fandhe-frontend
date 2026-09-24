@@ -1,9 +1,10 @@
 //! `banner-announcement-pill` block（イシュー #2739。親トラッキング #2730
 //! 「Blocks 目的別パーツ拡充」配下、Phase 1 親 #2738「マーケティング A」の
-//! 最初の block。Marketing / Banner カテゴリの最初の実装であり、本ファイルの
-//! 追加により当該カテゴリを空雛形からディレクトリ化した、
-//! `docs/design/docs-site-blocks-section.md` §18「カテゴリの卒業」手順
-//! 参照）。
+//! block の 1 つ。Marketing / Banner カテゴリは既にディレクトリ化済み
+//! （イシュー #2741「banner-email-signup」が同カテゴリ最初の block として
+//! 空雛形から `git mv` した実績があり、本ファイルはその既存カテゴリへの
+//! 追加である。カテゴリの卒業手順は `docs/design/docs-site-blocks-section.md`
+//! §18 参照）。
 //!
 //! # レイアウト
 //!
@@ -268,6 +269,17 @@ pub const BLOCK: Block = Block {
 /// 連結した子孫セレクタ（属性セレクタ 2 個 = 詳細度 (0,2,0)）へ
 /// 揃えている。`blocks.css` は `pre-styled-ui.css` より後に `<link>` される
 /// ため、詳細度が並んだ場合はソース順で本 CSS が勝つ。
+///
+/// 重なりアバターのリング色（`box-shadow`）反転も同じ理由で詳細度を
+/// 揃える必要がある。`avatar` recipe の `stacked` variant（`[data-scope=
+/// "avatar"][data-part="root"].fd-avatar--stack-stacked`、詳細度
+/// (0,3,0)）に必ず勝つよう、ピル root 自身が持つ 2 属性セレクタ
+/// （`[data-blocks-banner-announcement-pill-pill]`・
+/// `[data-blocks-banner-announcement-pill-tone="dark"]`、いずれも同じ
+/// `link::root` 要素に付く）と子孫の `[data-blocks-banner-announcement-
+/// pill-avatar]` を連結した属性セレクタ 3 個（詳細度 (0,3,0)）へ揃え、
+/// ソース順（`blocks.css` が後勝ち）で `--fandhe-color-bg`（明るいまま）
+/// から `--fandhe-color-fg-muted`（tone dark の背景色と同じ）へ上書きする。
 const LAYOUT_CSS: &str = "\
 .blocks-banner-announcement-pill-grid {\n  display: grid;\n  gap: 1rem;\n  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));\n}\n\
 .blocks-banner-announcement-pill-cell {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 0.75rem;\n  padding: 2rem 1rem;\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg);\n  border: 1px solid var(--fandhe-color-border);\n}\n\
@@ -285,4 +297,5 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-banner-announcement-pill-pill] [data-blocks-banner-announcement-pill-arrow] {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-banner-announcement-pill-tone=\"dark\"] [data-blocks-banner-announcement-pill-arrow] {\n  color: var(--fandhe-color-bg);\n}\n\
 .blocks-banner-announcement-pill-avatars {\n  display: inline-flex;\n}\n\
+[data-blocks-banner-announcement-pill-pill][data-blocks-banner-announcement-pill-tone=\"dark\"] [data-blocks-banner-announcement-pill-avatar] {\n  box-shadow: 0 0 0 2px var(--fandhe-color-fg-muted);\n}\n\
 ";
