@@ -560,7 +560,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-comparison-cards-header {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-comparison-cards-description] {\n  margin: 0;\n}\n\
 [data-scope=\"list\"][data-part=\"root\"][data-blocks-comparison-cards-features] {\n  margin: 0;\n  padding: 0;\n}\n\
-.blocks-comparison-cards-row {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  padding-block: var(--fandhe-space-3);\n  border-top: 1px solid var(--fandhe-color-border);\n}\n\
+.blocks-comparison-cards-row {\n  display: flex;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  padding-block: var(--fandhe-space-3);\n  border-top: 1px solid var(--fandhe-color-border);\n}\n\
+[data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > [data-scope=\"list\"][data-part=\"item\"].blocks-comparison-cards-row {\n  align-items: center;\n}\n\
 [data-scope=\"list\"][data-part=\"item\"].blocks-comparison-cards-row:first-child {\n  border-top: none;\n  padding-top: 0;\n}\n\
 [data-scope=\"list\"][data-part=\"item\"].blocks-comparison-cards-row:last-child {\n  padding-bottom: 0;\n}\n\
 [data-blocks-comparison-cards-value=\"excluded\"] {\n  color: var(--fandhe-color-fg-muted);\n}\n\
