@@ -618,7 +618,7 @@ text-split-reveal → Marketing/Hero（`text_split_reveal` はモジュール do
 - `crates/docs-site/tests/blocks_nav.rs::blocks_index_page_links_to_the_registered_block`
   は生の Markdown ソースを読む方式から、実サイトビルド
   （`support/shared_site.rs`）の `blocks/index.html` を読み、
-  `blocks::BLOCKS` 全件への `href` をループ検証する方式へ書き換えた。
+  `blocks::all_blocks()` 全件への `href` をループ検証する方式へ書き換えた。
   個別イシュー番号ごとの手書き `assert!` 列挙を廃し、将来 block が
   増えても本テストへの追記が不要なレジストリ駆動の網羅チェックへ
   移行した。
