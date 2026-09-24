@@ -7,9 +7,10 @@
 //! カテゴリ内へ閉じ込めるための構造、イシュー #2734）。
 
 mod changelog_accordion;
+mod changelog_stacked_list;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![changelog_accordion::BLOCK]
+    vec![changelog_accordion::BLOCK, changelog_stacked_list::BLOCK]
 }
