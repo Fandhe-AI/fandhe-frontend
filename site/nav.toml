@@ -1390,6 +1390,11 @@ title = "changelog-accordion"
 source = "site/blocks/changelog-accordion.md"
 path = "/blocks/changelog-accordion/"
 
+[[section.group.page]]
+title = "changelog-timeline-subscribe"
+source = "site/blocks/changelog-timeline-subscribe.md"
+path = "/blocks/changelog-timeline-subscribe/"
+
 [[section.group]]
 title = "Sidebar"
 

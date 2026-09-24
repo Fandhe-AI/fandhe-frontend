@@ -3692,3 +3692,86 @@ fn content_columns_screenshot_composes_expected_parts() {
         );
     }
 }
+
+/// changelog-timeline-subscribe の Demo ラッパ・CSS 配線・block 固有 CSS
+/// （3 列上書き・attached の角丸打ち消し・狭幅ブレークポイント）が実際に
+/// 出力されていることを固定する（イシュー #2821）。
+#[test]
+fn changelog_timeline_subscribe_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/changelog-timeline-subscribe/index.html"))
+        .expect("blocks/changelog-timeline-subscribe/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-changelog-timeline-subscribe\""),
+        "changelog-timeline-subscribe page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "changelog-timeline-subscribe page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "changelog-timeline-subscribe page should link the Blocks-specific stylesheet"
+    );
+
+    for hook in [
+        "data-blocks-changelog-timeline-subscribe-field",
+        "data-blocks-changelog-timeline-subscribe-input",
+        "data-blocks-changelog-timeline-subscribe-submit",
+        "data-blocks-changelog-timeline-subscribe-root",
+        "data-blocks-changelog-timeline-subscribe-date-col",
+        "blocks-changelog-timeline-subscribe-inline-date",
+        "data-blocks-changelog-timeline-subscribe-changes",
+    ] {
+        assert!(
+            html.contains(hook),
+            "changelog-timeline-subscribe page should contain {hook}"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        r#".blocks-changelog-timeline-subscribe-timeline [data-scope="timeline"][data-part="item"] {"#,
+        r#"[data-scope="field"][data-part="input"][data-blocks-changelog-timeline-subscribe-input] {"#,
+        r#"[data-scope="button"][data-part="root"][data-blocks-changelog-timeline-subscribe-submit] {"#,
+        "@media (max-width: 47.99rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// changelog-timeline-subscribe の合成部品（heading/text/field/input/
+/// button/badge/timeline/list/visually-hidden）が期待どおりの構成で実際に
+/// 出力されていること、`<form>`・`data:` URI を持ち込んでおらず
+/// `type="button"` がちょうど 1 個であることを固定する（イシュー #2821）。
+#[test]
+fn changelog_timeline_subscribe_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/changelog-timeline-subscribe/index.html"))
+        .expect("blocks/changelog-timeline-subscribe/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"field\" data-part=\"input\"",
+        "data-scope=\"button\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"timeline\"",
+        "data-scope=\"list\"",
+        "data-scope=\"visually-hidden\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "changelog-timeline-subscribe page should contain {scope}"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "changelog-timeline-subscribe should never contain {absent}"
+        );
+    }
+}
