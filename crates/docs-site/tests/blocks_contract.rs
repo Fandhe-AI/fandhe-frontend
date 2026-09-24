@@ -2445,3 +2445,124 @@ fn game_ui_modal_css_uses_motion_tokens_and_no_infinite_keyframes() {
         "game-ui-modal CSS should reference a --fandhe-motion-duration-* token"
     );
 }
+
+/// `blog-grid-image`（イシュー #2810）の Demo ラッパ class・CSS 配線・
+/// `data-blocks-blog-grid-image-*` フックが実 HTML と `blocks::stylesheet()`
+/// の双方に揃っていることを固定する（`login_01_page_wires_demo_class_and_
+/// both_stylesheets_index_page_does_not` と同型の検証）。
+#[test]
+fn blog_grid_image_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-grid-image/index.html"))
+        .expect("blocks/blog-grid-image/index.html should be generated");
+
+    assert!(
+        html.contains("class=\"blocks-demo blocks-blog-grid-image\""),
+        "blog-grid-image page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "blog-grid-image page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "blog-grid-image page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-blog-grid-image-article=\"\"",
+        "data-blocks-blog-grid-image-card=\"\"",
+        "data-blocks-blog-grid-image-avatar=\"\"",
+        "data-blocks-blog-grid-image-title=\"\"",
+        "data-blocks-blog-grid-image-excerpt=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "blog-grid-image page should output the {hook} CSS hook attribute"
+        );
+    }
+
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-blog-grid-image-article]",
+        "[data-blocks-blog-grid-image-card]",
+        "[data-blocks-blog-grid-image-avatar]",
+        ".blocks-blog-grid-image-grid",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// `blog-grid-image` が heading/text/badge/card/image/avatar/link/
+/// link-overlay の 8 部品すべてを実際に合成していること、5 記事ぶんの
+/// `link-overlay` overlay が `aria-label` を持つこと、送信処理・`<form>`・
+/// `href="#"`・`data:` URI・`raw_html` を持ち込まないことを固定する
+/// （イシュー #2810 実装計画 §4-7）。
+///
+/// 検証対象は `(block.demo)()` の部分木のみに限定する。ページ全体には
+/// 前後ナビ（prev/next。`testimonials-stack`/`footer-newsletter` への
+/// カード状リンク）が同じ `link-overlay` の `overlay` パートを出力する
+/// ため、ページ全体の `data-part="overlay"` 個数検査は Demo 由来ではない
+/// overlay を誤って数えてしまう（`signup_05` の実ブランド名検査が
+/// `(block.demo)()` に限定する理由と同型の判断）。
+#[test]
+fn blog_grid_image_composes_expected_parts() {
+    let block = blocks::all_blocks()
+        .into_iter()
+        .find(|b| b.path == "/blocks/blog-grid-image/")
+        .expect("blog-grid-image block should be registered");
+    let demo_html = render(&(block.demo)());
+
+    for scope in [
+        "heading",
+        "text",
+        "badge",
+        "card",
+        "image",
+        "avatar",
+        "link",
+        "link-overlay",
+    ] {
+        assert!(
+            demo_html.contains(&format!("data-scope=\"{scope}\"")),
+            "blog-grid-image should compose the {scope} part"
+        );
+    }
+
+    // インスタンス A（3 記事）+ インスタンス B（2 記事）= 5 件の overlay。
+    assert_eq!(
+        demo_html.matches("data-part=\"overlay\"").count(),
+        5,
+        "blog-grid-image should render exactly 5 link-overlay overlays (3 + 2 articles)"
+    );
+    assert_eq!(
+        demo_html.matches("aria-label=").count(),
+        5,
+        "every link-overlay overlay should carry an aria-label (visible title lives outside it)"
+    );
+    // インスタンス A のみ card::root で囲む（3 件）。
+    assert_eq!(
+        demo_html
+            .matches("data-blocks-blog-grid-image-card=\"\"")
+            .count(),
+        3,
+        "only instance A articles should be wrapped in card::root"
+    );
+    // アバター画像は ImageStatus::Loaded で出力される（非表示のまま残らない）。
+    assert!(
+        demo_html.contains(r#"data-state="visible""#),
+        "avatar image should render with data-state=\"visible\" (ImageStatus::Loaded)"
+    );
+
+    for absent in ["<form", "href=\"#\"", "src=\"data:", "raw_html"] {
+        assert!(
+            !demo_html.contains(absent),
+            "blog-grid-image should never contain {absent}"
+        );
+    }
+}

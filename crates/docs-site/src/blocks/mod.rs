@@ -449,9 +449,36 @@ mod tests {
     }
 
     #[test]
-    fn all_blocks_registers_all_22_existing_blocks() {
-        // カテゴリ別モジュール分割（イシュー #2734）の前後で登録件数が
-        // 変わっていないことの回帰。
-        assert_eq!(all_blocks().len(), 22);
+    fn all_blocks_keeps_existing_blocks_and_has_unique_paths() {
+        // 件数の正は `all_blocks()` 自身であり（イシュー #2732）、本テストは
+        // 個別 block の存在を検証しない（それは `tests/blocks_nav.rs` の
+        // 三方突合が担う）。ここでは (a) カテゴリ別モジュール分割（イシュー
+        // #2734）前後で登録件数が減っていないこと（回帰）、(b) `path`/
+        // `title` が一意であること（並列 PR によるレジストリ衝突の検知）
+        // のみを固定する。約 300 件規模へ増える見込み（親トラッキング
+        // #2730）のため、ハードコードした件数の一致検証は意図的に持たない。
+        let blocks = all_blocks();
+        assert!(
+            blocks.len() >= 22,
+            "all_blocks() should not lose previously registered blocks"
+        );
+
+        let mut paths: Vec<&str> = blocks.iter().map(|b| b.path).collect();
+        paths.sort_unstable();
+        paths.dedup();
+        assert_eq!(
+            paths.len(),
+            blocks.len(),
+            "all_blocks() paths must be unique"
+        );
+
+        let mut titles: Vec<&str> = blocks.iter().map(|b| b.title).collect();
+        titles.sort_unstable();
+        titles.dedup();
+        assert_eq!(
+            titles.len(),
+            blocks.len(),
+            "all_blocks() titles must be unique"
+        );
     }
 }
