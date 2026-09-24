@@ -1292,6 +1292,11 @@ title = "blog-list-image"
 source = "site/blocks/blog-list-image.md"
 path = "/blocks/blog-list-image/"
 
+[[section.group.page]]
+title = "blog-split-header-grid"
+source = "site/blocks/blog-split-header-grid.md"
+path = "/blocks/blog-split-header-grid/"
+
 [[section.group]]
 title = "Footer"
 
