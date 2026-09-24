@@ -137,7 +137,7 @@ fn job_card(job: &Job) -> Node {
         vec![("data-blocks-careers-card-grid-card", "")],
         vec![
             card::header(
-                vec![("class", "blocks-careers-card-grid-card-header")],
+                vec![("data-blocks-careers-card-grid-card-header", "")],
                 vec![
                     badge::badge(
                         &BadgeProps {

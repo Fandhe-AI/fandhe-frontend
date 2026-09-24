@@ -204,7 +204,7 @@ fn job_card(job: &Job) -> Node {
         vec![("data-blocks-careers-card-grid-card", "")],
         vec![
             card::header(
-                vec![("class", "blocks-careers-card-grid-card-header")],
+                vec![("data-blocks-careers-card-grid-card-header", "")],
                 vec![
                     badge::badge(
                         &BadgeProps {
@@ -349,13 +349,25 @@ pub const BLOCK: Block = Block {
 /// セレクタは `.blocks-careers-card-grid-*` と
 /// `[data-blocks-careers-card-grid-*]` のみを用い、他 block や部品の素の
 /// セレクタへ影響させない（`blog_list_image` と同じ名前空間分離）。
+///
+/// # `[data-blocks-careers-card-grid-card-header]` の詳細度を Card recipe 以上にする
+///
+/// `card::header` が出力する要素は `[data-scope="card"][data-part="header"]`
+/// （詳細度 (0,2,0)）で `gap: var(--fandhe-space-1-5)` を既に宣言している
+/// ため、block 側セレクタを単独の class（詳細度 (0,1,0)）のままにすると
+/// Card recipe に負けてバッジと職種見出しの間隔が意図した値へ広がらない
+/// （Cursor Bugbot 指摘、イシュー #2815）。`login_04`（イシュー #2093）と
+/// 同型の対処として、呼び出し側の属性を `class` ではなく
+/// `data-blocks-careers-card-grid-card-header` 属性へ変更し、セレクタを
+/// `[data-scope="card"][data-part="header"][data-blocks-careers-card-grid-card-header]`
+/// （詳細度 (0,3,0)）へ結合して Card recipe を確実に上書きする。
 const LAYOUT_CSS: &str = "\
 .blocks-careers-card-grid-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-careers-card-grid-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-careers-card-grid-tagline] {\n  color: var(--fandhe-color-accent);\n  text-transform: uppercase;\n  letter-spacing: 0.05em;\n}\n\
 .blocks-careers-card-grid-grid {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-6);\n}\n\
 [data-blocks-careers-card-grid-card] {\n  display: flex;\n  flex-direction: column;\n  height: 100%;\n}\n\
-.blocks-careers-card-grid-card-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
+[data-scope=\"card\"][data-part=\"header\"][data-blocks-careers-card-grid-card-header] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-careers-card-grid-dept] {\n  align-self: flex-start;\n}\n\
 .blocks-careers-card-grid-card-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  flex: 1;\n}\n\
 .blocks-careers-card-grid-meta {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-4);\n}\n\
