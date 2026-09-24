@@ -214,6 +214,28 @@ fn unordered_marker_aligns_to_first_line_not_whole_item_center() {
 }
 
 #[test]
+fn ordered_marker_resets_margin_top_and_does_not_inherit_unordered_offset() {
+    // Cursor Bugbot 指摘（イシュー #2717 レビュー、Medium）: 箇条書き用
+    // `.fw-wire-list > .fw-wire-list-item::before { margin-top: ... }` は
+    // `.fw-wire-list-ordered` 修飾がついた要素にもカスケードで適用され
+    // （番号付き側のセレクタが `margin-top` を宣言しなければ上書きされず
+    // 残ってしまう）、番号（`align-self: baseline` でテキストの先頭行
+    // ベースラインへ自然に揃うはずの数字）に余分な余白が付く。番号付き
+    // 側で明示的に `margin-top: 0` を宣言し、この意図しない継承を防ぐ
+    // ことを固定する。
+    let css = fandhe_frontend_wireframe_ui::list::LIST_CSS;
+    let selector = ".fw-wire-list.fw-wire-list-ordered > .fw-wire-list-item::before {";
+    let start = css.find(selector).expect("ordered marker rule missing");
+    let end = css[start..].find('}').map(|e| start + e).unwrap();
+    let body = &css[start..end];
+
+    assert!(
+        body.contains("margin-top: 0;") || body.contains("margin-top: 0em;"),
+        "ordered marker must reset margin-top to 0 to avoid inheriting the unordered marker's first-line offset: {body:?}"
+    );
+}
+
+#[test]
 fn counter_rules_are_scoped_to_ordered_modifier() {
     let css = fandhe_frontend_wireframe_ui::list::LIST_CSS;
 

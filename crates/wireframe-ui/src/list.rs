@@ -121,6 +121,7 @@ pub const LIST_CSS: &str = "\
 .fw-wire-list.fw-wire-list-ordered > .fw-wire-list-item::before {
   content: counter(fw-wire-list) \".\";
   align-self: baseline;
+  margin-top: 0;
   width: auto;
   height: auto;
   border-radius: 0;

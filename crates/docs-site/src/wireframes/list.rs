@@ -1,5 +1,5 @@
 //! `/wireframes/list/` の Demo・引数表データ（イシュー #2657、Phase 7
-//! 「Data display」の 2 番目の部品）。
+//! 「Data display」の 6 番目の部品）。
 //!
 //! `fandhe_frontend_wireframe_ui::list` の呼び出し側。Wireframes
 //! セクションの原稿組み立て（`crate::wireframes::insert_generated_sections`）
