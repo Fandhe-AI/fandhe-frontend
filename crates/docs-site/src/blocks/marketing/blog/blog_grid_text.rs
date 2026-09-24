@@ -288,7 +288,7 @@ fn article_card(post: &Post) -> Node {
         CardProps::default(),
         vec![("data-blocks-blog-grid-text-card", "")],
         vec![card::body(
-            vec![],
+            vec![("data-blocks-blog-grid-text-body", "")],
             vec![
                 link_overlay::root(
                     vec![("data-blocks-blog-grid-text-article", "")],
@@ -468,7 +468,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-blog-grid-text-header[data-blocks-blog-grid-text-rule] {\n  border-block-start: 1px solid var(--fandhe-color-border);\n  padding-block-start: var(--fandhe-space-6);\n}\n\
 .blocks-blog-grid-text-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-8);\n}\n\
 [data-blocks-blog-grid-text-card] {\n  height: 100%;\n}\n\
-[data-blocks-blog-grid-text-article] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  height: 100%;\n}\n\
+[data-blocks-blog-grid-text-body] {\n  display: flex;\n  flex-direction: column;\n  height: 100%;\n}\n\
+[data-blocks-blog-grid-text-article] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  flex: 1 1 auto;\n  min-height: 0;\n}\n\
 .blocks-blog-grid-text-meta {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-blog-grid-text-date {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n}\n\
 [data-blocks-blog-grid-text-excerpt] {\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 3;\n  line-clamp: 3;\n  overflow: hidden;\n}\n\

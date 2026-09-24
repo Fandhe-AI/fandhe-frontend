@@ -195,7 +195,7 @@ fn article_card(post: &Post) -> Node {
         CardProps::default(),
         vec![("data-blocks-blog-grid-text-card", "")],
         vec![card::body(
-            vec![],
+            vec![("data-blocks-blog-grid-text-body", "")],
             vec![
                 link_overlay::root(
                     vec![("data-blocks-blog-grid-text-article", "")],
