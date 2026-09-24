@@ -183,7 +183,7 @@ instance swap・サイズ／強調の組み合わせ等）を Rust API へ落と
 
 - **#2602（参照スクリーンショット取り込み、完了）**: §2 のとおりスクリーンショット取り込みは不可（fail-closed）と確定した。各部品からの視覚参照は https://www.blocks.pm/ への外部リンクに限る。加えて §2 のとおり、外観・anatomy・プロパティ構成の実装への転用も書面許諾が得られるまで保留する（PR #2670 codex レビュー指摘、2026-09-22）
 - **#2603（crate 雛形）**: §1 の位置づけ・依存方針（`fandhe-frontend-core` のみ、Primitives/Themes 非依存）を前提とする
-- **#2604（CI 組み込み、完了）**: §7 の共通前提（`forbid(unsafe_code)`・REQ-1 既定エスケープ・wasm-full 非配線・非インタラクティブ制約）を前提に、`deps-check` 計測対象化（実測 packages=1/60 depth=1/6）・`release.yml` 選択肢追加・`ZERO_DEP_CRATES` 非登録・公開クレート化（`publish = false` なし、初回公開は #2668）を実施した。詳細は `docs/ci/version-bump-publish-order-gap.md` §11 参照
+- **#2604（CI 組み込み、完了）**: §7 の共通前提（`forbid(unsafe_code)`・REQ-1 既定エスケープ・wasm-full 非配線・非インタラクティブ制約）を前提に、`deps-check` 計測対象化（実測 packages=1/60 depth=1/6）・`release.yml` 選択肢追加・`ZERO_DEP_CRATES` 非登録・公開クレート化（`publish = false` なし、#2668 で v0.52.0 の初回公開実施済み）を実施した。詳細は `docs/ci/version-bump-publish-order-gap.md` §11 参照
 - **#2605（共通 API、完了）**: §4 の `Size` 軸命名規約・§6 の Figma プロパティ変換規約を前提に、`Size` 列挙・共通型（`Bold`/`Primary`/`Active`/`Disabled`/`Orientation`）・モノクロトークン・`wireframe_css()` 出力関数を実装した。詳細は §10 参照
 - **#2606（アイコン基盤、完了）**: §6 の instance swap（`Node` スロット引数）規約を前提に、SVG ラインアート
   アイコンセット（`icon::<name>(Size) -> Node`、21 種、`ALL` レジストリ）を実装した。詳細は §11 参照

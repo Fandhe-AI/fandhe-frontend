@@ -374,10 +374,10 @@ build-scripts: target=fandhe-frontend-wireframe-ui count=0
 既に自動対象であり、設定変更は不要である（外部依存ゼロのため差分もない）。
 
 crates.io 公開については、雛形の `Cargo.toml` が既に license / description / keywords /
-categories / readme を備え公開前提で作られていること、Phase 9（#2668）が v0.1.0 初回公開を
-予定していることから、`publish = false` は付けない（公開クレート化）。初回公開手順は
-`docs/ci/version-bump-publish-order-gap.md` 第 11 節「新規クレートの CI 組み込み・初回公開
-チェックリスト」の C（同文書 §11 C）に従い #2668 で実施する。
+categories / readme を備え公開前提で作られていることから、`publish = false` は付けない
+（公開クレート化）。初回公開手順は `docs/ci/version-bump-publish-order-gap.md` 第 11 節「新規
+クレートの CI 組み込み・初回公開チェックリスト」の C（同文書 §11 C）に従い #2668 で実施
+済み（v0.52.0 を 2026-09-24 に公開。イシュー案の v0.1.0 ではなく main の現行版を使用）。
 
 イシュー #2607 で `fandhe-frontend-docs-site`（`publish = false`、REQ-3 計測対象外）が
 `fandhe-frontend-wireframe-ui` へ path 依存を追加した（Wireframes セクション `/wireframes/`
