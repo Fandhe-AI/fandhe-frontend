@@ -64,8 +64,12 @@ pub const MAX_PAGE_TEXT_BYTES: usize = 4096;
 /// 不要と判断した。本 PR（イシュー #2639 Breadcrumbs）の base 取り込みでも
 /// 実測（下記コミット時点の `cargo test -p fandhe-frontend-docs-site`
 /// 実測値）は 1,310,720 バイトの範囲内であり、追加の引き上げは不要と判断した
-/// （再評価トリガー未到達、設計文書 §3-4 追記節参照）。
-pub const MAX_INDEX_BYTES: usize = 1_310_720;
+/// （再評価トリガー未到達、設計文書 §3-4 追記節参照）。その後イシュー
+/// #2751（`content-article` block 追加、Marketing / Content カテゴリの
+/// 最初の block）で実サイトが 1,313,125 バイトへ達し、この上限を実際に
+/// 超過したため、#2552/#2645 と同じ 128 KiB 刻みでさらに引き上げ 1.375 MiB
+/// （`1_310_720 + 131_072`）とした。
+pub const MAX_INDEX_BYTES: usize = 1_441_792;
 
 /// ページ内目次の 1 見出しに対応するインデックスエントリ。
 ///

@@ -1293,6 +1293,14 @@ source = "site/blocks/blog-list-image.md"
 path = "/blocks/blog-list-image/"
 
 [[section.group]]
+title = "Content"
+
+[[section.group.page]]
+title = "content-article"
+source = "site/blocks/content-article.md"
+path = "/blocks/content-article/"
+
+[[section.group]]
 title = "Footer"
 
 [[section.group.page]]

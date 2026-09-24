@@ -252,6 +252,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-featured-with-list/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-list-image/index.html"
           # Marketing / Content
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/content-article/index.html"
           # Marketing / Header
           # Marketing / Footer
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-sticky-reveal/index.html"
