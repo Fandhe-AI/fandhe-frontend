@@ -510,5 +510,9 @@ mod tests {
         // イシュー #2808 で追加した blog-featured-article も登録されて
         // いることを固定する。
         assert!(seen.contains("/blocks/blog-featured-article/"));
+
+        // イシュー #2748 で追加した bento-three-column-tall も登録されて
+        // いることを固定する。
+        assert!(seen.contains("/blocks/bento-three-column-tall/"));
     }
 }

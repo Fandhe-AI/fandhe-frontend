@@ -6,8 +6,9 @@
 //! ための構造、イシュー #2734）。
 
 mod bento_staggered;
+mod bento_three_column_tall;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![bento_staggered::BLOCK]
+    vec![bento_staggered::BLOCK, bento_three_column_tall::BLOCK]
 }
