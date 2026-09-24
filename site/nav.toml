@@ -1365,6 +1365,14 @@ source = "site/blocks/careers-split-photo-list.md"
 path = "/blocks/careers-split-photo-list/"
 
 [[section.group]]
+title = "Changelog"
+
+[[section.group.page]]
+title = "changelog-accordion"
+source = "site/blocks/changelog-accordion.md"
+path = "/blocks/changelog-accordion/"
+
+[[section.group]]
 title = "Sidebar"
 
 [[section.group.page]]

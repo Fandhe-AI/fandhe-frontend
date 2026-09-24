@@ -271,6 +271,7 @@ jobs:
           # Marketing / Careers
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/careers-split-photo-list/index.html"
           # Marketing / Changelog
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/changelog-accordion/index.html"
           # Marketing / Error Page
           # Marketing / Gallery
           # Marketing / Section Heading
