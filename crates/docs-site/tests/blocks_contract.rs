@@ -221,10 +221,10 @@ fn login_04_composes_expected_parts() {
     let out = build_real_site();
     let html = std::fs::read_to_string(out.join("blocks/login-04/index.html"))
         .expect("blocks/login-04/index.html should be generated");
-    let login_04_block = blocks::BLOCKS
-        .iter()
+    let login_04_block = blocks::all_blocks()
+        .into_iter()
         .find(|block| block.path == "/blocks/login-04/")
-        .expect("login-04 should be registered in blocks::BLOCKS");
+        .expect("login-04 should be registered in blocks::all_blocks()");
     let demo_html = render(&(login_04_block.demo)());
     for needle in [
         "data-scope=\"card\"",
@@ -276,7 +276,7 @@ fn login_04_composes_expected_parts() {
 fn block_pages_never_contain_a_form_element_or_data_uri() {
     let out = build_real_site();
     let mut relatives: Vec<String> = vec!["blocks/index.html".to_string()];
-    relatives.extend(blocks::BLOCKS.iter().map(|block| {
+    relatives.extend(blocks::all_blocks().iter().map(|block| {
         let kebab = block
             .path
             .trim_start_matches("/blocks/")
@@ -676,8 +676,8 @@ fn signup_05_composes_expected_parts() {
     // Demo 部分木のみを対象に、実ブランド名（Apple/Google/Meta）を持ち込んで
     // いないことも固定する（ページ全体に対する上の否定チェックと二重化する
     // ことで、レイアウト側の文言に依存しない検証にする）。
-    let block = blocks::BLOCKS
-        .iter()
+    let block = blocks::all_blocks()
+        .into_iter()
         .find(|b| b.path == "/blocks/signup-05/")
         .expect("signup-05 block should be registered");
     let demo_html = render(&(block.demo)());
@@ -727,7 +727,7 @@ fn demo_output_has_no_dangling_aria_references_or_duplicate_ids() {
         values
     }
 
-    for block in blocks::BLOCKS {
+    for block in blocks::all_blocks() {
         let html = render(&(block.demo)());
         let ids: Vec<&str> = extract_attr_values(&html, "id");
         let id_set: std::collections::BTreeSet<&str> = ids.iter().copied().collect();
@@ -835,8 +835,8 @@ fn login_01_used_parts_links_point_at_each_declared_part_path() {
     let html = std::fs::read_to_string(out.join("blocks/login-01/index.html"))
         .expect("blocks/login-01/index.html should be generated");
 
-    let block = blocks::BLOCKS
-        .iter()
+    let block = blocks::all_blocks()
+        .into_iter()
         .find(|b| b.path == "/blocks/login-01/")
         .expect("login-01 should be registered");
     assert!(!block.parts.is_empty(), "login-01 should declare parts");
@@ -852,7 +852,7 @@ fn login_01_used_parts_links_point_at_each_declared_part_path() {
 
 #[test]
 fn demo_output_never_leaks_an_unescaped_script_tag() {
-    for block in blocks::BLOCKS {
+    for block in blocks::all_blocks() {
         let html = render(&(block.demo)());
         assert!(
             !html.contains("<script"),

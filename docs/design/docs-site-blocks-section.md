@@ -618,7 +618,7 @@ text-split-reveal → Marketing/Hero（`text_split_reveal` はモジュール do
 - `crates/docs-site/tests/blocks_nav.rs::blocks_index_page_links_to_the_registered_block`
   は生の Markdown ソースを読む方式から、実サイトビルド
   （`support/shared_site.rs`）の `blocks/index.html` を読み、
-  `blocks::BLOCKS` 全件への `href` をループ検証する方式へ書き換えた。
+  `blocks::all_blocks()` 全件への `href` をループ検証する方式へ書き換えた。
   個別イシュー番号ごとの手書き `assert!` 列挙を廃し、将来 block が
   増えても本テストへの追記が不要なレジストリ駆動の網羅チェックへ
   移行した。
@@ -633,3 +633,155 @@ text-split-reveal → Marketing/Hero（`text_split_reveal` はモジュール do
 Themes セクションは本イシューと同じ「索引ページ本文内のカテゴリ見出し」
 方式であり、本実装はこの Themes 方式を踏襲した（Primitives セクションが
 使う `[[section.group]]` 方式とは異なる）。
+
+## 18. カテゴリ別モジュール分割（#2734）実装記録
+
+### 背景
+
+ルート #2730「Blocks 目的別パーツ拡充トラッキング」は #2733 で導入した
+66 カテゴリへ向けて今後 300 件規模の block を並列 PR で追加していく計画
+だが、#2733 時点の `crates/docs-site/src/blocks/mod.rs` は `mod` 宣言・
+`BLOCKS` 配列・`stylesheet()` の 3 箇所が単一ファイルへフラットに列挙され
+ており、block を 1 件追加するだけの通常の変更が全 PR で同じ行域を編集
+することになる。並列実装が本格化する前の Phase 0 として、この構造上の
+欠陥を解消する。
+
+### ディレクトリ構成
+
+`crates/docs-site/src/blocks/` を次の 3 階層へ分割した。
+
+```
+blocks/
+  mod.rs                    -- Block/LayoutCss 定義・all_blocks()/block_for_path()/
+                                stylesheet() のみを持つ薄いトップ
+  category.rs                -- 既存のまま（BlockSection/BlockCategory、#2733）
+  marketing/ application/ ecommerce/ docs/
+    mod.rs                    -- 区分内の全カテゴリの mod 宣言 + blocks() 集約
+    <category>.rs              -- 空カテゴリの雛形（`pub(super) fn blocks() -> Vec<Block> { Vec::new() }`）
+    <category>/mod.rs          -- block を持つカテゴリ（`mod <block>;` 宣言 + blocks() 集約）
+    <category>/<block>.rs      -- 個別 block の実装（既存 22 件を git mv で移設）
+```
+
+66 カテゴリ全件を本 Phase で先行スキャフォールドした（populate 済みの
+カテゴリだけ mod 宣言する遅延方式は採らなかった）。後続 Phase では複数
+カテゴリの「そのカテゴリ最初の block」が並列 PR として同時進行するため、
+カテゴリ登録を遅延させると区分側 `mod.rs` の編集で衝突が再発するためで
+ある。ディレクトリ/ファイル名は `BlockCategory::kebab()` の `-` を `_`
+へ置換した snake_case とし、`CategoryListing`（`kebab() == "category"`）
+のみ `category_listing` を使う（`crate::blocks::category` 型定義モジュール
+との名前衝突回避）。
+
+「カテゴリの卒業」手順（空雛形 → ディレクトリ化）: 最初の block を追加
+する際は空雛形ファイル（例 `marketing/banner.rs`）を `git mv` で
+`banner/mod.rs` へ改名し、block 実装ファイルを同じディレクトリへ追加した
+上で `blocks()` を書き換える。この変更はカテゴリ内で完結し、区分側
+`mod.rs`（`marketing` 等）・トップレベル `crate::blocks` 側は
+`pub(super) fn blocks()` のシグネチャが不変のため変更不要。
+
+### `Block` レジストリの関数化（`BLOCKS` 配列の廃止）
+
+66 個の可変長カテゴリを stable Rust の `const fn` だけで単一の
+`&'static [Block]` へ連結する手段（`generic_const_exprs` なしでは手書き
+連結コードしか選択肢がない）は可読性・保守性の観点で見合わないため、
+`pub const BLOCKS: &[Block]` を廃止し `pub fn all_blocks() -> Vec<Block>`
+（4 区分の `blocks()` を `.extend()` で連結するだけ）へ置き換えた。
+`Block` は `Clone, Copy` のためコピーコストは無視できる（呼び出しは
+docs サイトビルド時・テスト時のみでホットパスではない）。
+
+呼び出し側の追随:
+
+- `block_for_path` の戻り値を `Option<&'static Block>` から
+  `Option<Block>`（`all_blocks().into_iter().find(...)`）へ変更した。
+- `crates/docs-site/tests/blocks_nav.rs`/`blocks_code_drift.rs`/
+  `blocks_contract.rs` の `blocks::BLOCKS` 参照を `blocks::all_blocks()`
+  ベースへ書き換えた。`&'static str` フィールド（`path` 等）のみを使う
+  `.iter().map(...).collect()` は一時 `Vec` から借用しても値の寿命が
+  `'static` のため単一式のまま書き換えられたが、`.find(...).expect(...)`
+  の結果を複数行で使い回す 3 箇所（`login_04_block`/`block`（signup-05
+  デモ検証）/`block`（login-01 使用部品リンク検証））は
+  `.into_iter().find(...)` で所有権ごと受け取る形へ変更した
+  （一時 `Vec` から得た参照をステートメントを跨いで保持できないため）。
+
+### block 固有 CSS のレジストリ駆動化
+
+`Block` へ新フィールド `layout_css: LayoutCss` を追加した。
+
+```rust
+pub enum LayoutCss {
+    Static(&'static str),
+    Dynamic(fn() -> String),
+}
+```
+
+`stylesheet()` は共通フレーム CSS・共有フレームワーク CSS
+（`motion::KEYFRAMES_CSS`/`cursor::CURSOR_CSS`/`text_reveal::TEXT_REVEAL_CSS`）
+を先頭で push した後、`all_blocks()` を走査して各 block の `layout_css`
+を `push_css` するだけになった。カテゴリ側モジュールは CSS の集約経路を
+別途持つ必要がなく、`Block` 自身のフィールドへ寄せることで二重の集約
+経路を作らない設計とした。各 block 実装ファイル側は `LAYOUT_CSS`
+（`&'static str` 定数）/`layout_css()`（`fn() -> String`）の可視性を
+`pub(super)` から**ファイル内 private** へ縮小した（`BLOCK` 定数の組み立て
+時に自己完結的に取り込むだけになったため）。
+
+### 生成物の同一性（受け入れ条件との整合）
+
+- `dist/blocks/**` の HTML は分割前後で **バイト単位で完全一致**する
+  （実測: `diff -rq` で差分ゼロ）。各 block の `demo()` 実装は無変更、
+  索引ページはカテゴリ内 `path` 辞書順ソートのため走査順に依存せず、
+  `nav.toml` は既存 22 件のエントリを一切動かしていないため前後ナビも
+  不変。
+- `assets/blocks.css` は**内容（ルール集合）が完全に同一**（実測:
+  `}` 区切りでルール単位に分解し正規化した多重集合として比較し、
+  分割前後とも 255 ルールで完全一致）だが、**連結順序は変わる**
+  （手書きのカテゴリを跨いだ追記順 → 区分 → カテゴリ → 登録順）。
+  全 block の CSS セレクタは `.blocks-<name>`/`[data-blocks-<name>-*]`
+  の形で block ごとに名前空間分離されており、カスケード順に依存する
+  規則は存在しないため、順序変更に副作用はない。受け入れ条件の
+  「生成物が分割前と同一」は「ページ HTML はバイト同一、CSS はルール
+  集合として同一（順序は不問）」と解釈する。
+
+### `site/nav.toml` の競合対策
+
+既存 22 件の `[[section.page]]`（前後ナビ順序保持のため）は一切動かさず、
+末尾（`footer-newsletter` の直後・Wireframes セクション定義の直前）へ
+`BlockCategory::ALL` の宣言順で 66 個のカテゴリ用コメントアンカーを追記
+した。以後 block を追加する際は該当カテゴリの見出し行の直後へ
+`[[section.page]]` を追記する運用とする。異なるカテゴリの block を追加
+する PR 同士は異なる見出し行を編集するため通常はコンフリクトしない
+（同カテゴリ内での競合のみ許容範囲）。アンカーはコメント行のみのため
+`parse_nav` のパース結果・`blocks_nav.rs` の三方突合には影響しない
+（実測で確認済み）。
+
+### `.github/workflows/docs-site.yml` の `test -f` 再編
+
+既存 22 行の `test -f` は削除・弱体化せず、`BlockCategory::ALL` 順で
+66 カテゴリの見出しコメントを挿入してグループ化した。純粋な bash
+スクリプトの再編でありサイト生成物には影響しない。
+
+### 新規ガードテスト
+
+`crates/docs-site/tests/blocks_categories.rs` を新設し、以下を固定した。
+
+- `every_registered_block_rust_source_matches_its_category_directory`:
+  各 `Block.rust_source` が `category.section()`/`category.kebab()`
+  から機械導出される `crates/docs-site/src/blocks/<section>/<category>/`
+  配下を指していること。
+- `every_category_has_a_scaffold_file_or_directory`: `BlockCategory::ALL`
+  全 66 件について、空雛形 `.rs` またはディレクトリ化済み `mod.rs` の
+  いずれかが実在すること。
+- `no_category_has_both_a_flat_scaffold_and_a_directory`: 「カテゴリの
+  卒業」手順が中途半端な状態（空雛形とディレクトリの両方が同時に存在）
+  を残さないこと。
+
+`crates/docs-site/tests/blocks_contract.rs::blocks_source_does_not_use_raw_html_or_build_html_strings`
+の `collect_rs_files` は導入当初から再帰的（`path.is_dir()` なら再帰）
+であり、block 実装をサブディレクトリへ分割しても無改造で機能することを
+確認済み。
+
+### delegation 表の欠落（out of scope）
+
+`crates/docs-site/` は CLAUDE.md の delegation パス切り替え表・
+`.claude/rules/delegation-impl.md` のいずれにも明示エントリが無い。
+本実装は実務上の慣行（tooling-builder 相当）に従ったが、delegation 表
+自体の整備は本イシューのスコープ外とし、別途 Issue 化を検討する
+（`.claude/rules/out-of-scope-tracking.md` 参照）。
