@@ -52,6 +52,13 @@ fn announcement_icon() -> Node {
 }
 
 /// 末尾の矢印アイコン（自作の単純な矢印、`aria-hidden="true"` の装飾用途）。
+///
+/// `path` は開いたシャフト + シェブロンのポリラインであり、囲まれた
+/// 面積を持たない。`icon` の `<svg>` 側が固定で持つ `fill="currentColor"`
+/// （塗り面）のままだとシャフトが非表示になりシェブロン部分が暗黙に
+/// 閉じた三角形として塗りつぶされるため、`fill="none"` +
+/// `stroke="currentColor"` で明示的に線画（ストローク）として描画する
+/// （`feature_expand::geo_icon` と同型の対処）。
 fn arrow_icon() -> Node {
     icon(
         &IconProps {
@@ -59,7 +66,18 @@ fn arrow_icon() -> Node {
             ..IconProps::default()
         },
         vec![],
-        vec![el("path", vec![("d", "M5 12h13M13 6l6 6-6 6")], vec![])],
+        vec![el(
+            "path",
+            vec![
+                ("d", "M5 12h13M13 6l6 6-6 6"),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+                ("stroke-linecap", "round"),
+                ("stroke-linejoin", "round"),
+            ],
+            vec![],
+        )],
     )
 }
 
