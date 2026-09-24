@@ -2884,3 +2884,96 @@ fn bento_three_column_tall_composes_expected_parts() {
         );
     }
 }
+
+/// careers-split-accordion ページが `blocks-demo blocks-careers-split-
+/// accordion` class・両 stylesheet の `<link>`・Demo 固有の CSS フック
+/// （tagline/list/dept/meta-item/apply）を実際に出力し、`blocks::stylesheet()`
+/// にも対応するセレクタとレイアウト class が存在すること（イシュー #2816）。
+#[test]
+fn careers_split_accordion_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/careers-split-accordion/index.html"))
+        .expect("blocks/careers-split-accordion/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-careers-split-accordion\""),
+        "careers-split-accordion page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "careers-split-accordion page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "careers-split-accordion page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-careers-split-accordion-tagline=\"\"",
+        "data-blocks-careers-split-accordion-list=\"\"",
+        "data-blocks-careers-split-accordion-dept=\"\"",
+        "data-blocks-careers-split-accordion-meta-item=\"\"",
+        "data-blocks-careers-split-accordion-apply=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "careers-split-accordion page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        ".blocks-careers-split-accordion-layout",
+        "[data-blocks-careers-split-accordion-tagline]",
+        "[data-blocks-careers-split-accordion-meta-item]",
+        "[data-blocks-careers-split-accordion-apply]",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare {needle} for careers-split-accordion"
+        );
+    }
+}
+
+/// careers-split-accordion の合成部品（6 scope）・応募ボタン件数・開いた
+/// 項目件数・`<form>`/死リンク/`data:` 不在を固定する（イシュー #2816）。
+#[test]
+fn careers_split_accordion_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/careers-split-accordion/index.html"))
+        .expect("blocks/careers-split-accordion/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"accordion\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"button\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "careers-split-accordion page should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-careers-split-accordion-apply=\"\"")
+            .count(),
+        4,
+        "careers-split-accordion should render exactly 4 apply buttons"
+    );
+    assert_eq!(
+        html.matches("aria-expanded=\"true\"").count(),
+        1,
+        "careers-split-accordion should render exactly one open item"
+    );
+    assert!(
+        html.contains("一緒にチームを育てる仲間を募集しています"),
+        "careers-split-accordion should contain the heading copy"
+    );
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "careers-split-accordion should never contain {absent}"
+        );
+    }
+}

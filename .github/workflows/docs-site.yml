@@ -266,6 +266,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-three-column-tall/index.html"
           # Marketing / Comparison
           # Marketing / Careers
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/careers-split-accordion/index.html"
           # Marketing / Changelog
           # Marketing / Error Page
           # Marketing / Gallery
