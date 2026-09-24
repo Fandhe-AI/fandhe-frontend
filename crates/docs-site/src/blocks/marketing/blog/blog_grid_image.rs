@@ -488,7 +488,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-blog-grid-image-grid {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n  gap: 1.5rem;\n}\n\
 .blocks-blog-grid-image-grid[data-columns=\"2\"] {\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n}\n\
 @media (max-width: 63.99rem) {\n  .blocks-blog-grid-image-grid {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n}\n\
-@media (max-width: 39.99rem) {\n  .blocks-blog-grid-image-grid {\n    grid-template-columns: 1fr;\n  }\n}\n\
+@media (max-width: 39.99rem) {\n  .blocks-blog-grid-image-grid,\n  .blocks-blog-grid-image-grid[data-columns=\"2\"] {\n    grid-template-columns: 1fr;\n  }\n}\n\
 [data-blocks-blog-grid-image-article] {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  height: 100%;\n  border-radius: var(--fandhe-radius-lg);\n}\n\
 [data-blocks-blog-grid-image-card] {\n  height: 100%;\n  display: flex;\n  flex-direction: column;\n}\n\
 .blocks-blog-grid-image-plain {\n  display: flex;\n  flex-direction: column;\n  gap: 0.75rem;\n}\n\

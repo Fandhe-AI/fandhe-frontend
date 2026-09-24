@@ -449,18 +449,18 @@ mod tests {
     }
 
     #[test]
-    fn all_blocks_keeps_existing_blocks_and_has_unique_paths() {
-        // 件数の正は `all_blocks()` 自身であり（イシュー #2732）、本テストは
-        // 個別 block の存在を検証しない（それは `tests/blocks_nav.rs` の
-        // 三方突合が担う）。ここでは (a) カテゴリ別モジュール分割（イシュー
-        // #2734）前後で登録件数が減っていないこと（回帰）、(b) `path`/
-        // `title` が一意であること（並列 PR によるレジストリ衝突の検知）
-        // のみを固定する。約 300 件規模へ増える見込み（親トラッキング
-        // #2730）のため、ハードコードした件数の一致検証は意図的に持たない。
+    fn all_blocks_registers_all_24_existing_blocks() {
+        // 件数はハードコードした完全一致で固定する（イシュー #2810）。
+        // `>= N` のような下限検証は既存 block の削除を見逃す（`blocks_nav.rs`
+        // の三方突合はレジストリ・原稿・nav を同時に削除すれば通るため
+        // 代替にならない）。カテゴリ別モジュール分割（イシュー #2734）の
+        // 前後で登録件数が変わっていないことの回帰。イシュー #2810 で
+        // blog-grid-image を追加し 23 → 24 件になった。
         let blocks = all_blocks();
-        assert!(
-            blocks.len() >= 23,
-            "all_blocks() should not lose previously registered blocks"
+        assert_eq!(
+            blocks.len(),
+            24,
+            "all_blocks() の登録件数が変化した場合はこの期待値も同時に更新すること"
         );
 
         let mut paths: Vec<&str> = blocks.iter().map(|b| b.path).collect();
