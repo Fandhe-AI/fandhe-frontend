@@ -68,9 +68,15 @@ const JOBS: [Job; 3] = [
 /// `dl`/`dt`/`dd` を再現せず `div` + [`link_overlay::root`] で組む（モジュール
 /// doc「`dl`/`dt`/`dd` を再現しない」節）。給与・勤務地はスクリーンリーダー
 /// 向けラベルを [`visually_hidden::root`] で可視テキストの内側に補う。
+/// `role="listitem"` を付与し、[`demo`] 側の `role="list"` コンテナと対で
+/// 一覧構造をアクセシビリティツリーへ公開する（`<hr>` を `<li>` 直下に
+/// 置けないため `ul`/`li` は使えず、ARIA role で代替する判断）。
 fn job_item(job: &Job) -> Node {
     link_overlay::root(
-        vec![("data-blocks-careers-split-photo-list-job", "")],
+        vec![
+            ("data-blocks-careers-split-photo-list-job", ""),
+            ("role", "listitem"),
+        ],
         vec![
             heading(
                 HeadingLevel::H4,
@@ -183,7 +189,10 @@ pub fn demo() -> Node {
         vec![("class", "blocks-careers-split-photo-list-jobs")],
         vec![
             div(
-                vec![("class", "blocks-careers-split-photo-list-list")],
+                vec![
+                    ("class", "blocks-careers-split-photo-list-list"),
+                    ("role", "list"),
+                ],
                 list_items,
             ),
             div(

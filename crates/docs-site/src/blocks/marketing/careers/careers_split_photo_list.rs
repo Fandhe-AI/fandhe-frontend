@@ -165,9 +165,15 @@ const JOBS: [Job; 3] = [
 /// `dl`/`dt`/`dd` を再現せず `div` + [`link_overlay::root`] で組む（モジュール
 /// doc「`dl`/`dt`/`dd` を再現しない」節）。給与・勤務地はスクリーンリーダー
 /// 向けラベルを [`visually_hidden::root`] で可視テキストの内側に補う。
+/// `role="listitem"` を付与し、[`demo`] 側の `role="list"` コンテナと対で
+/// 一覧構造をアクセシビリティツリーへ公開する（`<hr>` を `<li>` 直下に
+/// 置けないため `ul`/`li` は使えず、ARIA role で代替する判断）。
 fn job_item(job: &Job) -> Node {
     link_overlay::root(
-        vec![("data-blocks-careers-split-photo-list-job", "")],
+        vec![
+            ("data-blocks-careers-split-photo-list-job", ""),
+            ("role", "listitem"),
+        ],
         vec![
             heading(
                 HeadingLevel::H4,
@@ -280,7 +286,10 @@ pub fn demo() -> Node {
         vec![("class", "blocks-careers-split-photo-list-jobs")],
         vec![
             div(
-                vec![("class", "blocks-careers-split-photo-list-list")],
+                vec![
+                    ("class", "blocks-careers-split-photo-list-list"),
+                    ("role", "list"),
+                ],
                 list_items,
             ),
             div(
@@ -365,7 +374,6 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-careers-split-photo-list-separator] {\n  margin: 0;\n}\n\
 .blocks-careers-split-photo-list-meta {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-careers-split-photo-list-dot {\n  color: var(--fandhe-color-fg-muted);\n}\n\
-.blocks-careers-split-photo-list-footer {\n  margin-top: var(--fandhe-space-8);\n}\n\
 @media (min-width: 64rem) {\n  .blocks-careers-split-photo-list-layout {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n    gap: var(--fandhe-space-16);\n    align-items: start;\n  }\n}\n";
 
 #[cfg(test)]
