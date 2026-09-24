@@ -45,8 +45,11 @@
 //! サイト内絶対パスを組み立てられない。`href="#"`（死リンク）は
 //! `crates/docs-site/tests/blocks_contract.rs` が禁止するため、他 block
 //! （`footer_newsletter`/`footer_sticky_reveal` 等）と同じ判断で
-//! `Fandhe-AI` の実在 GitHub リポジトリへの外部絶対 URL を「Privacy
-//! policy」リンク先に用いる。
+//! `Fandhe-AI` の実在 GitHub リポジトリへの外部絶対 URL を用いる。ただし
+//! 実在するプライバシーポリシーページは無いため、リンクの可視テキストは
+//! 「Privacy policy」ではなく実際の遷移先と一致する「project repository」
+//! とする（支援技術の利用者へ誤ったリンク目的を提示しない。イシュー
+//! #2740 PR レビュー指摘）。
 //!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
@@ -151,7 +154,7 @@ fn consent_banner(layout: &'static str, label: &'static str) -> Node {
         vec![
             text(
                 "We use cookies to improve your experience and remember your \
-                 preferences at Northwind Labs. Read our ",
+                 preferences at Northwind Labs. See our ",
             ),
             link::root(
                 REPO,
@@ -160,9 +163,9 @@ fn consent_banner(layout: &'static str, label: &'static str) -> Node {
                     ..LinkProps::default()
                 },
                 vec![],
-                vec![text("Privacy policy")],
+                vec![text("project repository")],
             ),
-            text(" to learn more."),
+            text(" for details."),
         ],
     );
 
@@ -319,10 +322,20 @@ pub const BLOCK: Block = Block {
 /// `pre-styled-ui.css` より後に `<link>` される読み込み順序
 /// （`crate::build::build_site` の `extra_stylesheets` 追加順）で
 /// 同詳細度の後勝ちにより上書きを成立させる。
+///
+/// キャプション（[`stage`] の生 `p`）も同様の詳細度不足を持っていた
+/// （PR レビュー指摘）: 単一クラスセレクタ（詳細度 (0,1,0)）では
+/// `crates/docs-site/src/site_theme.rs` の `.docs-content p`（詳細度
+/// (0,1,1)、`margin: 0 0 1.05rem`）に負け、キャプションを枠内下端へ
+/// 寄せる `margin: 0 0 auto` が反映されずキャプションがバナー位置へ
+/// 潰れていた。`p.blocks-banner-cookie-consent-caption` へ型セレクタを
+/// 連結して詳細度を (0,1,1) の同点へ揃え、`blocks.css` が `site.css`
+/// （`.docs-content p` の定義元）より後に `<link>` される読み込み順序で
+/// 同詳細度の後勝ちにより上書きを成立させる。
 const LAYOUT_CSS: &str = "\
 .blocks-banner-cookie-consent-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6, 1.5rem);\n}\n\
 .blocks-banner-cookie-consent-stage {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  justify-content: flex-end;\n  min-height: 16rem;\n  padding: var(--fandhe-space-4, 1rem);\n  border: 1px dashed var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md, 0.5rem);\n  background: var(--fandhe-color-bg);\n  overflow: hidden;\n}\n\
-.blocks-banner-cookie-consent-caption {\n  margin: 0 0 auto;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+p.blocks-banner-cookie-consent-caption {\n  margin: 0 0 auto;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-banner-cookie-consent-align=\"end\"] {\n  align-items: flex-end;\n}\n\
 [data-blocks-banner-cookie-consent-align=\"center\"] {\n  align-items: center;\n}\n\
 [data-blocks-banner-cookie-consent-align=\"start\"] {\n  align-items: flex-start;\n}\n\
@@ -360,6 +373,16 @@ mod tests {
             "[data-scope=\"callout\"][data-part=\"root\"]\
              [data-blocks-banner-cookie-consent-callout=\"bar\"]"
         ));
+    }
+
+    #[test]
+    fn layout_css_caption_outranks_docs_content_paragraph_margin() {
+        // `.docs-content p`（`crates/docs-site/src/site_theme.rs`、詳細度
+        // (0,1,1)）に勝つには、この block 固有セレクタも型セレクタ `p` を
+        // 連結して詳細度 (0,1,1) 以上にする必要がある（単一クラス
+        // セレクタ（0,1,0）のみでは負けてキャプションがバナー位置へ
+        // 潰れる不具合の回帰防止）。
+        assert!(LAYOUT_CSS.contains("p.blocks-banner-cookie-consent-caption {"));
     }
 
     #[test]

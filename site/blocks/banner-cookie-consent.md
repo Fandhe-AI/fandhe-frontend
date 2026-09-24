@@ -106,7 +106,7 @@ fn consent_banner(layout: &'static str, label: &'static str) -> Node {
         vec![
             text(
                 "We use cookies to improve your experience and remember your \
-                 preferences at Northwind Labs. Read our ",
+                 preferences at Northwind Labs. See our ",
             ),
             link::root(
                 REPO,
@@ -115,9 +115,9 @@ fn consent_banner(layout: &'static str, label: &'static str) -> Node {
                     ..LinkProps::default()
                 },
                 vec![],
-                vec![text("Privacy policy")],
+                vec![text("project repository")],
             ),
-            text(" to learn more."),
+            text(" for details."),
         ],
     );
 
