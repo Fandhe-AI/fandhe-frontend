@@ -19,7 +19,13 @@
 //! 切り替える。テーマの breakpoint トークンは `@media` 条件式の中では
 //! 解決できないため（CSS custom property は宣言側でのみ有効）、
 //! `fandhe_frontend_pre_styled_ui::recipe::Breakpoint` の `Lg`（1024px = 64rem）と
-//! 一致するリテラル値を [`LAYOUT_CSS`] へ直書きする。
+//! 一致するリテラル値を [`LAYOUT_CSS`] へ直書きする。2 カラム grid は
+//! [`demo`] の直下ルート要素専用の `blocks-blog-featured-with-list-layout`
+//! class へ適用し、[`Block::demo_class`]（`blocks-blog-featured-with-list`）
+//! とは意図的に別名にする。両者を同名にすると `crate::blocks::render_page`
+//! が Demo ラッパー（子要素 1 個）にも同じ grid class を付与してしまい、
+//! ラッパー自身が 2 カラム grid の 1 個目のトラックへ押し込まれて残り半分が
+//! 空白になる（イシュー #2809 の Bugbot 指摘、レビュー起票 PR #3152）。
 //!
 //! # 記事リンクの入れ子を避ける 2 段構成（`link_overlay` + 著者リンク）
 //!
@@ -276,7 +282,7 @@ pub fn demo() -> Node {
     );
 
     div(
-        vec![("class", "blocks-blog-featured-with-list")],
+        vec![("class", "blocks-blog-featured-with-list-layout")],
         vec![featured, list],
     )
 }
@@ -328,7 +334,7 @@ pub const BLOCK: Block = Block {
 /// `[data-blocks-blog-featured-with-list-*]` のみを用い、他 block や部品の
 /// 素のセレクタへ影響させない（`testimonials_stack` と同じ名前空間分離）。
 const LAYOUT_CSS: &str = "\
-.blocks-blog-featured-with-list {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-12);\n}\n\
+.blocks-blog-featured-with-list-layout {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-12);\n}\n\
 .blocks-blog-featured-with-list-featured {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-blog-featured-with-list-featured-footer {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-4);\n  margin-top: var(--fandhe-space-2);\n}\n\
 .blocks-blog-featured-with-list-list {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  border-block-start: 1px solid var(--fandhe-color-border);\n  padding-block-start: var(--fandhe-space-8);\n}\n\
@@ -336,7 +342,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-blog-featured-with-list-date {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n}\n\
 [data-blocks-blog-featured-with-list-author] {\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  position: relative;\n  z-index: 1;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n}\n\
 [data-blocks-blog-featured-with-list-separator] {\n  margin: 0;\n}\n\
-@media (min-width: 64rem) {\n  .blocks-blog-featured-with-list {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n    column-gap: var(--fandhe-space-8);\n  }\n  .blocks-blog-featured-with-list-list {\n    border-inline-start: 1px solid var(--fandhe-color-border);\n    border-block-start: none;\n    padding-inline-start: var(--fandhe-space-8);\n    padding-block-start: 0;\n  }\n}\n";
+@media (min-width: 64rem) {\n  .blocks-blog-featured-with-list-layout {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n    column-gap: var(--fandhe-space-8);\n  }\n  .blocks-blog-featured-with-list-list {\n    border-inline-start: 1px solid var(--fandhe-color-border);\n    border-block-start: none;\n    padding-inline-start: var(--fandhe-space-8);\n    padding-block-start: 0;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {

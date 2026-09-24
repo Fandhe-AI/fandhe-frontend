@@ -202,7 +202,7 @@ pub fn demo() -> Node {
     );
 
     div(
-        vec![("class", "blocks-blog-featured-with-list")],
+        vec![("class", "blocks-blog-featured-with-list-layout")],
         vec![featured, list],
     )
 }
