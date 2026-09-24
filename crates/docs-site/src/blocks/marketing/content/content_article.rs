@@ -443,7 +443,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-content-article-figcaption {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-content-article-cover] {\n  width: 100%;\n  border-radius: var(--fandhe-radius-lg);\n}\n\
 [data-scope=\"blockquote\"][data-part=\"root\"][data-blocks-content-article-quote] {\n  margin-block: var(--fandhe-space-2);\n}\n\
-[data-blocks-content-article-separator] {\n  margin-block: var(--fandhe-space-2);\n}\n\
+[data-scope=\"separator\"][data-part=\"root\"][data-blocks-content-article-separator] {\n  margin-block: var(--fandhe-space-2);\n}\n\
 [data-blocks-content-article-category] {\n  flex-shrink: 0;\n}\n\
 [data-blocks-content-article-avatar] {\n  flex-shrink: 0;\n}\n\
 @media (max-width: 47.99rem) {\n  .blocks-content-article-centered,\n  .blocks-content-article-full-bleed-header,\n  .blocks-content-article-full-bleed-body {\n    max-width: 100%;\n  }\n}\n";
