@@ -248,7 +248,7 @@ fn article_card(item: &GridArticle) -> Node {
                 )],
             ),
             card::body(
-                vec![],
+                vec![("class", "blocks-blog-featured-article-grid-card-body")],
                 vec![
                     badge::badge(
                         &BadgeProps::default(),
@@ -415,6 +415,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-blog-featured-article-feature-layout {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: var(--fandhe-space-6);\n}\n\
 @media (max-width: 47.99rem) {\n  .blocks-blog-featured-article-feature-layout {\n    grid-template-columns: 1fr;\n  }\n}\n\
 .blocks-blog-featured-article-feature-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
+.blocks-blog-featured-article-grid-card-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-blog-featured-article-meta {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-blog-featured-article-byline {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-blog-featured-article-band {\n  background: var(--fandhe-color-accent);\n  color: var(--fandhe-color-accent-fg);\n  border-radius: var(--fandhe-radius-lg);\n  padding: var(--fandhe-space-12) var(--fandhe-space-6) 4rem;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\

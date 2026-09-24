@@ -211,7 +211,7 @@ fn article_card(item: &GridArticle) -> Node {
                 )],
             ),
             card::body(
-                vec![],
+                vec![("class", "blocks-blog-featured-article-grid-card-body")],
                 vec![
                     badge::badge(
                         &BadgeProps::default(),
