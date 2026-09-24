@@ -254,6 +254,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-sticky-reveal/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-newsletter/index.html"
           # Marketing / Banner
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/banner-email-signup/index.html"
           # Marketing / Bento
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-staggered/index.html"
           # Marketing / Comparison
