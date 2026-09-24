@@ -847,6 +847,7 @@ pub enum LayoutCss {
 | blog-list-image | #2812 | `marketing/blog/blog_list_image.rs` |
 | blog-split-header-grid | #2814 | `marketing/blog/blog_split_header_grid.rs` |
 | bento-three-column-tall | #2748 / #2749 | `marketing/bento/bento_three_column_tall.rs` |
+| bento-two-column | #2750 | `marketing/bento/bento_two_column.rs` |
 | changelog-accordion | #2818 | `marketing/changelog/changelog_accordion.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
