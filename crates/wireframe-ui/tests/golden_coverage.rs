@@ -14,6 +14,18 @@
 use std::fs;
 use std::path::Path;
 
+/// golden テスト（`tests/*_css.rs`）側から見た対象クレート名
+/// （`Cargo.toml` の `[package] name` のハイフンをアンダースコアへ変換した
+/// extern crate 名）。`src/css.rs`（`extract_parts_consts`）はクレート内部
+/// コードのため `crate::` を使うが、`tests/` は integration test であり
+/// `crate::` はテストバイナリ自身を指す別物になるため、実装への参照は
+/// 必ずこの名前（またはそれへの `use ... as` 別名）を経由する規約とする。
+/// 本パーサはこれを認識済みルートの唯一の正とし、それ以外のルート
+/// （ローカル定義のモジュール・裸の識別子等）から始まる式は正規化できない
+/// ものとして「非カバー」側へ倒す（イシュー #2666 codex-review P1
+/// 再々指摘対応）。
+const CRATE_NAME: &str = "fandhe_frontend_wireframe_ui";
+
 /// `docs/design/wireframe-ui-architecture.md` §8 が定める 49 部品一覧
 /// （kebab, 子イシュー番号）。本表が §8 の表と一致することを (iii) が
 /// 件数・重複なしで確認する。
@@ -94,6 +106,12 @@ const PENDING: &[&str] = &[];
 /// `src/css.rs` の `PARTS` 配列本体から `crate::<mod>::<CONST>` を機械
 /// 抽出する。パース漏れによる fail-open を防ぐため、抽出件数が
 /// 呼び出し側で `PARTS.len()` と一致することも確認させる。
+///
+/// 戻り値は `crate::` ルート接頭辞だけを落とした完全修飾形
+/// （`<mod>::<CONST>`）であり、末尾の定数名だけ（`<CONST>`）ではない。
+/// これは `asserted_const_names` が返す正規化形式と揃えるためであり、
+/// 末尾一致だけで判定すると異なるモジュールの同名定数を取り違える
+/// （イシュー #2666 codex-review P1 再々指摘対応）。
 fn extract_parts_consts(css_rs: &str) -> Vec<String> {
     const DECL: &str = "pub const PARTS: &[&str] = &[";
     let start = css_rs
@@ -113,9 +131,10 @@ fn extract_parts_consts(css_rs: &str) -> Vec<String> {
             if line.is_empty() || line.starts_with("//") {
                 return None;
             }
-            // 期待形式: `crate::<mod>::<CONST>`
-            let const_name = line.rsplit("::").next().unwrap_or(line);
-            Some(const_name.to_string())
+            // 期待形式: `crate::<mod>::<CONST>`。ルート接頭辞 `crate::`
+            // だけを落とし、モジュールパスを含む完全修飾形のまま保持する。
+            let normalized = line.strip_prefix("crate::").unwrap_or(line);
+            Some(normalized.to_string())
         })
         .collect()
 }
@@ -298,20 +317,90 @@ fn top_level_expected_consts(source: &str) -> std::collections::HashSet<String> 
     set
 }
 
+/// ソース全体（1 ファイル分）から、対象クレート（[`CRATE_NAME`]）への
+/// `use ... as <alias>;` 別名宣言を走査し、別名の集合を返す。
+///
+/// `use fandhe_frontend_wireframe_ui as w;` のような単純な crate-root
+/// エイリアスのみを認識する（`qualified_const_name` がこれを使い、
+/// `w::<mod>::<CONST>` を `fandhe_frontend_wireframe_ui::<mod>::<CONST>`
+/// と同一視できるようにする）。それ以外の複雑な `use` 形式（部分パスの
+/// 別名・再エクスポート経由の項目 import 等）は認識せず、対応する式は
+/// `qualified_const_name` 側で「正規化できない参照」として非カバー扱いに
+/// 倒れる（イシュー #2666 codex-review P1 再々指摘対応）。
+fn crate_root_use_aliases(source: &str) -> std::collections::HashSet<String> {
+    let mut aliases = std::collections::HashSet::new();
+    for line in source.lines() {
+        let trimmed = line.trim();
+        let Some(rest) = trimmed.strip_prefix("use ") else {
+            continue;
+        };
+        let Some(rest) = rest.strip_suffix(';') else {
+            continue;
+        };
+        let Some((path, alias)) = rest.split_once(" as ") else {
+            continue;
+        };
+        let path = path.trim();
+        let alias = alias.trim();
+        if path == CRATE_NAME && !alias.is_empty() {
+            aliases.insert(alias.to_string());
+        }
+    }
+    aliases
+}
+
+/// `assert_eq!` の第 1 引数として現れた式のテキスト（`first_arg`）を、
+/// 認識済みのクレートルート（[`CRATE_NAME`] リテラル、または
+/// [`crate_root_use_aliases`] で解決した別名）から始まる完全修飾パス
+/// `<mod>::...::<CONST>` へ正規化する。
+///
+/// ルートが未知（ローカル定義のモジュール・裸の識別子・`concat!` 等の
+/// マクロ呼び出し・その他解決できない式）の場合、または区切りが 2 個
+/// 未満（ルート + モジュール + 定数の 3 セグメント未満）の場合は `None`
+/// を返し、カバレッジとして数えない。末尾定数名だけを見る判定は、別
+/// モジュールの同名定数を assert するだけでカバレッジを詐称できてしまう
+/// ため、モジュールパスを含めた完全修飾一致を要求する（イシュー #2666
+/// codex-review P1 再々指摘対応）。
+fn qualified_const_name(
+    first_arg: &str,
+    root_aliases: &std::collections::HashSet<String>,
+) -> Option<String> {
+    let segments: Vec<&str> = first_arg.split("::").map(str::trim).collect();
+    if segments.len() < 3 {
+        return None;
+    }
+    let root = segments[0];
+    if root != CRATE_NAME && !root_aliases.contains(root) {
+        return None;
+    }
+    let last = *segments.last()?;
+    let is_const_like = !last.is_empty()
+        && last
+            .chars()
+            .all(|c| c.is_ascii_uppercase() || c == '_' || c.is_ascii_digit());
+    if !is_const_like {
+        return None;
+    }
+    Some(segments[1..].join("::"))
+}
+
 /// テスト関数本体から、`assert_eq!` の第 1 引数として実際に比較されている
-/// `crate::<mod>::<CONST>` 形式の参照の `<CONST>` 部分だけを抽出する。
+/// 参照を、モジュールパスを含む完全修飾形（`<mod>::...::<CONST>`）として
+/// 抽出する（[`qualified_const_name`] 参照）。
 /// `fandhe_frontend_wireframe_ui::<mod>::css()` のような関数呼び出し（定数
-/// 比較ではない）は `<CONST>` 相当部分が全大文字にならないため除外される。
+/// 比較ではない）は末尾セグメントが全大文字にならないため除外される。
 ///
 /// 加えて、`assert_eq!` の**第 2 引数**が同ファイルのトップレベルに独立
 /// 宣言された `EXPECTED_*` 定数（`expected_consts`）と一致することも要求
-/// する。これにより `assert_eq!(crate::x::X_CSS, crate::x::X_CSS)` のような
-/// 自己比較（比較相手が golden ではなく検証対象自身）はカバレッジとして
-/// 数えない（イシュー #2666 codex-review P1 再指摘対応: 第 1 引数の形式
-/// だけを見る判定は、実質的な golden 比較を伴わないテストも通してしまう）。
+/// する。これにより `assert_eq!(fandhe_frontend_wireframe_ui::x::X_CSS,
+/// fandhe_frontend_wireframe_ui::x::X_CSS)` のような自己比較（比較相手が
+/// golden ではなく検証対象自身）はカバレッジとして数えない（イシュー #2666
+/// codex-review P1 再指摘対応: 第 1 引数の形式だけを見る判定は、実質的な
+/// golden 比較を伴わないテストも通してしまう）。
 fn asserted_const_names(
     body: &str,
     expected_consts: &std::collections::HashSet<String>,
+    root_aliases: &std::collections::HashSet<String>,
 ) -> Vec<String> {
     const MACRO: &str = "assert_eq!(";
     let mut out = Vec::new();
@@ -330,13 +419,9 @@ fn asserted_const_names(
         let second_arg = after_comma[..second_end].trim();
         let is_independent_golden = expected_consts.contains(second_arg);
 
-        if let Some(name) = first_arg.rsplit("::").next() {
-            let is_const_like = !name.is_empty()
-                && name
-                    .chars()
-                    .all(|c| c.is_ascii_uppercase() || c == '_' || c.is_ascii_digit());
-            if is_const_like && is_independent_golden {
-                out.push(name.to_string());
+        if is_independent_golden {
+            if let Some(qualified) = qualified_const_name(first_arg, root_aliases) {
+                out.push(qualified);
             }
         }
     }
@@ -366,8 +451,9 @@ fn all_asserted_consts() -> std::collections::HashSet<String> {
         let source = fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("{} の読み込みに失敗: {e}", path.display()));
         let expected_consts = top_level_expected_consts(&source);
+        let root_aliases = crate_root_use_aliases(&source);
         for body in active_test_fn_bodies(&source) {
-            set.extend(asserted_const_names(&body, &expected_consts));
+            set.extend(asserted_const_names(&body, &expected_consts, &root_aliases));
         }
     }
     set
@@ -402,10 +488,13 @@ fn every_parts_const_has_a_golden_file() {
 
     assert!(
         missing.is_empty(),
-        "以下の CSS 定数が golden ファイル（tests/*_css.rs）の `#[test]`（`#[ignore]` \
-         なし）関数内で `assert_eq!` により実際に比較されていない。コメント中の参照・\
-         `#[ignore]` 済みテストは検知対象外。対応する `tests/<snake>_css.rs`\
-         （基盤 4 件は tests/base_css.rs）を追加すること: {missing:?}"
+        "以下の CSS 定数（モジュールパスを含む完全修飾形 `<mod>::<CONST>`）が \
+         golden ファイル（tests/*_css.rs）の `#[test]`（他の属性なし）関数内で \
+         `assert_eq!` により実際に比較されていない。コメント中の参照・\
+         `#[ignore]`/`#[cfg]`/`#[cfg_attr]`/`#[should_panic]` 済みテスト・\
+         別モジュールの同名定数との比較は検知対象外（非カバー扱い）。対応する \
+         `tests/<snake>_css.rs`（基盤 4 件は tests/base_css.rs）を追加すること: \
+         {missing:?}"
     );
 }
 
@@ -490,10 +579,19 @@ fn covered_count_matches_parts_minus_icon_glyph_base() {
 /// 汚染するため）。
 #[cfg(test)]
 mod parser_self_test {
-    use super::{active_test_fn_bodies, asserted_const_names, top_level_expected_consts};
+    use super::{
+        active_test_fn_bodies, asserted_const_names, crate_root_use_aliases,
+        top_level_expected_consts,
+    };
+    use std::collections::HashSet;
+
+    fn no_aliases() -> HashSet<String> {
+        HashSet::new()
+    }
 
     /// 正規の golden テスト（`EXPECTED_CSS` という独立定数との比較）は
     /// 引き続きカバレッジとして数えられることを確認する（回帰防止）。
+    /// 戻り値はモジュールパスを含む完全修飾形であることも確認する。
     #[test]
     fn genuine_golden_comparison_is_counted() {
         let source = r#"
@@ -501,14 +599,14 @@ const EXPECTED_CSS: &str = "body {}";
 
 #[test]
 fn matches_golden() {
-    assert_eq!(crate::button::BUTTON_CSS, EXPECTED_CSS);
+    assert_eq!(fandhe_frontend_wireframe_ui::button::BUTTON_CSS, EXPECTED_CSS);
 }
 "#;
         let expected = top_level_expected_consts(source);
         let bodies = active_test_fn_bodies(source);
         assert_eq!(bodies.len(), 1, "アクティブなテスト本体は 1 件のはず");
-        let names = asserted_const_names(&bodies[0], &expected);
-        assert_eq!(names, vec!["BUTTON_CSS".to_string()]);
+        let names = asserted_const_names(&bodies[0], &expected, &no_aliases());
+        assert_eq!(names, vec!["button::BUTTON_CSS".to_string()]);
     }
 
     /// codex-review 指摘の迂回パターン 1: `assert_eq!` の第 2 引数が
@@ -519,7 +617,10 @@ fn matches_golden() {
         let source = r#"
 #[test]
 fn fake_coverage() {
-    assert_eq!(crate::button::BUTTON_CSS, crate::button::BUTTON_CSS);
+    assert_eq!(
+        fandhe_frontend_wireframe_ui::button::BUTTON_CSS,
+        fandhe_frontend_wireframe_ui::button::BUTTON_CSS
+    );
 }
 "#;
         let expected = top_level_expected_consts(source);
@@ -529,11 +630,123 @@ fn fake_coverage() {
         );
         let bodies = active_test_fn_bodies(source);
         assert_eq!(bodies.len(), 1);
-        let names = asserted_const_names(&bodies[0], &expected);
+        let names = asserted_const_names(&bodies[0], &expected, &no_aliases());
         assert!(
             names.is_empty(),
             "独立した golden 定数と比較していない自己比較はカバレッジに \
              数えてはならない"
+        );
+    }
+
+    /// イシュー #2666 codex-review P1 再々指摘対応の迂回パターン: 末尾の
+    /// 定数名だけを見る判定では、`PARTS` に登録されているのとは**別の
+    /// モジュール**の同名定数を assert しただけでもカバレッジとして
+    /// 数えてしまう。モジュールパスを含む完全修飾形で判定すれば、
+    /// `other_mod::BUTTON_CSS` は `button::BUTTON_CSS` の代わりにならない。
+    #[test]
+    fn same_const_name_in_different_module_is_not_counted_as_target_module() {
+        let source = r#"
+const EXPECTED_CSS: &str = "body {}";
+
+#[test]
+fn fake_coverage() {
+    assert_eq!(fandhe_frontend_wireframe_ui::other_mod::BUTTON_CSS, EXPECTED_CSS);
+}
+"#;
+        let expected = top_level_expected_consts(source);
+        let bodies = active_test_fn_bodies(source);
+        assert_eq!(bodies.len(), 1);
+        let names = asserted_const_names(&bodies[0], &expected, &no_aliases());
+        assert_eq!(
+            names,
+            vec!["other_mod::BUTTON_CSS".to_string()],
+            "完全修飾形で抽出されるべきであり、button::BUTTON_CSS の代わりに \
+             other_mod::BUTTON_CSS が数えられてはならない"
+        );
+        assert!(
+            !names.contains(&"button::BUTTON_CSS".to_string()),
+            "別モジュールの同名定数は button::BUTTON_CSS のカバレッジとして \
+             誤検知してはならない"
+        );
+    }
+
+    /// `use fandhe_frontend_wireframe_ui as w;` のようなクレートルート
+    /// 別名（`use ... as`）経由の参照も、正規化して完全修飾形として
+    /// 認識できることを確認する（イシュー #2666 codex-review P1
+    /// 再々指摘対応）。
+    #[test]
+    fn use_alias_to_crate_root_is_resolved() {
+        let source = r#"
+use fandhe_frontend_wireframe_ui as w;
+
+const EXPECTED_CSS: &str = "body {}";
+
+#[test]
+fn matches_golden() {
+    assert_eq!(w::button::BUTTON_CSS, EXPECTED_CSS);
+}
+"#;
+        let expected = top_level_expected_consts(source);
+        let aliases = crate_root_use_aliases(source);
+        assert!(
+            aliases.contains("w"),
+            "`use fandhe_frontend_wireframe_ui as w;` は別名 `w` を \
+             登録しなければならない"
+        );
+        let bodies = active_test_fn_bodies(source);
+        assert_eq!(bodies.len(), 1);
+        let names = asserted_const_names(&bodies[0], &expected, &aliases);
+        assert_eq!(names, vec!["button::BUTTON_CSS".to_string()]);
+    }
+
+    /// 認識できないルート（対象クレート名でも登録済み別名でもない識別子、
+    /// ローカル定義のモジュールを装うものを含む）から始まる参照は、
+    /// 正規化できないため非カバー扱いに倒す（イシュー #2666 codex-review
+    /// P1 再々指摘対応: 「正規化できない参照は非カバー側へ倒す」）。
+    #[test]
+    fn unrecognized_root_is_not_counted() {
+        let source = r#"
+const EXPECTED_CSS: &str = "body {}";
+
+#[test]
+fn fake_coverage() {
+    assert_eq!(crate::button::BUTTON_CSS, EXPECTED_CSS);
+}
+"#;
+        let expected = top_level_expected_consts(source);
+        let bodies = active_test_fn_bodies(source);
+        assert_eq!(bodies.len(), 1);
+        let names = asserted_const_names(&bodies[0], &expected, &no_aliases());
+        assert!(
+            names.is_empty(),
+            "`crate::` はテストバイナリ自身を指し得るため、ローカル定義の \
+             同名モジュールへの取り違えを避けるべく非カバー扱いにしなければ \
+             ならない（integration test 側は対象クレート名を明示する規約）"
+        );
+    }
+
+    /// 裸の識別子（`use` によるアイテム import 経由の間接参照等）はパスを
+    /// 構造的に確認できないため、非カバー扱いに倒す。
+    #[test]
+    fn bare_identifier_without_module_path_is_not_counted() {
+        let source = r#"
+use fandhe_frontend_wireframe_ui::button::BUTTON_CSS;
+
+const EXPECTED_CSS: &str = "body {}";
+
+#[test]
+fn fake_coverage() {
+    assert_eq!(BUTTON_CSS, EXPECTED_CSS);
+}
+"#;
+        let expected = top_level_expected_consts(source);
+        let bodies = active_test_fn_bodies(source);
+        assert_eq!(bodies.len(), 1);
+        let names = asserted_const_names(&bodies[0], &expected, &no_aliases());
+        assert!(
+            names.is_empty(),
+            "アイテム import 経由の裸の識別子はモジュールパスを構造的に \
+             確認できないため非カバー扱いにしなければならない"
         );
     }
 
@@ -678,7 +891,7 @@ const EXPECTED_CSS: &str = fandhe_frontend_wireframe_ui::button::BUTTON_CSS;
 
 #[test]
 fn fake_coverage() {
-    assert_eq!(crate::button::BUTTON_CSS, EXPECTED_CSS);
+    assert_eq!(fandhe_frontend_wireframe_ui::button::BUTTON_CSS, EXPECTED_CSS);
 }
 "#;
         let expected = top_level_expected_consts(source);
@@ -689,7 +902,7 @@ fn fake_coverage() {
         );
         let bodies = active_test_fn_bodies(source);
         assert_eq!(bodies.len(), 1);
-        let names = asserted_const_names(&bodies[0], &expected);
+        let names = asserted_const_names(&bodies[0], &expected, &no_aliases());
         assert!(
             names.is_empty(),
             "実装定数への別名との比較はカバレッジに数えてはならない"
