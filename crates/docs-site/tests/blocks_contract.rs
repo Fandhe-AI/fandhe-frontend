@@ -2982,3 +2982,116 @@ fn bento_three_column_tall_composes_expected_parts() {
         );
     }
 }
+
+/// careers-split-photo-list ページが `blocks-demo`/固有 demo_class・
+/// 専用スタイルシート 2 種・Demo 固有 CSS フックを配線していること
+/// （イシュー #2817）。
+#[test]
+fn careers_split_photo_list_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/careers-split-photo-list/index.html"))
+        .expect("blocks/careers-split-photo-list/index.html should be generated");
+    assert!(
+        html.contains(r#"class="blocks-demo blocks-careers-split-photo-list""#),
+        "careers-split-photo-list page should wire the shared and block-specific demo class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "careers-split-photo-list page should link the pre-styled-ui stylesheet"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "careers-split-photo-list page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-careers-split-photo-list-job=\"\"",
+        "data-blocks-careers-split-photo-list-photo=\"\"",
+        "data-blocks-careers-split-photo-list-separator=\"\"",
+        "data-blocks-careers-split-photo-list-salary=\"\"",
+        "data-blocks-careers-split-photo-list-location=\"\"",
+        "data-blocks-careers-split-photo-list-all-link=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "careers-split-photo-list page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        ".blocks-careers-split-photo-list-layout",
+        "[data-blocks-careers-split-photo-list-job]",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// careers-split-photo-list の合成部品（heading/text/image/separator/link/
+/// link-overlay/visually-hidden）が期待どおりの構成（求人 3 件・区切り線
+/// 2 本）で実際に出力されていること、`<form>`・`data:` URI・`href="#"` を
+/// 持ち込んでいないことを固定する（イシュー #2817）。
+#[test]
+fn careers_split_photo_list_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/careers-split-photo-list/index.html"))
+        .expect("blocks/careers-split-photo-list/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"image\"",
+        "data-scope=\"separator\"",
+        "data-scope=\"link\"",
+        "data-scope=\"link-overlay\"",
+        "data-scope=\"visually-hidden\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "careers-split-photo-list page should contain {scope}"
+        );
+    }
+    // 「## Rust コード」節の手書きソース表示にも同じ
+    // `data-blocks-careers-split-photo-list-*` 属性名がリテラル文字列として
+    // 現れるため（`Block::demo` の実装そのものを表示する節、
+    // `crate::blocks` モジュール doc「マーカー規約」参照）、件数の厳密な
+    // 検証は「Demo」節（`>Rust コード</h2>` より前）に限定する
+    // （`login_01_page_orders_h1_then_demo_then_used_parts_then_rust_code`
+    // と同じ境界検出手法）。
+    let rust_code_pos = html
+        .find(">Rust コード</h2>")
+        .expect("page should have a Rust コード heading");
+    let demo_html = &html[..rust_code_pos];
+    assert_eq!(
+        demo_html
+            .matches("data-blocks-careers-split-photo-list-job")
+            .count(),
+        3,
+        "careers-split-photo-list should render exactly 3 job rows"
+    );
+    assert_eq!(
+        demo_html
+            .matches("data-blocks-careers-split-photo-list-separator")
+            .count(),
+        2,
+        "careers-split-photo-list should render exactly 2 separators"
+    );
+    assert!(
+        demo_html.contains(r#"aria-label="バックエンドエンジニア""#),
+        "careers-split-photo-list should label the overlay with the visible job title"
+    );
+    assert!(
+        demo_html.contains("一緒にプロダクトを育てる仲間を募集しています"),
+        "careers-split-photo-list should render the section heading text"
+    );
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "careers-split-photo-list should never contain {absent}"
+        );
+    }
+}

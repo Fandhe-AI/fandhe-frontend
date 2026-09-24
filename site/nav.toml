@@ -1347,6 +1347,14 @@ source = "site/blocks/bento-three-column-tall.md"
 path = "/blocks/bento-three-column-tall/"
 
 [[section.group]]
+title = "Careers"
+
+[[section.group.page]]
+title = "careers-split-photo-list"
+source = "site/blocks/careers-split-photo-list.md"
+path = "/blocks/careers-split-photo-list/"
+
+[[section.group]]
 title = "Sidebar"
 
 [[section.group.page]]
