@@ -1350,6 +1350,77 @@ title = "dashboard-01"
 source = "site/blocks/dashboard-01.md"
 path = "/blocks/dashboard-01/"
 
+# --- 以下は block 追加時の挿入先アンカー（イシュー #2734）。カテゴリ単位で
+# 行ブロックを分け、新規 block の [[section.page]] は該当カテゴリの見出し
+# 直後へ追記する。既存 22 件（上記）は前後ナビ順序保持のため移動しない
+# （並べ替えると `/blocks/**` の前後ナビ href が変わってしまうため）。
+# Marketing / Hero
+# Marketing / Feature
+# Marketing / Cta
+# Marketing / Pricing
+# Marketing / Testimonial
+# Marketing / Logo Cloud
+# Marketing / Stats
+# Marketing / Team
+# Marketing / Faq
+# Marketing / Contact
+# Marketing / Newsletter
+# Marketing / Blog
+# Marketing / Content
+# Marketing / Header
+# Marketing / Footer
+# Marketing / Banner
+# Marketing / Bento
+# Marketing / Comparison
+# Marketing / Careers
+# Marketing / Changelog
+# Marketing / Error Page
+# Marketing / Gallery
+# Marketing / Section Heading
+# Application / App Shell
+# Application / Sidebar
+# Application / Navbar
+# Application / Page Heading
+# Application / Card Heading
+# Application / List
+# Application / Table
+# Application / Grid List
+# Application / Description List
+# Application / Calendar
+# Application / Feed
+# Application / Form Layout
+# Application / Auth
+# Application / Settings
+# Application / Action Panel
+# Application / Empty State
+# Application / Notification
+# Application / Dialog
+# Application / Drawer
+# Application / Command Palette
+# Application / Onboarding
+# Application / Card
+# Application / Profile
+# Application / Chart
+# Application / Dashboard
+# Application / AI Chat
+# Application / Help Center
+# Ecommerce / Product Overview
+# Ecommerce / Product List
+# Ecommerce / Quickview
+# Ecommerce / Category
+# Ecommerce / Filter
+# Ecommerce / Cart
+# Ecommerce / Checkout
+# Ecommerce / Order
+# Ecommerce / Reviews
+# Ecommerce / Store Nav
+# Ecommerce / Incentives
+# Ecommerce / Promo
+# Docs / Docs Layout
+# Docs / Code Block
+# Docs / Example Preview
+# Docs / Api Reference
+
 # Wireframes セクション（イシュー #2607 / 設計 docs/design/wireframe-ui-architecture.md §12）。
 # fandhe-frontend-wireframe-ui（blocks.pm 参照のローファイ・モノクロ UI 部品層、
 # Primitives/Themes と独立した第 3 の UI 層）の 49 部品を掲載するセクション。

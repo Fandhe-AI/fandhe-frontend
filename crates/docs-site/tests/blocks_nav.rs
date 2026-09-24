@@ -1,4 +1,4 @@
-//! `site/nav.toml` の Blocks セクション・`crate::blocks::BLOCKS` レジストリ・
+//! `site/nav.toml` の Blocks セクション・`crate::blocks::all_blocks()` レジストリ・
 //! `site/blocks/*.md` 原稿ファイル集合の三方突合（イシュー #2088）。
 //!
 //! `crates/docs-site/tests/primitives_nav.rs`（Primitives 台帳の三方突合）と
@@ -135,7 +135,7 @@ fn blocks_group_pages_match_registry_category_assignments() {
     }
 }
 
-/// `site/nav.toml` の `/blocks/*` ページ（索引を除く）と `blocks::BLOCKS` の
+/// `site/nav.toml` の `/blocks/*` ページ（索引を除く）と `blocks::all_blocks()` の
 /// `path` が完全一致すること（登録漏れ・孤児のいずれも検知する）。
 #[test]
 fn nav_toml_block_pages_match_the_registry_exactly() {
@@ -151,15 +151,15 @@ fn nav_toml_block_pages_match_the_registry_exactly() {
         .map(|p| p.path.as_str())
         .filter(|path| *path != section.index_path)
         .collect();
-    let registry_paths: BTreeSet<&str> = blocks::BLOCKS.iter().map(|b| b.path).collect();
+    let registry_paths: BTreeSet<&str> = blocks::all_blocks().iter().map(|b| b.path).collect();
 
     assert_eq!(
         nav_block_paths, registry_paths,
-        "nav.toml の /blocks/* ページ（索引除く）と blocks::BLOCKS の path が一致しない"
+        "nav.toml の /blocks/* ページ（索引除く）と blocks::all_blocks() の path が一致しない"
     );
 }
 
-/// `blocks::BLOCKS` の各 `path` に対応する `site/blocks/<kebab>.md` が
+/// `blocks::all_blocks()` の各 `path` に対応する `site/blocks/<kebab>.md` が
 /// 実在すること（nav.toml の `source` フィールドとも一致させる）。
 #[test]
 fn every_registered_block_has_a_manuscript_file() {
@@ -170,7 +170,7 @@ fn every_registered_block_has_a_manuscript_file() {
         .find(|s| s.title == "Blocks")
         .expect("Blocks section should be registered");
 
-    for block in blocks::BLOCKS {
+    for block in blocks::all_blocks() {
         let page = section
             .all_pages()
             .find(|p| p.path == block.path)
@@ -184,14 +184,14 @@ fn every_registered_block_has_a_manuscript_file() {
     }
 }
 
-/// `site/blocks/*.md` 原稿ファイル集合と `blocks::BLOCKS`/`nav.toml` の
+/// `site/blocks/*.md` 原稿ファイル集合と `blocks::all_blocks()`/`nav.toml` の
 /// 三方目を締める（イシュー #2088 codex-review P2 指摘）。
 /// `every_registered_block_has_a_manuscript_file` は「登録済み block に
 /// 対応する原稿ファイルが実在するか」の片方向しか検証しないため、
-/// `site/blocks/` に置かれたが `blocks::BLOCKS`/`nav.toml` のどちらにも
+/// `site/blocks/` に置かれたが `blocks::all_blocks()`/`nav.toml` のどちらにも
 /// 登録されていない孤児原稿ファイルを検知できない欠落があった。本テストは
 /// `site/blocks/` ディレクトリを実際に列挙し、その集合が
-/// `blocks::BLOCKS` の `path` から導出した想定ファイル名集合と完全一致する
+/// `blocks::all_blocks()` の `path` から導出した想定ファイル名集合と完全一致する
 /// ことを固定する。
 #[test]
 fn site_blocks_dir_manuscripts_match_the_registry_exactly() {
@@ -209,7 +209,7 @@ fn site_blocks_dir_manuscripts_match_the_registry_exactly() {
         })
         .collect();
 
-    let expected: BTreeSet<String> = blocks::BLOCKS
+    let expected: BTreeSet<String> = blocks::all_blocks()
         .iter()
         .map(|block| {
             let kebab = block
@@ -222,16 +222,16 @@ fn site_blocks_dir_manuscripts_match_the_registry_exactly() {
 
     assert_eq!(
         on_disk, expected,
-        "site/blocks/*.md の実在ファイル集合と blocks::BLOCKS から導出した期待集合が一致しない          （未登録の孤児原稿ファイル、または登録済みだがファイルが無い block のいずれか）"
+        "site/blocks/*.md の実在ファイル集合と blocks::all_blocks() から導出した期待集合が一致しない          （未登録の孤児原稿ファイル、または登録済みだがファイルが無い block のいずれか）"
     );
 }
 
 /// `site/blocks.md` が索引ページとして登録され、実サイトビルド後の
-/// `blocks/index.html` が登録済み全 block（`blocks::BLOCKS`）へのリンクと
+/// `blocks/index.html` が登録済み全 block（`blocks::all_blocks()`）へのリンクと
 /// 区分・カテゴリ見出しを含むこと（イシュー #2733 で索引をレジストリ由来の
 /// ビルド時生成へ移行したため、生の Markdown ソースではなくビルド後の
 /// HTML を検証する。個別イシュー番号ごとの手書き `assert!` 列挙をやめ、
-/// `blocks::BLOCKS` を走査するレジストリ駆動の網羅チェックへ置き換えた。
+/// `blocks::all_blocks()` を走査するレジストリ駆動の網羅チェックへ置き換えた。
 /// これにより将来 block が増えても本テストへの追記が不要になる）。
 #[test]
 fn blocks_index_page_links_to_the_registered_block() {
@@ -252,7 +252,7 @@ fn blocks_index_page_links_to_the_registered_block() {
     let html = std::fs::read_to_string(out.join("blocks/index.html"))
         .expect("blocks/index.html should be generated");
 
-    for block in blocks::BLOCKS {
+    for block in blocks::all_blocks() {
         let expected_href = format!(r#"href="/fandhe-frontend{}""#, block.path);
         assert!(
             html.contains(&expected_href),

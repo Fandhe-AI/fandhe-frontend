@@ -379,7 +379,7 @@
   イシュー #1064〕/ `highlight.rs`〔フェンスコードブロックの軽量シンタックス
   ハイライト（`src/highlight.rs`）の XSS エスケープ・CSS トークン網羅性・
   全域性契約、イシュー #1078〕/ `blocks_nav.rs`〔nav.toml の `/blocks/*` ⇔
-  `crate::blocks::BLOCKS` ⇔ `site/blocks/*.md` の三方突合、イシュー #2088〕/
+  `crate::blocks::all_blocks()` ⇔ `site/blocks/*.md` の三方突合、イシュー #2088〕/
   `blocks_code_drift.rs`〔`crate::blocks` 配下の手書き実装と Markdown 原稿の
   `rust` フェンスとのマーカー突合、イシュー #2088〕/ `blocks_contract.rs`
   〔Blocks ページの節順序・`<form>` 不在・CSS 配線・XSS 回帰、イシュー

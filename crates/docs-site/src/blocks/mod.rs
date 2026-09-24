@@ -24,15 +24,27 @@
 //! 絶対パス href のみを持ち `.md` 相対リンクを含まないため、rewrite の
 //! 前後どちらで挿入しても結果は変わらない）。
 //!
-//! # レジストリ構造（後続イシュー #2089〜#2095 が複製する契約）
+//! # レジストリ構造（カテゴリ別モジュール分割、イシュー #2734）
 //!
 //! [`Block`] 1 件 = 1 block ページ。`rust_source` は
-//! [`crate::blocks`]（本モジュール）配下の実装ファイルパスを指し、
-//! `crates/docs-site/tests/blocks_code_drift.rs` が手書き Markdown の
-//! ```rust フェンスとの一致検証に使う。`parts` は Demo が実際に使用する
-//! Themes/Primitives 部品への相互リンク一覧（`crates/docs-site/tests/
-//! blocks_contract.rs` が各 `path` の妥当性を検証する動機は
-//! `linkcheck::check_links` の fail-closed 保証と同型）。
+//! `crates/docs-site/src/blocks/<section>/<category>/<block>.rs`
+//! （実装ファイルがカテゴリ内で完結する block の場合。カテゴリが空雛形の
+//! 間は該当なし）を指し、`crates/docs-site/tests/blocks_code_drift.rs` が
+//! 手書き Markdown の ```rust フェンスとの一致検証に使う。`parts` は Demo
+//! が実際に使用する Themes/Primitives 部品への相互リンク一覧（
+//! `crates/docs-site/tests/blocks_contract.rs` が各 `path` の妥当性を検証
+//! する動機は `linkcheck::check_links` の fail-closed 保証と同型）。
+//!
+//! block レジストリ本体は [`all_blocks`] が 4 区分サブモジュール
+//! （[`marketing`]・[`application`]・[`ecommerce`]・[`docs`]）の
+//! `blocks()` を連結して組み立てる（かつての単一 `pub const BLOCKS: &[Block]`
+//! 配列は廃止）。各区分はさらに 66 カテゴリ（[`BlockCategory::ALL`]）別の
+//! サブモジュールへ分かれており、block を 1 件追加する通常の変更は
+//! **そのカテゴリのディレクトリ内で完結**する（`mod` 宣言・`BLOCKS` 配列・
+//! `stylesheet()` の 3 箇所を全 PR が同じ行で編集し衝突が恒常化していた
+//! 構造上の欠陥の是正、イシュー #2734）。新規カテゴリの追加や区分割当の
+//! 変更が必要な場合のみ、区分側 `mod.rs`（[`marketing`] 等）・
+//! [`category`] モジュールの更新が必要になる。
 //!
 //! # マーカー規約（`.rs` 側 ⇔ `.md` 側の一致検証、イシュー #2088 §2.5）
 //!
@@ -62,7 +74,7 @@
 //! PII を含まない）に限る。ログイン/サインアップ系 block は認証処理・送信先を
 //! 一切持たない静的な合成例である旨を Markdown 原稿側の導入文で明記する。
 //!
-//! # CSS の置き場
+//! # CSS の置き場（レジストリ駆動、イシュー #2734）
 //!
 //! [`stylesheet`] がビルド時生成する専用 CSS（[`STYLESHEET_REL_PATH`]）が
 //! `.blocks-demo`（全幅デモ枠、`.docs-content` カラム内で最大幅・横スクロール
@@ -70,31 +82,20 @@
 //! 持つ。block ページには本 CSS に加えて `crate::showcase::STYLESHEET_REL_PATH`
 //! （pre-styled-ui 全 recipe。合成に使う部品自体の見た目）も配線する
 //! （`/blocks/` 索引ページには配線しない）。
+//!
+//! 各 block は自身の `LAYOUT_CSS`（`&'static str`）または `layout_css()`
+//! （`fn() -> String`、実行時に値を組み立てる block 用）を [`Block::layout_css`]
+//! （[`LayoutCss`]）として自己申告し、[`stylesheet`] は [`all_blocks`] を
+//! 走査して `push_css` するだけになる。カテゴリ側モジュールが CSS の
+//! 集約経路を別途持つ必要はない（[`Block`] 自身のフィールドへ寄せることで
+//! 二重の集約経路を作らない設計）。
 
 mod category;
 
-mod bento_staggered;
-mod cta_banner_magnetic;
-mod cta_signup_celebrate;
-mod cursor_hover_cards;
-mod dashboard_01;
-mod feature_expand;
-mod footer_newsletter;
-mod footer_sticky_reveal;
-mod game_ui_modal;
-mod hero_editorial_stagger;
-mod hero_parallax_layers;
-mod hero_terminal;
-mod login_01;
-mod login_04;
-mod pricing_tiers_morph;
-mod pricing_usage_slider;
-mod sidebar_03;
-mod sidebar_07;
-mod signup_01;
-mod signup_05;
-mod testimonials_stack;
-mod text_split_reveal;
+mod application;
+mod docs;
+mod ecommerce;
+mod marketing;
 
 use fandhe_frontend_core::{a, div, h2, h3, li, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
@@ -120,8 +121,8 @@ pub const DEMO_CLASS: &str = "blocks-demo";
 
 /// Demo 節の全幅ラッパ（`.blocks-demo`）のみを持つ共通 CSS
 /// （モジュール doc「CSS の置き場」節参照）。block 固有のレイアウト規則は
-/// 各モジュール側の `pub(super) const LAYOUT_CSS`（`login_01` を含む全 block
-/// が個別に持つ、下記「block 固有 CSS の置き場」節参照）に置く。
+/// 各 block モジュール側の `LAYOUT_CSS`/`layout_css()`（[`Block::layout_css`]
+/// として自己申告する、モジュール doc「CSS の置き場」節参照）に置く。
 ///
 /// # セレクタが `class` と `[data-*]` で混在する理由（イシュー #2088 PR #2277
 /// codex-review P1 / Cursor Bugbot 指摘の是正）
@@ -137,22 +138,28 @@ pub const DEMO_CLASS: &str = "blocks-demo";
 /// `card::body`（variant を持たず `attrs` をそのまま連結する）や素の `div`
 /// には `class` がそのまま効くため、それらは従来どおり `.blocks-login-01-*`
 /// クラスセレクタのままでよい（`-password-row`/`-actions`/`-signup-row`）。
-/// 後続 block（#2089〜#2095）が `card::root`/`field::root`/`button::button`
-/// を使う際は同じ判断（対象パーツが `drop_class_attr` を経由するか）で
-/// `class` か `data-*` かを選ぶ。
+/// 後続 block が `card::root`/`field::root`/`button::button` を使う際は
+/// 同じ判断（対象パーツが `drop_class_attr` を経由するか）で `class` か
+/// `data-*` かを選ぶ。
 /// 実際に生成 HTML へ属性が出力され CSS 側のセレクタと対になっていることは
 /// `crates/docs-site/tests/blocks_contract.rs` が固定する。
-///
-/// # block 固有 CSS の置き場（イシュー #2089 以降の分離、並列進行対策）
-///
-/// 本 `LAYOUT_CSS` は `.blocks-demo` の共通枠のみを持つ（`login_01` も
-/// #2092 で `pub(super) const LAYOUT_CSS` へ分離済み）。#2089〜#2095 が
-/// 並列進行する状況で全 block が単一定数へ追記すると PR 間で必ず衝突するため、
-/// 各モジュール側が個別に `pub(super) const LAYOUT_CSS` を持ち、[`stylesheet`]
-/// が `push_css` を複数回呼んで連結する（詳細は
-/// `docs/design/docs-site-blocks-section.md` §10 追記節）。
 const LAYOUT_CSS: &str = "\
 .blocks-demo {\n  max-width: 100%;\n  overflow-x: auto;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: 0.5rem;\n  padding: 1.5rem;\n  margin: 0 0 1.5rem;\n  background: var(--fandhe-color-bg-subtle);\n}\n";
+
+/// block 固有のレイアウト CSS（イシュー #2734）。`&'static str` 定数
+/// （大半の block）と、実行時に文字列を組み立てる関数（`testimonials_stack`/
+/// `hero_parallax_layers`/`game_ui_modal` 等）の両方を、[`all_blocks`] を
+/// 走査するだけで [`stylesheet`] を組み立てられる契約の下で統一的に扱う
+/// ための列挙型。カテゴリ側モジュールは CSS の集約経路を別途持たず、
+/// 各 block が自身の [`Block::layout_css`] として自己申告するだけでよい。
+#[derive(Clone, Copy)]
+pub enum LayoutCss {
+    /// ビルド時に確定する静的な CSS 文字列。
+    Static(&'static str),
+    /// 実行時に組み立てる CSS 文字列（トークン参照の展開等、静的文字列の
+    /// リテラル結合だけでは表現できない block が使う）。
+    Dynamic(fn() -> String),
+}
 
 /// 使用部品一覧の 1 件（`## 使用部品` の `<li><a>`）。`path` は
 /// `/themes/<kebab>/` または `/primitives/<kebab>/` を指す。
@@ -182,48 +189,43 @@ pub struct Block {
     /// マーカー内容と手書き Markdown のフェンスを突合する際に使う）。
     pub rust_source: &'static str,
     /// Demo ラッパへ [`DEMO_CLASS`] に加えて付与する block 固有 class
-    /// （`LAYOUT_CSS` のセレクタと一致させる）。
+    /// （[`Block::layout_css`] のセレクタと一致させる）。
     pub demo_class: &'static str,
     /// Demo が使用する Themes/Primitives 部品一覧（`## 使用部品`）。
     pub parts: &'static [Part],
+    /// この block が [`stylesheet`] へ寄与する固有 CSS（イシュー #2734）。
+    pub layout_css: LayoutCss,
     /// Demo 本体を組み立てる純関数。呼び出しごとに決定的な `Node` を返す
     /// （状態機械を持たない、他の Rust 生成コンテンツ供給元と同じ設計）。
     pub demo: fn() -> Node,
 }
 
-/// Blocks レジストリ本体。`site/nav.toml` の `/blocks/*` ページ（索引を除く）
-/// との三方突合を `crates/docs-site/tests/blocks_nav.rs` が固定する。
-pub const BLOCKS: &[Block] = &[
-    login_01::BLOCK,
-    login_04::BLOCK,
-    dashboard_01::BLOCK,
-    sidebar_07::BLOCK,
-    sidebar_03::BLOCK,
-    signup_01::BLOCK,
-    signup_05::BLOCK,
-    pricing_tiers_morph::BLOCK,
-    pricing_usage_slider::BLOCK,
-    testimonials_stack::BLOCK,
-    bento_staggered::BLOCK,
-    feature_expand::BLOCK,
-    cta_banner_magnetic::BLOCK,
-    cta_signup_celebrate::BLOCK,
-    cursor_hover_cards::BLOCK,
-    footer_sticky_reveal::BLOCK,
-    footer_newsletter::BLOCK,
-    hero_editorial_stagger::BLOCK,
-    hero_parallax_layers::BLOCK,
-    hero_terminal::BLOCK,
-    text_split_reveal::BLOCK,
-    game_ui_modal::BLOCK,
-];
+/// Blocks レジストリ本体。4 区分サブモジュール（[`marketing`]・
+/// [`application`]・[`ecommerce`]・[`docs`]）の `blocks()` を連結して
+/// 組み立てる（イシュー #2734。かつての `pub const BLOCKS: &[Block]` は
+/// 66 個の可変長カテゴリを stable Rust の `const fn` だけで連結する明快な
+/// 手段が無いため廃止し、ビルド時・テスト時にのみ呼ばれる `Vec` 組み立て
+/// 関数へ置き換えた。`Block` は `Copy` のためコピーコストは無視できる）。
+/// `site/nav.toml` の `/blocks/*` ページ（索引を除く）との三方突合を
+/// `crates/docs-site/tests/blocks_nav.rs` が固定する。
+#[must_use]
+pub fn all_blocks() -> Vec<Block> {
+    let mut items = Vec::new();
+    items.extend(marketing::blocks());
+    items.extend(application::blocks());
+    items.extend(ecommerce::blocks());
+    items.extend(docs::blocks());
+    items
+}
 
 /// `page_path` に対応する [`Block`] を返す（block ページでなければ `None`）。
 /// `crate::build::build_site` が「このページを Blocks 専用分岐に乗せるか」を
 /// 判定する唯一の入口。
 #[must_use]
-pub fn block_for_path(page_path: &str) -> Option<&'static Block> {
-    BLOCKS.iter().find(|block| block.path == page_path)
+pub fn block_for_path(page_path: &str) -> Option<Block> {
+    all_blocks()
+        .into_iter()
+        .find(|block| block.path == page_path)
 }
 
 /// Markdown ブロック列（[`crate::markdown::render_markdown`] の戻り値）へ、
@@ -267,14 +269,15 @@ pub fn insert_generated_sections(page_path: &str, base_path: &str, blocks: Vec<N
     splice_before_first_h2(blocks, generated)
 }
 
-/// `/blocks/` 索引ページ用の「区分 → カテゴリ」節を [`BLOCKS`] レジストリ
+/// `/blocks/` 索引ページ用の「区分 → カテゴリ」節を [`all_blocks`] レジストリ
 /// から組み立てる（イシュー #2733）。0 件の区分・カテゴリは見出しごと
 /// 省略する（`BlockSection::ALL`/`BlockCategory::ALL` は将来カテゴリの
 /// 先行宣言を許すため、掲載 block が無い節を空見出しとして出さない）。
-/// カテゴリ内の表示順は [`BLOCKS`] の宣言順ではなく `path` の辞書順とする
-/// （並列 PR による [`BLOCKS`] への追記順は安定しないため、索引の表示順を
-/// レジストリ追記順から独立させる）。
+/// カテゴリ内の表示順は登録順ではなく `path` の辞書順とする
+/// （並列 PR によるレジストリへの追記順は安定しないため、索引の表示順を
+/// 登録順から独立させる）。
 fn index_generated_sections(base_path: &str) -> Vec<Node> {
+    let all = all_blocks();
     let mut sections = Vec::new();
 
     for section in BlockSection::ALL {
@@ -285,7 +288,7 @@ fn index_generated_sections(base_path: &str) -> Vec<Node> {
                 continue;
             }
 
-            let mut items: Vec<&'static Block> = BLOCKS
+            let mut items: Vec<&Block> = all
                 .iter()
                 .filter(|block| block.category == *category)
                 .collect();
@@ -339,7 +342,18 @@ fn splice_before_first_h2(mut blocks: Vec<Node>, generated: Vec<Node>) -> Vec<No
 
 /// Blocks 専用 CSS を組み立てる（`primitive_showcase::stylesheet` と同型の
 /// 「各生成 CSS ファイルは単独でも自己完結する」規約に従い、テーマトークン
-/// 定義（`Theme::default()`）を含める）。
+/// 定義（`Theme::default()`）を含める）。[`all_blocks`] を走査して各 block の
+/// [`Block::layout_css`] を連結するレジストリ駆動の実装（イシュー #2734。
+/// カテゴリ側モジュールは CSS の集約経路を別途持たない）。
+///
+/// # 生成物の連結順序について
+///
+/// `assets/blocks.css` の連結順序はレジストリの走査順（区分 →
+/// カテゴリ → 登録順）に従うため、フラット配列だった旧実装（手書きの
+/// カテゴリを跨いだ追記順）とは異なる。全 block の CSS セレクタは
+/// `.blocks-<name>` / `[data-blocks-<name>-*]` の形で block ごとに名前空間
+/// 分離されており、カスケード順に依存する規則は存在しないため、
+/// 連結順序の変更に副作用はない（ルール集合として分割前と同一）。
 ///
 /// # Errors
 ///
@@ -350,31 +364,15 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     let mut sheet = StyleSheet::new();
     sheet.push_theme(&Theme::default());
     sheet.push_css(LAYOUT_CSS)?;
-    sheet.push_css(login_01::LAYOUT_CSS)?;
-    sheet.push_css(login_04::LAYOUT_CSS)?;
-    sheet.push_css(dashboard_01::LAYOUT_CSS)?;
-    sheet.push_css(sidebar_07::LAYOUT_CSS)?;
-    sheet.push_css(sidebar_03::LAYOUT_CSS)?;
-    sheet.push_css(signup_01::LAYOUT_CSS)?;
-    sheet.push_css(signup_05::LAYOUT_CSS)?;
-    sheet.push_css(pricing_tiers_morph::LAYOUT_CSS)?;
-    sheet.push_css(pricing_usage_slider::LAYOUT_CSS)?;
-    sheet.push_css(&testimonials_stack::layout_css())?;
     sheet.push_css(fandhe_frontend_pre_styled_ui::motion::KEYFRAMES_CSS)?;
-    sheet.push_css(bento_staggered::LAYOUT_CSS)?;
-    sheet.push_css(feature_expand::LAYOUT_CSS)?;
-    sheet.push_css(cta_banner_magnetic::LAYOUT_CSS)?;
-    sheet.push_css(cta_signup_celebrate::LAYOUT_CSS)?;
     sheet.push_css(fandhe_frontend_pre_styled_ui::cursor::CURSOR_CSS)?;
-    sheet.push_css(cursor_hover_cards::LAYOUT_CSS)?;
-    sheet.push_css(footer_sticky_reveal::LAYOUT_CSS)?;
-    sheet.push_css(footer_newsletter::LAYOUT_CSS)?;
-    sheet.push_css(hero_editorial_stagger::LAYOUT_CSS)?;
-    sheet.push_css(&hero_parallax_layers::layout_css())?;
-    sheet.push_css(hero_terminal::LAYOUT_CSS)?;
     sheet.push_css(fandhe_frontend_pre_styled_ui::text_reveal::TEXT_REVEAL_CSS)?;
-    sheet.push_css(text_split_reveal::LAYOUT_CSS)?;
-    sheet.push_css(&game_ui_modal::layout_css())?;
+    for block in all_blocks() {
+        match block.layout_css {
+            LayoutCss::Static(css) => sheet.push_css(css)?,
+            LayoutCss::Dynamic(f) => sheet.push_css(&f())?,
+        }
+    }
     Ok(sheet)
 }
 
@@ -442,5 +440,12 @@ mod tests {
         let sheet = stylesheet().expect("stylesheet must build");
         assert!(sheet.as_css().contains(".blocks-demo"));
         assert!(sheet.as_css().contains("overflow-x: auto"));
+    }
+
+    #[test]
+    fn all_blocks_registers_all_22_existing_blocks() {
+        // カテゴリ別モジュール分割（イシュー #2734）の前後で登録件数が
+        // 変わっていないことの回帰。
+        assert_eq!(all_blocks().len(), 22);
     }
 }

@@ -222,28 +222,98 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/primitives-showcase.css"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/image-demo.svg"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/index.html"
-          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-01/index.html"
-          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/dashboard-01/index.html"
-          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/sidebar-07/index.html"
-          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/sidebar-03/index.html"
-          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-04/index.html"
-          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-01/index.html"
-          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-05/index.html"
-          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-tiers-morph/index.html"
-          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-usage-slider/index.html"
-          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonials-stack/index.html"
-          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-staggered/index.html"
-          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-expand/index.html"
-          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-banner-magnetic/index.html"
-          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-signup-celebrate/index.html"
-          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cursor-hover-cards/index.html"
+          # 以下はカテゴリ単位のグループ化（イシュー #2734）。カテゴリの見出し
+          # コメントは 66 件全カテゴリを列挙し、block を持たないカテゴリは見出しの
+          # みで test -f 行を持たない。新規 block 追加時は該当カテゴリの見出し
+          # 直後へ 1 行追記する。
+          # Marketing / Hero
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-editorial-stagger/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-parallax-layers/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-terminal/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/text-split-reveal/index.html"
-          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/game-ui-modal/index.html"
+          # Marketing / Feature
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-expand/index.html"
+          # Marketing / Cta
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-banner-magnetic/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-signup-celebrate/index.html"
+          # Marketing / Pricing
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-tiers-morph/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-usage-slider/index.html"
+          # Marketing / Testimonial
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonials-stack/index.html"
+          # Marketing / Logo Cloud
+          # Marketing / Stats
+          # Marketing / Team
+          # Marketing / Faq
+          # Marketing / Contact
+          # Marketing / Newsletter
+          # Marketing / Blog
+          # Marketing / Content
+          # Marketing / Header
+          # Marketing / Footer
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-sticky-reveal/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-newsletter/index.html"
+          # Marketing / Banner
+          # Marketing / Bento
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-staggered/index.html"
+          # Marketing / Comparison
+          # Marketing / Careers
+          # Marketing / Changelog
+          # Marketing / Error Page
+          # Marketing / Gallery
+          # Marketing / Section Heading
+          # Application / App Shell
+          # Application / Sidebar
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/sidebar-07/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/sidebar-03/index.html"
+          # Application / Navbar
+          # Application / Page Heading
+          # Application / Card Heading
+          # Application / List
+          # Application / Table
+          # Application / Grid List
+          # Application / Description List
+          # Application / Calendar
+          # Application / Feed
+          # Application / Form Layout
+          # Application / Auth
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-01/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-04/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-01/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-05/index.html"
+          # Application / Settings
+          # Application / Action Panel
+          # Application / Empty State
+          # Application / Notification
+          # Application / Dialog
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/game-ui-modal/index.html"
+          # Application / Drawer
+          # Application / Command Palette
+          # Application / Onboarding
+          # Application / Card
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cursor-hover-cards/index.html"
+          # Application / Profile
+          # Application / Chart
+          # Application / Dashboard
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/dashboard-01/index.html"
+          # Application / AI Chat
+          # Application / Help Center
+          # Ecommerce / Product Overview
+          # Ecommerce / Product List
+          # Ecommerce / Quickview
+          # Ecommerce / Category
+          # Ecommerce / Filter
+          # Ecommerce / Cart
+          # Ecommerce / Checkout
+          # Ecommerce / Order
+          # Ecommerce / Reviews
+          # Ecommerce / Store Nav
+          # Ecommerce / Incentives
+          # Ecommerce / Promo
+          # Docs / Docs Layout
+          # Docs / Code Block
+          # Docs / Example Preview
+          # Docs / Api Reference
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/blocks.css"
           # イシュー #2607: Wireframes セクションの索引ページ。
           # イシュー #2617: 最初の部品ページ（Annotation）の登録により
