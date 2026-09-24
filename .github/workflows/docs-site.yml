@@ -250,6 +250,7 @@ jobs:
           # Marketing / Blog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-featured-article/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-featured-with-list/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-grid-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-grid-text/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-list-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-overlay-cards/index.html"
