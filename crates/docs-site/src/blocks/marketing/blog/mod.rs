@@ -6,8 +6,9 @@
 //! ための構造、イシュー #2734）。
 
 mod blog_featured_article;
+mod blog_featured_with_list;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![blog_featured_article::BLOCK]
+    vec![blog_featured_article::BLOCK, blog_featured_with_list::BLOCK]
 }

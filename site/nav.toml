@@ -1282,6 +1282,11 @@ title = "blog-featured-article"
 source = "site/blocks/blog-featured-article.md"
 path = "/blocks/blog-featured-article/"
 
+[[section.group.page]]
+title = "blog-featured-with-list"
+source = "site/blocks/blog-featured-with-list.md"
+path = "/blocks/blog-featured-with-list/"
+
 [[section.group]]
 title = "Footer"
 

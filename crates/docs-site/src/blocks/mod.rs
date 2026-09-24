@@ -448,12 +448,65 @@ mod tests {
         assert!(sheet.as_css().contains("overflow-x: auto"));
     }
 
-    // かつて `all_blocks_registers_all_22_existing_blocks` としてここに
-    // あった「登録件数のハードコード固定」回帰テストは、block 追加のたびに
-    // 手動更新が必要（イシュー #2808 で 22 → 23 件の食い違いにより FAIL）と
-    // なる運用コストの割に、検証内容が `crates/docs-site/tests/blocks_nav.rs`
-    // （nav.toml ⇔ `all_blocks()` ⇔ `site/blocks/*.md` の三方突合。登録漏れ・
-    // 孤児ファイルのいずれも fail-closed に検知する）と完全に重複していた
-    // ため撤去した。件数そのものを固定する不変条件は現存しない
-    // （`docs/design/docs-site-blocks-section.md` §19 参照）。
+    #[test]
+    fn all_blocks_keeps_the_pre_split_blocks_and_has_unique_paths() {
+        // カテゴリ別モジュール分割（イシュー #2734）時点の既存 block・
+        // イシュー #2741 で追加された banner-email-signup が、その後の
+        // block 追加でも失われないこと（部分集合であることの回帰）と、
+        // `all_blocks()` の `path` に重複が無いことを固定する（イシュー
+        // #2809。件数の完全一致を要求する形は block 追加のたびに必ず
+        // 衝突・FAIL する構造上の欠陥だったため、意図を保ったまま件数
+        // 依存を外した）。
+        const PRE_SPLIT_PATHS: &[&str] = &[
+            "/blocks/login-01/",
+            "/blocks/dashboard-01/",
+            "/blocks/sidebar-07/",
+            "/blocks/sidebar-03/",
+            "/blocks/login-04/",
+            "/blocks/signup-01/",
+            "/blocks/signup-05/",
+            "/blocks/pricing-tiers-morph/",
+            "/blocks/pricing-usage-slider/",
+            "/blocks/testimonials-stack/",
+            "/blocks/bento-staggered/",
+            "/blocks/feature-expand/",
+            "/blocks/cta-banner-magnetic/",
+            "/blocks/cta-signup-celebrate/",
+            "/blocks/cursor-hover-cards/",
+            "/blocks/footer-sticky-reveal/",
+            "/blocks/footer-newsletter/",
+            "/blocks/hero-editorial-stagger/",
+            "/blocks/hero-parallax-layers/",
+            "/blocks/hero-terminal/",
+            "/blocks/text-split-reveal/",
+            "/blocks/game-ui-modal/",
+            "/blocks/banner-email-signup/",
+        ];
+        assert_eq!(PRE_SPLIT_PATHS.len(), 23);
+
+        let registered = all_blocks();
+        let mut seen = std::collections::HashSet::new();
+        for block in &registered {
+            assert!(
+                seen.insert(block.path),
+                "duplicate block path: {}",
+                block.path
+            );
+        }
+
+        for path in PRE_SPLIT_PATHS {
+            assert!(
+                seen.contains(path),
+                "pre-split block {path} should remain registered"
+            );
+        }
+
+        // 本 PR（イシュー #2809）で追加した blog-featured-with-list も
+        // 登録されていることを固定する。
+        assert!(seen.contains("/blocks/blog-featured-with-list/"));
+
+        // イシュー #2808 で追加した blog-featured-article も登録されて
+        // いることを固定する。
+        assert!(seen.contains("/blocks/blog-featured-article/"));
+    }
 }
