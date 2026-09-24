@@ -1295,6 +1295,11 @@ title = "banner-announcement-pill"
 source = "site/blocks/banner-announcement-pill.md"
 path = "/blocks/banner-announcement-pill/"
 
+[[section.group.page]]
+title = "banner-email-signup"
+source = "site/blocks/banner-email-signup.md"
+path = "/blocks/banner-email-signup/"
+
 [[section.group]]
 title = "Bento"
 
