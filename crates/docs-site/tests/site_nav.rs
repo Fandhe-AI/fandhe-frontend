@@ -316,10 +316,16 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // #2664 で Wireframes セクションへ Map 部品ページ（Phase 8 の 3 番目
     // の部品）が加わり、296 → 297 になった。イシュー #2661 で
     // Wireframes セクションへ Media 部品ページ（Phase 8「Media・データ
-    // 表示」の 4 番目の部品）が加わり、297 → 298 になった。イシュー #2653 で
-    // Wireframes セクションへ Brand 部品ページ（Phase 7「Data display」の
-    // 8 番目の部品）が加わり、298 → 299 になった。
-    assert_eq!(pages.len(), 299, "expected 299 pages, got {pages:?}");
+    // 表示」の 4 番目の部品）が加わり、297 → 298 になった。イシュー #2657 で
+    // Wireframes セクションへ List 部品ページ（Phase 7「Data display」の
+    // 6 番目の部品）が加わり、298 → 299 になった。イシュー #2662 で
+    // Wireframes セクションへ Table 部品ページ（Phase 8 の 5 番目の部品）が
+    // 加わり、299 → 300 になった。イシュー #2652 で Wireframes セクションへ
+    // Icon 部品ページ（Phase 7「Data display」の 7 番目の部品）が加わり、
+    // 300 → 301 になった。イシュー #2653 で Wireframes セクションへ Brand
+    // 部品ページ（Phase 7「Data display」の 8 番目の部品、これで Phase 7
+    // が全部品出揃った）が加わり、301 → 302 になった。
+    assert_eq!(pages.len(), 302, "expected 302 pages, got {pages:?}");
 
     // イシュー #2607: `/wireframes/` 配下は索引ページ（`/wireframes/` 自身）
     // 1 件のみだった（同イシュー時点では個別部品ページを同梱しない、設計
@@ -367,17 +373,21 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // 加わり 44 件になった。イシュー
     // #2664 で Map（Phase 8 の 3 番目の部品）が加わり 45 件になった。イシュー
     // #2661 で Media（Phase 8「Media・データ表示」の 4 番目の部品）が
-    // 加わり 46 件になった。イシュー #2653 で Brand（Phase 7「Data
-    // display」の 8 番目の部品）が加わり 47 件になった。
-    // Phase 1・3・4・5・6・7・8 以降（#2608〜#2665）の各部品イシューが増分する。
+    // 加わり 46 件になった。イシュー #2657 で List（Phase 7「Data display」
+    // の 6 番目の部品）が加わり 47 件になった。イシュー #2662 で
+    // Table（Phase 8 の 5 番目の部品）が加わり 48 件になった。イシュー
+    // #2652 で Icon（Phase 7「Data display」の 7 番目の部品）が加わり
+    // 49 件になった。イシュー #2653 で Brand（Phase 7「Data display」の
+    // 8 番目の部品、これで Phase 7 が全部品出揃った）が加わり 50 件になった。
+    // Phase 1・3・4 以降（#2608〜#2665）の残りの各部品イシューが増分する。
     let wireframes_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/wireframes/"))
         .collect();
     assert_eq!(
         wireframes_pages.len(),
-        47,
-        "expected 47 /wireframes/ pages (index + annotation + grid + divider + stack + link + rich-text + paragraph + button + select + radio + switch + checkbox + textarea + slider + frame + tag + input + question + ratings + calendar + file-drop + text + tabs + stepper + nav-item + accordion + pagination + cursor + menu + breadcrumbs + tooltip + toast + alert + progress + spinner + modal + avatar + counter + emoji + stat + chart + image + card-basic + map + media + brand), got {wireframes_pages:?}"
+        50,
+        "expected 50 /wireframes/ pages (index + annotation + grid + divider + stack + link + rich-text + paragraph + button + select + radio + switch + checkbox + textarea + slider + frame + tag + input + question + ratings + calendar + file-drop + text + tabs + stepper + nav-item + accordion + pagination + cursor + menu + breadcrumbs + tooltip + toast + alert + progress + spinner + modal + avatar + counter + emoji + stat + chart + image + card-basic + map + media + list + table + icon + brand), got {wireframes_pages:?}"
     );
     assert!(
         pages.contains(&("site/wireframes.md", "/wireframes/")),

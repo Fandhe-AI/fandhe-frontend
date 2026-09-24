@@ -168,12 +168,32 @@ name = "fandhe-frontend-wireframe-ui"
 # ではなくスロット差し替えで表し、枠は 16:9 固定で <video>/<iframe> は
 # 出力しない）。main 側で 0.46.0 を card_basic、0.47.0 を map が先に
 # 確保したため main セッションが本 PR 用に一意採番した 0.48.0 を採用する。
-# 0.48.0 → 0.52.0: 公開 API 新設（brand 部品、イシュー #2653、Phase 7
-# 「Data display」の 8 番目の部品。content: Option<Node> が None のとき
-# 既定の汎用抽象ブランドマーク icon::brand へフォールバックする §11.4
-# からの意図的な逸脱（avatar と同型の判断）。実在ブランドのロゴ・商標を
-# 模した SVG は一切含まない）。main セッションが並列実装との衝突回避で
-# 本 PR 用に一意採番した 0.52.0 を採用する。
+# 0.48.0 → 0.49.0: 公開 API 新設（list 部品、イシュー #2657、Phase 7
+# 「Data display」の 6 番目の部品。items: Vec<Node> を項目ラッパーで包み、
+# ordered: bool は部品固有の修飾 class、マーカー・番号は CSS 擬似要素/
+# カウンタのみで描く。<ul>/<ol>/<li> は出力しない）。main 側で 0.41.0〜0.48.0 を
+# emoji/stat/chart/image/card_basic/map/media が先に確保したため本 PR 用に
+# 一意採番した 0.49.0 を採用する。
+# 0.49.0 → 0.50.0: 公開 API 新設（table 部品、イシュー #2662、Phase 8
+# 「Media・データ表示」の 5 番目の部品。<table> は使わず div/span + CSS
+# grid で表現する、calendar と同型の判断）。main 側で 0.41.0〜0.49.0 を
+# emoji/stat/chart/image/card_basic/map/media/list が先に確保したため
+# main セッションが本 PR 用に一意採番した 0.50.0 を採用する。
+# 0.50.0 → 0.51.0: 公開 API 新設（icon 部品、イシュー #2652、Phase 7
+# 「Data display」の 7 番目の部品〔Avatar=1/Counter=2/Emoji=3/Stat=4/
+# Card basic=5/List=6 に続く。List（#2657）・Table（#2662）は main へ
+# マージ済み〕。icon モジュールへ pub fn icon・ICON_CSS を追記する。glyph
+# は Node ではなく fn(Size) -> Node（icon::ALL の要素型と同じ関数ポインタ）
+# で受け取り、サイズ指定を 1 か所に固定する設計とした。main 取り込み時点で
+# 0.50.0 まで進んでいたため main セッションが本 PR 用に一意採番した
+# 0.51.0 を採用する（Brand（#2653）の並行実装との衝突回避余地を見込む）。
+# 0.51.0 → 0.52.0: 公開 API 新設（brand 部品、イシュー #2653、Phase 7
+# 「Data display」の 8 番目の部品、これで Phase 7 が全部品出揃った。
+# content: Option<Node> が None のとき既定の汎用抽象ブランドマーク
+# icon::brand へフォールバックする §11.4 からの意図的な逸脱（avatar と
+# 同型の判断）。実在ブランドのロゴ・商標を模した SVG は一切含まない）。
+# main 取り込み時点で 0.51.0 まで進んでいたため main セッションが本 PR
+# 用に一意採番した 0.52.0 を採用する。
 version = "0.52.0"
 edition = "2021"
 description = "fandhe-frontend-wireframe-ui: blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層（イシュー #2599/#2600/#2603）。SSR 専用・非インタラクティブ。外部依存は fandhe-frontend-core（path）のみ。"

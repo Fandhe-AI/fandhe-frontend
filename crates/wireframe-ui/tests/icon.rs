@@ -2,6 +2,9 @@
 //!
 //! 出力契約（§2.3）・線画契約（fill なし・stroke のみ・非インタラクティブ）・
 //! `Node` スロット規約の実動・CSS 登録を固定する。
+//!
+//! ファイル後半（イシュー #2652）は `icon` 部品（`fn icon(glyph, size) -> Node`、
+//! Phase 7「Data display」の 7 番目の部品）の契約テストを追加する。
 
 use std::collections::HashSet;
 
@@ -263,4 +266,123 @@ fn slot_none_omits_icon() {
         with_icon.contains("<svg"),
         "Some のとき svg が出力されていない: {with_icon}"
     );
+}
+
+// --- ここから icon() 部品（イシュー #2652、Phase 7「Data display」の
+// 7 番目の部品）の契約テスト。上記はすべて SVG アイコン基盤（#2606）分。
+
+#[test]
+fn icon_component_renders_root_class_for_every_size() {
+    for size in Size::ALL {
+        let html = render(&icon(icon::search, size));
+        let expected_class = format!(r#"class="fw-wire-icon {}""#, size.class());
+        assert!(
+            html.contains(&expected_class),
+            "expected {expected_class:?} in {html:?}"
+        );
+        assert!(html.starts_with("<span"));
+        assert!(html.trim_end().ends_with("</span>"));
+    }
+}
+
+#[test]
+fn icon_component_embeds_the_chosen_glyph_and_passes_size_once() {
+    let html = render(&icon(icon::user, Size::Lg));
+    assert!(html.contains(r#"data-icon="user""#), "{html}");
+    // svg 側にも同じ Size が伝わる（サイズ指定を 1 か所に固定する設計）。
+    assert!(
+        html.contains(r#"class="fw-wire-icon-glyph fw-wire-size-lg""#),
+        "{html}"
+    );
+    assert!(html.contains("<svg"));
+}
+
+#[test]
+fn icon_component_accepts_every_all_entry() {
+    for (name, ctor) in icon::ALL {
+        let html = render(&icon(*ctor, Size::Md));
+        assert!(
+            html.contains(&format!(r#"data-icon="{name}""#)),
+            "{name}: icon() 経由で data-icon が失われている: {html}"
+        );
+    }
+}
+
+#[test]
+fn icon_component_output_has_no_interactive_semantics_or_style() {
+    let html = render(&icon(icon::search, Size::Md));
+    for forbidden in [
+        " role=\"",
+        " aria-label",
+        " aria-expanded",
+        " tabindex=\"",
+        " style=\"",
+        "href=",
+        "<a ",
+        "<button",
+        " onclick=\"",
+        "javascript:",
+    ] {
+        assert!(
+            !html.contains(forbidden),
+            "unexpected {forbidden:?} in {html:?}"
+        );
+    }
+    assert!(!html.contains("data-active"));
+    assert!(!html.contains("data-disabled"));
+}
+
+#[test]
+fn icon_component_render_is_deterministic() {
+    let a = render(&icon(icon::star, Size::Xl));
+    let b = render(&icon(icon::star, Size::Xl));
+    assert_eq!(a, b);
+}
+
+#[test]
+fn icon_component_host_composition_keeps_adjacent_text_escaped() {
+    // icon() 自体はテキスト引数を持たない（グリフの選択は fn ポインタで
+    // 行う）ため直接の XSS 表面はないが、他部品と同様にホスト側のテキスト
+    // ノードと隣接させても既定エスケープ（REQ-1）が保たれることを固定する
+    // （`docs/design/wireframe-ui-architecture.md` §11.4 の `Node` スロット
+    // 規約と同じ観点）。
+    let node = el(
+        "span",
+        vec![],
+        vec![
+            icon(icon::search, Size::Md),
+            text("<script>alert(1)</script>"),
+        ],
+    );
+    let html = render(&node);
+    assert!(!html.contains("<script>alert(1)</script>"));
+    assert!(html.contains("&lt;script&gt;"));
+    assert!(html.contains(r#"class="fw-wire-icon fw-wire-size-md""#));
+}
+
+#[test]
+fn icon_css_is_registered_exactly_once_in_parts_and_in_aggregate_css() {
+    let occurrences = PARTS.iter().filter(|part| **part == icon::ICON_CSS).count();
+    assert_eq!(occurrences, 1);
+
+    let css = wireframe_css();
+    assert!(css.contains(icon::ICON_CSS));
+}
+
+#[test]
+fn icon_css_selectors_use_fw_wire_prefix_and_reference_tokens_not_literals() {
+    let css = icon::ICON_CSS;
+    for line in css.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with('.') {
+            assert!(
+                trimmed.starts_with(".fw-wire-"),
+                "selector line should start with .fw-wire-: {line:?}"
+            );
+        }
+    }
+    assert!(css.contains("var(--fw-wire-ink)"));
+    assert!(!css.contains('#'));
+    assert!(!css.contains("rgb("));
+    assert!(!css.contains("--fandhe-"));
 }
