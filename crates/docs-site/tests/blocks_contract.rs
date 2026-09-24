@@ -3953,3 +3953,81 @@ fn content_split_image_composes_expected_parts() {
         );
     }
 }
+
+/// cta-feature-links ページが Demo class・専用 CSS を配線していること
+/// （イシュー #2757）。
+#[test]
+fn cta_feature_links_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/cta-feature-links/index.html"))
+        .expect("blocks/cta-feature-links/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-cta-feature-links\""),
+        "cta-feature-links page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "cta-feature-links page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "cta-feature-links page should link the Blocks-specific stylesheet"
+    );
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "@media (min-width: 64rem)",
+        ".blocks-cta-feature-links-grid",
+        "[data-blocks-cta-feature-links-item]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// cta-feature-links の合成部品（heading/text/button/icon/link-overlay/
+/// separator）が期待どおりの構成で実際に出力されていること、overlay が
+/// 2 件であること、`<form>`・`data:` URI・`href="#"` を持ち込んでいない
+/// ことを固定する（イシュー #2757）。`render(&(block.demo)())` で Demo
+/// 単体を描画する（`build_real_site()` のフルページには prev/next
+/// ナビゲーションが別途 `link-overlay` を使うため、`blog_grid_text_
+/// composes_expected_parts` と同じく Demo 単体描画で汚染を避ける）。
+#[test]
+fn cta_feature_links_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/cta-feature-links/")
+        .expect("cta-feature-links should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"button\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"link-overlay\"",
+        "data-scope=\"separator\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "cta-feature-links demo should contain {scope}"
+        );
+    }
+    assert!(html.contains(r#"type="button""#));
+    assert_eq!(
+        html.matches(r#"data-part="overlay""#).count(),
+        2,
+        "cta-feature-links demo should render exactly 2 overlay parts"
+    );
+    assert_eq!(
+        html.matches("aria-label=").count(),
+        2,
+        "cta-feature-links demo overlays should each carry an aria-label"
+    );
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "cta-feature-links should never contain {absent}"
+        );
+    }
+}

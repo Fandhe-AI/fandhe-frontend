@@ -6,9 +6,14 @@
 //! ための構造、イシュー #2734）。
 
 mod cta_banner_magnetic;
+mod cta_feature_links;
 mod cta_signup_celebrate;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![cta_banner_magnetic::BLOCK, cta_signup_celebrate::BLOCK]
+    vec![
+        cta_banner_magnetic::BLOCK,
+        cta_feature_links::BLOCK,
+        cta_signup_celebrate::BLOCK,
+    ]
 }
