@@ -142,7 +142,14 @@ fn overlay_card(post: &Post) -> Node {
                         ),
                     ],
                 ),
-                overlay(REPO, vec![("aria-label", post.title)], vec![]),
+                overlay(
+                    REPO,
+                    vec![
+                        ("aria-label", post.title),
+                        ("data-blocks-blog-overlay-cards-overlay", ""),
+                    ],
+                    vec![],
+                ),
             ],
         )],
     )

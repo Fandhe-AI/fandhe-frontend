@@ -112,6 +112,29 @@
 //! 不変条件」節に従い、本 Demo はフォーム・状態機械を持たない静的な合成例
 //! である。文言・人名はすべて架空のもの（実企業名・実クレデンシャル・PII
 //! を含まない）。
+//!
+//! # フォーカスリングがカード境界で切れないようにする理由
+//!
+//! `link_overlay::overlay` は `crates/pre-styled-ui/src/link_overlay.rs` の
+//! rustdoc「イシュー #1580」節が明記するとおり、`overlay` の祖先に
+//! `overflow: hidden` を持つ slot が **ない** ことを前提に
+//! `FocusRingOffset::Outside`（`outline-offset` が要素の外側へ正方向に
+//! 出る）を既定 CSS として登録している。本 block は画像の角丸クリップの
+//! ために `card::root` へ `overflow: hidden` を与えており（モジュール doc
+//! 「詳細度を (0,3,0) へ引き上げる理由」節）、この前提が崩れて
+//! `:focus-visible` のリングがカード境界でクリップされ、キーボード操作で
+//! カード間を移動する際にフォーカス位置が見えなくなる（レビュー起票
+//! PR #3161 のコードレビュー・Bugbot 双方の指摘、イシュー #2813）。
+//!
+//! pre-styled-ui 側の `link-overlay` recipe（他の消費者にも影響する全域
+//! CSS）を変更する代わりに、`overlay` へ `data-blocks-blog-overlay-cards-
+//! overlay` を付与し、[`LAYOUT_CSS`] 側で `outline-offset` を内側
+//! （`FocusRingOffset::Inset` と同じ `calc(-1 * var(--fandhe-focus-ring-
+//! offset, 2px))`）へ上書きする（本 block に閉じたスコープ限定の是正。
+//! `accordion::recipe` が `root` の `overflow: hidden` に対して同じ理由で
+//! `FocusRingOffset::Inset` を選んでいる前例と同じ判断）。画像・スクリムの
+//! 角丸クリップ自体は維持したまま、フォーカスリングだけをカード内側へ
+//! 描画させる。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -242,7 +265,14 @@ fn overlay_card(post: &Post) -> Node {
                         ),
                     ],
                 ),
-                overlay(REPO, vec![("aria-label", post.title)], vec![]),
+                overlay(
+                    REPO,
+                    vec![
+                        ("aria-label", post.title),
+                        ("data-blocks-blog-overlay-cards-overlay", ""),
+                    ],
+                    vec![],
+                ),
             ],
         )],
     )
@@ -340,7 +370,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-blog-overlay-cards-scrim {\n  position: absolute;\n  inset: 0;\n  background: linear-gradient(to top, var(--fandhe-color-fg) 0%, var(--fandhe-color-fg) 20%, transparent 100%);\n  opacity: 0.9;\n}\n\
 .blocks-blog-overlay-cards-content {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  color: var(--fandhe-color-bg);\n}\n\
 .blocks-blog-overlay-cards-meta, .blocks-blog-overlay-cards-author {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-2);\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n}\n\
-[data-blocks-blog-overlay-cards-avatar] {\n  flex-shrink: 0;\n}\n";
+[data-blocks-blog-overlay-cards-avatar] {\n  flex-shrink: 0;\n}\n\
+[data-scope=\"link-overlay\"][data-part=\"overlay\"][data-blocks-blog-overlay-cards-overlay]:focus-visible {\n  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -377,5 +408,31 @@ mod tests {
     fn layout_css_declares_lg_breakpoint_and_equal_row_height() {
         assert!(LAYOUT_CSS.contains("@media (min-width: 64rem)"));
         assert!(LAYOUT_CSS.contains("grid-auto-rows: 1fr"));
+    }
+
+    /// 回帰テスト（PR #3161 レビュー指摘、イシュー #2813）: `card::root` の
+    /// `overflow: hidden` により `link_overlay::overlay` の既定
+    /// `FocusRingOffset::Outside`（`outline-offset` が正方向＝要素の外側）が
+    /// カード境界でクリップされないよう、`overlay` 自身に本 block 固有の
+    /// `data-*` フックが付与され、[`LAYOUT_CSS`] がそのフック付き
+    /// `[data-scope="link-overlay"][data-part="overlay"]` へ内側
+    /// （負の）`outline-offset` を上書きしていることを固定する。
+    #[test]
+    fn overlay_focus_ring_is_pulled_inside_the_clipped_card() {
+        let html = render(&demo());
+        assert_eq!(
+            html.matches("data-blocks-blog-overlay-cards-overlay=\"\"")
+                .count(),
+            3,
+            "should mark exactly 3 overlays with the focus-ring override hook"
+        );
+        assert!(html.contains(r#"data-scope="link-overlay""#));
+        assert!(html.contains(r#"data-part="overlay""#));
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"link-overlay\"][data-part=\"overlay\"][data-blocks-blog-overlay-cards-overlay]:focus-visible"
+        ));
+        assert!(
+            LAYOUT_CSS.contains("outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));")
+        );
     }
 }
