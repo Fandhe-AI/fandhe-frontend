@@ -1298,6 +1298,14 @@ source = "site/blocks/blog-split-header-grid.md"
 path = "/blocks/blog-split-header-grid/"
 
 [[section.group]]
+title = "Content"
+
+[[section.group.page]]
+title = "content-article-toc"
+source = "site/blocks/content-article-toc.md"
+path = "/blocks/content-article-toc/"
+
+[[section.group]]
 title = "Footer"
 
 [[section.group.page]]
