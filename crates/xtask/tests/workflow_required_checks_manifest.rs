@@ -23,14 +23,13 @@
 //!   PR・push の双方に反応し HEAD sha へ check-run を報告するため、
 //!   `jobs:` 直下の全トップレベルジョブの `name:`（欠落時はジョブ id）を
 //!   `integration_id = 15368`（GitHub Actions app）として期待集合に含める。
-//! - `codex-review.yml`: reusable workflow を呼ぶだけの wrapper で
-//!   `jobs:` 直下のジョブ名は `codex-review` の 1 件のみだが、実際に
+//! - `ai-review.yml`（旧 `codex-review.yml`）: reusable workflow を呼ぶだけの
+//!   wrapper で `jobs:` 直下のジョブ名は `codex` の 1 件のみだが、実際に
 //!   HEAD へ報告されるのは呼び出し先（`Fandhe-AI/actions` の
-//!   `codex-review.yml`）が生成する 3 つの子ジョブ名
-//!   `codex-review / codex` / `codex-review / post_feedback` /
-//!   `codex-review / skip-gate` である。ワークフロー YAML の走査では
-//!   導出できないため、本ファイル内の定数
-//!   [`CODEX_REVIEW_REUSABLE_WORKFLOW_CONTEXTS`] として固定する。
+//!   `ai-review.yml`）が生成する 3 つの子ジョブ名
+//!   `codex / preflight` / `codex / review` / `codex / post_feedback`
+//!   である。ワークフロー YAML の走査では導出できないため、本ファイル内の
+//!   定数 [`CODEX_REVIEW_REUSABLE_WORKFLOW_CONTEXTS`] として固定する。
 //! - `docs-site.yml`（`on: push` のみ、PR では起動しない）・
 //!   `release.yml`（`workflow_dispatch` のみ）・`update-external.yml`
 //!   （`schedule`/`workflow_dispatch` のみ）: PR HEAD には報告されない
@@ -68,22 +67,22 @@ const CURSOR_BUGBOT_INTEGRATION_ID: i64 = 1210556;
 /// context（本テスト冒頭 doc コメント参照）。
 const CURSOR_BUGBOT_CONTEXT: &str = "Cursor Bugbot";
 
-/// `codex-review.yml` が呼び出す reusable workflow
-/// （`Fandhe-AI/actions/.github/workflows/codex-review.yml`）が生成する
-/// 子ジョブ名。呼び出し元 YAML の `jobs:` 直下には `codex-review` の
+/// `ai-review.yml`（旧 `codex-review.yml`）が呼び出す reusable workflow
+/// （`Fandhe-AI/actions/.github/workflows/ai-review.yml`）が生成する
+/// 子ジョブ名。呼び出し元 YAML の `jobs:` 直下には `codex` の
 /// 1 件しか現れないため、ワークフロー走査では導出できず定数として固定する
 /// （本テスト冒頭 doc コメント参照）。
 const CODEX_REVIEW_REUSABLE_WORKFLOW_CONTEXTS: &[&str] = &[
-    "codex-review / codex",
-    "codex-review / post_feedback",
-    "codex-review / skip-gate",
+    "codex / preflight",
+    "codex / review",
+    "codex / post_feedback",
 ];
 
 /// PR HEAD に報告されないため期待集合から除外するワークフローファイル名
 /// （本テスト冒頭 doc コメント参照）。
 const EXCLUDED_WORKFLOW_FILES: &[&str] = &["docs-site.yml", "release.yml", "update-external.yml"];
 
-/// `jobs:` 直下の全トップレベルジョブを列挙する（`codex-review.yml` を除く）
+/// `jobs:` 直下の全トップレベルジョブを列挙する（`ai-review.yml` を除く）
 /// ワークフローファイル名。
 const JOB_ENUMERATED_WORKFLOW_FILES: &[&str] = &[
     "ci.yml",
@@ -94,7 +93,7 @@ const JOB_ENUMERATED_WORKFLOW_FILES: &[&str] = &[
 
 /// reusable workflow 呼び出しのみで、子ジョブ名を定数から補う
 /// ワークフローファイル名。
-const REUSABLE_WORKFLOW_FILES: &[&str] = &["codex-review.yml"];
+const REUSABLE_WORKFLOW_FILES: &[&str] = &["ai-review.yml"];
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

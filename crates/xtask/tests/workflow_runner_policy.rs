@@ -17,13 +17,13 @@
 //! （実 runner を YAML の 1 行から決定的に読み取れない書き方を許すと、
 //! 間接指定経由で他 OS が入り込む経路がサイレントに開くため）。
 //!
-//! ### 本テストの射程外（codex-review 例外との両立）
+//! ### 本テストの射程外（ai-review 例外との両立）
 //!
 //! reusable workflow の呼び出しジョブ（job-level `uses:`）は `runs-on` を
 //! 持たないため、本テストの走査対象に現れない。`.claude/rules/ci.md` が
-//! 唯一の例外として承認している `codex-review.yml` の codex 実行ジョブ
-//! （runner は呼び出し先の `runner-label` 入力既定値で決まる）は、この
-//! 射程外で成立している。今回の `ubuntu-latest` 単一化は OS・イメージ
+//! 唯一の例外として承認している `ai-review.yml`（旧 `codex-review.yml`）の
+//! codex 実行ジョブ（runner は呼び出し先の `runner` 入力既定値で決まる）は、
+//! この射程外で成立している。今回の `ubuntu-latest` 単一化は OS・イメージ
 //! 選択に関する規則であり、既承認の codex 例外を撤回するものではない。
 //!
 //! ## 契約の意味論（その 1: `self-hosted` 禁止）

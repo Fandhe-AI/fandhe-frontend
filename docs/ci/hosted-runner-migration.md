@@ -626,7 +626,7 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
   `ubuntu-latest` 単一へ限定され、Phase 3 で `windows-latest` へ移行した
   `fw-new-windows-verify.yml` は削除された。したがって現在の
   `.github/workflows/` は全ジョブが `ubuntu-latest`（reusable workflow
-  呼び出しの codex-review を除く）であり、この単一化は
+  呼び出しの ai-review を除く）であり、この単一化は
   `crates/xtask/tests/workflow_runner_policy.rs` の
   `workflows_run_only_on_ubuntu_latest` が機械強制する。上記 #1236 の実績
   記述は当時の移行記録として保持する。
