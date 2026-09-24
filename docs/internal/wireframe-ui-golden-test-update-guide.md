@@ -60,12 +60,12 @@ golden であり、golden と実装の実質的な内容は同じである。gol
 
 ## 3. 部品 → テストファイル対応表
 
-イシュー #2666 実装時点（2026-09-24、origin/main 先頭 `8844d360`）の実測
-です。`docs/design/wireframe-ui-architecture.md` §8 が定める 49 部品の
-うち、44 部品が golden でカバーされ、5 部品が未マージ（`PENDING`）です。
-後続部品 PR がマージされたら本表・`tests/golden_coverage.rs` の
-`PENDING` 定数の両方を更新してください（更新しないと
-`golden_coverage.rs` が fail-closed に検知します。§7 参照）。
+イシュー #2666 実装完了時点（2026-09-24、origin/main 先頭 `e596c09c`
+「Brand（brand）部品を追加する」#2726 取り込み後）の実測です。
+`docs/design/wireframe-ui-architecture.md` §8 が定める 49 部品すべてが
+main へマージ済みであり、49 部品全件が golden でカバーされています
+（`PENDING` は空）。以後、部品自体の CSS を変更する PR は §5（通常
+フロー）に従い golden を更新してください。
 
 ### 3.1 基盤（4 件、`tests/base_css.rs`）
 
@@ -76,7 +76,7 @@ golden であり、golden と実装の実質的な内容は同じである。gol
 | `frame::frame_padding_css()` | `crates/wireframe-ui/src/frame.rs` |
 | `icon::ICON_GLYPH_CSS` | `crates/wireframe-ui/src/icon.rs`（#2606 の SVG アイコン基盤） |
 
-### 3.2 カバー済み部品（44 件）
+### 3.2 カバー済み部品（49 件）
 
 | Phase | kebab | イシュー | テストファイル |
 |---|---|---|---|
@@ -124,21 +124,20 @@ golden であり、golden と実装の実質的な内容は同じである。gol
 | 8 | image | #2660 | `tests/image_css.rs` |
 | 8 | chart | #2663 | `tests/chart_css.rs` |
 | 8 | map | #2664 | `tests/map_css.rs` |
+| 7 | icon（表示部品） | #2652 | `tests/icon_css.rs`（基盤の `icon::ICON_GLYPH_CSS` は §3.1 の `tests/base_css.rs` が別途カバー） |
+| 7 | brand | #2653 | `tests/brand_css.rs` |
+| 7 | list | #2657 | `tests/list_css.rs` |
+| 8 | media | #2661 | `tests/media_css.rs` |
+| 8 | table | #2662 | `tests/table_css.rs` |
 
-### 3.3 保留部品（5 件、golden 未整備）
+### 3.3 保留部品（0 件）
 
-`crates/wireframe-ui/tests/golden_coverage.rs` の `PENDING` 定数と同期
-させること。
+`docs/design/wireframe-ui-architecture.md` §8 の 49 部品はすべて main へ
+マージ済みであり、`crates/wireframe-ui/tests/golden_coverage.rs` の
+`PENDING` 定数は空です。新しい部品を `PARTS` へ追加する場合は §7 の
+手順に従い、本節を再び使う形へ書き戻してください。
 
-| Phase | kebab | イシュー | 状態 |
-|---|---|---|---|
-| 7 | icon（表示部品） | #2652 | PR 未作成 |
-| 7 | brand | #2653 | PR 未作成 |
-| 7 | list | #2657 | PR #2717 open |
-| 8 | media | #2661 | PR #2718 open |
-| 8 | table | #2662 | PR #2721 open |
-
-合計: 44（カバー済み）+ 5（保留）= **49**（`docs/design/wireframe-ui-architecture.md`
+合計: 49（カバー済み）+ 0（保留）= **49**（`docs/design/wireframe-ui-architecture.md`
 §8 の全部品数と一致）。
 
 ## 4. 解決コマンド

@@ -82,16 +82,14 @@ const ALL_PARTS: [(&str, u32); 49] = [
 /// この配列から削除し対応する `tests/<snake>_css.rs` golden を追加する
 /// こと（(iv) がこの手順の漏れを fail-closed に検知する）。
 ///
-/// - icon（表示部品、#2652。`icon` モジュール自体は #2606 の SVG
-///   アイコン基盤として既に存在するが、`PARTS` へ登録された
-///   `icon::ICON_GLYPH_CSS` はグリフ基底 class であり #2652 が追加する
-///   表示部品ではない。ルートセレクタは定数名ではなく `.fw-wire-icon {`
-///   の出現有無で判定する）
-/// - brand（#2653）
-/// - list（#2657）
-/// - media（#2661）
-/// - table（#2662）
-const PENDING: &[&str] = &["icon", "brand", "list", "media", "table"];
+/// イシュー #2666 実装完了時点（49/49 部品が main へマージ済み、golden も
+/// 全件整備済み）のため空である。`icon`（表示部品、#2652）は `icon`
+/// モジュール自体が #2606 の SVG アイコン基盤として先に存在していたが、
+/// `PARTS` へ登録される `icon::ICON_CSS`（`.fw-wire-icon {` ルート
+/// セレクタ）は基盤の `icon::ICON_GLYPH_CSS`（グリフ基底 class、
+/// `tests/base_css.rs` が担当）とは別の定数であり、`tests/icon_css.rs`
+/// が golden を持つ。
+const PENDING: &[&str] = &[];
 
 /// `src/css.rs` の `PARTS` 配列本体から `crate::<mod>::<CONST>` を機械
 /// 抽出する。パース漏れによる fail-open を防ぐため、抽出件数が
@@ -150,8 +148,37 @@ fn active_test_fn_bodies(source: &str) -> Vec<String> {
         let trimmed = lines[i].trim();
 
         if trimmed.starts_with("#[") {
-            pending_attrs.push(trimmed.to_string());
-            i += 1;
+            // 属性は `#[cfg_attr(\n    all(),\n    ignore\n)]` のように
+            // 複数行へまたがり得る。`[`/`]` の対応が閉じるまで行をまたいで
+            // 読み進めたうえで、行ごとに trim した断片を連結し、空白を
+            // すべて除去した正規化済み 1 文字列として蓄積する（イシュー
+            // #2666 codex-review P1 再指摘対応: 素朴な 1 行判定では
+            // `#[cfg_attr(` 開始行だけを見て非 `#[ignore]`/`#[cfg(` 属性と
+            // 誤判定し、複数行属性の迂回を見逃す）。
+            let mut depth = 0i32;
+            let mut started = false;
+            let mut raw = String::new();
+            let mut j = i;
+            while j < lines.len() {
+                for ch in lines[j].chars() {
+                    match ch {
+                        '[' => {
+                            depth += 1;
+                            started = true;
+                        }
+                        ']' => depth -= 1,
+                        _ => {}
+                    }
+                }
+                raw.push_str(lines[j].trim());
+                j += 1;
+                if started && depth <= 0 {
+                    break;
+                }
+            }
+            let normalized: String = raw.chars().filter(|c| !c.is_whitespace()).collect();
+            pending_attrs.push(normalized);
+            i = j;
             continue;
         }
         if trimmed.is_empty() || trimmed.starts_with("//") {
@@ -161,18 +188,17 @@ fn active_test_fn_bodies(source: &str) -> Vec<String> {
             continue;
         }
         if trimmed.starts_with("fn ") {
-            let is_test = pending_attrs.iter().any(|a| a == "#[test]");
-            let is_ignored = pending_attrs.iter().any(|a| a.starts_with("#[ignore"));
-            // `#[cfg(any())]` 等の条件付きコンパイル属性が付いた `#[test]`
-            // 関数は、そのコンパイル対象可否を本パーサが静的評価できない
-            // （`cfg` 述語を Rust コンパイラと同じ規則で解釈するには構文木
-            // レベルの評価が要る）。安全側に倒し、`#[cfg(...)]` が付いた
-            // テストは常に非アクティブ（`#[ignore]` と同様にカバレッジから
-            // 除外）として扱う。これにより
-            // `#[test] #[cfg(any())] fn ... { assert_eq!(X, X); }` のような
-            // 実行されない自己比較でゲートを通過する迂回を閉じる
+            // 許可リスト方式（反転判定）: `#[test]` 単体のみをアクティブと
+            // 認め、それ以外の属性が 1 つでも付いていれば「非カバー」側へ
+            // 倒す。`#[ignore]`・`#[cfg(...)]` はもちろん、`#[cfg_attr(...)]`・
+            // `#[should_panic]`（意図的に不一致な `assert_eq!` を置いて
+            // テスト自体は「成功」させつつ golden 比較を無効化する迂回）
+            // ・将来追加される未知の属性も、個別に列挙して除外するのでは
+            // なく「許可リストに無い属性は非アクティブ」という fail-closed
+            // な既定へ倒すことで、列挙漏れによる迂回を構造的に防ぐ
             // （イシュー #2666 codex-review P1 再指摘対応）。
-            let is_cfg_gated = pending_attrs.iter().any(|a| a.starts_with("#[cfg("));
+            let is_test = pending_attrs.iter().any(|a| a == "#[test]");
+            let has_disallowed_attr = pending_attrs.iter().any(|a| a != "#[test]");
             pending_attrs.clear();
 
             let mut depth = 0i32;
@@ -200,7 +226,7 @@ fn active_test_fn_bodies(source: &str) -> Vec<String> {
                 }
             }
 
-            if is_test && !is_ignored && !is_cfg_gated {
+            if is_test && !has_disallowed_attr {
                 bodies.push(body);
             }
             i = j;
@@ -548,6 +574,97 @@ fn skipped() {
 "#;
         let bodies = active_test_fn_bodies(source);
         assert!(bodies.is_empty());
+    }
+
+    /// codex-review 指摘の再迂回パターン（`#[cfg_attr(...)]`）:
+    /// `#[cfg_attr(all(), ignore)]` は `#[ignore]`/`#[cfg(` のどちらの
+    /// 接頭辞にも一致しないため、素朴な接頭辞判定では見逃す。許可リスト
+    /// 方式（`#[test]` 以外の属性は非アクティブ）でこれを閉じる。
+    #[test]
+    fn cfg_attr_ignore_test_is_not_active() {
+        let source = r#"
+const EXPECTED_CSS: &str = "body {}";
+
+#[test]
+#[cfg_attr(all(), ignore)]
+fn evades_prefix_check() {
+    assert_eq!(crate::button::BUTTON_CSS, EXPECTED_CSS);
+}
+"#;
+        let bodies = active_test_fn_bodies(source);
+        assert!(
+            bodies.is_empty(),
+            "#[cfg_attr(all(), ignore)] が付いたテストはアクティブな \
+             テスト本体として抽出してはならない"
+        );
+    }
+
+    /// codex-review 指摘の再迂回パターン（`#[should_panic]`）: 意図的に
+    /// 不一致な `assert_eq!` を置いてもテスト実行自体は「成功」するため、
+    /// ソーステキストだけを見る本パーサは `#[should_panic]` を明示的に
+    /// 非アクティブ扱いしなければ迂回を許してしまう。
+    #[test]
+    fn should_panic_test_is_not_active() {
+        let source = r#"
+const EXPECTED_CSS: &str = "body {}";
+
+#[test]
+#[should_panic]
+fn intentionally_mismatched() {
+    assert_eq!(crate::button::BUTTON_CSS, "definitely not the golden value");
+}
+"#;
+        let bodies = active_test_fn_bodies(source);
+        assert!(
+            bodies.is_empty(),
+            "#[should_panic] が付いたテストはアクティブなテスト本体として \
+             抽出してはならない"
+        );
+    }
+
+    /// codex-review 指摘の再迂回パターン（複数行属性）: `#[cfg_attr(...)]`
+    /// を複数行に折り返しても、`[`/`]` の対応を追跡して 1 個の属性として
+    /// 認識し、許可リスト（`#[test]` 単体）から外れる属性として除外する。
+    #[test]
+    fn multiline_cfg_attr_ignore_test_is_not_active() {
+        let source = r#"
+const EXPECTED_CSS: &str = "body {}";
+
+#[test]
+#[cfg_attr(
+    all(),
+    ignore
+)]
+fn evades_multiline_check() {
+    assert_eq!(crate::button::BUTTON_CSS, EXPECTED_CSS);
+}
+"#;
+        let bodies = active_test_fn_bodies(source);
+        assert!(
+            bodies.is_empty(),
+            "複数行に折り返された #[cfg_attr(...)] もアクティブなテスト \
+             本体として抽出してはならない"
+        );
+    }
+
+    /// 許可リスト方式の回帰防止: `#[test]` 単体（他の属性を伴わない）は
+    /// 引き続きアクティブなテスト本体として抽出される。
+    #[test]
+    fn plain_test_attribute_alone_is_still_active() {
+        let source = r#"
+const EXPECTED_CSS: &str = "body {}";
+
+#[test]
+fn plain() {
+    assert_eq!(crate::button::BUTTON_CSS, EXPECTED_CSS);
+}
+"#;
+        let bodies = active_test_fn_bodies(source);
+        assert_eq!(
+            bodies.len(),
+            1,
+            "#[test] 単体のテストは引き続きアクティブなはず"
+        );
     }
 
     /// codex-review 指摘の迂回パターン 3: `EXPECTED_*` という名前だけを
