@@ -232,8 +232,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-content-columns-screenshot-column {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  min-width: 0;\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-content-columns-screenshot-paragraph] {\n  margin: 0;\n}\n\
 .blocks-content-columns-screenshot-actions {\n  display: flex;\n}\n\
-.blocks-content-columns-screenshot-shot {\n  position: relative;\n  overflow: hidden;\n  border-radius: 0.75rem;\n}\n\
-[data-scope=\"image\"][data-part=\"root\"][data-blocks-content-columns-screenshot-image] {\n  display: block;\n  width: 100%;\n  border: 1px solid var(--fandhe-color-border);\n  box-shadow: var(--fandhe-shadow-lg);\n}\n\
+.blocks-content-columns-screenshot-shot {\n  position: relative;\n  overflow: hidden;\n  border-radius: 0.75rem;\n  box-shadow: var(--fandhe-shadow-lg);\n}\n\
+[data-scope=\"image\"][data-part=\"root\"][data-blocks-content-columns-screenshot-image] {\n  display: block;\n  width: 100%;\n  border: 1px solid var(--fandhe-color-border);\n}\n\
 .blocks-content-columns-screenshot-shot::after {\n  content: \"\";\n  position: absolute;\n  inset-inline: 0;\n  bottom: 0;\n  height: 40%;\n  pointer-events: none;\n  background: linear-gradient(to top, var(--fandhe-color-bg-subtle), transparent);\n}\n\
 @media (max-width: 47.99rem) {\n  .blocks-content-columns-screenshot-columns {\n    grid-template-columns: 1fr;\n  }\n}\n";
 
