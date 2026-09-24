@@ -171,7 +171,10 @@ fn instance_inline_code() -> Node {
 /// 対応: R0010, R0404, R0759, R0405。
 fn instance_dark_link_group() -> Node {
     let links = div(
-        vec![("data-blocks-banner-full-width-bar-aux", "")],
+        vec![
+            ("class", "blocks-banner-full-width-bar-links"),
+            ("data-blocks-banner-full-width-bar-aux", ""),
+        ],
         vec![
             link::root(REPO, &LinkProps::default(), vec![], vec![text("Docs")]),
             link::root(REPO, &LinkProps::default(), vec![], vec![text("Pricing")]),
@@ -195,9 +198,16 @@ fn instance_dark_link_group() -> Node {
 }
 
 /// 4 個目: タイトル + 説明 + 2 ボタン（淡色）。対応: R0013, R0014。
+///
+/// 補助フック `data-blocks-banner-full-width-bar-aux` は 2 個目の
+/// ボタン（Learn more）のみに付与する。`actions` ラッパー自体には
+/// 付けない（付けると `< 48rem` で主ボタン（Get started）まで補助
+/// アクションと一緒に隠れてしまい、モジュール doc「レイアウトと
+/// レスポンシブ」節が定める「主ボタンは残す」契約に反するため。
+/// PR #3160 レビュー指摘の是正）。
 fn instance_title_two_buttons() -> Node {
     let actions = div(
-        vec![("data-blocks-banner-full-width-bar-aux", "")],
+        vec![("class", "blocks-banner-full-width-bar-actions")],
         vec![
             button::button(
                 &ButtonProps {
@@ -213,7 +223,7 @@ fn instance_title_two_buttons() -> Node {
                     size: Size::Sm,
                     ..ButtonProps::default()
                 },
-                vec![],
+                vec![("data-blocks-banner-full-width-bar-aux", "")],
                 vec![text("Learn more")],
             ),
         ],

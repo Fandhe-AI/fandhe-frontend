@@ -229,7 +229,10 @@ fn instance_inline_code() -> Node {
 /// 対応: R0010, R0404, R0759, R0405。
 fn instance_dark_link_group() -> Node {
     let links = div(
-        vec![("data-blocks-banner-full-width-bar-aux", "")],
+        vec![
+            ("class", "blocks-banner-full-width-bar-links"),
+            ("data-blocks-banner-full-width-bar-aux", ""),
+        ],
         vec![
             link::root(REPO, &LinkProps::default(), vec![], vec![text("Docs")]),
             link::root(REPO, &LinkProps::default(), vec![], vec![text("Pricing")]),
@@ -253,9 +256,16 @@ fn instance_dark_link_group() -> Node {
 }
 
 /// 4 個目: タイトル + 説明 + 2 ボタン（淡色）。対応: R0013, R0014。
+///
+/// 補助フック `data-blocks-banner-full-width-bar-aux` は 2 個目の
+/// ボタン（Learn more）のみに付与する。`actions` ラッパー自体には
+/// 付けない（付けると `< 48rem` で主ボタン（Get started）まで補助
+/// アクションと一緒に隠れてしまい、モジュール doc「レイアウトと
+/// レスポンシブ」節が定める「主ボタンは残す」契約に反するため。
+/// PR #3160 レビュー指摘の是正）。
 fn instance_title_two_buttons() -> Node {
     let actions = div(
-        vec![("data-blocks-banner-full-width-bar-aux", "")],
+        vec![("class", "blocks-banner-full-width-bar-actions")],
         vec![
             button::button(
                 &ButtonProps {
@@ -271,7 +281,7 @@ fn instance_title_two_buttons() -> Node {
                     size: Size::Sm,
                     ..ButtonProps::default()
                 },
-                vec![],
+                vec![("data-blocks-banner-full-width-bar-aux", "")],
                 vec![text("Learn more")],
             ),
         ],
@@ -444,6 +454,9 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-banner-full-width-bar-align=\"center\"] .blocks-banner-full-width-bar-content {\n  justify-content: center;\n}\n\
 [data-blocks-banner-full-width-bar-align=\"start\"] .blocks-banner-full-width-bar-content {\n  justify-content: flex-start;\n}\n\
 [data-blocks-banner-full-width-bar-close] {\n  margin-inline-start: auto;\n  flex-shrink: 0;\n}\n\
+.blocks-banner-full-width-bar-links {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n  flex-wrap: wrap;\n}\n\
+.blocks-banner-full-width-bar-actions {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  flex-wrap: wrap;\n}\n\
+[data-blocks-banner-full-width-bar-caption] {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 @media (max-width: 47.99rem) {\n  .blocks-banner-full-width-bar-content {\n    flex-wrap: wrap;\n  }\n  .blocks-banner-full-width-bar-content p {\n    min-width: 0;\n  }\n  [data-blocks-banner-full-width-bar-aux] {\n    display: none;\n  }\n}\n";
 
 #[cfg(test)]
