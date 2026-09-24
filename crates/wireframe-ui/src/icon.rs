@@ -79,18 +79,36 @@
 //! assert!(!render(&without_icon).contains("<svg"));
 //! ```
 //!
-//! # #2652 との継ぎ目
+//! # #2652 との継ぎ目（解決済み）
 //!
-//! イシュー #2652（`icon` 部品、Phase 7）は本モジュールへ `pub fn icon`
-//! （部品ルート `fw-wire-icon`、`role="img"`/`aria-label` 付与の判断込み）
-//! ・`ICON_CSS`・docs ページ相当の拡張を追加する見込みである。名前衝突を
-//! 避けるため、本イシューでは以下の名前を**使わない**:
+//! イシュー #2652（`icon` 部品、Phase 7「Data display」の 7 番目の部品）は
+//! 本モジュールへ [`icon`] 関数・[`ICON_CSS`] を追加した。確定した設計
+//! 判断は次のとおり。
 //!
-//! - `pub fn icon`（個別アイコンは `icon::plus` のように公開する）
-//! - 部品ルート class `fw-wire-icon`（グリフ class は
-//!   `fw-wire-icon-glyph` とし、将来の `icon` 部品のパート class
-//!   としても整合させる）
-//! - CSS 定数名 `ICON_CSS`（[`ICON_GLYPH_CSS`] とする）
+//! - **シグネチャ**: [`icon`] は `Node` ではなく `fn(Size) -> Node`
+//!   （[`IconEntry`] の要素型と同じ関数ポインタ）を受け取る。各グリフは
+//!   自身の `<svg>` に `fw-wire-size-<段階>` を持ち、その要素上で
+//!   `--fw-wire-font-size` を決めるため、`icon(glyph: Node, size)` 形式で
+//!   `icon(icon::search(Size::Sm), Size::Lg)` のようにサイズを 2 か所で
+//!   指定できてしまうと黙って `Sm` のまま描画される誤用を招く。部品側が
+//!   `glyph(size)` を 1 回だけ呼ぶことで、サイズ指定を 1 か所に固定する
+//!   （`docs/design/wireframe-ui-architecture.md` §11.6 の想定どおり）。
+//! - **`Option<Node>` スロット規約（§11.4）との違い**: §11.4 は「本文の
+//!   横にアイコンを置くホスト部品」（`link`/`tag`/`alert` 等）向けの規約
+//!   であり、差し替え対象は任意の `Node` である。対して `icon` 部品に
+//!   とっての差し替え対象は「どのグリフか」であり、[`IconEntry`] の
+//!   関数ポインタ型がその型付き表現になる（[`ALL`] の一覧表示が
+//!   `icon(*ctor, size)` とそのまま書ける）。任意の `Node`（例:
+//!   `crate::avatar` が返す画像枠）はこのスロットに渡せないが、`icon`
+//!   部品の責務（グリフ差し替え）の外として許容する。
+//! - **`role`/`aria-label` は付けない**: 全部品は非インタラクティブな
+//!   表示専用プレースホルダーという不変条件（`docs/design/wireframe-ui-architecture.md`
+//!   §1/§7）に従い、ルートは `role`/`aria-*`/`tabindex`/`style`/`data-*`
+//!   を一切持たない `<span>` とする。アクセシビリティラベルを持たせる
+//!   ための `label: &str` 引数も追加しない（テキスト引数を持たない層に
+//!   アクセシビリティ責務を持ち込まない判断）。実際にラベル付きで
+//!   アイコンを使いたい利用者には Themes の Icon 相当を案内する
+//!   （`site/wireframes/icon.md` 参照）。
 
 use fandhe_frontend_core::{el, el_owned, Node};
 
@@ -465,5 +483,56 @@ pub fn cursor_hand(size: Size) -> Node {
             line("12", "4.5", "12", "11"),
             line("14.5", "6", "14.5", "11"),
         ],
+    )
+}
+
+/// `icon` 部品ルート CSS（`.fw-wire-icon` 1 セレクタ）。[`ICON_GLYPH_CSS`]
+/// はグリフ自身の寸法を担うためここでは複製しない（本モジュール doc
+/// 「サイズ機構」節）。色リテラル（`#`・`rgb(`）は持たず、
+/// `--fw-wire-ink`（`crate::tokens`）を `var()` で参照する。
+/// [`crate::css::PARTS`] へ登録される。
+pub const ICON_CSS: &str = ".fw-wire-icon { display: inline-flex; align-items: center; justify-content: center; line-height: 1; vertical-align: middle; color: var(--fw-wire-ink); }\n";
+
+/// アイコン単体を示すワイヤーフレーム部品（イシュー #2652、Phase 7
+/// 「Data display」の 7 番目の部品）。
+///
+/// `fandhe-frontend-docs-site` の `wireframes::icon` showcase
+/// （`/wireframes/icon/`）から呼ばれ、[`ALL`] 全種の一覧表示元を兼ねる
+/// （`docs/design/wireframe-ui-architecture.md` §12 D8）。
+///
+/// - `glyph`: 表示するアイコンのコンストラクタ（[`IconEntry`] の要素型と
+///   同じ `fn(Size) -> Node`）。[`ALL`] の要素や個別関数（例: [`search`]）
+///   をそのまま渡せる。
+/// - `size`: [`Size`] 5 段。`glyph` へそのまま渡され、部品ルート class
+///   `fw-wire-size-<段階>` としても付与する（サイズ指定を 1 か所に固定
+///   する設計判断は本モジュール doc「#2652 との継ぎ目」節を参照）。
+///
+/// ルートは `<span class="fw-wire-icon fw-wire-size-<段階>">` のみで、
+/// `role`/`aria-*`/`tabindex`/`style`/`data-*`（部品側）は一切付与しない
+/// （非インタラクティブな表示専用プレースホルダーという不変条件、
+/// `docs/design/wireframe-ui-architecture.md` §1/§7）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_wireframe_ui::{icon, Size};
+///
+/// let node = icon(icon::search, Size::Lg);
+/// let html = render(&node);
+/// assert!(html.contains(r#"class="fw-wire-icon fw-wire-size-lg""#));
+/// assert!(html.contains(r#"data-icon="search""#));
+/// assert!(!html.contains(" role=\""));
+/// assert!(!html.contains("aria-label"));
+/// assert!(!html.contains("<button"));
+/// assert!(!html.contains("<a "));
+/// ```
+#[must_use]
+pub fn icon(glyph: fn(Size) -> Node, size: Size) -> Node {
+    let class = class_list("fw-wire-icon", &[Some(size.class())]);
+    el_owned(
+        "span",
+        vec![("class".to_string(), class)],
+        vec![glyph(size)],
     )
 }

@@ -1550,6 +1550,11 @@ title = "Table"
 source = "site/wireframes/table.md"
 path = "/wireframes/table/"
 
+[[section.page]]
+title = "Icon"
+source = "site/wireframes/icon.md"
+path = "/wireframes/icon/"
+
 # API Reference セクション（イシュー #955 / 設計 docs/design/docs-site-api-reference-split.md）。
 # - docs/internal/*-implementation-notes.md は本マニフェストへ登録しない。
 #   サイト非出力は「nav 未登録」だけで構造的に担保する（同文書 §3-3 / §4 A05）。
