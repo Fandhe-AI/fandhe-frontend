@@ -1357,20 +1357,20 @@ source = "site/blocks/bento-two-column.md"
 path = "/blocks/bento-two-column/"
 
 [[section.group]]
-title = "Changelog"
-
-[[section.group.page]]
-title = "changelog-accordion"
-source = "site/blocks/changelog-accordion.md"
-path = "/blocks/changelog-accordion/"
-
-[[section.group]]
 title = "Careers"
 
 [[section.group.page]]
 title = "careers-card-grid"
 source = "site/blocks/careers-card-grid.md"
 path = "/blocks/careers-card-grid/"
+
+[[section.group]]
+title = "Changelog"
+
+[[section.group.page]]
+title = "changelog-accordion"
+source = "site/blocks/changelog-accordion.md"
+path = "/blocks/changelog-accordion/"
 
 [[section.group]]
 title = "Sidebar"
