@@ -132,29 +132,38 @@
 //! 再利用する）・5 番目の部品 [`card_basic`]（イシュー #2658、先頭・末尾
 //! スロットは §11.4 の `Option<Node>` 規約へ統一し `avatar` を内蔵しない
 //! 独自設計。`secondary` は [`nav_item`] の `counter` と同じ
-//! `Option<&str>` で表す）が続いた。
+//! `Option<&str>` で表す）・6 番目の部品 [`list`]（イシュー #2657、
+//! 箇条書き/番号付きリストの配置イメージ。`items: Vec<Node>` を項目
+//! ラッパー class で包み、`ordered: bool` は部品固有の修飾 class、
+//! マーカー・番号は CSS 擬似要素/カウンタのみで描く。`<ul>`/`<ol>`/`<li>`
+//! は出力しない）が続いた。
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
 //! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
 //! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
-//! 全部品が出揃った。Phase 8「Media・データ表示」の最初の部品 [`image`]
-//! （イシュー #2660、`content: Option<Node>` が `None` のときバツ印
-//! プレースホルダーを描き、`Some(node)` のときは子要素を差し替える
-//! §11.4 準拠の実例。強調は共通型 [`props::Primary`] を再利用し、バツ印
-//! の色は CSS カスタムプロパティ `--fw-wire-image-x-color` の上書きで
-//! 反転させる）・2 番目の部品 [`chart`]（イシュー #2663、棒グラフの配置
-//! イメージ。値は `u8` 列 `values: &[u8]` として受け取り、[`progress`]
-//! と同型の 5 刻み量子化・[`props::Orientation`] の再利用（4 例目の
-//! 消費者）・[`grid::MAX_COLUMNS`] と同じ資源有界化（[`chart::MAX_BARS`]）
-//! で組み立てる。折れ線・面・円・散布・凡例・軸ラベル・複数系列はスコープ
-//! 外とする）・3 番目の部品 [`table`]（イシュー #2662、N 列 × M 行の
-//! データ表プレースホルダー。[`calendar`] と同型の判断で `<table>` を
-//! 使わず `div`/`span` + CSS grid で表現し、列数は `headers`/`rows` の形
-//! から導く）に続き、4 番目の部品 [`map`]（イシュー #2664、地図タイルの
-//! 配置イメージ。ズームは部品ローカル列挙型 [`map::MapZoom`] 3 段、
-//! マーカーは [`link`]/[`file_drop`]/[`alert`] と同型の `Option<Node>`
-//! アイコンスロット。街路・区画・道路の位置はすべて CSS の固定ルールで
-//! 描き、`&str` 引数を持たない）が続いた。残りは Phase 8 の他部品で
-//! 順次追加する。
+//! 全部品が出揃った。Phase 8「Media・データ表示」の最初の部品 [`chart`]
+//! （イシュー #2663、棒グラフの配置イメージ。値は `u8` 列
+//! `values: &[u8]` として受け取り、[`progress`] と同型の 5 刻み量子化・
+//! [`props::Orientation`] の再利用（4 例目の消費者）・
+//! [`grid::MAX_COLUMNS`] と同じ資源有界化（[`chart::MAX_BARS`]）で
+//! 組み立てる。折れ線・面・円・散布・凡例・軸ラベル・複数系列はスコープ
+//! 外とする）・2 番目の部品 [`image`]（イシュー #2660、
+//! `content: Option<Node>` が `None` のときバツ印プレースホルダーを描き、
+//! `Some(node)` のときは子要素を差し替える §11.4 準拠の実例。強調は
+//! 共通型 [`props::Primary`] を再利用し、バツ印の色は CSS カスタム
+//! プロパティ `--fw-wire-image-x-color` の上書きで反転させる）・
+//! 3 番目の部品 [`map`]（イシュー #2664、地図タイルの配置イメージ。
+//! ズームは部品ローカル列挙型 [`map::MapZoom`] 3 段、マーカーは
+//! [`link`]/[`file_drop`]/[`alert`] と同型の `Option<Node>` アイコン
+//! スロット。街路・区画・道路の位置はすべて CSS の固定ルールで描き、
+//! `&str` 引数を持たない）・4 番目の部品 [`media`]（イシュー #2661、
+//! blocks.pm 上の表示名は Placeholder。`content: Option<Node>` が
+//! `None` のとき [`icon::play`] へフォールバックする §11.4 からの意図的
+//! な逸脱。動画か静止画かは bool ではなくスロット差し替えで表し、枠は
+//! 16:9 固定で `<video>`/`<iframe>` は出力しない）・5 番目の部品
+//! [`table`]（イシュー #2662、N 列 × M 行のデータ表プレースホルダー。
+//! [`calendar`] と同型の判断で `<table>` を使わず `div`/`span` + CSS
+//! grid で表現し、列数は `headers`/`rows` の形から導く）が続いた。残りは
+//! Phase 8 の他部品で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -191,7 +200,9 @@ pub mod icon;
 pub mod image;
 pub mod input;
 pub mod link;
+pub mod list;
 pub mod map;
+pub mod media;
 pub mod menu;
 pub mod modal;
 pub mod nav_item;
@@ -242,7 +253,9 @@ pub use grid::{grid, MAX_COLUMNS};
 pub use image::image;
 pub use input::input;
 pub use link::link;
+pub use list::list;
 pub use map::{map, MapZoom};
+pub use media::media;
 pub use menu::{menu, MenuItem};
 pub use modal::modal;
 pub use nav_item::nav_item;
