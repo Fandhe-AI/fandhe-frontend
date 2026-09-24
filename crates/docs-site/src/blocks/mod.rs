@@ -449,30 +449,60 @@ mod tests {
     }
 
     #[test]
-    fn all_blocks_keeps_at_least_the_22_pre_split_blocks_with_unique_paths() {
-        // カテゴリ別モジュール分割（イシュー #2734）時点の 22 件からの
-        // 欠落が無いことの回帰。厳密な件数一致（増分含む）は
-        // `tests/blocks_nav.rs::nav_toml_block_pages_match_the_registry_exactly`
-        // が nav.toml とレジストリの完全一致で別途保証するため、本テストを
-        // 固定件数の `assert_eq!` にはしない（イシュー #2740）。並列で
-        // block を追加する複数 PR が同一の固定値書き換え（例: `22` →
-        // `23`）を独立に行うと、git は衝突なくマージしてしまい、main 上の
-        // 実件数が 24 件以上でも期待値が 23 のまま取り残されて main が
-        // 赤くなる（`>=` 判定と path 一意性判定にすることでこの偽陽性を
-        // 構造的に避ける）。
-        let all = all_blocks();
-        assert!(
-            all.len() >= 22,
-            "block registry should not shrink below the pre-split 22"
-        );
+    fn all_blocks_keeps_the_pre_split_blocks_and_has_unique_paths() {
+        // カテゴリ別モジュール分割（イシュー #2734）時点の既存 block・
+        // イシュー #2741 で追加された banner-email-signup が、その後の
+        // block 追加でも失われないこと（部分集合であることの回帰）と、
+        // `all_blocks()` の `path` に重複が無いことを固定する（イシュー
+        // #2809。件数の完全一致を要求する形は block 追加のたびに必ず
+        // 衝突・FAIL する構造上の欠陥だったため、意図を保ったまま件数
+        // 依存を外した）。
+        const PRE_SPLIT_PATHS: &[&str] = &[
+            "/blocks/login-01/",
+            "/blocks/dashboard-01/",
+            "/blocks/sidebar-07/",
+            "/blocks/sidebar-03/",
+            "/blocks/login-04/",
+            "/blocks/signup-01/",
+            "/blocks/signup-05/",
+            "/blocks/pricing-tiers-morph/",
+            "/blocks/pricing-usage-slider/",
+            "/blocks/testimonials-stack/",
+            "/blocks/bento-staggered/",
+            "/blocks/feature-expand/",
+            "/blocks/cta-banner-magnetic/",
+            "/blocks/cta-signup-celebrate/",
+            "/blocks/cursor-hover-cards/",
+            "/blocks/footer-sticky-reveal/",
+            "/blocks/footer-newsletter/",
+            "/blocks/hero-editorial-stagger/",
+            "/blocks/hero-parallax-layers/",
+            "/blocks/hero-terminal/",
+            "/blocks/text-split-reveal/",
+            "/blocks/game-ui-modal/",
+            "/blocks/banner-email-signup/",
+        ];
+        assert_eq!(PRE_SPLIT_PATHS.len(), 23);
 
+        let registered = all_blocks();
         let mut seen = std::collections::HashSet::new();
-        for block in &all {
+        for block in &registered {
             assert!(
                 seen.insert(block.path),
-                "duplicate block path registered: {}",
+                "duplicate block path: {}",
                 block.path
             );
         }
+
+        for path in PRE_SPLIT_PATHS {
+            assert!(
+                seen.contains(path),
+                "pre-split block {path} should remain registered"
+            );
+        }
+
+        // 本 PR（イシュー #2809）で追加した blog-featured-with-list も
+        // 登録されていることを固定する。
+        assert!(seen.contains("/blocks/blog-featured-with-list/"));
     }
 }
