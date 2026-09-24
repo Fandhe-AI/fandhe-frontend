@@ -160,7 +160,9 @@ use crate::wireframes;
 /// [`primitive_showcase::STYLESHEET_REL_PATH`]/[`script::SCRIPT_REL_PATH`]/
 /// [`search_index::REL_PATH`]/[`showcase::IMAGE_DEMO_ASSET_REL_PATH`]/
 /// [`blocks::STYLESHEET_REL_PATH`]（イシュー #2088）/
-/// [`wireframes::STYLESHEET_REL_PATH`]（イシュー #2607）
+/// [`wireframes::STYLESHEET_REL_PATH`]（イシュー #2607）/
+/// [`blocks::dummy_assets::IMAGE_ASSETS`]（Blocks 共通デモ用ダミー素材
+/// ヘルパの画像 5 種、イシュー #2737）
 /// （イシュー #1562）はいずれも `assets/<basename>` の形をしており、
 /// `site/assets/` 直下との名前衝突は basename の一致だけで判定できる。
 const RESERVED_ASSET_NAMES: &[&str] = &[
@@ -174,6 +176,11 @@ const RESERVED_ASSET_NAMES: &[&str] = &[
     "image-demo.svg",
     "blocks.css",
     "wireframes.css",
+    "blocks-demo-product.svg",
+    "blocks-demo-avatar.svg",
+    "blocks-demo-logo.svg",
+    "blocks-demo-screenshot.svg",
+    "blocks-demo-background.svg",
 ];
 
 /// [`build_site`] が成功時に返すビルド結果のサマリ。
@@ -495,6 +502,14 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
             extra_stylesheets.push(showcase::STYLESHEET_REL_PATH);
             extra_stylesheets.push(blocks::STYLESHEET_REL_PATH);
         }
+        // Blocks 共通デモ用ダミー素材ヘルパの画像 5 種（イシュー #2737）。
+        // `has_blocks_page` と同条件（Blocks ページが 1 件でも実在すれば
+        // 5 種すべてを書き出す。個別 block が実際にどれを使うかは走査せず、
+        // `showcase::IMAGE_DEMO_ASSET_REL_PATH` と同型の単純な有無判定に
+        // 揃える。既存 22 block が未使用でも、後続の目的別パーツ block
+        // からの参照に備え常に揃える設計）。href 登録自体は下の
+        // `if has_blocks_page` ブロックでまとめて行う（`showcase_sheet` と
+        // 同じ「書き出し確定と同時に登録する」順序）。
         // Wireframes ページ専用 CSS の配線（イシュー #2607）。`blocks` と
         // 同型に `crate::wireframes` のレジストリを直接照会する。Themes 側
         // の `pre-styled-ui.css` は配線しない（`has_showcase_page` を立てない、
@@ -579,6 +594,13 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
             &nav.site.base_path,
             blocks::STYLESHEET_REL_PATH,
         ));
+        // Blocks 共通デモ用ダミー素材ヘルパの画像 5 種（イシュー #2737）。
+        // `showcase::IMAGE_DEMO_ASSET_REL_PATH` と同型に、`<img src>` は
+        // `linkcheck::check_links` の走査対象外（`href` のみ走査）だが、
+        // 他アセットと同じ登録経路に揃えるため無条件で登録する。
+        for (rel_path, _generator) in blocks::dummy_assets::IMAGE_ASSETS {
+            asset_hrefs.push(layout::asset_href(&nav.site.base_path, rel_path));
+        }
         Some(blocks::stylesheet()?)
     } else {
         None
@@ -708,6 +730,15 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
             format!("/{}", showcase::IMAGE_DEMO_ASSET_REL_PATH),
             showcase::image_demo_svg(),
         ));
+    }
+    if has_blocks_page {
+        // Blocks 共通デモ用ダミー素材ヘルパの画像 5 種（イシュー #2737）。
+        // `blocks::dummy_assets::IMAGE_ASSETS` を 1 ループ走査するだけで
+        // 5 種すべてを書き出す（`blocks::Block` レジストリと同型の単一
+        // 情報源設計、`crate::blocks::dummy_assets` モジュール doc参照）。
+        for (rel_path, generator) in blocks::dummy_assets::IMAGE_ASSETS {
+            generated_assets.push((format!("/{rel_path}"), generator()));
+        }
     }
 
     let mut generated_written = ssg::generate_assets(&generated_assets, out_dir)?;

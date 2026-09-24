@@ -436,7 +436,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // 9 → 10 になった（Annotation 部品ページの登録により
     // `crate::wireframes::WIREFRAMES` が空でなくなったため、
     // 「使われているページだけ」書き出す既定契約に従って生成される）。
-    assert_eq!(report.assets.len(), 10, "{:?}", report.assets);
+    // イシュー #2737 で Blocks 共通デモ用ダミー素材ヘルパの画像 5 種
+    // （`blocks::dummy_assets::IMAGE_ASSETS`）が加わり 10 → 15 になった
+    // （`has_blocks_page` と同条件で無条件に書き出す設計、
+    // `crate::build::build_site` 参照）。
+    assert_eq!(report.assets.len(), 15, "{:?}", report.assets);
 
     // イシュー #1016: リダイレクトページは `written`（本体ページ）にも
     // `assets` にも含めない独立フィールド（`BuildReport::redirects`）。
