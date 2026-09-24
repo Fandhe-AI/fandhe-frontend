@@ -262,6 +262,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/banner-floating-card/index.html"
           # Marketing / Bento
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-staggered/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-three-column-tall/index.html"
           # Marketing / Comparison
           # Marketing / Careers
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/careers-card-grid/index.html"
