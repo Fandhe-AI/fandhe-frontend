@@ -201,7 +201,7 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
 | 定数 | 値 | 超過時の扱い |
 |---|---|---|
 | `MAX_PAGE_TEXT_BYTES` | 4,096 バイト | **決定的に切り詰める**（エラーにしない）。UTF-8 文字境界で切る（`char_indices` で境界を求め、バイト単位切断で不正 UTF-8 を作らない）。切り詰め痕跡の付加文字（`…` 等）は付けない（決定性と単純さを優先する） |
-| `MAX_INDEX_BYTES` | 1,441,792 バイト（1.375 MiB。#2552 で 1 MiB から 1.125 MiB へ、#2645 で 1.125 MiB から 1.25 MiB へ、イシュー #2817（careers-split-photo-list）で 1.25 MiB から 1.375 MiB へ引き上げ、§10/§10-5 参照。イシュー #2637（Menu）の base 取り込み時点で実測は 1.25 MiB の範囲内に収まっており、追加の引き上げは不要だった。PR #2702（イシュー #2639 Breadcrumbs）の base 取り込み時点でも実測は範囲内に収まっており、追加の引き上げは不要だった） | **fail-closed**。`BuildError::SearchIndexTooLarge { bytes, limit }` を返し、**ページ書き出し前**に打ち切る |
+| `MAX_INDEX_BYTES` | 1,441,792 バイト（1.375 MiB。#2552 で 1 MiB から 1.125 MiB へ、#2645 で 1.125 MiB から 1.25 MiB へ、イシュー #2817（careers-split-photo-list）で 1.25 MiB から 1.375 MiB へ引き上げ、§10/§10-4 参照。イシュー #2637（Menu）の base 取り込み時点で実測は 1.25 MiB の範囲内に収まっており、追加の引き上げは不要だった。PR #2702（イシュー #2639 Breadcrumbs）の base 取り込み時点でも実測は範囲内に収まっており、追加の引き上げは不要だった） | **fail-closed**。`BuildError::SearchIndexTooLarge { bytes, limit }` を返し、**ページ書き出し前**に打ち切る |
 
 - 選定根拠: 現行 121 ページで全ページが per-page 上限に張り付いた
   最悪ケースでも 121 × 4 KiB ≒ 496 KiB であり、1 MiB は「ページ数が
@@ -223,7 +223,7 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
   - `pub const REL_PATH: &str = "assets/search-index.json";`
   - `pub const SCHEMA_VERSION: u32 = 1;`
   - `pub const MAX_PAGE_TEXT_BYTES: usize = 4096;`
-  - `pub const MAX_INDEX_BYTES: usize = 1_441_792;`（#2552 で `1_048_576` から `1_179_648` へ、#2645 で `1_179_648` から `1_310_720` へ、イシュー #2817 で `1_310_720` から引き上げ、§10/§10-5 参照。イシュー #2637・PR #2702（イシュー #2639 Breadcrumbs）の base 取り込み時点でも実測は範囲内）
+  - `pub const MAX_INDEX_BYTES: usize = 1_441_792;`（#2552 で `1_048_576` から `1_179_648` へ、#2645 で `1_179_648` から `1_310_720` へ、イシュー #2817 で `1_310_720` から引き上げ、§10/§10-4 参照。イシュー #2637・PR #2702（イシュー #2639 Breadcrumbs）の base 取り込み時点でも実測は範囲内）
   - `pub struct PageEntry { href, title, sections: Vec<SectionEntry>, text }`
   - `pub struct SectionEntry { id, level, title }`
   - `pub fn page_entry(href: &str, title: &str, body: &Node) -> PageEntry`
