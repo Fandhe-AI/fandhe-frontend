@@ -1358,13 +1358,14 @@ path = "/blocks/dashboard-01/"
 # --- 以下は block 追加時の挿入先アンカー（イシュー #2734、#2735 でカテゴリ
 # 見出し導入に伴い運用を更新）。カテゴリ単位で行ブロックを分ける点は不変
 # だが、新規 block は該当カテゴリの既存 `[[section.group]]` があればその
-# 直後へ `[[section.group.page]]` として追記し、まだ 1 件も block を持たず
-# `[[section.group]]` 自体が存在しないカテゴリでは `[[section.group]]` 見出し
-# 本体もあわせて新設する（`crates/docs-site/tests/blocks_nav.rs` の
+# グループ内で `path` 昇順になる位置へ `[[section.group.page]]` として挿入し、
+# まだ 1 件も block を持たず `[[section.group]]` 自体が存在しないカテゴリでは
+# `[[section.group]]` 見出し本体もあわせて新設する
+# （`crates/docs-site/tests/blocks_nav.rs` の
 # `blocks_section_groups_match_registry_category_order` が `BlockCategory::ALL`
-# のうち 1 件以上 block を持つカテゴリのみを列挙順どおりに要求するため）。
-# 既存 22 件（上記）は前後ナビ順序保持のため移動しない
-# （並べ替えると `/blocks/**` の前後ナビ href が変わってしまうため）。
+# のうち 1 件以上 block を持つカテゴリのみを列挙順どおりに要求し、
+# `blocks_group_pages_match_registry_category_assignments` が各グループ内の
+# ページを `path` 昇順で要求するため）。
 # Marketing / Hero
 # Marketing / Feature
 # Marketing / Cta
