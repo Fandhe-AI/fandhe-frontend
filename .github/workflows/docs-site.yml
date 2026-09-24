@@ -260,6 +260,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-sticky-reveal/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-newsletter/index.html"
           # Marketing / Banner
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/banner-announcement-pill/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/banner-cookie-consent/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/banner-email-signup/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/banner-floating-card/index.html"

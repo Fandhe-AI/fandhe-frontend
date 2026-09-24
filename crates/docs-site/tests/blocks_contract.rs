@@ -2446,6 +2446,56 @@ fn game_ui_modal_css_uses_motion_tokens_and_no_infinite_keyframes() {
     );
 }
 
+/// banner-announcement-pill ページが `blocks-demo blocks-banner-
+/// announcement-pill` class・両 stylesheet の `<link>`・ピル/矢印/アバター/
+/// 明暗面の CSS フックを実際に出力し、`blocks::stylesheet()` にも対応する
+/// セレクタが存在すること（イシュー #2739）。
+#[test]
+fn banner_announcement_pill_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/banner-announcement-pill/index.html"))
+        .expect("blocks/banner-announcement-pill/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-banner-announcement-pill\""),
+        "banner-announcement-pill page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "banner-announcement-pill page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "banner-announcement-pill page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-banner-announcement-pill-pill=\"\"",
+        "data-blocks-banner-announcement-pill-tone=\"dark\"",
+        "data-blocks-banner-announcement-pill-surface=\"dark\"",
+        "data-blocks-banner-announcement-pill-arrow=\"\"",
+        "data-blocks-banner-announcement-pill-avatar=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "banner-announcement-pill page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector_or_decl in [
+        "[data-blocks-banner-announcement-pill-pill]",
+        "[data-blocks-banner-announcement-pill-surface=\"dark\"]",
+        "[data-blocks-banner-announcement-pill-tone=\"dark\"]",
+        "var(--fandhe-radius-full)",
+    ] {
+        assert!(
+            sheet_css.contains(selector_or_decl),
+            "blocks.css should contain {selector_or_decl} for banner-announcement-pill"
+        );
+    }
+}
+
 /// `banner-floating-card` の実ビルド出力が Demo class・CSS 配線
 /// （`pre-styled-ui.css`/`blocks.css`）・CSS フック属性・生成 CSS 中の
 /// 対応セレクタを持つことを固定する（`login_04_page_wires_demo_class_and_css_hooks`
@@ -2593,6 +2643,76 @@ fn blog_featured_with_list_page_wires_demo_class_and_css_hooks() {
     }
 }
 
+/// banner-announcement-pill の合成部品（`link`/`icon`/`avatar`）が期待
+/// どおり出力され、基準形/アバター付きの 4 ピル（明暗 2 種 x 2
+/// バリエーション）が独自ダミー文言で構成され、`<form>`/`href="#"`/
+/// `data:` を持ち込んでいないこと、アバター群が `aria-hidden` であること
+/// を固定する（イシュー #2739）。
+#[test]
+fn banner_announcement_pill_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/banner-announcement-pill/index.html"))
+        .expect("blocks/banner-announcement-pill/index.html should be generated");
+
+    let link_root_count = html
+        .matches(r#"data-scope="link" data-part="root""#)
+        .count();
+    assert_eq!(
+        link_root_count, 4,
+        "expected 4 link roots (2 tones x 2 variations), got {link_root_count}"
+    );
+    let avatar_group_count = html
+        .matches(r#"data-scope="avatar" data-part="group""#)
+        .count();
+    assert_eq!(
+        avatar_group_count, 2,
+        "expected 2 avatar groups (light/dark x with-avatars only), got {avatar_group_count}"
+    );
+    assert!(
+        html.contains(r#"data-scope="icon""#),
+        "banner-announcement-pill should render an icon part for the arrow"
+    );
+    assert!(
+        html.contains(r#"href="https://github.com/Fandhe-AI/fandhe-frontend""#),
+        "banner-announcement-pill should link to the project repository"
+    );
+    for needle in [
+        "New",
+        "Blocks gallery just got a big update",
+        "Trusted by thousands of builders",
+        "Light",
+        "Dark",
+    ] {
+        assert!(
+            html.contains(needle),
+            "banner-announcement-pill page should contain {needle}"
+        );
+    }
+    // "<script" はページ全体に site.js 読み込みタグが常に存在するため
+    // ここでは検査しない（`game_ui_modal_page_wires_demo_class_and_css_hooks`
+    // と同じ判断。demo() 出力自体の検査は
+    // `demo_output_never_leaks_an_unescaped_script_tag` が全 block 横断で
+    // 既に担う）。
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "banner-announcement-pill should never contain {absent}"
+        );
+    }
+
+    // アバター群は装飾的な社会的証明であり、リンクのアクセシブルネームが
+    // 架空イニシャルに汚染されないよう `aria-hidden` を持つこと
+    // （モジュール doc「アバター群を `aria-hidden` にする a11y 判断」。
+    // `avatar::group` は `attrs` を素通しするため、渡した順のとおり
+    // `class` の次に `aria-hidden` が出力される）。
+    assert!(
+        html.contains(
+            r#"data-scope="avatar" data-part="group" class="blocks-banner-announcement-pill-avatars" aria-hidden="true""#
+        ),
+        "banner-announcement-pill avatar group should be aria-hidden"
+    );
+}
+
 /// `banner-floating-card` の合成部品（callout/link/icon/button）が
 /// 実ビルド HTML へ現れ、`<form>`・`href="#"`・`src="data:` を持ち込まない
 /// ことを固定する（`game_ui_modal_composes_expected_parts` と同型、
@@ -2664,7 +2784,6 @@ fn blog_featured_article_composes_expected_parts() {
         );
     }
 }
-
 /// `blog-featured-with-list` が使用部品どおりに合成され、非対話制約
 /// （`<form>`/死リンク/`data:` URI 不在）を満たすことの回帰。
 #[test]
