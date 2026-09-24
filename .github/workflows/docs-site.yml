@@ -252,7 +252,9 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-featured-with-list/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-list-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-overlay-cards/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-split-header-grid/index.html"
           # Marketing / Content
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/content-columns-screenshot/index.html"
           # Marketing / Header
           # Marketing / Footer
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-sticky-reveal/index.html"
@@ -266,9 +268,11 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-asymmetric-rows/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-staggered/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-three-column-tall/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-two-column/index.html"
           # Marketing / Comparison
           # Marketing / Careers
           # Marketing / Changelog
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/changelog-accordion/index.html"
           # Marketing / Error Page
           # Marketing / Gallery
           # Marketing / Section Heading

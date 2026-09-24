@@ -1297,6 +1297,19 @@ title = "blog-overlay-cards"
 source = "site/blocks/blog-overlay-cards.md"
 path = "/blocks/blog-overlay-cards/"
 
+[[section.group.page]]
+title = "blog-split-header-grid"
+source = "site/blocks/blog-split-header-grid.md"
+path = "/blocks/blog-split-header-grid/"
+
+[[section.group]]
+title = "Content"
+
+[[section.group.page]]
+title = "content-columns-screenshot"
+source = "site/blocks/content-columns-screenshot.md"
+path = "/blocks/content-columns-screenshot/"
+
 [[section.group]]
 title = "Footer"
 
@@ -1350,6 +1363,19 @@ path = "/blocks/bento-staggered/"
 title = "bento-three-column-tall"
 source = "site/blocks/bento-three-column-tall.md"
 path = "/blocks/bento-three-column-tall/"
+
+[[section.group.page]]
+title = "bento-two-column"
+source = "site/blocks/bento-two-column.md"
+path = "/blocks/bento-two-column/"
+
+[[section.group]]
+title = "Changelog"
+
+[[section.group.page]]
+title = "changelog-accordion"
+source = "site/blocks/changelog-accordion.md"
+path = "/blocks/changelog-accordion/"
 
 [[section.group]]
 title = "Sidebar"

@@ -9,6 +9,7 @@ mod blog_featured_article;
 mod blog_featured_with_list;
 mod blog_list_image;
 mod blog_overlay_cards;
+mod blog_split_header_grid;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
@@ -17,5 +18,6 @@ pub(super) fn blocks() -> Vec<Block> {
         blog_featured_with_list::BLOCK,
         blog_list_image::BLOCK,
         blog_overlay_cards::BLOCK,
+        blog_split_header_grid::BLOCK,
     ]
 }
