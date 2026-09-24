@@ -845,7 +845,7 @@ pub enum LayoutCss {
 | blog-featured-with-list | #2809 | `marketing/blog/blog_featured_with_list.rs` |
 | bento-asymmetric-rows | #2744/#2745 | `marketing/bento/bento_asymmetric_rows.rs` |
 | blog-list-image | #2812 | `marketing/blog/blog_list_image.rs` |
-| bento-three-column-tall | #2748 | `marketing/bento/bento_three_column_tall.rs` |
+| bento-three-column-tall | #2748 / #2749 | `marketing/bento/bento_three_column_tall.rs` |
 | careers-split-accordion | #2816 | `marketing/careers/careers_split_accordion.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
