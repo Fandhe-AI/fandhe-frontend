@@ -77,17 +77,21 @@ fn blocks_section_groups_match_registry_category_order() {
 
     let expected_titles: Vec<&str> = BlockCategory::ALL
         .iter()
-        .filter(|category| blocks::BLOCKS.iter().any(|b| b.category == **category))
+        .filter(|category| {
+            blocks::all_blocks()
+                .iter()
+                .any(|b| b.category == **category)
+        })
         .map(|category| category.label())
         .collect();
     let actual_titles: Vec<&str> = section.groups.iter().map(|g| g.title.as_str()).collect();
     assert_eq!(actual_titles, expected_titles);
 }
 
-/// 各グループのページ列が、対応するカテゴリに属する `blocks::BLOCKS` を
+/// 各グループのページ列が、対応するカテゴリに属する `blocks::all_blocks()` を
 /// `path` 昇順に並べたものと `(title, path, source)` で完全一致すること。
 /// Primitives（`primitives_group_pages_match_catalog_entries_exactly`）は
-/// 台帳の宣言順で比較するが、Blocks は並列 PR による `BLOCKS` への追記順が
+/// 台帳の宣言順で比較するが、Blocks は並列 PR による `all_blocks()` への追記順が
 /// 不安定なため `path` 昇順で比較する（`/blocks/` 索引ページ本文の
 /// `index_generated_sections` と同じ判断、イシュー #2733/#2735）。
 #[test]
@@ -102,11 +106,12 @@ fn blocks_group_pages_match_registry_category_assignments() {
     let used_categories: Vec<BlockCategory> = BlockCategory::ALL
         .iter()
         .copied()
-        .filter(|category| blocks::BLOCKS.iter().any(|b| b.category == *category))
+        .filter(|category| blocks::all_blocks().iter().any(|b| b.category == *category))
         .collect();
 
+    let all_blocks = blocks::all_blocks();
     for (group, category) in section.groups.iter().zip(used_categories.iter()) {
-        let mut items: Vec<&blocks::Block> = blocks::BLOCKS
+        let mut items: Vec<&blocks::Block> = all_blocks
             .iter()
             .filter(|b| b.category == *category)
             .collect();
