@@ -102,6 +102,15 @@
 //! フックを祖先セレクタにした `[data-blocks-content-article-quote]
 //! [data-scope="blockquote"][data-part="content"]`（詳細度 (0,3,0)）へ
 //! スコープし、他 block の blockquote へ波及しないようにする。
+//!
+//! `blockquote::content` の子として渡す出典段落は素の `<p>` 要素であり、
+//! 上記リセットは `[data-part="content"]` 自身の padding/border/color の
+//! みを対象とするため、この内側の `<p>` には `.docs-content p`
+//! （詳細度 (0,1,1)、`margin: 0 0 1.05rem`）がそのまま適用され続けて
+//! いた（Cursor Bugbot 指摘）。`caption` パーツ側の `margin-block-start`
+//! と重なって引用文と出典の間に不要な余白が生じるため、`[data-blocks-
+//! content-article-quote] [data-scope="blockquote"][data-part="content"]
+//! p`（詳細度 (0,4,1)）で `margin: 0` へリセットする。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -463,6 +472,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-content-article-cover] {\n  width: 100%;\n  border-radius: var(--fandhe-radius-lg);\n}\n\
 [data-scope=\"blockquote\"][data-part=\"root\"][data-blocks-content-article-quote] {\n  margin-block: var(--fandhe-space-2);\n}\n\
 [data-blocks-content-article-quote] [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n\
+[data-blocks-content-article-quote] [data-scope=\"blockquote\"][data-part=\"content\"] p {\n  margin: 0;\n}\n\
 [data-scope=\"separator\"][data-part=\"root\"][data-blocks-content-article-separator] {\n  margin-block: var(--fandhe-space-2);\n}\n\
 [data-blocks-content-article-category] {\n  flex-shrink: 0;\n}\n\
 [data-blocks-content-article-avatar] {\n  flex-shrink: 0;\n}\n\
@@ -573,6 +583,22 @@ mod tests {
             "[data-blocks-content-article-quote] \
              [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  \
              border-left: none;\n  color: inherit;\n}"
+        ));
+    }
+
+    /// `blockquote::content` の子として渡す出典段落（素の `<p>`）へ
+    /// `.docs-content p`（詳細度 (0,1,1)、`margin: 0 0 1.05rem`）が漏れ込ま
+    /// ないよう、`[data-blocks-content-article-quote] [data-scope=
+    /// "blockquote"][data-part="content"] p`（詳細度 (0,4,1)）で
+    /// `margin: 0` へリセットしていることを固定する（Cursor Bugbot 指摘、
+    /// モジュール doc「`blockquote::content`」節の回帰防止。このリセット
+    /// が無いと caption 側の `margin-block-start` と重なって引用文と出典
+    /// の間に不要な余白が残る）。
+    #[test]
+    fn layout_css_quote_content_paragraph_resets_docs_content_p_margin() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-content-article-quote] \
+             [data-scope=\"blockquote\"][data-part=\"content\"] p {\n  margin: 0;\n}"
         ));
     }
 }
