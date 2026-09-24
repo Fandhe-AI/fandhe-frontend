@@ -837,5 +837,8 @@ pub enum LayoutCss {
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
-まだ持たず本表の対象外である。以後の block 追加はこの表への 1 行追加
-のみで足り、`CLAUDE.md`・`.claude/rules/ci.md` は編集しない。）
+まだ持たず本表の対象外である。以後の block 追加は本表への 1 行追加と、
+`.claude/rules/ci.md` が定める `.github/workflows/docs-site.yml` の
+dist sanity check `test -f` 対象への 1 行追加（生成物の存在を fail-closed
+に検証する既存契約、削除・弱体化しない）の 2 点で足りる。`CLAUDE.md`・
+`.claude/rules/ci.md` の説明本文（経緯の長文追記）は編集しない。）
