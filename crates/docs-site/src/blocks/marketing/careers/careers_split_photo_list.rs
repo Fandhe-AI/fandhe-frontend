@@ -41,8 +41,15 @@
 //!
 //! # 罫線 = `separator`（`<hr>`）を求人の間に 2 本
 //!
-//! `<hr>` は `div` の直下に置く（`ul`/`li` は使わない。`<hr>` は
-//! リストアイテムの直下に置けないため）。
+//! `role="list"` の直接の子は `role="listitem"` の求人行のみとし
+//! （WAI-ARIA の `list` は `listitem`/`group` 以外を所有できない不変条件、
+//! `docs/policy/intentional-non-adoption.md` §3.25「UI 部品の責務境界
+//! （アクセシビリティ）」と同じ判断軸）、`<hr>` は各求人行（末尾を除く）の
+//! **末尾の子要素**として `role="listitem"` の内側に置く（`role="list"` の
+//! 直下ではなく listitem の子孫であれば ARIA 上の制約を受けないため）。
+//! `<hr>` を `role="list"` と同階層の兄弟に置く旧構成は、支援技術が一覧
+//! 構造・項目数を正しく解釈できない不整合を招くため採らない
+//! （イシュー #2817 のレビュー指摘で是正）。
 //!
 //! # 全面リンク = `link_overlay`
 //!
@@ -168,63 +175,75 @@ const JOBS: [Job; 3] = [
 /// `role="listitem"` を付与し、[`demo`] 側の `role="list"` コンテナと対で
 /// 一覧構造をアクセシビリティツリーへ公開する（`<hr>` を `<li>` 直下に
 /// 置けないため `ul`/`li` は使えず、ARIA role で代替する判断）。
-fn job_item(job: &Job) -> Node {
+///
+/// `with_separator` が `true` のとき、`<hr>`（[`separator::separator`]）を
+/// この求人行自身の**末尾の子要素**として追加する（モジュール doc「罫線」
+/// 節。`role="list"` の直下ではなく `role="listitem"` の子孫に置くことで
+/// list の required owned elements 制約〔listitem/group のみ〕を満たす）。
+fn job_item(job: &Job, with_separator: bool) -> Node {
+    let mut children = vec![
+        heading(
+            HeadingLevel::H4,
+            &HeadingProps::default(),
+            vec![],
+            vec![text(job.title)],
+        ),
+        styled_text::text(
+            &TextProps {
+                variant: TextVariant::Muted,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text(job.description)],
+        ),
+        div(
+            vec![("class", "blocks-careers-split-photo-list-meta")],
+            vec![
+                styled_text::text(
+                    &TextProps {
+                        size: TextSize::Sm,
+                        ..TextProps::default()
+                    },
+                    vec![("data-blocks-careers-split-photo-list-salary", "")],
+                    vec![
+                        visually_hidden::root(vec![], vec![text("給与：")]),
+                        text(job.salary),
+                    ],
+                ),
+                span(
+                    vec![
+                        ("class", "blocks-careers-split-photo-list-dot"),
+                        ("aria-hidden", "true"),
+                    ],
+                    vec![text("・")],
+                ),
+                styled_text::text(
+                    &TextProps {
+                        size: TextSize::Sm,
+                        ..TextProps::default()
+                    },
+                    vec![("data-blocks-careers-split-photo-list-location", "")],
+                    vec![
+                        visually_hidden::root(vec![], vec![text("勤務地：")]),
+                        text(job.location),
+                    ],
+                ),
+            ],
+        ),
+        overlay(REPO, vec![("aria-label", job.title)], vec![]),
+    ];
+    if with_separator {
+        children.push(separator(
+            &SeparatorProps::default(),
+            vec![("data-blocks-careers-split-photo-list-separator", "")],
+        ));
+    }
     link_overlay::root(
         vec![
             ("data-blocks-careers-split-photo-list-job", ""),
             ("role", "listitem"),
         ],
-        vec![
-            heading(
-                HeadingLevel::H4,
-                &HeadingProps::default(),
-                vec![],
-                vec![text(job.title)],
-            ),
-            styled_text::text(
-                &TextProps {
-                    variant: TextVariant::Muted,
-                    ..TextProps::default()
-                },
-                vec![],
-                vec![text(job.description)],
-            ),
-            div(
-                vec![("class", "blocks-careers-split-photo-list-meta")],
-                vec![
-                    styled_text::text(
-                        &TextProps {
-                            size: TextSize::Sm,
-                            ..TextProps::default()
-                        },
-                        vec![("data-blocks-careers-split-photo-list-salary", "")],
-                        vec![
-                            visually_hidden::root(vec![], vec![text("給与：")]),
-                            text(job.salary),
-                        ],
-                    ),
-                    span(
-                        vec![
-                            ("class", "blocks-careers-split-photo-list-dot"),
-                            ("aria-hidden", "true"),
-                        ],
-                        vec![text("・")],
-                    ),
-                    styled_text::text(
-                        &TextProps {
-                            size: TextSize::Sm,
-                            ..TextProps::default()
-                        },
-                        vec![("data-blocks-careers-split-photo-list-location", "")],
-                        vec![
-                            visually_hidden::root(vec![], vec![text("勤務地：")]),
-                            text(job.location),
-                        ],
-                    ),
-                ],
-            ),
-            overlay(REPO, vec![("aria-label", job.title)], vec![]),
-        ],
+        children,
     )
 }
 
@@ -270,16 +289,7 @@ pub fn demo() -> Node {
     let list_items: Vec<Node> = JOBS
         .iter()
         .enumerate()
-        .flat_map(|(index, job)| {
-            let mut nodes = vec![job_item(job)];
-            if index + 1 < JOBS.len() {
-                nodes.push(separator(
-                    &SeparatorProps::default(),
-                    vec![("data-blocks-careers-split-photo-list-separator", "")],
-                ));
-            }
-            nodes
-        })
+        .map(|(index, job)| job_item(job, index + 1 < JOBS.len()))
         .collect();
 
     let jobs = div(
