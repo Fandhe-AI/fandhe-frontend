@@ -449,13 +449,14 @@ mod tests {
     }
 
     #[test]
-    fn all_blocks_keeps_the_22_pre_split_blocks_and_has_unique_paths() {
-        // カテゴリ別モジュール分割（イシュー #2734）時点の既存 22 block が
-        // その後の block 追加でも失われないこと（部分集合であることの
-        // 回帰）と、`all_blocks()` の `path` に重複が無いことを固定する
-        // （イシュー #2809。件数の完全一致を要求する形は block 追加のたび
-        // に必ず衝突・FAIL する構造上の欠陥だったため、意図を保ったまま
-        // 件数依存を外した）。
+    fn all_blocks_keeps_the_pre_split_blocks_and_has_unique_paths() {
+        // カテゴリ別モジュール分割（イシュー #2734）時点の既存 block・
+        // イシュー #2741 で追加された banner-email-signup が、その後の
+        // block 追加でも失われないこと（部分集合であることの回帰）と、
+        // `all_blocks()` の `path` に重複が無いことを固定する（イシュー
+        // #2809。件数の完全一致を要求する形は block 追加のたびに必ず
+        // 衝突・FAIL する構造上の欠陥だったため、意図を保ったまま件数
+        // 依存を外した）。
         const PRE_SPLIT_PATHS: &[&str] = &[
             "/blocks/login-01/",
             "/blocks/dashboard-01/",
@@ -479,8 +480,9 @@ mod tests {
             "/blocks/hero-terminal/",
             "/blocks/text-split-reveal/",
             "/blocks/game-ui-modal/",
+            "/blocks/banner-email-signup/",
         ];
-        assert_eq!(PRE_SPLIT_PATHS.len(), 22);
+        assert_eq!(PRE_SPLIT_PATHS.len(), 23);
 
         let registered = all_blocks();
         let mut seen = std::collections::HashSet::new();
@@ -498,5 +500,9 @@ mod tests {
                 "pre-split block {path} should remain registered"
             );
         }
+
+        // 本 PR（イシュー #2809）で追加した blog-featured-with-list も
+        // 登録されていることを固定する。
+        assert!(seen.contains("/blocks/blog-featured-with-list/"));
     }
 }
