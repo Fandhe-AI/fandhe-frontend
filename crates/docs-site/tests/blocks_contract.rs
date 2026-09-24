@@ -3155,6 +3155,102 @@ fn content_article_toc_page_wires_demo_class_and_css_hooks() {
     }
 }
 
+#[test]
+fn changelog_accordion_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/changelog-accordion/index.html"))
+        .expect("blocks/changelog-accordion/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-changelog-accordion\""),
+        "changelog-accordion page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "changelog-accordion page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "changelog-accordion page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-changelog-accordion-root=\"\"",
+        "data-blocks-changelog-accordion-tag=\"\"",
+        "data-blocks-changelog-accordion-image=\"\"",
+        "data-blocks-changelog-accordion-changes=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "changelog-accordion page should contain {hook}"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    assert!(
+        sheet_css.contains(
+            r#".blocks-changelog-accordion-list [data-scope="accordion"][data-part="item"] {"#
+        ),
+        "blocks.css should declare the per-item frame override for changelog-accordion"
+    );
+}
+
+#[test]
+fn changelog_accordion_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/changelog-accordion/index.html"))
+        .expect("blocks/changelog-accordion/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"accordion\"",
+        "data-scope=\"list\"",
+        "data-scope=\"image\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "changelog-accordion page should contain {scope}"
+        );
+    }
+    // イシュー #2818 レビュー指摘の是正: 無 JS の docs サイトでは
+    // `item_trigger` の click/Enter/Space が no-op のため、閉じた項目
+    // （`hidden` 属性で本文が到達不能）を残さない。全件を open + disabled
+    // 固定にする（`changelog_accordion.rs` モジュール doc「静的表示」節）。
+    let open_count = html
+        .matches(r#"data-part="item" data-state="open""#)
+        .count();
+    assert!(
+        open_count >= 1,
+        "changelog-accordion should render at least 1 open item"
+    );
+    assert!(
+        !html.contains(r#"data-part="item-content" data-state="closed""#),
+        "changelog-accordion should not render closed (unreachable) item-content"
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "changelog-accordion should never contain {absent}"
+        );
+    }
+}
+
+#[test]
+fn changelog_accordion_item_frame_selector_outweighs_recipe_last_child() {
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    assert!(
+        sheet_css.contains(
+            r#".blocks-changelog-accordion-list [data-scope="accordion"][data-part="item"]:last-child {"#
+        ),
+        "blocks.css should declare a last-child border override at least as specific as \
+         the recipe's own :last-child rule for changelog-accordion"
+    );
+}
+
 /// bento-two-column ページが `blocks-demo` + block 固有 class・両スタイル
 /// シート・カードの配置フック（`data-blocks-bento-two-column-cell`）を
 /// 実際に出力し、`blocks::stylesheet()` にも対応するグリッド配置規則・
