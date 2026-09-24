@@ -645,6 +645,12 @@ Themes セクションは本イシューと同じ「索引ページ本文内の�
 方式であり、本実装はこの Themes 方式を踏襲した（Primitives セクションが
 使う `[[section.group]]` 方式とは異なる）。
 
+**この判断は #2735 で置き換えられた（§19 参照）。** 上記「変更しない」は
+索引ページ本文の生成方式（本節が扱うスコープ）についての判断であり、
+サイドバー自体のグループ化可否は明示的に別イシューへ委ねられていた
+（本節冒頭の記述どおり）。#2735 がその「別イシュー」であり、以後は
+`site/nav.toml` の Blocks セクションが `[[section.group]]` を使う。
+
 ## 18. カテゴリ別モジュール分割（#2734）実装記録
 
 ### 背景
@@ -842,3 +848,130 @@ pub enum LayoutCss {
 dist sanity check `test -f` 対象への 1 行追加（生成物の存在を fail-closed
 に検証する既存契約、削除・弱体化しない）の 2 点で足りる。`CLAUDE.md`・
 `.claude/rules/ci.md` の説明本文（経緯の長文追記）は編集しない。）
+
+## 20. サイドバーのカテゴリ階層化（#2735）実装記録
+
+親トラッキング #2730（目的別パーツ拡充ツリー、約 300 block への拡充計画）
+を前に、`/blocks/` のサイドバー（`crates/docs-site/src/nav.rs::sidebar`）を
+カテゴリ見出し付きへ変更した。§17 まではフラット列挙（索引 1 件 + block
+22 件）のままサイドバーに直接並んでいたが、300 block 規模では目的の
+パーツを探せなくなるため、本イシューで対応した。
+
+### 採用案: `BlockCategory` 単位の `[[section.group]]` 化
+
+- `crates/docs-site/src/nav.rs` は既に Primitives（`PrimitiveCategory` 6
+  グループ）・Themes（カテゴリ 6 グループ）の両セクションで
+  `[[section.group]]`/`<details>`/`<summary>` によるグループ化
+  （イシュー #939/#940）を実装済みであり、これが本リポジトリで唯一実在
+  するサイドバーのグループ化手段だった。`site/nav.toml`・`nav.rs` の
+  パーサ・`sidebar()` の描画ロジックは一切変更せず、Primitives/Themes と
+  同じ構文を Blocks セクションへ追記するだけで実現した。
+- グループの分類元は §17 で追加済みの `BlockCategory`
+  （`crates/docs-site/src/blocks/category.rs`）とし、`category.label()` を
+  そのままグループ `title` に用いた（索引ページの `h3` 見出しと同じ表記で
+  UI の一貫性を保つ）。
+- 索引ページ（`/blocks/`）は他セクションと同様 `[[section.page]]` の
+  直下ページのまま残し（`blocks_index_page_links_to_the_registered_block`
+  が `section.pages` から直接 `/blocks/` を検索する契約を維持するため
+  必須）、それ以外の全 block を `[[section.group]]`/
+  `[[section.group.page]]` へ変換した。
+
+### 不採用案: レジストリからサイドバー用 `Nav` を動的導出する
+
+`blocks::BLOCKS` の `category` を使って、ビルド時に `nav::sidebar()` へ
+渡す `Nav` を都度組み替える（`/blocks/` 索引ページ本文の
+`index_generated_sections` と同型の発想）案も検討したが、不採用とした。
+理由:
+
+1. 本リポジトリのサイドバーグループ化は Primitives/Themes とも nav.toml
+   手書き `[[section.group]]` の一択であり、動的導出は前例がない新規
+   メカニズムになる（`nav.rs` を Blocks 固有ロジックへ結合するか、
+   `build.rs` 側に「サイドバー専用の派生 `Nav`」という新しい概念を導入
+   する必要があり、いずれも既存の実績あるパスより複雑・高リスク）。
+2. §17 末尾が「サイドバー構成は変更しない、変更する場合は別イシューでの
+   判断」と明記しており、その「別イシュー」である本件が同じドキュメント
+   の直前の決定と矛盾する新方式を持ち込むのは一貫性を欠く。
+3. Primitives（75 部品）・Themes（123 部品）は同じ手書き方式で既に本番
+   運用されており、Blocks が目指す規模（当面 22 だが将来 ~300）でも
+   同方式が破綻する理由がない。
+
+### グループの粒度: `BlockCategory`（現在 12 グループ）であって `BlockSection`（4 種）ではない
+
+`BlockSection` は 4 分類のみで、300 block 到達時は 1 グループ平均 75 件と
+なり「探せない」問題が再燃する。`BlockCategory`（実装時点で 22 block が
+12 カテゴリへ分散）は索引ページの `h3` と同じ粒度であり、「カテゴリ見出
+し」という issue タイトルの字面にも忠実なため、グループは `BlockCategory`
+単位とした。
+
+### 2 段ネスト（区分 → カテゴリ）は今回やらない
+
+`nav.rs` の `[[section.group]]` は 1 段ネスト限定
+（`[[section.group.group]]` は未知テーブルとして明示的にエラーになる）
+であり、`BlockSection` を外側の見出しとして併用するには `nav.rs` の中核
+パーサ・`sidebar()` 描画ロジックを拡張する必要がある。Primitives/Themes
+を含む全セクション共通のコードへ手を入れる大きめの変更になるため、本
+イシューのスコープ（「カテゴリ見出し」単数）を超えると判断し見送った。
+ただし `BlockCategory::ALL` の宣言順（区分ごとにまとまっている）でグルー
+プを並べたため、明示的な区分見出しは無くても実質的に区分単位でまとまっ
+た順序になっている。将来カテゴリ数が増えすぎて破綻する場合は改めて評価
+する（新規 Issue の起票はユーザー承認事項のため、本節には観察事項として
+のみ記録する）。
+
+### グループ内のページ順序: 宣言順ではなく `path` の辞書順
+
+`primitives_nav.rs` は「カタログの宣言順」をそのまま nav.toml の並びに
+要求しているが、Blocks の場合は `index_generated_sections`（§17）が既に
+「並列 PR による `BLOCKS` への追記順は安定しないため `path` の辞書順に
+独立させる」と判断している。同じ不安定性は本イシューにも当てはまるため、
+Primitives の慣習をそのまま踏襲せず、グループ内のページは `path` 昇順で
+`site/nav.toml` に記述し、対応するテストもこの順序で比較する（索引ページ
+本文との表示順の一貫性も得られる）。
+
+### 変更ファイル
+
+- `site/nav.toml`: Blocks セクションの `[[section.page]]`（索引を除く
+  22 件）を、1 件以上 block を持つ `BlockCategory` 12 件の
+  `[[section.group]]`/`[[section.group.page]]` へ書き換えた。
+  グループ順序は `BlockCategory::ALL` の宣言順のうち block を持つものの
+  み（Hero → Feature → Cta → Pricing → Testimonial → Footer → Bento →
+  Sidebar → Auth → Dialog → Card → Dashboard）、グループ内は `path` 昇順。
+  Wireframes セクション直前のコメント（旧「Blocks と同じ理由でフラット
+  構成」）も、Blocks が本イシューでグループ化された結果誤りになるため、
+  Wireframes 自身の理由（Phase 進行順管理・49 部品規模ではカテゴリ化の
+  動機がない）へ書き換えた。
+- `crates/docs-site/tests/blocks_nav.rs`:
+  `blocks_section_is_registered_immediately_after_themes` を「索引ページ
+  のみが直下ページ・groups が非空」の検証へ反転し、
+  `primitives_nav.rs` と同型の新規テスト 2 件
+  （`blocks_section_groups_match_registry_category_order` /
+  `blocks_group_pages_match_registry_category_assignments`。後者は宣言順
+  ではなく `path` 昇順で比較する点が Primitives 側と異なる）を追加した。
+- `crates/docs-site/tests/site_build.rs`:
+  `real_site_blocks_sidebar_shows_category_groups` を追加し、実ビルドの
+  `blocks/login-01/index.html`（`BlockCategory::Auth`）のサイドバーが
+  「`docs-nav-group` を含む」「open な `<details>` がちょうど 1 件」
+  「その `<summary>` が `Auth` ラベルを含む」「リンクがすべて `/blocks/`
+  配下」「`<h2>` は 1 件のまま」を満たすことを固定した。
+
+### 変更不要と判断した箇所（確認のみ）
+
+- `crates/docs-site/src/nav.rs`（`sidebar()`/`group_node()` は無改修で
+  流用できた）。
+- `crates/docs-site/src/blocks/mod.rs` / `category.rs`（レジストリ側は
+  無変更）。
+- `crates/docs-site/tests/site_nav.rs`（`.filter().len()`/`.contains()`
+  による件数・集合検証のみで順序非依存のため無改修で PASS した）。
+- `crates/docs-site/tests/nav_group_schema.rs` /
+  `sidebar_group_render.rs`（汎用 fixture ベースのテストで実サイトの
+  nav.toml を読まないため無改修）。
+- `.github/workflows/docs-site.yml` / `.claude/rules/ci.md`（新規ページ・
+  新規 dist 出力パスを追加しないため paths glob・`test -f` 一覧の追随は
+  不要）。
+
+### out-of-scope 観察事項
+
+- 2 段ネスト（区分見出し）は `nav.rs` の 1 段制限のため見送った（上記
+  「2 段ネストは今回やらない」節参照）。
+- ヘッダードロップダウン（`src/nav.rs::header_nav`）の Blocks 項目数が
+  索引 1 件のみに縮小するのは、Primitives/Themes と同型の既知の副作用
+  であり、本イシューでは対処しない。
