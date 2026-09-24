@@ -494,6 +494,14 @@ pub const BLOCK: Block = Block {
 /// `blog_grid_image` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc
 /// 「block 固有 CSS の置き場」節。他 block と同型で [`super::blocks`]
 /// 経由で [`crate::blocks::stylesheet`] へ連結される）。
+///
+/// レビュー指摘対応（PR #3156）: `[data-blocks-blog-grid-image-article]`
+/// は `link_overlay::root` と同一要素に付与されるため、
+/// `link-overlay` レシピの `root` base（`[data-scope="link-overlay"]
+/// [data-part="root"]`、属性セレクタ 2 つ分の詳細度）が持つ
+/// `border-radius: inherit` に対し、単一属性セレクタの `border-radius`
+/// 宣言は詳細度で負けて適用されない。`banner-floating-card` と同型に
+/// 3 属性セレクタへ引き上げて詳細度で上回らせる。
 const LAYOUT_CSS: &str = "\
 .blocks-blog-grid-image {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
 .blocks-blog-grid-image-instance {\n  display: flex;\n  flex-direction: column;\n  gap: 2rem;\n}\n\
@@ -504,7 +512,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-blog-grid-image-grid[data-columns=\"2\"] {\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n}\n\
 @media (max-width: 63.99rem) {\n  .blocks-blog-grid-image-grid {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n}\n\
 @media (max-width: 39.99rem) {\n  .blocks-blog-grid-image-grid,\n  .blocks-blog-grid-image-grid[data-columns=\"2\"] {\n    grid-template-columns: 1fr;\n  }\n}\n\
-[data-blocks-blog-grid-image-article] {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  height: 100%;\n  border-radius: var(--fandhe-radius-lg);\n}\n\
+[data-blocks-blog-grid-image-article] {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  height: 100%;\n}\n\
+[data-scope=\"link-overlay\"][data-part=\"root\"][data-blocks-blog-grid-image-article] {\n  border-radius: var(--fandhe-radius-lg);\n}\n\
 [data-blocks-blog-grid-image-card] {\n  height: 100%;\n  display: flex;\n  flex-direction: column;\n}\n\
 .blocks-blog-grid-image-plain {\n  display: flex;\n  flex-direction: column;\n  gap: 0.75rem;\n}\n\
 .blocks-blog-grid-image-body {\n  display: flex;\n  flex-direction: column;\n  gap: 0.5rem;\n}\n\
