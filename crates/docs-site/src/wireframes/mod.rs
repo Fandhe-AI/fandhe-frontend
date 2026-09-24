@@ -74,6 +74,7 @@ mod icon;
 mod image;
 mod input;
 mod link;
+mod list;
 mod map;
 mod media;
 mod menu;
@@ -93,6 +94,7 @@ mod stack;
 mod stat;
 mod stepper;
 mod switch;
+mod table;
 mod tabs;
 mod tag;
 mod text;
@@ -205,7 +207,9 @@ pub struct Wireframe {
 /// [`card_basic::WIREFRAME`]（イシュー #2658、5 番目の部品。先頭・末尾
 /// スロットは §11.4 の `Option<Node>` 規約へ統一し `avatar` を内蔵しない
 /// 独自設計。`secondary` は `nav_item` の `counter` と同じ
-/// `Option<&str>`）が続いた。
+/// `Option<&str>`）・[`list::WIREFRAME`]（イシュー #2657、6 番目の部品。
+/// `items: Vec<Node>` と `ordered: bool` の 2 引数のみを持ち、マーカー・
+/// 番号は CSS 擬似要素/カウンタのみで描く）が続いた。
 /// Phase 8「Media・データ表示」の最初の部品 [`chart::WIREFRAME`]（イシュー
 /// #2663、値は `&[u8]` で受け取り `props::Orientation` を再利用する）・
 /// 2 番目の部品 [`image::WIREFRAME`]（イシュー #2660、対角のバツ印が
@@ -217,12 +221,15 @@ pub struct Wireframe {
 /// アイコンスロット）・4 番目の部品 [`media::WIREFRAME`]（イシュー #2661、
 /// blocks.pm 上の表示名は Placeholder。`content: Option<Node>` が
 /// `None` のとき `icon::play` へフォールバックする §11.4 からの意図的な
-/// 逸脱。動画か静止画かは bool ではなくスロット差し替えで表す）が続いた。
+/// 逸脱。動画か静止画かは bool ではなくスロット差し替えで表す）・5 番目の
+/// 部品 [`table::WIREFRAME`]（イシュー #2662、`<table>` は使わず
+/// `div`/`span` + CSS grid で表現する、`calendar` と同型の判断。これで
+/// Phase 8「Media・データ表示」が全部品出揃った）が続いた。
 /// Phase 7「Data display」の 7 番目の部品 [`icon::WIREFRAME`]（イシュー
 /// #2652、`glyph: fn(Size) -> Node` を受け取るアイコン単体部品。
 /// `icon::ALL`（SVG ラインアートアイコン基盤、イシュー #2606）全種の一覧
 /// 表示元を §12 D8 のとおり本 showcase が担う）が続いた。
-/// Phase 1・3・4・5・6・7・8 以降（#2608〜#2665）の残りの各部品イシューが
+/// Phase 1・3・4・7 以降（#2608〜#2665）の残りの各部品イシューが
 /// 自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
@@ -266,8 +273,10 @@ pub const WIREFRAMES: &[Wireframe] = &[
     emoji::WIREFRAME,
     stat::WIREFRAME,
     card_basic::WIREFRAME,
+    list::WIREFRAME,
     image::WIREFRAME,
     chart::WIREFRAME,
+    table::WIREFRAME,
     map::WIREFRAME,
     media::WIREFRAME,
     icon::WIREFRAME,

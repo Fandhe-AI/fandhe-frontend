@@ -331,6 +331,13 @@
   4 番目の部品。増減インジケータは `Option<&str>` ではなく `StatDelta`
   〔`menu::MenuItem` と同型の公開構造体〕で表し、向きのある `Up`/`Down` は
   `icon::caret_up`/`icon::caret_down` を再利用する）/
+  `wireframes/card-basic/index.html`（イシュー #2658、Phase 7「Data
+  display」の 5 番目の部品。先頭・末尾スロットは §11.4 の `Option<Node>`
+  規約へ統一し `avatar` を内蔵しない独自設計。`secondary` は `nav_item` の
+  `counter` と同じ `Option<&str>`）/
+  `wireframes/list/index.html`（イシュー #2657、Phase 7「Data display」の
+  6 番目の部品。`items: Vec<Node>` と `ordered: bool` の 2 引数のみを持ち、
+  マーカー・番号は CSS 擬似要素/カウンタのみで描く）/
   `wireframes/chart/index.html`（イシュー #2663、Phase 8「Media・データ
   表示」の最初の部品。棒グラフの配置イメージを `values: &[u8]` から
   組み立て、`props::Orientation` を再利用する）/
@@ -338,10 +345,6 @@
   部品。`content: Option<Node>` が `None` のときバツ印プレース
   ホルダーを描く §11.4 準拠のスロット規約。強調は共通型 `props::Primary`
   を再利用する）/
-  `wireframes/card-basic/index.html`（イシュー #2658、Phase 7「Data
-  display」の 5 番目の部品。先頭・末尾スロットは §11.4 の `Option<Node>`
-  規約へ統一し `avatar` を内蔵しない独自設計。`secondary` は `nav_item` の
-  `counter` と同じ `Option<&str>`）/
   `wireframes/map/index.html`（イシュー #2664、Phase 8 の 3 番目の
   部品。地図タイルの配置イメージを部品ローカル列挙型 `MapZoom` 3 段・
   `Option<Node>` マーカースロットで構成する）/
@@ -349,6 +352,9 @@
   表示」の 4 番目の部品。blocks.pm 上の表示名は Placeholder。
   `content: None` で `icon::play` へフォールバック、16:9 固定、
   `<video>`/`<iframe>` は出力しない）/
+  `wireframes/table/index.html`（イシュー #2662、Phase 8「Media・データ
+  表示」の 5 番目の部品。`<table>` は使わず `div`/`span` + CSS grid で
+  表現する、`calendar` と同型の判断）/
   `wireframes/icon/index.html`（イシュー #2652、Phase 7「Data display」の
   7 番目の部品。`glyph` は `Node` ではなく `fn(Size) -> Node` で受け取り、
   サイズ指定を 1 か所に固定する。`role`/`aria-label` は付けない）

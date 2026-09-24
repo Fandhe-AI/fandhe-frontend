@@ -132,7 +132,11 @@
 //! 再利用する）・5 番目の部品 [`card_basic`]（イシュー #2658、先頭・末尾
 //! スロットは §11.4 の `Option<Node>` 規約へ統一し `avatar` を内蔵しない
 //! 独自設計。`secondary` は [`nav_item`] の `counter` と同じ
-//! `Option<&str>` で表す）が続いた。
+//! `Option<&str>` で表す）・6 番目の部品 [`list`]（イシュー #2657、
+//! 箇条書き/番号付きリストの配置イメージ。`items: Vec<Node>` を項目
+//! ラッパー class で包み、`ordered: bool` は部品固有の修飾 class、
+//! マーカー・番号は CSS 擬似要素/カウンタのみで描く。`<ul>`/`<ol>`/`<li>`
+//! は出力しない）が続いた。
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
 //! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
 //! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
@@ -155,13 +159,18 @@
 //! blocks.pm 上の表示名は Placeholder。`content: Option<Node>` が
 //! `None` のとき [`icon::play`] へフォールバックする §11.4 からの意図的
 //! な逸脱。動画か静止画かは bool ではなくスロット差し替えで表し、枠は
-//! 16:9 固定で `<video>`/`<iframe>` は出力しない）が続いた。Phase 7
-//! 「Data display」の 7 番目の部品 [`icon()`](fn@icon)（イシュー #2652、
-//! アイコン単体を示す部品。`Node` ではなく `fn(Size) -> Node`（[`icon::IconEntry`]
-//! の要素型と同じ関数ポインタ）をコンストラクタ引数として受け取り、サイズ
-//! 指定を 1 か所に固定する。`role`/`aria-label` は付けない。[`icon`](mod@icon)
+//! 16:9 固定で `<video>`/`<iframe>` は出力しない）・5 番目の部品
+//! [`table`]（イシュー #2662、N 列 × M 行のデータ表プレースホルダー。
+//! [`calendar`] と同型の判断で `<table>` を使わず `div`/`span` + CSS
+//! grid で表現し、列数は `headers`/`rows` の形から導く）が続き、
+//! Phase 8「Media・データ表示」（chart/image/map/media/table の 5 部品）
+//! も全部品が出揃った。Phase 7「Data display」の 7 番目の部品
+//! [`icon()`](fn@icon)（イシュー #2652、アイコン単体を示す部品。
+//! `Node` ではなく `fn(Size) -> Node`（[`icon::IconEntry`] の要素型と
+//! 同じ関数ポインタ）をコンストラクタ引数として受け取り、サイズ指定を
+//! 1 か所に固定する。`role`/`aria-label` は付けない。[`icon`](mod@icon)
 //! モジュールへの追記として実装した）が続いた。残りは Phase 7 の
-//! `brand`/`list`・Phase 8 の他部品で順次追加する。
+//! `brand`（8 番目）のみとなった。
 //!
 //! # class 命名規約
 //!
@@ -201,6 +210,7 @@ pub mod icon;
 pub mod image;
 pub mod input;
 pub mod link;
+pub mod list;
 pub mod map;
 pub mod media;
 pub mod menu;
@@ -222,6 +232,7 @@ pub mod stack;
 pub mod stat;
 pub mod stepper;
 pub mod switch;
+pub mod table;
 pub mod tabs;
 pub mod tag;
 pub mod text;
@@ -253,6 +264,7 @@ pub use icon::icon;
 pub use image::image;
 pub use input::input;
 pub use link::link;
+pub use list::list;
 pub use map::{map, MapZoom};
 pub use media::media;
 pub use menu::{menu, MenuItem};
@@ -274,6 +286,7 @@ pub use stack::stack;
 pub use stat::{stat, StatDelta, StatTrend};
 pub use stepper::stepper;
 pub use switch::switch;
+pub use table::{table, MAX_TABLE_COLUMNS, MAX_TABLE_ROWS};
 pub use tabs::tabs;
 pub use tag::tag;
 pub use text::text;

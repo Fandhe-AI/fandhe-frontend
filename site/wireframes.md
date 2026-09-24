@@ -68,15 +68,17 @@
 - [Emoji](./wireframes/emoji.md)
 - [Stat](./wireframes/stat.md)
 - [Card basic](./wireframes/card-basic.md)
+- [List](./wireframes/list.md)
 - [Chart](./wireframes/chart.md)
 - [Image](./wireframes/image.md)
 - [Map](./wireframes/map.md)
 - [Media](./wireframes/media.md)
+- [Table](./wireframes/table.md)
 - [Icon](./wireframes/icon.md)
 
 ## 掲載予定
 
-以下は Phase 1〜8（#2608〜#2665）で順次掲載する 3 部品です（Phase ごとの内訳）。
+以下は Phase 1〜8（#2608〜#2665）で順次掲載する 1 部品です（Phase ごとの内訳）。
 掲載が完了した部品は本節へリンク付きの「掲載済み」一覧として追記されます（現時点では
 未掲載のため本節はリンクなしの一覧です）。
 
@@ -95,8 +97,5 @@
 ### Phase 7: Data display
 
 - brand
-- list
 
 ### Phase 8: Media・データ表示
-
-- table
