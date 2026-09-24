@@ -167,7 +167,7 @@ fn author_row(author_index: usize) -> Node {
 }
 
 /// 記事 1 件分のカードを組み立てる。`framed` が `true` のときカード枠あり
-/// + 16:9 画像（インスタンス A）、`false` のとき枠なし + 正方形画像
+/// かつ 16:9 画像（インスタンス A）、`false` のとき枠なしかつ正方形画像
 /// （インスタンス B）になる。
 fn article_card(article: &Article, framed: bool) -> Node {
     let image_node = if framed {
