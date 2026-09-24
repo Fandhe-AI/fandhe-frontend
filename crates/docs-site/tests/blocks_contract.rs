@@ -2496,6 +2496,56 @@ fn banner_announcement_pill_page_wires_demo_class_and_css_hooks() {
     }
 }
 
+/// `banner-floating-card` の実ビルド出力が Demo class・CSS 配線
+/// （`pre-styled-ui.css`/`blocks.css`）・CSS フック属性・生成 CSS 中の
+/// 対応セレクタを持つことを固定する（`login_04_page_wires_demo_class_and_css_hooks`
+/// と同型、イシュー #2742）。
+#[test]
+fn banner_floating_card_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/banner-floating-card/index.html"))
+        .expect("blocks/banner-floating-card/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-banner-floating-card\""),
+        "banner-floating-card page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "banner-floating-card page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "banner-floating-card page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-banner-floating-card-card=\"\"",
+        "data-blocks-banner-floating-card-close=\"\"",
+        "data-blocks-banner-floating-card-link=\"\"",
+        "data-blocks-banner-floating-card-placement=\"top\"",
+        "data-blocks-banner-floating-card-placement=\"bottom\"",
+        "data-blocks-banner-floating-card-align=\"center\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "banner-floating-card page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-scope=\"callout\"][data-part=\"root\"][data-blocks-banner-floating-card-card]",
+        "[data-blocks-banner-floating-card-close]",
+        "[data-blocks-banner-floating-card-align=\"center\"]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
 /// blog-featured-article ページの Demo クラス・両スタイルシート・
 /// `data-blocks-blog-featured-article-*` CSS フックが実際に出力され、
 /// `blocks::stylesheet()` にも対応するセレクタ・`@media` クエリ・
@@ -2663,6 +2713,35 @@ fn banner_announcement_pill_composes_expected_parts() {
     );
 }
 
+/// `banner-floating-card` の合成部品（callout/link/icon/button）が
+/// 実ビルド HTML へ現れ、`<form>`・`href="#"`・`src="data:` を持ち込まない
+/// ことを固定する（`game_ui_modal_composes_expected_parts` と同型、
+/// イシュー #2742）。
+#[test]
+fn banner_floating_card_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/banner-floating-card/index.html"))
+        .expect("blocks/banner-floating-card/index.html should be generated");
+    for needle in [
+        "data-scope=\"callout\" data-part=\"root\"",
+        "data-scope=\"callout\" data-part=\"icon\"",
+        "data-scope=\"callout\" data-part=\"text\"",
+        "data-scope=\"link\" data-part=\"root\"",
+        "data-scope=\"button\"",
+    ] {
+        assert!(
+            html.contains(needle),
+            "banner-floating-card page should contain {needle}"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "banner-floating-card should never contain {absent}"
+        );
+    }
+}
+
 /// blog-featured-article の合成部品（heading/text/badge/card/image/avatar/
 /// link）が期待どおりの構成で実際に出力されていること（基本形 +
 /// バリエーションの 2 インスタンス併記で特集記事カードが 2 件・下段
@@ -2742,6 +2821,586 @@ fn blog_featured_with_list_composes_expected_parts() {
         assert!(
             !html.contains(absent),
             "blog-featured-with-list should never contain {absent}"
+        );
+    }
+}
+
+/// `bento-asymmetric-rows`（イシュー #2745/#2746）の CSS フック配線検証。
+/// `bento_staggered_page_wires_demo_class_and_css_hooks` と同型
+/// （`crate::blocks` モジュール doc「CSS フックが `class` と `[data-*]` で
+/// 混在する理由」節参照）。#2746 で 6 列/3 列の 2 列モード・`half` 幅区分
+/// が追加されたため、対応する CSS フックの存在確認を追加した。
+#[test]
+fn bento_asymmetric_rows_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/bento-asymmetric-rows/index.html"))
+        .expect("blocks/bento-asymmetric-rows/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-bento-asymmetric-rows\""),
+        "bento-asymmetric-rows page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "bento-asymmetric-rows page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "bento-asymmetric-rows page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-bento-asymmetric-rows-cell=\"wide\"",
+        "data-blocks-bento-asymmetric-rows-cell=\"narrow\"",
+        "data-blocks-bento-asymmetric-rows-cell=\"half\"",
+        "data-blocks-bento-asymmetric-rows-columns=\"three\"",
+        "data-blocks-bento-asymmetric-rows-eyebrow=\"\"",
+        "data-blocks-bento-asymmetric-rows-caption=\"\"",
+        "data-blocks-bento-asymmetric-rows-feature=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "bento-asymmetric-rows page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        ".blocks-bento-asymmetric-rows-grid",
+        "[data-blocks-bento-asymmetric-rows-cell=\"wide\"]",
+        "@media (min-width: 48rem)",
+        "@media (min-width: 64rem)",
+        "grid-column: span 4",
+        "grid-column: span 3",
+        "repeat(3, minmax(0, 1fr))",
+        "repeat(4, minmax(0, 1fr))",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare {needle} for bento-asymmetric-rows"
+        );
+    }
+}
+
+/// bento-asymmetric-rows の合成部品（badge/heading/text/card/image/icon）が
+/// 期待どおりの構成で実際に出力されていること、4 バリエーション合計
+/// 17 セル（イシュー #2746 で残りのバリエーションを追加）が出力される
+/// こと、`<form>`/死リンク/`data:` URI を持ち込んでいないことを固定する
+/// （イシュー #2745/#2746）。
+#[test]
+fn bento_asymmetric_rows_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/bento-asymmetric-rows/index.html"))
+        .expect("blocks/bento-asymmetric-rows/index.html should be generated");
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"card\"",
+        "data-scope=\"image\"",
+        "data-scope=\"icon\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "bento-asymmetric-rows page should contain {scope}"
+        );
+    }
+    // 4 バリエーション合計セル数（基準形 4 + 分割形 5 + ジグザグ形 4 +
+    // 混在形 4 = 17）。バリエーションごとの内訳・対応表 ID はモジュール
+    // doc「4 バリエーションと対応表 ID の対応」節参照。
+    assert_eq!(
+        html.matches("data-blocks-bento-asymmetric-rows-cell=\"")
+            .count(),
+        17,
+        "bento-asymmetric-rows should render exactly 17 cells across its 4 variants"
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "bento-asymmetric-rows should never contain {absent}"
+        );
+    }
+}
+
+/// `blog-list-image`（イシュー #2812）の CSS フック配線検証。
+/// `blog_featured_with_list_page_wires_demo_class_and_css_hooks` と同型。
+#[test]
+fn blog_list_image_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-list-image/index.html"))
+        .expect("blocks/blog-list-image/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-blog-list-image\""),
+        "blog-list-image page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "blog-list-image page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "blog-list-image page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-blog-list-image-image=\"\"",
+        "data-blocks-blog-list-image-main=\"\"",
+        "data-blocks-blog-list-image-category=\"\"",
+        "data-blocks-blog-list-image-separator=\"\"",
+        "data-blocks-blog-list-image-author=\"\"",
+        "data-blocks-blog-list-image-author-link=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "blog-list-image page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-blog-list-image-image]",
+        "[data-blocks-blog-list-image-main]",
+        "[data-blocks-blog-list-image-separator]",
+        "[data-blocks-blog-list-image-author]",
+        "[data-blocks-blog-list-image-author-link]",
+        ".blocks-blog-list-image-list",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// blog-list-image の合成部品（heading/text/badge/image/avatar/separator/
+/// link/link-overlay）が期待どおりの構成で実際に出力されていること
+/// （記事 3 件・外部リンクのみ）、`<form>`・`href="#"`・`src="data:` を
+/// 持ち込んでいないことを固定する（イシュー #2812）。
+#[test]
+fn blog_list_image_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-list-image/index.html"))
+        .expect("blocks/blog-list-image/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"image\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"separator\"",
+        "data-scope=\"link\"",
+        "data-scope=\"link-overlay\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "blog-list-image page should contain {scope}"
+        );
+    }
+    // ページ本文全体を包む `article.docs-content`（`crate::layout`）が別に
+    // 1 件存在するため、`<article` の総数ではなく block 固有 class を数える。
+    assert_eq!(
+        html.matches("class=\"blocks-blog-list-image-article\"")
+            .count(),
+        3,
+        "blog-list-image should render exactly 3 article instances"
+    );
+    assert!(
+        html.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend\""),
+        "blog-list-image should link to the fixed repository URL"
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "blog-list-image should never contain {absent}"
+        );
+    }
+}
+
+#[test]
+fn blog_split_header_grid_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-split-header-grid/index.html"))
+        .expect("blocks/blog-split-header-grid/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-blog-split-header-grid\""),
+        "blog-split-header-grid page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "blog-split-header-grid page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "blog-split-header-grid page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-blog-split-header-grid-tagline=\"\"",
+        "data-blocks-blog-split-header-grid-heading=\"\"",
+        "data-blocks-blog-split-header-grid-view-all=\"\"",
+        "data-blocks-blog-split-header-grid-card=\"\"",
+        "data-blocks-blog-split-header-grid-image=\"\"",
+        "data-blocks-blog-split-header-grid-category=\"\"",
+        "data-blocks-blog-split-header-grid-title-link=\"\"",
+        "data-blocks-blog-split-header-grid-author=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "blog-split-header-grid page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        ".blocks-blog-split-header-grid-layout",
+        ".blocks-blog-split-header-grid-lead",
+        ".blocks-blog-split-header-grid-grid",
+        "[data-blocks-blog-split-header-grid-card]",
+        "[data-blocks-blog-split-header-grid-image]",
+        "[data-blocks-blog-split-header-grid-title-link]",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks::stylesheet should declare {selector}"
+        );
+    }
+}
+
+#[test]
+fn blog_split_header_grid_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-split-header-grid/index.html"))
+        .expect("blocks/blog-split-header-grid/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"card\"",
+        "data-scope=\"image\"",
+        "data-scope=\"link\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "blog-split-header-grid page should contain {scope}"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "blog-split-header-grid should never contain {absent}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-blog-split-header-grid-card=\"\"")
+            .count(),
+        4,
+        "blog-split-header-grid should render exactly 4 article cards"
+    );
+    // 「すべての記事を見る」は codex レビュー是正（イシュー #2814
+    // PR #3165）で dead button から実際に遷移する link へ置き換えた。
+    // ページ全体にはヘッダーの GitHub リンク等 block 外にも REPO への
+    // href が存在する（`docs-github-link`）ため、全体の href 出現数では
+    // 断定せず、view-all の CSS フック属性を持つ要素そのものの開始タグに
+    // REPO への href が含まれることを確認する。
+    let view_all_tag_start = html
+        .find("data-blocks-blog-split-header-grid-view-all=\"\"")
+        .and_then(|hook_pos| html[..hook_pos].rfind('<'))
+        .expect("blog-split-header-grid should render the view-all element");
+    let view_all_tag_end = html[view_all_tag_start..]
+        .find('>')
+        .map(|offset| view_all_tag_start + offset)
+        .expect("view-all element's opening tag should be well-formed");
+    let view_all_tag = &html[view_all_tag_start..view_all_tag_end];
+    assert!(
+        view_all_tag.starts_with("<a "),
+        "blog-split-header-grid's view-all control should be a real <a> link, not a dead button: {view_all_tag}"
+    );
+    assert!(
+        view_all_tag.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend\""),
+        "blog-split-header-grid's view-all link should point at the fixed repository URL: {view_all_tag}"
+    );
+    assert_eq!(
+        html.matches("data-blocks-blog-split-header-grid-title-link=\"\"")
+            .count(),
+        4,
+        "blog-split-header-grid should render exactly 4 article title links"
+    );
+}
+
+/// bento-three-column-tall ページが `blocks-demo` + block 固有 class・両
+/// スタイルシート・各セルの配置フック（`data-blocks-bento-three-column-
+/// tall-cell`）を実際に出力し、`blocks::stylesheet()` にも対応するグリッド
+/// 配置規則・ブレークポイント条件が存在することを固定する（イシュー
+/// #2748/#2749）。
+#[test]
+fn bento_three_column_tall_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/bento-three-column-tall/index.html"))
+        .expect("blocks/bento-three-column-tall/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-bento-three-column-tall\""),
+        "bento-three-column-tall page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "bento-three-column-tall page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "bento-three-column-tall page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-bento-three-column-tall-cell=\"start\"",
+        "data-blocks-bento-three-column-tall-cell=\"center-top\"",
+        "data-blocks-bento-three-column-tall-cell=\"center-bottom\"",
+        "data-blocks-bento-three-column-tall-cell=\"end\"",
+        "data-blocks-bento-three-column-tall-cell=\"end-top\"",
+        "data-blocks-bento-three-column-tall-cell=\"end-bottom\"",
+        "data-blocks-bento-three-column-tall-media=\"terminal\"",
+        "data-blocks-bento-three-column-tall-media=\"code\"",
+        "data-blocks-bento-three-column-tall-variant=\"both-tall\"",
+        "data-blocks-bento-three-column-tall-variant=\"start-tall\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "bento-three-column-tall page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-bento-three-column-tall-cell",
+        "[data-blocks-bento-three-column-tall-media",
+        ".blocks-bento-three-column-tall-grid",
+        ".blocks-bento-three-column-tall-header",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// bento-three-column-tall の合成部品（badge/heading/text/button/card/
+/// image/code）が期待どおりの構成（カード 9 枚・CTA ボタン 1 個）で実際に
+/// 出力されていること、`<form>`・`data:` URI・`href="#"` を持ち込んで
+/// いないことを固定する（イシュー #2748/#2749）。
+#[test]
+fn bento_three_column_tall_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/bento-three-column-tall/index.html"))
+        .expect("blocks/bento-three-column-tall/index.html should be generated");
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"button\"",
+        "data-scope=\"card\" data-part=\"root\"",
+        "data-scope=\"image\"",
+        "data-scope=\"code\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "bento-three-column-tall page should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-scope=\"card\" data-part=\"root\"")
+            .count(),
+        9,
+        "bento-three-column-tall should render exactly 9 cards (4 + 5)"
+    );
+    assert!(
+        html.contains("type=\"button\""),
+        "bento-three-column-tall should render a CTA button"
+    );
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "bento-three-column-tall should never contain {absent}"
+        );
+    }
+}
+
+#[test]
+fn changelog_accordion_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/changelog-accordion/index.html"))
+        .expect("blocks/changelog-accordion/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-changelog-accordion\""),
+        "changelog-accordion page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "changelog-accordion page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "changelog-accordion page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-changelog-accordion-root=\"\"",
+        "data-blocks-changelog-accordion-tag=\"\"",
+        "data-blocks-changelog-accordion-image=\"\"",
+        "data-blocks-changelog-accordion-changes=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "changelog-accordion page should contain {hook}"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    assert!(
+        sheet_css.contains(
+            r#".blocks-changelog-accordion-list [data-scope="accordion"][data-part="item"] {"#
+        ),
+        "blocks.css should declare the per-item frame override for changelog-accordion"
+    );
+}
+
+#[test]
+fn changelog_accordion_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/changelog-accordion/index.html"))
+        .expect("blocks/changelog-accordion/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"accordion\"",
+        "data-scope=\"list\"",
+        "data-scope=\"image\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "changelog-accordion page should contain {scope}"
+        );
+    }
+    // イシュー #2818 レビュー指摘の是正: 無 JS の docs サイトでは
+    // `item_trigger` の click/Enter/Space が no-op のため、閉じた項目
+    // （`hidden` 属性で本文が到達不能）を残さない。全件を open + disabled
+    // 固定にする（`changelog_accordion.rs` モジュール doc「静的表示」節）。
+    let open_count = html
+        .matches(r#"data-part="item" data-state="open""#)
+        .count();
+    assert!(
+        open_count >= 1,
+        "changelog-accordion should render at least 1 open item"
+    );
+    assert!(
+        !html.contains(r#"data-part="item-content" data-state="closed""#),
+        "changelog-accordion should not render closed (unreachable) item-content"
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "changelog-accordion should never contain {absent}"
+        );
+    }
+}
+
+#[test]
+fn changelog_accordion_item_frame_selector_outweighs_recipe_last_child() {
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    assert!(
+        sheet_css.contains(
+            r#".blocks-changelog-accordion-list [data-scope="accordion"][data-part="item"]:last-child {"#
+        ),
+        "blocks.css should declare a last-child border override at least as specific as \
+         the recipe's own :last-child rule for changelog-accordion"
+    );
+}
+
+/// bento-two-column ページが `blocks-demo` + block 固有 class・両スタイル
+/// シート・カードの配置フック（`data-blocks-bento-two-column-cell`）を
+/// 実際に出力し、`blocks::stylesheet()` にも対応するグリッド配置規則・
+/// ブレークポイント条件が存在することを固定する（イシュー #2750）。
+#[test]
+fn bento_two_column_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/bento-two-column/index.html"))
+        .expect("blocks/bento-two-column/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-bento-two-column\""),
+        "bento-two-column page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "bento-two-column page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "bento-two-column page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-bento-two-column-cell=\"featured\"",
+        "data-blocks-bento-two-column-cell=\"base\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "bento-two-column page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-bento-two-column-cell",
+        ".blocks-bento-two-column-grid",
+        "@media (min-width: 48rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// bento-two-column の合成部品（badge/heading/text/card/image）が期待どおり
+/// の構成（カード 7 枚: 基準形 4 枚 + 全幅形 3 枚）で実際に出力されている
+/// こと、`<form>`・`data:` URI・`href="#"` を持ち込んでいないことを固定
+/// する（イシュー #2750）。
+#[test]
+fn bento_two_column_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/bento-two-column/index.html"))
+        .expect("blocks/bento-two-column/index.html should be generated");
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"card\" data-part=\"root\"",
+        "data-scope=\"image\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "bento-two-column page should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-scope=\"card\" data-part=\"root\"")
+            .count(),
+        7,
+        "bento-two-column should render exactly 7 cards"
+    );
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "bento-two-column should never contain {absent}"
         );
     }
 }
