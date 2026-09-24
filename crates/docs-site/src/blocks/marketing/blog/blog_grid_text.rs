@@ -98,12 +98,20 @@
 //!
 //! `crate::blocks` モジュール doc「`<form>` を使わない」節・「セキュリティ
 //! 不変条件」節に従い、本 Demo はフォーム・状態機械を持たない静的な合成例
-//! である。文言・人名はすべて架空のもの（実企業名・実クレデンシャル・PII
-//! を含まない）。著者名・役職・アバター画像は
-//! `crate::blocks::dummy_assets`（イシュー #2737、Blocks 共通のデモ用
-//! ダミー素材ヘルパ）から取得する。
+//! である。文言・人名はすべて架空のもので `Post` 構造体の `&'static str`
+//! フィールドとして直接持つ（実企業名・実クレデンシャル・PII を含まない）。
+//!
+//! # `crate::blocks::dummy_assets` を使わない理由（コードフェンス自己完結）
+//!
+//! `crate::blocks::dummy_assets` は `pub(crate)` のため、Markdown 原稿の
+//! Rust コードフェンス（`// blocks-code:begin`/`:end` マーカー内、クレート
+//! 外から読めるコード例として提示される）がこれを参照すると単体では
+//! コンパイルできなくなる（イシュー #2811 のレビュー指摘）。
+//! [`super::blog_featured_with_list`] が同じ理由で `dummy_assets` を
+//! 避けているのと同じ判断軸により、著者名・役職・イニシャルは `Post` へ
+//! 直接持たせるリテラルとし、アバターは `avatar::fallback` のイニシャル
+//! 表示（`ImageStatus::Error`）のみを使う（画像アセットへ依存しない）。
 
-use crate::blocks::dummy_assets::{AVATAR_SRC, JOB_TITLES, PERSON_NAMES};
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
@@ -120,15 +128,20 @@ use fandhe_frontend_pre_styled_ui::Size;
 /// リンク先の固定外部 URL（モジュール doc「`href="#"` を使わない」節参照）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
-/// 記事 1 件分のダミーデータ（架空、実在の人物・企業とは無関係）。
+/// 記事 1 件分のダミーデータ（架空、実在の人物・企業とは無関係）。著者
+/// 情報は `crate::blocks::dummy_assets`（`pub(crate)`）を参照せず、
+/// Markdown 原稿のコードフェンスが単体でコンパイルできるようリテラルで
+/// 直接持つ（モジュール doc「`crate::blocks::dummy_assets` を使わない
+/// 理由」節参照）。
 struct Post {
     date_iso: &'static str,
     date_label: &'static str,
     category: &'static str,
     title: &'static str,
     excerpt: &'static str,
-    /// [`PERSON_NAMES`]/[`JOB_TITLES`] への添字。
-    author: usize,
+    author_name: &'static str,
+    author_role: &'static str,
+    author_initials: &'static str,
 }
 
 /// インスタンス A（左寄せ見出し・上罫線あり）用の記事 3 件（架空）。
@@ -139,7 +152,9 @@ const INSTANCE_A: [Post; 3] = [
         category: "アーキテクチャ",
         title: "ノード木 API だけで組み立てる合成例の作り方",
         excerpt: "HTML 文字列を直接組み立てず、既存部品を合成するときに気を付けている判断軸を振り返ります。",
-        author: 0,
+        author_name: "高橋 美咲",
+        author_role: "フロントエンドエンジニア",
+        author_initials: "MT",
     },
     Post {
         date_iso: "2026-09-11",
@@ -147,7 +162,9 @@ const INSTANCE_A: [Post; 3] = [
         category: "セキュリティ",
         title: "既定エスケープだけで守れる範囲を広げる",
         excerpt: "テキスト補間を必ずエスケープ経由にする設計判断が、レビューの負荷をどう下げたかをまとめました。",
-        author: 1,
+        author_name: "中村 悠斗",
+        author_role: "セキュリティエンジニア",
+        author_initials: "YN",
     },
     Post {
         date_iso: "2026-09-04",
@@ -155,7 +172,9 @@ const INSTANCE_A: [Post; 3] = [
         category: "配布",
         title: "単一バイナリ配布までの最短ルート",
         excerpt: "SSR から単一実行ファイルへ至る構成を、最小手順で振り返ります。",
-        author: 2,
+        author_name: "小林 彩花",
+        author_role: "SRE",
+        author_initials: "AK",
     },
 ];
 
@@ -168,7 +187,9 @@ const INSTANCE_B: [Post; 3] = [
         category: "テスト",
         title: "XSS 回帰テストを削除せずに保つための工夫",
         excerpt: "SSR/SSG/CSR/WASM の各経路で回帰テストを弱体化させない運用について書きました。",
-        author: 3,
+        author_name: "山本 拓海",
+        author_role: "QA エンジニア",
+        author_initials: "TY",
     },
     Post {
         date_iso: "2026-08-21",
@@ -176,7 +197,9 @@ const INSTANCE_B: [Post; 3] = [
         category: "CI",
         title: "壁時計時間を優先した CI 並列化の考え方",
         excerpt: "資源の無駄を許容してでも所要時間を優先するときの判断基準を整理します。",
-        author: 4,
+        author_name: "渡辺 さくら",
+        author_role: "CI/CD エンジニア",
+        author_initials: "SW",
     },
     Post {
         date_iso: "2026-08-14",
@@ -184,7 +207,9 @@ const INSTANCE_B: [Post; 3] = [
         category: "設計",
         title: "依存グラフの上限を機械で守る",
         excerpt: "60 件・深さ 6 という上限を、レビューではなく機械検証で保つ仕組みを紹介します。",
-        author: 5,
+        author_name: "佐々木 陸",
+        author_role: "アーキテクト",
+        author_initials: "RS",
     },
 ];
 
@@ -216,12 +241,12 @@ fn post_meta(post: &Post) -> Node {
     )
 }
 
-/// 著者リンク（アバター画像 + 氏名・役職）。`overlay` の外へ兄弟として
-/// 置くことでクリック可能なまま保つ（モジュール doc「カード全面リンクと
-/// 著者リンクを両立する 2 段構成」節参照）。
-fn author(index: usize) -> Node {
-    let name = PERSON_NAMES[index % PERSON_NAMES.len()];
-    let role = JOB_TITLES[index % JOB_TITLES.len()];
+/// 著者リンク（アバターのイニシャル fallback + 氏名・役職）。`overlay`
+/// の外へ兄弟として置くことでクリック可能なまま保つ（モジュール doc
+/// 「カード全面リンクと著者リンクを両立する 2 段構成」節参照）。画像
+/// アセットへは依存しない（モジュール doc「`crate::blocks::dummy_assets`
+/// を使わない理由」節参照）。
+fn author(name: &str, role: &str, initials: &str) -> Node {
     link::root(
         REPO,
         &LinkProps::default(),
@@ -233,7 +258,11 @@ fn author(index: usize) -> Node {
                     ..AvatarProps::default()
                 },
                 vec![],
-                vec![avatar::image(ImageStatus::Loaded, AVATAR_SRC, "", vec![])],
+                vec![avatar::fallback(
+                    ImageStatus::Error,
+                    vec![],
+                    vec![text(initials)],
+                )],
             ),
             div(
                 vec![("class", "blocks-blog-grid-text-author-info")],
@@ -258,30 +287,33 @@ fn article_card(post: &Post) -> Node {
     card::root(
         CardProps::default(),
         vec![("data-blocks-blog-grid-text-card", "")],
-        vec![
-            link_overlay::root(
-                vec![("data-blocks-blog-grid-text-article", "")],
-                vec![
-                    post_meta(post),
-                    heading(
-                        HeadingLevel::H4,
-                        &HeadingProps::default(),
-                        vec![],
-                        vec![text(post.title)],
-                    ),
-                    styled_text::text(
-                        &TextProps {
-                            variant: TextVariant::Muted,
-                            ..TextProps::default()
-                        },
-                        vec![("data-blocks-blog-grid-text-excerpt", "")],
-                        vec![text(post.excerpt)],
-                    ),
-                    overlay(REPO, vec![("aria-label", post.title)], vec![]),
-                ],
-            ),
-            author(post.author),
-        ],
+        vec![card::body(
+            vec![],
+            vec![
+                link_overlay::root(
+                    vec![("data-blocks-blog-grid-text-article", "")],
+                    vec![
+                        post_meta(post),
+                        heading(
+                            HeadingLevel::H4,
+                            &HeadingProps::default(),
+                            vec![],
+                            vec![text(post.title)],
+                        ),
+                        styled_text::text(
+                            &TextProps {
+                                variant: TextVariant::Muted,
+                                ..TextProps::default()
+                            },
+                            vec![("data-blocks-blog-grid-text-excerpt", "")],
+                            vec![text(post.excerpt)],
+                        ),
+                        overlay(REPO, vec![("aria-label", post.title)], vec![]),
+                    ],
+                ),
+                author(post.author_name, post.author_role, post.author_initials),
+            ],
+        )],
     )
 }
 

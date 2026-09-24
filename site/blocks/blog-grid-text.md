@@ -13,8 +13,8 @@ md（48rem）以上で 2 列、lg（64rem）以上で 3 列に切り替わりま
 見出しの揃え（左寄せ/中央）と上罫線の有無という 2 つのバリエーションを、
 キャプション付きの 2 インスタンス併記で示しています。文言・数値・人名は
 すべて架空のもので、データ取得・送信は行わない静的な表示例です。リンク先は
-すべてリポジトリへの固定リンクです。`<form>` は使用しません。著者名・役職・
-アバター画像は Blocks 共通のデモ用ダミー素材ヘルパを参照しています。
+すべてリポジトリへの固定リンクです。`<form>` は使用しません。著者名・役職は
+コード内のリテラルとして直接持ち、アバターはイニシャル表示（fallback）です。
 
 主参照は対応表 ID R0772 で、R0016 / R0417 / R0775 を構造として集約
 しています。
@@ -35,15 +35,20 @@ use fandhe_frontend_pre_styled_ui::Size;
 /// リンク先の固定外部 URL（モジュール doc「`href="#"` を使わない」節参照）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
-/// 記事 1 件分のダミーデータ（架空、実在の人物・企業とは無関係）。
+/// 記事 1 件分のダミーデータ（架空、実在の人物・企業とは無関係）。著者
+/// 情報は `crate::blocks::dummy_assets`（`pub(crate)`）を参照せず、
+/// Markdown 原稿のコードフェンスが単体でコンパイルできるようリテラルで
+/// 直接持つ（モジュール doc「`crate::blocks::dummy_assets` を使わない
+/// 理由」節参照）。
 struct Post {
     date_iso: &'static str,
     date_label: &'static str,
     category: &'static str,
     title: &'static str,
     excerpt: &'static str,
-    /// [`PERSON_NAMES`]/[`JOB_TITLES`] への添字。
-    author: usize,
+    author_name: &'static str,
+    author_role: &'static str,
+    author_initials: &'static str,
 }
 
 /// インスタンス A（左寄せ見出し・上罫線あり）用の記事 3 件（架空）。
@@ -54,7 +59,9 @@ const INSTANCE_A: [Post; 3] = [
         category: "アーキテクチャ",
         title: "ノード木 API だけで組み立てる合成例の作り方",
         excerpt: "HTML 文字列を直接組み立てず、既存部品を合成するときに気を付けている判断軸を振り返ります。",
-        author: 0,
+        author_name: "高橋 美咲",
+        author_role: "フロントエンドエンジニア",
+        author_initials: "MT",
     },
     Post {
         date_iso: "2026-09-11",
@@ -62,7 +69,9 @@ const INSTANCE_A: [Post; 3] = [
         category: "セキュリティ",
         title: "既定エスケープだけで守れる範囲を広げる",
         excerpt: "テキスト補間を必ずエスケープ経由にする設計判断が、レビューの負荷をどう下げたかをまとめました。",
-        author: 1,
+        author_name: "中村 悠斗",
+        author_role: "セキュリティエンジニア",
+        author_initials: "YN",
     },
     Post {
         date_iso: "2026-09-04",
@@ -70,7 +79,9 @@ const INSTANCE_A: [Post; 3] = [
         category: "配布",
         title: "単一バイナリ配布までの最短ルート",
         excerpt: "SSR から単一実行ファイルへ至る構成を、最小手順で振り返ります。",
-        author: 2,
+        author_name: "小林 彩花",
+        author_role: "SRE",
+        author_initials: "AK",
     },
 ];
 
@@ -83,7 +94,9 @@ const INSTANCE_B: [Post; 3] = [
         category: "テスト",
         title: "XSS 回帰テストを削除せずに保つための工夫",
         excerpt: "SSR/SSG/CSR/WASM の各経路で回帰テストを弱体化させない運用について書きました。",
-        author: 3,
+        author_name: "山本 拓海",
+        author_role: "QA エンジニア",
+        author_initials: "TY",
     },
     Post {
         date_iso: "2026-08-21",
@@ -91,7 +104,9 @@ const INSTANCE_B: [Post; 3] = [
         category: "CI",
         title: "壁時計時間を優先した CI 並列化の考え方",
         excerpt: "資源の無駄を許容してでも所要時間を優先するときの判断基準を整理します。",
-        author: 4,
+        author_name: "渡辺 さくら",
+        author_role: "CI/CD エンジニア",
+        author_initials: "SW",
     },
     Post {
         date_iso: "2026-08-14",
@@ -99,7 +114,9 @@ const INSTANCE_B: [Post; 3] = [
         category: "設計",
         title: "依存グラフの上限を機械で守る",
         excerpt: "60 件・深さ 6 という上限を、レビューではなく機械検証で保つ仕組みを紹介します。",
-        author: 5,
+        author_name: "佐々木 陸",
+        author_role: "アーキテクト",
+        author_initials: "RS",
     },
 ];
 
@@ -131,12 +148,12 @@ fn post_meta(post: &Post) -> Node {
     )
 }
 
-/// 著者リンク（アバター画像 + 氏名・役職）。`overlay` の外へ兄弟として
-/// 置くことでクリック可能なまま保つ（モジュール doc「カード全面リンクと
-/// 著者リンクを両立する 2 段構成」節参照）。
-fn author(index: usize) -> Node {
-    let name = PERSON_NAMES[index % PERSON_NAMES.len()];
-    let role = JOB_TITLES[index % JOB_TITLES.len()];
+/// 著者リンク（アバターのイニシャル fallback + 氏名・役職）。`overlay`
+/// の外へ兄弟として置くことでクリック可能なまま保つ（モジュール doc
+/// 「カード全面リンクと著者リンクを両立する 2 段構成」節参照）。画像
+/// アセットへは依存しない（モジュール doc「`crate::blocks::dummy_assets`
+/// を使わない理由」節参照）。
+fn author(name: &str, role: &str, initials: &str) -> Node {
     link::root(
         REPO,
         &LinkProps::default(),
@@ -148,7 +165,11 @@ fn author(index: usize) -> Node {
                     ..AvatarProps::default()
                 },
                 vec![],
-                vec![avatar::image(ImageStatus::Loaded, AVATAR_SRC, "", vec![])],
+                vec![avatar::fallback(
+                    ImageStatus::Error,
+                    vec![],
+                    vec![text(initials)],
+                )],
             ),
             div(
                 vec![("class", "blocks-blog-grid-text-author-info")],
@@ -173,30 +194,33 @@ fn article_card(post: &Post) -> Node {
     card::root(
         CardProps::default(),
         vec![("data-blocks-blog-grid-text-card", "")],
-        vec![
-            link_overlay::root(
-                vec![("data-blocks-blog-grid-text-article", "")],
-                vec![
-                    post_meta(post),
-                    heading(
-                        HeadingLevel::H4,
-                        &HeadingProps::default(),
-                        vec![],
-                        vec![text(post.title)],
-                    ),
-                    styled_text::text(
-                        &TextProps {
-                            variant: TextVariant::Muted,
-                            ..TextProps::default()
-                        },
-                        vec![("data-blocks-blog-grid-text-excerpt", "")],
-                        vec![text(post.excerpt)],
-                    ),
-                    overlay(REPO, vec![("aria-label", post.title)], vec![]),
-                ],
-            ),
-            author(post.author),
-        ],
+        vec![card::body(
+            vec![],
+            vec![
+                link_overlay::root(
+                    vec![("data-blocks-blog-grid-text-article", "")],
+                    vec![
+                        post_meta(post),
+                        heading(
+                            HeadingLevel::H4,
+                            &HeadingProps::default(),
+                            vec![],
+                            vec![text(post.title)],
+                        ),
+                        styled_text::text(
+                            &TextProps {
+                                variant: TextVariant::Muted,
+                                ..TextProps::default()
+                            },
+                            vec![("data-blocks-blog-grid-text-excerpt", "")],
+                            vec![text(post.excerpt)],
+                        ),
+                        overlay(REPO, vec![("aria-label", post.title)], vec![]),
+                    ],
+                ),
+                author(post.author_name, post.author_role, post.author_initials),
+            ],
+        )],
     )
 }
 
@@ -302,8 +326,9 @@ pub fn demo() -> Node {
   幅でグリッドが 1 列へ折り返すレスポンシブ挙動として集約しました。
 - R0016 の簡素な導入は、中央揃え・上罫線なしのインスタンスとして表現
   しました。
-- R0417 の著者アバターは、Blocks 共通のダミー素材ヘルパの画像と、氏名・
-  役職の 2 行で表現しました。
+- R0417 の著者アバターは、`crate::blocks::dummy_assets`（`pub(crate)`）に
+  依存すると Markdown 原稿のコードフェンスが単体でコンパイルできなくなる
+  ため、イニシャル表示（fallback）と氏名・役職の 2 行で表現しました。
 - 見出しレベルは `h2` から `h3`（セクション見出し）・`h4`（記事タイトル）
   へ下げました（ページ側が `## Demo` として `h2` を出すため）。
 - `href="#"` の死リンクは、すべてリポジトリへの固定外部 URL に置き換え
