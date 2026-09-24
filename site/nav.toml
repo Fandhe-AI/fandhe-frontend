@@ -1375,6 +1375,14 @@ source = "site/blocks/bento-two-column.md"
 path = "/blocks/bento-two-column/"
 
 [[section.group]]
+title = "Comparison"
+
+[[section.group.page]]
+title = "comparison-cards"
+source = "site/blocks/comparison-cards.md"
+path = "/blocks/comparison-cards/"
+
+[[section.group]]
 title = "Careers"
 
 [[section.group.page]]

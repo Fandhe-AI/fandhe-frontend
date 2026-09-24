@@ -3767,3 +3767,78 @@ fn content_columns_screenshot_composes_expected_parts() {
         );
     }
 }
+
+/// comparison-cards の Demo ラッパ・CSS 配線・block 固有 CSS（列数
+/// フックのブレークポイント・highlight 枠・row の border-top）が実際に
+/// 出力されていることを固定する（イシュー #2822）。
+#[test]
+fn comparison_cards_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/comparison-cards/index.html"))
+        .expect("blocks/comparison-cards/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-comparison-cards\""),
+        "comparison-cards page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "comparison-cards page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "comparison-cards page should link the Blocks-specific stylesheet"
+    );
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "@media (min-width: 48rem)",
+        "@media (min-width: 64rem)",
+        "[data-scope=\"card\"][data-part=\"root\"][data-blocks-comparison-cards-card=\"highlight\"]",
+        ".blocks-comparison-cards-row {",
+        "border-top: 1px solid var(--fandhe-color-border);",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// comparison-cards の合成部品（heading/text/badge/card/list/icon）が
+/// 期待どおりの構成で実際に出力されていること、可否アイコンが
+/// アクセシブルな代替テキストを持ち `<form>`/`data:` URI を持ち込んで
+/// いないことを固定する（イシュー #2822）。
+#[test]
+fn comparison_cards_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/comparison-cards/index.html"))
+        .expect("blocks/comparison-cards/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"card\"",
+        "data-scope=\"list\"",
+        "data-scope=\"icon\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "comparison-cards page should contain {scope}"
+        );
+    }
+    assert!(html.contains(r#"aria-label="含まれる""#));
+    assert!(html.contains(r#"aria-label="含まれない""#));
+    assert_eq!(
+        html.matches(r#"data-blocks-comparison-cards-card="highlight""#)
+            .count(),
+        2,
+        "comparison-cards should render exactly 2 highlighted (own product) cards"
+    );
+    for absent in ["<form", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "comparison-cards should never contain {absent}"
+        );
+    }
+}
