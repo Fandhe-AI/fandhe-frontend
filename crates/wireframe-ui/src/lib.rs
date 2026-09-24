@@ -122,14 +122,45 @@
 //! ピルバッジ。件数は `u32` ではなく `&str` で受け、強調配色は部品
 //! ローカルの新型を新設せず共通型 [`props::Primary`] を再利用する。
 //! `crate::nav_item` の内部カウンターパートとは独立した部品）・3 番目の
-//! 部品 [`list`]（イシュー #2657、箇条書き/番号付きリストの配置イメージ。
-//! `items: Vec<Node>` を項目ラッパー class で包み、`ordered: bool` は
-//! 部品固有の修飾 class、マーカー・番号は CSS 擬似要素/カウンタのみで
-//! 描く。`<ul>`/`<ol>`/`<li>` は出力しない）が続いた。
+//! 部品 [`emoji`]（イシュー #2654、絵文字は `Option<Node>` アイコン
+//! スロットではなく `glyph: &str` の 1 引数へ畳み込む §11.4 からの意図的な
+//! 逸脱。空文字列は CSS の `:empty` 規則で破線の円プレースホルダーに
+//! する）・4 番目の部品 [`stat`]（イシュー #2656、blocks.pm に対応部品が
+//! ない独自追加部品。増減インジケータは `Option<&str>` ではなく
+//! [`stat::StatDelta`]（`menu::MenuItem` と同型の公開構造体）で表し、
+//! 向きのある `Up`/`Down` は [`icon::caret_up`]/[`icon::caret_down`] を
+//! 再利用する）・5 番目の部品 [`card_basic`]（イシュー #2658、先頭・末尾
+//! スロットは §11.4 の `Option<Node>` 規約へ統一し `avatar` を内蔵しない
+//! 独自設計。`secondary` は [`nav_item`] の `counter` と同じ
+//! `Option<&str>` で表す）・6 番目の部品 [`list`]（イシュー #2657、
+//! 箇条書き/番号付きリストの配置イメージ。`items: Vec<Node>` を項目
+//! ラッパー class で包み、`ordered: bool` は部品固有の修飾 class、
+//! マーカー・番号は CSS 擬似要素/カウンタのみで描く。`<ul>`/`<ol>`/`<li>`
+//! は出力しない）が続いた。
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
 //! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
 //! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
-//! 全部品が出揃った。残りは Phase 7 の他部品・Phase 8 で順次追加する。
+//! 全部品が出揃った。Phase 8「Media・データ表示」の最初の部品 [`chart`]
+//! （イシュー #2663、棒グラフの配置イメージ。値は `u8` 列
+//! `values: &[u8]` として受け取り、[`progress`] と同型の 5 刻み量子化・
+//! [`props::Orientation`] の再利用（4 例目の消費者）・
+//! [`grid::MAX_COLUMNS`] と同じ資源有界化（[`chart::MAX_BARS`]）で
+//! 組み立てる。折れ線・面・円・散布・凡例・軸ラベル・複数系列はスコープ
+//! 外とする）・2 番目の部品 [`image`]（イシュー #2660、
+//! `content: Option<Node>` が `None` のときバツ印プレースホルダーを描き、
+//! `Some(node)` のときは子要素を差し替える §11.4 準拠の実例。強調は
+//! 共通型 [`props::Primary`] を再利用し、バツ印の色は CSS カスタム
+//! プロパティ `--fw-wire-image-x-color` の上書きで反転させる）・
+//! 3 番目の部品 [`map`]（イシュー #2664、地図タイルの配置イメージ。
+//! ズームは部品ローカル列挙型 [`map::MapZoom`] 3 段、マーカーは
+//! [`link`]/[`file_drop`]/[`alert`] と同型の `Option<Node>` アイコン
+//! スロット。街路・区画・道路の位置はすべて CSS の固定ルールで描き、
+//! `&str` 引数を持たない）・4 番目の部品 [`media`]（イシュー #2661、
+//! blocks.pm 上の表示名は Placeholder。`content: Option<Node>` が
+//! `None` のとき [`icon::play`] へフォールバックする §11.4 からの意図的
+//! な逸脱。動画か静止画かは bool ではなくスロット差し替えで表し、枠は
+//! 16:9 固定で `<video>`/`<iframe>` は出力しない）が続いた。残りは
+//! Phase 8 の他部品で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -150,19 +181,25 @@ pub mod avatar;
 pub mod breadcrumbs;
 pub mod button;
 pub mod calendar;
+pub mod card_basic;
+pub mod chart;
 pub mod checkbox;
 pub mod class;
 pub mod counter;
 pub mod css;
 pub mod cursor;
 pub mod divider;
+pub mod emoji;
 pub mod file_drop;
 pub mod frame;
 pub mod grid;
 pub mod icon;
+pub mod image;
 pub mod input;
 pub mod link;
 pub mod list;
+pub mod map;
+pub mod media;
 pub mod menu;
 pub mod modal;
 pub mod nav_item;
@@ -179,6 +216,7 @@ pub mod size;
 pub mod slider;
 pub mod spinner;
 pub mod stack;
+pub mod stat;
 pub mod stepper;
 pub mod switch;
 pub mod tabs;
@@ -196,18 +234,24 @@ pub use avatar::avatar;
 pub use breadcrumbs::breadcrumbs;
 pub use button::button;
 pub use calendar::{calendar, MAX_WEEKS};
+pub use card_basic::card_basic;
+pub use chart::{chart, MAX_BARS};
 pub use checkbox::checkbox;
 pub use class::{class_list, CLASS_PREFIX};
 pub use counter::counter;
 pub use css::{wireframe_css, PARTS};
 pub use cursor::{cursor, CursorKind};
 pub use divider::divider;
+pub use emoji::emoji;
 pub use file_drop::file_drop;
 pub use frame::frame;
 pub use grid::{grid, MAX_COLUMNS};
+pub use image::image;
 pub use input::input;
 pub use link::link;
 pub use list::list;
+pub use map::{map, MapZoom};
+pub use media::media;
 pub use menu::{menu, MenuItem};
 pub use modal::modal;
 pub use nav_item::nav_item;
@@ -224,6 +268,7 @@ pub use size::Size;
 pub use slider::slider;
 pub use spinner::spinner;
 pub use stack::stack;
+pub use stat::{stat, StatDelta, StatTrend};
 pub use stepper::stepper;
 pub use switch::switch;
 pub use tabs::tabs;

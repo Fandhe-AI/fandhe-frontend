@@ -60,16 +60,22 @@ mod avatar;
 mod breadcrumbs;
 mod button;
 mod calendar;
+mod card_basic;
+mod chart;
 mod checkbox;
 mod counter;
 mod cursor;
 mod divider;
+mod emoji;
 mod file_drop;
 mod frame;
 mod grid;
+mod image;
 mod input;
 mod link;
 mod list;
+mod map;
+mod media;
 mod menu;
 mod modal;
 mod nav_item;
@@ -84,6 +90,7 @@ mod select;
 mod slider;
 mod spinner;
 mod stack;
+mod stat;
 mod stepper;
 mod switch;
 mod tabs;
@@ -190,10 +197,30 @@ pub struct Wireframe {
 /// する §11.4 からの意図的な逸脱）・[`counter::WIREFRAME`]（イシュー
 /// #2655、2 番目の部品。件数は `u32` ではなく `&str` で受け、強調配色は
 /// 部品ローカルの新型を新設せず共通型 `Primary` を再利用する）・
-/// [`list::WIREFRAME`]（イシュー #2657、3 番目の部品。`items: Vec<Node>`
-/// と `ordered: bool` の 2 引数のみを持ち、マーカー・番号は CSS 擬似要素/
-/// カウンタのみで描く）が続いた。
-/// Phase 1・3・4・5・6・7 以降（#2608〜#2665）の残りの各部品イシューが
+/// [`emoji::WIREFRAME`]（イシュー #2654、3 番目の部品。絵文字は
+/// `Option<Node>` アイコンスロットではなく `glyph: &str` の 1 引数へ
+/// 畳み込む §11.4 からの意図的な逸脱）・[`stat::WIREFRAME`]（イシュー
+/// #2656、4 番目の部品。増減インジケータは `Option<&str>` ではなく
+/// `StatDelta`（`menu::MenuItem` と同型の公開構造体）で表す）・
+/// [`card_basic::WIREFRAME`]（イシュー #2658、5 番目の部品。先頭・末尾
+/// スロットは §11.4 の `Option<Node>` 規約へ統一し `avatar` を内蔵しない
+/// 独自設計。`secondary` は `nav_item` の `counter` と同じ
+/// `Option<&str>`）・[`list::WIREFRAME`]（イシュー #2657、6 番目の部品。
+/// `items: Vec<Node>` と `ordered: bool` の 2 引数のみを持ち、マーカー・
+/// 番号は CSS 擬似要素/カウンタのみで描く）が続いた。
+/// Phase 8「Media・データ表示」の最初の部品 [`chart::WIREFRAME`]（イシュー
+/// #2663、値は `&[u8]` で受け取り `props::Orientation` を再利用する）・
+/// 2 番目の部品 [`image::WIREFRAME`]（イシュー #2660、対角のバツ印が
+/// 入った正方形/円形の枠。`content: Option<Node>` が `None` のときバツ印
+/// プレースホルダーを描き `Some(node)` のときは子要素を差し替える §11.4
+/// 準拠のスロット規約。強調は共通型 `Primary` を再利用する）・3 番目の
+/// 部品 [`map::WIREFRAME`]（イシュー #2664、地図タイルの配置イメージ。
+/// ズームは部品ローカル列挙型 `MapZoom` 3 段、マーカーは `Option<Node>`
+/// アイコンスロット）・4 番目の部品 [`media::WIREFRAME`]（イシュー #2661、
+/// blocks.pm 上の表示名は Placeholder。`content: Option<Node>` が
+/// `None` のとき `icon::play` へフォールバックする §11.4 からの意図的な
+/// 逸脱。動画か静止画かは bool ではなくスロット差し替えで表す）が続いた。
+/// Phase 1・3・4・5・6・7・8 以降（#2608〜#2665）の残りの各部品イシューが
 /// 自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
     annotation::WIREFRAME,
@@ -234,7 +261,14 @@ pub const WIREFRAMES: &[Wireframe] = &[
     modal::WIREFRAME,
     avatar::WIREFRAME,
     counter::WIREFRAME,
+    emoji::WIREFRAME,
+    stat::WIREFRAME,
+    card_basic::WIREFRAME,
     list::WIREFRAME,
+    image::WIREFRAME,
+    chart::WIREFRAME,
+    map::WIREFRAME,
+    media::WIREFRAME,
 ];
 
 /// `page_path` に対応する [`Wireframe`] を返す（部品ページでなければ `None`）。

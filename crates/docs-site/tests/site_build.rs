@@ -308,13 +308,26 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // の最初の部品）が加わり、288 → 289 になった。イシュー #2639 で
     // Wireframes セクションへ Breadcrumbs 部品ページ（Phase 5
     // 「Navigation」の 7 番目の部品）が加わり、289 → 290 になった。イシュー
-    // #2655 で Wireframes セクションへ Counter 部品ページ（Phase 7
-    // 「Data display」の 2 番目の部品）が加わり、290 → 291 になった。
-    // イシュー #2657 で Wireframes セクションへ List 部品ページ（Phase 7
-    // 「Data display」の 3 番目の部品）が加わり、291 → 292 になった。
+    // 「Data display」の 2 番目の部品）が加わり、290 → 291 になった。イシュー
+    // #2654 で Wireframes セクションへ Emoji 部品ページ（Phase 7「Data
+    // display」の 3 番目の部品）が加わり、291 → 292 になった。イシュー
+    // #2656 で Wireframes セクションへ Stat 部品ページ（Phase 7
+    // 「Data display」の 4 番目の部品）が加わり、292 → 293 になった。イシュー
+    // #2663 で Wireframes セクションへ Chart 部品ページ（Phase 8「Media・
+    // データ表示」の最初の部品）が加わり、293 → 294 になった。イシュー
+    // #2660 で Wireframes セクションへ Image 部品ページ（Phase 8 の 2 番目
+    // の部品）が加わり、294 → 295 になった。イシュー
+    // #2658 で Wireframes セクションへ Card basic 部品ページ（Phase 7 の
+    // 5 番目の部品）が加わり、295 → 296 になった。イシュー #2664 で
+    // Wireframes セクションへ Map 部品ページ（Phase 8 の 3 番目の部品）が
+    // 加わり、296 → 297 になった。イシュー #2661 で Wireframes セクションへ
+    // Media 部品ページ（Phase 8「Media・データ表示」の 4 番目の部品）が
+    // 加わり、297 → 298 になった。イシュー #2657 で Wireframes セクションへ
+    // List 部品ページ（Phase 7「Data display」の 6 番目の部品）が加わり、
+    // 298 → 299 になった。
     assert_eq!(
         report.written.len(),
-        292,
+        299,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
