@@ -7,8 +7,13 @@
 
 mod blog_featured_article;
 mod blog_featured_with_list;
+mod blog_overlay_cards;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![blog_featured_article::BLOCK, blog_featured_with_list::BLOCK]
+    vec![
+        blog_featured_article::BLOCK,
+        blog_featured_with_list::BLOCK,
+        blog_overlay_cards::BLOCK,
+    ]
 }

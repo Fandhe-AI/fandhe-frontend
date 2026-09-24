@@ -1287,6 +1287,11 @@ title = "blog-featured-with-list"
 source = "site/blocks/blog-featured-with-list.md"
 path = "/blocks/blog-featured-with-list/"
 
+[[section.group.page]]
+title = "blog-overlay-cards"
+source = "site/blocks/blog-overlay-cards.md"
+path = "/blocks/blog-overlay-cards/"
+
 [[section.group]]
 title = "Footer"
 
