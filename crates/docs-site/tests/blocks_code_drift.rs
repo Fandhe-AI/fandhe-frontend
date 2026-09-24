@@ -71,7 +71,7 @@ fn every_registered_block_rust_source_matches_its_manuscript_fence() {
         .find(|s| s.title == "Blocks")
         .expect("Blocks section should be registered");
 
-    for block in blocks::BLOCKS {
+    for block in blocks::all_blocks() {
         let rust_path = repo_root().join(block.rust_source);
         let rust_source = std::fs::read_to_string(&rust_path)
             .unwrap_or_else(|e| panic!("read {rust_path:?}: {e}"));
