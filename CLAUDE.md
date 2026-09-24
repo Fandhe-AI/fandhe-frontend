@@ -67,7 +67,7 @@ fandhe-frontend/
 │       ├── Dockerfile         # Rust toolchain + wasm32 + 開発ツール一式。`make docker-dev-build` で構築
 │       └── compose.yml        # `make docker-dev-build` / `make docker-dev` で利用
 ├── .github/
-│   ├── workflows/              # CI ワークフロー（ci.yml / deps-check.yml / musl-smoke.yml / image-size.yml / codex-review.yml / docs-site.yml / release.yml / update-external.yml）
+│   ├── workflows/              # CI ワークフロー（ci.yml / deps-check.yml / musl-smoke.yml / image-size.yml / ai-review.yml / docs-site.yml / release.yml / update-external.yml）
 │   └── required-status-checks.json  # ruleset `main-protection` の required_status_checks の正のマニフェスト（`{context, integration_id}` の一覧。`gh api rulesets/<id>` の出力から生成、手書きしない。ワークフローとの整合は `crates/xtask/tests/workflow_required_checks_manifest.rs`、live ruleset との整合は `xtask check-ruleset-sync`〔`dep-version-check` ジョブ〕が検証する。イシュー #2325、`.claude/rules/ci.md` §「`ci-complete` 集約ジョブと ruleset 必須チェック」参照）
 ├── tools/                      # CI・開発スクリプト
 │   ├── ci/                    # CI 用ブートストラップ（ensure-gate-tools.sh）
@@ -197,7 +197,7 @@ main セッションは**指揮・統合・ユーザー対話に専念**し、�
 | `conventional-commits.md` | Conventional Commits 詳細規約（scope 一覧含む） |
 | `code-comment-style.md` | コメント規約（役割・責務・呼び出し文脈・`// SAFETY:` を埋め込む） |
 | `out-of-scope-tracking.md` | 実装対象外の追跡規約（スコープ外事項を Issue 化して放置しない） |
-| `ci.md` | CI 規約（GitHub ホステッドランナー既定・`runs-on` は `ubuntu-latest` 単一・codex-review の codex ジョブのみ self-hosted 例外・共有 CARGO_TARGET_DIR 対策・ツール前提の明示） |
+| `ci.md` | CI 規約（GitHub ホステッドランナー既定・`runs-on` は `ubuntu-latest` 単一・ai-review の codex ジョブのみ self-hosted 例外・共有 CARGO_TARGET_DIR 対策・ツール前提の明示） |
 
 ## Current Skills
 

@@ -75,15 +75,15 @@
       "integration_id": 15368
     },
     {
-      "context": "codex-review / codex",
+      "context": "codex / post_feedback",
       "integration_id": 15368
     },
     {
-      "context": "codex-review / post_feedback",
+      "context": "codex / preflight",
       "integration_id": 15368
     },
     {
-      "context": "codex-review / skip-gate",
+      "context": "codex / review",
       "integration_id": 15368
     },
     {

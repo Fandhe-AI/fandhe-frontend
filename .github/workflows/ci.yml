@@ -3380,7 +3380,7 @@ jobs:
   # 検知できず fail-open になるため。team-hub #1733 の codex 指摘と同型の
   # 是正）。条件付きジョブを増やす場合は同テストの `SKIPPED_ALLOWLIST`
   # 定数への追加も必要（ci.yml 側だけの変更では同テストが FAIL する）。
-  # deps-check.yml（別 workflow のため needs にできない）と codex-review は
+  # deps-check.yml（別 workflow のため needs にできない）と ai-review は
   # 従来どおり単独の必須チェックとして ruleset に残す。
   ci-complete:
     name: ci-complete

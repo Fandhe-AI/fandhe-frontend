@@ -3,10 +3,10 @@
 ## 文書の位置づけ
 
 本リポジトリ（fandhe-frontend）で作業するすべての AI エージェント・開発者、および
-Codex による PR 自動レビュー（`.github/workflows/codex-review.yml`。Fandhe-AI/actions
-の reusable workflow を SHA 固定で呼び出す薄い wrapper、イシュー #1275）が共通で
-用いる**レビュー観点集**である。codex-review の既定 prompt は PR の base コミットの
-本書をレビュー基準として読み込む。
+ai-review（provider: codex）による PR 自動レビュー（`.github/workflows/ai-review.yml`。
+Fandhe-AI/actions の reusable workflow を `@latest` で呼び出す薄い wrapper、イシュー
+#1275）が共通で用いる**レビュー観点集**である。ai-review の既定 prompt は PR の base
+コミットの本書をレビュー基準として読み込む。
 
 各観点の一次情報源は `CLAUDE.md`・`.claude/rules/`（特に
 [coding-rust.md](.claude/rules/coding-rust.md) /
@@ -110,7 +110,7 @@ Codex code review は既定で P0/P1 のみを表示・報告対象とするた�
 - **テストの `#[ignore]` によるごまかし禁止**: 失敗テストへの `#[ignore]` 追加・
   テストフィルタでの恒久除外による問題の隠蔽: **P1**
 - **CI 規約（[ci.md](.claude/rules/ci.md)）**: GitHub ホステッドランナー既定。
-  `runs-on: self-hosted` は codex-review の codex 実行ジョブのみ例外（この方針は
+  `runs-on: self-hosted` は ai-review の codex 実行ジョブのみ例外（この方針は
   `crates/xtask/tests/workflow_runner_policy.rs` が機械強制）。larger runner 禁止。
   フィクスチャ用 `CARGO_TARGET_DIR`・生成物は `RUNNER_TEMP` 配下へ配置。
   `cargo package`/`cargo publish` の検証ビルドは専用 `CARGO_TARGET_DIR` で隔離。
