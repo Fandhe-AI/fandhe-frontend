@@ -2800,3 +2800,92 @@ fn blog_list_image_composes_expected_parts() {
         );
     }
 }
+
+#[test]
+fn blog_split_header_grid_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-split-header-grid/index.html"))
+        .expect("blocks/blog-split-header-grid/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-blog-split-header-grid\""),
+        "blog-split-header-grid page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "blog-split-header-grid page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "blog-split-header-grid page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-blog-split-header-grid-tagline=\"\"",
+        "data-blocks-blog-split-header-grid-heading=\"\"",
+        "data-blocks-blog-split-header-grid-view-all=\"\"",
+        "data-blocks-blog-split-header-grid-card=\"\"",
+        "data-blocks-blog-split-header-grid-image=\"\"",
+        "data-blocks-blog-split-header-grid-category=\"\"",
+        "data-blocks-blog-split-header-grid-title-link=\"\"",
+        "data-blocks-blog-split-header-grid-author=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "blog-split-header-grid page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        ".blocks-blog-split-header-grid-layout",
+        ".blocks-blog-split-header-grid-lead",
+        ".blocks-blog-split-header-grid-grid",
+        "[data-blocks-blog-split-header-grid-card]",
+        "[data-blocks-blog-split-header-grid-image]",
+        "[data-blocks-blog-split-header-grid-title-link]",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks::stylesheet should declare {selector}"
+        );
+    }
+}
+
+#[test]
+fn blog_split_header_grid_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-split-header-grid/index.html"))
+        .expect("blocks/blog-split-header-grid/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"button\"",
+        "data-scope=\"card\"",
+        "data-scope=\"image\"",
+        "data-scope=\"link\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "blog-split-header-grid page should contain {scope}"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "blog-split-header-grid should never contain {absent}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-blog-split-header-grid-card=\"\"")
+            .count(),
+        4,
+        "blog-split-header-grid should render exactly 4 article cards"
+    );
+    assert!(
+        html.contains("type=\"button\""),
+        "blog-split-header-grid's view-all control should be a non-submitting button"
+    );
+}
