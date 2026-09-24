@@ -459,7 +459,7 @@ mod tests {
         // #2730）のため、ハードコードした件数の一致検証は意図的に持たない。
         let blocks = all_blocks();
         assert!(
-            blocks.len() >= 22,
+            blocks.len() >= 23,
             "all_blocks() should not lose previously registered blocks"
         );
 
