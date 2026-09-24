@@ -33,6 +33,7 @@
 use std::path::{Path, PathBuf};
 
 use fandhe_frontend_core::Node;
+use fandhe_frontend_docs_site::blocks;
 use fandhe_frontend_docs_site::markdown::render_markdown;
 use fandhe_frontend_docs_site::nav::{parse_nav, validate_sources, Nav};
 
@@ -178,157 +179,22 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .map(|p| (p.source.as_str(), p.path.as_str()))
         .collect();
 
-    // イシュー #995 で Quote / Strong の 2 ページが加わり 124 → 126 になった。
-    // イシュー #996 で Tab Nav が加わり 127 → 128、イシュー #997 で
-    // Checkbox Group が加わり 128 → 129 になった。イシュー #1009 で
-    // Guides / API Reference のセクショントップページ 2 ページが加わり
-    // 129 → 131 になった。イシュー #1021 で Primitives セクション（索引 1 +
-    // 部品 63 = 64 ページ）が新設され、131 → 195 になった。イシュー #1118 で
-    // Guides セクションへ「JS ゼロ SSG での利用ガイド」が加わり 195 → 196 に
-    // なった。イシュー #1156 で API Reference セクションへ
-    // `docs/api/server-api.md`（`generate_assets` 等 SSG API リファレンス）
-    // が加わり 196 → 197 になった。イシュー #1683 で Collapsible が加わり
-    // 197 → 198 になった。イシュー #1685 で Field が加わり 198 → 199 に
-    // なった。イシュー #1687 で Fieldset が加わり 199 → 200 になった。
-    // イシュー #2059 で Button Group（Primitives）・イシュー #2062 で
-    // Input Group（Primitives）がそれぞれ加わり 200 → 202 になった。
-    // イシュー #2063 で Input Group の Themes ページが加わり 202 → 203
-    // になった。イシュー #2065 で Item（Primitives）が加わり 203 → 204
-    // になった。イシュー #2066 で Item の Themes ページが加わり 204 → 205
-    // になった。イシュー #2068 で Command（Primitives）が加わり 205 → 206
-    // になった。イシュー #2060 で Button Group の Themes ページが加わり
-    // 206 → 207、イシュー #2070 で Command の Themes ページが加わり
-    // 207 → 208、イシュー #2072 で Sidebar（Primitives）が加わり
-    // 208 → 209、イシュー #2105 で Message（Primitives）が加わり
-    // 209 → 210、イシュー #2080 で Radial Chart の Themes ページが加わり
-    // 210 → 211、イシュー #2106 で Message の Themes ページが加わり
-    // 211 → 212、イシュー #2108 で Bubble（Primitives）が加わり
-    // 212 → 213、イシュー #2075 で Sidebar の Themes ページが加わり
-    // 213 → 214、イシュー #2109 で Bubble の Themes ページが加わり
-    // 214 → 215、イシュー #2111 で Attachment（Primitives）が加わり
-    // 215 → 216、イシュー #2112 で Attachment の Themes ページが加わり
-    // 216 → 217、イシュー #2114 で Marker（Primitives）が加わり
-    // 217 → 218、イシュー #2115 で Marker の Themes ページが加わり
-    // 218 → 219 になった。イシュー #2088 で Blocks セクション（索引 1 +
-    // login-01 1 = 2 ページ）が新設され、219 → 221 になった。イシュー
-    // #2089 で dashboard-01 が加わり、221 → 222 になった。イシュー #2117
-    // で Questionnaire（Primitives）が加わり、222 → 223 になった。イシュー
-    // #2090 で sidebar-07 が加わり、223 → 224 になった。イシュー #2091 で
-    // sidebar-03 が加わり、224 → 225 になった。イシュー #2093 で login-04
-    // が加わり、225 → 226 になった。イシュー #2119 で Questionnaire の
-    // Themes ページが加わり、226 → 227 になった。イシュー #2094 で
-    // signup-01 が加わり、227 → 228 になった。イシュー #2095 で signup-05
-    // が加わり、228 → 229 になった。イシュー #2121 で Message Scroller
-    // （Primitives）が加わり、229 → 230 になった。イシュー #2125 で
-    // Data Table（Primitives）が加わり、230 → 231 になった。イシュー
-    // #2123 で Message Scroller の Themes ページが加わり、231 → 232
-    // になった。イシュー #2330 で wasm-full feature 選択ガイド
-    // （Guides セクション）が加わり、232 → 233 になった。イシュー #2127
-    // で Data Table の Themes ページが加わり、233 → 234 になった。イシュー
-    // #2416 で pre-styled-ui motion feature ガイド（Guides セクション）が
-    // 加わり、234 → 235 になった。イシュー #2526 で fandhe-animation API
-    // ガイド（Guides セクション）が加わり、235 → 236 になった。イシュー
-    // #2547 で Blocks セクションへ pricing-tiers-morph・
-    // pricing-usage-slider の 2 ページが加わり、236 → 238 になった。イシュー
-    // #2548 で testimonials-stack block が加わり、238 → 239 になった。
-    // イシュー #2549 で Blocks セクションへ bento-staggered・
-    // feature-expand の 2 ページが加わり、239 → 241 になった。イシュー
-    // #2550 で Blocks セクションへ cta-banner-magnetic・
-    // cta-signup-celebrate の 2 ページが加わり、241 → 243 になった。イシュー
-    // #2523 でアニメーション機能ガイド（Guides セクション）が加わり、
-    // 243 → 244 になった。イシュー #2542 で Blocks セクションへ
-    // cursor-hover-cards が加わり、244 → 245 になった。イシュー #2546 で
-    // Blocks セクションへ hero-editorial-stagger・hero-parallax-layers・
-    // hero-terminal・text-split-reveal の 4 ページが加わり、245 → 249
-    // になった。イシュー #2552 で Blocks セクションへ game-ui-modal が
-    // 加わり、249 → 250 になった。イシュー #2551 で Blocks セクションへ
-    // footer-sticky-reveal・footer-newsletter の 2 ページが加わり、
-    // 250 → 252 になった。イシュー #2607 で Wireframes セクション
-    // （索引 1）が新設され、252 → 253 になった。イシュー #2617 で
-    // Wireframes セクションへ Annotation 部品ページが加わり、
-    // 253 → 254 になった。イシュー #2611 で Wireframes セクションへ
-    // Grid 部品ページが加わり、254 → 255 になった。イシュー #2612 で
-    // Wireframes セクションへ Divider 部品ページが加わり、255 → 256 に
-    // なった。イシュー #2610 で Wireframes セクションへ Stack 部品ページが
-    // 加わり、256 → 257 になった。イシュー #2618 で Wireframes セクションへ
-    // Link 部品ページが加わり、257 → 258 になった。イシュー #2616 で
-    // Wireframes セクションへ Rich text 部品ページが加わり、258 → 259 に
-    // なった。イシュー #2615 で Wireframes セクションへ Paragraph 部品
-    // ページが加わり、259 → 260 になった。イシュー #2621 で Wireframes
-    // セクションへ Button 部品ページが加わり、260 → 261 になった。イシュー
-    // #2624 で Wireframes セクションへ Select 部品ページが加わり、
-    // 261 → 262 になった。イシュー #2626 で Wireframes セクションへ Radio
-    // 部品ページが加わり、262 → 263 になった。
-    // イシュー #2627 で Wireframes セクションへ Switch 部品ページが加わり、
-    // 263 → 264 になった。イシュー #2625 で Wireframes セクションへ
-    // Checkbox 部品ページが加わり、264 → 265 になった。イシュー #2623 で
-    // Wireframes セクションへ Textarea 部品ページが加わり、265 → 266 に
-    // なった。イシュー #2628 で Wireframes セクションへ Slider 部品ページが
-    // 加わり、266 → 267 になった。イシュー #2609 で Wireframes セクションへ
-    // Frame 部品ページが加わり、267 → 268 になった。イシュー #2619 で
-    // Wireframes セクションへ Tag 部品ページが加わり、268 → 269 になった。
-    // イシュー #2622 で Wireframes セクションへ Input 部品ページが加わり、
-    // 269 → 270 になった。イシュー #2630 で Wireframes セクションへ
-    // Question 部品ページが加わり、270 → 271 になった。イシュー #2631 で
-    // Wireframes セクションへ Ratings 部品ページが加わり、271 → 272 に
-    // なった。イシュー #2632 で Wireframes セクションへ Calendar 部品ページ
-    // が加わり、272 → 273 になった。イシュー #2633 で Wireframes セクション
-    // へ File drop 部品ページが加わり、273 → 274 になった。イシュー #2614 で
-    // Wireframes セクションへ Text 部品ページが加わり、274 → 275 になった
-    // （これで Phase 2「テキスト・注釈」の全部品が出揃った）。イシュー #2638 で
-    // Wireframes セクションへ Tabs 部品ページが加わり、275 → 276 になった。
-    // イシュー #2634 で Wireframes セクションへ Stepper 部品ページが加わり、
-    // 276 → 277 になった。イシュー #2636 で Wireframes セクションへ
-    // Nav item 部品ページが加わり、277 → 278 になった。イシュー #2641 で
-    // Wireframes セクションへ Accordion 部品ページが加わり、278 → 279 に
-    // なった。イシュー #2640 で Wireframes セクションへ Pagination 部品
-    // ページが加わり、279 → 280 になった。イシュー #2642 で Wireframes
-    // セクションへ Cursor 部品ページが加わり、280 → 281 になった。イシュー
-    // #2644 で Wireframes セクションへ Tooltip 部品ページ（Phase 6
-    // 「Overlay・Feedback」の最初の部品）が加わり、281 → 282 になった。
-    // イシュー #2637 で Wireframes セクションへ Menu 部品ページ（Phase 5
-    // 「Navigation」の 6 番目の部品）が加わり、282 → 283 になった。イシュー
-    // #2647 で Wireframes セクションへ Toast 部品ページ（Phase 6
-    // の 2 番目の部品）が加わり、283 → 284 になった。イシュー #2646 で
-    // Wireframes セクションへ Alert 部品ページ（Phase 6 の 3 番目の部品）
-    // が加わり、284 → 285 になった。イシュー #2648 で Wireframes セクション
-    // へ Progress 部品ページ（Phase 6 の 4 番目の部品）が加わり、
-    // 285 → 286 になった。イシュー #2649 で Wireframes セクションへ
-    // Spinner 部品ページ（Phase 6 の 5 番目の部品）が加わり、286 → 287 に
-    // なった。イシュー #2645 で Wireframes セクションへ Modal 部品ページ
-    // （Phase 6 の 6 番目の部品）が加わり、287 → 288 になった。イシュー
-    // #2651 で Wireframes セクションへ Avatar 部品ページ
-    // （Phase 7「Data display」の最初の部品）が加わり、288 → 289 になった。
-    // イシュー #2639 で Wireframes セクションへ Breadcrumbs 部品ページ
-    // （Phase 5「Navigation」の 7 番目の部品）が加わり、289 → 290 になった。
-    // イシュー #2655 で Wireframes セクションへ Counter 部品ページ
-    // （Phase 7「Data display」の 2 番目の部品）が加わり、290 → 291 に
-    // なった。イシュー #2654 で Wireframes セクションへ Emoji 部品ページ
-    // （Phase 7「Data display」の 3 番目の部品）が加わり、291 → 292 に
-    // なった。イシュー #2656 で Wireframes セクションへ Stat 部品ページ
-    // （Phase 7「Data display」の 4 番目の部品）が加わり、292 → 293 に
-    // なった。イシュー #2663 で Wireframes セクションへ Chart 部品ページ
-    // （Phase 8「Media・データ表示」の最初の部品）が加わり、293 → 294 に
-    // なった。イシュー #2660 で Wireframes セクションへ Image 部品ページ
-    // （Phase 8 の 2 番目の部品）が加わり、294 → 295 になった。イシュー
-    // #2658 で Wireframes セクションへ Card basic 部品ページ（Phase 7
-    // 「Data display」の 5 番目の部品）が加わり、295 → 296 になった。イシュー
-    // #2664 で Wireframes セクションへ Map 部品ページ（Phase 8 の 3 番目
-    // の部品）が加わり、296 → 297 になった。イシュー #2661 で
-    // Wireframes セクションへ Media 部品ページ（Phase 8「Media・データ
-    // 表示」の 4 番目の部品）が加わり、297 → 298 になった。イシュー #2657 で
-    // Wireframes セクションへ List 部品ページ（Phase 7「Data display」の
-    // 6 番目の部品）が加わり、298 → 299 になった。イシュー #2662 で
-    // Wireframes セクションへ Table 部品ページ（Phase 8 の 5 番目の部品）が
-    // 加わり、299 → 300 になった。イシュー #2652 で Wireframes セクションへ
-    // Icon 部品ページ（Phase 7「Data display」の 7 番目の部品）が加わり、
-    // 300 → 301 になった。イシュー #2653 で Wireframes セクションへ Brand
-    // 部品ページ（Phase 7「Data display」の 8 番目の部品、これで Phase 7
-    // が全部品出揃った）が加わり、301 → 302 になった。
-    // イシュー #2667 で Examples セクションへ
-    // `examples/wireframe-ui/README.md`（`fw new --example wireframe-ui`
-    // 対応の 6 件目のサンプル README）が加わり、302 → 303 になった。
-    assert_eq!(pages.len(), 303, "expected 303 pages, got {pages:?}");
+    // イシュー #2732: Blocks セクションは親トラッキング #2730（301 block の
+    // 大量追加を予定）により今後 block ごとに本テストを書き換える運用が
+    // 破綻するため、Blocks 分のページ数は `blocks::BLOCKS`（唯一の正）から
+    // 導出する。Blocks 以外の合計ページ数は 280 で固定する。内訳
+    // （Getting Started / Guides / Examples / Primitives / Themes /
+    // Wireframes / API Reference）の増減履歴はコミット履歴を参照する
+    // （逐次カウント記録によるコメント肥大化を避けるため要約した）。
+    let expected_blocks_page_count = blocks::BLOCKS.len() + 1; // + 索引ページ
+    let non_blocks_page_count = pages.len() - expected_blocks_page_count;
+    assert_eq!(
+        non_blocks_page_count,
+        280,
+        "expected 280 non-/blocks/ pages, got {non_blocks_page_count} \
+         (total={}, blocks={expected_blocks_page_count})",
+        pages.len()
+    );
 
     // イシュー #2607: `/wireframes/` 配下は索引ページ（`/wireframes/` 自身）
     // 1 件のみだった（同イシュー時点では個別部品ページを同梱しない、設計
@@ -397,119 +263,26 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         "nav.toml is missing the Wireframes index page"
     );
 
-    // イシュー #2088: `/blocks/` 配下は索引ページ（`/blocks/` 自身）1 件 +
-    // login-01 1 件の 2 件。イシュー #2089 で dashboard-01 が加わり 3 件。
-    // イシュー #2090 で sidebar-07 が加わり 4 件。イシュー #2091 で
-    // sidebar-03 が加わり 5 件。イシュー #2093 で login-04 が加わり 6 件。
-    // イシュー #2094 で signup-01 が加わり 7 件。イシュー #2095 で
-    // signup-05 が加わり 8 件。イシュー #2547 で pricing-tiers-morph・
-    // pricing-usage-slider が加わり 8 → 10 件になった。イシュー #2548 で
-    // testimonials-stack が加わり 10 → 11 件になった。イシュー #2549 で
-    // bento-staggered・feature-expand が加わり 11 → 13 件になった。イシュー
-    // #2550 で cta-banner-magnetic・cta-signup-celebrate が加わり
-    // 13 → 15 件になった。イシュー #2542 で cursor-hover-cards が加わり
-    // 15 → 16 件になった。イシュー #2546 で hero-editorial-stagger・
-    // hero-parallax-layers・hero-terminal・text-split-reveal の 4 件が
-    // 加わり 16 → 20 件になった。イシュー #2552 で game-ui-modal が加わり
-    // 20 → 21 件になった。イシュー #2551 で footer-sticky-reveal・
-    // footer-newsletter が加わり 21 → 23 件になった。
+    // イシュー #2732: `/blocks/` 配下のページ件数は `blocks::BLOCKS`（唯一の
+    // 正）から導出する。親トラッキング #2730 で 301 件の block が今後
+    // 大量追加される予定であり、block 1 件の追加ごとに本テストを書き換える
+    // 運用は破綻するため、件数はレジストリから導出し、個別 block ごとの
+    // 存在検証は `crates/docs-site/tests/blocks_nav.rs` の三方突合
+    // （nav.toml ⇔ `blocks::BLOCKS` ⇔ `site/blocks/*.md`）へ委譲する。
     let blocks_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/blocks/"))
         .collect();
     assert_eq!(
         blocks_pages.len(),
-        23,
-        "expected 23 /blocks/ pages (index + login-01 + login-04 + dashboard-01 + sidebar-07 + sidebar-03 + signup-01 + signup-05 + pricing-tiers-morph + pricing-usage-slider + testimonials-stack + bento-staggered + feature-expand + cta-banner-magnetic + cta-signup-celebrate + cursor-hover-cards + hero-editorial-stagger + hero-parallax-layers + hero-terminal + text-split-reveal + game-ui-modal + footer-sticky-reveal + footer-newsletter), got {blocks_pages:?}"
+        expected_blocks_page_count,
+        "expected {expected_blocks_page_count} /blocks/ pages (registry \
+         {} block(s) + 1 index), got {blocks_pages:?}",
+        blocks::BLOCKS.len()
     );
     assert!(
         pages.contains(&("site/blocks.md", "/blocks/")),
         "nav.toml is missing the Blocks index page"
-    );
-    assert!(
-        pages.contains(&("site/blocks/login-01.md", "/blocks/login-01/")),
-        "nav.toml is missing the login-01 block page"
-    );
-    assert!(
-        pages.contains(&("site/blocks/login-04.md", "/blocks/login-04/")),
-        "nav.toml is missing the login-04 block page"
-    );
-    assert!(
-        pages.contains(&("site/blocks/dashboard-01.md", "/blocks/dashboard-01/")),
-        "nav.toml is missing the dashboard-01 block page"
-    );
-    assert!(
-        pages.contains(&("site/blocks/sidebar-07.md", "/blocks/sidebar-07/")),
-        "nav.toml is missing the sidebar-07 block page"
-    );
-    assert!(
-        pages.contains(&("site/blocks/sidebar-03.md", "/blocks/sidebar-03/")),
-        "nav.toml is missing the sidebar-03 block page"
-    );
-    assert!(
-        pages.contains(&("site/blocks/signup-01.md", "/blocks/signup-01/")),
-        "nav.toml is missing the signup-01 block page"
-    );
-    assert!(
-        pages.contains(&("site/blocks/signup-05.md", "/blocks/signup-05/")),
-        "nav.toml is missing the signup-05 block page"
-    );
-    assert!(
-        pages.contains(&(
-            "site/blocks/pricing-tiers-morph.md",
-            "/blocks/pricing-tiers-morph/"
-        )),
-        "nav.toml is missing the pricing-tiers-morph block page"
-    );
-    assert!(
-        pages.contains(&(
-            "site/blocks/pricing-usage-slider.md",
-            "/blocks/pricing-usage-slider/"
-        )),
-        "nav.toml is missing the pricing-usage-slider block page"
-    );
-    assert!(
-        pages.contains(&(
-            "site/blocks/testimonials-stack.md",
-            "/blocks/testimonials-stack/"
-        )),
-        "nav.toml is missing the testimonials-stack block page"
-    );
-    assert!(
-        pages.contains(&("site/blocks/bento-staggered.md", "/blocks/bento-staggered/")),
-        "nav.toml is missing the bento-staggered block page"
-    );
-    assert!(
-        pages.contains(&("site/blocks/feature-expand.md", "/blocks/feature-expand/")),
-        "nav.toml is missing the feature-expand block page"
-    );
-    assert!(
-        pages.contains(&(
-            "site/blocks/cta-banner-magnetic.md",
-            "/blocks/cta-banner-magnetic/"
-        )),
-        "nav.toml is missing the cta-banner-magnetic block page"
-    );
-    assert!(
-        pages.contains(&(
-            "site/blocks/cta-signup-celebrate.md",
-            "/blocks/cta-signup-celebrate/"
-        )),
-        "nav.toml is missing the cta-signup-celebrate block page"
-    );
-    assert!(
-        pages.contains(&(
-            "site/blocks/footer-sticky-reveal.md",
-            "/blocks/footer-sticky-reveal/"
-        )),
-        "nav.toml is missing the footer-sticky-reveal block page"
-    );
-    assert!(
-        pages.contains(&(
-            "site/blocks/footer-newsletter.md",
-            "/blocks/footer-newsletter/"
-        )),
-        "nav.toml is missing the footer-newsletter block page"
     );
 
     // イシュー #1021: `/primitives/` 配下は部品ページ 63 件 + 索引ページ

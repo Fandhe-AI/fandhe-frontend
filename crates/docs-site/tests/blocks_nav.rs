@@ -141,8 +141,9 @@ fn site_blocks_dir_manuscripts_match_the_registry_exactly() {
     );
 }
 
-/// `site/blocks.md` が索引ページとして登録され、掲載済み block（login-01）
-/// への相対リンクを含むこと。
+/// `site/blocks.md` が索引ページとして登録され、`blocks::BLOCKS` に登録
+/// された全 block への相対リンクを含むこと（イシュー #2732 で個別 block
+/// ごとのハードコードからレジストリ導出のループへ置き換えた）。
 #[test]
 fn blocks_index_page_links_to_the_registered_block() {
     let nav = load_nav();
@@ -160,48 +161,21 @@ fn blocks_index_page_links_to_the_registered_block() {
 
     let content = std::fs::read_to_string(repo_root().join(&index_page.source))
         .expect("site/blocks.md should be readable");
-    assert!(
-        content.contains("./blocks/login-01.md"),
-        "site/blocks.md should link to the registered login-01 block"
-    );
-    assert!(
-        content.contains("./blocks/dashboard-01.md"),
-        "site/blocks.md should link to the registered dashboard-01 block (イシュー #2089)"
-    );
-    assert!(
-        content.contains("./blocks/sidebar-07.md"),
-        "site/blocks.md should link to the registered sidebar-07 block (イシュー #2090)"
-    );
-    assert!(
-        content.contains("./blocks/sidebar-03.md"),
-        "site/blocks.md should link to the registered sidebar-03 block (イシュー #2091)"
-    );
-    assert!(
-        content.contains("./blocks/login-04.md"),
-        "site/blocks.md should link to the registered login-04 block (イシュー #2093)"
-    );
-    assert!(
-        content.contains("./blocks/signup-01.md"),
-        "site/blocks.md should link to the registered signup-01 block (イシュー #2094)"
-    );
-    assert!(
-        content.contains("./blocks/signup-05.md"),
-        "site/blocks.md should link to the registered signup-05 block (イシュー #2095)"
-    );
-    assert!(
-        content.contains("./blocks/hero-editorial-stagger.md"),
-        "site/blocks.md should link to the registered hero-editorial-stagger block (イシュー #2546)"
-    );
-    assert!(
-        content.contains("./blocks/hero-parallax-layers.md"),
-        "site/blocks.md should link to the registered hero-parallax-layers block (イシュー #2546)"
-    );
-    assert!(
-        content.contains("./blocks/hero-terminal.md"),
-        "site/blocks.md should link to the registered hero-terminal block (イシュー #2546)"
-    );
-    assert!(
-        content.contains("./blocks/text-split-reveal.md"),
-        "site/blocks.md should link to the registered text-split-reveal block (イシュー #2546)"
-    );
+
+    // イシュー #2732: 個別 block ごとのハードコード（従来 11 件のみの
+    // spot-check）を `blocks::BLOCKS`（唯一の正）からの導出ループへ置き換え、
+    // 登録済み全 block（現在 22 件）を網羅する。`kebab` の導出は
+    // `site_blocks_dir_manuscripts_match_the_registry_exactly` と同じ方式
+    // （`path` から `/blocks/` プレフィックス・末尾スラッシュを除去）。
+    for block in blocks::BLOCKS {
+        let kebab = block
+            .path
+            .trim_start_matches("/blocks/")
+            .trim_end_matches('/');
+        let expected_link = format!("./blocks/{kebab}.md");
+        assert!(
+            content.contains(&expected_link),
+            "site/blocks.md should link to the registered {kebab} block ({expected_link})"
+        );
+    }
 }
