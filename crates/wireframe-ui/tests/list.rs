@@ -187,6 +187,33 @@ fn nested_list_composed_via_div_stays_within_a_single_item_and_ordinal() {
 }
 
 #[test]
+fn unordered_marker_aligns_to_first_line_not_whole_item_center() {
+    // Cursor Bugbot 指摘（イシュー #2717 レビュー）: `align-self: center` は
+    // 項目全体（入れ子ブロックや複数行 `Node` を含む高さ）の縦中央に
+    // マーカーを置いてしまい、複数行項目では行頭からズレる。マーカーを
+    // 先頭行に揃えるため `align-self: flex-start` + 先頭行の中央へ寄せる
+    // `margin-top` の組み合わせへ変更したことを固定する。
+    let css = fandhe_frontend_wireframe_ui::list::LIST_CSS;
+    let selector = ".fw-wire-list > .fw-wire-list-item::before {";
+    let start = css.find(selector).expect("unordered marker rule missing");
+    let end = css[start..].find('}').map(|e| start + e).unwrap();
+    let body = &css[start..end];
+
+    assert!(
+        body.contains("align-self: flex-start;"),
+        "unordered marker should align to the first line, not the whole item center: {body:?}"
+    );
+    assert!(
+        !body.contains("align-self: center;"),
+        "unordered marker must not center on the whole (possibly multi-line) item: {body:?}"
+    );
+    assert!(
+        body.contains("margin-top:"),
+        "unordered marker needs a margin-top to center within the first line's height: {body:?}"
+    );
+}
+
+#[test]
 fn counter_rules_are_scoped_to_ordered_modifier() {
     let css = fandhe_frontend_wireframe_ui::list::LIST_CSS;
 

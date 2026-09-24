@@ -101,7 +101,8 @@ pub const LIST_CSS: &str = "\
 .fw-wire-list > .fw-wire-list-item::before {
   content: \"\";
   flex-shrink: 0;
-  align-self: center;
+  align-self: flex-start;
+  margin-top: 0.575em;
   width: 0.35em;
   height: 0.35em;
   border-radius: 50%;
