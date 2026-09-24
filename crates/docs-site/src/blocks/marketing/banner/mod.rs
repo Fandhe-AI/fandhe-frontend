@@ -9,9 +9,14 @@
 
 mod banner_cookie_consent;
 mod banner_email_signup;
+mod banner_floating_card;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![banner_cookie_consent::BLOCK, banner_email_signup::BLOCK]
+    vec![
+        banner_cookie_consent::BLOCK,
+        banner_email_signup::BLOCK,
+        banner_floating_card::BLOCK,
+    ]
 }

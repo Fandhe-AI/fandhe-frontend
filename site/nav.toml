@@ -1287,6 +1287,11 @@ title = "blog-featured-with-list"
 source = "site/blocks/blog-featured-with-list.md"
 path = "/blocks/blog-featured-with-list/"
 
+[[section.group.page]]
+title = "blog-list-image"
+source = "site/blocks/blog-list-image.md"
+path = "/blocks/blog-list-image/"
+
 [[section.group]]
 title = "Footer"
 
@@ -1312,6 +1317,11 @@ path = "/blocks/banner-cookie-consent/"
 title = "banner-email-signup"
 source = "site/blocks/banner-email-signup.md"
 path = "/blocks/banner-email-signup/"
+
+[[section.group.page]]
+title = "banner-floating-card"
+source = "site/blocks/banner-floating-card.md"
+path = "/blocks/banner-floating-card/"
 
 [[section.group]]
 title = "Bento"
