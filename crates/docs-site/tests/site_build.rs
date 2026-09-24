@@ -173,12 +173,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
 
     // イシュー #2732: Blocks セクションは親トラッキング #2730（301 block の
     // 大量追加を予定）により今後 block ごとに本テストを書き換える運用が
-    // 破綻するため、Blocks 分のページ数は `blocks::BLOCKS`（唯一の正）から
+    // 破綻するため、Blocks 分のページ数は `blocks::all_blocks()`（唯一の正）から
     // 導出する。Blocks 以外の合計ページ数は 280 で固定する（nav 登録 =
     // 生成ページの恒等契約は直後の assert_eq! が別途担保する）。内訳の
     // 増減履歴は `site_nav.rs` と本ファイルのコミット履歴を参照する
     // （逐次カウント記録によるコメント肥大化を避けるため要約した）。
-    let expected_blocks_page_count = blocks::BLOCKS.len() + 1; // + 索引ページ
+    let expected_blocks_page_count = blocks::all_blocks().len() + 1; // + 索引ページ
     let non_blocks_written_count = report.written.len() - expected_blocks_page_count;
     assert_eq!(
         non_blocks_written_count,
