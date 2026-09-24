@@ -1293,6 +1293,11 @@ source = "site/blocks/blog-list-image.md"
 path = "/blocks/blog-list-image/"
 
 [[section.group.page]]
+title = "blog-overlay-cards"
+source = "site/blocks/blog-overlay-cards.md"
+path = "/blocks/blog-overlay-cards/"
+
+[[section.group.page]]
 title = "blog-split-header-grid"
 source = "site/blocks/blog-split-header-grid.md"
 path = "/blocks/blog-split-header-grid/"
@@ -1320,6 +1325,11 @@ path = "/blocks/footer-sticky-reveal/"
 
 [[section.group]]
 title = "Banner"
+
+[[section.group.page]]
+title = "banner-announcement-pill"
+source = "site/blocks/banner-announcement-pill.md"
+path = "/blocks/banner-announcement-pill/"
 
 [[section.group.page]]
 title = "banner-cookie-consent"
@@ -1365,6 +1375,14 @@ source = "site/blocks/bento-two-column.md"
 path = "/blocks/bento-two-column/"
 
 [[section.group]]
+title = "Careers"
+
+[[section.group.page]]
+title = "careers-split-photo-list"
+source = "site/blocks/careers-split-photo-list.md"
+path = "/blocks/careers-split-photo-list/"
+
+[[section.group]]
 title = "Changelog"
 
 [[section.group.page]]
@@ -1376,6 +1394,11 @@ path = "/blocks/changelog-accordion/"
 title = "changelog-stacked-list"
 source = "site/blocks/changelog-stacked-list.md"
 path = "/blocks/changelog-stacked-list/"
+
+[[section.group.page]]
+title = "changelog-timeline"
+source = "site/blocks/changelog-timeline.md"
+path = "/blocks/changelog-timeline/"
 
 [[section.group]]
 title = "Sidebar"
