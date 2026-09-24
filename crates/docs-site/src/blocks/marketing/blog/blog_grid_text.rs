@@ -465,7 +465,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-blog-grid-text-caption {\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n}\n\
 .blocks-blog-grid-text-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  margin-block-end: var(--fandhe-space-6);\n}\n\
 .blocks-blog-grid-text-header[data-blocks-blog-grid-text-align=\"center\"] {\n  text-align: center;\n  align-items: center;\n}\n\
-.blocks-blog-grid-text-header[data-blocks-blog-grid-text-rule] {\n  border-block-end: 1px solid var(--fandhe-color-border);\n  padding-block-end: var(--fandhe-space-6);\n}\n\
+.blocks-blog-grid-text-header[data-blocks-blog-grid-text-rule] {\n  border-block-start: 1px solid var(--fandhe-color-border);\n  padding-block-start: var(--fandhe-space-6);\n}\n\
 .blocks-blog-grid-text-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-8);\n}\n\
 [data-blocks-blog-grid-text-card] {\n  height: 100%;\n}\n\
 [data-blocks-blog-grid-text-article] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  height: 100%;\n}\n\
