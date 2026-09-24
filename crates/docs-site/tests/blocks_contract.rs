@@ -3112,6 +3112,63 @@ fn blog_split_header_grid_composes_expected_parts() {
     );
 }
 
+/// bento-three-column-tall ページが `blocks-demo` + block 固有 class・両
+/// スタイルシート・各セルの配置フック（`data-blocks-bento-three-column-
+/// tall-cell`）を実際に出力し、`blocks::stylesheet()` にも対応するグリッド
+/// 配置規則・ブレークポイント条件が存在することを固定する（イシュー
+/// #2748/#2749）。
+#[test]
+fn bento_three_column_tall_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/bento-three-column-tall/index.html"))
+        .expect("blocks/bento-three-column-tall/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-bento-three-column-tall\""),
+        "bento-three-column-tall page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "bento-three-column-tall page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "bento-three-column-tall page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-bento-three-column-tall-cell=\"start\"",
+        "data-blocks-bento-three-column-tall-cell=\"center-top\"",
+        "data-blocks-bento-three-column-tall-cell=\"center-bottom\"",
+        "data-blocks-bento-three-column-tall-cell=\"end\"",
+        "data-blocks-bento-three-column-tall-cell=\"end-top\"",
+        "data-blocks-bento-three-column-tall-cell=\"end-bottom\"",
+        "data-blocks-bento-three-column-tall-media=\"terminal\"",
+        "data-blocks-bento-three-column-tall-media=\"code\"",
+        "data-blocks-bento-three-column-tall-variant=\"both-tall\"",
+        "data-blocks-bento-three-column-tall-variant=\"start-tall\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "bento-three-column-tall page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-bento-three-column-tall-cell",
+        "[data-blocks-bento-three-column-tall-media",
+        ".blocks-bento-three-column-tall-grid",
+        ".blocks-bento-three-column-tall-header",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
 /// bento-three-column-tall の合成部品（badge/heading/text/button/card/
 /// image/code）が期待どおりの構成（カード 9 枚・CTA ボタン 1 個）で実際に
 /// 出力されていること、`<form>`・`data:` URI・`href="#"` を持ち込んで
