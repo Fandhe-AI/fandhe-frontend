@@ -2706,10 +2706,11 @@ fn blog_featured_with_list_composes_expected_parts() {
     }
 }
 
-/// `bento-asymmetric-rows`（イシュー #2745）の CSS フック配線検証。
+/// `bento-asymmetric-rows`（イシュー #2745/#2746）の CSS フック配線検証。
 /// `bento_staggered_page_wires_demo_class_and_css_hooks` と同型
 /// （`crate::blocks` モジュール doc「CSS フックが `class` と `[data-*]` で
-/// 混在する理由」節参照）。
+/// 混在する理由」節参照）。#2746 で 6 列/3 列の 2 列モード・`half` 幅区分
+/// が追加されたため、対応する CSS フックの存在確認を追加した。
 #[test]
 fn bento_asymmetric_rows_page_wires_demo_class_and_css_hooks() {
     let out = build_real_site();
@@ -2730,7 +2731,11 @@ fn bento_asymmetric_rows_page_wires_demo_class_and_css_hooks() {
     for hook in [
         "data-blocks-bento-asymmetric-rows-cell=\"wide\"",
         "data-blocks-bento-asymmetric-rows-cell=\"narrow\"",
+        "data-blocks-bento-asymmetric-rows-cell=\"half\"",
+        "data-blocks-bento-asymmetric-rows-columns=\"three\"",
         "data-blocks-bento-asymmetric-rows-eyebrow=\"\"",
+        "data-blocks-bento-asymmetric-rows-caption=\"\"",
+        "data-blocks-bento-asymmetric-rows-feature=\"\"",
     ] {
         assert!(
             html.contains(hook),
@@ -2747,6 +2752,9 @@ fn bento_asymmetric_rows_page_wires_demo_class_and_css_hooks() {
         "@media (min-width: 48rem)",
         "@media (min-width: 64rem)",
         "grid-column: span 4",
+        "grid-column: span 3",
+        "repeat(3, minmax(0, 1fr))",
+        "repeat(4, minmax(0, 1fr))",
     ] {
         assert!(
             sheet_css.contains(needle),
@@ -2755,10 +2763,11 @@ fn bento_asymmetric_rows_page_wires_demo_class_and_css_hooks() {
     }
 }
 
-/// bento-asymmetric-rows の合成部品（badge/heading/text/card/image）が
-/// 期待どおりの構成で実際に出力されていること、幅区分セルがちょうど
-/// 4 件出力されること、`<form>`/死リンク/`data:` URI を持ち込んでいない
-/// ことを固定する（イシュー #2745）。
+/// bento-asymmetric-rows の合成部品（badge/heading/text/card/image/icon）が
+/// 期待どおりの構成で実際に出力されていること、4 バリエーション合計
+/// 17 セル（イシュー #2746 で残りのバリエーションを追加）が出力される
+/// こと、`<form>`/死リンク/`data:` URI を持ち込んでいないことを固定する
+/// （イシュー #2745/#2746）。
 #[test]
 fn bento_asymmetric_rows_composes_expected_parts() {
     let out = build_real_site();
@@ -2770,17 +2779,21 @@ fn bento_asymmetric_rows_composes_expected_parts() {
         "data-scope=\"text\"",
         "data-scope=\"card\"",
         "data-scope=\"image\"",
+        "data-scope=\"icon\"",
     ] {
         assert!(
             html.contains(scope),
             "bento-asymmetric-rows page should contain {scope}"
         );
     }
+    // 4 バリエーション合計セル数（基準形 4 + 分割形 5 + ジグザグ形 4 +
+    // 混在形 4 = 17）。バリエーションごとの内訳・対応表 ID はモジュール
+    // doc「4 バリエーションと対応表 ID の対応」節参照。
     assert_eq!(
         html.matches("data-blocks-bento-asymmetric-rows-cell=\"")
             .count(),
-        4,
-        "bento-asymmetric-rows should render exactly 4 cells"
+        17,
+        "bento-asymmetric-rows should render exactly 17 cells across its 4 variants"
     );
     for absent in ["<form", "href=\"#\"", "src=\"data:"] {
         assert!(
