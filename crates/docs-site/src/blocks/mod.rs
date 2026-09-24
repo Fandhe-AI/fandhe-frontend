@@ -504,5 +504,9 @@ mod tests {
         // 本 PR（イシュー #2809）で追加した blog-featured-with-list も
         // 登録されていることを固定する。
         assert!(seen.contains("/blocks/blog-featured-with-list/"));
+
+        // イシュー #2808 で追加した blog-featured-article も登録されて
+        // いることを固定する。
+        assert!(seen.contains("/blocks/blog-featured-article/"));
     }
 }
