@@ -1,6 +1,6 @@
 //! `/wireframes/media/` の Demo・引数表データ（イシュー #2661、Phase 8
-//! 「Media・Data」の 3 番目の部品（`image`・`chart` に続く）。blocks.pm
-//! 上の表示名は Placeholder）。
+//! 「Media・データ表示」の 4 番目の部品（`chart`・`image`・`map` に
+//! 続く）。blocks.pm 上の表示名は Placeholder）。
 //!
 //! `fandhe_frontend_wireframe_ui::media` の呼び出し側。Wireframes
 //! セクションの原稿組み立て（`crate::wireframes::insert_generated_sections`）

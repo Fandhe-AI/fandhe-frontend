@@ -1531,6 +1531,11 @@ source = "site/wireframes/card-basic.md"
 path = "/wireframes/card-basic/"
 
 [[section.page]]
+title = "Map"
+source = "site/wireframes/map.md"
+path = "/wireframes/map/"
+
+[[section.page]]
 title = "Media"
 source = "site/wireframes/media.md"
 path = "/wireframes/media/"

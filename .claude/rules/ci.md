@@ -342,8 +342,11 @@
   display」の 5 番目の部品。先頭・末尾スロットは §11.4 の `Option<Node>`
   規約へ統一し `avatar` を内蔵しない独自設計。`secondary` は `nav_item` の
   `counter` と同じ `Option<&str>`）/
+  `wireframes/map/index.html`（イシュー #2664、Phase 8 の 3 番目の
+  部品。地図タイルの配置イメージを部品ローカル列挙型 `MapZoom` 3 段・
+  `Option<Node>` マーカースロットで構成する）/
   `wireframes/media/index.html`（イシュー #2661、Phase 8「Media・データ
-  表示」の 3 番目の部品。blocks.pm 上の表示名は Placeholder。
+  表示」の 4 番目の部品。blocks.pm 上の表示名は Placeholder。
   `content: None` で `icon::play` へフォールバック、16:9 固定、
   `<video>`/`<iframe>` は出力しない）
   である。
