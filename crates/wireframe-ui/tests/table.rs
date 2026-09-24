@@ -162,6 +162,55 @@ fn output_has_no_interactive_semantics_or_style() {
 }
 
 #[test]
+fn headerless_table_body_first_row_removes_double_top_border() {
+    // Cursor Bugbot（Low）/ codex-review P2 の指摘: headers が空だと
+    // `.fw-wire-table-row` の上罫線がルート外枠と二重になっていた。
+    // `.fw-wire-table-body:first-child .fw-wire-table-row:first-child`
+    // で headerless 時のみ body の先頭行の上罫線を除去し、ヘッダーありの
+    // 区切り線（`.fw-wire-table-header .fw-wire-table-row` の解除規則）は
+    // 維持されていることを CSS 定義で固定する。
+    let css = fandhe_frontend_wireframe_ui::table::TABLE_CSS;
+    assert!(css.contains(
+        ".fw-wire-table-body:first-child .fw-wire-table-row:first-child {\n  border-top: none;\n}"
+    ));
+    // ヘッダーありの区切り線を消す既存規則は維持する。
+    assert!(css.contains(".fw-wire-table-header .fw-wire-table-row {\n  border-top: none;\n}"));
+    // 通常行の上罫線規則自体は消さない（ヘッダーありテーブルの 2 行目
+    // 以降の区切り線として使われ続ける）。
+    assert!(css.contains(
+        ".fw-wire-table-row {\n  display: grid;\n  border-top: var(--fw-wire-line-width) solid var(--fw-wire-line-subtle);\n}"
+    ));
+}
+
+#[test]
+fn headerless_and_headered_table_body_structure_differs() {
+    // headers が空のときは body div がルートの最初の（かつ唯一の）子に
+    // なり、ヘッダーありのときは header div の後に続く 2 番目の子になる
+    // （上記 CSS の `:first-child` セレクタが対象を正しく捉えるための
+    // 構造契約）。
+    let rows: Vec<&[&str]> = ROWS.iter().map(|row| row.as_slice()).collect();
+
+    let headerless_html = render(&table(&[], &rows, Size::Md));
+    let root_open_end = headerless_html.find('>').expect("root open tag end");
+    // header div を挟まず、ルートタグ直後が body div であること
+    // （`.fw-wire-table-body:first-child` が捉える対象と一致する）。
+    assert!(headerless_html[root_open_end + 1..].starts_with(r#"<div class="fw-wire-table-body""#));
+    assert!(!headerless_html.contains("fw-wire-table-header"));
+
+    let headered_html = render(&table(&HEADERS, &rows, Size::Md));
+    let header_pos = headered_html
+        .find(r#"class="fw-wire-table-header""#)
+        .expect("header class present");
+    let headered_body_pos = headered_html
+        .find(r#"class="fw-wire-table-body""#)
+        .expect("body class present");
+    assert!(
+        header_pos < headered_body_pos,
+        "header div should precede body div"
+    );
+}
+
+#[test]
 fn table_css_is_registered_exactly_once_in_parts_and_in_aggregate_css() {
     let occurrences = PARTS
         .iter()

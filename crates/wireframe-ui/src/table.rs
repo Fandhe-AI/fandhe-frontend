@@ -1,6 +1,6 @@
 //! N 列 × M 行のデータ表配置部品（`Table`、イシュー #2662、
-//! Phase 8「Media・Data」の 3 番目の部品。Chart（#2663）・Image（#2660）に
-//! 続く）。
+//! Phase 8「Media・データ表示」の 5 番目の部品。Chart（#2663）・
+//! Image（#2660）・Map（#2664）・Media（#2661）に続く）。
 //!
 //! 画面設計図で「ここに N 列 × M 行のデータ表がある」という配置イメージを
 //! 伝えるための、非インタラクティブなローファイ・プレースホルダー。実
@@ -91,7 +91,7 @@ const fn columns_class(columns: usize) -> &'static str {
     }
 }
 
-/// テーブル CSS（`fw-wire-table-cols-*` 12 種を含む計 17 セレクタ）。
+/// テーブル CSS（`fw-wire-table-cols-*` 12 種を含む計 20 セレクタ）。
 /// [`crate::css::PARTS`] へ登録される。
 ///
 /// ヘッダーの黒塗り（原案）はグレースケール（`--fw-wire-fill-subtle`）へ
@@ -123,6 +123,9 @@ pub const TABLE_CSS: &str = "\
   border-top: var(--fw-wire-line-width) solid var(--fw-wire-line-subtle);
 }
 .fw-wire-table-header .fw-wire-table-row {
+  border-top: none;
+}
+.fw-wire-table-body:first-child .fw-wire-table-row:first-child {
   border-top: none;
 }
 .fw-wire-table-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
