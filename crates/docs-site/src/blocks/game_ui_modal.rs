@@ -43,7 +43,7 @@
 //! [`motion::KEYFRAMES_CSS`] が同メディアクエリ内で opacity のみへ
 //! 再定義済みであり、本 block は無限反復 `@keyframes`・scroll-driven な
 //! アニメーションを使わないため個別の `@media` は不要。
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 use fandhe_frontend_pre_styled_ui::motion::{
     SLIDE_FROM_BOTTOM_KEYFRAMES_NAME, ZOOM_IN_KEYFRAMES_NAME,
 };
@@ -151,6 +151,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/game-ui-modal/",
     title: "game-ui-modal",
+    category: BlockCategory::Dialog,
     rust_source: "crates/docs-site/src/blocks/game_ui_modal.rs",
     demo_class: "blocks-game-ui-modal",
     parts: &[

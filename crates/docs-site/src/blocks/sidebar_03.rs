@@ -89,7 +89,7 @@
 //! `sidebar_07::LAYOUT_CSS` の `clip_declarations` 書き写しと同種の、
 //! 層をまたぐ暗黙の結合である。
 
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, el, span, text, Node};
@@ -339,6 +339,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/sidebar-03/",
     title: "sidebar-03",
+    category: BlockCategory::Sidebar,
     rust_source: "crates/docs-site/src/blocks/sidebar_03.rs",
     demo_class: "blocks-sidebar-03",
     parts: &[

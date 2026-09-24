@@ -90,7 +90,7 @@
 //! variant を持たず `attrs` をそのまま連結する）と素の `div`/`ul`/`li` には
 //! `class` がそのまま効くため、それらは従来どおりクラスセレクタを使う。
 
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, li, p, span, text, ul, Node};
@@ -326,6 +326,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/pricing-tiers-morph/",
     title: "pricing-tiers-morph",
+    category: BlockCategory::Pricing,
     rust_source: "crates/docs-site/src/blocks/pricing_tiers_morph.rs",
     demo_class: "blocks-pricing-tiers-morph",
     parts: &[

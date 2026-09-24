@@ -54,7 +54,7 @@
 //! 属性で渡し、[`LAYOUT_CSS`] 側も同じ属性セレクタで対応する。素の
 //! `div`/`footer`/`p` には `class` がそのまま効く。
 
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, el, footer, p, text, Node};
@@ -246,6 +246,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/footer-newsletter/",
     title: "footer-newsletter",
+    category: BlockCategory::Footer,
     rust_source: "crates/docs-site/src/blocks/footer_newsletter.rs",
     demo_class: "blocks-footer-newsletter",
     parts: &[

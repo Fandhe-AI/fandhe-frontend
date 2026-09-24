@@ -77,7 +77,7 @@
 //! モジュール doc「CSS フックが `class` と `[data-*]` で混在する理由」節と
 //! 同じ判断軸。他 block と異なりラッパーが不要な点が差分）。
 
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, el, text, Node};
@@ -249,6 +249,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/bento-staggered/",
     title: "bento-staggered",
+    category: BlockCategory::Bento,
     rust_source: "crates/docs-site/src/blocks/bento_staggered.rs",
     demo_class: "blocks-bento-staggered",
     parts: &[

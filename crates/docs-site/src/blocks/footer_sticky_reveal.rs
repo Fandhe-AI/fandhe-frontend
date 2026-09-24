@@ -84,7 +84,7 @@
 //! `root`/`list`/`item`/`link` で引き続き使用しており [`BLOCK`] の
 //! `parts` 契約は変わらない）。
 
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, footer, p, text, Node};
@@ -208,6 +208,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/footer-sticky-reveal/",
     title: "footer-sticky-reveal",
+    category: BlockCategory::Footer,
     rust_source: "crates/docs-site/src/blocks/footer_sticky_reveal.rs",
     demo_class: "blocks-footer-sticky-reveal",
     parts: &[

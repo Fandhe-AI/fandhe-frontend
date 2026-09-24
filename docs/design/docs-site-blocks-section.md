@@ -538,3 +538,98 @@ Motion+ 部品化」配下）。`bento-staggered`/`testimonials-stack` と同じ
   同判断）
 - 無 JS サイト上での実際の開閉・spring の wasm 側再生（利用者側の
   `wasm-full` 配線に委ねる。既存 `dialog` 配線で成立する）
+
+## 17. カテゴリ属性・索引ページ生成化（#2733）実装記録
+
+親トラッキング #2730（目的別パーツ拡充ツリー、新規約 300 block）の前提
+整備として、`Block` に区分（`BlockSection`）とカテゴリ（`BlockCategory`）
+を追加し、`/blocks/` 索引ページを「区分 → カテゴリ」の階層見出しで構成
+するようにした。以後追加される block はすべて `category` を持つことが
+要求される。
+
+### 型設計
+
+- `crates/docs-site/src/blocks/category.rs` に `BlockSection`（4 種:
+  Marketing/Application/Ecommerce/Docs）と `BlockCategory`（66 種、
+  イシュー #2733 本文記載順）を新設した。`site/nav.toml` を表す
+  `crate::nav::Section` との名前衝突を避けるため `Section` ではなく
+  `BlockSection` と命名した。
+- `BlockCategory::section()`/`label()`/`kebab()` はいずれも `_ =>` を
+  使わない全 variant 明示の `match` とし、新規カテゴリ追加時に実装更新を
+  怠るとコンパイルエラーになる設計にした（未知カテゴリのコンパイル時
+  排除という受け入れ条件を型で満たす）。
+- **`Ecommerce::CategoryListing` の命名**: イシュー本文の ecommerce 区分
+  にはカテゴリ名そのものが `category`（商品カテゴリ一覧ページ）として
+  列挙されている。この enum 自体の概念名（カテゴリ）と variant 名が
+  衝突すると読み手を混乱させるため、variant 名は `CategoryListing` とし、
+  `kebab()` が厳密な文字列 `"category"` を返すことで実際の分類名との
+  ズレを吸収した。
+
+### 既存 22 block の割当
+
+login-01/login-04/signup-01/signup-05 → Application/Auth、dashboard-01 →
+Application/Dashboard、sidebar-07/sidebar-03 → Application/Sidebar、
+pricing-tiers-morph/pricing-usage-slider → Marketing/Pricing、
+testimonials-stack → Marketing/Testimonial、bento-staggered →
+Marketing/Bento、feature-expand → Marketing/Feature、
+cta-banner-magnetic/cta-signup-celebrate → Marketing/Cta、
+footer-sticky-reveal/footer-newsletter → Marketing/Footer、
+hero-editorial-stagger/hero-parallax-layers/hero-terminal/
+text-split-reveal → Marketing/Hero（`text_split_reveal` はモジュール doc
+に「hero sections に相当する合成例」と明記されているため hero 扱いと
+した）、game-ui-modal → Application/Dialog（合成部品の中心が `dialog`
+であるため）。
+
+判断を要した 2 件:
+
+- **`cursor-hover-cards`**: Application/Card とした。合成部品が `card`
+  のみで、マーケティング訴求文脈ではなく汎用カード hover 演出のデモで
+  あるため（Marketing/Feature も次点候補として `category.rs` の
+  `BlockCategory::Card` 割当コメントに残す判断だったが、実装ファイル側
+  コメントには記載していない。次点は本節にのみ記録する）。
+- **`game-ui-modal`**: Application/Dialog とした。合成部品の中心が
+  `dialog` であるため。
+
+### 索引のレジストリ生成化
+
+`site/blocks.md` の手書き「掲載済み」箇条書き（22 行）を撤去し、
+イントロ文のみへ縮小した。索引本文は `crate::blocks::insert_generated_sections`
+が `page_path == INDEX_PATH`（`/blocks/`）のときに
+`index_generated_sections` を呼んで `BlockSection::ALL` × `BlockCategory::ALL`
+から `BLOCKS` を走査し組み立てる。0 件の区分・カテゴリは見出しごと省略
+する。カテゴリ内の表示順は `BLOCKS` の宣言順ではなく `path` の辞書順と
+した（並列 PR による `BLOCKS` への追記順は安定しないため、索引の表示順を
+レジストリ追記順から独立させる判断）。
+
+既存の `insert_generated_sections`/`splice_before_first_h2`（「最初の `h2`
+の直前へ挿入する、無ければ末尾へ追加する」全域関数）をそのまま索引ページ
+にも適用できたため、`crate::build::build_site` 側の呼び出し箇所は無変更
+で済んだ。索引化のために新設したのは `index_generated_sections` 関数と
+`INDEX_PATH` 定数のみであり、当初想定した専用の分岐追加は不要だった。
+
+### テスト
+
+- `crates/docs-site/src/blocks/mod.rs` の `insert_generated_sections_is_noop_for_non_block_pages`
+  は入力パスを `/blocks/`（索引ページになったため non-noop）から
+  `/blocks/no-such-block/`（未登録パス）へ差し替えた。
+- 新規 `insert_generated_sections_builds_index_with_section_and_category_headings`
+  で、実在する区分・カテゴリの見出し・リンクが出力され、0 件カテゴリ
+  （例: `Faq`）の見出しが出力されないことを固定した。
+- `crates/docs-site/tests/blocks_nav.rs::blocks_index_page_links_to_the_registered_block`
+  は生の Markdown ソースを読む方式から、実サイトビルド
+  （`support/shared_site.rs`）の `blocks/index.html` を読み、
+  `blocks::BLOCKS` 全件への `href` をループ検証する方式へ書き換えた。
+  個別イシュー番号ごとの手書き `assert!` 列挙を廃し、将来 block が
+  増えても本テストへの追記が不要なレジストリ駆動の網羅チェックへ
+  移行した。
+
+### `site/nav.toml`（サイドバー構成）は変更しない
+
+`site/nav.toml` の Blocks セクションは引き続きフラット構成
+（`[[section.page]]` のみ、`[[section.group]]` は使わない）を維持する。
+`blocks_nav.rs::blocks_section_is_registered_immediately_after_themes` が
+`section.groups.is_empty()` を固定しており、これを崩す変更（サイドバーの
+`[[section.group]]` 化）は本イシューのスコープ外の別判断とする。
+Themes セクションは本イシューと同じ「索引ページ本文内のカテゴリ見出し」
+方式であり、本実装はこの Themes 方式を踏襲した（Primitives セクションが
+使う `[[section.group]]` 方式とは異なる）。

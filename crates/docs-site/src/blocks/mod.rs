@@ -71,6 +71,8 @@
 //! （pre-styled-ui 全 recipe。合成に使う部品自体の見た目）も配線する
 //! （`/blocks/` 索引ページには配線しない）。
 
+mod category;
+
 mod bento_staggered;
 mod cta_banner_magnetic;
 mod cta_signup_celebrate;
@@ -94,11 +96,18 @@ mod signup_05;
 mod testimonials_stack;
 mod text_split_reveal;
 
-use fandhe_frontend_core::{a, div, h2, li, text, ul, Node};
+use fandhe_frontend_core::{a, div, h2, h3, li, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::{StyleSheet, StylesheetError};
 
 use crate::layout;
+
+pub use category::{BlockCategory, BlockSection};
+
+/// `/blocks/` 索引ページの絶対パス（`site/nav.toml` の
+/// `[[section]] index_path` と一致させる）。[`insert_generated_sections`]
+/// がこのパスを他の block ページと区別する分岐に使う。
+pub const INDEX_PATH: &str = "/blocks/";
 
 /// Blocks 専用 CSS の出力先（`out_dir` 起点の相対パス）。`crate::build::build_site`
 /// が [`stylesheet`] の内容をこのパスへ書き出し、`/blocks/<kebab>/` ページの
@@ -164,6 +173,11 @@ pub struct Block {
     /// block 名（`## Demo` 節の見出しにはならないが `title` 属性等の将来利用
     /// に備え保持する。現状は [`insert_generated_sections`] からは未使用）。
     pub title: &'static str,
+    /// この block が属するカテゴリ（イシュー #2733）。`/blocks/` 索引ページの
+    /// 「区分 → カテゴリ」節分類に用いる唯一の入力。新規カテゴリが必要な
+    /// 場合は [`category`] モジュールの [`BlockCategory`] へ追加すること
+    /// （未知カテゴリは全域 `match` によりコンパイル時に弾かれる）。
+    pub category: BlockCategory,
     /// 対応する実装ファイルの repo 相対パス（`blocks_code_drift.rs` が
     /// マーカー内容と手書き Markdown のフェンスを突合する際に使う）。
     pub rust_source: &'static str,
@@ -213,12 +227,17 @@ pub fn block_for_path(page_path: &str) -> Option<&'static Block> {
 }
 
 /// Markdown ブロック列（[`crate::markdown::render_markdown`] の戻り値）へ、
-/// `page_path` が block ページのときだけ「Demo」「使用部品」の 2 節を
-/// 最初の `h2` の直前へ挿入する（モジュール doc「ページ組み立て方式」節）。
-/// 該当しないページ・`h2` が 1 個も無い block ページ（末尾へ追加）の
-/// いずれでも全域に振る舞う。
+/// `page_path` が block ページのときだけ「Demo」「使用部品」の 2 節を、
+/// `page_path` が [`INDEX_PATH`]（`/blocks/` 索引ページ）のときはカテゴリ節
+/// （[`index_generated_sections`]）を、いずれも最初の `h2` の直前へ挿入する
+/// （モジュール doc「ページ組み立て方式」節）。該当しないページ・`h2` が
+/// 1 個も無いページ（末尾へ追加）のいずれでも全域に振る舞う。
 #[must_use]
 pub fn insert_generated_sections(page_path: &str, base_path: &str, blocks: Vec<Node>) -> Vec<Node> {
+    if page_path == INDEX_PATH {
+        return splice_before_first_h2(blocks, index_generated_sections(base_path));
+    }
+
     let Some(block) = block_for_path(page_path) else {
         return blocks;
     };
@@ -246,6 +265,61 @@ pub fn insert_generated_sections(page_path: &str, base_path: &str, blocks: Vec<N
     ];
 
     splice_before_first_h2(blocks, generated)
+}
+
+/// `/blocks/` 索引ページ用の「区分 → カテゴリ」節を [`BLOCKS`] レジストリ
+/// から組み立てる（イシュー #2733）。0 件の区分・カテゴリは見出しごと
+/// 省略する（`BlockSection::ALL`/`BlockCategory::ALL` は将来カテゴリの
+/// 先行宣言を許すため、掲載 block が無い節を空見出しとして出さない）。
+/// カテゴリ内の表示順は [`BLOCKS`] の宣言順ではなく `path` の辞書順とする
+/// （並列 PR による [`BLOCKS`] への追記順は安定しないため、索引の表示順を
+/// レジストリ追記順から独立させる）。
+fn index_generated_sections(base_path: &str) -> Vec<Node> {
+    let mut sections = Vec::new();
+
+    for section in BlockSection::ALL {
+        let mut section_nodes: Vec<Node> = Vec::new();
+
+        for category in BlockCategory::ALL {
+            if category.section() != section {
+                continue;
+            }
+
+            let mut items: Vec<&'static Block> = BLOCKS
+                .iter()
+                .filter(|block| block.category == *category)
+                .collect();
+            if items.is_empty() {
+                continue;
+            }
+            items.sort_by_key(|block| block.path);
+
+            let list_items: Vec<Node> = items
+                .iter()
+                .map(|block| {
+                    li(
+                        vec![],
+                        vec![a(
+                            vec![("href", layout::asset_href(base_path, block.path).as_str())],
+                            vec![text(block.title)],
+                        )],
+                    )
+                })
+                .collect();
+
+            section_nodes.push(h3(vec![], vec![text(category.label())]));
+            section_nodes.push(ul(vec![], list_items));
+        }
+
+        if section_nodes.is_empty() {
+            continue;
+        }
+
+        sections.push(h2(vec![], vec![text(section.label())]));
+        sections.extend(section_nodes);
+    }
+
+    sections
 }
 
 /// `blocks` の先頭から見て最初の `h2` の直前へ `generated` を挿入する。
@@ -318,8 +392,24 @@ mod tests {
     #[test]
     fn insert_generated_sections_is_noop_for_non_block_pages() {
         let blocks = vec![p(vec![], vec![text("hello")])];
-        let result = insert_generated_sections("/blocks/", "/fandhe-frontend", blocks.clone());
+        let result =
+            insert_generated_sections("/blocks/no-such-block/", "/fandhe-frontend", blocks.clone());
         assert_eq!(result, blocks);
+    }
+
+    #[test]
+    fn insert_generated_sections_builds_index_with_section_and_category_headings() {
+        let blocks = vec![p(vec![], vec![text("intro")])];
+        let result = insert_generated_sections(INDEX_PATH, "/fandhe-frontend", blocks);
+        let html = render(&div(vec![], result));
+
+        // 実際に block を持つ区分・カテゴリの見出しとリンクが出力される。
+        assert!(html.contains(">Application<"));
+        assert!(html.contains(">Auth<"));
+        assert!(html.contains(r#"href="/fandhe-frontend/blocks/login-01/""#));
+
+        // block を 1 件も持たないカテゴリ（marketing/Faq）の見出しは出力されない。
+        assert!(!html.contains(">FAQ<"));
     }
 
     #[test]

@@ -52,7 +52,7 @@
 //! `style` 属性値を組み立てられる）も新しい積層順へ書き換える必要がある
 //! （`docs/policy/intentional-non-adoption.md` §3.25 と同じ責務境界、
 //! 上記「自動ローテーションは行わない」節参照）。
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 use fandhe_frontend_pre_styled_ui::recipe::STAGGER_INDEX_VAR;
 
 // blocks-code:begin
@@ -160,6 +160,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/testimonials-stack/",
     title: "testimonials-stack",
+    category: BlockCategory::Testimonial,
     rust_source: "crates/docs-site/src/blocks/testimonials_stack.rs",
     demo_class: "blocks-testimonials-stack",
     parts: &[

@@ -46,7 +46,7 @@
 //! `[data-*]` で混在する理由」節と異なり、本 block はカード自体の見た目を
 //! 変更しないため単純である）。
 
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, text, Node};
@@ -110,6 +110,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/cursor-hover-cards/",
     title: "cursor-hover-cards",
+    category: BlockCategory::Card,
     rust_source: "crates/docs-site/src/blocks/cursor_hover_cards.rs",
     demo_class: "blocks-cursor-hover-cards",
     parts: &[Part {

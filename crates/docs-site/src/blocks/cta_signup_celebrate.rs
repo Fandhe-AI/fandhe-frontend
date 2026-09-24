@@ -54,7 +54,7 @@
 //! 持たず `attrs` をそのまま連結する）と素の `div`/`canvas` には `class` が
 //! そのまま効く。
 
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, el, text, Node};
@@ -204,6 +204,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/cta-signup-celebrate/",
     title: "cta-signup-celebrate",
+    category: BlockCategory::Cta,
     rust_source: "crates/docs-site/src/blocks/cta_signup_celebrate.rs",
     demo_class: "blocks-cta-signup-celebrate",
     parts: &[

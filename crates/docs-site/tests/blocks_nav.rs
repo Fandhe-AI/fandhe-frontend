@@ -12,6 +12,9 @@ use std::path::{Path, PathBuf};
 use fandhe_frontend_docs_site::blocks;
 use fandhe_frontend_docs_site::nav::{parse_nav, Nav};
 
+#[path = "support/shared_site.rs"]
+mod shared_site;
+
 /// `CARGO_MANIFEST_DIR`（`crates/docs-site`）から repo_root を解決する
 /// （`tests/site_nav.rs`/`tests/primitives_nav.rs` と同じ規約）。
 fn repo_root() -> PathBuf {
@@ -141,9 +144,13 @@ fn site_blocks_dir_manuscripts_match_the_registry_exactly() {
     );
 }
 
-/// `site/blocks.md` が索引ページとして登録され、`blocks::BLOCKS` に登録
-/// された全 block への相対リンクを含むこと（イシュー #2732 で個別 block
-/// ごとのハードコードからレジストリ導出のループへ置き換えた）。
+/// `site/blocks.md` が索引ページとして登録され、実サイトビルド後の
+/// `blocks/index.html` が登録済み全 block（`blocks::BLOCKS`）へのリンクと
+/// 区分・カテゴリ見出しを含むこと（イシュー #2733 で索引をレジストリ由来の
+/// ビルド時生成へ移行したため、生の Markdown ソースではなくビルド後の
+/// HTML を検証する。個別イシュー番号ごとの手書き `assert!` 列挙をやめ、
+/// `blocks::BLOCKS` を走査するレジストリ駆動の網羅チェックへ置き換えた。
+/// これにより将来 block が増えても本テストへの追記が不要になる）。
 #[test]
 fn blocks_index_page_links_to_the_registered_block() {
     let nav = load_nav();
@@ -159,23 +166,30 @@ fn blocks_index_page_links_to_the_registered_block() {
         .expect("Blocks section should declare its index page as a direct page");
     assert_eq!(index_page.source, "site/blocks.md");
 
-    let content = std::fs::read_to_string(repo_root().join(&index_page.source))
-        .expect("site/blocks.md should be readable");
+    let out = shared_site::real_site().out_dir.as_path();
+    let html = std::fs::read_to_string(out.join("blocks/index.html"))
+        .expect("blocks/index.html should be generated");
 
-    // イシュー #2732: 個別 block ごとのハードコード（従来 11 件のみの
-    // spot-check）を `blocks::BLOCKS`（唯一の正）からの導出ループへ置き換え、
-    // 登録済み全 block（現在 22 件）を網羅する。`kebab` の導出は
-    // `site_blocks_dir_manuscripts_match_the_registry_exactly` と同じ方式
-    // （`path` から `/blocks/` プレフィックス・末尾スラッシュを除去）。
     for block in blocks::BLOCKS {
-        let kebab = block
-            .path
-            .trim_start_matches("/blocks/")
-            .trim_end_matches('/');
-        let expected_link = format!("./blocks/{kebab}.md");
+        let expected_href = format!(r#"href="/fandhe-frontend{}""#, block.path);
         assert!(
-            content.contains(&expected_link),
-            "site/blocks.md should link to the registered {kebab} block ({expected_link})"
+            html.contains(&expected_href),
+            "blocks/index.html should link to the registered block {} ({expected_href})",
+            block.path
         );
     }
+
+    // 少なくとも 1 件ずつ実在する区分・カテゴリの見出しが出力されること。
+    assert!(
+        html.contains(">Application<"),
+        "blocks/index.html should include the Application section heading"
+    );
+    assert!(
+        html.contains(">Marketing<"),
+        "blocks/index.html should include the Marketing section heading"
+    );
+    assert!(
+        html.contains(">Auth<"),
+        "blocks/index.html should include the Auth category heading"
+    );
 }
