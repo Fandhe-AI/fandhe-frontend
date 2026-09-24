@@ -255,7 +255,7 @@ fn card_entry(release: &Release) -> Node {
             vec![("data-blocks-changelog-stacked-list-card-link", "")],
             vec![
                 card::body(
-                    vec![],
+                    vec![("data-blocks-changelog-stacked-list-card-body", "")],
                     vec![
                         title_row(release, HeadingLevel::H4),
                         tag_row(release, false),
@@ -414,7 +414,8 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-changelog-stacked-list-separator] {\n  margin: 0;\n}\n\
 .blocks-changelog-stacked-list-cards {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-changelog-stacked-list-card] {\n  display: flex;\n  flex-direction: column;\n}\n\
-[data-blocks-changelog-stacked-list-card-link] {\n  display: flex;\n  flex-direction: column;\n}\n";
+[data-blocks-changelog-stacked-list-card-link] {\n  display: flex;\n  flex-direction: column;\n}\n\
+[data-blocks-changelog-stacked-list-card-body] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n";
 
 #[cfg(test)]
 mod tests {

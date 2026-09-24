@@ -180,7 +180,7 @@ fn card_entry(release: &Release) -> Node {
             vec![("data-blocks-changelog-stacked-list-card-link", "")],
             vec![
                 card::body(
-                    vec![],
+                    vec![("data-blocks-changelog-stacked-list-card-body", "")],
                     vec![
                         title_row(release, HeadingLevel::H4),
                         tag_row(release, false),
