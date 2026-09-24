@@ -175,10 +175,14 @@ fn cell(item: &Cell) -> Node {
                 vec![image::image(
                     &ImageProps {
                         aspect_ratio: AspectRatio::Landscape,
-                        ..ImageProps::new(
-                            dummy_assets::SCREENSHOT_SRC,
-                            "機能のプレースホルダー画像",
-                        )
+                        // 4 セルすべてが同一のプレースホルダー画像を使い、
+                        // 内容を伝えない同一文言の alt を持たせると
+                        // 支援技術で同じ文言が繰り返し読み上げられる
+                        // （WCAG 1.1.1 違反、Bugbot 指摘 #3162）。装飾用途
+                        // として空の alt にする（`blog_list_image` /
+                        // `bento_three_column_tall` / `login_04` の
+                        // 同型プレースホルダー画像と同じ判断）。
+                        ..ImageProps::new(dummy_assets::SCREENSHOT_SRC, "")
                     },
                     vec![],
                 )],
