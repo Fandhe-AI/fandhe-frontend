@@ -7,9 +7,10 @@
 //! 内へ閉じ込めるための構造、イシュー #2734）。
 
 mod banner_email_signup;
+mod banner_floating_card;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![banner_email_signup::BLOCK]
+    vec![banner_email_signup::BLOCK, banner_floating_card::BLOCK]
 }

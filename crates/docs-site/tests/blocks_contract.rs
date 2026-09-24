@@ -2445,3 +2445,82 @@ fn game_ui_modal_css_uses_motion_tokens_and_no_infinite_keyframes() {
         "game-ui-modal CSS should reference a --fandhe-motion-duration-* token"
     );
 }
+
+/// `banner-floating-card` の実ビルド出力が Demo class・CSS 配線
+/// （`pre-styled-ui.css`/`blocks.css`）・CSS フック属性・生成 CSS 中の
+/// 対応セレクタを持つことを固定する（`login_04_page_wires_demo_class_and_css_hooks`
+/// と同型、イシュー #2742）。
+#[test]
+fn banner_floating_card_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/banner-floating-card/index.html"))
+        .expect("blocks/banner-floating-card/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-banner-floating-card\""),
+        "banner-floating-card page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "banner-floating-card page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "banner-floating-card page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-banner-floating-card-card=\"\"",
+        "data-blocks-banner-floating-card-close=\"\"",
+        "data-blocks-banner-floating-card-link=\"\"",
+        "data-blocks-banner-floating-card-placement=\"top\"",
+        "data-blocks-banner-floating-card-placement=\"bottom\"",
+        "data-blocks-banner-floating-card-align=\"center\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "banner-floating-card page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-scope=\"callout\"][data-part=\"root\"][data-blocks-banner-floating-card-card]",
+        "[data-blocks-banner-floating-card-close]",
+        "[data-blocks-banner-floating-card-align=\"center\"]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// `banner-floating-card` の合成部品（callout/link/icon/button）が
+/// 実ビルド HTML へ現れ、`<form>`・`href="#"`・`src="data:` を持ち込まない
+/// ことを固定する（`game_ui_modal_composes_expected_parts` と同型、
+/// イシュー #2742）。
+#[test]
+fn banner_floating_card_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/banner-floating-card/index.html"))
+        .expect("blocks/banner-floating-card/index.html should be generated");
+    for needle in [
+        "data-scope=\"callout\" data-part=\"root\"",
+        "data-scope=\"callout\" data-part=\"icon\"",
+        "data-scope=\"callout\" data-part=\"text\"",
+        "data-scope=\"link\" data-part=\"root\"",
+        "data-scope=\"button\"",
+    ] {
+        assert!(
+            html.contains(needle),
+            "banner-floating-card page should contain {needle}"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "banner-floating-card should never contain {absent}"
+        );
+    }
+}

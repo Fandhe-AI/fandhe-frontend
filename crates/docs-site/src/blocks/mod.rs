@@ -449,10 +449,11 @@ mod tests {
     }
 
     #[test]
-    fn all_blocks_registers_all_23_existing_blocks() {
+    fn all_blocks_registers_all_24_existing_blocks() {
         // カテゴリ別モジュール分割（イシュー #2734）の前後で登録件数が
         // 変わっていないことの回帰。イシュー #2741 で banner-email-signup
-        // を追加し 22 → 23 件になった。
-        assert_eq!(all_blocks().len(), 23);
+        // を追加し 22 → 23 件、イシュー #2742 で banner-floating-card を
+        // 追加し 23 → 24 件になった。
+        assert_eq!(all_blocks().len(), 24);
     }
 }
