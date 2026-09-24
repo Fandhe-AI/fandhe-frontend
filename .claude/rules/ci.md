@@ -348,7 +348,12 @@
   `wireframes/media/index.html`（イシュー #2661、Phase 8「Media・データ
   表示」の 4 番目の部品。blocks.pm 上の表示名は Placeholder。
   `content: None` で `icon::play` へフォールバック、16:9 固定、
-  `<video>`/`<iframe>` は出力しない）
+  `<video>`/`<iframe>` は出力しない）/
+  `wireframes/brand/index.html`（イシュー #2653、Phase 7「Data display」の
+  8 番目の部品。`content: Option<Node>` が `None` のとき既定の汎用抽象
+  ブランドマーク `icon::brand` へフォールバックする §11.4 からの意図的な
+  逸脱（`avatar` と同型の判断）。実在ブランドのロゴ・商標を模した SVG は
+  持ち込まない）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

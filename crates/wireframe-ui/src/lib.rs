@@ -132,7 +132,11 @@
 //! 再利用する）・5 番目の部品 [`card_basic`]（イシュー #2658、先頭・末尾
 //! スロットは §11.4 の `Option<Node>` 規約へ統一し `avatar` を内蔵しない
 //! 独自設計。`secondary` は [`nav_item`] の `counter` と同じ
-//! `Option<&str>` で表す）が続いた。
+//! `Option<&str>` で表す）・8 番目の部品 [`brand`]（イシュー #2653、
+//! `content: Option<Node>` が `None` のとき既定の汎用抽象ブランドマーク
+//! [`icon::brand`] へフォールバックする §11.4 からの意図的な逸脱
+//! （`avatar` と同型の判断）。実在ブランドのロゴ・商標を模した SVG は
+//! 持ち込まない）が続いた。
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
 //! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
 //! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
@@ -174,6 +178,7 @@ pub mod accordion;
 pub mod alert;
 pub mod annotation;
 pub mod avatar;
+pub mod brand;
 pub mod breadcrumbs;
 pub mod button;
 pub mod calendar;
@@ -226,6 +231,7 @@ pub use accordion::accordion;
 pub use alert::{alert, Severity};
 pub use annotation::annotation;
 pub use avatar::avatar;
+pub use brand::brand;
 pub use breadcrumbs::breadcrumbs;
 pub use button::button;
 pub use calendar::{calendar, MAX_WEEKS};
