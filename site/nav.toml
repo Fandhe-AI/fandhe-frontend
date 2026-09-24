@@ -107,6 +107,11 @@ title = "headless-pre-styled-ui"
 source = "examples/headless-pre-styled-ui/README.md"
 path = "/examples/headless-pre-styled-ui/"
 
+[[section.page]]
+title = "wireframe-ui"
+source = "examples/wireframe-ui/README.md"
+path = "/examples/wireframe-ui/"
+
 [[section]]
 title = "Primitives"
 # fandhe-frontend-headless-ui（unstyled headless UI）の索引・部品ページ

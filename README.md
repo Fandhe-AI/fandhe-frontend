@@ -68,6 +68,7 @@ API 詳細は
 | [dist-server-docker](./examples/dist-server-docker/README.md) | 単一バイナリ配布 + `FROM scratch` の Docker イメージ最小化 | `fandhe-frontend-dist-server` |
 | [interactive-view-transitions](./examples/interactive-view-transitions/README.md) | 状態管理（`Component`/`dispatch`）+ View Transitions の自動有効化 | `fandhe-frontend-core` / `-app` / `-interactive` |
 | [headless-pre-styled-ui](./examples/headless-pre-styled-ui/README.md) | headless-ui コンポーネント（Tabs/Accordion/Dialog/Switch/RadioGroup/Avatar）の anatomy・`data-*`・WAI-ARIA | `fandhe-frontend-core` / `-headless-ui` |
+| [wireframe-ui](./examples/wireframe-ui/README.md) | wireframe-ui（blocks.pm 参照のローファイ・モノクロ UI）Phase 1〜8・全 49 部品のショーケース | `fandhe-frontend-core` / `-wireframe-ui` |
 
 `fw` CLI の `--example` オプションで、上記のサンプルをすべて自分の
 プロジェクトとして展開できます。

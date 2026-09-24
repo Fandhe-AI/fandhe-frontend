@@ -18,6 +18,7 @@ https://fandhe-ai.github.io/fandhe-frontend/examples/ ）でも閲覧できま�
 | [dist-server-docker](./dist-server-docker/README.md) | 単一バイナリ配布・`FROM scratch` の Docker イメージ最小化・外部依存利用時の静的アセット配信の制約と対処 | `fandhe-frontend-dist-server` |
 | [interactive-view-transitions](./interactive-view-transitions/README.md) | `Component` trait による状態機械・`dispatch`/`hydrate`・`start_router` による SPA 内 View Transitions の自動有効化 | `fandhe-frontend-core` / `-app` / `-interactive`（+ `-wasm-full`） |
 | [headless-pre-styled-ui](./headless-pre-styled-ui/README.md) | `fandhe-frontend-headless-ui`（ark-ui 相当）の anatomy・`data-*`・WAI-ARIA 属性（Tabs/Accordion/Dialog/Switch/RadioGroup/Avatar） | `fandhe-frontend-core` / `-pre-styled-ui`（headless 層は再エクスポート経由） |
+| [wireframe-ui](./wireframe-ui/README.md) | `fandhe-frontend-wireframe-ui`（blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI）Phase 1〜8・全 49 部品のショーケース | `fandhe-frontend-core` / `-wireframe-ui` |
 
 ## 2. 選び方
 
@@ -26,6 +27,7 @@ https://fandhe-ai.github.io/fandhe-frontend/examples/ ）でも閲覧できま�
 - **単一バイナリ・Docker でデプロイしたい**: [dist-server-docker](./dist-server-docker/README.md) が `fandhe-frontend-dist-server` を使った最小構成の配布サーバーを示します。
 - **クライアント側の状態管理・ページ遷移アニメーションを試したい**: [interactive-view-transitions](./interactive-view-transitions/README.md) が `fandhe-frontend-interactive` の状態機械と View Transitions を実演します。
 - **headless UI コンポーネント（ark-ui 相当）を試したい**: [headless-pre-styled-ui](./headless-pre-styled-ui/README.md) が `fandhe-frontend-headless-ui` の Tabs/Accordion/Dialog/Switch/RadioGroup/Avatar を実演します。
+- **ローファイ・モノクロのワイヤーフレーム UI（blocks.pm 相当）を試したい**: [wireframe-ui](./wireframe-ui/README.md) が `fandhe-frontend-wireframe-ui` の全 49 部品を Phase 1〜8 の区分どおりに実演します。
 
 ## 3. `fw new --example` での取得
 
@@ -39,7 +41,7 @@ fw new my-app --example ssr-routing
 
 `--example` に指定できる名前は `ssr-routing` / `ssg-blog` /
 `dist-server-docker` / `interactive-view-transitions` /
-`headless-pre-styled-ui` の 5 種類です
+`headless-pre-styled-ui` / `wireframe-ui` の 6 種類です
 （本ディレクトリ直下のディレクトリ名と一致します）。展開されたプロジェクト
 は本ディレクトリ配下の該当サンプルと全ファイルバイト一致（パッケージ名の
 置換は行いません）で、そのまま `cargo build` / `cargo test` / `fw gate
@@ -89,4 +91,12 @@ fw new my-app --example ssr-routing
 `fw new --example` にも非対応でした。前提クレート公開（イシュー #608）を
 受けてイシュー #609 でバージョン依存へ切り替え、`fw new --example
 headless-pre-styled-ui`・`crates/cli/embedded-examples/`（§5）への同梱に
-対応済みです。他の 4 サンプルと同じ規約に従います。
+対応済みです。他の 5 サンプルと同じ規約に従います。
+
+## 8. 経緯: `wireframe-ui`（イシュー #2667）
+
+`wireframe-ui` は `examples/headless-pre-styled-ui` と同型の経緯を辿った
+6 件目のサンプルです。依存する `fandhe-frontend-wireframe-ui` が
+2026-09-24 に v0.52.0 で crates.io へ初回公開されたため（イシュー #2668）、
+最初から §4「crates.io バージョン依存のみ」の原則に従う構成で追加しました
+（`headless-pre-styled-ui` の §7 のような path 依存の暫定期間は経ていません）。

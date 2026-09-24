@@ -1,0 +1,25 @@
+[package]
+name = "fandhe-frontend-example-wireframe-ui"
+version = "0.1.0"
+edition = "2021"
+description = "fandhe-frontend-wireframe-ui（blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI コンポーネント層）のショーケース正本サンプル（イシュー #2667）。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# examples/ は「crates.io 公開済みクレートを実際に使う正本サンプル」であり、
+# templates/（`fw new` が展開する雛形）とは異なりバージョン依存で完結する
+# （examples 規約、イシュー #499）。`fandhe-frontend-wireframe-ui` は
+# v0.52.0 で 2026-09-24 に crates.io へ初回公開済み（イシュー #2668）で
+# あり、本サンプルはこの公開済みクレートを実際に使う examples/ の 6 件目
+# として追加する（`examples/headless-pre-styled-ui` がイシュー #609 で
+# 前提クレート公開を受けてバージョン依存へ切り替えた前例と同型）。
+[dependencies]
+fandhe-frontend-core = "0.4.3"
+fandhe-frontend-wireframe-ui = "0.52.0"
+
+[dev-dependencies]
+
+# root workspace（リポジトリ直下 Cargo.toml の `members = ["crates/*"]`）から
+# 意図的に切り離す。他の examples/* と同じ方針（`ci.md` 参照）。
+[workspace]
+members = ["."]

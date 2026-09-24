@@ -332,9 +332,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // なった。イシュー #2653 で Wireframes セクションへ Brand 部品ページ
     // （Phase 7「Data display」の 8 番目の部品、これで Phase 7 が全部品
     // 出揃った）が加わり、301 → 302 になった。
+    // イシュー #2667 で Examples セクションへ
+    // `examples/wireframe-ui/README.md`（`fw new --example wireframe-ui`
+    // 対応の 6 件目のサンプル README）が加わり、302 → 303 になった。
     assert_eq!(
         report.written.len(),
-        302,
+        303,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );

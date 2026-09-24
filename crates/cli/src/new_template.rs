@@ -745,7 +745,75 @@ const HEADLESS_PRE_STYLED_UI_EXAMPLE_FILES: &[TemplateFile] = &[
     },
 ];
 
-/// `--example` の allowlist（イシュー #500・#501・#502・#503・#609）。
+/// `examples/wireframe-ui/` の全ファイル（10 件）を git の相対パス順・
+/// 実行ビットどおりに埋め込んだ固定配列（イシュー #2667）。
+///
+/// `crates/cli/embedded-examples/wireframe-ui/` は正本
+/// `examples/wireframe-ui/` のバイト単位同梱コピーであり、乖離は
+/// [`SSR_ROUTING_EXAMPLE_FILES`] と同じく
+/// `cli/tests/example_publish_copy_drift.rs` が検知する。
+/// `fandhe-frontend-wireframe-ui` は v0.52.0 で crates.io へ初回公開済み
+/// （イシュー #2668）であり、`examples/headless-pre-styled-ui`（#609）と
+/// 同じく最初からバージョン依存で完結する構成として登録する。全ファイル
+/// `executable: false`（正本側に実行ビット付きファイルが存在しないため）。
+///
+/// イシュー #1133 と同じ動機で `.gitignore` を同梱し、`fw new --example`
+/// 生成プロジェクトの `target/`・`dist/`（`src/main.rs` の出力先）・`.env`
+/// の誤コミットを既定で防ぐ。
+const WIREFRAME_UI_EXAMPLE_FILES: &[TemplateFile] = &[
+    TemplateFile {
+        rel_path: ".gitignore",
+        contents: include_str!("../embedded-examples/wireframe-ui/.gitignore"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "Cargo.lock",
+        contents: include_str!("../embedded-examples/wireframe-ui/Cargo.lock"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "Cargo.toml",
+        contents: include_str!("../embedded-examples/wireframe-ui/Cargo.toml.embed"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "README.md",
+        contents: include_str!("../embedded-examples/wireframe-ui/README.md"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "clippy.toml",
+        contents: include_str!("../embedded-examples/wireframe-ui/clippy.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "deny.toml",
+        contents: include_str!("../embedded-examples/wireframe-ui/deny.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "src/main.rs",
+        contents: include_str!("../embedded-examples/wireframe-ui/src/main.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "src/sections.rs",
+        contents: include_str!("../embedded-examples/wireframe-ui/src/sections.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "structure.toml",
+        contents: include_str!("../embedded-examples/wireframe-ui/structure.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "tests/cli_output.rs",
+        contents: include_str!("../embedded-examples/wireframe-ui/tests/cli_output.rs"),
+        executable: false,
+    },
+];
+
+/// `--example` の allowlist（イシュー #500・#501・#502・#503・#609・#2667）。
 ///
 /// サンプル名はここに列挙したコンパイル時定数との完全一致照合のみで解決し、
 /// ユーザー入力から動的にパス・`include_str!` 対象を組み立てない
@@ -794,6 +862,13 @@ pub(crate) const EXAMPLES: &[Template] = &[
         files: HEADLESS_PRE_STYLED_UI_EXAMPLE_FILES,
         // 上記 "ssr-routing" と同じ理由でパッケージ名置換を行わない（イシュー #609）。
         needle: "fandhe-frontend-example-placeholder-unused-headless-pre-styled-ui",
+        substituted_files: &[],
+    },
+    Template {
+        name: "wireframe-ui",
+        files: WIREFRAME_UI_EXAMPLE_FILES,
+        // 上記 "ssr-routing" と同じ理由でパッケージ名置換を行わない（イシュー #2667）。
+        needle: "fandhe-frontend-example-placeholder-unused-wireframe-ui",
         substituted_files: &[],
     },
 ];
@@ -933,6 +1008,25 @@ mod tests {
             vec!["tools/wasm/build.sh"],
             "interactive-view-transitions example must have exactly one executable file \
              (tools/wasm/build.sh)"
+        );
+    }
+
+    #[test]
+    fn wireframe_ui_example_is_registered() {
+        let e = find_example("wireframe-ui").expect("wireframe-ui example must be registered");
+        assert_eq!(e.name, "wireframe-ui");
+        assert_eq!(
+            e.files.len(),
+            10,
+            "wireframe-ui example must contain exactly 10 files"
+        );
+        assert!(
+            e.substituted_files.is_empty(),
+            "examples do not substitute package names (see module doc comment, issue #500)"
+        );
+        assert!(
+            e.files.iter().all(|f| !f.executable),
+            "wireframe-ui example has no executable files in the source"
         );
     }
 

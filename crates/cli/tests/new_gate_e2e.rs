@@ -85,9 +85,9 @@ fn run_fw_new(extra_args: &[&str]) -> (i32, String, String) {
 ///
 /// # 単調カウンタによる同一プロセス内衝突対策（イシュー #729 PR #782 CI 障害）
 ///
-/// 本ファイルの `fw_new_example_*_output_passes_fw_gate` 5 件はいずれも本関数を
+/// 本ファイルの `fw_new_example_*_output_passes_fw_gate` 6 件はいずれも本関数を
 /// 引数なしで呼ぶため、名前の一意性は「PID + ナノ秒タイムスタンプ」のみに依存
-/// していた。cargo test の既定並列実行では libtest がこの 5 件をほぼ同時に
+/// していた。cargo test の既定並列実行では libtest がこの 6 件をほぼ同時に
 /// 別スレッドへディスパッチするため、プロセス起動直後の狭い時間窓に複数
 /// スレッドが `SystemTime::now()` を呼ぶ状況が生じる。self-hosted runner
 /// （コンテナ／VM）ではクロックソースの実効分解能がナノ秒を下回らない場合が
@@ -251,13 +251,13 @@ fn scratch_dir_pid_is_stale(path: &std::path::Path, pid: u32) -> bool {
     true
 }
 
-/// examples e2e 5 件（`fw_new_example_*_output_passes_fw_gate`）が共有する
+/// examples e2e 6 件（`fw_new_example_*_output_passes_fw_gate`）が共有する
 /// `CARGO_TARGET_DIR`（イシュー #505・#609）。
 ///
 /// # 背景
 ///
 /// `run_fw_gate`（`support::run_fw` 既定）は `project_dir/target` を専用
-/// `CARGO_TARGET_DIR` として起動するため、examples 5 例は毎回コールドで
+/// `CARGO_TARGET_DIR` として起動するため、examples 6 例は毎回コールドで
 /// fandhe-frontend-core/-app/-server 等の crates.io 依存を重複ビルドしていた。
 /// 本ヘルパーが返す共有ディレクトリを [`run_fw_gate_with_target_dir`] と
 /// `cargo run` smoke（各テスト末尾）の双方に明示指定することで、2 例目
@@ -268,7 +268,7 @@ fn scratch_dir_pid_is_stale(path: &std::path::Path, pid: u32) -> bool {
 /// `support::run_fw` doc コメントが警告する偽陰性リスク（`CARGO_TARGET_DIR`
 /// 共有によりフィンガープリント衝突で直前フィクスチャの結果を誤って
 /// 再利用する）は「同名パッケージを異内容で再利用する欠陥注入フィクスチャ」
-/// （`negative_cases.rs` 等）に固有のリスクである。examples 5 例は
+/// （`negative_cases.rs` 等）に固有のリスクである。examples 6 例は
 /// パッケージ名が相互に一意（`fandhe-frontend-example-ssr-routing` /
 /// `-ssg-blog` / `-dist-server-docker` / `-interactive-view-transitions` /
 /// `-headless-pre-styled-ui`）であり、リーフクレート自体は `fw new` が
@@ -1550,6 +1550,120 @@ fn fw_new_example_headless_pre_styled_ui_output_passes_fw_gate() {
     assert!(
         dist.join("assets").join("ui.css").is_file(),
         "dist/assets/ui.css が生成されていない"
+    );
+}
+
+/// `fw new --example wireframe-ui` で生成した直後のプロジェクトが
+/// `fw gate` を PASS すること（イシュー #2667、
+/// `fw_new_example_headless_pre_styled_ui_output_passes_fw_gate` と同型の
+/// モデル）。
+///
+/// `cargo build`/`fw gate` はいずれも crates.io
+/// （`https://index.crates.io`・`https://static.crates.io`）への到達性を
+/// 前提とする。到達不可の場合は環境エラーとして扱い、テストの弱体化で
+/// 対処しない（他の examples e2e と同じ前提、`.claude/rules/ci.md` 参照）。
+#[test]
+fn fw_new_example_wireframe_ui_output_passes_fw_gate() {
+    let scratch = unique_scratch_dir();
+    let _scratch_guard = ScratchProject(scratch.clone());
+
+    let (new_code, new_stdout, new_stderr) = run_fw_new(&[
+        "gate-pass-example-wireframe-ui",
+        "--example",
+        "wireframe-ui",
+        "--dir",
+        &scratch.to_string_lossy(),
+    ]);
+    assert_eq!(
+        new_code, 0,
+        "fw new --example wireframe-ui が失敗した: stdout={new_stdout} stderr={new_stderr}"
+    );
+
+    let project_dir = scratch.join("gate-pass-example-wireframe-ui");
+    let shared_target = example_shared_target_dir();
+    let (gate_code, gate_stdout, gate_stderr) =
+        run_fw_gate_with_target_dir(&project_dir, &shared_target);
+
+    for name in [
+        "type_check",
+        "default_escape_check",
+        "url_validation_check",
+        "lint",
+        "lint_wasm32",
+        "test",
+        "policy",
+    ] {
+        assert!(
+            gate_stdout.contains(&format!("\"name\":\"{name}\"")),
+            "fw gate のレポートにチェック `{name}` が現れない: stdout={gate_stdout}"
+        );
+    }
+
+    for name in [
+        "type_check",
+        "default_escape_check",
+        "url_validation_check",
+        "lint",
+        "lint_wasm32",
+        "test",
+    ] {
+        assert_eq!(
+            check_passed(&gate_stdout, name),
+            Some(true),
+            "fw new --example wireframe-ui 生成直後のプロジェクトで `{name}` が \
+             失敗した（wireframe-ui サンプルと fw gate の前提がドリフトしている）: \
+             stdout={gate_stdout} stderr={gate_stderr}"
+        );
+    }
+
+    if cargo_deny_available() {
+        assert_eq!(
+            gate_code, 0,
+            "cargo-deny 導入環境では fw new --example wireframe-ui 生成直後は \
+             PASS するはず: stdout={gate_stdout} stderr={gate_stderr}"
+        );
+        assert!(
+            gate_stdout.contains("\"gate_result\":\"PASS\""),
+            "stdout={gate_stdout}"
+        );
+    } else {
+        assert_eq!(
+            gate_code, 1,
+            "cargo-deny 未導入環境では policy の fail-closed により BLOCKED \
+             (終了コード 1) のはず: stdout={gate_stdout}"
+        );
+        assert!(
+            gate_stdout.contains("environment error: "),
+            "policy の failed 出力は environment error であることを明示する \
+             プレフィックスを含むはず: stdout={gate_stdout}"
+        );
+    }
+
+    // 受け入れ条件: `cargo run` で `dist/index.html` と
+    // `dist/assets/wireframe.css` が生成されること（正本 README.md
+    // 「動かし方」参照）。
+    let run_output = Command::new("cargo")
+        .arg("run")
+        .arg("--quiet")
+        .current_dir(&project_dir)
+        .env("CARGO_TARGET_DIR", &shared_target)
+        .output()
+        .expect("failed to spawn `cargo run` in generated example project");
+    assert!(
+        run_output.status.success(),
+        "cargo run が生成直後の wireframe-ui サンプルで失敗した: stdout={} stderr={}",
+        String::from_utf8_lossy(&run_output.stdout),
+        String::from_utf8_lossy(&run_output.stderr)
+    );
+
+    let dist = project_dir.join("dist");
+    assert!(
+        dist.join("index.html").is_file(),
+        "dist/index.html が生成されていない"
+    );
+    assert!(
+        dist.join("assets").join("wireframe.css").is_file(),
+        "dist/assets/wireframe.css が生成されていない"
     );
 }
 

@@ -44,6 +44,7 @@ const EXAMPLE_NAMES: &[&str] = &[
     "dist-server-docker",
     "interactive-view-transitions",
     "headless-pre-styled-ui",
+    "wireframe-ui",
 ];
 
 /// workspace ルート（`cli/` の親の親ディレクトリ）の絶対パスを返す。
