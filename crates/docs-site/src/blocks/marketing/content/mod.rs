@@ -10,9 +10,13 @@
 //! （イシュー #2752）を追加した時点である。
 
 mod content_article_toc;
+mod content_columns_screenshot;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![content_article_toc::BLOCK]
+    vec![
+        content_article_toc::BLOCK,
+        content_columns_screenshot::BLOCK,
+    ]
 }

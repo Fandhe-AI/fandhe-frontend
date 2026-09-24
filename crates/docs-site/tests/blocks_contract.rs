@@ -3412,3 +3412,85 @@ fn bento_two_column_composes_expected_parts() {
         );
     }
 }
+
+/// content-columns-screenshot の Demo ラッパ・CSS 配線・block 固有 CSS
+/// （2 列 grid・md ブレークポイント・フェード用 linear-gradient・image
+/// フック）が実際に出力されていることを固定する（イシュー #2753）。
+#[test]
+fn content_columns_screenshot_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/content-columns-screenshot/index.html"))
+        .expect("blocks/content-columns-screenshot/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-content-columns-screenshot\""),
+        "content-columns-screenshot page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "content-columns-screenshot page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "content-columns-screenshot page should link the Blocks-specific stylesheet"
+    );
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-content-columns-screenshot-columns",
+        "grid-template-columns: repeat(2, minmax(0, 1fr))",
+        "@media (max-width: 47.99rem)",
+        "linear-gradient(to top, var(--fandhe-color-bg-subtle), transparent)",
+        "[data-scope=\"image\"][data-part=\"root\"][data-blocks-content-columns-screenshot-image]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// content-columns-screenshot の合成部品（badge/heading/text/button/
+/// image）が期待どおりの構成で実際に出力されていること、`<form>`・
+/// `data:` URI を持ち込んでいないことを固定する（イシュー #2753）。
+#[test]
+fn content_columns_screenshot_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/content-columns-screenshot/index.html"))
+        .expect("blocks/content-columns-screenshot/index.html should be generated");
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"button\"",
+        "data-scope=\"image\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "content-columns-screenshot page should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("<img").count(),
+        1,
+        "content-columns-screenshot should render exactly 1 screenshot image"
+    );
+    assert!(html.contains("src=\"../../assets/blocks-demo-screenshot.svg\""));
+    // 4 件は Demo 出力（2 列 × 2 段落）、残り 1 件は「Rust コード」節が表示
+    // する原稿フェンス内のソースコード自体に含まれる同じ属性名のリテラル
+    // （`blocks_code_drift.rs` が実装との一致を固定するマーカー内容）。
+    assert_eq!(
+        html.matches("data-blocks-content-columns-screenshot-paragraph")
+            .count(),
+        5,
+        "content-columns-screenshot should render 4 paragraphs across the 2 columns \
+         plus 1 occurrence in the displayed Rust source"
+    );
+    assert!(html.contains("type=\"button\""));
+    for absent in ["<form", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "content-columns-screenshot should never contain {absent}"
+        );
+    }
+}

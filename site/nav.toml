@@ -1305,6 +1305,11 @@ title = "content-article-toc"
 source = "site/blocks/content-article-toc.md"
 path = "/blocks/content-article-toc/"
 
+[[section.group.page]]
+title = "content-columns-screenshot"
+source = "site/blocks/content-columns-screenshot.md"
+path = "/blocks/content-columns-screenshot/"
+
 [[section.group]]
 title = "Footer"
 
