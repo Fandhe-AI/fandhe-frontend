@@ -278,6 +278,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/careers-split-photo-list/index.html"
           # Marketing / Changelog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/changelog-accordion/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/changelog-stacked-list/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/changelog-timeline/index.html"
           # Marketing / Error Page
           # Marketing / Gallery

@@ -1409,6 +1409,11 @@ source = "site/blocks/changelog-accordion.md"
 path = "/blocks/changelog-accordion/"
 
 [[section.group.page]]
+title = "changelog-stacked-list"
+source = "site/blocks/changelog-stacked-list.md"
+path = "/blocks/changelog-stacked-list/"
+
+[[section.group.page]]
 title = "changelog-timeline"
 source = "site/blocks/changelog-timeline.md"
 path = "/blocks/changelog-timeline/"
