@@ -94,6 +94,12 @@ mod category;
 
 mod application;
 mod docs;
+/// Blocks 共通のデモ用ダミー素材ヘルパ（イシュー #2737）。商品画像・
+/// 人物アバター・会社ロゴ・スクリーンショット枠・背景タイルの 5 種と、
+/// 人名・社名・価格帯・グラフ用サンプル系列を供給する。`all_blocks()`
+/// レジストリには乗らない（block 自体ではなく素材ヘルパのため）ため
+/// `pub(crate)` のまま各 block モジュールから直接参照する。
+pub(crate) mod dummy_assets;
 mod ecommerce;
 mod marketing;
 

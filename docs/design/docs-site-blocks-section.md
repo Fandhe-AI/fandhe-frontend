@@ -842,3 +842,49 @@ pub enum LayoutCss {
 dist sanity check `test -f` 対象への 1 行追加（生成物の存在を fail-closed
 に検証する既存契約、削除・弱体化しない）の 2 点で足りる。`CLAUDE.md`・
 `.claude/rules/ci.md` の説明本文（経緯の長文追記）は編集しない。）
+
+## 20. Blocks 共通のデモ用ダミー素材ヘルパ（#2737）実装記録
+
+親トラッキング #2731「Blocks 目的別パーツ拡充ツリー」配下（phase:0）。
+今後追加される目的別パーツ block の多くが商品画像・人物アバター・会社
+ロゴ・スクリーンショット枠・グラフ用数値等のプレースホルダー素材を
+必要とするため、`crates/docs-site/src/blocks/dummy_assets.rs`
+（`pub(crate) mod dummy_assets;`、`all_blocks()` レジストリには乗らない
+第 5 の Rust 生成コンテンツ供給元）へ共通ヘルパとして一元化した。
+
+- **画像 5 種**（商品・人物アバター・会社ロゴ・スクリーンショット枠・
+  汎用背景タイル）はいずれも `showcase::image_demo_svg`（イシュー #1562）
+  と同じ「ビルド時生成 SVG を相対パスアセットとして書き出す」方式を
+  踏襲する。`data:` URI は `fandhe_frontend_core::url::is_safe_url` が
+  拒否するため使わない。出力先は `assets/blocks-demo-{product,avatar,
+  logo,screenshot,background}.svg`、`crate::build::build_site` が
+  `dummy_assets::IMAGE_ASSETS`（`(相対パス, 生成関数)` のディスパッチ
+  テーブル、`crate::blocks::Block` レジストリと同型の単一情報源設計）を
+  1 ループ走査するだけで href 登録・書き出しの両方を行う。書き出し条件は
+  既存 22 block の使用有無を問わず「Blocks ページが 1 件でも存在すれば
+  無条件（`has_blocks_page` と同条件）」とし、個別 block の実際の消費
+  状況を走査する複雑な条件判定は導入しない。
+- **モノトーン・抽象図形限定**: 5 種とも共通パレット定数（背景/輪郭/
+  強調の 3 色グレースケール）のみで構成し、実在の人物・企業・ブランドを
+  模さない（会社ロゴは六角形 + 中心円の抽象バッジ、人物アバターは
+  円 + 弧のみのシルエット）。
+- **文言・数値セット**: 架空の人名（`PERSON_NAMES`）・役職
+  （`JOB_TITLES`）・社名（`COMPANY_NAMES`、既知の実データセット由来
+  名称は避けた完全架空のセット）・一言レビュー（`TESTIMONIAL_QUOTES`）・
+  価格帯（`SAMPLE_PRICE_TIERS`）・グラフ用サンプル系列
+  （`SAMPLE_CHART_CATEGORIES`/`SAMPLE_CHART_SERIES_A`/`_B`）を
+  `pub(crate)` 定数として提供する。出力は呼び出し側 block が
+  `fandhe_frontend_core::text()` 経由で行う契約（本モジュール自体は
+  `Node` を組み立てない）。
+- **既存 22 block への適用は任意・本実装のスコープ外**: 出力差分レビュー
+  を要するため、本イシューでは新設と CI 組み込みのみを行い、既存 block
+  の書き換えは行わない。
+- **未使用コードの警告抑制**: 本モジュール新設時点では `crate::blocks`
+  の他モジュールから未参照の定数・関数がある（後続 #2730 系 block から
+  順次参照される想定）ため、`#![allow(dead_code)]` をモジュール冒頭に
+  明示し `cargo clippy -- -D warnings` を赤くしないようにした。
+- **契約テスト**: `crates/docs-site/tests/blocks_dummy_assets.rs` が
+  実サイトビルド成果物に対して 5 SVG の存在・非空・`<svg` ルート・
+  `data:`/`<script`/イベントハンドラ属性不在を検証する。単体テスト
+  （`dummy_assets.rs` 内 `#[cfg(test)]`）は生成関数の戻り値を直接検証し、
+  役割を分離している。

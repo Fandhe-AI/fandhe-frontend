@@ -315,6 +315,14 @@ jobs:
           # Docs / Example Preview
           # Docs / Api Reference
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/blocks.css"
+          # イシュー #2737: Blocks 共通のデモ用ダミー素材ヘルパ（画像 5 種）。
+          # `has_blocks_page` と同条件で無条件に書き出される
+          # （`crate::blocks::dummy_assets::IMAGE_ASSETS`、`crate::build::build_site` 参照）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/assets/blocks-demo-product.svg"
+          test -f "${RUNNER_TEMP}/docs-site-dist/assets/blocks-demo-avatar.svg"
+          test -f "${RUNNER_TEMP}/docs-site-dist/assets/blocks-demo-logo.svg"
+          test -f "${RUNNER_TEMP}/docs-site-dist/assets/blocks-demo-screenshot.svg"
+          test -f "${RUNNER_TEMP}/docs-site-dist/assets/blocks-demo-background.svg"
           # イシュー #2607: Wireframes セクションの索引ページ。
           # イシュー #2617: 最初の部品ページ（Annotation）の登録により
           # `crate::wireframes::WIREFRAMES` が空でなくなり、

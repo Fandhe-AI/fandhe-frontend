@@ -138,7 +138,11 @@
   `assets/image-demo.svg`（イシュー #1562、`showcase::image_demo_svg` が
   生成。Image 節 demo の `src` が `data:` URI で core の `is_safe_url` に
   拒否され属性ごと欠落していた不具合を、ビルド時生成 SVG の相対パス参照へ
-  切り替えて是正した）/ `blocks/<kebab>/index.html`（block 追加ごとに
+  切り替えて是正した）/ `assets/blocks-demo-{product,avatar,logo,
+  screenshot,background}.svg`（イシュー #2737、Blocks 共通のデモ用ダミー
+  素材ヘルパ `blocks::dummy_assets::IMAGE_ASSETS` が生成。`has_blocks_page`
+  と同条件〔既存 22 block の使用有無を問わず無条件〕で書き出す設計）/
+  `blocks/<kebab>/index.html`（block 追加ごとに
   `dist sanity check` へ 1 行追加する対象。イシュー #2088〜#2552 の 22 件
   分の個別記述はイシュー #2736 で撤去し、一覧・個別の設計判断は
   `docs/design/docs-site-blocks-section.md` §19 と各
@@ -321,7 +325,10 @@
   `blocks_code_drift.rs`〔`crate::blocks` 配下の手書き実装と Markdown 原稿の
   `rust` フェンスとのマーカー突合、イシュー #2088〕/ `blocks_contract.rs`
   〔Blocks ページの節順序・`<form>` 不在・CSS 配線・XSS 回帰、イシュー
-  #2088〕/ `wireframes_nav.rs`〔nav.toml の `/wireframes/*` ⇔
+  #2088〕/ `blocks_dummy_assets.rs`〔Blocks 共通のデモ用ダミー素材ヘルパ
+  （`blocks::dummy_assets::IMAGE_ASSETS`）が実ビルドで書き出す SVG 5 種の
+  存在・非空・安全性（`data:`/`<script`/イベントハンドラ属性不在）を
+  固定、イシュー #2737〕/ `wireframes_nav.rs`〔nav.toml の `/wireframes/*` ⇔
   `crate::wireframes::WIREFRAMES` ⇔ `site/wireframes/*.md` の三方突合、
   イシュー #2607〕/ `wireframes_contract.rs`〔Wireframes ページの節順序・
   非対話制約（`<form>`/`<button>`/`<input>`/`<select>`/`<a href>` 不在）・
