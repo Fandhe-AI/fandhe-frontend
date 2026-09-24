@@ -1292,6 +1292,16 @@ title = "blog-grid-text"
 source = "site/blocks/blog-grid-text.md"
 path = "/blocks/blog-grid-text/"
 
+[[section.group.page]]
+title = "blog-list-image"
+source = "site/blocks/blog-list-image.md"
+path = "/blocks/blog-list-image/"
+
+[[section.group.page]]
+title = "blog-split-header-grid"
+source = "site/blocks/blog-split-header-grid.md"
+path = "/blocks/blog-split-header-grid/"
+
 [[section.group]]
 title = "Footer"
 
@@ -1318,13 +1328,46 @@ title = "banner-email-signup"
 source = "site/blocks/banner-email-signup.md"
 path = "/blocks/banner-email-signup/"
 
+[[section.group.page]]
+title = "banner-floating-card"
+source = "site/blocks/banner-floating-card.md"
+path = "/blocks/banner-floating-card/"
+
+[[section.group.page]]
+title = "banner-full-width-bar"
+source = "site/blocks/banner-full-width-bar.md"
+path = "/blocks/banner-full-width-bar/"
+
 [[section.group]]
 title = "Bento"
+
+[[section.group.page]]
+title = "bento-asymmetric-rows"
+source = "site/blocks/bento-asymmetric-rows.md"
+path = "/blocks/bento-asymmetric-rows/"
 
 [[section.group.page]]
 title = "bento-staggered"
 source = "site/blocks/bento-staggered.md"
 path = "/blocks/bento-staggered/"
+
+[[section.group.page]]
+title = "bento-three-column-tall"
+source = "site/blocks/bento-three-column-tall.md"
+path = "/blocks/bento-three-column-tall/"
+
+[[section.group.page]]
+title = "bento-two-column"
+source = "site/blocks/bento-two-column.md"
+path = "/blocks/bento-two-column/"
+
+[[section.group]]
+title = "Changelog"
+
+[[section.group.page]]
+title = "changelog-accordion"
+source = "site/blocks/changelog-accordion.md"
+path = "/blocks/changelog-accordion/"
 
 [[section.group]]
 title = "Sidebar"
