@@ -3953,3 +3953,94 @@ fn content_split_image_composes_expected_parts() {
         );
     }
 }
+
+/// content-with-testimonial の Demo ラッパ・CSS 配線・block 固有 CSS（lg
+/// ブレークポイント・7:5 比率・写真カードの重ね順規則）が実際に出力
+/// されていることを固定する（イシュー #2756）。
+#[test]
+fn content_with_testimonial_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/content-with-testimonial/index.html"))
+        .expect("blocks/content-with-testimonial/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-content-with-testimonial\""),
+        "content-with-testimonial page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "content-with-testimonial page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "content-with-testimonial page should link the Blocks-specific stylesheet"
+    );
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "@media (min-width: 64rem)",
+        "minmax(0, 7fr) minmax(0, 5fr)",
+        "[data-scope=\"card\"][data-part=\"root\"][data-blocks-content-with-testimonial-photo-card]",
+        "[data-scope=\"image\"][data-part=\"root\"][data-blocks-content-with-testimonial-photo]",
+        "[data-scope=\"blockquote\"][data-part=\"root\"][data-blocks-content-with-testimonial-card-quote]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// content-with-testimonial の合成部品（heading/text/blockquote/avatar/
+/// card/stat/image/link）が期待どおりの構成で実際に出力されていること、
+/// `<form>`・`data:` URI を持ち込んでいないことを固定する（イシュー
+/// #2756）。
+#[test]
+fn content_with_testimonial_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/content-with-testimonial/index.html"))
+        .expect("blocks/content-with-testimonial/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"blockquote\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"card\"",
+        "data-scope=\"stat\"",
+        "data-scope=\"image\"",
+        "data-scope=\"link\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "content-with-testimonial page should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("<img").count(),
+        2,
+        "content-with-testimonial should render exactly 2 images (avatar + photo card background)"
+    );
+    assert_eq!(
+        html.matches("data-scope=\"stat\" data-part=\"root\"")
+            .count(),
+        4,
+        "content-with-testimonial should render exactly 4 stat items"
+    );
+    // 4 件は Demo 出力（形 A の本文 2 段落 + 形 B の本文 1 段落）、残り 1 件
+    // は「Rust コード」節が表示する原稿フェンス内のソースコード自体に
+    // 含まれる同じ属性名のリテラル（`blocks_code_drift.rs` が実装との
+    // 一致を固定するマーカー内容）。
+    assert_eq!(
+        html.matches("data-blocks-content-with-testimonial-paragraph")
+            .count(),
+        4,
+        "content-with-testimonial should render 3 paragraphs across the 2 variants \
+         plus 1 occurrence in the displayed Rust source"
+    );
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "content-with-testimonial should never contain {absent}"
+        );
+    }
+}

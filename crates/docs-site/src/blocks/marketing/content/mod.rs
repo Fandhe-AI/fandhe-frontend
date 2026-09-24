@@ -7,6 +7,7 @@
 
 mod content_columns_screenshot;
 mod content_split_image;
+mod content_with_testimonial;
 
 use crate::blocks::Block;
 
@@ -14,5 +15,6 @@ pub(super) fn blocks() -> Vec<Block> {
     vec![
         content_columns_screenshot::BLOCK,
         content_split_image::BLOCK,
+        content_with_testimonial::BLOCK,
     ]
 }
