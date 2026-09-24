@@ -79,7 +79,7 @@
 //! 単純な矩形図形を自作する（モジュール doc「shadcn 側との差分メモ」節
 //! 参照）。
 
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, el, p, span, text, Node};
@@ -555,6 +555,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/sidebar-07/",
     title: "sidebar-07",
+    category: BlockCategory::Sidebar,
     rust_source: "crates/docs-site/src/blocks/sidebar_07.rs",
     demo_class: "blocks-sidebar-07",
     parts: &[

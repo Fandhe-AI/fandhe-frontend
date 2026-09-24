@@ -50,7 +50,7 @@
 //! `drop_class_attr` を経由するため見出しの余白調整も同様に `data-*` で
 //! 渡す。素の `div`/`p` には `class` がそのまま効く。
 
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, p, text, Node};
@@ -101,6 +101,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/cta-banner-magnetic/",
     title: "cta-banner-magnetic",
+    category: BlockCategory::Cta,
     rust_source: "crates/docs-site/src/blocks/cta_banner_magnetic.rs",
     demo_class: "blocks-cta-banner-magnetic",
     parts: &[Part {

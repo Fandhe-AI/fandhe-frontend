@@ -12,6 +12,9 @@ use std::path::{Path, PathBuf};
 use fandhe_frontend_docs_site::blocks;
 use fandhe_frontend_docs_site::nav::{parse_nav, Nav};
 
+#[path = "support/shared_site.rs"]
+mod shared_site;
+
 /// `CARGO_MANIFEST_DIR`（`crates/docs-site`）から repo_root を解決する
 /// （`tests/site_nav.rs`/`tests/primitives_nav.rs` と同じ規約）。
 fn repo_root() -> PathBuf {
@@ -141,8 +144,13 @@ fn site_blocks_dir_manuscripts_match_the_registry_exactly() {
     );
 }
 
-/// `site/blocks.md` が索引ページとして登録され、掲載済み block（login-01）
-/// への相対リンクを含むこと。
+/// `site/blocks.md` が索引ページとして登録され、実サイトビルド後の
+/// `blocks/index.html` が登録済み全 block（`blocks::BLOCKS`）へのリンクと
+/// 区分・カテゴリ見出しを含むこと（イシュー #2733 で索引をレジストリ由来の
+/// ビルド時生成へ移行したため、生の Markdown ソースではなくビルド後の
+/// HTML を検証する。個別イシュー番号ごとの手書き `assert!` 列挙をやめ、
+/// `blocks::BLOCKS` を走査するレジストリ駆動の網羅チェックへ置き換えた。
+/// これにより将来 block が増えても本テストへの追記が不要になる）。
 #[test]
 fn blocks_index_page_links_to_the_registered_block() {
     let nav = load_nav();
@@ -158,50 +166,30 @@ fn blocks_index_page_links_to_the_registered_block() {
         .expect("Blocks section should declare its index page as a direct page");
     assert_eq!(index_page.source, "site/blocks.md");
 
-    let content = std::fs::read_to_string(repo_root().join(&index_page.source))
-        .expect("site/blocks.md should be readable");
+    let out = shared_site::real_site().out_dir.as_path();
+    let html = std::fs::read_to_string(out.join("blocks/index.html"))
+        .expect("blocks/index.html should be generated");
+
+    for block in blocks::BLOCKS {
+        let expected_href = format!(r#"href="/fandhe-frontend{}""#, block.path);
+        assert!(
+            html.contains(&expected_href),
+            "blocks/index.html should link to the registered block {} ({expected_href})",
+            block.path
+        );
+    }
+
+    // 少なくとも 1 件ずつ実在する区分・カテゴリの見出しが出力されること。
     assert!(
-        content.contains("./blocks/login-01.md"),
-        "site/blocks.md should link to the registered login-01 block"
+        html.contains(">Application<"),
+        "blocks/index.html should include the Application section heading"
     );
     assert!(
-        content.contains("./blocks/dashboard-01.md"),
-        "site/blocks.md should link to the registered dashboard-01 block (イシュー #2089)"
+        html.contains(">Marketing<"),
+        "blocks/index.html should include the Marketing section heading"
     );
     assert!(
-        content.contains("./blocks/sidebar-07.md"),
-        "site/blocks.md should link to the registered sidebar-07 block (イシュー #2090)"
-    );
-    assert!(
-        content.contains("./blocks/sidebar-03.md"),
-        "site/blocks.md should link to the registered sidebar-03 block (イシュー #2091)"
-    );
-    assert!(
-        content.contains("./blocks/login-04.md"),
-        "site/blocks.md should link to the registered login-04 block (イシュー #2093)"
-    );
-    assert!(
-        content.contains("./blocks/signup-01.md"),
-        "site/blocks.md should link to the registered signup-01 block (イシュー #2094)"
-    );
-    assert!(
-        content.contains("./blocks/signup-05.md"),
-        "site/blocks.md should link to the registered signup-05 block (イシュー #2095)"
-    );
-    assert!(
-        content.contains("./blocks/hero-editorial-stagger.md"),
-        "site/blocks.md should link to the registered hero-editorial-stagger block (イシュー #2546)"
-    );
-    assert!(
-        content.contains("./blocks/hero-parallax-layers.md"),
-        "site/blocks.md should link to the registered hero-parallax-layers block (イシュー #2546)"
-    );
-    assert!(
-        content.contains("./blocks/hero-terminal.md"),
-        "site/blocks.md should link to the registered hero-terminal block (イシュー #2546)"
-    );
-    assert!(
-        content.contains("./blocks/text-split-reveal.md"),
-        "site/blocks.md should link to the registered text-split-reveal block (イシュー #2546)"
+        html.contains(">Auth<"),
+        "blocks/index.html should include the Auth category heading"
     );
 }
