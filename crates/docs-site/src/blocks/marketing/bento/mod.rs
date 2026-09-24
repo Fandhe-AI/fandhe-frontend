@@ -7,8 +7,13 @@
 
 mod bento_asymmetric_rows;
 mod bento_staggered;
+mod bento_three_column_tall;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![bento_asymmetric_rows::BLOCK, bento_staggered::BLOCK]
+    vec![
+        bento_asymmetric_rows::BLOCK,
+        bento_staggered::BLOCK,
+        bento_three_column_tall::BLOCK,
+    ]
 }

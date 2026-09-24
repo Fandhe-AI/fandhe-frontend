@@ -263,6 +263,7 @@ jobs:
           # Marketing / Bento
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-asymmetric-rows/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-staggered/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-three-column-tall/index.html"
           # Marketing / Comparison
           # Marketing / Careers
           # Marketing / Changelog
