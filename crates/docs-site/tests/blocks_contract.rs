@@ -2626,3 +2626,87 @@ fn blog_featured_with_list_composes_expected_parts() {
         );
     }
 }
+
+/// `bento-asymmetric-rows`（イシュー #2745）の CSS フック配線検証。
+/// `bento_staggered_page_wires_demo_class_and_css_hooks` と同型
+/// （`crate::blocks` モジュール doc「CSS フックが `class` と `[data-*]` で
+/// 混在する理由」節参照）。
+#[test]
+fn bento_asymmetric_rows_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/bento-asymmetric-rows/index.html"))
+        .expect("blocks/bento-asymmetric-rows/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-bento-asymmetric-rows\""),
+        "bento-asymmetric-rows page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "bento-asymmetric-rows page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "bento-asymmetric-rows page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-bento-asymmetric-rows-cell=\"wide\"",
+        "data-blocks-bento-asymmetric-rows-cell=\"narrow\"",
+        "data-blocks-bento-asymmetric-rows-eyebrow=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "bento-asymmetric-rows page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        ".blocks-bento-asymmetric-rows-grid",
+        "[data-blocks-bento-asymmetric-rows-cell=\"wide\"]",
+        "@media (min-width: 48rem)",
+        "@media (min-width: 64rem)",
+        "grid-column: span 4",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare {needle} for bento-asymmetric-rows"
+        );
+    }
+}
+
+/// bento-asymmetric-rows の合成部品（badge/heading/text/card/image）が
+/// 期待どおりの構成で実際に出力されていること、幅区分セルがちょうど
+/// 4 件出力されること、`<form>`/死リンク/`data:` URI を持ち込んでいない
+/// ことを固定する（イシュー #2745）。
+#[test]
+fn bento_asymmetric_rows_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/bento-asymmetric-rows/index.html"))
+        .expect("blocks/bento-asymmetric-rows/index.html should be generated");
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"card\"",
+        "data-scope=\"image\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "bento-asymmetric-rows page should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-bento-asymmetric-rows-cell=\"")
+            .count(),
+        4,
+        "bento-asymmetric-rows should render exactly 4 cells"
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "bento-asymmetric-rows should never contain {absent}"
+        );
+    }
+}

@@ -5,9 +5,10 @@
 //! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
 //! ための構造、イシュー #2734）。
 
+mod bento_asymmetric_rows;
 mod bento_staggered;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![bento_staggered::BLOCK]
+    vec![bento_asymmetric_rows::BLOCK, bento_staggered::BLOCK]
 }

@@ -259,6 +259,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/banner-cookie-consent/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/banner-email-signup/index.html"
           # Marketing / Bento
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-asymmetric-rows/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-staggered/index.html"
           # Marketing / Comparison
           # Marketing / Careers
