@@ -61,6 +61,28 @@
 //!
 //! 参照元からは構造（領域配置・部品構成）だけを取り、文言・配色・装飾・
 //! アイコンは持ち込まない（デモ文言は独自の日本語）。
+//!
+//! # `[data-blocks-content-article-cover]`/`[data-blocks-content-article-quote]`
+//! の詳細度を recipe 以上にする
+//!
+//! `image::image` が出力する要素は `[data-scope="image"][data-part="root"]`
+//! （詳細度 (0,2,0)）に加え `ImageShape::Square`（既定値）の variant
+//! `.fd-image--shape-square`（詳細度 (0,3,0)）で `border-radius:
+//! var(--fandhe-radius-none)` を持つため、block 側セレクタを単独の
+//! `[data-blocks-content-article-cover]`（詳細度 (0,1,0)）のままにすると
+//! Image recipe に負けて角丸が適用されない（Cursor Bugbot 指摘、
+//! `crates/docs-site/src/blocks/application/auth/login_04.rs` の
+//! `[data-blocks-login-04-img]` と同型の問題）。`blockquote::root` も
+//! `[data-scope="blockquote"][data-part="root"]`（詳細度 (0,2,0)）で
+//! `margin: 0` を持ち、単独の `[data-blocks-content-article-quote]`
+//! （詳細度 (0,1,0)）では上書きできない。login_04 と同じ対策として、
+//! セレクタを `[data-scope="image"][data-part="root"]
+//! [data-blocks-content-article-cover]`（詳細度 (0,3,0)。variant と同詳細
+//! 度だが block CSS は component recipe より後段で連結されるためソース順
+//! で上書きされる）・`[data-scope="blockquote"][data-part="root"]
+//! [data-blocks-content-article-quote]`（詳細度 (0,3,0)。base より高い
+//! ため順序に依らず上書きする）へそれぞれ結合し、[`LAYOUT_CSS`] 側で
+//! recipe を確実に上書きする。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -419,8 +441,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-content-article-byline {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-content-article-figure {\n  margin: 0;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-content-article-figcaption {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-[data-blocks-content-article-cover] {\n  width: 100%;\n  border-radius: var(--fandhe-radius-lg);\n}\n\
-[data-blocks-content-article-quote] {\n  margin-block: var(--fandhe-space-2);\n}\n\
+[data-scope=\"image\"][data-part=\"root\"][data-blocks-content-article-cover] {\n  width: 100%;\n  border-radius: var(--fandhe-radius-lg);\n}\n\
+[data-scope=\"blockquote\"][data-part=\"root\"][data-blocks-content-article-quote] {\n  margin-block: var(--fandhe-space-2);\n}\n\
 [data-blocks-content-article-separator] {\n  margin-block: var(--fandhe-space-2);\n}\n\
 [data-blocks-content-article-category] {\n  flex-shrink: 0;\n}\n\
 [data-blocks-content-article-avatar] {\n  flex-shrink: 0;\n}\n\
