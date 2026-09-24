@@ -52,7 +52,7 @@
 //! - **補足文（サインアップ行・規約行）は素の `div`**: `field::helper_text`
 //!   は `has_helper_text: true` と aria 配線を要求し用途が異なるため使わず、
 //!   `login_01` の `blocks-login-01-signup-row` と同型の `div` にする。
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, el, text, Node};
@@ -245,6 +245,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/login-04/",
     title: "login-04",
+    category: BlockCategory::Auth,
     rust_source: "crates/docs-site/src/blocks/login_04.rs",
     demo_class: "blocks-login-04",
     parts: &[

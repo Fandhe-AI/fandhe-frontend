@@ -66,7 +66,7 @@
 //! 再エクスポートで `drop_class_attr` を経由しない）と素の `div` には
 //! `class` がそのまま効くため、それらは従来どおり class セレクタを使う。
 
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, el, text, Node};
@@ -230,6 +230,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/signup-05/",
     title: "signup-05",
+    category: BlockCategory::Auth,
     rust_source: "crates/docs-site/src/blocks/signup_05.rs",
     demo_class: "blocks-signup-05",
     parts: &[

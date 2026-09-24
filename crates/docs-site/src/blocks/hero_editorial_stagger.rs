@@ -50,7 +50,7 @@
 //! `attrs` へ直接渡す（`crate::blocks` モジュール doc「CSS フックが
 //! `class` と `[data-*]` で混在する理由」節と同じ判断軸）。
 
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, text, Node};
@@ -122,6 +122,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/hero-editorial-stagger/",
     title: "hero-editorial-stagger",
+    category: BlockCategory::Hero,
     rust_source: "crates/docs-site/src/blocks/hero_editorial_stagger.rs",
     demo_class: "blocks-hero-editorial-stagger",
     parts: &[

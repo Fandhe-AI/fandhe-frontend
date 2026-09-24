@@ -53,7 +53,7 @@
 //! まま用いる。文言はすべて架空のものであり、実企業名・実サービス名・
 //! 実クレデンシャル・PII を含まない。
 
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, text, Node};
@@ -112,6 +112,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/hero-parallax-layers/",
     title: "hero-parallax-layers",
+    category: BlockCategory::Hero,
     rust_source: "crates/docs-site/src/blocks/hero_parallax_layers.rs",
     demo_class: "blocks-hero-parallax-layers",
     parts: &[

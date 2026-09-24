@@ -72,7 +72,7 @@
 //! をそのまま連結する）と素の `div` には `class` がそのまま効くため、
 //! それらは従来どおりクラスセレクタを使う。
 
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, el, text, Node};
@@ -220,6 +220,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/feature-expand/",
     title: "feature-expand",
+    category: BlockCategory::Feature,
     rust_source: "crates/docs-site/src/blocks/feature_expand.rs",
     demo_class: "blocks-feature-expand",
     parts: &[

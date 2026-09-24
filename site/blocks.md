@@ -14,28 +14,8 @@ UI コンポーネントを追加するものではありません**。ログイ
 （`docs/policy/intentional-non-adoption.md` §3.25: UI コンポーネント層は
 アプリケーションロジックを内包しません）。
 
-## 掲載済み
-
-- [login-01](./blocks/login-01.md)
-- [login-04](./blocks/login-04.md)
-- [dashboard-01](./blocks/dashboard-01.md)
-- [sidebar-07](./blocks/sidebar-07.md)
-- [sidebar-03](./blocks/sidebar-03.md)
-- [signup-01](./blocks/signup-01.md)
-- [signup-05](./blocks/signup-05.md)
-- [pricing-tiers-morph](./blocks/pricing-tiers-morph.md)
-- [pricing-usage-slider](./blocks/pricing-usage-slider.md)
-- [testimonials-stack](./blocks/testimonials-stack.md)
-- [bento-staggered](./blocks/bento-staggered.md)
-- [feature-expand](./blocks/feature-expand.md)
-- [cta-banner-magnetic](./blocks/cta-banner-magnetic.md)
-- [cta-signup-celebrate](./blocks/cta-signup-celebrate.md)
-- [cursor-hover-cards](./blocks/cursor-hover-cards.md)
-- [hero-editorial-stagger](./blocks/hero-editorial-stagger.md)
-- [hero-parallax-layers](./blocks/hero-parallax-layers.md)
-- [hero-terminal](./blocks/hero-terminal.md)
-- [text-split-reveal](./blocks/text-split-reveal.md)
-- [game-ui-modal](./blocks/game-ui-modal.md)
-- [footer-sticky-reveal](./blocks/footer-sticky-reveal.md)
-- [footer-newsletter](./blocks/footer-newsletter.md)
+以下は登録済み block からビルド時に自動生成される索引です（区分 →
+カテゴリの階層で表示されます。イシュー #2733）。block 追加時に本ページを
+手動編集する必要はありません（`crates/docs-site/src/blocks/mod.rs` の
+`BLOCKS` レジストリへの登録のみで索引に反映されます）。
 

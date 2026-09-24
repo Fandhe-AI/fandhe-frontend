@@ -41,7 +41,7 @@
 //!   `FieldProps::has_helper_text` を `true` にして `aria-describedby` を
 //!   入力欄へ関連付ける。Full Name は説明文を持たないため
 //!   `has_helper_text: false` のままとする。
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, text, Node};
@@ -226,6 +226,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/signup-01/",
     title: "signup-01",
+    category: BlockCategory::Auth,
     rust_source: "crates/docs-site/src/blocks/signup_01.rs",
     demo_class: "blocks-signup-01",
     parts: &[

@@ -46,7 +46,7 @@
 //! `crate::blocks` モジュール doc の不変条件どおり、本 Demo は `<form>` を
 //! 出力しない（入力欄自体を持たない）。
 
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, span, text, Node};
@@ -114,6 +114,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/hero-terminal/",
     title: "hero-terminal",
+    category: BlockCategory::Hero,
     rust_source: "crates/docs-site/src/blocks/hero_terminal.rs",
     demo_class: "blocks-hero-terminal",
     parts: &[

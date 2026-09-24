@@ -36,7 +36,7 @@
 //!   配置しており、`CardFooter` を使わない。本実装も構造をこれに合わせる。
 //! - **`field::error_text` は出力しない**: `invalid: false` のため常に
 //!   `hidden` になり shadcn 構成にも存在しないノードのため、DOM から省く。
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, text, Node};
@@ -169,6 +169,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/login-01/",
     title: "login-01",
+    category: BlockCategory::Auth,
     rust_source: "crates/docs-site/src/blocks/login_01.rs",
     demo_class: "blocks-login-01",
     parts: &[

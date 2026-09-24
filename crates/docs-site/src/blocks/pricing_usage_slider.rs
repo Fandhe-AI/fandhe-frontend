@@ -44,7 +44,7 @@
 //! `attrs` がそのまま連結されるため、それらは従来どおりクラスセレクタを
 //! 使う。
 
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, text, Node};
@@ -149,6 +149,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/pricing-usage-slider/",
     title: "pricing-usage-slider",
+    category: BlockCategory::Pricing,
     rust_source: "crates/docs-site/src/blocks/pricing_usage_slider.rs",
     demo_class: "blocks-pricing-usage-slider",
     parts: &[

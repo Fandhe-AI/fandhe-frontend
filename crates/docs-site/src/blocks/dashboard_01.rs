@@ -43,7 +43,7 @@
 //! `column_header`/`cell`・素の `div` は呼び出し側 `attrs` をそのまま
 //! 連結するため、これらには `class` がそのまま効く。
 
-use super::{Block, Part};
+use super::{Block, BlockCategory, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, span, text, Node};
@@ -765,6 +765,7 @@ pub fn demo() -> Node {
 pub const BLOCK: Block = Block {
     path: "/blocks/dashboard-01/",
     title: "dashboard-01",
+    category: BlockCategory::Dashboard,
     rust_source: "crates/docs-site/src/blocks/dashboard_01.rs",
     demo_class: "blocks-dashboard-01",
     parts: &[
