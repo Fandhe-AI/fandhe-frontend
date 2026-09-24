@@ -1313,6 +1313,11 @@ title = "banner-email-signup"
 source = "site/blocks/banner-email-signup.md"
 path = "/blocks/banner-email-signup/"
 
+[[section.group.page]]
+title = "banner-full-width-bar"
+source = "site/blocks/banner-full-width-bar.md"
+path = "/blocks/banner-full-width-bar/"
+
 [[section.group]]
 title = "Bento"
 
