@@ -83,6 +83,25 @@
 //! [data-blocks-content-article-quote]`（詳細度 (0,3,0)。base より高い
 //! ため順序に依らず上書きする）へそれぞれ結合し、[`LAYOUT_CSS`] 側で
 //! recipe を確実に上書きする。
+//!
+//! # `blockquote::content`（素の `<blockquote>`）への `.docs-content
+//! blockquote` プローズスタイルの漏れ込みをリセットする
+//!
+//! [`pull_quote`] が呼ぶ `blockquote::content` は素の `<blockquote>` 要素
+//! （`[data-scope="blockquote"][data-part="content"]`）であり、Blockquote
+//! recipe は `content` slot へ `margin: 0` しか宣言しない。このため
+//! `crates/docs-site/src/site_theme.rs` の `.docs-content blockquote`
+//! （詳細度 (0,1,1)、`padding`/`border-inline-start`/`color`〔muted〕を
+//! 素の `blockquote` 要素へ直接宣言）がそのまま適用され、`root`（`<figure>`）
+//! 自身の padding・左ボーダーと二重になり、引用文字色も意図せず muted 化
+//! する（Cursor Bugbot 指摘、`crates/docs-site/src/showcase.rs` の
+//! `.pre-styled-showcase [data-scope="blockquote"][data-part="content"]`
+//! と同型の問題）。showcase 側は `.pre-styled-showcase` プレフィックスで
+//! 全 showcase 部品共通にリセットするが、本 block はこの 1 箇所にしか
+//! 引用を持たないため、既存の `[data-blocks-content-article-quote]`
+//! フックを祖先セレクタにした `[data-blocks-content-article-quote]
+//! [data-scope="blockquote"][data-part="content"]`（詳細度 (0,3,0)）へ
+//! スコープし、他 block の blockquote へ波及しないようにする。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -443,6 +462,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-content-article-figcaption {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-content-article-cover] {\n  width: 100%;\n  border-radius: var(--fandhe-radius-lg);\n}\n\
 [data-scope=\"blockquote\"][data-part=\"root\"][data-blocks-content-article-quote] {\n  margin-block: var(--fandhe-space-2);\n}\n\
+[data-blocks-content-article-quote] [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n\
 [data-scope=\"separator\"][data-part=\"root\"][data-blocks-content-article-separator] {\n  margin-block: var(--fandhe-space-2);\n}\n\
 [data-blocks-content-article-category] {\n  flex-shrink: 0;\n}\n\
 [data-blocks-content-article-avatar] {\n  flex-shrink: 0;\n}\n\
@@ -536,5 +556,23 @@ mod tests {
     fn demo_output_never_emits_id_attribute() {
         let html = render(&demo());
         assert!(!html.contains(" id=\""));
+    }
+
+    /// `blockquote::content`（素の `<blockquote>`）へ `.docs-content
+    /// blockquote`（詳細度 (0,1,1)、`crates/docs-site/src/site_theme.rs`）の
+    /// padding/border/color が漏れ込まないよう、`[data-blocks-content-
+    /// article-quote] [data-scope="blockquote"][data-part="content"]`
+    /// （詳細度 (0,3,0)）でリセットしていることを固定する（Cursor Bugbot
+    /// 指摘、モジュール doc「`blockquote::content`（素の `<blockquote>`）
+    /// への `.docs-content blockquote` プローズスタイルの漏れ込みをリセッ
+    /// トする」節の回帰防止）。単一属性セレクタ（詳細度 (0,1,0)）のみでは
+    /// 負けて二重の罫線・余分な余白・薄い文字色が残る。
+    #[test]
+    fn layout_css_quote_content_outranks_docs_content_blockquote() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-content-article-quote] \
+             [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  \
+             border-left: none;\n  color: inherit;\n}"
+        ));
     }
 }
