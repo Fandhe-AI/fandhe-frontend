@@ -1337,6 +1337,11 @@ path = "/blocks/banner-full-width-bar/"
 title = "Bento"
 
 [[section.group.page]]
+title = "bento-asymmetric-rows"
+source = "site/blocks/bento-asymmetric-rows.md"
+path = "/blocks/bento-asymmetric-rows/"
+
+[[section.group.page]]
 title = "bento-staggered"
 source = "site/blocks/bento-staggered.md"
 path = "/blocks/bento-staggered/"
