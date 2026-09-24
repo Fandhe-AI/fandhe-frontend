@@ -3205,6 +3205,73 @@ fn changelog_accordion_item_frame_selector_outweighs_recipe_last_child() {
     );
 }
 
+/// changelog-stacked-list ページが `blocks-demo` + block 固有 class・両
+/// スタイルシート・罫線区切り版/カード版双方のデモ固有フックを実際に
+/// 出力することを固定する（イシュー #2819。`changelog_accordion` の
+/// 同型テストを範とする）。
+#[test]
+fn changelog_stacked_list_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/changelog-stacked-list/index.html"))
+        .expect("blocks/changelog-stacked-list/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-changelog-stacked-list\""),
+        "changelog-stacked-list page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "changelog-stacked-list page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "changelog-stacked-list page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-changelog-stacked-list-title=\"\"",
+        "data-blocks-changelog-stacked-list-tag=\"\"",
+        "data-blocks-changelog-stacked-list-tag-latest=\"\"",
+        "data-blocks-changelog-stacked-list-changes=\"\"",
+        "data-blocks-changelog-stacked-list-separator=\"\"",
+        "data-blocks-changelog-stacked-list-card=\"\"",
+        "data-blocks-changelog-stacked-list-card-link=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "changelog-stacked-list page should contain {hook}"
+        );
+    }
+}
+
+/// changelog-stacked-list ページが使用部品（[`Block::parts`] 一致契約）の
+/// `data-scope` を実際に出力し、`<form>`/`href="#"`/`src="data:"` を
+/// 持たないことを固定する（`changelog_accordion` の同型テストを範とする）。
+#[test]
+fn changelog_stacked_list_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/changelog-stacked-list/index.html"))
+        .expect("blocks/changelog-stacked-list/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"card\"",
+        "data-scope=\"list\"",
+        "data-scope=\"link-overlay\"",
+        "data-scope=\"separator\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "changelog-stacked-list page should contain {scope}"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "changelog-stacked-list should never contain {absent}"
+        );
+    }
+}
+
 /// bento-two-column ページが `blocks-demo` + block 固有 class・両スタイル
 /// シート・カードの配置フック（`data-blocks-bento-two-column-cell`）を
 /// 実際に出力し、`blocks::stylesheet()` にも対応するグリッド配置規則・
