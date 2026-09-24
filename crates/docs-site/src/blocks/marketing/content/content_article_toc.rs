@@ -446,10 +446,12 @@ const LAYOUT_CSS: &str = "\
 .blocks-content-article-toc-header {\n  display: flex;\n  flex-direction: column;\n  gap: 0.75rem;\n  margin-bottom: 1.5rem;\n}\n\
 .blocks-content-article-toc-meta {\n  display: flex;\n  align-items: center;\n  gap: 0.75rem;\n  flex-wrap: wrap;\n}\n\
 .blocks-content-article-toc-byline {\n  display: flex;\n  align-items: center;\n  gap: 0.75rem;\n}\n\
+.blocks-content-article-toc-byline p {\n  margin: 0;\n}\n\
 .blocks-content-article-toc-header-text {\n  display: flex;\n  flex-direction: column;\n  gap: 0.75rem;\n}\n\
 [data-blocks-content-article-toc-cover] {\n  width: 100%;\n  border-radius: var(--fandhe-radius-md, 0.5rem);\n}\n\
 .blocks-content-article-toc-layout {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-8, 2rem);\n}\n\
 .blocks-content-article-toc-body {\n  display: flex;\n  flex-direction: column;\n  gap: 1rem;\n  min-width: 0;\n}\n\
+.blocks-content-article-toc-body p {\n  margin: 0;\n}\n\
 [data-blocks-content-article-toc-nav] {\n  display: none;\n}\n\
 @media (min-width: 64rem) {\n  .blocks-content-article-toc-header-split {\n    flex-direction: row;\n    align-items: flex-start;\n    gap: 1.5rem;\n  }\n  .blocks-content-article-toc-header-split .blocks-content-article-toc-header-text {\n    flex: 1 1 auto;\n  }\n  .blocks-content-article-toc-header-split [data-blocks-content-article-toc-cover] {\n    flex: 0 0 16rem;\n    width: 16rem;\n  }\n  .blocks-content-article-toc-layout {\n    grid-template-columns: minmax(0, 1fr) 14rem;\n    align-items: start;\n  }\n  [data-blocks-content-article-toc-nav] {\n    display: block;\n    align-self: start;\n    padding-left: 1rem;\n    border-inline-start: 1px solid var(--fandhe-color-border);\n  }\n}\n";
 
