@@ -822,3 +822,24 @@ fn build_site_fails_closed_when_search_index_exceeds_the_byte_limit_without_writ
          count, last error: {last_err:?}"
     );
 }
+
+/// `MAX_INDEX_BYTES` を機械的な刻み幅（+131,072 バイト）で再引き上げすることを
+/// これ以上繰り返さないための固定ピン（イシュー #2816 §10-4・#3173 参照）。
+///
+/// 本値は 2 回連続で「引き上げ直後から §8 トリガー 1〔80% 超過〕に抵触する」
+/// 状態（`docs/design/docs-site-search-design.md` §10-4）に達しており、次に
+/// `SearchIndexError::TooLarge` が発生した場合の対処は本値のさらなる引き上げ
+/// ではなく、イシュー #3173（検索インデックスのセクション粒度分割）を実装
+/// することである。本テストが FAIL した場合、まず #3173 の状況を確認し、
+/// 安易に定数を書き換えて再度 PASS させない（`crates/xtask/tests/`
+/// `SKIPPED_ALLOWLIST` と同種の意図的な摩擦点）。
+#[test]
+fn max_index_bytes_is_pinned_pending_issue_3173_section_granularity_split() {
+    assert_eq!(
+        search_index::MAX_INDEX_BYTES,
+        1_441_792,
+        "MAX_INDEX_BYTES の機械的な再引き上げは禁止されている。次回超過時は \
+         イシュー #3173（検索インデックスのセクション粒度分割）の実装で \
+         対応すること（docs/design/docs-site-search-design.md §10-4 参照）。"
+    );
+}
