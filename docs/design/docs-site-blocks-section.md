@@ -845,15 +845,17 @@ pub enum LayoutCss {
 | blog-featured-with-list | #2809 | `marketing/blog/blog_featured_with_list.rs` |
 | bento-asymmetric-rows | #2744/#2745/#2746 | `marketing/bento/bento_asymmetric_rows.rs` |
 | blog-list-image | #2812 | `marketing/blog/blog_list_image.rs` |
+| blog-overlay-cards | #2813 | `marketing/blog/blog_overlay_cards.rs` |
 | blog-split-header-grid | #2814 | `marketing/blog/blog_split_header_grid.rs` |
 | bento-three-column-tall | #2748 / #2749 | `marketing/bento/bento_three_column_tall.rs` |
 | bento-two-column | #2750 | `marketing/bento/bento_two_column.rs` |
 | content-columns-screenshot | #2753 | `marketing/content/content_columns_screenshot.rs` |
 | content-split-image | #2755 | `marketing/content/content_split_image.rs` |
+| careers-split-photo-list | #2817 | `marketing/careers/careers_split_photo_list.rs` |
 | changelog-accordion | #2818 | `marketing/changelog/changelog_accordion.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-32 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+36 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
