@@ -1182,8 +1182,13 @@ path = "/themes/sparkline/"
 # （粒度: 合成例）という読み手の導線を優先し、Themes の直後・API Reference の
 # 直前へ配置する（crates/docs-site/tests/primitives_nav.rs が固定する
 # 「Primitives は index 3・直後が Themes」を変えないための配置判断でもある）。
-# [[section.group]] は使わずフラットな [[section.page]] のみで構成する
-# （設計文書 §6。1 block = 1 ページのみで階層化する動機がない）。
+# サイドバーのカテゴリ見出し導入（イシュー #2735）に伴い、
+# `[[section.group]]`（カテゴリ見出し）+ `[[section.group.page]]`（各 block）
+# の構成へ変更した。索引ページ（`/blocks/`）本体のみ `[[section.page]]` の
+# ままとする（カテゴリに属さないため）。旧来の「`[[section.group]]` は
+# 使わずフラット構成」という設計文書 §6 の判断（1 block = 1 ページのみで
+# 階層化する動機がない）は、カテゴリ数の増加に伴いサイドバーの可読性向上
+# のため本イシューで見直された。
 [[section]]
 title = "Blocks"
 index_path = "/blocks/"
@@ -1193,120 +1198,174 @@ title = "Blocks 一覧"
 source = "site/blocks.md"
 path = "/blocks/"
 
-[[section.page]]
-title = "login-01"
-source = "site/blocks/login-01.md"
-path = "/blocks/login-01/"
+# サイドバーのカテゴリ見出し（イシュー #2735）。
+# `crates/docs-site/src/blocks/category.rs::BlockCategory` を分類元とし、
+# `BlockCategory::ALL` の宣言順のうち 1 件以上 block を持つカテゴリのみを
+# グループとして列挙する（グループ順序は `BlockCategory::ALL` 順）。
+# グループ内のページ順序は宣言順ではなく `path` 昇順とする（並列 PR による
+# `crate::blocks::BLOCKS` への追記順は安定しないため。索引ページ本文
+# 〔`index_generated_sections`、イシュー #2733〕と同じ判断）。
+# ドリフト検知は `crates/docs-site/tests/blocks_nav.rs` の
+# `blocks_section_groups_match_registry_category_order` /
+# `blocks_group_pages_match_registry_category_assignments` が担う。
 
-[[section.page]]
-title = "dashboard-01"
-source = "site/blocks/dashboard-01.md"
-path = "/blocks/dashboard-01/"
+[[section.group]]
+title = "Hero"
 
-[[section.page]]
-title = "sidebar-07"
-source = "site/blocks/sidebar-07.md"
-path = "/blocks/sidebar-07/"
-
-[[section.page]]
-title = "sidebar-03"
-source = "site/blocks/sidebar-03.md"
-path = "/blocks/sidebar-03/"
-
-[[section.page]]
-title = "login-04"
-source = "site/blocks/login-04.md"
-path = "/blocks/login-04/"
-
-[[section.page]]
-title = "signup-01"
-source = "site/blocks/signup-01.md"
-path = "/blocks/signup-01/"
-
-[[section.page]]
-title = "signup-05"
-source = "site/blocks/signup-05.md"
-path = "/blocks/signup-05/"
-
-[[section.page]]
-title = "pricing-tiers-morph"
-source = "site/blocks/pricing-tiers-morph.md"
-path = "/blocks/pricing-tiers-morph/"
-
-[[section.page]]
-title = "pricing-usage-slider"
-source = "site/blocks/pricing-usage-slider.md"
-path = "/blocks/pricing-usage-slider/"
-
-[[section.page]]
-title = "testimonials-stack"
-source = "site/blocks/testimonials-stack.md"
-path = "/blocks/testimonials-stack/"
-
-[[section.page]]
-title = "bento-staggered"
-source = "site/blocks/bento-staggered.md"
-path = "/blocks/bento-staggered/"
-
-[[section.page]]
-title = "feature-expand"
-source = "site/blocks/feature-expand.md"
-path = "/blocks/feature-expand/"
-
-[[section.page]]
-title = "cta-banner-magnetic"
-source = "site/blocks/cta-banner-magnetic.md"
-path = "/blocks/cta-banner-magnetic/"
-
-[[section.page]]
-title = "cta-signup-celebrate"
-source = "site/blocks/cta-signup-celebrate.md"
-path = "/blocks/cta-signup-celebrate/"
-
-[[section.page]]
-title = "cursor-hover-cards"
-source = "site/blocks/cursor-hover-cards.md"
-path = "/blocks/cursor-hover-cards/"
-
-[[section.page]]
+[[section.group.page]]
 title = "hero-editorial-stagger"
 source = "site/blocks/hero-editorial-stagger.md"
 path = "/blocks/hero-editorial-stagger/"
 
-[[section.page]]
+[[section.group.page]]
 title = "hero-parallax-layers"
 source = "site/blocks/hero-parallax-layers.md"
 path = "/blocks/hero-parallax-layers/"
 
-[[section.page]]
+[[section.group.page]]
 title = "hero-terminal"
 source = "site/blocks/hero-terminal.md"
 path = "/blocks/hero-terminal/"
 
-[[section.page]]
+[[section.group.page]]
 title = "text-split-reveal"
 source = "site/blocks/text-split-reveal.md"
 path = "/blocks/text-split-reveal/"
 
-[[section.page]]
-title = "game-ui-modal"
-source = "site/blocks/game-ui-modal.md"
-path = "/blocks/game-ui-modal/"
+[[section.group]]
+title = "Feature"
 
-[[section.page]]
-title = "footer-sticky-reveal"
-source = "site/blocks/footer-sticky-reveal.md"
-path = "/blocks/footer-sticky-reveal/"
+[[section.group.page]]
+title = "feature-expand"
+source = "site/blocks/feature-expand.md"
+path = "/blocks/feature-expand/"
 
-[[section.page]]
+[[section.group]]
+title = "CTA"
+
+[[section.group.page]]
+title = "cta-banner-magnetic"
+source = "site/blocks/cta-banner-magnetic.md"
+path = "/blocks/cta-banner-magnetic/"
+
+[[section.group.page]]
+title = "cta-signup-celebrate"
+source = "site/blocks/cta-signup-celebrate.md"
+path = "/blocks/cta-signup-celebrate/"
+
+[[section.group]]
+title = "Pricing"
+
+[[section.group.page]]
+title = "pricing-tiers-morph"
+source = "site/blocks/pricing-tiers-morph.md"
+path = "/blocks/pricing-tiers-morph/"
+
+[[section.group.page]]
+title = "pricing-usage-slider"
+source = "site/blocks/pricing-usage-slider.md"
+path = "/blocks/pricing-usage-slider/"
+
+[[section.group]]
+title = "Testimonial"
+
+[[section.group.page]]
+title = "testimonials-stack"
+source = "site/blocks/testimonials-stack.md"
+path = "/blocks/testimonials-stack/"
+
+[[section.group]]
+title = "Footer"
+
+[[section.group.page]]
 title = "footer-newsletter"
 source = "site/blocks/footer-newsletter.md"
 path = "/blocks/footer-newsletter/"
 
-# --- 以下は block 追加時の挿入先アンカー（イシュー #2734）。カテゴリ単位で
-# 行ブロックを分け、新規 block の [[section.page]] は該当カテゴリの見出し
-# 直後へ追記する。既存 22 件（上記）は前後ナビ順序保持のため移動しない
-# （並べ替えると `/blocks/**` の前後ナビ href が変わってしまうため）。
+[[section.group.page]]
+title = "footer-sticky-reveal"
+source = "site/blocks/footer-sticky-reveal.md"
+path = "/blocks/footer-sticky-reveal/"
+
+[[section.group]]
+title = "Bento"
+
+[[section.group.page]]
+title = "bento-staggered"
+source = "site/blocks/bento-staggered.md"
+path = "/blocks/bento-staggered/"
+
+[[section.group]]
+title = "Sidebar"
+
+[[section.group.page]]
+title = "sidebar-03"
+source = "site/blocks/sidebar-03.md"
+path = "/blocks/sidebar-03/"
+
+[[section.group.page]]
+title = "sidebar-07"
+source = "site/blocks/sidebar-07.md"
+path = "/blocks/sidebar-07/"
+
+[[section.group]]
+title = "Auth"
+
+[[section.group.page]]
+title = "login-01"
+source = "site/blocks/login-01.md"
+path = "/blocks/login-01/"
+
+[[section.group.page]]
+title = "login-04"
+source = "site/blocks/login-04.md"
+path = "/blocks/login-04/"
+
+[[section.group.page]]
+title = "signup-01"
+source = "site/blocks/signup-01.md"
+path = "/blocks/signup-01/"
+
+[[section.group.page]]
+title = "signup-05"
+source = "site/blocks/signup-05.md"
+path = "/blocks/signup-05/"
+
+[[section.group]]
+title = "Dialog"
+
+[[section.group.page]]
+title = "game-ui-modal"
+source = "site/blocks/game-ui-modal.md"
+path = "/blocks/game-ui-modal/"
+
+[[section.group]]
+title = "Card"
+
+[[section.group.page]]
+title = "cursor-hover-cards"
+source = "site/blocks/cursor-hover-cards.md"
+path = "/blocks/cursor-hover-cards/"
+
+[[section.group]]
+title = "Dashboard"
+
+[[section.group.page]]
+title = "dashboard-01"
+source = "site/blocks/dashboard-01.md"
+path = "/blocks/dashboard-01/"
+
+# --- 以下は block 追加時の挿入先アンカー（イシュー #2734、#2735 でカテゴリ
+# 見出し導入に伴い運用を更新）。カテゴリ単位で行ブロックを分ける点は不変
+# だが、新規 block は該当カテゴリの既存 `[[section.group]]` があればその
+# グループ内で `path` 昇順になる位置へ `[[section.group.page]]` として挿入し、
+# まだ 1 件も block を持たず `[[section.group]]` 自体が存在しないカテゴリでは
+# `[[section.group]]` 見出し本体もあわせて新設する
+# （`crates/docs-site/tests/blocks_nav.rs` の
+# `blocks_section_groups_match_registry_category_order` が `BlockCategory::ALL`
+# のうち 1 件以上 block を持つカテゴリのみを列挙順どおりに要求し、
+# `blocks_group_pages_match_registry_category_assignments` が各グループ内の
+# ページを `path` 昇順で要求するため）。
 # Marketing / Hero
 # Marketing / Feature
 # Marketing / Cta
@@ -1378,7 +1437,10 @@ path = "/blocks/footer-newsletter/"
 # fandhe-frontend-wireframe-ui（blocks.pm 参照のローファイ・モノクロ UI 部品層、
 # Primitives/Themes と独立した第 3 の UI 層）の 49 部品を掲載するセクション。
 # Blocks の直後・API Reference の直前へ配置する。1 部品 = 1 ページ（`[[section.group]]`
-# は使わずフラット構成、Blocks と同じ理由）。本イシューでは索引ページのみを登録し、
+# は使わずフラット構成。Blocks はイシュー #2735 でカテゴリ見出し付き
+# `[[section.group]]` 化されたが、Wireframes は Phase 進行順（#2608〜）で
+# 部品を追記する運用であり、49 部品規模ではまだカテゴリ化の動機がないため
+# 独立してフラット構成のままとする）。本イシューでは索引ページのみを登録し、
 # 個別部品ページは Phase 1〜8（#2608〜）の各部品イシューが `[[section.page]]` を
 # 1 件ずつ追記する。`path` は `docs/design/wireframe-ui-architecture.md` §8 の kebab
 # （`media` 等）と一致させること。

@@ -713,6 +713,76 @@ fn real_site_sidebar_is_scoped_to_the_current_section() {
     );
 }
 
+/// Blocks セクション内ページのサイドバーが、当該 block のカテゴリ見出し
+/// 1 件のみを開いた状態で表示され、他セクションへのリンクを一切含まない
+/// ことを固定する（イシュー #2735、`BlockCategory` 単位の
+/// `[[section.group]]` 化）。`login-01` は `BlockCategory::Auth` に属する
+/// （`crates/docs-site/src/blocks/login_01.rs` 参照）。
+#[test]
+fn real_site_blocks_sidebar_shows_category_groups() {
+    let shared = shared_site::real_site();
+    let out = shared.out_dir.as_path();
+
+    // `docs-sidebar` ブロックのみを取り出すヘルパ
+    // （`real_site_sidebar_is_scoped_to_the_current_section` と同型）。
+    fn sidebar_window(html: &str) -> &str {
+        let start = html
+            .find(r#"class="docs-sidebar""#)
+            .expect("docs-sidebar block should be present");
+        let end = html[start..]
+            .find("</aside>")
+            .map(|rel| start + rel)
+            .expect("docs-sidebar block should close with </aside>");
+        &html[start..end]
+    }
+
+    let blocks_html = std::fs::read_to_string(out.join("blocks/login-01/index.html"))
+        .expect("read generated blocks/login-01/index.html");
+    let blocks_window = sidebar_window(&blocks_html);
+
+    assert!(blocks_window.contains("docs-nav-group"));
+    assert_eq!(
+        blocks_window
+            .matches(r#"<details class="docs-nav-group" open="">"#)
+            .count(),
+        1,
+        "現在ページのカテゴリグループのみが open であること: {blocks_window}"
+    );
+    // open なグループの <summary> が login-01 のカテゴリラベル（Auth）と
+    // 一致すること。
+    let open_start = blocks_window
+        .find(r#"<details class="docs-nav-group" open="">"#)
+        .expect("open group should exist");
+    let summary_start = blocks_window[open_start..]
+        .find("<summary")
+        .map(|rel| open_start + rel)
+        .expect("open group should have a <summary>");
+    let summary_end = blocks_window[summary_start..]
+        .find("</summary>")
+        .map(|rel| summary_start + rel)
+        .expect("<summary> should close");
+    assert!(
+        blocks_window[summary_start..summary_end].contains("Auth"),
+        "open group summary should show the Auth category label: {}",
+        &blocks_window[summary_start..summary_end]
+    );
+
+    assert!(!blocks_window.contains("/themes/"));
+    assert!(!blocks_window.contains("/primitives/"));
+    assert!(!blocks_window.contains("/wireframes/"));
+    assert!(blocks_window.matches("href=\"").count() > 0);
+    for (start, _) in blocks_window.match_indices("href=\"/fandhe-frontend") {
+        let rest = &blocks_window[start + "href=\"".len()..];
+        let end = rest.find('"').expect("href should close");
+        let href = &rest[..end];
+        assert!(
+            href.starts_with("/fandhe-frontend/blocks/"),
+            "Blocks サイドバーのリンクは /blocks/ 配下限定であること: {href}"
+        );
+    }
+    assert_eq!(blocks_window.matches("<h2").count(), 1);
+}
+
 // ---- バイナリ経由（終了コード・stderr の契約） ----
 
 fn docs_site_bin() -> PathBuf {

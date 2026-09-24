@@ -4,12 +4,15 @@
 //! `crates/docs-site/tests/primitives_nav.rs`（Primitives 台帳の三方突合）と
 //! 同型のドリフト検知テストである。後続イシュー #2089〜#2095 が block を
 //! 追加する際、nav.toml・レジストリ・原稿ファイルのいずれか 1 箇所だけの
-//! 更新漏れを fail-closed に検知する。
+//! 更新漏れを fail-closed に検知する。イシュー #2735 でサイドバーが
+//! `BlockCategory` 単位の `[[section.group]]` へ移行したため、本ファイルは
+//! 併せてカテゴリ整合性（グループ順序・グループ内ページ列）の検証も担う。
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use fandhe_frontend_docs_site::blocks;
+use fandhe_frontend_docs_site::blocks::BlockCategory;
 use fandhe_frontend_docs_site::nav::{parse_nav, Nav};
 
 #[path = "support/shared_site.rs"]
@@ -31,9 +34,11 @@ fn load_nav() -> Nav {
 }
 
 /// Blocks セクションが Themes の直後・Wireframes の直前（Primitives の
-/// 次の次）に存在し、`index_path`・group 非使用（フラット構成、設計 §6）が
-/// 期待どおりであること（イシュー #2607 で Wireframes セクションが
-/// Blocks の直後・API Reference の直前へ新設され、隣接関係が変わった）。
+/// 次の次）に存在し、`index_path` が期待どおりであること（イシュー #2607 で
+/// Wireframes セクションが Blocks の直後・API Reference の直前へ新設され、
+/// 隣接関係が変わった）。索引ページ（`/blocks/`）のみが直下 `[[section.page]]`
+/// として残り、それ以外の全 block は `BlockCategory` 単位の
+/// `[[section.group]]` へ移行済みであること（イシュー #2735）を固定する。
 #[test]
 fn blocks_section_is_registered_immediately_after_themes() {
     let nav = load_nav();
@@ -47,10 +52,92 @@ fn blocks_section_is_registered_immediately_after_themes() {
 
     let section = &nav.sections[index];
     assert_eq!(section.index_path, "/blocks/");
-    assert!(
-        section.groups.is_empty(),
-        "Blocks section should use flat [[section.page]] only (no [[section.group]])"
+    assert_eq!(
+        section.pages.len(),
+        1,
+        "Blocks section should have exactly one direct [[section.page]] (the index page)"
     );
+    assert_eq!(section.pages[0].path, "/blocks/");
+    assert!(
+        !section.groups.is_empty(),
+        "Blocks section should use [[section.group]] for category grouping (issue #2735)"
+    );
+}
+
+/// グループの並び順が `BlockCategory::ALL`（1 件以上 block を持つものに
+/// 絞り込んだ集合）の宣言順と完全一致すること。
+#[test]
+fn blocks_section_groups_match_registry_category_order() {
+    let nav = load_nav();
+    let section = nav
+        .sections
+        .iter()
+        .find(|s| s.title == "Blocks")
+        .expect("Blocks section should be registered");
+
+    let expected_titles: Vec<&str> = BlockCategory::ALL
+        .iter()
+        .filter(|category| {
+            blocks::all_blocks()
+                .iter()
+                .any(|b| b.category == **category)
+        })
+        .map(|category| category.label())
+        .collect();
+    let actual_titles: Vec<&str> = section.groups.iter().map(|g| g.title.as_str()).collect();
+    assert_eq!(actual_titles, expected_titles);
+}
+
+/// 各グループのページ列が、対応するカテゴリに属する `blocks::all_blocks()` を
+/// `path` 昇順に並べたものと `(title, path, source)` で完全一致すること。
+/// Primitives（`primitives_group_pages_match_catalog_entries_exactly`）は
+/// 台帳の宣言順で比較するが、Blocks は並列 PR による `all_blocks()` への追記順が
+/// 不安定なため `path` 昇順で比較する（`/blocks/` 索引ページ本文の
+/// `index_generated_sections` と同じ判断、イシュー #2733/#2735）。
+#[test]
+fn blocks_group_pages_match_registry_category_assignments() {
+    let nav = load_nav();
+    let section = nav
+        .sections
+        .iter()
+        .find(|s| s.title == "Blocks")
+        .expect("Blocks section should be registered");
+
+    let used_categories: Vec<BlockCategory> = BlockCategory::ALL
+        .iter()
+        .copied()
+        .filter(|category| blocks::all_blocks().iter().any(|b| b.category == *category))
+        .collect();
+
+    let all_blocks = blocks::all_blocks();
+    for (group, category) in section.groups.iter().zip(used_categories.iter()) {
+        let mut items: Vec<&blocks::Block> = all_blocks
+            .iter()
+            .filter(|b| b.category == *category)
+            .collect();
+        items.sort_by_key(|b| b.path);
+
+        let expected: Vec<(String, String, String)> = items
+            .iter()
+            .map(|b| {
+                (
+                    b.title.to_string(),
+                    b.path.to_string(),
+                    format!("site/blocks/{}.md", b.title),
+                )
+            })
+            .collect();
+        let actual: Vec<(String, String, String)> = group
+            .pages
+            .iter()
+            .map(|p| (p.title.clone(), p.path.clone(), p.source.clone()))
+            .collect();
+        assert_eq!(
+            actual, expected,
+            "group `{}` page list does not match registry entries for category {category:?}",
+            group.title
+        );
+    }
 }
 
 /// `site/nav.toml` の `/blocks/*` ページ（索引を除く）と `blocks::all_blocks()` の
