@@ -448,10 +448,12 @@ mod tests {
         assert!(sheet.as_css().contains("overflow-x: auto"));
     }
 
-    #[test]
-    fn all_blocks_registers_all_22_existing_blocks() {
-        // カテゴリ別モジュール分割（イシュー #2734）の前後で登録件数が
-        // 変わっていないことの回帰。
-        assert_eq!(all_blocks().len(), 22);
-    }
+    // かつて `all_blocks_registers_all_22_existing_blocks` としてここに
+    // あった「登録件数のハードコード固定」回帰テストは、block 追加のたびに
+    // 手動更新が必要（イシュー #2808 で 22 → 23 件の食い違いにより FAIL）と
+    // なる運用コストの割に、検証内容が `crates/docs-site/tests/blocks_nav.rs`
+    // （nav.toml ⇔ `all_blocks()` ⇔ `site/blocks/*.md` の三方突合。登録漏れ・
+    // 孤児ファイルのいずれも fail-closed に検知する）と完全に重複していた
+    // ため撤去した。件数そのものを固定する不変条件は現存しない
+    // （`docs/design/docs-site-blocks-section.md` §19 参照）。
 }
