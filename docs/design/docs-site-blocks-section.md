@@ -857,6 +857,7 @@ pub enum LayoutCss {
 | changelog-accordion | #2818 | `marketing/changelog/changelog_accordion.rs` |
 | changelog-stacked-list | #2819 | `marketing/changelog/changelog_stacked_list.rs` |
 | changelog-timeline | #2820 | `marketing/changelog/changelog_timeline.rs` |
+| comparison-feature-rows | #2823 | `marketing/comparison/comparison_feature_rows.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 36 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
