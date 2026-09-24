@@ -159,7 +159,10 @@
 //! blocks.pm 上の表示名は Placeholder。`content: Option<Node>` が
 //! `None` のとき [`icon::play`] へフォールバックする §11.4 からの意図的
 //! な逸脱。動画か静止画かは bool ではなくスロット差し替えで表し、枠は
-//! 16:9 固定で `<video>`/`<iframe>` は出力しない）が続いた。残りは
+//! 16:9 固定で `<video>`/`<iframe>` は出力しない）・5 番目の部品
+//! [`table`]（イシュー #2662、N 列 × M 行のデータ表プレースホルダー。
+//! [`calendar`] と同型の判断で `<table>` を使わず `div`/`span` + CSS
+//! grid で表現し、列数は `headers`/`rows` の形から導く）が続いた。残りは
 //! Phase 8 の他部品で順次追加する。
 //!
 //! # class 命名規約
@@ -219,6 +222,7 @@ pub mod stack;
 pub mod stat;
 pub mod stepper;
 pub mod switch;
+pub mod table;
 pub mod tabs;
 pub mod tag;
 pub mod text;
@@ -271,6 +275,7 @@ pub use stack::stack;
 pub use stat::{stat, StatDelta, StatTrend};
 pub use stepper::stepper;
 pub use switch::switch;
+pub use table::{table, MAX_TABLE_COLUMNS, MAX_TABLE_ROWS};
 pub use tabs::tabs;
 pub use tag::tag;
 pub use text::text;

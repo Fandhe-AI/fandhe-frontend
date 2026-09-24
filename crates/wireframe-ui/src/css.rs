@@ -71,7 +71,8 @@
 /// 部品）・イシュー #2660 で [`crate::image::IMAGE_CSS`]（同 Phase の
 /// 2 番目の部品）・イシュー #2664 で [`crate::map::MAP_CSS`]（同 Phase の
 /// 3 番目の部品）・イシュー #2661 で [`crate::media::MEDIA_CSS`]
-/// （同 Phase の 4 番目の部品）が続いた。
+/// （同 Phase の 4 番目の部品）・イシュー #2662 で [`crate::table::TABLE_CSS`]
+/// （同 Phase の 5 番目の部品）が続いた。
 pub const PARTS: &[&str] = &[
     crate::icon::ICON_GLYPH_CSS,
     crate::annotation::ANNOTATION_CSS,
@@ -118,6 +119,7 @@ pub const PARTS: &[&str] = &[
     crate::list::LIST_CSS,
     crate::image::IMAGE_CSS,
     crate::chart::CHART_CSS,
+    crate::table::TABLE_CSS,
     crate::map::MAP_CSS,
     crate::media::MEDIA_CSS,
 ];

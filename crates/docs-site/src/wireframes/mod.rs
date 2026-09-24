@@ -93,6 +93,7 @@ mod stack;
 mod stat;
 mod stepper;
 mod switch;
+mod table;
 mod tabs;
 mod tag;
 mod text;
@@ -219,7 +220,9 @@ pub struct Wireframe {
 /// アイコンスロット）・4 番目の部品 [`media::WIREFRAME`]（イシュー #2661、
 /// blocks.pm 上の表示名は Placeholder。`content: Option<Node>` が
 /// `None` のとき `icon::play` へフォールバックする §11.4 からの意図的な
-/// 逸脱。動画か静止画かは bool ではなくスロット差し替えで表す）が続いた。
+/// 逸脱。動画か静止画かは bool ではなくスロット差し替えで表す）・5 番目の
+/// 部品 [`table::WIREFRAME`]（イシュー #2662、`<table>` は使わず
+/// `div`/`span` + CSS grid で表現する、`calendar` と同型の判断）が続いた。
 /// Phase 1・3・4・5・6・7・8 以降（#2608〜#2665）の残りの各部品イシューが
 /// 自分の [`Wireframe`] 定数を 1 要素ずつ追記する。
 pub const WIREFRAMES: &[Wireframe] = &[
@@ -267,6 +270,7 @@ pub const WIREFRAMES: &[Wireframe] = &[
     list::WIREFRAME,
     image::WIREFRAME,
     chart::WIREFRAME,
+    table::WIREFRAME,
     map::WIREFRAME,
     media::WIREFRAME,
 ];

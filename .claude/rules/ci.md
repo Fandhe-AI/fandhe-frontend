@@ -351,7 +351,10 @@
   `wireframes/media/index.html`（イシュー #2661、Phase 8「Media・データ
   表示」の 4 番目の部品。blocks.pm 上の表示名は Placeholder。
   `content: None` で `icon::play` へフォールバック、16:9 固定、
-  `<video>`/`<iframe>` は出力しない）
+  `<video>`/`<iframe>` は出力しない）/
+  `wireframes/table/index.html`（イシュー #2662、Phase 8「Media・データ
+  表示」の 5 番目の部品。`<table>` は使わず `div`/`span` + CSS grid で
+  表現する、`calendar` と同型の判断）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
