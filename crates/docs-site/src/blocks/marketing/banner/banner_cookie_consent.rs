@@ -332,14 +332,33 @@ pub const BLOCK: Block = Block {
 /// 連結して詳細度を (0,1,1) の同点へ揃え、`blocks.css` が `site.css`
 /// （`.docs-content p` の定義元）より後に `<link>` される読み込み順序で
 /// 同詳細度の後勝ちにより上書きを成立させる。
+///
+/// キャプションと [`consent_banner`] は [`stage`] の同一 column flex に
+/// 同居する 2 個の flex item であるため、`[data-blocks-banner-cookie-
+/// consent-align]` の `align-items`（バナー本体のクロス軸配置を切り替える
+/// ための宣言）がキャプションの位置にも波及していた（PR #3151 レビュー
+/// 指摘）: `"end"`/`"center"` ステージではキャプションのフレームラベルが
+/// 右寄せ・中央寄せされ、`"bar"` ステージでは `padding: 0`（バナーを枠
+/// 全幅へ張り出させるための宣言）によりキャプションも一緒に破線の端まで
+/// 詰まっていた。`align-self: flex-start` をキャプション自身へ明示する
+/// ことで、親の `align-items` 値に関わらずキャプションのクロス軸位置
+/// （常に左）を固定する（`align-self` は同一要素の `align-items` を
+/// 上書きする専用プロパティであり、別要素間の詳細度比較を経ずに常に
+/// 有効になる）。`"bar"` ステージでは、これでキャプションの水平位置は
+/// 安定するが、親の `padding: 0` によりキャプション自身の左右インセット
+/// も失われたままになるため、`[data-blocks-banner-cookie-consent-
+/// align="bar"] > p.blocks-banner-cookie-consent-caption` へキャプション
+/// 専用の `padding`（[`stage`] の既定インセットと同じ値）を明示的に
+/// 復元し、バナー本体だけを枠端まで張り出させる。
 const LAYOUT_CSS: &str = "\
 .blocks-banner-cookie-consent-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6, 1.5rem);\n}\n\
 .blocks-banner-cookie-consent-stage {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  justify-content: flex-end;\n  min-height: 16rem;\n  padding: var(--fandhe-space-4, 1rem);\n  border: 1px dashed var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md, 0.5rem);\n  background: var(--fandhe-color-bg);\n  overflow: hidden;\n}\n\
-p.blocks-banner-cookie-consent-caption {\n  margin: 0 0 auto;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+p.blocks-banner-cookie-consent-caption {\n  align-self: flex-start;\n  margin: 0 0 auto;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-banner-cookie-consent-align=\"end\"] {\n  align-items: flex-end;\n}\n\
 [data-blocks-banner-cookie-consent-align=\"center\"] {\n  align-items: center;\n}\n\
 [data-blocks-banner-cookie-consent-align=\"start\"] {\n  align-items: flex-start;\n}\n\
 [data-blocks-banner-cookie-consent-align=\"bar\"] {\n  align-items: stretch;\n  padding: 0;\n}\n\
+[data-blocks-banner-cookie-consent-align=\"bar\"] > p.blocks-banner-cookie-consent-caption {\n  padding: var(--fandhe-space-4, 1rem) var(--fandhe-space-4, 1rem) 0;\n}\n\
 [data-blocks-banner-cookie-consent-banner=\"card\"] {\n  width: 100%;\n  max-width: 24rem;\n}\n\
 [data-blocks-banner-cookie-consent-banner=\"bar\"] {\n  width: 100%;\n}\n\
 [data-scope=\"callout\"][data-part=\"root\"][data-blocks-banner-cookie-consent-callout=\"bar\"] {\n  border-radius: 0;\n  border-width: 1px 0 0;\n  border-top-color: var(--fandhe-color-border);\n}\n\
@@ -383,6 +402,31 @@ mod tests {
         // セレクタ（0,1,0）のみでは負けてキャプションがバナー位置へ
         // 潰れる不具合の回帰防止）。
         assert!(LAYOUT_CSS.contains("p.blocks-banner-cookie-consent-caption {"));
+    }
+
+    #[test]
+    fn layout_css_caption_alignment_is_independent_of_stage_align_items() {
+        // キャプションと `consent_banner` は [`stage`] の同一 column flex を
+        // 共有する 2 個の flex item であり、`align-items`（バナー本体の
+        // クロス軸配置切り替え）がキャプション位置にも波及していた
+        // 不具合の回帰防止（PR #3151 レビュー指摘）。`align-self` で
+        // キャプション自身のクロス軸位置を親の `align-items` 値に関わらず
+        // 固定する。
+        assert!(LAYOUT_CSS
+            .contains("p.blocks-banner-cookie-consent-caption {\n  align-self: flex-start;"));
+    }
+
+    #[test]
+    fn layout_css_bar_caption_keeps_padding_despite_stage_padding_reset() {
+        // `"bar"` ステージの `padding: 0`（バナー本体を枠全幅へ張り出させる
+        // ための宣言）はキャプションにも波及し、破線の端まで詰まって
+        // しまっていた（PR #3151 レビュー指摘）。キャプション専用の
+        // `padding` 復元規則がキャプションの左右インセットを取り戻す
+        // ことを固定する。
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-banner-cookie-consent-align=\"bar\"] > \
+             p.blocks-banner-cookie-consent-caption {\n  padding:"
+        ));
     }
 
     #[test]
