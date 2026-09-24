@@ -143,13 +143,22 @@ fn cell(
 }
 
 /// `banner-floating-card` の Demo 本体（3 セル: 下端・下端中央寄せ・上端）。
+///
+/// 各セルの閉じるボタンへは異なる `dismiss_label` を渡す（[`card`] の
+/// rustdoc「同一ページに複数カードを並べるため重複を避ける」不変条件を
+/// 実装側でも満たすため）。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-banner-floating-card-grid")],
         vec![
-            cell("Bottom", "bottom", false, "Dismiss announcement"),
-            cell("Bottom · centered", "bottom", true, "Dismiss announcement"),
-            cell("Top", "top", false, "Dismiss announcement"),
+            cell("Bottom", "bottom", false, "Dismiss bottom announcement"),
+            cell(
+                "Bottom · centered",
+                "bottom",
+                true,
+                "Dismiss centered announcement",
+            ),
+            cell("Top", "top", false, "Dismiss top announcement"),
         ],
     )
 }
