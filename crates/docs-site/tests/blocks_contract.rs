@@ -2862,7 +2862,6 @@ fn blog_split_header_grid_composes_expected_parts() {
         "data-scope=\"heading\"",
         "data-scope=\"text\"",
         "data-scope=\"badge\"",
-        "data-scope=\"button\"",
         "data-scope=\"card\"",
         "data-scope=\"image\"",
         "data-scope=\"link\"",
@@ -2884,9 +2883,34 @@ fn blog_split_header_grid_composes_expected_parts() {
         4,
         "blog-split-header-grid should render exactly 4 article cards"
     );
+    // 「すべての記事を見る」は codex レビュー是正（イシュー #2814
+    // PR #3165）で dead button から実際に遷移する link へ置き換えた。
+    // ページ全体にはヘッダーの GitHub リンク等 block 外にも REPO への
+    // href が存在する（`docs-github-link`）ため、全体の href 出現数では
+    // 断定せず、view-all の CSS フック属性を持つ要素そのものの開始タグに
+    // REPO への href が含まれることを確認する。
+    let view_all_tag_start = html
+        .find("data-blocks-blog-split-header-grid-view-all=\"\"")
+        .and_then(|hook_pos| html[..hook_pos].rfind('<'))
+        .expect("blog-split-header-grid should render the view-all element");
+    let view_all_tag_end = html[view_all_tag_start..]
+        .find('>')
+        .map(|offset| view_all_tag_start + offset)
+        .expect("view-all element's opening tag should be well-formed");
+    let view_all_tag = &html[view_all_tag_start..view_all_tag_end];
     assert!(
-        html.contains("type=\"button\""),
-        "blog-split-header-grid's view-all control should be a non-submitting button"
+        view_all_tag.starts_with("<a "),
+        "blog-split-header-grid's view-all control should be a real <a> link, not a dead button: {view_all_tag}"
+    );
+    assert!(
+        view_all_tag.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend\""),
+        "blog-split-header-grid's view-all link should point at the fixed repository URL: {view_all_tag}"
+    );
+    assert_eq!(
+        html.matches("data-blocks-blog-split-header-grid-title-link=\"\"")
+            .count(),
+        4,
+        "blog-split-header-grid should render exactly 4 article title links"
     );
 }
 

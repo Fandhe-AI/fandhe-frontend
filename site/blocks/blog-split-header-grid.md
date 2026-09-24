@@ -1,14 +1,14 @@
 # blog-split-header-grid
 
-`heading` / `text` / `badge` / `button` / `card` / `image` / `link` を
+`heading` / `text` / `badge` / `card` / `image` / `link` を
 合成した、見出し左 + 記事グリッド右のブログセクションです。
 
 幅 lg（64rem）以上では左に見出し列（tagline・見出し・説明・「すべての
-記事を見る」ボタン）、右に記事カードの 2 列グリッドが並びます。それより
+記事を見る」リンク）、右に記事カードの 2 列グリッドが並びます。それより
 狭い幅では見出し列の下にカードが 1 列で積まれます。文言・数値はすべて
 架空のもので、データ取得・送信は行わない静的な表示例です。リンク先は
-すべてリポジトリへの固定リンクで、ボタンは遷移しない
-`<button type="button">` です。`<form>` は使用しません。
+すべてリポジトリへの固定外部 URL です（記事タイトル・「すべての記事を
+見る」ともに実際に遷移する `<a href>`、`<form>` は使用しません）。
 
 集約元は 1 件のみ（対応表 ID R0419）です。
 
@@ -18,13 +18,12 @@
 use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps, CardVariant};
 use fandhe_frontend_pre_styled_ui::heading::{
     heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
 };
 use fandhe_frontend_pre_styled_ui::image::{self, AspectRatio, ImageProps, ImageShape};
-use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
+use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 
 /// リンク先の固定外部 URL（モジュール doc「`href="#"` を使わない」節参照）。
@@ -156,7 +155,7 @@ fn post_card(post: &Post) -> Node {
     )
 }
 
-/// 左列（tagline + 見出し + 説明 + ボタン）。
+/// 左列（tagline + 見出し + 説明 + 「すべての記事を見る」リンク）。
 fn lead_column() -> Node {
     div(
         vec![("class", "blocks-blog-split-header-grid-lead")],
@@ -186,13 +185,17 @@ fn lead_column() -> Node {
                     "設計・運用・アクセシビリティに関する記事を、書きためた順に紹介しています。",
                 )],
             ),
-            button::button(
-                &ButtonProps {
-                    variant: ButtonVariant::Outline,
-                    ..ButtonProps::default()
+            link::root(
+                REPO,
+                &LinkProps {
+                    variant: LinkVariant::Underline,
+                    ..LinkProps::default()
                 },
                 vec![("data-blocks-blog-split-header-grid-view-all", "")],
-                vec![text("すべての記事を見る")],
+                vec![
+                    text("すべての記事を見る"),
+                    el("span", vec![("aria-hidden", "true")], vec![text(" →")]),
+                ],
             ),
         ],
     )
@@ -228,8 +231,9 @@ pub fn demo() -> Node {
   仕様を優先しました）。
 - 左右の列比は 2:3 にしています。
 - `href="#"` の死リンクをリポジトリへの固定外部 URL へ置き換えました。
-- 「すべての記事を見る」は実際には遷移しない静的な `type="button"` の
-  ボタンにしました。
+- 「すべての記事を見る」は当初、実際には遷移しない静的な
+  `type="button"` のボタンでしたが、codex レビュー指摘（イシュー #2814
+  PR #3165）を受けて実際に遷移する `link` へ置き換えました。
 - 画像は `data:` URI を使わず、ビルド時生成のプレースホルダー画像を
   相対パスで参照します。`alt` は装飾扱いとして空にしています。
 - `id` 属性・`aria-describedby` は出力しません（宙に浮いた ARIA 参照・

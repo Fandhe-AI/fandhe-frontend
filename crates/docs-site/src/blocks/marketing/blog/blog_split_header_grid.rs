@@ -6,16 +6,19 @@
 //!
 //! # 使用部品
 //!
-//! `heading` / `text` / `badge` / `button` / `card` / `image` / `link` の
-//! 7 部品を合成する（[`BLOCK`] の `parts` に一致させる契約、
+//! `heading` / `text` / `badge` / `card` / `image` / `link` の
+//! 6 部品を合成する（[`BLOCK`] の `parts` に一致させる契約、
 //! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証
 //! する）。`blog_list_image`/`blog_featured_with_list` が使う `avatar`・
 //! `separator`・`link_overlay` は使わない（著者はテキスト表示のみ、記事
-//! カード全面のクリック領域も設けない）。
+//! カード全面のクリック領域も設けない）。codex レビュー是正（イシュー
+//! #2814 PR #3165）で `button` を撤去し `link` へ一本化したため、当初の
+//! 7 部品から 6 部品へ変わっている（次項「`href="#"` を使わない」節参照）。
 //!
 //! # レイアウト（lg = 64rem をブレークポイントとする理由）
 //!
-//! `< 64rem` は見出し列（tagline・見出し・説明・ボタン）の下にカード
+//! `< 64rem` は見出し列（tagline・見出し・説明・「すべての記事を見る」
+//! リンク）の下にカード
 //! グリッドが 1 列で積まれ、`>= 64rem` で左が見出し列（2fr）・右がカード
 //! 2 列グリッド（3fr）の 2 カラムへ切り替える。テーマの breakpoint
 //! トークンは `@media` 条件式の中では解決できないため（CSS custom
@@ -33,15 +36,23 @@
 //! `crate::blocks` モジュール doc「`<form>` を使わない」節と同じ判断軸で、
 //! [`Block::demo`] は `fn() -> Node` のため `base_path` を受け取れない。
 //! `linkcheck::check_links` は外部リンクを検証対象外とするため、記事
-//! タイトルのリンク先はすべて [`REPO`]（実在する GitHub リポジトリへの
-//! 外部絶対 URL）に固定する（`blog_list_image` と同じ先例判断）。
+//! タイトルのリンク先・「すべての記事を見る」リンク先はいずれも [`REPO`]
+//! （実在する GitHub リポジトリへの外部絶対 URL）に固定する
+//! （`blog_list_image` と同じ先例判断）。
 //!
-//! # ボタンは遷移しない静的な操作要素
+//! # 「すべての記事を見る」は死んだ操作要素にしない（イシュー #2814 codex レビュー是正）
 //!
-//! 「すべての記事を見る」ボタンは [`fandhe_frontend_pre_styled_ui::button`]
-//! を使い、`href` を持たない `<button type="button">` として組み立てる
-//! （既定で暗黙 submit を起こさない）。一覧ページへの実際の遷移は行わず、
-//! 静的な Demo 内の操作要素として置くのみである。
+//! 当初は [`fandhe_frontend_pre_styled_ui::button`] の `href` を持たない
+//! `<button type="button">` として組み立てていたが、押しても何も起きない
+//! dead control になっており、静的 Demo であっても操作契約・アクセシビ
+//! リティに反するという指摘（PR #3165）を受けて [`link::root`] へ置き換
+//! えた。`button` はそもそも `href` を受け取れない（
+//! [`fandhe_frontend_pre_styled_ui::button::button`] のシグネチャ参照）
+//! ため、実際に遷移する要素にするには別部品への差し替えが必須だった。
+//! リンク先は `REPO`（記事タイトルと同じ固定 URL、`base_path` を受け取れ
+//! ない制約は前項参照）とし、`blog_featured_with_list::read_more_footer`
+//! の「続きを読む」リンクと同型に、矢印を `aria-hidden` の装飾専用
+//! `<span>` として付す。
 //!
 //! # `<time datetime>` と表示日付の一致
 //!
@@ -59,7 +70,7 @@
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
 //! `heading::heading` / `styled_text::text` / `badge::badge` /
-//! `button::button` / `card::root` / `image::image` / `link::root` は
+//! `card::root` / `image::image` / `link::root` は
 //! いずれも `drop_class_attr` により呼び出し側 `attrs` の `class` を黙って
 //! 除去する契約を持つため、Demo 固有のスタイルフックは
 //! `data-blocks-blog-split-header-grid-*` 属性で渡し、[`LAYOUT_CSS`] 側も
@@ -95,13 +106,12 @@ use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps, CardVariant};
 use fandhe_frontend_pre_styled_ui::heading::{
     heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
 };
 use fandhe_frontend_pre_styled_ui::image::{self, AspectRatio, ImageProps, ImageShape};
-use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
+use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 
 /// リンク先の固定外部 URL（モジュール doc「`href="#"` を使わない」節参照）。
@@ -233,7 +243,7 @@ fn post_card(post: &Post) -> Node {
     )
 }
 
-/// 左列（tagline + 見出し + 説明 + ボタン）。
+/// 左列（tagline + 見出し + 説明 + 「すべての記事を見る」リンク）。
 fn lead_column() -> Node {
     div(
         vec![("class", "blocks-blog-split-header-grid-lead")],
@@ -263,13 +273,17 @@ fn lead_column() -> Node {
                     "設計・運用・アクセシビリティに関する記事を、書きためた順に紹介しています。",
                 )],
             ),
-            button::button(
-                &ButtonProps {
-                    variant: ButtonVariant::Outline,
-                    ..ButtonProps::default()
+            link::root(
+                REPO,
+                &LinkProps {
+                    variant: LinkVariant::Underline,
+                    ..LinkProps::default()
                 },
                 vec![("data-blocks-blog-split-header-grid-view-all", "")],
-                vec![text("すべての記事を見る")],
+                vec![
+                    text("すべての記事を見る"),
+                    el("span", vec![("aria-hidden", "true")], vec![text(" →")]),
+                ],
             ),
         ],
     )
@@ -311,10 +325,6 @@ pub const BLOCK: Block = Block {
             path: "/themes/badge/",
         },
         Part {
-            label: "Button",
-            path: "/themes/button/",
-        },
-        Part {
             label: "Card",
             path: "/themes/card/",
         },
@@ -339,6 +349,16 @@ pub const BLOCK: Block = Block {
 /// セレクタは `.blocks-blog-split-header-grid-*` と
 /// `[data-blocks-blog-split-header-grid-*]` のみを用い、他 block や部品の
 /// 素のセレクタへ影響させない（`blog_list_image` と同じ名前空間分離）。
+///
+/// 唯一の例外が `title-link` の `color: inherit` 規則で、単一属性セレクタ
+/// `[data-blocks-blog-split-header-grid-title-link]`（詳細度 0,1,0）のまま
+/// では `link` レシピの `[data-scope="link"][data-part="root"]`（詳細度
+/// 0,2,0）に負けて記事タイトルの色がアクセント色のまま残ってしまう
+/// （Cursor Bugbot 指摘、イシュー #2814 PR #3165）。`banner_full_width_bar`
+/// の `[data-blocks-banner-full-width-bar-tone="dark"]
+/// [data-scope="link"][data-part="root"]` と同じ判断で、`[data-scope="link"]
+/// [data-part="root"]` を自前の属性セレクタへ連結し詳細度 0,3,0 へ引き上げ
+/// て確実に上書きする。
 const LAYOUT_CSS: &str = "\
 .blocks-blog-split-header-grid-layout {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-12);\n  background: var(--fandhe-color-bg-muted);\n  padding: var(--fandhe-space-12) var(--fandhe-space-6);\n  border-radius: var(--fandhe-radius-lg);\n}\n\
 .blocks-blog-split-header-grid-lead {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-6);\n  max-width: 32rem;\n}\n\
@@ -352,7 +372,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-blog-split-header-grid-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-blog-split-header-grid-meta {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-blog-split-header-grid-date {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n}\n\
-[data-blocks-blog-split-header-grid-title-link] {\n  color: inherit;\n}\n\
+[data-blocks-blog-split-header-grid-title-link][data-scope=\"link\"][data-part=\"root\"] {\n  color: inherit;\n}\n\
 [data-blocks-blog-split-header-grid-category] {\n  white-space: nowrap;\n}\n\
 [data-blocks-blog-split-header-grid-author] {\n  margin: 0;\n}\n\
 @media (min-width: 64rem) {\n  .blocks-blog-split-header-grid-layout {\n    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);\n    column-gap: var(--fandhe-space-12);\n    align-items: start;\n  }\n  .blocks-blog-split-header-grid-grid {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n}\n";
@@ -372,14 +392,12 @@ mod tests {
             "data-scope=\"heading\"",
             "data-scope=\"text\"",
             "data-scope=\"badge\"",
-            "data-scope=\"button\"",
             "data-scope=\"card\"",
             "data-scope=\"image\"",
             "data-scope=\"link\"",
         ] {
             assert!(html.contains(scope), "demo output should contain {scope}");
         }
-        assert!(html.contains("type=\"button\""));
         assert!(html.contains("datetime=\"2026-09-16\""));
         assert_eq!(
             html.matches("data-blocks-blog-split-header-grid-card=\"\"")
@@ -388,8 +406,19 @@ mod tests {
         );
         assert!(!html.contains("href=\"#\""));
         assert!(!html.contains("<form"));
+        assert!(!html.contains("<button"));
         assert!(!html.contains("src=\"data:"));
         assert!(!html.contains(" id=\""));
+        // 「すべての記事を見る」は codex レビュー是正（イシュー #2814
+        // PR #3165）で dead button から実際に遷移する link へ置き換えた。
+        // href 付きの実リンクとして描画され、4 件の記事タイトルリンクと
+        // 合わせて REPO への href が 5 件出力される。
+        assert!(html.contains("data-blocks-blog-split-header-grid-view-all=\"\""));
+        assert_eq!(
+            html.matches(&format!("href=\"{}\"", super::REPO)).count(),
+            5,
+            "4 article title links + 1 view-all link should all point at REPO"
+        );
     }
 
     /// [`LAYOUT_CSS`] が想定するブレークポイント条件と淡い背景の帯を
