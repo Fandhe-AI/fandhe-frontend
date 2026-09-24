@@ -2898,6 +2898,119 @@ fn blog_list_image_composes_expected_parts() {
     }
 }
 
+#[test]
+fn blog_split_header_grid_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-split-header-grid/index.html"))
+        .expect("blocks/blog-split-header-grid/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-blog-split-header-grid\""),
+        "blog-split-header-grid page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "blog-split-header-grid page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "blog-split-header-grid page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-blog-split-header-grid-tagline=\"\"",
+        "data-blocks-blog-split-header-grid-heading=\"\"",
+        "data-blocks-blog-split-header-grid-view-all=\"\"",
+        "data-blocks-blog-split-header-grid-card=\"\"",
+        "data-blocks-blog-split-header-grid-image=\"\"",
+        "data-blocks-blog-split-header-grid-category=\"\"",
+        "data-blocks-blog-split-header-grid-title-link=\"\"",
+        "data-blocks-blog-split-header-grid-author=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "blog-split-header-grid page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        ".blocks-blog-split-header-grid-layout",
+        ".blocks-blog-split-header-grid-lead",
+        ".blocks-blog-split-header-grid-grid",
+        "[data-blocks-blog-split-header-grid-card]",
+        "[data-blocks-blog-split-header-grid-image]",
+        "[data-blocks-blog-split-header-grid-title-link]",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks::stylesheet should declare {selector}"
+        );
+    }
+}
+
+#[test]
+fn blog_split_header_grid_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-split-header-grid/index.html"))
+        .expect("blocks/blog-split-header-grid/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"card\"",
+        "data-scope=\"image\"",
+        "data-scope=\"link\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "blog-split-header-grid page should contain {scope}"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "blog-split-header-grid should never contain {absent}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-blog-split-header-grid-card=\"\"")
+            .count(),
+        4,
+        "blog-split-header-grid should render exactly 4 article cards"
+    );
+    // 「すべての記事を見る」は codex レビュー是正（イシュー #2814
+    // PR #3165）で dead button から実際に遷移する link へ置き換えた。
+    // ページ全体にはヘッダーの GitHub リンク等 block 外にも REPO への
+    // href が存在する（`docs-github-link`）ため、全体の href 出現数では
+    // 断定せず、view-all の CSS フック属性を持つ要素そのものの開始タグに
+    // REPO への href が含まれることを確認する。
+    let view_all_tag_start = html
+        .find("data-blocks-blog-split-header-grid-view-all=\"\"")
+        .and_then(|hook_pos| html[..hook_pos].rfind('<'))
+        .expect("blog-split-header-grid should render the view-all element");
+    let view_all_tag_end = html[view_all_tag_start..]
+        .find('>')
+        .map(|offset| view_all_tag_start + offset)
+        .expect("view-all element's opening tag should be well-formed");
+    let view_all_tag = &html[view_all_tag_start..view_all_tag_end];
+    assert!(
+        view_all_tag.starts_with("<a "),
+        "blog-split-header-grid's view-all control should be a real <a> link, not a dead button: {view_all_tag}"
+    );
+    assert!(
+        view_all_tag.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend\""),
+        "blog-split-header-grid's view-all link should point at the fixed repository URL: {view_all_tag}"
+    );
+    assert_eq!(
+        html.matches("data-blocks-blog-split-header-grid-title-link=\"\"")
+            .count(),
+        4,
+        "blog-split-header-grid should render exactly 4 article title links"
+    );
+}
+
 /// bento-three-column-tall ページが `blocks-demo` + block 固有 class・両
 /// スタイルシート・各セルの配置フック（`data-blocks-bento-three-column-
 /// tall-cell`）を実際に出力し、`blocks::stylesheet()` にも対応するグリッド
