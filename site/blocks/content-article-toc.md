@@ -201,7 +201,7 @@ fn article_header_split(title_id: &str) -> Node {
     )
 }
 
-/// 本文（小見出し + 段落 2〜3 件 × 3 節 + 末尾の区切り + 結び）。
+/// 本文（小見出し + 段落 1 件 × 3 節 + 末尾の区切り + 結び）。
 fn article_body(sections: &[(&str, &str, &str)]) -> Node {
     let mut children: Vec<Node> = Vec::new();
     for (id, _href, title) in sections {
