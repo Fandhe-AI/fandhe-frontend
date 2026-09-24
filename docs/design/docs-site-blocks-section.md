@@ -846,7 +846,7 @@ pub enum LayoutCss {
 | bento-asymmetric-rows | #2744/#2745 | `marketing/bento/bento_asymmetric_rows.rs` |
 | blog-list-image | #2812 | `marketing/blog/blog_list_image.rs` |
 | blog-split-header-grid | #2814 | `marketing/blog/blog_split_header_grid.rs` |
-| bento-three-column-tall | #2748 | `marketing/bento/bento_three_column_tall.rs` |
+| bento-three-column-tall | #2748 / #2749 | `marketing/bento/bento_three_column_tall.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 30 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
