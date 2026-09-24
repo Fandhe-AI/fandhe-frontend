@@ -1288,6 +1288,11 @@ source = "site/blocks/blog-featured-with-list.md"
 path = "/blocks/blog-featured-with-list/"
 
 [[section.group.page]]
+title = "blog-grid-text"
+source = "site/blocks/blog-grid-text.md"
+path = "/blocks/blog-grid-text/"
+
+[[section.group.page]]
 title = "blog-list-image"
 source = "site/blocks/blog-list-image.md"
 path = "/blocks/blog-list-image/"
