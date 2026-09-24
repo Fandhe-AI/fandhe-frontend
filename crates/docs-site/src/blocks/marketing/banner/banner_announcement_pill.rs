@@ -280,16 +280,29 @@ pub const BLOCK: Block = Block {
 /// pill-avatar]` を連結した属性セレクタ 3 個（詳細度 (0,3,0)）へ揃え、
 /// ソース順（`blocks.css` が後勝ち）で `--fandhe-color-bg`（明るいまま）
 /// から `--fandhe-color-fg-muted`（tone dark の背景色と同じ）へ上書きする。
+///
+/// アバター付きバリエーションが Demo グリッドをはみ出さないよう、
+/// `.blocks-banner-announcement-pill-cell`（グリッドアイテム）へ
+/// `min-width: 0` を明示している。CSS Grid のアイテムは既定で
+/// `min-width: auto`（内容の min-content 基準）を取るため、これが無いと
+/// `grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr))` の
+/// トラック幅 16rem を、アバター群 + 折り返さない告知文の min-content
+/// 幅が上回ってトラックごとはみ出す（デスクトップ 4 カラム・狭幅
+/// ビューポート双方で発生）。あわせてピル本体
+/// （`[data-blocks-banner-announcement-pill-pill]`）と
+/// `.blocks-banner-announcement-pill-label` へ `flex-wrap: wrap` /
+/// `min-width: 0` を足し、セルが縮んだ場合はアバター群・ラベルが
+/// 複数行に折り返してピル内部でのオーバーフローも防ぐ。
 const LAYOUT_CSS: &str = "\
 .blocks-banner-announcement-pill-grid {\n  display: grid;\n  gap: 1rem;\n  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));\n}\n\
-.blocks-banner-announcement-pill-cell {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 0.75rem;\n  padding: 2rem 1rem;\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg);\n  border: 1px solid var(--fandhe-color-border);\n}\n\
+.blocks-banner-announcement-pill-cell {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 0.75rem;\n  padding: 2rem 1rem;\n  min-width: 0;\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg);\n  border: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-banner-announcement-pill-surface=\"dark\"] {\n  background: var(--fandhe-color-fg);\n  border-color: var(--fandhe-color-fg);\n}\n\
 .blocks-banner-announcement-pill-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-banner-announcement-pill-surface=\"dark\"] .blocks-banner-announcement-pill-caption {\n  color: var(--fandhe-color-bg);\n}\n\
-[data-blocks-banner-announcement-pill-pill] {\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  padding: var(--fandhe-space-1-5) 1rem;\n  border-radius: var(--fandhe-radius-full);\n  border: 1px solid var(--fandhe-color-border);\n  background: var(--fandhe-color-bg-subtle);\n  font-size: 0.875rem;\n  max-width: 100%;\n  transition: border-color var(--fandhe-motion-duration-fast) var(--fandhe-motion-easing-standard);\n}\n\
+[data-blocks-banner-announcement-pill-pill] {\n  display: inline-flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-2);\n  padding: var(--fandhe-space-1-5) 1rem;\n  border-radius: var(--fandhe-radius-full);\n  border: 1px solid var(--fandhe-color-border);\n  background: var(--fandhe-color-bg-subtle);\n  font-size: 0.875rem;\n  max-width: 100%;\n  transition: border-color var(--fandhe-motion-duration-fast) var(--fandhe-motion-easing-standard);\n}\n\
 [data-blocks-banner-announcement-pill-pill]:hover {\n  border-color: var(--fandhe-color-border-emphasized);\n}\n\
 [data-blocks-banner-announcement-pill-tone=\"dark\"] {\n  background: var(--fandhe-color-fg-muted);\n  border-color: var(--fandhe-color-border-emphasized);\n}\n\
-.blocks-banner-announcement-pill-label {\n  display: inline-flex;\n  align-items: center;\n  gap: 0.375rem;\n  color: var(--fandhe-color-fg);\n}\n\
+.blocks-banner-announcement-pill-label {\n  display: inline-flex;\n  align-items: center;\n  flex-wrap: wrap;\n  min-width: 0;\n  gap: 0.375rem;\n  color: var(--fandhe-color-fg);\n}\n\
 [data-blocks-banner-announcement-pill-tone=\"dark\"] .blocks-banner-announcement-pill-label {\n  color: var(--fandhe-color-bg);\n}\n\
 .blocks-banner-announcement-pill-highlight {\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
 .blocks-banner-announcement-pill-message {\n  color: var(--fandhe-color-fg-muted);\n}\n\
