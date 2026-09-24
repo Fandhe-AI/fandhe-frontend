@@ -481,8 +481,9 @@ mod tests {
             "/blocks/text-split-reveal/",
             "/blocks/game-ui-modal/",
             "/blocks/banner-email-signup/",
+            "/blocks/banner-floating-card/",
         ];
-        assert_eq!(PRE_SPLIT_PATHS.len(), 23);
+        assert_eq!(PRE_SPLIT_PATHS.len(), 24);
 
         let registered = all_blocks();
         let mut seen = std::collections::HashSet::new();
@@ -504,6 +505,7 @@ mod tests {
         // 本 PR（イシュー #2809）で追加した blog-featured-with-list も
         // 登録されていることを固定する。
         assert!(seen.contains("/blocks/blog-featured-with-list/"));
+        assert!(seen.contains("/blocks/banner-floating-card/"));
 
         // イシュー #2808 で追加した blog-featured-article も登録されて
         // いることを固定する。
