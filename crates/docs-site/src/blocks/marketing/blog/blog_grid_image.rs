@@ -260,8 +260,12 @@ fn article_card(article: &Article, framed: bool) -> Node {
         image::image(&props, vec![])
     };
 
+    // レビュー指摘対応（PR #3156）: 各インスタンスの導入見出し（`intro_framed`/
+    // `intro_plain`）が H3 のため、記事タイトルは H4 にして見出し階層を
+    // 導入見出しの子として保つ（`blog_list_image`/`blog_split_header_grid`
+    // と同型の判断）。
     let title = heading::heading(
-        HeadingLevel::H3,
+        HeadingLevel::H4,
         &HeadingProps {
             size: HeadingSize::Md,
             weight: HeadingWeight::Semibold,
