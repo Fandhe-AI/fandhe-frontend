@@ -258,6 +258,16 @@ pub const BLOCK: Block = Block {
 /// のを避けるため、ピル root（`[data-scope="link"][data-part="root"]`）の
 /// `color` は上書きせず、子の `span`/`svg` 側だけに色を持たせる
 /// （モジュール doc「CSS フックの選び方」参照）。
+///
+/// 矢印アイコンの色上書きは `icon` recipe の base `color: currentColor`
+/// （`[data-scope="icon"][data-part="root"]`、詳細度 (0,2,0)）に必ず
+/// 勝てる詳細度を持たせる必要がある。単一の属性セレクタ
+/// `[data-blocks-banner-announcement-pill-arrow]`（詳細度 (0,1,0)）では
+/// ソース順に関わらず icon recipe に負けて `currentColor`（`link` の
+/// アクセントカラー）を継承してしまうため、親ピルの属性セレクタと
+/// 連結した子孫セレクタ（属性セレクタ 2 個 = 詳細度 (0,2,0)）へ
+/// 揃えている。`blocks.css` は `pre-styled-ui.css` より後に `<link>` される
+/// ため、詳細度が並んだ場合はソース順で本 CSS が勝つ。
 const LAYOUT_CSS: &str = "\
 .blocks-banner-announcement-pill-grid {\n  display: grid;\n  gap: 1rem;\n  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));\n}\n\
 .blocks-banner-announcement-pill-cell {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 0.75rem;\n  padding: 2rem 1rem;\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg);\n  border: 1px solid var(--fandhe-color-border);\n}\n\
@@ -266,13 +276,13 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-banner-announcement-pill-surface=\"dark\"] .blocks-banner-announcement-pill-caption {\n  color: var(--fandhe-color-bg);\n}\n\
 [data-blocks-banner-announcement-pill-pill] {\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  padding: var(--fandhe-space-1-5) 1rem;\n  border-radius: var(--fandhe-radius-full);\n  border: 1px solid var(--fandhe-color-border);\n  background: var(--fandhe-color-bg-subtle);\n  font-size: 0.875rem;\n  max-width: 100%;\n  transition: border-color var(--fandhe-motion-duration-fast) var(--fandhe-motion-easing-standard);\n}\n\
 [data-blocks-banner-announcement-pill-pill]:hover {\n  border-color: var(--fandhe-color-border-emphasized);\n}\n\
-[data-blocks-banner-announcement-pill-tone=\"dark\"] {\n  background: var(--fandhe-color-fg);\n  border-color: var(--fandhe-color-fg-muted);\n}\n\
+[data-blocks-banner-announcement-pill-tone=\"dark\"] {\n  background: var(--fandhe-color-fg-muted);\n  border-color: var(--fandhe-color-border-emphasized);\n}\n\
 .blocks-banner-announcement-pill-label {\n  display: inline-flex;\n  align-items: center;\n  gap: 0.375rem;\n  color: var(--fandhe-color-fg);\n}\n\
 [data-blocks-banner-announcement-pill-tone=\"dark\"] .blocks-banner-announcement-pill-label {\n  color: var(--fandhe-color-bg);\n}\n\
 .blocks-banner-announcement-pill-highlight {\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
 .blocks-banner-announcement-pill-message {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-banner-announcement-pill-tone=\"dark\"] .blocks-banner-announcement-pill-message {\n  color: var(--fandhe-color-bg);\n}\n\
-[data-blocks-banner-announcement-pill-arrow] {\n  color: var(--fandhe-color-fg-muted);\n}\n\
+[data-blocks-banner-announcement-pill-pill] [data-blocks-banner-announcement-pill-arrow] {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-banner-announcement-pill-tone=\"dark\"] [data-blocks-banner-announcement-pill-arrow] {\n  color: var(--fandhe-color-bg);\n}\n\
 .blocks-banner-announcement-pill-avatars {\n  display: inline-flex;\n}\n\
 ";
