@@ -52,7 +52,12 @@
 //! スクリムの上に `color: var(--fandhe-color-bg)` の文字を乗せる、
 //! `blog_overlay_cards` と同じトークン反転ペアで構成する（ライト/ダーク
 //! 双方で継ぎ目なくコントラストを保つ）。基準形（罫線付き blockquote）は
-//! 反転を行わず既定の前景色のまま表示する。
+//! 反転を行わず既定の前景色のまま表示する。スクリムは `blog_overlay_cards`
+//! と同じく下端 35% を不透明度 0.9 の単色帯として保持し（`transparent` へ
+//! 単純にグラデーションさせるだけでは上端付近のコントラストが不足する
+//! ため）、引用（`card::body`）自身も `justify-content: flex-end` で
+//! 下端の単色帯へ寄せる（`card::body` recipe の `flex: 1` により素の
+//! ままだと上端へ揃い、単色帯の外に出てしまうため）。
 //!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
@@ -407,8 +412,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-content-with-testimonial-stats {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-4);\n  width: 100%;\n}\n\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-content-with-testimonial-photo-card] {\n  position: relative;\n  overflow: hidden;\n  min-height: 20rem;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-content-with-testimonial-photo] {\n  position: absolute;\n  inset: 0;\n  width: 100%;\n  height: 100%;\n  max-width: none;\n  object-fit: cover;\n}\n\
-.blocks-content-with-testimonial-scrim {\n  position: absolute;\n  inset: 0;\n  background: linear-gradient(to top, var(--fandhe-color-fg), transparent);\n  opacity: 0.85;\n}\n\
-.blocks-content-with-testimonial-card-copy {\n  position: relative;\n  color: var(--fandhe-color-bg);\n}\n\
+.blocks-content-with-testimonial-scrim {\n  position: absolute;\n  inset: 0;\n  background: linear-gradient(to top, var(--fandhe-color-fg) 0%, var(--fandhe-color-fg) 35%, transparent 100%);\n  opacity: 0.9;\n}\n\
+.blocks-content-with-testimonial-card-copy {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  justify-content: flex-end;\n  color: var(--fandhe-color-bg);\n}\n\
 [data-scope=\"blockquote\"][data-part=\"root\"][data-blocks-content-with-testimonial-card-quote] {\n  border-inline-start: 0;\n  padding-inline-start: 0;\n  color: inherit;\n  --fandhe-blockquote-caption-fg: var(--fandhe-color-bg);\n}\n\
 @media (min-width: 64rem) {\n  \
 .blocks-content-with-testimonial-grid {\n    display: grid;\n    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);\n    gap: var(--fandhe-space-12);\n    align-items: start;\n  }\n\
@@ -461,7 +466,10 @@ mod tests {
         assert!(LAYOUT_CSS.contains("@media (min-width: 64rem)"));
         assert!(LAYOUT_CSS.contains("minmax(0, 7fr) minmax(0, 5fr)"));
         assert!(LAYOUT_CSS.contains("position: absolute"));
-        assert!(LAYOUT_CSS.contains("linear-gradient(to top, var(--fandhe-color-fg), transparent)"));
+        assert!(LAYOUT_CSS.contains(
+            "linear-gradient(to top, var(--fandhe-color-fg) 0%, var(--fandhe-color-fg) 35%, transparent 100%)"
+        ));
+        assert!(LAYOUT_CSS.contains("justify-content: flex-end"));
     }
 
     /// ルート grid class（`demo_class` とは別名）が `demo()` の出力へ
