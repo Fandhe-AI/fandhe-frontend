@@ -2534,3 +2534,103 @@ fn blog_featured_with_list_composes_expected_parts() {
         );
     }
 }
+
+/// `blog-grid-text`（イシュー #2811）の CSS フック配線検証。
+/// `blog_featured_with_list_page_wires_demo_class_and_css_hooks` と同型
+/// （`crate::blocks` モジュール doc「CSS フックが `class` と `[data-*]` で
+/// 混在する理由」節参照）。
+#[test]
+fn blog_grid_text_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-grid-text/index.html"))
+        .expect("blocks/blog-grid-text/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-blog-grid-text\""),
+        "blog-grid-text page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "blog-grid-text page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "blog-grid-text page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-blog-grid-text-card=\"\"",
+        "data-blocks-blog-grid-text-article=\"\"",
+        "data-blocks-blog-grid-text-excerpt=\"\"",
+        "data-blocks-blog-grid-text-author=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "blog-grid-text page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-blog-grid-text-card]",
+        "[data-blocks-blog-grid-text-article]",
+        "[data-blocks-blog-grid-text-excerpt]",
+        "[data-blocks-blog-grid-text-author]",
+        ".blocks-blog-grid-text-grid",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// `blog-grid-text` が使用部品どおりに合成され、非対話制約
+/// （`<form>`/死リンク/`data:` URI 不在）を満たすことの回帰。
+///
+/// ページ全体ではなく `(block.demo)()` の部分木だけを検査する。全体
+/// ページには `crate::nav` の前後ページャが headless `link_overlay` の
+/// `overlay` を出力しており、overlay の件数固定を全体ページで行うと
+/// 前後ページャ由来の overlay が混入するため（`blog_featured_with_list`
+/// との差分。本 block は overlay 件数（記事 6 件分）を固定するテストを
+/// 持つため部分木限定が必要になった）。
+#[test]
+fn blog_grid_text_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/blog-grid-text/")
+        .expect("blog-grid-text should be registered");
+    let html = render(&(block.demo)());
+    for needle in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"card\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"link\"",
+        "data-scope=\"link-overlay\"",
+    ] {
+        assert!(
+            html.contains(needle),
+            "blog-grid-text demo should contain {needle}"
+        );
+    }
+    assert_eq!(
+        html.matches(r#"data-part="overlay""#).count(),
+        6,
+        "blog-grid-text demo should render exactly 6 overlays (3 posts x 2 instances)"
+    );
+    assert_eq!(
+        html.matches("aria-label=").count(),
+        6,
+        "blog-grid-text demo overlays should each carry an aria-label"
+    );
+    assert!(
+        html.contains(r#"data-state="visible""#),
+        "blog-grid-text demo should render avatar images as visible"
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:", "raw_html"] {
+        assert!(
+            !html.contains(absent),
+            "blog-grid-text should never contain {absent}"
+        );
+    }
+}

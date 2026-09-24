@@ -6,8 +6,9 @@
 //! ための構造、イシュー #2734）。
 
 mod blog_featured_with_list;
+mod blog_grid_text;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![blog_featured_with_list::BLOCK]
+    vec![blog_featured_with_list::BLOCK, blog_grid_text::BLOCK]
 }
