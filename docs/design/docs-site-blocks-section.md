@@ -843,8 +843,9 @@ pub enum LayoutCss {
 | banner-full-width-bar | #2743 | `marketing/banner/banner_full_width_bar.rs` |
 | blog-featured-article | #2808 | `marketing/blog/blog_featured_article.rs` |
 | blog-featured-with-list | #2809 | `marketing/blog/blog_featured_with_list.rs` |
-| bento-asymmetric-rows | #2744/#2745 | `marketing/bento/bento_asymmetric_rows.rs` |
+| bento-asymmetric-rows | #2744/#2745/#2746 | `marketing/bento/bento_asymmetric_rows.rs` |
 | blog-list-image | #2812 | `marketing/blog/blog_list_image.rs` |
+| blog-split-header-grid | #2814 | `marketing/blog/blog_split_header_grid.rs` |
 | bento-three-column-tall | #2748 / #2749 | `marketing/bento/bento_three_column_tall.rs` |
 | content-article | #2751 | `marketing/content/content_article.rs` |
 
