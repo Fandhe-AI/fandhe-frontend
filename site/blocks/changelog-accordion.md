@@ -2,7 +2,7 @@
 
 `heading` / `text` / `badge` / `accordion` / `list` / `image` の 6 部品を合成した、アコーディオン型の changelog レイアウトです。左寄せの見出し・リード文の下に、リリース単位で個別の枠に囲まれたアコーディオン項目を縦に並べます。
 
-- 静的表示です。docs サイトは無 JS のため、先頭 2 件を開いた状態・残りを閉じた状態に固定して描画しており、実際に開閉操作をすることはできません。
+- 静的表示です。docs サイトは無 JS のため、全リリースを常時展開した状態で固定描画しています。項目のトリガーはネイティブ `disabled` 属性・`aria-disabled="true"` を持ち、実際に開閉操作をすることはできません（イシュー #2818 レビュー指摘の是正。当初は先頭 2 件のみ開いた状態にしていましたが、閉じた項目の本文が `hidden` 属性で到達不能になり、操作不能な `<button>` を残す形になっていたため、全件表示へ変更しました）。
 - 文言・バージョン番号・日付・変更点はすべて架空のものです。
 - データ取得・送信は行わず、`<form>` は使いません。
 - 狭い幅でも 1 列のまま幅いっぱいに広がります（ブレークポイントによる段組み切り替えはありません）。
@@ -26,10 +26,6 @@ use fandhe_frontend_pre_styled_ui::Size;
 
 use crate::blocks::dummy_assets;
 
-/// 表示件数のうち先頭何件を open 固定にするか（モジュール doc「静的表示」
-/// 節）。
-const OPEN_COUNT: usize = 2;
-
 /// リリース 1 件分のダミーデータ（架空、実在の製品・企業とは無関係）。
 struct Release {
     version: &'static str,
@@ -41,7 +37,8 @@ struct Release {
     changes: &'static [&'static str],
 }
 
-/// リリース一覧（架空、4 件。先頭 2 件が [`OPEN_COUNT`] により open 固定）。
+/// リリース一覧（架空、4 件。モジュール doc「静的表示」節のとおり全件を
+/// open + disabled で固定描画する）。
 const RELEASES: [Release; 4] = [
     Release {
         version: "v2.4.0",
@@ -51,8 +48,8 @@ const RELEASES: [Release; 4] = [
         tags: &["新機能"],
         image_src: dummy_assets::SCREENSHOT_SRC,
         changes: &[
-            "リリース単位で開閉できる changelog レイアウトを追加",
-            "先頭 2 件を既定で展開するデモ表示に対応",
+            "リリース単位で区切って表示する changelog レイアウトを追加",
+            "全リリースを常時展開表示するデモ表示に対応",
         ],
     },
     Release {
@@ -170,13 +167,18 @@ fn release_body(release: &Release) -> Node {
 }
 
 /// リリース 1 件分の accordion item（トリガー + 本文）。
+///
+/// 全件を [`OpenState::Open`] + `disabled: true` で固定する（モジュール doc
+/// 「静的表示」節）。`disabled` はネイティブ `disabled` 属性・
+/// `aria-disabled="true"` を [`item_trigger`] へ反映させ、無 JS のため
+/// クリック・キーボードでは開閉できないことを支援技術・キーボード操作の
+/// 双方に明示する。
 fn release_item(index: usize, release: &Release) -> Node {
-    let state = if index < OPEN_COUNT {
-        OpenState::Open
-    } else {
-        OpenState::Closed
+    let state = OpenState::Open;
+    let props = AccordionProps {
+        disabled: true,
+        ..AccordionProps::default()
     };
-    let props = AccordionProps::default();
     let trigger_id = format!("blocks-changelog-accordion-{index}-trigger");
     let content_id = format!("blocks-changelog-accordion-{index}-content");
 
@@ -237,9 +239,7 @@ pub fn demo() -> Node {
                     ..TextProps::default()
                 },
                 vec![],
-                vec![text(
-                    "各リリースの変更点をまとめています。項目をクリックすると詳細を確認できます。",
-                )],
+                vec![text("各リリースの変更点をまとめています。")],
             ),
         ],
     );
@@ -271,7 +271,7 @@ pub fn demo() -> Node {
 
 - 見出しレベルを 1 段下げました（ページ側の `## Demo` に合わせるため、セクション見出しは `h3`）。
 - トリガーから装飾的なバッジを外し、version・日付・タイトルの 3 点のみに絞りました。
-- 先頭 2 件を open に固定した静的表示にしました（JS の状態機械は再現していません）。
+- 全件を open + disabled に固定した静的表示にしました（JS の状態機械は再現していません。当初は先頭 2 件のみ open でしたが、無 JS では開閉できず閉じた項目の本文が到達不能になるため、全件表示へ変更しました）。
 - アイコンを使わず、開閉インジケータは既存部品のテキスト「▾」にしました。
 - 画像はモノトーンの共通ダミー素材にしました。
 - 文言をすべて独自に書き直しました。

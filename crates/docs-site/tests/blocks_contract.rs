@@ -3167,15 +3167,20 @@ fn changelog_accordion_composes_expected_parts() {
             "changelog-accordion page should contain {scope}"
         );
     }
-    assert_eq!(
-        html.matches(r#"data-part="item" data-state="open""#)
-            .count(),
-        2,
-        "changelog-accordion should render exactly 2 open items"
+    // イシュー #2818 レビュー指摘の是正: 無 JS の docs サイトでは
+    // `item_trigger` の click/Enter/Space が no-op のため、閉じた項目
+    // （`hidden` 属性で本文が到達不能）を残さない。全件を open + disabled
+    // 固定にする（`changelog_accordion.rs` モジュール doc「静的表示」節）。
+    let open_count = html
+        .matches(r#"data-part="item" data-state="open""#)
+        .count();
+    assert!(
+        open_count >= 1,
+        "changelog-accordion should render at least 1 open item"
     );
     assert!(
-        html.contains(r#"data-part="item-content" data-state="closed""#),
-        "changelog-accordion should render closed item-content(s)"
+        !html.contains(r#"data-part="item-content" data-state="closed""#),
+        "changelog-accordion should not render closed (unreachable) item-content"
     );
     for absent in ["<form", "href=\"#\"", "src=\"data:"] {
         assert!(

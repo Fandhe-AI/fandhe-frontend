@@ -14,14 +14,31 @@
 //! 合成する（[`BLOCK`] の `parts` に一致させる契約、
 //! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証する）。
 //!
-//! # 静的表示（無 JS、先頭 2 件を open に固定）
+//! # 静的表示（無 JS、全項目を常時 open + disabled で固定）
 //!
 //! docs サイトは JS ハイドレーションを行わないため、`Accordion`（状態機械）
 //! を経由せず [`fandhe_frontend_pre_styled_ui::accordion`] の自由関数を
-//! 直接呼び、[`RELEASES`] の先頭 2 件を [`OpenState::Open`]・残りを
-//! [`OpenState::Closed`] として固定描画する（`component_specs_overlay.rs::
-//! ex_accordion_multiple` と同型の「状態機械を介さない複数項目同時 open」
-//! 前例に倣う）。開閉操作はできない。
+//! 直接呼び、[`RELEASES`] の全件を [`OpenState::Open`] として固定描画する
+//! （`component_specs_overlay.rs::ex_accordion_multiple` と同型の「状態機械
+//! を介さない複数項目同時 open」前例に倣う）。開閉操作はできない。
+//!
+//! 当初は先頭 2 件のみ open・残りを `OpenState::Closed`（`hidden` 属性で
+//! 本文が到達不能）としていたが、`item_trigger` が `disabled: false` の
+//! フォーカス可能な `<button>` として出力されるため、クリック・
+//! Enter/Space が no-op になるうえ、閉じた項目の本文が事実上読めなくなる
+//! （イシュー #2818 レビュー指摘、`docs/policy/intentional-non-adoption.md`
+//! の UI 部品責務境界にある「アクセシビリティ（WAI-ARIA・キーボード操作）」
+//! に反する）。是正として `AccordionProps { disabled: true, .. }` を
+//! `item`/`item_trigger`/`item_indicator`/`item_content` へ共有し、
+//! ネイティブ `disabled` 属性・`aria-disabled="true"`（[`item_trigger`]）を
+//! 出力してフォーカス不能・操作不能であることを支援技術・キーボード双方に
+//! 明示する（`game_ui_modal`（`crates/docs-site/src/blocks/application/
+//! dialog/game_ui_modal.rs`）が「無 JS 下では開閉を切り替えられず表示上の
+//! 意味を持たない `trigger` を置かない」とした判断と同じ思想の適用で、本
+//! block はトリガー自体を除去できない〔version/date/title を担う〕ため
+//! 代わりに disabled 化する）。`disabled_declarations()`（既定
+//! `opacity: 0.5`）は [`LAYOUT_CSS`] で中和し、通常の changelog 見出しと
+//! 同じ見た目に保つ。
 //!
 //! # 項目ごとに枠を付けるための recipe 上書きと詳細度
 //!
@@ -106,10 +123,6 @@ use fandhe_frontend_pre_styled_ui::Size;
 
 use crate::blocks::dummy_assets;
 
-/// 表示件数のうち先頭何件を open 固定にするか（モジュール doc「静的表示」
-/// 節）。
-const OPEN_COUNT: usize = 2;
-
 /// リリース 1 件分のダミーデータ（架空、実在の製品・企業とは無関係）。
 struct Release {
     version: &'static str,
@@ -121,7 +134,8 @@ struct Release {
     changes: &'static [&'static str],
 }
 
-/// リリース一覧（架空、4 件。先頭 2 件が [`OPEN_COUNT`] により open 固定）。
+/// リリース一覧（架空、4 件。モジュール doc「静的表示」節のとおり全件を
+/// open + disabled で固定描画する）。
 const RELEASES: [Release; 4] = [
     Release {
         version: "v2.4.0",
@@ -131,8 +145,8 @@ const RELEASES: [Release; 4] = [
         tags: &["新機能"],
         image_src: dummy_assets::SCREENSHOT_SRC,
         changes: &[
-            "リリース単位で開閉できる changelog レイアウトを追加",
-            "先頭 2 件を既定で展開するデモ表示に対応",
+            "リリース単位で区切って表示する changelog レイアウトを追加",
+            "全リリースを常時展開表示するデモ表示に対応",
         ],
     },
     Release {
@@ -250,13 +264,18 @@ fn release_body(release: &Release) -> Node {
 }
 
 /// リリース 1 件分の accordion item（トリガー + 本文）。
+///
+/// 全件を [`OpenState::Open`] + `disabled: true` で固定する（モジュール doc
+/// 「静的表示」節）。`disabled` はネイティブ `disabled` 属性・
+/// `aria-disabled="true"` を [`item_trigger`] へ反映させ、無 JS のため
+/// クリック・キーボードでは開閉できないことを支援技術・キーボード操作の
+/// 双方に明示する。
 fn release_item(index: usize, release: &Release) -> Node {
-    let state = if index < OPEN_COUNT {
-        OpenState::Open
-    } else {
-        OpenState::Closed
+    let state = OpenState::Open;
+    let props = AccordionProps {
+        disabled: true,
+        ..AccordionProps::default()
     };
-    let props = AccordionProps::default();
     let trigger_id = format!("blocks-changelog-accordion-{index}-trigger");
     let content_id = format!("blocks-changelog-accordion-{index}-content");
 
@@ -317,9 +336,7 @@ pub fn demo() -> Node {
                     ..TextProps::default()
                 },
                 vec![],
-                vec![text(
-                    "各リリースの変更点をまとめています。項目をクリックすると詳細を確認できます。",
-                )],
+                vec![text("各リリースの変更点をまとめています。")],
             ),
         ],
     );
@@ -394,12 +411,22 @@ pub const BLOCK: Block = Block {
 /// `[data-scope="accordion"]` 系セレクタへの子孫結合子付き上書き
 /// （モジュール doc「項目ごとに枠を付けるための recipe 上書きと詳細度」
 /// 節）のみを用い、他 block や部品の素のセレクタへ影響させない。
+///
+/// `[data-part="item-trigger"][data-disabled]` の中和（モジュール doc
+/// 「静的表示」節の disabled 化に伴う追加）: `accordion::stylesheet` の
+/// `disabled_declarations()`（`opacity: 0.5` + `cursor: not-allowed`）は
+/// 「操作できない要素」の既定表現だが、本 block は開閉操作自体を提供
+/// しない常時展開の changelog 見出しであり、薄く見せる必要がないため
+/// `opacity: 1`・`cursor: default` へ上書きする。詳細度は `:last-child`
+/// 上書きと同じ考え方で 0,4,0（recipe 側 0,3,0 に対して子孫結合子 1 段
+/// 追加分）にして読み込み順に依存せず確実に勝たせる。
 const LAYOUT_CSS: &str = "\
 .blocks-changelog-accordion-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  width: 100%;\n}\n\
 .blocks-changelog-accordion-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-changelog-accordion-list [data-scope=\"accordion\"][data-part=\"root\"] {\n  border: 0;\n  border-radius: 0;\n  overflow: visible;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-changelog-accordion-list [data-scope=\"accordion\"][data-part=\"item\"] {\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  overflow: hidden;\n}\n\
 .blocks-changelog-accordion-list [data-scope=\"accordion\"][data-part=\"item\"]:last-child {\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
+.blocks-changelog-accordion-list [data-scope=\"accordion\"][data-part=\"item-trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-changelog-accordion-trigger-heading {\n  margin: 0;\n  font-size: inherit;\n  font-weight: inherit;\n}\n\
 .blocks-changelog-accordion-trigger-label {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  gap: var(--fandhe-space-2);\n  min-width: 0;\n  flex: 1;\n}\n\
 .blocks-changelog-accordion-version {\n  font-weight: var(--fandhe-font-weight-bold, 700);\n}\n\
@@ -411,12 +438,18 @@ const LAYOUT_CSS: &str = "\
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, LAYOUT_CSS, OPEN_COUNT, RELEASES};
+    use super::{demo, LAYOUT_CSS, RELEASES};
     use fandhe_frontend_core::render;
 
     /// Demo が期待する 6 種の部品・アコーディオン状態・非対話制約を満たす
     /// ことの単体回帰（`crates/docs-site/tests/blocks_contract.rs` の横断
     /// 検査と重複し過ぎない範囲での個別固定）。
+    ///
+    /// 全件 open・全件 disabled（`hidden`/`data-state="closed"` を一切
+    /// 出力しない）ことを固定する。これは無 JS の docs サイトで
+    /// `item_trigger` が no-op のフォーカス可能なボタンとなり、閉じた
+    /// 項目の本文が事実上到達不能になっていた指摘（イシュー #2818 レビュー
+    /// 指摘）の是正を回帰させる。
     #[test]
     fn demo_composes_expected_parts_and_states() {
         let html = render(&demo());
@@ -433,18 +466,26 @@ mod tests {
         assert_eq!(
             html.matches(r#"data-part="item" data-state="open""#)
                 .count(),
-            OPEN_COUNT,
+            RELEASES.len(),
             "html={html}"
         );
-        let closed_count = RELEASES.len() - OPEN_COUNT;
         assert_eq!(
             html.matches("item-content\" data-state=\"closed\"").count(),
-            closed_count,
+            0,
+            "html={html}"
+        );
+        assert_eq!(html.matches(" hidden=\"\"").count(), 0, "html={html}");
+        // 全トリガーがネイティブ disabled + aria-disabled="true" を持つこと
+        // （モジュール doc「静的表示」節。フォーカス不能・操作不能を支援
+        // 技術・キーボード双方に明示する）。
+        assert_eq!(
+            html.matches(r#"data-part="item-trigger""#).count(),
+            RELEASES.len(),
             "html={html}"
         );
         assert_eq!(
-            html.matches(" hidden=\"\"").count(),
-            closed_count,
+            html.matches(r#"aria-disabled="true""#).count(),
+            RELEASES.len(),
             "html={html}"
         );
         assert!(!html.contains("<form"));
@@ -471,5 +512,16 @@ mod tests {
         assert!(LAYOUT_CSS.contains(
             r#".blocks-changelog-accordion-list [data-scope="accordion"][data-part="item"]:last-child {"#
         ));
+    }
+
+    /// [`LAYOUT_CSS`] が `item-trigger[data-disabled]` の既定
+    /// `disabled_declarations()`（`opacity: 0.5`）を中和する上書きを
+    /// 持つこと（モジュール doc「静的表示」節）。
+    #[test]
+    fn layout_css_neutralizes_disabled_trigger_opacity() {
+        assert!(LAYOUT_CSS.contains(
+            r#".blocks-changelog-accordion-list [data-scope="accordion"][data-part="item-trigger"][data-disabled] {"#
+        ));
+        assert!(LAYOUT_CSS.contains("opacity: 1;"));
     }
 }
