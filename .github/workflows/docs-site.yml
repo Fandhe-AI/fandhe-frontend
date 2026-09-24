@@ -271,6 +271,7 @@ jobs:
           # Marketing / Careers
           # Marketing / Changelog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/changelog-accordion/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/changelog-timeline/index.html"
           # Marketing / Error Page
           # Marketing / Gallery
           # Marketing / Section Heading

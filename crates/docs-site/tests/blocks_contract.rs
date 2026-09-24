@@ -3205,6 +3205,81 @@ fn changelog_accordion_item_frame_selector_outweighs_recipe_last_child() {
     );
 }
 
+/// changelog-timeline ページが `blocks-demo` + block 固有 class・両スタイル
+/// シート・boxed/pill 双方の CSS フックを実際に出力し、`blocks::stylesheet()`
+/// にも対応する 3 列化の上書きセレクタが存在することを固定する
+/// （イシュー #2820）。
+#[test]
+fn changelog_timeline_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/changelog-timeline/index.html"))
+        .expect("blocks/changelog-timeline/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-changelog-timeline\""),
+        "changelog-timeline page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "changelog-timeline page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "changelog-timeline page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-changelog-timeline-variant=\"boxed\"",
+        "data-blocks-changelog-timeline-variant=\"pill\"",
+        "data-blocks-changelog-timeline-side=\"\"",
+        "data-blocks-changelog-timeline-body=\"\"",
+        "data-blocks-changelog-timeline-inline-meta=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "changelog-timeline page should contain {hook}"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    assert!(
+        sheet_css.contains(
+            r#"[data-blocks-changelog-timeline-variant="boxed"] [data-scope="timeline"][data-part="item"] {"#
+        ),
+        "blocks.css should declare the 3-column override for changelog-timeline"
+    );
+}
+
+/// changelog-timeline の合成部品（heading/text/badge/timeline/list/image/
+/// link の 7 種）が期待どおり出力されていることを固定する（イシュー
+/// #2820）。
+#[test]
+fn changelog_timeline_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/changelog-timeline/index.html"))
+        .expect("blocks/changelog-timeline/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"timeline\"",
+        "data-scope=\"list\"",
+        "data-scope=\"image\"",
+        "data-scope=\"link\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "changelog-timeline page should contain {scope}"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "changelog-timeline should never contain {absent}"
+        );
+    }
+}
+
 /// bento-two-column ページが `blocks-demo` + block 固有 class・両スタイル
 /// シート・カードの配置フック（`data-blocks-bento-two-column-cell`）を
 /// 実際に出力し、`blocks::stylesheet()` にも対応するグリッド配置規則・
