@@ -1501,11 +1501,6 @@ source = "site/wireframes/avatar.md"
 path = "/wireframes/avatar/"
 
 [[section.page]]
-title = "Brand"
-source = "site/wireframes/brand.md"
-path = "/wireframes/brand/"
-
-[[section.page]]
 title = "Counter"
 source = "site/wireframes/counter.md"
 path = "/wireframes/counter/"
@@ -1544,6 +1539,11 @@ path = "/wireframes/map/"
 title = "Media"
 source = "site/wireframes/media.md"
 path = "/wireframes/media/"
+
+[[section.page]]
+title = "Brand"
+source = "site/wireframes/brand.md"
+path = "/wireframes/brand/"
 
 # API Reference セクション（イシュー #955 / 設計 docs/design/docs-site-api-reference-split.md）。
 # - docs/internal/*-implementation-notes.md は本マニフェストへ登録しない。

@@ -207,8 +207,9 @@ pub struct Wireframe {
 /// 独自設計。`secondary` は `nav_item` の `counter` と同じ
 /// `Option<&str>`）・[`brand::WIREFRAME`]（イシュー #2653、8 番目の部品。
 /// `content: Option<Node>` が `None` のとき既定の汎用抽象ブランドマーク
-/// `icon::brand` へフォールバックする §11.4 からの意図的な逸脱。実在
-/// ブランドのロゴ・商標を模した SVG は持ち込まない）が続いた。
+/// `icon::brand`（代わりに使える既存アイコンがないため新規追加、
+/// `icon.rs` は計 24 種）へフォールバックする §11.4 からの意図的な逸脱。
+/// 実在ブランドのロゴ・商標を模した SVG は持ち込まない）が続いた。
 /// Phase 8「Media・データ表示」の最初の部品 [`chart::WIREFRAME`]（イシュー
 /// #2663、値は `&[u8]` で受け取り `props::Orientation` を再利用する）・
 /// 2 番目の部品 [`image::WIREFRAME`]（イシュー #2660、対角のバツ印が

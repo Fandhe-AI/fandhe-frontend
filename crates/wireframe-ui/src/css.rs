@@ -65,8 +65,9 @@
 /// （同 Phase の 3 番目の部品）・イシュー #2656 で
 /// [`crate::stat::STAT_CSS`]（4 番目の部品）・イシュー #2658 で
 /// [`crate::card_basic::CARD_BASIC_CSS`]（Phase 7「Data display」の
-/// 5 番目の部品）・イシュー #2653 で [`crate::brand::BRAND_CSS`]（同 Phase
-/// の 8 番目の部品）が続き、イシュー #2663 で [`crate::chart::CHART_CSS`]
+/// 5 番目の部品）・イシュー #2653 で [`crate::brand::BRAND_CSS`]
+/// （Phase 7「Data display」の 8 番目の部品）が続き、イシュー #2663 で
+/// [`crate::chart::CHART_CSS`]
 /// （Phase 8「Media・データ表示」の最初の部品）・イシュー #2660 で
 /// [`crate::image::IMAGE_CSS`]（同 Phase の 2 番目の部品）・イシュー #2664 で
 /// [`crate::map::MAP_CSS`]（同 Phase の 3 番目の部品）・イシュー #2661 で

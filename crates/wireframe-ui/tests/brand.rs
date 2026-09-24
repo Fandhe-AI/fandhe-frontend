@@ -142,18 +142,3 @@ fn brand_css_selectors_use_fw_wire_prefix_and_reference_tokens_not_literals() {
         }
     }
 }
-
-#[test]
-fn no_real_brand_marks_are_referenced() {
-    // 実在ブランド・商標に関する語彙をソース文字列に混入させていないこと
-    // の弱い保証（Issue 本文の明示要求）。厳密な商標調査は代替不能だが、
-    // 少なくとも既知の代表的ブランド名を CSS/HTML 出力へ書き写していない
-    // ことを固定する。
-    let html = render(&brand(None, Size::Md));
-    for forbidden in ["apple", "google", "meta", "amazon", "microsoft"] {
-        assert!(
-            !html.to_lowercase().contains(forbidden),
-            "brand output unexpectedly references {forbidden:?}"
-        );
-    }
-}

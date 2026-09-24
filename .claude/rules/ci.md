@@ -351,7 +351,8 @@
   `<video>`/`<iframe>` は出力しない）/
   `wireframes/brand/index.html`（イシュー #2653、Phase 7「Data display」の
   8 番目の部品。`content: Option<Node>` が `None` のとき既定の汎用抽象
-  ブランドマーク `icon::brand` へフォールバックする §11.4 からの意図的な
+  ブランドマーク `icon::brand`（代わりに使える既存アイコンがないため
+  新規追加、`icon.rs` は計 24 種）へフォールバックする §11.4 からの意図的な
   逸脱（`avatar` と同型の判断）。実在ブランドのロゴ・商標を模した SVG は
   持ち込まない）
   である。
