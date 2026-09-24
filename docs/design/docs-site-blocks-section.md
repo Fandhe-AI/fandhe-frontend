@@ -74,6 +74,17 @@ signup-05 の 7 件とする。これは既存の #2088〜#2095 が対象とす�
 判断（#2088〜#2095 の一覧が最終であるという記述）を変更するものではなく、
 新規タスク（#2530 系）による純追加であることを示す別段落である。
 
+**Phase 7（#2530）による追加（#2548）**: 同じ親トラッキング #2530 配下の
+イシュー #2548 により、Motion+ の testimonials 系レイアウトを参照した
+`testimonials-stack`（`card`/`blockquote`/`avatar` を合成し、積層した
+testimonial カードを表す合成例）の 1 件が追加された。積層オフセットに
+`pre-styled-ui::recipe::STAGGER_INDEX_VAR`（`--fandhe-motion-stagger-index`）
+を用いる判断・自動ローテーションを行わない判断（docs-site は JS
+ハイドレーションを行わない設計のため）は
+`crates/docs-site/src/blocks/marketing/testimonial/testimonials_stack.rs`
+のモジュール doc を正とする。これも上記と同じ純追加であり「7 件で確定」の
+判断は変更しない。
+
 **Phase 7（#2530）による追加（イシュー #2549）**: 同じ Motion+ `sections/
 bento-grids` に相当する `bento-staggered`（scroll-driven な bento グリッド。
 各セルが `animation-timeline: view()` でビューポート進入時にフェード＋
@@ -785,3 +796,49 @@ pub enum LayoutCss {
 本実装は実務上の慣行（tooling-builder 相当）に従ったが、delegation 表
 自体の整備は本イシューのスコープ外とし、別途 Issue 化を検討する
 （`.claude/rules/out-of-scope-tracking.md` 参照）。
+
+## 19. block 一覧索引（イシュー #2736）
+
+`CLAUDE.md`・`.claude/rules/ci.md` は block 追加のたびに個別の設計判断を
+長文追記する運用を続けてきたが、22 件の記述が蓄積した時点で可読性を
+失い、全 PR の競合点になっていた（イシュー #2736）。以後 block 追加 PR は
+両ファイルを編集せず、個別の設計判断の索引を本節に一本化する。表の
+「正の所在」列は既存記録がある場合はその節番号、無い場合は該当
+`.rs` パス（`crates/docs-site/src/blocks/` を省略した相対表記）+
+対応する `site/blocks/<kebab>.md` を指す。
+
+| slug | issue | 正の所在 |
+|---|---|---|
+| login-01 | #2088 | §10, `application/auth/login_01.rs` |
+| dashboard-01 | #2089 | §10, `application/dashboard/dashboard_01.rs` |
+| sidebar-07 | #2090 | §10, `application/sidebar/sidebar_07.rs` |
+| sidebar-03 | #2091 | §10, `application/sidebar/sidebar_03.rs` |
+| login-04 | #2093 | §11, `application/auth/login_04.rs` |
+| signup-01 | #2094 | §12, `application/auth/signup_01.rs` |
+| signup-05 | #2095 | §13, `application/auth/signup_05.rs` |
+| pricing-tiers-morph | #2547 | §3 追記段落, `marketing/pricing/pricing_tiers_morph.rs` |
+| pricing-usage-slider | #2547 | §3 追記段落, `marketing/pricing/pricing_usage_slider.rs` |
+| testimonials-stack | #2548 | §3 追記段落, `marketing/testimonial/testimonials_stack.rs` |
+| bento-staggered | #2549 | §3 追記段落・§14, `marketing/bento/bento_staggered.rs` |
+| feature-expand | #2549 | §3 追記段落・§14, `marketing/feature/feature_expand.rs` |
+| cta-banner-magnetic | #2550 | §3 追記段落, `marketing/cta/cta_banner_magnetic.rs` |
+| cta-signup-celebrate | #2550 | §3 追記段落, `marketing/cta/cta_signup_celebrate.rs` |
+| cursor-hover-cards | #2542 | §3 追記段落, `application/card/cursor_hover_cards.rs` |
+| footer-sticky-reveal | #2551 | §3 追記段落, `marketing/footer/footer_sticky_reveal.rs` |
+| footer-newsletter | #2551 | §3 追記段落, `marketing/footer/footer_newsletter.rs` |
+| hero-editorial-stagger | #2546 | §15, `marketing/hero/hero_editorial_stagger.rs` |
+| hero-parallax-layers | #2546 | §15, `marketing/hero/hero_parallax_layers.rs` |
+| hero-terminal | #2546 | §15, `marketing/hero/hero_terminal.rs` |
+| text-split-reveal | #2546 | §15, `marketing/hero/text_split_reveal.rs` |
+| game-ui-modal | #2552 | §16, `application/dialog/game_ui_modal.rs` |
+
+（`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
+22 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
+イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
+モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
+まだ持たず本表の対象外である。以後の block 追加は本表への 1 行追加と、
+`.claude/rules/ci.md` が定める `.github/workflows/docs-site.yml` の
+dist sanity check `test -f` 対象への 1 行追加（生成物の存在を fail-closed
+に検証する既存契約、削除・弱体化しない）の 2 点で足りる。`CLAUDE.md`・
+`.claude/rules/ci.md` の説明本文（経緯の長文追記）は編集しない。）
