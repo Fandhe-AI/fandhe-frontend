@@ -282,7 +282,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-banner-floating-card-placement=\"top\"] {\n  top: 0;\n}\n\
 [data-blocks-banner-floating-card-placement=\"bottom\"] {\n  bottom: 0;\n}\n\
 [data-blocks-banner-floating-card-align=\"center\"] {\n  display: flex;\n  justify-content: center;\n}\n\
-[data-blocks-banner-floating-card-align=\"center\"] [data-scope=\"callout\"][data-part=\"root\"][data-blocks-banner-floating-card-card] {\n  max-width: 32rem;\n  width: 100%;\n}\n\
+[data-blocks-banner-floating-card-align=\"center\"] [data-scope=\"callout\"][data-part=\"root\"][data-blocks-banner-floating-card-card] {\n  max-width: min(32rem, 85%);\n  width: 100%;\n}\n\
 [data-scope=\"callout\"][data-part=\"root\"][data-blocks-banner-floating-card-card] {\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  box-shadow: var(--fandhe-shadow-lg);\n}\n\
 .blocks-banner-floating-card-text {\n  flex: 1;\n  min-width: 0;\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  flex-wrap: wrap;\n}\n\
 .blocks-banner-floating-card-badge {\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
