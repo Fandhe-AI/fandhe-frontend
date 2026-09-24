@@ -201,7 +201,7 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
 | 定数 | 値 | 超過時の扱い |
 |---|---|---|
 | `MAX_PAGE_TEXT_BYTES` | 4,096 バイト | **決定的に切り詰める**（エラーにしない）。UTF-8 文字境界で切る（`char_indices` で境界を求め、バイト単位切断で不正 UTF-8 を作らない）。切り詰め痕跡の付加文字（`…` 等）は付けない（決定性と単純さを優先する） |
-| `MAX_INDEX_BYTES` | 1,310,720 バイト（1.25 MiB。#2552 で 1 MiB から 1.125 MiB へ、#2645 で 1.125 MiB から 1.25 MiB へ引き上げ、§10 参照。イシュー #2637（Menu）の base 取り込み時点で実測は 1.25 MiB の範囲内に収まっており、追加の引き上げは不要だった。PR #2702（イシュー #2639 Breadcrumbs）の base 取り込み時点でも実測は範囲内に収まっており、追加の引き上げは不要だった） | **fail-closed**。`BuildError::SearchIndexTooLarge { bytes, limit }` を返し、**ページ書き出し前**に打ち切る |
+| `MAX_INDEX_BYTES` | 1,441,792 バイト（1.375 MiB。#2552 で 1 MiB から 1.125 MiB へ、#2645 で 1.125 MiB から 1.25 MiB へ、#2813 で 1.25 MiB から 1.375 MiB へ引き上げ、§10 参照。イシュー #2637（Menu）・PR #2702（イシュー #2639 Breadcrumbs）の base 取り込み時点ではいずれも 1.25 MiB の範囲内に収まっており追加の引き上げは不要だったが、イシュー #2813（`blog-overlay-cards` block 追加）の base 取り込みで並行追加された `bento-asymmetric-rows` と合流して超過した、§10-4 参照） | **fail-closed**。`BuildError::SearchIndexTooLarge { bytes, limit }` を返し、**ページ書き出し前**に打ち切る |
 
 - 選定根拠: 現行 121 ページで全ページが per-page 上限に張り付いた
   最悪ケースでも 121 × 4 KiB ≒ 496 KiB であり、1 MiB は「ページ数が
@@ -223,7 +223,7 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
   - `pub const REL_PATH: &str = "assets/search-index.json";`
   - `pub const SCHEMA_VERSION: u32 = 1;`
   - `pub const MAX_PAGE_TEXT_BYTES: usize = 4096;`
-  - `pub const MAX_INDEX_BYTES: usize = 1_310_720;`（#2552 で `1_048_576` から `1_179_648` へ、#2645 で `1_179_648` から引き上げ、§10 参照。イシュー #2637・PR #2702（イシュー #2639 Breadcrumbs）の base 取り込み時点でも実測は範囲内）
+  - `pub const MAX_INDEX_BYTES: usize = 1_441_792;`（#2552 で `1_048_576` から `1_179_648` へ、#2645 で `1_179_648` から `1_310_720` へ、#2813 で `1_310_720` から引き上げ、§10 参照。イシュー #2637・PR #2702（イシュー #2639 Breadcrumbs）の base 取り込み時点では範囲内だったが、#2813 の base 取り込みで超過した）
   - `pub struct PageEntry { href, title, sections: Vec<SectionEntry>, text }`
   - `pub struct SectionEntry { id, level, title }`
   - `pub fn page_entry(href: &str, title: &str, body: &Node) -> PageEntry`
@@ -626,3 +626,24 @@ PR #2702（イシュー #2639 Breadcrumbs、Phase 5「Navigation」の 7 番目�
 を実行し実サイトの検索インデックスサイズを再測した。実測は 1.25 MiB の
 範囲内（80% 未満）に収まっており §8 トリガー 1 の再評価基準に到達
 しなかったため、本 PR でも `MAX_INDEX_BYTES` の追加引き上げを行わない。
+
+### 10-4 `MAX_INDEX_BYTES` 再引き上げ（#2813）実装記録
+
+PR #2813（イシュー #2813 `blog-overlay-cards` block 追加）のブランチを
+main（10-3 時点で `MAX_INDEX_BYTES` は 1.25 MiB = `1_310_720`）へ base
+取り込みした際、main 側で並行して合流していた `bento-asymmetric-rows`
+block 追加と重なり、実サイトの検索インデックス JSON が 1,313,047 バイト
+へ達して 1,310,720 バイトを約 2,327 バイト超過し、再度
+`SearchIndexError::TooLarge` が発火した。
+
+- §10・§10-1 と同じ判断軸（per-page 上限の引き下げ・セクション分割は
+  1 block ページ追加への対処として不釣り合いに大きい）に従い、
+  `MAX_INDEX_BYTES` を再度引き上げる対処を採る。
+- 前回までと同じ +131,072 バイト刻みで 1.375 MiB
+  （`1_048_576 + 393_216` = `1_441_792`）へ引き上げた。引き上げ後の実測
+  （1,313,047 バイト）は新上限の約 91.1%（1,313,047 / 1,441,792）であり、
+  §8 トリガー 1 の 80% 基準を既に超えている（§10-1 と同型の状況）。Blocks
+  セクションは目的別パーツ拡充ツリー（#2730）でさらに block ページが
+  増える予定であるため、次回超過時は本節の刻み幅（+131,072 バイト固定）を
+  機械的に繰り返すのではなく、§8 トリガー 1 の対応（per-page 上限見直し・
+  セクション粒度分割）を実際に検討すること。

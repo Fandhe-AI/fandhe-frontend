@@ -64,8 +64,16 @@ pub const MAX_PAGE_TEXT_BYTES: usize = 4096;
 /// 不要と判断した。本 PR（イシュー #2639 Breadcrumbs）の base 取り込みでも
 /// 実測（下記コミット時点の `cargo test -p fandhe-frontend-docs-site`
 /// 実測値）は 1,310,720 バイトの範囲内であり、追加の引き上げは不要と判断した
-/// （再評価トリガー未到達、設計文書 §3-4 追記節参照）。
-pub const MAX_INDEX_BYTES: usize = 1_310_720;
+/// （再評価トリガー未到達、設計文書 §3-4 追記節参照）。その後イシュー #2813
+/// （`blog-overlay-cards` block 追加）の PR ブランチを main へ base 取り込み
+/// した際、Blocks セクションの並行追加（`bento-asymmetric-rows` 等）と
+/// 合流して実サイトが 1,313,047 バイトへ達し、1,310,720 バイトを約 2,327
+/// バイト超過して再度 `SearchIndexError::TooLarge` が発火した。§10 以来の
+/// 判断軸（per-page 上限の引き下げ・セクション分割は 1 block ページ追加への
+/// 対処として不釣り合いに大きい）を踏襲し、同じ +131,072 バイト刻みで
+/// 1.375 MiB（`1_048_576 + 393_216` = `1_441_792`）へ引き上げた（設計文書
+/// §10-4 参照）。
+pub const MAX_INDEX_BYTES: usize = 1_441_792;
 
 /// ページ内目次の 1 見出しに対応するインデックスエントリ。
 ///
