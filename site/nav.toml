@@ -1323,6 +1323,11 @@ title = "banner-floating-card"
 source = "site/blocks/banner-floating-card.md"
 path = "/blocks/banner-floating-card/"
 
+[[section.group.page]]
+title = "banner-full-width-bar"
+source = "site/blocks/banner-full-width-bar.md"
+path = "/blocks/banner-full-width-bar/"
+
 [[section.group]]
 title = "Bento"
 

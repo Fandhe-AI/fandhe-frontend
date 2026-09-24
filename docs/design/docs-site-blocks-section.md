@@ -840,6 +840,7 @@ pub enum LayoutCss {
 | banner-cookie-consent | #2740 | `marketing/banner/banner_cookie_consent.rs` |
 | banner-email-signup | #2741 | `marketing/banner/banner_email_signup.rs` |
 | banner-floating-card | #2742 | `marketing/banner/banner_floating_card.rs` |
+| banner-full-width-bar | #2743 | `marketing/banner/banner_full_width_bar.rs` |
 | blog-featured-article | #2808 | `marketing/blog/blog_featured_article.rs` |
 | blog-featured-with-list | #2809 | `marketing/blog/blog_featured_with_list.rs` |
 | bento-asymmetric-rows | #2744/#2745 | `marketing/bento/bento_asymmetric_rows.rs` |
