@@ -1,6 +1,4 @@
-//! Marketing / Blog カテゴリの block 登録点（イシュー #2734。イシュー
-//! #2810 で最初の block（`blog_grid_image`）を追加し、空雛形から
-//! ディレクトリ化した）。
+//! Marketing / Blog カテゴリの block 登録点（イシュー #2734）。
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
 //! 新規 block を追加する際は本ファイルへ `mod` 宣言と `blocks()` への追記を
 //! 行うだけでよく、`super`（`marketing`）側・トップレベル
@@ -10,6 +8,8 @@
 mod blog_featured_article;
 mod blog_featured_with_list;
 mod blog_grid_image;
+mod blog_list_image;
+mod blog_split_header_grid;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
@@ -17,5 +17,7 @@ pub(super) fn blocks() -> Vec<Block> {
         blog_featured_article::BLOCK,
         blog_featured_with_list::BLOCK,
         blog_grid_image::BLOCK,
+        blog_list_image::BLOCK,
+        blog_split_header_grid::BLOCK,
     ]
 }

@@ -1,7 +1,7 @@
 //! `blog-grid-image` block（イシュー #2810。親 #2807「Phase 2: Blocks
 //! マーケティング B」、ルート #2730「Blocks 目的別パーツ拡充ツリー」配下。
-//! Blog カテゴリの最初の block で、`crate::blocks::marketing::blog` を
-//! 空雛形からディレクトリ化して卒業させる）。
+//! Blog カテゴリの block の 1 つ、`crate::blocks::marketing::blog` に登録
+//! する）。
 //!
 //! 記事一覧を画像付きカードのグリッドで並べる、shadcn/ui Blocks の
 //! blog セクション相当のレイアウトを、既存の Themes 部品だけで合成した
