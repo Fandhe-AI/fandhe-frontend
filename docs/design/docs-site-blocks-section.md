@@ -852,6 +852,7 @@ pub enum LayoutCss {
 | bento-three-column-tall | #2748 / #2749 | `marketing/bento/bento_three_column_tall.rs` |
 | bento-two-column | #2750 | `marketing/bento/bento_two_column.rs` |
 | content-columns-screenshot | #2753 | `marketing/content/content_columns_screenshot.rs` |
+| content-split-image | #2755 | `marketing/content/content_split_image.rs` |
 | careers-split-photo-list | #2817 | `marketing/careers/careers_split_photo_list.rs` |
 | changelog-accordion | #2818 | `marketing/changelog/changelog_accordion.rs` |
 | changelog-timeline | #2820 | `marketing/changelog/changelog_timeline.rs` |

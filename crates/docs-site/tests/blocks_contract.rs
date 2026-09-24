@@ -3867,3 +3867,89 @@ fn content_columns_screenshot_composes_expected_parts() {
         );
     }
 }
+
+/// content-split-image の Demo ラッパ・CSS 配線・block 固有 CSS（lg
+/// ブレークポイント・sticky・全高画像・スクロール枠の overflow-y）が
+/// 実際に出力されていることを固定する（イシュー #2755）。
+#[test]
+fn content_split_image_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/content-split-image/index.html"))
+        .expect("blocks/content-split-image/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-content-split-image\""),
+        "content-split-image page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "content-split-image page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "content-split-image page should link the Blocks-specific stylesheet"
+    );
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "@media (min-width: 64rem)",
+        "position: sticky",
+        "overflow-y: auto",
+        "[data-scope=\"image\"][data-part=\"root\"][data-blocks-content-split-image-sticky-image]",
+        "[data-scope=\"image\"][data-part=\"root\"][data-blocks-content-split-image-full-image]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// content-split-image の合成部品（badge/heading/text/image/icon）が
+/// 期待どおりの構成で実際に出力されていること、`<form>`・`<button>`・
+/// `data:` URI を持ち込んでいないこと、スクロール枠がキーボード操作者
+/// 向けの属性を持つことを固定する（イシュー #2755）。
+#[test]
+fn content_split_image_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/content-split-image/index.html"))
+        .expect("blocks/content-split-image/index.html should be generated");
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"image\"",
+        "data-scope=\"icon\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "content-split-image page should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("<img").count(),
+        2,
+        "content-split-image should render exactly 2 images (sticky screenshot + full-height background)"
+    );
+    assert!(html.contains("src=\"../../assets/blocks-demo-screenshot.svg\""));
+    assert!(html.contains("src=\"../../assets/blocks-demo-background.svg\""));
+    assert!(html.contains("tabindex=\"0\""));
+    assert!(html.contains(r#"role="region""#));
+    // 5 件は Demo 出力（形 A の本文 3 段落 + 形 B の本文 2 段落）、残り 1 件
+    // は「Rust コード」節が表示する原稿フェンス内のソースコード自体に
+    // 含まれる同じ属性名のリテラル（`blocks_code_drift.rs` が実装との
+    // 一致を固定するマーカー内容）。
+    assert_eq!(
+        html.matches("data-blocks-content-split-image-paragraph")
+            .count(),
+        6,
+        "content-split-image should render 5 paragraphs across the 2 variants \
+         plus 1 occurrence in the displayed Rust source"
+    );
+    for absent in ["<form", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "content-split-image should never contain {absent}"
+        );
+    }
+}

@@ -1315,6 +1315,11 @@ title = "content-columns-screenshot"
 source = "site/blocks/content-columns-screenshot.md"
 path = "/blocks/content-columns-screenshot/"
 
+[[section.group.page]]
+title = "content-split-image"
+source = "site/blocks/content-split-image.md"
+path = "/blocks/content-split-image/"
+
 [[section.group]]
 title = "Footer"
 
