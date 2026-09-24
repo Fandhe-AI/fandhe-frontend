@@ -305,9 +305,20 @@ pub const BLOCK: Block = Block {
 /// `super::stylesheet` から連結される）。
 ///
 /// `position: fixed` を使わない理由・sm 未満（640px 未満）でボタンを
-/// 縦積み全幅にする理由はモジュール doc参照。全セレクタは
+/// 縦積み全幅にする理由はモジュール doc参照。ほぼ全セレクタは
 /// `.blocks-banner-cookie-consent-*`/`[data-blocks-banner-cookie-consent-*]`
-/// の名前空間に収める。
+/// の名前空間に収めるが、`"bar"` 形態の callout 上書き（角丸解除・
+/// 上辺のみのボーダー）だけは例外的に `[data-scope="callout"]
+/// [data-part="root"]` を先頭へ連結する。`callout` recipe の base 規則
+/// （`[data-scope="callout"][data-part="root"]`、詳細度 (0,2,0)）と
+/// `Surface` variant 規則（同セレクタ + variant class、詳細度 (0,3,0)）が
+/// 先に `border`/`border-color` を宣言しているため、この block 固有の
+/// 単一属性セレクタ（詳細度 (0,1,0)）のままでは負けて反映されない
+/// （角丸・全周ボーダーのカードのまま描画される）。`data-scope`/
+/// `data-part` を連結して詳細度を (0,3,0) へ揃え、`blocks.css` が
+/// `pre-styled-ui.css` より後に `<link>` される読み込み順序
+/// （`crate::build::build_site` の `extra_stylesheets` 追加順）で
+/// 同詳細度の後勝ちにより上書きを成立させる。
 const LAYOUT_CSS: &str = "\
 .blocks-banner-cookie-consent-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6, 1.5rem);\n}\n\
 .blocks-banner-cookie-consent-stage {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  justify-content: flex-end;\n  min-height: 16rem;\n  padding: var(--fandhe-space-4, 1rem);\n  border: 1px dashed var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md, 0.5rem);\n  background: var(--fandhe-color-bg);\n  overflow: hidden;\n}\n\
@@ -318,7 +329,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-banner-cookie-consent-align=\"bar\"] {\n  align-items: stretch;\n  padding: 0;\n}\n\
 [data-blocks-banner-cookie-consent-banner=\"card\"] {\n  width: 100%;\n  max-width: 24rem;\n}\n\
 [data-blocks-banner-cookie-consent-banner=\"bar\"] {\n  width: 100%;\n}\n\
-[data-blocks-banner-cookie-consent-callout=\"bar\"] {\n  border-radius: 0;\n  border-width: 1px 0 0;\n  border-top-color: var(--fandhe-color-border);\n}\n\
+[data-scope=\"callout\"][data-part=\"root\"][data-blocks-banner-cookie-consent-callout=\"bar\"] {\n  border-radius: 0;\n  border-width: 1px 0 0;\n  border-top-color: var(--fandhe-color-border);\n}\n\
 .blocks-banner-cookie-consent-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2, 0.5rem);\n}\n\
 [data-blocks-banner-cookie-consent-title],\n[data-blocks-banner-cookie-consent-description] {\n  margin: 0;\n}\n\
 .blocks-banner-cookie-consent-actions {\n  display: flex;\n  gap: var(--fandhe-space-2, 0.5rem);\n  flex-wrap: wrap;\n  justify-content: flex-end;\n}\n\
@@ -336,6 +347,19 @@ mod tests {
             "Demo must replace the real fixed placement with an in-flow stage \
              (module doc \"固定配置を Demo 枠内で相対配置に置き換える\" section)"
         );
+    }
+
+    #[test]
+    fn layout_css_bar_override_outranks_callout_surface_variant() {
+        // `callout` recipe の Surface variant 規則（詳細度 (0,3,0)、
+        // `crates/pre-styled-ui/src/callout.rs` 参照）に勝つには、この
+        // block 固有セレクタも `[data-scope="callout"][data-part="root"]`
+        // を連結して詳細度 (0,3,0) 以上にする必要がある（単一属性セレクタ
+        // （0,1,0）のみでは負けて反映されない不具合の回帰防止）。
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"callout\"][data-part=\"root\"]\
+             [data-blocks-banner-cookie-consent-callout=\"bar\"]"
+        ));
     }
 
     #[test]
