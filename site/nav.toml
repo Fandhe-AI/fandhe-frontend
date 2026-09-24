@@ -1293,6 +1293,11 @@ source = "site/blocks/blog-grid-image.md"
 path = "/blocks/blog-grid-image/"
 
 [[section.group.page]]
+title = "blog-grid-text"
+source = "site/blocks/blog-grid-text.md"
+path = "/blocks/blog-grid-text/"
+
+[[section.group.page]]
 title = "blog-list-image"
 source = "site/blocks/blog-list-image.md"
 path = "/blocks/blog-list-image/"
@@ -1314,6 +1319,11 @@ title = "Content"
 title = "content-columns-screenshot"
 source = "site/blocks/content-columns-screenshot.md"
 path = "/blocks/content-columns-screenshot/"
+
+[[section.group.page]]
+title = "content-split-image"
+source = "site/blocks/content-split-image.md"
+path = "/blocks/content-split-image/"
 
 [[section.group]]
 title = "Footer"
@@ -1394,6 +1404,16 @@ title = "Changelog"
 title = "changelog-accordion"
 source = "site/blocks/changelog-accordion.md"
 path = "/blocks/changelog-accordion/"
+
+[[section.group.page]]
+title = "changelog-stacked-list"
+source = "site/blocks/changelog-stacked-list.md"
+path = "/blocks/changelog-stacked-list/"
+
+[[section.group.page]]
+title = "changelog-timeline"
+source = "site/blocks/changelog-timeline.md"
+path = "/blocks/changelog-timeline/"
 
 [[section.group]]
 title = "Sidebar"
