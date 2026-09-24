@@ -248,6 +248,7 @@ jobs:
           # Marketing / Contact
           # Marketing / Newsletter
           # Marketing / Blog
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-featured-with-list/index.html"
           # Marketing / Content
           # Marketing / Header
           # Marketing / Footer
