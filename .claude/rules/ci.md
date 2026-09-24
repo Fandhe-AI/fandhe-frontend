@@ -344,7 +344,11 @@
   `counter` と同じ `Option<&str>`）/
   `wireframes/map/index.html`（イシュー #2664、Phase 8 の 3 番目の
   部品。地図タイルの配置イメージを部品ローカル列挙型 `MapZoom` 3 段・
-  `Option<Node>` マーカースロットで構成する）
+  `Option<Node>` マーカースロットで構成する）/
+  `wireframes/media/index.html`（イシュー #2661、Phase 8「Media・データ
+  表示」の 4 番目の部品。blocks.pm 上の表示名は Placeholder。
+  `content: None` で `icon::play` へフォールバック、16:9 固定、
+  `<video>`/`<iframe>` は出力しない）
   である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、

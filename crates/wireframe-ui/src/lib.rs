@@ -136,22 +136,27 @@
 //! これで Phase 5「Navigation」（tabs/nav_item/accordion/pagination/cursor/
 //! menu/breadcrumbs の 7 部品）・Phase 6「Overlay・Feedback」
 //! （tooltip/toast/alert/progress/spinner/modal の 6 部品）はいずれも
-//! 全部品が出揃った。Phase 8「Media・データ表示」の最初の部品 [`image`]
-//! （イシュー #2660、`content: Option<Node>` が `None` のときバツ印
-//! プレースホルダーを描き、`Some(node)` のときは子要素を差し替える
-//! §11.4 準拠の実例。強調は共通型 [`props::Primary`] を再利用し、バツ印
-//! の色は CSS カスタムプロパティ `--fw-wire-image-x-color` の上書きで
-//! 反転させる）・2 番目の部品 [`chart`]（イシュー #2663、棒グラフの配置
-//! イメージ。値は `u8` 列 `values: &[u8]` として受け取り、[`progress`]
-//! と同型の 5 刻み量子化・[`props::Orientation`] の再利用（4 例目の
-//! 消費者）・[`grid::MAX_COLUMNS`] と同じ資源有界化（[`chart::MAX_BARS`]）
-//! で組み立てる。折れ線・面・円・散布・凡例・軸ラベル・複数系列はスコープ
-//! 外とする）に続き、3 番目の部品 [`map`]（イシュー #2664、地図タイルの
-//! 配置イメージ。ズームは部品ローカル列挙型 [`map::MapZoom`] 3 段、
-//! マーカーは [`link`]/[`file_drop`]/[`alert`] と同型の `Option<Node>`
-//! アイコンスロット。街路・区画・道路の位置はすべて CSS の固定ルールで
-//! 描き、`&str` 引数を持たない）が続いた。残りは Phase 8 の他部品で
-//! 順次追加する。
+//! 全部品が出揃った。Phase 8「Media・データ表示」の最初の部品 [`chart`]
+//! （イシュー #2663、棒グラフの配置イメージ。値は `u8` 列
+//! `values: &[u8]` として受け取り、[`progress`] と同型の 5 刻み量子化・
+//! [`props::Orientation`] の再利用（4 例目の消費者）・
+//! [`grid::MAX_COLUMNS`] と同じ資源有界化（[`chart::MAX_BARS`]）で
+//! 組み立てる。折れ線・面・円・散布・凡例・軸ラベル・複数系列はスコープ
+//! 外とする）・2 番目の部品 [`image`]（イシュー #2660、
+//! `content: Option<Node>` が `None` のときバツ印プレースホルダーを描き、
+//! `Some(node)` のときは子要素を差し替える §11.4 準拠の実例。強調は
+//! 共通型 [`props::Primary`] を再利用し、バツ印の色は CSS カスタム
+//! プロパティ `--fw-wire-image-x-color` の上書きで反転させる）・
+//! 3 番目の部品 [`map`]（イシュー #2664、地図タイルの配置イメージ。
+//! ズームは部品ローカル列挙型 [`map::MapZoom`] 3 段、マーカーは
+//! [`link`]/[`file_drop`]/[`alert`] と同型の `Option<Node>` アイコン
+//! スロット。街路・区画・道路の位置はすべて CSS の固定ルールで描き、
+//! `&str` 引数を持たない）・4 番目の部品 [`media`]（イシュー #2661、
+//! blocks.pm 上の表示名は Placeholder。`content: Option<Node>` が
+//! `None` のとき [`icon::play`] へフォールバックする §11.4 からの意図的
+//! な逸脱。動画か静止画かは bool ではなくスロット差し替えで表し、枠は
+//! 16:9 固定で `<video>`/`<iframe>` は出力しない）が続いた。残りは
+//! Phase 8 の他部品で順次追加する。
 //!
 //! # class 命名規約
 //!
@@ -189,6 +194,7 @@ pub mod image;
 pub mod input;
 pub mod link;
 pub mod map;
+pub mod media;
 pub mod menu;
 pub mod modal;
 pub mod nav_item;
@@ -239,6 +245,7 @@ pub use image::image;
 pub use input::input;
 pub use link::link;
 pub use map::{map, MapZoom};
+pub use media::media;
 pub use menu::{menu, MenuItem};
 pub use modal::modal;
 pub use nav_item::nav_item;

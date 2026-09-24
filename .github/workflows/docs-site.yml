@@ -381,6 +381,12 @@ jobs:
           # ローカル列挙型 MapZoom 3 段、marker は Option<Node> アイコン
           # スロット）。
           test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/map/index.html"
+          # イシュー #2661: Phase 8「Media・データ表示」の 4 番目の部品、
+          # Media 部品ページ（blocks.pm 上の表示名は Placeholder。
+          # content: Option<Node> が None のとき icon::play へフォール
+          # バックする §11.4 からの意図的な逸脱。枠は 16:9 固定で
+          # <video>/<iframe> は出力しない）。
+          test -f "${RUNNER_TEMP}/docs-site-dist/wireframes/media/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/wireframes.css"
 
       - name: Upload dist artifact
