@@ -505,5 +505,9 @@ mod tests {
         // #2810 で追加した blog-grid-image も登録されていることを固定する。
         assert!(seen.contains("/blocks/blog-featured-with-list/"));
         assert!(seen.contains("/blocks/blog-grid-image/"));
+
+        // イシュー #2808 で追加した blog-featured-article も登録されて
+        // いることを固定する。
+        assert!(seen.contains("/blocks/blog-featured-article/"));
     }
 }
