@@ -325,7 +325,10 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // 300 → 301 になった。イシュー #2653 で Wireframes セクションへ Brand
     // 部品ページ（Phase 7「Data display」の 8 番目の部品、これで Phase 7
     // が全部品出揃った）が加わり、301 → 302 になった。
-    assert_eq!(pages.len(), 302, "expected 302 pages, got {pages:?}");
+    // イシュー #2667 で Examples セクションへ
+    // `examples/wireframe-ui/README.md`（`fw new --example wireframe-ui`
+    // 対応の 6 件目のサンプル README）が加わり、302 → 303 になった。
+    assert_eq!(pages.len(), 303, "expected 303 pages, got {pages:?}");
 
     // イシュー #2607: `/wireframes/` 配下は索引ページ（`/wireframes/` 自身）
     // 1 件のみだった（同イシュー時点では個別部品ページを同梱しない、設計

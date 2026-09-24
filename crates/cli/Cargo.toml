@@ -10,7 +10,13 @@ name = "fandhe-frontend-cli"
 # のに合わせて `embedded-examples/` 全件を再同期した。
 # `include_str!`（`new_template.rs`）で埋め込まれる `fw` バイナリの内容が
 # 変わるため、公開 API 不変（内部データの更新のみ）だが patch バンプする。
-version = "0.4.4"
+# イシュー #2667: `examples/wireframe-ui`（`fandhe-frontend-wireframe-ui`
+# 0.52.0 のショーケース正本サンプル）を `fw new --example wireframe-ui` へ
+# 登録した（`EXAMPLES` 配列への新規エントリ追加 + `embedded-examples/wireframe-ui/`
+# 新設）。公開 API（`new_template.rs::EXAMPLES` の要素追加は下位互換）は
+# 破壊しないが、`include_str!` で埋め込まれる `fw` バイナリの内容が
+# 変わるため patch バンプする。
+version = "0.4.5"
 edition = "2021"
 description = "fandhe-frontend-cli: AI 自己保守フック向け `fw` コマンド（TASK-13.1、structure.toml のスキーマ・パース・生成）。外部依存ゼロ。"
 license = "MIT OR Apache-2.0"

@@ -481,6 +481,7 @@ const EXAMPLE_NAMES: &[&str] = &[
     "dist-server-docker",
     "interactive-view-transitions",
     "headless-pre-styled-ui",
+    "wireframe-ui",
 ];
 
 fn example_root_dir(name: &str) -> PathBuf {

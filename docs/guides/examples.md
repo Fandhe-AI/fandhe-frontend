@@ -6,7 +6,7 @@
 cargo プロジェクトです。本ページはサンプルの比較・読む順・
 `fw new --example` による取得手順をまとめます。
 
-## 1. 5 サンプルの比較
+## 1. 6 サンプルの比較
 
 全サンプルに共通する前提は「Rust ツールチェーン（`cargo`）」「crates.io
 （`https://index.crates.io` / `https://static.crates.io`）への到達性」
@@ -21,6 +21,7 @@ cargo-deny（`tools/ci/ensure-gate-tools.sh` で導入）」の 3 点です。�
 | [dist-server-docker](../../examples/dist-server-docker/README.md) | 単一バイナリ配布・Docker イメージでのデプロイ | `fandhe-frontend-dist-server` | Docker（イメージのビルド・起動を試す場合） | 中 |
 | [interactive-view-transitions](../../examples/interactive-view-transitions/README.md) | クライアント側状態管理・View Transitions の実演 | `fandhe-frontend-core` / `-app` / `-interactive`（+ `-wasm-full`） | `rustup target add wasm32-unknown-unknown` と、`wasm/Cargo.lock` の解決版に一致する wasm-bindgen-cli（ブラウザでの実動作確認時のみ） | 長 |
 | [headless-pre-styled-ui](../../examples/headless-pre-styled-ui/README.md) | Primitives / Themes 2 層 UI コンポーネントのショーケース | `fandhe-frontend-core` / `-pre-styled-ui`（headless 層 API は再エクスポート経由） | なし | 短 |
+| [wireframe-ui](../../examples/wireframe-ui/README.md) | ローファイ・モノクロのワイヤーフレーム UI（Phase 1〜8・全 49 部品）のショーケース | `fandhe-frontend-core` / `-wireframe-ui` | なし | 短 |
 
 > 「所要目安」は追加ツール導入の有無と手順ステップ数から算出した目安であり、実測値ではありません。
 
@@ -39,6 +40,7 @@ cargo-deny（`tools/ci/ensure-gate-tools.sh` で導入）」の 3 点です。�
    - 単一バイナリ / Docker でデプロイしたい → [dist-server-docker](../../examples/dist-server-docker/README.md)
    - クライアント側の状態管理・ページ遷移アニメーションを試したい → [interactive-view-transitions](../../examples/interactive-view-transitions/README.md)
    - UI 部品（Primitives / Themes 2 層）を試したい → [headless-pre-styled-ui](../../examples/headless-pre-styled-ui/README.md)
+   - ローファイ・モノクロのワイヤーフレーム UI（blocks.pm 相当）を試したい → [wireframe-ui](../../examples/wireframe-ui/README.md)
 3. **Step 3（応用）**
    目的別ガイド（[コンポーネント作成ガイド](./component-authoring.md) 等）と
    [API Reference](../api/component-api.md) へ進んでください。
@@ -148,6 +150,23 @@ RadioGroup/Avatar 等）を学べます。加えて `Theme::upsert_color` /
 挿入動作になります）。実装例は `src/main.rs` の `build_stylesheet` を
 参照してください。関連: [Pre-styled UI API](../api/pre-styled-ui-api.md)。
 
+### 3.6 wireframe-ui
+
+`fandhe-frontend-wireframe-ui`（blocks.pm 参照のローファイ・モノクロ
+ワイヤーフレーム UI コンポーネント層。SSR 専用・非インタラクティブ）の
+全 49 部品を Phase 1〜8（レイアウト骨格 / テキスト・注釈 / Forms A / Forms B
+/ Navigation / Overlay・Feedback / Data display / Media・データ表示）の
+区分どおりに 1 ページへ並べて実演します。headless-ui/pre-styled-ui とは
+独立した第 3 の UI 層であり、本サンプルも `fandhe-frontend-app`/`-server`
+に依存せず `dist/index.html` を直接組み立てて書き出す最小構成です。
+`wireframe_css()` の CSS は `<style>` へインライン埋め込みせず、
+`dist/assets/wireframe.css` へ書き出して `<link rel="stylesheet">` で
+参照します（`>` を含む子結合子セレクタが既定エスケープにより `&gt;` へ
+実体参照化されるのを避けるための設計判断。詳細は `src/main.rs` rustdoc
+「CSS の出力方式」節を参照）。実装例は `src/sections.rs` の Phase 別
+セクション関数を参照してください。関連:
+`docs/design/wireframe-ui-architecture.md`。
+
 ## 4. `fw new --example` での取得
 
 各サンプルは `fw` CLI（`fandhe-frontend-cli`）の `--example` オプションで
@@ -161,7 +180,7 @@ fw new my-app --example ssr-routing
 
 `--example` に指定できるサンプル名は `ssr-routing` / `ssg-blog` /
 `dist-server-docker` / `interactive-view-transitions` /
-`headless-pre-styled-ui` の 5 種類です。展開
+`headless-pre-styled-ui` / `wireframe-ui` の 6 種類です。展開
 されたプロジェクトはリポジトリの `examples/` 配下と全ファイルバイト一致
 （パッケージ名の置換は行いません）で、そのまま `cargo build` / `cargo
 test` / `fw gate --project .` が通る状態です。
