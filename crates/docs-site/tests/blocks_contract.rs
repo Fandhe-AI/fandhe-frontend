@@ -2825,6 +2825,56 @@ fn blog_featured_with_list_composes_expected_parts() {
     }
 }
 
+/// `blog-grid-text`（イシュー #2811）の CSS フック配線検証。
+/// `blog_featured_with_list_page_wires_demo_class_and_css_hooks` と同型
+/// （`crate::blocks` モジュール doc「CSS フックが `class` と `[data-*]` で
+/// 混在する理由」節参照）。
+#[test]
+fn blog_grid_text_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/blog-grid-text/index.html"))
+        .expect("blocks/blog-grid-text/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-blog-grid-text\""),
+        "blog-grid-text page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "blog-grid-text page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "blog-grid-text page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-blog-grid-text-card=\"\"",
+        "data-blocks-blog-grid-text-article=\"\"",
+        "data-blocks-blog-grid-text-excerpt=\"\"",
+        "data-blocks-blog-grid-text-author=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "blog-grid-text page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-blog-grid-text-card]",
+        "[data-blocks-blog-grid-text-article]",
+        "[data-blocks-blog-grid-text-excerpt]",
+        "[data-blocks-blog-grid-text-author]",
+        ".blocks-blog-grid-text-grid",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
 /// `bento-asymmetric-rows`（イシュー #2745/#2746）の CSS フック配線検証。
 /// `bento_staggered_page_wires_demo_class_and_css_hooks` と同型
 /// （`crate::blocks` モジュール doc「CSS フックが `class` と `[data-*]` で
@@ -2969,6 +3019,56 @@ fn blog_list_image_page_wires_demo_class_and_css_hooks() {
         assert!(
             sheet_css.contains(selector),
             "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// `blog-grid-text` が使用部品どおりに合成され、非対話制約
+/// （`<form>`/死リンク/`data:` URI 不在）を満たすことの回帰。
+///
+/// ページ全体ではなく `(block.demo)()` の部分木だけを検査する。全体
+/// ページには `crate::nav` の前後ページャが headless `link_overlay` の
+/// `overlay` を出力しており、overlay の件数固定を全体ページで行うと
+/// 前後ページャ由来の overlay が混入するため（`blog_featured_with_list`
+/// との差分。本 block は overlay 件数（記事 6 件分）を固定するテストを
+/// 持つため部分木限定が必要になった）。
+#[test]
+fn blog_grid_text_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/blog-grid-text/")
+        .expect("blog-grid-text should be registered");
+    let html = render(&(block.demo)());
+    for needle in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"card\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"link\"",
+        "data-scope=\"link-overlay\"",
+    ] {
+        assert!(
+            html.contains(needle),
+            "blog-grid-text demo should contain {needle}"
+        );
+    }
+    assert_eq!(
+        html.matches(r#"data-part="overlay""#).count(),
+        6,
+        "blog-grid-text demo should render exactly 6 overlays (3 posts x 2 instances)"
+    );
+    assert_eq!(
+        html.matches("aria-label=").count(),
+        6,
+        "blog-grid-text demo overlays should each carry an aria-label"
+    );
+    assert!(
+        html.contains(r#"data-state="visible""#),
+        "blog-grid-text demo should render avatar images as visible"
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:", "raw_html"] {
+        assert!(
+            !html.contains(absent),
+            "blog-grid-text should never contain {absent}"
         );
     }
 }
@@ -3466,6 +3566,73 @@ fn changelog_accordion_item_frame_selector_outweighs_recipe_last_child() {
     );
 }
 
+/// changelog-stacked-list ページが `blocks-demo` + block 固有 class・両
+/// スタイルシート・罫線区切り版/カード版双方のデモ固有フックを実際に
+/// 出力することを固定する（イシュー #2819。`changelog_accordion` の
+/// 同型テストを範とする）。
+#[test]
+fn changelog_stacked_list_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/changelog-stacked-list/index.html"))
+        .expect("blocks/changelog-stacked-list/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-changelog-stacked-list\""),
+        "changelog-stacked-list page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "changelog-stacked-list page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "changelog-stacked-list page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-changelog-stacked-list-title=\"\"",
+        "data-blocks-changelog-stacked-list-tag=\"\"",
+        "data-blocks-changelog-stacked-list-tag-latest=\"\"",
+        "data-blocks-changelog-stacked-list-changes=\"\"",
+        "data-blocks-changelog-stacked-list-separator=\"\"",
+        "data-blocks-changelog-stacked-list-card=\"\"",
+        "data-blocks-changelog-stacked-list-card-link=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "changelog-stacked-list page should contain {hook}"
+        );
+    }
+}
+
+/// changelog-stacked-list ページが使用部品（[`Block::parts`] 一致契約）の
+/// `data-scope` を実際に出力し、`<form>`/`href="#"`/`src="data:"` を
+/// 持たないことを固定する（`changelog_accordion` の同型テストを範とする）。
+#[test]
+fn changelog_stacked_list_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/changelog-stacked-list/index.html"))
+        .expect("blocks/changelog-stacked-list/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"card\"",
+        "data-scope=\"list\"",
+        "data-scope=\"link-overlay\"",
+        "data-scope=\"separator\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "changelog-stacked-list page should contain {scope}"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "changelog-stacked-list should never contain {absent}"
+        );
+    }
+}
+
 /// changelog-timeline ページが `blocks-demo` + block 固有 class・両スタイル
 /// シート・boxed/pill 双方の CSS フックを実際に出力し、`blocks::stylesheet()`
 /// にも対応する 3 列化の上書きセレクタが存在することを固定する
@@ -3835,6 +4002,92 @@ fn content_image_tiles_composes_expected_parts() {
         assert!(
             !html.contains(absent),
             "content-image-tiles should never contain {absent}"
+        );
+    }
+}
+
+/// content-split-image の Demo ラッパ・CSS 配線・block 固有 CSS（lg
+/// ブレークポイント・sticky・全高画像・スクロール枠の overflow-y）が
+/// 実際に出力されていることを固定する（イシュー #2755）。
+#[test]
+fn content_split_image_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/content-split-image/index.html"))
+        .expect("blocks/content-split-image/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-content-split-image\""),
+        "content-split-image page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "content-split-image page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "content-split-image page should link the Blocks-specific stylesheet"
+    );
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "@media (min-width: 64rem)",
+        "position: sticky",
+        "overflow-y: auto",
+        "[data-scope=\"image\"][data-part=\"root\"][data-blocks-content-split-image-sticky-image]",
+        "[data-scope=\"image\"][data-part=\"root\"][data-blocks-content-split-image-full-image]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// content-split-image の合成部品（badge/heading/text/image/icon）が
+/// 期待どおりの構成で実際に出力されていること、`<form>`・`<button>`・
+/// `data:` URI を持ち込んでいないこと、スクロール枠がキーボード操作者
+/// 向けの属性を持つことを固定する（イシュー #2755）。
+#[test]
+fn content_split_image_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/content-split-image/index.html"))
+        .expect("blocks/content-split-image/index.html should be generated");
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"image\"",
+        "data-scope=\"icon\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "content-split-image page should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("<img").count(),
+        2,
+        "content-split-image should render exactly 2 images (sticky screenshot + full-height background)"
+    );
+    assert!(html.contains("src=\"../../assets/blocks-demo-screenshot.svg\""));
+    assert!(html.contains("src=\"../../assets/blocks-demo-background.svg\""));
+    assert!(html.contains("tabindex=\"0\""));
+    assert!(html.contains(r#"role="region""#));
+    // 5 件は Demo 出力（形 A の本文 3 段落 + 形 B の本文 2 段落）、残り 1 件
+    // は「Rust コード」節が表示する原稿フェンス内のソースコード自体に
+    // 含まれる同じ属性名のリテラル（`blocks_code_drift.rs` が実装との
+    // 一致を固定するマーカー内容）。
+    assert_eq!(
+        html.matches("data-blocks-content-split-image-paragraph")
+            .count(),
+        6,
+        "content-split-image should render 5 paragraphs across the 2 variants \
+         plus 1 occurrence in the displayed Rust source"
+    );
+    for absent in ["<form", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "content-split-image should never contain {absent}"
         );
     }
 }
