@@ -1293,6 +1293,11 @@ source = "site/blocks/blog-list-image.md"
 path = "/blocks/blog-list-image/"
 
 [[section.group.page]]
+title = "blog-overlay-cards"
+source = "site/blocks/blog-overlay-cards.md"
+path = "/blocks/blog-overlay-cards/"
+
+[[section.group.page]]
 title = "blog-split-header-grid"
 source = "site/blocks/blog-split-header-grid.md"
 path = "/blocks/blog-split-header-grid/"
