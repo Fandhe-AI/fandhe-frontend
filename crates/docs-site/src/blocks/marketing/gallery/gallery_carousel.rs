@@ -162,6 +162,13 @@ fn chevron_right() -> Node {
 /// 見出しブロック（タグライン `badge` + セクション見出し + リード文 +
 /// 任意の CTA `button`）。`with_action` は基準形にのみ `true` を渡し、
 /// 使用部品の一覧に `button` を実際に登場させる。
+///
+/// レビュー指摘対応（P1、PR #3215 codex 再指摘）: 本 Demo は無 JS の
+/// 静的合成例であり `<form>`・実際の遷移先を持たない
+/// （モジュール doc「`<form>` を持たない・データ取得/送信を行わない」節）。
+/// `gallery` 関数の `prev-trigger`/`next-trigger`/`indicator` と同じ理由
+/// （動作しないインタラクション要素をクリック可能に見せない）で、この
+/// CTA ボタンにも `disabled: true` を渡し、常時操作不能な状態で描画する。
 fn header(
     eyebrow: &'static str,
     title: &'static str,
@@ -185,6 +192,7 @@ fn header(
         children.push(button::button(
             &ButtonProps {
                 variant: ButtonVariant::Outline,
+                disabled: true,
                 ..ButtonProps::default()
             },
             vec![],
@@ -262,7 +270,17 @@ fn gallery(
         .map(|i| slide(i, count, dim_next && i == 1))
         .collect();
     let indicators: Vec<Node> = (0..count)
-        .map(|i| carousel::indicator(Orientation::Horizontal, i, i == 0, vec![("disabled", "")]))
+        .map(|i| {
+            carousel::indicator(
+                Orientation::Horizontal,
+                i,
+                i == 0,
+                vec![
+                    ("disabled", ""),
+                    ("data-blocks-gallery-carousel-indicator", ""),
+                ],
+            )
+        })
         .collect();
 
     carousel::root(
@@ -467,6 +485,15 @@ pub const BLOCK: Block = Block {
 /// `disabled` を独自付与する（[`gallery`] 関数 doc 参照）ため、対応する
 /// 見た目の減光は block 固有 CSS 側で補う（pre-styled-ui 側の変更は
 /// 本 PR のスコープ外）。
+///
+/// レビュー指摘対応（Bugbot Medium、PR #3215 再指摘）: `blocks.css` は
+/// 全 block の CSS を連結するため、`[data-scope="carousel"]
+/// [data-part="indicator"]:disabled` のように block 固有クラスで
+/// スコープしないセレクタは、同じ `carousel` headless パーツを使う
+/// 兄弟 block（例: 他の Gallery block）の disabled indicator にも
+/// 意図せず波及する。[`gallery`] 関数が `indicator` へ独自付与する
+/// `data-blocks-gallery-carousel-indicator` 属性をセレクタへ含め、
+/// 本 block のインスタンスにのみ適用されるようスコープする。
 const LAYOUT_CSS: &str = "\
 .blocks-gallery-carousel-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n  width: 100%;\n}\n\
 .blocks-gallery-carousel-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
@@ -477,7 +504,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"carousel\"][data-part=\"item\"][data-blocks-gallery-carousel-slide] {\n  box-sizing: border-box;\n  padding-inline: var(--fandhe-space-2);\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-gallery-carousel-image] {\n  display: block;\n  width: 100%;\n}\n\
 [data-scope=\"carousel\"][data-part=\"indicator-group\"][data-blocks-gallery-carousel-indicators] {\n  margin-top: var(--fandhe-space-4);\n}\n\
-[data-scope=\"carousel\"][data-part=\"indicator\"]:disabled {\n  opacity: 0.5;\n  cursor: not-allowed;\n}\n\
+[data-scope=\"carousel\"][data-part=\"indicator\"][data-blocks-gallery-carousel-indicator]:disabled {\n  opacity: 0.5;\n  cursor: not-allowed;\n}\n\
 [data-scope=\"carousel\"][data-part=\"root\"][data-blocks-gallery-carousel-peek] {\n  --fandhe-carousel-item-basis: 83.3333%;\n}\n\
 [data-scope=\"carousel\"][data-part=\"item\"][data-blocks-gallery-carousel-dim] {\n  opacity: 0.5;\n}\n\
 @media (min-width: 64rem) {\n  [data-scope=\"carousel\"][data-part=\"root\"][data-blocks-gallery-carousel-per-view=\"2\"] {\n    --fandhe-carousel-item-basis: 50%;\n  }\n  [data-scope=\"carousel\"][data-part=\"root\"][data-blocks-gallery-carousel-per-view=\"3\"] {\n    --fandhe-carousel-item-basis: 33.3333%;\n  }\n}\n";
@@ -543,8 +570,11 @@ mod tests {
         assert_eq!(html.matches("aria-label=\"前の画像\"").count(), 4);
         // `data-disabled` は prev-trigger・next-trigger の 2 パーツ ×
         // 4 インスタンス分（レビュー指摘 P1: 静的デモのため next-trigger
-        // も常時無効化する、`gallery` 関数 doc 参照）。
-        assert_eq!(html.matches("data-disabled").count(), 8);
+        // も常時無効化する、`gallery` 関数 doc 参照）+ 基準形の CTA
+        // `button` 1（レビュー指摘 P1: PR #3215 再指摘、`header` 関数
+        // doc 参照。`button::button` は `disabled: true` で
+        // `data-disabled` も併せて出力する）の合計 9 件。
+        assert_eq!(html.matches("data-disabled").count(), 9);
     }
 
     /// レビュー指摘対応（P1）: 無 JS の静的デモでは next-trigger・
@@ -563,14 +593,16 @@ mod tests {
             total_indicators
         );
         // ネイティブ `disabled=""` は prev-trigger 4 + next-trigger 4 +
-        // indicator 24 の合計 32 件出力される（headless-ui は indicator に
-        // `data-disabled` を出力しない設計のため、`data-disabled` の総数
-        //〔上のテストで検証済みの 8 件〕には indicator 分を含まない）。
+        // indicator 24 + 基準形の CTA `button` 1（レビュー指摘 P1: 遷移先
+        // もクリック処理も持たない CTA を操作可能に見せない、`header`
+        // 関数 doc 参照）の合計 33 件出力される（headless-ui は indicator
+        // に `data-disabled` を出力しない設計のため、`data-disabled` の
+        // 総数〔上のテストで検証済みの 8 件〕には indicator 分を含まない）。
         // 先頭に半角スペースを含めて検索し、`data-disabled=""` の末尾
         // 部分文字列（ハイフンの前に空白は無い）との誤マッチを避ける。
         assert_eq!(
             html.matches(" disabled=\"\"").count(),
-            4 + 4 + total_indicators
+            4 + 4 + total_indicators + 1
         );
     }
 

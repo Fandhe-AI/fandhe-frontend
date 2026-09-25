@@ -76,6 +76,13 @@ fn chevron_right() -> Node {
 /// 見出しブロック（タグライン `badge` + セクション見出し + リード文 +
 /// 任意の CTA `button`）。`with_action` は基準形にのみ `true` を渡し、
 /// 使用部品の一覧に `button` を実際に登場させる。
+///
+/// レビュー指摘対応（P1、PR #3215 codex 再指摘）: 本 Demo は無 JS の
+/// 静的合成例であり `<form>`・実際の遷移先を持たない
+/// （モジュール doc「`<form>` を持たない・データ取得/送信を行わない」節）。
+/// `gallery` 関数の `prev-trigger`/`next-trigger`/`indicator` と同じ理由
+/// （動作しないインタラクション要素をクリック可能に見せない）で、この
+/// CTA ボタンにも `disabled: true` を渡し、常時操作不能な状態で描画する。
 fn header(
     eyebrow: &'static str,
     title: &'static str,
@@ -99,6 +106,7 @@ fn header(
         children.push(button::button(
             &ButtonProps {
                 variant: ButtonVariant::Outline,
+                disabled: true,
                 ..ButtonProps::default()
             },
             vec![],
@@ -176,7 +184,17 @@ fn gallery(
         .map(|i| slide(i, count, dim_next && i == 1))
         .collect();
     let indicators: Vec<Node> = (0..count)
-        .map(|i| carousel::indicator(Orientation::Horizontal, i, i == 0, vec![("disabled", "")]))
+        .map(|i| {
+            carousel::indicator(
+                Orientation::Horizontal,
+                i,
+                i == 0,
+                vec![
+                    ("disabled", ""),
+                    ("data-blocks-gallery-carousel-indicator", ""),
+                ],
+            )
+        })
         .collect();
 
     carousel::root(
@@ -338,3 +356,5 @@ pub fn demo() -> Node {
 - `id`/`aria-labelledby` は使わず、carousel の `label` 引数（`aria-label` に直接出力）だけで各インスタンスを区別しています。
 - 作品画像の `alt` は空文字列にせず「作品{n}の画像」を与えています（装飾ではなく主要コンテンツのため）。
 - 無 JS の静的デモではスライド送りを実装できないため、`next-trigger`・`indicator` も `prev-trigger` と同様にネイティブ `disabled` を付与し、操作しても表示が変わらない要素として見せないようにしています。
+- 基準形の CTA「すべての作品を見る」も遷移先・クリック処理を持たない静的デモのため、他のインタラクション要素と同様に `disabled: true` を渡して操作不能な状態で描画しています。
+- `indicator` の disabled 減光 CSS（`[data-part="indicator"]:disabled`）は、`blocks.css` が全 block 共通のスタイルシートであるため、本 block 固有の `data-blocks-gallery-carousel-indicator` 属性でスコープし、他の block の disabled indicator へ波及しないようにしています。
