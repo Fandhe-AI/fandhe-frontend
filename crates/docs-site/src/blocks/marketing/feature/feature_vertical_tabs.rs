@@ -22,6 +22,14 @@
 //! 閲覧できない）を受けて本イシューへ前倒しした。詳細は下記「無 JS での
 //! 扱い」節参照。
 //!
+//! さらに同 PR #3211 の 2 回目の codex-review 指摘（P1: 無 JS のページで
+//! 選択されていない 3 件の trigger が操作可能なボタンに見えるが、クリック
+//! しても切り替わらずリード文の説明と矛盾する）を受けて、各インスタンス内の
+//! 非選択 3 trigger を `TabItem::disabled: true` にした（`feature_accordion_image`
+//! イシュー #2761/#2762・`careers_split_accordion` イシュー #2816・
+//! `changelog_accordion` イシュー #2818 の前例と同型の「非操作の機能一覧」
+//! 対処）。詳細は下記「無 JS での扱い」節参照。
+//!
 //! 後続の #2776 では次を扱う: trigger 先頭のアイコン等の仕上げの装飾・
 //! 画像主体の別パネル形・原稿「原案差分メモ」節の本記述（本イシューでは
 //! 暫定版のみ）。
@@ -47,6 +55,24 @@
 //! `sidebar_07` と同型の対処）。各インスタンス内でも非選択側パネルは
 //! 依然 `hidden` になるが、4 インスタンスを併記することで 4 状態すべての
 //! 選択済み（可視）パネルが実際にページ上へ現れる。
+//!
+//! **非選択 trigger の disabled 化（PR #3211 の 2 回目の codex-review 指摘、
+//! P1）**: 4 インスタンス併記だけでは、各インスタンス内に残る非選択 3
+//! trigger が `role="tab"` の操作可能なボタンに見えるのに、クリックしても
+//! 無 JS のため何も起きず、リード文「左のタブを選ぶと」の説明とも矛盾する
+//! （`feature_accordion_image` イシュー #2761/#2762 と同型の問題）。是正
+//! として、[`vertical_tabs`] は呼び出しごとに `selected` と一致しない 3
+//! trigger を [`TabItem::disabled`] `true` にする。ネイティブ `disabled` +
+//! `aria-disabled="true"` が付き、`fandhe_frontend_pre_styled_ui::tabs` の
+//! recipe が持つ既定の減光（`opacity: 0.5`）+ `cursor: not-allowed`
+//! （イシュー #1542）をそのまま適用する（[`LAYOUT_CSS`] で中和しない）。
+//! `feature_accordion_image` のカテゴリ切替ボタンと同じ判断（選択中以外の
+//! 内容がそもそも DOM 上に存在しない/到達不能なため、減光を戻すと実在
+//! しない操作性を暗示してしまう）。選択中の trigger は `disabled` にしない
+//! （`disabled` にすると headless `tabs` の選択判定規則により「未選択」
+//! として扱われ、パネルが `hidden` になってしまうため。モジュール
+//! `crates/headless-ui/src/tabs.rs` の rustdoc「選択状態の決定則」節
+//! 参照）。
 //!
 //! # id 規約
 //!
@@ -332,7 +358,8 @@ fn section_header() -> Node {
                 },
                 vec![("data-blocks-feature-vertical-tabs-lead", "")],
                 vec![core_text(
-                    "左のタブを選ぶと、対応する機能の詳細が右側に表示されます。",
+                    "以下は build / deploy / observe / secure の 4 つの機能を、\
+                     それぞれ選択した状態で並べた例です。",
                 )],
             ),
         ],
@@ -420,7 +447,10 @@ fn panel_body(tab: &FeatureTab) -> Vec<Node> {
 
 /// 縦並び Tabs 本体を組み立てる（`demo` が 4 状態の静的併記のために呼び出す
 /// 共通ヘルパ、モジュール doc「無 JS での扱い」節参照。`id` は呼び出し側が
-/// リテラルで完全指定する）。
+/// リテラルで完全指定する）。`selected` と一致しない 3 trigger は
+/// `disabled: true` にする（モジュール doc「非選択 trigger の disabled 化」
+/// 節。選択中の trigger は `disabled` にしない — 選択判定則により
+/// パネルごと非表示化されてしまうため）。
 fn vertical_tabs(id: &'static str, selected: &'static str) -> Node {
     let items: Vec<TabItem<'static>> = FEATURES
         .iter()
@@ -428,7 +458,7 @@ fn vertical_tabs(id: &'static str, selected: &'static str) -> Node {
             value: tab.value,
             trigger: trigger_body(tab),
             content: panel_body(tab),
-            disabled: false,
+            disabled: tab.value != selected,
         })
         .collect();
     let props = TabsProps {
@@ -588,6 +618,37 @@ mod tests {
         assert_eq!(html.matches("aria-selected=\"true\"").count(), 4);
         assert_eq!(html.matches("aria-selected=\"false\"").count(), 12);
         assert_eq!(html.matches(" hidden").count(), 12);
+    }
+
+    /// 各インスタンスの非選択 3 trigger が `disabled`（ネイティブ属性 +
+    /// `aria-disabled="true"`）であり、選択中の trigger は `disabled` で
+    /// ないこと（PR #3211 の codex-review 指摘、P1: 無 JS のページで
+    /// 非選択 trigger が操作可能なボタンに見える、の回帰固定。モジュール
+    /// doc「非選択 trigger の disabled 化」節）。
+    #[test]
+    fn demo_disables_non_selected_triggers_only() {
+        let html = render(&demo());
+        assert_eq!(html.matches(" disabled=\"\"").count(), 12);
+        assert_eq!(html.matches("aria-disabled=\"true\"").count(), 12);
+        // 選択中 trigger（`aria-selected="true"`）4 件はいずれも disabled
+        // でないこと（disabled にすると headless `tabs` の選択判定則で
+        // パネルごと非表示化されてしまうため）。
+        let mut start = 0;
+        let mut checked = 0;
+        while let Some(open_rel) = html[start..].find("<button") {
+            let open = start + open_rel;
+            let open_end = html[open..].find('>').map(|i| open + i + 1).unwrap();
+            let tag = &html[open..open_end];
+            if tag.contains("aria-selected=\"true\"") {
+                assert!(
+                    !tag.contains("disabled"),
+                    "selected trigger must not be disabled: {tag}"
+                );
+                checked += 1;
+            }
+            start = open_end;
+        }
+        assert_eq!(checked, 4);
     }
 
     /// 4 状態（build/deploy/observe/secure）すべての選択済み（可視）パネルが

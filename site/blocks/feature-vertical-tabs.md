@@ -190,7 +190,8 @@ fn section_header() -> Node {
                 },
                 vec![("data-blocks-feature-vertical-tabs-lead", "")],
                 vec![core_text(
-                    "左のタブを選ぶと、対応する機能の詳細が右側に表示されます。",
+                    "以下は build / deploy / observe / secure の 4 つの機能を、\
+                     それぞれ選択した状態で並べた例です。",
                 )],
             ),
         ],
@@ -278,7 +279,10 @@ fn panel_body(tab: &FeatureTab) -> Vec<Node> {
 
 /// 縦並び Tabs 本体を組み立てる（`demo` が 4 状態の静的併記のために呼び出す
 /// 共通ヘルパ、モジュール doc「無 JS での扱い」節参照。`id` は呼び出し側が
-/// リテラルで完全指定する）。
+/// リテラルで完全指定する）。`selected` と一致しない 3 trigger は
+/// `disabled: true` にする（モジュール doc「非選択 trigger の disabled 化」
+/// 節。選択中の trigger は `disabled` にしない — 選択判定則により
+/// パネルごと非表示化されてしまうため）。
 fn vertical_tabs(id: &'static str, selected: &'static str) -> Node {
     let items: Vec<TabItem<'static>> = FEATURES
         .iter()
@@ -286,7 +290,7 @@ fn vertical_tabs(id: &'static str, selected: &'static str) -> Node {
             value: tab.value,
             trigger: trigger_body(tab),
             content: panel_body(tab),
-            disabled: false,
+            disabled: tab.value != selected,
         })
         .collect();
     let props = TabsProps {
@@ -373,3 +377,8 @@ pub fn demo() -> Node {
   キャプション付きで縦に併記し、4 状態すべての詳細を静的なページ内で
   閲覧できるようにしています（`pricing-tiers-morph` の「2 状態併記」と
   同型の対処）。
+- 各インスタンス内に残る非選択 3 件の trigger は、クリックしても無 JS の
+  ため何も切り替わらない「操作可能に見えるだけのボタン」になってしまう
+  ため、`disabled` にしています（`feature-accordion-image` のカテゴリ
+  切替ボタンと同型の「非操作の機能一覧」対処）。選択中の trigger は
+  `disabled` にしていません。
