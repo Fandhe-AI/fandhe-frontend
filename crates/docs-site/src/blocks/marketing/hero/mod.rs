@@ -4,7 +4,9 @@
 //! 行うだけでよく、`super`（`marketing`）側・トップレベル
 //! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
 //! ための構造、イシュー #2734）。イシュー #2784 で `hero_image_tiles` を
-//! 追加し、本カテゴリは 6 件目となった。
+//! 追加し、本カテゴリは 6 件目となった。イシュー #2781/#2782 で
+//! `hero_background_media`/`hero_bottom_screenshot` を追加し、本カテゴリは
+//! 8 件目となった。
 
 mod hero_background_media;
 mod hero_bottom_screenshot;

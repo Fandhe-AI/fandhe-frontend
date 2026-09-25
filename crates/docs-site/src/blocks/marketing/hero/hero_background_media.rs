@@ -319,9 +319,10 @@ const LAYOUT_CSS: &str = "\
 .blocks-hero-background-media-backdrop {\n  position: absolute;\n  inset: 0;\n  z-index: -1;\n  overflow: hidden;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-hero-background-media-image] {\n  width: 100%;\n  height: 100%;\n  display: block;\n}\n\
 .blocks-hero-background-media-scrim {\n  position: absolute;\n  inset: 0;\n  background: color-mix(in srgb, var(--fandhe-color-fg) 64%, transparent);\n}\n\
-[data-blocks-hero-background-media-title],\n[data-blocks-hero-background-media-lead] {\n  color: inherit;\n}\n\
+[data-scope=\"heading\"][data-part=\"root\"][data-blocks-hero-background-media-title],\n[data-scope=\"text\"][data-part=\"root\"][data-blocks-hero-background-media-lead] {\n  color: inherit;\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-hero-background-media-cta-secondary] {\n  color: inherit;\n  border-color: currentColor;\n}\n\
-[data-blocks-hero-background-media-variant=\"centered\"] .blocks-hero-background-media-content {\n  text-align: center;\n  align-items: center;\n  max-width: 48rem;\n  margin-inline: auto;\n  display: grid;\n  gap: 1rem;\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-hero-background-media-cta-secondary]:hover {\n  color: inherit;\n  border-color: currentColor;\n  background: color-mix(in srgb, currentColor 16%, transparent);\n}\n\
+[data-blocks-hero-background-media-variant=\"centered\"] .blocks-hero-background-media-content {\n  text-align: center;\n  align-items: center;\n  justify-items: center;\n  max-width: 48rem;\n  margin-inline: auto;\n  display: grid;\n  gap: 1rem;\n}\n\
 [data-blocks-hero-background-media-variant=\"bottom-split\"] {\n  align-content: end;\n}\n\
 [data-blocks-hero-background-media-variant=\"bottom-split\"] .blocks-hero-background-media-content {\n  display: grid;\n  gap: 1.25rem;\n}\n\
 .blocks-hero-background-media-split-side {\n  display: grid;\n  gap: 1rem;\n}\n\

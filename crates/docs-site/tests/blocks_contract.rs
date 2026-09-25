@@ -7249,6 +7249,31 @@ fn hero_background_media_page_wires_demo_class_and_css_hooks() {
             "blocks.css should declare a rule for {selector}"
         );
     }
+
+    // PR #3231 レビュー是正（centered badge の横幅 stretch・title/lead の
+    // 反転色 specificity・secondary CTA hover のコントラスト）を固定する。
+    assert!(
+        sheet_css.contains("justify-items: center"),
+        "centered variant should center grid items (badge must not stretch full width)"
+    );
+    assert!(
+        sheet_css.contains(
+            "[data-scope=\"heading\"][data-part=\"root\"][data-blocks-hero-background-media-title]"
+        ),
+        "title color-inherit rule should match the heading component's own scope+part attributes for specificity"
+    );
+    assert!(
+        sheet_css.contains(
+            "[data-scope=\"text\"][data-part=\"root\"][data-blocks-hero-background-media-lead]"
+        ),
+        "lead color-inherit rule should match the text component's own scope+part attributes for specificity"
+    );
+    assert!(
+        sheet_css.contains(
+            "[data-scope=\"button\"][data-part=\"root\"][data-blocks-hero-background-media-cta-secondary]:hover"
+        ),
+        "secondary CTA should override --fandhe-hover-bg's fixed bg-muted with a currentColor-based hover background"
+    );
 }
 
 /// hero-background-media の合成部品（badge/heading/text/button/image）が
@@ -7302,6 +7327,10 @@ fn hero_background_media_composes_expected_parts() {
         assert!(
             !html.contains(absent),
             "hero-background-media should never contain {absent}"
+        );
+    }
+}
+
 /// `hero-bottom-screenshot` ページが demo class・CSS リンク・CSS フックを
 /// 正しく配線していること（イシュー #2782）。
 #[test]
