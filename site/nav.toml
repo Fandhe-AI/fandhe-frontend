@@ -1223,6 +1223,11 @@ source = "site/blocks/hero-email-signup.md"
 path = "/blocks/hero-email-signup/"
 
 [[section.group.page]]
+title = "hero-image-tiles"
+source = "site/blocks/hero-image-tiles.md"
+path = "/blocks/hero-image-tiles/"
+
+[[section.group.page]]
 title = "hero-image-top"
 source = "site/blocks/hero-image-top.md"
 path = "/blocks/hero-image-top/"
@@ -1641,6 +1646,11 @@ path = "/blocks/gallery-image-grid/"
 title = "gallery-masonry"
 source = "site/blocks/gallery-masonry.md"
 path = "/blocks/gallery-masonry/"
+
+[[section.group.page]]
+title = "gallery-split-carousel"
+source = "site/blocks/gallery-split-carousel.md"
+path = "/blocks/gallery-split-carousel/"
 
 [[section.group]]
 title = "Sidebar"

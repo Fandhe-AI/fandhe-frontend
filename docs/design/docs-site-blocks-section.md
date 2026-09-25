@@ -834,6 +834,7 @@ pub enum LayoutCss {
 | footer-newsletter | #2551 | §3 追記段落, `marketing/footer/footer_newsletter.rs` |
 | hero-editorial-stagger | #2546 | §15, `marketing/hero/hero_editorial_stagger.rs` |
 | hero-email-signup | #2783 | `marketing/hero/hero_email_signup.rs` |
+| hero-image-tiles | #2784 | `marketing/hero/hero_image_tiles.rs` |
 | hero-parallax-layers | #2546 | §15, `marketing/hero/hero_parallax_layers.rs` |
 | hero-terminal | #2546 | §15, `marketing/hero/hero_terminal.rs` |
 | text-split-reveal | #2546 | §15, `marketing/hero/text_split_reveal.rs` |
@@ -901,6 +902,7 @@ pub enum LayoutCss {
 | contact-split-form-image | #2831 | `marketing/contact/contact_split_form_image.rs` |
 | contact-centered-form | #2826 | `marketing/contact/contact_centered_form.rs` |
 | hero-image-top | #2785 | `marketing/hero/hero_image_top.rs` |
+| gallery-split-carousel | #2780 | `marketing/gallery/gallery_split_carousel.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 85 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
