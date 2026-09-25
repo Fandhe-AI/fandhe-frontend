@@ -269,11 +269,16 @@ fn panel_tab_labels() -> Vec<(&'static str, Vec<Node>)> {
 }
 
 /// 実物の `tabs::tabs` を一切使わない非対話タブ列（モジュール doc「無 JS
-/// での扱い」節、Codex P1 是正）。`data-scope="tabs"`/`data-part="list"`/
-/// `"trigger"` を `tabs::tabs` と同じ属性値で `div` のみに与え、
-/// [`LAYOUT_CSS`] の `[data-scope="tabs"][data-part="..."]` セレクタによる
-/// 見た目をそのまま再利用しつつ、`role`/`tabindex`/`<button>` は一切持たない
-/// ため操作可能に見えない。`id_prefix` は呼び出し側が
+/// での扱い」節、Codex P1 是正）。block 固有 class
+/// （`.blocks-feature-tabs-panel-tablist`/`-tab`）のみを `div` に与え、
+/// [`LAYOUT_CSS`] 側で見た目を独自に再現する。`data-scope="tabs"`/
+/// `data-part="list"`/`"trigger"` 等 pre-styled-ui の tabs recipe が使う
+/// セレクタとは意図的に一致しない属性構造にする（モジュール doc「CSS
+/// フックの選び方」節、Bugbot 再指摘の是正: recipe とセレクタを共有すると
+/// `:hover:not([data-disabled])` 規則が子孫〔形 F の進捗バー等〕を経由して
+/// も当たり続け、`pointer-events: none` による個別の打ち消しでは防ぎ
+/// きれなかった）。`role`/`tabindex`/`<button>` も一切持たないため操作
+/// 可能に見えない。`id_prefix` は呼び出し側が
 /// `blocks-feature-tabs-panel-<接尾辞>` の形で完全指定する（モジュール doc
 /// 「id 規約」節）。
 ///
@@ -293,8 +298,10 @@ fn static_tab_list(
     pill: bool,
 ) -> Node {
     let mut list_attrs = vec![
-        ("data-scope".to_string(), "tabs".to_string()),
-        ("data-part".to_string(), "list".to_string()),
+        (
+            "class".to_string(),
+            "blocks-feature-tabs-panel-tablist".to_string(),
+        ),
         ("id".to_string(), format!("{id_prefix}-list")),
     ];
     if pill {
@@ -305,13 +312,14 @@ fn static_tab_list(
         // （`--fandhe-color-bg-muted`/`--fandhe-radius-md`/`--fandhe-space-1`/
         // `--fandhe-color-bg`/`--fandhe-shadow-sm`）を [`LAYOUT_CSS`] 側で
         // 直接再現する（Codex/Bugbot P2 是正: 形 C が下線型のまま変化
-        // していなかった不具合）。この属性は list 要素自身（`data-scope`/
-        // `data-part` と同じ要素）に付くため、[`LAYOUT_CSS`] 側のセレクタ
-        // `[data-scope="tabs"][data-part="list"][data-blocks-feature-tabs-panel-pill]`
-        // は属性 3 個（詳細度 (0,3,0)）で recipe の base `list` 規則
-        // （`[data-scope="tabs"][data-part="list"]`、詳細度 (0,2,0)）に
-        // 確実に勝つ（cursor Medium 是正: 単一属性セレクタのままだと
-        // 詳細度で負け下線型の `border-bottom` が消えなかった）。
+        // していなかった不具合）。選択中タブは背景色 + `box-shadow` のみで
+        // 表現しているが、Windows 強制配色モード（`forced-colors: active`）
+        // は色をシステム色へ強制し `box-shadow` も `none` へ丸めるため、
+        // このままでは選択中/非選択中が判別できなくなる（Codex P1 是正）。
+        // `tabs::stylesheet` の Enclosed forced-colors 対応（`crate::tabs`
+        // rustdoc「forced-colors 対応」節）と同じ
+        // `border: 1px solid CanvasText` を [`LAYOUT_CSS`] 側へ直接追記して
+        // 選択状態を境界線で補強する。
         list_attrs.push((
             "data-blocks-feature-tabs-panel-pill".to_string(),
             String::new(),
@@ -329,8 +337,10 @@ fn static_tab_list(
                     "inactive"
                 };
                 let mut attrs = vec![
-                    ("data-scope".to_string(), "tabs".to_string()),
-                    ("data-part".to_string(), "trigger".to_string()),
+                    (
+                        "class".to_string(),
+                        "blocks-feature-tabs-panel-tab".to_string(),
+                    ),
                     ("data-state".to_string(), state.to_string()),
                 ];
                 if hide_from_assistive_tech {
@@ -744,14 +754,26 @@ pub fn demo() -> Node {
   `## Demo` として `h2` を出すため）。
 - 画像は `dummy_assets` のプレースホルダー + `alt=""`（装飾扱い）を使用し、
   実在のブランド・人物・企業とは無関係の架空データです。
-- 無 JS 制約に従い、各形とも実物の `tabs` インスタンスは選択中のタブ 1 個
-  だけを描画し、残りのタブは `tabs` を複製せず見出しキャプション付きの
-  非対話表示（トリガーボタン・`role="tab"`・`tabindex` を持たない）として
-  併記しました。当初はパネル数ぶんの `tabs` インスタンスを選択状態違いで
-  縦に並べていましたが（`pricing_tiers_morph`/`sidebar_07` と同型の対処）、
-  この構成は操作可能に見えて実際には切り替わらないトリガーボタンを複数
-  インスタンス分反復して出しており、UI のアクセシビリティ契約に反すると
-  の指摘を受けて是正しました（基準形、#2772）。
+- 無 JS 制約に従い、実物の `tabs` コンポーネントは一切使わず、各形とも
+  選択中タブの見た目だけを静的なタブ風表示（`role`/`tabindex`/`<button>`
+  を持たない `div`）で再現し、その本文を直接描画します。残りのタブも
+  同じ静的タブ風表示 + 見出しキャプション付きの非対話表示として併記し、
+  全パネルの本文が常に可視のまま静的 HTML に現れるようにしました。当初は
+  パネル数ぶんの `tabs` インスタンスを選択状態違いで縦に並べていましたが
+  （`pricing_tiers_morph`/`sidebar_07` と同型の対処）、この構成は操作可能に
+  見えて実際には切り替わらないトリガーボタンを複数インスタンス分反復して
+  出しており、UI のアクセシビリティ契約に反するとの指摘を受けて是正しました
+  （基準形、#2772）。さらに、当初はタブ風表示に pre-styled-ui の tabs
+  recipe と同じ `data-scope="tabs"`/`data-part="list"`/`"trigger"` を
+  付与し LAYOUT_CSS 側で recipe のセレクタを再利用していましたが、これだと
+  recipe の `:hover` 規則がタブ風表示やその子孫（形 F の説明文・進捗バー等）
+  にも当たってマウスホバーで背景・文字色が変化し操作可能に見えてしまう
+  不具合が見つかりました。`pointer-events: none` による打ち消しを一度試み
+  ましたが子孫経由の hover を防ぎきれず、recipe のセレクタと一切一致しない
+  block 固有 class（`.blocks-feature-tabs-panel-tablist`/`-tab`）だけで
+  見た目を再現する構成へ切り替えました。ピル型の選択状態は背景色 +
+  `box-shadow` のみで表しているため Windows 強制配色モードでも判別できる
+  よう `forced-colors: active` 用の境界線を追加しています（#2773 残作業）。
 - **形 C（R0478）**: 参照元の「単一パネル」の意図を、既存 2 列（テキスト +
   画像）の基準形とは別クラスの単一カラム（見出し + 本文のみ、画像なし）で
   表現しました。パネル数は 2 件に絞り、重複が過大にならないようにしました。
