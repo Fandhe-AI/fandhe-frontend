@@ -4852,6 +4852,89 @@ fn changelog_timeline_subscribe_composes_expected_parts() {
     }
 }
 
+/// contact-centered-form の Demo ラッパ・CSS 配線・block 固有 CSS（2 列
+/// グリッド上書き・電話番号の横並び・送信ボタン全幅・狭幅ブレーク
+/// ポイント）が実際に出力されていることを固定する（イシュー #2826）。
+#[test]
+fn contact_centered_form_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/contact-centered-form/index.html"))
+        .expect("blocks/contact-centered-form/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-contact-centered-form\""),
+        "contact-centered-form page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "contact-centered-form page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "contact-centered-form page should link the Blocks-specific stylesheet"
+    );
+
+    for hook in [
+        "data-blocks-contact-centered-form-field",
+        "data-blocks-contact-centered-form-wide",
+        "data-blocks-contact-centered-form-message",
+        "data-blocks-contact-centered-form-consent",
+        "data-blocks-contact-centered-form-submit",
+        "data-blocks-contact-centered-form-tagline",
+    ] {
+        assert!(
+            html.contains(hook),
+            "contact-centered-form page should contain {hook}"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "repeat(2, minmax(0, 1fr))",
+        r#"[data-scope="field"][data-part="root"][data-blocks-contact-centered-form-wide] {"#,
+        r#"[data-scope="button"][data-part="root"][data-blocks-contact-centered-form-submit] {"#,
+        ".blocks-contact-centered-form-phone {",
+        "@media (max-width: 47.99rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// contact-centered-form の合成部品（heading/text/badge/field/input/
+/// textarea/checkbox/native-select/button）が期待どおりの構成で実際に
+/// 出力されていること、`<form>`・送信先・`data:` URI を持ち込んでおらず
+/// `type="button"` がちょうど 1 個であることを固定する（イシュー #2826）。
+#[test]
+fn contact_centered_form_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/contact-centered-form/index.html"))
+        .expect("blocks/contact-centered-form/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"field\" data-part=\"input\"",
+        "data-scope=\"field\" data-part=\"textarea\"",
+        "data-scope=\"field\" data-part=\"select\"",
+        "data-scope=\"checkbox\"",
+        "data-scope=\"button\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "contact-centered-form page should contain {scope}"
+        );
+    }
+    for absent in ["<form", "action=", "type=\"submit\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "contact-centered-form should never contain {absent}"
+        );
+    }
+}
+
 /// content-split-image の合成部品（badge/heading/text/image/icon）が
 /// 期待どおりの構成で実際に出力されていること、`<form>`・`<button>`・
 /// `data:` URI を持ち込んでいないこと、スクロール枠がキーボード操作者

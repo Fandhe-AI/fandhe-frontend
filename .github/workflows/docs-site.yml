@@ -258,6 +258,7 @@ jobs:
           # Marketing / Team
           # Marketing / Faq
           # Marketing / Contact
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-centered-form/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-dialog-form/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-form-testimonial/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-image-info/index.html"
