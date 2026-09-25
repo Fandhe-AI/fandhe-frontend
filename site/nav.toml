@@ -1401,6 +1401,11 @@ path = "/blocks/comparison-cards/"
 title = "Careers"
 
 [[section.group.page]]
+title = "careers-card-grid"
+source = "site/blocks/careers-card-grid.md"
+path = "/blocks/careers-card-grid/"
+
+[[section.group.page]]
 title = "careers-split-photo-list"
 source = "site/blocks/careers-split-photo-list.md"
 path = "/blocks/careers-split-photo-list/"

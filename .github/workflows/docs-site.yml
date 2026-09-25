@@ -276,6 +276,7 @@ jobs:
           # Marketing / Comparison
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/comparison-cards/index.html"
           # Marketing / Careers
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/careers-card-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/careers-split-photo-list/index.html"
           # Marketing / Changelog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/changelog-accordion/index.html"
