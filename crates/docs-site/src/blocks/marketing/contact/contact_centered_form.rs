@@ -242,7 +242,6 @@ fn message_field() -> Node {
         vec![
             ("data-blocks-contact-centered-form-field", ""),
             ("data-blocks-contact-centered-form-wide", ""),
-            ("data-blocks-contact-centered-form-message", ""),
         ],
         vec![
             field::label(&props, vec![], vec![text("お問い合わせ内容")]),
@@ -250,7 +249,10 @@ fn message_field() -> Node {
                 &TextareaProps::default(),
                 &props,
                 false,
-                vec![("placeholder", "ご相談内容をご記入ください。")],
+                vec![
+                    ("placeholder", "ご相談内容をご記入ください。"),
+                    ("data-blocks-contact-centered-form-message", ""),
+                ],
                 vec![],
             ),
         ],
@@ -528,6 +530,43 @@ mod tests {
         let html = render(&demo());
         assert!(html.contains("class=\"blocks-contact-centered-form-layout\""));
         assert_ne!(BLOCK.demo_class, "blocks-contact-centered-form-layout");
+    }
+
+    /// [`LAYOUT_CSS`] の `min-height: 8rem` セレクタ
+    /// （`[data-scope="field"][data-part="textarea"]
+    /// [data-blocks-contact-centered-form-message]`）が実際に一致する
+    /// 要素が出力に存在すること。CSS フック
+    /// （`data-blocks-contact-centered-form-message`）を `field::root`
+    /// （`data-part="root"`）へ付け違えると、セレクタが要求する
+    /// `data-part="textarea"` を持つ要素と一致せず `min-height` が適用
+    /// されない配線ミスになるため、単に属性・part の存在を別々に確認する
+    /// だけでなく、同一タグ内での共起を固定する（イシュー #2826 PR #3193
+    /// レビュー指摘）。
+    #[test]
+    fn message_hook_attribute_is_on_the_textarea_part_element() {
+        let html = render(&demo());
+        // `<` で分割し、`data-part="textarea"` を含むタグのみを抽出して
+        // 同じタグ内に CSS フック属性も含まれることを検証する。
+        let textarea_tags: Vec<&str> = html
+            .split('<')
+            .filter(|tag| tag.contains(r#"data-part="textarea""#))
+            .collect();
+        assert_eq!(
+            textarea_tags.len(),
+            1,
+            "expected exactly one textarea part element in {html}"
+        );
+        assert!(
+            textarea_tags[0].contains("data-blocks-contact-centered-form-message"),
+            "expected the message CSS hook attribute on the same element as \
+             data-part=\"textarea\", found tag: {}",
+            textarea_tags[0]
+        );
+        // CSS セレクタが要求する 3 属性の組が LAYOUT_CSS 側にも存在することを
+        // あわせて固定する（セレクタ自体の書き換えによる無害化を防ぐ）。
+        assert!(LAYOUT_CSS.contains(
+            r#"[data-scope="field"][data-part="textarea"][data-blocks-contact-centered-form-message] {"#
+        ));
     }
 
     /// [`LAYOUT_CSS`] が 2 列グリッド・全幅セル・狭幅ブレークポイント・
