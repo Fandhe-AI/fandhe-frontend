@@ -47,10 +47,17 @@
 //! アクセシビリティ契約に反すると判定された（Codex P1 指摘、`docs/design/
 //! docs-site-blocks-section.md` §19 参照）。無 JS の docs サイトで実際に
 //! 切り替えられるようにする経路はないため、本 block は実物の `tabs::tabs`
-//! を**一切使わない**。タブ列は [`static_tab_list`]（`data-scope="tabs"`/
-//! `data-part="list"`/`"trigger"` の `div` のみで [`LAYOUT_CSS`] の見た目を
-//! 再現し、`role`/`tabindex`/`<button>` を一切持たない非対話表示）で視覚上
-//! だけ模し、選択中パネルの本文は直接（[`panel_row`] 等）描画する。残りの
+//! を**一切使わない**。タブ列は [`static_tab_list`]（block 固有 class
+//! `.blocks-feature-tabs-panel-tablist`/`-tab` のみで [`LAYOUT_CSS`] の
+//! 見た目を再現し、`role`/`tabindex`/`<button>` を一切持たない非対話表示）
+//! で視覚上だけ模し、選択中パネルの本文は直接（[`panel_row`] 等）描画する。
+//! `data-scope="tabs"`/`data-part="list"`/`"trigger"` 等 pre-styled-ui の
+//! tabs recipe が使うセレクタとは意図的に**一致しない**属性構造にする
+//! （Bugbot 再指摘の是正: recipe とセレクタを共有すると
+//! `:hover:not([data-disabled])` 規則が非対話タブ列やその子孫〔形 F の
+//! 説明文・進捗バー〕にも当たり、マウスホバーで背景・文字色が変化して
+//! 操作可能に見えてしまう。`pointer-events: none` で個別に打ち消す案は
+//! 見送った。詳細は「CSS フックの選び方」節参照）。残りの
 //! パネルは見出しキャプション付きの非対話表示（[`panel_state_preview`]/
 //! [`tab_preview`]）として併記し、全パネル本文が常に可視のまま静的 HTML に
 //! 現れるようにする。基準形・形 C・形 D・形 E のようにラベルのみを持つ
@@ -73,41 +80,61 @@
 //! `badge::badge`/`heading::heading`/`styled_text::text`/`image::image` は
 //! いずれも `drop_class_attr` により呼び出し側 `attrs` の `class` を除去する
 //! 契約を持つため、Demo 固有のスタイルフックは
-//! `data-blocks-feature-tabs-panel-*` 属性で渡す。[`static_tab_list`] は
-//! `tabs::tabs` と同じ `data-scope="tabs"`/`data-part="list"`/`"trigger"`
-//! 属性を持つが呼び出し側から attrs を追加で受け取らないため、パーツへの
-//! スタイルは [`LAYOUT_CSS`] 側でレイアウト root からの子孫セレクタ
-//! （`[data-scope="tabs"][data-part="..."]`）として当てる:
+//! `data-blocks-feature-tabs-panel-*` 属性で渡す。一方 [`static_tab_list`]
+//! は `tabs::tabs` を呼ばない素の `div` であり `class` 自体は自由に持てる
+//! ため、pre-styled-ui の tabs recipe と衝突しない block 固有 class
+//! （`.blocks-feature-tabs-panel-tablist`/`-tab`）だけでタブ列の見た目を
+//! [`LAYOUT_CSS`] 側で再現する。
 //!
-//! - `[data-part="list"]` に `overflow-x: auto` を与え、狭い幅でタブ列が
-//!   はみ出してページ全体が横スクロールするのを list 自身の横スクロールへ
-//!   閉じ込める（モバイルでのタブ列横スクロール）。`padding-bottom: 1px` は
-//!   trigger の下線用 `margin-bottom: -1px` がスクロール領域の境界で
-//!   クリップされる分を吸収する。
-//! - `[data-part="trigger"]` の `margin-bottom` を pre-styled-ui 既定の
-//!   `-1px` から `-2px` へ上書きする（Bugbot Low 指摘の是正）。`list` の
-//!   `padding-bottom: 1px`（直前の箇条書き）は `list` の下端（＝下線を
-//!   重ねたい `border-bottom: 1px` の位置）を 1px 押し下げるため、
-//!   `trigger` 側の重ね量を素の `-1px` のままにすると選択中トリガーの
-//!   2px 下線が `list` の 1px 罫線と重ならず 3px の二重線に見えてしまう。
-//!   `padding-bottom` が押し下げた 1px 分を追加で相殺し、選択中トリガーの
-//!   下線を `list` の罫線へ正しく重ねる。[`static_tab_list`] は
-//!   `tabindex`/フォーカス自体を持たないため `:focus-visible` の補正は
-//!   不要（`tabs::tabs` を使っていた旧実装からの削除点）。同じ規則で
-//!   `cursor: default` を上書きし、pre-styled-ui recipe 既定の
-//!   `cursor: pointer`（属性セレクタのみで tag を問わないため、`button`
-//!   を使わない [`static_tab_list`] にもそのまま当たる）が視覚的な
-//!   クリック可能感を残さないようにする。
-//! - `[data-part="trigger"]` へ `pointer-events: none` も足す（Codex P1
-//!   是正: `[data-scope="tabs"][data-part="trigger"]` を共有する以上、
-//!   pre-styled-ui recipe の `:hover:not([data-disabled])` 規則
-//!   （`crate::tabs` の `hover_surface_declarations`）は
-//!   `cursor: default` の上書きだけでは止まらず、マウスホバー時に背景色・
-//!   文字色が変化し続けて操作可能に見えてしまう。`pointer-events: none`
-//!   はポインタのヒットテスト自体を無効化するため、カスケードの優先順位
-//!   （recipe 側 CSS の読み込み順）に依存せず確実に `:hover` 一致を防げる。
-//!   `static_tab_list` の trigger はそもそもクリックハンドラを持たない
-//!   ため、ポインタイベントを無効化しても機能上の欠落はない。
+//! **`data-scope="tabs"`/`data-part="list"`/`"trigger"` は一切出力しない
+//! 判断（Bugbot 再指摘の是正、旧実装からの方針転換）**: 当初はこれらの
+//! recipe セレクタを `static_tab_list` の `div` へそのまま付与し、
+//! [`LAYOUT_CSS`] 側で recipe と同じ子孫セレクタを再利用する構成を採って
+//! いた。`cursor: default` の上書きに加え `pointer-events: none` も足して
+//! recipe の `:hover:not([data-disabled])` 規則（`crate::tabs` の
+//! `hover_surface_declarations`、マウスホバーで背景・文字色が変化する）を
+//! 打ち消そうとしたが、`pointer-events: none` は要素自身と素直に継承する
+//! 子孫の hit-test しか止められず、trigger 配下の子孫（形 F の説明文・
+//! 進捗バー等、`crate::progress` のように独自の `data-scope` を持つ実部品）
+//! を経由した hover が recipe 側の別セレクタで当たり続ける余地を消せな
+//! かった（Bugbot Medium「Hover still applies through child nodes」）。
+//! カスケードの優先順位に依存する打ち消し策は本質的に脆いため、
+//! **recipe のセレクタと一切一致しない属性構造**へ切り替えた: `class` を
+//! `data-scope`/`data-part` の代わりに使い、選択状態は `data-state`
+//! （block 固有の `.blocks-feature-tabs-panel-tab` 前提でのみ意味を持つ、
+//! recipe の複合セレクタとは無関係）で表す。これにより tabs recipe の
+//! base/state/hover いずれの規則も一切マッチし得ない構造的な保証になる。
+//!
+//! [`LAYOUT_CSS`] は recipe が本来提供していた見た目（下線・pill/Enclosed
+//! 相当の角丸コンテナ・forced-colors 境界線）を自前で再現する:
+//!
+//! - `.blocks-feature-tabs-panel-tablist` に `overflow-x: auto` を与え、
+//!   狭い幅でタブ列がはみ出してページ全体が横スクロールするのを list
+//!   自身の横スクロールへ閉じ込める（モバイルでのタブ列横スクロール）。
+//!   `padding-bottom: 1px` は trigger の下線用 `margin-bottom` がスクロール
+//!   領域の境界でクリップされる分を吸収する。
+//! - `.blocks-feature-tabs-panel-tab` の `margin-bottom` を `-2px` にする
+//!   （Bugbot Low 指摘の是正）。`tablist` の `padding-bottom: 1px`（直前の
+//!   箇条書き）は `tablist` の下端（＝下線を重ねたい `border-bottom: 1px`
+//!   の位置）を 1px 押し下げるため、`tab` 側の重ね量を素の `-1px` のままに
+//!   すると選択中タブの 2px 下線が `tablist` の 1px 罫線と重ならず 3px の
+//!   二重線に見えてしまう。`padding-bottom` が押し下げた 1px 分を追加で
+//!   相殺し、選択中タブの下線を `tablist` の罫線へ正しく重ねる。
+//!   [`static_tab_list`] は `tabindex`/フォーカス自体を持たないため
+//!   `:focus-visible` の補正は不要（`tabs::tabs` を使っていた旧実装からの
+//!   削除点）。`cursor: default` も明示し、視覚的なクリック可能感を残さ
+//!   ないようにする（recipe と選択子を共有しないため、この宣言は他部品の
+//!   既定 `cursor: pointer` を上書きする目的ではなく単なる既定値の明示）。
+//! - ピル型（形 C、`data-blocks-feature-tabs-panel-pill`）は recipe の
+//!   `TabsVariant::Enclosed` と同じトークン（`--fandhe-color-bg-muted`/
+//!   `--fandhe-radius-md`/`--fandhe-space-1`/`--fandhe-color-bg`/
+//!   `--fandhe-shadow-sm`）を `[data-blocks-feature-tabs-panel-pill]` 配下の
+//!   `.blocks-feature-tabs-panel-tablist`/`-tab` へ直接再現する。選択中
+//!   タブは背景色 + `box-shadow` のみで表現しているが、Windows 強制配色
+//!   モード（`forced-colors: active`）は色をシステム色へ強制し
+//!   `box-shadow` も `none` へ丸めるため、`tabs::stylesheet` の Enclosed
+//!   forced-colors 対応と同じ `border: 1px solid CanvasText` を選択中タブへ
+//!   追加して境界線で補強する（Codex P1 是正）。
 //!
 //! レイアウト root の class（`blocks-feature-tabs-panel-layout`）は
 //! [`Block::demo_class`]（`blocks-feature-tabs-panel`）と意図的に別名にする
@@ -379,11 +406,16 @@ fn panel_tab_labels() -> Vec<(&'static str, Vec<Node>)> {
 }
 
 /// 実物の `tabs::tabs` を一切使わない非対話タブ列（モジュール doc「無 JS
-/// での扱い」節、Codex P1 是正）。`data-scope="tabs"`/`data-part="list"`/
-/// `"trigger"` を `tabs::tabs` と同じ属性値で `div` のみに与え、
-/// [`LAYOUT_CSS`] の `[data-scope="tabs"][data-part="..."]` セレクタによる
-/// 見た目をそのまま再利用しつつ、`role`/`tabindex`/`<button>` は一切持たない
-/// ため操作可能に見えない。`id_prefix` は呼び出し側が
+/// での扱い」節、Codex P1 是正）。block 固有 class
+/// （`.blocks-feature-tabs-panel-tablist`/`-tab`）のみを `div` に与え、
+/// [`LAYOUT_CSS`] 側で見た目を独自に再現する。`data-scope="tabs"`/
+/// `data-part="list"`/`"trigger"` 等 pre-styled-ui の tabs recipe が使う
+/// セレクタとは意図的に一致しない属性構造にする（モジュール doc「CSS
+/// フックの選び方」節、Bugbot 再指摘の是正: recipe とセレクタを共有すると
+/// `:hover:not([data-disabled])` 規則が子孫〔形 F の進捗バー等〕を経由して
+/// も当たり続け、`pointer-events: none` による個別の打ち消しでは防ぎ
+/// きれなかった）。`role`/`tabindex`/`<button>` も一切持たないため操作
+/// 可能に見えない。`id_prefix` は呼び出し側が
 /// `blocks-feature-tabs-panel-<接尾辞>` の形で完全指定する（モジュール doc
 /// 「id 規約」節）。
 ///
@@ -403,8 +435,10 @@ fn static_tab_list(
     pill: bool,
 ) -> Node {
     let mut list_attrs = vec![
-        ("data-scope".to_string(), "tabs".to_string()),
-        ("data-part".to_string(), "list".to_string()),
+        (
+            "class".to_string(),
+            "blocks-feature-tabs-panel-tablist".to_string(),
+        ),
         ("id".to_string(), format!("{id_prefix}-list")),
     ];
     if pill {
@@ -415,20 +449,14 @@ fn static_tab_list(
         // （`--fandhe-color-bg-muted`/`--fandhe-radius-md`/`--fandhe-space-1`/
         // `--fandhe-color-bg`/`--fandhe-shadow-sm`）を [`LAYOUT_CSS`] 側で
         // 直接再現する（Codex/Bugbot P2 是正: 形 C が下線型のまま変化
-        // していなかった不具合）。この属性は list 要素自身（`data-scope`/
-        // `data-part` と同じ要素）に付くため、[`LAYOUT_CSS`] 側のセレクタ
-        // `[data-scope="tabs"][data-part="list"][data-blocks-feature-tabs-panel-pill]`
-        // は属性 3 個（詳細度 (0,3,0)）で recipe の base `list` 規則
-        // （`[data-scope="tabs"][data-part="list"]`、詳細度 (0,2,0)）に
-        // 確実に勝つ（cursor Medium 是正: 単一属性セレクタのままだと
-        // 詳細度で負け下線型の `border-bottom` が消えなかった）。選択中
-        // trigger は背景色 + `box-shadow` のみで表現しているが、Windows
-        // 強制配色モード（`forced-colors: active`）は色をシステム色へ
-        // 強制し `box-shadow` も `none` へ丸めるため、このままでは選択中/
-        // 非選択中が判別できなくなる（Codex P1 是正）。`tabs::stylesheet`
-        // の Enclosed forced-colors 対応（`crate::tabs` rustdoc「forced-
-        // colors 対応」節）と同じ `border: 1px solid CanvasText` を
-        // [`LAYOUT_CSS`] 側へ直接追記して選択状態を境界線で補強する。
+        // していなかった不具合）。選択中タブは背景色 + `box-shadow` のみで
+        // 表現しているが、Windows 強制配色モード（`forced-colors: active`）
+        // は色をシステム色へ強制し `box-shadow` も `none` へ丸めるため、
+        // このままでは選択中/非選択中が判別できなくなる（Codex P1 是正）。
+        // `tabs::stylesheet` の Enclosed forced-colors 対応（`crate::tabs`
+        // rustdoc「forced-colors 対応」節）と同じ
+        // `border: 1px solid CanvasText` を [`LAYOUT_CSS`] 側へ直接追記して
+        // 選択状態を境界線で補強する。
         list_attrs.push((
             "data-blocks-feature-tabs-panel-pill".to_string(),
             String::new(),
@@ -446,8 +474,10 @@ fn static_tab_list(
                     "inactive"
                 };
                 let mut attrs = vec![
-                    ("data-scope".to_string(), "tabs".to_string()),
-                    ("data-part".to_string(), "trigger".to_string()),
+                    (
+                        "class".to_string(),
+                        "blocks-feature-tabs-panel-tab".to_string(),
+                    ),
                     ("data-state".to_string(), state.to_string()),
                 ];
                 if hide_from_assistive_tech {
@@ -897,16 +927,21 @@ pub const BLOCK: Block = Block {
 
 /// `feature_tabs_panel` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
 /// doc「block 固有 CSS の置き場」節）。素の `div` へのフックは
-/// `.blocks-feature-tabs-panel-*` クラスセレクタ、`tabs` パーツへのフックは
-/// `[data-scope="tabs"][data-part="..."]` の子孫セレクタで行い、他 block や
-/// 部品の素のセレクタへ影響させない（モジュール doc「CSS フックの選び方」
-/// 節参照）。
+/// `.blocks-feature-tabs-panel-*` クラスセレクタで行う。タブ列
+/// （`.blocks-feature-tabs-panel-tablist`/`-tab`）は pre-styled-ui の tabs
+/// recipe が使う `[data-scope="tabs"][data-part="..."]` セレクタとは
+/// 意図的に一致しない class 専用の見た目を自前で定義し、recipe の
+/// `:hover` 等の規則が一切当たらないようにする（モジュール doc「CSS
+/// フックの選び方」節、Bugbot 再指摘の是正）。`progress` パーツ
+/// （形 F、`[data-scope="progress"]`）のように実物のコンポーネントを
+/// そのまま使う箇所は、引き続き当該部品自身のセレクタへフックする。
 const LAYOUT_CSS: &str = "\
 .blocks-feature-tabs-panel-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n}\n\
 .blocks-feature-tabs-panel-variant {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-feature-tabs-panel-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  align-items: start;\n  max-width: 40rem;\n}\n\
-.blocks-feature-tabs-panel-layout [data-scope=\"tabs\"][data-part=\"list\"] {\n  overflow-x: auto;\n  overflow-y: hidden;\n  padding-bottom: 1px;\n}\n\
-.blocks-feature-tabs-panel-layout [data-scope=\"tabs\"][data-part=\"trigger\"] {\n  margin-bottom: -2px;\n  cursor: default;\n  pointer-events: none;\n}\n\
+.blocks-feature-tabs-panel-tablist {\n  display: flex;\n  flex-wrap: nowrap;\n  overflow-x: auto;\n  overflow-y: hidden;\n  gap: var(--fandhe-space-2);\n  border-bottom: 1px solid var(--fandhe-color-border);\n  padding-bottom: 1px;\n}\n\
+.blocks-feature-tabs-panel-tab {\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  padding: var(--fandhe-space-2) var(--fandhe-space-4);\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  line-height: var(--fandhe-font-line-height-normal);\n  white-space: nowrap;\n  background: transparent;\n  color: var(--fandhe-color-fg-muted);\n  border: 0;\n  border-bottom: 2px solid transparent;\n  margin-bottom: -2px;\n  border-radius: var(--fandhe-radius-sm, 0.25rem) var(--fandhe-radius-sm, 0.25rem) 0 0;\n  cursor: default;\n}\n\
+.blocks-feature-tabs-panel-tab[data-state=\"active\"] {\n  color: var(--fandhe-color-fg);\n  border-bottom-color: var(--fandhe-color-accent);\n}\n\
 .blocks-feature-tabs-panel-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  padding-top: var(--fandhe-space-6);\n}\n\
 .blocks-feature-tabs-panel-rows {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  padding-top: var(--fandhe-space-6);\n}\n\
 .blocks-feature-tabs-panel-rows > .blocks-feature-tabs-panel-row {\n  padding-top: 0;\n}\n\
@@ -924,11 +959,11 @@ const LAYOUT_CSS: &str = "\
 .blocks-feature-tabs-panel-cta {\n  display: flex;\n  justify-content: center;\n}\n\
 .blocks-feature-tabs-panel-trigger-progress {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 8rem;\n  text-align: left;\n  white-space: normal;\n}\n\
 .blocks-feature-tabs-panel-trigger-progress [data-scope=\"progress\"][data-part=\"root\"] {\n  width: 100%;\n}\n\
-[data-scope=\"tabs\"][data-part=\"list\"][data-blocks-feature-tabs-panel-pill] {\n  border-bottom: 0;\n  background: var(--fandhe-color-bg-muted);\n  border-radius: var(--fandhe-radius-md);\n  padding: var(--fandhe-space-1);\n  padding-bottom: var(--fandhe-space-1);\n}\n\
-[data-blocks-feature-tabs-panel-pill] [data-scope=\"tabs\"][data-part=\"trigger\"] {\n  margin-bottom: 0;\n  border-bottom: 0;\n  border-radius: var(--fandhe-radius-sm, 0.25rem);\n  background: transparent;\n}\n\
-[data-blocks-feature-tabs-panel-pill] [data-scope=\"tabs\"][data-part=\"trigger\"][data-state=\"active\"] {\n  background: var(--fandhe-color-bg);\n  box-shadow: var(--fandhe-shadow-sm);\n}\n\
+[data-blocks-feature-tabs-panel-pill].blocks-feature-tabs-panel-tablist {\n  border-bottom: 0;\n  background: var(--fandhe-color-bg-muted);\n  border-radius: var(--fandhe-radius-md);\n  padding: var(--fandhe-space-1);\n  padding-bottom: var(--fandhe-space-1);\n}\n\
+[data-blocks-feature-tabs-panel-pill] .blocks-feature-tabs-panel-tab {\n  margin-bottom: 0;\n  border-bottom: 0;\n  border-radius: var(--fandhe-radius-sm, 0.25rem);\n  background: transparent;\n}\n\
+[data-blocks-feature-tabs-panel-pill] .blocks-feature-tabs-panel-tab[data-state=\"active\"] {\n  background: var(--fandhe-color-bg);\n  box-shadow: var(--fandhe-shadow-sm);\n}\n\
 @media (forced-colors: active) {\n  \
-[data-blocks-feature-tabs-panel-pill] [data-scope=\"tabs\"][data-part=\"trigger\"][data-state=\"active\"] {\n    border: 1px solid CanvasText;\n  }\n\
+[data-blocks-feature-tabs-panel-pill] .blocks-feature-tabs-panel-tab[data-state=\"active\"] {\n    border: 1px solid CanvasText;\n  }\n\
 }\n\
 @media (min-width: 64rem) {\n  \
 .blocks-feature-tabs-panel-row {\n    display: grid;\n    grid-template-columns: repeat(12, minmax(0, 1fr));\n    column-gap: var(--fandhe-space-10);\n    align-items: center;\n  }\n  \
@@ -944,11 +979,13 @@ mod tests {
     use super::{demo, LAYOUT_CSS};
     use fandhe_frontend_core::render;
 
-    /// Demo が期待する `data-scope` 9 種（[`super::BLOCK`] の `parts` 8 部品
-    /// と、[`super::static_tab_list`] が模す `tabs`）を出力すること、
-    /// 非対話制約（`<form>` 不在・`data:` URI 不在・`href="#"` 不在）を
-    /// 満たすことの単体回帰（`crates/docs-site/tests/blocks_contract.rs`
-    /// の横断検査と重複し過ぎない範囲での個別固定）。
+    /// Demo が期待する `data-scope` 8 種（[`super::BLOCK`] の `parts` と
+    /// 一致）を出力すること、非対話制約（`<form>` 不在・`data:` URI 不在・
+    /// `href="#"` 不在）を満たすことの単体回帰（`crates/docs-site/tests/
+    /// blocks_contract.rs` の横断検査と重複し過ぎない範囲での個別固定）。
+    /// `tabs` は [`super::static_tab_list`] が block 固有 class のみで模す
+    /// ため `data-scope` を一切出力しない（モジュール doc「CSS フックの
+    /// 選び方」節、Bugbot 再指摘の是正）。
     #[test]
     fn demo_composes_expected_parts_and_avoids_forms() {
         let html = render(&demo());
@@ -956,7 +993,6 @@ mod tests {
             "data-scope=\"badge\"",
             "data-scope=\"heading\"",
             "data-scope=\"text\"",
-            "data-scope=\"tabs\"",
             "data-scope=\"image\"",
             "data-scope=\"card\"",
             "data-scope=\"icon\"",
@@ -965,6 +1001,10 @@ mod tests {
         ] {
             assert!(html.contains(scope), "demo output should contain {scope}");
         }
+        assert!(
+            !html.contains("data-scope=\"tabs\""),
+            "static_tab_list must not share the tabs recipe's data-scope selector"
+        );
         assert!(html.contains("type=\"button\""));
         for absent in ["<form", "src=\"data:", "href=\"#\""] {
             assert!(
@@ -983,7 +1023,11 @@ mod tests {
     #[test]
     fn each_static_tab_list_has_exactly_one_active_label() {
         let html = render(&demo());
-        assert_eq!(html.matches("data-part=\"trigger\"").count(), 13);
+        assert_eq!(
+            html.matches("class=\"blocks-feature-tabs-panel-tab\"")
+                .count(),
+            13
+        );
         assert_eq!(html.matches("data-state=\"active\"").count(), 5);
         assert_eq!(html.matches("data-state=\"inactive\"").count(), 8);
     }
@@ -1061,22 +1105,26 @@ mod tests {
         assert!(LAYOUT_CSS.contains("overflow-x: auto"));
         assert!(LAYOUT_CSS.contains("margin-bottom: -2px"));
         assert!(LAYOUT_CSS.contains("@media (min-width: 64rem)"));
-        assert!(LAYOUT_CSS.contains("[data-scope=\"tabs\"][data-part=\"list\"]"));
+        assert!(LAYOUT_CSS.contains(".blocks-feature-tabs-panel-tablist"));
         assert!(LAYOUT_CSS.contains("repeat(12, minmax(0, 1fr))"));
     }
 
-    /// trigger が pre-styled-ui の tabs recipe と `[data-scope="tabs"]
-    /// [data-part="trigger"]` セレクタを共有する以上、recipe の
-    /// `:hover:not([data-disabled])` 規則（マウスホバーで背景・文字色が
-    /// 変化する）がそのまま当たってしまう（Codex P1 是正の回帰テスト）。
-    /// `pointer-events: none` でヒットテスト自体を無効化し、カスケードの
-    /// 優先順位に依存せず確実に `:hover` 一致を防ぐ。
+    /// タブ列が pre-styled-ui の tabs recipe と `[data-scope="tabs"]`/
+    /// `[data-part="list"]`/`"trigger"` セレクタを一切共有しないこと
+    /// （Bugbot 再指摘の回帰テスト: 共有していると recipe の
+    /// `:hover:not([data-disabled])` 規則が非対話タブ列やその子孫〔形 F の
+    /// 説明文・進捗バー等〕を経由して当たり続け、`pointer-events: none` に
+    /// よる個別の打ち消しでは防ぎきれなかった）。`data-scope="progress"` は
+    /// 形 F が実物の `Progress` コンポーネントをそのまま使うため対象外。
     #[test]
-    fn trigger_disables_pointer_events_so_recipe_hover_rule_never_matches() {
-        assert!(LAYOUT_CSS.contains(
-            "[data-scope=\"tabs\"][data-part=\"trigger\"] {\n  margin-bottom: -2px;\n  \
-             cursor: default;\n  pointer-events: none;\n}"
-        ));
+    fn tab_elements_never_share_the_tabs_recipe_selector() {
+        let html = render(&demo());
+        assert!(!html.contains("data-scope=\"tabs\""));
+        assert!(!html.contains("data-part=\"list\""));
+        assert!(!html.contains("data-part=\"trigger\""));
+        assert!(!LAYOUT_CSS.contains("[data-scope=\"tabs\"]"));
+        assert!(LAYOUT_CSS.contains(".blocks-feature-tabs-panel-tablist"));
+        assert!(LAYOUT_CSS.contains(".blocks-feature-tabs-panel-tab"));
     }
 
     /// [`LAYOUT_CSS`] が #2773 で追加した新規セレクタ（形 D の左右入れ替え・
@@ -1113,7 +1161,7 @@ mod tests {
     fn pill_active_trigger_gets_a_forced_colors_border() {
         assert!(LAYOUT_CSS.contains("@media (forced-colors: active)"));
         assert!(LAYOUT_CSS.contains(
-            "[data-blocks-feature-tabs-panel-pill] [data-scope=\"tabs\"][data-part=\"trigger\"]\
+            "[data-blocks-feature-tabs-panel-pill] .blocks-feature-tabs-panel-tab\
              [data-state=\"active\"] {\n    border: 1px solid CanvasText;\n  }"
         ));
     }
@@ -1172,9 +1220,9 @@ mod tests {
     /// を持たないこと（Codex P1 是正の回帰テスト: 全 trigger 一律
     /// `aria-hidden="true"` にすると `role="progressbar"` の進捗値が支援
     /// 技術から読めなくなっていた）。`blocks-feature-tabs-panel-progress-list`
-    /// 内の 3 trigger（`data-part="trigger"`）はいずれも `aria-hidden` を
-    /// 持たないことを、trigger の直前直後に `aria-hidden` が現れないことで
-    /// 確認する。
+    /// 内の 3 trigger（`class="blocks-feature-tabs-panel-tab"`）はいずれも
+    /// `aria-hidden` を持たないことを、trigger の直前直後に `aria-hidden`
+    /// が現れないことで確認する。
     #[test]
     fn progress_trigger_is_not_hidden_from_assistive_tech() {
         let html = render(&demo());
@@ -1191,7 +1239,9 @@ mod tests {
             .expect("panel row should follow the progress tab list");
         let list_html = &html[list_start..list_end];
         assert_eq!(
-            list_html.matches("data-part=\"trigger\"").count(),
+            list_html
+                .matches("class=\"blocks-feature-tabs-panel-tab\"")
+                .count(),
             3,
             "expected 3 progress triggers"
         );
