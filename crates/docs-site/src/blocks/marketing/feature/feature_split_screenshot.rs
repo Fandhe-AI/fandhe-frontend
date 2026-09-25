@@ -435,7 +435,7 @@ const LAYOUT_CSS: &str = "\
 @media (min-width: 64rem) {\n  \
 .blocks-feature-split-screenshot-section {\n    display: grid;\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n    align-items: center;\n    column-gap: var(--fandhe-space-12);\n  }\n  \
 .blocks-feature-split-screenshot-media {\n    min-width: 0;\n  }\n  \
-[data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-split-screenshot-image] {\n    width: 48rem;\n    max-width: none;\n  }\n  \
+[data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-split-screenshot-image] {\n    width: 48rem;\n    max-width: none;\n    flex: none;\n  }\n  \
 .blocks-feature-split-screenshot-panel {\n    display: flex;\n    justify-content: flex-end;\n  }\n  \
 .blocks-feature-split-screenshot-panel [data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-split-screenshot-image] {\n    flex: none;\n  }\n  \
 [data-blocks-feature-split-screenshot-reverse] > .blocks-feature-split-screenshot-text {\n    grid-column: 2;\n    grid-row: 1;\n  }\n  \
@@ -492,6 +492,28 @@ mod tests {
         assert!(LAYOUT_CSS.contains("overflow: hidden"));
         assert!(LAYOUT_CSS.contains("max-width: none"));
         assert!(LAYOUT_CSS.contains("var(--fandhe-color-accent)"));
+    }
+
+    /// Section A（基準形）の画像は `.blocks-feature-split-screenshot-media`
+    /// が `display: flex` であるため、`flex: none`（`flex-shrink: 0` 相当）が
+    /// 無いと flex アイテムとして縮小され、意図した `width: 48rem` の
+    /// はみ出しが実現しない（レビュー指摘、Section B にのみ
+    /// `flex: none` が付いていた非対称な実装漏れの回帰防止）。
+    #[test]
+    fn layout_css_base_image_selector_has_flex_none() {
+        let base_image_rule_start = LAYOUT_CSS
+            .find("[data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-split-screenshot-image] {\n    width: 48rem;")
+            .expect("lg breakpoint の基準 image セレクタ規則が存在すること");
+        let base_image_rule_end = LAYOUT_CSS[base_image_rule_start..]
+            .find("}\n  ")
+            .map(|offset| base_image_rule_start + offset)
+            .expect("基準 image セレクタ規則の閉じ括弧が存在すること");
+        let base_image_rule = &LAYOUT_CSS[base_image_rule_start..base_image_rule_end];
+        assert!(
+            base_image_rule.contains("flex: none"),
+            "Section A（基準形）の画像セレクタに flex: none が無いと、\
+             media 列が display: flex のため画像が縮小されはみ出さない"
+        );
     }
 
     /// ルート class（`demo_class` とは別名）が `demo()` の出力へ実際に
