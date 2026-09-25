@@ -5603,3 +5603,109 @@ fn contact_dialog_form_composes_expected_parts() {
         );
     }
 }
+
+/// contact-split-form-image ページが `blocks-demo`/block 固有 class・
+/// pre-styled-ui.css/blocks.css の配線・data-* フック・ブレークポイントを
+/// 実際に持つことを固定する（イシュー #2831）。
+#[test]
+fn contact_split_form_image_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/contact-split-form-image/index.html"))
+        .expect("blocks/contact-split-form-image/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-contact-split-form-image\""),
+        "contact-split-form-image page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "contact-split-form-image page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "contact-split-form-image page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-contact-split-form-image-budget-fieldset",
+        "data-blocks-contact-split-form-image-budget-group",
+        "data-blocks-contact-split-form-image-submit",
+        "data-blocks-contact-split-form-image-image",
+    ] {
+        assert!(
+            html.contains(hook),
+            "contact-split-form-image page should render the {hook} hook"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "@media (min-width: 48rem)",
+        "repeat(2, minmax(0, 1fr))",
+        ".blocks-contact-split-form-image-media",
+        "[data-blocks-contact-split-form-image-budget-group]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// contact-split-form-image の合成部品（heading/text/field/input/textarea/
+/// radio-group/fieldset/separator/button/image）が期待どおりの構成で実際に
+/// 出力されていること、`<form>`・送信属性・死リンクを持ち込んでいないこと、
+/// 予算 radio group が先頭 1 件のみ選択済みの静的表示であることを固定する
+/// （イシュー #2831）。
+#[test]
+fn contact_split_form_image_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/contact-split-form-image/")
+        .expect("contact-split-form-image should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"field\" data-part=\"root\"",
+        "data-scope=\"field\" data-part=\"input\"",
+        "data-scope=\"field\" data-part=\"textarea\"",
+        "data-scope=\"radio-group\"",
+        "data-scope=\"fieldset\"",
+        "data-scope=\"separator\"",
+        "data-scope=\"button\"",
+        "data-scope=\"image\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "contact-split-form-image demo should contain {scope}"
+        );
+    }
+    assert!(html.contains("role=\"radiogroup\""));
+    assert_eq!(
+        html.matches("name=\"blocks-contact-split-form-image-budget\"")
+            .count(),
+        4,
+        "all 4 budget radio inputs should share the same name"
+    );
+    assert_eq!(
+        html.matches(" checked").count(),
+        1,
+        "exactly 1 budget option should be checked in the static initial state"
+    );
+    for absent in [
+        "<form",
+        "action=",
+        "type=\"submit\"",
+        "src=\"data:",
+        "href=\"#\"",
+        "href=",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "contact-split-form-image should never contain {absent}"
+        );
+    }
+    assert_eq!(
+        html.matches("type=\"button\"").count(),
+        1,
+        "contact-split-form-image should have exactly 1 type=\"button\" button (submit)"
+    );
+}
