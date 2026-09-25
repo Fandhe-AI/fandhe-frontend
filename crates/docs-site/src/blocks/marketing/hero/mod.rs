@@ -5,6 +5,7 @@
 //! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
 //! ための構造、イシュー #2734）。
 
+mod hero_background_media;
 mod hero_editorial_stagger;
 mod hero_parallax_layers;
 mod hero_terminal;
@@ -13,6 +14,7 @@ use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
     vec![
+        hero_background_media::BLOCK,
         hero_editorial_stagger::BLOCK,
         hero_parallax_layers::BLOCK,
         hero_terminal::BLOCK,
