@@ -5945,7 +5945,7 @@ fn error_page_centered_page_wires_demo_class_and_css_hooks() {
         "[data-blocks-error-page-centered-message]",
         "[data-blocks-error-page-centered-code]",
         "[data-blocks-error-page-centered-description]",
-        ".blocks-error-page-centered-actions",
+        "[data-scope=\"empty-state\"][data-part=\"actions\"].blocks-error-page-centered-actions",
     ] {
         assert!(
             sheet_css.contains(selector),
@@ -5954,8 +5954,12 @@ fn error_page_centered_page_wires_demo_class_and_css_hooks() {
     }
 }
 
-/// error-page-centered の合成部品（5 部品）が期待どおりの構成で実際に
-/// 出力されていること、非対話制約を固定する（イシュー #2837）。
+/// error-page-centered の合成部品（4 部品。当初の 5 部品から `button` を
+/// 撤去して `link` へ一本化した、イシュー #2837 PR #3212 codex レビュー
+/// 是正）が期待どおりの構成で実際に出力されていること、非対話制約を
+/// 固定する。ホームへ戻る導線・サポートへの導線はいずれも `<button>` では
+/// なく実際に遷移する `<a href>` であり、文言と遷移先が一致することも
+/// 併せて固定する（同レビューの P1 指摘 2 件の回帰防止）。
 #[test]
 fn error_page_centered_composes_expected_parts() {
     let block = blocks::block_for_path("/blocks/error-page-centered/")
@@ -5965,7 +5969,6 @@ fn error_page_centered_composes_expected_parts() {
         "data-scope=\"empty-state\"",
         "data-scope=\"heading\"",
         "data-scope=\"text\"",
-        "data-scope=\"button\"",
         "data-scope=\"link\"",
     ] {
         assert!(
@@ -5973,8 +5976,9 @@ fn error_page_centered_composes_expected_parts() {
             "error-page-centered demo should contain {scope}"
         );
     }
-    assert!(html.contains(r#"type="button""#));
+    assert!(!html.contains("<button"));
     assert!(html.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend\""));
+    assert!(html.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend/issues\""));
     assert!(html.contains("404"));
     for absent in [
         "<form",

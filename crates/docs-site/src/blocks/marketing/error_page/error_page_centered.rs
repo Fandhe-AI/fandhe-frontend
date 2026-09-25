@@ -6,11 +6,13 @@
 //!
 //! # 使用部品
 //!
-//! `empty-state` / `heading` / `text` / `button` / `link` の 5 部品を
+//! `empty-state` / `heading` / `text` / `link` の 4 部品を
 //! 合成する（[`BLOCK`] の `parts` に一致させる契約、
 //! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証する）。
 //! [`fandhe_frontend_pre_styled_ui::empty_state`] は本部品を最初に消費する
-//! block である。
+//! block である。codex レビュー是正（イシュー #2837 PR #3212）で `button` を
+//! 撤去し `link` へ一本化したため、当初の 5 部品から 4 部品へ変わっている
+//! （次項「死んだ操作要素にしない」節参照）。
 //!
 //! # 構成（indicator を持たない理由）
 //!
@@ -29,6 +31,28 @@
 //! あたる。差分の詳細は原稿（`site/blocks/error-page-centered.md`）の
 //! 「原案差分メモ」に記載する。
 //!
+//! # 死んだ操作要素にしない（イシュー #2837 codex レビュー是正、PR #3212）
+//!
+//! 当初「ホームへ戻る」アクションは [`fandhe_frontend_pre_styled_ui::button`]
+//! の `href` を持たない `<button type="button">` として組み立てていたが、
+//! 押しても何も起きない dead control になっており、404 ページの主導線と
+//! しては操作契約に反するという指摘（PR #3212 codex レビュー）を受けて
+//! [`link::root`] へ置き換えた。`button` はそもそも `href` を受け取れない
+//! ため、実際に遷移する要素にするには別部品への差し替えが必須だった
+//! （`blog_split_header_grid.rs` の「すべての記事を見る」是正、イシュー
+//! #2814 PR #3165 と同型の教訓）。リンク先は本 Demo が `base_path` を
+//! 受け取れない制約下で唯一使える固定 URL（[`REPO`]。次項参照）とし、
+//! リポジトリのトップページを「ホーム」の遷移先として扱う。
+//!
+//! 併せて、サポートへの導線（旧 [`link::root`]）が表示文言「Contact
+//! support」に対し実際には [`REPO`]（サポート窓口ではなくリポジトリの
+//! トップページ）へ遷移しており文言と遷移先が食い違っているという指摘
+//! （同レビュー）も是正した。実在するサポート窓口 URL を新たに作り込む
+//! ことはできない（架空 URL の捏造は行わない）ため、遷移先は GitHub の
+//! Issues ページ（[`ISSUES`]。`REPO` の子リソースであり、実際に「サポート
+//! を求める」導線として機能する）に変え、文言はそのまま「Contact
+//! support」を維持した（遷移先が文言の意味を裏切らない）。
+//!
 //! # `id` を出力しない
 //!
 //! 他の block（`careers_card_grid` 等）と同じく、宙に浮いた ARIA 参照・
@@ -38,41 +62,44 @@
 //!
 //! `crate::blocks` モジュール doc「`<form>` を使わない」節・「セキュリティ
 //! 不変条件」節に従い、本 Demo はフォーム・状態機械を持たない静的な合成例
-//! である。ホームへ戻るボタンは `button::button` の既定 `type="button"`
-//! のまま用い、暗黙 submit は起き得ない。サポートへの導線は
-//! `link::root` + 固定 URL（[`REPO`]。`careers_card_grid` 等と同型の
-//! 判断）で表し、フォーム送信・XHR は一切行わない。文言はすべて架空の
-//! ダミーであり、実企業名・実クレデンシャル・PII を含まない。
+//! である。ホームへ戻る導線・サポートへの導線はいずれも `link::root` +
+//! 固定 URL（[`REPO`]/[`ISSUES`]。`careers_card_grid` 等と同型の判断）で
+//! 表し、フォーム送信・XHR は一切行わない。文言はすべて架空のダミーで
+//! あり、実企業名・実クレデンシャル・PII を含まない。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+const ISSUES: &str = "https://github.com/Fandhe-AI/fandhe-frontend/issues";
 
 use fandhe_frontend_core::{div, span, text, Node};
-use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
-use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
+use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
 use fandhe_frontend_pre_styled_ui::text::{
     self as styled_text, TextProps, TextVariant, TextWeight,
 };
 
 /// `error-page-centered` の Demo 本体（エラーコードの小ラベル → 大見出し →
-/// 説明文 → ホームへ戻るボタン + サポートへのリンクの 2 アクション）。
+/// 説明文 → ホームへ戻るリンク + サポートへのリンクの 2 アクション）。
 /// 呼び出しごとに同一の `Node` を返す純関数。
 pub fn demo() -> Node {
     let actions = empty_state::actions(
         vec![("class", "blocks-error-page-centered-actions")],
         vec![
-            button(
-                &ButtonProps::default(),
+            link::root(
+                REPO,
+                &LinkProps::default(),
                 vec![("data-blocks-error-page-centered-home", "")],
                 vec![text("Back to home")],
             ),
             link::root(
-                REPO,
-                &LinkProps::default(),
+                ISSUES,
+                &LinkProps {
+                    variant: LinkVariant::Underline,
+                    ..LinkProps::default()
+                },
                 vec![("data-blocks-error-page-centered-support", "")],
                 vec![
                     text("Contact support"),
@@ -154,10 +181,6 @@ pub const BLOCK: Block = Block {
             path: "/themes/text/",
         },
         Part {
-            label: "Button",
-            path: "/themes/button/",
-        },
-        Part {
             label: "Link",
             path: "/themes/link/",
         },
@@ -178,22 +201,34 @@ pub const BLOCK: Block = Block {
 /// `.blocks-error-page-centered-actions` の `flex-wrap: wrap` が「狭い幅
 /// でも中央寄せを保ち、アクション列は折り返す」という要件（イシュー本文）
 /// を満たす部分である。
+///
+/// `actions` セレクタは `[data-scope="empty-state"][data-part="actions"]`
+/// （2 属性、詳細度 (0,2,0)）と組み合わせて `[data-scope=\"empty-state\"]
+/// [data-part=\"actions\"].blocks-error-page-centered-actions`
+/// （詳細度 (0,3,0)）にする（Bugbot 指摘の是正、PR #3212）。単独の
+/// `.blocks-error-page-centered-actions`（詳細度 (0,1,0)）のままだと
+/// `empty_state::actions` recipe の `gap`（`var(--fandhe-space-2)`）に
+/// 詳細度で負け、意図した広い間隔が適用されなかった
+/// （`contact_form_testimonial.rs`/`feature_split_image.rs` 等の
+/// `[data-scope=...][data-part=...].blocks-*` パターンと同型の判断）。
 const LAYOUT_CSS: &str = "\
 .blocks-error-page-centered-root {\n  display: grid;\n  place-items: center;\n  min-height: 22rem;\n  padding: var(--fandhe-space-16) var(--fandhe-space-6);\n  text-align: center;\n}\n\
 [data-blocks-error-page-centered-message] {\n  max-width: 36rem;\n  width: 100%;\n}\n\
 .blocks-error-page-centered-content {\n  align-items: center;\n}\n\
 [data-blocks-error-page-centered-code] {\n  color: var(--fandhe-color-accent);\n  text-transform: uppercase;\n  letter-spacing: 0.05em;\n}\n\
 [data-blocks-error-page-centered-description] {\n  color: var(--fandhe-color-fg-muted);\n}\n\
-.blocks-error-page-centered-actions {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: center;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n}\n";
+[data-scope=\"empty-state\"][data-part=\"actions\"].blocks-error-page-centered-actions {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: center;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n}\n";
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, LAYOUT_CSS, REPO};
+    use super::{demo, ISSUES, LAYOUT_CSS, REPO};
     use fandhe_frontend_core::render;
 
     /// Demo が期待するフック・文言・非対話制約を満たしていることの単体
     /// 回帰（`crates/docs-site/tests/blocks_contract.rs` の横断検査と重複
-    /// し過ぎない範囲での個別固定）。
+    /// し過ぎない範囲での個別固定）。codex レビュー是正（イシュー #2837
+    /// PR #3212）後は、ホームへ戻る導線・サポートへの導線ともに実際に
+    /// 遷移するリンクであり `<button>` は出力しないことを固定する。
     #[test]
     fn demo_renders_expected_markup_and_avoids_disallowed_patterns() {
         let html = render(&demo());
@@ -208,9 +243,16 @@ mod tests {
             assert!(html.contains(hook), "demo output should contain {hook}");
         }
         assert!(html.contains("404"));
-        assert!(html.contains(r#"type="button""#));
         assert!(html.contains(&format!("href=\"{REPO}\"")));
-        for absent in ["<form", "href=\"#\"", "src=\"data:", "<script", "id=\""] {
+        assert!(html.contains(&format!("href=\"{ISSUES}\"")));
+        for absent in [
+            "<form",
+            "href=\"#\"",
+            "src=\"data:",
+            "<script",
+            "id=\"",
+            "<button",
+        ] {
             assert!(
                 !html.contains(absent),
                 "demo output should not contain {absent}"
@@ -228,7 +270,7 @@ mod tests {
             ".blocks-error-page-centered-content",
             "[data-blocks-error-page-centered-code]",
             "[data-blocks-error-page-centered-description]",
-            ".blocks-error-page-centered-actions",
+            "[data-scope=\"empty-state\"][data-part=\"actions\"].blocks-error-page-centered-actions",
         ] {
             assert!(
                 LAYOUT_CSS.contains(selector),
@@ -238,5 +280,18 @@ mod tests {
         assert!(LAYOUT_CSS.contains("flex-wrap: wrap"));
         assert!(!LAYOUT_CSS.contains('#'));
         assert!(!LAYOUT_CSS.contains("white"));
+    }
+
+    /// [`LAYOUT_CSS`] の `actions` セレクタが `[data-scope="empty-state"]
+    /// [data-part="actions"]`（詳細度 (0,2,0)）を含む複合セレクタになって
+    /// おり、単独クラス（(0,1,0)）へ後退していないことを固定する
+    /// （Bugbot 指摘の是正、PR #3212。詳細度の後退は recipe 側の `gap` に
+    /// 再度負けるリグレッションになるため）。
+    #[test]
+    fn actions_selector_outranks_empty_state_recipe_specificity() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"empty-state\"][data-part=\"actions\"].blocks-error-page-centered-actions {"
+        ));
+        assert!(!LAYOUT_CSS.contains("\n.blocks-error-page-centered-actions {"));
     }
 }
