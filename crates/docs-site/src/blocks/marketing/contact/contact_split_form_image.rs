@@ -22,6 +22,28 @@
 //! アプリケーションロジックを内包しない）。文言はすべて独自に書いた架空の
 //! ものであり、実企業名・実クレデンシャル・PII を含まない。
 //!
+//! # 予算 radio group をネイティブ disabled にする理由（レビュー是正）
+//!
+//! [`radio_group::item_hidden_input`] は有効なネイティブ
+//! `<input type="radio">` であり、`disabled` を渡さない構成では docs
+//! サイトが JS ハイドレーションを行わなくてもラベルクリック・キーボード
+//! 操作でブラウザが `checked` をネイティブに切り替えてしまう。一方
+//! `item`/`item_control`/`item_text` の見た目（`data-state="checked"`）は
+//! SSR 時の `checked` 引数から固定生成されるため追従せず、実際に選択・
+//! 送信される値と支援技術が認識する状態・カスタム radio の視覚表示が
+//! 食い違う（静的な初期状態のみという上記契約にも反する）。
+//! `changelog_accordion`（`crates/docs-site/src/blocks/marketing/changelog/
+//! changelog_accordion.rs`）が `item_trigger` の同種の問題を
+//! `AccordionProps { disabled: true, .. }` で解決した判断を踏襲し、
+//! [`RadioGroupProps`] の `disabled: true` を [`root`]・全 [`budget_item`]
+//! （`item`/`item_control`/`item_hidden_input`）へ共有する。ネイティブ
+//! `disabled` 属性でフォーカス・操作を不能にし、状態が二度と変化しない
+//! ことを構造的に保証する（クライアント側の状態配線を追加する代替案は
+//! 採らない。無 JS の静的合成例という block 全体の設計方針に反するため）。
+//! `disabled_declarations()`（既定 `opacity: 0.5` + `cursor: not-allowed`）は
+//! [`LAYOUT_CSS`] で中和し、通常の radio group と同じ見た目に保つ
+//! （`changelog_accordion` と同型の中和パターン）。
+//!
 //! # 参照について
 //!
 //! 主参照は対応表 ID R0065（フォーム + 画像の基本形）、集約元は R0859
@@ -293,7 +315,9 @@ fn budget_item(
 
 /// ご予算欄（fieldset + radio group、狭幅は縦積み・`48rem` 以上は 2×2。
 /// 選択状態は先頭 1 件のみ固定した静的表示、モジュール doc「`<form>` を
-/// 持たない」節）。
+/// 持たない」節）。ネイティブ操作で `checked` と視覚表示が食い違わない
+/// よう `disabled: true` で固定する（モジュール doc「予算 radio group を
+/// ネイティブ disabled にする理由」節）。
 fn budget_fieldset() -> Node {
     let fieldset_props = FieldsetProps {
         id: BUDGET_FIELDSET_ID,
@@ -301,7 +325,10 @@ fn budget_fieldset() -> Node {
         invalid: false,
         has_helper_text: false,
     };
-    let radio_props = RadioGroupProps::default();
+    let radio_props = RadioGroupProps {
+        disabled: true,
+        ..RadioGroupProps::default()
+    };
     fieldset::root(
         &FieldsetRootProps::default(),
         &fieldset_props,
@@ -311,7 +338,7 @@ fn budget_fieldset() -> Node {
             radio_group::root(
                 Size::Md,
                 ColorPalette::Accent,
-                false,
+                true,
                 None,
                 Some(BUDGET_LEGEND_ID),
                 vec![("data-blocks-contact-split-form-image-budget-group", "")],
@@ -470,12 +497,36 @@ pub const BLOCK: Block = Block {
 /// （既定）は画像を隠して 1 列、`48rem` 以上で 2 カラム grid・名前欄 2 列・
 /// 予算 radio 2×2・送信ボタン右寄せに切り替える（モジュール doc
 /// 「ブレークポイントをリテラルで直書きする理由」節）。
+///
+/// 予算 radio group の grid 化フックは `[data-blocks-contact-split-form-
+/// image-budget-group]` 単独（属性セレクタ 1 個、詳細度 (0,1,0)）ではなく
+/// `[data-scope="radio-group"][data-part="root"][data-blocks-contact-split-
+/// form-image-budget-group]`（属性セレクタ 3 個、詳細度 (0,3,0)）を使う
+/// （レビュー是正、`contact_dialog_form` の `[data-scope="field"][data-
+/// part="textarea"][data-blocks-contact-dialog-form-message]` と同型の
+/// 前例）。`radio_group::stylesheet` の `root` base 規則が
+/// `[data-scope="radio-group"][data-part="root"]`（属性セレクタ 2 個、
+/// 詳細度 (0,2,0)）で `display: flex` を宣言しており、単独属性セレクタ
+/// では `@media` 内で上書きしても詳細度で負けて `display: grid` が
+/// 適用されない（`@media` 内外は詳細度比較に影響しない）。
+///
+/// 予算 radio group はネイティブ操作不能にするため `disabled: true`
+/// （モジュール doc「予算 radio group をネイティブ disabled にする理由」
+/// 節）で描くが、これに伴い `item` slot が `disabled_declarations()`
+/// （`opacity: 0.5` + `cursor: not-allowed`）を受けるため、
+/// `.blocks-contact-split-form-image-form [data-scope="radio-group"]
+/// [data-part="item"][data-disabled]`（クラス祖先 + 属性セレクタ 3 個、
+/// 詳細度 (0,4,0) で `[data-scope="radio-group"][data-part="item"]
+/// [data-disabled]`〔属性セレクタ 3 個、詳細度 (0,3,0)〕を上回る）で
+/// `opacity: 1`/`cursor: default` へ中和する（`changelog_accordion` の
+/// `item-trigger[data-disabled]` 中和と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-contact-split-form-image-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  align-items: stretch;\n}\n\
 .blocks-contact-split-form-image-form {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  min-width: 0;\n}\n\
 .blocks-contact-split-form-image-name-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-contact-split-form-image-budget-fieldset] {\n  display: flex;\n  flex-direction: column;\n}\n\
-[data-blocks-contact-split-form-image-budget-group] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
+[data-scope=\"radio-group\"][data-part=\"root\"][data-blocks-contact-split-form-image-budget-group] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
+.blocks-contact-split-form-image-form [data-scope=\"radio-group\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-contact-split-form-image-actions {\n  display: flex;\n  justify-content: flex-end;\n}\n\
 .blocks-contact-split-form-image-actions [data-scope=\"button\"] {\n  width: 100%;\n}\n\
 .blocks-contact-split-form-image-media {\n  display: none;\n}\n\
@@ -483,7 +534,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-contact-split-form-image-layout {\n    display: grid;\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n    gap: var(--fandhe-space-8);\n  }\n  \
 .blocks-contact-split-form-image-name-row {\n    flex-direction: row;\n  }\n  \
 .blocks-contact-split-form-image-name-row > [data-scope=\"field\"] {\n    flex: 1 1 0%;\n  }\n  \
-[data-blocks-contact-split-form-image-budget-group] {\n    display: grid;\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n  \
+[data-scope=\"radio-group\"][data-part=\"root\"][data-blocks-contact-split-form-image-budget-group] {\n    display: grid;\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n  \
 .blocks-contact-split-form-image-actions {\n    justify-content: flex-end;\n  }\n  \
 .blocks-contact-split-form-image-actions [data-scope=\"button\"] {\n    width: auto;\n  }\n  \
 .blocks-contact-split-form-image-media {\n    display: block;\n    height: 100%;\n  }\n  \
@@ -632,6 +683,52 @@ mod tests {
             "all 4 budget radio inputs should share the same name"
         );
         assert_eq!(html.matches(" checked").count(), 1);
+    }
+
+    /// 予算 radio group はネイティブ `disabled` により操作不能であること、
+    /// つまり `checked`/視覚表示が永続的に食い違わないことを固定する
+    /// （codex-review P1 是正、モジュール doc「予算 radio group をネイティブ
+    /// disabled にする理由」節）。
+    #[test]
+    fn budget_radio_group_is_natively_disabled() {
+        let html = demo_html();
+        assert_eq!(
+            html.matches(" disabled=\"\"").count(),
+            4,
+            "all 4 budget radio inputs should carry the native disabled attribute"
+        );
+        assert_eq!(
+            html.matches("data-disabled=\"\"").count(),
+            13,
+            "root (1) + item/item-control/item-text (3 per option x 4 options); item_hidden_input carries the native disabled attribute instead of data-disabled"
+        );
+        assert!(
+            html.contains("aria-disabled=\"true\""),
+            "the radiogroup root should also be marked aria-disabled"
+        );
+    }
+
+    /// [`LAYOUT_CSS`] が予算 radio group の disabled 化に伴う視覚中和規則
+    /// （`opacity: 1`/`cursor: default`）を持つことを固定する（codex-review
+    /// P1 是正に伴う追加）。
+    #[test]
+    fn layout_css_neutralizes_disabled_budget_item_opacity() {
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-contact-split-form-image-form [data-scope=\"radio-group\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
+        ));
+    }
+
+    /// 予算 radio group の grid 化フックが `[data-scope="radio-group"]
+    /// [data-part="root"]` を含む高詳細度セレクタであることを固定する
+    /// （Bugbot 指摘是正: 単独属性セレクタでは `radio_group::stylesheet` の
+    /// `root` base 規則〔`display: flex`、詳細度 (0,2,0)〕に詳細度で負けて
+    /// `48rem` 以上でも `display: grid` が適用されなかった）。
+    #[test]
+    fn budget_grid_hook_outranks_radio_group_root_recipe_specificity() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"radio-group\"][data-part=\"root\"][data-blocks-contact-split-form-image-budget-group]"
+        ));
+        assert!(!LAYOUT_CSS.contains("\n[data-blocks-contact-split-form-image-budget-group] {"));
     }
 
     /// [`LAYOUT_CSS`] が想定するブレークポイント条件・2 列 grid・2×2

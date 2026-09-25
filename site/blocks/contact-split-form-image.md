@@ -234,7 +234,9 @@ fn budget_item(
 
 /// ご予算欄（fieldset + radio group、狭幅は縦積み・`48rem` 以上は 2×2。
 /// 選択状態は先頭 1 件のみ固定した静的表示、モジュール doc「`<form>` を
-/// 持たない」節）。
+/// 持たない」節）。ネイティブ操作で `checked` と視覚表示が食い違わない
+/// よう `disabled: true` で固定する（モジュール doc「予算 radio group を
+/// ネイティブ disabled にする理由」節）。
 fn budget_fieldset() -> Node {
     let fieldset_props = FieldsetProps {
         id: BUDGET_FIELDSET_ID,
@@ -242,7 +244,10 @@ fn budget_fieldset() -> Node {
         invalid: false,
         has_helper_text: false,
     };
-    let radio_props = RadioGroupProps::default();
+    let radio_props = RadioGroupProps {
+        disabled: true,
+        ..RadioGroupProps::default()
+    };
     fieldset::root(
         &FieldsetRootProps::default(),
         &fieldset_props,
@@ -252,7 +257,7 @@ fn budget_fieldset() -> Node {
             radio_group::root(
                 Size::Md,
                 ColorPalette::Accent,
-                false,
+                true,
                 None,
                 Some(BUDGET_LEGEND_ID),
                 vec![("data-blocks-contact-split-form-image-budget-group", "")],
@@ -360,7 +365,9 @@ pub fn demo() -> Node {
   失われません）。
 - ご予算の選択状態は先頭 1 件のみを選択済みに固定した静的表示です。JS
   ハイドレーションを行わない docs サイトの制約に従い、選択の切り替えは
-  扱いません。
+  扱いません。ネイティブ `<input type="radio">` はレビュー是正により
+  `disabled` にしており、クリック・キーボード操作でも `checked` が
+  変化しない（＝視覚表示と食い違わない）ようにしています。
 - 送信ボタンは区切り線（separator）の下に右寄せで配置し、狭幅では全幅に
   なります。
 - 文言（見出し・説明文・各欄のラベル・ヒント・予算の選択肢）はすべて
