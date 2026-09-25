@@ -3,14 +3,14 @@
 `fandhe-frontend-pre-styled-ui` の `badge` / `heading` / `text` /
 `accordion` / `image` の 5 部品を合成した、対応表 ID R0103（基準形）に
 相当する 2 列構成の機能紹介です。左列に見出しエリアとアコーディオンを、
-右列に開いている項目に対応する画像を配置します。Blocks セクションは
-新規部品を追加するものではなく、既存の Themes/Primitives 部品を組み合わ
-せた実例集であることに注意してください。
+右列に代表画像を配置します。Blocks セクションは新規部品を追加するもの
+ではなく、既存の Themes/Primitives 部品を組み合わせた実例集であること
+に注意してください。
 
-`md`（768px）未満では右列の画像を隠し、開いている項目の本文の中にインラ
-イン画像を表示します。docs サイトは JS ハイドレーションを行わないため、
-表示は常に「1 件目が開いた状態」で固定され、項目を切り替える操作はでき
-ません。
+`md`（768px）未満では右列の画像を隠し、各項目の本文の中にインライン
+画像を表示します。docs サイトは JS ハイドレーションを行わないため、
+全項目を常時展開状態（`disabled` なトリガー）で固定表示し、開閉を
+切り替える操作はできません。
 
 集約元にはもう 1 件（対応表 ID R0483。上部にカテゴリ切替ボタン列が付き、
 選択中を `aria-pressed` で示す形）がありますが、規模が大きいため本 PR
@@ -42,8 +42,8 @@ struct Feature {
     description: &'static str,
 }
 
-/// 機能一覧（架空、4 件）。1 件目がモジュール doc「静的アコーディオン」
-/// 節のとおり初期状態で開いている。
+/// 機能一覧（架空、4 件）。全件がモジュール doc「静的アコーディオン」
+/// 節のとおり常時展開状態で固定描画される。
 const FEATURES: [Feature; 4] = [
     Feature {
         name: "リアルタイム共同編集",
@@ -88,18 +88,15 @@ fn header() -> Node {
                     ..TextProps::default()
                 },
                 vec![],
-                vec![text(
-                    "項目を選ぶと、右側に対応する画面イメージが表示されます。",
-                )],
+                vec![text("各機能の詳細は以下でご確認いただけます。")],
             ),
         ],
     )
 }
 
-/// 開いている項目に対応する画像を組み立てる（`inline` が `true` のとき
-/// md 未満のインライン表示用フックを、`false` のとき右列表示用フックを
-/// 付与する。両者は同じ画像を指すが、[`LAYOUT_CSS`] のブレークポイントに
-/// 応じてどちらか一方だけが可視になる）。
+/// 機能の画像を組み立てる（`inline` が `true` のとき md 未満のインライン
+/// 表示用フックを、`false` のとき右列表示用フックを付与する。
+/// [`LAYOUT_CSS`] のブレークポイントに応じてどちらか一方だけが可視になる）。
 fn feature_image(inline: bool) -> Node {
     let hook = if inline {
         ("data-blocks-feature-accordion-image-inline-image", "")
@@ -127,24 +124,16 @@ fn trigger_label(feature: &Feature) -> Node {
 }
 
 /// 機能 1 件分の accordion item を組み立てる（モジュール doc「静的
-/// アコーディオン」節の方式）。
-fn feature_item(index: usize, feature: &Feature, open: bool) -> Node {
-    let state = if open {
-        OpenState::Open
-    } else {
-        OpenState::Closed
-    };
+/// アコーディオン」節の方式。全件を [`OpenState::Open`] + `disabled: true`
+/// で固定するため、本文（[`item_content`]）は必ず出力される）。
+fn feature_item(index: usize, feature: &Feature) -> Node {
+    let state = OpenState::Open;
     let props = AccordionProps {
         disabled: true,
         ..AccordionProps::default()
     };
     let trigger_id = format!("blocks-feature-accordion-image-{index}-trigger");
     let content_id = format!("blocks-feature-accordion-image-{index}-content");
-    let controls = if open {
-        Some(content_id.as_str())
-    } else {
-        None
-    };
 
     let trigger = el(
         "h4",
@@ -155,7 +144,7 @@ fn feature_item(index: usize, feature: &Feature, open: bool) -> Node {
             &props,
             feature.name,
             Some(trigger_id.as_str()),
-            controls,
+            Some(content_id.as_str()),
             vec![],
             vec![
                 trigger_label(feature),
@@ -164,30 +153,27 @@ fn feature_item(index: usize, feature: &Feature, open: bool) -> Node {
         )],
     );
 
-    let mut children = vec![trigger];
-    if open {
-        children.push(item_content(
-            state,
-            false,
-            &props,
-            Some(content_id.as_str()),
-            Some(trigger_id.as_str()),
-            vec![],
-            vec![div(
-                vec![("class", "blocks-feature-accordion-image-body")],
-                vec![
-                    styled_text::text(
-                        &TextProps::default(),
-                        vec![],
-                        vec![text(feature.description)],
-                    ),
-                    feature_image(true),
-                ],
-            )],
-        ));
-    }
+    let content = item_content(
+        state,
+        false,
+        &props,
+        Some(content_id.as_str()),
+        Some(trigger_id.as_str()),
+        vec![],
+        vec![div(
+            vec![("class", "blocks-feature-accordion-image-body")],
+            vec![
+                styled_text::text(
+                    &TextProps::default(),
+                    vec![],
+                    vec![text(feature.description)],
+                ),
+                feature_image(true),
+            ],
+        )],
+    );
 
-    item(state, false, &props, vec![], children)
+    item(state, false, &props, vec![], vec![trigger, content])
 }
 
 /// `feature-accordion-image` の Demo 本体。呼び出しごとに同一の `Node` を
@@ -196,7 +182,7 @@ pub fn demo() -> Node {
     let items: Vec<Node> = FEATURES
         .iter()
         .enumerate()
-        .map(|(index, feature)| feature_item(index, feature, index == 0))
+        .map(|(index, feature)| feature_item(index, feature))
         .collect();
 
     let list = accordion::root(
@@ -229,13 +215,20 @@ pub fn demo() -> Node {
   R0483）は本 PR では実装せず、後続イシュー #2762 へ回しました。JS を
   使わないサイトで `aria-pressed` を持つボタンをどう静的表示するかの
   判断が必要なためです。
-- アコーディオンは無 JS のため状態機械を使わず、1 件目だけを開いた状態
-  で固定描画しています。全トリガーに `disabled` + `aria-disabled="true"`
-  を付与し、押しても何も起きない操作要素にならないようにしています
-  （`changelog-accordion`・`careers-split-accordion` の既存の教訓を
-  踏まえた対処）。
-- 閉じた項目は本文（`item-content`）自体を出力しません。`hidden` 属性
-  付きの到達できない本文ノードを DOM に残さないためです。
+- アコーディオンは無 JS のため状態機械を使わず、全項目を開いた状態で
+  固定描画しています。当初は 1 件目だけを開き残りを閉じる設計でしたが、
+  閉じた項目の説明文が視覚利用者・支援技術のいずれにも到達不能になり、
+  かつリード文が「選択」という無 JS 下では実現しない操作を示唆する
+  不整合があったため、`changelog-accordion`（イシュー #2818）と同型の
+  「全件 open + disabled」へ是正しました（イシュー #2761 レビュー
+  指摘）。全トリガーに `disabled` + `aria-disabled="true"` を付与し、
+  押しても何も起きない操作要素にならないようにしています。
+- `disabled` 由来の減光を打ち消す CSS セレクタ
+  （`[data-scope="accordion"][data-part="item-trigger"][data-disabled]`）
+  は `.blocks-feature-accordion-image-left` 配下への子孫結合子付きで
+  書き、集約された `blocks.css` を読み込む他 block の disabled
+  accordion トリガーへ波及しないようスコープしています（同レビュー
+  指摘）。
 - セクション見出しは `h3`、各トリガーは `h4` で包んでいます。
 - 画像はビルド時生成のプレースホルダー SVG（ダミー素材ヘルパ）に置き換
   えています。実在の製品画面は使用していません。

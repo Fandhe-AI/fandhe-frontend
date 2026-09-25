@@ -19,37 +19,36 @@
 //! # レイアウト
 //!
 //! 左列に見出しエリア（アイブロウ badge + heading + リード文）とアコー
-//! ディオンを縦に並べ、右列に開いている項目に対応する画像を 1 枚置く
-//! 2 列構成。`md`（[`Breakpoint::Md`]、768px/48rem）未満では右列を隠し、
-//! 開いている項目の本文の中にインライン画像を表示する（各項目が自分の
-//! インライン画像を持ち、開いている項目のものだけが実際に見える）。
+//! ディオンを縦に並べ、右列に先頭機能の代表画像を 1 枚置く 2 列構成
+//! （全項目が常時展開のため、右列は「選択中の項目に追従する画像」では
+//! なく先頭機能を指す固定の代表画像として扱う）。`md`（[`Breakpoint::
+//! Md`]、768px/48rem）未満では右列を隠し、各項目の本文の中にインライン
+//! 画像を表示する（項目ごとに自分の画像を持つ）。
 //!
-//! # 静的アコーディオン（JS を使わない、1 件目を開いた状態で固定）
+//! # 静的アコーディオン（JS を使わない、全項目を常時展開で固定）
 //!
 //! docs サイトは JS ハイドレーションを行わないため、状態機械を経由せず
 //! [`fandhe_frontend_pre_styled_ui::accordion`] の自由関数を直接呼び、
-//! 1 件目だけを [`OpenState::Open`] として固定描画する。以下の設計は
-//! 同じ構成の既存 block 2 件のレビュー指摘（`careers_split_accordion`
-//! イシュー #2816: 閉じた項目の本文へ `hidden` で到達できなくなり、かつ
-//! 押しても何も起きないフォーカス可能な `<button>` が誤ったアフォーダンス
-//! になった／`changelog_accordion` イシュー #2818: 同種の指摘を受けて
-//! 全件 `Open` + `disabled` へ是正した）を踏まえた回避策である。
+//! [`FEATURES`] の全件を [`OpenState::Open`] として固定描画する
+//! （`changelog_accordion` イシュー #2818 と同型の設計。当初は 1 件目
+//! のみ open・残りを `OpenState::Closed`（`item_content` 自体を
+//! 出力しない）としていたが、閉じた項目の説明文が視覚利用者・支援技術の
+//! いずれにも一切到達不能になり、かつ見出しリード文「項目を選ぶと」の
+//! 案内文言が無 JS 下では実現しない操作を示唆してしまう不整合があった
+//! （イシュー #2761 レビュー指摘。UI コンポーネント層のアクセシビリティ
+//! 責務違反、`docs/policy/intentional-non-adoption.md` §3.25 参照）。
+//! 是正として `careers_split_accordion` イシュー #2816・`changelog_
+//! accordion` イシュー #2818 の前例に倣い、全件を open + disabled の
+//! 「非操作の機能一覧」として再設計した。
 //!
 //! - [`AccordionProps`] の `disabled: true` を全パーツで共有する。これに
 //!   より全 `item_trigger` がネイティブ `disabled` + `aria-disabled="true"`
 //!   を持ち、フォーカス・操作ともに不能になる（押しても何も起きない
 //!   ボタンを作らない）。`disabled` 由来の減光（`opacity: 0.5`）は
 //!   [`LAYOUT_CSS`] で中和し、通常表示に戻す。
-//! - 1 件目（`OpenState::Open`）は `item_trigger` に `id`/`controls` を
-//!   持たせ、`item_content` を `id`/`labelled_by` 付きで出力する。
-//! - 2 件目以降（`OpenState::Closed`）は `item_trigger` の `controls` を
-//!   `None` にし、**`item_content` 自体を出力しない**（`hidden` 付きの
-//!   到達できない本文ノードを DOM に残さないため。wireframe-ui の
-//!   accordion が「折りたたみ項目の本文スロットは出力しない」とした
-//!   判断と同じ、`docs/design/wireframe-ui-architecture.md` 参照）。
-//!   `aria-controls` を出さないため、閉じた項目は
-//!   `demo_output_has_no_dangling_aria_references_or_duplicate_ids` の
-//!   検査対象にもならない。
+//! - 全項目が [`OpenState::Open`] であり、`item_trigger` に `id`/
+//!   `controls` を持たせ、`item_content` を `id`/`labelled_by` 付きで
+//!   出力する（閉じた項目・到達不能な本文は存在しない）。
 //!
 //! # トリガーの子を 2 個に保つ理由
 //!
@@ -120,8 +119,8 @@ struct Feature {
     description: &'static str,
 }
 
-/// 機能一覧（架空、4 件）。1 件目がモジュール doc「静的アコーディオン」
-/// 節のとおり初期状態で開いている。
+/// 機能一覧（架空、4 件）。全件がモジュール doc「静的アコーディオン」
+/// 節のとおり常時展開状態で固定描画される。
 const FEATURES: [Feature; 4] = [
     Feature {
         name: "リアルタイム共同編集",
@@ -166,18 +165,15 @@ fn header() -> Node {
                     ..TextProps::default()
                 },
                 vec![],
-                vec![text(
-                    "項目を選ぶと、右側に対応する画面イメージが表示されます。",
-                )],
+                vec![text("各機能の詳細は以下でご確認いただけます。")],
             ),
         ],
     )
 }
 
-/// 開いている項目に対応する画像を組み立てる（`inline` が `true` のとき
-/// md 未満のインライン表示用フックを、`false` のとき右列表示用フックを
-/// 付与する。両者は同じ画像を指すが、[`LAYOUT_CSS`] のブレークポイントに
-/// 応じてどちらか一方だけが可視になる）。
+/// 機能の画像を組み立てる（`inline` が `true` のとき md 未満のインライン
+/// 表示用フックを、`false` のとき右列表示用フックを付与する。
+/// [`LAYOUT_CSS`] のブレークポイントに応じてどちらか一方だけが可視になる）。
 fn feature_image(inline: bool) -> Node {
     let hook = if inline {
         ("data-blocks-feature-accordion-image-inline-image", "")
@@ -205,24 +201,16 @@ fn trigger_label(feature: &Feature) -> Node {
 }
 
 /// 機能 1 件分の accordion item を組み立てる（モジュール doc「静的
-/// アコーディオン」節の方式）。
-fn feature_item(index: usize, feature: &Feature, open: bool) -> Node {
-    let state = if open {
-        OpenState::Open
-    } else {
-        OpenState::Closed
-    };
+/// アコーディオン」節の方式。全件を [`OpenState::Open`] + `disabled: true`
+/// で固定するため、本文（[`item_content`]）は必ず出力される）。
+fn feature_item(index: usize, feature: &Feature) -> Node {
+    let state = OpenState::Open;
     let props = AccordionProps {
         disabled: true,
         ..AccordionProps::default()
     };
     let trigger_id = format!("blocks-feature-accordion-image-{index}-trigger");
     let content_id = format!("blocks-feature-accordion-image-{index}-content");
-    let controls = if open {
-        Some(content_id.as_str())
-    } else {
-        None
-    };
 
     let trigger = el(
         "h4",
@@ -233,7 +221,7 @@ fn feature_item(index: usize, feature: &Feature, open: bool) -> Node {
             &props,
             feature.name,
             Some(trigger_id.as_str()),
-            controls,
+            Some(content_id.as_str()),
             vec![],
             vec![
                 trigger_label(feature),
@@ -242,30 +230,27 @@ fn feature_item(index: usize, feature: &Feature, open: bool) -> Node {
         )],
     );
 
-    let mut children = vec![trigger];
-    if open {
-        children.push(item_content(
-            state,
-            false,
-            &props,
-            Some(content_id.as_str()),
-            Some(trigger_id.as_str()),
-            vec![],
-            vec![div(
-                vec![("class", "blocks-feature-accordion-image-body")],
-                vec![
-                    styled_text::text(
-                        &TextProps::default(),
-                        vec![],
-                        vec![text(feature.description)],
-                    ),
-                    feature_image(true),
-                ],
-            )],
-        ));
-    }
+    let content = item_content(
+        state,
+        false,
+        &props,
+        Some(content_id.as_str()),
+        Some(trigger_id.as_str()),
+        vec![],
+        vec![div(
+            vec![("class", "blocks-feature-accordion-image-body")],
+            vec![
+                styled_text::text(
+                    &TextProps::default(),
+                    vec![],
+                    vec![text(feature.description)],
+                ),
+                feature_image(true),
+            ],
+        )],
+    );
 
-    item(state, false, &props, vec![], children)
+    item(state, false, &props, vec![], vec![trigger, content])
 }
 
 /// `feature-accordion-image` の Demo 本体。呼び出しごとに同一の `Node` を
@@ -274,7 +259,7 @@ pub fn demo() -> Node {
     let items: Vec<Node> = FEATURES
         .iter()
         .enumerate()
-        .map(|(index, feature)| feature_item(index, feature, index == 0))
+        .map(|(index, feature)| feature_item(index, feature))
         .collect();
 
     let list = accordion::root(
@@ -350,12 +335,19 @@ pub const BLOCK: Block = Block {
 /// `accordion::stylesheet` の `disabled_declarations()`（既定
 /// `opacity: 0.5`）は「操作できない要素」の既定表現だが、本 block は
 /// トリガー自体を disabled にしているだけで通常の機能一覧として見せる
-/// ため、`opacity: 1`・`cursor: default` へ上書きする。詳細度は子孫結合子
-/// 1 段追加分（0,3,0）で recipe 側（0,2,0 相当）に確実に勝たせる
-/// （`changelog_accordion` と同じ考え方）。
+/// ため、`opacity: 1`・`cursor: default` へ上書きする。詳細度はクラス
+/// セレクタ 1 個 + 属性セレクタ 3 個（1,3,0）で recipe 側（0,2,0 相当）に
+/// 確実に勝たせる（`changelog_accordion` と同じ考え方）。
 ///
 /// セレクタはすべて `.blocks-feature-accordion-image*` か
 /// `[data-blocks-feature-accordion-image-*]` の名前空間に閉じる。
+/// `[data-scope="accordion"][data-part="item-trigger"][data-disabled]` の
+/// 中和も名前空間の外に出さないよう、必ず `.blocks-feature-accordion-
+/// image-left` 配下への子孫結合子付きで書く（集約された `blocks.css` を
+/// 読み込む全ページで他 block の disabled accordion トリガーの見た目まで
+/// 書き換えてしまわないため。`changelog_accordion` が `.blocks-changelog-
+/// accordion-list` 配下へ子孫結合子付きで書くのと同じ判断、イシュー
+/// #2761 レビュー指摘で是正）。
 const LAYOUT_CSS: &str = "\
 .blocks-feature-accordion-image-grid {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-8);\n  width: 100%;\n}\n\
 .blocks-feature-accordion-image-left {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  min-width: 0;\n}\n\
@@ -365,7 +357,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-feature-accordion-image-trigger-heading {\n  margin: 0;\n  font-size: inherit;\n  font-weight: inherit;\n}\n\
 .blocks-feature-accordion-image-trigger-label {\n  flex: 1;\n  min-width: 0;\n  font-weight: var(--fandhe-font-weight-medium, 500);\n}\n\
 .blocks-feature-accordion-image-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  padding-top: var(--fandhe-space-1);\n}\n\
-[data-scope=\"accordion\"][data-part=\"item-trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+.blocks-feature-accordion-image-left [data-scope=\"accordion\"][data-part=\"item-trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 @media (min-width: 48rem) {\n  .blocks-feature-accordion-image-grid {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n    align-items: start;\n  }\n  .blocks-feature-accordion-image-media-slot {\n    display: block;\n    position: sticky;\n    top: var(--fandhe-space-4);\n  }\n  [data-blocks-feature-accordion-image-inline-image] {\n    display: none;\n  }\n}\n";
 
 #[cfg(test)]
@@ -383,20 +375,21 @@ mod tests {
         assert!(LAYOUT_CSS.contains("@media (min-width: 48rem)"));
     }
 
-    /// 1 件目だけが `open` で、他は `closed` であること。
+    /// 全項目が `open` で、`closed` の項目が無いこと（モジュール doc
+    /// 「静的アコーディオン」節、イシュー #2761 レビュー指摘の是正）。
     #[test]
-    fn only_first_item_is_open() {
+    fn all_items_are_open() {
         let html = render(&demo());
         assert_eq!(
             html.matches(r#"data-part="item" data-state="open""#)
                 .count(),
-            1,
+            FEATURES.len(),
             "html={html}"
         );
         assert_eq!(
             html.matches(r#"data-part="item" data-state="closed""#)
                 .count(),
-            FEATURES.len() - 1,
+            0,
             "html={html}"
         );
     }
@@ -419,26 +412,30 @@ mod tests {
         assert_eq!(html.matches(" disabled=\"\"").count(), FEATURES.len());
     }
 
-    /// 閉じた項目に `aria-controls` と `item-content` が無いこと
-    /// （モジュール doc「静的アコーディオン」節、`hidden` 到達不能ノードを
-    /// 残さない設計）。
+    /// 全項目に `aria-controls` と `item-content` があり、`hidden` な
+    /// 到達不能ノードを一切残さないこと（モジュール doc「静的
+    /// アコーディオン」節、イシュー #2761 レビュー指摘の是正）。
     #[test]
-    fn closed_items_have_no_content_or_aria_controls() {
+    fn all_items_have_content_and_aria_controls() {
         let html = render(&demo());
-        assert_eq!(html.matches("aria-controls=").count(), 1, "html={html}");
+        assert_eq!(
+            html.matches("aria-controls=").count(),
+            FEATURES.len(),
+            "html={html}"
+        );
         assert_eq!(
             html.matches(r#"data-part="item-content""#).count(),
-            1,
+            FEATURES.len(),
             "html={html}"
         );
         assert_eq!(html.matches(" hidden=\"\"").count(), 0, "html={html}");
     }
 
-    /// 右列の画像がちょうど 1 枚であること（`.blocks-feature-accordion-
-    /// image-media-slot` 側。インライン画像は各項目に含まれ得るが、本
-    /// block では開いている項目だけが本文を出力するため計 1 枚になる）。
+    /// 右列の画像がちょうど 1 枚（代表画像）であり、インライン画像は
+    /// 全項目分（`FEATURES.len()` 枚）出力されること（本 block は全項目が
+    /// 常時展開のため、各項目が自分のインライン画像を持つ）。
     #[test]
-    fn exactly_one_media_slot_image_and_one_inline_image() {
+    fn exactly_one_media_slot_image_and_inline_image_per_feature() {
         let html = render(&demo());
         assert_eq!(
             html.matches("data-blocks-feature-accordion-image-media=\"\"")
@@ -449,7 +446,7 @@ mod tests {
         assert_eq!(
             html.matches("data-blocks-feature-accordion-image-inline-image=\"\"")
                 .count(),
-            1,
+            FEATURES.len(),
             "html={html}"
         );
     }
