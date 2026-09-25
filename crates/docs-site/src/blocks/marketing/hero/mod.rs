@@ -6,6 +6,7 @@
 //! ための構造、イシュー #2734）。
 
 mod hero_editorial_stagger;
+mod hero_email_signup;
 mod hero_image_top;
 mod hero_parallax_layers;
 mod hero_terminal;
@@ -15,6 +16,7 @@ use crate::blocks::Block;
 pub(super) fn blocks() -> Vec<Block> {
     vec![
         hero_editorial_stagger::BLOCK,
+        hero_email_signup::BLOCK,
         hero_image_top::BLOCK,
         hero_parallax_layers::BLOCK,
         hero_terminal::BLOCK,
