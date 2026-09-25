@@ -59,7 +59,14 @@
 //! primary`/`-secondary` 属性 + tone 祖先セレクタ（`[data-blocks-cta-
 //! split-actions-tone="…"] [data-scope="button"][data-part="root"]
 //! [data-blocks-cta-split-actions-primary/-secondary]`、詳細度 (0,4,0)）で
-//! 反転・継承へ上書きする。
+//! 反転・継承へ上書きする。`card` tone の行（[`instance_card`] が組み立てる
+//! `row_inner`）は基底ルール `[data-blocks-cta-split-actions-row]` の
+//! `padding: var(--fandhe-space-6)` をそのまま受けるが、[`card::body`] 自身
+//! も余白を持つため、`.blocks-cta-split-actions [data-scope="card"]
+//! [data-part="body"] [data-blocks-cta-split-actions-row]`（1 クラス + 2 属性
+//! = 詳細度 (0,3,0)）で `padding: 0` に上書きし、`card` tone だけ他 tone の
+//! およそ 2 倍の内側余白になる二重適用を防ぐ（Bugbot 指摘、イシュー #2758
+//! PR レビュー）。
 //!
 //! # `drop_class_attr` と CSS フックの選び方
 //!
@@ -214,15 +221,23 @@ fn point(label: &str) -> Node {
 
 /// 行の共通ラッパー（見出し領域 + ボタン列、モジュール doc「レイアウトと
 /// レスポンシブ」節）。`tone` は `plain`/`subtle`/`inverted` の 3 値のみを
-/// 受け取る（`card` tone は [`card_row`] が別経路で組み立てる）。
-fn row(tone: &'static str, copy: Node, actions: Node) -> Node {
+/// 受け取る（`card` tone は [`instance_card`] が別経路で組み立てる）。
+/// `copy_children` は見出し領域の子要素を直接並べる（`.blocks-cta-
+/// split-actions-copy` の直接の子を複数にすることで `gap` が効くようにする
+/// 契約。子を 1 個の無 class `div` で包んでしまうと `gap` を持つ flex
+/// コンテナの子が実質 1 個になり効かなくなる不具合があったため、[`Vec<Node>`]
+/// を直接受け取る設計にしている）。
+fn row(tone: &'static str, copy_children: Vec<Node>, actions: Node) -> Node {
     div(
         vec![
             ("data-blocks-cta-split-actions-row", ""),
             ("data-blocks-cta-split-actions-tone", tone),
         ],
         vec![
-            div(vec![("class", "blocks-cta-split-actions-copy")], vec![copy]),
+            div(
+                vec![("class", "blocks-cta-split-actions-copy")],
+                copy_children,
+            ),
             actions,
         ],
     )
@@ -233,7 +248,10 @@ fn row(tone: &'static str, copy: Node, actions: Node) -> Node {
 fn instance_plain() -> Node {
     row(
         "plain",
-        two_line_heading("新しいワークフローを、", "今日から始めましょう"),
+        vec![two_line_heading(
+            "新しいワークフローを、",
+            "今日から始めましょう",
+        )],
         actions("今すぐ始める", "詳しく見る"),
     )
 }
@@ -242,58 +260,62 @@ fn instance_plain() -> Node {
 /// R0067 / R0071（訴求ポイント。2 点版・2 列配置は「原案差分メモ」節へ
 /// 記す）。
 fn instance_subtle() -> Node {
-    let copy = div(
-        vec![],
-        vec![
-            heading(
-                HeadingLevel::H3,
-                &HeadingProps {
-                    size: HeadingSize::Xl2,
-                    ..HeadingProps::default()
-                },
-                vec![],
-                vec![text("チームの導入を、まるごとサポートします")],
-            ),
-            div(
-                vec![("class", "blocks-cta-split-actions-points")],
-                vec![
-                    point("初期設定は担当者が同席してご案内します"),
-                    point("既存データの移行を無償でお手伝いします"),
-                    point("導入後 30 日間はいつでも解約できます"),
-                ],
-            ),
-        ],
-    );
-    row("subtle", copy, actions("プランを選ぶ", "資料をもらう"))
+    let copy_children = vec![
+        heading(
+            HeadingLevel::H3,
+            &HeadingProps {
+                size: HeadingSize::Xl2,
+                ..HeadingProps::default()
+            },
+            vec![],
+            vec![text("チームの導入を、まるごとサポートします")],
+        ),
+        div(
+            vec![("class", "blocks-cta-split-actions-points")],
+            vec![
+                point("初期設定は担当者が同席してご案内します"),
+                point("既存データの移行を無償でお手伝いします"),
+                point("導入後 30 日間はいつでも解約できます"),
+            ],
+        ),
+    ];
+    row(
+        "subtle",
+        copy_children,
+        actions("プランを選ぶ", "資料をもらう"),
+    )
 }
 
-/// 3 個目: 反転配色。対応: R0447。
+/// 3 個目: 反転配色。対応: R0447。補足文は [`TextVariant::Muted`]（自身に
+/// `color: var(--fandhe-color-fg-muted)` を持つ）ではなく
+/// [`TextVariant::Plain`]（`color` 宣言なし）を使う。`inverted` tone は
+/// 祖先の `[data-blocks-cta-split-actions-tone="inverted"]` で
+/// `color: var(--fandhe-color-bg)` を与えるため、子側は継承させる必要が
+/// あり、`Muted` を使うと `fg-muted` で上書きされてコントラストが崩れる
+/// （codex/Bugbot 指摘、イシュー #2758 PR レビュー）。
 fn instance_inverted() -> Node {
-    let copy = div(
-        vec![],
-        vec![
-            heading(
-                HeadingLevel::H3,
-                &HeadingProps {
-                    size: HeadingSize::Xl2,
-                    ..HeadingProps::default()
-                },
-                vec![],
-                vec![text("次の四半期の計画を、いま固めませんか")],
-            ),
-            styled_text::text(
-                &TextProps {
-                    variant: TextVariant::Muted,
-                    ..TextProps::default()
-                },
-                vec![],
-                vec![text(
-                    "担当チームが要件をヒアリングし、導入案をご提示します。",
-                )],
-            ),
-        ],
-    );
-    row("inverted", copy, actions("相談する", "事例を見る"))
+    let copy_children = vec![
+        heading(
+            HeadingLevel::H3,
+            &HeadingProps {
+                size: HeadingSize::Xl2,
+                ..HeadingProps::default()
+            },
+            vec![],
+            vec![text("次の四半期の計画を、いま固めませんか")],
+        ),
+        styled_text::text(
+            &TextProps {
+                variant: TextVariant::Plain,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text(
+                "担当チームが要件をヒアリングし、導入案をご提示します。",
+            )],
+        ),
+    ];
+    row("inverted", copy_children, actions("相談する", "事例を見る"))
 }
 
 /// 4 個目: アクセント色の浮いたカード。対応: R0451。カード面の余白は
@@ -401,6 +423,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-cta-split-actions-point {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-cta-split-actions-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-cta-split-actions [data-scope=\"card\"][data-part=\"root\"][data-blocks-cta-split-actions-tone=\"card\"] {\n  background: var(--fandhe-color-accent);\n  color: var(--fandhe-color-accent-fg);\n}\n\
+.blocks-cta-split-actions [data-scope=\"card\"][data-part=\"body\"] [data-blocks-cta-split-actions-row] {\n  padding: 0;\n}\n\
 [data-blocks-cta-split-actions-tone=\"inverted\"] [data-scope=\"button\"][data-part=\"root\"][data-blocks-cta-split-actions-primary] {\n  background: var(--fandhe-color-bg);\n  color: var(--fandhe-color-fg);\n  border-color: var(--fandhe-color-bg);\n}\n\
 .blocks-cta-split-actions [data-scope=\"card\"][data-part=\"root\"][data-blocks-cta-split-actions-tone=\"card\"] [data-scope=\"button\"][data-part=\"root\"][data-blocks-cta-split-actions-primary] {\n  background: var(--fandhe-color-accent-fg);\n  color: var(--fandhe-color-accent);\n  border-color: var(--fandhe-color-accent-fg);\n}\n\
 [data-blocks-cta-split-actions-tone=\"inverted\"] [data-scope=\"button\"][data-part=\"root\"][data-blocks-cta-split-actions-secondary],\n\
