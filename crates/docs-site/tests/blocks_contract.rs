@@ -4646,6 +4646,53 @@ fn comparison_cards_page_wires_demo_class_and_css_hooks() {
     }
 }
 
+/// comparison-table の Demo ラッパ・CSS 配線・block 固有 CSS（横スクロール
+/// の min-width・scroll-area フック・自社列の accent 強調）が実際に
+/// 出力されていることを固定する（イシュー #2825）。
+#[test]
+fn comparison_table_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/comparison-table/index.html"))
+        .expect("blocks/comparison-table/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-comparison-table\""),
+        "comparison-table page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "comparison-table page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "comparison-table page should link the Blocks-specific stylesheet"
+    );
+    assert!(
+        html.contains(r#"data-blocks-comparison-table-instance="two""#),
+        "comparison-table page should render the two-column instance"
+    );
+    assert!(
+        html.contains(r#"data-blocks-comparison-table-instance="three""#),
+        "comparison-table page should render the three-column instance"
+    );
+    assert!(
+        html.contains(r#"data-part="scroll-area""#),
+        "comparison-table page should wrap each table in a scroll-area"
+    );
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "min-width: 42rem;",
+        "[data-scope=\"table\"][data-part=\"column-header\"][data-blocks-comparison-table-col=\"ours\"],",
+        "background: var(--fandhe-color-accent-subtle);",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
 /// changelog-timeline-subscribe の Demo ラッパ・CSS 配線・block 固有 CSS
 /// （3 列上書き・attached の角丸打ち消し・狭幅ブレークポイント）が実際に
 /// 出力されていることを固定する（イシュー #2821）。

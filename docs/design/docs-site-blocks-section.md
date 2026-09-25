@@ -865,6 +865,7 @@ pub enum LayoutCss {
 | comparison-cards | #2822 | `marketing/comparison/comparison_cards.rs` |
 | comparison-feature-rows | #2823 | `marketing/comparison/comparison_feature_rows.rs` |
 | comparison-split-table | #2824 | `marketing/comparison/comparison_split_table.rs` |
+| comparison-table | #2825 | `marketing/comparison/comparison_table.rs` |
 | careers-card-grid | #2815 | `marketing/careers/careers_card_grid.rs` |
 | careers-split-accordion | #2816 | `marketing/careers/careers_split_accordion.rs` |
 | changelog-timeline-subscribe | #2821 | `marketing/changelog/changelog_timeline_subscribe.rs` |

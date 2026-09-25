@@ -1,7 +1,8 @@
 //! styled Table（イシュー #767）: slot recipe 静的部品。root/header/body/
-//! footer/row/column-header/cell/caption/scroll-area の 9 パーツで
-//! `table`/`thead`/`tbody`/`tfoot`/`tr`/`th`/`td`/`caption`/`div`
-//! （`scroll-area`、下記「`scroll-area` パーツ」節参照）の HTML 意味論を
+//! footer/row/column-header/cell/row-header/caption/scroll-area の 10 パーツで
+//! `table`/`thead`/`tbody`/`tfoot`/`tr`/`th`/`td`/`th`/`caption`/`div`
+//! （`row-header` はイシュー #2825 で追加、下記「`row-header` パーツ」節。
+//! `scroll-area` は下記「`scroll-area` パーツ」節参照）の HTML 意味論を
 //! そのまま尊重する（chakra-ui `data-display/table` 相当）。
 //!
 //! [`crate::card`]・[`crate::alert`] と同型の「状態機械を持たない静的
@@ -351,6 +352,33 @@
 //!   ものがない（複合セレクタ機構は未実装）。専用 variant を追加する動機に
 //!   乏しく、Demo（下記 showcase 参照）では標準の `padding` のまま構成する。
 //!
+//! # `row-header` パーツ（`<th scope="row">`、イシュー #2825）
+//!
+//! 機能比較表・料金表等、各行の見出し（例: 機能名）を持つ表で、行見出しを
+//! 通常の `cell`（`<td>`）へ置くと値セルとの意味論的な関連付けが失われ、
+//! スクリーンリーダー利用者が値セル間を移動した際に列見出ししか読み上げ
+//! られず「どの行の値か」判別できない
+//! （`crates/docs-site/src/blocks/marketing/comparison/comparison_table.rs`
+//! の codex-review P1 指摘、AGENTS.md の UI 部品アクセシビリティ責務）。
+//! [`column_header`] が列見出しの意味論（`scope="col"`）を既定で担保するのと
+//! 対称に、本関数は行見出しの意味論（`scope="row"`）を既定で担保する。
+//!
+//! base 規則は [`cell`] と同一の宣言（`padding`/`font-size`/`border-bottom`/
+//! `font-variant-numeric`）に加え、`<th>` の UA 既定（中央揃え・太字）を
+//! 打ち消す `text-align: inherit`（[`column_header`] と同じ「`inherit`
+//! パターン」、上記「caption」節参照）・`font-weight: var(--fandhe-font-
+//! font-weight-normal)` を持つ。行見出しを強調したい呼び出し側は
+//! `column-header` の `font-weight: medium` を流用せず、`row-header` 自身の
+//! 見た目（値セルと同じ通常太さ）を意図的な既定値とし、強調が必要な場合は
+//! 呼び出し側の CSS フックへ委ねる（[`column_header`] と異なり見出し行専用
+//! の不透明背景・sticky 対応は持たない静的パーツ、上記「sticky ヘッダーの
+//! 実装」節の対象外）。
+//!
+//! `data-align` state 規則（上記「`data-align` セル整列」節）は `cell`/
+//! `column-header` の 2 slot のみに登録済みで、`row-header` へは追加しない
+//! （行見出しの整列調整の実需が確認できるまでは golden 純追加原則に従い
+//! 見送る、`.claude/rules/out-of-scope-tracking.md` 対応）。
+//!
 //! # セキュリティ不変条件
 //!
 //! - セル値・列見出し・caption はすべて呼び出し側が渡す `children`
@@ -363,11 +391,11 @@
 //!   `crate::class_attr::drop_class_attr` で除去してから recipe 生成
 //!   クラスと合成するため、`class` 属性は常に単一（呼び出し側からのクラス
 //!   偽装・重複混入を防ぐ）。
-//! - [`column_header`] の `scope="col"` は関数側で固定するため、呼び出し側
-//!   `attrs` に `scope`（大文字小文字無視）が含まれていても除去する
-//!   （[`checkbox_card`](crate::checkbox_card) の `drop_reserved` と同型の
-//!   fail-closed 判断。重複 `scope` 属性による無効な HTML・意味論の後勝ち
-//!   混乱を防ぐ）。
+//! - [`column_header`] の `scope="col"`・[`row_header`] の `scope="row"` は
+//!   いずれも関数側で固定するため、呼び出し側 `attrs` に `scope`（大文字
+//!   小文字無視）が含まれていても除去する（[`checkbox_card`](crate::checkbox_card)
+//!   の `drop_reserved` と同型の fail-closed 判断。重複 `scope` 属性による
+//!   無効な HTML・意味論の後勝ち混乱を防ぐ）。
 //!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
@@ -409,6 +437,10 @@ const SLOTS: &[&str] = &[
     "row",
     "column-header",
     "cell",
+    // イシュー #2825 codex-review P1 是正: 機能名等の行見出しセルを `<td>`
+    // ではなく `<th scope="row">` で出力できるようにする専用パーツ
+    // （下記「`row-header` パーツ」節参照）。
+    "row-header",
     "caption",
     // イシュー #1572: chakra `Table.ScrollArea` 相当のスクロール枠。
     // 状態を持たない静的パーツで headless-ui に対応物はない
@@ -574,6 +606,9 @@ impl Default for TableProps {
 /// fail-closed で除去する対象）。
 const COLUMN_HEADER_RESERVED: &[&str] = &["scope"];
 
+/// [`row_header`] が固定する属性名（[`COLUMN_HEADER_RESERVED`] と同型）。
+const ROW_HEADER_RESERVED: &[&str] = &["scope"];
+
 /// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
 /// 除外する（`crates/pre-styled-ui/src/checkbox_card.rs` の `drop_reserved`
 /// と同型）。
@@ -587,7 +622,7 @@ fn drop_reserved<'a>(
         .collect()
 }
 
-/// Table の recipe（scope `"table"`、[`SLOTS`] の 9 パーツ）。
+/// Table の recipe（scope `"table"`、[`SLOTS`] の 10 パーツ）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("table", SLOTS)
         .base(
@@ -702,6 +737,28 @@ fn recipe() -> SlotRecipe {
                 // イシュー #1571: column-header と同じ理由で数値列の桁揃え
                 // を追加する。
                 decl("font-variant-numeric", "tabular-nums"),
+            ],
+        )
+        .base(
+            // イシュー #2825: 行見出し用 `<th scope="row">`（`row_header`）。
+            // `cell` と同じ padding/font-size/border-bottom/桁揃えを持ちつつ、
+            // `<th>` の UA 既定（中央揃え・太字）を打ち消して `cell` と同じ
+            // 見た目の既定値にする（モジュール doc「`row-header` パーツ」節
+            // 参照。強調が要る場合は呼び出し側の CSS フックへ委ねる）。
+            "row-header",
+            vec![
+                decl(
+                    "padding",
+                    "var(--fandhe-table-cell-padding, var(--fandhe-space-3) var(--fandhe-space-4))",
+                ),
+                decl(
+                    "font-size",
+                    "var(--fandhe-table-font-size, var(--fandhe-font-font-size-sm))",
+                ),
+                decl("border-bottom", "var(--fandhe-table-row-border, none)"),
+                decl("font-variant-numeric", "tabular-nums"),
+                decl("text-align", "inherit"),
+                decl("font-weight", "var(--fandhe-font-font-weight-normal)"),
             ],
         )
         .base(
@@ -1090,6 +1147,28 @@ pub fn column_header<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) ->
 #[must_use]
 pub fn cell<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     ANATOMY.part("cell", "td", attrs, children)
+}
+
+/// row-header パーツ（`<th scope="row">`）を組み立てる。行見出しの
+/// WAI-ARIA/HTML 意味論（`scope="row"`）を既定で担保する（[`column_header`]
+/// の列見出し版と対称、イシュー #2825）。呼び出し側 `attrs` に `scope` を
+/// 含めても `drop_reserved` により除去される（本モジュール doc「セキュリティ
+/// 不変条件」節参照）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::{render, text};
+/// use fandhe_frontend_pre_styled_ui::table;
+///
+/// let node = table::row_header(vec![], vec![text("プロジェクト数")]);
+/// assert!(render(&node).contains(r#"scope="row""#));
+/// ```
+#[must_use]
+pub fn row_header<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let mut merged: Vec<(&str, &str)> = vec![("scope", "row")];
+    merged.extend(drop_reserved(attrs, ROW_HEADER_RESERVED));
+    ANATOMY.part("row-header", "th", merged, children)
 }
 
 /// caption パーツ（`<caption>`）を組み立てる。呼び出し側は `<table>` の

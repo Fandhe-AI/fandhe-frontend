@@ -299,6 +299,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/comparison-cards/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/comparison-feature-rows/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/comparison-split-table/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/comparison-table/index.html"
           # Marketing / Careers
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/careers-card-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/careers-split-accordion/index.html"
