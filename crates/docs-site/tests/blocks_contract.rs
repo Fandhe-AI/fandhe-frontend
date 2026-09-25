@@ -4365,6 +4365,58 @@ fn bento_two_column_composes_expected_parts() {
     }
 }
 
+/// `content-article`（イシュー #2751、Marketing / Content カテゴリ）
+/// の CSS フック配線検証。`blog_list_image_page_wires_demo_class_and_css_hooks`
+/// と同型。
+#[test]
+fn content_article_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/content-article/index.html"))
+        .expect("blocks/content-article/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-content-article\""),
+        "content-article page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "content-article page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "content-article page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-content-article-cover=\"\"",
+        "data-blocks-content-article-quote=\"\"",
+        "data-blocks-content-article-separator=\"\"",
+        "data-blocks-content-article-category=\"\"",
+        "data-blocks-content-article-avatar=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "content-article page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-content-article-cover]",
+        "[data-blocks-content-article-quote]",
+        "[data-blocks-content-article-separator]",
+        "[data-blocks-content-article-category]",
+        "[data-blocks-content-article-avatar]",
+        ".blocks-content-article-centered",
+        ".blocks-content-article-full-bleed",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
 /// content-columns-screenshot の Demo ラッパ・CSS 配線・block 固有 CSS
 /// （2 列 grid・md ブレークポイント・フェード用 linear-gradient・image
 /// フック）が実際に出力されていることを固定する（イシュー #2753）。
@@ -4398,6 +4450,46 @@ fn content_columns_screenshot_page_wires_demo_class_and_css_hooks() {
         assert!(
             sheet_css.contains(selector),
             "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// content-article の合成部品（badge/heading/text/image/avatar/blockquote/
+/// separator の 7 種）が期待どおり出力されていること、引用・図版
+/// （キャプション付き）を含むこと、`<form>`・`href="#"`・`src="data:` を
+/// 持ち込んでいないことを固定する（イシュー #2751）。
+#[test]
+fn content_article_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/content-article/index.html"))
+        .expect("blocks/content-article/index.html should be generated");
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"image\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"blockquote\"",
+        "data-scope=\"separator\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "content-article page should contain {scope}"
+        );
+    }
+    assert!(
+        html.contains("<blockquote"),
+        "content-article page should render a <blockquote> element"
+    );
+    assert!(
+        html.matches("<figcaption").count() >= 2,
+        "content-article page should render at least 2 <figcaption> elements \
+         (2 instances x 1 captioned figure each)"
+    );
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "content-article page should never contain {absent}"
         );
     }
 }

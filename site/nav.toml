@@ -1321,6 +1321,11 @@ source = "site/blocks/content-article-toc.md"
 path = "/blocks/content-article-toc/"
 
 [[section.group.page]]
+title = "content-article"
+source = "site/blocks/content-article.md"
+path = "/blocks/content-article/"
+
+[[section.group.page]]
 title = "content-columns-screenshot"
 source = "site/blocks/content-columns-screenshot.md"
 path = "/blocks/content-columns-screenshot/"
