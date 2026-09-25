@@ -25,13 +25,16 @@
 //!
 //! # 使用部品
 //!
-//! `badge` / `heading` / `text` / `tabs` / `image` / `card` / `icon` /
-//! `button` / `progress` の 9 部品を合成する（[`BLOCK`] の `parts` に
-//! 一致させる契約、`crates/docs-site/tests/blocks_nav.rs`/
-//! `blocks_contract.rs` が検証する）。`card`/`icon` は形 E のカードグリッド、
-//! `button` は形 E 末尾の CTA（`disabled: true` の「押しても何も起きない」
-//! 静的表示、`feature_accordion_image::category_button` と同型の判断）、
-//! `progress` は形 F のトリガーで使う。
+//! `badge` / `heading` / `text` / `image` / `card` / `icon` / `button` /
+//! `progress` の 8 部品を合成する（[`BLOCK`] の `parts` に一致させる契約、
+//! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証する）。
+//! `card`/`icon` は形 E のカードグリッド、`button` は形 E 末尾の CTA
+//! （`disabled: true` の「押しても何も起きない」静的表示、
+//! `feature_accordion_image::category_button` と同型の判断）、`progress`
+//! は形 F のトリガーで使う。`tabs` は次節のとおり実物を一切呼ばず見た目
+//! のみを模すため `parts` には含めない（Codex 指摘の是正: 実際には
+//! `fandhe_frontend_pre_styled_ui::tabs` の関数を一つも呼ばないにもかかわらず
+//! 使用部品として掲げていた）。
 //!
 //! # 無 JS での扱い（実物の `tabs::tabs` は一切使わない）
 //!
@@ -343,6 +346,19 @@ fn panel_alternating_rows(items: &[PanelData]) -> Vec<Node> {
         .collect()
 }
 
+/// [`panel_alternating_rows`] の複数行を 1 グループへ束ねる
+/// （`.blocks-feature-tabs-panel-rows`）。選択中セット（`.variant` 直下）と
+/// プレビュー側セット（[`tab_preview`] でラップ）の双方が同じグループ
+/// class を経由することで、行間の間隔（[`LAYOUT_CSS`] の `gap`）が
+/// セット間で食い違わないようにする（Bugbot 指摘の是正: 束ねずに `.row` を
+/// 直接並べると、選択中セットは `.variant` の `gap` + `.row` 自身の
+/// `padding-top` が二重に積み上がる一方、プレビュー側は `.preview` の
+/// `gap` のみで `padding-top` が打ち消されており、同じ見た目であるべき
+/// 2 セットの行間が大きく異なっていた）。
+fn rows_group(rows: Vec<Node>) -> Node {
+    div(vec![("class", "blocks-feature-tabs-panel-rows")], rows)
+}
+
 /// [`PANELS`] から [`static_tab_list`] の `(value, trigger)` 組を組み立てる
 /// （#2773 が variant を変えつつ再利用する共通ヘルパ）。
 fn panel_tab_labels() -> Vec<(&'static str, Vec<Node>)> {
@@ -471,7 +487,7 @@ fn variant_basic() -> Node {
         section_header(
             "機能紹介",
             "タブで切り替える機能セクション",
-            "見出しの下にタブを並べ、選んだタブの内容だけを表示します。",
+            "見出しの下にタブを並べ、選択中タブの内容を表示し、残り 3 件は切り替え例として併記します。",
         ),
         static_tab_list(
             "blocks-feature-tabs-panel-basic",
@@ -545,10 +561,10 @@ fn variant_alternating() -> Node {
             false,
         ),
     ];
-    children.extend(panel_alternating_rows(&PANELS[0..2]));
+    children.push(rows_group(panel_alternating_rows(&PANELS[0..2])));
     children.push(tab_preview(
         "「セット B」タブを選択した場合のプレビュー".to_string(),
-        panel_alternating_rows(&PANELS[2..4]),
+        vec![rows_group(panel_alternating_rows(&PANELS[2..4]))],
     ));
     div(
         vec![("class", "blocks-feature-tabs-panel-variant")],
@@ -838,10 +854,6 @@ pub const BLOCK: Block = Block {
             path: "/themes/text/",
         },
         Part {
-            label: "Tabs",
-            path: "/themes/tabs/",
-        },
-        Part {
             label: "Image",
             path: "/themes/image/",
         },
@@ -879,11 +891,14 @@ const LAYOUT_CSS: &str = "\
 .blocks-feature-tabs-panel-layout [data-scope=\"tabs\"][data-part=\"list\"] {\n  overflow-x: auto;\n  overflow-y: hidden;\n  padding-bottom: 1px;\n}\n\
 .blocks-feature-tabs-panel-layout [data-scope=\"tabs\"][data-part=\"trigger\"] {\n  margin-bottom: -2px;\n  cursor: default;\n}\n\
 .blocks-feature-tabs-panel-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  padding-top: var(--fandhe-space-6);\n}\n\
+.blocks-feature-tabs-panel-rows {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  padding-top: var(--fandhe-space-6);\n}\n\
+.blocks-feature-tabs-panel-rows > .blocks-feature-tabs-panel-row {\n  padding-top: 0;\n}\n\
 .blocks-feature-tabs-panel-copy {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  min-width: 0;\n}\n\
 .blocks-feature-tabs-panel-preview {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-feature-tabs-panel-preview .blocks-feature-tabs-panel-row,\n\
 .blocks-feature-tabs-panel-preview .blocks-feature-tabs-panel-single,\n\
-.blocks-feature-tabs-panel-preview .blocks-feature-tabs-panel-card-grid {\n  padding-top: 0;\n}\n\
+.blocks-feature-tabs-panel-preview .blocks-feature-tabs-panel-card-grid,\n\
+.blocks-feature-tabs-panel-preview .blocks-feature-tabs-panel-rows {\n  padding-top: 0;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-tabs-panel-image] {\n  display: block;\n  width: 100%;\n}\n\
 .blocks-feature-tabs-panel-header[data-align=\"center\"] {\n  align-items: center;\n  text-align: center;\n  max-width: 40rem;\n  margin-left: auto;\n  margin-right: auto;\n}\n\
 .blocks-feature-tabs-panel-single {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  padding-top: var(--fandhe-space-6);\n  max-width: 36rem;\n}\n\
@@ -909,10 +924,11 @@ mod tests {
     use super::{demo, LAYOUT_CSS};
     use fandhe_frontend_core::render;
 
-    /// Demo が期待する 9 部品を出力すること、非対話制約（`<form>` 不在・
-    /// `data:` URI 不在・`href="#"` 不在）を満たすことの単体回帰
-    /// （`crates/docs-site/tests/blocks_contract.rs` の横断検査と重複し
-    /// 過ぎない範囲での個別固定）。
+    /// Demo が期待する `data-scope` 9 種（[`super::BLOCK`] の `parts` 8 部品
+    /// と、[`super::static_tab_list`] が模す `tabs`）を出力すること、
+    /// 非対話制約（`<form>` 不在・`data:` URI 不在・`href="#"` 不在）を
+    /// 満たすことの単体回帰（`crates/docs-site/tests/blocks_contract.rs`
+    /// の横断検査と重複し過ぎない範囲での個別固定）。
     #[test]
     fn demo_composes_expected_parts_and_avoids_forms() {
         let html = render(&demo());

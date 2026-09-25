@@ -1,8 +1,10 @@
 # feature-tabs-panel
 
-`badge` / `heading` / `text` / `tabs` / `image` / `card` / `icon` / `button` /
-`progress` の 9 部品を合成した、タブ切り替え feature セクションの見た目を
-再現する合成例です。5 つの形を縦に並べます。
+`badge` / `heading` / `text` / `image` / `card` / `icon` / `button` /
+`progress` の 8 部品を合成した、タブ切り替え feature セクションの見た目を
+再現する合成例です。5 つの形を縦に並べます。実物の `tabs` コンポーネントは
+使わず、タブ列は見た目だけを模した静的表示のため使用部品には含めません
+（下記の説明を参照）。
 
 - **基準形（対応表 ID R1158）**: 見出しの下に下線タブ風の見た目を並べ、
   選択中タブの本文としてテキストと画像を表示します。
@@ -244,6 +246,19 @@ fn panel_alternating_rows(items: &[PanelData]) -> Vec<Node> {
         .collect()
 }
 
+/// [`panel_alternating_rows`] の複数行を 1 グループへ束ねる
+/// （`.blocks-feature-tabs-panel-rows`）。選択中セット（`.variant` 直下）と
+/// プレビュー側セット（[`tab_preview`] でラップ）の双方が同じグループ
+/// class を経由することで、行間の間隔（[`LAYOUT_CSS`] の `gap`）が
+/// セット間で食い違わないようにする（Bugbot 指摘の是正: 束ねずに `.row` を
+/// 直接並べると、選択中セットは `.variant` の `gap` + `.row` 自身の
+/// `padding-top` が二重に積み上がる一方、プレビュー側は `.preview` の
+/// `gap` のみで `padding-top` が打ち消されており、同じ見た目であるべき
+/// 2 セットの行間が大きく異なっていた）。
+fn rows_group(rows: Vec<Node>) -> Node {
+    div(vec![("class", "blocks-feature-tabs-panel-rows")], rows)
+}
+
 /// [`PANELS`] から [`static_tab_list`] の `(value, trigger)` 組を組み立てる
 /// （#2773 が variant を変えつつ再利用する共通ヘルパ）。
 fn panel_tab_labels() -> Vec<(&'static str, Vec<Node>)> {
@@ -372,7 +387,7 @@ fn variant_basic() -> Node {
         section_header(
             "機能紹介",
             "タブで切り替える機能セクション",
-            "見出しの下にタブを並べ、選んだタブの内容だけを表示します。",
+            "見出しの下にタブを並べ、選択中タブの内容を表示し、残り 3 件は切り替え例として併記します。",
         ),
         static_tab_list(
             "blocks-feature-tabs-panel-basic",
@@ -446,10 +461,10 @@ fn variant_alternating() -> Node {
             false,
         ),
     ];
-    children.extend(panel_alternating_rows(&PANELS[0..2]));
+    children.push(rows_group(panel_alternating_rows(&PANELS[0..2])));
     children.push(tab_preview(
         "「セット B」タブを選択した場合のプレビュー".to_string(),
-        panel_alternating_rows(&PANELS[2..4]),
+        vec![rows_group(panel_alternating_rows(&PANELS[2..4]))],
     ));
     div(
         vec![("class", "blocks-feature-tabs-panel-variant")],
@@ -756,7 +771,6 @@ pub fn demo() -> Node {
   構造的に満たされます。
 
 関連部品: [Badge](../themes/badge.md) / [Heading](../themes/heading.md) /
-[Text](../themes/text.md) / [Tabs](../themes/tabs.md) /
-[Image](../themes/image.md) / [Card](../themes/card.md) /
-[Icon](../themes/icon.md) / [Button](../themes/button.md) /
-[Progress](../themes/progress.md)
+[Text](../themes/text.md) / [Image](../themes/image.md) /
+[Card](../themes/card.md) / [Icon](../themes/icon.md) /
+[Button](../themes/button.md) / [Progress](../themes/progress.md)
