@@ -1258,6 +1258,11 @@ source = "site/blocks/hero-prompt-input.md"
 path = "/blocks/hero-prompt-input/"
 
 [[section.group.page]]
+title = "hero-split-image"
+source = "site/blocks/hero-split-image.md"
+path = "/blocks/hero-split-image/"
+
+[[section.group.page]]
 title = "hero-terminal"
 source = "site/blocks/hero-terminal.md"
 path = "/blocks/hero-terminal/"
