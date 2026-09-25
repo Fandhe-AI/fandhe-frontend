@@ -6050,3 +6050,105 @@ fn contact_split_form_info_composes_expected_parts() {
         );
     }
 }
+
+/// error-page-centered の Demo 固有 CSS フック（メッセージ枠・コード・
+/// 見出し・説明・ホームボタン・サポートリンク）が実際に生成 HTML へ出力
+/// され、`blocks::stylesheet()` にも対応するセレクタが存在することを固定
+/// する（イシュー #2837）。
+#[test]
+fn error_page_centered_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/error-page-centered/index.html"))
+        .expect("blocks/error-page-centered/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-error-page-centered\""),
+        "error-page-centered page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "error-page-centered page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "error-page-centered page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-error-page-centered-message=\"\"",
+        "data-blocks-error-page-centered-code=\"\"",
+        "data-blocks-error-page-centered-title=\"\"",
+        "data-blocks-error-page-centered-description=\"\"",
+        "data-blocks-error-page-centered-home=\"\"",
+        "data-blocks-error-page-centered-support=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "error-page-centered page should output the {hook} CSS hook attribute"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "error-page-centered should never contain {absent}"
+        );
+    }
+
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        ".blocks-error-page-centered-root",
+        "[data-blocks-error-page-centered-message]",
+        "[data-blocks-error-page-centered-code]",
+        "[data-blocks-error-page-centered-description]",
+        "[data-scope=\"empty-state\"][data-part=\"actions\"].blocks-error-page-centered-actions",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// error-page-centered の合成部品（4 部品。当初の 5 部品から `button` を
+/// 撤去して `link` へ一本化した、イシュー #2837 PR #3212 codex レビュー
+/// 是正）が期待どおりの構成で実際に出力されていること、非対話制約を
+/// 固定する。ホームへ戻る導線・サポートへの導線はいずれも `<button>` では
+/// なく実際に遷移する `<a href>` であり、文言と遷移先が一致することも
+/// 併せて固定する（同レビューの P1 指摘の回帰防止。ホームへ戻る導線は
+/// サイトホームへの相対パス `"../../"` であり、GitHub リポジトリ URL
+/// ではない）。
+#[test]
+fn error_page_centered_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/error-page-centered/")
+        .expect("error-page-centered should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"empty-state\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"link\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "error-page-centered demo should contain {scope}"
+        );
+    }
+    assert!(!html.contains("<button"));
+    assert!(html.contains("href=\"../../\""));
+    assert!(html.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend/issues\""));
+    assert!(html.contains("404"));
+    for absent in [
+        "<form",
+        "src=\"data:",
+        "href=\"#\"",
+        "mailto:",
+        "tel:",
+        "id=\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "error-page-centered should never contain {absent}"
+        );
+    }
+}
