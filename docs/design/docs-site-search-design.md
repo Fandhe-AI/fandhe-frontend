@@ -201,7 +201,7 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
 | 定数 | 値 | 超過時の扱い |
 |---|---|---|
 | `MAX_PAGE_TEXT_BYTES` | 4,096 バイト | **決定的に切り詰める**（エラーにしない）。UTF-8 文字境界で切る（`char_indices` で境界を求め、バイト単位切断で不正 UTF-8 を作らない）。切り詰め痕跡の付加文字（`…` 等）は付けない（決定性と単純さを優先する） |
-| `MAX_INDEX_BYTES` | 1,703,936 バイト（1.625 MiB。#2552 で 1 MiB から 1.125 MiB へ、#2645 で 1.125 MiB から 1.25 MiB へ、イシュー #2814 で 1.25 MiB から 1.625 MiB へ引き上げ、§10・§10-4 参照。イシュー #2637（Menu）・#2639（Breadcrumbs）の base 取り込み時点では実測が 1.25 MiB の範囲内に収まり引き上げ不要だったが、イシュー #2750（`bento-two-column` block ページ追加）・#2814（`blog-split-header-grid` block 追加）の双方が並行して 1.25 MiB 超過を検知し、#2814 の実測に基づく引き上げが採用された、§10-4・§10-5 参照。イシュー #2751（`content-article` block 追加）の base 取り込み時点では実測は 1.625 MiB の範囲内に収まっており、追加の引き上げは不要だった、§10-5 参照） | **fail-closed**。`BuildError::SearchIndexTooLarge { bytes, limit }` を返し、**ページ書き出し前**に打ち切る |
+| `MAX_INDEX_BYTES` | 1,703,936 バイト（1.625 MiB。#2552 で 1 MiB から 1.125 MiB へ、#2645 で 1.125 MiB から 1.25 MiB へ、イシュー #2814 で 1.25 MiB から 1.625 MiB へ引き上げ、§10・§10-4 参照。イシュー #2637（Menu）・#2639（Breadcrumbs）の base 取り込み時点では実測が 1.25 MiB の範囲内に収まり引き上げ不要だったが、イシュー #2750（`bento-two-column` block ページ追加）・#2814（`blog-split-header-grid` block 追加）の双方が並行して 1.25 MiB 超過を検知し、#2814 の実測に基づく引き上げが採用された、§10-4・§10-5 参照。イシュー #2751（`content-article` block 追加）・#2817（careers-split-photo-list）の base 取り込み時点ではいずれも実測が 1.625 MiB の範囲内に収まっており、追加の引き上げは不要だった、§10-5・§10-7 参照） | **fail-closed**。`BuildError::SearchIndexTooLarge { bytes, limit }` を返し、**ページ書き出し前**に打ち切る |
 
 - 選定根拠（#957 設計時点、121 ページ）: 全ページが per-page 上限に
   張り付いた最悪ケースでも 121 × 4 KiB ≒ 496 KiB であり、1 MiB は
@@ -232,7 +232,7 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
   - `pub const REL_PATH: &str = "assets/search-index.json";`
   - `pub const SCHEMA_VERSION: u32 = 1;`
   - `pub const MAX_PAGE_TEXT_BYTES: usize = 4096;`
-  - `pub const MAX_INDEX_BYTES: usize = 1_703_936;`（#2552 で `1_048_576` から `1_179_648` へ、#2645 で `1_179_648` から `1_310_720` へ、イシュー #2814 で `1_310_720` から `1_703_936` へ引き上げ、§10・§10-4 参照。イシュー #2637・#2639 の base 取り込み時点でも実測は範囲内だったが、#2750・#2814 の双方が並行して超過を検知し、#2814 の実測に基づく引き上げが採用された。#2751 の base 取り込み時点では実測は範囲内であり追加の引き上げは不要だった）
+  - `pub const MAX_INDEX_BYTES: usize = 1_703_936;`（#2552 で `1_048_576` から `1_179_648` へ、#2645 で `1_179_648` から `1_310_720` へ、イシュー #2814 で `1_310_720` から `1_703_936` へ引き上げ、§10・§10-4 参照。イシュー #2637・#2639 の base 取り込み時点でも実測は範囲内だったが、#2750・#2814 の双方が並行して超過を検知し、#2814 の実測に基づく引き上げが採用された。#2751・#2817 の base 取り込み時点でもいずれも実測は範囲内であり追加の引き上げは不要だった、§10-5・§10-7 参照）
   - `pub struct PageEntry { href, title, sections: Vec<SectionEntry>, text }`
   - `pub struct SectionEntry { id, level, title }`
   - `pub fn page_entry(href: &str, title: &str, body: &Node) -> PageEntry`
@@ -805,17 +805,30 @@ per-page 上限見直し・セクション分割を再検討する」という �
 恒久的に解消する前提へ切り替わっており、以後は `MAX_INDEX_BYTES` の
 追加引き上げでの再評価は行わない。
 
-### 10-7 イシュー #2751（`content-article`）base 取り込み時点の実測確認
+### 10-7 イシュー #2817（careers-split-photo-list）base 取り込み時点の実測確認
+
+イシュー #2817（Blocks に `careers-split-photo-list` を追加、Blocks
+セクション拡充ツリー #2730 配下）の PR を、§10-4 で
+`MAX_INDEX_BYTES` が 1.625 MiB（`1_703_936` バイト）へ引き上げられた後の
+main へ base 取り込みした時点で `cargo test -p fandhe-frontend-docs-site`
+を実行し、実サイトの検索インデックスサイズを再測した。実測は 1.625 MiB
+の範囲内（80% 未満）に収まっており §8 トリガー 1 の再評価基準に到達
+しなかったため、本 PR では `MAX_INDEX_BYTES` の追加引き上げを行わない
+（§10-6 のハードルールにも抵触しない）。§10-4 が引き上げた際に
+見込んだ「約 300 block 規模の並行拡充」の余裕枠が、同時期に base
+取り込みされた本イシューの block 追加を吸収した形である。
+
+### 10-8 イシュー #2751（`content-article`）マージ時点の実測再確認
 
 イシュー #2751（Blocks に `content-article`〔1 列の記事本文、区分
-Marketing・カテゴリ Content の最初の block〕を追加）を main（§10-5・§10-6
-時点で `MAX_INDEX_BYTES` は 1.625 MiB = `1_703_936`、以後の追加引き上げ
-禁止のハードルール適用済み）へ取り込んだ時点で
-`cargo test -p fandhe-frontend-docs-site` を実行し実サイトの検索
-インデックスサイズを再測した。実測は 1.625 MiB の範囲内（80% 未満）に
-収まっており §8 トリガー 1 の再評価基準に到達しなかったため、本 PR
-では `MAX_INDEX_BYTES` の追加引き上げを行わない（§10-5 のハードルール
-にも抵触しない）。
+Marketing・カテゴリ Content の最初の block〕を追加）の PR を、§10-7 で
+`careers-split-photo-list` を取り込んだ後の main（`MAX_INDEX_BYTES` は
+引き続き 1.625 MiB = `1_703_936`、以後の追加引き上げ禁止のハードルール
+適用済み）へ base 取り込みした時点で `cargo test -p fandhe-frontend-docs-site`
+を実行し実サイトの検索インデックスサイズを再測した。実測は 1.625 MiB
+の範囲内（80% 未満）に収まっており §8 トリガー 1 の再評価基準に到達
+しなかったため、本 PR では `MAX_INDEX_BYTES` の追加引き上げを行わない
+（§10-5・§10-6 のハードルールにも抵触しない）。
 
 - **本節を追加した経緯**: 本イシューはもともと base 取り込み前の実装
   時点では `MAX_INDEX_BYTES = 1_310_720`（1.25 MiB、§10-1 時点の値）の
@@ -832,4 +845,4 @@ Marketing・カテゴリ Content の最初の block〕を追加）を main（§1
   base 取り込み後に再計測しても新たな超過は生じない（§10-4・§10-5 が
   既に本イシュー相当の増分を見込んだ値まで引き上げ済みのため）。
   したがって本 PR では `MAX_INDEX_BYTES` を独自に変更せず、§10-4・
-  §10-5 の引き上げ結果・ハードルールをそのまま維持する。
+  §10-5・§10-7 の引き上げ結果・ハードルールをそのまま維持する。

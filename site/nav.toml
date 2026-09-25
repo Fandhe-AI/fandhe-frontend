@@ -1288,9 +1288,24 @@ source = "site/blocks/blog-featured-with-list.md"
 path = "/blocks/blog-featured-with-list/"
 
 [[section.group.page]]
+title = "blog-grid-image"
+source = "site/blocks/blog-grid-image.md"
+path = "/blocks/blog-grid-image/"
+
+[[section.group.page]]
+title = "blog-grid-text"
+source = "site/blocks/blog-grid-text.md"
+path = "/blocks/blog-grid-text/"
+
+[[section.group.page]]
 title = "blog-list-image"
 source = "site/blocks/blog-list-image.md"
 path = "/blocks/blog-list-image/"
+
+[[section.group.page]]
+title = "blog-overlay-cards"
+source = "site/blocks/blog-overlay-cards.md"
+path = "/blocks/blog-overlay-cards/"
 
 [[section.group.page]]
 title = "blog-split-header-grid"
@@ -1304,6 +1319,16 @@ title = "Content"
 title = "content-article"
 source = "site/blocks/content-article.md"
 path = "/blocks/content-article/"
+
+[[section.group.page]]
+title = "content-columns-screenshot"
+source = "site/blocks/content-columns-screenshot.md"
+path = "/blocks/content-columns-screenshot/"
+
+[[section.group.page]]
+title = "content-split-image"
+source = "site/blocks/content-split-image.md"
+path = "/blocks/content-split-image/"
 
 [[section.group]]
 title = "Footer"
@@ -1320,6 +1345,11 @@ path = "/blocks/footer-sticky-reveal/"
 
 [[section.group]]
 title = "Banner"
+
+[[section.group.page]]
+title = "banner-announcement-pill"
+source = "site/blocks/banner-announcement-pill.md"
+path = "/blocks/banner-announcement-pill/"
 
 [[section.group.page]]
 title = "banner-cookie-consent"
@@ -1365,12 +1395,35 @@ source = "site/blocks/bento-two-column.md"
 path = "/blocks/bento-two-column/"
 
 [[section.group]]
+title = "Careers"
+
+[[section.group.page]]
+title = "careers-card-grid"
+source = "site/blocks/careers-card-grid.md"
+path = "/blocks/careers-card-grid/"
+
+[[section.group.page]]
+title = "careers-split-photo-list"
+source = "site/blocks/careers-split-photo-list.md"
+path = "/blocks/careers-split-photo-list/"
+
+[[section.group]]
 title = "Changelog"
 
 [[section.group.page]]
 title = "changelog-accordion"
 source = "site/blocks/changelog-accordion.md"
 path = "/blocks/changelog-accordion/"
+
+[[section.group.page]]
+title = "changelog-stacked-list"
+source = "site/blocks/changelog-stacked-list.md"
+path = "/blocks/changelog-stacked-list/"
+
+[[section.group.page]]
+title = "changelog-timeline"
+source = "site/blocks/changelog-timeline.md"
+path = "/blocks/changelog-timeline/"
 
 [[section.group]]
 title = "Sidebar"
