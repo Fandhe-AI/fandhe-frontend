@@ -2073,6 +2073,96 @@ fn hero_editorial_stagger_composes_expected_parts() {
     }
 }
 
+/// hero-image-tiles ページが `blocks-demo blocks-hero-image-tiles`
+/// class・両 stylesheet の `<link>`・列/タイル用の `data-*` フックを
+/// 実際に出力し、`blocks::stylesheet()` にもコラージュのはみ出し非表示・
+/// lg breakpoint・角丸/影トークンが存在すること（イシュー #2784）。
+#[test]
+fn hero_image_tiles_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-image-tiles/index.html"))
+        .expect("blocks/hero-image-tiles/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-hero-image-tiles\""),
+        "hero-image-tiles page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "hero-image-tiles page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "hero-image-tiles page should link the Blocks-specific stylesheet"
+    );
+    assert!(
+        html.contains("data-blocks-hero-image-tiles-column=\"1\""),
+        "hero-image-tiles should mark column 1"
+    );
+    assert!(
+        html.contains("data-blocks-hero-image-tiles-image"),
+        "hero-image-tiles should mark tile images"
+    );
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        ".blocks-hero-image-tiles-collage",
+        "overflow: hidden",
+        "@media (min-width: 64rem)",
+        "var(--fandhe-radius-",
+        "var(--fandhe-shadow-",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare {needle} for hero-image-tiles"
+        );
+    }
+}
+
+/// hero-image-tiles の合成部品（badge/heading/text/button/image）が
+/// 期待どおりの構成（5 枚のタイル・3 列・`alt=""`）で出力され、
+/// `<form>`/`data:` URI/`id`/`href="#"` を持ち込んでいないことを固定する
+/// （イシュー #2784）。
+#[test]
+fn hero_image_tiles_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/hero-image-tiles/")
+        .expect("hero-image-tiles should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"image\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "hero-image-tiles demo should contain {scope}"
+        );
+    }
+    assert_eq!(html.matches("<img").count(), 5);
+    assert_eq!(html.matches("alt=\"\"").count(), 5);
+    for column in ["\"1\"", "\"2\"", "\"3\""] {
+        assert!(
+            html.contains(&format!("data-blocks-hero-image-tiles-column={column}")),
+            "hero-image-tiles should mark column {column}"
+        );
+    }
+    assert_eq!(html.matches("type=\"button\"").count(), 2);
+    for needle in ["Get started", "See how it works"] {
+        assert!(
+            html.contains(needle),
+            "hero-image-tiles demo should contain {needle}"
+        );
+    }
+    for absent in ["<form", "src=\"data:", "id=\"", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "hero-image-tiles should never contain {absent}"
+        );
+    }
+}
+
 /// hero-parallax-layers ページが `blocks-demo blocks-hero-parallax-
 /// layers` class・両 stylesheet の `<link>`・3 レイヤーの `data-scope`/
 /// `data-part` を実際に出力し、`blocks::stylesheet()` にも
@@ -7212,6 +7302,92 @@ fn hero_background_media_composes_expected_parts() {
         assert!(
             !html.contains(absent),
             "hero-background-media should never contain {absent}"
+/// `hero-bottom-screenshot` ページが demo class・CSS リンク・CSS フックを
+/// 正しく配線していること（イシュー #2782）。
+#[test]
+fn hero_bottom_screenshot_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-bottom-screenshot/index.html"))
+        .expect("blocks/hero-bottom-screenshot/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-hero-bottom-screenshot\""),
+        "hero-bottom-screenshot page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "hero-bottom-screenshot page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "hero-bottom-screenshot page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-hero-bottom-screenshot-section-variant",
+        "data-blocks-hero-bottom-screenshot-image-variant",
+        "data-blocks-hero-bottom-screenshot-align",
+        "data-blocks-hero-bottom-screenshot-image",
+    ] {
+        assert!(
+            html.contains(hook),
+            "hero-bottom-screenshot page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "[data-blocks-hero-bottom-screenshot-align=\"start\"]",
+        ".blocks-hero-bottom-screenshot-pair-grid",
+        "@media (min-width: 64rem)",
+        "@media (min-width: 48rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// `hero-bottom-screenshot` の Demo が要求部品・6 セクション・非対話制約を
+/// 満たすこと（イシュー #2782）。
+#[test]
+fn hero_bottom_screenshot_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/hero-bottom-screenshot/")
+        .expect("hero-bottom-screenshot should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"button\"",
+        "data-scope=\"image\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "hero-bottom-screenshot demo should contain {scope}"
+        );
+    }
+    for variant in [
+        "bordered",
+        "top-rounded",
+        "left-split",
+        "video",
+        "pair-grid",
+        "band-logos",
+    ] {
+        assert_eq!(
+            html.matches(&format!(
+                "data-blocks-hero-bottom-screenshot-section-variant=\"{variant}\""
+            ))
+            .count(),
+            1,
+            "hero-bottom-screenshot demo should render section variant {variant} exactly once"
+        );
+    }
+    for absent in ["<form", "<video", "src=\"data:", "href=\"#\"", "id=\""] {
+        assert!(
+            !html.contains(absent),
+            "hero-bottom-screenshot should never contain {absent}"
         );
     }
 }
