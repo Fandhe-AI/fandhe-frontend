@@ -7,7 +7,9 @@
 //! ための構造、イシュー #2734）。
 
 mod content_article;
+mod content_article_toc;
 mod content_columns_screenshot;
+mod content_image_tiles;
 mod content_split_image;
 
 use crate::blocks::Block;
@@ -15,7 +17,9 @@ use crate::blocks::Block;
 pub(super) fn blocks() -> Vec<Block> {
     vec![
         content_article::BLOCK,
+        content_article_toc::BLOCK,
         content_columns_screenshot::BLOCK,
+        content_image_tiles::BLOCK,
         content_split_image::BLOCK,
     ]
 }
