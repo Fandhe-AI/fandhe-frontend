@@ -1408,6 +1408,11 @@ path = "/blocks/bento-two-column/"
 title = "Comparison"
 
 [[section.group.page]]
+title = "comparison-cards"
+source = "site/blocks/comparison-cards.md"
+path = "/blocks/comparison-cards/"
+
+[[section.group.page]]
 title = "comparison-feature-rows"
 source = "site/blocks/comparison-feature-rows.md"
 path = "/blocks/comparison-feature-rows/"

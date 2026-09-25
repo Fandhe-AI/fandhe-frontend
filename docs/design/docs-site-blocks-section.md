@@ -861,12 +861,13 @@ pub enum LayoutCss {
 | changelog-accordion | #2818 | `marketing/changelog/changelog_accordion.rs` |
 | changelog-stacked-list | #2819 | `marketing/changelog/changelog_stacked_list.rs` |
 | changelog-timeline | #2820 | `marketing/changelog/changelog_timeline.rs` |
+| comparison-cards | #2822 | `marketing/comparison/comparison_cards.rs` |
 | comparison-feature-rows | #2823 | `marketing/comparison/comparison_feature_rows.rs` |
 | careers-card-grid | #2815 | `marketing/careers/careers_card_grid.rs` |
 | careers-split-accordion | #2816 | `marketing/careers/careers_split_accordion.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-48 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+50 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
