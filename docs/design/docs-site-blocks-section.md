@@ -908,6 +908,7 @@ pub enum LayoutCss {
 | hero-image-top | #2785 | `marketing/hero/hero_image_top.rs` |
 | gallery-split-carousel | #2780 | `marketing/gallery/gallery_split_carousel.rs` |
 | hero-prompt-input | #2788 | `marketing/hero/hero_prompt_input.rs` |
+| hero-social-proof | #2790 | `marketing/hero/hero_social_proof.rs` |
 | hero-split-image | #2791 | `marketing/hero/hero_split_image.rs` |
 | logo-cloud-marquee | #2794 | `marketing/logo_cloud/logo_cloud_marquee.rs` |
 
