@@ -12,8 +12,8 @@ tools: [Read, Grep, Glob, Bash]
 ## 役割
 
 - `cargo test`（workspace 全体・クレート単位）の実行と結果要約
-- XSS 回帰テスト（SSR / SSG / CSR 3 経路、`<script>alert('xss')</script>` 等のペイロード検証）の実行
-- wasm ターゲットのテスト実行（`wasm-pack test` 等、整備後）
+- XSS 回帰テスト（SSR / SSG / CSR / WASM の各経路、`<script>alert('xss')</script>` 等のペイロード検証）の実行
+- wasm ターゲットのテスト実行（`wasm-pack test --headless --chrome` 等）
 - `cargo clippy` の警告収集
 - 失敗時: 原因の特定（該当ファイル・行・アサーション）と修正方針の提案を返す
 
