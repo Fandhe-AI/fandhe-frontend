@@ -40,18 +40,25 @@
 //! [`link::root`] へ置き換えた。`button` はそもそも `href` を受け取れない
 //! ため、実際に遷移する要素にするには別部品への差し替えが必須だった
 //! （`blog_split_header_grid.rs` の「すべての記事を見る」是正、イシュー
-//! #2814 PR #3165 と同型の教訓）。リンク先は本 Demo が `base_path` を
-//! 受け取れない制約下で唯一使える固定 URL（[`REPO`]。次項参照）とし、
-//! リポジトリのトップページを「ホーム」の遷移先として扱う。
+//! #2814 PR #3165 と同型の教訓）。
 //!
-//! 併せて、サポートへの導線（旧 [`link::root`]）が表示文言「Contact
-//! support」に対し実際には [`REPO`]（サポート窓口ではなくリポジトリの
-//! トップページ）へ遷移しており文言と遷移先が食い違っているという指摘
-//! （同レビュー）も是正した。実在するサポート窓口 URL を新たに作り込む
-//! ことはできない（架空 URL の捏造は行わない）ため、遷移先は GitHub の
-//! Issues ページ（[`ISSUES`]。`REPO` の子リソースであり、実際に「サポート
-//! を求める」導線として機能する）に変え、文言はそのまま「Contact
-//! support」を維持した（遷移先が文言の意味を裏切らない）。
+//! # 「ホームへ戻る」の遷移先（codex 再レビュー是正、PR #3212）
+//!
+//! 遷移先は当初リポジトリのトップページ（GitHub URL）を指していたが、
+//! 表示文言「Back to home」に対し実際にはサイトを離れて GitHub リポジトリへ
+//! 遷移してしまい文言と動作が食い違うという指摘（PR #3212 codex 再レビュー）
+//! を受けて、`error_page_background_image.rs` と同じ方式（docs サイトの
+//! ホームへ戻る相対パス `"../../"`。本 block のページ `/blocks/
+//! error-page-centered/` から見た `/` への相対参照）へ修正した。
+//!
+//! 併せて、サポートへの導線（[`link::root`]）が表示文言「Contact
+//! support」に対し実際にはリポジトリのトップページ（サポート窓口ではない）
+//! へ遷移しており文言と遷移先が食い違っているという指摘（同レビュー）も
+//! 是正した。実在するサポート窓口 URL を新たに作り込むことはできない
+//! （架空 URL の捏造は行わない）ため、遷移先は GitHub の Issues ページ
+//! （[`ISSUES`]。実際に「サポートを求める」導線として機能する）に変え、
+//! 文言はそのまま「Contact support」を維持した（遷移先が文言の意味を
+//! 裏切らない）。
 //!
 //! # `id` を出力しない
 //!
@@ -62,15 +69,15 @@
 //!
 //! `crate::blocks` モジュール doc「`<form>` を使わない」節・「セキュリティ
 //! 不変条件」節に従い、本 Demo はフォーム・状態機械を持たない静的な合成例
-//! である。ホームへ戻る導線・サポートへの導線はいずれも `link::root` +
-//! 固定 URL（[`REPO`]/[`ISSUES`]。`careers_card_grid` 等と同型の判断）で
-//! 表し、フォーム送信・XHR は一切行わない。文言はすべて架空のダミーで
+//! である。ホームへ戻る導線は `link::root` + サイトホームへの相対パス
+//! `"../../"`、サポートへの導線は `link::root` + 固定 URL（[`ISSUES`]。
+//! `careers_card_grid` 等と同型の判断）で表し、フォーム送信・XHR は一切
+//! 行わない。文言はすべて架空のダミーで
 //! あり、実企業名・実クレデンシャル・PII を含まない。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
-const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 const ISSUES: &str = "https://github.com/Fandhe-AI/fandhe-frontend/issues";
 
 use fandhe_frontend_core::{div, span, text, Node};
@@ -89,7 +96,7 @@ pub fn demo() -> Node {
         vec![("class", "blocks-error-page-centered-actions")],
         vec![
             link::root(
-                REPO,
+                "../../",
                 &LinkProps::default(),
                 vec![("data-blocks-error-page-centered-home", "")],
                 vec![text("Back to home")],
@@ -221,7 +228,7 @@ const LAYOUT_CSS: &str = "\
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, ISSUES, LAYOUT_CSS, REPO};
+    use super::{demo, ISSUES, LAYOUT_CSS};
     use fandhe_frontend_core::render;
 
     /// Demo が期待するフック・文言・非対話制約を満たしていることの単体
@@ -243,7 +250,7 @@ mod tests {
             assert!(html.contains(hook), "demo output should contain {hook}");
         }
         assert!(html.contains("404"));
-        assert!(html.contains(&format!("href=\"{REPO}\"")));
+        assert!(html.contains("href=\"../../\""));
         assert!(html.contains(&format!("href=\"{ISSUES}\"")));
         for absent in [
             "<form",

@@ -6062,7 +6062,9 @@ fn error_page_centered_page_wires_demo_class_and_css_hooks() {
 /// 是正）が期待どおりの構成で実際に出力されていること、非対話制約を
 /// 固定する。ホームへ戻る導線・サポートへの導線はいずれも `<button>` では
 /// なく実際に遷移する `<a href>` であり、文言と遷移先が一致することも
-/// 併せて固定する（同レビューの P1 指摘 2 件の回帰防止）。
+/// 併せて固定する（同レビューの P1 指摘の回帰防止。ホームへ戻る導線は
+/// サイトホームへの相対パス `"../../"` であり、GitHub リポジトリ URL
+/// ではない）。
 #[test]
 fn error_page_centered_composes_expected_parts() {
     let block = blocks::block_for_path("/blocks/error-page-centered/")
@@ -6080,7 +6082,7 @@ fn error_page_centered_composes_expected_parts() {
         );
     }
     assert!(!html.contains("<button"));
-    assert!(html.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend\""));
+    assert!(html.contains("href=\"../../\""));
     assert!(html.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend/issues\""));
     assert!(html.contains("404"));
     for absent in [

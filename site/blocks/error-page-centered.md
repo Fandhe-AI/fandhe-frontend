@@ -6,12 +6,17 @@
 テキストリンク」を横に並べます。狭い幅でも中央寄せを保ち、アクション列は
 折り返します。
 
-文言はすべて架空のダミーです。`<form>` は使わず、ホームへ戻る導線・
-サポートへの導線はいずれも固定 URL へ遷移する `link::root`（送信・状態
-変更は一切行わない静的な表示例）です。当初はホームへ戻る導線を
+文言はすべて架空のダミーです。`<form>` は使わず、ホームへ戻る導線は
+サイトホームへの相対パス（`"../../"`）、サポートへの導線は固定 URL
+（GitHub の Issues ページ）へ遷移する `link::root`（送信・状態変更は
+一切行わない静的な表示例）です。当初はホームへ戻る導線を
 `button::button`（`href` を持たない `<button type="button">`）としていま
 したが、押しても何も起きない dead control になっていたため、実際に
 遷移する `link::root` へ置き換えました（イシュー #2837 PR #3212 codex
+レビュー是正）。その遷移先も当初はリポジトリのトップページ（GitHub
+URL）のままで、表示文言「Back to home」に反してサイトを離れて GitHub
+へ遷移してしまう食い違いがあったため、`error-page-background-image` と
+同じ方式（サイトホームへの相対パス）へ是正しました（同 PR codex 再
 レビュー是正）。サポートへの導線も、表示文言「Contact support」に対し
 遷移先がリポジトリのトップページのままだった食い違いを、GitHub の
 Issues ページへ遷移先を変えることで是正しています。
@@ -21,7 +26,6 @@ Issues ページへ遷移先を変えることで是正しています。
 ## Rust コード
 
 ```rust
-const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 const ISSUES: &str = "https://github.com/Fandhe-AI/fandhe-frontend/issues";
 
 use fandhe_frontend_core::{div, span, text, Node};
@@ -40,7 +44,7 @@ pub fn demo() -> Node {
         vec![("class", "blocks-error-page-centered-actions")],
         vec![
             link::root(
-                REPO,
+                "../../",
                 &LinkProps::default(),
                 vec![("data-blocks-error-page-centered-home", "")],
                 vec![text("Back to home")],
