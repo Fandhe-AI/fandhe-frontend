@@ -6,6 +6,7 @@
 //! ための構造、イシュー #2734）。イシュー #2784 で `hero_image_tiles` を、
 //! イシュー #2785 で `hero_image_top` を追加し、本カテゴリは 7 件目となった。
 
+mod hero_bottom_screenshot;
 mod hero_editorial_stagger;
 mod hero_email_signup;
 mod hero_image_tiles;
@@ -17,6 +18,7 @@ use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
     vec![
+        hero_bottom_screenshot::BLOCK,
         hero_editorial_stagger::BLOCK,
         hero_email_signup::BLOCK,
         hero_image_tiles::BLOCK,
