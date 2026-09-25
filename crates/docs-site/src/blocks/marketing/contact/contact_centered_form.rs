@@ -20,12 +20,19 @@
 //! （既定 `type="button"`）のまま送信先・バリデーションを持たず、実際の
 //! 送信処理は利用者自身の Rust/JS コードで実装する
 //! （`docs/policy/intentional-non-adoption.md` §3.25）。同意チェックは
-//! 常に未チェックの静的表示（チェック済み状態は `CheckboxProps::default()`
-//! のまま）としつつ、`site/blocks/contact-centered-form.md` が「会社名・
+//! SSR 初期状態（未チェック、`CheckboxProps::default()` の `checked`）を
+//! 描画するのみとしつつ、`site/blocks/contact-centered-form.md` が「会社名・
 //! 電話番号以外は必須」と記載する契約に合わせて `required: true` を固定
 //! 指定する（`checkbox::hidden_input` の `required` 属性・`data-required`
-//! に反映される）。状態機械は持たない。文言はすべて架空のもの（実在の
-//! 人物・企業・PII を含まない）。
+//! に反映される）。状態機械は持たない。docs-site は JS ハイドレーションを
+//! 行わないため、ネイティブの `hidden_input` を操作しても `control`/
+//! `indicator` の `data-state`・`hidden` は SSR 初期状態のまま同期されない
+//! （`contact_split_form_info`・`dashboard_01`・Themes の checkbox 節と同じ
+//! 制約。同期は利用者側の状態管理・ハイドレーションの責務）。`disabled` 化による操作不能化は `required` 契約と両立しないため
+//! 採らず、CSS の `:has(:checked)` による見た目の同期も `indicator` の
+//! `hidden` 属性意味論を上書きすることになるため採らない
+//! （`fandhe_frontend_pre_styled_ui::checkbox` モジュール doc 参照）。
+//! 文言はすべて架空のもの（実在の人物・企業・PII を含まない）。
 //!
 //! # 集約元 3 件の統合
 //!
@@ -263,8 +270,9 @@ fn message_field() -> Node {
     )
 }
 
-/// プライバシーポリシー同意チェック（R0440/R0853 の差分。未チェック固定の
-/// 静的表示、リンクは持たない）。
+/// プライバシーポリシー同意チェック（R0440/R0853 の差分。SSR 初期状態
+/// 〔未チェック〕を描画する、リンクは持たない。操作と見た目の非同期は
+/// モジュール doc「`<form>` を持たない・送信処理を持たない」節参照）。
 fn consent_checkbox() -> Node {
     let props = CheckboxProps {
         required: true,
