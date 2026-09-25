@@ -433,7 +433,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-split-screenshot-lead] {\n  margin: 0;\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-split-screenshot-feature-text] {\n  margin: 0;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-split-screenshot-image] {\n  display: block;\n  width: 100%;\n  border: 1px solid var(--fandhe-color-border);\n  box-shadow: var(--fandhe-shadow-lg);\n}\n\
-.blocks-feature-split-screenshot-panel {\n  background: var(--fandhe-color-accent);\n  border-radius: var(--fandhe-radius-lg);\n  padding: var(--fandhe-space-8) 0 0 var(--fandhe-space-8);\n  width: 100%;\n}\n\
+.blocks-feature-split-screenshot-panel {\n  background: var(--fandhe-color-accent);\n  border-radius: var(--fandhe-radius-lg);\n  padding: var(--fandhe-space-8) 0 0 var(--fandhe-space-8);\n  width: 100%;\n  min-width: 0;\n}\n\
 .blocks-feature-split-screenshot-panel [data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-split-screenshot-image] {\n  box-shadow: none;\n}\n\
 .blocks-feature-split-screenshot-code-frame {\n  width: 100%;\n  background: var(--fandhe-color-fg);\n  color: var(--fandhe-color-bg);\n  border-radius: var(--fandhe-radius-lg);\n  overflow: hidden;\n}\n\
 .blocks-feature-split-screenshot-tabs {\n  display: flex;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
