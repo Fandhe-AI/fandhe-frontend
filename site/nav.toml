@@ -1263,6 +1263,11 @@ source = "site/blocks/hero-prompt-input.md"
 path = "/blocks/hero-prompt-input/"
 
 [[section.group.page]]
+title = "hero-search"
+source = "site/blocks/hero-search.md"
+path = "/blocks/hero-search/"
+
+[[section.group.page]]
 title = "hero-split-image"
 source = "site/blocks/hero-split-image.md"
 path = "/blocks/hero-split-image/"
@@ -1388,6 +1393,14 @@ title = "Testimonial"
 title = "testimonials-stack"
 source = "site/blocks/testimonials-stack.md"
 path = "/blocks/testimonials-stack/"
+
+[[section.group]]
+title = "Logo Cloud"
+
+[[section.group.page]]
+title = "logo-cloud-marquee"
+source = "site/blocks/logo-cloud-marquee.md"
+path = "/blocks/logo-cloud-marquee/"
 
 [[section.group]]
 title = "Contact"

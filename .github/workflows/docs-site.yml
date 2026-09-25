@@ -237,6 +237,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-marquee-strip/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-parallax-layers/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-prompt-input/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-search/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-split-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-terminal/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/text-split-reveal/index.html"
@@ -265,6 +266,7 @@ jobs:
           # Marketing / Testimonial
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonials-stack/index.html"
           # Marketing / Logo Cloud
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/logo-cloud-marquee/index.html"
           # Marketing / Stats
           # Marketing / Team
           # Marketing / Faq

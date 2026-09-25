@@ -8,8 +8,9 @@
 //! `hero_background_media`/`hero_bottom_screenshot` を追加し、本カテゴリは
 //! 8 件目となった。イシュー #2787 で `hero_marquee_strip` を追加して
 //! 9 件目となった。イシュー #2785 で `hero_image_top` を追加し、本カテゴリは
-//! 10 件目となった。イシュー #2786 で `hero_install_command` を追加し、
-//! 11 件目となった。
+//! 10 件目となった。イシュー #2789 で `hero_search` を、イシュー #2791 で
+//! `hero_split_image` を追加し、本カテゴリは 12 件目となった。イシュー #2786 で
+//! `hero_install_command` を追加し、13 件目となった。
 
 mod hero_background_media;
 mod hero_bottom_screenshot;
@@ -21,6 +22,7 @@ mod hero_install_command;
 mod hero_marquee_strip;
 mod hero_parallax_layers;
 mod hero_prompt_input;
+mod hero_search;
 mod hero_split_image;
 mod hero_terminal;
 mod text_split_reveal;
@@ -38,6 +40,7 @@ pub(super) fn blocks() -> Vec<Block> {
         hero_marquee_strip::BLOCK,
         hero_parallax_layers::BLOCK,
         hero_prompt_input::BLOCK,
+        hero_search::BLOCK,
         hero_split_image::BLOCK,
         hero_terminal::BLOCK,
         text_split_reveal::BLOCK,
