@@ -19,7 +19,9 @@
 
 `md` 未満（`< 48rem`）で CTA を全幅縦積みにし、`>= 48rem` で横並びに戻り
 ます。`<form>` は持たず、ボタンはすべて `type="button"` です。コピー
-対象のコマンド・遷移先はすべて無害な自前の値のみです。
+対象のコマンド・遷移先はすべて無害な自前の値のみです。CTA ボタン
+（「はじめる」「ドキュメントを見る」「詳しく見る」）は遷移先・クリック
+処理を持たない合成例のため、いずれも `disabled` で押下不能を明示します。
 
 ## コピー操作について
 
@@ -123,14 +125,22 @@ fn instance_a() -> Node {
             div(
                 vec![("class", "blocks-hero-install-command-actions")],
                 vec![
+                    // レビュー指摘対応（P2、イシュー #2786 Codex 指摘）:
+                    // 遷移先・クリック処理を持たない CTA のため、addon
+                    // ボタン（instance_b）と同型の判断で `disabled: true`
+                    // にして「押しても何も起きない」ことを明示する。
                     button::button(
-                        &ButtonProps::default(),
+                        &ButtonProps {
+                            disabled: true,
+                            ..ButtonProps::default()
+                        },
                         vec![("data-blocks-hero-install-command-cta", "")],
                         vec![text("はじめる")],
                     ),
                     button::button(
                         &ButtonProps {
                             variant: ButtonVariant::Outline,
+                            disabled: true,
                             ..ButtonProps::default()
                         },
                         vec![("data-blocks-hero-install-command-cta", "")],
@@ -250,7 +260,13 @@ fn instance_b() -> Node {
             div(
                 vec![("class", "blocks-hero-install-command-actions")],
                 vec![button::button(
-                    &ButtonProps::default(),
+                    // レビュー指摘対応（P2、イシュー #2786 Codex 指摘）:
+                    // 遷移先・クリック処理を持たない CTA のため disabled で
+                    // 明示する（A と同型の判断）。
+                    &ButtonProps {
+                        disabled: true,
+                        ..ButtonProps::default()
+                    },
                     vec![("data-blocks-hero-install-command-cta", "")],
                     vec![text("詳しく見る")],
                 )],

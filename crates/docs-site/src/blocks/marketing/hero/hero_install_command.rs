@@ -59,6 +59,13 @@
 //! `clipboard::trigger`/`input_group::button` いずれも既定・固定で
 //! `type="button"`）。
 //!
+//! # CTA ボタンは押下不能（レビュー指摘対応、P2、イシュー #2786 Codex 指摘）
+//!
+//! 「はじめる」「ドキュメントを見る」「詳しく見る」の 3 個の CTA
+//! （`button::button`）はいずれも遷移先・クリック処理を持たない合成例の
+//! ボタンであり、`disabled: true` で押下不能を明示する。B の addon
+//! ボタン（上記「コピー配線の範囲」節）と同型の判断。
+//!
 //! # コマンド文字列・遷移先はすべて無害
 //!
 //! コピー対象コマンドは本フレームワーク自身の CLI・一般的な Rust
@@ -168,14 +175,22 @@ fn instance_a() -> Node {
             div(
                 vec![("class", "blocks-hero-install-command-actions")],
                 vec![
+                    // レビュー指摘対応（P2、イシュー #2786 Codex 指摘）:
+                    // 遷移先・クリック処理を持たない CTA のため、addon
+                    // ボタン（instance_b）と同型の判断で `disabled: true`
+                    // にして「押しても何も起きない」ことを明示する。
                     button::button(
-                        &ButtonProps::default(),
+                        &ButtonProps {
+                            disabled: true,
+                            ..ButtonProps::default()
+                        },
                         vec![("data-blocks-hero-install-command-cta", "")],
                         vec![text("はじめる")],
                     ),
                     button::button(
                         &ButtonProps {
                             variant: ButtonVariant::Outline,
+                            disabled: true,
                             ..ButtonProps::default()
                         },
                         vec![("data-blocks-hero-install-command-cta", "")],
@@ -295,7 +310,13 @@ fn instance_b() -> Node {
             div(
                 vec![("class", "blocks-hero-install-command-actions")],
                 vec![button::button(
-                    &ButtonProps::default(),
+                    // レビュー指摘対応（P2、イシュー #2786 Codex 指摘）:
+                    // 遷移先・クリック処理を持たない CTA のため disabled で
+                    // 明示する（A と同型の判断）。
+                    &ButtonProps {
+                        disabled: true,
+                        ..ButtonProps::default()
+                    },
                     vec![("data-blocks-hero-install-command-cta", "")],
                     vec![text("詳しく見る")],
                 )],
