@@ -879,6 +879,7 @@ pub enum LayoutCss {
 | feature-large-screenshot | #2766 | `marketing/feature/feature_large_screenshot.rs` |
 | contact-image-info | #2829 | `marketing/contact/contact_image_info.rs` |
 | feature-side-heading-grid | #2767 | `marketing/feature/feature_side_heading_grid.rs` |
+| feature-split-image | #2768 | `marketing/feature/feature_split_image.rs` |
 | contact-info-columns | #2830 | `marketing/contact/contact_info_columns.rs` |
 | contact-split-form-info | #2832/#2833/#2834 | `marketing/contact/contact_split_form_info.rs` |
 
