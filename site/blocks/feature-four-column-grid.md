@@ -127,7 +127,14 @@ fn header(
                 vec![],
                 vec![
                     text(title_prefix),
-                    highlight(&HighlightProps::default(), vec![], highlighted),
+                    highlight(
+                        &HighlightProps {
+                            query: &[highlighted],
+                            ..HighlightProps::default()
+                        },
+                        vec![],
+                        highlighted,
+                    ),
                     text(title_suffix),
                 ],
             ),
@@ -182,14 +189,20 @@ fn feature_card(data: &FeatureCard, overlay_href: Option<&'static str>) -> Node 
                 ],
                 vec![],
             ));
-            vec![link_overlay::root(vec![], linked)]
+            vec![link_overlay::root(
+                vec![("data-blocks-feature-four-column-grid-link", "")],
+                linked,
+            )]
         }
     };
 
     card::root(
         CardProps::default(),
         vec![("data-blocks-feature-four-column-grid-card", "")],
-        inner,
+        vec![card::body(
+            vec![("data-blocks-feature-four-column-grid-card-body", "")],
+            inner,
+        )],
     )
 }
 
@@ -222,7 +235,7 @@ fn instance(
                     variant: TextVariant::Muted,
                     ..TextProps::default()
                 },
-                vec![("class", "blocks-feature-four-column-grid-note")],
+                vec![("data-blocks-feature-four-column-grid-note", "")],
                 vec![text(note)],
             ),
             div(grid_attrs, cards),

@@ -41,13 +41,16 @@
 //!
 //! # `link_overlay` を使う理由・`overflow: hidden` を持たない理由
 //!
-//! 全面リンクカードは `card::root` の内側へ `link_overlay::root` を置き、
+//! 全面リンクカードは `card::body` の内側へ `link_overlay::root` を置き、
 //! カード内容の後ろに `overlay(href, …)` を続ける（`blog_overlay_cards`と
-//! 同じ「overlay 1 個のみでカード全体をクリック可能にする」構成）。本
-//! block のカードは角丸クリップが必要な画像を持たないため `card::root` へ
-//! `overflow: hidden` を与えず、`blog_overlay_cards` が必要とした
-//! `outline-offset` の内側化上書きも不要（`FocusRingOffset::Outside` の
-//! 既定のままフォーカスリングがカード境界の外側へ正しく描画される）。
+//! 同じ「overlay 1 個のみでカード全体をクリック可能にする」構成）。
+//! `link_overlay::root` には `height: 100%` を与え、`card::body`（`flex: 1`
+//! で残り高さを埋める）いっぱいまでクリック領域を拡張する（codex P1
+//! 是正、イシュー #2764 レビュー対応）。本 block のカードは角丸クリップが
+//! 必要な画像を持たないため `card::root` へ `overflow: hidden` を与えず、
+//! `blog_overlay_cards` が必要とした `outline-offset` の内側化上書きも
+//! 不要（`FocusRingOffset::Outside` の既定のままフォーカスリングがカード
+//! 境界の外側へ正しく描画される）。
 //!
 //! # `highlight` の使い方
 //!
@@ -206,7 +209,14 @@ fn header(
                 vec![],
                 vec![
                     text(title_prefix),
-                    highlight(&HighlightProps::default(), vec![], highlighted),
+                    highlight(
+                        &HighlightProps {
+                            query: &[highlighted],
+                            ..HighlightProps::default()
+                        },
+                        vec![],
+                        highlighted,
+                    ),
                     text(title_suffix),
                 ],
             ),
@@ -261,14 +271,20 @@ fn feature_card(data: &FeatureCard, overlay_href: Option<&'static str>) -> Node 
                 ],
                 vec![],
             ));
-            vec![link_overlay::root(vec![], linked)]
+            vec![link_overlay::root(
+                vec![("data-blocks-feature-four-column-grid-link", "")],
+                linked,
+            )]
         }
     };
 
     card::root(
         CardProps::default(),
         vec![("data-blocks-feature-four-column-grid-card", "")],
-        inner,
+        vec![card::body(
+            vec![("data-blocks-feature-four-column-grid-card-body", "")],
+            inner,
+        )],
     )
 }
 
@@ -301,7 +317,7 @@ fn instance(
                     variant: TextVariant::Muted,
                     ..TextProps::default()
                 },
-                vec![("class", "blocks-feature-four-column-grid-note")],
+                vec![("data-blocks-feature-four-column-grid-note", "")],
                 vec![text(note)],
             ),
             div(grid_attrs, cards),
@@ -387,9 +403,11 @@ const LAYOUT_CSS: &str = "\
 .blocks-feature-four-column-grid-instance {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-feature-four-column-grid-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  align-items: center;\n  text-align: center;\n  max-width: 40rem;\n  margin-inline: auto;\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-four-column-grid-lead] {\n  margin: 0;\n}\n\
-.blocks-feature-four-column-grid-note {\n  margin: 0;\n  text-align: center;\n}\n\
+[data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-four-column-grid-note] {\n  margin: 0;\n  text-align: center;\n}\n\
 .blocks-feature-four-column-grid-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-6);\n}\n\
-[data-blocks-feature-four-column-grid-card] {\n  position: relative;\n  height: 100%;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
+[data-blocks-feature-four-column-grid-card] {\n  position: relative;\n  height: 100%;\n}\n\
+[data-blocks-feature-four-column-grid-card-body] {\n  gap: var(--fandhe-space-3);\n}\n\
+[data-blocks-feature-four-column-grid-link] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  height: 100%;\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-four-column-grid-desc] {\n  margin: 0;\n}\n\
 [data-scope=\"icon\"][data-part=\"root\"][data-blocks-feature-four-column-grid-arrow] {\n  position: absolute;\n  top: var(--fandhe-space-4);\n  right: var(--fandhe-space-4);\n}\n\
 @media (min-width: 48rem) {\n  \
