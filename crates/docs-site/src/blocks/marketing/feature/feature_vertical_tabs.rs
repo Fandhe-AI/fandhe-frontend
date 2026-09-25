@@ -88,16 +88,21 @@
 //! 縦積み + `border-inline-end`・trigger の `border-inline-end` + 選択中の
 //! 強調線・content の `flex: 1` をすでに持つ。lg（64rem）以上の主表示は
 //! この recipe だけで賄えるうえ、`aria-orientation="vertical"` が実際の
-//! レイアウトと一致する意味論として正しい。**lg 未満だけ** [`LAYOUT_CSS`]
-//! が横並びへ上書きする（下記「レスポンシブ」節）。
+//! レイアウトと一致する意味論として正しい。**lg 未満**でも [`LAYOUT_CSS`]
+//! は list の縦積み自体は変えず、2 列 → 1 列の折り返しだけを行う（下記
+//! 「レスポンシブ」節）。このため `aria-orientation="vertical"` はすべての
+//! 画面幅で実際のレイアウト（trigger が縦に並ぶ）と一致し続ける。
 //!
-//! # レスポンシブ（64rem をブレークポイントとする理由・`aria-orientation`
-//! のトレードオフ）
+//! # レスポンシブ（64rem をブレークポイントとする理由）
 //!
-//! `< 64rem`（lg 未満）はタブ列をパネルの上へ移して横並び（横スクロール）
-//! にする。`>= 64rem` で左の縦タブ列 + 右のパネルの 2 列へ切り替える。
-//! テーマの breakpoint トークンは `@media` 条件式の中では解決できない
-//! （CSS custom property は宣言側でのみ有効）ため、
+//! `< 64rem`（lg 未満）は 2 列（左の縦タブ列 + 右のパネル）を 1 列へ折り
+//! 返し、タブ列をパネルの上へ移す。ただし list 自体の `flex-direction`
+//! は recipe が持つ `column`（vertical 時の既定）のまま変えず、4 trigger
+//! は横スクロールへは切り替えず縦に積んだまま幅いっぱいに広げる（`list`
+//! の `max-width: 20rem` 制約だけを解除する）。`>= 64rem` で左の縦タブ列
+//! （`max-width: 20rem`）+ 右のパネルの 2 列へ切り替える。テーマの
+//! breakpoint トークンは `@media` 条件式の中では解決できない（CSS custom
+//! property は宣言側でのみ有効）ため、
 //! [`fandhe_frontend_pre_styled_ui::recipe::Breakpoint`] の `Lg`（1024px =
 //! 64rem）と一致するリテラル値 `63.99rem`/`64rem` を [`LAYOUT_CSS`] へ直書き
 //! する（`feature_expand`/`feature_split_list_image` と同じ判断）。
@@ -108,18 +113,23 @@
 //! flex コンテナでは交差軸（水平方向）の既定配置になり、`flex-start` は
 //! 子（`list`/`content`）をコンテンツ幅へ shrink-wrap させる。trigger が
 //! `flex-shrink: 0` のため、4 trigger 分の内容幅ぶん `list` 自体が伸びて
-//! 親幅を超え、`overflow-x: auto` が効くはずの `list` 内部ではなく
-//! ページ全体が横にはみ出す（PR #3211 の codex-review 指摘、P1）。lg 未満
-//! の `@media` ブロックで root へ `align-items: stretch` を追加すると
-//! `list`/`content` が root 幅に制約され、横スクロールは `list` 内部の
-//! `overflow-x: auto` だけで完結する。lg 以上では `flex-start` のままにする
-//! （`list` の縦の区切り線 `border-inline-end` がコンテンツ高さで止まり、
+//! 親幅を超え、ページ全体が横にはみ出す（PR #3211 の codex-review 指摘、
+//! P1）。lg 未満の `@media` ブロックで root へ `align-items: stretch` を
+//! 追加すると `list`/`content` が root 幅に制約され、4 trigger は縦に
+//! 積んだまま折り返さず自然に高さ方向へ伸びる（横スクロールは発生しない
+//! ため `overflow-x` 系の宣言は不要）。lg 以上では `flex-start` のままに
+//! する（`list` の縦の区切り線 `border-inline-end` がコンテンツ高さで止まり、
 //! `content` の高さに引き伸ばされないようにするため）。
 //!
-//! **トレードオフ**: lg 未満はタブが横に並ぶが `aria-orientation` は
-//! `"vertical"` のまま残る。hydration されたページでは矢印キーの移動軸
-//! （上下）と見た目の軸（左右）が食い違うが、docs サイトは JS
-//! ハイドレーションを一切行わないため実害はない。
+//! **`aria-orientation` と実際の見た目の一致（PR #3211 の 3 回目の
+//! codex-review 指摘、P2 の是正）**: 当初案は lg 未満で list を
+//! `flex-direction: row`（横スクロール）へ上書きしていたが、`Orientation::
+//! Vertical` に伴う `aria-orientation="vertical"` が横並びの実際のレイアウト
+//! と食い違い、スクリーンリーダー利用者への意味づけが不整合になる指摘を
+//! 受けた。是正として list の `flex-direction` 上書きをやめ、常に
+//! `column`（縦積み）のまま `max-width` 制約だけを外す設計へ変更した。
+//! これにより見た目（縦積み）と `aria-orientation="vertical"` が全画面幅で
+//! 一致する。
 //!
 //! # trigger 内は phrasing content だけで組む
 //!
@@ -131,9 +141,9 @@
 //! 説明用の `span[data-blocks-feature-vertical-tabs-trigger-desc]` を置き、
 //! core の `span`/`text` のみで組む。trigger の base 規則が持つ
 //! `white-space: nowrap` を [`LAYOUT_CSS`] で `normal` へ上書きし、`gap` +
-//! `flex-direction: column` で縦に積む。lg 未満の横並び時は、trigger 幅の
-//! 肥大化を避けるため説明文（`trigger-desc`）を非表示にする（タイトルだけ
-//! のタブになる）。
+//! `flex-direction: column` で縦に積む。lg 未満でも list は幅いっぱいに
+//! 広がる縦積みのままのため、trigger 幅の肥大化は起きず説明文
+//! （`trigger-desc`）を非表示にする必要はない。
 //!
 //! # CSS フックの選び方・詳細度の方針
 //!
@@ -578,10 +588,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-vertical-tabs-image] {\n  display: block;\n  width: 100%;\n  margin-top: var(--fandhe-space-4);\n}\n\
 @media (max-width: 63.99rem) {\n  \
 .blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"root\"] {\n    flex-direction: column;\n    align-items: stretch;\n  }\n  \
-.blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"list\"][data-orientation=\"vertical\"] {\n    flex-direction: row;\n    max-width: 100%;\n    overflow-x: auto;\n    overflow-y: hidden;\n    border-inline-end: 0;\n    border-bottom: 1px solid var(--fandhe-color-border);\n    padding-bottom: 1px;\n  }\n  \
-.blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"trigger\"][data-orientation=\"vertical\"] {\n    border-inline-end: 0;\n    margin-inline-end: 0;\n    border-bottom: 2px solid transparent;\n    margin-bottom: -1px;\n    flex-shrink: 0;\n    outline-offset: -2px;\n  }\n  \
-.blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"trigger\"][data-state=\"active\"][data-orientation=\"vertical\"] {\n    border-bottom-color: var(--fandhe-palette, var(--fandhe-color-accent));\n  }\n  \
-[data-blocks-feature-vertical-tabs-trigger-desc] {\n    display: none;\n  }\n\
+.blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"list\"][data-orientation=\"vertical\"] {\n    max-width: 100%;\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -730,10 +737,14 @@ mod tests {
         assert_eq!(checked, 16);
     }
 
-    /// [`LAYOUT_CSS`] が lg 未満の横並び上書き・詳細度確保の子孫セレクタを
+    /// [`LAYOUT_CSS`] が lg 未満の折り返し上書き・詳細度確保の子孫セレクタを
     /// 持つこと。`align-items: stretch` は PR #3211 の codex-review 指摘
     /// （P1: 狭い画面でタブ列が横スクロール領域に収まらない）の回帰固定
-    /// （モジュール doc「`align-items: stretch` 上書き」節）。
+    /// （モジュール doc「`align-items: stretch` 上書き」節）。lg 未満でも
+    /// list の `flex-direction` は上書きしない（`column` のまま。PR #3211
+    /// の 3 回目の codex-review 指摘、P2: `aria-orientation="vertical"` と
+    /// 実際の見た目〔横並び〕が食い違う、の回帰固定。モジュール doc
+    /// 「`aria-orientation` と実際の見た目の一致」節）。
     #[test]
     fn layout_css_declares_lg_breakpoint_overrides() {
         assert!(LAYOUT_CSS.contains("@media (max-width: 63.99rem)"));
@@ -741,11 +752,15 @@ mod tests {
             "[data-scope=\"tabs\"][data-part=\"root\"] {\n    flex-direction: column;\n    align-items: stretch;"
         ));
         assert!(LAYOUT_CSS.contains(
-            "[data-scope=\"tabs\"][data-part=\"list\"][data-orientation=\"vertical\"] {\n    flex-direction: row;"
+            "[data-scope=\"tabs\"][data-part=\"list\"][data-orientation=\"vertical\"] {\n    max-width: 100%;"
         ));
-        assert!(LAYOUT_CSS.contains("overflow-x: auto;"));
-        assert!(LAYOUT_CSS.contains("max-width: 100%;"));
-        assert!(LAYOUT_CSS
+        // lg 未満でも list の flex-direction は上書きしない（常に column の
+        // まま、横スクロール化しない）ことの直接固定。
+        assert!(!LAYOUT_CSS.contains("flex-direction: row;"));
+        // trigger の説明文（trigger-desc）を非表示にする上書きは持たない
+        // （list が幅いっぱいの縦積みのままなので trigger 幅の肥大化が
+        // 起きず、非表示化が不要になったため）。
+        assert!(!LAYOUT_CSS
             .contains("[data-blocks-feature-vertical-tabs-trigger-desc] {\n    display: none;"));
     }
 
