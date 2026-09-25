@@ -4,12 +4,14 @@
 縦並びの feature タブ、右列に選択中 feature の詳細（見出し・チェック付き
 機能一覧・画像）を置くセクションです。
 
-先頭タブ（build）を選択済みの状態で固定表示しています（docs サイトは
-JS ハイドレーションを行わないため）。幅 lg（64rem）以上ではタブ列が左に
-縦並び、パネルが右に表示されます。幅 lg 未満ではタブ列がパネルの上へ
-移り、横スクロールできる横並びに切り替わります（この幅ではタブの
-`aria-orientation` は `"vertical"` のまま残りますが、docs サイトは
-JS ハイドレーションを行わないため実害はありません）。
+docs サイトは JS ハイドレーションを行わないため、選択済みタブを切り替える
+操作はできません。代わりに、選択タブが異なる 4 個のインスタンス
+（build/deploy/observe/secure を各々選択済み）をキャプション付きで縦に
+併記し、4 状態すべての詳細を静的なページ内で閲覧できるようにしています。
+幅 lg（64rem）以上ではタブ列が左に縦並び、パネルが右に表示されます。幅
+lg 未満ではタブ列がパネルの上へ移り、横スクロールできる横並びに切り替わり
+ます（この幅ではタブの `aria-orientation` は `"vertical"` のまま残ります
+が、docs サイトは JS ハイドレーションを行わないため実害はありません）。
 
 文言・データはすべて架空のもので、データ取得・送信は行わない静的な表示
 例です。`<form>` は使用せず、送信先を持ちません。
@@ -18,7 +20,7 @@ JS ハイドレーションを行わないため実害はありません）。
 
 ```rust
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, span, text as core_text, Node};
+use fandhe_frontend_core::{div, p, span, text as core_text, Node};
 use fandhe_frontend_pre_styled_ui::heading::{
     self, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
 };
@@ -274,8 +276,9 @@ fn panel_body(tab: &FeatureTab) -> Vec<Node> {
     ]
 }
 
-/// 縦並び Tabs 本体を組み立てる（#2776 が並記のために再利用できる共通
-/// ヘルパ。`id` は呼び出し側がリテラルで完全指定する）。
+/// 縦並び Tabs 本体を組み立てる（`demo` が 4 状態の静的併記のために呼び出す
+/// 共通ヘルパ、モジュール doc「無 JS での扱い」節参照。`id` は呼び出し側が
+/// リテラルで完全指定する）。
 fn vertical_tabs(id: &'static str, selected: &'static str) -> Node {
     let items: Vec<TabItem<'static>> = FEATURES
         .iter()
@@ -304,14 +307,40 @@ fn vertical_tabs(id: &'static str, selected: &'static str) -> Node {
 }
 
 /// `feature-vertical-tabs` の Demo 本体。呼び出しごとに同一の `Node` を
-/// 返す純関数（他 block と同じ状態を持たない設計）。
+/// 返す純関数（他 block と同じ状態を持たない設計）。docs サイトは JS
+/// ハイドレーションを行わないため、`selected` が異なる 4 個の
+/// [`vertical_tabs`] インスタンス（build/deploy/observe/secure を各々
+/// 選択済み）をキャプション付きで縦に併記する（モジュール doc「無 JS での
+/// 扱い（4 インスタンスの静的併記）」節、`pricing_tiers_morph` と同型の
+/// 対処）。
 #[must_use]
 pub fn demo() -> Node {
+    let instances: [(&'static str, &'static str); 4] = [
+        ("blocks-feature-vertical-tabs-basic", "build"),
+        ("blocks-feature-vertical-tabs-deploy", "deploy"),
+        ("blocks-feature-vertical-tabs-observe", "observe"),
+        ("blocks-feature-vertical-tabs-secure", "secure"),
+    ];
+    let mut stack_children: Vec<Node> = Vec::with_capacity(instances.len() * 2);
+    for (id, selected) in instances {
+        let tab = FEATURES
+            .iter()
+            .find(|tab| tab.value == selected)
+            .expect("selected はすべて FEATURES に存在する既知の値");
+        stack_children.push(p(
+            vec![("data-blocks-feature-vertical-tabs-caption", "")],
+            vec![core_text(tab.title)],
+        ));
+        stack_children.push(vertical_tabs(id, selected));
+    }
     div(
         vec![("class", "blocks-feature-vertical-tabs-layout")],
         vec![
             section_header(),
-            vertical_tabs("blocks-feature-vertical-tabs-basic", "build"),
+            div(
+                vec![("data-blocks-feature-vertical-tabs-stack", "")],
+                stack_children,
+            ),
         ],
     )
 }
@@ -336,6 +365,11 @@ pub fn demo() -> Node {
   した。
 - チェックマークのアイコンは lucide 等の既存アイコンセットの path を
   複製しない自作の単純な線画です。
-- 本イシュー（#2775）では骨格と主要領域（1 インスタンス・4 タブ）のみを
-  実装しています。状態違いの並記・trigger アイコン等の仕上げ・画像主体の
-  別パネル形は後続の #2776 で扱います。
+- 本イシュー（#2775）では骨格と主要領域（4 タブ）を実装しています。
+  trigger アイコン等の仕上げ・画像主体の別パネル形は後続の #2776 で
+  扱います。
+- docs サイトは JS ハイドレーションを行わないため、選択タブが異なる 4 個
+  のインスタンス（build/deploy/observe/secure を各々選択済み）を
+  キャプション付きで縦に併記し、4 状態すべての詳細を静的なページ内で
+  閲覧できるようにしています（`pricing-tiers-morph` の「2 状態併記」と
+  同型の対処）。

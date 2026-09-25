@@ -10,15 +10,21 @@
 //!
 //! 本イシュー（#2775）では骨格と主要領域を実装する: レイアウト root・
 //! セクション見出し（`heading` H3 + `text` リード文）・4 タブの
-//! [`vertical_tabs`]（先頭タブ選択済み・[`Orientation::Vertical`]）・各
-//! trigger のタイトル + 短い説明・各パネルの見出し（`heading` H4）+
-//! チェック付き機能一覧（`icon` + タイトル + 説明）+ 画像（`image`）。これで
-//! [`BLOCK`] の `parts` が申告する Heading / Text / Tabs / Image / Icon の
-//! 5 部品すべてが実際に描画される。
+//! [`vertical_tabs`]（[`Orientation::Vertical`]）・各 trigger のタイトル +
+//! 短い説明・各パネルの見出し（`heading` H4）+ チェック付き機能一覧
+//! （`icon` + タイトル + 説明）+ 画像（`image`）。これで [`BLOCK`] の
+//! `parts` が申告する Heading / Text / Tabs / Image / Icon の 5 部品すべて
+//! が実際に描画される。
 //!
-//! 後続の #2776 では次を扱う: 状態違いの並記（2 件目のタブを選択した別
-//! インスタンス）・trigger 先頭のアイコン等の仕上げの装飾・画像主体の別
-//! パネル形・原稿「原案差分メモ」節の本記述（本イシューでは暫定版のみ）。
+//! 当初は `vertical_tabs` の呼び出しを 1 インスタンス（先頭タブ選択済み）
+//! のみとし、選択状態違いの並記は #2776 へ先送りする計画だったが、
+//! PR #3211 の codex-review 指摘（P1: 無 JS のページで残り 3 件のタブ内容を
+//! 閲覧できない）を受けて本イシューへ前倒しした。詳細は下記「無 JS での
+//! 扱い」節参照。
+//!
+//! 後続の #2776 では次を扱う: trigger 先頭のアイコン等の仕上げの装飾・
+//! 画像主体の別パネル形・原稿「原案差分メモ」節の本記述（本イシューでは
+//! 暫定版のみ）。
 //!
 //! # 使用部品
 //!
@@ -27,17 +33,26 @@
 //! blocks_nav.rs`/`blocks_contract.rs` が検証する）。新規 UI 部品は追加
 //! しない。
 //!
-//! # 無 JS での扱い
+//! # 無 JS での扱い（4 インスタンスの静的併記）
 //!
 //! docs サイトは JS ハイドレーションを行わない（`crates/docs-site/tests/
-//! no_js_contract.rs`）ため、先頭タブ（`build`）を選択済みの固定状態で
-//! 描画する。非選択パネルは headless `tabs` が付与する `hidden` 属性で
-//! 隠れる（`crates/headless-ui/src/tabs.rs`）。
+//! no_js_contract.rs`）。headless `tabs` は非選択側の `content` に `hidden`
+//! 属性を付ける設計であり（`crates/headless-ui/src/tabs.rs`）、単一の
+//! `tabs` インスタンスへ 4 タブ分をまとめると、非選択の 3 パネルは SSR
+//! 出力に存在はしても選択を切り替える JS が無いため実際には一切閲覧
+//! できない（`pricing_tiers_morph`「無 JS（docs サイト）での『2 状態併記』」
+//! 節と同じ問題）。このため本 block は `selected` が異なる 4 個の
+//! `vertical_tabs` インスタンス（build/deploy/observe/secure を各々選択
+//! 済み）をキャプション付きで縦に併記する（`pricing_tiers_morph`/
+//! `sidebar_07` と同型の対処）。各インスタンス内でも非選択側パネルは
+//! 依然 `hidden` になるが、4 インスタンスを併記することで 4 状態すべての
+//! 選択済み（可視）パネルが実際にページ上へ現れる。
 //!
 //! # id 規約
 //!
-//! 基底 id は `blocks-feature-vertical-tabs-<接尾辞>` とする。本イシューは
-//! `-basic`（唯一のインスタンス）のみを持つ。
+//! 基底 id は `blocks-feature-vertical-tabs-<接尾辞>` とする。接尾辞は
+//! `basic`（build 選択済み、最初のインスタンス）・`deploy`・`observe`・
+//! `secure`（いずれも対応する [`FeatureTab::value`] を選択済み）の 4 つ。
 //!
 //! # `Orientation::Vertical` を採用する理由（参照元の「Horizontal + 見た目
 //! だけ CSS」は採らない）
@@ -60,6 +75,20 @@
 //! [`fandhe_frontend_pre_styled_ui::recipe::Breakpoint`] の `Lg`（1024px =
 //! 64rem）と一致するリテラル値 `63.99rem`/`64rem` を [`LAYOUT_CSS`] へ直書き
 //! する（`feature_expand`/`feature_split_list_image` と同じ判断）。
+//!
+//! **lg 未満での `align-items: stretch` 上書き**: root の基底規則
+//! （モジュール doc「CSS フックの選び方」節の子孫セレクタ規則）は
+//! `align-items: flex-start` を持つ。`flex-direction: column` の
+//! flex コンテナでは交差軸（水平方向）の既定配置になり、`flex-start` は
+//! 子（`list`/`content`）をコンテンツ幅へ shrink-wrap させる。trigger が
+//! `flex-shrink: 0` のため、4 trigger 分の内容幅ぶん `list` 自体が伸びて
+//! 親幅を超え、`overflow-x: auto` が効くはずの `list` 内部ではなく
+//! ページ全体が横にはみ出す（PR #3211 の codex-review 指摘、P1）。lg 未満
+//! の `@media` ブロックで root へ `align-items: stretch` を追加すると
+//! `list`/`content` が root 幅に制約され、横スクロールは `list` 内部の
+//! `overflow-x: auto` だけで完結する。lg 以上では `flex-start` のままにする
+//! （`list` の縦の区切り線 `border-inline-end` がコンテンツ高さで止まり、
+//! `content` の高さに引き伸ばされないようにするため）。
 //!
 //! **トレードオフ**: lg 未満はタブが横に並ぶが `aria-orientation` は
 //! `"vertical"` のまま残る。hydration されたページでは矢印キーの移動軸
@@ -133,7 +162,7 @@ use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, span, text as core_text, Node};
+use fandhe_frontend_core::{div, p, span, text as core_text, Node};
 use fandhe_frontend_pre_styled_ui::heading::{
     self, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
 };
@@ -389,8 +418,9 @@ fn panel_body(tab: &FeatureTab) -> Vec<Node> {
     ]
 }
 
-/// 縦並び Tabs 本体を組み立てる（#2776 が並記のために再利用できる共通
-/// ヘルパ。`id` は呼び出し側がリテラルで完全指定する）。
+/// 縦並び Tabs 本体を組み立てる（`demo` が 4 状態の静的併記のために呼び出す
+/// 共通ヘルパ、モジュール doc「無 JS での扱い」節参照。`id` は呼び出し側が
+/// リテラルで完全指定する）。
 fn vertical_tabs(id: &'static str, selected: &'static str) -> Node {
     let items: Vec<TabItem<'static>> = FEATURES
         .iter()
@@ -419,14 +449,40 @@ fn vertical_tabs(id: &'static str, selected: &'static str) -> Node {
 }
 
 /// `feature-vertical-tabs` の Demo 本体。呼び出しごとに同一の `Node` を
-/// 返す純関数（他 block と同じ状態を持たない設計）。
+/// 返す純関数（他 block と同じ状態を持たない設計）。docs サイトは JS
+/// ハイドレーションを行わないため、`selected` が異なる 4 個の
+/// [`vertical_tabs`] インスタンス（build/deploy/observe/secure を各々
+/// 選択済み）をキャプション付きで縦に併記する（モジュール doc「無 JS での
+/// 扱い（4 インスタンスの静的併記）」節、`pricing_tiers_morph` と同型の
+/// 対処）。
 #[must_use]
 pub fn demo() -> Node {
+    let instances: [(&'static str, &'static str); 4] = [
+        ("blocks-feature-vertical-tabs-basic", "build"),
+        ("blocks-feature-vertical-tabs-deploy", "deploy"),
+        ("blocks-feature-vertical-tabs-observe", "observe"),
+        ("blocks-feature-vertical-tabs-secure", "secure"),
+    ];
+    let mut stack_children: Vec<Node> = Vec::with_capacity(instances.len() * 2);
+    for (id, selected) in instances {
+        let tab = FEATURES
+            .iter()
+            .find(|tab| tab.value == selected)
+            .expect("selected はすべて FEATURES に存在する既知の値");
+        stack_children.push(p(
+            vec![("data-blocks-feature-vertical-tabs-caption", "")],
+            vec![core_text(tab.title)],
+        ));
+        stack_children.push(vertical_tabs(id, selected));
+    }
     div(
         vec![("class", "blocks-feature-vertical-tabs-layout")],
         vec![
             section_header(),
-            vertical_tabs("blocks-feature-vertical-tabs-basic", "build"),
+            div(
+                vec![("data-blocks-feature-vertical-tabs-stack", "")],
+                stack_children,
+            ),
         ],
     )
 }
@@ -477,6 +533,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-feature-vertical-tabs-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-feature-vertical-tabs-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-vertical-tabs-lead] {\n  margin: 0;\n}\n\
+[data-blocks-feature-vertical-tabs-stack] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
+[data-blocks-feature-vertical-tabs-caption] {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"root\"] {\n  display: flex;\n  gap: var(--fandhe-space-8);\n  align-items: flex-start;\n}\n\
 .blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"list\"][data-orientation=\"vertical\"] {\n  flex: 0 0 auto;\n  max-width: 20rem;\n}\n\
 .blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"content\"][data-orientation=\"vertical\"] {\n  flex: 1;\n  min-width: 0;\n}\n\
@@ -489,8 +547,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-feature-vertical-tabs-point-text {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-vertical-tabs-image] {\n  display: block;\n  width: 100%;\n  margin-top: var(--fandhe-space-4);\n}\n\
 @media (max-width: 63.99rem) {\n  \
-.blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"root\"] {\n    flex-direction: column;\n  }\n  \
-.blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"list\"][data-orientation=\"vertical\"] {\n    flex-direction: row;\n    max-width: none;\n    overflow-x: auto;\n    overflow-y: hidden;\n    border-inline-end: 0;\n    border-bottom: 1px solid var(--fandhe-color-border);\n    padding-bottom: 1px;\n  }\n  \
+.blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"root\"] {\n    flex-direction: column;\n    align-items: stretch;\n  }\n  \
+.blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"list\"][data-orientation=\"vertical\"] {\n    flex-direction: row;\n    max-width: 100%;\n    overflow-x: auto;\n    overflow-y: hidden;\n    border-inline-end: 0;\n    border-bottom: 1px solid var(--fandhe-color-border);\n    padding-bottom: 1px;\n  }\n  \
 .blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"trigger\"][data-orientation=\"vertical\"] {\n    border-inline-end: 0;\n    margin-inline-end: 0;\n    border-bottom: 2px solid transparent;\n    margin-bottom: -1px;\n    flex-shrink: 0;\n    outline-offset: -2px;\n  }\n  \
 .blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"trigger\"][data-state=\"active\"][data-orientation=\"vertical\"] {\n    border-bottom-color: var(--fandhe-palette, var(--fandhe-color-accent));\n  }\n  \
 [data-blocks-feature-vertical-tabs-trigger-desc] {\n    display: none;\n  }\n\
@@ -521,15 +579,46 @@ mod tests {
         assert!(!html.contains("src=\"data:"));
     }
 
-    /// 先頭タブ（`build`）のみが選択済み・4 パネル中 3 パネルが `hidden`
-    /// であること（無 JS 前提の静的固定表示、モジュール doc「無 JS での
-    /// 扱い」節）。
+    /// 4 インスタンスそれぞれで対応するタブのみが選択済み・残り 3 パネルが
+    /// `hidden` であること（無 JS 前提の静的併記、モジュール doc「無 JS
+    /// での扱い（4 インスタンスの静的併記）」節）。
     #[test]
-    fn demo_selects_first_tab_and_hides_other_panels() {
+    fn demo_selects_one_tab_per_instance_and_hides_other_panels() {
         let html = render(&demo());
-        assert_eq!(html.matches("aria-selected=\"true\"").count(), 1);
-        assert_eq!(html.matches("aria-selected=\"false\"").count(), 3);
-        assert_eq!(html.matches(" hidden").count(), 3);
+        assert_eq!(html.matches("aria-selected=\"true\"").count(), 4);
+        assert_eq!(html.matches("aria-selected=\"false\"").count(), 12);
+        assert_eq!(html.matches(" hidden").count(), 12);
+    }
+
+    /// 4 状態（build/deploy/observe/secure）すべての選択済み（可視）パネルが
+    /// 実際にページ上へ現れること（PR #3211 の codex-review 指摘、P1: 無 JS
+    /// のページで残り 3 件のタブ内容を閲覧できない、の回帰固定）。
+    #[test]
+    fn demo_makes_every_panel_reachable_without_js() {
+        let html = render(&demo());
+        for (id_suffix, value) in [
+            ("basic", "build"),
+            ("deploy", "deploy"),
+            ("observe", "observe"),
+            ("secure", "secure"),
+        ] {
+            let content_id =
+                format!("id=\"blocks-feature-vertical-tabs-{id_suffix}-content-{value}\"");
+            let content_start = html
+                .find(&content_id)
+                .unwrap_or_else(|| panic!("missing content id: {content_id}"));
+            // 選択済みパネルの開始タグ（次の `>` まで）に `hidden` が
+            // 含まれないこと（可視であることの直接確認）。
+            let tag_end = html[content_start..]
+                .find('>')
+                .map(|i| content_start + i)
+                .expect("content タグは閉じられている");
+            let tag = &html[content_start..tag_end];
+            assert!(
+                !tag.contains("hidden"),
+                "selected panel must be visible (no hidden attr): {tag}"
+            );
+        }
     }
 
     /// `data-orientation="vertical"`/`aria-orientation="vertical"` が
@@ -577,20 +666,39 @@ mod tests {
             start = close + "</button>".len();
             checked += 1;
         }
-        assert_eq!(checked, 4);
+        assert_eq!(checked, 16);
     }
 
     /// [`LAYOUT_CSS`] が lg 未満の横並び上書き・詳細度確保の子孫セレクタを
-    /// 持つこと。
+    /// 持つこと。`align-items: stretch` は PR #3211 の codex-review 指摘
+    /// （P1: 狭い画面でタブ列が横スクロール領域に収まらない）の回帰固定
+    /// （モジュール doc「`align-items: stretch` 上書き」節）。
     #[test]
     fn layout_css_declares_lg_breakpoint_overrides() {
         assert!(LAYOUT_CSS.contains("@media (max-width: 63.99rem)"));
         assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"tabs\"][data-part=\"root\"] {\n    flex-direction: column;\n    align-items: stretch;"
+        ));
+        assert!(LAYOUT_CSS.contains(
             "[data-scope=\"tabs\"][data-part=\"list\"][data-orientation=\"vertical\"] {\n    flex-direction: row;"
         ));
         assert!(LAYOUT_CSS.contains("overflow-x: auto;"));
+        assert!(LAYOUT_CSS.contains("max-width: 100%;"));
         assert!(LAYOUT_CSS
             .contains("[data-blocks-feature-vertical-tabs-trigger-desc] {\n    display: none;"));
+    }
+
+    /// 4 インスタンス分のキャプション（`data-blocks-feature-vertical-tabs-
+    /// caption`）が併記されていること。
+    #[test]
+    fn demo_renders_one_caption_per_instance() {
+        let html = render(&demo());
+        assert_eq!(
+            html.matches("data-blocks-feature-vertical-tabs-caption")
+                .count(),
+            4
+        );
+        assert!(html.contains("data-blocks-feature-vertical-tabs-stack"));
     }
 
     /// ルート class（`demo_class` とは別名）が `demo()` の出力へ実際に
