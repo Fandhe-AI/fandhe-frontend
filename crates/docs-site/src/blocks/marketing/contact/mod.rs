@@ -16,9 +16,11 @@
 //! 3 件目の block（`contact_info_columns`）、イシュー #2828 で 4 件目の
 //! block（[`contact_form_testimonial`]）、イシュー #2832 で 5 件目の
 //! block（`contact_split_form_info`）、イシュー #2831 で 6 件目の
-//! block（`contact_split_form_image`）、イシュー #2835 で 7 件目の
+//! block（`contact_split_form_image`）、イシュー #2826 で 7 件目の block
+//! （`contact_centered_form`）、イシュー #2835 で 8 件目の
 //! block（[`contact_split_info`]）を追加した。
 
+mod contact_centered_form;
 mod contact_dialog_form;
 mod contact_form_testimonial;
 mod contact_image_info;
@@ -37,6 +39,7 @@ pub(super) fn blocks() -> Vec<Block> {
         contact_form_testimonial::BLOCK,
         contact_split_form_info::BLOCK,
         contact_split_form_image::BLOCK,
+        contact_centered_form::BLOCK,
         contact_split_info::BLOCK,
     ]
 }
