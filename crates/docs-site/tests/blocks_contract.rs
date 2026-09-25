@@ -7496,3 +7496,82 @@ fn hero_email_signup_composes_expected_parts() {
         );
     }
 }
+
+/// hero-prompt-input の Demo ラッパ・CSS 配線・block 固有 CSS（入力欄の
+/// フック 4 種・狭幅ブレークポイントでの全幅化）が実際に出力されている
+/// ことを固定する（イシュー #2788）。
+#[test]
+fn hero_prompt_input_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-prompt-input/index.html"))
+        .expect("blocks/hero-prompt-input/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-hero-prompt-input\""),
+        "hero-prompt-input page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "hero-prompt-input page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "hero-prompt-input page should link the Blocks-specific stylesheet"
+    );
+
+    for hook in [
+        "data-blocks-hero-prompt-input-tagline",
+        "data-blocks-hero-prompt-input-prompt",
+        "data-blocks-hero-prompt-input-actions",
+        "data-blocks-hero-prompt-input-submit",
+    ] {
+        assert!(
+            html.contains(hook),
+            "hero-prompt-input page should contain {hook}"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        r#"[data-scope="field"][data-part="root"][data-blocks-hero-prompt-input-prompt] {"#,
+        "@media (max-width: 47.99rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// hero-prompt-input の合成部品（badge/heading/text/field/input-group/
+/// textarea/button）が期待どおりの構成で実際に出力されていること、
+/// `<form>`・送信先・`data:` URI を持ち込んでおらず `type="button"` が
+/// ちょうど 1 個であること、入力欄に `aria-label` が付与されていること
+/// を固定する（イシュー #2788）。
+#[test]
+fn hero_prompt_input_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-prompt-input/index.html"))
+        .expect("blocks/hero-prompt-input/index.html should be generated");
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"field\"",
+        "data-scope=\"input-group\"",
+        "data-scope=\"button\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "hero-prompt-input page should contain {scope}"
+        );
+    }
+    assert!(html.contains(r#"data-part="textarea""#));
+    assert!(html.contains("aria-label="));
+    for absent in ["<form", "action=", "type=\"submit\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "hero-prompt-input should never contain {absent}"
+        );
+    }
+}
