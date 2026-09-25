@@ -233,6 +233,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-email-signup/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-image-tiles/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-install-command/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-marquee-strip/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-parallax-layers/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-prompt-input/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-terminal/index.html"

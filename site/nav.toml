@@ -1243,6 +1243,11 @@ source = "site/blocks/hero-install-command.md"
 path = "/blocks/hero-install-command/"
 
 [[section.group.page]]
+title = "hero-marquee-strip"
+source = "site/blocks/hero-marquee-strip.md"
+path = "/blocks/hero-marquee-strip/"
+
+[[section.group.page]]
 title = "hero-parallax-layers"
 source = "site/blocks/hero-parallax-layers.md"
 path = "/blocks/hero-parallax-layers/"
