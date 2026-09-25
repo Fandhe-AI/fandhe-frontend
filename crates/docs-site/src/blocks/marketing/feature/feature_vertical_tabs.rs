@@ -6,40 +6,30 @@
 //! 該当しない）のみを記す（取得手段・ファイル名・内部コンポーネント識別子
 //! は記載しない）。
 //!
-//! # #2775 と #2776 の分担（完了記録）
+//! # #2775・#2776・実物の `tabs::tabs` 排除ラウンドの分担（完了記録）
 //!
 //! #2775 では骨格と主要領域を実装した: レイアウト root・セクション見出し
-//! （`heading` H3 + `text` リード文）・4 タブの [`vertical_tabs`]（先頭タブ
-//! 選択済み・[`Orientation::Vertical`]）・各 trigger のタイトル・短い説明・
-//! 各パネルの見出し（`heading` H4）・チェック付き機能一覧（`icon` とタイトルと
-//! 説明）・画像（`image`）。これで [`BLOCK`] の `parts` が申告する
-//! Heading・Text・Tabs・Image・Icon の 5 部品すべてが実際に描画される。
-//!
-//! #2776 では次を仕上げた: trigger 先頭のアイコン（[`FeatureTab::icon`]）・
-//! 画像主体の別パネル形（[`PanelLayout::ImageFirst`]）・原稿「原案差分
-//! メモ」節の本記述。詳細は下記「全パネルを静的に読めるようにする」節・
-//! 「trigger 先頭のアイコン」節を参照。
+//! （`heading` H3 + `text` リード文）・4 タブの [`vertical_tabs`]・各 trigger
+//! のタイトル・短い説明・各パネルの見出し（`heading` H4）・チェック付き
+//! 機能一覧（`icon` とタイトルと説明）・画像（`image`）。#2776 では次を
+//! 仕上げた: trigger 先頭のアイコン（[`FeatureTab::icon`]）・画像主体の別
+//! パネル形（[`PanelLayout::ImageFirst`]）・[`FEATURES`] の 4 タブそれぞれを
+//! 選択済みにした 4 インスタンスへの拡張（下記「全パネルを静的に読める
+//! ようにする」節）。さらに後続ラウンド（本コミット）で、[`vertical_tabs`]
+//! が実物の `tabs::tabs` を一切使わない非対話構造へ置き換わった（下記
+//! 「無 JS での扱い（実物の `tabs::tabs` は一切使わない）」節）。
 //!
 //! # 全パネルを静的に読めるようにする
 //!
-//! 当初 [`demo`] は状態違いの並記として 2 インスタンス（`build`/`secure`
-//! の 2 タブのみ選択）だったが、`deploy`/`observe` の 2 パネルが `demo` の
-//! どのインスタンスでも一度も選択されず、headless `tabs` の `hidden`
-//! 属性（`crates/headless-ui/src/tabs.rs`）で常時隠れたまま到達不能に
-//! なっていた（#2776 codex-review P1 指摘）。docs サイトは JS
-//! ハイドレーションを行わないため、trigger をクリックしても選択状態は
-//! 切り替わらず、リード文が「タブを選ぶと表示される」という誤った期待を
-//! 与えていた。是正として [`FEATURES`] の 4 タブそれぞれを選択済みにした
-//! 4 インスタンスへ拡張した（`build`/`observe` は
-//! [`PanelLayout::ListFirst`]、`deploy`/`secure` は
-//! [`PanelLayout::ImageFirst`]、2 つのパネル形を交互に見せる構成は維持）。
-//! これにより 4 パネルすべてがページ上のいずれかのインスタンスで可視状態
-//! として存在する（`sidebar_07` の expanded/collapsed 2 インスタンス併記・
-//! `pricing_tiers_morph` の月額/年額 2 インスタンス併記と同型の対処で、
-//! 対象タブ数が 4 のため 4 インスタンスへ拡張した点のみが異なる）。リード
-//! 文も「選ぶと表示される」という操作結果の予告から、並記された静的な
-//! 選択済み状態を説明する文言へ改めた。`FEATURES`・`dummy_assets` の既存
-//! 画像定数はそのまま再利用し、新規データは追加しない。
+//! [`demo`] は [`FEATURES`] の 4 タブそれぞれを選択済みにした 4 インスタンス
+//! を縦に並べる（`build`/`observe` は [`PanelLayout::ListFirst`]、
+//! `deploy`/`secure` は [`PanelLayout::ImageFirst`]、2 つのパネル形を交互に
+//! 見せる構成）。これにより 4 パネルすべてがページ上のいずれかのインス
+//! タンスで可視状態として存在する（`sidebar_07` の expanded/collapsed
+//! 2 インスタンス併記・`pricing_tiers_morph` の月額/年額 2 インスタンス
+//! 併記と同型の対処で、対象タブ数が 4 のため 4 インスタンスへ拡張した点
+//! のみが異なる）。`FEATURES`・`dummy_assets` の既存画像定数はそのまま
+//! 再利用し、新規データは追加しない。
 //!
 //! # trigger 先頭のアイコン
 //!
@@ -52,53 +42,60 @@
 //!
 //! `heading` / `text` / `tabs` / `image` / `icon` の 5 部品を合成する
 //! （[`BLOCK`] の `parts` に一致させる契約、`crates/docs-site/tests/
-//! blocks_nav.rs`/`blocks_contract.rs` が検証する）。新規 UI 部品は追加
-//! しない。
+//! blocks_nav.rs`/`blocks_contract.rs` が検証する）。`tabs` は下記「無 JS
+//! での扱い」節のとおり `fandhe_frontend_pre_styled_ui::tabs::tabs` を実際
+//! には呼ばず、CSS フック（`data-scope="tabs"`/`data-part="..."`）だけを
+//! 再利用して見た目を模す。新規 UI 部品は追加しない。
 //!
-//! # 無 JS での扱い
+//! # 無 JS での扱い（実物の `tabs::tabs` は一切使わない）
 //!
-//! docs サイトは JS ハイドレーションを行わない（`crates/docs-site/tests/
-//! no_js_contract.rs`）ため、各インスタンスはそれぞれ 1 タブを選択済みの
-//! 固定状態で描画する。インスタンス内で非選択のパネルは headless `tabs`
-//! が付与する `hidden` 属性で隠れ、そのインスタンス内では他パネルへの
-//! 切替手段を持たない（trigger をクリックしても何も起きない）。この
-//! 制約自体は解消できないため、上記「全パネルを静的に読めるようにする」
-//! 節のとおり 4 タブすべてをいずれかのインスタンスで可視にすることで
-//! 「読めないパネルが存在する」状態を解消している。
-//!
-//! 加えて、各インスタンスの非選択タブ 3 件は [`TabItem::disabled`] を
-//! `true` にして `disabled`/`aria-disabled="true"` 付きの操作できない
-//! 見た目にする（#2776 追加ラウンドの codex-review P1 是正）。当初は全
-//! trigger が `disabled: false` の押せるボタンとして描画されており、
-//! セクション見出し「機能を切り替えて確認する」と組み合わさると「押せば
-//! 切り替わる」という誤った期待を与えていた（無 JS のため実際には何も
-//! 起きない）。見出しも操作を予告しない「4 つの機能を確認する」へ改めた
-//! （リード文「機能ごとにタブを選択した状態のパネルを並べて掲載して
-//! います」は既に静的な並記を説明していたため変更不要）。選択中タブ自身は
-//! 有効のまま残す（disabled にすると headless 側が選択自体を「未選択」
-//! 扱いへ倒すため、`vertical_tabs` の doc コメント参照）。
+//! docs サイトは JS ハイドレーションを行わないため、`tabs::tabs` の
+//! trigger（`role="tab"`/`type="button"`/`tabindex`）はクリック・キーボード
+//! 操作をしても実際には一切切り替わらないにもかかわらず操作可能に見える。
+//! 当初は非選択タブ 3 件を `disabled`/`aria-disabled="true"` にして操作
+//! できない見た目にしていたが、各インスタンスで唯一有効な選択中タブが
+//! `role="tab"`・押せるボタンのまま残り、`role="tablist"` と合わせて
+//! キーボード利用者・支援技術には「切り替え可能な UI」と伝わる不整合が
+//! 残った（codex-review 指摘、`docs/design/docs-site-blocks-section.md`
+//! §19 参照。`feature_tabs_panel::static_tab_list` が先に解決した課題と
+//! 同型）。無 JS の docs サイトで実際に切り替えられるようにする経路は
+//! ないため、本 block は実物の `tabs::tabs` を**一切使わない**。タブ列は
+//! [`static_tab_list`]（`data-scope="tabs"`/`data-part="list"`/`"trigger"`
+//! の `div` のみで [`LAYOUT_CSS`]・pre-styled-ui.css の tabs recipe（同じ
+//! 属性セレクタで判定するため実物のコンポーネントを介さずとも見た目を
+//! 継承できる）の見た目を再現し、`role`/`tabindex`/`<button>` を一切持たない
+//! 非対話表示）で視覚上だけ模し、選択中パネルの本文は [`vertical_tabs`]
+//! が直接（`panel_body` 経由で）描画する。残り 3 パネルは同 block の
+//! 別インスタンスでそれぞれ選択済みとして可視になる（上記「全パネルを
+//! 静的に読めるようにする」節）ため、`feature_tabs_panel` のような
+//! プレビュー併記は不要。trigger はいずれもタイトル/説明のみで進捗等の
+//! 実情報を持たないため、常に `aria-hidden="true"` を付与し装飾要素として
+//! 支援技術のツリーから除外する。
 //!
 //! # id 規約
 //!
 //! 基底 id は `blocks-feature-vertical-tabs-<接尾辞>` とする。接尾辞は
 //! 選択済みタブの `value`（`build`/`deploy`/`observe`/`secure`）と同じ
 //! 文字列にする（[`vertical_tabs`] が組み立てる
-//! `<id>-trigger-<value>`/`<id>-content-<value>` が全域で一意になるよう、
-//! 接尾辞をインスタンス間で必ず変える）。
+//! `<id_prefix>-trigger-<value>`/`<id_prefix>-content-<value>` が全域で
+//! 一意になるよう、接尾辞をインスタンス間で必ず変える）。実物の
+//! `tabs::tabs` を使わないため `aria-controls`/`aria-labelledby` による
+//! 相互参照は発生せず、id は一意性の確保のみを目的とする。
 //!
-//! # `Orientation::Vertical` を採用する理由（参照元の「Horizontal + 見た目
-//! だけ CSS」は採らない）
+//! # `data-orientation="vertical"` を CSS フックとしてのみ使う理由
 //!
 //! `fandhe_frontend_pre_styled_ui::tabs` の recipe（イシュー #1542/#2039）は
-//! `data-orientation="vertical"` に対して root の `display: flex`・list の
+//! `[data-orientation="vertical"]` に対して root の `display: flex`・list の
 //! 縦積み + `border-inline-end`・trigger の `border-inline-end` + 選択中の
-//! 強調線・content の `flex: 1` をすでに持つ。lg（64rem）以上の主表示は
-//! この recipe だけで賄えるうえ、`aria-orientation="vertical"` が実際の
-//! レイアウトと一致する意味論として正しい。**lg 未満だけ** [`LAYOUT_CSS`]
-//! が list/content の縦積みへ上書きする（下記「レスポンシブ」節）。
+//! 強調線・content の `flex: 1` をすでに持つ。[`static_tab_list`]/
+//! [`vertical_tabs`] はこの `data-orientation` 属性値をそのまま複製して
+//! recipe の見た目を継承するが、これは CSS セレクタが読む素の data 属性
+//! であり `aria-orientation`（ARIA プロパティ）とは無関係である。本 block
+//! は `role="tablist"`/`role="tab"` を一切出力しないため `aria-orientation`
+//! も出力しない（支援技術に「操作可能な tablist」と伝えない、上記「無 JS
+//! での扱い」節）。
 //!
-//! # レスポンシブ（64rem をブレークポイントとする理由・`aria-orientation`
-//! を一貫させる設計）
+//! # レスポンシブ（64rem をブレークポイントとする理由）
 //!
 //! `< 64rem`（lg 未満）は root を `flex-direction: column` にしてタブ列を
 //! パネルの上へ積む。`>= 64rem` で左の縦タブ列 + 右のパネルの 2 列へ
@@ -106,26 +103,17 @@
 //! 解決できない（CSS custom property は宣言側でのみ有効）ため、
 //! [`fandhe_frontend_pre_styled_ui::recipe::Breakpoint`] の `Lg`（1024px =
 //! 64rem）と一致するリテラル値 `63.99rem`/`64rem` を [`LAYOUT_CSS`] へ直書き
-//! する（`feature_expand`/`feature_split_list_image` と同じ判断）。
+//! する（`feature_expand`/`feature_split_list_image` と同じ判断）。lg 未満
+//! でも list の軸（縦積み）は変えず `max-width` 制約だけを外すため、`role`/
+//! `aria-*` を出力しない本 block では「見た目と意味論の食い違い」自体が
+//! 構造的に発生しない。
 //!
-//! **`aria-orientation="vertical"` を lg 未満でも崩さない理由**（#2776
-//! codex-review P2 是正）: 当初案は lg 未満でタブ列自体を横並び（横スクロール
-//! のタブバー）へ転換していたが、`list` の `data-orientation="vertical"`・
-//! `aria-orientation="vertical"` は幅に関わらず常に出力されるため、SSR
-//! 出力を読む支援技術には「vertical」と伝わるのに実際の表示は横並びという
-//! 意味論の食い違いが生じていた。docs サイトは無 JS で SSR 出力がそのまま
-//! 最終表示になるため、この食い違いは「hydration 前提の一時的な差」では
-//! なく実害のある不整合だった。是正として、lg 未満でも `list` の軸は変え
-//! ず（recipe の `data-orientation="vertical"` 規則がもたらす縦積みの
-//! ままとし）、`root` だけを `column` にしてタブ列をパネルの上へ積む形に
-//! 変更した。これにより見た目の軸（上下積み）が常に `aria-orientation=
-//! "vertical"` と一致する。
+//! # trigger は phrasing content だけで組む
 //!
-//! # trigger 内は phrasing content だけで組む
-//!
-//! headless の trigger は `<button type="button">` で、許される内容は
-//! phrasing content だけである（`heading::heading` の `<h*>` や
-//! `styled_text::text` の `<p>` は trigger の中では使えない）。[`trigger_body`]
+//! [`static_tab_list`] の trigger は `<button>` ではなく `<div>` だが、
+//! 見た目を [`fandhe_frontend_pre_styled_ui::tabs`] の trigger recipe へ
+//! 揃えるため引き続き phrasing content のみで構成する（`heading::heading`
+//! の `<h*>` や `styled_text::text` の `<p>` は使わない）。[`trigger_body`]
 //! は `span[data-blocks-feature-vertical-tabs-trigger-body]` の中に、
 //! タイトル用の `span[data-blocks-feature-vertical-tabs-trigger-title]` と
 //! 説明用の `span[data-blocks-feature-vertical-tabs-trigger-desc]` を置き、
@@ -140,18 +128,19 @@
 //! `heading`/`text`/`image`/`icon` はいずれも `drop_class_attr` により
 //! 呼び出し側 `attrs` の `class` を黙って除去する契約を持つため、Demo
 //! 固有のスタイルフックは `data-blocks-feature-vertical-tabs-*` 属性で
-//! 渡す。`tabs`（[`fandhe_frontend_pre_styled_ui::tabs::tabs`]）は root への
-//! attrs 注入点を持たないため、レイアウト root の class
-//! （[`Block::demo_class`] とは別名の `blocks-feature-vertical-tabs-layout`）
-//! を起点にした子孫セレクタ（`.blocks-feature-vertical-tabs-layout
-//! [data-scope="tabs"]...`）で上書きする。recipe の
-//! `[data-scope][data-part][data-orientation]` 系規則（詳細度 (0,3,0)）・
-//! `[data-scope][data-part][data-state][data-orientation]`（(0,4,0)）に
-//! 確実に勝つため、上書きは子孫セレクタで 1 クラス分の詳細度を追加する
-//! （それぞれ (0,4,0)・(0,5,0) になる）。`image`（recipe 詳細度 (0,2,0)）
-//! への上書きも同様に `[data-scope="image"][data-part="root"][data-blocks-
-//! feature-vertical-tabs-image]` の 3 セレクタ構成（(0,3,0)）で行う
-//! （`feature_split_list_image`/`feature_image_cards` と同型の判断）。
+//! 渡す。[`static_tab_list`]/[`vertical_tabs`] が組み立てる `tabs` の見た目
+//! （root への attrs 注入点を持たない、実物の `tabs::tabs` と同じ制約）も
+//! レイアウト root の class（[`Block::demo_class`] とは別名の
+//! `blocks-feature-vertical-tabs-layout`）を起点にした子孫セレクタ
+//! （`.blocks-feature-vertical-tabs-layout [data-scope="tabs"]...`）で
+//! 上書きする。recipe の `[data-scope][data-part][data-orientation]` 系
+//! 規則（詳細度 (0,3,0)）・`[data-scope][data-part][data-state]
+//! [data-orientation]`（(0,4,0)）に確実に勝つため、上書きは子孫セレクタで
+//! 1 クラス分の詳細度を追加する（それぞれ (0,4,0)・(0,5,0) になる）。
+//! `image`（recipe 詳細度 (0,2,0)）への上書きも同様に `[data-scope="image"]
+//! [data-part="root"][data-blocks-feature-vertical-tabs-image]` の 3
+//! セレクタ構成（(0,3,0)）で行う（`feature_split_list_image`/
+//! `feature_image_cards` と同型の判断）。
 //!
 //! # `text` の名前衝突
 //!
@@ -189,28 +178,26 @@
 //!
 //! `crate::blocks` モジュール doc「`<form>` を使わない」節・「セキュリティ
 //! 不変条件」節に従い、本 Demo はフォーム・状態機械を持たない静的な合成例
-//! である。trigger は headless 由来の `type="button"` で送信先を持たない。
-//! 文言はすべて架空のもの（実企業名・実クレデンシャル・PII を含まない）。
-//! 画像は [`crate::blocks::dummy_assets`] の各定数（いずれもビルド時生成の
-//! プレースホルダー SVG）を使い分け、`alt=""` で出力する。
+//! である。trigger は `<button>` ではなく `<div>` のため送信先を持たない
+//! （上記「無 JS での扱い」節）。文言はすべて架空のもの（実企業名・実
+//! クレデンシャル・PII を含まない）。画像は [`crate::blocks::dummy_assets`]
+//! の各定数（いずれもビルド時生成のプレースホルダー SVG）を使い分け、
+//! `alt=""` で出力する。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, span, text as core_text, Node};
+use fandhe_frontend_core::{div, el_owned, span, text as core_text, Node};
 use fandhe_frontend_pre_styled_ui::heading::{
     self, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
 };
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{self, AspectRatio, ImageFit, ImageProps, ImageShape};
-use fandhe_frontend_pre_styled_ui::tabs::{
-    self, ActivationMode, Orientation, TabItem, TabsProps, TabsVariant,
-};
 use fandhe_frontend_pre_styled_ui::text::{
     self as styled_text, TextProps, TextSize, TextVariant, TextWeight,
 };
-use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
+use fandhe_frontend_pre_styled_ui::Size;
 
 /// 装飾用の自作幾何アイコン（lucide 等の既存アイコンセットの path を複製
 /// しないための単純図形、`feature_split_list_image::geo_icon` と同型の判断。
@@ -545,39 +532,78 @@ fn variant_label(label: &'static str) -> Node {
     )
 }
 
-/// 縦並び Tabs 本体を組み立てる（並記インスタンス間で再利用する共通
-/// ヘルパ。`id` は呼び出し側がリテラルで完全指定する）。
-fn vertical_tabs(id: &'static str, selected: &'static str, layout: PanelLayout) -> Node {
-    let items: Vec<TabItem<'static>> = FEATURES
+/// 実物の `tabs::tabs` を一切使わない非対話タブ列（モジュール doc「無 JS
+/// での扱い（実物の `tabs::tabs` は一切使わない）」節、`feature_tabs_panel::
+/// static_tab_list` と同型の判断・同型の是正）。`data-scope="tabs"`/
+/// `data-part="list"`/`"trigger"` を `tabs::tabs` と同じ属性値で `div` のみに
+/// 与え、[`LAYOUT_CSS`] の `[data-scope="tabs"][data-part="..."]` セレクタに
+/// よる見た目をそのまま再利用しつつ、`role`/`tabindex`/`<button>` は一切
+/// 持たないため操作可能に見えない。ラベルのみを持つ装飾要素として
+/// `aria-hidden="true"` を付与し支援技術のツリーから除外する
+/// （`static_tab_list` の `hide_from_assistive_tech: true` 相当。本 block の
+/// trigger はいずれもタイトル/説明のみで進捗等の実情報を持たないため常に
+/// `true` 固定でよい）。
+fn static_tab_list(id_prefix: &'static str, selected: &'static str) -> Node {
+    div(
+        vec![
+            ("data-scope", "tabs"),
+            ("data-part", "list"),
+            ("data-orientation", "vertical"),
+        ],
+        FEATURES
+            .iter()
+            .map(|tab| {
+                let state = if tab.value == selected {
+                    "active"
+                } else {
+                    "inactive"
+                };
+                el_owned(
+                    "div",
+                    vec![
+                        ("data-scope".to_string(), "tabs".to_string()),
+                        ("data-part".to_string(), "trigger".to_string()),
+                        ("data-orientation".to_string(), "vertical".to_string()),
+                        ("data-state".to_string(), state.to_string()),
+                        ("aria-hidden".to_string(), "true".to_string()),
+                        (
+                            "id".to_string(),
+                            format!("{id_prefix}-trigger-{0}", tab.value),
+                        ),
+                    ],
+                    trigger_body(tab),
+                )
+            })
+            .collect(),
+    )
+}
+
+/// 縦並びタブ列（見た目のみ模す）+ 選択中パネル本体を組み立てる（並記
+/// インスタンス間で再利用する共通ヘルパ。`id_prefix` は呼び出し側が
+/// リテラルで完全指定する）。実物の `tabs::tabs` を使わないため、選択中
+/// パネル 1 件のみを直接描画する（他パネルは同 block の別インスタンスで
+/// 可視になる、モジュール doc「全パネルを静的に読めるようにする」節）。
+fn vertical_tabs(id_prefix: &'static str, selected: &'static str, layout: PanelLayout) -> Node {
+    let selected_tab = FEATURES
         .iter()
-        .map(|tab| TabItem {
-            value: tab.value,
-            trigger: trigger_body(tab),
-            content: panel_body(tab, layout),
-            // 無 JS のためクリックしてもパネルは切り替わらない。選択済み
-            // タブ以外を disabled にし、操作できない見た目（disabled 属性・
-            // aria-disabled）で静的表示であることを明示する（#2776
-            // codex-review 追加ラウンド P1 是正）。選択中タブ自身を disabled
-            // にすると headless 側が「未選択」扱いへ倒す
-            // （`headless-ui::tabs::selected_matching_disabled_item_is_
-            // treated_as_unselected`）ため、選択中タブは有効のままにする。
-            disabled: tab.value != selected,
-        })
-        .collect();
-    let props = TabsProps {
-        id,
-        selected,
-        orientation: Orientation::Vertical,
-        activation_mode: ActivationMode::Automatic,
-        loop_focus: true,
-        indicator: false,
-    };
-    tabs::tabs(
-        TabsVariant::Line,
-        Size::Md,
-        ColorPalette::Accent,
-        &props,
-        items,
+        .find(|tab| tab.value == selected)
+        .unwrap_or_else(|| panic!("unknown tab value: {selected}"));
+    let content = el_owned(
+        "div",
+        vec![
+            ("data-scope".to_string(), "tabs".to_string()),
+            ("data-part".to_string(), "content".to_string()),
+            ("data-orientation".to_string(), "vertical".to_string()),
+            (
+                "id".to_string(),
+                format!("{id_prefix}-content-{0}", selected_tab.value),
+            ),
+        ],
+        panel_body(selected_tab, layout),
+    );
+    div(
+        vec![("data-scope", "tabs"), ("data-part", "root")],
+        vec![static_tab_list(id_prefix, selected), content],
     )
 }
 
@@ -699,7 +725,9 @@ mod tests {
 
     /// Demo が期待する部品・構造・非対話制約を満たしていることの単体
     /// 回帰（`crates/docs-site/tests/blocks_contract.rs` の横断検査と重複
-    /// し過ぎない範囲での個別固定）。
+    /// し過ぎない範囲での個別固定）。実物の `tabs::tabs` を使わないため
+    /// `<button>` は出力しない（モジュール doc「無 JS での扱い（実物の
+    /// `tabs::tabs` は一切使わない）」節）。
     #[test]
     fn demo_composes_expected_parts_and_avoids_forms() {
         let html = render(&demo());
@@ -712,30 +740,48 @@ mod tests {
         ] {
             assert!(html.contains(scope), "demo output should contain {scope}");
         }
-        assert!(html.contains("type=\"button\""));
+        assert!(!html.contains("<button"));
         assert!(!html.contains("<form"));
         assert!(!html.contains("src=\"data:"));
     }
 
-    /// インスタンスごとに 1 タブのみが選択済み・4 パネル中 3 パネルが
-    /// `hidden` であること（4 インスタンス分、無 JS 前提の静的固定表示、
-    /// モジュール doc「無 JS での扱い」節）。
+    /// 実物の `tabs::tabs` を一切使わないため、`role="tablist"`/`role="tab"`/
+    /// `role="tabpanel"`/`tabindex`/`aria-selected`/`aria-controls`/
+    /// `disabled`/`aria-disabled`/`hidden` のいずれも出力しないこと
+    /// （codex-review 指摘の回帰固定: 唯一有効な選択中トリガーが
+    /// `role="tab"` の押せるボタンのまま残ると、無 JS で実際には切り替わら
+    /// ないにもかかわらず「切り替え可能な UI」と伝わってしまう。
+    /// `feature_tabs_panel::tests::no_tabs_instance_is_interactive_and_
+    /// previews_are_not_either` と同型のテスト）。
     #[test]
-    fn demo_selects_first_tab_and_hides_other_panels() {
+    fn no_tabs_instance_is_interactive() {
         let html = render(&demo());
-        assert_eq!(html.matches("aria-selected=\"true\"").count(), 4);
-        assert_eq!(html.matches("aria-selected=\"false\"").count(), 12);
-        assert_eq!(html.matches(" hidden").count(), 12);
+        for forbidden in [
+            "role=\"tablist\"",
+            "role=\"tab\"",
+            "role=\"tabpanel\"",
+            "tabindex",
+            "aria-selected",
+            "aria-controls",
+            "aria-labelledby",
+            "aria-orientation",
+            "disabled",
+            "aria-disabled",
+            " hidden",
+        ] {
+            assert!(
+                !html.contains(forbidden),
+                "demo output should never contain {forbidden}"
+            );
+        }
     }
 
     /// [`super::FEATURES`] の全 4 タブが、それぞれ自分専用のインスタンス
-    /// では `hidden` を伴わない選択済み状態として出力されること（#2776
-    /// codex-review P1 是正の中核: 全パネルが静的に到達可能であることの
-    /// 固定、モジュール doc「全パネルを静的に読めるようにする」節）。各
-    /// インスタンスの id 接頭辞が選択タブの `value` と一致する設計
-    /// （「id 規約」節）のため、`id="...-<value>-content-<value>"` は
-    /// 全域でちょうど 1 回だけ現れ、それが自分専用インスタンスの選択済み
-    /// panel である。
+    /// のパネル本文として実際に出力されること（全パネルが静的に到達可能
+    /// であることの固定、モジュール doc「全パネルを静的に読めるようにする」
+    /// 節）。各インスタンスの id 接頭辞が選択タブの `value` と一致する設計
+    /// （「id 規約」節）のため、`id="...-<value>-content-<value>"` は全域で
+    /// ちょうど 1 回だけ現れる。
     #[test]
     fn demo_makes_every_feature_panel_reachable_without_js() {
         let html = render(&demo());
@@ -744,36 +790,28 @@ mod tests {
                 "id=\"blocks-feature-vertical-tabs-{0}-content-{0}\"",
                 tab.value
             );
-            let tag_start = html
-                .find(&panel_id)
-                .and_then(|panel_id_pos| html[..panel_id_pos].rfind('<'))
-                .unwrap_or_else(|| panic!("panel for {} should exist", tab.value));
-            let tag_end = html[tag_start..]
-                .find('>')
-                .map(|i| tag_start + i)
-                .expect("opening tag should close");
-            let tag = &html[tag_start..tag_end];
             assert!(
-                tag.contains("data-state=\"active\""),
-                "panel for {} should be selected (active) in its own instance: {tag}",
-                tab.value
-            );
-            assert!(
-                !tag.contains(" hidden"),
-                "panel for {} should not be hidden in its own instance: {tag}",
+                html.contains(&panel_id),
+                "panel for {} should exist and be reachable: {panel_id}",
                 tab.value
             );
         }
+        // 実物の `tabs::tabs` を使わないため、非選択パネルの本文は同じ
+        // インスタンス内には存在しない（`data-part="content"` は 4 インス
+        // タンス分＝4 件のみ。`no_tabs_instance_is_interactive` が `hidden`
+        // 属性の不在を別途固定する）。
+        assert_eq!(html.matches("data-part=\"content\"").count(), 4);
     }
 
-    /// `data-orientation="vertical"`/`aria-orientation="vertical"` が
-    /// 出力されること（モジュール doc「`Orientation::Vertical` を採用する
-    /// 理由」節）。
+    /// `data-orientation="vertical"` が CSS フックとしてのみ出力され、
+    /// `aria-orientation` は一切出力しないこと（モジュール doc
+    /// 「`data-orientation="vertical"` を CSS フックとしてのみ使う理由」
+    /// 節）。
     #[test]
-    fn demo_declares_vertical_orientation() {
+    fn demo_declares_vertical_orientation_as_css_hook_only() {
         let html = render(&demo());
         assert!(html.contains("data-orientation=\"vertical\""));
-        assert!(html.contains("aria-orientation=\"vertical\""));
+        assert!(!html.contains("aria-orientation"));
     }
 
     /// 4 インスタンスそれぞれの id 接頭辞が選択タブの `value` と一致する
@@ -794,19 +832,24 @@ mod tests {
         }
     }
 
-    /// trigger（`<button>...</button>` の区間）が phrasing content のみで
-    /// 構成されること（モジュール doc「trigger 内は phrasing content だけ
-    /// で組む」節の不変条件）。
+    /// trigger（`[data-part="trigger"]` の `<div>...</div>` 区間、実物の
+    /// `tabs::tabs` を使わないため `<button>` ではない）が phrasing content
+    /// のみで構成されること（モジュール doc「trigger は phrasing content
+    /// だけで組む」節の不変条件）。
     #[test]
-    fn trigger_button_contains_no_block_level_elements() {
+    fn trigger_contains_no_block_level_elements() {
         let html = render(&demo());
+        let needle = "data-part=\"trigger\"";
         let mut start = 0;
         let mut checked = 0;
-        while let Some(open_rel) = html[start..].find("<button") {
-            let open = start + open_rel;
+        while let Some(attr_rel) = html[start..].find(needle) {
+            let attr_pos = start + attr_rel;
+            let open = html[..attr_pos]
+                .rfind('<')
+                .expect("data-part=\"trigger\" should be inside an opening tag");
             let open_end = html[open..].find('>').map(|i| open + i + 1).unwrap();
             let close = html[open_end..]
-                .find("</button>")
+                .find("</div>")
                 .map(|i| open_end + i)
                 .unwrap();
             let inner = &html[open_end..close];
@@ -823,7 +866,11 @@ mod tests {
                 !inner.contains("<h"),
                 "trigger must not contain heading tags: {inner}"
             );
-            start = close + "</button>".len();
+            assert!(
+                !inner.contains("<div"),
+                "trigger must not contain nested block elements: {inner}"
+            );
+            start = close + "</div>".len();
             checked += 1;
         }
         assert_eq!(checked, 16);
@@ -891,9 +938,8 @@ mod tests {
     }
 
     /// [`LAYOUT_CSS`] が lg 未満で root を縦積みへ切り替える上書きを持ち、
-    /// `list` の軸（`aria-orientation="vertical"` と一致する縦積み）を
-    /// 崩さないこと（#2776 codex-review P2 是正、モジュール doc
-    /// 「レスポンシブ」節）。
+    /// `list` の軸（縦積み）を崩さないこと（モジュール doc「レスポンシブ」
+    /// 節）。
     #[test]
     fn layout_css_declares_lg_breakpoint_overrides() {
         assert!(LAYOUT_CSS.contains("@media (max-width: 63.99rem)"));
@@ -905,39 +951,18 @@ mod tests {
         assert!(!LAYOUT_CSS.contains("flex-direction: row;"));
     }
 
-    /// 各インスタンスにつき選択中タブ 1 件のみが有効で、残り 3 件が
-    /// `disabled`/`aria-disabled="true"` 付きの操作できない見た目になる
-    /// こと（#2776 追加ラウンド codex-review P1 是正: 無 JS で切り替わら
-    /// ない以上、押せるボタンとして見せない）。選択中タブ自身は disabled
-    /// を持たない（`disabled` にすると headless 側が未選択扱いへ倒すため）。
+    /// 各インスタンスにつき選択中タブ 1 件のみが `data-state="active"`・
+    /// 残り 3 件が `data-state="inactive"` になること（4 インスタンス分、
+    /// モジュール doc「無 JS での扱い（実物の `tabs::tabs` は一切使わない）」
+    /// 節）。`data-state` は見た目（強調表示）を CSS へ伝えるためだけの
+    /// 属性であり、`disabled`/`aria-disabled`（実物の `tabs::tabs` が持って
+    /// いた「操作できない見た目」）は [`no_tabs_instance_is_interactive`]
+    /// のとおり一切出力しない。
     #[test]
-    fn demo_disables_every_non_selected_trigger_per_instance() {
+    fn demo_marks_exactly_one_active_trigger_per_instance() {
         let html = render(&demo());
-        // `data-disabled=""` も部分文字列として `disabled=""` を含むため、
-        // 素の `disabled=""` 属性のみを数えるにはスペース区切りで判定する。
-        assert_eq!(html.matches(" disabled=\"\"").count(), 12);
-        assert_eq!(html.matches("data-disabled=\"\"").count(), 12);
-        assert_eq!(html.matches("aria-disabled=\"true\"").count(), 12);
-        for tab in super::FEATURES {
-            let selected_trigger_id = format!(
-                "id=\"blocks-feature-vertical-tabs-{0}-trigger-{0}\"",
-                tab.value
-            );
-            let tag_start = html
-                .find(&selected_trigger_id)
-                .and_then(|pos| html[..pos].rfind('<'))
-                .unwrap_or_else(|| panic!("trigger for {} should exist", tab.value));
-            let tag_end = html[tag_start..]
-                .find('>')
-                .map(|i| tag_start + i)
-                .expect("opening tag should close");
-            let tag = &html[tag_start..tag_end];
-            assert!(
-                !tag.contains("disabled"),
-                "selected trigger for {} must stay enabled: {tag}",
-                tab.value
-            );
-        }
+        assert_eq!(html.matches("data-state=\"active\"").count(), 4);
+        assert_eq!(html.matches("data-state=\"inactive\"").count(), 12);
     }
 
     /// ルート class（`demo_class` とは別名）が `demo()` の出力へ実際に

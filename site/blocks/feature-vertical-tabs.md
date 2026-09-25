@@ -7,13 +7,17 @@
 主体のパネル形と画像主体のパネル形を交互に見せています。
 
 docs サイトは JS ハイドレーションを行わないため、各インスタンスは 1 タブを
-選択済みの状態で固定表示しています。選択中タブ以外の 3 件は操作できない
-見た目（disabled）にしており、他パネルへ切り替える手段を持たないことを
-明示しています。幅 lg（64rem）以上ではタブ列が左に縦並び、
-パネルが右に表示されます。幅 lg 未満ではタブ列がパネルの上へ積まれますが、
-タブ列自体は縦並びのまま（横並びへは変わらない）のため、`aria-orientation`
-の `"vertical"` は常に実際の見た目と一致します。各タブの trigger 先頭には
-自作の幾何アイコンを添えています。
+選択済みの状態で固定表示しています。実物の `tabs::tabs`（`role="tablist"`/
+`role="tab"`/`<button>`）は一切使わず、タブ列は `data-scope`/`data-part`
+属性のみを持つ非対話な `<div>` で見た目だけを模しています。選択中パネルの
+本文はそのインスタンスへ直接描画し、残り 3 パネルは同 block の別インス
+タンスでそれぞれ選択済みとして表示されるため、切り替え手段を持たない
+静的な並記であることが構造からも読み取れます。幅 lg（64rem）以上では
+タブ列が左に縦並び、パネルが右に表示されます。幅 lg 未満ではタブ列が
+パネルの上へ積まれますが、タブ列自体は縦並びのまま（横並びへは変わらない）
+です。`role`/`aria-*` を一切出力しないため、幅による見た目と意味論の
+食い違いも構造的に発生しません。各タブの trigger 先頭には自作の幾何
+アイコンを添えています。
 
 文言・データはすべて架空のもので、データ取得・送信は行わない静的な表示
 例です。`<form>` は使用せず、送信先を持ちません。
@@ -22,19 +26,16 @@ docs サイトは JS ハイドレーションを行わないため、各イン�
 
 ```rust
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, span, text as core_text, Node};
+use fandhe_frontend_core::{div, el_owned, span, text as core_text, Node};
 use fandhe_frontend_pre_styled_ui::heading::{
     self, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
 };
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{self, AspectRatio, ImageFit, ImageProps, ImageShape};
-use fandhe_frontend_pre_styled_ui::tabs::{
-    self, ActivationMode, Orientation, TabItem, TabsProps, TabsVariant,
-};
 use fandhe_frontend_pre_styled_ui::text::{
     self as styled_text, TextProps, TextSize, TextVariant, TextWeight,
 };
-use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
+use fandhe_frontend_pre_styled_ui::Size;
 
 /// 装飾用の自作幾何アイコン（lucide 等の既存アイコンセットの path を複製
 /// しないための単純図形、`feature_split_list_image::geo_icon` と同型の判断。
@@ -369,39 +370,78 @@ fn variant_label(label: &'static str) -> Node {
     )
 }
 
-/// 縦並び Tabs 本体を組み立てる（並記インスタンス間で再利用する共通
-/// ヘルパ。`id` は呼び出し側がリテラルで完全指定する）。
-fn vertical_tabs(id: &'static str, selected: &'static str, layout: PanelLayout) -> Node {
-    let items: Vec<TabItem<'static>> = FEATURES
+/// 実物の `tabs::tabs` を一切使わない非対話タブ列（モジュール doc「無 JS
+/// での扱い（実物の `tabs::tabs` は一切使わない）」節、`feature_tabs_panel::
+/// static_tab_list` と同型の判断・同型の是正）。`data-scope="tabs"`/
+/// `data-part="list"`/`"trigger"` を `tabs::tabs` と同じ属性値で `div` のみに
+/// 与え、[`LAYOUT_CSS`] の `[data-scope="tabs"][data-part="..."]` セレクタに
+/// よる見た目をそのまま再利用しつつ、`role`/`tabindex`/`<button>` は一切
+/// 持たないため操作可能に見えない。ラベルのみを持つ装飾要素として
+/// `aria-hidden="true"` を付与し支援技術のツリーから除外する
+/// （`static_tab_list` の `hide_from_assistive_tech: true` 相当。本 block の
+/// trigger はいずれもタイトル/説明のみで進捗等の実情報を持たないため常に
+/// `true` 固定でよい）。
+fn static_tab_list(id_prefix: &'static str, selected: &'static str) -> Node {
+    div(
+        vec![
+            ("data-scope", "tabs"),
+            ("data-part", "list"),
+            ("data-orientation", "vertical"),
+        ],
+        FEATURES
+            .iter()
+            .map(|tab| {
+                let state = if tab.value == selected {
+                    "active"
+                } else {
+                    "inactive"
+                };
+                el_owned(
+                    "div",
+                    vec![
+                        ("data-scope".to_string(), "tabs".to_string()),
+                        ("data-part".to_string(), "trigger".to_string()),
+                        ("data-orientation".to_string(), "vertical".to_string()),
+                        ("data-state".to_string(), state.to_string()),
+                        ("aria-hidden".to_string(), "true".to_string()),
+                        (
+                            "id".to_string(),
+                            format!("{id_prefix}-trigger-{0}", tab.value),
+                        ),
+                    ],
+                    trigger_body(tab),
+                )
+            })
+            .collect(),
+    )
+}
+
+/// 縦並びタブ列（見た目のみ模す）+ 選択中パネル本体を組み立てる（並記
+/// インスタンス間で再利用する共通ヘルパ。`id_prefix` は呼び出し側が
+/// リテラルで完全指定する）。実物の `tabs::tabs` を使わないため、選択中
+/// パネル 1 件のみを直接描画する（他パネルは同 block の別インスタンスで
+/// 可視になる、モジュール doc「全パネルを静的に読めるようにする」節）。
+fn vertical_tabs(id_prefix: &'static str, selected: &'static str, layout: PanelLayout) -> Node {
+    let selected_tab = FEATURES
         .iter()
-        .map(|tab| TabItem {
-            value: tab.value,
-            trigger: trigger_body(tab),
-            content: panel_body(tab, layout),
-            // 無 JS のためクリックしてもパネルは切り替わらない。選択済み
-            // タブ以外を disabled にし、操作できない見た目（disabled 属性・
-            // aria-disabled）で静的表示であることを明示する（#2776
-            // codex-review 追加ラウンド P1 是正）。選択中タブ自身を disabled
-            // にすると headless 側が「未選択」扱いへ倒す
-            // （`headless-ui::tabs::selected_matching_disabled_item_is_
-            // treated_as_unselected`）ため、選択中タブは有効のままにする。
-            disabled: tab.value != selected,
-        })
-        .collect();
-    let props = TabsProps {
-        id,
-        selected,
-        orientation: Orientation::Vertical,
-        activation_mode: ActivationMode::Automatic,
-        loop_focus: true,
-        indicator: false,
-    };
-    tabs::tabs(
-        TabsVariant::Line,
-        Size::Md,
-        ColorPalette::Accent,
-        &props,
-        items,
+        .find(|tab| tab.value == selected)
+        .unwrap_or_else(|| panic!("unknown tab value: {selected}"));
+    let content = el_owned(
+        "div",
+        vec![
+            ("data-scope".to_string(), "tabs".to_string()),
+            ("data-part".to_string(), "content".to_string()),
+            ("data-orientation".to_string(), "vertical".to_string()),
+            (
+                "id".to_string(),
+                format!("{id_prefix}-content-{0}", selected_tab.value),
+            ),
+        ],
+        panel_body(selected_tab, layout),
+    );
+    div(
+        vec![("data-scope", "tabs"), ("data-part", "root")],
+        vec![static_tab_list(id_prefix, selected), content],
     )
 }
 
@@ -452,12 +492,19 @@ pub fn demo() -> Node {
 からの意図的な差分は次のとおりです。
 
 - 参照元は横並び（Horizontal）のタブ + 見た目だけを縦並びに寄せる CSS
-  という構成でしたが、本実装は `fandhe_frontend_pre_styled_ui::tabs` が
-  既に持つ `data-orientation="vertical"` 相当の縦並び規則をそのまま
-  採用しました（`aria-orientation` が実際のレイアウトと一致する意味論の
-  正しさを優先した判断）。タブ列自体は lg 未満でも縦並びのまま変えず、
-  `root` だけを縦積みにしてタブ列をパネルの上へ積みます（`aria-orientation`
-  を幅によらず一貫させるため）。
+  という構成でしたが、本実装は `fandhe_frontend_pre_styled_ui::tabs` の
+  recipe が既に持つ `data-orientation="vertical"` 相当の縦並び規則を CSS
+  フックとしてそのまま採用しました。タブ列自体は lg 未満でも縦並びのまま
+  変えず、`root` だけを縦積みにしてタブ列をパネルの上へ積みます。
+- 実物の `fandhe_frontend_pre_styled_ui::tabs::tabs`（`role="tablist"`/
+  `role="tab"`/`<button>`）は使わず、`data-scope`/`data-part` 属性のみを
+  持つ非対話な `<div>` でタブ列の見た目だけを模しています。無 JS の docs
+  サイトでは trigger をクリックしても実際には切り替わらないため、
+  `role="tablist"`/`role="tab"`/`aria-orientation` を出力すると「操作可能な
+  UI」と誤って伝わる不整合が生じる（codex-review 指摘）ためです。選択中
+  パネルの本文はそのインスタンスへ直接描画し、残り 3 パネルは同 block の
+  別インスタンスで可視になります（`feature_tabs_panel::static_tab_list`
+  と同型の対処）。
 - 参照元の背景帯・装飾・実際の文言は持ち込まず、文言はすべて独自の架空
   のもの（日本語）にしました。
 - 見出しは `h3`/`h4` に下げました（ページ側が `## Demo` として `h2` を

@@ -6532,6 +6532,23 @@ fn feature_vertical_tabs_page_wires_demo_class_and_css_hooks() {
             "feature-vertical-tabs page should output the {hook} CSS hook attribute"
         );
     }
+    // 実物の `tabs::tabs` を一切使わないため、Demo 自体（[`blocks::block_for_
+    // path`] 経由で `demo` 関数を直接呼んだ出力）には `role="tablist"`/
+    // `role="tab"`/`<button>` が一切現れないこと（codex-review 指摘の回帰
+    // 固定。ページ全体ではなく Demo 出力に限定するのは、本節末尾で
+    // `aria-orientation` を「出力しない」と地の文で説明しているため、
+    // 生成ページ全体（原稿の地の文を含む）を対象にすると誤検知する
+    // ため）。`feature_vertical_tabs::tests::no_tabs_instance_is_interactive`
+    // と同じ判定を実サイトビルド経由でも固定する。
+    let demo_only_html = render(&(blocks::block_for_path("/blocks/feature-vertical-tabs/")
+        .expect("feature-vertical-tabs should be registered")
+        .demo)());
+    for forbidden in ["role=\"tablist\"", "role=\"tab\"", "<button", " hidden"] {
+        assert!(
+            !demo_only_html.contains(forbidden),
+            "feature-vertical-tabs demo should never contain {forbidden}"
+        );
+    }
 
     let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
     let sheet_css = sheet.as_css();
