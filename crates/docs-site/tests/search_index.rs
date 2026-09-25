@@ -824,11 +824,11 @@ fn build_site_fails_closed_when_search_index_exceeds_the_byte_limit_without_writ
 }
 
 /// `MAX_INDEX_BYTES` を機械的な刻み幅で再引き上げすることを牽制するための
-/// 固定ピン（イシュー #2816 §10-5・イシュー #2814 §10-4・#3173 参照）。
+/// 固定ピン（イシュー #2816 §10-8・イシュー #2814 §10-4・#3173 参照）。
 ///
 /// 本値は base 取り込み（イシュー #2814 の `1_703_936` への引き上げ）を
 /// 経ても新上限比 80% 未満（§8 トリガー 1 未到達）に収まっている
-/// （`docs/design/docs-site-search-design.md` §10-5）。次に
+/// （`docs/design/docs-site-search-design.md` §10-8）。次に
 /// `SearchIndexError::TooLarge` が発生した場合は、値の機械的な再引き上げを
 /// 繰り返す前に per-page 上限見直し・セクション粒度分割（イシュー #3173）
 /// を実際に検討すること。本テストが FAIL した場合、まず #3173 の状況を
@@ -842,6 +842,6 @@ fn max_index_bytes_is_pinned_pending_issue_3173_section_granularity_split() {
         "MAX_INDEX_BYTES の機械的な再引き上げは牽制されている。次回超過時は \
          イシュー #3173（検索インデックスのセクション粒度分割）の実装で \
          対応することを優先検討すること \
-         （docs/design/docs-site-search-design.md §10-4・§10-5 参照）。"
+         （docs/design/docs-site-search-design.md §10-4・§10-8 参照）。"
     );
 }
