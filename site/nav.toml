@@ -1236,6 +1236,11 @@ path = "/blocks/text-split-reveal/"
 title = "Feature"
 
 [[section.group.page]]
+title = "feature-accordion-image"
+source = "site/blocks/feature-accordion-image.md"
+path = "/blocks/feature-accordion-image/"
+
+[[section.group.page]]
 title = "feature-expand"
 source = "site/blocks/feature-expand.md"
 path = "/blocks/feature-expand/"
