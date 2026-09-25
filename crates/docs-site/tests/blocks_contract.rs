@@ -5102,3 +5102,50 @@ fn content_with_testimonial_composes_expected_parts() {
         );
     }
 }
+
+/// feature-accordion-image の Demo ラッパ class・CSS 配線・CSS フック
+/// 属性・`blocks::stylesheet()` 側のブレークポイント規則を固定する
+/// （イシュー #2761）。
+#[test]
+fn feature_accordion_image_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/feature-accordion-image/index.html"))
+        .expect("blocks/feature-accordion-image/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-feature-accordion-image\""),
+        "feature-accordion-image page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "feature-accordion-image page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "feature-accordion-image page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-feature-accordion-image-eyebrow=\"\"",
+        "data-blocks-feature-accordion-image-media=\"\"",
+        "data-blocks-feature-accordion-image-inline-image=\"\"",
+        "data-scope=\"accordion\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "feature-accordion-image page should output the {hook} CSS hook attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for needle in [
+        ".blocks-feature-accordion-image-grid",
+        "@media (min-width: 48rem)",
+        ".blocks-feature-accordion-image-media-slot",
+        "[data-blocks-feature-accordion-image-inline-image]",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare a rule for {needle}"
+        );
+    }
+}
