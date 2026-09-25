@@ -30,7 +30,7 @@ docs サイトは JS ハイドレーションを行わないため、各形と�
 
 ```rust
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, el, text, Node};
+use fandhe_frontend_core::{div, el, el_owned, text, Node};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
@@ -44,12 +44,13 @@ use fandhe_frontend_pre_styled_ui::heading::{
 };
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{self, AspectRatio, ImageFit, ImageProps, ImageShape};
-use fandhe_frontend_pre_styled_ui::progress::{self, ProgressProps};
-use fandhe_frontend_pre_styled_ui::tabs::{
-    self, ActivationMode, Orientation, TabItem, TabsProps, TabsVariant,
-};
+// `Orientation` は `progress` モジュール（`Progress::new` の引数型）から取り込む。
+// 旧実装は `tabs::Orientation` を使っていたが、本 block は実物の `tabs::tabs`
+// を一切使わない（下記「無 JS での扱い」節参照）ため `tabs` モジュール自体を
+// import しない。
+use fandhe_frontend_pre_styled_ui::progress::{self, Orientation, ProgressProps};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
-use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
+use fandhe_frontend_pre_styled_ui::Size;
 
 /// 基準形（R1158）1 タブ分のデータ（架空文言）。
 struct PanelData {
@@ -243,46 +244,57 @@ fn panel_alternating_rows(items: &[PanelData]) -> Vec<Node> {
         .collect()
 }
 
-/// [`PANELS`] から `tabs::tabs` の `items` を組み立てる（#2773 が variant を
-/// 変えつつ再利用する共通ヘルパ）。
-fn panel_items() -> Vec<TabItem<'static>> {
+/// [`PANELS`] から [`static_tab_list`] の `(value, trigger)` 組を組み立てる
+/// （#2773 が variant を変えつつ再利用する共通ヘルパ）。
+fn panel_tab_labels() -> Vec<(&'static str, Vec<Node>)> {
     PANELS
         .iter()
-        .map(|data| TabItem {
-            value: data.value,
-            trigger: vec![text(data.label)],
-            content: panel_row(data),
-            disabled: false,
-        })
+        .map(|data| (data.value, vec![text(data.label)]))
         .collect()
 }
 
-/// `id`（呼び出し側が `blocks-feature-tabs-panel-<接尾辞>` の形で完全指定
-/// する）・variant・選択中タブ・`items` を引数に取る tabs 組み立てヘルパ
-/// （5 形すべてが再利用する）。`id` を呼び出し側が組み立てる形にすることで
-/// 「id の基底は常に `blocks-feature-tabs-panel-` で始まる」という
-/// モジュール doc「id 規約」節の不変条件を、内部で接尾辞から静的文字列へ
-/// 変換するテーブル（変換漏れがあっても素通りしてしまう）を持たずに
-/// 呼び出し箇所ごとのリテラルとして機械的に確認できるようにする。
-fn tabs_panel(
-    id: &'static str,
-    variant: TabsVariant,
+/// 実物の `tabs::tabs` を一切使わない非対話タブ列（モジュール doc「無 JS
+/// での扱い」節、Codex P1 是正）。`data-scope="tabs"`/`data-part="list"`/
+/// `"trigger"` を `tabs::tabs` と同じ属性値で `div` のみに与え、
+/// [`LAYOUT_CSS`] の `[data-scope="tabs"][data-part="..."]` セレクタによる
+/// 見た目をそのまま再利用しつつ、`role`/`tabindex`/`<button>` は一切持たない
+/// ため操作可能に見えない。`aria-hidden="true"` を各 trigger へ付与し、
+/// 装飾要素として支援技術のツリーから除外する（`tabs::tabs` の
+/// `indicator` パーツと同じ判断）。`id_prefix` は呼び出し側が
+/// `blocks-feature-tabs-panel-<接尾辞>` の形で完全指定する（モジュール doc
+/// 「id 規約」節）。
+fn static_tab_list(
+    id_prefix: &'static str,
     selected: &'static str,
-    items: Vec<TabItem<'static>>,
+    items: Vec<(&'static str, Vec<Node>)>,
 ) -> Node {
-    tabs::tabs(
-        variant,
-        Size::Md,
-        ColorPalette::Accent,
-        &TabsProps {
-            id,
-            selected,
-            orientation: Orientation::Horizontal,
-            activation_mode: ActivationMode::Automatic,
-            loop_focus: true,
-            indicator: false,
-        },
-        items,
+    el_owned(
+        "div",
+        vec![
+            ("data-scope".to_string(), "tabs".to_string()),
+            ("data-part".to_string(), "list".to_string()),
+            ("id".to_string(), format!("{id_prefix}-list")),
+        ],
+        items
+            .into_iter()
+            .map(|(value, trigger)| {
+                let state = if value == selected {
+                    "active"
+                } else {
+                    "inactive"
+                };
+                el_owned(
+                    "div",
+                    vec![
+                        ("data-scope".to_string(), "tabs".to_string()),
+                        ("data-part".to_string(), "trigger".to_string()),
+                        ("data-state".to_string(), state.to_string()),
+                        ("aria-hidden".to_string(), "true".to_string()),
+                    ],
+                    trigger,
+                )
+            })
+            .collect(),
     )
 }
 
@@ -320,12 +332,12 @@ fn panel_state_preview(data: &PanelData) -> Node {
     )
 }
 
-/// 基準形（R1158）: 見出し + 下線タブ（[`TabsVariant::Line`]）+
-/// テキスト/画像パネル。docs サイトは JS ハイドレーションを行わないため
-/// （モジュール doc「無 JS での扱い」節）、実物の `tabs::tabs`（[`PANELS`]
-/// 先頭の `design` を選択済みとする 1 個だけ）を描画したあと、残り 3
-/// パネルは [`panel_state_preview`] による非対話プレビューとして併記する。
-/// これにより 4 パネルすべての本文が常に可視のまま静的 HTML に現れる。
+/// 基準形（R1158）: 見出し + タブ列 + テキスト/画像パネル。docs サイトは
+/// JS ハイドレーションを行わないため（モジュール doc「無 JS での扱い」
+/// 節）、[`static_tab_list`]（[`PANELS`] 先頭の `design` を選択済みとする
+/// 非対話タブ列）+ その本文（[`panel_row`]）を描画したあと、残り 3 パネルは
+/// [`panel_state_preview`] による非対話プレビューとして併記する。これにより
+/// 4 パネルすべての本文が常に可視のまま静的 HTML に現れる。
 fn variant_basic() -> Node {
     let mut children = vec![
         section_header(
@@ -333,13 +345,13 @@ fn variant_basic() -> Node {
             "タブで切り替える機能セクション",
             "見出しの下にタブを並べ、選んだタブの内容だけを表示します。",
         ),
-        tabs_panel(
+        static_tab_list(
             "blocks-feature-tabs-panel-basic",
-            TabsVariant::Line,
             PANELS[0].value,
-            panel_items(),
+            panel_tab_labels(),
         ),
     ];
+    children.extend(panel_row(&PANELS[0]));
     for panel in &PANELS[1..] {
         children.push(panel_state_preview(panel));
     }
@@ -349,44 +361,34 @@ fn variant_basic() -> Node {
     )
 }
 
-/// 形 C（対応表 ID R0478）: ピル型タブ（[`TabsVariant::Enclosed`]）+ 単一
-/// カラムのパネル（[`panel_single`]、画像を持たない）。[`PANELS`] の先頭 2
-/// 件のみ使う（重複が過大にならないよう絞る、モジュール doc「#2772 と
-/// #2773 の分担」節）。
+/// 形 C（対応表 ID R0478）: ピル型見た目のタブ列 + 単一カラムのパネル
+/// （[`panel_single`]、画像を持たない）。[`PANELS`] の先頭 2 件のみ使う
+/// （重複が過大にならないよう絞る、モジュール doc「#2772 と #2773 の分担」
+/// 節）。
 fn variant_pill() -> Node {
-    let items = vec![
-        TabItem {
-            value: PANELS[0].value,
-            trigger: vec![text(PANELS[0].label)],
-            content: panel_single(&PANELS[0]),
-            disabled: false,
-        },
-        TabItem {
-            value: PANELS[1].value,
-            trigger: vec![text(PANELS[1].label)],
-            content: panel_single(&PANELS[1]),
-            disabled: false,
-        },
+    let mut children = vec![
+        section_header(
+            "コンパクト表示",
+            "ピル型タブで切り替える単一パネル",
+            "画像を持たない単一カラムのパネルを、ピル型のタブで切り替えます。",
+        ),
+        static_tab_list(
+            "blocks-feature-tabs-panel-pill",
+            PANELS[0].value,
+            vec![
+                (PANELS[0].value, vec![text(PANELS[0].label)]),
+                (PANELS[1].value, vec![text(PANELS[1].label)]),
+            ],
+        ),
     ];
+    children.extend(panel_single(&PANELS[0]));
+    children.push(tab_preview(
+        format!("「{}」タブを選択した場合のプレビュー", PANELS[1].label),
+        panel_single(&PANELS[1]),
+    ));
     div(
         vec![("class", "blocks-feature-tabs-panel-variant")],
-        vec![
-            section_header(
-                "コンパクト表示",
-                "ピル型タブで切り替える単一パネル",
-                "画像を持たない単一カラムのパネルを、ピル型のタブで切り替えます。",
-            ),
-            tabs_panel(
-                "blocks-feature-tabs-panel-pill",
-                TabsVariant::Enclosed,
-                PANELS[0].value,
-                items,
-            ),
-            tab_preview(
-                format!("「{}」タブを選択した場合のプレビュー", PANELS[1].label),
-                panel_single(&PANELS[1]),
-            ),
-        ],
+        children,
     )
 }
 
@@ -394,39 +396,29 @@ fn variant_pill() -> Node {
 /// ごとに左右を入れ替える（[`panel_alternating_rows`]）。[`PANELS`] を
 /// 2 件ずつ 2 組に分け、タブ切り替えで組を入れ替える。
 fn variant_alternating() -> Node {
-    let items = vec![
-        TabItem {
-            value: "set-a",
-            trigger: vec![text("セット A")],
-            content: panel_alternating_rows(&PANELS[0..2]),
-            disabled: false,
-        },
-        TabItem {
-            value: "set-b",
-            trigger: vec![text("セット B")],
-            content: panel_alternating_rows(&PANELS[2..4]),
-            disabled: false,
-        },
+    let mut children = vec![
+        section_header(
+            "詳しい紹介",
+            "パネル内で左右を入れ替える複数行",
+            "1 つのパネルに複数の項目を積み、行ごとに画像とテキストの左右を入れ替えます。",
+        ),
+        static_tab_list(
+            "blocks-feature-tabs-panel-alternating",
+            "set-a",
+            vec![
+                ("set-a", vec![text("セット A")]),
+                ("set-b", vec![text("セット B")]),
+            ],
+        ),
     ];
+    children.extend(panel_alternating_rows(&PANELS[0..2]));
+    children.push(tab_preview(
+        "「セット B」タブを選択した場合のプレビュー".to_string(),
+        panel_alternating_rows(&PANELS[2..4]),
+    ));
     div(
         vec![("class", "blocks-feature-tabs-panel-variant")],
-        vec![
-            section_header(
-                "詳しい紹介",
-                "パネル内で左右を入れ替える複数行",
-                "1 つのパネルに複数の項目を積み、行ごとに画像とテキストの左右を入れ替えます。",
-            ),
-            tabs_panel(
-                "blocks-feature-tabs-panel-alternating",
-                TabsVariant::Line,
-                "set-a",
-                items,
-            ),
-            tab_preview(
-                "「セット B」タブを選択した場合のプレビュー".to_string(),
-                panel_alternating_rows(&PANELS[2..4]),
-            ),
-        ],
+        children,
     )
 }
 
@@ -550,43 +542,33 @@ fn grid_cta() -> Node {
     )
 }
 
-/// 形 E（対応表 ID R0481）: 中央寄せ見出し + タブ + パネル内カードグリッド。
+/// 形 E（対応表 ID R0481）: 中央寄せ見出し + タブ列 + パネル内カードグリッド。
 fn variant_card_grid() -> Node {
-    let items = vec![
-        TabItem {
-            value: "features",
-            trigger: vec![text("特長")],
-            content: panel_card_grid(&CARDS_FEATURES),
-            disabled: false,
-        },
-        TabItem {
-            value: "cases",
-            trigger: vec![text("導入事例")],
-            content: panel_card_grid(&CARDS_CASES),
-            disabled: false,
-        },
+    let mut children = vec![
+        section_header_aligned(
+            "多角的に紹介",
+            "カードグリッドで機能をまとめる",
+            "タブを切り替えると、紹介するカードの組が変わります。",
+            true,
+        ),
+        static_tab_list(
+            "blocks-feature-tabs-panel-cards",
+            "features",
+            vec![
+                ("features", vec![text("特長")]),
+                ("cases", vec![text("導入事例")]),
+            ],
+        ),
     ];
+    children.extend(panel_card_grid(&CARDS_FEATURES));
+    children.push(tab_preview(
+        "「導入事例」タブを選択した場合のプレビュー".to_string(),
+        panel_card_grid(&CARDS_CASES),
+    ));
+    children.push(grid_cta());
     div(
         vec![("class", "blocks-feature-tabs-panel-variant")],
-        vec![
-            section_header_aligned(
-                "多角的に紹介",
-                "カードグリッドで機能をまとめる",
-                "タブを切り替えると、紹介するカードの組が変わります。",
-                true,
-            ),
-            tabs_panel(
-                "blocks-feature-tabs-panel-cards",
-                TabsVariant::Line,
-                "features",
-                items,
-            ),
-            tab_preview(
-                "「導入事例」タブを選択した場合のプレビュー".to_string(),
-                panel_card_grid(&CARDS_CASES),
-            ),
-            grid_cta(),
-        ],
+        children,
     )
 }
 
@@ -630,39 +612,40 @@ fn trigger_with_progress(
 /// 架空の固定進捗値を持たせる（[`trigger_with_progress`]）。
 fn variant_progress_trigger() -> Node {
     const PERCENTS: [f64; 3] = [100.0, 55.0, 20.0];
-    let items: Vec<TabItem<'static>> = PANELS[0..3]
+    let labels: Vec<(&'static str, Vec<Node>)> = PANELS[0..3]
         .iter()
         .zip(PERCENTS)
-        .map(|(data, percent)| TabItem {
-            value: data.value,
-            trigger: trigger_with_progress(data.label, "進捗の目安", percent),
-            content: panel_row(data),
-            disabled: false,
+        .map(|(data, percent)| {
+            (
+                data.value,
+                trigger_with_progress(data.label, "進捗の目安", percent),
+            )
         })
         .collect();
+    let mut children = vec![
+        section_header(
+            "進捗を添えて紹介",
+            "トリガーに説明と進捗バーを添える",
+            "各タブのトリガーに短い説明と進捗の目安を添えます。自動切替は行いません。",
+        ),
+        static_tab_list(
+            "blocks-feature-tabs-panel-progress",
+            PANELS[0].value,
+            labels,
+        ),
+    ];
+    children.extend(panel_row(&PANELS[0]));
+    children.push(tab_preview(
+        format!("「{}」タブを選択した場合のプレビュー", PANELS[1].label),
+        panel_row(&PANELS[1]),
+    ));
+    children.push(tab_preview(
+        format!("「{}」タブを選択した場合のプレビュー", PANELS[2].label),
+        panel_row(&PANELS[2]),
+    ));
     div(
         vec![("class", "blocks-feature-tabs-panel-variant")],
-        vec![
-            section_header(
-                "進捗を添えて紹介",
-                "トリガーに説明と進捗バーを添える",
-                "各タブのトリガーに短い説明と進捗の目安を添えます。自動切替は行いません。",
-            ),
-            tabs_panel(
-                "blocks-feature-tabs-panel-progress",
-                TabsVariant::Line,
-                PANELS[0].value,
-                items,
-            ),
-            tab_preview(
-                format!("「{}」タブを選択した場合のプレビュー", PANELS[1].label),
-                panel_row(&PANELS[1]),
-            ),
-            tab_preview(
-                format!("「{}」タブを選択した場合のプレビュー", PANELS[2].label),
-                panel_row(&PANELS[2]),
-            ),
-        ],
+        children,
     )
 }
 
