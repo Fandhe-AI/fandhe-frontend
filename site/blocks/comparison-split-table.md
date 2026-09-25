@@ -206,6 +206,15 @@ fn value_node(value: &CellValue) -> Node {
 /// が対応/非対応セルへ移動した際、行見出し（機能名）が自動的に読み上げ
 /// られる（`table::column_header` は `scope="col"` を固定して呼び出し側の
 /// `scope` 指定を除去するため使えない）。
+///
+/// 機能名 + 補足説明の縦積みレイアウトは `<th>` 自体ではなく内側の
+/// wrapper 要素（`data-blocks-comparison-split-table-feature-inner`）に
+/// 持たせる（PR #3189 codex レビュー P1 指摘の是正）。`<th>` へ直接
+/// `display: flex` を当てると `table-cell` としての振る舞いが失われ、
+/// `fandhe_frontend_pre_styled_ui::table` の `cell` パーツが前提とする
+/// 列幅・罫線・padding 等のセル契約（ブラウザの匿名テーブルボックス
+/// 補正に依存しない構造）が崩れるため、`<th>` は `table-cell` のまま
+/// 維持し、flex は wrapper `<div>` に閉じ込める。
 fn feature_cell(row: &Row) -> Node {
     el(
         "th",
@@ -215,21 +224,24 @@ fn feature_cell(row: &Row) -> Node {
             ("scope", "row"),
             ("data-blocks-comparison-split-table-feature", ""),
         ],
-        vec![
-            span(
-                vec![("data-blocks-comparison-split-table-feature-name", "")],
-                vec![text(row.name)],
-            ),
-            styled_text::text(
-                &TextProps {
-                    size: TextSize::Sm,
-                    variant: TextVariant::Muted,
-                    ..TextProps::default()
-                },
-                vec![("data-blocks-comparison-split-table-feature-note", "")],
-                vec![text(row.note)],
-            ),
-        ],
+        vec![div(
+            vec![("data-blocks-comparison-split-table-feature-inner", "")],
+            vec![
+                span(
+                    vec![("data-blocks-comparison-split-table-feature-name", "")],
+                    vec![text(row.name)],
+                ),
+                styled_text::text(
+                    &TextProps {
+                        size: TextSize::Sm,
+                        variant: TextVariant::Muted,
+                        ..TextProps::default()
+                    },
+                    vec![("data-blocks-comparison-split-table-feature-note", "")],
+                    vec![text(row.note)],
+                ),
+            ],
+        )],
     )
 }
 

@@ -332,6 +332,15 @@ fn value_node(value: &CellValue) -> Node {
 /// が対応/非対応セルへ移動した際、行見出し（機能名）が自動的に読み上げ
 /// られる（`table::column_header` は `scope="col"` を固定して呼び出し側の
 /// `scope` 指定を除去するため使えない）。
+///
+/// 機能名 + 補足説明の縦積みレイアウトは `<th>` 自体ではなく内側の
+/// wrapper 要素（`data-blocks-comparison-split-table-feature-inner`）に
+/// 持たせる（PR #3189 codex レビュー P1 指摘の是正）。`<th>` へ直接
+/// `display: flex` を当てると `table-cell` としての振る舞いが失われ、
+/// `fandhe_frontend_pre_styled_ui::table` の `cell` パーツが前提とする
+/// 列幅・罫線・padding 等のセル契約（ブラウザの匿名テーブルボックス
+/// 補正に依存しない構造）が崩れるため、`<th>` は `table-cell` のまま
+/// 維持し、flex は wrapper `<div>` に閉じ込める。
 fn feature_cell(row: &Row) -> Node {
     el(
         "th",
@@ -341,21 +350,24 @@ fn feature_cell(row: &Row) -> Node {
             ("scope", "row"),
             ("data-blocks-comparison-split-table-feature", ""),
         ],
-        vec![
-            span(
-                vec![("data-blocks-comparison-split-table-feature-name", "")],
-                vec![text(row.name)],
-            ),
-            styled_text::text(
-                &TextProps {
-                    size: TextSize::Sm,
-                    variant: TextVariant::Muted,
-                    ..TextProps::default()
-                },
-                vec![("data-blocks-comparison-split-table-feature-note", "")],
-                vec![text(row.note)],
-            ),
-        ],
+        vec![div(
+            vec![("data-blocks-comparison-split-table-feature-inner", "")],
+            vec![
+                span(
+                    vec![("data-blocks-comparison-split-table-feature-name", "")],
+                    vec![text(row.name)],
+                ),
+                styled_text::text(
+                    &TextProps {
+                        size: TextSize::Sm,
+                        variant: TextVariant::Muted,
+                        ..TextProps::default()
+                    },
+                    vec![("data-blocks-comparison-split-table-feature-note", "")],
+                    vec![text(row.note)],
+                ),
+            ],
+        )],
     )
 }
 
@@ -483,13 +495,20 @@ pub const BLOCK: Block = Block {
 /// （上記モジュール doc「レスポンシブ」節参照）。ブレークポイントは
 /// `fandhe_frontend_pre_styled_ui` の `Breakpoint`（lg=1024px）に合わせた
 /// リテラル rem 値（`@media` 内ではトークン変数を使えないため）。
+///
+/// `[data-blocks-comparison-split-table-feature]`（`<th scope="row">` 自体）
+/// は `display: flex` を持たない。`<th>` は `table-cell` のまま維持し、
+/// 機能名 + 補足説明の縦積み flex レイアウトは内側 wrapper
+/// `[data-blocks-comparison-split-table-feature-inner]` にのみ適用する
+/// （`feature_cell` の rustdoc・PR #3189 codex レビュー P1 指摘の是正）。
 const LAYOUT_CSS: &str = "\
 [data-blocks-comparison-split-table-root] {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-8);\n  width: 100%;\n}\n\
 .blocks-comparison-split-table-intro {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  align-items: flex-start;\n  max-width: 40rem;\n}\n\
 .blocks-comparison-split-table-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-2);\n  margin-top: var(--fandhe-space-2);\n}\n\
 [data-blocks-comparison-split-table-scroll] {\n  overflow-x: auto;\n  max-width: 100%;\n}\n\
 [data-blocks-comparison-split-table-table] {\n  min-width: 32rem;\n}\n\
-[data-blocks-comparison-split-table-feature] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  text-align: left;\n  font-weight: var(--fandhe-font-font-weight-normal, normal);\n}\n\
+[data-blocks-comparison-split-table-feature] {\n  text-align: left;\n  font-weight: var(--fandhe-font-font-weight-normal, normal);\n}\n\
+[data-blocks-comparison-split-table-feature-inner] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 [data-blocks-comparison-split-table-yes] {\n  color: var(--fandhe-color-accent);\n  vertical-align: middle;\n}\n\
 [data-blocks-comparison-split-table-no] {\n  color: var(--fandhe-color-fg-muted);\n  vertical-align: middle;\n}\n\
 @media (min-width: 64rem) {\n  [data-blocks-comparison-split-table-root] {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);\n    align-items: start;\n  }\n}\n";
