@@ -54,6 +54,15 @@
 //! 切り取られる」形ではみ出しを表現する（負の margin は使わない）。lg
 //! 未満では画像を `width: 100%` に留め、はみ出させない。
 //!
+//! `.blocks-feature-split-screenshot-panel`（B のアクセント色パネル）自身は
+//! `overflow: hidden` を持たない（レビュー指摘、修正済み）。パネルは
+//! `width: 100%` で列幅と同じ幅のため、パネル側に `overflow: hidden` を
+//! 付けると `justify-content: flex-end` で左へ押し出した `width: 48rem` の
+//! 画像がパネルの境界（＝列の境界）でそのまま切り取られてしまい、
+//! パネルの外側（セクション境界まで）へはみ出す意図した見た目を再現
+//! できない。切り取りはセクションのルート（`.blocks-feature-split-
+//! screenshot-section`）の `overflow: hidden` のみが担う。
+//!
 //! # アクセント色パネルにテキストを置かない理由
 //!
 //! B のアクセント色パネル（`var(--fandhe-color-accent)` 背景）には画像
@@ -424,7 +433,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-split-screenshot-lead] {\n  margin: 0;\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-split-screenshot-feature-text] {\n  margin: 0;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-split-screenshot-image] {\n  display: block;\n  width: 100%;\n  border: 1px solid var(--fandhe-color-border);\n  box-shadow: var(--fandhe-shadow-lg);\n}\n\
-.blocks-feature-split-screenshot-panel {\n  background: var(--fandhe-color-accent);\n  border-radius: var(--fandhe-radius-lg);\n  padding: var(--fandhe-space-8) 0 0 var(--fandhe-space-8);\n  overflow: hidden;\n  width: 100%;\n}\n\
+.blocks-feature-split-screenshot-panel {\n  background: var(--fandhe-color-accent);\n  border-radius: var(--fandhe-radius-lg);\n  padding: var(--fandhe-space-8) 0 0 var(--fandhe-space-8);\n  width: 100%;\n}\n\
 .blocks-feature-split-screenshot-panel [data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-split-screenshot-image] {\n  box-shadow: none;\n}\n\
 .blocks-feature-split-screenshot-code-frame {\n  width: 100%;\n  background: var(--fandhe-color-fg);\n  color: var(--fandhe-color-bg);\n  border-radius: var(--fandhe-radius-lg);\n  overflow: hidden;\n}\n\
 .blocks-feature-split-screenshot-tabs {\n  display: flex;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
