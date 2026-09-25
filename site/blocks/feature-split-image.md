@@ -205,6 +205,7 @@ fn variant_checklist() -> Node {
             "説明文だけでなく要点を列挙することで、導入前に必要な条件を一目で把握できます。",
         );
         children.push(checklist);
+        children.push(actions());
         children
     });
 
