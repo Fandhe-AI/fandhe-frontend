@@ -6378,6 +6378,72 @@ fn contact_split_info_composes_expected_parts() {
     }
 }
 
+/// hero-image-top ページが Demo class・専用 CSS を配線していること、
+/// block 固有 CSS（横長画像・2 カラム・ブレークポイント）が実際に出力
+/// されていることを固定する（イシュー #2785）。
+#[test]
+fn hero_image_top_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-image-top/index.html"))
+        .expect("blocks/hero-image-top/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-hero-image-top\""),
+        "hero-image-top page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "hero-image-top page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "hero-image-top page should link the Blocks-specific stylesheet"
+    );
+    assert!(
+        html.contains("data-blocks-hero-image-top-image"),
+        "hero-image-top page should render the data-blocks-hero-image-top-image attribute"
+    );
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-hero-image-top-columns",
+        "@media (min-width: 48rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// hero-image-top の合成部品（badge/heading/text/button/image）が期待どおり
+/// の構成で実際に出力されていること、非対話制約を固定する（イシュー
+/// #2785）。
+#[test]
+fn hero_image_top_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/hero-image-top/")
+        .expect("hero-image-top should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"button\"",
+        "data-scope=\"image\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "hero-image-top demo should contain {scope}"
+        );
+    }
+    for absent in ["<form", "src=\"data:", "href=\"#\"", "id=\""] {
+        assert!(
+            !html.contains(absent),
+            "hero-image-top should never contain {absent}"
+        );
+    }
+}
+
 /// error-page-background-image ページが Demo class・専用 CSS を配線して
 /// いること、背景画像・スクリムの `data-*` フックが実際に出力されている
 /// ことを固定する（イシュー #2836）。
@@ -7776,6 +7842,100 @@ fn hero_social_proof_composes_expected_parts() {
         assert!(
             !html.contains(absent),
             "hero-social-proof should never contain {absent}"
+        );
+    }
+}
+
+/// hero-split-image ページが `blocks-demo` + block 固有 class・
+/// pre-styled-ui.css/blocks.css の配線・主要 `data-blocks-hero-split-image-*`
+/// フックを持ち、`blocks.css` が row・反転セレクタ・ブレークポイントを
+/// 宣言していることを固定する（イシュー #2791）。
+#[test]
+fn hero_split_image_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-split-image/index.html"))
+        .expect("blocks/hero-split-image/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-hero-split-image\""),
+        "hero-split-image page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "hero-split-image page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "hero-split-image page should link the Blocks-specific stylesheet"
+    );
+
+    for hook in [
+        "data-blocks-hero-split-image-image",
+        "class=\"blocks-hero-split-image-actions\"",
+        "data-blocks-hero-split-image-reverse",
+    ] {
+        assert!(
+            html.contains(hook),
+            "hero-split-image page should contain {hook}"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-hero-split-image-row {",
+        "[data-blocks-hero-split-image-reverse]",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// hero-split-image の合成部品（badge/heading/text/button/image/avatar/
+/// icon の 7 scope）が実際に出力され、row が 4 個・チェック付き項目が 3 件
+/// あり、`<form>`・`data:` URI・死リンク・`id` 属性を持ち込まないことを
+/// 固定する（イシュー #2791）。
+#[test]
+fn hero_split_image_composes_expected_parts() {
+    // Markdown 原稿の「## Rust コード」節が同じクラス名・属性名の文字列を
+    // テキストとして含むため、full page ではなく `block.demo` を直接
+    // render して構造だけを検証する（`error_page_split_image_composes_
+    // expected_parts` と同型）。
+    let block = blocks::block_for_path("/blocks/hero-split-image/")
+        .expect("hero-split-image should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"button\"",
+        "data-scope=\"image\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"icon\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "hero-split-image demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("class=\"blocks-hero-split-image-row\"")
+            .count(),
+        4,
+        "hero-split-image should render exactly 4 rows (variants A/B/C/D)"
+    );
+    assert_eq!(
+        html.matches("<li class=\"blocks-hero-split-image-checklist-item\">")
+            .count(),
+        3
+    );
+    assert!(html.contains("type=\"button\""));
+    for absent in ["<form", "src=\"data:", "href=\"#\"", " id=\""] {
+        assert!(
+            !html.contains(absent),
+            "hero-split-image demo should never contain {absent}"
         );
     }
 }
