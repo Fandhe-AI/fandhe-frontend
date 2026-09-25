@@ -1312,6 +1312,11 @@ title = "contact-form-testimonial"
 source = "site/blocks/contact-form-testimonial.md"
 path = "/blocks/contact-form-testimonial/"
 
+[[section.group.page]]
+title = "contact-image-info"
+source = "site/blocks/contact-image-info.md"
+path = "/blocks/contact-image-info/"
+
 [[section.group]]
 title = "Blog"
 
