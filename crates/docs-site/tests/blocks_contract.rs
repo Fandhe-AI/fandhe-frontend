@@ -6824,12 +6824,14 @@ fn feature_vertical_tabs_page_wires_demo_class_and_css_hooks() {
         "feature-vertical-tabs page should link the Blocks-specific stylesheet"
     );
     for hook in [
-        "data-orientation=\"vertical\"",
+        "class=\"blocks-feature-vertical-tabs-tablist\"",
+        "class=\"blocks-feature-vertical-tabs-tab\"",
+        "blocks-feature-vertical-tabs-tab-active",
+        "class=\"blocks-feature-vertical-tabs-panel\"",
         "data-blocks-feature-vertical-tabs-trigger-body=\"\"",
         "data-blocks-feature-vertical-tabs-image=\"\"",
         "data-blocks-feature-vertical-tabs-trigger-icon=\"\"",
         "data-blocks-feature-vertical-tabs-image-primary=\"\"",
-        "data-scope=\"tabs\"",
         "data-scope=\"icon\"",
     ] {
         assert!(
@@ -6839,16 +6841,29 @@ fn feature_vertical_tabs_page_wires_demo_class_and_css_hooks() {
     }
     // 実物の `tabs::tabs` を一切使わないため、Demo 自体（[`blocks::block_for_
     // path`] 経由で `demo` 関数を直接呼んだ出力）には `role="tablist"`/
-    // `role="tab"`/`<button>` が一切現れないこと（codex-review 指摘の回帰
-    // 固定。ページ全体ではなく Demo 出力に限定するのは、本節末尾で
-    // `aria-orientation` を「出力しない」と地の文で説明しているため、
-    // 生成ページ全体（原稿の地の文を含む）を対象にすると誤検知する
-    // ため）。`feature_vertical_tabs::tests::no_tabs_instance_is_interactive`
-    // と同じ判定を実サイトビルド経由でも固定する。
+    // `role="tab"`/`<button>`/recipe セレクタ（`data-scope="tabs"`/
+    // `data-part="list"|"trigger"|"content"`/`data-state`/
+    // `data-orientation`）のいずれも一切現れないこと（Bugbot Medium 是正・
+    // codex-review 指摘の回帰固定。ページ全体ではなく Demo 出力に限定する
+    // のは、原稿の地の文がこれらの語を説明目的で引用しているため、生成
+    // ページ全体を対象にすると誤検知するため）。
+    // `feature_vertical_tabs::tests::no_tabs_instance_is_interactive` と
+    // 同じ判定を実サイトビルド経由でも固定する。
     let demo_only_html = render(&(blocks::block_for_path("/blocks/feature-vertical-tabs/")
         .expect("feature-vertical-tabs should be registered")
         .demo)());
-    for forbidden in ["role=\"tablist\"", "role=\"tab\"", "<button", " hidden"] {
+    for forbidden in [
+        "role=\"tablist\"",
+        "role=\"tab\"",
+        "<button",
+        " hidden",
+        "data-scope=\"tabs\"",
+        "data-part=\"list\"",
+        "data-part=\"trigger\"",
+        "data-part=\"content\"",
+        "data-state=",
+        "data-orientation",
+    ] {
         assert!(
             !demo_only_html.contains(forbidden),
             "feature-vertical-tabs demo should never contain {forbidden}"
@@ -6859,7 +6874,9 @@ fn feature_vertical_tabs_page_wires_demo_class_and_css_hooks() {
     let sheet_css = sheet.as_css();
     for needle in [
         "@media (max-width: 63.99rem)",
-        ".blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"list\"][data-orientation=\"vertical\"]",
+        ".blocks-feature-vertical-tabs-tablist {\n  display: flex;",
+        ".blocks-feature-vertical-tabs-tab-active {\n  color:",
+        "@media (forced-colors: active) {",
         "[data-blocks-feature-vertical-tabs-trigger-desc]",
         "[data-blocks-feature-vertical-tabs-trigger-icon]",
         "[data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-vertical-tabs-image-primary]",
@@ -6869,6 +6886,12 @@ fn feature_vertical_tabs_page_wires_demo_class_and_css_hooks() {
             "blocks.css should declare a rule for {needle}"
         );
     }
+    // recipe セレクタ（`data-scope="tabs"`/`data-part="list"|"trigger"|
+    // "content"`）が feature-vertical-tabs 固有 CSS から完全に排除されて
+    // いることは、集約後の `sheet_css`（他 block の CSS も含む）ではなく
+    // `feature_vertical_tabs::LAYOUT_CSS` を直接検証するユニットテスト
+    // （`layout_css_declares_lg_breakpoint_overrides`）が固定する
+    // （他 block が独自に同名セレクタを使っていても誤検知しないため）。
 }
 
 /// error-page-centered の Demo 固有 CSS フック（メッセージ枠・コード・

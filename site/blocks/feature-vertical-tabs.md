@@ -8,16 +8,20 @@
 
 docs サイトは JS ハイドレーションを行わないため、各インスタンスは 1 タブを
 選択済みの状態で固定表示しています。実物の `tabs::tabs`（`role="tablist"`/
-`role="tab"`/`<button>`）は一切使わず、タブ列は `data-scope`/`data-part`
-属性のみを持つ非対話な `<div>` で見た目だけを模しています。選択中パネルの
-本文はそのインスタンスへ直接描画し、残り 3 パネルは同 block の別インス
-タンスでそれぞれ選択済みとして表示されるため、切り替え手段を持たない
-静的な並記であることが構造からも読み取れます。幅 lg（64rem）以上では
-タブ列が左に縦並び、パネルが右に表示されます。幅 lg 未満ではタブ列が
-パネルの上へ積まれますが、タブ列自体は縦並びのまま（横並びへは変わらない）
-です。`role`/`aria-*` を一切出力しないため、幅による見た目と意味論の
-食い違いも構造的に発生しません。各タブの trigger 先頭には自作の幾何
-アイコンを添えています。
+`role="tab"`/`<button>`）は一切使わず、タブ列は非対話な `<div>` で見た目
+だけを模しています。さらに、`data-scope="tabs"`/`data-part="list"|
+"trigger"|"content"` という pre-styled-ui の `tabs` recipe と同じセレクタも
+一切使わず、block 固有 class（`blocks-feature-vertical-tabs-tablist`/
+`-tab`/`-tab-active`/`-panel`）だけで見た目を独自に定義しています。recipe
+の `cursor: pointer`/hover 面まで意図せず継承し「クリックできそう」に
+見えてしまう不整合を避けるためです。選択中パネルの本文はそのインスタンス
+へ直接描画し、残り 3 パネルは同 block の別インスタンスでそれぞれ選択済み
+として表示されるため、切り替え手段を持たない静的な並記であることが構造
+からも読み取れます。幅 lg（64rem）以上ではタブ列が左に縦並び、パネルが
+右に表示されます。幅 lg 未満ではタブ列がパネルの上へ積まれますが、タブ列
+自体は縦並びのまま（横並びへは変わらない）です。`role`/`aria-*` を一切
+出力しないため、幅による見た目と意味論の食い違いも構造的に発生しません。
+各タブの trigger 先頭には自作の幾何アイコンを添えています。
 
 文言・データはすべて架空のもので、データ取得・送信は行わない静的な表示
 例です。`<form>` は使用せず、送信先を持ちません。
@@ -371,38 +375,33 @@ fn variant_label(label: &'static str) -> Node {
 }
 
 /// 実物の `tabs::tabs` を一切使わない非対話タブ列（モジュール doc「無 JS
-/// での扱い（実物の `tabs::tabs` は一切使わない）」節、`feature_tabs_panel::
-/// static_tab_list` と同型の判断・同型の是正）。`data-scope="tabs"`/
-/// `data-part="list"`/`"trigger"` を `tabs::tabs` と同じ属性値で `div` のみに
-/// 与え、[`LAYOUT_CSS`] の `[data-scope="tabs"][data-part="..."]` セレクタに
-/// よる見た目をそのまま再利用しつつ、`role`/`tabindex`/`<button>` は一切
-/// 持たないため操作可能に見えない。ラベルのみを持つ装飾要素として
-/// `aria-hidden="true"` を付与し支援技術のツリーから除外する
-/// （`static_tab_list` の `hide_from_assistive_tech: true` 相当。本 block の
-/// trigger はいずれもタイトル/説明のみで進捗等の実情報を持たないため常に
-/// `true` 固定でよい）。
+/// での扱い（実物の `tabs::tabs` は一切使わない）」節・「recipe セレクタ
+/// から完全に切り離す理由」節、`feature_tabs_panel::static_tab_list` と
+/// 同型の判断）。`role`/`tabindex`/`<button>` に加え、`data-scope`/
+/// `data-part`/`data-state`/`data-orientation`（`fandhe_frontend_pre_
+/// styled_ui::tabs` の recipe が読むセレクタ）もいずれも持たない `div` の
+/// みで構成し、block 固有 class（`blocks-feature-vertical-tabs-tablist`/
+/// `-tab`/`-tab-active`）だけで見た目を独自に定義する（recipe の
+/// `cursor: pointer`/hover 面/フォーカスリング等インタラクティブ向け
+/// スタイルを一切継承しないため操作可能に見えない、Bugbot Medium 是正）。
+/// ラベルのみを持つ装飾要素として `aria-hidden="true"` を付与し支援技術の
+/// ツリーから除外する（本 block の trigger はいずれもタイトル/説明のみで
+/// 進捗等の実情報を持たないため常に付与してよい）。
 fn static_tab_list(id_prefix: &'static str, selected: &'static str) -> Node {
     div(
-        vec![
-            ("data-scope", "tabs"),
-            ("data-part", "list"),
-            ("data-orientation", "vertical"),
-        ],
+        vec![("class", "blocks-feature-vertical-tabs-tablist")],
         FEATURES
             .iter()
             .map(|tab| {
-                let state = if tab.value == selected {
-                    "active"
+                let class = if tab.value == selected {
+                    "blocks-feature-vertical-tabs-tab blocks-feature-vertical-tabs-tab-active"
                 } else {
-                    "inactive"
+                    "blocks-feature-vertical-tabs-tab"
                 };
                 el_owned(
                     "div",
                     vec![
-                        ("data-scope".to_string(), "tabs".to_string()),
-                        ("data-part".to_string(), "trigger".to_string()),
-                        ("data-orientation".to_string(), "vertical".to_string()),
-                        ("data-state".to_string(), state.to_string()),
+                        ("class".to_string(), class.to_string()),
                         ("aria-hidden".to_string(), "true".to_string()),
                         (
                             "id".to_string(),
@@ -429,9 +428,10 @@ fn vertical_tabs(id_prefix: &'static str, selected: &'static str, layout: PanelL
     let content = el_owned(
         "div",
         vec![
-            ("data-scope".to_string(), "tabs".to_string()),
-            ("data-part".to_string(), "content".to_string()),
-            ("data-orientation".to_string(), "vertical".to_string()),
+            (
+                "class".to_string(),
+                "blocks-feature-vertical-tabs-panel".to_string(),
+            ),
             (
                 "id".to_string(),
                 format!("{id_prefix}-content-{0}", selected_tab.value),
@@ -440,7 +440,7 @@ fn vertical_tabs(id_prefix: &'static str, selected: &'static str, layout: PanelL
         panel_body(selected_tab, layout),
     );
     div(
-        vec![("data-scope", "tabs"), ("data-part", "root")],
+        vec![("class", "blocks-feature-vertical-tabs-tabs-root")],
         vec![static_tab_list(id_prefix, selected), content],
     )
 }

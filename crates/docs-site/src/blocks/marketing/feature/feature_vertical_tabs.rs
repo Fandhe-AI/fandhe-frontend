@@ -6,7 +6,8 @@
 //! 該当しない）のみを記す（取得手段・ファイル名・内部コンポーネント識別子
 //! は記載しない）。
 //!
-//! # #2775・#2776・実物の `tabs::tabs` 排除ラウンドの分担（完了記録）
+//! # #2775・#2776・実物の `tabs::tabs` 排除ラウンド・recipe 分離ラウンドの
+//! 分担（完了記録）
 //!
 //! #2775 では骨格と主要領域を実装した: レイアウト root・セクション見出し
 //! （`heading` H3 + `text` リード文）・4 タブの [`vertical_tabs`]・各 trigger
@@ -15,9 +16,17 @@
 //! 仕上げた: trigger 先頭のアイコン（[`FeatureTab::icon`]）・画像主体の別
 //! パネル形（[`PanelLayout::ImageFirst`]）・[`FEATURES`] の 4 タブそれぞれを
 //! 選択済みにした 4 インスタンスへの拡張（下記「全パネルを静的に読める
-//! ようにする」節）。さらに後続ラウンド（本コミット）で、[`vertical_tabs`]
-//! が実物の `tabs::tabs` を一切使わない非対話構造へ置き換わった（下記
-//! 「無 JS での扱い（実物の `tabs::tabs` は一切使わない）」節）。
+//! ようにする」節）。さらに後続ラウンドで、[`vertical_tabs`] が実物の
+//! `tabs::tabs` を一切使わない非対話構造へ置き換わった（下記「無 JS での
+//! 扱い（実物の `tabs::tabs` は一切使わない）」節）。直後のラウンド（本
+//! コミット）では、その非対話構造が `data-scope="tabs"`/`data-part="..."`
+//! という pre-styled-ui の `tabs` recipe と同一のセレクタを再利用していた
+//! ため、recipe の `cursor: pointer`/hover 面/フォーカスリング等の
+//! インタラクティブ向けスタイルまで意図せず継承してしまい、無 JS で実際
+//! には切り替わらないのに見た目だけ「クリックできそう」に見える不整合が
+//! 残っていた（Bugbot Medium 指摘）。是正として recipe のセレクタと
+//! 完全に切り離した独自 class 群へ置き換えた（下記「recipe セレクタから
+//! 完全に切り離す理由」節）。
 //!
 //! # 全パネルを静的に読めるようにする
 //!
@@ -43,9 +52,11 @@
 //! `heading` / `text` / `tabs` / `image` / `icon` の 5 部品を合成する
 //! （[`BLOCK`] の `parts` に一致させる契約、`crates/docs-site/tests/
 //! blocks_nav.rs`/`blocks_contract.rs` が検証する）。`tabs` は下記「無 JS
-//! での扱い」節のとおり `fandhe_frontend_pre_styled_ui::tabs::tabs` を実際
-//! には呼ばず、CSS フック（`data-scope="tabs"`/`data-part="..."`）だけを
-//! 再利用して見た目を模す。新規 UI 部品は追加しない。
+//! での扱い」節・「recipe セレクタから完全に切り離す理由」節のとおり
+//! `fandhe_frontend_pre_styled_ui::tabs::tabs` を実際には呼ばず、独自の
+//! block 固有 class（`data-scope="tabs"`/`data-part="..."` 等 recipe の
+//! セレクタとは一致しない）だけで見た目を独自に再現する。新規 UI 部品は
+//! 追加しない。
 //!
 //! # 無 JS での扱い（実物の `tabs::tabs` は一切使わない）
 //!
@@ -60,17 +71,14 @@
 //! §19 参照。`feature_tabs_panel::static_tab_list` が先に解決した課題と
 //! 同型）。無 JS の docs サイトで実際に切り替えられるようにする経路は
 //! ないため、本 block は実物の `tabs::tabs` を**一切使わない**。タブ列は
-//! [`static_tab_list`]（`data-scope="tabs"`/`data-part="list"`/`"trigger"`
-//! の `div` のみで [`LAYOUT_CSS`]・pre-styled-ui.css の tabs recipe（同じ
-//! 属性セレクタで判定するため実物のコンポーネントを介さずとも見た目を
-//! 継承できる）の見た目を再現し、`role`/`tabindex`/`<button>` を一切持たない
-//! 非対話表示）で視覚上だけ模し、選択中パネルの本文は [`vertical_tabs`]
-//! が直接（`panel_body` 経由で）描画する。残り 3 パネルは同 block の
-//! 別インスタンスでそれぞれ選択済みとして可視になる（上記「全パネルを
-//! 静的に読めるようにする」節）ため、`feature_tabs_panel` のような
-//! プレビュー併記は不要。trigger はいずれもタイトル/説明のみで進捗等の
-//! 実情報を持たないため、常に `aria-hidden="true"` を付与し装飾要素として
-//! 支援技術のツリーから除外する。
+//! [`static_tab_list`]（`role`/`tabindex`/`<button>`/`data-scope`/
+//! `data-part`/`data-state`/`data-orientation` のいずれも持たない `div`
+//! のみで [`LAYOUT_CSS`] の独自 class（下記「recipe セレクタから完全に
+//! 切り離す理由」節）で見た目を再現する非対話表示）で視覚上だけ模し、
+//! 選択中パネルの本文は [`vertical_tabs`] が直接（`panel_body` 経由で）
+//! 描画する。残り 3 パネルは同 block の別インスタンスでそれぞれ選択済み
+//! として可視になる（上記「全パネルを静的に読めるようにする」節）ため、
+//! `feature_tabs_panel` のようなプレビュー併記は不要。
 //!
 //! # id 規約
 //!
@@ -82,65 +90,77 @@
 //! `tabs::tabs` を使わないため `aria-controls`/`aria-labelledby` による
 //! 相互参照は発生せず、id は一意性の確保のみを目的とする。
 //!
-//! # `data-orientation="vertical"` を CSS フックとしてのみ使う理由
+//! # recipe セレクタから完全に切り離す理由（Bugbot Medium 是正）
 //!
-//! `fandhe_frontend_pre_styled_ui::tabs` の recipe（イシュー #1542/#2039）は
-//! `[data-orientation="vertical"]` に対して root の `display: flex`・list の
-//! 縦積み + `border-inline-end`・trigger の `border-inline-end` + 選択中の
-//! 強調線・content の `flex: 1` をすでに持つ。[`static_tab_list`]/
-//! [`vertical_tabs`] はこの `data-orientation` 属性値をそのまま複製して
-//! recipe の見た目を継承するが、これは CSS セレクタが読む素の data 属性
-//! であり `aria-orientation`（ARIA プロパティ）とは無関係である。本 block
-//! は `role="tablist"`/`role="tab"` を一切出力しないため `aria-orientation`
-//! も出力しない（支援技術に「操作可能な tablist」と伝えない、上記「無 JS
-//! での扱い」節）。
+//! 当初案は [`static_tab_list`]/[`vertical_tabs`] が `data-scope="tabs"`/
+//! `data-part="list"`/`"trigger"`/`"content"`/`data-orientation="vertical"`
+//! という `fandhe_frontend_pre_styled_ui::tabs` の recipe（イシュー
+//! #1542/#2039）と全く同じセレクタを `<div>` へ与え、`pre-styled-ui.css`
+//! （全ページ共通で読み込まれる）の recipe CSS を実物のコンポーネントを
+//! 介さずに「間借り」する設計だった。しかし recipe の `trigger` base 規則
+//! は `cursor: pointer` と `@media (hover: hover)` のホバー面（trigger の
+//! `--fandhe-hover-bg`）を持つ（`fandhe_frontend_pre_styled_ui::tabs::
+//! recipe` 参照）ため、セレクタが一致するだけで実物の `<button>` と区別
+//! なくホバー時にクリック可能な見た目になってしまっていた（Bugbot
+//! Medium 指摘: 無 JS で実際には切り替わらないのに 16 個の trigger が
+//! 押せるように見える）。`pointer-events: none` での抑止は、trigger 内の
+//! 子要素（アイコン・span）経由でなお hover が当たってしまうため根本
+//! 対処にならない（同型の指摘が `feature_tabs_panel` 側にもあった）。
+//! 是正として、[`LAYOUT_CSS`] は recipe のセレクタと文字通り**一致する
+//! セレクタを一切持たない**設計へ変更した: `static_tab_list`/
+//! `vertical_tabs` が組み立てる `<div>` は `data-scope`/`data-part`/
+//! `data-state`/`data-orientation` のいずれも出力せず、
+//! `blocks-feature-vertical-tabs-tabs-root`/`-tablist`/`-tab`/
+//! `-tab-active`/`-panel` という block 固有 class だけで縦並び・区切り線・
+//! 選択中の強調を独自に定義する（`cursor`/hover/フォーカスリングは一切
+//! 定義しない）。これにより `pre-styled-ui.css` の tabs recipe は本 block
+//! の出力へ一切当たらず、見た目が recipe の改修と無関係に安定する副次
+//! 効果もある。
 //!
 //! # レスポンシブ（64rem をブレークポイントとする理由）
 //!
-//! `< 64rem`（lg 未満）は root を `flex-direction: column` にしてタブ列を
-//! パネルの上へ積む。`>= 64rem` で左の縦タブ列 + 右のパネルの 2 列へ
-//! 切り替える。テーマの breakpoint トークンは `@media` 条件式の中では
-//! 解決できない（CSS custom property は宣言側でのみ有効）ため、
-//! [`fandhe_frontend_pre_styled_ui::recipe::Breakpoint`] の `Lg`（1024px =
-//! 64rem）と一致するリテラル値 `63.99rem`/`64rem` を [`LAYOUT_CSS`] へ直書き
-//! する（`feature_expand`/`feature_split_list_image` と同じ判断）。lg 未満
-//! でも list の軸（縦積み）は変えず `max-width` 制約だけを外すため、`role`/
-//! `aria-*` を出力しない本 block では「見た目と意味論の食い違い」自体が
-//! 構造的に発生しない。
+//! `< 64rem`（lg 未満）は `.blocks-feature-vertical-tabs-tabs-root` を
+//! `flex-direction: column` にしてタブ列をパネルの上へ積む。`>= 64rem` で
+//! 左の縦タブ列 + 右のパネルの 2 列へ切り替える。テーマの breakpoint
+//! トークンは `@media` 条件式の中では解決できない（CSS custom property は
+//! 宣言側でのみ有効）ため、[`fandhe_frontend_pre_styled_ui::recipe::
+//! Breakpoint`] の `Lg`（1024px = 64rem）と一致するリテラル値
+//! `63.99rem`/`64rem` を [`LAYOUT_CSS`] へ直書きする（`feature_expand`/
+//! `feature_split_list_image` と同じ判断）。lg 未満でも `.blocks-feature-
+//! vertical-tabs-tablist` の軸（縦積み）は変えず `max-width` 制約だけを
+//! 外すため、`role`/`aria-*` を出力しない本 block では「見た目と意味論の
+//! 食い違い」自体が構造的に発生しない。
 //!
 //! # trigger は phrasing content だけで組む
 //!
 //! [`static_tab_list`] の trigger は `<button>` ではなく `<div>` だが、
-//! 見た目を [`fandhe_frontend_pre_styled_ui::tabs`] の trigger recipe へ
-//! 揃えるため引き続き phrasing content のみで構成する（`heading::heading`
-//! の `<h*>` や `styled_text::text` の `<p>` は使わない）。[`trigger_body`]
-//! は `span[data-blocks-feature-vertical-tabs-trigger-body]` の中に、
-//! タイトル用の `span[data-blocks-feature-vertical-tabs-trigger-title]` と
-//! 説明用の `span[data-blocks-feature-vertical-tabs-trigger-desc]` を置き、
-//! core の `span`/`text` のみで組む。trigger の base 規則が持つ
-//! `white-space: nowrap` を [`LAYOUT_CSS`] で `normal` へ上書きし、`gap` +
-//! `flex-direction: column` で縦に積む。lg 未満でもタブ列は横に伸びず
-//! 縦積みのまま（上記「レスポンシブ」節）のため、説明文
-//! （`trigger-desc`）を隠す必要はなく常に表示する。
+//! 見た目を独自 class で整えるうえで単純さを保つため引き続き phrasing
+//! content のみで構成する（`heading::heading` の `<h*>` や `styled_text::
+//! text` の `<p>` は使わない）。[`trigger_body`] は
+//! `span[data-blocks-feature-vertical-tabs-trigger-body]` の中に、タイトル
+//! 用の `span[data-blocks-feature-vertical-tabs-trigger-title]` と説明用の
+//! `span[data-blocks-feature-vertical-tabs-trigger-desc]` を置き、core の
+//! `span`/`text` のみで組む。lg 未満でもタブ列は横に伸びず縦積みのまま
+//! （上記「レスポンシブ」節）のため、説明文（`trigger-desc`）を隠す必要は
+//! なく常に表示する。
 //!
-//! # CSS フックの選び方・詳細度の方針
+//! # CSS フックの選び方
 //!
 //! `heading`/`text`/`image`/`icon` はいずれも `drop_class_attr` により
 //! 呼び出し側 `attrs` の `class` を黙って除去する契約を持つため、Demo
 //! 固有のスタイルフックは `data-blocks-feature-vertical-tabs-*` 属性で
-//! 渡す。[`static_tab_list`]/[`vertical_tabs`] が組み立てる `tabs` の見た目
-//! （root への attrs 注入点を持たない、実物の `tabs::tabs` と同じ制約）も
-//! レイアウト root の class（[`Block::demo_class`] とは別名の
-//! `blocks-feature-vertical-tabs-layout`）を起点にした子孫セレクタ
-//! （`.blocks-feature-vertical-tabs-layout [data-scope="tabs"]...`）で
-//! 上書きする。recipe の `[data-scope][data-part][data-orientation]` 系
-//! 規則（詳細度 (0,3,0)）・`[data-scope][data-part][data-state]
-//! [data-orientation]`（(0,4,0)）に確実に勝つため、上書きは子孫セレクタで
-//! 1 クラス分の詳細度を追加する（それぞれ (0,4,0)・(0,5,0) になる）。
-//! `image`（recipe 詳細度 (0,2,0)）への上書きも同様に `[data-scope="image"]
+//! 渡す。`tabs` の見た目（[`static_tab_list`]/[`vertical_tabs`]）は上記
+//! 「recipe セレクタから完全に切り離す理由」節のとおり block 固有 class
+//! （`.blocks-feature-vertical-tabs-tabs-root`/`-tablist`/`-tab`/
+//! `-tab-active`/`-panel`）で完結させ、`pre-styled-ui.css` の recipe とは
+//! 詳細度で競合しない（recipe のセレクタと文字通り一致しないため、そもそも
+//! 詳細度勝負が発生しない）。`image`（recipe 詳細度 (0,2,0)）への上書きは
+//! 引き続き実物の `image::image` を呼ぶため `[data-scope="image"]
 //! [data-part="root"][data-blocks-feature-vertical-tabs-image]` の 3
 //! セレクタ構成（(0,3,0)）で行う（`feature_split_list_image`/
-//! `feature_image_cards` と同型の判断）。
+//! `feature_image_cards` と同型の判断。`image`/`icon`/`heading`/`text` は
+//! 実物のコンポーネントであり非対話要素のため、recipe 継承それ自体は
+//! 問題にならない）。
 //!
 //! # `text` の名前衝突
 //!
@@ -162,11 +182,12 @@
 //!
 //! # trigger アイコンの CSS
 //!
-//! `tabs` の trigger recipe（`fandhe_frontend_pre_styled_ui::tabs`）base 規則
-//! が既に `display: inline-flex; gap: var(--fandhe-space-2);` を持つため、
-//! アイコンとタイトル列の横並び自体は recipe 側で賄える。[`LAYOUT_CSS`] へ
-//! 追加するのは `flex-shrink: 0`（縦積みタイトル/説明列に押し潰されない
-//! ようにする）のみで、二重定義はしない。
+//! 上記「recipe セレクタから完全に切り離す理由」節のとおり `tabs` の
+//! recipe は一切継承しないため、アイコンとタイトル列の横並び
+//! （`display: inline-flex; gap: var(--fandhe-space-2);`）も
+//! `.blocks-feature-vertical-tabs-tab` 自身で定義する。加えて
+//! `flex-shrink: 0`（縦積みタイトル/説明列に押し潰されないようにする）を
+//! trigger アイコンへ与える。
 //!
 //! # alt を空文字列にする理由
 //!
@@ -533,38 +554,33 @@ fn variant_label(label: &'static str) -> Node {
 }
 
 /// 実物の `tabs::tabs` を一切使わない非対話タブ列（モジュール doc「無 JS
-/// での扱い（実物の `tabs::tabs` は一切使わない）」節、`feature_tabs_panel::
-/// static_tab_list` と同型の判断・同型の是正）。`data-scope="tabs"`/
-/// `data-part="list"`/`"trigger"` を `tabs::tabs` と同じ属性値で `div` のみに
-/// 与え、[`LAYOUT_CSS`] の `[data-scope="tabs"][data-part="..."]` セレクタに
-/// よる見た目をそのまま再利用しつつ、`role`/`tabindex`/`<button>` は一切
-/// 持たないため操作可能に見えない。ラベルのみを持つ装飾要素として
-/// `aria-hidden="true"` を付与し支援技術のツリーから除外する
-/// （`static_tab_list` の `hide_from_assistive_tech: true` 相当。本 block の
-/// trigger はいずれもタイトル/説明のみで進捗等の実情報を持たないため常に
-/// `true` 固定でよい）。
+/// での扱い（実物の `tabs::tabs` は一切使わない）」節・「recipe セレクタ
+/// から完全に切り離す理由」節、`feature_tabs_panel::static_tab_list` と
+/// 同型の判断）。`role`/`tabindex`/`<button>` に加え、`data-scope`/
+/// `data-part`/`data-state`/`data-orientation`（`fandhe_frontend_pre_
+/// styled_ui::tabs` の recipe が読むセレクタ）もいずれも持たない `div` の
+/// みで構成し、block 固有 class（`blocks-feature-vertical-tabs-tablist`/
+/// `-tab`/`-tab-active`）だけで見た目を独自に定義する（recipe の
+/// `cursor: pointer`/hover 面/フォーカスリング等インタラクティブ向け
+/// スタイルを一切継承しないため操作可能に見えない、Bugbot Medium 是正）。
+/// ラベルのみを持つ装飾要素として `aria-hidden="true"` を付与し支援技術の
+/// ツリーから除外する（本 block の trigger はいずれもタイトル/説明のみで
+/// 進捗等の実情報を持たないため常に付与してよい）。
 fn static_tab_list(id_prefix: &'static str, selected: &'static str) -> Node {
     div(
-        vec![
-            ("data-scope", "tabs"),
-            ("data-part", "list"),
-            ("data-orientation", "vertical"),
-        ],
+        vec![("class", "blocks-feature-vertical-tabs-tablist")],
         FEATURES
             .iter()
             .map(|tab| {
-                let state = if tab.value == selected {
-                    "active"
+                let class = if tab.value == selected {
+                    "blocks-feature-vertical-tabs-tab blocks-feature-vertical-tabs-tab-active"
                 } else {
-                    "inactive"
+                    "blocks-feature-vertical-tabs-tab"
                 };
                 el_owned(
                     "div",
                     vec![
-                        ("data-scope".to_string(), "tabs".to_string()),
-                        ("data-part".to_string(), "trigger".to_string()),
-                        ("data-orientation".to_string(), "vertical".to_string()),
-                        ("data-state".to_string(), state.to_string()),
+                        ("class".to_string(), class.to_string()),
                         ("aria-hidden".to_string(), "true".to_string()),
                         (
                             "id".to_string(),
@@ -591,9 +607,10 @@ fn vertical_tabs(id_prefix: &'static str, selected: &'static str, layout: PanelL
     let content = el_owned(
         "div",
         vec![
-            ("data-scope".to_string(), "tabs".to_string()),
-            ("data-part".to_string(), "content".to_string()),
-            ("data-orientation".to_string(), "vertical".to_string()),
+            (
+                "class".to_string(),
+                "blocks-feature-vertical-tabs-panel".to_string(),
+            ),
             (
                 "id".to_string(),
                 format!("{id_prefix}-content-{0}", selected_tab.value),
@@ -602,7 +619,7 @@ fn vertical_tabs(id_prefix: &'static str, selected: &'static str, layout: PanelL
         panel_body(selected_tab, layout),
     );
     div(
-        vec![("data-scope", "tabs"), ("data-part", "root")],
+        vec![("class", "blocks-feature-vertical-tabs-tabs-root")],
         vec![static_tab_list(id_prefix, selected), content],
     )
 }
@@ -684,26 +701,32 @@ pub const BLOCK: Block = Block {
 /// `feature_vertical_tabs` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
 /// doc「block 固有 CSS の置き場」節）。セレクタは
 /// `.blocks-feature-vertical-tabs-*` と `[data-blocks-feature-vertical-tabs-*]`
-/// に加え、`tabs`（root attrs 注入点を持たない）への上書きに限り
-/// `.blocks-feature-vertical-tabs-layout [data-scope="tabs"]...` の子孫
-/// セレクタを用いる（モジュール doc「CSS フックの選び方・詳細度の方針」
-/// 節）。他 block や部品の素のセレクタへは影響させない。
+/// のみで完結する。実物のコンポーネントである `image`（`[data-scope="image"]
+/// [data-part="root"][data-blocks-feature-vertical-tabs-image*]`）を除き、
+/// `[data-scope=...]`/`[data-part=...]` セレクタは一切使わない（モジュール
+/// doc「recipe セレクタから完全に切り離す理由」節、Bugbot Medium 是正）。
+/// 他 block や部品の素のセレクタへは影響させない。
 ///
-/// `tabs` root へ `align-items` を明示しない（`fandhe_frontend_pre_styled_ui
-/// ::tabs` の recipe 側コメントが「`flex-start` を指定すると list/content
-/// が root の高さへストレッチされず、list の `border-inline-end`
-/// （区切り線）が content 全体の高さに沿わない」と警告している既定
-/// `stretch` を上書きしないため。以前は本 block も `align-items:
-/// flex-start` を持っていたが、まさにこの区切り線が崩れる不具合を
-/// 再導入していた（#2776 codex-review Medium 是正）。
+/// `.blocks-feature-vertical-tabs-tabs-root` へ `align-items` を明示しない
+/// （`flex-start` を指定すると `.blocks-feature-vertical-tabs-tablist`/
+/// `-panel` が root の高さへストレッチされず、`tablist` の
+/// `border-inline-end`（区切り線）が `panel` 全体の高さに沿わない。既定
+/// `align-items: normal`（flex コンテナでは `stretch` として解決される）を
+/// 維持することで両側の高さが揃う。旧・実物の `tabs` recipe 継承時代から
+/// 引き継ぐ判断、`fandhe_frontend_pre_styled_ui::tabs` recipe 側コメント
+/// 参照）。
 const LAYOUT_CSS: &str = "\
 .blocks-feature-vertical-tabs-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-feature-vertical-tabs-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-vertical-tabs-lead] {\n  margin: 0;\n}\n\
-.blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"root\"] {\n  display: flex;\n  gap: var(--fandhe-space-8);\n}\n\
-.blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"list\"][data-orientation=\"vertical\"] {\n  flex: 0 0 auto;\n  max-width: 20rem;\n}\n\
-.blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"content\"][data-orientation=\"vertical\"] {\n  flex: 1;\n  min-width: 0;\n}\n\
-.blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"trigger\"][data-orientation=\"vertical\"] {\n  white-space: normal;\n  text-align: start;\n  align-items: flex-start;\n}\n\
+.blocks-feature-vertical-tabs-tabs-root {\n  display: flex;\n  gap: var(--fandhe-space-8);\n}\n\
+.blocks-feature-vertical-tabs-tablist {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  flex: 0 0 auto;\n  max-width: 20rem;\n  border-inline-end: 1px solid var(--fandhe-color-border);\n}\n\
+.blocks-feature-vertical-tabs-tab {\n  display: inline-flex;\n  align-items: flex-start;\n  gap: var(--fandhe-space-2);\n  padding: var(--fandhe-space-2) var(--fandhe-space-4);\n  margin-inline-end: -1px;\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  line-height: var(--fandhe-font-line-height-normal);\n  color: var(--fandhe-color-fg-muted);\n  text-align: start;\n  white-space: normal;\n  border-inline-end: 2px solid transparent;\n}\n\
+.blocks-feature-vertical-tabs-tab-active {\n  color: var(--fandhe-color-fg);\n  border-inline-end-color: var(--fandhe-palette, var(--fandhe-color-accent));\n}\n\
+@media (forced-colors: active) {\n  \
+.blocks-feature-vertical-tabs-tab-active {\n    border-inline-end-color: CanvasText;\n  }\n\
+}\n\
+.blocks-feature-vertical-tabs-panel {\n  flex: 1;\n  min-width: 0;\n  color: var(--fandhe-color-fg);\n}\n\
 [data-blocks-feature-vertical-tabs-trigger-body] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 [data-blocks-feature-vertical-tabs-trigger-title] {\n  font-weight: var(--fandhe-font-font-weight-semibold);\n}\n\
 [data-blocks-feature-vertical-tabs-trigger-desc] {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
@@ -714,8 +737,8 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-vertical-tabs-image] {\n  display: block;\n  width: 100%;\n  margin-top: var(--fandhe-space-4);\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-vertical-tabs-image-primary] {\n  display: block;\n  width: 100%;\n  margin: var(--fandhe-space-4) 0;\n}\n\
 @media (max-width: 63.99rem) {\n  \
-.blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"root\"] {\n    flex-direction: column;\n  }\n  \
-.blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"list\"][data-orientation=\"vertical\"] {\n    max-width: none;\n  }\n\
+.blocks-feature-vertical-tabs-tabs-root {\n    flex-direction: column;\n  }\n  \
+.blocks-feature-vertical-tabs-tablist {\n    max-width: none;\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -734,9 +757,10 @@ mod tests {
         for scope in [
             "data-scope=\"heading\"",
             "data-scope=\"text\"",
-            "data-scope=\"tabs\"",
             "data-scope=\"image\"",
             "data-scope=\"icon\"",
+            "class=\"blocks-feature-vertical-tabs-tablist\"",
+            "class=\"blocks-feature-vertical-tabs-tab\"",
         ] {
             assert!(html.contains(scope), "demo output should contain {scope}");
         }
@@ -745,18 +769,26 @@ mod tests {
         assert!(!html.contains("src=\"data:"));
     }
 
-    /// 実物の `tabs::tabs` を一切使わないため、`role="tablist"`/`role="tab"`/
+    /// 実物の `tabs::tabs` を一切使わず、その recipe が読むセレクタ
+    /// （`data-scope="tabs"`/`data-part="..."`/`data-state`/
+    /// `data-orientation`）も一切出力しないこと（Bugbot Medium 是正の回帰
+    /// 固定: セレクタが一致するだけで `pre-styled-ui.css` の `cursor:
+    /// pointer`/hover 面を継承し、無 JS で実際には切り替わらないのに
+    /// 操作可能に見えてしまっていた。モジュール doc「recipe セレクタから
+    /// 完全に切り離す理由」節）。`role="tablist"`/`role="tab"`/
     /// `role="tabpanel"`/`tabindex`/`aria-selected`/`aria-controls`/
-    /// `disabled`/`aria-disabled`/`hidden` のいずれも出力しないこと
-    /// （codex-review 指摘の回帰固定: 唯一有効な選択中トリガーが
-    /// `role="tab"` の押せるボタンのまま残ると、無 JS で実際には切り替わら
-    /// ないにもかかわらず「切り替え可能な UI」と伝わってしまう。
-    /// `feature_tabs_panel::tests::no_tabs_instance_is_interactive_and_
-    /// previews_are_not_either` と同型のテスト）。
+    /// `disabled`/`aria-disabled`/`hidden`/`aria-orientation` も一切
+    /// 出力しないこと（codex-review 指摘の回帰固定）。
     #[test]
     fn no_tabs_instance_is_interactive() {
         let html = render(&demo());
         for forbidden in [
+            "data-scope=\"tabs\"",
+            "data-part=\"list\"",
+            "data-part=\"trigger\"",
+            "data-part=\"content\"",
+            "data-state=",
+            "data-orientation",
             "role=\"tablist\"",
             "role=\"tab\"",
             "role=\"tabpanel\"",
@@ -797,21 +829,15 @@ mod tests {
             );
         }
         // 実物の `tabs::tabs` を使わないため、非選択パネルの本文は同じ
-        // インスタンス内には存在しない（`data-part="content"` は 4 インス
-        // タンス分＝4 件のみ。`no_tabs_instance_is_interactive` が `hidden`
-        // 属性の不在を別途固定する）。
-        assert_eq!(html.matches("data-part=\"content\"").count(), 4);
-    }
-
-    /// `data-orientation="vertical"` が CSS フックとしてのみ出力され、
-    /// `aria-orientation` は一切出力しないこと（モジュール doc
-    /// 「`data-orientation="vertical"` を CSS フックとしてのみ使う理由」
-    /// 節）。
-    #[test]
-    fn demo_declares_vertical_orientation_as_css_hook_only() {
-        let html = render(&demo());
-        assert!(html.contains("data-orientation=\"vertical\""));
-        assert!(!html.contains("aria-orientation"));
+        // インスタンス内には存在しない（`class="blocks-feature-vertical-
+        // tabs-panel"` は 4 インスタンス分＝4 件のみ。
+        // `no_tabs_instance_is_interactive` が `hidden` 属性の不在を
+        // 別途固定する）。
+        assert_eq!(
+            html.matches("class=\"blocks-feature-vertical-tabs-panel\"")
+                .count(),
+            4
+        );
     }
 
     /// 4 インスタンスそれぞれの id 接頭辞が選択タブの `value` と一致する
@@ -832,46 +858,54 @@ mod tests {
         }
     }
 
-    /// trigger（`[data-part="trigger"]` の `<div>...</div>` 区間、実物の
-    /// `tabs::tabs` を使わないため `<button>` ではない）が phrasing content
-    /// のみで構成されること（モジュール doc「trigger は phrasing content
-    /// だけで組む」節の不変条件）。
+    /// trigger（`class="blocks-feature-vertical-tabs-tab"`/`"...tab-active"`
+    /// の `<div>...</div>` 区間、実物の `tabs::tabs` を使わないため
+    /// `<button>` ではない）が phrasing content のみで構成されること
+    /// （モジュール doc「trigger は phrasing content だけで組む」節の
+    /// 不変条件）。`blocks-feature-vertical-tabs-tab` は
+    /// `blocks-feature-vertical-tabs-tablist`/`-tabs-root` と文字列としては
+    /// 前方一致してしまうため、`class="..."` の完全一致リテラル 2 種
+    /// （非選択/選択済み）のみを対象にし誤検知を避ける。
     #[test]
     fn trigger_contains_no_block_level_elements() {
         let html = render(&demo());
-        let needle = "data-part=\"trigger\"";
-        let mut start = 0;
         let mut checked = 0;
-        while let Some(attr_rel) = html[start..].find(needle) {
-            let attr_pos = start + attr_rel;
-            let open = html[..attr_pos]
-                .rfind('<')
-                .expect("data-part=\"trigger\" should be inside an opening tag");
-            let open_end = html[open..].find('>').map(|i| open + i + 1).unwrap();
-            let close = html[open_end..]
-                .find("</div>")
-                .map(|i| open_end + i)
-                .unwrap();
-            let inner = &html[open_end..close];
-            // `"<p"` 単体だと trigger アイコンの `<path>`（svg 要素、phrasing
-            // content として許容される）を誤検知するため `"<p "`（属性付き
-            // `<p ...>` の開きタグのみ）で判定する（`styled_text::text` は
-            // 常に `class`/`data-*` 属性を持つため属性なし `<p>` は存在
-            // しない）。
-            assert!(
-                !inner.contains("<p "),
-                "trigger must not contain <p>: {inner}"
-            );
-            assert!(
-                !inner.contains("<h"),
-                "trigger must not contain heading tags: {inner}"
-            );
-            assert!(
-                !inner.contains("<div"),
-                "trigger must not contain nested block elements: {inner}"
-            );
-            start = close + "</div>".len();
-            checked += 1;
+        for needle in [
+            "class=\"blocks-feature-vertical-tabs-tab\"",
+            "class=\"blocks-feature-vertical-tabs-tab blocks-feature-vertical-tabs-tab-active\"",
+        ] {
+            let mut start = 0;
+            while let Some(attr_rel) = html[start..].find(needle) {
+                let attr_pos = start + attr_rel;
+                let open = html[..attr_pos]
+                    .rfind('<')
+                    .expect("class attribute should be inside an opening tag");
+                let open_end = html[open..].find('>').map(|i| open + i + 1).unwrap();
+                let close = html[open_end..]
+                    .find("</div>")
+                    .map(|i| open_end + i)
+                    .unwrap();
+                let inner = &html[open_end..close];
+                // `"<p"` 単体だと trigger アイコンの `<path>`（svg 要素、
+                // phrasing content として許容される）を誤検知するため
+                // `"<p "`（属性付き `<p ...>` の開きタグのみ）で判定する
+                // （`styled_text::text` は常に `class`/`data-*` 属性を持つ
+                // ため属性なし `<p>` は存在しない）。
+                assert!(
+                    !inner.contains("<p "),
+                    "trigger must not contain <p>: {inner}"
+                );
+                assert!(
+                    !inner.contains("<h"),
+                    "trigger must not contain heading tags: {inner}"
+                );
+                assert!(
+                    !inner.contains("<div"),
+                    "trigger must not contain nested block elements: {inner}"
+                );
+                start = close + "</div>".len();
+                checked += 1;
+            }
         }
         assert_eq!(checked, 16);
     }
@@ -944,25 +978,51 @@ mod tests {
     fn layout_css_declares_lg_breakpoint_overrides() {
         assert!(LAYOUT_CSS.contains("@media (max-width: 63.99rem)"));
         assert!(LAYOUT_CSS
-            .contains("[data-scope=\"tabs\"][data-part=\"root\"] {\n    flex-direction: column;"));
-        assert!(LAYOUT_CSS.contains(
-            "[data-scope=\"tabs\"][data-part=\"list\"][data-orientation=\"vertical\"] {\n    max-width: none;"
-        ));
+            .contains(".blocks-feature-vertical-tabs-tabs-root {\n    flex-direction: column;"));
+        assert!(
+            LAYOUT_CSS.contains(".blocks-feature-vertical-tabs-tablist {\n    max-width: none;")
+        );
         assert!(!LAYOUT_CSS.contains("flex-direction: row;"));
+        // recipe セレクタ（`[data-scope=...]`/`[data-part=...]`）は tabs
+        // 部分から完全に排除されていること（モジュール doc「recipe
+        // セレクタから完全に切り離す理由」節、Bugbot Medium 是正の回帰
+        // 固定）。`image` 向けの `[data-scope="image"]...` セレクタは実物の
+        // コンポーネントのため対象外とし、`tabs`/`list`/`trigger`/`content`
+        // という値のみを対象にする。
+        for forbidden in [
+            "[data-scope=\"tabs\"]",
+            "[data-part=\"list\"]",
+            "[data-part=\"trigger\"]",
+            "[data-part=\"content\"]",
+            "cursor: pointer",
+        ] {
+            assert!(
+                !LAYOUT_CSS.contains(forbidden),
+                "LAYOUT_CSS should never contain {forbidden}"
+            );
+        }
     }
 
-    /// 各インスタンスにつき選択中タブ 1 件のみが `data-state="active"`・
-    /// 残り 3 件が `data-state="inactive"` になること（4 インスタンス分、
-    /// モジュール doc「無 JS での扱い（実物の `tabs::tabs` は一切使わない）」
-    /// 節）。`data-state` は見た目（強調表示）を CSS へ伝えるためだけの
-    /// 属性であり、`disabled`/`aria-disabled`（実物の `tabs::tabs` が持って
-    /// いた「操作できない見た目」）は [`no_tabs_instance_is_interactive`]
-    /// のとおり一切出力しない。
+    /// 各インスタンスにつき選択中タブ 1 件のみが `blocks-feature-vertical-
+    /// tabs-tab-active` を追加で持ち、残り 3 件は `blocks-feature-vertical-
+    /// tabs-tab` のみになること（4 インスタンス分、モジュール doc「無 JS
+    /// での扱い（実物の `tabs::tabs` は一切使わない）」節）。強調表示は
+    /// この class 差だけで CSS へ伝え、`disabled`/`aria-disabled`（実物の
+    /// `tabs::tabs` が持っていた「操作できない見た目」）は
+    /// [`no_tabs_instance_is_interactive`] のとおり一切出力しない。
     #[test]
     fn demo_marks_exactly_one_active_trigger_per_instance() {
         let html = render(&demo());
-        assert_eq!(html.matches("data-state=\"active\"").count(), 4);
-        assert_eq!(html.matches("data-state=\"inactive\"").count(), 12);
+        assert_eq!(
+            html.matches("blocks-feature-vertical-tabs-tab-active")
+                .count(),
+            4
+        );
+        assert_eq!(
+            html.matches("class=\"blocks-feature-vertical-tabs-tab\"")
+                .count(),
+            12
+        );
     }
 
     /// ルート class（`demo_class` とは別名）が `demo()` の出力へ実際に
