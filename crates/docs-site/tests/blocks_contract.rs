@@ -4365,8 +4365,8 @@ fn bento_two_column_composes_expected_parts() {
     }
 }
 
-/// `content-article`（イシュー #2751、Marketing / Content カテゴリの
-/// 最初の block）の CSS フック配線検証。`blog_list_image_page_wires_demo_class_and_css_hooks`
+/// `content-article`（イシュー #2751、Marketing / Content カテゴリ）
+/// の CSS フック配線検証。`blog_list_image_page_wires_demo_class_and_css_hooks`
 /// と同型。
 #[test]
 fn content_article_page_wires_demo_class_and_css_hooks() {

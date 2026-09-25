@@ -1,5 +1,5 @@
 //! Marketing / Content カテゴリの block 登録点（イシュー #2734。イシュー
-//! #2751 で最初の block（`content_article`）を追加し雛形から卒業）。
+//! #2751 で `content_article` を追加）。
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
 //! 新規 block を追加する際は本ファイルへ `mod` 宣言と `blocks()` への追記を
 //! 行うだけでよく、`super`（`marketing`）側・トップレベル

@@ -1,6 +1,6 @@
 //! `content-article` block（イシュー #2751。親トラッキング #2738
 //! 「Blocks 目的別パーツ拡充ツリー」・区分 Marketing・カテゴリ Content の
-//! **最初の block**）。
+//! block）。
 //!
 //! # 使用部品
 //!

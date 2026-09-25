@@ -61,8 +61,8 @@ pub const MAX_PAGE_TEXT_BYTES: usize = 4096;
 /// であり、本定数の値を変更することでは対処しない。判断の実測根拠・却下
 /// した代替案（per-page 上限引き下げ・索引対象精査）は設計文書 §10-4・
 /// §10-5・§10-6 を正とし、変更履歴の逐次追記はここでは行わない。イシュー
-/// #2751（`content-article` block 追加、Marketing / Content カテゴリの
-/// 最初の block）を base 取り込みで合流させた時点でも実測は現在値
+/// #2751（`content-article` block 追加、Marketing / Content カテゴリ）
+/// を base 取り込みで合流させた時点でも実測は現在値
 /// （1.625 MiB）の範囲内（80% 未満）に収まっており、ハードルールに抵触
 /// せず `MAX_INDEX_BYTES` の追加引き上げは不要だった（設計文書 §10-9
 /// 参照）。
