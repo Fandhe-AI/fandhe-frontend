@@ -45,10 +45,13 @@ fn variant_label(label: &'static str) -> Node {
 /// ロゴ 1 件（同一の抽象バッジ SVG + 架空社名キャプション）。`bordered`
 /// が true のとき淡色枠タイルへ収める（淡色枠タイル形の差分）。
 fn logo_item(company: &'static str, bordered: bool) -> Node {
+    // alt は空文字にする（隣接する `caption` が同じ社名を可視テキストとして
+    // 持つため、`alt` にも同じ文字列を入れるとスクリーンリーダーが同名を
+    // 二重読み上げしてしまう。`logo_cloud_marquee::logo` と同じ判断）。
     let logo_image = image(
         &ImageProps {
             fit: ImageFit::Contain,
-            ..ImageProps::new(dummy_assets::LOGO_SRC, company)
+            ..ImageProps::new(dummy_assets::LOGO_SRC, "")
         },
         vec![("data-blocks-logo-cloud-split-logo", "")],
     );

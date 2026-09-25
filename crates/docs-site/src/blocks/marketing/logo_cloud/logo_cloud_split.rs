@@ -112,10 +112,13 @@ fn variant_label(label: &'static str) -> Node {
 /// ロゴ 1 件（同一の抽象バッジ SVG + 架空社名キャプション）。`bordered`
 /// が true のとき淡色枠タイルへ収める（淡色枠タイル形の差分）。
 fn logo_item(company: &'static str, bordered: bool) -> Node {
+    // alt は空文字にする（隣接する `caption` が同じ社名を可視テキストとして
+    // 持つため、`alt` にも同じ文字列を入れるとスクリーンリーダーが同名を
+    // 二重読み上げしてしまう。`logo_cloud_marquee::logo` と同じ判断）。
     let logo_image = image(
         &ImageProps {
             fit: ImageFit::Contain,
-            ..ImageProps::new(dummy_assets::LOGO_SRC, company)
+            ..ImageProps::new(dummy_assets::LOGO_SRC, "")
         },
         vec![("data-blocks-logo-cloud-split-logo", "")],
     );
@@ -334,7 +337,18 @@ pub const BLOCK: Block = Block {
 /// `logo_cloud_split` 固有のレイアウト規則。セレクタは
 /// `.blocks-logo-cloud-split-*` と `[data-blocks-logo-cloud-split-*]` の
 /// みを用い、他 block や部品の素のセレクタへ影響させない
-/// （`contact_split_info` 等と同じ名前空間分離）。
+/// （`contact_split_info` 等と同じ名前空間分離）。ロゴ画像の高さ上限
+/// （`[data-blocks-logo-cloud-split-logo]`）は image recipe の
+/// `[data-scope="image"][data-part="root"]`（属性セレクタ 2 個）に詳細度で
+/// 負けるため、`[data-scope="image"][data-part="root"][data-blocks-logo-
+/// cloud-split-logo]`（属性セレクタ 3 個）へ揃える
+/// （`contact_split_form_image`/`contact_form_testimonial` 等と同じ回避）。
+/// 暗色固定形（`variant_dark`）配下の `text`/`link` は `TextVariant::Muted`/
+/// `ColorPalette::Neutral` が明色背景向けの固定色を出すため、
+/// `[data-blocks-logo-cloud-split-tone="dark"]` スコープ内で `color:
+/// inherit` へ上書きし、暗色ラッパが設定する `color: var(--fandhe-color-
+/// bg)` を継承させてコントラストを保つ（`banner_full_width_bar` の
+/// `tone="dark"` 配下 `link`/`button` と同じ回避）。
 ///
 /// # ルート class を `demo_class` と別名にする理由
 ///
@@ -349,10 +363,11 @@ const LAYOUT_CSS: &str = "\
 .blocks-logo-cloud-split-copy {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-logo-cloud-split-cta {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-3);\n  align-items: center;\n}\n\
 .blocks-logo-cloud-split-grid {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-4);\n  align-items: center;\n}\n\
-[data-blocks-logo-cloud-split-logo] {\n  height: 3rem;\n  width: auto;\n  max-width: 100%;\n}\n\
+[data-scope=\"image\"][data-part=\"root\"][data-blocks-logo-cloud-split-logo] {\n  height: 3rem;\n  width: auto;\n  max-width: 100%;\n}\n\
 [data-blocks-logo-cloud-split-tile] {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  padding: var(--fandhe-space-4);\n  border-radius: var(--fandhe-radius-md);\n  border: 1px solid var(--fandhe-color-border);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
 [data-blocks-logo-cloud-split-tone=\"dark\"] {\n  padding: var(--fandhe-space-8);\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-fg);\n  color: var(--fandhe-color-bg);\n}\n\
 [data-blocks-logo-cloud-split-tone=\"dark\"] [data-blocks-logo-cloud-split-tile] {\n  border-color: var(--fandhe-color-bg-subtle);\n  background: transparent;\n}\n\
+[data-blocks-logo-cloud-split-tone=\"dark\"] [data-scope=\"text\"][data-part=\"root\"],\n[data-blocks-logo-cloud-split-tone=\"dark\"] [data-scope=\"link\"][data-part=\"root\"] {\n  color: inherit;\n}\n\
 @media (min-width: 64rem) {\n  .blocks-logo-cloud-split-row {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n    align-items: center;\n  }\n}\n";
 
 #[cfg(test)]
@@ -433,5 +448,41 @@ mod tests {
         let html = render(&demo());
         assert!(html.contains("class=\"blocks-logo-cloud-split-layout\""));
         assert_ne!(super::BLOCK.demo_class, "blocks-logo-cloud-split-layout");
+    }
+
+    /// ロゴの高さセレクタが image recipe の `[data-scope="image"][data-
+    /// part="root"]`（属性セレクタ 2 個）と同数以上の詳細度を持つこと
+    /// （Bugbot 指摘の回帰固定）。
+    #[test]
+    fn logo_height_selector_matches_image_recipe_specificity() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"image\"][data-part=\"root\"][data-blocks-logo-cloud-split-logo]"
+        ));
+    }
+
+    /// ロゴ画像の `alt` は空文字であり、隣接するキャプション（社名）と
+    /// 二重読み上げにならないこと（Bugbot 指摘の回帰固定）。
+    #[test]
+    fn logo_image_alt_is_empty_to_avoid_duplicate_announcement() {
+        let html = render(&demo());
+        assert_eq!(
+            html.matches(r#"alt="""#).count(),
+            18,
+            "all 18 logo images should have an empty alt (caption carries the company name)"
+        );
+    }
+
+    /// 暗色固定形の `text`/`link` が `color: inherit` で暗色ラッパの前景色を
+    /// 継承し、`TextVariant::Muted`/`ColorPalette::Neutral` の固定色のまま
+    /// 残らないこと（Bugbot 指摘の回帰固定）。
+    #[test]
+    fn dark_variant_overrides_muted_text_and_link_color() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-logo-cloud-split-tone=\"dark\"] [data-scope=\"text\"][data-part=\"root\"]"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-logo-cloud-split-tone=\"dark\"] [data-scope=\"link\"][data-part=\"root\"]"
+        ));
+        assert!(LAYOUT_CSS.contains("color: inherit;"));
     }
 }
