@@ -20,18 +20,37 @@
 //! （既定 `type="button"`）のまま送信先・バリデーションを持たず、実際の
 //! 送信処理は利用者自身の Rust/JS コードで実装する
 //! （`docs/policy/intentional-non-adoption.md` §3.25）。同意チェックは
-//! SSR 初期状態（未チェック、`CheckboxProps::default()` の `checked`）を
-//! 描画するのみとしつつ、`site/blocks/contact-centered-form.md` が「会社名・
-//! 電話番号以外は必須」と記載する契約に合わせて `required: true` を固定
-//! 指定する（`checkbox::hidden_input` の `required` 属性・`data-required`
-//! に反映される）。状態機械は持たない。docs-site は JS ハイドレーションを
-//! 行わないため、ネイティブの `hidden_input` を操作しても `control`/
-//! `indicator` の `data-state`・`hidden` は SSR 初期状態のまま同期されない
-//! （`contact_split_form_info`・`dashboard_01`・Themes の checkbox 節と同じ
-//! 制約。同期は利用者側の状態管理・ハイドレーションの責務）。`disabled` 化による操作不能化は `required` 契約と両立しないため
-//! 採らず、CSS の `:has(:checked)` による見た目の同期も `indicator` の
-//! `hidden` 属性意味論を上書きすることになるため採らない
-//! （`fandhe_frontend_pre_styled_ui::checkbox` モジュール doc 参照）。
+//! SSR 初期状態（未チェック、`CheckedState::Unchecked`）を描画するのみと
+//! しつつ、`site/blocks/contact-centered-form.md` が「会社名・電話番号
+//! 以外は必須」と記載する契約に合わせて `required: true` を固定指定する
+//! （`checkbox::hidden_input` の `required` 属性・`data-required` に
+//! 反映される）。状態機械は持たない。
+//!
+//! # 同意チェックをネイティブ disabled にする理由（レビュー是正）
+//!
+//! `checkbox::hidden_input` は有効なネイティブ `<input type="checkbox">`
+//! であり、`disabled` を渡さない構成では docs サイトが JS ハイドレーション
+//! を行わなくてもラベルクリック・キーボード操作でブラウザが `checked` を
+//! ネイティブに切り替えてしまう。一方 `control`/`indicator` の見た目
+//! （`data-state="unchecked"`・`hidden`）は SSR 時の `checked` 引数から
+//! 固定生成されるため追従せず、利用者が同意をオンにしてもチェックマークで
+//! 結果を確認できない（「常に未チェックの静的表示」という契約にも反する）。
+//! `contact_split_form_image`（`crates/docs-site/src/blocks/marketing/
+//! contact/contact_split_form_image.rs`）が radio group の同種の問題を
+//! `RadioGroupProps { disabled: true, .. }` で解決した判断を踏襲し、
+//! [`CheckboxProps`] の `disabled: true` を渡してネイティブ `disabled`
+//! 属性でフォーカス・操作を不能にし、状態が二度と変化しないことを構造的に
+//! 保証する（クライアント側の状態配線を追加する代替案・CSS の
+//! `:has(:checked)` による見た目同期案〔`indicator` の `hidden` 属性意味論
+//! を上書きすることになる〕はいずれも採らない。無 JS の静的合成例という
+//! block 全体の設計方針に反するため）。`disabled: true` と `required: true`
+//! は HTML 仕様上両立する（disabled 要素は制約検証の対象外になるだけで
+//! `required` 属性自体は保持され、本 Demo はそもそも `<form>` を持たず
+//! 実行時のネイティブ検証が発生しない）。`disabled_declarations()`（既定
+//! `opacity: 0.5` + `cursor: not-allowed`）は [`LAYOUT_CSS`] で中和し、
+//! 通常の checkbox と同じ見た目に保つ（`contact_split_form_image`・
+//! `changelog_accordion` と同型の中和パターン）。
+//!
 //! 文言はすべて架空のもの（実在の人物・企業・PII を含まない）。
 //!
 //! # 集約元 3 件の統合
@@ -271,11 +290,13 @@ fn message_field() -> Node {
 }
 
 /// プライバシーポリシー同意チェック（R0440/R0853 の差分。SSR 初期状態
-/// 〔未チェック〕を描画する、リンクは持たない。操作と見た目の非同期は
-/// モジュール doc「`<form>` を持たない・送信処理を持たない」節参照）。
+/// 〔未チェック〕を描画する、リンクは持たない。ネイティブ操作は
+/// `disabled: true` で不能にする（モジュール doc「`<form>` を持たない・
+/// 送信処理を持たない」節参照）。
 fn consent_checkbox() -> Node {
     let props = CheckboxProps {
         required: true,
+        disabled: true,
         ..CheckboxProps::default()
     };
     checkbox::root(
@@ -467,6 +488,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-contact-centered-form-phone [data-scope=\"field\"][data-part=\"select\"] {\n  flex: 0 0 auto;\n  width: auto;\n}\n\
 .blocks-contact-centered-form-phone [data-scope=\"field\"][data-part=\"input\"] {\n  flex: 1;\n  min-width: 0;\n}\n\
 [data-scope=\"field\"][data-part=\"textarea\"][data-blocks-contact-centered-form-message] {\n  min-height: 8rem;\n}\n\
+[data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-contact-centered-form-consent][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-contact-centered-form-submit] {\n  width: 100%;\n}\n\
 @media (max-width: 47.99rem) {\n  \
 .blocks-contact-centered-form-grid {\n    grid-template-columns: 1fr;\n  }\n\
@@ -536,6 +558,32 @@ mod tests {
         let html = render(&demo());
         assert!(html.contains(r#"data-blocks-contact-centered-form-consent"#));
         assert!(html.contains(r#"data-state="unchecked""#));
+    }
+
+    /// 同意チェックがネイティブ `disabled` により操作不能であること、
+    /// つまり `checked`/視覚表示が永続的に食い違わないことを固定する
+    /// （codex-review P1 是正、モジュール doc「同意チェックをネイティブ
+    /// disabled にする理由」節）。
+    #[test]
+    fn consent_checkbox_is_natively_disabled() {
+        let html = render(&demo());
+        assert!(
+            html.contains(" disabled=\"\""),
+            "the consent hidden input should carry the native disabled attribute"
+        );
+        assert!(
+            html.contains("data-disabled=\"\""),
+            "the consent checkbox root/control/label should carry data-disabled"
+        );
+    }
+
+    /// [`LAYOUT_CSS`] が同意チェックの disabled 化に伴う視覚中和規則
+    /// （`opacity: 1`/`cursor: default`）を持つことを固定する。
+    #[test]
+    fn layout_css_neutralizes_disabled_consent_checkbox_opacity() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-contact-centered-form-consent][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
+        ));
     }
 
     /// ルート class（`demo_class` とは別名）が [`demo`] の出力へ実際に
