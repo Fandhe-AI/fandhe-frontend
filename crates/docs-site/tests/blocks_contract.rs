@@ -7188,3 +7188,79 @@ fn hero_bottom_screenshot_composes_expected_parts() {
         );
     }
 }
+
+#[test]
+fn hero_email_signup_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-email-signup/index.html"))
+        .expect("blocks/hero-email-signup/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-hero-email-signup\""),
+        "hero-email-signup page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "hero-email-signup page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "hero-email-signup page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-hero-email-signup-field",
+        "data-blocks-hero-email-signup-group",
+        "data-blocks-hero-email-signup-addon",
+        "data-blocks-hero-email-signup-submit",
+    ] {
+        assert!(
+            html.contains(hook),
+            "hero-email-signup page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "[data-blocks-hero-email-signup-field]",
+        ".blocks-hero-email-signup-grid",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+#[test]
+fn hero_email_signup_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/hero-email-signup/")
+        .expect("hero-email-signup should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"field\"",
+        "data-scope=\"input-group\"",
+        "data-scope=\"button\"",
+        "data-scope=\"image\"",
+        "data-scope=\"visually-hidden\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "hero-email-signup demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-hero-email-signup-field").count(),
+        3,
+        "hero-email-signup demo should render exactly 3 field instances (image/video/cta)"
+    );
+    for absent in ["<form", "src=\"data:", "href=\"#\"", "<h2"] {
+        assert!(
+            !html.contains(absent),
+            "hero-email-signup should never contain {absent}"
+        );
+    }
+}
