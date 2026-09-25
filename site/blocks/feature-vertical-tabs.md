@@ -503,18 +503,22 @@ pub fn demo() -> Node {
 からの意図的な差分は次のとおりです。
 
 - 参照元は横並び（Horizontal）のタブ + 見た目だけを縦並びに寄せる CSS
-  という構成でしたが、本実装は `fandhe_frontend_pre_styled_ui::tabs` の
-  recipe が既に持つ `data-orientation="vertical"` 相当の縦並び規則を CSS
-  フックとしてそのまま採用しました。タブ列自体は lg 未満でも縦並びのまま
-  変えず、`root` だけを縦積みにしてタブ列をパネルの上へ積みます。
+  という構成でしたが、本実装は縦並びを既定の見た目としてそのまま採用
+  しました。タブ列自体は lg 未満でも縦並びのまま変えず、レイアウト root
+  だけを縦積みにしてタブ列をパネルの上へ積みます。
 - 実物の `fandhe_frontend_pre_styled_ui::tabs::tabs`（`role="tablist"`/
-  `role="tab"`/`<button>`）は使わず、`data-scope`/`data-part` 属性のみを
-  持つ非対話な `<div>` でタブ列の見た目だけを模しています。無 JS の docs
-  サイトでは trigger をクリックしても実際には切り替わらないため、
-  `role="tablist"`/`role="tab"`/`aria-orientation` を出力すると「操作可能な
-  UI」と誤って伝わる不整合が生じる（codex-review 指摘）ためです。選択中
-  パネルの本文はそのインスタンスへ直接描画し、残り 3 パネルは同 block の
-  別インスタンスで可視になります（`feature_tabs_panel::static_tab_list`
+  `role="tab"`/`<button>`）は使わず、`blocks-feature-vertical-tabs-tablist`/
+  `-tab`/`-tab-active`/`-panel` という block 固有 class のみを持つ非対話な
+  `<div>` でタブ列の見た目だけを模しています。`data-scope`/`data-part` 等
+  `fandhe_frontend_pre_styled_ui::tabs` recipe と一致するセレクタは一切
+  使いません（Bugbot Medium 指摘の是正: セレクタが一致するだけで recipe
+  の `cursor: pointer`/hover 面まで意図せず継承し「クリックできそう」に
+  見えてしまっていたため）。無 JS の docs サイトでは trigger をクリック
+  しても実際には切り替わらないため、`role="tablist"`/`role="tab"`/
+  `aria-orientation` も出力すると「操作可能な UI」と誤って伝わる不整合が
+  生じる（codex-review 指摘）ためこれらも出力しません。選択中パネルの
+  本文はそのインスタンスへ直接描画し、残り 3 パネルは同 block の別
+  インスタンスで可視になります（`feature_tabs_panel::static_tab_list`
   と同型の対処）。
 - 参照元の背景帯・装飾・実際の文言は持ち込まず、文言はすべて独自の架空
   のもの（日本語）にしました。
