@@ -192,7 +192,7 @@ fn release_body(release: &Release) -> Node {
     );
 
     timeline::content(
-        vec![],
+        vec![("data-blocks-changelog-timeline-subscribe-body-col", "")],
         vec![
             release_date(
                 "blocks-changelog-timeline-subscribe-inline-date",
@@ -234,7 +234,10 @@ fn release_item(index: usize, release: &Release) -> Node {
         vec![("data-blocks-changelog-timeline-subscribe-item", "")],
         vec![
             date_col,
-            timeline::connector(vec![], connector_children),
+            timeline::connector(
+                vec![("data-blocks-changelog-timeline-subscribe-connector-col", "")],
+                connector_children,
+            ),
             release_body(release),
         ],
     )

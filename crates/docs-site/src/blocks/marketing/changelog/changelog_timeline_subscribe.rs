@@ -48,7 +48,22 @@
 //! （item は `class` すら出力しない）を伝搬しないため、ラッパ
 //! `.blocks-changelog-timeline-subscribe-timeline` からの子孫セレクタ
 //! （`[data-scope="timeline"][data-part="item"]`、詳細度 0,3,0）で
-//! recipe の 0,2,0 を上書きする。
+//! `grid-template-columns` を 3 列へ上書きする。
+//!
+//! `grid-template-columns` を 3 列にするだけでは列は増えない: 既定 recipe は
+//! `connector`（`grid-column: 1`）と `content`（`grid-column: 2`）にしか
+//! 明示位置を持たず、日付列（`date_col`）・本文列（`release_body`）は
+//! いずれも `timeline::content` を再利用するため両者とも `grid-column: 2`
+//! に重なり、新設した 3 列目は空のままになる（イシュー #2821 の実装
+//! バグ・レビュー指摘で発覚）。これを避けるため `date_col`/`connector`/
+//! `release_body` それぞれへ `data-blocks-changelog-timeline-subscribe-
+//! {date,connector,body}-col` 属性を付与し、
+//! `.blocks-changelog-timeline-subscribe-timeline [data-scope="timeline"]
+//! [data-part="..."][data-blocks-changelog-timeline-subscribe-*-col]`
+//! （詳細度 0,4,0）で `grid-column: 1/2/3` を個別に明示する。狭幅
+//! （`@media (max-width: 47.99rem)`）では `grid-template-columns` が
+//! 2 列へ戻るため、`connector-col`/`body-col` の `grid-column` も
+//! `1`/`2` へ揃えて戻す（日付列は次項のとおり非表示になる）。
 //!
 //! # 日付の二重出力と表示切り替え（狭幅対応・a11y）
 //!
@@ -58,7 +73,13 @@
 //! 常に `display: none` になるよう切り替える。`display: none` は支援技術
 //! からも隠れるため、スクリーンリーダーでの読み上げ重複は起きない。
 //! `<time datetime>` は `banner_email_signup`/`changelog_accordion` と
-//! 同じブレークポイント（`47.99rem`）を踏襲する。
+//! 同じブレークポイント（`47.99rem`）を踏襲する。日付列を隠す狭幅側の
+//! ルールは `[data-scope="timeline"][data-part="content"][data-blocks-
+//! changelog-timeline-subscribe-date-col]`（詳細度 0,4,0）まで詳細度を
+//! 上げて書く。素の `[data-blocks-changelog-timeline-subscribe-date-col]`
+//! （詳細度 0,1,0）のままだと `content` recipe 側の `display: flex`
+//! （詳細度 0,2,0）に負けて `47.99rem` 未満でも日付列が消えない
+//! （イシュー #2821 レビュー指摘で発覚）。
 //!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
@@ -267,7 +288,7 @@ fn release_body(release: &Release) -> Node {
     );
 
     timeline::content(
-        vec![],
+        vec![("data-blocks-changelog-timeline-subscribe-body-col", "")],
         vec![
             release_date(
                 "blocks-changelog-timeline-subscribe-inline-date",
@@ -309,7 +330,10 @@ fn release_item(index: usize, release: &Release) -> Node {
         vec![("data-blocks-changelog-timeline-subscribe-item", "")],
         vec![
             date_col,
-            timeline::connector(vec![], connector_children),
+            timeline::connector(
+                vec![("data-blocks-changelog-timeline-subscribe-connector-col", "")],
+                connector_children,
+            ),
             release_body(release),
         ],
     )
@@ -412,14 +436,18 @@ const LAYOUT_CSS: &str = "\
 .blocks-changelog-timeline-subscribe-form [data-scope=\"button\"][data-part=\"root\"][data-blocks-changelog-timeline-subscribe-submit]:focus-visible {\n  position: relative;\n  z-index: 1;\n}\n\
 .blocks-changelog-timeline-subscribe-timeline [data-scope=\"timeline\"][data-part=\"item\"] {\n  grid-template-columns: 7rem var(--fandhe-timeline-indicator-size, 1.5rem) 1fr;\n}\n\
 .blocks-changelog-timeline-subscribe-inline-date {\n  display: none;\n}\n\
-[data-blocks-changelog-timeline-subscribe-date-col] {\n  display: flex;\n  align-items: flex-start;\n  justify-content: flex-end;\n  padding-top: var(--fandhe-space-1);\n}\n\
+.blocks-changelog-timeline-subscribe-timeline [data-scope=\"timeline\"][data-part=\"content\"][data-blocks-changelog-timeline-subscribe-date-col] {\n  grid-column: 1;\n  display: flex;\n  align-items: flex-start;\n  justify-content: flex-end;\n  padding-top: var(--fandhe-space-1);\n}\n\
+.blocks-changelog-timeline-subscribe-timeline [data-scope=\"timeline\"][data-part=\"connector\"][data-blocks-changelog-timeline-subscribe-connector-col] {\n  grid-column: 2;\n}\n\
+.blocks-changelog-timeline-subscribe-timeline [data-scope=\"timeline\"][data-part=\"content\"][data-blocks-changelog-timeline-subscribe-body-col] {\n  grid-column: 3;\n}\n\
 .blocks-changelog-timeline-subscribe-date {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n  white-space: nowrap;\n}\n\
 .blocks-changelog-timeline-subscribe-release-head {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-changelog-timeline-subscribe-version {\n  font-weight: var(--fandhe-font-weight-bold, 700);\n}\n\
 [data-blocks-changelog-timeline-subscribe-changes] {\n  margin-top: var(--fandhe-space-2);\n}\n\
 @media (max-width: 47.99rem) {\n  \
 .blocks-changelog-timeline-subscribe-timeline [data-scope=\"timeline\"][data-part=\"item\"] {\n    grid-template-columns: var(--fandhe-timeline-indicator-size, 1.5rem) 1fr;\n  }\n  \
-[data-blocks-changelog-timeline-subscribe-date-col] {\n    display: none;\n  }\n  \
+.blocks-changelog-timeline-subscribe-timeline [data-scope=\"timeline\"][data-part=\"content\"][data-blocks-changelog-timeline-subscribe-date-col] {\n    display: none;\n  }\n  \
+.blocks-changelog-timeline-subscribe-timeline [data-scope=\"timeline\"][data-part=\"connector\"][data-blocks-changelog-timeline-subscribe-connector-col] {\n    grid-column: 1;\n  }\n  \
+.blocks-changelog-timeline-subscribe-timeline [data-scope=\"timeline\"][data-part=\"content\"][data-blocks-changelog-timeline-subscribe-body-col] {\n    grid-column: 2;\n  }\n  \
 .blocks-changelog-timeline-subscribe-inline-date {\n    display: block;\n    color: var(--fandhe-color-fg-muted);\n    font-size: var(--fandhe-font-font-size-sm);\n    margin-bottom: var(--fandhe-space-1);\n  }\n\
 }\n";
 
