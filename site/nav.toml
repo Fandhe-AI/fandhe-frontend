@@ -1251,6 +1251,11 @@ source = "site/blocks/feature-expand.md"
 path = "/blocks/feature-expand/"
 
 [[section.group.page]]
+title = "feature-four-column-grid"
+source = "site/blocks/feature-four-column-grid.md"
+path = "/blocks/feature-four-column-grid/"
+
+[[section.group.page]]
 title = "feature-image-cards"
 source = "site/blocks/feature-image-cards.md"
 path = "/blocks/feature-image-cards/"
@@ -1356,6 +1361,11 @@ path = "/blocks/contact-image-info/"
 title = "contact-info-columns"
 source = "site/blocks/contact-info-columns.md"
 path = "/blocks/contact-info-columns/"
+
+[[section.group.page]]
+title = "contact-split-form-image"
+source = "site/blocks/contact-split-form-image.md"
+path = "/blocks/contact-split-form-image/"
 
 [[section.group.page]]
 title = "contact-split-form-info"
@@ -1515,6 +1525,11 @@ title = "comparison-split-table"
 source = "site/blocks/comparison-split-table.md"
 path = "/blocks/comparison-split-table/"
 
+[[section.group.page]]
+title = "comparison-table"
+source = "site/blocks/comparison-table.md"
+path = "/blocks/comparison-table/"
+
 [[section.group]]
 title = "Careers"
 
@@ -1568,6 +1583,24 @@ path = "/blocks/error-page-background-image/"
 title = "error-page-centered"
 source = "site/blocks/error-page-centered.md"
 path = "/blocks/error-page-centered/"
+
+[[section.group.page]]
+title = "error-page-popular-links"
+source = "site/blocks/error-page-popular-links.md"
+path = "/blocks/error-page-popular-links/"
+
+[[section.group.page]]
+title = "error-page-split-image"
+source = "site/blocks/error-page-split-image.md"
+path = "/blocks/error-page-split-image/"
+
+[[section.group]]
+title = "Gallery"
+
+[[section.group.page]]
+title = "gallery-image-grid"
+source = "site/blocks/gallery-image-grid.md"
+path = "/blocks/gallery-image-grid/"
 
 [[section.group]]
 title = "Sidebar"

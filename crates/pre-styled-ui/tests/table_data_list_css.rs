@@ -223,6 +223,33 @@ fn table_css_footer_has_medium_weight_and_no_border() {
     assert!(!footer_rule.contains("border"));
 }
 
+/// イシュー #2825: `row-header`（`<th scope="row">`）base 規則が `cell` と
+/// 同じ padding/font-size/border-bottom/桁揃えを持ちつつ、`<th>` の UA 既定
+/// （中央揃え・太字）を打ち消す `text-align: inherit`・通常太さの
+/// `font-weight` を持つことを固定する（`table.rs` モジュール doc
+/// 「`row-header` パーツ」節参照）。
+#[test]
+fn table_css_row_header_mirrors_cell_and_normalizes_th_defaults() {
+    let css = table::css();
+    let row_header_rule_start = css
+        .find(r#"[data-scope="table"][data-part="row-header"] {"#)
+        .expect("row-header base 規則が css() 出力に存在すること");
+    let row_header_rule_end = css[row_header_rule_start..]
+        .find('}')
+        .map(|offset| row_header_rule_start + offset)
+        .expect("row-header base 規則が `}` で閉じられていること");
+    let row_header_rule = &css[row_header_rule_start..row_header_rule_end];
+    assert!(row_header_rule.contains(
+        "padding: var(--fandhe-table-cell-padding, var(--fandhe-space-3) var(--fandhe-space-4));"
+    ));
+    assert!(row_header_rule
+        .contains("font-size: var(--fandhe-table-font-size, var(--fandhe-font-font-size-sm));"));
+    assert!(row_header_rule.contains("border-bottom: var(--fandhe-table-row-border, none);"));
+    assert!(row_header_rule.contains("font-variant-numeric: tabular-nums;"));
+    assert!(row_header_rule.contains("text-align: inherit;"));
+    assert!(row_header_rule.contains("font-weight: var(--fandhe-font-font-weight-normal);"));
+}
+
 /// イシュー #2052: `interactive` variant の `false`/`true` クラスセレクタ・
 /// `--fandhe-table-row-hover-bg` custom property が出力に含まれることを
 /// 固定する（`sticky_header` と同型のアサーション、本ファイル冒頭「固定
@@ -296,6 +323,11 @@ fn table_recipe_selectors_match_actual_rendered_markup() {
 
     let cell_html = render(&table::cell(vec![], vec![]));
     assert!(cell_html.starts_with(r#"<td data-scope="table" data-part="cell""#));
+
+    // イシュー #2825: row-header も同じ接続照合対象に含める。
+    let row_header_html = render(&table::row_header(vec![], vec![]));
+    assert!(row_header_html.starts_with(r#"<th data-scope="table" data-part="row-header""#));
+    assert!(row_header_html.contains(r#"scope="row""#));
 
     let row_html = render(&table::row(vec![], vec![]));
     assert!(row_html.starts_with(r#"<tr data-scope="table" data-part="row""#));
