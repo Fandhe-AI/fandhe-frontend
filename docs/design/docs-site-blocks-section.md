@@ -837,6 +837,7 @@ pub enum LayoutCss {
 | hero-image-tiles | #2784 | `marketing/hero/hero_image_tiles.rs` |
 | hero-marquee-strip | #2787 | `marketing/hero/hero_marquee_strip.rs` |
 | hero-parallax-layers | #2546 | §15, `marketing/hero/hero_parallax_layers.rs` |
+| hero-search | #2789 | `marketing/hero/hero_search.rs` |
 | hero-terminal | #2546 | §15, `marketing/hero/hero_terminal.rs` |
 | text-split-reveal | #2546 | §15, `marketing/hero/text_split_reveal.rs` |
 | game-ui-modal | #2552 | §16, `application/dialog/game_ui_modal.rs` |
