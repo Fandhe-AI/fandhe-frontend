@@ -1637,6 +1637,11 @@ title = "gallery-masonry"
 source = "site/blocks/gallery-masonry.md"
 path = "/blocks/gallery-masonry/"
 
+[[section.group.page]]
+title = "gallery-split-carousel"
+source = "site/blocks/gallery-split-carousel.md"
+path = "/blocks/gallery-split-carousel/"
+
 [[section.group]]
 title = "Sidebar"
 
