@@ -873,6 +873,7 @@ pub enum LayoutCss {
 | cta-split-image | #2759 | `marketing/cta/cta_split_image.rs` |
 | feature-accordion-image | #2760/#2761 | `marketing/feature/feature_accordion_image.rs` |
 | contact-dialog-form | #2827 | `marketing/contact/contact_dialog_form.rs` |
+| feature-alternating-rows | #2763 | `marketing/feature/feature_alternating_rows.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 58 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
