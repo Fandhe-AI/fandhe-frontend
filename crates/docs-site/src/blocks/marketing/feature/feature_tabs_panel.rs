@@ -98,6 +98,16 @@
 //!   `cursor: pointer`（属性セレクタのみで tag を問わないため、`button`
 //!   を使わない [`static_tab_list`] にもそのまま当たる）が視覚的な
 //!   クリック可能感を残さないようにする。
+//! - `[data-part="trigger"]` へ `pointer-events: none` も足す（Codex P1
+//!   是正: `[data-scope="tabs"][data-part="trigger"]` を共有する以上、
+//!   pre-styled-ui recipe の `:hover:not([data-disabled])` 規則
+//!   （`crate::tabs` の `hover_surface_declarations`）は
+//!   `cursor: default` の上書きだけでは止まらず、マウスホバー時に背景色・
+//!   文字色が変化し続けて操作可能に見えてしまう。`pointer-events: none`
+//!   はポインタのヒットテスト自体を無効化するため、カスケードの優先順位
+//!   （recipe 側 CSS の読み込み順）に依存せず確実に `:hover` 一致を防げる。
+//!   `static_tab_list` の trigger はそもそもクリックハンドラを持たない
+//!   ため、ポインタイベントを無効化しても機能上の欠落はない。
 //!
 //! レイアウト root の class（`blocks-feature-tabs-panel-layout`）は
 //! [`Block::demo_class`]（`blocks-feature-tabs-panel`）と意図的に別名にする
@@ -411,7 +421,14 @@ fn static_tab_list(
         // は属性 3 個（詳細度 (0,3,0)）で recipe の base `list` 規則
         // （`[data-scope="tabs"][data-part="list"]`、詳細度 (0,2,0)）に
         // 確実に勝つ（cursor Medium 是正: 単一属性セレクタのままだと
-        // 詳細度で負け下線型の `border-bottom` が消えなかった）。
+        // 詳細度で負け下線型の `border-bottom` が消えなかった）。選択中
+        // trigger は背景色 + `box-shadow` のみで表現しているが、Windows
+        // 強制配色モード（`forced-colors: active`）は色をシステム色へ
+        // 強制し `box-shadow` も `none` へ丸めるため、このままでは選択中/
+        // 非選択中が判別できなくなる（Codex P1 是正）。`tabs::stylesheet`
+        // の Enclosed forced-colors 対応（`crate::tabs` rustdoc「forced-
+        // colors 対応」節）と同じ `border: 1px solid CanvasText` を
+        // [`LAYOUT_CSS`] 側へ直接追記して選択状態を境界線で補強する。
         list_attrs.push((
             "data-blocks-feature-tabs-panel-pill".to_string(),
             String::new(),
@@ -889,7 +906,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-feature-tabs-panel-variant {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-feature-tabs-panel-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  align-items: start;\n  max-width: 40rem;\n}\n\
 .blocks-feature-tabs-panel-layout [data-scope=\"tabs\"][data-part=\"list\"] {\n  overflow-x: auto;\n  overflow-y: hidden;\n  padding-bottom: 1px;\n}\n\
-.blocks-feature-tabs-panel-layout [data-scope=\"tabs\"][data-part=\"trigger\"] {\n  margin-bottom: -2px;\n  cursor: default;\n}\n\
+.blocks-feature-tabs-panel-layout [data-scope=\"tabs\"][data-part=\"trigger\"] {\n  margin-bottom: -2px;\n  cursor: default;\n  pointer-events: none;\n}\n\
 .blocks-feature-tabs-panel-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  padding-top: var(--fandhe-space-6);\n}\n\
 .blocks-feature-tabs-panel-rows {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  padding-top: var(--fandhe-space-6);\n}\n\
 .blocks-feature-tabs-panel-rows > .blocks-feature-tabs-panel-row {\n  padding-top: 0;\n}\n\
@@ -910,6 +927,9 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"tabs\"][data-part=\"list\"][data-blocks-feature-tabs-panel-pill] {\n  border-bottom: 0;\n  background: var(--fandhe-color-bg-muted);\n  border-radius: var(--fandhe-radius-md);\n  padding: var(--fandhe-space-1);\n  padding-bottom: var(--fandhe-space-1);\n}\n\
 [data-blocks-feature-tabs-panel-pill] [data-scope=\"tabs\"][data-part=\"trigger\"] {\n  margin-bottom: 0;\n  border-bottom: 0;\n  border-radius: var(--fandhe-radius-sm, 0.25rem);\n  background: transparent;\n}\n\
 [data-blocks-feature-tabs-panel-pill] [data-scope=\"tabs\"][data-part=\"trigger\"][data-state=\"active\"] {\n  background: var(--fandhe-color-bg);\n  box-shadow: var(--fandhe-shadow-sm);\n}\n\
+@media (forced-colors: active) {\n  \
+[data-blocks-feature-tabs-panel-pill] [data-scope=\"tabs\"][data-part=\"trigger\"][data-state=\"active\"] {\n    border: 1px solid CanvasText;\n  }\n\
+}\n\
 @media (min-width: 64rem) {\n  \
 .blocks-feature-tabs-panel-row {\n    display: grid;\n    grid-template-columns: repeat(12, minmax(0, 1fr));\n    column-gap: var(--fandhe-space-10);\n    align-items: center;\n  }\n  \
 .blocks-feature-tabs-panel-row > .blocks-feature-tabs-panel-copy {\n    grid-column: 1 / span 5;\n    grid-row: 1;\n  }\n  \
@@ -1045,6 +1065,20 @@ mod tests {
         assert!(LAYOUT_CSS.contains("repeat(12, minmax(0, 1fr))"));
     }
 
+    /// trigger が pre-styled-ui の tabs recipe と `[data-scope="tabs"]
+    /// [data-part="trigger"]` セレクタを共有する以上、recipe の
+    /// `:hover:not([data-disabled])` 規則（マウスホバーで背景・文字色が
+    /// 変化する）がそのまま当たってしまう（Codex P1 是正の回帰テスト）。
+    /// `pointer-events: none` でヒットテスト自体を無効化し、カスケードの
+    /// 優先順位に依存せず確実に `:hover` 一致を防ぐ。
+    #[test]
+    fn trigger_disables_pointer_events_so_recipe_hover_rule_never_matches() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"tabs\"][data-part=\"trigger\"] {\n  margin-bottom: -2px;\n  \
+             cursor: default;\n  pointer-events: none;\n}"
+        ));
+    }
+
     /// [`LAYOUT_CSS`] が #2773 で追加した新規セレクタ（形 D の左右入れ替え・
     /// 形 E のカードグリッド・形 E の中央寄せ見出し・形 F の進捗トリガー）を
     /// 持つこと。
@@ -1068,6 +1102,20 @@ mod tests {
         assert!(LAYOUT_CSS.contains("var(--fandhe-color-bg-muted)"));
         assert!(LAYOUT_CSS.contains("var(--fandhe-radius-md)"));
         assert!(LAYOUT_CSS.contains("var(--fandhe-shadow-sm)"));
+    }
+
+    /// 形 C（ピル型）の選択中 trigger は背景色 + `box-shadow` のみで表現
+    /// しているため、Windows 強制配色モード（`forced-colors: active`）で
+    /// 判別不能になる（Codex P1 是正の回帰テスト）。`tabs::stylesheet` の
+    /// Enclosed forced-colors 対応と同じ `border: 1px solid CanvasText` を
+    /// 選択中 trigger へ追加していることを固定する。
+    #[test]
+    fn pill_active_trigger_gets_a_forced_colors_border() {
+        assert!(LAYOUT_CSS.contains("@media (forced-colors: active)"));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-feature-tabs-panel-pill] [data-scope=\"tabs\"][data-part=\"trigger\"]\
+             [data-state=\"active\"] {\n    border: 1px solid CanvasText;\n  }"
+        ));
     }
 
     /// 5 形の id 接頭辞（`-basic`/`-pill`/`-alternating`/`-cards`/`-progress`）
