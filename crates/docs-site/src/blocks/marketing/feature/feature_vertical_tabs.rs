@@ -26,7 +26,11 @@
 //! には切り替わらないのに見た目だけ「クリックできそう」に見える不整合が
 //! 残っていた（Bugbot Medium 指摘）。是正として recipe のセレクタと
 //! 完全に切り離した独自 class 群へ置き換えた（下記「recipe セレクタから
-//! 完全に切り離す理由」節）。
+//! 完全に切り離す理由」節）。続くラウンド（本コミット）では、実際には
+//! `fandhe_frontend_pre_styled_ui::tabs::tabs` を一つも呼ばないにも
+//! かかわらず `BLOCK.parts` に `Tabs` を使用部品として掲げていた不整合を
+//! 是正した（Codex 指摘、`feature_tabs_panel` が先に解決した課題と同型。
+//! 下記「使用部品」節）。
 //!
 //! # 全パネルを静的に読めるようにする
 //!
@@ -49,14 +53,15 @@
 //!
 //! # 使用部品
 //!
-//! `heading` / `text` / `tabs` / `image` / `icon` の 5 部品を合成する
-//! （[`BLOCK`] の `parts` に一致させる契約、`crates/docs-site/tests/
-//! blocks_nav.rs`/`blocks_contract.rs` が検証する）。`tabs` は下記「無 JS
-//! での扱い」節・「recipe セレクタから完全に切り離す理由」節のとおり
-//! `fandhe_frontend_pre_styled_ui::tabs::tabs` を実際には呼ばず、独自の
-//! block 固有 class（`data-scope="tabs"`/`data-part="..."` 等 recipe の
-//! セレクタとは一致しない）だけで見た目を独自に再現する。新規 UI 部品は
-//! 追加しない。
+//! `heading` / `text` / `image` / `icon` の 4 部品を合成する（[`BLOCK`] の
+//! `parts` に一致させる契約、`crates/docs-site/tests/blocks_nav.rs`/
+//! `blocks_contract.rs` が検証する）。`tabs` は下記「無 JS での扱い」節・
+//! 「recipe セレクタから完全に切り離す理由」節のとおり
+//! `fandhe_frontend_pre_styled_ui::tabs::tabs` を実際には一つも呼ばず、
+//! 独自の block 固有 class（`data-scope="tabs"`/`data-part="..."` 等 recipe
+//! のセレクタとは一致しない）だけで見た目のみを模すため `parts` には
+//! 含めない（`feature_tabs_panel` と同型の判断、Codex 指摘の是正: 実際には
+//! 呼ばない部品を使用部品として掲げていた）。新規 UI 部品は追加しない。
 //!
 //! # 無 JS での扱い（実物の `tabs::tabs` は一切使わない）
 //!
@@ -680,10 +685,6 @@ pub const BLOCK: Block = Block {
         Part {
             label: "Text",
             path: "/themes/text/",
-        },
-        Part {
-            label: "Tabs",
-            path: "/themes/tabs/",
         },
         Part {
             label: "Image",
