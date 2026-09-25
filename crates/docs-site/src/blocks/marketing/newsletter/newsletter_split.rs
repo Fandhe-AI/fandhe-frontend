@@ -59,7 +59,12 @@
 //! 祖先の色を継承）、`plain` 面では [`TextVariant::Muted`] を使う
 //! （`cta_split_actions::instance_inverted` と同じ理由: `Muted` は自身に
 //! `color: var(--fandhe-color-fg-muted)` を持つため祖先の反転配色を上書き
-//! してコントラストを崩す）。
+//! してコントラストを崩す）。プライバシー文中の [`link::root`]
+//! （`ColorPalette::Neutral`）も同じ理由で `accent`/`card` 面の文字色・
+//! hover 色を継承しないため、`banner_full_width_bar` と同じ
+//! `[data-blocks-newsletter-split-tone="…"] [data-scope="link"][data-part="root"]`
+//! （詳細度 (0,3,0)、通常時・`:hover` の 2 規則）で `color: inherit` へ
+//! 上書きする。
 //!
 //! # 可視ラベルの代わりに `visually_hidden` + `<label for>`
 //!
@@ -335,6 +340,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-newsletter-split [data-scope=\"card\"][data-part=\"body\"] [data-blocks-newsletter-split-row] {\n  padding: 0;\n}\n\
 [data-blocks-newsletter-split-tone=\"accent\"] [data-scope=\"button\"][data-part=\"root\"][data-blocks-newsletter-split-submit] {\n  background: var(--fandhe-color-accent-fg);\n  color: var(--fandhe-color-accent);\n}\n\
 [data-blocks-newsletter-split-tone=\"card\"] [data-scope=\"button\"][data-part=\"root\"][data-blocks-newsletter-split-submit] {\n  background: var(--fandhe-color-bg);\n  color: var(--fandhe-color-fg);\n}\n\
+[data-blocks-newsletter-split-tone=\"accent\"] [data-scope=\"link\"][data-part=\"root\"],\n[data-blocks-newsletter-split-tone=\"card\"] [data-scope=\"link\"][data-part=\"root\"] {\n  color: inherit;\n}\n\
+[data-blocks-newsletter-split-tone=\"accent\"] [data-scope=\"link\"][data-part=\"root\"]:hover,\n[data-blocks-newsletter-split-tone=\"card\"] [data-scope=\"link\"][data-part=\"root\"]:hover {\n  color: inherit;\n}\n\
 @media (min-width: 40rem) {\n  .blocks-newsletter-split-controls {\n    flex-direction: row;\n  }\n}\n\
 @media (min-width: 64rem) {\n  [data-blocks-newsletter-split-row] {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n  }\n  [data-blocks-newsletter-split-row][data-blocks-newsletter-split-tone=\"card\"] {\n    grid-template-columns: 1fr;\n  }\n}\n\
 @media (min-width: 80rem) {\n  [data-blocks-newsletter-split-row][data-blocks-newsletter-split-tone=\"card\"] {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n  }\n}\n";
@@ -424,6 +431,26 @@ mod tests {
         assert!(LAYOUT_CSS.contains("@media (min-width: 80rem)"));
         assert!(LAYOUT_CSS.contains("[data-blocks-newsletter-split-tone=\"accent\"]"));
         assert!(LAYOUT_CSS.contains("[data-blocks-newsletter-split-tone=\"card\"]"));
+    }
+
+    /// プライバシーリンクが `accent`/`card` の反転背景で文字色・hover 色を
+    /// 継承する上書きセレクタを持つ（codex/Bugbot 指摘の固定、PR #3246）。
+    #[test]
+    fn layout_css_overrides_privacy_link_color_on_inverted_tones() {
+        for tone in ["accent", "card"] {
+            let normal = format!(
+                "[data-blocks-newsletter-split-tone=\"{tone}\"] [data-scope=\"link\"][data-part=\"root\"]"
+            );
+            let hover = format!("{normal}:hover");
+            assert!(
+                LAYOUT_CSS.contains(&normal),
+                "missing normal-state link color override for tone={tone}"
+            );
+            assert!(
+                LAYOUT_CSS.contains(&hover),
+                "missing hover-state link color override for tone={tone}"
+            );
+        }
     }
 
     /// ルート class（`demo_class` とは別名）が `demo()` の出力へ実際に
