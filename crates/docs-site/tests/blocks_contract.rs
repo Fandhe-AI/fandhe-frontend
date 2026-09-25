@@ -4476,3 +4476,83 @@ fn content_split_image_composes_expected_parts() {
         );
     }
 }
+
+/// comparison-feature-rows ページが `blocks-demo` + block 固有 class・両
+/// スタイルシート・行/セルの CSS フックを実際に出力し、
+/// `blocks::stylesheet()` にも対応する md/lg 2 段のブレークポイント切替
+/// セレクタが存在することを固定する（イシュー #2823）。
+#[test]
+fn comparison_feature_rows_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/comparison-feature-rows/index.html"))
+        .expect("blocks/comparison-feature-rows/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-comparison-feature-rows\""),
+        "comparison-feature-rows page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "comparison-feature-rows page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "comparison-feature-rows page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-comparison-feature-rows-root=\"\"",
+        "data-blocks-comparison-feature-rows-list=\"\"",
+        "data-blocks-comparison-feature-rows-row=\"\"",
+        "data-blocks-comparison-feature-rows-feature=\"\"",
+        "data-blocks-comparison-feature-rows-ours=\"\"",
+        "data-blocks-comparison-feature-rows-theirs=\"\"",
+        "data-blocks-comparison-feature-rows-separator=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "comparison-feature-rows page should contain {hook}"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "@media (min-width: 48rem)",
+        "@media (min-width: 64rem)",
+        "[data-blocks-comparison-feature-rows-row]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare {selector} for comparison-feature-rows"
+        );
+    }
+}
+
+/// comparison-feature-rows の合成部品（heading/text/badge/icon/separator
+/// の 5 種）が期待どおり出力されていること、`<form>`・`<button>`・`<a`・
+/// `href="#"`・`data:` URI を持ち込んでいないことを固定する（イシュー
+/// #2823）。
+#[test]
+fn comparison_feature_rows_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/comparison-feature-rows/index.html"))
+        .expect("blocks/comparison-feature-rows/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"separator\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "comparison-feature-rows page should contain {scope}"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "comparison-feature-rows should never contain {absent}"
+        );
+    }
+}
