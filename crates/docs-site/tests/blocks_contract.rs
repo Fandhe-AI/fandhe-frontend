@@ -6549,7 +6549,6 @@ fn feature_vertical_tabs_page_wires_demo_class_and_css_hooks() {
     }
 }
 
-
 /// error-page-centered の Demo 固有 CSS フック（メッセージ枠・コード・
 /// 見出し・説明・ホームボタン・サポートリンク）が実際に生成 HTML へ出力
 /// され、`blocks::stylesheet()` にも対応するセレクタが存在することを固定
