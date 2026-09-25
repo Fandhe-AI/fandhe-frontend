@@ -1255,6 +1255,11 @@ title = "feature-image-cards"
 source = "site/blocks/feature-image-cards.md"
 path = "/blocks/feature-image-cards/"
 
+[[section.group.page]]
+title = "feature-split-image"
+source = "site/blocks/feature-split-image.md"
+path = "/blocks/feature-split-image/"
+
 [[section.group]]
 title = "CTA"
 
