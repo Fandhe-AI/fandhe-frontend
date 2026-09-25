@@ -1547,6 +1547,14 @@ source = "site/blocks/changelog-timeline.md"
 path = "/blocks/changelog-timeline/"
 
 [[section.group]]
+title = "Error Page"
+
+[[section.group.page]]
+title = "error-page-centered"
+source = "site/blocks/error-page-centered.md"
+path = "/blocks/error-page-centered/"
+
+[[section.group]]
 title = "Sidebar"
 
 [[section.group.page]]
