@@ -5894,3 +5894,92 @@ fn contact_split_form_info_composes_expected_parts() {
         );
     }
 }
+
+/// `feature-four-column-grid`（イシュー #2764）の CSS フック配線検証。
+/// `feature_image_cards`/`blog_grid_text` の同型テストと同じ判断軸
+/// （`crate::blocks` モジュール doc「CSS フックが `class` と `[data-*]` で
+/// 混在する理由」節参照）。
+#[test]
+fn feature_four_column_grid_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/feature-four-column-grid/index.html"))
+        .expect("blocks/feature-four-column-grid/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-feature-four-column-grid\""),
+        "feature-four-column-grid page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "feature-four-column-grid page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "feature-four-column-grid page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-feature-four-column-grid-card=\"\"",
+        "data-blocks-feature-four-column-grid-icon=\"\"",
+        "data-blocks-feature-four-column-grid-desc=\"\"",
+        "data-blocks-feature-four-column-grid-arrow=\"\"",
+        "data-blocks-feature-four-column-grid-overlay=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "feature-four-column-grid page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        ".blocks-feature-four-column-grid-grid",
+        "[data-blocks-feature-four-column-grid-card]",
+        "[data-scope=\"icon\"][data-part=\"root\"][data-blocks-feature-four-column-grid-arrow]",
+        "@media (min-width: 48rem)",
+        "@media (min-width: 64rem)",
+        "[data-columns=\"2\"]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// feature-four-column-grid の合成部品（heading/text/card/icon/
+/// link-overlay/highlight）が期待どおりの構成で実際に出力されている
+/// こと、非対話制約・死リンク不在を固定する（イシュー #2764）。
+#[test]
+fn feature_four_column_grid_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/feature-four-column-grid/")
+        .expect("feature-four-column-grid should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"card\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"link-overlay\"",
+        "data-scope=\"highlight\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "feature-four-column-grid demo should contain {scope}"
+        );
+    }
+    // 3 インスタンス x 4 カード = 12 枚、うち全面リンクインスタンスの
+    // 4 枚のみ overlay/矢印を持つ。
+    assert_eq!(
+        html.matches("data-blocks-feature-four-column-grid-overlay")
+            .count(),
+        4,
+        "feature-four-column-grid demo should render exactly 4 overlay links (the full-card-link instance only)"
+    );
+    for absent in ["<form", "<button", "id=\"", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "feature-four-column-grid should never contain {absent}"
+        );
+    }
+}
