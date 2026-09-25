@@ -1326,6 +1326,11 @@ source = "site/blocks/content-columns-screenshot.md"
 path = "/blocks/content-columns-screenshot/"
 
 [[section.group.page]]
+title = "content-image-tiles"
+source = "site/blocks/content-image-tiles.md"
+path = "/blocks/content-image-tiles/"
+
+[[section.group.page]]
 title = "content-split-image"
 source = "site/blocks/content-split-image.md"
 path = "/blocks/content-split-image/"

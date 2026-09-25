@@ -258,6 +258,7 @@ jobs:
           # Marketing / Content
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/content-article-toc/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/content-columns-screenshot/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/content-image-tiles/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/content-split-image/index.html"
           # Marketing / Header
           # Marketing / Footer

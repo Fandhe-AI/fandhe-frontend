@@ -4320,6 +4320,77 @@ fn content_columns_screenshot_composes_expected_parts() {
     }
 }
 
+/// content-image-tiles の Demo ラッパ・CSS 配線・block 固有 CSS（2 列
+/// grid・lg ブレークポイント・偶数タイルのオフセット・下段指標グリッド・
+/// image フック）が実際に出力されていることを固定する（イシュー #2754）。
+#[test]
+fn content_image_tiles_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/content-image-tiles/index.html"))
+        .expect("blocks/content-image-tiles/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-content-image-tiles\""),
+        "content-image-tiles page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "content-image-tiles page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "content-image-tiles page should link the Blocks-specific stylesheet"
+    );
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-content-image-tiles-columns",
+        ".blocks-content-image-tiles-tiles",
+        "[data-blocks-content-image-tiles-offset]",
+        ".blocks-content-image-tiles-stats",
+        "@media (max-width: 63.99rem)",
+        "[data-scope=\"image\"][data-part=\"root\"][data-blocks-content-image-tiles-image]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// content-image-tiles の合成部品（heading/text/image/stat）が期待どおり
+/// の構成で実際に出力されていること、`<form>`・`data:` URI を持ち込んで
+/// いないことを固定する（イシュー #2754）。
+#[test]
+fn content_image_tiles_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/content-image-tiles/index.html"))
+        .expect("blocks/content-image-tiles/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"image\"",
+        "data-scope=\"stat\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "content-image-tiles page should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("<img").count(),
+        4,
+        "content-image-tiles should render exactly 4 image tiles"
+    );
+    assert!(html.contains("src=\"../../assets/blocks-demo-product.svg\""));
+    for absent in ["<form", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "content-image-tiles should never contain {absent}"
+        );
+    }
+}
+
 /// content-split-image の Demo ラッパ・CSS 配線・block 固有 CSS（lg
 /// ブレークポイント・sticky・全高画像・スクロール枠の overflow-y）が
 /// 実際に出力されていることを固定する（イシュー #2755）。
