@@ -1264,6 +1264,11 @@ source = "site/blocks/cta-signup-celebrate.md"
 path = "/blocks/cta-signup-celebrate/"
 
 [[section.group.page]]
+title = "cta-split-actions"
+source = "site/blocks/cta-split-actions.md"
+path = "/blocks/cta-split-actions/"
+
+[[section.group.page]]
 title = "cta-split-image"
 source = "site/blocks/cta-split-image.md"
 path = "/blocks/cta-split-image/"
@@ -1436,6 +1441,11 @@ path = "/blocks/comparison-cards/"
 title = "comparison-feature-rows"
 source = "site/blocks/comparison-feature-rows.md"
 path = "/blocks/comparison-feature-rows/"
+
+[[section.group.page]]
+title = "comparison-split-table"
+source = "site/blocks/comparison-split-table.md"
+path = "/blocks/comparison-split-table/"
 
 [[section.group]]
 title = "Careers"
