@@ -16,6 +16,7 @@ mod feature_split_image;
 mod feature_split_list_image;
 mod feature_split_screenshot;
 mod feature_tabs_panel;
+mod feature_vertical_tabs;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
@@ -31,5 +32,6 @@ pub(super) fn blocks() -> Vec<Block> {
         feature_split_list_image::BLOCK,
         feature_split_screenshot::BLOCK,
         feature_tabs_panel::BLOCK,
+        feature_vertical_tabs::BLOCK,
     ]
 }
