@@ -28,16 +28,20 @@
 //! `list::item`・素の `div`/`footer` は `class` をそのまま透過するため、
 //! それらのみ `class` でフックする。
 //!
-//! # `[data-scope="item"][data-part="root"]` を前置する理由
+//! # `[data-scope="..."][data-part="root"]` を前置する理由
 //!
-//! `item::root` の recipe（`fandhe_frontend_pre_styled_ui::item::recipe`）は
-//! base 宣言 `[data-scope="item"][data-part="root"] { padding: ...; }`
-//! （詳細度 0,2,0）を持つ。本 block 固有フック
-//! `[data-blocks-error-page-popular-links-item]` を単独属性セレクタ
-//! （詳細度 0,1,0）のまま宣言しても詳細度規則上 base 側が勝つため、
-//! `error_page_background_image` の image フック（モジュール doc「背景画像
-//! フックの詳細度」節）と同じ判断で base と同じ 2 属性セレクタへ前置し、
-//! 詳細度を揃えたうえでソース順で後勝ちさせる。
+//! `item::root`（`fandhe_frontend_pre_styled_ui::item::recipe`）・
+//! `heading::heading`・`link::root` はいずれも
+//! `[data-scope="<scope>"][data-part="root"] { ...; }`（詳細度 0,2,0）の
+//! base 宣言を持つ。本 block 固有フック（`[data-blocks-error-page-
+//! popular-links-item]`/`-popular-heading`/`-social`）を単独属性セレクタ
+//! （詳細度 0,1,0）のまま宣言すると詳細度規則上 base 側が勝ち、上書きが
+//! 効かない。`error_page_background_image` の image フック（モジュール
+//! doc「背景画像フックの詳細度」節）と同じ判断で、この 3 フックはいずれも
+//! base と同じ 2 属性セレクタへ前置して詳細度を揃え、ソース順で後勝ち
+//! させる（`[data-scope="item"][data-part="root"][data-blocks-...-item]`/
+//! `[data-scope="heading"][data-part="root"][data-blocks-...-popular-heading]`/
+//! `[data-scope="link"][data-part="root"][data-blocks-...-social]`）。
 //!
 //! # 行全体がリンクになる仕組み
 //!
@@ -501,7 +505,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-error-page-popular-links-code] {\n  color: var(--fandhe-color-accent);\n  letter-spacing: 0.05em;\n}\n\
 [data-blocks-error-page-popular-links-description] {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-error-page-popular-links-popular {\n  width: 100%;\n  max-width: 32rem;\n  margin-inline: auto;\n}\n\
-[data-blocks-error-page-popular-links-popular-heading] {\n  margin-bottom: var(--fandhe-space-3);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+[data-scope=\"heading\"][data-part=\"root\"][data-blocks-error-page-popular-links-popular-heading] {\n  margin-bottom: var(--fandhe-space-3);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-error-page-popular-links-list] {\n  width: 100%;\n  padding: 0;\n  margin: 0;\n}\n\
 .blocks-error-page-popular-links-row {\n  list-style: none;\n}\n\
 .blocks-error-page-popular-links-row + .blocks-error-page-popular-links-row {\n  border-block-start: 1px solid var(--fandhe-color-border);\n}\n\
@@ -513,8 +517,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-error-page-popular-links-footer-row {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  text-align: center;\n}\n\
 [data-blocks-error-page-popular-links-footer-divider] {\n  display: none;\n}\n\
 .blocks-error-page-popular-links-socials {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n}\n\
-[data-blocks-error-page-popular-links-social] {\n  color: var(--fandhe-color-fg-subtle);\n}\n\
-@media (min-width: 40rem) {\n  .blocks-error-page-popular-links-footer-row {\n    flex-direction: row;\n    justify-content: space-between;\n    text-align: left;\n  }\n  [data-blocks-error-page-popular-links-footer-divider] {\n    display: block;\n    height: 1.75rem;\n  }\n}\n";
+[data-scope=\"link\"][data-part=\"root\"][data-blocks-error-page-popular-links-social] {\n  color: var(--fandhe-color-fg-subtle);\n}\n\
+@media (min-width: 40rem) {\n  .blocks-error-page-popular-links-footer-row {\n    flex-direction: row;\n    text-align: left;\n  }\n  .blocks-error-page-popular-links-socials {\n    margin-inline-start: auto;\n  }\n  [data-blocks-error-page-popular-links-footer-divider] {\n    display: block;\n    height: 1.75rem;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -600,7 +604,7 @@ mod tests {
             "[data-blocks-error-page-popular-links-code] {",
             "[data-blocks-error-page-popular-links-description] {",
             ".blocks-error-page-popular-links-popular {",
-            "[data-blocks-error-page-popular-links-popular-heading] {",
+            "[data-scope=\"heading\"][data-part=\"root\"][data-blocks-error-page-popular-links-popular-heading] {",
             "[data-blocks-error-page-popular-links-list] {",
             ".blocks-error-page-popular-links-row {",
             ".blocks-error-page-popular-links-row + .blocks-error-page-popular-links-row {",
@@ -612,7 +616,7 @@ mod tests {
             ".blocks-error-page-popular-links-footer-row {",
             "[data-blocks-error-page-popular-links-footer-divider] {",
             ".blocks-error-page-popular-links-socials {",
-            "[data-blocks-error-page-popular-links-social] {",
+            "[data-scope=\"link\"][data-part=\"root\"][data-blocks-error-page-popular-links-social] {",
         ] {
             assert!(
                 LAYOUT_CSS.contains(selector),
