@@ -19,6 +19,7 @@ use fandhe_frontend_pre_styled_ui::rating_group::{
     self, RatingGroup, RatingGroupProps, RatingItemFlags,
 };
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize};
+use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
 /// [`avatar_stack`] が使う架空イニシャル 4 件（[`dummy_assets::PERSON_NAMES`]
@@ -60,6 +61,14 @@ fn avatar_stack() -> Node {
 
 /// 星評価（readonly。他ユーザーの平均評価を表す静的表示。
 /// `showcase.rs::rating_group_section` の readonly 構成と同型）。
+///
+/// `label`（"Average rating"）は隣接する [`text`]（"Rated 5.0/5 by
+/// 12,000+ teams" の短文）と情報が重複するうえ、
+/// `rating_group::label` の既定の可視表示は `.blocks-hero-social-proof-proof`
+/// が横一列に並べる前提のレイアウトを崩す。`visually_hidden::root` で
+/// テキストを包み、`aria-labelledby` で `control` と結びつく `id` を持つ
+/// `<span>` 自体は DOM に残しつつ視覚的には隠す（`position: absolute` の
+/// clip 手法のため他要素のレイアウトへ影響しない）。
 fn rating() -> Node {
     let g = RatingGroup::new(5, Some(5), true);
     let props = RatingGroupProps {
@@ -71,7 +80,7 @@ fn rating() -> Node {
         &props,
         Some(RATING_LABEL_ID),
         vec![],
-        vec![text("Average rating")],
+        vec![visually_hidden::root(vec![], vec![text("Average rating")])],
     );
     let items: Vec<Node> = (1..=g.count())
         .map(|i| {
@@ -151,7 +160,7 @@ pub fn demo() -> Node {
                     ..TextProps::default()
                 },
                 vec![("data-blocks-hero-social-proof-proof-text", "")],
-                vec![text("Rated 4.9/5 by 12,000+ teams")],
+                vec![text("Rated 5.0/5 by 12,000+ teams")],
             ),
         ],
     );
