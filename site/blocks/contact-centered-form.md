@@ -162,7 +162,6 @@ fn message_field() -> Node {
         vec![
             ("data-blocks-contact-centered-form-field", ""),
             ("data-blocks-contact-centered-form-wide", ""),
-            ("data-blocks-contact-centered-form-message", ""),
         ],
         vec![
             field::label(&props, vec![], vec![text("お問い合わせ内容")]),
@@ -170,7 +169,10 @@ fn message_field() -> Node {
                 &TextareaProps::default(),
                 &props,
                 false,
-                vec![("placeholder", "ご相談内容をご記入ください。")],
+                vec![
+                    ("placeholder", "ご相談内容をご記入ください。"),
+                    ("data-blocks-contact-centered-form-message", ""),
+                ],
                 vec![],
             ),
         ],
