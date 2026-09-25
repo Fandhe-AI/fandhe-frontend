@@ -7098,3 +7098,93 @@ fn error_page_split_links_composes_expected_parts() {
         );
     }
 }
+
+/// `hero-bottom-screenshot` ページが demo class・CSS リンク・CSS フックを
+/// 正しく配線していること（イシュー #2782）。
+#[test]
+fn hero_bottom_screenshot_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-bottom-screenshot/index.html"))
+        .expect("blocks/hero-bottom-screenshot/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-hero-bottom-screenshot\""),
+        "hero-bottom-screenshot page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "hero-bottom-screenshot page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "hero-bottom-screenshot page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-hero-bottom-screenshot-section-variant",
+        "data-blocks-hero-bottom-screenshot-image-variant",
+        "data-blocks-hero-bottom-screenshot-align",
+        "data-blocks-hero-bottom-screenshot-image",
+    ] {
+        assert!(
+            html.contains(hook),
+            "hero-bottom-screenshot page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "[data-blocks-hero-bottom-screenshot-align=\"start\"]",
+        ".blocks-hero-bottom-screenshot-pair-grid",
+        "@media (min-width: 64rem)",
+        "@media (min-width: 48rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// `hero-bottom-screenshot` の Demo が要求部品・6 セクション・非対話制約を
+/// 満たすこと（イシュー #2782）。
+#[test]
+fn hero_bottom_screenshot_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/hero-bottom-screenshot/")
+        .expect("hero-bottom-screenshot should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"button\"",
+        "data-scope=\"image\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "hero-bottom-screenshot demo should contain {scope}"
+        );
+    }
+    for variant in [
+        "bordered",
+        "top-rounded",
+        "left-split",
+        "video",
+        "pair-grid",
+        "band-logos",
+    ] {
+        assert_eq!(
+            html.matches(&format!(
+                "data-blocks-hero-bottom-screenshot-section-variant=\"{variant}\""
+            ))
+            .count(),
+            1,
+            "hero-bottom-screenshot demo should render section variant {variant} exactly once"
+        );
+    }
+    for absent in ["<form", "<video", "src=\"data:", "href=\"#\"", "id=\""] {
+        assert!(
+            !html.contains(absent),
+            "hero-bottom-screenshot should never contain {absent}"
+        );
+    }
+}
