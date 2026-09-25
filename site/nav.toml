@@ -1555,6 +1555,11 @@ path = "/blocks/changelog-timeline/"
 title = "Error Page"
 
 [[section.group.page]]
+title = "error-page-background-image"
+source = "site/blocks/error-page-background-image.md"
+path = "/blocks/error-page-background-image/"
+
+[[section.group.page]]
 title = "error-page-centered"
 source = "site/blocks/error-page-centered.md"
 path = "/blocks/error-page-centered/"
