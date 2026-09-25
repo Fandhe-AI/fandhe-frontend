@@ -881,10 +881,11 @@ pub enum LayoutCss {
 | feature-side-heading-grid | #2767 | `marketing/feature/feature_side_heading_grid.rs` |
 | feature-split-image | #2768 | `marketing/feature/feature_split_image.rs` |
 | contact-info-columns | #2830 | `marketing/contact/contact_info_columns.rs` |
+| feature-split-list-image | #2769 | `marketing/feature/feature_split_list_image.rs` |
 | feature-tabs-panel | #2771（#2772/#2773） | `marketing/feature/feature_tabs_panel.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-67 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+68 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を

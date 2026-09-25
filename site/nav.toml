@@ -1271,6 +1271,11 @@ source = "site/blocks/feature-split-image.md"
 path = "/blocks/feature-split-image/"
 
 [[section.group.page]]
+title = "feature-split-list-image"
+source = "site/blocks/feature-split-list-image.md"
+path = "/blocks/feature-split-list-image/"
+
+[[section.group.page]]
 title = "feature-tabs-panel"
 source = "site/blocks/feature-tabs-panel.md"
 path = "/blocks/feature-tabs-panel/"
