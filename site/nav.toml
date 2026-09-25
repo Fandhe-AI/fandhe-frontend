@@ -1218,6 +1218,11 @@ source = "site/blocks/hero-editorial-stagger.md"
 path = "/blocks/hero-editorial-stagger/"
 
 [[section.group.page]]
+title = "hero-email-signup"
+source = "site/blocks/hero-email-signup.md"
+path = "/blocks/hero-email-signup/"
+
+[[section.group.page]]
 title = "hero-image-tiles"
 source = "site/blocks/hero-image-tiles.md"
 path = "/blocks/hero-image-tiles/"
