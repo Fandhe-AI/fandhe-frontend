@@ -1560,6 +1560,14 @@ source = "site/blocks/error-page-background-image.md"
 path = "/blocks/error-page-background-image/"
 
 [[section.group]]
+title = "Gallery"
+
+[[section.group.page]]
+title = "gallery-masonry"
+source = "site/blocks/gallery-masonry.md"
+path = "/blocks/gallery-masonry/"
+
+[[section.group]]
 title = "Sidebar"
 
 [[section.group.page]]
