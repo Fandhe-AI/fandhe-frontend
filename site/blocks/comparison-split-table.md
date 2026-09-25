@@ -27,10 +27,12 @@ use fandhe_frontend_pre_styled_ui::ColorPalette;
 
 /// 対応セルの CSS フック（色だけに頼らずチェックマークの形でも区別する。
 /// 上記モジュール doc「アイコンは独自の抽象図形のみ・アクセシブルネームを
-/// 持つ」節参照）。
-const YES_CLASS: &str = "blocks-comparison-split-table-yes";
+/// 持つ」節参照）。`icon::icon` は呼び出し側 `attrs` の `class` を
+/// `drop_class_attr` で除去する契約のため、`class` ではなく値なしの
+/// `data-*` 属性で渡す（`class` で渡すと出力から消え CSS が一致しない）。
+const YES_ATTR: &str = "data-blocks-comparison-split-table-yes";
 /// 非対応セルの CSS フック（上記と対になる、バツ印用）。
-const NO_CLASS: &str = "blocks-comparison-split-table-no";
+const NO_ATTR: &str = "data-blocks-comparison-split-table-no";
 
 /// チェックマークのみの自作アイコン（`comparison_feature_rows::glyph_circle`
 /// と同型の対処。参照元の SVG path はコピーしない）。
@@ -40,7 +42,7 @@ fn icon_check() -> Node {
             label: Some("対応"),
             ..IconProps::default()
         },
-        vec![("class", YES_CLASS)],
+        vec![(YES_ATTR, "")],
         vec![el(
             "path",
             vec![
@@ -63,7 +65,7 @@ fn icon_cross() -> Node {
             label: Some("非対応"),
             ..IconProps::default()
         },
-        vec![("class", NO_CLASS)],
+        vec![(NO_ATTR, "")],
         vec![el(
             "path",
             vec![
@@ -195,6 +197,42 @@ fn value_node(value: &CellValue) -> Node {
     }
 }
 
+/// 機能名セル（行見出し）を `<th scope="row">` として組み立てる
+/// （上記モジュール doc「`table` の合成方法」節参照）。`table::cell`
+/// （`<td>`）は呼ばず、`fandhe_frontend_pre_styled_ui::table` の CSS が
+/// `[data-scope="table"][data-part="cell"]`（タグ名非依存の属性セレクタ）で
+/// 出力されることを利用して、見た目は既存の `cell` パーツと同一のまま
+/// `scope="row"` を持つ `<th>` を直接構築する。これによりスクリーンリーダー
+/// が対応/非対応セルへ移動した際、行見出し（機能名）が自動的に読み上げ
+/// られる（`table::column_header` は `scope="col"` を固定して呼び出し側の
+/// `scope` 指定を除去するため使えない）。
+fn feature_cell(row: &Row) -> Node {
+    el(
+        "th",
+        vec![
+            ("data-scope", "table"),
+            ("data-part", "cell"),
+            ("scope", "row"),
+            ("data-blocks-comparison-split-table-feature", ""),
+        ],
+        vec![
+            span(
+                vec![("data-blocks-comparison-split-table-feature-name", "")],
+                vec![text(row.name)],
+            ),
+            styled_text::text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    variant: TextVariant::Muted,
+                    ..TextProps::default()
+                },
+                vec![("data-blocks-comparison-split-table-feature-note", "")],
+                vec![text(row.note)],
+            ),
+        ],
+    )
+}
+
 /// 比較表本体（列見出し「機能」「自社」「他社」+ [`ROWS`] の件数分の本文
 /// 行。上記モジュール doc「`table` の合成方法」節参照）。
 fn comparison_table() -> Node {
@@ -235,24 +273,7 @@ fn comparison_table() -> Node {
             table::row(
                 vec![("data-blocks-comparison-split-table-row", "")],
                 vec![
-                    table::cell(
-                        vec![("data-blocks-comparison-split-table-feature", "")],
-                        vec![
-                            span(
-                                vec![("data-blocks-comparison-split-table-feature-name", "")],
-                                vec![text(row.name)],
-                            ),
-                            styled_text::text(
-                                &TextProps {
-                                    size: TextSize::Sm,
-                                    variant: TextVariant::Muted,
-                                    ..TextProps::default()
-                                },
-                                vec![("data-blocks-comparison-split-table-feature-note", "")],
-                                vec![text(row.note)],
-                            ),
-                        ],
-                    ),
+                    feature_cell(row),
                     table::cell(vec![("data-align", "center")], vec![value_node(&row.ours)]),
                     table::cell(
                         vec![("data-align", "center")],

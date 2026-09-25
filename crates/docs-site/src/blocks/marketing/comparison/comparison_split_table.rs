@@ -61,7 +61,19 @@
 //! 付与する（`icon::icon` の契約、[`crate::blocks::icon`] ではなく
 //! [`fandhe_frontend_pre_styled_ui::icon`] を直接使う）。強調色は
 //! [`props::Primary`] のような部品固有の新型を新設せず、CSS フック
-//! （[`YES_CLASS`]/[`NO_CLASS`]）で `--fandhe-color-*` トークンを塗り分ける。
+//! （[`YES_ATTR`]/[`NO_ATTR`]）で `--fandhe-color-*` トークンを塗り分ける。
+//! `icon::icon` は呼び出し側 `attrs` の `class` を `drop_class_attr` で
+//! 黙って除去する契約（下記「CSS フックの選び方」節参照）のため、フックは
+//! `class` ではなく `data-*` 属性で渡す（`class` で渡すとスタイルが一切
+//! 適用されない）。
+//!
+//! 塗り分けの色トークンは `--fandhe-color-accent-fg`（アクセント色の
+//! 背景に載せるコントラスト色）ではなく `--fandhe-color-accent`
+//! （`crate::theme` の `LARGE_TEXT_UI_PAIRS` で `bg`/`bg-muted` 背景上の
+//! 大字・UI 要素として WCAG 3:1 を満たすと検証済みのトークン）を使う。
+//! 通常のセル背景（`bg`/`bg-muted`）の上に直接アイコンを描くため、
+//! `accent-fg` を使うと両テーマでチェックマークが背景と同化して見えなく
+//! なる（`docs/design/color-token-system.md` 参照）。
 //!
 //! # 自社・他社ラベルは `badge` で表す
 //!
@@ -79,10 +91,19 @@
 //! 関数」節参照）のため、`root`/`header`/`body`/`row`/`column_header`/
 //! `cell`/`scroll_area` を個別に組み立てる。列見出し・セル整列には
 //! `data-align`（`table` モジュール doc「`data-align` セル整列」節の共有
-//! 語彙）を使い、自社/他社列を `center` 揃えにする。行見出し
-//! （`th scope="row"`）に対応するパーツは `table` に存在しないため、機能名
-//! セルも `cell`（`td`）で表す（`docs/design/docs-site-blocks-section.md`
-//! の out-of-scope 記録に譲る）。
+//! 語彙）を使い、自社/他社列を `center` 揃えにする。
+//!
+//! 行見出し（`th scope="row"`）に対応するパーツは `table` に存在しないが、
+//! `crate::table` モジュール doc の CSS 出力契約（`[data-scope="table"]
+//! [data-part="<slot>"]` はタグ名に依存しない属性セレクタ、同モジュール
+//! doc「セキュリティ不変条件」節近傍の recipe 実装参照）により、`cell`
+//! スロットのスタイルは要素のタグ名を問わず適用される。この性質を使い、
+//! 機能名セルは `table::cell`（`<td>`）を呼ぶ代わりに
+//! [`fandhe_frontend_core::el`] で直接 `<th scope="row"
+//! data-scope="table" data-part="cell">` を組み立て（[`feature_cell`]
+//! 参照）、`cell` と同一の見た目を保ったままスクリーンリーダーが値セルを
+//! 対応する機能名へ関連付けられるようにする（`pre-styled-ui` 側へ新規
+//! パーツを追加せずに済む、本 block 側の安全なノード API 構築による対応）。
 //!
 //! # `id` 属性を出力しない理由
 //!
@@ -132,10 +153,12 @@ use fandhe_frontend_pre_styled_ui::ColorPalette;
 
 /// 対応セルの CSS フック（色だけに頼らずチェックマークの形でも区別する。
 /// 上記モジュール doc「アイコンは独自の抽象図形のみ・アクセシブルネームを
-/// 持つ」節参照）。
-const YES_CLASS: &str = "blocks-comparison-split-table-yes";
+/// 持つ」節参照）。`icon::icon` は呼び出し側 `attrs` の `class` を
+/// `drop_class_attr` で除去する契約のため、`class` ではなく値なしの
+/// `data-*` 属性で渡す（`class` で渡すと出力から消え CSS が一致しない）。
+const YES_ATTR: &str = "data-blocks-comparison-split-table-yes";
 /// 非対応セルの CSS フック（上記と対になる、バツ印用）。
-const NO_CLASS: &str = "blocks-comparison-split-table-no";
+const NO_ATTR: &str = "data-blocks-comparison-split-table-no";
 
 /// チェックマークのみの自作アイコン（`comparison_feature_rows::glyph_circle`
 /// と同型の対処。参照元の SVG path はコピーしない）。
@@ -145,7 +168,7 @@ fn icon_check() -> Node {
             label: Some("対応"),
             ..IconProps::default()
         },
-        vec![("class", YES_CLASS)],
+        vec![(YES_ATTR, "")],
         vec![el(
             "path",
             vec![
@@ -168,7 +191,7 @@ fn icon_cross() -> Node {
             label: Some("非対応"),
             ..IconProps::default()
         },
-        vec![("class", NO_CLASS)],
+        vec![(NO_ATTR, "")],
         vec![el(
             "path",
             vec![
@@ -300,6 +323,42 @@ fn value_node(value: &CellValue) -> Node {
     }
 }
 
+/// 機能名セル（行見出し）を `<th scope="row">` として組み立てる
+/// （上記モジュール doc「`table` の合成方法」節参照）。`table::cell`
+/// （`<td>`）は呼ばず、`fandhe_frontend_pre_styled_ui::table` の CSS が
+/// `[data-scope="table"][data-part="cell"]`（タグ名非依存の属性セレクタ）で
+/// 出力されることを利用して、見た目は既存の `cell` パーツと同一のまま
+/// `scope="row"` を持つ `<th>` を直接構築する。これによりスクリーンリーダー
+/// が対応/非対応セルへ移動した際、行見出し（機能名）が自動的に読み上げ
+/// られる（`table::column_header` は `scope="col"` を固定して呼び出し側の
+/// `scope` 指定を除去するため使えない）。
+fn feature_cell(row: &Row) -> Node {
+    el(
+        "th",
+        vec![
+            ("data-scope", "table"),
+            ("data-part", "cell"),
+            ("scope", "row"),
+            ("data-blocks-comparison-split-table-feature", ""),
+        ],
+        vec![
+            span(
+                vec![("data-blocks-comparison-split-table-feature-name", "")],
+                vec![text(row.name)],
+            ),
+            styled_text::text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    variant: TextVariant::Muted,
+                    ..TextProps::default()
+                },
+                vec![("data-blocks-comparison-split-table-feature-note", "")],
+                vec![text(row.note)],
+            ),
+        ],
+    )
+}
+
 /// 比較表本体（列見出し「機能」「自社」「他社」+ [`ROWS`] の件数分の本文
 /// 行。上記モジュール doc「`table` の合成方法」節参照）。
 fn comparison_table() -> Node {
@@ -340,24 +399,7 @@ fn comparison_table() -> Node {
             table::row(
                 vec![("data-blocks-comparison-split-table-row", "")],
                 vec![
-                    table::cell(
-                        vec![("data-blocks-comparison-split-table-feature", "")],
-                        vec![
-                            span(
-                                vec![("data-blocks-comparison-split-table-feature-name", "")],
-                                vec![text(row.name)],
-                            ),
-                            styled_text::text(
-                                &TextProps {
-                                    size: TextSize::Sm,
-                                    variant: TextVariant::Muted,
-                                    ..TextProps::default()
-                                },
-                                vec![("data-blocks-comparison-split-table-feature-note", "")],
-                                vec![text(row.note)],
-                            ),
-                        ],
-                    ),
+                    feature_cell(row),
                     table::cell(vec![("data-align", "center")], vec![value_node(&row.ours)]),
                     table::cell(
                         vec![("data-align", "center")],
@@ -447,9 +489,9 @@ const LAYOUT_CSS: &str = "\
 .blocks-comparison-split-table-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-2);\n  margin-top: var(--fandhe-space-2);\n}\n\
 [data-blocks-comparison-split-table-scroll] {\n  overflow-x: auto;\n  max-width: 100%;\n}\n\
 [data-blocks-comparison-split-table-table] {\n  min-width: 32rem;\n}\n\
-[data-blocks-comparison-split-table-feature] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
-.blocks-comparison-split-table-yes {\n  color: var(--fandhe-color-accent-fg);\n  vertical-align: middle;\n}\n\
-.blocks-comparison-split-table-no {\n  color: var(--fandhe-color-fg-muted);\n  vertical-align: middle;\n}\n\
+[data-blocks-comparison-split-table-feature] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  text-align: left;\n  font-weight: var(--fandhe-font-font-weight-normal, normal);\n}\n\
+[data-blocks-comparison-split-table-yes] {\n  color: var(--fandhe-color-accent);\n  vertical-align: middle;\n}\n\
+[data-blocks-comparison-split-table-no] {\n  color: var(--fandhe-color-fg-muted);\n  vertical-align: middle;\n}\n\
 @media (min-width: 64rem) {\n  [data-blocks-comparison-split-table-root] {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);\n    align-items: start;\n  }\n}\n";
 
 #[cfg(test)]
@@ -554,5 +596,80 @@ mod tests {
         assert!(LAYOUT_CSS.contains("@media (min-width: 64rem)"));
         assert!(LAYOUT_CSS.contains("[data-blocks-comparison-split-table-table]"));
         assert!(LAYOUT_CSS.contains("overflow-x: auto"));
+    }
+
+    /// 機能名セルが `<th scope="row">` として出力されること（上記モジュール
+    /// doc「`table` の合成方法」節参照。スクリーンリーダーが対応/非対応
+    /// セルへ移動した際に機能名が行見出しとして読み上げられるための
+    /// アクセシビリティ不変条件）。件数は [`ROWS`] と一致する。
+    #[test]
+    fn feature_cells_are_row_headers() {
+        let html = render(&demo());
+        assert_eq!(
+            html.matches("<th data-scope=\"table\" data-part=\"cell\" scope=\"row\"")
+                .count(),
+            ROWS.len(),
+            "every feature cell should be a <th scope=\"row\"> row header"
+        );
+        // `column-header`（列見出し `scope=\"col\"`）と行見出し
+        // （`scope=\"row\"`）が混在するため、行見出しの総数がテーブル内の
+        // `scope=\"row\"` 出現数と一致することも確認する。
+        assert_eq!(
+            html.matches("scope=\"row\"").count(),
+            ROWS.len(),
+            "scope=\"row\" should appear exactly once per row"
+        );
+    }
+
+    /// 対応/非対応アイコンの CSS フックが `class` ではなく `data-*` 属性で
+    /// 出力されること（上記モジュール doc「アイコンは独自の抽象図形のみ・
+    /// アクセシブルネームを持つ」節。`icon::icon` が呼び出し側 `class` を
+    /// `drop_class_attr` で除去するため、`class` 経由では CSS が一切
+    /// 適用されない不具合の回帰防止）。
+    #[test]
+    fn icon_color_hooks_survive_as_data_attributes() {
+        let html = render(&demo());
+        let expected_yes = ROWS
+            .iter()
+            .flat_map(|row| [&row.ours, &row.theirs])
+            .filter(|value| matches!(value, CellValue::Yes))
+            .count();
+        let expected_no = ROWS
+            .iter()
+            .flat_map(|row| [&row.ours, &row.theirs])
+            .filter(|value| matches!(value, CellValue::No))
+            .count();
+        assert_eq!(
+            html.matches("data-blocks-comparison-split-table-yes=\"\"")
+                .count(),
+            expected_yes,
+            "Yes icons should carry the yes CSS hook as a data attribute"
+        );
+        assert_eq!(
+            html.matches("data-blocks-comparison-split-table-no=\"\"")
+                .count(),
+            expected_no,
+            "No icons should carry the no CSS hook as a data attribute"
+        );
+        assert!(
+            !html.contains("class=\"blocks-comparison-split-table-yes\"")
+                && !html.contains("class=\"blocks-comparison-split-table-no\""),
+            "icon color hooks must not rely on a class attribute dropped by icon::icon"
+        );
+        assert!(
+            LAYOUT_CSS.contains("[data-blocks-comparison-split-table-yes]")
+                && LAYOUT_CSS.contains("[data-blocks-comparison-split-table-no]"),
+            "LAYOUT_CSS must target the icon color hooks as attribute selectors"
+        );
+    }
+
+    /// Yes アイコンの配色が `--fandhe-color-accent-fg`（アクセント背景上の
+    /// コントラスト色）ではなく `--fandhe-color-accent`（`bg`/`bg-muted`
+    /// 背景上で WCAG 3:1 を満たす検証済みトークン）を使うこと（上記モジュール
+    /// doc「アイコンは独自の抽象図形のみ・アクセシブルネームを持つ」節参照）。
+    #[test]
+    fn yes_icon_uses_accent_not_accent_fg() {
+        assert!(LAYOUT_CSS.contains("var(--fandhe-color-accent)"));
+        assert!(!LAYOUT_CSS.contains("var(--fandhe-color-accent-fg)"));
     }
 }
