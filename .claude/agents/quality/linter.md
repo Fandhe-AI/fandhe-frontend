@@ -13,7 +13,7 @@ tools: [Read, Grep, Glob, Bash]
 
 - `cargo fmt --check` の実行と差分箇所の列挙
 - `cargo clippy -- -D warnings` の警告集計
-- `.claude/agents/*.md` の frontmatter（subagent_type / description / model / tools）欠落チェック
+- `.claude/agents/*/*.md` の frontmatter（name / description / model / tools）欠落チェック
 - Markdown のリンク切れ・見出し構造の簡易チェック
 
 ## 制約
