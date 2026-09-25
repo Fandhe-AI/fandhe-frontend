@@ -69,6 +69,12 @@
 //! - `.blocks-feature-tabs-panel-list` に `overflow-x: auto` を与え、狭い
 //!   幅でタブ列がはみ出してページ全体が横スクロールするのを list 自身の
 //!   横スクロールへ閉じ込める（モバイルでのタブ列横スクロール）。
+//!   `overflow-y: hidden` は `overflow-x: auto` との組で `overflow-y` が
+//!   spec 上 `auto` へ読み替えられる挙動を避けるための明示指定であり、
+//!   `padding-bottom: 1px` は選択中 trigger の `margin-bottom: -1px`
+//!   （下記）による 2px アクセント下線のうち clip 境界（padding edge）を
+//!   はみ出す 1px 分がこの `overflow-y` に切り取られ、list 自身の 1px
+//!   境界線とアクセントが薄く重なって見える表示崩れを防ぐために足す。
 //! - `.blocks-feature-tabs-panel-trigger` は下線タブ（[`TabsVariant::Line`]
 //!   相当の見た目）を CSS のみで再現し、選択中の項目
 //!   （`[data-blocks-feature-tabs-panel-selected]`）だけへ強調色の下線と
@@ -292,7 +298,7 @@ fn variant_basic() -> Node {
     let mut children = vec![section_header(
         "機能紹介",
         "タブで切り替える機能セクション",
-        "見出しの下にタブを並べ、選んだタブの内容だけを表示します。",
+        "見出しの下にタブを並べ、4 つの選択状態を切り替え例として併記します。",
     )];
     children.extend(PANELS.iter().map(variant_state));
     div(
@@ -356,7 +362,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-feature-tabs-panel-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n}\n\
 .blocks-feature-tabs-panel-variant {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-feature-tabs-panel-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  align-items: start;\n  max-width: 40rem;\n}\n\
-.blocks-feature-tabs-panel-list {\n  display: flex;\n  flex-wrap: nowrap;\n  overflow-x: auto;\n  overflow-y: hidden;\n  gap: var(--fandhe-space-4);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
+.blocks-feature-tabs-panel-list {\n  display: flex;\n  flex-wrap: nowrap;\n  overflow-x: auto;\n  overflow-y: hidden;\n  gap: var(--fandhe-space-4);\n  padding-bottom: 1px;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 .blocks-feature-tabs-panel-trigger {\n  display: inline-flex;\n  align-items: center;\n  white-space: nowrap;\n  padding: var(--fandhe-space-2) var(--fandhe-space-1);\n  margin-bottom: -1px;\n  color: var(--fandhe-color-fg-muted);\n  border-bottom: 2px solid transparent;\n}\n\
 .blocks-feature-tabs-panel-trigger[data-blocks-feature-tabs-panel-selected] {\n  color: var(--fandhe-color-fg);\n  font-weight: var(--fandhe-font-weight-medium);\n  border-bottom-color: var(--fandhe-color-accent);\n}\n\
 .blocks-feature-tabs-panel-state {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\

@@ -205,7 +205,7 @@ fn variant_basic() -> Node {
     let mut children = vec![section_header(
         "機能紹介",
         "タブで切り替える機能セクション",
-        "見出しの下にタブを並べ、選んだタブの内容だけを表示します。",
+        "見出しの下にタブを並べ、4 つの選択状態を切り替え例として併記します。",
     )];
     children.extend(PANELS.iter().map(variant_state));
     div(
