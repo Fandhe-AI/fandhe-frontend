@@ -269,9 +269,9 @@ const SOCIAL_LINKS: [SocialLink; 4] = [
 fn info_card(item: &ContactItem) -> Node {
     card::root(
         CardVariant::Subtle,
-        vec![("data-blocks-contact-split-info-card", "")],
+        vec![],
         vec![card::body(
-            vec![],
+            vec![("data-blocks-contact-split-info-card", "")],
             vec![
                 div(
                     vec![("data-blocks-contact-split-info-card-icon", "")],
@@ -305,9 +305,9 @@ fn office_card(office: &Office) -> Node {
     let aria_label = format!("地図を見る（{}）", office.name);
     card::root(
         CardVariant::Subtle,
-        vec![("data-blocks-contact-split-info-card", "")],
+        vec![],
         vec![card::body(
-            vec![],
+            vec![("data-blocks-contact-split-info-card", "")],
             vec![
                 heading(
                     HeadingLevel::H4,
