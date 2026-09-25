@@ -1,5 +1,5 @@
 //! Marketing / Error Page カテゴリの block 登録点（イシュー #2734、
-//! #2836 で最初の block を追加して卒業）。
+//! #2836 で最初の block を追加して卒業。#2838 で 2 件目を追加）。
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
 //! 新規 block を追加する際は本ファイルへ `mod` 宣言と `blocks()` への追記を
 //! 行うだけでよく、`super`（`marketing`）側・トップレベル
@@ -7,9 +7,13 @@
 //! ための構造、イシュー #2734）。
 
 mod error_page_background_image;
+mod error_page_popular_links;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![error_page_background_image::BLOCK]
+    vec![
+        error_page_background_image::BLOCK,
+        error_page_popular_links::BLOCK,
+    ]
 }
