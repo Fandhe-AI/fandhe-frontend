@@ -234,6 +234,13 @@ jobs:
           # Marketing / Feature
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-accordion-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-expand/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-alternating-rows/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-side-heading-grid/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-image-cards/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-large-screenshot/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-split-image/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-split-list-image/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-split-screenshot/index.html"
           # Marketing / Cta
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-banner-magnetic/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-feature-links/index.html"
@@ -251,6 +258,11 @@ jobs:
           # Marketing / Faq
           # Marketing / Contact
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-centered-form/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-dialog-form/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-form-testimonial/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-image-info/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-info-columns/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-split-form-info/index.html"
           # Marketing / Newsletter
           # Marketing / Blog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-featured-article/index.html"
@@ -296,7 +308,10 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/changelog-timeline/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/changelog-timeline-subscribe/index.html"
           # Marketing / Error Page
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/error-page-background-image/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/error-page-centered/index.html"
           # Marketing / Gallery
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/gallery-image-grid/index.html"
           # Marketing / Section Heading
           # Application / App Shell
           # Application / Sidebar
