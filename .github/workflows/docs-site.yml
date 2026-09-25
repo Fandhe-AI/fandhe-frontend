@@ -319,6 +319,7 @@ jobs:
           # Marketing / Gallery
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/gallery-carousel/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/gallery-image-grid/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/gallery-masonry/index.html"
           # Marketing / Section Heading
           # Application / App Shell
           # Application / Sidebar

@@ -892,12 +892,13 @@ pub enum LayoutCss {
 | gallery-image-grid | #2778 | `marketing/gallery/gallery_image_grid.rs` |
 | error-page-centered | #2837 | `marketing/error_page/error_page_centered.rs` |
 | error-page-popular-links | #2838 | `marketing/error_page/error_page_popular_links.rs` |
+| gallery-masonry | #2779 | `marketing/gallery/gallery_masonry.rs` |
 | error-page-split-links | #2842 | `marketing/error_page/error_page_split_links.rs` |
 | contact-split-form-image | #2831 | `marketing/contact/contact_split_form_image.rs` |
 | contact-centered-form | #2826 | `marketing/contact/contact_centered_form.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-78 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+81 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
