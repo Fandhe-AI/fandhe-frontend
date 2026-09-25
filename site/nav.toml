@@ -1286,6 +1286,11 @@ source = "site/blocks/feature-split-screenshot.md"
 path = "/blocks/feature-split-screenshot/"
 
 [[section.group.page]]
+title = "feature-tabs-panel"
+source = "site/blocks/feature-tabs-panel.md"
+path = "/blocks/feature-tabs-panel/"
+
+[[section.group.page]]
 title = "feature-vertical-tabs"
 source = "site/blocks/feature-vertical-tabs.md"
 path = "/blocks/feature-vertical-tabs/"
