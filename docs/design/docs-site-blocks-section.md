@@ -881,6 +881,7 @@ pub enum LayoutCss {
 | feature-side-heading-grid | #2767 | `marketing/feature/feature_side_heading_grid.rs` |
 | feature-split-image | #2768 | `marketing/feature/feature_split_image.rs` |
 | contact-info-columns | #2830 | `marketing/contact/contact_info_columns.rs` |
+| feature-split-list-image | #2769 | `marketing/feature/feature_split_list_image.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 66 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
