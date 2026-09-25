@@ -6,8 +6,9 @@
 //! （`docs/design/motion-reference-adoption-policy.md` §9 と同じライセンス
 //! 上の転記制限）。
 //!
-//! **Marketing / Comparison カテゴリで最初の block**（`super`
-//! （`comparison/mod.rs`）参照）。
+//! **Marketing / Comparison カテゴリで 2 番目の block**（`super`
+//! （`comparison/mod.rs`）参照。最初の block〔カテゴリ雛形からの卒業〕は
+//! イシュー #2823 の `comparison_feature_rows`）。
 //!
 //! # 使用部品
 //!
