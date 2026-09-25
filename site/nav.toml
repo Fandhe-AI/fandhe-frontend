@@ -1427,6 +1427,11 @@ title = "comparison-feature-rows"
 source = "site/blocks/comparison-feature-rows.md"
 path = "/blocks/comparison-feature-rows/"
 
+[[section.group.page]]
+title = "comparison-table"
+source = "site/blocks/comparison-table.md"
+path = "/blocks/comparison-table/"
+
 [[section.group]]
 title = "Careers"
 
