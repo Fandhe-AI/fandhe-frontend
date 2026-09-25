@@ -5420,3 +5420,85 @@ fn cta_split_image_composes_expected_parts() {
         );
     }
 }
+
+/// contact-dialog-form ページが Demo class・専用 CSS を配線していること、
+/// block 固有 CSS（固定オーバーレイの中和セレクタ・狭幅ブレークポイント）
+/// が実際に出力されていることを固定する（イシュー #2827）。
+#[test]
+fn contact_dialog_form_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/contact-dialog-form/index.html"))
+        .expect("blocks/contact-dialog-form/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-contact-dialog-form\""),
+        "contact-dialog-form page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "contact-dialog-form page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "contact-dialog-form page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-contact-dialog-form-root",
+        "data-blocks-contact-dialog-form-content",
+        "data-blocks-contact-dialog-form-body",
+        "data-blocks-contact-dialog-form-field",
+        "data-blocks-contact-dialog-form-message",
+        "data-blocks-contact-dialog-form-footer",
+        "data-blocks-contact-dialog-form-submit",
+    ] {
+        assert!(
+            html.contains(hook),
+            "contact-dialog-form page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "[data-blocks-contact-dialog-form-root]",
+        "[data-blocks-contact-dialog-form-field]",
+        "@media (max-width: 47.99rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// contact-dialog-form の合成部品（dialog/field/input/textarea/button）が
+/// 期待どおりの構成で実際に出力されていること、`<form>` を持ち込んで
+/// いないことを固定する（イシュー #2827）。`render(&(block.demo)())` で
+/// Demo 単体を描画し、フルページの他要素との混在を避ける
+/// （`cta_split_actions_composes_expected_parts` と同型）。
+#[test]
+fn contact_dialog_form_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/contact-dialog-form/")
+        .expect("contact-dialog-form should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"dialog\"",
+        "data-scope=\"field\" data-part=\"input\"",
+        "data-scope=\"field\" data-part=\"textarea\"",
+        "data-scope=\"button\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "contact-dialog-form demo should contain {scope}"
+        );
+    }
+    assert!(
+        html.contains("aria-modal=\"false\""),
+        "contact-dialog-form demo should render a non-modal dialog"
+    );
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "contact-dialog-form should never contain {absent}"
+        );
+    }
+}
