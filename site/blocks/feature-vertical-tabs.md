@@ -2,16 +2,17 @@
 
 `heading` / `text` / `tabs` / `image` / `icon` の 5 部品を合成した、左列に
 縦並びの feature タブ、右列に選択中 feature の詳細（見出し・チェック付き
-機能一覧・画像）を置くセクションです。既定（機能一覧が主体・先頭タブ選択）
-と、画像主体のパネル・別タブ選択の 2 インスタンスを並記しています。
+機能一覧・画像）を置くセクションです。4 つの機能（ビルド・デプロイ・観測・
+保護）それぞれをタブ選択済みにした 4 インスタンスを並記し、機能一覧が
+主体のパネル形と画像主体のパネル形を交互に見せています。
 
-先頭タブ（build）を選択済みの状態で固定表示しています（docs サイトは
-JS ハイドレーションを行わないため）。幅 lg（64rem）以上ではタブ列が左に
-縦並び、パネルが右に表示されます。幅 lg 未満ではタブ列がパネルの上へ
-移り、横スクロールできる横並びに切り替わります（この幅ではタブの
-`aria-orientation` は `"vertical"` のまま残りますが、docs サイトは
-JS ハイドレーションを行わないため実害はありません）。各タブの trigger
-先頭には自作の幾何アイコンを添えています。
+docs サイトは JS ハイドレーションを行わないため、各インスタンスは 1 タブを
+選択済みの状態で固定表示しています（インスタンス内で他のタブをクリックし
+ても選択状態は切り替わりません）。幅 lg（64rem）以上ではタブ列が左に縦並び、
+パネルが右に表示されます。幅 lg 未満ではタブ列がパネルの上へ積まれますが、
+タブ列自体は縦並びのまま（横並びへは変わらない）のため、`aria-orientation`
+の `"vertical"` は常に実際の見た目と一致します。各タブの trigger 先頭には
+自作の幾何アイコンを添えています。
 
 文言・データはすべて架空のもので、データ取得・送信は行わない静的な表示
 例です。`<form>` は使用せず、送信先を持ちません。
@@ -239,7 +240,7 @@ fn section_header() -> Node {
                 },
                 vec![("data-blocks-feature-vertical-tabs-lead", "")],
                 vec![core_text(
-                    "左のタブを選ぶと、対応する機能の詳細が右側に表示されます。",
+                    "機能ごとにタブを選択した状態のパネルを並べて掲載しています。",
                 )],
             ),
         ],
@@ -307,7 +308,9 @@ fn detail_point(point: &DetailPoint) -> Node {
 enum PanelLayout {
     /// 既定: 見出し → 機能一覧 → 画像（#2775 と同じ、画像は下寄せ）。
     ListFirst,
-    /// 画像主体: 見出し → 画像 → 機能一覧（画像は先頭のため下マージンのみ）。
+    /// 画像主体: 見出し → 画像 → 機能一覧（画像は見出しと機能一覧の両側に
+    /// 余白を持つ。見出しは `margin: 0` のため上マージンを省くと見出しに
+    /// 密着してしまう、#2776 codex-review Medium 是正）。
     ImageFirst,
 }
 
@@ -395,24 +398,37 @@ fn vertical_tabs(id: &'static str, selected: &'static str, layout: PanelLayout) 
 }
 
 /// `feature-vertical-tabs` の Demo 本体。呼び出しごとに同一の `Node` を
-/// 返す純関数（他 block と同じ状態を持たない設計）。2 インスタンスを縦に
-/// 並べる（モジュール doc「1 つの Demo の中で 2 通りの見せ方を並記する」
-/// 節参照）。
+/// 返す純関数（他 block と同じ状態を持たない設計）。[`FEATURES`] の 4 タブ
+/// それぞれを選択済みにした 4 インスタンスを縦に並べる（モジュール doc
+/// 「全パネルを静的に読めるようにする」節参照。#2776 の codex-review P1
+/// 是正）。
 #[must_use]
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-feature-vertical-tabs-layout")],
         vec![
             section_header(),
-            variant_label("既定（機能一覧が主体・先頭タブ選択）"),
+            variant_label("ビルド（機能一覧が主体）"),
             vertical_tabs(
-                "blocks-feature-vertical-tabs-basic",
+                "blocks-feature-vertical-tabs-build",
                 "build",
                 PanelLayout::ListFirst,
             ),
-            variant_label("画像主体のパネル・別タブ選択の例"),
+            variant_label("デプロイ（画像主体）"),
             vertical_tabs(
-                "blocks-feature-vertical-tabs-image-primary",
+                "blocks-feature-vertical-tabs-deploy",
+                "deploy",
+                PanelLayout::ImageFirst,
+            ),
+            variant_label("観測（機能一覧が主体）"),
+            vertical_tabs(
+                "blocks-feature-vertical-tabs-observe",
+                "observe",
+                PanelLayout::ListFirst,
+            ),
+            variant_label("保護（画像主体）"),
+            vertical_tabs(
+                "blocks-feature-vertical-tabs-secure",
                 "secure",
                 PanelLayout::ImageFirst,
             ),

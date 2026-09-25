@@ -15,24 +15,31 @@
 //! 説明）・画像（`image`）。これで [`BLOCK`] の `parts` が申告する
 //! Heading・Text・Tabs・Image・Icon の 5 部品すべてが実際に描画される。
 //!
-//! #2776 では次を仕上げた: 状態違いの並記（[`demo`] がインスタンス 2 件を
-//! 持つ）・trigger 先頭のアイコン（[`FeatureTab::icon`]）・画像主体の別
-//! パネル形（[`PanelLayout::ImageFirst`]）・原稿「原案差分メモ」節の本記述。
-//! 詳細は下記「1 つの Demo の中で 2 通りの見せ方を並記する」節・「trigger
-//! 先頭のアイコン」節を参照。
+//! #2776 では次を仕上げた: trigger 先頭のアイコン（[`FeatureTab::icon`]）・
+//! 画像主体の別パネル形（[`PanelLayout::ImageFirst`]）・原稿「原案差分
+//! メモ」節の本記述。詳細は下記「全パネルを静的に読めるようにする」節・
+//! 「trigger 先頭のアイコン」節を参照。
 //!
-//! # 1 つの Demo の中で 2 通りの見せ方を並記する
+//! # 全パネルを静的に読めるようにする
 //!
-//! 対応表 ID は R0480 のみで集約元は実質 1 件のため、
-//! `feature_accordion_image` の「2 形＝2 集約元」（複数の参照からそれぞれ
-//! 1 形を作る）とは異なり、本 block は**単一参照からの意図的な派生**として
-//! 2 インスタンスを並記する。[`demo`] は [`variant_label`] の見出し付きで、
-//! インスタンス 1（既定・`build` タブ選択・[`PanelLayout::ListFirst`]）と
-//! インスタンス 2（`secure` タブ選択・[`PanelLayout::ImageFirst`]）を縦に
-//! 並べる。前者は #2774 の「初期タブ選択済み固定」要件を、後者は「状態違い
-//! の並記」（インスタンス 1 と異なるタブを選択）と「パネルを画像主体にした
-//! 別の形」の両方を 1 インスタンスで満たす。`FEATURES`・`dummy_assets` の
-//! 既存画像定数はそのまま再利用し、新規データは追加しない。
+//! 当初 [`demo`] は状態違いの並記として 2 インスタンス（`build`/`secure`
+//! の 2 タブのみ選択）だったが、`deploy`/`observe` の 2 パネルが `demo` の
+//! どのインスタンスでも一度も選択されず、headless `tabs` の `hidden`
+//! 属性（`crates/headless-ui/src/tabs.rs`）で常時隠れたまま到達不能に
+//! なっていた（#2776 codex-review P1 指摘）。docs サイトは JS
+//! ハイドレーションを行わないため、trigger をクリックしても選択状態は
+//! 切り替わらず、リード文が「タブを選ぶと表示される」という誤った期待を
+//! 与えていた。是正として [`FEATURES`] の 4 タブそれぞれを選択済みにした
+//! 4 インスタンスへ拡張した（`build`/`observe` は
+//! [`PanelLayout::ListFirst`]、`deploy`/`secure` は
+//! [`PanelLayout::ImageFirst`]、2 つのパネル形を交互に見せる構成は維持）。
+//! これにより 4 パネルすべてがページ上のいずれかのインスタンスで可視状態
+//! として存在する（`sidebar_07` の expanded/collapsed 2 インスタンス併記・
+//! `pricing_tiers_morph` の月額/年額 2 インスタンス併記と同型の対処で、
+//! 対象タブ数が 4 のため 4 インスタンスへ拡張した点のみが異なる）。リード
+//! 文も「選ぶと表示される」という操作結果の予告から、並記された静的な
+//! 選択済み状態を説明する文言へ改めた。`FEATURES`・`dummy_assets` の既存
+//! 画像定数はそのまま再利用し、新規データは追加しない。
 //!
 //! # trigger 先頭のアイコン
 //!
@@ -51,16 +58,21 @@
 //! # 無 JS での扱い
 //!
 //! docs サイトは JS ハイドレーションを行わない（`crates/docs-site/tests/
-//! no_js_contract.rs`）ため、先頭タブ（`build`）を選択済みの固定状態で
-//! 描画する。非選択パネルは headless `tabs` が付与する `hidden` 属性で
-//! 隠れる（`crates/headless-ui/src/tabs.rs`）。
+//! no_js_contract.rs`）ため、各インスタンスはそれぞれ 1 タブを選択済みの
+//! 固定状態で描画する。インスタンス内で非選択のパネルは headless `tabs`
+//! が付与する `hidden` 属性で隠れ、そのインスタンス内では他パネルへの
+//! 切替手段を持たない（trigger をクリックしても何も起きない）。この
+//! 制約自体は解消できないため、上記「全パネルを静的に読めるようにする」
+//! 節のとおり 4 タブすべてをいずれかのインスタンスで可視にすることで
+//! 「読めないパネルが存在する」状態を解消している。
 //!
 //! # id 規約
 //!
-//! 基底 id は `blocks-feature-vertical-tabs-<接尾辞>` とする。インスタンス 1
-//! は `-basic`、インスタンス 2 は `-image-primary` を持つ（[`vertical_tabs`]
-//! が組み立てる `<id>-trigger-<value>`/`<id>-content-<value>` が全域で一意
-//! になるよう、接尾辞をインスタンス間で必ず変える）。
+//! 基底 id は `blocks-feature-vertical-tabs-<接尾辞>` とする。接尾辞は
+//! 選択済みタブの `value`（`build`/`deploy`/`observe`/`secure`）と同じ
+//! 文字列にする（[`vertical_tabs`] が組み立てる
+//! `<id>-trigger-<value>`/`<id>-content-<value>` が全域で一意になるよう、
+//! 接尾辞をインスタンス間で必ず変える）。
 //!
 //! # `Orientation::Vertical` を採用する理由（参照元の「Horizontal + 見た目
 //! だけ CSS」は採らない）
@@ -71,23 +83,31 @@
 //! 強調線・content の `flex: 1` をすでに持つ。lg（64rem）以上の主表示は
 //! この recipe だけで賄えるうえ、`aria-orientation="vertical"` が実際の
 //! レイアウトと一致する意味論として正しい。**lg 未満だけ** [`LAYOUT_CSS`]
-//! が横並びへ上書きする（下記「レスポンシブ」節）。
+//! が list/content の縦積みへ上書きする（下記「レスポンシブ」節）。
 //!
 //! # レスポンシブ（64rem をブレークポイントとする理由・`aria-orientation`
-//! のトレードオフ）
+//! を一貫させる設計）
 //!
-//! `< 64rem`（lg 未満）はタブ列をパネルの上へ移して横並び（横スクロール）
-//! にする。`>= 64rem` で左の縦タブ列 + 右のパネルの 2 列へ切り替える。
-//! テーマの breakpoint トークンは `@media` 条件式の中では解決できない
-//! （CSS custom property は宣言側でのみ有効）ため、
+//! `< 64rem`（lg 未満）は root を `flex-direction: column` にしてタブ列を
+//! パネルの上へ積む。`>= 64rem` で左の縦タブ列 + 右のパネルの 2 列へ
+//! 切り替える。テーマの breakpoint トークンは `@media` 条件式の中では
+//! 解決できない（CSS custom property は宣言側でのみ有効）ため、
 //! [`fandhe_frontend_pre_styled_ui::recipe::Breakpoint`] の `Lg`（1024px =
 //! 64rem）と一致するリテラル値 `63.99rem`/`64rem` を [`LAYOUT_CSS`] へ直書き
 //! する（`feature_expand`/`feature_split_list_image` と同じ判断）。
 //!
-//! **トレードオフ**: lg 未満はタブが横に並ぶが `aria-orientation` は
-//! `"vertical"` のまま残る。hydration されたページでは矢印キーの移動軸
-//! （上下）と見た目の軸（左右）が食い違うが、docs サイトは JS
-//! ハイドレーションを一切行わないため実害はない。
+//! **`aria-orientation="vertical"` を lg 未満でも崩さない理由**（#2776
+//! codex-review P2 是正）: 当初案は lg 未満でタブ列自体を横並び（横スクロール
+//! のタブバー）へ転換していたが、`list` の `data-orientation="vertical"`・
+//! `aria-orientation="vertical"` は幅に関わらず常に出力されるため、SSR
+//! 出力を読む支援技術には「vertical」と伝わるのに実際の表示は横並びという
+//! 意味論の食い違いが生じていた。docs サイトは無 JS で SSR 出力がそのまま
+//! 最終表示になるため、この食い違いは「hydration 前提の一時的な差」では
+//! なく実害のある不整合だった。是正として、lg 未満でも `list` の軸は変え
+//! ず（recipe の `data-orientation="vertical"` 規則がもたらす縦積みの
+//! ままとし）、`root` だけを `column` にしてタブ列をパネルの上へ積む形に
+//! 変更した。これにより見た目の軸（上下積み）が常に `aria-orientation=
+//! "vertical"` と一致する。
 //!
 //! # trigger 内は phrasing content だけで組む
 //!
@@ -99,9 +119,9 @@
 //! 説明用の `span[data-blocks-feature-vertical-tabs-trigger-desc]` を置き、
 //! core の `span`/`text` のみで組む。trigger の base 規則が持つ
 //! `white-space: nowrap` を [`LAYOUT_CSS`] で `normal` へ上書きし、`gap` +
-//! `flex-direction: column` で縦に積む。lg 未満の横並び時は、trigger 幅の
-//! 肥大化を避けるため説明文（`trigger-desc`）を非表示にする（タイトルだけ
-//! のタブになる）。
+//! `flex-direction: column` で縦に積む。lg 未満でもタブ列は横に伸びず
+//! 縦積みのまま（上記「レスポンシブ」節）のため、説明文
+//! （`trigger-desc`）を隠す必要はなく常に表示する。
 //!
 //! # CSS フックの選び方・詳細度の方針
 //!
@@ -385,7 +405,7 @@ fn section_header() -> Node {
                 },
                 vec![("data-blocks-feature-vertical-tabs-lead", "")],
                 vec![core_text(
-                    "左のタブを選ぶと、対応する機能の詳細が右側に表示されます。",
+                    "機能ごとにタブを選択した状態のパネルを並べて掲載しています。",
                 )],
             ),
         ],
@@ -453,7 +473,9 @@ fn detail_point(point: &DetailPoint) -> Node {
 enum PanelLayout {
     /// 既定: 見出し → 機能一覧 → 画像（#2775 と同じ、画像は下寄せ）。
     ListFirst,
-    /// 画像主体: 見出し → 画像 → 機能一覧（画像は先頭のため下マージンのみ）。
+    /// 画像主体: 見出し → 画像 → 機能一覧（画像は見出しと機能一覧の両側に
+    /// 余白を持つ。見出しは `margin: 0` のため上マージンを省くと見出しに
+    /// 密着してしまう、#2776 codex-review Medium 是正）。
     ImageFirst,
 }
 
@@ -541,24 +563,37 @@ fn vertical_tabs(id: &'static str, selected: &'static str, layout: PanelLayout) 
 }
 
 /// `feature-vertical-tabs` の Demo 本体。呼び出しごとに同一の `Node` を
-/// 返す純関数（他 block と同じ状態を持たない設計）。2 インスタンスを縦に
-/// 並べる（モジュール doc「1 つの Demo の中で 2 通りの見せ方を並記する」
-/// 節参照）。
+/// 返す純関数（他 block と同じ状態を持たない設計）。[`FEATURES`] の 4 タブ
+/// それぞれを選択済みにした 4 インスタンスを縦に並べる（モジュール doc
+/// 「全パネルを静的に読めるようにする」節参照。#2776 の codex-review P1
+/// 是正）。
 #[must_use]
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-feature-vertical-tabs-layout")],
         vec![
             section_header(),
-            variant_label("既定（機能一覧が主体・先頭タブ選択）"),
+            variant_label("ビルド（機能一覧が主体）"),
             vertical_tabs(
-                "blocks-feature-vertical-tabs-basic",
+                "blocks-feature-vertical-tabs-build",
                 "build",
                 PanelLayout::ListFirst,
             ),
-            variant_label("画像主体のパネル・別タブ選択の例"),
+            variant_label("デプロイ（画像主体）"),
             vertical_tabs(
-                "blocks-feature-vertical-tabs-image-primary",
+                "blocks-feature-vertical-tabs-deploy",
+                "deploy",
+                PanelLayout::ImageFirst,
+            ),
+            variant_label("観測（機能一覧が主体）"),
+            vertical_tabs(
+                "blocks-feature-vertical-tabs-observe",
+                "observe",
+                PanelLayout::ListFirst,
+            ),
+            variant_label("保護（画像主体）"),
+            vertical_tabs(
+                "blocks-feature-vertical-tabs-secure",
                 "secure",
                 PanelLayout::ImageFirst,
             ),
@@ -608,11 +643,19 @@ pub const BLOCK: Block = Block {
 /// `.blocks-feature-vertical-tabs-layout [data-scope="tabs"]...` の子孫
 /// セレクタを用いる（モジュール doc「CSS フックの選び方・詳細度の方針」
 /// 節）。他 block や部品の素のセレクタへは影響させない。
+///
+/// `tabs` root へ `align-items` を明示しない（`fandhe_frontend_pre_styled_ui
+/// ::tabs` の recipe 側コメントが「`flex-start` を指定すると list/content
+/// が root の高さへストレッチされず、list の `border-inline-end`
+/// （区切り線）が content 全体の高さに沿わない」と警告している既定
+/// `stretch` を上書きしないため。以前は本 block も `align-items:
+/// flex-start` を持っていたが、まさにこの区切り線が崩れる不具合を
+/// 再導入していた（#2776 codex-review Medium 是正）。
 const LAYOUT_CSS: &str = "\
 .blocks-feature-vertical-tabs-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-feature-vertical-tabs-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-vertical-tabs-lead] {\n  margin: 0;\n}\n\
-.blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"root\"] {\n  display: flex;\n  gap: var(--fandhe-space-8);\n  align-items: flex-start;\n}\n\
+.blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"root\"] {\n  display: flex;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"list\"][data-orientation=\"vertical\"] {\n  flex: 0 0 auto;\n  max-width: 20rem;\n}\n\
 .blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"content\"][data-orientation=\"vertical\"] {\n  flex: 1;\n  min-width: 0;\n}\n\
 .blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"trigger\"][data-orientation=\"vertical\"] {\n  white-space: normal;\n  text-align: start;\n  align-items: flex-start;\n}\n\
@@ -624,13 +667,10 @@ const LAYOUT_CSS: &str = "\
 .blocks-feature-vertical-tabs-point {\n  display: flex;\n  align-items: flex-start;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-feature-vertical-tabs-point-text {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-vertical-tabs-image] {\n  display: block;\n  width: 100%;\n  margin-top: var(--fandhe-space-4);\n}\n\
-[data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-vertical-tabs-image-primary] {\n  display: block;\n  width: 100%;\n  margin: 0 0 var(--fandhe-space-4);\n}\n\
+[data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-vertical-tabs-image-primary] {\n  display: block;\n  width: 100%;\n  margin: var(--fandhe-space-4) 0;\n}\n\
 @media (max-width: 63.99rem) {\n  \
 .blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"root\"] {\n    flex-direction: column;\n  }\n  \
-.blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"list\"][data-orientation=\"vertical\"] {\n    flex-direction: row;\n    max-width: none;\n    overflow-x: auto;\n    overflow-y: hidden;\n    border-inline-end: 0;\n    border-bottom: 1px solid var(--fandhe-color-border);\n    padding-bottom: 1px;\n  }\n  \
-.blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"trigger\"][data-orientation=\"vertical\"] {\n    border-inline-end: 0;\n    margin-inline-end: 0;\n    border-bottom: 2px solid transparent;\n    margin-bottom: -1px;\n    flex-shrink: 0;\n    outline-offset: -2px;\n  }\n  \
-.blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"trigger\"][data-state=\"active\"][data-orientation=\"vertical\"] {\n    border-bottom-color: var(--fandhe-palette, var(--fandhe-color-accent));\n  }\n  \
-[data-blocks-feature-vertical-tabs-trigger-desc] {\n    display: none;\n  }\n\
+.blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"list\"][data-orientation=\"vertical\"] {\n    max-width: none;\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -659,14 +699,52 @@ mod tests {
     }
 
     /// インスタンスごとに 1 タブのみが選択済み・4 パネル中 3 パネルが
-    /// `hidden` であること（2 インスタンス分、無 JS 前提の静的固定表示、
+    /// `hidden` であること（4 インスタンス分、無 JS 前提の静的固定表示、
     /// モジュール doc「無 JS での扱い」節）。
     #[test]
     fn demo_selects_first_tab_and_hides_other_panels() {
         let html = render(&demo());
-        assert_eq!(html.matches("aria-selected=\"true\"").count(), 2);
-        assert_eq!(html.matches("aria-selected=\"false\"").count(), 6);
-        assert_eq!(html.matches(" hidden").count(), 6);
+        assert_eq!(html.matches("aria-selected=\"true\"").count(), 4);
+        assert_eq!(html.matches("aria-selected=\"false\"").count(), 12);
+        assert_eq!(html.matches(" hidden").count(), 12);
+    }
+
+    /// [`super::FEATURES`] の全 4 タブが、それぞれ自分専用のインスタンス
+    /// では `hidden` を伴わない選択済み状態として出力されること（#2776
+    /// codex-review P1 是正の中核: 全パネルが静的に到達可能であることの
+    /// 固定、モジュール doc「全パネルを静的に読めるようにする」節）。各
+    /// インスタンスの id 接頭辞が選択タブの `value` と一致する設計
+    /// （「id 規約」節）のため、`id="...-<value>-content-<value>"` は
+    /// 全域でちょうど 1 回だけ現れ、それが自分専用インスタンスの選択済み
+    /// panel である。
+    #[test]
+    fn demo_makes_every_feature_panel_reachable_without_js() {
+        let html = render(&demo());
+        for tab in super::FEATURES {
+            let panel_id = format!(
+                "id=\"blocks-feature-vertical-tabs-{0}-content-{0}\"",
+                tab.value
+            );
+            let tag_start = html
+                .find(&panel_id)
+                .and_then(|panel_id_pos| html[..panel_id_pos].rfind('<'))
+                .unwrap_or_else(|| panic!("panel for {} should exist", tab.value));
+            let tag_end = html[tag_start..]
+                .find('>')
+                .map(|i| tag_start + i)
+                .expect("opening tag should close");
+            let tag = &html[tag_start..tag_end];
+            assert!(
+                tag.contains("data-state=\"active\""),
+                "panel for {} should be selected (active) in its own instance: {tag}",
+                tab.value
+            );
+            assert!(
+                !tag.contains(" hidden"),
+                "panel for {} should not be hidden in its own instance: {tag}",
+                tab.value
+            );
+        }
     }
 
     /// `data-orientation="vertical"`/`aria-orientation="vertical"` が
@@ -679,16 +757,22 @@ mod tests {
         assert!(html.contains("aria-orientation=\"vertical\""));
     }
 
-    /// 2 インスタンスそれぞれの id 接頭辞が想定どおりであること
-    /// （全域で一意になることも兼ねて確認する、モジュール doc「id 規約」
+    /// 4 インスタンスそれぞれの id 接頭辞が選択タブの `value` と一致する
+    /// こと（全域で一意になることも兼ねて確認する、モジュール doc「id 規約」
     /// 節）。
     #[test]
     fn demo_uses_expected_id_prefix() {
         let html = render(&demo());
-        assert!(html.contains("id=\"blocks-feature-vertical-tabs-basic-trigger-build\""));
-        assert!(html.contains("id=\"blocks-feature-vertical-tabs-basic-content-build\""));
-        assert!(html.contains("id=\"blocks-feature-vertical-tabs-image-primary-trigger-secure\""));
-        assert!(html.contains("id=\"blocks-feature-vertical-tabs-image-primary-content-secure\""));
+        for tab in super::FEATURES {
+            assert!(html.contains(&format!(
+                "id=\"blocks-feature-vertical-tabs-{0}-trigger-{0}\"",
+                tab.value
+            )));
+            assert!(html.contains(&format!(
+                "id=\"blocks-feature-vertical-tabs-{0}-content-{0}\"",
+                tab.value
+            )));
+        }
     }
 
     /// trigger（`<button>...</button>` の区間）が phrasing content のみで
@@ -723,10 +807,10 @@ mod tests {
             start = close + "</button>".len();
             checked += 1;
         }
-        assert_eq!(checked, 8);
+        assert_eq!(checked, 16);
     }
 
-    /// trigger アイコンが 2 インスタンス × 4 タブ分（8 件）出力されること
+    /// trigger アイコンが 4 インスタンス × 4 タブ分（16 件）出力されること
     /// （モジュール doc「trigger 先頭のアイコン」節）。
     #[test]
     fn demo_renders_trigger_icon_for_every_tab_in_every_instance() {
@@ -734,62 +818,72 @@ mod tests {
         assert_eq!(
             html.matches("data-blocks-feature-vertical-tabs-trigger-icon=\"\"")
                 .count(),
-            8
+            16
         );
     }
 
-    /// インスタンス 1（[`super::PanelLayout::ListFirst`]）は機能一覧が画像
-    /// より DOM 順で先に現れ、インスタンス 2
-    /// （[`super::PanelLayout::ImageFirst`]）は画像が機能一覧より先に現れる
-    /// こと（モジュール doc「1 つの Demo の中で 2 通りの見せ方を並記する」
-    /// 節の不変条件）。
+    /// [`super::PanelLayout::ListFirst`] のインスタンス（`build`/`observe`）
+    /// は機能一覧が画像より DOM 順で先に現れ、[`super::PanelLayout::
+    /// ImageFirst`] のインスタンス（`deploy`/`secure`）は画像が機能一覧
+    /// より先に現れること（モジュール doc「全パネルを静的に読めるように
+    /// する」節の不変条件）。
     #[test]
     fn demo_orders_panel_image_and_points_per_instance_layout() {
         let html = render(&demo());
-        let basic_start = html
-            .find("id=\"blocks-feature-vertical-tabs-basic-content-build\"")
-            .expect("instance 1 content should exist");
-        let image_primary_start = html
-            .find("id=\"blocks-feature-vertical-tabs-image-primary-content-secure\"")
-            .expect("instance 2 content should exist");
-        assert!(image_primary_start > basic_start);
-
-        let basic_panel = &html[basic_start..image_primary_start];
-        let points_index = basic_panel
-            .find("blocks-feature-vertical-tabs-points")
-            .expect("instance 1 panel should render the points list");
-        let image_index = basic_panel
-            .find("data-blocks-feature-vertical-tabs-image=\"\"")
-            .expect("instance 1 panel should render the ListFirst image hook");
-        assert!(
-            points_index < image_index,
-            "instance 1 (ListFirst) should render points before the image"
-        );
-
-        let image_primary_panel = &html[image_primary_start..];
-        let image_primary_index = image_primary_panel
-            .find("data-blocks-feature-vertical-tabs-image-primary=\"\"")
-            .expect("instance 2 panel should render the ImageFirst image hook");
-        let points_after_index = image_primary_panel
-            .find("blocks-feature-vertical-tabs-points")
-            .expect("instance 2 panel should render the points list");
-        assert!(
-            image_primary_index < points_after_index,
-            "instance 2 (ImageFirst) should render the image before points"
-        );
+        for (value, image_hook) in [
+            ("build", "data-blocks-feature-vertical-tabs-image=\"\""),
+            ("observe", "data-blocks-feature-vertical-tabs-image=\"\""),
+        ] {
+            let content_start = html
+                .find(&format!(
+                    "id=\"blocks-feature-vertical-tabs-{value}-content-{value}\""
+                ))
+                .unwrap_or_else(|| panic!("{value} content should exist"));
+            let panel = &html[content_start..];
+            let points_index = panel
+                .find("blocks-feature-vertical-tabs-points")
+                .expect("ListFirst panel should render the points list");
+            let image_index = panel
+                .find(image_hook)
+                .expect("ListFirst panel should render the image hook");
+            assert!(
+                points_index < image_index,
+                "{value} (ListFirst) should render points before the image"
+            );
+        }
+        for value in ["deploy", "secure"] {
+            let content_start = html
+                .find(&format!(
+                    "id=\"blocks-feature-vertical-tabs-{value}-content-{value}\""
+                ))
+                .unwrap_or_else(|| panic!("{value} content should exist"));
+            let panel = &html[content_start..];
+            let image_index = panel
+                .find("data-blocks-feature-vertical-tabs-image-primary=\"\"")
+                .expect("ImageFirst panel should render the ImageFirst image hook");
+            let points_index = panel
+                .find("blocks-feature-vertical-tabs-points")
+                .expect("ImageFirst panel should render the points list");
+            assert!(
+                image_index < points_index,
+                "{value} (ImageFirst) should render the image before points"
+            );
+        }
     }
 
-    /// [`LAYOUT_CSS`] が lg 未満の横並び上書き・詳細度確保の子孫セレクタを
-    /// 持つこと。
+    /// [`LAYOUT_CSS`] が lg 未満で root を縦積みへ切り替える上書きを持ち、
+    /// `list` の軸（`aria-orientation="vertical"` と一致する縦積み）を
+    /// 崩さないこと（#2776 codex-review P2 是正、モジュール doc
+    /// 「レスポンシブ」節）。
     #[test]
     fn layout_css_declares_lg_breakpoint_overrides() {
         assert!(LAYOUT_CSS.contains("@media (max-width: 63.99rem)"));
-        assert!(LAYOUT_CSS.contains(
-            "[data-scope=\"tabs\"][data-part=\"list\"][data-orientation=\"vertical\"] {\n    flex-direction: row;"
-        ));
-        assert!(LAYOUT_CSS.contains("overflow-x: auto;"));
         assert!(LAYOUT_CSS
-            .contains("[data-blocks-feature-vertical-tabs-trigger-desc] {\n    display: none;"));
+            .contains("[data-scope=\"tabs\"][data-part=\"root\"] {\n    flex-direction: column;"));
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"tabs\"][data-part=\"list\"][data-orientation=\"vertical\"] {\n    max-width: none;"
+        ));
+        assert!(!LAYOUT_CSS.contains("flex-direction: row;"));
     }
 
     /// ルート class（`demo_class` とは別名）が `demo()` の出力へ実際に
