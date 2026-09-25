@@ -872,6 +872,7 @@ pub enum LayoutCss {
 | cta-split-actions | #2758 | `marketing/cta/cta_split_actions.rs` |
 | cta-split-image | #2759 | `marketing/cta/cta_split_image.rs` |
 | feature-accordion-image | #2760/#2761 | `marketing/feature/feature_accordion_image.rs` |
+| contact-dialog-form | #2827 | `marketing/contact/contact_dialog_form.rs` |
 | feature-alternating-rows | #2763 | `marketing/feature/feature_alternating_rows.rs` |
 | contact-image-info | #2829 | `marketing/contact/contact_image_info.rs` |
 
