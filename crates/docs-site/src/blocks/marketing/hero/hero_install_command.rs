@@ -53,6 +53,19 @@
 //! addon ボタンは `clipboard` scope の外側の `input-group` パーツで
 //! あり、上記配線の対象にならないため、実アプリでも機能しない
 //! （`disabled: true` で明示する理由）。
+//!
+//! **ただし A・C を同一マウントルート内へ両方組み込んだ場合、独立には
+//! 動作しない**（レビュー指摘対応、P1、イシュー #2786 Codex 指摘）。
+//! `headless_clipboard` は「1 root : 1 状態機械契約」という簡略化
+//! （同モジュール doc の同名節参照）を持ち、`data-copied` の反映を
+//! Runtime の `mount`/`hydrate` に渡されたマウントルート配下の**全**
+//! `clipboard` パーツへ及ぼす。本 Demo のようにマウントルート配下へ
+//! A・C を両方配置した場合、一方をコピーすると他方の表示も連動して
+//! 変わる。独立した表示を求めて A/C を同時に使う場合は、それぞれを
+//! 別々のマウントルートへ分離すること（`fandhe-frontend-wasm-full`
+//! 側の簡略化自体は本 block のスコープ外であり変更しない、
+//! `.claude/rules/coding-rust.md` の意図的非採用機能の再評価基準と
+//! 同様、cross-cutting な変更は個別 Issue で評価する）。
 //! - **C（パンくず付き左寄せ・`clipboard` 形式・idle）**: R0523。
 //!   `breadcrumb` を導入要素に置き、`clipboard` の `value_text` に `code`
 //!   を重ねてコマンドを等幅表示し、`indicator` は idle 側のみ可視。
