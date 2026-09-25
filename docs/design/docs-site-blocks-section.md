@@ -835,6 +835,7 @@ pub enum LayoutCss {
 | hero-editorial-stagger | #2546 | §15, `marketing/hero/hero_editorial_stagger.rs` |
 | hero-email-signup | #2783 | `marketing/hero/hero_email_signup.rs` |
 | hero-image-tiles | #2784 | `marketing/hero/hero_image_tiles.rs` |
+| hero-marquee-strip | #2787 | `marketing/hero/hero_marquee_strip.rs` |
 | hero-parallax-layers | #2546 | §15, `marketing/hero/hero_parallax_layers.rs` |
 | hero-terminal | #2546 | §15, `marketing/hero/hero_terminal.rs` |
 | text-split-reveal | #2546 | §15, `marketing/hero/text_split_reveal.rs` |
