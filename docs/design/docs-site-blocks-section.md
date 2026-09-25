@@ -875,6 +875,7 @@ pub enum LayoutCss {
 | contact-dialog-form | #2827 | `marketing/contact/contact_dialog_form.rs` |
 | feature-alternating-rows | #2763 | `marketing/feature/feature_alternating_rows.rs` |
 | feature-large-screenshot | #2766 | `marketing/feature/feature_large_screenshot.rs` |
+| contact-image-info | #2829 | `marketing/contact/contact_image_info.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 59 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
