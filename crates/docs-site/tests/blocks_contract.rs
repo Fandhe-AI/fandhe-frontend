@@ -5785,3 +5785,99 @@ fn contact_info_columns_composes_expected_parts() {
         );
     }
 }
+
+/// contact-split-info ページが Demo class・専用 CSS を配線していること、
+/// block 固有 CSS（淡色カードの 2×2 グリッド・左見出し + 右情報の 2 カラム・
+/// ブレークポイント）が実際に出力されていることを固定する（イシュー
+/// #2835）。
+#[test]
+fn contact_split_info_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/contact-split-info/index.html"))
+        .expect("blocks/contact-split-info/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-contact-split-info\""),
+        "contact-split-info page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "contact-split-info page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "contact-split-info page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-contact-split-info-row",
+        "data-blocks-contact-split-info-tagline",
+        "data-blocks-contact-split-info-card",
+        "data-blocks-contact-split-info-card-icon",
+        "data-blocks-contact-split-info-link",
+        "data-blocks-contact-split-info-social-link",
+    ] {
+        assert!(
+            html.contains(hook),
+            "contact-split-info page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "[data-blocks-contact-split-info-row]",
+        ".blocks-contact-split-info-grid",
+        "@media (min-width: 40rem)",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// contact-split-info の合成部品（heading/text/card/icon/link）が期待どおり
+/// の構成で実際に出力されていること、行数・カード数・非対話制約を固定する
+/// （イシュー #2835。`contact_info_columns_composes_expected_parts` と同型）。
+#[test]
+fn contact_split_info_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/contact-split-info/")
+        .expect("contact-split-info should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"card\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"link\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "contact-split-info demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-contact-split-info-row").count(),
+        2,
+        "contact-split-info demo should render exactly 2 rows (contact / offices)"
+    );
+    assert_eq!(
+        html.matches("data-blocks-contact-split-info-card=\"\"")
+            .count(),
+        8,
+        "contact-split-info demo should render exactly 8 cards (4 contact items + 4 offices)"
+    );
+    for absent in [
+        "<form",
+        "src=\"data:",
+        "href=\"#\"",
+        "mailto:",
+        "tel:",
+        "id=\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "contact-split-info should never contain {absent}"
+        );
+    }
+}

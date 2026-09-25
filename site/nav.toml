@@ -1332,6 +1332,11 @@ title = "contact-info-columns"
 source = "site/blocks/contact-info-columns.md"
 path = "/blocks/contact-info-columns/"
 
+[[section.group.page]]
+title = "contact-split-info"
+source = "site/blocks/contact-split-info.md"
+path = "/blocks/contact-split-info/"
+
 [[section.group]]
 title = "Blog"
 
