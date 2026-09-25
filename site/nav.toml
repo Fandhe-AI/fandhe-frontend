@@ -1265,6 +1265,11 @@ title = "feature-side-heading-grid"
 source = "site/blocks/feature-side-heading-grid.md"
 path = "/blocks/feature-side-heading-grid/"
 
+[[section.group.page]]
+title = "feature-split-screenshot"
+source = "site/blocks/feature-split-screenshot.md"
+path = "/blocks/feature-split-screenshot/"
+
 [[section.group]]
 title = "CTA"
 
