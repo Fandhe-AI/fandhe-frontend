@@ -193,9 +193,9 @@ fn search_group(instance: &'static str, placeholder: &'static str) -> Node {
 fn popular_topics() -> Node {
     let topics: [(&str, &str); 4] = [
         ("はじめに", "../../guides/"),
-        ("料金プラン", "../../themes/badge/"),
-        ("連携機能", "../../themes/input-group/"),
-        ("キーボードショートカット", "../../primitives/"),
+        ("コンポーネント一覧", "../../themes/"),
+        ("Primitives 一覧", "../../primitives/"),
+        ("API リファレンス", "../../api/"),
     ];
     div(
         vec![("class", "blocks-hero-search-topics")],
