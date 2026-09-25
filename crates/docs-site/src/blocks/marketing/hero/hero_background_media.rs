@@ -43,6 +43,31 @@
 //! （`#`/`white` 等）は使わず、可読性の確保は完全にトークンへ委ねる
 //! 設計上の既知の挙動であり、原稿の差分メモにも明記する。
 //!
+//! # secondary CTA の反転色も詳細度対策が要る
+//!
+//! `[data-blocks-hero-background-media-cta-secondary]` 単体（属性セレクタ
+//! 1 個、詳細度 0,1,0）では `button::button` の Outline variant セレクタ
+//! `[data-scope="button"][data-part="root"].fd-button--variant-outline`
+//! （属性 2 個 + クラス 1 個、詳細度 0,3,0）に確実に負け、反転スクリム上で
+//! secondary ボタンが `--fandhe-palette`（既定 accent）のまま残ってしまう。
+//! 上記「背景画像は共通ダミー素材」節と同じ理由・同じ解法（base と同じ
+//! セレクタへ前置する）で、こちらは `[data-scope="button"][data-part=
+//! "root"]` を前置して詳細度 0,3,0 に揃える（同値のため `!important` は
+//! 使わない。CSS 出力順は showcase の `pre-styled-ui.css` → blocks の
+//! `assets/blocks.css` の順で `<link>` するため（`crate::build` 参照）、
+//! 同値セレクタは後勝ちで確実に本 block 側が勝つ。同型の判断は
+//! `fandhe_frontend_pre_styled_ui::marquee` の「0,2,0 でソース順末尾に出る
+//! ため `!important` なしで確実に後勝ちする」注記と同じ）。
+//!
+//! # bottom-split の `split-side` にも gap が要る
+//!
+//! `text::text` の recipe は既定で `margin: 0` を持つため、`.blocks-hero-
+//! background-media-split-side`（lead 文 + CTA 群を包む div）に gap を
+//! 与えないと両者が密着する。centered バリアントの
+//! `.blocks-hero-background-media-content` は既に `gap: 1rem` を持つため、
+//! 対称性のため `.blocks-hero-background-media-split-side` にも同じ
+//! `display: grid; gap: 1rem;` を与える。
+//!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
 //! `badge::badge`/`heading::heading`/`text::text`/`button::button`/
@@ -295,10 +320,11 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-hero-background-media-image] {\n  width: 100%;\n  height: 100%;\n  display: block;\n}\n\
 .blocks-hero-background-media-scrim {\n  position: absolute;\n  inset: 0;\n  background: color-mix(in srgb, var(--fandhe-color-fg) 64%, transparent);\n}\n\
 [data-blocks-hero-background-media-title],\n[data-blocks-hero-background-media-lead] {\n  color: inherit;\n}\n\
-[data-blocks-hero-background-media-cta-secondary] {\n  color: inherit;\n  border-color: currentColor;\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-hero-background-media-cta-secondary] {\n  color: inherit;\n  border-color: currentColor;\n}\n\
 [data-blocks-hero-background-media-variant=\"centered\"] .blocks-hero-background-media-content {\n  text-align: center;\n  align-items: center;\n  max-width: 48rem;\n  margin-inline: auto;\n  display: grid;\n  gap: 1rem;\n}\n\
 [data-blocks-hero-background-media-variant=\"bottom-split\"] {\n  align-content: end;\n}\n\
 [data-blocks-hero-background-media-variant=\"bottom-split\"] .blocks-hero-background-media-content {\n  display: grid;\n  gap: 1.25rem;\n}\n\
+.blocks-hero-background-media-split-side {\n  display: grid;\n  gap: 1rem;\n}\n\
 .blocks-hero-background-media-actions {\n  display: flex;\n  gap: 0.75rem;\n  flex-wrap: wrap;\n}\n\
 [data-blocks-hero-background-media-variant=\"centered\"] .blocks-hero-background-media-actions {\n  justify-content: center;\n}\n\
 @media (min-width: 64rem) {\n  [data-blocks-hero-background-media-variant=\"bottom-split\"] .blocks-hero-background-media-content {\n    display: grid;\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n    align-items: end;\n  }\n}\n";
@@ -360,9 +386,10 @@ mod tests {
             ".blocks-hero-background-media-backdrop {",
             "[data-scope=\"image\"][data-part=\"root\"][data-blocks-hero-background-media-image] {",
             ".blocks-hero-background-media-scrim {",
-            "[data-blocks-hero-background-media-cta-secondary] {",
+            "[data-scope=\"button\"][data-part=\"root\"][data-blocks-hero-background-media-cta-secondary] {",
             "[data-blocks-hero-background-media-variant=\"centered\"] .blocks-hero-background-media-content {",
             "[data-blocks-hero-background-media-variant=\"bottom-split\"] {",
+            ".blocks-hero-background-media-split-side {",
             "@media (min-width: 64rem) {",
         ] {
             assert!(
