@@ -234,6 +234,7 @@ jobs:
           # Marketing / Feature
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-accordion-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-expand/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-four-column-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-alternating-rows/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-side-heading-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-image-cards/index.html"
@@ -261,6 +262,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-form-testimonial/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-image-info/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-info-columns/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-split-form-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-split-form-info/index.html"
           # Marketing / Newsletter
           # Marketing / Blog
@@ -297,6 +299,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/comparison-cards/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/comparison-feature-rows/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/comparison-split-table/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/comparison-table/index.html"
           # Marketing / Careers
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/careers-card-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/careers-split-accordion/index.html"
@@ -311,6 +314,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/error-page-centered/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/error-page-split-links/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/error-page-popular-links/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/error-page-split-image/index.html"
           # Marketing / Gallery
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/gallery-image-grid/index.html"
           # Marketing / Section Heading
