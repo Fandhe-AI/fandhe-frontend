@@ -1345,6 +1345,11 @@ title = "content-split-image"
 source = "site/blocks/content-split-image.md"
 path = "/blocks/content-split-image/"
 
+[[section.group.page]]
+title = "content-with-testimonial"
+source = "site/blocks/content-with-testimonial.md"
+path = "/blocks/content-with-testimonial/"
+
 [[section.group]]
 title = "Footer"
 
