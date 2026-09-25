@@ -5532,6 +5532,43 @@ fn contact_dialog_form_page_wires_demo_class_and_css_hooks() {
     }
 }
 
+/// contact-form-testimonial の Demo ラッパ・CSS 配線・block 固有 CSS（md/lg
+/// ブレークポイント・全幅送信ボタン・全幅本文欄）が実際に出力されている
+/// ことを固定する（イシュー #2828）。
+#[test]
+fn contact_form_testimonial_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/contact-form-testimonial/index.html"))
+        .expect("blocks/contact-form-testimonial/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-contact-form-testimonial\""),
+        "contact-form-testimonial page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "contact-form-testimonial page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "contact-form-testimonial page should link the Blocks-specific stylesheet"
+    );
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "@media (min-width: 64rem)",
+        "@media (min-width: 48rem)",
+        "[data-scope=\"button\"][data-part=\"root\"][data-blocks-contact-form-testimonial-submit]",
+        "[data-scope=\"image\"][data-part=\"root\"][data-blocks-contact-form-testimonial-photo]",
+        "[data-blocks-contact-form-testimonial-field-wide]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
 /// contact-image-info の合成部品（heading/text/image/icon/link）が
 /// 期待どおりの構成で実際に出力されていること、`tel:`/`mailto:`
 /// リンク・住所リンクの `rel="noopener noreferrer"` を持つこと、
@@ -5600,6 +5637,55 @@ fn contact_dialog_form_composes_expected_parts() {
         assert!(
             !html.contains(absent),
             "contact-dialog-form should never contain {absent}"
+        );
+    }
+}
+
+/// contact-form-testimonial の合成部品（heading/text/field/input/textarea/
+/// button/blockquote/image/icon）が期待どおりの構成で実際に出力されて
+/// いること、`<form>`・`data:` URI・`href="#"` を持ち込んでいないことを
+/// 固定する（イシュー #2828）。
+#[test]
+fn contact_form_testimonial_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/contact-form-testimonial/index.html"))
+        .expect("blocks/contact-form-testimonial/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"field\"",
+        "data-scope=\"blockquote\"",
+        "data-scope=\"image\"",
+        "data-scope=\"button\"",
+        "data-scope=\"icon\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "contact-form-testimonial page should contain {scope}"
+        );
+    }
+    assert!(
+        html.contains("data-part=\"input\""),
+        "contact-form-testimonial page should render field/input parts"
+    );
+    assert!(
+        html.contains("data-part=\"textarea\""),
+        "contact-form-testimonial page should render field/textarea part"
+    );
+    assert_eq!(
+        html.matches("<img").count(),
+        1,
+        "contact-form-testimonial should render exactly 1 image (testimonial photo)"
+    );
+    assert_eq!(
+        html.matches("<textarea").count(),
+        1,
+        "contact-form-testimonial should render exactly 1 textarea"
+    );
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "contact-form-testimonial should never contain {absent}"
         );
     }
 }

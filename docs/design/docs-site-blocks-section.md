@@ -874,6 +874,7 @@ pub enum LayoutCss {
 | feature-accordion-image | #2760/#2761/#2762 | `marketing/feature/feature_accordion_image.rs` |
 | contact-dialog-form | #2827 | `marketing/contact/contact_dialog_form.rs` |
 | feature-alternating-rows | #2763 | `marketing/feature/feature_alternating_rows.rs` |
+| contact-form-testimonial | #2828 | `marketing/contact/contact_form_testimonial.rs` |
 | feature-image-cards | #2765 | `marketing/feature/feature_image_cards.rs` |
 | feature-large-screenshot | #2766 | `marketing/feature/feature_large_screenshot.rs` |
 | contact-image-info | #2829 | `marketing/contact/contact_image_info.rs` |
