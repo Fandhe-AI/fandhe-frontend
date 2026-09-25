@@ -26,6 +26,13 @@
 //! しない（過剰なブレークポイント設計をしない判断、`gallery_masonry`
 //! 等と同型）。
 //!
+//! `overflow: hidden` の clip 境界は padding-box（`padding` はクリップ
+//! 領域の内側）であるため、`.blocks-hero-image-tiles-collage` に
+//! `padding-inline: var(--fandhe-space-3)` を持たせ、両端のタイルの
+//! `box-shadow`（後述）がクリップされず表示される余白を確保する
+//! （PR #3236 レビュー指摘。列の縦方向オフセットは padding-top のみで
+//! 縦のはみ出しを意図的にクリップするため、縦方向には余白を追加しない）。
+//!
 //! # タイルの角丸・影はラッパ `div` に集約する
 //!
 //! `image::image` 自体は既定 [`ImageShape::Square`] のまま使い、角丸・
@@ -209,7 +216,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-hero-image-tiles-grid {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-hero-image-tiles-copy {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-hero-image-tiles-actions {\n  display: flex;\n  gap: var(--fandhe-space-3);\n  flex-wrap: wrap;\n}\n\
-.blocks-hero-image-tiles-collage {\n  display: flex;\n  gap: var(--fandhe-space-4);\n  overflow: hidden;\n}\n\
+.blocks-hero-image-tiles-collage {\n  display: flex;\n  gap: var(--fandhe-space-4);\n  overflow: hidden;\n  padding-inline: var(--fandhe-space-3);\n}\n\
 .blocks-hero-image-tiles-column {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  flex: 1 1 0;\n  min-width: 0;\n}\n\
 .blocks-hero-image-tiles-column[data-blocks-hero-image-tiles-column=\"1\"] {\n  padding-top: var(--fandhe-space-12);\n}\n\
 .blocks-hero-image-tiles-column[data-blocks-hero-image-tiles-column=\"2\"] {\n  padding-top: var(--fandhe-space-6);\n}\n\
@@ -277,5 +284,15 @@ mod tests {
         assert!(LAYOUT_CSS.contains("overflow: hidden"));
         assert!(LAYOUT_CSS.contains("var(--fandhe-radius-xl)"));
         assert!(LAYOUT_CSS.contains("var(--fandhe-shadow-lg)"));
+    }
+
+    /// PR #3236 レビュー指摘の回帰: `.blocks-hero-image-tiles-collage` の
+    /// `overflow: hidden` が両端タイルの `box-shadow` まで切り落とさない
+    /// よう、padding-box 内側に余白（`padding-inline`）を持つこと。
+    #[test]
+    fn collage_reserves_padding_for_tile_shadow_inside_overflow_clip() {
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-hero-image-tiles-collage {\n  display: flex;\n  gap: var(--fandhe-space-4);\n  overflow: hidden;\n  padding-inline: var(--fandhe-space-3);\n}"
+        ));
     }
 }
