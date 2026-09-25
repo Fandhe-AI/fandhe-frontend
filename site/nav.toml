@@ -1565,9 +1565,22 @@ source = "site/blocks/error-page-centered.md"
 path = "/blocks/error-page-centered/"
 
 [[section.group.page]]
+title = "error-page-popular-links"
+source = "site/blocks/error-page-popular-links.md"
+path = "/blocks/error-page-popular-links/"
+
+[[section.group.page]]
 title = "error-page-split-image"
 source = "site/blocks/error-page-split-image.md"
 path = "/blocks/error-page-split-image/"
+
+[[section.group]]
+title = "Gallery"
+
+[[section.group.page]]
+title = "gallery-image-grid"
+source = "site/blocks/gallery-image-grid.md"
+path = "/blocks/gallery-image-grid/"
 
 [[section.group]]
 title = "Sidebar"
