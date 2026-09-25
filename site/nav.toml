@@ -1250,6 +1250,11 @@ title = "feature-expand"
 source = "site/blocks/feature-expand.md"
 path = "/blocks/feature-expand/"
 
+[[section.group.page]]
+title = "feature-large-screenshot"
+source = "site/blocks/feature-large-screenshot.md"
+path = "/blocks/feature-large-screenshot/"
+
 [[section.group]]
 title = "CTA"
 
