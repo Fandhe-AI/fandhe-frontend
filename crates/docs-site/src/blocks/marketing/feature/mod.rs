@@ -5,9 +5,10 @@
 //! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
 //! ための構造、イシュー #2734）。
 
+mod feature_accordion_image;
 mod feature_expand;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![feature_expand::BLOCK]
+    vec![feature_accordion_image::BLOCK, feature_expand::BLOCK]
 }
