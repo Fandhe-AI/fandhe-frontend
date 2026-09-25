@@ -13,9 +13,11 @@
 //! 本ファイルは空雛形（`Vec::new()` を返すだけ）から卒業した
 //! （`docs/design/docs-site-blocks-section.md` §18 の卒業手順）。イシュー
 //! #2829 で 2 件目の block（`contact_image_info`）、イシュー #2830 で
-//! 3 件目の block（`contact_info_columns`）を追加した。
+//! 3 件目の block（`contact_info_columns`）、イシュー #2828 で 4 件目の
+//! block（[`contact_form_testimonial`]）を追加した。
 
 mod contact_dialog_form;
+mod contact_form_testimonial;
 mod contact_image_info;
 mod contact_info_columns;
 
@@ -26,5 +28,6 @@ pub(super) fn blocks() -> Vec<Block> {
         contact_dialog_form::BLOCK,
         contact_image_info::BLOCK,
         contact_info_columns::BLOCK,
+        contact_form_testimonial::BLOCK,
     ]
 }
