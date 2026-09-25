@@ -872,9 +872,10 @@ pub enum LayoutCss {
 | cta-split-actions | #2758 | `marketing/cta/cta_split_actions.rs` |
 | cta-split-image | #2759 | `marketing/cta/cta_split_image.rs` |
 | feature-accordion-image | #2760/#2761/#2762 | `marketing/feature/feature_accordion_image.rs` |
+| feature-alternating-rows | #2763 | `marketing/feature/feature_alternating_rows.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-56 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+58 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を

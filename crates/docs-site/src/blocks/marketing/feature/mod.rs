@@ -6,9 +6,14 @@
 //! ための構造、イシュー #2734）。
 
 mod feature_accordion_image;
+mod feature_alternating_rows;
 mod feature_expand;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![feature_accordion_image::BLOCK, feature_expand::BLOCK]
+    vec![
+        feature_accordion_image::BLOCK,
+        feature_alternating_rows::BLOCK,
+        feature_expand::BLOCK,
+    ]
 }
