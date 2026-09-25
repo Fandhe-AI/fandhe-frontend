@@ -9,6 +9,7 @@ mod cta_banner_magnetic;
 mod cta_feature_links;
 mod cta_signup_celebrate;
 mod cta_split_actions;
+mod cta_split_image;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
@@ -17,5 +18,6 @@ pub(super) fn blocks() -> Vec<Block> {
         cta_feature_links::BLOCK,
         cta_signup_celebrate::BLOCK,
         cta_split_actions::BLOCK,
+        cta_split_image::BLOCK,
     ]
 }

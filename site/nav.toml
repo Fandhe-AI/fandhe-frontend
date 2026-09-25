@@ -1263,6 +1263,11 @@ title = "cta-split-actions"
 source = "site/blocks/cta-split-actions.md"
 path = "/blocks/cta-split-actions/"
 
+[[section.group.page]]
+title = "cta-split-image"
+source = "site/blocks/cta-split-image.md"
+path = "/blocks/cta-split-image/"
+
 [[section.group]]
 title = "Pricing"
 
