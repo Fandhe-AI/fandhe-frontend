@@ -211,7 +211,19 @@ fn header(
 /// と同型の判断で `alt` を空文字列にしない。個々の作品を区別できる
 /// 実データを持たない静的デモのため、1-origin の連番を差し込んだ
 /// `"作品{n}の画像"` を alt として与える（実企業名・PII は含まない）。
-fn slide(index: usize, count: usize, dim: bool) -> Node {
+///
+/// レビュー指摘対応（Codex P2、PR #3215）: `visible`（同時表示枚数、
+/// `gallery` の `per_view` をそのまま受け渡す）未満の index のみ
+/// `carousel::item` へ `current: true` を渡す。`carousel::item` は
+/// `current` を `data-current` と `data-inview`（headless-ui モジュール
+/// doc「本実装は 1 スライド表示固定のため `current` と同値で出力する」）
+/// の双方へ反映するため、以前は index 0 のみ固定で `current: true` と
+/// なっていた B/C 形（lg で 2/3 枚同時表示）で、CSS
+/// （`--fandhe-carousel-item-basis`）が実際に可視化する 2/3 枚のうち
+/// 2 枚目以降に `data-inview` が付かず、可視スライド数と「表示中」を
+/// 示す属性が食い違っていた。`visible` を可視枚数と一致させることで
+/// 静的デモの見た目と属性を揃える。
+fn slide(index: usize, count: usize, visible: usize, dim: bool) -> Node {
     let sources = [
         dummy_assets::PRODUCT_SRC,
         dummy_assets::BACKGROUND_SRC,
@@ -228,7 +240,7 @@ fn slide(index: usize, count: usize, dim: bool) -> Node {
         Orientation::Horizontal,
         index,
         count,
-        index == 0,
+        index < visible,
         attrs,
         vec![image(
             &ImageProps {
@@ -245,7 +257,16 @@ fn slide(index: usize, count: usize, dim: bool) -> Node {
 /// carousel 1 個分（control 行 + indicator 群）を組み立てる。`label` は
 /// [`carousel::root`] の `aria-label` に渡す意味のある文言、`count` は
 /// スライド枚数、`variant_attr` は per-view/peek を表す `data-*`、
-/// `dim_next` は D 形専用（2 枚目を半透明近似にする）フラグ。
+/// `dim_next` は D 形専用（2 枚目を半透明近似にする）フラグ。`visible` は
+/// 同時に「表示中」として扱うスライド・インジケーターの枚数（先頭から
+/// `visible` 件、A/D 形は 1、B 形は 2、C 形は 3）。
+///
+/// レビュー指摘対応（Codex P2、PR #3215）: `indicator` は本 block では
+/// スライド 1 件につき 1 個（`count` 件）で、per-view の「ページ」単位
+/// ではなく個々のスライドと 1:1 対応する。[`slide`] 側で `visible` 件を
+/// `current`（`data-inview`/`data-current`）にする修正と対称になるよう、
+/// 対応する先頭 `visible` 件の `indicator` にも同じ集合で
+/// `current: true`（`aria-current`/`data-current`）を揃える。
 ///
 /// レビュー指摘対応（P1）: docs サイトは無 JS でスライド送りを実装
 /// しない（モジュール doc「`<form>` を持たない・データ取得/送信を行わ
@@ -264,17 +285,18 @@ fn gallery(
     label: &'static str,
     count: usize,
     variant_attr: (&'static str, &'static str),
+    visible: usize,
     dim_next: bool,
 ) -> Node {
     let slides: Vec<Node> = (0..count)
-        .map(|i| slide(i, count, dim_next && i == 1))
+        .map(|i| slide(i, count, visible, dim_next && i == 1))
         .collect();
     let indicators: Vec<Node> = (0..count)
         .map(|i| {
             carousel::indicator(
                 Orientation::Horizontal,
                 i,
-                i == 0,
+                i < visible,
                 vec![
                     ("disabled", ""),
                     ("data-blocks-gallery-carousel-indicator", ""),
@@ -341,6 +363,7 @@ fn variant_basic() -> Node {
                 "作品ギャラリー（1 枚表示）",
                 6,
                 ("data-blocks-gallery-carousel-per-view", "1"),
+                1,
                 false,
             ),
         ],
@@ -362,6 +385,7 @@ fn variant_two_up() -> Node {
                 "作品ギャラリー（2 枚表示）",
                 6,
                 ("data-blocks-gallery-carousel-per-view", "2"),
+                2,
                 false,
             ),
         ],
@@ -383,6 +407,7 @@ fn variant_three_up() -> Node {
                 "作品ギャラリー（3 枚表示）",
                 6,
                 ("data-blocks-gallery-carousel-per-view", "3"),
+                3,
                 false,
             ),
         ],
@@ -404,6 +429,7 @@ fn variant_peek() -> Node {
                 "作品ギャラリー（次の画像を覗かせる表示）",
                 6,
                 ("data-blocks-gallery-carousel-peek", ""),
+                1,
                 true,
             ),
         ],
@@ -553,13 +579,31 @@ mod tests {
         assert_eq!(html.matches("aria-roledescription=\"carousel\"").count(), 4);
     }
 
-    /// 各インスタンスで 1 枚目が選択済み（`data-current`）で、対応する
-    /// インジケーターも `aria-current` を持つこと（静的表示の不変条件）。
+    /// 各インスタンスで先頭 `visible` 枚（A/D 形は 1・B 形は 2・C 形は 3）が
+    /// 選択済み（`data-current`）で、対応するインジケーターも同数
+    /// `aria-current` を持つこと（静的表示の不変条件。レビュー指摘対応
+    /// （Codex P2、PR #3215）: 表示枚数と選択済み状態を一致させる、
+    /// `gallery`/`slide` 関数 doc 参照）。
+    ///
+    /// 内訳: `data-current` は item + indicator の合計で
+    /// A(1+1) + B(2+2) + C(3+3) + D(1+1) = 14 件。`aria-current="true"` は
+    /// indicator のみが出力するため A(1) + B(2) + C(3) + D(1) = 7 件。
     #[test]
     fn demo_selects_first_slide_by_default() {
         let html = render(&demo());
-        assert_eq!(html.matches("data-current").count(), 8);
-        assert_eq!(html.matches("aria-current=\"true\"").count(), 4);
+        assert_eq!(html.matches("data-current").count(), 14);
+        assert_eq!(html.matches("aria-current=\"true\"").count(), 7);
+    }
+
+    /// 表示枚数に応じて可視スライド全てに `data-inview` が付与されること
+    /// （レビュー指摘対応、Codex P2、PR #3215: 以前は index 0 のみ固定で
+    /// `data-inview` が付き、CSS で実際に可視化する B/C 形の 2/3 枚と
+    /// 食い違っていた）。`data-inview` は item のみが出力するため
+    /// A(1) + B(2) + C(3) + D(1) = 7 件。
+    #[test]
+    fn demo_marks_all_visible_slides_inview() {
+        let html = render(&demo());
+        assert_eq!(html.matches("data-inview").count(), 7);
     }
 
     /// prev-trigger は先頭スライド固定のため、4 インスタンスすべてで

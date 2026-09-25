@@ -1572,6 +1572,11 @@ title = "gallery-carousel"
 source = "site/blocks/gallery-carousel.md"
 path = "/blocks/gallery-carousel/"
 
+[[section.group.page]]
+title = "gallery-image-grid"
+source = "site/blocks/gallery-image-grid.md"
+path = "/blocks/gallery-image-grid/"
+
 [[section.group]]
 title = "Sidebar"
 
