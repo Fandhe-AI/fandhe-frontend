@@ -6,10 +6,10 @@
 //! （`docs/design/motion-reference-adoption-policy.md` §9 と同じライセンス
 //! 上の転記制限）。
 //!
-//! **Marketing / Comparison カテゴリで 3 番目の block**（`super`
+//! **Marketing / Comparison カテゴリで 4 番目の block**（`super`
 //! （`comparison/mod.rs`）参照。1 番目は [`super::comparison_feature_rows`]
 //! （イシュー #2823）、2 番目は [`super::comparison_cards`]（イシュー
-//! #2822））。
+//! #2822）、3 番目は [`super::comparison_split_table`]（イシュー #2824））。
 //!
 //! [`super::comparison_cards`] がカード並びで機能可否を示すのに対し、本
 //! block は列見出しに製品を並べ、機能を行とする表形式で比較する点が異なる。
