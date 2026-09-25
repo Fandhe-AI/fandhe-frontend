@@ -336,8 +336,8 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-newsletter-split-tone=\"accent\"] [data-scope=\"button\"][data-part=\"root\"][data-blocks-newsletter-split-submit] {\n  background: var(--fandhe-color-accent-fg);\n  color: var(--fandhe-color-accent);\n}\n\
 [data-blocks-newsletter-split-tone=\"card\"] [data-scope=\"button\"][data-part=\"root\"][data-blocks-newsletter-split-submit] {\n  background: var(--fandhe-color-bg);\n  color: var(--fandhe-color-fg);\n}\n\
 @media (min-width: 40rem) {\n  .blocks-newsletter-split-controls {\n    flex-direction: row;\n  }\n}\n\
-@media (min-width: 64rem) {\n  [data-blocks-newsletter-split-row] {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n  }\n}\n\
-@media (min-width: 80rem) {\n  [data-blocks-newsletter-split-tone=\"card\"] {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n  }\n}\n";
+@media (min-width: 64rem) {\n  [data-blocks-newsletter-split-row] {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n  }\n  [data-blocks-newsletter-split-row][data-blocks-newsletter-split-tone=\"card\"] {\n    grid-template-columns: 1fr;\n  }\n}\n\
+@media (min-width: 80rem) {\n  [data-blocks-newsletter-split-row][data-blocks-newsletter-split-tone=\"card\"] {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
