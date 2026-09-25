@@ -1288,6 +1288,11 @@ source = "site/blocks/blog-featured-with-list.md"
 path = "/blocks/blog-featured-with-list/"
 
 [[section.group.page]]
+title = "blog-grid-image"
+source = "site/blocks/blog-grid-image.md"
+path = "/blocks/blog-grid-image/"
+
+[[section.group.page]]
 title = "blog-grid-text"
 source = "site/blocks/blog-grid-text.md"
 path = "/blocks/blog-grid-text/"
@@ -1394,6 +1399,11 @@ path = "/blocks/comparison-feature-rows/"
 
 [[section.group]]
 title = "Careers"
+
+[[section.group.page]]
+title = "careers-card-grid"
+source = "site/blocks/careers-card-grid.md"
+path = "/blocks/careers-card-grid/"
 
 [[section.group.page]]
 title = "careers-split-photo-list"

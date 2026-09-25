@@ -250,6 +250,7 @@ jobs:
           # Marketing / Blog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-featured-article/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-featured-with-list/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-grid-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-grid-text/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-list-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-overlay-cards/index.html"
@@ -275,6 +276,7 @@ jobs:
           # Marketing / Comparison
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/comparison-feature-rows/index.html"
           # Marketing / Careers
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/careers-card-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/careers-split-photo-list/index.html"
           # Marketing / Changelog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/changelog-accordion/index.html"
