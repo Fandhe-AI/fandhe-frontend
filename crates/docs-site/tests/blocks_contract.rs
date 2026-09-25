@@ -4981,6 +4981,90 @@ fn comparison_feature_rows_composes_expected_parts() {
     }
 }
 
+/// comparison-split-table ページが Demo class・両 CSS ファイルへのリンク・
+/// 見出しブロック/比較表の CSS フックを配線していること（イシュー
+/// #2824）。
+#[test]
+fn comparison_split_table_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/comparison-split-table/index.html"))
+        .expect("blocks/comparison-split-table/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-comparison-split-table\""),
+        "comparison-split-table page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "comparison-split-table page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "comparison-split-table page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-comparison-split-table-root=\"\"",
+        "data-blocks-comparison-split-table-scroll=\"\"",
+        "data-blocks-comparison-split-table-table=\"\"",
+        "data-blocks-comparison-split-table-row=\"\"",
+        "data-blocks-comparison-split-table-feature=\"\"",
+        "data-blocks-comparison-split-table-feature-name=\"\"",
+        "data-blocks-comparison-split-table-feature-note=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "comparison-split-table page should contain {hook}"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "@media (min-width: 64rem)",
+        "[data-blocks-comparison-split-table-root]",
+        "[data-blocks-comparison-split-table-scroll]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare {selector} for comparison-split-table"
+        );
+    }
+}
+
+/// comparison-split-table の合成部品（heading/text/badge/button/table/icon
+/// の 6 種）が期待どおり出力されていること、`<form>`・`href="#"`・
+/// `data:` URI を持ち込んでいないこと、ボタンが `type="button"` を
+/// 持つことを固定する（イシュー #2824）。
+#[test]
+fn comparison_split_table_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/comparison-split-table/index.html"))
+        .expect("blocks/comparison-split-table/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"button\"",
+        "data-scope=\"table\"",
+        "data-scope=\"icon\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "comparison-split-table page should contain {scope}"
+        );
+    }
+    assert!(
+        html.contains("type=\"button\""),
+        "comparison-split-table page should render buttons with type=\"button\""
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "comparison-split-table should never contain {absent}"
+        );
+    }
+}
+
 /// cta-feature-links ページが Demo class・専用 CSS を配線していること
 /// （イシュー #2757）。
 #[test]

@@ -1438,6 +1438,11 @@ source = "site/blocks/comparison-feature-rows.md"
 path = "/blocks/comparison-feature-rows/"
 
 [[section.group.page]]
+title = "comparison-split-table"
+source = "site/blocks/comparison-split-table.md"
+path = "/blocks/comparison-split-table/"
+
+[[section.group.page]]
 title = "comparison-table"
 source = "site/blocks/comparison-table.md"
 path = "/blocks/comparison-table/"
