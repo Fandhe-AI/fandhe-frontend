@@ -232,6 +232,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-terminal/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/text-split-reveal/index.html"
           # Marketing / Feature
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-accordion-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-expand/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-alternating-rows/index.html"
           # Marketing / Cta
