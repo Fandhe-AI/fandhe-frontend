@@ -1238,6 +1238,11 @@ source = "site/blocks/hero-image-tiles.md"
 path = "/blocks/hero-image-tiles/"
 
 [[section.group.page]]
+title = "hero-marquee-strip"
+source = "site/blocks/hero-marquee-strip.md"
+path = "/blocks/hero-marquee-strip/"
+
+[[section.group.page]]
 title = "hero-parallax-layers"
 source = "site/blocks/hero-parallax-layers.md"
 path = "/blocks/hero-parallax-layers/"
