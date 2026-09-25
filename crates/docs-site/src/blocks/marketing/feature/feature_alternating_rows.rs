@@ -289,14 +289,16 @@ const LAYOUT_CSS: &str = "\
 .blocks-feature-alternating-rows-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n}\n\
 .blocks-feature-alternating-rows-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  align-items: center;\n  text-align: center;\n  max-width: 48rem;\n  margin: 0 auto;\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-alternating-rows-lead] {\n  margin: 0;\n}\n\
-.blocks-feature-alternating-rows-rows {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
-[data-scope=\"separator\"][data-part=\"root\"][data-blocks-feature-alternating-rows-rule] {\n  margin: 0;\n}\n\
-.blocks-feature-alternating-rows-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  padding-top: var(--fandhe-space-8);\n}\n\
+.blocks-feature-alternating-rows-rows {\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n}\n\
+[data-scope=\"separator\"][data-part=\"root\"][data-blocks-feature-alternating-rows-rule] {\n  margin: var(--fandhe-space-8) 0 var(--fandhe-space-6) 0;\n}\n\
+[data-scope=\"separator\"][data-part=\"root\"][data-blocks-feature-alternating-rows-rule]:first-child {\n  margin-top: 0;\n}\n\
+.blocks-feature-alternating-rows-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-feature-alternating-rows-text {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  min-width: 0;\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-alternating-rows-desc] {\n  margin: 0;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-alternating-rows-image] {\n  display: block;\n  width: 100%;\n}\n\
 @media (min-width: 64rem) {\n  \
-.blocks-feature-alternating-rows-row {\n    display: grid;\n    grid-template-columns: repeat(12, minmax(0, 1fr));\n    column-gap: var(--fandhe-space-8);\n    align-items: center;\n    padding-top: var(--fandhe-space-10);\n  }\n  \
+.blocks-feature-alternating-rows-row {\n    display: grid;\n    grid-template-columns: repeat(12, minmax(0, 1fr));\n    column-gap: var(--fandhe-space-8);\n    align-items: center;\n  }\n  \
+[data-scope=\"separator\"][data-part=\"root\"][data-blocks-feature-alternating-rows-rule] {\n    margin-top: var(--fandhe-space-10);\n  }\n  \
 .blocks-feature-alternating-rows-row > .blocks-feature-alternating-rows-text {\n    grid-column: 1 / span 5;\n    grid-row: 1;\n  }\n  \
 .blocks-feature-alternating-rows-row > .blocks-feature-alternating-rows-media {\n    grid-column: 6 / span 7;\n    grid-row: 1;\n  }\n  \
 .blocks-feature-alternating-rows-row[data-blocks-feature-alternating-rows-reverse] > .blocks-feature-alternating-rows-text {\n    grid-column: 8 / span 5;\n  }\n  \
