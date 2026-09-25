@@ -241,6 +241,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-split-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-split-list-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-vertical-tabs/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-split-screenshot/index.html"
           # Marketing / Cta
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-banner-magnetic/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-feature-links/index.html"
@@ -307,6 +308,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/changelog-timeline/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/changelog-timeline-subscribe/index.html"
           # Marketing / Error Page
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/error-page-background-image/index.html"
           # Marketing / Gallery
           # Marketing / Section Heading
           # Application / App Shell

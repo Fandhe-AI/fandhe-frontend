@@ -1276,6 +1276,11 @@ source = "site/blocks/feature-split-list-image.md"
 path = "/blocks/feature-split-list-image/"
 
 [[section.group.page]]
+title = "feature-split-screenshot"
+source = "site/blocks/feature-split-screenshot.md"
+path = "/blocks/feature-split-screenshot/"
+
+[[section.group.page]]
 title = "feature-vertical-tabs"
 source = "site/blocks/feature-vertical-tabs.md"
 path = "/blocks/feature-vertical-tabs/"
@@ -1550,6 +1555,14 @@ path = "/blocks/changelog-timeline-subscribe/"
 title = "changelog-timeline"
 source = "site/blocks/changelog-timeline.md"
 path = "/blocks/changelog-timeline/"
+
+[[section.group]]
+title = "Error Page"
+
+[[section.group.page]]
+title = "error-page-background-image"
+source = "site/blocks/error-page-background-image.md"
+path = "/blocks/error-page-background-image/"
 
 [[section.group]]
 title = "Sidebar"
