@@ -64,7 +64,7 @@ pub const MAX_PAGE_TEXT_BYTES: usize = 4096;
 /// #2751（`content-article` block 追加、Marketing / Content カテゴリの
 /// 最初の block）を base 取り込みで合流させた時点でも実測は現在値
 /// （1.625 MiB）の範囲内（80% 未満）に収まっており、ハードルールに抵触
-/// せず `MAX_INDEX_BYTES` の追加引き上げは不要だった（設計文書 §10-7
+/// せず `MAX_INDEX_BYTES` の追加引き上げは不要だった（設計文書 §10-9
 /// 参照）。
 pub const MAX_INDEX_BYTES: usize = 1_703_936;
 
