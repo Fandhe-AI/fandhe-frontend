@@ -905,6 +905,7 @@ pub enum LayoutCss {
 | hero-bottom-screenshot | #2782 | `marketing/hero/hero_bottom_screenshot.rs` |
 | gallery-split-carousel | #2780 | `marketing/gallery/gallery_split_carousel.rs` |
 | hero-prompt-input | #2788 | `marketing/hero/hero_prompt_input.rs` |
+| hero-split-image | #2791 | `marketing/hero/hero_split_image.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 86 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
