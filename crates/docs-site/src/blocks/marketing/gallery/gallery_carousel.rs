@@ -28,8 +28,13 @@
 //! `carousel::item`（各 [`image::image`]）を横一列に並べる。無 JS の静的
 //! 表示のため、`--fandhe-carousel-index` は既定値 `0`（headless `item_group`
 //! 自由関数は `style` を出力しない）にフォールバックし、常に 1 枚目が
-//! 選択済みの状態で描画される（`prev-trigger` はネイティブ `disabled` +
-//! `data-disabled` を伴う）。
+//! 選択済みの状態で描画される。無 JS のためスライド送りを実際には配線
+//! できず、操作可能に見えるボタンが動作しないと誤解を招く
+//! （レビュー指摘 P1）ため、`prev-trigger`・`next-trigger`・`indicator`
+//! はいずれもネイティブ `disabled` + `data-disabled`（`indicator` は
+//! ネイティブ `disabled` のみ、headless-ui にモジュールレベルの
+//! `data-disabled` 出力はない）を伴い、常時操作不能な状態で描画される
+//! （[`gallery`] 関数 doc 参照）。
 //!
 //! # 4 形の差分（集約元の対応表 ID を並記する理由）
 //!
@@ -192,6 +197,12 @@ fn header(
 /// スライド 1 枚分（`carousel::item` + [`image::image`]）。`dim` が
 /// `true` のとき半透明近似用の `data-blocks-gallery-carousel-dim` を
 /// 付与する（D 形の 2 枚目のみ）。
+///
+/// レビュー指摘対応（P2）: 作品ギャラリーの画像は装飾ではなく
+/// カルーセルの主要コンテンツであるため、`blog_grid_image::article_card`
+/// と同型の判断で `alt` を空文字列にしない。個々の作品を区別できる
+/// 実データを持たない静的デモのため、1-origin の連番を差し込んだ
+/// `"作品{n}の画像"` を alt として与える（実企業名・PII は含まない）。
 fn slide(index: usize, count: usize, dim: bool) -> Node {
     let sources = [
         dummy_assets::PRODUCT_SRC,
@@ -200,6 +211,7 @@ fn slide(index: usize, count: usize, dim: bool) -> Node {
         dummy_assets::LOGO_SRC,
     ];
     let src = sources[index % sources.len()];
+    let alt = format!("作品{}の画像", index + 1);
     let mut attrs: Vec<(&str, &str)> = vec![("data-blocks-gallery-carousel-slide", "")];
     if dim {
         attrs.push(("data-blocks-gallery-carousel-dim", ""));
@@ -215,7 +227,7 @@ fn slide(index: usize, count: usize, dim: bool) -> Node {
                 fit: ImageFit::Cover,
                 aspect_ratio: AspectRatio::Video,
                 shape: ImageShape::Rounded,
-                ..ImageProps::new(src, "")
+                ..ImageProps::new(src, &alt)
             },
             vec![("data-blocks-gallery-carousel-image", "")],
         )],
@@ -226,6 +238,20 @@ fn slide(index: usize, count: usize, dim: bool) -> Node {
 /// [`carousel::root`] の `aria-label` に渡す意味のある文言、`count` は
 /// スライド枚数、`variant_attr` は per-view/peek を表す `data-*`、
 /// `dim_next` は D 形専用（2 枚目を半透明近似にする）フラグ。
+///
+/// レビュー指摘対応（P1）: docs サイトは無 JS でスライド送りを実装
+/// しない（モジュール doc「`<form>` を持たない・データ取得/送信を行わ
+/// ない」節）ため、`next-trigger`・`indicator` を操作可能に見える状態
+/// のまま放置すると、クリック・キーボード操作をしても表示が変わらない
+/// 動作しないインタラクション要素になってしまう。`prev-trigger` が
+/// 既に「先頭スライドで disabled」という headless 契約上の理由で
+/// ネイティブ `disabled` + `data-disabled` を出力していたことに揃え、
+/// `next-trigger` にも常時 `disabled: true` を渡し、`indicator` にも
+/// 呼び出し側 `attrs`（headless-ui `RESERVED` に含まれない）経由で
+/// ネイティブ `disabled` を明示付与する。これにより全トリガー・
+/// インジケーターがキーボード操作も含めて実際に操作不能になり、
+/// 静的デモであることが見た目（`disabled_declarations()` の減光）と
+/// 挙動の両面で伝わる。
 fn gallery(
     label: &'static str,
     count: usize,
@@ -236,7 +262,7 @@ fn gallery(
         .map(|i| slide(i, count, dim_next && i == 1))
         .collect();
     let indicators: Vec<Node> = (0..count)
-        .map(|i| carousel::indicator(Orientation::Horizontal, i, i == 0, vec![]))
+        .map(|i| carousel::indicator(Orientation::Horizontal, i, i == 0, vec![("disabled", "")]))
         .collect();
 
     carousel::root(
@@ -266,7 +292,7 @@ fn gallery(
                     ),
                     carousel::next_trigger(
                         Orientation::Horizontal,
-                        false,
+                        true,
                         "次の画像",
                         vec![],
                         vec![chevron_right()],
@@ -431,6 +457,16 @@ pub const BLOCK: Block = Block {
 /// 横並び・viewport のクリップ・スライド間の余白（`item` padding）・
 /// per-view/peek に応じた `--fandhe-carousel-item-basis` 切り替えを担う
 /// （モジュール doc「4 形の差分」「スライド間の余白」節参照）。
+///
+/// レビュー指摘対応（P1）: `[data-part="indicator"]:disabled` の減光規則
+/// を追加する。[`fandhe_frontend_pre_styled_ui::carousel`] は
+/// `prev-trigger`/`next-trigger` の `[data-disabled]` 減光（canonical
+/// `disabled_declarations()`）は持つが `indicator` 分は持たない
+/// （pre-styled-ui 側は zag.js 同様 indicator に disabled 概念を
+/// 持ち込まない設計のため）。本 block は `indicator` へネイティブ
+/// `disabled` を独自付与する（[`gallery`] 関数 doc 参照）ため、対応する
+/// 見た目の減光は block 固有 CSS 側で補う（pre-styled-ui 側の変更は
+/// 本 PR のスコープ外）。
 const LAYOUT_CSS: &str = "\
 .blocks-gallery-carousel-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n  width: 100%;\n}\n\
 .blocks-gallery-carousel-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
@@ -441,6 +477,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"carousel\"][data-part=\"item\"][data-blocks-gallery-carousel-slide] {\n  box-sizing: border-box;\n  padding-inline: var(--fandhe-space-2);\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-gallery-carousel-image] {\n  display: block;\n  width: 100%;\n}\n\
 [data-scope=\"carousel\"][data-part=\"indicator-group\"][data-blocks-gallery-carousel-indicators] {\n  margin-top: var(--fandhe-space-4);\n}\n\
+[data-scope=\"carousel\"][data-part=\"indicator\"]:disabled {\n  opacity: 0.5;\n  cursor: not-allowed;\n}\n\
 [data-scope=\"carousel\"][data-part=\"root\"][data-blocks-gallery-carousel-peek] {\n  --fandhe-carousel-item-basis: 83.3333%;\n}\n\
 [data-scope=\"carousel\"][data-part=\"item\"][data-blocks-gallery-carousel-dim] {\n  opacity: 0.5;\n}\n\
 @media (min-width: 64rem) {\n  [data-scope=\"carousel\"][data-part=\"root\"][data-blocks-gallery-carousel-per-view=\"2\"] {\n    --fandhe-carousel-item-basis: 50%;\n  }\n  [data-scope=\"carousel\"][data-part=\"root\"][data-blocks-gallery-carousel-per-view=\"3\"] {\n    --fandhe-carousel-item-basis: 33.3333%;\n  }\n}\n";
@@ -504,7 +541,37 @@ mod tests {
     fn demo_disables_prev_trigger_on_every_instance() {
         let html = render(&demo());
         assert_eq!(html.matches("aria-label=\"前の画像\"").count(), 4);
-        assert_eq!(html.matches("data-disabled").count(), 4);
+        // `data-disabled` は prev-trigger・next-trigger の 2 パーツ ×
+        // 4 インスタンス分（レビュー指摘 P1: 静的デモのため next-trigger
+        // も常時無効化する、`gallery` 関数 doc 参照）。
+        assert_eq!(html.matches("data-disabled").count(), 8);
+    }
+
+    /// レビュー指摘対応（P1）: 無 JS の静的デモでは next-trigger・
+    /// indicator を操作可能に見せてはならないため、`next-trigger` も
+    /// prev-trigger と同様に無効化され、全 `indicator` にネイティブ
+    /// `disabled` が付与されること。
+    #[test]
+    fn demo_disables_next_trigger_and_all_indicators_on_every_instance() {
+        let html = render(&demo());
+        assert_eq!(html.matches("aria-label=\"次の画像\"").count(), 4);
+        // indicator は 4 インスタンス合計 6 枚 × 4 = 24 件。
+        let total_indicators: usize = [6, 6, 6, 6].iter().sum();
+        assert_eq!(
+            html.matches("data-scope=\"carousel\" data-part=\"indicator\"")
+                .count(),
+            total_indicators
+        );
+        // ネイティブ `disabled=""` は prev-trigger 4 + next-trigger 4 +
+        // indicator 24 の合計 32 件出力される（headless-ui は indicator に
+        // `data-disabled` を出力しない設計のため、`data-disabled` の総数
+        //〔上のテストで検証済みの 8 件〕には indicator 分を含まない）。
+        // 先頭に半角スペースを含めて検索し、`data-disabled=""` の末尾
+        // 部分文字列（ハイフンの前に空白は無い）との誤マッチを避ける。
+        assert_eq!(
+            html.matches(" disabled=\"\"").count(),
+            4 + 4 + total_indicators
+        );
     }
 
     /// D 形（覗かせる）だけが半透明近似のフックをちょうど 1 件持つこと。

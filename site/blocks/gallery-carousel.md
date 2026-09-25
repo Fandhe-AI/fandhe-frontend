@@ -2,7 +2,7 @@
 
 `badge` / `heading` / `text` / `carousel` / `image` / `button` / `icon` の 7 部品を合成した、作品を 1 枚ずつ送るギャラリー用カルーセルです。見出しの下に、画像を 1 枚ずつ送るカルーセルを配置します。
 
-- 静的表示です。docs サイトは無 JS のため、状態機械・フォーム・データ取得を持たない固定描画にしています。1 枚目が選択済みの状態で描画し、前ボタンは無効状態で示します。
+- 静的表示です。docs サイトは無 JS のため、状態機械・フォーム・データ取得を持たない固定描画にしています。1 枚目が選択済みの状態で描画し、実際にはスライドを送れないため前/次ボタン・インジケーターはいずれも無効状態で示します。
 - 前/次ボタンは画像の外側に置き、カルーセルと横一列に横並びにしています（画像へ重ねる配置にはしていません）。
 - 4 つの形を並べて、集約元の差分を読み取れるようにしています。
   - 1 枚ずつ送る基準形（対応表 ID R0510）
@@ -111,6 +111,12 @@ fn header(
 /// スライド 1 枚分（`carousel::item` + [`image::image`]）。`dim` が
 /// `true` のとき半透明近似用の `data-blocks-gallery-carousel-dim` を
 /// 付与する（D 形の 2 枚目のみ）。
+///
+/// レビュー指摘対応（P2）: 作品ギャラリーの画像は装飾ではなく
+/// カルーセルの主要コンテンツであるため、`blog_grid_image::article_card`
+/// と同型の判断で `alt` を空文字列にしない。個々の作品を区別できる
+/// 実データを持たない静的デモのため、1-origin の連番を差し込んだ
+/// `"作品{n}の画像"` を alt として与える（実企業名・PII は含まない）。
 fn slide(index: usize, count: usize, dim: bool) -> Node {
     let sources = [
         dummy_assets::PRODUCT_SRC,
@@ -119,6 +125,7 @@ fn slide(index: usize, count: usize, dim: bool) -> Node {
         dummy_assets::LOGO_SRC,
     ];
     let src = sources[index % sources.len()];
+    let alt = format!("作品{}の画像", index + 1);
     let mut attrs: Vec<(&str, &str)> = vec![("data-blocks-gallery-carousel-slide", "")];
     if dim {
         attrs.push(("data-blocks-gallery-carousel-dim", ""));
@@ -134,7 +141,7 @@ fn slide(index: usize, count: usize, dim: bool) -> Node {
                 fit: ImageFit::Cover,
                 aspect_ratio: AspectRatio::Video,
                 shape: ImageShape::Rounded,
-                ..ImageProps::new(src, "")
+                ..ImageProps::new(src, &alt)
             },
             vec![("data-blocks-gallery-carousel-image", "")],
         )],
@@ -145,6 +152,20 @@ fn slide(index: usize, count: usize, dim: bool) -> Node {
 /// [`carousel::root`] の `aria-label` に渡す意味のある文言、`count` は
 /// スライド枚数、`variant_attr` は per-view/peek を表す `data-*`、
 /// `dim_next` は D 形専用（2 枚目を半透明近似にする）フラグ。
+///
+/// レビュー指摘対応（P1）: docs サイトは無 JS でスライド送りを実装
+/// しない（モジュール doc「`<form>` を持たない・データ取得/送信を行わ
+/// ない」節）ため、`next-trigger`・`indicator` を操作可能に見える状態
+/// のまま放置すると、クリック・キーボード操作をしても表示が変わらない
+/// 動作しないインタラクション要素になってしまう。`prev-trigger` が
+/// 既に「先頭スライドで disabled」という headless 契約上の理由で
+/// ネイティブ `disabled` + `data-disabled` を出力していたことに揃え、
+/// `next-trigger` にも常時 `disabled: true` を渡し、`indicator` にも
+/// 呼び出し側 `attrs`（headless-ui `RESERVED` に含まれない）経由で
+/// ネイティブ `disabled` を明示付与する。これにより全トリガー・
+/// インジケーターがキーボード操作も含めて実際に操作不能になり、
+/// 静的デモであることが見た目（`disabled_declarations()` の減光）と
+/// 挙動の両面で伝わる。
 fn gallery(
     label: &'static str,
     count: usize,
@@ -155,7 +176,7 @@ fn gallery(
         .map(|i| slide(i, count, dim_next && i == 1))
         .collect();
     let indicators: Vec<Node> = (0..count)
-        .map(|i| carousel::indicator(Orientation::Horizontal, i, i == 0, vec![]))
+        .map(|i| carousel::indicator(Orientation::Horizontal, i, i == 0, vec![("disabled", "")]))
         .collect();
 
     carousel::root(
@@ -185,7 +206,7 @@ fn gallery(
                     ),
                     carousel::next_trigger(
                         Orientation::Horizontal,
-                        false,
+                        true,
                         "次の画像",
                         vec![],
                         vec![chevron_right()],
@@ -315,3 +336,5 @@ pub fn demo() -> Node {
 - スライド間の余白は、`item` スロット自身の `padding-inline` で表現しています（carousel recipe はスライド間の gap を意図的に持たないため、`flex-basis` の幾何計算を崩さない形にしています）。
 - 画像はビルド時生成のダミー素材ヘルパ（商品・背景・スクリーンショット・ロゴの 4 種）を巡回して使い回しています。
 - `id`/`aria-labelledby` は使わず、carousel の `label` 引数（`aria-label` に直接出力）だけで各インスタンスを区別しています。
+- 作品画像の `alt` は空文字列にせず「作品{n}の画像」を与えています（装飾ではなく主要コンテンツのため）。
+- 無 JS の静的デモではスライド送りを実装できないため、`next-trigger`・`indicator` も `prev-trigger` と同様にネイティブ `disabled` を付与し、操作しても表示が変わらない要素として見せないようにしています。
