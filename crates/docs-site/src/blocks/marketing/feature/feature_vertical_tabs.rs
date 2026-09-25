@@ -66,6 +66,18 @@
 //! 節のとおり 4 タブすべてをいずれかのインスタンスで可視にすることで
 //! 「読めないパネルが存在する」状態を解消している。
 //!
+//! 加えて、各インスタンスの非選択タブ 3 件は [`TabItem::disabled`] を
+//! `true` にして `disabled`/`aria-disabled="true"` 付きの操作できない
+//! 見た目にする（#2776 追加ラウンドの codex-review P1 是正）。当初は全
+//! trigger が `disabled: false` の押せるボタンとして描画されており、
+//! セクション見出し「機能を切り替えて確認する」と組み合わさると「押せば
+//! 切り替わる」という誤った期待を与えていた（無 JS のため実際には何も
+//! 起きない）。見出しも操作を予告しない「4 つの機能を確認する」へ改めた
+//! （リード文「機能ごとにタブを選択した状態のパネルを並べて掲載して
+//! います」は既に静的な並記を説明していたため変更不要）。選択中タブ自身は
+//! 有効のまま残す（disabled にすると headless 側が選択自体を「未選択」
+//! 扱いへ倒すため、`vertical_tabs` の doc コメント参照）。
+//!
 //! # id 規約
 //!
 //! 基底 id は `blocks-feature-vertical-tabs-<接尾辞>` とする。接尾辞は
@@ -396,7 +408,7 @@ fn section_header() -> Node {
                     weight: HeadingWeight::Bold,
                 },
                 vec![],
-                vec![core_text("機能を切り替えて確認する")],
+                vec![core_text("4 つの機能を確認する")],
             ),
             styled_text::text(
                 &TextProps {
@@ -542,7 +554,14 @@ fn vertical_tabs(id: &'static str, selected: &'static str, layout: PanelLayout) 
             value: tab.value,
             trigger: trigger_body(tab),
             content: panel_body(tab, layout),
-            disabled: false,
+            // 無 JS のためクリックしてもパネルは切り替わらない。選択済み
+            // タブ以外を disabled にし、操作できない見た目（disabled 属性・
+            // aria-disabled）で静的表示であることを明示する（#2776
+            // codex-review 追加ラウンド P1 是正）。選択中タブ自身を disabled
+            // にすると headless 側が「未選択」扱いへ倒す
+            // （`headless-ui::tabs::selected_matching_disabled_item_is_
+            // treated_as_unselected`）ため、選択中タブは有効のままにする。
+            disabled: tab.value != selected,
         })
         .collect();
     let props = TabsProps {
@@ -884,6 +903,41 @@ mod tests {
             "[data-scope=\"tabs\"][data-part=\"list\"][data-orientation=\"vertical\"] {\n    max-width: none;"
         ));
         assert!(!LAYOUT_CSS.contains("flex-direction: row;"));
+    }
+
+    /// 各インスタンスにつき選択中タブ 1 件のみが有効で、残り 3 件が
+    /// `disabled`/`aria-disabled="true"` 付きの操作できない見た目になる
+    /// こと（#2776 追加ラウンド codex-review P1 是正: 無 JS で切り替わら
+    /// ない以上、押せるボタンとして見せない）。選択中タブ自身は disabled
+    /// を持たない（`disabled` にすると headless 側が未選択扱いへ倒すため）。
+    #[test]
+    fn demo_disables_every_non_selected_trigger_per_instance() {
+        let html = render(&demo());
+        // `data-disabled=""` も部分文字列として `disabled=""` を含むため、
+        // 素の `disabled=""` 属性のみを数えるにはスペース区切りで判定する。
+        assert_eq!(html.matches(" disabled=\"\"").count(), 12);
+        assert_eq!(html.matches("data-disabled=\"\"").count(), 12);
+        assert_eq!(html.matches("aria-disabled=\"true\"").count(), 12);
+        for tab in super::FEATURES {
+            let selected_trigger_id = format!(
+                "id=\"blocks-feature-vertical-tabs-{0}-trigger-{0}\"",
+                tab.value
+            );
+            let tag_start = html
+                .find(&selected_trigger_id)
+                .and_then(|pos| html[..pos].rfind('<'))
+                .unwrap_or_else(|| panic!("trigger for {} should exist", tab.value));
+            let tag_end = html[tag_start..]
+                .find('>')
+                .map(|i| tag_start + i)
+                .expect("opening tag should close");
+            let tag = &html[tag_start..tag_end];
+            assert!(
+                !tag.contains("disabled"),
+                "selected trigger for {} must stay enabled: {tag}",
+                tab.value
+            );
+        }
     }
 
     /// ルート class（`demo_class` とは別名）が `demo()` の出力へ実際に

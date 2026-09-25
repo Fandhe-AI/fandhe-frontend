@@ -7,8 +7,9 @@
 主体のパネル形と画像主体のパネル形を交互に見せています。
 
 docs サイトは JS ハイドレーションを行わないため、各インスタンスは 1 タブを
-選択済みの状態で固定表示しています（インスタンス内で他のタブをクリックし
-ても選択状態は切り替わりません）。幅 lg（64rem）以上ではタブ列が左に縦並び、
+選択済みの状態で固定表示しています。選択中タブ以外の 3 件は操作できない
+見た目（disabled）にしており、他パネルへ切り替える手段を持たないことを
+明示しています。幅 lg（64rem）以上ではタブ列が左に縦並び、
 パネルが右に表示されます。幅 lg 未満ではタブ列がパネルの上へ積まれますが、
 タブ列自体は縦並びのまま（横並びへは変わらない）のため、`aria-orientation`
 の `"vertical"` は常に実際の見た目と一致します。各タブの trigger 先頭には
@@ -231,7 +232,7 @@ fn section_header() -> Node {
                     weight: HeadingWeight::Bold,
                 },
                 vec![],
-                vec![core_text("機能を切り替えて確認する")],
+                vec![core_text("4 つの機能を確認する")],
             ),
             styled_text::text(
                 &TextProps {
@@ -377,7 +378,14 @@ fn vertical_tabs(id: &'static str, selected: &'static str, layout: PanelLayout) 
             value: tab.value,
             trigger: trigger_body(tab),
             content: panel_body(tab, layout),
-            disabled: false,
+            // 無 JS のためクリックしてもパネルは切り替わらない。選択済み
+            // タブ以外を disabled にし、操作できない見た目（disabled 属性・
+            // aria-disabled）で静的表示であることを明示する（#2776
+            // codex-review 追加ラウンド P1 是正）。選択中タブ自身を disabled
+            // にすると headless 側が「未選択」扱いへ倒す
+            // （`headless-ui::tabs::selected_matching_disabled_item_is_
+            // treated_as_unselected`）ため、選択中タブは有効のままにする。
+            disabled: tab.value != selected,
         })
         .collect();
     let props = TabsProps {
@@ -447,7 +455,9 @@ pub fn demo() -> Node {
   という構成でしたが、本実装は `fandhe_frontend_pre_styled_ui::tabs` が
   既に持つ `data-orientation="vertical"` 相当の縦並び規則をそのまま
   採用しました（`aria-orientation` が実際のレイアウトと一致する意味論の
-  正しさを優先した判断）。lg 未満のときだけ横並びへ CSS で上書きします。
+  正しさを優先した判断）。タブ列自体は lg 未満でも縦並びのまま変えず、
+  `root` だけを縦積みにしてタブ列をパネルの上へ積みます（`aria-orientation`
+  を幅によらず一貫させるため）。
 - 参照元の背景帯・装飾・実際の文言は持ち込まず、文言はすべて独自の架空
   のもの（日本語）にしました。
 - 見出しは `h3`/`h4` に下げました（ページ側が `## Demo` として `h2` を
@@ -458,7 +468,9 @@ pub fn demo() -> Node {
   path を複製しない自作の単純な線画（歯車・稲妻・円・盾）として追加しま
   した。機能一覧のチェックマークと同じヘルパで統一しています。
 - 対応表 ID は R0480 のみで集約元は実質 1 件のため、いわゆる「集約元の
-  差分」は存在しません。代わりに、単一参照からの意図的な派生として 2 つの
-  見せ方を並記し、設計上の可動域を示しています。既定（`build` タブ選択・
-  機能一覧が主体のパネル）と、状態違いを兼ねた別インスタンス（`secure`
-  タブ選択・画像が見出し直後に来る画像主体のパネル）です。
+  差分」は存在しません。代わりに、単一参照からの意図的な派生として 4 つの
+  見せ方を並記し、設計上の可動域と全パネルの静的な到達可能性を示して
+  います。4 タブ（`build`/`deploy`/`observe`/`secure`）それぞれを選択済みに
+  した 4 インスタンスで、機能一覧が主体のパネル（`build`/`observe`）と
+  画像が見出し直後に来る画像主体のパネル（`deploy`/`secure`）を交互に
+  見せています。
