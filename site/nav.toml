@@ -1213,6 +1213,11 @@ path = "/blocks/"
 title = "Hero"
 
 [[section.group.page]]
+title = "hero-background-media"
+source = "site/blocks/hero-background-media.md"
+path = "/blocks/hero-background-media/"
+
+[[section.group.page]]
 title = "hero-bottom-screenshot"
 source = "site/blocks/hero-bottom-screenshot.md"
 path = "/blocks/hero-bottom-screenshot/"
