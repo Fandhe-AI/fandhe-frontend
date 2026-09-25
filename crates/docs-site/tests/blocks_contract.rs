@@ -5787,8 +5787,10 @@ fn contact_info_columns_composes_expected_parts() {
 }
 
 /// contact-split-form-info ページが Demo class・専用 CSS を配線している
-/// こと、block 固有 CSS（2 列 grid・divider 非表示・`form-start` の配置）が
-/// 実際に出力されていることを固定する（イシュー #2832）。
+/// こと、block 固有 CSS（2 列 grid・divider 非表示）が実際に出力されて
+/// いることを固定する（イシュー #2832）。列位置を `grid-column`/`grid-row`
+/// で明示的に上書きしないこと（DOM 順＝視覚順を保つ契約、モジュール doc
+/// 「DOM 順と視覚順」節）も固定する。
 #[test]
 fn contact_split_form_info_page_wires_demo_class_and_css_hooks() {
     let out = build_real_site();
@@ -5826,13 +5828,24 @@ fn contact_split_form_info_page_wires_demo_class_and_css_hooks() {
         "@media (min-width: 64rem)",
         "repeat(2, minmax(0, 1fr))",
         "[data-scope=\"separator\"][data-blocks-contact-split-form-info-divider]",
-        "[data-blocks-contact-split-form-info-variant=\"form-start\"] [data-blocks-contact-split-form-info-form]",
     ] {
         assert!(
             sheet_css.contains(selector),
             "blocks.css should declare a rule for {selector}"
         );
     }
+    // 列位置の明示上書きが無いこと（DOM 順＝視覚順を保つ回帰ガード。
+    // かつて `form-start` のみ `grid-column`/`grid-row` で視覚上左へ
+    // 移動しており、DOM 順〔連絡先情報が先〕と視覚順〔フォームが左〕が
+    // 食い違って Tab 順が見た目と一致しない不具合〔WCAG 2.4.3 相当〕が
+    // あった。列位置は `demo` 側が `variant_layout` へ渡す引数の順序
+    // 〔grid 自動配置〕のみで決まる）。
+    assert!(
+        !sheet_css.contains(
+            "[data-blocks-contact-split-form-info-variant=\"form-start\"] [data-blocks-contact-split-form-info-form]"
+        ),
+        "blocks.css should not override form-start's column placement via grid-column/grid-row"
+    );
 }
 
 /// contact-split-form-info の合成部品（11 部品）が期待どおりの構成で

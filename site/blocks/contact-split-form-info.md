@@ -18,10 +18,12 @@ Themes/Primitives 部品を組み合わせた実例集であることに注意�
   左に連絡先情報、右にフォームを配置します。連絡先情報側は拠点・メール・
   SNS の 3 グループに分かれ、グループ間を区切り線で分けています。
 
-どちらの形も `64rem` 未満の狭い幅では、連絡先情報 → 区切り線 → フォームの
-順に縦へ積まれます（DOM の順序は常にこの順で固定です）。形 A は `lg` 以上
-のとき、この DOM の順序と見た目の順序（フォームが左）が意図的にずれます
-（読み上げ順・Tab 順は常に DOM の順序で一貫させるため）。
+DOM の順序は形ごとに `lg` 以上での左右関係へ揃えています。形 A はフォーム
+→ 区切り線 → 連絡先情報（フォームが左のため）、形 B は連絡先情報 →
+区切り線 → フォーム（連絡先情報が左のため）です。`64rem` 未満の狭い幅では
+両形とも DOM の順序のまま縦へ積まれるため、形によって積み順（フォームが
+先か連絡先情報が先か）が異なりますが、読み上げ順・Tab 順は常に見た目の
+左→右の順と一致します。
 
 本 Demo は静的な表示例であり、`<form>` 要素を一切持たず、データの取得・
 送信・状態管理を行いません。ボタンはすべて `type="button"` です。同意
@@ -436,36 +438,40 @@ fn variant_label(label: &'static str) -> Node {
     )
 }
 
-/// 1 つの形のレイアウト骨格（連絡先情報 → 区切り線 → フォームの DOM 順、
-/// モジュール doc「DOM 順と視覚順」節）。`variant_attr` は
-/// `"form-start"`/`"form-end"` のいずれか（[`FormVariant`] とは別の、CSS
-/// フック用の文字列値）。
-fn variant_layout(variant_attr: &'static str, info: Node, form: Node) -> Node {
+/// 1 つの形のレイアウト骨格。`first`/`second` は lg 以上での視覚上の
+/// 左→右の順（モジュール doc「DOM 順と視覚順」節）で渡す（呼び出し側が
+/// 形ごとに正しい順で渡す契約であり、DOM 順は常に `first, 区切り線,
+/// second` になる）。`variant_attr` は `"form-start"`/`"form-end"` の
+/// いずれか（[`FormVariant`] とは別の、CSS フック用の文字列値）。
+fn variant_layout(variant_attr: &'static str, first: Node, second: Node) -> Node {
     div(
         vec![
             ("class", "blocks-contact-split-form-info-layout"),
             ("data-blocks-contact-split-form-info-variant", variant_attr),
         ],
         vec![
-            info,
+            first,
             separator(
                 &SeparatorProps::default(),
                 vec![("data-blocks-contact-split-form-info-divider", "")],
             ),
-            form,
+            second,
         ],
     )
 }
 
 /// `contact-split-form-info` の Demo 本体（形 A・形 B を縦に並記する）。
 /// 呼び出しごとに同一の `Node` を返す純関数（モジュール doc「1 つの Demo に
-/// 2 つの形を縦に並べる」節）。
+/// 2 つの形を縦に並べる」節）。形 A は視覚上フォームが左のため
+/// `variant_layout` へ「フォーム, 連絡先情報」の順で渡し、形 B は連絡先
+/// 情報が左のため「連絡先情報, フォーム」の順で渡す（モジュール doc
+/// 「DOM 順と視覚順」節、DOM 順＝視覚順を維持する契約）。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-contact-split-form-info-stack")],
         vec![
             variant_label("左にフォーム・右に連絡先情報（R0441 基準形）"),
-            variant_layout("form-start", info_form_start(), form(FormVariant::A)),
+            variant_layout("form-start", form(FormVariant::A), info_form_start()),
             variant_label("左に連絡先情報（3 グループ）・右にフォーム（R0443/R0445）"),
             variant_layout("form-end", info_form_end(), form(FormVariant::B)),
         ],

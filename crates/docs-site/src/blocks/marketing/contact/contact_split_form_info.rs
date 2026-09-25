@@ -36,20 +36,24 @@
 //! `data-blocks-contact-split-form-info-variant="form-start"|"form-end"` の
 //! 値だけで表す（`contact_info_columns` の `variant` 属性と同じ考え方）。
 //!
-//! # DOM 順と視覚順（意図的なずれ）
+//! # DOM 順と視覚順（常に一致させる）
 //!
-//! 各形の DOM の順序は、どちらの形でも**連絡先情報 → 区切り線 →
-//! フォーム**に揃える（狭い幅で「情報の下に区切り線を挟んでフォームが
-//! 続く」という要件をそのまま満たすため）。lg 以上では [`LAYOUT_CSS`] が
-//! 2 カラム grid へ切り替え、形 A（`form-start`）だけはフォーム領域を
-//! 明示的に `grid-column: 1`、情報領域を `grid-column: 2` へ配置し直して
-//! 「見た目はフォームが左」にする。この結果、形 A では **lg 以上のとき
-//! DOM の順序（情報が先）と視覚上の順序（フォームが左）がずれる**。
-//! これは意図的な設計判断であり、狭幅の要件（情報 → 区切り線 → フォーム）
-//! を優先しつつ、読み上げ順・Tab 順は常に DOM の順序（情報 → フォーム）で
-//! 一貫させるためである（`grid-column`/`grid-row` による視覚順の入れ替えは
-//! DOM 順序を変えないため、支援技術の走査順は変化しない）。形 B
-//! （`form-end`）は DOM 順と視覚順が一致する（情報が左、フォームが右）。
+//! 各形の DOM の順序は、lg 以上での視覚上の左右関係に揃える: 形 A
+//! （`form-start`）は**フォーム → 区切り線 → 連絡先情報**（左にフォーム
+//! を置くため）、形 B（`form-end`）は**連絡先情報 → 区切り線 →
+//! フォーム**（左に連絡先情報を置くため）。[`LAYOUT_CSS`] は lg 以上で
+//! 2 カラム grid へ切り替えるが、`grid-column`/`grid-row` による明示的な
+//! 列の入れ替えは行わない（区切り線は `display: none` で grid の並びから
+//! 除外されるため、残る 2 要素は grid の自動配置により DOM 順のまま
+//! 1 列目・2 列目へ収まり、常に「DOM 順＝視覚順（左→右）」になる）。
+//! 64rem 未満では両形とも `flex-direction: column` で DOM 順のまま縦へ
+//! 積まれるため、形 A は「フォーム → 区切り線 → 連絡先情報」、形 B は
+//! 「連絡先情報 → 区切り線 → フォーム」の順で表示される（形によって
+//! 狭幅での積み順が異なる。以前の実装は狭幅の積み順を両形で揃えるために
+//! lg 以上でのみ `grid-column`/`grid-row` を上書きしていたが、この上書きは
+//! 見た目の左右（フォームが左）と DOM 順（連絡先情報が先）を食い違わせ、
+//! 読み上げ順・Tab 順が視覚上の左→右と一致しない不具合
+//! （WCAG 2.4.3 Focus Order 相当）を生んでいたため撤去した）。
 //!
 //! # 見出しレベル
 //!
@@ -542,36 +546,40 @@ fn variant_label(label: &'static str) -> Node {
     )
 }
 
-/// 1 つの形のレイアウト骨格（連絡先情報 → 区切り線 → フォームの DOM 順、
-/// モジュール doc「DOM 順と視覚順」節）。`variant_attr` は
-/// `"form-start"`/`"form-end"` のいずれか（[`FormVariant`] とは別の、CSS
-/// フック用の文字列値）。
-fn variant_layout(variant_attr: &'static str, info: Node, form: Node) -> Node {
+/// 1 つの形のレイアウト骨格。`first`/`second` は lg 以上での視覚上の
+/// 左→右の順（モジュール doc「DOM 順と視覚順」節）で渡す（呼び出し側が
+/// 形ごとに正しい順で渡す契約であり、DOM 順は常に `first, 区切り線,
+/// second` になる）。`variant_attr` は `"form-start"`/`"form-end"` の
+/// いずれか（[`FormVariant`] とは別の、CSS フック用の文字列値）。
+fn variant_layout(variant_attr: &'static str, first: Node, second: Node) -> Node {
     div(
         vec![
             ("class", "blocks-contact-split-form-info-layout"),
             ("data-blocks-contact-split-form-info-variant", variant_attr),
         ],
         vec![
-            info,
+            first,
             separator(
                 &SeparatorProps::default(),
                 vec![("data-blocks-contact-split-form-info-divider", "")],
             ),
-            form,
+            second,
         ],
     )
 }
 
 /// `contact-split-form-info` の Demo 本体（形 A・形 B を縦に並記する）。
 /// 呼び出しごとに同一の `Node` を返す純関数（モジュール doc「1 つの Demo に
-/// 2 つの形を縦に並べる」節）。
+/// 2 つの形を縦に並べる」節）。形 A は視覚上フォームが左のため
+/// `variant_layout` へ「フォーム, 連絡先情報」の順で渡し、形 B は連絡先
+/// 情報が左のため「連絡先情報, フォーム」の順で渡す（モジュール doc
+/// 「DOM 順と視覚順」節、DOM 順＝視覚順を維持する契約）。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-contact-split-form-info-stack")],
         vec![
             variant_label("左にフォーム・右に連絡先情報（R0441 基準形）"),
-            variant_layout("form-start", info_form_start(), form(FormVariant::A)),
+            variant_layout("form-start", form(FormVariant::A), info_form_start()),
             variant_label("左に連絡先情報（3 グループ）・右にフォーム（R0443/R0445）"),
             variant_layout("form-end", info_form_end(), form(FormVariant::B)),
         ],
@@ -659,8 +667,6 @@ const LAYOUT_CSS: &str = "\
 @media (min-width: 64rem) {\n  \
 [data-scope=\"separator\"][data-blocks-contact-split-form-info-divider] {\n    display: none;\n  }\n\
   .blocks-contact-split-form-info-layout {\n    display: grid;\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n    gap: var(--fandhe-space-12);\n    align-items: start;\n  }\n\
-  [data-blocks-contact-split-form-info-variant=\"form-start\"] [data-blocks-contact-split-form-info-form] {\n    grid-column: 1;\n    grid-row: 1;\n  }\n\
-  [data-blocks-contact-split-form-info-variant=\"form-start\"] [data-blocks-contact-split-form-info-info] {\n    grid-column: 2;\n    grid-row: 1;\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -706,6 +712,46 @@ mod tests {
             html.matches("data-blocks-contact-split-form-info-variant=\"form-end\"")
                 .count(),
             1
+        );
+    }
+
+    /// 形 A（`form-start`）・形 B（`form-end`）のいずれも、lg 以上での
+    /// 視覚上の左→右の順と DOM 順が一致することを固定する（モジュール
+    /// doc「DOM 順と視覚順」節の回帰ガード。P1 修正: 以前は `form-start`
+    /// のみ視覚順〔フォームが左〕と DOM 順〔連絡先情報が先〕が食い違い、
+    /// 読み上げ順・Tab 順が見た目と一致しない不具合〔WCAG 2.4.3 相当〕が
+    /// あった）。形 A は「フォーム → 連絡先情報」、形 B は「連絡先情報 →
+    /// フォーム」の順で出現するはずである。
+    #[test]
+    fn demo_dom_order_matches_visual_order_for_both_variants() {
+        let html = render(&demo());
+        let form_positions: Vec<usize> = html
+            .match_indices("data-blocks-contact-split-form-info-form")
+            .map(|(idx, _)| idx)
+            .collect();
+        let info_positions: Vec<usize> = html
+            .match_indices("data-blocks-contact-split-form-info-info")
+            .map(|(idx, _)| idx)
+            .collect();
+        assert_eq!(
+            form_positions.len(),
+            2,
+            "form 内部フックは form-start・form-end の 2 回出現するはず"
+        );
+        assert_eq!(
+            info_positions.len(),
+            2,
+            "info 内部フックは form-start・form-end の 2 回出現するはず"
+        );
+        // 形 A（先に出現するレイアウト）: フォームが先（視覚上左のため）。
+        assert!(
+            form_positions[0] < info_positions[0],
+            "形 A は DOM 順でフォームが連絡先情報より先であるべき（視覚上フォームが左のため）"
+        );
+        // 形 B（後に出現するレイアウト）: 連絡先情報が先（視覚上左のため）。
+        assert!(
+            info_positions[1] < form_positions[1],
+            "形 B は DOM 順で連絡先情報がフォームより先であるべき（視覚上連絡先情報が左のため）"
         );
     }
 
@@ -758,20 +804,31 @@ mod tests {
         );
     }
 
-    /// [`LAYOUT_CSS`] が想定するブレークポイント・2 列 grid・divider 非表示・
-    /// `form-start` の配置セレクタを持ち、`<` を含まないことを固定する
-    /// （REQ-1: `</style>` によるスタイル脱出を防ぐ）。
+    /// [`LAYOUT_CSS`] が想定するブレークポイント・2 列 grid・divider 非表示を
+    /// 持ち、`<` を含まないことを固定する（REQ-1: `</style>` によるスタイル
+    /// 脱出を防ぐ）。
     #[test]
-    fn layout_css_declares_breakpoint_grid_and_form_start_placement() {
+    fn layout_css_declares_breakpoint_and_grid() {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains("@media (min-width: 64rem)"));
         assert!(LAYOUT_CSS.contains("repeat(2, minmax(0, 1fr))"));
         assert!(LAYOUT_CSS.contains(
             "[data-scope=\"separator\"][data-blocks-contact-split-form-info-divider] {\n    display: none;\n  }"
         ));
-        assert!(LAYOUT_CSS.contains(
-            "[data-blocks-contact-split-form-info-variant=\"form-start\"] [data-blocks-contact-split-form-info-form] {\n    grid-column: 1;\n    grid-row: 1;\n  }"
-        ));
+    }
+
+    /// [`LAYOUT_CSS`] が `form-start`/`form-end` の列位置を
+    /// `grid-column`/`grid-row` で明示的に上書きしないことを固定する
+    /// （モジュール doc「DOM 順と視覚順」節の回帰ガード。かつて `form-start`
+    /// のみをこの上書きで視覚上左へ移動しており、DOM 順〔連絡先情報が先〕
+    /// と視覚順〔フォームが左〕が食い違って Tab 順が見た目と一致しない
+    /// 不具合〔WCAG 2.4.3 相当〕があった。列位置は [`demo`] 側が
+    /// `variant_layout` へ渡す `first`/`second` の順序〔grid 自動配置〕
+    /// のみで決まる契約を、この文字列非存在で固定する）。
+    #[test]
+    fn layout_css_does_not_override_grid_column_placement() {
+        assert!(!LAYOUT_CSS.contains("grid-column"));
+        assert!(!LAYOUT_CSS.contains("grid-row"));
     }
 
     /// ルート grid class（`demo_class` とは別名）が `demo()` の出力へ実際に
