@@ -182,7 +182,10 @@ fn message_field() -> Node {
 /// プライバシーポリシー同意チェック（R0440/R0853 の差分。未チェック固定の
 /// 静的表示、リンクは持たない）。
 fn consent_checkbox() -> Node {
-    let props = CheckboxProps::default();
+    let props = CheckboxProps {
+        required: true,
+        ..CheckboxProps::default()
+    };
     checkbox::root(
         Size::Md,
         ColorPalette::Accent,
