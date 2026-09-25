@@ -392,7 +392,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-careers-split-accordion-layout {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-8);\n}\n\
 @media (min-width: 48rem) {\n  .blocks-careers-split-accordion-layout {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);\n    align-items: start;\n  }\n}\n\
 .blocks-careers-split-accordion-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
-[data-blocks-careers-split-accordion-tagline] {\n  color: var(--fandhe-color-accent-fg-subtle, var(--fandhe-color-accent));\n  text-transform: uppercase;\n  letter-spacing: 0.06em;\n}\n\
+[data-scope=\"text\"][data-part=\"root\"][data-blocks-careers-split-accordion-tagline] {\n  color: var(--fandhe-color-accent-fg-subtle, var(--fandhe-color-accent));\n  text-transform: uppercase;\n  letter-spacing: 0.06em;\n}\n\
 .blocks-careers-split-accordion-item-heading {\n  margin: 0;\n  font: inherit;\n  display: flex;\n  align-items: center;\n  width: 100%;\n  padding: var(--fandhe-accordion-trigger-padding, var(--fandhe-space-4));\n  background: var(--fandhe-color-bg);\n  color: var(--fandhe-color-fg);\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
 .blocks-careers-split-accordion-trigger-label {\n  display: inline-flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-careers-split-accordion-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
