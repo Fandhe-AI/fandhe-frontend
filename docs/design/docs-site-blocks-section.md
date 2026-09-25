@@ -864,10 +864,12 @@ pub enum LayoutCss {
 | changelog-timeline | #2820 | `marketing/changelog/changelog_timeline.rs` |
 | comparison-cards | #2822 | `marketing/comparison/comparison_cards.rs` |
 | comparison-feature-rows | #2823 | `marketing/comparison/comparison_feature_rows.rs` |
+| comparison-split-table | #2824 | `marketing/comparison/comparison_split_table.rs` |
 | careers-card-grid | #2815 | `marketing/careers/careers_card_grid.rs` |
 | careers-split-accordion | #2816 | `marketing/careers/careers_split_accordion.rs` |
 | changelog-timeline-subscribe | #2821 | `marketing/changelog/changelog_timeline_subscribe.rs` |
 | cta-feature-links | #2757 | `marketing/cta/cta_feature_links.rs` |
+| cta-split-actions | #2758 | `marketing/cta/cta_split_actions.rs` |
 | cta-split-image | #2759 | `marketing/cta/cta_split_image.rs` |
 | contact-centered-form | #2826 | `marketing/contact/contact_centered_form.rs` |
 

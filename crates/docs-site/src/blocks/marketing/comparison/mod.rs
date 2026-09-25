@@ -1,6 +1,7 @@
 //! Marketing / Comparison カテゴリの block 登録点（イシュー #2734 で雛形
 //! 新設、イシュー #2823 で最初の block（[`comparison_feature_rows`]）を
-//! 追加し卒業。イシュー #2822 で 2 番目の block（[`comparison_cards`]）を
+//! 追加し卒業。イシュー #2822 で 2 番目の block（[`comparison_cards`]）を、
+//! イシュー #2824 で 3 番目の block（[`comparison_split_table`]）を
 //! 追加した）。本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で
 //! 集約する。新規 block を追加する際は本ファイルへ `mod` 宣言と
 //! `blocks()` への追記を行うだけでよく、`super`（`marketing`）側・
@@ -9,9 +10,14 @@
 
 mod comparison_cards;
 mod comparison_feature_rows;
+mod comparison_split_table;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![comparison_cards::BLOCK, comparison_feature_rows::BLOCK]
+    vec![
+        comparison_cards::BLOCK,
+        comparison_feature_rows::BLOCK,
+        comparison_split_table::BLOCK,
+    ]
 }
