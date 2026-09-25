@@ -833,6 +833,7 @@ pub enum LayoutCss {
 | footer-sticky-reveal | #2551 | §3 追記段落, `marketing/footer/footer_sticky_reveal.rs` |
 | footer-newsletter | #2551 | §3 追記段落, `marketing/footer/footer_newsletter.rs` |
 | hero-editorial-stagger | #2546 | §15, `marketing/hero/hero_editorial_stagger.rs` |
+| hero-image-tiles | #2784 | `marketing/hero/hero_image_tiles.rs` |
 | hero-parallax-layers | #2546 | §15, `marketing/hero/hero_parallax_layers.rs` |
 | hero-terminal | #2546 | §15, `marketing/hero/hero_terminal.rs` |
 | text-split-reveal | #2546 | §15, `marketing/hero/text_split_reveal.rs` |
@@ -901,7 +902,7 @@ pub enum LayoutCss {
 | contact-centered-form | #2826 | `marketing/contact/contact_centered_form.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-84 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+85 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
