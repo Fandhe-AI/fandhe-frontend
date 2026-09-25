@@ -446,7 +446,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-hero-bottom-screenshot-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-12);\n}\n\
 .blocks-hero-bottom-screenshot-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  padding-block: var(--fandhe-space-8);\n}\n\
 .blocks-hero-bottom-screenshot-section + .blocks-hero-bottom-screenshot-section {\n  border-top: 1px solid var(--fandhe-color-border);\n}\n\
-.blocks-hero-bottom-screenshot-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  max-width: 48rem;\n  margin: 0 auto;\n  text-align: center;\n}\n\
+.blocks-hero-bottom-screenshot-header {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  max-width: 48rem;\n  margin: 0 auto;\n  text-align: center;\n}\n\
 [data-blocks-hero-bottom-screenshot-align=\"start\"] {\n  align-items: flex-start;\n  text-align: left;\n  max-width: none;\n  margin: 0;\n}\n\
 .blocks-hero-bottom-screenshot-actions {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: center;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-hero-bottom-screenshot-align=\"start\"] + .blocks-hero-bottom-screenshot-actions,\n\
