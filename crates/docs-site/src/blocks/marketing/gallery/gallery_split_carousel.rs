@@ -291,11 +291,20 @@ pub const BLOCK: Block = Block {
 /// 下へ配置する理由」節参照）。セレクタは全て block 固有クラス/属性で
 /// スコープし、兄弟 Gallery block（`gallery_carousel` 等）へ波及させない
 /// （`gallery_carousel::LAYOUT_CSS` doc の Bugbot 教訓の継承）。
+///
+/// `control` は `carousel` の base レシピが `align-items: center` を
+/// 持つため、`flex-direction: column` だけを上書きすると交差軸
+/// （column 化後は横方向）で子（viewport・triggers）が shrink-wrap
+/// する。結果として viewport がダミー画像の内在サイズへ収縮して
+/// peek 幅が効かず、triggers も自身の内容幅に縮むため
+/// `justify-content: flex-end` による右寄せが無効化される
+/// （PR #3232 レビュー指摘）。`align-items: stretch` を明示して
+/// 両者を control の全幅へ広げ、この収縮を防ぐ。
 const LAYOUT_CSS: &str = "\
 .blocks-gallery-split-carousel-layout {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-6);\n  align-items: center;\n}\n\
 .blocks-gallery-split-carousel-header {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-scope=\"carousel\"][data-part=\"root\"][data-blocks-gallery-split-carousel-root] {\n  --fandhe-carousel-item-basis: 83.3333%;\n  min-width: 0;\n}\n\
-[data-scope=\"carousel\"][data-part=\"control\"][data-blocks-gallery-split-carousel-control] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
+[data-scope=\"carousel\"][data-part=\"control\"][data-blocks-gallery-split-carousel-control] {\n  display: flex;\n  flex-direction: column;\n  align-items: stretch;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-gallery-split-carousel-viewport {\n  min-width: 0;\n  overflow: hidden;\n}\n\
 .blocks-gallery-split-carousel-triggers {\n  display: flex;\n  justify-content: flex-end;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"carousel\"][data-part=\"item\"][data-blocks-gallery-split-carousel-slide] {\n  box-sizing: border-box;\n  padding-inline: var(--fandhe-space-2);\n}\n\
@@ -377,6 +386,17 @@ mod tests {
         assert!(LAYOUT_CSS.contains("minmax(0, 2fr) minmax(0, 3fr)"));
         assert!(LAYOUT_CSS.contains("--fandhe-carousel-item-basis: 83.3333%"));
         assert!(!LAYOUT_CSS.contains('<'));
+    }
+
+    /// `control` が `align-items: stretch` を明示すること（PR #3232
+    /// レビュー指摘: base レシピ由来の `align-items: center` が column
+    /// 化後の交差軸に残ると viewport/triggers が shrink-wrap し、peek
+    /// 幅・prev/next の右寄せが効かなくなるため）。
+    #[test]
+    fn control_stretches_viewport_and_triggers_to_full_width() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"carousel\"][data-part=\"control\"][data-blocks-gallery-split-carousel-control] {\n  display: flex;\n  flex-direction: column;\n  align-items: stretch;\n  gap: var(--fandhe-space-3);\n}"
+        ));
     }
 
     /// レイアウト用ルート class（`.blocks-gallery-split-carousel-layout`）
