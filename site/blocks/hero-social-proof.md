@@ -9,7 +9,6 @@
 ## Rust コード
 
 ```rust
-use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarProps, ImageStatus};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps};
@@ -22,8 +21,10 @@ use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSi
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
-/// [`avatar_stack`] が使う架空イニシャル 4 件（[`dummy_assets::PERSON_NAMES`]
-/// 先頭 4 名から手書きした定数）。
+/// [`avatar_stack`] が使う架空イニシャル 4 件（`crate::blocks::dummy_assets::PERSON_NAMES`
+/// 先頭 4 名から手書きした定数）。各アバターは同一画像の繰り返しを避けるため
+/// 画像を持たせず、`ImageStatus::Error` の fallback（イニシャルのみ）で
+/// 個別の利用者を示す（`testimonials_stack` と同じ判断軸）。
 const AVATAR_INITIALS: [&str; 4] = ["HF", "EV", "KB", "ML"];
 
 /// [`rating`] の `label` に使う一意 id（全 block Demo 横断で衝突しない
@@ -43,10 +44,11 @@ fn avatar_stack() -> Node {
                     ..AvatarProps::default()
                 },
                 vec![("data-blocks-hero-social-proof-avatar", "")],
-                vec![
-                    avatar::image(ImageStatus::Loaded, dummy_assets::AVATAR_SRC, "", vec![]),
-                    avatar::fallback(ImageStatus::Loaded, vec![], vec![text(*initials)]),
-                ],
+                vec![avatar::fallback(
+                    ImageStatus::Error,
+                    vec![],
+                    vec![text(*initials)],
+                )],
             )
         })
         .collect();
