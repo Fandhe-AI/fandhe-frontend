@@ -865,6 +865,7 @@ pub enum LayoutCss {
 | comparison-cards | #2822 | `marketing/comparison/comparison_cards.rs` |
 | comparison-feature-rows | #2823 | `marketing/comparison/comparison_feature_rows.rs` |
 | comparison-split-table | #2824 | `marketing/comparison/comparison_split_table.rs` |
+| comparison-table | #2825 | `marketing/comparison/comparison_table.rs` |
 | careers-card-grid | #2815 | `marketing/careers/careers_card_grid.rs` |
 | careers-split-accordion | #2816 | `marketing/careers/careers_split_accordion.rs` |
 | changelog-timeline-subscribe | #2821 | `marketing/changelog/changelog_timeline_subscribe.rs` |
@@ -876,6 +877,7 @@ pub enum LayoutCss {
 | feature-alternating-rows | #2763 | `marketing/feature/feature_alternating_rows.rs` |
 | contact-form-testimonial | #2828 | `marketing/contact/contact_form_testimonial.rs` |
 | feature-image-cards | #2765 | `marketing/feature/feature_image_cards.rs` |
+| feature-four-column-grid | #2764 | `marketing/feature/feature_four_column_grid.rs` |
 | feature-large-screenshot | #2766 | `marketing/feature/feature_large_screenshot.rs` |
 | contact-image-info | #2829 | `marketing/contact/contact_image_info.rs` |
 | feature-side-heading-grid | #2767 | `marketing/feature/feature_side_heading_grid.rs` |
@@ -884,10 +886,12 @@ pub enum LayoutCss {
 | contact-split-form-info | #2832/#2833/#2834 | `marketing/contact/contact_split_form_info.rs` |
 | feature-split-list-image | #2769 | `marketing/feature/feature_split_list_image.rs` |
 | error-page-background-image | #2836 | `marketing/error_page/error_page_background_image.rs` |
+| error-page-split-image | #2841 | `marketing/error_page/error_page_split_image.rs` |
 | feature-split-screenshot | #2770 | `marketing/feature/feature_split_screenshot.rs` |
 | gallery-image-grid | #2778 | `marketing/gallery/gallery_image_grid.rs` |
 | error-page-centered | #2837 | `marketing/error_page/error_page_centered.rs` |
 | error-page-popular-links | #2838 | `marketing/error_page/error_page_popular_links.rs` |
+| contact-split-form-image | #2831 | `marketing/contact/contact_split_form_image.rs` |
 | contact-centered-form | #2826 | `marketing/contact/contact_centered_form.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
