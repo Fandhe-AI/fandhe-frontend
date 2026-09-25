@@ -1589,6 +1589,11 @@ title = "error-page-split-image"
 source = "site/blocks/error-page-split-image.md"
 path = "/blocks/error-page-split-image/"
 
+[[section.group.page]]
+title = "error-page-split-links"
+source = "site/blocks/error-page-split-links.md"
+path = "/blocks/error-page-split-links/"
+
 [[section.group]]
 title = "Gallery"
 

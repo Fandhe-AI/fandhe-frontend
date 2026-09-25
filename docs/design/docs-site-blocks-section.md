@@ -892,6 +892,7 @@ pub enum LayoutCss {
 | gallery-image-grid | #2778 | `marketing/gallery/gallery_image_grid.rs` |
 | error-page-centered | #2837 | `marketing/error_page/error_page_centered.rs` |
 | error-page-popular-links | #2838 | `marketing/error_page/error_page_popular_links.rs` |
+| error-page-split-links | #2842 | `marketing/error_page/error_page_split_links.rs` |
 | contact-split-form-image | #2831 | `marketing/contact/contact_split_form_image.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
