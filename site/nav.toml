@@ -1433,6 +1433,14 @@ source = "site/blocks/contact-split-info.md"
 path = "/blocks/contact-split-info/"
 
 [[section.group]]
+title = "Newsletter"
+
+[[section.group.page]]
+title = "newsletter-split"
+source = "site/blocks/newsletter-split.md"
+path = "/blocks/newsletter-split/"
+
+[[section.group]]
 title = "Blog"
 
 [[section.group.page]]
