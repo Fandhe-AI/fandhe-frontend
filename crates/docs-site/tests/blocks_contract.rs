@@ -5785,3 +5785,106 @@ fn contact_info_columns_composes_expected_parts() {
         );
     }
 }
+
+/// error-page-background-image ページが Demo class・専用 CSS を配線して
+/// いること、背景画像・スクリムの `data-*` フックが実際に出力されている
+/// ことを固定する（イシュー #2836）。
+#[test]
+fn error_page_background_image_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/error-page-background-image/index.html"))
+        .expect("blocks/error-page-background-image/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-error-page-background-image\""),
+        "error-page-background-image page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "error-page-background-image page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "error-page-background-image page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-error-page-background-image-image",
+        "data-blocks-error-page-background-image-message",
+        "data-blocks-error-page-background-image-code",
+        "data-blocks-error-page-background-image-title",
+        "data-blocks-error-page-background-image-description",
+        "data-blocks-error-page-background-image-back",
+    ] {
+        assert!(
+            html.contains(hook),
+            "error-page-background-image page should render the {hook} attribute"
+        );
+    }
+    assert!(
+        html.contains("blocks-demo-background.svg"),
+        "error-page-background-image page should reference the shared background dummy asset"
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "error-page-background-image should never contain {absent}"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-error-page-background-image {",
+        ".blocks-error-page-background-image-root {",
+        "[data-blocks-error-page-background-image-image] {",
+        ".blocks-error-page-background-image-scrim {",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// error-page-background-image の合成部品（empty-state/heading/text/
+/// image/link）が期待どおりの構成で実際に出力されていること、`<form>`
+/// 等の非対話制約を固定する（イシュー #2836。
+/// `contact_info_columns_composes_expected_parts` と同型）。
+#[test]
+fn error_page_background_image_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/error-page-background-image/")
+        .expect("error-page-background-image should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"empty-state\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"image\"",
+        "data-scope=\"link\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "error-page-background-image demo should contain {scope}"
+        );
+    }
+    assert!(html.contains(r#"src="../../assets/blocks-demo-background.svg""#));
+    assert!(html.contains(r#"href="../../""#));
+    for text_fragment in ["404", "Page not found", "Back to home"] {
+        assert!(
+            html.contains(text_fragment),
+            "error-page-background-image demo should contain {text_fragment}"
+        );
+    }
+    for absent in [
+        "<form",
+        "src=\"data:",
+        "href=\"#\"",
+        "mailto:",
+        "tel:",
+        "id=\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "error-page-background-image should never contain {absent}"
+        );
+    }
+}
