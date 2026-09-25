@@ -5189,7 +5189,7 @@ fn content_with_testimonial_composes_expected_parts() {
 
 /// feature-accordion-image の Demo ラッパ class・CSS 配線・CSS フック
 /// 属性・`blocks::stylesheet()` 側のブレークポイント規則を固定する
-/// （イシュー #2761）。
+/// （イシュー #2761/#2762）。
 #[test]
 fn feature_accordion_image_page_wires_demo_class_and_css_hooks() {
     let out = build_real_site();
@@ -5212,12 +5212,34 @@ fn feature_accordion_image_page_wires_demo_class_and_css_hooks() {
         "data-blocks-feature-accordion-image-media=\"\"",
         "data-blocks-feature-accordion-image-inline-image=\"\"",
         "data-scope=\"accordion\"",
+        // #2762: カテゴリ切替ボタン列（形 B）の CSS フック・ARIA 契約。
+        "data-blocks-feature-accordion-image-category=\"\"",
+        "data-scope=\"button\"",
+        "data-scope=\"icon\"",
+        r#"aria-pressed="true""#,
+        r#"role="group""#,
     ] {
         assert!(
             html.contains(hook),
             "feature-accordion-image page should output the {hook} CSS hook attribute"
         );
     }
+    // #2761 レビュー指摘の是正（全件 open + disabled）を #2762 の形 B 追加
+    // 後も維持する回帰固定。閉じた項目・反応しない `aria-expanded="false"`
+    // なアコーディオントリガーを再導入しない。
+    let block = blocks::all_blocks()
+        .into_iter()
+        .find(|b| b.path == "/blocks/feature-accordion-image/")
+        .expect("feature-accordion-image block should be registered");
+    let demo_html = render(&(block.demo)());
+    assert!(
+        !demo_html.contains(" hidden=\"\""),
+        "feature-accordion-image demo should never contain a hidden (unreachable) accordion body"
+    );
+    assert!(
+        !demo_html.contains(r#"aria-expanded="false""#),
+        "feature-accordion-image demo should not reintroduce a closed accordion item"
+    );
 
     let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
     let sheet_css = sheet.as_css();
@@ -5226,6 +5248,8 @@ fn feature_accordion_image_page_wires_demo_class_and_css_hooks() {
         "@media (min-width: 48rem)",
         ".blocks-feature-accordion-image-media-slot",
         "[data-blocks-feature-accordion-image-inline-image]",
+        ".blocks-feature-accordion-image-categories",
+        ".blocks-feature-accordion-image-categories [data-scope=\"button\"][data-part=\"root\"][data-disabled]",
     ] {
         assert!(
             sheet_css.contains(needle),
