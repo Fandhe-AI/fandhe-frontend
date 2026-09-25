@@ -1,0 +1,255 @@
+# logo-cloud-split
+
+`heading` / `text` / `button` / `image` / `link` の 5 部品を組み合わせた、
+見出し左 + ロゴ 2 列グリッド右の合成例です。`lg` 未満では見出しの下に
+ロゴが縦積みになります。新しい UI 部品は作らず、既存部品のみで構成して
+います。無 JS の静的な表示で `<form>` は出力しません。
+
+主参照は対応表 ID R1058、集約元は対応表 ID R0565・R0149・R0566・R0145・
+R0567 の 5 件です（出典の固有名・ファイル名は記載しません）。ロゴ・社名は
+すべて架空で、実在ブランドのロゴ・商標は使っていません。
+
+## Rust コード
+
+```rust
+const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+
+use crate::blocks::dummy_assets;
+use fandhe_frontend_core::{div, text, Node};
+use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
+use fandhe_frontend_pre_styled_ui::heading::{
+    heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
+};
+use fandhe_frontend_pre_styled_ui::image::{image, ImageFit, ImageProps};
+use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
+use fandhe_frontend_pre_styled_ui::recipe::ColorPalette;
+use fandhe_frontend_pre_styled_ui::text::{
+    self as styled_text, TextProps, TextSize, TextVariant, TextWeight,
+};
+use fandhe_frontend_pre_styled_ui::Size;
+
+/// 各形の直前に置く短い形ラベル（`styled_text::text` の `Sm`/`Muted`、
+/// `cta_split_image::variant_label` と同型）。
+fn variant_label(label: &'static str) -> Node {
+    styled_text::text(
+        &TextProps {
+            size: TextSize::Sm,
+            variant: TextVariant::Muted,
+            ..TextProps::default()
+        },
+        vec![],
+        vec![text(label)],
+    )
+}
+
+/// ロゴ 1 件（同一の抽象バッジ SVG + 架空社名キャプション）。`bordered`
+/// が true のとき淡色枠タイルへ収める（淡色枠タイル形の差分）。
+fn logo_item(company: &'static str, bordered: bool) -> Node {
+    let logo_image = image(
+        &ImageProps {
+            fit: ImageFit::Contain,
+            ..ImageProps::new(dummy_assets::LOGO_SRC, company)
+        },
+        vec![("data-blocks-logo-cloud-split-logo", "")],
+    );
+    let caption = styled_text::text(
+        &TextProps {
+            size: TextSize::Xs,
+            variant: TextVariant::Muted,
+            ..TextProps::default()
+        },
+        vec![],
+        vec![text(company)],
+    );
+    if bordered {
+        div(
+            vec![("data-blocks-logo-cloud-split-tile", "")],
+            vec![logo_image, caption],
+        )
+    } else {
+        div(vec![], vec![logo_image, caption])
+    }
+}
+
+/// ロゴ 6 件を 2 列グリッドへ並べる（[`dummy_assets::COMPANY_NAMES`] の
+/// 先頭 6 件を使う）。
+fn logo_grid(bordered: bool) -> Node {
+    div(
+        vec![("class", "blocks-logo-cloud-split-grid")],
+        dummy_assets::COMPANY_NAMES
+            .iter()
+            .take(6)
+            .map(|company| logo_item(company, bordered))
+            .collect(),
+    )
+}
+
+/// 基準形・暗色固定形で共通の左列（tagline + 見出し + 説明 + CTA ボタン
+/// 2 本 + GitHub リンク）。
+fn copy_with_cta() -> Node {
+    div(
+        vec![("class", "blocks-logo-cloud-split-copy")],
+        vec![
+            styled_text::text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    weight: TextWeight::Medium,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text("導入企業")],
+            ),
+            heading(
+                HeadingLevel::H3,
+                &HeadingProps {
+                    size: HeadingSize::Xl2,
+                    weight: HeadingWeight::Bold,
+                },
+                vec![],
+                vec![text("多くのチームに選ばれています")],
+            ),
+            styled_text::text(
+                &TextProps {
+                    variant: TextVariant::Muted,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text(
+                    "様々な規模のチームが日々の開発にご利用いただいています。",
+                )],
+            ),
+            div(
+                vec![("class", "blocks-logo-cloud-split-cta")],
+                vec![
+                    button::button(
+                        &ButtonProps {
+                            size: Size::Lg,
+                            ..ButtonProps::default()
+                        },
+                        vec![],
+                        vec![text("無料で始める")],
+                    ),
+                    button::button(
+                        &ButtonProps {
+                            variant: ButtonVariant::Outline,
+                            size: Size::Lg,
+                            ..ButtonProps::default()
+                        },
+                        vec![],
+                        vec![text("導入事例を見る")],
+                    ),
+                ],
+            ),
+            link::root(
+                REPO,
+                &LinkProps {
+                    variant: LinkVariant::Underline,
+                    palette: ColorPalette::Neutral,
+                    ..LinkProps::default()
+                },
+                vec![],
+                vec![text("導入企業の一覧（GitHub）")],
+            ),
+        ],
+    )
+}
+
+/// 基準形（R1058 主参照）: CTA 付き左列 + 枠なしロゴ 2 列グリッド。
+fn variant_basic() -> Node {
+    div(
+        vec![
+            ("class", "blocks-logo-cloud-split-row"),
+            ("data-blocks-logo-cloud-split-row", ""),
+        ],
+        vec![copy_with_cta(), logo_grid(false)],
+    )
+}
+
+/// 淡色枠タイル形（R0149/R0566/R0145 集約）: 見出し + 説明のみの左列
+/// （CTA なし）+ 淡色枠タイルのロゴ 2 列グリッド。
+fn variant_bordered() -> Node {
+    let left = div(
+        vec![("class", "blocks-logo-cloud-split-copy")],
+        vec![
+            heading(
+                HeadingLevel::H3,
+                &HeadingProps {
+                    size: HeadingSize::Xl2,
+                    weight: HeadingWeight::Bold,
+                },
+                vec![],
+                vec![text("信頼できるパートナー企業")],
+            ),
+            styled_text::text(
+                &TextProps {
+                    variant: TextVariant::Muted,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text("業界を代表する企業と協業しています。")],
+            ),
+        ],
+    );
+    div(
+        vec![
+            ("class", "blocks-logo-cloud-split-row"),
+            ("data-blocks-logo-cloud-split-row", ""),
+        ],
+        vec![left, logo_grid(true)],
+    )
+}
+
+/// 暗色固定形（R0567 集約）: 基準形と同じ左列構成を暗色面上に配置する
+/// （モジュール doc「暗色固定」節）。
+fn variant_dark() -> Node {
+    div(
+        vec![("data-blocks-logo-cloud-split-tone", "dark")],
+        vec![div(
+            vec![
+                ("class", "blocks-logo-cloud-split-row"),
+                ("data-blocks-logo-cloud-split-row", ""),
+            ],
+            vec![copy_with_cta(), logo_grid(true)],
+        )],
+    )
+}
+
+/// `logo-cloud-split` の Demo 本体（3 形を縦に並記）。呼び出しごとに同一の
+/// `Node` を返す純関数。
+pub fn demo() -> Node {
+    div(
+        vec![("class", "blocks-logo-cloud-split-layout")],
+        vec![
+            variant_label("基準形（R1058）"),
+            variant_basic(),
+            variant_label("淡色枠タイル形（R0149/R0566/R0145）"),
+            variant_bordered(),
+            variant_label("暗色固定形（R0567）"),
+            variant_dark(),
+        ],
+    )
+}
+```
+
+## 原案差分メモ
+
+- 主参照（R1058）・集約元 5 件（R0565・R0149・R0566・R0145・R0567）を
+  基準形 / 淡色枠タイル形 / 暗色固定形の 3 形へ統合しました。
+- 淡色枠タイル形は R0149・R0566・R0145 を集約し、CTA を持たない
+  見出しのみの左列（R0145 の差分）を採用しています。
+- 「横並び」（R0565）は Demo を増やさず、基準形のグリッド列数を変える
+  だけで表現できるためこのメモに留めています。
+- 暗色固定形（R0567）は現在のテーマ（ライト/ダーク）に関わらず常に
+  暗色面で表示します。ライト/ダーク切替に追随する仕組みではありません。
+- 文言・社名はすべて架空です。ロゴは同一の抽象バッジ画像で統一し、
+  実在ブランドのロゴ・商標は使っていません。
+- 配色はすべてテーマトークン（`--fandhe-color-*`）経由です。
+- レイアウトは `lg`（64rem）未満で 1 列（見出しの下にロゴ）、`lg` 以上で
+  左見出し + 右ロゴの 2 カラムに切り替わります。
+
+関連情報:
+[Heading](../themes/heading.md) /
+[Text](../themes/text.md) /
+[Button](../themes/button.md) /
+[Image](../themes/image.md) /
+[Link](../themes/link.md)

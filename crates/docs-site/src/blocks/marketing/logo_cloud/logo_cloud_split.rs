@@ -1,0 +1,437 @@
+//! `logo-cloud-split` block（イシュー #2795。Marketing / Logo Cloud
+//! カテゴリの最初の block。対応表 ID R1058（主参照）・R0565/R0149/R0566/
+//! R0145/R0567（集約元）を構造の参照元とする合成例。見出し左 + ロゴ 2 列
+//! グリッド右）。取得手段・ファイル名・内部コンポーネント識別子は記載
+//! しない（`docs/design/motion-reference-adoption-policy.md` §9 と同じ
+//! ライセンス上の転記制限）。参照ファイル置き場（`_/blocks-intake/`）は
+//! 本実装時点で手元に存在せず、イシュー本文のレイアウト仕様・集約元の
+//! 一行説明のみを根拠に設計した（参照元の文言・配色・装飾の転記が構造的
+//! に起きない）。
+//!
+//! # 使用部品
+//!
+//! `heading` / `text` / `button` / `image` / `link` の 5 部品のみを合成
+//! する（[`BLOCK`] の `parts` に一致させる契約、
+//! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証
+//! する）。新しい UI 部品は追加しない。
+//!
+//! # 3 形構成（集約元との差分）
+//!
+//! 集約元 6 件を [`variant_basic`]/[`variant_bordered`]/[`variant_dark`]
+//! の 3 形へ統合する（`variant_label` で対応 ID を示しながら [`demo`] 1 つ
+//! の中へ縦に並記する、`cta_split_image` と同じ構成手段）。
+//!
+//! - **基準形**（R1058 主参照）: tagline + 見出し + 説明 + CTA ボタン 2 本
+//!   + GitHub リンクの左列、枠なしロゴ 2 列グリッドの右列
+//! - **淡色枠タイル形**（R0149/R0566/R0145 集約）: 見出し + 説明のみの
+//!   左列（CTA なし。R0145「見出しのみ」の差分を表す）、淡色枠タイルへ
+//!   ロゴを収めた 2 列グリッドの右列
+//! - **暗色固定形**（R0567 集約）: 基準形と同じ左列構成を暗色面上に配置
+//!
+//! 「横並び」（R0565）は Demo を増やさず本節で言及するに留める。基準形の
+//! グリッド列数を変えるだけで表現できるため、原稿の差分メモで扱う
+//! （Demo を増やすと原稿フェンスが長くなるだけで新しい構造を示さない）。
+//!
+//! # ロゴ・社名は架空
+//!
+//! 6 ロゴとも `crate::blocks::dummy_assets::LOGO_SRC`（同一の抽象バッジ
+//! SVG）を使い、`dummy_assets::COMPANY_NAMES` の架空社名をキャプション
+//! として添えて視覚的に区別する。実在ブランドのロゴ・商標・企業名は
+//! 一切使わない。
+//!
+//! # 暗色固定（ライト/ダーク切替に追随しない）
+//!
+//! 「暗色固定」は現在のテーマ（ライト/ダーク）に関わらず常に暗色面で
+//! 表示する形であり、`data-blocks-logo-cloud-split-tone="dark"` を
+//! ラッパへ付与し `var(--fandhe-color-fg)`/`var(--fandhe-color-bg)` を
+//! 固定で割り当てて表す（`cta_split_image` の `tone` と同じ手段だが、
+//! 本 block はテーマ追随の切替 UI を持たないため常時この配色になる）。
+//!
+//! # ブレークポイント（lg=64rem をリテラル直書きする理由）
+//!
+//! テーマの breakpoint トークンは `@media` 条件式の中では解決できない
+//! （CSS custom property は宣言側でのみ有効）ため、
+//! `fandhe_frontend_pre_styled_ui::recipe::Breakpoint::Lg`（1024px =
+//! 64rem）と一致するリテラル値を [`LAYOUT_CSS`] へ直書きする
+//! （`contact_split_info` 等と同じ判断）。`lg` 未満では見出し列の下へ
+//! ロゴグリッドを縦積みし、`lg` 以上で「左見出し + 右ロゴ」の 2 カラムへ
+//! 切り替える。ロゴグリッド自体は全幅で常に 2 列固定とする（ロゴが
+//! 小さく、狭幅でも 2 列で崩れないため）。
+//!
+//! # `text` の名前衝突
+//!
+//! `fandhe_frontend_pre_styled_ui::text::text`（`<p>` を組み立てる styled
+//! パート関数）と `fandhe_frontend_core::text`（テキストノード生成関数）が
+//! 同名のため、styled 側を `styled_text` として取り込む（`crate::blocks`
+//! 内の他 block と同じ回避方法）。
+//!
+//! # リンク先を固定リポジトリ URL にする理由
+//!
+//! `crate::blocks` の他 block と同じく `link::root` + 固定 URL
+//! （[`REPO`]）で「実際に押せる」導線を表す。`href="#"` は使わない。
+//!
+//! # `<form>` を持たない・データ取得/送信を行わない
+//!
+//! `crate::blocks` モジュール doc「`<form>` を使わない」節・「セキュリティ
+//! 不変条件」節に従い、本 Demo はフォーム・状態機械を持たない静的な合成例
+//! である。ボタンは `button::button` 既定の `type="button"`。
+
+use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
+
+// blocks-code:begin
+const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+
+use crate::blocks::dummy_assets;
+use fandhe_frontend_core::{div, text, Node};
+use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
+use fandhe_frontend_pre_styled_ui::heading::{
+    heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
+};
+use fandhe_frontend_pre_styled_ui::image::{image, ImageFit, ImageProps};
+use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
+use fandhe_frontend_pre_styled_ui::recipe::ColorPalette;
+use fandhe_frontend_pre_styled_ui::text::{
+    self as styled_text, TextProps, TextSize, TextVariant, TextWeight,
+};
+use fandhe_frontend_pre_styled_ui::Size;
+
+/// 各形の直前に置く短い形ラベル（`styled_text::text` の `Sm`/`Muted`、
+/// `cta_split_image::variant_label` と同型）。
+fn variant_label(label: &'static str) -> Node {
+    styled_text::text(
+        &TextProps {
+            size: TextSize::Sm,
+            variant: TextVariant::Muted,
+            ..TextProps::default()
+        },
+        vec![],
+        vec![text(label)],
+    )
+}
+
+/// ロゴ 1 件（同一の抽象バッジ SVG + 架空社名キャプション）。`bordered`
+/// が true のとき淡色枠タイルへ収める（淡色枠タイル形の差分）。
+fn logo_item(company: &'static str, bordered: bool) -> Node {
+    let logo_image = image(
+        &ImageProps {
+            fit: ImageFit::Contain,
+            ..ImageProps::new(dummy_assets::LOGO_SRC, company)
+        },
+        vec![("data-blocks-logo-cloud-split-logo", "")],
+    );
+    let caption = styled_text::text(
+        &TextProps {
+            size: TextSize::Xs,
+            variant: TextVariant::Muted,
+            ..TextProps::default()
+        },
+        vec![],
+        vec![text(company)],
+    );
+    if bordered {
+        div(
+            vec![("data-blocks-logo-cloud-split-tile", "")],
+            vec![logo_image, caption],
+        )
+    } else {
+        div(vec![], vec![logo_image, caption])
+    }
+}
+
+/// ロゴ 6 件を 2 列グリッドへ並べる（[`dummy_assets::COMPANY_NAMES`] の
+/// 先頭 6 件を使う）。
+fn logo_grid(bordered: bool) -> Node {
+    div(
+        vec![("class", "blocks-logo-cloud-split-grid")],
+        dummy_assets::COMPANY_NAMES
+            .iter()
+            .take(6)
+            .map(|company| logo_item(company, bordered))
+            .collect(),
+    )
+}
+
+/// 基準形・暗色固定形で共通の左列（tagline + 見出し + 説明 + CTA ボタン
+/// 2 本 + GitHub リンク）。
+fn copy_with_cta() -> Node {
+    div(
+        vec![("class", "blocks-logo-cloud-split-copy")],
+        vec![
+            styled_text::text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    weight: TextWeight::Medium,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text("導入企業")],
+            ),
+            heading(
+                HeadingLevel::H3,
+                &HeadingProps {
+                    size: HeadingSize::Xl2,
+                    weight: HeadingWeight::Bold,
+                },
+                vec![],
+                vec![text("多くのチームに選ばれています")],
+            ),
+            styled_text::text(
+                &TextProps {
+                    variant: TextVariant::Muted,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text(
+                    "様々な規模のチームが日々の開発にご利用いただいています。",
+                )],
+            ),
+            div(
+                vec![("class", "blocks-logo-cloud-split-cta")],
+                vec![
+                    button::button(
+                        &ButtonProps {
+                            size: Size::Lg,
+                            ..ButtonProps::default()
+                        },
+                        vec![],
+                        vec![text("無料で始める")],
+                    ),
+                    button::button(
+                        &ButtonProps {
+                            variant: ButtonVariant::Outline,
+                            size: Size::Lg,
+                            ..ButtonProps::default()
+                        },
+                        vec![],
+                        vec![text("導入事例を見る")],
+                    ),
+                ],
+            ),
+            link::root(
+                REPO,
+                &LinkProps {
+                    variant: LinkVariant::Underline,
+                    palette: ColorPalette::Neutral,
+                    ..LinkProps::default()
+                },
+                vec![],
+                vec![text("導入企業の一覧（GitHub）")],
+            ),
+        ],
+    )
+}
+
+/// 基準形（R1058 主参照）: CTA 付き左列 + 枠なしロゴ 2 列グリッド。
+fn variant_basic() -> Node {
+    div(
+        vec![
+            ("class", "blocks-logo-cloud-split-row"),
+            ("data-blocks-logo-cloud-split-row", ""),
+        ],
+        vec![copy_with_cta(), logo_grid(false)],
+    )
+}
+
+/// 淡色枠タイル形（R0149/R0566/R0145 集約）: 見出し + 説明のみの左列
+/// （CTA なし）+ 淡色枠タイルのロゴ 2 列グリッド。
+fn variant_bordered() -> Node {
+    let left = div(
+        vec![("class", "blocks-logo-cloud-split-copy")],
+        vec![
+            heading(
+                HeadingLevel::H3,
+                &HeadingProps {
+                    size: HeadingSize::Xl2,
+                    weight: HeadingWeight::Bold,
+                },
+                vec![],
+                vec![text("信頼できるパートナー企業")],
+            ),
+            styled_text::text(
+                &TextProps {
+                    variant: TextVariant::Muted,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text("業界を代表する企業と協業しています。")],
+            ),
+        ],
+    );
+    div(
+        vec![
+            ("class", "blocks-logo-cloud-split-row"),
+            ("data-blocks-logo-cloud-split-row", ""),
+        ],
+        vec![left, logo_grid(true)],
+    )
+}
+
+/// 暗色固定形（R0567 集約）: 基準形と同じ左列構成を暗色面上に配置する
+/// （モジュール doc「暗色固定」節）。
+fn variant_dark() -> Node {
+    div(
+        vec![("data-blocks-logo-cloud-split-tone", "dark")],
+        vec![div(
+            vec![
+                ("class", "blocks-logo-cloud-split-row"),
+                ("data-blocks-logo-cloud-split-row", ""),
+            ],
+            vec![copy_with_cta(), logo_grid(true)],
+        )],
+    )
+}
+
+/// `logo-cloud-split` の Demo 本体（3 形を縦に並記）。呼び出しごとに同一の
+/// `Node` を返す純関数。
+pub fn demo() -> Node {
+    div(
+        vec![("class", "blocks-logo-cloud-split-layout")],
+        vec![
+            variant_label("基準形（R1058）"),
+            variant_basic(),
+            variant_label("淡色枠タイル形（R0149/R0566/R0145）"),
+            variant_bordered(),
+            variant_label("暗色固定形（R0567）"),
+            variant_dark(),
+        ],
+    )
+}
+// blocks-code:end
+
+/// [`crate::blocks::all_blocks`] が集約するレジストリエントリ（本カテゴリの `blocks()` から連結される）。
+pub const BLOCK: Block = Block {
+    path: "/blocks/logo-cloud-split/",
+    title: "logo-cloud-split",
+    category: BlockCategory::LogoCloud,
+    rust_source: "crates/docs-site/src/blocks/marketing/logo_cloud/logo_cloud_split.rs",
+    demo_class: "blocks-logo-cloud-split",
+    parts: &[
+        Part {
+            label: "Heading",
+            path: "/themes/heading/",
+        },
+        Part {
+            label: "Text",
+            path: "/themes/text/",
+        },
+        Part {
+            label: "Button",
+            path: "/themes/button/",
+        },
+        Part {
+            label: "Image",
+            path: "/themes/image/",
+        },
+        Part {
+            label: "Link",
+            path: "/themes/link/",
+        },
+    ],
+    layout_css: LayoutCss::Static(LAYOUT_CSS),
+    demo,
+};
+
+/// `logo_cloud_split` 固有のレイアウト規則。セレクタは
+/// `.blocks-logo-cloud-split-*` と `[data-blocks-logo-cloud-split-*]` の
+/// みを用い、他 block や部品の素のセレクタへ影響させない
+/// （`contact_split_info` 等と同じ名前空間分離）。
+///
+/// # ルート class を `demo_class` と別名にする理由
+///
+/// [`Block::demo_class`] は `blocks-logo-cloud-split` だが、`demo()` が
+/// 返すルート `div` の class は `blocks-logo-cloud-split-layout` という
+/// 別名にする（既存 block と同じ Bugbot 教訓の回避。ページ側が
+/// `demo_class` を `.blocks-demo` の隣に付与するラッパーと block 自身の
+/// レイアウトルートを区別するため）。
+const LAYOUT_CSS: &str = "\
+.blocks-logo-cloud-split-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-12);\n}\n\
+.blocks-logo-cloud-split-row {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-8);\n}\n\
+.blocks-logo-cloud-split-copy {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
+.blocks-logo-cloud-split-cta {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-3);\n  align-items: center;\n}\n\
+.blocks-logo-cloud-split-grid {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-4);\n  align-items: center;\n}\n\
+[data-blocks-logo-cloud-split-logo] {\n  height: 3rem;\n  width: auto;\n  max-width: 100%;\n}\n\
+[data-blocks-logo-cloud-split-tile] {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  padding: var(--fandhe-space-4);\n  border-radius: var(--fandhe-radius-md);\n  border: 1px solid var(--fandhe-color-border);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
+[data-blocks-logo-cloud-split-tone=\"dark\"] {\n  padding: var(--fandhe-space-8);\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-fg);\n  color: var(--fandhe-color-bg);\n}\n\
+[data-blocks-logo-cloud-split-tone=\"dark\"] [data-blocks-logo-cloud-split-tile] {\n  border-color: var(--fandhe-color-bg-subtle);\n  background: transparent;\n}\n\
+@media (min-width: 64rem) {\n  .blocks-logo-cloud-split-row {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n    align-items: center;\n  }\n}\n";
+
+#[cfg(test)]
+mod tests {
+    use super::{demo, LAYOUT_CSS, REPO};
+    use fandhe_frontend_core::render;
+
+    /// Demo が使用部品（heading/text/button/image/link）の anatomy をすべて
+    /// 実際に出力していることと、行数・ロゴ枚数・ボタン数・リンク先を
+    /// 固定する（`contact_split_info_composes_expected_parts` と同型）。
+    #[test]
+    fn demo_composes_expected_parts() {
+        let html = render(&demo());
+        for scope in [
+            "data-scope=\"heading\"",
+            "data-scope=\"text\"",
+            "data-scope=\"button\"",
+            "data-scope=\"image\"",
+            "data-scope=\"link\"",
+        ] {
+            assert!(html.contains(scope), "demo output should contain {scope}");
+        }
+        assert_eq!(
+            html.matches("data-blocks-logo-cloud-split-row").count(),
+            3,
+            "demo should render exactly 3 rows (basic / bordered / dark)"
+        );
+        assert_eq!(
+            html.matches("data-blocks-logo-cloud-split-logo").count(),
+            18,
+            "demo should render exactly 18 logo images (6 logos x 3 rows)"
+        );
+        assert_eq!(
+            html.matches(r#"type="button""#).count(),
+            4,
+            "demo should render exactly 4 buttons (2 CTA rows x 2 buttons)"
+        );
+        assert_eq!(
+            html.matches(&format!("href=\"{REPO}\"")).count(),
+            2,
+            "2 GitHub links (basic / dark rows) should point to the fixed repository URL"
+        );
+        assert!(html.contains(r#"data-blocks-logo-cloud-split-tone="dark""#));
+    }
+
+    /// 非対話・XSS 回帰の不変条件（`crate::blocks` モジュール doc）を固定
+    /// する。
+    #[test]
+    fn demo_has_no_form_or_unsafe_output() {
+        let html = render(&demo());
+        for absent in [
+            "<form",
+            "type=\"submit\"",
+            "href=\"#\"",
+            "src=\"data:",
+            "id=\"",
+        ] {
+            assert!(!html.contains(absent), "demo should never contain {absent}");
+        }
+    }
+
+    /// [`LAYOUT_CSS`] が想定するブレークポイント・列数・tone セレクタを
+    /// 持ち、`<` を含まないこと（REQ-1: `</style>` によるスタイル脱出を
+    /// 防ぐ）。
+    #[test]
+    fn layout_css_declares_breakpoints_and_column_counts() {
+        assert!(!LAYOUT_CSS.contains('<'));
+        assert!(LAYOUT_CSS.contains("@media (min-width: 64rem)"));
+        assert!(LAYOUT_CSS.contains("repeat(2"));
+        assert!(LAYOUT_CSS.contains("data-blocks-logo-cloud-split-tone=\"dark\""));
+    }
+
+    /// ルート class（`demo_class` とは別名）が `demo()` の出力へ実際に
+    /// 現れること（モジュール doc「ルート class を `demo_class` と別名に
+    /// する理由」節の固定、既存 block と同じ回帰）。
+    #[test]
+    fn layout_root_class_differs_from_demo_class() {
+        let html = render(&demo());
+        assert!(html.contains("class=\"blocks-logo-cloud-split-layout\""));
+        assert_ne!(super::BLOCK.demo_class, "blocks-logo-cloud-split-layout");
+    }
+}

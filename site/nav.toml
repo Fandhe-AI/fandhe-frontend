@@ -1390,6 +1390,14 @@ source = "site/blocks/testimonials-stack.md"
 path = "/blocks/testimonials-stack/"
 
 [[section.group]]
+title = "Logo Cloud"
+
+[[section.group.page]]
+title = "logo-cloud-split"
+source = "site/blocks/logo-cloud-split.md"
+path = "/blocks/logo-cloud-split/"
+
+[[section.group]]
 title = "Contact"
 
 [[section.group.page]]
