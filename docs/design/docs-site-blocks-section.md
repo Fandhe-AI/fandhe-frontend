@@ -888,6 +888,7 @@ pub enum LayoutCss {
 | feature-split-screenshot | #2770 | `marketing/feature/feature_split_screenshot.rs` |
 | gallery-image-grid | #2778 | `marketing/gallery/gallery_image_grid.rs` |
 | error-page-centered | #2837 | `marketing/error_page/error_page_centered.rs` |
+| error-page-popular-links | #2838 | `marketing/error_page/error_page_popular_links.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 73 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の

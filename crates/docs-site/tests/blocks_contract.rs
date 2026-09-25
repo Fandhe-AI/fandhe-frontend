@@ -5936,6 +5936,136 @@ fn error_page_background_image_composes_expected_parts() {
     }
 }
 
+/// error-page-popular-links ページが Demo class・専用 CSS を配線して
+/// いること、ロゴ・メッセージ・人気ページ一覧・戻るリンク・footer の
+/// `data-*` フックが実際に出力されていることを固定する（イシュー #2838）。
+#[test]
+fn error_page_popular_links_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/error-page-popular-links/index.html"))
+        .expect("blocks/error-page-popular-links/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-error-page-popular-links\""),
+        "error-page-popular-links page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "error-page-popular-links page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "error-page-popular-links page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-error-page-popular-links-message",
+        "data-blocks-error-page-popular-links-code",
+        "data-blocks-error-page-popular-links-title",
+        "data-blocks-error-page-popular-links-description",
+        "data-blocks-error-page-popular-links-popular-heading",
+        "data-blocks-error-page-popular-links-list",
+        "data-blocks-error-page-popular-links-item",
+        "data-blocks-error-page-popular-links-tile",
+        "data-blocks-error-page-popular-links-chevron",
+        "data-blocks-error-page-popular-links-back",
+        "data-blocks-error-page-popular-links-footer-rule",
+        "data-blocks-error-page-popular-links-copyright",
+        "data-blocks-error-page-popular-links-footer-divider",
+        "data-blocks-error-page-popular-links-social",
+    ] {
+        assert!(
+            html.contains(hook),
+            "error-page-popular-links page should render the {hook} attribute"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "error-page-popular-links should never contain {absent}"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-error-page-popular-links {",
+        ".blocks-error-page-popular-links-root {",
+        "[data-scope=\"item\"][data-part=\"root\"][data-blocks-error-page-popular-links-item] {",
+        ".blocks-error-page-popular-links-row + .blocks-error-page-popular-links-row {",
+        "[data-blocks-error-page-popular-links-footer-divider] {",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// error-page-popular-links の合成部品（empty-state/heading/text/item/
+/// list/icon/link/separator）が期待どおりの構成で実際に出力されている
+/// こと、`<form>` 等の非対話制約を固定する（イシュー #2838）。
+#[test]
+fn error_page_popular_links_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/error-page-popular-links/")
+        .expect("error-page-popular-links should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"empty-state\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"item\"",
+        "data-scope=\"list\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"link\"",
+        "data-scope=\"separator\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "error-page-popular-links demo should contain {scope}"
+        );
+    }
+    for href in [
+        "../../guides/",
+        "../../api/",
+        "../../examples/",
+        "../../themes/",
+        "../../",
+        "https://github.com/Fandhe-AI/fandhe-frontend",
+    ] {
+        assert!(
+            html.contains(href),
+            "error-page-popular-links demo should link to {href}"
+        );
+    }
+    for text_fragment in [
+        "404",
+        "Page not found",
+        "Popular pages",
+        "Guides",
+        "API Reference",
+        "Examples",
+        "Themes",
+        "Back to home",
+    ] {
+        assert!(
+            html.contains(text_fragment),
+            "error-page-popular-links demo should contain {text_fragment}"
+        );
+    }
+    for absent in [
+        "<form",
+        "src=\"data:",
+        "href=\"#\"",
+        "mailto:",
+        "tel:",
+        "id=\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "error-page-popular-links should never contain {absent}"
+        );
+    }
+}
+
 /// contact-split-form-info ページが Demo class・専用 CSS を配線している
 /// こと、block 固有 CSS（2 列 grid・divider 非表示）が実際に出力されて
 /// いることを固定する（イシュー #2832）。列位置を `grid-column`/`grid-row`
