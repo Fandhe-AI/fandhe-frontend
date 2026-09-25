@@ -11,7 +11,8 @@
   下に `clipboard` のコピー欄（idle 表示）と CTA ボタン 2 個を配置。
 - **B（左寄せ・`input-group` 形式）**: `field` + `input-group` +
   読み取り専用 `input` + addon ボタンで 1 行のコピー欄を表現。コピー状態
-  そのものは持ちません。
+  そのものは持たず、addon ボタンは `disabled` で押下不能です（下記
+  「コピー操作について」参照）。
 - **C（パンくず付き左寄せ・`clipboard` 形式・copied）**: `breadcrumb` を
   導入要素に置き、`clipboard` の `value_text` に `code` を重ねてコマンドを
   等幅表示。indicator は copied 側のみ可視。
@@ -19,6 +20,16 @@
 `md` 未満（`< 48rem`）で CTA を全幅縦積みにし、`>= 48rem` で横並びに戻り
 ます。`<form>` は持たず、ボタンはすべて `type="button"` です。コピー
 対象のコマンド・遷移先はすべて無害な自前の値のみです。
+
+## コピー操作について
+
+A/C の「Copy」ボタンは `fandhe-frontend-pre-styled-ui` の `clipboard` 部品
+そのものです。本 block を無 JS の docs サイトではなく実アプリへ組み込み、
+`fandhe-frontend-wasm-full` でハイドレーションすると
+`navigator.clipboard.writeText` への実書き込みが自動配線されます
+（[Clipboard](../primitives/clipboard.md) 参照）。一方 B の addon ボタンは
+`clipboard` 部品を使わない別構成のため配線対象にならず、常に押下不能な
+静的表示です。
 
 ## Rust コード
 
@@ -210,7 +221,24 @@ fn instance_b() -> Node {
                                 &group_props,
                                 vec![],
                                 vec![input_group::button(
-                                    &group_props,
+                                    // レビュー指摘対応（P1、イシュー #2786
+                                    // codex 指摘）: この addon ボタンは
+                                    // `clipboard` scope の外側にあるため
+                                    // `fandhe-frontend-wasm-full` の
+                                    // `headless_clipboard` 配線が届かず、
+                                    // 実アプリに組み込んでも押下時に
+                                    // コピーは起きない。`gallery_carousel`
+                                    // の prev/next trigger・
+                                    // `feature_tabs_panel` の CTA と同型の
+                                    // 判断で `disabled: true`
+                                    // （ボタン単体のみ、`group_props` 自体は
+                                    // 変更せず addon/input の見た目は保つ）
+                                    // にして「押しても何も起きない」ことを
+                                    // 明示する。
+                                    &InputGroupProps {
+                                        disabled: true,
+                                        ..group_props
+                                    },
                                     vec![],
                                     vec![text("コピー")],
                                 )],

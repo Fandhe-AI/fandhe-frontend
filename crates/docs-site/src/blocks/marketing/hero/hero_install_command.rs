@@ -28,7 +28,25 @@
 //! - **B（左寄せ・`input-group` 形式）**: R0522。`field::root` +
 //!   `input_group::root` + `input::input`（`readonly`）+
 //!   `input_group::addon`（`InlineEnd`）+ `input_group::button` で 1 行の
-//!   コピー欄を表現する。コピー状態そのものは持たない構成。
+//!   コピー欄を表現する。コピー状態そのものは持たない構成。addon
+//!   ボタンは `clipboard` scope の外側にあり `headless_clipboard`
+//!   配線が届かないため、実アプリでも押下時にコピーは起きない
+//!   （下記「コピー配線の範囲」節参照）。`disabled: true` で押下不能を
+//!   明示する。
+//!
+//! # コピー配線の範囲（A/C は実アプリで機能する・B は機能しない）
+//!
+//! A/C は [`fandhe_frontend_pre_styled_ui::clipboard`] の
+//! `root`/`control`/`input`/`trigger` を組み合わせているため、
+//! `fandhe-frontend-wasm-full` の `headless_clipboard` 配線
+//! （`crates/wasm-full/src/headless_clipboard.rs`）が `mount`/`hydrate`
+//! 時に自動で `navigator.clipboard.writeText` を配線する。無 JS の docs
+//! サイト自体では他の全部品と同じく静的表示に留まる（`site/primitives/
+//! clipboard.md` が明記する既存の site 全体の制約）が、この block を
+//! 実アプリへ組み込めば A/C のコピー操作は実際に機能する。一方 B の
+//! addon ボタンは `clipboard` scope の外側の `input-group` パーツで
+//! あり、上記配線の対象にならないため、実アプリでも機能しない
+//! （`disabled: true` で明示する理由）。
 //! - **C（パンくず付き左寄せ・`clipboard` 形式・copied）**: R0523。
 //!   `breadcrumb` を導入要素に置き、`clipboard` の `value_text` に `code`
 //!   を重ねてコマンドを等幅表示し、`indicator` は copied 側のみ可視。
@@ -248,7 +266,24 @@ fn instance_b() -> Node {
                                 &group_props,
                                 vec![],
                                 vec![input_group::button(
-                                    &group_props,
+                                    // レビュー指摘対応（P1、イシュー #2786
+                                    // codex 指摘）: この addon ボタンは
+                                    // `clipboard` scope の外側にあるため
+                                    // `fandhe-frontend-wasm-full` の
+                                    // `headless_clipboard` 配線が届かず、
+                                    // 実アプリに組み込んでも押下時に
+                                    // コピーは起きない。`gallery_carousel`
+                                    // の prev/next trigger・
+                                    // `feature_tabs_panel` の CTA と同型の
+                                    // 判断で `disabled: true`
+                                    // （ボタン単体のみ、`group_props` 自体は
+                                    // 変更せず addon/input の見た目は保つ）
+                                    // にして「押しても何も起きない」ことを
+                                    // 明示する。
+                                    &InputGroupProps {
+                                        disabled: true,
+                                        ..group_props
+                                    },
                                     vec![],
                                     vec![text("コピー")],
                                 )],
