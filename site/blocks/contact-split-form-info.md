@@ -182,7 +182,7 @@ fn info_form_start() -> Node {
                 )],
             ),
             contact_list(vec![
-                contact_link("tel:+15550100", false, phone_icon(), "+1 555-0100"),
+                contact_link("tel:+12025550100", false, phone_icon(), "+1 202-555-0100"),
                 contact_link(
                     "mailto:hello@example.com",
                     false,
