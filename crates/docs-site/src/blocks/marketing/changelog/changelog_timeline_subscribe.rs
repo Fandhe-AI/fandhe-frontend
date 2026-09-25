@@ -436,7 +436,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-changelog-timeline-subscribe-form [data-scope=\"button\"][data-part=\"root\"][data-blocks-changelog-timeline-subscribe-submit]:focus-visible {\n  position: relative;\n  z-index: 1;\n}\n\
 .blocks-changelog-timeline-subscribe-timeline [data-scope=\"timeline\"][data-part=\"item\"] {\n  grid-template-columns: 7rem var(--fandhe-timeline-indicator-size, 1.5rem) 1fr;\n}\n\
 .blocks-changelog-timeline-subscribe-inline-date {\n  display: none;\n}\n\
-.blocks-changelog-timeline-subscribe-timeline [data-scope=\"timeline\"][data-part=\"content\"][data-blocks-changelog-timeline-subscribe-date-col] {\n  grid-column: 1;\n  display: flex;\n  align-items: flex-start;\n  justify-content: flex-end;\n  padding-top: var(--fandhe-space-1);\n}\n\
+.blocks-changelog-timeline-subscribe-timeline [data-scope=\"timeline\"][data-part=\"content\"][data-blocks-changelog-timeline-subscribe-date-col] {\n  grid-column: 1;\n  display: flex;\n  justify-content: flex-start;\n  align-items: flex-end;\n  padding-top: var(--fandhe-space-1);\n}\n\
 .blocks-changelog-timeline-subscribe-timeline [data-scope=\"timeline\"][data-part=\"connector\"][data-blocks-changelog-timeline-subscribe-connector-col] {\n  grid-column: 2;\n}\n\
 .blocks-changelog-timeline-subscribe-timeline [data-scope=\"timeline\"][data-part=\"content\"][data-blocks-changelog-timeline-subscribe-body-col] {\n  grid-column: 3;\n}\n\
 .blocks-changelog-timeline-subscribe-date {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n  white-space: nowrap;\n}\n\
