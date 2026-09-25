@@ -1251,6 +1251,11 @@ source = "site/blocks/feature-expand.md"
 path = "/blocks/feature-expand/"
 
 [[section.group.page]]
+title = "feature-image-cards"
+source = "site/blocks/feature-image-cards.md"
+path = "/blocks/feature-image-cards/"
+
+[[section.group.page]]
 title = "feature-side-heading-grid"
 source = "site/blocks/feature-side-heading-grid.md"
 path = "/blocks/feature-side-heading-grid/"
