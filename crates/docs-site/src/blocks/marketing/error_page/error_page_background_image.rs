@@ -42,6 +42,22 @@
 //! コントラストがそのまま保たれる（ダークテーマでは結果として白に近い
 //! 文字になる）。
 //!
+//! # 背景画像フックの詳細度（`[data-scope="image"][data-part="root"]` を前置する理由）
+//!
+//! `image::image` の recipe（`fandhe_frontend_pre_styled_ui::image::recipe`）
+//! は base 宣言 `[data-scope="image"][data-part="root"] { height: auto; ... }`
+//! （詳細度 0,2,0）を持つ。本 block 固有フック
+//! `[data-blocks-error-page-background-image-image]` を単独属性セレクタ
+//! （詳細度 0,1,0）のまま `height: 100%` を宣言しても、CSS の詳細度規則上
+//! ソース順に関わらず base 側が勝ち `height: auto` のままになる（元の
+//! 16:9 比率の高さで止まり、下端がスクリムに覆われない帯として残る不具合、
+//! PR #3207 レビュー指摘）。是正として base と同じ 2 属性セレクタ
+//! `[data-scope="image"][data-part="root"][data-blocks-error-page-background-image-image]`
+//! （詳細度 0,2,0）へ前置し、詳細度を base と同値にしたうえでソース順
+//! （`blocks.css` は `pre-styled-ui.css` より後に読み込まれる）で後勝ちさせる。
+//! 同型の解法は `crate::blocks::marketing::cta::cta_split_image` 等、既存の
+//! image 部品オーバーライドと共通する規約である。
+//!
 //! # `<form>` を使わない・実データを持たない
 //!
 //! `crate::blocks` モジュール doc の不変条件どおり、本 Demo は `<form>` を
@@ -194,7 +210,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-error-page-background-image {\n  padding: 0;\n  overflow: hidden;\n}\n\
 .blocks-error-page-background-image-root {\n  position: relative;\n  isolation: isolate;\n  display: grid;\n  place-items: center;\n  min-height: 24rem;\n  padding: var(--fandhe-space-16) var(--fandhe-space-6);\n  text-align: center;\n}\n\
 .blocks-error-page-background-image-backdrop {\n  position: absolute;\n  inset: 0;\n  z-index: -1;\n  overflow: hidden;\n}\n\
-[data-blocks-error-page-background-image-image] {\n  width: 100%;\n  height: 100%;\n  display: block;\n}\n\
+[data-scope=\"image\"][data-part=\"root\"][data-blocks-error-page-background-image-image] {\n  width: 100%;\n  height: 100%;\n  display: block;\n}\n\
 .blocks-error-page-background-image-scrim {\n  position: absolute;\n  inset: 0;\n  background: var(--fandhe-color-bg);\n  opacity: 0.72;\n}\n\
 [data-blocks-error-page-background-image-message] {\n  max-width: 36rem;\n  width: 100%;\n  color: var(--fandhe-color-fg);\n}\n\
 .blocks-error-page-background-image-content {\n  align-items: center;\n}\n\
@@ -249,7 +265,7 @@ mod tests {
             ".blocks-error-page-background-image {",
             ".blocks-error-page-background-image-root {",
             ".blocks-error-page-background-image-backdrop {",
-            "[data-blocks-error-page-background-image-image] {",
+            "[data-scope=\"image\"][data-part=\"root\"][data-blocks-error-page-background-image-image] {",
             ".blocks-error-page-background-image-scrim {",
             "[data-blocks-error-page-background-image-message] {",
             ".blocks-error-page-background-image-content {",
