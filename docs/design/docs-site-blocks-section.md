@@ -884,6 +884,7 @@ pub enum LayoutCss {
 | contact-split-form-info | #2832/#2833/#2834 | `marketing/contact/contact_split_form_info.rs` |
 | feature-split-list-image | #2769 | `marketing/feature/feature_split_list_image.rs` |
 | feature-split-screenshot | #2770 | `marketing/feature/feature_split_screenshot.rs` |
+| gallery-carousel | #2777 | `marketing/gallery/gallery_carousel.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 68 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の

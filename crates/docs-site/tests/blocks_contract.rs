@@ -5894,3 +5894,76 @@ fn contact_split_form_info_composes_expected_parts() {
         );
     }
 }
+
+/// gallery-carousel ページの Demo クラス・両スタイルシート・
+/// `data-blocks-gallery-carousel-*` CSS フックが実際に出力され、
+/// `blocks::stylesheet()` にも carousel の `--fandhe-carousel-item-basis`・
+/// viewport クリップ用の `.blocks-gallery-carousel-viewport` が存在する
+/// ことを固定する（イシュー #2777）。
+#[test]
+fn gallery_carousel_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/gallery-carousel/index.html"))
+        .expect("blocks/gallery-carousel/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-gallery-carousel\""),
+        "gallery-carousel page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "gallery-carousel page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "gallery-carousel page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-gallery-carousel-root",
+        "data-blocks-gallery-carousel-control",
+        "data-blocks-gallery-carousel-slide",
+        "data-blocks-gallery-carousel-image",
+        "data-blocks-gallery-carousel-indicators",
+        "data-blocks-gallery-carousel-dim",
+    ] {
+        assert!(
+            html.contains(hook),
+            "gallery-carousel page should output the {hook} CSS hook attribute"
+        );
+    }
+    for scope in [
+        "data-scope=\"carousel\"",
+        "data-scope=\"image\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"button\"",
+        "data-scope=\"icon\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "gallery-carousel page should contain {scope}"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "gallery-carousel should never contain {absent}"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        "--fandhe-carousel-item-basis: 50%",
+        "--fandhe-carousel-item-basis: 33.3333%",
+        "--fandhe-carousel-item-basis: 83.3333%",
+        ".blocks-gallery-carousel-viewport",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare {needle} for gallery-carousel"
+        );
+    }
+}

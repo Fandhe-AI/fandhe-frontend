@@ -1552,6 +1552,14 @@ source = "site/blocks/changelog-timeline.md"
 path = "/blocks/changelog-timeline/"
 
 [[section.group]]
+title = "Gallery"
+
+[[section.group.page]]
+title = "gallery-carousel"
+source = "site/blocks/gallery-carousel.md"
+path = "/blocks/gallery-carousel/"
+
+[[section.group]]
 title = "Sidebar"
 
 [[section.group.page]]
