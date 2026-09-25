@@ -252,6 +252,7 @@ jobs:
           # Marketing / Faq
           # Marketing / Contact
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-dialog-form/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-image-info/index.html"
           # Marketing / Newsletter
           # Marketing / Blog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-featured-article/index.html"

@@ -1307,6 +1307,11 @@ title = "contact-dialog-form"
 source = "site/blocks/contact-dialog-form.md"
 path = "/blocks/contact-dialog-form/"
 
+[[section.group.page]]
+title = "contact-image-info"
+source = "site/blocks/contact-image-info.md"
+path = "/blocks/contact-image-info/"
+
 [[section.group]]
 title = "Blog"
 
