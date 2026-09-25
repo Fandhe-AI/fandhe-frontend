@@ -14,12 +14,18 @@
 //! 合成手段のため `parts` には列挙しない（`text_reveal`/`cursor` を
 //! `parts` に列挙しない先例と同じ判断）。
 //!
-//! # 3 インスタンスの併記（配置差分・コピー欄形式差分・状態差分）
+//! # 3 インスタンスの併記（配置差分・コピー欄形式差分）
 //!
-//! 無 JS の docs サイトでは `data-copied` の実際の切り替えが起きないため、
-//! 配置・コピー欄形式・コピー状態の差分を 1 つの Demo 内に 3 インスタンス
-//! 静的に並記して示す（`contact_split_info` 等、他 block の「状態は別
-//! インスタンスで併記」パターンと同型）。
+//! 配置・コピー欄形式の差分を 1 つの Demo 内に 3 インスタンス静的に
+//! 並記して示す（`contact_split_info` 等、他 block の「差分は別
+//! インスタンスで併記」パターンと同型）。A/C は実アプリへ組み込んだ
+//! ときにそのまま使える idle（未コピー）状態で初期化する（レビュー
+//! 指摘対応、P1、イシュー #2786 Codex 指摘: C の初期状態が `copied`
+//! （`data-copied` 付与済み）だと、コピー操作前から「Copied!」表示に
+//! なり、下記「コピー配線の範囲」節の「実アプリに組み込めば A/C の
+//! コピー操作は実際に機能する」という前提と矛盾していたため是正した。
+//! `copied` 状態の見た目自体は `indicator` の 2 変種として両インスタンス
+//! とも常に SSR へ含まれている）。
 //!
 //! - **A（中央寄せ・`clipboard` 形式・idle）**: R0521/R0123 の基準形。
 //!   [`fandhe_frontend_pre_styled_ui::clipboard`] の `root`/`control`/
@@ -47,9 +53,9 @@
 //! addon ボタンは `clipboard` scope の外側の `input-group` パーツで
 //! あり、上記配線の対象にならないため、実アプリでも機能しない
 //! （`disabled: true` で明示する理由）。
-//! - **C（パンくず付き左寄せ・`clipboard` 形式・copied）**: R0523。
+//! - **C（パンくず付き左寄せ・`clipboard` 形式・idle）**: R0523。
 //!   `breadcrumb` を導入要素に置き、`clipboard` の `value_text` に `code`
-//!   を重ねてコマンドを等幅表示し、`indicator` は copied 側のみ可視。
+//!   を重ねてコマンドを等幅表示し、`indicator` は idle 側のみ可視。
 //!
 //! # `<form>` を使わない
 //!
@@ -325,7 +331,7 @@ fn instance_b() -> Node {
     )
 }
 
-/// C（パンくず付き左寄せ・`clipboard` 形式・copied）を組み立てる。
+/// C（パンくず付き左寄せ・`clipboard` 形式・idle）を組み立てる。
 fn instance_c() -> Node {
     let value = "fw new my-app";
     div(
@@ -376,10 +382,10 @@ fn instance_c() -> Node {
             ),
             clipboard::root(
                 value,
-                true,
+                false,
                 vec![("data-blocks-hero-install-command-command", "")],
                 vec![clipboard::control(
-                    true,
+                    false,
                     vec![],
                     vec![
                         clipboard::value_text(
@@ -387,11 +393,11 @@ fn instance_c() -> Node {
                             vec![code::code(&CodeProps::default(), vec![], vec![text(value)])],
                         ),
                         clipboard::trigger(
-                            true,
+                            false,
                             vec![],
                             vec![
-                                clipboard::indicator(false, true, vec![], vec![text("Copy")]),
-                                clipboard::indicator(true, true, vec![], vec![text("Copied!")]),
+                                clipboard::indicator(false, false, vec![], vec![text("Copy")]),
+                                clipboard::indicator(true, false, vec![], vec![text("Copied!")]),
                             ],
                         ),
                     ],
@@ -490,14 +496,17 @@ mod tests {
         assert!(!LAYOUT_CSS.contains('<'));
     }
 
-    /// Demo が `<form>` を出力せず、`data-copied` は C（`clipboard::root`/
-    /// `control`/`trigger` の 3 箇所）のみに現れること（A/B は idle/
-    /// input-group 形式のため `data-copied` を持たない）。
+    /// Demo が `<form>` を出力せず、`data-copied` を一切持たないこと
+    /// （A/C は実アプリへ組み込んだときにそのまま使える idle 状態で
+    /// 初期化し、B は input-group 形式のためコピー状態を持たない。
+    /// レビュー指摘対応、P1、イシュー #2786 Codex 指摘: C が
+    /// `copied` 初期化のままだと `data-copied` が 3 箇所現れ、
+    /// コピー操作前から「Copied!」表示になっていた）。
     #[test]
-    fn demo_has_no_form_and_exactly_one_copied_instance() {
+    fn demo_has_no_form_and_no_copied_state() {
         let html = render(&demo());
         assert!(!html.contains("<form"));
-        assert_eq!(html.matches("data-copied").count(), 3);
+        assert_eq!(html.matches("data-copied").count(), 0);
         assert!(!html.contains("href=\"#\""));
         assert!(!html.contains("mailto:"));
         assert!(!html.contains("src=\"data:"));

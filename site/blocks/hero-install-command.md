@@ -2,10 +2,10 @@
 
 インストールコマンドのコピー欄を備えたヒーロー block です。新規 UI 部品は
 作らず `badge` / `heading` / `text` / `clipboard` / `code` / `input-group` /
-`input` / `button` / `breadcrumb` の 9 部品を合成します。無 JS の docs
-サイトでは `data-copied` の実際の切り替えが起きないため、配置・コピー欄
-形式・コピー状態の差分を 1 つの Demo 内へ 3 インスタンス静的に並記して
-示します。
+`input` / `button` / `breadcrumb` の 9 部品を合成します。配置・コピー欄
+形式の差分を 1 つの Demo 内へ 3 インスタンス静的に並記して示します。A/C は
+実アプリへ組み込んだときにそのまま使える idle（未コピー）状態で初期化
+します。
 
 - **A（中央寄せ・`clipboard` 形式・idle）**: バッジ + 見出し + リード文の
   下に `clipboard` のコピー欄（idle 表示）と CTA ボタン 2 個を配置。
@@ -13,9 +13,9 @@
   読み取り専用 `input` + addon ボタンで 1 行のコピー欄を表現。コピー状態
   そのものは持たず、addon ボタンは `disabled` で押下不能です（下記
   「コピー操作について」参照）。
-- **C（パンくず付き左寄せ・`clipboard` 形式・copied）**: `breadcrumb` を
+- **C（パンくず付き左寄せ・`clipboard` 形式・idle）**: `breadcrumb` を
   導入要素に置き、`clipboard` の `value_text` に `code` を重ねてコマンドを
-  等幅表示。indicator は copied 側のみ可視。
+  等幅表示。indicator は idle 側のみ可視。
 
 `md` 未満（`< 48rem`）で CTA を全幅縦積みにし、`>= 48rem` で横並びに戻り
 ます。`<form>` は持たず、ボタンはすべて `type="button"` です。コピー
@@ -275,7 +275,7 @@ fn instance_b() -> Node {
     )
 }
 
-/// C（パンくず付き左寄せ・`clipboard` 形式・copied）を組み立てる。
+/// C（パンくず付き左寄せ・`clipboard` 形式・idle）を組み立てる。
 fn instance_c() -> Node {
     let value = "fw new my-app";
     div(
@@ -326,10 +326,10 @@ fn instance_c() -> Node {
             ),
             clipboard::root(
                 value,
-                true,
+                false,
                 vec![("data-blocks-hero-install-command-command", "")],
                 vec![clipboard::control(
-                    true,
+                    false,
                     vec![],
                     vec![
                         clipboard::value_text(
@@ -337,11 +337,11 @@ fn instance_c() -> Node {
                             vec![code::code(&CodeProps::default(), vec![], vec![text(value)])],
                         ),
                         clipboard::trigger(
-                            true,
+                            false,
                             vec![],
                             vec![
-                                clipboard::indicator(false, true, vec![], vec![text("Copy")]),
-                                clipboard::indicator(true, true, vec![], vec![text("Copied!")]),
+                                clipboard::indicator(false, false, vec![], vec![text("Copy")]),
+                                clipboard::indicator(true, false, vec![], vec![text("Copied!")]),
                             ],
                         ),
                     ],
