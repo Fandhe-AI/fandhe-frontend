@@ -8,6 +8,7 @@
 mod feature_accordion_image;
 mod feature_alternating_rows;
 mod feature_expand;
+mod feature_image_cards;
 mod feature_large_screenshot;
 use crate::blocks::Block;
 
@@ -16,6 +17,7 @@ pub(super) fn blocks() -> Vec<Block> {
         feature_accordion_image::BLOCK,
         feature_alternating_rows::BLOCK,
         feature_expand::BLOCK,
+        feature_image_cards::BLOCK,
         feature_large_screenshot::BLOCK,
     ]
 }

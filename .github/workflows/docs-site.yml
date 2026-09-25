@@ -235,6 +235,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-accordion-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-expand/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-alternating-rows/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-image-cards/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-large-screenshot/index.html"
           # Marketing / Cta
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-banner-magnetic/index.html"
