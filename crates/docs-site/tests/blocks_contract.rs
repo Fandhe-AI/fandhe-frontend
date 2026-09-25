@@ -5288,6 +5288,59 @@ fn feature_accordion_image_page_wires_demo_class_and_css_hooks() {
     );
 }
 
+/// イシュー #2773: `feature-tabs-panel` の後半（残り 4 形・状態表示・原稿
+/// 仕上げ）が、実サイトの `/blocks/feature-tabs-panel/` ページへ新規部品
+/// （card/icon/button/progress）の CSS フックを正しく配線していること。
+#[test]
+fn feature_tabs_panel_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/feature-tabs-panel/index.html"))
+        .expect("blocks/feature-tabs-panel/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-feature-tabs-panel\""),
+        "feature-tabs-panel page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "feature-tabs-panel page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "feature-tabs-panel page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-scope=\"card\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"button\"",
+        "data-scope=\"progress\"",
+        "data-blocks-feature-tabs-panel-card",
+        r#"role="progressbar""#,
+        "blocks-feature-tabs-panel-pill-",
+        "blocks-feature-tabs-panel-alternating-",
+        "blocks-feature-tabs-panel-cards-",
+        "blocks-feature-tabs-panel-progress-",
+    ] {
+        assert!(
+            html.contains(hook),
+            "feature-tabs-panel page should output the {hook} CSS/ARIA hook"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for needle in [
+        ".blocks-feature-tabs-panel-card-grid",
+        "[data-blocks-feature-tabs-panel-reverse]",
+        "[data-align=\"center\"]",
+        ".blocks-feature-tabs-panel-trigger-progress",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare a rule for {needle}"
+        );
+    }
+}
+
 /// cta-split-actions ページが Demo class・専用 CSS を配線していること
 /// （イシュー #2758）。
 #[test]
