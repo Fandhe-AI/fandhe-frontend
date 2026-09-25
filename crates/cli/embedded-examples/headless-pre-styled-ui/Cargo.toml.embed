@@ -41,7 +41,15 @@ publish = false
 # slider を未使用のため呼び出し追随は発生しない。
 [dependencies]
 fandhe-frontend-core = "0.4.3"
-fandhe-frontend-pre-styled-ui = "0.216.0"
+# fandhe-frontend-pre-styled-ui は本 PR（イシュー #2825）で 0.216.0 へ
+# バンプされたが、examples/ は crates.io 実 index への到達を前提とする
+# ため、未公開バージョンを指定すると `fw new --example
+# headless-pre-styled-ui` の gate e2e（`new_gate_e2e.rs`）が依存解決不能で
+# 落ちる（`docs/ci/version-bump-publish-order-gap.md` が扱う publish 順序
+# ギャップと同型）。本サンプルは comparison_table 等の新規 API を使わない
+# ため、0.216.0 公開まで現行公開バージョンへ据え置く（追随は公開後の別
+# PR で行う）。
+fandhe-frontend-pre-styled-ui = "0.215.0"
 
 [dev-dependencies]
 
