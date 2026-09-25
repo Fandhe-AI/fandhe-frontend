@@ -2073,6 +2073,100 @@ fn hero_editorial_stagger_composes_expected_parts() {
     }
 }
 
+/// hero-marquee-strip ページが Demo class・専用 CSS を配線していること、
+/// ロゴ帯の `data-*` フックが実際に出力され、`blocks::stylesheet()` にも
+/// 対応するセレクタが存在することを固定する（イシュー #2787）。
+#[test]
+fn hero_marquee_strip_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-marquee-strip/index.html"))
+        .expect("blocks/hero-marquee-strip/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-hero-marquee-strip\""),
+        "hero-marquee-strip page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "hero-marquee-strip page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "hero-marquee-strip page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-hero-marquee-strip-strip",
+        "data-blocks-hero-marquee-strip-logo",
+    ] {
+        assert!(
+            html.contains(hook),
+            "hero-marquee-strip page should render the {hook} attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        "[data-blocks-hero-marquee-strip-strip]",
+        "--fandhe-marquee-fade",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare {needle} for hero-marquee-strip"
+        );
+    }
+}
+
+/// hero-marquee-strip の合成部品（badge/heading/text/button/marquee/
+/// image）が期待どおりの構成で出力され、`marquee` の複製列 a11y 契約
+/// （`aria-hidden`/`inert`）・ロゴ枚数がそのまま伝播していること、
+/// `<form>`/`data:` URI を持ち込んでいないことを固定する（イシュー
+/// #2787）。
+#[test]
+fn hero_marquee_strip_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/hero-marquee-strip/")
+        .expect("hero-marquee-strip should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"button\"",
+        "data-scope=\"marquee\"",
+        "data-scope=\"image\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "hero-marquee-strip demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-part=\"content\"").count(),
+        2,
+        "hero-marquee-strip demo should render marquee's 2 content copies"
+    );
+    assert_eq!(
+        html.matches("aria-hidden=\"true\"").count(),
+        1,
+        "hero-marquee-strip demo should mark exactly the duplicated content as aria-hidden"
+    );
+    assert!(
+        html.matches("inert").count() >= 1,
+        "hero-marquee-strip demo should keep the duplicated content out of tab order"
+    );
+    assert_eq!(
+        html.matches("data-blocks-hero-marquee-strip-logo").count(),
+        16,
+        "hero-marquee-strip demo should render 8 logos x 2 marquee copies"
+    );
+    for absent in ["<form", "src=\"data:", "id=\""] {
+        assert!(
+            !html.contains(absent),
+            "hero-marquee-strip should never contain {absent}"
+        );
+    }
+}
+
 /// hero-parallax-layers ページが `blocks-demo blocks-hero-parallax-
 /// layers` class・両 stylesheet の `<link>`・3 レイヤーの `data-scope`/
 /// `data-part` を実際に出力し、`blocks::stylesheet()` にも

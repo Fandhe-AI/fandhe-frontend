@@ -1223,6 +1223,11 @@ source = "site/blocks/hero-email-signup.md"
 path = "/blocks/hero-email-signup/"
 
 [[section.group.page]]
+title = "hero-marquee-strip"
+source = "site/blocks/hero-marquee-strip.md"
+path = "/blocks/hero-marquee-strip/"
+
+[[section.group.page]]
 title = "hero-parallax-layers"
 source = "site/blocks/hero-parallax-layers.md"
 path = "/blocks/hero-parallax-layers/"

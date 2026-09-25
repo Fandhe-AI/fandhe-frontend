@@ -7,6 +7,7 @@
 
 mod hero_editorial_stagger;
 mod hero_email_signup;
+mod hero_marquee_strip;
 mod hero_parallax_layers;
 mod hero_terminal;
 mod text_split_reveal;
@@ -16,6 +17,7 @@ pub(super) fn blocks() -> Vec<Block> {
     vec![
         hero_editorial_stagger::BLOCK,
         hero_email_signup::BLOCK,
+        hero_marquee_strip::BLOCK,
         hero_parallax_layers::BLOCK,
         hero_terminal::BLOCK,
         text_split_reveal::BLOCK,
