@@ -524,7 +524,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-contact-split-form-image-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  align-items: stretch;\n}\n\
 .blocks-contact-split-form-image-form {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  min-width: 0;\n}\n\
 .blocks-contact-split-form-image-name-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
-[data-blocks-contact-split-form-image-budget-fieldset] {\n  display: flex;\n  flex-direction: column;\n}\n\
+[data-scope=\"fieldset\"][data-part=\"root\"][data-blocks-contact-split-form-image-budget-fieldset] {\n  display: flex;\n  flex-direction: column;\n}\n\
 [data-scope=\"radio-group\"][data-part=\"root\"][data-blocks-contact-split-form-image-budget-group] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-contact-split-form-image-form [data-scope=\"radio-group\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-contact-split-form-image-actions {\n  display: flex;\n  justify-content: flex-end;\n}\n\
