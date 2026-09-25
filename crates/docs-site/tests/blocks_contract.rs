@@ -5102,3 +5102,79 @@ fn content_with_testimonial_composes_expected_parts() {
         );
     }
 }
+
+/// cta-split-image の Demo ラッパ・CSS 配線・block 固有 CSS（lg
+/// ブレークポイント・カード反転配色の tone セレクタ）が実際に出力
+/// されていることを固定する（イシュー #2759）。
+#[test]
+fn cta_split_image_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/cta-split-image/index.html"))
+        .expect("blocks/cta-split-image/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-cta-split-image\""),
+        "cta-split-image page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "cta-split-image page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "cta-split-image page should link the Blocks-specific stylesheet"
+    );
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "@media (min-width: 64rem)",
+        ".blocks-cta-split-image-layout",
+        "[data-blocks-cta-split-image-card][data-blocks-cta-split-image-tone=\"dark\"]",
+        "[data-blocks-cta-split-image-card][data-blocks-cta-split-image-tone=\"accent\"]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// cta-split-image の合成部品（badge/heading/text/button/image/card/icon/
+/// link）が期待どおりの構成で実際に出力されていること、`<form>`・`data:`
+/// URI・死リンクを持ち込んでいないことを固定する（イシュー #2759）。
+#[test]
+fn cta_split_image_composes_expected_parts() {
+    let block = blocks::all_blocks()
+        .into_iter()
+        .find(|b| b.path == "/blocks/cta-split-image/")
+        .expect("cta-split-image should be registered");
+    // ページ前後のナビゲーション由来の id 汚染を避けるため、Demo 単体を
+    // 描画して検証する（`content_with_testimonial` 系と異なる分岐だが、
+    // 重複 id 検知の観点では実サイトビルド側〔前段テスト〕で担保する）。
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"button\"",
+        "data-scope=\"image\"",
+        "data-scope=\"card\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"link\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "cta-split-image demo should contain {scope}"
+        );
+    }
+    assert!(
+        html.contains("type=\"button\""),
+        "cta-split-image demo should render at least one type=\"button\""
+    );
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "cta-split-image should never contain {absent}"
+        );
+    }
+}
