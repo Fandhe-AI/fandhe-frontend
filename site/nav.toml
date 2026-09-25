@@ -1280,6 +1280,14 @@ source = "site/blocks/testimonials-stack.md"
 path = "/blocks/testimonials-stack/"
 
 [[section.group]]
+title = "Contact"
+
+[[section.group.page]]
+title = "contact-centered-form"
+source = "site/blocks/contact-centered-form.md"
+path = "/blocks/contact-centered-form/"
+
+[[section.group]]
 title = "Blog"
 
 [[section.group.page]]

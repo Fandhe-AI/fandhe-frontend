@@ -868,9 +868,10 @@ pub enum LayoutCss {
 | careers-split-accordion | #2816 | `marketing/careers/careers_split_accordion.rs` |
 | changelog-timeline-subscribe | #2821 | `marketing/changelog/changelog_timeline_subscribe.rs` |
 | cta-feature-links | #2757 | `marketing/cta/cta_feature_links.rs` |
+| contact-centered-form | #2826 | `marketing/contact/contact_centered_form.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-53 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+54 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
