@@ -50,7 +50,12 @@
 //! だけ模し、選択中パネルの本文は直接（[`panel_row`] 等）描画する。残りの
 //! パネルは見出しキャプション付きの非対話表示（[`panel_state_preview`]/
 //! [`tab_preview`]）として併記し、全パネル本文が常に可視のまま静的 HTML に
-//! 現れるようにする。
+//! 現れるようにする。基準形・形 C・形 D・形 E のようにラベルのみを持つ
+//! trigger は `aria-hidden="true"` で装飾要素として支援技術のツリーから
+//! 除外するが、形 F（[`trigger_with_progress`]）は進捗バーの実情報を
+//! 持つため `aria-hidden` を付けない（[`static_tab_list`] の
+//! `hide_from_assistive_tech` 引数、Codex P1 是正: 全 trigger 一律
+//! `aria-hidden` にすると進捗情報が支援技術から読めなくなっていた）。
 //!
 //! # id 規約
 //!
@@ -352,23 +357,47 @@ fn panel_tab_labels() -> Vec<(&'static str, Vec<Node>)> {
 /// `"trigger"` を `tabs::tabs` と同じ属性値で `div` のみに与え、
 /// [`LAYOUT_CSS`] の `[data-scope="tabs"][data-part="..."]` セレクタによる
 /// 見た目をそのまま再利用しつつ、`role`/`tabindex`/`<button>` は一切持たない
-/// ため操作可能に見えない。`aria-hidden="true"` を各 trigger へ付与し、
-/// 装飾要素として支援技術のツリーから除外する（`tabs::tabs` の
-/// `indicator` パーツと同じ判断）。`id_prefix` は呼び出し側が
+/// ため操作可能に見えない。`id_prefix` は呼び出し側が
 /// `blocks-feature-tabs-panel-<接尾辞>` の形で完全指定する（モジュール doc
 /// 「id 規約」節）。
+///
+/// `hide_from_assistive_tech` が `true` の trigger には `aria-hidden="true"`
+/// を付与し、装飾要素として支援技術のツリーから除外する（`tabs::tabs` の
+/// `indicator` パーツと同じ判断。ラベルのみを持つ基準形・形 C・形 D・形 E）。
+/// `false` の trigger（形 F、[`trigger_with_progress`]）は `role="progressbar"`
+/// と進捗値を含む実情報を持つため `aria-hidden` を付けない（Codex P1 是正:
+/// 全 trigger 一律 `aria-hidden` にすると進捗情報が支援技術から読めなくなる。
+/// `role`/`tabindex` を持たない div のままなので `aria-hidden` を外しても
+/// 操作可能に見えるようにはならない）。
 fn static_tab_list(
     id_prefix: &'static str,
     selected: &'static str,
     items: Vec<(&'static str, Vec<Node>)>,
+    hide_from_assistive_tech: bool,
+    pill: bool,
 ) -> Node {
+    let mut list_attrs = vec![
+        ("data-scope".to_string(), "tabs".to_string()),
+        ("data-part".to_string(), "list".to_string()),
+        ("id".to_string(), format!("{id_prefix}-list")),
+    ];
+    if pill {
+        // 形 C（対応表 ID R0478、ピル型）専用フック。実物の `tabs::tabs` を
+        // 使わないためレシピの `TabsVariant::Enclosed`（root への variant
+        // class 付与、`fandhe_frontend_pre_styled_ui::tabs` rustdoc「variant」
+        // 節参照）を経由できず、pre-styled-ui の Enclosed 実装と同じトークン
+        // （`--fandhe-color-bg-muted`/`--fandhe-radius-md`/`--fandhe-space-1`/
+        // `--fandhe-color-bg`/`--fandhe-shadow-sm`）を [`LAYOUT_CSS`] 側で
+        // 直接再現する（Codex/Bugbot P2 是正: 形 C が下線型のまま変化
+        // していなかった不具合）。
+        list_attrs.push((
+            "data-blocks-feature-tabs-panel-pill".to_string(),
+            String::new(),
+        ));
+    }
     el_owned(
         "div",
-        vec![
-            ("data-scope".to_string(), "tabs".to_string()),
-            ("data-part".to_string(), "list".to_string()),
-            ("id".to_string(), format!("{id_prefix}-list")),
-        ],
+        list_attrs,
         items
             .into_iter()
             .map(|(value, trigger)| {
@@ -377,16 +406,15 @@ fn static_tab_list(
                 } else {
                     "inactive"
                 };
-                el_owned(
-                    "div",
-                    vec![
-                        ("data-scope".to_string(), "tabs".to_string()),
-                        ("data-part".to_string(), "trigger".to_string()),
-                        ("data-state".to_string(), state.to_string()),
-                        ("aria-hidden".to_string(), "true".to_string()),
-                    ],
-                    trigger,
-                )
+                let mut attrs = vec![
+                    ("data-scope".to_string(), "tabs".to_string()),
+                    ("data-part".to_string(), "trigger".to_string()),
+                    ("data-state".to_string(), state.to_string()),
+                ];
+                if hide_from_assistive_tech {
+                    attrs.push(("aria-hidden".to_string(), "true".to_string()));
+                }
+                el_owned("div", attrs, trigger)
             })
             .collect(),
     )
@@ -443,6 +471,8 @@ fn variant_basic() -> Node {
             "blocks-feature-tabs-panel-basic",
             PANELS[0].value,
             panel_tab_labels(),
+            true,
+            false,
         ),
     ];
     children.extend(panel_row(&PANELS[0]));
@@ -473,6 +503,8 @@ fn variant_pill() -> Node {
                 (PANELS[0].value, vec![text(PANELS[0].label)]),
                 (PANELS[1].value, vec![text(PANELS[1].label)]),
             ],
+            true,
+            true,
         ),
     ];
     children.extend(panel_single(&PANELS[0]));
@@ -503,6 +535,8 @@ fn variant_alternating() -> Node {
                 ("set-a", vec![text("セット A")]),
                 ("set-b", vec![text("セット B")]),
             ],
+            true,
+            false,
         ),
     ];
     children.extend(panel_alternating_rows(&PANELS[0..2]));
@@ -652,6 +686,8 @@ fn variant_card_grid() -> Node {
                 ("features", vec![text("特長")]),
                 ("cases", vec![text("導入事例")]),
             ],
+            true,
+            false,
         ),
     ];
     children.extend(panel_card_grid(&CARDS_FEATURES));
@@ -726,6 +762,8 @@ fn variant_progress_trigger() -> Node {
             "blocks-feature-tabs-panel-progress",
             PANELS[0].value,
             labels,
+            false,
+            false,
         ),
     ];
     children.extend(panel_row(&PANELS[0]));
@@ -843,6 +881,9 @@ const LAYOUT_CSS: &str = "\
 .blocks-feature-tabs-panel-cta {\n  display: flex;\n  justify-content: center;\n}\n\
 .blocks-feature-tabs-panel-trigger-progress {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 8rem;\n  text-align: left;\n  white-space: normal;\n}\n\
 .blocks-feature-tabs-panel-trigger-progress [data-scope=\"progress\"][data-part=\"root\"] {\n  width: 100%;\n}\n\
+[data-blocks-feature-tabs-panel-pill] {\n  border-bottom: 0;\n  background: var(--fandhe-color-bg-muted);\n  border-radius: var(--fandhe-radius-md);\n  padding: var(--fandhe-space-1);\n  padding-bottom: var(--fandhe-space-1);\n}\n\
+[data-blocks-feature-tabs-panel-pill] [data-scope=\"tabs\"][data-part=\"trigger\"] {\n  margin-bottom: 0;\n  border-bottom: 0;\n  border-radius: var(--fandhe-radius-sm, 0.25rem);\n  background: transparent;\n}\n\
+[data-blocks-feature-tabs-panel-pill] [data-scope=\"tabs\"][data-part=\"trigger\"][data-state=\"active\"] {\n  background: var(--fandhe-color-bg);\n  box-shadow: var(--fandhe-shadow-sm);\n}\n\
 @media (min-width: 64rem) {\n  \
 .blocks-feature-tabs-panel-row {\n    display: grid;\n    grid-template-columns: repeat(12, minmax(0, 1fr));\n    column-gap: var(--fandhe-space-10);\n    align-items: center;\n  }\n  \
 .blocks-feature-tabs-panel-row > .blocks-feature-tabs-panel-copy {\n    grid-column: 1 / span 5;\n    grid-row: 1;\n  }\n  \
@@ -903,8 +944,12 @@ mod tests {
     /// `tabs::tabs` を一切使わないため、`role="tab"`/`role="tabpanel"` が
     /// demo 出力に一切現れないこと（Codex P1 是正の回帰テスト。モジュール
     /// doc「無 JS での扱い」節）。`<button` は形 E 末尾の CTA
-    /// （[`super::grid_cta`]）1 個のみ。各 trigger は `aria-hidden="true"`
-    /// を持ち、支援技術のツリーから除外される装飾要素として描画される。
+    /// （[`super::grid_cta`]）1 個のみ。ラベルのみの trigger（基準形/形 C/
+    /// 形 D/形 E、計 10 = 4+2+2+2）は `aria-hidden="true"` を持ち装飾要素と
+    /// して支援技術のツリーから除外される一方、進捗バーを持つ形 F の
+    /// trigger（3 個）は実情報を持つため `aria-hidden` を付けない
+    /// （Codex P1 是正、`super::static_tab_list` の `hide_from_assistive_tech`
+    /// 引数）。
     #[test]
     fn no_tabs_instance_is_interactive_and_previews_are_not_either() {
         let html = render(&demo());
@@ -914,16 +959,18 @@ mod tests {
         // trigger は `data-state` の直後に `aria-hidden="true"` を持つ
         // （[`super::static_tab_list`] の属性順）。image/icon 等の他部品も
         // 装飾目的で `aria-hidden="true"` を出すため、この部分文字列に
-        // 絞って trigger 由来分のみを数える。
+        // 絞って trigger 由来分のみを数える。形 F の 3 trigger（active 1 +
+        // inactive 2）は `hide_from_assistive_tech: false` のため
+        // `aria-hidden` を持たず、この集計から除外される。
         assert_eq!(
             html.matches("data-state=\"active\" aria-hidden=\"true\"")
                 .count(),
-            5
+            4
         );
         assert_eq!(
             html.matches("data-state=\"inactive\" aria-hidden=\"true\"")
                 .count(),
-            8
+            6
         );
         // プレビュー件数: 基準形 3 + R0478 1 + R0479 1 + R0481 1 + R0104 2 = 8。
         assert_eq!(
@@ -980,6 +1027,20 @@ mod tests {
         assert!(LAYOUT_CSS.contains(".blocks-feature-tabs-panel-card-grid"));
         assert!(LAYOUT_CSS.contains("[data-align=\"center\"]"));
         assert!(LAYOUT_CSS.contains(".blocks-feature-tabs-panel-trigger-progress"));
+        assert!(LAYOUT_CSS.contains("[data-blocks-feature-tabs-panel-pill]"));
+    }
+
+    /// 形 C（[`super::variant_pill`]）が pre-styled-ui の `TabsVariant::
+    /// Enclosed` 相当のピル型トークン（角丸コンテナ背景・active trigger の
+    /// 浮き上がり）を実際に出力すること（Codex/Bugbot P2 是正の回帰テスト:
+    /// 従来は下線型のまま変化していなかった）。
+    #[test]
+    fn pill_variant_renders_enclosed_style_tokens() {
+        let html = render(&demo());
+        assert!(html.contains("data-blocks-feature-tabs-panel-pill"));
+        assert!(LAYOUT_CSS.contains("var(--fandhe-color-bg-muted)"));
+        assert!(LAYOUT_CSS.contains("var(--fandhe-radius-md)"));
+        assert!(LAYOUT_CSS.contains("var(--fandhe-shadow-sm)"));
     }
 
     /// 5 形の id 接頭辞（`-basic`/`-pill`/`-alternating`/`-cards`/`-progress`）
@@ -1014,6 +1075,39 @@ mod tests {
         let html = render(&demo());
         assert!(html.contains("role=\"progressbar\""));
         assert!(html.contains("aria-valuenow="));
+    }
+
+    /// 形 F の trigger（[`super::trigger_with_progress`]）は `aria-hidden`
+    /// を持たないこと（Codex P1 是正の回帰テスト: 全 trigger 一律
+    /// `aria-hidden="true"` にすると `role="progressbar"` の進捗値が支援
+    /// 技術から読めなくなっていた）。`blocks-feature-tabs-panel-progress-list`
+    /// 内の 3 trigger（`data-part="trigger"`）はいずれも `aria-hidden` を
+    /// 持たないことを、trigger の直前直後に `aria-hidden` が現れないことで
+    /// 確認する。
+    #[test]
+    fn progress_trigger_is_not_hidden_from_assistive_tech() {
+        let html = render(&demo());
+        let list_start = html
+            .find("id=\"blocks-feature-tabs-panel-progress-list\"")
+            .expect("progress tab list should render");
+        // タブ列の直後には必ず [`super::panel_row`] の
+        // `blocks-feature-tabs-panel-row` が続く（[`super::
+        // variant_progress_trigger`] 参照）ため、その出現位置をタブ列の
+        // 終端とみなす。
+        let list_end = html[list_start..]
+            .find("class=\"blocks-feature-tabs-panel-row\"")
+            .map(|offset| list_start + offset)
+            .expect("panel row should follow the progress tab list");
+        let list_html = &html[list_start..list_end];
+        assert_eq!(
+            list_html.matches("data-part=\"trigger\"").count(),
+            3,
+            "expected 3 progress triggers"
+        );
+        assert!(
+            !list_html.contains("aria-hidden"),
+            "progress triggers must stay readable by assistive tech"
+        );
     }
 
     /// 形 E（[`super::variant_card_grid`]）のカードグリッドが

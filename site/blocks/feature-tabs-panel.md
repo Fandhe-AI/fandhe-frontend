@@ -258,23 +258,47 @@ fn panel_tab_labels() -> Vec<(&'static str, Vec<Node>)> {
 /// `"trigger"` を `tabs::tabs` と同じ属性値で `div` のみに与え、
 /// [`LAYOUT_CSS`] の `[data-scope="tabs"][data-part="..."]` セレクタによる
 /// 見た目をそのまま再利用しつつ、`role`/`tabindex`/`<button>` は一切持たない
-/// ため操作可能に見えない。`aria-hidden="true"` を各 trigger へ付与し、
-/// 装飾要素として支援技術のツリーから除外する（`tabs::tabs` の
-/// `indicator` パーツと同じ判断）。`id_prefix` は呼び出し側が
+/// ため操作可能に見えない。`id_prefix` は呼び出し側が
 /// `blocks-feature-tabs-panel-<接尾辞>` の形で完全指定する（モジュール doc
 /// 「id 規約」節）。
+///
+/// `hide_from_assistive_tech` が `true` の trigger には `aria-hidden="true"`
+/// を付与し、装飾要素として支援技術のツリーから除外する（`tabs::tabs` の
+/// `indicator` パーツと同じ判断。ラベルのみを持つ基準形・形 C・形 D・形 E）。
+/// `false` の trigger（形 F、[`trigger_with_progress`]）は `role="progressbar"`
+/// と進捗値を含む実情報を持つため `aria-hidden` を付けない（Codex P1 是正:
+/// 全 trigger 一律 `aria-hidden` にすると進捗情報が支援技術から読めなくなる。
+/// `role`/`tabindex` を持たない div のままなので `aria-hidden` を外しても
+/// 操作可能に見えるようにはならない）。
 fn static_tab_list(
     id_prefix: &'static str,
     selected: &'static str,
     items: Vec<(&'static str, Vec<Node>)>,
+    hide_from_assistive_tech: bool,
+    pill: bool,
 ) -> Node {
+    let mut list_attrs = vec![
+        ("data-scope".to_string(), "tabs".to_string()),
+        ("data-part".to_string(), "list".to_string()),
+        ("id".to_string(), format!("{id_prefix}-list")),
+    ];
+    if pill {
+        // 形 C（対応表 ID R0478、ピル型）専用フック。実物の `tabs::tabs` を
+        // 使わないためレシピの `TabsVariant::Enclosed`（root への variant
+        // class 付与、`fandhe_frontend_pre_styled_ui::tabs` rustdoc「variant」
+        // 節参照）を経由できず、pre-styled-ui の Enclosed 実装と同じトークン
+        // （`--fandhe-color-bg-muted`/`--fandhe-radius-md`/`--fandhe-space-1`/
+        // `--fandhe-color-bg`/`--fandhe-shadow-sm`）を [`LAYOUT_CSS`] 側で
+        // 直接再現する（Codex/Bugbot P2 是正: 形 C が下線型のまま変化
+        // していなかった不具合）。
+        list_attrs.push((
+            "data-blocks-feature-tabs-panel-pill".to_string(),
+            String::new(),
+        ));
+    }
     el_owned(
         "div",
-        vec![
-            ("data-scope".to_string(), "tabs".to_string()),
-            ("data-part".to_string(), "list".to_string()),
-            ("id".to_string(), format!("{id_prefix}-list")),
-        ],
+        list_attrs,
         items
             .into_iter()
             .map(|(value, trigger)| {
@@ -283,16 +307,15 @@ fn static_tab_list(
                 } else {
                     "inactive"
                 };
-                el_owned(
-                    "div",
-                    vec![
-                        ("data-scope".to_string(), "tabs".to_string()),
-                        ("data-part".to_string(), "trigger".to_string()),
-                        ("data-state".to_string(), state.to_string()),
-                        ("aria-hidden".to_string(), "true".to_string()),
-                    ],
-                    trigger,
-                )
+                let mut attrs = vec![
+                    ("data-scope".to_string(), "tabs".to_string()),
+                    ("data-part".to_string(), "trigger".to_string()),
+                    ("data-state".to_string(), state.to_string()),
+                ];
+                if hide_from_assistive_tech {
+                    attrs.push(("aria-hidden".to_string(), "true".to_string()));
+                }
+                el_owned("div", attrs, trigger)
             })
             .collect(),
     )
@@ -349,6 +372,8 @@ fn variant_basic() -> Node {
             "blocks-feature-tabs-panel-basic",
             PANELS[0].value,
             panel_tab_labels(),
+            true,
+            false,
         ),
     ];
     children.extend(panel_row(&PANELS[0]));
@@ -379,6 +404,8 @@ fn variant_pill() -> Node {
                 (PANELS[0].value, vec![text(PANELS[0].label)]),
                 (PANELS[1].value, vec![text(PANELS[1].label)]),
             ],
+            true,
+            true,
         ),
     ];
     children.extend(panel_single(&PANELS[0]));
@@ -409,6 +436,8 @@ fn variant_alternating() -> Node {
                 ("set-a", vec![text("セット A")]),
                 ("set-b", vec![text("セット B")]),
             ],
+            true,
+            false,
         ),
     ];
     children.extend(panel_alternating_rows(&PANELS[0..2]));
@@ -558,6 +587,8 @@ fn variant_card_grid() -> Node {
                 ("features", vec![text("特長")]),
                 ("cases", vec![text("導入事例")]),
             ],
+            true,
+            false,
         ),
     ];
     children.extend(panel_card_grid(&CARDS_FEATURES));
@@ -632,6 +663,8 @@ fn variant_progress_trigger() -> Node {
             "blocks-feature-tabs-panel-progress",
             PANELS[0].value,
             labels,
+            false,
+            false,
         ),
     ];
     children.extend(panel_row(&PANELS[0]));
@@ -652,8 +685,8 @@ fn variant_progress_trigger() -> Node {
 /// `feature-tabs-panel` の Demo 本体。呼び出しごとに同一の `Node` を返す
 /// 純関数。基準形（R1158）に続けて残り 4 形（R0478/R0479/R0481/R0104）を
 /// 縦に並べる（モジュール doc「#2772 と #2773 の分担」節）。各形とも無 JS
-/// 対応のため、実物の `tabs::tabs` は選択中タブ分のみで残りは非対話
-/// プレビュー（各 `variant_*` 参照）。
+/// 対応のため、[`static_tab_list`] による非対話タブ列 + 選択中タブの本文を
+/// 描画したあと、残りは非対話プレビュー（各 `variant_*` 参照）。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-feature-tabs-panel-layout")],
