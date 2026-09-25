@@ -6378,6 +6378,72 @@ fn contact_split_info_composes_expected_parts() {
     }
 }
 
+/// hero-image-top ページが Demo class・専用 CSS を配線していること、
+/// block 固有 CSS（横長画像・2 カラム・ブレークポイント）が実際に出力
+/// されていることを固定する（イシュー #2785）。
+#[test]
+fn hero_image_top_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-image-top/index.html"))
+        .expect("blocks/hero-image-top/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-hero-image-top\""),
+        "hero-image-top page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "hero-image-top page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "hero-image-top page should link the Blocks-specific stylesheet"
+    );
+    assert!(
+        html.contains("data-blocks-hero-image-top-image"),
+        "hero-image-top page should render the data-blocks-hero-image-top-image attribute"
+    );
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-hero-image-top-columns",
+        "@media (min-width: 48rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// hero-image-top の合成部品（badge/heading/text/button/image）が期待どおり
+/// の構成で実際に出力されていること、非対話制約を固定する（イシュー
+/// #2785）。
+#[test]
+fn hero_image_top_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/hero-image-top/")
+        .expect("hero-image-top should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"button\"",
+        "data-scope=\"image\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "hero-image-top demo should contain {scope}"
+        );
+    }
+    for absent in ["<form", "src=\"data:", "href=\"#\"", "id=\""] {
+        assert!(
+            !html.contains(absent),
+            "hero-image-top should never contain {absent}"
+        );
+    }
+}
+
 /// error-page-background-image ページが Demo class・専用 CSS を配線して
 /// いること、背景画像・スクリムの `data-*` フックが実際に出力されている
 /// ことを固定する（イシュー #2836）。
