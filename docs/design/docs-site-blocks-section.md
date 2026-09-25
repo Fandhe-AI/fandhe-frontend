@@ -875,11 +875,12 @@ pub enum LayoutCss {
 | contact-dialog-form | #2827 | `marketing/contact/contact_dialog_form.rs` |
 | feature-alternating-rows | #2763 | `marketing/feature/feature_alternating_rows.rs` |
 | feature-image-cards | #2765 | `marketing/feature/feature_image_cards.rs` |
+| feature-large-screenshot | #2766 | `marketing/feature/feature_large_screenshot.rs` |
 | contact-image-info | #2829 | `marketing/contact/contact_image_info.rs` |
 | contact-info-columns | #2830 | `marketing/contact/contact_info_columns.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-61 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+62 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
