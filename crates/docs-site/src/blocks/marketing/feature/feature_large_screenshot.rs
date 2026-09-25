@@ -94,12 +94,22 @@
 //! # 暗色パネルの配色継承と badge を置かない理由
 //!
 //! C（暗色パネル）は `background: var(--fandhe-color-fg); color:
-//! var(--fandhe-color-bg);` を付与する div で包み、`heading`/`styled_text`
-//! は `color: inherit` の恩恵をそのまま受ける（個別の色上書きを追加
-//! しない）。`icon` は `fill="currentColor"` 固定のため同様に自動で
-//! 追従する。`badge` は全 variant が自前の配色（`--fandhe-palette-*`
-//! トークン参照）を持ち反転面での可読性を保証しないため、C には置かない
-//! （`badge` は A で使用済みのため `parts` 契約は満たされる）。
+//! var(--fandhe-color-bg);` を付与する div で包む。`heading` は個別の色
+//! 宣言を持たないため `color: inherit` の恩恵をそのまま受けるが、
+//! `styled_text::text`（`TextVariant::Muted`）はリード文・feature 説明の
+//! 両方に `color: var(--fandhe-color-fg-muted)` を明示指定するため、この
+//! 明示指定が反転後の親の色より優先されてしまい、暗色パネル上へ薄い
+//! 前景色がそのまま乗ってコントラストが低下する（レビュー指摘、イシュー
+//! #2766）。このため C のパネル配下に限定して `[data-blocks-
+//! feature-large-screenshot-section-variant="panel"] [data-scope="text"]
+//! [data-part="root"][data-blocks-feature-large-screenshot-lead]`/`-desc`
+//! （詳細度 (0,4,0)）で `color: inherit` を明示的に上書きし、A/B（fade/
+//! bordered）の Muted 表示はそのまま維持する（パネル以外へは影響させない
+//! スコープ限定）。`icon` は `fill="currentColor"` 固定のため個別の色宣言
+//! を持たず自動で追従する。`badge` は全 variant が自前の配色
+//! （`--fandhe-palette-*` トークン参照）を持ち反転面での可読性を保証しない
+//! ため、C には置かない（`badge` は A で使用済みのため `parts` 契約は
+//! 満たされる）。
 //!
 //! # md（48rem）未満で一覧を 1 列にする
 //!
@@ -432,6 +442,8 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-feature-large-screenshot-section-variant=\"panel\"] {\n  background: var(--fandhe-color-fg);\n  color: var(--fandhe-color-bg);\n}\n\
 .blocks-feature-large-screenshot-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  align-items: center;\n  text-align: center;\n  max-width: 48rem;\n  margin: 0 auto;\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-large-screenshot-lead] {\n  margin: 0;\n}\n\
+[data-blocks-feature-large-screenshot-section-variant=\"panel\"] [data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-large-screenshot-lead],\n\
+[data-blocks-feature-large-screenshot-section-variant=\"panel\"] [data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-large-screenshot-desc] {\n  color: inherit;\n}\n\
 .blocks-feature-large-screenshot-actions {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: center;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-feature-large-screenshot-media {\n  position: relative;\n  overflow: hidden;\n  border-radius: var(--fandhe-radius-lg);\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-large-screenshot-image] {\n  display: block;\n  width: 100%;\n}\n\
