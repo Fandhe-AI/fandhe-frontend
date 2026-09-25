@@ -57,6 +57,25 @@
 //! `outline-offset` の内側化上書きも不要（`FocusRingOffset::Outside` の
 //! 既定のままフォーカスリングがカード境界の外側へ正しく描画される）。
 //!
+//! # `overlay` の配置 CSS を本 block 側で個別定義する理由（codex P1 対応）
+//!
+//! `crates/pre-styled-ui/src/link_overlay.rs` の `stylesheet()`（`overlay`
+//! を `position: absolute; inset: 0;` で `root` 全面へ展開する規則）は
+//! docs-site 側で無条件出荷しない（`crate::showcase` 冒頭コメント参照。
+//! 同じ headless マーカーをサイト共通のページャ `nav.prev-next` が再利用
+//! しており、無条件出荷すると高さ 0 に潰れる回帰を招くため）。このため
+//! `overlay` は何もしなければ通常フローのリンクのままでカード全面を
+//! クリックできない。[`LAYOUT_CSS`] へ本 block 限定の
+//! `[data-scope="link-overlay"][data-part="overlay"][data-blocks-
+//! feature-four-column-grid-overlay]` セレクタで `position: absolute;
+//! inset: 0;` 等を個別複製し、`crate::showcase` の `.pre-styled-showcase`
+//! スコープ版と同じ宣言（`border-radius: inherit` / `cursor: pointer` /
+//! `:focus-visible` リング）を採用する。`overlay` の absolute 配置の
+//! containing block は `-link`（`link_overlay::root`）ではなく、直近の
+//! positioned 祖先である `card::root`（recipe 既定で `position: relative`
+//! を持つ）に解決される（`-link` 自体は `position` を持たない）ため、
+//! カード全体（`card::root` の padding box）が clickable になる。
+//!
 //! # `highlight` の使い方
 //!
 //! 中央見出しの一部語句を `highlight::highlight` で挟み、`heading` の
@@ -418,6 +437,8 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-feature-four-column-grid-card] {\n  position: relative;\n  height: 100%;\n}\n\
 [data-blocks-feature-four-column-grid-card-body] {\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-feature-four-column-grid-link] {\n  display: flex;\n  flex-direction: column;\n  flex: 1;\n}\n\
+[data-scope=\"link-overlay\"][data-part=\"overlay\"][data-blocks-feature-four-column-grid-overlay] {\n  position: absolute;\n  inset: 0;\n  z-index: 0;\n  border-radius: inherit;\n  cursor: pointer;\n}\n\
+[data-scope=\"link-overlay\"][data-part=\"overlay\"][data-blocks-feature-four-column-grid-overlay]:focus-visible {\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: var(--fandhe-focus-ring-offset, 2px);\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-four-column-grid-desc] {\n  margin: 0;\n}\n\
 [data-scope=\"icon\"][data-part=\"root\"][data-blocks-feature-four-column-grid-arrow] {\n  position: absolute;\n  top: var(--fandhe-space-4);\n  right: var(--fandhe-space-4);\n}\n\
 @media (min-width: 48rem) {\n  \
@@ -482,6 +503,20 @@ mod tests {
         assert!(LAYOUT_CSS.contains("repeat(4, minmax(0, 1fr))"));
         assert!(LAYOUT_CSS.contains("repeat(2, minmax(0, 1fr))"));
         assert!(LAYOUT_CSS.contains("[data-columns=\"2\"]"));
+    }
+
+    /// [`LAYOUT_CSS`] が全面リンク overlay を `position: absolute; inset: 0`
+    /// で展開し、`:focus-visible` リングを個別定義していること（codex P1
+    /// 対応: `link_overlay::stylesheet()` を無条件出荷しないため本 block
+    /// 側で複製する契約の固定）。
+    #[test]
+    fn layout_css_expands_overlay_to_full_card_with_focus_ring() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"link-overlay\"][data-part=\"overlay\"][data-blocks-feature-four-column-grid-overlay] {\n  position: absolute;\n  inset: 0;"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"link-overlay\"][data-part=\"overlay\"][data-blocks-feature-four-column-grid-overlay]:focus-visible {"
+        ));
     }
 
     /// ルート class（`demo_class` とは別名）が `demo()` の出力へ実際に
