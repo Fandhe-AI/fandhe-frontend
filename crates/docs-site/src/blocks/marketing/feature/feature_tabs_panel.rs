@@ -364,7 +364,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-feature-tabs-panel-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  align-items: start;\n  max-width: 40rem;\n}\n\
 .blocks-feature-tabs-panel-list {\n  display: flex;\n  flex-wrap: nowrap;\n  overflow-x: auto;\n  overflow-y: hidden;\n  gap: var(--fandhe-space-4);\n  padding-bottom: 1px;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 .blocks-feature-tabs-panel-trigger {\n  display: inline-flex;\n  align-items: center;\n  white-space: nowrap;\n  padding: var(--fandhe-space-2) var(--fandhe-space-1);\n  margin-bottom: -1px;\n  color: var(--fandhe-color-fg-muted);\n  border-bottom: 2px solid transparent;\n}\n\
-.blocks-feature-tabs-panel-trigger[data-blocks-feature-tabs-panel-selected] {\n  color: var(--fandhe-color-fg);\n  font-weight: var(--fandhe-font-weight-medium);\n  border-bottom-color: var(--fandhe-color-accent);\n}\n\
+.blocks-feature-tabs-panel-trigger[data-blocks-feature-tabs-panel-selected] {\n  color: var(--fandhe-color-fg);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  border-bottom-color: var(--fandhe-color-accent);\n}\n\
 .blocks-feature-tabs-panel-state {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-feature-tabs-panel-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  padding-top: var(--fandhe-space-6);\n}\n\
 .blocks-feature-tabs-panel-copy {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  min-width: 0;\n}\n\
