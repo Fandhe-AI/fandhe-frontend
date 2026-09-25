@@ -7575,3 +7575,90 @@ fn hero_prompt_input_composes_expected_parts() {
         );
     }
 }
+
+/// hero-social-proof ページが Demo class・専用 CSS を配線していること、
+/// 重なりアバター群・readonly 星評価の CSS フックとブレークポイントが
+/// 実際に出力されていることを固定する（イシュー #2790）。
+#[test]
+fn hero_social_proof_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-social-proof/index.html"))
+        .expect("blocks/hero-social-proof/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-hero-social-proof\""),
+        "hero-social-proof page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "hero-social-proof page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "hero-social-proof page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-hero-social-proof-avatar",
+        "data-blocks-hero-social-proof-rating",
+    ] {
+        assert!(
+            html.contains(hook),
+            "hero-social-proof page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-hero-social-proof-proof",
+        "@media (min-width: 40rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// hero-social-proof の合成部品（badge/heading/text/button/avatar/
+/// rating-group）が期待どおりの構成で実際に出力されていること、
+/// アバター数・星の数・readonly 属性・非対話制約を固定する
+/// （イシュー #2790）。
+#[test]
+fn hero_social_proof_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/hero-social-proof/")
+        .expect("hero-social-proof should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"button\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"rating-group\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "hero-social-proof demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-part=\"item\"").count(),
+        5,
+        "hero-social-proof demo should render exactly 5 rating items"
+    );
+    assert_eq!(
+        html.matches("data-blocks-hero-social-proof-avatar").count(),
+        4,
+        "hero-social-proof demo should render exactly 4 stacked avatars"
+    );
+    assert!(
+        html.contains("aria-readonly=\"true\""),
+        "hero-social-proof rating should be readonly"
+    );
+    for absent in ["<form", "src=\"data:", "<input"] {
+        assert!(
+            !html.contains(absent),
+            "hero-social-proof should never contain {absent}"
+        );
+    }
+}

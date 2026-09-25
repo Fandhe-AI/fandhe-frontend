@@ -1248,6 +1248,11 @@ source = "site/blocks/hero-prompt-input.md"
 path = "/blocks/hero-prompt-input/"
 
 [[section.group.page]]
+title = "hero-social-proof"
+source = "site/blocks/hero-social-proof.md"
+path = "/blocks/hero-social-proof/"
+
+[[section.group.page]]
 title = "hero-terminal"
 source = "site/blocks/hero-terminal.md"
 path = "/blocks/hero-terminal/"

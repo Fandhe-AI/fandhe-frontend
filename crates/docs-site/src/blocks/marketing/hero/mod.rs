@@ -6,7 +6,8 @@
 //! ための構造、イシュー #2734）。イシュー #2784 で `hero_image_tiles` を
 //! 追加し、本カテゴリは 6 件目となった。イシュー #2781/#2782 で
 //! `hero_background_media`/`hero_bottom_screenshot` を追加し、本カテゴリは
-//! 8 件目となった。
+//! 8 件目となった。イシュー #2790 で `hero_social_proof` を追加し、
+//! 本カテゴリは 9 件目となった。
 
 mod hero_background_media;
 mod hero_bottom_screenshot;
@@ -15,6 +16,7 @@ mod hero_email_signup;
 mod hero_image_tiles;
 mod hero_parallax_layers;
 mod hero_prompt_input;
+mod hero_social_proof;
 mod hero_terminal;
 mod text_split_reveal;
 use crate::blocks::Block;
@@ -28,6 +30,7 @@ pub(super) fn blocks() -> Vec<Block> {
         hero_image_tiles::BLOCK,
         hero_parallax_layers::BLOCK,
         hero_prompt_input::BLOCK,
+        hero_social_proof::BLOCK,
         hero_terminal::BLOCK,
         text_split_reveal::BLOCK,
     ]

@@ -234,6 +234,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-image-tiles/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-parallax-layers/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-prompt-input/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-social-proof/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-terminal/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/text-split-reveal/index.html"
           # Marketing / Feature
