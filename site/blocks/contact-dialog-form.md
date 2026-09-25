@@ -89,7 +89,6 @@ pub fn demo() -> Node {
                     },
                     vec![("data-blocks-contact-dialog-form-content", "")],
                     vec![
-                        dialog::close_trigger(vec![("aria-label", "Close")], vec![text("×")]),
                         dialog::title(Some(title_id), vec![], vec![text("お問い合わせ")]),
                         dialog::description(
                             Some(description_id),

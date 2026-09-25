@@ -10,13 +10,18 @@
 //! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証する）。
 //! 新しい UI 部品は追加しない。
 //!
-//! # 静的表示・`trigger` を置かない理由
+//! # 静的表示・`trigger`/`close_trigger` を置かない理由
 //!
 //! docs サイトは JS ハイドレーションを行わない設計（CLAUDE.md）のため、
 //! 本 Demo はダイアログが**既に開いた静的な初期状態**のみを描く
 //! （`game_ui_modal`/`testimonials_stack` と同じ設計判断）。
 //! [`fandhe_frontend_pre_styled_ui::dialog::trigger`] は無 JS 下では
 //! 開閉を切り替えられず表示上の意味を持たないため、意図的に置かない。
+//! [`fandhe_frontend_pre_styled_ui::dialog::close_trigger`] も同じ理由で
+//! 置かない: 押しても何も起きない `button` をキーボード・支援技術利用者に
+//! 実行可能な操作として提示すると表示契約（「閉じる機構を持たない」）と
+//! アクセシビリティが不一致になるため（`game_ui_modal` に close trigger が
+//! ないのと同じ判断、PR #3195 の codex レビュー P1 指摘を踏襲）。
 //! 開閉・フォーカストラップ・Escape 等の挙動は一切扱わない。
 //!
 //! # `aria-modal` を false にする理由
@@ -121,7 +126,6 @@ pub fn demo() -> Node {
                     },
                     vec![("data-blocks-contact-dialog-form-content", "")],
                     vec![
-                        dialog::close_trigger(vec![("aria-label", "Close")], vec![text("×")]),
                         dialog::title(Some(title_id), vec![], vec![text("お問い合わせ")]),
                         dialog::description(
                             Some(description_id),
@@ -270,14 +274,27 @@ pub const BLOCK: Block = Block {
 /// ビューポート全体オーバーレイだが、Blocks の掲示は `.blocks-demo` 枠内へ
 /// 収める必要がある。本 block スコープ（`.blocks-contact-dialog-form`
 /// 配下）に限定した属性セレクタで `position: relative`・`inset: auto` へ
-/// 差し替え、positioner を枠内中央へ配置する。`[data-blocks-contact-dialog-
-/// form-root]` へ `position: relative` を設定し、`position: absolute;
-/// inset: 0` の positioner の包含ブロックをこのデモ枠自身にする（`root`
-/// 直下の兄弟である backdrop の `position: relative` は positioner の
-/// 基準にならないため別途必要、`game_ui_modal` §「デモ枠内での掲示」節
-/// 参照）。`dialog::title` の `h2` は `.docs-content` のタイポグラフィ
+/// 差し替える。`dialog::title` の `h2` は `.docs-content` のタイポグラフィ
 /// （`border-top`/`padding-top`/`letter-spacing`）を継承してしまうため、
 /// `showcase.rs` の pre-styled-showcase と同型のリセットを併せて適用する。
+///
+/// # 高さは `positioner`（実コンテンツ側）が決め、`backdrop` はそれに追随する
+///
+/// `game_ui_modal` は `backdrop` に固定の `min-height` を持たせ、`inset: 0`
+/// の `positioner` をその上へ絶対配置で重ねる構成を採る（`positioner` の
+/// 高さは `backdrop` の高さに追随する）。本 block は `positioner`（3 件の
+/// `field`・8rem の `textarea`・footer を含む実コンテンツ）の方が
+/// `backdrop`（単なる背景色の装飾）より確実に高くなるため、両者の役割を
+/// 反転させる: `positioner` を通常の flow（`position: relative`）へ戻して
+/// **実コンテンツの高さで `[data-blocks-contact-dialog-form-root]`（両者の
+/// 共通の位置指定祖先）の高さを決めさせ**、`backdrop` の方を `position:
+/// absolute; inset: 0` にして positioner に追随させる（Bugbot 指摘: 固定
+/// `min-height` の `backdrop` に `inset: 0` の `positioner` を重ねる向きだと
+/// 実コンテンツが `backdrop` の高さを超えたときに `backdrop` の外へはみ
+/// 出す。役割を反転すれば `root` の高さが常に実コンテンツに一致するため、
+/// コンテンツ量に依存する固定値の当てずっぽうが不要になる）。`positioner`
+/// の `min-height` は最低限の見栄え用の下限（floor）に過ぎず、実コンテンツ
+/// がそれより高ければ自然に伸びる。
 ///
 /// # `body` の `max-height` 上書き（モジュール doc参照）
 ///
@@ -295,8 +312,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-contact-dialog-form.blocks-demo {\n  overflow: visible;\n}\n\
 [data-blocks-contact-dialog-form-root] {\n  position: relative;\n}\n\
 .blocks-contact-dialog-form [data-scope=\"dialog\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
-.blocks-contact-dialog-form [data-scope=\"dialog\"][data-part=\"backdrop\"] {\n  position: relative;\n  inset: auto;\n  z-index: auto;\n  width: 100%;\n  min-height: 32rem;\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
-.blocks-contact-dialog-form [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: absolute;\n  inset: 0;\n  z-index: auto;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: var(--fandhe-space-6);\n}\n\
+.blocks-contact-dialog-form [data-scope=\"dialog\"][data-part=\"backdrop\"] {\n  position: absolute;\n  inset: 0;\n  z-index: auto;\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
+.blocks-contact-dialog-form [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: relative;\n  inset: auto;\n  z-index: auto;\n  width: 100%;\n  min-height: 32rem;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: var(--fandhe-space-6);\n}\n\
 .blocks-contact-dialog-form [data-scope=\"dialog\"][data-part=\"body\"] {\n  max-height: none;\n  overflow: visible;\n}\n\
 [data-blocks-contact-dialog-form-field] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"field\"][data-part=\"textarea\"][data-blocks-contact-dialog-form-message] {\n  min-height: 8rem;\n}\n\
@@ -325,7 +342,6 @@ mod tests {
             "data-scope=\"dialog\" data-part=\"description\"",
             "data-scope=\"dialog\" data-part=\"body\"",
             "data-scope=\"dialog\" data-part=\"footer\"",
-            "data-scope=\"dialog\" data-part=\"close-trigger\"",
         ] {
             assert!(html.contains(scope), "demo should contain {scope}");
         }
@@ -362,8 +378,8 @@ mod tests {
         }
         assert_eq!(
             html.matches("type=\"button\"").count(),
-            3,
-            "demo should have exactly 3 type=\"button\" buttons (cancel/submit/close)"
+            2,
+            "demo should have exactly 2 type=\"button\" buttons (cancel/submit)"
         );
     }
 
@@ -405,14 +421,6 @@ mod tests {
             assert!(html.contains(label_for), "missing {label_for}");
             assert!(html.contains(control_id), "missing {control_id}");
         }
-    }
-
-    /// 閉じるボタンにアクセシブルな名前（`aria-label`）が付与されている
-    /// ことを固定する。
-    #[test]
-    fn close_trigger_has_accessible_name() {
-        let html = demo_html();
-        assert!(html.contains(r#"aria-label="Close""#));
     }
 
     /// `message` フックが textarea パート要素そのものに付与されて
