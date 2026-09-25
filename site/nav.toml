@@ -1565,6 +1565,11 @@ source = "site/blocks/error-page-centered.md"
 path = "/blocks/error-page-centered/"
 
 [[section.group.page]]
+title = "error-page-popular-links"
+source = "site/blocks/error-page-popular-links.md"
+path = "/blocks/error-page-popular-links/"
+
+[[section.group.page]]
 title = "error-page-split-links"
 source = "site/blocks/error-page-split-links.md"
 path = "/blocks/error-page-split-links/"

@@ -310,6 +310,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/error-page-background-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/error-page-centered/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/error-page-split-links/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/error-page-popular-links/index.html"
           # Marketing / Gallery
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/gallery-image-grid/index.html"
           # Marketing / Section Heading
