@@ -296,6 +296,16 @@ pub const BLOCK: Block = Block {
 /// `[data-blocks-hero-split-screenshot-*]` のみを用い、他 block や部品の
 /// 素のセレクタへ影響させない（`feature_split_screenshot` と同じ名前空間
 /// 分離）。
+///
+/// lg（64rem）以上での固定幅 `48rem` は `.blocks-hero-split-screenshot-
+/// media` の直接の子である画像（A: 枠なし）にのみ適用する
+/// （`.blocks-hero-split-screenshot-media > [data-scope="image"]...`）。
+/// B（枠あり）は画像が `.blocks-hero-split-screenshot-frame` の子になり
+/// この子孫セレクタに一致しないため、画像は基準ルールの `width: 100%` の
+/// まま枠の内側に収まる。両者へ無条件に `width: 48rem` を当てると、
+/// `box-sizing: border-box` の枠が持つ `padding`/`border` の分だけ画像が
+/// 枠の内側（余白）からはみ出し、`overflow: hidden` を持つセクション側で
+/// 意図しない位置で切り取られる（PR #3243 レビュー指摘）。
 const LAYOUT_CSS: &str = "\
 .blocks-hero-split-screenshot-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-12);\n}\n\
 .blocks-hero-split-screenshot-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  overflow: hidden;\n}\n\
@@ -314,7 +324,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"code\"][data-part=\"root\"][data-blocks-hero-split-screenshot-code] {\n  display: block;\n  white-space: pre;\n  background: transparent;\n  color: inherit;\n  border: 0;\n  padding: 0;\n}\n\
 @media (min-width: 64rem) {\n  \
 .blocks-hero-split-screenshot-section {\n    display: grid;\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n    align-items: center;\n    column-gap: var(--fandhe-space-12);\n  }\n  \
-[data-scope=\"image\"][data-part=\"root\"][data-blocks-hero-split-screenshot-image] {\n    width: 48rem;\n    max-width: none;\n    flex: none;\n  }\n  \
+.blocks-hero-split-screenshot-media > [data-scope=\"image\"][data-part=\"root\"][data-blocks-hero-split-screenshot-image] {\n    width: 48rem;\n    max-width: none;\n    flex: none;\n  }\n  \
 .blocks-hero-split-screenshot-frame {\n    width: 48rem;\n    flex: none;\n  }\n\
 }\n";
 
