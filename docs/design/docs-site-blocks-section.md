@@ -877,6 +877,7 @@ pub enum LayoutCss {
 | contact-form-testimonial | #2828 | `marketing/contact/contact_form_testimonial.rs` |
 | feature-image-cards | #2765 | `marketing/feature/feature_image_cards.rs` |
 | contact-image-info | #2829 | `marketing/contact/contact_image_info.rs` |
+| contact-info-columns | #2830 | `marketing/contact/contact_info_columns.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 62 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
