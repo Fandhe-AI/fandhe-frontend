@@ -68,7 +68,7 @@
 //!
 //! # 同じ可視テキストのリンクが複数並ぶ問題への対処
 //!
-//! 拠点カードの「地図を見る」リンクは 4 件とも同じ可視テキストのため、
+//! 拠点カードのリンクは 4 件とも同じ可視テキストのため、
 //! 「（可視テキスト）（拠点名）」形式の `aria-label` を付与して区別する
 //! （WCAG 2.5.3 label-in-name に適合、`contact_info_columns` と同じ手段）。
 //! SNS 風リンクは 4 件とも可視テキストが相異なるため `aria-label` は付与
@@ -80,6 +80,20 @@
 //! で「実際に押せる」導線を表す。連絡先カード（電話/メール/所在地/受付
 //! 時間）はプレーンテキストのみで表示しリンク化しない。`href="#"` も
 //! 使わない（`contact_info_columns` と同じ安全側判断）。
+//!
+//! # 表示文言と遷移先の食い違い是正（codex 再レビュー是正）
+//!
+//! 当初、拠点カードのリンクは「地図を見る」、SNS 風リンクは「公式ブログ」
+//! 等の可視テキストのまま [`REPO`] へ遷移していたが、拠点ごと・
+//! プラットフォームごとに異なる内容を示す複数のリンクがすべて同一の
+//! GitHub リポジトリへ遷移してしまい、表示内容と遷移先が食い違うという
+//! 指摘（codex 再レビュー）を受けた。架空の拠点・SNS それぞれに対応する
+//! 実在の個別 URL を捏造することはできない（`crate::blocks` モジュール doc
+//! の安全側判断）ため、`error_page_centered.rs`「サポートへの導線」節と
+//! 同じ方針（実在する destination を維持しつつ、表示文言を遷移先が
+//! わかる内容へ変更する）を採り、拠点カードのリンク文言を「GitHub で
+//! 見る」、SNS 風リンクの可視テキストへ「（GitHub）」を付記する形に変更
+//! した。`aria-label` も新しい可視テキストに合わせて更新済み。
 //!
 //! # `<form>` を持たない・データ取得/送信を行わない
 //!
@@ -300,9 +314,9 @@ fn info_card(item: &ContactItem) -> Node {
     )
 }
 
-/// 拠点カード 1 件（淡色カード + 拠点名 + 住所 2 行 + 地図リンク）。
+/// 拠点カード 1 件（淡色カード + 拠点名 + 住所 2 行 + リンク）。
 fn office_card(office: &Office) -> Node {
-    let aria_label = format!("地図を見る（{}）", office.name);
+    let aria_label = format!("GitHub で見る（{}）", office.name);
     card::root(
         CardVariant::Subtle,
         vec![],
@@ -352,15 +366,15 @@ fn office_card(office: &Office) -> Node {
                         ("aria-label", aria_label.as_str()),
                         ("data-blocks-contact-split-info-link", ""),
                     ],
-                    vec![text("地図を見る")],
+                    vec![text("GitHub で見る")],
                 ),
             ],
         )],
     )
 }
 
-/// SNS 風リンク 1 件（アイコン + 汎用ラベル）。可視テキストが 4 件とも
-/// 相異なるため `aria-label` は付与しない（モジュール doc参照）。
+/// SNS 風リンク 1 件（アイコン + 汎用ラベル + 遷移先の明示）。可視テキスト
+/// が 4 件とも相異なるため `aria-label` は付与しない（モジュール doc参照）。
 fn social_link(link: &SocialLink) -> Node {
     link::root(
         REPO,
@@ -370,7 +384,7 @@ fn social_link(link: &SocialLink) -> Node {
             ..LinkProps::default()
         },
         vec![("data-blocks-contact-split-info-social-link", "")],
-        vec![(link.icon_fn)(), text(link.label)],
+        vec![(link.icon_fn)(), text(format!("{}（GitHub）", link.label))],
     )
 }
 
@@ -565,10 +579,10 @@ mod tests {
         assert_eq!(
             html.matches(&format!("href=\"{REPO}\"")).count(),
             8,
-            "4 office map links + 4 social links should point to the fixed repository URL"
+            "4 office links + 4 social links should point to the fixed repository URL"
         );
-        assert!(html.contains("地図を見る（東京本社）"));
-        assert!(html.contains("公式ブログ"));
+        assert!(html.contains("GitHub で見る（東京本社）"));
+        assert!(html.contains("公式ブログ（GitHub）"));
     }
 
     /// 非対話・XSS 回帰の不変条件（`crate::blocks` モジュール doc）を固定

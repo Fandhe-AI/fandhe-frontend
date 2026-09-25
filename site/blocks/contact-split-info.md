@@ -13,12 +13,15 @@ Primitives 部品を組み合わせた実例集であることに注意してく
 淡色カードで 2×2 に並べて表します。狭い画面幅では見出しの下へ情報を
 1 列に積み、`sm`（640px）以上でカード列が 2 列になります。
 
-SNS 風リンクは実在プラットフォームの名称・ロゴを一切使わず、「公式ブログ」
-「コミュニティ」「ニュースレター」「開発者フォーラム」という汎用ラベルと
-自作の抽象幾何アイコンで表しています。文言・連絡先・拠点住所はすべて
-独自に書いた架空のものです。リンク先は本リポジトリの固定 URL とし、拠点
-カードの「地図を見る」リンクは可視テキストが重複するため `aria-label` に
-「（可視テキスト）（拠点名）」の形式を付けて区別しています。`<form>` 要素
+SNS 風リンクは実在プラットフォームの名称・ロゴを一切使わず、「公式ブログ
+（GitHub）」「コミュニティ（GitHub）」「ニュースレター（GitHub）」
+「開発者フォーラム（GitHub）」という汎用ラベルと自作の抽象幾何アイコンで
+表しています。文言・連絡先・拠点住所はすべて独自に書いた架空のものです。
+リンク先は本リポジトリの固定 URL とし、拠点ごと・プラットフォームごとに
+異なる架空の遷移先を用意できないため、可視テキストへ「GitHub で見る」
+「（GitHub）」と遷移先が分かる表記を付けています。拠点カードのリンクは
+可視テキストが重複するため `aria-label` に「（可視テキスト）（拠点名）」
+の形式を付けて区別しています。`<form>` 要素
 は出力せず、送信処理・入力値検証は一切持ちません（
 `docs/policy/intentional-non-adoption.md` §3.25 の責務境界: UI コンポー
 ネント層はアプリケーションロジックを内包しません）。連絡先情報は
@@ -237,9 +240,9 @@ fn info_card(item: &ContactItem) -> Node {
     )
 }
 
-/// 拠点カード 1 件（淡色カード + 拠点名 + 住所 2 行 + 地図リンク）。
+/// 拠点カード 1 件（淡色カード + 拠点名 + 住所 2 行 + リンク）。
 fn office_card(office: &Office) -> Node {
-    let aria_label = format!("地図を見る（{}）", office.name);
+    let aria_label = format!("GitHub で見る（{}）", office.name);
     card::root(
         CardVariant::Subtle,
         vec![],
@@ -289,15 +292,15 @@ fn office_card(office: &Office) -> Node {
                         ("aria-label", aria_label.as_str()),
                         ("data-blocks-contact-split-info-link", ""),
                     ],
-                    vec![text("地図を見る")],
+                    vec![text("GitHub で見る")],
                 ),
             ],
         )],
     )
 }
 
-/// SNS 風リンク 1 件（アイコン + 汎用ラベル）。可視テキストが 4 件とも
-/// 相異なるため `aria-label` は付与しない（モジュール doc参照）。
+/// SNS 風リンク 1 件（アイコン + 汎用ラベル + 遷移先の明示）。可視テキスト
+/// が 4 件とも相異なるため `aria-label` は付与しない（モジュール doc参照）。
 fn social_link(link: &SocialLink) -> Node {
     link::root(
         REPO,
@@ -307,7 +310,7 @@ fn social_link(link: &SocialLink) -> Node {
             ..LinkProps::default()
         },
         vec![("data-blocks-contact-split-info-social-link", "")],
-        vec![(link.icon_fn)(), text(link.label)],
+        vec![(link.icon_fn)(), text(format!("{}（GitHub）", link.label))],
     )
 }
 
@@ -427,9 +430,12 @@ pub fn demo() -> Node {
   （郵便番号は `000-000X` の架空値、実在の企業・人物・PII は含みません）。
 - 配色は `--fandhe-color-accent`/`--fandhe-color-border` 等のトークンに
   従わせました。
-- 拠点カードの「地図を見る」リンクは可視テキストが重複するため
-  `aria-label` で区別し、SNS 風リンクは可視テキストが相異なるため
-  `aria-label` を付与していません。
+- 拠点カード・SNS 風リンクとも遷移先は固定のリポジトリ URL のため、可視
+  テキストへ「GitHub で見る」「（GitHub）」と遷移先が分かる表記を付けま
+  した（拠点ごと・プラットフォームごとの実在する個別 URL は用意できない
+  ため）。拠点カードのリンクは可視テキストが重複するため `aria-label` で
+  区別し、SNS 風リンクは可視テキストが相異なるため `aria-label` を付与
+  していません。
 - レイアウトの切り替えを「1 列 → `sm`（640px）以上でカード列 2 列 →
   `lg`（1024px）以上で行全体を左見出し + 右情報の 2 カラム」にしました。
 
