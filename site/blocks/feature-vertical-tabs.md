@@ -21,9 +21,12 @@ docs サイトは JS ハイドレーションを行わないため、各イン�
 として表示されるため、切り替え手段を持たない静的な並記であることが構造
 からも読み取れます。幅 lg（64rem）以上ではタブ列が左に縦並び、パネルが
 右に表示されます。幅 lg 未満ではタブ列がパネルの上へ積まれますが、タブ列
-自体は縦並びのまま（横並びへは変わらない）です。`role`/`aria-*` を一切
-出力しないため、幅による見た目と意味論の食い違いも構造的に発生しません。
-各タブの trigger 先頭には自作の幾何アイコンを添えています。
+自体は縦並びのまま（横並びへは変わらない）です。`role`（`role="tablist"`/
+`"tab"` 等）は一切出力しないため、幅による見た目と意味論の食い違いも
+構造的に発生しません。各タブの trigger 先頭には自作の幾何アイコンを
+添えています（装飾用途のため `aria-hidden="true"` を個別に持ちますが、
+trigger 自体やタイトル・短い説明には `aria-hidden` を付けず、支援技術
+からもそのまま読めるようにしています）。
 
 文言・データはすべて架空のもので、データ取得・送信は行わない静的な表示
 例です。`<form>` は使用せず、送信先を持ちません。
@@ -386,9 +389,16 @@ fn variant_label(label: &'static str) -> Node {
 /// `-tab`/`-tab-active`）だけで見た目を独自に定義する（recipe の
 /// `cursor: pointer`/hover 面/フォーカスリング等インタラクティブ向け
 /// スタイルを一切継承しないため操作可能に見えない、Bugbot Medium 是正）。
-/// ラベルのみを持つ装飾要素として `aria-hidden="true"` を付与し支援技術の
-/// ツリーから除外する（本 block の trigger はいずれもタイトル/説明のみで
-/// 進捗等の実情報を持たないため常に付与してよい）。
+/// trigger 自体には `aria-hidden` を付与しない（codex-review P1 是正:
+/// `aria-hidden="true"` を trigger 全体へ付けると、[`FEATURES`] の
+/// `summary`（[`trigger_body`] が描画するタイトル・短い説明）まで支援
+/// 技術のツリーから丸ごと除外されてしまい、視覚利用者だけが得られる
+/// 情報になっていた。パネル本文には `summary` の再掲がないため、この
+/// 除外は実害のある情報欠落だった）。装飾目的で隠したいのは trigger 先頭
+/// の自作アイコンのみであり、そちらは [`geo_icon`] が
+/// `IconProps::label: None` で `icon::icon` へ渡すことで
+/// `aria-hidden="true"` を個別に持つ（モジュール doc「trigger 先頭の
+/// アイコン」節）。
 fn static_tab_list(id_prefix: &'static str, selected: &'static str) -> Node {
     div(
         vec![("class", "blocks-feature-vertical-tabs-tablist")],
@@ -404,7 +414,6 @@ fn static_tab_list(id_prefix: &'static str, selected: &'static str) -> Node {
                     "div",
                     vec![
                         ("class".to_string(), class.to_string()),
-                        ("aria-hidden".to_string(), "true".to_string()),
                         (
                             "id".to_string(),
                             format!("{id_prefix}-trigger-{0}", tab.value),

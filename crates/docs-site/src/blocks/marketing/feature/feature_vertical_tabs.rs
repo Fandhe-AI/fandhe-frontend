@@ -30,7 +30,12 @@
 //! `fandhe_frontend_pre_styled_ui::tabs::tabs` を一つも呼ばないにも
 //! かかわらず `BLOCK.parts` に `Tabs` を使用部品として掲げていた不整合を
 //! 是正した（Codex 指摘、`feature_tabs_panel` が先に解決した課題と同型。
-//! 下記「使用部品」節）。
+//! 下記「使用部品」節）。さらに続くラウンド（本コミット）では、
+//! [`static_tab_list`] の trigger 自体に付けていた `aria-hidden="true"`
+//! が、装飾アイコンだけでなく [`FEATURES`] の `summary`（trigger の短い
+//! 説明）まで支援技術のツリーから除外していた不整合を是正した
+//! （codex-review P1 指摘。詳細は [`static_tab_list`] の doc コメント・
+//! 下記「無 JS での扱い」節参照）。
 //!
 //! # 全パネルを静的に読めるようにする
 //!
@@ -83,7 +88,12 @@
 //! 選択中パネルの本文は [`vertical_tabs`] が直接（`panel_body` 経由で）
 //! 描画する。残り 3 パネルは同 block の別インスタンスでそれぞれ選択済み
 //! として可視になる（上記「全パネルを静的に読めるようにする」節）ため、
-//! `feature_tabs_panel` のようなプレビュー併記は不要。
+//! `feature_tabs_panel` のようなプレビュー併記は不要。trigger 自体には
+//! `aria-hidden` を付与しない（codex-review P1 是正: 当初は trigger 全体
+//! を装飾要素として隠していたが、[`FEATURES`] の `summary`（trigger の
+//! 短い説明）がパネル本文に再掲されていないため、支援技術の利用者だけが
+//! その情報を得られなくなる実害があった。詳細は [`static_tab_list`] の
+//! doc コメント参照）。
 //!
 //! # id 規約
 //!
@@ -133,8 +143,8 @@
 //! `63.99rem`/`64rem` を [`LAYOUT_CSS`] へ直書きする（`feature_expand`/
 //! `feature_split_list_image` と同じ判断）。lg 未満でも `.blocks-feature-
 //! vertical-tabs-tablist` の軸（縦積み）は変えず `max-width` 制約だけを
-//! 外すため、`role`/`aria-*` を出力しない本 block では「見た目と意味論の
-//! 食い違い」自体が構造的に発生しない。
+//! 外すため、`role="tablist"`/`aria-orientation` を出力しない本 block
+//! では「見た目と意味論の食い違い」自体が構造的に発生しない。
 //!
 //! # trigger は phrasing content だけで組む
 //!
@@ -568,9 +578,16 @@ fn variant_label(label: &'static str) -> Node {
 /// `-tab`/`-tab-active`）だけで見た目を独自に定義する（recipe の
 /// `cursor: pointer`/hover 面/フォーカスリング等インタラクティブ向け
 /// スタイルを一切継承しないため操作可能に見えない、Bugbot Medium 是正）。
-/// ラベルのみを持つ装飾要素として `aria-hidden="true"` を付与し支援技術の
-/// ツリーから除外する（本 block の trigger はいずれもタイトル/説明のみで
-/// 進捗等の実情報を持たないため常に付与してよい）。
+/// trigger 自体には `aria-hidden` を付与しない（codex-review P1 是正:
+/// `aria-hidden="true"` を trigger 全体へ付けると、[`FEATURES`] の
+/// `summary`（[`trigger_body`] が描画するタイトル・短い説明）まで支援
+/// 技術のツリーから丸ごと除外されてしまい、視覚利用者だけが得られる
+/// 情報になっていた。パネル本文には `summary` の再掲がないため、この
+/// 除外は実害のある情報欠落だった）。装飾目的で隠したいのは trigger 先頭
+/// の自作アイコンのみであり、そちらは [`geo_icon`] が
+/// `IconProps::label: None` で `icon::icon` へ渡すことで
+/// `aria-hidden="true"` を個別に持つ（モジュール doc「trigger 先頭の
+/// アイコン」節）。
 fn static_tab_list(id_prefix: &'static str, selected: &'static str) -> Node {
     div(
         vec![("class", "blocks-feature-vertical-tabs-tablist")],
@@ -586,7 +603,6 @@ fn static_tab_list(id_prefix: &'static str, selected: &'static str) -> Node {
                     "div",
                     vec![
                         ("class".to_string(), class.to_string()),
-                        ("aria-hidden".to_string(), "true".to_string()),
                         (
                             "id".to_string(),
                             format!("{id_prefix}-trigger-{0}", tab.value),
@@ -921,6 +937,54 @@ mod tests {
                 .count(),
             16
         );
+    }
+
+    /// trigger（`class="blocks-feature-vertical-tabs-tab"`/`"...-active"`）
+    /// 自体は `aria-hidden` を持たず、装飾アイコン（`<svg>`）だけが
+    /// `aria-hidden="true"` を持つこと（codex-review P1 是正の回帰固定:
+    /// 当初は trigger 全体を `aria-hidden="true"` にしており、
+    /// [`super::FEATURES`] の `summary`（trigger の短い説明）まで支援技術
+    /// から読めなくなっていた）。`aria-hidden="true"` の出現回数が `<svg`
+    /// の出現回数と一致することで、アイコン以外に `aria-hidden` を持つ
+    /// 要素が無いことを relational に固定する。
+    #[test]
+    fn demo_hides_only_decorative_icons_not_the_whole_trigger() {
+        let html = render(&demo());
+        let svg_count = html.matches("<svg").count();
+        assert!(svg_count > 0, "demo should render at least one <svg> icon");
+        assert_eq!(
+            html.matches("aria-hidden=\"true\"").count(),
+            svg_count,
+            "aria-hidden should only ever be attached to <svg> icons"
+        );
+
+        for needle in [
+            "class=\"blocks-feature-vertical-tabs-tab\"",
+            "class=\"blocks-feature-vertical-tabs-tab blocks-feature-vertical-tabs-tab-active\"",
+        ] {
+            let mut start = 0;
+            while let Some(rel) = html[start..].find(needle) {
+                let pos = start + rel;
+                let open = html[..pos]
+                    .rfind('<')
+                    .expect("class attribute should be inside an opening tag");
+                let open_end = html[open..].find('>').map(|i| open + i + 1).unwrap();
+                let tag = &html[open..open_end];
+                assert!(
+                    !tag.contains("aria-hidden"),
+                    "trigger tag should not have aria-hidden: {tag}"
+                );
+                start = open_end;
+            }
+        }
+
+        for tab in super::FEATURES {
+            assert!(
+                html.contains(tab.summary),
+                "trigger summary for {} should remain readable (not hidden)",
+                tab.value
+            );
+        }
     }
 
     /// [`super::PanelLayout::ListFirst`] のインスタンス（`build`/`observe`）
