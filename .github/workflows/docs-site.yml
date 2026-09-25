@@ -227,12 +227,14 @@ jobs:
           # みで test -f 行を持たない。新規 block 追加時は該当カテゴリの見出し
           # 直後へ 1 行追記する。
           # Marketing / Hero
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-background-media/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-bottom-screenshot/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-editorial-stagger/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-email-signup/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-image-tiles/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-marquee-strip/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-parallax-layers/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-prompt-input/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-terminal/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/text-split-reveal/index.html"
           # Marketing / Feature
