@@ -81,6 +81,13 @@
 //! （詳細度 0,2,0）に負けて `47.99rem` 未満でも日付列が消えない
 //! （イシュー #2821 レビュー指摘で発覚）。
 //!
+//! 変更点リスト（`list::root`）の上余白も同じ理由で、素の
+//! `[data-blocks-changelog-timeline-subscribe-changes]`（詳細度 0,1,0）
+//! ではなく `[data-scope="list"][data-part="root"][data-blocks-changelog-
+//! timeline-subscribe-changes]`（詳細度 0,3,0）で書く。`list` recipe の
+//! base 宣言 `[data-scope="list"][data-part="root"] { margin: 0 }`
+//! （詳細度 0,2,0）に `margin-top` が打ち消されるのを防ぐため。
+//!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
 //! `heading::heading` / `text::text` / `field::root` / `input::input` /
@@ -415,10 +422,10 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `changelog_timeline_subscribe` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節。他 block と同型で
-/// `pub(super)` ではなく本ファイル内 private 定数として `super::stylesheet`
-/// 経由の `push_css` で連結される）。
+/// `changelog_timeline_subscribe` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。他 block と同型に本ファイル内 private
+/// 定数として [`BLOCK`] の `layout_css`（[`LayoutCss::Static`]）で自己申告し、
+/// `crate::blocks::stylesheet` が `all_blocks()` 走査で `push_css` する）。
 ///
 /// セレクタは `.blocks-changelog-timeline-subscribe-*` と
 /// `[data-blocks-changelog-timeline-subscribe-*]`、および styled
@@ -442,7 +449,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-changelog-timeline-subscribe-date {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n  white-space: nowrap;\n}\n\
 .blocks-changelog-timeline-subscribe-release-head {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-changelog-timeline-subscribe-version {\n  font-weight: var(--fandhe-font-weight-bold, 700);\n}\n\
-[data-blocks-changelog-timeline-subscribe-changes] {\n  margin-top: var(--fandhe-space-2);\n}\n\
+[data-scope=\"list\"][data-part=\"root\"][data-blocks-changelog-timeline-subscribe-changes] {\n  margin-top: var(--fandhe-space-2);\n}\n\
 @media (max-width: 47.99rem) {\n  \
 .blocks-changelog-timeline-subscribe-timeline [data-scope=\"timeline\"][data-part=\"item\"] {\n    grid-template-columns: var(--fandhe-timeline-indicator-size, 1.5rem) 1fr;\n  }\n  \
 .blocks-changelog-timeline-subscribe-timeline [data-scope=\"timeline\"][data-part=\"content\"][data-blocks-changelog-timeline-subscribe-date-col] {\n    display: none;\n  }\n  \
@@ -552,6 +559,9 @@ mod tests {
         ));
         assert!(LAYOUT_CSS.contains(
             r#"[data-scope="button"][data-part="root"][data-blocks-changelog-timeline-subscribe-submit] {"#
+        ));
+        assert!(LAYOUT_CSS.contains(
+            r#"[data-scope="list"][data-part="root"][data-blocks-changelog-timeline-subscribe-changes] {"#
         ));
         assert!(!LAYOUT_CSS.contains('<'));
     }

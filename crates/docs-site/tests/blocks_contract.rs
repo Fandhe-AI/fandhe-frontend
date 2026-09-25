@@ -4688,6 +4688,7 @@ fn changelog_timeline_subscribe_page_wires_demo_class_and_css_hooks() {
         r#".blocks-changelog-timeline-subscribe-timeline [data-scope="timeline"][data-part="item"] {"#,
         r#"[data-scope="field"][data-part="input"][data-blocks-changelog-timeline-subscribe-input] {"#,
         r#"[data-scope="button"][data-part="root"][data-blocks-changelog-timeline-subscribe-submit] {"#,
+        r#"[data-scope="list"][data-part="root"][data-blocks-changelog-timeline-subscribe-changes] {"#,
         "@media (max-width: 47.99rem)",
     ] {
         assert!(
