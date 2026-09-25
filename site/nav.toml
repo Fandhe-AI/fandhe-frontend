@@ -1260,6 +1260,11 @@ title = "feature-large-screenshot"
 source = "site/blocks/feature-large-screenshot.md"
 path = "/blocks/feature-large-screenshot/"
 
+[[section.group.page]]
+title = "feature-split-list-image"
+source = "site/blocks/feature-split-list-image.md"
+path = "/blocks/feature-split-list-image/"
+
 [[section.group]]
 title = "CTA"
 
