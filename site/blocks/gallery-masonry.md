@@ -27,19 +27,20 @@ const INTRO_CLASS: &str = "blocks-gallery-masonry-intro";
 const GRID_CLASS: &str = "blocks-gallery-masonry-grid";
 const ITEM_CLASS: &str = "blocks-gallery-masonry-item";
 
-/// 9 枚それぞれの `alt`（架空の一般名詞的な情景描写）と、循環的に割り当てる
-/// [`AspectRatio`] variant。比率の違いを画像部品側の指定のみで表現する
-/// （モジュール doc「masonry 風段組みの実装方式」節）。
-const ITEMS: [(&str, AspectRatio); 9] = [
-    ("窓辺に差し込む朝の光の写真", AspectRatio::Portrait),
-    ("街並みを見渡す遠景の写真", AspectRatio::Landscape),
-    ("卓上に並んだ器の写真", AspectRatio::Square),
-    ("波打ち際を歩く人影の動画サムネイル", AspectRatio::Video),
-    ("木々の間から見上げた空の写真", AspectRatio::Portrait),
-    ("市場に並んだ果物の写真", AspectRatio::Landscape),
-    ("路地に置かれた自転車の写真", AspectRatio::Square),
-    ("夜の橋を渡る車列の動画サムネイル", AspectRatio::Video),
-    ("階段状に連なる屋根の写真", AspectRatio::Portrait),
+/// 循環的に割り当てる [`AspectRatio`] variant（9 枚分）。比率の違いを
+/// 画像部品側の指定のみで表現する（モジュール doc「masonry 風段組みの
+/// 実装方式」節）。9 枚とも同一プレースホルダー画像のため `alt` は持たず
+/// `alt=""` で出力する（モジュール doc「画像素材」節）。
+const ASPECT_RATIOS: [AspectRatio; 9] = [
+    AspectRatio::Portrait,
+    AspectRatio::Landscape,
+    AspectRatio::Square,
+    AspectRatio::Video,
+    AspectRatio::Portrait,
+    AspectRatio::Landscape,
+    AspectRatio::Square,
+    AspectRatio::Video,
+    AspectRatio::Portrait,
 ];
 
 pub fn demo() -> Node {
@@ -67,17 +68,17 @@ pub fn demo() -> Node {
         ],
     );
 
-    let items: Vec<Node> = ITEMS
+    let items: Vec<Node> = ASPECT_RATIOS
         .iter()
-        .map(|(alt, aspect_ratio)| {
+        .map(|aspect_ratio| {
             div(
                 vec![("class", ITEM_CLASS)],
                 vec![image::image(
                     &ImageProps {
                         aspect_ratio: *aspect_ratio,
-                        ..ImageProps::new(dummy_assets::PRODUCT_SRC, alt)
+                        ..ImageProps::new(dummy_assets::PRODUCT_SRC, "")
                     },
-                    vec![],
+                    vec![("data-blocks-gallery-masonry-image", "")],
                 )],
             )
         })

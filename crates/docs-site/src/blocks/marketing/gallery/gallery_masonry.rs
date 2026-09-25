@@ -24,6 +24,19 @@
 //! `crate::blocks::dummy_assets::PRODUCT_SRC`（ビルド時生成のモノトーン
 //! プレースホルダー SVG）を 9 枚とも共用する。`data:` URI は `is_safe_url`
 //! （REQ-1）が拒否するため使わない（イシュー #1562 の教訓、他 block と同方針）。
+//! 9 枚とも同一素材で実際の情景を表さないため、`alt=""`（装飾扱い）で
+//! 出力する（`content_image_tiles` と同方針。PR #3217 レビュー指摘: 異なる
+//! 情景を語る `alt` を共有プレースホルダーへ付けると内容と食い違う）。
+//!
+//! # 画像を列幅いっぱいに広げる（`width: 100%`）
+//!
+//! `fandhe_frontend_pre_styled_ui::image` の base CSS は `max-width: 100%`
+//! （縮小方向のみ）であり `width: 100%` は持たないため、`column-count`
+//! による段組みでは画像が原寸のまま配置され可変高さタイルにならない
+//! （PR #3217 レビュー指摘）。`content_image_tiles` と同型の
+//! `data-blocks-gallery-masonry-image` マーカー属性を画像へ付与し、
+//! [`LAYOUT_CSS`] 側で `width: 100%` を上書きする（image 部品自体の
+//! 共有 CSS は変更しない）。
 //!
 //! # `<form>` を使わない・実データを持たない
 //!
@@ -45,19 +58,20 @@ const INTRO_CLASS: &str = "blocks-gallery-masonry-intro";
 const GRID_CLASS: &str = "blocks-gallery-masonry-grid";
 const ITEM_CLASS: &str = "blocks-gallery-masonry-item";
 
-/// 9 枚それぞれの `alt`（架空の一般名詞的な情景描写）と、循環的に割り当てる
-/// [`AspectRatio`] variant。比率の違いを画像部品側の指定のみで表現する
-/// （モジュール doc「masonry 風段組みの実装方式」節）。
-const ITEMS: [(&str, AspectRatio); 9] = [
-    ("窓辺に差し込む朝の光の写真", AspectRatio::Portrait),
-    ("街並みを見渡す遠景の写真", AspectRatio::Landscape),
-    ("卓上に並んだ器の写真", AspectRatio::Square),
-    ("波打ち際を歩く人影の動画サムネイル", AspectRatio::Video),
-    ("木々の間から見上げた空の写真", AspectRatio::Portrait),
-    ("市場に並んだ果物の写真", AspectRatio::Landscape),
-    ("路地に置かれた自転車の写真", AspectRatio::Square),
-    ("夜の橋を渡る車列の動画サムネイル", AspectRatio::Video),
-    ("階段状に連なる屋根の写真", AspectRatio::Portrait),
+/// 循環的に割り当てる [`AspectRatio`] variant（9 枚分）。比率の違いを
+/// 画像部品側の指定のみで表現する（モジュール doc「masonry 風段組みの
+/// 実装方式」節）。9 枚とも同一プレースホルダー画像のため `alt` は持たず
+/// `alt=""` で出力する（モジュール doc「画像素材」節）。
+const ASPECT_RATIOS: [AspectRatio; 9] = [
+    AspectRatio::Portrait,
+    AspectRatio::Landscape,
+    AspectRatio::Square,
+    AspectRatio::Video,
+    AspectRatio::Portrait,
+    AspectRatio::Landscape,
+    AspectRatio::Square,
+    AspectRatio::Video,
+    AspectRatio::Portrait,
 ];
 
 pub fn demo() -> Node {
@@ -85,17 +99,17 @@ pub fn demo() -> Node {
         ],
     );
 
-    let items: Vec<Node> = ITEMS
+    let items: Vec<Node> = ASPECT_RATIOS
         .iter()
-        .map(|(alt, aspect_ratio)| {
+        .map(|aspect_ratio| {
             div(
                 vec![("class", ITEM_CLASS)],
                 vec![image::image(
                     &ImageProps {
                         aspect_ratio: *aspect_ratio,
-                        ..ImageProps::new(dummy_assets::PRODUCT_SRC, alt)
+                        ..ImageProps::new(dummy_assets::PRODUCT_SRC, "")
                     },
-                    vec![],
+                    vec![("data-blocks-gallery-masonry-image", "")],
                 )],
             )
         })
@@ -147,6 +161,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-gallery-masonry-intro > * + * {\n  margin-top: 0.5rem;\n}\n\
 .blocks-gallery-masonry-grid {\n  column-count: 1;\n  column-gap: 1rem;\n}\n\
 .blocks-gallery-masonry-item {\n  break-inside: avoid;\n  margin-bottom: 1rem;\n}\n\
+[data-scope=\"image\"][data-part=\"root\"][data-blocks-gallery-masonry-image] {\n  display: block;\n  width: 100%;\n}\n\
 @media (min-width: 40rem) {\n  .blocks-gallery-masonry-grid { column-count: 2; }\n}\n\
 @media (min-width: 64rem) {\n  .blocks-gallery-masonry-grid { column-count: 3; }\n}\n";
 
@@ -155,9 +170,10 @@ mod tests {
     use super::*;
     use fandhe_frontend_core::render;
 
-    /// [`demo`] が 9 枚の画像・イントロの badge/heading/text をすべて出力し、
-    /// `<form>`・`href="#"`・`data:` URI・`<script` のいずれも含まないこと
-    /// （`crate::blocks` モジュール doc の不変条件）。
+    /// [`demo`] が 9 枚の画像（すべて `alt=""` の装飾扱い）・イントロの
+    /// badge/heading/text をすべて出力し、`<form>`・`href="#"`・
+    /// `data:` URI・`<script` のいずれも含まないこと（`crate::blocks`
+    /// モジュール doc の不変条件）。
     #[test]
     fn demo_renders_nine_images_and_avoids_disallowed_patterns() {
         let html = render(&demo());
@@ -167,9 +183,11 @@ mod tests {
             9,
             "demo should render 9 images sharing the dummy product asset"
         );
-        for (alt, _) in ITEMS {
-            assert!(html.contains(alt), "demo should contain alt text {alt}");
-        }
+        assert_eq!(
+            html.matches(r#"alt="""#).count(),
+            9,
+            "all 9 images share one placeholder asset and must be decorative (alt=\"\")"
+        );
         assert!(html.contains("Gallery"));
         assert!(html.contains("最新の一枚"));
         for absent in ["<form", "href=\"#\"", "src=\"data:", "<script"] {
@@ -185,15 +203,11 @@ mod tests {
         let html = render(&demo());
         assert!(html.contains("aspect-ratio"));
         assert!(
-            ITEMS
-                .iter()
-                .any(|(_, ratio)| *ratio == AspectRatio::Landscape)
-                && ITEMS
-                    .iter()
-                    .any(|(_, ratio)| *ratio == AspectRatio::Portrait)
-                && ITEMS.iter().any(|(_, ratio)| *ratio == AspectRatio::Square)
-                && ITEMS.iter().any(|(_, ratio)| *ratio == AspectRatio::Video),
-            "ITEMS should cover multiple AspectRatio variants"
+            ASPECT_RATIOS.contains(&AspectRatio::Landscape)
+                && ASPECT_RATIOS.contains(&AspectRatio::Portrait)
+                && ASPECT_RATIOS.contains(&AspectRatio::Square)
+                && ASPECT_RATIOS.contains(&AspectRatio::Video),
+            "ASPECT_RATIOS should cover multiple AspectRatio variants"
         );
     }
 
@@ -206,5 +220,11 @@ mod tests {
         assert!(LAYOUT_CSS.contains("@media (min-width: 40rem)"));
         assert!(LAYOUT_CSS.contains("@media (min-width: 64rem)"));
         assert!(LAYOUT_CSS.contains("break-inside: avoid;"));
+        assert!(
+            LAYOUT_CSS.contains(
+                "[data-scope=\"image\"][data-part=\"root\"][data-blocks-gallery-masonry-image] {\n  display: block;\n  width: 100%;\n}"
+            ),
+            "gallery images must be widened to fill their column (PR #3217 review)"
+        );
     }
 }
