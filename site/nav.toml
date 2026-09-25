@@ -1261,6 +1261,11 @@ source = "site/blocks/feature-large-screenshot.md"
 path = "/blocks/feature-large-screenshot/"
 
 [[section.group.page]]
+title = "feature-side-heading-grid"
+source = "site/blocks/feature-side-heading-grid.md"
+path = "/blocks/feature-side-heading-grid/"
+
+[[section.group.page]]
 title = "feature-split-list-image"
 source = "site/blocks/feature-split-list-image.md"
 path = "/blocks/feature-split-list-image/"
