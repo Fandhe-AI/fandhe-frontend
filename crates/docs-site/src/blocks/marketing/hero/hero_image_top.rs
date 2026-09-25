@@ -46,7 +46,9 @@
 //! BACKGROUND_SRC`（16:9 のモノトーンドットタイル、ビルド時生成の SVG
 //! アセット）をそのまま横長画像枠として使う（`data:` URI は
 //! [`fandhe_frontend_core::url::is_safe_url`] が拒否するため使わない、
-//! `dummy_assets` モジュール doc 参照）。
+//! `dummy_assets` モジュール doc 参照）。`alt=""`（装飾扱い）で出力する
+//! （抽象的なドットタイルで内容を伝える情報を持たないため、他 block と
+//! 同じ判断）。
 //!
 //! # `<form>` を持たない・データ取得/送信を行わない
 //!
@@ -76,10 +78,7 @@ pub fn demo() -> Node {
         &ImageProps {
             aspect_ratio: AspectRatio::Video,
             shape: ImageShape::Rounded,
-            ..ImageProps::new(
-                dummy_assets::BACKGROUND_SRC,
-                "架空のプロダクト画面を模したプレースホルダー画像",
-            )
+            ..ImageProps::new(dummy_assets::BACKGROUND_SRC, "")
         },
         vec![("data-blocks-hero-image-top-image", "")],
     );

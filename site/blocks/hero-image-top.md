@@ -32,10 +32,7 @@ pub fn demo() -> Node {
         &ImageProps {
             aspect_ratio: AspectRatio::Video,
             shape: ImageShape::Rounded,
-            ..ImageProps::new(
-                dummy_assets::BACKGROUND_SRC,
-                "架空のプロダクト画面を模したプレースホルダー画像",
-            )
+            ..ImageProps::new(dummy_assets::BACKGROUND_SRC, "")
         },
         vec![("data-blocks-hero-image-top-image", "")],
     );
