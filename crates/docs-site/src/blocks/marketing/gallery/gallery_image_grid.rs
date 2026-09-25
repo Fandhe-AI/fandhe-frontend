@@ -19,7 +19,11 @@
 //! 2. R0505: 正方形の画像を 2 枚並べる。
 //! 3. R0506: `md` 以上で 3 列に並べる基準形。
 //! 4. R0507: `md` 以上で 4 列に並べる。
-//! 5. R0508: 先頭 1 枚だけ 2 列幅にする featured 配置。
+//! 5. R0508: 先頭 1 枚だけ 2 列幅にする featured 配置。`aspect-ratio` は
+//!    セル自身の幅基準で決まるため、2 列幅のまま [`AspectRatio::Square`]
+//!    （1:1）を使うと隣接する 1 列幅セル（1:1）の 2 倍の高さになり行に
+//!    空白が生じる。[`LAYOUT_CSS`] の featured 用オーバーライドで
+//!    `aspect-ratio: 2 / 1` を当て、1 列幅セルと高さを揃える。
 //! 6. R0509: 6 枚を 2 段 × 3 列で並べる。
 //!
 //! # ブレークポイントは `md` 単一境界に単純化する
@@ -254,7 +258,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-gallery-image-grid-caption] {\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-size-sm);\n}\n\
 .blocks-gallery-image-grid-grid {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-gallery-image-grid-image] {\n  display: block;\n  width: 100%;\n}\n\
-@media (min-width: 48rem) {\n  .blocks-gallery-image-grid-grid[data-blocks-gallery-image-grid-columns=\"2\"] {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n  .blocks-gallery-image-grid-grid[data-blocks-gallery-image-grid-columns=\"3\"] {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n  .blocks-gallery-image-grid-grid[data-blocks-gallery-image-grid-columns=\"4\"] {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n  [data-blocks-gallery-image-grid-featured] {\n    grid-column: span 2;\n  }\n}\n";
+@media (min-width: 48rem) {\n  .blocks-gallery-image-grid-grid[data-blocks-gallery-image-grid-columns=\"2\"] {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n  .blocks-gallery-image-grid-grid[data-blocks-gallery-image-grid-columns=\"3\"] {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n  .blocks-gallery-image-grid-grid[data-blocks-gallery-image-grid-columns=\"4\"] {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n  [data-blocks-gallery-image-grid-featured] {\n    grid-column: span 2;\n  }\n  [data-blocks-gallery-image-grid-featured] [data-scope=\"image\"][data-part=\"root\"] {\n    aspect-ratio: 2 / 1;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
