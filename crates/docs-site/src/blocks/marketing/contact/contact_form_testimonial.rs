@@ -30,7 +30,7 @@
 //!
 //! 入力欄グリッド（`.fields`）は `>= 48rem`（
 //! [`fandhe_frontend_pre_styled_ui::recipe::Breakpoint::Md`]）で 2 列に
-//! なる。姓・名の 2 欄は横に並び、それ以外（予算・Web サイト）も同じ
+//! なる。名・姓の 2 欄は横に並び、それ以外（予算・Web サイト）も同じ
 //! 2 列グリッドへ自然に収まる。本文欄（`textarea`）と送信ボタンのみ
 //! `data-blocks-contact-form-testimonial-field-wide` を付与して 2 列へ
 //! またがらせる（全幅）。
@@ -178,7 +178,7 @@ pub fn demo() -> Node {
         vec![
             field_wrapper(
                 &first_name_field,
-                "姓",
+                "名",
                 input::input(
                     &InputProps::default(),
                     &first_name_field,
@@ -188,7 +188,7 @@ pub fn demo() -> Node {
             ),
             field_wrapper(
                 &last_name_field,
-                "名",
+                "姓",
                 input::input(
                     &InputProps::default(),
                     &last_name_field,

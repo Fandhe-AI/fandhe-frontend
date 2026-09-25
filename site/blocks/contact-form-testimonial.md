@@ -93,7 +93,7 @@ pub fn demo() -> Node {
         vec![
             field_wrapper(
                 &first_name_field,
-                "姓",
+                "名",
                 input::input(
                     &InputProps::default(),
                     &first_name_field,
@@ -103,7 +103,7 @@ pub fn demo() -> Node {
             ),
             field_wrapper(
                 &last_name_field,
-                "名",
+                "姓",
                 input::input(
                     &InputProps::default(),
                     &last_name_field,
@@ -254,4 +254,4 @@ pub fn demo() -> Node {
 - 写真は共通のダミー素材を使います。
 - 配色・文言は既存のトーンに揃えています。
 - `<form>` は出力しません。
-- 氏名は「姓」「名」の 2 欄に分けています（参照元の構造）。
+- 氏名は「名」「姓」の 2 欄に分けています（参照元の構造）。
