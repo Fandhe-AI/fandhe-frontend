@@ -10,6 +10,7 @@ mod feature_alternating_rows;
 mod feature_expand;
 mod feature_image_cards;
 mod feature_large_screenshot;
+mod feature_side_heading_grid;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
@@ -19,5 +20,6 @@ pub(super) fn blocks() -> Vec<Block> {
         feature_expand::BLOCK,
         feature_image_cards::BLOCK,
         feature_large_screenshot::BLOCK,
+        feature_side_heading_grid::BLOCK,
     ]
 }
