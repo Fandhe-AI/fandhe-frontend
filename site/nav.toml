@@ -1564,6 +1564,11 @@ title = "error-page-centered"
 source = "site/blocks/error-page-centered.md"
 path = "/blocks/error-page-centered/"
 
+[[section.group.page]]
+title = "error-page-split-links"
+source = "site/blocks/error-page-split-links.md"
+path = "/blocks/error-page-split-links/"
+
 [[section.group]]
 title = "Sidebar"
 

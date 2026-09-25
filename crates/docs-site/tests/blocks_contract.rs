@@ -6099,3 +6099,106 @@ fn error_page_centered_composes_expected_parts() {
         );
     }
 }
+
+/// error-page-split-links の Demo 固有 CSS フック（メッセージ枠・タグ
+/// ライン・見出し・説明・リンク群・各リンク行）が実際に生成 HTML へ出力
+/// され、`blocks::stylesheet()` にも対応するセレクタが存在することを固定
+/// する（イシュー #2842）。
+#[test]
+fn error_page_split_links_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/error-page-split-links/index.html"))
+        .expect("blocks/error-page-split-links/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-error-page-split-links\""),
+        "error-page-split-links page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "error-page-split-links page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "error-page-split-links page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-error-page-split-links-message=\"\"",
+        "data-blocks-error-page-split-links-tagline=\"\"",
+        "data-blocks-error-page-split-links-title=\"\"",
+        "data-blocks-error-page-split-links-description=\"\"",
+        "data-blocks-error-page-split-links-links=\"\"",
+        "data-blocks-error-page-split-links-link=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "error-page-split-links page should output the {hook} CSS hook attribute"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "error-page-split-links should never contain {absent}"
+        );
+    }
+
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        ".blocks-error-page-split-links-root",
+        "@media (min-width: 64rem)",
+        "[data-scope=\"empty-state\"][data-part=\"root\"][data-blocks-error-page-split-links-message]",
+        "[data-scope=\"empty-state\"][data-part=\"content\"].blocks-error-page-split-links-content",
+        "[data-scope=\"item\"][data-part=\"group\"][data-blocks-error-page-split-links-links]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// error-page-split-links の合成部品（5 部品: empty-state / heading / text /
+/// item / icon。`link` は使わない、モジュール doc「使用部品」節参照）が
+/// 期待どおりの構成で実際に出力されていること、非対話制約を固定する。
+/// 3 行の案内リンクはいずれも `<button>` ではなく実際に遷移する
+/// `<a href>` であり、遷移先はすべて実在する docs サイト内のページである
+/// ことも併せて固定する。
+#[test]
+fn error_page_split_links_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/error-page-split-links/")
+        .expect("error-page-split-links should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"empty-state\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"item\"",
+        "data-scope=\"icon\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "error-page-split-links demo should contain {scope}"
+        );
+    }
+    assert!(!html.contains("<button"));
+    assert!(html.contains(r#"role="group""#));
+    assert!(html.contains(r#"aria-label="Helpful links""#));
+    assert!(html.contains("href=\"../../\""));
+    assert!(html.contains("href=\"../../guides/\""));
+    assert!(html.contains("href=\"../../examples/\""));
+    for absent in [
+        "<form",
+        "src=\"data:",
+        "href=\"#\"",
+        "mailto:",
+        "tel:",
+        "id=\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "error-page-split-links should never contain {absent}"
+        );
+    }
+}
