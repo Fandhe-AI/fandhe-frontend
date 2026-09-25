@@ -1241,6 +1241,11 @@ source = "site/blocks/feature-accordion-image.md"
 path = "/blocks/feature-accordion-image/"
 
 [[section.group.page]]
+title = "feature-alternating-rows"
+source = "site/blocks/feature-alternating-rows.md"
+path = "/blocks/feature-alternating-rows/"
+
+[[section.group.page]]
 title = "feature-expand"
 source = "site/blocks/feature-expand.md"
 path = "/blocks/feature-expand/"
