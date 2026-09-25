@@ -5890,7 +5890,7 @@ fn error_page_background_image_composes_expected_parts() {
 }
 
 /// error-page-split-image ページが Demo class・専用 CSS を配線している
-/// こと、7 部品分のフック属性・使用素材が実際に出力されていることを
+/// こと、6 部品分のフック属性・使用素材が実際に出力されていることを
 /// 固定する（イシュー #2841）。
 #[test]
 fn error_page_split_image_page_wires_demo_class_and_css_hooks() {
@@ -5955,10 +5955,11 @@ fn error_page_split_image_page_wires_demo_class_and_css_hooks() {
     }
 }
 
-/// error-page-split-image の合成部品（empty-state/heading/text/button/
-/// link/image/icon の 7 部品）が期待どおりの構成で実際に出力されている
-/// こと、`<form>` 等の非対話制約を固定する（イシュー #2841。
-/// `error_page_background_image_composes_expected_parts` と同型）。
+/// error-page-split-image の合成部品（empty-state/heading/text/
+/// link/image/icon の 6 部品）が期待どおりの構成で実際に出力されている
+/// こと、`<form>` 等の非対話制約・各リンクの実在遷移先を固定する
+/// （イシュー #2841。`error_page_background_image_composes_expected_parts`
+/// と同型）。
 #[test]
 fn error_page_split_image_composes_expected_parts() {
     let block = blocks::block_for_path("/blocks/error-page-split-image/")
@@ -5968,7 +5969,6 @@ fn error_page_split_image_composes_expected_parts() {
         "data-scope=\"empty-state\"",
         "data-scope=\"heading\"",
         "data-scope=\"text\"",
-        "data-scope=\"button\"",
         "data-scope=\"link\"",
         "data-scope=\"image\"",
     ] {
@@ -5978,12 +5978,17 @@ fn error_page_split_image_composes_expected_parts() {
         );
     }
     assert!(
+        !html.contains("data-scope=\"button\""),
+        "error-page-split-image demo should no longer contain a button part"
+    );
+    assert!(
         html.contains("<svg"),
         "error-page-split-image demo should contain icon svg"
     );
     assert!(html.contains(r#"src="../../assets/blocks-demo-screenshot.svg""#));
     assert!(html.contains(r#"href="../../""#));
-    assert!(html.contains(r#"type="button""#));
+    assert!(html.contains(r#"href="../../guides/""#));
+    assert!(!html.contains(r#"type="button""#));
     for text_fragment in [
         "404",
         "This page took a wrong turn",

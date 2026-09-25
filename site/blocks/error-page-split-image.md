@@ -1,7 +1,7 @@
 # error-page-split-image
 
-`empty-state` / `heading` / `text` / `button` / `link` / `image` / `icon` の
-合成例（既存部品のみで組んだ、本文 + 画像の 2 カラム 404 ページです）。
+`empty-state` / `heading` / `text` / `link` / `image` / `icon` の合成例
+（既存部品のみで組んだ、本文 + 画像の 2 カラム 404 ページです）。
 Blocks セクションは新規部品を追加するものではなく、既存の Themes/Primitives
 部品を組み合わせた実例集であることに注意してください（主参照は対応表 ID
 R1104、副次的に対応表 ID R0582 も参照します。出典の固有名・ファイル名は
@@ -10,15 +10,17 @@ R1104、副次的に対応表 ID R0582 も参照します。出典の固有名�
 左カラムはロゴ・エラーコード・見出し・説明文・戻る導線を左寄せで並べ、
 下端にはサポート等の補助リンクを横並びで置きます。右カラムには全高の
 画像を配置しますが、これは `lg`（幅 64rem 以上）のときだけで、狭い幅では
-画像を隠し左カラムだけを表示します。本 Demo は静的な表示例であり、
-`<form>` 要素を一切持たず、遷移処理・送信処理を行いません。
+画像を隠し左カラムだけを表示します。本 Demo は静的な表示例であり
+`<form>` 要素・送信処理は一切持ちませんが、「Back to home」「Contact
+support」「Help center」「System status」の各リンクはいずれもラベルの
+意味に対応した実在 URL へ実際に遷移します（死リンク `href="#"` は使い
+ません）。
 
 ## Rust コード
 
 ```rust
 use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, el, text, Node};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps, EmptyStateVariant};
 use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
@@ -28,9 +30,13 @@ use fandhe_frontend_pre_styled_ui::text::{
     self as styled_text, TextProps, TextVariant, TextWeight,
 };
 
-/// 補助リンクの遷移先（`contact_info_columns` と同じ判断。モジュール doc
-/// 「補助リンクのリンク先は固定リポジトリ URL」参照）。
+/// 「Contact support」の遷移先（モジュール doc「補助リンクのリンク先は
+/// ラベルの意味に対応した実在 URL」節参照）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+
+/// 「System status」の遷移先（[`REPO`] 配下の GitHub Actions 実行状況
+/// ページ。同節参照）。
+const STATUS_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend/actions";
 
 const LAYOUT_CLASS: &str = "blocks-error-page-split-image-layout";
 const MAIN_CLASS: &str = "blocks-error-page-split-image-main";
@@ -137,10 +143,11 @@ pub fn demo() -> Node {
                 vec![(BACK_ATTR, "")],
                 vec![back_arrow_icon(), text(" Back to home")],
             ),
-            button::button(
-                &ButtonProps {
-                    variant: ButtonVariant::Outline,
-                    ..ButtonProps::default()
+            link::root(
+                REPO,
+                &LinkProps {
+                    external: true,
+                    ..LinkProps::default()
                 },
                 vec![(CTA_ATTR, "")],
                 vec![text("Contact support")],
@@ -164,14 +171,17 @@ pub fn demo() -> Node {
         vec![("class", HELPER_CLASS)],
         vec![
             link::root(
-                REPO,
+                "../../guides/",
                 &LinkProps::default(),
                 vec![(HELPER_LINK_ATTR, "")],
                 vec![text("Help center")],
             ),
             link::root(
-                REPO,
-                &LinkProps::default(),
+                STATUS_URL,
+                &LinkProps {
+                    external: true,
+                    ..LinkProps::default()
+                },
                 vec![(HELPER_LINK_ATTR, "")],
                 vec![text("System status")],
             ),
@@ -200,15 +210,27 @@ pub fn demo() -> Node {
 参照（主参照は対応表 ID R1104、副次的に対応表 ID R0582。出典の固有名・
 ファイル名は記載しません）からの意図的な差分は次のとおりです。
 
-- R0582 が持つ「CTA 2 個」を、actions 行の 2 つ目の導線（`ButtonVariant::
-  Outline` の「Contact support」）として畳み込みました。右画像は R1104 と
-  R0582 の両方に共通するため、1 つにまとめています。
+- R0582 が持つ「CTA 2 個」を、actions 行の 2 つ目の導線（「Contact
+  support」）として畳み込みました。右画像は R1104 と R0582 の両方に
+  共通するため、1 つにまとめています。当初「Contact support」は
+  `ButtonVariant::Outline` のボタンとして実装していましたが、404 ページの
+  主要導線であるにもかかわらず遷移先を持たない非対話要素になっていた
+  ため、`link::root` へ変更し実在する URL への遷移を持たせています
+  （レビュー指摘、イシュー #2841）。
 - 参照元は全画面の高さで表示していますが、本 block は Blocks セクションの
   Demo 枠内に収める必要があるため、`min-height` による枠内表示へ変更して
   います。
 - ロゴは実在ブランドを模さない抽象的な六角形の自作アイコンとし、社名は
   共通ダミー素材ヘルパの架空の社名を使っています。
-- 補助リンクの区切り点は DOM を増やさず CSS の疑似要素で描き、リンク先は
-  固定のリポジトリ URL にしています。
+- 補助リンクの区切り点は DOM を増やさず CSS の疑似要素で描いています。
+  リンク先は当初 3 リンクとも同一の固定リポジトリ URL でしたが、ラベルと
+  遷移先が一致せず利用者が期待する情報に到達できないとの指摘（イシュー
+  #2841）を受け、Contact support はリポジトリ URL、Help center は docs
+  サイト内の `/guides/`、System status はリポジトリの GitHub Actions
+  実行状況ページへ、それぞれ別々の実在 URL を割り当てています。
+- 右カラムの画像は grid の `align-items: stretch` だけに頼らず、
+  `position: absolute` + `object-fit: cover` で親いっぱいに敷き詰める
+  アウトオブフロー構成にしています（画像が元のアスペクト比のまま
+  縮小表示され余白ができる不具合の是正、イシュー #2841）。
 - 配色はすべてテーマトークンのみで構成しており、参照元の文言・配色・
   写真は持ち込んでいません。

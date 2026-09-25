@@ -17,23 +17,29 @@
 //!
 //! R1104 の要素（ロゴ・左寄せ本文・戻るリンク・下端の補助リンク・
 //! lg 以上だけの全高右画像）をすべて反映したうえで、R0582 の
-//! 「CTA 2 個」を actions 行の 2 つ目の導線（`ButtonVariant::Outline` の
-//! 「Contact support」）として畳み込む。右画像は両者に共通するため 1 つ
-//! にまとめる。
+//! 「CTA 2 個」を actions 行の 2 つ目の導線（「Contact support」）として
+//! 畳み込む。右画像は両者に共通するため 1 つにまとめる。
+//!
+//! `Contact support` は当初 `button::button`（`ButtonVariant::Outline`）で
+//! 実装していたが、404 ページの主要導線であるにもかかわらず遷移先を
+//! 一切持たない非対話要素になっていたため（レビュー指摘、イシュー
+//! #2841）、[`link::root`] へ変更し [`REPO`] への実在する遷移先を持たせた
+//! （「補助リンクのリンク先」節参照）。これにより本 block は
+//! `button::button` を使わなくなった。
 //!
 //! # 使用部品
 //!
 //! `empty-state`（メッセージコンテナ）/ `heading`（見出し）/ `text`
-//! （ロゴ横の社名・エラーコード・説明文）/ `button`（Outline の 2 つ目の
-//! 導線）/ `link`（戻るリンク・補助リンク 2 個）/ `image`（右カラムの
+//! （ロゴ横の社名・エラーコード・説明文）/ `link`（戻るリンク・
+//! 「Contact support」・補助リンク 2 個の計 4 個）/ `image`（右カラムの
 //! 全高画像）/ `icon`（ロゴ・戻るリンクの矢印。自作の単純幾何図形）の
-//! 7 部品を合成する（[`BLOCK`] の `parts` に一致させる契約、
+//! 6 部品を合成する（[`BLOCK`] の `parts` に一致させる契約、
 //! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証する）。
 //!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
 //! `empty_state::root`/`heading::heading`/`text::text`/`link::root`/
-//! `button::button`/`image::image`/`icon::icon` はいずれも
+//! `image::image`/`icon::icon` はいずれも
 //! `drop_class_attr` により呼び出し側 `attrs` の `class` を黙って除去する
 //! 契約を持つため、本 block 固有のフックは
 //! `data-blocks-error-page-split-image-*` の `data-*` 属性で渡す
@@ -59,13 +65,25 @@
 //! 高くしたうえでソース順（`blocks.css` は `pre-styled-ui.css` より後に
 //! 読み込まれる）で後勝ちさせる。
 //!
-//! # `image` を全高にする詳細度合わせ
+//! # `image` を全高にする詳細度合わせ・アウトオブフロー化
 //!
 //! `image::image` の recipe base は `[data-scope="image"][data-part="root"]`
 //! （詳細度 (0,2,0)）で `height: auto` を持つ。全高にする本 block 固有
 //! フックも同じ判断で `[data-scope="image"][data-part="root"][data-blocks-
-//! error-page-split-image-image]`（詳細度 (0,3,0)）へ前置する
-//! （`login_04`/`error_page_background_image` と同型の解法）。
+//! error-page-split-image-image]`（詳細度 (0,3,0)）へ前置する。
+//!
+//! 当初は `.blocks-error-page-split-image-media`（grid item）側へ
+//! `min-height: 100%` のみを与え、grid の既定 `align-items: stretch` で
+//! 高さが伝播することを期待していたが、画像自体には `height` の確定した
+//! containing block が与えられず、狭い画面幅で撮った元画像のアスペクト比
+//! （横長）のまま表示され左カラム脇に余白ができる不具合があった（Bugbot
+//! 指摘、イシュー #2841）。是正として `login_04`/`error_page_background_image`
+//! と同型の絶対配置パターンへ変更した:
+//! `.blocks-error-page-split-image-media` へ `position: relative`
+//! を与え、画像フック側は `position: absolute; inset: 0;` +
+//! `object-fit: cover` で親いっぱいに敷き詰める。これにより画像の高さは
+//! 常に `.media` 列の実高さ（grid stretch で決まる）に一致し、
+//! パーセンテージ高さの解決可否に依存しなくなる。
 //!
 //! # 画像は共通ダミー素材
 //!
@@ -75,13 +93,28 @@
 //! `data:` URI は `is_safe_url`（REQ-1）が拒否するため使わない（イシュー
 //! #1562 の教訓）。
 //!
-//! # 補助リンクのリンク先は固定リポジトリ URL
+//! # 補助リンクのリンク先はラベルの意味に対応した実在 URL
 //!
 //! `crate::blocks::marketing::contact::contact_info_columns` と同じ判断で、
-//! 遷移先を持たない補助リンクは `href="#"`（死リンク）ではなく固定の
-//! リポジトリ URL（[`REPO`]）を指す（`crate::blocks` モジュール doc の
+//! `href="#"`（死リンク）は出力しない（`crate::blocks` モジュール doc の
 //! 「`<form>` を使わない」節と同じく、実際に機能しない `#` を出力しない
-//! 方針）。区切り点は DOM を増やさず CSS の `::before` 疑似要素で描く。
+//! 方針）。当初は「Contact support」を除く 2 つの補助リンク（Help
+//! center・System status）を同一の [`REPO`] へ揃えていたが、ラベルと
+//! 遷移先が一致せず利用者が期待する情報に到達できないとの指摘（Bugbot/
+//! codex、イシュー #2841）を受け、3 リンクそれぞれへラベルの意味に近い
+//! 別々の実在 URL を割り当てた:
+//!
+//! - **Contact support**（`Contact support` の CTA、[`link::root`] へ変更。
+//!   「集約元 2 件の畳み込み方」節参照）: [`REPO`]（本フレームワークの
+//!   問い合わせ・課題報告の実質的な受け口）
+//! - **Help center**: `"../../guides/"`（docs サイト内の実在ページ
+//!   `/guides/`、`site/nav.toml` 登録済み。「Back to home」の `"../../"`
+//!   と同じ相対パス起点）
+//! - **System status**: [`STATUS_URL`]（`REPO` 配下の GitHub Actions
+//!   実行状況ページ。CI の稼働状況を示す実在サブページであり `REPO` 単体
+//!   とは異なる URL）
+//!
+//! 区切り点は DOM を増やさず CSS の `::before` 疑似要素で描く。
 //!
 //! # ロゴ・戻る矢印は自作の単純幾何図形
 //!
@@ -92,17 +125,16 @@
 //! # `<form>` を使わない・実データを持たない
 //!
 //! `crate::blocks` モジュール doc の不変条件どおり、本 Demo は `<form>` を
-//! 出力しない。ボタンは `button::button` の既定 `type="button"` のまま
-//! 用いる。静的表示のみで遷移処理・送信処理は一切持たない。文言はすべて
-//! 架空のものであり、実企業名・実サービス名・実クレデンシャル・PII を
-//! 含まない。
+//! 出力しない。静的表示のみで送信処理は一切持たず、リンクはすべて
+//! 「補助リンクのリンク先はラベルの意味に対応した実在 URL」節の実在
+//! ページへの遷移のみを行う。文言はすべて架空のものであり、実企業名・
+//! 実サービス名・実クレデンシャル・PII を含まない。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
 use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, el, text, Node};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps, EmptyStateVariant};
 use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
@@ -112,9 +144,13 @@ use fandhe_frontend_pre_styled_ui::text::{
     self as styled_text, TextProps, TextVariant, TextWeight,
 };
 
-/// 補助リンクの遷移先（`contact_info_columns` と同じ判断。モジュール doc
-/// 「補助リンクのリンク先は固定リポジトリ URL」参照）。
+/// 「Contact support」の遷移先（モジュール doc「補助リンクのリンク先は
+/// ラベルの意味に対応した実在 URL」節参照）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+
+/// 「System status」の遷移先（[`REPO`] 配下の GitHub Actions 実行状況
+/// ページ。同節参照）。
+const STATUS_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend/actions";
 
 const LAYOUT_CLASS: &str = "blocks-error-page-split-image-layout";
 const MAIN_CLASS: &str = "blocks-error-page-split-image-main";
@@ -221,10 +257,11 @@ pub fn demo() -> Node {
                 vec![(BACK_ATTR, "")],
                 vec![back_arrow_icon(), text(" Back to home")],
             ),
-            button::button(
-                &ButtonProps {
-                    variant: ButtonVariant::Outline,
-                    ..ButtonProps::default()
+            link::root(
+                REPO,
+                &LinkProps {
+                    external: true,
+                    ..LinkProps::default()
                 },
                 vec![(CTA_ATTR, "")],
                 vec![text("Contact support")],
@@ -248,14 +285,17 @@ pub fn demo() -> Node {
         vec![("class", HELPER_CLASS)],
         vec![
             link::root(
-                REPO,
+                "../../guides/",
                 &LinkProps::default(),
                 vec![(HELPER_LINK_ATTR, "")],
                 vec![text("Help center")],
             ),
             link::root(
-                REPO,
-                &LinkProps::default(),
+                STATUS_URL,
+                &LinkProps {
+                    external: true,
+                    ..LinkProps::default()
+                },
                 vec![(HELPER_LINK_ATTR, "")],
                 vec![text("System status")],
             ),
@@ -300,10 +340,6 @@ pub const BLOCK: Block = Block {
             path: "/themes/text/",
         },
         Part {
-            label: "Button",
-            path: "/themes/button/",
-        },
-        Part {
             label: "Link",
             path: "/themes/link/",
         },
@@ -328,8 +364,9 @@ pub const BLOCK: Block = Block {
 /// `lg` 境界（`min-width: 64rem`）はリポジトリ内の既存 `@media` と同じ値
 /// （モジュール doc「`login_04` の `@media` の初使用」節、`login_04.rs`
 /// 参照）。既定は右カラム非表示・1 カラムで、`lg` 以上で 2 カラム grid へ
-/// 切り替え、grid の既定 `align-items: stretch` により右画像が左カラムと
-/// 同じ高さ（全高）になる。
+/// 切り替える。右画像を全高にする手段は `align-items: stretch` 頼みでは
+/// なく `login_04` と同型の絶対配置（モジュール doc「`image` を全高に
+/// する詳細度合わせ・アウトオブフロー化」節参照）。
 const LAYOUT_CSS: &str = "\
 .blocks-error-page-split-image {\n  padding: 0;\n  overflow: hidden;\n}\n\
 .blocks-error-page-split-image-layout {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  min-height: 28rem;\n}\n\
@@ -342,18 +379,20 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-error-page-split-image-description] {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-error-page-split-image-helper {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  border-top: 1px solid var(--fandhe-color-border);\n  padding-top: var(--fandhe-space-4);\n}\n\
 .blocks-error-page-split-image-helper [data-blocks-error-page-split-image-helper-link] ~ [data-blocks-error-page-split-image-helper-link]::before {\n  content: \"\\00b7\";\n  margin-right: var(--fandhe-space-3);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-.blocks-error-page-split-image-media {\n  display: none;\n}\n\
-[data-scope=\"image\"][data-part=\"root\"][data-blocks-error-page-split-image-image] {\n  display: block;\n  width: 100%;\n  height: 100%;\n}\n\
-@media (min-width: 64rem) {\n  .blocks-error-page-split-image-layout {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n  }\n  .blocks-error-page-split-image-media {\n    display: block;\n    min-height: 100%;\n  }\n  .blocks-error-page-split-image-main {\n    padding: var(--fandhe-space-10) var(--fandhe-space-8);\n  }\n}\n";
+.blocks-error-page-split-image-media {\n  display: none;\n  position: relative;\n}\n\
+[data-scope=\"image\"][data-part=\"root\"][data-blocks-error-page-split-image-image] {\n  display: block;\n  position: absolute;\n  inset: 0;\n  width: 100%;\n  height: 100%;\n  object-fit: cover;\n}\n\
+@media (min-width: 64rem) {\n  .blocks-error-page-split-image-layout {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n  }\n  .blocks-error-page-split-image-media {\n    display: block;\n  }\n  .blocks-error-page-split-image-main {\n    padding: var(--fandhe-space-10) var(--fandhe-space-8);\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use fandhe_frontend_core::render;
 
-    /// [`demo`] が 7 部品（empty-state/heading/text/button/link/image/icon）
-    /// を実際に出力し、フック属性・文言・使用素材が期待どおりであること、
-    /// `<form>` 等の非対話制約を固定する（モジュール doc「使用部品」節）。
+    /// [`demo`] が 6 部品（empty-state/heading/text/link/image/icon）を
+    /// 実際に出力し、フック属性・文言・使用素材・実在する遷移先が期待
+    /// どおりであること、`<form>` 等の非対話制約を固定する（モジュール
+    /// doc「使用部品」節・「補助リンクのリンク先はラベルの意味に対応した
+    /// 実在 URL」節）。
     #[test]
     fn demo_renders_expected_markup_and_avoids_disallowed_patterns() {
         let html = render(&demo());
@@ -361,7 +400,6 @@ mod tests {
             "data-scope=\"empty-state\"",
             "data-scope=\"heading\"",
             "data-scope=\"text\"",
-            "data-scope=\"button\"",
             "data-scope=\"link\"",
             "data-scope=\"image\"",
         ] {
@@ -374,8 +412,15 @@ mod tests {
         assert!(html.contains(r#"src="../../assets/blocks-demo-screenshot.svg""#));
         assert!(html.contains(r#"alt="""#));
         assert!(html.contains(r#"href="../../""#));
+        assert!(html.contains(r#"href="../../guides/""#));
         assert!(html.contains(&format!(r#"href="{REPO}""#)));
-        assert!(html.contains(r#"type="button""#));
+        assert!(html.contains(&format!(r#"href="{STATUS_URL}""#)));
+        assert!(
+            html.matches(&format!(r#"href="{REPO}""#)).count() == 1,
+            "Contact support should be the sole link pointing at REPO"
+        );
+        assert!(!html.contains("data-scope=\"button\""));
+        assert!(!html.contains(r#"type="button""#));
         for hook in [
             LOGO_ATTR,
             BRAND_NAME_ATTR,
@@ -425,7 +470,7 @@ mod tests {
     /// [`LAYOUT_CSS`] が全セレクタと `@media (min-width: 64rem)` を宣言し、
     /// 生の色リテラル（`#`）を持ち込まないこと（モジュール doc「`empty-state`
     /// の左寄せ上書きに詳細度合わせが必要な理由」節・「`image` を全高に
-    /// する詳細度合わせ」節）。
+    /// する詳細度合わせ・アウトオブフロー化」節）。
     #[test]
     fn layout_css_declares_all_selectors_and_media_query() {
         for selector in [
