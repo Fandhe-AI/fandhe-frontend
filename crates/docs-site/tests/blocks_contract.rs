@@ -3679,6 +3679,52 @@ fn bento_three_column_tall_composes_expected_parts() {
     }
 }
 
+/// `content-article-toc` ページが `class="blocks-demo blocks-content-article-toc"`
+/// を持ち、`pre-styled-ui.css`/`blocks.css` の両方が配線され、主要な
+/// `data-blocks-content-article-toc-*` フックが `blocks::stylesheet()` の
+/// 対応するセレクタ（`@media (min-width: 64rem)` を含む）と対になっている
+/// ことを固定する（イシュー #2752）。
+#[test]
+fn content_article_toc_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/content-article-toc/index.html"))
+        .expect("blocks/content-article-toc/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-content-article-toc\""),
+        "content-article-toc demo wrapper should carry both the shared and block-specific class"
+    );
+    for link in ["assets/pre-styled-ui.css", "assets/blocks.css"] {
+        assert!(
+            html.contains(link),
+            "content-article-toc page should link {link}"
+        );
+    }
+    for hook in [
+        "data-blocks-content-article-toc-nav",
+        "data-blocks-content-article-toc-cover",
+    ] {
+        assert!(
+            html.contains(hook),
+            "content-article-toc page should output the {hook} CSS hook attribute"
+        );
+    }
+
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        ".blocks-content-article-toc-layout",
+        "[data-blocks-content-article-toc-nav]",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should contain {needle}"
+        );
+    }
+}
+
 /// careers-split-photo-list ページが `blocks-demo`/固有 demo_class・
 /// 専用スタイルシート 2 種・Demo 固有 CSS フックを配線していること
 /// （イシュー #2817）。
@@ -4008,6 +4054,87 @@ fn bento_two_column_page_wires_demo_class_and_css_hooks() {
         assert!(
             sheet_css.contains(selector),
             "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// `content-article-toc` が使用部品 7 件（badge/heading/text/image/avatar/
+/// nav-list/separator）を実際に合成しており、目次リンクの `href="#…"` が
+/// 同一 Demo 内の `id` と一対一で往復対応し、`<form>`・死リンク・`data:`
+/// URI・`aria-current` を持たないことを固定する（イシュー #2752）。
+///
+/// Demo 単体（`render(&(block.demo)())`）に対して判定することで、ページ側
+/// サイドバーが現在ページへ出力する `aria-current="page"` を巻き込まない
+/// （`demo_output_has_no_dangling_aria_references_or_duplicate_ids` と
+/// 同じ判断軸）。
+#[test]
+fn content_article_toc_composes_expected_parts() {
+    let block = blocks::all_blocks()
+        .into_iter()
+        .find(|b| b.path == "/blocks/content-article-toc/")
+        .expect("content-article-toc block should be registered");
+    let demo_html = render(&(block.demo)());
+
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"image\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"nav-list\"",
+        "data-scope=\"separator\"",
+    ] {
+        assert!(
+            demo_html.contains(scope),
+            "content-article-toc demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        demo_html
+            .matches("data-scope=\"nav-list\" data-part=\"root\"")
+            .count(),
+        2,
+        "content-article-toc should render exactly 2 nav_list roots (instance A/B)"
+    );
+    assert!(
+        demo_html.contains("基準形: 見出し・カバー画像を縦に積み"),
+        "content-article-toc should render the instance A caption"
+    );
+    assert!(
+        demo_html.contains("横並び形: 64rem 以上で見出し群と画像を横に並べ"),
+        "content-article-toc should render the instance B caption"
+    );
+
+    let mut hrefs: Vec<&str> = Vec::new();
+    let mut offset = 0usize;
+    let needle = "href=\"#";
+    while let Some(rel) = demo_html[offset..].find(needle) {
+        let start = offset + rel + needle.len();
+        let end = demo_html[start..]
+            .find('"')
+            .map(|i| start + i)
+            .expect("href attribute should be closed");
+        hrefs.push(&demo_html[start..end]);
+        offset = end;
+    }
+    assert_eq!(
+        hrefs.len(),
+        6,
+        "content-article-toc should have 6 toc links (3 sections x 2 instances)"
+    );
+    for frag in &hrefs {
+        let id_needle = format!("id=\"{frag}\"");
+        assert_eq!(
+            demo_html.matches(&id_needle).count(),
+            1,
+            "content-article-toc toc link #{frag} should have exactly one matching id"
+        );
+    }
+
+    for absent in ["<form", "href=\"#\"", "src=\"data:", "aria-current"] {
+        assert!(
+            !demo_html.contains(absent),
+            "content-article-toc demo should never contain {absent}"
         );
     }
 }
