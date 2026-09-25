@@ -7680,6 +7680,94 @@ fn hero_email_signup_composes_expected_parts() {
     }
 }
 
+/// hero-search ページが Demo class・専用 CSS を配線していること、block 固有
+/// CSS（3 形態併記のステージ枠・検索行・タグライン形の分割レイアウト）が
+/// 実際に出力されていることを固定する（イシュー #2789）。
+#[test]
+fn hero_search_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-search/index.html"))
+        .expect("blocks/hero-search/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-hero-search\""),
+        "hero-search page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "hero-search page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "hero-search page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-hero-search-field",
+        "data-blocks-hero-search-group",
+        "data-blocks-hero-search-submit",
+        "data-blocks-hero-search-eyebrow",
+        "data-blocks-hero-search-tagline",
+        "data-blocks-hero-search-topic",
+    ] {
+        assert!(
+            html.contains(hook),
+            "hero-search page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "[data-blocks-hero-search-field]",
+        ".blocks-hero-search-stage",
+        "@media (max-width: 47.99rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// hero-search の合成部品（badge/heading/text/field/input-group/button/
+/// icon/link/visually-hidden）が期待どおりの構成で実際に出力されている
+/// こと、`<form>` 不在・`type="search"`/`type="button"` の個数を固定する
+/// （イシュー #2789）。
+#[test]
+fn hero_search_composes_expected_parts() {
+    let block =
+        blocks::block_for_path("/blocks/hero-search/").expect("hero-search should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"field\"",
+        "data-scope=\"input-group\"",
+        "data-scope=\"button\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"link\"",
+        "data-scope=\"visually-hidden\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "hero-search demo should contain {scope}"
+        );
+    }
+    assert_eq!(html.matches(r#"type="search""#).count(), 3);
+    assert_eq!(html.matches(r#"type="button""#).count(), 3);
+    assert_eq!(
+        html.matches("data-blocks-hero-search-topic").count(),
+        4,
+        "hero-search demo should render exactly 4 popular-topic links (base variant only)"
+    );
+    for absent in ["<form", "src=\"data:", "href=\"#\"", "<h2"] {
+        assert!(
+            !html.contains(absent),
+            "hero-search should never contain {absent}"
+        );
+    }
+}
+
 /// hero-prompt-input の Demo ラッパ・CSS 配線・block 固有 CSS（入力欄の
 /// フック 4 種・狭幅ブレークポイントでの全幅化）が実際に出力されている
 /// ことを固定する（イシュー #2788）。

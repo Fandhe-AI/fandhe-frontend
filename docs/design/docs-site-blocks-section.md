@@ -837,6 +837,7 @@ pub enum LayoutCss {
 | hero-image-tiles | #2784 | `marketing/hero/hero_image_tiles.rs` |
 | hero-marquee-strip | #2787 | `marketing/hero/hero_marquee_strip.rs` |
 | hero-parallax-layers | #2546 | §15, `marketing/hero/hero_parallax_layers.rs` |
+| hero-search | #2789 | `marketing/hero/hero_search.rs` |
 | hero-terminal | #2546 | §15, `marketing/hero/hero_terminal.rs` |
 | text-split-reveal | #2546 | §15, `marketing/hero/text_split_reveal.rs` |
 | game-ui-modal | #2552 | §16, `application/dialog/game_ui_modal.rs` |
@@ -909,9 +910,10 @@ pub enum LayoutCss {
 | hero-prompt-input | #2788 | `marketing/hero/hero_prompt_input.rs` |
 | hero-split-image | #2791 | `marketing/hero/hero_split_image.rs` |
 | logo-cloud-grid | #2793 | `marketing/logo_cloud/logo_cloud_grid.rs` |
+| logo-cloud-marquee | #2794 | `marketing/logo_cloud/logo_cloud_marquee.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-93 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+96 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
