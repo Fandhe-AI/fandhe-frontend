@@ -2,9 +2,11 @@
 //! #2730/#2738「Blocks 目的別パーツ拡充ツリー、Phase 1 マーケティング A」
 //! 配下）。左列に見出し・説明 + feature 一覧、右列に画像（1 枚または
 //! 複数枚の組）を置く 2 列 feature セクションの合成例（`marketing/feature`
-//! の 6 件目）。取得手段・ファイル名・内部コンポーネント識別子は記載しない
-//! （対応表 ID は R0486（主参照）・R0105・R0102・R0484・R0477・R0489・
-//! R0487・R1155・R1157・R1161 のみを記す）。
+//! の 6 件目。ただしインスタンス B のみ lg 以上で左右が入れ替わり、画像が
+//! 左列・feature 一覧が右列になる。詳細は本モジュール doc 末尾「DOM 順と
+//! 視覚順」節を参照）。取得手段・ファイル名・内部コンポーネント識別子は
+//! 記載しない（対応表 ID は R0486（主参照）・R0105・R0102・R0484・R0477・
+//! R0489・R0487・R1155・R1157・R1161 のみを記す）。
 //!
 //! # 使用部品
 //!
@@ -294,7 +296,7 @@ struct StatItem {
 
 const STATS_C: [StatItem; 2] = [
     StatItem {
-        value: "9",
+        value: "14",
         title: "公開クレート",
         body: "描画コアから CLI までを個別クレートへ分割しています。",
     },
@@ -757,7 +759,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-feature-split-list-image-card-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-feature-split-list-image-card-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-split-list-image-card-desc] {\n  margin: 0;\n}\n\
-[data-blocks-feature-split-list-image-stat-value] {\n  color: var(--fandhe-color-accent);\n  line-height: 1;\n}\n\
+[data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-split-list-image-stat-value] {\n  color: var(--fandhe-color-accent);\n  line-height: 1;\n}\n\
 .blocks-feature-split-list-image-row-list {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-feature-split-list-image-row {\n  display: flex;\n  align-items: flex-start;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-feature-split-list-image-row-icon] {\n  flex-shrink: 0;\n}\n\
