@@ -1218,6 +1218,11 @@ source = "site/blocks/hero-editorial-stagger.md"
 path = "/blocks/hero-editorial-stagger/"
 
 [[section.group.page]]
+title = "hero-image-top"
+source = "site/blocks/hero-image-top.md"
+path = "/blocks/hero-image-top/"
+
+[[section.group.page]]
 title = "hero-parallax-layers"
 source = "site/blocks/hero-parallax-layers.md"
 path = "/blocks/hero-parallax-layers/"
