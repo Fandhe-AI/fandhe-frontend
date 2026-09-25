@@ -889,6 +889,7 @@ pub enum LayoutCss {
 | error-page-background-image | #2836 | `marketing/error_page/error_page_background_image.rs` |
 | error-page-split-image | #2841 | `marketing/error_page/error_page_split_image.rs` |
 | feature-split-screenshot | #2770 | `marketing/feature/feature_split_screenshot.rs` |
+| gallery-carousel | #2777 | `marketing/gallery/gallery_carousel.rs` |
 | gallery-image-grid | #2778 | `marketing/gallery/gallery_image_grid.rs` |
 | error-page-centered | #2837 | `marketing/error_page/error_page_centered.rs` |
 | error-page-popular-links | #2838 | `marketing/error_page/error_page_popular_links.rs` |
