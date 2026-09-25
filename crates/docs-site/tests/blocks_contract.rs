@@ -7255,6 +7255,148 @@ fn error_page_split_links_composes_expected_parts() {
     }
 }
 
+/// hero-background-media ページが Demo class・両 CSS 配線・block 固有
+/// フック属性・共通背景ダミー素材の参照・backdrop の `aria-hidden` を
+/// 持つこと（イシュー #2781。`error_page_background_image_page_wires_
+/// demo_class_and_css_hooks` と同型）。
+#[test]
+fn hero_background_media_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-background-media/index.html"))
+        .expect("blocks/hero-background-media/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-hero-background-media\""),
+        "hero-background-media page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "hero-background-media page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "hero-background-media page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-hero-background-media-image",
+        "data-blocks-hero-background-media-eyebrow",
+        "data-blocks-hero-background-media-title",
+        "data-blocks-hero-background-media-lead",
+        "data-blocks-hero-background-media-cta-primary",
+        "data-blocks-hero-background-media-cta-secondary",
+    ] {
+        assert!(
+            html.contains(hook),
+            "hero-background-media page should render the {hook} attribute"
+        );
+    }
+    assert!(
+        html.contains("blocks-demo-background.svg"),
+        "hero-background-media page should reference the shared background dummy asset"
+    );
+    assert!(html.contains(r#"aria-hidden="true""#));
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "hero-background-media should never contain {absent}"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-hero-background-media-layout {",
+        ".blocks-hero-background-media-root {",
+        ".blocks-hero-background-media-backdrop {",
+        ".blocks-hero-background-media-scrim {",
+        "color-mix(",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+
+    // PR #3231 レビュー是正（centered badge の横幅 stretch・title/lead の
+    // 反転色 specificity・secondary CTA hover のコントラスト）を固定する。
+    assert!(
+        sheet_css.contains("justify-items: center"),
+        "centered variant should center grid items (badge must not stretch full width)"
+    );
+    assert!(
+        sheet_css.contains(
+            "[data-scope=\"heading\"][data-part=\"root\"][data-blocks-hero-background-media-title]"
+        ),
+        "title color-inherit rule should match the heading component's own scope+part attributes for specificity"
+    );
+    assert!(
+        sheet_css.contains(
+            "[data-scope=\"text\"][data-part=\"root\"][data-blocks-hero-background-media-lead]"
+        ),
+        "lead color-inherit rule should match the text component's own scope+part attributes for specificity"
+    );
+    assert!(
+        sheet_css.contains(
+            "[data-scope=\"button\"][data-part=\"root\"][data-blocks-hero-background-media-cta-secondary]:hover"
+        ),
+        "secondary CTA should override --fandhe-hover-bg's fixed bg-muted with a currentColor-based hover background"
+    );
+}
+
+/// hero-background-media の合成部品（badge/heading/text/button/image）が
+/// 期待どおりの構成で実際に出力され、`data-blocks-hero-background-media-
+/// variant` がちょうど 2 回（centered/bottom-split）出力されること、
+/// `<form>` 等の非対話制約を固定する（イシュー #2781。
+/// `error_page_background_image_composes_expected_parts` と同型）。
+#[test]
+fn hero_background_media_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/hero-background-media/")
+        .expect("hero-background-media should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"button\"",
+        "data-scope=\"image\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "hero-background-media demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-hero-background-media-variant")
+            .count(),
+        2,
+        "hero-background-media demo should render exactly 2 variants"
+    );
+    assert!(html.contains(r#"src="../../assets/blocks-demo-background.svg""#));
+    for text_fragment in [
+        "Build the page, keep the platform",
+        "A platform that fades into the background",
+        "Get started",
+        "See the demo",
+    ] {
+        assert!(
+            html.contains(text_fragment),
+            "hero-background-media demo should contain {text_fragment}"
+        );
+    }
+    for absent in [
+        "<form",
+        "src=\"data:",
+        "href=\"#\"",
+        "mailto:",
+        "tel:",
+        "id=\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "hero-background-media should never contain {absent}"
+        );
+    }
+}
+
 /// `hero-bottom-screenshot` ページが demo class・CSS リンク・CSS フックを
 /// 正しく配線していること（イシュー #2782）。
 #[test]
@@ -7417,6 +7559,85 @@ fn hero_email_signup_composes_expected_parts() {
         assert!(
             !html.contains(absent),
             "hero-email-signup should never contain {absent}"
+        );
+    }
+}
+
+/// hero-prompt-input の Demo ラッパ・CSS 配線・block 固有 CSS（入力欄の
+/// フック 4 種・狭幅ブレークポイントでの全幅化）が実際に出力されている
+/// ことを固定する（イシュー #2788）。
+#[test]
+fn hero_prompt_input_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-prompt-input/index.html"))
+        .expect("blocks/hero-prompt-input/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-hero-prompt-input\""),
+        "hero-prompt-input page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "hero-prompt-input page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "hero-prompt-input page should link the Blocks-specific stylesheet"
+    );
+
+    for hook in [
+        "data-blocks-hero-prompt-input-tagline",
+        "data-blocks-hero-prompt-input-prompt",
+        "data-blocks-hero-prompt-input-actions",
+        "data-blocks-hero-prompt-input-submit",
+    ] {
+        assert!(
+            html.contains(hook),
+            "hero-prompt-input page should contain {hook}"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        r#"[data-scope="field"][data-part="root"][data-blocks-hero-prompt-input-prompt] {"#,
+        "@media (max-width: 47.99rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// hero-prompt-input の合成部品（badge/heading/text/field/input-group/
+/// textarea/button）が期待どおりの構成で実際に出力されていること、
+/// `<form>`・送信先・`data:` URI を持ち込んでおらず `type="button"` が
+/// ちょうど 1 個であること、入力欄に `aria-label` が付与されていること
+/// を固定する（イシュー #2788）。
+#[test]
+fn hero_prompt_input_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-prompt-input/index.html"))
+        .expect("blocks/hero-prompt-input/index.html should be generated");
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"field\"",
+        "data-scope=\"input-group\"",
+        "data-scope=\"button\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "hero-prompt-input page should contain {scope}"
+        );
+    }
+    assert!(html.contains(r#"data-part="textarea""#));
+    assert!(html.contains("aria-label="));
+    for absent in ["<form", "action=", "type=\"submit\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "hero-prompt-input should never contain {absent}"
         );
     }
 }
