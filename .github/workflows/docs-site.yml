@@ -312,6 +312,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/error-page-popular-links/index.html"
           # Marketing / Gallery
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/gallery-image-grid/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/gallery-masonry/index.html"
           # Marketing / Section Heading
           # Application / App Shell
           # Application / Sidebar

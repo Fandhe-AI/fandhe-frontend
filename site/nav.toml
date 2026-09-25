@@ -1577,6 +1577,11 @@ title = "gallery-image-grid"
 source = "site/blocks/gallery-image-grid.md"
 path = "/blocks/gallery-image-grid/"
 
+[[section.group.page]]
+title = "gallery-masonry"
+source = "site/blocks/gallery-masonry.md"
+path = "/blocks/gallery-masonry/"
+
 [[section.group]]
 title = "Sidebar"
 
