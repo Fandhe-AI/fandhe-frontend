@@ -264,6 +264,7 @@ jobs:
           # Marketing / Testimonial
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonials-stack/index.html"
           # Marketing / Logo Cloud
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/logo-cloud-grid/index.html"
           # Marketing / Stats
           # Marketing / Team
           # Marketing / Faq
