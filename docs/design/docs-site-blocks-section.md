@@ -834,6 +834,7 @@ pub enum LayoutCss {
 | footer-newsletter | #2551 | §3 追記段落, `marketing/footer/footer_newsletter.rs` |
 | hero-editorial-stagger | #2546 | §15, `marketing/hero/hero_editorial_stagger.rs` |
 | hero-email-signup | #2783 | `marketing/hero/hero_email_signup.rs` |
+| hero-image-tiles | #2784 | `marketing/hero/hero_image_tiles.rs` |
 | hero-parallax-layers | #2546 | §15, `marketing/hero/hero_parallax_layers.rs` |
 | hero-terminal | #2546 | §15, `marketing/hero/hero_terminal.rs` |
 | text-split-reveal | #2546 | §15, `marketing/hero/text_split_reveal.rs` |

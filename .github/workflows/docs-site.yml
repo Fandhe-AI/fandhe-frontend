@@ -229,6 +229,7 @@ jobs:
           # Marketing / Hero
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-editorial-stagger/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-email-signup/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-image-tiles/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-parallax-layers/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-terminal/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/text-split-reveal/index.html"
