@@ -1238,6 +1238,11 @@ source = "site/blocks/hero-image-tiles.md"
 path = "/blocks/hero-image-tiles/"
 
 [[section.group.page]]
+title = "hero-image-top"
+source = "site/blocks/hero-image-top.md"
+path = "/blocks/hero-image-top/"
+
+[[section.group.page]]
 title = "hero-install-command"
 source = "site/blocks/hero-install-command.md"
 path = "/blocks/hero-install-command/"
@@ -1256,6 +1261,11 @@ path = "/blocks/hero-parallax-layers/"
 title = "hero-prompt-input"
 source = "site/blocks/hero-prompt-input.md"
 path = "/blocks/hero-prompt-input/"
+
+[[section.group.page]]
+title = "hero-split-image"
+source = "site/blocks/hero-split-image.md"
+path = "/blocks/hero-split-image/"
 
 [[section.group.page]]
 title = "hero-terminal"
