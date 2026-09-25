@@ -6478,6 +6478,10 @@ fn gallery_carousel_page_wires_demo_class_and_css_hooks() {
         assert!(
             sheet_css.contains(needle),
             "blocks.css should declare {needle} for gallery-carousel"
+        );
+    }
+}
+
 /// `feature-four-column-grid`（イシュー #2764）の CSS フック配線検証。
 /// `feature_image_cards`/`blog_grid_text` の同型テストと同じ判断軸
 /// （`crate::blocks` モジュール doc「CSS フックが `class` と `[data-*]` で

@@ -126,18 +126,19 @@ fn header(
 /// 実データを持たない静的デモのため、1-origin の連番を差し込んだ
 /// `"作品{n}の画像"` を alt として与える（実企業名・PII は含まない）。
 ///
-/// レビュー指摘対応（Codex P2、PR #3215）: `visible`（同時表示枚数、
-/// `gallery` の `per_view` をそのまま受け渡す）未満の index のみ
-/// `carousel::item` へ `current: true` を渡す。`carousel::item` は
-/// `current` を `data-current` と `data-inview`（headless-ui モジュール
-/// doc「本実装は 1 スライド表示固定のため `current` と同値で出力する」）
-/// の双方へ反映するため、以前は index 0 のみ固定で `current: true` と
-/// なっていた B/C 形（lg で 2/3 枚同時表示）で、CSS
-/// （`--fandhe-carousel-item-basis`）が実際に可視化する 2/3 枚のうち
-/// 2 枚目以降に `data-inview` が付かず、可視スライド数と「表示中」を
-/// 示す属性が食い違っていた。`visible` を可視枚数と一致させることで
-/// 静的デモの見た目と属性を揃える。
-fn slide(index: usize, count: usize, visible: usize, dim: bool) -> Node {
+/// レビュー指摘対応（Codex P1、PR #3215 再指摘）: 「表示中」を示す
+/// `data-inview`/`data-current` は常に index 0（1 枚目）のみへ付与する。
+/// B/C 形（lg で 2/3 枚同時表示）が実際に複数枚を並べるのは `>= 64rem`
+/// のときだけ（`--fandhe-carousel-item-basis` の CSS 切り替え、
+/// [`LAYOUT_CSS`] 参照）で、docs サイトは無 JS の静的 SSR のため画面幅に
+/// 応じて属性を出し分けられない。以前の実装（Codex P2 として一度採用）は
+/// 表示枚数（`per_view`）と同数の index へ `current: true` を渡していた
+/// が、`64rem` 未満の画面では実際には 1 枚しか見えていないのに 2/3 枚目
+/// にも `data-inview` が付く食い違いを生んでいた。D 形（peek）が
+/// もともと 2 枚目を「現在位置」扱いせず見た目だけ半透明で覗かせる
+/// のと同じ考え方へ統一し、B/C 形の 2/3 枚同時表示も「現在位置は
+/// 1 箇所・隣接スライドの露出は CSS 上の見た目のみ」という扱いにする。
+fn slide(index: usize, count: usize, dim: bool) -> Node {
     let sources = [
         dummy_assets::PRODUCT_SRC,
         dummy_assets::BACKGROUND_SRC,
@@ -154,7 +155,7 @@ fn slide(index: usize, count: usize, visible: usize, dim: bool) -> Node {
         Orientation::Horizontal,
         index,
         count,
-        index < visible,
+        index == 0,
         attrs,
         vec![image(
             &ImageProps {
@@ -171,16 +172,17 @@ fn slide(index: usize, count: usize, visible: usize, dim: bool) -> Node {
 /// carousel 1 個分（control 行 + indicator 群）を組み立てる。`label` は
 /// [`carousel::root`] の `aria-label` に渡す意味のある文言、`count` は
 /// スライド枚数、`variant_attr` は per-view/peek を表す `data-*`、
-/// `dim_next` は D 形専用（2 枚目を半透明近似にする）フラグ。`visible` は
-/// 同時に「表示中」として扱うスライド・インジケーターの枚数（先頭から
-/// `visible` 件、A/D 形は 1、B 形は 2、C 形は 3）。
+/// `dim_next` は D 形専用（2 枚目を半透明近似にする）フラグ。
 ///
-/// レビュー指摘対応（Codex P2、PR #3215）: `indicator` は本 block では
-/// スライド 1 件につき 1 個（`count` 件）で、per-view の「ページ」単位
-/// ではなく個々のスライドと 1:1 対応する。[`slide`] 側で `visible` 件を
-/// `current`（`data-inview`/`data-current`）にする修正と対称になるよう、
-/// 対応する先頭 `visible` 件の `indicator` にも同じ集合で
-/// `current: true`（`aria-current`/`data-current`）を揃える。
+/// レビュー指摘対応（Codex P1、PR #3215 再指摘）: `indicator` は本 block
+/// ではスライド 1 件につき 1 個（`count` 件）で、per-view の「ページ」
+/// 単位ではなく個々のスライドと 1:1 対応する。「現在位置」を示す
+/// `aria-current`/`data-current` は [`slide`] 側の `data-inview`/
+/// `data-current` と対称に index 0（1 枚目）の indicator にのみ固定で
+/// 付与する（[`slide`] 関数 doc 参照。B/C 形で表示枚数分の indicator を
+/// current 扱いにしていた以前の実装は、`64rem` 未満の画面で実際には
+/// 1 枚しか見えていないのに複数の indicator が同時に
+/// `aria-current="true"` になり「現在位置」の契約と食い違っていた）。
 ///
 /// レビュー指摘対応（P1）: docs サイトは無 JS でスライド送りを実装
 /// しない（モジュール doc「`<form>` を持たない・データ取得/送信を行わ
@@ -199,18 +201,17 @@ fn gallery(
     label: &'static str,
     count: usize,
     variant_attr: (&'static str, &'static str),
-    visible: usize,
     dim_next: bool,
 ) -> Node {
     let slides: Vec<Node> = (0..count)
-        .map(|i| slide(i, count, visible, dim_next && i == 1))
+        .map(|i| slide(i, count, dim_next && i == 1))
         .collect();
     let indicators: Vec<Node> = (0..count)
         .map(|i| {
             carousel::indicator(
                 Orientation::Horizontal,
                 i,
-                i < visible,
+                i == 0,
                 vec![
                     ("disabled", ""),
                     ("data-blocks-gallery-carousel-indicator", ""),
@@ -277,7 +278,6 @@ fn variant_basic() -> Node {
                 "作品ギャラリー（1 枚表示）",
                 6,
                 ("data-blocks-gallery-carousel-per-view", "1"),
-                1,
                 false,
             ),
         ],
@@ -299,7 +299,6 @@ fn variant_two_up() -> Node {
                 "作品ギャラリー（2 枚表示）",
                 6,
                 ("data-blocks-gallery-carousel-per-view", "2"),
-                2,
                 false,
             ),
         ],
@@ -321,7 +320,6 @@ fn variant_three_up() -> Node {
                 "作品ギャラリー（3 枚表示）",
                 6,
                 ("data-blocks-gallery-carousel-per-view", "3"),
-                3,
                 false,
             ),
         ],
@@ -343,7 +341,6 @@ fn variant_peek() -> Node {
                 "作品ギャラリー（次の画像を覗かせる表示）",
                 6,
                 ("data-blocks-gallery-carousel-peek", ""),
-                1,
                 true,
             ),
         ],
