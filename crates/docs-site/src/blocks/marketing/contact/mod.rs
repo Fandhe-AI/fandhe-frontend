@@ -14,13 +14,15 @@
 //! （`docs/design/docs-site-blocks-section.md` §18 の卒業手順）。イシュー
 //! #2829 で 2 件目の block（`contact_image_info`）、イシュー #2830 で
 //! 3 件目の block（`contact_info_columns`）、イシュー #2828 で 4 件目の
-//! block（`contact_form_testimonial`）、イシュー #2835 で 5 件目の
+//! block（[`contact_form_testimonial`]）、イシュー #2832 で 5 件目の
+//! block（`contact_split_form_info`）、イシュー #2835 で 6 件目の
 //! block（[`contact_split_info`]）を追加した。
 
 mod contact_dialog_form;
 mod contact_form_testimonial;
 mod contact_image_info;
 mod contact_info_columns;
+mod contact_split_form_info;
 mod contact_split_info;
 
 use crate::blocks::Block;
@@ -31,6 +33,7 @@ pub(super) fn blocks() -> Vec<Block> {
         contact_image_info::BLOCK,
         contact_info_columns::BLOCK,
         contact_form_testimonial::BLOCK,
+        contact_split_form_info::BLOCK,
         contact_split_info::BLOCK,
     ]
 }
