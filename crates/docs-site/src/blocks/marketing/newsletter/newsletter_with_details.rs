@@ -2,8 +2,7 @@
 //! 「Blocks マーケティング A」配下、対応表 ID R1096（主参照 1 件のみ、
 //! 集約元の差分なし）の合成例。補足項目付きの newsletter 登録フォーム。
 //! 取得手段・ファイル名・内部コンポーネント識別子は記載しない
-//! （`contact_info_columns`/`newsletter_split` と同じライセンス上の転記
-//! 制限）。
+//! （`contact_info_columns` と同じライセンス上の転記制限）。
 //!
 //! # 使用部品
 //!
@@ -11,8 +10,8 @@
 //! `visually_hidden` の 7 部品のみを合成する（[`BLOCK`] の `parts` に
 //! 一致させる契約、`crates/docs-site/tests/blocks_nav.rs`/
 //! `blocks_contract.rs` が検証する）。新しい UI 部品は追加しない。
-//! `link` は使わないため（要件に外部リンクがない）、`newsletter_split`
-//! が持つプライバシー文へのリンクは本 block では省く。
+//! `link` は使わない（要件に外部リンクがない。プライバシー文へのリンク等、
+//! 他 block が持つ `link` 由来の要素はいずれも本 block には存在しない）。
 //!
 //! # レイアウト（`lg` で 2 列、`lg` 未満は補足項目を 2 列にしてフォームの
 //! 下へ回す）
@@ -20,7 +19,7 @@
 //! 狭幅は「見出し + 説明 + フォーム」の下に補足項目 2 件が並ぶ 1 カラム
 //! 縦積み。`40rem` 以上で補足項目を 2 列（`repeat(2, minmax(0,1fr))`）に
 //! し、あわせて入力欄 + 送信ボタンも横並びへ切り替える
-//! （`banner_email_signup`/`newsletter_split` と同じ `40rem` 判断）。
+//! （`contact_info_columns`/`contact_split_info` と同じ `40rem` 判断）。
 //! `64rem`（[`Breakpoint::Lg`](fandhe_frontend_pre_styled_ui::recipe::Breakpoint::Lg)）
 //! 以上で左（見出し・フォーム）/ 右（補足項目 2 列のまま）の 2 カラムへ
 //! 切り替える（`contact_info_columns` と同じ「テーマの breakpoint
@@ -29,9 +28,9 @@
 //!
 //! # 可視ラベルの代わりに `visually_hidden` + `<label for>`
 //!
-//! [`newsletter_split::signup`](super::newsletter_split) と同じく可視
-//! ラベルを出さず、[`visually_hidden::root`] で包んだ [`field::label`]
-//! が `<label for>` の関連付けでアクセシブル名を確保する。
+//! `banner_email_signup::signup` と同じく可視ラベルを出さず、
+//! [`visually_hidden::root`] で包んだ [`field::label`] が `<label for>`
+//! の関連付けでアクセシブル名を確保する。
 //!
 //! # `text` の名前衝突
 //!
@@ -290,7 +289,7 @@ pub const BLOCK: Block = Block {
 ///
 /// セレクタは `.blocks-newsletter-with-details-*` と
 /// `[data-blocks-newsletter-with-details-*]` のみを用いる
-/// （`newsletter_split`/`contact_info_columns` と同じ名前空間分離）。
+/// （`contact_info_columns`/`careers_card_grid` と同じ名前空間分離）。
 ///
 /// # ルート class を `demo_class` と別名にする理由
 ///
