@@ -883,7 +883,7 @@ pub enum LayoutCss {
 | contact-info-columns | #2830 | `marketing/contact/contact_info_columns.rs` |
 | contact-split-form-info | #2832/#2833/#2834 | `marketing/contact/contact_split_form_info.rs` |
 | feature-split-list-image | #2769 | `marketing/feature/feature_split_list_image.rs` |
-| feature-vertical-tabs | #2774/#2775 | `marketing/feature/feature_vertical_tabs.rs` |
+| feature-vertical-tabs | #2774/#2775/#2776 | `marketing/feature/feature_vertical_tabs.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 68 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の

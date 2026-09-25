@@ -2,14 +2,16 @@
 
 `heading` / `text` / `tabs` / `image` / `icon` の 5 部品を合成した、左列に
 縦並びの feature タブ、右列に選択中 feature の詳細（見出し・チェック付き
-機能一覧・画像）を置くセクションです。
+機能一覧・画像）を置くセクションです。既定（機能一覧が主体・先頭タブ選択）
+と、画像主体のパネル・別タブ選択の 2 インスタンスを並記しています。
 
 先頭タブ（build）を選択済みの状態で固定表示しています（docs サイトは
 JS ハイドレーションを行わないため）。幅 lg（64rem）以上ではタブ列が左に
 縦並び、パネルが右に表示されます。幅 lg 未満ではタブ列がパネルの上へ
 移り、横スクロールできる横並びに切り替わります（この幅ではタブの
 `aria-orientation` は `"vertical"` のまま残りますが、docs サイトは
-JS ハイドレーションを行わないため実害はありません）。
+JS ハイドレーションを行わないため実害はありません）。各タブの trigger
+先頭には自作の幾何アイコンを添えています。
 
 文言・データはすべて架空のもので、データ取得・送信は行わない静的な表示
 例です。`<form>` は使用せず、送信先を持ちません。
@@ -32,19 +34,23 @@ use fandhe_frontend_pre_styled_ui::text::{
 };
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
-/// チェックマークの自作幾何アイコン（機能一覧の各項目に添える、
-/// `feature_split_list_image::geo_icon` と同型の判断）。
-fn check_icon() -> Node {
+/// 装飾用の自作幾何アイコン（lucide 等の既存アイコンセットの path を複製
+/// しないための単純図形、`feature_split_list_image::geo_icon` と同型の判断。
+/// `Size::Sm` 固定。チェックマーク・trigger アイコンの双方をこの 1 つの
+/// ヘルパへ統一する）。`attrs` は呼び出し側の CSS フック注入用
+/// （trigger アイコンは `data-blocks-feature-vertical-tabs-trigger-icon`
+/// を渡す）。
+fn geo_icon(path_d: &'static str, attrs: Vec<(&'static str, &'static str)>) -> Node {
     icon(
         &IconProps {
             size: Size::Sm,
             ..IconProps::default()
         },
-        vec![],
+        attrs,
         vec![fandhe_frontend_core::el(
             "path",
             vec![
-                ("d", "M5 12l4 4L19 7"),
+                ("d", path_d),
                 ("fill", "none"),
                 ("stroke", "currentColor"),
                 ("stroke-width", "2"),
@@ -53,6 +59,44 @@ fn check_icon() -> Node {
             ],
             vec![],
         )],
+    )
+}
+
+/// チェックマークの幾何アイコン（機能一覧の各項目に添える）。
+fn check_icon() -> Node {
+    geo_icon("M5 12l4 4L19 7", vec![])
+}
+
+/// trigger 先頭アイコン共通の CSS フック属性。
+const TRIGGER_ICON_ATTRS: [(&str, &str); 1] =
+    [("data-blocks-feature-vertical-tabs-trigger-icon", "")];
+
+/// 歯車の幾何アイコン（`build` タブの trigger に添える）。
+fn gear_icon() -> Node {
+    geo_icon(
+        "M12 8a4 4 0 100 8 4 4 0 000-8z M12 2v3 M12 19v3 M4.2 4.2l2.1 2.1 M17.7 17.7l2.1 2.1 M2 12h3 M19 12h3 M4.2 19.8l2.1-2.1 M17.7 6.3l2.1-2.1",
+        TRIGGER_ICON_ATTRS.to_vec(),
+    )
+}
+
+/// 稲妻の幾何アイコン（`deploy` タブの trigger に添える）。
+fn bolt_icon() -> Node {
+    geo_icon("M13 3L5 14h5l-1 7 8-11h-5z", TRIGGER_ICON_ATTRS.to_vec())
+}
+
+/// 円の幾何アイコン（`observe` タブの trigger に添える）。
+fn circle_icon() -> Node {
+    geo_icon(
+        "M12 3a9 9 0 100 18 9 9 0 000-18z",
+        TRIGGER_ICON_ATTRS.to_vec(),
+    )
+}
+
+/// 盾の幾何アイコン（`secure` タブの trigger に添える）。
+fn shield_icon() -> Node {
+    geo_icon(
+        "M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6z",
+        TRIGGER_ICON_ATTRS.to_vec(),
     )
 }
 
@@ -67,6 +111,9 @@ struct DetailPoint {
 struct FeatureTab {
     /// タブ識別 value（ASCII kebab-case）。
     value: &'static str,
+    /// trigger 先頭に添える自作幾何アイコン（`Block.demo: fn() -> Node` と
+    /// 同型の const 互換フィールド）。
+    icon: fn() -> Node,
     /// trigger タイトル。
     title: &'static str,
     /// trigger の短い説明。
@@ -81,6 +128,7 @@ struct FeatureTab {
 const FEATURES: [FeatureTab; 4] = [
     FeatureTab {
         value: "build",
+        icon: gear_icon,
         title: "ビルド",
         summary: "型で表現された構造から静的ファイルを組み立てます。",
         panel_title: "決定的なビルド",
@@ -102,6 +150,7 @@ const FEATURES: [FeatureTab; 4] = [
     },
     FeatureTab {
         value: "deploy",
+        icon: bolt_icon,
         title: "デプロイ",
         summary: "単一実行ファイルへまとめて配布できます。",
         panel_title: "単一バイナリ配布",
@@ -123,6 +172,7 @@ const FEATURES: [FeatureTab; 4] = [
     },
     FeatureTab {
         value: "observe",
+        icon: circle_icon,
         title: "観測",
         summary: "機械検証可能な構成で挙動を追跡します。",
         panel_title: "機械検証可能な構成",
@@ -144,6 +194,7 @@ const FEATURES: [FeatureTab; 4] = [
     },
     FeatureTab {
         value: "secure",
+        icon: shield_icon,
         title: "保護",
         summary: "既定エスケープと限定された unsafe 境界で守ります。",
         panel_title: "既定エスケープと安全な境界",
@@ -195,22 +246,26 @@ fn section_header() -> Node {
     )
 }
 
-/// trigger の中身（span のみ、phrasing content 制約に従う。モジュール doc
-/// 「trigger 内は phrasing content だけで組む」節参照）。
+/// trigger の中身（アイコン + span、phrasing content 制約に従う。モジュール
+/// doc「trigger 内は phrasing content だけで組む」節参照。`<svg>` は
+/// phrasing content に該当するため制約に抵触しない）。
 fn trigger_body(tab: &FeatureTab) -> Vec<Node> {
-    vec![span(
-        vec![("data-blocks-feature-vertical-tabs-trigger-body", "")],
-        vec![
-            span(
-                vec![("data-blocks-feature-vertical-tabs-trigger-title", "")],
-                vec![core_text(tab.title)],
-            ),
-            span(
-                vec![("data-blocks-feature-vertical-tabs-trigger-desc", "")],
-                vec![core_text(tab.summary)],
-            ),
-        ],
-    )]
+    vec![
+        (tab.icon)(),
+        span(
+            vec![("data-blocks-feature-vertical-tabs-trigger-body", "")],
+            vec![
+                span(
+                    vec![("data-blocks-feature-vertical-tabs-trigger-title", "")],
+                    vec![core_text(tab.title)],
+                ),
+                span(
+                    vec![("data-blocks-feature-vertical-tabs-trigger-desc", "")],
+                    vec![core_text(tab.summary)],
+                ),
+            ],
+        ),
+    ]
 }
 
 /// 機能一覧 1 項目（チェックアイコン + タイトル + 説明）。
@@ -245,44 +300,80 @@ fn detail_point(point: &DetailPoint) -> Node {
     )
 }
 
-/// パネル（content）の中身（見出し H4 + 機能一覧 + 画像。DOM 順は常に
-/// 「見出し → 一覧 → 画像」で固定し `order` は使わない）。
-fn panel_body(tab: &FeatureTab) -> Vec<Node> {
-    vec![
-        heading::heading(
-            HeadingLevel::H4,
-            &HeadingProps {
-                size: HeadingSize::Lg,
-                weight: HeadingWeight::Semibold,
-            },
-            vec![],
-            vec![core_text(tab.panel_title)],
-        ),
-        div(
-            vec![("class", "blocks-feature-vertical-tabs-points")],
-            tab.points.iter().map(detail_point).collect(),
-        ),
-        image::image(
-            &ImageProps {
-                fit: ImageFit::Cover,
-                aspect_ratio: AspectRatio::Landscape,
-                shape: ImageShape::Rounded,
-                ..ImageProps::new(tab.image_src, "")
-            },
-            vec![("data-blocks-feature-vertical-tabs-image", "")],
-        ),
-    ]
+/// パネルの構成違い（#2776「パネルを画像主体にした別の形」）。DOM 順を
+/// 直接入れ替える（`order` は使わない、`feature_split_list_image` と同じ
+/// 判断）。
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PanelLayout {
+    /// 既定: 見出し → 機能一覧 → 画像（#2775 と同じ、画像は下寄せ）。
+    ListFirst,
+    /// 画像主体: 見出し → 画像 → 機能一覧（画像は先頭のため下マージンのみ）。
+    ImageFirst,
 }
 
-/// 縦並び Tabs 本体を組み立てる（#2776 が並記のために再利用できる共通
+/// パネル画像（レイアウトごとに別の CSS フックを使うため、見出しの直後・
+/// 一覧の直前いずれの位置でも margin が競合しない）。
+fn panel_image(tab: &FeatureTab, layout: PanelLayout) -> Node {
+    let hook = match layout {
+        PanelLayout::ListFirst => "data-blocks-feature-vertical-tabs-image",
+        PanelLayout::ImageFirst => "data-blocks-feature-vertical-tabs-image-primary",
+    };
+    image::image(
+        &ImageProps {
+            fit: ImageFit::Cover,
+            aspect_ratio: AspectRatio::Landscape,
+            shape: ImageShape::Rounded,
+            ..ImageProps::new(tab.image_src, "")
+        },
+        vec![(hook, "")],
+    )
+}
+
+/// パネル（content）の中身（見出し H4 + `layout` に応じた一覧/画像の順序）。
+fn panel_body(tab: &FeatureTab, layout: PanelLayout) -> Vec<Node> {
+    let heading_node = heading::heading(
+        HeadingLevel::H4,
+        &HeadingProps {
+            size: HeadingSize::Lg,
+            weight: HeadingWeight::Semibold,
+        },
+        vec![],
+        vec![core_text(tab.panel_title)],
+    );
+    let points = div(
+        vec![("class", "blocks-feature-vertical-tabs-points")],
+        tab.points.iter().map(detail_point).collect(),
+    );
+    let image_node = panel_image(tab, layout);
+    match layout {
+        PanelLayout::ListFirst => vec![heading_node, points, image_node],
+        PanelLayout::ImageFirst => vec![heading_node, image_node, points],
+    }
+}
+
+/// 状態違い・パネル形違いの並記に使う見出し（`feature_accordion_image::
+/// variant_label` と同一実装）。
+fn variant_label(label: &'static str) -> Node {
+    styled_text::text(
+        &TextProps {
+            size: TextSize::Sm,
+            variant: TextVariant::Muted,
+            ..TextProps::default()
+        },
+        vec![],
+        vec![core_text(label)],
+    )
+}
+
+/// 縦並び Tabs 本体を組み立てる（並記インスタンス間で再利用する共通
 /// ヘルパ。`id` は呼び出し側がリテラルで完全指定する）。
-fn vertical_tabs(id: &'static str, selected: &'static str) -> Node {
+fn vertical_tabs(id: &'static str, selected: &'static str, layout: PanelLayout) -> Node {
     let items: Vec<TabItem<'static>> = FEATURES
         .iter()
         .map(|tab| TabItem {
             value: tab.value,
             trigger: trigger_body(tab),
-            content: panel_body(tab),
+            content: panel_body(tab, layout),
             disabled: false,
         })
         .collect();
@@ -304,14 +395,27 @@ fn vertical_tabs(id: &'static str, selected: &'static str) -> Node {
 }
 
 /// `feature-vertical-tabs` の Demo 本体。呼び出しごとに同一の `Node` を
-/// 返す純関数（他 block と同じ状態を持たない設計）。
+/// 返す純関数（他 block と同じ状態を持たない設計）。2 インスタンスを縦に
+/// 並べる（モジュール doc「1 つの Demo の中で 2 通りの見せ方を並記する」
+/// 節参照）。
 #[must_use]
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-feature-vertical-tabs-layout")],
         vec![
             section_header(),
-            vertical_tabs("blocks-feature-vertical-tabs-basic", "build"),
+            variant_label("既定（機能一覧が主体・先頭タブ選択）"),
+            vertical_tabs(
+                "blocks-feature-vertical-tabs-basic",
+                "build",
+                PanelLayout::ListFirst,
+            ),
+            variant_label("画像主体のパネル・別タブ選択の例"),
+            vertical_tabs(
+                "blocks-feature-vertical-tabs-image-primary",
+                "secure",
+                PanelLayout::ImageFirst,
+            ),
         ],
     )
 }
@@ -334,8 +438,11 @@ pub fn demo() -> Node {
   出すため）。
 - 画像は `dummy_assets` のプレースホルダーと `alt=""`（装飾扱い）にしま
   した。
-- チェックマークのアイコンは lucide 等の既存アイコンセットの path を
-  複製しない自作の単純な線画です。
-- 本イシュー（#2775）では骨格と主要領域（1 インスタンス・4 タブ）のみを
-  実装しています。状態違いの並記・trigger アイコン等の仕上げ・画像主体の
-  別パネル形は後続の #2776 で扱います。
+- 参照元にはない trigger 先頭のアイコンを、lucide 等の既存アイコンセットの
+  path を複製しない自作の単純な線画（歯車・稲妻・円・盾）として追加しま
+  した。機能一覧のチェックマークと同じヘルパで統一しています。
+- 対応表 ID は R0480 のみで集約元は実質 1 件のため、いわゆる「集約元の
+  差分」は存在しません。代わりに、単一参照からの意図的な派生として 2 つの
+  見せ方を並記し、設計上の可動域を示しています。既定（`build` タブ選択・
+  機能一覧が主体のパネル）と、状態違いを兼ねた別インスタンス（`secure`
+  タブ選択・画像が見出し直後に来る画像主体のパネル）です。

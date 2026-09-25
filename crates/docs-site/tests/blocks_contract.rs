@@ -5897,7 +5897,7 @@ fn contact_split_form_info_composes_expected_parts() {
 
 /// feature-vertical-tabs の Demo ラッパ class・CSS 配線・CSS フック属性・
 /// `blocks::stylesheet()` 側の lg ブレークポイント上書き規則を固定する
-/// （イシュー #2775。`feature_accordion_image_page_wires_demo_class_and_css_hooks`
+/// （イシュー #2775/#2776。`feature_accordion_image_page_wires_demo_class_and_css_hooks`
 /// と同型）。
 #[test]
 fn feature_vertical_tabs_page_wires_demo_class_and_css_hooks() {
@@ -5920,6 +5920,8 @@ fn feature_vertical_tabs_page_wires_demo_class_and_css_hooks() {
         "data-orientation=\"vertical\"",
         "data-blocks-feature-vertical-tabs-trigger-body=\"\"",
         "data-blocks-feature-vertical-tabs-image=\"\"",
+        "data-blocks-feature-vertical-tabs-trigger-icon=\"\"",
+        "data-blocks-feature-vertical-tabs-image-primary=\"\"",
         "data-scope=\"tabs\"",
         "data-scope=\"icon\"",
     ] {
@@ -5935,6 +5937,8 @@ fn feature_vertical_tabs_page_wires_demo_class_and_css_hooks() {
         "@media (max-width: 63.99rem)",
         ".blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"list\"][data-orientation=\"vertical\"]",
         "[data-blocks-feature-vertical-tabs-trigger-desc]",
+        "[data-blocks-feature-vertical-tabs-trigger-icon]",
+        "[data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-vertical-tabs-image-primary]",
     ] {
         assert!(
             sheet_css.contains(needle),
