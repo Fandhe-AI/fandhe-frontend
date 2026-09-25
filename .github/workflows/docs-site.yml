@@ -307,6 +307,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/changelog-timeline/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/changelog-timeline-subscribe/index.html"
           # Marketing / Error Page
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/error-page-background-image/index.html"
           # Marketing / Gallery
           # Marketing / Section Heading
           # Application / App Shell
