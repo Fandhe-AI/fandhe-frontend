@@ -3679,6 +3679,133 @@ fn bento_three_column_tall_composes_expected_parts() {
     }
 }
 
+/// careers-split-accordion ページが `blocks-demo blocks-careers-split-
+/// accordion` class・両 stylesheet の `<link>`・Demo 固有の CSS フック
+/// （tagline/list/dept/meta-item/apply）を実際に出力し、`blocks::stylesheet()`
+/// にも対応するセレクタとレイアウト class が存在すること（イシュー #2816）。
+#[test]
+fn careers_split_accordion_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/careers-split-accordion/index.html"))
+        .expect("blocks/careers-split-accordion/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-careers-split-accordion\""),
+        "careers-split-accordion page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "careers-split-accordion page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "careers-split-accordion page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-careers-split-accordion-tagline=\"\"",
+        "data-blocks-careers-split-accordion-list=\"\"",
+        "data-blocks-careers-split-accordion-dept=\"\"",
+        "data-blocks-careers-split-accordion-meta-item=\"\"",
+        "data-blocks-careers-split-accordion-apply=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "careers-split-accordion page should output the {hook} CSS hook attribute"
+        );
+    }
+
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        ".blocks-careers-split-accordion-layout",
+        "[data-blocks-careers-split-accordion-tagline]",
+        "[data-blocks-careers-split-accordion-meta-item]",
+        "[data-blocks-careers-split-accordion-apply]",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare {needle} for careers-split-accordion"
+        );
+    }
+}
+
+/// careers-split-accordion の合成部品（6 scope）・応募ボタン件数・開いた
+/// 項目件数・`<form>`/死リンク/`data:` 不在を固定する（イシュー #2816）。
+#[test]
+fn careers_split_accordion_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/careers-split-accordion/index.html"))
+        .expect("blocks/careers-split-accordion/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"accordion\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"button\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "careers-split-accordion page should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-careers-split-accordion-apply=\"\"")
+            .count(),
+        4,
+        "careers-split-accordion should render exactly 4 apply buttons"
+    );
+    // ページ全体（ヘッダーの検索・テーマ切替等）には無関係な `hidden=""`/
+    // `aria-expanded`/`aria-controls`/`type="button"` が既に存在するため、
+    // 以下の 4 件は本 block の合成関数出力（Demo 部分のみ）に対して検証
+    // する（`demo_output_never_leaks_an_unescaped_script_tag` と同型に
+    // `blocks::all_blocks()` から本 block を引く）。
+    let block = blocks::all_blocks()
+        .into_iter()
+        .find(|b| b.path == "/blocks/careers-split-accordion/")
+        .expect("careers-split-accordion should be registered in blocks::all_blocks()");
+    let demo_html = render(&(block.demo)());
+    // 無 JS のため開閉を切り替えられず、閉状態は `item_content` の
+    // `hidden` により本文（求人説明・勤務地・雇用形態・応募ボタン）を
+    // 恒久的に到達不能にする（P1 是正 1 回目、イシュー #2816）。4 件すべて
+    // 開いた状態（`hidden` なし）で固定表示し、全求人へ到達可能であること
+    // を固定する。
+    assert!(
+        !demo_html.contains("hidden=\"\""),
+        "careers-split-accordion demo should never hide item content (no-JS reachability)"
+    );
+    // 求人見出しは無 JS では押しても状態が変わらないため、非操作の `h4`
+    // として描画し `<button>`・`aria-expanded`・`aria-controls`・開閉
+    // インジケータを一切出力しない（P1 是正 2 回目、codex レビュー指摘、
+    // イシュー #2816）。
+    assert_eq!(
+        demo_html.matches("aria-expanded").count(),
+        0,
+        "careers-split-accordion demo should never expose aria-expanded (non-operable headings)"
+    );
+    assert_eq!(
+        demo_html.matches("aria-controls").count(),
+        0,
+        "careers-split-accordion demo should never expose aria-controls (non-operable headings)"
+    );
+    assert_eq!(
+        demo_html.matches("type=\"button\"").count(),
+        4,
+        "careers-split-accordion demo should render exactly 4 <button> elements (apply CTAs only)"
+    );
+    assert!(
+        html.contains("一緒にチームを育てる仲間を募集しています"),
+        "careers-split-accordion should contain the heading copy"
+    );
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "careers-split-accordion should never contain {absent}"
+        );
+    }
+}
+
 /// `content-article-toc` ページが `class="blocks-demo blocks-content-article-toc"`
 /// を持ち、`pre-styled-ui.css`/`blocks.css` の両方が配線され、主要な
 /// `data-blocks-content-article-toc-*` フックが `blocks::stylesheet()` の
