@@ -4343,8 +4343,9 @@ fn typography_static_parts_are_escaped_for_all_payloads() {
     }
 }
 
-/// (15) Table 経路（イシュー #767）: styled `root` の呼び出し側 `attrs`・
-/// `class`、および `cell`/`column_header`/`caption` のセル値・見出し
+/// (15) Table 経路（イシュー #767、`row_header` はイシュー #2825）: styled
+/// `root` の呼び出し側 `attrs`・`class`、および
+/// `cell`/`column_header`/`row_header`/`caption` のセル値・見出し
 /// children（受け入れ条件「セル値・見出しにスクリプト断片」の対象）の各所
 /// すべてで既定エスケープ（REQ-1）が貫通することを固定する。
 #[test]
@@ -4390,6 +4391,10 @@ fn table_styled_root_and_parts_are_escaped_for_all_payloads() {
         let html = render(&table::column_header(vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "table::column_header children コンテキスト");
 
+        // イシュー #2825: row_header の見出し children 経路。
+        let html = render(&table::row_header(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "table::row_header children コンテキスト");
+
         // caption の children 経路。
         let html = render(&table::caption(vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "table::caption children コンテキスト");
@@ -4404,6 +4409,16 @@ fn table_styled_root_and_parts_are_escaped_for_all_payloads() {
              payload={payload:?}, html={html}"
         );
         assert!(html.contains(r#"scope="col""#));
+
+        // イシュー #2825: row_header の scope 属性偽装経路（column_header と
+        // 同型、drop_reserved により固定値 `"row"` に置き換わることを確認）。
+        let html = render(&table::row_header(vec![("scope", payload)], vec![]));
+        assert!(
+            !html.contains(payload),
+            "table::row_header の scope 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"scope="row""#));
 
         // イシュー #1572: scroll_area の呼び出し側 attrs 経路（header/body と
         // 同型で class を含む attrs をそのまま連結するため、既定エスケープが
