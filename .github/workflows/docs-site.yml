@@ -309,6 +309,7 @@ jobs:
           # Marketing / Error Page
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/error-page-background-image/index.html"
           # Marketing / Gallery
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/gallery-image-grid/index.html"
           # Marketing / Section Heading
           # Application / App Shell
           # Application / Sidebar
