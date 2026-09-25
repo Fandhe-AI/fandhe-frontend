@@ -5699,3 +5699,99 @@ fn contact_info_columns_composes_expected_parts() {
         );
     }
 }
+
+/// contact-split-form-info ページが Demo class・専用 CSS を配線している
+/// こと、block 固有 CSS（2 列 grid・divider 非表示・`form-start` の配置）が
+/// 実際に出力されていることを固定する（イシュー #2832）。
+#[test]
+fn contact_split_form_info_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/contact-split-form-info/index.html"))
+        .expect("blocks/contact-split-form-info/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-contact-split-form-info\""),
+        "contact-split-form-info page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "contact-split-form-info page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "contact-split-form-info page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-contact-split-form-info-variant=\"form-start\"",
+        "data-blocks-contact-split-form-info-variant=\"form-end\"",
+        "data-blocks-contact-split-form-info-info",
+        "data-blocks-contact-split-form-info-form",
+        "data-blocks-contact-split-form-info-divider",
+        "data-blocks-contact-split-form-info-submit",
+    ] {
+        assert!(
+            html.contains(hook),
+            "contact-split-form-info page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "@media (min-width: 64rem)",
+        "repeat(2, minmax(0, 1fr))",
+        "[data-scope=\"separator\"][data-blocks-contact-split-form-info-divider]",
+        "[data-blocks-contact-split-form-info-variant=\"form-start\"] [data-blocks-contact-split-form-info-form]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// contact-split-form-info の合成部品（11 部品）が期待どおりの構成で
+/// 実際に出力されていること、形の内訳・非対話制約を固定する（イシュー
+/// #2832）。
+#[test]
+fn contact_split_form_info_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/contact-split-form-info/")
+        .expect("contact-split-form-info should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"field\" data-part=\"root\"",
+        "data-scope=\"field\" data-part=\"input\"",
+        "data-scope=\"field\" data-part=\"textarea\"",
+        "data-scope=\"checkbox\"",
+        "data-scope=\"button\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"separator\"",
+        "data-scope=\"link\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "contact-split-form-info demo should contain {scope}"
+        );
+    }
+    assert!(html.contains("href=\"tel:"));
+    assert!(html.contains("href=\"mailto:"));
+    assert_eq!(
+        html.matches("data-scope=\"separator\"").count(),
+        4,
+        "contact-split-form-info demo should render exactly 4 separators (2 outer dividers + 2 group separators in form B)"
+    );
+    for absent in [
+        "<form",
+        "type=\"submit\"",
+        "action=",
+        "href=\"#\"",
+        "src=\"data:",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "contact-split-form-info should never contain {absent}"
+        );
+    }
+}
