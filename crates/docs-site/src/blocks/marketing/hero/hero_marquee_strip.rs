@@ -38,7 +38,12 @@
 //! `badge::badge`/`heading::heading`/`text::text`/`marquee::marquee`/
 //! `image::image` はいずれも `drop_class_attr` により呼び出し側 `attrs` の
 //! `class` を黙って除去する契約を持つため、block 固有の CSS フックは
-//! `data-*` 属性で渡す（`hero_editorial_stagger` と同じ判断軸）。
+//! `data-*` 属性で渡す（`hero_editorial_stagger` と同じ判断軸）。加えて
+//! `text`/`image` の base recipe（`[data-scope="<scope>"][data-part="root"]`、
+//! 詳細度 (0,2,0)）に競り勝つ必要があるキャプション・ロゴの上書きは、
+//! `data-*` フック単体（詳細度 (0,1,0)）ではなく
+//! `[data-scope="<scope>"][data-part="root"][data-blocks-hero-marquee-strip-*]`
+//! の複合セレクタで渡す（`content_with_testimonial` 等と同じ判断軸）。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -54,6 +59,7 @@ use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSi
 
 const STRIP_ATTR: &str = "data-blocks-hero-marquee-strip-strip";
 const LOGO_ATTR: &str = "data-blocks-hero-marquee-strip-logo";
+const CAPTION_ATTR: &str = "data-blocks-hero-marquee-strip-caption";
 const LOGO_COUNT: usize = 8;
 
 pub fn demo() -> Node {
@@ -100,7 +106,7 @@ pub fn demo() -> Node {
             size: TextSize::Sm,
             ..TextProps::default()
         },
-        vec![("class", "blocks-hero-marquee-strip-caption")],
+        vec![(CAPTION_ATTR, "")],
         vec![text("Trusted by teams of every size")],
     );
 
@@ -181,9 +187,9 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-hero-marquee-strip-inner {\n  max-width: 48rem;\n  margin-inline: auto;\n  text-align: center;\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 1rem;\n  padding-block: 2rem;\n}\n\
 .blocks-hero-marquee-strip-actions {\n  display: flex;\n  gap: 0.75rem;\n  flex-wrap: wrap;\n  justify-content: center;\n}\n\
-.blocks-hero-marquee-strip-caption {\n  margin-top: 1rem;\n}\n\
+[data-scope=\"text\"][data-part=\"root\"][data-blocks-hero-marquee-strip-caption] {\n  margin-top: 1rem;\n}\n\
 [data-blocks-hero-marquee-strip-strip] {\n  width: 100%;\n  margin-top: 0.5rem;\n  --fandhe-marquee-fade: 4rem;\n  --fandhe-marquee-gap: var(--fandhe-space-8);\n  --fandhe-marquee-duration: 30s;\n}\n\
-[data-blocks-hero-marquee-strip-logo] {\n  width: 7rem;\n  height: 2.5rem;\n  opacity: 0.7;\n}\n";
+[data-scope=\"image\"][data-part=\"root\"][data-blocks-hero-marquee-strip-logo] {\n  width: 7rem;\n  height: 2.5rem;\n  opacity: 0.7;\n}\n";
 
 #[cfg(test)]
 mod tests {

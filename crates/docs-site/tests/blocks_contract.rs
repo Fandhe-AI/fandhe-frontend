@@ -2117,6 +2117,29 @@ fn hero_marquee_strip_page_wires_demo_class_and_css_hooks() {
     }
 }
 
+/// hero-marquee-strip のキャプション・ロゴ上書きセレクタが `text`/`image`
+/// の base recipe（`[data-scope][data-part="root"]`、詳細度 (0,2,0)）に
+/// 競り勝つ詳細度で書かれていることを固定する（codex/Bugbot 指摘、
+/// イシュー #2787。単なる `data-*` フック単体（詳細度 (0,1,0)）へ後退
+/// すると margin-top/縮小サイズが recipe base に上書きされて消える）。
+#[test]
+fn hero_marquee_strip_caption_and_logo_selectors_outweigh_recipe_base() {
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        r#"[data-scope="text"][data-part="root"][data-blocks-hero-marquee-strip-caption]"#,
+        r#"[data-scope="image"][data-part="root"][data-blocks-hero-marquee-strip-logo]"#,
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare {needle} at least as specific as \
+             [data-scope][data-part] (0,2,0), otherwise the recipe base rule wins"
+        );
+    }
+}
+
 /// hero-marquee-strip の合成部品（badge/heading/text/button/marquee/
 /// image）が期待どおりの構成で出力され、`marquee` の複製列 a11y 契約
 /// （`aria-hidden`/`inert`）・ロゴ枚数がそのまま伝播していること、

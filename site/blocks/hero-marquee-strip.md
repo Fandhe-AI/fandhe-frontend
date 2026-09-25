@@ -22,6 +22,7 @@ use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSi
 
 const STRIP_ATTR: &str = "data-blocks-hero-marquee-strip-strip";
 const LOGO_ATTR: &str = "data-blocks-hero-marquee-strip-logo";
+const CAPTION_ATTR: &str = "data-blocks-hero-marquee-strip-caption";
 const LOGO_COUNT: usize = 8;
 
 pub fn demo() -> Node {
@@ -68,7 +69,7 @@ pub fn demo() -> Node {
             size: TextSize::Sm,
             ..TextProps::default()
         },
-        vec![("class", "blocks-hero-marquee-strip-caption")],
+        vec![(CAPTION_ATTR, "")],
         vec![text("Trusted by teams of every size")],
     );
 
