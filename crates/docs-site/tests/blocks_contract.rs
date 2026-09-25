@@ -3679,6 +3679,179 @@ fn bento_three_column_tall_composes_expected_parts() {
     }
 }
 
+/// careers-split-accordion ページが `blocks-demo blocks-careers-split-
+/// accordion` class・両 stylesheet の `<link>`・Demo 固有の CSS フック
+/// （tagline/list/dept/meta-item/apply）を実際に出力し、`blocks::stylesheet()`
+/// にも対応するセレクタとレイアウト class が存在すること（イシュー #2816）。
+#[test]
+fn careers_split_accordion_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/careers-split-accordion/index.html"))
+        .expect("blocks/careers-split-accordion/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-careers-split-accordion\""),
+        "careers-split-accordion page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "careers-split-accordion page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "careers-split-accordion page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-careers-split-accordion-tagline=\"\"",
+        "data-blocks-careers-split-accordion-list=\"\"",
+        "data-blocks-careers-split-accordion-dept=\"\"",
+        "data-blocks-careers-split-accordion-meta-item=\"\"",
+        "data-blocks-careers-split-accordion-apply=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "careers-split-accordion page should output the {hook} CSS hook attribute"
+        );
+    }
+
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        ".blocks-careers-split-accordion-layout",
+        "[data-blocks-careers-split-accordion-tagline]",
+        "[data-blocks-careers-split-accordion-meta-item]",
+        "[data-blocks-careers-split-accordion-apply]",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare {needle} for careers-split-accordion"
+        );
+    }
+}
+
+/// careers-split-accordion の合成部品（6 scope）・応募ボタン件数・開いた
+/// 項目件数・`<form>`/死リンク/`data:` 不在を固定する（イシュー #2816）。
+#[test]
+fn careers_split_accordion_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/careers-split-accordion/index.html"))
+        .expect("blocks/careers-split-accordion/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"accordion\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"button\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "careers-split-accordion page should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-careers-split-accordion-apply=\"\"")
+            .count(),
+        4,
+        "careers-split-accordion should render exactly 4 apply buttons"
+    );
+    // ページ全体（ヘッダーの検索・テーマ切替等）には無関係な `hidden=""`/
+    // `aria-expanded`/`aria-controls`/`type="button"` が既に存在するため、
+    // 以下の 4 件は本 block の合成関数出力（Demo 部分のみ）に対して検証
+    // する（`demo_output_never_leaks_an_unescaped_script_tag` と同型に
+    // `blocks::all_blocks()` から本 block を引く）。
+    let block = blocks::all_blocks()
+        .into_iter()
+        .find(|b| b.path == "/blocks/careers-split-accordion/")
+        .expect("careers-split-accordion should be registered in blocks::all_blocks()");
+    let demo_html = render(&(block.demo)());
+    // 無 JS のため開閉を切り替えられず、閉状態は `item_content` の
+    // `hidden` により本文（求人説明・勤務地・雇用形態・応募ボタン）を
+    // 恒久的に到達不能にする（P1 是正 1 回目、イシュー #2816）。4 件すべて
+    // 開いた状態（`hidden` なし）で固定表示し、全求人へ到達可能であること
+    // を固定する。
+    assert!(
+        !demo_html.contains("hidden=\"\""),
+        "careers-split-accordion demo should never hide item content (no-JS reachability)"
+    );
+    // 求人見出しは無 JS では押しても状態が変わらないため、非操作の `h4`
+    // として描画し `<button>`・`aria-expanded`・`aria-controls`・開閉
+    // インジケータを一切出力しない（P1 是正 2 回目、codex レビュー指摘、
+    // イシュー #2816）。
+    assert_eq!(
+        demo_html.matches("aria-expanded").count(),
+        0,
+        "careers-split-accordion demo should never expose aria-expanded (non-operable headings)"
+    );
+    assert_eq!(
+        demo_html.matches("aria-controls").count(),
+        0,
+        "careers-split-accordion demo should never expose aria-controls (non-operable headings)"
+    );
+    assert_eq!(
+        demo_html.matches("type=\"button\"").count(),
+        4,
+        "careers-split-accordion demo should render exactly 4 <button> elements (apply CTAs only)"
+    );
+    assert!(
+        html.contains("一緒にチームを育てる仲間を募集しています"),
+        "careers-split-accordion should contain the heading copy"
+    );
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "careers-split-accordion should never contain {absent}"
+        );
+    }
+}
+
+/// `content-article-toc` ページが `class="blocks-demo blocks-content-article-toc"`
+/// を持ち、`pre-styled-ui.css`/`blocks.css` の両方が配線され、主要な
+/// `data-blocks-content-article-toc-*` フックが `blocks::stylesheet()` の
+/// 対応するセレクタ（`@media (min-width: 64rem)` を含む）と対になっている
+/// ことを固定する（イシュー #2752）。
+#[test]
+fn content_article_toc_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/content-article-toc/index.html"))
+        .expect("blocks/content-article-toc/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-content-article-toc\""),
+        "content-article-toc demo wrapper should carry both the shared and block-specific class"
+    );
+    for link in ["assets/pre-styled-ui.css", "assets/blocks.css"] {
+        assert!(
+            html.contains(link),
+            "content-article-toc page should link {link}"
+        );
+    }
+    for hook in [
+        "data-blocks-content-article-toc-nav",
+        "data-blocks-content-article-toc-cover",
+    ] {
+        assert!(
+            html.contains(hook),
+            "content-article-toc page should output the {hook} CSS hook attribute"
+        );
+    }
+
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        ".blocks-content-article-toc-layout",
+        "[data-blocks-content-article-toc-nav]",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should contain {needle}"
+        );
+    }
+}
+
 /// careers-split-photo-list ページが `blocks-demo`/固有 demo_class・
 /// 専用スタイルシート 2 種・Demo 固有 CSS フックを配線していること
 /// （イシュー #2817）。
@@ -4012,6 +4185,87 @@ fn bento_two_column_page_wires_demo_class_and_css_hooks() {
     }
 }
 
+/// `content-article-toc` が使用部品 7 件（badge/heading/text/image/avatar/
+/// nav-list/separator）を実際に合成しており、目次リンクの `href="#…"` が
+/// 同一 Demo 内の `id` と一対一で往復対応し、`<form>`・死リンク・`data:`
+/// URI・`aria-current` を持たないことを固定する（イシュー #2752）。
+///
+/// Demo 単体（`render(&(block.demo)())`）に対して判定することで、ページ側
+/// サイドバーが現在ページへ出力する `aria-current="page"` を巻き込まない
+/// （`demo_output_has_no_dangling_aria_references_or_duplicate_ids` と
+/// 同じ判断軸）。
+#[test]
+fn content_article_toc_composes_expected_parts() {
+    let block = blocks::all_blocks()
+        .into_iter()
+        .find(|b| b.path == "/blocks/content-article-toc/")
+        .expect("content-article-toc block should be registered");
+    let demo_html = render(&(block.demo)());
+
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"image\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"nav-list\"",
+        "data-scope=\"separator\"",
+    ] {
+        assert!(
+            demo_html.contains(scope),
+            "content-article-toc demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        demo_html
+            .matches("data-scope=\"nav-list\" data-part=\"root\"")
+            .count(),
+        2,
+        "content-article-toc should render exactly 2 nav_list roots (instance A/B)"
+    );
+    assert!(
+        demo_html.contains("基準形: 見出し・カバー画像を縦に積み"),
+        "content-article-toc should render the instance A caption"
+    );
+    assert!(
+        demo_html.contains("横並び形: 64rem 以上で見出し群と画像を横に並べ"),
+        "content-article-toc should render the instance B caption"
+    );
+
+    let mut hrefs: Vec<&str> = Vec::new();
+    let mut offset = 0usize;
+    let needle = "href=\"#";
+    while let Some(rel) = demo_html[offset..].find(needle) {
+        let start = offset + rel + needle.len();
+        let end = demo_html[start..]
+            .find('"')
+            .map(|i| start + i)
+            .expect("href attribute should be closed");
+        hrefs.push(&demo_html[start..end]);
+        offset = end;
+    }
+    assert_eq!(
+        hrefs.len(),
+        6,
+        "content-article-toc should have 6 toc links (3 sections x 2 instances)"
+    );
+    for frag in &hrefs {
+        let id_needle = format!("id=\"{frag}\"");
+        assert_eq!(
+            demo_html.matches(&id_needle).count(),
+            1,
+            "content-article-toc toc link #{frag} should have exactly one matching id"
+        );
+    }
+
+    for absent in ["<form", "href=\"#\"", "src=\"data:", "aria-current"] {
+        assert!(
+            !demo_html.contains(absent),
+            "content-article-toc demo should never contain {absent}"
+        );
+    }
+}
+
 /// careers-split-photo-list の合成部品（heading/text/image/separator/link/
 /// link-overlay/visually-hidden）が期待どおりの構成（求人 3 件・区切り線
 /// 2 本）で実際に出力されていること、`<form>`・`data:` URI・`href="#"` を
@@ -4111,6 +4365,58 @@ fn bento_two_column_composes_expected_parts() {
     }
 }
 
+/// `content-article`（イシュー #2751、Marketing / Content カテゴリ）
+/// の CSS フック配線検証。`blog_list_image_page_wires_demo_class_and_css_hooks`
+/// と同型。
+#[test]
+fn content_article_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/content-article/index.html"))
+        .expect("blocks/content-article/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-content-article\""),
+        "content-article page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "content-article page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "content-article page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-content-article-cover=\"\"",
+        "data-blocks-content-article-quote=\"\"",
+        "data-blocks-content-article-separator=\"\"",
+        "data-blocks-content-article-category=\"\"",
+        "data-blocks-content-article-avatar=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "content-article page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-content-article-cover]",
+        "[data-blocks-content-article-quote]",
+        "[data-blocks-content-article-separator]",
+        "[data-blocks-content-article-category]",
+        "[data-blocks-content-article-avatar]",
+        ".blocks-content-article-centered",
+        ".blocks-content-article-full-bleed",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
 /// content-columns-screenshot の Demo ラッパ・CSS 配線・block 固有 CSS
 /// （2 列 grid・md ブレークポイント・フェード用 linear-gradient・image
 /// フック）が実際に出力されていることを固定する（イシュー #2753）。
@@ -4144,6 +4450,46 @@ fn content_columns_screenshot_page_wires_demo_class_and_css_hooks() {
         assert!(
             sheet_css.contains(selector),
             "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// content-article の合成部品（badge/heading/text/image/avatar/blockquote/
+/// separator の 7 種）が期待どおり出力されていること、引用・図版
+/// （キャプション付き）を含むこと、`<form>`・`href="#"`・`src="data:` を
+/// 持ち込んでいないことを固定する（イシュー #2751）。
+#[test]
+fn content_article_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/content-article/index.html"))
+        .expect("blocks/content-article/index.html should be generated");
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"image\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"blockquote\"",
+        "data-scope=\"separator\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "content-article page should contain {scope}"
+        );
+    }
+    assert!(
+        html.contains("<blockquote"),
+        "content-article page should render a <blockquote> element"
+    );
+    assert!(
+        html.matches("<figcaption").count() >= 2,
+        "content-article page should render at least 2 <figcaption> elements \
+         (2 instances x 1 captioned figure each)"
+    );
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "content-article page should never contain {absent}"
         );
     }
 }
@@ -4189,6 +4535,113 @@ fn content_columns_screenshot_composes_expected_parts() {
         assert!(
             !html.contains(absent),
             "content-columns-screenshot should never contain {absent}"
+        );
+    }
+}
+
+/// content-image-tiles の Demo ラッパ・CSS 配線・block 固有 CSS（2 列
+/// grid・lg ブレークポイント・偶数タイルのオフセット・下段指標グリッド・
+/// image フック）が実際に出力されていることを固定する（イシュー #2754）。
+#[test]
+fn content_image_tiles_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/content-image-tiles/index.html"))
+        .expect("blocks/content-image-tiles/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-content-image-tiles\""),
+        "content-image-tiles page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "content-image-tiles page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "content-image-tiles page should link the Blocks-specific stylesheet"
+    );
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-content-image-tiles-columns",
+        ".blocks-content-image-tiles-tiles",
+        "[data-blocks-content-image-tiles-offset]",
+        ".blocks-content-image-tiles-stats",
+        "@media (max-width: 63.99rem)",
+        "[data-scope=\"image\"][data-part=\"root\"][data-blocks-content-image-tiles-image]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// content-image-tiles の合成部品（heading/text/image/stat）が期待どおり
+/// の構成で実際に出力されていること、`<form>`・`data:` URI を持ち込んで
+/// いないことを固定する（イシュー #2754）。
+#[test]
+fn content_image_tiles_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/content-image-tiles/index.html"))
+        .expect("blocks/content-image-tiles/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"image\"",
+        "data-scope=\"stat\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "content-image-tiles page should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("<img").count(),
+        4,
+        "content-image-tiles should render exactly 4 image tiles"
+    );
+    assert!(html.contains("src=\"../../assets/blocks-demo-product.svg\""));
+    for absent in ["<form", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "content-image-tiles should never contain {absent}"
+        );
+    }
+}
+
+/// comparison-cards の Demo ラッパ・CSS 配線・block 固有 CSS（列数
+/// フックのブレークポイント・highlight 枠・row の border-top）が実際に
+/// 出力されていることを固定する（イシュー #2822）。
+#[test]
+fn comparison_cards_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/comparison-cards/index.html"))
+        .expect("blocks/comparison-cards/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-comparison-cards\""),
+        "comparison-cards page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "comparison-cards page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "comparison-cards page should link the Blocks-specific stylesheet"
+    );
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "@media (min-width: 48rem)",
+        "[data-scope=\"card\"][data-part=\"root\"][data-blocks-comparison-cards-card=\"highlight\"]",
+        ".blocks-comparison-cards-row {",
+        "border-top: 1px solid var(--fandhe-color-border);",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
         );
     }
 }
@@ -4281,6 +4734,44 @@ fn content_split_image_page_wires_demo_class_and_css_hooks() {
     }
 }
 
+/// comparison-cards の合成部品（heading/text/badge/card/list/icon）が
+/// 期待どおりの構成で実際に出力されていること、可否アイコンが
+/// アクセシブルな代替テキストを持ち `<form>`/`data:` URI を持ち込んで
+/// いないことを固定する（イシュー #2822）。
+#[test]
+fn comparison_cards_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/comparison-cards/index.html"))
+        .expect("blocks/comparison-cards/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"card\"",
+        "data-scope=\"list\"",
+        "data-scope=\"icon\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "comparison-cards page should contain {scope}"
+        );
+    }
+    assert!(html.contains(r#"aria-label="含まれる""#));
+    assert!(html.contains(r#"aria-label="含まれない""#));
+    assert_eq!(
+        html.matches(r#"data-blocks-comparison-cards-card="highlight""#)
+            .count(),
+        2,
+        "comparison-cards should render exactly 2 highlighted (own product) cards"
+    );
+    for absent in ["<form", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "comparison-cards should never contain {absent}"
+        );
+    }
+}
+
 /// changelog-timeline-subscribe の合成部品（heading/text/field/input/
 /// button/badge/timeline/list/visually-hidden）が期待どおりの構成で実際に
 /// 出力されていること、`<form>`・`data:` URI を持ち込んでおらず
@@ -4358,6 +4849,86 @@ fn content_split_image_composes_expected_parts() {
         assert!(
             !html.contains(absent),
             "content-split-image should never contain {absent}"
+        );
+    }
+}
+
+/// comparison-feature-rows ページが `blocks-demo` + block 固有 class・両
+/// スタイルシート・行/セルの CSS フックを実際に出力し、
+/// `blocks::stylesheet()` にも対応する md/lg 2 段のブレークポイント切替
+/// セレクタが存在することを固定する（イシュー #2823）。
+#[test]
+fn comparison_feature_rows_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/comparison-feature-rows/index.html"))
+        .expect("blocks/comparison-feature-rows/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-comparison-feature-rows\""),
+        "comparison-feature-rows page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "comparison-feature-rows page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "comparison-feature-rows page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-comparison-feature-rows-root=\"\"",
+        "data-blocks-comparison-feature-rows-list=\"\"",
+        "data-blocks-comparison-feature-rows-row=\"\"",
+        "data-blocks-comparison-feature-rows-feature=\"\"",
+        "data-blocks-comparison-feature-rows-ours=\"\"",
+        "data-blocks-comparison-feature-rows-theirs=\"\"",
+        "data-blocks-comparison-feature-rows-separator=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "comparison-feature-rows page should contain {hook}"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "@media (min-width: 48rem)",
+        "@media (min-width: 64rem)",
+        "[data-blocks-comparison-feature-rows-row]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare {selector} for comparison-feature-rows"
+        );
+    }
+}
+
+/// comparison-feature-rows の合成部品（heading/text/badge/icon/separator
+/// の 5 種）が期待どおり出力されていること、`<form>`・`<button>`・`<a`・
+/// `href="#"`・`data:` URI を持ち込んでいないことを固定する（イシュー
+/// #2823）。
+#[test]
+fn comparison_feature_rows_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/comparison-feature-rows/index.html"))
+        .expect("blocks/comparison-feature-rows/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"separator\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "comparison-feature-rows page should contain {scope}"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "comparison-feature-rows should never contain {absent}"
         );
     }
 }
