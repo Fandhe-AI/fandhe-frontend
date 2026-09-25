@@ -154,7 +154,7 @@ fn header(
 /// `Some` のとき `link_overlay` でカード全体をクリック可能にする
 /// （R0106 系インスタンス用）。
 fn feature_card(data: &FeatureCard, overlay_href: Option<&'static str>) -> Node {
-    let body: Vec<Node> = vec![
+    let mut body: Vec<Node> = vec![
         geo_icon(
             data.icon_path_d,
             vec![("data-blocks-feature-four-column-grid-icon", "")],
@@ -176,33 +176,38 @@ fn feature_card(data: &FeatureCard, overlay_href: Option<&'static str>) -> Node 
         ),
     ];
 
-    let inner = match overlay_href {
-        None => body,
-        Some(href) => {
-            let mut linked = body;
-            linked.push(top_right_arrow_icon());
-            linked.push(overlay(
-                href,
-                vec![
-                    ("aria-label", data.title),
-                    ("data-blocks-feature-four-column-grid-overlay", ""),
-                ],
-                vec![],
-            ));
-            vec![link_overlay::root(
-                vec![("data-blocks-feature-four-column-grid-link", "")],
-                linked,
-            )]
-        }
+    let card_body = card::body(
+        vec![("data-blocks-feature-four-column-grid-card-body", "")],
+        {
+            if overlay_href.is_some() {
+                body.push(top_right_arrow_icon());
+            }
+            body
+        },
+    );
+
+    let card_children = match overlay_href {
+        None => vec![card_body],
+        Some(href) => vec![link_overlay::root(
+            vec![("data-blocks-feature-four-column-grid-link", "")],
+            vec![
+                card_body,
+                overlay(
+                    href,
+                    vec![
+                        ("aria-label", data.title),
+                        ("data-blocks-feature-four-column-grid-overlay", ""),
+                    ],
+                    vec![],
+                ),
+            ],
+        )],
     };
 
     card::root(
         CardProps::default(),
         vec![("data-blocks-feature-four-column-grid-card", "")],
-        vec![card::body(
-            vec![("data-blocks-feature-four-column-grid-card-body", "")],
-            inner,
-        )],
+        card_children,
     )
 }
 

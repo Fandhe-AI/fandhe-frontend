@@ -41,16 +41,21 @@
 //!
 //! # `link_overlay` を使う理由・`overflow: hidden` を持たない理由
 //!
-//! 全面リンクカードは `card::body` の内側へ `link_overlay::root` を置き、
-//! カード内容の後ろに `overlay(href, …)` を続ける（`blog_overlay_cards`と
-//! 同じ「overlay 1 個のみでカード全体をクリック可能にする」構成）。
-//! `link_overlay::root` には `height: 100%` を与え、`card::body`（`flex: 1`
-//! で残り高さを埋める）いっぱいまでクリック領域を拡張する（codex P1
-//! 是正、イシュー #2764 レビュー対応）。本 block のカードは角丸クリップが
-//! 必要な画像を持たないため `card::root` へ `overflow: hidden` を与えず、
-//! `blog_overlay_cards` が必要とした `outline-offset` の内側化上書きも
-//! 不要（`FocusRingOffset::Outside` の既定のままフォーカスリングがカード
-//! 境界の外側へ正しく描画される）。
+//! 全面リンクカードは `card::body` の**外側**（`card::root` の直接の子）へ
+//! `link_overlay::root` を置き、その内側へ `card::body`（カード内容）と
+//! `overlay(href, …)` を並べる（`blog_overlay_cards` と同じ「`card::root`
+//! 直下に `link_overlay::root` を置きカード全体をクリック可能にする」
+//! 構成）。当初 `card::body` の内側に置いていたが、`card::body` の
+//! padding 部分が `link_overlay::overlay` の `inset: 0` に覆われずクリック
+//! 不可になる不具合（codex P1）と、`card::body` が `flex: 1` の
+//! flex item であるため `link_overlay::root` の `height: 100%` が解決せず
+//! カード全体を覆えない不具合（Bugbot 指摘）の 2 件を招いたため、
+//! `card::root`（`display: flex; flex-direction: column`）の直接の子へ
+//! `flex: 1` を与える形へ是正した（イシュー #2764 レビュー対応）。本
+//! block のカードは角丸クリップが必要な画像を持たないため `card::root` へ
+//! `overflow: hidden` を与えず、`blog_overlay_cards` が必要とした
+//! `outline-offset` の内側化上書きも不要（`FocusRingOffset::Outside` の
+//! 既定のままフォーカスリングがカード境界の外側へ正しく描画される）。
 //!
 //! # `highlight` の使い方
 //!
@@ -236,7 +241,7 @@ fn header(
 /// `Some` のとき `link_overlay` でカード全体をクリック可能にする
 /// （R0106 系インスタンス用）。
 fn feature_card(data: &FeatureCard, overlay_href: Option<&'static str>) -> Node {
-    let body: Vec<Node> = vec![
+    let mut body: Vec<Node> = vec![
         geo_icon(
             data.icon_path_d,
             vec![("data-blocks-feature-four-column-grid-icon", "")],
@@ -258,33 +263,38 @@ fn feature_card(data: &FeatureCard, overlay_href: Option<&'static str>) -> Node 
         ),
     ];
 
-    let inner = match overlay_href {
-        None => body,
-        Some(href) => {
-            let mut linked = body;
-            linked.push(top_right_arrow_icon());
-            linked.push(overlay(
-                href,
-                vec![
-                    ("aria-label", data.title),
-                    ("data-blocks-feature-four-column-grid-overlay", ""),
-                ],
-                vec![],
-            ));
-            vec![link_overlay::root(
-                vec![("data-blocks-feature-four-column-grid-link", "")],
-                linked,
-            )]
-        }
+    let card_body = card::body(
+        vec![("data-blocks-feature-four-column-grid-card-body", "")],
+        {
+            if overlay_href.is_some() {
+                body.push(top_right_arrow_icon());
+            }
+            body
+        },
+    );
+
+    let card_children = match overlay_href {
+        None => vec![card_body],
+        Some(href) => vec![link_overlay::root(
+            vec![("data-blocks-feature-four-column-grid-link", "")],
+            vec![
+                card_body,
+                overlay(
+                    href,
+                    vec![
+                        ("aria-label", data.title),
+                        ("data-blocks-feature-four-column-grid-overlay", ""),
+                    ],
+                    vec![],
+                ),
+            ],
+        )],
     };
 
     card::root(
         CardProps::default(),
         vec![("data-blocks-feature-four-column-grid-card", "")],
-        vec![card::body(
-            vec![("data-blocks-feature-four-column-grid-card-body", "")],
-            inner,
-        )],
+        card_children,
     )
 }
 
@@ -407,7 +417,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-feature-four-column-grid-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-6);\n}\n\
 [data-blocks-feature-four-column-grid-card] {\n  position: relative;\n  height: 100%;\n}\n\
 [data-blocks-feature-four-column-grid-card-body] {\n  gap: var(--fandhe-space-3);\n}\n\
-[data-blocks-feature-four-column-grid-link] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  height: 100%;\n}\n\
+[data-blocks-feature-four-column-grid-link] {\n  display: flex;\n  flex-direction: column;\n  flex: 1;\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-four-column-grid-desc] {\n  margin: 0;\n}\n\
 [data-scope=\"icon\"][data-part=\"root\"][data-blocks-feature-four-column-grid-arrow] {\n  position: absolute;\n  top: var(--fandhe-space-4);\n  right: var(--fandhe-space-4);\n}\n\
 @media (min-width: 48rem) {\n  \
