@@ -5234,6 +5234,67 @@ fn content_with_testimonial_composes_expected_parts() {
     }
 }
 
+/// feature-accordion-image の Demo ラッパ class・CSS 配線・CSS フック
+/// 属性・`blocks::stylesheet()` 側のブレークポイント規則を固定する
+/// （イシュー #2761）。
+#[test]
+fn feature_accordion_image_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/feature-accordion-image/index.html"))
+        .expect("blocks/feature-accordion-image/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-feature-accordion-image\""),
+        "feature-accordion-image page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "feature-accordion-image page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "feature-accordion-image page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-feature-accordion-image-eyebrow=\"\"",
+        "data-blocks-feature-accordion-image-media=\"\"",
+        "data-blocks-feature-accordion-image-inline-image=\"\"",
+        "data-scope=\"accordion\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "feature-accordion-image page should output the {hook} CSS hook attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for needle in [
+        ".blocks-feature-accordion-image-grid",
+        "@media (min-width: 48rem)",
+        ".blocks-feature-accordion-image-media-slot",
+        "[data-blocks-feature-accordion-image-inline-image]",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare a rule for {needle}"
+        );
+    }
+    // md+ でインライン画像を隠す規則は、Image recipe の基底規則
+    // `[data-scope="image"][data-part="root"] { display: block }`
+    // （詳細度 (0,2,0)）に必ず勝つ詳細度で書く必要がある。scope/part
+    // 属性を併記しない `[data-blocks-feature-accordion-image-inline-image]`
+    // 単体（詳細度 (0,1,0)）では負けて desktop でも表示され続けてしまう
+    // （PR #3188 Bugbot 指摘の回帰防止）。
+    assert!(
+        sheet_css.contains(
+            "[data-scope=\"image\"][data-part=\"root\"]\
+             [data-blocks-feature-accordion-image-inline-image] {\n    display: none;\n  }"
+        ),
+        "blocks.css should hide the inline image on md+ with a selector that outranks \
+         the Image recipe's [data-scope=\"image\"][data-part=\"root\"] base rule"
+    );
+}
+
 /// cta-split-actions ページが Demo class・専用 CSS を配線していること
 /// （イシュー #2758）。
 #[test]
