@@ -389,7 +389,13 @@ fn static_tab_list(
         // （`--fandhe-color-bg-muted`/`--fandhe-radius-md`/`--fandhe-space-1`/
         // `--fandhe-color-bg`/`--fandhe-shadow-sm`）を [`LAYOUT_CSS`] 側で
         // 直接再現する（Codex/Bugbot P2 是正: 形 C が下線型のまま変化
-        // していなかった不具合）。
+        // していなかった不具合）。この属性は list 要素自身（`data-scope`/
+        // `data-part` と同じ要素）に付くため、[`LAYOUT_CSS`] 側のセレクタ
+        // `[data-scope="tabs"][data-part="list"][data-blocks-feature-tabs-panel-pill]`
+        // は属性 3 個（詳細度 (0,3,0)）で recipe の base `list` 規則
+        // （`[data-scope="tabs"][data-part="list"]`、詳細度 (0,2,0)）に
+        // 確実に勝つ（cursor Medium 是正: 単一属性セレクタのままだと
+        // 詳細度で負け下線型の `border-bottom` が消えなかった）。
         list_attrs.push((
             "data-blocks-feature-tabs-panel-pill".to_string(),
             String::new(),
@@ -731,7 +737,12 @@ fn trigger_with_progress(
                     ..ProgressProps::default()
                 },
                 None,
-                vec![],
+                // `aria-labelledby` の自動配線は headless/styled いずれの層の
+                // 責務でもない（`fandhe_frontend_pre_styled_ui::progress`
+                // rustdoc「イシュー #2049」節「(4)」参照）ため、呼び出し側で
+                // `aria-label` を明示する（Codex P1 是正: 無地の `role=
+                // "progressbar"` だけでは支援技術から進捗の意味が読めない）。
+                vec![("aria-label", label)],
                 vec![p.track(vec![], vec![progress::range(&p, vec![])])],
             ),
         ],
@@ -881,7 +892,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-feature-tabs-panel-cta {\n  display: flex;\n  justify-content: center;\n}\n\
 .blocks-feature-tabs-panel-trigger-progress {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 8rem;\n  text-align: left;\n  white-space: normal;\n}\n\
 .blocks-feature-tabs-panel-trigger-progress [data-scope=\"progress\"][data-part=\"root\"] {\n  width: 100%;\n}\n\
-[data-blocks-feature-tabs-panel-pill] {\n  border-bottom: 0;\n  background: var(--fandhe-color-bg-muted);\n  border-radius: var(--fandhe-radius-md);\n  padding: var(--fandhe-space-1);\n  padding-bottom: var(--fandhe-space-1);\n}\n\
+[data-scope=\"tabs\"][data-part=\"list\"][data-blocks-feature-tabs-panel-pill] {\n  border-bottom: 0;\n  background: var(--fandhe-color-bg-muted);\n  border-radius: var(--fandhe-radius-md);\n  padding: var(--fandhe-space-1);\n  padding-bottom: var(--fandhe-space-1);\n}\n\
 [data-blocks-feature-tabs-panel-pill] [data-scope=\"tabs\"][data-part=\"trigger\"] {\n  margin-bottom: 0;\n  border-bottom: 0;\n  border-radius: var(--fandhe-radius-sm, 0.25rem);\n  background: transparent;\n}\n\
 [data-blocks-feature-tabs-panel-pill] [data-scope=\"tabs\"][data-part=\"trigger\"][data-state=\"active\"] {\n  background: var(--fandhe-color-bg);\n  box-shadow: var(--fandhe-shadow-sm);\n}\n\
 @media (min-width: 64rem) {\n  \
@@ -1077,6 +1088,22 @@ mod tests {
         assert!(html.contains("aria-valuenow="));
     }
 
+    /// 形 F の 3 つの `progress::root` がそれぞれ `aria-label` を持つこと
+    /// （Codex P1 是正の回帰テスト: `attrs` が空で `role="progressbar"` の
+    /// 意味が支援技術から読めなくなっていた）。[`super::PANELS`] 先頭 3 件
+    /// のラベル文言がそのまま `aria-label` に使われる。
+    #[test]
+    fn progress_trigger_has_an_accessible_label() {
+        let html = render(&demo());
+        for panel in &super::PANELS[0..3] {
+            assert!(
+                html.contains(&format!("aria-label=\"{}\"", panel.label)),
+                "expected progressbar for {:?} to have an aria-label",
+                panel.label
+            );
+        }
+    }
+
     /// 形 F の trigger（[`super::trigger_with_progress`]）は `aria-hidden`
     /// を持たないこと（Codex P1 是正の回帰テスト: 全 trigger 一律
     /// `aria-hidden="true"` にすると `role="progressbar"` の進捗値が支援
@@ -1135,5 +1162,27 @@ mod tests {
         let html = render(&demo());
         assert!(html.contains("class=\"blocks-feature-tabs-panel-layout\""));
         assert_ne!(super::BLOCK.demo_class, "blocks-feature-tabs-panel-layout");
+    }
+
+    /// 形 D（[`super::panel_alternating_rows`]）の `reverse` 規則が
+    /// `copy`/`media` の class 割り当てそのものを入れ替えず、`grid-column`
+    /// の位置だけを鏡映しにすること（cursor Medium 是正の回帰テスト:
+    /// 反転行で `copy`（5 列）/`media`（6 列）の列幅比が崩れないことを
+    /// 固定する。DOM 順は常にテキスト → 画像で不変、`super::
+    /// panel_row_reversible` 参照）。
+    #[test]
+    fn reversed_row_keeps_copy_and_media_column_span_ratio() {
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-feature-tabs-panel-row > .blocks-feature-tabs-panel-copy {\n    grid-column: 1 / span 5;"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-feature-tabs-panel-row > .blocks-feature-tabs-panel-media {\n    grid-column: 7 / span 6;"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-feature-tabs-panel-reverse] > .blocks-feature-tabs-panel-copy {\n    grid-column: 8 / span 5;"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-feature-tabs-panel-reverse] > .blocks-feature-tabs-panel-media {\n    grid-column: 1 / span 6;"
+        ));
     }
 }

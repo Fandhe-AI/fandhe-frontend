@@ -1,27 +1,27 @@
 # feature-tabs-panel
 
 `badge` / `heading` / `text` / `tabs` / `image` / `card` / `icon` / `button` /
-`progress` の 9 部品を合成した、タブで切り替える feature セクションです。
-5 つの形を縦に並べます。
+`progress` の 9 部品を合成した、タブ切り替え feature セクションの見た目を
+再現する合成例です。5 つの形を縦に並べます。
 
-- **基準形（対応表 ID R1158）**: 見出しの下に下線タブ（`TabsVariant::Line`）
-  を並べ、選んだタブのパネルだけにテキストと画像を表示します。
-- **形 C（対応表 ID R0478）**: ピル型タブ（`TabsVariant::Enclosed`）+ 画像を
-  持たない単一カラムのパネル。
+- **基準形（対応表 ID R1158）**: 見出しの下に下線タブ風の見た目を並べ、
+  選択中タブの本文としてテキストと画像を表示します。
+- **形 C（対応表 ID R0478）**: ピル型タブの見た目 + 画像を持たない単一
+  カラムのパネル。
 - **形 D（対応表 ID R0479）**: 1 パネルの中に複数のフィーチャー行を積み、
   行ごとに画像とテキストの左右を入れ替えます。
-- **形 E（対応表 ID R0481）**: 中央寄せの見出し + タブ + パネル内カード
-  グリッド。末尾に「すべての機能を見る」の静的 CTA を添えます。
+- **形 E（対応表 ID R0481）**: 中央寄せの見出し + タブ風の見た目 + パネル内
+  カードグリッド。末尾に「すべての機能を見る」の静的 CTA を添えます。
 - **形 F（対応表 ID R0104）**: トリガーに短い説明文と進捗バーを添えます。
   自動切替は行いません。
 
-docs サイトは JS ハイドレーションを行わないため、各形とも実物の `tabs`
-コンポーネント（選択できるように見えるが実際には切り替わらないトリガー
-ボタンを持つ、他の Themes 部品ページの Demo と同じ静的プレビュー）は
-選択中のタブ 1 個だけを描画します。残りのタブの内容は、`tabs` を複製せず
-見出しキャプション付きの非対話表示（トリガーボタン・`role="tab"`・
-`tabindex` を持たない）として静的に併記し、すべてのパネル本文が常に可視
-のまま静的 HTML に現れるようにしています。
+docs サイトは JS ハイドレーションを行わないため、本 block は実物の `tabs`
+コンポーネントを一切使いません。タブ列は `role`/`tabindex`/`<button>` を
+持たない非対話表示（クリックしても何も起きない）でタブの見た目だけを
+再現し、選択中タブの本文を直接描画します。残りのタブの内容も、見出し
+キャプション付きの非対話表示として静的に併記するため、すべてのパネル本文
+が常に可視のまま静的 HTML に現れます（実際に切り替わるのではなく、全形の
+全パネルが同時に表示され続けます）。
 
 文言・カードの見出しと説明・進捗値はすべて架空のもので、データ取得・送信は
 行わない静的な表示例です。`<form>` は使用しません。
@@ -290,7 +290,13 @@ fn static_tab_list(
         // （`--fandhe-color-bg-muted`/`--fandhe-radius-md`/`--fandhe-space-1`/
         // `--fandhe-color-bg`/`--fandhe-shadow-sm`）を [`LAYOUT_CSS`] 側で
         // 直接再現する（Codex/Bugbot P2 是正: 形 C が下線型のまま変化
-        // していなかった不具合）。
+        // していなかった不具合）。この属性は list 要素自身（`data-scope`/
+        // `data-part` と同じ要素）に付くため、[`LAYOUT_CSS`] 側のセレクタ
+        // `[data-scope="tabs"][data-part="list"][data-blocks-feature-tabs-panel-pill]`
+        // は属性 3 個（詳細度 (0,3,0)）で recipe の base `list` 規則
+        // （`[data-scope="tabs"][data-part="list"]`、詳細度 (0,2,0)）に
+        // 確実に勝つ（cursor Medium 是正: 単一属性セレクタのままだと
+        // 詳細度で負け下線型の `border-bottom` が消えなかった）。
         list_attrs.push((
             "data-blocks-feature-tabs-panel-pill".to_string(),
             String::new(),
@@ -632,7 +638,12 @@ fn trigger_with_progress(
                     ..ProgressProps::default()
                 },
                 None,
-                vec![],
+                // `aria-labelledby` の自動配線は headless/styled いずれの層の
+                // 責務でもない（`fandhe_frontend_pre_styled_ui::progress`
+                // rustdoc「イシュー #2049」節「(4)」参照）ため、呼び出し側で
+                // `aria-label` を明示する（Codex P1 是正: 無地の `role=
+                // "progressbar"` だけでは支援技術から進捗の意味が読めない）。
+                vec![("aria-label", label)],
                 vec![p.track(vec![], vec![progress::range(&p, vec![])])],
             ),
         ],
