@@ -2,13 +2,13 @@
 
 見出し・リード文の下に、グレースケールのロゴを折り返し行またはグリッドで並べる block です。
 
-`heading` / `text` / `image` / `card` / `tag` / `link` / `button` の 7 部品だけで組み立てており、新しい UI 部品は追加していません。
+`heading` / `text` / `image` / `card` / `tag` / `link` の 6 部品だけで組み立てており、新しい UI 部品は追加していません。
 
 5 つのバリエーションを縦に併記しています。
 
 - **A**: タグライン（tag）→ 見出し → リード文 → ロゴ 5 個の折り返し行
 - **B**: 見出し無し、リード文 → ロゴ 6 個の折り返し行
-- **C**: 見出し + 「すべて見る」ボタンの見出し行 → 社名タグ付きロゴカード 6 枚
+- **C**: 見出し + 「GitHub で見る」リンクの見出し行 → 社名タグ付きロゴカード 6 枚
 - **D**: 見出し無し、淡色枠のロゴタイル 6 枚のグリッド
 - **E**: ロゴ 5 個の折り返し行 → 下にピル型の告知リンク
 
@@ -21,7 +21,6 @@
 ```rust
 use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, text, Node};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
 use fandhe_frontend_pre_styled_ui::heading::{self as styled_heading, HeadingLevel, HeadingProps};
 use fandhe_frontend_pre_styled_ui::image::{self, ImageFit, ImageProps};
@@ -99,7 +98,7 @@ fn variant_b() -> Node {
     )
 }
 
-/// 形 C: 見出し + button の見出し行 → 社名タグ付きロゴカード 6 枚。
+/// 形 C: 見出し + link の見出し行 → 社名タグ付きロゴカード 6 枚。
 fn variant_c() -> Node {
     let title = styled_heading::heading(
         HeadingLevel::H3,
@@ -107,13 +106,11 @@ fn variant_c() -> Node {
         vec![],
         vec![text("導入企業")],
     );
-    let more = button::button(
-        &ButtonProps {
-            variant: ButtonVariant::Outline,
-            ..ButtonProps::default()
-        },
+    let more = link::root(
+        REPO,
+        &LinkProps::default(),
         vec![],
-        vec![text("すべて見る")],
+        vec![text("GitHub で見る")],
     );
     let header = div(
         vec![("class", "blocks-logo-cloud-grid-header")],
@@ -159,7 +156,7 @@ fn variant_e() -> Node {
         REPO,
         &LinkProps::default(),
         vec![("data-blocks-logo-cloud-grid-pill", "")],
-        vec![text("導入事例をもっと見る")],
+        vec![text("GitHub で見る")],
     );
     div(
         vec![("class", "blocks-logo-cloud-grid-stack")],

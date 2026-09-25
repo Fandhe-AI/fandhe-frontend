@@ -13,9 +13,17 @@
 //!
 //! # 使用部品
 //!
-//! `heading` / `text` / `image` / `card` / `tag` / `link` / `button` の
-//! 7 部品を合成する（[`BLOCK`] の `parts` に一致させる契約）。新しい UI
-//! 部品は追加しない。
+//! `heading` / `text` / `image` / `card` / `tag` / `link` の 6 部品を
+//! 合成する（[`BLOCK`] の `parts` に一致させる契約）。新しい UI 部品は
+//! 追加しない。
+//!
+//! # `button` を使わない理由（Codex レビュー指摘、PR #3244）
+//!
+//! 形 C の見出し行に置いていた `button::button`「すべて見る」はクリック
+//! 処理・遷移先を持たず、操作できるように見えて実際には何も起きない
+//! 死んだボタンだった。ページ内に「導入企業一覧」の実ページを持たない
+//! ため、[`link::root`]（[`REPO`] 固定）へ差し替えて実際に遷移する
+//! リンクへ改めた（形 E の告知リンクと同型の判断）。
 //!
 //! # ロゴのグレースケール表現
 //!
@@ -33,17 +41,18 @@
 //! # `<form>` を使わない・実データを持たない
 //!
 //! `crate::blocks` モジュール doc の不変条件どおり、本 Demo は `<form>` を
-//! 出力しない。ボタンは `button::button`/`icon` 系いずれも既定
-//! `type="button"` のまま用いる。社名・文言はすべて
-//! [`dummy_assets::COMPANY_NAMES`] 等の架空データであり、実企業名・実
-//! サービス名・実クレデンシャル・PII を含まない。形 E のリンク先は
-//! [`REPO`]（実在する GitHub リポジトリへの外部絶対 URL、`cta_feature_links`
-//! と同じ固定値）に固定し、`href="#"` を出さない。
+//! 出力しない。社名・文言はすべて [`dummy_assets::COMPANY_NAMES`] 等の
+//! 架空データであり、実企業名・実サービス名・実クレデンシャル・PII を
+//! 含まない。形 C/E のリンク先はいずれも [`REPO`]（実在する GitHub
+//! リポジトリへの外部絶対 URL、`cta_feature_links` と同じ固定値）に固定
+//! し、`href="#"` を出さない。リンク文言も遷移先どおり「GitHub で見る」
+//! に統一する（Codex レビュー指摘、PR #3244。文言が「導入事例」「すべて」
+//! 等の実在しないページを示唆しないようにする）。
 //!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
 //! `heading::heading`/`text::text`/`image::image`/`card::root`/
-//! `button::button`/`link::root`/`tag::root` はいずれも `drop_class_attr`
+//! `link::root`/`tag::root` はいずれも `drop_class_attr`
 //! により呼び出し側 `attrs` の `class` を黙って除去する契約を持つため、
 //! block 固有の CSS フックは `data-blocks-logo-cloud-grid-*` 属性で渡す
 //! （`gallery_masonry`/`hero_marquee_strip` と同じ判断軸）。素の `div`
@@ -55,7 +64,6 @@ use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 // blocks-code:begin
 use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, text, Node};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
 use fandhe_frontend_pre_styled_ui::heading::{self as styled_heading, HeadingLevel, HeadingProps};
 use fandhe_frontend_pre_styled_ui::image::{self, ImageFit, ImageProps};
@@ -133,7 +141,7 @@ fn variant_b() -> Node {
     )
 }
 
-/// 形 C: 見出し + button の見出し行 → 社名タグ付きロゴカード 6 枚。
+/// 形 C: 見出し + link の見出し行 → 社名タグ付きロゴカード 6 枚。
 fn variant_c() -> Node {
     let title = styled_heading::heading(
         HeadingLevel::H3,
@@ -141,13 +149,11 @@ fn variant_c() -> Node {
         vec![],
         vec![text("導入企業")],
     );
-    let more = button::button(
-        &ButtonProps {
-            variant: ButtonVariant::Outline,
-            ..ButtonProps::default()
-        },
+    let more = link::root(
+        REPO,
+        &LinkProps::default(),
         vec![],
-        vec![text("すべて見る")],
+        vec![text("GitHub で見る")],
     );
     let header = div(
         vec![("class", "blocks-logo-cloud-grid-header")],
@@ -193,7 +199,7 @@ fn variant_e() -> Node {
         REPO,
         &LinkProps::default(),
         vec![("data-blocks-logo-cloud-grid-pill", "")],
-        vec![text("導入事例をもっと見る")],
+        vec![text("GitHub で見る")],
     );
     div(
         vec![("class", "blocks-logo-cloud-grid-stack")],
@@ -249,10 +255,6 @@ pub const BLOCK: Block = Block {
             label: "Link",
             path: "/themes/link/",
         },
-        Part {
-            label: "Button",
-            path: "/themes/button/",
-        },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
     demo,
@@ -294,19 +296,32 @@ mod tests {
             "data-scope=\"card\"",
             "data-scope=\"tag\"",
             "data-scope=\"link\"",
-            "data-scope=\"button\"",
         ] {
             assert!(html.contains(scope), "demo output should contain {scope}");
         }
         // ロゴ枚数: 形 A(5) + B(6) + C(6) + D(6) + E(5) = 28。
         assert_eq!(html.matches("<img").count(), 28);
         assert_eq!(html.matches("alt=\"\"").count(), 28);
-        assert!(html.contains("type=\"button\""));
         assert!(!html.contains("<form"));
         assert!(!html.contains("<script"));
         assert!(!html.contains("src=\"data:"));
         assert!(!html.contains("id=\""));
         assert!(!html.contains("href=\"#\""));
+    }
+
+    /// 形 C・E のリンクがいずれも実在する GitHub リポジトリ URL へ遷移し、
+    /// クリックしても何も起きない死んだ操作要素を持たないこと（Codex
+    /// レビュー指摘、PR #3244）。
+    #[test]
+    fn variant_c_and_e_links_navigate_to_repo() {
+        let html = render(&demo());
+        assert_eq!(
+            html.matches("href=\"https://github.com/Fandhe-AI/fandhe-frontend\"")
+                .count(),
+            2,
+            "variant C・E should both link to the real repo URL"
+        );
+        assert_eq!(html.matches("GitHub で見る").count(), 2);
     }
 
     /// `demo()` が決定的（呼び出しごとに同じ `Node`）であること。
