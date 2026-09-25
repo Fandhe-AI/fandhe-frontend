@@ -370,6 +370,10 @@ pub fn demo() -> Node {
         vec![("class", "blocks-contact-info-columns-channels")],
         CHANNELS.iter().map(channel_column).collect(),
     );
+    let channels_section = div(
+        vec![("class", "blocks-contact-info-columns-section")],
+        vec![channels_label, channels],
+    );
 
     let offices_label = styled_text::text(
         &TextProps {
@@ -384,10 +388,14 @@ pub fn demo() -> Node {
         vec![("class", "blocks-contact-info-columns-offices")],
         OFFICES.iter().map(office_column).collect(),
     );
+    let offices_section = div(
+        vec![("class", "blocks-contact-info-columns-section")],
+        vec![offices_label, offices],
+    );
 
     div(
         vec![("class", "blocks-contact-info-columns-layout")],
-        vec![header, channels_label, channels, offices_label, offices],
+        vec![header, channels_section, offices_section],
     )
 }
 // blocks-code:end
@@ -442,6 +450,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-contact-info-columns-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  max-width: 42rem;\n}\n\
 [data-blocks-contact-info-columns-tagline] {\n  color: var(--fandhe-color-accent);\n  text-transform: uppercase;\n  letter-spacing: 0.05em;\n}\n\
 [data-blocks-contact-info-columns-section-label] {\n  color: var(--fandhe-color-accent);\n  text-transform: uppercase;\n  letter-spacing: 0.05em;\n}\n\
+.blocks-contact-info-columns-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-contact-info-columns-channels {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-contact-info-columns-offices {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-8);\n}\n\
 [data-blocks-contact-info-columns-column] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\

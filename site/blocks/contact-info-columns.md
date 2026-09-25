@@ -303,6 +303,10 @@ pub fn demo() -> Node {
         vec![("class", "blocks-contact-info-columns-channels")],
         CHANNELS.iter().map(channel_column).collect(),
     );
+    let channels_section = div(
+        vec![("class", "blocks-contact-info-columns-section")],
+        vec![channels_label, channels],
+    );
 
     let offices_label = styled_text::text(
         &TextProps {
@@ -317,10 +321,14 @@ pub fn demo() -> Node {
         vec![("class", "blocks-contact-info-columns-offices")],
         OFFICES.iter().map(office_column).collect(),
     );
+    let offices_section = div(
+        vec![("class", "blocks-contact-info-columns-section")],
+        vec![offices_label, offices],
+    );
 
     div(
         vec![("class", "blocks-contact-info-columns-layout")],
-        vec![header, channels_label, channels, offices_label, offices],
+        vec![header, channels_section, offices_section],
     )
 }
 ```
