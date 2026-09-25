@@ -1449,6 +1449,11 @@ source = "site/blocks/changelog-stacked-list.md"
 path = "/blocks/changelog-stacked-list/"
 
 [[section.group.page]]
+title = "changelog-timeline-subscribe"
+source = "site/blocks/changelog-timeline-subscribe.md"
+path = "/blocks/changelog-timeline-subscribe/"
+
+[[section.group.page]]
 title = "changelog-timeline"
 source = "site/blocks/changelog-timeline.md"
 path = "/blocks/changelog-timeline/"
