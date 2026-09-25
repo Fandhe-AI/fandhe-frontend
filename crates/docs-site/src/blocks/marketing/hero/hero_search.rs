@@ -8,9 +8,9 @@
 //!
 //! # 使用部品
 //!
-//! `badge` / `heading` / `text` / `input_group` / `input` / `button` /
-//! `link` / `icon` / `visually_hidden` の 9 部品を合成する（[`BLOCK`] の
-//! `parts` に一致させる契約）。新規 UI 部品は作らない。
+//! `badge` / `heading` / `text` / `field` / `input_group` / `input` /
+//! `button` / `link` / `icon` / `visually_hidden` の 10 部品を合成する
+//! （[`BLOCK`] の `parts` に一致させる契約）。新規 UI 部品は作らない。
 //!
 //! # 3 形を 1 つの Demo に並記する
 //!

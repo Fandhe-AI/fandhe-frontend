@@ -1,7 +1,8 @@
 # hero-search
 
-`badge` / `heading` / `text` / `input-group` / `input` / `button` / `link` /
-`icon` / `visually-hidden` を合成した、検索ボックス中心のヒーローの合成例です。
+`badge` / `heading` / `text` / `field` / `input-group` / `input` / `button` /
+`link` / `icon` / `visually-hidden` を合成した、検索ボックス中心のヒーローの
+合成例です。
 
 `<form>` を持たず、検索ボタンは `type="button"` のまま送信先・検索処理を
 持ちません。実際の検索・遷移は利用者の Rust/JS コードで実装してください
