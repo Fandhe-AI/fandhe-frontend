@@ -874,14 +874,16 @@ pub enum LayoutCss {
 | feature-accordion-image | #2760/#2761/#2762 | `marketing/feature/feature_accordion_image.rs` |
 | contact-dialog-form | #2827 | `marketing/contact/contact_dialog_form.rs` |
 | feature-alternating-rows | #2763 | `marketing/feature/feature_alternating_rows.rs` |
+| contact-form-testimonial | #2828 | `marketing/contact/contact_form_testimonial.rs` |
 | feature-image-cards | #2765 | `marketing/feature/feature_image_cards.rs` |
 | feature-large-screenshot | #2766 | `marketing/feature/feature_large_screenshot.rs` |
 | contact-image-info | #2829 | `marketing/contact/contact_image_info.rs` |
+| feature-side-heading-grid | #2767 | `marketing/feature/feature_side_heading_grid.rs` |
 | feature-split-image | #2768 | `marketing/feature/feature_split_image.rs` |
 | contact-info-columns | #2830 | `marketing/contact/contact_info_columns.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-64 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+66 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を

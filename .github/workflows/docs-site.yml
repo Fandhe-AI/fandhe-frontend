@@ -235,6 +235,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-accordion-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-expand/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-alternating-rows/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-side-heading-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-image-cards/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-large-screenshot/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-split-image/index.html"
@@ -255,6 +256,7 @@ jobs:
           # Marketing / Faq
           # Marketing / Contact
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-dialog-form/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-form-testimonial/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-image-info/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-info-columns/index.html"
           # Marketing / Newsletter

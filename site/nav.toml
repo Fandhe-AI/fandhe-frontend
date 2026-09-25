@@ -1261,6 +1261,11 @@ source = "site/blocks/feature-large-screenshot.md"
 path = "/blocks/feature-large-screenshot/"
 
 [[section.group.page]]
+title = "feature-side-heading-grid"
+source = "site/blocks/feature-side-heading-grid.md"
+path = "/blocks/feature-side-heading-grid/"
+
+[[section.group.page]]
 title = "feature-split-image"
 source = "site/blocks/feature-split-image.md"
 path = "/blocks/feature-split-image/"
@@ -1321,6 +1326,11 @@ title = "Contact"
 title = "contact-dialog-form"
 source = "site/blocks/contact-dialog-form.md"
 path = "/blocks/contact-dialog-form/"
+
+[[section.group.page]]
+title = "contact-form-testimonial"
+source = "site/blocks/contact-form-testimonial.md"
+path = "/blocks/contact-form-testimonial/"
 
 [[section.group.page]]
 title = "contact-image-info"
