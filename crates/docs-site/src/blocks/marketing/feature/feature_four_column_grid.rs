@@ -75,6 +75,14 @@
 //! positioned 祖先である `card::root`（recipe 既定で `position: relative`
 //! を持つ）に解決される（`-link` 自体は `position` を持たない）ため、
 //! カード全体（`card::root` の padding box）が clickable になる。
+//! `border-radius` は継承プロパティではないため、`overlay` の
+//! `border-radius: inherit` は直接の親である `-link` の計算値をそのまま
+//! 引き継ぐ。`-link` 自身に `border-radius` の宣言がないと計算値は既定の
+//! `0`（未設定）になり、`card::root` の角丸がスクリーンリーダー非対象の
+//! `overlay`（＝フォーカスリング）まで伝播しない（codex P2 対応）。この
+//! ため `[data-blocks-feature-four-column-grid-link]` にも
+//! `border-radius: inherit` を与え、`card::root` → `-link` → `overlay` の
+//! 継承チェーンを繋いでいる。
 //!
 //! # `highlight` の使い方
 //!
@@ -436,7 +444,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-feature-four-column-grid-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-6);\n}\n\
 [data-blocks-feature-four-column-grid-card] {\n  position: relative;\n  height: 100%;\n}\n\
 [data-blocks-feature-four-column-grid-card-body] {\n  gap: var(--fandhe-space-3);\n}\n\
-[data-blocks-feature-four-column-grid-link] {\n  display: flex;\n  flex-direction: column;\n  flex: 1;\n}\n\
+[data-blocks-feature-four-column-grid-link] {\n  display: flex;\n  flex-direction: column;\n  flex: 1;\n  border-radius: inherit;\n}\n\
 [data-scope=\"link-overlay\"][data-part=\"overlay\"][data-blocks-feature-four-column-grid-overlay] {\n  position: absolute;\n  inset: 0;\n  z-index: 0;\n  border-radius: inherit;\n  cursor: pointer;\n}\n\
 [data-scope=\"link-overlay\"][data-part=\"overlay\"][data-blocks-feature-four-column-grid-overlay]:focus-visible {\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: var(--fandhe-focus-ring-offset, 2px);\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-four-column-grid-desc] {\n  margin: 0;\n}\n\
