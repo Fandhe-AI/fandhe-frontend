@@ -256,7 +256,9 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-overlay-cards/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-split-header-grid/index.html"
           # Marketing / Content
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/content-article-toc/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/content-columns-screenshot/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/content-image-tiles/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/content-split-image/index.html"
           # Marketing / Header
           # Marketing / Footer
@@ -274,6 +276,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-three-column-tall/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/bento-two-column/index.html"
           # Marketing / Comparison
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/comparison-feature-rows/index.html"
           # Marketing / Careers
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/careers-card-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/careers-split-accordion/index.html"
