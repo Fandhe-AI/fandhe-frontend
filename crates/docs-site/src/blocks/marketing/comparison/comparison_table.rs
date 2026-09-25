@@ -36,18 +36,23 @@
 //! ページ側が `## Demo` として `h2` を出すため、intro 領域の見出しは
 //! [`fandhe_frontend_pre_styled_ui::heading::HeadingLevel::H3`] にする
 //! （`comparison_cards` 等と同じ判断）。表のセル内には `heading` を置かない
-//! （列見出しは `<th>` そのものの意味論に任せる、下記「行見出しパーツが
-//! 無い」節参照）。
+//! （列見出しは `<th>` そのものの意味論に任せる、下記「行見出しに
+//! `row_header` を使う理由」節参照）。
 //!
-//! # 行見出しパーツが無い理由（`<th scope="row">` を使わない）
+//! # 行見出しに `row_header` を使う理由（`<th scope="row">`）
 //!
-//! [`fandhe_frontend_pre_styled_ui::table`] には行見出し用パーツ
-//! （`<th scope="row">`）が存在しない。[`fandhe_frontend_pre_styled_ui::
-//! table::column_header`] は `scope="col"` を固定で付与し、呼び出し側が
-//! `attrs` に `scope` を含めても `drop_reserved` により除去される契約
-//! （`table.rs` モジュール doc「セキュリティ不変条件」節）である。このため
-//! 機能名は [`fandhe_frontend_pre_styled_ui::table::cell`]（`<td>`）へ置き、
-//! 太字は [`LAYOUT_CSS`] のフックで付ける。
+//! 機能名（各行の見出し）は
+//! [`fandhe_frontend_pre_styled_ui::table::row_header`]（`<th scope="row">`、
+//! イシュー #2825 で `fandhe-frontend-pre-styled-ui` へ新設した専用パーツ、
+//! `table.rs` モジュール doc「`row-header` パーツ」節）へ置く。値セルと
+//! 同じく `<td>` へ置いていた旧実装では、スクリーンリーダー利用者が値セル
+//! 間を移動した際に列見出ししか読み上げられず「どの機能の可否・値か」が
+//! 判別できなかった（codex-review P1 指摘、AGENTS.md の UI 部品
+//! アクセシビリティ責務）。`row_header` は `scope="row"` を関数側で固定
+//! （呼び出し側 `attrs` に `scope` を含めても `drop_reserved` により除去
+//! される、[`fandhe_frontend_pre_styled_ui::table::column_header`] の
+//! `scope="col"` と対称の契約）するため、値セルとの意味論的な関連付けが
+//! 常に成立する。太字は [`LAYOUT_CSS`] のフックで付ける（変更なし）。
 //!
 //! # ロゴ相当のマーク（実在ブランドを模さない）
 //!
@@ -399,8 +404,12 @@ fn product_column_header(product: &Product, seed: usize) -> Node {
 /// 機能比較 1 行分（`table::row`）。`products` は列の `ours`/`theirs`
 /// フックを決めるためだけに使う（機能名列を除いた列数と `row.values` の
 /// 長さが一致する契約、ファイル内ユニットテストで固定）。
+///
+/// 機能名は `table::cell`（`<td>`）ではなく [`table::row_header`]
+/// （`<th scope="row">`）へ置く（モジュール doc「行見出しに `row_header` を
+/// 使う理由」節、イシュー #2825 codex-review P1 是正）。
 fn feature_table_row(row: &FeatureRow, products: &[Product]) -> Node {
-    let mut cells: Vec<Node> = vec![table::cell(
+    let mut cells: Vec<Node> = vec![table::row_header(
         vec![("data-blocks-comparison-table-feature", "")],
         vec![text(row.label)],
     )];
@@ -602,7 +611,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-comparison-table-table=\"three\"] {\n  min-width: 42rem;\n}\n\
 .blocks-comparison-table-col-head {\n  display: inline-flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n}\n\
 [data-scope=\"table\"][data-part=\"column-header\"][data-blocks-comparison-table-col],\n[data-scope=\"table\"][data-part=\"cell\"][data-blocks-comparison-table-col] {\n  text-align: center;\n}\n\
-[data-scope=\"table\"][data-part=\"cell\"][data-blocks-comparison-table-feature] {\n  text-align: left;\n  font-weight: 600;\n}\n\
+[data-scope=\"table\"][data-part=\"row-header\"][data-blocks-comparison-table-feature] {\n  text-align: left;\n  font-weight: 600;\n}\n\
 [data-scope=\"table\"][data-part=\"column-header\"][data-blocks-comparison-table-col=\"ours\"],\n[data-scope=\"table\"][data-part=\"cell\"][data-blocks-comparison-table-col=\"ours\"] {\n  background: var(--fandhe-color-accent-subtle);\n}\n\
 [data-scope=\"icon\"][data-part=\"root\"][data-blocks-comparison-table-value=\"excluded\"] {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-comparison-table-cta {\n  display: flex;\n  justify-content: center;\n}\n";
@@ -629,7 +638,8 @@ mod tests {
     }
 
     /// 2 列・3 列の両インスタンスの表が出力され、`<th scope="col">` の総数が
-    /// (1+2)+(1+3)=7 であること。
+    /// (1+2)+(1+3)=7、`<th scope="row">`（[`table::row_header`]、イシュー
+    /// #2825）の総数が機能行数の合計（4+4）=8 であること。
     #[test]
     fn demo_renders_two_and_three_column_tables() {
         let html = render(&demo());
@@ -644,6 +654,12 @@ mod tests {
             1
         );
         assert_eq!(html.matches(r#"scope="col""#).count(), 7);
+        assert_eq!(html.matches(r#"scope="row""#).count(), 8);
+        assert_eq!(
+            html.matches(r#"data-scope="table" data-part="row-header""#)
+                .count(),
+            8
+        );
     }
 
     /// 各インスタンスで本文行数 × 製品列数のセル数が一致すること

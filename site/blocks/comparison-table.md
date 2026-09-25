@@ -293,8 +293,12 @@ fn product_column_header(product: &Product, seed: usize) -> Node {
 /// 機能比較 1 行分（`table::row`）。`products` は列の `ours`/`theirs`
 /// フックを決めるためだけに使う（機能名列を除いた列数と `row.values` の
 /// 長さが一致する契約、ファイル内ユニットテストで固定）。
+///
+/// 機能名は `table::cell`（`<td>`）ではなく [`table::row_header`]
+/// （`<th scope="row">`）へ置く（モジュール doc「行見出しに `row_header` を
+/// 使う理由」節、イシュー #2825 codex-review P1 是正）。
 fn feature_table_row(row: &FeatureRow, products: &[Product]) -> Node {
-    let mut cells: Vec<Node> = vec![table::cell(
+    let mut cells: Vec<Node> = vec![table::row_header(
         vec![("data-blocks-comparison-table-feature", "")],
         vec![text(row.label)],
     )];
