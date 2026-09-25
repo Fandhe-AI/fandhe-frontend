@@ -237,6 +237,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-parallax-layers/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-prompt-input/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-search/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-social-proof/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-split-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-split-screenshot/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-terminal/index.html"

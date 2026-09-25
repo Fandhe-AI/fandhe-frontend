@@ -1263,6 +1263,11 @@ source = "site/blocks/hero-search.md"
 path = "/blocks/hero-search/"
 
 [[section.group.page]]
+title = "hero-social-proof"
+source = "site/blocks/hero-social-proof.md"
+path = "/blocks/hero-social-proof/"
+
+[[section.group.page]]
 title = "hero-split-image"
 source = "site/blocks/hero-split-image.md"
 path = "/blocks/hero-split-image/"
