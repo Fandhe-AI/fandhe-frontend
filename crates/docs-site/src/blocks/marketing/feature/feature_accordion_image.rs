@@ -329,7 +329,14 @@ pub const BLOCK: Block = Block {
 /// 各項目のインライン画像（`[data-blocks-feature-accordion-image-inline-
 /// image]`）を見せる。`@media (min-width: 48rem)` 以降は 2 列にし、右列を
 /// 見せてインライン画像を隠す（本ファイル末尾の `#[cfg(test)]` が
-/// `Breakpoint::Md` とのドリフトを検知する）。
+/// `Breakpoint::Md` とのドリフトを検知する）。インライン画像は
+/// `pre_styled_ui::image::image` の root 要素（`data-scope="image"
+/// data-part="root"`）そのものに `data-blocks-feature-accordion-image-
+/// inline-image` を併せ持たせているため、md+ で隠す規則は属性セレクタ
+/// 単体（詳細度 (0,1,0)）ではなく `[data-scope="image"][data-part="root"]`
+/// も併記した詳細度 (0,3,0) で書き、Image recipe の基底規則
+/// `[data-scope="image"][data-part="root"] { display: block }`（詳細度
+/// (0,2,0)）に確実に勝たせる（PR #3188 Bugbot 指摘で是正）。
 ///
 /// `disabled` による減光の中和（モジュール doc「静的アコーディオン」節）:
 /// `accordion::stylesheet` の `disabled_declarations()`（既定
@@ -358,7 +365,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-feature-accordion-image-trigger-label {\n  flex: 1;\n  min-width: 0;\n  font-weight: var(--fandhe-font-weight-medium, 500);\n}\n\
 .blocks-feature-accordion-image-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  padding-top: var(--fandhe-space-1);\n}\n\
 .blocks-feature-accordion-image-left [data-scope=\"accordion\"][data-part=\"item-trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-@media (min-width: 48rem) {\n  .blocks-feature-accordion-image-grid {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n    align-items: start;\n  }\n  .blocks-feature-accordion-image-media-slot {\n    display: block;\n    position: sticky;\n    top: var(--fandhe-space-4);\n  }\n  [data-blocks-feature-accordion-image-inline-image] {\n    display: none;\n  }\n}\n";
+@media (min-width: 48rem) {\n  .blocks-feature-accordion-image-grid {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n    align-items: start;\n  }\n  .blocks-feature-accordion-image-media-slot {\n    display: block;\n    position: sticky;\n    top: var(--fandhe-space-4);\n  }\n  [data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-accordion-image-inline-image] {\n    display: none;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {

@@ -5148,6 +5148,20 @@ fn feature_accordion_image_page_wires_demo_class_and_css_hooks() {
             "blocks.css should declare a rule for {needle}"
         );
     }
+    // md+ でインライン画像を隠す規則は、Image recipe の基底規則
+    // `[data-scope="image"][data-part="root"] { display: block }`
+    // （詳細度 (0,2,0)）に必ず勝つ詳細度で書く必要がある。scope/part
+    // 属性を併記しない `[data-blocks-feature-accordion-image-inline-image]`
+    // 単体（詳細度 (0,1,0)）では負けて desktop でも表示され続けてしまう
+    // （PR #3188 Bugbot 指摘の回帰防止）。
+    assert!(
+        sheet_css.contains(
+            "[data-scope=\"image\"][data-part=\"root\"]\
+             [data-blocks-feature-accordion-image-inline-image] {\n    display: none;\n  }"
+        ),
+        "blocks.css should hide the inline image on md+ with a selector that outranks \
+         the Image recipe's [data-scope=\"image\"][data-part=\"root\"] base rule"
+    );
 }
 
 /// cta-split-image の Demo ラッパ・CSS 配線・block 固有 CSS（lg
