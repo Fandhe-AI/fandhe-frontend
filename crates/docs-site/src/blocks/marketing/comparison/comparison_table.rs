@@ -593,7 +593,7 @@ pub const BLOCK: Block = Block {
 /// `column-header`/`cell` base 規則に詳細度で勝つため、モジュール doc
 /// 「自社列の強調」節参照）。
 const LAYOUT_CSS: &str = "\
-[data-blocks-comparison-table-root] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-12);\n}\n\
+.blocks-comparison-table-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-12);\n}\n\
 [data-blocks-comparison-table-instance] {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-comparison-table-intro {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  text-align: center;\n  max-width: 36rem;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-comparison-table-lead] {\n  margin: 0;\n}\n\
@@ -705,5 +705,20 @@ mod tests {
             r#"[data-scope="table"][data-part="column-header"][data-blocks-comparison-table-col="ours"],"#
         ));
         assert!(LAYOUT_CSS.contains("background: var(--fandhe-color-accent-subtle);"));
+    }
+
+    /// [`LAYOUT_CSS`] のルート規則（2 インスタンス間の縦方向ギャップ）が、
+    /// `demo()` が実際に出力するルート class（`.blocks-comparison-table-layout`）
+    /// をセレクタとして参照していること。属性セレクタ
+    /// （`[data-blocks-comparison-table-root]`）へ誤って書くと、
+    /// その属性がどこにも出力されないため常にマッチしない死んだ CSS
+    /// ルールになる（レビュー指摘、`comparison_cards` と同じクラス
+    /// セレクタ方式に統一する）。
+    #[test]
+    fn layout_css_root_rule_matches_demo_root_class() {
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-comparison-table-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-12);\n}"
+        ));
+        assert!(!LAYOUT_CSS.contains("[data-blocks-comparison-table-root]"));
     }
 }
