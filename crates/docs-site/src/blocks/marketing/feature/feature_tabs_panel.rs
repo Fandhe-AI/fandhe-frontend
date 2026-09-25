@@ -20,13 +20,21 @@
 //! `parts` に載せ、#2773 が追加する `card`/`icon`/`button`/`progress` は
 //! そのイシューで `parts` へ追記する）。
 //!
-//! # 無 JS での扱い（初期タブ固定）
+//! # 無 JS での扱い（全パネルを可視の複数インスタンスとして併記）
 //!
-//! docs サイトは JS ハイドレーションを行わないため、`tabs::tabs` が headless
+//! docs サイトは JS ハイドレーションを行わないため、`tabs::tabs` は headless
 //! 層のロジックに従い選択されていないパネルへ `hidden` を付与した状態で
-//! 静的に描画する。初期タブ（[`PANELS`] の先頭）を選択済みとして固定し、
-//! それ以外のタブは trigger だけが見える（`pricing_tiers_morph` と同型の
-//! 判断）。
+//! 静的に描画する。単一インスタンスで初期タブだけを固定表示すると、残り
+//! 3 パネルの内容は静的ページ上で一切読めなくなる（クリック・キーボード
+//! 操作をしても JS 未配線のため表示が変わらない）。これを避けるため
+//! `pricing_tiers_morph`（2 状態: 月額/年額）・`sidebar_07`
+//! （2 状態: expanded/collapsed）と同型の対処として、[`PANELS`] の要素数
+//! （4 件）ぶんの `tabs::tabs` インスタンスを縦に並べ、インスタンスごとに
+//! 異なる `selected` を指定する。これにより各パネルの本文は必ずいずれか
+//! 1 個のインスタンスで `hidden` なしの可視状態として静的 HTML に現れる
+//! （tab バー自体は 4 回繰り返されるが、trigger 集合はどのインスタンスも
+//! 同一であり、キャプション（[`variant_label`] 相当の短文）で「どのタブを
+//! 選択した状態か」を示す）。
 //!
 //! # id 規約（重複 id 検知テストへの対応）
 //!
@@ -35,8 +43,13 @@
 //! 相互参照するため、本 block は他の block と異なり id を持つ（`tabs` を
 //! 使わない block の「id は一切使わない」方針の例外）。id の基底は
 //! `blocks-feature-tabs-panel-<形の接尾辞>` に統一し、本イシューでは
-//! `-basic` のみを使う。#2773 が追加するインスタンスは別接尾辞（`-pill`
-//! 等）を使い、衝突を構造的に避ける。value は ASCII kebab-case とする。
+//! `-basic` のみを使う。上記の複数インスタンス化に伴い、`-basic` 接尾辞の
+//! 中でさらにインスタンスごとの識別子（[`PanelData::instance_id`]、
+//! `-basic-design`/`-basic-integration`/`-basic-operations`/
+//! `-basic-analytics` の 4 個。`id: &'static str` のため呼び出し箇所ごとの
+//! リテラルとして持ち、`format!` によるテーブル変換は行わない）を持つ。
+//! #2773 が追加するインスタンスは別接尾辞（`-pill` 等）を使い、衝突を
+//! 構造的に避ける。value は ASCII kebab-case とする。
 //! `crates/docs-site/tests/blocks_contract.rs::
 //! demo_output_has_no_dangling_aria_references_or_duplicate_ids` が id の
 //! 重複・参照先欠落を検知する。
@@ -107,13 +120,17 @@ use fandhe_frontend_pre_styled_ui::tabs::{
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
-/// 基準形（R1158）1 タブ分のデータ（架空文言）。
+/// 基準形（R1158）1 タブ分のデータ（架空文言）。`instance_id` は本パネルを
+/// 選択済みとして描画する `tabs::tabs` インスタンスの `TabsProps.id`
+/// （モジュール doc「無 JS での扱い」「id 規約」節参照。`-basic` 接尾辞の
+/// 中でパネルごとに一意な識別子を持つ）。
 struct PanelData {
     value: &'static str,
     label: &'static str,
     title: &'static str,
     body: &'static str,
     image_src: &'static str,
+    instance_id: &'static str,
 }
 
 /// 基準形の 4 タブ分（#2773 が追加する形もこの配列を再利用できる）。
@@ -124,6 +141,7 @@ const PANELS: [PanelData; 4] = [
         title: "型で不変条件を保証する設計",
         body: "コンポーネント境界と状態遷移を型で表現し、実行時ではなくコンパイル時に誤りを検出します。",
         image_src: dummy_assets::SCREENSHOT_SRC,
+        instance_id: "blocks-feature-tabs-panel-basic-design",
     },
     PanelData {
         value: "integration",
@@ -131,6 +149,7 @@ const PANELS: [PanelData; 4] = [
         title: "既存システムへの段階的な組み込み",
         body: "部分埋め込みからフル機能構成まで、必要な範囲だけを選んで既存ページへ組み込めます。",
         image_src: dummy_assets::PRODUCT_SRC,
+        instance_id: "blocks-feature-tabs-panel-basic-integration",
     },
     PanelData {
         value: "operations",
@@ -138,6 +157,7 @@ const PANELS: [PanelData; 4] = [
         title: "単一実行ファイルでの安定運用",
         body: "サーバーとアセットをひとまとめにし、Docker イメージ 1 枚で決定的にデプロイできます。",
         image_src: dummy_assets::BACKGROUND_SRC,
+        instance_id: "blocks-feature-tabs-panel-basic-operations",
     },
     PanelData {
         value: "analytics",
@@ -145,6 +165,7 @@ const PANELS: [PanelData; 4] = [
         title: "ビルド成果物の可視化",
         body: "依存グラフとバンドルサイズを継続的に計測し、変化を CI 上で追跡できます。",
         image_src: dummy_assets::LOGO_SRC,
+        instance_id: "blocks-feature-tabs-panel-basic-analytics",
     },
 ];
 
@@ -270,28 +291,44 @@ fn tabs_panel(id: &'static str, variant: TabsVariant, selected: &'static str) ->
 }
 
 /// 基準形（R1158）: 見出し + 下線タブ（[`TabsVariant::Line`]）+
-/// テキスト/画像パネル。
+/// テキスト/画像パネル。docs サイトは JS ハイドレーションを行わないため
+/// （モジュール doc「無 JS での扱い」節）、[`PANELS`] の要素数ぶんの
+/// `tabs::tabs` インスタンスをキャプション付きで縦に並べ、パネルごとに
+/// 異なる `selected` を指定する。これにより 4 パネルすべての本文が
+/// `hidden` なしの可視状態でいずれかのインスタンスに現れる
+/// （`pricing_tiers_morph`/`sidebar_07` と同型の対処）。
 fn variant_basic() -> Node {
+    let mut children = vec![section_header(
+        "機能紹介",
+        "タブで切り替える機能セクション",
+        "見出しの下にタブを並べ、選んだタブの内容だけを表示します。",
+    )];
+    for panel in &PANELS {
+        children.push(styled_text::text(
+            &TextProps {
+                size: TextSize::Sm,
+                variant: TextVariant::Muted,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text(format!("「{}」タブを選択した状態", panel.label))],
+        ));
+        children.push(tabs_panel(
+            panel.instance_id,
+            TabsVariant::Line,
+            panel.value,
+        ));
+    }
     div(
         vec![("class", "blocks-feature-tabs-panel-variant")],
-        vec![
-            section_header(
-                "機能紹介",
-                "タブで切り替える機能セクション",
-                "見出しの下にタブを並べ、選んだタブの内容だけを表示します。",
-            ),
-            tabs_panel(
-                "blocks-feature-tabs-panel-basic",
-                TabsVariant::Line,
-                PANELS[0].value,
-            ),
-        ],
+        children,
     )
 }
 
 /// `feature-tabs-panel` の Demo 本体。呼び出しごとに同一の `Node` を返す
 /// 純関数（本イシューでは基準形 1 件のみを並べる。#2773 がこの配下へ
-/// 追加の形・複数インスタンスの並記を続ける）。
+/// 追加の形の並記を続ける）。基準形自体は無 JS 対応のため 4 インスタンス
+/// （[`variant_basic`] 参照）を内包する。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-feature-tabs-panel-layout")],
@@ -389,27 +426,70 @@ mod tests {
         }
     }
 
-    /// 選択中タブがちょうど 1 件で、残りは `hidden` を持つこと（無 JS
-    /// 固定表示の不変条件）。
+    /// 4 インスタンス（[`super::PANELS`] の要素数ぶん）それぞれで選択中
+    /// タブがちょうど 1 件・残り 3 件は `hidden` を持つこと（複数インスタンス
+    /// 併記による無 JS 対応の不変条件、モジュール doc「無 JS での扱い」節）。
     #[test]
-    fn exactly_one_trigger_is_active_and_others_are_hidden() {
+    fn each_instance_has_exactly_one_active_trigger_and_hides_the_rest() {
         let html = render(&demo());
-        assert_eq!(html.matches("aria-selected=\"true\"").count(), 1);
-        assert_eq!(
-            html.matches("data-part=\"trigger\"").count(),
-            html.matches("aria-selected=\"false\"").count() + 1
-        );
-        assert_eq!(html.matches("data-part=\"content\"").count(), 4);
-        assert_eq!(html.matches(" hidden").count(), 3);
+        // 4 インスタンス × 4 trigger = 16、選択中は各インスタンス 1 件で計 4。
+        assert_eq!(html.matches("data-part=\"trigger\"").count(), 16);
+        assert_eq!(html.matches("aria-selected=\"true\"").count(), 4);
+        assert_eq!(html.matches("aria-selected=\"false\"").count(), 12);
+        // 4 インスタンス × 4 content = 16、非選択は各インスタンス 3 件で計 12。
+        assert_eq!(html.matches("data-part=\"content\"").count(), 16);
+        assert_eq!(html.matches(" hidden").count(), 12);
     }
 
-    /// id の接頭辞がすべて `blocks-feature-tabs-panel-` であること
-    /// （重複 id 検知テストへの対応、モジュール doc「id 規約」節）。
+    /// 全パネルの本文見出しが、少なくとも 1 インスタンスでは `hidden`
+    /// なしの可視状態として静的 HTML に現れること（codex P1 指摘の回帰
+    /// テスト: 単一インスタンス固定表示だと選択中以外のパネル本文が
+    /// 静的ページから一切読めなくなっていた不具合の再発防止）。
     #[test]
-    fn ids_use_the_expected_prefix() {
+    fn every_panel_title_is_visible_in_at_least_one_instance() {
         let html = render(&demo());
-        assert!(html.contains("id=\"blocks-feature-tabs-panel-basic-trigger-design\""));
-        assert!(html.contains("id=\"blocks-feature-tabs-panel-basic-content-design\""));
+        for panel in &super::PANELS {
+            let content_marker = format!("id=\"{}-content-{}\"", panel.instance_id, panel.value);
+            let content_start = html
+                .find(&content_marker)
+                .unwrap_or_else(|| panic!("missing content element for {}", panel.value));
+            // 当該 content 要素の開始タグ内（次の `>` まで）に hidden が
+            // 無いことを確認する（同じタグ内の他属性を誤検知しないため、
+            // タグの範囲だけを見る）。
+            let tag_end = html[content_start..]
+                .find('>')
+                .map(|i| content_start + i)
+                .unwrap_or(html.len());
+            assert!(
+                !html[content_start..tag_end].contains("hidden"),
+                "expected a visible (non-hidden) content element for panel {}",
+                panel.value
+            );
+            assert!(
+                html.contains(panel.title),
+                "expected panel title {:?} to appear in demo output",
+                panel.title
+            );
+        }
+    }
+
+    /// id の接頭辞がすべて `blocks-feature-tabs-panel-basic-` であり、
+    /// 4 インスタンス分の識別子（[`super::PanelData::instance_id`]）が
+    /// 重複なく現れること（重複 id 検知テストへの対応、モジュール doc
+    /// 「id 規約」節）。
+    #[test]
+    fn ids_use_the_expected_prefix_for_every_instance() {
+        let html = render(&demo());
+        for panel in &super::PANELS {
+            assert!(html.contains(&format!(
+                "id=\"{}-trigger-{}\"",
+                panel.instance_id, panel.value
+            )));
+            assert!(html.contains(&format!(
+                "id=\"{}-content-{}\"",
+                panel.instance_id, panel.value
+            )));
+        }
     }
 
     /// [`LAYOUT_CSS`] が想定するタブ列の横スクロール・lg ブレークポイント・

@@ -3,8 +3,12 @@
 `badge` / `heading` / `text` / `tabs` / `image` の 5 部品を合成した、
 タブで切り替える feature セクションです。見出しの下に下線タブ
 （`TabsVariant::Line`）を並べ、選んだタブのパネルだけにテキストと画像を
-表示します。docs サイトは JS ハイドレーションを行わないため、初期タブを
-選択済みに固定した静的な描画にしています。
+表示します。docs サイトは JS ハイドレーションを行わないため、選択中の
+パネル以外は `tabs` が `hidden` を付けて静的に描画します。単一インスタンス
+だけを固定表示すると残りのパネルの内容が一切読めなくなるため、パネルの
+数だけ `tabs` インスタンスを選択状態違いでキャプション付きに縦へ並べ、
+すべてのパネル本文がいずれかのインスタンスで可視のまま静的 HTML に
+現れるようにしています。
 
 文言はすべて架空のもので、データ取得・送信は行わない静的な表示例です。
 `<form>` は使用しません。
@@ -25,13 +29,17 @@ use fandhe_frontend_pre_styled_ui::tabs::{
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
-/// 基準形（R1158）1 タブ分のデータ（架空文言）。
+/// 基準形（R1158）1 タブ分のデータ（架空文言）。`instance_id` は本パネルを
+/// 選択済みとして描画する `tabs::tabs` インスタンスの `TabsProps.id`
+/// （モジュール doc「無 JS での扱い」「id 規約」節参照。`-basic` 接尾辞の
+/// 中でパネルごとに一意な識別子を持つ）。
 struct PanelData {
     value: &'static str,
     label: &'static str,
     title: &'static str,
     body: &'static str,
     image_src: &'static str,
+    instance_id: &'static str,
 }
 
 /// 基準形の 4 タブ分（#2773 が追加する形もこの配列を再利用できる）。
@@ -42,6 +50,7 @@ const PANELS: [PanelData; 4] = [
         title: "型で不変条件を保証する設計",
         body: "コンポーネント境界と状態遷移を型で表現し、実行時ではなくコンパイル時に誤りを検出します。",
         image_src: dummy_assets::SCREENSHOT_SRC,
+        instance_id: "blocks-feature-tabs-panel-basic-design",
     },
     PanelData {
         value: "integration",
@@ -49,6 +58,7 @@ const PANELS: [PanelData; 4] = [
         title: "既存システムへの段階的な組み込み",
         body: "部分埋め込みからフル機能構成まで、必要な範囲だけを選んで既存ページへ組み込めます。",
         image_src: dummy_assets::PRODUCT_SRC,
+        instance_id: "blocks-feature-tabs-panel-basic-integration",
     },
     PanelData {
         value: "operations",
@@ -56,6 +66,7 @@ const PANELS: [PanelData; 4] = [
         title: "単一実行ファイルでの安定運用",
         body: "サーバーとアセットをひとまとめにし、Docker イメージ 1 枚で決定的にデプロイできます。",
         image_src: dummy_assets::BACKGROUND_SRC,
+        instance_id: "blocks-feature-tabs-panel-basic-operations",
     },
     PanelData {
         value: "analytics",
@@ -63,6 +74,7 @@ const PANELS: [PanelData; 4] = [
         title: "ビルド成果物の可視化",
         body: "依存グラフとバンドルサイズを継続的に計測し、変化を CI 上で追跡できます。",
         image_src: dummy_assets::LOGO_SRC,
+        instance_id: "blocks-feature-tabs-panel-basic-analytics",
     },
 ];
 
@@ -188,28 +200,44 @@ fn tabs_panel(id: &'static str, variant: TabsVariant, selected: &'static str) ->
 }
 
 /// 基準形（R1158）: 見出し + 下線タブ（[`TabsVariant::Line`]）+
-/// テキスト/画像パネル。
+/// テキスト/画像パネル。docs サイトは JS ハイドレーションを行わないため
+/// （モジュール doc「無 JS での扱い」節）、[`PANELS`] の要素数ぶんの
+/// `tabs::tabs` インスタンスをキャプション付きで縦に並べ、パネルごとに
+/// 異なる `selected` を指定する。これにより 4 パネルすべての本文が
+/// `hidden` なしの可視状態でいずれかのインスタンスに現れる
+/// （`pricing_tiers_morph`/`sidebar_07` と同型の対処）。
 fn variant_basic() -> Node {
+    let mut children = vec![section_header(
+        "機能紹介",
+        "タブで切り替える機能セクション",
+        "見出しの下にタブを並べ、選んだタブの内容だけを表示します。",
+    )];
+    for panel in &PANELS {
+        children.push(styled_text::text(
+            &TextProps {
+                size: TextSize::Sm,
+                variant: TextVariant::Muted,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text(format!("「{}」タブを選択した状態", panel.label))],
+        ));
+        children.push(tabs_panel(
+            panel.instance_id,
+            TabsVariant::Line,
+            panel.value,
+        ));
+    }
     div(
         vec![("class", "blocks-feature-tabs-panel-variant")],
-        vec![
-            section_header(
-                "機能紹介",
-                "タブで切り替える機能セクション",
-                "見出しの下にタブを並べ、選んだタブの内容だけを表示します。",
-            ),
-            tabs_panel(
-                "blocks-feature-tabs-panel-basic",
-                TabsVariant::Line,
-                PANELS[0].value,
-            ),
-        ],
+        children,
     )
 }
 
 /// `feature-tabs-panel` の Demo 本体。呼び出しごとに同一の `Node` を返す
 /// 純関数（本イシューでは基準形 1 件のみを並べる。#2773 がこの配下へ
-/// 追加の形・複数インスタンスの並記を続ける）。
+/// 追加の形の並記を続ける）。基準形自体は無 JS 対応のため 4 インスタンス
+/// （[`variant_basic`] 参照）を内包する。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-feature-tabs-panel-layout")],
@@ -237,8 +265,10 @@ pub fn demo() -> Node {
   `## Demo` として `h2` を出すため）。
 - 画像は `dummy_assets` のプレースホルダー + `alt=""`（装飾扱い）を使用し、
   実在のブランド・人物・企業とは無関係の架空データです。
-- 無 JS 制約に従い、初期タブ（先頭の「設計」）を選択済みに固定した静的な
-  描画にしました。
+- 無 JS 制約に従い、パネル数（4 件）ぶんの `tabs` インスタンスを選択状態
+  違いでキャプション付きに縦へ並べました。単一インスタンスだけを初期タブ
+  固定で描画すると、非選択の 3 パネルは `hidden` のまま静的ページから
+  一切読めなくなるため（`pricing_tiers_morph`/`sidebar_07` と同型の対処）。
 
 関連部品: [Badge](../themes/badge.md) / [Heading](../themes/heading.md) /
 [Text](../themes/text.md) / [Tabs](../themes/tabs.md) /
