@@ -20,21 +20,25 @@
 //! `parts` に載せ、#2773 が追加する `card`/`icon`/`button`/`progress` は
 //! そのイシューで `parts` へ追記する）。
 //!
-//! # 無 JS での扱い（全パネルを可視の複数インスタンスとして併記）
+//! # 無 JS での扱い（実物の `tabs` は 1 個のみ・残りは非対話プレビュー）
 //!
 //! docs サイトは JS ハイドレーションを行わないため、`tabs::tabs` は headless
 //! 層のロジックに従い選択されていないパネルへ `hidden` を付与した状態で
-//! 静的に描画する。単一インスタンスで初期タブだけを固定表示すると、残り
-//! 3 パネルの内容は静的ページ上で一切読めなくなる（クリック・キーボード
-//! 操作をしても JS 未配線のため表示が変わらない）。これを避けるため
-//! `pricing_tiers_morph`（2 状態: 月額/年額）・`sidebar_07`
-//! （2 状態: expanded/collapsed）と同型の対処として、[`PANELS`] の要素数
-//! （4 件）ぶんの `tabs::tabs` インスタンスを縦に並べ、インスタンスごとに
-//! 異なる `selected` を指定する。これにより各パネルの本文は必ずいずれか
-//! 1 個のインスタンスで `hidden` なしの可視状態として静的 HTML に現れる
-//! （tab バー自体は 4 回繰り返されるが、trigger 集合はどのインスタンスも
-//! 同一であり、キャプション（[`variant_label`] 相当の短文）で「どのタブを
-//! 選択した状態か」を示す）。
+//! 静的に描画する。当初は [`PANELS`] の要素数（4 件）ぶんの `tabs::tabs`
+//! インスタンスを選択状態違いで縦に並べていた（`pricing_tiers_morph`/
+//! `sidebar_07` と同型の対処）が、この構成は `role="tab"`/`type="button"`/
+//! `tabindex` を持つ操作可能に見えるトリガーボタンを 4 インスタンス
+//! （計 16 個）反復して出しながら、クリック・キーボード操作をしても実際
+//! には一切切り替わらない（Codex P1 指摘、`docs/design/
+//! docs-site-blocks-section.md` §19 参照）。これは UI のアクセシビリティ
+//! 契約に反するため、実物の `tabs::tabs`（他の Themes 部品ページの Demo と
+//! 同じ「静的プレビュー」慣習に従う、操作できないこと自体は無 JS サイト
+//! 全体で共通の既知の制約）は [`PANELS`] の先頭（`design`）を選択済みとした
+//! **1 個だけ**を描画する。残り 3 パネルの内容は、`tabs` コンポーネントを
+//! 複製せず（`role="tab"`/`tabindex`/`<button>` を一切持たない）見出し
+//! キャプション付きの非対話表示（[`panel_state_preview`]）として静的に
+//! 併記し、全パネル本文が `hidden` を経由せず常に可視のまま静的 HTML に
+//! 現れるようにする。
 //!
 //! # id 規約（重複 id 検知テストへの対応）
 //!
@@ -43,14 +47,12 @@
 //! 相互参照するため、本 block は他の block と異なり id を持つ（`tabs` を
 //! 使わない block の「id は一切使わない」方針の例外）。id の基底は
 //! `blocks-feature-tabs-panel-<形の接尾辞>` に統一し、本イシューでは
-//! `-basic` のみを使う。上記の複数インスタンス化に伴い、`-basic` 接尾辞の
-//! 中でさらにインスタンスごとの識別子（[`PanelData::instance_id`]、
-//! `-basic-design`/`-basic-integration`/`-basic-operations`/
-//! `-basic-analytics` の 4 個。`id: &'static str` のため呼び出し箇所ごとの
-//! リテラルとして持ち、`format!` によるテーブル変換は行わない）を持つ。
-//! #2773 が追加するインスタンスは別接尾辞（`-pill` 等）を使い、衝突を
-//! 構造的に避ける。value は ASCII kebab-case とする。
-//! `crates/docs-site/tests/blocks_contract.rs::
+//! `-basic` のみを使う。実物の `tabs::tabs` インスタンスは（上記「無 JS
+//! での扱い」節のとおり）1 個だけのため、インスタンスごとの識別子の
+//! テーブルは持たない（[`panel_state_preview`] の非対話プレビューは
+//! `tabs` を使わないため id を持たない）。#2773 が追加するインスタンスは
+//! 別接尾辞（`-pill` 等）を使い、衝突を構造的に避ける。value は ASCII
+//! kebab-case とする。`crates/docs-site/tests/blocks_contract.rs::
 //! demo_output_has_no_dangling_aria_references_or_duplicate_ids` が id の
 //! 重複・参照先欠落を検知する。
 //!
@@ -69,6 +71,14 @@
 //!   閉じ込める（モバイルでのタブ列横スクロール）。`padding-bottom: 1px` は
 //!   trigger の下線用 `margin-bottom: -1px` がスクロール領域の境界で
 //!   クリップされる分を吸収する。
+//! - `[data-part="trigger"]` の `margin-bottom` を pre-styled-ui 既定の
+//!   `-1px` から `-2px` へ上書きする（Bugbot Low 指摘の是正）。`list` の
+//!   `padding-bottom: 1px`（直前の箇条書き）は `list` の下端（＝下線を
+//!   重ねたい `border-bottom: 1px` の位置）を 1px 押し下げるため、
+//!   `trigger` 側の重ね量を素の `-1px` のままにすると選択中トリガーの
+//!   2px 下線が `list` の 1px 罫線と重ならず 3px の二重線に見えてしまう。
+//!   `padding-bottom` が押し下げた 1px 分を追加で相殺し、選択中トリガーの
+//!   下線を `list` の罫線へ正しく重ねる。
 //! - `[data-part="trigger"]:focus-visible` の `outline-offset` を負値にし、
 //!   スクロール領域の外側へ張り出すフォーカスリングがクリップされるのを
 //!   防ぐ（内側に描く）。
@@ -120,17 +130,13 @@ use fandhe_frontend_pre_styled_ui::tabs::{
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
-/// 基準形（R1158）1 タブ分のデータ（架空文言）。`instance_id` は本パネルを
-/// 選択済みとして描画する `tabs::tabs` インスタンスの `TabsProps.id`
-/// （モジュール doc「無 JS での扱い」「id 規約」節参照。`-basic` 接尾辞の
-/// 中でパネルごとに一意な識別子を持つ）。
+/// 基準形（R1158）1 タブ分のデータ（架空文言）。
 struct PanelData {
     value: &'static str,
     label: &'static str,
     title: &'static str,
     body: &'static str,
     image_src: &'static str,
-    instance_id: &'static str,
 }
 
 /// 基準形の 4 タブ分（#2773 が追加する形もこの配列を再利用できる）。
@@ -141,7 +147,6 @@ const PANELS: [PanelData; 4] = [
         title: "型で不変条件を保証する設計",
         body: "コンポーネント境界と状態遷移を型で表現し、実行時ではなくコンパイル時に誤りを検出します。",
         image_src: dummy_assets::SCREENSHOT_SRC,
-        instance_id: "blocks-feature-tabs-panel-basic-design",
     },
     PanelData {
         value: "integration",
@@ -149,7 +154,6 @@ const PANELS: [PanelData; 4] = [
         title: "既存システムへの段階的な組み込み",
         body: "部分埋め込みからフル機能構成まで、必要な範囲だけを選んで既存ページへ組み込めます。",
         image_src: dummy_assets::PRODUCT_SRC,
-        instance_id: "blocks-feature-tabs-panel-basic-integration",
     },
     PanelData {
         value: "operations",
@@ -157,7 +161,6 @@ const PANELS: [PanelData; 4] = [
         title: "単一実行ファイルでの安定運用",
         body: "サーバーとアセットをひとまとめにし、Docker イメージ 1 枚で決定的にデプロイできます。",
         image_src: dummy_assets::BACKGROUND_SRC,
-        instance_id: "blocks-feature-tabs-panel-basic-operations",
     },
     PanelData {
         value: "analytics",
@@ -165,7 +168,6 @@ const PANELS: [PanelData; 4] = [
         title: "ビルド成果物の可視化",
         body: "依存グラフとバンドルサイズを継続的に計測し、変化を CI 上で追跡できます。",
         image_src: dummy_assets::LOGO_SRC,
-        instance_id: "blocks-feature-tabs-panel-basic-analytics",
     },
 ];
 
@@ -290,34 +292,53 @@ fn tabs_panel(id: &'static str, variant: TabsVariant, selected: &'static str) ->
     )
 }
 
+/// 残り 3 パネル（[`PANELS`] の先頭以外）を、`tabs::tabs` を複製せず
+/// 見出しキャプション付きの非対話表示として静的に併記する（モジュール doc
+/// 「無 JS での扱い」節参照。Codex P1 指摘の是正: 操作可能に見えて実際には
+/// 切り替わらないトリガーボタン〔`role="tab"`/`type="button"`/`tabindex`〕
+/// を反復して出さない）。`panel_row` を直接呼ぶだけで `tabs::tabs`/
+/// `ANATOMY` を一切経由しないため、`role`/`tabindex`/`<button>` を持たない。
+fn panel_state_preview(data: &PanelData) -> Node {
+    let mut children = vec![styled_text::text(
+        &TextProps {
+            size: TextSize::Sm,
+            variant: TextVariant::Muted,
+            ..TextProps::default()
+        },
+        vec![],
+        vec![text(format!(
+            "「{}」タブを選択した場合のプレビュー",
+            data.label
+        ))],
+    )];
+    children.extend(panel_row(data));
+    div(
+        vec![("class", "blocks-feature-tabs-panel-preview")],
+        children,
+    )
+}
+
 /// 基準形（R1158）: 見出し + 下線タブ（[`TabsVariant::Line`]）+
 /// テキスト/画像パネル。docs サイトは JS ハイドレーションを行わないため
-/// （モジュール doc「無 JS での扱い」節）、[`PANELS`] の要素数ぶんの
-/// `tabs::tabs` インスタンスをキャプション付きで縦に並べ、パネルごとに
-/// 異なる `selected` を指定する。これにより 4 パネルすべての本文が
-/// `hidden` なしの可視状態でいずれかのインスタンスに現れる
-/// （`pricing_tiers_morph`/`sidebar_07` と同型の対処）。
+/// （モジュール doc「無 JS での扱い」節）、実物の `tabs::tabs`（[`PANELS`]
+/// 先頭の `design` を選択済みとする 1 個だけ）を描画したあと、残り 3
+/// パネルは [`panel_state_preview`] による非対話プレビューとして併記する。
+/// これにより 4 パネルすべての本文が常に可視のまま静的 HTML に現れる。
 fn variant_basic() -> Node {
-    let mut children = vec![section_header(
-        "機能紹介",
-        "タブで切り替える機能セクション",
-        "見出しの下にタブを並べ、選んだタブの内容だけを表示します。",
-    )];
-    for panel in &PANELS {
-        children.push(styled_text::text(
-            &TextProps {
-                size: TextSize::Sm,
-                variant: TextVariant::Muted,
-                ..TextProps::default()
-            },
-            vec![],
-            vec![text(format!("「{}」タブを選択した状態", panel.label))],
-        ));
-        children.push(tabs_panel(
-            panel.instance_id,
+    let mut children = vec![
+        section_header(
+            "機能紹介",
+            "タブで切り替える機能セクション",
+            "見出しの下にタブを並べ、選んだタブの内容だけを表示します。",
+        ),
+        tabs_panel(
+            "blocks-feature-tabs-panel-basic",
             TabsVariant::Line,
-            panel.value,
-        ));
+            PANELS[0].value,
+        ),
+    ];
+    for panel in &PANELS[1..] {
+        children.push(panel_state_preview(panel));
     }
     div(
         vec![("class", "blocks-feature-tabs-panel-variant")],
@@ -327,8 +348,9 @@ fn variant_basic() -> Node {
 
 /// `feature-tabs-panel` の Demo 本体。呼び出しごとに同一の `Node` を返す
 /// 純関数（本イシューでは基準形 1 件のみを並べる。#2773 がこの配下へ
-/// 追加の形の並記を続ける）。基準形自体は無 JS 対応のため 4 インスタンス
-/// （[`variant_basic`] 参照）を内包する。
+/// 追加の形の並記を続ける）。基準形自体は無 JS 対応のため、実物の
+/// `tabs::tabs` は 1 個のみで残りは非対話プレビュー（[`variant_basic`]
+/// 参照）。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-feature-tabs-panel-layout")],
@@ -385,10 +407,13 @@ const LAYOUT_CSS: &str = "\
 .blocks-feature-tabs-panel-variant {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-feature-tabs-panel-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  align-items: start;\n  max-width: 40rem;\n}\n\
 .blocks-feature-tabs-panel-layout [data-scope=\"tabs\"][data-part=\"list\"] {\n  overflow-x: auto;\n  overflow-y: hidden;\n  padding-bottom: 1px;\n}\n\
+.blocks-feature-tabs-panel-layout [data-scope=\"tabs\"][data-part=\"trigger\"] {\n  margin-bottom: -2px;\n}\n\
 .blocks-feature-tabs-panel-layout [data-scope=\"tabs\"][data-part=\"trigger\"]:focus-visible {\n  outline-offset: calc(-1 * var(--fandhe-focus-ring-width, 2px));\n}\n\
 .blocks-feature-tabs-panel-layout [data-scope=\"tabs\"][data-part=\"content\"] {\n  padding: 0;\n}\n\
 .blocks-feature-tabs-panel-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  padding-top: var(--fandhe-space-6);\n}\n\
 .blocks-feature-tabs-panel-copy {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  min-width: 0;\n}\n\
+.blocks-feature-tabs-panel-preview {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
+.blocks-feature-tabs-panel-preview .blocks-feature-tabs-panel-row {\n  padding-top: 0;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-tabs-panel-image] {\n  display: block;\n  width: 100%;\n}\n\
 @media (min-width: 64rem) {\n  \
 .blocks-feature-tabs-panel-row {\n    display: grid;\n    grid-template-columns: repeat(12, minmax(0, 1fr));\n    column-gap: var(--fandhe-space-10);\n    align-items: center;\n  }\n  \
@@ -426,45 +451,70 @@ mod tests {
         }
     }
 
-    /// 4 インスタンス（[`super::PANELS`] の要素数ぶん）それぞれで選択中
-    /// タブがちょうど 1 件・残り 3 件は `hidden` を持つこと（複数インスタンス
-    /// 併記による無 JS 対応の不変条件、モジュール doc「無 JS での扱い」節）。
+    /// 実物の `tabs::tabs` インスタンスは 1 個だけで、選択中タブがちょうど
+    /// 1 件・残り 3 件は `hidden` を持つこと（Codex P1 是正: 操作可能に見え
+    /// て実際には切り替わらないトリガーボタンを複数インスタンス分反復して
+    /// 出さない、モジュール doc「無 JS での扱い」節）。
     #[test]
-    fn each_instance_has_exactly_one_active_trigger_and_hides_the_rest() {
+    fn the_single_tabs_instance_has_exactly_one_active_trigger_and_hides_the_rest() {
         let html = render(&demo());
-        // 4 インスタンス × 4 trigger = 16、選択中は各インスタンス 1 件で計 4。
-        assert_eq!(html.matches("data-part=\"trigger\"").count(), 16);
-        assert_eq!(html.matches("aria-selected=\"true\"").count(), 4);
-        assert_eq!(html.matches("aria-selected=\"false\"").count(), 12);
-        // 4 インスタンス × 4 content = 16、非選択は各インスタンス 3 件で計 12。
-        assert_eq!(html.matches("data-part=\"content\"").count(), 16);
-        assert_eq!(html.matches(" hidden").count(), 12);
+        // 実物の tabs インスタンスは 1 個のみ・4 trigger、選択中は 1 件。
+        assert_eq!(html.matches("data-part=\"trigger\"").count(), 4);
+        assert_eq!(html.matches("aria-selected=\"true\"").count(), 1);
+        assert_eq!(html.matches("aria-selected=\"false\"").count(), 3);
+        // content も 4 個のみ、非選択の 3 個が hidden。
+        assert_eq!(html.matches("data-part=\"content\"").count(), 4);
+        assert_eq!(html.matches(" hidden").count(), 3);
     }
 
-    /// 全パネルの本文見出しが、少なくとも 1 インスタンスでは `hidden`
-    /// なしの可視状態として静的 HTML に現れること（codex P1 指摘の回帰
-    /// テスト: 単一インスタンス固定表示だと選択中以外のパネル本文が
-    /// 静的ページから一切読めなくなっていた不具合の再発防止）。
+    /// 実物の `tabs::tabs` は先頭パネル（`design`）1 個に限られ、残り 3
+    /// パネルは `role="tab"`/`type="button"`/`tabindex` を持たない非対話
+    /// プレビュー（[`super::panel_state_preview`]）として現れること
+    /// （Codex P1 是正の回帰テスト: 操作できないトリガーボタンの反復を
+    /// 防止する）。
     #[test]
-    fn every_panel_title_is_visible_in_at_least_one_instance() {
+    fn only_the_first_panel_is_a_real_tabs_instance_and_the_rest_are_non_interactive() {
         let html = render(&demo());
+        // role="tab" は実物のインスタンス分（4 trigger）だけ現れる。
+        assert_eq!(html.matches("role=\"tab\"").count(), 4);
+        assert_eq!(html.matches("role=\"tabpanel\"").count(), 4);
+        // 非対話プレビューは <button> を一切持ち込まない（実物の tabs
+        // インスタンスが出す trigger 分の 4 個だけが `<button` として
+        // 現れることを確認する。3 個のプレビューが追加の `<button` を
+        // 持ち込んでいればここで検知される）。
+        assert_eq!(
+            html.matches("class=\"blocks-feature-tabs-panel-preview\"")
+                .count(),
+            3
+        );
+        assert_eq!(html.matches("<button").count(), 4);
+    }
+
+    /// 全パネルの本文見出しが、`hidden` を経由せず常に可視状態として静的
+    /// HTML に現れること（codex P1 指摘の回帰テスト: 選択中以外のパネル
+    /// 本文が静的ページから一切読めなくなっていた不具合の再発防止）。
+    #[test]
+    fn every_panel_title_is_always_visible() {
+        let html = render(&demo());
+        // 先頭パネル（design）は実物の tabs インスタンスで選択済み。
+        let first = &super::PANELS[0];
+        let content_marker = format!(
+            "id=\"blocks-feature-tabs-panel-basic-content-{}\"",
+            first.value
+        );
+        let content_start = html
+            .find(&content_marker)
+            .unwrap_or_else(|| panic!("missing content element for {}", first.value));
+        let tag_end = html[content_start..]
+            .find('>')
+            .map(|i| content_start + i)
+            .unwrap_or(html.len());
+        assert!(
+            !html[content_start..tag_end].contains("hidden"),
+            "expected a visible (non-hidden) content element for panel {}",
+            first.value
+        );
         for panel in &super::PANELS {
-            let content_marker = format!("id=\"{}-content-{}\"", panel.instance_id, panel.value);
-            let content_start = html
-                .find(&content_marker)
-                .unwrap_or_else(|| panic!("missing content element for {}", panel.value));
-            // 当該 content 要素の開始タグ内（次の `>` まで）に hidden が
-            // 無いことを確認する（同じタグ内の他属性を誤検知しないため、
-            // タグの範囲だけを見る）。
-            let tag_end = html[content_start..]
-                .find('>')
-                .map(|i| content_start + i)
-                .unwrap_or(html.len());
-            assert!(
-                !html[content_start..tag_end].contains("hidden"),
-                "expected a visible (non-hidden) content element for panel {}",
-                panel.value
-            );
             assert!(
                 html.contains(panel.title),
                 "expected panel title {:?} to appear in demo output",
@@ -473,30 +523,32 @@ mod tests {
         }
     }
 
-    /// id の接頭辞がすべて `blocks-feature-tabs-panel-basic-` であり、
-    /// 4 インスタンス分の識別子（[`super::PanelData::instance_id`]）が
+    /// id の接頭辞が `blocks-feature-tabs-panel-basic-` であり、実物の
+    /// `tabs::tabs` インスタンス（先頭パネル分）の trigger/content id が
     /// 重複なく現れること（重複 id 検知テストへの対応、モジュール doc
     /// 「id 規約」節）。
     #[test]
-    fn ids_use_the_expected_prefix_for_every_instance() {
+    fn ids_use_the_expected_prefix_for_the_single_instance() {
         let html = render(&demo());
         for panel in &super::PANELS {
             assert!(html.contains(&format!(
-                "id=\"{}-trigger-{}\"",
-                panel.instance_id, panel.value
+                "id=\"blocks-feature-tabs-panel-basic-trigger-{}\"",
+                panel.value
             )));
             assert!(html.contains(&format!(
-                "id=\"{}-content-{}\"",
-                panel.instance_id, panel.value
+                "id=\"blocks-feature-tabs-panel-basic-content-{}\"",
+                panel.value
             )));
         }
     }
 
-    /// [`LAYOUT_CSS`] が想定するタブ列の横スクロール・lg ブレークポイント・
-    /// tabs パーツへの子孫セレクタを持つこと。
+    /// [`LAYOUT_CSS`] が想定するタブ列の横スクロール・下線の重ね合わせ
+    /// 補正（Bugbot Low 是正）・lg ブレークポイント・tabs パーツへの子孫
+    /// セレクタを持つこと。
     #[test]
     fn layout_css_declares_scrollable_tablist_and_lg_grid() {
         assert!(LAYOUT_CSS.contains("overflow-x: auto"));
+        assert!(LAYOUT_CSS.contains("margin-bottom: -2px"));
         assert!(LAYOUT_CSS.contains("@media (min-width: 64rem)"));
         assert!(LAYOUT_CSS.contains("[data-scope=\"tabs\"][data-part=\"list\"]"));
         assert!(LAYOUT_CSS.contains("repeat(12, minmax(0, 1fr))"));
