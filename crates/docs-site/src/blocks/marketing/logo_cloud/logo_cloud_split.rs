@@ -43,9 +43,17 @@
 //!
 //! 「暗色固定」は現在のテーマ（ライト/ダーク）に関わらず常に暗色面で
 //! 表示する形であり、`data-blocks-logo-cloud-split-tone="dark"` を
-//! ラッパへ付与し `var(--fandhe-color-fg)`/`var(--fandhe-color-bg)` を
-//! 固定で割り当てて表す（`cta_split_image` の `tone` と同じ手段だが、
-//! 本 block はテーマ追随の切替 UI を持たないため常時この配色になる）。
+//! ラッパへ付与して表す。`var(--fandhe-color-fg)`/`var(--fandhe-color-bg)`
+//! はライト/ダーク双方の値を持つテーマ依存トークンであり、そのまま
+//! 使うとダークテーマ下で反転して背景が明色・文字が暗色になり本契約を
+//! 満たせない（`cta_split_image` の `tone` はテーマ追随の切替 UI 配下で
+//! 使われるため theme token のままでよいが、本 block の「暗色固定」は
+//! テーマに関わらない固定色が必要という別要件）。このため
+//! `--fandhe-color-fg`/`--fandhe-color-bg` のライトテーマ値
+//! （`#111111`/`#ffffff` 相当の明暗）をリテラル値として直書きし、
+//! テーマ切替の影響を受けない固定の暗色面にする（`LAYOUT_CSS` の
+//! ブレークポイント直書き同様、テーマトークンでは表現できない値を
+//! リテラルで補う判断）。
 //!
 //! # ブレークポイント（lg=64rem をリテラル直書きする理由）
 //!
@@ -365,8 +373,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-logo-cloud-split-grid {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-4);\n  align-items: center;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-logo-cloud-split-logo] {\n  height: 3rem;\n  width: auto;\n  max-width: 100%;\n}\n\
 [data-blocks-logo-cloud-split-tile] {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  padding: var(--fandhe-space-4);\n  border-radius: var(--fandhe-radius-md);\n  border: 1px solid var(--fandhe-color-border);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
-[data-blocks-logo-cloud-split-tone=\"dark\"] {\n  padding: var(--fandhe-space-8);\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-fg);\n  color: var(--fandhe-color-bg);\n}\n\
-[data-blocks-logo-cloud-split-tone=\"dark\"] [data-blocks-logo-cloud-split-tile] {\n  border-color: var(--fandhe-color-bg-subtle);\n  background: transparent;\n}\n\
+[data-blocks-logo-cloud-split-tone=\"dark\"] {\n  padding: var(--fandhe-space-8);\n  border-radius: var(--fandhe-radius-lg);\n  background: #111111;\n  color: #ffffff;\n}\n\
+[data-blocks-logo-cloud-split-tone=\"dark\"] [data-blocks-logo-cloud-split-tile] {\n  border-color: #f7f7f7;\n  background: transparent;\n}\n\
 [data-blocks-logo-cloud-split-tone=\"dark\"] [data-scope=\"text\"][data-part=\"root\"],\n[data-blocks-logo-cloud-split-tone=\"dark\"] [data-scope=\"link\"][data-part=\"root\"] {\n  color: inherit;\n}\n\
 @media (min-width: 64rem) {\n  .blocks-logo-cloud-split-row {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n    align-items: center;\n  }\n}\n";
 
@@ -484,5 +492,17 @@ mod tests {
             "[data-blocks-logo-cloud-split-tone=\"dark\"] [data-scope=\"link\"][data-part=\"root\"]"
         ));
         assert!(LAYOUT_CSS.contains("color: inherit;"));
+    }
+
+    /// 暗色固定形はテーマ依存トークン（`var(--fandhe-color-fg)`/
+    /// `var(--fandhe-color-bg)`）ではなくリテラル値で固定されており、
+    /// ダークテーマ下で反転しないこと（codex レビュー P1 指摘の回帰固定、
+    /// イシュー #2795 PR #3247）。
+    #[test]
+    fn dark_variant_uses_literal_colors_not_theme_tokens() {
+        assert!(LAYOUT_CSS.contains("background: #111111;\n  color: #ffffff;"));
+        assert!(!LAYOUT_CSS.contains(
+            "[data-blocks-logo-cloud-split-tone=\"dark\"] {\n  padding: var(--fandhe-space-8);\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-fg);"
+        ));
     }
 }
