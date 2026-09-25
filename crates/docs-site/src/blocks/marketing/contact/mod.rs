@@ -8,12 +8,14 @@
 //!
 //! イシュー #2827 で最初の block（`contact_dialog_form`）を追加し、
 //! 本ファイルは空雛形（`Vec::new()` を返すだけ）から卒業した
-//! （`docs/design/docs-site-blocks-section.md` §18 の卒業手順）。
+//! （`docs/design/docs-site-blocks-section.md` §18 の卒業手順）。イシュー
+//! #2830 で 2 件目の block（`contact_info_columns`）を追加した。
 
 mod contact_dialog_form;
+mod contact_info_columns;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![contact_dialog_form::BLOCK]
+    vec![contact_dialog_form::BLOCK, contact_info_columns::BLOCK]
 }

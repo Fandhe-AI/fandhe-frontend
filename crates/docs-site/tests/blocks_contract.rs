@@ -5478,3 +5478,99 @@ fn contact_dialog_form_composes_expected_parts() {
         );
     }
 }
+
+/// contact-info-columns ページが Demo class・専用 CSS を配線していること、
+/// block 固有 CSS（角丸アイコンタイル・左罫線 variant・ブレークポイント）
+/// が実際に出力されていることを固定する（イシュー #2830）。
+#[test]
+fn contact_info_columns_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/contact-info-columns/index.html"))
+        .expect("blocks/contact-info-columns/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-contact-info-columns\""),
+        "contact-info-columns page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "contact-info-columns page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "contact-info-columns page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-contact-info-columns-tagline",
+        "data-blocks-contact-info-columns-section-label",
+        "data-blocks-contact-info-columns-column",
+        "data-blocks-contact-info-columns-variant=\"tile\"",
+        "data-blocks-contact-info-columns-variant=\"border\"",
+        "data-blocks-contact-info-columns-tile",
+        "data-blocks-contact-info-columns-link",
+    ] {
+        assert!(
+            html.contains(hook),
+            "contact-info-columns page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "[data-blocks-contact-info-columns-tile]",
+        "[data-blocks-contact-info-columns-variant=\"border\"]",
+        "@media (min-width: 40rem)",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// contact-info-columns の合成部品（heading/text/icon/link）が期待どおりの
+/// 構成で実際に出力されていること、`variant` の内訳・非対話制約を固定する
+/// （イシュー #2830。`careers_card_grid_composes_expected_parts` と同型）。
+#[test]
+fn contact_info_columns_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/contact-info-columns/")
+        .expect("contact-info-columns should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"link\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "contact-info-columns demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-contact-info-columns-variant=\"tile\"")
+            .count(),
+        3,
+        "contact-info-columns demo should render exactly 3 tile-variant columns"
+    );
+    assert_eq!(
+        html.matches("data-blocks-contact-info-columns-variant=\"border\"")
+            .count(),
+        4,
+        "contact-info-columns demo should render exactly 4 border-variant columns"
+    );
+    for absent in [
+        "<form",
+        "src=\"data:",
+        "href=\"#\"",
+        "mailto:",
+        "tel:",
+        "id=\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "contact-info-columns should never contain {absent}"
+        );
+    }
+}
