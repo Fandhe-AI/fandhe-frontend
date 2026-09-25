@@ -6,9 +6,13 @@
 //! ための構造、イシュー #2734）。
 
 mod content_columns_screenshot;
+mod content_split_image;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![content_columns_screenshot::BLOCK]
+    vec![
+        content_columns_screenshot::BLOCK,
+        content_split_image::BLOCK,
+    ]
 }
