@@ -26,9 +26,9 @@ use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
 use fandhe_frontend_pre_styled_ui::recipe::ColorPalette;
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
 
-/// `link::root` の href（固定の公開リポジトリ URL。`contact_split_info` 等
-/// 他 block と同じ判断）。
-const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+/// `link::root` の href（サイト内の実在ページへの相対パス。`linkcheck` が
+/// 検証する。`error_page_split_image` 等他 block と同じ判断）。
+const DOCS_HREF: &str = "../../guides/";
 
 /// テキスト列（eyebrow badge + 見出し + リード文 + CTA 2 個）。
 fn copy_column(eyebrow: &str, title: &str, lead: &str) -> Node {
@@ -62,7 +62,7 @@ fn copy_column(eyebrow: &str, title: &str, lead: &str) -> Node {
                 vec![
                     button::button(&ButtonProps::default(), vec![], vec![text("今すぐ始める")]),
                     link::root(
-                        REPO,
+                        DOCS_HREF,
                         &LinkProps {
                             variant: LinkVariant::Underline,
                             palette: ColorPalette::Neutral,
@@ -201,8 +201,8 @@ pub fn demo() -> Node {
   `h2` を出すため）。
 - 画像は `alt=""`（装飾扱い）で出力し、[`dummy_assets::SCREENSHOT_SRC`]
   を使います。
-- CTA の 2 つ目は `link` で表現し、href は固定の公開リポジトリ URL のみ
-  使います。
+- CTA の 2 つ目は `link` で表現し、href はサイト内の実在ページへの
+  相対パスのみを使います（`linkcheck` が検証します）。
 - コードスニペットは架空の Rust 風コードで、トークン・URL・メール
   アドレスに見える文字列は含みません。
 - 文言・配色は独自のもの、または既存のテーマトークンにそのまま従います。

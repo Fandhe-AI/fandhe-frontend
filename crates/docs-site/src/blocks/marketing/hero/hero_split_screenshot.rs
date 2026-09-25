@@ -71,8 +71,8 @@
 //! [`dummy_assets::SCREENSHOT_SRC`]（ビルド時生成のプレースホルダー SVG）
 //! のみを使い、装飾扱いの `alt=""` で出力する。`id` 属性は一切使わない
 //! （重複 id 検知テスト対策）。CTA の 2 つ目は `link::root` で表現し、href
-//! は固定の公開リポジトリ URL のみを使う（`data:`/`javascript:` は core の
-//! `is_safe_url` が拒否するため使わない）。
+//! はサイト内の実在ページへの相対パスのみを使う（`linkcheck` が検証する。
+//! `data:`/`javascript:` は core の `is_safe_url` が拒否するため使わない）。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -90,9 +90,9 @@ use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
 use fandhe_frontend_pre_styled_ui::recipe::ColorPalette;
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
 
-/// `link::root` の href（固定の公開リポジトリ URL。`contact_split_info` 等
-/// 他 block と同じ判断）。
-const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+/// `link::root` の href（サイト内の実在ページへの相対パス。`linkcheck` が
+/// 検証する。`error_page_split_image` 等他 block と同じ判断）。
+const DOCS_HREF: &str = "../../guides/";
 
 /// テキスト列（eyebrow badge + 見出し + リード文 + CTA 2 個）。
 fn copy_column(eyebrow: &str, title: &str, lead: &str) -> Node {
@@ -126,7 +126,7 @@ fn copy_column(eyebrow: &str, title: &str, lead: &str) -> Node {
                 vec![
                     button::button(&ButtonProps::default(), vec![], vec![text("今すぐ始める")]),
                     link::root(
-                        REPO,
+                        DOCS_HREF,
                         &LinkProps {
                             variant: LinkVariant::Underline,
                             palette: ColorPalette::Neutral,

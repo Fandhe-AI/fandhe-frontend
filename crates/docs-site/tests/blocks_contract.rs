@@ -8015,4 +8015,9 @@ fn hero_split_screenshot_composes_expected_parts() {
             "hero-split-screenshot should never contain {absent}"
         );
     }
+    assert!(
+        html.contains("href=\"../../guides/\""),
+        "hero-split-screenshot の「ドキュメントを見る」リンクは docs サイト内の \
+         実在ページへの相対パスであるべき"
+    );
 }
