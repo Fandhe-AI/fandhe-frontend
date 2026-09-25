@@ -1249,6 +1249,11 @@ source = "site/blocks/cta-banner-magnetic.md"
 path = "/blocks/cta-banner-magnetic/"
 
 [[section.group.page]]
+title = "cta-feature-links"
+source = "site/blocks/cta-feature-links.md"
+path = "/blocks/cta-feature-links/"
+
+[[section.group.page]]
 title = "cta-signup-celebrate"
 source = "site/blocks/cta-signup-celebrate.md"
 path = "/blocks/cta-signup-celebrate/"

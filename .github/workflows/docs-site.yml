@@ -235,6 +235,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-expand/index.html"
           # Marketing / Cta
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-banner-magnetic/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-feature-links/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-signup-celebrate/index.html"
           # Marketing / Pricing
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-tiers-morph/index.html"
