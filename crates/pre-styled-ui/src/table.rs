@@ -622,7 +622,7 @@ fn drop_reserved<'a>(
         .collect()
 }
 
-/// Table の recipe（scope `"table"`、[`SLOTS`] の 9 パーツ）。
+/// Table の recipe（scope `"table"`、[`SLOTS`] の 10 パーツ）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("table", SLOTS)
         .base(
