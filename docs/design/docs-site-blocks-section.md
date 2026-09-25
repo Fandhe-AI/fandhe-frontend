@@ -884,6 +884,7 @@ pub enum LayoutCss {
 | contact-split-form-info | #2832/#2833/#2834 | `marketing/contact/contact_split_form_info.rs` |
 | feature-split-list-image | #2769 | `marketing/feature/feature_split_list_image.rs` |
 | error-page-background-image | #2836 | `marketing/error_page/error_page_background_image.rs` |
+| error-page-split-image | #2841 | `marketing/error_page/error_page_split_image.rs` |
 | feature-split-screenshot | #2770 | `marketing/feature/feature_split_screenshot.rs` |
 | gallery-image-grid | #2778 | `marketing/gallery/gallery_image_grid.rs` |
 | error-page-centered | #2837 | `marketing/error_page/error_page_centered.rs` |

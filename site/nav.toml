@@ -1574,6 +1574,11 @@ title = "error-page-popular-links"
 source = "site/blocks/error-page-popular-links.md"
 path = "/blocks/error-page-popular-links/"
 
+[[section.group.page]]
+title = "error-page-split-image"
+source = "site/blocks/error-page-split-image.md"
+path = "/blocks/error-page-split-image/"
+
 [[section.group]]
 title = "Gallery"
 

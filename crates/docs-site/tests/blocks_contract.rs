@@ -6125,6 +6125,134 @@ fn error_page_popular_links_composes_expected_parts() {
     }
 }
 
+/// error-page-split-image ページが Demo class・専用 CSS を配線している
+/// こと、6 部品分のフック属性・使用素材が実際に出力されていることを
+/// 固定する（イシュー #2841）。
+#[test]
+fn error_page_split_image_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/error-page-split-image/index.html"))
+        .expect("blocks/error-page-split-image/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-error-page-split-image\""),
+        "error-page-split-image page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "error-page-split-image page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "error-page-split-image page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-error-page-split-image-logo",
+        "data-blocks-error-page-split-image-brand-name",
+        "data-blocks-error-page-split-image-message",
+        "data-blocks-error-page-split-image-content",
+        "data-blocks-error-page-split-image-code",
+        "data-blocks-error-page-split-image-title",
+        "data-blocks-error-page-split-image-description",
+        "data-blocks-error-page-split-image-actions",
+        "data-blocks-error-page-split-image-back",
+        "data-blocks-error-page-split-image-cta",
+        "data-blocks-error-page-split-image-helper-link",
+        "data-blocks-error-page-split-image-image",
+    ] {
+        assert!(
+            html.contains(hook),
+            "error-page-split-image page should render the {hook} attribute"
+        );
+    }
+    assert!(
+        html.contains("blocks-demo-screenshot.svg"),
+        "error-page-split-image page should reference the shared screenshot dummy asset"
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "error-page-split-image should never contain {absent}"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-error-page-split-image {",
+        ".blocks-error-page-split-image-layout {",
+        ".blocks-error-page-split-image-media {",
+        "[data-scope=\"image\"][data-part=\"root\"][data-blocks-error-page-split-image-image] {",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// error-page-split-image の合成部品（empty-state/heading/text/
+/// link/image/icon の 6 部品）が期待どおりの構成で実際に出力されている
+/// こと、`<form>` 等の非対話制約・各リンクの実在遷移先を固定する
+/// （イシュー #2841。`error_page_background_image_composes_expected_parts`
+/// と同型）。
+#[test]
+fn error_page_split_image_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/error-page-split-image/")
+        .expect("error-page-split-image should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"empty-state\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"link\"",
+        "data-scope=\"image\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "error-page-split-image demo should contain {scope}"
+        );
+    }
+    assert!(
+        !html.contains("data-scope=\"button\""),
+        "error-page-split-image demo should no longer contain a button part"
+    );
+    assert!(
+        html.contains("<svg"),
+        "error-page-split-image demo should contain icon svg"
+    );
+    assert!(html.contains(r#"src="../../assets/blocks-demo-screenshot.svg""#));
+    assert!(html.contains(r#"href="../../""#));
+    assert!(html.contains(r#"href="../../guides/""#));
+    assert!(!html.contains(r#"type="button""#));
+    for text_fragment in [
+        "404",
+        "This page took a wrong turn",
+        "Back to home",
+        "Contact support",
+        "Help center",
+        "CI status",
+    ] {
+        assert!(
+            html.contains(text_fragment),
+            "error-page-split-image demo should contain {text_fragment}"
+        );
+    }
+    for absent in [
+        "<form",
+        "src=\"data:",
+        "href=\"#\"",
+        "mailto:",
+        "tel:",
+        " id=\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "error-page-split-image should never contain {absent}"
+        );
+    }
+}
+
 /// contact-split-form-info ページが Demo class・専用 CSS を配線している
 /// こと、block 固有 CSS（2 列 grid・divider 非表示）が実際に出力されて
 /// いることを固定する（イシュー #2832）。列位置を `grid-column`/`grid-row`
