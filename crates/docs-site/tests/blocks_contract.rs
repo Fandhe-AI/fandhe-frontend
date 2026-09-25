@@ -4934,6 +4934,90 @@ fn comparison_feature_rows_composes_expected_parts() {
     }
 }
 
+/// comparison-split-table ページが Demo class・両 CSS ファイルへのリンク・
+/// 見出しブロック/比較表の CSS フックを配線していること（イシュー
+/// #2824）。
+#[test]
+fn comparison_split_table_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/comparison-split-table/index.html"))
+        .expect("blocks/comparison-split-table/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-comparison-split-table\""),
+        "comparison-split-table page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "comparison-split-table page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "comparison-split-table page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-comparison-split-table-root=\"\"",
+        "data-blocks-comparison-split-table-scroll=\"\"",
+        "data-blocks-comparison-split-table-table=\"\"",
+        "data-blocks-comparison-split-table-row=\"\"",
+        "data-blocks-comparison-split-table-feature=\"\"",
+        "data-blocks-comparison-split-table-feature-name=\"\"",
+        "data-blocks-comparison-split-table-feature-note=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "comparison-split-table page should contain {hook}"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "@media (min-width: 64rem)",
+        "[data-blocks-comparison-split-table-root]",
+        "[data-blocks-comparison-split-table-scroll]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare {selector} for comparison-split-table"
+        );
+    }
+}
+
+/// comparison-split-table の合成部品（heading/text/badge/button/table/icon
+/// の 6 種）が期待どおり出力されていること、`<form>`・`href="#"`・
+/// `data:` URI を持ち込んでいないこと、ボタンが `type="button"` を
+/// 持つことを固定する（イシュー #2824）。
+#[test]
+fn comparison_split_table_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/comparison-split-table/index.html"))
+        .expect("blocks/comparison-split-table/index.html should be generated");
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"button\"",
+        "data-scope=\"table\"",
+        "data-scope=\"icon\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "comparison-split-table page should contain {scope}"
+        );
+    }
+    assert!(
+        html.contains("type=\"button\""),
+        "comparison-split-table page should render buttons with type=\"button\""
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "comparison-split-table should never contain {absent}"
+        );
+    }
+}
+
 /// cta-feature-links ページが Demo class・専用 CSS を配線していること
 /// （イシュー #2757）。
 #[test]
@@ -5164,6 +5248,40 @@ fn feature_accordion_image_page_wires_demo_class_and_css_hooks() {
     );
 }
 
+/// cta-split-actions ページが Demo class・専用 CSS を配線していること
+/// （イシュー #2758）。
+#[test]
+fn cta_split_actions_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/cta-split-actions/index.html"))
+        .expect("blocks/cta-split-actions/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-cta-split-actions\""),
+        "cta-split-actions page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "cta-split-actions page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "cta-split-actions page should link the Blocks-specific stylesheet"
+    );
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "@media (min-width: 64rem)",
+        ".blocks-cta-split-actions-stack",
+        r#"[data-blocks-cta-split-actions-tone="card"]"#,
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
 /// cta-split-image の Demo ラッパ・CSS 配線・block 固有 CSS（lg
 /// ブレークポイント・カード反転配色の tone セレクタ）が実際に出力
 /// されていることを固定する（イシュー #2759）。
@@ -5196,6 +5314,45 @@ fn cta_split_image_page_wires_demo_class_and_css_hooks() {
         assert!(
             sheet_css.contains(selector),
             "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// cta-split-actions の合成部品（heading/text/button/card/icon）が
+/// 期待どおりの構成で実際に出力されていること、4 tone すべてが揃って
+/// いること、`<form>`・`data:` URI・`href="#"` を持ち込んでいないことを
+/// 固定する（イシュー #2758）。`render(&(block.demo)())` で Demo 単体を
+/// 描画し、フルページの他要素との混在を避ける（`cta_feature_links_
+/// composes_expected_parts` と同型）。
+#[test]
+fn cta_split_actions_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/cta-split-actions/")
+        .expect("cta-split-actions should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"button\"",
+        "data-scope=\"card\"",
+        "data-scope=\"icon\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "cta-split-actions demo should contain {scope}"
+        );
+    }
+    assert!(html.contains(r#"type="button""#));
+    for tone in ["plain", "subtle", "inverted", "card"] {
+        let needle = format!(r#"data-blocks-cta-split-actions-tone="{tone}""#);
+        assert!(
+            html.contains(&needle),
+            "cta-split-actions demo should render the {tone} tone"
+        );
+    }
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "cta-split-actions should never contain {absent}"
         );
     }
 }
