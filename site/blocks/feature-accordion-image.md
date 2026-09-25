@@ -336,9 +336,9 @@ fn variant_a() -> Node {
 /// 続ける（モジュール doc「2 形を 1 つの Demo に並記する」節）。
 fn variant_b() -> Node {
     let header_node = header(
-        "カテゴリで探す",
-        "機能をカテゴリから選んで確認",
-        "気になるカテゴリを選ぶと、対応する機能の一覧が表示されます。",
+        "カテゴリ別機能",
+        "カテゴリごとの主な機能",
+        "現在表示しているのは「共同作業」カテゴリの機能一覧です。",
     );
     let left = div(
         vec![("class", "blocks-feature-accordion-image-left")],

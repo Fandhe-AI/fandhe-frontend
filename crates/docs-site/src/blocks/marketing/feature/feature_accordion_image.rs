@@ -61,7 +61,7 @@
 //!   `controls` を持たせ、`item_content` を `id`/`labelled_by` 付きで
 //!   出力する（閉じた項目・到達不能な本文は存在しない）。
 //!
-//! # カテゴリ切替ボタン列（形 B、`aria-pressed` を disabled + 静的表示で示す）
+//! # カテゴリ切替ボタン列（形 B、`aria-pressed` を disabled + 減光維持で示す）
 //!
 //! [`category_row`] は架空のカテゴリ 4 件を [`button::button`] で並べる。
 //! 押しても何も起きない有効な `<button>` は `blog_split_header_grid`/
@@ -70,9 +70,22 @@
 //! `ButtonProps { disabled: true, .. }`（ネイティブ `disabled` +
 //! `aria-disabled="true"`）に `aria-pressed="true"|"false"` を併せ持たせて
 //! 選択状態を静的に表現する（初期状態は先頭カテゴリのみ選択済みで固定、
-//! 集約元 R0483 の「初期状態固定」仕様に一致）。減光は [`LAYOUT_CSS`] の
-//! `.blocks-feature-accordion-image-categories` 配下限定セレクタで中和
-//! する。`headless-ui`/`pre-styled-ui` に用意された `toggle_group` は
+//! 集約元 R0483 の「初期状態固定」仕様に一致）。
+//!
+//! アコーディオントリガーと異なり、`disabled` 由来の減光（既定
+//! `opacity: 0.5`）は中和しない（イシュー #2762 レビュー指摘の是正。
+//! アコーディオン側は全項目が [`OpenState::Open`] で本文が常に到達可能
+//! なため「押しても何も起きないだけの飾り」として減光を戻しても情報の
+//! 欠落が生じないが、カテゴリ切替ボタンは選択中カテゴリ以外の機能一覧を
+//! そもそも DOM 上に持たない。減光を戻し通常表示に見せると、リード文
+//! （[`header`] の第 3 引数）が「選べば表示が切り替わる」という実在しない
+//! 操作を暗に案内しているのと同じ不整合になる。減光を維持することで、
+//! 視覚利用者にも「これは選べない・現在の状態を示すだけの表示」と
+//! 一目で伝わるようにする）。リード文自体も「選ぶと」のような操作の
+//! 案内を避け、現在表示中のカテゴリ名を直接述べる文言に変更した
+//! （[`variant_b`] 参照）。
+//!
+//! `headless-ui`/`pre-styled-ui` に用意された `toggle_group` は
 //! 使わない（`parts` に `button`/`icon` を指定しているため。トリガー自体
 //! を `button::button` へ差し替えるより、既存の `AccordionProps` 資産を
 //! そのまま流用できる）。非選択カテゴリの機能一覧は出力しない（hidden で
@@ -451,9 +464,9 @@ fn variant_a() -> Node {
 /// 続ける（モジュール doc「2 形を 1 つの Demo に並記する」節）。
 fn variant_b() -> Node {
     let header_node = header(
-        "カテゴリで探す",
-        "機能をカテゴリから選んで確認",
-        "気になるカテゴリを選ぶと、対応する機能の一覧が表示されます。",
+        "カテゴリ別機能",
+        "カテゴリごとの主な機能",
+        "現在表示しているのは「共同作業」カテゴリの機能一覧です。",
     );
     let left = div(
         vec![("class", "blocks-feature-accordion-image-left")],
@@ -564,19 +577,21 @@ pub const BLOCK: Block = Block {
 /// ため、`opacity: 1`・`cursor: default` へ上書きする。詳細度はクラス
 /// セレクタ 1 個 + 属性セレクタ 3 個（1,3,0）で recipe 側（0,2,0 相当）に
 /// 確実に勝たせる（`changelog_accordion` と同じ考え方）。カテゴリ切替
-/// ボタン（`button::button` の `disabled_declarations()` も同じ既定
-/// `opacity: 0.5`）も同型の中和規則を
-/// `.blocks-feature-accordion-image-categories` 配下限定で持つ
-/// （モジュール doc「カテゴリ切替ボタン列」節）。
+/// ボタン（`.blocks-feature-accordion-image-categories` 配下の
+/// `button::button`）にはこの中和を**適用しない**（イシュー #2762
+/// レビュー指摘の是正。モジュール doc「カテゴリ切替ボタン列」節参照。
+/// アコーディオントリガーは全項目の本文が常に到達可能なため減光を
+/// 戻しても情報の欠落が生じないが、カテゴリボタンは選択中カテゴリ以外の
+/// 内容を一切持たないため、減光を戻し通常のボタンに見せると「選べば
+/// 切り替わる」という実在しない操作を示唆してしまう。既定の
+/// `opacity: 0.5` を維持し disabled であることをそのまま視覚化する）。
 ///
 /// セレクタはすべて `.blocks-feature-accordion-image*` か
 /// `[data-blocks-feature-accordion-image-*]` の名前空間に閉じる。
-/// `[data-scope="accordion"][data-part="item-trigger"][data-disabled]`・
-/// `[data-scope="button"][data-part="root"][data-disabled]` の中和も
-/// 名前空間の外に出さないよう、必ず `.blocks-feature-accordion-
-/// image-left`/`.blocks-feature-accordion-image-categories` 配下への
-/// 子孫結合子付きで書く（集約された `blocks.css` を読み込む全ページで
-/// 他 block の disabled accordion トリガー・disabled ボタンの見た目まで
+/// `[data-scope="accordion"][data-part="item-trigger"][data-disabled]`
+/// の中和も名前空間の外に出さないよう、必ず `.blocks-feature-accordion-
+/// image-left` 配下への子孫結合子付きで書く（集約された `blocks.css` を
+/// 読み込む全ページで他 block の disabled accordion トリガーの見た目まで
 /// 書き換えてしまわないため。`changelog_accordion` が `.blocks-changelog-
 /// accordion-list` 配下へ子孫結合子付きで書くのと同じ判断、イシュー
 /// #2761 レビュー指摘で是正）。
@@ -587,7 +602,6 @@ const LAYOUT_CSS: &str = "\
 .blocks-feature-accordion-image-left {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  min-width: 0;\n}\n\
 .blocks-feature-accordion-image-header {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-feature-accordion-image-categories {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-2);\n}\n\
-.blocks-feature-accordion-image-categories [data-scope=\"button\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-feature-accordion-image-media-slot {\n  display: none;\n}\n\
 [data-blocks-feature-accordion-image-media] {\n  display: block;\n  width: 100%;\n}\n\
 [data-blocks-feature-accordion-image-inline-image] {\n  display: block;\n  width: 100%;\n  margin-top: var(--fandhe-space-3);\n}\n\
@@ -755,5 +769,28 @@ mod tests {
         let html = render(&demo());
         assert_eq!(html.matches("<h3").count(), 2, "html={html}");
         assert!(html.contains("class=\"blocks-feature-accordion-image-trigger-heading\""));
+    }
+
+    /// 形 B のリード文が「選ぶと」等の実現しない操作を案内しないこと
+    /// （イシュー #2762 レビュー指摘の是正回帰。カテゴリ切替ボタンは
+    /// 全件 disabled で実際には切り替わらないため、案内文言側で操作可能
+    /// であるかのように示唆してはならない）。
+    #[test]
+    fn category_lead_text_does_not_imply_operability() {
+        let html = render(&demo());
+        assert!(!html.contains("選ぶと"));
+        assert!(!html.contains("選択すると"));
+    }
+
+    /// カテゴリ切替ボタンの `disabled` 由来の減光（既定 `opacity: 0.5`）を
+    /// 中和しないこと（イシュー #2762 レビュー指摘の是正回帰。中和すると
+    /// 通常のボタンに見えてしまい、実際には操作できないことがキーボード
+    /// 利用者にしか伝わらない不整合が生じる。アコーディオントリガー側の
+    /// 中和規則〔全項目が常時展開で情報欠落が無いため許容〕とは対象を
+    /// 分離して固定する）。
+    #[test]
+    fn category_button_dimming_is_not_neutralized() {
+        assert!(!LAYOUT_CSS
+            .contains(".blocks-feature-accordion-image-categories [data-scope=\"button\"]"));
     }
 }

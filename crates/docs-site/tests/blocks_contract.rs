@@ -5240,6 +5240,13 @@ fn feature_accordion_image_page_wires_demo_class_and_css_hooks() {
         !demo_html.contains(r#"aria-expanded="false""#),
         "feature-accordion-image demo should not reintroduce a closed accordion item"
     );
+    // イシュー #2762 レビュー指摘の是正回帰: 形 B のリード文が「選ぶと」の
+    // ような実現しない操作を案内しない（カテゴリ切替ボタンは全件
+    // disabled で実際には切り替わらないため）。
+    assert!(
+        !demo_html.contains("選ぶと"),
+        "feature-accordion-image demo lead text should not imply switching categories"
+    );
 
     let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
     let sheet_css = sheet.as_css();
@@ -5249,13 +5256,22 @@ fn feature_accordion_image_page_wires_demo_class_and_css_hooks() {
         ".blocks-feature-accordion-image-media-slot",
         "[data-blocks-feature-accordion-image-inline-image]",
         ".blocks-feature-accordion-image-categories",
-        ".blocks-feature-accordion-image-categories [data-scope=\"button\"][data-part=\"root\"][data-disabled]",
     ] {
         assert!(
             sheet_css.contains(needle),
             "blocks.css should declare a rule for {needle}"
         );
     }
+    // イシュー #2762 レビュー指摘の是正回帰: カテゴリ切替ボタンは
+    // disabled 由来の減光（既定 `opacity: 0.5`）を中和しない。中和すると
+    // 通常のボタンに見えるが実際には操作できず、視覚利用者とキーボード
+    // 利用者とで伝わる情報が食い違う不整合を再導入してしまう。
+    assert!(
+        !sheet_css.contains(
+            ".blocks-feature-accordion-image-categories [data-scope=\"button\"][data-part=\"root\"][data-disabled]"
+        ),
+        "blocks.css should not neutralize the disabled dimming of category buttons"
+    );
     // md+ でインライン画像を隠す規則は、Image recipe の基底規則
     // `[data-scope="image"][data-part="root"] { display: block }`
     // （詳細度 (0,2,0)）に必ず勝つ詳細度で書く必要がある。scope/part
