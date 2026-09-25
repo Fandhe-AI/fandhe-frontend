@@ -901,6 +901,7 @@ pub enum LayoutCss {
 | error-page-split-links | #2842 | `marketing/error_page/error_page_split_links.rs` |
 | contact-split-form-image | #2831 | `marketing/contact/contact_split_form_image.rs` |
 | contact-centered-form | #2826 | `marketing/contact/contact_centered_form.rs` |
+| hero-bottom-screenshot | #2782 | `marketing/hero/hero_bottom_screenshot.rs` |
 | gallery-split-carousel | #2780 | `marketing/gallery/gallery_split_carousel.rs` |
 | hero-prompt-input | #2788 | `marketing/hero/hero_prompt_input.rs` |
 
