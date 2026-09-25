@@ -6,9 +6,26 @@
 //! ための構造、イシュー #2734）。
 
 mod feature_accordion_image;
+mod feature_alternating_rows;
 mod feature_expand;
+mod feature_image_cards;
+mod feature_large_screenshot;
+mod feature_side_heading_grid;
+mod feature_split_image;
+mod feature_split_list_image;
+mod feature_split_screenshot;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![feature_accordion_image::BLOCK, feature_expand::BLOCK]
+    vec![
+        feature_accordion_image::BLOCK,
+        feature_alternating_rows::BLOCK,
+        feature_expand::BLOCK,
+        feature_image_cards::BLOCK,
+        feature_large_screenshot::BLOCK,
+        feature_side_heading_grid::BLOCK,
+        feature_split_image::BLOCK,
+        feature_split_list_image::BLOCK,
+        feature_split_screenshot::BLOCK,
+    ]
 }

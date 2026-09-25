@@ -872,10 +872,25 @@ pub enum LayoutCss {
 | cta-feature-links | #2757 | `marketing/cta/cta_feature_links.rs` |
 | cta-split-actions | #2758 | `marketing/cta/cta_split_actions.rs` |
 | cta-split-image | #2759 | `marketing/cta/cta_split_image.rs` |
-| feature-accordion-image | #2760/#2761 | `marketing/feature/feature_accordion_image.rs` |
+| feature-accordion-image | #2760/#2761/#2762 | `marketing/feature/feature_accordion_image.rs` |
+| contact-dialog-form | #2827 | `marketing/contact/contact_dialog_form.rs` |
+| feature-alternating-rows | #2763 | `marketing/feature/feature_alternating_rows.rs` |
+| contact-form-testimonial | #2828 | `marketing/contact/contact_form_testimonial.rs` |
+| feature-image-cards | #2765 | `marketing/feature/feature_image_cards.rs` |
+| feature-large-screenshot | #2766 | `marketing/feature/feature_large_screenshot.rs` |
+| contact-image-info | #2829 | `marketing/contact/contact_image_info.rs` |
+| feature-side-heading-grid | #2767 | `marketing/feature/feature_side_heading_grid.rs` |
+| feature-split-image | #2768 | `marketing/feature/feature_split_image.rs` |
+| contact-info-columns | #2830 | `marketing/contact/contact_info_columns.rs` |
+| contact-split-form-info | #2832/#2833/#2834 | `marketing/contact/contact_split_form_info.rs` |
+| feature-split-list-image | #2769 | `marketing/feature/feature_split_list_image.rs` |
+| error-page-background-image | #2836 | `marketing/error_page/error_page_background_image.rs` |
+| feature-split-screenshot | #2770 | `marketing/feature/feature_split_screenshot.rs` |
+| gallery-image-grid | #2778 | `marketing/gallery/gallery_image_grid.rs` |
+| error-page-centered | #2837 | `marketing/error_page/error_page_centered.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-58 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+73 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
