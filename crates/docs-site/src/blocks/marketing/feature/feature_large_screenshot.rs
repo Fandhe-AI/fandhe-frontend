@@ -435,6 +435,15 @@ pub const BLOCK: Block = Block {
 /// `.blocks-feature-large-screenshot-*` と
 /// `[data-blocks-feature-large-screenshot-*]` のみを用い、他 block や部品の
 /// 素のセレクタへ影響させない（`content-split-image` と同じ名前空間分離）。
+///
+/// bordered variant の `box-shadow` はラッパー（`-media` 要素、
+/// `[data-blocks-feature-large-screenshot-variant="bordered"]`）自体へ付ける。
+/// `-media` の既定 `overflow: hidden` は fade/panel 変種の下端フェード
+/// （`::after` 疑似要素）をラッパー境界で切り抜くために必要だが、子要素
+/// （画像本体）へ `box-shadow` を置いたまま `overflow: hidden` を残すと
+/// 影がラッパーの境界でクリップされ表示されない。bordered 変種はフェード
+/// 疑似要素を持たないため、同セレクタで `overflow: visible` へ上書きし、
+/// 影をラッパー自身の box-shadow として描くことでクリップを回避する。
 const LAYOUT_CSS: &str = "\
 .blocks-feature-large-screenshot-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-12);\n}\n\
 .blocks-feature-large-screenshot-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  padding: var(--fandhe-space-8);\n  border-radius: var(--fandhe-radius-lg);\n}\n\
@@ -446,8 +455,9 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-feature-large-screenshot-section-variant=\"panel\"] [data-scope=\"text\"][data-part=\"root\"][data-blocks-feature-large-screenshot-desc] {\n  color: inherit;\n}\n\
 .blocks-feature-large-screenshot-actions {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: center;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-feature-large-screenshot-media {\n  position: relative;\n  overflow: hidden;\n  border-radius: var(--fandhe-radius-lg);\n}\n\
+[data-blocks-feature-large-screenshot-variant=\"bordered\"] {\n  overflow: visible;\n  box-shadow: var(--fandhe-shadow-lg);\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-large-screenshot-image] {\n  display: block;\n  width: 100%;\n}\n\
-[data-blocks-feature-large-screenshot-variant=\"bordered\"] [data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-large-screenshot-image] {\n  border: 1px solid var(--fandhe-color-border);\n  box-shadow: var(--fandhe-shadow-lg);\n}\n\
+[data-blocks-feature-large-screenshot-variant=\"bordered\"] [data-scope=\"image\"][data-part=\"root\"][data-blocks-feature-large-screenshot-image] {\n  border: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-feature-large-screenshot-variant=\"fade\"]::after,\n\
 [data-blocks-feature-large-screenshot-variant=\"panel\"]::after {\n  content: \"\";\n  position: absolute;\n  inset: auto 0 0 0;\n  height: 35%;\n  pointer-events: none;\n}\n\
 [data-blocks-feature-large-screenshot-variant=\"fade\"]::after {\n  background: linear-gradient(to top, var(--fandhe-color-bg), transparent);\n}\n\
