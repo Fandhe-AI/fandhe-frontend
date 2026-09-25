@@ -338,6 +338,13 @@ pub const BLOCK: Block = Block {
 /// `[data-scope="image"][data-part="root"] { display: block }`（詳細度
 /// (0,2,0)）に確実に勝たせる（PR #3188 Bugbot 指摘で是正）。
 ///
+/// 右列の代表画像（`[data-blocks-feature-accordion-image-media]`）にも
+/// `width: 100%` を明示する。`image::image` の root は `max-width: 100%`
+/// のみを持ち固有の横幅を指定しないため、`ImageProps::new` に渡す
+/// スクリーンショット SVG の intrinsic size（`viewBox` 200x140）のまま
+/// 描画され、md 以降で列いっぱいに広がらない（PR #3188 Bugbot 指摘で
+/// 是正）。
+///
 /// `disabled` による減光の中和（モジュール doc「静的アコーディオン」節）:
 /// `accordion::stylesheet` の `disabled_declarations()`（既定
 /// `opacity: 0.5`）は「操作できない要素」の既定表現だが、本 block は
@@ -360,6 +367,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-feature-accordion-image-left {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  min-width: 0;\n}\n\
 .blocks-feature-accordion-image-header {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-feature-accordion-image-media-slot {\n  display: none;\n}\n\
+[data-blocks-feature-accordion-image-media] {\n  display: block;\n  width: 100%;\n}\n\
 [data-blocks-feature-accordion-image-inline-image] {\n  display: block;\n  width: 100%;\n  margin-top: var(--fandhe-space-3);\n}\n\
 .blocks-feature-accordion-image-trigger-heading {\n  margin: 0;\n  font-size: inherit;\n  font-weight: inherit;\n}\n\
 .blocks-feature-accordion-image-trigger-label {\n  flex: 1;\n  min-width: 0;\n  font-weight: var(--fandhe-font-weight-medium, 500);\n}\n\
