@@ -233,6 +233,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/text-split-reveal/index.html"
           # Marketing / Feature
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-expand/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-alternating-rows/index.html"
           # Marketing / Cta
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-banner-magnetic/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-feature-links/index.html"
