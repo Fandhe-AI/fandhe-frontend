@@ -1593,6 +1593,11 @@ path = "/blocks/error-page-split-image/"
 title = "Gallery"
 
 [[section.group.page]]
+title = "gallery-carousel"
+source = "site/blocks/gallery-carousel.md"
+path = "/blocks/gallery-carousel/"
+
+[[section.group.page]]
 title = "gallery-image-grid"
 source = "site/blocks/gallery-image-grid.md"
 path = "/blocks/gallery-image-grid/"
