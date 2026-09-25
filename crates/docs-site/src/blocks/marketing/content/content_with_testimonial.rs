@@ -1,7 +1,8 @@
 //! `content-with-testimonial` block（イシュー #2756。親トラッキング #2730
 //! 「Blocks 目的別パーツ拡充ツリー」配下。本文の列と引用の列を横に並べる
-//! 2 列コンテンツの合成例で、`content-columns-screenshot`/
-//! `content-split-image` に続く Marketing / Content カテゴリの 3 件目）。
+//! 2 列コンテンツの合成例で、`content-article`/`content-article-toc`/
+//! `content-columns-screenshot`/`content-image-tiles`/`content-split-image`
+//! に続く Marketing / Content カテゴリの 6 件目）。
 //! 取得手段・ファイル名・内部コンポーネント識別子は記載しない
 //! （`docs/design/motion-reference-adoption-policy.md` §9 と同じライセンス
 //! 上の転記制限、対応表 ID は R0868（基準形）と R0871 のみを記す）。
