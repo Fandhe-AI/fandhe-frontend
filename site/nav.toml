@@ -1263,6 +1263,11 @@ title = "cta-signup-celebrate"
 source = "site/blocks/cta-signup-celebrate.md"
 path = "/blocks/cta-signup-celebrate/"
 
+[[section.group.page]]
+title = "cta-split-image"
+source = "site/blocks/cta-split-image.md"
+path = "/blocks/cta-split-image/"
+
 [[section.group]]
 title = "Pricing"
 

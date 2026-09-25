@@ -869,6 +869,7 @@ pub enum LayoutCss {
 | changelog-timeline-subscribe | #2821 | `marketing/changelog/changelog_timeline_subscribe.rs` |
 | cta-feature-links | #2757 | `marketing/cta/cta_feature_links.rs` |
 | feature-accordion-image | #2760/#2761 | `marketing/feature/feature_accordion_image.rs` |
+| cta-split-image | #2759 | `marketing/cta/cta_split_image.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 54 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
