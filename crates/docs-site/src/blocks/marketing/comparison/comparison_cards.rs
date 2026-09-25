@@ -547,6 +547,11 @@ pub const BLOCK: Block = Block {
 /// mobile-first（`min-width`）でカード列の列数を増やす（モジュール doc
 /// 「レイアウトとブレークポイント」節参照）。色はすべて既存トークン
 /// （`--fandhe-color-accent`/`-border`/`-fg-muted`）のみを使う。
+///
+/// 「含まれない」アイコンの muted 色は `[data-scope="icon"][data-part="root"]`
+/// を前置した複合セレクタで書く。icon recipe の base が同じ要素へ
+/// `color: currentColor`（詳細度 0,2,0）を宣言しているため、属性 1 個だけの
+/// セレクタ（0,1,0）では recipe 側に負けて muted 色が効かない。
 const LAYOUT_CSS: &str = "\
 .blocks-comparison-cards-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-12);\n}\n\
 .blocks-comparison-cards-variant {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-8);\n}\n\
@@ -565,7 +570,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > [data-scope=\"list\"][data-part=\"item\"].blocks-comparison-cards-row {\n  align-items: center;\n}\n\
 [data-scope=\"list\"][data-part=\"item\"].blocks-comparison-cards-row:first-child {\n  border-top: none;\n  padding-top: 0;\n}\n\
 [data-scope=\"list\"][data-part=\"item\"].blocks-comparison-cards-row:last-child {\n  padding-bottom: 0;\n}\n\
-[data-blocks-comparison-cards-value=\"excluded\"] {\n  color: var(--fandhe-color-fg-muted);\n}\n\
+[data-scope=\"icon\"][data-part=\"root\"][data-blocks-comparison-cards-value=\"excluded\"] {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-comparison-cards-row:has([data-blocks-comparison-cards-value=\"excluded\"]) .blocks-comparison-cards-feature-label {\n  color: var(--fandhe-color-fg-muted);\n}\n";
 
 #[cfg(test)]
@@ -654,5 +659,8 @@ mod tests {
         assert!(LAYOUT_CSS.contains("@media (min-width: 48rem)"));
         assert!(LAYOUT_CSS.contains("@media (min-width: 64rem)"));
         assert!(LAYOUT_CSS.contains("border: 2px solid var(--fandhe-color-accent);"));
+        assert!(LAYOUT_CSS.contains(
+            r#"[data-scope="icon"][data-part="root"][data-blocks-comparison-cards-value="excluded"] {"#
+        ));
     }
 }
