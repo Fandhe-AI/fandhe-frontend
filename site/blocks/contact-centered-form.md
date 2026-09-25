@@ -42,7 +42,6 @@ fn orientation() -> FieldRootProps {
 /// 通常フィールド（`text`/`email` 等）を組み立てる。`wide` が `true` の
 /// ときは全幅セル用フックを付与する（[`LAYOUT_CSS`] の
 /// `[data-blocks-contact-centered-form-wide]` 参照）。
-#[allow(clippy::too_many_arguments)]
 fn text_field(
     id: String,
     label_text: &'static str,
@@ -188,12 +187,7 @@ fn consent_checkbox() -> Node {
         &props,
         vec![("data-blocks-contact-centered-form-consent", "")],
         vec![
-            checkbox::hidden_input(
-                &props,
-                "contact-centered-form-consent",
-                "on",
-                vec![("aria-label", "プライバシーポリシーに同意します")],
-            ),
+            checkbox::hidden_input(&props, "contact-centered-form-consent", "on", vec![]),
             checkbox::control(
                 &props,
                 vec![],
