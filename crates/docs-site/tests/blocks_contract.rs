@@ -4646,6 +4646,53 @@ fn comparison_cards_page_wires_demo_class_and_css_hooks() {
     }
 }
 
+/// comparison-table の Demo ラッパ・CSS 配線・block 固有 CSS（横スクロール
+/// の min-width・scroll-area フック・自社列の accent 強調）が実際に
+/// 出力されていることを固定する（イシュー #2825）。
+#[test]
+fn comparison_table_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/comparison-table/index.html"))
+        .expect("blocks/comparison-table/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-comparison-table\""),
+        "comparison-table page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "comparison-table page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "comparison-table page should link the Blocks-specific stylesheet"
+    );
+    assert!(
+        html.contains(r#"data-blocks-comparison-table-instance="two""#),
+        "comparison-table page should render the two-column instance"
+    );
+    assert!(
+        html.contains(r#"data-blocks-comparison-table-instance="three""#),
+        "comparison-table page should render the three-column instance"
+    );
+    assert!(
+        html.contains(r#"data-part="scroll-area""#),
+        "comparison-table page should wrap each table in a scroll-area"
+    );
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "min-width: 42rem;",
+        "[data-scope=\"table\"][data-part=\"column-header\"][data-blocks-comparison-table-col=\"ours\"],",
+        "background: var(--fandhe-color-accent-subtle);",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
 /// changelog-timeline-subscribe の Demo ラッパ・CSS 配線・block 固有 CSS
 /// （3 列上書き・attached の角丸打ち消し・狭幅ブレークポイント）が実際に
 /// 出力されていることを固定する（イシュー #2821）。
@@ -5641,6 +5688,53 @@ fn contact_dialog_form_composes_expected_parts() {
     }
 }
 
+/// contact-split-form-image ページが `blocks-demo`/block 固有 class・
+/// pre-styled-ui.css/blocks.css の配線・data-* フック・ブレークポイントを
+/// 実際に持つことを固定する（イシュー #2831）。
+#[test]
+fn contact_split_form_image_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/contact-split-form-image/index.html"))
+        .expect("blocks/contact-split-form-image/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-contact-split-form-image\""),
+        "contact-split-form-image page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "contact-split-form-image page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "contact-split-form-image page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-contact-split-form-image-budget-fieldset",
+        "data-blocks-contact-split-form-image-budget-group",
+        "data-blocks-contact-split-form-image-submit",
+        "data-blocks-contact-split-form-image-image",
+    ] {
+        assert!(
+            html.contains(hook),
+            "contact-split-form-image page should render the {hook} hook"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "@media (min-width: 48rem)",
+        "repeat(2, minmax(0, 1fr))",
+        ".blocks-contact-split-form-image-media",
+        "[data-blocks-contact-split-form-image-budget-group]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
 /// contact-form-testimonial の合成部品（heading/text/field/input/textarea/
 /// button/blockquote/image/icon）が期待どおりの構成で実際に出力されて
 /// いること、`<form>`・`data:` URI・`href="#"` を持ち込んでいないことを
@@ -5738,6 +5832,65 @@ fn contact_info_columns_page_wires_demo_class_and_css_hooks() {
             "blocks.css should declare a rule for {selector}"
         );
     }
+}
+
+/// contact-split-form-image の合成部品（heading/text/field/input/textarea/
+/// radio-group/fieldset/separator/button/image）が期待どおりの構成で実際に
+/// 出力されていること、`<form>`・送信属性・死リンクを持ち込んでいないこと、
+/// 予算 radio group が先頭 1 件のみ選択済みの静的表示であることを固定する
+/// （イシュー #2831）。
+#[test]
+fn contact_split_form_image_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/contact-split-form-image/")
+        .expect("contact-split-form-image should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"field\" data-part=\"root\"",
+        "data-scope=\"field\" data-part=\"input\"",
+        "data-scope=\"field\" data-part=\"textarea\"",
+        "data-scope=\"radio-group\"",
+        "data-scope=\"fieldset\"",
+        "data-scope=\"separator\"",
+        "data-scope=\"button\"",
+        "data-scope=\"image\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "contact-split-form-image demo should contain {scope}"
+        );
+    }
+    assert!(html.contains("role=\"radiogroup\""));
+    assert_eq!(
+        html.matches("name=\"blocks-contact-split-form-image-budget\"")
+            .count(),
+        4,
+        "all 4 budget radio inputs should share the same name"
+    );
+    assert_eq!(
+        html.matches(" checked").count(),
+        1,
+        "exactly 1 budget option should be checked in the static initial state"
+    );
+    for absent in [
+        "<form",
+        "action=",
+        "type=\"submit\"",
+        "src=\"data:",
+        "href=\"#\"",
+        "href=",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "contact-split-form-image should never contain {absent}"
+        );
+    }
+    assert_eq!(
+        html.matches("type=\"button\"").count(),
+        1,
+        "contact-split-form-image should have exactly 1 type=\"button\" button (submit)"
+    );
 }
 
 /// contact-info-columns の合成部品（heading/text/icon/link）が期待どおりの
@@ -5882,6 +6035,367 @@ fn contact_split_info_composes_expected_parts() {
     }
 }
 
+/// error-page-background-image ページが Demo class・専用 CSS を配線して
+/// いること、背景画像・スクリムの `data-*` フックが実際に出力されている
+/// ことを固定する（イシュー #2836）。
+#[test]
+fn error_page_background_image_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/error-page-background-image/index.html"))
+        .expect("blocks/error-page-background-image/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-error-page-background-image\""),
+        "error-page-background-image page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "error-page-background-image page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "error-page-background-image page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-error-page-background-image-image",
+        "data-blocks-error-page-background-image-message",
+        "data-blocks-error-page-background-image-code",
+        "data-blocks-error-page-background-image-title",
+        "data-blocks-error-page-background-image-description",
+        "data-blocks-error-page-background-image-back",
+    ] {
+        assert!(
+            html.contains(hook),
+            "error-page-background-image page should render the {hook} attribute"
+        );
+    }
+    assert!(
+        html.contains("blocks-demo-background.svg"),
+        "error-page-background-image page should reference the shared background dummy asset"
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "error-page-background-image should never contain {absent}"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-error-page-background-image {",
+        ".blocks-error-page-background-image-root {",
+        "[data-blocks-error-page-background-image-image] {",
+        ".blocks-error-page-background-image-scrim {",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// error-page-background-image の合成部品（empty-state/heading/text/
+/// image/link）が期待どおりの構成で実際に出力されていること、`<form>`
+/// 等の非対話制約を固定する（イシュー #2836。
+/// `contact_info_columns_composes_expected_parts` と同型）。
+#[test]
+fn error_page_background_image_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/error-page-background-image/")
+        .expect("error-page-background-image should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"empty-state\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"image\"",
+        "data-scope=\"link\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "error-page-background-image demo should contain {scope}"
+        );
+    }
+    assert!(html.contains(r#"src="../../assets/blocks-demo-background.svg""#));
+    assert!(html.contains(r#"href="../../""#));
+    for text_fragment in ["404", "Page not found", "Back to home"] {
+        assert!(
+            html.contains(text_fragment),
+            "error-page-background-image demo should contain {text_fragment}"
+        );
+    }
+    for absent in [
+        "<form",
+        "src=\"data:",
+        "href=\"#\"",
+        "mailto:",
+        "tel:",
+        "id=\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "error-page-background-image should never contain {absent}"
+        );
+    }
+}
+
+/// error-page-popular-links ページが Demo class・専用 CSS を配線して
+/// いること、ロゴ・メッセージ・人気ページ一覧・戻るリンク・footer の
+/// `data-*` フックが実際に出力されていることを固定する（イシュー #2838）。
+#[test]
+fn error_page_popular_links_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/error-page-popular-links/index.html"))
+        .expect("blocks/error-page-popular-links/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-error-page-popular-links\""),
+        "error-page-popular-links page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "error-page-popular-links page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "error-page-popular-links page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-error-page-popular-links-message",
+        "data-blocks-error-page-popular-links-code",
+        "data-blocks-error-page-popular-links-title",
+        "data-blocks-error-page-popular-links-description",
+        "data-blocks-error-page-popular-links-popular-heading",
+        "data-blocks-error-page-popular-links-list",
+        "data-blocks-error-page-popular-links-item",
+        "data-blocks-error-page-popular-links-tile",
+        "data-blocks-error-page-popular-links-chevron",
+        "data-blocks-error-page-popular-links-back",
+        "data-blocks-error-page-popular-links-footer-rule",
+        "data-blocks-error-page-popular-links-copyright",
+        "data-blocks-error-page-popular-links-footer-divider",
+        "data-blocks-error-page-popular-links-social",
+    ] {
+        assert!(
+            html.contains(hook),
+            "error-page-popular-links page should render the {hook} attribute"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "error-page-popular-links should never contain {absent}"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-error-page-popular-links {",
+        ".blocks-error-page-popular-links-root {",
+        "[data-scope=\"item\"][data-part=\"root\"][data-blocks-error-page-popular-links-item] {",
+        ".blocks-error-page-popular-links-row + .blocks-error-page-popular-links-row {",
+        "[data-blocks-error-page-popular-links-footer-divider] {",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// error-page-popular-links の合成部品（empty-state/heading/text/item/
+/// list/icon/link/separator）が期待どおりの構成で実際に出力されている
+/// こと、`<form>` 等の非対話制約を固定する（イシュー #2838）。
+#[test]
+fn error_page_popular_links_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/error-page-popular-links/")
+        .expect("error-page-popular-links should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"empty-state\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"item\"",
+        "data-scope=\"list\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"link\"",
+        "data-scope=\"separator\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "error-page-popular-links demo should contain {scope}"
+        );
+    }
+    for href in [
+        "../../guides/",
+        "../../api/",
+        "../../examples/",
+        "../../themes/",
+        "../../",
+        "https://github.com/Fandhe-AI/fandhe-frontend",
+    ] {
+        assert!(
+            html.contains(href),
+            "error-page-popular-links demo should link to {href}"
+        );
+    }
+    for text_fragment in [
+        "404",
+        "Page not found",
+        "Popular pages",
+        "Guides",
+        "API Reference",
+        "Examples",
+        "Themes",
+        "Back to home",
+    ] {
+        assert!(
+            html.contains(text_fragment),
+            "error-page-popular-links demo should contain {text_fragment}"
+        );
+    }
+    for absent in [
+        "<form",
+        "src=\"data:",
+        "href=\"#\"",
+        "mailto:",
+        "tel:",
+        "id=\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "error-page-popular-links should never contain {absent}"
+        );
+    }
+}
+
+/// error-page-split-image ページが Demo class・専用 CSS を配線している
+/// こと、6 部品分のフック属性・使用素材が実際に出力されていることを
+/// 固定する（イシュー #2841）。
+#[test]
+fn error_page_split_image_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/error-page-split-image/index.html"))
+        .expect("blocks/error-page-split-image/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-error-page-split-image\""),
+        "error-page-split-image page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "error-page-split-image page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "error-page-split-image page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-error-page-split-image-logo",
+        "data-blocks-error-page-split-image-brand-name",
+        "data-blocks-error-page-split-image-message",
+        "data-blocks-error-page-split-image-content",
+        "data-blocks-error-page-split-image-code",
+        "data-blocks-error-page-split-image-title",
+        "data-blocks-error-page-split-image-description",
+        "data-blocks-error-page-split-image-actions",
+        "data-blocks-error-page-split-image-back",
+        "data-blocks-error-page-split-image-cta",
+        "data-blocks-error-page-split-image-helper-link",
+        "data-blocks-error-page-split-image-image",
+    ] {
+        assert!(
+            html.contains(hook),
+            "error-page-split-image page should render the {hook} attribute"
+        );
+    }
+    assert!(
+        html.contains("blocks-demo-screenshot.svg"),
+        "error-page-split-image page should reference the shared screenshot dummy asset"
+    );
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "error-page-split-image should never contain {absent}"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-error-page-split-image {",
+        ".blocks-error-page-split-image-layout {",
+        ".blocks-error-page-split-image-media {",
+        "[data-scope=\"image\"][data-part=\"root\"][data-blocks-error-page-split-image-image] {",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// error-page-split-image の合成部品（empty-state/heading/text/
+/// link/image/icon の 6 部品）が期待どおりの構成で実際に出力されている
+/// こと、`<form>` 等の非対話制約・各リンクの実在遷移先を固定する
+/// （イシュー #2841。`error_page_background_image_composes_expected_parts`
+/// と同型）。
+#[test]
+fn error_page_split_image_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/error-page-split-image/")
+        .expect("error-page-split-image should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"empty-state\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"link\"",
+        "data-scope=\"image\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "error-page-split-image demo should contain {scope}"
+        );
+    }
+    assert!(
+        !html.contains("data-scope=\"button\""),
+        "error-page-split-image demo should no longer contain a button part"
+    );
+    assert!(
+        html.contains("<svg"),
+        "error-page-split-image demo should contain icon svg"
+    );
+    assert!(html.contains(r#"src="../../assets/blocks-demo-screenshot.svg""#));
+    assert!(html.contains(r#"href="../../""#));
+    assert!(html.contains(r#"href="../../guides/""#));
+    assert!(!html.contains(r#"type="button""#));
+    for text_fragment in [
+        "404",
+        "This page took a wrong turn",
+        "Back to home",
+        "Contact support",
+        "Help center",
+        "CI status",
+    ] {
+        assert!(
+            html.contains(text_fragment),
+            "error-page-split-image demo should contain {text_fragment}"
+        );
+    }
+    for absent in [
+        "<form",
+        "src=\"data:",
+        "href=\"#\"",
+        "mailto:",
+        "tel:",
+        " id=\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "error-page-split-image should never contain {absent}"
+        );
+    }
+}
+
 /// contact-split-form-info ページが Demo class・専用 CSS を配線している
 /// こと、block 固有 CSS（2 列 grid・divider 非表示）が実際に出力されて
 /// いることを固定する（イシュー #2832）。列位置を `grid-column`/`grid-row`
@@ -5987,6 +6501,197 @@ fn contact_split_form_info_composes_expected_parts() {
         assert!(
             !html.contains(absent),
             "contact-split-form-info should never contain {absent}"
+        );
+    }
+}
+
+/// `feature-four-column-grid`（イシュー #2764）の CSS フック配線検証。
+/// `feature_image_cards`/`blog_grid_text` の同型テストと同じ判断軸
+/// （`crate::blocks` モジュール doc「CSS フックが `class` と `[data-*]` で
+/// 混在する理由」節参照）。
+#[test]
+fn feature_four_column_grid_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/feature-four-column-grid/index.html"))
+        .expect("blocks/feature-four-column-grid/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-feature-four-column-grid\""),
+        "feature-four-column-grid page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "feature-four-column-grid page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "feature-four-column-grid page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-feature-four-column-grid-card=\"\"",
+        "data-blocks-feature-four-column-grid-icon=\"\"",
+        "data-blocks-feature-four-column-grid-desc=\"\"",
+        "data-blocks-feature-four-column-grid-arrow=\"\"",
+        "data-blocks-feature-four-column-grid-overlay=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "feature-four-column-grid page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        ".blocks-feature-four-column-grid-grid",
+        "[data-blocks-feature-four-column-grid-card]",
+        "[data-scope=\"icon\"][data-part=\"root\"][data-blocks-feature-four-column-grid-arrow]",
+        "@media (min-width: 48rem)",
+        "@media (min-width: 64rem)",
+        "[data-columns=\"2\"]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// feature-four-column-grid の合成部品（heading/text/card/icon/
+/// link-overlay/highlight）が期待どおりの構成で実際に出力されている
+/// こと、非対話制約・死リンク不在を固定する（イシュー #2764）。
+#[test]
+fn feature_four_column_grid_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/feature-four-column-grid/")
+        .expect("feature-four-column-grid should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"card\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"link-overlay\"",
+        "data-scope=\"highlight\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "feature-four-column-grid demo should contain {scope}"
+        );
+    }
+    // 3 インスタンス x 4 カード = 12 枚、うち全面リンクインスタンスの
+    // 4 枚のみ overlay/矢印を持つ。
+    assert_eq!(
+        html.matches("data-blocks-feature-four-column-grid-overlay")
+            .count(),
+        4,
+        "feature-four-column-grid demo should render exactly 4 overlay links (the full-card-link instance only)"
+    );
+    for absent in ["<form", "<button", "id=\"", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "feature-four-column-grid should never contain {absent}"
+        );
+    }
+}
+
+/// error-page-centered の Demo 固有 CSS フック（メッセージ枠・コード・
+/// 見出し・説明・ホームボタン・サポートリンク）が実際に生成 HTML へ出力
+/// され、`blocks::stylesheet()` にも対応するセレクタが存在することを固定
+/// する（イシュー #2837）。
+#[test]
+fn error_page_centered_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/error-page-centered/index.html"))
+        .expect("blocks/error-page-centered/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-error-page-centered\""),
+        "error-page-centered page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "error-page-centered page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "error-page-centered page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-error-page-centered-message=\"\"",
+        "data-blocks-error-page-centered-code=\"\"",
+        "data-blocks-error-page-centered-title=\"\"",
+        "data-blocks-error-page-centered-description=\"\"",
+        "data-blocks-error-page-centered-home=\"\"",
+        "data-blocks-error-page-centered-support=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "error-page-centered page should output the {hook} CSS hook attribute"
+        );
+    }
+    for absent in ["<form", "href=\"#\"", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "error-page-centered should never contain {absent}"
+        );
+    }
+
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        ".blocks-error-page-centered-root",
+        "[data-blocks-error-page-centered-message]",
+        "[data-blocks-error-page-centered-code]",
+        "[data-blocks-error-page-centered-description]",
+        "[data-scope=\"empty-state\"][data-part=\"actions\"].blocks-error-page-centered-actions",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// error-page-centered の合成部品（4 部品。当初の 5 部品から `button` を
+/// 撤去して `link` へ一本化した、イシュー #2837 PR #3212 codex レビュー
+/// 是正）が期待どおりの構成で実際に出力されていること、非対話制約を
+/// 固定する。ホームへ戻る導線・サポートへの導線はいずれも `<button>` では
+/// なく実際に遷移する `<a href>` であり、文言と遷移先が一致することも
+/// 併せて固定する（同レビューの P1 指摘の回帰防止。ホームへ戻る導線は
+/// サイトホームへの相対パス `"../../"` であり、GitHub リポジトリ URL
+/// ではない）。
+#[test]
+fn error_page_centered_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/error-page-centered/")
+        .expect("error-page-centered should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"empty-state\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"link\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "error-page-centered demo should contain {scope}"
+        );
+    }
+    assert!(!html.contains("<button"));
+    assert!(html.contains("href=\"../../\""));
+    assert!(html.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend/issues\""));
+    assert!(html.contains("404"));
+    for absent in [
+        "<form",
+        "src=\"data:",
+        "href=\"#\"",
+        "mailto:",
+        "tel:",
+        "id=\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "error-page-centered should never contain {absent}"
         );
     }
 }
