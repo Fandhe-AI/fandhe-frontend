@@ -6125,7 +6125,7 @@ fn error_page_split_image_composes_expected_parts() {
         "Back to home",
         "Contact support",
         "Help center",
-        "System status",
+        "CI status",
     ] {
         assert!(
             html.contains(text_fragment),

@@ -23,8 +23,9 @@
 //! `Contact support` は当初 `button::button`（`ButtonVariant::Outline`）で
 //! 実装していたが、404 ページの主要導線であるにもかかわらず遷移先を
 //! 一切持たない非対話要素になっていたため（レビュー指摘、イシュー
-//! #2841）、[`link::root`] へ変更し [`REPO`] への実在する遷移先を持たせた
-//! （「補助リンクのリンク先」節参照）。これにより本 block は
+//! #2841）、[`link::root`] へ変更し [`ISSUES`] への実在する遷移先を持たせた
+//! （「補助リンクのリンク先」節参照。リポジトリのトップページではなく
+//! Issues ページへ揃えた経緯も同節参照）。これにより本 block は
 //! `button::button` を使わなくなった。
 //!
 //! # 使用部品
@@ -99,20 +100,30 @@
 //! `href="#"`（死リンク）は出力しない（`crate::blocks` モジュール doc の
 //! 「`<form>` を使わない」節と同じく、実際に機能しない `#` を出力しない
 //! 方針）。当初は「Contact support」を除く 2 つの補助リンク（Help
-//! center・System status）を同一の [`REPO`] へ揃えていたが、ラベルと
-//! 遷移先が一致せず利用者が期待する情報に到達できないとの指摘（Bugbot/
-//! codex、イシュー #2841）を受け、3 リンクそれぞれへラベルの意味に近い
-//! 別々の実在 URL を割り当てた:
+//! center・System status）をリポジトリのトップページ URL へ揃えていたが、
+//! ラベルと遷移先が一致せず利用者が期待する情報に到達できないとの指摘
+//! （Bugbot/codex、イシュー #2841）を受け、3 リンクそれぞれへラベルの
+//! 意味に近い別々の実在 URL を割り当てた:
 //!
 //! - **Contact support**（`Contact support` の CTA、[`link::root`] へ変更。
-//!   「集約元 2 件の畳み込み方」節参照）: [`REPO`]（本フレームワークの
-//!   問い合わせ・課題報告の実質的な受け口）
+//!   「集約元 2 件の畳み込み方」節参照）: [`ISSUES`]（GitHub の Issues
+//!   ページ）。`error_page_centered`（イシュー #2837 PR #3212 是正）と
+//!   同じ判断で、実在するサポート窓口 URL を新たに作り込むことはできない
+//!   （架空 URL の捏造は行わない）ため、実際に「サポートを求める」導線
+//!   として機能する Issues ページへ揃えた。リポジトリのトップページ単体
+//!   は「Contact support」の意味を裏切るため使わない（Bugbot 再指摘、
+//!   イシュー #2841。姉妹 block `error_page_centered` は既にこの是正を
+//!   済ませており、本 block だけが未修正のまま残っていた）
 //! - **Help center**: `"../../guides/"`（docs サイト内の実在ページ
 //!   `/guides/`、`site/nav.toml` 登録済み。「Back to home」の `"../../"`
 //!   と同じ相対パス起点）
-//! - **System status**: [`STATUS_URL`]（`REPO` 配下の GitHub Actions
-//!   実行状況ページ。CI の稼働状況を示す実在サブページであり `REPO` 単体
-//!   とは異なる URL）
+//! - **CI status**（表示ラベルを「System status」から変更、codex 指摘・
+//!   イシュー #2841）: [`CI_STATUS_URL`]（GitHub Actions の実行一覧
+//!   ページ）。本フレームワークはサービス稼働状況を示す独自のステータス
+//!   ページを持たないため、架空の URL を捏造する代わりに、実在し
+//!   ラベルの意味（稼働状況の確認先）に対応する CI 実行状況ページへ
+//!   遷移先を保ったままラベル側を実態に合わせた（遷移先を変えずラベルを
+//!   合わせる是正、同指摘）
 //!
 //! 区切り点は DOM を増やさず CSS の `::before` 疑似要素で描く。
 //!
@@ -145,12 +156,13 @@ use fandhe_frontend_pre_styled_ui::text::{
 };
 
 /// 「Contact support」の遷移先（モジュール doc「補助リンクのリンク先は
-/// ラベルの意味に対応した実在 URL」節参照）。
-const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+/// ラベルの意味に対応した実在 URL」節参照。`error_page_centered` の
+/// `ISSUES` と同じ URL・同じ判断）。
+const ISSUES: &str = "https://github.com/Fandhe-AI/fandhe-frontend/issues";
 
-/// 「System status」の遷移先（[`REPO`] 配下の GitHub Actions 実行状況
-/// ページ。同節参照）。
-const STATUS_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend/actions";
+/// 「CI status」（表示ラベルを「System status」から変更、同節参照）の
+/// 遷移先。GitHub Actions 実行状況ページ。
+const CI_STATUS_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend/actions";
 
 const LAYOUT_CLASS: &str = "blocks-error-page-split-image-layout";
 const MAIN_CLASS: &str = "blocks-error-page-split-image-main";
@@ -258,7 +270,7 @@ pub fn demo() -> Node {
                 vec![back_arrow_icon(), text(" Back to home")],
             ),
             link::root(
-                REPO,
+                ISSUES,
                 &LinkProps {
                     external: true,
                     ..LinkProps::default()
@@ -291,13 +303,13 @@ pub fn demo() -> Node {
                 vec![text("Help center")],
             ),
             link::root(
-                STATUS_URL,
+                CI_STATUS_URL,
                 &LinkProps {
                     external: true,
                     ..LinkProps::default()
                 },
                 vec![(HELPER_LINK_ATTR, "")],
-                vec![text("System status")],
+                vec![text("CI status")],
             ),
         ],
     );
@@ -413,11 +425,11 @@ mod tests {
         assert!(html.contains(r#"alt="""#));
         assert!(html.contains(r#"href="../../""#));
         assert!(html.contains(r#"href="../../guides/""#));
-        assert!(html.contains(&format!(r#"href="{REPO}""#)));
-        assert!(html.contains(&format!(r#"href="{STATUS_URL}""#)));
+        assert!(html.contains(&format!(r#"href="{ISSUES}""#)));
+        assert!(html.contains(&format!(r#"href="{CI_STATUS_URL}""#)));
         assert!(
-            html.matches(&format!(r#"href="{REPO}""#)).count() == 1,
-            "Contact support should be the sole link pointing at REPO"
+            html.matches(&format!(r#"href="{ISSUES}""#)).count() == 1,
+            "Contact support should be the sole link pointing at ISSUES"
         );
         assert!(!html.contains("data-scope=\"button\""));
         assert!(!html.contains(r#"type="button""#));
@@ -446,7 +458,7 @@ mod tests {
             "Back to home",
             "Contact support",
             "Help center",
-            "System status",
+            "CI status",
             dummy_assets::COMPANY_NAMES[0],
         ] {
             assert!(

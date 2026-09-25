@@ -12,7 +12,7 @@ R1104、副次的に対応表 ID R0582 も参照します。出典の固有名�
 画像を配置しますが、これは `lg`（幅 64rem 以上）のときだけで、狭い幅では
 画像を隠し左カラムだけを表示します。本 Demo は静的な表示例であり
 `<form>` 要素・送信処理は一切持ちませんが、「Back to home」「Contact
-support」「Help center」「System status」の各リンクはいずれもラベルの
+support」「Help center」「CI status」の各リンクはいずれもラベルの
 意味に対応した実在 URL へ実際に遷移します（死リンク `href="#"` は使い
 ません）。
 
@@ -31,12 +31,13 @@ use fandhe_frontend_pre_styled_ui::text::{
 };
 
 /// 「Contact support」の遷移先（モジュール doc「補助リンクのリンク先は
-/// ラベルの意味に対応した実在 URL」節参照）。
-const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+/// ラベルの意味に対応した実在 URL」節参照。`error_page_centered` の
+/// `ISSUES` と同じ URL・同じ判断）。
+const ISSUES: &str = "https://github.com/Fandhe-AI/fandhe-frontend/issues";
 
-/// 「System status」の遷移先（[`REPO`] 配下の GitHub Actions 実行状況
-/// ページ。同節参照）。
-const STATUS_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend/actions";
+/// 「CI status」（表示ラベルを「System status」から変更、同節参照）の
+/// 遷移先。GitHub Actions 実行状況ページ。
+const CI_STATUS_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend/actions";
 
 const LAYOUT_CLASS: &str = "blocks-error-page-split-image-layout";
 const MAIN_CLASS: &str = "blocks-error-page-split-image-main";
@@ -144,7 +145,7 @@ pub fn demo() -> Node {
                 vec![back_arrow_icon(), text(" Back to home")],
             ),
             link::root(
-                REPO,
+                ISSUES,
                 &LinkProps {
                     external: true,
                     ..LinkProps::default()
@@ -177,13 +178,13 @@ pub fn demo() -> Node {
                 vec![text("Help center")],
             ),
             link::root(
-                STATUS_URL,
+                CI_STATUS_URL,
                 &LinkProps {
                     external: true,
                     ..LinkProps::default()
                 },
                 vec![(HELPER_LINK_ATTR, "")],
-                vec![text("System status")],
+                vec![text("CI status")],
             ),
         ],
     );
@@ -224,10 +225,13 @@ pub fn demo() -> Node {
   共通ダミー素材ヘルパの架空の社名を使っています。
 - 補助リンクの区切り点は DOM を増やさず CSS の疑似要素で描いています。
   リンク先は当初 3 リンクとも同一の固定リポジトリ URL でしたが、ラベルと
-  遷移先が一致せず利用者が期待する情報に到達できないとの指摘（イシュー
-  #2841）を受け、Contact support はリポジトリ URL、Help center は docs
-  サイト内の `/guides/`、System status はリポジトリの GitHub Actions
-  実行状況ページへ、それぞれ別々の実在 URL を割り当てています。
+  遷移先が一致せず利用者が期待する情報に到達できないとの指摘（Bugbot/
+  codex、イシュー #2841）を受け、Contact support は GitHub の Issues
+  ページ（`error-page-centered` と同じ判断。姉妹 block は既に是正済み
+  だった）、Help center は docs サイト内の `/guides/`、System status は
+  表示ラベルを「CI status」へ改め遷移先はリポジトリの GitHub Actions
+  実行状況ページのまま、それぞれラベルの意味に対応する実在 URL を
+  割り当てています。
 - 右カラムの画像は grid の `align-items: stretch` だけに頼らず、
   `position: absolute` + `object-fit: cover` で親いっぱいに敷き詰める
   アウトオブフロー構成にしています（画像が元のアスペクト比のまま
