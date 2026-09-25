@@ -11,6 +11,7 @@
 mod changelog_accordion;
 mod changelog_stacked_list;
 mod changelog_timeline;
+mod changelog_timeline_subscribe;
 
 use crate::blocks::Block;
 
@@ -19,5 +20,6 @@ pub(super) fn blocks() -> Vec<Block> {
         changelog_accordion::BLOCK,
         changelog_stacked_list::BLOCK,
         changelog_timeline::BLOCK,
+        changelog_timeline_subscribe::BLOCK,
     ]
 }

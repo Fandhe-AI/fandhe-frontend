@@ -1321,9 +1321,24 @@ path = "/blocks/blog-split-header-grid/"
 title = "Content"
 
 [[section.group.page]]
+title = "content-article-toc"
+source = "site/blocks/content-article-toc.md"
+path = "/blocks/content-article-toc/"
+
+[[section.group.page]]
+title = "content-article"
+source = "site/blocks/content-article.md"
+path = "/blocks/content-article/"
+
+[[section.group.page]]
 title = "content-columns-screenshot"
 source = "site/blocks/content-columns-screenshot.md"
 path = "/blocks/content-columns-screenshot/"
+
+[[section.group.page]]
+title = "content-image-tiles"
+source = "site/blocks/content-image-tiles.md"
+path = "/blocks/content-image-tiles/"
 
 [[section.group.page]]
 title = "content-split-image"
@@ -1395,12 +1410,30 @@ source = "site/blocks/bento-two-column.md"
 path = "/blocks/bento-two-column/"
 
 [[section.group]]
+title = "Comparison"
+
+[[section.group.page]]
+title = "comparison-cards"
+source = "site/blocks/comparison-cards.md"
+path = "/blocks/comparison-cards/"
+
+[[section.group.page]]
+title = "comparison-feature-rows"
+source = "site/blocks/comparison-feature-rows.md"
+path = "/blocks/comparison-feature-rows/"
+
+[[section.group]]
 title = "Careers"
 
 [[section.group.page]]
 title = "careers-card-grid"
 source = "site/blocks/careers-card-grid.md"
 path = "/blocks/careers-card-grid/"
+
+[[section.group.page]]
+title = "careers-split-accordion"
+source = "site/blocks/careers-split-accordion.md"
+path = "/blocks/careers-split-accordion/"
 
 [[section.group.page]]
 title = "careers-split-photo-list"
@@ -1419,6 +1452,11 @@ path = "/blocks/changelog-accordion/"
 title = "changelog-stacked-list"
 source = "site/blocks/changelog-stacked-list.md"
 path = "/blocks/changelog-stacked-list/"
+
+[[section.group.page]]
+title = "changelog-timeline-subscribe"
+source = "site/blocks/changelog-timeline-subscribe.md"
+path = "/blocks/changelog-timeline-subscribe/"
 
 [[section.group.page]]
 title = "changelog-timeline"
