@@ -5785,3 +5785,51 @@ fn contact_info_columns_composes_expected_parts() {
         );
     }
 }
+
+/// feature-vertical-tabs の Demo ラッパ class・CSS 配線・CSS フック属性・
+/// `blocks::stylesheet()` 側の lg ブレークポイント上書き規則を固定する
+/// （イシュー #2775。`feature_accordion_image_page_wires_demo_class_and_css_hooks`
+/// と同型）。
+#[test]
+fn feature_vertical_tabs_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/feature-vertical-tabs/index.html"))
+        .expect("blocks/feature-vertical-tabs/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-feature-vertical-tabs\""),
+        "feature-vertical-tabs page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "feature-vertical-tabs page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "feature-vertical-tabs page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-orientation=\"vertical\"",
+        "data-blocks-feature-vertical-tabs-trigger-body=\"\"",
+        "data-blocks-feature-vertical-tabs-image=\"\"",
+        "data-scope=\"tabs\"",
+        "data-scope=\"icon\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "feature-vertical-tabs page should output the {hook} CSS hook attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for needle in [
+        "@media (max-width: 63.99rem)",
+        ".blocks-feature-vertical-tabs-layout [data-scope=\"tabs\"][data-part=\"list\"][data-orientation=\"vertical\"]",
+        "[data-blocks-feature-vertical-tabs-trigger-desc]",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare a rule for {needle}"
+        );
+    }
+}
