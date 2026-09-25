@@ -1233,6 +1233,11 @@ source = "site/blocks/hero-parallax-layers.md"
 path = "/blocks/hero-parallax-layers/"
 
 [[section.group.page]]
+title = "hero-prompt-input"
+source = "site/blocks/hero-prompt-input.md"
+path = "/blocks/hero-prompt-input/"
+
+[[section.group.page]]
 title = "hero-terminal"
 source = "site/blocks/hero-terminal.md"
 path = "/blocks/hero-terminal/"

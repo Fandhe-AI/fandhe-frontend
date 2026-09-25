@@ -10,6 +10,7 @@ mod hero_editorial_stagger;
 mod hero_email_signup;
 mod hero_image_tiles;
 mod hero_parallax_layers;
+mod hero_prompt_input;
 mod hero_terminal;
 mod text_split_reveal;
 use crate::blocks::Block;
@@ -20,6 +21,7 @@ pub(super) fn blocks() -> Vec<Block> {
         hero_email_signup::BLOCK,
         hero_image_tiles::BLOCK,
         hero_parallax_layers::BLOCK,
+        hero_prompt_input::BLOCK,
         hero_terminal::BLOCK,
         text_split_reveal::BLOCK,
     ]
