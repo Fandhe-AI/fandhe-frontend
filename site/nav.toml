@@ -1318,6 +1318,11 @@ source = "site/blocks/contact-image-info.md"
 path = "/blocks/contact-image-info/"
 
 [[section.group.page]]
+title = "contact-info-columns"
+source = "site/blocks/contact-info-columns.md"
+path = "/blocks/contact-info-columns/"
+
+[[section.group.page]]
 title = "contact-split-form-image"
 source = "site/blocks/contact-split-form-image.md"
 path = "/blocks/contact-split-form-image/"
