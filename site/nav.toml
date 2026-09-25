@@ -1421,6 +1421,11 @@ source = "site/blocks/careers-card-grid.md"
 path = "/blocks/careers-card-grid/"
 
 [[section.group.page]]
+title = "careers-split-accordion"
+source = "site/blocks/careers-split-accordion.md"
+path = "/blocks/careers-split-accordion/"
+
+[[section.group.page]]
 title = "careers-split-photo-list"
 source = "site/blocks/careers-split-photo-list.md"
 path = "/blocks/careers-split-photo-list/"

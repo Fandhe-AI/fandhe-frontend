@@ -1,15 +1,32 @@
+---
+paths:
+  - ".github/**"
+  - "crates/**"
+  - "site/**"
+  - "tools/**"
+  - "templates/**"
+  - "examples/**"
+  - "docker/**"
+  - "Dockerfile"
+  - "deny.toml"
+  - "Cargo.toml"
+  - ".cargo/**"
+  - "rust-toolchain.toml"
+  - "docs/ci/**"
+---
+
 # CI 規約
 
 ## Runner 方針
 
 - GitHub Actions の CI ジョブは `runs-on: ubuntu-latest` 等の GitHub ホステッドランナー（標準スペック）を既定とする（ユーザー指示 2026-08-07。public リポジトリのため標準ホステッドランナーは無料・分数消費なし）。本方針は組織 runner 方針（[Fandhe-AI/actions `docs/runner-policy.md`](https://github.com/Fandhe-AI/actions/blob/main/docs/runner-policy.md)、ユーザー決定 2026-08-07: public リポジトリは GitHub ホステッド〔ubuntu〕・private は self-hosted）の本リポジトリ（public）への適用である。組織方針の詳細は同文書を正とし、本節では書き写さず参照する（ドリフト防止）
-- **`runs-on` は `ubuntu-latest` のみを使う（ユーザー指示 2026-08-10）**: `windows-latest` / `macos-latest` 等の他 OS ランナー、`ubuntu-24.04` のようなイメージ固定、`ubuntu-24.04-arm` 等の arm 変種、`${{ matrix.os }}` のような非リテラル指定（matrix による複数 OS 展開を含む）はいずれも使わない。この指示に伴い、唯一の非 ubuntu ワークフローだった `.github/workflows/fw-new-windows-verify.yml`（`workflow_dispatch` 専用の Windows 実機検証ハーネス、イシュー #413／#1236 で `windows-latest` へ移行済みだった）は削除した。同ワークフローが担っていた `fw new` の非 Unix（`#[cfg(not(unix))]`）分岐の検証は、代替として `ci.yml` の `windows-target-check` ジョブ（`ubuntu-latest` 上で `cargo check -p fandhe-frontend-cli --all-targets --target x86_64-pc-windows-msvc`）が担う。`cargo check` はリンクしないため MSVC Build Tools 不在のホステッド Linux でも成立し、host target のビルドでは `cfg(unix)` が有効なため一切コンパイルされない非 Unix 分岐を**コンパイルレベルで**検証できる（host target の `cargo test`/`clippy` がこの分岐を担保するという記述は誤りであり、PR #1301 の codex レビュー P1 指摘で是正した）。ただし本ジョブが担保するのはコンパイル可能性までで、**Windows 実機での実行時挙動（生成物のバイト決定性・パーミッション no-op の無害性等）は担保しない**（既知のトレードオフ。過去の実測記録は `docs/reports/fw-new-windows-verification-report.md` に残す）。本規則の機械強制の対象は `.github/workflows/`（本リポジトリ自身の CI）のみとし、`templates/**/.github/workflows/`（`fw new` が生成するユーザープロジェクト向けテンプレート）は従来どおりスコープ外判断を維持する（現状すべて `ubuntu-latest` であることは確認済み）
+- **`runs-on` は `ubuntu-latest` のみを使う（ユーザー指示 2026-08-10）**: `windows-latest` / `macos-latest` 等の他 OS ランナー、`ubuntu-24.04` のようなイメージ固定、`ubuntu-24.04-arm` 等の arm 変種、`${{ matrix.os }}` のような非リテラル指定（matrix による複数 OS 展開を含む）はいずれも使わない。`fw new` の非 Unix（`#[cfg(not(unix))]`）分岐は、`ci.yml` の `windows-target-check` ジョブ（`ubuntu-latest` 上で `cargo check -p fandhe-frontend-cli --all-targets --target x86_64-pc-windows-msvc`）がコンパイルレベルで検証する。`cargo check` はリンクしないため MSVC Build Tools のないホステッド Linux でも成立する。host target の `cargo test`/`clippy` では `cfg(unix)` が有効なためこの分岐はコンパイルされず、代わりにはならない。本ジョブが担保するのはコンパイル可能性までで、Windows 実機での実行時挙動（生成物のバイト決定性・パーミッション no-op の無害性等）は担保しない既知のトレードオフである（過去の実測は `docs/reports/fw-new-windows-verification-report.md`）。機械強制の対象は `.github/workflows/` のみで、`templates/**/.github/workflows/`（`fw new` が生成するユーザープロジェクト向け）はスコープ外とする
 - 新規ジョブ追加時もホステッドランナーを使用し、`runs-on: self-hosted` を使わない。larger runner（有料の大型ホステッドランナー）も使わない
 - **唯一の例外（ai-review の codex 実行ジョブ、ユーザー承認済み 2026-08-07）**: `ai-review`（`.github/workflows/ai-review.yml`、イシュー #1275/PR #1278 で導入済み。旧 `codex-review` から移行）が呼び出す reusable workflow の codex 実行ジョブのみ、self-hosted な codex 専用 runner（`runner` 既定値 `codex`）の使用を認める。適用条件（fork PR での実行拒否・sudo 不在の fail-closed 検証等）・wrapper の書き方・例外が及ばない範囲は [Fandhe-AI/actions `ai-review/docs/runner-exception.md`](https://github.com/Fandhe-AI/actions/blob/main/ai-review/docs/runner-exception.md) に従い、本節では詳細を書き写さない。例外は codex 実行ジョブに閉じる: `post_feedback` ジョブ（`post-feedback-runner`）は資格情報に触れないため wrapper で `ubuntu-latest` を明示済みであり、この例外を根拠に他ジョブ・他ワークフローを self-hosted 化しない。上記以外で self-hosted が必要になった場合は `docs/runner-policy.md` の更新から始める
 - 旧方針（`runs-on: self-hosted` 既定、ユーザー指示 2026-07-18）は本指示で廃止。既存ワークフロー YAML の `runs-on: self-hosted` はホステッドランナーへ順次移行済み（`ci.yml` の `forbid-unsafe`/`clippy-wasm32`〔イシュー #1228〕・`release.yml` の `verify`/`publish`〔イシュー #1233〕は移行完了、`runner-maintenance.yml` はプール保守自体が不要になったため廃止〔イシュー #1237〕。全ワークフロー移行完了済み、詳細は `docs/ci/hosted-runner-migration.md` §6）
 - self-hosted 前提だった箇所（ツールの事前導入・共有 `CARGO_TARGET_DIR`・runner イメージ常設要件）は移行時に「クリーンな使い捨て VM（ジョブごとに初期化、共有キャッシュなし）」前提へ読み替える。ホステッドランナーではツールは毎ジョブ導入が必要になるため、各ワークフローの存在チェック付きインストール（安全網）は移行後むしろ主経路となる。削除・弱体化しない
 - キャッシュ戦略（`actions/cache` 採否・キャッシュキー設計）・ツール導入方針・移行順序の正は `docs/ci/hosted-runner-migration.md`（イシュー #1225）とし、詳細は同文書へ譲り本節では二重管理しない
-- 本方針（`runs-on` は `ubuntu-latest` リテラル単一）は同じく `crates/xtask/tests/workflow_runner_policy.rs`（`workflows_run_only_on_ubuntu_latest`）が `.github/workflows/*.yml` に対して fail-closed に機械強制する。判定は「許容形の列挙」ではなく**反転判定**とする: コメント除去後の内容に `runs-on` の文字列が現れる行は、唯一の許容形 `runs-on: ubuntu-latest`（キーのクォート・キーと `:` の間の空白・値のクォートのみ表記揺れとして許容）に一致しない限りすべて違反とする。これにより block sequence 形・`labels:` mapping 形・flow mapping 形・アンカー/エイリアス・tag 指定など**認識器が知らない表記は自動的に違反側へ倒れる**（許容形を列挙する形では、未知表記が「`runs-on` 行ではない」として素通りする fail-open になり、PR #1301 の codex レビューで空白形・クォート形の 2 通りが実際に指摘された）。検知側の一致判定は、YAML double-quoted scalar のエスケープ（`"runs-on"` / `\xXX` / `\UXXXXXXXX`）をデコードし、行末 `\` による行継続（`"runs-\` + 次行 `on"`）を回数上限なしで連結した**正規化済みプローブ**に対して行う（固定回数で連結を打ち切ると、上限超の行継続でキーを分割する迂回に対して fail-open になるため。PR #1301 の codex レビュー・Bugbot 双方で実際に指摘された）。一方**許容判定は生の行に対して行う**ため、エスケープや行継続で綴られたキーは値が `ubuntu-latest` でも違反になる（runner 指定は平文で書けば足りるため、この非対称性は意図的）。副作用として `run:` スクリプト中に `runs-on` と書いた行も違反になるが、`self-hosted` 禁止契約と同じく意図的な厳格性であり、歴史的経緯の言及はコメントへ書けば足りる。なお外部 YAML パーサは xtask 外部依存ゼロ方針（REQ-3）のため不採用であり、上記の正規化で表現できない迂回が新たに判明した場合は、パーサ導入の是非（依存追加＝ユーザー承認事項）から検討する。reusable workflow の呼び出しジョブ（job-level `uses:`）は `runs-on` を持たず本テストの射程外であり、下記 ai-review 例外はその射程外で成立している（本規則は OS・イメージ選択に関するもので、既承認の codex 例外を撤回しない）
+- 本方針（`runs-on` は `ubuntu-latest` リテラル単一）は `crates/xtask/tests/workflow_runner_policy.rs`（`workflows_run_only_on_ubuntu_latest`）が `.github/workflows/*.yml` に対して fail-closed に機械強制する。判定は許容形の列挙ではなく反転判定とする: コメント除去後に `runs-on` の文字列が現れる行は、唯一の許容形 `runs-on: ubuntu-latest`（キーのクォート・キーと `:` の間の空白・値のクォートのみ表記揺れとして許容）に一致しない限り違反とし、認識器が知らない表記（block sequence・`labels:` mapping・flow mapping・アンカー/エイリアス・tag 指定等）は自動的に違反側へ倒れる。検知側の一致判定は、YAML double-quoted scalar のエスケープ（`\x2d` 等）をデコードし、行末 `\` による行継続を回数上限なしで連結した正規化済みプローブに対して行う（固定回数で打ち切ると、上限を超える行継続でキーを分割する迂回に対して fail-open になる）。許容判定は生の行に対して行うため、エスケープや行継続で綴ったキーは値が `ubuntu-latest` でも違反になる（runner 指定は平文で書けば足りるので、この非対称性は意図的）。`run:` スクリプト中に `runs-on` と書いた行も違反になるが、歴史的経緯の言及はコメントへ書けば足りる。外部 YAML パーサは xtask 外部依存ゼロ方針（REQ-3）のため使わず、正規化で表現できない迂回が見つかった場合はパーサ導入の是非（依存追加＝ユーザー承認事項）から検討する。reusable workflow の呼び出しジョブ（job-level `uses:`）は `runs-on` を持たず本テストの射程外で、下記 ai-review 例外はその射程外で成立している
 - 本方針（`runs-on: self-hosted` の禁止）は `crates/xtask/tests/workflow_runner_policy.rs` が `.github/workflows/*.yml` のコメント除去後全文に対して fail-closed に機械強制する（イシュー #1239）。歴史記録としての言及はコメントでのみ許容される。ai-review 例外と本テストは両立する: wrapper（`.github/workflows/ai-review.yml`）は `runner` を reusable workflow 側の既定値経由で参照するのみで、YAML の非コメント行に `self-hosted` の文字列が現れないため、除外リスト追加・テスト弱体化なしに例外が成立している。将来 wrapper へ `self-hosted` リテラルを書く変更（例: `post-feedback-runner: self-hosted`）はこのテストが FAIL させるが、それは方針違反の検知として正しい挙動であり、テスト側へ除外を追加して回避しない
 
 ## Runner 環境と一時領域の前提
@@ -23,75 +40,9 @@
 - runner に常設が保証されないツール（wasm-bindgen-cli / wasm-pack / cargo-deny / clippy component / Chrome 等）に依存するステップは以下のいずれかを実行する
   - 存在チェック付きインストール（`command -v` / `where` 等で確認してから `cargo install` 等を実行）
   - ワークフロー YAML に明示的な前提コメント（例: `# 要: wasm-pack がインストール済み`）
-- **REQ-11 の計測経路（dist-server / `bundle-size` ジョブ）への wasm-opt（binaryen）非導入は意図的（イシュー #1972）**: `crates/dist-server/build.rs` のネスト WASM ビルドと `crates/wasm-full/tests/bundle_size.rs` は `wasm-opt` が PATH にあれば適用する soft-skip 処理を持つ（PR #1980、#1971）が、実測（`docs/ci/wasm-opt-adoption-evaluation.md`「#1972 の結論」節）で `wasm-bindgen --remove-name-section --remove-producers-section` 単独が `wasm-opt` 併用より gzip 後サイズで優れる（併用は +2.7〜3.1 KB 悪化）と確認されたため、`test`/`bundle-size` ジョブと `Dockerfile` の builder ステージへ binaryen をバージョン固定 + SHA256 検証で新規導入することは見送っている。両者は現状 `wasm-opt` を持たない構成のまま据え置く。**`ci.yml` 冒頭 `env:` の `WASM_OPT_VERSION`/`WASM_OPT_SHA256`（`version_123` pin）と `template-app-wasm-smoke` ジョブが行う binaryen 導入は対象が別**（`templates/app/wasm/build.sh` 側の wasm-opt 呼び出し検証用であり、REQ-11 の計測経路〔dist-server 経路〕とは無関係）であり、本項の見送り判断はこの既存導入を撤回するものではない。再評価トリガーは同文書の該当節を参照する
+- **REQ-11 の計測経路（dist-server / `bundle-size` ジョブ）への wasm-opt（binaryen）非導入は意図的（イシュー #1972）**: `crates/dist-server/build.rs` のネスト WASM ビルドと `crates/wasm-full/tests/bundle_size.rs` は `wasm-opt` が PATH にあれば適用する soft-skip 処理を持つが、実測（`docs/ci/wasm-opt-adoption-evaluation.md`）で `wasm-bindgen --remove-name-section --remove-producers-section` 単独が `wasm-opt` 併用より gzip 後サイズで優れる（併用は +2.7〜3.1 KB 悪化）と確認されたため、`test`/`bundle-size` ジョブと `Dockerfile` の builder ステージへ binaryen をバージョン固定 + SHA256 検証で新規導入することは見送っている。両者は現状 `wasm-opt` を持たない構成のまま据え置く。**`ci.yml` 冒頭 `env:` の `WASM_OPT_VERSION`/`WASM_OPT_SHA256` と `template-app-wasm-smoke` ジョブが行う binaryen 導入は対象が別**（`templates/app/wasm/build.sh` 側の wasm-opt 呼び出し検証用であり、REQ-11 の計測経路〔dist-server 経路〕とは無関係）であり、本項の見送り判断はこの既存導入を撤回するものではない。再評価トリガーは同文書を参照する
 - **`bundle-size` ジョブの計測 feature 集合は配布物と単一定義を共有する（イシュー #2329）**: `crates/dist-server/build.rs`（配布物のネストビルド）と `crates/wasm-full/tests/bundle_size.rs`（REQ-11 gzip 計測）は、`crates/dist-server/src/wasm_dist_features.rs` の `WASM_DIST_FEATURES`（「最小インタラクティブ構成」、判断根拠は同ファイル冒頭コメント参照）を `#[path]` によるソースレベル共有で唯一の正として参照する。計測だけを縮小して配布物を据え置く・配布物だけを縮小して計測を据え置くというゲート形骸化（`docs/design/wasm-full-feature-gating-evaluation.md` §14）は、`crates/xtask/tests/wasm_dist_features_contract.rs`（手書きの `--no-default-features`/`--features` リテラル禁止・両消費者の `#[path]` 取り込み確認）が fail-closed に検知する。feature 集合を変更する場合は `bundle-size:` 1 行サマリの実測値を PR 本文に記録すること
-- **共有 `CARGO_TARGET_DIR` と `cargo package`/`cargo publish` 検証ビルドの分離（イシュー #1192）**:
-  `cargo package` / `cargo publish`（`--dry-run` 含む）の検証ビルドは packaged
-  コピー（path 依存が剥がされ crates.io registry 版の依存に解決される）を
-  ビルドするため、旧 self-hosted 環境の共有 `CARGO_TARGET_DIR`
-  （`/cargo-target`）で実行すると cdylib+rlib クレート（wasm-thin/wasm-full/
-  wasm-client。`crate-type = ["cdylib", "rlib"]` の rlib はメタデータハッシュ
-  サフィックスなしの固定ファイル名で出力される cargo の仕様）の rlib を
-  registry 依存内容で上書きし、後続のワークスペースビルドが fingerprint
-  fresh 判定で汚染済み rlib をそのままリンクして
-  「multiple different versions of crate」（E0277/E0599）の flaky を
-  引き起こす（PR #1164/#1180/#1186/#1187 で実際に観測、再現手順はイシュー
-  #1192 コメント参照）。`cargo package`/`cargo publish` を実行するワーク
-  フロー（`release.yml` の `verify`/`publish` ジョブ）は必ず専用
-  `CARGO_TARGET_DIR`（`RUNNER_TEMP` 配下、イシュー #659 の配置原則）を
-  明示指定して共有 target dir から隔離する（根本対策）。加えて `ci.yml` の
-  `forbid-unsafe`/`test`/`gate-self-apply` ジョブは cargo 実行前に無ハッシュ
-  cdylib rlib（3 種）を削除する自己修復ガードステップを持ち、対策導入前の
-  既存汚染や他ワークフロー起因の汚染からも回復する（多層防御）。ガード
-  ステップの削除対象は固定ファイル名のみとし、glob・`rm -rf` は用いない
-  （A01 パストラバーサル・広域削除の防止、`security.md` 参照）。この 2 層の
-  対策宣言は `crates/xtask/tests/workflow_shared_target_contract.rs` が
-  fail-closed に固定しており、削除・弱体化しない。**イシュー #1226 で
-  ホステッドランナー前提へ契約を再設計済み**: 既存 5 テストは全件維持し
-  （ホステッドの使い捨て VM では共有ディスク汚染の動機は消えるが
-  `actions/cache` 復元時に同型汚染が再発し得るため）、加えて
-  「`target` をキャッシュするジョブへのガードステップ必須化（ci.yml）」
-  「release.yml での `target` キャッシュ禁止」の 2 契約を新設した
-  （イシュー #1227 で `ci.yml` の `clippy` ジョブへ `actions/cache` が実導入
-  され、以降この 2 契約は vacuous ではなく実ワークフローに対して実効判定
-  している。Phase 2 以降の追加キャッシュ導入時もガード欠落・target
-  キャッシュを即座に検知する）。**イシュー #2306 追記**: `gate-self-apply`
-  ジョブを `fw gate --only` でチェック群ごとに分割した際、新設した
-  `gate-self-apply-lint-wasm32`/`gate-self-apply-test` の 2 ジョブにも同じ
-  ガードステップ必須契約を課したため、既知ジョブは 3 → 5 件・対応テストは
-  5 → 7 件へ増えている。
-  詳細は `docs/ci/hosted-runner-migration.md` §2.1(d) 参照。**PR #1244 レビュー
-  指摘（イシュー #1226）を受けた追加強化**: 新設 2 契約は「ガードステップの
-  マーカー文字列がジョブ本文のどこかに存在するか」の vacuous な判定では
-  なく、(1) ガードステップが `actions/cache` 復元ステップより**後段**に
-  あること（復元はそのステップ実行時に起きるため、先行するガードは復元後の
-  汚染を除去できない）、(2) ガードが削除するディレクトリ参照（環境変数名/
-  リテラルパス）がキャッシュされているディレクトリ参照と**完全一致**する
-  こと（別ディレクトリを掃除するだけの no-op ガードを弾く）を検証する。
-  target 検出ヒューリスティックも大小文字を区別しない形へ強化し、
-  `path: ${{ env.CARGO_TARGET_DIR }}` のような env 参照形（`target` の語が
-  変数名の一部として大文字でのみ現れる）の見逃しを防ぐ。ステップ検出も
-  ステップ名の完全一致に限定し、無関係なステップ内のコメント引用による
-  誤判定を防ぐ。**自己レビュー追補**: 新設契約は、一致したガードステップに
-  対して既知 3 ジョブ（`forbid-unsafe`/`test`/`gate-self-apply`）と同じ完全性
-  チェック（無ハッシュ cdylib rlib 3 種すべてを削除・`rm -rf` 不使用）も適用
-  する（1 種類しか削除しない不完全なガードがすり抜けるのを防ぐ）。ガード
-  本体の抽出は 1 パス 1 行の継続行形式・単一行 `rm -f "a" "b" "c"` 形式の
-  いずれにも対応する。**PR #1244 に対する Bugbot 再指摘（イシュー #1226）を
-  受けた追加修正**: (1) `name:` を持たず `- uses: actions/cache@...` から
-  始まる nameless 形式のステップは行頭 `- ` を剥がさない判定では検知漏れに
-  なっていたため、`- ` プレフィックスを剥がしてから `uses:` を判定するよう
-  修正した。(2) 「キャッシュ復元ステップより後段にガードを置く」順序契約
-  は、復元を一切行わない `actions/cache/save`（書き込み専用アクション）
-  ステップの後段にもガードを要求してしまい、「restore → guard → build →
-  save」という正しい構成を偽陽性で FAIL させていたため、save 専用ステップ
-  を ci.yml 側の順序契約の対象から除外した（release.yml 側の「target を
-  キャッシュしない」禁止契約は save 専用ステップも引き続き検出対象のまま
-  弱体化しない）。(3) `path: "target/"` のようなクォート付きリテラルは
-  クォートを剥がさないまま比較していたため、クォート無しのガード削除
-  パスとの完全一致比較が常に失敗し、正しくカバーしているガードを誤って
-  「カバーしていない」と判定していたため、比較前にクォートを除去する
-  よう修正した。
+- **共有 `CARGO_TARGET_DIR` と `cargo package`/`cargo publish` 検証ビルドの分離（イシュー #1192）**: `cargo package`/`cargo publish`（`--dry-run` 含む）の検証ビルドは path 依存が剥がされ crates.io registry 版の依存に解決される packaged コピーをビルドするため、共有 `CARGO_TARGET_DIR` で実行すると cdylib+rlib クレート（wasm-thin/wasm-full/wasm-client。`crate-type = ["cdylib", "rlib"]` の rlib はメタデータハッシュサフィックスなしの固定ファイル名で出力される cargo の仕様）の rlib を registry 依存内容で上書きし、後続のワークスペースビルドが fingerprint fresh 判定で汚染済み rlib をそのままリンクして「multiple different versions of crate」（E0277/E0599）の flaky を引き起こす。`cargo package`/`cargo publish` を実行するワークフロー（`release.yml` の `verify`/`publish` ジョブ）は必ず専用 `CARGO_TARGET_DIR`（`RUNNER_TEMP` 配下、上記の配置原則）を明示指定して共有 target dir から隔離する（根本対策）。加えて `ci.yml` の `forbid-unsafe`/`test`/`gate-self-apply`/`gate-self-apply-lint-wasm32`/`gate-self-apply-test` の 5 ジョブは cargo 実行前に無ハッシュ cdylib rlib（3 種）を削除する自己修復ガードステップを持ち、対策導入前の既存汚染や他ワークフロー起因の汚染からも回復する（多層防御）。ガードステップの削除対象は固定ファイル名のみとし、glob・`rm -rf` は用いない（A01 パストラバーサル・広域削除の防止、`security.md` 参照）。加えて「`target` をキャッシュするジョブへのガードステップ必須化（ci.yml）」「release.yml での `target` キャッシュ禁止」の 2 契約があり（`actions/cache` 復元時に共有ディスク汚染と同型の再発があり得るため）、対応する契約テストは計 7 件。ガードステップの完全性は vacuous なマーカー文字列検出ではなく次を機械検証する: (1) ガードステップが `actions/cache` 復元ステップより後段にあること（復元より先行するガードは復元後の汚染を除去できない。書き込み専用の `actions/cache/save` ステップは ci.yml 側のこの順序契約の対象外だが、release.yml 側の「target をキャッシュしない」禁止契約では引き続き検出対象）、(2) ガードが削除するディレクトリ参照（環境変数名/リテラルパス。クォート付きリテラルは比較前にクォートを除去する）がキャッシュされているディレクトリ参照と完全一致すること（別ディレクトリを掃除するだけの no-op ガードを弾く。`target` 検出は大小文字を区別せず `path: ${{ env.CARGO_TARGET_DIR }}` のような env 参照形も検知する）、(3) ステップ検出はステップ名の完全一致に限定する（無関係なステップ内のコメント引用による誤判定を防ぐ。`name:` を持たず `- uses: actions/cache@...` から始まる nameless 形式も行頭 `- ` を剥がしてから `uses:` を判定する）、(4) 一致したガードステップが無ハッシュ cdylib rlib 3 種すべてを削除し `rm -rf` を使わないことを検証する（1 種類しか削除しない不完全なガードのすり抜け防止）。ガード本体の抽出は 1 パス 1 行の継続行形式・単一行 `rm -f "a" "b" "c"` 形式のいずれにも対応する。これらの対策宣言は `crates/xtask/tests/workflow_shared_target_contract.rs` が fail-closed に固定しており、削除・弱体化しない。詳細は `docs/ci/hosted-runner-migration.md` §2.1(d) 参照。
 - **`docs-site.yml` の paths フィルタ契約（イシュー #899/#913）**: docs サイトの
   骨格 CSS（`assets/site.css`）は #905 以降ビルド生成物であり、生成元は
   `crates/docs-site/src/site_theme.rs` と `crates/pre-styled-ui`（`Theme::to_css`）。
@@ -110,259 +61,36 @@
   `test -f` 群（`.github/workflows/docs-site.yml`）および
   `crates/docs-site/tests/blocks_nav.rs`/`blocks_code_drift.rs`/
   `blocks_contract.rs` の契約テストは削除・弱体化しない。
-- **`docs-site.yml` の verify ステップ契約（イシュー #944/#951/#957/#1016/#1017/#1018/#1021/#1022/#2088/#2607/#2736）**: `site/**` の
-  glob は `site/themes/*.md`（イシュー #1017 で `site/components/*.md` から
-  移行）と `site/primitives/*.md`（イシュー #1021）・`site/blocks.md`/
-  `site/blocks/*.md`（イシュー #2088）を包含するため、部品ページ・block ページ
-  追加時に paths への個別エントリ追加は不要（イシュー #944 で検証済み）。`site/redirects.toml`
-  （イシュー #1016、旧 URL 互換のリダイレクトページ生成機構）も同じ `site/**`
-  glob に包含されるため、同様に paths への個別エントリ追加は不要（同一 glob
-  包含の再確認）。`docs/**` は `docs/internal/`
-  も包含する。`docs/internal/` は `site/nav.toml` 未登録のためサイトへは出力され
-  ないが、変更時に再ビルドは走る（無害な過剰トリガーであり、paths からの除外は
-  しない）。dist sanity check（`verify: dist sanity check` ステップ）の `test -f`
-  対象は #944/#951/#957/#1016/#1017/#1018/#1021/#1022 で拡張され、現在は `index.html` / `assets/site.css` /
-  `assets/site.js`（#951、`src/script.rs` 生成）/ `assets/search-index.json`
-  （#957、`src/search_index.rs` 生成）/ 代表部品ページ（`themes/button/index.html`。
-  イシュー #1017 で `components/button/index.html` から移行）/ `themes/index.html`
-  （#1018、`/components/pre-styled-ui/` から移設した新索引ページ本体）
-  / `assets/pre-styled-ui.css`（`showcase::STYLESHEET_REL_PATH`）/ 代表リダイレクト
-  ページ 3 件（`components/index.html`、#1016、`src/redirect.rs` 生成。
-  `components/button/index.html`、#1017 が追記した 107 件の代表。
-  `components/pre-styled-ui/index.html`、#1018、旧索引 URL のリダイレクト生成物）/
-  `primitives/index.html`（#1021、Primitives セクション索引）/
-  `primitives/accordion/index.html`（#1021、代表 Primitives 部品ページ）/
-  `assets/primitives-showcase.css`（イシュー #1022、`src/primitive_showcase/`
-  が生成。#1021 が「本イシュー完了時点では CSS を持たない」として先送り
-  していた test -f を、Primitives 64 部品の Demo 供給に伴い追加した）/
-  `assets/image-demo.svg`（イシュー #1562、`showcase::image_demo_svg` が
-  生成。Image 節 demo の `src` が `data:` URI で core の `is_safe_url` に
-  拒否され属性ごと欠落していた不具合を、ビルド時生成 SVG の相対パス参照へ
-  切り替えて是正した）/ `assets/blocks-demo-{product,avatar,logo,
-  screenshot,background}.svg`（イシュー #2737、Blocks 共通のデモ用ダミー
-  素材ヘルパ `blocks::dummy_assets::IMAGE_ASSETS` が生成。`has_blocks_page`
-  と同条件〔既存 22 block の使用有無を問わず無条件〕で書き出す設計）/
-  `blocks/<kebab>/index.html`（block 追加ごとに
-  `dist sanity check` へ 1 行追加する対象。イシュー #2088〜#2552 の 22 件
-  分の個別記述はイシュー #2736 で撤去し、一覧・個別の設計判断は
-  `docs/design/docs-site-blocks-section.md` §19 と各
-  `crates/docs-site/src/blocks/<section>/<category>/<snake>.rs` のモジュール
-  doc へ集約した。以後 block を追加しても本節・CLAUDE.md は編集せず
-  `test -f` 行の追加のみを行う）/
-  `wireframes/index.html`（イシュー #2607、Wireframes セクションの索引）/
-  `wireframes/annotation/index.html`・`assets/wireframes.css`（イシュー
-  #2617、Phase 2「テキスト・注釈」の最初の部品ページ〔Annotation〕の登録
-  により `crate::wireframes::WIREFRAMES` が空でなくなり、
-  `crate::build::build_site` の「使われているページだけ」書き出し契約に
-  従って `assets/wireframes.css` が初めて書き出された）/
-  `wireframes/grid/index.html`（イシュー #2611、Phase 1「レイアウト骨格」の
-  Grid 部品ページ）/
-  `wireframes/divider/index.html`（イシュー #2612、Phase 1
-  「レイアウト骨格」の `divider` 部品〔`props::Orientation` の最初の
-  実消費者〕）/
-  `wireframes/stack/index.html`（イシュー #2610、Phase 1「レイアウト骨格」の
-  Stack 部品ページ）/
-  `wireframes/link/index.html`（イシュー #2618、Phase 2「テキスト・注釈」の
-  `link` 部品〔`Option<Node>` アイコンスロット規約 §11.4 の実例、`a[href]`
-  非出力〕）/
-  `wireframes/rich-text/index.html`（イシュー #2616、Phase 2「テキスト・
-  注釈」の Rich text 部品ページ）/
-  `wireframes/paragraph/index.html`（イシュー #2615、Phase 2「テキスト・
-  注釈」の Paragraph 部品ページ）/
-  `wireframes/button/index.html`（イシュー #2621、Phase 3「Forms A」の
-  `button` 部品〔`props::Disabled` の最初の実消費者〕）/
-  `wireframes/select/index.html`（イシュー #2624、Phase 3「Forms A」の
-  `select` 部品）/
-  `wireframes/radio/index.html`（イシュー #2626、Phase 3「Forms A」の
-  `radio` 部品。選択状態は `props::Active` を再利用し、新規の
-  `Selected`/`Checked` 型は新設しない）/
-  `wireframes/switch/index.html`（イシュー #2627、Phase 3「Forms A」の
-  `switch` 部品。`Active` を ON 状態の意味で使い `Disabled` を併用する）/
-  `wireframes/checkbox/index.html`（イシュー #2625、Phase 3「Forms A」の
-  `checkbox` 部品〔`props::Active` を「チェック済み」状態として消費〕）/
-  `wireframes/textarea/index.html`（イシュー #2623、Phase 3「Forms A」の
-  Textarea 部品ページ。`rows` を行プレースホルダー要素の構造表現とし
-  `style`・ネイティブ `<textarea>` を使わない設計）/
-  `wireframes/slider/index.html`（イシュー #2628、Phase 3「Forms A」の
-  `slider` 部品〔Progress を 5 刻み固定 class へ量子化、`Orientation` 併用〕）/
-  `wireframes/frame/index.html`（イシュー #2609、Phase 1「レイアウト骨格」の
-  Frame 部品ページ）/
-  `wireframes/tag/index.html`（イシュー #2619、Phase 2「テキスト・注釈」の
-  Tag 部品ページ。削除「×」パートは `link` と同型の `remove: Option<Node>`
-  アイコンスロット規約 §11.4 に従う）/
-  `wireframes/input/index.html`（イシュー #2622、Phase 3「Forms A」の
-  `input` 部品〔`<input>` 非出力、`props::Active`/`props::Disabled` の
-  `.attr()` を Select・Switch・Checkbox・Radio・Textarea・Slider に続いて
-  併用する 7 例目の実消費者〕）/
-  `wireframes/question/index.html`（イシュー #2630、Phase 4「Forms B」の
-  最初の部品。ラベル + 補足説明 + `Node` スロットのコントロール + ヒント。
-  表示状態軸を持たずスロット側へ委ねる）/
-  `wireframes/ratings/index.html`（イシュー #2631、同 Phase の 2 番目の
-  部品。`icon::star` を再利用し、塗り数を `props::Active` の `data-active`
-  で先頭から表現する）/
-  `wireframes/calendar/index.html`（イシュー #2632、同 Phase の 3 番目の
-  Calendar 部品〔月表示グリッド型カレンダー。選択日は `props::Active` を
-  再利用し `MAX_WEEKS` で 6 週へ飽和させる〕）/
-  `wireframes/file-drop/index.html`（イシュー #2633、同 Phase の 4 番目の
-  部品。アイコンは `Option<Node>` スロット、表示状態軸なし、
-  `<input type=file>` 非出力）/
-  `wireframes/text/index.html`（イシュー #2614、Phase 2「テキスト・注釈」の
-  最後の部品。`<span>` ルート + `white-space: nowrap` +
-  `text-overflow: ellipsis` で 1 行固定表示、`paragraph` の複数行許容とは
-  対になる判断）/
-  `wireframes/tabs/index.html`（イシュー #2638、Phase 5「Navigation」の
-  最初の部品。選択状態は項目ごとの `props::Active` ではなく
-  `active: Option<usize>` 1 引数で表し、選択中は高々 1 件という不変条件を
-  型で保証する）/
-  `wireframes/stepper/index.html`（イシュー #2634、Phase 4「Forms B」の
-  Stepper 部品。blocks.pm に対応部品を持たない独自追加部品で、完了ステップは
-  `props.rs` へ新型を追加せず部品ローカルの `data-complete` とし、現在
-  ステップは既存 `props::Active` を再利用する）/
-  `wireframes/nav-item/index.html`（イシュー #2636、Phase 5「Navigation」の
-  2 番目の部品。先頭・末尾の `Option<Node>` アイコンスロット + 件数表示
-  〔`Option<&str>`〕、`Active` はアクティブ状態のグレースケール反転配色）/
-  `wireframes/accordion/index.html`（イシュー #2641、Phase 5「Navigation」の
-  3 番目の部品。blocks.pm に対応部品がない独自追加部品。展開状態は
-  `props::Active` を項目単位で再利用し、折りたたみ項目の本文スロットは
-  出力しない）/
-  `wireframes/pagination/index.html`（イシュー #2640、Phase 5「Navigation」の
-  4 番目の部品。ページ項目は `&[Option<&str>]`〔`None` がギャップ〕、選択
-  状態は既存 `props::Active` を再利用し、先頭/前/次/末尾コントロールは
-  `prev_next`/`first_last` の 2 bool へ畳む）/
-  `wireframes/cursor/index.html`（イシュー #2642、Phase 5「Navigation」の
-  5 番目の部品。代わりに使える既存アイコンがないため
-  `icon::cursor_arrow`/`icon::cursor_hand` を新規追加して消費する）/
-  `wireframes/menu/index.html`（イシュー #2637、Phase 5「Navigation」の
-  6 番目の部品。検索欄は `Option<&str>` + 固定パートの `icon::search` で表し
-  `<input>` は出力しない。項目は `MenuItem` のスライス、強調は無効項目を
-  指す添字なら外す fail-closed な `active: Option<usize>`）/
-  `wireframes/breadcrumbs/index.html`（イシュー #2639、Phase 5「Navigation」の
-  7 番目の部品。現在階層は選択引数を持たず、items の最後の項目へ常に
-  `props::Active` を付与する。区切りは `stepper` と同じく CSS 擬似要素
-  のみで描く）/
-  `wireframes/tooltip/index.html`（イシュー #2644、Phase 6「Overlay・
-  Feedback」の最初の部品。方向は部品ローカルの `TooltipSide` による
-  修飾 class で表す）/
-  `wireframes/toast/index.html`（イシュー #2647、Phase 6「Overlay・
-  Feedback」の 2 番目の部品。閉じるグリフは `icon::x` 固定で instance
-  swap にせず `dismissible: bool` の 1 引数だけで有無を切り替える）/
-  `wireframes/alert/index.html`（イシュー #2646、Phase 6「Overlay・
-  Feedback」の 3 番目の部品。重要度は部品ローカルの `Severity` による
-  修飾 class で表し、アイコンは `link`/`file_drop` と同じ `Option<Node>`
-  スロット）/
-  `wireframes/progress/index.html`（イシュー #2648、Phase 6「Overlay・
-  Feedback」の 4 番目の部品。形状は部品ローカルの `ProgressShape` による
-  修飾 class〔Bar/Circle〕で表す）/
-  `wireframes/spinner/index.html`（イシュー #2649、Phase 6「Overlay・
-  Feedback」の 5 番目の部品。静的な円弧のみ・引数は Size のみ）/
-  `wireframes/modal/index.html`（イシュー #2645、Phase 6「Overlay・
-  Feedback」の 6 番目の部品。blocks.pm に対応部品がない独自追加部品。中央
-  配置は `position: fixed` ではなく in-flow の背景領域 +
-  `place-items: center` で表現し、パネル最大幅は `Size` 5 段の静的ルールと
-  して直書きする）/
-  `wireframes/avatar/index.html`（イシュー #2651、Phase 7「Data display」の
-  最初の部品。`content: Option<Node>` が `None` のとき `icon::user` へ
-  フォールバックする §11.4 からの意図的な逸脱）/
-  `wireframes/counter/index.html`（イシュー #2655、Phase 7「Data display」の
-  2 番目の部品。件数は `u32` ではなく `&str` で受け、強調配色は部品
-  ローカルの新型を新設せず共通型 `props::Primary` を再利用する）/
-  `wireframes/emoji/index.html`（イシュー #2654、Phase 7「Data display」の
-  3 番目の部品。絵文字は `Option<Node>` アイコンスロットではなく
-  `glyph: &str` の 1 引数へ畳み込む §11.4 からの意図的な逸脱）/
-  `wireframes/stat/index.html`（イシュー #2656、Phase 7「Data display」の
-  4 番目の部品。増減インジケータは `Option<&str>` ではなく `StatDelta`
-  〔`menu::MenuItem` と同型の公開構造体〕で表し、向きのある `Up`/`Down` は
-  `icon::caret_up`/`icon::caret_down` を再利用する）/
-  `wireframes/card-basic/index.html`（イシュー #2658、Phase 7「Data
-  display」の 5 番目の部品。先頭・末尾スロットは §11.4 の `Option<Node>`
-  規約へ統一し `avatar` を内蔵しない独自設計。`secondary` は `nav_item` の
-  `counter` と同じ `Option<&str>`）/
-  `wireframes/list/index.html`（イシュー #2657、Phase 7「Data display」の
-  6 番目の部品。`items: Vec<Node>` と `ordered: bool` の 2 引数のみを持ち、
-  マーカー・番号は CSS 擬似要素/カウンタのみで描く）/
-  `wireframes/chart/index.html`（イシュー #2663、Phase 8「Media・データ
-  表示」の最初の部品。棒グラフの配置イメージを `values: &[u8]` から
-  組み立て、`props::Orientation` を再利用する）/
-  `wireframes/image/index.html`（イシュー #2660、Phase 8 の 2 番目の
-  部品。`content: Option<Node>` が `None` のときバツ印プレース
-  ホルダーを描く §11.4 準拠のスロット規約。強調は共通型 `props::Primary`
-  を再利用する）/
-  `wireframes/map/index.html`（イシュー #2664、Phase 8 の 3 番目の
-  部品。地図タイルの配置イメージを部品ローカル列挙型 `MapZoom` 3 段・
-  `Option<Node>` マーカースロットで構成する）/
-  `wireframes/media/index.html`（イシュー #2661、Phase 8「Media・データ
-  表示」の 4 番目の部品。blocks.pm 上の表示名は Placeholder。
-  `content: None` で `icon::play` へフォールバック、16:9 固定、
-  `<video>`/`<iframe>` は出力しない）/
-  `wireframes/table/index.html`（イシュー #2662、Phase 8「Media・データ
-  表示」の 5 番目の部品。`<table>` は使わず `div`/`span` + CSS grid で
-  表現する、`calendar` と同型の判断）/
-  `wireframes/icon/index.html`（イシュー #2652、Phase 7「Data display」の
-  7 番目の部品。`glyph` は `Node` ではなく `fn(Size) -> Node` で受け取り、
-  サイズ指定を 1 か所に固定する。`role`/`aria-label` は付けない）/
-  `wireframes/brand/index.html`（イシュー #2653、Phase 7「Data display」の
-  8 番目の部品、これで Phase 7 が全部品出揃った。`content: Option<Node>`
-  が `None` のとき既定の汎用抽象ブランドマーク `icon::brand`（代わりに
-  使える既存アイコンがないため新規追加、`icon.rs` は計 24 種）へ
-  フォールバックする §11.4 からの意図的な逸脱（`avatar` と同型の判断）。
-  実在ブランドのロゴ・商標を模した SVG は持ち込まない）
-  である。
-  いずれも
-  fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
-  この `test -f` 群は削除・弱体化しない。生成物の**内容**検証（CSS トークン網羅性・
-  検索インデックスの決定性/エスケープ/サイズ上限・ページ総数・リダイレクトページの
-  4 要素網羅と fail-closed 検証、Primitives の Anatomy/`data-*` 表網羅・
-  scope 一致・`[data-scope=`/`[data-part=` 不在）は
-  `crates/docs-site/tests/`（`site_css_contract.rs` / `site_typography_contract.rs` /
-  `search_index.rs` / `site_nav.rs` / `site_build.rs` / `redirects.rs` /
-  `no_js_contract.rs` / `primitive_showcase.rs` / `primitive_showcase_xss.rs` /
-  `primitives_nav.rs` / `primitives_catalog.rs` / `wrap_state.rs`〔Primitives
-  74 部品 と Themes 123 部品の層をまたぐラップ状態の 4 バケット分割検知、
-  イシュー #1064〕/ `highlight.rs`〔フェンスコードブロックの軽量シンタックス
-  ハイライト（`src/highlight.rs`）の XSS エスケープ・CSS トークン網羅性・
-  全域性契約、イシュー #1078〕/ `blocks_nav.rs`〔nav.toml の `/blocks/*` ⇔
-  `crate::blocks::all_blocks()` ⇔ `site/blocks/*.md` の三方突合、イシュー #2088〕/
-  `blocks_code_drift.rs`〔`crate::blocks` 配下の手書き実装と Markdown 原稿の
-  `rust` フェンスとのマーカー突合、イシュー #2088〕/ `blocks_contract.rs`
-  〔Blocks ページの節順序・`<form>` 不在・CSS 配線・XSS 回帰、イシュー
-  #2088〕/ `blocks_dummy_assets.rs`〔Blocks 共通のデモ用ダミー素材ヘルパ
-  （`blocks::dummy_assets::IMAGE_ASSETS`）が実ビルドで書き出す SVG 5 種の
-  存在・非空・安全性（`data:`/`<script`/イベントハンドラ属性不在）を
-  固定、イシュー #2737〕/ `wireframes_nav.rs`〔nav.toml の `/wireframes/*` ⇔
-  `crate::wireframes::WIREFRAMES` ⇔ `site/wireframes/*.md` の三方突合、
-  イシュー #2607〕/ `wireframes_contract.rs`〔Wireframes ページの節順序・
-  非対話制約（`<form>`/`<button>`/`<input>`/`<select>`/`<a href>` 不在）・
-  CSS 配線・XSS 回帰、イシュー #2607〕）が担い、yml・ci.md では
-  二重管理しない（ページ件数・部品数を ci.md へ書かないのはこの二重管理回避のため）。
+- **`docs-site.yml` の verify ステップ契約**: `site/**` の glob は `site/themes/*.md`・`site/primitives/*.md`・`site/blocks.md`/`site/blocks/*.md`・`site/wireframes.md`/`site/wireframes/*.md`・`site/redirects.toml` を包含するため、ページ追加時に paths への個別エントリ追加は不要。`docs/**` は `docs/internal/` も包含する（`site/nav.toml` 未登録でサイトへは出力されないが再ビルドは走る。無害な過剰トリガーなので paths から除外しない）。`verify: dist sanity check` ステップの `test -f` 群（`index.html`・生成アセット〔`assets/site.css`/`site.js`/`search-index.json`/`pre-styled-ui.css`/`primitives-showcase.css`/`blocks.css`/`wireframes.css`/`image-demo.svg`/`blocks-demo-*.svg`〕・各セクションの索引と代表ページ・代表リダイレクトページ・各 block/wireframe ページ）は fail-closed で、欠落時にジョブを落として空サイト・アセット欠落の公開を防ぐ。削除・弱体化しない。対象ページの一覧は `docs-site.yml` 自体を正とし、ページや部品を追加しても本節・CLAUDE.md は編集せず `test -f` 行の追加のみを行う（Blocks は #2736 で個別記述を撤去済み、部品ごとの設計判断は各部品のモジュール doc と `docs/design/` の該当文書に置く）。生成物の内容検証（CSS トークン網羅性・検索インデックスの決定性/エスケープ/サイズ上限・ページ総数・リダイレクトの網羅と fail-closed 検証・Primitives の Anatomy/`data-*` 表・nav.toml ⇔ レジストリ ⇔ 原稿の三方突合・Blocks/Wireframes の節順序と非対話制約・XSS 回帰）は `crates/docs-site/tests/` が担い、yml・ci.md では二重管理しない（ページ件数・部品数を ci.md へ書かないのはこの二重管理回避のため）
 - **`fw gate`（`crates/cli/src/gate.rs`）系のツール（clippy component / cargo-deny / wasm32-unknown-unknown rustup target）**: `tools/ci/ensure-gate-tools.sh` を標準ブートストラップとする（イシュー #292。wasm32 target の常設は `lint_wasm32` チェック向けにイシュー #1174 で追加）。CI（`.github/workflows/ci.yml` の test ジョブ・`gate-self-apply`/`gate-self-apply-lint-wasm32`/`gate-self-apply-test` の 3 ジョブ、イシュー #2306 でチェック群ごとに分割済み）・ローカル開発・AI 自己保守フックのいずれも `fw gate` 実行前にこのスクリプトを前置する運用を推奨する。バージョン固定・SHA256 チェックサム検証はスクリプト側に一元化し、CI ワークフロー側との二重管理でドリフトさせない。前置されなかった場合でも `fw gate` 側のプリフライト検出（`docs/design/gate-design.md` §2.3a・§2.6）が「環境エラーであること」を決定的なメッセージ（是正コマンド付き）で示し、コード起因の FAIL との区別を保つ
-- **`forbid-unsafe`/`test` ジョブの workspace テスト重複排除と docs-site 分離（イシュー #2299）**: `forbid-unsafe` ジョブ末尾の `cargo test --workspace`（`FANDHE_FRONTEND_WASM_BUILD: "0"` 下）は `gate-self-apply` ジョブの `fw gate` `test` チェックと完全に重複していたため削除し、`forbid-unsafe` は unsafe 境界回帰テストと `cargo check --workspace`（forbid 属性の三重防御）のみを担う軽量ジョブへ縮小した（`ensure-gate-tools.sh` 前置も不要になったため削除）。`test` ジョブは `fandhe-frontend-docs-site` のテスト（workspace テスト所要時間の大半を占める）を `--exclude fandhe-frontend-docs-site` で除外し、新設した並列ジョブ `test-docs-site`（`cargo test -p fandhe-frontend-docs-site`、wasm ツール・cargo-deny 不要）へ分離した。いずれもテストの削除・弱体化ではなく重複排除・並列化であり、`test-docs-site` は `ci-complete` の `needs:` に追加済み。あわせて docs-site テストの実行時間そのものも、実サイトビルドのテストバイナリ内共有（`crates/docs-site/tests/support/shared_site.rs`、`LazyLock` で 1 バイナリ 1 回）と、ルート `Cargo.toml` の `[profile.dev.package.*] opt-level = 1`（docs-site と描画チェーン 6 クレートのみ。イシュー #2308 で `[profile.test.package.*]` から移設済み、詳細は次項参照）で短縮した。
-- **ルート `Cargo.toml` に `[profile.test.*]` 節を置かない（イシュー #2308）**: `wasm-pack test` は `cargo build --tests`（dev プロファイル）→ `cargo test`（test プロファイル）の 2 段で cargo を起動するが、`profile.dev.package.*` と `profile.test.package.*` の対象クレート集合が一致しないと、両呼び出しが cdylib+rlib クレート（wasm-client / wasm-full 等、メタデータハッシュなしの固定名生成物）を別ユニットへ解決し、`wasm-pack` 呼び出しごとに毎回上書き合って再コンパイルする（`docs/ci/browser-test-duration-regression-analysis.md` 参照、イシュー #2307 が原因を確定）。是正として、イシュー #2299 が `[profile.test.package.*]` へ置いていた docs-site とその描画チェーン 7 クレート（docs-site / core / interactive / app / server / headless-ui / pre-styled-ui）の `opt-level = 1` 上書きを `[profile.dev.package.*]` へ全面移設した（test プロファイルは dev を継承するため `cargo test` 側の短縮効果は失われない）。**test プロファイルは dev を継承する仕様上、`[profile.test.*]` 節（`[profile.test]` 本体・`[profile.test.package.*]`・`[profile.test.build-override]` を含む）を置く必要は本来なく、今後も置かない**（dev/test の package 上書き対象クレート集合が再び乖離すると `browser-test` 系ジョブの二重コンパイルが再発するため）。この禁止契約と dev 側上書きの維持は `crates/xtask/tests/profile_dev_test_parity.rs` が fail-closed に機械強制する。wasm32 ターゲットへも本上書きは波及するが、`.cargo/config.toml` の `-C opt-level=s` が後勝ちでコード生成には影響しない（REQ-11 不変）
-- **`fw gate --project .` の自己適用常時実行（イシュー #400・#1116、保証形の改訂: イシュー #2306）**: `.github/workflows/ci.yml` は `gate-self-apply`（type_check/default_escape_check/url_validation_check/lint/policy）・`gate-self-apply-lint-wasm32`（lint_wasm32）・`gate-self-apply-test`（test）の 3 ジョブが PR ごと・main push ごとに `fw gate --project . --only <群>` を実行し、`gate_result: "PASS"` の継続を保証する（#372/PR #382 で PASS 化、イシュー #2306 で `--only`〔#2305〕を用いた 3 ジョブ分割へ移行）。各チェックはいずれか 1 ジョブでのみ実行され、**保証形は「単一ジョブの gate_result: PASS」ではなく「3 ジョブの gate_result: PASS の論理積（`ci-complete` が `needs:` で集約）」**である。この改訂が既存保証と等価な理由: `aggregate`（`crates/cli/src/gate.rs`）はチェック間の結合を持たない純関数（各チェックの `passed`/`environment_error` を畳み込んで PASS/BLOCKED/ERROR の 3 値化のみを行う）であり、「各チェックが別ジョブで PASS」であることは「フル実行（`--only` なし）で全 7 チェックが PASS」であることと構造的に等価である。フル実行（`--only` なし）を保険ジョブとして別途常設することはしない（(1) 上記の等価性が構造的に保証される、(2) `--only` なしの既定経路自体は `crates/cli/tests/new_gate_e2e.rs` と gate.rs の名前・順序契約ユニットテストが CI 上で常時検証している、(3) 「7 チェックのいずれかが CI から欠落する」リスクは `crates/xtask/tests/workflow_shared_target_contract.rs` の網羅契約テスト（`--only` 群の和集合が `CHECK_NAMES` と過不足なく一致することを gate.rs のソースから機械抽出して検証）が fail-closed に防ぐ、(4) main push 限定の保険ジョブは `if:` を要し `ci-complete` の skipped 許容リストを広げる fail-open 方向の変更になるうえ、分割前の約 8 分のランナー消費を復活させる、の 4 点が根拠）。イシュー #1116 で `gate` の終了コードに `3`（`gate_result: "ERROR"`、実行環境にツールが無いだけの不合格）が追加されたが、各ジョブの判定は `version-bump-guard` と同じ「終了コードは 0/非 0 のみを見て、種別判定は JSON 出力本文の grep に任せる」設計を踏襲する: `if PIPELINE; then exit 0; fi`（`set -euo pipefail` を維持したまま条件式内で pipefail 失敗による即時中断を回避する）で非 0 終了を捕捉した後、`"gate_result":"ERROR"` の有無で環境エラーとコード起因 FAIL（`BLOCKED`）を CI アノテーションとして区別する（アノテーション文言に `--only` 群名を含め、どの群で落ちたかログから判別できるようにする）。終了コードの値（`PIPESTATUS` 等）を読み分ける実装は複雑化を避けるため採らない（詳細は `docs/design/gate-design.md` §4・§6）
+- **`forbid-unsafe`/`test` ジョブの workspace テスト重複排除と docs-site 分離（イシュー #2299）**: `forbid-unsafe` ジョブは unsafe 境界回帰テストと `cargo check --workspace`（forbid 属性の三重防御）のみを担う軽量ジョブとし、`gate-self-apply` ジョブの `fw gate` `test` チェックと重複する `cargo test --workspace` は持たない（`ensure-gate-tools.sh` の前置も不要）。`test` ジョブは `fandhe-frontend-docs-site` のテスト（workspace テスト所要時間の大半を占める）を `--exclude fandhe-frontend-docs-site` で除外し、並列ジョブ `test-docs-site`（`cargo test -p fandhe-frontend-docs-site`、wasm ツール・cargo-deny 不要）へ分離する（`ci-complete` の `needs:` に追加済み）。docs-site テストの実行時間自体は、実サイトビルドのテストバイナリ内共有（`crates/docs-site/tests/support/shared_site.rs`、`LazyLock` で 1 バイナリ 1 回）と、ルート `Cargo.toml` の `[profile.dev.package.*] opt-level = 1`（docs-site と描画チェーン 7 クレートのみ、次項参照）で短縮する。
+- **ルート `Cargo.toml` に `[profile.test.*]` 節を置かない（イシュー #2308）**: `wasm-pack test` は `cargo build --tests`（dev プロファイル）→ `cargo test`（test プロファイル）の 2 段で cargo を起動するため、`profile.dev.package.*` と `profile.test.package.*` の対象クレート集合が一致しないと、両呼び出しが cdylib+rlib クレート（wasm-client / wasm-full 等、メタデータハッシュなしの固定名生成物）を別ユニットへ解決し、呼び出しごとに互いの生成物を上書きして再コンパイルし合う（詳細は `docs/ci/browser-test-duration-regression-analysis.md`）。是正として、docs-site とその描画チェーン 7 クレート（docs-site / core / interactive / app / server / headless-ui / pre-styled-ui）の `opt-level = 1` 上書きは `[profile.dev.package.*]` にのみ置く（test プロファイルは dev を継承するため `cargo test` 側の短縮効果は失われない）。test プロファイルは dev を継承する仕様上、`[profile.test.*]` 節（`[profile.test]` 本体・`[profile.test.package.*]`・`[profile.test.build-override]` を含む）を置く必要は本来なく、今後も置かない（dev/test の package 上書き対象クレート集合が再び乖離すると `browser-test` 系ジョブの二重コンパイルが再発するため）。この禁止契約と dev 側上書きの維持は `crates/xtask/tests/profile_dev_test_parity.rs` が fail-closed に機械強制する。wasm32 ターゲットへも本上書きは波及するが、`.cargo/config.toml` の `-C opt-level=s` が後勝ちでコード生成には影響しない（REQ-11 不変）
+- **`fw gate --project .` の自己適用常時実行（イシュー #400・#1116・#2306）**: `.github/workflows/ci.yml` は `gate-self-apply`（type_check/default_escape_check/url_validation_check/lint/policy）・`gate-self-apply-lint-wasm32`（lint_wasm32）・`gate-self-apply-test`（test）の 3 ジョブが PR ごと・main push ごとに `fw gate --project . --only <群>` を実行し、`gate_result: "PASS"` の継続を保証する。各チェックはいずれか 1 ジョブでのみ実行され、**保証形は「単一ジョブの gate_result: PASS」ではなく「3 ジョブの gate_result: PASS の論理積（`ci-complete` が `needs:` で集約）」**である。この形が「フル実行（`--only` なし）で全 7 チェックが PASS」と等価である根拠: `aggregate`（`crates/cli/src/gate.rs`）はチェック間の結合を持たない純関数（各チェックの `passed`/`environment_error` を畳み込んで PASS/BLOCKED/ERROR の 3 値化のみを行う）であり、「各チェックが別ジョブで PASS」は「フル実行で全チェックが PASS」と構造的に等価だからである。フル実行を保険ジョブとして別途常設しない理由は次の 4 点: (1) 上記の等価性が構造的に保証される、(2) `--only` なしの既定経路自体は `crates/cli/tests/new_gate_e2e.rs` と gate.rs の名前・順序契約ユニットテストが CI 上で常時検証している、(3) 「7 チェックのいずれかが CI から欠落する」リスクは `crates/xtask/tests/workflow_shared_target_contract.rs` の網羅契約テスト（`--only` 群の和集合が `CHECK_NAMES` と過不足なく一致することを gate.rs のソースから機械抽出して検証）が fail-closed に防ぐ、(4) main push 限定の保険ジョブは `if:` を要し `ci-complete` の skipped 許容リストを広げる fail-open 方向の変更になるうえ、分割前より多くのランナー消費を復活させる。`gate` の終了コード `3`（`gate_result: "ERROR"`、実行環境にツールが無いだけの不合格）に対し、各ジョブの判定は `version-bump-guard` と同じ「終了コードは 0/非 0 のみを見て、種別判定は JSON 出力本文の grep に任せる」設計を踏襲する: `if PIPELINE; then exit 0; fi`（`set -euo pipefail` を維持したまま条件式内で pipefail 失敗による即時中断を回避する）で非 0 終了を捕捉した後、`"gate_result":"ERROR"` の有無で環境エラーとコード起因 FAIL（`BLOCKED`）を CI アノテーションとして区別する（アノテーション文言に `--only` 群名を含め、どの群で落ちたかログから判別できるようにする）。終了コードの値（`PIPESTATUS` 等）を読み分ける実装は複雑化を避けるため採らない（詳細は `docs/design/gate-design.md` §4・§6）
 - **cargo-deny 導入パターンの統一（イシュー #314）**: cargo-deny を導入する全ワークフロー（`tools/ci/ensure-gate-tools.sh`・`templates/default/.github/workflows/deny.yml`・`docs/policy/cargo-deny-advisories.md` のサンプルワークフロー）は「バージョン固定 + SHA256 チェックサム検証済みプリビルトバイナリ」パターンに統一する（`cargo install` によるソースからの任意最新版コンパイルは行わない）。バージョン・SHA256 の pin の正は `tools/ci/ensure-gate-tools.sh` の `CARGO_DENY_VERSION` / `CARGO_DENY_SHA256` のみとし、テンプレート・docs はスタンドアロン配布物のため同パターンをインラインで複製する。3 箇所の pin 値が乖離しないことは `crates/xtask/tests/template_deny_workflow.rs` のドリフト検知テストが `cargo test -p xtask` / CI で強制する（手動同期に頼らない）
 - **`templates/app`（`fw new --template app`）の crates.io バージョン依存化（イシュー #412/#493）**: `templates/app` は fandhe-frontend-core/-app/-interactive/-wasm-client への vendor 同梱を廃止し、通常の crates.io バージョン依存へ切り替えた（`docs/design/template-vendor-to-version-switch.md`）。このため `crates/cli/tests/new_gate_e2e.rs` の app テンプレート分（`fw_new_app_template_output_passes_fw_gate` 等、生成プロジェクトの `cargo build`/`fw gate` を実行する e2e）と `templates/app/Cargo.lock`・`templates/app/wasm/Cargo.lock` の再生成は、crates.io へのネットワークアクセスと registry キャッシュを前提とする（vendor 同梱時のオフライン決定性は失われた）。これらを実行する CI ジョブは、runner が crates.io（`https://static.crates.io`・`https://index.crates.io`）へ到達可能であることを前提とする（到達不可の場合は環境エラーとして扱い、テストの弱体化で対処しない）。**バンプ先バージョンが crates.io へ未公開のウィンドウ中（イシュー #895）**: `crates/cli/tests/new_gate_e2e.rs` の app テンプレート e2e 2 件は `apply_patch_template_smoke`（同ファイル）が `xtask patch-template-smoke`（イシュー #885、`template-app-wasm-smoke` ジョブが導入した機構と同一）をサブプロセスとして再利用し、未公開の依存のみ `[patch.crates-io]` フォールバックを適用してからテスト対象プロジェクトの `fw gate` を実行する（version-bump-guard・`template_vendor_drift` テストとの三すくみを smoke ジョブと同型に回避する。詳細は `docs/ci/version-bump-publish-order-gap.md` §「実装結果（イシュー #895）」）
 - **`examples/ssr-routing`（`fw new --example ssr-routing`）の crates.io バージョン依存前提（イシュー #499/#500）**: `examples/ssr-routing` は fandhe-frontend-core/-app/-server への crates.io バージョン依存で完結する正本サンプルであり、vendor 同梱を持たない。`crates/cli/tests/new_gate_e2e.rs::fw_new_example_ssr_routing_output_passes_fw_gate`（生成プロジェクトの `cargo build`/`cargo run`/`fw gate` を実行する e2e）は `templates/app` 分と同じく crates.io（`https://index.crates.io`・`https://static.crates.io`）への到達性を前提とする。到達不可の場合は環境エラーとして扱い、テストの弱体化で対処しない
 - **`examples/dist-server-docker`（`fw new --example dist-server-docker`）の crates.io バージョン依存前提（イシュー #502）**: `examples/dist-server-docker` も同様に fandhe-frontend-core/-app/-dist-server への crates.io バージョン依存で完結する正本サンプルであり、vendor 同梱を持たない。`crates/cli/tests/new_gate_e2e.rs::fw_new_example_dist_server_docker_output_passes_fw_gate`（生成プロジェクトの `cargo build`/`fw gate` を実行する e2e）も `ssr-routing` 分と同じく crates.io（`https://index.crates.io`・`https://static.crates.io`）への到達性を前提とする。到達不可の場合は環境エラーとして扱い、テストの弱体化で対処しない
-- **examples e2e の実行時間計測と `CARGO_TARGET_DIR` 共有（イシュー #505）**: `crates/cli/tests/new_gate_e2e.rs` の examples e2e 6 件（`fw_new_example_ssr_routing_output_passes_fw_gate` / `fw_new_example_ssg_blog_output_passes_fw_gate` / `fw_new_example_dist_server_docker_output_passes_fw_gate` / `fw_new_example_interactive_view_transitions_output_passes_fw_gate` / `fw_new_example_headless_pre_styled_ui_output_passes_fw_gate` / `fw_new_example_wireframe_ui_output_passes_fw_gate`）は `example_shared_target_dir()`（同ファイル）が返す共有 `CARGO_TARGET_DIR` を `fw gate` と `cargo run` smoke の双方に明示指定し、examples 間で crates.io 依存のビルドキャッシュを共有する。上記「フィクスチャ専用 `CARGO_TARGET_DIR` を明示指定する」原則の例外ではなく、対象を絞った適用である（`negative_cases.rs` 等の欠陥注入フィクスチャは同名パッケージを異内容で再利用するため引き続き専用ディレクトリを使う。examples はパッケージ名が相互に一意でリーフクレートが毎回新規展開されるため偽陰性リスクがない。根拠は `new_gate_e2e.rs::example_shared_target_dir` の doc コメント参照）。`.github/workflows/ci.yml` の `test` ジョブは「`fw new` 生成直後の `fw gate` PASS 構成保証（examples 除く、`--skip example_`）」と「examples gate e2e 6 件の実行と時間計測（`example_` フィルタ）」の 2 ステップに分割し、後者の所要時間を CI ログで常時可視化する。判定基準（examples e2e による時間増が +10 分超なら `examples-gate-e2e` ジョブへ分離）に対し、#505 時点の実測（4 件合計・ステップ全体で約 8 秒）は閾値未達のためジョブ分離は行っていない（#609 で 5 件目・#2667 で 6 件目を追加後も同一判断基準を適用する）。恒常的に 10 分超となった場合は ci.yml のコメントに従いジョブ分離を再検討する
+- **examples e2e の実行時間計測と `CARGO_TARGET_DIR` 共有（イシュー #505）**: `crates/cli/tests/new_gate_e2e.rs` の examples e2e 6 件（`fw_new_example_ssr_routing_output_passes_fw_gate` / `fw_new_example_ssg_blog_output_passes_fw_gate` / `fw_new_example_dist_server_docker_output_passes_fw_gate` / `fw_new_example_interactive_view_transitions_output_passes_fw_gate` / `fw_new_example_headless_pre_styled_ui_output_passes_fw_gate` / `fw_new_example_wireframe_ui_output_passes_fw_gate`）は `example_shared_target_dir()`（同ファイル）が返す共有 `CARGO_TARGET_DIR` を `fw gate` と `cargo run` smoke の双方に明示指定し、examples 間で crates.io 依存のビルドキャッシュを共有する。上記「フィクスチャ専用 `CARGO_TARGET_DIR` を明示指定する」原則の例外ではなく、対象を絞った適用である（`negative_cases.rs` 等の欠陥注入フィクスチャは同名パッケージを異内容で再利用するため引き続き専用ディレクトリを使う。examples はパッケージ名が相互に一意でリーフクレートが毎回新規展開されるため偽陰性リスクがない。根拠は `new_gate_e2e.rs::example_shared_target_dir` の doc コメント参照）。`.github/workflows/ci.yml` の `test` ジョブは「`fw new` 生成直後の `fw gate` PASS 構成保証（examples 除く、`--skip example_`）」と「examples gate e2e 6 件の実行と時間計測（`example_` フィルタ）」の 2 ステップに分割し、後者の所要時間を CI ログで常時可視化する。判定基準は「examples e2e による時間増が +10 分超なら `examples-gate-e2e` ジョブへ分離する」であり、現状はこの閾値未達のためジョブ分離は行っていない。恒常的に 10 分超となった場合は ci.yml のコメントに従いジョブ分離を再検討する
 - **`examples/headless-pre-styled-ui`（`fw new --example headless-pre-styled-ui`）の crates.io バージョン依存前提（イシュー #609）**: `examples/headless-pre-styled-ui` は当初 `fandhe-frontend-headless-ui` が crates.io 未公開のため path 依存の意図的な例外だった（イシュー #552）が、前提クレート公開（イシュー #608）を受けて fandhe-frontend-core/-headless-ui（推移的に -interactive）への crates.io バージョン依存へ切り替え、`fw new --example` に登録した（イシュー #609）。`crates/cli/tests/new_gate_e2e.rs::fw_new_example_headless_pre_styled_ui_output_passes_fw_gate`（生成プロジェクトの `cargo build`/`cargo run`/`fw gate` を実行する e2e）は他の examples 分と同じく crates.io（`https://index.crates.io`・`https://static.crates.io`）への到達性を前提とする。到達不可の場合は環境エラーとして扱い、テストの弱体化で対処しない
 - **`examples/wireframe-ui`（`fw new --example wireframe-ui`）の crates.io バージョン依存前提（イシュー #2667）**: `fandhe-frontend-wireframe-ui` は 2026-09-24 に v0.52.0 で crates.io へ初回公開済み（イシュー #2668）であり、`examples/wireframe-ui` は `headless-pre-styled-ui` の §7 のような path 依存の暫定期間を経ずに、最初から fandhe-frontend-core/-wireframe-ui への crates.io バージョン依存で `fw new --example` に登録した（イシュー #2667）。`crates/cli/tests/new_gate_e2e.rs::fw_new_example_wireframe_ui_output_passes_fw_gate`（生成プロジェクトの `cargo build`/`cargo run`/`fw gate` を実行する e2e）は他の examples 分と同じく crates.io（`https://index.crates.io`・`https://static.crates.io`）への到達性を前提とする。到達不可の場合は環境エラーとして扱い、テストの弱体化で対処しない
-- **一時領域の配置固定・自動クリーンアップ（イシュー #637）**: `crates/cli/tests/support/mod.rs::scratch_root` / `crates/cli/tests/scenarios/common.rs::scratch_root` / `crates/cli/tests/new_e2e.rs::unique_scratch_dir` / `crates/cli/tests/new_gate_e2e.rs`（`unique_scratch_dir` / `example_shared_target_dir`）が展開する一時プロジェクト・共有 `CARGO_TARGET_DIR` は、コンパイル時に確定する `env!("CARGO_TARGET_TMPDIR")`（`<target>/tmp`。CI では `/cargo-target/tmp`、ローカルでは `target/tmp`）へ確定配置し `/tmp` へは置かない（cargo が `CARGO_TARGET_TMPDIR` を設定するのはテストバイナリのコンパイル時のみであり、実行時の `std::env::var` 参照は cargo の仕様上常に失敗するため使わない。かつてこの事実誤認により実行時フォールバック＝`/tmp` へ恒常的にリークしていた）。共有 target（`example_shared_target_dir`）・生成プロジェクト（`fw-new-gate-e2e-*`）は「所有者テストの特定が不安定」なため `ScratchProject` の Drop ガードでは消さず、`new_gate_e2e.rs::cleanup_stale_scratch`（PID 生存判定＝`/proc/<pid>` の存在確認、**かつ** mtime が `STALE_MIN_AGE`（1 時間）を超えていることを削除の必須 AND 条件とする。`/proc` が使えない環境では mtime 判定のみにフォールバックする）が次回実行時に旧世代（新配置先・旧配置先 `/tmp` の双方）を回収し蓄積を有界化する。PID 生存確認のみに依存しない理由（PR #648 CI 障害の根本原因、イシュー #637 追補）: `/cargo-target` はコンテナ化された複数 CI ジョブ間で共有され得るが、PID の生存確認は **PID 名前空間ローカル** の判定であるため、別ジョブ（別 PID 名前空間）から見ると「他ジョブが現に `fw new`/`fw gate` を実行中の scratch ディレクトリ」の PID も非存在＝stale と誤判定されドリフト削除されてしまう（実際に `fw_new_app_template_output_passes_fw_gate` が cargo working directory 消失で FAILED になった）。mtime を必須の追加条件にすることで、たとえ PID 判定が誤って「非生存」と示しても直近に作成・更新されたディレクトリは保護される。ラン内キャッシュ共有（#505）の意図は不変
+- **一時領域の配置固定・自動クリーンアップ（イシュー #637）**: `crates/cli/tests/support/mod.rs::scratch_root` / `crates/cli/tests/scenarios/common.rs::scratch_root` / `crates/cli/tests/new_e2e.rs::unique_scratch_dir` / `crates/cli/tests/new_gate_e2e.rs`（`unique_scratch_dir` / `example_shared_target_dir`）が展開する一時プロジェクト・共有 `CARGO_TARGET_DIR` は、コンパイル時に確定する `env!("CARGO_TARGET_TMPDIR")`（`<target>/tmp`。CI では `/cargo-target/tmp`、ローカルでは `target/tmp`）へ確定配置し `/tmp` へは置かない（cargo が `CARGO_TARGET_TMPDIR` を設定するのはテストバイナリのコンパイル時のみであり、実行時の `std::env::var` 参照は cargo の仕様上常に失敗するため使わない）。共有 target（`example_shared_target_dir`）・生成プロジェクト（`fw-new-gate-e2e-*`）は「所有者テストの特定が不安定」なため `ScratchProject` の Drop ガードでは消さず、`new_gate_e2e.rs::cleanup_stale_scratch`（PID 生存判定＝`/proc/<pid>` の存在確認、**かつ** mtime が `STALE_MIN_AGE`（1 時間）を超えていることを削除の必須 AND 条件とする。`/proc` が使えない環境では mtime 判定のみにフォールバックする）が次回実行時に旧世代（新配置先・旧配置先 `/tmp` の双方）を回収し蓄積を有界化する。PID 生存確認のみに依存しない理由: `/cargo-target` はコンテナ化された複数 CI ジョブ間で共有され得るが、PID の生存確認は **PID 名前空間ローカル** の判定であるため、別ジョブ（別 PID 名前空間）から見ると「他ジョブが現に `fw new`/`fw gate` を実行中の scratch ディレクトリ」の PID も非存在＝stale と誤判定されドリフト削除されてしまう。mtime を必須の追加条件にすることで、たとえ PID 判定が誤って「非生存」と示しても直近に作成・更新されたディレクトリは保護される。ラン内キャッシュ共有（#505）の意図は不変
 - **crates.io 公開用 release ワークフロー（イシュー #514/#513）**: `.github/workflows/release.yml` は `workflow_dispatch` 起点で単一クレートを crates.io へ公開する。既公開バージョン検証ステップは `command -v curl` で存在チェックしてから sparse index（`https://index.crates.io`）を取得するため、curl 未導入 runner では環境エラーとして明示停止する（自動インストールは行わない）。`cargo package`/`cargo publish`（dry-run 含む）は `https://index.crates.io`・`https://static.crates.io` への到達性を前提とし、到達不可の場合は環境エラーとして扱う（他の crates.io バージョン依存ワークフローと同様、テストの弱体化で対処しない）。`CARGO_REGISTRY_TOKEN` はリポジトリ Secrets からのみ供給し、`mode: publish` を選択したステップの `env:` にのみ限定注入する（ログへは出力しない）。誤操作対策として `mode` の既定値は `dry-run-only`（安全側）とし、実公開は明示的に `mode: publish` を選ぶ運用とする。**バンプ PR と同時の crates.io 公開（同時公開フロー、ユーザー決定 2026-08-10、イシュー #1306）**: ai-review 導入後、`templates/app/wasm/Cargo.lock` の再生成をバンプ先バージョン公開まで後続 PR へ先送りする従来運用は stale lock の P1 検知でマージ不能になるため、条件（dry-run 先行確認・`mode: publish` 実行前に「未公開バージョン起因で構造的に fail するもの」〔`version-bump-guard` は含まない。公開前は green 必須〕を除く CI 全 green と ai-review findings が既知の stale lock 指摘のみであることの確認・依存順公開・同一 PR 内での lock 再生成・公開完了確認後に限る `version-bump-guard` の `version-bump-exempt` 免除・公開後の force-push 等の禁止・`mode: publish` 明示選択の維持）を満たす限り、バンプ PR が open のまま当該 PR ブランチを ref とした先行公開を許容する。詳細・残存リスク（reject されても公開済みバージョンは crates.io に残る）は `docs/ci/version-bump-publish-order-gap.md` §10 を正とし、本節では二重管理しない
-- **`version-bump-guard` ジョブ（イシュー #638）**: `.github/workflows/ci.yml` の `version-bump-guard` ジョブ（`if: github.event_name == 'pull_request'` のみ実行、main push ではスキップ）は `xtask check-version-bump`（`crates/xtask/src/check_version_bump.rs`）を呼び出し、公開済みクレート（`crates/*` のうち `publish = false` を持たないもの）の `src/`・`Cargo.toml`・`build.rs` が変更されているのに `Cargo.toml` の `version` が crates.io 既公開バージョンのままの PR を検知する（headless-ui 0.1.0 公開直後にバージョンバンプなしの破壊的変更がマージされ main を赤にした事故、PR #611 → 復旧 PR #634、が動機）。crates.io sparse index（`https://index.crates.io`）への到達性を前提とし、`command -v curl` 相当の存在チェック（`check_version_bump::query_index` 内）・curl 非 0 終了・想定外 HTTP status はすべて `environment error: ` プレフィックス付きで fail-closed に扱う（到達不可の場合は環境エラーとして扱い、テストの弱体化で対処しない。他の crates.io バージョン依存ワークフローと同じ方針）。HTTP 200 系だが body が空/パース不能で 1 バージョンも抽出できない応答（sparse index の異常応答）も `Published([])` として PASS 扱いにせず `environment error: ` として fail-closed にする（イシュー #638 PR #647 レビュー指摘、`query_index` 参照）。`curl` 呼び出しには `--connect-timeout 10 --max-time 30` を付け、ジョブ自体にも `timeout-minutes: 10` を設定し、`index.crates.io` へのリクエストがハングしても runner を無期限に占有しない（同レビュー指摘）。ジョブは xtask の stderr を `environment error: ` プレフィックス有無で判定し、「runner/ネットワーク起因」と「コード起因（バンプ漏れ）」を CI アノテーションとして区別する（`gate-self-apply` と同型）。この判定パイプラインは `if PIPELINE; then ... fi` の形（`set -euo pipefail` のまま `-e` を維持）で組む: `set -uo pipefail`（`-e` を含めない）で `PIPESTATUS` を後段で読む旧実装は、GitHub Actions のデフォルト起動オプション由来の `-e` が `set` で解除されずに残るため、パイプライン失敗時に判定へ到達する前にジョブが中断してしまう不具合があった（同レビュー指摘、修正済み）。さらに「コード起因（バンプ漏れ）」の断定は 1 行サマリの `result=FAIL` 行の有無で確認し、`cargo metadata`/`git diff` 自体の失敗（`CommandFailed`、例: `origin/<base>` 未 fetch）を誤って「バンプせよ」と注釈しない（同レビュー指摘）。誤検知の抑制手段として、PR 本文に `version-bump-exempt: <crate-name>`（同一行に理由を続けて記載）を宣言すると当該クレートのみ免除される。免除はクレート名の完全一致でのみ成立し、包括免除（マーカーのみ・名前なし）は認めない（security.md A05、`coding-rust.md` 参照）。PR 本文・`github.base_ref` はワークフロー内で `env:` 経由のみで受け渡し、シェルへ直接展開しない（script injection 対策）。**cargo-semver-checks 導入評価（イシュー #656）**: 本ゲートが検証しない公開 API の意味論的な semver 互換性を cargo-semver-checks で補完する案は評価済みであり、運用実績の集計・コスト分析の結果、現時点では導入見送りと結論した（再評価トリガーを含め詳細は `docs/ci/cargo-semver-checks-evaluation.md` 参照）
-- **`dep-version-check` ジョブ（イシュー #657）**: `.github/workflows/ci.yml` の `dep-version-check` ジョブ（push・PR 双方で常時実行。`version-bump-guard` と異なり `if: github.event_name == 'pull_request'` は付けない）は `xtask check-dep-versions`（`crates/xtask/src/check_dep_versions.rs`）を呼び出し、workspace 内メンバー間の `path + version` 併記依存について依存元の `version = "..."` 要求が依存先の現行 `version` へ追随しているかを検知する。headless-ui 0.1.0 → 0.2.0 バンプ時、依存元（pre-styled-ui / wasm-full / xtask）の `version = "..."` 追随が sed による手動一括変更を要した実績（`version-bump-guard` の是正メッセージによる注意喚起のみでは機械検知手段がなかった、PR #647 out-of-scope）が動機。判定は `cargo metadata --no-deps` のみで完結し、`version-bump-guard`（crates.io sparse index 照会あり）と異なりネットワーク照会を一切行わないため push・PR 双方で常時実行できる。判定ルールは 2 つ: (1) version 宣言があるエッジは `req == "^" + 依存先の現行 version` の完全一致のみ PASS（古い version・`=` ピン・部分指定はいずれも FAIL、3 要素完全表記を機械的に固定）、(2) version 宣言がない（`req == "*"`）エッジは、依存元が publish 対象（`check_version_bump::published_crates_from_cargo_metadata` と同じ fail-closed 判定）かつ kind が normal/build の場合のみ FAIL（dev は `cargo publish` 時に自動除去されるため対象外）。既定（引数なし）は検知のみで 1 件でも FAIL があれば終了コード 1。`--fix` は version 不一致（ルール 1）のみを自動修正するローカル向けオプトイン手段で、依存元 Cargo.toml 内で書き換え対象の `version = "<旧>"` 行を一意に特定できない場合（未対応の req 表記・候補 0/複数件）は一切書き換えず fail-closed にエラー終了する（部分書き込みをしない。全編集位置の特定完了後に一括適用する設計）。書き込み先は `cargo metadata` の `manifest_path` が workspace_root 配下であることを検証してからに限定する（パストラバーサル防止、security.md A01）。version 欠落（ルール 2）は `--fix` でも自動修正されず、残留すれば終了コード 1 のままとなる（`cargo publish` が実際に失敗する構成を安易に隠さないため）。1 行サマリは `dep-version-check: crate=<依存元> dep=<依存先> kind=<normal|dev|build> req=<req> actual=<version> result=<PASS|FAIL>`（`grep '^dep-version-check:'` で CI アノテーション生成側が抽出できる契約）。CLI 契約の回帰テストは `crates/xtask/tests/cli_check_dep_versions.rs`。`version-bump-guard` の是正メッセージ（`crates/xtask/src/main.rs`）も「バンプ後は `cargo run -p xtask -- check-dep-versions --fix` で依存元の version 要求を自動追随できる」旨を案内する
+- **`version-bump-guard` ジョブ（イシュー #638）**: `.github/workflows/ci.yml` の `version-bump-guard` ジョブ（`if: github.event_name == 'pull_request'` のみ実行、main push ではスキップ）は `xtask check-version-bump`（`crates/xtask/src/check_version_bump.rs`）を呼び出し、公開済みクレート（`crates/*` のうち `publish = false` を持たないもの）の `src/`・`Cargo.toml`・`build.rs` が変更されているのに `Cargo.toml` の `version` が crates.io 既公開バージョンのままの PR を検知する。crates.io sparse index（`https://index.crates.io`）への到達性を前提とし、`command -v curl` 相当の存在チェック（`check_version_bump::query_index` 内）・curl 非 0 終了・想定外 HTTP status はすべて `environment error: ` プレフィックス付きで fail-closed に扱う（到達不可の場合は環境エラーとして扱い、テストの弱体化で対処しない）。HTTP 200 系だが body が空/パース不能で 1 バージョンも抽出できない応答（sparse index の異常応答）も `Published([])` として PASS 扱いにせず `environment error: ` として fail-closed にする。`curl` 呼び出しには `--connect-timeout 10 --max-time 30` を付け、ジョブ自体にも `timeout-minutes: 10` を設定し、`index.crates.io` へのリクエストがハングしても runner を無期限に占有しない。ジョブは xtask の stderr を `environment error: ` プレフィックス有無で判定し、「runner/ネットワーク起因」と「コード起因（バンプ漏れ）」を CI アノテーションとして区別する（`gate-self-apply` と同型）。この判定パイプラインは `if PIPELINE; then ... fi` の形（`set -euo pipefail` のまま `-e` を維持）で組む（`-e` を含めない `set -uo pipefail` で `PIPESTATUS` を後段で読む形は、GitHub Actions のデフォルト起動オプション由来の `-e` が `set` で解除されずに残るため、パイプライン失敗時に判定へ到達する前にジョブが中断してしまう）。さらに「コード起因（バンプ漏れ）」の断定は 1 行サマリの `result=FAIL` 行の有無で確認し、`cargo metadata`/`git diff` 自体の失敗（`CommandFailed`、例: `origin/<base>` 未 fetch）を誤って「バンプせよ」と注釈しない。誤検知の抑制手段として、PR 本文に `version-bump-exempt: <crate-name>`（同一行に理由を続けて記載）を宣言すると当該クレートのみ免除される。免除はクレート名の完全一致でのみ成立し、包括免除（マーカーのみ・名前なし）は認めない（security.md A05、`coding-rust.md` 参照）。PR 本文・`github.base_ref` はワークフロー内で `env:` 経由のみで受け渡し、シェルへ直接展開しない（script injection 対策）。**cargo-semver-checks 導入評価（イシュー #656）**: 本ゲートが検証しない公開 API の意味論的な semver 互換性を cargo-semver-checks で補完する案は評価済みであり、現時点では導入見送りと結論した（再評価トリガーを含め詳細は `docs/ci/cargo-semver-checks-evaluation.md` 参照）
+- **`dep-version-check` ジョブ（イシュー #657）**: `.github/workflows/ci.yml` の `dep-version-check` ジョブ（push・PR 双方で常時実行。`version-bump-guard` と異なり `if: github.event_name == 'pull_request'` は付けない）は `xtask check-dep-versions`（`crates/xtask/src/check_dep_versions.rs`）を呼び出し、workspace 内メンバー間の `path + version` 併記依存について依存元の `version = "..."` 要求が依存先の現行 `version` へ追随しているかを検知する（依存元の `version = "..."` 追随を sed 等の手動一括変更に頼る運用は追随漏れを機械検知できないため）。判定は `cargo metadata --no-deps` のみで完結し、`version-bump-guard`（crates.io sparse index 照会あり）と異なりネットワーク照会を一切行わないため push・PR 双方で常時実行できる。判定ルールは 2 つ: (1) version 宣言があるエッジは `req == "^" + 依存先の現行 version` の完全一致のみ PASS（古い version・`=` ピン・部分指定はいずれも FAIL、3 要素完全表記を機械的に固定）、(2) version 宣言がない（`req == "*"`）エッジは、依存元が publish 対象（`check_version_bump::published_crates_from_cargo_metadata` と同じ fail-closed 判定）かつ kind が normal/build の場合のみ FAIL（dev は `cargo publish` 時に自動除去されるため対象外）。既定（引数なし）は検知のみで 1 件でも FAIL があれば終了コード 1。`--fix` は version 不一致（ルール 1）のみを自動修正するローカル向けオプトイン手段で、依存元 Cargo.toml 内で書き換え対象の `version = "<旧>"` 行を一意に特定できない場合（未対応の req 表記・候補 0/複数件）は一切書き換えず fail-closed にエラー終了する（部分書き込みをしない。全編集位置の特定完了後に一括適用する設計）。書き込み先は `cargo metadata` の `manifest_path` が workspace_root 配下であることを検証してからに限定する（パストラバーサル防止、security.md A01）。version 欠落（ルール 2）は `--fix` でも自動修正されず、残留すれば終了コード 1 のままとなる（`cargo publish` が実際に失敗する構成を安易に隠さないため）。1 行サマリは `dep-version-check: crate=<依存元> dep=<依存先> kind=<normal|dev|build> req=<req> actual=<version> result=<PASS|FAIL>`（`grep '^dep-version-check:'` で CI アノテーション生成側が抽出できる契約）。CLI 契約の回帰テストは `crates/xtask/tests/cli_check_dep_versions.rs`。`version-bump-guard` の是正メッセージ（`crates/xtask/src/main.rs`）も「バンプ後は `cargo run -p xtask -- check-dep-versions --fix` で依存元の version 要求を自動追随できる」旨を案内する
 - **横断 a11y 自動検証（axe-core 相当）導入評価（イシュー #1076）**: `crates/headless-ui/`（64 部品）の WAI-ARIA 検証を横断で機械強制する axe-core 相当ツールの導入は、npm 経路の構造的な受け入れ不可（REQ-12 allowlist）・既決の Playwright 不採用の継承・サプライチェーン方針との非整合を理由に、現時点では見送りと結論した（詳細・再評価トリガーは `docs/ci/a11y-automation-evaluation.md` 参照）
-- **example オーバーレイのブラウザ実インタラクションテスト常設 CI 化評価（イシュー #1210）**: `examples/interactive-view-transitions/wasm` の navigation-menu / menubar オーバーレイ実演（PR #1206 が `wasm-pack test --headless --chrome` の使い捨てハーネスで実測、`docs/reports/interactive-view-transitions-overlay-browser-report.md`）の常設 CI 化は、中核ロジックが `crates/wasm-full/tests/overlay_close_browser.rs` 等で CI 常設済みであること・example 正本へのテスト同梱が `embedded-examples` バイト一致同期と cli semver バンプ連鎖を誘発すること・再現手順が既にレポートで文書化済み（#1209 修正検証 PR #1212 で実際に再現できた実績あり）であることを理由に、現時点では見送りと結論した（詳細・候補比較・再評価トリガーは `docs/ci/example-overlay-browser-interaction-testing-evaluation.md` 参照）
-- **aarch64 self-hosted runner による Docker WASM 再ビルド検証の CI 常設化評価（イシュー #1216）**: イシュー #450（PR #1214）で実測した aarch64 実機（Apple Silicon macOS ホスト上の Docker Engine）での Docker マルチステージ WASM 再ビルド（`docs/reports/docker-wasm-rebuild-acceptance-report.md` §5a）の CI 常設化は、org スコープの self-hosted runner プール（20 台稼働確認済み）が全台 `X64` ラベルで aarch64 Linux インスタンスを 1 台も含まないこと・`WASM_BINDGEN_VERSION` のバージョン文字列ドリフトは `crates/xtask/tests/wasm_bindgen_version_sync.rs` が x86_64/aarch64 両分岐とも既に `cargo test` 時点で fail-closed 検知していること（aarch64 側 `WASM_BINDGEN_SHA256` の同期は当初この回帰テストの対象外という既知のギャップがあったが、イシュー #1218 で第 3 のテスト `dockerfile_pins_known_wasm_bindgen_sha256_for_aarch64_archive`（既知 SHA256 値との突合）を追加し解消済み）を理由に、現時点では見送りと結論した（詳細・候補比較・再評価トリガーは `docs/ci/aarch64-docker-wasm-rebuild-ci-evaluation.md` 参照）。**前提変更の注記（イシュー #1238）**: 見送り根拠の中心だった self-hosted runner プールの aarch64 不在は、CI runner 方針のホステッドランナー既定への反転（#1220）で判断基盤ごと前提が変化した（public リポジトリ無料の arm64 ホステッドランナー `ubuntu-24.04-arm` 等が利用可能）。再評価の実施は本規約のスコープ外であり、詳細は同評価文書の追記節を参照する。**さらなる前提変更（2026-08-10）**: `runs-on` を `ubuntu-latest` 単一へ限定するユーザー指示（本節冒頭）により、この再評価経路で想定していた arm64 ホステッドランナー（`ubuntu-24.04-arm` 等）の利用は現方針では選択肢から外れた。aarch64 CI 常設を再検討する場合は Runner 方針の変更から始める
-- **`clippy-wasm32` ジョブ（イシュー #1160、#2417 で 4 クレートへ拡張）**: `.github/workflows/ci.yml` の `clippy-wasm32` ジョブは wasm32-unknown-unknown target で 4 wasm クレート（wasm-full / wasm-client / wasm-thin / frontend-animation）の `cargo clippy --all-targets --locked -- -D warnings` を実行し、host target のみの `clippy` ジョブでは検知できない `#[cfg(target_arch = "wasm32")]` ゲート配下（browser テスト含む）の警告を fail-closed に検知する（イシュー #1140/PR #1147 のすり抜けが動機）。clippy は check のみで wasm-bindgen 後処理を起動しないため wasm-bindgen-cli は不要。対象閉包に dist-server（build.rs ネスト WASM ビルド）を含まないため `FANDHE_FRONTEND_WASM_BUILD` のオプトアウトも不要。workspace ルート `clippy.toml` の disallowed-methods（REQ-1）も wasm32 ゲート配下へ適用される
+- **example オーバーレイのブラウザ実インタラクションテスト常設 CI 化評価（イシュー #1210）**: `examples/interactive-view-transitions/wasm` の navigation-menu / menubar オーバーレイ実演（`wasm-pack test --headless --chrome` の使い捨てハーネスで実測、`docs/reports/interactive-view-transitions-overlay-browser-report.md`）の常設 CI 化は、中核ロジックが `crates/wasm-full/tests/overlay_close_browser.rs` 等で CI 常設済みであること・example 正本へのテスト同梱が `embedded-examples` バイト一致同期と cli semver バンプ連鎖を誘発すること・再現手順が既にレポートで文書化済みであることを理由に、現時点では見送りと結論した（詳細・候補比較・再評価トリガーは `docs/ci/example-overlay-browser-interaction-testing-evaluation.md` 参照）
+- **aarch64 実機での Docker WASM 再ビルド検証の CI 常設化は見送り（イシュー #1216）**: `WASM_BINDGEN_VERSION` と aarch64 側 `WASM_BINDGEN_SHA256` のドリフトは `crates/xtask/tests/wasm_bindgen_version_sync.rs` が `cargo test` 時点で fail-closed に検知する。arm64 ランナーは上記の `runs-on: ubuntu-latest` 単一方針により使えないため、再検討は Runner 方針の変更から始める（実測記録は `docs/reports/docker-wasm-rebuild-acceptance-report.md` §5a、候補比較・再評価トリガーは `docs/ci/aarch64-docker-wasm-rebuild-ci-evaluation.md`）
+- **`clippy-wasm32` ジョブ（イシュー #1160、#2417 で 4 クレートへ拡張）**: `.github/workflows/ci.yml` の `clippy-wasm32` ジョブは wasm32-unknown-unknown target で 4 wasm クレート（wasm-full / wasm-client / wasm-thin / frontend-animation）の `cargo clippy --all-targets --locked -- -D warnings` を実行し、host target のみの `clippy` ジョブでは検知できない `#[cfg(target_arch = "wasm32")]` ゲート配下（browser テスト含む）の警告を fail-closed に検知する。clippy は check のみで wasm-bindgen 後処理を起動しないため wasm-bindgen-cli は不要。対象閉包に dist-server（build.rs ネスト WASM ビルド）を含まないため `FANDHE_FRONTEND_WASM_BUILD` のオプトアウトも不要。workspace ルート `clippy.toml` の disallowed-methods（REQ-1）も wasm32 ゲート配下へ適用される
 - **`wasm-full` の feature matrix ジョブ 4 件（イシュー #2328）**: `clippy-wasm32` は既定 feature 全 on（feature unification）でのみ検証するため、`default-features = false` 利用者が実際に使う縮小構成（`crates/wasm-full/Cargo.toml` の配線群 feature・scope feature、`docs/design/wasm-full-feature-gating-evaluation.md` §13 項目 1/2）は既存 `--workspace` 系ジョブ・`clippy-wasm32` のいずれでも一切検証されない。`.github/workflows/ci.yml` は `wasm-full-feature-matrix-baseline`/`-wiring`/`-scope`/`-readonly-guard` の 4 独立トップレベルジョブでこれを埋める。**`strategy.matrix` は使わない**: ruleset `main-protection` の `required_status_checks` は PR HEAD へ報告される全 context を個別静的列挙する契約（`workflow_required_checks_manifest.rs` が `jobs:` 直下の静的 `name:` リテラルから context を導出、上記「`ci-complete` 集約ジョブと ruleset 必須チェック」節参照）であり、matrix 展開には対応しない。`name:` に `${{ matrix.* }}` を含めると個別 leg の context が導出できず autoMerge G0 で恒久停止し、逆に静的 `name:` にすると全 leg が同一 context に潰れ後続 leg の success が先行 leg の failure を隠す fail-open になる。壁時計優先方針はジョブ分割でも同等の並列度を得られるため独立ジョブ化と両立する。`-baseline` は `-p fandhe-frontend-wasm-full` 単体（`--workspace` は使わない。他クレートとの feature unification を避けるため）で `--no-default-features` / 同 + `wasm-bindgen-exports` / 既定 / `--all-features` の 4 構成を `cargo check` + `cargo clippy --all-targets --locked -- -D warnings` で検証する。`-wiring`/`-scope` は `perf-assert`（`default` 非掲載のため本 matrix が唯一の検証経路）+ 配線群 14 件・scope 16 件を `wasm-bindgen-exports` のみとの単体構成で **1 feature 1 ステップ 1 リテラル行**（`for` ループ不使用）ずつ clippy する。理由は (a) 失敗 feature をステップ名で即特定できる、(b) `crates/xtask/tests/workflow_wasm_full_feature_matrix.rs` が `run:` 行を文字列走査して feature 集合を機械抽出し `Cargo.toml` `[features]` との過不足なき一致を fail-closed に検証できる、の 2 点。`-readonly-guard` は readonly RadioGroup の click capture 保護（`wire_readonly_click_guard`、イシュー #1616/#2326）が `keynav` feature 無効構成でも機能することを、`browser-test` ジョブと同型の Chrome/chromedriver 検証・wasm-pack/wasm-bindgen 導入手順（キャッシュなし）で native テスト 2 種 + `keynav_browser.rs` の対象テストを実行して固定する。wasm-bindgen-test はフィルタ不一致（0 件）でも `ok` を返すため、出力を `tee` してテスト件数（`N passed; 0 failed`）を `grep -qE` で確認する fail-closed 化が必須（`version-bump-guard` と同型の判定パイプライン）。`-baseline`/`-wiring`/`-scope` の 3 ジョブは `clippy-wasm32` と同型の `actions/cache`（`target` 復元）+ イシュー #1192 ガードステップ（キャッシュ復元より後段・同一削除対象）を持ち、`workflow_shared_target_contract.rs::check_ci_jobs_caching_target_have_guard`（本節末尾「target をキャッシュするジョブへのガードステップ必須化」の対象実例が 3 件増えた）が検証する。既存 `clippy-wasm32` の `--all-targets` 全構成ステップ・部分組合せ 3 件（イシュー #2327）は変更しない
 - **Fandhe-AI/actions 新規 15 コミット分の機能の採用可否評価（イシュー #1288）**: `docs-site.yml` の deploy ジョブは `Fandhe-AI/actions/.github/workflows/pages-deploy.yml`（reusable workflow）呼び出しへ置換済み。`rust-base-ci.yml`（本リポジトリの `ci.yml` カスタム構成・cargo-deny 導入パターン非整合）・`lint-docs.yml`（npm 経路、REQ-12 非整合）・`cargo-tool-install`（適用先なし）・`idempotent-issue`（自動起票ジョブ現存せず）の 4 件は見送り。判断根拠・比較評価・再評価トリガーの詳細は `docs/ci/actions-new-feature-adoption-evaluation.md` 参照
-- **version バンプ PR と crates.io 公開の順序ギャップ（イシュー #884・実装 #885）**: `templates/app` が crates.io バージョン依存する公開済みクレート（core / app / interactive / wasm-client）の `src/` を変更する PR では、version-bump-guard・`template_vendor_drift` テスト・`template-app-wasm-smoke` ジョブの三すくみにより、バンプ先バージョンが crates.io へ未公開の間は smoke が必ず fail する構造的デッドロックが生じる（PR #872 で release.yml のマージ前ブランチ公開が 2 回発生した実例あり。マージ前ブランチ公開自体は ai-review 導入後に条件付き許容へ変更済み、イシュー #1306。`docs/ci/version-bump-publish-order-gap.md` §10）。採用案（smoke ジョブへの `[patch.crates-io]` 依存解決フォールバック追加）は `xtask patch-template-smoke`（`crates/xtask/src/patch_template_smoke.rs`）として実装済み（イシュー #885）: `.github/workflows/ci.yml` の `template-app-wasm-smoke` ジョブが「fw new」直後に実行し、生成プロジェクトの直接依存バージョンを crates.io sparse index へ照会（`check_version_bump::query_index` を再利用）して、未公開バージョンのみ `[patch.crates-io]`（checkout 済みリポジトリの `crates/<dir>` への path 参照）へ切り替える。1 行サマリ契約 `template-app-wasm-smoke: dep=<crate> version=<v> resolution=<crates-io|path-override>` により発動有無を可視化し、`resolution=path-override` 発生時は `::warning::` アノテーション + Step Summary 転記でサイレントな弱体化にしない。index 到達不可・異常応答は `environment error: ` プレフィックス付きで fail-closed（version-bump-guard と同型の判定パイプライン）。緩和用の workflow_dispatch input・環境変数は設けていない。crates.io 公開の承認境界（`release.yml` の `mode: publish` 明示選択）は不変。CLI 契約の回帰テストは `crates/xtask/tests/cli_patch_template_smoke.rs`。3 案比較・設計判断の詳細は `docs/ci/version-bump-publish-order-gap.md` を参照。**案 3（マージ後 crates.io 公開の自動化）再評価（イシュー #896）**: 案 2 運用実績（観察期間実質ゼロ、マージ後 release.yml 実行 0 件）を踏まえて再評価し、承認境界・トークン供給経路の論点に状況変化がないため現時点では見送りを継続すると結論した（再評価トリガー・詳細は同文書 §9 参照）
-- **paths フィルタ付きチェックの required 化（`musl-smoke.yml` / `image-size.yml`、implement-issue-tree autoMerge G0 対応、PR #1706）**: `musl-smoke.yml`（ジョブ `x86_64 musl startup smoke (REQ-9)`）と `image-size.yml`（ジョブ `Docker image size (REQ-9)`）を ruleset（`main-protection`）の required check にする際、当初は `pull_request.paths` フィルタを維持したまま `paths-ignore` を鏡像にした補完ワークフロー（`.github/workflows/required-check-skip-mirror.yml`）で「未報告」を埋める案を採ったが、codex レビュー（PR #1706 コメント id 3889985391）で `paths-ignore` は `paths` の補集合にならない（無関係パスとの同時変更で本物・鏡像が両方起動し同名 success が実チェック失敗を隠す fail-open、片方のワークフローファイルだけ変更すると鏡像が起動せずもう片方が未報告のまま、の 2 点）と指摘され不採用にした。代わりに両ワークフローとも `pull_request.paths` フィルタを撤去して常時起動させ、ジョブ冒頭の「Detect relevant changes」ステップ（`git diff --name-only origin/<base>...HEAD` を対象パス一覧に対して判定、diff 取得失敗時は fail-closed で `relevant=true`）の結果に応じて、後続の実処理ステップ群または明示 skip ステップのどちらか一方だけを同一ジョブ内で実行する（`steps.changes.outputs.relevant` を各ステップの `if:` に付与）。同名ジョブは常に単一のワークフローだけが報告するため二重報告・判定の食い違いが構造的に起きない。ジョブ名は ruleset が名前で識別するため変更時は下記「`ci-complete` 集約ジョブと ruleset 必須チェック」節の運用手順（マニフェスト更新 → ruleset PUT）に従って ruleset `main-protection`（required_status_checks）側も同時更新すること。
+- **version バンプ PR と crates.io 公開の順序ギャップ（イシュー #884、実装 #885）**: `templates/app` が crates.io バージョン依存する公開済みクレート（core / app / interactive / wasm-client）の `src/` を変更する PR では、version-bump-guard・`template_vendor_drift` テスト・`template-app-wasm-smoke` ジョブの三すくみにより、バンプ先バージョンが crates.io へ未公開の間は smoke が必ず fail する構造的デッドロックが生じる（マージ前ブランチ公開は ai-review 導入後に条件付き許容へ変更済み、イシュー #1306。`docs/ci/version-bump-publish-order-gap.md` §10）。採用案（smoke ジョブへの `[patch.crates-io]` 依存解決フォールバック追加）は `xtask patch-template-smoke`（`crates/xtask/src/patch_template_smoke.rs`）として実装済み: `.github/workflows/ci.yml` の `template-app-wasm-smoke` ジョブが「fw new」直後に実行し、生成プロジェクトの直接依存バージョンを crates.io sparse index へ照会（`check_version_bump::query_index` を再利用）して、未公開バージョンのみ `[patch.crates-io]`（checkout 済みリポジトリの `crates/<dir>` への path 参照）へ切り替える。1 行サマリ契約 `template-app-wasm-smoke: dep=<crate> version=<v> resolution=<crates-io|path-override>` により発動有無を可視化し、`resolution=path-override` 発生時は `::warning::` アノテーション + Step Summary 転記でサイレントな弱体化にしない。index 到達不可・異常応答は `environment error: ` プレフィックス付きで fail-closed（version-bump-guard と同型の判定パイプライン）。緩和用の workflow_dispatch input・環境変数は設けていない。crates.io 公開の承認境界（`release.yml` の `mode: publish` 明示選択）は不変。CLI 契約の回帰テストは `crates/xtask/tests/cli_patch_template_smoke.rs`。3 案比較・設計判断の詳細は `docs/ci/version-bump-publish-order-gap.md` を参照。**案 3（マージ後 crates.io 公開の自動化）再評価（イシュー #896）**: 承認境界・トークン供給経路の論点に状況変化がないため現時点では見送りを継続すると結論した（再評価トリガー・詳細は同文書 §9 参照）
+- **paths フィルタ付きチェックの required 化（`musl-smoke.yml` / `image-size.yml`、implement-issue-tree autoMerge G0 対応）**: `musl-smoke.yml`（ジョブ `x86_64 musl startup smoke (REQ-9)`）と `image-size.yml`（ジョブ `Docker image size (REQ-9)`）を ruleset（`main-protection`）の required check にするため、両ワークフローとも `pull_request.paths` フィルタを撤去して常時起動させ、ジョブ冒頭の「Detect relevant changes」ステップ（`git diff --name-only origin/<base>...HEAD` を対象パス一覧に対して判定、diff 取得失敗時は fail-closed で `relevant=true`）の結果に応じて、後続の実処理ステップ群または明示 skip ステップのどちらか一方だけを同一ジョブ内で実行する（`steps.changes.outputs.relevant` を各ステップの `if:` に付与）。同名ジョブは常に単一のワークフローだけが報告するため二重報告・判定の食い違いが構造的に起きない（`paths` を維持したまま `paths-ignore` を鏡像にした補完ワークフローで「未報告」を埋める方式は不採用: `paths-ignore` は `paths` の補集合にならず、無関係パスとの同時変更で本物・鏡像が両方起動し同名 success が実チェック失敗を隠す fail-open になるうえ、片方のワークフローファイルだけ変更すると鏡像が起動せずもう片方が未報告のまま残る）。ジョブ名は ruleset が名前で識別するため変更時は下記「`ci-complete` 集約ジョブと ruleset 必須チェック」節の運用手順（マニフェスト更新 → ruleset PUT）に従って ruleset `main-protection`（required_status_checks）側も同時更新すること。
 
 ## `ci-complete` 集約ジョブと ruleset 必須チェック
 
 - `.github/workflows/ci.yml` の `ci-complete` ジョブは ci.yml の全ジョブを `needs:` に列挙し、`if: always()` で全結果を検証する集約ジョブである（`success` 以外は FAIL。`skipped` の許容は `version-bump-guard`〔`if: pull_request` の条件付きジョブ〕のみに限定し、他ジョブの skip は検知して FAIL する fail-closed 設計。条件付きジョブを増やす場合は許容リストへの明示追加が必要）
 - **ruleset `main-protection` の必須チェックは PR HEAD へ報告される全 context を個別列挙する**（正は `.github/required-status-checks.json`、件数・個別の context 名は本ファイルへ二重管理しない）。列挙対象は ci.yml 全ジョブ + `deps-check.yml` + `musl-smoke.yml` + `image-size.yml` の各ジョブ + `ai-review.yml` が呼ぶ reusable workflow の子ジョブ 3 件（`codex / preflight` / `codex / review` / `codex / post_feedback`）+ 外部 App `Cursor Bugbot`。**PR で報告されない workflow（`docs-site.yml`〔push 限定〕・`release.yml`〔dispatch 限定〕・`update-external.yml`〔schedule/dispatch 限定〕）のジョブは required にしない**（required にすると当該 context が永久に「Expected」のままとなり PR がブロックされ続ける）
-- **決定記録（イシュー #2325、2026-09-11）**: 本節はかつて「ruleset は `ci-complete` + `deps-check` + `codex-review / codex` の 3 件へ集約されており、ci.yml のジョブ追加・改名時に ruleset 側の追随更新は不要」と記していたが、実態（個別列挙）と乖離していた。乖離の経緯: PR #1295（2026-08-09）で 3 件集約へ変更したが、その後 implement-issue-tree の autoMerge G0 ゲートに「PR HEAD 上の check-run/commit status のうち ruleset の `required_status_checks` に含まれない context が 1 件でもあれば辞退する」判定（client-only チェックの検出）が導入され、これを満たすには ruleset が個別列挙である必要があるため、PR #1706（2026-08-30、`musl-smoke.yml`/`image-size.yml` の required 化）等で個別列挙へ戻された。しかし本節の記述だけは追随されず残留した。**3 件集約案は再導入しない**: G0 は「required 側が多い分には問題ないが不足側は必ず辞退する」判定であり、3 件へ集約すると `ci-complete` の needs 対象である残り全ジョブ（`Rust workspace tests` 等）が client-only となって autoMerge が構造的に成立しなくなる。**外部チェック（`Cursor Bugbot` / `codex / post_feedback` / `codex / preflight`）も required に残す**（`setup-repo-guards` スキルは「Bugbot 等の外部アプリ・`post_feedback` は必須にしない」と助言するが、これは G0 の要求と矛盾するため、本リポジトリで実際に動く G0 側の要求を優先する）
+- **3 件集約（`ci-complete` + `deps-check` + ai-review だけを required にする形）には戻さない（イシュー #2325）**: implement-issue-tree の autoMerge G0 は、PR HEAD 上の check-run/commit status のうち ruleset の `required_status_checks` に含まれない context が 1 件でもあれば辞退する。集約すると `ci-complete` の needs 対象である残り全ジョブが client-only になり、autoMerge が構造的に成立しない。同じ理由で外部チェック（`Cursor Bugbot` / `codex / post_feedback` / `codex / preflight`）も required に残す（`setup-repo-guards` スキルの「外部アプリ・`post_feedback` は必須にしない」という助言より、本リポジトリで実際に動く G0 の要求を優先する）
 - `ci-complete` は ruleset の個別列挙に対する**第 2 の防御層**という位置づけである（ruleset へのジョブ登録漏れ・ジョブ自体の失敗があっても本ジョブ経由で検知できる。イシュー #2324 の `needs:` 網羅性契約はそのまま維持）。ruleset の実体を集約先として位置づける記述には戻さない
 - **機械検知は 2 層**: (1) ワークフロー YAML ⇔ マニフェスト（オフライン）: `crates/xtask/tests/workflow_required_checks_manifest.rs` が `.github/workflows/*.yml`（固定の分類表: ジョブ列挙対象／reusable workflow 定数／除外対象。未分類ファイルは fail-closed で FAIL）から導出した期待集合と `.github/required-status-checks.json` の完全一致を `cargo test -p xtask` 時点で検証する。(2) マニフェスト ⇔ live ruleset: `xtask check-ruleset-sync`（`crates/xtask/src/check_ruleset_sync.rs`）が GitHub API `GET /repos/{repo}/rules/branches/{branch}` を読み取り専用で照会し、`.github/workflows/ci.yml` の `dep-version-check` ジョブ（push・PR 双方）で毎回検証する。curl 不在・ネットワーク不達・想定外 HTTP status・`required_status_checks` rule 0 件はすべて `environment error: ` プレフィックス付きで fail-closed（`version-bump-guard` と同型）。CLI 契約の回帰テストは `crates/xtask/tests/cli_check_ruleset_sync.rs`
 - **ci.yml へジョブを追加するときは必ず `ci-complete` の `needs:` へ追加する**（忘れると当該ジョブの失敗が必須チェックに反映されない）。この網羅性は `crates/xtask/tests/workflow_ci_complete_needs.rs` が `cargo test -p xtask` 時点で fail-closed に機械検知する（イシュー #2324、人手レビュー頼みの確認は不要になった）。契約は 3 点固定: (1) `jobs:` 直下の全トップレベルジョブ（`ci-complete` 自身を除く）と `needs:` の集合一致（追加漏れ・改名の取り残し・重複のいずれも違反）、(2) `ci-complete` 自身がちょうど 1 個の `if: always()`（`${{ always() }}` 等の表記揺れは意図的に非受理）を持つこと、(3) 集約ステップの jq 式が許容する `skipped` 結果が、テストファイル内の定数 `SKIPPED_ALLOWLIST` と 1 対 1 で一致し、許容対象ジョブが実際にジョブレベル `if:` を持ち、逆に `ci-complete` 以外でジョブレベル `if:`（値が `always()` でない）を持つジョブは全て `SKIPPED_ALLOWLIST` に含まれること。条件付きジョブを増やす場合は ci.yml の `if:`・jq 式に加え、**この `SKIPPED_ALLOWLIST` 定数への追加も必要**（`SKIPPED_ALLOWLIST` は ci.yml から自動導出しない意図的な第 3 の摩擦点であり、ci.yml 側だけの変更では同テストが FAIL する）。判定は `workflow_runner_policy.rs` 等と同じ反転判定（許容する正規形に一致しない・認識できない表記はすべて違反）で行い、外部 YAML パーサは使わない（REQ-3）

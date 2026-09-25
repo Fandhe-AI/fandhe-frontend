@@ -863,6 +863,7 @@ pub enum LayoutCss {
 | changelog-timeline | #2820 | `marketing/changelog/changelog_timeline.rs` |
 | comparison-feature-rows | #2823 | `marketing/comparison/comparison_feature_rows.rs` |
 | careers-card-grid | #2815 | `marketing/careers/careers_card_grid.rs` |
+| careers-split-accordion | #2816 | `marketing/careers/careers_split_accordion.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 48 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
