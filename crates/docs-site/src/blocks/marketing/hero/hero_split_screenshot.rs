@@ -303,9 +303,18 @@ pub const BLOCK: Block = Block {
 /// B（枠あり）は画像が `.blocks-hero-split-screenshot-frame` の子になり
 /// この子孫セレクタに一致しないため、画像は基準ルールの `width: 100%` の
 /// まま枠の内側に収まる。両者へ無条件に `width: 48rem` を当てると、
-/// `box-sizing: border-box` の枠が持つ `padding`/`border` の分だけ画像が
-/// 枠の内側（余白）からはみ出し、`overflow: hidden` を持つセクション側で
-/// 意図しない位置で切り取られる（PR #3243 レビュー指摘）。
+/// `padding`/`border` の分だけ画像が枠の内側（余白）からはみ出し、
+/// `overflow: hidden` を持つセクション側で意図しない位置で切り取られる
+/// （PR #3243 レビュー指摘）。
+///
+/// `.blocks-hero-split-screenshot-frame` は `box-sizing: border-box` を
+/// 明示する。未指定（既定の `content-box`）だと `width: 100%` に
+/// `padding`/`border` が加算されて外寸がメディア列を超え、lg 未満
+/// （1 列表示）でもセクションの `overflow: hidden` によって枠の右端が
+/// 切り取られる（PR #3243 レビュー指摘、Codex P1）。`border-box` により
+/// lg 以上の固定幅 `48rem` も外寸として扱われ、枠内側の画像
+/// （`width: 100%`）が枠の余白へはみ出さず収まる（Cursor Bugbot 指摘と
+/// 同根）。
 const LAYOUT_CSS: &str = "\
 .blocks-hero-split-screenshot-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-12);\n}\n\
 .blocks-hero-split-screenshot-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  overflow: hidden;\n}\n\
@@ -314,7 +323,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-hero-split-screenshot-media {\n  min-width: 0;\n  display: flex;\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-hero-split-screenshot-lead] {\n  margin: 0;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-hero-split-screenshot-image] {\n  display: block;\n  width: 100%;\n  flex: none;\n  border: 1px solid var(--fandhe-color-border);\n  box-shadow: var(--fandhe-shadow-lg);\n}\n\
-.blocks-hero-split-screenshot-frame {\n  width: 100%;\n  padding: var(--fandhe-space-4);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-muted);\n}\n\
+.blocks-hero-split-screenshot-frame {\n  box-sizing: border-box;\n  width: 100%;\n  padding: var(--fandhe-space-4);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-muted);\n}\n\
 .blocks-hero-split-screenshot-frame [data-scope=\"image\"][data-part=\"root\"][data-blocks-hero-split-screenshot-image] {\n  box-shadow: none;\n}\n\
 .blocks-hero-split-screenshot-code-frame {\n  width: 100%;\n  background: var(--fandhe-color-fg);\n  color: var(--fandhe-color-bg);\n  border-radius: var(--fandhe-radius-lg);\n  overflow: hidden;\n}\n\
 .blocks-hero-split-screenshot-tabs {\n  display: flex;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
