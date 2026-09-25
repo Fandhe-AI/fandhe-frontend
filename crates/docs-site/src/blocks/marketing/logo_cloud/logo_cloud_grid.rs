@@ -268,6 +268,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-logo-cloud-grid-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  width: 100%;\n}\n\
 .blocks-logo-cloud-grid-row {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: center;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-logo-cloud-grid-cards {\n  display: grid;\n  grid-template-columns: repeat(2, 1fr);\n  gap: var(--fandhe-space-4);\n  width: 100%;\n}\n\
+.blocks-logo-cloud-grid-cards [data-scope=\"card\"][data-part=\"body\"] {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  text-align: center;\n}\n\
 .blocks-logo-cloud-grid-tiles {\n  display: grid;\n  grid-template-columns: repeat(2, 1fr);\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-logo-cloud-grid-tile {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: var(--fandhe-space-6);\n  border: 1px solid var(--fandhe-color-border);\n  background: var(--fandhe-color-bg-subtle);\n  border-radius: var(--fandhe-radius-md);\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-logo-cloud-grid-logo] {\n  width: 7rem;\n  height: 2.5rem;\n  filter: grayscale(1);\n  opacity: 0.7;\n}\n\
@@ -330,5 +331,14 @@ mod tests {
         assert!(LAYOUT_CSS.contains("@media (min-width: 64rem)"));
         assert!(LAYOUT_CSS.contains("grayscale"));
         assert!(LAYOUT_CSS.contains("border-radius: 9999px"));
+    }
+
+    /// 形 C のカード内（ロゴ + 社名タグ）が他バリアント（A/B/D/E）と同様に
+    /// 中央寄せされること（Cursor Bugbot 指摘、PR #3244 レビュー）。
+    #[test]
+    fn layout_css_centers_card_body_contents_in_variant_c() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"card\"][data-part=\"body\"] {\n  display: flex;\n  flex-direction: column;\n  align-items: center;"
+        ));
     }
 }
