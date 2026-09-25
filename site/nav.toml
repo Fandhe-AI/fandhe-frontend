@@ -1300,6 +1300,14 @@ source = "site/blocks/testimonials-stack.md"
 path = "/blocks/testimonials-stack/"
 
 [[section.group]]
+title = "Contact"
+
+[[section.group.page]]
+title = "contact-image-info"
+source = "site/blocks/contact-image-info.md"
+path = "/blocks/contact-image-info/"
+
+[[section.group]]
 title = "Blog"
 
 [[section.group.page]]

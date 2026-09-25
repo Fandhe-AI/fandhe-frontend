@@ -5396,3 +5396,88 @@ fn cta_split_image_composes_expected_parts() {
         );
     }
 }
+
+/// contact-image-info ページが `blocks-demo`/block 固有 class・
+/// pre-styled-ui.css/blocks.css の配線・data-* フックを実際に持つことを
+/// 固定する（イシュー #2829）。
+#[test]
+fn contact_image_info_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/contact-image-info/index.html"))
+        .expect("blocks/contact-image-info/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-contact-image-info\""),
+        "contact-image-info page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "contact-image-info page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "contact-image-info page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-contact-image-info-image",
+        "data-blocks-contact-image-info-tagline",
+        "data-blocks-contact-image-info-item",
+    ] {
+        assert!(
+            html.contains(hook),
+            "contact-image-info page should render the {hook} hook"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "@media (min-width: 48rem)",
+        "repeat(2, minmax(0, 1fr))",
+        "[data-scope=\"link\"][data-part=\"root\"][data-blocks-contact-image-info-item]",
+        ".blocks-contact-image-info-list",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// contact-image-info の合成部品（heading/text/image/icon/link）が
+/// 期待どおりの構成で実際に出力されていること、`tel:`/`mailto:`
+/// リンク・住所リンクの `rel="noopener noreferrer"` を持つこと、
+/// `<form>`・送信属性・死リンクを持ち込んでいないことを固定する
+/// （イシュー #2829）。
+#[test]
+fn contact_image_info_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/contact-image-info/")
+        .expect("contact-image-info should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"image\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"link\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "contact-image-info demo should contain {scope}"
+        );
+    }
+    assert!(html.contains("href=\"tel:"));
+    assert!(html.contains("href=\"mailto:"));
+    assert!(html.contains(r#"rel="noopener noreferrer""#));
+    for absent in [
+        "<form",
+        "action=",
+        "type=\"submit\"",
+        "src=\"data:",
+        "href=\"#\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "contact-image-info should never contain {absent}"
+        );
+    }
+}
