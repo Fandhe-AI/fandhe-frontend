@@ -72,7 +72,12 @@
 //! `position: absolute; top: 100%` を持つ）がラッパの外へはみ出すと縦方向に
 //! クリップされる。[`LAYOUT_CSS`] は `>= 48rem` でルートへ
 //! `min-block-size` を与えてこれを防ぐ（狭い幅ではフライアウト自体を
-//! 表示しないハンバーガー畳み構成のため不要）。
+//! 表示しないハンバーガー畳み構成のため不要）。値は `28rem`
+//! （Bugbot 指摘の是正、PR #3276）: 項目リスト（5 項目）に加えて
+//! `panel_footer` の行（border・padding・リンク文字列で約 2.5rem）が
+//! 追加されたため、旧 `24rem`（`panel_footer` 導入前の見積り）では
+//! 開いたパネルがこの予約枠を超えて次のキャプション・後続 variant の
+//! header（`z-index: 10`）の上に描画され得た。
 //!
 //! # レスポンシブ（48rem 境界、mobile-first 直書き）
 //!
@@ -733,11 +738,11 @@ pub const BLOCK: Block = Block {
 ///
 /// `.blocks-header-flyout-menu-layout`（`[data-blocks-header-flyout-menu-root]`
 /// と同一要素）は 48rem 共有ブロック内で `align-items: flex-start;
-/// min-block-size: 24rem;` を宣言し、フライアウトパネルが伸びる下方向へ
+/// min-block-size: 28rem;` を宣言し、フライアウトパネルが伸びる下方向へ
 /// `min-block-size` 分の空間を確保している（前節「フライアウトの高さ
 /// 確保」参照）。当初 centered 形の grid 切替がこの同一要素へ
 /// `align-items: center` を再宣言しており、行全体（トリガー含む）が
-/// `24rem` の箱の中央へ沈み、そこから下へ伸びるパネルの残り高さが半減
+/// `28rem` の箱の中央へ沈み、そこから下へ伸びるパネルの残り高さが半減
 /// して `.blocks-demo`（`overflow-x: auto` でブロック軸も clip）から
 /// はみ出し得た。是正として centered grid 側の `align-items: center` を
 /// 削除し、共有ブロックの `flex-start` をそのまま継承させる（列内の水平
@@ -769,7 +774,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-flyout-menu-nav] {\n    display: block;\n  }\n  \
 [data-blocks-header-flyout-menu-actions] {\n    display: flex;\n  }\n  \
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-header-flyout-menu-toggle] {\n    display: none;\n  }\n  \
-.blocks-header-flyout-menu-layout {\n    align-items: flex-start;\n    min-block-size: 24rem;\n  }\n  \
+.blocks-header-flyout-menu-layout {\n    align-items: flex-start;\n    min-block-size: 28rem;\n  }\n  \
 [data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    display: grid;\n    grid-template-columns: 1fr auto;\n    grid-template-areas: \"logo actions\" \"nav nav\";\n    column-gap: var(--fandhe-space-4);\n    row-gap: var(--fandhe-space-3);\n    align-items: start;\n  }\n  \
 [data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-blocks-header-flyout-menu-logo] {\n    grid-area: logo;\n    justify-self: start;\n  }\n  \
 [data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-flyout-menu-nav] {\n    grid-area: nav;\n    justify-self: center;\n  }\n  \
@@ -1027,7 +1032,7 @@ mod tests {
     /// 垂直基準線」節）。同一要素（`.blocks-header-flyout-menu-layout` ＝
     /// `[data-blocks-header-flyout-menu-root]`）へ 48rem 共有ブロック内で
     /// 先に `align-items: flex-start` が宣言されているため、centered
-    /// grid 側で `center` を宣言すると `min-block-size: 24rem` の箱の
+    /// grid 側で `center` を宣言すると `min-block-size: 28rem` の箱の
     /// 中央へ行全体（ひいてはトリガー）が沈み、そこから下方向へ伸びる
     /// フライアウトパネルの残り高さが半減して `.blocks-demo` の
     /// ブロック軸クリップからはみ出しやすくなる。2 段既定は明示的に
