@@ -6,9 +6,14 @@
 //! ための構造、イシュー #2734）。
 
 mod footer_newsletter;
+mod footer_newsletter_band;
 mod footer_sticky_reveal;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![footer_sticky_reveal::BLOCK, footer_newsletter::BLOCK]
+    vec![
+        footer_sticky_reveal::BLOCK,
+        footer_newsletter::BLOCK,
+        footer_newsletter_band::BLOCK,
+    ]
 }
