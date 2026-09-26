@@ -88,7 +88,10 @@ fn event_item(item: &EventItem) -> Node {
                     ),
                     separator(
                         &SeparatorProps::default(),
-                        vec![("data-blocks-stats-timeline-rule", "")],
+                        vec![
+                            ("aria-hidden", "true"),
+                            ("data-blocks-stats-timeline-rule", ""),
+                        ],
                     ),
                 ],
             ),
@@ -143,7 +146,7 @@ pub fn demo() -> Node {
 
     let list = el(
         "ol",
-        vec![("class", "blocks-stats-timeline-list")],
+        vec![("class", "blocks-stats-timeline-list"), ("role", "list")],
         EVENTS.iter().map(event_item).collect(),
     );
 

@@ -145,7 +145,10 @@ fn event_item(item: &EventItem) -> Node {
                     ),
                     separator(
                         &SeparatorProps::default(),
-                        vec![("data-blocks-stats-timeline-rule", "")],
+                        vec![
+                            ("aria-hidden", "true"),
+                            ("data-blocks-stats-timeline-rule", ""),
+                        ],
                     ),
                 ],
             ),
@@ -200,7 +203,7 @@ pub fn demo() -> Node {
 
     let list = el(
         "ol",
-        vec![("class", "blocks-stats-timeline-list")],
+        vec![("class", "blocks-stats-timeline-list"), ("role", "list")],
         EVENTS.iter().map(event_item).collect(),
     );
 
@@ -296,13 +299,17 @@ mod tests {
         );
         assert_eq!(
             html.matches("aria-hidden=\"true\"").count(),
-            4,
-            "demo should render exactly 4 aria-hidden dots"
+            8,
+            "demo should render exactly 4 aria-hidden dots + 4 aria-hidden separators"
         );
         assert_eq!(
             html.matches("data-scope=\"heading\"").count(),
             5,
             "demo should render 5 headings (1 intro H3 + 4 item H4)"
+        );
+        assert!(
+            html.contains("role=\"list\""),
+            "ol should keep list semantics via role=\"list\" (list-style: none removes it in some AT)"
         );
 
         let mut titles: Vec<&'static str> = EVENTS.iter().map(|item| item.title).collect();
