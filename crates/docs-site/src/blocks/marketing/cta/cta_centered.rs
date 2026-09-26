@@ -62,7 +62,15 @@
 //! cta-centered [data-scope="card"][data-part="body"]
 //! [data-blocks-cta-centered-tone="card"]`（詳細度 (0,4,0)）で
 //! `padding: 0` に上書きし、二重適用を防ぐ（[`super::cta_split_actions`]
-//! と同じ判断、Bugbot 指摘イシュー #2758 PR レビュー参照）。
+//! と同じ判断、Bugbot 指摘イシュー #2758 PR レビュー参照）。基底ルール
+//! `[data-blocks-cta-centered-tone]` は属性の値を問わずマッチするため、
+//! [`card::root`] 自身も同じ属性を持つ以上そのままではこの基底ルールに
+//! ヒットし、`padding: var(--fandhe-space-8)` 等が [`card::body`] の余白と
+//! 二重適用されてしまう（PR #3259 codex/Bugbot レビュー指摘、イシュー
+//! #3224）。このため基底ルールは `[data-blocks-cta-centered-tone]:not(
+//! [data-scope="card"])` として [`card::root`]（`data-scope="card"` を
+//! 持つ）を対象から除外する（内側 section は `data-scope` を持たない素の
+//! `div` のため引き続き基底ルールの対象のまま）。
 //!
 //! # `drop_class_attr` と CSS フックの選び方
 //!
@@ -382,7 +390,7 @@ pub const BLOCK: Block = Block {
 /// はモジュール doc「tone 上書きの詳細度 (0,4,0)」節を参照。
 const LAYOUT_CSS: &str = "\
 .blocks-cta-centered-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
-[data-blocks-cta-centered-tone] {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  text-align: center;\n  gap: var(--fandhe-space-4);\n  max-inline-size: 40rem;\n  margin-inline: auto;\n  padding: var(--fandhe-space-8);\n  border-radius: var(--fandhe-radius-lg);\n}\n\
+[data-blocks-cta-centered-tone]:not([data-scope=\"card\"]) {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  text-align: center;\n  gap: var(--fandhe-space-4);\n  max-inline-size: 40rem;\n  margin-inline: auto;\n  padding: var(--fandhe-space-8);\n  border-radius: var(--fandhe-radius-lg);\n}\n\
 [data-blocks-cta-centered-tone=\"plain\"] {\n  padding: 0;\n}\n\
 [data-blocks-cta-centered-tone=\"badge\"] {\n  background: var(--fandhe-color-bg-subtle);\n}\n\
 [data-blocks-cta-centered-tone=\"accent\"] {\n  background: var(--fandhe-color-accent);\n  color: var(--fandhe-color-accent-fg);\n}\n\
@@ -474,5 +482,15 @@ mod tests {
         assert!(LAYOUT_CSS.contains(
             r#".blocks-cta-centered [data-scope="card"][data-part="root"][data-blocks-cta-centered-tone="card"] [data-scope="button"][data-part="root"][data-blocks-cta-centered-secondary]"#
         ));
+    }
+
+    /// 基底ルール `[data-blocks-cta-centered-tone]` は属性の値を問わず
+    /// マッチするため、`:not([data-scope="card"])` で [`card::root`]（`data-
+    /// scope="card"` を持つ）を対象から除外し、[`card::body`] の padding と
+    /// 二重適用されないことを固定する（PR #3259 codex/Bugbot レビュー指摘、
+    /// イシュー #3224、モジュール doc「tone 上書きの詳細度 (0,4,0)」節）。
+    #[test]
+    fn base_tone_rule_excludes_card_root() {
+        assert!(LAYOUT_CSS.contains(r#"[data-blocks-cta-centered-tone]:not([data-scope="card"])"#));
     }
 }
