@@ -1420,6 +1420,11 @@ title = "stats-background-image"
 source = "site/blocks/stats-background-image.md"
 path = "/blocks/stats-background-image/"
 
+[[section.group.page]]
+title = "stats-cards"
+source = "site/blocks/stats-cards.md"
+path = "/blocks/stats-cards/"
+
 [[section.group]]
 title = "Contact"
 
