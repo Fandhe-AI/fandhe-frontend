@@ -914,6 +914,7 @@ pub enum LayoutCss {
 | hero-split-screenshot | #2792 | `marketing/hero/hero_split_screenshot.rs` |
 | newsletter-split | #2796 | `marketing/newsletter/newsletter_split.rs` |
 | logo-cloud-marquee | #2794 | `marketing/logo_cloud/logo_cloud_marquee.rs` |
+| stats-background-image | #2801 | `marketing/stats/stats_background_image.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 98 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
