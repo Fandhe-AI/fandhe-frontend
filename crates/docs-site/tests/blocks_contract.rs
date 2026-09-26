@@ -8124,6 +8124,87 @@ fn newsletter_with_details_composes_expected_parts() {
     }
 }
 
+/// hero-split-screenshot ページが `blocks-demo blocks-hero-split-screenshot`
+/// class・両 stylesheet の `<link>` を実際に出力し、`blocks::stylesheet()`
+/// にも本 block 固有のセレクタが存在すること（イシュー #2792）。
+#[test]
+fn hero_split_screenshot_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-split-screenshot/index.html"))
+        .expect("blocks/hero-split-screenshot/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-hero-split-screenshot\""),
+        "hero-split-screenshot page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "hero-split-screenshot page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "hero-split-screenshot page should link the Blocks-specific stylesheet"
+    );
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        ".blocks-hero-split-screenshot-section",
+        "[data-blocks-hero-split-screenshot-image]",
+        "@media (min-width: 64rem)",
+        "overflow: hidden",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare {needle} for hero-split-screenshot"
+        );
+    }
+}
+
+/// hero-split-screenshot の合成部品（badge/heading/text/button/image/code/
+/// link）が期待どおりの構成で出力されていること、`<form>`・`data:` URI を
+/// 持ち込んでいないことを固定する（イシュー #2792）。
+#[test]
+fn hero_split_screenshot_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-split-screenshot/index.html"))
+        .expect("blocks/hero-split-screenshot/index.html should be generated");
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"button\"",
+        "data-scope=\"image\"",
+        "data-scope=\"code\"",
+        "data-scope=\"link\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "hero-split-screenshot page should contain {scope}"
+        );
+    }
+    // 実際の Demo 出力（1 件）+ ページに掲載する「Rust コード」節の
+    // ソース掲載（1 件）の合計 2 件（`hero-terminal` 系と異なり本ページは
+    // 属性値の引用符の有無で区別できないため、実測どおり 2 とする）。
+    assert_eq!(html.matches("<img").count(), 2);
+    assert_eq!(
+        html.matches("data-blocks-hero-split-screenshot-tab-active")
+            .count(),
+        2
+    );
+    for absent in ["<form", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "hero-split-screenshot should never contain {absent}"
+        );
+    }
+    assert!(
+        html.contains("href=\"../../guides/\""),
+        "hero-split-screenshot の「ドキュメントを見る」リンクは docs サイト内の \
+         実在ページへの相対パスであるべき"
+    );
+}
+
 /// newsletter-split ページが Demo ラッパー・専用 CSS・block 固有 CSS フック
 /// を正しく配線していることを固定する（イシュー #2796、`contact_split_info`
 /// と同型の契約）。
