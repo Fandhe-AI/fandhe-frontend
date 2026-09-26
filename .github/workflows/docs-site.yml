@@ -268,6 +268,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-seats-split/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-tiers-morph/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-usage-slider/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-comparison-table/index.html"
           # Marketing / Testimonial
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonials-stack/index.html"
           # Marketing / Logo Cloud
