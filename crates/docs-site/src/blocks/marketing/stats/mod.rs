@@ -1,8 +1,9 @@
 //! Marketing / Stats カテゴリの block 登録点（イシュー #2734 で雛形新設、
 //! #2801 で最初の block（`stats_background_image`）を追加して卒業し、
 //! #2802 で 2 件目の block（`stats_cards`）・イシュー #2804 で 3 件目の
-//! block（`stats_split`）・イシュー #2805 で 4 件目の block（`stats_timeline`）
-//! を追加した）。手順は
+//! block（`stats_split`）・イシュー #2805 で 4 件目の block
+//! （`stats_timeline`）・イシュー #2806 で 5 件目の block
+//! （`stats_with_image`）を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。新規 block を追加
 //! する際は本ファイルへ `mod` 宣言と `blocks()` への追記を行うだけでよく、
 //! `super`（`marketing`）側・トップレベル `crate::blocks` 側の変更は不要
@@ -12,6 +13,7 @@ mod stats_background_image;
 mod stats_cards;
 mod stats_split;
 mod stats_timeline;
+mod stats_with_image;
 
 use crate::blocks::Block;
 
@@ -21,5 +23,6 @@ pub(super) fn blocks() -> Vec<Block> {
         stats_cards::BLOCK,
         stats_split::BLOCK,
         stats_timeline::BLOCK,
+        stats_with_image::BLOCK,
     ]
 }
