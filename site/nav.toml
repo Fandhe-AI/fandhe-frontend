@@ -1633,6 +1633,11 @@ title = "header-flyout-menu"
 source = "site/blocks/header-flyout-menu.md"
 path = "/blocks/header-flyout-menu/"
 
+[[section.group.page]]
+title = "header-mega-menu"
+source = "site/blocks/header-mega-menu.md"
+path = "/blocks/header-mega-menu/"
+
 [[section.group]]
 title = "Footer"
 
