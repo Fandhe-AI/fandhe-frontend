@@ -427,7 +427,6 @@ const LAYOUT_CSS: &str = "\
 .blocks-faq-tabbed-accordion-tab[data-state=\"active\"] {\n  color: var(--fandhe-color-fg);\n  border-bottom-color: var(--fandhe-color-accent);\n}\n\
 .blocks-faq-tabbed-accordion-layout [data-scope=\"accordion\"][data-part=\"item-trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-faq-tabbed-accordion-preview {\n  inline-size: 100%;\n  max-inline-size: 48rem;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
-.blocks-faq-tabbed-accordion-layout > [data-blocks-faq-tabbed-accordion-root] {\n  inline-size: 100%;\n  max-inline-size: 48rem;\n}\n\
 .blocks-faq-tabbed-accordion-trigger-heading {\n  margin: 0;\n  font-size: inherit;\n  font-weight: inherit;\n}\n";
 
 #[cfg(test)]
