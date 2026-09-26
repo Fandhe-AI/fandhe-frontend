@@ -917,6 +917,7 @@ pub enum LayoutCss {
 | section-heading-split | #2798 | `marketing/section_heading/section_heading_split.rs` |
 | newsletter-with-details | #2797 | `marketing/newsletter/newsletter_with_details.rs` |
 | stats-row | #2803 | `marketing/stats/stats_row.rs` |
+| section-heading-stats | #2800 | `marketing/section_heading/section_heading_stats.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 102 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
