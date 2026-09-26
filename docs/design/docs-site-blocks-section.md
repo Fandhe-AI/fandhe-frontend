@@ -907,6 +907,7 @@ pub enum LayoutCss {
 | hero-bottom-screenshot | #2782 | `marketing/hero/hero_bottom_screenshot.rs` |
 | hero-image-top | #2785 | `marketing/hero/hero_image_top.rs` |
 | gallery-split-carousel | #2780 | `marketing/gallery/gallery_split_carousel.rs` |
+| hero-install-command | #2786 | `marketing/hero/hero_install_command.rs` |
 | hero-prompt-input | #2788 | `marketing/hero/hero_prompt_input.rs` |
 | hero-social-proof | #2790 | `marketing/hero/hero_social_proof.rs` |
 | hero-split-image | #2791 | `marketing/hero/hero_split_image.rs` |
