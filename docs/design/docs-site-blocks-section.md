@@ -930,6 +930,7 @@ pub enum LayoutCss {
 | newsletter-stacked | #3226 | `marketing/newsletter/newsletter_stacked.rs` |
 | faq-question-rows | #2844 | `marketing/faq/faq_question_rows.rs` |
 | footer-newsletter-band | #2852 | `marketing/footer/footer_newsletter_band.rs` |
+| footer-cta-columns | #2849 | `marketing/footer/footer_cta_columns.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 115 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
