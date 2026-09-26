@@ -1,6 +1,7 @@
 //! Marketing / Section Heading カテゴリの block 登録点（イシュー #2734 で
 //! 雛形新設、イシュー #2798 で最初の block（`section_heading_split`）を
-//! 追加しディレクトリ化して卒業した。
+//! 追加しディレクトリ化して卒業し、イシュー #2800 で
+//! `section_heading_stats` を追加した。
 //! `docs/design/docs-site-blocks-section.md` §18 の卒業手順に従う）。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -10,9 +11,10 @@
 //! ための構造、イシュー #2734）。
 
 mod section_heading_split;
+mod section_heading_stats;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![section_heading_split::BLOCK]
+    vec![section_heading_split::BLOCK, section_heading_stats::BLOCK]
 }

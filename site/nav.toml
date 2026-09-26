@@ -1726,6 +1726,11 @@ title = "section-heading-split"
 source = "site/blocks/section-heading-split.md"
 path = "/blocks/section-heading-split/"
 
+[[section.group.page]]
+title = "section-heading-stats"
+source = "site/blocks/section-heading-stats.md"
+path = "/blocks/section-heading-stats/"
+
 [[section.group]]
 title = "Sidebar"
 

@@ -6378,6 +6378,91 @@ fn contact_split_info_composes_expected_parts() {
     }
 }
 
+/// section-heading-stats ページが Demo class・専用 CSS を配線していること、
+/// block 固有 CSS（面色レイアウト・リンク列/指標列のブレークポイント）が
+/// 実際に出力されていることを固定する（イシュー #2800）。
+#[test]
+fn section_heading_stats_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/section-heading-stats/index.html"))
+        .expect("blocks/section-heading-stats/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-section-heading-stats\""),
+        "section-heading-stats page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "section-heading-stats page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "section-heading-stats page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-section-heading-stats-link",
+        "data-blocks-section-heading-stats-stat",
+    ] {
+        assert!(
+            html.contains(hook),
+            "section-heading-stats page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-section-heading-stats-layout",
+        ".blocks-section-heading-stats-links",
+        ".blocks-section-heading-stats-stats",
+        "@media (min-width: 40rem)",
+        "@media (min-width: 48rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// section-heading-stats の合成部品（heading/text/link/stat）が期待どおり
+/// の構成で実際に出力されていること、リンク・指標の件数・非対話制約を
+/// 固定する（イシュー #2800）。
+#[test]
+fn section_heading_stats_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/section-heading-stats/")
+        .expect("section-heading-stats should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"link\"",
+        "data-scope=\"stat\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "section-heading-stats demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-section-heading-stats-link")
+            .count(),
+        4,
+        "section-heading-stats demo should render exactly 4 links"
+    );
+    assert_eq!(
+        html.matches("data-scope=\"stat\" data-part=\"root\"")
+            .count(),
+        4,
+        "section-heading-stats demo should render exactly 4 stats"
+    );
+    for absent in ["<form", "src=\"data:", "href=\"#\"", "<img", " id=\""] {
+        assert!(
+            !html.contains(absent),
+            "section-heading-stats should never contain {absent}"
+        );
+    }
+}
+
 /// hero-image-top ページが Demo class・専用 CSS を配線していること、
 /// block 固有 CSS（横長画像・2 カラム・ブレークポイント）が実際に出力
 /// されていることを固定する（イシュー #2785）。
