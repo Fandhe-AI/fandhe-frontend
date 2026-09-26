@@ -7,11 +7,12 @@
 //!
 //! # 使用部品
 //!
-//! `navigation-menu` / `button` / `icon` / `link` の 4 部品を合成する
-//! （[`BLOCK`] の `parts` に一致させる契約、`blocks_nav.rs`/
-//! `blocks_contract.rs` が検証する）。既存の
-//! [`super::header_flyout_menu`] と同じ組み合わせのため、実装はこの
-//! block を雛形にした。
+//! `navigation-menu` / `button` / `icon` / `link` / `collapsible` の 5 部品を
+//! 合成する（[`BLOCK`] の `parts` に一致させる契約、`blocks_nav.rs`/
+//! `blocks_contract.rs` が検証する）。`navigation-menu`/`button`/`icon`/
+//! `link` の組み合わせは既存の [`super::header_flyout_menu`] を雛形にし、
+//! 狭幅で常時展開のドロップダウンパネルとして到達可能にする `collapsible`
+//! の使い方は [`super::header_floating_pill`] を雛形にした。
 //!
 //! # 4 variant の並記
 //!
@@ -34,12 +35,25 @@
 //! にしてフォーカス不能・操作不能を明示し、[`LAYOUT_CSS`] で
 //! `opacity: 1; cursor: default;` に中和して通常と同じ見た目に保つ。
 //!
-//! # ハンバーガーは開閉パネルを描画しない
+//! # ハンバーガーは常時展開のドロップダウンパネルとして到達可能
 //!
-//! 狭い幅ではナビ・アクションを隠しハンバーガーボタンのみを表示する
-//! （イシュー仕様）。開いた先のパネル自体は無 JS のため描画しないため、
-//! `aria-controls` は付けない（`header_flyout_menu` のハンバーガーと同じ
-//! 判断）。
+//! 狭い幅ではデスクトップ用のナビ・アクションを隠す（イシュー仕様）が、
+//! `button::icon_button` の `disabled: true` のみで操作不能にすると、開いた
+//! 先のパネルを一切描画しないため狭幅ではナビへ到達できなくなる
+//! （イシュー #2860 PR #3297 codex-review P1 指摘）。[`super::header_floating_pill`]
+//! と同じ判断で、ハンバーガーは `collapsible::trigger`（`OpenState::Open` +
+//! `disabled: true` 固定 = 常時展開でクリックしても何も起きない）とし、
+//! `collapsible::content` の常時展開パネル（[`mobile_panel`]）へ
+//! `aria-controls` で関連付ける。パネルは [`bar`] のデスクトップ用ナビ・
+//! アクションを `Node::clone()` して再利用し（検索インデックス容量の制約、
+//! `header_floating_pill` と同じ理由）、[`LAYOUT_CSS`] で 48rem 未満のみ
+//! 表示する。デスクトップ側は clone 元を専用ラッパー div
+//! （`data-blocks-header-simple-bar-nav-wrap`/`-actions-wrap`）で包み、この
+//! ラッパーの表示切り替えのみを CSS が担う（clone 先のパネル内ノード自身の
+//! `data-*` 属性へはセレクタを到達させないため、同一属性を持つ 2 コピーが
+//! 互いの表示を奪い合わない）。同一 `aria-label` の重複は、非表示側が
+//! `display: none` で a11y ツリーから除外されるため実害を持たない
+//! （`header_floating_pill` のモジュール doc と同じ根拠）。
 //!
 //! # CSS フックに data 属性を使う理由・詳細度対策
 //!
@@ -68,6 +82,7 @@ use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 // blocks-code:begin
 use fandhe_frontend_core::{div, el, header, p, span, text, Node};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
+use fandhe_frontend_pre_styled_ui::collapsible;
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::navigation_menu::{self, NavigationMenuProps, OpenState};
@@ -181,18 +196,31 @@ fn actions(with_login: bool, with_signup: bool) -> Node {
     )
 }
 
-/// ハンバーガーボタン（狭い幅専用、押しても何も起きないため
-/// `disabled: true` 固定。開閉パネルを描画しないため `aria-controls` は
-/// 付けない）。
-fn hamburger() -> Node {
-    button::icon_button(
-        &ButtonProps {
-            disabled: true,
-            ..ButtonProps::default()
-        },
-        "Open main menu",
-        vec![("data-blocks-header-simple-bar-toggle", "")],
+/// ハンバーガートリガー（狭い幅専用、常時展開の [`mobile_panel`] を
+/// `aria-controls` で指す。押しても何も起きないため `disabled: true` 固定
+/// だが、`OpenState::Open` によりパネル自体は常に到達可能）。
+fn hamburger(panel_id: &str) -> Node {
+    collapsible::trigger(
+        OpenState::Open,
+        true,
+        Some(panel_id),
+        vec![
+            ("aria-label", "Open main menu"),
+            ("data-blocks-header-simple-bar-toggle", ""),
+        ],
         vec![hamburger_icon()],
+    )
+}
+
+/// 常時展開のドロップダウンパネル（狭い幅専用、[`bar`] の呼び出し元が
+/// デスクトップ用ナビ・アクションを `Node::clone()` して渡す）。
+fn mobile_panel(panel_id: &str, nav_node: Node, actions_node: Node) -> Node {
+    collapsible::content(
+        OpenState::Open,
+        true,
+        Some(panel_id),
+        vec![("data-blocks-header-simple-bar-panel", "")],
+        vec![nav_node, actions_node],
     )
 }
 
@@ -206,19 +234,36 @@ fn caption(label: &str) -> Node {
 
 /// 1 本のバー（DOM 順は常に ロゴ・ナビ・アクション・ハンバーガー固定。
 /// 見た目の配置差は [`LAYOUT_CSS`] の `data-blocks-header-simple-bar-variant`
-/// セレクタが担う）。
+/// セレクタが担う）。デスクトップ用ナビ・アクションは専用ラッパー div
+/// （`-nav-wrap`/`-actions-wrap`）で包み、狭い幅では [`mobile_panel`]（同じ
+/// ノードの clone）へ表示を譲る。
 fn bar(variant: &str, aria_label: &str, with_login: bool, with_signup: bool) -> Node {
-    header(
+    let panel_id = format!("hsb-panel-{variant}");
+    let nav_node = nav(aria_label);
+    let actions_node = actions(with_login, with_signup);
+    div(
+        vec![("data-blocks-header-simple-bar-block", "")],
         vec![
-            ("class", "blocks-header-simple-bar-layout"),
-            ("data-blocks-header-simple-bar-root", ""),
-            ("data-blocks-header-simple-bar-variant", variant),
-        ],
-        vec![
-            logo(),
-            nav(aria_label),
-            actions(with_login, with_signup),
-            hamburger(),
+            header(
+                vec![
+                    ("class", "blocks-header-simple-bar-layout"),
+                    ("data-blocks-header-simple-bar-root", ""),
+                    ("data-blocks-header-simple-bar-variant", variant),
+                ],
+                vec![
+                    logo(),
+                    div(
+                        vec![("data-blocks-header-simple-bar-nav-wrap", "")],
+                        vec![nav_node.clone()],
+                    ),
+                    div(
+                        vec![("data-blocks-header-simple-bar-actions-wrap", "")],
+                        vec![actions_node.clone()],
+                    ),
+                    hamburger(&panel_id),
+                ],
+            ),
+            mobile_panel(&panel_id, nav_node, actions_node),
         ],
     )
 }
@@ -265,6 +310,10 @@ pub const BLOCK: Block = Block {
             label: "Link",
             path: "/themes/link/",
         },
+        Part {
+            label: "Collapsible",
+            path: "/themes/collapsible/",
+        },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
     demo,
@@ -273,31 +322,40 @@ pub const BLOCK: Block = Block {
 /// `header_simple_bar` 固有のレイアウト規則（`--fandhe-*` トークンのみ
 /// 使用）。セレクタは `.blocks-header-simple-bar-*` と
 /// `[data-blocks-header-simple-bar-*]`、および styled navigation-menu /
-/// styled button の `[data-scope]`/`[data-part]` セレクタとの複合セレクタ
-/// のみを用い、他 block や部品の素のセレクタへは影響させない。
+/// styled button/collapsible の `[data-scope]`/`[data-part]` セレクタとの
+/// 複合セレクタのみを用い、他 block や部品の素のセレクタへは影響させない。
+/// デスクトップ用ナビ・アクションの表示切り替えは、nav/actions 自身の
+/// `data-*` 属性ではなく専用ラッパー（`-nav-wrap`/`-actions-wrap`）の表示を
+/// 切り替える（`bar` のモジュール doc 参照。パネル内の clone コピーが同一
+/// 属性を持つため、ラッパー越しでないと clone 側の表示も同時に変わって
+/// しまう）。
 const LAYOUT_CSS: &str = "\
 .blocks-header-simple-bar-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-header-simple-bar-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-header-simple-bar-layout {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  background: var(--fandhe-color-bg);\n}\n\
 .blocks-header-simple-bar-brand {\n  font-weight: var(--fandhe-font-font-weight-medium);\n  white-space: nowrap;\n}\n\
-[data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-simple-bar-nav] {\n  display: none;\n}\n\
-[data-blocks-header-simple-bar-actions] {\n  display: none;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
-[data-scope=\"button\"][data-part=\"root\"][data-blocks-header-simple-bar-toggle] {\n  display: inline-flex;\n}\n\
-[data-scope=\"button\"][data-part=\"root\"][data-blocks-header-simple-bar-toggle][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-blocks-header-simple-bar-nav-wrap] {\n  display: none;\n}\n\
+[data-blocks-header-simple-bar-actions-wrap] {\n  display: none;\n}\n\
+[data-blocks-header-simple-bar-actions] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
+[data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-header-simple-bar-toggle] {\n  display: inline-flex;\n}\n\
+[data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-header-simple-bar-toggle][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-header-simple-bar-cta][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-header-simple-bar-panel] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  padding: 0 var(--fandhe-space-4) var(--fandhe-space-3);\n}\n\
 @media (min-width: 48rem) {\n  \
-[data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-simple-bar-nav] {\n    display: block;\n  }\n  \
-[data-blocks-header-simple-bar-actions] {\n    display: flex;\n  }\n  \
-[data-scope=\"button\"][data-part=\"root\"][data-blocks-header-simple-bar-toggle] {\n    display: none;\n  }\n  \
+[data-blocks-header-simple-bar-nav-wrap] {\n    display: block;\n  }\n  \
+[data-blocks-header-simple-bar-actions-wrap] {\n    display: flex;\n  }\n  \
+[data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-header-simple-bar-toggle] {\n    display: none;\n  }\n  \
+[data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-header-simple-bar-panel] {\n    display: none;\n  }\n  \
 [data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"start\"] {\n    border-block-end: 1px solid var(--fandhe-color-border);\n  }\n  \
-[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"start\"] [data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-simple-bar-nav] {\n    margin-inline-end: auto;\n  }\n  \
-[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"end\"] [data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-simple-bar-nav] {\n    margin-inline-start: auto;\n  }\n  \
+[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"start\"] [data-blocks-header-simple-bar-nav-wrap] {\n    margin-inline-end: auto;\n  }\n  \
+[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"end\"] [data-blocks-header-simple-bar-nav-wrap] {\n    margin-inline-start: auto;\n  }\n  \
 [data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"center\"] {\n    max-inline-size: 64rem;\n    margin-inline: auto;\n  }\n  \
-[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"center\"] [data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-simple-bar-nav] {\n    flex: 1;\n    text-align: center;\n  }\n  \
+[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"center\"] [data-blocks-header-simple-bar-nav-wrap] {\n    flex: 1;\n  }\n  \
+[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"center\"] [data-blocks-header-simple-bar-nav-wrap] [data-scope=\"navigation-menu\"][data-part=\"list\"] {\n    justify-content: center;\n  }\n  \
 [data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"logo-center\"] {\n    display: grid;\n    grid-template-columns: 1fr auto 1fr;\n    align-items: center;\n  }\n  \
 [data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"logo-center\"] [data-blocks-header-simple-bar-logo] {\n    justify-self: center;\n    order: 2;\n  }\n  \
-[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"logo-center\"] [data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-simple-bar-nav] {\n    justify-self: start;\n    order: 1;\n  }\n  \
-[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"logo-center\"] [data-blocks-header-simple-bar-actions] {\n    justify-self: end;\n    order: 3;\n  }\n\
+[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"logo-center\"] [data-blocks-header-simple-bar-nav-wrap] {\n    justify-self: start;\n    order: 1;\n  }\n  \
+[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"logo-center\"] [data-blocks-header-simple-bar-actions-wrap] {\n    justify-self: end;\n    order: 3;\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -315,6 +373,7 @@ mod tests {
             "data-scope=\"button\"",
             "data-scope=\"icon\"",
             "data-scope=\"link\"",
+            "data-scope=\"collapsible\"",
         ] {
             assert!(html.contains(scope), "demo output should contain {scope}");
         }
@@ -339,17 +398,40 @@ mod tests {
         assert_eq!(html.matches("blocks-header-simple-bar-caption").count(), 4);
     }
 
-    /// ハンバーガーが 4 個で、`aria-label` を持ち `aria-controls` を持たない
-    /// こと（開閉パネル非描画）。
+    /// ハンバーガーが 4 個で、`aria-label` を持ち、常時展開の [`super::mobile_panel`]
+    /// を `aria-controls` で指すこと（狭幅でもナビへ到達可能、イシュー #2860
+    /// PR #3297 codex-review P1 指摘の是正）。
     #[test]
-    fn hamburgers_have_label_but_no_aria_controls() {
+    fn hamburgers_have_label_and_control_a_panel() {
         let html = render(&demo());
         assert_eq!(
             html.matches("data-blocks-header-simple-bar-toggle").count(),
             4
         );
         assert_eq!(html.matches(r#"aria-label="Open main menu""#).count(), 4);
-        assert!(!html.contains("aria-controls"));
+        for variant in ["center", "start", "end", "logo-center"] {
+            let panel_id = format!("hsb-panel-{variant}");
+            assert!(
+                html.contains(&format!(r#"aria-controls="{panel_id}""#)),
+                "toggle for variant {variant} should reference {panel_id}"
+            );
+            assert!(
+                html.contains(&format!(r#"id="{panel_id}""#)),
+                "panel {panel_id} should render with matching id"
+            );
+        }
+    }
+
+    /// パネルが常時展開（`hidden` 属性なし）であること。無 JS のため開閉
+    /// できず、狭幅では常に表示される必要がある。
+    #[test]
+    fn panels_are_always_open() {
+        let html = render(&demo());
+        assert_eq!(
+            html.matches("data-blocks-header-simple-bar-panel").count(),
+            4
+        );
+        assert!(!html.contains(" hidden"), "panels should not carry the hidden attribute (decorative icons may still carry aria-hidden)");
     }
 
     /// 登録ボタンが disabled + aria-disabled で描画されること。
@@ -380,10 +462,25 @@ mod tests {
     fn layout_css_has_responsive_rules() {
         assert!(LAYOUT_CSS.contains("@media (min-width: 48rem)"));
         assert!(LAYOUT_CSS.contains(
-            "[data-scope=\"button\"][data-part=\"root\"][data-blocks-header-simple-bar-toggle] {\n    display: none;\n  }"
+            "[data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-header-simple-bar-toggle] {\n    display: none;\n  }"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-header-simple-bar-panel] {\n    display: none;\n  }"
         ));
         assert!(LAYOUT_CSS.contains("opacity: 1;"));
         assert!(LAYOUT_CSS.contains("grid-template-columns: 1fr auto 1fr;"));
+    }
+
+    /// center variant のナビが `navigation-menu` の `list`（flex コンテナ）へ
+    /// 直接 `justify-content: center` を当てること（`text-align: center` は
+    /// flex 化された `list` に効かないため、Bugbot 指摘の是正、イシュー
+    /// #2860 PR #3297）。
+    #[test]
+    fn center_variant_centers_the_flex_nav_list() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-header-simple-bar-variant=\"center\"] [data-blocks-header-simple-bar-nav-wrap] [data-scope=\"navigation-menu\"][data-part=\"list\"] {\n    justify-content: center;\n  }"
+        ));
+        assert!(!LAYOUT_CSS.contains("text-align: center"));
     }
 
     /// ルート class（`demo_class` とは別名）が [`demo`] の出力へ実際に
@@ -396,7 +493,10 @@ mod tests {
     }
 
     /// ナビの `aria-label` が variant ごとに一意であること（4 種とも
-    /// 異なる文言で 1 回ずつ現れる）。
+    /// 異なる文言で、デスクトップ用とパネル内 clone の 2 回ずつ現れる。
+    /// 非表示側は `display: none` で a11y ツリーから除外されるため重複は
+    /// 実害を持たない、`header_floating_pill` と同じ根拠）。他 variant の
+    /// 文言と混同しないこと。
     #[test]
     fn nav_aria_label_is_unique_per_variant() {
         let html = render(&demo());
@@ -408,7 +508,7 @@ mod tests {
         ] {
             assert_eq!(
                 html.matches(&format!("aria-label=\"{label}\"")).count(),
-                1,
+                2,
                 "label={label} html={html}"
             );
         }

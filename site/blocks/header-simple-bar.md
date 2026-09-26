@@ -1,21 +1,23 @@
 # header-simple-bar
 
 `fandhe-frontend-pre-styled-ui` の `navigation-menu` / `button` / `icon` /
-`link` 部品を合成した、1 段構成のシンプルなヘッダーバーです。Blocks
-セクションは新規部品を追加するものではなく、既存の Themes/Primitives
+`link` / `collapsible` 部品を合成した、1 段構成のシンプルなヘッダーバーです。
+Blocks セクションは新規部品を追加するものではなく、既存の Themes/Primitives
 部品を組み合わせた実例集であることに注意してください（主参照は対応表 ID
 R0982。出典の固有名・ファイル名は記載しません）。
 
 ロゴ・メインナビ（リンク列）・アクション（ログイン/登録）を横並びに配置し、
-48rem 未満の狭い幅ではナビとアクションを隠してハンバーガーボタンのみを
-表示します。開いた先のパネル自体は無 JS のため描画しません。Demo は
-配置違いの 4 variant を並記します: 中央寄せ・幅制限（ロゴ左・ナビ中央）、
-左寄せ・全幅・下境界線（ロゴ + ナビ左・アクション右）、右寄せ・登録のみ
-（ロゴ左・ナビ + アクション右）、ロゴ中央（ナビ左・ロゴ中央・アクション右
-の 3 列 grid）です。
+48rem 未満の狭い幅ではデスクトップ用のナビとアクションを隠してハンバーガー
+トリガーのみを表示します。ハンバーガーは常時展開のドロップダウンパネルへ
+`aria-controls` で関連付けられており、狭い幅でもナビへ到達できます（パネルは
+デスクトップ用ナビ・アクションの複製で、無 JS のため開閉はできず常に展開
+した状態です）。Demo は配置違いの 4 variant を並記します: 中央寄せ・幅制限
+（ロゴ左・ナビ中央）、左寄せ・全幅・下境界線（ロゴ + ナビ左・アクション右）、
+右寄せ・登録のみ（ロゴ左・ナビ + アクション右）、ロゴ中央（ナビ左・ロゴ中央・
+アクション右の 3 列 grid）です。
 
 本 Demo は静的な表示例であり、docs サイトは JS ハイドレーションを行わない
-ため、押しても何も起きないボタン（登録ボタン・ハンバーガーボタン）は
+ため、押しても何も起きないボタン（登録ボタン・ハンバーガートリガー）は
 すべて `disabled` にして操作不能であることを明示しています。`<form>`
 要素は一切持たず、データの取得・送信・状態管理を行いません。ボタンは
 `type="button"` のまま送信先を持ちません。文言はすべて独自に書いた架空の
@@ -27,6 +29,7 @@ R0982。出典の固有名・ファイル名は記載しません）。
 ```rust
 use fandhe_frontend_core::{div, el, header, p, span, text, Node};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
+use fandhe_frontend_pre_styled_ui::collapsible;
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::navigation_menu::{self, NavigationMenuProps, OpenState};
@@ -140,18 +143,31 @@ fn actions(with_login: bool, with_signup: bool) -> Node {
     )
 }
 
-/// ハンバーガーボタン（狭い幅専用、押しても何も起きないため
-/// `disabled: true` 固定。開閉パネルを描画しないため `aria-controls` は
-/// 付けない）。
-fn hamburger() -> Node {
-    button::icon_button(
-        &ButtonProps {
-            disabled: true,
-            ..ButtonProps::default()
-        },
-        "Open main menu",
-        vec![("data-blocks-header-simple-bar-toggle", "")],
+/// ハンバーガートリガー（狭い幅専用、常時展開の [`mobile_panel`] を
+/// `aria-controls` で指す。押しても何も起きないため `disabled: true` 固定
+/// だが、`OpenState::Open` によりパネル自体は常に到達可能）。
+fn hamburger(panel_id: &str) -> Node {
+    collapsible::trigger(
+        OpenState::Open,
+        true,
+        Some(panel_id),
+        vec![
+            ("aria-label", "Open main menu"),
+            ("data-blocks-header-simple-bar-toggle", ""),
+        ],
         vec![hamburger_icon()],
+    )
+}
+
+/// 常時展開のドロップダウンパネル（狭い幅専用、[`bar`] の呼び出し元が
+/// デスクトップ用ナビ・アクションを `Node::clone()` して渡す）。
+fn mobile_panel(panel_id: &str, nav_node: Node, actions_node: Node) -> Node {
+    collapsible::content(
+        OpenState::Open,
+        true,
+        Some(panel_id),
+        vec![("data-blocks-header-simple-bar-panel", "")],
+        vec![nav_node, actions_node],
     )
 }
 
@@ -165,19 +181,36 @@ fn caption(label: &str) -> Node {
 
 /// 1 本のバー（DOM 順は常に ロゴ・ナビ・アクション・ハンバーガー固定。
 /// 見た目の配置差は [`LAYOUT_CSS`] の `data-blocks-header-simple-bar-variant`
-/// セレクタが担う）。
+/// セレクタが担う）。デスクトップ用ナビ・アクションは専用ラッパー div
+/// （`-nav-wrap`/`-actions-wrap`）で包み、狭い幅では [`mobile_panel`]（同じ
+/// ノードの clone）へ表示を譲る。
 fn bar(variant: &str, aria_label: &str, with_login: bool, with_signup: bool) -> Node {
-    header(
+    let panel_id = format!("hsb-panel-{variant}");
+    let nav_node = nav(aria_label);
+    let actions_node = actions(with_login, with_signup);
+    div(
+        vec![("data-blocks-header-simple-bar-block", "")],
         vec![
-            ("class", "blocks-header-simple-bar-layout"),
-            ("data-blocks-header-simple-bar-root", ""),
-            ("data-blocks-header-simple-bar-variant", variant),
-        ],
-        vec![
-            logo(),
-            nav(aria_label),
-            actions(with_login, with_signup),
-            hamburger(),
+            header(
+                vec![
+                    ("class", "blocks-header-simple-bar-layout"),
+                    ("data-blocks-header-simple-bar-root", ""),
+                    ("data-blocks-header-simple-bar-variant", variant),
+                ],
+                vec![
+                    logo(),
+                    div(
+                        vec![("data-blocks-header-simple-bar-nav-wrap", "")],
+                        vec![nav_node.clone()],
+                    ),
+                    div(
+                        vec![("data-blocks-header-simple-bar-actions-wrap", "")],
+                        vec![actions_node.clone()],
+                    ),
+                    hamburger(&panel_id),
+                ],
+            ),
+            mobile_panel(&panel_id, nav_node, actions_node),
         ],
     )
 }
@@ -210,11 +243,13 @@ pub fn demo() -> Node {
 - R0160（ナビ内ボタン）・R0983（ブランド色背景）は本 Demo では扱いません。
   ナビ項目はすべてテキストリンクとし、背景色はテーマの既定トークンの
   ままにしています。
-- 押しても何も起きないボタン（登録ボタン・ハンバーガーボタン）はすべて
+- 押しても何も起きないボタン（登録ボタン・ハンバーガートリガー）はすべて
   `disabled` にして固定し、フォーカス・操作不能であることを明示しています。
+  ハンバーガートリガーは常時展開のドロップダウンパネルへ `aria-controls`
+  で関連付けられており、狭い幅でもナビ・アクションへ到達できます。
 - 文言・アイコンはすべて独自に書いた架空のものです。配色・余白・角丸は
   既存のテーマトークンに従っています。
 
 関連情報: [Navigation Menu](../themes/navigation-menu.md) /
 [Button](../themes/button.md) / [Icon](../themes/icon.md) /
-[Link](../themes/link.md)
+[Link](../themes/link.md) / [Collapsible](../themes/collapsible.md)
