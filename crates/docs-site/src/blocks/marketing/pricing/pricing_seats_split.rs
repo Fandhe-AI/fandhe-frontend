@@ -361,6 +361,14 @@ pub const BLOCK: Block = Block {
 /// （`--fandhe-*`）のみを使う。mobile-first（`min-width: 64rem`）で
 /// 2 カラムへ切り替える（モジュール doc「レイアウトとブレークポイント」
 /// 節参照）。
+///
+/// 末尾の switch 規則: 年払い切替は `disabled: true`（native トグル操作の
+/// 実際の抑止、`switch_props` の doc コメント参照）を持つため switch
+/// recipe の `disabled_declarations()`（`opacity: 0.5`）が適用され、
+/// 課金オン状態にもかかわらずコントロールと 20% ラベルが利用不可に
+/// 見えてしまう。`changelog_accordion`/`faq_split_accordion` 等の静的
+/// デモが同種の `disabled` opt-out を `opacity: 1`/`cursor: default` で
+/// 打ち消す先例に倣い、本 block でも打ち消す。
 const LAYOUT_CSS: &str = "\
 .blocks-pricing-seats-split-layout {\n  display: grid;\n  gap: var(--fandhe-space-8);\n}\n\
 @media (min-width: 64rem) {\n  .blocks-pricing-seats-split-layout {\n    grid-template-columns: minmax(16rem, 1fr) 2fr;\n    align-items: start;\n  }\n}\n\
@@ -372,7 +380,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-pricing-seats-split-price-row {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-pricing-seats-split-price {\n  font-size: var(--fandhe-font-font-size-2xl);\n  font-weight: var(--fandhe-font-font-weight-bold);\n}\n\
 .blocks-pricing-seats-split-price-period {\n  color: var(--fandhe-color-fg-muted);\n}\n\
-.blocks-pricing-seats-split-price-regular {\n  width: 100%;\n  color: var(--fandhe-color-fg-muted);\n}\n";
+.blocks-pricing-seats-split-price-regular {\n  width: 100%;\n  color: var(--fandhe-color-fg-muted);\n}\n\
+[data-blocks-pricing-seats-split-annual][data-scope=\"switch\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -425,6 +434,17 @@ mod tests {
     #[test]
     fn layout_css_switches_to_two_columns_at_lg() {
         assert!(LAYOUT_CSS.contains("@media (min-width: 64rem)"));
+    }
+
+    /// 年払い switch は `disabled: true` により recipe 側の
+    /// `disabled_declarations()`（`opacity: 0.5`）が効くため、
+    /// [`LAYOUT_CSS`] がこれを `opacity: 1`/`cursor: default` へ
+    /// 打ち消す規則を持つこと（codex Bugbot 指摘の固定回帰）。
+    #[test]
+    fn layout_css_counteracts_disabled_switch_fade() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-pricing-seats-split-annual][data-scope=\"switch\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
+        ));
     }
 
     /// ルート class（`demo_class` とは別名）が [`demo`] の出力へ実際に
