@@ -1418,6 +1418,11 @@ path = "/blocks/testimonials-stack/"
 title = "Logo Cloud"
 
 [[section.group.page]]
+title = "logo-cloud-grid"
+source = "site/blocks/logo-cloud-grid.md"
+path = "/blocks/logo-cloud-grid/"
+
+[[section.group.page]]
 title = "logo-cloud-marquee"
 source = "site/blocks/logo-cloud-marquee.md"
 path = "/blocks/logo-cloud-marquee/"
