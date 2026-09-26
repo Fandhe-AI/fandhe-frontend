@@ -1497,6 +1497,11 @@ source = "site/blocks/newsletter-split.md"
 path = "/blocks/newsletter-split/"
 
 [[section.group.page]]
+title = "newsletter-stacked"
+source = "site/blocks/newsletter-stacked.md"
+path = "/blocks/newsletter-stacked/"
+
+[[section.group.page]]
 title = "newsletter-with-details"
 source = "site/blocks/newsletter-with-details.md"
 path = "/blocks/newsletter-with-details/"
