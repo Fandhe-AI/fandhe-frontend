@@ -29,7 +29,10 @@
 //! 選択状態違い（Growth 選択＝初期状態 / Scale 選択）を 2 インスタンス
 //! 並べ、状態の並記も満たす。無 JS のため select を操作しても表は
 //! 切り替わらない（`docs/policy/intentional-non-adoption.md` §3.25。
-//! 切替の配線は利用者の Rust/wasm コードの責務）。
+//! 切替の配線は利用者の Rust/wasm コードの責務）。この不一致で
+//! 「操作すれば連動する」という誤認を与えないよう、[`select_view`] の
+//! select は `disabled` にして非操作の状態表示であることを明示する
+//! （codex-review P1 是正、イシュー #2863）。
 //!
 //! # select のラベルと id 一意性
 //!
@@ -558,7 +561,9 @@ fn select_column_header(plan: &Plan) -> Node {
 /// `<label for>` と select の実 `id` を揃えるための固定リテラル
 /// （[`SELECT_ID_GROWTH`]/[`SELECT_ID_SCALE`]）。無 JS のため select を
 /// 操作しても表・CTA は連動しない（利用者コードの責務、モジュール doc
-/// 参照）。
+/// 参照）。連動しないことを見た目からも判別できるよう `disabled` にする
+/// （操作できるように見えて実は状態表示専用、という誤認を避けるための
+/// 判断。モジュール doc「狭幅表示 A/B と状態の並記」節参照）。
 fn select_view(selected: usize, select_id: &'static str) -> Node {
     let plan = &PLANS[selected];
     let field = FieldProps {
@@ -567,7 +572,7 @@ fn select_view(selected: usize, select_id: &'static str) -> Node {
             control: Some(select_id),
             ..FieldIds::default()
         },
-        disabled: false,
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
