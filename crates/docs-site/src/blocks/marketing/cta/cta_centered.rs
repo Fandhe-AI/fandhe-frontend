@@ -75,7 +75,17 @@
 //! `padding: 0` 上書きセレクタも同じ `:not([data-scope="card"])` を付与
 //! して詳細度を揃える（`[data-blocks-cta-centered-tone="plain"]`単体の
 //! (0,1,0) のままでは基底ルールの `padding` に負けて上書きされない、
-//! PR #3259 codex/Bugbot レビュー指摘）。
+//! PR #3259 codex/Bugbot レビュー指摘）。基底ルールからの除外は
+//! `card::root` の `max-inline-size: 40rem; margin-inline: auto;` も
+//! 道連れで失わせるため、`card` tone 専用セレクタ側へ同じ 2 宣言を
+//! 明示し直し、他 4 tone と同じ幅制約を保つ（Bugbot 指摘、PR #3259）。
+//! `accent`/`dark`/`card` の Secondary ボタンは、上記 `color: inherit`
+//! だけでは [`fandhe_frontend_pre_styled_ui::button`] の共有 Hover
+//! state（`background: var(--fandhe-hover-bg)`、既定は淡色）を上書き
+//! できずホバー時にコントラストを失うため、`:hover` セレクタで
+//! `background: color-mix(in srgb, currentColor 16%, transparent)`
+//! へ明示的に差し替える（[`super::super::hero::hero_background_media`]
+//! と同型の手当て、codex レビュー指摘、PR #3259）。
 //!
 //! # `drop_class_attr` と CSS フックの選び方
 //!
@@ -405,7 +415,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-cta-centered-logo {\n  display: block;\n  inline-size: var(--fandhe-space-10);\n  block-size: var(--fandhe-space-10);\n  border-radius: var(--fandhe-radius-md);\n  border: 2px solid currentColor;\n  background: linear-gradient(135deg, currentColor, transparent);\n  opacity: 0.85;\n}\n\
 .blocks-cta-centered-line {\n  display: block;\n}\n\
 .blocks-cta-centered-actions {\n  display: flex;\n  flex-direction: column;\n  align-items: stretch;\n  gap: var(--fandhe-space-3);\n}\n\
-.blocks-cta-centered [data-scope=\"card\"][data-part=\"root\"][data-blocks-cta-centered-tone=\"card\"] {\n  background: var(--fandhe-color-accent);\n  color: var(--fandhe-color-accent-fg);\n}\n\
+.blocks-cta-centered [data-scope=\"card\"][data-part=\"root\"][data-blocks-cta-centered-tone=\"card\"] {\n  max-inline-size: 40rem;\n  margin-inline: auto;\n  background: var(--fandhe-color-accent);\n  color: var(--fandhe-color-accent-fg);\n}\n\
 .blocks-cta-centered [data-scope=\"card\"][data-part=\"body\"] [data-blocks-cta-centered-tone=\"card\"] {\n  padding: 0;\n}\n\
 [data-blocks-cta-centered-tone=\"accent\"] [data-scope=\"button\"][data-part=\"root\"][data-blocks-cta-centered-primary],\n\
 [data-blocks-cta-centered-tone=\"dark\"] [data-scope=\"button\"][data-part=\"root\"][data-blocks-cta-centered-primary],\n\
@@ -413,6 +423,9 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-cta-centered-tone=\"accent\"] [data-scope=\"button\"][data-part=\"root\"][data-blocks-cta-centered-secondary],\n\
 [data-blocks-cta-centered-tone=\"dark\"] [data-scope=\"button\"][data-part=\"root\"][data-blocks-cta-centered-secondary],\n\
 .blocks-cta-centered [data-scope=\"card\"][data-part=\"root\"][data-blocks-cta-centered-tone=\"card\"] [data-scope=\"button\"][data-part=\"root\"][data-blocks-cta-centered-secondary] {\n  color: inherit;\n  border-color: currentColor;\n}\n\
+[data-blocks-cta-centered-tone=\"accent\"] [data-scope=\"button\"][data-part=\"root\"][data-blocks-cta-centered-secondary]:hover,\n\
+[data-blocks-cta-centered-tone=\"dark\"] [data-scope=\"button\"][data-part=\"root\"][data-blocks-cta-centered-secondary]:hover,\n\
+.blocks-cta-centered [data-scope=\"card\"][data-part=\"root\"][data-blocks-cta-centered-tone=\"card\"] [data-scope=\"button\"][data-part=\"root\"][data-blocks-cta-centered-secondary]:hover {\n  color: inherit;\n  background: color-mix(in srgb, currentColor 16%, transparent);\n}\n\
 @media (min-width: 40rem) {\n  .blocks-cta-centered-actions {\n    flex-direction: row;\n    justify-content: center;\n  }\n}\n";
 
 #[cfg(test)]
@@ -510,5 +523,45 @@ mod tests {
     fn plain_tone_padding_override_matches_base_specificity() {
         assert!(LAYOUT_CSS
             .contains(r#"[data-blocks-cta-centered-tone="plain"]:not([data-scope="card"])"#));
+    }
+
+    /// `accent`/`dark`/`card` tone の Secondary（Outline）ボタンは、
+    /// [`fandhe_frontend_pre_styled_ui::button`] の共有 Hover state が
+    /// 適用する `background: var(--fandhe-hover-bg)`（既定は淡色の
+    /// `--fandhe-palette-muted`）をそのまま残すと、継承した明色の文字と
+    /// 重なりコントラストを失う（PR #3259 codex レビュー指摘、イシュー
+    /// #3224）。[`super::super::hero::hero_background_media`] の
+    /// `:hover { background: color-mix(in srgb, currentColor 16%,
+    /// transparent) }` と同型の上書きで、hover 背景を「現在の面色 +
+    /// currentColor の薄い重ね」に固定しコントラストを維持する。
+    #[test]
+    fn secondary_button_hover_keeps_contrast() {
+        assert!(LAYOUT_CSS.contains(
+            r#"[data-blocks-cta-centered-tone="accent"] [data-scope="button"][data-part="root"][data-blocks-cta-centered-secondary]:hover"#
+        ));
+        assert!(LAYOUT_CSS.contains(
+            r#"[data-blocks-cta-centered-tone="dark"] [data-scope="button"][data-part="root"][data-blocks-cta-centered-secondary]:hover"#
+        ));
+        assert!(LAYOUT_CSS.contains(
+            r#".blocks-cta-centered [data-scope="card"][data-part="root"][data-blocks-cta-centered-tone="card"] [data-scope="button"][data-part="root"][data-blocks-cta-centered-secondary]:hover"#
+        ));
+        assert!(LAYOUT_CSS.contains("color-mix(in srgb, currentColor 16%, transparent)"));
+    }
+
+    /// `card` tone は基底ルール `[data-blocks-cta-centered-tone]:not(
+    /// [data-scope="card"])` から意図的に除外される（[`card::root`] 自身が
+    /// `data-scope="card"` を持つため）ので、他 4 tone と同じ
+    /// `max-inline-size: 40rem; margin-inline: auto;` を [`card::root`]
+    /// 側の専用セレクタへ明示しないと card インスタンスだけ幅制約なしで
+    /// 伸びてしまう（PR #3259 Cursor Bugbot レビュー指摘、イシュー
+    /// #3224）。
+    #[test]
+    fn card_root_keeps_width_constraint() {
+        let needle = "\
+.blocks-cta-centered [data-scope=\"card\"][data-part=\"root\"][data-blocks-cta-centered-tone=\"card\"] {\n  max-inline-size: 40rem;\n  margin-inline: auto;";
+        assert!(
+            LAYOUT_CSS.contains(needle),
+            "card::root should keep the same max-inline-size/margin-inline as other tones"
+        );
     }
 }
