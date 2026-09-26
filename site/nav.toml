@@ -1421,14 +1421,14 @@ source = "site/blocks/stats-background-image.md"
 path = "/blocks/stats-background-image/"
 
 [[section.group.page]]
-title = "stats-with-image"
-source = "site/blocks/stats-with-image.md"
-path = "/blocks/stats-with-image/"
-
-[[section.group.page]]
 title = "stats-cards"
 source = "site/blocks/stats-cards.md"
 path = "/blocks/stats-cards/"
+
+[[section.group.page]]
+title = "stats-with-image"
+source = "site/blocks/stats-with-image.md"
+path = "/blocks/stats-with-image/"
 
 [[section.group]]
 title = "Contact"
