@@ -1628,6 +1628,11 @@ title = "header-floating-pill"
 source = "site/blocks/header-floating-pill.md"
 path = "/blocks/header-floating-pill/"
 
+[[section.group.page]]
+title = "header-flyout-menu"
+source = "site/blocks/header-flyout-menu.md"
+path = "/blocks/header-flyout-menu/"
+
 [[section.group]]
 title = "Footer"
 
@@ -1640,6 +1645,11 @@ path = "/blocks/footer-cta-columns/"
 title = "footer-inline-nav"
 source = "site/blocks/footer-inline-nav.md"
 path = "/blocks/footer-inline-nav/"
+
+[[section.group.page]]
+title = "footer-link-columns"
+source = "site/blocks/footer-link-columns.md"
+path = "/blocks/footer-link-columns/"
 
 [[section.group.page]]
 title = "footer-newsletter"

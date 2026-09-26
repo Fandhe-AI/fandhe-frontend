@@ -200,7 +200,7 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
 
 | 定数 | 値 | 超過時の扱い |
 |---|---|---|
-| `MAX_PAGE_TEXT_BYTES` | 4,096 バイト | **決定的に切り詰める**（エラーにしない）。UTF-8 文字境界で切る（`char_indices` で境界を求め、バイト単位切断で不正 UTF-8 を作らない）。切り詰め痕跡の付加文字（`…` 等）は付けない（決定性と単純さを優先する） |
+| `MAX_PAGE_TEXT_BYTES` | 4,000 バイト（イシュー #2849 で 4,096 から 4,032 へ暫定引き下げ〔§10-10〕、イシュー #2851 の base 取り込み時点では追加の引き下げ不要〔§10-11〕、PR #3272（イシュー #2853・#2855 の並行マージ）で再度超過を検知し 4,032 から 4,000 へ再引き下げ、§10-12 参照。`MAX_INDEX_BYTES` のハードルール〔§10-5・§10-6〕に抵触せず超過分を吸収する最小限の暫定調整。余裕は約 0.3% まで薄くなっている） | **決定的に切り詰める**（エラーにしない）。UTF-8 文字境界で切る（`char_indices` で境界を求め、バイト単位切断で不正 UTF-8 を作らない）。切り詰め痕跡の付加文字（`…` 等）は付けない（決定性と単純さを優先する） |
 | `MAX_INDEX_BYTES` | 1,703,936 バイト（1.625 MiB。#2552 で 1 MiB から 1.125 MiB へ、#2645 で 1.125 MiB から 1.25 MiB へ、イシュー #2814 で 1.25 MiB から 1.625 MiB へ引き上げ、§10・§10-4 参照。イシュー #2637（Menu）・#2639（Breadcrumbs）の base 取り込み時点では実測が 1.25 MiB の範囲内に収まり引き上げ不要だったが、イシュー #2750（`bento-two-column` block ページ追加）・#2814（`blog-split-header-grid` block 追加）の双方が並行して 1.25 MiB 超過を検知し、#2814 の実測に基づく引き上げが採用された、§10-4・§10-5 参照。イシュー #2817（careers-split-photo-list、§10-7 参照）・#2816（careers-split-accordion、§10-8 参照）・#2751（`content-article` block 追加、§10-9 参照）の base 取り込み時点ではいずれも実測が 1.625 MiB の範囲内に収まっており、追加の引き上げは不要だった） | **fail-closed**。`BuildError::SearchIndexTooLarge { bytes, limit }` を返し、**ページ書き出し前**に打ち切る |
 
 - 選定根拠（#957 設計時点、121 ページ）: 全ページが per-page 上限に
@@ -231,7 +231,7 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
   `pub mod search_index;` を追加）。公開項目:
   - `pub const REL_PATH: &str = "assets/search-index.json";`
   - `pub const SCHEMA_VERSION: u32 = 1;`
-  - `pub const MAX_PAGE_TEXT_BYTES: usize = 4096;`
+  - `pub const MAX_PAGE_TEXT_BYTES: usize = 4032;`（イシュー #2849 で `4096` から `4032` へ暫定引き下げ、§10-10 参照。イシュー #2851 では追加の変更なし、§10-11 参照）
   - `pub const MAX_INDEX_BYTES: usize = 1_703_936;`（#2552 で `1_048_576` から `1_179_648` へ、#2645 で `1_179_648` から `1_310_720` へ、イシュー #2814 で `1_310_720` から `1_703_936` へ引き上げ、§10・§10-4 参照。イシュー #2637・#2639 の base 取り込み時点でも実測は範囲内だったが、#2750・#2814 の双方が並行して超過を検知し、#2814 の実測に基づく引き上げが採用された。#2817（§10-7 参照）・#2816（§10-8 参照）・#2751（§10-9 参照）の base 取り込み時点でもいずれも実測は範囲内であり追加の引き上げは不要だった）
   - `pub struct PageEntry { href, title, sections: Vec<SectionEntry>, text }`
   - `pub struct SectionEntry { id, level, title }`
@@ -922,3 +922,44 @@ Marketing・カテゴリ Content の最初の block〕を追加）の PR を、�
   一律にさらに落とす代償は、恒久対処である選択肢 3（セクション粒度
   インデックスへの分割、追跡: イシュー #3173）の実装を先送りするだけで
   終わる。イシュー #3173 の優先度を上げて着手することを推奨する。
+
+### 10-11 イシュー #2851（`footer-link-columns`）は既存の引き下げ後上限に収まった
+
+イシュー #2851（Blocks に `footer-link-columns`〔リンクカラム型 footer、
+区分 Marketing・カテゴリ Footer〕を追加）の base 取り込み時点で、
+`MAX_PAGE_TEXT_BYTES` は #2849（本文書 §10-10）により既に `4_032` へ
+引き下げ済みだった。本イシューの変更を base 取り込み後に再計測しても
+`MAX_INDEX_BYTES`（`1_703_936`）超過は生じず、`MAX_PAGE_TEXT_BYTES`・
+`MAX_INDEX_BYTES` いずれも追加の変更は不要だった。
+
+### 10-12 PR #3272（イシュー #2853・#2855 の並行マージ）で再度ハードルールに抵触し、`MAX_PAGE_TEXT_BYTES` を再度引き下げて対処
+
+イシュー #2853（`header-floating-pill` block 追加）と イシュー #2855
+（`header-flyout-menu` block 追加）が並行して main へマージされ、PR #3272
+（`header-floating-pill` 側）の base 取り込みで両者が合流した時点で
+`cargo test -p fandhe-frontend-docs-site` が
+`SearchIndex(TooLarge { bytes: 1708308, limit: 1703936 })` で FAIL した
+（§10-10 の引き下げ後 3 度目の base 取り込みで発生。#10-11 の
+`footer-link-columns` 単独では発生しなかった超過が、2 block の並行追加で
+発生した）。
+
+#### 実測
+
+- 超過量: 4,372 バイト
+- `MAX_PAGE_TEXT_BYTES` を `4_032` → `4_000`（−32 バイト）へ引き下げた後の
+  索引 JSON 全体バイト: 1,699,483（`MAX_INDEX_BYTES` の約 99.7%。§10-10 時点の
+  99.1% からさらに薄くなっている）
+
+#### 決定
+
+- `MAX_INDEX_BYTES`（1.625 MiB = `1_703_936`）は変更しない（§10-6 の
+  ハードルールを遵守。`max_index_bytes_is_pinned_pending_issue_3173_section_granularity_split`
+  契約テストが維持されていることも確認済み）。
+- §10-10 と同じ理由（対象は `MAX_INDEX_BYTES` に限定されたハードルールで
+  あり `MAX_PAGE_TEXT_BYTES` は対象外）により、`MAX_PAGE_TEXT_BYTES` を
+  さらに引き下げる対処を継続した。
+- **余裕はほぼ枯渇している（約 0.3%）**。次回の Blocks 追加（親トラッキング
+  #2730 は継続中）で本定数の再引き下げでは吸収しきれない超過が発生する
+  可能性が高い。§10-10 が既に推奨していたとおり、恒久対処（イシュー
+  #3173、セクション粒度インデックスへの分割）の優先度を上げて着手する
+  ことを改めて推奨する。
