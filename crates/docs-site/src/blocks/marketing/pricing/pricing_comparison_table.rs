@@ -1,23 +1,48 @@
-//! `pricing-comparison-table` block（イシュー #2862。親トラッキング #2861
-//! 「Blocks 目的別パーツ拡充ツリー」配下、プラン比較表を実装する目的別
-//! パーツの前半。骨格・幅広表・狭幅カードの登録一式を担う。後半（#2863）
-//! が native-select による 1 プラン選択の 2 列表示・状態の並記・原案差分
-//! メモを追加する）。
+//! `pricing-comparison-table` block（前半 #2862・後半 #2863。親トラッキング
+//! #2861「Blocks 目的別パーツ拡充ツリー」配下、プラン比較表を実装する
+//! 目的別パーツ。前半で骨格・幅広表・狭幅カードの登録一式を、後半
+//! （本イシュー）で native-select による 1 プラン選択の 2 列表示・状態の
+//! 並記・原案差分メモを追加した。
 //!
 //! # 主参照・集約元の扱い
 //!
 //! 主参照は対応表 ID R0601（カテゴリ見出し行付きの比較表）。集約元
-//! R1150（狭幅ティアカード）は本イシューで畳み込む。集約元 R0201（狭幅
-//! select 切替）は #2863 が扱う（native-select の `id`/`label for` 配線を
-//! 後半でまとめて扱うための意図的な分割、計画「前半と後半の分担」節）。
-//! 参照元の文言・配色・アイコン・ファイル名は持ち込まない
+//! R1150（狭幅ティアカード）は前半で畳み込み済み。集約元 R0201（狭幅
+//! select 切替）は本イシューで畳み込む。参照元の文言・配色・アイコン・
+//! ファイル名は持ち込まない
 //! （`docs/design/motion-reference-adoption-policy.md` §9 と同じ転記制限）。
 //!
 //! # 使用部品
 //!
-//! `heading` / `text` / `table` / `button` / `icon` / `card` の 6 部品を
-//! 合成する（[`BLOCK`] の `parts` に一致させる契約、
-//! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証する）。
+//! `heading` / `text` / `table` / `button` / `icon` / `card` /
+//! `native-select` の 7 部品を合成する（[`BLOCK`] の `parts` に一致させる
+//! 契約、`crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が
+//! 検証する）。
+//!
+//! # 狭幅表示 A/B と状態の並記
+//!
+//! 狭幅（48rem 未満）では、幅広の表（R0601）の代わりに「表示 A: プラン別
+//! カード（R1150、既存 `cards_view()`）」と「表示 B: select + 2 列表
+//! （R0201、[`select_view`]）」の両方を縦に並べて置く（親イシューの
+//! 「カード表示または select 2 列表示」を、両方の並記で満たす判断。
+//! `comparison_table` 等の「集約元を縦並記」と同型）。表示 B はさらに
+//! 選択状態違い（Growth 選択＝初期状態 / Scale 選択）を 2 インスタンス
+//! 並べ、状態の並記も満たす。無 JS のため select を操作しても表は
+//! 切り替わらない（`docs/policy/intentional-non-adoption.md` §3.25。
+//! 切替の配線は利用者の Rust/wasm コードの責務）。この不一致で
+//! 「操作すれば連動する」という誤認を与えないよう、[`select_view`] の
+//! select は `disabled` にして非操作の状態表示であることを明示する
+//! （codex-review P1 是正、イシュー #2863）。
+//!
+//! # select のラベルと id 一意性
+//!
+//! `native_select::native_select` は `field` scope へ委譲するため、可視
+//! ラベルは `field::label`（未使用部品）ではなく素の `<label for=id>` で
+//! 付ける。各インスタンスの id は [`FieldIds::control`] で固定値へ
+//! 上書きし、`<label for>` と select の実 `id` を同じリテラルで揃える
+//! （2 インスタンスで異なる定数を使うことで id の一意性を保つ。全 block
+//! 横断の重複検知は `blocks_contract.rs::
+//! demo_output_has_no_dangling_aria_references_or_duplicate_ids` が担う）。
 //!
 //! # 見出しレベルに `H3` を使う理由
 //!
@@ -46,11 +71,11 @@
 //!
 //! # `drop_class_attr` と `data-*` フックの使い分け
 //!
-//! `heading` / `text` / `table::root` / `button` / `icon` / `card::root` は
-//! いずれも `drop_class_attr` により呼び出し側 `attrs` の `class` を黙って
-//! 除去する契約を持つため、これらの Demo 固有スタイルフックは
-//! `data-blocks-pricing-comparison-table-*` 属性で渡す。素の `div`、
-//! `table::header`/`body`/`row`/`cell`/`scroll_area`、
+//! `heading` / `text` / `table::root` / `button` / `icon` / `card::root` /
+//! `native_select` はいずれも `drop_class_attr` により呼び出し側 `attrs` の
+//! `class` を黙って除去する契約を持つため、これらの Demo 固有スタイル
+//! フックは `data-blocks-pricing-comparison-table-*` 属性で渡す。素の
+//! `div`、`table::header`/`body`/`row`/`cell`/`scroll_area`、
 //! `card::header`/`body`/`footer` には `class` がそのまま効くため、名前
 //! 空間分離のため `.blocks-pricing-comparison-table-*` クラスを使う。
 //!
@@ -87,6 +112,7 @@ use fandhe_frontend_pre_styled_ui::heading::{
     heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
 };
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
+use fandhe_frontend_pre_styled_ui::native_select::{self, FieldIds, FieldProps, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
 use fandhe_frontend_pre_styled_ui::Size;
@@ -319,18 +345,32 @@ fn plan_column_header(plan: &Plan) -> Node {
     )
 }
 
-/// カテゴリ見出し行（`colspan` でプラン列をまたぐ 1 セル行）。
-fn category_row(category: &Category) -> Node {
+/// カテゴリ見出し行（`colspan` でプラン列をまたぐ 1 セル行）。`colspan` を
+/// 引数化し、幅広表（[`COL_COUNT_STR`]）と select 2 列表（`"2"`）の双方で
+/// 共用する（最小差分の方針、モジュール doc 参照）。
+fn category_row(category: &Category, colspan: &str) -> Node {
     table::row(
         vec![],
         vec![table::row_header(
             vec![
-                ("colspan", COL_COUNT_STR),
+                ("colspan", colspan),
                 ("data-blocks-pricing-comparison-table-category", ""),
             ],
             vec![text(category.label)],
         )],
     )
+}
+
+/// 機能 1 件分の値表現（可否アイコン or 文字列）を組み立てる。幅広表・
+/// select 2 列表の双方から呼ばれる共通ヘルパ（最小差分の方針）。
+fn value_node(value: &FeatureValue) -> Node {
+    match value {
+        FeatureValue::Text(label) => span(
+            vec![("data-blocks-pricing-comparison-table-value", "text")],
+            vec![text(*label)],
+        ),
+        included_or_excluded => feature_value_icon(included_or_excluded),
+    }
 }
 
 /// 機能比較 1 行分（`table::row`）。
@@ -345,16 +385,9 @@ fn feature_table_row(row: &FeatureRow) -> Node {
         } else {
             "standard"
         };
-        let value_node = match value {
-            FeatureValue::Text(label) => span(
-                vec![("data-blocks-pricing-comparison-table-value", "text")],
-                vec![text(*label)],
-            ),
-            included_or_excluded => feature_value_icon(included_or_excluded),
-        };
         cells.push(table::cell(
             vec![("data-blocks-pricing-comparison-table-col", col)],
-            vec![value_node],
+            vec![value_node(value)],
         ));
     }
     table::row(vec![], cells)
@@ -368,7 +401,7 @@ fn table_view() -> Node {
     let bodies: Vec<Node> = CATEGORIES
         .iter()
         .map(|category| {
-            let mut rows = vec![category_row(category)];
+            let mut rows = vec![category_row(category, COL_COUNT_STR)];
             rows.extend(category.rows.iter().map(feature_table_row));
             table::body(vec![], rows)
         })
@@ -496,9 +529,188 @@ fn cards_view() -> Node {
     )
 }
 
+/// select 2 列表インスタンスの id（`<label for>` と select 実 `id` を同じ
+/// リテラルで揃えるための固定値。モジュール doc「select のラベルと id
+/// 一意性」節参照）。
+const SELECT_ID_GROWTH: &str = "blocks-pricing-comparison-table-plan-select-growth";
+const SELECT_ID_SCALE: &str = "blocks-pricing-comparison-table-plan-select-scale";
+
+/// select 列見出し（`<th scope="col">`）。プラン名・価格を縦に並べる
+/// （[`plan_column_header`] と異なり CTA は列見出しへ含めない。CTA は
+/// [`select_view`] が表の外へ独立して配置する）。
+fn select_column_header(plan: &Plan) -> Node {
+    table::column_header(
+        vec![],
+        vec![
+            span(vec![], vec![text(plan.name)]),
+            styled_text::text(
+                &TextProps {
+                    variant: TextVariant::Muted,
+                    ..TextProps::default()
+                },
+                vec![("data-blocks-pricing-comparison-table-price", "")],
+                vec![text(plan.price)],
+            ),
+        ],
+    )
+}
+
+/// 狭幅表示（R0201）: native-select で 1 プランを選び、機能一覧を「機能 /
+/// 値」の 2 列表で示す。`selected` は [`PLANS`] の添字（状態違いの並記は
+/// [`narrow_view`] が呼び出しを 2 回行うことで表現する）。`select_id` は
+/// `<label for>` と select の実 `id` を揃えるための固定リテラル
+/// （[`SELECT_ID_GROWTH`]/[`SELECT_ID_SCALE`]）。無 JS のため select を
+/// 操作しても表・CTA は連動しない（利用者コードの責務、モジュール doc
+/// 参照）。連動しないことを見た目からも判別できるよう `disabled` にする
+/// （操作できるように見えて実は状態表示専用、という誤認を避けるための
+/// 判断。モジュール doc「狭幅表示 A/B と状態の並記」節参照）。
+fn select_view(selected: usize, select_id: &'static str) -> Node {
+    let plan = &PLANS[selected];
+    let field = FieldProps {
+        id: select_id,
+        ids: FieldIds {
+            control: Some(select_id),
+            ..FieldIds::default()
+        },
+        disabled: true,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    let options: Vec<Node> = PLANS
+        .iter()
+        .enumerate()
+        .map(|(i, plan)| {
+            let mut attrs: Vec<(&str, &str)> = vec![("value", plan.name)];
+            if i == selected {
+                attrs.push(("selected", ""));
+            }
+            el("option", attrs, vec![text(plan.name)])
+        })
+        .collect();
+
+    let select_bar = div(
+        vec![("class", "blocks-pricing-comparison-table-select-bar")],
+        vec![
+            el(
+                "label",
+                vec![("for", select_id)],
+                vec![text("プランを選択")],
+            ),
+            native_select::native_select(&NativeSelectProps::default(), &field, vec![], options),
+        ],
+    );
+
+    let bodies: Vec<Node> = CATEGORIES
+        .iter()
+        .map(|category| {
+            let mut rows = vec![category_row(category, "2")];
+            rows.extend(category.rows.iter().map(|row| {
+                table::row(
+                    vec![],
+                    vec![
+                        table::row_header(
+                            vec![("data-blocks-pricing-comparison-table-feature", "")],
+                            vec![text(row.label)],
+                        ),
+                        table::cell(vec![], vec![value_node(&row.values[selected])]),
+                    ],
+                )
+            }));
+            table::body(vec![], rows)
+        })
+        .collect();
+
+    let mut table_children = vec![
+        table::caption(vec![], vec![text(format!("{}の機能一覧", plan.name))]),
+        table::header(
+            vec![],
+            vec![table::row(
+                vec![],
+                vec![
+                    table::column_header(vec![], vec![text("機能")]),
+                    select_column_header(plan),
+                ],
+            )],
+        ),
+    ];
+    table_children.extend(bodies);
+
+    let cta_variant = if plan.featured {
+        ButtonVariant::Solid
+    } else {
+        ButtonVariant::Outline
+    };
+
+    div(
+        vec![("data-blocks-pricing-comparison-table-view", "select")],
+        vec![
+            select_bar,
+            table::root(
+                TableProps {
+                    variant: TableVariant::Outline,
+                    ..TableProps::default()
+                },
+                vec![],
+                table_children,
+            ),
+            button::button(
+                &ButtonProps {
+                    variant: cta_variant,
+                    ..ButtonProps::default()
+                },
+                vec![("data-blocks-pricing-comparison-table-cta", "")],
+                vec![text(plan.cta_label)],
+            ),
+        ],
+    )
+}
+
+/// 狭幅（48rem 未満）で表の代わりに置く 2 領域: 表示 A（[`cards_view`]、
+/// R1150）と表示 B（[`select_view`]、R0201）。表示 B は選択状態違い
+/// （Growth を選択＝初期状態 / Scale を選択）を 2 インスタンス並べる
+/// （モジュール doc「狭幅表示 A/B と状態の並記」節参照）。
+fn narrow_view() -> Node {
+    let section_label = |label: &'static str| {
+        styled_text::text(
+            &TextProps {
+                variant: TextVariant::Muted,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text(label)],
+        )
+    };
+
+    div(
+        vec![("class", "blocks-pricing-comparison-table-narrow")],
+        vec![
+            div(
+                vec![],
+                vec![section_label("表示 A: プラン別カード"), cards_view()],
+            ),
+            div(
+                vec![],
+                vec![
+                    section_label("表示 B-1: Growth を選択（初期状態）"),
+                    select_view(1, SELECT_ID_GROWTH),
+                ],
+            ),
+            div(
+                vec![],
+                vec![
+                    section_label("表示 B-2: Scale を選択"),
+                    select_view(2, SELECT_ID_SCALE),
+                ],
+            ),
+        ],
+    )
+}
+
 /// `pricing-comparison-table` の Demo 本体。呼び出しごとに同一の `Node` を
-/// 返す純関数。intro 領域 + 幅広表 + 狭幅カードの 3 領域を縦に並べる（表示
-/// 切替は [`LAYOUT_CSS`] の `@media` が担う）。
+/// 返す純関数。intro 領域 + 幅広表 + 狭幅表示（表示 A/B 状態違い並記）の
+/// 3 領域を縦に並べる（表示切替は [`LAYOUT_CSS`] の `@media` が担う）。
 pub fn demo() -> Node {
     let intro = div(
         vec![("class", "blocks-pricing-comparison-table-intro")],
@@ -525,7 +737,7 @@ pub fn demo() -> Node {
 
     div(
         vec![("class", "blocks-pricing-comparison-table-layout")],
-        vec![intro, table_view(), cards_view()],
+        vec![intro, table_view(), narrow_view()],
     )
 }
 // blocks-code:end
@@ -563,6 +775,10 @@ pub const BLOCK: Block = Block {
             label: "Card",
             path: "/themes/card/",
         },
+        Part {
+            label: "Native Select",
+            path: "/themes/native-select/",
+        },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
     demo,
@@ -571,7 +787,10 @@ pub const BLOCK: Block = Block {
 /// `pricing_comparison_table` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
 /// doc「block 固有 CSS の置き場」節）。色・余白はすべて既存トークン
 /// （`--fandhe-color-*`・`--fandhe-space-*`）のみを使う。狭幅（48rem 未満）で
-/// 表からカードへ切り替える。
+/// 表から狭幅表示（表示 A + 表示 B ×2）へ切り替える（表示切替は
+/// `.blocks-pricing-comparison-table-narrow` ラッパー単位で行い、カード・
+/// select ビュー自体の `display` は常時有効にする。モジュール doc「狭幅
+/// 表示 A/B と状態の並記」節参照）。
 const LAYOUT_CSS: &str = "\
 .blocks-pricing-comparison-table-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-pricing-comparison-table-intro {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
@@ -585,15 +804,19 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"icon\"][data-part=\"root\"][data-blocks-pricing-comparison-table-value=\"excluded\"] {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-pricing-comparison-table-card-item {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-pricing-comparison-table-card-list {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
-[data-blocks-pricing-comparison-table-view=\"cards\"] {\n  display: none;\n  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));\n  gap: var(--fandhe-space-4);\n}\n\
-@media (max-width: 47.99rem) {\n  [data-blocks-pricing-comparison-table-view=\"table\"] {\n    display: none;\n  }\n  [data-blocks-pricing-comparison-table-view=\"cards\"] {\n    display: grid;\n  }\n}\n";
+.blocks-pricing-comparison-table-narrow {\n  display: none;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
+[data-blocks-pricing-comparison-table-view=\"cards\"] {\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));\n  gap: var(--fandhe-space-4);\n}\n\
+[data-blocks-pricing-comparison-table-view=\"select\"] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
+.blocks-pricing-comparison-table-select-bar {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
+@media (max-width: 47.99rem) {\n  [data-blocks-pricing-comparison-table-view=\"table\"] {\n    display: none;\n  }\n  .blocks-pricing-comparison-table-narrow {\n    display: flex;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, CATEGORIES, PLANS};
+    use super::{demo, CATEGORIES, PLANS, SELECT_ID_GROWTH, SELECT_ID_SCALE};
     use fandhe_frontend_core::render;
 
-    /// Demo が期待する 6 種の部品を出力すること。
+    /// Demo が期待する 7 種の部品を出力すること（後半 #2863 で native-select
+    /// が加わり 6 → 7）。
     #[test]
     fn demo_composes_expected_parts() {
         let html = render(&demo());
@@ -604,19 +827,26 @@ mod tests {
             "data-scope=\"button\"",
             "data-scope=\"icon\"",
             "data-scope=\"card\"",
+            "data-scope=\"field\"",
         ] {
             assert!(html.contains(scope), "demo output should contain {scope}");
         }
     }
 
-    /// `scope="col"` の数が 1 + プラン数（3）= 4 であること。
+    /// `scope="col"` の数が「幅広表（1 + プラン数）+ select 2 列表インスタンス
+    /// 数（2）× 2 列見出し」であること。
     #[test]
-    fn column_header_count_matches_plans_plus_one() {
+    fn column_header_count_matches_table_and_select_instances() {
         let html = render(&demo());
-        assert_eq!(html.matches(r#"scope="col""#).count(), PLANS.len() + 1);
+        assert_eq!(
+            html.matches(r#"scope="col""#).count(),
+            (PLANS.len() + 1) + 2 * 2
+        );
     }
 
-    /// カテゴリ見出し行の `colspan="4"` がカテゴリ数（2）件あること。
+    /// カテゴリ見出し行の `colspan="4"`（幅広表）がカテゴリ数（2）件、
+    /// `colspan="2"`（select 2 列表 × 2 インスタンス）がカテゴリ数 × 2 件
+    /// あること。
     #[test]
     fn category_rows_have_colspan_matching_col_count() {
         let html = render(&demo());
@@ -625,16 +855,22 @@ mod tests {
             CATEGORIES.len(),
             "colspan should equal PLANS.len() + 1"
         );
+        assert_eq!(
+            html.matches(r#"colspan="2""#).count(),
+            CATEGORIES.len() * 2,
+            "select 2 列表は 2 インスタンス分のカテゴリ行を持つ"
+        );
     }
 
-    /// `scope="row"` の総数がカテゴリ数 + 機能行の総数であること。
+    /// `scope="row"` の総数が「幅広表 + select 2 列表インスタンス 2 件」の
+    /// 3 系統分（カテゴリ行 + 機能行）であること。
     #[test]
     fn row_header_count_matches_categories_plus_feature_rows() {
         let html = render(&demo());
         let feature_row_count: usize = CATEGORIES.iter().map(|c| c.rows.len()).sum();
         assert_eq!(
             html.matches(r#"scope="row""#).count(),
-            CATEGORIES.len() + feature_row_count
+            3 * (CATEGORIES.len() + feature_row_count)
         );
     }
 
@@ -648,12 +884,15 @@ mod tests {
         }
     }
 
-    /// CTA ボタンが `type="button"` で計 `PLANS.len() * 2`（表とカード）個、
-    /// `type="submit"` が 0 個であること。
+    /// CTA ボタンが `type="button"` で計 `PLANS.len() * 2 + 2`（表・カード・
+    /// select 2 インスタンス）個、`type="submit"` が 0 個であること。
     #[test]
     fn cta_buttons_are_type_button() {
         let html = render(&demo());
-        assert_eq!(html.matches(r#"type="button""#).count(), PLANS.len() * 2);
+        assert_eq!(
+            html.matches(r#"type="button""#).count(),
+            PLANS.len() * 2 + 2
+        );
         assert_eq!(html.matches(r#"type="submit""#).count(), 0);
     }
 
@@ -666,14 +905,72 @@ mod tests {
         assert!(html.contains(r#"role="img""#));
     }
 
-    /// 非対話・安全性の不変条件（`<form>`・`id=` 属性・`data:` URI・
-    /// `<script` を持たないこと）。
+    /// 非対話・安全性の不変条件（`<form>`・`data:` URI・`<script` を
+    /// 持たないこと）。
     #[test]
     fn demo_never_contains_forbidden_markup() {
         let html = render(&demo());
-        for absent in ["<form", " id=\"", "data:", "<script"] {
+        for absent in ["<form", "data:", "<script"] {
             assert!(!html.contains(absent), "demo should never contain {absent}");
         }
+    }
+
+    /// `id=` 属性は select 2 インスタンス分の 2 件だけであり、それぞれが
+    /// [`SELECT_ID_GROWTH`]/[`SELECT_ID_SCALE`] と一致し、互いに一意で
+    /// あること（モジュール doc「select のラベルと id 一意性」節）。
+    #[test]
+    fn demo_ids_are_only_the_two_select_ids() {
+        let html = render(&demo());
+        assert_eq!(html.matches(" id=\"").count(), 2);
+        assert!(html.contains(&format!(" id=\"{SELECT_ID_GROWTH}\"")));
+        assert!(html.contains(&format!(" id=\"{SELECT_ID_SCALE}\"")));
+        assert_ne!(SELECT_ID_GROWTH, SELECT_ID_SCALE);
+    }
+
+    /// select 2 インスタンスそれぞれの `<label for>` が select 実 `id` と
+    /// 一致すること。
+    #[test]
+    fn select_labels_reference_matching_select_ids() {
+        // `blocks_source_does_not_use_raw_html_or_build_html_strings`
+        // （`blocks_contract.rs`）はソース中の `format!("<` という字面を
+        // コード内 HTML 文字列組み立ての疑いとして検出するため、期待値は
+        // `format!` を使わず素の文字列連結で組み立てる（実装コード自体は
+        // ノード木 API のみを使い、これはテストのアサーション文字列）。
+        let html = render(&demo());
+        for id in [SELECT_ID_GROWTH, SELECT_ID_SCALE] {
+            let mut expected = String::from("<label for=\"");
+            expected.push_str(id);
+            expected.push_str("\">");
+            assert!(
+                html.contains(&expected),
+                "label for={id} should exist -> {html}"
+            );
+        }
+    }
+
+    /// select 2 インスタンスそれぞれで `selected` 属性がちょうど 1 個だけ
+    /// 現れ、Growth 選択インスタンスは Growth に、Scale 選択インスタンスは
+    /// Scale に付くこと（初期状態の固定）。
+    #[test]
+    fn select_instances_have_exactly_one_selected_option_each() {
+        let html = render(&demo());
+        let growth_start = html.find(SELECT_ID_GROWTH).expect("growth select exists");
+        let scale_start = html.find(SELECT_ID_SCALE).expect("scale select exists");
+        let (growth_html, scale_html) = if growth_start < scale_start {
+            (&html[growth_start..scale_start], &html[scale_start..])
+        } else {
+            (&html[growth_start..], &html[scale_start..growth_start])
+        };
+        assert_eq!(growth_html.matches(" selected=\"\"").count(), 1);
+        assert_eq!(scale_html.matches(" selected=\"\"").count(), 1);
+        assert!(
+            growth_html.contains("<option value=\"Growth\" selected=\"\">Growth</option>"),
+            "growth instance should select Growth -> {growth_html}"
+        );
+        assert!(
+            scale_html.contains("<option value=\"Scale\" selected=\"\">Scale</option>"),
+            "scale instance should select Scale -> {scale_html}"
+        );
     }
 
     /// ルート class（`demo_class` とは別名）が [`demo`] の出力へ実際に
@@ -688,7 +985,7 @@ mod tests {
         );
     }
 
-    /// [`super::LAYOUT_CSS`] が `@media` による表/カード切替を両方の view
+    /// [`super::LAYOUT_CSS`] が `@media` による表/狭幅ラッパー切替を両方の
     /// セレクタで宣言していること。
     #[test]
     fn layout_css_declares_view_switch() {
@@ -696,9 +993,7 @@ mod tests {
         assert!(
             super::LAYOUT_CSS.contains(r#"[data-blocks-pricing-comparison-table-view="table"]"#)
         );
-        assert!(
-            super::LAYOUT_CSS.contains(r#"[data-blocks-pricing-comparison-table-view="cards"]"#)
-        );
+        assert!(super::LAYOUT_CSS.contains(".blocks-pricing-comparison-table-narrow"));
     }
 
     /// [`super::LAYOUT_CSS`] が `<` を含まないこと（`push_css` の検証観点の
