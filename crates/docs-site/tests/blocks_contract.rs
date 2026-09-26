@@ -8028,6 +8028,102 @@ fn hero_split_image_composes_expected_parts() {
     }
 }
 
+/// newsletter-with-details ページが Demo class・専用 CSS を配線している
+/// こと、block 固有 CSS（アイコン箱・補足項目グリッド・ブレークポイント）
+/// が実際に出力されていることを固定する（イシュー #2797。
+/// `contact_info_columns_page_wires_demo_class_and_css_hooks` と同型）。
+#[test]
+fn newsletter_with_details_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/newsletter-with-details/index.html"))
+        .expect("blocks/newsletter-with-details/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-newsletter-with-details\""),
+        "newsletter-with-details page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "newsletter-with-details page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "newsletter-with-details page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-newsletter-with-details-submit",
+        "data-blocks-newsletter-with-details-item",
+        "data-blocks-newsletter-with-details-icon-box",
+        "data-blocks-newsletter-with-details-details",
+    ] {
+        assert!(
+            html.contains(hook),
+            "newsletter-with-details page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "[data-blocks-newsletter-with-details-icon-box]",
+        "[data-blocks-newsletter-with-details-details]",
+        "@media (min-width: 40rem)",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// newsletter-with-details の合成部品（heading/text/field/input/button/
+/// icon/visually-hidden）が期待どおりの構成で実際に出力されていること、
+/// 補足項目数・送信ボタン数・非対話制約を固定する（イシュー #2797。
+/// `contact_info_columns_composes_expected_parts` と同型）。
+#[test]
+fn newsletter_with_details_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/newsletter-with-details/")
+        .expect("newsletter-with-details should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"field\" data-part=\"root\"",
+        "data-scope=\"field\" data-part=\"input\"",
+        "data-scope=\"button\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"visually-hidden\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "newsletter-with-details demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-newsletter-with-details-item")
+            .count(),
+        2,
+        "newsletter-with-details demo should render exactly 2 detail items"
+    );
+    assert_eq!(
+        html.matches("type=\"button\"").count(),
+        1,
+        "newsletter-with-details should have exactly 1 type=\"button\" button (submit)"
+    );
+    for absent in [
+        "<form",
+        "type=\"submit\"",
+        "src=\"data:",
+        "href=\"#\"",
+        "mailto:",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "newsletter-with-details should never contain {absent}"
+        );
+    }
+}
+
 /// hero-split-screenshot ページが `blocks-demo blocks-hero-split-screenshot`
 /// class・両 stylesheet の `<link>` を実際に出力し、`blocks::stylesheet()`
 /// にも本 block 固有のセレクタが存在すること（イシュー #2792）。
