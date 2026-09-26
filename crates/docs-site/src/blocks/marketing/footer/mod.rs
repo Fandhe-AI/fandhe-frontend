@@ -5,6 +5,7 @@
 //! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
 //! ための構造、イシュー #2734）。
 
+mod footer_cta_columns;
 mod footer_link_columns;
 mod footer_newsletter;
 mod footer_sticky_reveal;
@@ -14,6 +15,7 @@ pub(super) fn blocks() -> Vec<Block> {
     vec![
         footer_sticky_reveal::BLOCK,
         footer_newsletter::BLOCK,
+        footer_cta_columns::BLOCK,
         footer_link_columns::BLOCK,
     ]
 }

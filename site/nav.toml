@@ -1483,6 +1483,11 @@ title = "faq-split-static"
 source = "site/blocks/faq-split-static.md"
 path = "/blocks/faq-split-static/"
 
+[[section.group.page]]
+title = "faq-static-grid"
+source = "site/blocks/faq-static-grid.md"
+path = "/blocks/faq-static-grid/"
+
 [[section.group]]
 title = "Contact"
 
@@ -1617,6 +1622,11 @@ path = "/blocks/content-with-testimonial/"
 
 [[section.group]]
 title = "Footer"
+
+[[section.group.page]]
+title = "footer-cta-columns"
+source = "site/blocks/footer-cta-columns.md"
+path = "/blocks/footer-cta-columns/"
 
 [[section.group.page]]
 title = "footer-link-columns"
