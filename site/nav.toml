@@ -1621,6 +1621,14 @@ source = "site/blocks/content-with-testimonial.md"
 path = "/blocks/content-with-testimonial/"
 
 [[section.group]]
+title = "Header"
+
+[[section.group.page]]
+title = "header-flyout-menu"
+source = "site/blocks/header-flyout-menu.md"
+path = "/blocks/header-flyout-menu/"
+
+[[section.group]]
 title = "Footer"
 
 [[section.group.page]]
