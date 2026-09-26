@@ -916,6 +916,7 @@ pub enum LayoutCss {
 | logo-cloud-grid | #2793 | `marketing/logo_cloud/logo_cloud_grid.rs` |
 | newsletter-split | #2796 | `marketing/newsletter/newsletter_split.rs` |
 | logo-cloud-marquee | #2794 | `marketing/logo_cloud/logo_cloud_marquee.rs` |
+| logo-cloud-split | #2795 | `marketing/logo_cloud/logo_cloud_split.rs` |
 | stats-background-image | #2801 | `marketing/stats/stats_background_image.rs` |
 | stats-with-image | #2806 | `marketing/stats/stats_with_image.rs` |
 | section-heading-split | #2798 | `marketing/section_heading/section_heading_split.rs` |
