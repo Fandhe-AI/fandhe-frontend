@@ -87,7 +87,7 @@ fn link(label: &'static str) -> Node {
 }
 
 fn top() -> Node {
-    div(vec![("class", "ft")], vec![link("製品")])
+    div(vec![("class", "fnb-t")], vec![link("製品")])
 }
 
 fn band(id: &'static str) -> Node {
@@ -117,7 +117,7 @@ fn band(id: &'static str) -> Node {
             button::button(&ButtonProps::default(), vec![], vec![text("購読")]),
         ],
     );
-    div(vec![("data-fb", "")], vec![text("最新情報"), signup])
+    div(vec![("data-fnb-band", "")], vec![text("最新情報"), signup])
 }
 
 fn variant(order: u8, id: &'static str) -> Node {
@@ -133,7 +133,7 @@ fn variant(order: u8, id: &'static str) -> Node {
 
 pub fn demo() -> Node {
     div(
-        vec![("class", "fl")],
+        vec![("class", "fnb-l")],
         vec![
             text("A"),
             variant(0, "fnb-a"),
@@ -181,19 +181,22 @@ pub const BLOCK: Block = Block {
 };
 
 /// `footer_newsletter_band` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。ルート class（`fl`）は
+/// doc「block 固有 CSS の置き場」節）。ルート class（`fnb-l`）は
 /// [`Block::demo_class`]（`fnb`）と意図的に別名にする（既存 block と
-/// 同じ Bugbot 教訓の回避）。ページサイズ予算（モジュール doc「ページ
-/// サイズ予算」節）の制約から、フック名は最小限の略号にしてある。
+/// 同じ Bugbot 教訓の回避）。CSS フックは他 block と同じ
+/// `blocks-<kebab>-*` 相当の具体性を持たせた `fnb-*` 接頭辞
+/// （`footer-newsletter-band` の略）で命名し、`blocks.css` が全 block
+/// 共有のグローバルスタイルシートであるため他 block との class 名衝突を
+/// 避ける。
 const LAYOUT_CSS: &str = "\
-.fl {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
-.fl > footer {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  padding: var(--fandhe-space-6);\n  background: var(--fandhe-color-bg-subtle);\n  border-radius: var(--fandhe-radius-lg);\n}\n\
-.ft {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-6);\n}\n\
-[data-fb] {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  gap: var(--fandhe-space-6);\n  padding: var(--fandhe-space-4) var(--fandhe-space-6);\n  border-top: 1px solid var(--fandhe-color-border);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
-[data-fb] > div {\n  display: flex;\n  gap: var(--fandhe-space-2);\n  flex: 0 1 24rem;\n}\n\
+.fnb-l {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
+.fnb-l > footer {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  padding: var(--fandhe-space-6);\n  background: var(--fandhe-color-bg-subtle);\n  border-radius: var(--fandhe-radius-lg);\n}\n\
+.fnb-t {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-6);\n}\n\
+[data-fnb-band] {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  gap: var(--fandhe-space-6);\n  padding: var(--fandhe-space-4) var(--fandhe-space-6);\n  border-top: 1px solid var(--fandhe-color-border);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
+[data-fnb-band] > div {\n  display: flex;\n  gap: var(--fandhe-space-2);\n  flex: 0 1 24rem;\n}\n\
 @media (max-width: 47.99rem) {\n  \
-[data-fb] {\n    flex-direction: column;\n    align-items: stretch;\n  }\n\
-  .ft {\n    flex-direction: column;\n    align-items: flex-start;\n  }\n\
+[data-fnb-band] {\n    flex-direction: column;\n    align-items: stretch;\n  }\n\
+  .fnb-t {\n    flex-direction: column;\n    align-items: flex-start;\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -217,7 +220,7 @@ mod tests {
             assert!(html.contains(scope), "demo output should contain {scope}");
         }
         assert_eq!(
-            html.matches("data-fb").count(),
+            html.matches("data-fnb-band").count(),
             3,
             "demo should render exactly 3 bands (A/B/C)"
         );
@@ -226,13 +229,13 @@ mod tests {
         }
     }
 
-    /// C にはリンク列 grid（`.ft`）が無いこと
+    /// C にはリンク列 grid（`.fnb-t`）が無いこと
     /// を固定する（A・B の 2 回のみ出現）。
     #[test]
     fn demo_variant_c_has_no_link_columns() {
         let html = render(&demo());
         assert_eq!(
-            html.matches("ft").count(),
+            html.matches("fnb-t").count(),
             2,
             "only A and B should render the link-columns grid"
         );
@@ -243,9 +246,11 @@ mod tests {
     #[test]
     fn demo_variant_a_and_b_have_reversed_band_order() {
         let html = render(&demo());
-        let band_positions: Vec<usize> =
-            html.match_indices("data-fb").map(|(idx, _)| idx).collect();
-        let top_positions: Vec<usize> = html.match_indices("ft").map(|(idx, _)| idx).collect();
+        let band_positions: Vec<usize> = html
+            .match_indices("data-fnb-band")
+            .map(|(idx, _)| idx)
+            .collect();
+        let top_positions: Vec<usize> = html.match_indices("fnb-t").map(|(idx, _)| idx).collect();
         assert_eq!(band_positions.len(), 3);
         assert_eq!(top_positions.len(), 2);
         // 形 A（先に出現するレイアウト）: リンク列 grid が帯より先。
@@ -309,7 +314,7 @@ mod tests {
     #[test]
     fn layout_root_class_differs_from_demo_class() {
         let html = render(&demo());
-        assert!(html.contains("class=\"fl\""));
-        assert_ne!(super::BLOCK.demo_class, "fl");
+        assert!(html.contains("class=\"fnb-l\""));
+        assert_ne!(super::BLOCK.demo_class, "fnb-l");
     }
 }

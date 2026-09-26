@@ -19,7 +19,7 @@ fn link(label: &'static str) -> Node {
 }
 
 fn top() -> Node {
-    div(vec![("class", "ft")], vec![link("製品")])
+    div(vec![("class", "fnb-t")], vec![link("製品")])
 }
 
 fn band(id: &'static str) -> Node {
@@ -49,7 +49,7 @@ fn band(id: &'static str) -> Node {
             button::button(&ButtonProps::default(), vec![], vec![text("購読")]),
         ],
     );
-    div(vec![("data-fb", "")], vec![text("最新情報"), signup])
+    div(vec![("data-fnb-band", "")], vec![text("最新情報"), signup])
 }
 
 fn variant(order: u8, id: &'static str) -> Node {
@@ -65,7 +65,7 @@ fn variant(order: u8, id: &'static str) -> Node {
 
 pub fn demo() -> Node {
     div(
-        vec![("class", "fl")],
+        vec![("class", "fnb-l")],
         vec![
             text("A"),
             variant(0, "fnb-a"),
