@@ -10,9 +10,10 @@
 //! ための構造、イシュー #2734）。
 
 mod faq_accordion_centered;
+mod faq_split_static;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![faq_accordion_centered::BLOCK]
+    vec![faq_accordion_centered::BLOCK, faq_split_static::BLOCK]
 }
