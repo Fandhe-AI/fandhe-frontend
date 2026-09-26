@@ -10,8 +10,9 @@
 //! 9 件目となった。イシュー #2785 で `hero_image_top` を追加し、本カテゴリは
 //! 10 件目となった。イシュー #2789 で `hero_search` を、イシュー #2791 で
 //! `hero_split_image` を、イシュー #2790 で `hero_social_proof` を追加し、
-//! 本カテゴリは 13 件目となった。イシュー #2786 で `hero_install_command` を
-//! 追加し、14 件目となった。
+//! 本カテゴリは 15 件目となった。イシュー #2786 で `hero_install_command` を
+//! 追加した後、イシュー #2792 で `hero_split_screenshot` を追加し
+//! 本カテゴリは 16 件目となった。
 
 mod hero_background_media;
 mod hero_bottom_screenshot;
@@ -26,6 +27,7 @@ mod hero_prompt_input;
 mod hero_search;
 mod hero_social_proof;
 mod hero_split_image;
+mod hero_split_screenshot;
 mod hero_terminal;
 mod text_split_reveal;
 use crate::blocks::Block;
@@ -45,6 +47,7 @@ pub(super) fn blocks() -> Vec<Block> {
         hero_search::BLOCK,
         hero_social_proof::BLOCK,
         hero_split_image::BLOCK,
+        hero_split_screenshot::BLOCK,
         hero_terminal::BLOCK,
         text_split_reveal::BLOCK,
     ]
