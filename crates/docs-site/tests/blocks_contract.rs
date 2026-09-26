@@ -5678,6 +5678,77 @@ fn feature_tabs_panel_page_wires_demo_class_and_css_hooks() {
     }
 }
 
+/// cta-centered ページが Demo class・専用 CSS を配線していること
+/// （イシュー #3224）。
+#[test]
+fn cta_centered_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/cta-centered/index.html"))
+        .expect("blocks/cta-centered/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-cta-centered\""),
+        "cta-centered page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "cta-centered page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "cta-centered page should link the Blocks-specific stylesheet"
+    );
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "@media (min-width: 40rem)",
+        ".blocks-cta-centered-stack",
+        r#"[data-blocks-cta-centered-tone="card"]"#,
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// cta-centered の合成部品（heading/text/button/badge/card）が期待どおり
+/// の構成で実際に出力されていること、5 tone すべてが揃っていること、
+/// `<form>`・`data:` URI・死リンクを持ち込んでいないことを固定する
+/// （イシュー #3224、`cta_split_actions_composes_expected_parts` と同型）。
+#[test]
+fn cta_centered_composes_expected_parts() {
+    let block =
+        blocks::block_for_path("/blocks/cta-centered/").expect("cta-centered should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"button\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"card\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "cta-centered demo should contain {scope}"
+        );
+    }
+    assert!(html.contains(r#"type="button""#));
+    for tone in ["plain", "badge", "accent", "dark", "card"] {
+        let needle = format!(r#"data-blocks-cta-centered-tone="{tone}""#);
+        assert!(
+            html.contains(&needle),
+            "cta-centered demo should render the {tone} tone"
+        );
+    }
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "cta-centered should never contain {absent}"
+        );
+    }
+}
+
 /// cta-split-actions ページが Demo class・専用 CSS を配線していること
 /// （イシュー #2758）。
 #[test]

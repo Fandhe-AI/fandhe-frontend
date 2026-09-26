@@ -874,6 +874,7 @@ pub enum LayoutCss {
 | careers-split-accordion | #2816 | `marketing/careers/careers_split_accordion.rs` |
 | changelog-timeline-subscribe | #2821 | `marketing/changelog/changelog_timeline_subscribe.rs` |
 | cta-feature-links | #2757 | `marketing/cta/cta_feature_links.rs` |
+| cta-centered | #3224 | `marketing/cta/cta_centered.rs` |
 | cta-split-actions | #2758 | `marketing/cta/cta_split_actions.rs` |
 | cta-split-image | #2759 | `marketing/cta/cta_split_image.rs` |
 | feature-accordion-image | #2760/#2761/#2762 | `marketing/feature/feature_accordion_image.rs` |
@@ -923,7 +924,7 @@ pub enum LayoutCss {
 | stats-timeline | #2805 | `marketing/stats/stats_timeline.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-106 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+108 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
