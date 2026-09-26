@@ -189,7 +189,7 @@ fn columns_section() -> Node {
                 &[
                     (&format!("{REPO}/issues"), "Issues"),
                     (&format!("{REPO}/pulls"), "Pull Requests"),
-                    (&format!("{REPO}/blob/main/CLAUDE.md"), "Contributing"),
+                    (&format!("{REPO}/blob/main/CLAUDE.md"), "CLAUDE.md"),
                 ],
             ),
             link_column(
