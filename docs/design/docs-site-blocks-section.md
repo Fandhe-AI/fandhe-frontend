@@ -874,6 +874,7 @@ pub enum LayoutCss {
 | careers-split-accordion | #2816 | `marketing/careers/careers_split_accordion.rs` |
 | changelog-timeline-subscribe | #2821 | `marketing/changelog/changelog_timeline_subscribe.rs` |
 | cta-feature-links | #2757 | `marketing/cta/cta_feature_links.rs` |
+| cta-centered | #3224 | `marketing/cta/cta_centered.rs` |
 | cta-split-actions | #2758 | `marketing/cta/cta_split_actions.rs` |
 | cta-split-image | #2759 | `marketing/cta/cta_split_image.rs` |
 | feature-accordion-image | #2760/#2761/#2762 | `marketing/feature/feature_accordion_image.rs` |
@@ -915,15 +916,20 @@ pub enum LayoutCss {
 | newsletter-split | #2796 | `marketing/newsletter/newsletter_split.rs` |
 | logo-cloud-marquee | #2794 | `marketing/logo_cloud/logo_cloud_marquee.rs` |
 | stats-background-image | #2801 | `marketing/stats/stats_background_image.rs` |
+| stats-with-image | #2806 | `marketing/stats/stats_with_image.rs` |
 | section-heading-split | #2798 | `marketing/section_heading/section_heading_split.rs` |
 | newsletter-with-details | #2797 | `marketing/newsletter/newsletter_with_details.rs` |
 | stats-cards | #2802 | `marketing/stats/stats_cards.rs` |
 | stats-row | #2803 | `marketing/stats/stats_row.rs` |
 | section-heading-stacked | #2799 | `marketing/section_heading/section_heading_stacked.rs` |
 | section-heading-stats | #2800 | `marketing/section_heading/section_heading_stats.rs` |
+| stats-split | #2804 | `marketing/stats/stats_split.rs` |
+| stats-timeline | #2805 | `marketing/stats/stats_timeline.rs` |
+| feature-three-column-icons | #3225 | `marketing/feature/feature_three_column_icons.rs` |
+| newsletter-stacked | #3226 | `marketing/newsletter/newsletter_stacked.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-106 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+110 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
