@@ -60,7 +60,12 @@ pub const SCHEMA_VERSION: u32 = 1;
 /// 双方を base 取り込みで合流させた PR #3272 の時点で実測が
 /// 1,708,308 バイトへ達し `MAX_INDEX_BYTES`（1,703,936 バイト）を再度超過した
 /// ため、本定数を 4032 → 4000 へ再度引き下げて対処した（実測 1,699,483
-/// バイト、全体の約 99.7%。設計文書 §10-12）。
+/// バイト、全体の約 99.7%。設計文書 §10-12）。イシュー #2862
+/// （`pricing-comparison-table` block 追加）でも独立に `MAX_INDEX_BYTES`
+/// 超過を検知したが、本定数の再引き下げ（§10-10・§10-12 と同型の対症療法の
+/// 繰り返し）は採らなかった（設計文書 §10-13 参照）。代わりに
+/// [`collect_text_into`] が Blocks ページのフェンスコードブロック本文を
+/// 索引対象から除外する恒久対処を採ったため、本定数は 4000 のまま据え置く。
 pub const MAX_PAGE_TEXT_BYTES: usize = 4000;
 
 /// インデックス JSON 全体の最大バイト数。超過時は fail-closed（設計文書 §3-4）。
@@ -153,7 +158,19 @@ impl std::error::Error for SearchIndexError {}
 /// 尊重し、衝突時のみ採番する」契約のため冪等であり、`docs_page_with_assets`
 /// 内部の実行と同一の id 列を返す。`tests/search_index.rs` の冪等性テストが
 /// この前提を機械固定する）。
-pub fn page_entry(href: &str, title: &str, body: &Node) -> PageEntry {
+///
+/// `exclude_code_blocks` が `true` のページ（Blocks ページ、呼び出し元の
+/// `crate::build::build_site` が `blocks::block_for_path` で判定する）は
+/// フェンスコードブロック（`pre`/`code`）本文を索引テキストから除外する
+/// （設計文書 §3-3・§10-13。Blocks ページの `## Rust コード` 節はページ本文の
+/// 大半〔実測で 9 割超〕を占める部品実装コードの全文複製であり、`fn`/`use`
+/// 等の API 名検索を想定した §3-3 の「コードブロックは含める」方針が前提と
+/// する「総量が支配的でない」という条件がもはや成立しないため。API 参照
+/// ページ（`docs/guides/component-authoring.md` 等）はこのフラグを立てず
+/// 従来どおりコードブロックを索引に含める、`tests/search_index.rs` の
+/// `real_site_search_index_still_contains_code_block_keywords_after_highlighting`
+/// が回帰を固定する）。
+pub fn page_entry(href: &str, title: &str, body: &Node, exclude_code_blocks: bool) -> PageEntry {
     let (_annotated, toc_entries) = layout::with_heading_anchors(body.clone());
     let sections = toc_entries
         .into_iter()
@@ -164,7 +181,7 @@ pub fn page_entry(href: &str, title: &str, body: &Node) -> PageEntry {
         })
         .collect();
 
-    let raw_text = collect_text(body);
+    let raw_text = collect_text(body, exclude_code_blocks);
     let normalized = normalize_whitespace(&raw_text);
     let text = truncate_to_byte_limit(&normalized, MAX_PAGE_TEXT_BYTES);
 
@@ -184,9 +201,9 @@ pub fn page_entry(href: &str, title: &str, body: &Node) -> PageEntry {
 /// `data-scope` 部分木の除外は [`layout::with_heading_anchors`] の TOC 除外
 /// ルール（`crate::layout::inject_heading_anchors` の同名分岐）と同一基準を
 /// 独立実装で踏襲し、二重基準を作らない。
-fn collect_text(node: &Node) -> String {
+fn collect_text(node: &Node, exclude_code_blocks: bool) -> String {
     let mut out = String::new();
-    collect_text_into(node, &mut out);
+    collect_text_into(node, &mut out, exclude_code_blocks);
     out
 }
 
@@ -206,7 +223,7 @@ fn collect_text(node: &Node) -> String {
 /// は「表示上の色分けのみを目的とした透過的な装飾」であり本文の語境界では
 /// ないため、スペースを挿入せず子ノードへそのまま連結する
 /// （[`is_token_span`] 参照）。
-fn collect_text_into(node: &Node, out: &mut String) {
+fn collect_text_into(node: &Node, out: &mut String, exclude_code_blocks: bool) {
     match node {
         Node::Text(s) => out.push_str(s),
         Node::Element {
@@ -219,15 +236,23 @@ fn collect_text_into(node: &Node, out: &mut String) {
             if attrs.iter().any(|(name, _)| name == "data-scope") {
                 return;
             }
+            // Blocks ページ限定でフェンスコードブロック（`crate::markdown::
+            // parse_fence` が生成する `pre` 要素、doc コメント参照）本文を
+            // 除外する。`pre` の部分木を丸ごと落とすため `code` 単体の判定は
+            // 不要（`pre` は常に `code` 子 1 個のみを持つ、`markdown::
+            // parse_fence` 参照）。
+            if exclude_code_blocks && *tag == "pre" {
+                return;
+            }
             if is_token_span(tag, attrs) {
                 for child in children {
-                    collect_text_into(child, out);
+                    collect_text_into(child, out, exclude_code_blocks);
                 }
                 return;
             }
             out.push(' ');
             for child in children {
-                collect_text_into(child, out);
+                collect_text_into(child, out, exclude_code_blocks);
             }
             out.push(' ');
         }
@@ -552,7 +577,7 @@ mod tests {
                 text("also visible"),
             ],
         );
-        let extracted = collect_text(&body);
+        let extracted = collect_text(&body, false);
         assert!(extracted.contains("visible"));
         assert!(extracted.contains("also visible"));
         assert!(!extracted.contains("hidden anatomy demo text"));
@@ -564,7 +589,7 @@ mod tests {
             vec![],
             vec![text("before"), Node::RawHtml("<b>raw</b>".to_string())],
         );
-        let extracted = collect_text(&body);
+        let extracted = collect_text(&body, false);
         assert!(extracted.contains("before"));
         assert!(!extracted.contains("raw"));
         assert!(!extracted.contains('<'));
@@ -588,7 +613,7 @@ mod tests {
         let children = crate::highlight::highlight_children(rust_src, "rust")
             .expect("rust highlighting should succeed for this fixture");
         let body = el("pre", vec![], vec![el("code", vec![], children)]);
-        let extracted = collect_text(&body);
+        let extracted = collect_text(&body, false);
         assert!(
             extracted.contains("crate::highlight"),
             "expected \"crate::highlight\" to remain contiguous in the index text, got: {extracted:?}"
@@ -599,11 +624,44 @@ mod tests {
         let children = crate::highlight::highlight_children(call_src, "rust")
             .expect("rust highlighting should succeed for this fixture");
         let body = el("pre", vec![], vec![el("code", vec![], children)]);
-        let extracted = collect_text(&body);
+        let extracted = collect_text(&body, false);
         assert!(
             extracted.contains("foo(1)"),
             "expected \"foo(1)\" to remain contiguous in the index text, got: {extracted:?}"
         );
+    }
+
+    /// イシュー #2862（§10-13）の恒久対処回帰: `exclude_code_blocks: true` の
+    /// ページ（Blocks ページ相当）はフェンスコードブロック本文
+    /// （`pre` の部分木）を索引テキストから除外し、それ以外の本文プレーン
+    /// テキストは変わらず含む。
+    #[test]
+    fn collect_text_excludes_code_blocks_when_requested() {
+        let body = div(
+            vec![],
+            vec![
+                text("prose before"),
+                el(
+                    "pre",
+                    vec![],
+                    vec![el(
+                        "code",
+                        vec![],
+                        vec![text("fn user_badge() {}".to_string())],
+                    )],
+                ),
+                text("prose after"),
+            ],
+        );
+        let excluded = collect_text(&body, true);
+        assert!(excluded.contains("prose before"));
+        assert!(excluded.contains("prose after"));
+        assert!(!excluded.contains("user_badge"));
+
+        // `exclude_code_blocks: false`（既定の非 Blocks ページ経路）は従来
+        // どおりコードブロック本文も索引に含む。
+        let included = collect_text(&body, false);
+        assert!(included.contains("user_badge"));
     }
 
     #[test]
@@ -615,12 +673,32 @@ mod tests {
                 text("  some   body   text  ".to_string()),
             ],
         );
-        let entry = page_entry("/page/", "Page", &body);
+        let entry = page_entry("/page/", "Page", &body, false);
         assert_eq!(entry.href, "/page/");
         assert_eq!(entry.title, "Page");
         assert_eq!(entry.sections.len(), 1);
         assert_eq!(entry.sections[0].level, 2);
         assert_eq!(entry.sections[0].title, "Heading One");
         assert!(entry.text.contains("some body text"));
+    }
+
+    /// [`page_entry`] の `exclude_code_blocks` 引数が実際に `collect_text`
+    /// へ配線されていることの結合確認（配線漏れの回帰、イシュー #2862）。
+    #[test]
+    fn page_entry_excludes_code_blocks_when_requested() {
+        let body = div(
+            vec![],
+            vec![el(
+                "pre",
+                vec![],
+                vec![el(
+                    "code",
+                    vec![],
+                    vec![text("fn pricing_comparison_table() {}".to_string())],
+                )],
+            )],
+        );
+        let entry = page_entry("/blocks/pricing-comparison-table/", "Page", &body, true);
+        assert!(!entry.text.contains("pricing_comparison_table"));
     }
 }
