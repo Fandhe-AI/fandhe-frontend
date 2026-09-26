@@ -10,7 +10,7 @@
 ## Rust コード
 
 ```rust
-use fandhe_frontend_core::{div, el, footer, p, text, Node};
+use fandhe_frontend_core::{div, el, footer, p, section, text, Node};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::nav_list;
@@ -186,37 +186,46 @@ pub fn demo() -> Node {
                 vec![("class", "blocks-footer-inline-nav-caption")],
                 vec![text("標準形")],
             ),
-            footer_variant(
-                "standard",
-                false,
-                true,
-                true,
-                true,
-                "フッターナビゲーション",
+            section(
+                vec![],
+                vec![footer_variant(
+                    "standard",
+                    false,
+                    true,
+                    true,
+                    true,
+                    "フッターナビゲーション",
+                )],
             ),
             p(
                 vec![("class", "blocks-footer-inline-nav-caption")],
                 vec![text("最小形")],
             ),
-            footer_variant(
-                "minimal",
-                false,
-                false,
-                true,
-                false,
-                "フッターナビゲーション",
+            section(
+                vec![],
+                vec![footer_variant(
+                    "minimal",
+                    false,
+                    false,
+                    true,
+                    false,
+                    "フッターナビゲーション",
+                )],
             ),
             p(
                 vec![("class", "blocks-footer-inline-nav-caption")],
                 vec![text("中央寄せ")],
             ),
-            footer_variant(
-                "centered",
-                true,
-                true,
-                true,
-                true,
-                "フッターナビゲーション（中央寄せ）",
+            section(
+                vec![],
+                vec![footer_variant(
+                    "centered",
+                    true,
+                    true,
+                    true,
+                    true,
+                    "フッターナビゲーション（中央寄せ）",
+                )],
             ),
         ],
     )

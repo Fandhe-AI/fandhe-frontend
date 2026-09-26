@@ -12,7 +12,13 @@
 //! # 3 形の並記（差分は集約元 ID の対応で示す）
 //!
 //! [`demo`] は次の 3 `footer` 要素を縦に並べる。各要素は
-//! `data-blocks-footer-inline-nav-variant` で区別する:
+//! `data-blocks-footer-inline-nav-variant` で区別する。各 `footer` は
+//! `section` で個別に囲み、sectioning content の子孫にすることで
+//! `contentinfo` ランドマークの付与を避ける（HTML/ARIA のマッピング上、
+//! `footer` は `article`/`aside`/`main`/`nav`/`section` の子孫では
+//! `contentinfo` にならない）。3 つを素の `footer` のまま並べると同一
+//! ページ内に `contentinfo` が複数生成され、既存サイト footer とも
+//! 重複するため（Codex レビュー指摘）:
 //!
 //! | 形 | 内容 | 対応する集約元 ID |
 //! |----|------|------|
@@ -67,7 +73,7 @@
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
-use fandhe_frontend_core::{div, el, footer, p, text, Node};
+use fandhe_frontend_core::{div, el, footer, p, section, text, Node};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::nav_list;
@@ -243,37 +249,46 @@ pub fn demo() -> Node {
                 vec![("class", "blocks-footer-inline-nav-caption")],
                 vec![text("標準形")],
             ),
-            footer_variant(
-                "standard",
-                false,
-                true,
-                true,
-                true,
-                "フッターナビゲーション",
+            section(
+                vec![],
+                vec![footer_variant(
+                    "standard",
+                    false,
+                    true,
+                    true,
+                    true,
+                    "フッターナビゲーション",
+                )],
             ),
             p(
                 vec![("class", "blocks-footer-inline-nav-caption")],
                 vec![text("最小形")],
             ),
-            footer_variant(
-                "minimal",
-                false,
-                false,
-                true,
-                false,
-                "フッターナビゲーション",
+            section(
+                vec![],
+                vec![footer_variant(
+                    "minimal",
+                    false,
+                    false,
+                    true,
+                    false,
+                    "フッターナビゲーション",
+                )],
             ),
             p(
                 vec![("class", "blocks-footer-inline-nav-caption")],
                 vec![text("中央寄せ")],
             ),
-            footer_variant(
-                "centered",
-                true,
-                true,
-                true,
-                true,
-                "フッターナビゲーション（中央寄せ）",
+            section(
+                vec![],
+                vec![footer_variant(
+                    "centered",
+                    true,
+                    true,
+                    true,
+                    true,
+                    "フッターナビゲーション（中央寄せ）",
+                )],
             ),
         ],
     )
