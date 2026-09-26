@@ -1,6 +1,7 @@
 //! Marketing / Logo Cloud カテゴリの block 登録点（イシュー #2734 で雛形
 //! 新設。イシュー #2793 で最初の block（[`logo_cloud_grid`]）を追加し、
 //! イシュー #2794 で 2 件目（[`logo_cloud_marquee`]）を追加、
+//! イシュー #2795 で 3 件目（[`logo_cloud_split`]）を追加、
 //! `logo_cloud.rs` から本ディレクトリへ改名した、
 //! `docs/design/docs-site-blocks-section.md` §18 の手順どおりのカテゴリ
 //! 卒業）。本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で
@@ -11,9 +12,14 @@
 
 mod logo_cloud_grid;
 mod logo_cloud_marquee;
+mod logo_cloud_split;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![logo_cloud_grid::BLOCK, logo_cloud_marquee::BLOCK]
+    vec![
+        logo_cloud_grid::BLOCK,
+        logo_cloud_marquee::BLOCK,
+        logo_cloud_split::BLOCK,
+    ]
 }
