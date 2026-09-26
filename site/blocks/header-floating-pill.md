@@ -3,7 +3,8 @@
 `navigation-menu` / `button` / `icon` / `collapsible` を合成した浮遊ピル型
 ヘッダーです（R0157/R0574）。無 JS のため開閉は行わず、狭幅ではデスクトップ
 ナビ・CTA を隠しハンバーガートリガー + 常時展開のドロップダウンパネルを
-ピルの下に表示します（ピルの水平 flex 行からは切り離した固定表示）。
+ピルの下に表示します（パネルはピルの水平 flex 行から切り離した通常の
+ドキュメントフロー配置で、後続コンテンツと重ならない固定表示）。
 
 ## Rust コード
 
@@ -104,42 +105,43 @@ pub fn demo() -> Node {
             ),
         ],
     );
-    let mobile = div(
-        vec![("class", "hfp-mobile")],
+    let mobile_trigger = div(
+        vec![("class", "hfp-mobile-trigger")],
         vec![collapsible::root(
             OpenState::Open,
             true,
             vec![],
-            vec![
-                collapsible::trigger(
-                    OpenState::Open,
-                    true,
-                    Some(PANEL_ID),
-                    vec![("aria-label", "メニュー")],
-                    vec![menu_icon],
-                ),
-                collapsible::content(
-                    OpenState::Open,
-                    true,
-                    Some(PANEL_ID),
-                    vec![("class", "hfp-mobile-panel")],
-                    vec![nav.clone(), cta.clone()],
-                ),
-            ],
+            vec![collapsible::trigger(
+                OpenState::Open,
+                true,
+                Some(PANEL_ID),
+                vec![("aria-label", "メニュー")],
+                vec![menu_icon],
+            )],
         )],
+    );
+    let mobile_panel = collapsible::content(
+        OpenState::Open,
+        true,
+        Some(PANEL_ID),
+        vec![("class", "hfp-mobile-panel")],
+        vec![nav.clone(), cta.clone()],
     );
 
     div(
         vec![("class", "hfp-layout")],
-        vec![header(
-            vec![("class", "hfp-bar")],
-            vec![
-                logo,
-                div(vec![("class", "hfp-nav")], vec![nav]),
-                cta,
-                mobile,
-            ],
-        )],
+        vec![
+            header(
+                vec![("class", "hfp-bar")],
+                vec![
+                    logo,
+                    div(vec![("class", "hfp-nav")], vec![nav]),
+                    cta,
+                    mobile_trigger,
+                ],
+            ),
+            mobile_panel,
+        ],
     )
 }
 ```

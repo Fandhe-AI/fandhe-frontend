@@ -17,22 +17,33 @@
 //! # 狭幅ではデスクトップナビ/CTA を隠し、常時展開のドロップダウンパネル
 //! として表示する（無 JS、`OpenState::Open` + `disabled: true` で固定）
 //!
-//! 無 JS の docs サイトでは開閉の実動作を持たないため、`collapsible::root`
-//! は [`OpenState::Open`] + `disabled: true` で固定描画する（`faq_accordion_
-//! centered`/`changelog_accordion`/`careers_split_accordion` 等の accordion
-//! 系 block と同じ「開状態固定 + disabled でトリガーを無効化」判断）。
+//! 無 JS の docs サイトでは開閉の実動作を持たないため、`collapsible::root`/
+//! `collapsible::trigger`/`collapsible::content` はいずれも [`OpenState::Open`]
+//! と `disabled: true` で固定描画する（`faq_accordion_centered`/
+//! `changelog_accordion`/`careers_split_accordion` 等の accordion 系 block
+//! と同じ「開状態固定 + disabled でトリガーを無効化」判断）。
 //! `OpenState::Closed` 固定だと headless 層の契約どおり `content` へ
 //! `hidden` 存在属性が付き、狭幅でナビ/CTA へ一切到達できなくなる（イシュー
-//! #2853 PR #3272 codex-review P1 指摘）ため `Open` 固定を採る。ただし
-//! `content`（`hfp-mobile-panel` class）は `position: absolute` で `.hfp-bar`
-//! の下へ切り離し、ピルの水平 flex 行には参加させない（イシュー #2853
-//! PR #3272 Cursor Bugbot 指摘: `content` が flex 行内に居座るとピル
-//! カプセルがナビ・CTA を囲んで伸びてしまう）。常時展開のため「ハンバー
-//! ガーで開閉する」という説明は行わず、「狭幅では常時展開のドロップダウン
-//! パネルとして到達可能」という無 JS の固定表示を正としてドキュメントする
-//! （イシュー #2853 PR #3272 codex-review P2 指摘、原稿 `site/blocks/
-//! header-floating-pill.md` も同じ説明へ揃える）。`@media` によるナビ/CTA
-//! 非表示・パネル表示の切り替えは [`LAYOUT_CSS`] が担う。
+//! #2853 PR #3272 codex-review P1 指摘）ため `Open` 固定を採る。
+//!
+//! `content`（`hfp-mobile-panel` class）は `collapsible::root`/`trigger` を
+//! 包む `.hfp-mobile-trigger` の**外**、`.hfp-layout` 直下の兄弟要素として
+//! 配置する（`.hfp-bar` の子ではない）。トリガーのみをピルの水平 flex 行に
+//! 残し、パネルは通常のドキュメントフローで `.hfp-bar` の下に描画すること
+//! で、常時展開のパネルがどれだけ縦に伸びても (a) ピルカプセルの見た目を
+//! 崩さず（イシュー #2853 PR #3272 Cursor Bugbot 指摘: `content` が
+//! flex 行内に居座るとピルカプセルがナビ・CTA を囲んで伸びてしまう）、
+//! (b) パネルの高さが `.hfp-layout` の高さに反映され後続コンテンツへ
+//! 重ならない（イシュー #2853 PR #3272 codex-review P1 指摘: `position:
+//! absolute` 配置ではパネル高さがレイアウトへ反映されず後続コンテンツに
+//! 重なっていた不具合の是正）の両方を満たす。`aria-controls`/`id` による
+//! 関連付け（[`PANEL_ID`]）はトリガーと内容が DOM 上で兄弟でなくても成立
+//! するため、この配置変更で意味論上の問題は生じない。常時展開のため
+//! 「ハンバーガーで開閉する」という説明は行わず、「狭幅では常時展開の
+//! ドロップダウンパネルとして到達可能」という無 JS の固定表示を正として
+//! ドキュメントする（イシュー #2853 PR #3272 codex-review P2 指摘、原稿
+//! `site/blocks/header-floating-pill.md` も同じ説明へ揃える）。`@media`
+//! によるナビ/CTA 非表示・パネル表示の切り替えは [`LAYOUT_CSS`] が担う。
 //!
 //! # トリガーと content の id 対応
 //!
@@ -169,42 +180,43 @@ pub fn demo() -> Node {
             ),
         ],
     );
-    let mobile = div(
-        vec![("class", "hfp-mobile")],
+    let mobile_trigger = div(
+        vec![("class", "hfp-mobile-trigger")],
         vec![collapsible::root(
             OpenState::Open,
             true,
             vec![],
-            vec![
-                collapsible::trigger(
-                    OpenState::Open,
-                    true,
-                    Some(PANEL_ID),
-                    vec![("aria-label", "メニュー")],
-                    vec![menu_icon],
-                ),
-                collapsible::content(
-                    OpenState::Open,
-                    true,
-                    Some(PANEL_ID),
-                    vec![("class", "hfp-mobile-panel")],
-                    vec![nav.clone(), cta.clone()],
-                ),
-            ],
+            vec![collapsible::trigger(
+                OpenState::Open,
+                true,
+                Some(PANEL_ID),
+                vec![("aria-label", "メニュー")],
+                vec![menu_icon],
+            )],
         )],
+    );
+    let mobile_panel = collapsible::content(
+        OpenState::Open,
+        true,
+        Some(PANEL_ID),
+        vec![("class", "hfp-mobile-panel")],
+        vec![nav.clone(), cta.clone()],
     );
 
     div(
         vec![("class", "hfp-layout")],
-        vec![header(
-            vec![("class", "hfp-bar")],
-            vec![
-                logo,
-                div(vec![("class", "hfp-nav")], vec![nav]),
-                cta,
-                mobile,
-            ],
-        )],
+        vec![
+            header(
+                vec![("class", "hfp-bar")],
+                vec![
+                    logo,
+                    div(vec![("class", "hfp-nav")], vec![nav]),
+                    cta,
+                    mobile_trigger,
+                ],
+            ),
+            mobile_panel,
+        ],
     )
 }
 // blocks-code:end
@@ -243,19 +255,22 @@ pub const BLOCK: Block = Block {
 /// 「検索インデックス容量」節参照）のみを用いる。狭幅
 /// （`max-width: 47.99rem`）ではデスクトップナビ・CTA を隠しハンバーガー
 /// トリガーのみをピルの水平 flex 行に残す。`.hfp-mobile-panel`（常時展開の
-/// `collapsible::content`）は `position: absolute` で `.hfp-bar`（`position:
-/// relative`）から切り離し、ピルの下へドロップダウンとして配置する。
-/// flex 行に参加させると開状態固定のパネルがピルの水平方向いっぱいに
-/// 伸びてカプセルの見た目を崩すため（イシュー #2853 PR #3272 Cursor
-/// Bugbot 指摘）。
+/// `collapsible::content`）は `.hfp-bar` の**外**（`.hfp-layout` 直下の
+/// 兄弟要素）に置き、通常のドキュメントフローで `.hfp-bar` の下に描画する
+/// （`position: absolute` は使わない）。狭幅では常時展開のため、通常フロー
+/// に置かないとパネルの高さが `.hfp-layout` に反映されず後続コンテンツへ
+/// 重なる（イシュー #2853 PR #3272 codex-review P1 指摘）。`.hfp-bar` 内部
+/// の水平 flex 行（トリガーのみが参加）とは別要素のため、パネルがどれだけ
+/// 縦に伸びてもピルカプセルの見た目（`.hfp-bar` の高さ・角丸）は崩れない
+/// （イシュー #2853 PR #3272 Cursor Bugbot 指摘の再発防止も両立）。
 const LAYOUT_CSS: &str = "\
 .hfp-layout {\n  padding-block-start: var(--fandhe-space-4);\n  padding-inline: var(--fandhe-space-4);\n  background: var(--fandhe-color-bg-muted);\n}\n\
-.hfp-bar {\n  position: relative;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  max-inline-size: 48rem;\n  margin-inline: auto;\n  padding: var(--fandhe-space-3) var(--fandhe-space-5);\n  border-radius: var(--fandhe-radius-full);\n  background: var(--fandhe-color-bg);\n  box-shadow: var(--fandhe-shadow-md);\n}\n\
+.hfp-bar {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  max-inline-size: 48rem;\n  margin-inline: auto;\n  padding: var(--fandhe-space-3) var(--fandhe-space-5);\n  border-radius: var(--fandhe-radius-full);\n  background: var(--fandhe-color-bg);\n  box-shadow: var(--fandhe-shadow-md);\n}\n\
 .hfp-logo {\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: 600;\n  white-space: nowrap;\n}\n\
 .hfp-nav {\n  flex: 1;\n  display: flex;\n  justify-content: center;\n}\n\
-.hfp-mobile {\n  display: none;\n}\n\
-.hfp-mobile-panel {\n  position: absolute;\n  inset-inline: var(--fandhe-space-5);\n  top: calc(100% + var(--fandhe-space-2));\n  display: flex;\n  flex-direction: column;\n  align-items: stretch;\n  gap: var(--fandhe-space-3);\n  background: var(--fandhe-color-bg);\n  z-index: 20;\n}\n\
-@media (max-width: 47.99rem) {\n  .hfp-nav {\n    display: none;\n  }\n  .hfp-bar > [data-hfp-cta] {\n    display: none;\n  }\n  .hfp-mobile {\n    display: block;\n  }\n}\n";
+.hfp-mobile-trigger {\n  display: none;\n}\n\
+.hfp-mobile-panel {\n  display: none;\n  flex-direction: column;\n  align-items: stretch;\n  gap: var(--fandhe-space-3);\n  max-inline-size: 48rem;\n  margin-inline: auto;\n  margin-block-start: var(--fandhe-space-2);\n  padding-inline: var(--fandhe-space-5);\n  background: var(--fandhe-color-bg);\n}\n\
+@media (max-width: 47.99rem) {\n  .hfp-nav {\n    display: none;\n  }\n  .hfp-bar > [data-hfp-cta] {\n    display: none;\n  }\n  .hfp-mobile-trigger {\n    display: block;\n  }\n  .hfp-mobile-panel {\n    display: flex;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -314,16 +329,30 @@ mod tests {
         assert!(!LAYOUT_CSS.contains("\n  [data-hfp-cta] {"));
     }
 
-    /// `.hfp-mobile-panel`（常時展開の `content`）が `position: absolute` で
-    /// `.hfp-bar`（`position: relative`）の水平 flex 行から切り離されること
-    /// （イシュー #2853 PR #3272 Cursor Bugbot 指摘の回帰：flex 行に居座って
-    /// ピルカプセルが伸びる不具合の再発防止）。
+    /// `.hfp-mobile-panel`（常時展開の `content`）が `.hfp-bar` の水平 flex
+    /// 行から切り離されており（イシュー #2853 PR #3272 Cursor Bugbot 指摘：
+    /// flex 行に居座ってピルカプセルが伸びる不具合の再発防止）、かつ
+    /// `position: absolute` を使わず通常のドキュメントフローで配置される
+    /// こと（イシュー #2853 PR #3272 codex-review P1 指摘：absolute 配置に
+    /// よりパネル高さが `.hfp-layout` へ反映されず後続コンテンツへ重なる
+    /// 不具合の再発防止）。
     #[test]
     fn mobile_panel_is_detached_from_bar_flex_row() {
-        assert!(LAYOUT_CSS.contains(".hfp-bar {\n  position: relative;"));
-        assert!(LAYOUT_CSS.contains(".hfp-mobile-panel {\n  position: absolute;"));
+        assert!(!LAYOUT_CSS.contains("position: absolute"));
+        assert!(!LAYOUT_CSS.contains(".hfp-bar {\n  position: relative;"));
         let html = render(&demo());
         assert!(html.contains("class=\"hfp-mobile-panel\""));
+        // `.hfp-mobile-panel` は `.hfp-bar` の外（`.hfp-layout` 直下の兄弟）
+        // に描画され、ピルの水平 flex 行（`.hfp-bar` の子）には含まれない。
+        let bar_start = html.find("class=\"hfp-bar\"").expect("hfp-bar present");
+        let bar_end = html[bar_start..]
+            .find("</header>")
+            .map(|i| bar_start + i)
+            .expect("hfp-bar close tag present");
+        assert!(
+            !html[bar_start..bar_end].contains("hfp-mobile-panel"),
+            "hfp-mobile-panel should not be nested inside .hfp-bar"
+        );
     }
 
     /// ハンバーガートリガーがロゴアイコン（`mark`、角丸四角形 1 個）の
