@@ -272,6 +272,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/logo-cloud-marquee/index.html"
           # Marketing / Stats
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-background-image/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-with-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-cards/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-split/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-timeline/index.html"

@@ -522,9 +522,15 @@ fn ci_yml_wasm_tool_install_steps_reference_env_pins_only() {
 fn wasm_subworkspace_locks_resolve_wasm_bindgen_in_sync_with_cargo_lock() {
     // 検証そのものが形骸化（対象リストが空になった）していないことを保証
     // する。0 件はテストの誤 pass ではなく実際の欠落を意味するため
-    // fail-closed とする。
+    // fail-closed とする。`WASM_SUBWORKSPACE_LOCKS` は現行コンパイル単位内
+    // では非空 const だが、将来ここが空配列へ縮退した場合の回帰検知が
+    // この assert の目的であり、clippy の const_is_empty（現時点で常に
+    // true と静的評価できる、という指摘）は意図どおりの誤検知のため
+    // 抑止する。
+    #[allow(clippy::const_is_empty)]
+    let has_targets = !WASM_SUBWORKSPACE_LOCKS.is_empty();
     assert!(
-        !WASM_SUBWORKSPACE_LOCKS.is_empty(),
+        has_targets,
         "WASM_SUBWORKSPACE_LOCKS が空になっている（wasm サブワークスペース \
          lock の検証対象が消失した可能性）"
     );
