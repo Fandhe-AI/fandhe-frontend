@@ -3,7 +3,8 @@
 //! #2802 で 2 件目の block（`stats_cards`）・イシュー #2804 で 3 件目の
 //! block（`stats_split`）・イシュー #2805 で 4 件目の block
 //! （`stats_timeline`）・イシュー #2806 で 5 件目の block
-//! （`stats_with_image`）を追加した）。手順は
+//! （`stats_with_image`）・イシュー #2803 で 6 件目の block
+//! （[`stats_row`]）を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。新規 block を追加
 //! する際は本ファイルへ `mod` 宣言と `blocks()` への追記を行うだけでよく、
 //! `super`（`marketing`）側・トップレベル `crate::blocks` 側の変更は不要
@@ -11,6 +12,7 @@
 
 mod stats_background_image;
 mod stats_cards;
+mod stats_row;
 mod stats_split;
 mod stats_timeline;
 mod stats_with_image;
@@ -21,6 +23,7 @@ pub(super) fn blocks() -> Vec<Block> {
     vec![
         stats_background_image::BLOCK,
         stats_cards::BLOCK,
+        stats_row::BLOCK,
         stats_split::BLOCK,
         stats_timeline::BLOCK,
         stats_with_image::BLOCK,

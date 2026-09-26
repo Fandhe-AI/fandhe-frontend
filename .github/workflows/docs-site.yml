@@ -276,11 +276,13 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-background-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-with-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-cards/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-row/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-split/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-timeline/index.html"
           # Marketing / Team
           # Marketing / Faq
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-accordion-centered/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-split-accordion/index.html"
           # Marketing / Contact
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-centered-form/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-dialog-form/index.html"
