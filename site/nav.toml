@@ -1621,6 +1621,14 @@ source = "site/blocks/content-with-testimonial.md"
 path = "/blocks/content-with-testimonial/"
 
 [[section.group]]
+title = "Header"
+
+[[section.group.page]]
+title = "header-mega-menu"
+source = "site/blocks/header-mega-menu.md"
+path = "/blocks/header-mega-menu/"
+
+[[section.group]]
 title = "Footer"
 
 [[section.group.page]]
