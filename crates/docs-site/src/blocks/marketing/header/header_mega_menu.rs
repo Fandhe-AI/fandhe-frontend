@@ -101,13 +101,18 @@
 //!
 //! # href の方針
 //!
-//! `href="#"` は使わない（横断テストが禁止する）。パネル項目・料金・
+//! `href="#"` は使わない（横断テストが禁止する）。パネル項目・
 //! ドキュメントはサイト内に実在する索引ページへの相対パス（`../../`・
 //! `../../guides/`・`../../themes/`・`../../primitives/`・`../../api/`・
 //! `../../examples/`）を使う（[`super::super::faq::faq_question_rows`]
-//! と同型の判断）。本サイトに実在するログインページは無いため、GitHub
-//! リンクのみ実在の外部 URL（[`REPO`]）を使い、ラベルも行き先どおり
-//! 「GitHub」とする（[`actions`] doc コメント参照）。
+//! と同型の判断）。「料金」は本サイトに料金情報の索引ページが無いため、
+//! `site/nav.toml` に登録済みの料金関連 block（`../../blocks/
+//! pricing-comparison-table/`）へ遷移させる（PR #3273 レビュー指摘（P2）
+//! 是正: 当初 `../../themes/`（Themes 索引）を指していたが、表示名「料金」
+//! と行き先が食い違い、料金情報に到達できなかった）。本サイトに実在する
+//! ログインページは無いため、GitHub リンクのみ実在の外部 URL（[`REPO`]）
+//! を使い、ラベルも行き先どおり「GitHub」とする（[`actions`] doc コメント
+//! 参照）。
 //!
 //! # id 接頭辞
 //!
@@ -386,7 +391,12 @@ fn nav() -> Node {
             vec![],
             vec![
                 products_item(&props),
-                link_item(&props, "pricing", "料金", "../../themes/"),
+                link_item(
+                    &props,
+                    "pricing",
+                    "料金",
+                    "../../blocks/pricing-comparison-table/",
+                ),
                 link_item(&props, "docs", "ドキュメント", "../../guides/"),
             ],
         )],

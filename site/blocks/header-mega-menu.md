@@ -276,7 +276,12 @@ fn nav() -> Node {
             vec![],
             vec![
                 products_item(&props),
-                link_item(&props, "pricing", "料金", "../../themes/"),
+                link_item(
+                    &props,
+                    "pricing",
+                    "料金",
+                    "../../blocks/pricing-comparison-table/",
+                ),
                 link_item(&props, "docs", "ドキュメント", "../../guides/"),
             ],
         )],
