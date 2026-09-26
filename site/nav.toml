@@ -1418,6 +1418,11 @@ path = "/blocks/testimonials-stack/"
 title = "Logo Cloud"
 
 [[section.group.page]]
+title = "logo-cloud-grid"
+source = "site/blocks/logo-cloud-grid.md"
+path = "/blocks/logo-cloud-grid/"
+
+[[section.group.page]]
 title = "logo-cloud-marquee"
 source = "site/blocks/logo-cloud-marquee.md"
 path = "/blocks/logo-cloud-marquee/"
@@ -1467,6 +1472,11 @@ path = "/blocks/faq-accordion-centered/"
 title = "faq-split-accordion"
 source = "site/blocks/faq-split-accordion.md"
 path = "/blocks/faq-split-accordion/"
+
+[[section.group.page]]
+title = "faq-split-static"
+source = "site/blocks/faq-split-static.md"
+path = "/blocks/faq-split-static/"
 
 [[section.group.page]]
 title = "faq-tabbed-accordion"

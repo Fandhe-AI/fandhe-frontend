@@ -270,6 +270,7 @@ jobs:
           # Marketing / Testimonial
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonials-stack/index.html"
           # Marketing / Logo Cloud
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/logo-cloud-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/logo-cloud-marquee/index.html"
           # Marketing / Stats
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-background-image/index.html"
@@ -283,6 +284,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-accordion-centered/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-split-accordion/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-tabbed-accordion/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-split-static/index.html"
           # Marketing / Contact
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-centered-form/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-dialog-form/index.html"

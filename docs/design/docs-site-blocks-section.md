@@ -913,6 +913,7 @@ pub enum LayoutCss {
 | hero-social-proof | #2790 | `marketing/hero/hero_social_proof.rs` |
 | hero-split-image | #2791 | `marketing/hero/hero_split_image.rs` |
 | hero-split-screenshot | #2792 | `marketing/hero/hero_split_screenshot.rs` |
+| logo-cloud-grid | #2793 | `marketing/logo_cloud/logo_cloud_grid.rs` |
 | newsletter-split | #2796 | `marketing/newsletter/newsletter_split.rs` |
 | logo-cloud-marquee | #2794 | `marketing/logo_cloud/logo_cloud_marquee.rs` |
 | stats-background-image | #2801 | `marketing/stats/stats_background_image.rs` |
