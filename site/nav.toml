@@ -1451,6 +1451,14 @@ source = "site/blocks/stats-with-image.md"
 path = "/blocks/stats-with-image/"
 
 [[section.group]]
+title = "FAQ"
+
+[[section.group.page]]
+title = "faq-accordion-centered"
+source = "site/blocks/faq-accordion-centered.md"
+path = "/blocks/faq-accordion-centered/"
+
+[[section.group]]
 title = "Contact"
 
 [[section.group.page]]
