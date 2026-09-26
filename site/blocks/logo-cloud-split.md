@@ -1,9 +1,11 @@
 # logo-cloud-split
 
-`heading` / `text` / `button` / `image` / `link` の 5 部品を組み合わせた、
+`heading` / `text` / `image` / `link` の 4 部品を組み合わせた、
 見出し左 + ロゴ 2 列グリッド右の合成例です。`lg` 未満では見出しの下に
 ロゴが縦積みになります。新しい UI 部品は作らず、既存部品のみで構成して
-います。無 JS の静的な表示で `<form>` は出力しません。
+います。無 JS の静的な表示で `<form>` は出力しません。CTA 2 本は
+遷移先を持たない `<button>` ではなく `link::root` で組み立て、GitHub
+リンクと同じ固定 URL へ実際に遷移します。
 
 主参照は対応表 ID R1058、集約元は対応表 ID R0565・R0149・R0566・R0145・
 R0567 の 5 件です（出典の固有名・ファイル名は記載しません）。ロゴ・社名は
@@ -16,7 +18,6 @@ const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, text, Node};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::heading::{
     heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
 };
@@ -26,7 +27,6 @@ use fandhe_frontend_pre_styled_ui::recipe::ColorPalette;
 use fandhe_frontend_pre_styled_ui::text::{
     self as styled_text, TextProps, TextSize, TextVariant, TextWeight,
 };
-use fandhe_frontend_pre_styled_ui::Size;
 
 /// 各形の直前に置く短い形ラベル（`styled_text::text` の `Sm`/`Muted`、
 /// `cta_split_image::variant_label` と同型）。
@@ -124,19 +124,21 @@ fn copy_with_cta() -> Node {
             div(
                 vec![("class", "blocks-logo-cloud-split-cta")],
                 vec![
-                    button::button(
-                        &ButtonProps {
-                            size: Size::Lg,
-                            ..ButtonProps::default()
+                    link::root(
+                        REPO,
+                        &LinkProps {
+                            variant: LinkVariant::Underline,
+                            ..LinkProps::default()
                         },
                         vec![],
                         vec![text("無料で始める")],
                     ),
-                    button::button(
-                        &ButtonProps {
-                            variant: ButtonVariant::Outline,
-                            size: Size::Lg,
-                            ..ButtonProps::default()
+                    link::root(
+                        REPO,
+                        &LinkProps {
+                            variant: LinkVariant::Underline,
+                            palette: ColorPalette::Neutral,
+                            ..LinkProps::default()
                         },
                         vec![],
                         vec![text("導入事例を見る")],
@@ -246,13 +248,15 @@ pub fn demo() -> Node {
   暗色面で表示します。ライト/ダーク切替に追随する仕組みではありません。
 - 文言・社名はすべて架空です。ロゴは同一の抽象バッジ画像で統一し、
   実在ブランドのロゴ・商標は使っていません。
-- 配色はすべてテーマトークン（`--fandhe-color-*`）経由です。
+- 配色は基本的にテーマトークン（`--fandhe-color-*`）経由ですが、暗色固定形
+  （R0567）のみライト/ダーク切替に追随しない固定色が必要なため、
+  `--fandhe-color-fg`/`--fandhe-color-bg` のライトテーマ値相当（`#111111`/
+  `#ffffff`/`#f7f7f7`）を意図的な例外としてリテラル直書きしています。
 - レイアウトは `lg`（64rem）未満で 1 列（見出しの下にロゴ）、`lg` 以上で
   左見出し + 右ロゴの 2 カラムに切り替わります。
 
 関連情報:
 [Heading](../themes/heading.md) /
 [Text](../themes/text.md) /
-[Button](../themes/button.md) /
 [Image](../themes/image.md) /
 [Link](../themes/link.md)

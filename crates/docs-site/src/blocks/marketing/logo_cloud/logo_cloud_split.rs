@@ -10,10 +10,17 @@
 //!
 //! # 使用部品
 //!
-//! `heading` / `text` / `button` / `image` / `link` の 5 部品のみを合成
-//! する（[`BLOCK`] の `parts` に一致させる契約、
+//! `heading` / `text` / `image` / `link` の 4 部品のみを合成する
+//! （[`BLOCK`] の `parts` に一致させる契約、
 //! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証
-//! する）。新しい UI 部品は追加しない。
+//! する）。新しい UI 部品は追加しない。当初は CTA 2 本を `button` で
+//! 組み立てていたが、遷移先を持たない `type="button"` のまま「無料で
+//! 始める」「導入事例を見る」という遷移を期待させる文言を出すのは
+//! 押しても何も起きない dead control になるという指摘（イシュー #2795
+//! codex レビュー是正、PR #3247）を受けて [`link::root`] へ置き換えた
+//! （`blog_split_header_grid` の「すべての記事を見る」是正と同じ判断軸）。
+//! CTA 2 本とも本 block の GitHub リンクと同じ [`REPO`] 固定 URL へ遷移する
+//! （`<form>` を持たない・`base_path` を受け取れない制約は次項参照）。
 //!
 //! # 3 形構成（集約元との差分）
 //!
@@ -82,7 +89,8 @@
 //!
 //! `crate::blocks` モジュール doc「`<form>` を使わない」節・「セキュリティ
 //! 不変条件」節に従い、本 Demo はフォーム・状態機械を持たない静的な合成例
-//! である。ボタンは `button::button` 既定の `type="button"`。
+//! である。CTA は前項のとおり `link::root` のみで構成し、`<button>` は
+//! 一切出力しない。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -91,7 +99,6 @@ const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, text, Node};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::heading::{
     heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
 };
@@ -101,7 +108,6 @@ use fandhe_frontend_pre_styled_ui::recipe::ColorPalette;
 use fandhe_frontend_pre_styled_ui::text::{
     self as styled_text, TextProps, TextSize, TextVariant, TextWeight,
 };
-use fandhe_frontend_pre_styled_ui::Size;
 
 /// 各形の直前に置く短い形ラベル（`styled_text::text` の `Sm`/`Muted`、
 /// `cta_split_image::variant_label` と同型）。
@@ -199,19 +205,21 @@ fn copy_with_cta() -> Node {
             div(
                 vec![("class", "blocks-logo-cloud-split-cta")],
                 vec![
-                    button::button(
-                        &ButtonProps {
-                            size: Size::Lg,
-                            ..ButtonProps::default()
+                    link::root(
+                        REPO,
+                        &LinkProps {
+                            variant: LinkVariant::Underline,
+                            ..LinkProps::default()
                         },
                         vec![],
                         vec![text("無料で始める")],
                     ),
-                    button::button(
-                        &ButtonProps {
-                            variant: ButtonVariant::Outline,
-                            size: Size::Lg,
-                            ..ButtonProps::default()
+                    link::root(
+                        REPO,
+                        &LinkProps {
+                            variant: LinkVariant::Underline,
+                            palette: ColorPalette::Neutral,
+                            ..LinkProps::default()
                         },
                         vec![],
                         vec![text("導入事例を見る")],
@@ -326,10 +334,6 @@ pub const BLOCK: Block = Block {
             path: "/themes/text/",
         },
         Part {
-            label: "Button",
-            path: "/themes/button/",
-        },
-        Part {
             label: "Image",
             path: "/themes/image/",
         },
@@ -383,21 +387,27 @@ mod tests {
     use super::{demo, LAYOUT_CSS, REPO};
     use fandhe_frontend_core::render;
 
-    /// Demo が使用部品（heading/text/button/image/link）の anatomy をすべて
-    /// 実際に出力していることと、行数・ロゴ枚数・ボタン数・リンク先を
-    /// 固定する（`contact_split_info_composes_expected_parts` と同型）。
+    /// Demo が使用部品（heading/text/image/link）の anatomy をすべて
+    /// 実際に出力していることと、行数・ロゴ枚数・リンク先を固定する
+    /// （`contact_split_info_composes_expected_parts` と同型）。CTA を
+    /// `button` から `link::root` へ置き換えたため（モジュール doc「使用
+    /// 部品」節参照）、`data-scope="button"`・`type="button"` の非出現も
+    /// あわせて固定する。
     #[test]
     fn demo_composes_expected_parts() {
         let html = render(&demo());
         for scope in [
             "data-scope=\"heading\"",
             "data-scope=\"text\"",
-            "data-scope=\"button\"",
             "data-scope=\"image\"",
             "data-scope=\"link\"",
         ] {
             assert!(html.contains(scope), "demo output should contain {scope}");
         }
+        assert!(
+            !html.contains("data-scope=\"button\""),
+            "demo should not render any button part (CTA is link::root only)"
+        );
         assert_eq!(
             html.matches("data-blocks-logo-cloud-split-row").count(),
             3,
@@ -410,13 +420,13 @@ mod tests {
         );
         assert_eq!(
             html.matches(r#"type="button""#).count(),
-            4,
-            "demo should render exactly 4 buttons (2 CTA rows x 2 buttons)"
+            0,
+            "demo should never render a <button>; CTA is link::root only"
         );
         assert_eq!(
             html.matches(&format!("href=\"{REPO}\"")).count(),
-            2,
-            "2 GitHub links (basic / dark rows) should point to the fixed repository URL"
+            6,
+            "2 CTA links + 1 GitHub link per row (basic / dark rows) should point to the fixed repository URL"
         );
         assert!(html.contains(r#"data-blocks-logo-cloud-split-tone="dark""#));
     }

@@ -8086,7 +8086,6 @@ fn logo_cloud_split_composes_expected_parts() {
     for scope in [
         "data-scope=\"heading\"",
         "data-scope=\"text\"",
-        "data-scope=\"button\"",
         "data-scope=\"image\"",
         "data-scope=\"link\"",
     ] {
@@ -8105,7 +8104,17 @@ fn logo_cloud_split_composes_expected_parts() {
         18,
         "logo-cloud-split demo should render exactly 18 logo images (6 logos x 3 rows)"
     );
-    for absent in ["<form", "src=\"data:", "href=\"#\"", "id=\""] {
+    // CTA は `button::button`（遷移先を持たない type="button"）ではなく
+    // `link::root` で組み立てる（イシュー #2795 codex レビュー是正、
+    // PR #3247。`blog_split_header_grid` の是正と同じ判断軸）。
+    for absent in [
+        "<form",
+        "src=\"data:",
+        "href=\"#\"",
+        "id=\"",
+        "data-scope=\"button\"",
+        "type=\"button\"",
+    ] {
         assert!(
             !html.contains(absent),
             "logo-cloud-split should never contain {absent}"
