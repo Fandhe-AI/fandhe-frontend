@@ -25,12 +25,17 @@
 //! ため、[`link::root`]（[`REPO`] 固定）へ差し替えて実際に遷移する
 //! リンクへ改めた（形 E の告知リンクと同型の判断）。
 //!
-//! # ロゴのグレースケール表現
+//! # ロゴのグレースケール表現・可視の社名併記（Codex レビュー指摘、PR
+//! #3244）
 //!
 //! ロゴ画像はプレースホルダー SVG（[`dummy_assets::LOGO_SRC`]）の反復
 //! 使用のため `alt=""`（装飾用途、`gallery_masonry` 等と同じ WCAG 1.1.1
 //! 判断）とし、`filter: grayscale(1); opacity: .7`（[`LAYOUT_CSS`]）で
-//! グレースケール表現を与える。
+//! グレースケール表現を与える。ただし形 A・B・D・E は当初この装飾扱いの
+//! みで社名を一切示していなかったため、スクリーンリーダー利用者へロゴ列
+//! の内容（どの企業が並んでいるか）が伝わらない欠落があった。形 C の
+//! 「ロゴ + `tag` 可視ラベル」を他形へも揃え（[`logo_item`]）、画像自体は
+//! 引き続き装飾（`alt=""`）としつつ社名は必ず可視テキストで併記する。
 //!
 //! # 列数（md/lg で拡張）
 //!
@@ -88,6 +93,21 @@ fn logo() -> Node {
     )
 }
 
+/// ロゴ 1 枚 + 可視の社名ラベル（`tag`）。画像は装飾（`alt=""`）のまま、
+/// 社名はテキストとして読み上げ可能にする（Codex レビュー指摘、PR
+/// #3244）。
+fn logo_item(name: &str) -> Node {
+    let name_tag = tag::root(
+        &TagProps::default(),
+        vec![],
+        vec![tag::label(vec![], vec![text(name)])],
+    );
+    div(
+        vec![("class", "blocks-logo-cloud-grid-logo-item")],
+        vec![logo(), name_tag],
+    )
+}
+
 /// 形 A: タグライン（tag）→ 見出し → リード文 → ロゴ 5 個の折り返し行。
 fn variant_a() -> Node {
     let tagline = tag::root(
@@ -113,7 +133,10 @@ fn variant_a() -> Node {
     );
     let row = div(
         vec![("class", "blocks-logo-cloud-grid-row")],
-        (0..5).map(|_| logo()).collect(),
+        dummy_assets::COMPANY_NAMES[..5]
+            .iter()
+            .map(|name| logo_item(name))
+            .collect(),
     );
     div(
         vec![("class", "blocks-logo-cloud-grid-stack")],
@@ -133,7 +156,10 @@ fn variant_b() -> Node {
     );
     let row = div(
         vec![("class", "blocks-logo-cloud-grid-row")],
-        (0..6).map(|_| logo()).collect(),
+        dummy_assets::COMPANY_NAMES
+            .iter()
+            .map(|name| logo_item(name))
+            .collect(),
     );
     div(
         vec![("class", "blocks-logo-cloud-grid-stack")],
@@ -183,8 +209,14 @@ fn variant_c() -> Node {
 
 /// 形 D: 見出し無し、淡色枠のロゴタイル 6 枚のグリッド。
 fn variant_d() -> Node {
-    let tiles = (0..6)
-        .map(|_| div(vec![("class", "blocks-logo-cloud-grid-tile")], vec![logo()]))
+    let tiles = dummy_assets::COMPANY_NAMES
+        .iter()
+        .map(|name| {
+            div(
+                vec![("class", "blocks-logo-cloud-grid-tile")],
+                vec![logo_item(name)],
+            )
+        })
         .collect();
     div(vec![("class", "blocks-logo-cloud-grid-tiles")], tiles)
 }
@@ -193,7 +225,10 @@ fn variant_d() -> Node {
 fn variant_e() -> Node {
     let row = div(
         vec![("class", "blocks-logo-cloud-grid-row")],
-        (0..5).map(|_| logo()).collect(),
+        dummy_assets::COMPANY_NAMES[..5]
+            .iter()
+            .map(|name| logo_item(name))
+            .collect(),
     );
     let pill = link::root(
         REPO,
@@ -269,6 +304,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-logo-cloud-grid-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  align-items: center;\n  text-align: center;\n}\n\
 .blocks-logo-cloud-grid-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  width: 100%;\n}\n\
 .blocks-logo-cloud-grid-row {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: center;\n  gap: var(--fandhe-space-8);\n}\n\
+.blocks-logo-cloud-grid-logo-item {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-logo-cloud-grid-cards {\n  display: grid;\n  grid-template-columns: repeat(2, 1fr);\n  gap: var(--fandhe-space-4);\n  width: 100%;\n}\n\
 .blocks-logo-cloud-grid-cards [data-scope=\"card\"][data-part=\"body\"] {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  text-align: center;\n}\n\
 .blocks-logo-cloud-grid-tiles {\n  display: grid;\n  grid-template-columns: repeat(2, 1fr);\n  gap: var(--fandhe-space-4);\n}\n\
@@ -322,6 +358,23 @@ mod tests {
             "variant C・E should both link to the real repo URL"
         );
         assert_eq!(html.matches("GitHub で見る").count(), 2);
+    }
+
+    /// 形 A/B/D/E も形 C と同様に各ロゴへ可視の社名（`tag`）を添えている
+    /// こと（Codex レビュー指摘、PR #3244。画像は装飾 `alt=""` のままだが
+    /// 社名はテキストとして読み上げ可能である必要がある）。
+    #[test]
+    fn every_variant_shows_visible_company_names() {
+        let html = render(&demo());
+        for name in crate::blocks::dummy_assets::COMPANY_NAMES {
+            // 既定エスケープ経由の出力のため `&` は `&amp;` になる
+            // （`Quill & Meridian` 対策）。
+            let escaped = name.replace('&', "&amp;");
+            assert!(
+                html.contains(&escaped),
+                "company name {name} should be visible somewhere in the demo"
+            );
+        }
     }
 
     /// `demo()` が決定的（呼び出しごとに同じ `Node`）であること。

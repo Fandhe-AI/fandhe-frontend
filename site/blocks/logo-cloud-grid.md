@@ -14,7 +14,7 @@
 
 列数は `md`（768px）で 3〜4 列、`lg`（1024px）で 6 列に広がります（形 C/D のグリッド）。
 
-ロゴ画像は同一のプレースホルダーの反復のため `alt=""`（装飾用途）にし、グレースケール表現は CSS の `filter: grayscale(1)` で与えています。`<form>` は使わず、送信処理・データ取得を持たない静的な合成例です。
+ロゴ画像は同一のプレースホルダーの反復のため `alt=""`（装飾用途）にし、グレースケール表現は CSS の `filter: grayscale(1)` で与えています。各ロゴには可視の社名ラベル（`tag`）を必ず添え、スクリーンリーダー利用者へもロゴ列の内容が伝わるようにしています。`<form>` は使わず、送信処理・データ取得を持たない静的な合成例です。
 
 ## Rust コード
 
@@ -45,6 +45,21 @@ fn logo() -> Node {
     )
 }
 
+/// ロゴ 1 枚 + 可視の社名ラベル（`tag`）。画像は装飾（`alt=""`）のまま、
+/// 社名はテキストとして読み上げ可能にする（Codex レビュー指摘、PR
+/// #3244）。
+fn logo_item(name: &str) -> Node {
+    let name_tag = tag::root(
+        &TagProps::default(),
+        vec![],
+        vec![tag::label(vec![], vec![text(name)])],
+    );
+    div(
+        vec![("class", "blocks-logo-cloud-grid-logo-item")],
+        vec![logo(), name_tag],
+    )
+}
+
 /// 形 A: タグライン（tag）→ 見出し → リード文 → ロゴ 5 個の折り返し行。
 fn variant_a() -> Node {
     let tagline = tag::root(
@@ -70,7 +85,10 @@ fn variant_a() -> Node {
     );
     let row = div(
         vec![("class", "blocks-logo-cloud-grid-row")],
-        (0..5).map(|_| logo()).collect(),
+        dummy_assets::COMPANY_NAMES[..5]
+            .iter()
+            .map(|name| logo_item(name))
+            .collect(),
     );
     div(
         vec![("class", "blocks-logo-cloud-grid-stack")],
@@ -90,7 +108,10 @@ fn variant_b() -> Node {
     );
     let row = div(
         vec![("class", "blocks-logo-cloud-grid-row")],
-        (0..6).map(|_| logo()).collect(),
+        dummy_assets::COMPANY_NAMES
+            .iter()
+            .map(|name| logo_item(name))
+            .collect(),
     );
     div(
         vec![("class", "blocks-logo-cloud-grid-stack")],
@@ -140,8 +161,14 @@ fn variant_c() -> Node {
 
 /// 形 D: 見出し無し、淡色枠のロゴタイル 6 枚のグリッド。
 fn variant_d() -> Node {
-    let tiles = (0..6)
-        .map(|_| div(vec![("class", "blocks-logo-cloud-grid-tile")], vec![logo()]))
+    let tiles = dummy_assets::COMPANY_NAMES
+        .iter()
+        .map(|name| {
+            div(
+                vec![("class", "blocks-logo-cloud-grid-tile")],
+                vec![logo_item(name)],
+            )
+        })
         .collect();
     div(vec![("class", "blocks-logo-cloud-grid-tiles")], tiles)
 }
@@ -150,7 +177,10 @@ fn variant_d() -> Node {
 fn variant_e() -> Node {
     let row = div(
         vec![("class", "blocks-logo-cloud-grid-row")],
-        (0..5).map(|_| logo()).collect(),
+        dummy_assets::COMPANY_NAMES[..5]
+            .iter()
+            .map(|name| logo_item(name))
+            .collect(),
     );
     let pill = link::root(
         REPO,
