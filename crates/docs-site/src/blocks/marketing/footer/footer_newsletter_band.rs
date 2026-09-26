@@ -124,7 +124,7 @@ fn variant(order: u8, id: &'static str) -> Node {
     let mut body = match order {
         0 => vec![top(), band(id)],
         1 => vec![band(id), top()],
-        _ => vec![div(vec![], vec![link("製品"), band(id)])],
+        _ => vec![div(vec![("class", "fnb-c")], vec![link("製品"), band(id)])],
     };
     body.push(separator(&SeparatorProps::default(), vec![]));
     body.push(div(vec![], vec![text("© 2026")]));
@@ -192,11 +192,13 @@ const LAYOUT_CSS: &str = "\
 .fnb-l {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .fnb-l > footer {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  padding: var(--fandhe-space-6);\n  background: var(--fandhe-color-bg-subtle);\n  border-radius: var(--fandhe-radius-lg);\n}\n\
 .fnb-t {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-6);\n}\n\
+.fnb-c {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-6);\n}\n\
 [data-fnb-band] {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  gap: var(--fandhe-space-6);\n  padding: var(--fandhe-space-4) var(--fandhe-space-6);\n  border-top: 1px solid var(--fandhe-color-border);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
-[data-fnb-band] > div {\n  display: flex;\n  gap: var(--fandhe-space-2);\n  flex: 0 1 24rem;\n}\n\
+[data-fnb-band] > div {\n  display: flex;\n  align-items: flex-end;\n  gap: var(--fandhe-space-2);\n  flex: 0 1 24rem;\n}\n\
 @media (max-width: 47.99rem) {\n  \
 [data-fnb-band] {\n    flex-direction: column;\n    align-items: stretch;\n  }\n\
   .fnb-t {\n    flex-direction: column;\n    align-items: flex-start;\n  }\n\
+  .fnb-c {\n    flex-direction: column;\n    align-items: stretch;\n  }\n\
 }\n";
 
 #[cfg(test)]

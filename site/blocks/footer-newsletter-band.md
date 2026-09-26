@@ -56,7 +56,7 @@ fn variant(order: u8, id: &'static str) -> Node {
     let mut body = match order {
         0 => vec![top(), band(id)],
         1 => vec![band(id), top()],
-        _ => vec![div(vec![], vec![link("製品"), band(id)])],
+        _ => vec![div(vec![("class", "fnb-c")], vec![link("製品"), band(id)])],
     };
     body.push(separator(&SeparatorProps::default(), vec![]));
     body.push(div(vec![], vec![text("© 2026")]));
