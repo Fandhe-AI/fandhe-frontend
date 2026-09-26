@@ -874,6 +874,7 @@ pub enum LayoutCss {
 | careers-split-accordion | #2816 | `marketing/careers/careers_split_accordion.rs` |
 | changelog-timeline-subscribe | #2821 | `marketing/changelog/changelog_timeline_subscribe.rs` |
 | cta-feature-links | #2757 | `marketing/cta/cta_feature_links.rs` |
+| cta-centered | #3224 | `marketing/cta/cta_centered.rs` |
 | cta-split-actions | #2758 | `marketing/cta/cta_split_actions.rs` |
 | cta-split-image | #2759 | `marketing/cta/cta_split_image.rs` |
 | feature-accordion-image | #2760/#2761/#2762 | `marketing/feature/feature_accordion_image.rs` |
