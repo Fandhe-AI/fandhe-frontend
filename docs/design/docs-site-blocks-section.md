@@ -928,6 +928,7 @@ pub enum LayoutCss {
 | stats-timeline | #2805 | `marketing/stats/stats_timeline.rs` |
 | feature-three-column-icons | #3225 | `marketing/feature/feature_three_column_icons.rs` |
 | newsletter-stacked | #3226 | `marketing/newsletter/newsletter_stacked.rs` |
+| faq-tabbed-accordion | #2848 | `marketing/faq/faq_tabbed_accordion.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 110 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
