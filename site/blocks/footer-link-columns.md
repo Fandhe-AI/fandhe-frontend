@@ -2,8 +2,10 @@
 
 `link` / `separator` / `icon` / `heading` / `text` を合成した、定番の
 リンクカラム型 footer です。上段はブランド列（ロゴマーク・名称・説明）と
-カテゴリ見出し付きのリンク列 2〜5 群、下段は区切り線を挟んだ著作権表示と
-SNS・法務リンクで構成します。
+カテゴリ見出し付きのリンク列 2〜5 群、下段は区切り線を挟んだ著作権表示
+（インスタンスにより SNS アイコンリンクを添える）で構成します。法務
+リンク（Privacy Policy・Terms of Service）は実在ページが無いため掲載
+しません。
 
 狭い幅ではブランド列の下にリンク列が 2 列 grid で並び、lg（64rem）以上で
 全列が横 1 行に並びます。`<form>` を持たず状態を持たない静的な表示です。
@@ -34,6 +36,12 @@ const EXAMPLES_URL: &str = "https://fandhe-ai.github.io/fandhe-frontend/examples
 const RELEASES_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend/releases";
 /// リポジトリの Discussions（「Discussions」の実在先）。
 const DISCUSSIONS_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend/discussions";
+/// docs サイトのトップページ（フレームワーク概要を紹介する `site/index.md`
+/// が原稿。「About」の実在先。codex-review 指摘 PR #3271: 従来は
+/// [`REPO`]（リポジトリのトップページ）を充てていたが、表示名「About」が
+/// 指す「このフレームワークの説明」に対応するのは docs サイト側の概要
+/// ページであり、こちらへ差し替える）。
+const HOME_URL: &str = "https://fandhe-ai.github.io/fandhe-frontend/";
 
 /// 自作の幾何パスによる装飾アイコン（`feature_three_column_icons::
 /// geo_icon` と同型の線画。`label` は呼び出し側が指定する）。
@@ -205,7 +213,7 @@ fn instance_a() -> Node {
                                 "Community",
                                 &[(REPO, "GitHub"), (DISCUSSIONS_URL, "Discussions")],
                             ),
-                            link_group("Company", &[(REPO, "About")]),
+                            link_group("Company", &[(HOME_URL, "About")]),
                         ],
                     ),
                 ],
@@ -292,7 +300,7 @@ fn instance_b() -> Node {
                                 "Product",
                                 &[(GUIDE_URL, "Guide"), (API_REFERENCE_URL, "API Reference")],
                             ),
-                            link_group("Company", &[(REPO, "About")]),
+                            link_group("Company", &[(HOME_URL, "About")]),
                         ],
                     ),
                 ],
@@ -332,7 +340,7 @@ fn instance_c() -> Node {
                                 &[(EXAMPLES_URL, "Examples"), (RELEASES_URL, "Changelog")],
                             ),
                             link_group("Community", &[(DISCUSSIONS_URL, "Discussions")]),
-                            link_group("Company", &[(REPO, "About")]),
+                            link_group("Company", &[(HOME_URL, "About")]),
                             social_link_group(),
                         ],
                     ),

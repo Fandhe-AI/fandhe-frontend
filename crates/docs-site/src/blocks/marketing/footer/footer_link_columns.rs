@@ -98,6 +98,12 @@ const EXAMPLES_URL: &str = "https://fandhe-ai.github.io/fandhe-frontend/examples
 const RELEASES_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend/releases";
 /// リポジトリの Discussions（「Discussions」の実在先）。
 const DISCUSSIONS_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend/discussions";
+/// docs サイトのトップページ（フレームワーク概要を紹介する `site/index.md`
+/// が原稿。「About」の実在先。codex-review 指摘 PR #3271: 従来は
+/// [`REPO`]（リポジトリのトップページ）を充てていたが、表示名「About」が
+/// 指す「このフレームワークの説明」に対応するのは docs サイト側の概要
+/// ページであり、こちらへ差し替える）。
+const HOME_URL: &str = "https://fandhe-ai.github.io/fandhe-frontend/";
 
 /// 自作の幾何パスによる装飾アイコン（`feature_three_column_icons::
 /// geo_icon` と同型の線画。`label` は呼び出し側が指定する）。
@@ -269,7 +275,7 @@ fn instance_a() -> Node {
                                 "Community",
                                 &[(REPO, "GitHub"), (DISCUSSIONS_URL, "Discussions")],
                             ),
-                            link_group("Company", &[(REPO, "About")]),
+                            link_group("Company", &[(HOME_URL, "About")]),
                         ],
                     ),
                 ],
@@ -356,7 +362,7 @@ fn instance_b() -> Node {
                                 "Product",
                                 &[(GUIDE_URL, "Guide"), (API_REFERENCE_URL, "API Reference")],
                             ),
-                            link_group("Company", &[(REPO, "About")]),
+                            link_group("Company", &[(HOME_URL, "About")]),
                         ],
                     ),
                 ],
@@ -396,7 +402,7 @@ fn instance_c() -> Node {
                                 &[(EXAMPLES_URL, "Examples"), (RELEASES_URL, "Changelog")],
                             ),
                             link_group("Community", &[(DISCUSSIONS_URL, "Discussions")]),
-                            link_group("Company", &[(REPO, "About")]),
+                            link_group("Company", &[(HOME_URL, "About")]),
                             social_link_group(),
                         ],
                     ),
