@@ -8488,3 +8488,89 @@ fn section_heading_split_composes_expected_parts() {
         );
     }
 }
+
+/// section-heading-stacked ページが Demo class・専用 CSS を配線している
+/// こと、block 固有 CSS（暗色面の上書き・レスポンシブブレークポイント）が
+/// 実際に出力されていることを固定する（イシュー #2799）。
+#[test]
+fn section_heading_stacked_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/section-heading-stacked/index.html"))
+        .expect("blocks/section-heading-stacked/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-section-heading-stacked\""),
+        "section-heading-stacked page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "section-heading-stacked page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "section-heading-stacked page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-section-heading-stacked-align",
+        "data-blocks-section-heading-stacked-tone",
+        "data-blocks-section-heading-stacked-eyebrow",
+        "data-blocks-section-heading-stacked-desc",
+    ] {
+        assert!(
+            html.contains(hook),
+            "section-heading-stacked page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "[data-blocks-section-heading-stacked-align]",
+        "[data-blocks-section-heading-stacked-tone=\"dark\"]",
+        "@media (min-width: 48rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// section-heading-stacked の合成部品（badge/heading/text/breadcrumb）が
+/// 期待どおりの構成で実際に出力されていること、見出し個数・非対話制約を
+/// 固定する（イシュー #2799）。
+#[test]
+fn section_heading_stacked_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/section-heading-stacked/")
+        .expect("section-heading-stacked should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"breadcrumb\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "section-heading-stacked demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("<h3").count(),
+        6,
+        "section-heading-stacked demo should render exactly 6 headings, all at h3"
+    );
+    assert!(
+        !html.contains("<h1"),
+        "section-heading-stacked demo should not render a page-level h1"
+    );
+    assert!(
+        !html.contains("<h2"),
+        "section-heading-stacked demo should not render a section-level h2"
+    );
+    for absent in ["<form", "<button", "src=\"data:", "href=\"#\"", "id=\""] {
+        assert!(
+            !html.contains(absent),
+            "section-heading-stacked should never contain {absent}"
+        );
+    }
+}
