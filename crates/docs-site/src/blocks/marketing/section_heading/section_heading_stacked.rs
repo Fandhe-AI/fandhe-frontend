@@ -62,13 +62,20 @@
 //! var(--fandhe-color-bg);` の div で包む。`heading` は個別の色宣言を
 //! 持たないため `color: inherit` の恩恵をそのまま受けるが、
 //! `styled_text::text`（説明文、[`fandhe_frontend_pre_styled_ui::text::TextVariant::Muted`]）
-//! は `color: var(--fandhe-color-fg-muted)` を明示指定しており、F の
-//! `breadcrumb::link`/`current-link`/`separator` も各々明示の色宣言を
-//! 持つため、これらは反転後の親の色より優先されコントラストが低下する
-//! （`feature_large_screenshot`/`sidebar_07` と同じ既知パターン）。この
-//! ため暗色面（`[data-blocks-section-heading-stacked-tone="dark"]`）配下に
-//! 限定して `color: inherit` で上書きする（詳細度 (0,3,0)、暗色面の外側
-//! へは影響させないスコープ限定）。
+//! は `color: var(--fandhe-color-fg-muted)` を明示指定しており、E/C で使う
+//! `eyebrow()` ヘルパも `color: var(--fandhe-color-accent)` を明示指定して
+//! おり、F の `breadcrumb::link`/`current-link`/`separator` も各々明示の
+//! 色宣言を持つため、これらは反転後の親の色より優先されコントラストが
+//! 低下する（`feature_large_screenshot`/`sidebar_07` と同じ既知パターン。
+//! eyebrow の `--fandhe-color-accent` は明色面向けの配色で、暗色面
+//! （`background: var(--fandhe-color-fg)`）に対しては単独でコントラスト
+//! 保証がない）。このため暗色面（`[data-blocks-section-heading-stacked-
+//! tone="dark"]`）配下に限定して `color: inherit` で上書きする（`eyebrow`
+//! は詳細度 (0,2,0)、`text`/`breadcrumb` 各部は (0,3,0)。`breadcrumb::link`
+//! はホバー時に pre-styled-ui のレシピ側 hover ルール（詳細度 (0,4,0)、
+//! `color: var(--fandhe-color-fg)`）に上書きされ暗色面と同色化するため、
+//! `:hover` 付きセレクタで同詳細度 (0,4,0) の上書きを別途宣言する。暗色面
+//! の外側へは影響させないスコープ限定）。
 //!
 //! # ブレークポイント（48rem をリテラル直書きする理由）
 //!
@@ -339,7 +346,9 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-section-heading-stacked-eyebrow] {\n  color: var(--fandhe-color-accent);\n  text-transform: uppercase;\n  letter-spacing: 0.05em;\n}\n\
 [data-blocks-section-heading-stacked-tone=\"dark\"] {\n  background: var(--fandhe-color-fg);\n  color: var(--fandhe-color-bg);\n  padding: var(--fandhe-space-8);\n  border-radius: var(--fandhe-radius-md);\n}\n\
 [data-blocks-section-heading-stacked-tone=\"dark\"] [data-scope=\"text\"][data-part=\"root\"][data-blocks-section-heading-stacked-desc] {\n  color: inherit;\n}\n\
+[data-blocks-section-heading-stacked-tone=\"dark\"] [data-blocks-section-heading-stacked-eyebrow] {\n  color: inherit;\n}\n\
 [data-blocks-section-heading-stacked-tone=\"dark\"] [data-scope=\"breadcrumb\"][data-part=\"link\"] {\n  color: inherit;\n}\n\
+[data-blocks-section-heading-stacked-tone=\"dark\"] [data-scope=\"breadcrumb\"][data-part=\"link\"]:hover {\n  color: inherit;\n}\n\
 [data-blocks-section-heading-stacked-tone=\"dark\"] [data-scope=\"breadcrumb\"][data-part=\"current-link\"] {\n  color: inherit;\n}\n\
 [data-blocks-section-heading-stacked-tone=\"dark\"] [data-scope=\"breadcrumb\"][data-part=\"separator\"] {\n  color: inherit;\n}\n\
 @media (min-width: 48rem) {\n  [data-blocks-section-heading-stacked-align=\"responsive\"] {\n    align-items: flex-start;\n    text-align: left;\n    margin: 0;\n  }\n}\n";
@@ -432,6 +441,21 @@ mod tests {
         assert!(LAYOUT_CSS.contains("[data-blocks-section-heading-stacked-tone=\"dark\"]"));
         assert!(LAYOUT_CSS.contains(
             "[data-blocks-section-heading-stacked-tone=\"dark\"] [data-scope=\"breadcrumb\"][data-part=\"link\"]"
+        ));
+    }
+
+    /// レビュー指摘（暗色面のコントラスト崩れ）の回帰固定。E/F の暗色面
+    /// では eyebrow が `--fandhe-color-accent` のまま残らないこと、
+    /// breadcrumb link のホバー時上書きが `:hover` 付き詳細度 (0,4,0) の
+    /// セレクタとして存在すること（pre-styled-ui のレシピ側 hover ルール
+    /// と同詳細度で、暗色面 CSS が後勝ちで上書きする契約）を固定する。
+    #[test]
+    fn layout_css_overrides_dark_tone_eyebrow_and_breadcrumb_link_hover() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-section-heading-stacked-tone=\"dark\"] [data-blocks-section-heading-stacked-eyebrow] {\n  color: inherit;\n}"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-section-heading-stacked-tone=\"dark\"] [data-scope=\"breadcrumb\"][data-part=\"link\"]:hover {\n  color: inherit;\n}"
         ));
     }
 
