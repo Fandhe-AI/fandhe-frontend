@@ -315,6 +315,12 @@ pub const BLOCK: Block = Block {
 /// lg 以上の固定幅 `48rem` も外寸として扱われ、枠内側の画像
 /// （`width: 100%`）が枠の余白へはみ出さず収まる（Cursor Bugbot 指摘と
 /// 同根）。
+///
+/// 基準の画像ルール（`[data-scope="image"]...`）自体も `border: 1px` を
+/// 持つため、同じ理由で `box-sizing: border-box` を明示する（枠なし
+/// バリアント A で画像が `.media` の直接の子になる場合、border 分だけ
+/// 外寸がメディア列を 2px 超え、`overflow: hidden` で右端が切り取られる。
+/// PR #3243 レビュー指摘、Codex P1）。
 const LAYOUT_CSS: &str = "\
 .blocks-hero-split-screenshot-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-12);\n}\n\
 .blocks-hero-split-screenshot-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  overflow: hidden;\n}\n\
@@ -322,7 +328,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-hero-split-screenshot-actions {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-hero-split-screenshot-media {\n  min-width: 0;\n  display: flex;\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-hero-split-screenshot-lead] {\n  margin: 0;\n}\n\
-[data-scope=\"image\"][data-part=\"root\"][data-blocks-hero-split-screenshot-image] {\n  display: block;\n  width: 100%;\n  flex: none;\n  border: 1px solid var(--fandhe-color-border);\n  box-shadow: var(--fandhe-shadow-lg);\n}\n\
+[data-scope=\"image\"][data-part=\"root\"][data-blocks-hero-split-screenshot-image] {\n  box-sizing: border-box;\n  display: block;\n  width: 100%;\n  flex: none;\n  border: 1px solid var(--fandhe-color-border);\n  box-shadow: var(--fandhe-shadow-lg);\n}\n\
 .blocks-hero-split-screenshot-frame {\n  box-sizing: border-box;\n  width: 100%;\n  padding: var(--fandhe-space-4);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-muted);\n}\n\
 .blocks-hero-split-screenshot-frame [data-scope=\"image\"][data-part=\"root\"][data-blocks-hero-split-screenshot-image] {\n  box-shadow: none;\n}\n\
 .blocks-hero-split-screenshot-code-frame {\n  width: 100%;\n  background: var(--fandhe-color-fg);\n  color: var(--fandhe-color-bg);\n  border-radius: var(--fandhe-radius-lg);\n  overflow: hidden;\n}\n\
