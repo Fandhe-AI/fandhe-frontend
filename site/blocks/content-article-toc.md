@@ -330,7 +330,7 @@ pub fn demo() -> Node {
 }
 ```
 
-## 原案差分メモ
+**原案差分メモ**
 
 - 集約元 3 件のうち、中央揃えの見出し単独形は Demo に並記していません。
   ヘッダーへ `text-align: center` と `justify-items: center` を当てる

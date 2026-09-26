@@ -2,7 +2,7 @@
 
 `icon` / `link` / `nav_list` / `separator` を合成した、1 行ナビ型 footer の
 合成例です。上段にロゴ・横並びのナビリンク・SNS アイコン、区切り線を挟んで
-下段に著作権表記と法務リンクを置きます。ナビと SNS を省いた最小形、全段を
+下段に著作権表記と法務リンクを置きます。ナビと法務リンクを省いた最小形、全段を
 中央寄せの縦積みにする形の 3 種を並記します。狭幅では各段を中央寄せの縦積み
 にし、`48rem`（md）以上では両端揃えの横並びに切り替わります。無 JS の静的
 表示で `<form>` は使用しません。リンク先はすべて GitHub への外部 URL です。
@@ -36,11 +36,15 @@ const SOCIAL_LINKS: &[(&str, &str)] = &[
 
 /// 自作の幾何アイコン（線画）。`fill="none"` + `stroke="currentColor"` で
 /// `icon` 側の既定塗り面をストロークへ上書きする（`contact_split_form_info`
-/// の `geo_icon` と同型）。
-fn geo_icon(path_d: &str, label: &str) -> Node {
+/// の `geo_icon` と同型）。`label` は `None` なら装飾扱い（`aria-hidden`）、
+/// `Some` なら `role="img"` + `aria-label` を付与する（[`icon`] の
+/// `IconProps.label` 契約）。隣接するテキストが既に同じ名称を提供する
+/// 場合（[`logo`] のロゴアイコン）はブランド名の二重読み上げを避けるため
+/// `None` を渡す。
+fn geo_icon(path_d: &str, label: Option<&str>) -> Node {
     icon(
         &IconProps {
-            label: Some(label),
+            label,
             ..IconProps::default()
         },
         vec![],
@@ -59,12 +63,15 @@ fn geo_icon(path_d: &str, label: &str) -> Node {
     )
 }
 
-/// ブランドロゴ（非リンクの抽象図形アイコン + ブランド名）。
+/// ブランドロゴ（非リンクの抽象図形アイコン + ブランド名）。ロゴアイコンは
+/// 直後の `p` テキストと同じブランド名を表すため、`geo_icon` へ `label:
+/// None` を渡して装飾扱いにする（アクセシブルネームの二重読み上げ回避、
+/// Codex レビュー指摘）。
 fn logo() -> Node {
     div(
         vec![("data-blocks-footer-inline-nav-brand", "")],
         vec![
-            geo_icon("M4 4h16v16H4z M9 9h6v6H9z", "Fandhe Frontend"),
+            geo_icon("M4 4h16v16H4z M9 9h6v6H9z", None),
             p(vec![], vec![text("Fandhe Frontend")]),
         ],
     )
@@ -83,7 +90,7 @@ fn social_links() -> Node {
                     ..LinkProps::default()
                 },
                 vec![("data-blocks-footer-inline-nav-social", "")],
-                vec![geo_icon(path_d, label)],
+                vec![geo_icon(path_d, Some(label))],
             )
         })
         .collect();
@@ -216,7 +223,7 @@ pub fn demo() -> Node {
 }
 ```
 
-## 原案差分メモ
+**原案差分メモ**
 
 主参照 R0493（上段に SNS アイコン列を追加した形）を標準形に採用し、
 R0491（ロゴ + ナビ / 区切り線 / 著作権 + 法務リンク）を標準形の下段構成へ

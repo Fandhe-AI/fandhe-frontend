@@ -93,11 +93,15 @@ const SOCIAL_LINKS: &[(&str, &str)] = &[
 
 /// 自作の幾何アイコン（線画）。`fill="none"` + `stroke="currentColor"` で
 /// `icon` 側の既定塗り面をストロークへ上書きする（`contact_split_form_info`
-/// の `geo_icon` と同型）。
-fn geo_icon(path_d: &str, label: &str) -> Node {
+/// の `geo_icon` と同型）。`label` は `None` なら装飾扱い（`aria-hidden`）、
+/// `Some` なら `role="img"` + `aria-label` を付与する（[`icon`] の
+/// `IconProps.label` 契約）。隣接するテキストが既に同じ名称を提供する
+/// 場合（[`logo`] のロゴアイコン）はブランド名の二重読み上げを避けるため
+/// `None` を渡す。
+fn geo_icon(path_d: &str, label: Option<&str>) -> Node {
     icon(
         &IconProps {
-            label: Some(label),
+            label,
             ..IconProps::default()
         },
         vec![],
@@ -116,12 +120,15 @@ fn geo_icon(path_d: &str, label: &str) -> Node {
     )
 }
 
-/// ブランドロゴ（非リンクの抽象図形アイコン + ブランド名）。
+/// ブランドロゴ（非リンクの抽象図形アイコン + ブランド名）。ロゴアイコンは
+/// 直後の `p` テキストと同じブランド名を表すため、`geo_icon` へ `label:
+/// None` を渡して装飾扱いにする（アクセシブルネームの二重読み上げ回避、
+/// Codex レビュー指摘）。
 fn logo() -> Node {
     div(
         vec![("data-blocks-footer-inline-nav-brand", "")],
         vec![
-            geo_icon("M4 4h16v16H4z M9 9h6v6H9z", "Fandhe Frontend"),
+            geo_icon("M4 4h16v16H4z M9 9h6v6H9z", None),
             p(vec![], vec![text("Fandhe Frontend")]),
         ],
     )
@@ -140,7 +147,7 @@ fn social_links() -> Node {
                     ..LinkProps::default()
                 },
                 vec![("data-blocks-footer-inline-nav-social", "")],
-                vec![geo_icon(path_d, label)],
+                vec![geo_icon(path_d, Some(label))],
             )
         })
         .collect();
@@ -312,7 +319,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-footer-inline-nav-row {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n  text-align: center;\n}\n\
 [data-blocks-footer-inline-nav-brand] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-footer-inline-nav-brand] p {\n  margin: 0;\n  font-weight: var(--fandhe-font-font-weight-bold, 700);\n}\n\
-.blocks-footer-inline-nav-links {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: center;\n  gap: var(--fandhe-space-4);\n  list-style: none;\n  margin: 0;\n  padding: 0;\n}\n\
+[data-scope=\"nav-list\"][data-part=\"list\"].blocks-footer-inline-nav-links {\n  display: flex;\n  flex-direction: row;\n  flex-wrap: wrap;\n  justify-content: center;\n  gap: var(--fandhe-space-4);\n  list-style: none;\n  margin: 0;\n  padding: 0;\n}\n\
 [data-blocks-footer-inline-nav-socials] {\n  display: flex;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-footer-inline-nav-legal] {\n  display: flex;\n  gap: var(--fandhe-space-3);\n}\n\
 @media (min-width: 48rem) {\n  .blocks-footer-inline-nav-row {\n    flex-direction: row;\n    justify-content: space-between;\n    text-align: start;\n  }\n  [data-blocks-footer-inline-nav-align=\"center\"] .blocks-footer-inline-nav-row {\n    flex-direction: column;\n    justify-content: center;\n    text-align: center;\n  }\n}\n\
@@ -372,6 +379,18 @@ mod tests {
         assert!(LAYOUT_CSS.contains("@media (min-width: 48rem)"));
         assert!(LAYOUT_CSS.contains("justify-content: space-between"));
         assert!(LAYOUT_CSS.contains("data-blocks-footer-inline-nav-align=\"center\""));
+    }
+
+    /// Bugbot 指摘（`nav_list` の `[data-scope="nav-list"][data-part="list"]`
+    /// が `flex-direction: column` を課すため `.blocks-footer-inline-nav-links`
+    /// 単体クラスの `row` 指定が specificity で負ける）の回帰テスト。
+    /// override セレクタは `nav_list` 自身と同じ 2 属性セレクタへ自クラスを
+    /// 足した 3 セレクタ構成にし、specificity で上回る。
+    #[test]
+    fn layout_css_overrides_nav_list_column_with_higher_specificity() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"nav-list\"][data-part=\"list\"].blocks-footer-inline-nav-links {\n  display: flex;\n  flex-direction: row;"
+        ));
     }
 
     #[test]
