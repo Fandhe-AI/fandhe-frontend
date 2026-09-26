@@ -74,8 +74,13 @@
 //! は詳細度 (0,2,0)、`text`/`breadcrumb` 各部は (0,3,0)。`breadcrumb::link`
 //! はホバー時に pre-styled-ui のレシピ側 hover ルール（詳細度 (0,4,0)、
 //! `color: var(--fandhe-color-fg)`）に上書きされ暗色面と同色化するため、
-//! `:hover` 付きセレクタで同詳細度 (0,4,0) の上書きを別途宣言する。暗色面
-//! の外側へは影響させないスコープ限定）。
+//! `:hover:not([data-disabled])` 付きセレクタで詳細度 (0,5,0)
+//! （pre-styled-ui 側より 1 段高い詳細度）の上書きを別途宣言する。
+//! 当初は同詳細度 (0,4,0) で宣言していたが、blocks.css と
+//! pre-styled-ui.css の読み込み順に上書きの成否が依存してしまう
+//! （codex-review 指摘、PR #3251）ため、`:not([data-disabled])` を
+//! 追加して常に上書きが効くようにした。暗色面の外側へは影響させない
+//! スコープ限定）。
 //!
 //! # ブレークポイント（48rem をリテラル直書きする理由）
 //!
@@ -348,7 +353,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-section-heading-stacked-tone=\"dark\"] [data-scope=\"text\"][data-part=\"root\"][data-blocks-section-heading-stacked-desc] {\n  color: inherit;\n}\n\
 [data-blocks-section-heading-stacked-tone=\"dark\"] [data-blocks-section-heading-stacked-eyebrow] {\n  color: inherit;\n}\n\
 [data-blocks-section-heading-stacked-tone=\"dark\"] [data-scope=\"breadcrumb\"][data-part=\"link\"] {\n  color: inherit;\n}\n\
-[data-blocks-section-heading-stacked-tone=\"dark\"] [data-scope=\"breadcrumb\"][data-part=\"link\"]:hover {\n  color: inherit;\n}\n\
+[data-blocks-section-heading-stacked-tone=\"dark\"] [data-scope=\"breadcrumb\"][data-part=\"link\"]:hover:not([data-disabled]) {\n  color: inherit;\n}\n\
 [data-blocks-section-heading-stacked-tone=\"dark\"] [data-scope=\"breadcrumb\"][data-part=\"current-link\"] {\n  color: inherit;\n}\n\
 [data-blocks-section-heading-stacked-tone=\"dark\"] [data-scope=\"breadcrumb\"][data-part=\"separator\"] {\n  color: inherit;\n}\n\
 @media (min-width: 48rem) {\n  [data-blocks-section-heading-stacked-align=\"responsive\"] {\n    align-items: flex-start;\n    text-align: left;\n    margin: 0;\n  }\n}\n";
@@ -446,16 +451,19 @@ mod tests {
 
     /// レビュー指摘（暗色面のコントラスト崩れ）の回帰固定。E/F の暗色面
     /// では eyebrow が `--fandhe-color-accent` のまま残らないこと、
-    /// breadcrumb link のホバー時上書きが `:hover` 付き詳細度 (0,4,0) の
-    /// セレクタとして存在すること（pre-styled-ui のレシピ側 hover ルール
-    /// と同詳細度で、暗色面 CSS が後勝ちで上書きする契約）を固定する。
+    /// breadcrumb link のホバー時上書きが `:hover:not([data-disabled])`
+    /// 付き詳細度 (0,5,0) のセレクタとして存在すること（pre-styled-ui の
+    /// レシピ側 hover ルール `:hover:not([data-disabled])`〔詳細度
+    /// (0,4,0)〕より 1 段高い詳細度にして、blocks.css の読み込み順に
+    /// 依存せず常に上書きが効く契約。codex-review 指摘、PR #3251）を
+    /// 固定する。
     #[test]
     fn layout_css_overrides_dark_tone_eyebrow_and_breadcrumb_link_hover() {
         assert!(LAYOUT_CSS.contains(
             "[data-blocks-section-heading-stacked-tone=\"dark\"] [data-blocks-section-heading-stacked-eyebrow] {\n  color: inherit;\n}"
         ));
         assert!(LAYOUT_CSS.contains(
-            "[data-blocks-section-heading-stacked-tone=\"dark\"] [data-scope=\"breadcrumb\"][data-part=\"link\"]:hover {\n  color: inherit;\n}"
+            "[data-blocks-section-heading-stacked-tone=\"dark\"] [data-scope=\"breadcrumb\"][data-part=\"link\"]:hover:not([data-disabled]) {\n  color: inherit;\n}"
         ));
     }
 
