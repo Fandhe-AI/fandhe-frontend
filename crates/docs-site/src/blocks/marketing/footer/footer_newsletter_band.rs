@@ -32,8 +32,12 @@
 //! # 狭い画面幅では帯の見出しとフォームを縦に積む
 //!
 //! `footer_newsletter` と同じ閾値 `@media (max-width: 47.99rem)` で、帯
-//! （`[data-fb]`）と A/B のリンク列（`.ft`）を `flex-direction: column`
-//! へ切り替える。
+//! （`[data-fnb-band]`）・帯内側のフォーム（`[data-fnb-band] > div`）・
+//! A/B のリンク列グリッド（`.fnb-t`）・C の上段（`.fnb-c`）をいずれも
+//! `flex-direction: column` へ切り替える。帯内側のフォームを縦積みに
+//! しないと、メール欄（`width: 100%`）とボタンが横並びのまま帯の
+//! 左右 padding を差し引いた狭幅に収まらずデモが横にはみ出す（イシュー
+//! #2852 の指摘）。
 //!
 //! # `<form>` を使わない・送信処理を持たない
 //!
@@ -212,7 +216,7 @@ const LAYOUT_CSS: &str = "\
 [data-fnb-band] > div {\n  display: flex;\n  align-items: flex-end;\n  gap: var(--fandhe-space-2);\n  flex: 0 1 24rem;\n}\n\
 @media (max-width: 47.99rem) {\n  \
 [data-fnb-band] {\n    flex-direction: column;\n    align-items: stretch;\n  }\n\
-  [data-fnb-band] > div {\n    flex-basis: auto;\n  }\n\
+  [data-fnb-band] > div {\n    flex-basis: auto;\n    flex-direction: column;\n    align-items: stretch;\n  }\n\
   .fnb-t {\n    grid-template-columns: 1fr;\n  }\n\
   .fnb-c {\n    flex-direction: column;\n    align-items: stretch;\n  }\n\
 }\n";
