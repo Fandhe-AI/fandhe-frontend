@@ -399,28 +399,37 @@ fn variant_label(label: &'static str) -> Node {
 /// `IconProps::label: None` で `icon::icon` へ渡すことで
 /// `aria-hidden="true"` を個別に持つ（モジュール doc「trigger 先頭の
 /// アイコン」節）。
+///
+/// 選択中トリガー（`tab.value == selected`）にのみ `aria-current="true"`
+/// を付与し、`-tab-active` class という見た目だけでは伝わらない選択状態を
+/// 支援技術へも伝える（#3263）。`role`/`tabindex` は付与しないため非対話の
+/// ままである。
 fn static_tab_list(id_prefix: &'static str, selected: &'static str) -> Node {
     div(
         vec![("class", "blocks-feature-vertical-tabs-tablist")],
         FEATURES
             .iter()
             .map(|tab| {
-                let class = if tab.value == selected {
+                let is_selected = tab.value == selected;
+                let class = if is_selected {
                     "blocks-feature-vertical-tabs-tab blocks-feature-vertical-tabs-tab-active"
                 } else {
                     "blocks-feature-vertical-tabs-tab"
                 };
-                el_owned(
-                    "div",
-                    vec![
-                        ("class".to_string(), class.to_string()),
-                        (
-                            "id".to_string(),
-                            format!("{id_prefix}-trigger-{0}", tab.value),
-                        ),
-                    ],
-                    trigger_body(tab),
-                )
+                let mut attrs = vec![
+                    ("class".to_string(), class.to_string()),
+                    (
+                        "id".to_string(),
+                        format!("{id_prefix}-trigger-{0}", tab.value),
+                    ),
+                ];
+                // 選択中トリガーのみに `aria-current="true"` を付与し、
+                // 見た目（class）だけでは伝わらない選択状態を支援技術へも
+                // 伝える（#3263）。`role`/`tabindex` は引き続き持たせない。
+                if is_selected {
+                    attrs.push(("aria-current".to_string(), "true".to_string()));
+                }
+                el_owned("div", attrs, trigger_body(tab))
             })
             .collect(),
     )

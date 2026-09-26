@@ -588,28 +588,37 @@ fn variant_label(label: &'static str) -> Node {
 /// `IconProps::label: None` で `icon::icon` へ渡すことで
 /// `aria-hidden="true"` を個別に持つ（モジュール doc「trigger 先頭の
 /// アイコン」節）。
+///
+/// 選択中トリガー（`tab.value == selected`）にのみ `aria-current="true"`
+/// を付与し、`-tab-active` class という見た目だけでは伝わらない選択状態を
+/// 支援技術へも伝える（#3263）。`role`/`tabindex` は付与しないため非対話の
+/// ままである。
 fn static_tab_list(id_prefix: &'static str, selected: &'static str) -> Node {
     div(
         vec![("class", "blocks-feature-vertical-tabs-tablist")],
         FEATURES
             .iter()
             .map(|tab| {
-                let class = if tab.value == selected {
+                let is_selected = tab.value == selected;
+                let class = if is_selected {
                     "blocks-feature-vertical-tabs-tab blocks-feature-vertical-tabs-tab-active"
                 } else {
                     "blocks-feature-vertical-tabs-tab"
                 };
-                el_owned(
-                    "div",
-                    vec![
-                        ("class".to_string(), class.to_string()),
-                        (
-                            "id".to_string(),
-                            format!("{id_prefix}-trigger-{0}", tab.value),
-                        ),
-                    ],
-                    trigger_body(tab),
-                )
+                let mut attrs = vec![
+                    ("class".to_string(), class.to_string()),
+                    (
+                        "id".to_string(),
+                        format!("{id_prefix}-trigger-{0}", tab.value),
+                    ),
+                ];
+                // 選択中トリガーのみに `aria-current="true"` を付与し、
+                // 見た目（class）だけでは伝わらない選択状態を支援技術へも
+                // 伝える（#3263）。`role`/`tabindex` は引き続き持たせない。
+                if is_selected {
+                    attrs.push(("aria-current".to_string(), "true".to_string()));
+                }
+                el_owned("div", attrs, trigger_body(tab))
             })
             .collect(),
     )
@@ -1088,6 +1097,45 @@ mod tests {
                 .count(),
             12
         );
+    }
+
+    /// 各インスタンスの選択中トリガー（`id="...-trigger-{value}"` が
+    /// `selected` と一致する trigger）にのみ `aria-current="true"` が付き、
+    /// 非選択トリガーには付かないこと（#3263 の回帰テスト。`class` だけ
+    /// では伝わらない選択状態を支援技術へも伝える）。
+    #[test]
+    fn demo_marks_only_the_selected_trigger_as_current() {
+        let html = render(&demo());
+        assert_eq!(html.matches("aria-current=\"true\"").count(), 4);
+        for tab in super::FEATURES {
+            let expected = format!(
+                "id=\"blocks-feature-vertical-tabs-{0}-trigger-{0}\" aria-current=\"true\"",
+                tab.value
+            );
+            assert!(
+                html.contains(&expected),
+                "expected selected trigger for {:?} to carry aria-current=\"true\"",
+                tab.value
+            );
+        }
+        // 非選択トリガー（plain class のみ）の開始タグに `aria-current` が
+        // 続かないこと（12 件全てが対象）。
+        let mut idx = 0;
+        let mut plain_trigger_count = 0;
+        while let Some(pos) = html[idx..].find("class=\"blocks-feature-vertical-tabs-tab\" id=") {
+            let start = idx + pos;
+            let tag_end = html[start..]
+                .find('>')
+                .map(|p| start + p)
+                .unwrap_or(html.len());
+            assert!(
+                !html[start..tag_end].contains("aria-current"),
+                "expected non-selected trigger to have no aria-current"
+            );
+            plain_trigger_count += 1;
+            idx = tag_end;
+        }
+        assert_eq!(plain_trigger_count, 12);
     }
 
     /// ルート class（`demo_class` とは別名）が `demo()` の出力へ実際に
