@@ -281,11 +281,11 @@ fn price_panel(with_billing: bool) -> Node {
     let (period_label, price_value, note) = if with_billing {
         (
             "年額払い",
-            "¥298,000 / 年",
-            "月あたり ¥24,833 相当（2 か月分お得な価格です）。",
+            "¥320,000 / 年",
+            "月あたり ¥26,667 相当（2 か月分お得な価格です）。",
         )
     } else {
-        ("一括払い", "¥32,000 / 月", "契約期間の縛りはありません。")
+        ("月額払い", "¥32,000 / 月", "契約期間の縛りはありません。")
     };
     card::root(
         CardProps {
@@ -436,7 +436,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-pricing-single-split-main {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-pricing-single-split-billing {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-pricing-single-split-features] {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-2);\n}\n\
-[data-blocks-pricing-single-split-panel] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
+[data-blocks-pricing-single-split-panel] [data-scope=\"card\"][data-part=\"body\"] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-pricing-single-split-panel] [data-scope=\"button\"] {\n  inline-size: 100%;\n}\n\
 [data-blocks-pricing-single-split-variant=\"billing\"] [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 @media (min-width: 40rem) {\n  \
