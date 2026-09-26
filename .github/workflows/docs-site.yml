@@ -279,6 +279,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-timeline/index.html"
           # Marketing / Team
           # Marketing / Faq
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-accordion-centered/index.html"
           # Marketing / Contact
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-centered-form/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-dialog-form/index.html"
