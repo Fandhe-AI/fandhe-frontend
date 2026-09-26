@@ -316,11 +316,19 @@ fn stepped_card(item: &StatItem, step: u8) -> Node {
 }
 
 /// 変種 1 件分（見出し + 説明 + カードグリッド）を組み立てる。
+///
+/// `centered` が `true`（基準形のみ）のときだけ見出しへ
+/// `data-blocks-stats-cards-section-head-centered` を追加で付与する。
+/// 淡色パネル・段状は付与しないため、md 以上のブレークポイントでも
+/// 左寄せ契約のまま中央寄せに引きずられない
+/// （`[data-blocks-stats-cards-section-head]` 単一セレクタが全変種へ
+/// 誤って波及していた指摘の是正）。
 fn variant_section(
     eyebrow: Option<&'static str>,
     heading_text: &'static str,
     description: &'static str,
     grid_data_attr: &'static str,
+    centered: bool,
     cards: Vec<Node>,
 ) -> Node {
     let mut head_children = vec![];
@@ -352,13 +360,15 @@ fn variant_section(
         vec![text(description)],
     ));
 
+    let mut head_attrs = vec![("data-blocks-stats-cards-section-head", "")];
+    if centered {
+        head_attrs.push(("data-blocks-stats-cards-section-head-centered", ""));
+    }
+
     div(
         vec![("data-blocks-stats-cards-section", "")],
         vec![
-            div(
-                vec![("data-blocks-stats-cards-section-head", "")],
-                head_children,
-            ),
+            div(head_attrs, head_children),
             div(vec![(grid_data_attr, "")], cards),
         ],
     )
@@ -372,6 +382,7 @@ pub fn demo() -> Node {
         "数字で見るプラットフォームの成果",
         "架空の指標です。ダミー数値は毎回同一の内容を返します。",
         "data-blocks-stats-cards-grid-baseline",
+        true,
         BASELINE_ITEMS.iter().map(baseline_card).collect(),
     );
 
@@ -380,6 +391,7 @@ pub fn demo() -> Node {
         "運用品質の指標",
         "淡色パネルに大きなアイコンを添えた表示形です。",
         "data-blocks-stats-cards-grid-panel",
+        false,
         PANEL_ITEMS.iter().map(panel_card).collect(),
     );
 
@@ -393,6 +405,7 @@ pub fn demo() -> Node {
         "導入社数の推移",
         "高さを段状に変えたカードで年次の伸びを示します。",
         "data-blocks-stats-cards-grid-stepped",
+        false,
         stepped_cards,
     );
 

@@ -362,11 +362,19 @@ fn stepped_card(item: &StatItem, step: u8) -> Node {
 }
 
 /// 変種 1 件分（見出し + 説明 + カードグリッド）を組み立てる。
+///
+/// `centered` が `true`（基準形のみ）のときだけ見出しへ
+/// `data-blocks-stats-cards-section-head-centered` を追加で付与する。
+/// 淡色パネル・段状は付与しないため、md 以上のブレークポイントでも
+/// 左寄せ契約のまま中央寄せに引きずられない
+/// （`[data-blocks-stats-cards-section-head]` 単一セレクタが全変種へ
+/// 誤って波及していた指摘の是正）。
 fn variant_section(
     eyebrow: Option<&'static str>,
     heading_text: &'static str,
     description: &'static str,
     grid_data_attr: &'static str,
+    centered: bool,
     cards: Vec<Node>,
 ) -> Node {
     let mut head_children = vec![];
@@ -398,13 +406,15 @@ fn variant_section(
         vec![text(description)],
     ));
 
+    let mut head_attrs = vec![("data-blocks-stats-cards-section-head", "")];
+    if centered {
+        head_attrs.push(("data-blocks-stats-cards-section-head-centered", ""));
+    }
+
     div(
         vec![("data-blocks-stats-cards-section", "")],
         vec![
-            div(
-                vec![("data-blocks-stats-cards-section-head", "")],
-                head_children,
-            ),
+            div(head_attrs, head_children),
             div(vec![(grid_data_attr, "")], cards),
         ],
     )
@@ -418,6 +428,7 @@ pub fn demo() -> Node {
         "数字で見るプラットフォームの成果",
         "架空の指標です。ダミー数値は毎回同一の内容を返します。",
         "data-blocks-stats-cards-grid-baseline",
+        true,
         BASELINE_ITEMS.iter().map(baseline_card).collect(),
     );
 
@@ -426,6 +437,7 @@ pub fn demo() -> Node {
         "運用品質の指標",
         "淡色パネルに大きなアイコンを添えた表示形です。",
         "data-blocks-stats-cards-grid-panel",
+        false,
         PANEL_ITEMS.iter().map(panel_card).collect(),
     );
 
@@ -439,6 +451,7 @@ pub fn demo() -> Node {
         "導入社数の推移",
         "高さを段状に変えたカードで年次の伸びを示します。",
         "data-blocks-stats-cards-grid-stepped",
+        false,
         stepped_cards,
     );
 
@@ -503,12 +516,13 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-stats-cards-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-12);\n}\n\
 [data-blocks-stats-cards-section-head] {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-2);\n  margin-bottom: var(--fandhe-space-6);\n}\n\
+[data-blocks-stats-cards-section-head-centered] {\n  align-items: center;\n  text-align: center;\n}\n\
 [data-blocks-stats-cards-grid-baseline], [data-blocks-stats-cards-grid-panel], [data-blocks-stats-cards-grid-stepped] {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-6);\n}\n\
-[data-blocks-stats-cards-card-header] {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n}\n\
+[data-scope=\"card\"][data-part=\"header\"][data-blocks-stats-cards-card-header] {\n  display: flex;\n  flex-direction: row;\n  align-items: flex-start;\n  justify-content: space-between;\n}\n\
 [data-blocks-stats-cards-icon] {\n  color: var(--fandhe-color-accent);\n}\n\
 [data-blocks-stats-cards-panel-body] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
-[data-blocks-stats-cards-icon-panel] {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 3.5rem;\n  height: 3.5rem;\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg-subtle);\n  color: var(--fandhe-color-accent);\n}\n\
-@media (min-width: 48rem) {\n  [data-blocks-stats-cards-section-head] {\n    align-items: center;\n    text-align: center;\n    max-width: 36rem;\n    margin-inline: auto;\n    margin-bottom: var(--fandhe-space-8);\n  }\n\
+[data-blocks-stats-cards-icon-panel] {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 3.5rem;\n  height: 3.5rem;\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-accent-subtle);\n  color: var(--fandhe-color-accent);\n}\n\
+@media (min-width: 48rem) {\n  [data-blocks-stats-cards-section-head-centered] {\n    max-width: 36rem;\n    margin-inline: auto;\n    margin-bottom: var(--fandhe-space-8);\n  }\n\
   [data-blocks-stats-cards-grid-baseline] {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n\
   [data-blocks-stats-cards-grid-panel] {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n\
   [data-blocks-stats-cards-grid-stepped] {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n    align-items: end;\n  }\n\
