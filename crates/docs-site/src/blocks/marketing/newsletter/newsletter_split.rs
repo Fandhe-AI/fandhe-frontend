@@ -82,9 +82,14 @@
 //! # リンク先を固定リポジトリ URL にする・`mailto`/`href="#"` を使わない
 //!
 //! `crate::blocks` の他 block と同じく [`link::root`] + 固定 URL
-//! （[`REPO`]）で「実際に押せる」導線を表し、可視テキストへ「（GitHub）」を
-//! 付記して表示文言と遷移先の食い違いを避ける（`contact_split_info`
-//! 「表示文言と遷移先の食い違い是正」節と同じ判断）。
+//! （[`REPO`]）で「実際に押せる」導線を表す。実在するプライバシーポリシー
+//! ページは無いため、可視テキストは「プライバシーポリシー」を名乗らず
+//! 遷移先と一致する「プロジェクトリポジトリ」とし、周辺の文言も法的な
+//! 同意を主張しない案内文へ変更する（`banner_cookie_consent`
+//! 「リンク先を外部リポジトリの URL にする理由」節と同じ判断。イシュー
+//! #2796 PR レビュー指摘: 「プライバシーポリシー（GitHub）」の直後に
+//! 「同意したことになります」と表示すると、実在しない文書への法的同意を
+//! 誤って主張することになる）。
 //!
 //! # `<form>` を持たない・データ取得/送信を行わない
 //!
@@ -178,7 +183,7 @@ fn signup(tone: &'static str, email_field_id: &'static str) -> Node {
                 },
                 vec![("data-blocks-newsletter-split-privacy", "")],
                 vec![
-                    text("登録すると "),
+                    text("登録に関する詳細は "),
                     link::root(
                         REPO,
                         &LinkProps {
@@ -187,9 +192,9 @@ fn signup(tone: &'static str, email_field_id: &'static str) -> Node {
                             ..LinkProps::default()
                         },
                         vec![],
-                        vec![text("プライバシーポリシー（GitHub）")],
+                        vec![text("プロジェクトリポジトリ")],
                     ),
-                    text(" に同意したことになります。"),
+                    text(" をご確認ください。"),
                 ],
             ),
         ],
@@ -377,7 +382,7 @@ mod tests {
         assert_eq!(
             html.matches(&format!("href=\"{REPO}\"")).count(),
             3,
-            "3 privacy policy links should point to the fixed repository URL"
+            "3 repository links should point to the fixed repository URL"
         );
     }
 
