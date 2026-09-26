@@ -1425,6 +1425,11 @@ title = "stats-cards"
 source = "site/blocks/stats-cards.md"
 path = "/blocks/stats-cards/"
 
+[[section.group.page]]
+title = "stats-timeline"
+source = "site/blocks/stats-timeline.md"
+path = "/blocks/stats-timeline/"
+
 [[section.group]]
 title = "Contact"
 
