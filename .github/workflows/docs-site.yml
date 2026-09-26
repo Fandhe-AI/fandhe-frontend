@@ -285,6 +285,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-question-rows/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-split-accordion/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-split-static/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-static-grid/index.html"
           # Marketing / Contact
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-centered-form/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-dialog-form/index.html"
