@@ -738,6 +738,21 @@ pub const BLOCK: Block = Block {
 /// 中心を基準にした `left: 50%; transform: translateX(-50%);` で
 /// 左右対称に配置する（左端基準で右へ伸び続ける一方向の overflow では
 /// なく、余剰があれば左右へ均等に分散させる）。
+///
+/// # centered 形の垂直基準線（Bugbot 指摘の是正、PR #3276）
+///
+/// `.blocks-header-flyout-menu-layout`（`[data-blocks-header-flyout-menu-root]`
+/// と同一要素）は 48rem 共有ブロック内で `align-items: flex-start;
+/// min-block-size: 24rem;` を宣言し、フライアウトパネルが伸びる下方向へ
+/// `min-block-size` 分の空間を確保している（前節「フライアウトの高さ
+/// 確保」参照）。当初 centered 形の grid 切替がこの同一要素へ
+/// `align-items: center` を再宣言しており、行全体（トリガー含む）が
+/// `24rem` の箱の中央へ沈み、そこから下へ伸びるパネルの残り高さが半減
+/// して `.blocks-demo`（`overflow-x: auto` でブロック軸も clip）から
+/// はみ出し得た。是正として centered grid 側の `align-items: center` を
+/// 削除し、共有ブロックの `flex-start` をそのまま継承させる（列内の水平
+/// 配置は前節の `justify-self` が個別に担うため、`align-items`
+/// （ブロック軸）の中央寄せは不要）。
 const LAYOUT_CSS: &str = "\
 .blocks-header-flyout-menu-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-header-flyout-menu-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
@@ -765,7 +780,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-header-flyout-menu-actions] {\n    display: flex;\n  }\n  \
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-header-flyout-menu-toggle] {\n    display: none;\n  }\n  \
 .blocks-header-flyout-menu-layout {\n    align-items: flex-start;\n    min-block-size: 24rem;\n  }\n  \
-[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    display: grid;\n    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);\n    align-items: center;\n    gap: var(--fandhe-space-8);\n  }\n  \
+[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    display: grid;\n    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);\n    gap: var(--fandhe-space-8);\n  }\n  \
 [data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-blocks-header-flyout-menu-logo] {\n    justify-self: start;\n  }\n  \
 [data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-flyout-menu-nav] {\n    justify-self: center;\n  }\n  \
 [data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-blocks-header-flyout-menu-actions] {\n    justify-self: end;\n  }\n  \
@@ -998,6 +1013,25 @@ mod tests {
                 "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    display: grid;\n    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);"
             ),
             "centered grid should switch inside the shared 48rem block, block_48={block_48}"
+        );
+    }
+
+    /// centered 形の grid は `align-items: center` を再宣言しないこと
+    /// （Bugbot 指摘の是正回帰、PR #3276、[`LAYOUT_CSS`] doc「centered 形の
+    /// 垂直基準線」節）。同一要素（`.blocks-header-flyout-menu-layout` ＝
+    /// `[data-blocks-header-flyout-menu-root]`）へ 48rem 共有ブロック内で
+    /// 先に `align-items: flex-start` が宣言されているため、centered
+    /// grid 側で `center` を上書きすると `min-block-size: 24rem` の箱の
+    /// 中央へ行全体（ひいてはトリガー）が沈み、そこから下方向へ伸びる
+    /// フライアウトパネルの残り高さが半減して `.blocks-demo` の
+    /// ブロック軸クリップからはみ出しやすくなる。
+    #[test]
+    fn centered_grid_does_not_recenter_block_axis() {
+        assert!(
+            !LAYOUT_CSS.contains(
+                "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    display: grid;\n    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);\n    align-items: center;"
+            ),
+            "centered grid should inherit align-items: flex-start from .blocks-header-flyout-menu-layout, LAYOUT_CSS={LAYOUT_CSS}"
         );
     }
 
