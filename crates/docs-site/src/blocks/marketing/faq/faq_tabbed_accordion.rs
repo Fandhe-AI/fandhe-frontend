@@ -92,7 +92,7 @@ use fandhe_frontend_pre_styled_ui::accordion::{
 };
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
-use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
+use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
 use fandhe_frontend_pre_styled_ui::Size;
 
 /// カテゴリ 1 件分の型（value, label, その 3 件の Q&A）。
@@ -310,6 +310,25 @@ fn category_accordion(category: &str, faqs: &[(&str, &str); 3]) -> Node {
     )
 }
 
+/// カテゴリキャプション見出し（PR #3268 レビュー是正 4 件目、Codex P2）。
+/// [`category_preview`]/[`category_current`] のキャプションを
+/// `styled_text::text` の段落のままにすると、支援技術の見出し一覧から
+/// カテゴリ名の所在が把握できない（`faq_item` 内の h4 は各質問文であり
+/// カテゴリ名を持たない）。`HeadingLevel::H4` + `HeadingSize::Sm` で
+/// 見出し化し、視覚サイズは既存のキャプション（`TextSize::Sm` +
+/// `TextVariant::Muted` 相当）を保ったまま見出しツリーへ載せる。
+fn category_caption(text_content: String) -> Node {
+    heading(
+        HeadingLevel::H4,
+        &HeadingProps {
+            size: HeadingSize::Sm,
+            ..HeadingProps::default()
+        },
+        vec![("class", "blocks-faq-tabbed-accordion-caption")],
+        vec![text(text_content)],
+    )
+}
+
 /// 非選択カテゴリの「選択した場合のプレビュー」キャプション付き accordion
 /// （モジュール doc「実物の `tabs::tabs` を使わない」節、
 /// `feature_tabs_panel::panel_state_preview` と同型）。
@@ -317,15 +336,7 @@ fn category_preview(label: &str, category: &str, faqs: &[(&str, &str); 3]) -> No
     div(
         vec![("class", "blocks-faq-tabbed-accordion-preview")],
         vec![
-            styled_text::text(
-                &TextProps {
-                    size: TextSize::Sm,
-                    variant: TextVariant::Muted,
-                    ..TextProps::default()
-                },
-                vec![],
-                vec![text(format!("「{label}」タブを選択した場合のプレビュー"))],
-            ),
+            category_caption(format!("「{label}」タブを選択した場合のプレビュー")),
             category_accordion(category, faqs),
         ],
     )
@@ -343,15 +354,7 @@ fn category_current(label: &str, category: &str, faqs: &[(&str, &str); 3]) -> No
     div(
         vec![("class", "blocks-faq-tabbed-accordion-preview")],
         vec![
-            styled_text::text(
-                &TextProps {
-                    size: TextSize::Sm,
-                    variant: TextVariant::Muted,
-                    ..TextProps::default()
-                },
-                vec![],
-                vec![text(format!("「{label}」の質問と回答"))],
-            ),
+            category_caption(format!("「{label}」の質問と回答")),
             category_accordion(category, faqs),
         ],
     )
@@ -427,6 +430,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-faq-tabbed-accordion-tab[data-state=\"active\"] {\n  color: var(--fandhe-color-fg);\n  border-bottom-color: var(--fandhe-color-accent);\n}\n\
 .blocks-faq-tabbed-accordion-layout [data-scope=\"accordion\"][data-part=\"item-trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-faq-tabbed-accordion-preview {\n  inline-size: 100%;\n  max-inline-size: 48rem;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
+.blocks-faq-tabbed-accordion-caption {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-faq-tabbed-accordion-trigger-heading {\n  margin: 0;\n  font-size: inherit;\n  font-weight: inherit;\n}\n";
 
 #[cfg(test)]

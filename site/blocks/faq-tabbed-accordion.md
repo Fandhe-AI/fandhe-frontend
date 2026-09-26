@@ -32,7 +32,7 @@ use fandhe_frontend_pre_styled_ui::accordion::{
 };
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
-use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
+use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
 use fandhe_frontend_pre_styled_ui::Size;
 
 /// カテゴリ 1 件分の型（value, label, その 3 件の Q&A）。
@@ -250,6 +250,25 @@ fn category_accordion(category: &str, faqs: &[(&str, &str); 3]) -> Node {
     )
 }
 
+/// カテゴリキャプション見出し（PR #3268 レビュー是正 4 件目、Codex P2）。
+/// [`category_preview`]/[`category_current`] のキャプションを
+/// `styled_text::text` の段落のままにすると、支援技術の見出し一覧から
+/// カテゴリ名の所在が把握できない（`faq_item` 内の h4 は各質問文であり
+/// カテゴリ名を持たない）。`HeadingLevel::H4` + `HeadingSize::Sm` で
+/// 見出し化し、視覚サイズは既存のキャプション（`TextSize::Sm` +
+/// `TextVariant::Muted` 相当）を保ったまま見出しツリーへ載せる。
+fn category_caption(text_content: String) -> Node {
+    heading(
+        HeadingLevel::H4,
+        &HeadingProps {
+            size: HeadingSize::Sm,
+            ..HeadingProps::default()
+        },
+        vec![("class", "blocks-faq-tabbed-accordion-caption")],
+        vec![text(text_content)],
+    )
+}
+
 /// 非選択カテゴリの「選択した場合のプレビュー」キャプション付き accordion
 /// （モジュール doc「実物の `tabs::tabs` を使わない」節、
 /// `feature_tabs_panel::panel_state_preview` と同型）。
@@ -257,15 +276,7 @@ fn category_preview(label: &str, category: &str, faqs: &[(&str, &str); 3]) -> No
     div(
         vec![("class", "blocks-faq-tabbed-accordion-preview")],
         vec![
-            styled_text::text(
-                &TextProps {
-                    size: TextSize::Sm,
-                    variant: TextVariant::Muted,
-                    ..TextProps::default()
-                },
-                vec![],
-                vec![text(format!("「{label}」タブを選択した場合のプレビュー"))],
-            ),
+            category_caption(format!("「{label}」タブを選択した場合のプレビュー")),
             category_accordion(category, faqs),
         ],
     )
@@ -283,15 +294,7 @@ fn category_current(label: &str, category: &str, faqs: &[(&str, &str); 3]) -> No
     div(
         vec![("class", "blocks-faq-tabbed-accordion-preview")],
         vec![
-            styled_text::text(
-                &TextProps {
-                    size: TextSize::Sm,
-                    variant: TextVariant::Muted,
-                    ..TextProps::default()
-                },
-                vec![],
-                vec![text(format!("「{label}」の質問と回答"))],
-            ),
+            category_caption(format!("「{label}」の質問と回答")),
             category_accordion(category, faqs),
         ],
     )
@@ -346,6 +349,12 @@ pub fn demo() -> Node {
   `aria-hidden` なタブ列にしか存在しない状態だったため、残り 2 カテゴリと
   同様に可視キャプション「「{カテゴリ名}」の質問と回答」を付けました
   （Codex P1 2 件・Bugbot Medium 1 件の指摘、PR #3268）。
+- （4 回目のレビュー是正）カテゴリキャプション（「「{カテゴリ名}」の質問と
+  回答」/「「{カテゴリ名}」タブを選択した場合のプレビュー」）が
+  `styled_text::text` の段落のままで、支援技術の見出し一覧からカテゴリ名の
+  所在が把握できませんでした（Codex P2 の指摘、PR #3268）。`h4` 見出し
+  （`category_caption`）へ変更し、視覚サイズは既存の小さめ・ミュート色を
+  `HeadingSize::Sm` + 専用 CSS で保っています。
 
 関連情報: [Heading](../themes/heading.md) / [Text](../themes/text.md) /
 [Badge](../themes/badge.md) / [Accordion](../themes/accordion.md)
