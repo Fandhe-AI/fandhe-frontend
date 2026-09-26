@@ -155,7 +155,10 @@ fn intro_row_variant() -> Node {
     );
 
     div(
-        vec![("data-blocks-stats-split-variant", "intro-row")],
+        vec![
+            ("class", "blocks-stats-split-intro-row"),
+            ("data-blocks-stats-split-variant", "intro-row"),
+        ],
         vec![
             intro,
             separator::separator(

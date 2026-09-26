@@ -201,7 +201,10 @@ fn intro_row_variant() -> Node {
     );
 
     div(
-        vec![("data-blocks-stats-split-variant", "intro-row")],
+        vec![
+            ("class", "blocks-stats-split-intro-row"),
+            ("data-blocks-stats-split-variant", "intro-row"),
+        ],
         vec![
             intro,
             separator::separator(
@@ -279,6 +282,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-stats-split-left {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  max-width: 28rem;\n}\n\
 .blocks-stats-split-grid {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-6);\n}\n\
 [data-blocks-stats-split-stat-bottom] {\n  border-bottom: 1px solid var(--fandhe-color-border);\n  padding-block-end: var(--fandhe-space-4);\n}\n\
+.blocks-stats-split-intro-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-stats-split-intro {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-stats-split-grid-intro {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-6);\n  margin-top: var(--fandhe-space-6);\n}\n\
 [data-blocks-stats-split-stat-left] {\n  border-inline-start: 2px solid var(--fandhe-color-border);\n  padding-inline-start: var(--fandhe-space-4);\n}\n\
