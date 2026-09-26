@@ -49,6 +49,15 @@
 //! （`contact_split_form_image` と同型の中和パターン）。年額を選んだ状態
 //! （`checked: true`）で固定する。
 //!
+//! ネイティブ disabled な radio は多くの支援技術のフォームモード走査から
+//! 除外され、選択肢・選択状態が伝わらない（Codex レビュー指摘、イシュー
+//! #2867 PR #3280）。[`radio_card::root`] は `disabled` を渡しても
+//! `aria-disabled` を自動付与しない（[`fandhe_frontend_headless_ui::
+//! radio_group::root`] と異なる仕様）ため `contact_split_form_image` と
+//! 同様に `attrs` 経由で明示付与し、加えて radio の checked 状態に依存しない
+//! 独立した [`styled_text::text`] で現在の選択を明文化する
+//! （[`billing_toggle`] 参照）。
+//!
 //! # 参照について
 //!
 //! 主参照は対応表 ID R1144、集約元は R0200。取得手段・ファイル名・出典名・
@@ -213,6 +222,14 @@ fn billing_item(checked: bool, value: &'static str, label: &'static str) -> Node
 /// 支払周期選択欄（見出し + radio card 2 択。狭幅は縦積み・`48rem` 以上は
 /// 横並び、モジュール doc「ブレークポイント」節）。年額を選んだ状態
 /// （`checked: true`）で固定する静的表示。
+///
+/// `root` へ `aria-disabled="true"` を明示付与し（モジュール doc「支払周期
+/// radio card をネイティブ disabled にする理由」節、`radio_card::root` は
+/// `radio_group::root` と異なり `disabled` から自動付与しない）、さらに
+/// radio の checked 状態に依存しない [`styled_text::text`] で現在の選択を
+/// 明文化する。ネイティブ disabled な radio は支援技術のフォームモード
+/// 走査から除外され得るため、選択肢の伝達は `billing_item` の可視テキスト
+/// （フォームモードの影響を受けない）に、現在状態の伝達はこの文へ委ねる。
 fn billing_toggle() -> Node {
     div(
         vec![("class", "blocks-pricing-single-split-billing")],
@@ -224,11 +241,20 @@ fn billing_toggle() -> Node {
                 true,
                 None::<Orientation>,
                 Some(BILLING_LABEL_ID),
-                vec![],
+                vec![("aria-disabled", "true")],
                 vec![
                     billing_item(false, "monthly", "月額払い"),
                     billing_item(true, "yearly", "年額払い（2 か月分お得）"),
                 ],
+            ),
+            styled_text::text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    variant: TextVariant::Muted,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text("現在の選択: 年額払い（2 か月分お得）")],
             ),
         ],
     )
@@ -507,6 +533,19 @@ mod tests {
         let labelledby_attr = format!("aria-labelledby=\"{BILLING_LABEL_ID}\"");
         assert!(html.contains(&id_attr));
         assert!(html.contains(&labelledby_attr));
+    }
+
+    /// 支払周期選択の disabled radio が支援技術のフォームモード走査から
+    /// 除外されても選択肢・現在状態が伝わるよう、`root` の
+    /// `aria-disabled="true"` と現在状態を明文化した静的テキストが出力
+    /// されることを固定する（Codex レビュー指摘の是正、イシュー #2867
+    /// PR #3280。モジュール doc「支払周期 radio card をネイティブ disabled
+    /// にする理由」節）。
+    #[test]
+    fn billing_toggle_conveys_state_without_relying_on_disabled_radio() {
+        let html = demo_html();
+        assert!(html.contains(r#"aria-disabled="true""#));
+        assert!(html.contains("現在の選択: 年額払い（2 か月分お得）"));
     }
 
     /// [`LAYOUT_CSS`] が狭幅で縦積み・`48rem` 以上で 2 カラム grid・機能

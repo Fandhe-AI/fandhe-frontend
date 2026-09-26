@@ -125,6 +125,14 @@ fn billing_item(checked: bool, value: &'static str, label: &'static str) -> Node
 /// 支払周期選択欄（見出し + radio card 2 択。狭幅は縦積み・`48rem` 以上は
 /// 横並び、モジュール doc「ブレークポイント」節）。年額を選んだ状態
 /// （`checked: true`）で固定する静的表示。
+///
+/// `root` へ `aria-disabled="true"` を明示付与し（モジュール doc「支払周期
+/// radio card をネイティブ disabled にする理由」節、`radio_card::root` は
+/// `radio_group::root` と異なり `disabled` から自動付与しない）、さらに
+/// radio の checked 状態に依存しない [`styled_text::text`] で現在の選択を
+/// 明文化する。ネイティブ disabled な radio は支援技術のフォームモード
+/// 走査から除外され得るため、選択肢の伝達は `billing_item` の可視テキスト
+/// （フォームモードの影響を受けない）に、現在状態の伝達はこの文へ委ねる。
 fn billing_toggle() -> Node {
     div(
         vec![("class", "blocks-pricing-single-split-billing")],
@@ -136,11 +144,20 @@ fn billing_toggle() -> Node {
                 true,
                 None::<Orientation>,
                 Some(BILLING_LABEL_ID),
-                vec![],
+                vec![("aria-disabled", "true")],
                 vec![
                     billing_item(false, "monthly", "月額払い"),
                     billing_item(true, "yearly", "年額払い（2 か月分お得）"),
                 ],
+            ),
+            styled_text::text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    variant: TextVariant::Muted,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text("現在の選択: 年額払い（2 か月分お得）")],
             ),
         ],
     )
@@ -289,6 +306,10 @@ pub fn demo() -> Node {
   切り替えてしまう一方、カードの見た目は SSR 時点の固定値のままで追従し
   ません。実際に選択される値・支援技術が認識する状態・見た目が食い違う
   ことを避けるため、ネイティブ `disabled` で操作自体を不能にしています。
+  ネイティブ disabled な radio は支援技術のフォームモード走査から除外され
+  得るため、`root` へ `aria-disabled="true"` を明示付与し、加えて radio の
+  checked 状態に依存しない静的テキストで現在の選択（年額払い）を明文化
+  しています。
 - 狭い幅では価格パネルが本文カラムの下へ続けて縦に積まれます（`48rem`
   未満）。含まれる機能の一覧は `40rem` 以上で 2 列になります。
 - 機能一覧・プラン名・価格はすべて独自に書いた架空のものにしました。
