@@ -8,27 +8,33 @@ R0984。出典の固有名・ファイル名は記載しません）。
 
 幅を制限したバー（ブランド / ナビ / アクション）の下に、ヘッダー全幅まで
 広がるドロップダウンパネルを持ちます。パネルはアイコン付き項目を複数列に
-並べた構成です。無 JS の静的表示のためハンバーガーへの開閉切り替えは
-持たず、狭い幅ではバー内でナビ・アクションを折り返して常時到達可能な
-まま残します。
+並べた構成に加え、下部に実在ページへの補助 CTA 帯（リンク 2 件）を持ちます。
+無 JS の静的表示のためハンバーガーへの開閉切り替えは持たず、幅広インスタンス
+は狭い幅ではバー内でナビ・アクションを折り返して常時到達可能なまま残します。
+加えて、狭いビューポートでの見え方を「幅広（プロダクトを展開）」「狭幅
+（メニュー展開時）」の 2 状態として並記します。狭幅側のメニューボタンは
+既に展開済み（`aria-expanded="true"`）で操作不能（`disabled`）な状態を
+静的に示すのみで、実際の開閉処理は持ちません。
 
-本 Demo は静的な表示例であり、唯一のドロップダウン（プロダクト）を常時
-展開（open）した状態で固定します。トリガーを持たないトップ項目（料金・
-ドキュメント）はリンクのみで構成し、無 JS のドキュメントサイトでも
-本文へ到達できない閉じたトリガーを残しません。`<form>` 要素は一切持たず、
-データの取得・送信・状態管理を行いません。ボタンは `type="button"` の
-まま送信先を持ちません。文言・ブランド名はすべて独自に書いた架空の
-ものであり、実企業名・実クレデンシャル・PII を含みません。
+本 Demo は静的な表示例であり、両インスタンスとも唯一のドロップダウン
+（プロダクト）を常時展開（open）した状態で固定します。トリガーを持たない
+トップ項目（料金・ドキュメント）はリンクのみで構成し、無 JS のドキュメント
+サイトでも本文へ到達できない閉じたトリガーを残しません。補助 CTA 帯は
+送信先を持たない `button` ではなく実在ページへ遷移する `link` のみで
+構成します。`<form>` 要素は一切持たず、データの取得・送信・状態管理を
+行いません。ボタンは `type="button"` のまま送信先を持ちません。文言・
+ブランド名はすべて独自に書いた架空のものであり、実企業名・実クレデンシャル・
+PII を含みません。
 
 ## Rust コード
 
 ```rust
 use fandhe_frontend_core::{div, el, span, text, Node};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
+use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::icon::{self, IconProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::navigation_menu::{self, NavigationMenuProps, OpenState};
-use fandhe_frontend_pre_styled_ui::Size;
+use fandhe_frontend_pre_styled_ui::{Orientation, Size};
 
 /// パネル項目 1 件（タイトル, 説明, href, アイコンの `path` `d`）。href は
 /// サイト内に実在する索引ページへの相対パス（モジュール冒頭 rustdoc「href
@@ -91,12 +97,21 @@ const PANEL_COLUMNS: [PanelColumn; 2] = [
     ),
 ];
 
-/// 唯一開いた状態で固定するトリガーの `id`（モジュール冒頭 rustdoc
-/// 「id 接頭辞」節。項目が 1 件のみのため `format!` による添字展開は
-/// 行わない）。
+/// 幅広インスタンスで唯一開いた状態で固定するトリガーの `id`（モジュール
+/// 冒頭 rustdoc「id 接頭辞」節。項目が 1 件のみのため `format!` による
+/// 添字展開は行わない）。
 const PRODUCTS_TRIGGER_ID: &str = "blocks-header-mega-menu-products-trigger";
 /// [`PRODUCTS_TRIGGER_ID`] と対になる `content` の `id`。
 const PRODUCTS_CONTENT_ID: &str = "blocks-header-mega-menu-products-content";
+
+/// 狭幅インスタンス（[`mobile_preview`]）側のプロダクトトリガー `id`
+/// （モジュール冒頭 rustdoc「狭幅インスタンスの並記」節）。
+const MOBILE_PRODUCTS_TRIGGER_ID: &str = "blocks-header-mega-menu-mobile-products-trigger";
+/// [`MOBILE_PRODUCTS_TRIGGER_ID`] と対になる `content` の `id`。
+const MOBILE_PRODUCTS_CONTENT_ID: &str = "blocks-header-mega-menu-mobile-products-content";
+/// 狭幅インスタンスの展開済みパネル自体の `id`（メニュートグルボタンの
+/// `aria-controls` が参照する）。
+const MOBILE_PANEL_ID: &str = "blocks-header-mega-menu-mobile-panel";
 
 /// リポジトリ実 URL（`href` の方針）。本サイトに実在するログインページは
 /// 無いため、遷移先はこの実在の外部 URL を使う。ただし [`actions`] の
@@ -122,7 +137,8 @@ fn brand_icon() -> Node {
     )
 }
 
-/// ブランド領域（アイコン + 架空のブランド名）。
+/// ブランド領域（アイコン + 架空のブランド名）。幅広バー（[`bar`]）・
+/// 狭幅バー（[`mobile_bar`]）の双方から呼ばれる共通部品。
 fn brand() -> Node {
     div(
         vec![("class", "blocks-header-mega-menu-brand")],
@@ -130,10 +146,10 @@ fn brand() -> Node {
     )
 }
 
-/// パネル項目のアイコン（線画、装飾用途。[`error_page_popular_links`] の
-/// `stroke_icon` と同型のパターンで、`icon::icon` の `currentColor`
-/// 継承に任せ生の色リテラルは持ち込まない。PR #3273 レビュー指摘（P2）
-/// 是正: 従来ブランド領域にしか icon が無かった不整合を解消する）。
+/// パネル項目・補助 CTA 帯・メニュートグルボタンで共有する線画アイコン
+/// （装飾用途。[`error_page_popular_links`] の `stroke_icon` と同型の
+/// パターンで、`icon::icon` の `currentColor` 継承に任せ生の色リテラルは
+/// 持ち込まない）。
 ///
 /// [`error_page_popular_links`]: crate::blocks::marketing::error_page::error_page_popular_links
 fn item_icon(path_d: &str) -> Node {
@@ -198,8 +214,54 @@ fn panel_column(heading: &str, items: &[PanelItem; 3]) -> Node {
     )
 }
 
+/// 補助 CTA 帯のリンク 1 本（モジュール冒頭 rustdoc「補助 CTA 帯」節）。
+/// `link::root` は `drop_class_attr` で `class` を除去するため、CSS フックは
+/// `data-blocks-header-mega-menu-panel-footer-link` 属性で渡す。
+fn footer_link(href: &str, label: &str, icon_path_d: &str) -> Node {
+    link::root(
+        href,
+        &LinkProps::default(),
+        vec![("data-blocks-header-mega-menu-panel-footer-link", "")],
+        vec![item_icon(icon_path_d), text(label)],
+    )
+}
+
+/// パネル下部の補助 CTA 帯（モジュール冒頭 rustdoc「補助 CTA 帯」節）。
+/// 実在ページへのリンク 2 件のみで構成し、送信先を持たない `button` は
+/// 使わない。幅広（[`products_item`] の幅広インスタンス）・狭幅
+/// （狭幅インスタンス）の両パネルへ同一の内容を配置する。
+fn panel_footer() -> Node {
+    div(
+        vec![("class", "blocks-header-mega-menu-panel-footer")],
+        vec![div(
+            vec![("class", "blocks-header-mega-menu-panel-footer-inner")],
+            vec![
+                span(
+                    vec![("class", "blocks-header-mega-menu-panel-footer-text")],
+                    vec![text(
+                        "導入を検討中ですか。まずは無料プランから始められます。",
+                    )],
+                ),
+                div(
+                    vec![("class", "blocks-header-mega-menu-panel-footer-links")],
+                    vec![
+                        footer_link(
+                            "../../guides/",
+                            "導入ガイドを見る",
+                            "M12 3v18M4 8l8-5 8 5M4 16l8 5 8-5",
+                        ),
+                        footer_link(REPO, "GitHub で見る", "M8 6 3 12l5 6M16 6l5 6-5 6"),
+                    ],
+                ),
+            ],
+        )],
+    )
+}
+
 /// 「プロダクト」トップ項目（唯一のドロップダウン、常時 open 固定）。
-fn products_item(props: &NavigationMenuProps) -> Node {
+/// `trigger_id`/`content_id` を引数化し、幅広・狭幅の各インスタンスから
+/// 異なる `id` の組で呼び出す（モジュール冒頭 rustdoc「id 接頭辞」節）。
+fn products_item(props: &NavigationMenuProps, trigger_id: &str, content_id: &str) -> Node {
     let state = OpenState::Open;
     let columns: Vec<Node> = PANEL_COLUMNS
         .iter()
@@ -217,8 +279,8 @@ fn products_item(props: &NavigationMenuProps) -> Node {
                 state,
                 true,
                 "products",
-                Some(PRODUCTS_TRIGGER_ID),
-                Some(PRODUCTS_CONTENT_ID),
+                Some(trigger_id),
+                Some(content_id),
                 vec![],
                 vec![
                     text("プロダクト"),
@@ -235,13 +297,16 @@ fn products_item(props: &NavigationMenuProps) -> Node {
                 state,
                 props,
                 "products",
-                Some(PRODUCTS_CONTENT_ID),
-                Some(PRODUCTS_TRIGGER_ID),
+                Some(content_id),
+                Some(trigger_id),
                 vec![],
-                vec![div(
-                    vec![("class", "blocks-header-mega-menu-panel-inner")],
-                    columns,
-                )],
+                vec![
+                    div(
+                        vec![("class", "blocks-header-mega-menu-panel-inner")],
+                        columns,
+                    ),
+                    panel_footer(),
+                ],
             ),
         ],
     )
@@ -264,41 +329,50 @@ fn link_item(props: &NavigationMenuProps, value: &str, label: &str, href: &str) 
     )
 }
 
-/// バー内のナビゲーション（メガメニュー本体）。
-fn nav() -> Node {
-    let props = NavigationMenuProps::default();
+/// バー内のナビゲーション（メガメニュー本体）。幅広（[`bar`]）・狭幅
+/// （[`mobile_panel`]）の両インスタンスから、`class`/`aria-label`/
+/// トリガー・content の `id` の組を変えて呼び出す共通実装
+/// （モジュール冒頭 rustdoc「静的表示」節）。
+fn nav(
+    props: &NavigationMenuProps,
+    class_name: &str,
+    aria_label: &str,
+    trigger_id: &str,
+    content_id: &str,
+) -> Node {
     navigation_menu::root(
-        &props,
-        "メインメニュー",
-        vec![("class", "blocks-header-mega-menu-nav")],
+        props,
+        aria_label,
+        vec![("class", class_name)],
         vec![navigation_menu::list(
-            &props,
+            props,
             vec![],
             vec![
-                products_item(&props),
+                products_item(props, trigger_id, content_id),
                 link_item(
-                    &props,
+                    props,
                     "pricing",
                     "料金",
                     "../../blocks/pricing-comparison-table/",
                 ),
-                link_item(&props, "docs", "ドキュメント", "../../guides/"),
+                link_item(props, "docs", "ドキュメント", "../../guides/"),
             ],
         )],
     )
 }
 
-/// バー右側のアクション（GitHub リンク + CTA ボタン）。PR #3273 レビュー
-/// 指摘（P2）是正: 当初「ログイン」ラベルで [`REPO`]（GitHub リポジトリ）
-/// へ遷移させていたが、本サイトに実在するログインページは無く、リンク名
-/// （ログイン）と実際の行き先（GitHub）が食い違っていた。行き先を変えず
-/// ラベルを実態（GitHub リポジトリ）に合わせて是正する（[`REPO`] の doc
-/// コメント参照）。CTA（「無料で始める」）は遷移先・送信処理を持たない
-/// no-op のため、`disabled: true` にしてフォーカス・クリック不能を明示する
-/// （`disabled_declarations()`〔既定 `opacity: 0.5`〕は中和せずそのまま
-/// 適用し、操作できない CTA だと見た目でも分かるよう無効表示のまま残す。
-/// レビュー指摘是正: 中和すると押せる見た目のまま実際には押せない食い違い
-/// が残っていた）。
+/// バー右側のアクション（GitHub リンク + CTA ボタン）。幅広バー
+/// （[`bar`]）・狭幅パネル（[`mobile_panel`]）の双方から呼ばれる共通部品。
+/// PR #3273 レビュー指摘（P2）是正: 当初「ログイン」ラベルで [`REPO`]
+/// （GitHub リポジトリ）へ遷移させていたが、本サイトに実在するログイン
+/// ページは無く、リンク名（ログイン）と実際の行き先（GitHub）が食い違って
+/// いた。行き先を変えずラベルを実態（GitHub リポジトリ）に合わせて是正
+/// する（[`REPO`] の doc コメント参照）。CTA（「無料で始める」）は遷移先・
+/// 送信処理を持たない no-op のため、`disabled: true` にしてフォーカス・
+/// クリック不能を明示する（`disabled_declarations()`〔既定 `opacity:
+/// 0.5`〕は中和せずそのまま適用し、操作できない CTA だと見た目でも分かる
+/// よう無効表示のまま残す。レビュー指摘是正: 中和すると押せる見た目の
+/// まま実際には押せない食い違いが残っていた）。
 fn actions() -> Node {
     div(
         vec![("class", "blocks-header-mega-menu-actions")],
@@ -322,7 +396,17 @@ fn actions() -> Node {
 fn bar() -> Node {
     div(
         vec![("class", "blocks-header-mega-menu-bar")],
-        vec![brand(), nav(), actions()],
+        vec![
+            brand(),
+            nav(
+                &NavigationMenuProps::default(),
+                "blocks-header-mega-menu-nav",
+                "メインメニュー",
+                PRODUCTS_TRIGGER_ID,
+                PRODUCTS_CONTENT_ID,
+            ),
+            actions(),
+        ],
     )
 }
 
@@ -337,9 +421,10 @@ fn page_placeholder() -> Node {
     )
 }
 
-/// `header-mega-menu` の Demo 本体。呼び出しごとに同一の `Node` を返す
-/// 純関数（モジュール doc「静的表示」節）。
-pub fn demo() -> Node {
+/// 幅広インスタンス（バー + ダミー本文）。旧 `demo()` の出力そのもの
+/// （本イシューで [`demo`] が幅広・狭幅の 2 状態を並記する構成へ変わった
+/// ため、幅広分をこの関数へ切り出した）。
+fn layout() -> Node {
     div(
         vec![("class", "blocks-header-mega-menu-layout")],
         vec![
@@ -351,7 +436,113 @@ pub fn demo() -> Node {
         ],
     )
 }
+
+/// 状態並記の見出し（モジュール冒頭 rustdoc「狭幅インスタンスの並記」
+/// 節）。
+fn state_label(label: &str) -> Node {
+    span(
+        vec![("class", "blocks-header-mega-menu-state-label")],
+        vec![text(label)],
+    )
+}
+
+/// 狭幅インスタンスのバー（ブランド + メニュートグルボタン）。ボタンは
+/// 押しても状態が変わらない no-op のため `disabled: true` にし、既に
+/// 展開済みであることを `aria-expanded="true"` + `aria-controls` で示す
+/// （モジュール冒頭 rustdoc「狭幅インスタンスの並記」節）。
+fn mobile_bar() -> Node {
+    div(
+        vec![("class", "blocks-header-mega-menu-mobile-bar")],
+        vec![
+            brand(),
+            button::icon_button(
+                &ButtonProps {
+                    variant: ButtonVariant::Ghost,
+                    disabled: true,
+                    ..ButtonProps::default()
+                },
+                "メニュー",
+                vec![
+                    ("aria-expanded", "true"),
+                    ("aria-controls", MOBILE_PANEL_ID),
+                    ("data-blocks-header-mega-menu-menu-toggle", ""),
+                ],
+                vec![item_icon("M3 6h18M3 12h18M3 18h18")],
+            ),
+        ],
+    )
+}
+
+/// 狭幅インスタンスの展開済みパネル（[`nav`] の縦並び構成 + [`actions`]）。
+/// `hidden` を持たず常時表示する（モジュール冒頭 rustdoc「狭幅
+/// インスタンスの並記」節）。
+fn mobile_panel() -> Node {
+    let props = NavigationMenuProps {
+        orientation: Orientation::Vertical,
+    };
+    div(
+        vec![
+            ("id", MOBILE_PANEL_ID),
+            ("class", "blocks-header-mega-menu-mobile-panel"),
+        ],
+        vec![
+            nav(
+                &props,
+                "blocks-header-mega-menu-mobile-nav",
+                "メインメニュー（狭幅）",
+                MOBILE_PRODUCTS_TRIGGER_ID,
+                MOBILE_PRODUCTS_CONTENT_ID,
+            ),
+            actions(),
+        ],
+    )
+}
+
+/// 狭幅インスタンス全体（バー + 展開済みパネル）。[`demo`] が幅広
+/// インスタンス（[`layout`]）と並べて描画する。
+fn mobile_preview() -> Node {
+    div(
+        vec![("class", "blocks-header-mega-menu-mobile")],
+        vec![mobile_bar(), mobile_panel()],
+    )
+}
+
+/// `header-mega-menu` の Demo 本体。呼び出しごとに同一の `Node` を返す
+/// 純関数（モジュール doc「静的表示」節）。幅広インスタンス
+/// （[`layout`]）と狭幅（メニュー展開時）インスタンス（[`mobile_preview`]）
+/// を見出し付きで並記する（本イシューで追加、モジュール冒頭 rustdoc
+/// 「狭幅インスタンスの並記」節）。
+pub fn demo() -> Node {
+    div(
+        vec![("class", "blocks-header-mega-menu-states")],
+        vec![
+            state_label("幅広（プロダクトを展開）"),
+            layout(),
+            state_label("狭幅（メニュー展開時）"),
+            mobile_preview(),
+        ],
+    )
+}
 ```
+
+## 原案差分メモ
+
+主参照（R0984）は開閉可能な JS 実装のメガメニューを想定しますが、本
+Demo は無 JS の静的合成例のため以下の差分があります。
+
+- 開閉・hover 展開を持たず、唯一のドロップダウン（プロダクト）を常時
+  open 固定し、そのトリガーは `disabled` にして操作不能を明示します。
+- ドロップダウンはプロダクト 1 件のみで、料金・ドキュメントはリンクのみの
+  項目です。
+- 「狭幅ではハンバーガーに畳む」という一般的な実装は、ビューポート幅に
+  連動した自動切り替えではなく、「狭幅（メニュー展開時）」インスタンスの
+  並記で表現します。メニューボタンは `disabled` + `aria-expanded="true"`
+  の静的状態のみを示します。
+- 幅広インスタンスは狭い画面でバー・ナビ一覧を折り返し、常時到達可能な
+  まま残します。
+- 主 CTA ボタン（「無料で始める」）は遷移先を持たない `disabled` 表示です。
+  一方、パネル下部の補助 CTA 帯は実在ページへのリンクのみで構成します。
+- 文言・ロゴ・配色はすべて独自に書いた架空のものです。
 
 関連情報: [Navigation Menu](../themes/navigation-menu.md) /
 [Button](../themes/button.md) / [Icon](../themes/icon.md) /
