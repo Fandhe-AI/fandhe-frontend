@@ -75,37 +75,13 @@ use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
 
-/// 架空の Q&A 一覧（実在の企業名・個人情報は含まない）。3 列 × 2 行が
-/// 埋まる 6 件（[`LAYOUT_CSS`] の `lg` 以上 3 列との整合、モジュール doc
-/// 「レイアウト」節）。
-const FAQS: [(&str, &str); 6] = [
-    (
-        "アカウントは何人まで招待できますか",
-        "プランごとに上限人数が異なります。上限に達した場合はプラン変更でメンバー数を拡張できます。",
-    ),
-    (
-        "利用データのバックアップは自動で行われますか",
-        "日次で自動バックアップを取得しています。手動でのエクスポートもいつでも可能です。",
-    ),
-    (
-        "無料トライアル期間はありますか",
-        "登録から 14 日間、主要機能を無料でお試しいただけます。クレジットカード登録は不要です。",
-    ),
-    (
-        "プランのダウングレードはいつでもできますか",
-        "次回更新日からのダウングレードが可能です。日割りでの即時反映は行っておりません。",
-    ),
-    (
-        "API の利用回数に上限はありますか",
-        "プランごとに月間の呼び出し回数上限を設けています。詳細は料金ページをご確認ください。",
-    ),
-    (
-        "退会時にデータは削除されますか",
-        "退会手続き完了後、一定期間の保持を経てデータを削除します。保持期間中は再開により復元できます。",
-    ),
+/// Q&A。
+const FAQS: [(&str, &str); 2] = [
+    ("招待上限は", "プラン次第。"),
+    ("無料期間は", "14日間無料。"),
 ];
 
-/// 導入部（左寄せの見出し + 問い合わせ導線を含むリード文）。
+/// 導入部。
 fn header() -> Node {
     div(
         vec![("class", "blocks-faq-static-grid-header")],
@@ -117,7 +93,7 @@ fn header() -> Node {
                     ..HeadingProps::default()
                 },
                 vec![],
-                vec![text("よくある質問")],
+                vec![text("FAQ")],
             ),
             styled_text::text(
                 &TextProps {
@@ -125,25 +101,21 @@ fn header() -> Node {
                     ..TextProps::default()
                 },
                 vec![],
-                vec![
-                    text("こちらで解決しない場合は、"),
-                    link::root(
-                        REPO,
-                        &LinkProps {
-                            variant: LinkVariant::Underline,
-                            ..LinkProps::default()
-                        },
-                        vec![],
-                        vec![text("GitHub のリポジトリ")],
-                    ),
-                    text("からお問い合わせください。"),
-                ],
+                vec![link::root(
+                    REPO,
+                    &LinkProps {
+                        variant: LinkVariant::Underline,
+                        ..LinkProps::default()
+                    },
+                    vec![],
+                    vec![text("GitHub")],
+                )],
             ),
         ],
     )
 }
 
-/// FAQ 1 件分（質問の小見出し + 回答段落。開閉 UI は持たず常時表示）。
+/// FAQ 1 件分。
 fn faq_entry(question: &str, answer: &str) -> Node {
     div(
         vec![("class", "blocks-faq-static-grid-item")],
@@ -166,8 +138,7 @@ fn faq_entry(question: &str, answer: &str) -> Node {
     )
 }
 
-/// 常時表示の FAQ グリッド本体（狭幅 1 列 → `sm` 2 列 → `lg` 3 列、
-/// モジュール doc「レイアウト」節）。
+/// FAQ グリッド本体。
 fn faq_grid() -> Node {
     div(
         vec![("class", "blocks-faq-static-grid-grid")],
@@ -177,26 +148,25 @@ fn faq_grid() -> Node {
     )
 }
 
-/// 末尾の問い合わせボタン行（R0468 の「下部ボタン 2 個」を集約）。
+/// ボタン行。
 fn contact() -> Node {
     div(
         vec![("class", "blocks-faq-static-grid-actions")],
         vec![
-            button::button(&ButtonProps::default(), vec![], vec![text("お問い合わせ")]),
+            button::button(&ButtonProps::default(), vec![], vec![text("問い合わせ")]),
             button::button(
                 &ButtonProps {
                     variant: ButtonVariant::Outline,
                     ..ButtonProps::default()
                 },
                 vec![],
-                vec![text("資料をダウンロード")],
+                vec![text("資料")],
             ),
         ],
     )
 }
 
-/// `faq-static-grid` の Demo 本体。呼び出しごとに同一の `Node` を返す
-/// 純関数（モジュール doc「開閉 UI を持たない」節）。
+/// Demo 本体。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-faq-static-grid-layout")],
