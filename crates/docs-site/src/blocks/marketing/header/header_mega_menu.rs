@@ -73,7 +73,17 @@
 //! に開閉処理を持たせず内容を隠すと、無 JS では畳んだ内容へ到達する手段が
 //! 一切なくなる。accordion 系 block が受けた「閉じた項目の本文へ到達
 //! できない」指摘と同型の問題であり、ハンバーガーボタン自体を持たない
-//! 構成でこれを避ける）。
+//! 構成でこれを避ける）。トップ項目一覧（`navigation_menu::list`、
+//! 既定 `display: flex` で折り返さない）自体にも同じ幅で `flex-wrap:
+//! wrap` を上書きする（PR #3273 レビュー指摘（P2）是正: バー全体は
+//! 折り返せても `list` 単体が横スクロールを要求していた不整合を解消する）。
+//! 併せて、パネルが列見出しの下でスタック（[`fandhe_frontend_pre_styled_ui::navigation_menu`]
+//! の `panel-inner` グリッドが `auto-fit` で 1 列化する）して縦に伸びる分、
+//! `.blocks-header-mega-menu-page` の `min-block-size` をこの幅でのみ
+//! 44rem へ引き上げる（PR #3273 Bugbot 指摘是正: 28rem のままだと常時
+//! 展開パネルがこの枠を超え、`.blocks-demo` の `overflow-x: auto`
+//! （CSS 仕様上 `overflow-y` も暗黙に `auto` へ計算される）でクリップ/
+//! 内部スクロール化していた）。
 //!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
@@ -127,10 +137,15 @@ use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
 use fandhe_frontend_pre_styled_ui::icon::{self, IconProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::navigation_menu::{self, NavigationMenuProps, OpenState};
+use fandhe_frontend_pre_styled_ui::Size;
 
-/// パネル項目 1 件（タイトル, 説明, href）。href はサイト内に実在する
-/// 索引ページへの相対パス（モジュール冒頭 rustdoc「href の方針」節）。
-type PanelItem = (&'static str, &'static str, &'static str);
+/// パネル項目 1 件（タイトル, 説明, href, アイコンの `path` `d`）。href は
+/// サイト内に実在する索引ページへの相対パス（モジュール冒頭 rustdoc「href
+/// の方針」節）。アイコンは PR #3273 レビュー指摘（P2）是正: モジュール
+/// doc・本定数のコメントが言う「アイコン付き項目」を実際に描画する
+/// （[`item_icon`] 参照。`error_page_popular_links::stroke_icon` と同型の
+/// 装飾用線画）。
+type PanelItem = (&'static str, &'static str, &'static str, &'static str);
 
 /// パネルの列 1 件（列見出し, 項目 3 件）。
 type PanelColumn = (&'static str, [PanelItem; 3]);
@@ -144,16 +159,19 @@ const PANEL_COLUMNS: [PanelColumn; 2] = [
                 "ダッシュボード",
                 "利用状況をひと目で把握できる可視化パネル。",
                 "../../themes/",
+                "M4 4h16v12H4zM8 20h8M12 16v4",
             ),
             (
                 "レポート",
                 "定期集計を自動で生成するレポート機能。",
                 "../../guides/",
+                "M6 3h9l3 3v15H6zM8 10h8M8 14h8M8 18h5",
             ),
             (
                 "アラート",
                 "しきい値超過を通知する監視機能。",
                 "../../primitives/",
+                "M12 3a6 6 0 0 0-6 6c0 5-2 6-2 6h16s-2-1-2-6a6 6 0 0 0-6-6zM10 19a2 2 0 0 0 4 0",
             ),
         ],
     ),
@@ -164,16 +182,19 @@ const PANEL_COLUMNS: [PanelColumn; 2] = [
                 "API",
                 "外部システムと連携するための拡張ポイント。",
                 "../../api/",
+                "M8 6 3 12l5 6M16 6l5 6-5 6",
             ),
             (
                 "サンプル集",
                 "構成別の実装サンプルへの索引。",
                 "../../examples/",
+                "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
             ),
             (
                 "導入ガイド",
                 "はじめての導入手順をまとめたガイド。",
                 "../../guides/",
+                "M12 3v18M4 8l8-5 8 5M4 16l8 5 8-5",
             ),
         ],
     ),
@@ -218,19 +239,54 @@ fn brand() -> Node {
     )
 }
 
+/// パネル項目のアイコン（線画、装飾用途。[`error_page_popular_links`] の
+/// `stroke_icon` と同型のパターンで、`icon::icon` の `currentColor`
+/// 継承に任せ生の色リテラルは持ち込まない。PR #3273 レビュー指摘（P2）
+/// 是正: 従来ブランド領域にしか icon が無かった不整合を解消する）。
+///
+/// [`error_page_popular_links`]: crate::blocks::marketing::error_page::error_page_popular_links
+fn item_icon(path_d: &str) -> Node {
+    icon::icon(
+        &IconProps {
+            size: Size::Sm,
+            label: None,
+            ..IconProps::default()
+        },
+        vec![],
+        vec![el(
+            "path",
+            vec![
+                ("d", path_d),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+                ("stroke-linecap", "round"),
+                ("stroke-linejoin", "round"),
+            ],
+            vec![],
+        )],
+    )
+}
+
 /// パネル 1 列分（列見出し + アイコン付き項目 3 件）。
 fn panel_column(heading: &str, items: &[PanelItem; 3]) -> Node {
     let links: Vec<Node> = items
         .iter()
-        .map(|(title, description, href)| {
+        .map(|(title, description, href, icon_path_d)| {
             navigation_menu::link(
                 href,
                 false,
                 vec![("class", "blocks-header-mega-menu-panel-link")],
                 vec![
-                    span(
-                        vec![("class", "blocks-header-mega-menu-panel-link-title")],
-                        vec![text(*title)],
+                    div(
+                        vec![("class", "blocks-header-mega-menu-panel-link-header")],
+                        vec![
+                            item_icon(icon_path_d),
+                            span(
+                                vec![("class", "blocks-header-mega-menu-panel-link-title")],
+                                vec![text(*title)],
+                            ),
+                        ],
                     ),
                     span(
                         vec![("class", "blocks-header-mega-menu-panel-link-description")],
@@ -452,13 +508,14 @@ const LAYOUT_CSS: &str = "\
 .blocks-header-mega-menu-panel-column {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-header-mega-menu-panel-column-heading {\n  display: block;\n  font-weight: 600;\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n  margin-block-end: var(--fandhe-space-2);\n}\n\
 .blocks-header-mega-menu-panel-link[data-scope=\"navigation-menu\"][data-part=\"link\"] {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-1);\n}\n\
+.blocks-header-mega-menu-panel-link-header {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-header-mega-menu-panel-link-title {\n  font-weight: 600;\n}\n\
 .blocks-header-mega-menu-panel-link-description {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-header-mega-menu-actions {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  white-space: nowrap;\n}\n\
 .blocks-header-mega-menu-layout [data-scope=\"navigation-menu\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-header-mega-menu-cta][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-header-mega-menu-page {\n  min-block-size: 28rem;\n  padding: var(--fandhe-space-6) var(--fandhe-space-4);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-@media (max-width: 47.99rem) {\n  .blocks-header-mega-menu-bar {\n    flex-wrap: wrap;\n  }\n  .blocks-header-mega-menu-nav[data-scope=\"navigation-menu\"][data-part=\"root\"] {\n    flex-basis: 100%;\n  }\n  .blocks-header-mega-menu-actions {\n    flex-basis: 100%;\n  }\n}\n";
+@media (max-width: 47.99rem) {\n  .blocks-header-mega-menu-bar {\n    flex-wrap: wrap;\n  }\n  .blocks-header-mega-menu-nav[data-scope=\"navigation-menu\"][data-part=\"root\"] {\n    flex-basis: 100%;\n  }\n  .blocks-header-mega-menu-layout [data-scope=\"navigation-menu\"][data-part=\"list\"] {\n    flex-wrap: wrap;\n  }\n  .blocks-header-mega-menu-actions {\n    flex-basis: 100%;\n  }\n  .blocks-header-mega-menu-page {\n    min-block-size: 44rem;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -582,6 +639,43 @@ mod tests {
         ));
         assert!(!LAYOUT_CSS.contains(".blocks-header-mega-menu-actions {\n    display: none;\n  }"));
         assert!(LAYOUT_CSS.contains("flex-wrap: wrap;"));
+    }
+
+    /// 狭い幅ではトップ項目一覧（`navigation_menu::list`）自体も折り返し、
+    /// 横スクロールを要求しないこと（PR #3273 レビュー指摘（P2）是正:
+    /// バー（`.blocks-header-mega-menu-bar`）が折り返せても `list` 単体は
+    /// `display: flex` のまま非折り返しだった不整合を解消する）。
+    #[test]
+    fn narrow_layout_wraps_nav_list_items() {
+        assert!(LAYOUT_CSS.contains(
+            "@media (max-width: 47.99rem) {\n  .blocks-header-mega-menu-bar {\n    flex-wrap: wrap;\n  }\n  .blocks-header-mega-menu-nav[data-scope=\"navigation-menu\"][data-part=\"root\"] {\n    flex-basis: 100%;\n  }\n  .blocks-header-mega-menu-layout [data-scope=\"navigation-menu\"][data-part=\"list\"] {\n    flex-wrap: wrap;\n  }"
+        ));
+    }
+
+    /// 狭い幅では常時展開パネルがスタックして縦に伸びる分、
+    /// `.blocks-header-mega-menu-page` の `min-block-size` を引き上げること
+    /// （PR #3273 Bugbot 指摘是正: 28rem のままだと `.blocks-demo` の
+    /// `overflow-x: auto` により縦方向がクリップ/内部スクロール化する）。
+    #[test]
+    fn narrow_layout_reserves_more_height_for_stacked_panel() {
+        assert!(
+            LAYOUT_CSS.contains(".blocks-header-mega-menu-page {\n    min-block-size: 44rem;\n  }")
+        );
+    }
+
+    /// パネル項目にアイコンが実際に描画されること（PR #3273 レビュー指摘
+    /// （P2）是正: モジュール doc・`PANEL_COLUMNS` のコメントが言う
+    /// 「アイコン付き項目」が、従来ブランド領域の icon しか持たなかった
+    /// 不整合を解消する）。1 パネル 6 項目 + ブランド 1 件 = icon scope 7 件。
+    #[test]
+    fn panel_items_render_icons() {
+        let html = render(&demo());
+        assert_eq!(
+            html.matches("data-scope=\"icon\"").count(),
+            7,
+            "html={html}"
+        );
+        assert!(LAYOUT_CSS.contains(".blocks-header-mega-menu-panel-link-header"));
     }
 
     /// パネルリンクの見出し + 説明が中央寄せではなく左揃えの列で並ぶこと

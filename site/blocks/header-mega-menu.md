@@ -28,10 +28,15 @@ use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
 use fandhe_frontend_pre_styled_ui::icon::{self, IconProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::navigation_menu::{self, NavigationMenuProps, OpenState};
+use fandhe_frontend_pre_styled_ui::Size;
 
-/// パネル項目 1 件（タイトル, 説明, href）。href はサイト内に実在する
-/// 索引ページへの相対パス（モジュール冒頭 rustdoc「href の方針」節）。
-type PanelItem = (&'static str, &'static str, &'static str);
+/// パネル項目 1 件（タイトル, 説明, href, アイコンの `path` `d`）。href は
+/// サイト内に実在する索引ページへの相対パス（モジュール冒頭 rustdoc「href
+/// の方針」節）。アイコンは PR #3273 レビュー指摘（P2）是正: モジュール
+/// doc・本定数のコメントが言う「アイコン付き項目」を実際に描画する
+/// （[`item_icon`] 参照。`error_page_popular_links::stroke_icon` と同型の
+/// 装飾用線画）。
+type PanelItem = (&'static str, &'static str, &'static str, &'static str);
 
 /// パネルの列 1 件（列見出し, 項目 3 件）。
 type PanelColumn = (&'static str, [PanelItem; 3]);
@@ -45,16 +50,19 @@ const PANEL_COLUMNS: [PanelColumn; 2] = [
                 "ダッシュボード",
                 "利用状況をひと目で把握できる可視化パネル。",
                 "../../themes/",
+                "M4 4h16v12H4zM8 20h8M12 16v4",
             ),
             (
                 "レポート",
                 "定期集計を自動で生成するレポート機能。",
                 "../../guides/",
+                "M6 3h9l3 3v15H6zM8 10h8M8 14h8M8 18h5",
             ),
             (
                 "アラート",
                 "しきい値超過を通知する監視機能。",
                 "../../primitives/",
+                "M12 3a6 6 0 0 0-6 6c0 5-2 6-2 6h16s-2-1-2-6a6 6 0 0 0-6-6zM10 19a2 2 0 0 0 4 0",
             ),
         ],
     ),
@@ -65,16 +73,19 @@ const PANEL_COLUMNS: [PanelColumn; 2] = [
                 "API",
                 "外部システムと連携するための拡張ポイント。",
                 "../../api/",
+                "M8 6 3 12l5 6M16 6l5 6-5 6",
             ),
             (
                 "サンプル集",
                 "構成別の実装サンプルへの索引。",
                 "../../examples/",
+                "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
             ),
             (
                 "導入ガイド",
                 "はじめての導入手順をまとめたガイド。",
                 "../../guides/",
+                "M12 3v18M4 8l8-5 8 5M4 16l8 5 8-5",
             ),
         ],
     ),
@@ -119,19 +130,54 @@ fn brand() -> Node {
     )
 }
 
+/// パネル項目のアイコン（線画、装飾用途。[`error_page_popular_links`] の
+/// `stroke_icon` と同型のパターンで、`icon::icon` の `currentColor`
+/// 継承に任せ生の色リテラルは持ち込まない。PR #3273 レビュー指摘（P2）
+/// 是正: 従来ブランド領域にしか icon が無かった不整合を解消する）。
+///
+/// [`error_page_popular_links`]: crate::blocks::marketing::error_page::error_page_popular_links
+fn item_icon(path_d: &str) -> Node {
+    icon::icon(
+        &IconProps {
+            size: Size::Sm,
+            label: None,
+            ..IconProps::default()
+        },
+        vec![],
+        vec![el(
+            "path",
+            vec![
+                ("d", path_d),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+                ("stroke-linecap", "round"),
+                ("stroke-linejoin", "round"),
+            ],
+            vec![],
+        )],
+    )
+}
+
 /// パネル 1 列分（列見出し + アイコン付き項目 3 件）。
 fn panel_column(heading: &str, items: &[PanelItem; 3]) -> Node {
     let links: Vec<Node> = items
         .iter()
-        .map(|(title, description, href)| {
+        .map(|(title, description, href, icon_path_d)| {
             navigation_menu::link(
                 href,
                 false,
                 vec![("class", "blocks-header-mega-menu-panel-link")],
                 vec![
-                    span(
-                        vec![("class", "blocks-header-mega-menu-panel-link-title")],
-                        vec![text(*title)],
+                    div(
+                        vec![("class", "blocks-header-mega-menu-panel-link-header")],
+                        vec![
+                            item_icon(icon_path_d),
+                            span(
+                                vec![("class", "blocks-header-mega-menu-panel-link-title")],
+                                vec![text(*title)],
+                            ),
+                        ],
                     ),
                     span(
                         vec![("class", "blocks-header-mega-menu-panel-link-description")],
