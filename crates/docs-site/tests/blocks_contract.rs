@@ -8854,3 +8854,83 @@ fn section_heading_stacked_composes_expected_parts() {
         );
     }
 }
+
+/// feature-three-column-icons ページが Demo class・専用 CSS を配線して
+/// いること、block 固有 CSS（3 列グリッド・左寄せ見出し上書き）が実際に
+/// 出力されていることを固定する（イシュー #3225）。
+#[test]
+fn feature_three_column_icons_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/feature-three-column-icons/index.html"))
+        .expect("blocks/feature-three-column-icons/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-feature-three-column-icons\""),
+        "feature-three-column-icons page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "feature-three-column-icons page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "feature-three-column-icons page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "class=\"blocks-feature-three-column-icons-item\"",
+        "data-blocks-feature-three-column-icons-card",
+        "data-blocks-feature-three-column-icons-icon",
+        "data-blocks-feature-three-column-icons-link",
+    ] {
+        assert!(
+            html.contains(hook),
+            "feature-three-column-icons page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-feature-three-column-icons-grid",
+        "[data-align=\"start\"]",
+        "@media (min-width: 48rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// feature-three-column-icons の合成部品（heading/text/icon/link/card）が
+/// 期待どおりの構成で実際に出力されていること、詳細リンク件数・非対話
+/// 制約を固定する（イシュー #3225）。
+#[test]
+fn feature_three_column_icons_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/feature-three-column-icons/")
+        .expect("feature-three-column-icons should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"link\"",
+        "data-scope=\"card\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "feature-three-column-icons demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-feature-three-column-icons-link=\"\"")
+            .count(),
+        6,
+        "feature-three-column-icons demo should render exactly 6 detail links"
+    );
+    for absent in ["<form", "<button", "src=\"data:", "href=\"#\"", "id=\""] {
+        assert!(
+            !html.contains(absent),
+            "feature-three-column-icons should never contain {absent}"
+        );
+    }
+}
