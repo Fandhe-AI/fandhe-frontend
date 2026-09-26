@@ -1417,6 +1417,11 @@ source = "site/blocks/pricing-slider-tiers.md"
 path = "/blocks/pricing-slider-tiers/"
 
 [[section.group.page]]
+title = "pricing-tiers-comparison"
+source = "site/blocks/pricing-tiers-comparison.md"
+path = "/blocks/pricing-tiers-comparison/"
+
+[[section.group.page]]
 title = "pricing-tiers-extra-row"
 source = "site/blocks/pricing-tiers-extra-row.md"
 path = "/blocks/pricing-tiers-extra-row/"
