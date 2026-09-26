@@ -1397,6 +1397,26 @@ path = "/blocks/cta-split-image/"
 title = "Pricing"
 
 [[section.group.page]]
+title = "pricing-comparison-table"
+source = "site/blocks/pricing-comparison-table.md"
+path = "/blocks/pricing-comparison-table/"
+
+[[section.group.page]]
+title = "pricing-seats-split"
+source = "site/blocks/pricing-seats-split.md"
+path = "/blocks/pricing-seats-split/"
+
+[[section.group.page]]
+title = "pricing-single-split"
+source = "site/blocks/pricing-single-split.md"
+path = "/blocks/pricing-single-split/"
+
+[[section.group.page]]
+title = "pricing-slider-tiers"
+source = "site/blocks/pricing-slider-tiers.md"
+path = "/blocks/pricing-slider-tiers/"
+
+[[section.group.page]]
 title = "pricing-tiers-morph"
 source = "site/blocks/pricing-tiers-morph.md"
 path = "/blocks/pricing-tiers-morph/"
@@ -1469,6 +1489,11 @@ source = "site/blocks/faq-accordion-centered.md"
 path = "/blocks/faq-accordion-centered/"
 
 [[section.group.page]]
+title = "faq-question-rows"
+source = "site/blocks/faq-question-rows.md"
+path = "/blocks/faq-question-rows/"
+
+[[section.group.page]]
 title = "faq-split-accordion"
 source = "site/blocks/faq-split-accordion.md"
 path = "/blocks/faq-split-accordion/"
@@ -1477,6 +1502,11 @@ path = "/blocks/faq-split-accordion/"
 title = "faq-split-static"
 source = "site/blocks/faq-split-static.md"
 path = "/blocks/faq-split-static/"
+
+[[section.group.page]]
+title = "faq-static-grid"
+source = "site/blocks/faq-static-grid.md"
+path = "/blocks/faq-static-grid/"
 
 [[section.group.page]]
 title = "faq-tabbed-accordion"
@@ -1616,7 +1646,35 @@ source = "site/blocks/content-with-testimonial.md"
 path = "/blocks/content-with-testimonial/"
 
 [[section.group]]
+title = "Header"
+
+[[section.group.page]]
+title = "header-floating-pill"
+source = "site/blocks/header-floating-pill.md"
+path = "/blocks/header-floating-pill/"
+
+[[section.group.page]]
+title = "header-flyout-menu"
+source = "site/blocks/header-flyout-menu.md"
+path = "/blocks/header-flyout-menu/"
+
+[[section.group]]
 title = "Footer"
+
+[[section.group.page]]
+title = "footer-cta-columns"
+source = "site/blocks/footer-cta-columns.md"
+path = "/blocks/footer-cta-columns/"
+
+[[section.group.page]]
+title = "footer-inline-nav"
+source = "site/blocks/footer-inline-nav.md"
+path = "/blocks/footer-inline-nav/"
+
+[[section.group.page]]
+title = "footer-link-columns"
+source = "site/blocks/footer-link-columns.md"
+path = "/blocks/footer-link-columns/"
 
 [[section.group.page]]
 title = "footer-newsletter"

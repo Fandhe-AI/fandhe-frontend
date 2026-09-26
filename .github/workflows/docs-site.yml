@@ -265,8 +265,12 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-split-actions/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-split-image/index.html"
           # Marketing / Pricing
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-seats-split/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-slider-tiers/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-tiers-morph/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-usage-slider/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-comparison-table/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-single-split/index.html"
           # Marketing / Testimonial
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonials-stack/index.html"
           # Marketing / Logo Cloud
@@ -282,9 +286,11 @@ jobs:
           # Marketing / Team
           # Marketing / Faq
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-accordion-centered/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-question-rows/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-split-accordion/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-tabbed-accordion/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-split-static/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-static-grid/index.html"
           # Marketing / Contact
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-centered-form/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-dialog-form/index.html"
@@ -314,9 +320,14 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/content-split-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/content-with-testimonial/index.html"
           # Marketing / Header
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/header-floating-pill/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/header-flyout-menu/index.html"
           # Marketing / Footer
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-cta-columns/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-sticky-reveal/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-newsletter/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-link-columns/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-inline-nav/index.html"
           # Marketing / Banner
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/banner-announcement-pill/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/banner-cookie-consent/index.html"

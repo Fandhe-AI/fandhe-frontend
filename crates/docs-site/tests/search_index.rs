@@ -471,6 +471,47 @@ fn real_site_search_index_is_deterministic_covers_all_nav_pages_and_matches_html
 }
 
 // ---------------------------------------------------------------------
+// イシュー #2862（§10-13）: Blocks ページのフェンスコードブロック本文を
+// 索引テキストから除外する恒久対処の回帰（`search_index::page_entry` の
+// `exclude_code_blocks` 配線が `crate::build::build_site` から実サイトの
+// Blocks ページへ正しく届いていることを固定する）。
+// ---------------------------------------------------------------------
+
+#[test]
+fn real_site_search_index_excludes_blocks_page_rust_code_fence_but_keeps_prose() {
+    // `pricing-comparison-table` block（`crates/docs-site/src/blocks/
+    // marketing/pricing/pricing_comparison_table.rs`）の実装のみに現れる
+    // 識別子 `COL_COUNT_STR` は、除外が正しく効いていれば索引から消える。
+    // 一方でページ見出し（Markdown 原稿由来のプレーンテキスト）は
+    // フェンス除外の対象外であり、引き続き索引に残る。
+    let shared = shared_site::real_site();
+
+    let json = read_index(&shared.out_dir);
+    let parsed = parse_json(&json);
+    let pages = parsed.get("pages").as_array();
+
+    let page = pages
+        .iter()
+        .find(|p| {
+            p.get("href")
+                .as_str()
+                .ends_with("/blocks/pricing-comparison-table/")
+        })
+        .expect("pricing-comparison-table block page should be indexed");
+    let text = page.get("text").as_str();
+
+    assert!(
+        !text.contains("COL_COUNT_STR"),
+        "Blocks page indexed text should not contain Rust code fence identifiers \
+         after code-block exclusion, got: {text}"
+    );
+    assert!(
+        text.contains("Rust コード") || text.contains("使用部品"),
+        "Blocks page indexed text should still contain its non-code prose sections: {text}"
+    );
+}
+
+// ---------------------------------------------------------------------
 // イシュー #1078: コードブロックのシンタックスハイライト導入後も検索索引の
 // 到達性が失われないことの回帰（実装計画 §2.7）。
 // ---------------------------------------------------------------------
@@ -703,7 +744,7 @@ path = "/"
 #[test]
 fn page_text_is_truncated_at_a_valid_utf8_char_boundary_within_the_byte_limit() {
     // マルチバイト（日本語 + 絵文字）を大量に繰り返し、
-    // MAX_PAGE_TEXT_BYTES（4096 バイト）を確実に超えさせる。
+    // MAX_PAGE_TEXT_BYTES を確実に超えさせる。
     let unit = "あいう😀";
     let repeat_count = (search_index::MAX_PAGE_TEXT_BYTES / unit.len()) + 100;
     let long_text = unit.repeat(repeat_count);
@@ -722,7 +763,7 @@ fn page_text_is_truncated_at_a_valid_utf8_char_boundary_within_the_byte_limit() 
 
     assert!(std::str::from_utf8(text.as_bytes()).is_ok());
     assert!(text.len() <= search_index::MAX_PAGE_TEXT_BYTES);
-    // 4096 直下の文字境界で切れている: もう 1 文字（"あ"、3 バイト）足すと
+    // 上限直下の文字境界で切れている: もう 1 文字（"あ"、3 バイト）足すと
     // 上限を超える位置まで詰まっている想定。安全側の下限としては、
     // 切り詰め後のテキストが十分に上限へ近いことのみを確認する
     // （空白正規化により厳密な「1 文字足せば超過」の判定は本文構成に
@@ -750,9 +791,9 @@ fn check_size_returns_too_large_when_json_exceeds_the_byte_limit() {
     }
 }
 
-/// 単一ページに大量の見出しを持たせ、`MAX_INDEX_BYTES`（1 MiB）超過を
-/// 起こす合成フィクスチャ。見出しは per-page 上限（4096 バイト、テキスト
-/// のみに適用）の対象外（設計文書 §3-3）であるため、320 ページ生成より
+/// 単一ページに大量の見出しを持たせ、`MAX_INDEX_BYTES` 超過を
+/// 起こす合成フィクスチャ。見出しは per-page 上限（`MAX_PAGE_TEXT_BYTES`、
+/// テキストのみに適用）の対象外（設計文書 §3-3）であるため、320 ページ生成より
 /// 圧倒的に安価に総量超過を作れる。
 fn write_oversized_fixture(root: &Path, heading_count: usize) {
     std::fs::create_dir_all(root.join("site")).unwrap();
