@@ -190,7 +190,7 @@ fn variant_c() -> Node {
         .map(|name| {
             let name_tag = tag::root(
                 &TagProps::default(),
-                vec![],
+                vec![(TILE_LABEL_ATTR, "")],
                 vec![tag::label(vec![], vec![text(*name)])],
             );
             card::root(
@@ -207,9 +207,11 @@ fn variant_c() -> Node {
     )
 }
 
-/// タイル（形 D）専用の社名タグ。`lg` 6 カラム時にタイル幅が縮むため、
-/// `tag` 既定の `white-space: nowrap` を上書きして折り返し可能にする
-/// （Bugbot 指摘「Tile shrink overflows company labels」、PR #3244）。
+/// 形 C・D のカード/タイル内社名タグ用の折り返しマーカー。両形とも `lg`
+/// 6 カラム時にカード/タイル幅が縮むため、`tag` 既定の
+/// `white-space: nowrap` を上書きして折り返し可能にする（Bugbot 指摘
+/// 「Tile shrink overflows company labels」・codex 指摘「形 C の社名
+/// タグが 6 列表示でカードからはみ出す」、PR #3244）。
 const TILE_LABEL_ATTR: &str = "data-blocks-logo-cloud-grid-tile-label";
 
 /// 形 D: 見出し無し、淡色枠のロゴタイル 6 枚のグリッド。
@@ -330,7 +332,7 @@ const LAYOUT_CSS: &str = "\
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, LAYOUT_CSS};
+    use super::{demo, LAYOUT_CSS, TILE_LABEL_ATTR};
     use fandhe_frontend_core::render;
 
     /// Demo が期待する部品・構造・非対話制約を満たしていることの単体
@@ -422,5 +424,17 @@ mod tests {
         assert!(LAYOUT_CSS.contains(
             "[data-scope=\"card\"][data-part=\"body\"] {\n  display: flex;\n  flex-direction: column;\n  align-items: center;"
         ));
+    }
+
+    /// 形 C・D の社名タグがいずれも折り返しマーカー（[`TILE_LABEL_ATTR`]）
+    /// を持つこと。`lg` 6 列時にカード/タイル幅が縮んでも `tag` 既定の
+    /// `white-space: nowrap` のまま長い社名が隣カードへはみ出さないよう
+    /// 両形に適用する（codex 指摘「形 C の社名タグが 6 列表示でカードから
+    /// はみ出す」、PR #3244）。
+    #[test]
+    fn variant_c_and_d_tags_carry_wrap_marker() {
+        let html = render(&demo());
+        // 形 C(6 枚) + 形 D(6 枚) = 12。形 A/B/E のタグは付与対象外。
+        assert_eq!(html.matches(TILE_LABEL_ATTR).count(), 12);
     }
 }

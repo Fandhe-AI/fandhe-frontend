@@ -142,7 +142,7 @@ fn variant_c() -> Node {
         .map(|name| {
             let name_tag = tag::root(
                 &TagProps::default(),
-                vec![],
+                vec![(TILE_LABEL_ATTR, "")],
                 vec![tag::label(vec![], vec![text(*name)])],
             );
             card::root(
@@ -159,9 +159,11 @@ fn variant_c() -> Node {
     )
 }
 
-/// タイル（形 D）専用の社名タグ。`lg` 6 カラム時にタイル幅が縮むため、
-/// `tag` 既定の `white-space: nowrap` を上書きして折り返し可能にする
-/// （Bugbot 指摘「Tile shrink overflows company labels」、PR #3244）。
+/// 形 C・D のカード/タイル内社名タグ用の折り返しマーカー。両形とも `lg`
+/// 6 カラム時にカード/タイル幅が縮むため、`tag` 既定の
+/// `white-space: nowrap` を上書きして折り返し可能にする（Bugbot 指摘
+/// 「Tile shrink overflows company labels」・codex 指摘「形 C の社名
+/// タグが 6 列表示でカードからはみ出す」、PR #3244）。
 const TILE_LABEL_ATTR: &str = "data-blocks-logo-cloud-grid-tile-label";
 
 /// 形 D: 見出し無し、淡色枠のロゴタイル 6 枚のグリッド。
