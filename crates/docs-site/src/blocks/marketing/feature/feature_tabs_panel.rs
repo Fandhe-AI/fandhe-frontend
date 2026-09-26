@@ -396,17 +396,26 @@ fn rows_group(rows: Vec<Node>) -> Node {
     div(vec![("class", "blocks-feature-tabs-panel-rows")], rows)
 }
 
-/// 選択中パネル本文（先頭ノード）へ `aria-current="true"` を付与する
-/// （#3263、Codex P1 是正）。`static_tab_list` の `hide_from_assistive_tech:
-/// true` な trigger は `aria-hidden` で部分木ごと支援技術のツリーから除外
-/// されるため、そこに選択状態を持たせられない（同関数 doc 参照）。代わりに
-/// 常に可視・非 `aria-hidden` の選択中パネル本文側（`panel_row`/
-/// `panel_single`/`rows_group`/`panel_card_grid` が返す先頭の外側 `div`）へ
-/// 付与することで、装飾トリガーを非表示にする既存方針と両立したまま選択
-/// 状態を伝える。プレビュー側（[`tab_preview`] 経由）には適用しない
-/// （プレビューは「選択した場合」の仮定を示す非選択状態のため）。
-fn mark_first_selected(mut nodes: Vec<Node>) -> Vec<Node> {
+/// 選択中パネル本文（先頭ノード）へ選択状態を支援技術から読める形で付与
+/// する（#3263、Codex P1 是正・再指摘の是正）。`static_tab_list` の
+/// `hide_from_assistive_tech: true` な trigger は `aria-hidden` で部分木
+/// ごと支援技術のツリーから除外されるため、そこに選択状態を持たせられない
+/// （同関数 doc 参照）。代わりに常に可視・非 `aria-hidden` の選択中パネル
+/// 本文側（`panel_row`/`panel_single`/`rows_group`/`panel_card_grid` が
+/// 返す先頭の外側 `div`）へ `aria-current="true"` を付与するが、`div` は
+/// 既定で generic role（暗黙のロールを持たない）のため `aria-label` だけ
+/// では accessible name が支援技術へ公開されない。`role="group"` を明示
+/// 付与し、`label`（選択中タブのラベル文言そのもの）を `aria-label` に
+/// 渡すことで、支援技術が「group, {label}, current」のようにタブラベルと
+/// 選択状態を一体で読み上げられるようにする（Codex 再指摘の是正: 旧実装は
+/// `aria-current` のみを汎用 `div` へ付与しており、どのタブラベルが選択
+/// されたか特定できなかった。形 D の「セット A」/「セット B」もこの
+/// `label` 引数で明示する）。プレビュー側（[`tab_preview`] 経由）には
+/// 適用しない（プレビューは「選択した場合」の仮定を示す非選択状態のため）。
+fn mark_first_selected(mut nodes: Vec<Node>, label: &str) -> Vec<Node> {
     if let Some(Node::Element { attrs, .. }) = nodes.first_mut() {
+        attrs.push(("role".to_string(), "group".to_string()));
+        attrs.push(("aria-label".to_string(), label.to_string()));
         attrs.push(("aria-current".to_string(), "true".to_string()));
     }
     nodes
@@ -578,7 +587,7 @@ fn variant_basic() -> Node {
             false,
         ),
     ];
-    children.extend(mark_first_selected(panel_row(&PANELS[0])));
+    children.extend(mark_first_selected(panel_row(&PANELS[0]), PANELS[0].label));
     for panel in &PANELS[1..] {
         children.push(panel_state_preview(panel));
     }
@@ -610,7 +619,10 @@ fn variant_pill() -> Node {
             true,
         ),
     ];
-    children.extend(mark_first_selected(panel_single(&PANELS[0])));
+    children.extend(mark_first_selected(
+        panel_single(&PANELS[0]),
+        PANELS[0].label,
+    ));
     children.push(tab_preview(
         format!("「{}」タブを選択した場合のプレビュー", PANELS[1].label),
         panel_single(&PANELS[1]),
@@ -642,9 +654,10 @@ fn variant_alternating() -> Node {
             false,
         ),
     ];
-    children.extend(mark_first_selected(vec![rows_group(
-        panel_alternating_rows(&PANELS[0..2]),
-    )]));
+    children.extend(mark_first_selected(
+        vec![rows_group(panel_alternating_rows(&PANELS[0..2]))],
+        "セット A",
+    ));
     children.push(tab_preview(
         "「セット B」タブを選択した場合のプレビュー".to_string(),
         vec![rows_group(panel_alternating_rows(&PANELS[2..4]))],
@@ -795,7 +808,10 @@ fn variant_card_grid() -> Node {
             false,
         ),
     ];
-    children.extend(mark_first_selected(panel_card_grid(&CARDS_FEATURES)));
+    children.extend(mark_first_selected(
+        panel_card_grid(&CARDS_FEATURES),
+        "特長",
+    ));
     children.push(tab_preview(
         "「導入事例」タブを選択した場合のプレビュー".to_string(),
         panel_card_grid(&CARDS_CASES),
@@ -1171,6 +1187,26 @@ mod tests {
             assert_eq!(
                 count, 1,
                 "expected exactly 1 aria-current in tablist span starting at {start}"
+            );
+        }
+    }
+
+    /// [`super::mark_first_selected`] が選択中パネル本文へ `aria-current`
+    /// だけでなく `role="group"` + `aria-label="{選択中タブのラベル}"` も
+    /// 付与すること（#3263 再指摘の回帰テスト。`aria-current` のみでは
+    /// 汎用 `div` に accessible name が無く、どのタブが選択されたか支援
+    /// 技術から特定できなかった）。基準形・形 C・形 E は `PanelData::label`
+    /// と一致する `aria-label`、形 D は本文グループの名前として
+    /// 「セット A」を持つ。
+    #[test]
+    fn mark_first_selected_exposes_the_selected_label_to_assistive_tech() {
+        let html = render(&demo());
+        for label in ["設計", "セット A", "特長"] {
+            assert!(
+                html.contains(&format!(
+                    "role=\"group\" aria-label=\"{label}\" aria-current=\"true\""
+                )),
+                "expected a role=group aria-current panel labelled {label:?} to appear in demo output"
             );
         }
     }
