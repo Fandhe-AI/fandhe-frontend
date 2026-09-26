@@ -88,9 +88,9 @@ fn header() -> Node {
                             ..LinkProps::default()
                         },
                         vec![],
-                        vec![text("お問い合わせフォーム")],
+                        vec![text("GitHub のリポジトリ")],
                     ),
-                    text("よりご連絡ください。"),
+                    text("からお問い合わせください。"),
                 ],
             ),
         ],
