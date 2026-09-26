@@ -1458,6 +1458,11 @@ title = "faq-accordion-centered"
 source = "site/blocks/faq-accordion-centered.md"
 path = "/blocks/faq-accordion-centered/"
 
+[[section.group.page]]
+title = "faq-question-rows"
+source = "site/blocks/faq-question-rows.md"
+path = "/blocks/faq-question-rows/"
+
 [[section.group]]
 title = "Contact"
 
