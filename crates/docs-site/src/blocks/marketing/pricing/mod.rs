@@ -5,10 +5,21 @@
 //! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
 //! ための構造、イシュー #2734）。
 
+mod pricing_comparison_table;
+mod pricing_seats_split;
+mod pricing_single_split;
+mod pricing_slider_tiers;
 mod pricing_tiers_morph;
 mod pricing_usage_slider;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![pricing_tiers_morph::BLOCK, pricing_usage_slider::BLOCK]
+    vec![
+        pricing_seats_split::BLOCK,
+        pricing_tiers_morph::BLOCK,
+        pricing_usage_slider::BLOCK,
+        pricing_comparison_table::BLOCK,
+        pricing_single_split::BLOCK,
+        pricing_slider_tiers::BLOCK,
+    ]
 }

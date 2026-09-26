@@ -9005,3 +9005,52 @@ fn feature_three_column_icons_composes_expected_parts() {
         );
     }
 }
+
+/// pricing-comparison-table の狭幅 select 2 列表（イシュー #2863）が実サイト
+/// ビルドの生成 HTML で正しく配線されていることを固定する: `data-scope="field"
+/// data-part="select"` と `data-blocks-pricing-comparison-table-view="select"`
+/// が存在し、2 インスタンス分の id と `<label for>` が対応し、`<form` を
+/// 持たないこと。
+#[test]
+fn pricing_comparison_table_page_wires_select_view() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/pricing-comparison-table/index.html"))
+        .expect("blocks/pricing-comparison-table/index.html should be generated");
+
+    assert!(
+        html.contains(r#"data-blocks-pricing-comparison-table-view="select""#),
+        "pricing-comparison-table page should render the select 2-column view"
+    );
+    assert!(
+        html.contains(r#"data-scope="field" data-part="select""#),
+        "pricing-comparison-table page should compose native_select's field/select scope"
+    );
+
+    for id in [
+        "blocks-pricing-comparison-table-plan-select-growth",
+        "blocks-pricing-comparison-table-plan-select-scale",
+    ] {
+        assert!(
+            html.contains(&format!(" id=\"{id}\"")),
+            "select instance id={id} should be output -> missing"
+        );
+        assert!(
+            html.contains(&format!("<label for=\"{id}\">")),
+            "label for={id} should reference the matching select id"
+        );
+    }
+
+    assert!(
+        !html.contains("<form"),
+        "pricing-comparison-table page should never contain <form"
+    );
+
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    assert!(
+        sheet_css.contains(".blocks-pricing-comparison-table-narrow"),
+        "blocks.css should declare the narrow wrapper rule"
+    );
+}
