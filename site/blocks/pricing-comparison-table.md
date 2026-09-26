@@ -338,7 +338,7 @@ fn table_view() -> Node {
 
 /// 狭幅表示（R1150）: プランごとのカード。カテゴリごとに小見出し（`H4`）+
 /// 機能一覧を並べる。
-fn plan_card(plan: &Plan) -> Node {
+fn plan_card(plan_index: usize, plan: &Plan) -> Node {
     let cta_variant = if plan.featured {
         ButtonVariant::Solid
     } else {
@@ -346,7 +346,7 @@ fn plan_card(plan: &Plan) -> Node {
     };
 
     let mut body_children: Vec<Node> = Vec::new();
-    for (i, category) in CATEGORIES.iter().enumerate() {
+    for category in CATEGORIES.iter() {
         body_children.push(heading(
             HeadingLevel::H4,
             &HeadingProps {
@@ -360,7 +360,7 @@ fn plan_card(plan: &Plan) -> Node {
             .rows
             .iter()
             .map(|row| {
-                let value = &row.values[i];
+                let value = &row.values[plan_index];
                 let value_node = match value {
                     FeatureValue::Text(label) => span(
                         vec![("data-blocks-pricing-comparison-table-value", "text")],
@@ -374,7 +374,11 @@ fn plan_card(plan: &Plan) -> Node {
                 el("li", vec![], vec![value_node])
             })
             .collect();
-        body_children.push(el("ul", vec![], items));
+        body_children.push(el(
+            "ul",
+            vec![("class", "blocks-pricing-comparison-table-card-list")],
+            items,
+        ));
     }
 
     card::root(
@@ -418,7 +422,11 @@ fn plan_card(plan: &Plan) -> Node {
 fn cards_view() -> Node {
     div(
         vec![("data-blocks-pricing-comparison-table-view", "cards")],
-        PLANS.iter().map(plan_card).collect(),
+        PLANS
+            .iter()
+            .enumerate()
+            .map(|(i, plan)| plan_card(i, plan))
+            .collect(),
     )
 }
 

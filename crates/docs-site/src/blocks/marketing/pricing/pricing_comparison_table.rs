@@ -404,7 +404,7 @@ fn table_view() -> Node {
 
 /// 狭幅表示（R1150）: プランごとのカード。カテゴリごとに小見出し（`H4`）+
 /// 機能一覧を並べる。
-fn plan_card(plan: &Plan) -> Node {
+fn plan_card(plan_index: usize, plan: &Plan) -> Node {
     let cta_variant = if plan.featured {
         ButtonVariant::Solid
     } else {
@@ -412,7 +412,7 @@ fn plan_card(plan: &Plan) -> Node {
     };
 
     let mut body_children: Vec<Node> = Vec::new();
-    for (i, category) in CATEGORIES.iter().enumerate() {
+    for category in CATEGORIES.iter() {
         body_children.push(heading(
             HeadingLevel::H4,
             &HeadingProps {
@@ -426,7 +426,7 @@ fn plan_card(plan: &Plan) -> Node {
             .rows
             .iter()
             .map(|row| {
-                let value = &row.values[i];
+                let value = &row.values[plan_index];
                 let value_node = match value {
                     FeatureValue::Text(label) => span(
                         vec![("data-blocks-pricing-comparison-table-value", "text")],
@@ -440,7 +440,11 @@ fn plan_card(plan: &Plan) -> Node {
                 el("li", vec![], vec![value_node])
             })
             .collect();
-        body_children.push(el("ul", vec![], items));
+        body_children.push(el(
+            "ul",
+            vec![("class", "blocks-pricing-comparison-table-card-list")],
+            items,
+        ));
     }
 
     card::root(
@@ -484,7 +488,11 @@ fn plan_card(plan: &Plan) -> Node {
 fn cards_view() -> Node {
     div(
         vec![("data-blocks-pricing-comparison-table-view", "cards")],
-        PLANS.iter().map(plan_card).collect(),
+        PLANS
+            .iter()
+            .enumerate()
+            .map(|(i, plan)| plan_card(i, plan))
+            .collect(),
     )
 }
 
@@ -567,7 +575,7 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-pricing-comparison-table-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-pricing-comparison-table-intro {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
-[data-scope=\"table\"][data-part=\"scroll-area\"] {\n  width: 100%;\n}\n\
+[data-blocks-pricing-comparison-table-view=\"table\"] [data-scope=\"table\"][data-part=\"scroll-area\"] {\n  width: 100%;\n}\n\
 [data-blocks-pricing-comparison-table-view=\"table\"] [data-scope=\"table\"][data-part=\"root\"] {\n  min-width: 40rem;\n}\n\
 .blocks-pricing-comparison-table-plan-head {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"table\"][data-part=\"column-header\"][data-blocks-pricing-comparison-table-col],\n[data-scope=\"table\"][data-part=\"cell\"][data-blocks-pricing-comparison-table-col] {\n  text-align: center;\n}\n\
@@ -576,6 +584,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"table\"][data-part=\"column-header\"][data-blocks-pricing-comparison-table-col=\"featured\"],\n[data-scope=\"table\"][data-part=\"cell\"][data-blocks-pricing-comparison-table-col=\"featured\"] {\n  background: var(--fandhe-color-accent-subtle);\n}\n\
 [data-scope=\"icon\"][data-part=\"root\"][data-blocks-pricing-comparison-table-value=\"excluded\"] {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-pricing-comparison-table-card-item {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
+.blocks-pricing-comparison-table-card-list {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 [data-blocks-pricing-comparison-table-view=\"cards\"] {\n  display: none;\n  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));\n  gap: var(--fandhe-space-4);\n}\n\
 @media (max-width: 47.99rem) {\n  [data-blocks-pricing-comparison-table-view=\"table\"] {\n    display: none;\n  }\n  [data-blocks-pricing-comparison-table-view=\"cards\"] {\n    display: grid;\n  }\n}\n";
 
