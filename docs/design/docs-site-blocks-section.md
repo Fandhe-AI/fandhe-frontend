@@ -921,6 +921,7 @@ pub enum LayoutCss {
 | stats-cards | #2802 | `marketing/stats/stats_cards.rs` |
 | section-heading-stacked | #2799 | `marketing/section_heading/section_heading_stacked.rs` |
 | section-heading-stats | #2800 | `marketing/section_heading/section_heading_stats.rs` |
+| stats-split | #2804 | `marketing/stats/stats_split.rs` |
 | stats-timeline | #2805 | `marketing/stats/stats_timeline.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
