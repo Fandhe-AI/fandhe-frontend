@@ -13,10 +13,10 @@
 
 本 Demo は静的な表示例であり、docs サイトは JS ハイドレーションを行わない
 ため、押しても何も起きないトリガー（ナビ項目のトリガー・ハンバーガー
-ボタン）はすべて `disabled` にして操作不能であることを明示しています。
-`<form>` 要素は一切持たず、データの取得・送信・状態管理を行いません。
-アクション行のボタンは `type="button"` のまま送信先を持ちません。文言は
-すべて独自に書いた架空のものであり、実企業名・実クレデンシャル・PII を
+ボタン・主 CTA ボタン）はすべて `disabled` にして操作不能であることを
+明示しています。`<form>` 要素は一切持たず、データの取得・送信・状態管理を
+行いません。アクション行のボタンは `type="button"` のまま送信先を持ちません。
+文言はすべて独自に書いた架空のものであり、実企業名・実クレデンシャル・PII を
 含みません。実際に使うときはリンク先を差し替えてください。
 
 ## Rust コード
@@ -257,13 +257,22 @@ fn main_nav() -> Node {
     )
 }
 
-/// アクション行（ログイン + 主 CTA）。
+/// アクション行（ログイン + 主 CTA）。無 JS デモのため主 CTA も
+/// ハンバーガーと同じ理由（モジュール doc「静的表示」節）で
+/// `disabled: true` 固定にし、フォーカス・クリック不能を明示する。
 fn actions() -> Node {
     div(
         vec![("data-blocks-header-flyout-menu-actions", "")],
         vec![
             link::root(REPO, &LinkProps::default(), vec![], vec![text("ログイン")]),
-            button::button(&ButtonProps::default(), vec![], vec![text("使ってみる")]),
+            button::button(
+                &ButtonProps {
+                    disabled: true,
+                    ..ButtonProps::default()
+                },
+                vec![("data-blocks-header-flyout-menu-cta", "")],
+                vec![text("使ってみる")],
+            ),
         ],
     )
 }

@@ -26,8 +26,9 @@
 //! （ネイティブ `disabled` 属性 + `aria-disabled="true"`）にしてフォーカス
 //! 不能・操作不能であることを支援技術・キーボード双方に明示する。
 //! `disabled_declarations()`（既定 `opacity: 0.5`）は [`LAYOUT_CSS`] で
-//! 中和し、通常のナビ項目と同じ見た目に保つ（ハンバーガーボタンの disabled
-//! も同様に中和する）。
+//! 中和し、通常のナビ項目と同じ見た目に保つ（ハンバーガーボタン・主 CTA
+//! ボタンの disabled も同様に中和する。主 CTA も遷移先・処理を持たない
+//! ため同じ理由で `disabled: true` にする）。
 //!
 //! 「Resources」項目は閉じた状態（[`OpenState::Closed`]）で併記する。
 //! `content` は headless 層の fail-safe により `hidden` 属性が自動で付くが、
@@ -324,13 +325,22 @@ fn main_nav() -> Node {
     )
 }
 
-/// アクション行（ログイン + 主 CTA）。
+/// アクション行（ログイン + 主 CTA）。無 JS デモのため主 CTA も
+/// ハンバーガーと同じ理由（モジュール doc「静的表示」節）で
+/// `disabled: true` 固定にし、フォーカス・クリック不能を明示する。
 fn actions() -> Node {
     div(
         vec![("data-blocks-header-flyout-menu-actions", "")],
         vec![
             link::root(REPO, &LinkProps::default(), vec![], vec![text("ログイン")]),
-            button::button(&ButtonProps::default(), vec![], vec![text("使ってみる")]),
+            button::button(
+                &ButtonProps {
+                    disabled: true,
+                    ..ButtonProps::default()
+                },
+                vec![("data-blocks-header-flyout-menu-cta", "")],
+                vec![text("使ってみる")],
+            ),
         ],
     )
 }
@@ -398,27 +408,47 @@ pub const BLOCK: Block = Block {
 /// `push_css` で連結される）。
 ///
 /// セレクタは `.blocks-header-flyout-menu-*` と
-/// `[data-blocks-header-flyout-menu-*]`、および styled navigation-menu の
-/// `[data-scope="navigation-menu"]` 系セレクタへの子孫結合子付き上書き
-/// （disabled 中和、モジュール doc「静的表示」節）・styled button の
-/// disabled 中和のみを用い、他 block や部品の素のセレクタへ影響させない。
+/// `[data-blocks-header-flyout-menu-*]`、および styled navigation-menu /
+/// styled button の `[data-scope]`/`[data-part]` セレクタとの複合セレクタ
+/// （disabled 中和・レスポンシブ切り替え、モジュール doc「静的表示」節）
+/// のみを用い、他 block や部品の素のセレクタへ影響させない。
+///
+/// # CSS 特異性（Bugbot 指摘の是正、モジュール doc「レスポンシブ」節）
+///
+/// `navigation-menu`/`button` の recipe は `root`/`link` slot へ
+/// `[data-scope="..."][data-part="..."]`（属性セレクタ 2 個、詳細度
+/// `(0,2,0)`）の無条件 base 宣言・`(0,3,0)` の disabled state 宣言を持つ
+/// （`crates/pre-styled-ui/src/navigation_menu.rs`/`button.rs` 参照）。
+/// これらは `styled navigation-menu`/`styled button` を素通しする本 Demo
+/// では headless 由来の `data-scope`/`data-part` と Demo 固有の
+/// `data-blocks-header-flyout-menu-*` が同一要素に併記されるため、
+/// 単一属性セレクタ（詳細度 `(0,1,0)`）の上書きは常にこれらへ負ける
+/// （後勝ちの記述順に関係なく詳細度が低いため）。本 CSS は
+/// `data-scope`/`data-part` を明示的に含めた複合セレクタ（recipe 側より
+/// 属性セレクタ数を必ず 1 個以上多くする）でこれを解決する。対象は
+/// レスポンシブ切り替え（nav の `[data-part="root"]`・ハンバーガーの
+/// `[data-part="root"]`）・disabled 中和（ハンバーガー・主 CTA・
+/// フライアウトトリガーの各 `[data-disabled]` state）・フライアウト項目の
+/// アイコン縦位置（`link` の `align-items` base 宣言）の 4 種。
 const LAYOUT_CSS: &str = "\
 .blocks-header-flyout-menu-layout {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  inline-size: 100%;\n}\n\
-[data-blocks-header-flyout-menu-nav] {\n  display: none;\n}\n\
+[data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-flyout-menu-nav] {\n  display: none;\n}\n\
 [data-blocks-header-flyout-menu-actions] {\n  display: none;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
-[data-blocks-header-flyout-menu-toggle] {\n  display: inline-flex;\n}\n\
-[data-blocks-header-flyout-menu-toggle][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-header-flyout-menu-toggle] {\n  display: inline-flex;\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-header-flyout-menu-toggle][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-header-flyout-menu-cta][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-header-flyout-menu-brand {\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
 [data-blocks-header-flyout-menu-panel] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  inline-size: min(26rem, 80vw);\n}\n\
-[data-blocks-header-flyout-menu-item] {\n  align-items: flex-start;\n}\n\
+[data-blocks-header-flyout-menu-panel][hidden] {\n  display: none;\n}\n\
+[data-scope=\"navigation-menu\"][data-part=\"link\"][data-blocks-header-flyout-menu-item] {\n  align-items: flex-start;\n}\n\
 .blocks-header-flyout-menu-item-text {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-header-flyout-menu-item-label {\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
 .blocks-header-flyout-menu-item-description {\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n}\n\
 [data-blocks-header-flyout-menu-root] [data-scope=\"navigation-menu\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 @media (min-width: 48rem) {\n  \
-[data-blocks-header-flyout-menu-nav] {\n    display: block;\n  }\n  \
+[data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-flyout-menu-nav] {\n    display: block;\n  }\n  \
 [data-blocks-header-flyout-menu-actions] {\n    display: flex;\n  }\n  \
-[data-blocks-header-flyout-menu-toggle] {\n    display: none;\n  }\n  \
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-header-flyout-menu-toggle] {\n    display: none;\n  }\n  \
 .blocks-header-flyout-menu-layout {\n    align-items: flex-start;\n    min-block-size: 24rem;\n  }\n\
 }\n";
 
@@ -499,9 +529,55 @@ mod tests {
     #[test]
     fn layout_css_switches_to_hamburger_on_narrow_viewports() {
         assert!(LAYOUT_CSS.contains("@media (min-width: 48rem)"));
-        assert!(LAYOUT_CSS
-            .contains("[data-blocks-header-flyout-menu-toggle] {\n    display: none;\n  }"));
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"button\"][data-part=\"root\"][data-blocks-header-flyout-menu-toggle] {\n    display: none;\n  }"
+        ));
         assert!(LAYOUT_CSS.contains("opacity: 1;"));
+    }
+
+    /// [`LAYOUT_CSS`] が recipe の `[data-scope]`/`[data-part]` セレクタと
+    /// 同等以上の詳細度でレスポンシブ切り替え・disabled 中和・アイコン
+    /// 縦位置を上書きすること（Bugbot 指摘の是正回帰、[`LAYOUT_CSS`] doc
+    /// 「CSS 特異性」節）。
+    #[test]
+    fn layout_css_overrides_have_sufficient_specificity() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-flyout-menu-nav] {\n  display: none;\n}"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"button\"][data-part=\"root\"][data-blocks-header-flyout-menu-toggle][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"button\"][data-part=\"root\"][data-blocks-header-flyout-menu-cta][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"navigation-menu\"][data-part=\"link\"][data-blocks-header-flyout-menu-item] {\n  align-items: flex-start;\n}"
+        ));
+        assert!(LAYOUT_CSS
+            .contains("[data-blocks-header-flyout-menu-panel][hidden] {\n  display: none;\n}"));
+    }
+
+    /// 主 CTA（「使ってみる」）が `disabled` で描画され、フォーカス・
+    /// クリック不能であること（codex P1 指摘の是正回帰）。
+    #[test]
+    fn cta_button_is_disabled() {
+        let html = render(&demo());
+        let attr_start = html
+            .find("data-blocks-header-flyout-menu-cta")
+            .expect("cta button should render");
+        let tag_start = html[..attr_start]
+            .rfind("<button")
+            .expect("cta button opening tag should precede its attribute");
+        let tag_end = html[tag_start..]
+            .find('>')
+            .expect("cta opening tag should close")
+            + tag_start;
+        let cta_tag = &html[tag_start..tag_end];
+        assert!(cta_tag.contains("disabled"), "cta_tag={cta_tag}");
+        assert!(
+            cta_tag.contains(r#"aria-disabled="true""#),
+            "cta_tag={cta_tag}"
+        );
     }
 
     /// ハンバーガーボタンが `aria-label` を持つこと。
