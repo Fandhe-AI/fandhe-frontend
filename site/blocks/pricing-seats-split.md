@@ -135,6 +135,13 @@ fn controls() -> Node {
 
     let switch_props = SwitchProps {
         readonly: true,
+        // `readonly` は `data-readonly` を出すのみで native checkbox の
+        // クリック/Space による切り替え自体は止めない（headless-ui
+        // `SwitchProps::readonly` doc「native トグル操作自体を抑止する
+        // 配線は持たない」節）。座席数入力の増減トリガーと同じ判断で
+        // `disabled: true` も付与し、[`switch::hidden_input`] へ native
+        // `disabled` を出力して操作を実際に抑止する。
+        disabled: true,
         ..SwitchProps::default()
     };
     let annual_switch = switch::root(
@@ -177,9 +184,9 @@ fn controls() -> Node {
                     variant: TextVariant::Muted,
                     ..TextProps::default()
                 },
-                vec![("class", "blocks-pricing-seats-split-lead")],
+                vec![("data-blocks-pricing-seats-split-lead", "")],
                 vec![text(
-                    "座席数と課金周期を指定すると、各プランの月額が自動で更新されます。",
+                    "座席数 5・年払いの場合の月額例です（本 Demo は静的表示のため入力と連動しません）。",
                 )],
             ),
             seats_input,

@@ -186,6 +186,13 @@ fn controls() -> Node {
 
     let switch_props = SwitchProps {
         readonly: true,
+        // `readonly` は `data-readonly` を出すのみで native checkbox の
+        // クリック/Space による切り替え自体は止めない（headless-ui
+        // `SwitchProps::readonly` doc「native トグル操作自体を抑止する
+        // 配線は持たない」節）。座席数入力の増減トリガーと同じ判断で
+        // `disabled: true` も付与し、[`switch::hidden_input`] へ native
+        // `disabled` を出力して操作を実際に抑止する。
+        disabled: true,
         ..SwitchProps::default()
     };
     let annual_switch = switch::root(
@@ -228,9 +235,9 @@ fn controls() -> Node {
                     variant: TextVariant::Muted,
                     ..TextProps::default()
                 },
-                vec![("class", "blocks-pricing-seats-split-lead")],
+                vec![("data-blocks-pricing-seats-split-lead", "")],
                 vec![text(
-                    "座席数と課金周期を指定すると、各プランの月額が自動で更新されます。",
+                    "座席数 5・年払いの場合の月額例です（本 Demo は静的表示のため入力と連動しません）。",
                 )],
             ),
             seats_input,
@@ -358,12 +365,12 @@ const LAYOUT_CSS: &str = "\
 .blocks-pricing-seats-split-layout {\n  display: grid;\n  gap: var(--fandhe-space-8);\n}\n\
 @media (min-width: 64rem) {\n  .blocks-pricing-seats-split-layout {\n    grid-template-columns: minmax(16rem, 1fr) 2fr;\n    align-items: start;\n  }\n}\n\
 .blocks-pricing-seats-split-controls {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
-.blocks-pricing-seats-split-lead {\n  margin: 0;\n}\n\
+[data-blocks-pricing-seats-split-lead] {\n  margin: 0;\n}\n\
 .blocks-pricing-seats-split-cards {\n  display: grid;\n  gap: var(--fandhe-space-4);\n  grid-template-columns: 1fr;\n}\n\
 @media (min-width: 64rem) {\n  .blocks-pricing-seats-split-cards {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n}\n\
 .blocks-pricing-seats-split-card-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-pricing-seats-split-price-row {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  gap: var(--fandhe-space-1);\n}\n\
-.blocks-pricing-seats-split-price {\n  font-size: var(--fandhe-font-font-size-xl2);\n  font-weight: var(--fandhe-font-font-weight-bold);\n}\n\
+.blocks-pricing-seats-split-price {\n  font-size: var(--fandhe-font-font-size-2xl);\n  font-weight: var(--fandhe-font-font-weight-bold);\n}\n\
 .blocks-pricing-seats-split-price-period {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-pricing-seats-split-price-regular {\n  width: 100%;\n  color: var(--fandhe-color-fg-muted);\n}\n";
 
