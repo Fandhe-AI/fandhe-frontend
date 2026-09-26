@@ -321,6 +321,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-cta-columns/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-sticky-reveal/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-newsletter/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-newsletter-band/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-link-columns/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-inline-nav/index.html"
           # Marketing / Banner
