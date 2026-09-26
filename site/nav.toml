@@ -1463,6 +1463,11 @@ title = "faq-question-rows"
 source = "site/blocks/faq-question-rows.md"
 path = "/blocks/faq-question-rows/"
 
+[[section.group.page]]
+title = "faq-split-accordion"
+source = "site/blocks/faq-split-accordion.md"
+path = "/blocks/faq-split-accordion/"
+
 [[section.group]]
 title = "Contact"
 
