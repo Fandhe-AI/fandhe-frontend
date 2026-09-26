@@ -272,6 +272,7 @@ jobs:
           # Marketing / Stats
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-background-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-with-image/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-cards/index.html"
           # Marketing / Team
           # Marketing / Faq
           # Marketing / Contact

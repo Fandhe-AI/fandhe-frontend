@@ -918,6 +918,7 @@ pub enum LayoutCss {
 | stats-with-image | #2806 | `marketing/stats/stats_with_image.rs` |
 | section-heading-split | #2798 | `marketing/section_heading/section_heading_split.rs` |
 | newsletter-with-details | #2797 | `marketing/newsletter/newsletter_with_details.rs` |
+| stats-cards | #2802 | `marketing/stats/stats_cards.rs` |
 | section-heading-stacked | #2799 | `marketing/section_heading/section_heading_stacked.rs` |
 | section-heading-stats | #2800 | `marketing/section_heading/section_heading_stats.rs` |
 
