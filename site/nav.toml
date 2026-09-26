@@ -1731,6 +1731,11 @@ title = "section-heading-stacked"
 source = "site/blocks/section-heading-stacked.md"
 path = "/blocks/section-heading-stacked/"
 
+[[section.group.page]]
+title = "section-heading-stats"
+source = "site/blocks/section-heading-stats.md"
+path = "/blocks/section-heading-stats/"
+
 [[section.group]]
 title = "Sidebar"
 
