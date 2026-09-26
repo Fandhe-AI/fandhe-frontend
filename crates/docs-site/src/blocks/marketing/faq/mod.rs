@@ -3,7 +3,7 @@
 //! ディレクトリ化して卒業した。`docs/design/docs-site-blocks-section.md`
 //! §18 の卒業手順に従う。イシュー #2845 で 2 件目（`faq_split_accordion`）、
 //! イシュー #2846 で 3 件目（`faq_split_static`）、
-//! イシュー #2848 で 4 件目（`faq_tabbed_accordion`）を追加）。
+//! イシュー #2848 で 4 件目（`faq_tabbed_accordion`）を追加。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
 //! 新規 block を追加する際は本ファイルへ `mod` 宣言と `blocks()` への追記を
