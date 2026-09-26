@@ -1624,6 +1624,11 @@ path = "/blocks/content-with-testimonial/"
 title = "Header"
 
 [[section.group.page]]
+title = "header-floating-pill"
+source = "site/blocks/header-floating-pill.md"
+path = "/blocks/header-floating-pill/"
+
+[[section.group.page]]
 title = "header-flyout-menu"
 source = "site/blocks/header-flyout-menu.md"
 path = "/blocks/header-flyout-menu/"
