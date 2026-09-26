@@ -1629,6 +1629,11 @@ source = "site/blocks/footer-cta-columns.md"
 path = "/blocks/footer-cta-columns/"
 
 [[section.group.page]]
+title = "footer-inline-nav"
+source = "site/blocks/footer-inline-nav.md"
+path = "/blocks/footer-inline-nav/"
+
+[[section.group.page]]
 title = "footer-link-columns"
 source = "site/blocks/footer-link-columns.md"
 path = "/blocks/footer-link-columns/"
