@@ -315,6 +315,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/content-split-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/content-with-testimonial/index.html"
           # Marketing / Header
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/header-floating-pill/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/header-flyout-menu/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/header-mega-menu/index.html"
           # Marketing / Footer

@@ -20,8 +20,6 @@ R0984。出典の固有名・ファイル名は記載しません）。
 まま送信先を持ちません。文言・ブランド名はすべて独自に書いた架空の
 ものであり、実企業名・実クレデンシャル・PII を含みません。
 
-パネル下部の補助 CTA 帯・原案差分メモは後続の block で追加予定です。
-
 ## Rust コード
 
 ```rust
@@ -89,9 +87,14 @@ const PRODUCTS_TRIGGER_ID: &str = "blocks-header-mega-menu-products-trigger";
 /// [`PRODUCTS_TRIGGER_ID`] と対になる `content` の `id`。
 const PRODUCTS_CONTENT_ID: &str = "blocks-header-mega-menu-products-content";
 
-/// リポジトリ実 URL（`href` の方針・レビュー是正: 「ログイン」の遷移先を
-/// サイト内の実在ページへ流用すると行き先の意味が食い違うため、
-/// [`super::header_flyout_menu`] と同じく実在の外部 URL を使う）。
+/// リポジトリ実 URL（`href` の方針）。本サイトに実在するログインページは
+/// 無いため、遷移先はこの実在の外部 URL を使う。ただし [`actions`] の
+/// リンク文言は「ログイン」ではなく行き先どおり「GitHub」とする（PR #3273
+/// レビュー指摘: 「ログイン」という文言のまま GitHub リポジトリへ飛ばすと
+/// リンク名と実際の行き先が食い違い、ログイン画面に到達すると誤認させる。
+/// [`super::header_flyout_menu`] の同型リンクは同じ不一致を抱えたまま
+/// 既に main へマージ済みで、本 block の範囲外のため別途追跡する
+/// （`.claude/rules/out-of-scope-tracking.md`）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 /// ブランドロゴ（装飾用の幾何アイコン、菱形）。実在ブランドのロゴ・
@@ -234,19 +237,20 @@ fn nav() -> Node {
     )
 }
 
-/// バー右側のアクション（ログインリンク + CTA ボタン）。レビュー是正:
-/// 「ログイン」の遷移先にサイト内ページ（トップページ・ドキュメント等）を
-/// 流用すると、リンク名（ログイン）と実際の行き先が食い違う。本サイトに
-/// 実在するログインページは無いため、[`super::header_flyout_menu`] と
-/// 同じ判断で実在の外部 URL（[`REPO`]）を使う。CTA（「無料で始める」）は
-/// 遷移先・送信処理を持たない no-op のため、`disabled: true` にして
-/// フォーカス・クリック不能を明示する（`disabled_declarations()` は
-/// [`LAYOUT_CSS`] で中和し通常の CTA と同じ見た目に保つ）。
+/// バー右側のアクション（GitHub リンク + CTA ボタン）。PR #3273 レビュー
+/// 指摘（P2）是正: 当初「ログイン」ラベルで [`REPO`]（GitHub リポジトリ）
+/// へ遷移させていたが、本サイトに実在するログインページは無く、リンク名
+/// （ログイン）と実際の行き先（GitHub）が食い違っていた。行き先を変えず
+/// ラベルを実態（GitHub リポジトリ）に合わせて是正する（[`REPO`] の doc
+/// コメント参照）。CTA（「無料で始める」）は遷移先・送信処理を持たない
+/// no-op のため、`disabled: true` にしてフォーカス・クリック不能を明示する
+/// （`disabled_declarations()` は [`LAYOUT_CSS`] で中和し通常の CTA と
+/// 同じ見た目に保つ）。
 fn actions() -> Node {
     div(
         vec![("class", "blocks-header-mega-menu-actions")],
         vec![
-            link::root(REPO, &LinkProps::default(), vec![], vec![text("ログイン")]),
+            link::root(REPO, &LinkProps::default(), vec![], vec![text("GitHub")]),
             button::button(
                 &ButtonProps {
                     disabled: true,
