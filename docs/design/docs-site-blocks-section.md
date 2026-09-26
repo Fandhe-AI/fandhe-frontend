@@ -907,14 +907,16 @@ pub enum LayoutCss {
 | hero-bottom-screenshot | #2782 | `marketing/hero/hero_bottom_screenshot.rs` |
 | hero-image-top | #2785 | `marketing/hero/hero_image_top.rs` |
 | gallery-split-carousel | #2780 | `marketing/gallery/gallery_split_carousel.rs` |
+| hero-install-command | #2786 | `marketing/hero/hero_install_command.rs` |
 | hero-prompt-input | #2788 | `marketing/hero/hero_prompt_input.rs` |
 | hero-social-proof | #2790 | `marketing/hero/hero_social_proof.rs` |
 | hero-split-image | #2791 | `marketing/hero/hero_split_image.rs` |
+| newsletter-split | #2796 | `marketing/newsletter/newsletter_split.rs` |
 | logo-cloud-marquee | #2794 | `marketing/logo_cloud/logo_cloud_marquee.rs` |
 | newsletter-with-details | #2797 | `marketing/newsletter/newsletter_with_details.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-94 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+99 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
