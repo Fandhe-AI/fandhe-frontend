@@ -1459,6 +1459,11 @@ source = "site/blocks/faq-accordion-centered.md"
 path = "/blocks/faq-accordion-centered/"
 
 [[section.group.page]]
+title = "faq-split-accordion"
+source = "site/blocks/faq-split-accordion.md"
+path = "/blocks/faq-split-accordion/"
+
+[[section.group.page]]
 title = "faq-split-static"
 source = "site/blocks/faq-split-static.md"
 path = "/blocks/faq-split-static/"
