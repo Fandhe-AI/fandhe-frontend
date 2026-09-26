@@ -282,6 +282,7 @@ jobs:
           # Marketing / Team
           # Marketing / Faq
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-accordion-centered/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-question-rows/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-split-accordion/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-split-static/index.html"
           # Marketing / Contact
