@@ -7,13 +7,15 @@
 名・ファイル名は記載しません）。
 
 中央寄せの見出しエリアの下にカテゴリラベルを示す非対話のタブ列を置き、
-先頭カテゴリの FAQ を accordion で並べます。無 JS の docs サイトでは実物
-の `tabs` でカテゴリを切り替える経路が作れないため、タブ列は見た目のみを
-示す装飾（クリック・キーボード操作はできません）とし、残り 2 カテゴリの
-FAQ は「「{カテゴリ名}」タブを選択した場合のプレビュー」というキャプ
-ション付きの accordion として下に併記します。これにより 3 カテゴリ全件
-の FAQ が常に閲覧できます。狭い幅ではタブ列だけが横スクロールします
-（ページ全体はスクロールしません）。
+先頭カテゴリの FAQ を「「{カテゴリ名}」の質問と回答」というキャプション
+付きの accordion で並べます。無 JS の docs サイトでは実物の `tabs` で
+カテゴリを切り替える経路が作れないため、タブ列は見た目のみを示す装飾
+（クリック・キーボード操作はできません、ラベルは `aria-hidden` で装飾扱い
+です）とし、残り 2 カテゴリの FAQ は「「{カテゴリ名}」タブを選択した場合
+のプレビュー」というキャプション付きの accordion として下に併記します。
+カテゴリ名はいずれもタブ列だけでなくキャプションとして可視・支援技術から
+読める位置に存在し、3 カテゴリ全件の FAQ が常に閲覧できます。狭い幅では
+タブ列だけが横スクロールします（ページ全体はスクロールしません）。
 
 本 Demo は静的な表示例です。各カテゴリの accordion は全項目を常時展開
 （open）した状態で固定し、`disabled` により開閉操作自体を無効化していま
@@ -126,7 +128,9 @@ fn header() -> Node {
                     ..TextProps::default()
                 },
                 vec![],
-                vec![text("知りたい内容のカテゴリを選んでください。")],
+                vec![text(
+                    "カテゴリ別によくある質問と回答をまとめて掲載しています。",
+                )],
             ),
         ],
     )
@@ -267,16 +271,43 @@ fn category_preview(label: &str, category: &str, faqs: &[(&str, &str); 3]) -> No
     )
 }
 
+/// 先頭（選択中）カテゴリのキャプション付き accordion（PR #3268 レビュー
+/// 是正 2 件目・3 件目、Codex P1 + Bugbot Medium）。[`static_tab_list`] の
+/// ラベルは `aria-hidden` で装飾扱いにしているため、先頭カテゴリの本文を
+/// [`category_accordion`] のみで描画すると「料金・契約」の名称がどこにも
+/// 支援技術から読める形で存在しなくなる（後続 2 カテゴリは
+/// [`category_preview`] のキャプションが同じ役割を担っていた）。
+/// [`category_preview`] と対になる可視キャプションを付け、全カテゴリで
+/// 「カテゴリ名がどこかに可視テキストとして存在する」構成を揃える。
+fn category_current(label: &str, category: &str, faqs: &[(&str, &str); 3]) -> Node {
+    div(
+        vec![("class", "blocks-faq-tabbed-accordion-preview")],
+        vec![
+            styled_text::text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    variant: TextVariant::Muted,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text(format!("「{label}」の質問と回答"))],
+            ),
+            category_accordion(category, faqs),
+        ],
+    )
+}
+
 /// `faq-tabbed-accordion` の Demo 本体。呼び出しごとに同一の `Node` を
 /// 返す純関数。先頭カテゴリを [`static_tab_list`] の選択状態として示し
-/// その本文をそのまま描画したあと、残り 2 カテゴリを
-/// [`category_preview`] で併記する（3 カテゴリ全件が常に可視）。
+/// [`category_current`] でキャプション付きの本文を描画したあと、残り
+/// 2 カテゴリを [`category_preview`] で併記する（3 カテゴリ全件が常に
+/// 可視、かつ全カテゴリ名が可視キャプションとして存在する）。
 pub fn demo() -> Node {
-    let (first_value, _, first_faqs) = CATEGORIES[0];
+    let (first_value, first_label, first_faqs) = CATEGORIES[0];
     let mut children = vec![
         header(),
         static_tab_list(first_value),
-        category_accordion(first_value, &first_faqs),
+        category_current(first_label, first_value, &first_faqs),
     ];
     for (value, label, faqs) in &CATEGORIES[1..] {
         children.push(category_preview(label, value, faqs));
@@ -307,6 +338,14 @@ pub fn demo() -> Node {
   （`faq-accordion-centered` 等、先行する block が受けた指摘と同じ判断）。
 - カテゴリ・Q&A の項目・文言はすべて独自に書いた架空のものにしました。
 - 配色・余白・角丸は既存のテーマトークンに従っています。
+- （2 回目のレビュー是正）見出し下の案内文「知りたい内容のカテゴリを
+  選んでください」は、操作不能な非対話タブ列への操作を促す文言のまま
+  残っており、静的な全件表示と矛盾していました。案内文を「カテゴリ別に
+  よくある質問と回答をまとめて掲載しています。」へ変更しました。あわせて
+  先頭カテゴリ（「料金・契約」）だけがキャプションを持たず、カテゴリ名が
+  `aria-hidden` なタブ列にしか存在しない状態だったため、残り 2 カテゴリと
+  同様に可視キャプション「「{カテゴリ名}」の質問と回答」を付けました
+  （Codex P1 2 件・Bugbot Medium 1 件の指摘、PR #3268）。
 
 関連情報: [Heading](../themes/heading.md) / [Text](../themes/text.md) /
 [Badge](../themes/badge.md) / [Accordion](../themes/accordion.md)

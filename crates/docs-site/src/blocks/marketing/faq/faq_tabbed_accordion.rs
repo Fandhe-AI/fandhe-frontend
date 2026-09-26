@@ -17,10 +17,9 @@
 //! 当初は実物の `tabs::tabs` を 1 インスタンスだけ使い、先頭カテゴリのみ
 //! 選択・非 disabled、残り 2 件を `disabled: true` にしていた。しかし
 //! 無 JS の docs サイトではこの構成でも「機能」「サポート」カテゴリの
-//! FAQ が `hidden` パネルの中に閉じ込められ、[`header`] の案内文
-//! 「知りたい内容のカテゴリを選んでください」が指す操作を実行する経路が
-//! 存在しなかった（Codex P1 3 件・Bugbot Medium 1 件、いずれも同一原因）。
-//! [`super::super::feature::feature_tabs_panel`]・
+//! FAQ が `hidden` パネルの中に閉じ込められ、案内文が指す操作を実行する
+//! 経路が存在しなかった（Codex P1 3 件・Bugbot Medium 1 件、いずれも同一
+//! 原因）。[`super::super::feature::feature_tabs_panel`]・
 //! [`super::super::feature::feature_vertical_tabs`] が同種の指摘を受けて
 //! 採った方針（実物の `tabs::tabs` を使わず、非対話の視覚的タブ列 +
 //! 全カテゴリ本文を常時可視にする静的表示へ切り替える）を本 block にも
@@ -30,12 +29,19 @@
 //!   非対話な `div` 列でカテゴリラベルを装飾として示す（`aria-hidden`
 //!   でラベルを支援技術のツリーから除外し、各カテゴリの内容は下記の
 //!   キャプション付き accordion で重複なく提供する）
-//! - 先頭カテゴリ（`billing`）の accordion は [`header`] 直下にそのまま
-//!   描画する
+//! - [`header`] の案内文は「カテゴリを選んでください」のような操作指示
+//!   ではなく、全カテゴリを下に並べる静的構成に合わせた文言にする
+//!   （2 回目のレビューで是正: 操作不能な [`static_tab_list`] への操作を
+//!   促す文言のまま残っていた）
+//! - 先頭カテゴリ（`billing`）の accordion は [`category_current`] が
+//!   [`category_preview`] と対になる可視キャプション付きで [`header`]
+//!   直下に描画する（同じく 2 回目のレビューで是正: 先頭カテゴリだけ
+//!   キャプションを持たず、カテゴリ名が `aria-hidden` な
+//!   [`static_tab_list`] にしか存在しない状態だった）
 //! - 残り 2 カテゴリは [`category_preview`] が
 //!   「「{label}」タブを選択した場合のプレビュー」キャプション付きで
-//!   accordion を並記する。これにより 3 カテゴリ全ての FAQ が常に
-//!   到達可能な静的 HTML になる
+//!   accordion を並記する。これにより 3 カテゴリ全ての FAQ とカテゴリ名が
+//!   常に可視・到達可能な静的 HTML になる
 //!
 //! # アコーディオンは全件 open + disabled（原案との差分）
 //!
@@ -182,7 +188,9 @@ fn header() -> Node {
                     ..TextProps::default()
                 },
                 vec![],
-                vec![text("知りたい内容のカテゴリを選んでください。")],
+                vec![text(
+                    "カテゴリ別によくある質問と回答をまとめて掲載しています。",
+                )],
             ),
         ],
     )
@@ -323,16 +331,43 @@ fn category_preview(label: &str, category: &str, faqs: &[(&str, &str); 3]) -> No
     )
 }
 
+/// 先頭（選択中）カテゴリのキャプション付き accordion（PR #3268 レビュー
+/// 是正 2 件目・3 件目、Codex P1 + Bugbot Medium）。[`static_tab_list`] の
+/// ラベルは `aria-hidden` で装飾扱いにしているため、先頭カテゴリの本文を
+/// [`category_accordion`] のみで描画すると「料金・契約」の名称がどこにも
+/// 支援技術から読める形で存在しなくなる（後続 2 カテゴリは
+/// [`category_preview`] のキャプションが同じ役割を担っていた）。
+/// [`category_preview`] と対になる可視キャプションを付け、全カテゴリで
+/// 「カテゴリ名がどこかに可視テキストとして存在する」構成を揃える。
+fn category_current(label: &str, category: &str, faqs: &[(&str, &str); 3]) -> Node {
+    div(
+        vec![("class", "blocks-faq-tabbed-accordion-preview")],
+        vec![
+            styled_text::text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    variant: TextVariant::Muted,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text(format!("「{label}」の質問と回答"))],
+            ),
+            category_accordion(category, faqs),
+        ],
+    )
+}
+
 /// `faq-tabbed-accordion` の Demo 本体。呼び出しごとに同一の `Node` を
 /// 返す純関数。先頭カテゴリを [`static_tab_list`] の選択状態として示し
-/// その本文をそのまま描画したあと、残り 2 カテゴリを
-/// [`category_preview`] で併記する（3 カテゴリ全件が常に可視）。
+/// [`category_current`] でキャプション付きの本文を描画したあと、残り
+/// 2 カテゴリを [`category_preview`] で併記する（3 カテゴリ全件が常に
+/// 可視、かつ全カテゴリ名が可視キャプションとして存在する）。
 pub fn demo() -> Node {
-    let (first_value, _, first_faqs) = CATEGORIES[0];
+    let (first_value, first_label, first_faqs) = CATEGORIES[0];
     let mut children = vec![
         header(),
         static_tab_list(first_value),
-        category_accordion(first_value, &first_faqs),
+        category_current(first_label, first_value, &first_faqs),
     ];
     for (value, label, faqs) in &CATEGORIES[1..] {
         children.push(category_preview(label, value, faqs));
@@ -432,9 +467,10 @@ mod tests {
         assert!(html.contains("class=\"blocks-faq-tabbed-accordion-tablist\""));
     }
 
-    /// 3 カテゴリ全件の FAQ 本文が常に到達可能であること（先頭は直接
-    /// 描画、残り 2 件は [`super::category_preview`] のキャプション付き
-    /// accordion として並記される）。
+    /// 3 カテゴリ全件の FAQ 本文が常に到達可能であること（先頭は
+    /// [`super::category_current`]、残り 2 件は
+    /// [`super::category_preview`] のキャプション付き accordion として
+    /// 並記される）。
     #[test]
     fn demo_renders_all_categories_reachably() {
         let html = render(&demo());
@@ -447,6 +483,24 @@ mod tests {
         }
         assert!(html.contains("「機能」タブを選択した場合のプレビュー"));
         assert!(html.contains("「サポート」タブを選択した場合のプレビュー"));
+    }
+
+    /// 先頭カテゴリ（「料金・契約」）の名称が `aria-hidden` な
+    /// [`super::static_tab_list`] だけでなく、可視の
+    /// [`super::category_current`] キャプションとしても支援技術から
+    /// 読める位置に存在すること（PR #3268 2 回目のレビュー是正、Codex P1
+    /// + Bugbot Medium の回帰固定）。
+    #[test]
+    fn demo_first_category_label_is_visible_outside_aria_hidden_tab_list() {
+        let html = render(&demo());
+        assert!(
+            html.contains("「料金・契約」の質問と回答"),
+            "html should contain visible caption for the first category: {html}"
+        );
+        assert!(
+            !html.contains("知りたい内容のカテゴリを選んでください"),
+            "header should not instruct selecting a category via the non-interactive tab list"
+        );
     }
 
     /// 全カテゴリの FAQ が全件 open・disabled であること（モジュール doc
