@@ -20,7 +20,20 @@ use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSi
 use fandhe_frontend_pre_styled_ui::Size;
 
 /// リンク先の固定外部 URL（モジュール doc「リンク先の方針」節参照）。
+/// 表示名と遷移先の対応が付く実在ページのみを使い、対応が付かない項目
+/// （SNS アカウント・Privacy Policy・Terms of Service 等）は非表示にする
+/// （Bugbot 指摘 PR #3271）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+/// docs サイト「Guide」の実在ページ（`site/nav.toml` `index_path = "/guides/"`）。
+const GUIDE_URL: &str = "https://fandhe-ai.github.io/fandhe-frontend/guides/";
+/// docs サイト「API Reference」の実在ページ（同 `index_path = "/api/"`）。
+const API_REFERENCE_URL: &str = "https://fandhe-ai.github.io/fandhe-frontend/api/";
+/// docs サイト「Examples」の実在ページ（同 `index_path = "/examples/"`）。
+const EXAMPLES_URL: &str = "https://fandhe-ai.github.io/fandhe-frontend/examples/";
+/// リポジトリのリリース一覧（「Changelog」の実在先）。
+const RELEASES_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend/releases";
+/// リポジトリの Discussions（「Discussions」の実在先）。
+const DISCUSSIONS_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend/discussions";
 
 /// 自作の幾何パスによる装飾アイコン（`feature_three_column_icons::
 /// geo_icon` と同型の線画。`label` は呼び出し側が指定する）。
@@ -56,10 +69,11 @@ fn logo_mark() -> Node {
 }
 
 /// SNS アイコンのみのリンク（accessible name はリンクごと異なる固定
-/// 文字列、WCAG 2.4.4）。
-fn social_icon_link(path_d: &'static str, label: &'static str) -> Node {
+/// 文字列、WCAG 2.4.4）。`href` は呼び出し側が実在の遷移先を指定する
+/// （モジュール doc「リンク先の方針」節参照）。
+fn social_icon_link(href: &'static str, path_d: &'static str, label: &'static str) -> Node {
     link::root(
-        REPO,
+        href,
         &LinkProps {
             external: true,
             ..LinkProps::default()
@@ -69,15 +83,17 @@ fn social_icon_link(path_d: &'static str, label: &'static str) -> Node {
     )
 }
 
-/// リンク群 1 個（見出し + `ul`/`li` のリンク一覧）。
-fn link_group(heading_text: &'static str, links: &[&'static str]) -> Node {
+/// リンク群 1 個（見出し + `ul`/`li` のリンク一覧）。各項目は
+/// `(href, label)` の組で、実在する遷移先のみを渡す契約（モジュール doc
+/// 「リンク先の方針」節参照）。
+fn link_group(heading_text: &'static str, links: &[(&'static str, &'static str)]) -> Node {
     let items: Vec<Node> = links
         .iter()
-        .map(|label| {
+        .map(|(href, label)| {
             li(
                 vec![],
                 vec![link::root(
-                    REPO,
+                    href,
                     &LinkProps::default(),
                     vec![],
                     vec![text(*label)],
@@ -161,12 +177,12 @@ fn note(body: &'static str) -> Node {
 }
 
 /// インスタンス A: 基準形（ブランド列 + リンク 4 群、下段に SNS アイコン
-/// のみのリンク 3 個）。
+/// のみのリンク 1 個。X・Mastodon は実アカウントが無いため非表示）。
 fn instance_a() -> Node {
     footer(
         vec![("class", "blocks-footer-link-columns-instance")],
         vec![
-            note("基準形。ブランド列 + リンク 4 群。下段に SNS アイコンのみのリンク 3 個。"),
+            note("基準形。ブランド列 + リンク 4 群。下段に SNS アイコンのみのリンク 1 個。"),
             div(
                 vec![("class", "blocks-footer-link-columns-top")],
                 vec![
@@ -177,10 +193,19 @@ fn instance_a() -> Node {
                     div(
                         vec![("class", "blocks-footer-link-columns-columns")],
                         vec![
-                            link_group("Product", &["Guide", "API Reference"]),
-                            link_group("Resources", &["Examples", "Changelog"]),
-                            link_group("Community", &["GitHub", "Discussions"]),
-                            link_group("Company", &["About", "Blog"]),
+                            link_group(
+                                "Product",
+                                &[(GUIDE_URL, "Guide"), (API_REFERENCE_URL, "API Reference")],
+                            ),
+                            link_group(
+                                "Resources",
+                                &[(EXAMPLES_URL, "Examples"), (RELEASES_URL, "Changelog")],
+                            ),
+                            link_group(
+                                "Community",
+                                &[(REPO, "GitHub"), (DISCUSSIONS_URL, "Discussions")],
+                            ),
+                            link_group("Company", &[(REPO, "About")]),
                         ],
                     ),
                 ],
@@ -195,11 +220,11 @@ fn instance_a() -> Node {
                     copyright(),
                     div(
                         vec![("class", "blocks-footer-link-columns-social")],
-                        vec![
-                            social_icon_link("M12 2L2 7l10 5 10-5-10-5z", "GitHub"),
-                            social_icon_link("M4 4h16v16H4z", "X"),
-                            social_icon_link("M12 21a9 9 0 100-18 9 9 0 000 18z", "Mastodon"),
-                        ],
+                        vec![social_icon_link(
+                            REPO,
+                            "M12 2L2 7l10 5 10-5-10-5z",
+                            "GitHub",
+                        )],
                     ),
                 ],
             ),
@@ -208,12 +233,14 @@ fn instance_a() -> Node {
 }
 
 /// インスタンス B: ブランド列を強調（2 列幅、mission 文 + 架空の連絡先 +
-/// SNS アイコン）。リンクは 2 群。下段は著作権 + 法務リンク。
+/// SNS アイコン）。リンクは 2 群。下段は著作権のみ（Privacy Policy・
+/// Terms of Service は実在ページが無いため非表示、モジュール doc
+/// 「リンク先の方針」節参照）。
 fn instance_b() -> Node {
     footer(
         vec![("class", "blocks-footer-link-columns-instance")],
         vec![
-            note("ブランド列を 2 列幅に広げ、mission 文 + 連絡先 + SNS アイコンを収める。リンクは 2 群。下段は法務リンク。"),
+            note("ブランド列を 2 列幅に広げ、mission 文 + 連絡先 + SNS アイコンを収める。リンクは 2 群。下段は著作権のみ。"),
             div(
                 vec![("class", "blocks-footer-link-columns-top"), ("data-brand", "wide")],
                 vec![
@@ -254,18 +281,18 @@ fn instance_b() -> Node {
                             ),
                             div(
                                 vec![("class", "blocks-footer-link-columns-social")],
-                                vec![
-                                    social_icon_link("M12 2L2 7l10 5 10-5-10-5z", "GitHub"),
-                                    social_icon_link("M4 4h16v16H4z", "X"),
-                                ],
+                                vec![social_icon_link(REPO, "M12 2L2 7l10 5 10-5-10-5z", "GitHub")],
                             ),
                         ],
                     ),
                     div(
                         vec![("class", "blocks-footer-link-columns-columns")],
                         vec![
-                            link_group("Product", &["Guide", "API Reference"]),
-                            link_group("Company", &["About", "Careers"]),
+                            link_group(
+                                "Product",
+                                &[(GUIDE_URL, "Guide"), (API_REFERENCE_URL, "API Reference")],
+                            ),
+                            link_group("Company", &[(REPO, "About")]),
                         ],
                     ),
                 ],
@@ -276,44 +303,19 @@ fn instance_b() -> Node {
             ),
             div(
                 vec![("class", "blocks-footer-link-columns-bottom")],
-                vec![
-                    copyright(),
-                    div(
-                        vec![("class", "blocks-footer-link-columns-legal")],
-                        vec![
-                            link::root(
-                                REPO,
-                                &LinkProps {
-                                    external: true,
-                                    ..LinkProps::default()
-                                },
-                                vec![],
-                                vec![text("Privacy Policy")],
-                            ),
-                            link::root(
-                                REPO,
-                                &LinkProps {
-                                    external: true,
-                                    ..LinkProps::default()
-                                },
-                                vec![],
-                                vec![text("Terms of Service")],
-                            ),
-                        ],
-                    ),
-                ],
+                vec![copyright()],
             ),
         ],
     )
 }
 
 /// インスタンス C: 下段なし。リンク 5 群（最後の Social 群はアイコン +
-/// テキストのリンク）。
+/// テキストのリンク 1 個。X は実アカウントが無いため非表示）。
 fn instance_c() -> Node {
     footer(
         vec![("class", "blocks-footer-link-columns-instance")],
         vec![
-            note("下段なし。リンク 5 群。最後の Social 群はアイコン + テキストのリンク。"),
+            note("下段なし。リンク 5 群。最後の Social 群はアイコン + テキストのリンク 1 個。"),
             div(
                 vec![("class", "blocks-footer-link-columns-top")],
                 vec![
@@ -321,10 +323,16 @@ fn instance_c() -> Node {
                     div(
                         vec![("class", "blocks-footer-link-columns-columns")],
                         vec![
-                            link_group("Product", &["Guide", "API Reference"]),
-                            link_group("Resources", &["Examples", "Changelog"]),
-                            link_group("Community", &["Discussions"]),
-                            link_group("Company", &["About"]),
+                            link_group(
+                                "Product",
+                                &[(GUIDE_URL, "Guide"), (API_REFERENCE_URL, "API Reference")],
+                            ),
+                            link_group(
+                                "Resources",
+                                &[(EXAMPLES_URL, "Examples"), (RELEASES_URL, "Changelog")],
+                            ),
+                            link_group("Community", &[(DISCUSSIONS_URL, "Discussions")]),
+                            link_group("Company", &[(REPO, "About")]),
                             social_link_group(),
                         ],
                     ),
@@ -335,19 +343,18 @@ fn instance_c() -> Node {
 }
 
 /// C 用の Social 群（アイコン + テキストの `link`。`link_group` とは異なり
-/// 各項目がアイコンを伴うため専用実装にする）。
+/// 各項目がアイコンを伴うため専用実装にする）。実在の遷移先を持つ
+/// GitHub のみを掲載する（モジュール doc「リンク先の方針」節参照）。
 fn social_link_group() -> Node {
-    let socials: [(&'static str, &'static str); 2] = [
-        ("M12 2L2 7l10 5 10-5-10-5z", "GitHub"),
-        ("M4 4h16v16H4z", "X"),
-    ];
+    let socials: [(&'static str, &'static str, &'static str); 1] =
+        [(REPO, "M12 2L2 7l10 5 10-5-10-5z", "GitHub")];
     let items: Vec<Node> = socials
         .iter()
-        .map(|(path_d, label)| {
+        .map(|(href, path_d, label)| {
             li(
                 vec![],
                 vec![link::root(
-                    REPO,
+                    href,
                     &LinkProps {
                         external: true,
                         ..LinkProps::default()
