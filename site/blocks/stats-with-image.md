@@ -23,7 +23,7 @@ use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps};
 use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::image::{self, AspectRatio, ImageFit, ImageProps};
 use fandhe_frontend_pre_styled_ui::stat;
-use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
+use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 use fandhe_frontend_pre_styled_ui::Size;
 
 const IMAGE_ATTR: &str = "data-blocks-stats-with-image-image";
@@ -37,6 +37,7 @@ const BLEED_ATTR: &str = "data-blocks-stats-with-image-bleed";
 fn variant_label(label: &'static str) -> Node {
     styled_text::text(
         &TextProps {
+            size: TextSize::Sm,
             variant: TextVariant::Muted,
             ..TextProps::default()
         },
