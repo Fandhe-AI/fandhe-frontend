@@ -391,7 +391,18 @@ pub const BLOCK: Block = Block {
 /// `[data-blocks-logo-cloud-split-tone="dark"]` スコープ内で `color:
 /// inherit` へ上書きし、暗色ラッパが設定する `color: var(--fandhe-color-
 /// bg)` を継承させてコントラストを保つ（`banner_full_width_bar` の
-/// `tone="dark"` 配下 `link`/`button` と同じ回避）。
+/// `tone="dark"` 配下 `link`/`button` と同じ回避）。この `color: inherit`
+/// 上書きは `link` recipe の `:hover` 状態（`--fandhe-palette-emphasized`、
+/// 明色背景向けの強調色）を上書きしないため、hover 時にコントラストが
+/// 低下する指摘（イシュー #2795 codex レビュー是正、PR #3247）を受けて、
+/// `link` recipe が `@media (hover: hover)` 配下へ出力する
+/// `:hover:not([data-disabled])`（`[data-scope="link"][data-part="root"]`
+/// への属性セレクタ 2 個 + 疑似クラス 2 個）と同じ状態セレクタを持つ
+/// `[data-blocks-logo-cloud-split-tone="dark"] [data-scope="link"]
+/// [data-part="root"]:hover:not([data-disabled])`（祖先の属性セレクタが
+/// 1 個増える分だけ詳細度で上回る）を追加し、hover 中も `color: inherit`
+/// を保つ（`section_heading_stacked` の `tone="dark"` 配下 `breadcrumb`
+/// `link` hover 回避と同じ手段）。
 ///
 /// # ルート class を `demo_class` と別名にする理由
 ///
@@ -412,6 +423,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-logo-cloud-split-tone=\"dark\"] {\n  padding: var(--fandhe-space-8);\n  border-radius: var(--fandhe-radius-lg);\n  background: #111111;\n  color: #ffffff;\n}\n\
 [data-blocks-logo-cloud-split-tone=\"dark\"] [data-blocks-logo-cloud-split-tile] {\n  border-color: #f7f7f7;\n  background: transparent;\n}\n\
 [data-blocks-logo-cloud-split-tone=\"dark\"] [data-scope=\"text\"][data-part=\"root\"],\n[data-blocks-logo-cloud-split-tone=\"dark\"] [data-scope=\"link\"][data-part=\"root\"] {\n  color: inherit;\n}\n\
+[data-blocks-logo-cloud-split-tone=\"dark\"] [data-scope=\"link\"][data-part=\"root\"]:hover:not([data-disabled]) {\n  color: inherit;\n}\n\
 @media (min-width: 64rem) {\n  .blocks-logo-cloud-split-row {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n    align-items: center;\n  }\n}\n";
 
 #[cfg(test)]
@@ -534,6 +546,18 @@ mod tests {
             "[data-blocks-logo-cloud-split-tone=\"dark\"] [data-scope=\"link\"][data-part=\"root\"]"
         ));
         assert!(LAYOUT_CSS.contains("color: inherit;"));
+    }
+
+    /// 暗色固定形の CTA リンクは hover 時も `color: inherit` を保つこと
+    /// （codex レビュー是正、イシュー #2795 PR #3247）。上の `color:
+    /// inherit` 基本状態の上書きは `link` recipe の `:hover` 状態
+    /// （`--fandhe-palette-emphasized`）を上書きしないため、hover 専用の
+    /// 追加規則が必要。
+    #[test]
+    fn dark_variant_link_hover_stays_inherited() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-logo-cloud-split-tone=\"dark\"] [data-scope=\"link\"][data-part=\"root\"]:hover:not([data-disabled]) {\n  color: inherit;\n}"
+        ));
     }
 
     /// 暗色固定形はテーマ依存トークン（`var(--fandhe-color-fg)`/
