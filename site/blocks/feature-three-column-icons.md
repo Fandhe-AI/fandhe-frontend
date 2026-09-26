@@ -31,12 +31,12 @@ use fandhe_frontend_pre_styled_ui::Size;
 /// リンク先の固定外部 URL（モジュール doc「リンク先の方針」節参照）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
-/// 項目 1 件分の架空データ（見出し・説明・自作アイコンのパス・詳細リンク
-/// の accessible name）。
+/// 項目 1 件分の架空データ（見出し・説明・自作アイコンのパス）。詳細
+/// リンクの accessible name はモジュール doc「詳細リンクの accessible
+/// name」節のとおり `title` から合成するため、専用フィールドは持たない。
 struct Feature {
     title: &'static str,
     body: &'static str,
-    link_label: &'static str,
     icon_path_d: &'static str,
 }
 
@@ -47,37 +47,31 @@ const FEATURES: [Feature; 6] = [
     Feature {
         title: "決定的なビルド",
         body: "同じ入力からは常に同じ静的ファイルを生成します。",
-        link_label: "決定的なビルドの詳細",
         icon_path_d: "M12 3l9 6-9 6-9-6z",
     },
     Feature {
         title: "型で表す構造",
         body: "スロットと props は Rust の型で表現されます。",
-        link_label: "型で表す構造の詳細",
         icon_path_d: "M4 4h16v16H4z",
     },
     Feature {
         title: "既定エスケープ",
         body: "テキスト補間は既定でエスケープされます。",
-        link_label: "既定エスケープの詳細",
         icon_path_d: "M12 21a9 9 0 100-18 9 9 0 000 18z",
     },
     Feature {
         title: "外部依存ゼロの描画コア",
         body: "描画コアは外部クレートに依存しません。",
-        link_label: "外部依存ゼロの詳細",
         icon_path_d: "M12 2v8M8 6l4-4 4 4M4 14h16v8H4z",
     },
     Feature {
         title: "依存グラフ上限の管理",
         body: "依存パッケージ数・深さの上限を CI で機械検証します。",
-        link_label: "依存グラフ上限の詳細",
         icon_path_d: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",
     },
     Feature {
         title: "単一実行ファイル配布",
         body: "サーバーを 1 つのバイナリとして配布できます。",
-        link_label: "単一実行ファイル配布の詳細",
         icon_path_d: "M6 3h12v6H6zM6 15h12v6H6zM9 9h6v6H9z",
     },
 ];
@@ -130,7 +124,7 @@ fn arrow_icon() -> Node {
     )
 }
 
-/// 項目ごとの詳細リンク（accessible name は `link_label` そのまま、
+/// 項目ごとの詳細リンク（accessible name は `title` から合成する、
 /// モジュール doc「詳細リンクの accessible name」節参照）。
 fn detail_link(f: &Feature) -> Node {
     link::root(
@@ -140,7 +134,7 @@ fn detail_link(f: &Feature) -> Node {
             ..LinkProps::default()
         },
         vec![("data-blocks-feature-three-column-icons-link", "")],
-        vec![text(f.link_label), arrow_icon()],
+        vec![text(format!("{} を GitHub で見る", f.title)), arrow_icon()],
     )
 }
 
