@@ -17,16 +17,18 @@
 //! # 静的表示（無 JS、唯一のドロップダウンを常時 open で固定）
 //!
 //! ドロップダウンを持つトップ項目は「プロダクト」1 件のみとし、
-//! [`OpenState::Open`] で固定する（`disabled` は付与しない。無 JS の
-//! docs サイトで `disabled: true` にすると本文が到達不能になる accordion
-//! 系 block の教訓とは逆に、本 block は最初から `disabled: false` のまま
-//! open 固定にする設計であり、閉じた状態を経由しないため到達性の問題は
-//! 生じない）。残りのトップ項目（料金・ドキュメント）は
-//! [`navigation_menu::trigger`] を持たず [`navigation_menu::item`] +
-//! [`navigation_menu::link`] のリンク項目のみで構成する（閉じたまま
-//! フォーカス可能だが操作しても何も起きない trigger を作らないため。
-//! accordion 系 block が受けた「閉じた項目の本文へ到達できない」指摘を
-//! 構造的に避ける）。
+//! [`OpenState::Open`] で固定する。トリガーは押しても状態が変わらない
+//! no-op になるため、[`super::header_flyout_menu`] と同じ判断で
+//! `disabled: true`（ネイティブ `disabled` 属性 + `data-disabled`）
+//! にしてフォーカス・クリック不能を明示する（レビュー是正: 見た目は
+//! 「開閉可能なボタン」のまま実際には操作不能という食い違いを解消する。
+//! `disabled_declarations()`（既定 `opacity: 0.5`）は [`LAYOUT_CSS`] で
+//! 中和し、通常のトリガーと同じ見た目に保つ）。残りのトップ項目
+//! （料金・ドキュメント）は [`navigation_menu::trigger`] を持たず
+//! [`navigation_menu::item`] + [`navigation_menu::link`] のリンク項目
+//! のみで構成する（閉じたままフォーカス可能だが操作しても何も起きない
+//! trigger を作らないため。accordion 系 block が受けた「閉じた項目の
+//! 本文へ到達できない」指摘を構造的に避ける）。
 //!
 //! # 全幅パネルの配置方法（`position: static` 上書きと包含ブロック）
 //!
@@ -88,10 +90,13 @@
 //!
 //! # href の方針
 //!
-//! `href="#"` は使わない（横断テストが禁止する）。サイト内に実在する
-//! 索引ページへの相対パス（`../../`・`../../guides/`・`../../themes/`・
-//! `../../primitives/`・`../../api/`・`../../examples/`）を使う
-//! （[`super::super::faq::faq_question_rows`] と同型の判断）。
+//! `href="#"` は使わない（横断テストが禁止する）。パネル項目・料金・
+//! ドキュメントはサイト内に実在する索引ページへの相対パス（`../../`・
+//! `../../guides/`・`../../themes/`・`../../primitives/`・`../../api/`・
+//! `../../examples/`）を使う（[`super::super::faq::faq_question_rows`]
+//! と同型の判断）。「ログイン」のみサイト内ページ流用だとリンク名と
+//! 行き先が食い違うため、[`super::header_flyout_menu`] と同じく実在の
+//! 外部 URL（[`REPO`]）を使う。
 //!
 //! # id 接頭辞
 //!
@@ -181,6 +186,11 @@ const PRODUCTS_TRIGGER_ID: &str = "blocks-header-mega-menu-products-trigger";
 /// [`PRODUCTS_TRIGGER_ID`] と対になる `content` の `id`。
 const PRODUCTS_CONTENT_ID: &str = "blocks-header-mega-menu-products-content";
 
+/// リポジトリ実 URL（`href` の方針・レビュー是正: 「ログイン」の遷移先を
+/// サイト内の実在ページへ流用すると行き先の意味が食い違うため、
+/// [`super::header_flyout_menu`] と同じく実在の外部 URL を使う）。
+const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+
 /// ブランドロゴ（装飾用の幾何アイコン、菱形）。実在ブランドのロゴ・
 /// 商標を模さない独自の単純図形（`docs/design/wireframe-ui-architecture.md`
 /// と同じ判断軸）。
@@ -253,7 +263,7 @@ fn products_item(props: &NavigationMenuProps) -> Node {
         vec![
             navigation_menu::trigger(
                 state,
-                false,
+                true,
                 "products",
                 Some(PRODUCTS_TRIGGER_ID),
                 Some(PRODUCTS_CONTENT_ID),
@@ -321,23 +331,27 @@ fn nav() -> Node {
     )
 }
 
-/// バー右側のアクション（ログインリンク + CTA ボタン）。「ログイン」の
-/// 遷移先はサイトのトップページ（レビュー是正: 以前は「ドキュメント」と
-/// 同じ `../../guides/` を指しており、リンク名と行き先が食い違っていた。
-/// 本サイトに実在するログインページはないため、`href` の方針〔モジュール
-/// 冒頭 rustdoc〕が許す実在パスのうち他のどの節（料金・ドキュメント等）
-/// とも重複しない `../../` を採る）。
+/// バー右側のアクション（ログインリンク + CTA ボタン）。レビュー是正:
+/// 「ログイン」の遷移先にサイト内ページ（トップページ・ドキュメント等）を
+/// 流用すると、リンク名（ログイン）と実際の行き先が食い違う。本サイトに
+/// 実在するログインページは無いため、[`super::header_flyout_menu`] と
+/// 同じ判断で実在の外部 URL（[`REPO`]）を使う。CTA（「無料で始める」）は
+/// 遷移先・送信処理を持たない no-op のため、`disabled: true` にして
+/// フォーカス・クリック不能を明示する（`disabled_declarations()` は
+/// [`LAYOUT_CSS`] で中和し通常の CTA と同じ見た目に保つ）。
 fn actions() -> Node {
     div(
         vec![("class", "blocks-header-mega-menu-actions")],
         vec![
-            link::root(
-                "../../",
-                &LinkProps::default(),
-                vec![],
-                vec![text("ログイン")],
+            link::root(REPO, &LinkProps::default(), vec![], vec![text("ログイン")]),
+            button::button(
+                &ButtonProps {
+                    disabled: true,
+                    ..ButtonProps::default()
+                },
+                vec![("data-blocks-header-mega-menu-cta", "")],
+                vec![text("無料で始める")],
             ),
-            button::button(&ButtonProps::default(), vec![], vec![text("無料で始める")]),
         ],
     )
 }
@@ -435,12 +449,14 @@ const LAYOUT_CSS: &str = "\
 .blocks-header-mega-menu-panel-link-title {\n  font-weight: 600;\n}\n\
 .blocks-header-mega-menu-panel-link-description {\n  font-size: var(--fandhe-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-header-mega-menu-actions {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  white-space: nowrap;\n}\n\
+.blocks-header-mega-menu-layout [data-scope=\"navigation-menu\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-header-mega-menu-cta][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-header-mega-menu-page {\n  min-block-size: 28rem;\n  padding: var(--fandhe-space-6) var(--fandhe-space-4);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 @media (max-width: 47.99rem) {\n  .blocks-header-mega-menu-bar {\n    flex-wrap: wrap;\n  }\n  .blocks-header-mega-menu-nav[data-scope=\"navigation-menu\"][data-part=\"root\"] {\n    flex-basis: 100%;\n  }\n  .blocks-header-mega-menu-actions {\n    flex-basis: 100%;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, LAYOUT_CSS, PRODUCTS_CONTENT_ID, PRODUCTS_TRIGGER_ID};
+    use super::{demo, LAYOUT_CSS, PRODUCTS_CONTENT_ID, PRODUCTS_TRIGGER_ID, REPO};
     use fandhe_frontend_core::render;
 
     /// Demo が期待する 4 種の部品・非対話制約を満たすことの単体回帰
@@ -490,14 +506,61 @@ mod tests {
         assert!(html.contains(&format!("aria-labelledby=\"{PRODUCTS_TRIGGER_ID}\"")));
     }
 
-    /// 「ログイン」リンクの遷移先がドキュメント（`../../guides/`）と重複
-    /// しないこと（レビュー是正の固定回帰、モジュール doc「レスポンシブ」
-    /// 節の直前の `actions` doc コメント参照）。
+    /// 唯一のトリガー（プロダクト）が `disabled` で描画され、見た目は開閉
+    /// 可能なボタンのまま実際は操作不能という食い違いが無いこと（P1 是正:
+    /// モジュール doc「静的表示」節）。
     #[test]
-    fn login_link_does_not_reuse_docs_href() {
+    fn products_trigger_is_disabled() {
         let html = render(&demo());
-        assert!(html.contains(r#">ログイン</a>"#) || html.contains(">ログイン<"));
-        assert!(!html.contains(r#"href="../../guides/">ログイン"#));
+        let trigger_start = html
+            .find(&format!("id=\"{PRODUCTS_TRIGGER_ID}\""))
+            .expect("trigger id should be present");
+        let trigger_tag = &html[..trigger_start];
+        let tag_start = trigger_tag
+            .rfind("<button")
+            .expect("trigger should be a <button>");
+        let trigger_tag = &html[tag_start..html[tag_start..].find('>').unwrap() + tag_start];
+        assert!(
+            trigger_tag.contains("disabled=\"\""),
+            "trigger_tag={trigger_tag}"
+        );
+        assert!(
+            trigger_tag.contains(r#"data-disabled="""#),
+            "trigger_tag={trigger_tag}"
+        );
+        assert!(
+            trigger_tag.contains(r#"aria-expanded="true""#),
+            "trigger_tag={trigger_tag}"
+        );
+    }
+
+    /// 「ログイン」リンクの遷移先が実在の外部 URL（[`REPO`]）であること
+    /// （P2 是正: サイト内ページ流用だとリンク名と行き先が食い違う、
+    /// `actions` doc コメント参照）。
+    #[test]
+    fn login_link_targets_repo_url() {
+        let html = render(&demo());
+        assert!(html.contains(&format!(r#"href="{REPO}""#)));
+        assert!(html.contains(">ログイン<"));
+    }
+
+    /// CTA（「無料で始める」）が `disabled` で描画され、フォーカス・
+    /// クリック不能であること（P2 是正: 遷移先・送信処理を持たない no-op
+    /// ボタンが操作可能に見える食い違いを解消する）。
+    #[test]
+    fn cta_button_is_disabled() {
+        let html = render(&demo());
+        let cta_start = html
+            .find("data-blocks-header-mega-menu-cta")
+            .expect("cta marker should be present");
+        let cta_tag_start = html[..cta_start].rfind("<button").unwrap();
+        let cta_tag_end = html[cta_tag_start..].find('>').unwrap() + cta_tag_start;
+        let cta_tag = &html[cta_tag_start..cta_tag_end];
+        assert!(cta_tag.contains("disabled"), "cta_tag={cta_tag}");
+        assert!(
+            cta_tag.contains(r#"aria-disabled="true""#),
+            "cta_tag={cta_tag}"
+        );
     }
 
     /// 狭い幅でもナビ・アクションを非表示にせず、ハンバーガーの

@@ -89,6 +89,11 @@ const PRODUCTS_TRIGGER_ID: &str = "blocks-header-mega-menu-products-trigger";
 /// [`PRODUCTS_TRIGGER_ID`] と対になる `content` の `id`。
 const PRODUCTS_CONTENT_ID: &str = "blocks-header-mega-menu-products-content";
 
+/// リポジトリ実 URL（`href` の方針・レビュー是正: 「ログイン」の遷移先を
+/// サイト内の実在ページへ流用すると行き先の意味が食い違うため、
+/// [`super::header_flyout_menu`] と同じく実在の外部 URL を使う）。
+const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+
 /// ブランドロゴ（装飾用の幾何アイコン、菱形）。実在ブランドのロゴ・
 /// 商標を模さない独自の単純図形（`docs/design/wireframe-ui-architecture.md`
 /// と同じ判断軸）。
@@ -161,7 +166,7 @@ fn products_item(props: &NavigationMenuProps) -> Node {
         vec![
             navigation_menu::trigger(
                 state,
-                false,
+                true,
                 "products",
                 Some(PRODUCTS_TRIGGER_ID),
                 Some(PRODUCTS_CONTENT_ID),
@@ -229,23 +234,27 @@ fn nav() -> Node {
     )
 }
 
-/// バー右側のアクション（ログインリンク + CTA ボタン）。「ログイン」の
-/// 遷移先はサイトのトップページ（レビュー是正: 以前は「ドキュメント」と
-/// 同じ `../../guides/` を指しており、リンク名と行き先が食い違っていた。
-/// 本サイトに実在するログインページはないため、`href` の方針〔モジュール
-/// 冒頭 rustdoc〕が許す実在パスのうち他のどの節（料金・ドキュメント等）
-/// とも重複しない `../../` を採る）。
+/// バー右側のアクション（ログインリンク + CTA ボタン）。レビュー是正:
+/// 「ログイン」の遷移先にサイト内ページ（トップページ・ドキュメント等）を
+/// 流用すると、リンク名（ログイン）と実際の行き先が食い違う。本サイトに
+/// 実在するログインページは無いため、[`super::header_flyout_menu`] と
+/// 同じ判断で実在の外部 URL（[`REPO`]）を使う。CTA（「無料で始める」）は
+/// 遷移先・送信処理を持たない no-op のため、`disabled: true` にして
+/// フォーカス・クリック不能を明示する（`disabled_declarations()` は
+/// [`LAYOUT_CSS`] で中和し通常の CTA と同じ見た目に保つ）。
 fn actions() -> Node {
     div(
         vec![("class", "blocks-header-mega-menu-actions")],
         vec![
-            link::root(
-                "../../",
-                &LinkProps::default(),
-                vec![],
-                vec![text("ログイン")],
+            link::root(REPO, &LinkProps::default(), vec![], vec![text("ログイン")]),
+            button::button(
+                &ButtonProps {
+                    disabled: true,
+                    ..ButtonProps::default()
+                },
+                vec![("data-blocks-header-mega-menu-cta", "")],
+                vec![text("無料で始める")],
             ),
-            button::button(&ButtonProps::default(), vec![], vec![text("無料で始める")]),
         ],
     )
 }
