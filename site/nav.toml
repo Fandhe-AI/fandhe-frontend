@@ -1278,6 +1278,11 @@ source = "site/blocks/hero-split-image.md"
 path = "/blocks/hero-split-image/"
 
 [[section.group.page]]
+title = "hero-split-screenshot"
+source = "site/blocks/hero-split-screenshot.md"
+path = "/blocks/hero-split-screenshot/"
+
+[[section.group.page]]
 title = "hero-terminal"
 source = "site/blocks/hero-terminal.md"
 path = "/blocks/hero-terminal/"
@@ -1346,6 +1351,11 @@ source = "site/blocks/feature-tabs-panel.md"
 path = "/blocks/feature-tabs-panel/"
 
 [[section.group.page]]
+title = "feature-three-column-icons"
+source = "site/blocks/feature-three-column-icons.md"
+path = "/blocks/feature-three-column-icons/"
+
+[[section.group.page]]
 title = "feature-vertical-tabs"
 source = "site/blocks/feature-vertical-tabs.md"
 path = "/blocks/feature-vertical-tabs/"
@@ -1357,6 +1367,11 @@ title = "CTA"
 title = "cta-banner-magnetic"
 source = "site/blocks/cta-banner-magnetic.md"
 path = "/blocks/cta-banner-magnetic/"
+
+[[section.group.page]]
+title = "cta-centered"
+source = "site/blocks/cta-centered.md"
+path = "/blocks/cta-centered/"
 
 [[section.group.page]]
 title = "cta-feature-links"
@@ -1413,6 +1428,42 @@ source = "site/blocks/logo-cloud-marquee.md"
 path = "/blocks/logo-cloud-marquee/"
 
 [[section.group]]
+title = "Stats"
+
+[[section.group.page]]
+title = "stats-background-image"
+source = "site/blocks/stats-background-image.md"
+path = "/blocks/stats-background-image/"
+
+[[section.group.page]]
+title = "stats-cards"
+source = "site/blocks/stats-cards.md"
+path = "/blocks/stats-cards/"
+
+[[section.group.page]]
+title = "stats-split"
+source = "site/blocks/stats-split.md"
+path = "/blocks/stats-split/"
+
+[[section.group.page]]
+title = "stats-timeline"
+source = "site/blocks/stats-timeline.md"
+path = "/blocks/stats-timeline/"
+
+[[section.group.page]]
+title = "stats-with-image"
+source = "site/blocks/stats-with-image.md"
+path = "/blocks/stats-with-image/"
+
+[[section.group]]
+title = "FAQ"
+
+[[section.group.page]]
+title = "faq-accordion-centered"
+source = "site/blocks/faq-accordion-centered.md"
+path = "/blocks/faq-accordion-centered/"
+
+[[section.group]]
 title = "Contact"
 
 [[section.group.page]]
@@ -1462,6 +1513,16 @@ title = "Newsletter"
 title = "newsletter-split"
 source = "site/blocks/newsletter-split.md"
 path = "/blocks/newsletter-split/"
+
+[[section.group.page]]
+title = "newsletter-stacked"
+source = "site/blocks/newsletter-stacked.md"
+path = "/blocks/newsletter-stacked/"
+
+[[section.group.page]]
+title = "newsletter-with-details"
+source = "site/blocks/newsletter-with-details.md"
+path = "/blocks/newsletter-with-details/"
 
 [[section.group]]
 title = "Blog"
@@ -1712,6 +1773,24 @@ path = "/blocks/gallery-masonry/"
 title = "gallery-split-carousel"
 source = "site/blocks/gallery-split-carousel.md"
 path = "/blocks/gallery-split-carousel/"
+
+[[section.group]]
+title = "Section Heading"
+
+[[section.group.page]]
+title = "section-heading-split"
+source = "site/blocks/section-heading-split.md"
+path = "/blocks/section-heading-split/"
+
+[[section.group.page]]
+title = "section-heading-stacked"
+source = "site/blocks/section-heading-stacked.md"
+path = "/blocks/section-heading-stacked/"
+
+[[section.group.page]]
+title = "section-heading-stats"
+source = "site/blocks/section-heading-stats.md"
+path = "/blocks/section-heading-stats/"
 
 [[section.group]]
 title = "Sidebar"

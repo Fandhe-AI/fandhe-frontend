@@ -240,6 +240,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-search/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-social-proof/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-split-image/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-split-screenshot/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/hero-terminal/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/text-split-reveal/index.html"
           # Marketing / Feature
@@ -252,11 +253,13 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-large-screenshot/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-split-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-tabs-panel/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-three-column-icons/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-split-list-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-vertical-tabs/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feature-split-screenshot/index.html"
           # Marketing / Cta
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-banner-magnetic/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-centered/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-feature-links/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-signup-celebrate/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-split-actions/index.html"
@@ -270,8 +273,14 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/logo-cloud-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/logo-cloud-marquee/index.html"
           # Marketing / Stats
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-background-image/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-with-image/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-cards/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-split/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/stats-timeline/index.html"
           # Marketing / Team
           # Marketing / Faq
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-accordion-centered/index.html"
           # Marketing / Contact
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-centered-form/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-dialog-form/index.html"
@@ -283,6 +292,8 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-split-form-info/index.html"
           # Marketing / Newsletter
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/newsletter-split/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/newsletter-with-details/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/newsletter-stacked/index.html"
           # Marketing / Blog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-featured-article/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-featured-with-list/index.html"
@@ -339,6 +350,9 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/gallery-masonry/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/gallery-split-carousel/index.html"
           # Marketing / Section Heading
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/section-heading-split/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/section-heading-stacked/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/section-heading-stats/index.html"
           # Application / App Shell
           # Application / Sidebar
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/sidebar-07/index.html"

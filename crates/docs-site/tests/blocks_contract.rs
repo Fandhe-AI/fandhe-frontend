@@ -5678,6 +5678,77 @@ fn feature_tabs_panel_page_wires_demo_class_and_css_hooks() {
     }
 }
 
+/// cta-centered ページが Demo class・専用 CSS を配線していること
+/// （イシュー #3224）。
+#[test]
+fn cta_centered_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/cta-centered/index.html"))
+        .expect("blocks/cta-centered/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-cta-centered\""),
+        "cta-centered page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "cta-centered page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "cta-centered page should link the Blocks-specific stylesheet"
+    );
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "@media (min-width: 40rem)",
+        ".blocks-cta-centered-stack",
+        r#"[data-blocks-cta-centered-tone="card"]"#,
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// cta-centered の合成部品（heading/text/button/badge/card）が期待どおり
+/// の構成で実際に出力されていること、5 tone すべてが揃っていること、
+/// `<form>`・`data:` URI・死リンクを持ち込んでいないことを固定する
+/// （イシュー #3224、`cta_split_actions_composes_expected_parts` と同型）。
+#[test]
+fn cta_centered_composes_expected_parts() {
+    let block =
+        blocks::block_for_path("/blocks/cta-centered/").expect("cta-centered should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"button\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"card\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "cta-centered demo should contain {scope}"
+        );
+    }
+    assert!(html.contains(r#"type="button""#));
+    for tone in ["plain", "badge", "accent", "dark", "card"] {
+        let needle = format!(r#"data-blocks-cta-centered-tone="{tone}""#);
+        assert!(
+            html.contains(&needle),
+            "cta-centered demo should render the {tone} tone"
+        );
+    }
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "cta-centered should never contain {absent}"
+        );
+    }
+}
+
 /// cta-split-actions ページが Demo class・専用 CSS を配線していること
 /// （イシュー #2758）。
 #[test]
@@ -6374,6 +6445,187 @@ fn contact_split_info_composes_expected_parts() {
         assert!(
             !html.contains(absent),
             "contact-split-info should never contain {absent}"
+        );
+    }
+}
+
+/// stats-cards ページが Demo class・専用 CSS を配線していること、
+/// block 固有 CSS（カードグリッド・淡色パネル・段状の段差・ブレークポイ
+/// ント）が実際に出力されていることを固定する（イシュー #2802）。
+#[test]
+fn stats_cards_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/stats-cards/index.html"))
+        .expect("blocks/stats-cards/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-stats-cards\""),
+        "stats-cards page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "stats-cards page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "stats-cards page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-stats-cards-section",
+        "data-blocks-stats-cards-section-head",
+        "data-blocks-stats-cards-grid-baseline",
+        "data-blocks-stats-cards-grid-panel",
+        "data-blocks-stats-cards-grid-stepped",
+        "data-blocks-stats-cards-card",
+        "data-blocks-stats-cards-card-header",
+        "data-blocks-stats-cards-icon",
+        "data-blocks-stats-cards-icon-panel",
+        "data-blocks-stats-cards-step",
+        "data-blocks-stats-cards-trend",
+    ] {
+        assert!(
+            html.contains(hook),
+            "stats-cards page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "[data-blocks-stats-cards-grid-baseline]",
+        "[data-blocks-stats-cards-icon-panel]",
+        "[data-blocks-stats-cards-step=\"1\"]",
+        "@media (min-width: 48rem)",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// stats-cards の合成部品（badge/heading/text/card/stat/icon）が期待どおり
+/// の構成で実際に出力されていること、カード総数・非対話制約を固定する
+/// （イシュー #2802。`contact_split_info_composes_expected_parts` と同型）。
+#[test]
+fn stats_cards_composes_expected_parts() {
+    let block =
+        blocks::block_for_path("/blocks/stats-cards/").expect("stats-cards should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"card\"",
+        "data-scope=\"stat\"",
+        "data-scope=\"icon\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "stats-cards demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-stats-cards-card=\"\"").count(),
+        10,
+        "stats-cards demo should render exactly 10 cards (4 baseline + 3 panel + 3 stepped)"
+    );
+    for absent in [
+        "<form",
+        "type=\"submit\"",
+        "href=\"#\"",
+        "src=\"data:",
+        "id=\"",
+        "<script",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "stats-cards should never contain {absent}"
+        );
+    }
+}
+
+/// section-heading-stats ページが Demo class・専用 CSS を配線していること、
+/// block 固有 CSS（面色レイアウト・リンク列/指標列のブレークポイント）が
+/// 実際に出力されていることを固定する（イシュー #2800）。
+#[test]
+fn section_heading_stats_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/section-heading-stats/index.html"))
+        .expect("blocks/section-heading-stats/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-section-heading-stats\""),
+        "section-heading-stats page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "section-heading-stats page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "section-heading-stats page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-section-heading-stats-link",
+        "data-blocks-section-heading-stats-stat",
+    ] {
+        assert!(
+            html.contains(hook),
+            "section-heading-stats page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-section-heading-stats-layout",
+        ".blocks-section-heading-stats-links",
+        ".blocks-section-heading-stats-stats",
+        "@media (min-width: 40rem)",
+        "@media (min-width: 48rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// section-heading-stats の合成部品（heading/text/link/stat）が期待どおり
+/// の構成で実際に出力されていること、リンク・指標の件数・非対話制約を
+/// 固定する（イシュー #2800）。
+#[test]
+fn section_heading_stats_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/section-heading-stats/")
+        .expect("section-heading-stats should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"link\"",
+        "data-scope=\"stat\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "section-heading-stats demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-section-heading-stats-link")
+            .count(),
+        4,
+        "section-heading-stats demo should render exactly 4 links"
+    );
+    assert_eq!(
+        html.matches("data-scope=\"stat\" data-part=\"root\"")
+            .count(),
+        4,
+        "section-heading-stats demo should render exactly 4 stats"
+    );
+    for absent in ["<form", "src=\"data:", "href=\"#\"", "<img", " id=\""] {
+        assert!(
+            !html.contains(absent),
+            "section-heading-stats should never contain {absent}"
         );
     }
 }
@@ -8028,6 +8280,183 @@ fn hero_split_image_composes_expected_parts() {
     }
 }
 
+/// newsletter-with-details ページが Demo class・専用 CSS を配線している
+/// こと、block 固有 CSS（アイコン箱・補足項目グリッド・ブレークポイント）
+/// が実際に出力されていることを固定する（イシュー #2797。
+/// `contact_info_columns_page_wires_demo_class_and_css_hooks` と同型）。
+#[test]
+fn newsletter_with_details_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/newsletter-with-details/index.html"))
+        .expect("blocks/newsletter-with-details/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-newsletter-with-details\""),
+        "newsletter-with-details page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "newsletter-with-details page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "newsletter-with-details page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-newsletter-with-details-submit",
+        "data-blocks-newsletter-with-details-item",
+        "data-blocks-newsletter-with-details-icon-box",
+        "data-blocks-newsletter-with-details-details",
+    ] {
+        assert!(
+            html.contains(hook),
+            "newsletter-with-details page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "[data-blocks-newsletter-with-details-icon-box]",
+        "[data-blocks-newsletter-with-details-details]",
+        "@media (min-width: 40rem)",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// newsletter-with-details の合成部品（heading/text/field/input/button/
+/// icon/visually-hidden）が期待どおりの構成で実際に出力されていること、
+/// 補足項目数・送信ボタン数・非対話制約を固定する（イシュー #2797。
+/// `contact_info_columns_composes_expected_parts` と同型）。
+#[test]
+fn newsletter_with_details_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/newsletter-with-details/")
+        .expect("newsletter-with-details should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"field\" data-part=\"root\"",
+        "data-scope=\"field\" data-part=\"input\"",
+        "data-scope=\"button\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"visually-hidden\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "newsletter-with-details demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-newsletter-with-details-item")
+            .count(),
+        2,
+        "newsletter-with-details demo should render exactly 2 detail items"
+    );
+    assert_eq!(
+        html.matches("type=\"button\"").count(),
+        1,
+        "newsletter-with-details should have exactly 1 type=\"button\" button (submit)"
+    );
+    for absent in [
+        "<form",
+        "type=\"submit\"",
+        "src=\"data:",
+        "href=\"#\"",
+        "mailto:",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "newsletter-with-details should never contain {absent}"
+        );
+    }
+}
+
+/// hero-split-screenshot ページが `blocks-demo blocks-hero-split-screenshot`
+/// class・両 stylesheet の `<link>` を実際に出力し、`blocks::stylesheet()`
+/// にも本 block 固有のセレクタが存在すること（イシュー #2792）。
+#[test]
+fn hero_split_screenshot_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-split-screenshot/index.html"))
+        .expect("blocks/hero-split-screenshot/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-hero-split-screenshot\""),
+        "hero-split-screenshot page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "hero-split-screenshot page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "hero-split-screenshot page should link the Blocks-specific stylesheet"
+    );
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for needle in [
+        ".blocks-hero-split-screenshot-section",
+        "[data-blocks-hero-split-screenshot-image]",
+        "@media (min-width: 64rem)",
+        "overflow: hidden",
+    ] {
+        assert!(
+            sheet_css.contains(needle),
+            "blocks.css should declare {needle} for hero-split-screenshot"
+        );
+    }
+}
+
+/// hero-split-screenshot の合成部品（badge/heading/text/button/image/code/
+/// link）が期待どおりの構成で出力されていること、`<form>`・`data:` URI を
+/// 持ち込んでいないことを固定する（イシュー #2792）。
+#[test]
+fn hero_split_screenshot_composes_expected_parts() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/hero-split-screenshot/index.html"))
+        .expect("blocks/hero-split-screenshot/index.html should be generated");
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"button\"",
+        "data-scope=\"image\"",
+        "data-scope=\"code\"",
+        "data-scope=\"link\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "hero-split-screenshot page should contain {scope}"
+        );
+    }
+    // 実際の Demo 出力（1 件）+ ページに掲載する「Rust コード」節の
+    // ソース掲載（1 件）の合計 2 件（`hero-terminal` 系と異なり本ページは
+    // 属性値の引用符の有無で区別できないため、実測どおり 2 とする）。
+    assert_eq!(html.matches("<img").count(), 2);
+    assert_eq!(
+        html.matches("data-blocks-hero-split-screenshot-tab-active")
+            .count(),
+        2
+    );
+    for absent in ["<form", "src=\"data:"] {
+        assert!(
+            !html.contains(absent),
+            "hero-split-screenshot should never contain {absent}"
+        );
+    }
+    assert!(
+        html.contains("href=\"../../guides/\""),
+        "hero-split-screenshot の「ドキュメントを見る」リンクは docs サイト内の \
+         実在ページへの相対パスであるべき"
+    );
+}
+
 /// newsletter-split ページが Demo ラッパー・専用 CSS・block 固有 CSS フック
 /// を正しく配線していることを固定する（イシュー #2796、`contact_split_info`
 /// と同型の契約）。
@@ -8122,6 +8551,457 @@ fn newsletter_split_composes_expected_parts() {
         assert!(
             !html.contains(absent),
             "newsletter-split demo should never contain {absent}"
+        );
+    }
+}
+
+/// section-heading-split ページが `demo_class`・CSS 配線
+/// （`pre-styled-ui.css`/`blocks.css`）・`data-blocks-section-heading-split-*`
+/// フック・`blocks::stylesheet()` 内のブレークポイント/tone セレクタを
+/// 実際に持つことを固定する（イシュー #2798）。
+#[test]
+fn section_heading_split_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/section-heading-split/index.html"))
+        .expect("blocks/section-heading-split/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-section-heading-split\""),
+        "section-heading-split page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "section-heading-split page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "section-heading-split page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-section-heading-split-row",
+        "data-blocks-section-heading-split-variant=\"description\"",
+        "data-blocks-section-heading-split-variant=\"actions\"",
+        "data-blocks-section-heading-split-variant=\"email\"",
+        "data-blocks-section-heading-split-variant=\"command\"",
+        "data-blocks-section-heading-split-tone=\"accent\"",
+        "data-blocks-section-heading-split-submit",
+    ] {
+        assert!(
+            html.contains(hook),
+            "section-heading-split page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "[data-blocks-section-heading-split-tone=\"accent\"]",
+        "@media (min-width: 40rem)",
+        "@media (min-width: 64rem)",
+        "align-items: end",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// section-heading-split の合成部品（badge/heading/text/button/field/
+/// input-group/input/clipboard/visually-hidden）が期待どおりの構成で実際に
+/// 出力されていること、`<form>`・送信属性・死リンクを持ち込んでいないこと
+/// を固定する（イシュー #2798）。
+#[test]
+fn section_heading_split_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/section-heading-split/")
+        .expect("section-heading-split should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"button\"",
+        "data-scope=\"field\" data-part=\"root\"",
+        "data-scope=\"input-group\"",
+        "data-scope=\"field\" data-part=\"input\"",
+        "data-scope=\"clipboard\"",
+        "data-scope=\"visually-hidden\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "section-heading-split demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-section-heading-split-row")
+            .count(),
+        5,
+        "section-heading-split should render exactly 5 rows"
+    );
+    assert_eq!(
+        html.matches(r#"type="button""#).count(),
+        4,
+        "section-heading-split should render exactly 4 type=\"button\" buttons"
+    );
+    for absent in [
+        "<form",
+        "type=\"submit\"",
+        "href=\"#\"",
+        "src=\"data:",
+        "mailto:",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "section-heading-split demo should never contain {absent}"
+        );
+    }
+}
+
+/// stats-split ページが Demo class・専用 CSS を配線していること、block 固有
+/// CSS（下罫線・左罫線・ブレークポイント）が実際に出力されていることを
+/// 固定する（イシュー #2804）。
+#[test]
+fn stats_split_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/stats-split/index.html"))
+        .expect("blocks/stats-split/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-stats-split\""),
+        "stats-split page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "stats-split page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "stats-split page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-stats-split-row",
+        "data-blocks-stats-split-variant",
+        "data-blocks-stats-split-stat-bottom",
+        "data-blocks-stats-split-stat-left",
+    ] {
+        assert!(
+            html.contains(hook),
+            "stats-split page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "[data-blocks-stats-split-row]",
+        ".blocks-stats-split-grid",
+        "[data-blocks-stats-split-stat-bottom]",
+        "[data-blocks-stats-split-stat-left]",
+        "@media (min-width: 40rem)",
+        "@media (min-width: 48rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// stats-split の合成部品（badge/heading/text/stat/separator）が期待どおり
+/// の構成で実際に出力されていること、variant 数・指標件数・非対話制約を
+/// 固定する（イシュー #2804）。
+#[test]
+fn stats_split_demo_composes_parts() {
+    let block =
+        blocks::block_for_path("/blocks/stats-split/").expect("stats-split should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"stat\"",
+        "data-scope=\"separator\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "stats-split demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-stats-split-variant").count(),
+        2,
+        "stats-split demo should render exactly 2 variants (base / intro-row)"
+    );
+    assert_eq!(
+        html.matches("data-scope=\"stat\" data-part=\"root\"")
+            .count(),
+        10,
+        "stats-split demo should render exactly 10 stat items (6 base + 4 intro-row)"
+    );
+    for absent in [
+        "<form",
+        "type=\"submit\"",
+        "href=\"#\"",
+        "src=\"data:",
+        "id=\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "stats-split demo should never contain {absent}"
+        );
+    }
+}
+
+/// stats-timeline ページが Demo class・専用 CSS を配線していること、
+/// block 固有 CSS（横向きレイアウト・ドット・罫線・ブレークポイント）が
+/// 実際に出力されていることを固定する（イシュー #2805）。
+#[test]
+fn stats_timeline_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/stats-timeline/index.html"))
+        .expect("blocks/stats-timeline/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-stats-timeline\""),
+        "stats-timeline page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "stats-timeline page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "stats-timeline page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-stats-timeline-rule",
+        "blocks-stats-timeline-date",
+        "blocks-stats-timeline-dot",
+    ] {
+        assert!(
+            html.contains(hook),
+            "stats-timeline page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-stats-timeline-layout",
+        ".blocks-stats-timeline-list",
+        ".blocks-stats-timeline-dot",
+        "@media (min-width: 40rem)",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// stats-timeline の合成部品（heading/text/separator）が期待どおりの構成
+/// で実際に出力されていること、出来事・罫線・ドットの件数・非対話制約を
+/// 固定する（イシュー #2805）。
+#[test]
+fn stats_timeline_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/stats-timeline/")
+        .expect("stats-timeline should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"separator\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "stats-timeline demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("<time datetime=").count(),
+        4,
+        "stats-timeline demo should render exactly 4 <time> elements"
+    );
+    assert_eq!(
+        html.matches("role=\"separator\"").count(),
+        4,
+        "stats-timeline demo should render exactly 4 separators"
+    );
+    for absent in [
+        "<form",
+        "type=\"submit\"",
+        "href=\"#\"",
+        "src=\"data:",
+        "<img",
+        " id=\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "stats-timeline should never contain {absent}"
+        );
+    }
+}
+
+/// section-heading-stacked ページが Demo class・専用 CSS を配線している
+/// こと、block 固有 CSS（暗色面の上書き・レスポンシブブレークポイント）が
+/// 実際に出力されていることを固定する（イシュー #2799）。
+#[test]
+fn section_heading_stacked_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/section-heading-stacked/index.html"))
+        .expect("blocks/section-heading-stacked/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-section-heading-stacked\""),
+        "section-heading-stacked page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "section-heading-stacked page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "section-heading-stacked page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-section-heading-stacked-align",
+        "data-blocks-section-heading-stacked-tone",
+        "data-blocks-section-heading-stacked-eyebrow",
+        "data-blocks-section-heading-stacked-desc",
+    ] {
+        assert!(
+            html.contains(hook),
+            "section-heading-stacked page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "[data-blocks-section-heading-stacked-align]",
+        "[data-blocks-section-heading-stacked-tone=\"dark\"]",
+        "@media (min-width: 48rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// section-heading-stacked の合成部品（badge/heading/text/breadcrumb）が
+/// 期待どおりの構成で実際に出力されていること、見出し個数・非対話制約を
+/// 固定する（イシュー #2799）。
+#[test]
+fn section_heading_stacked_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/section-heading-stacked/")
+        .expect("section-heading-stacked should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"breadcrumb\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "section-heading-stacked demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("<h3").count(),
+        6,
+        "section-heading-stacked demo should render exactly 6 headings, all at h3"
+    );
+    assert!(
+        !html.contains("<h1"),
+        "section-heading-stacked demo should not render a page-level h1"
+    );
+    assert!(
+        !html.contains("<h2"),
+        "section-heading-stacked demo should not render a section-level h2"
+    );
+    for absent in ["<form", "<button", "src=\"data:", "href=\"#\"", "id=\""] {
+        assert!(
+            !html.contains(absent),
+            "section-heading-stacked should never contain {absent}"
+        );
+    }
+}
+
+/// feature-three-column-icons ページが Demo class・専用 CSS を配線して
+/// いること、block 固有 CSS（3 列グリッド・左寄せ見出し上書き）が実際に
+/// 出力されていることを固定する（イシュー #3225）。
+#[test]
+fn feature_three_column_icons_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/feature-three-column-icons/index.html"))
+        .expect("blocks/feature-three-column-icons/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-feature-three-column-icons\""),
+        "feature-three-column-icons page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "feature-three-column-icons page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "feature-three-column-icons page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "class=\"blocks-feature-three-column-icons-item\"",
+        "data-blocks-feature-three-column-icons-card",
+        "data-blocks-feature-three-column-icons-icon",
+        "data-blocks-feature-three-column-icons-link",
+    ] {
+        assert!(
+            html.contains(hook),
+            "feature-three-column-icons page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-feature-three-column-icons-grid",
+        "[data-align=\"start\"]",
+        "@media (min-width: 48rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// feature-three-column-icons の合成部品（heading/text/icon/link/card）が
+/// 期待どおりの構成で実際に出力されていること、詳細リンク件数・非対話
+/// 制約を固定する（イシュー #3225）。
+#[test]
+fn feature_three_column_icons_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/feature-three-column-icons/")
+        .expect("feature-three-column-icons should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"link\"",
+        "data-scope=\"card\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "feature-three-column-icons demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-feature-three-column-icons-link=\"\"")
+            .count(),
+        6,
+        "feature-three-column-icons demo should render exactly 6 detail links"
+    );
+    for absent in ["<form", "<button", "src=\"data:", "href=\"#\"", "id=\""] {
+        assert!(
+            !html.contains(absent),
+            "feature-three-column-icons should never contain {absent}"
         );
     }
 }
