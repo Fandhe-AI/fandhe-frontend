@@ -1,9 +1,8 @@
 //! `header-mega-menu` block（イシュー #2858。親トラッキング #2857 の前半、
 //! 対応表 ID R0984 を主参照とする合成例）。幅を制限したバー（ブランド /
 //! ナビ / アクション）の下に、ヘッダー全幅まで広がるメガメニューパネルを
-//! 持つヘッダー。**Marketing / Header カテゴリで最初の block**（イシュー
-//! #2734 の雛形を本 block 追加で卒業させた、`super`（`header/mod.rs`）
-//! 参照）。
+//! 持つヘッダー。Marketing / Header カテゴリの 3 件目（`header_floating_pill`・
+//! `header_flyout_menu` に続く、`super`（`header/mod.rs`）参照）。
 //!
 //! パネル下部の補助 CTA 帯・原案差分メモは兄弟イシュー #2859（後半）の
 //! 担当であり、本 block の範囲外（`.claude/rules/out-of-scope-tracking.md`）。
@@ -23,7 +22,9 @@
 //! にしてフォーカス・クリック不能を明示する（レビュー是正: 見た目は
 //! 「開閉可能なボタン」のまま実際には操作不能という食い違いを解消する。
 //! `disabled_declarations()`（既定 `opacity: 0.5`）は [`LAYOUT_CSS`] で
-//! 中和し、通常のトリガーと同じ見た目に保つ）。残りのトップ項目
+//! 中和し、通常のトリガーと同じ見た目に保つ。open 固定の見出しとして
+//! 自然に見せるための判断であり、CTA ボタンの disabled 表示（[`actions`]
+//! 参照）とは異なり中和を維持する）。残りのトップ項目
 //! （料金・ドキュメント）は [`navigation_menu::trigger`] を持たず
 //! [`navigation_menu::item`] + [`navigation_menu::link`] のリンク項目
 //! のみで構成する（閉じたままフォーカス可能だが操作しても何も起きない
@@ -399,8 +400,10 @@ fn nav() -> Node {
 /// ラベルを実態（GitHub リポジトリ）に合わせて是正する（[`REPO`] の doc
 /// コメント参照）。CTA（「無料で始める」）は遷移先・送信処理を持たない
 /// no-op のため、`disabled: true` にしてフォーカス・クリック不能を明示する
-/// （`disabled_declarations()` は [`LAYOUT_CSS`] で中和し通常の CTA と
-/// 同じ見た目に保つ）。
+/// （`disabled_declarations()`〔既定 `opacity: 0.5`〕は中和せずそのまま
+/// 適用し、操作できない CTA だと見た目でも分かるよう無効表示のまま残す。
+/// レビュー指摘是正: 中和すると押せる見た目のまま実際には押せない食い違い
+/// が残っていた）。
 fn actions() -> Node {
     div(
         vec![("class", "blocks-header-mega-menu-actions")],
@@ -504,7 +507,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-header-mega-menu-layout [data-scope=\"navigation-menu\"][data-part=\"root\"],\n\
 .blocks-header-mega-menu-layout [data-scope=\"navigation-menu\"][data-part=\"item\"] {\n  position: static;\n}\n\
 .blocks-header-mega-menu-layout [data-scope=\"navigation-menu\"][data-part=\"content\"] {\n  inset-inline: 0;\n  min-width: 0;\n}\n\
-.blocks-header-mega-menu-panel-inner {\n  max-inline-size: 64rem;\n  margin-inline: auto;\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));\n  gap: var(--fandhe-space-6);\n  padding: var(--fandhe-space-2) var(--fandhe-space-4);\n}\n\
+.blocks-header-mega-menu-panel-inner {\n  max-inline-size: 64rem;\n  margin-inline: auto;\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr));\n  gap: var(--fandhe-space-6);\n  padding: var(--fandhe-space-2) var(--fandhe-space-4);\n}\n\
 .blocks-header-mega-menu-panel-column {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-header-mega-menu-panel-column-heading {\n  display: block;\n  font-weight: 600;\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n  margin-block-end: var(--fandhe-space-2);\n}\n\
 .blocks-header-mega-menu-panel-link[data-scope=\"navigation-menu\"][data-part=\"link\"] {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-1);\n}\n\
@@ -513,7 +516,6 @@ const LAYOUT_CSS: &str = "\
 .blocks-header-mega-menu-panel-link-description {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-header-mega-menu-actions {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  white-space: nowrap;\n}\n\
 .blocks-header-mega-menu-layout [data-scope=\"navigation-menu\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-[data-scope=\"button\"][data-part=\"root\"][data-blocks-header-mega-menu-cta][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-header-mega-menu-page {\n  min-block-size: 28rem;\n  padding: var(--fandhe-space-6) var(--fandhe-space-4);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 @media (max-width: 47.99rem) {\n  .blocks-header-mega-menu-bar {\n    flex-wrap: wrap;\n  }\n  .blocks-header-mega-menu-nav[data-scope=\"navigation-menu\"][data-part=\"root\"] {\n    flex-basis: 100%;\n  }\n  .blocks-header-mega-menu-layout [data-scope=\"navigation-menu\"][data-part=\"list\"] {\n    flex-wrap: wrap;\n  }\n  .blocks-header-mega-menu-actions {\n    flex-basis: 100%;\n  }\n  .blocks-header-mega-menu-page {\n    min-block-size: 44rem;\n  }\n}\n";
 
@@ -628,6 +630,17 @@ mod tests {
         );
     }
 
+    /// CTA の disabled 表示を [`LAYOUT_CSS`] で中和しないこと（レビュー
+    /// 指摘是正: 中和すると `disabled_declarations()` 既定の
+    /// `opacity: 0.5` が打ち消され、操作できない CTA が押せる見た目の
+    /// まま残っていた。トリガー側の中和〔`products_trigger_is_disabled`
+    /// と対になる `[data-part="trigger"][data-disabled]` 上書き〕は
+    /// open 固定の見出しとして自然に見せるための別判断であり残す）。
+    #[test]
+    fn cta_disabled_style_is_not_neutralized() {
+        assert!(!LAYOUT_CSS.contains("data-blocks-header-mega-menu-cta"));
+    }
+
     /// 狭い幅でもナビ・アクションを非表示にせず、ハンバーガーの
     /// `display: none`/`inline-flex` 切り替えを持たないこと（P1 是正:
     /// 開閉処理のないハンバーガーで内容を隠すと無 JS では到達不能になる）。
@@ -695,6 +708,15 @@ mod tests {
         assert!(LAYOUT_CSS.contains("position: static;"));
         assert!(LAYOUT_CSS.contains("inset-inline: 0;"));
         assert!(LAYOUT_CSS.contains("@media (max-width: 47.99rem)"));
+    }
+
+    /// パネル項目グリッドの列最小幅が `min(14rem, 100%)` で頭打ちされる
+    /// こと（レビュー指摘是正: `minmax(14rem, 1fr)` のままだと `.blocks-demo`
+    /// の枠が 14rem を下回る幅で列がはみ出し横スクロールを要求していた）。
+    #[test]
+    fn panel_grid_columns_clamp_to_available_width() {
+        assert!(LAYOUT_CSS.contains("minmax(min(14rem, 100%), 1fr)"));
+        assert!(!LAYOUT_CSS.contains("minmax(14rem, 1fr)"));
     }
 
     /// ルート class（`demo_class` とは別名）が [`demo`] の出力へ実際に

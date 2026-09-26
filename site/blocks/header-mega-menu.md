@@ -290,8 +290,10 @@ fn nav() -> Node {
 /// ラベルを実態（GitHub リポジトリ）に合わせて是正する（[`REPO`] の doc
 /// コメント参照）。CTA（「無料で始める」）は遷移先・送信処理を持たない
 /// no-op のため、`disabled: true` にしてフォーカス・クリック不能を明示する
-/// （`disabled_declarations()` は [`LAYOUT_CSS`] で中和し通常の CTA と
-/// 同じ見た目に保つ）。
+/// （`disabled_declarations()`〔既定 `opacity: 0.5`〕は中和せずそのまま
+/// 適用し、操作できない CTA だと見た目でも分かるよう無効表示のまま残す。
+/// レビュー指摘是正: 中和すると押せる見た目のまま実際には押せない食い違い
+/// が残っていた）。
 fn actions() -> Node {
     div(
         vec![("class", "blocks-header-mega-menu-actions")],
