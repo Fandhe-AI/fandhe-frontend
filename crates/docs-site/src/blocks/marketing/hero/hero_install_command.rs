@@ -54,18 +54,24 @@
 //! あり、上記配線の対象にならないため、実アプリでも機能しない
 //! （`disabled: true` で明示する理由）。
 //!
-//! **ただし A・C を同一マウントルート内へ両方組み込んだ場合、独立には
-//! 動作しない**（レビュー指摘対応、P1、イシュー #2786 Codex 指摘）。
-//! `headless_clipboard` は「1 root : 1 状態機械契約」という簡略化
-//! （同モジュール doc の同名節参照）を持ち、`data-copied` の反映を
-//! Runtime の `mount`/`hydrate` に渡されたマウントルート配下の**全**
-//! `clipboard` パーツへ及ぼす。本 Demo のようにマウントルート配下へ
-//! A・C を両方配置した場合、一方をコピーすると他方の表示も連動して
-//! 変わる。独立した表示を求めて A/C を同時に使う場合は、それぞれを
-//! 別々のマウントルートへ分離すること（`fandhe-frontend-wasm-full`
-//! 側の簡略化自体は本 block のスコープ外であり変更しない、
-//! `.claude/rules/coding-rust.md` の意図的非採用機能の再評価基準と
-//! 同様、cross-cutting な変更は個別 Issue で評価する）。
+//! **A・C は独立した `id` 付きマウントルートとして分離済み**（レビュー
+//! 指摘対応、P1、イシュー #2786 Codex 指摘）。`headless_clipboard` は
+//! 「1 root : 1 状態機械契約」という簡略化（同モジュール doc の同名節
+//! 参照）を持ち、`data-copied` の反映を Runtime の `mount`/`hydrate` に
+//! 渡されたマウントルート配下の**全** `clipboard` パーツへ及ぼす。同一
+//! マウントルート配下へ A・C を両方配置すると、一方をコピーすると他方の
+//! 表示も連動して変わってしまうため、A の外枠へ
+//! `id="blocks-hero-install-command-a"`、C の外枠へ
+//! `id="blocks-hero-install-command-c"` を付与し（`instance_a`/
+//! `instance_c` 参照）、実アプリで両方を使う場合はこの 2 つの `id` の
+//! 要素それぞれへ個別に `mount`/`hydrate` を呼ぶことで独立させられる
+//! ようにした。本 Demo（`demo()`）自体は docs サイトの比較表示専用の
+//! 合成であり無 JS のため hydrate されず、この構造は「実アプリへ組み
+//! 込む際にどう分離するか」を示す契約として `id` に固定してある
+//! （`fandhe-frontend-wasm-full` 側の「1 root : 1 状態機械契約」自体は
+//! 本 block のスコープ外であり変更しない、`.claude/rules/coding-rust.md`
+//! の意図的非採用機能の再評価基準と同様、cross-cutting な変更は個別
+//! Issue で評価する）。
 //! - **C（パンくず付き左寄せ・`clipboard` 形式・idle）**: R0523。
 //!   `breadcrumb` を導入要素に置き、`clipboard` の `value_text` に `code`
 //!   を重ねてコマンドを等幅表示し、`indicator` は idle 側のみ可視。
@@ -126,12 +132,18 @@ use fandhe_frontend_pre_styled_ui::Size;
 /// 等と同型の判断）。
 const REPO_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
-/// A（中央寄せ・`clipboard` 形式・idle）を組み立てる。
+/// A（中央寄せ・`clipboard` 形式・idle）を組み立てる。`id` はレビュー
+/// 指摘対応（P1、イシュー #2786 Codex 指摘）で付与した独立マウント
+/// ルート識別子（モジュール doc「コピー配線の範囲」節参照。実アプリで
+/// C と併用する場合はこの `id` の要素へ個別に `mount`/`hydrate` を
+/// 呼ぶことで `headless_clipboard` の「1 root : 1 状態機械契約」による
+/// A/C 連動を避けられる）。
 fn instance_a() -> Node {
     let value = "cargo install fandhe-frontend-cli";
     let input_id = "blocks-hero-install-command-a-input";
     div(
         vec![
+            ("id", "blocks-hero-install-command-a"),
             ("data-blocks-hero-install-command-hero", ""),
             ("data-align", "center"),
         ],
@@ -344,11 +356,13 @@ fn instance_b() -> Node {
     )
 }
 
-/// C（パンくず付き左寄せ・`clipboard` 形式・idle）を組み立てる。
+/// C（パンくず付き左寄せ・`clipboard` 形式・idle）を組み立てる。`id` は
+/// [`instance_a`] と対になる独立マウントルート識別子（同関数 doc 参照）。
 fn instance_c() -> Node {
     let value = "fw new my-app";
     div(
         vec![
+            ("id", "blocks-hero-install-command-c"),
             ("data-blocks-hero-install-command-hero", ""),
             ("data-align", "start"),
         ],
@@ -523,5 +537,17 @@ mod tests {
         assert!(!html.contains("href=\"#\""));
         assert!(!html.contains("mailto:"));
         assert!(!html.contains("src=\"data:"));
+    }
+
+    /// A・C がそれぞれ独立した `id` を持つこと（レビュー指摘対応、P1、
+    /// イシュー #2786 Codex 指摘: A/C を同一マウントルート内へ両方
+    /// 組み込むと `headless_clipboard` の「1 root : 1 状態機械契約」
+    /// によりコピー済み表示が連動してしまうため、実アプリで個別に
+    /// `mount`/`hydrate` できるよう分離した識別子を固定する）。
+    #[test]
+    fn demo_has_distinct_mount_root_ids_for_a_and_c() {
+        let html = render(&demo());
+        assert!(html.contains(r#"id="blocks-hero-install-command-a""#));
+        assert!(html.contains(r#"id="blocks-hero-install-command-c""#));
     }
 }

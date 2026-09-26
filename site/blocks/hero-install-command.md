@@ -33,6 +33,15 @@ A/C の「Copy」ボタンは `fandhe-frontend-pre-styled-ui` の `clipboard` �
 `clipboard` 部品を使わない別構成のため配線対象にならず、常に押下不能な
 静的表示です。
 
+`headless_clipboard` は「1 root : 1 状態機械契約」（同一マウントルート
+配下の全 `clipboard` パーツへコピー済み表示をまとめて反映する簡略化）を
+持つため、実アプリで A・C を両方使う場合は同一マウントルートへまとめて
+`mount`/`hydrate` すると一方のコピーで他方も「Copied!」表示になって
+しまいます。これを避けられるよう、A の外枠には
+`id="blocks-hero-install-command-a"`、C の外枠には
+`id="blocks-hero-install-command-c"` を付与してあります。両方を使う場合は
+この 2 つの `id` の要素それぞれへ個別に `mount`/`hydrate` を呼んでください。
+
 ## Rust コード
 
 ```rust
@@ -57,12 +66,18 @@ use fandhe_frontend_pre_styled_ui::Size;
 /// 等と同型の判断）。
 const REPO_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
-/// A（中央寄せ・`clipboard` 形式・idle）を組み立てる。
+/// A（中央寄せ・`clipboard` 形式・idle）を組み立てる。`id` はレビュー
+/// 指摘対応（P1、イシュー #2786 Codex 指摘）で付与した独立マウント
+/// ルート識別子（モジュール doc「コピー配線の範囲」節参照。実アプリで
+/// C と併用する場合はこの `id` の要素へ個別に `mount`/`hydrate` を
+/// 呼ぶことで `headless_clipboard` の「1 root : 1 状態機械契約」による
+/// A/C 連動を避けられる）。
 fn instance_a() -> Node {
     let value = "cargo install fandhe-frontend-cli";
     let input_id = "blocks-hero-install-command-a-input";
     div(
         vec![
+            ("id", "blocks-hero-install-command-a"),
             ("data-blocks-hero-install-command-hero", ""),
             ("data-align", "center"),
         ],
@@ -275,11 +290,13 @@ fn instance_b() -> Node {
     )
 }
 
-/// C（パンくず付き左寄せ・`clipboard` 形式・idle）を組み立てる。
+/// C（パンくず付き左寄せ・`clipboard` 形式・idle）を組み立てる。`id` は
+/// [`instance_a`] と対になる独立マウントルート識別子（同関数 doc 参照）。
 fn instance_c() -> Node {
     let value = "fw new my-app";
     div(
         vec![
+            ("id", "blocks-hero-install-command-c"),
             ("data-blocks-hero-install-command-hero", ""),
             ("data-align", "start"),
         ],
