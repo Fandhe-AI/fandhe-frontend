@@ -120,7 +120,7 @@ fn cta_section() -> Node {
                     variant: TextVariant::Muted,
                     ..TextProps::default()
                 },
-                vec![("class", "blocks-footer-cta-columns-eyebrow")],
+                vec![("data-blocks-footer-cta-columns-eyebrow", "")],
                 vec![text("コミュニティ")],
             ),
             heading(
@@ -239,7 +239,7 @@ fn bottom_row() -> Node {
                     variant: TextVariant::Muted,
                     ..TextProps::default()
                 },
-                vec![("class", "blocks-footer-cta-columns-copyright")],
+                vec![("data-blocks-footer-cta-columns-copyright", "")],
                 vec![text("© 2026 Fandhe Frontend.")],
             ),
         ],

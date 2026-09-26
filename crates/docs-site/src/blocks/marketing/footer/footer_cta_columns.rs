@@ -168,7 +168,7 @@ fn cta_section() -> Node {
                     variant: TextVariant::Muted,
                     ..TextProps::default()
                 },
-                vec![("class", "blocks-footer-cta-columns-eyebrow")],
+                vec![("data-blocks-footer-cta-columns-eyebrow", "")],
                 vec![text("コミュニティ")],
             ),
             heading(
@@ -287,7 +287,7 @@ fn bottom_row() -> Node {
                     variant: TextVariant::Muted,
                     ..TextProps::default()
                 },
-                vec![("class", "blocks-footer-cta-columns-copyright")],
+                vec![("data-blocks-footer-cta-columns-copyright", "")],
                 vec![text("© 2026 Fandhe Frontend.")],
             ),
         ],
@@ -347,11 +347,24 @@ pub const BLOCK: Block = Block {
 /// `super::stylesheet` から連結される）。狭い幅（既定）はリンクを 2 列、
 /// `48rem` 以上でロゴ 1 列 + リンク 4 列（モジュール doc「狭い幅では
 /// リンクを 2 列」節参照）。
+///
+/// eyebrow の CSS フックは `class` ではなく `data-*` 属性
+/// （`[data-blocks-footer-cta-columns-eyebrow]`）を使う。`styled_text::text`
+/// は呼び出し側 `class` を `drop_class_attr` で除去するため（モジュール doc
+/// 「CSS フックの選び方」節参照）、`class` セレクタでは出力に到達しない。
+///
+/// CTA リンク・SNS リンクの `color` は `link` recipe の base `color`
+/// （`[data-scope="link"][data-part="root"]`、詳細度 (0,2,0)）と競合する
+/// ため、`banner_announcement_pill`（詳細度衝突の先例）と同じ判断で
+/// `[data-scope="link"][data-part="root"]` を連結した属性セレクタ 2 個
+/// （詳細度 (0,3,0)）へ揃えて必ず勝たせる。他プロパティ（`display`・
+/// `padding` 等）は競合しないため単一属性セレクタのままにする。
 const LAYOUT_CSS: &str = "\
 .blocks-footer-cta-columns-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8, 2rem);\n  padding: var(--fandhe-space-8, 2rem);\n  background: var(--fandhe-color-bg-subtle);\n  border-radius: var(--fandhe-radius-lg, 0.75rem);\n}\n\
 .blocks-footer-cta-columns-cta {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  text-align: center;\n  gap: var(--fandhe-space-4, 1rem);\n  max-inline-size: 32rem;\n  margin-inline: auto;\n}\n\
-.blocks-footer-cta-columns-eyebrow {\n  text-transform: uppercase;\n  letter-spacing: 0.05em;\n}\n\
-[data-blocks-footer-cta-columns-cta] {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  padding: 0.75rem 1.5rem;\n  border-radius: var(--fandhe-radius-md, 0.375rem);\n  background: var(--fandhe-color-accent);\n  color: var(--fandhe-color-accent-fg);\n  text-decoration: none;\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n}\n\
+[data-blocks-footer-cta-columns-eyebrow] {\n  text-transform: uppercase;\n  letter-spacing: 0.05em;\n}\n\
+[data-blocks-footer-cta-columns-cta] {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  padding: 0.75rem 1.5rem;\n  border-radius: var(--fandhe-radius-md, 0.375rem);\n  background: var(--fandhe-color-accent);\n  text-decoration: none;\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n}\n\
+[data-scope=\"link\"][data-part=\"root\"][data-blocks-footer-cta-columns-cta] {\n  color: var(--fandhe-color-accent-fg);\n}\n\
 [data-blocks-footer-cta-columns-cta]:hover {\n  opacity: 0.9;\n}\n\
 .blocks-footer-cta-columns-columns {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-6, 1.5rem);\n  min-width: 0;\n}\n\
 .blocks-footer-cta-columns-brand {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2, 0.5rem);\n  grid-column: 1 / -1;\n}\n\
@@ -362,7 +375,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-footer-cta-columns-link-item {\n  display: block;\n}\n\
 .blocks-footer-cta-columns-bottom {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-4, 1rem);\n}\n\
 .blocks-footer-cta-columns-social {\n  display: flex;\n  gap: var(--fandhe-space-3, 0.75rem);\n}\n\
-[data-blocks-footer-cta-columns-social-link] {\n  color: var(--fandhe-color-fg-muted);\n}\n\
+[data-scope=\"link\"][data-part=\"root\"][data-blocks-footer-cta-columns-social-link] {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 @media (min-width: 48rem) {\n  .blocks-footer-cta-columns-columns {\n    grid-template-columns: 1.5fr repeat(4, minmax(0, 1fr));\n  }\n  .blocks-footer-cta-columns-brand {\n    grid-column: auto;\n  }\n}\n";
 
 #[cfg(test)]
