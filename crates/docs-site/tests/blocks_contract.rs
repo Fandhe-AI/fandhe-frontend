@@ -8027,3 +8027,101 @@ fn hero_split_image_composes_expected_parts() {
         );
     }
 }
+
+/// newsletter-split ページが Demo ラッパー・専用 CSS・block 固有 CSS フック
+/// を正しく配線していることを固定する（イシュー #2796、`contact_split_info`
+/// と同型の契約）。
+#[test]
+fn newsletter_split_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/newsletter-split/index.html"))
+        .expect("blocks/newsletter-split/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-newsletter-split\""),
+        "newsletter-split page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "newsletter-split page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "newsletter-split page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-newsletter-split-row",
+        "data-blocks-newsletter-split-tone=\"plain\"",
+        "data-blocks-newsletter-split-tone=\"accent\"",
+        "data-blocks-newsletter-split-tone=\"card\"",
+        "data-blocks-newsletter-split-submit",
+        "data-blocks-newsletter-split-privacy",
+    ] {
+        assert!(
+            html.contains(hook),
+            "newsletter-split page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "[data-blocks-newsletter-split-tone=\"accent\"]",
+        "[data-blocks-newsletter-split-tone=\"card\"]",
+        "@media (min-width: 40rem)",
+        "@media (min-width: 64rem)",
+        "@media (min-width: 80rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// newsletter-split の合成部品（heading/text/field/input/button/link/
+/// visually-hidden/card）が期待どおりの構成で実際に出力されていること、
+/// `<form>`・送信属性・死リンクを持ち込んでいないことを固定する
+/// （イシュー #2796）。
+#[test]
+fn newsletter_split_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/newsletter-split/")
+        .expect("newsletter-split should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"field\" data-part=\"root\"",
+        "data-scope=\"field\" data-part=\"input\"",
+        "data-scope=\"button\"",
+        "data-scope=\"link\"",
+        "data-scope=\"visually-hidden\"",
+        "data-scope=\"card\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "newsletter-split demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-newsletter-split-row").count(),
+        3,
+        "newsletter-split should render exactly 3 rows (plain / accent / card tones)"
+    );
+    assert_eq!(
+        html.matches(r#"type="button""#).count(),
+        3,
+        "newsletter-split should render exactly 3 type=\"button\" submit buttons"
+    );
+    for absent in [
+        "<form",
+        "type=\"submit\"",
+        "href=\"#\"",
+        "src=\"data:",
+        "mailto:",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "newsletter-split demo should never contain {absent}"
+        );
+    }
+}
