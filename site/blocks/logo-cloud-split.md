@@ -168,6 +168,15 @@ fn variant_bordered() -> Node {
     let left = div(
         vec![("class", "blocks-logo-cloud-split-copy")],
         vec![
+            styled_text::text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    weight: TextWeight::Medium,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text("導入企業（デモ用の架空サンプル）")],
+            ),
             heading(
                 HeadingLevel::H3,
                 &HeadingProps {
