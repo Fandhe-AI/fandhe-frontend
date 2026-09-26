@@ -46,6 +46,13 @@ fn variant_label(label: &'static str) -> Node {
 
 /// ロゴ 1 件（同一の抽象バッジ SVG + 架空社名キャプション）。`bordered`
 /// が true のとき淡色枠タイルへ収める（淡色枠タイル形の差分）。
+///
+/// バッジ + 社名のロックアップ（flex column / gap / centering）は
+/// `bordered` の有無に関わらず常に `data-blocks-logo-cloud-split-lockup`
+/// で適用する。以前は `[data-blocks-logo-cloud-split-tile]` にしか
+/// レイアウトを持たせておらず、基準形（`bordered = false`）は素の `div`
+/// のみでバッジと社名キャプションが隙間なく密着・左寄せになっていた
+/// （codex レビュー指摘、イシュー #2795 PR #3247）。
 fn logo_item(company: &'static str, bordered: bool) -> Node {
     // alt は空文字にする（隣接する `caption` が同じ社名を可視テキストとして
     // 持つため、`alt` にも同じ文字列を入れるとスクリーンリーダーが同名を
@@ -68,11 +75,17 @@ fn logo_item(company: &'static str, bordered: bool) -> Node {
     );
     if bordered {
         div(
-            vec![("data-blocks-logo-cloud-split-tile", "")],
+            vec![
+                ("data-blocks-logo-cloud-split-lockup", ""),
+                ("data-blocks-logo-cloud-split-tile", ""),
+            ],
             vec![logo_image, caption],
         )
     } else {
-        div(vec![], vec![logo_image, caption])
+        div(
+            vec![("data-blocks-logo-cloud-split-lockup", "")],
+            vec![logo_image, caption],
+        )
     }
 }
 
