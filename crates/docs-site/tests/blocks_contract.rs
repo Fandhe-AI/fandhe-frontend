@@ -6378,6 +6378,102 @@ fn contact_split_info_composes_expected_parts() {
     }
 }
 
+/// stats-cards ページが Demo class・専用 CSS を配線していること、
+/// block 固有 CSS（カードグリッド・淡色パネル・段状の段差・ブレークポイ
+/// ント）が実際に出力されていることを固定する（イシュー #2802）。
+#[test]
+fn stats_cards_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/stats-cards/index.html"))
+        .expect("blocks/stats-cards/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-stats-cards\""),
+        "stats-cards page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "stats-cards page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "stats-cards page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-stats-cards-section",
+        "data-blocks-stats-cards-section-head",
+        "data-blocks-stats-cards-grid-baseline",
+        "data-blocks-stats-cards-grid-panel",
+        "data-blocks-stats-cards-grid-stepped",
+        "data-blocks-stats-cards-card",
+        "data-blocks-stats-cards-card-header",
+        "data-blocks-stats-cards-icon",
+        "data-blocks-stats-cards-icon-panel",
+        "data-blocks-stats-cards-step",
+        "data-blocks-stats-cards-trend",
+    ] {
+        assert!(
+            html.contains(hook),
+            "stats-cards page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "[data-blocks-stats-cards-grid-baseline]",
+        "[data-blocks-stats-cards-icon-panel]",
+        "[data-blocks-stats-cards-step=\"1\"]",
+        "@media (min-width: 48rem)",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// stats-cards の合成部品（badge/heading/text/card/stat/icon）が期待どおり
+/// の構成で実際に出力されていること、カード総数・非対話制約を固定する
+/// （イシュー #2802。`contact_split_info_composes_expected_parts` と同型）。
+#[test]
+fn stats_cards_composes_expected_parts() {
+    let block =
+        blocks::block_for_path("/blocks/stats-cards/").expect("stats-cards should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"card\"",
+        "data-scope=\"stat\"",
+        "data-scope=\"icon\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "stats-cards demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-stats-cards-card=\"\"").count(),
+        10,
+        "stats-cards demo should render exactly 10 cards (4 baseline + 3 panel + 3 stepped)"
+    );
+    for absent in [
+        "<form",
+        "type=\"submit\"",
+        "href=\"#\"",
+        "src=\"data:",
+        "id=\"",
+        "<script",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "stats-cards should never contain {absent}"
+        );
+    }
+}
+
 /// hero-image-top ページが Demo class・専用 CSS を配線していること、
 /// block 固有 CSS（横長画像・2 カラム・ブレークポイント）が実際に出力
 /// されていることを固定する（イシュー #2785）。

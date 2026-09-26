@@ -1413,6 +1413,14 @@ source = "site/blocks/logo-cloud-marquee.md"
 path = "/blocks/logo-cloud-marquee/"
 
 [[section.group]]
+title = "Stats"
+
+[[section.group.page]]
+title = "stats-cards"
+source = "site/blocks/stats-cards.md"
+path = "/blocks/stats-cards/"
+
+[[section.group]]
 title = "Contact"
 
 [[section.group.page]]
