@@ -8585,6 +8585,100 @@ fn section_heading_split_composes_expected_parts() {
     }
 }
 
+/// stats-split ページが Demo class・専用 CSS を配線していること、block 固有
+/// CSS（下罫線・左罫線・ブレークポイント）が実際に出力されていることを
+/// 固定する（イシュー #2804）。
+#[test]
+fn stats_split_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/stats-split/index.html"))
+        .expect("blocks/stats-split/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-stats-split\""),
+        "stats-split page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "stats-split page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "stats-split page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-stats-split-row",
+        "data-blocks-stats-split-variant",
+        "data-blocks-stats-split-stat-bottom",
+        "data-blocks-stats-split-stat-left",
+    ] {
+        assert!(
+            html.contains(hook),
+            "stats-split page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "[data-blocks-stats-split-row]",
+        ".blocks-stats-split-grid",
+        "[data-blocks-stats-split-stat-bottom]",
+        "[data-blocks-stats-split-stat-left]",
+        "@media (min-width: 40rem)",
+        "@media (min-width: 48rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// stats-split の合成部品（badge/heading/text/stat/separator）が期待どおり
+/// の構成で実際に出力されていること、variant 数・指標件数・非対話制約を
+/// 固定する（イシュー #2804）。
+#[test]
+fn stats_split_demo_composes_parts() {
+    let block =
+        blocks::block_for_path("/blocks/stats-split/").expect("stats-split should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"stat\"",
+        "data-scope=\"separator\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "stats-split demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-stats-split-variant").count(),
+        2,
+        "stats-split demo should render exactly 2 variants (base / intro-row)"
+    );
+    assert_eq!(
+        html.matches("data-scope=\"stat\" data-part=\"root\"")
+            .count(),
+        10,
+        "stats-split demo should render exactly 10 stat items (6 base + 4 intro-row)"
+    );
+    for absent in [
+        "<form",
+        "type=\"submit\"",
+        "href=\"#\"",
+        "src=\"data:",
+        "id=\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "stats-split demo should never contain {absent}"
+        );
+    }
+}
+
 /// stats-timeline ページが Demo class・専用 CSS を配線していること、
 /// block 固有 CSS（横向きレイアウト・ドット・罫線・ブレークポイント）が
 /// 実際に出力されていることを固定する（イシュー #2805）。
