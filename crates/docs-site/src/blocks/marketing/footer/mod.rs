@@ -7,6 +7,7 @@
 
 mod footer_cta_columns;
 mod footer_inline_nav;
+mod footer_link_columns;
 mod footer_newsletter;
 mod footer_sticky_reveal;
 use crate::blocks::Block;
@@ -15,6 +16,7 @@ pub(super) fn blocks() -> Vec<Block> {
     vec![
         footer_cta_columns::BLOCK,
         footer_inline_nav::BLOCK,
+        footer_link_columns::BLOCK,
         footer_newsletter::BLOCK,
         footer_sticky_reveal::BLOCK,
     ]
