@@ -1616,6 +1616,14 @@ source = "site/blocks/content-with-testimonial.md"
 path = "/blocks/content-with-testimonial/"
 
 [[section.group]]
+title = "Header"
+
+[[section.group.page]]
+title = "header-floating-pill"
+source = "site/blocks/header-floating-pill.md"
+path = "/blocks/header-floating-pill/"
+
+[[section.group]]
 title = "Footer"
 
 [[section.group.page]]
