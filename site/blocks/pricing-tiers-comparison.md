@@ -360,7 +360,7 @@ fn comparison_table() -> Node {
             variant: TableVariant::Outline,
             ..TableProps::default()
         },
-        vec![],
+        vec![("data-blocks-pricing-tiers-comparison-table", "")],
         table_children,
     );
 
@@ -371,6 +371,7 @@ fn comparison_table() -> Node {
                 ("role", "region"),
                 ("aria-label", "プラン比較表"),
                 ("tabindex", "0"),
+                ("data-blocks-pricing-tiers-comparison-scroll", ""),
             ],
             vec![table_node],
         )],

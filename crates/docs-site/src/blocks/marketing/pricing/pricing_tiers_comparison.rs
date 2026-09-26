@@ -418,7 +418,7 @@ fn comparison_table() -> Node {
             variant: TableVariant::Outline,
             ..TableProps::default()
         },
-        vec![],
+        vec![("data-blocks-pricing-tiers-comparison-table", "")],
         table_children,
     );
 
@@ -429,6 +429,7 @@ fn comparison_table() -> Node {
                 ("role", "region"),
                 ("aria-label", "プラン比較表"),
                 ("tabindex", "0"),
+                ("data-blocks-pricing-tiers-comparison-scroll", ""),
             ],
             vec![table_node],
         )],
@@ -565,6 +566,16 @@ pub const BLOCK: Block = Block {
 /// variant（`Outline` の `border-color`、クラスセレクタ併用で 0,3,0）の
 /// 両方に勝つ必要があるため、`[data-scope="card"][data-part="root"]` を
 /// 前置して詳細度 0,3,0 へ揃えている（`pricing_slider_tiers` と同じ判断）。
+///
+/// 比較表の横スクロール規則（`min-width: 40rem`・`width: 100%`）は
+/// `[data-scope="table"][data-part="root"/"scroll-area"]` へ直接書くと
+/// `blocks::stylesheet()` が全 block の `LAYOUT_CSS` を単一の
+/// `assets/blocks.css` へ連結する構造上、他 block の狭幅テーブルへも
+/// 波及する（`comparison_table` 是正と同じ問題）。`table::root`/
+/// `table::scroll_area` へ block 固有属性
+/// （`data-blocks-pricing-tiers-comparison-table`/`-scroll`）を直接渡し、
+/// この block のみへスコープする（`comparison_table` の
+/// `data-blocks-comparison-table-table`/`-scroll` と同じ判断）。
 const LAYOUT_CSS: &str = "\
 .blocks-pricing-tiers-comparison-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 [data-blocks-pricing-tiers-comparison-header] {\n  display: flex;\n  flex-direction: column;\n  gap: 0.75rem;\n  max-width: 36rem;\n}\n\
@@ -574,8 +585,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-pricing-tiers-comparison-tier-heading {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-pricing-tiers-comparison-price {\n  display: flex;\n  align-items: baseline;\n  gap: var(--fandhe-space-1);\n  font-size: var(--fandhe-font-font-size-2xl, 1.5rem);\n  font-weight: var(--fandhe-font-font-weight-bold);\n  margin: var(--fandhe-space-4) 0;\n}\n\
 .blocks-pricing-tiers-comparison-price-period {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-[data-scope=\"table\"][data-part=\"scroll-area\"] {\n  width: 100%;\n}\n\
-[data-scope=\"table\"][data-part=\"root\"] {\n  min-width: 40rem;\n}\n\
+[data-scope=\"table\"][data-part=\"scroll-area\"][data-blocks-pricing-tiers-comparison-scroll] {\n  width: 100%;\n}\n\
+[data-blocks-pricing-tiers-comparison-table] {\n  min-width: 40rem;\n}\n\
 [data-scope=\"table\"][data-part=\"row-header\"][data-blocks-pricing-tiers-comparison-category] {\n  background: var(--fandhe-color-bg-subtle);\n  text-align: left;\n  font-weight: 600;\n}\n\
 [data-scope=\"table\"][data-part=\"row-header\"][data-blocks-pricing-tiers-comparison-feature] {\n  text-align: left;\n}\n\
 [data-scope=\"list\"][data-part=\"root\"][data-blocks-pricing-tiers-comparison-features] {\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
