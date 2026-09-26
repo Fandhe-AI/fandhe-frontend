@@ -61,7 +61,8 @@ pub const SCHEMA_VERSION: u32 = 1;
 /// 1,708,308 バイトへ達し `MAX_INDEX_BYTES`（1,703,936 バイト）を再度超過した
 /// ため、本定数を 4032 → 4000 へ再度引き下げて対処した（実測 1,699,483
 /// バイト、全体の約 99.7%。設計文書 §10-12）。イシュー #2862
-/// （`pricing-comparison-table` block 追加）でも独立に `MAX_INDEX_BYTES`
+/// （`pricing-comparison-table` block 追加）・イシュー #2865
+/// （`pricing-seats-split` block 追加）でも独立に `MAX_INDEX_BYTES`
 /// 超過を検知したが、本定数の再引き下げ（§10-10・§10-12 と同型の対症療法の
 /// 繰り返し）は採らなかった（設計文書 §10-13 参照）。代わりに
 /// [`collect_text_into`] が Blocks ページのフェンスコードブロック本文を
