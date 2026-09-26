@@ -20,18 +20,56 @@ use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps};
 /// 避けるため、footer 系 block 共通の判断に倣う）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
-/// 主ナビゲーションのラベル一覧（架空の文言）。
-const NAV_LINKS: &[&str] = &["概要", "ガイド", "API リファレンス", "更新履歴"];
+/// 主ナビゲーションのラベルと遷移先（同一リポジトリ内の実在パス）。
+/// 全リンクが `REPO` 直下へ揃うとラベルと遷移先が食い違う（Codex レビュー
+/// 指摘）ため、ラベルの意味に対応する実在サブパスへ個別に張る。
+const NAV_LINKS: &[(&str, &str)] = &[
+    ("概要", REPO),
+    (
+        "ガイド",
+        "https://github.com/Fandhe-AI/fandhe-frontend/tree/main/docs/guides",
+    ),
+    (
+        "API リファレンス",
+        "https://github.com/Fandhe-AI/fandhe-frontend/tree/main/docs/api",
+    ),
+    (
+        "更新履歴",
+        "https://github.com/Fandhe-AI/fandhe-frontend/releases",
+    ),
+];
 
-/// 法務リンクのラベル一覧（架空の文言）。
-const LEGAL_LINKS: &[&str] = &["プライバシー", "利用規約"];
+/// 法務リンクのラベルと遷移先。本リポジトリはプライバシーポリシー等を
+/// 持たないため、実在するデュアルライセンス表記（`LICENSE-MIT`/
+/// `LICENSE-APACHE`）へ遷移先を合わせ、ラベルもそれに合わせて改めた
+/// （Codex レビュー指摘: 表示と遷移先の食い違い是正）。
+const LEGAL_LINKS: &[(&str, &str)] = &[
+    (
+        "MIT ライセンス",
+        "https://github.com/Fandhe-AI/fandhe-frontend/blob/main/LICENSE-MIT",
+    ),
+    (
+        "Apache ライセンス",
+        "https://github.com/Fandhe-AI/fandhe-frontend/blob/main/LICENSE-APACHE",
+    ),
+];
 
-/// SNS リンクのアクセシブルネームと線画パス（実在ブランドを模さない抽象
-/// 図形: 円・三角・四角）。
-const SOCIAL_LINKS: &[(&str, &str)] = &[
-    ("更新情報", "M12 3a9 9 0 100 18 9 9 0 000-18z"),
-    ("コミュニティ", "M12 4l8 16H4z"),
-    ("動画", "M4 4h16v16H4z"),
+/// SNS リンクのアクセシブルネーム・線画パス・遷移先（実在ブランドを模さない
+/// 抽象図形: 円・三角・四角）。「動画」ラベルに対応する実在ページが本
+/// リポジトリに存在しないため、ラベルを実在の GitHub Discussions/リポジトリ
+/// トップへ合わせて改めた（Codex レビュー指摘）。
+const SOCIAL_LINKS: &[(&str, &str, &str)] = &[
+    (
+        "更新情報",
+        "M12 3a9 9 0 100 18 9 9 0 000-18z",
+        "https://github.com/Fandhe-AI/fandhe-frontend/releases",
+    ),
+    (
+        "コミュニティ",
+        "M12 4l8 16H4z",
+        "https://github.com/Fandhe-AI/fandhe-frontend/discussions",
+    ),
+    ("リポジトリ", "M4 4h16v16H4z", REPO),
 ];
 
 /// 自作の幾何アイコン（線画）。`fill="none"` + `stroke="currentColor"` で
@@ -82,9 +120,9 @@ fn logo() -> Node {
 fn social_links() -> Node {
     let items: Vec<Node> = SOCIAL_LINKS
         .iter()
-        .map(|(label, path_d)| {
+        .map(|(label, path_d, href)| {
             link::root(
-                REPO,
+                href,
                 &LinkProps {
                     external: true,
                     ..LinkProps::default()
@@ -102,10 +140,10 @@ fn social_links() -> Node {
 fn primary_nav(aria_label: &'static str) -> Node {
     let items: Vec<Node> = NAV_LINKS
         .iter()
-        .map(|label| {
+        .map(|(label, href)| {
             nav_list::item(
                 vec![],
-                vec![nav_list::link(REPO, false, vec![], vec![text(*label)])],
+                vec![nav_list::link(href, false, vec![], vec![text(*label)])],
             )
         })
         .collect();
@@ -126,7 +164,17 @@ fn bottom_row(with_legal: bool) -> Node {
     if with_legal {
         let legal_links: Vec<Node> = LEGAL_LINKS
             .iter()
-            .map(|label| link::root(REPO, &LinkProps::default(), vec![], vec![text(*label)]))
+            .map(|(label, href)| {
+                link::root(
+                    href,
+                    &LinkProps {
+                        external: true,
+                        ..LinkProps::default()
+                    },
+                    vec![],
+                    vec![text(*label)],
+                )
+            })
             .collect();
         children.push(div(
             vec![("data-blocks-footer-inline-nav-legal", "")],
@@ -232,7 +280,7 @@ pub fn demo() -> Node {
 }
 ```
 
-**原案差分メモ**
+## 原案差分メモ
 
 主参照 R0493（上段に SNS アイコン列を追加した形）を標準形に採用し、
 R0491（ロゴ + ナビ / 区切り線 / 著作権 + 法務リンク）を標準形の下段構成へ
