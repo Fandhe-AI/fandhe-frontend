@@ -144,6 +144,13 @@ fn variant_label(label: &'static str) -> Node {
 
 /// ロゴ 1 件（同一の抽象バッジ SVG + 架空社名キャプション）。`bordered`
 /// が true のとき淡色枠タイルへ収める（淡色枠タイル形の差分）。
+///
+/// バッジ + 社名のロックアップ（flex column / gap / centering）は
+/// `bordered` の有無に関わらず常に `data-blocks-logo-cloud-split-lockup`
+/// で適用する。以前は `[data-blocks-logo-cloud-split-tile]` にしか
+/// レイアウトを持たせておらず、基準形（`bordered = false`）は素の `div`
+/// のみでバッジと社名キャプションが隙間なく密着・左寄せになっていた
+/// （codex レビュー指摘、イシュー #2795 PR #3247）。
 fn logo_item(company: &'static str, bordered: bool) -> Node {
     // alt は空文字にする（隣接する `caption` が同じ社名を可視テキストとして
     // 持つため、`alt` にも同じ文字列を入れるとスクリーンリーダーが同名を
@@ -166,11 +173,17 @@ fn logo_item(company: &'static str, bordered: bool) -> Node {
     );
     if bordered {
         div(
-            vec![("data-blocks-logo-cloud-split-tile", "")],
+            vec![
+                ("data-blocks-logo-cloud-split-lockup", ""),
+                ("data-blocks-logo-cloud-split-tile", ""),
+            ],
             vec![logo_image, caption],
         )
     } else {
-        div(vec![], vec![logo_image, caption])
+        div(
+            vec![("data-blocks-logo-cloud-split-lockup", "")],
+            vec![logo_image, caption],
+        )
     }
 }
 
@@ -394,7 +407,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-logo-cloud-split-cta {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-3);\n  align-items: center;\n}\n\
 .blocks-logo-cloud-split-grid {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-4);\n  align-items: center;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-logo-cloud-split-logo] {\n  height: 3rem;\n  width: auto;\n  max-width: 100%;\n}\n\
-[data-blocks-logo-cloud-split-tile] {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  padding: var(--fandhe-space-4);\n  border-radius: var(--fandhe-radius-md);\n  border: 1px solid var(--fandhe-color-border);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
+[data-blocks-logo-cloud-split-lockup] {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
+[data-blocks-logo-cloud-split-tile] {\n  padding: var(--fandhe-space-4);\n  border-radius: var(--fandhe-radius-md);\n  border: 1px solid var(--fandhe-color-border);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
 [data-blocks-logo-cloud-split-tone=\"dark\"] {\n  padding: var(--fandhe-space-8);\n  border-radius: var(--fandhe-radius-lg);\n  background: #111111;\n  color: #ffffff;\n}\n\
 [data-blocks-logo-cloud-split-tone=\"dark\"] [data-blocks-logo-cloud-split-tile] {\n  border-color: #f7f7f7;\n  background: transparent;\n}\n\
 [data-blocks-logo-cloud-split-tone=\"dark\"] [data-scope=\"text\"][data-part=\"root\"],\n[data-blocks-logo-cloud-split-tone=\"dark\"] [data-scope=\"link\"][data-part=\"root\"] {\n  color: inherit;\n}\n\
@@ -531,6 +545,23 @@ mod tests {
         assert!(LAYOUT_CSS.contains("background: #111111;\n  color: #ffffff;"));
         assert!(!LAYOUT_CSS.contains(
             "[data-blocks-logo-cloud-split-tone=\"dark\"] {\n  padding: var(--fandhe-space-8);\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-fg);"
+        ));
+    }
+
+    /// 基準形（枠なし）のロックアップにも tile 形と同じ flex/gap/centering
+    /// が適用されること（`data-blocks-logo-cloud-split-lockup` が
+    /// `bordered` の有無に関わらず全 18 ロゴへ付くこと）を固定する
+    /// （Bugbot 指摘の回帰固定、イシュー #2795 PR #3247）。
+    #[test]
+    fn all_logo_items_get_shared_lockup_layout() {
+        let html = render(&demo());
+        assert_eq!(
+            html.matches("data-blocks-logo-cloud-split-lockup").count(),
+            18,
+            "all 18 logo items (basic/bordered/dark rows) should share the lockup layout"
+        );
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-logo-cloud-split-lockup] {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}"
         ));
     }
 }
