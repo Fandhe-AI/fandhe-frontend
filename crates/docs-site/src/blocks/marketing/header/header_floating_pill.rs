@@ -14,18 +14,25 @@
 //! `navigation-menu` / `button` / `icon` / `collapsible` の 4 部品を合成
 //! する（[`BLOCK`] の `parts` に一致させる契約）。
 //!
-//! # 狭幅ではナビを隠しハンバーガーへ切り替える（無 JS、`OpenState::Open` +
-//! `disabled: true` で固定）
+//! # 狭幅ではデスクトップナビ/CTA を隠し、常時展開のドロップダウンパネル
+//! として表示する（無 JS、`OpenState::Open` + `disabled: true` で固定）
 //!
 //! 無 JS の docs サイトでは開閉の実動作を持たないため、`collapsible::root`
 //! は [`OpenState::Open`] + `disabled: true` で固定描画する（`faq_accordion_
 //! centered`/`changelog_accordion`/`careers_split_accordion` 等の accordion
 //! 系 block と同じ「開状態固定 + disabled でトリガーを無効化」判断）。
 //! `OpenState::Closed` 固定だと headless 層の契約どおり `content` へ
-//! `hidden` 存在属性が付き、狭幅でナビ/CTA へ一切到達できなくなるため
-//! （イシュー #2853 PR #3272 codex-review P1 指摘）、`Open` 固定へ変更して
-//! ハンバーガー内のナビ・CTA を常時到達可能にする。`@media` によるナビ/
-//! CTA 非表示・ハンバーガー表示の切り替えは [`LAYOUT_CSS`] が担う。
+//! `hidden` 存在属性が付き、狭幅でナビ/CTA へ一切到達できなくなる（イシュー
+//! #2853 PR #3272 codex-review P1 指摘）ため `Open` 固定を採る。ただし
+//! `content`（`hfp-mobile-panel` class）は `position: absolute` で `.hfp-bar`
+//! の下へ切り離し、ピルの水平 flex 行には参加させない（イシュー #2853
+//! PR #3272 Cursor Bugbot 指摘: `content` が flex 行内に居座るとピル
+//! カプセルがナビ・CTA を囲んで伸びてしまう）。常時展開のため「ハンバー
+//! ガーで開閉する」という説明は行わず、「狭幅では常時展開のドロップダウン
+//! パネルとして到達可能」という無 JS の固定表示を正としてドキュメントする
+//! （イシュー #2853 PR #3272 codex-review P2 指摘、原稿 `site/blocks/
+//! header-floating-pill.md` も同じ説明へ揃える）。`@media` によるナビ/CTA
+//! 非表示・パネル表示の切り替えは [`LAYOUT_CSS`] が担う。
 //!
 //! # トリガーと content の id 対応
 //!
@@ -36,12 +43,15 @@
 //! # `navigation-menu` はトリガー/パネルを持たないフラットなリンク列
 //!
 //! `item`/`link` のみで構成する（`trigger`/`content` によるドロップダウン
-//! は持たない）。モバイルパネルは複製コードを持たず、デスクトップ用に
-//! 組み立てた `nav`/`cta`/ロゴアイコン（`mark`）を `Node::clone()` して
-//! 再利用する（検索インデックス容量の制約、下記節参照）。非表示側は CSS
+//! は持たない）。モバイルパネルの `content` は複製コードを持たず、
+//! デスクトップ用に組み立てた `nav`/`cta` を `Node::clone()` して再利用
+//! する（検索インデックス容量の制約、下記節参照）。非表示側は CSS
 //! `display: none` で a11y ツリーからも除外されるため、同一 `aria-label`
-//! の重複・ハンバーガートリガーへのロゴアイコン流用は実害を持たない
-//! （装飾用途、`IconProps::label` は `None` のまま）。
+//! の重複は実害を持たない。ハンバーガートリガーはメニューであることを
+//! 示す専用の 3 本線アイコンを持つ（イシュー #2853 PR #3272 codex-review
+//! P2 指摘: ロゴ用 `mark`〔角丸四角形〕の流用はメニューの視覚的手掛かり
+//! にならないため分離した。装飾用途、`IconProps::label` は `None` の
+//! まま）。
 //!
 //! # ロゴ・リンクは自作/架空、`<form>` は持たない
 //!
@@ -115,7 +125,49 @@ pub fn demo() -> Node {
     );
     let logo = span(
         vec![("class", "hfp-logo")],
-        vec![mark.clone(), text("Fandhe Frontend")],
+        vec![mark, text("Fandhe Frontend")],
+    );
+    let menu_icon = icon(
+        &IconProps::default(),
+        vec![("stroke", "currentColor")],
+        vec![
+            el(
+                "line",
+                vec![
+                    ("x1", "3"),
+                    ("y1", "6"),
+                    ("x2", "21"),
+                    ("y2", "6"),
+                    ("stroke-width", "2"),
+                    ("stroke-linecap", "round"),
+                ],
+                vec![],
+            ),
+            el(
+                "line",
+                vec![
+                    ("x1", "3"),
+                    ("y1", "12"),
+                    ("x2", "21"),
+                    ("y2", "12"),
+                    ("stroke-width", "2"),
+                    ("stroke-linecap", "round"),
+                ],
+                vec![],
+            ),
+            el(
+                "line",
+                vec![
+                    ("x1", "3"),
+                    ("y1", "18"),
+                    ("x2", "21"),
+                    ("y2", "18"),
+                    ("stroke-width", "2"),
+                    ("stroke-linecap", "round"),
+                ],
+                vec![],
+            ),
+        ],
     );
     let mobile = div(
         vec![("class", "hfp-mobile")],
@@ -129,13 +181,13 @@ pub fn demo() -> Node {
                     true,
                     Some(PANEL_ID),
                     vec![("aria-label", "メニュー")],
-                    vec![mark],
+                    vec![menu_icon],
                 ),
                 collapsible::content(
                     OpenState::Open,
                     true,
                     Some(PANEL_ID),
-                    vec![],
+                    vec![("class", "hfp-mobile-panel")],
                     vec![nav.clone(), cta.clone()],
                 ),
             ],
@@ -190,13 +242,19 @@ pub const BLOCK: Block = Block {
 /// `[data-hfp-*]`（`demo()` 内で組み立てる短縮 class/data 属性、下記
 /// 「検索インデックス容量」節参照）のみを用いる。狭幅
 /// （`max-width: 47.99rem`）ではデスクトップナビ・CTA を隠しハンバーガー
-/// のみを残す。
+/// トリガーのみをピルの水平 flex 行に残す。`.hfp-mobile-panel`（常時展開の
+/// `collapsible::content`）は `position: absolute` で `.hfp-bar`（`position:
+/// relative`）から切り離し、ピルの下へドロップダウンとして配置する。
+/// flex 行に参加させると開状態固定のパネルがピルの水平方向いっぱいに
+/// 伸びてカプセルの見た目を崩すため（イシュー #2853 PR #3272 Cursor
+/// Bugbot 指摘）。
 const LAYOUT_CSS: &str = "\
 .hfp-layout {\n  padding-block-start: var(--fandhe-space-4);\n  padding-inline: var(--fandhe-space-4);\n  background: var(--fandhe-color-bg-muted);\n}\n\
-.hfp-bar {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  max-inline-size: 48rem;\n  margin-inline: auto;\n  padding: var(--fandhe-space-3) var(--fandhe-space-5);\n  border-radius: var(--fandhe-radius-full);\n  background: var(--fandhe-color-bg);\n  box-shadow: var(--fandhe-shadow-md);\n}\n\
+.hfp-bar {\n  position: relative;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  max-inline-size: 48rem;\n  margin-inline: auto;\n  padding: var(--fandhe-space-3) var(--fandhe-space-5);\n  border-radius: var(--fandhe-radius-full);\n  background: var(--fandhe-color-bg);\n  box-shadow: var(--fandhe-shadow-md);\n}\n\
 .hfp-logo {\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: 600;\n  white-space: nowrap;\n}\n\
 .hfp-nav {\n  flex: 1;\n  display: flex;\n  justify-content: center;\n}\n\
 .hfp-mobile {\n  display: none;\n}\n\
+.hfp-mobile-panel {\n  position: absolute;\n  inset-inline: var(--fandhe-space-5);\n  top: calc(100% + var(--fandhe-space-2));\n  display: flex;\n  flex-direction: column;\n  align-items: stretch;\n  gap: var(--fandhe-space-3);\n  background: var(--fandhe-color-bg);\n  z-index: 20;\n}\n\
 @media (max-width: 47.99rem) {\n  .hfp-nav {\n    display: none;\n  }\n  .hfp-bar > [data-hfp-cta] {\n    display: none;\n  }\n  .hfp-mobile {\n    display: block;\n  }\n}\n";
 
 #[cfg(test)]
@@ -254,6 +312,36 @@ mod tests {
     fn layout_css_hides_cta_only_in_desktop_bar() {
         assert!(LAYOUT_CSS.contains(".hfp-bar > [data-hfp-cta]"));
         assert!(!LAYOUT_CSS.contains("\n  [data-hfp-cta] {"));
+    }
+
+    /// `.hfp-mobile-panel`（常時展開の `content`）が `position: absolute` で
+    /// `.hfp-bar`（`position: relative`）の水平 flex 行から切り離されること
+    /// （イシュー #2853 PR #3272 Cursor Bugbot 指摘の回帰：flex 行に居座って
+    /// ピルカプセルが伸びる不具合の再発防止）。
+    #[test]
+    fn mobile_panel_is_detached_from_bar_flex_row() {
+        assert!(LAYOUT_CSS.contains(".hfp-bar {\n  position: relative;"));
+        assert!(LAYOUT_CSS.contains(".hfp-mobile-panel {\n  position: absolute;"));
+        let html = render(&demo());
+        assert!(html.contains("class=\"hfp-mobile-panel\""));
+    }
+
+    /// ハンバーガートリガーがロゴアイコン（`mark`、角丸四角形 1 個）の
+    /// 流用ではなく専用のメニューアイコン（3 本線）を持つこと（イシュー
+    /// #2853 PR #3272 codex-review P2 指摘の回帰）。
+    #[test]
+    fn trigger_uses_dedicated_menu_icon_not_logo_mark() {
+        let html = render(&demo());
+        assert_eq!(
+            html.matches("<rect").count(),
+            1,
+            "logo mark rect should appear only once"
+        );
+        assert_eq!(
+            html.matches("<line").count(),
+            3,
+            "menu icon should render 3 lines"
+        );
     }
 
     /// ルート class（`demo_class` とは別名）が [`demo`] の出力へ実際に

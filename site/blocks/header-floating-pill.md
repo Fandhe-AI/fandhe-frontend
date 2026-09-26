@@ -1,7 +1,9 @@
 # header-floating-pill
 
 `navigation-menu` / `button` / `icon` / `collapsible` を合成した浮遊ピル型
-ヘッダーです（R0157/R0574）。狭幅ではハンバーガーのみ残し閉状態固定です。
+ヘッダーです（R0157/R0574）。無 JS のため開閉は行わず、狭幅ではデスクトップ
+ナビ・CTA を隠しハンバーガートリガー + 常時展開のドロップダウンパネルを
+ピルの下に表示します（ピルの水平 flex 行からは切り離した固定表示）。
 
 ## Rust コード
 
@@ -58,7 +60,49 @@ pub fn demo() -> Node {
     );
     let logo = span(
         vec![("class", "hfp-logo")],
-        vec![mark.clone(), text("Fandhe Frontend")],
+        vec![mark, text("Fandhe Frontend")],
+    );
+    let menu_icon = icon(
+        &IconProps::default(),
+        vec![("stroke", "currentColor")],
+        vec![
+            el(
+                "line",
+                vec![
+                    ("x1", "3"),
+                    ("y1", "6"),
+                    ("x2", "21"),
+                    ("y2", "6"),
+                    ("stroke-width", "2"),
+                    ("stroke-linecap", "round"),
+                ],
+                vec![],
+            ),
+            el(
+                "line",
+                vec![
+                    ("x1", "3"),
+                    ("y1", "12"),
+                    ("x2", "21"),
+                    ("y2", "12"),
+                    ("stroke-width", "2"),
+                    ("stroke-linecap", "round"),
+                ],
+                vec![],
+            ),
+            el(
+                "line",
+                vec![
+                    ("x1", "3"),
+                    ("y1", "18"),
+                    ("x2", "21"),
+                    ("y2", "18"),
+                    ("stroke-width", "2"),
+                    ("stroke-linecap", "round"),
+                ],
+                vec![],
+            ),
+        ],
     );
     let mobile = div(
         vec![("class", "hfp-mobile")],
@@ -72,13 +116,13 @@ pub fn demo() -> Node {
                     true,
                     Some(PANEL_ID),
                     vec![("aria-label", "メニュー")],
-                    vec![mark],
+                    vec![menu_icon],
                 ),
                 collapsible::content(
                     OpenState::Open,
                     true,
                     Some(PANEL_ID),
-                    vec![],
+                    vec![("class", "hfp-mobile-panel")],
                     vec![nav.clone(), cta.clone()],
                 ),
             ],
