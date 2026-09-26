@@ -1463,6 +1463,11 @@ title = "newsletter-split"
 source = "site/blocks/newsletter-split.md"
 path = "/blocks/newsletter-split/"
 
+[[section.group.page]]
+title = "newsletter-with-details"
+source = "site/blocks/newsletter-with-details.md"
+path = "/blocks/newsletter-with-details/"
+
 [[section.group]]
 title = "Blog"
 
@@ -1715,6 +1720,11 @@ path = "/blocks/gallery-split-carousel/"
 
 [[section.group]]
 title = "Section Heading"
+
+[[section.group.page]]
+title = "section-heading-split"
+source = "site/blocks/section-heading-split.md"
+path = "/blocks/section-heading-split/"
 
 [[section.group.page]]
 title = "section-heading-stats"

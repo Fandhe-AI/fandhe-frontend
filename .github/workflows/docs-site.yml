@@ -283,6 +283,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/contact-split-form-info/index.html"
           # Marketing / Newsletter
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/newsletter-split/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/newsletter-with-details/index.html"
           # Marketing / Blog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-featured-article/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-featured-with-list/index.html"
@@ -339,6 +340,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/gallery-masonry/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/gallery-split-carousel/index.html"
           # Marketing / Section Heading
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/section-heading-split/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/section-heading-stats/index.html"
           # Application / App Shell
           # Application / Sidebar
