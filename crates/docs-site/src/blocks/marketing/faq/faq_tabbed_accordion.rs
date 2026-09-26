@@ -7,34 +7,35 @@
 //!
 //! # 使用部品
 //!
-//! `heading` / `text` / `badge` / `tabs` / `accordion` の 5 部品を合成する
+//! `heading` / `text` / `badge` / `accordion` の 4 部品を合成する
 //! （[`BLOCK`] の `parts` に一致させる契約、
 //! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証する）。
+//! `tabs` は次節のとおり実物を一切呼ばないため `parts` には含めない。
 //!
-//! # tabs は実物を 1 インスタンスだけ使う（原案との差分）
+//! # 実物の `tabs::tabs` を使わない（PR #3268 レビュー是正）
 //!
+//! 当初は実物の `tabs::tabs` を 1 インスタンスだけ使い、先頭カテゴリのみ
+//! 選択・非 disabled、残り 2 件を `disabled: true` にしていた。しかし
+//! 無 JS の docs サイトではこの構成でも「機能」「サポート」カテゴリの
+//! FAQ が `hidden` パネルの中に閉じ込められ、[`header`] の案内文
+//! 「知りたい内容のカテゴリを選んでください」が指す操作を実行する経路が
+//! 存在しなかった（Codex P1 3 件・Bugbot Medium 1 件、いずれも同一原因）。
 //! [`super::super::feature::feature_tabs_panel`]・
-//! [`super::super::feature::feature_vertical_tabs`] は「非選択パネルが
-//! 見えないのに操作できそうなトリガーが残る」という codex P1 指摘を受け、
-//! 実物の `tabs::tabs` を使うのをやめて非対話の模倣へ切り替えた前例が
-//! ある。本 block はイシューが使用部品に `tabs` を挙げており `parts`
-//! 契約と一致させる必要があるため、代わりに次の方針で実物の `tabs::tabs`
-//! を安全に使う:
+//! [`super::super::feature::feature_vertical_tabs`] が同種の指摘を受けて
+//! 採った方針（実物の `tabs::tabs` を使わず、非対話の視覚的タブ列 +
+//! 全カテゴリ本文を常時可視にする静的表示へ切り替える）を本 block にも
+//! 適用する:
 //!
-//! - 先頭カテゴリのみ `disabled: false`（選択中）、2 番目以降は
-//!   `disabled: true`
-//! - 結果としてフォーカスできるのは選択中タブ 1 個だけになる。選択中タブの
-//!   クリックは JS があっても no-op であり、見た目と挙動にずれが生じない。
-//!   矢印キーも他が disabled なら headless の仕様上どこにも移動しない
-//!   （`crates/headless-ui/src/tabs.rs` の roving tabindex 決定則参照）。
-//!   これで「操作できそうに見えて何も起きない」トリガーが残らない
-//! - 非選択トリガーの disabled で付く既定 `opacity: 0.5` は [`LAYOUT_CSS`]
-//!   で `opacity: 1; cursor: default` へ中和し、通常の非選択タブの見た目を
-//!   保つ（アコーディオンの先例と同じ手法）
-//! - 非選択カテゴリのパネルは headless の仕様どおり `hidden` で出力する。
-//!   ただし他のタブは disabled として正直に示しているため、
-//!   `pricing_tiers_morph`（P1: 見せたい状態が非表示のまま残る）とは状況が
-//!   異なる。状態違いの並記はしない
+//! - [`static_tab_list`] が `role`/`tabindex`/`<button>` を一切持たない
+//!   非対話な `div` 列でカテゴリラベルを装飾として示す（`aria-hidden`
+//!   でラベルを支援技術のツリーから除外し、各カテゴリの内容は下記の
+//!   キャプション付き accordion で重複なく提供する）
+//! - 先頭カテゴリ（`billing`）の accordion は [`header`] 直下にそのまま
+//!   描画する
+//! - 残り 2 カテゴリは [`category_preview`] が
+//!   「「{label}」タブを選択した場合のプレビュー」キャプション付きで
+//!   accordion を並記する。これにより 3 カテゴリ全ての FAQ が常に
+//!   到達可能な静的 HTML になる
 //!
 //! # アコーディオンは全件 open + disabled（原案との差分）
 //!
@@ -50,21 +51,18 @@
 //!
 //! # id の一意性
 //!
-//! `TabsProps.id = "blocks-faq-tabbed-accordion-tabs"` とし、tabs 側は
-//! headless 層の既定形式（`{id}-trigger-{value}`/`{id}-content-{value}`）
-//! で自動生成させる。accordion の id は
+//! accordion の id は
 //! `blocks-faq-tabbed-accordion-{category}-{index}-{trigger|content}`
-//! とし、`hidden` パネル内も含め全体で重複しない（`crates/docs-site/
+//! とし、全カテゴリ・全件を通じて重複しない（`crates/docs-site/
 //! tests/blocks_contract.rs::demo_output_has_no_dangling_aria_references_or_
-//! duplicate_ids` が全 block 横断で検証する）。
+//! duplicate_ids` が全 block 横断で検証する）。静的タブ列の id は
+//! `blocks-faq-tabbed-accordion-tablist` を用いる。
 //!
 //! # 狭幅での横スクロール
 //!
-//! `tabs::tabs` を `div.blocks-faq-tabbed-accordion-tabs` で包み、
-//! `[data-scope="tabs"][data-part="list"] { overflow-x: auto; }` を当てる。
-//! トリガーは `flex-shrink: 0` を付けページ全体ではなくタブ列だけが
-//! 横スクロールするようにする（recipe 側の trigger は既に
-//! `white-space: nowrap`）。
+//! [`static_tab_list`] を包む `.blocks-faq-tabbed-accordion-tablist` に
+//! `overflow-x: auto` を当て、ラベルは `flex-shrink: 0` + `white-space:
+//! nowrap` でページ全体ではなくタブ列だけが横スクロールするようにする。
 //!
 //! # `text` の名前衝突
 //!
@@ -82,17 +80,14 @@
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
-use fandhe_frontend_core::{div, el, span, text, Node};
+use fandhe_frontend_core::{div, el, el_owned, span, text, Node};
 use fandhe_frontend_pre_styled_ui::accordion::{
     self, item, item_content, item_indicator, item_trigger, AccordionProps, OpenState,
 };
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
-use fandhe_frontend_pre_styled_ui::tabs::{
-    self, ActivationMode, Orientation, TabItem, TabsProps, TabsVariant,
-};
-use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
-use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
+use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
+use fandhe_frontend_pre_styled_ui::Size;
 
 /// カテゴリ 1 件分の型（value, label, その 3 件の Q&A）。
 type Category = (
@@ -193,6 +188,49 @@ fn header() -> Node {
     )
 }
 
+/// カテゴリラベルのみを装飾として示す非対話タブ列（モジュール doc「実物の
+/// `tabs::tabs` を使わない」節）。`role`/`tabindex`/`<button>` を一切持たず、
+/// クリック・キーボード操作が可能に見えるトリガーを残さない。各ラベルは
+/// `aria-hidden` で支援技術のツリーから除外する（内容は下の見出し付き
+/// accordion 群が別途提供するため、情報が欠落しない）。
+fn static_tab_list(selected: &str) -> Node {
+    el_owned(
+        "div",
+        vec![
+            (
+                "class".to_string(),
+                "blocks-faq-tabbed-accordion-tablist".to_string(),
+            ),
+            (
+                "id".to_string(),
+                "blocks-faq-tabbed-accordion-tablist".to_string(),
+            ),
+        ],
+        CATEGORIES
+            .iter()
+            .map(|(value, label, _)| {
+                let state = if *value == selected {
+                    "active"
+                } else {
+                    "inactive"
+                };
+                el_owned(
+                    "div",
+                    vec![
+                        (
+                            "class".to_string(),
+                            "blocks-faq-tabbed-accordion-tab".to_string(),
+                        ),
+                        ("data-state".to_string(), state.to_string()),
+                        ("aria-hidden".to_string(), "true".to_string()),
+                    ],
+                    vec![text(*label)],
+                )
+            })
+            .collect(),
+    )
+}
+
 /// FAQ 1 件分の accordion item（トリガー + 本文）。全件を
 /// [`OpenState::Open`] + `disabled: true` で固定する（モジュール doc
 /// 「アコーディオンは全件 open + disabled」節）。
@@ -264,46 +302,44 @@ fn category_accordion(category: &str, faqs: &[(&str, &str); 3]) -> Node {
     )
 }
 
-/// カテゴリ切替 tabs 本体。先頭カテゴリのみ選択・非 disabled とし、
-/// 残りは disabled にする（モジュール doc「tabs は実物を 1 インスタンスだけ
-/// 使う」節）。
-fn category_tabs() -> Node {
-    let items: Vec<TabItem<'_>> = CATEGORIES
-        .iter()
-        .enumerate()
-        .map(|(index, (value, label, faqs))| TabItem {
-            value,
-            trigger: vec![text(*label)],
-            content: vec![category_accordion(value, faqs)],
-            disabled: index != 0,
-        })
-        .collect();
-
+/// 非選択カテゴリの「選択した場合のプレビュー」キャプション付き accordion
+/// （モジュール doc「実物の `tabs::tabs` を使わない」節、
+/// `feature_tabs_panel::panel_state_preview` と同型）。
+fn category_preview(label: &str, category: &str, faqs: &[(&str, &str); 3]) -> Node {
     div(
-        vec![("class", "blocks-faq-tabbed-accordion-tabs")],
-        vec![tabs::tabs(
-            TabsVariant::Line,
-            Size::Md,
-            ColorPalette::Accent,
-            &TabsProps {
-                id: "blocks-faq-tabbed-accordion-tabs",
-                selected: CATEGORIES[0].0,
-                orientation: Orientation::Horizontal,
-                activation_mode: ActivationMode::Automatic,
-                loop_focus: true,
-                indicator: false,
-            },
-            items,
-        )],
+        vec![("class", "blocks-faq-tabbed-accordion-preview")],
+        vec![
+            styled_text::text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    variant: TextVariant::Muted,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text(format!("「{label}」タブを選択した場合のプレビュー"))],
+            ),
+            category_accordion(category, faqs),
+        ],
     )
 }
 
 /// `faq-tabbed-accordion` の Demo 本体。呼び出しごとに同一の `Node` を
-/// 返す純関数。
+/// 返す純関数。先頭カテゴリを [`static_tab_list`] の選択状態として示し
+/// その本文をそのまま描画したあと、残り 2 カテゴリを
+/// [`category_preview`] で併記する（3 カテゴリ全件が常に可視）。
 pub fn demo() -> Node {
+    let (first_value, _, first_faqs) = CATEGORIES[0];
+    let mut children = vec![
+        header(),
+        static_tab_list(first_value),
+        category_accordion(first_value, &first_faqs),
+    ];
+    for (value, label, faqs) in &CATEGORIES[1..] {
+        children.push(category_preview(label, value, faqs));
+    }
     div(
         vec![("class", "blocks-faq-tabbed-accordion-layout")],
-        vec![header(), category_tabs()],
+        children,
     )
 }
 // blocks-code:end
@@ -329,10 +365,6 @@ pub const BLOCK: Block = Block {
             path: "/themes/badge/",
         },
         Part {
-            label: "Tabs",
-            path: "/themes/tabs/",
-        },
-        Part {
             label: "Accordion",
             path: "/themes/accordion/",
         },
@@ -346,27 +378,29 @@ pub const BLOCK: Block = Block {
 /// なく本ファイル内 private 定数として `super::stylesheet` 経由の
 /// `push_css` で連結される）。
 ///
-/// セレクタは `.blocks-faq-tabbed-accordion-*` と styled tabs/accordion の
-/// `[data-scope="tabs"|"accordion"]` 系セレクタへの子孫結合子付き上書き
-/// （disabled 中和・横スクロール、モジュール doc参照）のみを用い、他
-/// block や部品の素のセレクタへ影響させない。
+/// セレクタは `.blocks-faq-tabbed-accordion-*` と styled accordion の
+/// `[data-scope="accordion"]` 系セレクタへの子孫結合子付き上書き
+/// （disabled 中和、モジュール doc参照）のみを用い、他 block や部品の
+/// 素のセレクタへ影響させない。静的タブ列（`tabs::tabs` を呼ばない
+/// 素の `div`）は recipe と衝突しない block 固有 class のみで見た目を
+/// 再現する（`feature_tabs_panel::static_tab_list` と同じ方針）。
 const LAYOUT_CSS: &str = "\
 .blocks-faq-tabbed-accordion-layout {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-faq-tabbed-accordion-header {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  text-align: center;\n  max-inline-size: 40rem;\n}\n\
-.blocks-faq-tabbed-accordion-tabs {\n  inline-size: 100%;\n  max-inline-size: 48rem;\n  text-align: start;\n}\n\
-.blocks-faq-tabbed-accordion-tabs [data-scope=\"tabs\"][data-part=\"list\"] {\n  overflow-x: auto;\n  overflow-y: hidden;\n  padding-bottom: 1px;\n}\n\
-.blocks-faq-tabbed-accordion-tabs [data-scope=\"tabs\"][data-part=\"trigger\"] {\n  flex-shrink: 0;\n}\n\
-.blocks-faq-tabbed-accordion-tabs [data-scope=\"tabs\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-.blocks-faq-tabbed-accordion-tabs [data-scope=\"accordion\"][data-part=\"item-trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-.blocks-faq-tabbed-accordion-trigger-heading {\n  margin: 0;\n  font-size: inherit;\n  font-weight: inherit;\n}\n\
-.blocks-faq-tabbed-accordion-tabs [data-scope=\"tabs\"][data-part=\"content\"] {\n  padding-block-start: var(--fandhe-space-4);\n}\n";
+.blocks-faq-tabbed-accordion-tablist {\n  inline-size: 100%;\n  max-inline-size: 48rem;\n  display: flex;\n  flex-wrap: nowrap;\n  overflow-x: auto;\n  overflow-y: hidden;\n  gap: var(--fandhe-space-2);\n  border-bottom: 1px solid var(--fandhe-color-border);\n  padding-bottom: 1px;\n}\n\
+.blocks-faq-tabbed-accordion-tab {\n  display: inline-flex;\n  align-items: center;\n  flex-shrink: 0;\n  padding: var(--fandhe-space-2) var(--fandhe-space-4);\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  line-height: var(--fandhe-font-line-height-normal);\n  white-space: nowrap;\n  color: var(--fandhe-color-fg-muted);\n  border-bottom: 2px solid transparent;\n  margin-bottom: -2px;\n  border-radius: var(--fandhe-radius-sm, 0.25rem) var(--fandhe-radius-sm, 0.25rem) 0 0;\n  cursor: default;\n}\n\
+.blocks-faq-tabbed-accordion-tab[data-state=\"active\"] {\n  color: var(--fandhe-color-fg);\n  border-bottom-color: var(--fandhe-color-accent);\n}\n\
+.blocks-faq-tabbed-accordion-layout [data-scope=\"accordion\"][data-part=\"item-trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+.blocks-faq-tabbed-accordion-preview {\n  inline-size: 100%;\n  max-inline-size: 48rem;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
+.blocks-faq-tabbed-accordion-layout > [data-blocks-faq-tabbed-accordion-root] {\n  inline-size: 100%;\n  max-inline-size: 48rem;\n}\n\
+.blocks-faq-tabbed-accordion-trigger-heading {\n  margin: 0;\n  font-size: inherit;\n  font-weight: inherit;\n}\n";
 
 #[cfg(test)]
 mod tests {
     use super::{demo, CATEGORIES, LAYOUT_CSS};
     use fandhe_frontend_core::render;
 
-    /// Demo が期待する 5 種の部品・非対話制約を満たすことの単体回帰
+    /// Demo が期待する 4 種の部品・非対話制約を満たすことの単体回帰
     /// （`crates/docs-site/tests/blocks_contract.rs` の横断検査と重複し
     /// 過ぎない範囲での個別固定）。
     #[test]
@@ -376,7 +410,6 @@ mod tests {
             "data-scope=\"heading\"",
             "data-scope=\"text\"",
             "data-scope=\"badge\"",
-            "data-scope=\"tabs\"",
             "data-scope=\"accordion\"",
         ] {
             assert!(html.contains(scope), "demo output should contain {scope}");
@@ -387,28 +420,37 @@ mod tests {
         assert!(!html.contains("src=\"data:"));
     }
 
-    /// 先頭カテゴリのみ選択され、残りは disabled であること（モジュール doc
-    /// 「tabs は実物を 1 インスタンスだけ使う」節）。
+    /// 実物の `tabs::tabs` を使わないため `role="tab"`/`hidden` パネルが
+    /// 一切現れないこと（モジュール doc「実物の `tabs::tabs` を使わない」
+    /// 節、PR #3268 レビュー是正の回帰）。
     #[test]
-    fn demo_selects_first_category_and_disables_the_rest() {
+    fn demo_has_no_real_tabs_or_hidden_panels() {
         let html = render(&demo());
-        assert_eq!(html.matches(r#"role="tab""#).count(), CATEGORIES.len());
-        assert_eq!(html.matches(r#"aria-selected="true""#).count(), 1);
-        assert_eq!(html.matches(r#"role="tabpanel""#).count(), CATEGORIES.len());
-        // 非選択パネル（`hidden` 付き）の数 = カテゴリ数 - 1（先頭のみ選択・可視）。
-        // `indicator: false` のため `hidden=""` はパネル以外から出力されない。
-        assert_eq!(
-            html.matches("hidden=\"\"").count(),
-            CATEGORIES.len() - 1,
-            "html={html}"
-        );
+        assert!(!html.contains(r#"role="tab""#));
+        assert!(!html.contains(r#"role="tabpanel""#));
+        assert!(!html.contains("hidden=\"\""));
+        assert!(html.contains("class=\"blocks-faq-tabbed-accordion-tablist\""));
+    }
+
+    /// 3 カテゴリ全件の FAQ 本文が常に到達可能であること（先頭は直接
+    /// 描画、残り 2 件は [`super::category_preview`] のキャプション付き
+    /// accordion として並記される）。
+    #[test]
+    fn demo_renders_all_categories_reachably() {
+        let html = render(&demo());
+        for (_, label, faqs) in &CATEGORIES {
+            for (question, answer) in faqs {
+                assert!(html.contains(question), "html should contain {question}");
+                assert!(html.contains(answer), "html should contain {answer}");
+            }
+            let _ = label;
+        }
+        assert!(html.contains("「機能」タブを選択した場合のプレビュー"));
+        assert!(html.contains("「サポート」タブを選択した場合のプレビュー"));
     }
 
     /// 全カテゴリの FAQ が全件 open・disabled であること（モジュール doc
-    /// 「アコーディオンは全件 open + disabled」節）。tabs 側の disabled
-    /// トリガー（先頭以外）と accordion 側の disabled トリガー（全件）は
-    /// いずれも [`fandhe_frontend_headless_ui::aria::aria_disabled`] を経由
-    /// するため、合算数で両者の disabled 化を固定する。
+    /// 「アコーディオンは全件 open + disabled」節）。
     #[test]
     fn demo_renders_all_accordion_items_open_and_disabled() {
         let html = render(&demo());
@@ -426,17 +468,17 @@ mod tests {
         );
         assert_eq!(
             html.matches(r#"aria-disabled="true""#).count(),
-            (CATEGORIES.len() - 1) + total_faqs,
+            total_faqs,
             "html={html}"
         );
     }
 
-    /// [`LAYOUT_CSS`] が disabled トリガーの中和・横スクロールを持つこと。
+    /// [`LAYOUT_CSS`] が disabled トリガーの中和・タブ列の横スクロールを
+    /// 持つこと。
     #[test]
     fn layout_css_neutralizes_disabled_and_scrolls_tabs() {
-        assert!(LAYOUT_CSS.contains(r#"[data-scope="tabs"][data-part="list"] {"#));
+        assert!(LAYOUT_CSS.contains(".blocks-faq-tabbed-accordion-tablist {"));
         assert!(LAYOUT_CSS.contains("overflow-x: auto;"));
-        assert!(LAYOUT_CSS.contains(r#"[data-scope="tabs"][data-part="trigger"][data-disabled] {"#));
         assert!(LAYOUT_CSS
             .contains(r#"[data-scope="accordion"][data-part="item-trigger"][data-disabled] {"#));
     }
