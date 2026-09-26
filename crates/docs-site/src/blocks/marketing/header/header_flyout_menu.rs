@@ -696,33 +696,31 @@ pub const BLOCK: Block = Block {
 /// nav/actions が可視化される breakpoint で `display: none` のため
 /// グリッド配置に加わらない。
 ///
-/// # centered グリッドの切替幅（PR #3276 codex(P1) 再指摘の是正、
-/// イシュー #2856）
+/// # centered グリッドの breakpoint とオーバーフロー対策（PR #3276
+/// codex(P1)/Bugbot 再指摘の是正、イシュー #2856）
 ///
-/// 当初はこのグリッド切替を nav/actions 可視化と同じ `48rem` に同居
-/// させていたが、`.blocks-demo` の実効幅は `.docs-content` の
-/// `max-width`（46rem）から padding（1.5rem 双方）を引いた
-/// 43rem 程度が上限であり、ビューポート幅がどれだけ広くても
-/// この実効幅は増えない。`48rem` はこの上限未満のため、グリッドへ
-/// 切り替わった centered 形（ロゴ・nav 3 項目・アクションの合計幅 +
-/// gap 2 個）が `.blocks-demo` の実効幅を恒常的に超える（ラベルが
-/// CJK 文字単位で折り返されて辛うじて水平方向の破綻を免れているだけで、
-/// 折り返し自体が既に破綻した表示であり、`white-space: nowrap` 相当の
-/// 前提では文字どおり水平オーバーフローする）。加えてこの centered
-/// grid 適用時のみ nav が `justify-self: center` でヘッダー中心へ
-/// 動くため、後述のフライアウトパネル（トリガー左端基準の絶対配置）も
-/// 表示領域右端を越えやすくなる（次節参照）。
+/// 当初はこのグリッド切替を nav/actions 可視化の共有 `48rem` から
+/// 独立させ `64rem` へ引き上げていた（`.blocks-demo` の実効幅が
+/// `.docs-content` の制約でビューポート幅によらず 43rem 程度に
+/// 頭打ちになるため、グリッドの発火自体を避ける狙い）。しかし
+/// `@media` はビューポート幅で評価される一方、`.blocks-demo` の実効幅は
+/// ビューポートと無関係に頭打ちのままであり、`64rem` 以上の実ビューポート
+/// （一般的なデスクトップ画面）では変わらず発火して同じ問題が再発する
+/// （Bugbot 再指摘: 64rem という値の選択では原理的に防げない）。
 ///
-/// 是正として、centered grid の適用 breakpoint を nav/actions 可視化の
-/// `48rem` から独立させ、`.blocks-demo` の実効幅（前述の 43rem 程度）を
-/// 確実に上回る `64rem` へ引き上げた。これにより `.blocks-demo` 内では
-/// このグリッド・中央寄せは構造的に一切発火せず（プレビューは常に
-/// ロゴ・nav・アクションが左右に並ぶ通常の flex 行のまま）、はみ出しは
-/// 起こり得ない。実際の利用（ページ全体の幅で使う想定）では `64rem`
-/// 幅の時点で 3 要素・gap 2 個分の余裕は十分にあるため、中央寄せ自体は
-/// 引き続き機能する。nav/actions の可視化・ハンバーガー非表示は
-/// 従来どおり共有の `48rem` のまま変更しない（centered 以外の形は
-/// 元々オーバーフローしないため）。
+/// 根本原因は breakpoint の値ではなく、`1fr` グリッドトラックの既定
+/// `min-width: auto`（コンテンツの min-content 幅が下限になり、
+/// 収まらなければグリッド自体がその分だけ膨張してはみ出す。flexbox の
+/// `flex-shrink` 版として知られる古典的な CSS の落とし穴と同型）にある。
+/// 是正として両端列を `minmax(0, 1fr)` に変更し、コンテンツが収まらない
+/// 場合は列自体が `0` まで縮み中身が折り返す（グリッドコンテナの外側へ
+/// はみ出さない）よう変更した。これにより発火する breakpoint の値に
+/// 依らず構造的にオーバーフローが起こらなくなったため、`64rem` の
+/// 独立 breakpoint は不要になり、モジュール doc の表が定める
+/// 「48rem 以上でナビを中央寄せ」の契約どおり nav/actions 可視化と同じ
+/// 共有 `48rem` へ統合した（Demo は通常のビューポート幅（>= 48rem）で
+/// 開けば中央寄せ形も実際に中央寄せで表示される、codex(P1) 再指摘の
+/// 「Demo 内で中央寄せにならない」の是正）。
 ///
 /// # centered 2 列パネルの配置基準（PR #3276 codex(P1) 再指摘の是正、
 /// イシュー #2856）
@@ -733,14 +731,13 @@ pub const BLOCK: Block = Block {
 /// 参照）。centered 形のみ nav がヘッダー中心へ動くため、トリガーの
 /// 左端はヘッダー左端よりも右寄りになり、そこから右へ 2 列グリッド
 /// パネル（`min(36rem, 90vw)`）を伸ばすと表示領域右端を越えやすい。
-/// 前節の breakpoint 引き上げにより `.blocks-demo` 内ではこの centered
-/// grid 自体が発火しないため実害はなくなったが、実際にページ幅
-/// `64rem` 前後で使われた場合の余裕を持たせるため、centered 形の 2 列
-/// パネルに限り最大幅を `min(28rem, 90vw)`（1 列パネルの `26rem` に近い
-/// 控えめな値へ縮小）へ引き下げ、かつトリガー中心を基準にした
-/// `left: 50%; transform: translateX(-50%);` で左右対称に配置する
-/// （左端基準で右へ伸び続ける一方向の overflow ではなく、余剰があれば
-/// 左右へ均等に分散させる）。
+/// 前節の `minmax(0, 1fr)` 化でグリッド自体の水平オーバーフローは
+/// 解消したが、パネルの絶対配置は独立した問題として残るため、
+/// centered 形の 2 列パネルに限り最大幅を `min(28rem, 90vw)`（1 列
+/// パネルの `26rem` に近い控えめな値へ縮小）へ引き下げ、かつトリガー
+/// 中心を基準にした `left: 50%; transform: translateX(-50%);` で
+/// 左右対称に配置する（左端基準で右へ伸び続ける一方向の overflow では
+/// なく、余剰があれば左右へ均等に分散させる）。
 const LAYOUT_CSS: &str = "\
 .blocks-header-flyout-menu-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-header-flyout-menu-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
@@ -755,6 +752,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-header-flyout-menu-panel] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  inline-size: min(26rem, 80vw);\n}\n\
 [data-blocks-header-flyout-menu-panel][hidden] {\n  display: none;\n}\n\
 [data-blocks-header-flyout-menu-panel][data-blocks-header-flyout-menu-columns=\"2\"] {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-3);\n  inline-size: min(28rem, 90vw);\n}\n\
+[data-blocks-header-flyout-menu-panel][data-blocks-header-flyout-menu-columns][hidden] {\n  display: none;\n}\n\
 [data-blocks-header-flyout-menu-panel][data-blocks-header-flyout-menu-columns] > [data-blocks-header-flyout-menu-panel-footer] {\n  grid-column: 1 / -1;\n}\n\
 [data-blocks-header-flyout-menu-panel-footer] {\n  display: flex;\n  gap: var(--fandhe-space-3);\n  padding-block-start: var(--fandhe-space-2);\n  margin-block-start: var(--fandhe-space-1);\n  border-block-start: 1px solid var(--fandhe-color-border);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
 [data-scope=\"navigation-menu\"][data-part=\"link\"][data-blocks-header-flyout-menu-item] {\n  align-items: flex-start;\n}\n\
@@ -766,10 +764,8 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-flyout-menu-nav] {\n    display: block;\n  }\n  \
 [data-blocks-header-flyout-menu-actions] {\n    display: flex;\n  }\n  \
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-header-flyout-menu-toggle] {\n    display: none;\n  }\n  \
-.blocks-header-flyout-menu-layout {\n    align-items: flex-start;\n    min-block-size: 24rem;\n  }\n\
-}\n\
-@media (min-width: 64rem) {\n  \
-[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    display: grid;\n    grid-template-columns: 1fr auto 1fr;\n    align-items: center;\n    gap: var(--fandhe-space-8);\n  }\n  \
+.blocks-header-flyout-menu-layout {\n    align-items: flex-start;\n    min-block-size: 24rem;\n  }\n  \
+[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    display: grid;\n    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);\n    align-items: center;\n    gap: var(--fandhe-space-8);\n  }\n  \
 [data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-blocks-header-flyout-menu-logo] {\n    justify-self: start;\n  }\n  \
 [data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-flyout-menu-nav] {\n    justify-self: center;\n  }\n  \
 [data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-blocks-header-flyout-menu-actions] {\n    justify-self: end;\n  }\n  \
@@ -969,7 +965,7 @@ mod tests {
             "root should not re-center the whole flex row, LAYOUT_CSS={LAYOUT_CSS}"
         );
         assert!(LAYOUT_CSS.contains(
-            "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    display: grid;\n    grid-template-columns: 1fr auto 1fr;"
+            "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    display: grid;\n    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);"
         ));
         assert!(LAYOUT_CSS.contains(
             "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-blocks-header-flyout-menu-logo] {\n    justify-self: start;\n  }"
@@ -982,34 +978,27 @@ mod tests {
         ));
     }
 
-    /// centered grid の切替 breakpoint が `.blocks-demo` の実効幅
-    /// （43rem 程度）を上回る `64rem` に引き上げられ、nav/actions 可視化の
-    /// `48rem` ブロックとは独立していること（codex(P1) 再指摘の是正回帰、
-    /// PR #3276、[`LAYOUT_CSS`] doc「centered グリッドの切替幅」節）。
-    /// `.blocks-demo` 内ではこのグリッド自体が発火しないため、48rem
-    /// ブロック側に centered grid の宣言が残っていないことも固定する。
+    /// centered grid が nav/actions 可視化と同じ共有 `48rem` breakpoint で
+    /// 発火すること（Codex(P1)/Bugbot 再指摘の是正回帰、PR #3276、
+    /// [`LAYOUT_CSS`] doc「centered グリッドの breakpoint とオーバーフロー
+    /// 対策」節）。独立した `64rem` breakpoint はもう存在しない。かつ
+    /// 両端列が `minmax(0, 1fr)` であること（`1fr` 単独の暗黙
+    /// `min-width: auto` によるグリッドのはみ出しを防ぐ、Bugbot「@media は
+    /// ビューポート基準のため .blocks-demo 内のオーバーフローを防げない」
+    /// 指摘の根本対策）も併せて固定する。
     #[test]
-    fn centered_grid_breakpoint_is_raised_above_blocks_demo_effective_width() {
-        assert!(LAYOUT_CSS.contains("@media (min-width: 64rem)"));
+    fn centered_grid_shares_48rem_breakpoint_and_uses_overflow_safe_columns() {
+        assert!(!LAYOUT_CSS.contains("64rem"));
         let media_48_start = LAYOUT_CSS
             .find("@media (min-width: 48rem)")
             .expect("48rem media block should exist");
-        let media_64_start = LAYOUT_CSS
-            .find("@media (min-width: 64rem)")
-            .expect("64rem media block should exist");
+        let block_48 = &LAYOUT_CSS[media_48_start..];
         assert!(
-            media_48_start < media_64_start,
-            "48rem block should precede 64rem block, LAYOUT_CSS={LAYOUT_CSS}"
+            block_48.contains(
+                "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    display: grid;\n    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);"
+            ),
+            "centered grid should switch inside the shared 48rem block, block_48={block_48}"
         );
-        let block_48 = &LAYOUT_CSS[media_48_start..media_64_start];
-        assert!(
-            !block_48.contains("variant=\"centered\"] {\n    display: grid;"),
-            "centered grid should not remain inside the shared 48rem block, block_48={block_48}"
-        );
-        let block_64 = &LAYOUT_CSS[media_64_start..];
-        assert!(block_64.contains(
-            "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    display: grid;\n    grid-template-columns: 1fr auto 1fr;"
-        ));
     }
 
     /// centered 形の 2 列パネルが最大幅を縮小し、トリガー中心基準の
@@ -1028,6 +1017,29 @@ mod tests {
         assert!(LAYOUT_CSS.contains(
             "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-blocks-header-flyout-menu-panel][data-blocks-header-flyout-menu-columns=\"2\"] {\n    left: 50%;\n    transform: translateX(-50%);\n  }"
         ));
+    }
+
+    /// 閉じた 2 列パネル（`columns="2"` かつ `hidden`）で `hidden` が
+    /// 実際に勝つこと（Codex(P1) 再指摘の是正回帰、PR #3276）。
+    /// `[data-blocks-header-flyout-menu-panel][data-blocks-header-flyout-menu-columns=\"2\"]`
+    /// の `display: grid` 宣言と同じ詳細度の `[hidden]` 単独ルールでは
+    /// 後勝ちで負けてしまうため、`columns` 属性の有無を問わず
+    /// `[hidden]` と併記した宣言でより高い詳細度を持たせて上書きする。
+    #[test]
+    fn hidden_wins_over_two_column_grid_display() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-header-flyout-menu-panel][data-blocks-header-flyout-menu-columns][hidden] {\n  display: none;\n}"
+        ));
+        let columns_grid_start = LAYOUT_CSS
+            .find("[data-blocks-header-flyout-menu-panel][data-blocks-header-flyout-menu-columns=\"2\"] {\n  display: grid;")
+            .expect("columns=2 grid rule should exist");
+        let hidden_override_start = LAYOUT_CSS
+            .find("[data-blocks-header-flyout-menu-panel][data-blocks-header-flyout-menu-columns][hidden] {\n  display: none;\n}")
+            .expect("hidden override rule should exist");
+        assert!(
+            hidden_override_start > columns_grid_start,
+            "hidden override should be declared for readability after the grid rule (specificity wins regardless of order), LAYOUT_CSS={LAYOUT_CSS}"
+        );
     }
 
     /// centered 形の 2 列グリッドで `panel_footer` が両列にまたがること
