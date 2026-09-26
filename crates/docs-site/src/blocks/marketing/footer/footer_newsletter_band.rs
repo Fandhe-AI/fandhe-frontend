@@ -197,6 +197,7 @@ const LAYOUT_CSS: &str = "\
 [data-fnb-band] > div {\n  display: flex;\n  align-items: flex-end;\n  gap: var(--fandhe-space-2);\n  flex: 0 1 24rem;\n}\n\
 @media (max-width: 47.99rem) {\n  \
 [data-fnb-band] {\n    flex-direction: column;\n    align-items: stretch;\n  }\n\
+  [data-fnb-band] > div {\n    flex-basis: auto;\n  }\n\
   .fnb-t {\n    flex-direction: column;\n    align-items: flex-start;\n  }\n\
   .fnb-c {\n    flex-direction: column;\n    align-items: stretch;\n  }\n\
 }\n";
