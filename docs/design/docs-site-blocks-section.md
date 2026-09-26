@@ -929,9 +929,10 @@ pub enum LayoutCss {
 | feature-three-column-icons | #3225 | `marketing/feature/feature_three_column_icons.rs` |
 | newsletter-stacked | #3226 | `marketing/newsletter/newsletter_stacked.rs` |
 | faq-question-rows | #2844 | `marketing/faq/faq_question_rows.rs` |
+| footer-newsletter-band | #2852 | `marketing/footer/footer_newsletter_band.rs` |
 | header-floating-pill | #2853 | `marketing/header/header_floating_pill.rs` |
 | footer-cta-columns | #2849 | `marketing/footer/footer_cta_columns.rs` |
-| header-flyout-menu | #2855（親 #2854） | `marketing/header/header_flyout_menu.rs` |
+| header-flyout-menu | #2855 / #2856（親 #2854） | `marketing/header/header_flyout_menu.rs` |
 | pricing-comparison-table | #2862/#2863（親 #2861） | `marketing/pricing/pricing_comparison_table.rs` |
 | pricing-seats-split | #2865/#2866（親 #2864） | `marketing/pricing/pricing_seats_split.rs` |
 | faq-accordion-centered | #2843 | `marketing/faq/faq_accordion_centered.rs` |
