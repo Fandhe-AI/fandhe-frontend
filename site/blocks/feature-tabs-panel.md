@@ -259,6 +259,31 @@ fn rows_group(rows: Vec<Node>) -> Node {
     div(vec![("class", "blocks-feature-tabs-panel-rows")], rows)
 }
 
+/// 選択中パネル本文（先頭ノード）へ選択状態を支援技術から読める形で付与
+/// する（#3263、Codex P1 是正・再指摘の是正）。`static_tab_list` の
+/// `hide_from_assistive_tech: true` な trigger は `aria-hidden` で部分木
+/// ごと支援技術のツリーから除外されるため、そこに選択状態を持たせられない
+/// （同関数 doc 参照）。代わりに常に可視・非 `aria-hidden` の選択中パネル
+/// 本文側（`panel_row`/`panel_single`/`rows_group`/`panel_card_grid` が
+/// 返す先頭の外側 `div`）へ `aria-current="true"` を付与するが、`div` は
+/// 既定で generic role（暗黙のロールを持たない）のため `aria-label` だけ
+/// では accessible name が支援技術へ公開されない。`role="group"` を明示
+/// 付与し、`label`（選択中タブのラベル文言そのもの）を `aria-label` に
+/// 渡すことで、支援技術が「group, {label}, current」のようにタブラベルと
+/// 選択状態を一体で読み上げられるようにする（Codex 再指摘の是正: 旧実装は
+/// `aria-current` のみを汎用 `div` へ付与しており、どのタブラベルが選択
+/// されたか特定できなかった。形 D の「セット A」/「セット B」もこの
+/// `label` 引数で明示する）。プレビュー側（[`tab_preview`] 経由）には
+/// 適用しない（プレビューは「選択した場合」の仮定を示す非選択状態のため）。
+fn mark_first_selected(mut nodes: Vec<Node>, label: &str) -> Vec<Node> {
+    if let Some(Node::Element { attrs, .. }) = nodes.first_mut() {
+        attrs.push(("role".to_string(), "group".to_string()));
+        attrs.push(("aria-label".to_string(), label.to_string()));
+        attrs.push(("aria-current".to_string(), "true".to_string()));
+    }
+    nodes
+}
+
 /// [`PANELS`] から [`static_tab_list`] の `(value, trigger)` 組を組み立てる
 /// （#2773 が variant を変えつつ再利用する共通ヘルパ）。
 fn panel_tab_labels() -> Vec<(&'static str, Vec<Node>)> {
@@ -290,6 +315,18 @@ fn panel_tab_labels() -> Vec<(&'static str, Vec<Node>)> {
 /// 全 trigger 一律 `aria-hidden` にすると進捗情報が支援技術から読めなくなる。
 /// `role`/`tabindex` を持たない div のままなので `aria-hidden` を外しても
 /// 操作可能に見えるようにはならない）。
+///
+/// 選択状態の支援技術への伝達（#3263、Codex P1 是正）: `hide_from_assistive_tech`
+/// が `true` の trigger は `aria-hidden="true"` で部分木ごと支援技術の
+/// ツリーから除外されるため、その trigger 自身に `aria-current` を置いても
+/// 伝わらない（`aria-hidden` と `aria-current` を同一要素へ同時付与しても
+/// 除外が優先される）。そのため本関数は trigger が `hide_from_assistive_tech:
+/// false`（形 F、実情報を持つため非表示にしない trigger）の場合に限り、
+/// 選択中トリガー（`value == selected`）へ `aria-current="true"` を付与する。
+/// `hide_from_assistive_tech: true` の 4 形（基準形・形 C・形 D・形 E）は、
+/// 代わりに [`mark_first_selected`] が選択中パネル本文（可視・非
+/// `aria-hidden`）側へ `aria-current="true"` を付与する（各 `variant_*`
+/// 参照）。`role`/`tabindex` は付与しないため非対話のままである。
 fn static_tab_list(
     id_prefix: &'static str,
     selected: &'static str,
@@ -331,11 +368,8 @@ fn static_tab_list(
         items
             .into_iter()
             .map(|(value, trigger)| {
-                let state = if value == selected {
-                    "active"
-                } else {
-                    "inactive"
-                };
+                let is_selected = value == selected;
+                let state = if is_selected { "active" } else { "inactive" };
                 let mut attrs = vec![
                     (
                         "class".to_string(),
@@ -345,6 +379,15 @@ fn static_tab_list(
                 ];
                 if hide_from_assistive_tech {
                     attrs.push(("aria-hidden".to_string(), "true".to_string()));
+                }
+                // 選択中トリガーに `aria-current="true"` を付与するのは
+                // `hide_from_assistive_tech: false`（形 F）のときのみ。
+                // `true` の trigger は上の `aria-hidden` で部分木ごと支援
+                // 技術のツリーから除外され、そこへ `aria-current` を置いても
+                // 支援技術には伝わらないため（#3263、Codex P1 是正。関数
+                // doc 参照）。
+                if is_selected && !hide_from_assistive_tech {
+                    attrs.push(("aria-current".to_string(), "true".to_string()));
                 }
                 el_owned("div", attrs, trigger)
             })
@@ -407,7 +450,7 @@ fn variant_basic() -> Node {
             false,
         ),
     ];
-    children.extend(panel_row(&PANELS[0]));
+    children.extend(mark_first_selected(panel_row(&PANELS[0]), PANELS[0].label));
     for panel in &PANELS[1..] {
         children.push(panel_state_preview(panel));
     }
@@ -439,7 +482,10 @@ fn variant_pill() -> Node {
             true,
         ),
     ];
-    children.extend(panel_single(&PANELS[0]));
+    children.extend(mark_first_selected(
+        panel_single(&PANELS[0]),
+        PANELS[0].label,
+    ));
     children.push(tab_preview(
         format!("「{}」タブを選択した場合のプレビュー", PANELS[1].label),
         panel_single(&PANELS[1]),
@@ -471,7 +517,10 @@ fn variant_alternating() -> Node {
             false,
         ),
     ];
-    children.push(rows_group(panel_alternating_rows(&PANELS[0..2])));
+    children.extend(mark_first_selected(
+        vec![rows_group(panel_alternating_rows(&PANELS[0..2]))],
+        "セット A",
+    ));
     children.push(tab_preview(
         "「セット B」タブを選択した場合のプレビュー".to_string(),
         vec![rows_group(panel_alternating_rows(&PANELS[2..4]))],
@@ -622,7 +671,10 @@ fn variant_card_grid() -> Node {
             false,
         ),
     ];
-    children.extend(panel_card_grid(&CARDS_FEATURES));
+    children.extend(mark_first_selected(
+        panel_card_grid(&CARDS_FEATURES),
+        "特長",
+    ));
     children.push(tab_preview(
         "「導入事例」タブを選択した場合のプレビュー".to_string(),
         panel_card_grid(&CARDS_CASES),
