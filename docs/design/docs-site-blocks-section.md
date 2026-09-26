@@ -933,9 +933,16 @@ pub enum LayoutCss {
 | footer-cta-columns | #2849 | `marketing/footer/footer_cta_columns.rs` |
 | header-flyout-menu | #2855（親 #2854） | `marketing/header/header_flyout_menu.rs` |
 | pricing-comparison-table | #2862/#2863（親 #2861） | `marketing/pricing/pricing_comparison_table.rs` |
+| pricing-seats-split | #2865（親 #2864） | `marketing/pricing/pricing_seats_split.rs` |
+| faq-accordion-centered | #2843 | `marketing/faq/faq_accordion_centered.rs` |
+| faq-split-accordion | #2845 | `marketing/faq/faq_split_accordion.rs` |
+| faq-split-static | #2846 | `marketing/faq/faq_split_static.rs` |
+| faq-static-grid | #2847 | `marketing/faq/faq_static_grid.rs` |
+| footer-inline-nav | #2850 | `marketing/footer/footer_inline_nav.rs` |
+| footer-link-columns | #2851 | `marketing/footer/footer_link_columns.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-117 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+125 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
