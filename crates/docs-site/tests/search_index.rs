@@ -471,6 +471,47 @@ fn real_site_search_index_is_deterministic_covers_all_nav_pages_and_matches_html
 }
 
 // ---------------------------------------------------------------------
+// イシュー #2862（§10-13）: Blocks ページのフェンスコードブロック本文を
+// 索引テキストから除外する恒久対処の回帰（`search_index::page_entry` の
+// `exclude_code_blocks` 配線が `crate::build::build_site` から実サイトの
+// Blocks ページへ正しく届いていることを固定する）。
+// ---------------------------------------------------------------------
+
+#[test]
+fn real_site_search_index_excludes_blocks_page_rust_code_fence_but_keeps_prose() {
+    // `pricing-comparison-table` block（`crates/docs-site/src/blocks/
+    // marketing/pricing/pricing_comparison_table.rs`）の実装のみに現れる
+    // 識別子 `COL_COUNT_STR` は、除外が正しく効いていれば索引から消える。
+    // 一方でページ見出し（Markdown 原稿由来のプレーンテキスト）は
+    // フェンス除外の対象外であり、引き続き索引に残る。
+    let shared = shared_site::real_site();
+
+    let json = read_index(&shared.out_dir);
+    let parsed = parse_json(&json);
+    let pages = parsed.get("pages").as_array();
+
+    let page = pages
+        .iter()
+        .find(|p| {
+            p.get("href")
+                .as_str()
+                .ends_with("/blocks/pricing-comparison-table/")
+        })
+        .expect("pricing-comparison-table block page should be indexed");
+    let text = page.get("text").as_str();
+
+    assert!(
+        !text.contains("COL_COUNT_STR"),
+        "Blocks page indexed text should not contain Rust code fence identifiers \
+         after code-block exclusion, got: {text}"
+    );
+    assert!(
+        text.contains("Rust コード") || text.contains("使用部品"),
+        "Blocks page indexed text should still contain its non-code prose sections: {text}"
+    );
+}
+
+// ---------------------------------------------------------------------
 // イシュー #1078: コードブロックのシンタックスハイライト導入後も検索索引の
 // 到達性が失われないことの回帰（実装計画 §2.7）。
 // ---------------------------------------------------------------------
