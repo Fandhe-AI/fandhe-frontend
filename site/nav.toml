@@ -1719,6 +1719,14 @@ source = "site/blocks/gallery-split-carousel.md"
 path = "/blocks/gallery-split-carousel/"
 
 [[section.group]]
+title = "Section Heading"
+
+[[section.group.page]]
+title = "section-heading-split"
+source = "site/blocks/section-heading-split.md"
+path = "/blocks/section-heading-split/"
+
+[[section.group]]
 title = "Sidebar"
 
 [[section.group.page]]
