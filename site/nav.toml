@@ -1416,6 +1416,11 @@ path = "/blocks/logo-cloud-marquee/"
 title = "Stats"
 
 [[section.group.page]]
+title = "stats-background-image"
+source = "site/blocks/stats-background-image.md"
+path = "/blocks/stats-background-image/"
+
+[[section.group.page]]
 title = "stats-timeline"
 source = "site/blocks/stats-timeline.md"
 path = "/blocks/stats-timeline/"
