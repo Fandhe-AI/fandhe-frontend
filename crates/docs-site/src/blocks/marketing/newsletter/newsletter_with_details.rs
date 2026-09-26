@@ -304,7 +304,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-newsletter-with-details-details] {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-8);\n}\n\
 [data-blocks-newsletter-with-details-item] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-newsletter-with-details-icon-box] {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: var(--fandhe-space-10);\n  height: var(--fandhe-space-10);\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg-subtle);\n  color: var(--fandhe-color-accent);\n}\n\
-@media (min-width: 40rem) {\n  .blocks-newsletter-with-details-controls {\n    flex-direction: row;\n  }\n  [data-blocks-newsletter-with-details-details] {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n}\n\
+@media (min-width: 40rem) {\n  .blocks-newsletter-with-details-controls {\n    flex-direction: row;\n  }\n  .blocks-newsletter-with-details-controls [data-scope=\"field\"][data-part=\"root\"] {\n    flex: 1 1 0;\n    min-width: 0;\n  }\n  [data-blocks-newsletter-with-details-details] {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n}\n\
 @media (min-width: 64rem) {\n  .blocks-newsletter-with-details-layout {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n    align-items: start;\n  }\n}\n";
 
 #[cfg(test)]
