@@ -322,6 +322,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/header-floating-pill/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/header-flyout-menu/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/header-mega-menu/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/header-simple-bar/index.html"
           # Marketing / Footer
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-cta-columns/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-sticky-reveal/index.html"

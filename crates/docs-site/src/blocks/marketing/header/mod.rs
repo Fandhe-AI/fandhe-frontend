@@ -1,7 +1,8 @@
 //! Marketing / Header カテゴリの block 登録点（イシュー #2734 で雛形新設、
 //! イシュー #2853 で最初の block（`header_floating_pill`）、イシュー #2855 で
 //! 2 件目の block（`header_flyout_menu`）、イシュー #2858 で 3 件目の block
-//! （`header_mega_menu`）を追加しディレクトリ化して卒業した。手順は
+//! （`header_mega_menu`）を追加しディレクトリ化して卒業した。イシュー
+//! #2860 で 4 件目の block（`header_simple_bar`）を追加した。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -13,6 +14,7 @@
 mod header_floating_pill;
 mod header_flyout_menu;
 mod header_mega_menu;
+mod header_simple_bar;
 
 use crate::blocks::Block;
 
@@ -21,5 +23,6 @@ pub(super) fn blocks() -> Vec<Block> {
         header_floating_pill::BLOCK,
         header_flyout_menu::BLOCK,
         header_mega_menu::BLOCK,
+        header_simple_bar::BLOCK,
     ]
 }
