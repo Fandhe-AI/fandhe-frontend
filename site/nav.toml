@@ -1430,6 +1430,11 @@ title = "stats-split"
 source = "site/blocks/stats-split.md"
 path = "/blocks/stats-split/"
 
+[[section.group.page]]
+title = "stats-timeline"
+source = "site/blocks/stats-timeline.md"
+path = "/blocks/stats-timeline/"
+
 [[section.group]]
 title = "Contact"
 

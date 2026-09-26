@@ -8679,6 +8679,96 @@ fn stats_split_demo_composes_parts() {
     }
 }
 
+/// stats-timeline ページが Demo class・専用 CSS を配線していること、
+/// block 固有 CSS（横向きレイアウト・ドット・罫線・ブレークポイント）が
+/// 実際に出力されていることを固定する（イシュー #2805）。
+#[test]
+fn stats_timeline_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/stats-timeline/index.html"))
+        .expect("blocks/stats-timeline/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-stats-timeline\""),
+        "stats-timeline page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "stats-timeline page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "stats-timeline page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-stats-timeline-rule",
+        "blocks-stats-timeline-date",
+        "blocks-stats-timeline-dot",
+    ] {
+        assert!(
+            html.contains(hook),
+            "stats-timeline page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-stats-timeline-layout",
+        ".blocks-stats-timeline-list",
+        ".blocks-stats-timeline-dot",
+        "@media (min-width: 40rem)",
+        "@media (min-width: 64rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// stats-timeline の合成部品（heading/text/separator）が期待どおりの構成
+/// で実際に出力されていること、出来事・罫線・ドットの件数・非対話制約を
+/// 固定する（イシュー #2805）。
+#[test]
+fn stats_timeline_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/stats-timeline/")
+        .expect("stats-timeline should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"separator\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "stats-timeline demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("<time datetime=").count(),
+        4,
+        "stats-timeline demo should render exactly 4 <time> elements"
+    );
+    assert_eq!(
+        html.matches("role=\"separator\"").count(),
+        4,
+        "stats-timeline demo should render exactly 4 separators"
+    );
+    for absent in [
+        "<form",
+        "type=\"submit\"",
+        "href=\"#\"",
+        "src=\"data:",
+        "<img",
+        " id=\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "stats-timeline should never contain {absent}"
+        );
+    }
+}
+
 /// section-heading-stacked ページが Demo class・専用 CSS を配線している
 /// こと、block 固有 CSS（暗色面の上書き・レスポンシブブレークポイント）が
 /// 実際に出力されていることを固定する（イシュー #2799）。
