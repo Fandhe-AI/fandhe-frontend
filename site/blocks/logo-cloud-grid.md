@@ -159,15 +159,26 @@ fn variant_c() -> Node {
     )
 }
 
+/// タイル（形 D）専用の社名タグ。`lg` 6 カラム時にタイル幅が縮むため、
+/// `tag` 既定の `white-space: nowrap` を上書きして折り返し可能にする
+/// （Bugbot 指摘「Tile shrink overflows company labels」、PR #3244）。
+const TILE_LABEL_ATTR: &str = "data-blocks-logo-cloud-grid-tile-label";
+
 /// 形 D: 見出し無し、淡色枠のロゴタイル 6 枚のグリッド。
 fn variant_d() -> Node {
     let tiles = dummy_assets::COMPANY_NAMES
         .iter()
         .map(|name| {
-            div(
-                vec![("class", "blocks-logo-cloud-grid-tile")],
-                vec![logo_item(name)],
-            )
+            let name_tag = tag::root(
+                &TagProps::default(),
+                vec![(TILE_LABEL_ATTR, "")],
+                vec![tag::label(vec![], vec![text(*name)])],
+            );
+            let item = div(
+                vec![("class", "blocks-logo-cloud-grid-logo-item")],
+                vec![logo(), name_tag],
+            );
+            div(vec![("class", "blocks-logo-cloud-grid-tile")], vec![item])
         })
         .collect();
     div(vec![("class", "blocks-logo-cloud-grid-tiles")], tiles)

@@ -207,15 +207,26 @@ fn variant_c() -> Node {
     )
 }
 
+/// タイル（形 D）専用の社名タグ。`lg` 6 カラム時にタイル幅が縮むため、
+/// `tag` 既定の `white-space: nowrap` を上書きして折り返し可能にする
+/// （Bugbot 指摘「Tile shrink overflows company labels」、PR #3244）。
+const TILE_LABEL_ATTR: &str = "data-blocks-logo-cloud-grid-tile-label";
+
 /// 形 D: 見出し無し、淡色枠のロゴタイル 6 枚のグリッド。
 fn variant_d() -> Node {
     let tiles = dummy_assets::COMPANY_NAMES
         .iter()
         .map(|name| {
-            div(
-                vec![("class", "blocks-logo-cloud-grid-tile")],
-                vec![logo_item(name)],
-            )
+            let name_tag = tag::root(
+                &TagProps::default(),
+                vec![(TILE_LABEL_ATTR, "")],
+                vec![tag::label(vec![], vec![text(*name)])],
+            );
+            let item = div(
+                vec![("class", "blocks-logo-cloud-grid-logo-item")],
+                vec![logo(), name_tag],
+            );
+            div(vec![("class", "blocks-logo-cloud-grid-tile")], vec![item])
         })
         .collect();
     div(vec![("class", "blocks-logo-cloud-grid-tiles")], tiles)
@@ -310,7 +321,9 @@ const LAYOUT_CSS: &str = "\
 .blocks-logo-cloud-grid-cards [data-scope=\"card\"][data-part=\"body\"] {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  text-align: center;\n  min-width: 0;\n}\n\
 .blocks-logo-cloud-grid-tiles {\n  display: grid;\n  grid-template-columns: repeat(2, 1fr);\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-logo-cloud-grid-tile {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: var(--fandhe-space-6);\n  border: 1px solid var(--fandhe-color-border);\n  background: var(--fandhe-color-bg-subtle);\n  border-radius: var(--fandhe-radius-md);\n  min-width: 0;\n}\n\
+.blocks-logo-cloud-grid-tile > * {\n  min-width: 0;\n  max-width: 100%;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-logo-cloud-grid-logo] {\n  width: min(7rem, 100%);\n  height: 2.5rem;\n  filter: grayscale(1);\n  opacity: 0.7;\n}\n\
+[data-scope=\"tag\"][data-part=\"root\"][data-blocks-logo-cloud-grid-tile-label] {\n  white-space: normal;\n  max-width: 100%;\n  text-align: center;\n}\n\
 [data-scope=\"link\"][data-part=\"root\"][data-blocks-logo-cloud-grid-pill] {\n  display: inline-block;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: 9999px;\n  padding: var(--fandhe-space-2) var(--fandhe-space-4);\n}\n\
 @media (min-width: 48rem) {\n  .blocks-logo-cloud-grid-cards {\n    grid-template-columns: repeat(3, 1fr);\n  }\n\n  .blocks-logo-cloud-grid-tiles {\n    grid-template-columns: repeat(4, 1fr);\n  }\n}\n\
 @media (min-width: 64rem) {\n  .blocks-logo-cloud-grid-cards {\n    grid-template-columns: repeat(6, 1fr);\n  }\n\n  .blocks-logo-cloud-grid-tiles {\n    grid-template-columns: repeat(6, 1fr);\n  }\n}\n";
