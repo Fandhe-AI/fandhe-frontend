@@ -1436,6 +1436,11 @@ source = "site/blocks/stats-cards.md"
 path = "/blocks/stats-cards/"
 
 [[section.group.page]]
+title = "stats-row"
+source = "site/blocks/stats-row.md"
+path = "/blocks/stats-row/"
+
+[[section.group.page]]
 title = "stats-split"
 source = "site/blocks/stats-split.md"
 path = "/blocks/stats-split/"
