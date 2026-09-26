@@ -290,6 +290,11 @@ fn panel_tab_labels() -> Vec<(&'static str, Vec<Node>)> {
 /// 全 trigger 一律 `aria-hidden` にすると進捗情報が支援技術から読めなくなる。
 /// `role`/`tabindex` を持たない div のままなので `aria-hidden` を外しても
 /// 操作可能に見えるようにはならない）。
+///
+/// 選択中トリガー（`value == selected`）にのみ `aria-current="true"` を
+/// 付与し、`data-state="active"` という見た目だけでは伝わらない選択状態を
+/// 支援技術へも伝える（#3263）。`role`/`tabindex` は付与しないため非対話の
+/// ままである。
 fn static_tab_list(
     id_prefix: &'static str,
     selected: &'static str,
@@ -331,11 +336,8 @@ fn static_tab_list(
         items
             .into_iter()
             .map(|(value, trigger)| {
-                let state = if value == selected {
-                    "active"
-                } else {
-                    "inactive"
-                };
+                let is_selected = value == selected;
+                let state = if is_selected { "active" } else { "inactive" };
                 let mut attrs = vec![
                     (
                         "class".to_string(),
@@ -345,6 +347,13 @@ fn static_tab_list(
                 ];
                 if hide_from_assistive_tech {
                     attrs.push(("aria-hidden".to_string(), "true".to_string()));
+                }
+                // 選択中トリガーのみに `aria-current="true"` を付与し、
+                // 見た目（`data-state`）だけでは伝わらない選択状態を支援
+                // 技術へも伝える（#3263）。`role`/`tabindex` は引き続き
+                // 持たせない（本 block は非対話表示のまま）。
+                if is_selected {
+                    attrs.push(("aria-current".to_string(), "true".to_string()));
                 }
                 el_owned("div", attrs, trigger)
             })
