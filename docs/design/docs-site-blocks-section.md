@@ -933,7 +933,7 @@ pub enum LayoutCss {
 | footer-cta-columns | #2849 | `marketing/footer/footer_cta_columns.rs` |
 | header-flyout-menu | #2855（親 #2854） | `marketing/header/header_flyout_menu.rs` |
 | pricing-comparison-table | #2862/#2863（親 #2861） | `marketing/pricing/pricing_comparison_table.rs` |
-| pricing-seats-split | #2865（親 #2864） | `marketing/pricing/pricing_seats_split.rs` |
+| pricing-seats-split | #2865/#2866（親 #2864） | `marketing/pricing/pricing_seats_split.rs` |
 | faq-accordion-centered | #2843 | `marketing/faq/faq_accordion_centered.rs` |
 | faq-split-accordion | #2845 | `marketing/faq/faq_split_accordion.rs` |
 | faq-split-static | #2846 | `marketing/faq/faq_split_static.rs` |
