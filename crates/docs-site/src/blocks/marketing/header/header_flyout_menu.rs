@@ -679,13 +679,21 @@ pub const BLOCK: Block = Block {
 /// 中央寄せする宣言であり、ロゴ・ナビ・アクション・ハンバーガーの 4 要素
 /// がひとかたまりとして中央へ寄るだけで、ナビ自体の中心はヘッダー中心
 /// からロゴ幅・アクション幅の差分だけずれる（48rem 以上でナビを中央寄せ
-/// する、というモジュール doc の表の記述を満たさない）。是正として、
-/// ルート側は `justify-content` を持たず（`.blocks-header-flyout-menu-layout`
-/// の既定 `space-between` のまま）、nav 要素自身へ `flex: 1;
-/// justify-content: center` を宣言する。ロゴ・アクション+ハンバーガーの
-/// 両端に挟まれた残り空間の中でナビ自身の内容（`list`）が中央寄せされる
-/// （ロゴ幅とアクション+ハンバーガー幅がおおむね対称な本 Demo の構図では
-/// ヘッダー全体の視覚中心に近づく）。
+/// する、というモジュール doc の表の記述を満たさない）。
+///
+/// 次に nav 要素自身へ `flex: 1; justify-content: center` を宣言する案へ
+/// 差し替えたが、これも同じ問題を抱える: `flex: 1` の nav が占める残り
+/// 空間はロゴ幅とアクション+ハンバーガー幅の差分だけ非対称であり、その
+/// 非対称な空間の中心へ寄せてもヘッダー全体の中心とは一致しない（PR
+/// #3276 codex(P1) 再指摘）。
+///
+/// 是正として、48rem 以上の centered 形に限り `display: grid;
+/// grid-template-columns: 1fr auto 1fr;` へ切り替える。両端の列が常に
+/// 等幅（`1fr`）であることが構造的に保証されるため、ロゴ・アクションの
+/// 実際の幅に関わらず中央列（nav、`auto` サイズ）はヘッダー全体の幅を
+/// 基準にした中央に置かれる（`justify-self` で各列内の配置を
+/// 明示: ロゴ `start`・nav `center`・アクション `end`）。ハンバーガーは
+/// この breakpoint で `display: none` のためグリッド配置に加わらない。
 const LAYOUT_CSS: &str = "\
 .blocks-header-flyout-menu-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-header-flyout-menu-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
@@ -712,8 +720,10 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-header-flyout-menu-actions] {\n    display: flex;\n  }\n  \
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-header-flyout-menu-toggle] {\n    display: none;\n  }\n  \
 .blocks-header-flyout-menu-layout {\n    align-items: flex-start;\n    min-block-size: 24rem;\n  }\n  \
-[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    gap: var(--fandhe-space-8);\n  }\n  \
-[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-flyout-menu-nav] {\n    flex: 1;\n    display: flex;\n    justify-content: center;\n  }\n\
+[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    display: grid;\n    grid-template-columns: 1fr auto 1fr;\n    align-items: center;\n    gap: var(--fandhe-space-8);\n  }\n  \
+[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-blocks-header-flyout-menu-logo] {\n    justify-self: start;\n  }\n  \
+[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-flyout-menu-nav] {\n    justify-self: center;\n  }\n  \
+[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-blocks-header-flyout-menu-actions] {\n    justify-self: end;\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -894,14 +904,14 @@ mod tests {
         ));
     }
 
-    /// centered 形は行全体ではなく nav 自身が中央寄せされること（codex/
-    /// Bugbot 指摘の是正回帰、[`LAYOUT_CSS`] doc「centered 形のナビ中央
-    /// 寄せ」節）。ルート（`.blocks-header-flyout-menu-layout`）に
-    /// `justify-content: center` を持たせない（既定の `space-between` の
-    /// まま）ことと、nav 要素自身に `flex: 1; justify-content: center` が
-    /// 宣言されることの両方を固定する。
+    /// centered 形はヘッダー全体の幅を基準に nav が中央へ置かれること
+    /// （codex(P1) 再指摘の是正回帰、PR #3276、[`LAYOUT_CSS`] doc
+    /// 「centered 形のナビ中央寄せ」節）。`grid-template-columns: 1fr auto
+    /// 1fr` により両端の列が常に等幅であることと、ロゴ/nav/アクションの
+    /// `justify-self` 配置の 3 点を固定する（`flex: 1` による「残り空間の
+    /// 中央」ではなく「ヘッダー全体の中央」であることの回帰防止）。
     #[test]
-    fn centered_variant_centers_nav_itself_not_the_whole_row() {
+    fn centered_variant_centers_nav_against_full_header_width() {
         assert!(
             !LAYOUT_CSS.contains(
                 "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    justify-content: center;"
@@ -909,7 +919,16 @@ mod tests {
             "root should not re-center the whole flex row, LAYOUT_CSS={LAYOUT_CSS}"
         );
         assert!(LAYOUT_CSS.contains(
-            "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-flyout-menu-nav] {\n    flex: 1;\n    display: flex;\n    justify-content: center;\n  }"
+            "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    display: grid;\n    grid-template-columns: 1fr auto 1fr;"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-blocks-header-flyout-menu-logo] {\n    justify-self: start;\n  }"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-flyout-menu-nav] {\n    justify-self: center;\n  }"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-blocks-header-flyout-menu-actions] {\n    justify-self: end;\n  }"
         ));
     }
 
