@@ -464,7 +464,7 @@ fn plan_card(plan: &Plan, state: &DemoState) -> Node {
                 header_children,
             ),
             card::body(
-                vec![],
+                vec![("class", "blocks-pricing-seats-split-card-body")],
                 vec![
                     div(
                         vec![("class", "blocks-pricing-seats-split-price-row")],
@@ -600,8 +600,9 @@ const LAYOUT_CSS: &str = "\
 .blocks-pricing-seats-split-price {\n  font-size: var(--fandhe-font-font-size-2xl);\n  font-weight: var(--fandhe-font-font-weight-bold);\n}\n\
 .blocks-pricing-seats-split-price-period {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-pricing-seats-split-price-regular {\n  width: 100%;\n  color: var(--fandhe-color-fg-muted);\n}\n\
-[data-scope=\"list\"][data-part=\"root\"][data-blocks-pricing-seats-split-features] {\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
-[data-scope=\"list\"][data-part=\"item\"].blocks-pricing-seats-split-feature {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
+[data-scope=\"list\"][data-part=\"root\"][data-blocks-pricing-seats-split-features] {\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n}\n\
+[data-scope=\"list\"][data-part=\"item\"].blocks-pricing-seats-split-feature {\n  display: flex;\n  align-items: center;\n}\n\
+.blocks-pricing-seats-split-card-body {\n  gap: var(--fandhe-space-4);\n}\n\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-pricing-seats-split-card=\"featured\"] {\n  border: 2px solid var(--fandhe-color-accent);\n}\n\
 [data-blocks-pricing-seats-split-annual][data-scope=\"switch\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n";
 

@@ -388,7 +388,7 @@ fn plan_card(plan: &Plan, state: &DemoState) -> Node {
                 header_children,
             ),
             card::body(
-                vec![],
+                vec![("class", "blocks-pricing-seats-split-card-body")],
                 vec![
                     div(
                         vec![("class", "blocks-pricing-seats-split-price-row")],
