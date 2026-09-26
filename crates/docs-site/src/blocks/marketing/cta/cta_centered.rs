@@ -314,7 +314,7 @@ fn instance_card() -> Node {
             variant: CardVariant::Elevated,
             ..CardProps::default()
         },
-        vec![],
+        vec![("data-blocks-cta-centered-tone", "card")],
         vec![card::body(vec![], vec![inner])],
     )
 }
@@ -427,10 +427,15 @@ mod tests {
 
     /// 5 tone・9 ボタン（plain 2 + badge 1 + accent 2 + dark 2 + card 2）・
     /// badge 1 個・card 2 パーツ（root + body）が揃っていることを固定する。
+    /// `card` tone のみ、[`card::root`] 自身（アクセント背景・反転ボタン
+    /// 配色の適用対象、モジュール doc「tone 上書きの詳細度 (0,4,0)」節）と
+    /// 内側 section（基底ルールの flex レイアウト適用対象）の 2 箇所に
+    /// 属性が付くため 2 回、他の 4 tone は素の section 1 箇所のみのため
+    /// 1 回出現する（イシュー #3224 PR #3259 レビュー指摘の回帰防止）。
     #[test]
     fn demo_renders_five_tones() {
         let html = render(&demo());
-        for tone in ["plain", "badge", "accent", "dark", "card"] {
+        for tone in ["plain", "badge", "accent", "dark"] {
             let needle = format!(r#"data-blocks-cta-centered-tone="{tone}""#);
             assert_eq!(
                 html.matches(&needle).count(),
@@ -438,6 +443,12 @@ mod tests {
                 "tone {tone} should appear exactly once"
             );
         }
+        assert_eq!(
+            html.matches(r#"data-blocks-cta-centered-tone="card""#)
+                .count(),
+            2,
+            "tone card should appear on both card::root and the inner section"
+        );
         assert_eq!(html.matches(r#"data-scope="button""#).count(), 9);
         assert_eq!(html.matches(r#"data-scope="badge""#).count(), 1);
         assert_eq!(html.matches(r#"data-scope="card""#).count(), 2);

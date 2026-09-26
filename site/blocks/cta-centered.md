@@ -227,7 +227,7 @@ fn instance_card() -> Node {
             variant: CardVariant::Elevated,
             ..CardProps::default()
         },
-        vec![],
+        vec![("data-blocks-cta-centered-tone", "card")],
         vec![card::body(vec![], vec![inner])],
     )
 }
