@@ -337,7 +337,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-stats-row-header {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  text-align: center;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-stats-row-two-col {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-stats-row-grid-4 {\n  display: grid;\n  grid-template-columns: repeat(4, minmax(0, 1fr));\n  gap: var(--fandhe-space-6);\n  text-align: center;\n}\n\
-.blocks-stats-row-panel {\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radii-lg);\n  padding: var(--fandhe-space-6);\n}\n\
+.blocks-stats-row-panel {\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  padding: var(--fandhe-space-6);\n}\n\
 .blocks-stats-row-panel-row {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: stretch;\n  justify-content: center;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-stats-row-logo-grid {\n  display: grid;\n  grid-template-columns: repeat(4, minmax(0, 1fr));\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-stats-row-logo-cell {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
