@@ -291,6 +291,7 @@ jobs:
           # Marketing / Newsletter
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/newsletter-split/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/newsletter-with-details/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/newsletter-stacked/index.html"
           # Marketing / Blog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-featured-article/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/blog-featured-with-list/index.html"
