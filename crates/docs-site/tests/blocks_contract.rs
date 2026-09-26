@@ -8280,6 +8280,100 @@ fn hero_split_image_composes_expected_parts() {
     }
 }
 
+/// logo-cloud-split ページが Demo class・専用 CSS を配線していること、
+/// block 固有 CSS（2 列グリッド・淡色枠タイル・暗色固定・ブレークポイン
+/// ト）が実際に出力されていることを固定する（イシュー #2795）。
+#[test]
+fn logo_cloud_split_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/logo-cloud-split/index.html"))
+        .expect("blocks/logo-cloud-split/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-logo-cloud-split\""),
+        "logo-cloud-split page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "logo-cloud-split page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "logo-cloud-split page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-logo-cloud-split-row",
+        "data-blocks-logo-cloud-split-logo",
+        "data-blocks-logo-cloud-split-tile",
+        "data-blocks-logo-cloud-split-tone",
+    ] {
+        assert!(
+            html.contains(hook),
+            "logo-cloud-split page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-logo-cloud-split-row",
+        ".blocks-logo-cloud-split-grid",
+        "@media (min-width: 64rem)",
+        "data-blocks-logo-cloud-split-tone=\"dark\"",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// logo-cloud-split の Demo が使用部品（heading/text/button/image/link）
+/// をすべて実際に合成し、`<form>`・`src="data:"`・`href="#"`・`id="` を
+/// 出力しないことを固定する（イシュー #2795）。
+#[test]
+fn logo_cloud_split_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/logo-cloud-split/")
+        .expect("logo-cloud-split should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"image\"",
+        "data-scope=\"link\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "logo-cloud-split demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-logo-cloud-split-row").count(),
+        3,
+        "logo-cloud-split demo should render exactly 3 rows (basic / bordered / dark)"
+    );
+    assert_eq!(
+        html.matches("data-blocks-logo-cloud-split-logo").count(),
+        18,
+        "logo-cloud-split demo should render exactly 18 logo images (6 logos x 3 rows)"
+    );
+    // CTA は `button::button`（遷移先を持たない type="button"）ではなく
+    // `link::root` で組み立てる（イシュー #2795 codex レビュー是正、
+    // PR #3247。`blog_split_header_grid` の是正と同じ判断軸）。
+    for absent in [
+        "<form",
+        "src=\"data:",
+        "href=\"#\"",
+        "id=\"",
+        "data-scope=\"button\"",
+        "type=\"button\"",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "logo-cloud-split should never contain {absent}"
+        );
+    }
+}
+
 /// newsletter-with-details ページが Demo class・専用 CSS を配線している
 /// こと、block 固有 CSS（アイコン箱・補足項目グリッド・ブレークポイント）
 /// が実際に出力されていることを固定する（イシュー #2797。

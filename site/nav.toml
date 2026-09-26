@@ -1422,6 +1422,11 @@ title = "logo-cloud-marquee"
 source = "site/blocks/logo-cloud-marquee.md"
 path = "/blocks/logo-cloud-marquee/"
 
+[[section.group.page]]
+title = "logo-cloud-split"
+source = "site/blocks/logo-cloud-split.md"
+path = "/blocks/logo-cloud-split/"
+
 [[section.group]]
 title = "Stats"
 
