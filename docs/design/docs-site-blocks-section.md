@@ -943,7 +943,7 @@ pub enum LayoutCss {
 | footer-inline-nav | #2850 | `marketing/footer/footer_inline_nav.rs` |
 | footer-link-columns | #2851 | `marketing/footer/footer_link_columns.rs` |
 | pricing-slider-tiers | #2868/#2869/#2870 | `marketing/pricing/pricing_slider_tiers.rs` |
-| header-mega-menu | #2858（親 #2857） | `marketing/header/header_mega_menu.rs` |
+| header-mega-menu | #2858/#2859（親 #2857） | `marketing/header/header_mega_menu.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 127 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
