@@ -349,9 +349,8 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"start\"] {\n    border-block-end: 1px solid var(--fandhe-color-border);\n  }\n  \
 [data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"start\"] [data-blocks-header-simple-bar-nav-wrap] {\n    margin-inline-end: auto;\n  }\n  \
 [data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"end\"] [data-blocks-header-simple-bar-nav-wrap] {\n    margin-inline-start: auto;\n  }\n  \
-[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"center\"] {\n    max-inline-size: 64rem;\n    margin-inline: auto;\n  }\n  \
-[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"center\"] [data-blocks-header-simple-bar-nav-wrap] {\n    flex: 1;\n  }\n  \
-[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"center\"] [data-blocks-header-simple-bar-nav-wrap] [data-scope=\"navigation-menu\"][data-part=\"list\"] {\n    justify-content: center;\n  }\n  \
+[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"center\"] {\n    max-inline-size: 64rem;\n    margin-inline: auto;\n    display: grid;\n    grid-template-columns: 1fr auto 1fr;\n    align-items: center;\n  }\n  \
+[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"center\"] [data-blocks-header-simple-bar-actions-wrap] {\n    justify-self: end;\n  }\n  \
 [data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"logo-center\"] {\n    display: grid;\n    grid-template-columns: 1fr auto 1fr;\n    align-items: center;\n  }\n  \
 [data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"logo-center\"] [data-blocks-header-simple-bar-logo] {\n    justify-self: center;\n    order: 2;\n  }\n  \
 [data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"logo-center\"] [data-blocks-header-simple-bar-nav-wrap] {\n    justify-self: start;\n    order: 1;\n  }\n  \
@@ -471,16 +470,26 @@ mod tests {
         assert!(LAYOUT_CSS.contains("grid-template-columns: 1fr auto 1fr;"));
     }
 
-    /// center variant のナビが `navigation-menu` の `list`（flex コンテナ）へ
-    /// 直接 `justify-content: center` を当てること（`text-align: center` は
-    /// flex 化された `list` に効かないため、Bugbot 指摘の是正、イシュー
-    /// #2860 PR #3297）。
+    /// center variant はロゴ・ナビ・アクションを `grid-template-columns:
+    /// 1fr auto 1fr` の 3 列に配置し、ナビ（中央列、`auto` 幅）がバー全体の
+    /// 中心に来ること。`nav-wrap` を `flex: 1`（ロゴ・アクションの残り幅）
+    /// にして内側の `list` だけを `justify-content: center` する旧実装は、
+    /// ロゴとアクションの幅が非対称だとナビ列自体がバー全体の中心からずれる
+    /// （イシュー #2860 PR #3297 codex-review P2 指摘）。3 列 grid はロゴ列・
+    /// アクション列を等幅（`1fr`）にすることで、ナビ列の左右余白が幅に
+    /// 関わらず必ず釣り合う。
     #[test]
-    fn center_variant_centers_the_flex_nav_list() {
+    fn center_variant_uses_symmetric_grid_columns() {
         assert!(LAYOUT_CSS.contains(
-            "[data-blocks-header-simple-bar-variant=\"center\"] [data-blocks-header-simple-bar-nav-wrap] [data-scope=\"navigation-menu\"][data-part=\"list\"] {\n    justify-content: center;\n  }"
+            "[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"center\"] {\n    max-inline-size: 64rem;\n    margin-inline: auto;\n    display: grid;\n    grid-template-columns: 1fr auto 1fr;\n    align-items: center;\n  }"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"center\"] [data-blocks-header-simple-bar-actions-wrap] {\n    justify-self: end;\n  }"
         ));
         assert!(!LAYOUT_CSS.contains("text-align: center"));
+        assert!(!LAYOUT_CSS.contains(
+            "[data-blocks-header-simple-bar-variant=\"center\"] [data-blocks-header-simple-bar-nav-wrap] {\n    flex: 1;\n  }"
+        ));
     }
 
     /// ルート class（`demo_class` とは別名）が [`demo`] の出力へ実際に
