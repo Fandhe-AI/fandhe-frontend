@@ -329,7 +329,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-hero-split-screenshot-media {\n  min-width: 0;\n  display: flex;\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-hero-split-screenshot-lead] {\n  margin: 0;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-hero-split-screenshot-image] {\n  box-sizing: border-box;\n  display: block;\n  width: 100%;\n  flex: none;\n  border: 1px solid var(--fandhe-color-border);\n  box-shadow: var(--fandhe-shadow-lg);\n}\n\
-.blocks-hero-split-screenshot-frame {\n  box-sizing: border-box;\n  width: 100%;\n  padding: var(--fandhe-space-4);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-muted);\n}\n\
+.blocks-hero-split-screenshot-frame {\n  box-sizing: border-box;\n  width: 100%;\n  padding: var(--fandhe-space-4);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg-muted);\n}\n\
 .blocks-hero-split-screenshot-frame [data-scope=\"image\"][data-part=\"root\"][data-blocks-hero-split-screenshot-image] {\n  box-shadow: none;\n}\n\
 .blocks-hero-split-screenshot-code-frame {\n  width: 100%;\n  background: var(--fandhe-color-fg);\n  color: var(--fandhe-color-bg);\n  border-radius: var(--fandhe-radius-lg);\n  overflow: hidden;\n}\n\
 .blocks-hero-split-screenshot-tabs {\n  display: flex;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
