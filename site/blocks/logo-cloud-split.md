@@ -131,7 +131,7 @@ fn copy_with_cta() -> Node {
                             ..LinkProps::default()
                         },
                         vec![],
-                        vec![text("無料で始める")],
+                        vec![text("GitHub で見る")],
                     ),
                     link::root(
                         REPO,
@@ -141,7 +141,7 @@ fn copy_with_cta() -> Node {
                             ..LinkProps::default()
                         },
                         vec![],
-                        vec![text("導入事例を見る")],
+                        vec![text("Star をつける")],
                     ),
                 ],
             ),

@@ -1243,6 +1243,11 @@ source = "site/blocks/hero-image-top.md"
 path = "/blocks/hero-image-top/"
 
 [[section.group.page]]
+title = "hero-install-command"
+source = "site/blocks/hero-install-command.md"
+path = "/blocks/hero-install-command/"
+
+[[section.group.page]]
 title = "hero-marquee-strip"
 source = "site/blocks/hero-marquee-strip.md"
 path = "/blocks/hero-marquee-strip/"
@@ -1449,6 +1454,14 @@ path = "/blocks/contact-split-form-info/"
 title = "contact-split-info"
 source = "site/blocks/contact-split-info.md"
 path = "/blocks/contact-split-info/"
+
+[[section.group]]
+title = "Newsletter"
+
+[[section.group.page]]
+title = "newsletter-split"
+source = "site/blocks/newsletter-split.md"
+path = "/blocks/newsletter-split/"
 
 [[section.group]]
 title = "Blog"
