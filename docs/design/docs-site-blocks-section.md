@@ -916,6 +916,7 @@ pub enum LayoutCss {
 | logo-cloud-grid | #2793 | `marketing/logo_cloud/logo_cloud_grid.rs` |
 | newsletter-split | #2796 | `marketing/newsletter/newsletter_split.rs` |
 | logo-cloud-marquee | #2794 | `marketing/logo_cloud/logo_cloud_marquee.rs` |
+| logo-cloud-split | #2795 | `marketing/logo_cloud/logo_cloud_split.rs` |
 | stats-background-image | #2801 | `marketing/stats/stats_background_image.rs` |
 | stats-with-image | #2806 | `marketing/stats/stats_with_image.rs` |
 | section-heading-split | #2798 | `marketing/section_heading/section_heading_split.rs` |
@@ -942,7 +943,7 @@ pub enum LayoutCss {
 | footer-inline-nav | #2850 | `marketing/footer/footer_inline_nav.rs` |
 | footer-link-columns | #2851 | `marketing/footer/footer_link_columns.rs` |
 | pricing-slider-tiers | #2868/#2869/#2870 | `marketing/pricing/pricing_slider_tiers.rs` |
-| header-mega-menu | #2858（親 #2857） | `marketing/header/header_mega_menu.rs` |
+| header-mega-menu | #2858/#2859（親 #2857） | `marketing/header/header_mega_menu.rs` |
 | pricing-tiers-comparison | #2873/#2874（親 #2872） | `marketing/pricing/pricing_tiers_comparison.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
