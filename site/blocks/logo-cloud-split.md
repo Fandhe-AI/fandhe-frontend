@@ -4,12 +4,14 @@
 見出し左 + ロゴ 2 列グリッド右の合成例です。`lg` 未満では見出しの下に
 ロゴが縦積みになります。新しい UI 部品は作らず、既存部品のみで構成して
 います。無 JS の静的な表示で `<form>` は出力しません。CTA 2 本は
-遷移先を持たない `<button>` ではなく `link::root` で組み立て、GitHub
-リンクと同じ固定 URL へ実際に遷移します。
+遷移先を持たない `<button>` ではなく `link::root` で組み立て、本
+リポジトリの固定 URL へ実際に遷移します。
 
 主参照は対応表 ID R1058、集約元は対応表 ID R0565・R0149・R0566・R0145・
 R0567 の 5 件です（出典の固有名・ファイル名は記載しません）。ロゴ・社名は
-すべて架空で、実在ブランドのロゴ・商標は使っていません。
+すべて架空で、実在ブランドのロゴ・商標は使っていません。tagline も
+「導入企業（デモ用の架空サンプル）」と明記し、見出し文言が実際の導入
+実績ではないことを示します。
 
 ## Rust コード
 
@@ -100,7 +102,7 @@ fn copy_with_cta() -> Node {
                     ..TextProps::default()
                 },
                 vec![],
-                vec![text("導入企業")],
+                vec![text("導入企業（デモ用の架空サンプル）")],
             ),
             heading(
                 HeadingLevel::H3,
@@ -144,16 +146,6 @@ fn copy_with_cta() -> Node {
                         vec![text("Star をつける")],
                     ),
                 ],
-            ),
-            link::root(
-                REPO,
-                &LinkProps {
-                    variant: LinkVariant::Underline,
-                    palette: ColorPalette::Neutral,
-                    ..LinkProps::default()
-                },
-                vec![],
-                vec![text("導入企業の一覧（GitHub）")],
             ),
         ],
     )

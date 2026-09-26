@@ -20,13 +20,21 @@
 //! codex レビュー是正 1 回目、PR #3247）を受けて [`link::root`] へ置き換えた
 //! （`blog_split_header_grid` の「すべての記事を見る」是正と同じ判断軸）。
 //! しかし [`Block::demo`] は `base_path` を受け取れず（`base_path` を要求
-//! する制約は次項参照）、遷移先を実ページごとに分けられないため、3 本
-//! （CTA 2 本 + GitHub リンク）を同一 [`REPO`] へ揃えたところ、今度は
-//! 「無料で始める」「導入事例を見る」という文言が実際の遷移先（本
-//! リポジトリ）と一致しないという指摘（同イシュー codex レビュー 2 回目）
-//! を受けた。実ページを用意できない以上、文言側を遷移先に合わせる方針を
-//! 採り、CTA 文言を「GitHub で見る」「Star をつける」へ変更した（いずれも
-//! GitHub リポジトリページ上で実際に行える操作を指す、誇張のない文言）。
+//! する制約は次項参照）、遷移先を実ページごとに分けられないため、CTA 2 本
+//! を同一 [`REPO`] へ揃えたところ、今度は「無料で始める」「導入事例を
+//! 見る」という文言が実際の遷移先（本リポジトリ）と一致しないという指摘
+//! （同イシュー codex レビュー 2 回目）を受けた。実ページを用意できない
+//! 以上、文言側を遷移先に合わせる方針を採り、CTA 文言を「GitHub で見る」
+//! 「Star をつける」へ変更した（いずれも GitHub リポジトリページ上で実際に
+//! 行える操作を指す、誇張のない文言）。
+//!
+//! 当初は CTA の下にもう 1 本「導入企業の一覧（GitHub）」というリンクを
+//! 置いていたが、遷移先は同じ [`REPO`]（リポジトリのトップページ）であり
+//! 「一覧」という実在しないページを指すラベルだった（同イシュー codex
+//! レビュー 3 回目、PR #3247）。実在する遷移先に合わせたラベルへ書き換える
+//! よりも、同じ [`REPO`] へ重複して遷移するだけの導線を削る方が実態と
+//! 齟齬のない構成になるため、この 3 本目のリンクは削除した（CTA 2 本の
+//! 「GitHub で見る」で同じ遷移は既にカバーされている）。
 //!
 //! # 3 形構成（集約元との差分）
 //!
@@ -35,7 +43,7 @@
 //! の中へ縦に並記する、`cta_split_image` と同じ構成手段）。
 //!
 //! - **基準形**（R1058 主参照）: tagline + 見出し + 説明 + CTA ボタン 2 本
-//!   + GitHub リンクの左列、枠なしロゴ 2 列グリッドの右列
+//!   の左列、枠なしロゴ 2 列グリッドの右列
 //! - **淡色枠タイル形**（R0149/R0566/R0145 集約）: 見出し + 説明のみの
 //!   左列（CTA なし。R0145「見出しのみ」の差分を表す）、淡色枠タイルへ
 //!   ロゴを収めた 2 列グリッドの右列
@@ -50,7 +58,12 @@
 //! 6 ロゴとも `crate::blocks::dummy_assets::LOGO_SRC`（同一の抽象バッジ
 //! SVG）を使い、`dummy_assets::COMPANY_NAMES` の架空社名をキャプション
 //! として添えて視覚的に区別する。実在ブランドのロゴ・商標・企業名は
-//! 一切使わない。
+//! 一切使わない。tagline の文言も「導入企業（デモ用の架空サンプル）」と
+//! 明記し、見出しの「多くのチームに選ばれています」がロゴ・社名同様
+//! 架空の一例であって実際の導入実績ではないことをコメント頼みにせず
+//! Demo 内の可視テキストとして示す（codex レビュー指摘、イシュー #2795
+//! PR #3247）。
+
 //!
 //! # 暗色固定（ライト/ダーク切替に追随しない）
 //!
@@ -187,7 +200,7 @@ fn copy_with_cta() -> Node {
                     ..TextProps::default()
                 },
                 vec![],
-                vec![text("導入企業")],
+                vec![text("導入企業（デモ用の架空サンプル）")],
             ),
             heading(
                 HeadingLevel::H3,
@@ -231,16 +244,6 @@ fn copy_with_cta() -> Node {
                         vec![text("Star をつける")],
                     ),
                 ],
-            ),
-            link::root(
-                REPO,
-                &LinkProps {
-                    variant: LinkVariant::Underline,
-                    palette: ColorPalette::Neutral,
-                    ..LinkProps::default()
-                },
-                vec![],
-                vec![text("導入企業の一覧（GitHub）")],
             ),
         ],
     )
@@ -431,8 +434,8 @@ mod tests {
         );
         assert_eq!(
             html.matches(&format!("href=\"{REPO}\"")).count(),
-            6,
-            "2 CTA links + 1 GitHub link per row (basic / dark rows) should point to the fixed repository URL"
+            4,
+            "2 CTA links per row (basic / dark rows) should point to the fixed repository URL"
         );
         assert!(html.contains(r#"data-blocks-logo-cloud-split-tone="dark""#));
     }
