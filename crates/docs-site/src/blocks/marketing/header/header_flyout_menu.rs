@@ -78,10 +78,13 @@
 //!
 //! 既存 block（例: [`super::super::contact::contact_split_form_image`]）と
 //! 同じ mobile-first の `@media (min-width: 48rem)` 直書きを使う
-//! （[`fandhe_frontend_pre_styled_ui::theme::Breakpoint::Md`] と同じ値。
-//! container query の前例は本リポジトリに無く、本 block でも新規導入しない）。
+//! （[`fandhe_frontend_pre_styled_ui::theme::Breakpoint::Md`] と同じ値）。
 //! 既定（狭い幅）はナビ・アクションを隠しハンバーガーのみを表示し、
-//! `>= 48rem` で反転する。
+//! `>= 48rem` で反転する。centered 形のみ、この `@media` に加えて
+//! `@container`（コンテナクエリ）も使う（[`LAYOUT_CSS`] doc「centered 形の
+//! レイアウト最終設計」節参照。`.blocks-demo` の実効幅がビューポート幅と
+//! 乖離するため、ビューポート基準の `@media` だけでは中央寄せ形の水平
+//! オーバーフローを避けられなかった）。
 //!
 //! # CSS フックに data 属性を使う理由
 //!
@@ -671,56 +674,43 @@ pub const BLOCK: Block = Block {
 /// アイコン縦位置（`link` の `align-items` base 宣言）・centered 形の
 /// nav 中央寄せ（次節）の 5 種。
 ///
-/// # centered 形のナビ中央寄せ（codex/Bugbot 指摘の是正、イシュー #2856）
+/// # centered 形のレイアウト最終設計（PR #3276 codex(P1) 再指摘の是正、
+/// イシュー #2856）
 ///
-/// 当初は `[data-blocks-header-flyout-menu-root][...variant="centered"]`
-/// へ `justify-content: center` を宣言していたが、これは
-/// `.blocks-header-flyout-menu-layout`（`display: flex`）の**行全体**を
-/// 中央寄せする宣言であり、ロゴ・ナビ・アクション・ハンバーガーの 4 要素
-/// がひとかたまりとして中央へ寄るだけで、ナビ自体の中心はヘッダー中心
-/// からロゴ幅・アクション幅の差分だけずれる（48rem 以上でナビを中央寄せ
-/// する、というモジュール doc の表の記述を満たさない）。
+/// 過去の試行（`justify-content: center`・`flex: 1` の nav・
+/// `grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr)` の
+/// 単一行グリッド）はいずれも同じ根本原因で失敗した: `.blocks-demo` の
+/// 実効幅は `.docs-content` の制約でビューポート幅と無関係に約 43rem に
+/// 頭打ちになる一方、`@media`/単一行グリッドはビューポート幅でしか
+/// 評価できないため、実際に描画される幅（狭い）と評価対象の幅（広い）が
+/// 乖離し、狭い実効幅では中央列に十分な空間がなく両端列が潰れてロゴ・
+/// アクションがナビと重なる（`minmax(0, 1fr)` は重なりをオーバーフロー
+/// クリップへ変えるだけで解消しない）。
 ///
-/// 次に nav 要素自身へ `flex: 1; justify-content: center` を宣言する案へ
-/// 差し替えたが、これも同じ問題を抱える: `flex: 1` の nav が占める残り
-/// 空間はロゴ幅とアクション+ハンバーガー幅の差分だけ非対称であり、その
-/// 非対称な空間の中心へ寄せてもヘッダー全体の中心とは一致しない（PR
-/// #3276 codex(P1) 再指摘）。
+/// 是正として、実際の描画幅で評価できる **コンテナクエリ** へ切り替えた
+/// （`.blocks-header-flyout-menu-stack` に `container-type: inline-size`
+/// を宣言、[`LAYOUT_CSS`] 冒頭）。
 ///
-/// 是正として、centered 形に限り `display: grid;
-/// grid-template-columns: 1fr auto 1fr;` へ切り替える。両端の列が常に
-/// 等幅（`1fr`）であることが構造的に保証されるため、ロゴ・アクションの
-/// 実際の幅に関わらず中央列（nav、`auto` サイズ）はヘッダー全体の幅を
-/// 基準にした中央に置かれる（`justify-self` で各列内の配置を
-/// 明示: ロゴ `start`・nav `center`・アクション `end`）。ハンバーガーは
-/// nav/actions が可視化される breakpoint で `display: none` のため
-/// グリッド配置に加わらない。
-///
-/// # centered グリッドの breakpoint とオーバーフロー対策（PR #3276
-/// codex(P1)/Bugbot 再指摘の是正、イシュー #2856）
-///
-/// 当初はこのグリッド切替を nav/actions 可視化の共有 `48rem` から
-/// 独立させ `64rem` へ引き上げていた（`.blocks-demo` の実効幅が
-/// `.docs-content` の制約でビューポート幅によらず 43rem 程度に
-/// 頭打ちになるため、グリッドの発火自体を避ける狙い）。しかし
-/// `@media` はビューポート幅で評価される一方、`.blocks-demo` の実効幅は
-/// ビューポートと無関係に頭打ちのままであり、`64rem` 以上の実ビューポート
-/// （一般的なデスクトップ画面）では変わらず発火して同じ問題が再発する
-/// （Bugbot 再指摘: 64rem という値の選択では原理的に防げない）。
-///
-/// 根本原因は breakpoint の値ではなく、`1fr` グリッドトラックの既定
-/// `min-width: auto`（コンテンツの min-content 幅が下限になり、
-/// 収まらなければグリッド自体がその分だけ膨張してはみ出す。flexbox の
-/// `flex-shrink` 版として知られる古典的な CSS の落とし穴と同型）にある。
-/// 是正として両端列を `minmax(0, 1fr)` に変更し、コンテンツが収まらない
-/// 場合は列自体が `0` まで縮み中身が折り返す（グリッドコンテナの外側へ
-/// はみ出さない）よう変更した。これにより発火する breakpoint の値に
-/// 依らず構造的にオーバーフローが起こらなくなったため、`64rem` の
-/// 独立 breakpoint は不要になり、モジュール doc の表が定める
-/// 「48rem 以上でナビを中央寄せ」の契約どおり nav/actions 可視化と同じ
-/// 共有 `48rem` へ統合した（Demo は通常のビューポート幅（>= 48rem）で
-/// 開けば中央寄せ形も実際に中央寄せで表示される、codex(P1) 再指摘の
-/// 「Demo 内で中央寄せにならない」の是正）。
+/// - **既定（`@media (min-width: 48rem)`）は 2 段 grid**
+///   （`grid-template-areas: "logo actions" "nav nav"`）。ロゴ・アクション
+///   は 1 行目の 2 列に収まり、ナビは 2 行目を全幅で占めて
+///   `justify-self: center` によりヘッダー全体の幅を基準に中央へ置かれる
+///   （ロゴ・アクションの実際の幅に関わらず、2 行目という全幅の行の中で
+///   nav 自身の中心がヘッダー中心と一致する）。どの幅でも列が潰れて
+///   重なる余地が構造的にない。
+/// - **コンテナ幅が閾値以上のときだけ** `@container
+///   blocks-header-flyout-menu (min-width: 52rem)` で
+///   `grid-template-columns: 1fr auto 1fr; grid-template-areas: "logo nav
+///   actions";` の単一行へ切り替える（R0577 が意図する本来の 1 段中央
+///   寄せ）。閾値は実測（本 Demo の内容・トークン値での測定、`gap:
+///   var(--fandhe-space-8)` = 2rem）による: 単一行で重なりなく収まる
+///   最小幅は 797px（49.8125rem）であり、フォント差・将来のトークン
+///   変更に対する安全余裕を見て `52rem` を採用した。閾値未満のコンテナ幅
+///   では引き続き 2 段 grid のまま留まる（`1fr` トラックの既定
+///   `min-width: auto` により、たとえ閾値付近でも列が潰れて重なることは
+///   なく、必要なら折り返す側へ倒れる）。
+/// - 2 列パネルの絶対配置（次節「centered 2 列パネルの配置基準」）は
+///   この 2 層構成のいずれでも独立して機能する。
 ///
 /// # centered 2 列パネルの配置基準（PR #3276 codex(P1) 再指摘の是正、
 /// イシュー #2856）
@@ -731,13 +721,13 @@ pub const BLOCK: Block = Block {
 /// 参照）。centered 形のみ nav がヘッダー中心へ動くため、トリガーの
 /// 左端はヘッダー左端よりも右寄りになり、そこから右へ 2 列グリッド
 /// パネル（`min(36rem, 90vw)`）を伸ばすと表示領域右端を越えやすい。
-/// 前節の `minmax(0, 1fr)` 化でグリッド自体の水平オーバーフローは
-/// 解消したが、パネルの絶対配置は独立した問題として残るため、
-/// centered 形の 2 列パネルに限り最大幅を `min(28rem, 90vw)`（1 列
-/// パネルの `26rem` に近い控えめな値へ縮小）へ引き下げ、かつトリガー
-/// 中心を基準にした `left: 50%; transform: translateX(-50%);` で
-/// 左右対称に配置する（左端基準で右へ伸び続ける一方向の overflow では
-/// なく、余剰があれば左右へ均等に分散させる）。
+/// 前節のとおりグリッド自体の水平オーバーフローは 2 段既定・
+/// コンテナクエリのいずれでも構造的に起きないが、パネルの絶対配置は
+/// 独立した問題として残るため、centered 形の 2 列パネルに限り最大幅を
+/// `min(28rem, 90vw)`（1 列パネルの `26rem` に近い控えめな値へ縮小）へ
+/// 引き下げ、かつトリガー中心を基準にした `left: 50%; transform:
+/// translateX(-50%);` で左右対称に配置する（左端基準で右へ伸び続ける
+/// 一方向の overflow ではなく、余剰があれば左右へ均等に分散させる）。
 ///
 /// # centered 形の垂直基準線（Bugbot 指摘の是正、PR #3276）
 ///
@@ -754,7 +744,7 @@ pub const BLOCK: Block = Block {
 /// 配置は前節の `justify-self` が個別に担うため、`align-items`
 /// （ブロック軸）の中央寄せは不要）。
 const LAYOUT_CSS: &str = "\
-.blocks-header-flyout-menu-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
+.blocks-header-flyout-menu-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-header-flyout-menu;\n}\n\
 .blocks-header-flyout-menu-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-header-flyout-menu-layout {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  inline-size: 100%;\n}\n\
 [data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-flyout-menu-nav] {\n  display: none;\n}\n\
@@ -780,11 +770,14 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-header-flyout-menu-actions] {\n    display: flex;\n  }\n  \
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-header-flyout-menu-toggle] {\n    display: none;\n  }\n  \
 .blocks-header-flyout-menu-layout {\n    align-items: flex-start;\n    min-block-size: 24rem;\n  }\n  \
-[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    display: grid;\n    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);\n    gap: var(--fandhe-space-8);\n  }\n  \
-[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-blocks-header-flyout-menu-logo] {\n    justify-self: start;\n  }\n  \
-[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-flyout-menu-nav] {\n    justify-self: center;\n  }\n  \
-[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-blocks-header-flyout-menu-actions] {\n    justify-self: end;\n  }\n  \
+[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    display: grid;\n    grid-template-columns: 1fr auto;\n    grid-template-areas: \"logo actions\" \"nav nav\";\n    column-gap: var(--fandhe-space-4);\n    row-gap: var(--fandhe-space-3);\n    align-items: start;\n  }\n  \
+[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-blocks-header-flyout-menu-logo] {\n    grid-area: logo;\n    justify-self: start;\n  }\n  \
+[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-flyout-menu-nav] {\n    grid-area: nav;\n    justify-self: center;\n  }\n  \
+[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-blocks-header-flyout-menu-actions] {\n    grid-area: actions;\n    justify-self: end;\n  }\n  \
 [data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-blocks-header-flyout-menu-panel][data-blocks-header-flyout-menu-columns=\"2\"] {\n    left: 50%;\n    transform: translateX(-50%);\n  }\n\
+}\n\
+@container blocks-header-flyout-menu (min-width: 52rem) {\n  \
+[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    grid-template-columns: 1fr auto 1fr;\n    grid-template-areas: \"logo nav actions\";\n    column-gap: var(--fandhe-space-8);\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -965,54 +958,67 @@ mod tests {
         ));
     }
 
-    /// centered 形はヘッダー全体の幅を基準に nav が中央へ置かれること
-    /// （codex(P1) 再指摘の是正回帰、PR #3276、[`LAYOUT_CSS`] doc
-    /// 「centered 形のナビ中央寄せ」節）。`grid-template-columns: 1fr auto
-    /// 1fr` により両端の列が常に等幅であることと、ロゴ/nav/アクションの
-    /// `justify-self` 配置の 3 点を固定する（`flex: 1` による「残り空間の
-    /// 中央」ではなく「ヘッダー全体の中央」であることの回帰防止）。
+    /// centered 形の 2 段既定レイアウト（PR #3276 codex(P1) 再指摘の是正
+    /// 回帰、イシュー #2856、[`LAYOUT_CSS`] doc「centered 形のレイアウト
+    /// 最終設計」節）。`.blocks-header-flyout-menu-stack` が
+    /// `container-type: inline-size` を持つこと（コンテナクエリの評価
+    /// 基盤）、`@media (min-width: 48rem)` 内の centered root が
+    /// `"logo actions" "nav nav"` の 2 段 `grid-template-areas` を持つ
+    /// こと（ナビが 2 行目を全幅で占め、実際のロゴ・アクション幅に
+    /// 関わらずヘッダー全体の中心に置かれる）、centered root がもう
+    /// `minmax(0, 1fr)` を持たないこと（重なりの温床だった単一行グリッド
+    /// を撤去した回帰防止）の 3 点を固定する。
     #[test]
-    fn centered_variant_centers_nav_against_full_header_width() {
+    fn centered_variant_uses_two_row_grid_by_default() {
         assert!(
-            !LAYOUT_CSS.contains(
-                "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    justify-content: center;"
+            LAYOUT_CSS.contains(
+                "container-type: inline-size;\n  container-name: blocks-header-flyout-menu;"
             ),
-            "root should not re-center the whole flex row, LAYOUT_CSS={LAYOUT_CSS}"
+            "stack should establish an inline-size container, LAYOUT_CSS={LAYOUT_CSS}"
         );
-        assert!(LAYOUT_CSS.contains(
-            "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    display: grid;\n    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);"
-        ));
-        assert!(LAYOUT_CSS.contains(
-            "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-blocks-header-flyout-menu-logo] {\n    justify-self: start;\n  }"
-        ));
-        assert!(LAYOUT_CSS.contains(
-            "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-flyout-menu-nav] {\n    justify-self: center;\n  }"
-        ));
-        assert!(LAYOUT_CSS.contains(
-            "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-blocks-header-flyout-menu-actions] {\n    justify-self: end;\n  }"
-        ));
-    }
-
-    /// centered grid が nav/actions 可視化と同じ共有 `48rem` breakpoint で
-    /// 発火すること（Codex(P1)/Bugbot 再指摘の是正回帰、PR #3276、
-    /// [`LAYOUT_CSS`] doc「centered グリッドの breakpoint とオーバーフロー
-    /// 対策」節）。独立した `64rem` breakpoint はもう存在しない。かつ
-    /// 両端列が `minmax(0, 1fr)` であること（`1fr` 単独の暗黙
-    /// `min-width: auto` によるグリッドのはみ出しを防ぐ、Bugbot「@media は
-    /// ビューポート基準のため .blocks-demo 内のオーバーフローを防げない」
-    /// 指摘の根本対策）も併せて固定する。
-    #[test]
-    fn centered_grid_shares_48rem_breakpoint_and_uses_overflow_safe_columns() {
-        assert!(!LAYOUT_CSS.contains("64rem"));
         let media_48_start = LAYOUT_CSS
             .find("@media (min-width: 48rem)")
             .expect("48rem media block should exist");
         let block_48 = &LAYOUT_CSS[media_48_start..];
         assert!(
             block_48.contains(
-                "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    display: grid;\n    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);"
+                "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    display: grid;\n    grid-template-columns: 1fr auto;\n    grid-template-areas: \"logo actions\" \"nav nav\";"
             ),
-            "centered grid should switch inside the shared 48rem block, block_48={block_48}"
+            "centered grid should default to the two-row layout inside the shared 48rem block, block_48={block_48}"
+        );
+        assert!(
+            !LAYOUT_CSS.contains(
+                "grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr)"
+            ),
+            "centered root should not reintroduce the overflow-prone minmax(0, 1fr) single-row grid, LAYOUT_CSS={LAYOUT_CSS}"
+        );
+    }
+
+    /// centered 形の `@container` フォールバック（PR #3276 codex(P1) 再指摘
+    /// の是正回帰、イシュー #2856、[`LAYOUT_CSS`] doc「centered 形の
+    /// レイアウト最終設計」節）。`@container blocks-header-flyout-menu
+    /// (min-width: 52rem)` 規則が `1fr auto 1fr` の単一行
+    /// `grid-template-areas: "logo nav actions"` を持ち、かつ `@media
+    /// (min-width: 48rem)` ブロックより**後ろ**（同一セレクタの後勝ちで
+    /// 2 段既定を上書きする配置）にあることを固定する。
+    #[test]
+    fn centered_variant_switches_to_single_row_via_container_query() {
+        let media_48_start = LAYOUT_CSS
+            .find("@media (min-width: 48rem)")
+            .expect("48rem media block should exist");
+        let container_start = LAYOUT_CSS
+            .find("@container blocks-header-flyout-menu (min-width: 52rem)")
+            .expect("container query block should exist");
+        assert!(
+            container_start > media_48_start,
+            "container query block should come after the 48rem media block so it wins on tie-break specificity, LAYOUT_CSS={LAYOUT_CSS}"
+        );
+        let block_container = &LAYOUT_CSS[container_start..];
+        assert!(
+            block_container.contains(
+                "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    grid-template-columns: 1fr auto 1fr;\n    grid-template-areas: \"logo nav actions\";"
+            ),
+            "container query should switch centered root to the single-row 1fr auto 1fr grid, block_container={block_container}"
         );
     }
 
@@ -1021,18 +1027,32 @@ mod tests {
     /// 垂直基準線」節）。同一要素（`.blocks-header-flyout-menu-layout` ＝
     /// `[data-blocks-header-flyout-menu-root]`）へ 48rem 共有ブロック内で
     /// 先に `align-items: flex-start` が宣言されているため、centered
-    /// grid 側で `center` を上書きすると `min-block-size: 24rem` の箱の
+    /// grid 側で `center` を宣言すると `min-block-size: 24rem` の箱の
     /// 中央へ行全体（ひいてはトリガー）が沈み、そこから下方向へ伸びる
     /// フライアウトパネルの残り高さが半減して `.blocks-demo` の
-    /// ブロック軸クリップからはみ出しやすくなる。
+    /// ブロック軸クリップからはみ出しやすくなる。2 段既定は明示的に
+    /// `align-items: start` を宣言する（後段の `[data-blocks-header-
+    /// flyout-menu-actions]`/logo の `justify-self` とは独立した軸）ため、
+    /// `center` という値そのものが centered root へ一切現れないことを
+    /// 固定する。
     #[test]
     fn centered_grid_does_not_recenter_block_axis() {
-        assert!(
-            !LAYOUT_CSS.contains(
-                "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    display: grid;\n    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);\n    align-items: center;"
-            ),
-            "centered grid should inherit align-items: flex-start from .blocks-header-flyout-menu-layout, LAYOUT_CSS={LAYOUT_CSS}"
-        );
+        let root_selector =
+            "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {";
+        let mut search_from = 0;
+        while let Some(offset) = LAYOUT_CSS[search_from..].find(root_selector) {
+            let start = search_from + offset;
+            let end = LAYOUT_CSS[start..]
+                .find("}\n")
+                .map(|rel| start + rel)
+                .unwrap_or(LAYOUT_CSS.len());
+            let rule_body = &LAYOUT_CSS[start..end];
+            assert!(
+                !rule_body.contains("align-items: center"),
+                "centered root rule should not re-center the block axis, rule_body={rule_body}"
+            );
+            search_from = end;
+        }
     }
 
     /// centered 形の 2 列パネルが最大幅を縮小し、トリガー中心基準の
