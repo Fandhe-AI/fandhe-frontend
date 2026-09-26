@@ -286,7 +286,7 @@ fn plan_card(plan: &Plan, emphasis: Emphasis) -> Node {
             .iter()
             .map(|feature| {
                 list::item(
-                    vec![],
+                    vec![("class", "blocks-pricing-tier-cards-feature")],
                     vec![
                         list::indicator(vec![], vec![check_icon()]),
                         styled_text::text(&TextProps::default(), vec![], vec![text(*feature)]),
@@ -514,7 +514,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-pricing-tier-cards-tier-heading {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 0.5rem;\n}\n\
 .blocks-pricing-tier-cards-price {\n  display: flex;\n  align-items: baseline;\n  gap: 0.25rem;\n  font-size: var(--fandhe-font-font-size-2xl, 1.5rem);\n  font-weight: var(--fandhe-font-font-weight-bold);\n  margin-bottom: var(--fandhe-space-4);\n}\n\
 [data-scope=\"list\"][data-part=\"root\"][data-blocks-pricing-tier-cards-features] {\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
-[data-scope=\"list\"][data-part=\"item\"] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
+[data-scope=\"list\"][data-part=\"item\"].blocks-pricing-tier-cards-feature {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-pricing-tier-cards-emphasis=\"featured\"] {\n  border-color: var(--fandhe-color-accent);\n  border-width: 2px;\n  background: var(--fandhe-color-accent-subtle);\n}\n\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-pricing-tier-cards-emphasis=\"inverted\"] {\n  border-color: var(--fandhe-color-fg);\n  background: var(--fandhe-color-fg);\n  color: var(--fandhe-color-bg);\n}\n\
 [data-blocks-pricing-tier-cards-emphasis=\"inverted\"] [data-scope=\"card\"][data-part=\"description\"],\n\
@@ -615,6 +615,20 @@ mod tests {
         assert!(LAYOUT_CSS.contains("repeat(2, minmax(0, 1fr))"));
         assert!(LAYOUT_CSS.contains("background: var(--fandhe-color-fg);"));
         assert!(LAYOUT_CSS.contains("border-radius: 0;"));
+    }
+
+    /// `list::item` の CSS が block 固有クラスで名前空間分離されており、
+    /// 他 block の `list::item` へ波及する裸の
+    /// `[data-scope="list"][data-part="item"]` セレクタを持ち込まないこと
+    /// を固定する（イシュー #2871 PR #3298 レビュー指摘の回帰防止）。
+    #[test]
+    fn list_item_css_is_namespaced() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"list\"][data-part=\"item\"].blocks-pricing-tier-cards-feature"
+        ));
+        assert!(!LAYOUT_CSS.contains("[data-scope=\"list\"][data-part=\"item\"] {"));
+        let html = demo_html();
+        assert!(html.contains("class=\"blocks-pricing-tier-cards-feature\""));
     }
 
     /// ルート class（`demo_class` とは別名）が [`demo`] の出力へ実際に

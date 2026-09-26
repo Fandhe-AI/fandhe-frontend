@@ -243,7 +243,7 @@ fn plan_card(plan: &Plan, emphasis: Emphasis) -> Node {
             .iter()
             .map(|feature| {
                 list::item(
-                    vec![],
+                    vec![("class", "blocks-pricing-tier-cards-feature")],
                     vec![
                         list::indicator(vec![], vec![check_icon()]),
                         styled_text::text(&TextProps::default(), vec![], vec![text(*feature)]),
