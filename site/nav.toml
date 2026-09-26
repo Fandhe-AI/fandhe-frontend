@@ -1624,6 +1624,11 @@ path = "/blocks/content-with-testimonial/"
 title = "Header"
 
 [[section.group.page]]
+title = "header-flyout-menu"
+source = "site/blocks/header-flyout-menu.md"
+path = "/blocks/header-flyout-menu/"
+
+[[section.group.page]]
 title = "header-mega-menu"
 source = "site/blocks/header-mega-menu.md"
 path = "/blocks/header-mega-menu/"
@@ -1635,6 +1640,11 @@ title = "Footer"
 title = "footer-cta-columns"
 source = "site/blocks/footer-cta-columns.md"
 path = "/blocks/footer-cta-columns/"
+
+[[section.group.page]]
+title = "footer-inline-nav"
+source = "site/blocks/footer-inline-nav.md"
+path = "/blocks/footer-inline-nav/"
 
 [[section.group.page]]
 title = "footer-newsletter"
