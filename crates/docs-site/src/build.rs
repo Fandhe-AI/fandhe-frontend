@@ -534,6 +534,7 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
             &layout::asset_href(&nav.site.base_path, &page.path),
             &page.title,
             &index_body,
+            blocks::block_for_path(&page.path).is_some(),
         ));
 
         body_children.push(nav::prev_next_nav(&nav, &page.path));
