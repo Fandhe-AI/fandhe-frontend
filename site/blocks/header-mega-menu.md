@@ -8,8 +8,9 @@ R0984。出典の固有名・ファイル名は記載しません）。
 
 幅を制限したバー（ブランド / ナビ / アクション）の下に、ヘッダー全幅まで
 広がるドロップダウンパネルを持ちます。パネルはアイコン付き項目を複数列に
-並べた構成です。狭い幅ではナビ・アクションを畳み、ハンバーガーボタンへ
-切り替わります（開いた状態の並記は後続の block で追加予定です）。
+並べた構成です。無 JS の静的表示のためハンバーガーへの開閉切り替えは
+持たず、狭い幅ではバー内でナビ・アクションを折り返して常時到達可能な
+まま残します。
 
 本 Demo は静的な表示例であり、唯一のドロップダウン（プロダクト）を常時
 展開（open）した状態で固定します。トリガーを持たないトップ項目（料金・
@@ -19,14 +20,13 @@ R0984。出典の固有名・ファイル名は記載しません）。
 まま送信先を持ちません。文言・ブランド名はすべて独自に書いた架空の
 ものであり、実企業名・実クレデンシャル・PII を含みません。
 
-パネル下部の補助 CTA 帯・狭幅で開いた状態の並記・原案差分メモは
-後続の block で追加予定です。
+パネル下部の補助 CTA 帯・原案差分メモは後続の block で追加予定です。
 
 ## Rust コード
 
 ```rust
 use fandhe_frontend_core::{div, el, span, text, Node};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
+use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
 use fandhe_frontend_pre_styled_ui::icon::{self, IconProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::navigation_menu::{self, NavigationMenuProps, OpenState};
@@ -100,35 +100,6 @@ fn brand_icon() -> Node {
         },
         vec![],
         vec![el("path", vec![("d", "M12 2L22 12L12 22L2 12Z")], vec![])],
-    )
-}
-
-/// ハンバーガーアイコン（装飾用、3 本線）。アクセシブルネームはボタン側の
-/// `aria-label` が担うため `label: None`（`aria-hidden` が付く）。
-fn hamburger_icon() -> Node {
-    icon::icon(
-        &IconProps {
-            label: None,
-            ..IconProps::default()
-        },
-        vec![],
-        vec![
-            el(
-                "rect",
-                vec![("x", "3"), ("y", "6"), ("width", "18"), ("height", "2")],
-                vec![],
-            ),
-            el(
-                "rect",
-                vec![("x", "3"), ("y", "11"), ("width", "18"), ("height", "2")],
-                vec![],
-            ),
-            el(
-                "rect",
-                vec![("x", "3"), ("y", "16"), ("width", "18"), ("height", "2")],
-                vec![],
-            ),
-        ],
     )
 }
 
@@ -258,13 +229,18 @@ fn nav() -> Node {
     )
 }
 
-/// バー右側のアクション（ログインリンク + CTA ボタン）。
+/// バー右側のアクション（ログインリンク + CTA ボタン）。「ログイン」の
+/// 遷移先はサイトのトップページ（レビュー是正: 以前は「ドキュメント」と
+/// 同じ `../../guides/` を指しており、リンク名と行き先が食い違っていた。
+/// 本サイトに実在するログインページはないため、`href` の方針〔モジュール
+/// 冒頭 rustdoc〕が許す実在パスのうち他のどの節（料金・ドキュメント等）
+/// とも重複しない `../../` を採る）。
 fn actions() -> Node {
     div(
         vec![("class", "blocks-header-mega-menu-actions")],
         vec![
             link::root(
-                "../../guides/",
+                "../../",
                 &LinkProps::default(),
                 vec![],
                 vec![text("ログイン")],
@@ -274,28 +250,13 @@ fn actions() -> Node {
     )
 }
 
-/// 狭い幅で表示するハンバーガーボタン（畳んだ状態の静的表示のみ、開いた
-/// 状態の並記は #2859 の担当）。
-fn hamburger() -> Node {
-    button::button(
-        &ButtonProps {
-            variant: ButtonVariant::Ghost,
-            ..ButtonProps::default()
-        },
-        vec![
-            ("data-blocks-header-mega-menu-hamburger", ""),
-            ("aria-label", "メニューを開く"),
-            ("aria-expanded", "false"),
-        ],
-        vec![hamburger_icon()],
-    )
-}
-
-/// 幅を制限したバー（ブランド / ナビ / アクション / ハンバーガー）。
+/// 幅を制限したバー（ブランド / ナビ / アクション）。狭い幅では
+/// ハンバーガーで畳まず、[`LAYOUT_CSS`] の `flex-wrap` でバー内へ折り返す
+/// （モジュール冒頭 rustdoc「レスポンシブ」節）。
 fn bar() -> Node {
     div(
         vec![("class", "blocks-header-mega-menu-bar")],
-        vec![brand(), nav(), actions(), hamburger()],
+        vec![brand(), nav(), actions()],
     )
 }
 

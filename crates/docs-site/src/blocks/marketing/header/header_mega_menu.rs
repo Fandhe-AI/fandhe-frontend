@@ -5,9 +5,8 @@
 //! #2734 の雛形を本 block 追加で卒業させた、`super`（`header/mod.rs`）
 //! 参照）。
 //!
-//! パネル下部の補助 CTA 帯・狭幅で開いた状態の並記・原案差分メモは
-//! 兄弟イシュー #2859（後半）の担当であり、本 block の範囲外
-//! （`.claude/rules/out-of-scope-tracking.md`）。
+//! パネル下部の補助 CTA 帯・原案差分メモは兄弟イシュー #2859（後半）の
+//! 担当であり、本 block の範囲外（`.claude/rules/out-of-scope-tracking.md`）。
 //!
 //! # 使用部品
 //!
@@ -62,11 +61,17 @@
 //! # レスポンシブ（`@media (max-width: 47.99rem)`）
 //!
 //! [`super::super::footer::footer_newsletter`] と同じブレークポイントを
-//! 使う。狭い幅ではナビ・アクション（`.blocks-header-mega-menu-nav`/
-//! `.blocks-header-mega-menu-actions`）を非表示にし、ハンバーガー
-//! （`[data-blocks-header-mega-menu-hamburger]`）を表示する。狭幅で開いた
-//! 状態の並記は #2859 の担当のため、本 block は畳んだハンバーガー
-//! （`aria-expanded="false"`）の静的表示のみを持つ。
+//! 使う。無 JS の静的 Demo では開閉を伴うハンバーガーメニューを実装できない
+//! （`crates/docs-site/src/blocks/marketing/contact/contact_centered_form.rs`
+//! が `:has(:checked)` 等の CSS のみの状態同期を「block 全体の静的合成例
+//! という設計方針に反する」として意図的に採らなかった判断を踏襲する）
+//! ため、狭い幅でもナビ・アクション（`.blocks-header-mega-menu-nav`/
+//! `.blocks-header-mega-menu-actions`）を非表示にせず、`flex-wrap: wrap`
+//! でバー内に折り返して常時到達可能なまま残す（レビュー是正: ハンバーガー
+//! に開閉処理を持たせず内容を隠すと、無 JS では畳んだ内容へ到達する手段が
+//! 一切なくなる。accordion 系 block が受けた「閉じた項目の本文へ到達
+//! できない」指摘と同型の問題であり、ハンバーガーボタン自体を持たない
+//! 構成でこれを避ける）。
 //!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
@@ -84,7 +89,7 @@
 //! # href の方針
 //!
 //! `href="#"` は使わない（横断テストが禁止する）。サイト内に実在する
-//! 索引ページへの相対パス（`../../guides/`・`../../themes/`・
+//! 索引ページへの相対パス（`../../`・`../../guides/`・`../../themes/`・
 //! `../../primitives/`・`../../api/`・`../../examples/`）を使う
 //! （[`super::super::faq::faq_question_rows`] と同型の判断）。
 //!
@@ -113,7 +118,7 @@ use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, el, span, text, Node};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
+use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
 use fandhe_frontend_pre_styled_ui::icon::{self, IconProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::navigation_menu::{self, NavigationMenuProps, OpenState};
@@ -187,35 +192,6 @@ fn brand_icon() -> Node {
         },
         vec![],
         vec![el("path", vec![("d", "M12 2L22 12L12 22L2 12Z")], vec![])],
-    )
-}
-
-/// ハンバーガーアイコン（装飾用、3 本線）。アクセシブルネームはボタン側の
-/// `aria-label` が担うため `label: None`（`aria-hidden` が付く）。
-fn hamburger_icon() -> Node {
-    icon::icon(
-        &IconProps {
-            label: None,
-            ..IconProps::default()
-        },
-        vec![],
-        vec![
-            el(
-                "rect",
-                vec![("x", "3"), ("y", "6"), ("width", "18"), ("height", "2")],
-                vec![],
-            ),
-            el(
-                "rect",
-                vec![("x", "3"), ("y", "11"), ("width", "18"), ("height", "2")],
-                vec![],
-            ),
-            el(
-                "rect",
-                vec![("x", "3"), ("y", "16"), ("width", "18"), ("height", "2")],
-                vec![],
-            ),
-        ],
     )
 }
 
@@ -345,13 +321,18 @@ fn nav() -> Node {
     )
 }
 
-/// バー右側のアクション（ログインリンク + CTA ボタン）。
+/// バー右側のアクション（ログインリンク + CTA ボタン）。「ログイン」の
+/// 遷移先はサイトのトップページ（レビュー是正: 以前は「ドキュメント」と
+/// 同じ `../../guides/` を指しており、リンク名と行き先が食い違っていた。
+/// 本サイトに実在するログインページはないため、`href` の方針〔モジュール
+/// 冒頭 rustdoc〕が許す実在パスのうち他のどの節（料金・ドキュメント等）
+/// とも重複しない `../../` を採る）。
 fn actions() -> Node {
     div(
         vec![("class", "blocks-header-mega-menu-actions")],
         vec![
             link::root(
-                "../../guides/",
+                "../../",
                 &LinkProps::default(),
                 vec![],
                 vec![text("ログイン")],
@@ -361,28 +342,13 @@ fn actions() -> Node {
     )
 }
 
-/// 狭い幅で表示するハンバーガーボタン（畳んだ状態の静的表示のみ、開いた
-/// 状態の並記は #2859 の担当）。
-fn hamburger() -> Node {
-    button::button(
-        &ButtonProps {
-            variant: ButtonVariant::Ghost,
-            ..ButtonProps::default()
-        },
-        vec![
-            ("data-blocks-header-mega-menu-hamburger", ""),
-            ("aria-label", "メニューを開く"),
-            ("aria-expanded", "false"),
-        ],
-        vec![hamburger_icon()],
-    )
-}
-
-/// 幅を制限したバー（ブランド / ナビ / アクション / ハンバーガー）。
+/// 幅を制限したバー（ブランド / ナビ / アクション）。狭い幅では
+/// ハンバーガーで畳まず、[`LAYOUT_CSS`] の `flex-wrap` でバー内へ折り返す
+/// （モジュール冒頭 rustdoc「レスポンシブ」節）。
 fn bar() -> Node {
     div(
         vec![("class", "blocks-header-mega-menu-bar")],
-        vec![brand(), nav(), actions(), hamburger()],
+        vec![brand(), nav(), actions()],
     )
 }
 
@@ -465,13 +431,12 @@ const LAYOUT_CSS: &str = "\
 .blocks-header-mega-menu-panel-inner {\n  max-inline-size: 64rem;\n  margin-inline: auto;\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));\n  gap: var(--fandhe-space-6);\n  padding: var(--fandhe-space-2) var(--fandhe-space-4);\n}\n\
 .blocks-header-mega-menu-panel-column {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-header-mega-menu-panel-column-heading {\n  display: block;\n  font-weight: 600;\n  font-size: var(--fandhe-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n  margin-block-end: var(--fandhe-space-2);\n}\n\
-.blocks-header-mega-menu-panel-link {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
+.blocks-header-mega-menu-panel-link[data-scope=\"navigation-menu\"][data-part=\"link\"] {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-header-mega-menu-panel-link-title {\n  font-weight: 600;\n}\n\
 .blocks-header-mega-menu-panel-link-description {\n  font-size: var(--fandhe-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-header-mega-menu-actions {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  white-space: nowrap;\n}\n\
-[data-scope=\"button\"][data-part=\"root\"][data-blocks-header-mega-menu-hamburger] {\n  display: none;\n}\n\
 .blocks-header-mega-menu-page {\n  min-block-size: 28rem;\n  padding: var(--fandhe-space-6) var(--fandhe-space-4);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-@media (max-width: 47.99rem) {\n  .blocks-header-mega-menu-nav[data-scope=\"navigation-menu\"][data-part=\"root\"] {\n    display: none;\n  }\n  .blocks-header-mega-menu-actions {\n    display: none;\n  }\n  [data-scope=\"button\"][data-part=\"root\"][data-blocks-header-mega-menu-hamburger] {\n    display: inline-flex;\n  }\n}\n";
+@media (max-width: 47.99rem) {\n  .blocks-header-mega-menu-bar {\n    flex-wrap: wrap;\n  }\n  .blocks-header-mega-menu-nav[data-scope=\"navigation-menu\"][data-part=\"root\"] {\n    flex-basis: 100%;\n  }\n  .blocks-header-mega-menu-actions {\n    flex-basis: 100%;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -518,9 +483,6 @@ mod tests {
             1,
             "リンクのみの項目は trigger を持たない: html={html}"
         );
-        // ハンバーガーボタン自身は `aria-expanded="false"` を持つため
-        // （畳んだ状態の静的表示）、ここでは navigation-menu の trigger
-        // パートに限定して aria-expanded="false" が存在しないことを見る。
         assert!(!html.contains(r#"data-part="trigger" aria-expanded="false""#));
         assert!(html.contains(&format!("id=\"{PRODUCTS_TRIGGER_ID}\"")));
         assert!(html.contains(&format!("aria-controls=\"{PRODUCTS_CONTENT_ID}\"")));
@@ -528,12 +490,37 @@ mod tests {
         assert!(html.contains(&format!("aria-labelledby=\"{PRODUCTS_TRIGGER_ID}\"")));
     }
 
-    /// ハンバーガーボタンがアクセシブルネームを持つこと。
+    /// 「ログイン」リンクの遷移先がドキュメント（`../../guides/`）と重複
+    /// しないこと（レビュー是正の固定回帰、モジュール doc「レスポンシブ」
+    /// 節の直前の `actions` doc コメント参照）。
     #[test]
-    fn hamburger_has_accessible_name() {
+    fn login_link_does_not_reuse_docs_href() {
         let html = render(&demo());
-        assert!(html.contains(r#"aria-label="メニューを開く""#));
-        assert!(html.contains("data-blocks-header-mega-menu-hamburger"));
+        assert!(html.contains(r#">ログイン</a>"#) || html.contains(">ログイン<"));
+        assert!(!html.contains(r#"href="../../guides/">ログイン"#));
+    }
+
+    /// 狭い幅でもナビ・アクションを非表示にせず、ハンバーガーの
+    /// `display: none`/`inline-flex` 切り替えを持たないこと（P1 是正:
+    /// 開閉処理のないハンバーガーで内容を隠すと無 JS では到達不能になる）。
+    #[test]
+    fn narrow_layout_keeps_nav_and_actions_reachable() {
+        assert!(!LAYOUT_CSS.contains("hamburger"));
+        assert!(!LAYOUT_CSS.contains(
+            ".blocks-header-mega-menu-nav[data-scope=\"navigation-menu\"][data-part=\"root\"] {\n    display: none;\n  }"
+        ));
+        assert!(!LAYOUT_CSS.contains(".blocks-header-mega-menu-actions {\n    display: none;\n  }"));
+        assert!(LAYOUT_CSS.contains("flex-wrap: wrap;"));
+    }
+
+    /// パネルリンクの見出し + 説明が中央寄せではなく左揃えの列で並ぶこと
+    /// （Bugbot 是正: `navigation_menu::link` recipe の `align-items:
+    /// center` が column 化後も残っていた）。
+    #[test]
+    fn panel_link_overrides_recipe_align_items() {
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-header-mega-menu-panel-link[data-scope=\"navigation-menu\"][data-part=\"link\"] {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;"
+        ));
     }
 
     /// [`LAYOUT_CSS`] が全幅パネル化（`position: static` 上書き・
