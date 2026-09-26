@@ -668,7 +668,24 @@ pub const BLOCK: Block = Block {
 /// レスポンシブ切り替え（nav の `[data-part="root"]`・ハンバーガーの
 /// `[data-part="root"]`）・disabled 中和（ハンバーガー・主 CTA・
 /// フライアウトトリガーの各 `[data-disabled]` state）・フライアウト項目の
-/// アイコン縦位置（`link` の `align-items` base 宣言）の 4 種。
+/// アイコン縦位置（`link` の `align-items` base 宣言）・centered 形の
+/// nav 中央寄せ（次節）の 5 種。
+///
+/// # centered 形のナビ中央寄せ（codex/Bugbot 指摘の是正、イシュー #2856）
+///
+/// 当初は `[data-blocks-header-flyout-menu-root][...variant="centered"]`
+/// へ `justify-content: center` を宣言していたが、これは
+/// `.blocks-header-flyout-menu-layout`（`display: flex`）の**行全体**を
+/// 中央寄せする宣言であり、ロゴ・ナビ・アクション・ハンバーガーの 4 要素
+/// がひとかたまりとして中央へ寄るだけで、ナビ自体の中心はヘッダー中心
+/// からロゴ幅・アクション幅の差分だけずれる（48rem 以上でナビを中央寄せ
+/// する、というモジュール doc の表の記述を満たさない）。是正として、
+/// ルート側は `justify-content` を持たず（`.blocks-header-flyout-menu-layout`
+/// の既定 `space-between` のまま）、nav 要素自身へ `flex: 1;
+/// justify-content: center` を宣言する。ロゴ・アクション+ハンバーガーの
+/// 両端に挟まれた残り空間の中でナビ自身の内容（`list`）が中央寄せされる
+/// （ロゴ幅とアクション+ハンバーガー幅がおおむね対称な本 Demo の構図では
+/// ヘッダー全体の視覚中心に近づく）。
 const LAYOUT_CSS: &str = "\
 .blocks-header-flyout-menu-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-header-flyout-menu-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
@@ -683,6 +700,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-header-flyout-menu-panel] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  inline-size: min(26rem, 80vw);\n}\n\
 [data-blocks-header-flyout-menu-panel][hidden] {\n  display: none;\n}\n\
 [data-blocks-header-flyout-menu-panel][data-blocks-header-flyout-menu-columns=\"2\"] {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-3);\n  inline-size: min(36rem, 90vw);\n}\n\
+[data-blocks-header-flyout-menu-panel][data-blocks-header-flyout-menu-columns] > [data-blocks-header-flyout-menu-panel-footer] {\n  grid-column: 1 / -1;\n}\n\
 [data-blocks-header-flyout-menu-panel-footer] {\n  display: flex;\n  gap: var(--fandhe-space-3);\n  padding-block-start: var(--fandhe-space-2);\n  margin-block-start: var(--fandhe-space-1);\n  border-block-start: 1px solid var(--fandhe-color-border);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
 [data-scope=\"navigation-menu\"][data-part=\"link\"][data-blocks-header-flyout-menu-item] {\n  align-items: flex-start;\n}\n\
 .blocks-header-flyout-menu-item-text {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
@@ -694,7 +712,8 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-header-flyout-menu-actions] {\n    display: flex;\n  }\n  \
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-header-flyout-menu-toggle] {\n    display: none;\n  }\n  \
 .blocks-header-flyout-menu-layout {\n    align-items: flex-start;\n    min-block-size: 24rem;\n  }\n  \
-[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    justify-content: center;\n    gap: var(--fandhe-space-8);\n  }\n\
+[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    gap: var(--fandhe-space-8);\n  }\n  \
+[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-flyout-menu-nav] {\n    flex: 1;\n    display: flex;\n    justify-content: center;\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -872,6 +891,34 @@ mod tests {
         assert!(html.contains(r#"data-blocks-header-flyout-menu-columns="2""#));
         assert!(LAYOUT_CSS.contains(
             "[data-blocks-header-flyout-menu-panel][data-blocks-header-flyout-menu-columns=\"2\"] {\n  display: grid;"
+        ));
+    }
+
+    /// centered 形は行全体ではなく nav 自身が中央寄せされること（codex/
+    /// Bugbot 指摘の是正回帰、[`LAYOUT_CSS`] doc「centered 形のナビ中央
+    /// 寄せ」節）。ルート（`.blocks-header-flyout-menu-layout`）に
+    /// `justify-content: center` を持たせない（既定の `space-between` の
+    /// まま）ことと、nav 要素自身に `flex: 1; justify-content: center` が
+    /// 宣言されることの両方を固定する。
+    #[test]
+    fn centered_variant_centers_nav_itself_not_the_whole_row() {
+        assert!(
+            !LAYOUT_CSS.contains(
+                "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] {\n    justify-content: center;"
+            ),
+            "root should not re-center the whole flex row, LAYOUT_CSS={LAYOUT_CSS}"
+        );
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-header-flyout-menu-root][data-blocks-header-flyout-menu-variant=\"centered\"] [data-scope=\"navigation-menu\"][data-part=\"root\"][data-blocks-header-flyout-menu-nav] {\n    flex: 1;\n    display: flex;\n    justify-content: center;\n  }"
+        ));
+    }
+
+    /// centered 形の 2 列グリッドで `panel_footer` が両列にまたがること
+    /// （codex/Bugbot 指摘の是正回帰）。
+    #[test]
+    fn centered_panel_footer_spans_both_grid_columns() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-header-flyout-menu-panel][data-blocks-header-flyout-menu-columns] > [data-blocks-header-flyout-menu-panel-footer] {\n  grid-column: 1 / -1;\n}"
         ));
     }
 

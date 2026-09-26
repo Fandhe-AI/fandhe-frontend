@@ -931,3 +931,25 @@ Marketing・カテゴリ Content の最初の block〕を追加）の PR を、�
 引き下げ済みだった。本イシューの変更を base 取り込み後に再計測しても
 `MAX_INDEX_BYTES`（`1_703_936`）超過は生じず、`MAX_PAGE_TEXT_BYTES`・
 `MAX_INDEX_BYTES` いずれも追加の変更は不要だった。
+
+### 10-12 イシュー #2856（`header-flyout-menu`）PR #3276 で再度ハードルールに抵触し、`MAX_PAGE_TEXT_BYTES` を再引き下げて対処
+
+イシュー #2856（Blocks に `header-flyout-menu` block を追加）の PR #3276 の
+CI で `cargo test -p fandhe-frontend-docs-site` が
+`SearchIndex(TooLarge { bytes: 1705161, limit: 1703936 })`（超過量
+1,225 バイト）で FAIL した。#2849（§10-10）以来 2 度目の実際の超過である。
+
+#### 決定
+
+- **`MAX_INDEX_BYTES`（1.625 MiB = `1_703_936`）は変更しない**（§10-6 の
+  ハードルールを遵守）。
+- 代わりに `MAX_PAGE_TEXT_BYTES` を `4_032` → `4_000`（−32 バイト）へ
+  引き下げた。§10-10 実測時点で 257 ページが per-page 上限で切り詰め
+  られていたことから、−32 バイト/ページでも必要な 1,225 バイトを十分に
+  上回る縮小が見込め、引き下げ後は `cargo test -p fandhe-frontend-docs-site`
+  （`search_index.rs`・`blocks_contract.rs` を含む）が全件 PASS することを
+  実測確認した。
+- 本引き下げも §10-10 と同じ位置づけ（恒久対処ではない緊急避難）であり、
+  次回 `TooLarge` 再発時に本定数の再引き下げを機械的に繰り返さない方針は
+  §10-10 の記述のとおり不変。恒久対処（セクション粒度インデックスへの
+  分割、追跡: イシュー #3173）の優先度を上げることを重ねて推奨する。
