@@ -70,7 +70,12 @@
 //! #3224）。このため基底ルールは `[data-blocks-cta-centered-tone]:not(
 //! [data-scope="card"])` として [`card::root`]（`data-scope="card"` を
 //! 持つ）を対象から除外する（内側 section は `data-scope` を持たない素の
-//! `div` のため引き続き基底ルールの対象のまま）。
+//! `div` のため引き続き基底ルールの対象のまま）。この除外により基底
+//! ルールの詳細度が (0,1,0) から (0,2,0) へ上がったため、`plain` tone の
+//! `padding: 0` 上書きセレクタも同じ `:not([data-scope="card"])` を付与
+//! して詳細度を揃える（`[data-blocks-cta-centered-tone="plain"]`単体の
+//! (0,1,0) のままでは基底ルールの `padding` に負けて上書きされない、
+//! PR #3259 codex/Bugbot レビュー指摘）。
 //!
 //! # `drop_class_attr` と CSS フックの選び方
 //!
@@ -391,7 +396,7 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-cta-centered-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 [data-blocks-cta-centered-tone]:not([data-scope=\"card\"]) {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  text-align: center;\n  gap: var(--fandhe-space-4);\n  max-inline-size: 40rem;\n  margin-inline: auto;\n  padding: var(--fandhe-space-8);\n  border-radius: var(--fandhe-radius-lg);\n}\n\
-[data-blocks-cta-centered-tone=\"plain\"] {\n  padding: 0;\n}\n\
+[data-blocks-cta-centered-tone=\"plain\"]:not([data-scope=\"card\"]) {\n  padding: 0;\n}\n\
 [data-blocks-cta-centered-tone=\"badge\"] {\n  background: var(--fandhe-color-bg-subtle);\n}\n\
 [data-blocks-cta-centered-tone=\"accent\"] {\n  background: var(--fandhe-color-accent);\n  color: var(--fandhe-color-accent-fg);\n}\n\
 [data-blocks-cta-centered-tone=\"dark\"] {\n  position: relative;\n  overflow: hidden;\n  background: var(--fandhe-color-fg);\n  color: var(--fandhe-color-bg);\n}\n\
@@ -492,5 +497,18 @@ mod tests {
     #[test]
     fn base_tone_rule_excludes_card_root() {
         assert!(LAYOUT_CSS.contains(r#"[data-blocks-cta-centered-tone]:not([data-scope="card"])"#));
+    }
+
+    /// `plain` tone の `padding: 0` 上書きセレクタが基底ルール
+    /// `[data-blocks-cta-centered-tone]:not([data-scope="card"])`（詳細度
+    /// (0,2,0)）と同じ詳細度を持つことを固定する（codex/Bugbot レビュー
+    /// 指摘、PR #3259）。`[data-blocks-cta-centered-tone="plain"]` 単体
+    /// （詳細度 (0,1,0)）のままでは基底ルールの `padding:
+    /// var(--fandhe-space-8)` に負け、背景なしの plain インスタンスへ
+    /// 余白が残ってしまう。
+    #[test]
+    fn plain_tone_padding_override_matches_base_specificity() {
+        assert!(LAYOUT_CSS
+            .contains(r#"[data-blocks-cta-centered-tone="plain"]:not([data-scope="card"])"#));
     }
 }
