@@ -352,14 +352,22 @@ fn plan_card(plan: &Plan, emphasis: Emphasis) -> Node {
             ),
             card::footer(
                 vec![],
-                vec![button::button(
-                    &ButtonProps {
-                        variant: cta_variant,
-                        ..ButtonProps::default()
-                    },
-                    vec![],
-                    vec![text(plan.cta)],
-                )],
+                vec![{
+                    // 「Get started」「Contact sales」等の CTA 文言はプラン間で
+                    // 重複するため、支援技術がどのプランの CTA か識別できるよう
+                    // アクセシブルな名前にプラン名を含める（Codex レビュー指摘、
+                    // イシュー #2871）。可視ラベルは `plan.cta` のまま据え置き、
+                    // `aria-label` のみでプラン名を補う。
+                    let aria_label = format!("{}（{}）", plan.cta, plan.name);
+                    button::button(
+                        &ButtonProps {
+                            variant: cta_variant,
+                            ..ButtonProps::default()
+                        },
+                        vec![("aria-label", aria_label.as_str())],
+                        vec![text(plan.cta)],
+                    )
+                }],
             ),
         ],
     )
