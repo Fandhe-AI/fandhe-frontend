@@ -277,12 +277,12 @@ const LAYOUT_CSS: &str = "\
 .blocks-stats-split-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-12);\n}\n\
 [data-blocks-stats-split-row] {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-stats-split-left {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  max-width: 28rem;\n}\n\
-.blocks-stats-split-grid {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-6);\n}\n\
+.blocks-stats-split-grid {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-6);\n}\n\
 [data-blocks-stats-split-stat-bottom] {\n  border-bottom: 1px solid var(--fandhe-color-border);\n  padding-block-end: var(--fandhe-space-4);\n}\n\
 .blocks-stats-split-intro {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-stats-split-grid-intro {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-6);\n  margin-top: var(--fandhe-space-6);\n}\n\
 [data-blocks-stats-split-stat-left] {\n  border-inline-start: 2px solid var(--fandhe-color-border);\n  padding-inline-start: var(--fandhe-space-4);\n}\n\
-@media (min-width: 40rem) {\n  .blocks-stats-split-grid-intro {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n}\n\
+@media (min-width: 40rem) {\n  .blocks-stats-split-grid {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n  .blocks-stats-split-grid-intro {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n}\n\
 @media (min-width: 48rem) {\n  [data-blocks-stats-split-row] {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);\n    align-items: start;\n  }\n  .blocks-stats-split-intro {\n    flex-direction: row;\n    justify-content: space-between;\n    align-items: flex-end;\n    gap: var(--fandhe-space-6);\n  }\n  .blocks-stats-split-grid-intro {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n}\n";
 
 #[cfg(test)]
