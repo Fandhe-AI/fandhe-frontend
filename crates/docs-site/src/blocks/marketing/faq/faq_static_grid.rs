@@ -46,7 +46,7 @@
 //! `crate::blocks` モジュール doc「`<form>` を使わない」節・「セキュリティ
 //! 不変条件」節に従い、本 Demo はフォーム・状態機械を持たない静的な合成例
 //! である。文言はすべて独自に書いた架空のもの（実企業名・実クレデンシャル・
-//! PII を含まない）。末尾の問い合わせボタン 2 個は `button::button` の
+//! PII を含まない）。末尾の問合せボタン 2 個は `button::button` の
 //! 既定 `type="button"` のまま送信先を持たない。
 //!
 //! # 見出しレベル
@@ -76,9 +76,10 @@ use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
 
 /// Q&A。
-const FAQS: [(&str, &str); 2] = [
-    ("招待上限は", "プラン次第。"),
-    ("無料期間は", "14日間無料。"),
+const FAQS: [(&str, &str); 3] = [
+    ("招待上限は", "プラン次第"),
+    ("無料期間は", "14日間無料"),
+    ("解約方法は", "いつでも。"),
 ];
 
 /// 導入部。
@@ -153,7 +154,7 @@ fn contact() -> Node {
     div(
         vec![("class", "blocks-faq-static-grid-actions")],
         vec![
-            button::button(&ButtonProps::default(), vec![], vec![text("問い合わせ")]),
+            button::button(&ButtonProps::default(), vec![], vec![text("問合せ")]),
             button::button(
                 &ButtonProps {
                     variant: ButtonVariant::Outline,

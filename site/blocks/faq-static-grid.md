@@ -1,6 +1,6 @@
 # faq-static-grid
 
-開閉 UI を持たない常時表示の FAQ グリッド。文言は架空です。
+常時表示の FAQ グリッド。文言は架空です。
 
 ## Rust コード
 
@@ -14,9 +14,10 @@ use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
 
 /// Q&A。
-const FAQS: [(&str, &str); 2] = [
-    ("招待上限は", "プラン次第。"),
-    ("無料期間は", "14日間無料。"),
+const FAQS: [(&str, &str); 3] = [
+    ("招待上限は", "プラン次第"),
+    ("無料期間は", "14日間無料"),
+    ("解約方法は", "いつでも。"),
 ];
 
 /// 導入部。
@@ -91,7 +92,7 @@ fn contact() -> Node {
     div(
         vec![("class", "blocks-faq-static-grid-actions")],
         vec![
-            button::button(&ButtonProps::default(), vec![], vec![text("問い合わせ")]),
+            button::button(&ButtonProps::default(), vec![], vec![text("問合せ")]),
             button::button(
                 &ButtonProps {
                     variant: ButtonVariant::Outline,
