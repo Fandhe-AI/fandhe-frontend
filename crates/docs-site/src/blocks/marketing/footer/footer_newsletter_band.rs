@@ -86,8 +86,22 @@ fn link(label: &'static str) -> Node {
     link::root(REPO, &LinkProps::default(), vec![], vec![text(label)])
 }
 
+/// リンク列 1 本（見出しテキスト + リンク一覧、見出し要素は使わない）。
+fn link_column(heading: &'static str, labels: &[&'static str]) -> Node {
+    let mut children = vec![text(heading)];
+    children.extend(labels.iter().copied().map(link));
+    div(vec![("class", "fnb-col")], children)
+}
+
+/// リンク列グリッド（A・B が並べる 2 列）。
 fn top() -> Node {
-    div(vec![("class", "fnb-t")], vec![link("製品")])
+    div(
+        vec![("class", "fnb-t")],
+        vec![
+            link_column("製品", &["ガイド", "API"]),
+            link_column("コミュニティ", &["GitHub"]),
+        ],
+    )
 }
 
 fn band(id: &'static str) -> Node {
@@ -191,14 +205,15 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .fnb-l {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .fnb-l > footer {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  padding: var(--fandhe-space-6);\n  background: var(--fandhe-color-bg-subtle);\n  border-radius: var(--fandhe-radius-lg);\n}\n\
-.fnb-t {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-6);\n}\n\
+.fnb-t {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-6);\n}\n\
+.fnb-col {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 .fnb-c {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-6);\n}\n\
 [data-fnb-band] {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  gap: var(--fandhe-space-6);\n  padding: var(--fandhe-space-4) var(--fandhe-space-6);\n  border-top: 1px solid var(--fandhe-color-border);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 [data-fnb-band] > div {\n  display: flex;\n  align-items: flex-end;\n  gap: var(--fandhe-space-2);\n  flex: 0 1 24rem;\n}\n\
 @media (max-width: 47.99rem) {\n  \
 [data-fnb-band] {\n    flex-direction: column;\n    align-items: stretch;\n  }\n\
   [data-fnb-band] > div {\n    flex-basis: auto;\n  }\n\
-  .fnb-t {\n    flex-direction: column;\n    align-items: flex-start;\n  }\n\
+  .fnb-t {\n    grid-template-columns: 1fr;\n  }\n\
   .fnb-c {\n    flex-direction: column;\n    align-items: stretch;\n  }\n\
 }\n";
 

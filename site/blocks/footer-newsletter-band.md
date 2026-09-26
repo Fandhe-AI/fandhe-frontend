@@ -18,8 +18,22 @@ fn link(label: &'static str) -> Node {
     link::root(REPO, &LinkProps::default(), vec![], vec![text(label)])
 }
 
+/// リンク列 1 本（見出しテキスト + リンク一覧、見出し要素は使わない）。
+fn link_column(heading: &'static str, labels: &[&'static str]) -> Node {
+    let mut children = vec![text(heading)];
+    children.extend(labels.iter().copied().map(link));
+    div(vec![("class", "fnb-col")], children)
+}
+
+/// リンク列グリッド（A・B が並べる 2 列）。
 fn top() -> Node {
-    div(vec![("class", "fnb-t")], vec![link("製品")])
+    div(
+        vec![("class", "fnb-t")],
+        vec![
+            link_column("製品", &["ガイド", "API"]),
+            link_column("コミュニティ", &["GitHub"]),
+        ],
+    )
 }
 
 fn band(id: &'static str) -> Node {
