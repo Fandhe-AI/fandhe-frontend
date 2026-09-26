@@ -933,7 +933,7 @@ pub enum LayoutCss {
 | footer-newsletter-band | #2852 | `marketing/footer/footer_newsletter_band.rs` |
 | header-floating-pill | #2853 | `marketing/header/header_floating_pill.rs` |
 | footer-cta-columns | #2849 | `marketing/footer/footer_cta_columns.rs` |
-| header-flyout-menu | #2855（親 #2854） | `marketing/header/header_flyout_menu.rs` |
+| header-flyout-menu | #2855 / #2856（親 #2854） | `marketing/header/header_flyout_menu.rs` |
 | pricing-comparison-table | #2862/#2863（親 #2861） | `marketing/pricing/pricing_comparison_table.rs` |
 | pricing-seats-split | #2865/#2866（親 #2864） | `marketing/pricing/pricing_seats_split.rs` |
 | faq-accordion-centered | #2843 | `marketing/faq/faq_accordion_centered.rs` |
@@ -943,9 +943,10 @@ pub enum LayoutCss {
 | footer-inline-nav | #2850 | `marketing/footer/footer_inline_nav.rs` |
 | footer-link-columns | #2851 | `marketing/footer/footer_link_columns.rs` |
 | pricing-slider-tiers | #2868/#2869/#2870 | `marketing/pricing/pricing_slider_tiers.rs` |
+| header-mega-menu | #2858（親 #2857） | `marketing/header/header_mega_menu.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-126 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+127 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
