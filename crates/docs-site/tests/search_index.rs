@@ -703,7 +703,7 @@ path = "/"
 #[test]
 fn page_text_is_truncated_at_a_valid_utf8_char_boundary_within_the_byte_limit() {
     // マルチバイト（日本語 + 絵文字）を大量に繰り返し、
-    // MAX_PAGE_TEXT_BYTES（4096 バイト）を確実に超えさせる。
+    // MAX_PAGE_TEXT_BYTES を確実に超えさせる。
     let unit = "あいう😀";
     let repeat_count = (search_index::MAX_PAGE_TEXT_BYTES / unit.len()) + 100;
     let long_text = unit.repeat(repeat_count);
@@ -722,7 +722,7 @@ fn page_text_is_truncated_at_a_valid_utf8_char_boundary_within_the_byte_limit() 
 
     assert!(std::str::from_utf8(text.as_bytes()).is_ok());
     assert!(text.len() <= search_index::MAX_PAGE_TEXT_BYTES);
-    // 4096 直下の文字境界で切れている: もう 1 文字（"あ"、3 バイト）足すと
+    // 上限直下の文字境界で切れている: もう 1 文字（"あ"、3 バイト）足すと
     // 上限を超える位置まで詰まっている想定。安全側の下限としては、
     // 切り詰め後のテキストが十分に上限へ近いことのみを確認する
     // （空白正規化により厳密な「1 文字足せば超過」の判定は本文構成に
@@ -750,9 +750,9 @@ fn check_size_returns_too_large_when_json_exceeds_the_byte_limit() {
     }
 }
 
-/// 単一ページに大量の見出しを持たせ、`MAX_INDEX_BYTES`（1 MiB）超過を
-/// 起こす合成フィクスチャ。見出しは per-page 上限（4096 バイト、テキスト
-/// のみに適用）の対象外（設計文書 §3-3）であるため、320 ページ生成より
+/// 単一ページに大量の見出しを持たせ、`MAX_INDEX_BYTES` 超過を
+/// 起こす合成フィクスチャ。見出しは per-page 上限（`MAX_PAGE_TEXT_BYTES`、
+/// テキストのみに適用）の対象外（設計文書 §3-3）であるため、320 ページ生成より
 /// 圧倒的に安価に総量超過を作れる。
 fn write_oversized_fixture(root: &Path, heading_count: usize) {
     std::fs::create_dir_all(root.join("site")).unwrap();
