@@ -179,15 +179,29 @@ fn caption(label: &str) -> Node {
     )
 }
 
-/// 1 本のバー（DOM 順は常に ロゴ・ナビ・アクション・ハンバーガー固定。
-/// 見た目の配置差は [`LAYOUT_CSS`] の `data-blocks-header-simple-bar-variant`
-/// セレクタが担う）。デスクトップ用ナビ・アクションは専用ラッパー div
-/// （`-nav-wrap`/`-actions-wrap`）で包み、狭い幅では [`mobile_panel`]（同じ
-/// ノードの clone）へ表示を譲る。
+/// 1 本のバー（DOM 順は variant ごとに視覚順と一致させる。`logo-center`
+/// のみナビ・ロゴ・アクションの順、他 3 variant はロゴ・ナビ・アクション
+/// の順。見た目の配置差は [`LAYOUT_CSS`] の
+/// `data-blocks-header-simple-bar-variant` セレクタが担う）。デスクトップ
+/// 用ナビ・アクションは専用ラッパー div（`-nav-wrap`/`-actions-wrap`）で
+/// 包み、狭い幅では [`mobile_panel`]（同じノードの clone）へ表示を譲る。
 fn bar(variant: &str, aria_label: &str, with_login: bool, with_signup: bool) -> Node {
     let panel_id = format!("hsb-panel-{variant}");
     let nav_node = nav(aria_label);
     let actions_node = actions(with_login, with_signup);
+    let nav_wrap = div(
+        vec![("data-blocks-header-simple-bar-nav-wrap", "")],
+        vec![nav_node.clone()],
+    );
+    let actions_wrap = div(
+        vec![("data-blocks-header-simple-bar-actions-wrap", "")],
+        vec![actions_node.clone()],
+    );
+    let main_children = if variant == "logo-center" {
+        vec![nav_wrap, logo(), actions_wrap, hamburger(&panel_id)]
+    } else {
+        vec![logo(), nav_wrap, actions_wrap, hamburger(&panel_id)]
+    };
     div(
         vec![("data-blocks-header-simple-bar-block", "")],
         vec![
@@ -197,18 +211,7 @@ fn bar(variant: &str, aria_label: &str, with_login: bool, with_signup: bool) -> 
                     ("data-blocks-header-simple-bar-root", ""),
                     ("data-blocks-header-simple-bar-variant", variant),
                 ],
-                vec![
-                    logo(),
-                    div(
-                        vec![("data-blocks-header-simple-bar-nav-wrap", "")],
-                        vec![nav_node.clone()],
-                    ),
-                    div(
-                        vec![("data-blocks-header-simple-bar-actions-wrap", "")],
-                        vec![actions_node.clone()],
-                    ),
-                    hamburger(&panel_id),
-                ],
+                main_children,
             ),
             mobile_panel(&panel_id, nav_node, actions_node),
         ],

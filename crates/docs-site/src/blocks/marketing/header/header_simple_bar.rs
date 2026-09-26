@@ -17,15 +17,19 @@
 //! # 4 variant の並記
 //!
 //! ナビ・アクションの配置だけが異なる 4 variant を 1 ページに縦に並べる
-//! （`header_flyout_menu` の「3 形の並記」と同型）。DOM 順は固定し、CSS の
-//! grid 配置・`order` だけで見た目の配置を変える。
+//! （`header_flyout_menu` の「3 形の並記」と同型）。`logo-center` 以外は
+//! DOM 順（ロゴ・ナビ・アクション）と視覚順が一致するため CSS の grid
+//! 配置のみで見た目を変えるが、`logo-center` は視覚上ナビが左・ロゴが
+//! 中央に来るため、[`bar`] が DOM 順自体をナビ・ロゴ・アクションへ
+//! 並べ替える（`order` によるキーボード操作順と視覚順の食い違いを避ける、
+//! イシュー #2860 PR #3297 codex-review P1 指摘の是正）。
 //!
 //! | variant | 配置 | アクション | 幅・装飾 |
 //! |---|---|---|---|
 //! | center | ロゴ左、ナビ中央 | ログイン + 登録 | 幅制限（中央寄せ） |
 //! | start | ロゴ + ナビ左、アクション右 | ログイン + 登録 | 全幅、下境界線 |
 //! | end | ロゴ左、ナビ + アクション右 | 登録のみ | — |
-//! | logo-center | ナビ左、ロゴ中央、アクション右 | ログインのみ | 3 列 grid |
+//! | logo-center | ナビ左、ロゴ中央、アクション右 | ログインのみ | 3 列 grid、DOM 順もこの並び |
 //!
 //! # 静的表示（無 JS、disabled 固定）
 //!
@@ -232,15 +236,29 @@ fn caption(label: &str) -> Node {
     )
 }
 
-/// 1 本のバー（DOM 順は常に ロゴ・ナビ・アクション・ハンバーガー固定。
-/// 見た目の配置差は [`LAYOUT_CSS`] の `data-blocks-header-simple-bar-variant`
-/// セレクタが担う）。デスクトップ用ナビ・アクションは専用ラッパー div
-/// （`-nav-wrap`/`-actions-wrap`）で包み、狭い幅では [`mobile_panel`]（同じ
-/// ノードの clone）へ表示を譲る。
+/// 1 本のバー（DOM 順は variant ごとに視覚順と一致させる。`logo-center`
+/// のみナビ・ロゴ・アクションの順、他 3 variant はロゴ・ナビ・アクション
+/// の順。見た目の配置差は [`LAYOUT_CSS`] の
+/// `data-blocks-header-simple-bar-variant` セレクタが担う）。デスクトップ
+/// 用ナビ・アクションは専用ラッパー div（`-nav-wrap`/`-actions-wrap`）で
+/// 包み、狭い幅では [`mobile_panel`]（同じノードの clone）へ表示を譲る。
 fn bar(variant: &str, aria_label: &str, with_login: bool, with_signup: bool) -> Node {
     let panel_id = format!("hsb-panel-{variant}");
     let nav_node = nav(aria_label);
     let actions_node = actions(with_login, with_signup);
+    let nav_wrap = div(
+        vec![("data-blocks-header-simple-bar-nav-wrap", "")],
+        vec![nav_node.clone()],
+    );
+    let actions_wrap = div(
+        vec![("data-blocks-header-simple-bar-actions-wrap", "")],
+        vec![actions_node.clone()],
+    );
+    let main_children = if variant == "logo-center" {
+        vec![nav_wrap, logo(), actions_wrap, hamburger(&panel_id)]
+    } else {
+        vec![logo(), nav_wrap, actions_wrap, hamburger(&panel_id)]
+    };
     div(
         vec![("data-blocks-header-simple-bar-block", "")],
         vec![
@@ -250,18 +268,7 @@ fn bar(variant: &str, aria_label: &str, with_login: bool, with_signup: bool) -> 
                     ("data-blocks-header-simple-bar-root", ""),
                     ("data-blocks-header-simple-bar-variant", variant),
                 ],
-                vec![
-                    logo(),
-                    div(
-                        vec![("data-blocks-header-simple-bar-nav-wrap", "")],
-                        vec![nav_node.clone()],
-                    ),
-                    div(
-                        vec![("data-blocks-header-simple-bar-actions-wrap", "")],
-                        vec![actions_node.clone()],
-                    ),
-                    hamburger(&panel_id),
-                ],
+                main_children,
             ),
             mobile_panel(&panel_id, nav_node, actions_node),
         ],
@@ -350,11 +357,11 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"start\"] [data-blocks-header-simple-bar-nav-wrap] {\n    margin-inline-end: auto;\n  }\n  \
 [data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"end\"] [data-blocks-header-simple-bar-nav-wrap] {\n    margin-inline-start: auto;\n  }\n  \
 [data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"center\"] {\n    max-inline-size: 64rem;\n    margin-inline: auto;\n    display: grid;\n    grid-template-columns: 1fr auto 1fr;\n    align-items: center;\n  }\n  \
+[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"center\"] [data-blocks-header-simple-bar-logo] {\n    justify-self: start;\n  }\n  \
 [data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"center\"] [data-blocks-header-simple-bar-actions-wrap] {\n    justify-self: end;\n  }\n  \
 [data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"logo-center\"] {\n    display: grid;\n    grid-template-columns: 1fr auto 1fr;\n    align-items: center;\n  }\n  \
-[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"logo-center\"] [data-blocks-header-simple-bar-logo] {\n    justify-self: center;\n    order: 2;\n  }\n  \
-[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"logo-center\"] [data-blocks-header-simple-bar-nav-wrap] {\n    justify-self: start;\n    order: 1;\n  }\n  \
-[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"logo-center\"] [data-blocks-header-simple-bar-actions-wrap] {\n    justify-self: end;\n    order: 3;\n  }\n\
+[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"logo-center\"] [data-blocks-header-simple-bar-logo] {\n    justify-self: center;\n  }\n  \
+[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"logo-center\"] [data-blocks-header-simple-bar-actions-wrap] {\n    justify-self: end;\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -489,6 +496,53 @@ mod tests {
         assert!(!LAYOUT_CSS.contains("text-align: center"));
         assert!(!LAYOUT_CSS.contains(
             "[data-blocks-header-simple-bar-variant=\"center\"] [data-blocks-header-simple-bar-nav-wrap] {\n    flex: 1;\n  }"
+        ));
+    }
+
+    /// `logo-center` variant の DOM 順がナビ・ロゴ・アクションであり、
+    /// 視覚順（CSS grid 列順）と一致すること。CSS `order` でのみ視覚順を
+    /// 変える旧実装は、キーボード操作の Tab 順（DOM 順）と視覚順が食い違う
+    /// （イシュー #2860 PR #3297 codex-review P1 指摘の是正）。他 3 variant
+    /// は従来どおりロゴ・ナビ・アクションの DOM 順を維持する。
+    #[test]
+    fn logo_center_dom_order_matches_visual_order() {
+        let html = render(&demo());
+        let nav_pos = html
+            .find("aria-label=\"メイン（ロゴ中央）\"")
+            .expect("logo-center nav should render");
+        let logo_pos = html[nav_pos..]
+            .find("data-blocks-header-simple-bar-logo")
+            .map(|rel| nav_pos + rel)
+            .expect("logo should follow nav in DOM for logo-center variant");
+        let actions_pos = html[logo_pos..]
+            .find("data-blocks-header-simple-bar-actions-wrap")
+            .map(|rel| logo_pos + rel)
+            .expect("actions should follow logo in DOM for logo-center variant");
+        assert!(nav_pos < logo_pos && logo_pos < actions_pos);
+
+        // 他 variant（例: center）はロゴが先に出る従来順のまま。
+        let center_marker = html
+            .find("data-blocks-header-simple-bar-variant=\"center\"")
+            .expect("center variant should render");
+        let center_logo_pos = html[center_marker..]
+            .find("data-blocks-header-simple-bar-logo")
+            .map(|rel| center_marker + rel)
+            .expect("logo should render for center variant");
+        let center_nav_pos = html[center_marker..]
+            .find("data-blocks-header-simple-bar-nav-wrap")
+            .map(|rel| center_marker + rel)
+            .expect("nav-wrap should render for center variant");
+        assert!(center_logo_pos < center_nav_pos);
+    }
+
+    /// center variant のロゴが grid の 1fr 列いっぱいに `stretch` せず、
+    /// コンテンツ幅にとどまること（`justify-self: stretch` の既定のまま
+    /// だと `link` がロゴ〜ナビ間の余白まで覆いクリックターゲットが不当に
+    /// 広がる、イシュー #2860 PR #3297 cursor[bot] 指摘の是正）。
+    #[test]
+    fn center_variant_logo_does_not_stretch_click_target() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-header-simple-bar-root][data-blocks-header-simple-bar-variant=\"center\"] [data-blocks-header-simple-bar-logo] {\n    justify-self: start;\n  }"
         ));
     }
 
