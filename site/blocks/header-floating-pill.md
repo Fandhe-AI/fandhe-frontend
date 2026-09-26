@@ -63,20 +63,20 @@ pub fn demo() -> Node {
     let mobile = div(
         vec![("class", "hfp-mobile")],
         vec![collapsible::root(
-            OpenState::Closed,
-            false,
+            OpenState::Open,
+            true,
             vec![],
             vec![
                 collapsible::trigger(
-                    OpenState::Closed,
-                    false,
+                    OpenState::Open,
+                    true,
                     Some(PANEL_ID),
                     vec![("aria-label", "メニュー")],
                     vec![mark],
                 ),
                 collapsible::content(
-                    OpenState::Closed,
-                    false,
+                    OpenState::Open,
+                    true,
                     Some(PANEL_ID),
                     vec![],
                     vec![nav.clone(), cta.clone()],

@@ -14,12 +14,17 @@
 //! `navigation-menu` / `button` / `icon` / `collapsible` の 4 部品を合成
 //! する（[`BLOCK`] の `parts` に一致させる契約）。
 //!
-//! # 狭幅ではナビを隠しハンバーガーへ切り替える（無 JS、閉状態固定）
+//! # 狭幅ではナビを隠しハンバーガーへ切り替える（無 JS、`OpenState::Open` +
+//! `disabled: true` で固定）
 //!
-//! 無 JS の docs サイトでは開閉の実動作を持たないため、モバイルパネルは
-//! `collapsible::root` を [`OpenState::Closed`] 固定で描画し、`content` は
-//! headless 層の契約どおり `hidden` 属性を出力する（[`super::super::footer::
-//! footer_sticky_reveal`] と同じ「静的表示」判断）。`@media` によるナビ/
+//! 無 JS の docs サイトでは開閉の実動作を持たないため、`collapsible::root`
+//! は [`OpenState::Open`] + `disabled: true` で固定描画する（`faq_accordion_
+//! centered`/`changelog_accordion`/`careers_split_accordion` 等の accordion
+//! 系 block と同じ「開状態固定 + disabled でトリガーを無効化」判断）。
+//! `OpenState::Closed` 固定だと headless 層の契約どおり `content` へ
+//! `hidden` 存在属性が付き、狭幅でナビ/CTA へ一切到達できなくなるため
+//! （イシュー #2853 PR #3272 codex-review P1 指摘）、`Open` 固定へ変更して
+//! ハンバーガー内のナビ・CTA を常時到達可能にする。`@media` によるナビ/
 //! CTA 非表示・ハンバーガー表示の切り替えは [`LAYOUT_CSS`] が担う。
 //!
 //! # トリガーと content の id 対応
@@ -115,20 +120,20 @@ pub fn demo() -> Node {
     let mobile = div(
         vec![("class", "hfp-mobile")],
         vec![collapsible::root(
-            OpenState::Closed,
-            false,
+            OpenState::Open,
+            true,
             vec![],
             vec![
                 collapsible::trigger(
-                    OpenState::Closed,
-                    false,
+                    OpenState::Open,
+                    true,
                     Some(PANEL_ID),
                     vec![("aria-label", "メニュー")],
                     vec![mark],
                 ),
                 collapsible::content(
-                    OpenState::Closed,
-                    false,
+                    OpenState::Open,
+                    true,
                     Some(PANEL_ID),
                     vec![],
                     vec![nav.clone(), cta.clone()],
@@ -217,16 +222,20 @@ mod tests {
         assert!(!html.contains("src=\"data:"));
     }
 
-    /// モバイルパネルが閉状態固定で `hidden` により非表示であること。
+    /// モバイルパネルが開状態固定・disabled でナビ/CTA へ到達可能であり
+    /// `hidden` を持たないこと（イシュー #2853 PR #3272 codex-review P1
+    /// 指摘の回帰：狭幅でリンク/CTA に到達できない不具合の再発防止）。
     #[test]
-    fn mobile_panel_is_closed_and_hidden() {
+    fn mobile_panel_is_open_disabled_and_reachable() {
         let html = render(&demo());
         assert!(html.contains(&format!(r#"id="{PANEL_ID}""#)));
         assert_eq!(html.matches(&format!(r#"id="{PANEL_ID}""#)).count(), 1);
         assert!(html.contains(&format!(r#"aria-controls="{PANEL_ID}""#)));
-        assert!(html.contains(r#"aria-expanded="false""#));
-        assert!(html.contains("data-part=\"content\" data-state=\"closed\""));
-        assert!(html.contains("hidden"));
+        assert!(html.contains(r#"aria-expanded="true""#));
+        assert!(html.contains("data-part=\"content\" data-state=\"open\""));
+        assert!(!html.contains(r#"hidden="""#));
+        assert!(html.contains("data-part=\"trigger\""));
+        assert!(html.contains("disabled"));
     }
 
     /// [`LAYOUT_CSS`] が狭幅でナビ/CTA を隠しハンバーガーへ切り替えること、
