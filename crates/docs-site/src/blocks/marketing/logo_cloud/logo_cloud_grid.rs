@@ -306,10 +306,11 @@ const LAYOUT_CSS: &str = "\
 .blocks-logo-cloud-grid-row {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: center;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-logo-cloud-grid-logo-item {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-logo-cloud-grid-cards {\n  display: grid;\n  grid-template-columns: repeat(2, 1fr);\n  gap: var(--fandhe-space-4);\n  width: 100%;\n}\n\
-.blocks-logo-cloud-grid-cards [data-scope=\"card\"][data-part=\"body\"] {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  text-align: center;\n}\n\
+.blocks-logo-cloud-grid-cards > * {\n  min-width: 0;\n}\n\
+.blocks-logo-cloud-grid-cards [data-scope=\"card\"][data-part=\"body\"] {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  text-align: center;\n  min-width: 0;\n}\n\
 .blocks-logo-cloud-grid-tiles {\n  display: grid;\n  grid-template-columns: repeat(2, 1fr);\n  gap: var(--fandhe-space-4);\n}\n\
-.blocks-logo-cloud-grid-tile {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: var(--fandhe-space-6);\n  border: 1px solid var(--fandhe-color-border);\n  background: var(--fandhe-color-bg-subtle);\n  border-radius: var(--fandhe-radius-md);\n}\n\
-[data-scope=\"image\"][data-part=\"root\"][data-blocks-logo-cloud-grid-logo] {\n  width: 7rem;\n  height: 2.5rem;\n  filter: grayscale(1);\n  opacity: 0.7;\n}\n\
+.blocks-logo-cloud-grid-tile {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: var(--fandhe-space-6);\n  border: 1px solid var(--fandhe-color-border);\n  background: var(--fandhe-color-bg-subtle);\n  border-radius: var(--fandhe-radius-md);\n  min-width: 0;\n}\n\
+[data-scope=\"image\"][data-part=\"root\"][data-blocks-logo-cloud-grid-logo] {\n  width: min(7rem, 100%);\n  height: 2.5rem;\n  filter: grayscale(1);\n  opacity: 0.7;\n}\n\
 [data-scope=\"link\"][data-part=\"root\"][data-blocks-logo-cloud-grid-pill] {\n  display: inline-block;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: 9999px;\n  padding: var(--fandhe-space-2) var(--fandhe-space-4);\n}\n\
 @media (min-width: 48rem) {\n  .blocks-logo-cloud-grid-cards {\n    grid-template-columns: repeat(3, 1fr);\n  }\n\n  .blocks-logo-cloud-grid-tiles {\n    grid-template-columns: repeat(4, 1fr);\n  }\n}\n\
 @media (min-width: 64rem) {\n  .blocks-logo-cloud-grid-cards {\n    grid-template-columns: repeat(6, 1fr);\n  }\n\n  .blocks-logo-cloud-grid-tiles {\n    grid-template-columns: repeat(6, 1fr);\n  }\n}\n";
