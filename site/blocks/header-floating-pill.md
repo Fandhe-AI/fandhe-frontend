@@ -46,7 +46,13 @@ pub fn demo() -> Node {
         vec![],
         vec![el(
             "rect",
-            vec![("width", "18"), ("height", "18"), ("rx", "5")],
+            vec![
+                ("x", "3"),
+                ("y", "3"),
+                ("width", "18"),
+                ("height", "18"),
+                ("rx", "5"),
+            ],
             vec![],
         )],
     );

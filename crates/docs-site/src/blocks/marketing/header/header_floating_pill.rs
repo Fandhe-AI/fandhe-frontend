@@ -98,7 +98,13 @@ pub fn demo() -> Node {
         vec![],
         vec![el(
             "rect",
-            vec![("width", "18"), ("height", "18"), ("rx", "5")],
+            vec![
+                ("x", "3"),
+                ("y", "3"),
+                ("width", "18"),
+                ("height", "18"),
+                ("rx", "5"),
+            ],
             vec![],
         )],
     );
@@ -186,7 +192,7 @@ const LAYOUT_CSS: &str = "\
 .hfp-logo {\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: 600;\n  white-space: nowrap;\n}\n\
 .hfp-nav {\n  flex: 1;\n  display: flex;\n  justify-content: center;\n}\n\
 .hfp-mobile {\n  display: none;\n}\n\
-@media (max-width: 47.99rem) {\n  .hfp-nav {\n    display: none;\n  }\n  [data-hfp-cta] {\n    display: none;\n  }\n  .hfp-mobile {\n    display: block;\n  }\n}\n";
+@media (max-width: 47.99rem) {\n  .hfp-nav {\n    display: none;\n  }\n  .hfp-bar > [data-hfp-cta] {\n    display: none;\n  }\n  .hfp-mobile {\n    display: block;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -230,6 +236,15 @@ mod tests {
         assert!(LAYOUT_CSS.contains("@media (max-width: 47.99rem)"));
         assert!(LAYOUT_CSS.contains("border-radius: var(--fandhe-radius-full);"));
         assert!(LAYOUT_CSS.contains("max-inline-size: 48rem;"));
+    }
+
+    /// 狭幅の CTA 非表示セレクタがデスクトップ側（`.hfp-bar` の直接子）に
+    /// 限定され、モバイルパネル内に複製された CTA まで巻き込まないこと
+    /// （イシュー #2853 PR #3272 codex-review/Bugbot 指摘の回帰）。
+    #[test]
+    fn layout_css_hides_cta_only_in_desktop_bar() {
+        assert!(LAYOUT_CSS.contains(".hfp-bar > [data-hfp-cta]"));
+        assert!(!LAYOUT_CSS.contains("\n  [data-hfp-cta] {"));
     }
 
     /// ルート class（`demo_class` とは別名）が [`demo`] の出力へ実際に
