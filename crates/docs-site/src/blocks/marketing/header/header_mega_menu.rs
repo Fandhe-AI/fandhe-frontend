@@ -444,10 +444,10 @@ const LAYOUT_CSS: &str = "\
 .blocks-header-mega-menu-layout [data-scope=\"navigation-menu\"][data-part=\"content\"] {\n  inset-inline: 0;\n  min-width: 0;\n}\n\
 .blocks-header-mega-menu-panel-inner {\n  max-inline-size: 64rem;\n  margin-inline: auto;\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));\n  gap: var(--fandhe-space-6);\n  padding: var(--fandhe-space-2) var(--fandhe-space-4);\n}\n\
 .blocks-header-mega-menu-panel-column {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
-.blocks-header-mega-menu-panel-column-heading {\n  display: block;\n  font-weight: 600;\n  font-size: var(--fandhe-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n  margin-block-end: var(--fandhe-space-2);\n}\n\
+.blocks-header-mega-menu-panel-column-heading {\n  display: block;\n  font-weight: 600;\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n  margin-block-end: var(--fandhe-space-2);\n}\n\
 .blocks-header-mega-menu-panel-link[data-scope=\"navigation-menu\"][data-part=\"link\"] {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-header-mega-menu-panel-link-title {\n  font-weight: 600;\n}\n\
-.blocks-header-mega-menu-panel-link-description {\n  font-size: var(--fandhe-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-header-mega-menu-panel-link-description {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-header-mega-menu-actions {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  white-space: nowrap;\n}\n\
 .blocks-header-mega-menu-layout [data-scope=\"navigation-menu\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-header-mega-menu-cta][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
