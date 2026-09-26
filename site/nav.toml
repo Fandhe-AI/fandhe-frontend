@@ -1397,6 +1397,11 @@ path = "/blocks/cta-split-image/"
 title = "Pricing"
 
 [[section.group.page]]
+title = "pricing-comparison-table"
+source = "site/blocks/pricing-comparison-table.md"
+path = "/blocks/pricing-comparison-table/"
+
+[[section.group.page]]
 title = "pricing-tiers-morph"
 source = "site/blocks/pricing-tiers-morph.md"
 path = "/blocks/pricing-tiers-morph/"
