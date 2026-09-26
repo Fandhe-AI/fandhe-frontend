@@ -26,8 +26,9 @@
 //!
 //! R0708（2×2 の 4 指標）・R1306（左に本文 2 段落 + 右に 3 指標）は Demo に
 //! インスタンス化しない（Demo を 2 件に留める判断）。前者は基準形の
-//! グリッドが `sm` 未満で自然に 2×2 相当（1 列 6 段）へ折り返るため罫線
-//! 表現を共有でき、後者は左列を本文 2 段落・右列の `stat` 件数を 3 件に
+//! グリッドが `sm` 未満で 1 列 6 段へ折り返るため（2×2 と同一レイアウト
+//! ではないが）罫線表現を共有でき、後者は左列を本文 2 段落・右列の
+//! `stat` 件数を 3 件に
 //! 差し替えるだけで基準形のヘルパをそのまま再利用できる（`site/blocks/
 //! stats-split.md` の「原案差分メモ」節で説明する）。
 //!
@@ -284,7 +285,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-stats-split-stat-bottom] {\n  border-bottom: 1px solid var(--fandhe-color-border);\n  padding-block-end: var(--fandhe-space-4);\n}\n\
 .blocks-stats-split-intro-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-stats-split-intro {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
-.blocks-stats-split-grid-intro {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-6);\n  margin-top: var(--fandhe-space-6);\n}\n\
+.blocks-stats-split-grid-intro {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-6);\n}\n\
 [data-blocks-stats-split-stat-left] {\n  border-inline-start: 2px solid var(--fandhe-color-border);\n  padding-inline-start: var(--fandhe-space-4);\n}\n\
 @media (min-width: 40rem) {\n  .blocks-stats-split-grid {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n  .blocks-stats-split-grid-intro {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n}\n\
 @media (min-width: 48rem) {\n  [data-blocks-stats-split-row] {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);\n    align-items: start;\n  }\n  .blocks-stats-split-intro {\n    flex-direction: row;\n    justify-content: space-between;\n    align-items: flex-end;\n    gap: var(--fandhe-space-6);\n  }\n  .blocks-stats-split-grid-intro {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n}\n";
