@@ -1243,6 +1243,11 @@ source = "site/blocks/hero-image-top.md"
 path = "/blocks/hero-image-top/"
 
 [[section.group.page]]
+title = "hero-install-command"
+source = "site/blocks/hero-install-command.md"
+path = "/blocks/hero-install-command/"
+
+[[section.group.page]]
 title = "hero-marquee-strip"
 source = "site/blocks/hero-marquee-strip.md"
 path = "/blocks/hero-marquee-strip/"
