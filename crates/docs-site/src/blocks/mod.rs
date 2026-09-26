@@ -412,8 +412,8 @@ mod tests {
         assert!(html.contains(">Auth<"));
         assert!(html.contains(r#"href="/fandhe-frontend/blocks/login-01/""#));
 
-        // block を 1 件も持たないカテゴリ（marketing/Faq）の見出しは出力されない。
-        assert!(!html.contains(">FAQ<"));
+        // block を 1 件も持たないカテゴリ（marketing/Team）の見出しは出力されない。
+        assert!(!html.contains(">Team<"));
     }
 
     #[test]
