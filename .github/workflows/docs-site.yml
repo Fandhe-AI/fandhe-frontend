@@ -341,6 +341,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/gallery-masonry/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/gallery-split-carousel/index.html"
           # Marketing / Section Heading
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/section-heading-split/index.html"
           # Application / App Shell
           # Application / Sidebar
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/sidebar-07/index.html"

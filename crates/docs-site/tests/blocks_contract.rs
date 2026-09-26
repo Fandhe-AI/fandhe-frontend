@@ -8398,3 +8398,104 @@ fn newsletter_split_composes_expected_parts() {
         );
     }
 }
+
+/// section-heading-split ページが `demo_class`・CSS 配線
+/// （`pre-styled-ui.css`/`blocks.css`）・`data-blocks-section-heading-split-*`
+/// フック・`blocks::stylesheet()` 内のブレークポイント/tone セレクタを
+/// 実際に持つことを固定する（イシュー #2798）。
+#[test]
+fn section_heading_split_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/section-heading-split/index.html"))
+        .expect("blocks/section-heading-split/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-section-heading-split\""),
+        "section-heading-split page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "section-heading-split page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "section-heading-split page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-section-heading-split-row",
+        "data-blocks-section-heading-split-variant=\"description\"",
+        "data-blocks-section-heading-split-variant=\"actions\"",
+        "data-blocks-section-heading-split-variant=\"email\"",
+        "data-blocks-section-heading-split-variant=\"command\"",
+        "data-blocks-section-heading-split-tone=\"accent\"",
+        "data-blocks-section-heading-split-submit",
+    ] {
+        assert!(
+            html.contains(hook),
+            "section-heading-split page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "[data-blocks-section-heading-split-tone=\"accent\"]",
+        "@media (min-width: 40rem)",
+        "@media (min-width: 64rem)",
+        "align-items: end",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// section-heading-split の合成部品（badge/heading/text/button/field/
+/// input-group/input/clipboard/visually-hidden）が期待どおりの構成で実際に
+/// 出力されていること、`<form>`・送信属性・死リンクを持ち込んでいないこと
+/// を固定する（イシュー #2798）。
+#[test]
+fn section_heading_split_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/section-heading-split/")
+        .expect("section-heading-split should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"badge\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"button\"",
+        "data-scope=\"field\" data-part=\"root\"",
+        "data-scope=\"input-group\"",
+        "data-scope=\"field\" data-part=\"input\"",
+        "data-scope=\"clipboard\"",
+        "data-scope=\"visually-hidden\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "section-heading-split demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-section-heading-split-row")
+            .count(),
+        5,
+        "section-heading-split should render exactly 5 rows"
+    );
+    assert_eq!(
+        html.matches(r#"type="button""#).count(),
+        4,
+        "section-heading-split should render exactly 4 type=\"button\" buttons"
+    );
+    for absent in [
+        "<form",
+        "type=\"submit\"",
+        "href=\"#\"",
+        "src=\"data:",
+        "mailto:",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "section-heading-split demo should never contain {absent}"
+        );
+    }
+}
