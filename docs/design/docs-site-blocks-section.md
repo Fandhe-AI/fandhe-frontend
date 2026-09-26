@@ -911,6 +911,7 @@ pub enum LayoutCss {
 | hero-prompt-input | #2788 | `marketing/hero/hero_prompt_input.rs` |
 | hero-social-proof | #2790 | `marketing/hero/hero_social_proof.rs` |
 | hero-split-image | #2791 | `marketing/hero/hero_split_image.rs` |
+| hero-split-screenshot | #2792 | `marketing/hero/hero_split_screenshot.rs` |
 | newsletter-split | #2796 | `marketing/newsletter/newsletter_split.rs` |
 | logo-cloud-marquee | #2794 | `marketing/logo_cloud/logo_cloud_marquee.rs` |
 | section-heading-stacked | #2799 | `marketing/section_heading/section_heading_stacked.rs` |
