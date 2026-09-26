@@ -338,6 +338,13 @@ pub const BLOCK: Block = Block {
 /// `super::stylesheet` から連結される）。既定（狭幅）は縦積み、
 /// `>= 48rem`（[`fandhe_frontend_pre_styled_ui::recipe::Breakpoint::Md`]）
 /// でカード 3 列へ切り替える。
+///
+/// 推奨カードの強調ボーダー（`[data-blocks-pricing-slider-tiers-recommended]`）
+/// は `card` レシピの base（`[data-scope="card"][data-part="root"]`、
+/// 詳細度 0,2,0）・既定 variant（`Outline` の `border-color`、クラス
+/// セレクタ併用で 0,3,0）の両方に勝つ必要があるため、`[data-scope="card"]
+/// [data-part="root"]` を前置して詳細度 0,3,0 へ揃えている（単独の属性
+/// セレクタ 0,1,0 のままだと variant 側に負けてボーダーが表示されない）。
 const LAYOUT_CSS: &str = "\
 .blocks-pricing-slider-tiers-layout {\n  display: flex;\n  flex-direction: column;\n  gap: 2rem;\n}\n\
 [data-blocks-pricing-slider-tiers-header] {\n  display: flex;\n  flex-direction: column;\n  gap: 0.75rem;\n  max-width: 36rem;\n}\n\
@@ -346,7 +353,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-pricing-slider-tiers-slider] {\n  width: 100%;\n}\n\
 [data-blocks-pricing-slider-tiers-grid] {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: 1.5rem;\n  align-items: stretch;\n}\n\
 [data-blocks-pricing-slider-tiers-card] {\n  display: flex;\n  flex-direction: column;\n  height: 100%;\n  overflow: hidden;\n}\n\
-[data-blocks-pricing-slider-tiers-recommended] {\n  border-color: var(--fandhe-color-accent);\n  border-width: 2px;\n}\n\
+[data-scope=\"card\"][data-part=\"root\"][data-blocks-pricing-slider-tiers-recommended] {\n  border-color: var(--fandhe-color-accent);\n  border-width: 2px;\n}\n\
 .blocks-pricing-slider-tiers-band {\n  background: var(--fandhe-color-accent);\n  color: var(--fandhe-color-accent-fg);\n  text-align: center;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n  padding: 0.25rem 0.5rem;\n  margin: -1px -1px 0;\n}\n\
 .blocks-pricing-slider-tiers-tier-heading {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 0.5rem;\n}\n\
 .blocks-pricing-slider-tiers-price {\n  display: flex;\n  align-items: baseline;\n  gap: 0.25rem;\n  font-size: var(--fandhe-font-font-size-2xl, 1.5rem);\n  font-weight: var(--fandhe-font-font-weight-bold);\n}\n\
