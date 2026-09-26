@@ -7,6 +7,7 @@
 
 mod pricing_comparison_table;
 mod pricing_seats_split;
+mod pricing_single_split;
 mod pricing_tiers_morph;
 mod pricing_usage_slider;
 use crate::blocks::Block;
@@ -17,5 +18,6 @@ pub(super) fn blocks() -> Vec<Block> {
         pricing_tiers_morph::BLOCK,
         pricing_usage_slider::BLOCK,
         pricing_comparison_table::BLOCK,
+        pricing_single_split::BLOCK,
     ]
 }

@@ -1407,6 +1407,11 @@ source = "site/blocks/pricing-seats-split.md"
 path = "/blocks/pricing-seats-split/"
 
 [[section.group.page]]
+title = "pricing-single-split"
+source = "site/blocks/pricing-single-split.md"
+path = "/blocks/pricing-single-split/"
+
+[[section.group.page]]
 title = "pricing-tiers-morph"
 source = "site/blocks/pricing-tiers-morph.md"
 path = "/blocks/pricing-tiers-morph/"
