@@ -940,9 +940,10 @@ pub enum LayoutCss {
 | faq-static-grid | #2847 | `marketing/faq/faq_static_grid.rs` |
 | footer-inline-nav | #2850 | `marketing/footer/footer_inline_nav.rs` |
 | footer-link-columns | #2851 | `marketing/footer/footer_link_columns.rs` |
+| pricing-slider-tiers | #2868/#2869/#2870 | `marketing/pricing/pricing_slider_tiers.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-125 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+126 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
