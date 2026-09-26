@@ -265,6 +265,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-split-actions/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cta-split-image/index.html"
           # Marketing / Pricing
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-seats-split/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-tiers-morph/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-usage-slider/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-comparison-table/index.html"
