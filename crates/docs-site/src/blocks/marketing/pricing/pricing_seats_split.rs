@@ -242,6 +242,19 @@ fn controls() -> Node {
             ),
             seats_input,
             annual_switch,
+            // `disabled: true` の checkbox は支援技術が checked 状態を
+            // 安定して読み上げない（ブラウザ・スクリーンリーダーの
+            // 組み合わせにより無視され得る）ため、年払い選択中であることを
+            // 読める平文でも明示する（Codex レビュー指摘、イシュー #2865
+            // PR #3278）。
+            styled_text::text(
+                &TextProps {
+                    variant: TextVariant::Muted,
+                    ..TextProps::default()
+                },
+                vec![("data-blocks-pricing-seats-split-annual-status", "")],
+                vec![text("現在、年払いを選択中です（本 Demo は固定表示のため切替できません）。")],
+            ),
         ],
     )
 }
