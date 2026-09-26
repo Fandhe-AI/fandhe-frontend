@@ -913,6 +913,7 @@ pub enum LayoutCss {
 | hero-social-proof | #2790 | `marketing/hero/hero_social_proof.rs` |
 | hero-split-image | #2791 | `marketing/hero/hero_split_image.rs` |
 | hero-split-screenshot | #2792 | `marketing/hero/hero_split_screenshot.rs` |
+| logo-cloud-grid | #2793 | `marketing/logo_cloud/logo_cloud_grid.rs` |
 | newsletter-split | #2796 | `marketing/newsletter/newsletter_split.rs` |
 | logo-cloud-marquee | #2794 | `marketing/logo_cloud/logo_cloud_marquee.rs` |
 | stats-background-image | #2801 | `marketing/stats/stats_background_image.rs` |
@@ -920,6 +921,7 @@ pub enum LayoutCss {
 | section-heading-split | #2798 | `marketing/section_heading/section_heading_split.rs` |
 | newsletter-with-details | #2797 | `marketing/newsletter/newsletter_with_details.rs` |
 | stats-cards | #2802 | `marketing/stats/stats_cards.rs` |
+| stats-row | #2803 | `marketing/stats/stats_row.rs` |
 | section-heading-stacked | #2799 | `marketing/section_heading/section_heading_stacked.rs` |
 | section-heading-stats | #2800 | `marketing/section_heading/section_heading_stats.rs` |
 | stats-split | #2804 | `marketing/stats/stats_split.rs` |
@@ -928,7 +930,7 @@ pub enum LayoutCss {
 | newsletter-stacked | #3226 | `marketing/newsletter/newsletter_stacked.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-109 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+110 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
