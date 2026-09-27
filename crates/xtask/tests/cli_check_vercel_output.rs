@@ -385,6 +385,76 @@ fn dest_with_parent_traversal_fails_and_does_not_escape_static() {
     let _ = fs::remove_dir_all(&dir);
 }
 
+/// PR #3322 レビュー指摘（Codex P1、1 回目）の回帰テスト: 404 フォール
+/// バックのルート自体に `"continue": true` が付いていると、そのルートで
+/// 応答が確定せず後続ルートへ処理が続くため、`status`/`dest` が一致して
+/// いても FAIL する。
+#[test]
+fn fallback_route_with_continue_true_fails() {
+    let dir = make_fixture_dir("fallback-continue-true");
+    write_valid_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    fs::write(
+        output_dir.join("config.json"),
+        r#"{"version": 3, "routes": [{"handle": "filesystem"}, {"src": "/(.*)", "status": 404, "dest": "/404.html", "continue": true}]}"#,
+    )
+    .unwrap();
+
+    let result = run_check_vercel_output(&["--output-dir", output_dir.to_str().unwrap()]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=config_routes_404_fallback result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// PR #3322 レビュー指摘（Codex P1、2 回目）の回帰テスト: `filesystem` より
+/// 前に終端する（`continue: true` を持たない）キャッチオールルートが
+/// あると、`filesystem` ステージにも 404 フォールバックにも到達しない
+/// ため FAIL する。
+#[test]
+fn terminating_route_before_filesystem_fails() {
+    let dir = make_fixture_dir("terminating-route-before-filesystem");
+    write_valid_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    fs::write(
+        output_dir.join("config.json"),
+        r#"{"version": 3, "routes": [{"src": "/(.*)", "status": 200, "dest": "/index.html"}, {"handle": "filesystem"}, {"src": "/(.*)", "status": 404, "dest": "/404.html"}]}"#,
+    )
+    .unwrap();
+
+    let result = run_check_vercel_output(&["--output-dir", output_dir.to_str().unwrap()]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=config_routes_404_fallback result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// PR #3322 レビュー指摘（Codex P1、3 回目）の回帰テスト: `config.json` の
+/// トップレベルに重複キー（有効な `routes` の後に不正な `routes`）が
+/// あると、`json::parse` が拒否して `config_json_parse` で FAIL する
+/// （`Json::get` の「最初の一致キーを返す」実装だけに頼って最初の値のみ
+/// 検証し PASS してしまう抜け道を塞ぐ）。
+#[test]
+fn duplicate_top_level_key_in_config_json_fails() {
+    let dir = make_fixture_dir("duplicate-top-level-key");
+    write_valid_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    fs::write(
+        output_dir.join("config.json"),
+        r#"{"version": 3, "routes": [{"handle": "filesystem"}, {"src": "/(.*)", "status": 404, "dest": "/404.html"}], "routes": [{"handle": "filesystem"}]}"#,
+    )
+    .unwrap();
+
+    let result = run_check_vercel_output(&["--output-dir", output_dir.to_str().unwrap()]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=config_json_parse result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn missing_static_404_page_fails() {
     let dir = make_fixture_dir("missing-404-page");

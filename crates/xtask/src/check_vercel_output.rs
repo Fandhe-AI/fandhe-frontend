@@ -546,6 +546,28 @@ fn is_valid_status(value: &Json) -> bool {
 /// フォールバックの「最初の」出現位置を特定したうえで、`filesystem` から
 /// その直前までの区間に非終端（`continue: true`）でないルートが無いこと
 /// まで検証する（イシュー #3290 受け入れ基準 2）。
+///
+/// # PR #3322 レビュー指摘への対処（Codex P1、3 回目）
+///
+/// `is_fallback_route` が `src`/`status`/`dest` の 3 キーしか見ておらず、
+/// 404 ルート自体に `"continue": true` が付いていても一致条件を満たして
+/// しまっていた。`continue: true` はそのルートで終端させず後続ルートの
+/// 評価を続ける指示であり、404 フォールバックが `continue: true` を
+/// 持つと実際には応答を確定させないままルーティングが続行してしまい、
+/// 「未一致の全パスへ 404 を返す」受け入れ基準 2 を満たさない。
+/// `is_fallback_route` は `continue` が真でないこと（キー無し、または
+/// `false`）まで検証する。
+///
+/// さらに、上記「shadowing」検証の走査範囲が `filesystem` と 404 ルートの
+/// 間だけに限定されていたため、`filesystem` より前に終端ルート（例:
+/// `{"src": "/(.*)", "status": 200, "dest": "/index.html"}` のような SPA
+/// フォールバックで `continue: true` を持たないもの）が存在しても検出
+/// できなかった。`filesystem` 自体に到達する前にルーティングが終端すれば
+/// `filesystem` ステージも 404 フォールバックも一切実行されないため、
+/// これも受け入れ基準 2 への違反である。走査範囲を配列先頭（index 0）まで
+/// 拡張し、`{"handle": ...}` ハンドラルート（ビルトインのステージ切替で
+/// あり `continue` を持たないのが正常形なので shadowing 判定の対象外）を
+/// 除いた各ルートについて検証する。
 fn check_routes_404_fallback(routes: &[Json]) -> CheckResult {
     const CATCH_ALL_SRC: &str = "/(.*)";
 
@@ -563,13 +585,22 @@ fn check_routes_404_fallback(routes: &[Json]) -> CheckResult {
         );
     };
 
+    let route_continues = |route: &Json| {
+        route
+            .get("continue")
+            .and_then(Json::as_bool)
+            .unwrap_or(false)
+    };
+
     let is_fallback_route = |route: &Json| {
         let src_ok = route.get("src").and_then(Json::as_str) == Some(CATCH_ALL_SRC);
         let status_ok = route
             .get("status")
             .is_some_and(|s| is_valid_status(s) && s.as_f64() == Some(404.0));
         let dest_ok = route.get("dest").and_then(Json::as_str) == Some("/404.html");
-        src_ok && status_ok && dest_ok
+        // 404 フォールバック自体が `continue: true` を持つと、そのルートで
+        // 応答を確定させず後続ルートへ処理が続いてしまい終端しない。
+        src_ok && status_ok && dest_ok && !route_continues(route)
     };
 
     let fallback_offset = routes[filesystem_index + 1..]
@@ -579,28 +610,26 @@ fn check_routes_404_fallback(routes: &[Json]) -> CheckResult {
     let Some(fallback_offset) = fallback_offset else {
         return CheckResult::fail(
             "config_routes_404_fallback",
-            "no route after `{\"handle\": \"filesystem\"}` with src=/(.*) status=404 dest=/404.html",
+            "no non-continuing route after `{\"handle\": \"filesystem\"}` with src=/(.*) status=404 dest=/404.html",
         );
     };
     let fallback_index = filesystem_index + 1 + fallback_offset;
 
-    // `filesystem` の直後から 404 フォールバックの直前までの区間
-    // （両端とも exclusive）に、途中でルーティングを終端させ得るルート
+    // 配列先頭から 404 フォールバックの直前まで（404 ルート自体は
+    // exclusive）の区間に、途中でルーティングを終端させ得るルート
     // （`continue: true` を持たない）が挟まっていないか検証する。
-    let shadowing_route = routes[filesystem_index + 1..fallback_index]
+    // `{"handle": ...}` ハンドラルート（`filesystem` を含む）はビルトイン
+    // のステージ切替であり `continue` を持たないのが正常形のため、
+    // shadowing 判定の対象から除く。
+    let shadowing_route = routes[..fallback_index]
         .iter()
-        .find(|route| {
-            !route
-                .get("continue")
-                .and_then(Json::as_bool)
-                .unwrap_or(false)
-        });
+        .find(|route| route.get("handle").is_none() && !route_continues(route));
 
     if let Some(shadowing) = shadowing_route {
         return CheckResult::fail(
             "config_routes_404_fallback",
             format!(
-                "a terminating route ({shadowing:?}) sits between `{{\"handle\": \"filesystem\"}}` and the 404 fallback and may shadow it (missing `continue: true`)"
+                "a terminating route ({shadowing:?}) sits before the 404 fallback and may shadow `{{\"handle\": \"filesystem\"}}` or the fallback itself (missing `continue: true`)"
             ),
         );
     }
