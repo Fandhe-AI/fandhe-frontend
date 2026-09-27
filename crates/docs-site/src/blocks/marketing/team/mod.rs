@@ -9,8 +9,9 @@
 //! ための構造、イシュー #2734）。
 
 mod team_avatar_grid;
+mod team_split_list;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![team_avatar_grid::BLOCK]
+    vec![team_avatar_grid::BLOCK, team_split_list::BLOCK]
 }
