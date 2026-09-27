@@ -1,6 +1,7 @@
 //! Application / Form Layout カテゴリの block 登録点（イシュー #2734 で
 //! 雛形新設。イシュー #2913（親 #2912）で最初の block
-//! （[`form_layout_property_panel`]）を追加しディレクトリ化して卒業した）。
+//! （[`form_layout_property_panel`]）を追加しディレクトリ化して卒業し、
+//! イシュー #2916（親 #2892）で [`form_layout_two_column`] を追加した）。
 //! 手順は `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -10,9 +11,13 @@
 //! ための構造、イシュー #2734）。
 
 mod form_layout_property_panel;
+mod form_layout_two_column;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![form_layout_property_panel::BLOCK]
+    vec![
+        form_layout_property_panel::BLOCK,
+        form_layout_two_column::BLOCK,
+    ]
 }

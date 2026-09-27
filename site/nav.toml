@@ -2051,6 +2051,11 @@ title = "form-layout-property-panel"
 source = "site/blocks/form-layout-property-panel.md"
 path = "/blocks/form-layout-property-panel/"
 
+[[section.group.page]]
+title = "form-layout-two-column"
+source = "site/blocks/form-layout-two-column.md"
+path = "/blocks/form-layout-two-column/"
+
 [[section.group]]
 title = "Auth"
 
