@@ -2016,6 +2016,11 @@ path = "/blocks/card-heading-toolbar/"
 title = "Description List"
 
 [[section.group.page]]
+title = "description-list-horizontal"
+source = "site/blocks/description-list-horizontal.md"
+path = "/blocks/description-list-horizontal/"
+
+[[section.group.page]]
 title = "description-list-summary-card"
 source = "site/blocks/description-list-summary-card.md"
 path = "/blocks/description-list-summary-card/"
@@ -2024,6 +2029,14 @@ path = "/blocks/description-list-summary-card/"
 title = "description-list-two-column"
 source = "site/blocks/description-list-two-column.md"
 path = "/blocks/description-list-two-column/"
+
+[[section.group]]
+title = "Feed"
+
+[[section.group.page]]
+title = "feed-upvote-cards"
+source = "site/blocks/feed-upvote-cards.md"
+path = "/blocks/feed-upvote-cards/"
 
 [[section.group]]
 title = "Auth"

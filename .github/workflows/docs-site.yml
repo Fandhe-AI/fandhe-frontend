@@ -401,10 +401,12 @@ jobs:
           # Application / Table
           # Application / Grid List
           # Application / Description List
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/description-list-horizontal/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/description-list-two-column/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/description-list-summary-card/index.html"
           # Application / Calendar
           # Application / Feed
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feed-upvote-cards/index.html"
           # Application / Form Layout
           # Application / Auth
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-01/index.html"
