@@ -42,7 +42,10 @@ const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 /// プロジェクトタイル 1 件分のダミーデータ（架空）。
 struct Project {
-    /// 色トークンの軸（`--fandhe-color-{tone}-subtle`/`-fg` の組と対応）。
+    /// 色トークンの軸（`--fandhe-color-{tone}-subtle`/`-fg-subtle` の組と
+    /// 対応。`-fg`は solid 背景用のコントラスト色でありパステル調の
+    /// `-subtle` 背景とは組み合わせない、`docs/design/color-token-system.md`
+    /// §8「subtle 表示」参照）。
     tone: &'static str,
     /// イニシャル枠に表示する 2 文字。
     initials: &'static str,

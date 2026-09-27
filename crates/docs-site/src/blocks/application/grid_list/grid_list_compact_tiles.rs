@@ -125,7 +125,10 @@ const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 /// プロジェクトタイル 1 件分のダミーデータ（架空）。
 struct Project {
-    /// 色トークンの軸（`--fandhe-color-{tone}-subtle`/`-fg` の組と対応）。
+    /// 色トークンの軸（`--fandhe-color-{tone}-subtle`/`-fg-subtle` の組と
+    /// 対応。`-fg`は solid 背景用のコントラスト色でありパステル調の
+    /// `-subtle` 背景とは組み合わせない、`docs/design/color-token-system.md`
+    /// §8「subtle 表示」参照）。
     tone: &'static str,
     /// イニシャル枠に表示する 2 文字。
     initials: &'static str,
@@ -431,10 +434,10 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"item\"][data-part=\"root\"][data-blocks-grid-list-compact-tiles-tile] {\n  position: relative;\n}\n\
 [data-blocks-grid-list-compact-tiles-list] [data-scope=\"item\"][data-part=\"title\"], [data-blocks-grid-list-compact-tiles-list] [data-scope=\"item\"][data-part=\"description\"] {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\
 [data-blocks-grid-list-compact-tiles-icon] {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  width: var(--fandhe-space-10);\n  height: var(--fandhe-space-10);\n  border-radius: var(--fandhe-radius-sm);\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
-[data-blocks-grid-list-compact-tiles-icon][data-tone=\"accent\"] {\n  background: var(--fandhe-color-accent-subtle);\n  color: var(--fandhe-color-accent-fg);\n}\n\
-[data-blocks-grid-list-compact-tiles-icon][data-tone=\"info\"] {\n  background: var(--fandhe-color-info-subtle);\n  color: var(--fandhe-color-info-fg);\n}\n\
-[data-blocks-grid-list-compact-tiles-icon][data-tone=\"success\"] {\n  background: var(--fandhe-color-success-subtle);\n  color: var(--fandhe-color-success-fg);\n}\n\
-[data-blocks-grid-list-compact-tiles-icon][data-tone=\"warning\"] {\n  background: var(--fandhe-color-warning-subtle);\n  color: var(--fandhe-color-warning-fg);\n}\n\
+[data-blocks-grid-list-compact-tiles-icon][data-tone=\"accent\"] {\n  background: var(--fandhe-color-accent-subtle);\n  color: var(--fandhe-color-accent-fg-subtle);\n}\n\
+[data-blocks-grid-list-compact-tiles-icon][data-tone=\"info\"] {\n  background: var(--fandhe-color-info-subtle);\n  color: var(--fandhe-color-info-fg-subtle);\n}\n\
+[data-blocks-grid-list-compact-tiles-icon][data-tone=\"success\"] {\n  background: var(--fandhe-color-success-subtle);\n  color: var(--fandhe-color-success-fg-subtle);\n}\n\
+[data-blocks-grid-list-compact-tiles-icon][data-tone=\"warning\"] {\n  background: var(--fandhe-color-warning-subtle);\n  color: var(--fandhe-color-warning-fg-subtle);\n}\n\
 [data-blocks-grid-list-compact-tiles-menu-trigger] {\n  position: relative;\n  z-index: 1;\n}\n";
 
 #[cfg(test)]
