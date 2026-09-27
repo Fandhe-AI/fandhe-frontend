@@ -2010,6 +2010,53 @@ source = "site/blocks/sidebar-07.md"
 path = "/blocks/sidebar-07/"
 
 [[section.group]]
+title = "Card Heading"
+
+[[section.group.page]]
+title = "card-heading-toolbar"
+source = "site/blocks/card-heading-toolbar.md"
+path = "/blocks/card-heading-toolbar/"
+
+[[section.group]]
+title = "Description List"
+
+[[section.group.page]]
+title = "description-list-horizontal"
+source = "site/blocks/description-list-horizontal.md"
+path = "/blocks/description-list-horizontal/"
+
+[[section.group.page]]
+title = "description-list-summary-card"
+source = "site/blocks/description-list-summary-card.md"
+path = "/blocks/description-list-summary-card/"
+
+[[section.group.page]]
+title = "description-list-two-column"
+source = "site/blocks/description-list-two-column.md"
+path = "/blocks/description-list-two-column/"
+
+[[section.group]]
+title = "Feed"
+
+[[section.group.page]]
+title = "feed-comments-timeline"
+source = "site/blocks/feed-comments-timeline.md"
+path = "/blocks/feed-comments-timeline/"
+
+[[section.group.page]]
+title = "feed-upvote-cards"
+source = "site/blocks/feed-upvote-cards.md"
+path = "/blocks/feed-upvote-cards/"
+
+[[section.group]]
+title = "Form Layout"
+
+[[section.group.page]]
+title = "form-layout-two-column"
+source = "site/blocks/form-layout-two-column.md"
+path = "/blocks/form-layout-two-column/"
+
+[[section.group]]
 title = "Auth"
 
 [[section.group.page]]
@@ -2057,6 +2104,19 @@ path = "/blocks/card-meta-cta/"
 title = "cursor-hover-cards"
 source = "site/blocks/cursor-hover-cards.md"
 path = "/blocks/cursor-hover-cards/"
+
+[[section.group]]
+title = "Chart"
+
+[[section.group.page]]
+title = "chart-bar-list"
+source = "site/blocks/chart-bar-list.md"
+path = "/blocks/chart-bar-list/"
+
+[[section.group.page]]
+title = "chart-stat-cards"
+source = "site/blocks/chart-stat-cards.md"
+path = "/blocks/chart-stat-cards/"
 
 [[section.group]]
 title = "Dashboard"
