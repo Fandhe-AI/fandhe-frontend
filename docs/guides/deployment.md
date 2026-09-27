@@ -102,14 +102,20 @@ Basic 認証は Deployment Protection を無効化した（あるいは対象外
      組み込み済みの新しいデプロイを作成し、`BASIC_AUTH_USER` /
      `BASIC_AUTH_PASSWORD` を設定した状態で `vercel deploy --prebuilt`
      が完了していることを確認する。
-  2. 保護したい旧デプロイ（ミドルウェア未導入のまま残っているもの）を
+  2. **Deployment Protection を無効化する前に、Basic 認証が実際に効いて
+     いることを確認する**（後述の「Deployment Protection が有効なままの
+     Basic 認証確認（必須）」）。未認証で 401、正しい資格情報で 200 に
+     ならない場合は、次の手順へ進まずミドルウェアの組み込み・
+     `config.json` の `middlewarePath` 設定・環境変数の設定を見直して
+     再デプロイし、確認をやり直す。
+  3. 保護したい旧デプロイ（ミドルウェア未導入のまま残っているもの）を
      ダッシュボードで洗い出し、公開のままでよいか判断する。公開すべきで
      なければ `vercel remove <deployment-url>` で**削除する**。Vercel の
      デプロイ URL はデプロイごとに不変であり、ミドルウェア入りの内容で
      再デプロイしても旧デプロイの URL は別に存在し続け無保護のまま残る
      ため、「再デプロイして置き換える」は保護の代替にならない。旧 URL
      を無効化する手段は削除のみと理解してください。
-  3. 上記が済んでから Project Settings → Deployment Protection →
+  4. 上記が済んでから Project Settings → Deployment Protection →
      Vercel Authentication のトグルを無効にして保存する。
 - **確認手順**（`<deployment-url>` は実際のデプロイ URL に読み替え）:
 
@@ -145,6 +151,65 @@ Basic 認証は Deployment Protection を無効化した（あるいは対象外
 
 - Protection Bypass for Automation 等のバイパス用トークンは、リポジトリ・
   README・CI ログのいずれにも書かないでください。
+
+#### Deployment Protection が有効なままの Basic 認証確認（必須）
+
+前述の「無効化前に必ず確認すること」手順 2 に対応する検証です。
+Deployment Protection（Vercel Authentication）が有効な間は、未認証の
+リクエストは Vercel のログインへ誘導する応答（302 リダイレクトまたは
+401）になり、Basic 認証ミドルウェアまで到達しません。この状態のまま
+素の `curl` で 401/200 を確認しても、返ってくるのは Vercel 側の応答で
+あってミドルウェアの応答ではないため、確認したことになりません。
+
+Deployment Protection を無効化する前にミドルウェアの認証結果だけを
+検証するには、Protection Bypass for Automation
+（[公式ドキュメント](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/protection-bypass-automation)）
+を使って Deployment Protection のチェックを迂回し、認証なしでデプロイへ
+アクセスします。ミドルウェアまで実際に到達したかどうかは、後述の手順で
+返る応答が `WWW-Authenticate` ヘッダー付きの 401（ミドルウェア自身が
+発行した応答）であることによって確認します。バイパス用シークレットは
+Project Settings → Deployment Protection →
+「Protection Bypass for Automation」で生成でき、`vercel deploy` が
+作成するデプロイには `VERCEL_AUTOMATION_BYPASS_SECRET` という名前の
+環境変数として自動的に設定されます（利用側コードでの参照は不要で、
+検証用リクエストのヘッダー値として使うだけです）。
+
+- **手順**（`<deployment-url>` は実際のデプロイ URL、シークレットは
+  シェル履歴に残らないよう `read -s` 等で変数に読み込んでから使う）:
+
+  ```bash
+  read -s -p 'VERCEL_AUTOMATION_BYPASS_SECRET: ' BYPASS_SECRET
+  echo
+
+  # 1. 未認証（Authorization ヘッダーなし）が 401 になることを確認する。
+  #    -D - でレスポンスヘッダーも出力し、Basic 認証ミドルウェア自身が
+  #    返した 401 であることを WWW-Authenticate ヘッダーで確認する
+  #    （Deployment Protection 自身の 401/302 と区別するため）。
+  curl -sS -o /dev/null -D - -w '%{http_code}\n' \
+    -H "x-vercel-protection-bypass: ${BYPASS_SECRET}" \
+    "https://<deployment-url>/" | grep -Ei '^(HTTP|www-authenticate)|^401$'
+
+  # 2. 正しい資格情報を付けると 200 になることを確認する
+  #    （パスワードをコマンドライン引数に直接書かないため、`-u "<user>"`
+  #    のみ指定して curl の対話プロンプトで入力する）。
+  curl -sS -o /dev/null -w '%{http_code}\n' \
+    -H "x-vercel-protection-bypass: ${BYPASS_SECRET}" \
+    -u "<user>" \
+    "https://<deployment-url>/"
+  ```
+
+  期待値どおりにならない場合（401 が返らない、`WWW-Authenticate` ヘッダー
+  が確認できない、正しい資格情報でも 200 にならない、503 になる等）は、
+  **Deployment Protection を無効化せず**、`config.json` の
+  `middlewarePath` ルートの位置・`.vc-config.json`・
+  `BASIC_AUTH_USER`/`BASIC_AUTH_PASSWORD` の設定を見直してから再デプロイ
+  し、この確認をやり直してください。
+- production では確認せず、まず preview デプロイ
+  （`vercel deploy --prebuilt`、`--prod` なし）で確認することを推奨
+  します。本番へ影響を与えずに確認できます。
+- Protection Bypass for Automation のシークレットは、リポジトリ・
+  README・CI ログのいずれにも書かないでください（前述のバイパス用
+  トークンに関する注意と同じです）。
 
 ### Routing Middleware による Basic 認証
 
@@ -315,9 +380,11 @@ function constantTimeEqual(a, b) {
 対話プロンプトで値を入力します（シェル履歴に値を残さないため、
 コマンドライン引数や `echo | vercel env add` は避けてください）。
 
-前述の「Deployment Protection（既定で有効）」の手順 1 は
-`vercel deploy --prebuilt`（`--prod` なし、すなわち preview デプロイ）で
-ミドルウェアの動作を確認する前提です。preview 環境に
+前述の「Deployment Protection（既定で有効）」の手順 1・2（ミドルウェア
+組み込み済みデプロイの作成と、「Deployment Protection が有効なままの
+Basic 認証確認（必須）」）は、いずれも `vercel deploy --prebuilt`
+（`--prod` なし、すなわち preview デプロイ）でミドルウェアの動作を
+確認する前提です。preview 環境に
 `BASIC_AUTH_USER`/`BASIC_AUTH_PASSWORD` が未設定のままだと、ミドルウェアは
 fail-closed の設計どおり常に 503 を返し、Basic 認証を確認できません。
 そのため **preview への登録は任意ではなく必須**です。production のみに
@@ -381,6 +448,7 @@ vercel env add BASIC_AUTH_PASSWORD preview
 - [Edge Runtime](https://vercel.com/docs/functions/runtimes/edge)
 - [Deployment Protection](https://vercel.com/docs/deployment-protection)
 - [Vercel Authentication](https://vercel.com/docs/deployment-protection/methods-to-protect-deployments/vercel-authentication)
+- [Protection Bypass for Automation](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/protection-bypass-automation)
 - [vercel env](https://vercel.com/docs/cli/env)
 - [vercel remove](https://vercel.com/docs/cli/remove)
 - [Managing environment variables](https://vercel.com/docs/environment-variables/managing-environment-variables)
