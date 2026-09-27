@@ -35,7 +35,7 @@ name = "fandhe-frontend-dist-server"
 # API は無変更、`main.rs` の実行時挙動〔バイナリがシグナルへどう応答する
 # か〕のみが変わる）で patch バンプとし、0.3.2 から 0.3.3 とする
 # （`.claude/rules/coding-rust.md` #638 条項）。
-version = "0.3.3"
+version = "0.3.4"
 edition = "2021"
 description = "fandhe-frontend-dist-server: TASK-9.1b。fandhe-frontend-core / fandhe-frontend-app / fandhe-frontend-server を単一実行ファイルへ統合し、コンパイル時埋め込みの静的アセットと fandhe-frontend-app の SSR ページを配信する配布用サーバー。"
 license = "MIT OR Apache-2.0"

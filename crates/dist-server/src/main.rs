@@ -152,6 +152,16 @@ struct ShutdownSignals {
     sigint: Option<tokio::signal::unix::Signal>,
     #[cfg(not(unix))]
     ctrl_c: std::pin::Pin<Box<dyn Future<Output = std::io::Result<()>> + Send>>,
+    /// 非 Unix 経路で `ctrl_c` の poll がエラーを返した後 `true` にする。
+    ///
+    /// `Future::poll` は一度 `Poll::Ready` を返した後の再 poll を保証しない
+    /// ため、ハンドラのポーリング失敗（Ctrl-C 受信ではない）を検知したら
+    /// 固定メッセージを stderr へ出したうえでこのフラグを立て、以後は
+    /// `ctrl_c` を再 poll せず常に [`Poll::Pending`] を返す（Unix の
+    /// インストール失敗時と同じ「安全側フォールバック」— OS 既定の
+    /// シグナル処理は引き続き有効なため無応答のまま残り続ける危険はない）。
+    #[cfg(not(unix))]
+    ctrl_c_failed: bool,
 }
 
 impl ShutdownSignals {
@@ -185,6 +195,7 @@ impl ShutdownSignals {
         {
             Self {
                 ctrl_c: Box::pin(tokio::signal::ctrl_c()),
+                ctrl_c_failed: false,
             }
         }
     }
@@ -209,7 +220,20 @@ impl ShutdownSignals {
         }
         #[cfg(not(unix))]
         {
-            self.ctrl_c.as_mut().poll(cx).map(|_| "Ctrl-C")
+            if self.ctrl_c_failed {
+                return Poll::Pending;
+            }
+            match self.ctrl_c.as_mut().poll(cx) {
+                Poll::Ready(Ok(())) => Poll::Ready("Ctrl-C"),
+                Poll::Ready(Err(err)) => {
+                    eprintln!(
+                        "fandhe-frontend-dist-server: failed to poll Ctrl-C handler: {err}"
+                    );
+                    self.ctrl_c_failed = true;
+                    Poll::Pending
+                }
+                Poll::Pending => Poll::Pending,
+            }
         }
     }
 }
