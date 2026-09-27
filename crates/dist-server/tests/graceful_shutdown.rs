@@ -8,6 +8,8 @@
 
 mod support;
 
+use std::io::{Read, Write};
+use std::net::TcpStream;
 use std::time::Duration;
 use support::{send_http_request, spawn_and_wait_for_port, wait_with_timeout};
 
@@ -102,4 +104,70 @@ fn connection_refused_shortly_after_sigterm() {
     // （テスト A の重複ではなく、同一シグナル配送での終了保証を再確認する）。
     let status = wait_with_timeout(&mut guard.0, Duration::from_secs(5));
     assert!(status.success());
+}
+
+/// SIGTERM 受信時に処理中（応答未完了）の接続が、`graceful.watch(..)` により
+/// 応答完了まで維持されることを検証する（レビュー指摘、PR #3358 スレッド
+/// `PRRT_kwDOTarxgc6mdwt5`）。
+///
+/// 上記 2 テストはいずれも「処理中のリクエストが無い状態」で SIGTERM を
+/// 送っており、`drain_within` の単体テスト（`main.rs` の `#[cfg(test)]`）も
+/// `GracefulShutdown::watcher()` を直接呼ぶだけで実 HTTP 接続を経由しない。
+/// このテストは実際に TCP 接続を確立し、HTTP リクエストを**意図的に 2 回の
+/// 書き込みへ分割**して「まだ受信完了していない」状態を作ってから SIGTERM を
+/// 送ることで、`graceful.watch(..)` が当該接続を「処理中の接続」として
+/// 認識し、シグナル受信後も応答完了まで hyper が接続を切断しないこと
+/// の直接証拠とする。
+#[test]
+fn in_flight_request_completes_after_sigterm() {
+    let (mut guard, port) = spawn_and_wait_for_port(&dist_server_binary(), None);
+    let pid = guard.0.id();
+
+    // 1) まず TCP 接続を確立し、リクエストの前半のみを送る（`\r\n\r\n` を
+    //    送らないため、hyper 側はヘッダ受信完了と判断できず「処理中」の
+    //    ままになる）。`accept` → `graceful.watch(..)` は接続確立時点で
+    //    同期的に走るため、この時点で当該接続は既に watch 対象になっている
+    //    （`main.rs` の accept ループ実装参照）。
+    let mut stream = TcpStream::connect(("127.0.0.1", port)).expect("must connect to dist-server");
+    stream
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .expect("set_read_timeout must succeed");
+    stream
+        .write_all(b"GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n")
+        .expect("partial request headers must be written");
+
+    // 2) 接続が実際に accept され、`graceful.watch(..)` の登録が完了するのを
+    //    確実にするため、少し待ってから SIGTERM を送る。
+    std::thread::sleep(Duration::from_millis(100));
+    send_sigterm(pid);
+
+    // 3) シグナル受信・listener drop（新規接続拒否への切り替わり）が確実に
+    //    先に処理されるよう、少し待ってからリクエストの残り（ヘッダ終端 +
+    //    `Connection: close`）を送信する。「SIGTERM 受信後に受信を完了させた
+    //    リクエスト」であることを保証するための順序である。
+    std::thread::sleep(Duration::from_millis(100));
+    stream
+        .write_all(b"Connection: close\r\n\r\n")
+        .expect("remaining request bytes must be written after SIGTERM");
+
+    // 4) 応答を最後まで読み切れること（＝接続が完了まで維持されたこと）を
+    //    確認する。`read_to_string` はピア側が `Connection: close` を守って
+    //    ソケットを閉じるまでブロックするため、これが完了する時点で
+    //    「shutdown 経路が接続を中断せず最後まで処理した」ことの直接証拠になる。
+    let mut response = String::new();
+    stream
+        .read_to_string(&mut response)
+        .expect("in-flight response must be readable to completion after SIGTERM");
+    assert!(
+        response.starts_with("HTTP/1.1 200"),
+        "in-flight request must still receive a normal response, got: {response:?}"
+    );
+
+    // 5) プロセス自体も猶予時間内（`DRAIN_TIMEOUT_SECS` 未満）に正常終了する
+    //    ことを確認する。
+    let status = wait_with_timeout(&mut guard.0, Duration::from_secs(5));
+    assert!(
+        status.success(),
+        "dist-server must exit successfully once the in-flight connection drains, got {status:?}"
+    );
 }
