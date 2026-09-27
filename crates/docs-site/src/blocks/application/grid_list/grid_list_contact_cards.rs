@@ -29,16 +29,21 @@
 //! スタイルフックは `data-blocks-grid-list-contact-cards-*` 属性で渡す。
 //! `card::body`/`card::footer`/`list::item`/素の `div` には `class` が
 //! そのまま効くため、レイアウトは `.blocks-grid-list-contact-cards-*`
-//! クラスセレクタを使う。ただし `card::footer`/`button::button` が持つ
-//! recipe セレクタ（`[data-scope="card"][data-part="footer"]`/
+//! クラスセレクタを使う。ただし `card::body`/`card::footer`/`button::button`
+//! が持つ recipe セレクタ（`[data-scope="card"][data-part="body"]`/
+//! `[data-scope="card"][data-part="footer"]`/
 //! `[data-scope="button"][data-part="root"]`、いずれも属性 2 個で
-//! 詳細度 (0,2,0,0)）が padding/border-radius を宣言しているため、
-//! 単一クラス・単一属性セレクタ（詳細度 (0,1,0,0)）の上書きは詳細度負けで
-//! 効かない。`actions_footer`/`actions_footer` 内ボタンの CSS フックは
-//! recipe セレクタと同じ要素へ複合セレクタ（`[data-scope=...][data-part=...]
-//! .blocks-grid-list-contact-cards-actions` 等、詳細度 (0,3,0,0)）で書き、
-//! カスケード順ではなく詳細度で確実に上書きする（`layout_css_contract`
-//! テスト参照）。
+//! 詳細度 (0,2,0,0)）が `flex-direction`/padding/border-radius を宣言している
+//! ため、単一クラス・単一属性セレクタ（詳細度 (0,1,0,0)）の上書きは詳細度
+//! 負けで効かない（`.blocks-grid-list-contact-cards-main` が
+//! `card::body` の `flex-direction: column` に負けて横型カードが縦積みに
+//! なる不具合として実際に発生、イシュー #2919 レビュー指摘）。
+//! `.blocks-grid-list-contact-cards-main`/`actions_footer`/`actions_footer`
+//! 内ボタンの CSS フックは recipe セレクタと同じ要素へ複合セレクタ
+//! （`[data-scope="card"][data-part="body"].blocks-grid-list-contact-cards-main`/
+//! `[data-scope=...][data-part=...] .blocks-grid-list-contact-cards-actions`
+//! 等、詳細度 (0,3,0,0)）で書き、カスケード順ではなく詳細度で確実に
+//! 上書きする（`layout_css_contract` テスト参照）。
 //!
 //! # `@container` で列数を切り替える理由
 //!
@@ -48,7 +53,17 @@
 //! container-name: blocks-grid-list-contact-cards;` を宣言し、`36rem`/
 //! `52rem` で列数を 1 → 2 → 3 へ増やす。`vertical` インスタンスのみ
 //! `68rem` でさらに 4 列へ増やす（横型カードは情報量が多く 4 列だと
-//! 窮屈になるため据え置く）。
+//! 窮屈になるため据え置く）。`68rem` の縦型限定判定は
+//! `[data-blocks-grid-list-contact-cards-variant="vertical"]
+//! [data-blocks-grid-list-contact-cards-grid]`（コンテナー自身への祖先
+//! 参照を含む子孫セレクタ）では一致しない。`@container` 内のスタイル規則は
+//! クエリ対象のコンテナー自身ではなく子孫にのみ適用され、
+//! `data-blocks-grid-list-contact-cards-variant` はコンテナーそのもの
+//! （`container-type` を宣言する外側 `div`）に付与されているため
+//! （イシュー #2919 レビュー指摘）。このため縦型判定はコンテナーの子孫で
+//! ある grid 要素自身の属性
+//! （`[data-blocks-grid-list-contact-cards-grid][data-blocks-grid-list-contact-cards-grid-variant="vertical"]`）
+//! へ付け替えている。
 //!
 //! # 見出しを使わない理由
 //!
@@ -384,7 +399,10 @@ fn instance(variant: &'static str, label: &'static str, cards: Vec<Node>) -> Nod
             list::root(
                 ListType::Unordered,
                 ListVariant::Plain,
-                vec![("data-blocks-grid-list-contact-cards-grid", "")],
+                vec![
+                    ("data-blocks-grid-list-contact-cards-grid", ""),
+                    ("data-blocks-grid-list-contact-cards-grid-variant", variant),
+                ],
                 cards,
             ),
         ],
@@ -465,7 +483,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-grid-list-contact-cards-grid] {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-6);\n  margin: 0;\n  padding: 0;\n}\n\
 .blocks-grid-list-contact-cards-item {\n  min-width: 0;\n}\n\
 .blocks-grid-list-contact-cards-item [data-scope=\"card\"][data-part=\"root\"] {\n  display: flex;\n  flex: 1;\n  flex-direction: column;\n  width: 100%;\n  height: 100%;\n}\n\
-.blocks-grid-list-contact-cards-main {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n}\n\
+[data-scope=\"card\"][data-part=\"body\"].blocks-grid-list-contact-cards-main {\n  display: flex;\n  flex-direction: row;\n  justify-content: space-between;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-grid-list-contact-cards-info {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
 .blocks-grid-list-contact-cards-role {\n  color: var(--fandhe-color-fg-muted);\n  font-size: 0.875rem;\n}\n\
 .blocks-grid-list-contact-cards-stack {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  text-align: center;\n  gap: var(--fandhe-space-2);\n}\n\
@@ -480,7 +498,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-grid-list-contact-cards-grid] {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n\
 }\n\
 @container blocks-grid-list-contact-cards (min-width: 68rem) {\n  \
-[data-blocks-grid-list-contact-cards-variant=\"vertical\"] [data-blocks-grid-list-contact-cards-grid] {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n\
+[data-blocks-grid-list-contact-cards-grid][data-blocks-grid-list-contact-cards-grid-variant=\"vertical\"] {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -553,9 +571,17 @@ mod tests {
         assert!(LAYOUT_CSS.contains("@container blocks-grid-list-contact-cards (min-width: 52rem)"));
         assert!(LAYOUT_CSS.contains("@container blocks-grid-list-contact-cards (min-width: 68rem)"));
         assert!(LAYOUT_CSS.contains("repeat(4, minmax(0, 1fr));"));
-        // vertical 限定であること（horizontal 側セレクタには現れない）。
+        // 縦型限定の 4 列判定は grid 要素自身の属性で行う（コンテナー自身
+        // への祖先参照を含む子孫セレクタは @container 内で一致しないため、
+        // モジュール doc「`@container` で列数を切り替える理由」節参照）。
         assert!(LAYOUT_CSS.contains(
-            "[data-blocks-grid-list-contact-cards-variant=\"vertical\"] [data-blocks-grid-list-contact-cards-grid]"
+            "[data-blocks-grid-list-contact-cards-grid][data-blocks-grid-list-contact-cards-grid-variant=\"vertical\"]"
+        ));
+        // horizontal card の main は card::body recipe（詳細度 (0,2,0,0)）に
+        // 勝つため複合セレクタ（詳細度 (0,3,0,0)）で flex-direction を
+        // 明示上書きする（モジュール doc「CSS フックの選び方」節参照）。
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"card\"][data-part=\"body\"].blocks-grid-list-contact-cards-main {\n  display: flex;\n  flex-direction: row;"
         ));
     }
 

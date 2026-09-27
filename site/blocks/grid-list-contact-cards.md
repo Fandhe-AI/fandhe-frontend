@@ -323,7 +323,10 @@ fn instance(variant: &'static str, label: &'static str, cards: Vec<Node>) -> Nod
             list::root(
                 ListType::Unordered,
                 ListVariant::Plain,
-                vec![("data-blocks-grid-list-contact-cards-grid", "")],
+                vec![
+                    ("data-blocks-grid-list-contact-cards-grid", ""),
+                    ("data-blocks-grid-list-contact-cards-grid-variant", variant),
+                ],
                 cards,
             ),
         ],
