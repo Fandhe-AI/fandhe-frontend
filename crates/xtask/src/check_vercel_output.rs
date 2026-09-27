@@ -623,13 +623,27 @@ fn check_routes_404_fallback(routes: &[Json]) -> CheckResult {
     // shadowing 判定の対象から除く。
     let shadowing_route = routes[..fallback_index]
         .iter()
-        .find(|route| route.get("handle").is_none() && !route_continues(route));
+        .enumerate()
+        .find(|(_, route)| route.get("handle").is_none() && !route_continues(route));
 
-    if let Some(shadowing) = shadowing_route {
+    if let Some((shadowing_index, shadowing)) = shadowing_route {
+        // 判定に必要な情報（配列位置・キー名のみ）だけを detail に出す。
+        // ルート定義全体（`{shadowing:?}`）を出力すると、`headers` 等の
+        // 値に機微情報が含まれる場合に CI ログ・Step Summary へそのまま
+        // 露出してしまう（PR #3322 レビュー指摘への対処、Codex P1:
+        // A09 機微情報の露出防止）。
+        let keys = match shadowing {
+            Json::Object(entries) => entries
+                .iter()
+                .map(|(k, _)| k.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
+            _ => String::new(),
+        };
         return CheckResult::fail(
             "config_routes_404_fallback",
             format!(
-                "a terminating route ({shadowing:?}) sits before the 404 fallback and may shadow `{{\"handle\": \"filesystem\"}}` or the fallback itself (missing `continue: true`)"
+                "a terminating route (routes[{shadowing_index}], keys: [{keys}]) sits before the 404 fallback and may shadow `{{\"handle\": \"filesystem\"}}` or the fallback itself (missing `continue: true`)"
             ),
         );
     }
@@ -683,6 +697,26 @@ fn check_routes_dest_targets(routes: &[Json], output_dir: &Path) -> CheckResult 
                     "routes_dest_targets",
                     format!(
                         "routes[{index}].dest: replacement-ref dest must not contain `..` segments (`{dest}`)"
+                    ),
+                );
+            }
+            // 置換参照を含まないリテラルなパスセグメント（例:
+            // `/foo//$1` の `foo` と 2 番目の空セグメント）は静的に
+            // 内容が確定するため、空要素を明示的に拒否する（PR #3322
+            // レビュー指摘への対処、Codex P1: `$` を含む dest 全体を
+            // 素通りさせると `/foo//$1`・`//$1` のような空パス要素が
+            // 混入した dest を許可してしまい、`is_safe_relative_dest`
+            // が非置換 dest に課す境界検証条件と食い違う）。置換参照
+            // 自体を含むセグメント（例: `$1`）は展開結果が空文字列に
+            // なり得るため、ここでの静的検証対象から除く。
+            if relative
+                .split('/')
+                .any(|segment| !segment.contains('$') && segment.is_empty())
+            {
+                return CheckResult::fail(
+                    "routes_dest_targets",
+                    format!(
+                        "routes[{index}].dest: replacement-ref dest must not contain empty path segments (`{dest}`)"
                     ),
                 );
             }
@@ -1028,6 +1062,41 @@ mod tests {
             ]),
         ];
         assert!(!check_routes_404_fallback(&routes).passed);
+    }
+
+    /// PR #3322 レビュー指摘（Codex P1、3 回目）の回帰テスト: shadowing
+    /// 検知の FAIL detail はルート定義全体（`headers` の値等）を出力せず、
+    /// 配列位置とキー名のみを含む（A09 機微情報の露出防止）。
+    #[test]
+    fn check_routes_404_fallback_shadowing_detail_excludes_route_values() {
+        let secret_token = "super-secret-token-value";
+        let routes = vec![
+            obj(vec![("handle", s("filesystem"))]),
+            obj(vec![
+                ("src", s("/(.*)")),
+                ("headers", obj(vec![("X-Secret", s(secret_token))])),
+            ]),
+            obj(vec![
+                ("src", s("/(.*)")),
+                ("status", Json::Number(404.0)),
+                ("dest", s("/404.html")),
+            ]),
+        ];
+        let result = check_routes_404_fallback(&routes);
+        assert!(!result.passed);
+        let detail = result.detail.expect("FAIL には detail が必須");
+        assert!(
+            !detail.contains(secret_token),
+            "detail にルート定義の値（機微情報）が含まれてはならない: {detail}"
+        );
+        assert!(
+            detail.contains("routes[1]"),
+            "detail に配列位置が含まれるべき: {detail}"
+        );
+        assert!(
+            detail.contains("src") && detail.contains("headers"),
+            "detail にキー名が含まれるべき: {detail}"
+        );
     }
 
     /// 上記のシャドーイング検知は `continue: true` を持つ非終端ルート

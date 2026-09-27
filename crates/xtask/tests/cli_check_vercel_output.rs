@@ -344,6 +344,50 @@ fn dest_with_replacement_ref_and_parent_traversal_fails() {
     let _ = fs::remove_dir_all(&dir);
 }
 
+/// PR #3322 レビュー指摘（Codex P1）の回帰テスト: `$` 置換参照を含む
+/// `dest` でも、置換参照を含まないリテラルな空パス要素（`/foo//$1` の
+/// 2 番目のセグメント）は明示的に拒否する（置換参照を含む dest 全体を
+/// 素通りさせると `is_safe_relative_dest` が非置換 dest に課す境界検証
+/// 条件と食い違ってしまう）。
+#[test]
+fn dest_with_replacement_ref_and_empty_segment_fails() {
+    let dir = make_fixture_dir("dest-replacement-ref-empty-segment");
+    write_valid_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    fs::write(
+        output_dir.join("config.json"),
+        r#"{"version": 3, "routes": [{"handle": "filesystem"}, {"src": "/(.*)", "status": 404, "dest": "/foo//$1"}]}"#,
+    )
+    .unwrap();
+
+    let result = run_check_vercel_output(&["--output-dir", output_dir.to_str().unwrap()]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=routes_dest_targets result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// 同上（先頭が空セグメントになる `//$1` パターン）。
+#[test]
+fn dest_with_replacement_ref_and_leading_empty_segment_fails() {
+    let dir = make_fixture_dir("dest-replacement-ref-leading-empty-segment");
+    write_valid_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    fs::write(
+        output_dir.join("config.json"),
+        r#"{"version": 3, "routes": [{"handle": "filesystem"}, {"src": "/(.*)", "status": 404, "dest": "//$1"}]}"#,
+    )
+    .unwrap();
+
+    let result = run_check_vercel_output(&["--output-dir", output_dir.to_str().unwrap()]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=routes_dest_targets result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn dest_pointing_at_missing_file_fails() {
     let dir = make_fixture_dir("dest-missing-file");
