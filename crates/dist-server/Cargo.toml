@@ -33,7 +33,7 @@ name = "fandhe-frontend-dist-server"
 # drop し、処理中の接続を猶予時間内（`DRAIN_TIMEOUT_SECS`）で完了させてから
 # 終了する graceful shutdown を追加した。#3336 と同じ理由（`lib.rs` の公開
 # API は無変更、`main.rs` の実行時挙動〔バイナリがシグナルへどう応答する
-# か〕のみが変わる）で patch バンプとし、0.3.2 から 0.3.3 とする
+# か〕のみが変わる）で patch バンプとし、0.3.3 から 0.3.4 とする
 # （`.claude/rules/coding-rust.md` #638 条項）。
 version = "0.3.4"
 edition = "2021"

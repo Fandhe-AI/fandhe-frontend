@@ -226,9 +226,7 @@ impl ShutdownSignals {
             match self.ctrl_c.as_mut().poll(cx) {
                 Poll::Ready(Ok(())) => Poll::Ready("Ctrl-C"),
                 Poll::Ready(Err(err)) => {
-                    eprintln!(
-                        "fandhe-frontend-dist-server: failed to poll Ctrl-C handler: {err}"
-                    );
+                    eprintln!("fandhe-frontend-dist-server: failed to poll Ctrl-C handler: {err}");
                     self.ctrl_c_failed = true;
                     Poll::Pending
                 }
