@@ -1528,6 +1528,11 @@ title = "team-bio-rows"
 source = "site/blocks/team-bio-rows.md"
 path = "/blocks/team-bio-rows/"
 
+[[section.group.page]]
+title = "team-split-list"
+source = "site/blocks/team-split-list.md"
+path = "/blocks/team-split-list/"
+
 [[section.group]]
 title = "FAQ"
 
