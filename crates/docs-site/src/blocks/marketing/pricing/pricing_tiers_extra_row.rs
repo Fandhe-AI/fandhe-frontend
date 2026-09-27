@@ -1,17 +1,17 @@
-//! `pricing-tiers-extra-row` block（イシュー #2876。親 #2875「横並びのプラン
-//! カード + カード群と同じ幅の補足行」配下、対応表 ID R0205 を主参照とする
-//! 合成例。規模の大きい親 issue を 2 分割した前半であり、後半（#2877）が
-//! 機能項目の toggle tip（R0202）と他 2 案の補足行（R0202 のカスタムプラン
-//! 問い合わせカード・R1143 の割引プラン横長行）を追加する。本 issue では
-//! 骨格（カード列のレイアウト・レスポンシブ切替）と主参照 R0205 の形
-//! （全プラン共通の機能グリッドを下段に置く）を仕上げる。
+//! `pricing-tiers-extra-row` block（イシュー #2876/#2877。親 #2875「横並びの
+//! プランカード + カード群と同じ幅の補足行」配下、対応表 ID R0205 を主参照
+//! とする合成例。規模の大きい親 issue を 2 分割し、前半（#2876）が骨格
+//! （カード列のレイアウト・レスポンシブ切替）と主参照 R0205 の形（全プラン
+//! 共通の機能グリッドを下段に置く）を仕上げ、後半（本 issue #2877）が機能
+//! 項目の toggle tip（R0202）と他 2 案の補足行（R0202 のカスタムプラン
+//! 問い合わせカード・R1143 の割引プラン横長行）を追加した。
 //!
 //! # 使用部品
 //!
 //! `heading` / `text` / `badge` / `card` / `button` / `list` / `icon` /
-//! `separator` の 8 部品を合成する（[`BLOCK`] の `parts` に一致させる契約、
-//! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証する）。
-//! `toggle-tip` は後半（#2877）で追加する。
+//! `separator` / `toggle-tip` の 9 部品を合成する（[`BLOCK`] の `parts` に
+//! 一致させる契約、`crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs`
+//! が検証する）。
 //!
 //! # 静的表示（無 JS、初期状態で固定）
 //!
@@ -25,9 +25,44 @@
 //! （[`fandhe_frontend_pre_styled_ui::recipe::Breakpoint::Lg`]）で横 3 列へ
 //! 切り替える（mobile-first の `min-width` メディアクエリ、`pricing_seats_
 //! split`/`pricing_slider_tiers` と同じブレークポイントに揃える）。補足行
-//! （[`extra_row`]）はカード列と同じグリッドの全列にまたがる
-//! （`grid-column: 1 / -1`）ため、幅は常にカード群と一致する。狭い幅では
-//! カード縦積みの直後に続く。
+//! （[`extra_common`]・[`extra_custom_plan`]・[`extra_discount`]）はカード列
+//! と同じグリッドの全列にまたがる（`grid-column: 1 / -1`）ため、幅は常に
+//! カード群と一致する。狭い幅ではカード縦積みの直後に続く。
+//!
+//! # 機能項目の toggle tip（状態並記、R0202 の集約）
+//!
+//! 一部の機能項目（Growth の「優先サポート」・Scale の「SLA 保証」・共通
+//! 機能の「監査ログ 30 日保持」）へ [`fandhe_frontend_pre_styled_ui::
+//! toggle_tip`] の補足を添える。docs サイトは JS ハイドレーションを行わない
+//! ため trigger を押しても開閉は変化しない。そこで (1) 3 件の状態を
+//! `Open`/`Closed`/`Closed` に固定して両状態を静的に並記し、(2) trigger は
+//! 無 JS で機能しないことを示すため `disabled: true` にする
+//! （`header_mega_menu::state_label` と同じ判断軸）。trigger のアクセシブル
+//! ネームは `aria-label="<機能名> の補足"` を固定文字列で付与し、子には
+//! 装飾用の info アイコン（`label: None` → `aria-hidden`）を置く。
+//! `positioner` は `.blocks-demo` の `overflow-x: auto` の枠内で絶対配置が
+//! 見切れないよう、[`LAYOUT_CSS`] で `position: static` へ中和する
+//! （showcase の `pre-styled-showcase [data-scope="toggle-tip"]
+//! [data-part="positioner"]` と同じ判断）。toggle tip を含む機能項目は
+//! `flex-wrap: wrap` にし、open 時の content が折り返して表示されるように
+//! する。
+//!
+//! # 補足行 3 案の並記（R0205/R0202/R1143）
+//!
+//! カードは 1 組のみ描画し、補足行をグリッド全幅で 3 つ縦に並べる。各行の
+//! 先頭に [`state_label`]（`header_mega_menu::state_label` と同型）で案の
+//! 種別を示す。
+//!
+//! - **補足行 A**（[`extra_common`]、R0205）: 全プラン共通機能のグリッド
+//!   （前半 #2876 の主参照）。
+//! - **補足行 B**（[`extra_custom_plan`]、R0202）: カスタムプラン問い合わせ
+//!   カード。`card::root(Outline)` に見出し・説明・`button`（Outline、
+//!   「問い合わせる」）を横並び（狭幅は縦積み）で配置する。
+//! - **補足行 C**（[`extra_discount`]、R1143）: 割引プランの横長行。
+//!   `badge`「20% OFF」+ 見出し + 説明 + `button`（Ghost、「割引を申請する」）
+//!   を配置する。参照元 R1143 が持つ暗色帯・カード重ねの装飾は持ち込まない
+//!   （既存トーンへ揃えるための意図的な省略、原稿の「原案差分メモ」節
+//!   参照）。
 //!
 //! # 機能リストのチェックが装飾扱いである理由（a11y）
 //!
@@ -81,6 +116,7 @@ use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::separator::{self, SeparatorProps};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
+use fandhe_frontend_pre_styled_ui::toggle_tip::{self, OpenState};
 use fandhe_frontend_pre_styled_ui::Size;
 
 /// プラン 1 件分（架空、実在の製品・企業とは無関係）。
@@ -136,6 +172,120 @@ const COMMON_FEATURES: &[&str] = &[
     "リージョン選択",
     "週次バックアップ",
 ];
+
+/// 機能項目への補足 toggle tip 表（機能名, content id, 補足文, 初期状態）。
+/// モジュール doc「機能項目の toggle tip」節参照。1 件だけ `Open` にして
+/// 両状態を静的に並記する。`content` の id は固定値（重複禁止・
+/// `blocks_contract.rs` の dangling aria/重複 id 検査対象）。
+const FEATURE_NOTES: &[(&str, &str, &str, OpenState)] = &[
+    (
+        "優先サポート",
+        "blocks-pricing-tiers-extra-row-tip-1",
+        "営業日 24 時間以内に一次回答します。",
+        OpenState::Open,
+    ),
+    (
+        "SLA 保証",
+        "blocks-pricing-tiers-extra-row-tip-2",
+        "月間稼働率 99.9% を下回った場合に利用料を返金します。",
+        OpenState::Closed,
+    ),
+    (
+        "監査ログ 30 日保持",
+        "blocks-pricing-tiers-extra-row-tip-3",
+        "保持期間の延長はオプションで承ります。",
+        OpenState::Closed,
+    ),
+];
+
+/// 補足 toggle tip の装飾アイコン（info 形。参照元の形状は持ち込まない
+/// 独自図形。常に `aria-hidden`）。
+fn info_icon() -> Node {
+    icon(
+        &IconProps {
+            size: Size::Sm,
+            label: None,
+            ..IconProps::default()
+        },
+        vec![],
+        vec![
+            el(
+                "circle",
+                vec![
+                    ("cx", "12"),
+                    ("cy", "12"),
+                    ("r", "9"),
+                    ("fill", "none"),
+                    ("stroke", "currentColor"),
+                    ("stroke-width", "1.5"),
+                ],
+                vec![],
+            ),
+            el(
+                "path",
+                vec![
+                    ("d", "M12 11v5M12 8v.01"),
+                    ("fill", "none"),
+                    ("stroke", "currentColor"),
+                    ("stroke-width", "1.5"),
+                    ("stroke-linecap", "round"),
+                ],
+                vec![],
+            ),
+        ],
+    )
+}
+
+/// [`FEATURE_NOTES`] に一致する機能名なら補足 toggle tip を添えた
+/// トリガーを返す（モジュール doc「機能項目の toggle tip」節参照）。
+fn feature_note(feature: &str) -> Option<Node> {
+    let (_, content_id, note, state) = FEATURE_NOTES
+        .iter()
+        .find(|(name, ..)| *name == feature)?
+        .to_owned();
+    Some(div(
+        vec![("class", "blocks-pricing-tiers-extra-row-tip")],
+        vec![toggle_tip::root(
+            state,
+            vec![],
+            vec![
+                toggle_tip::trigger(
+                    state,
+                    true,
+                    Some(content_id),
+                    vec![("aria-label", &format!("{feature} の補足"))],
+                    vec![info_icon()],
+                ),
+                toggle_tip::positioner(
+                    state,
+                    vec![],
+                    vec![toggle_tip::content(
+                        state,
+                        Some(content_id),
+                        vec![],
+                        vec![text(note)],
+                    )],
+                ),
+            ],
+        )],
+    ))
+}
+
+/// 機能項目 1 件分（チェックインジケータ + 本文 + 任意の toggle tip）。
+/// プランカード・共通機能グリッドの両方の機能リストから共用する。
+fn feature_item(feature: &str) -> Node {
+    let mut children = vec![
+        list::indicator(vec![], vec![check_icon()]),
+        span(vec![], vec![text(feature)]),
+    ];
+    if let Some(tip) = feature_note(feature) {
+        children.push(tip);
+    }
+    list::item(
+        vec![("class", "blocks-pricing-tiers-extra-row-feature")],
+        children,
+    )
+}
 
 /// 機能リストのチェックマーク（装飾。モジュール doc「機能リストの
 /// チェックが装飾扱いである理由」節参照）。参照元の形状は持ち込まない
@@ -251,15 +401,7 @@ fn plan_card(plan: &Plan) -> Node {
         vec![("data-blocks-pricing-tiers-extra-row-features", "")],
         plan.features
             .iter()
-            .map(|feature| {
-                list::item(
-                    vec![("class", "blocks-pricing-tiers-extra-row-feature")],
-                    vec![
-                        list::indicator(vec![], vec![check_icon()]),
-                        span(vec![], vec![text(*feature)]),
-                    ],
-                )
-            })
+            .map(|feature| feature_item(feature))
             .collect(),
     );
 
@@ -293,31 +435,36 @@ fn plan_card(plan: &Plan) -> Node {
     )
 }
 
-/// カード列と同じグリッドの全幅に置く補足行（主参照 R0205: 全プラン共通の
-/// 機能グリッド、モジュール doc「使用部品」節参照）。
-fn extra_row() -> Node {
+/// 状態並記の見出し（モジュール doc「補足行 3 案の並記」節、
+/// `header_mega_menu::state_label` と同型）。
+fn state_label(label: &str) -> Node {
+    span(
+        vec![("class", "blocks-pricing-tiers-extra-row-state-label")],
+        vec![text(label)],
+    )
+}
+
+/// 補足行 A（主参照 R0205: 全プラン共通の機能グリッド、モジュール doc
+/// 「補足行 3 案の並記」節参照）。
+fn extra_common() -> Node {
     let common_list = list::root(
         ListType::Unordered,
         ListVariant::Plain,
         vec![("data-blocks-pricing-tiers-extra-row-common", "")],
         COMMON_FEATURES
             .iter()
-            .map(|feature| {
-                list::item(
-                    vec![("class", "blocks-pricing-tiers-extra-row-feature")],
-                    vec![
-                        list::indicator(vec![], vec![check_icon()]),
-                        span(vec![], vec![text(*feature)]),
-                    ],
-                )
-            })
+            .map(|feature| feature_item(feature))
             .collect(),
     );
 
     div(
-        vec![("class", "blocks-pricing-tiers-extra-row-extra")],
+        vec![
+            ("class", "blocks-pricing-tiers-extra-row-extra"),
+            ("data-blocks-pricing-tiers-extra-row-extra", "common"),
+        ],
         vec![
             separator::separator(&SeparatorProps::default(), vec![]),
+            state_label("補足行 A: 全プラン共通機能"),
             heading(
                 HeadingLevel::H4,
                 &HeadingProps {
@@ -332,6 +479,118 @@ fn extra_row() -> Node {
     )
 }
 
+/// 補足行 B（R0202: カスタムプラン問い合わせカード、モジュール doc
+/// 「補足行 3 案の並記」節参照）。
+fn extra_custom_plan() -> Node {
+    div(
+        vec![
+            ("class", "blocks-pricing-tiers-extra-row-extra"),
+            ("data-blocks-pricing-tiers-extra-row-extra", "custom"),
+        ],
+        vec![
+            state_label("補足行 B: カスタムプラン問い合わせ"),
+            card::root(
+                CardProps {
+                    variant: CardVariant::Outline,
+                    ..CardProps::default()
+                },
+                vec![("class", "blocks-pricing-tiers-extra-row-custom-card")],
+                vec![
+                    div(
+                        vec![("class", "blocks-pricing-tiers-extra-row-custom-body")],
+                        vec![
+                            heading(
+                                HeadingLevel::H4,
+                                &HeadingProps {
+                                    size: HeadingSize::Lg,
+                                    weight: HeadingWeight::Semibold,
+                                },
+                                vec![],
+                                vec![text("Enterprise")],
+                            ),
+                            styled_text::text(
+                                &TextProps {
+                                    variant: TextVariant::Muted,
+                                    ..TextProps::default()
+                                },
+                                vec![],
+                                vec![text("利用規模・契約条件に応じて個別見積もりを作成します。")],
+                            ),
+                        ],
+                    ),
+                    button::button(
+                        &ButtonProps {
+                            variant: ButtonVariant::Outline,
+                            ..ButtonProps::default()
+                        },
+                        vec![],
+                        vec![text("問い合わせる")],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
+/// 補足行 C（R1143: 割引プランの横長行、モジュール doc「補足行 3 案の
+/// 並記」節参照。参照元の暗色帯・カード重ねは持ち込まない）。
+fn extra_discount() -> Node {
+    div(
+        vec![
+            ("class", "blocks-pricing-tiers-extra-row-extra"),
+            ("data-blocks-pricing-tiers-extra-row-extra", "discount"),
+        ],
+        vec![
+            state_label("補足行 C: 割引プラン"),
+            div(
+                vec![("class", "blocks-pricing-tiers-extra-row-discount-row")],
+                vec![
+                    badge::badge(
+                        &BadgeProps {
+                            variant: BadgeVariant::Subtle,
+                            ..BadgeProps::default()
+                        },
+                        vec![],
+                        vec![text("20% OFF")],
+                    ),
+                    div(
+                        vec![("class", "blocks-pricing-tiers-extra-row-discount-body")],
+                        vec![
+                            heading(
+                                HeadingLevel::H4,
+                                &HeadingProps {
+                                    size: HeadingSize::Lg,
+                                    weight: HeadingWeight::Semibold,
+                                },
+                                vec![],
+                                vec![text("非営利・教育機関向け")],
+                            ),
+                            styled_text::text(
+                                &TextProps {
+                                    variant: TextVariant::Muted,
+                                    ..TextProps::default()
+                                },
+                                vec![],
+                                vec![text(
+                                    "該当する組織は Growth 以上のプランを割引価格で利用できます。",
+                                )],
+                            ),
+                        ],
+                    ),
+                    button::button(
+                        &ButtonProps {
+                            variant: ButtonVariant::Ghost,
+                            ..ButtonProps::default()
+                        },
+                        vec![],
+                        vec![text("割引を申請する")],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
 /// `pricing-tiers-extra-row` の Demo 本体。呼び出しごとに同一の `Node` を
 /// 返す純関数。
 pub fn demo() -> Node {
@@ -341,7 +600,9 @@ pub fn demo() -> Node {
             section_header(),
             div(vec![("class", "blocks-pricing-tiers-extra-row-grid")], {
                 let mut children: Vec<Node> = PLANS.iter().map(plan_card).collect();
-                children.push(extra_row());
+                children.push(extra_common());
+                children.push(extra_custom_plan());
+                children.push(extra_discount());
                 children
             }),
         ],
@@ -390,6 +651,10 @@ pub const BLOCK: Block = Block {
             label: "Separator",
             path: "/themes/separator/",
         },
+        Part {
+            label: "Toggle Tip",
+            path: "/themes/toggle-tip/",
+        },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
     demo,
@@ -412,19 +677,28 @@ const LAYOUT_CSS: &str = "\
 .blocks-pricing-tiers-extra-row-price {\n  font-size: var(--fandhe-font-font-size-2xl);\n  font-weight: var(--fandhe-font-font-weight-bold);\n}\n\
 .blocks-pricing-tiers-extra-row-price-period {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-scope=\"list\"][data-part=\"root\"][data-blocks-pricing-tiers-extra-row-features] {\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n}\n\
-[data-scope=\"list\"][data-part=\"item\"].blocks-pricing-tiers-extra-row-feature {\n  display: flex;\n  align-items: center;\n}\n\
+[data-scope=\"list\"][data-part=\"item\"].blocks-pricing-tiers-extra-row-feature {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  row-gap: var(--fandhe-space-1);\n}\n\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-pricing-tiers-extra-row-card=\"featured\"] {\n  border: 2px solid var(--fandhe-color-accent);\n}\n\
 .blocks-pricing-tiers-extra-row-extra {\n  grid-column: 1 / -1;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-scope=\"list\"][data-part=\"root\"][data-blocks-pricing-tiers-extra-row-common] {\n  margin: 0;\n  padding: 0;\n  display: grid;\n  gap: var(--fandhe-space-2) var(--fandhe-space-6);\n  grid-template-columns: 1fr;\n}\n\
 @media (min-width: 40rem) {\n  [data-scope=\"list\"][data-part=\"root\"][data-blocks-pricing-tiers-extra-row-common] {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n}\n\
-@media (min-width: 64rem) {\n  [data-scope=\"list\"][data-part=\"root\"][data-blocks-pricing-tiers-extra-row-common] {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n}\n";
+@media (min-width: 64rem) {\n  [data-scope=\"list\"][data-part=\"root\"][data-blocks-pricing-tiers-extra-row-common] {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n}\n\
+.blocks-pricing-tiers-extra-row-state-label {\n  display: block;\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: 600;\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-pricing-tiers-extra-row-layout [data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
+.blocks-pricing-tiers-extra-row-tip {\n  display: inline-flex;\n}\n\
+.blocks-pricing-tiers-extra-row-custom-card {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-4);\n}\n\
+@media (min-width: 40rem) {\n  .blocks-pricing-tiers-extra-row-custom-card {\n    flex-direction: row;\n    align-items: center;\n    justify-content: space-between;\n  }\n}\n\
+.blocks-pricing-tiers-extra-row-custom-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
+.blocks-pricing-tiers-extra-row-discount-row {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-4);\n}\n\
+@media (min-width: 40rem) {\n  .blocks-pricing-tiers-extra-row-discount-row {\n    flex-direction: row;\n    align-items: center;\n  }\n}\n\
+.blocks-pricing-tiers-extra-row-discount-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  flex: 1;\n}\n";
 
 #[cfg(test)]
 mod tests {
     use super::{demo, COMMON_FEATURES, LAYOUT_CSS};
     use fandhe_frontend_core::render;
 
-    /// Demo が期待する 8 種の部品を出力し、`<form>`・`data:` を持たない
+    /// Demo が期待する 9 種の部品を出力し、`<form>`・`data:` を持たない
     /// こと。
     #[test]
     fn demo_composes_expected_parts() {
@@ -438,6 +712,7 @@ mod tests {
             "data-scope=\"list\"",
             "data-scope=\"icon\"",
             "data-scope=\"separator\"",
+            "data-scope=\"toggle-tip\"",
         ] {
             assert!(html.contains(scope), "demo output should contain {scope}");
         }
@@ -462,15 +737,21 @@ mod tests {
         );
     }
 
-    /// 補足行が 1 件で、共通機能の件数が [`COMMON_FEATURES`] と一致する
-    /// こと。
+    /// 補足行 3 案（common/custom/discount）が過不足なく 1 件ずつ並記され、
+    /// 共通機能の件数が [`COMMON_FEATURES`] と一致すること。
     #[test]
-    fn demo_has_one_extra_row_matching_common_feature_count() {
+    fn demo_has_three_extra_rows_matching_common_feature_count() {
         let html = render(&demo());
-        assert_eq!(
-            html.matches("blocks-pricing-tiers-extra-row-extra").count(),
-            1
-        );
+        for kind in ["common", "custom", "discount"] {
+            assert_eq!(
+                html.matches(&format!(
+                    "data-blocks-pricing-tiers-extra-row-extra=\"{kind}\""
+                ))
+                .count(),
+                1,
+                "demo output should contain exactly one {kind} extra row"
+            );
+        }
         assert_eq!(
             html.matches("data-blocks-pricing-tiers-extra-row-common")
                 .count(),
@@ -484,12 +765,46 @@ mod tests {
         }
     }
 
+    /// 機能項目の toggle tip が 3 件描画され、状態並記（open 1 件 /
+    /// closed 2 件）・trigger の `disabled`/`aria-label` が固定であること
+    /// （モジュール doc「機能項目の toggle tip」節参照）。
+    #[test]
+    fn demo_has_three_feature_toggle_tips_with_fixed_state_and_disabled_trigger() {
+        let html = render(&demo());
+        assert_eq!(html.matches("data-scope=\"toggle-tip\"").count(), 3 * 4);
+        assert_eq!(html.matches(r#"aria-expanded="true""#).count(), 1);
+        assert_eq!(html.matches("data-part=\"content\"").count(), 3);
+        assert_eq!(
+            html.matches(r#"hidden="""#).count(),
+            2 * 2,
+            "closed toggle tip contributes hidden on both positioner and content"
+        );
+        assert_eq!(html.matches(r#" disabled="""#).count(), 3);
+        assert_eq!(html.matches("aria-label=\"").count(), 3);
+    }
+
     /// [`LAYOUT_CSS`] が 64rem のブレークポイント条件と、補足行の全幅
     /// （`grid-column: 1 / -1`）規則を持つこと。
     #[test]
     fn layout_css_has_breakpoint_and_full_width_extra_row() {
         assert!(LAYOUT_CSS.contains("@media (min-width: 64rem)"));
         assert!(LAYOUT_CSS.contains("grid-column: 1 / -1"));
+    }
+
+    /// [`LAYOUT_CSS`] が toggle-tip positioner を `position: static` へ
+    /// 中和すること（モジュール doc「機能項目の toggle tip」節参照）。
+    #[test]
+    fn layout_css_neutralizes_toggle_tip_positioner_to_static() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;"
+        ));
+    }
+
+    /// [`super::BLOCK`] の `parts` がモジュール doc「使用部品」節の 9 件と
+    /// 一致すること。
+    #[test]
+    fn block_parts_has_nine_entries() {
+        assert_eq!(super::BLOCK.parts.len(), 9);
     }
 
     /// ルート class（`demo_class` とは別名）が [`demo`] の出力へ実際に
