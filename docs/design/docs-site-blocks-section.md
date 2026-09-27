@@ -957,6 +957,7 @@ pub enum LayoutCss {
 | testimonial-quote-stats | #2889 | `marketing/testimonial/testimonial_quote_stats.rs` |
 | testimonial-two-up | #2891 | `marketing/testimonial/testimonial_two_up.rs` |
 | app-shell-navbar-columns | #2893（親 #2892） | `application/app_shell/app_shell_navbar_columns.rs` |
+| app-shell-sidebar | #2894（親 #2892） | `application/app_shell/app_shell_sidebar.rs` |
 | app-shell-sidebar-header | #2895 | `application/app_shell/app_shell_sidebar_header.rs` |
 | app-shell-stacked | #2896（親 #2892） | `application/app_shell/app_shell_stacked.rs` |
 | app-shell-stacked-overlap | #2897（親 #2892） | `application/app_shell/app_shell_stacked_overlap.rs` |
