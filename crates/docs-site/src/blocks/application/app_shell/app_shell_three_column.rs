@@ -383,7 +383,13 @@ fn shell(
             "サイドバーを開く",
             Some(root_id.as_str()),
             vec![],
-            vec![],
+            // `narrow` variant ではこの trigger がヘッダー内唯一の操作要素
+            // かつ `trigger` 自体は透明背景・枠なしのため、子要素なしでは
+            // 通常時にボタンの位置が視覚的に見えない（codex-review P1、
+            // イシュー #2898）。`app_shell_stacked` と同じハンバーガー
+            // アイコン（3 本線、装飾用途のため `label: None`）を可視の子
+            // 要素として渡す。
+            vec![geo_icon("M3 6h18v2H3zM3 11h18v2H3zM3 16h18v2H3z")],
         ))
     } else {
         None
