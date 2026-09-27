@@ -2034,6 +2034,14 @@ source = "site/blocks/feed-upvote-cards.md"
 path = "/blocks/feed-upvote-cards/"
 
 [[section.group]]
+title = "Form Layout"
+
+[[section.group.page]]
+title = "form-layout-property-panel"
+source = "site/blocks/form-layout-property-panel.md"
+path = "/blocks/form-layout-property-panel/"
+
+[[section.group]]
 title = "Auth"
 
 [[section.group.page]]
