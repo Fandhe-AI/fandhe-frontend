@@ -2029,6 +2029,11 @@ path = "/blocks/game-ui-modal/"
 title = "Card"
 
 [[section.group.page]]
+title = "card-media-footer"
+source = "site/blocks/card-media-footer.md"
+path = "/blocks/card-media-footer/"
+
+[[section.group.page]]
 title = "cursor-hover-cards"
 source = "site/blocks/cursor-hover-cards.md"
 path = "/blocks/cursor-hover-cards/"
