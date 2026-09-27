@@ -70,12 +70,76 @@ cargo metadata --format-version 1 --filter-platform aarch64-apple-darwin > meta-
 ```
 
 得られた `cargo metadata` の JSON（`packages[]` / `resolve.nodes[]`）に対し、
-`check_deps.rs` と同じアルゴリズム（BFS による到達可能集合・メモ化 DFS に
-よる最長経路）を実装した短いスクリプトで件数・深さを算出しました
-（スクリプト自体はリポジトリに含めていません）。
+`check_deps.rs` と同じアルゴリズム（`DepKind::Normal` 辺のみを辿る到達可能
+集合の BFS・メモ化 DFS による最長経路）を実装した次のスクリプトで件数・
+深さを算出しました（`meta-linux.json` は上記コマンドの出力）。
 
-最長経路の確認には `cargo tree -e normal --target x86_64-unknown-linux-gnu -i
-unicode-ident` を使い、経路上の各クレートを目視で裏付けています。
+```python
+import json
+
+data = json.load(open("meta-linux.json"))
+resolve = data["resolve"]
+nodes = {n["id"]: n for n in resolve["nodes"]}
+root_id = resolve["root"]
+
+
+def normal_deps(node_id):
+    node = nodes[node_id]
+    out = []
+    for dep in node.get("deps", []):
+        dep_kinds = dep.get("dep_kinds", [])
+        is_normal = (
+            any(dk.get("kind") is None for dk in dep_kinds) if dep_kinds else True
+        )
+        if is_normal:
+            out.append(dep["pkg"])
+    return out
+
+
+# 件数: 到達可能な一意パッケージ集合（ルート自身を除く）
+seen = set()
+stack = [root_id]
+while stack:
+    cur = stack.pop()
+    for d in normal_deps(cur):
+        if d not in seen:
+            seen.add(d)
+            stack.append(d)
+print("package_count:", len(seen))
+
+# 深さ: ルートを深さ 0 としたメモ化 DFS による最長経路
+memo = {}
+
+
+def depth(node_id):
+    if node_id in memo:
+        return memo[node_id]
+    best = 0
+    for d in normal_deps(node_id):
+        best = max(best, depth(d) + 1)
+    memo[node_id] = best
+    return best
+
+
+max_depth = depth(root_id)
+print("max_depth:", max_depth)
+
+# 最長経路の復元（同 depth の分岐がある場合は最初に見つかった経路を採用）
+path, cur, d = [root_id], root_id, max_depth
+while d > 0:
+    for nd in normal_deps(cur):
+        if depth(nd) == d - 1:
+            path.append(nd)
+            cur, d = nd, d - 1
+            break
+print("path:", [p.split("#")[-1] for p in path])
+```
+
+上記スクリプトは `docs/design/vercel-deployment-strategy.md` 修正時（イシュー
+#3288 レビュー対応、2026-09-27）に本節の `Cargo.toml`（`vercel_runtime` +
+`tokio` + `fandhe-frontend-core`/`-app`/`-server`）で再実行して確認済みで、
+`Cargo.lock` は本文どおり 78 パッケージを解決し、`package_count: 66` /
+`max_depth: 11` / 下記と同一の経路を再現しています。
 
 `build.rs` の有無は `packages[].targets[].kind == ["custom-build"]` を走査して
 列挙しました。
@@ -92,16 +156,23 @@ unicode-ident` を使い、経路上の各クレートを目視で裏付けて�
 `Cargo.lock` は 78 パッケージを解決しています（`fandhe-frontend-core` /
 `-app` / `-server` の 3 クレートおよびそれ自身とルートを含む総数）。
 
-### 最長経路の例（linux）
+### 最長経路の例（linux、深さ 11）
+
+上記スクリプトが実際に復元した最長経路（`depth()` の最大値 11 を実現する
+経路）は次のとおりです。
 
 ```
-vercel_runtime → hyper-util → futures-util → futures-macro (proc-macro)
-  → proc-macro2 → unicode-ident
+vercel_runtime → hyper-util → hyper → h2 → tokio-util → futures-util
+  → futures-macro (proc-macro) → syn → quote → proc-macro2 → unicode-ident
 ```
 
-深さは `vercel_runtime` を深さ 1 として数えるため、上記経路は深さ 6 に
-達し、`tokio`（`tokio-macros` 経由で `syn` → `proc-macro2` → `unicode-ident`）
-を辿る経路も同様に深さ 6 を超えます。
+深さは `vercel_runtime` を深さ 1 として数えるため、この経路は深さ 11 に
+達します（`vercel_runtime`(1) → `hyper-util`(2) → `hyper`(3) → `h2`(4) →
+`tokio-util`(5) → `futures-util`(6) → `futures-macro`(7) → `syn`(8) →
+`quote`(9) → `proc-macro2`(10) → `unicode-ident`(11)）。`tokio`
+（`tokio-macros` 経由で `syn` → `proc-macro2` → `unicode-ident`）を辿る
+経路は深さ 6 までであり、表の最大深さ 11 の根拠はこの `h2`/`tokio-util`
+経由の経路です。
 
 ### feature で依存を削れない根拠
 

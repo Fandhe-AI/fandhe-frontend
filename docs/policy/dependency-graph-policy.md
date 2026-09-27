@@ -141,6 +141,31 @@ deps-check: packages=13/60 depth=7/6 result=FAIL  (fandhe-frontend-wasm-thin)
 「WASM クライアント向け基準が別途必要か」は本リポジトリの判断で決めず、REQ-3 の対象定義自体の見直しとして
 `fandhe-frontend-spec` リポジトリへの提案事項に留めます（本リポジトリでは既存ゲートを一切緩和しません）。
 
+### `examples/*` のスコープ（イシュー #3288 由来の判断）
+
+`examples/*` は本節冒頭の計測対象 9 パッケージに含まれておらず、`.github/workflows/deps-check.yml` の
+計測対象にもなっていません。この既定は変更しません。
+
+ただし、サードパーティクレートを標準サーバー構成（`fandhe-frontend-dist-server` / `fandhe-frontend-server`）へ
+直接追加する前段階の検証として、独立 workspace の `examples/*` 相当の一時クレートで依存グラフを先行計測する
+場合に限り、REQ-3 の 60 件/深さ 6 上限をその計測結果にも適用し、採否判断の受け入れ基準として扱います。
+
+- REQ-3 の目的は「標準サーバー構成に組み込まれる依存グラフの浅さ・監査可能性」の担保です。examples 配下・
+  独立 workspace での先行計測は、候補クレートを標準サーバー構成へ実際に組み込んだ場合に生じる依存グラフを
+  見積もる代理計測であり、そこで上限超過が判明した時点で「標準サーバー構成へ組み込んだ場合に上限を満たせない」
+  ことが確定します。したがって examples 自体を継続的な計測対象に含めるかという別の論点に立ち入らずに、
+  当該クレートの採否を判断できます
+- 前節の WASM クライアントクレートとは性質が異なります。WASM バインディング層はブラウザ実行という領域の
+  構造的特性を持ち REQ-3 が対象とする「標準サーバー構成」に該当しないため計測対象から除外していますが、
+  本節が扱うのは「標準サーバー構成に組み込む候補」の検証であり、除外の理由になりません
+- この判断は「標準サーバー構成へ組み込む候補を examples・独立 workspace で先行検証する場合」の受け入れ基準に
+  限定されます。`examples/ssr-routing` 等の既存正本サンプル自体を `deps-check` の継続的な計測対象へ追加する
+  ものではなく、`.github/workflows/deps-check.yml` の計測対象（本節冒頭の 9 パッケージ）は変更しません
+
+適用例: イシュー #3288（`vercel_runtime` 併用の採否判断）。実測は
+`docs/reports/vercel-runtime-2x-dependency-audit-3288.md`、判断の反映先は `docs/design/vercel-deployment-strategy.md`
+を参照してください。
+
 ## 5. 上限超過時の対応フロー
 
 1. **検出**: `deps-check` CI ジョブが FAIL する（`deps-check: packages=<n>/<limit> depth=<n>/<limit>
