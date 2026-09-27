@@ -238,8 +238,16 @@ fn profile_menu(variant: &'static str) -> Node {
 }
 
 /// 常時表示のヘッダーバー（`icon`/`narrow` variant のみが持つ）。
-/// `trigger` は `narrow` variant のみ `Some` を渡す。
-fn header_bar(variant: &'static str, trigger: Option<Node>, with_search: bool) -> Node {
+/// `trigger` は `narrow` variant のみ `Some` を渡す。`with_actions` が
+/// `false`（`narrow` variant）のときは通知ボタン・プロフィールメニューを
+/// 出力しない（`narrow` はヘッダーバーへ trigger のみを置く狭幅到達状態
+/// であり、モジュール doc の対応表と一致させる）。
+fn header_bar(
+    variant: &'static str,
+    trigger: Option<Node>,
+    with_search: bool,
+    with_actions: bool,
+) -> Node {
     let mut children: Vec<Node> = Vec::new();
     if let Some(trigger) = trigger {
         children.push(trigger);
@@ -247,10 +255,12 @@ fn header_bar(variant: &'static str, trigger: Option<Node>, with_search: bool) -
     if with_search {
         children.push(search_field(variant));
     }
-    children.push(div(
-        vec![("data-blocks-app-shell-three-column-actions", "")],
-        vec![notify_button(), profile_menu(variant)],
-    ));
+    if with_actions {
+        children.push(div(
+            vec![("data-blocks-app-shell-three-column-actions", "")],
+            vec![notify_button(), profile_menu(variant)],
+        ));
+    }
     div(
         vec![("data-blocks-app-shell-three-column-topbar", "")],
         children,
@@ -258,7 +268,11 @@ fn header_bar(variant: &'static str, trigger: Option<Node>, with_search: bool) -
 }
 
 /// メイン領域（中身なしのプレースホルダー行、R0136 の骨格を兼ねる）。
-fn main_area(aria_label: &str) -> Node {
+/// ランドマークとしての `role="region"`/`aria-label` は付けない
+/// （スクロール枠である親の `sidebar::inset` が同じ `aria-label` で既に
+/// region ランドマークを持つため、ここで重ねると landmark 名称が重複する。
+/// `app_shell_sidebar_header::main_area` と同じ判断）。
+fn main_area() -> Node {
     let rows: Vec<Node> = (1..=6)
         .map(|n| {
             div(
@@ -267,14 +281,7 @@ fn main_area(aria_label: &str) -> Node {
             )
         })
         .collect();
-    section(
-        vec![
-            ("role", "region"),
-            ("aria-label", aria_label),
-            ("data-blocks-app-shell-three-column-main", ""),
-        ],
-        rows,
-    )
+    section(vec![("data-blocks-app-shell-three-column-main", "")], rows)
 }
 
 /// 補助カラム（一覧/詳細用、中身なしのプレースホルダー枠）。
@@ -317,6 +324,7 @@ fn shell(
     show_header: bool,
     with_search: bool,
     with_trigger: bool,
+    with_actions: bool,
     with_aux: bool,
 ) -> Node {
     let sidebar_state = Sidebar::new(state);
@@ -341,7 +349,7 @@ fn shell(
         None
     };
 
-    let mut body_children = vec![main_area(&main_label)];
+    let mut body_children = vec![main_area()];
     if with_aux {
         body_children.push(secondary_column(&aux_label));
     }
@@ -352,7 +360,7 @@ fn shell(
 
     let mut inset_children = Vec::new();
     if show_header {
-        inset_children.push(header_bar(variant, trigger, with_search));
+        inset_children.push(header_bar(variant, trigger, with_search, with_actions));
     }
     inset_children.push(body);
 
@@ -395,6 +403,7 @@ pub fn demo() -> Node {
                 false,
                 false,
                 false,
+                false,
                 true,
             ),
             caption("アイコンのみの狭サイドバー + ヘッダー"),
@@ -406,6 +415,7 @@ pub fn demo() -> Node {
                 true,
                 false,
                 true,
+                true,
             ),
             caption("狭幅（サイドバー折りたたみ、補助カラムなし）"),
             shell(
@@ -415,6 +425,7 @@ pub fn demo() -> Node {
                 true,
                 false,
                 true,
+                false,
                 false,
             ),
         ],
