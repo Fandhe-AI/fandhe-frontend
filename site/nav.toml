@@ -1437,6 +1437,11 @@ source = "site/blocks/pricing-tiers-morph.md"
 path = "/blocks/pricing-tiers-morph/"
 
 [[section.group.page]]
+title = "pricing-upgrade-card"
+source = "site/blocks/pricing-upgrade-card.md"
+path = "/blocks/pricing-upgrade-card/"
+
+[[section.group.page]]
 title = "pricing-usage-slider"
 source = "site/blocks/pricing-usage-slider.md"
 path = "/blocks/pricing-usage-slider/"
