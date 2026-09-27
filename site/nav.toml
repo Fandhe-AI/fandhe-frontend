@@ -1971,6 +1971,11 @@ title = "app-shell-stacked"
 source = "site/blocks/app-shell-stacked.md"
 path = "/blocks/app-shell-stacked/"
 
+[[section.group.page]]
+title = "app-shell-navbar-columns"
+source = "site/blocks/app-shell-navbar-columns.md"
+path = "/blocks/app-shell-navbar-columns/"
+
 [[section.group]]
 title = "Sidebar"
 
