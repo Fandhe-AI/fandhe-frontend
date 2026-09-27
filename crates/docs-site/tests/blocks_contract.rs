@@ -9333,3 +9333,84 @@ fn app_shell_sidebar_header_composes_expected_parts() {
         );
     }
 }
+
+/// app-shell-navbar-columns ページが Demo class・専用 CSS を配線している
+/// こと、block 固有 CSS（コンテナクエリ・sticky・grid-template-areas・
+/// disabled 中和）が実際に出力されていることを固定する（イシュー
+/// #2893）。
+#[test]
+fn app_shell_navbar_columns_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/app-shell-navbar-columns/index.html"))
+        .expect("blocks/app-shell-navbar-columns/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-app-shell-navbar-columns\""),
+        "app-shell-navbar-columns page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "app-shell-navbar-columns page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "app-shell-navbar-columns page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-app-shell-navbar-columns-root",
+        "data-blocks-app-shell-navbar-columns-bar",
+        "data-blocks-app-shell-navbar-columns-body",
+        "data-blocks-app-shell-navbar-columns-left",
+        "data-blocks-app-shell-navbar-columns-right",
+        "data-blocks-app-shell-navbar-columns-footer",
+    ] {
+        assert!(
+            html.contains(hook),
+            "app-shell-navbar-columns page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "container-type: inline-size;",
+        "@container blocks-app-shell-navbar-columns (min-width: 48rem)",
+        "position: sticky;",
+        "grid-template-areas: \"left main right\";",
+        "grid-template-areas: \"main right\";",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// app-shell-navbar-columns の Demo が使用部品（navigation-menu/avatar/
+/// button/icon/separator/visually-hidden）をすべて実際に合成し、
+/// `<form>`・`src="data:"`・`href="#"` を出力しないことを固定する
+/// （イシュー #2893）。
+#[test]
+fn app_shell_navbar_columns_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/app-shell-navbar-columns/")
+        .expect("app-shell-navbar-columns should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"navigation-menu\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"button\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"separator\"",
+        "data-scope=\"visually-hidden\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "app-shell-navbar-columns demo should contain {scope}"
+        );
+    }
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "app-shell-navbar-columns demo should never contain {absent}"
+        );
+    }
+}

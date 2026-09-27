@@ -332,7 +332,10 @@ fn shell(
     sidebar::provider(
         &sidebar_state,
         &props,
-        vec![("data-blocks-app-shell-sidebar-header-instance", "")],
+        vec![
+            ("data-blocks-app-shell-sidebar-header-instance", ""),
+            ("data-blocks-app-shell-sidebar-header-variant", variant),
+        ],
         vec![app_sidebar(&sidebar_state, &props, root_id.as_str()), inset],
     )
 }

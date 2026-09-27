@@ -373,7 +373,10 @@ fn shell(
     sidebar::provider(
         &sidebar_state,
         &props,
-        vec![("data-blocks-app-shell-sidebar-header-instance", "")],
+        vec![
+            ("data-blocks-app-shell-sidebar-header-instance", ""),
+            ("data-blocks-app-shell-sidebar-header-variant", variant),
+        ],
         vec![app_sidebar(&sidebar_state, &props, root_id.as_str()), inset],
     )
 }
@@ -473,6 +476,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-app-shell-sidebar-header-stack] {\n  display: flex;\n  flex-direction: column;\n  gap: 1rem;\n}\n\
 [data-blocks-app-shell-sidebar-header-caption] {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-app-shell-sidebar-header-instance][data-scope=\"sidebar\"][data-part=\"provider\"] {\n  min-height: 0;\n  block-size: 28rem;\n  min-width: 56rem;\n}\n\
+[data-blocks-app-shell-sidebar-header-instance][data-blocks-app-shell-sidebar-header-variant=\"narrow\"][data-scope=\"sidebar\"][data-part=\"provider\"] {\n  min-width: 20rem;\n}\n\
 [data-blocks-app-shell-sidebar-header-brand] {\n  display: flex;\n  align-items: center;\n  gap: 0.5rem;\n  font-weight: var(--fandhe-font-font-weight-semibold, 600);\n}\n\
 [data-scope=\"sidebar\"][data-part=\"inset\"][data-blocks-app-shell-sidebar-header-inset] {\n  overflow-y: auto;\n  display: flex;\n  flex-direction: column;\n}\n\
 [data-blocks-app-shell-sidebar-header-topbar] {\n  position: sticky;\n  top: 0;\n  z-index: var(--fandhe-z-index-docked);\n  display: flex;\n  align-items: center;\n  gap: 0.75rem;\n  padding: 0.75rem 1rem;\n  background: var(--fandhe-color-bg);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
@@ -573,5 +577,26 @@ mod tests {
         assert!(LAYOUT_CSS.contains("position: sticky;"));
         assert!(LAYOUT_CSS.contains("max-inline-size"));
         assert!(!LAYOUT_CSS.contains("order:"));
+    }
+
+    /// narrow variant の provider は `data-blocks-app-shell-sidebar-header-
+    /// variant="narrow"` を持ち、この属性を含む複合セレクタで `min-width`
+    /// を上書きできること（56rem 一律適用による狭幅表示例の横スクロール
+    /// 回帰防止、codex-review PR #3325 指摘）。
+    #[test]
+    fn narrow_variant_is_tagged_and_overrides_min_width() {
+        let html = render(&demo());
+        assert_eq!(
+            html.matches("data-blocks-app-shell-sidebar-header-variant=\"narrow\"")
+                .count(),
+            1,
+            "exactly one provider (the narrow variant) should carry the narrow tag"
+        );
+        assert!(
+            LAYOUT_CSS.contains(
+                "[data-blocks-app-shell-sidebar-header-variant=\"narrow\"][data-scope=\"sidebar\"][data-part=\"provider\"] {\n  min-width: 20rem;\n}"
+            ),
+            "narrow variant should override the 56rem min-width with a narrower one"
+        );
     }
 }

@@ -387,6 +387,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/section-heading-stats/index.html"
           # Application / App Shell
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/app-shell-sidebar-header/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/app-shell-navbar-columns/index.html"
           # Application / Sidebar
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/sidebar-07/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/sidebar-03/index.html"
