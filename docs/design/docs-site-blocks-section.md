@@ -962,6 +962,7 @@ pub enum LayoutCss {
 | card-form-footer | #2899 | `application/card/card_form_footer.rs` |
 | card-heading-toolbar | #2902 | `application/card_heading/card_heading_toolbar.rs` |
 | card-meta-cta | #2901（親 #2892） | `application/card/card_meta_cta.rs` |
+| chart-bar-list | #2903 | `application/chart/chart_bar_list.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 147 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
