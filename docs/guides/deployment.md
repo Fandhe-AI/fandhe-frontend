@@ -58,6 +58,10 @@ GA 化、`fandhe-frontend-dist-server` の `$PORT`/`SIGTERM` 対応等）は
 を参照してください。要約すると次の 3 ステップです。
 
 ```bash
+# 0. サンプルディレクトリへ移動する（cargo run / vercel deploy は
+#    このディレクトリ配下の Cargo.toml・.vercel/output を前提とする）
+cd examples/vercel-ssg
+
 # 1. プロジェクトを Vercel と紐付ける
 vercel link
 
@@ -210,9 +214,15 @@ export default function middleware(request) {
 
   let decoded;
   try {
-    decoded = atob(match[1]);
+    // atob() はバイト列を Latin-1 として文字列化するだけで UTF-8 デコード
+    // を行わない。BASIC_AUTH_USER/PASSWORD に日本語等の非 ASCII 文字を
+    // 設定した場合に備え、バイト列へ戻してから UTF-8 として明示的に
+    // デコードする。
+    const binary = atob(match[1]);
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    decoded = new TextDecoder('utf-8').decode(bytes);
   } catch {
-    // 不正な base64 は認証情報を読み取れないため拒否する。
+    // 不正な base64 / UTF-8 は認証情報を読み取れないため拒否する。
     return unauthorized();
   }
 
