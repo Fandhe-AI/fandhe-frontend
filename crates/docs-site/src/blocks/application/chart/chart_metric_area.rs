@@ -54,6 +54,38 @@
 //! 属性で渡す（`dashboard_01` と同じ判断）。`card::header`/`body`/`title`/
 //! `description`・素の `div`/`span` には `class` がそのまま効く。
 //!
+//! # `<dl>` 直下に `<span>` を置かない（PR #3345 codex-review P2 是正）
+//!
+//! 合計＋内訳（`variant="breakdown"`）の見出しは、当初 `stat::root`
+//! （`<dl>`）の直下へ `stat::label`（`<dt>`）・`stat::value_text`（`<dd>`）
+//! に加えて `stat::help_text`（`<span>`）を並べていたが、`<dl>` の content
+//! model は `<dt>`/`<dd>` のみを許容するため定義リストとして不正だった。
+//! `help_text` を `value_text`（`<dd>`）の内側へ移し、表示・階層は変えずに
+//! 意味論のみ是正する（`site/blocks/chart-metric-area.md` の同一コード
+//! 掲載箇所も追随修正済み）。
+//!
+//! # CSS 特異性の是正（Cursor Bugbot Medium 指摘 2 件の是正）
+//!
+//! [`LAYOUT_CSS`] の Demo 固有ルールが `pre-styled-ui` 側 recipe の
+//! セレクタより属性セレクタ数が少なく、意図した見た目が適用されていな
+//! かった。両ルールとも `pre-styled-ui.css` 側の実セレクタ以上の属性数へ
+//! 揃えて是正する:
+//!
+//! - `[data-blocks-chart-metric-area-summary-row]`
+//!   （合計＋内訳の見出し行の横並び化）は `card::header` recipe の
+//!   `[data-scope="card"][data-part="header"]`（属性 2 個）に特異性で
+//!   負けていた。`[data-scope="card"][data-part="header"]
+//!   [data-blocks-chart-metric-area-summary-row]`（属性 3 個）へ変更する。
+//! - `[data-blocks-chart-metric-area-selected]`
+//!   （選択中の指標切り替えボタンの下線強調）は `button::button` の
+//!   Ghost variant recipe（`[data-scope="button"][data-part="button"]
+//!   .fandhe-button--variant-ghost`、属性 2 個 + class 1 個 = 特異性 3）に
+//!   負けていた（`metric_button` は常に `disabled: true` のため
+//!   `data-disabled` 属性を持つ）。`[data-scope="button"]
+//!   [data-part="button"][data-disabled]
+//!   [data-blocks-chart-metric-area-selected]`（属性 4 個）へ変更し、
+//!   ロード順に依存せず確実に上回る特異性にする。
+//!
 //! # gradient id の一意化
 //!
 //! `blocks_contract::demo_output_has_no_dangling_aria_references_or_duplicate_ids`
@@ -253,12 +285,21 @@ fn instance_breakdown() -> Node {
         vec![("data-blocks-chart-metric-area-total", "")],
         vec![
             stat::label(vec![], vec![text("Total")]),
-            stat::value_text(vec![], vec![text(format!("{total_value:.0}"))]),
-            stat::help_text(
+            stat::value_text(
                 vec![],
                 vec![
-                    stat::up_indicator(vec![]),
-                    text("+9.1% vs. previous period"),
+                    text(format!("{total_value:.0}")),
+                    // `stat::help_text` の `<span>` は `<dl>` 直下では
+                    // 定義リストとして不正（PR #3345 codex-review P2
+                    // 指摘の是正）。`<dd>`（`value_text`）の内側へ移し、
+                    // 表示自体は変えない。
+                    stat::help_text(
+                        vec![],
+                        vec![
+                            stat::up_indicator(vec![]),
+                            text("+9.1% vs. previous period"),
+                        ],
+                    ),
                 ],
             ),
         ],
@@ -404,16 +445,16 @@ const LAYOUT_CSS: &str = "\
 .blocks-chart-metric-area-metric-label {\n  display: block;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-chart-metric-area-metric-value {\n  display: block;\n  font-size: var(--fandhe-font-font-size-lg, 1.125rem);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n}\n\
 .blocks-chart-metric-area-metric-delta {\n  display: block;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n}\n\
-[data-blocks-chart-metric-area-selected] {\n  border-block-end: 2px solid var(--fandhe-color-accent);\n}\n\
+[data-scope=\"button\"][data-part=\"button\"][data-disabled][data-blocks-chart-metric-area-selected] {\n  border-block-end: 2px solid var(--fandhe-color-accent);\n}\n\
 [data-blocks-chart-metric-area-chart] {\n  width: 100%;\n}\n\
 [data-blocks-chart-metric-area-chart] svg {\n  width: 100%;\n  height: auto;\n}\n\
-[data-blocks-chart-metric-area-summary-row] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
+[data-scope=\"card\"][data-part=\"header\"][data-blocks-chart-metric-area-summary-row] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-chart-metric-area-breakdown-list {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 @media (min-width: 40rem) {\n  \
 [data-blocks-chart-metric-area-metrics] {\n    flex-direction: row;\n    gap: var(--fandhe-space-6);\n  }\n\
 }\n\
 @media (min-width: 32rem) {\n  \
-[data-blocks-chart-metric-area-summary-row] {\n    flex-direction: row;\n    align-items: flex-start;\n  }\n  \
+[data-scope=\"card\"][data-part=\"header\"][data-blocks-chart-metric-area-summary-row] {\n    flex-direction: row;\n    align-items: flex-start;\n  }\n  \
 .blocks-chart-metric-area-breakdown-list {\n    flex-direction: row;\n    gap: var(--fandhe-space-6);\n    border-inline-start: 1px solid var(--fandhe-color-border);\n    padding-inline-start: var(--fandhe-space-6);\n  }\n\
 }\n";
 

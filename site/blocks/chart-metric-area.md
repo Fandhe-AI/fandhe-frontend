@@ -206,12 +206,21 @@ fn instance_breakdown() -> Node {
         vec![("data-blocks-chart-metric-area-total", "")],
         vec![
             stat::label(vec![], vec![text("Total")]),
-            stat::value_text(vec![], vec![text(format!("{total_value:.0}"))]),
-            stat::help_text(
+            stat::value_text(
                 vec![],
                 vec![
-                    stat::up_indicator(vec![]),
-                    text("+9.1% vs. previous period"),
+                    text(format!("{total_value:.0}")),
+                    // `stat::help_text` の `<span>` は `<dl>` 直下では
+                    // 定義リストとして不正（PR #3345 codex-review P2
+                    // 指摘の是正）。`<dd>`（`value_text`）の内側へ移し、
+                    // 表示自体は変えない。
+                    stat::help_text(
+                        vec![],
+                        vec![
+                            stat::up_indicator(vec![]),
+                            text("+9.1% vs. previous period"),
+                        ],
+                    ),
                 ],
             ),
         ],
