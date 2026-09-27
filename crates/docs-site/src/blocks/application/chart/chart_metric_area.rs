@@ -60,9 +60,18 @@
 //! （`<dl>`）の直下へ `stat::label`（`<dt>`）・`stat::value_text`（`<dd>`）
 //! に加えて `stat::help_text`（`<span>`）を並べていたが、`<dl>` の content
 //! model は `<dt>`/`<dd>` のみを許容するため定義リストとして不正だった。
-//! `help_text` を `value_text`（`<dd>`）の内側へ移し、表示・階層は変えずに
-//! 意味論のみ是正する（`site/blocks/chart-metric-area.md` の同一コード
-//! 掲載箇所も追随修正済み）。
+//! `help_text` を `value_text`（`<dd>`）の内側へ移し意味論を是正する
+//! （`site/blocks/chart-metric-area.md` の同一コード掲載箇所も追随修正
+//! 済み）。`value-text` recipe は本来ラベル＋単位のような baseline 揃え
+//! の横並び用（`display: flex; align-items: baseline`）のため、この変更
+//! だけでは合計値の隣に trend 表記が並んでしまい、当初の縦積み表示
+//! （合計値の下に trend）を崩す。[`LAYOUT_CSS`] の
+//! `[data-blocks-chart-metric-area-total] [data-scope="stat"]
+//! [data-part="value-text"]` 上書き（`flex-direction: column;
+//! align-items: flex-start;`）が表示を元どおり縦積みへ戻す（Cursor
+//! Bugbot Medium 指摘: 「表示は変えない」という当初のコメントは誤りで
+//! あり、この CSS 上書きが無い状態では実際に横並びへ変わっていた、
+//! PR #3345）。
 //!
 //! # CSS 特異性の是正（Cursor Bugbot Medium 指摘 2 件の是正）
 //!
@@ -78,13 +87,17 @@
 //!   [data-blocks-chart-metric-area-summary-row]`（属性 3 個）へ変更する。
 //! - `[data-blocks-chart-metric-area-selected]`
 //!   （選択中の指標切り替えボタンの下線強調）は `button::button` の
-//!   Ghost variant recipe（`[data-scope="button"][data-part="button"]
+//!   Ghost variant recipe（`[data-scope="button"][data-part="root"]
 //!   .fandhe-button--variant-ghost`、属性 2 個 + class 1 個 = 特異性 3）に
 //!   負けていた（`metric_button` は常に `disabled: true` のため
 //!   `data-disabled` 属性を持つ）。`[data-scope="button"]
-//!   [data-part="button"][data-disabled]
+//!   [data-part="root"][data-disabled]
 //!   [data-blocks-chart-metric-area-selected]`（属性 4 個）へ変更し、
-//!   ロード順に依存せず確実に上回る特異性にする。
+//!   ロード順に依存せず確実に上回る特異性にする（`data-part` の値は
+//!   `button()` が出力する実際の値 `"root"` に合わせる。Cursor Bugbot
+//!   Medium 指摘: `data-part="button"` は `button::button` が実際には
+//!   出力しない値であり、この誤記のままでは選択下線が一致せず表示
+//!   されない不具合があった、PR #3345）。
 //!
 //! # gradient id の一意化
 //!
@@ -291,8 +304,10 @@ fn instance_breakdown() -> Node {
                     text(format!("{total_value:.0}")),
                     // `stat::help_text` の `<span>` は `<dl>` 直下では
                     // 定義リストとして不正（PR #3345 codex-review P2
-                    // 指摘の是正）。`<dd>`（`value_text`）の内側へ移し、
-                    // 表示自体は変えない。
+                    // 指摘の是正）。`<dd>`（`value_text`）の内側へ移す
+                    // （表示の縦積みは `LAYOUT_CSS` の
+                    // `[data-blocks-chart-metric-area-total]
+                    // [data-part="value-text"]` 上書きで維持する）。
                     stat::help_text(
                         vec![],
                         vec![
@@ -445,7 +460,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-chart-metric-area-metric-label {\n  display: block;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-chart-metric-area-metric-value {\n  display: block;\n  font-size: var(--fandhe-font-font-size-lg, 1.125rem);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n}\n\
 .blocks-chart-metric-area-metric-delta {\n  display: block;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n}\n\
-[data-scope=\"button\"][data-part=\"button\"][data-disabled][data-blocks-chart-metric-area-selected] {\n  border-block-end: 2px solid var(--fandhe-color-accent);\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-disabled][data-blocks-chart-metric-area-selected] {\n  border-block-end: 2px solid var(--fandhe-color-accent);\n}\n\
+[data-blocks-chart-metric-area-total] [data-scope=\"stat\"][data-part=\"value-text\"] {\n  flex-direction: column;\n  align-items: flex-start;\n}\n\
 [data-blocks-chart-metric-area-chart] {\n  width: 100%;\n}\n\
 [data-blocks-chart-metric-area-chart] svg {\n  width: 100%;\n  height: auto;\n}\n\
 [data-scope=\"card\"][data-part=\"header\"][data-blocks-chart-metric-area-summary-row] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
@@ -566,5 +582,41 @@ mod tests {
         let html = render(&demo());
         assert!(html.contains("class=\"blocks-chart-metric-area-layout"));
         assert_ne!(super::BLOCK.demo_class, "blocks-chart-metric-area-layout");
+    }
+
+    /// 選択下線のセレクタが `button()` の実際の出力（`data-part="root"`）
+    /// と一致すること（Cursor Bugbot Medium 指摘の回帰。
+    /// `data-part="button"` という実際には存在しない値のままだと、この
+    /// アサーションで検知できずに選択下線が一致しないまま黙って壊れる、
+    /// PR #3345）。
+    #[test]
+    fn selected_underline_selector_matches_button_output() {
+        let html = render(&demo());
+        assert!(
+            html.contains(r#"data-scope="button" data-part="root""#),
+            "button() の実際の出力属性を前提にするアサーション自体が崩れていないこと"
+        );
+        assert!(
+            LAYOUT_CSS.contains(
+                "[data-scope=\"button\"][data-part=\"root\"][data-disabled][data-blocks-chart-metric-area-selected]"
+            ),
+            "選択下線セレクタは button() が出力する data-part=\"root\" と一致すること"
+        );
+        assert!(
+            !LAYOUT_CSS.contains("[data-part=\"button\"]"),
+            "button::button の data-part は \"root\" であり \"button\" という値は出力されない"
+        );
+    }
+
+    /// 合計の value-text 内へ移した help-text（trend 表記）が、
+    /// `value-text` recipe の baseline flex 行に流れず縦積みのまま残る
+    /// こと（Cursor Bugbot Medium 指摘の回帰。`LAYOUT_CSS` の
+    /// `value-text` 上書きが無いと trend が総計の下ではなく横に並ぶ、
+    /// PR #3345）。
+    #[test]
+    fn total_value_text_help_text_stacks_below_not_beside() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-chart-metric-area-total] [data-scope=\"stat\"][data-part=\"value-text\"] {\n  flex-direction: column;\n  align-items: flex-start;\n}"
+        ));
     }
 }

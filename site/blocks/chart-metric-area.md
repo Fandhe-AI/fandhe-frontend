@@ -212,8 +212,10 @@ fn instance_breakdown() -> Node {
                     text(format!("{total_value:.0}")),
                     // `stat::help_text` の `<span>` は `<dl>` 直下では
                     // 定義リストとして不正（PR #3345 codex-review P2
-                    // 指摘の是正）。`<dd>`（`value_text`）の内側へ移し、
-                    // 表示自体は変えない。
+                    // 指摘の是正）。`<dd>`（`value_text`）の内側へ移す
+                    // （表示の縦積みは `LAYOUT_CSS` の
+                    // `[data-blocks-chart-metric-area-total]
+                    // [data-part="value-text"]` 上書きで維持する）。
                     stat::help_text(
                         vec![],
                         vec![
