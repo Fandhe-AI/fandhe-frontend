@@ -2005,6 +2005,14 @@ source = "site/blocks/sidebar-07.md"
 path = "/blocks/sidebar-07/"
 
 [[section.group]]
+title = "Card Heading"
+
+[[section.group.page]]
+title = "card-heading-toolbar"
+source = "site/blocks/card-heading-toolbar.md"
+path = "/blocks/card-heading-toolbar/"
+
+[[section.group]]
 title = "Description List"
 
 [[section.group.page]]
