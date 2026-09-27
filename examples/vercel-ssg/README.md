@@ -108,8 +108,8 @@ cargo run -p fandhe-frontend-cli -- gate --project examples/vercel-ssg
    vercel deploy --prebuilt --prod
    ```
 
-Basic 認証によるアクセス制御（fail-closed な設定手順）はデプロイガイド
-（イシュー #3291）を参照してください。
+Basic 認証によるアクセス制御（fail-closed な設定手順）は
+[デプロイガイド](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/guides/deployment.md)を参照してください。
 
 ## Deployment Protection（SSO）の注意
 
