@@ -335,12 +335,17 @@ jobs:
         #
         # 検証範囲: (1) `FANDHE_FRONTEND_BIND_ADDR` を空文字で打ち消し
         # `PORT` のみを渡した状態で readiness が通ること（PORT 経路が実際
-        # に使われたことの証拠）、(2) `docker stop`（SIGTERM 送信）後の
-        # コンテナ終了コードが 0 であること（無視されて `docker stop` の
-        # タイムアウトで SIGKILL された場合は 137 になる）、(3) drain の
-        # 開始・終了ログ（main.rs の固定英語リテラル文言との契約）が
-        # 出力されていること。3 点のいずれか欠落でも fail-closed で
-        # ジョブを失敗させる。
+        # に使われたことの証拠）、(2) `docker stop`（SIGTERM 送信）を送る
+        # 時点で処理中の接続（未完了リクエスト）を実際に維持し、その接続が
+        # SIGTERM 後も切断されず完了すること（#3337 の drain 退行＝処理中
+        # 接続の途中切断を検知できることの証拠。readiness 確認用の完結済み
+        # curl だけでは、この経路が壊れて即座に接続を切断しても
+        # `docker stop` の待ち時間内であれば区別できず見逃す）、
+        # (3) `docker stop`（SIGTERM 送信）後のコンテナ終了コードが 0 で
+        # あること（無視されて `docker stop` のタイムアウトで SIGKILL され
+        # た場合は 137 になる）、(4) drain の開始・終了ログ（main.rs の
+        # 固定英語リテラル文言との契約）が出力されていること。4 点のいず
+        # れか欠落でも fail-closed でジョブを失敗させる。
         #
         # ポートは直前の「Allocate app port」ステップの出力を再利用する
         # （新たな割り当てステップは起こさない。直前の WASM 確認ステップが
@@ -384,12 +389,95 @@ jobs:
             exit 1
           fi
 
+          # `docker stop` を送る時点で処理中の接続（未完了リクエスト）を
+          # 実際に維持する。readiness 確認の完結済み curl だけでは
+          # `docker stop` 送信時に in-flight な接続が存在しないため、
+          # drain が正しく機能しているか（#3337 の退行＝接続の途中切断）
+          # を区別できず見逃す。既存の WASM 資産（サイズが確保でき転送に
+          # 数秒かかる）を `--limit-rate` で意図的に低速化しながら
+          # バックグラウンドでダウンロードし、その転送が確立してから
+          # `docker stop` を送ることで、SIGTERM 後も接続が生き延びて
+          # 完走することを検証する。
+          asset_path="/static/wasm/fandhe_frontend_wasm_full_bg.wasm"
+          content_length=$(curl -fsS --max-time 5 -o /dev/null -w '%{size_download}' "${base_url}${asset_path}")
+          if [ -z "$content_length" ] || [ "$content_length" -le 0 ]; then
+            echo "::error::failed to determine size of ${asset_path} for in-flight connection test" >&2
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+
+          # 転送に概ね 10 秒かかる速度まで意図的に絞る（`DRAIN_TIMEOUT_SECS`
+          # (25s) 未満・`docker stop -t 30` の猶予未満に収まるよう安全側の
+          # 下限を設ける）。ファイルが小さい場合でも過度に遅くしすぎない。
+          limit_rate=$((content_length / 10))
+          if [ "$limit_rate" -lt 1024 ]; then
+            limit_rate=1024
+          fi
+
+          inflight_out="$(mktemp)"
+          trap 'rm -f "$discard" "$inflight_out"' EXIT
+          curl -fsS --max-time 25 --limit-rate "${limit_rate}" -o "$inflight_out" \
+            "${base_url}${asset_path}" &
+          inflight_pid=$!
+
+          # 接続が実際に確立し in-flight であることを確認してから
+          # `docker stop` を送る。判定は 2 通りの証拠のどちらかで行う:
+          # (a) 出力ファイルへ部分バイトが書き込まれている（curl がストリ
+          # ーミング済み）、(b) `--limit-rate` で絞った転送がまだ終わって
+          # おらずプロセスが生存し続けている（curl の stdio フル
+          # バッファリングで (a) が遅延する場合の保険。転送が完了して
+          # プロセスが正常終了していれば in-flight ではないため証拠になら
+          # ない）。いずれの証拠も得られなければ、そもそも接続が存在しな
+          # い状態で `docker stop` を送ることになり検査が無意味になるため
+          # fail-closed で失敗させる。
+          inflight_established=0
+          for i in $(seq 1 20); do
+            if [ -s "$inflight_out" ]; then
+              inflight_established=1
+              break
+            fi
+            if ! kill -0 "$inflight_pid" 2>/dev/null; then
+              break
+            fi
+            if [ "$i" -ge 8 ]; then
+              # 2 秒（0.25s * 8）経ってもプロセスが生きていれば、転送中
+              # （＝接続確立済み）とみなしてよい。
+              inflight_established=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [ "$inflight_established" -ne 1 ]; then
+            echo "::error::could not establish an in-flight connection before sending SIGTERM" >&2
+            kill "$inflight_pid" 2>/dev/null || true
+            wait "$inflight_pid" 2>/dev/null || true
+            docker logs "${CONTAINER_NAME}" || true
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+
           # `docker stop -t 30`: SIGTERM を送り、DRAIN_TIMEOUT_SECS(25s) より
           # 長い猶予（Vercel の 30 秒猶予に合わせた値）を明示指定する。
           # `docker stop` の既定 10 秒には依存しない。ルート Dockerfile の
           # `ENTRYPOINT ["/dist-server"]` は exec 形式のため dist-server が
-          # PID 1 として SIGTERM を直接受け取る。
+          # PID 1 として SIGTERM を直接受け取る。処理中の接続（上記
+          # `inflight_pid`）がまだ完了していない状態でこれを送ることが
+          # drain 検証の核心である。
           docker stop -t 30 "${CONTAINER_NAME}"
+
+          # SIGTERM 送信時点で処理中だった接続が、drain により正常完了する
+          # ことを確認する（#3337 の退行＝途中切断の検知）。切断されていれ
+          # ば curl は非 0 で終了するか、受信バイト数が content-length に
+          # 満たない。
+          inflight_exit=0
+          wait "$inflight_pid" || inflight_exit=$?
+          inflight_size=$(wc -c < "$inflight_out" | tr -d ' ')
+          if [ "$inflight_exit" -ne 0 ] || [ "$inflight_size" != "$content_length" ]; then
+            echo "::error::in-flight connection was not drained cleanly after SIGTERM (curl_exit=${inflight_exit}, received=${inflight_size}, expected=${content_length})" >&2
+            docker logs "${CONTAINER_NAME}" || true
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
 
           exit_code=$(docker inspect -f '{{.State.ExitCode}}' "${CONTAINER_NAME}")
           logs=$(docker logs "${CONTAINER_NAME}" 2>&1)
