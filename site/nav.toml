@@ -2034,6 +2034,11 @@ path = "/blocks/description-list-two-column/"
 title = "Feed"
 
 [[section.group.page]]
+title = "feed-comments-timeline"
+source = "site/blocks/feed-comments-timeline.md"
+path = "/blocks/feed-comments-timeline/"
+
+[[section.group.page]]
 title = "feed-upvote-cards"
 source = "site/blocks/feed-upvote-cards.md"
 path = "/blocks/feed-upvote-cards/"
@@ -2102,6 +2107,11 @@ title = "Chart"
 title = "chart-bar-list"
 source = "site/blocks/chart-bar-list.md"
 path = "/blocks/chart-bar-list/"
+
+[[section.group.page]]
+title = "chart-stat-cards"
+source = "site/blocks/chart-stat-cards.md"
+path = "/blocks/chart-stat-cards/"
 
 [[section.group]]
 title = "Dashboard"
