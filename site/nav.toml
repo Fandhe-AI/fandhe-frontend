@@ -1509,6 +1509,11 @@ path = "/blocks/stats-with-image/"
 title = "Team"
 
 [[section.group.page]]
+title = "team-avatar-grid"
+source = "site/blocks/team-avatar-grid.md"
+path = "/blocks/team-avatar-grid/"
+
+[[section.group.page]]
 title = "team-bio-rows"
 source = "site/blocks/team-bio-rows.md"
 path = "/blocks/team-bio-rows/"
@@ -1540,6 +1545,11 @@ path = "/blocks/faq-split-static/"
 title = "faq-static-grid"
 source = "site/blocks/faq-static-grid.md"
 path = "/blocks/faq-static-grid/"
+
+[[section.group.page]]
+title = "faq-tabbed-accordion"
+source = "site/blocks/faq-tabbed-accordion.md"
+path = "/blocks/faq-tabbed-accordion/"
 
 [[section.group]]
 title = "Contact"
