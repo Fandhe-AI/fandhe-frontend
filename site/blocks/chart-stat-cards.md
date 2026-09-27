@@ -20,7 +20,7 @@ R0050 の代表構成）。下段は「今期と前期の比較」見出しの�
 ## Rust コード
 
 ```rust
-use fandhe_frontend_core::{div, text, Node};
+use fandhe_frontend_core::{div, span, text, Node};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps, CardVariant};
 use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps};
@@ -31,15 +31,15 @@ use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 
 /// R0050 相当のカード 1 枚（合計値 + 増減 + sparkline）を組み立てる小さな
-/// helper（内部専用）。`favorable` は指標の実測値の増減方向ではなく
-/// **良し悪し**を表す（`stat::up_indicator`/`down_indicator` は固定で
-/// 成功色/危険色を持つため、良い変化は常に `up_indicator`、悪い変化は
-/// 常に `down_indicator` を使う）。実際の増減方向・符号は `change`
-/// 引数の文字列（例: `"前週比 +12ms"`）にそのまま残るため、矢印の向きと
-/// 実測値の符号が一致しないケース（例: 応答時間の悪化 = 増加）があっても
-/// 数値からは判別できる。codex レビュー指摘（#3347, P1）: 応答時間の
-/// 悪化に増加インジケーター（成功色）、エラー率の改善に減少インジケー
-/// ター（危険色）を使っていたため、方向と良否が逆転し誤解を招いていた。
+/// helper（内部専用）。`stat::up_indicator`/`down_indicator` は
+/// `fandhe-frontend-pre-styled-ui` 側で増加/減少の意味に固定されている
+/// （矢印形状 + 成功色/危険色の両方を持つ）ため、矢印の選択は必ず
+/// `history` 末尾 2 点の実測値の増減方向で行う（`favorable`＝良し悪しでは
+/// 選ばない）。良し悪しは矢印とは独立に、`change` テキストへ付与する
+/// 色クラス（[`LAYOUT_CSS`] の `.blocks-chart-stat-cards-change--*`）で
+/// 表現する。codex レビュー指摘（#3347, P1）: 従来は `favorable` で矢印を
+/// 選んでいたため、エラー率の改善（減少）に上向き矢印、応答時間の悪化
+/// （増加）に下向き矢印が出て、数値の増減方向と矛盾していた。
 fn sparkline_card(
     label: &str,
     value: &str,
@@ -47,10 +47,19 @@ fn sparkline_card(
     favorable: bool,
     history: &[f64],
 ) -> Node {
-    let indicator = if favorable {
+    let increased = history
+        .last()
+        .zip(history.len().checked_sub(2).and_then(|i| history.get(i)))
+        .is_some_and(|(last, prev)| last > prev);
+    let indicator = if increased {
         stat::up_indicator(vec![])
     } else {
         stat::down_indicator(vec![])
+    };
+    let change_class = if favorable {
+        "blocks-chart-stat-cards-change--favorable"
+    } else {
+        "blocks-chart-stat-cards-change--unfavorable"
     };
     let aria_label = format!("{label}の過去 8 週の推移");
     let spark = sparkline(&SparklineProps::new(history, &aria_label), vec![])
@@ -68,7 +77,13 @@ fn sparkline_card(
                     vec![
                         stat::label(vec![], vec![text(label)]),
                         stat::value_text(vec![], vec![text(value)]),
-                        stat::help_text(vec![], vec![indicator, text(change)]),
+                        stat::help_text(
+                            vec![],
+                            vec![
+                                indicator,
+                                span(vec![("class", change_class)], vec![text(change)]),
+                            ],
+                        ),
                     ],
                 ),
                 spark,

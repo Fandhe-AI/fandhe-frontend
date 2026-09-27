@@ -41,7 +41,7 @@
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
-use fandhe_frontend_core::{div, text, Node};
+use fandhe_frontend_core::{div, span, text, Node};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps, CardVariant};
 use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps};
@@ -52,15 +52,15 @@ use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 
 /// R0050 相当のカード 1 枚（合計値 + 増減 + sparkline）を組み立てる小さな
-/// helper（内部専用）。`favorable` は指標の実測値の増減方向ではなく
-/// **良し悪し**を表す（`stat::up_indicator`/`down_indicator` は固定で
-/// 成功色/危険色を持つため、良い変化は常に `up_indicator`、悪い変化は
-/// 常に `down_indicator` を使う）。実際の増減方向・符号は `change`
-/// 引数の文字列（例: `"前週比 +12ms"`）にそのまま残るため、矢印の向きと
-/// 実測値の符号が一致しないケース（例: 応答時間の悪化 = 増加）があっても
-/// 数値からは判別できる。codex レビュー指摘（#3347, P1）: 応答時間の
-/// 悪化に増加インジケーター（成功色）、エラー率の改善に減少インジケー
-/// ター（危険色）を使っていたため、方向と良否が逆転し誤解を招いていた。
+/// helper（内部専用）。`stat::up_indicator`/`down_indicator` は
+/// `fandhe-frontend-pre-styled-ui` 側で増加/減少の意味に固定されている
+/// （矢印形状 + 成功色/危険色の両方を持つ）ため、矢印の選択は必ず
+/// `history` 末尾 2 点の実測値の増減方向で行う（`favorable`＝良し悪しでは
+/// 選ばない）。良し悪しは矢印とは独立に、`change` テキストへ付与する
+/// 色クラス（[`LAYOUT_CSS`] の `.blocks-chart-stat-cards-change--*`）で
+/// 表現する。codex レビュー指摘（#3347, P1）: 従来は `favorable` で矢印を
+/// 選んでいたため、エラー率の改善（減少）に上向き矢印、応答時間の悪化
+/// （増加）に下向き矢印が出て、数値の増減方向と矛盾していた。
 fn sparkline_card(
     label: &str,
     value: &str,
@@ -68,10 +68,19 @@ fn sparkline_card(
     favorable: bool,
     history: &[f64],
 ) -> Node {
-    let indicator = if favorable {
+    let increased = history
+        .last()
+        .zip(history.len().checked_sub(2).and_then(|i| history.get(i)))
+        .is_some_and(|(last, prev)| last > prev);
+    let indicator = if increased {
         stat::up_indicator(vec![])
     } else {
         stat::down_indicator(vec![])
+    };
+    let change_class = if favorable {
+        "blocks-chart-stat-cards-change--favorable"
+    } else {
+        "blocks-chart-stat-cards-change--unfavorable"
     };
     let aria_label = format!("{label}の過去 8 週の推移");
     let spark = sparkline(&SparklineProps::new(history, &aria_label), vec![])
@@ -89,7 +98,13 @@ fn sparkline_card(
                     vec![
                         stat::label(vec![], vec![text(label)]),
                         stat::value_text(vec![], vec![text(value)]),
-                        stat::help_text(vec![], vec![indicator, text(change)]),
+                        stat::help_text(
+                            vec![],
+                            vec![
+                                indicator,
+                                span(vec![("class", change_class)], vec![text(change)]),
+                            ],
+                        ),
                     ],
                 ),
                 spark,
@@ -346,7 +361,9 @@ const LAYOUT_CSS: &str = "\
 .blocks-chart-stat-cards-body {\n  display: grid;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-chart-stat-cards-legend {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-chart-stat-cards-legend-item {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
-.blocks-chart-stat-cards-legend-swatch {\n  display: inline-block;\n  width: 0.625rem;\n  height: 0.625rem;\n  border-radius: var(--fandhe-radius-full);\n  flex-shrink: 0;\n}\n";
+.blocks-chart-stat-cards-legend-swatch {\n  display: inline-block;\n  width: 0.625rem;\n  height: 0.625rem;\n  border-radius: var(--fandhe-radius-full);\n  flex-shrink: 0;\n}\n\
+.blocks-chart-stat-cards-change--favorable {\n  color: var(--fandhe-color-success-emphasized);\n}\n\
+.blocks-chart-stat-cards-change--unfavorable {\n  color: var(--fandhe-color-danger-emphasized);\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -416,10 +433,33 @@ mod tests {
         );
     }
 
+    /// codex レビュー指摘（#3347, P1）の回帰: 矢印は良否ではなく実測値の
+    /// 増減方向で選ぶ。3 枚のデータ（訪問数=増加/エラー率=減少/応答時間=
+    /// 増加）から up 2 件・down 1 件になり、良否（favorable=true/true/
+    /// false）とは矢印の出現数が一致しない。
+    #[test]
+    fn indicator_direction_follows_actual_value_not_favorable() {
+        let html = demo_html();
+        assert_eq!(html.matches("data-part=\"up-indicator\"").count(), 2);
+        assert_eq!(html.matches("data-part=\"down-indicator\"").count(), 1);
+        assert_eq!(
+            html.matches("class=\"blocks-chart-stat-cards-change--favorable\"")
+                .count(),
+            2
+        );
+        assert_eq!(
+            html.matches("class=\"blocks-chart-stat-cards-change--unfavorable\"")
+                .count(),
+            1
+        );
+    }
+
     #[test]
     fn layout_css_is_safe_and_stacks_on_narrow() {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains(".blocks-chart-stat-cards-grid"));
+        assert!(LAYOUT_CSS.contains(".blocks-chart-stat-cards-change--favorable"));
+        assert!(LAYOUT_CSS.contains(".blocks-chart-stat-cards-change--unfavorable"));
         assert!(LAYOUT_CSS.contains("auto-fit"));
     }
 
