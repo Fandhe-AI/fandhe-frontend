@@ -67,7 +67,10 @@ fn closed_select(
     selected_label: &'static str,
     options: &[(&'static str, &'static str, bool)],
 ) -> Node {
-    let props = SelectProps::default();
+    let props = SelectProps {
+        disabled: true,
+        ..SelectProps::default()
+    };
     let items: Vec<Node> = options
         .iter()
         .map(|(value, label, selected)| {

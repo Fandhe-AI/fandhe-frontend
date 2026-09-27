@@ -35,8 +35,12 @@
 //! `fandhe_frontend_pre_styled_ui::select` の開閉は
 //! `fandhe-frontend-wasm-full` の JS 配線が担う（headless `select` doc
 //! 参照）。docs サイトは JS ハイドレーションを行わないため、本 Demo は
-//! `OpenState::Closed` で固定した静的表示に留まる（trigger を押しても
-//! 開かない既知の制約）。`positioner`/`content` は `hidden` 付きのまま出力
+//! `OpenState::Closed` で固定した静的表示に留まる。操作しても開閉が
+//! 追従できない `<button>` を操作可能に見せないよう、`SelectProps`
+//! （`fandhe_frontend_headless_ui::select::SelectProps`）へ
+//! `disabled: true` を渡し、trigger へネイティブ `disabled` 属性を
+//! 付与する（`payment_method_field` の radio card と同じ構造的禁止の
+//! 判断、レビュー指摘 P2 対応）。`positioner`/`content` は `hidden` 付きのまま出力
 //! し、`aria-controls`/`aria-labelledby` の参照先が宙に浮かないようにする
 //! （`crates/docs-site/tests/blocks_contract.rs::
 //! demo_output_has_no_dangling_aria_references_or_duplicate_ids` 対策）。
@@ -130,7 +134,10 @@ fn closed_select(
     selected_label: &'static str,
     options: &[(&'static str, &'static str, bool)],
 ) -> Node {
-    let props = SelectProps::default();
+    let props = SelectProps {
+        disabled: true,
+        ..SelectProps::default()
+    };
     let items: Vec<Node> = options
         .iter()
         .map(|(value, label, selected)| {
@@ -543,7 +550,10 @@ mod tests {
     fn radio_items_are_natively_disabled_and_card_is_checked() {
         let html = demo_html();
         assert_eq!(html.matches(r#"type="radio""#).count(), 3);
-        assert_eq!(html.matches(" disabled=\"\"").count(), 3);
+        // radio card 3 件 + select trigger 2 件（閉じた固定表示を操作
+        // 可能に見せないためネイティブ disabled、モジュール doc「select
+        // を閉じた状態の固定表示で置く理由」節）。
+        assert_eq!(html.matches(" disabled=\"\"").count(), 5);
         assert_eq!(html.matches(" checked").count(), 1);
         assert!(html.contains(r#"aria-disabled="true""#));
         assert!(html.contains("現在の選択: カード払い"));
