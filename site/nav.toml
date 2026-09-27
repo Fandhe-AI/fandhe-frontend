@@ -2040,6 +2040,11 @@ title = "grid-list-file-thumbnails"
 source = "site/blocks/grid-list-file-thumbnails.md"
 path = "/blocks/grid-list-file-thumbnails/"
 
+[[section.group.page]]
+title = "grid-list-logo-cards"
+source = "site/blocks/grid-list-logo-cards.md"
+path = "/blocks/grid-list-logo-cards/"
+
 [[section.group]]
 title = "Description List"
 
