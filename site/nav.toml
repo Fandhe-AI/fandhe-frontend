@@ -1991,6 +1991,11 @@ title = "app-shell-stacked"
 source = "site/blocks/app-shell-stacked.md"
 path = "/blocks/app-shell-stacked/"
 
+[[section.group.page]]
+title = "app-shell-three-column"
+source = "site/blocks/app-shell-three-column.md"
+path = "/blocks/app-shell-three-column/"
+
 [[section.group]]
 title = "Sidebar"
 
@@ -2112,6 +2117,11 @@ title = "Chart"
 title = "chart-bar-list"
 source = "site/blocks/chart-bar-list.md"
 path = "/blocks/chart-bar-list/"
+
+[[section.group.page]]
+title = "chart-metric-area"
+source = "site/blocks/chart-metric-area.md"
+path = "/blocks/chart-metric-area/"
 
 [[section.group.page]]
 title = "chart-stat-cards"

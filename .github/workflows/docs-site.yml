@@ -389,6 +389,7 @@ jobs:
           # Application / App Shell
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/app-shell-stacked/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/app-shell-sidebar-header/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/app-shell-three-column/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/app-shell-navbar-columns/index.html"
           # Application / Sidebar
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/sidebar-07/index.html"
@@ -432,6 +433,7 @@ jobs:
           # Application / Profile
           # Application / Chart
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/chart-bar-list/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/chart-metric-area/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/chart-stat-cards/index.html"
           # Application / Dashboard
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/dashboard-01/index.html"

@@ -1,6 +1,8 @@
 //! Application / Chart カテゴリの block 登録点（イシュー #2734 で雛形
 //! 新設、イシュー #2903 で最初の block（[`chart_bar_list`]）を追加し
-//! ディレクトリ化して卒業した）。手順は
+//! ディレクトリ化して卒業し、イシュー #2904 で 2 件目の block
+//! （[`chart_metric_area`]）を、イシュー #2905 で 3 件目の block
+//! （[`chart_stat_cards`]）を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -10,10 +12,15 @@
 //! ための構造、イシュー #2734）。
 
 mod chart_bar_list;
+mod chart_metric_area;
 mod chart_stat_cards;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![chart_bar_list::BLOCK, chart_stat_cards::BLOCK]
+    vec![
+        chart_bar_list::BLOCK,
+        chart_metric_area::BLOCK,
+        chart_stat_cards::BLOCK,
+    ]
 }

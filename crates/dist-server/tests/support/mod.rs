@@ -186,24 +186,40 @@ fn spawn_with_etxtbsy_retry(command: &mut Command) -> Child {
 /// `mpsc::Receiver::recv_timeout` でデッドラインまで待つことでタイムアウトを
 /// 実効化する（パイプ読み取りが無期限にブロックし CI がハングしうる問題への
 /// 対応）。
+///
+/// 読み取りスレッドは `tx.send` が失敗しても（＝受信側が既に return 済み）
+/// **`break` せずに読み取りを継続する**（イシュー #3337、graceful shutdown の
+/// 統合テストで踏んだ実際の障害から判明した契約）。ここで `break` して
+/// `reader`（`ChildStderr` の所有者）を drop すると、パイプの読み取り側 fd が
+/// 早期に閉じられ、直後に子プロセスが stderr へ次の行を書き込んだ瞬間
+/// `EPIPE`（Broken pipe）が発生する。Rust の `eprintln!` は書き込みエラーを
+/// `unwrap` するため、この `EPIPE` は子プロセス側で **panic（exit code 101）**
+/// として表面化する。`main.rs` が起動時の 2 行（`listening on`/`assets=`）
+/// のみを出力していた間はこの競合が顕在化しなかったが、graceful shutdown
+/// 追加でシグナル受信後に複数行を追加出力するようになったことで、
+/// この test harness 側の潜在バグが確実に踏まれるようになった。読み取り
+/// スレッドは EOF（子プロセス終了によるパイプクローズ）または実際の読み取り
+/// エラーでのみ終了し、送信失敗は無視して読み取りを続ける（送信し続けても
+/// 受信側は必要な 1 行を得た時点で `recv_timeout` ループを抜けているだけで、
+/// チャネルバッファのメモリ増加は子プロセスの生存期間中の行数に留まり
+/// 問題にならない）。
 fn read_listening_addr(reader: BufReader<std::process::ChildStderr>) -> String {
     let (tx, rx) = mpsc::channel::<String>();
 
     // 読み取りスレッドは検出後も本体側から join しない（detach する）。
     // 本関数はアドレスが見つかり次第 return するため、join すると子プロセスの
     // 後続出力を待ち続けてしまい、タイムアウト対策そのものが無意味になる。
-    // 受信側が既に return してチャネルが閉じている場合は素直に終了する。
     std::thread::spawn(move || {
         let mut reader = reader;
         let mut line = String::new();
         loop {
             line.clear();
             match reader.read_line(&mut line) {
-                Ok(0) => break, // EOF: プロセスが起動前に終了した
+                Ok(0) => break, // EOF: 子プロセスが終了し書き込み側が閉じた
+                // 受信側が既に return していても `break` しない（上記 doc 参照）。
+                // 送信結果は無視し、パイプの読み取りだけを継続する。
                 Ok(_) => {
-                    if tx.send(line.clone()).is_err() {
-                        break; // 受信側は既に return 済み
-                    }
+                    let _ = tx.send(line.clone());
                 }
                 Err(_) => break,
             }
@@ -318,6 +334,11 @@ pub fn send_http_request_to(host: &str, port: u16, method: &str, path: &str) -> 
 
 /// レスポンス文字列の先頭ステータス行（`HTTP/1.1 200 OK` 等）からステータス
 /// コードを取り出す。
+///
+/// `tests/graceful_shutdown.rs`（イシュー #3337）のテストバイナリでは未使用
+/// （`response.starts_with("HTTP/1.1 200")` の文字列比較で足りるため）のため
+/// `#[allow(dead_code)]` で抑止する（本モジュール既存の慣行、冒頭 doc 参照）。
+#[allow(dead_code)]
 pub fn status_code(response: &str) -> u16 {
     response
         .lines()
