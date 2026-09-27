@@ -410,6 +410,7 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-description-list-horizontal-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n  container-type: inline-size;\n  container-name: blocks-description-list-horizontal;\n}\n\
 .blocks-description-list-horizontal-header {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n}\n\
+.blocks-description-list-horizontal-header-text {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-description-list-horizontal-attachments {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  flex: 1;\n  min-width: 0;\n}\n\
 [data-blocks-description-list-horizontal-list] {\n  --fandhe-data-list-gap: 0;\n}\n\
 [data-blocks-description-list-horizontal-list] > [data-scope=\"data-list\"][data-part=\"item\"] {\n  border-top: 1px solid var(--fandhe-color-border);\n  padding-block: var(--fandhe-space-4);\n}\n\
@@ -475,5 +476,15 @@ mod tests {
         assert!(
             LAYOUT_CSS.contains("@container blocks-description-list-horizontal (max-width: 36rem)")
         );
+    }
+
+    /// codex-review 是正（見出しと補足説明の間に余白がなく密着していた不具合）。
+    /// `heading`/`text` はいずれも `margin: 0` にリセットするため、ラッパー側
+    /// （`.blocks-description-list-horizontal-header-text`）が `gap` を持つ
+    /// ことを固定する。
+    #[test]
+    fn header_text_wrapper_has_spacing() {
+        assert!(LAYOUT_CSS
+            .contains(".blocks-description-list-horizontal-header-text {\n  display: flex;\n  flex-direction: column;\n  gap:"));
     }
 }
