@@ -7,6 +7,7 @@
 
 mod testimonial_background_image;
 mod testimonial_card_grid;
+mod testimonial_split_image;
 mod testimonials_stack;
 use crate::blocks::Block;
 
@@ -15,5 +16,6 @@ pub(super) fn blocks() -> Vec<Block> {
         testimonial_background_image::BLOCK,
         testimonials_stack::BLOCK,
         testimonial_card_grid::BLOCK,
+        testimonial_split_image::BLOCK,
     ]
 }

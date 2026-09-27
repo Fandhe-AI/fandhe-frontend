@@ -1465,6 +1465,11 @@ source = "site/blocks/testimonial-card-grid.md"
 path = "/blocks/testimonial-card-grid/"
 
 [[section.group.page]]
+title = "testimonial-split-image"
+source = "site/blocks/testimonial-split-image.md"
+path = "/blocks/testimonial-split-image/"
+
+[[section.group.page]]
 title = "testimonials-stack"
 source = "site/blocks/testimonials-stack.md"
 path = "/blocks/testimonials-stack/"
