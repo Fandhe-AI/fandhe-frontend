@@ -953,11 +953,12 @@ pub enum LayoutCss {
 | team-photo-grid | #2881 | `marketing/team/team_photo_grid.rs` |
 | team-split-list | #2882（親 #2807） | `marketing/team/team_split_list.rs` |
 | testimonial-background-image | #2883 | `marketing/testimonial/testimonial_background_image.rs` |
-| testimonial-two-up | #2891 | `marketing/testimonial/testimonial_two_up.rs` |
+| testimonial-masonry-grid | #2887（親 #2886） | `marketing/testimonial/testimonial_masonry_grid.rs` |
 | testimonial-quote-stats | #2889 | `marketing/testimonial/testimonial_quote_stats.rs` |
+| testimonial-two-up | #2891 | `marketing/testimonial/testimonial_two_up.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-140 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+141 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
