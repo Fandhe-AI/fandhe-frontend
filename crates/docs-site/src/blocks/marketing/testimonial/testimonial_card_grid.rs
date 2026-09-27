@@ -414,7 +414,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-testimonial-card-grid-state {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-testimonial-card-grid-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-6);\n  align-items: stretch;\n}\n\
 [data-blocks-testimonial-card-grid-card] {\n  height: 100%;\n}\n\
-.blocks-testimonial-card-grid-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  height: 100%;\n}\n\
+.blocks-testimonial-card-grid-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-testimonial-card-grid-body [data-scope=\"blockquote\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: column;\n  flex: 1;\n}\n\
 .blocks-testimonial-card-grid-logo-row {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-testimonial-card-grid-logo] {\n  color: var(--fandhe-color-fg-muted);\n}\n\
