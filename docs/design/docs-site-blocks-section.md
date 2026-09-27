@@ -968,6 +968,7 @@ pub enum LayoutCss {
 | description-list-summary-card | #2907（親 #2892） | `application/description_list/description_list_summary_card.rs` |
 | description-list-two-column | #2908 | `application/description_list/description_list_two_column.rs` |
 | feed-upvote-cards | #2910（親 #2892） | `application/feed/feed_upvote_cards.rs` |
+| feed-comments-timeline | #2909（親 #2892） | `application/feed/feed_comments_timeline.rs` |
 | form-layout-property-panel | #2913（親 #2912） | `application/form_layout/form_layout_property_panel.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
