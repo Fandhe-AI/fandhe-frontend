@@ -109,7 +109,7 @@ cargo run -p fandhe-frontend-cli -- gate --project examples/vercel-ssg
    ```
 
 Basic 認証によるアクセス制御（fail-closed な設定手順）は
-[デプロイガイド](../../docs/guides/deployment.md)を参照してください。
+[デプロイガイド](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/guides/deployment.md)を参照してください。
 
 ## Deployment Protection（SSO）の注意
 

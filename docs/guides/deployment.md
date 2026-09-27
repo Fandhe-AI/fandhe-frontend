@@ -220,7 +220,11 @@ export default function middleware(request) {
     // デコードする。
     const binary = atob(match[1]);
     const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-    decoded = new TextDecoder('utf-8').decode(bytes);
+    // fatal: true を指定しないと不正な UTF-8 バイト列が既定で U+FFFD
+    // （置換文字）へ静かに置換され、不正なバイト列を含む資格情報が
+    // 正規の資格情報と偶然一致してしまう危険がある。不正な UTF-8 は
+    // 例外を投げさせ、下の catch で確実に拒否する。
+    decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch {
     // 不正な base64 / UTF-8 は認証情報を読み取れないため拒否する。
     return unauthorized();
