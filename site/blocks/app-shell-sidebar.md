@@ -1,10 +1,11 @@
 # app-shell-sidebar
 
 `fandhe-frontend-pre-styled-ui` の `sidebar`（常設サイドバー、collapsible
-なし）/ `avatar`（チーム・プロフィールのフォールバックイニシャル）/
-`button`（狭幅時のみ表示するハンバーガー icon button）/ `icon`（自作の単純
-幾何アイコン）/ `badge`（未読件数の表示）/ `heading`（メイン領域の見出し）
-を合成した、常設サイドバー型アプリシェルの合成例です。Blocks セクションは
+なし。未読件数は組み込みの `menu_badge` で表示）/ `avatar`（チーム・
+プロフィールのフォールバックイニシャル）/ `collapsible`（狭幅バーの
+ハンバーガートリガー + 常時展開のモバイルナビパネル）/ `icon`（自作の
+単純幾何アイコン）/ `heading`（メイン領域の見出し）を合成した、常設
+サイドバー型アプリシェルの合成例です。Blocks セクションは
 新規部品を追加するものではなく、既存の Themes/Primitives 部品を組み合わせた
 実例集であることに注意してください。
 
@@ -14,7 +15,10 @@
 サイドバーが非表示になり、代わりに上部バー（ハンバーガー・画面名・
 アバター）が表示されます。この切替は `data-mobile`（`position: fixed` の
 ドロワー）ではなく、Demo 枠自体にコンテナクエリ（`@container`）を適用する
-ことで実現しています。
+ことで実現しています。docs サイトは無 JS のためハンバーガーは常に
+`disabled`（クリックしても何も起きない no-op）ですが、常時展開の
+モバイルナビパネルへ `aria-controls` で関連付けているため、狭いコンテナ幅
+でもナビ項目（画面一覧・チーム一覧）自体には静的に到達できます。
 
 docs サイトは JS ハイドレーションを行わないため、狙う状態を **3 つの
 インスタンスを縦に並べて** 静的に掲示します。
@@ -43,8 +47,7 @@ PII を含みません。アイコンは lucide 等の著作物ではなく自�
 use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, el, p, span, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarProps, ImageStatus};
-use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
+use fandhe_frontend_pre_styled_ui::collapsible;
 use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::sidebar;
@@ -62,12 +65,19 @@ fn geo_icon(path_d: &'static str) -> Node {
     )
 }
 
-/// ハンバーガーアイコン（3 本線）。
+/// ハンバーガーアイコン（3 本線）。`icon` は `fill="currentColor"` 固定
+/// （`stroke` を持たない）ため、面積を持たない線分パス（`M4 6h16` 等）は
+/// 描画されない（Bugbot 指摘、PR #3324）。3 本の細い矩形（塗り面）として
+/// 描く（`header_simple_bar::hamburger_icon` と同型の対処）。
 fn hamburger_icon() -> Node {
     icon(
         &IconProps::default(),
         vec![],
-        vec![el("path", vec![("d", "M4 6h16M4 12h16M4 18h16")], vec![])],
+        vec![el(
+            "path",
+            vec![("d", "M4 6h16v2H4zM4 11h16v2H4zM4 16h16v2H4z")],
+            vec![],
+        )],
     )
 }
 
@@ -85,11 +95,14 @@ fn brand_header() -> Node {
     )
 }
 
-/// メインナビ 1 行（icon + ラベル + 任意の未読 badge）。`badge` は
-/// `menu_button` の子ではなく `menu_item` 直下の兄弟として置く
-/// （`showcase::sidebar_section` の `menu_action`/`menu_badge` 併記と
-/// 同型の配置規約。`menu_button` の内側ラッパーへ混ぜ込むと icon
-/// 折りたたみ時のラベル非表示規則が badge にも誤って波及するため）。
+/// メインナビ 1 行（icon + ラベル + 任意の未読 badge）。`sidebar::
+/// menu_badge` は `menu_item` 直下で `menu_button` の兄弟として絶対配置
+/// される組み込みパーツで、`menu_button` 側が `padding-inline-end` へ
+/// 同じ 1 個分の余白をあらかじめ予約しているため、ラベルと重ならず
+/// 折り返しもしない（`crate::pre_styled_ui::sidebar::menu_badge_base`
+/// 参照）。汎用 `badge::badge` を素の兄弟として置いていた旧実装は
+/// `menu_item` が flex コンテナでないため右寄せ・折り返し防止のいずれも
+/// 効かなかった（Bugbot 指摘、PR #3324）。
 fn nav_item(
     icon_path: &'static str,
     label: &'static str,
@@ -108,11 +121,7 @@ fn nav_item(
     );
     let mut children = vec![button];
     if let Some(count) = count {
-        children.push(badge::badge(
-            &BadgeProps::default(),
-            vec![("data-blocks-app-shell-sidebar-nav-badge", "")],
-            vec![text(count)],
-        ));
+        children.push(sidebar::menu_badge(vec![], vec![text(count)]));
     }
     sidebar::menu_item(vec![], children)
 }
@@ -260,7 +269,10 @@ fn app_sidebar(state: &Sidebar, props: &SidebarProps, suffix: &str, root_id: &st
 }
 
 /// 狭幅時のみ表示する上部バー（ハンバーガー + 画面名 + avatar）。
-fn topbar(suffix: &str) -> Node {
+/// ハンバーガーは常時展開の [`mobile_nav_panel`]（`panel_id`）を
+/// `aria-controls` で指す（モジュール doc「狭幅でもナビへ到達できる
+/// ようにする」節参照）。
+fn topbar(suffix: &str, panel_id: &str) -> Node {
     let name = dummy_assets::PERSON_NAMES[0];
     let initials: String = name
         .split_whitespace()
@@ -269,13 +281,14 @@ fn topbar(suffix: &str) -> Node {
     div(
         vec![("data-blocks-app-shell-sidebar-topbar", suffix)],
         vec![
-            button::icon_button(
-                &ButtonProps {
-                    variant: ButtonVariant::Ghost,
-                    ..ButtonProps::default()
-                },
-                "Open navigation",
-                vec![],
+            collapsible::trigger(
+                collapsible::OpenState::Open,
+                true,
+                Some(panel_id),
+                vec![
+                    ("aria-label", "Open navigation"),
+                    ("data-blocks-app-shell-sidebar-toggle", ""),
+                ],
                 vec![hamburger_icon()],
             ),
             span(
@@ -292,6 +305,22 @@ fn topbar(suffix: &str) -> Node {
                 )],
             ),
         ],
+    )
+}
+
+/// 常時展開のモバイルナビパネル（狭幅専用、[`topbar`] のハンバーガーが
+/// `aria-controls` で指す）。`main_nav`/`teams_group` を常設サイドバー側
+/// とは別の suffix で再呼び出しし、id 重複を避ける（モジュール doc「狭幅
+/// でもナビへ到達できるようにする」節参照。`header_simple_bar` の
+/// `Node::clone()` 方式は使わない）。[`LAYOUT_CSS`] は [`topbar`] と同じ
+/// `@container` 条件下でのみ表示する。
+fn mobile_nav_panel(suffix: &str, panel_id: &str) -> Node {
+    collapsible::content(
+        collapsible::OpenState::Open,
+        true,
+        Some(panel_id),
+        vec![("data-blocks-app-shell-sidebar-mobile-nav", "")],
+        vec![main_nav(), teams_group(suffix)],
     )
 }
 
@@ -325,13 +354,21 @@ fn shell(suffix: &str, surface: &'static str, narrow: bool) -> Node {
         ..SidebarProps::default()
     };
     let root_id = format!("blocks-app-shell-sidebar-root-{suffix}");
+    let panel_id = format!("blocks-app-shell-sidebar-mobile-nav-{suffix}");
     let provider = sidebar::provider(
         &state,
         &props,
         vec![],
         vec![
             app_sidebar(&state, &props, suffix, &root_id),
-            sidebar::inset(vec![], vec![topbar(suffix), main_area()]),
+            sidebar::inset(
+                vec![],
+                vec![
+                    topbar(suffix, &panel_id),
+                    mobile_nav_panel(&format!("{suffix}-mobile"), &panel_id),
+                    main_area(),
+                ],
+            ),
         ],
     );
 

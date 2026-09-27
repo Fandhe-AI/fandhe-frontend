@@ -4,11 +4,14 @@
 //!
 //! # 使用部品
 //!
-//! `sidebar`（常設サイドバー、collapsible なし）/ `avatar`（チーム・
-//! プロフィールのフォールバックイニシャル）/ `button`（狭幅バーの
-//! ハンバーガー icon button）/ `icon`（自作の単純幾何アイコン）/
-//! `badge`（未読件数の表示）/ `heading`（メイン領域の見出し）を合成する
-//! （[`BLOCK`] の `parts` に一致させる契約）。
+//! `sidebar`（常設サイドバー、collapsible なし。未読件数は `sidebar::
+//! menu_badge` で表示、`menu_button` の予約余白と整合する組み込みの
+//! 絶対配置に乗せる）/ `avatar`（チーム・プロフィールのフォールバック
+//! イニシャル）/ `collapsible`（狭幅バーのハンバーガートリガー + 常時
+//! 展開のモバイルナビパネル、無 JS 対応は「狭幅でもナビへ到達できる
+//! ようにする」節参照）/ `icon`（自作の単純幾何アイコン）/ `heading`
+//! （メイン領域の見出し）を合成する（[`BLOCK`] の `parts` に一致させる
+//! 契約）。
 //!
 //! # 常設サイドバー ⇔ 上部バーの切替はコンテナクエリで行う
 //!
@@ -58,6 +61,22 @@
 //! はいずれも静的な初期状態の掲示のみで、選択・送信・永続化・認証処理は
 //! 行わない。ハンバーガーボタンの `aria-label` も「静的デモであり実際には
 //! 開閉しない」ことと矛盾しない文言（`"Open navigation"`）にする。
+//!
+//! # 狭幅でもナビへ到達できるようにする（イシュー #2894 PR #3324 codex(P1)
+//! 再指摘）
+//!
+//! `@container` で常設サイドバーを非表示にする一方、ハンバーガーを
+//! `button::icon_button` の `disabled: true` のみで操作不能にすると、開いた
+//! 先のパネルを一切描画しないため狭幅ではナビへ到達できなくなる
+//! （[`super::super::marketing::header::header_simple_bar`] が同じ問題を
+//! 是正した前例と同型の指摘）。同じ判断で、ハンバーガーは
+//! `collapsible::trigger`（`OpenState::Open` + `disabled: true` 固定 =
+//! 常時展開でクリックしても何も起きない）とし、`collapsible::content` の
+//! 常時展開パネル（[`mobile_nav_panel`]）へ `aria-controls` で関連付ける。
+//! パネルは [`main_nav`]/[`teams_group`] を（`header_simple_bar` の
+//! `Node::clone()` 方式とは異なり）id 重複を避けるため suffix を分けて
+//! 再呼び出しし、[`LAYOUT_CSS`] で `topbar` と同じ `@container` 条件下
+//! でのみ表示する。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -65,8 +84,7 @@ use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, el, p, span, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarProps, ImageStatus};
-use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
+use fandhe_frontend_pre_styled_ui::collapsible;
 use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::sidebar;
@@ -84,12 +102,19 @@ fn geo_icon(path_d: &'static str) -> Node {
     )
 }
 
-/// ハンバーガーアイコン（3 本線）。
+/// ハンバーガーアイコン（3 本線）。`icon` は `fill="currentColor"` 固定
+/// （`stroke` を持たない）ため、面積を持たない線分パス（`M4 6h16` 等）は
+/// 描画されない（Bugbot 指摘、PR #3324）。3 本の細い矩形（塗り面）として
+/// 描く（`header_simple_bar::hamburger_icon` と同型の対処）。
 fn hamburger_icon() -> Node {
     icon(
         &IconProps::default(),
         vec![],
-        vec![el("path", vec![("d", "M4 6h16M4 12h16M4 18h16")], vec![])],
+        vec![el(
+            "path",
+            vec![("d", "M4 6h16v2H4zM4 11h16v2H4zM4 16h16v2H4z")],
+            vec![],
+        )],
     )
 }
 
@@ -107,11 +132,14 @@ fn brand_header() -> Node {
     )
 }
 
-/// メインナビ 1 行（icon + ラベル + 任意の未読 badge）。`badge` は
-/// `menu_button` の子ではなく `menu_item` 直下の兄弟として置く
-/// （`showcase::sidebar_section` の `menu_action`/`menu_badge` 併記と
-/// 同型の配置規約。`menu_button` の内側ラッパーへ混ぜ込むと icon
-/// 折りたたみ時のラベル非表示規則が badge にも誤って波及するため）。
+/// メインナビ 1 行（icon + ラベル + 任意の未読 badge）。`sidebar::
+/// menu_badge` は `menu_item` 直下で `menu_button` の兄弟として絶対配置
+/// される組み込みパーツで、`menu_button` 側が `padding-inline-end` へ
+/// 同じ 1 個分の余白をあらかじめ予約しているため、ラベルと重ならず
+/// 折り返しもしない（`crate::pre_styled_ui::sidebar::menu_badge_base`
+/// 参照）。汎用 `badge::badge` を素の兄弟として置いていた旧実装は
+/// `menu_item` が flex コンテナでないため右寄せ・折り返し防止のいずれも
+/// 効かなかった（Bugbot 指摘、PR #3324）。
 fn nav_item(
     icon_path: &'static str,
     label: &'static str,
@@ -130,11 +158,7 @@ fn nav_item(
     );
     let mut children = vec![button];
     if let Some(count) = count {
-        children.push(badge::badge(
-            &BadgeProps::default(),
-            vec![("data-blocks-app-shell-sidebar-nav-badge", "")],
-            vec![text(count)],
-        ));
+        children.push(sidebar::menu_badge(vec![], vec![text(count)]));
     }
     sidebar::menu_item(vec![], children)
 }
@@ -282,7 +306,10 @@ fn app_sidebar(state: &Sidebar, props: &SidebarProps, suffix: &str, root_id: &st
 }
 
 /// 狭幅時のみ表示する上部バー（ハンバーガー + 画面名 + avatar）。
-fn topbar(suffix: &str) -> Node {
+/// ハンバーガーは常時展開の [`mobile_nav_panel`]（`panel_id`）を
+/// `aria-controls` で指す（モジュール doc「狭幅でもナビへ到達できる
+/// ようにする」節参照）。
+fn topbar(suffix: &str, panel_id: &str) -> Node {
     let name = dummy_assets::PERSON_NAMES[0];
     let initials: String = name
         .split_whitespace()
@@ -291,13 +318,14 @@ fn topbar(suffix: &str) -> Node {
     div(
         vec![("data-blocks-app-shell-sidebar-topbar", suffix)],
         vec![
-            button::icon_button(
-                &ButtonProps {
-                    variant: ButtonVariant::Ghost,
-                    ..ButtonProps::default()
-                },
-                "Open navigation",
-                vec![],
+            collapsible::trigger(
+                collapsible::OpenState::Open,
+                true,
+                Some(panel_id),
+                vec![
+                    ("aria-label", "Open navigation"),
+                    ("data-blocks-app-shell-sidebar-toggle", ""),
+                ],
                 vec![hamburger_icon()],
             ),
             span(
@@ -314,6 +342,22 @@ fn topbar(suffix: &str) -> Node {
                 )],
             ),
         ],
+    )
+}
+
+/// 常時展開のモバイルナビパネル（狭幅専用、[`topbar`] のハンバーガーが
+/// `aria-controls` で指す）。`main_nav`/`teams_group` を常設サイドバー側
+/// とは別の suffix で再呼び出しし、id 重複を避ける（モジュール doc「狭幅
+/// でもナビへ到達できるようにする」節参照。`header_simple_bar` の
+/// `Node::clone()` 方式は使わない）。[`LAYOUT_CSS`] は [`topbar`] と同じ
+/// `@container` 条件下でのみ表示する。
+fn mobile_nav_panel(suffix: &str, panel_id: &str) -> Node {
+    collapsible::content(
+        collapsible::OpenState::Open,
+        true,
+        Some(panel_id),
+        vec![("data-blocks-app-shell-sidebar-mobile-nav", "")],
+        vec![main_nav(), teams_group(suffix)],
     )
 }
 
@@ -347,13 +391,21 @@ fn shell(suffix: &str, surface: &'static str, narrow: bool) -> Node {
         ..SidebarProps::default()
     };
     let root_id = format!("blocks-app-shell-sidebar-root-{suffix}");
+    let panel_id = format!("blocks-app-shell-sidebar-mobile-nav-{suffix}");
     let provider = sidebar::provider(
         &state,
         &props,
         vec![],
         vec![
             app_sidebar(&state, &props, suffix, &root_id),
-            sidebar::inset(vec![], vec![topbar(suffix), main_area()]),
+            sidebar::inset(
+                vec![],
+                vec![
+                    topbar(suffix, &panel_id),
+                    mobile_nav_panel(&format!("{suffix}-mobile"), &panel_id),
+                    main_area(),
+                ],
+            ),
         ],
     );
 
@@ -411,16 +463,12 @@ pub const BLOCK: Block = Block {
             path: "/themes/avatar/",
         },
         Part {
-            label: "Button",
-            path: "/themes/button/",
+            label: "Collapsible",
+            path: "/themes/collapsible/",
         },
         Part {
             label: "Icon",
             path: "/themes/icon/",
-        },
-        Part {
-            label: "Badge",
-            path: "/themes/badge/",
         },
         Part {
             label: "Heading",
@@ -453,12 +501,15 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-app-shell-sidebar-brand] {\n  display: flex;\n  align-items: center;\n  gap: 0.5rem;\n  padding: var(--fandhe-space-2, 0.5rem);\n  font-weight: var(--fandhe-font-font-weight-semibold, 600);\n}\n\
 [data-blocks-app-shell-sidebar-profile] {\n  display: flex;\n  flex-direction: column;\n  overflow: hidden;\n  line-height: 1.2;\n  text-align: start;\n}\n\
 [data-blocks-app-shell-sidebar-topbar] {\n  display: none;\n  align-items: center;\n  gap: 0.75rem;\n  padding: 0.75rem 1rem;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
+[data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-app-shell-sidebar-toggle][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-blocks-app-shell-sidebar-screen-name] {\n  margin-inline-end: auto;\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n}\n\
+[data-blocks-app-shell-sidebar-mobile-nav] {\n  display: none;\n  flex-direction: column;\n  gap: 0.25rem;\n  padding: 0.5rem 1rem 1rem;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-app-shell-sidebar-main] {\n  display: flex;\n  flex-direction: column;\n  gap: 1rem;\n  padding: 1.5rem;\n}\n\
 [data-blocks-app-shell-sidebar-placeholder] {\n  min-height: 16rem;\n  border: 2px dashed var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n}\n\
 @container blocks-app-shell-sidebar (max-width: 40rem) {\n  \
 [data-blocks-app-shell-sidebar-frame] [data-scope=\"sidebar\"][data-part=\"root\"] {\n    display: none;\n  }\n  \
-[data-blocks-app-shell-sidebar-topbar] {\n    display: flex;\n  }\n\
+[data-blocks-app-shell-sidebar-topbar] {\n    display: flex;\n  }\n  \
+[data-blocks-app-shell-sidebar-mobile-nav] {\n    display: flex;\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -466,7 +517,7 @@ mod tests {
     use super::{demo, LAYOUT_CSS};
     use fandhe_frontend_core::render;
 
-    /// Demo が期待する 6 種の部品を実際に出力し、非対話制約
+    /// Demo が期待する部品を実際に出力し、非対話制約
     /// （`<form>`/`data:` 不在）を満たすことの単体回帰
     /// （`crates/docs-site/tests/blocks_contract.rs` の横断検査と重複
     /// し過ぎない範囲での個別固定）。
@@ -476,12 +527,15 @@ mod tests {
         for scope in [
             "data-scope=\"sidebar\"",
             "data-scope=\"avatar\"",
-            "data-scope=\"button\"",
-            "data-scope=\"badge\"",
+            "data-scope=\"collapsible\"",
             "data-scope=\"heading\"",
         ] {
             assert!(html.contains(scope), "demo output should contain {scope}");
         }
+        assert!(
+            html.contains("data-part=\"menu-badge\""),
+            "demo should render the unread count via sidebar::menu_badge"
+        );
         assert!(!html.contains("<form"), "demo should not emit <form>");
         assert!(
             !html.contains("src=\"data:"),
@@ -510,6 +564,13 @@ mod tests {
             "demo should render exactly 3 topbars (hidden by default via CSS)"
         );
         assert_eq!(
+            html.matches("data-blocks-app-shell-sidebar-mobile-nav")
+                .count(),
+            3,
+            "demo should render exactly 3 always-open mobile nav panels \
+             (reachable in narrow @container widths, hidden by CSS otherwise)"
+        );
+        assert_eq!(
             html.matches("data-blocks-app-shell-sidebar-surface=\"brand\"")
                 .count(),
             1,
@@ -522,9 +583,12 @@ mod tests {
         );
     }
 
-    /// ハンバーガーボタンが `type="button"` と `aria-label` を持つこと。
+    /// ハンバーガーが `type="button"`・`aria-label`・`disabled`（無 JS の
+    /// no-op を明示）を持ち、常時展開の [`super::mobile_nav_panel`] を
+    /// `aria-controls` で指すこと（狭幅でもナビへ到達可能、イシュー #2894
+    /// PR #3324 codex(P1) 再指摘の是正）。
     #[test]
-    fn hamburger_button_is_type_button_with_aria_label() {
+    fn hamburger_is_disabled_trigger_controlling_reachable_panel() {
         let html = render(&demo());
         assert!(
             html.contains(r#"aria-label="Open navigation""#),
@@ -533,6 +597,15 @@ mod tests {
         assert!(
             html.contains(r#"type="button""#),
             "buttons should stay type=\"button\" (no implicit form submit)"
+        );
+        assert_eq!(
+            html.matches("data-blocks-app-shell-sidebar-toggle").count(),
+            3,
+            "demo should render exactly 3 hamburger triggers"
+        );
+        assert!(
+            html.contains(r#"aria-controls="blocks-app-shell-sidebar-mobile-nav-desktop""#),
+            "hamburger trigger should control its instance's mobile nav panel via aria-controls"
         );
     }
 
