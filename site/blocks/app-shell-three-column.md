@@ -269,7 +269,6 @@ fn main_area(aria_label: &str) -> Node {
         .collect();
     section(
         vec![
-            ("tabindex", "0"),
             ("role", "region"),
             ("aria-label", aria_label),
             ("data-blocks-app-shell-three-column-main", ""),
@@ -358,7 +357,12 @@ fn shell(
     inset_children.push(body);
 
     let inset = sidebar::inset(
-        vec![("data-blocks-app-shell-three-column-inset", "")],
+        vec![
+            ("tabindex", "0"),
+            ("role", "region"),
+            ("aria-label", main_label.as_str()),
+            ("data-blocks-app-shell-three-column-inset", ""),
+        ],
         inset_children,
     );
 
