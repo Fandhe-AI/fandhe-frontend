@@ -489,12 +489,16 @@ fn extra_custom_plan() -> Node {
         ],
         vec![
             state_label("補足行 B: カスタムプラン問い合わせ"),
+            // `card::root` は `drop_class_attr` により呼び出し側の `class` を
+            // 常に除去する（`crates/pre-styled-ui/src/card.rs` 参照）ため、
+            // レイアウト用フックは `class` ではなく `data-*` 属性で渡し、
+            // CSS 側もこの属性セレクタを使う（下部 CSS 定義参照）。
             card::root(
                 CardProps {
                     variant: CardVariant::Outline,
                     ..CardProps::default()
                 },
-                vec![("class", "blocks-pricing-tiers-extra-row-custom-card")],
+                vec![("data-blocks-pricing-tiers-extra-row-custom-card", "")],
                 vec![
                     div(
                         vec![("class", "blocks-pricing-tiers-extra-row-custom-body")],
@@ -686,8 +690,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-pricing-tiers-extra-row-state-label {\n  display: block;\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: 600;\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-pricing-tiers-extra-row-layout [data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 .blocks-pricing-tiers-extra-row-tip {\n  display: inline-flex;\n}\n\
-.blocks-pricing-tiers-extra-row-custom-card {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-4);\n}\n\
-@media (min-width: 40rem) {\n  .blocks-pricing-tiers-extra-row-custom-card {\n    flex-direction: row;\n    align-items: center;\n    justify-content: space-between;\n  }\n}\n\
+[data-scope=\"card\"][data-part=\"root\"][data-blocks-pricing-tiers-extra-row-custom-card] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-4);\n}\n\
+@media (min-width: 40rem) {\n  [data-scope=\"card\"][data-part=\"root\"][data-blocks-pricing-tiers-extra-row-custom-card] {\n    flex-direction: row;\n    align-items: center;\n    justify-content: space-between;\n  }\n}\n\
 .blocks-pricing-tiers-extra-row-custom-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-pricing-tiers-extra-row-discount-row {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-4);\n}\n\
 @media (min-width: 40rem) {\n  .blocks-pricing-tiers-extra-row-discount-row {\n    flex-direction: row;\n    align-items: center;\n  }\n}\n\

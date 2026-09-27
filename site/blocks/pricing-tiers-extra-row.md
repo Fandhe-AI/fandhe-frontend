@@ -420,12 +420,16 @@ fn extra_custom_plan() -> Node {
         ],
         vec![
             state_label("補足行 B: カスタムプラン問い合わせ"),
+            // `card::root` は `drop_class_attr` により呼び出し側の `class` を
+            // 常に除去する（`crates/pre-styled-ui/src/card.rs` 参照）ため、
+            // レイアウト用フックは `class` ではなく `data-*` 属性で渡し、
+            // CSS 側もこの属性セレクタを使う（下部 CSS 定義参照）。
             card::root(
                 CardProps {
                     variant: CardVariant::Outline,
                     ..CardProps::default()
                 },
-                vec![("class", "blocks-pricing-tiers-extra-row-custom-card")],
+                vec![("data-blocks-pricing-tiers-extra-row-custom-card", "")],
                 vec![
                     div(
                         vec![("class", "blocks-pricing-tiers-extra-row-custom-body")],
