@@ -125,10 +125,7 @@ fn member(index: usize) -> Node {
             image::image(
                 &ImageProps {
                     aspect_ratio: AspectRatio::Portrait,
-                    ..ImageProps::new(
-                        dummy_assets::AVATAR_SRC,
-                        &format!("{name} のプロフィール写真"),
-                    )
+                    ..ImageProps::new(dummy_assets::AVATAR_SRC, "")
                 },
                 vec![("data-blocks-team-bio-rows-photo", "")],
             ),

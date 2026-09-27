@@ -36,6 +36,15 @@
 //! 判断）。アクセシブルネームにメンバー名を含めると「メンバーごとの
 //! 個別リンク」であるかのように誤誘導するため、遷移先と食い違わない
 //! 固定文字列（[`REPO_LABEL`]/[`ORG_LABEL`]）を全メンバー共通で使う。
+//!
+//! # 画像 `alt=""` の理由
+//!
+//! [`dummy_assets::AVATAR_SRC`] は全メンバー共通のプレースホルダー画像
+//! であり、氏名は画像のすぐ下に見出し（[`HeadingLevel::H4`]）として
+//! 常に出力される。氏名を `alt` に入れると実際の画像内容と食い違う
+//! （同じプレースホルダーなのに個別の写真であるかのように誤誘導する）
+//! うえ、隣接する氏名見出しと重複して読み上げられるため、装飾画像扱い
+//! （`alt=""`）にする（`team-avatar-grid` と同じ判断）。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -142,10 +151,7 @@ fn member(index: usize) -> Node {
             image::image(
                 &ImageProps {
                     aspect_ratio: AspectRatio::Portrait,
-                    ..ImageProps::new(
-                        dummy_assets::AVATAR_SRC,
-                        &format!("{name} のプロフィール写真"),
-                    )
+                    ..ImageProps::new(dummy_assets::AVATAR_SRC, "")
                 },
                 vec![("data-blocks-team-bio-rows-photo", "")],
             ),
