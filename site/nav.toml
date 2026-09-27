@@ -1959,6 +1959,14 @@ source = "site/blocks/section-heading-stats.md"
 path = "/blocks/section-heading-stats/"
 
 [[section.group]]
+title = "App Shell"
+
+[[section.group.page]]
+title = "app-shell-sidebar-header"
+source = "site/blocks/app-shell-sidebar-header.md"
+path = "/blocks/app-shell-sidebar-header/"
+
+[[section.group]]
 title = "Sidebar"
 
 [[section.group.page]]
