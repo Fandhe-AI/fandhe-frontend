@@ -64,6 +64,11 @@
 //! 束ねるパネル自体も `collapsible::content(.., true, ..)` で
 //! `data-disabled` を持つため、この中和がないとパネル全体が半透明化する。
 //! `app_shell_navbar_columns`/`header_simple_bar` と同じ詳細度対策）。
+//! パネルの `[data-disabled]` セレクタは pre-styled-ui の collapsible
+//! レシピが同条件で設定する `color: var(--fandhe-color-fg-muted)` も
+//! 上書きする必要があるため、`opacity`/`cursor` に加え `color: inherit`
+//! を明示的に添える（添えないと帯の配色上でナビ・アクション・検索欄の
+//! 文字が muted 色のまま読みにくくなる）。
 //!
 //! # `href` の方針・`<form>` を持たない・全データが架空
 //!
@@ -591,7 +596,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-app-shell-stacked-overlap-quick-links] a {\n  color: inherit;\n}\n\
 [data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-app-shell-stacked-overlap-toggle] {\n  color: inherit;\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-app-shell-stacked-overlap-panel] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  margin-block-start: var(--fandhe-space-3);\n}\n\
-[data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-app-shell-stacked-overlap-panel][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-app-shell-stacked-overlap-panel][data-disabled] {\n  color: inherit;\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-blocks-app-shell-stacked-overlap-heading-row] {\n  margin-block-start: var(--fandhe-space-4);\n}\n\
 [data-blocks-app-shell-stacked-overlap-band] [data-scope=\"navigation-menu\"] {\n  color: inherit;\n}\n\
 [data-blocks-app-shell-stacked-overlap-band] [data-scope=\"navigation-menu\"][data-part=\"link\"] {\n  color: inherit;\n}\n\
@@ -730,6 +735,19 @@ mod tests {
         ));
         assert!(!LAYOUT_CSS.contains("{\n  order:"));
         assert!(!LAYOUT_CSS.contains(";\n  order:"));
+    }
+
+    /// [`mobile_panel`]（disabled 固定の collapsible content）の
+    /// `[data-disabled]` セレクタが `color: inherit` を上書きすること
+    /// （PR #3328 レビュー指摘: `opacity`/`cursor` のみの上書きでは
+    /// collapsible レシピ既定の `color: var(--fandhe-color-fg-muted)` が
+    /// 残り、帯の配色上でパネル内ナビ・アクション・検索欄が読みにくく
+    /// なる）。
+    #[test]
+    fn mobile_panel_disabled_style_overrides_color_not_only_opacity_cursor() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-app-shell-stacked-overlap-panel][data-disabled] {\n  color: inherit;\n  opacity: 1;\n  cursor: default;\n}"
+        ));
     }
 
     /// root（clone されない）の `aria-label` は variant ごとに一意であり、
