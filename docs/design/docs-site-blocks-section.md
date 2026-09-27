@@ -953,6 +953,7 @@ pub enum LayoutCss {
 | team-photo-grid | #2881 | `marketing/team/team_photo_grid.rs` |
 | team-split-list | #2882（親 #2807） | `marketing/team/team_split_list.rs` |
 | testimonial-background-image | #2883 | `marketing/testimonial/testimonial_background_image.rs` |
+| testimonial-masonry-grid | #2887（親 #2886） | `marketing/testimonial/testimonial_masonry_grid.rs` |
 | testimonial-quote-stats | #2889 | `marketing/testimonial/testimonial_quote_stats.rs` |
 | app-shell-stacked | #2896（親 #2892） | `application/app_shell/app_shell_stacked.rs` |
 
