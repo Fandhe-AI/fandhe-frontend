@@ -391,6 +391,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/app-shell-sidebar-header/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/app-shell-three-column/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/app-shell-navbar-columns/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/app-shell-stacked-overlap/index.html"
           # Application / Sidebar
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/sidebar-07/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/sidebar-03/index.html"
