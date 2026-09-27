@@ -400,6 +400,7 @@ jobs:
           # Application / Table
           # Application / Grid List
           # Application / Description List
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/description-list-summary-card/index.html"
           # Application / Calendar
           # Application / Feed
           # Application / Form Layout
