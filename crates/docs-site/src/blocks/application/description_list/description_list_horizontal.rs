@@ -413,14 +413,28 @@ pub const BLOCK: Block = Block {
 
 /// `description_list_horizontal` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
 /// doc「block 固有 CSS の置き場」節と同型）。
+///
+/// # `--fandhe-data-list-gap: 0` の上書きセレクタは `data-scope`/`data-part` を
+/// 併記する（codex-review 是正、イシュー #2906）
+///
+/// [`fandhe_frontend_pre_styled_ui::data_list`] の size
+/// バリアントは `root` へ `[data-scope="data-list"][data-part="root"].fd-data-list--size-md`
+/// （詳細度 0,3,0）で `--fandhe-data-list-gap` を再設定する。単なる
+/// `[data-blocks-description-list-horizontal-list] { ... }`（詳細度
+/// 0,1,0）では size バリアントに負けて 0 化が効かず、divider/striped 行に
+/// 既定 gap（`--fandhe-space-4` 等）が残ってしまう。このため上書きセレク
+/// タ側も `[data-scope="data-list"][data-part="root"]` を併記して詳細度を
+/// 0,3,0 に揃える（`assets/blocks.css` が `assets/pre-styled-ui.css` より
+/// 後段でリンクされるため、詳細度が並んだ場合はソース順で本 block 側の
+/// 宣言が勝つ）。
 const LAYOUT_CSS: &str = "\
 .blocks-description-list-horizontal-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n  container-type: inline-size;\n  container-name: blocks-description-list-horizontal;\n}\n\
 .blocks-description-list-horizontal-header {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-description-list-horizontal-header-text {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-description-list-horizontal-attachments {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  flex: 1;\n  min-width: 0;\n}\n\
-[data-blocks-description-list-horizontal-list] {\n  --fandhe-data-list-gap: 0;\n}\n\
+[data-scope=\"data-list\"][data-part=\"root\"][data-blocks-description-list-horizontal-list] {\n  --fandhe-data-list-gap: 0;\n}\n\
 [data-blocks-description-list-horizontal-list] > [data-scope=\"data-list\"][data-part=\"item\"] {\n  border-top: 1px solid var(--fandhe-color-border);\n  padding-block: var(--fandhe-space-4);\n}\n\
-[data-blocks-description-list-horizontal-striped] {\n  --fandhe-data-list-gap: 0;\n}\n\
+[data-scope=\"data-list\"][data-part=\"root\"][data-blocks-description-list-horizontal-striped] {\n  --fandhe-data-list-gap: 0;\n}\n\
 [data-blocks-description-list-horizontal-striped] > [data-scope=\"data-list\"][data-part=\"item\"] {\n  padding-block: var(--fandhe-space-3);\n  padding-inline: var(--fandhe-space-3);\n}\n\
 [data-blocks-description-list-horizontal-striped] > [data-scope=\"data-list\"][data-part=\"item\"]:nth-child(even) {\n  background: var(--fandhe-color-bg-muted);\n}\n\
 [data-blocks-description-list-horizontal-row-action] {\n  margin-inline-start: auto;\n}\n\
