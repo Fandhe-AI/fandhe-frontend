@@ -172,8 +172,12 @@ fn compare_card(input: CompareCard<'_>) -> Node {
             card::header(
                 vec![],
                 vec![
+                    // グループ見出し（`compare_heading`、「今期と前期の比較」）
+                    // が H3 のため、その配下に並ぶ個々のカード見出し（月次
+                    // 売上/新規契約数）は 1 段下げた H4 にする（codex レビュー
+                    // 指摘、#3347 P2）。
                     heading(
-                        HeadingLevel::H3,
+                        HeadingLevel::H4,
                         &HeadingProps::default(),
                         vec![],
                         vec![text(input.title)],
@@ -371,9 +375,11 @@ mod tests {
                 .count(),
             5
         );
-        // グループ見出し 2 件 + 下段カードの見出し 2 件（`compare_card` が
-        // `heading(HeadingLevel::H3, ...)` を持つ）で計 4。
-        assert_eq!(html.matches("<h3").count(), 4);
+        // グループ見出し 2 件（`summary_heading`/`compare_heading`）のみが
+        // H3。`compare_card` の個別見出し（月次売上/新規契約数）は 1 段
+        // 下げた H4（codex レビュー指摘、#3347 P2）。
+        assert_eq!(html.matches("<h3").count(), 2);
+        assert_eq!(html.matches("<h4").count(), 2);
         assert!(html.contains("class=\"blocks-chart-stat-cards-layout\""));
         assert!(html.contains("class=\"blocks-chart-stat-cards-grid\""));
     }

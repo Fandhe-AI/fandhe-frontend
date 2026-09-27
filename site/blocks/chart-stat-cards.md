@@ -151,8 +151,12 @@ fn compare_card(input: CompareCard<'_>) -> Node {
             card::header(
                 vec![],
                 vec![
+                    // グループ見出し（`compare_heading`、「今期と前期の比較」）
+                    // が H3 のため、その配下に並ぶ個々のカード見出し（月次
+                    // 売上/新規契約数）は 1 段下げた H4 にする（codex レビュー
+                    // 指摘、#3347 P2）。
                     heading(
-                        HeadingLevel::H3,
+                        HeadingLevel::H4,
                         &HeadingProps::default(),
                         vec![],
                         vec![text(input.title)],
@@ -288,10 +292,12 @@ pub fn demo() -> Node {
 - 系列色は既定の `--fandhe-color-chart-1`/`chart-2` を使用しています。
   参照元の配色・アイコン・文言は持ち込まず、デモデータ・説明文はすべて
   独自に書いた架空のものです。
-- 見出しは `card::title` ではなく `heading(HeadingLevel::H3, ...)` を直接
-  合成しています。使用部品として `heading` を実際に組み込むためで、
-  見出しの階層はページ本体の `h1` → Demo の `h2` → グループ見出しの
-  `h3` の順になります。
+- 見出しは `card::title` ではなく `heading(...)` を直接合成しています。
+  使用部品として `heading` を実際に組み込むためで、見出しの階層はページ
+  本体の `h1` → Demo の `h2` → グループ見出し（`summary_heading`/
+  `compare_heading`）の `h3` → 下段カード個別見出し（月次売上/新規契約数）
+  の `h4` の順になります（codex レビュー指摘、#3347 P2。以前はグループ
+  見出しとカード見出しが同じ `h3` で並列していました）。
 - 広い幅では複数列、狭い幅（コンテナ幅 14rem 未満相当）では 1 列に積む
   レイアウトです。カード内部（`stat`/`sparkline`/`status`/`line-chart` の
   縦並び）は block 固有の `.blocks-chart-stat-cards-body` グリッドで
