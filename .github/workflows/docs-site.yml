@@ -404,6 +404,7 @@ jobs:
           # Application / Table
           # Application / Grid List
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/grid-list-compact-tiles/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/grid-list-logo-cards/index.html"
           # Application / Description List
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/description-list-horizontal/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/description-list-two-column/index.html"
