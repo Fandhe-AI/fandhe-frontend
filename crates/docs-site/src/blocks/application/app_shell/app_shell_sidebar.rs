@@ -351,10 +351,18 @@ fn topbar(suffix: &str, panel_id: &str) -> Node {
 /// でもナビへ到達できるようにする」節参照。`header_simple_bar` の
 /// `Node::clone()` 方式は使わない）。[`LAYOUT_CSS`] は [`topbar`] と同じ
 /// `@container` 条件下でのみ表示する。
+///
+/// `disabled` は `false` を渡す（PR #3324 Bugbot/codex 再指摘）。この
+/// パネル自体は常時展開の静的表示であり操作不能にする対象ではない。
+/// `disabled: true` にすると headless 層が `data-disabled` を出力し、
+/// pre-styled-ui の `[data-scope="collapsible"][data-part="content"]
+/// [data-disabled]` 規則（`disabled_declarations()`、`opacity: 0.5`）が
+/// パネル全体（Dashboard/Inbox/チーム行）へ波及して無効表示に見えてしまう
+/// （操作不能にすべきなのは [`topbar`] のトリガーのみ）。
 fn mobile_nav_panel(suffix: &str, panel_id: &str) -> Node {
     collapsible::content(
         collapsible::OpenState::Open,
-        true,
+        false,
         Some(panel_id),
         vec![("data-blocks-app-shell-sidebar-mobile-nav", "")],
         vec![main_nav(), teams_group(suffix)],
@@ -607,6 +615,34 @@ mod tests {
             html.contains(r#"aria-controls="blocks-app-shell-sidebar-mobile-nav-desktop""#),
             "hamburger trigger should control its instance's mobile nav panel via aria-controls"
         );
+    }
+
+    /// 常時展開のモバイルナビパネル自体は `disabled` にしないこと（PR #3324
+    /// Bugbot/codex 再指摘）。`data-disabled` を持つと pre-styled-ui の
+    /// disabled 視覚規則（`opacity: 0.5`）がパネル全体へ波及し、
+    /// Dashboard/Inbox/チーム行が無効表示に見えてしまう。無効化すべきは
+    /// [`super::topbar`] のトリガーのみで、常時展開の静的パネル自体は
+    /// 操作対象ではない。
+    #[test]
+    fn mobile_nav_panel_content_is_not_disabled() {
+        let html = render(&demo());
+        for instance in ["desktop", "brand", "narrow"] {
+            let marker = format!(r#"id="blocks-app-shell-sidebar-mobile-nav-{instance}""#);
+            let pos = html
+                .find(&marker)
+                .unwrap_or_else(|| panic!("mobile nav panel for {instance} should render its id"));
+            // 開始タグの直前 200 バイト程度に data-disabled が現れないことを
+            // 確認する（`content` の属性は `data-state`/`data-disabled`/`id`
+            // の順で組み立てられるため、id の直前を見れば足りる）。
+            let window_start = pos.saturating_sub(200);
+            let window = &html[window_start..pos];
+            assert!(
+                !window.contains("data-disabled"),
+                "mobile nav panel content ({instance}) should not carry \
+                 data-disabled, or its disabled-state CSS \
+                 (opacity: 0.5) dims the whole panel"
+            );
+        }
     }
 
     /// `LAYOUT_CSS` が `@container` の狭幅切替とブランド面色の上書きを持ち、

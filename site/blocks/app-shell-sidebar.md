@@ -314,10 +314,18 @@ fn topbar(suffix: &str, panel_id: &str) -> Node {
 /// でもナビへ到達できるようにする」節参照。`header_simple_bar` の
 /// `Node::clone()` 方式は使わない）。[`LAYOUT_CSS`] は [`topbar`] と同じ
 /// `@container` 条件下でのみ表示する。
+///
+/// `disabled` は `false` を渡す（PR #3324 Bugbot/codex 再指摘）。この
+/// パネル自体は常時展開の静的表示であり操作不能にする対象ではない。
+/// `disabled: true` にすると headless 層が `data-disabled` を出力し、
+/// pre-styled-ui の `[data-scope="collapsible"][data-part="content"]
+/// [data-disabled]` 規則（`disabled_declarations()`、`opacity: 0.5`）が
+/// パネル全体（Dashboard/Inbox/チーム行）へ波及して無効表示に見えてしまう
+/// （操作不能にすべきなのは [`topbar`] のトリガーのみ）。
 fn mobile_nav_panel(suffix: &str, panel_id: &str) -> Node {
     collapsible::content(
         collapsible::OpenState::Open,
-        true,
+        false,
         Some(panel_id),
         vec![("data-blocks-app-shell-sidebar-mobile-nav", "")],
         vec![main_nav(), teams_group(suffix)],
