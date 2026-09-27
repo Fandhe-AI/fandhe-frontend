@@ -342,6 +342,63 @@ jobs:
       - name: "examples gate e2e 7 件の実行と時間計測 (issue #505/#609/#2667/#3290)"
         run: cargo test -p fandhe-frontend-cli --test new_gate_e2e --locked -- example_
 
+      # イシュー #3292: 上記 e2e（`fw_new_example_vercel_ssg_output_passes_fw_gate`・
+      # `examples/vercel-ssg/tests/build_output.rs`）は `.vercel/output/config.json`
+      # を部分文字列一致でしか検証しておらず、JSON として壊れていても・`version`
+      # が文字列でも・`routes` のキーが打ち間違っていても（例: `"stauts"`）通って
+      # しまう。本ステップと次の 2 ステップは、`examples/vercel-ssg` を単独で
+      # 再ビルドし、生成物を `xtask check-vercel-output`（構造検証、
+      # `crates/xtask/src/check_vercel_output.rs`）へ渡して構造的に検証する。
+      # 新規ジョブを起こさず本ジョブのステップとしたのは、(1) ruleset
+      # `main-protection` への required check 追加が ruleset PUT というマージ前の
+      # 手動操作を要し（`.claude/rules/ci.md` 「`ci-complete` 集約ジョブと ruleset
+      # 必須チェック」節）、(2) 本ジョブがすでに crates.io 到達性・
+      # ensure-gate-tools.sh 前提を満たしているため、という 2 点による。
+      # `examples/vercel-ssg` 自体は変更しない（`embedded-examples` バイト一致
+      # 同期・cli semver バンプの不要な連鎖を避けるため、
+      # `docs/design/vercel-deployment-strategy.md` の案 c 実演を維持する）。
+      - name: "vercel-ssg Build Output API 出力の生成 (issue #3292)"
+        working-directory: examples/vercel-ssg
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/vercel-ssg-target
+        run: cargo run --locked
+
+      # `functions/` が存在しないことも検証する（`examples/vercel-ssg` は案 c
+      # 〔SSG → Build Output API → `--prebuilt`〕の実演で Vercel 側に Rust
+      # ランタイムを配置しない。将来 functions を持つ example が追加された
+      # 場合は `check_vercel_output` モジュールの拡張を検討する）。
+      - name: "vercel-ssg Build Output API 構造スモーク (issue #3292)"
+        run: |
+          set -o pipefail
+          cargo run --locked -p xtask -- check-vercel-output \
+            --output-dir examples/vercel-ssg/.vercel/output \
+            | tee "${RUNNER_TEMP}/check-vercel-output.log"
+
+      - name: "Publish check-vercel-output summary"
+        if: always()
+        run: |
+          {
+            echo '## check-vercel-output (issue #3292)'
+            echo '```'
+            grep '^check-vercel-output:' "${RUNNER_TEMP}/check-vercel-output.log" || echo 'no summary line found'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # イシュー #3292 の PR #3322 レビュー指摘への対処: 上記 2 ステップが
+      # `examples/vercel-ssg/` 配下へ `cargo run` でビルド生成物
+      # （`.vercel/output/` 等、`.gitignore` の `/examples/*/.vercel/` で
+      # 無視される）を書き込むが、後段の `crates/cli/tests/new_e2e.rs::
+      # example_output_is_byte_identical_to_source_example` は `fs::read_dir`
+      # で `examples/vercel-ssg/` を素の再帰走査するため `.gitignore` を
+      # 考慮せず、残置された `.vercel/` を正本の一部として拾って
+      # `fw new --example vercel-ssg` の生成物とのバイト一致比較を破壊する
+      # （`always()` で成果物確認前でも必ず削除し、後続の
+      # `cargo test --workspace` 実行前にソース側ディレクトリを
+      # クリーンな状態へ戻す）。
+      - name: "vercel-ssg Build Output API 生成物のクリーンアップ (issue #3292)"
+        if: always()
+        run: rm -rf examples/vercel-ssg/.vercel
+
       # TASK-10.2b（#110、REQ-10 条件 3）: crates/dist-server/build.rs が既定で実行する
       # WASM ビルドステージ（ネスト `cargo build --target wasm32-unknown-unknown`
       # + `wasm-bindgen`）に必要なツールチェーンを導入する。本ジョブに限り
