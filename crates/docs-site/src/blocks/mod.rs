@@ -412,10 +412,18 @@ mod tests {
         assert!(html.contains(">Auth<"));
         assert!(html.contains(r#"href="/fandhe-frontend/blocks/login-01/""#));
 
-        // Team カテゴリは `team-avatar-grid`（イシュー #2879）で block を
-        // 持つようになったため、見出しが出力される（block を 1 件も持たない
-        // 空カテゴリが存在しない現状では非表示分岐の直接確認はできない）。
-        assert!(html.contains(">Team<"));
+        // block を 1 件も持たないカテゴリ（存在すれば）の見出しは出力されない。
+        // カテゴリの「卒業」（空雛形 → ディレクトリ化）が進むたびに固定値が
+        // FAIL する事故を避けるため、レジストリ側から動的に該当カテゴリを
+        // 探す（イシュー #2880、前例は #3262）。該当カテゴリが 0 件の場合は
+        // 検証対象なしとしてスキップする。
+        if let Some(empty_category) = BlockCategory::ALL
+            .iter()
+            .find(|category| !all_blocks().iter().any(|b| b.category == **category))
+        {
+            let marker = format!(">{}<", empty_category.label());
+            assert!(!html.contains(&marker), "marker={marker} html={html}");
+        }
     }
 
     #[test]
