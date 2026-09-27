@@ -127,24 +127,32 @@ fn main() -> ExitCode {
 async fn run() -> ExitCode {
     // `FANDHE_FRONTEND_BIND_ADDR` は非 UTF-8 値を「未設定」扱いへ畳み込む（既存動作を維持）。
     let bind_addr_env = std::env::var("FANDHE_FRONTEND_BIND_ADDR").ok();
-    // `PORT` は非 UTF-8 値を「不正な値」としてエラー経路へ倒す（黙ってフォールバック
-    // しない、という受け入れ条件の趣旨に合わせる。`var_os` + `to_str()` で判定する）。
-    let port_env_os = std::env::var_os("PORT");
-    let port_env = match &port_env_os {
-        Some(value) => match value.to_str() {
-            Some(value) => Some(value),
-            None => {
-                eprintln!(
-                    "fandhe-frontend-dist-server: {}",
-                    BindAddrError::InvalidPort
-                );
-                return ExitCode::FAILURE;
-            }
-        },
-        None => None,
+    // `PORT` の UTF-8 デコードは `bind_addr_env` が未設定（＝優先順位 1 が不成立）の
+    // ときのみ行う。`resolve_bind_addr` の契約（`bind_addr` が設定されていれば
+    // `port` の値を一切検証しない）を `run()` 側の非 UTF-8 判定にも及ぼすための
+    // 分岐で、`FANDHE_FRONTEND_BIND_ADDR` 設定時に非 UTF-8 な `PORT` があっても
+    // 起動失敗させないためのもの（レビュー指摘、イシュー #3336）。
+    let port_env = if non_empty(bind_addr_env.as_deref()).is_some() {
+        None
+    } else {
+        // `PORT` は非 UTF-8 値を「不正な値」としてエラー経路へ倒す（黙ってフォールバック
+        // しない、という受け入れ条件の趣旨に合わせる。`var_os` + `to_str()` で判定する）。
+        match std::env::var_os("PORT") {
+            Some(value) => match value.to_str() {
+                Some(value) => Some(value.to_string()),
+                None => {
+                    eprintln!(
+                        "fandhe-frontend-dist-server: {}",
+                        BindAddrError::InvalidPort
+                    );
+                    return ExitCode::FAILURE;
+                }
+            },
+            None => None,
+        }
     };
 
-    let bind_addr = match resolve_bind_addr(bind_addr_env.as_deref(), port_env) {
+    let bind_addr = match resolve_bind_addr(bind_addr_env.as_deref(), port_env.as_deref()) {
         Ok(bind_addr) => bind_addr,
         Err(err) => {
             eprintln!("fandhe-frontend-dist-server: {err}");

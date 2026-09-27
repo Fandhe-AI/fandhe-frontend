@@ -371,3 +371,105 @@ fn invalid_port_without_bind_addr_fails_startup_without_binding() {
         );
     }
 }
+
+/// `FANDHE_FRONTEND_BIND_ADDR` が設定されていれば `PORT` が非 UTF-8 な値でも
+/// 起動が成功することを検証する（Review 指摘の回帰テスト）。
+///
+/// `main.rs` の `//!` モジュールドキュメント・`resolve_bind_addr` の rustdoc・
+/// `docs/design/dist-server-design.md` §7 はいずれも「`FANDHE_FRONTEND_BIND_ADDR`
+/// が設定されている場合は `PORT` の値を一切検証しない（優先順位 1 が常に
+/// 勝つ）」と明記している。修正前の `run()` は `PORT` の UTF-8 デコードを
+/// `FANDHE_FRONTEND_BIND_ADDR` の設定有無に関わらず先に行っており、`PORT` が
+/// 非 UTF-8 な値のときは `resolve_bind_addr` を呼ぶ前に起動失敗していた
+/// （`resolve_bind_addr` を直接呼ぶ既存の単体テスト
+/// `bind_addr_set_wins_even_with_invalid_port`（`main.rs` 内 `#[cfg(test)]`）は
+/// 文字列の不正値のみを対象とし、非 UTF-8 `OsString` を経由する `run()` の
+/// 実際の分岐を通らないためこの回帰を検知できなかった）。本テストは
+/// `Command::env` に `OsStringExt::from_vec` で非 UTF-8 バイト列を渡し、
+/// プロセスを実際に起動して検証する（イシュー #3336）。
+#[cfg(unix)]
+#[test]
+fn bind_addr_set_wins_even_with_non_utf8_port() {
+    use std::os::unix::ffi::OsStringExt;
+
+    let binary = Path::new(env!("CARGO_BIN_EXE_dist-server"));
+
+    let probe = std::net::TcpListener::bind("127.0.0.1:0")
+        .expect("must bind a probe port to find a free one");
+    let free_port = probe.local_addr().expect("must read local_addr").port();
+    drop(probe);
+    let requested_addr = format!("127.0.0.1:{free_port}");
+
+    // 0xff は単独では有効な UTF-8 バイト列にならない（非 UTF-8 な `OsString`
+    // を構築するための最小の壊れたバイト列）。
+    let non_utf8_port = std::ffi::OsString::from_vec(vec![0xff]);
+
+    let mut command = Command::new(binary);
+    command
+        .env("FANDHE_FRONTEND_BIND_ADDR", &requested_addr)
+        .env("PORT", non_utf8_port)
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    let mut child = command.spawn().expect("dist-server binary must spawn");
+
+    let stderr = child
+        .stderr
+        .take()
+        .expect("stderr must be piped for spawned child");
+    let guard = ChildGuard(child);
+
+    let (tx, rx) = mpsc::channel::<String>();
+    std::thread::spawn(move || {
+        let mut reader = BufReader::new(stderr);
+        let mut line = String::new();
+        loop {
+            line.clear();
+            match reader.read_line(&mut line) {
+                Ok(0) => break,
+                Ok(_) => {
+                    if tx.send(line.clone()).is_err() {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    });
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let observed = loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            panic!("dist-server did not print a listening/failure line within timeout");
+        }
+        match rx.recv_timeout(remaining) {
+            Ok(line) => {
+                let trimmed = line.trim_end().to_string();
+                if trimmed.starts_with("fandhe-frontend-dist-server: listening on")
+                    || trimmed.starts_with("fandhe-frontend-dist-server: failed to bind")
+                    || trimmed.starts_with("fandhe-frontend-dist-server: PORT must be")
+                {
+                    break trimmed;
+                }
+                // それ以外の行（`assets=` 等）は無視して読み取りを続ける。
+            }
+            Err(mpsc::RecvTimeoutError::Timeout | mpsc::RecvTimeoutError::Disconnected) => {
+                panic!("dist-server did not print a listening/failure line within timeout");
+            }
+        }
+    };
+
+    drop(guard);
+
+    assert!(
+        !observed.contains("PORT must be"),
+        "FANDHE_FRONTEND_BIND_ADDR must win even when PORT is non-UTF-8 (fail-closed on PORT \
+         must not fire when priority 1 already resolved the bind address): observed {observed:?}"
+    );
+    assert!(
+        observed == format!("fandhe-frontend-dist-server: listening on {requested_addr}")
+            || observed == format!("fandhe-frontend-dist-server: failed to bind {requested_addr}"),
+        "dist-server must attempt to bind exactly the FANDHE_FRONTEND_BIND_ADDR-specified \
+         address, ignoring the non-UTF-8 PORT value entirely: observed {observed:?}"
+    );
+}
