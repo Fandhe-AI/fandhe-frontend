@@ -899,7 +899,7 @@ fn check_no_functions_dir(output_dir: &Path) -> CheckResult {
     match std::fs::symlink_metadata(&functions_dir) {
         Ok(_) => CheckResult::fail(
             "no_functions_dir",
-            "vercel-ssg は案 c（静的配置のみ）であり functions/ は生成されない想定",
+            "vercel-ssg uses plan c (static-only) and is not expected to generate functions/",
         ),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
             CheckResult::pass("no_functions_dir")
