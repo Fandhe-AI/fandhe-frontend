@@ -5,10 +5,14 @@
 //! （`application`）側・トップレベル `crate::blocks` 側の変更は不要
 //! （並列 PR 間の衝突をカテゴリ内へ閉じ込めるための構造、イシュー #2734）。
 
+mod form_layout_inline_labels;
 mod form_layout_two_column;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![form_layout_two_column::BLOCK]
+    vec![
+        form_layout_inline_labels::BLOCK,
+        form_layout_two_column::BLOCK,
+    ]
 }
