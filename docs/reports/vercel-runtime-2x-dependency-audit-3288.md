@@ -3,17 +3,21 @@
 ## 1. 結論
 
 `vercel_runtime 2.4.1` を `examples/vercel-ssr` 相当の構成で依存に加えた場合、
-REQ-3（標準サーバー構成で解決済み依存パッケージ 60 件以内・依存グラフ最大深さ
-6 以内）を**構造的に超過**します。件数・深さのいずれも上限超過であり、
+`docs/design/vercel-deployment-strategy.md`（PR #3315、マージ済み）が案 a
+（`vercel_runtime` の条件付き併用）の前提条件として自ら設定した依存木基準
+（REQ-3 と同一の数値: 60 件以内・深さ 6 以内。この基準は決定記録自身が
+借用したものであり、REQ-3 の適用範囲〔標準サーバー構成〕を examples へ
+拡張したことを意味しません。`docs/policy/dependency-graph-policy.md` §4
+参照）を**構造的に超過**します。件数・深さのいずれも上限超過であり、
 `vercel_runtime` の feature では依存を削減できません。
 
 この結果は `docs/design/vercel-deployment-strategy.md` §7 の再評価トリガー
-「`vercel_runtime 2.x` の依存木が REQ-3 上限を超える、`build.rs` を持つ依存が
-見つかる、cargo-deny の advisories に違反する、のいずれかが判明したとき（→
-案 a の併用を取り下げて案 c 単独にする）」のうち、件数・深さ超過の条件に
-該当します。これを受けて同文書を改訂し、案 a（`vercel_runtime` の併用）を
-取り下げて案 c（SSG + Build Output API + `--prebuilt`）単独を Vercel 上の
-既定方式として確定しました。
+「`vercel_runtime 2.x` の依存木が（案 a 併用の前提条件として設定した）上限
+を超える、`build.rs` を持つ依存が見つかる、cargo-deny の advisories に違反
+する、のいずれかが判明したとき（→ 案 a の併用を取り下げて案 c 単独にする）」
+のうち、件数・深さ超過の条件に該当します。これを受けて同文書を改訂し、
+案 a（`vercel_runtime` の併用）を取り下げて案 c（SSG + Build Output API +
+`--prebuilt`）単独を Vercel 上の既定方式として確定しました。
 
 ## 2. 検証環境
 
@@ -244,10 +248,10 @@ DB 照会時点、2026-09-27）。
 おり、`build.rs` を持つ依存が 9〜10 件（`-sys` クレートを含む）追加されます。
 一方で cargo-deny（bans/licenses/sources/advisories）はすべて PASS しました。
 `docs/design/vercel-deployment-strategy.md` §7 の再評価トリガーのうち
-「依存木が REQ-3 上限を超える」「`build.rs` を持つ依存が見つかる」の 2 点が
-該当したため、案 a（`vercel_runtime` の併用）を取り下げ、案 c（SSG + Build
-Output API + `--prebuilt`）単独を Vercel 上の既定方式として確定しました
-（決定の反映は同文書を参照）。
+「依存木が（案 a 併用の前提条件として設定した）上限を超える」「`build.rs`
+を持つ依存が見つかる」の 2 点が該当したため、案 a（`vercel_runtime` の
+併用）を取り下げ、案 c（SSG + Build Output API + `--prebuilt`）単独を
+Vercel 上の既定方式として確定しました（決定の反映は同文書を参照）。
 
 ## 8. 参照
 
