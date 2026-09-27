@@ -59,8 +59,11 @@
 //! 既定色のままだと濃色・ブランド色の帯の上で読めなくなる。[`LAYOUT_CSS`]
 //! は `[data-scope="…"][data-part="…"][data-blocks-app-shell-stacked-overlap-*]`
 //! の複合セレクタで `color: inherit` を上書きし、通知ボタン・プロフィール
-//! トリガーは disabled 固定のため `opacity: 1; cursor: default;` も添える
-//! （`app_shell_navbar_columns`/`header_simple_bar` と同じ詳細度対策）。
+//! トリガー・[`mobile_panel`] は disabled 固定のため `opacity: 1; cursor:
+//! default;` も添える（狭幅（48rem 未満）でナビ・アクション・検索欄を
+//! 束ねるパネル自体も `collapsible::content(.., true, ..)` で
+//! `data-disabled` を持つため、この中和がないとパネル全体が半透明化する。
+//! `app_shell_navbar_columns`/`header_simple_bar` と同じ詳細度対策）。
 //!
 //! # `href` の方針・`<form>` を持たない・全データが架空
 //!
@@ -139,11 +142,31 @@ fn hamburger_icon() -> Node {
     geo_icon(Size::Md, "M3 6h18v2H3zM3 11h18v2H3zM3 16h18v2H3z")
 }
 
-/// 検索（虫眼鏡）アイコン。
+/// 検索（虫眼鏡）アイコン。円 + 持ち手のストローク図形のため、`geo_icon`
+/// の塗り面（`fill="currentColor"` 既定）ではなく `fill="none"` +
+/// `stroke="currentColor"` を明示する（塗りつぶすと円が埋まり持ち手が
+/// 消えて検索アイコンに見えなくなるため。`footer_inline_nav::geo_icon`
+/// と同型の判断）。
 fn search_icon() -> Node {
-    geo_icon(
-        Size::Sm,
-        "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm9 17-5.2-5.2",
+    icon(
+        &IconProps {
+            size: Size::Sm,
+            label: None,
+            ..IconProps::default()
+        },
+        vec![],
+        vec![el(
+            "path",
+            vec![
+                ("d", "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm9 17-5.2-5.2"),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+                ("stroke-linecap", "round"),
+                ("stroke-linejoin", "round"),
+            ],
+            vec![],
+        )],
     )
 }
 
@@ -568,6 +591,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-app-shell-stacked-overlap-quick-links] a {\n  color: inherit;\n}\n\
 [data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-app-shell-stacked-overlap-toggle] {\n  color: inherit;\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-app-shell-stacked-overlap-panel] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  margin-block-start: var(--fandhe-space-3);\n}\n\
+[data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-app-shell-stacked-overlap-panel][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-blocks-app-shell-stacked-overlap-heading-row] {\n  margin-block-start: var(--fandhe-space-4);\n}\n\
 [data-blocks-app-shell-stacked-overlap-band] [data-scope=\"navigation-menu\"] {\n  color: inherit;\n}\n\
 [data-blocks-app-shell-stacked-overlap-band] [data-scope=\"navigation-menu\"][data-part=\"link\"] {\n  color: inherit;\n}\n\

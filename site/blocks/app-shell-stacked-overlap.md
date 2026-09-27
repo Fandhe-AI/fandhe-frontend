@@ -81,11 +81,31 @@ fn hamburger_icon() -> Node {
     geo_icon(Size::Md, "M3 6h18v2H3zM3 11h18v2H3zM3 16h18v2H3z")
 }
 
-/// 検索（虫眼鏡）アイコン。
+/// 検索（虫眼鏡）アイコン。円 + 持ち手のストローク図形のため、`geo_icon`
+/// の塗り面（`fill="currentColor"` 既定）ではなく `fill="none"` +
+/// `stroke="currentColor"` を明示する（塗りつぶすと円が埋まり持ち手が
+/// 消えて検索アイコンに見えなくなるため。`footer_inline_nav::geo_icon`
+/// と同型の判断）。
 fn search_icon() -> Node {
-    geo_icon(
-        Size::Sm,
-        "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm9 17-5.2-5.2",
+    icon(
+        &IconProps {
+            size: Size::Sm,
+            label: None,
+            ..IconProps::default()
+        },
+        vec![],
+        vec![el(
+            "path",
+            vec![
+                ("d", "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm9 17-5.2-5.2"),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+                ("stroke-linecap", "round"),
+                ("stroke-linejoin", "round"),
+            ],
+            vec![],
+        )],
     )
 }
 
