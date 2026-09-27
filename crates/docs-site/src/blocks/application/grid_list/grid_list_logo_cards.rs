@@ -23,9 +23,13 @@
 //! # 1〜3 列のグリッド
 //!
 //! [`LAYOUT_CSS`] は `grid-template-columns: repeat(auto-fill,
-//! minmax(min(100%, 16rem), 1fr))` のみでレスポンシブな列数（狭い幅では
-//! 1 列・広い幅では 2〜3 列）を実現する。Demo 枠の最大幅では 3 列を超え
-//! ないため、`@container` 等による列数上限の明示指定は行わない。
+//! minmax(min(100%, 13rem), 1fr))` のみでレスポンシブな列数（狭い幅では
+//! 1 列・広い幅では 2〜3 列）を実現する。カード最小幅はイシュー #2921 の
+//! レビュー指摘を受け、Demo 枠の実効幅（`.docs-content` の
+//! `max-width: 46rem` から `.blocks-demo` の左右 padding 3rem を引いた
+//! 43rem 程度）で 3 列（3 × 13rem + 2 × `--fandhe-space-6`〔1.5rem〕=
+//! 42rem）が収まるよう 16rem から調整した（`@container` 等による列数上限の
+//! 明示指定は行わない）。
 //!
 //! # 三点メニューは無 JS のため閉じた状態で固定する
 //!
@@ -347,7 +351,7 @@ pub const BLOCK: Block = Block {
 /// `.blocks-grid-list-logo-cards-*` か `[data-blocks-grid-list-logo-cards-*]`
 /// の名前空間に収める。
 const LAYOUT_CSS: &str = "\
-.blocks-grid-list-logo-cards-grid {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  display: grid;\n  gap: var(--fandhe-space-6);\n  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));\n}\n\
+.blocks-grid-list-logo-cards-grid {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  display: grid;\n  gap: var(--fandhe-space-6);\n  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));\n}\n\
 [data-blocks-grid-list-logo-cards-heading] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-grid-list-logo-cards-logo] {\n  width: 2.5rem;\n  height: 2.5rem;\n  flex-shrink: 0;\n}\n\
 [data-scope=\"data-list\"][data-part=\"item-value\"][data-blocks-grid-list-logo-cards-amount-row] {\n  justify-content: space-between;\n}\n\
