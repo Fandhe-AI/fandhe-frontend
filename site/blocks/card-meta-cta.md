@@ -98,12 +98,14 @@ fn meta_item(icon_node: Node, label: &str) -> Node {
 }
 
 /// 3 例が共有するカード骨格（分類 badge + 題名 + 説明 + 要点リスト +
-/// 全幅 CTA ボタン）。`extras` は要点リストと CTA の間に挿入する追加
-/// ノード（商品カードの評価・数量入力）。
+/// 全幅 CTA ボタン）。`pre_list_extras` は説明と要点リストの間に挿入する
+/// 追加ノード（料金プラン・商品カードの価格行）。`extras` は要点リストと
+/// CTA の間に挿入する追加ノード（商品カードの評価・数量入力）。
 fn meta_cta_card(
     badge_label: &str,
     title: &str,
     description: &str,
+    pre_list_extras: Vec<Node>,
     items: Vec<(Node, &str)>,
     extras: Vec<Node>,
     cta_label: &str,
@@ -113,18 +115,22 @@ fn meta_cta_card(
         .map(|(icon_node, label)| meta_item(icon_node, label))
         .collect();
 
-    let mut body_children = vec![
-        styled_text::text(
-            &TextProps {
-                variant: TextVariant::Muted,
-                ..TextProps::default()
-            },
-            vec![],
-            vec![text(description)],
-        ),
-        separator::separator(&SeparatorProps::default(), vec![]),
-        list::root(ListType::default(), ListVariant::Plain, vec![], list_items),
-    ];
+    let mut body_children = vec![styled_text::text(
+        &TextProps {
+            variant: TextVariant::Muted,
+            ..TextProps::default()
+        },
+        vec![],
+        vec![text(description)],
+    )];
+    body_children.extend(pre_list_extras);
+    body_children.push(separator::separator(&SeparatorProps::default(), vec![]));
+    body_children.push(list::root(
+        ListType::default(),
+        ListVariant::Plain,
+        vec![],
+        list_items,
+    ));
     body_children.extend(extras);
 
     card::root(
@@ -165,6 +171,7 @@ fn job_card() -> Node {
         "エンジニアリング",
         "フロントエンドエンジニア",
         "描画コアと UI コンポーネント層の設計・実装を担当します。",
+        vec![],
         vec![
             (location_icon(), "勤務地：リモート"),
             (clock_icon(), "雇用形態：正社員"),
@@ -191,9 +198,9 @@ fn plan_card() -> Node {
             text(" / 月"),
         ],
     );
-    // 価格行は要点リストの前に差し込むため、meta_cta_card の description
-    // 直後（body_children 先頭）へ追加する代わりに items 経由ではなく
-    // extras 経由で渡す（要点リストは機能一覧のみに限定するため）。
+    // 価格行は要点リストの前（description の直後）に差し込むため、
+    // meta_cta_card の pre_list_extras 経由で渡す（要点リストは機能一覧の
+    // みに限定するため items には含めない）。
     let items = vec![
         (check_icon(), "エディタ統合"),
         (check_icon(), "無制限プロジェクト"),
@@ -203,8 +210,9 @@ fn plan_card() -> Node {
         "おすすめ",
         crate::blocks::dummy_assets::SAMPLE_PRICE_TIERS[1].0,
         "チームでの本格運用に必要な機能をまとめたプランです。",
-        items,
         vec![price_row],
+        items,
+        vec![],
         "このプランを選ぶ",
     )
 }
@@ -311,11 +319,12 @@ fn product_card() -> Node {
         "新着",
         "デスクマット Pro",
         "手首の負担を抑える傾斜構造の作業用デスクマットです。",
+        vec![price_row],
         vec![
             (spec_icon(), "サイズ：90 × 40 cm"),
             (spec_icon(), "素材：撥水コーティング表面"),
         ],
-        vec![price_row, rating, quantity_input],
+        vec![rating, quantity_input],
         "カートに追加",
     )
 }
