@@ -499,7 +499,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-card-media-footer-author {\n  display: flex;\n  align-items: center;\n  gap: 0.5rem;\n}\n\
 .blocks-card-media-footer-author-text {\n  display: flex;\n  flex-direction: column;\n}\n\
 [data-blocks-card-media-footer-members] {\n  flex-shrink: 0;\n}\n\
-.blocks-card-media-footer-actions {\n  position: absolute;\n  inset-inline: var(--fandhe-space-3);\n  bottom: var(--fandhe-space-3);\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  padding: var(--fandhe-space-2);\n  border-radius: var(--fandhe-radius-md);\n  background-color: var(--fandhe-color-bg-canvas);\n}\n\
+.blocks-card-media-footer-actions {\n  position: absolute;\n  inset-inline: var(--fandhe-space-3);\n  bottom: var(--fandhe-space-3);\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  padding: var(--fandhe-space-2);\n  border-radius: var(--fandhe-radius-md);\n  background-color: var(--fandhe-color-bg-overlay);\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-card-media-footer-preview][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-card-media-footer-save][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"menu\"][data-part=\"trigger\"]#blocks-card-media-footer-menu-trigger[data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
