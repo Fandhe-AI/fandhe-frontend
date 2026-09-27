@@ -28,7 +28,19 @@
 //! `description-list-horizontal` と同型の `@container` を使う。外側
 //! スタックへ `container-type: inline-size; container-name:
 //! blocks-grid-list-file-thumbnails;` を宣言し、既定（狭幅）は 2 列、
-//! `min-width: 48rem` で 3 列、`min-width: 64rem` で 4 列へ切り替える。
+//! `min-width: 30rem` で 3 列、`min-width: 40rem` で 4 列へ切り替える。
+//!
+//! # 閾値を 48rem/64rem ではなく 30rem/40rem にする理由（PR #3364 codex(P1)
+//! 指摘の是正）
+//!
+//! `.docs-content` の本文カラムは `max-width: 46rem`、Demo 枠
+//! （`.blocks-demo`）は左右 `padding: 1.5rem` を持つため、本コンテナが
+//! 実際に取り得る inline-size は最大でも 46rem − 3rem = 43rem である。
+//! 当初案の `min-width: 48rem`/`64rem` はこの上限を上回っており、通常の
+//! 掲載ページでは決して 3 列・4 列へ到達せず常に 2 列のまま固定される
+//! （原稿が約束する 3〜4 列表示が実現しない不整合）。43rem 未満で確実に
+//! 到達可能な `min-width: 30rem`/`40rem` へ引き下げ、実際のページ幅で
+//! 3 列・4 列へ切り替わることを保証する。
 //!
 //! # `alt=""` にする理由
 //!
@@ -199,8 +211,8 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-grid-list-file-thumbnails-meta] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
 [data-blocks-grid-list-file-thumbnails-meta] p {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\
 @media (prefers-reduced-motion: reduce) {\n  [data-scope=\"image\"][data-part=\"root\"][data-blocks-grid-list-file-thumbnails-image] {\n    transition: none;\n  }\n}\n\
-@container blocks-grid-list-file-thumbnails (min-width: 48rem) {\n  [data-scope=\"list\"][data-part=\"root\"][data-blocks-grid-list-file-thumbnails-grid] {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n}\n\
-@container blocks-grid-list-file-thumbnails (min-width: 64rem) {\n  [data-scope=\"list\"][data-part=\"root\"][data-blocks-grid-list-file-thumbnails-grid] {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n}\n";
+@container blocks-grid-list-file-thumbnails (min-width: 30rem) {\n  [data-scope=\"list\"][data-part=\"root\"][data-blocks-grid-list-file-thumbnails-grid] {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n}\n\
+@container blocks-grid-list-file-thumbnails (min-width: 40rem) {\n  [data-scope=\"list\"][data-part=\"root\"][data-blocks-grid-list-file-thumbnails-grid] {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -256,10 +268,10 @@ mod tests {
         assert!(LAYOUT_CSS.contains("container-type: inline-size"));
         assert!(LAYOUT_CSS.contains("grid-template-columns: repeat(2, minmax(0, 1fr));"));
         assert!(
-            LAYOUT_CSS.contains("@container blocks-grid-list-file-thumbnails (min-width: 48rem)")
+            LAYOUT_CSS.contains("@container blocks-grid-list-file-thumbnails (min-width: 30rem)")
         );
         assert!(
-            LAYOUT_CSS.contains("@container blocks-grid-list-file-thumbnails (min-width: 64rem)")
+            LAYOUT_CSS.contains("@container blocks-grid-list-file-thumbnails (min-width: 40rem)")
         );
         assert!(LAYOUT_CSS.contains(":hover"));
     }
