@@ -92,8 +92,8 @@
 //! separator 非表示は呼び出し側の構成責務である。full/compact それぞれの
 //! インスタンスで最後の item では [`timeline::separator`] を connector の
 //! 子へ含めない。full は [`ENTRIES`] 全件（6 件）、compact はイベントのみ
-//! （3 件）を対象にするため、両インスタンスの separator 数は異なる
-//! （それぞれ 5 件・2 件）。
+//! （4 件）を対象にするため、両インスタンスの separator 数は異なる
+//! （それぞれ 5 件・3 件）。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -152,8 +152,8 @@ enum Entry {
     Comment(CommentData),
 }
 
-/// タイムラインのエントリ一覧（架空、時系列順・6 件）。イベント 3 件
-/// （状態変更・担当者割り当て・タグ付けを最低 1 件ずつ）とコメント 3 件
+/// タイムラインのエントリ一覧（架空、時系列順・6 件）。イベント 4 件
+/// （状態変更・担当者割り当て・タグ付けを最低 1 件ずつ）とコメント 2 件
 /// （うち 1 件に返信スレッド + 投稿者バッジ）を混在させる。
 const ENTRIES: [Entry; 6] = [
     Entry::Event(EventData {
