@@ -61,6 +61,20 @@ use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 /// 表現する。codex レビュー指摘（#3347, P1）: 従来は `favorable` で矢印を
 /// 選んでいたため、エラー率の改善（減少）に上向き矢印、応答時間の悪化
 /// （増加）に下向き矢印が出て、数値の増減方向と矛盾していた。
+///
+/// 矢印自体の色は [`LAYOUT_CSS`] の `.blocks-chart-stat-cards-indicator`
+/// で中立色（`--fandhe-color-fg-muted`）へ上書きする（codex レビュー
+/// 指摘、#3347 P2）: `up_indicator`/`down_indicator` は成功色/危険色に
+/// 固定されているため、実測値は増加だが悪化（応答時間の増加等）という
+/// ケースで、矢印（上向き＝成功色）と `change` テキスト（unfavorable＝
+/// 危険色）が同じ行で逆の意味の色を示してしまう。矢印は「増減方向」の
+/// みを形状で示し、色による良し悪しの表現は `change` テキストへ一元化
+/// する。上書き用セレクタは `stat` の base（`[data-scope="stat"][data-
+/// part="up-indicator"]` 相当、詳細度 0,2,0）へ本 block 固有クラスを
+/// 前置し詳細度 0,3,0 へ揃える（`hero_background_media` の secondary CTA
+/// 上書きと同じ手法。CSS 出力順〔pre-styled-ui.css → blocks.css〕により
+/// 同値でも後勝ちで確実に上書きできるが、同型の判断に揃えて明示的に
+/// 詳細度で勝たせる）。
 fn sparkline_card(
     label: &str,
     value: &str,
@@ -72,10 +86,12 @@ fn sparkline_card(
         .last()
         .zip(history.len().checked_sub(2).and_then(|i| history.get(i)))
         .is_some_and(|(last, prev)| last > prev);
+    // 中立色クラス（`.blocks-chart-stat-cards-indicator`）を付与し、矢印の
+    // 成功色/危険色を上書きする（上記 doc コメント参照）。
     let indicator = if increased {
-        stat::up_indicator(vec![])
+        stat::up_indicator(vec![("class", "blocks-chart-stat-cards-indicator")])
     } else {
-        stat::down_indicator(vec![])
+        stat::down_indicator(vec![("class", "blocks-chart-stat-cards-indicator")])
     };
     let change_class = if favorable {
         "blocks-chart-stat-cards-change--favorable"
@@ -363,7 +379,9 @@ const LAYOUT_CSS: &str = "\
 .blocks-chart-stat-cards-legend-item {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 .blocks-chart-stat-cards-legend-swatch {\n  display: inline-block;\n  width: 0.625rem;\n  height: 0.625rem;\n  border-radius: var(--fandhe-radius-full);\n  flex-shrink: 0;\n}\n\
 .blocks-chart-stat-cards-change--favorable {\n  color: var(--fandhe-color-success-emphasized);\n}\n\
-.blocks-chart-stat-cards-change--unfavorable {\n  color: var(--fandhe-color-danger-emphasized);\n}\n";
+.blocks-chart-stat-cards-change--unfavorable {\n  color: var(--fandhe-color-danger-emphasized);\n}\n\
+[data-scope=\"stat\"][data-part=\"up-indicator\"].blocks-chart-stat-cards-indicator,\n\
+[data-scope=\"stat\"][data-part=\"down-indicator\"].blocks-chart-stat-cards-indicator {\n  background: var(--fandhe-color-fg-muted);\n}\n";
 
 #[cfg(test)]
 mod tests {
