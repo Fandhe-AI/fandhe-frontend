@@ -1,15 +1,23 @@
-//! Application / Description List カテゴリの block 登録点（イシュー
-//! #2734 で雛形、#2908 で最初の block を追加）。
+//! Application / Description List カテゴリの block 登録点（イシュー #2734
+//! で雛形新設、イシュー #2907 で最初の block（[`description_list_summary_card`]）
+//! を追加しディレクトリ化して卒業した。イシュー #2908 で
+//! [`description_list_two_column`] を追加）。手順は
+//! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
-//! 新しい block を本カテゴリへ追加する場合は、実装ファイルを本ディレクトリ
-//! へ追加した上で `mod` 宣言と [`blocks`] の連結先を増やす（`super`
-//! `application` 側の宣言・集約コードは変更不要、
-//! `pub(super) fn blocks()` のシグネチャを維持するため）。
+//! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
+//! 新規 block を追加する際は本ファイルへ `mod` 宣言と `blocks()` への追記を
+//! 行うだけでよく、`super`（`application`）側・トップレベル
+//! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
+//! ための構造、イシュー #2734）。
 
+mod description_list_summary_card;
 mod description_list_two_column;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![description_list_two_column::BLOCK]
+    vec![
+        description_list_summary_card::BLOCK,
+        description_list_two_column::BLOCK,
+    ]
 }
