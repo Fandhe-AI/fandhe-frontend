@@ -2052,6 +2052,11 @@ path = "/blocks/feed-upvote-cards/"
 title = "Form Layout"
 
 [[section.group.page]]
+title = "form-layout-inline-labels"
+source = "site/blocks/form-layout-inline-labels.md"
+path = "/blocks/form-layout-inline-labels/"
+
+[[section.group.page]]
 title = "form-layout-two-column"
 source = "site/blocks/form-layout-two-column.md"
 path = "/blocks/form-layout-two-column/"
@@ -2094,6 +2099,11 @@ title = "Card"
 title = "card-form-footer"
 source = "site/blocks/card-form-footer.md"
 path = "/blocks/card-form-footer/"
+
+[[section.group.page]]
+title = "card-media-footer"
+source = "site/blocks/card-media-footer.md"
+path = "/blocks/card-media-footer/"
 
 [[section.group.page]]
 title = "card-meta-cta"
