@@ -329,7 +329,10 @@ fn reply_node(reply: &Reply) -> Node {
 /// content にカード形式の本文・返信スレッド・返信ボタンを置く）。
 fn comment_item(comment: &CommentData, is_last: bool) -> Node {
     let mut connector_children = vec![timeline::indicator(
-        vec![("data-state", "complete")],
+        vec![
+            ("data-state", "complete"),
+            ("data-blocks-feed-comments-timeline-comment-indicator", ""),
+        ],
         vec![initial_avatar(
             comment.author,
             Size::Sm,
@@ -398,7 +401,10 @@ fn comment_item(comment: &CommentData, is_last: bool) -> Node {
         vec![card],
     );
 
-    timeline::item(vec![], vec![connector, body])
+    timeline::item(
+        vec![("data-blocks-feed-comments-timeline-comment-item", "")],
+        vec![connector, body],
+    )
 }
 
 /// 完全版インスタンス（イベント・コメントを混在させる、R0949 主参照）。
@@ -633,7 +639,14 @@ pub const BLOCK: Block = Block {
 /// styled `timeline::indicator` は既定で小さな点状の寸法
 /// （`--fandhe-timeline-indicator-size`）を持つため、アバターを内包する
 /// コメント item では indicator 自体の背景・枠線・固定寸法を解除し、
-/// アバターの円がそのまま見える透過ラッパへ変える。
+/// アバターの円がそのまま見える透過ラッパへ変える。この解除はコメント
+/// item の indicator（`comment_item` が付与する
+/// `data-blocks-feed-comments-timeline-comment-indicator`）に限定し、
+/// イベント item の記号 indicator（円形の背景・枠線を要する）を巻き込ま
+/// ない。あわせて `timeline::item` のグリッド列幅（既定
+/// `var(--fandhe-timeline-indicator-size, 1.5rem) 1fr`）はコメント item
+/// （`data-blocks-feed-comments-timeline-comment-item`）に限り、アバター
+/// （`Size::Sm` = 2rem）がはみ出さない列幅へ広げる。
 ///
 /// # 返信スレッドのインデントと左ボーダー
 ///
@@ -650,7 +663,8 @@ pub const BLOCK: Block = Block {
 /// 切り替える。
 const LAYOUT_CSS: &str = "\
 .blocks-feed-comments-timeline-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  width: 100%;\n}\n\
-.blocks-feed-comments-timeline-layout [data-blocks-feed-comments-timeline-variant=\"full\"] [data-scope=\"timeline\"][data-part=\"indicator\"] {\n  width: auto;\n  height: auto;\n  background: transparent;\n  border: none;\n  padding: 0;\n}\n\
+.blocks-feed-comments-timeline-layout [data-blocks-feed-comments-timeline-comment-indicator] {\n  width: auto;\n  height: auto;\n  background: transparent;\n  border: none;\n  padding: 0;\n}\n\
+.blocks-feed-comments-timeline-layout [data-blocks-feed-comments-timeline-comment-item] {\n  grid-template-columns: 2rem 1fr;\n}\n\
 .blocks-feed-comments-timeline-event-text {\n  margin: 0 0 var(--fandhe-space-1) 0;\n}\n\
 .blocks-feed-comments-timeline-time {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n}\n\
 .blocks-feed-comments-timeline-tags {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-2);\n  margin-bottom: var(--fandhe-space-1);\n}\n\

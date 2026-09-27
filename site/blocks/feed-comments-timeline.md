@@ -245,7 +245,10 @@ fn reply_node(reply: &Reply) -> Node {
 /// content にカード形式の本文・返信スレッド・返信ボタンを置く）。
 fn comment_item(comment: &CommentData, is_last: bool) -> Node {
     let mut connector_children = vec![timeline::indicator(
-        vec![("data-state", "complete")],
+        vec![
+            ("data-state", "complete"),
+            ("data-blocks-feed-comments-timeline-comment-indicator", ""),
+        ],
         vec![initial_avatar(
             comment.author,
             Size::Sm,
@@ -314,7 +317,10 @@ fn comment_item(comment: &CommentData, is_last: bool) -> Node {
         vec![card],
     );
 
-    timeline::item(vec![], vec![connector, body])
+    timeline::item(
+        vec![("data-blocks-feed-comments-timeline-comment-item", "")],
+        vec![connector, body],
+    )
 }
 
 /// 完全版インスタンス（イベント・コメントを混在させる、R0949 主参照）。
