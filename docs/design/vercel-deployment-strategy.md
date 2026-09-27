@@ -246,7 +246,19 @@ Vercel は Container Images（Beta、2026-07-07 確認）により、ローカ�
   §4「取り下げ」節を参照してください。この判断を再評価する条件は次の
   いずれかです: (a) `vercel_runtime` が `tokio/full`・`hyper/full` 等を
   optional 化し、依存木が 60 件/深さ 6 に収まる新版を crates.io へ公開
-  したとき。`build.rs` を持つ依存の発見という条件も独立に発火済みです。
+  したとき。`build.rs` を持つ依存の発見という条件も独立に発火済みですが、
+  これは「解消が必須の追加条件」ではありません。`docs/policy/
+  dependency-graph-policy.md` §6・§7 のとおり `build.rs` の存在自体は
+  違反ではなく（監査可能性を担保する対象であって禁止事項ではない）、
+  Cargo エコシステムに共通する構造的リスクとして本フレームワーク単体
+  では解消できないためです。したがって、新版が (a) の依存木条件を
+  満たせば、その新版に `build.rs` を持つ依存が残っていても、それだけ
+  を理由に案 a の再採用を妨げません。ただし再採用の判断時には、新版
+  に対して `cargo run --locked -p xtask -- list-build-scripts` を再実行
+  して `build.rs` を持つ依存の一覧を更新し、実行内容が既知のビルド
+  スクリプト以上の任意コード実行を伴わないかを個別に確認したうえで
+  判断してください（新規に増えた `build.rs` 保有依存があれば、その
+  監査結果を再評価の記録に含めます）。
 - Vercel Container Images（Beta）が GA 化したとき、または
   `fandhe-frontend-dist-server` が `$PORT`/`SIGTERM` 対応を実装したとき
   （→ 案 d を Vercel 上の方式として再評価する）
