@@ -903,21 +903,26 @@ fn panel_card_font() -> Node {
                 Size::Sm,
             ),
             tooltip::root(
-                OpenState::Closed,
+                OpenState::Open,
                 vec![],
                 vec![
+                    // trigger は `disabled: true` 固定 + 常時 open で出す。無 JS の
+                    // docs サイトでは押しても開閉できず、closed のまま出すと
+                    // 操作可能なボタンに見えて実際には機能しない見た目になるため
+                    // （イシュー #2914 コードレビュー是正、P2）。説明を常時表示
+                    // することで代替する（レビュー指摘の代替案）。
                     tooltip::trigger(
-                        OpenState::Closed,
-                        false,
+                        OpenState::Open,
+                        true,
                         Some(C_TOOLTIP_CONTENT_ID),
                         vec![("aria-label", "行間についてのヘルプ")],
                         vec![text("?")],
                     ),
                     tooltip::positioner(
-                        OpenState::Closed,
+                        OpenState::Open,
                         vec![],
                         vec![tooltip::content(
-                            OpenState::Closed,
+                            OpenState::Open,
                             Some(C_TOOLTIP_CONTENT_ID),
                             vec![],
                             vec![text("フォントサイズに対する行の高さの倍率です。")],
@@ -948,13 +953,15 @@ fn panel_card_font() -> Node {
                     card::body(
                         vec![],
                         vec![
+                            // 選択肢を [`C_FONT_CSS_DECLARATION`]（Noto Sans JP 固定）と
+                            // 一致する 1 件のみにする。無 JS の docs サイトでは選択を
+                            // 変えても footer の clipboard コピー内容は更新されないため、
+                            // 選べる値を 1 つに固定して表示/コピー内容の不一致を構造的に
+                            // 防ぐ（イシュー #2914 コードレビュー是正、P1）。
                             unit_select(
                                 "blocks-form-layout-property-panel-c-font",
                                 "フォント",
-                                &[
-                                    ("noto-sans-jp", "Noto Sans JP"),
-                                    ("noto-serif-jp", "Noto Serif JP"),
-                                ],
+                                &[("noto-sans-jp", "Noto Sans JP")],
                                 Size::Sm,
                             ),
                             number_field(
@@ -988,9 +995,17 @@ fn panel_card_font() -> Node {
                                     false,
                                     vec![],
                                     vec![
-                                        clipboard::value_text(
+                                        // `value_text`（span）ではなく `input` を使う。前者は
+                                        // `id` を持てても `label::for` の関連付け先になれない
+                                        // （`for` はフォームコントロールのみを指す）ため、
+                                        // 隣接する `label` の `for` が宙に浮いていた
+                                        // （イシュー #2914 コードレビュー是正、Bugbot 指摘）。
+                                        // A 版（`hero_install_command`）と同じ
+                                        // `clipboard::input` パターンへ揃える。
+                                        clipboard::input(
+                                            C_FONT_CSS_DECLARATION,
+                                            false,
                                             vec![("id", C_CLIP_INPUT_ID)],
-                                            vec![text(C_FONT_CSS_DECLARATION)],
                                         ),
                                         clipboard::trigger(
                                             false,
@@ -1192,7 +1207,9 @@ const LAYOUT_CSS: &str = "\
 .blocks-form-layout-property-panel-color {\n  display: flex;\n  align-items: flex-end;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-form-layout-property-panel-color] {\n  flex: 1;\n}\n\
 [data-blocks-form-layout-property-panel-b-section] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  margin-block-start: var(--fandhe-space-1, 0.25rem);\n}\n\
+[data-blocks-form-layout-property-panel-b-section][hidden] {\n  display: none;\n}\n\
 .blocks-form-layout-property-panel-c-tooltip-row {\n  display: flex;\n  align-items: flex-end;\n  gap: var(--fandhe-space-2);\n}\n\
+.blocks-form-layout-property-panel-layout [data-scope=\"collapsible\"][data-part=\"content\"][data-disabled] {\n  color: var(--fandhe-color-fg);\n}\n\
 .blocks-form-layout-property-panel-layout [data-scope=\"segment-group\"][data-part=\"item-control\"][data-disabled],\n\
 .blocks-form-layout-property-panel-layout [data-scope=\"segment-group\"][data-part=\"item-text\"][data-disabled],\n\
 .blocks-form-layout-property-panel-layout [data-scope=\"segment-group\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\

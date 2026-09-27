@@ -816,21 +816,26 @@ fn panel_card_font() -> Node {
                 Size::Sm,
             ),
             tooltip::root(
-                OpenState::Closed,
+                OpenState::Open,
                 vec![],
                 vec![
+                    // trigger は `disabled: true` 固定 + 常時 open で出す。無 JS の
+                    // docs サイトでは押しても開閉できず、closed のまま出すと
+                    // 操作可能なボタンに見えて実際には機能しない見た目になるため
+                    // （イシュー #2914 コードレビュー是正、P2）。説明を常時表示
+                    // することで代替する（レビュー指摘の代替案）。
                     tooltip::trigger(
-                        OpenState::Closed,
-                        false,
+                        OpenState::Open,
+                        true,
                         Some(C_TOOLTIP_CONTENT_ID),
                         vec![("aria-label", "行間についてのヘルプ")],
                         vec![text("?")],
                     ),
                     tooltip::positioner(
-                        OpenState::Closed,
+                        OpenState::Open,
                         vec![],
                         vec![tooltip::content(
-                            OpenState::Closed,
+                            OpenState::Open,
                             Some(C_TOOLTIP_CONTENT_ID),
                             vec![],
                             vec![text("フォントサイズに対する行の高さの倍率です。")],
@@ -861,13 +866,15 @@ fn panel_card_font() -> Node {
                     card::body(
                         vec![],
                         vec![
+                            // 選択肢を [`C_FONT_CSS_DECLARATION`]（Noto Sans JP 固定）と
+                            // 一致する 1 件のみにする。無 JS の docs サイトでは選択を
+                            // 変えても footer の clipboard コピー内容は更新されないため、
+                            // 選べる値を 1 つに固定して表示/コピー内容の不一致を構造的に
+                            // 防ぐ（イシュー #2914 コードレビュー是正、P1）。
                             unit_select(
                                 "blocks-form-layout-property-panel-c-font",
                                 "フォント",
-                                &[
-                                    ("noto-sans-jp", "Noto Sans JP"),
-                                    ("noto-serif-jp", "Noto Serif JP"),
-                                ],
+                                &[("noto-sans-jp", "Noto Sans JP")],
                                 Size::Sm,
                             ),
                             number_field(
@@ -901,9 +908,17 @@ fn panel_card_font() -> Node {
                                     false,
                                     vec![],
                                     vec![
-                                        clipboard::value_text(
+                                        // `value_text`（span）ではなく `input` を使う。前者は
+                                        // `id` を持てても `label::for` の関連付け先になれない
+                                        // （`for` はフォームコントロールのみを指す）ため、
+                                        // 隣接する `label` の `for` が宙に浮いていた
+                                        // （イシュー #2914 コードレビュー是正、Bugbot 指摘）。
+                                        // A 版（`hero_install_command`）と同じ
+                                        // `clipboard::input` パターンへ揃える。
+                                        clipboard::input(
+                                            C_FONT_CSS_DECLARATION,
+                                            false,
                                             vec![("id", C_CLIP_INPUT_ID)],
-                                            vec![text(C_FONT_CSS_DECLARATION)],
                                         ),
                                         clipboard::trigger(
                                             false,
