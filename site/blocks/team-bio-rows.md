@@ -15,7 +15,10 @@ Themes/Primitives 部品を組み合わせた実例集であることに注意�
 本 Demo は静的な表示例であり、docs サイトは JS ハイドレーションを行わない
 ため、`<form>` 要素は一切持たず、データの取得・送信・状態管理を行いません。
 文言・人名・役職はすべて独自に書いた架空のものであり、実在人物・実企業名・
-実クレデンシャル・PII を含みません。
+実クレデンシャル・PII を含みません。SNS リンクは架空人物のため実在アカウント
+を持たず、全メンバーとも本リポジトリ・本組織の GitHub ページへ遷移します
+（アクセシブルネームはメンバー名を含まない、遷移先と食い違わない固定文字列
+です。`team-avatar-grid` と同じ判断）。
 
 ## Rust コード
 
@@ -34,6 +37,11 @@ use fandhe_frontend_pre_styled_ui::Size;
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 /// 実在の自組織 URL。
 const ORG: &str = "https://github.com/Fandhe-AI";
+/// [`REPO`] の accessible name（遷移先と食い違わない固定文字列、モジュール
+/// doc「SNS リンクのアクセシブルネーム」節参照。全メンバー共通）。
+const REPO_LABEL: &str = "fandhe-frontend の GitHub リポジトリ";
+/// [`ORG`] の accessible name（同上）。
+const ORG_LABEL: &str = "Fandhe-AI の GitHub 組織ページ";
 
 /// メンバーの紹介文（架空の日本語、検索インデックス容量対策で短くする）。
 const BIOS: &[&str] = &[
@@ -67,8 +75,10 @@ fn geo_icon(size: Size, label: &str, path_d: &'static str) -> Node {
     )
 }
 
-/// メンバー 1 名分の SNS リンク行（実在の自リポジトリ・自組織 URL のみ）。
-fn social_links(name: &str) -> Node {
+/// メンバー共通の SNS リンク行（実在の自リポジトリ・自組織 URL のみ。
+/// アクセシブルネームが遷移先と食い違わないよう全メンバー共通の固定文字列
+/// を使う、モジュール doc「SNS リンクのアクセシブルネーム」節参照）。
+fn social_links() -> Node {
     ul(
         vec![("class", "blocks-team-bio-rows-social")],
         vec![
@@ -81,11 +91,7 @@ fn social_links(name: &str) -> Node {
                         ..LinkProps::default()
                     },
                     vec![],
-                    vec![geo_icon(
-                        Size::Sm,
-                        &format!("{name} のリポジトリ"),
-                        "M4 4h16v6H4zM4 14h16v6H4z",
-                    )],
+                    vec![geo_icon(Size::Sm, REPO_LABEL, "M4 4h16v6H4zM4 14h16v6H4z")],
                 )],
             ),
             li(
@@ -99,7 +105,7 @@ fn social_links(name: &str) -> Node {
                     vec![],
                     vec![geo_icon(
                         Size::Sm,
-                        &format!("{name} の所属組織"),
+                        ORG_LABEL,
                         "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",
                     )],
                 )],
@@ -145,7 +151,7 @@ fn member(index: usize) -> Node {
                         vec![text(role)],
                     ),
                     styled_text::text(&TextProps::default(), vec![], vec![text(bio)]),
-                    social_links(name),
+                    social_links(),
                 ],
             ),
         ],

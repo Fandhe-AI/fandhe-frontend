@@ -28,6 +28,14 @@
 //!
 //! `href` は実在する自リポジトリ・組織の URL に限る（`href="#"` は
 //! `linkcheck` が拒否する死リンクのため使わない）。
+//!
+//! # SNS リンクのアクセシブルネーム（WCAG 2.4.4）
+//!
+//! 架空メンバーは実在の SNS アカウントを持たないため、全メンバー共通で
+//! 同じ自リポジトリ・自組織 URL へ揃える（`team-avatar-grid` と同じ
+//! 判断）。アクセシブルネームにメンバー名を含めると「メンバーごとの
+//! 個別リンク」であるかのように誤誘導するため、遷移先と食い違わない
+//! 固定文字列（[`REPO_LABEL`]/[`ORG_LABEL`]）を全メンバー共通で使う。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -46,6 +54,11 @@ use fandhe_frontend_pre_styled_ui::Size;
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 /// 実在の自組織 URL。
 const ORG: &str = "https://github.com/Fandhe-AI";
+/// [`REPO`] の accessible name（遷移先と食い違わない固定文字列、モジュール
+/// doc「SNS リンクのアクセシブルネーム」節参照。全メンバー共通）。
+const REPO_LABEL: &str = "fandhe-frontend の GitHub リポジトリ";
+/// [`ORG`] の accessible name（同上）。
+const ORG_LABEL: &str = "Fandhe-AI の GitHub 組織ページ";
 
 /// メンバーの紹介文（架空の日本語、検索インデックス容量対策で短くする）。
 const BIOS: &[&str] = &[
@@ -79,8 +92,10 @@ fn geo_icon(size: Size, label: &str, path_d: &'static str) -> Node {
     )
 }
 
-/// メンバー 1 名分の SNS リンク行（実在の自リポジトリ・自組織 URL のみ）。
-fn social_links(name: &str) -> Node {
+/// メンバー共通の SNS リンク行（実在の自リポジトリ・自組織 URL のみ。
+/// アクセシブルネームが遷移先と食い違わないよう全メンバー共通の固定文字列
+/// を使う、モジュール doc「SNS リンクのアクセシブルネーム」節参照）。
+fn social_links() -> Node {
     ul(
         vec![("class", "blocks-team-bio-rows-social")],
         vec![
@@ -93,11 +108,7 @@ fn social_links(name: &str) -> Node {
                         ..LinkProps::default()
                     },
                     vec![],
-                    vec![geo_icon(
-                        Size::Sm,
-                        &format!("{name} のリポジトリ"),
-                        "M4 4h16v6H4zM4 14h16v6H4z",
-                    )],
+                    vec![geo_icon(Size::Sm, REPO_LABEL, "M4 4h16v6H4zM4 14h16v6H4z")],
                 )],
             ),
             li(
@@ -111,7 +122,7 @@ fn social_links(name: &str) -> Node {
                     vec![],
                     vec![geo_icon(
                         Size::Sm,
-                        &format!("{name} の所属組織"),
+                        ORG_LABEL,
                         "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",
                     )],
                 )],
@@ -157,7 +168,7 @@ fn member(index: usize) -> Node {
                         vec![text(role)],
                     ),
                     styled_text::text(&TextProps::default(), vec![], vec![text(bio)]),
-                    social_links(name),
+                    social_links(),
                 ],
             ),
         ],
@@ -397,14 +408,15 @@ mod tests {
     }
 
     /// SNS リンクが `target`/`rel`（external）を持ち、icon に `aria-label`
-    /// があること。
+    /// があること。ラベルは全メンバー共通の固定文字列（メンバー名を含まず
+    /// 遷移先と食い違わない、WCAG 2.4.4）。
     #[test]
     fn social_links_are_external_with_labeled_icons() {
         let html = render(&demo());
         assert!(html.contains("target=\"_blank\""));
         assert!(html.contains("rel=\"noopener noreferrer\""));
-        assert!(html.contains("のリポジトリ\""));
-        assert!(html.contains("の所属組織\""));
+        assert!(html.contains(super::REPO_LABEL));
+        assert!(html.contains(super::ORG_LABEL));
     }
 
     /// [`LAYOUT_CSS`] が狭幅の縦積みと各 `@media (min-width: …)` を持つこと。
