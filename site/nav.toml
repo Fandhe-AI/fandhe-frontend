@@ -2016,6 +2016,11 @@ path = "/blocks/card-heading-toolbar/"
 title = "Description List"
 
 [[section.group.page]]
+title = "description-list-horizontal"
+source = "site/blocks/description-list-horizontal.md"
+path = "/blocks/description-list-horizontal/"
+
+[[section.group.page]]
 title = "description-list-summary-card"
 source = "site/blocks/description-list-summary-card.md"
 path = "/blocks/description-list-summary-card/"
