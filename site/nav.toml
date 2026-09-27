@@ -1539,6 +1539,11 @@ source = "site/blocks/team-bio-rows.md"
 path = "/blocks/team-bio-rows/"
 
 [[section.group.page]]
+title = "team-photo-grid"
+source = "site/blocks/team-photo-grid.md"
+path = "/blocks/team-photo-grid/"
+
+[[section.group.page]]
 title = "team-split-list"
 source = "site/blocks/team-split-list.md"
 path = "/blocks/team-split-list/"
