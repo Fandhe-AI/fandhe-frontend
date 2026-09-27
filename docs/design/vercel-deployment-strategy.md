@@ -52,7 +52,7 @@ Vercel 対応方式の比較と採用方式の決定を行う決定記録です�
 | Vercel Rust ランタイム（`vercel_runtime`/`@vercel/rust`）は 2026-09-27 時点で公式に **Beta** と明記されている（"🔒 Permissions Required: The Rust runtime (Beta)"、変更履歴「Rust runtime now in public beta for Vercel Functions」） | 公式ドキュメント <https://vercel.com/docs/functions/runtimes/rust>（`last_updated: 2025-12-08`、2026-09-27 取得） |
 | Vercel は Container Images（OCI 互換の任意コンテナイメージを Vercel Functions として実行する仕組み）を提供しており、2026-09-27 時点で公式に **Beta** と明記されている。デプロイ経路はローカル/CI で `Dockerfile.vercel` を**利用者側がビルド**し、そのコンテナイメージを `vercel deploy` 等で Vercel Container Registry へ格納・Fluid Compute 上で自動スケールする形態であり、Vercel 側が Dockerfile からイメージをビルドするわけではない（Vercel 側に Rust ツールチェーンは不要）。要件は「`$PORT`（既定 80）で HTTP サーバーを待ち受ける」「スケールイン時に 30 秒の猶予付き `SIGTERM` を受け取り自身で終了処理する」の 2 点 | 公式ドキュメント <https://vercel.com/docs/functions/container-images>（`last_updated: 2026-07-07`、2026-09-27 取得） |
 | `crates/dist-server/src/main.rs` の既定 bind は `FANDHE_FRONTEND_BIND_ADDR`（既定 `127.0.0.1` 系のループバック）であり、Vercel Container Images が要求する `$PORT` 環境変数の読み取りには対応していない（現状） | `crates/dist-server/src/main.rs` 実装確認（2026-09-27） |
-| Vercel Container Images の Port resolution（待受ポートの決定方法）は「既定ポートは `80`。Vercel プロジェクト設定で `PORT` 環境変数を設定すれば、その値で上書きできる（override）」と明記されている（原文: "The default port is 80, and it can be overridden by setting the `PORT` environment variable in the project settings."）。すなわち Vercel 側は非 root 実行等の理由でコンテナが `PORT` を 1024 以上へ上書きしても、その上書き後の値へ接続する仕様であり、§5「ポート 80 問題」の運用（`USER 65532:65532` を維持し `PORT` を 1024 以上へ設定）が Vercel 側の待受ポート決定と整合することを公式ドキュメントの当該節で確認済み | 公式ドキュメント <https://vercel.com/docs/functions/container-images>（`last_updated: 2026-07-07`、"Port resolution" 節、2026-09-28 に本イシュー〔#3335〕のレビュー対応で再取得） |
+| Vercel Container Images の Port resolution（待受ポートの決定方法）は「既定ポートは `80`。Vercel プロジェクト設定で `PORT` 環境変数を設定すれば、その値で上書きできる（override）」と明記されている（原文: "The default port is 80, and it can be overridden by setting the `PORT` environment variable in the project settings."）。すなわち Vercel 側は非 root 実行等の理由でコンテナが `PORT` を 1024 以上へ上書きしても、その上書き後の値へ接続する仕様であり、§5「ポート 80 問題」の運用（`USER 65532:65532` を維持し `PORT` を 1024 以上へ設定）が Vercel 側の待受ポート決定と整合することを公式ドキュメントの当該節で確認済み | 公式ドキュメント <https://vercel.com/docs/functions/container-images>（`last_updated: 2026-07-07`、"Port resolution" 節、本 PR（#3335）のレビュー対応コミットで再取得。再取得日は当該コミットの日付を正とする） |
 
 ## 3. 比較表
 
@@ -333,11 +333,15 @@ SSR 用途に限りこの優先順位判断を上書きし、上記「採用（S
   スクリプト以上の任意コード実行を伴わないかを個別に確認したうえで
   判断してください（新規に増えた `build.rs` 保有依存があれば、その
   監査結果を再評価の記録に含めます）。
-- **2026-09-28 に一部発火・対応済み**: `fandhe-frontend-dist-server` が
+- **発火・未充足（実装待ち）**: `fandhe-frontend-dist-server` が
   `$PORT`/`SIGTERM` 対応を実装したとき、という条件は Phase 3（#3336・
-  #3337、同 Phase 内）で対応予定であり、充足見込みです。この充足を
-  もって案 d を Vercel 上の SSR 用方式として §4 のとおり採用しました。
-  以下は案 d 採用後も引き続き監視すべき新規トリガーです。
+  #3337、同 Phase 内）で対応予定ですが、本文書更新時点で #3336・#3337
+  はいずれも未実装（open）であり、この条件はまだ充足していません。
+  §4 の案 d 採用は、この条件が Phase 3 の実装により満たされる見込み
+  であることを前提としたユーザー判断であり、「充足済み」を根拠とした
+  採用ではありません。#3336・#3337 が実装・マージされ次第、この再評価
+  トリガーを「充足済み」へ更新してください。以下は案 d 採用後も引き
+  続き監視すべき新規トリガーです。
   - Vercel Container Images の GA 化（Beta 終了）
   - Beta 終了に伴う料金・利用制限の変更（バンドルサイズ上限・実行時間
     上限等）
@@ -434,13 +438,14 @@ SSR 用途に限りこの優先順位判断を上書きし、上記「採用（S
   `docs/reports/vercel-runtime-2x-dependency-audit-3288.md`（#3288。依存木
   計測により案 a の併用取り下げを確定）
 - 外部ドキュメント（Rust ランタイム・Build Output API・upstream 既知課題は
-  2026-09-27 取得、Container Images は 2026-09-28 に本イシュー〔#3335〕で
-  再取得）:
+  本イシュー〔#3335〕の当初コミットで取得、Container Images は本イシュー
+  のレビュー対応コミットで再取得。各取得日は対応するコミットの日付を
+  正とする）:
   - Rust ランタイム（Beta）: <https://vercel.com/docs/functions/runtimes/rust>
     （`last_updated: 2025-12-08`）
   - Container Images（Beta）: <https://vercel.com/docs/functions/container-images>
-    （`last_updated: 2026-07-07`、2026-09-28 再取得。「Port resolution」節で
-    ポート 80 問題（§5）の運用根拠を確認済み、§2 表参照）
+    （`last_updated: 2026-07-07`、レビュー対応コミットで再取得。「Port
+    resolution」節でポート 80 問題（§5）の運用根拠を確認済み、§2 表参照）
   - Build Output API 概要: <https://vercel.com/docs/build-output-api>
     （`last_updated: 2026-08-11`。`config.json` の `version` フィールドの
     詳細仕様は本文書では未確認、#3292 で確認する）
