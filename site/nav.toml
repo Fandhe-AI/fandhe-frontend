@@ -2031,6 +2031,11 @@ path = "/blocks/card-heading-toolbar/"
 title = "List"
 
 [[section.group.page]]
+title = "list-narrow-activity"
+source = "site/blocks/list-narrow-activity.md"
+path = "/blocks/list-narrow-activity/"
+
+[[section.group.page]]
 title = "list-people"
 source = "site/blocks/list-people.md"
 path = "/blocks/list-people/"

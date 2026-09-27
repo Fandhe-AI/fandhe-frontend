@@ -1,6 +1,6 @@
 //! Application / List カテゴリの block 登録点（イシュー #2734 で雛形新設。
-//! イシュー #2923（親 #2892）で最初の block（[`list_people`]）を追加し
-//! ディレクトリ化して卒業した）。手順は
+//! イシュー #2922 で最初の block（[`list_narrow_activity`]）を、
+//! イシュー #2923（親 #2892）で [`list_people`] を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -9,10 +9,11 @@
 //! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
 //! ための構造、イシュー #2734）。
 
+mod list_narrow_activity;
 mod list_people;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![list_people::BLOCK]
+    vec![list_narrow_activity::BLOCK, list_people::BLOCK]
 }
