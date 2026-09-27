@@ -406,6 +406,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/description-list-summary-card/index.html"
           # Application / Calendar
           # Application / Feed
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feed-comments-timeline/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feed-upvote-cards/index.html"
           # Application / Form Layout
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/form-layout-stacked/index.html"

@@ -2034,6 +2034,11 @@ path = "/blocks/description-list-two-column/"
 title = "Feed"
 
 [[section.group.page]]
+title = "feed-comments-timeline"
+source = "site/blocks/feed-comments-timeline.md"
+path = "/blocks/feed-comments-timeline/"
+
+[[section.group.page]]
 title = "feed-upvote-cards"
 source = "site/blocks/feed-upvote-cards.md"
 path = "/blocks/feed-upvote-cards/"
