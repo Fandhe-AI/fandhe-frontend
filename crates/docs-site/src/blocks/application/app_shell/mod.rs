@@ -2,7 +2,8 @@
 //! 新設、イシュー #2893 で最初の block（`app-shell-navbar-columns`）を
 //! 追加しディレクトリ化して卒業した。イシュー #2895 で
 //! `app-shell-sidebar-header` を、イシュー #2896 で 3 件目の block
-//! （[`app_shell_stacked`]）を、イシュー #2897 で 4 件目の block
+//! （[`app_shell_stacked`]）を、イシュー #2898 で 4 件目の block
+//! （[`app_shell_three_column`]）を、イシュー #2897 で 5 件目の block
 //! （[`app_shell_stacked_overlap`]）を追加した。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
@@ -16,6 +17,7 @@ mod app_shell_navbar_columns;
 mod app_shell_sidebar_header;
 mod app_shell_stacked;
 mod app_shell_stacked_overlap;
+mod app_shell_three_column;
 
 use crate::blocks::Block;
 
@@ -25,5 +27,6 @@ pub(super) fn blocks() -> Vec<Block> {
         app_shell_sidebar_header::BLOCK,
         app_shell_stacked::BLOCK,
         app_shell_stacked_overlap::BLOCK,
+        app_shell_three_column::BLOCK,
     ]
 }

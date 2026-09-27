@@ -337,7 +337,14 @@ PoC-4 は `axum::Router` で `/`・`/items/:id`・`/static/*path` を直接ル�
   TASK-9.1b の実装検討事項として記録する。
 - **A05 セキュリティ設定ミス**: 既定バインドは `127.0.0.1:3100`（ループバック、
   PoC-4 踏襲）とし、外部公開は `FANDHE_FRONTEND_BIND_ADDR` 環境変数の明示設定によるオプトイン
-  とする（`docs/spec/04-requirements.md` 200 行目と整合）。
+  とする（`docs/spec/04-requirements.md` 200 行目と整合）。イシュー #3336（#3335 で
+  確定した Vercel Container Images 対応）で `PORT` 環境変数経由の優先順位 2
+  （`FANDHE_FRONTEND_BIND_ADDR` 未設定時、`0.0.0.0:$PORT`）を追加した。これは
+  `0.0.0.0`（全インターフェース）へ bind する唯一の経路だが、`PORT` の明示設定に
+  よるオプトインであり既定挙動（優先順位 3、`127.0.0.1:3100`）は変わらない。
+  `PORT` が不正値（非数値・`0`・65535 超）の場合は黙って既定値へフォールバック
+  せず起動を失敗させる（fail-closed。`crates/dist-server/src/main.rs` の
+  `resolve_bind_addr`）。
 - **A06 脆弱な依存 / サプライチェーン（REQ-3・security.md）**: 4.2 節の実測に
   基づき、追加依存は `tokio`（機能を `rt-multi-thread`/`net`/`io-util` に限定）・
   `hyper`（`http1`/`server`）・`hyper-util`（`tokio`/`http1`/`server`）・
@@ -361,8 +368,18 @@ PoC-4 は `axum::Router` で `/`・`/items/:id`・`/static/*path` を直接ル�
 
 ## 7. 起動・設定
 
-- `FANDHE_FRONTEND_BIND_ADDR`（既定 `127.0.0.1:3100`、PoC-4 踏襲。`docs/spec/04-requirements.md`
-  200 行目と整合）。
+- bind 先アドレスは次の優先順位で決定する（イシュー #3336、#3335 で確定）:
+  1. `FANDHE_FRONTEND_BIND_ADDR`（既定 `127.0.0.1:3100`、PoC-4 踏襲。
+     `docs/spec/04-requirements.md` 200 行目と整合）が設定されていればその値
+  2. 未設定で `PORT` が設定されていれば `0.0.0.0:$PORT`（Vercel Container
+     Images が既定で要求する契約への対応）
+  3. どちらも未設定なら既定 `127.0.0.1:3100`
+
+  空文字（`FANDHE_FRONTEND_BIND_ADDR=` / `PORT=`）はコンテナ実行時に `-e` で環境変数を
+  打ち消せるよう「未設定」として扱う。`FANDHE_FRONTEND_BIND_ADDR` が設定されている場合は
+  `PORT` の値を一切検証しない（優先順位 1 が常に勝つ）。`PORT` が不正値
+  （非数値・`0`・65535 超・非 UTF-8）の場合は起動を失敗させ、`PORT` の実際の
+  値を含まない固定の英語メッセージを stderr へ出力する。
 - bind 失敗時は `panic!`/`unwrap()`/`expect()` を使わず、`main() -> Result<(), ..>`
   として `?` で伝播し、`Err` はプロセス終了コード非 0 で終える（`coding-rust.md`
   のライブラリコード規約はバイナリの `main` にも安全側で適用し、PoC-4 の
@@ -371,6 +388,16 @@ PoC-4 は `axum::Router` で `/`・`/items/:id`・`/static/*path` を直接ル�
   （4.4 節、`tokio` の `macros` フィーチャー不要化）。
 - 開発時の即時反映（REQ-10 本体は対象外だが 4.5 節のラッパーで維持する DX）は
   `#[cfg(debug_assertions)]` 分岐に閉じる。
+- **graceful shutdown（イシュー #3337）**: Vercel Container Images はスケール
+  イン時に `SIGTERM` を送り 30 秒の猶予後に強制終了する契約を持つ。accept
+  ループは新規接続の受付とシグナル（Unix は `SIGTERM`/`SIGINT`、非 Unix は
+  Ctrl-C）のポーリングを `std::future::poll_fn` で手動 race させ、受信後は
+  `listener` を明示的に drop（新規接続を即座に拒否）したうえで
+  `hyper_util::server::graceful::GracefulShutdown` が処理中の接続の完了を
+  猶予秒数（Vercel の 30 秒より短い既定値）まで待つ。`tokio::select!`/
+  `tokio::join!` は `macros` フィーチャー（4.4 節が避けている proc-macro
+  連鎖）を要求するため使わず、`std::future::poll_fn` + `std::pin::pin!`
+  （標準ライブラリのみ）で手動 race を組む。
 
 ## 8. TASK-9.1c（#97）テスト設計の骨子
 
