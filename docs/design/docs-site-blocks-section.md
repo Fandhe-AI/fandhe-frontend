@@ -959,14 +959,28 @@ pub enum LayoutCss {
 | app-shell-navbar-columns | #2893（親 #2892） | `application/app_shell/app_shell_navbar_columns.rs` |
 | app-shell-sidebar-header | #2895 | `application/app_shell/app_shell_sidebar_header.rs` |
 | app-shell-stacked | #2896（親 #2892） | `application/app_shell/app_shell_stacked.rs` |
+| app-shell-three-column | #2898 | `application/app_shell/app_shell_three_column.rs` |
 | card-form-footer | #2899 | `application/card/card_form_footer.rs` |
+| card-heading-toolbar | #2902 | `application/card_heading/card_heading_toolbar.rs` |
 | card-media-footer | #2900（親 #2892） | `application/card/card_media_footer.rs` |
 | card-meta-cta | #2901（親 #2892） | `application/card/card_meta_cta.rs` |
 | chart-bar-list | #2903 | `application/chart/chart_bar_list.rs` |
+| chart-stat-cards | #2905 | `application/chart/chart_stat_cards.rs` |
+| description-list-horizontal | #2906（親 #2892） | `application/description_list/description_list_horizontal.rs` |
+| description-list-summary-card | #2907（親 #2892） | `application/description_list/description_list_summary_card.rs` |
+| description-list-two-column | #2908 | `application/description_list/description_list_two_column.rs` |
+| feed-upvote-cards | #2910（親 #2892） | `application/feed/feed_upvote_cards.rs` |
+| feed-comments-timeline | #2909（親 #2892） | `application/feed/feed_comments_timeline.rs` |
+| form-layout-two-column | #2916（親 #2892） | `application/form_layout/form_layout_two_column.rs` |
+| pricing-single-split | #2867（親 #2807） | `marketing/pricing/pricing_single_split.rs` |
+| pricing-tier-cards | #2871（親 #2807） | `marketing/pricing/pricing_tier_cards.rs` |
+| pricing-upgrade-card | #2878（親 #2807） | `marketing/pricing/pricing_upgrade_card.rs` |
+| testimonial-card-grid | #2884（親 #2807） | `marketing/testimonial/testimonial_card_grid.rs` |
+| testimonial-split-image | #2890（親 #2807） | `marketing/testimonial/testimonial_split_image.rs` |
 
-（`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-148 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
-全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
+（`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
+個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の全件であり、
+`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
 まだ持たず本表の対象外である。以後の block 追加は本表への 1 行追加と、

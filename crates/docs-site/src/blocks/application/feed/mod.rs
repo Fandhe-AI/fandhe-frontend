@@ -1,6 +1,6 @@
-//! Application / Chart カテゴリの block 登録点（イシュー #2734 で雛形
-//! 新設、イシュー #2903 で最初の block（[`chart_bar_list`]）を追加し
-//! ディレクトリ化して卒業した）。手順は
+//! Application / Feed カテゴリの block 登録点（イシュー #2734 で雛形新設、
+//! イシュー #2910 で最初の block（`feed-upvote-cards`）を、イシュー #2909 で
+//! 2 件目の block（[`feed_comments_timeline`]）を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -9,11 +9,11 @@
 //! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
 //! ための構造、イシュー #2734）。
 
-mod chart_bar_list;
-mod chart_stat_cards;
+mod feed_comments_timeline;
+mod feed_upvote_cards;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![chart_bar_list::BLOCK, chart_stat_cards::BLOCK]
+    vec![feed_comments_timeline::BLOCK, feed_upvote_cards::BLOCK]
 }
