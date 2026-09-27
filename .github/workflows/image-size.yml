@@ -365,21 +365,24 @@ jobs:
           # 正規化する契約、crates/dist-server/src/main.rs）。これにより
           # PORT 環境変数のみが有効なリスニングポート決定要因になる。
           #
-          # `--sysctl net.ipv4.tcp_wmem`: コンテナのネットワーク名前空間限定
-          # （docker が許可する net.* sysctl、ホストへは波及しない）でカーネル
-          # 送信バッファを意図的に小さくする（最大 16KiB）。WASM 資産が
-          # ループバック上のデフォルトバッファ容量に収まってしまうと、
-          # hyper の応答書き込みがカーネルへ即座に受理されて「送信完了」
-          # 扱いになり、クライアント側の `--limit-rate` による低速化が
-          # サーバー側の実際の書き込み滞留（drain 検証の前提）を再現しない
-          # おそれがある。送信バッファを縮小することで、後段の in-flight
-          # 接続確立チェック（Send-Q 実測）が確実に非 0 を観測できる状態を
-          # 作る。
+          # `--sysctl net.ipv4.tcp_wmem` / `net.ipv4.tcp_rmem`: コンテナの
+          # ネットワーク名前空間限定（docker が許可する net.* sysctl、
+          # ホストへは波及しない）でカーネル送受信バッファを意図的に小さく
+          # する（最大 16KiB）。WASM 資産がループバック上のデフォルト
+          # バッファ容量に収まってしまうと、hyper の応答書き込みがカーネル
+          # へ即座に受理されて「送信完了」扱いになり、クライアント側の
+          # `--limit-rate` による低速化がサーバー側の実際の書き込み滞留
+          # （drain 検証の前提）を再現しないおそれがある。送受信バッファを
+          # 縮小することで、後段の in-flight 接続確立チェック（Send-Q 実測）
+          # が確実に非 0 を観測できる状態を作る（`tcp_rmem` は後述のとおり
+          # コンテナのネットワーク名前空間内で完結させる in-flight ダウン
+          # ロードの受信側バッファとして働く）。
           docker run -d --name "${CONTAINER_NAME}" \
             -p "127.0.0.1:${APP_PORT}:${APP_PORT}" \
             -e "FANDHE_FRONTEND_BIND_ADDR=" \
             -e "PORT=${APP_PORT}" \
             --sysctl net.ipv4.tcp_wmem="4096 16384 16384" \
+            --sysctl net.ipv4.tcp_rmem="4096 16384 16384" \
             fandhe-frontend-dist-server:ci
           base_url="http://127.0.0.1:${APP_PORT}"
 
@@ -431,10 +434,48 @@ jobs:
             limit_rate=1024
           fi
 
+          # 要: ubuntu-latest ランナーに `nsenter`（util-linux）・`ss`
+          # （iproute2）・パスワードなし `sudo` が導入済みであることを前提
+          # とする（GitHub ホステッドランナーの標準イメージに常設）。
+          # `docker exec` を使わない理由: 最終イメージは `FROM scratch`
+          # （TASK-10.3c）でシェル・コアユーティリティを一切含まないため、
+          # コンテナ内部からの観測はできない。ホスト側から
+          # `nsenter -t <pid> -n` でコンテナのネットワーク名前空間へ入る
+          # ことで、コンテナ内にツールがなくても外部から観測できる。
+          if ! command -v nsenter >/dev/null 2>&1 || ! command -v ss >/dev/null 2>&1; then
+            echo "::error::nsenter (util-linux) or ss (iproute2) not found on runner; cannot verify server-side in-flight state" >&2
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+
+          container_pid=$(docker inspect -f '{{.State.Pid}}' "${CONTAINER_NAME}")
+          if [ -z "$container_pid" ] || [ "$container_pid" -le 0 ]; then
+            echo "::error::failed to resolve container PID for network namespace inspection" >&2
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+
           inflight_out="$(mktemp)"
           trap 'rm -f "$discard" "$inflight_out"' EXIT
-          curl -fsS --max-time 25 --limit-rate "${limit_rate}" -o "$inflight_out" \
-            "${base_url}${asset_path}" &
+          # in-flight ダウンロードはホスト公開ポート（`-p 127.0.0.1:...`）
+          # 経由ではなく、`nsenter -t "$container_pid" -n` でコンテナの
+          # ネットワーク名前空間へ入ったホスト側 curl から
+          # `127.0.0.1:${APP_PORT}` へ直接接続する（cursor[bot] 指摘:
+          # ループバック `-p` 経由だと dockerd の userland `docker-proxy`
+          # が中継し、そのプロセス自身のコピーバッファ・ホスト側 TCP
+          # バッファがコンテナのカーネル送信バッファより先に WASM 資産
+          # 全体を吸収し得るため、`--limit-rate` によるクライアント側の
+          # 低速化がコンテナ側の Send-Q 滞留に反映されない・drain 検証が
+          # 本物の in-flight 応答を観測できない設計上の懸念があった）。
+          # `nsenter -n` はネットワーク名前空間のみを切り替え、マウント
+          # 名前空間はホストのままのため `$inflight_out`（ホスト側の
+          # 一時ファイル）はそのまま書き込み先として使える。これにより
+          # `docker-proxy` を経由せず、コンテナ自身の `tcp_wmem`／接続相手
+          # （このホスト側 curl プロセス）の `tcp_rmem` の 2 つの縮小した
+          # バッファだけで滞留が起きる経路になる。
+          sudo nsenter -t "$container_pid" -n curl -fsS --max-time 25 \
+            --limit-rate "${limit_rate}" -o "$inflight_out" \
+            "http://127.0.0.1:${APP_PORT}${asset_path}" &
           inflight_pid=$!
 
           # 接続が実際に確立し in-flight であることを、クライアント側の
@@ -459,41 +500,36 @@ jobs:
           # WASM 資産サイズがバッファ容量を上回っていれば Send-Q は確実に
           # 非 0 になる。
           #
-          # 要: ubuntu-latest ランナーに `nsenter`（util-linux）・`ss`
-          # （iproute2）・パスワードなし `sudo` が導入済みであることを前提
-          # とする（GitHub ホステッドランナーの標準イメージに常設）。
-          # `docker exec` を使わない理由: 最終イメージは `FROM scratch`
-          # （TASK-10.3c）でシェル・コアユーティリティを一切含まないため、
-          # コンテナ内部からの観測はできない。ホスト側から
-          # `nsenter -t <pid> -n` でコンテナのネットワーク名前空間へ入る
-          # ことで、コンテナ内にツールがなくても外部から観測できる。
-          if ! command -v nsenter >/dev/null 2>&1 || ! command -v ss >/dev/null 2>&1; then
-            echo "::error::nsenter (util-linux) or ss (iproute2) not found on runner; cannot verify server-side in-flight state" >&2
-            kill "$inflight_pid" 2>/dev/null || true
-            wait "$inflight_pid" 2>/dev/null || true
-            docker rm -f "${CONTAINER_NAME}" || true
-            exit 1
-          fi
+          # `inflight_pid`（`$!`）は `sudo nsenter ... curl` の直接の子で
+          # あるバックグラウンドジョブの PID だが、実プロセスは root 権限
+          # で動くため、シグナル送信には `sudo kill` を使う必要がある
+          # （`wait` はシェルのジョブ管理経由のため無権限のまま使える）。
 
-          container_pid=$(docker inspect -f '{{.State.Pid}}' "${CONTAINER_NAME}")
-          if [ -z "$container_pid" ] || [ "$container_pid" -le 0 ]; then
-            echo "::error::failed to resolve container PID for network namespace inspection" >&2
-            kill "$inflight_pid" 2>/dev/null || true
-            wait "$inflight_pid" 2>/dev/null || true
-            docker rm -f "${CONTAINER_NAME}" || true
-            exit 1
-          fi
-
+          # `ss -Htn` は通常 State, Recv-Q, Send-Q, Local Address:Port,
+          # Peer Address:Port の列順だが、`state established` のように
+          # 単一状態でフィルタすると iproute2 は State 列自体を出力しない
+          # （列構成が Recv-Q, Send-Q, Local, Peer にずれる）。本ステップは
+          # 単一状態フィルタを使っているため、Send-Q は 2 列目のままで
+          # 正しい（cursor[bot] の「フィールド 2 は Recv-Q」という指摘は
+          # フィルタなし `ss -tn` の列構成に基づくもので、本呼び出しには
+          # 当てはまらないことをローカル実測（Ubuntu 24.04 + iproute2、
+          # `ss -tn state established` vs `ss -tn`）で確認済み）。次にこの
+          # 行を触る人が誤って列をずらさないよう記録する。
           inflight_established=0
           received_before_stop=0
           for i in $(seq 1 40); do
             send_q=$(sudo nsenter -t "$container_pid" -n ss -Htn state established "( sport = :${APP_PORT} )" 2>/dev/null | awk '{print $2; exit}')
             if [ -n "$send_q" ] && [ "$send_q" -gt 0 ] 2>/dev/null; then
               inflight_established=1
-              received_before_stop=$(wc -c < "$inflight_out" | tr -d ' ')
+              # `inflight_out` は本ループ開始前の `mktemp` で必ず作成済み
+              # だが、万一読み取れない場合でも `set -e` 下でジョブを異常
+              # 終了させず 0 として扱う（Send-Q 実測が本証拠、受信量は
+              # あくまで補強のため）。
+              received_before_stop=$(wc -c < "$inflight_out" 2>/dev/null | tr -d ' ') || true
+              received_before_stop="${received_before_stop:-0}"
               break
             fi
-            if ! kill -0 "$inflight_pid" 2>/dev/null; then
+            if ! sudo kill -0 "$inflight_pid" 2>/dev/null; then
               # 転送が完了してプロセスが正常終了していれば、送信済みバイト
               # は既にコンテナのバッファを離れているため in-flight ではない
               # （証拠にならない）。
@@ -503,7 +539,7 @@ jobs:
           done
           if [ "$inflight_established" -ne 1 ]; then
             echo "::error::could not observe a genuine server-side in-flight write (Send-Q > 0) before sending SIGTERM" >&2
-            kill "$inflight_pid" 2>/dev/null || true
+            sudo kill "$inflight_pid" 2>/dev/null || true
             wait "$inflight_pid" 2>/dev/null || true
             docker logs "${CONTAINER_NAME}" || true
             docker rm -f "${CONTAINER_NAME}" || true
@@ -514,7 +550,7 @@ jobs:
           # 補強）。
           if [ "$received_before_stop" -ge "$content_length" ]; then
             echo "::error::download already completed before SIGTERM despite non-zero Send-Q observation; test setup invalid" >&2
-            kill "$inflight_pid" 2>/dev/null || true
+            sudo kill "$inflight_pid" 2>/dev/null || true
             wait "$inflight_pid" 2>/dev/null || true
             docker logs "${CONTAINER_NAME}" || true
             docker rm -f "${CONTAINER_NAME}" || true
