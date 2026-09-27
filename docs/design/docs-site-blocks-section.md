@@ -959,6 +959,7 @@ pub enum LayoutCss {
 | app-shell-navbar-columns | #2893（親 #2892） | `application/app_shell/app_shell_navbar_columns.rs` |
 | app-shell-sidebar-header | #2895 | `application/app_shell/app_shell_sidebar_header.rs` |
 | app-shell-stacked | #2896（親 #2892） | `application/app_shell/app_shell_stacked.rs` |
+| app-shell-stacked-overlap | #2897（親 #2892） | `application/app_shell/app_shell_stacked_overlap.rs` |
 | app-shell-three-column | #2898 | `application/app_shell/app_shell_three_column.rs` |
 | card-form-footer | #2899 | `application/card/card_form_footer.rs` |
 | card-heading-toolbar | #2902 | `application/card_heading/card_heading_toolbar.rs` |
@@ -973,6 +974,7 @@ pub enum LayoutCss {
 | form-layout-inline-labels | #2911（親 #2892） | `application/form_layout/form_layout_inline_labels.rs` |
 | feed-upvote-cards | #2910（親 #2892） | `application/feed/feed_upvote_cards.rs` |
 | feed-comments-timeline | #2909（親 #2892） | `application/feed/feed_comments_timeline.rs` |
+| form-layout-property-panel | #2913（親 #2912） | `application/form_layout/form_layout_property_panel.rs` |
 | form-layout-stacked | #2915（親 #2892） | `application/form_layout/form_layout_stacked.rs` |
 | form-layout-two-column | #2916（親 #2892） | `application/form_layout/form_layout_two_column.rs` |
 | pricing-single-split | #2867（親 #2807） | `marketing/pricing/pricing_single_split.rs` |

@@ -391,6 +391,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/app-shell-sidebar-header/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/app-shell-three-column/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/app-shell-navbar-columns/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/app-shell-stacked-overlap/index.html"
           # Application / Sidebar
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/sidebar-07/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/sidebar-03/index.html"
@@ -410,6 +411,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feed-comments-timeline/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feed-upvote-cards/index.html"
           # Application / Form Layout
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/form-layout-property-panel/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/form-layout-inline-labels/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/form-layout-stacked/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/form-layout-two-column/index.html"
