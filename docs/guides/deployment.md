@@ -91,18 +91,53 @@ including those to Routing Middleware.」（Deployment Protection はミドル
 Basic 認証は Deployment Protection を無効化した（あるいは対象外の）
 デプロイに対する軽量な門、または多層防御の 2 層目として位置づけてください。
 
-- **無効化手順**: Project Settings → Deployment Protection →
-  Vercel Authentication のトグルを無効にして保存します。無効化すると
-  既存デプロイもすべて未保護になる点に注意してください。
+- **無効化前に必ず確認すること**: `examples/vercel-ssg` 本体は後述の
+  Routing Middleware（Basic 認証）を組み込んでいません。Deployment
+  Protection を無効化すると、ミドルウェア未導入のデプロイ（既存デプロイを
+  含む）は**認証なしで誰でも閲覧できる状態**になります。「無効化しても
+  既存デプロイが全拒否される」わけではなく、逆に**無保護で公開される**
+  点を混同しないでください。Basic 認証で保護したい場合は、無効化する前に
+  次の順序で進めてください。
+  1. 後述の「Routing Middleware による Basic 認証」の手順でミドルウェア
+     組み込み済みの新しいデプロイを作成し、`BASIC_AUTH_USER` /
+     `BASIC_AUTH_PASSWORD` を設定した状態で `vercel deploy --prebuilt`
+     が完了していることを確認する。
+  2. 保護したい旧デプロイ（ミドルウェア未導入のまま残っているもの）を
+     ダッシュボードで洗い出し、公開のままでよいか判断する。公開すべきで
+     なければ `vercel remove <deployment-url>` で削除するか、ミドルウェア
+     入りの内容で再デプロイして置き換える。
+  3. 上記が済んでから Project Settings → Deployment Protection →
+     Vercel Authentication のトグルを無効にして保存する。
 - **確認手順**（`<deployment-url>` は実際のデプロイ URL に読み替え）:
 
   ```bash
-  # 有効なら 200 以外（Vercel のログインへ誘導する応答）、
-  # 無効化後は 200 になる
+  # Deployment Protection が有効なら 200 以外
+  # （Vercel のログインへ誘導する応答）になる
   curl -sI "https://<deployment-url>/"
 
   # 存在しないパスで 404（config.json の 404 フォールバック）を確認する
   curl -sI "https://<deployment-url>/does-not-exist"
+  ```
+
+  Deployment Protection を無効化した後の期待値は、Basic 認証ミドルウェアの
+  有無で変わります。
+
+  ```bash
+  # Basic 認証ミドルウェア未導入のデプロイ:
+  # 無効化後は認証なしで 200 になる（= 無保護で公開されている）
+  curl -sI "https://<deployment-url>/"
+
+  # Basic 認証ミドルウェア導入後のデプロイ:
+  # 認証情報なしだと 401（Unauthorized）になる
+  curl -sI "https://<deployment-url>/"
+
+  # 正しい認証情報を付けると 200 になる（パスワードをコマンドライン引数に
+  # 直接書かないため、`-u "<user>"` のみ指定して curl の対話プロンプトで
+  # 入力する）
+  curl -sI -u "<user>" "https://<deployment-url>/"
+
+  # 503 の場合は BASIC_AUTH_USER / BASIC_AUTH_PASSWORD が未設定
+  # （fail-closed。後述の「環境変数の反映範囲と旧デプロイ」参照）
   ```
 
 - Protection Bypass for Automation 等のバイパス用トークンは、リポジトリ・
@@ -237,7 +272,13 @@ export default function middleware(request) {
   const givenUser = decoded.slice(0, separatorIndex);
   const givenPassword = decoded.slice(separatorIndex + 1);
 
-  if (!constantTimeEqual(givenUser, user) || !constantTimeEqual(givenPassword, password)) {
+  // `||` の短絡評価は使わない: 短絡すると givenUser が一致しない場合に
+  // givenPassword 側の比較が実行されず、比較回数（延いては処理時間）が
+  // 入力によって変わってタイミング攻撃の手がかりになり得る。両方を必ず
+  // 比較してから真偽値を結合する。
+  const userMatches = constantTimeEqual(givenUser, user);
+  const passwordMatches = constantTimeEqual(givenPassword, password);
+  if (!userMatches || !passwordMatches) {
     return unauthorized();
   }
 
@@ -303,9 +344,12 @@ vercel env add BASIC_AUTH_PASSWORD preview
 
 - **対処**: `vercel remove <deployment-url>` またはダッシュボードから
   旧デプロイを削除してください。
-- **fail-closed の帰結**: 環境変数を設定する前に作成したデプロイは、
-  ミドルウェアが常に 503 を返す恒久的な全拒否状態になります。環境変数を
-  設定してから再デプロイしてください。
+- **fail-closed の帰結**: これは**ミドルウェアが組み込まれているデプロイ**
+  に限った話です。環境変数を設定する前にそのデプロイを作成した場合、
+  ミドルウェアが常に 503 を返す恒久的な全拒否状態になります（前述の
+  「無効化前に必ず確認すること」で扱った、ミドルウェア自体を含まない
+  デプロイが無保護で公開される状態とは別の問題です）。環境変数を設定して
+  から再デプロイしてください。
 
 ### 関連リンク
 
