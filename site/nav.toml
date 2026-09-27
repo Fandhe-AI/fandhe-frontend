@@ -1996,6 +1996,11 @@ title = "app-shell-stacked"
 source = "site/blocks/app-shell-stacked.md"
 path = "/blocks/app-shell-stacked/"
 
+[[section.group.page]]
+title = "app-shell-three-column"
+source = "site/blocks/app-shell-three-column.md"
+path = "/blocks/app-shell-three-column/"
+
 [[section.group]]
 title = "Sidebar"
 
@@ -2008,6 +2013,53 @@ path = "/blocks/sidebar-03/"
 title = "sidebar-07"
 source = "site/blocks/sidebar-07.md"
 path = "/blocks/sidebar-07/"
+
+[[section.group]]
+title = "Card Heading"
+
+[[section.group.page]]
+title = "card-heading-toolbar"
+source = "site/blocks/card-heading-toolbar.md"
+path = "/blocks/card-heading-toolbar/"
+
+[[section.group]]
+title = "Description List"
+
+[[section.group.page]]
+title = "description-list-horizontal"
+source = "site/blocks/description-list-horizontal.md"
+path = "/blocks/description-list-horizontal/"
+
+[[section.group.page]]
+title = "description-list-summary-card"
+source = "site/blocks/description-list-summary-card.md"
+path = "/blocks/description-list-summary-card/"
+
+[[section.group.page]]
+title = "description-list-two-column"
+source = "site/blocks/description-list-two-column.md"
+path = "/blocks/description-list-two-column/"
+
+[[section.group]]
+title = "Feed"
+
+[[section.group.page]]
+title = "feed-comments-timeline"
+source = "site/blocks/feed-comments-timeline.md"
+path = "/blocks/feed-comments-timeline/"
+
+[[section.group.page]]
+title = "feed-upvote-cards"
+source = "site/blocks/feed-upvote-cards.md"
+path = "/blocks/feed-upvote-cards/"
+
+[[section.group]]
+title = "Form Layout"
+
+[[section.group.page]]
+title = "form-layout-two-column"
+source = "site/blocks/form-layout-two-column.md"
+path = "/blocks/form-layout-two-column/"
 
 [[section.group]]
 title = "Auth"
@@ -2044,9 +2096,37 @@ path = "/blocks/game-ui-modal/"
 title = "Card"
 
 [[section.group.page]]
+title = "card-form-footer"
+source = "site/blocks/card-form-footer.md"
+path = "/blocks/card-form-footer/"
+
+[[section.group.page]]
+title = "card-meta-cta"
+source = "site/blocks/card-meta-cta.md"
+path = "/blocks/card-meta-cta/"
+
+[[section.group.page]]
 title = "cursor-hover-cards"
 source = "site/blocks/cursor-hover-cards.md"
 path = "/blocks/cursor-hover-cards/"
+
+[[section.group]]
+title = "Chart"
+
+[[section.group.page]]
+title = "chart-bar-list"
+source = "site/blocks/chart-bar-list.md"
+path = "/blocks/chart-bar-list/"
+
+[[section.group.page]]
+title = "chart-metric-area"
+source = "site/blocks/chart-metric-area.md"
+path = "/blocks/chart-metric-area/"
+
+[[section.group.page]]
+title = "chart-stat-cards"
+source = "site/blocks/chart-stat-cards.md"
+path = "/blocks/chart-stat-cards/"
 
 [[section.group]]
 title = "Dashboard"
