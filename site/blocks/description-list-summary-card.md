@@ -213,7 +213,7 @@ pub fn demo() -> Node {
                     &LinkProps::default(),
                     vec![],
                     vec![
-                        text("レシートを表示"),
+                        text("GitHub で見る"),
                         span(vec![("aria-hidden", "true")], vec![text("→")]),
                     ],
                 )],
