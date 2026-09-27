@@ -963,6 +963,7 @@ pub enum LayoutCss {
 | app-shell-three-column | #2898 | `application/app_shell/app_shell_three_column.rs` |
 | card-form-footer | #2899 | `application/card/card_form_footer.rs` |
 | card-heading-toolbar | #2902 | `application/card_heading/card_heading_toolbar.rs` |
+| card-media-footer | #2900（親 #2892） | `application/card/card_media_footer.rs` |
 | card-meta-cta | #2901（親 #2892） | `application/card/card_meta_cta.rs` |
 | chart-bar-list | #2903 | `application/chart/chart_bar_list.rs` |
 | chart-metric-area | #2904（親 #2892） | `application/chart/chart_metric_area.rs` |
@@ -970,6 +971,7 @@ pub enum LayoutCss {
 | description-list-horizontal | #2906（親 #2892） | `application/description_list/description_list_horizontal.rs` |
 | description-list-summary-card | #2907（親 #2892） | `application/description_list/description_list_summary_card.rs` |
 | description-list-two-column | #2908 | `application/description_list/description_list_two_column.rs` |
+| form-layout-inline-labels | #2911（親 #2892） | `application/form_layout/form_layout_inline_labels.rs` |
 | feed-upvote-cards | #2910（親 #2892） | `application/feed/feed_upvote_cards.rs` |
 | feed-comments-timeline | #2909（親 #2892） | `application/feed/feed_comments_timeline.rs` |
 | form-layout-two-column | #2916（親 #2892） | `application/form_layout/form_layout_two_column.rs` |
