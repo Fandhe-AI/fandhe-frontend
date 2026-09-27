@@ -2013,6 +2013,14 @@ source = "site/blocks/card-heading-toolbar.md"
 path = "/blocks/card-heading-toolbar/"
 
 [[section.group]]
+title = "Description List"
+
+[[section.group.page]]
+title = "description-list-summary-card"
+source = "site/blocks/description-list-summary-card.md"
+path = "/blocks/description-list-summary-card/"
+
+[[section.group]]
 title = "Feed"
 
 [[section.group.page]]
