@@ -364,10 +364,22 @@ jobs:
           # `0.0.0.0:3100` を打ち消す（non_empty() が空文字を「未設定」に
           # 正規化する契約、crates/dist-server/src/main.rs）。これにより
           # PORT 環境変数のみが有効なリスニングポート決定要因になる。
+          #
+          # `--sysctl net.ipv4.tcp_wmem`: コンテナのネットワーク名前空間限定
+          # （docker が許可する net.* sysctl、ホストへは波及しない）でカーネル
+          # 送信バッファを意図的に小さくする（最大 16KiB）。WASM 資産が
+          # ループバック上のデフォルトバッファ容量に収まってしまうと、
+          # hyper の応答書き込みがカーネルへ即座に受理されて「送信完了」
+          # 扱いになり、クライアント側の `--limit-rate` による低速化が
+          # サーバー側の実際の書き込み滞留（drain 検証の前提）を再現しない
+          # おそれがある。送信バッファを縮小することで、後段の in-flight
+          # 接続確立チェック（Send-Q 実測）が確実に非 0 を観測できる状態を
+          # 作る。
           docker run -d --name "${CONTAINER_NAME}" \
             -p "127.0.0.1:${APP_PORT}:${APP_PORT}" \
             -e "FANDHE_FRONTEND_BIND_ADDR=" \
             -e "PORT=${APP_PORT}" \
+            --sysctl net.ipv4.tcp_wmem="4096 16384 16384" \
             fandhe-frontend-dist-server:ci
           base_url="http://127.0.0.1:${APP_PORT}"
 
@@ -398,8 +410,13 @@ jobs:
           # バックグラウンドでダウンロードし、その転送が確立してから
           # `docker stop` を送ることで、SIGTERM 後も接続が生き延びて
           # 完走することを検証する。
+          # curl の body 破棄先は `/dev/null` を使わない（本ワークフロー冒頭の
+          # 「WASM 確認」ステップと同じ理由: ubuntu-latest の curl 8.x が
+          # `-o /dev/null` に対して間欠的に書き込みエラー (23) を返す既知事象
+          # があり、`set -e` 下では即座にジョブが失敗し得る）。readiness 確認
+          # 用に確保済みの `$discard`（実ファイル）を再利用する。
           asset_path="/static/wasm/fandhe_frontend_wasm_full_bg.wasm"
-          content_length=$(curl -fsS --max-time 5 -o /dev/null -w '%{size_download}' "${base_url}${asset_path}")
+          content_length=$(curl -fsS --max-time 5 -o "$discard" -w '%{size_download}' "${base_url}${asset_path}")
           if [ -z "$content_length" ] || [ "$content_length" -le 0 ]; then
             echo "::error::failed to determine size of ${asset_path} for in-flight connection test" >&2
             docker rm -f "${CONTAINER_NAME}" || true
@@ -420,35 +437,83 @@ jobs:
             "${base_url}${asset_path}" &
           inflight_pid=$!
 
-          # 接続が実際に確立し in-flight であることを確認してから
-          # `docker stop` を送る。判定は 2 通りの証拠のどちらかで行う:
-          # (a) 出力ファイルへ部分バイトが書き込まれている（curl がストリ
-          # ーミング済み）、(b) `--limit-rate` で絞った転送がまだ終わって
-          # おらずプロセスが生存し続けている（curl の stdio フル
-          # バッファリングで (a) が遅延する場合の保険。転送が完了して
-          # プロセスが正常終了していれば in-flight ではないため証拠になら
-          # ない）。いずれの証拠も得られなければ、そもそも接続が存在しな
-          # い状態で `docker stop` を送ることになり検査が無意味になるため
-          # fail-closed で失敗させる。
+          # 接続が実際に確立し in-flight であることを、クライアント側の
+          # プロセス生存（`kill -0`）ではなく、コンテナ側のカーネル送信
+          # バッファに未送出バイトが滞留していること（Send-Q > 0）で確認
+          # してから `docker stop` を送る。`kill -0`（curl プロセスの生存）
+          # だけでは「dist-server がまだ書き込み中」の証拠にならない:
+          # 応答本体がコンテナのカーネル送信バッファへ即座に収まってしまえ
+          # ば、hyper の書き込みは完了しクライアント側の受信ペースとは無
+          # 関係に「送信済み」になり得る（curl 側の `--limit-rate` は読み
+          # 出し側の速度制限に過ぎない）。この場合 SIGTERM 送信時点で
+          # サーバー側に drain 対象の未完了応答が存在しないまま、たまたま
+          # クライアントの受信が遅いだけの状態でテストが緑になり、#3337 の
+          # 退行（処理中接続の途中切断）を見逃す。
+          #
+          # Send-Q（コンテナのネットワーク名前空間内、dist-server が listen
+          # するポートの ESTABLISHED ソケット）は、OS のカーネルバッファに
+          # 未送出のバイト列が滞留していることの直接証拠であり、
+          # dist-server（またはカーネル）が実際に書き込みをブロックされて
+          # いることを示す。`docker run` 側で当該コンテナの送信バッファを
+          # 意図的に縮小（`net.ipv4.tcp_wmem` 上限 16KiB）しているため、
+          # WASM 資産サイズがバッファ容量を上回っていれば Send-Q は確実に
+          # 非 0 になる。
+          #
+          # 要: ubuntu-latest ランナーに `nsenter`（util-linux）・`ss`
+          # （iproute2）・パスワードなし `sudo` が導入済みであることを前提
+          # とする（GitHub ホステッドランナーの標準イメージに常設）。
+          # `docker exec` を使わない理由: 最終イメージは `FROM scratch`
+          # （TASK-10.3c）でシェル・コアユーティリティを一切含まないため、
+          # コンテナ内部からの観測はできない。ホスト側から
+          # `nsenter -t <pid> -n` でコンテナのネットワーク名前空間へ入る
+          # ことで、コンテナ内にツールがなくても外部から観測できる。
+          if ! command -v nsenter >/dev/null 2>&1 || ! command -v ss >/dev/null 2>&1; then
+            echo "::error::nsenter (util-linux) or ss (iproute2) not found on runner; cannot verify server-side in-flight state" >&2
+            kill "$inflight_pid" 2>/dev/null || true
+            wait "$inflight_pid" 2>/dev/null || true
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+
+          container_pid=$(docker inspect -f '{{.State.Pid}}' "${CONTAINER_NAME}")
+          if [ -z "$container_pid" ] || [ "$container_pid" -le 0 ]; then
+            echo "::error::failed to resolve container PID for network namespace inspection" >&2
+            kill "$inflight_pid" 2>/dev/null || true
+            wait "$inflight_pid" 2>/dev/null || true
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+
           inflight_established=0
-          for i in $(seq 1 20); do
-            if [ -s "$inflight_out" ]; then
+          received_before_stop=0
+          for i in $(seq 1 40); do
+            send_q=$(sudo nsenter -t "$container_pid" -n ss -Htn state established "( sport = :${APP_PORT} )" 2>/dev/null | awk '{print $2; exit}')
+            if [ -n "$send_q" ] && [ "$send_q" -gt 0 ] 2>/dev/null; then
               inflight_established=1
+              received_before_stop=$(wc -c < "$inflight_out" | tr -d ' ')
               break
             fi
             if ! kill -0 "$inflight_pid" 2>/dev/null; then
-              break
-            fi
-            if [ "$i" -ge 8 ]; then
-              # 2 秒（0.25s * 8）経ってもプロセスが生きていれば、転送中
-              # （＝接続確立済み）とみなしてよい。
-              inflight_established=1
+              # 転送が完了してプロセスが正常終了していれば、送信済みバイト
+              # は既にコンテナのバッファを離れているため in-flight ではない
+              # （証拠にならない）。
               break
             fi
             sleep 0.25
           done
           if [ "$inflight_established" -ne 1 ]; then
-            echo "::error::could not establish an in-flight connection before sending SIGTERM" >&2
+            echo "::error::could not observe a genuine server-side in-flight write (Send-Q > 0) before sending SIGTERM" >&2
+            kill "$inflight_pid" 2>/dev/null || true
+            wait "$inflight_pid" 2>/dev/null || true
+            docker logs "${CONTAINER_NAME}" || true
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+          # 副次的な証拠として、SIGTERM 送信直前時点でクライアントの受信量が
+          # 応答全体に満たないことも確認する（Send-Q 実測が本証拠、これは
+          # 補強）。
+          if [ "$received_before_stop" -ge "$content_length" ]; then
+            echo "::error::download already completed before SIGTERM despite non-zero Send-Q observation; test setup invalid" >&2
             kill "$inflight_pid" 2>/dev/null || true
             wait "$inflight_pid" 2>/dev/null || true
             docker logs "${CONTAINER_NAME}" || true
