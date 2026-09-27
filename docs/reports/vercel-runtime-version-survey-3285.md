@@ -219,16 +219,35 @@ Vercel は AWS Lambda Runtime API のポーリングエンドポイントを提�
 
 ## 8. upstream の既知 issue・PR（またはヒットなし）
 
-`gh search issues --include-prs`（`vercel-community/rust`・`vercel/vercel`・
-`awslabs/aws-lambda-rust-runtime` の 3 リポジトリ、キーワード:
+`gh search issues --include-prs --repo <owner>/<repo>`（`vercel-community/rust`・
+`vercel/vercel`・`aws/aws-lambda-rust-runtime` の 3 リポジトリ、キーワード:
 `AWS_LAMBDA_FUNCTION_NAME`・`Config::from_env`・`vercel_runtime panic`・
 `Missing AWS_LAMBDA`・`FUNCTION_INVOCATION_FAILED rust`・`rust runtime v2`、
 2026-09-27 検索）。
 
-- `AWS_LAMBDA_FUNCTION_NAME`・`Config::from_env`・`vercel_runtime panic`・
-  `Missing AWS_LAMBDA`・`FUNCTION_INVOCATION_FAILED rust` の 5 キーワードでは、
-  上記 3 リポジトリに対する**本件と直接一致する issue・PR は該当なし**
-  （`vercel_runtime panic` のヒットは本リポジトリ自身の #3284/#3311 のみ）。
+`lambda_runtime` は §3.1 のとおり `repository` フィールドが
+`aws/aws-lambda-rust-runtime`（現行、組織移管後）であり、`gh search issues`
+の `--repo` 修飾子はリポジトリ移管のリダイレクトを解決しないため、旧名称
+`awslabs/aws-lambda-rust-runtime` を指定すると
+`Invalid search query ... cannot be searched either because the resources
+do not exist` で**検索そのものが実行不能**（0 件ヒットではなくクエリ
+エラー）になることを実機で確認した。以下は現行名称 `aws/aws-lambda-rust-runtime`
+で実行し直した結果である。
+
+- `AWS_LAMBDA_FUNCTION_NAME`・`vercel_runtime panic`・`Missing AWS_LAMBDA`・
+  `FUNCTION_INVOCATION_FAILED rust` の 4 キーワードでは、上記 3 リポジトリの
+  いずれにも**本件と直接一致する issue・PR は該当なし**（0 件）。
+- `Config::from_env` は `aws/aws-lambda-rust-runtime` で 1 件ヒットした:
+  [aws/aws-lambda-rust-runtime#754](https://github.com/aws/aws-lambda-rust-runtime/pull/754)
+  （merged, 2023-12-16）「Config::from_env never returns an error.」。
+  内容は「`Config::from_env` は Result を返す必要がない（呼び出し元は
+  panic するか Ok を返すかのいずれかのため）」という設計判断の PR であり、
+  `Config::from_env` が必須環境変数の欠落時に `Result` ではなく `panic!`
+  すること自体は upstream が意図した既存の設計として追認されている
+  （#3284 の実測 panic と整合する背景情報ではあるが、本件〔Vercel 環境で
+  AWS Lambda 系環境変数が欠落する〕を issue として報告した記録ではない）。
+  `vercel-community/rust`・`vercel/vercel` の両リポジトリでは
+  `Config::from_env` のヒットはなかった。
 - `rust runtime v2`（`vercel/vercel` 限定）でヒットしたもの:
   - [vercel/vercel#14532](https://github.com/vercel/vercel/issues/14532)
     （open）「Rust runtime v2 fails with "address already in use"」
@@ -238,15 +257,22 @@ Vercel は AWS Lambda Runtime API のポーリングエンドポイントを提�
     既知課題で、本調査の panic（AWS Lambda 環境変数欠落）とは別種の不具合。
     2.x を採用する場合の留意点として §10 へ引き継ぐ。
 - 上記以外に無関係なノイズ（他リポジトリの X-Ray トレース欠落等）が多数
-  ヒットしたため、本件と無関係なものは除外した。
+  ヒットしたため、本件と無関係なものは除外した。なお `vercel_runtime panic`
+  を `--repo` を付けずにグローバル検索した場合は本リポジトリ自身の
+  #3311（本イシュー系列の先行 issue/PR）がヒットする。これは自己参照の
+  ノイズであり、上記の 3 リポジトリ限定検索の結果には含まれない（3 リポジトリ
+  限定検索と無限定検索を混同しないよう、本節では前者の結果のみを「該当なし」
+  の根拠として扱う）。
 
 **「該当なし」の根拠**: `vercel-community/rust` の README に明示的な
 Deprecation Notice（§9 参照）があり、「legacy な 1.x の新規 issue は
 `vercel/vercel` へ」と誘導されているにもかかわらず、`vercel/vercel` 側にも
 本件（AWS Lambda 環境変数欠落による 1.x の起動時 panic）に一致する issue が
-見つからない。これは「1.x はそもそも新規に使うべきではない（2.x へ移行
-すべき）」という位置づけが upstream 側で既に確立しており、個別の panic
-報告自体が発生していないためと解釈するのが妥当である。
+見つからない。上記 `aws/aws-lambda-rust-runtime#754` も `Config::from_env`
+の panic 設計自体を追認する背景情報に留まり、本件そのものの報告ではない。
+これは「1.x はそもそも新規に使うべきではない（2.x へ移行すべき）」という
+位置づけが upstream 側で既に確立しており、個別の panic 報告自体が発生
+していないためと解釈するのが妥当である。
 
 ## 9. upstream への報告要否と理由
 
