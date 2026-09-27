@@ -951,9 +951,10 @@ pub enum LayoutCss {
 | team-avatar-grid | #2879（親 #2807） | `marketing/team/team_avatar_grid.rs` |
 | team-bio-rows | #2880（親 #2807） | `marketing/team/team_bio_rows.rs` |
 | testimonial-background-image | #2883 | `marketing/testimonial/testimonial_background_image.rs` |
+| testimonial-quote-stats | #2889 | `marketing/testimonial/testimonial_quote_stats.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-134 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+135 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を

@@ -1455,6 +1455,11 @@ source = "site/blocks/testimonial-background-image.md"
 path = "/blocks/testimonial-background-image/"
 
 [[section.group.page]]
+title = "testimonial-quote-stats"
+source = "site/blocks/testimonial-quote-stats.md"
+path = "/blocks/testimonial-quote-stats/"
+
+[[section.group.page]]
 title = "testimonials-stack"
 source = "site/blocks/testimonials-stack.md"
 path = "/blocks/testimonials-stack/"
