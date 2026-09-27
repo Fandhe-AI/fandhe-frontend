@@ -214,19 +214,34 @@ fn not_found_asset() -> Vec<(String, String)> {
 ///
 /// `.vercel/output` はサンプル自身の固定リテラルパスのみを対象とし、
 /// `.vercel/`（`vercel link` が作る `project.json` を含む）自体は残す。
-/// 対象がシンボリックリンクの場合は fail-closed でエラーを返し、削除しない
-/// （リンク先を辿った意図しない削除を避ける）。
+/// 対象またはその親要素（`.vercel` 自体を含む）がシンボリックリンクの場合は
+/// fail-closed でエラーを返し、削除しない。`.vercel/output` 自体の
+/// `symlink_metadata` だけでは、親の `.vercel` が外部ディレクトリへの
+/// シンボリックリンクであるケースを検出できず、そのリンクを辿った先の
+/// `output` を意図せず削除してしまうため、パスの構成要素を先頭から順に
+/// 検証する。
 fn clean_output_dir() -> std::io::Result<()> {
     let path = Path::new(OUTPUT_ROOT);
-    match std::fs::symlink_metadata(path) {
-        Ok(meta) if meta.file_type().is_symlink() => Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            format!("refusing to remove symlink at {OUTPUT_ROOT}"),
-        )),
-        Ok(_) => std::fs::remove_dir_all(path),
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(err) => Err(err),
+
+    let mut ancestor = std::path::PathBuf::new();
+    for component in path.components() {
+        ancestor.push(component);
+        match std::fs::symlink_metadata(&ancestor) {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!("refusing to remove symlink at {}", ancestor.display()),
+                ));
+            }
+            Ok(_) => {}
+            // 途中の構成要素が存在しなければ、削除対象自体も存在しないため
+            // 削除するものがない（正常終了）。
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(err) => return Err(err),
+        }
     }
+
+    std::fs::remove_dir_all(path)
 }
 
 /// [`main`] の失敗理由をまとめる薄いラッパー（`Display` のみを利用者へ見せ、

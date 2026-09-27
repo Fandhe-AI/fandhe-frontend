@@ -276,3 +276,35 @@ fn cli_refuses_to_clean_symlinked_output_dir() {
         "symlink target must not be deleted"
     );
 }
+
+#[cfg(unix)]
+/// fail-closed 回帰: `.vercel` 自体（`.vercel/output` の親要素）が外部
+/// ディレクトリへのシンボリックリンクの場合も非ゼロ終了し、リンク先を
+/// 削除しないことを固定する（unix 限定）。`.vercel/output` 単体の
+/// `symlink_metadata` だけを見る実装だと、このケースはリンクを辿った先の
+/// `output` に対して `remove_dir_all` が実行されてしまう。
+#[test]
+fn cli_refuses_to_clean_when_vercel_parent_is_symlink() {
+    use std::os::unix::fs::symlink;
+
+    let scratch = TempDir::new("symlink-guard-parent");
+    std::fs::create_dir_all(&scratch.0).expect("failed to create scratch dir");
+    let real_target = scratch.0.join("real-target");
+    std::fs::create_dir_all(real_target.join("output")).unwrap();
+    std::fs::write(real_target.join("output/marker.txt"), "keep-me").unwrap();
+    symlink(&real_target, scratch.0.join(".vercel")).expect("symlink should be created");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_fandhe-frontend-example-vercel-ssg"))
+        .current_dir(&scratch.0)
+        .output()
+        .expect("binary should spawn and run to completion");
+
+    assert!(
+        !output.status.success(),
+        "CLI should refuse to run when .vercel (parent of output) is a symlink"
+    );
+    assert!(
+        real_target.join("output/marker.txt").is_file(),
+        "symlink target must not be deleted"
+    );
+}
