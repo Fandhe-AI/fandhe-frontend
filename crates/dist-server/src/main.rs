@@ -162,6 +162,21 @@ struct ShutdownSignals {
     /// シグナル処理は引き続き有効なため無応答のまま残り続ける危険はない）。
     #[cfg(not(unix))]
     ctrl_c_failed: bool,
+    /// [`Self::install`] 内の早期 poll（後述）が既に `Poll::Ready(Ok(()))`
+    /// を観測していた場合に `true` にする。
+    ///
+    /// `tokio::signal::ctrl_c()` は `async fn` であるため、呼び出し自体
+    /// ではハンドラ登録が走らず、最初に `poll` された時点で初めて内部の
+    /// 登録処理が実行される（Unix の `signal(SignalKind::interrupt())` が
+    /// 呼び出し時点で同期的に登録するのとは対照的）。「bind より先に
+    /// ハンドラを登録し、その間のシグナルを取りこぼさない」契約を非 Unix
+    /// でも満たすため、`install()` は生成直後に 1 度 poll してハンドラ
+    /// 登録を強制する。この早期 poll が（理論上ほぼ起こり得ないが）既に
+    /// `Ready` を返した場合、`Future::poll` の「一度 Ready を返した後の
+    /// 再 poll を保証しない」契約により `ctrl_c` を再 poll せず、以後の
+    /// [`Self::poll`] 呼び出しではこのフラグのみで即座に `Ready` を返す。
+    #[cfg(not(unix))]
+    ctrl_c_ready: bool,
 }
 
 impl ShutdownSignals {
@@ -193,9 +208,33 @@ impl ShutdownSignals {
         }
         #[cfg(not(unix))]
         {
+            let mut ctrl_c: std::pin::Pin<Box<dyn Future<Output = std::io::Result<()>> + Send>> =
+                Box::pin(tokio::signal::ctrl_c());
+            // `ctrl_c()` は `async fn` のため、呼び出し時点ではハンドラ登録
+            // が走らない（構造体フィールドの doc 参照）。bind より先に
+            // 登録を完了させるため、ここで即座に一度 poll して登録処理を
+            // 強制する。`Waker::noop()` は何もしない Waker で、この poll
+            // で `Pending` が返っても誰も再起床させないが、実際の受信検知
+            // は accept ループ内の `poll_fn` が改めて `poll` するため問題
+            // ない（ここでの唯一の目的はハンドラの早期登録）。
+            let waker = std::task::Waker::noop();
+            let mut cx = Context::from_waker(waker);
+            let ctrl_c_ready = match ctrl_c.as_mut().poll(&mut cx) {
+                Poll::Ready(Ok(())) => true,
+                Poll::Ready(Err(err)) => {
+                    eprintln!("fandhe-frontend-dist-server: failed to poll Ctrl-C handler: {err}");
+                    return Self {
+                        ctrl_c,
+                        ctrl_c_failed: true,
+                        ctrl_c_ready: false,
+                    };
+                }
+                Poll::Pending => false,
+            };
             Self {
-                ctrl_c: Box::pin(tokio::signal::ctrl_c()),
+                ctrl_c,
                 ctrl_c_failed: false,
+                ctrl_c_ready,
             }
         }
     }
@@ -220,11 +259,21 @@ impl ShutdownSignals {
         }
         #[cfg(not(unix))]
         {
+            // `install()` の早期 poll で既に受信済みだった場合（構造体
+            // フィールドの doc 参照）。`Future::poll` の「Ready 後は再 poll
+            // しない」契約を守るため、`ctrl_c` を再度 poll せずここで確定
+            // する。
+            if self.ctrl_c_ready {
+                return Poll::Ready("Ctrl-C");
+            }
             if self.ctrl_c_failed {
                 return Poll::Pending;
             }
             match self.ctrl_c.as_mut().poll(cx) {
-                Poll::Ready(Ok(())) => Poll::Ready("Ctrl-C"),
+                Poll::Ready(Ok(())) => {
+                    self.ctrl_c_ready = true;
+                    Poll::Ready("Ctrl-C")
+                }
                 Poll::Ready(Err(err)) => {
                     eprintln!("fandhe-frontend-dist-server: failed to poll Ctrl-C handler: {err}");
                     self.ctrl_c_failed = true;

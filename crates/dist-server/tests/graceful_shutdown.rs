@@ -78,10 +78,17 @@ fn connection_refused_shortly_after_sigterm() {
                 // まだ listener が生きている可能性がある。少し待って再試行する。
                 std::thread::sleep(Duration::from_millis(20));
             }
-            Err(err) => {
+            Err(err) if err.kind() == std::io::ErrorKind::ConnectionRefused => {
                 refused = true;
                 last_err = Some(err);
                 break;
+            }
+            Err(err) => {
+                // `ConnectionRefused` 以外（一時的な OS 側エラー等）は
+                // listener を閉じたことの証拠にならないため、これだけで
+                // 成功扱いにはしない。次のポーリングへ回す。
+                last_err = Some(err);
+                std::thread::sleep(Duration::from_millis(20));
             }
         }
     }
