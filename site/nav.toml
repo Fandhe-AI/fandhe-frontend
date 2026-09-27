@@ -2013,6 +2013,14 @@ source = "site/blocks/card-heading-toolbar.md"
 path = "/blocks/card-heading-toolbar/"
 
 [[section.group]]
+title = "Grid List"
+
+[[section.group.page]]
+title = "grid-list-action-tiles"
+source = "site/blocks/grid-list-action-tiles.md"
+path = "/blocks/grid-list-action-tiles/"
+
+[[section.group]]
 title = "Description List"
 
 [[section.group.page]]
