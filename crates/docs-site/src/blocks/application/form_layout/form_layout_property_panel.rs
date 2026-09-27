@@ -81,13 +81,21 @@
 //!   `for` を持たないため、`label` に `id` を付け `channel_input` の
 //!   `aria-labelledby` から参照する。
 //! - `tooltip`（C 版の行間ラベル）: `component_specs_overlay.rs` の
-//!   `ex_tooltip_with_kbd` と同じ構成を `OpenState::Closed` で使う。
-//!   `trigger` は wasm-full に組み込めば実際に機能する部品のため
-//!   `disabled` にはしない（`hero_install_command` の clipboard と同じ
-//!   判断）。
+//!   `ex_tooltip_with_kbd` と同じ構成を、`trigger` は `disabled: true` +
+//!   常時 `OpenState::Open` で使う（無 JS の docs サイトでは開閉できず、
+//!   closed のまま出すと操作可能なボタンに見えて実際には機能しない見た目
+//!   になるため、イシュー #2914 コードレビュー是正、P2）。
 //! - `clipboard`（C 版の `card::footer`）: `hero_install_command` の
-//!   A インスタンスと同じ構成。値は無害な CSS 宣言 1 行のみ
-//!   （[`C_FONT_CSS_DECLARATION`]）。
+//!   A インスタンスと同じ anatomy 構成（root/control/input/trigger/
+//!   indicator）だが、`trigger` は disabled 扱いにする点が異なる。値は
+//!   無害な CSS 宣言 1 行のみ（[`C_FONT_CSS_DECLARATION`]）。
+//!   headless `clipboard::trigger` は disabled 引数・`data-disabled` 出力
+//!   を持たない（`fandhe_frontend_pre_styled_ui::clipboard` モジュール
+//!   doc「意図的非採用」節参照）ため、`gallery_carousel` の `indicator`
+//!   と同じ手段（ネイティブ `disabled` 属性 + block 固有 class スコープの
+//!   `:disabled` 減光 CSS）で操作不能を明示する（[`LAYOUT_CSS`] 参照、
+//!   イシュー #2914 コードレビュー是正、P1: 無 JS のサイトで機能しない
+//!   コピー操作を操作可能に見せていた指摘）。
 //! - `breadcrumb`（C 版の `card::header`）: 途中の項目は `link` を使わず
 //!   `item` の中を平文にする（`demo_composes_expected_parts` の
 //!   `!html.contains("href=")` を維持するため）。末尾のみ
@@ -1007,9 +1015,18 @@ fn panel_card_font() -> Node {
                                             false,
                                             vec![("id", C_CLIP_INPUT_ID)],
                                         ),
+                                        // headless `clipboard::trigger` は disabled 引数を
+                                        // 持たないため、ネイティブ `disabled` 属性を
+                                        // `attrs` 経由で直接付与する（`gallery_carousel`
+                                        // の `indicator` と同じ手段。減光 CSS は
+                                        // [`LAYOUT_CSS`] のブロック固有セレクタが担う、
+                                        // イシュー #2914 コードレビュー是正、P1）。
                                         clipboard::trigger(
                                             false,
-                                            vec![],
+                                            vec![
+                                                ("disabled", ""),
+                                                ("data-blocks-form-layout-property-panel-c-clipboard-trigger", ""),
+                                            ],
                                             vec![
                                                 clipboard::indicator(
                                                     false,
@@ -1216,7 +1233,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-form-layout-property-panel-select [data-scope=\"select\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-form-layout-property-panel-layout [data-scope=\"number-input\"][data-part=\"increment-trigger\"][data-disabled],\n\
 .blocks-form-layout-property-panel-layout [data-scope=\"number-input\"][data-part=\"decrement-trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-.blocks-form-layout-property-panel-layout [data-scope=\"collapsible\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n";
+.blocks-form-layout-property-panel-layout [data-scope=\"collapsible\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"clipboard\"][data-part=\"trigger\"][data-blocks-form-layout-property-panel-c-clipboard-trigger]:disabled {\n  opacity: 0.5;\n  cursor: not-allowed;\n}\n";
 
 #[cfg(test)]
 mod tests {

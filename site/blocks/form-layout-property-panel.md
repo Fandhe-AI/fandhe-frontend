@@ -20,8 +20,8 @@
   開閉 2 状態を並べて示します。
 - **C（カード枠 + パンくずのヘッダー）**: `card` で包み、ヘッダーに
   `breadcrumb` とタイトルを、本文にフォント設定を、フッターに CSS 宣言を
-  コピーする `clipboard` を置きます。行間ラベルの横には閉じた `tooltip`
-  を添えます。
+  コピーする `clipboard` を置きます。行間ラベルの横には常時表示の
+  `tooltip` を添えます。
 - **D（極小サイズの狭幅パネル）**: 入力に `Size::Xs` を使う、より狭い
   パネルです。位置節の X/Y/幅/高さと単位選択のみを持ちます。
 
@@ -33,8 +33,10 @@
 にし、現在値は固定表示にしています（単位・配置・太さ・テーマ・フォントの
 ネイティブ `<select>` は JS なしでも実際に動作するため `disabled` を付け
 ず、可視ラベル付きにしています）。`tooltip`/`clipboard` の trigger は
-`fandhe-frontend-wasm-full` に組み込めば実際に機能する部品のため無効化し
-ていません。パンくずの途中項目は遷移先を持ちません（末尾のみ現在ページ
+開閉・コピー操作が JS ハイドレーション前提のため（無 JS の docs サイト
+では押しても機能しません）ネイティブ `disabled` で操作不能にし、`tooltip`
+は説明を常時表示、`clipboard` は idle 表示のまま固定しています。パンくず
+の途中項目は遷移先を持ちません（末尾のみ現在ページ
 を示します）。文言はすべて独自に書いた架空のものであり、実企業名・実
 クレデンシャル・PII を含みません。
 
@@ -920,9 +922,18 @@ fn panel_card_font() -> Node {
                                             false,
                                             vec![("id", C_CLIP_INPUT_ID)],
                                         ),
+                                        // headless `clipboard::trigger` は disabled 引数を
+                                        // 持たないため、ネイティブ `disabled` 属性を
+                                        // `attrs` 経由で直接付与する（`gallery_carousel`
+                                        // の `indicator` と同じ手段。減光 CSS は
+                                        // [`LAYOUT_CSS`] のブロック固有セレクタが担う、
+                                        // イシュー #2914 コードレビュー是正、P1）。
                                         clipboard::trigger(
                                             false,
-                                            vec![],
+                                            vec![
+                                                ("disabled", ""),
+                                                ("data-blocks-form-layout-property-panel-c-clipboard-trigger", ""),
+                                            ],
                                             vec![
                                                 clipboard::indicator(
                                                     false,
