@@ -40,7 +40,10 @@
 //! （`fandhe_frontend_headless_ui::select::SelectProps`）へ
 //! `disabled: true` を渡し、trigger へネイティブ `disabled` 属性を
 //! 付与する（`payment_method_field` の radio card と同じ構造的禁止の
-//! 判断、レビュー指摘 P2 対応）。`positioner`/`content` は `hidden` 付きのまま出力
+//! 判断、レビュー指摘 P2 対応）。`disabled_declarations()` による
+//! `opacity: 0.5` は他の有効な input/textarea と並ぶと不整合に見えるため、
+//! radio card と同じく [`LAYOUT_CSS`] で trigger の opacity を 1 に復元する
+//! （Bugbot 指摘対応）。`positioner`/`content` は `hidden` 付きのまま出力
 //! し、`aria-controls`/`aria-labelledby` の参照先が宙に浮かないようにする
 //! （`crates/docs-site/tests/blocks_contract.rs::
 //! demo_output_has_no_dangling_aria_references_or_duplicate_ids` 対策）。
@@ -508,6 +511,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-card-form-footer-card] [data-scope=\"card\"][data-part=\"footer\"] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-card-form-footer-card] [data-scope=\"card\"][data-part=\"footer\"] [data-scope=\"button\"] {\n  inline-size: 100%;\n}\n\
 [data-blocks-card-form-footer-card=\"payment\"] [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-blocks-card-form-footer-card] [data-scope=\"select\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 @media (min-width: 40rem) {\n  \
 [data-blocks-card-form-footer-card] [data-scope=\"card\"][data-part=\"footer\"] {\n    flex-direction: row;\n    justify-content: flex-end;\n  }\n  \
 [data-blocks-card-form-footer-card] [data-scope=\"card\"][data-part=\"footer\"] [data-scope=\"button\"] {\n    inline-size: auto;\n  }\n\
@@ -592,6 +596,9 @@ mod tests {
         assert!(LAYOUT_CSS.contains("inline-size: auto;"));
         assert!(LAYOUT_CSS.contains("opacity: 1;"));
         assert!(LAYOUT_CSS.contains("cursor: default;"));
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"select\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;"
+        ));
     }
 
     #[test]
