@@ -591,6 +591,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-app-shell-stacked-overlap-logo] {\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  white-space: nowrap;\n}\n\
 [data-blocks-app-shell-stacked-overlap-nav-wrap] {\n  display: none;\n  flex-basis: 100%;\n}\n\
 [data-blocks-app-shell-stacked-overlap-actions-wrap] {\n  display: none;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  margin-inline-start: auto;\n}\n\
+[data-blocks-app-shell-stacked-overlap-actions] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-app-shell-stacked-overlap-row2] {\n  display: none;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n  margin-block-start: var(--fandhe-space-3);\n}\n\
 [data-blocks-app-shell-stacked-overlap-quick-links] {\n  display: flex;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-app-shell-stacked-overlap-quick-links] a {\n  color: inherit;\n}\n\
@@ -747,6 +748,17 @@ mod tests {
     fn mobile_panel_disabled_style_overrides_color_not_only_opacity_cursor() {
         assert!(LAYOUT_CSS.contains(
             "[data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-app-shell-stacked-overlap-panel][data-disabled] {\n  color: inherit;\n  opacity: 1;\n  cursor: default;\n}"
+        ));
+    }
+
+    /// [`actions`]（通知 + プロフィールメニュー）自体が横並びレイアウトを
+    /// 持つこと（PR #3328 Bugbot 指摘: 従来は `actions-wrap`（子 1 個）に
+    /// のみ flex align/gap があり、`actions` 自体にはレイアウトが無いため
+    /// wrap を経由しないモバイルパネル内では 1 行にまとまらなかった）。
+    #[test]
+    fn actions_have_own_flex_layout() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-app-shell-stacked-overlap-actions] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}"
         ));
     }
 
