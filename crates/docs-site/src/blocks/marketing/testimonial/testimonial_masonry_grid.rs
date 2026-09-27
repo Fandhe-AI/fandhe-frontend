@@ -21,29 +21,37 @@
 //! `>= 80rem` で 4 列へ切り替える（mobile-first の `min-width` メディア
 //! クエリ。値は [`fandhe_frontend_pre_styled_ui::recipe::Breakpoint::Sm`]/
 //! `Lg`/`Xl` と一致するリテラル値、`content_with_testimonial` と同じ判断）。
-//! CSS Grid の `grid-auto-flow: row dense` + featured カードへの
-//! `grid-row: span 2` で実現する（R0361「先頭・末尾のカードが 2 行分の
-//! 高さにまたがる」を文字どおり満たす構成。CSS multi-column
-//! `column-count` は行の概念を持たず `grid-row: span N` に相当する指定が
-//! できないため、先に採っていた multi-column 案は R0361 の契約を満たさ
-//! ないとレビューで指摘され〔イシュー #2887〕、本実装へ差し替えた）。
-//! `dense` の自動配置により、featured カードが占有する 2 行 x 1 列の
-//! セルを避けて後続カードが詰まるため、高さ不揃いのカードでも空セルが
-//! 実際に埋まる。
+//! CSS multi-column（`column-count`）で実現する（イシュー #2887 のレビュー
+//! で 3 回指摘された根本原因: CSS Grid の `grid-auto-flow: row dense` は
+//! 空きセルへの再配置のみを行い、各行の高さは行内の最大カードに揃って
+//! しまうため、通常カードも既定でその行の高さまで伸び、高さ不揃いで
+//! 敷き詰める表示契約を満たせなかった。multi-column は各列を独立した
+//! 縦積みとして扱い、列内の各カードは自身の内容量ぶんの高さしか占有
+//! しないため、列ごとに高さが異なる真の masonry 配置になる）。カードは
+//! `break-inside: avoid`（1 枚のカードが列境界で分割されない）と
+//! `margin-bottom`（multi-column コンテキストでは `gap` が列間隔にしか
+//! 効かず行間隔を作れないため、縦方向の間隔はカード自身の下マージンで
+//! 付ける）を持つ。
 //!
 //! # 先頭・末尾カードの featured 強調（R0361）
 //!
 //! [`TESTIMONIALS`] の先頭（index 0）と末尾（index 7）を `featured: true`
-//! にし、アクセントカラーの枠線・拡大した引用文フォントサイズに加えて
-//! `grid-row: span 2`（2 行分の高さにまたがる配置、R0361 の主参照）で
-//! 強調する。
+//! にし、アクセントカラーの枠線・拡大した引用文フォントサイズで強調する。
+//! `grid-row: span 2` 相当（2 行分の高さにまたがる配置）は multi-column
+//! レイアウトでは表現できない（`column-count` は行の概念を持たず、
+//! 複数列にまたがる `span` 指定は列方向〔`column-span: all`〕のみで行方向
+//! には存在しない）ため、本実装では採用しない。R0361 が要求する主眼は
+//! 「推薦文の長さが異なってもカードの高さを揃えずに敷き詰める」ことで
+//! あり、これは multi-column による列ごとの独立した縦積みで満たす。
+//! featured の強調は枠線・フォントサイズによる視覚的な差別化に限定する。
 //!
-//! # DOM 順と視覚順のずれ（既知の制約）
+//! # DOM 順と視覚順（multi-column の充填順）
 //!
-//! `grid-auto-flow: row dense` は空きセルへ後続カードを詰めるため、
-//! featured カードが 2 行分を占有した列の隣は視覚上 [`TESTIMONIALS`] の
-//! 宣言順から前後する（`dense` の密詰めアルゴリズムの仕様）。DOM 順
-//! （＝読み上げ順）は宣言順のまま変わらない。静的な Demo であるため
+//! multi-column は既定（`column-fill: balance`）で列間の総高さを均等化
+//! するよう配置するため、視覚上の充填順は厳密に「1 列目を上から詰め
+//! きってから 2 列目」という単純な順にはならない場合がある（ブラウザの
+//! バランス調整アルゴリズムに依存）。DOM 順（＝読み上げ順）は
+//! [`TESTIMONIALS`] の宣言順のまま変わらない。静的な Demo であるため
 //! 許容する。
 //!
 //! # アバターは架空・共通ダミー素材を再利用
@@ -321,18 +329,22 @@ pub const BLOCK: Block = Block {
 /// `testimonial_masonry_grid` 固有のレイアウト規則（`crate::blocks::
 /// LAYOUT_CSS` doc「block 固有 CSS の置き場」節）。色・間隔はすべて既存
 /// トークン（`--fandhe-*`）のみを使う。mobile-first（`min-width: 40rem`/
-/// `64rem`/`80rem`）で列数（`grid-template-columns`）を切り替える CSS
-/// Grid `grid-auto-flow: row dense` レイアウト（R0361 準拠、モジュール
-/// doc「レイアウトとブレークポイント」節参照）。featured カードの
-/// `grid-row: span 2` が R0361「先頭・末尾が 2 行分の高さ」を担う。
+/// `64rem`/`80rem`）で列数（`column-count`）を切り替える CSS multi-column
+/// レイアウト（R0361 準拠、モジュール doc「レイアウトとブレークポイント」
+/// 節参照）。各カードは `break-inside: avoid` + `margin-bottom` で列内に
+/// 縦積みされ、列ごとに独立した高さを持つことで「高さを揃えずに敷き
+/// 詰める」契約を満たす（CSS Grid の `grid-auto-flow: row dense` は行内
+/// の高さが最大カードに揃ってしまい本契約を満たせないとレビューで
+/// 3 回指摘され、multi-column へ差し替えた）。
 const LAYOUT_CSS: &str = "\
 .blocks-testimonial-masonry-grid-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-testimonial-masonry-grid-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
-.blocks-testimonial-masonry-grid-grid {\n  display: grid;\n  grid-template-columns: 1fr;\n  grid-auto-flow: row dense;\n  gap: var(--fandhe-space-6);\n}\n\
-@media (min-width: 40rem) {\n  .blocks-testimonial-masonry-grid-grid {\n    grid-template-columns: repeat(2, 1fr);\n  }\n}\n\
-@media (min-width: 64rem) {\n  .blocks-testimonial-masonry-grid-grid {\n    grid-template-columns: repeat(3, 1fr);\n  }\n}\n\
-@media (min-width: 80rem) {\n  .blocks-testimonial-masonry-grid-grid {\n    grid-template-columns: repeat(4, 1fr);\n  }\n}\n\
-[data-scope=\"card\"][data-part=\"root\"][data-blocks-testimonial-masonry-grid-card=\"featured\"] {\n  grid-row: span 2;\n  border: 2px solid var(--fandhe-color-accent);\n}\n\
+.blocks-testimonial-masonry-grid-grid {\n  column-count: 1;\n  column-gap: var(--fandhe-space-6);\n}\n\
+@media (min-width: 40rem) {\n  .blocks-testimonial-masonry-grid-grid {\n    column-count: 2;\n  }\n}\n\
+@media (min-width: 64rem) {\n  .blocks-testimonial-masonry-grid-grid {\n    column-count: 3;\n  }\n}\n\
+@media (min-width: 80rem) {\n  .blocks-testimonial-masonry-grid-grid {\n    column-count: 4;\n  }\n}\n\
+.blocks-testimonial-masonry-grid-grid > [data-blocks-testimonial-masonry-grid-card] {\n  display: inline-block;\n  width: 100%;\n  margin-bottom: var(--fandhe-space-6);\n  break-inside: avoid;\n}\n\
+[data-scope=\"card\"][data-part=\"root\"][data-blocks-testimonial-masonry-grid-card=\"featured\"] {\n  border: 2px solid var(--fandhe-color-accent);\n}\n\
 [data-blocks-testimonial-masonry-grid-card=\"featured\"] [data-scope=\"blockquote\"][data-part=\"content\"] {\n  font-size: var(--fandhe-font-font-size-lg);\n}\n\
 [data-scope=\"blockquote\"][data-part=\"caption\"].blocks-testimonial-masonry-grid-meta {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-testimonial-masonry-grid-byline {\n  display: flex;\n  flex-direction: column;\n}\n\
@@ -398,17 +410,19 @@ mod tests {
     }
 
     /// [`LAYOUT_CSS`] が 3 段のブレークポイント条件と、R0361 準拠の
-    /// `grid-auto-flow: row dense`/`grid-row: span 2` を持つこと。
+    /// CSS multi-column（`column-count` + `break-inside: avoid`）を
+    /// 持つこと（高さを揃えずに敷き詰める真の masonry 配置）。
     #[test]
-    fn layout_css_has_breakpoints_and_row_span_masonry() {
+    fn layout_css_has_breakpoints_and_multi_column_masonry() {
         assert!(LAYOUT_CSS.contains("@media (min-width: 40rem)"));
         assert!(LAYOUT_CSS.contains("@media (min-width: 64rem)"));
         assert!(LAYOUT_CSS.contains("@media (min-width: 80rem)"));
-        assert!(LAYOUT_CSS.contains("grid-template-columns: repeat(2, 1fr);"));
-        assert!(LAYOUT_CSS.contains("grid-template-columns: repeat(3, 1fr);"));
-        assert!(LAYOUT_CSS.contains("grid-template-columns: repeat(4, 1fr);"));
-        assert!(LAYOUT_CSS.contains("grid-auto-flow: row dense;"));
-        assert!(LAYOUT_CSS.contains("grid-row: span 2;"));
+        assert!(LAYOUT_CSS.contains("column-count: 2;"));
+        assert!(LAYOUT_CSS.contains("column-count: 3;"));
+        assert!(LAYOUT_CSS.contains("column-count: 4;"));
+        assert!(LAYOUT_CSS.contains("break-inside: avoid;"));
+        assert!(!LAYOUT_CSS.contains("grid-auto-flow"));
+        assert!(!LAYOUT_CSS.contains("grid-row"));
     }
 
     /// caption 行の flex 化セレクタが詳細度 (0,3,0) で宣言されていること
