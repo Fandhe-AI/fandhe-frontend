@@ -141,11 +141,40 @@ fn in_flight_request_completes_after_sigterm() {
     std::thread::sleep(Duration::from_millis(100));
     send_sigterm(pid);
 
-    // 3) シグナル受信・listener drop（新規接続拒否への切り替わり）が確実に
-    //    先に処理されるよう、少し待ってからリクエストの残り（ヘッダ終端 +
-    //    `Connection: close`）を送信する。「SIGTERM 受信後に受信を完了させた
-    //    リクエスト」であることを保証するための順序である。
-    std::thread::sleep(Duration::from_millis(100));
+    // 3) 固定時間の待機（sleep）では SIGTERM の処理完了（listener が閉じ、
+    //    新規接続が拒否される状態への遷移）を保証できない（レビュー指摘、
+    //    PR #3358 スレッド `PRRT_kwDOTarxgc6md-wN`）。高負荷環境では固定
+    //    100ms 経過時点でもシグナルハンドラがまだ実行されておらず、drain が
+    //    機能していなくても偶然ヘッダが先に届いて通常応答が返り、テストが
+    //    偽陽性で成功しうる。そこで `connection_refused_shortly_after_sigterm`
+    //    と同じ手法で「新規接続が拒否される」ことを実際にポーリング確認し、
+    //    shutdown 処理が確実に開始済み（listener が drop 済み）になってから
+    //    残りのヘッダを送信する。これにより「SIGTERM 処理開始後に受信を
+    //    完了させたリクエスト」であることが実測で保証される。
+    let shutdown_deadline = std::time::Instant::now() + Duration::from_secs(5);
+    let mut shutdown_observed = false;
+    while std::time::Instant::now() < shutdown_deadline {
+        match TcpStream::connect(("127.0.0.1", port)) {
+            Ok(_stream) => {
+                // まだ listener が生きている可能性がある。少し待って再試行する。
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::ConnectionRefused => {
+                shutdown_observed = true;
+                break;
+            }
+            Err(_) => {
+                // `ConnectionRefused` 以外は shutdown 開始の証拠にならないため
+                // 次のポーリングへ回す。
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+    }
+    assert!(
+        shutdown_observed,
+        "SIGTERM 後、新規接続が拒否される（shutdown 開始）ことを確認できなかった"
+    );
+
     stream
         .write_all(b"Connection: close\r\n\r\n")
         .expect("remaining request bytes must be written after SIGTERM");
