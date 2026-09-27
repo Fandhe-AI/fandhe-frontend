@@ -52,6 +52,7 @@ Vercel 対応方式の比較と採用方式の決定を行う決定記録です�
 | Vercel Rust ランタイム（`vercel_runtime`/`@vercel/rust`）は 2026-09-27 時点で公式に **Beta** と明記されている（"🔒 Permissions Required: The Rust runtime (Beta)"、変更履歴「Rust runtime now in public beta for Vercel Functions」） | 公式ドキュメント <https://vercel.com/docs/functions/runtimes/rust>（`last_updated: 2025-12-08`、2026-09-27 取得） |
 | Vercel は Container Images（OCI 互換の任意コンテナイメージを Vercel Functions として実行する仕組み）を提供しており、2026-09-27 時点で公式に **Beta** と明記されている。デプロイ経路はローカル/CI で `Dockerfile.vercel` を**利用者側がビルド**し、そのコンテナイメージを `vercel deploy` 等で Vercel Container Registry へ格納・Fluid Compute 上で自動スケールする形態であり、Vercel 側が Dockerfile からイメージをビルドするわけではない（Vercel 側に Rust ツールチェーンは不要）。要件は「`$PORT`（既定 80）で HTTP サーバーを待ち受ける」「スケールイン時に 30 秒の猶予付き `SIGTERM` を受け取り自身で終了処理する」の 2 点 | 公式ドキュメント <https://vercel.com/docs/functions/container-images>（`last_updated: 2026-07-07`、2026-09-27 取得） |
 | `crates/dist-server/src/main.rs` の既定 bind は `FANDHE_FRONTEND_BIND_ADDR`（既定 `127.0.0.1` 系のループバック）であり、Vercel Container Images が要求する `$PORT` 環境変数の読み取りには対応していない（現状） | `crates/dist-server/src/main.rs` 実装確認（2026-09-27） |
+| Vercel Container Images の Port resolution（待受ポートの決定方法）は「既定ポートは `80`。Vercel プロジェクト設定で `PORT` 環境変数を設定すれば、その値で上書きできる（override）」と明記されている（原文: "The default port is 80, and it can be overridden by setting the `PORT` environment variable in the project settings."）。すなわち Vercel 側は非 root 実行等の理由でコンテナが `PORT` を 1024 以上へ上書きしても、その上書き後の値へ接続する仕様であり、§5「ポート 80 問題」の運用（`USER 65532:65532` を維持し `PORT` を 1024 以上へ設定）が Vercel 側の待受ポート決定と整合することを公式ドキュメントの当該節で確認済み | 公式ドキュメント <https://vercel.com/docs/functions/container-images>（`last_updated: 2026-07-07`、"Port resolution" 節、2026-09-28 に本イシュー〔#3335〕のレビュー対応で再取得） |
 
 ## 3. 比較表
 
@@ -266,7 +267,12 @@ SSR 用途に限りこの優先順位判断を上書きし、上記「採用（S
   `USER 65532:65532`（非 root）でビルドしており、1024 未満のポートを
   bind できない可能性があります。root 実行に切り替える対応はせず、
   Vercel プロジェクトの環境変数 `PORT` に 1024 以上の値（例: `3100`）を
-  設定して運用することを既定とします。
+  設定して運用することを既定とします。この運用が成立する根拠は、Vercel
+  公式ドキュメントの Port resolution 節（§2 表内の該当行参照）が
+  「既定ポートは 80 だが、プロジェクト設定で `PORT` を上書きすればその値へ
+  接続する」と明記していることです。Vercel 側は `PORT` の値を読んで
+  接続先を決定するため、非 root 実行のまま `PORT` を 1024 以上へ設定する
+  運用と Vercel 側の待受ポート決定は整合します。
 - **graceful shutdown**: Vercel はスケールイン時に 30 秒の猶予付き
   `SIGTERM` を送ります（§2）。この猶予内に処理中のリクエストを完了して
   終了する SIGTERM ハンドラを `dist-server` に実装する方針とします
@@ -433,7 +439,8 @@ SSR 用途に限りこの優先順位判断を上書きし、上記「採用（S
   - Rust ランタイム（Beta）: <https://vercel.com/docs/functions/runtimes/rust>
     （`last_updated: 2025-12-08`）
   - Container Images（Beta）: <https://vercel.com/docs/functions/container-images>
-    （`last_updated: 2026-07-07`、2026-09-28 再取得）
+    （`last_updated: 2026-07-07`、2026-09-28 再取得。「Port resolution」節で
+    ポート 80 問題（§5）の運用根拠を確認済み、§2 表参照）
   - Build Output API 概要: <https://vercel.com/docs/build-output-api>
     （`last_updated: 2026-08-11`。`config.json` の `version` フィールドの
     詳細仕様は本文書では未確認、#3292 で確認する）
