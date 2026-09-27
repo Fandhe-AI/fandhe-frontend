@@ -1,11 +1,8 @@
-//! `testimonial-masonry-grid` block（イシュー #2887。親 #2886「高さ不揃いの
-//! 推薦文グリッド」配下、大規模な親 issue を 2 分割した前半。対応表 ID
-//! R0361（先頭・末尾のカードが 2 行分の高さにまたがる形）を出発点にするが、
-//! 「先頭・末尾カードの featured 強調」節の理由により行方向の 2 行
-//! またぎ配置そのものは採用せず、視覚的な強調差別化へ置き換える（契約
-//! 変更、PR #3314 レビュー対応）。後半（#2888）が他 2 案（R1365: featured
-//! 1 枚 + 通常 10 枚・R1366: CSS multi-column 9 枚）の並記・差分メモを
-//! 追加する）。
+//! `testimonial-masonry-grid` block（親 #2886「高さ不揃いの推薦文グリッド」
+//! 配下、大規模な親 issue を 2 分割）。前半（#2887・PR #3314）が骨格
+//! （CSS multi-column による真の masonry 配置・8 枚・先頭末尾 featured）を
+//! 仕上げ、後半（本 #2888）が集約元 3 件（R0361/R1365/R1366）の並記と
+//! 原稿の差分メモを追加した。
 //!
 //! # 使用部品
 //!
@@ -36,17 +33,27 @@
 //! 効かず行間隔を作れないため、縦方向の間隔はカード自身の下マージンで
 //! 付ける）を持つ。
 //!
-//! # 先頭・末尾カードの featured 強調（R0361）
+//! # 3 案の並記（R0361/R1365/R1366、イシュー #2888）
 //!
-//! [`TESTIMONIALS`] の先頭（index 0）と末尾（index 7）を `featured: true`
-//! にし、アクセントカラーの枠線・拡大した引用文フォントサイズで強調する。
-//! `grid-row: span 2` 相当（2 行分の高さにまたがる配置）は multi-column
-//! レイアウトでは表現できない（`column-count` は行の概念を持たず、
-//! 複数列にまたがる `span` 指定は列方向〔`column-span: all`〕のみで行方向
-//! には存在しない）ため、本実装では採用しない。R0361 が要求する主眼は
-//! 「推薦文の長さが異なってもカードの高さを揃えずに敷き詰める」ことで
-//! あり、これは multi-column による列ごとの独立した縦積みで満たす。
-//! featured の強調は枠線・フォントサイズによる視覚的な差別化に限定する。
+//! 集約元 3 件を [`variant_a`]/[`variant_b`]/[`variant_c`] として縦に
+//! 並記する（`pricing_tiers_extra_row` の補足行 3 案並記と同じパターン）。
+//! 各案の先頭に [`state_label`] で種別を示す。
+//!
+//! - **案 A**（[`variant_a`]、R0361・主参照）: 前半 #2887 の実装そのまま。
+//!   8 枚を multi-column に敷き詰め、先頭・末尾を featured にする。
+//! - **案 B**（[`variant_b`]、R1365）: featured カード 1 枚を
+//!   multi-column 容器の**外**（直前）に全幅で置き、その下の
+//!   multi-column に通常カード 10 枚を敷き詰める。featured を全幅にする
+//!   には CSS Grid の 2×2 span や `column-span: all` が候補になるが、
+//!   前者は行の高さが揃ってしまい masonry にならず（前半 #2887 と同じ
+//!   理由）、後者は inline-block のカードには効かない。そのため featured
+//!   を multi-column 容器の外に置く最も単純な方法を採る。
+//! - **案 C**（[`variant_c`]、R1366）: featured なしの multi-column 9 枚。
+//!   `>= 80rem` でも最大 3 列に留め（[`LAYOUT_CSS`] の案 C 専用オーバーライド
+//!   セレクタ参照）、3 列 × 3 段で読める密度にする。
+//!
+//! 参照元（R0361/R1365/R1366）の文言・配色・装飾は持ち込まない。文言は
+//! すべて架空（実在の企業名・PII を含まない）。
 //!
 //! # DOM 順と視覚順（multi-column の充填順）
 //!
@@ -54,8 +61,7 @@
 //! するよう配置するため、視覚上の充填順は厳密に「1 列目を上から詰め
 //! きってから 2 列目」という単純な順にはならない場合がある（ブラウザの
 //! バランス調整アルゴリズムに依存）。DOM 順（＝読み上げ順）は
-//! [`TESTIMONIALS`] の宣言順のまま変わらない。静的な Demo であるため
-//! 許容する。
+//! [`QUOTES`] の宣言順のまま変わらない。静的な Demo であるため許容する。
 //!
 //! # アバターは架空・共通ダミー素材を再利用
 //!
@@ -113,49 +119,21 @@ use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
-/// 推薦文 1 件分（架空、実在の人物・企業とは無関係）。
-struct Testimonial {
-    quote: &'static str,
-    /// 先頭・末尾のみ `true`（R0361 の featured 強調、モジュール doc
-    /// 「先頭・末尾カードの featured 強調」節参照）。
-    featured: bool,
-}
-
-/// 8 件の推薦文（長さをわざと不揃いにし、grid の高さ不揃いを Demo 上に
-/// 出す。先頭〔index 0〕・末尾〔index 7〕が [`Testimonial::featured`]）。
-const TESTIMONIALS: [Testimonial; 8] = [
-    Testimonial {
-        quote: "導入して最初の週から、チーム全員の作業状況が一目で分かるようになりました。以前は週次の進捗確認会議に時間を取られていましたが、今ではダッシュボードを見るだけで十分です。ドキュメントも整備されていて、新しいメンバーの立ち上げも驚くほど早くなりました。",
-        featured: true,
-    },
-    Testimonial {
-        quote: "サポートの反応が早く安心して使えます。",
-        featured: false,
-    },
-    Testimonial {
-        quote: "既定のエスケープのおかげで、レビューで指摘される脆弱性がほぼゼロになりました。",
-        featured: false,
-    },
-    Testimonial {
-        quote: "他のツールから乗り換えましたが、学習コストが低く、すぐに定着しました。",
-        featured: false,
-    },
-    Testimonial {
-        quote: "設定ファイルが一目で分かるので、運用の引き継ぎが楽になりました。",
-        featured: false,
-    },
-    Testimonial {
-        quote: "単一バイナリで配布できる点が、運用チームにとても好評です。",
-        featured: false,
-    },
-    Testimonial {
-        quote: "細部まで作り込まれた操作感で、初めて触ったメンバーもすぐに馴染めました。",
-        featured: false,
-    },
-    Testimonial {
-        quote: "料金プランの見直しを機に導入しましたが、機能面でも満足しています。特にレポート機能が充実していて、経営層への報告資料をそのまま出力できるのは大きな時短になりました。今後も長く使い続けたいツールです。",
-        featured: true,
-    },
+/// 11 件の推薦文（長さをわざと不揃いにし、multi-column の高さ不揃いを
+/// Demo 上に出す。3 案（[`variant_a`]/[`variant_b`]/[`variant_c`]）が
+/// それぞれ必要な件数だけスライスして使う）。
+const QUOTES: [&str; 11] = [
+    "導入して最初の週から、チーム全員の作業状況が一目で分かるようになりました。以前は週次の進捗確認会議に時間を取られていましたが、今ではダッシュボードを見るだけで十分です。ドキュメントも整備されていて、新しいメンバーの立ち上げも驚くほど早くなりました。",
+    "サポートの反応が早く安心して使えます。",
+    "既定のエスケープのおかげで、レビューで指摘される脆弱性がほぼゼロになりました。",
+    "他のツールから乗り換えましたが、学習コストが低く、すぐに定着しました。",
+    "設定ファイルが一目で分かるので、運用の引き継ぎが楽になりました。",
+    "単一バイナリで配布できる点が、運用チームにとても好評です。",
+    "細部まで作り込まれた操作感で、初めて触ったメンバーもすぐに馴染めました。",
+    "料金プランの見直しを機に導入しましたが、機能面でも満足しています。特にレポート機能が充実していて、経営層への報告資料をそのまま出力できるのは大きな時短になりました。今後も長く使い続けたいツールです。",
+    "導入前は複数ツールを併用していましたが、統合されたことで管理コストが大幅に減りました。",
+    "ドキュメントが充実しているため、トラブル時も自己解決できることが多いです。",
+    "チームの規模が大きくなっても、権限管理がシンプルなまま扱えています。",
 ];
 
 /// 推薦文の装飾アイコン（引用符。参照元の形状は持ち込まない独自図形。
@@ -204,17 +182,27 @@ fn section_header() -> Node {
                 },
                 vec![],
                 vec![text(
-                    "長さの異なる推薦文を高さを揃えずに敷き詰めて表示します。",
+                    "長さの異なる推薦文を高さを揃えずに敷き詰める 3 案を並記しています。",
                 )],
             ),
         ],
     )
 }
 
+/// 案の種別を示す状態並記の見出し（モジュール doc「3 案の並記」節、
+/// `pricing_tiers_extra_row::state_label` と同型）。
+fn state_label(label: &str) -> Node {
+    span(
+        vec![("class", "blocks-testimonial-masonry-grid-state-label")],
+        vec![text(label)],
+    )
+}
+
 /// 推薦文カード 1 枚（`index` は [`dummy_assets`] の人名・役職・社名を
-/// 引くためのオフセット）。
-fn testimonial_card(index: usize, item: &Testimonial) -> Node {
-    let (variant, card_state) = if item.featured {
+/// 引くためのオフセット、`quote` は表示する推薦文、`featured` は強調
+/// 表示の有無）。
+fn testimonial_card(index: usize, quote: &str, featured: bool) -> Node {
+    let (variant, card_state) = if featured {
         (CardVariant::Elevated, "featured")
     } else {
         (CardVariant::Outline, "default")
@@ -238,7 +226,7 @@ fn testimonial_card(index: usize, item: &Testimonial) -> Node {
                     ColorPalette::default(),
                     vec![("data-blocks-testimonial-masonry-grid-quote", "")],
                     vec![
-                        blockquote::content(vec![], vec![text(item.quote)]),
+                        blockquote::content(vec![], vec![text(quote)]),
                         blockquote::caption(
                             vec![("class", "blocks-testimonial-masonry-grid-meta")],
                             vec![
@@ -271,22 +259,93 @@ fn testimonial_card(index: usize, item: &Testimonial) -> Node {
     )
 }
 
+/// 案 A（主参照 R0361、モジュール doc「3 案の並記」節参照）。前半 #2887
+/// の実装そのまま: 8 枚を multi-column に敷き詰め、先頭・末尾を
+/// featured にする。
+fn variant_a() -> Node {
+    let cards: Vec<Node> = QUOTES[0..8]
+        .iter()
+        .enumerate()
+        .map(|(index, quote)| testimonial_card(index, quote, index == 0 || index == 7))
+        .collect();
+    div(
+        vec![
+            ("class", "blocks-testimonial-masonry-grid-variant"),
+            ("data-blocks-testimonial-masonry-grid-variant", "a"),
+        ],
+        vec![
+            state_label("案 A: 先頭と末尾を強調"),
+            div(
+                vec![("class", "blocks-testimonial-masonry-grid-grid")],
+                cards,
+            ),
+        ],
+    )
+}
+
+/// 案 B（R1365、モジュール doc「3 案の並記」節参照）。featured カード
+/// 1 枚を multi-column 容器の外（直前）に全幅で置き、その下の
+/// multi-column に通常カード 10 枚を敷き詰める。
+fn variant_b() -> Node {
+    let featured = testimonial_card(0, QUOTES[0], true);
+    let cards: Vec<Node> = QUOTES[1..11]
+        .iter()
+        .enumerate()
+        .map(|(offset, quote)| testimonial_card(offset + 1, quote, false))
+        .collect();
+    div(
+        vec![
+            ("class", "blocks-testimonial-masonry-grid-variant"),
+            ("data-blocks-testimonial-masonry-grid-variant", "b"),
+        ],
+        vec![
+            state_label("案 B: featured 1 枚 + 通常 10 枚"),
+            div(
+                vec![(
+                    "class",
+                    "blocks-testimonial-masonry-grid-featured-standalone",
+                )],
+                vec![featured],
+            ),
+            div(
+                vec![("class", "blocks-testimonial-masonry-grid-grid")],
+                cards,
+            ),
+        ],
+    )
+}
+
+/// 案 C（R1366、モジュール doc「3 案の並記」節参照）。featured なしの
+/// multi-column 9 枚。`>= 80rem` でも最大 3 列に留める（[`LAYOUT_CSS`] の
+/// 案 C 専用オーバーライドセレクタ参照）。
+fn variant_c() -> Node {
+    let cards: Vec<Node> = QUOTES[0..9]
+        .iter()
+        .enumerate()
+        .map(|(index, quote)| testimonial_card(index, quote, false))
+        .collect();
+    div(
+        vec![
+            ("class", "blocks-testimonial-masonry-grid-variant"),
+            ("data-blocks-testimonial-masonry-grid-variant", "c"),
+        ],
+        vec![
+            state_label("案 C: 強調なしの 9 枚"),
+            div(
+                vec![("class", "blocks-testimonial-masonry-grid-grid")],
+                cards,
+            ),
+        ],
+    )
+}
+
 /// `testimonial-masonry-grid` の Demo 本体。呼び出しごとに同一の `Node`
-/// を返す純関数。
+/// を返す純関数。見出しの後に 3 案（[`variant_a`]/[`variant_b`]/
+/// [`variant_c`]）を縦に並べる。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-testimonial-masonry-grid-layout")],
-        vec![
-            section_header(),
-            div(
-                vec![("class", "blocks-testimonial-masonry-grid-grid")],
-                TESTIMONIALS
-                    .iter()
-                    .enumerate()
-                    .map(|(index, item)| testimonial_card(index, item))
-                    .collect(),
-            ),
-        ],
+        vec![section_header(), variant_a(), variant_b(), variant_c()],
     )
 }
 // blocks-code:end
@@ -336,16 +395,20 @@ pub const BLOCK: Block = Block {
 /// レイアウト（R0361 準拠、モジュール doc「レイアウトとブレークポイント」
 /// 節参照）。各カードは `break-inside: avoid` + `margin-bottom` で列内に
 /// 縦積みされ、列ごとに独立した高さを持つことで「高さを揃えずに敷き
-/// 詰める」契約を満たす（CSS Grid の `grid-auto-flow: row dense` は行内
-/// の高さが最大カードに揃ってしまい本契約を満たせないとレビューで
-/// 3 回指摘され、multi-column へ差し替えた）。
+/// 詰める」契約を満たす。案 C（[`variant_c`]）専用のオーバーライド
+/// セレクタ（詳細度 (0,1,1)、一般規則の (0,1,0) より確実に勝つ）が
+/// `>= 80rem` でも最大 3 列に留める。
 const LAYOUT_CSS: &str = "\
 .blocks-testimonial-masonry-grid-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-testimonial-masonry-grid-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
+.blocks-testimonial-masonry-grid-variant {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
+.blocks-testimonial-masonry-grid-state-label {\n  display: block;\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: 600;\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-testimonial-masonry-grid-featured-standalone {\n  margin-bottom: var(--fandhe-space-6);\n}\n\
 .blocks-testimonial-masonry-grid-grid {\n  column-count: 1;\n  column-gap: var(--fandhe-space-6);\n}\n\
 @media (min-width: 40rem) {\n  .blocks-testimonial-masonry-grid-grid {\n    column-count: 2;\n  }\n}\n\
 @media (min-width: 64rem) {\n  .blocks-testimonial-masonry-grid-grid {\n    column-count: 3;\n  }\n}\n\
 @media (min-width: 80rem) {\n  .blocks-testimonial-masonry-grid-grid {\n    column-count: 4;\n  }\n}\n\
+@media (min-width: 80rem) {\n  [data-blocks-testimonial-masonry-grid-variant=\"c\"] .blocks-testimonial-masonry-grid-grid {\n    column-count: 3;\n  }\n}\n\
 .blocks-testimonial-masonry-grid-grid > [data-blocks-testimonial-masonry-grid-card] {\n  display: inline-block;\n  width: 100%;\n  margin-bottom: var(--fandhe-space-6);\n  break-inside: avoid;\n}\n\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-testimonial-masonry-grid-card=\"featured\"] {\n  border: 2px solid var(--fandhe-color-accent);\n}\n\
 [data-blocks-testimonial-masonry-grid-card=\"featured\"] [data-scope=\"blockquote\"][data-part=\"content\"] {\n  font-size: var(--fandhe-font-font-size-lg);\n}\n\
@@ -355,7 +418,7 @@ const LAYOUT_CSS: &str = "\
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, LAYOUT_CSS, TESTIMONIALS};
+    use super::{demo, LAYOUT_CSS};
     use fandhe_frontend_core::render;
 
     /// Demo が期待する 6 種の部品を出力し、`<form>`・`data:` を持たない
@@ -377,33 +440,101 @@ mod tests {
         assert!(!html.contains("data:"));
     }
 
-    /// カードが 8 枚で、featured がちょうど 2 枚（先頭・末尾）であること。
+    /// 3 案（A/B/C）が過不足なく 1 件ずつ、この順で並記されること
+    /// （モジュール doc「3 案の並記」節参照）。
     #[test]
-    fn demo_has_eight_cards_with_two_featured_at_ends() {
+    fn demo_has_three_variants_in_order() {
         let html = render(&demo());
-        assert_eq!(
-            html.matches(r#"data-blocks-testimonial-masonry-grid-card="#)
+        for variant in ["a", "b", "c"] {
+            assert_eq!(
+                html.matches(&format!(
+                    "data-blocks-testimonial-masonry-grid-variant=\"{variant}\""
+                ))
                 .count(),
-            8
-        );
-        assert_eq!(
-            html.matches(r#"data-blocks-testimonial-masonry-grid-card="featured""#)
-                .count(),
-            2
-        );
-        assert!(TESTIMONIALS[0].featured);
-        assert!(TESTIMONIALS[TESTIMONIALS.len() - 1].featured);
-        let first_featured = html
-            .find(r#"data-blocks-testimonial-masonry-grid-card="featured""#)
+                1,
+                "demo output should contain exactly one variant {variant}"
+            );
+        }
+        let pos_a = html
+            .find("data-blocks-testimonial-masonry-grid-variant=\"a\"")
+            .expect("variant a present");
+        let pos_b = html
+            .find("data-blocks-testimonial-masonry-grid-variant=\"b\"")
+            .expect("variant b present");
+        let pos_c = html
+            .find("data-blocks-testimonial-masonry-grid-variant=\"c\"")
+            .expect("variant c present");
+        assert!(pos_a < pos_b, "variant a should come before variant b");
+        assert!(pos_b < pos_c, "variant b should come before variant c");
+    }
+
+    /// 各案のカード数（A=8/B=11/C=9、合計 28）と featured 数
+    /// （A=2/B=1/C=0、合計 3）が一致すること。
+    #[test]
+    fn demo_has_expected_card_and_featured_counts_per_variant() {
+        let html = render(&demo());
+        let variant_slice = |variant: &str| -> &str {
+            let start = html
+                .find(&format!(
+                    "data-blocks-testimonial-masonry-grid-variant=\"{variant}\""
+                ))
+                .unwrap_or_else(|| panic!("variant {variant} present"));
+            let next_variant = match variant {
+                "a" => Some("data-blocks-testimonial-masonry-grid-variant=\"b\""),
+                "b" => Some("data-blocks-testimonial-masonry-grid-variant=\"c\""),
+                _ => None,
+            };
+            let end = next_variant
+                .and_then(|marker| html[start..].find(marker).map(|p| start + p))
+                .unwrap_or(html.len());
+            &html[start..end]
+        };
+
+        let counts = [("a", 8usize, 2usize), ("b", 11, 1), ("c", 9, 0)];
+        let mut total_cards = 0;
+        let mut total_featured = 0;
+        for (variant, expected_cards, expected_featured) in counts {
+            let slice = variant_slice(variant);
+            let cards = slice
+                .matches("data-blocks-testimonial-masonry-grid-card=")
+                .count();
+            let featured = slice
+                .matches("data-blocks-testimonial-masonry-grid-card=\"featured\"")
+                .count();
+            assert_eq!(cards, expected_cards, "variant {variant} card count");
+            assert_eq!(
+                featured, expected_featured,
+                "variant {variant} featured count"
+            );
+            total_cards += cards;
+            total_featured += featured;
+        }
+        assert_eq!(total_cards, 28);
+        assert_eq!(total_featured, 3);
+    }
+
+    /// 案 A の先頭と末尾が featured であること（R0361 準拠）。
+    #[test]
+    fn variant_a_has_featured_at_ends() {
+        let html = render(&demo());
+        let start = html
+            .find("data-blocks-testimonial-masonry-grid-variant=\"a\"")
+            .expect("variant a present");
+        let end = html
+            .find("data-blocks-testimonial-masonry-grid-variant=\"b\"")
+            .expect("variant b present");
+        let slice = &html[start..end];
+        let first_featured = slice
+            .find("data-blocks-testimonial-masonry-grid-card=\"featured\"")
             .expect("at least one featured card");
-        let last_featured = html
-            .rfind(r#"data-blocks-testimonial-masonry-grid-card="featured""#)
-            .expect("at least one featured card");
-        let first_default = html
-            .find(r#"data-blocks-testimonial-masonry-grid-card="default""#)
+        let first_default = slice
+            .find("data-blocks-testimonial-masonry-grid-card=\"default\"")
             .expect("at least one default card");
-        let last_default = html
-            .rfind(r#"data-blocks-testimonial-masonry-grid-card="default""#)
+        let last_featured = slice
+            .rfind("data-blocks-testimonial-masonry-grid-card=\"featured\"")
+            .expect("at least one featured card");
+        let last_default = slice
+            .rfind("data-blocks-testimonial-masonry-grid-card=\"default\"")
             .expect("at least one default card");
         assert!(
             first_featured < first_default,
@@ -412,9 +543,35 @@ mod tests {
         assert!(last_featured > last_default, "last card should be featured");
     }
 
+    /// 案 B の featured カードが multi-column 容器（`.blocks-testimonial-
+    /// masonry-grid-grid`）より前に出力されること（モジュール doc「3 案の
+    /// 並記」節の案 B 記述参照）。
+    #[test]
+    fn variant_b_featured_card_precedes_grid_container() {
+        let html = render(&demo());
+        let start = html
+            .find("data-blocks-testimonial-masonry-grid-variant=\"b\"")
+            .expect("variant b present");
+        let end = html
+            .find("data-blocks-testimonial-masonry-grid-variant=\"c\"")
+            .expect("variant c present");
+        let slice = &html[start..end];
+        let featured_pos = slice
+            .find("data-blocks-testimonial-masonry-grid-card=\"featured\"")
+            .expect("featured card present");
+        let grid_pos = slice
+            .find("class=\"blocks-testimonial-masonry-grid-grid\"")
+            .expect("grid container present");
+        assert!(
+            featured_pos < grid_pos,
+            "featured card should precede the grid container"
+        );
+    }
+
     /// [`LAYOUT_CSS`] が 3 段のブレークポイント条件と、R0361 準拠の
     /// CSS multi-column（`column-count` + `break-inside: avoid`）を
-    /// 持つこと（高さを揃えずに敷き詰める真の masonry 配置）。
+    /// 持つこと（高さを揃えずに敷き詰める真の masonry 配置）。`grid-row`・
+    /// `grid-auto-flow`・`column-span` は不採用のため不在。
     #[test]
     fn layout_css_has_breakpoints_and_multi_column_masonry() {
         assert!(LAYOUT_CSS.contains("@media (min-width: 40rem)"));
@@ -426,6 +583,15 @@ mod tests {
         assert!(LAYOUT_CSS.contains("break-inside: avoid;"));
         assert!(!LAYOUT_CSS.contains("grid-auto-flow"));
         assert!(!LAYOUT_CSS.contains("grid-row"));
+        assert!(!LAYOUT_CSS.contains("column-span"));
+    }
+
+    /// 案 C（R1366）専用の 3 列上限オーバーライドセレクタが存在すること。
+    #[test]
+    fn layout_css_has_variant_c_three_column_cap() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-testimonial-masonry-grid-variant=\"c\"] .blocks-testimonial-masonry-grid-grid {\n    column-count: 3;"
+        ));
     }
 
     /// caption 行の flex 化セレクタが詳細度 (0,3,0) で宣言されていること
