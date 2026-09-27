@@ -970,6 +970,7 @@ pub enum LayoutCss {
 | feed-upvote-cards | #2910（親 #2892） | `application/feed/feed_upvote_cards.rs` |
 | feed-comments-timeline | #2909（親 #2892） | `application/feed/feed_comments_timeline.rs` |
 | form-layout-stacked | #2915（親 #2892） | `application/form_layout/form_layout_stacked.rs` |
+| form-layout-two-column | #2916（親 #2892） | `application/form_layout/form_layout_two_column.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 152 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の

@@ -2051,6 +2051,11 @@ title = "form-layout-stacked"
 source = "site/blocks/form-layout-stacked.md"
 path = "/blocks/form-layout-stacked/"
 
+[[section.group.page]]
+title = "form-layout-two-column"
+source = "site/blocks/form-layout-two-column.md"
+path = "/blocks/form-layout-two-column/"
+
 [[section.group]]
 title = "Auth"
 
