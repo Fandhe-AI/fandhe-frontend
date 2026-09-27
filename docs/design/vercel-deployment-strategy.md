@@ -71,12 +71,14 @@ Vercel 対応方式の比較と採用方式の決定を行う決定記録です�
 
 ## 4. 採否判定
 
-### 採用: 案 c（SSG + Build Output API + `--prebuilt`）を既定方式とする
+### 採用: 案 c（SSG + Build Output API + `--prebuilt`）を**静的配置の既定方式**とする
 
 実測で成立しており（§2）、Vercel 側に Rust ツールチェーンが不要で、beta の
 ランタイムにも依存しません。レンダリングは
 `fandhe_frontend_server::ssg::generate_pages`（外部依存ゼロ・既定エスケープ
-経由）だけで行います。
+経由）だけで行います。**静的配置においては引き続き唯一の既定方式**です。
+SSR が必要な場合の並置方式は、下記のとおり案 d（Container Images）を
+追加で採用します。
 
 ### 取り下げ: 案 a（`vercel_runtime = "=2.4.1"`）の動的処理・SSR 用併用
 
@@ -165,9 +167,32 @@ Vercel 対応方式の比較と採用方式の決定を行う決定記録です�
 再実装という独自リスクを重ねて抱え込む形になります。保守負担が最も大きい
 ことを理由に不採用とします。
 
-### 保留（既定不採用、再評価余地あり）: 案 d（Docker）
+### 採用（SSR 用、Beta 依存）: 案 d（Docker / Vercel Container Images）
 
-**#2 節の実測事実を踏まえ、当初想定より成立性の見通しは改善しています。**
+**2026-09-28 のユーザー判断（イシュー #3335、親 #3334／#3282 Phase 3）により、
+Vercel で SSR を利用できるよう案 d を追加機能として採用します。** 案 c
+（§4 上記）は静的配置の既定方式として維持したまま変更せず、案 d は
+**SSR が必要な場合の並置方式**として位置付けます。「案 c 単独が唯一の
+既定方式」という当初判断（下記「（当初判断の経緯）」参照）は、静的配置に
+限定した既定方式の話としては変わりませんが、SSR 用途については案 d が
+新たに成立します。
+
+新判断の柱は次の 3 点です。
+
+1. `$PORT`/`SIGTERM` 対応は Phase 3（#3336・#3337、本イシューと同じ Phase）
+   で実装予定であり、下記「当初判断の経緯」で不採用理由としていた技術的
+   制約は充足見込みです（本イシュー自体は docs のみで、実装は #3336・
+   #3337 に切り出し済みです）。
+2. Container Images の Beta 依存リスク（§3「beta 依存リスク」参照）は
+   ユーザー判断により許容します。案 c を静的配置の既定のまま維持しつつ、
+   SSR が必要な場合にのみ案 d を選択する構成とすることで、beta 依存の
+   影響範囲を SSR 用途に限定します。
+3. REQ-9（単一バイナリ配布）の Vercel 適合を Phase 3/Phase 4 のスコープへ
+   正式に組み込みます（§6 の引き継ぎ表参照）。
+
+#### （当初判断の経緯: 2026-09-27 時点の判断、SSR 用途では 2026-09-28 に上書き）
+
+**#2 節の実測事実を踏まえ、当初想定より成立性の見通しは改善していました。**
 Vercel は Container Images（Beta、2026-07-07 確認）により、ローカル/CI で
 `Dockerfile.vercel` からビルドした任意の OCI イメージを Vercel Functions
 として実行できます（Vercel 側は当該イメージを Container Registry へ格納
@@ -175,26 +200,42 @@ Vercel は Container Images（Beta、2026-07-07 確認）により、ローカ�
 「Vercel は任意のコンテナイメージの実行を一切サポートしない」という単純な
 不成立ではなく、「Vercel Functions の一形態として、`$PORT` 待受・
 `SIGTERM` 対応というアプリケーション側の追加要件を満たせばコンテナイメージ
-を実行できる」という条件付きの成立性です。
+を実行できる」という条件付きの成立性でした。
 
-ただし、次の理由により Phase 2 の対象には含めず、Vercel 上の既定方式とし
-ては採用しません。
+当時は次の理由により Phase 2 の対象には含めず、Vercel 上の既定方式とし
+ては不採用（保留）と判断していました。
 
-1. `fandhe-frontend-dist-server`（`crates/dist-server/src/main.rs`）は現状
+1. `fandhe-frontend-dist-server`（`crates/dist-server/src/main.rs`）は当時
    `FANDHE_FRONTEND_BIND_ADDR`（既定ループバック）で bind しており、
    Vercel Container Images が要求する `$PORT` 環境変数の読み取りに対応して
-   いません。適合には追加のアダプタ実装が必要です（未実装）。
+   いませんでした（適合には追加のアダプタ実装が必要、未実装）。
 2. Container Images 自体が Beta であり、案 a と同種の beta 依存リスクを
-   負います。案 c（既定方式）・案 a（動的処理の併用）で受入基準を満たせる
-   ため、beta 機能への依存を重ねて増やす理由がありません。
+   負う点。
 3. REQ-9 の単一バイナリ配布（Docker 想定）はフレームワーク本来の配布経路
    として Vercel 以外のホスティング（コンテナ実行基盤全般）向けに変わらず
-   有効であり、Vercel 固有の適合作業を今 Phase 2 のスコープへ含める必要性
-   は薄いと判断します。
+   有効であり、Vercel 固有の適合作業を Phase 2 のスコープへ含める必要性は
+   薄いという判断でした。
 
-再評価トリガーは §5 に記載します。この判断は「Vercel はコンテナ実行を
-サポートしない」という誤った前提に基づくものではなく、「サポートはある
-が beta かつ追加適合作業が要る」という事実に基づく優先順位判断です。
+この判断は「Vercel はコンテナ実行をサポートしない」という誤った前提に
+基づくものではなく、「サポートはあるが beta かつ追加適合作業が要る」と
+いう事実に基づく優先順位判断でした。2026-09-28 のユーザー判断により、
+SSR 用途に限りこの優先順位判断を上書きし、上記「採用（SSR 用、Beta
+依存）」へ改訂しています。
+
+#### 未確定事項（要検証）
+
+以下は Phase 4 の実機検証で埋める事項であり、**マージを阻む受け入れ条件
+ではありません**。
+
+- Vercel Functions の 250MB バンドル上限がコンテナイメージにも適用される
+  か
+- 実行時アーキテクチャ（amd64/arm64）
+- ファイルシステムが読み取り専用か
+- ヘルスチェックの有無
+- コールドスタート時間
+
+出典: <https://vercel.com/docs/functions/container-images>（2026-09-28
+取得）
 
 ## 5. 実装上の決定事項
 
@@ -204,8 +245,9 @@ Vercel は Container Images（Beta、2026-07-07 確認）により、ローカ�
   超えることが判明したためです。
 - Vercel 上の動的処理・SSR をアダプタ方式（`fandhe_frontend_server::ssr::
   respond` / `respond_with` を Vercel ハンドラから呼ぶ設計）で実現する
-  経路は、現時点では存在しません。案 c（SSG + Build Output API）が唯一の
-  既定方式です。
+  経路は、現時点では存在しません。**静的配置**では案 c（SSG + Build
+  Output API）が唯一の既定方式です。**SSR**では案 d（Container Images）を
+  §4 のとおり追加採用しています。
 - `vercel.json` の `functions.*.runtime` 明示指定は、案 c（静的出力の
   `--prebuilt` 配置）では不要です（Build Output API は Rust ツールチェーン
   を Vercel 側に要求しないため）。
@@ -214,16 +256,42 @@ Vercel は Container Images（Beta、2026-07-07 確認）により、ローカ�
   完了しました。結果は
   `docs/reports/vercel-runtime-2x-dependency-audit-3288.md` を参照して
   ください。
+- **案 d（Container Images）の bind 先優先順位**: `FANDHE_FRONTEND_BIND_ADDR`
+  が設定されていれば最優先でそれを使う → 未設定で `PORT` が設定されて
+  いれば `0.0.0.0:$PORT` を使う → どちらも未設定なら既定の
+  `127.0.0.1:3100` を使う。既存のループバック既定・環境変数名
+  （`FANDHE_FRONTEND_BIND_ADDR`）は変更せず、Vercel 向けに `PORT` 読み取り
+  を追加する設計です（実装は #3336）。
+- **ポート 80 問題**: ルート `Dockerfile` は `FROM scratch` +
+  `USER 65532:65532`（非 root）でビルドしており、1024 未満のポートを
+  bind できない可能性があります。root 実行に切り替える対応はせず、
+  Vercel プロジェクトの環境変数 `PORT` に 1024 以上の値（例: `3100`）を
+  設定して運用することを既定とします。
+- **graceful shutdown**: Vercel はスケールイン時に 30 秒の猶予付き
+  `SIGTERM` を送ります（§2）。この猶予内に処理中のリクエストを完了して
+  終了する SIGTERM ハンドラを `dist-server` に実装する方針とします
+  （実装は #3337）。
+- 上記いずれも本イシューでは方針の記録のみであり、`dist-server` 本体の
+  実装は伴いません（#3336・#3337 のスコープ）。
 
-## 6. Phase 2 への引き継ぎ表
+## 6. Phase 2〜Phase 4 への引き継ぎ表
+
+**表題は当初「Phase 2 への引き継ぎ表」でしたが、2026-09-28 の案 d 採用
+（#3335）に伴い Phase 3（#3336・#3337、親 #3334）・Phase 4（#3289/#3341
+等）の情報も含むため「Phase 2〜Phase 4 への引き継ぎ表」へ改称しました。**
+#3289 は当初 Phase 2 の子として起票されましたが、案 d 採用に伴い Phase 4
+へ再スコープされました。
 
 | Issue | 引き継ぐ前提 |
 |---|---|
 | #3288（feat: `route_request` を Vercel Functions で動かすアダプタを実装する） | **完了・取り下げ**: #3288 で実測した結果、`vercel_runtime 2.4.1` の依存木は案 a 併用の前提条件として自ら設定した基準（60 件/深さ 6）を構造的に超過することが判明し（`docs/reports/vercel-runtime-2x-dependency-audit-3288.md`）、案 a の併用を取り下げました。本イシューの成果物は計測レポートと本文書の改訂（docs のみ）に限られ、「Vercel 上で HTTP 200/404」の受入基準はアダプタ方式では達成していません。issue タイトルの `route_request`（`fandhe-frontend-dist-server`）自体も、この取り下げにより対象外になりました |
-| #3289（feat: `examples/vercel-ssr` を追加し `fw new --example` で取得可能にする） | **要再スコープ**: 前提だった案 a のアダプタが取り下げられたため、`examples/vercel-ssr`（`vercel_runtime` 併用）は成立しません。クローズするか、別方式（案 d の再評価等）へ置き換えるかはユーザー判断が必要です |
-| #3290（feat: `examples/vercel-ssg`〔`generate_pages` → Build Output API → `--prebuilt`〕を追加する） | **実装済み（本 PR）**。案 c が唯一の既定方式（案 a 併用の取り下げにより「唯一」に変更）。Vercel 側に Rust ツールチェーンは不要 |
-| #3291（docs: デプロイガイドに Vercel の節を追加する） | **実装済み（`docs/guides/deployment.md`）**。SSG（案 c）のみを推奨方式として明記し、「SSR は Rust ランタイムでは非対応（案 a 併用の前提条件として設定した依存木基準の超過のため）」の理由も記載した。Deployment Protection（既定 SSO 有効、302 リダイレクト）・fail-closed の Basic 認証（Routing Middleware）も範囲どおり記載済み |
+| #3289（feat: `examples/vercel-ssr` を追加し `fw new --example` で取得可能にする） | **Phase 2 から Phase 4 へ移設・案 d（Container Images）で再スコープ済み**: 前提だった案 a のアダプタは取り下げられましたが、2026-09-28 の案 d 採用（#3335）により `examples/vercel-ssr` は Container Images ベースの SSR サンプルとして Phase 4 で再スコープされます |
+| #3290（feat: `examples/vercel-ssg`〔`generate_pages` → Build Output API → `--prebuilt`〕を追加する） | **実装済み（本 PR）**。案 c が静的配置の既定方式（案 a 併用の取り下げにより唯一の静的配置方式）。Vercel 側に Rust ツールチェーンは不要 |
+| #3291（docs: デプロイガイドに Vercel の節を追加する） | **実装済み（`docs/guides/deployment.md`）**。現行は SSG（案 c）のみを推奨方式として明記し、「SSR は Rust ランタイムでは非対応」の理由も記載している。この「SSR 非対応」記述の更新は Phase 4（#3341）のスコープ（本イシュー #3335 では触れない）。Deployment Protection（既定 SSO 有効、302 リダイレクト）・fail-closed の Basic 認証（Routing Middleware）も範囲どおり記載済み |
 | #3292（ci: Build Output API 出力構造のスモークテストを追加する） | 案 c の出力（`.vercel/output` ディレクトリ構造、`config.json` の `version` フィールド等）を対象とする（変更なし） |
+| #3336（Phase 3。`dist-server` の `$PORT` 対応） | 案 d 採用の前提条件。§5「bind 先優先順位」を実装する |
+| #3337（Phase 3。`dist-server` の graceful shutdown / `SIGTERM` 対応） | 案 d 採用の前提条件。§5「graceful shutdown」を実装する |
+| #3341（Phase 4。`docs/guides/deployment.md` の SSR 非対応記述の更新） | #3291 の「SSR は非対応」記述を、案 d 採用を踏まえて更新する |
 
 ## 7. 再評価トリガー
 
@@ -259,21 +327,34 @@ Vercel は Container Images（Beta、2026-07-07 確認）により、ローカ�
   スクリプト以上の任意コード実行を伴わないかを個別に確認したうえで
   判断してください（新規に増えた `build.rs` 保有依存があれば、その
   監査結果を再評価の記録に含めます）。
-- Vercel Container Images（Beta）が GA 化したとき、または
-  `fandhe-frontend-dist-server` が `$PORT`/`SIGTERM` 対応を実装したとき
-  （→ 案 d を Vercel 上の方式として再評価する）
+- **2026-09-28 に一部発火・対応済み**: `fandhe-frontend-dist-server` が
+  `$PORT`/`SIGTERM` 対応を実装したとき、という条件は Phase 3（#3336・
+  #3337、同 Phase 内）で対応予定であり、充足見込みです。この充足を
+  もって案 d を Vercel 上の SSR 用方式として §4 のとおり採用しました。
+  以下は案 d 採用後も引き続き監視すべき新規トリガーです。
+  - Vercel Container Images の GA 化（Beta 終了）
+  - Beta 終了に伴う料金・利用制限の変更（バンドルサイズ上限・実行時間
+    上限等）
+  - §4「未確定事項（要検証）」に列挙した項目（250MB 上限の適用有無・
+    実行時アーキテクチャ・ファイルシステムの読み取り専用性・ヘルス
+    チェックの有無・コールドスタート時間）が Phase 4 の実機検証で判明
+    したとき、想定と異なる結果であれば方式自体を再評価する
 - Vercel の Functions 内部プロトコル（`VERCEL_IPC_PATH` 等）が公式に文書化
   されたとき（→ 案 b を再評価する）
 
 ## 8. セキュリティ考慮事項（OWASP Top 10 観点）
 
-- **A03 インジェクション / XSS**: 採用する唯一の方式（案 c。案 a は §4 の
+- **A03 インジェクション / XSS**: 静的配置の既定方式（案 c。案 a は §4 の
   とおり取り下げ済み）は、レンダリングを `ssg::generate_pages`（既定
-  エスケープ経由）に限定します。`format!` による HTML 文字列の直接組み立て
-  や `raw_html()` の不当な使用をしないことは、この既定エスケープ経由の
-  レンダリングに限定する方針の不変条件として引き続き有効です（§4「取り
-  下げ」により、`ssr::respond`/`respond_with` を Vercel ハンドラから呼ぶ
-  アダプタ方式自体は現時点では存在しません）。
+  エスケープ経由）に限定します。SSR 用に追加採用した案 d（Container
+  Images、§4）は `fandhe-frontend-dist-server` の既存実装をそのまま使う
+  ため、そこで呼ばれる `ssr::respond`/`respond_with`（既定エスケープ経由、
+  比較表 §3「REQ-1/REQ-2 との整合」参照）が引き続きレンダリング経路の
+  唯一の窓口です。`format!` による HTML 文字列の直接組み立てや
+  `raw_html()` の不当な使用をしないことは、両方式に共通する既定エスケープ
+  経由のレンダリングに限定する方針の不変条件として引き続き有効です。
+  案 a（`vercel_runtime` アダプタ方式）は §4「取り下げ」のとおり現時点では
+  存在しません。
 - **REQ-2（`forbid(unsafe_code)`）**: 本決定は `crates/core`/`crates/interactive`
   に影響しません。`vercel_runtime` はリポジトリへ一切追加しない（§5）ため、
   公開クレートの `unsafe` 境界（`docs/policy/unsafe-boundary.md`）も変わり
@@ -295,7 +376,14 @@ Vercel は Container Images（Beta、2026-07-07 確認）により、ローカ�
 - **A05 セキュリティ設定ミス / A01 アクセス制御**: 新規 Vercel プロジェクト
   では Deployment Protection が既定で有効であること（§2）、SSG に Basic
   認証をかける場合は環境変数で管理し未設定なら拒否する（fail-closed）こと
-  は #3291 の範囲として参照し、本文書では重複記述しません。
+  は #3291 の範囲として参照し、本文書では重複記述しません。案 d（Container
+  Images）採用に伴い、ルート `Dockerfile` の非 root 実行（`USER
+  65532:65532`）は維持し、root 実行への切り替えは行いません。1024 未満の
+  ポートは非 root では bind できない可能性があるため、Vercel 環境変数
+  `PORT` は 1024 以上を既定運用とします（§5）。案 d は Container Images
+  （Beta）への依存を継続する判断であり、beta 依存リスクは §4・§7 の
+  枠組みで引き続き監視します。Deployment Protection の既定有効という
+  アクセス制御方針自体は案 d 採用によって変更しません。
 - **A02 / 機微情報の露出**: 本決定記録には環境変数の名前だけを載せ、値・
   プロジェクト ID・デプロイ URL のトークン類は一切載せていません（#3284・
   #3285 の方針を踏襲）。404 やエラーの本文に内部情報を含めない既存方針
@@ -333,15 +421,19 @@ Vercel は Container Images（Beta、2026-07-07 確認）により、ローカ�
   git 版調査）・#3286（本イシュー）
 - Phase 2: #3287（feat(phase-2): Vercel 向けアダプタ・example・ドキュメント
   整備）配下の #3288〜#3292
+- Phase 3: #3334（feat(phase-3): dist-server を Vercel Container Images で
+  動かせるようにする）配下の #3335（本イシュー）〜#3337
 - レポート: `docs/reports/vercel-runtime-panic-repro-3284.md`（PR #3311）・
   `docs/reports/vercel-runtime-version-survey-3285.md`（PR #3312）・
   `docs/reports/vercel-runtime-2x-dependency-audit-3288.md`（#3288。依存木
   計測により案 a の併用取り下げを確定）
-- 外部ドキュメント（いずれも 2026-09-27 取得）:
+- 外部ドキュメント（Rust ランタイム・Build Output API・upstream 既知課題は
+  2026-09-27 取得、Container Images は 2026-09-28 に本イシュー〔#3335〕で
+  再取得）:
   - Rust ランタイム（Beta）: <https://vercel.com/docs/functions/runtimes/rust>
     （`last_updated: 2025-12-08`）
   - Container Images（Beta）: <https://vercel.com/docs/functions/container-images>
-    （`last_updated: 2026-07-07`）
+    （`last_updated: 2026-07-07`、2026-09-28 再取得）
   - Build Output API 概要: <https://vercel.com/docs/build-output-api>
     （`last_updated: 2026-08-11`。`config.json` の `version` フィールドの
     詳細仕様は本文書では未確認、#3292 で確認する）
