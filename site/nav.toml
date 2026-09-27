@@ -1455,6 +1455,11 @@ source = "site/blocks/testimonial-background-image.md"
 path = "/blocks/testimonial-background-image/"
 
 [[section.group.page]]
+title = "testimonial-card-grid"
+source = "site/blocks/testimonial-card-grid.md"
+path = "/blocks/testimonial-card-grid/"
+
+[[section.group.page]]
 title = "testimonial-quote-stats"
 source = "site/blocks/testimonial-quote-stats.md"
 path = "/blocks/testimonial-quote-stats/"
@@ -1527,6 +1532,11 @@ path = "/blocks/team-avatar-grid/"
 title = "team-bio-rows"
 source = "site/blocks/team-bio-rows.md"
 path = "/blocks/team-bio-rows/"
+
+[[section.group.page]]
+title = "team-split-list"
+source = "site/blocks/team-split-list.md"
+path = "/blocks/team-split-list/"
 
 [[section.group]]
 title = "FAQ"
