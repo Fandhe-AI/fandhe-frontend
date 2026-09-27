@@ -87,7 +87,7 @@ use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, el, p, span, text, Node};
+use fandhe_frontend_core::{div, el, nav, p, span, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarProps, ImageStatus};
 use fandhe_frontend_pre_styled_ui::collapsible;
 use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps};
@@ -295,11 +295,21 @@ fn profile_footer() -> Node {
 }
 
 /// 常設サイドバー本体（header/content/footer、collapsible なし）。
-fn app_sidebar(state: &Sidebar, props: &SidebarProps, suffix: &str, root_id: &str) -> Node {
+/// `nav_label` はインスタンスごとに一意にする（cursor(Medium) 指摘、
+/// PR #3324。Desktop/brand-surface の 2 インスタンスは同一
+/// container query 幅では両方可視のため、同一 aria-label だと
+/// ランドマーク名が重複する）。
+fn app_sidebar(
+    state: &Sidebar,
+    props: &SidebarProps,
+    suffix: &str,
+    root_id: &str,
+    nav_label: &str,
+) -> Node {
     sidebar::root(
         state,
         props,
-        "Main navigation",
+        nav_label,
         Some(root_id),
         vec![],
         vec![
@@ -364,13 +374,22 @@ fn topbar(suffix: &str, panel_id: &str) -> Node {
 /// [data-disabled]` 規則（`disabled_declarations()`、`opacity: 0.5`）が
 /// パネル全体（Dashboard/Inbox/チーム行）へ波及して無効表示に見えてしまう
 /// （操作不能にすべきなのは [`topbar`] のトリガーのみ）。
-fn mobile_nav_panel(suffix: &str, panel_id: &str) -> Node {
+/// `nav_label` は `<nav>` ランドマークの `aria-label`。狭幅時は
+/// [`app_sidebar`] の `sidebar::root` が `@container` で非表示になり
+/// ナビゲーションへ到達できなくなるため、代替経路であるこのパネル
+/// 自体を `<nav>` として囲み唯一のナビゲーションランドマークにする
+/// （codex(P1) 指摘、PR #3324。`collapsible::content` は素の `<div>` を
+/// 生成するのみでランドマーク要素を持たない）。
+fn mobile_nav_panel(suffix: &str, panel_id: &str, nav_label: &str) -> Node {
     collapsible::content(
         collapsible::OpenState::Open,
         false,
         Some(panel_id),
         vec![("data-blocks-app-shell-sidebar-mobile-nav", "")],
-        vec![main_nav(), teams_group(suffix)],
+        vec![nav(
+            vec![("aria-label", nav_label)],
+            vec![main_nav(), teams_group(suffix)],
+        )],
     )
 }
 
@@ -380,7 +399,11 @@ fn main_area() -> Node {
         vec![("data-blocks-app-shell-sidebar-main", "")],
         vec![
             heading::heading(
-                HeadingLevel::H2,
+                // block ページ側が既に `## Demo` として h2 を出すため、
+                // アウトライン上はそれより 1 段下げた H3 にする
+                // （`contact_split_form_image`/`contact_image_info` 等
+                // 他 block と同じ判断、cursor(Low) 指摘 PR #3324）。
+                HeadingLevel::H3,
                 &HeadingProps::default(),
                 vec![],
                 vec![text("Dashboard")],
@@ -397,7 +420,10 @@ fn main_area() -> Node {
 /// `surface` は `"default"`/`"brand"`（[`LAYOUT_CSS`] のセレクタと一致
 /// させる、面色トークンの差し替え）。`narrow` は `true` のとき
 /// [`LAYOUT_CSS`] がフレーム幅を固定して常に上部バー表示にする。
-fn shell(suffix: &str, surface: &'static str, narrow: bool) -> Node {
+/// `instance_label` は [`demo`] のキャプションと対応させ、常設サイドバー
+/// ・モバイルナビパネルいずれの `<nav>`/`sidebar::root` の `aria-label`
+/// にも使う一意な接尾辞（cursor(Medium) 指摘、PR #3324）。
+fn shell(suffix: &str, surface: &'static str, narrow: bool, instance_label: &str) -> Node {
     let state = Sidebar::new(SidebarState::Expanded);
     let props = SidebarProps {
         collapsible: SidebarCollapsible::None,
@@ -405,17 +431,18 @@ fn shell(suffix: &str, surface: &'static str, narrow: bool) -> Node {
     };
     let root_id = format!("blocks-app-shell-sidebar-root-{suffix}");
     let panel_id = format!("blocks-app-shell-sidebar-mobile-nav-{suffix}");
+    let nav_label = format!("Main navigation — {instance_label}");
     let provider = sidebar::provider(
         &state,
         &props,
         vec![],
         vec![
-            app_sidebar(&state, &props, suffix, &root_id),
+            app_sidebar(&state, &props, suffix, &root_id, &nav_label),
             sidebar::inset(
                 vec![],
                 vec![
                     topbar(suffix, &panel_id),
-                    mobile_nav_panel(&format!("{suffix}-mobile"), &panel_id),
+                    mobile_nav_panel(&format!("{suffix}-mobile"), &panel_id, &nav_label),
                     main_area(),
                 ],
             ),
@@ -443,17 +470,17 @@ pub fn demo() -> Node {
                 vec![("data-blocks-app-shell-sidebar-caption", "")],
                 vec![text("Desktop")],
             ),
-            shell("desktop", "default", false),
+            shell("desktop", "default", false, "Desktop"),
             p(
                 vec![("data-blocks-app-shell-sidebar-caption", "")],
                 vec![text("Desktop — brand surface")],
             ),
-            shell("brand", "brand", false),
+            shell("brand", "brand", false, "Desktop — brand surface"),
             p(
                 vec![("data-blocks-app-shell-sidebar-caption", "")],
                 vec![text("Narrow")],
             ),
-            shell("narrow", "default", true),
+            shell("narrow", "default", true, "Narrow"),
         ],
     )
 }
@@ -646,6 +673,47 @@ mod tests {
                 "mobile nav panel content ({instance}) should not carry \
                  data-disabled, or its disabled-state CSS \
                  (opacity: 0.5) dims the whole panel"
+            );
+        }
+    }
+
+    /// 狭幅表示（`@container` 適用時）で `sidebar::root` が `display: none`
+    /// になっても、[`super::mobile_nav_panel`] 自身が `<nav>` ランドマーク
+    /// を持ちナビゲーションへ到達できること（codex(P1) 指摘、PR #3324）。
+    #[test]
+    fn mobile_nav_panel_has_own_nav_landmark() {
+        let html = render(&demo());
+        for instance in ["desktop", "brand", "narrow"] {
+            let marker = format!(r#"id="blocks-app-shell-sidebar-mobile-nav-{instance}""#);
+            let panel_start = html
+                .find(&marker)
+                .unwrap_or_else(|| panic!("mobile nav panel for {instance} should render its id"));
+            // `<nav>` はパネル開始タグ直後（main_nav/teams_group より前）に
+            // 現れるはずなので、id 直後 200 バイト程度の窓に限定して探す
+            // （他インスタンスの `<nav>` を誤って拾わないため）。
+            let window = &html[panel_start..(panel_start + 200).min(html.len())];
+            assert!(
+                window.contains("<nav"),
+                "mobile nav panel for {instance} should wrap its items in <nav>"
+            );
+        }
+    }
+
+    /// 3 インスタンスの `sidebar::root`/モバイルナビ `<nav>` が、いずれも
+    /// 一意な `aria-label` を持つこと（同一名のランドマークが複数同時に
+    /// 可視化されるのを防ぐ、cursor(Medium) 指摘 PR #3324）。
+    #[test]
+    fn nav_landmarks_have_unique_aria_labels() {
+        let html = render(&demo());
+        for label in [
+            "Main navigation — Desktop",
+            "Main navigation — Desktop — brand surface",
+            "Main navigation — Narrow",
+        ] {
+            let needle = format!(r#"aria-label="{label}""#);
+            assert!(
+                html.contains(&needle),
+                "expected a unique aria-label {needle:?} in demo output"
             );
         }
     }
