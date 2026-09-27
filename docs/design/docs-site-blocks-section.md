@@ -961,9 +961,10 @@ pub enum LayoutCss {
 | app-shell-stacked | #2896（親 #2892） | `application/app_shell/app_shell_stacked.rs` |
 | card-form-footer | #2899 | `application/card/card_form_footer.rs` |
 | card-heading-toolbar | #2902 | `application/card_heading/card_heading_toolbar.rs` |
+| card-meta-cta | #2901（親 #2892） | `application/card/card_meta_cta.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-146 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+147 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
