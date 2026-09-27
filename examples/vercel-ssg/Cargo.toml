@@ -1,0 +1,25 @@
+[package]
+name = "fandhe-frontend-example-vercel-ssg"
+version = "0.1.0"
+edition = "2021"
+description = "fandhe-frontend フレームワークの Vercel Build Output API 正本サンプル（generate_pages → Build Output API → --prebuilt、examples 規約、イシュー #3290）。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# examples/ は「crates.io 公開済みクレートを実際に使う正本サンプル」であり、
+# templates/（`fw new` が展開する雛形）とは異なりバージョン依存で完結する。
+# examples/ssg-blog と同じバージョン方針で crates.io 最新（着手時点）に揃える。
+[dependencies]
+fandhe-frontend-core = "0.4.3"
+fandhe-frontend-server = "0.2.6"
+
+[dev-dependencies]
+
+# root workspace（リポジトリ直下 Cargo.toml の `members = ["crates/*"]`）から
+# 意図的に切り離す。examples/vercel-ssg は「フレームワーク利用者へ提示する
+# 独立プロジェクトの正本サンプル」であり、root workspace に巻き込まれると
+# crates.io バージョン依存と root の path 依存（`crates/*`）が衝突しうる。
+# templates/default・templates/app・examples/ssg-blog と同じ方針
+# （`ci.md` #412/#493/#499/#501 参照）。
+[workspace]
+members = ["."]

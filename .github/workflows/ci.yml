@@ -319,11 +319,11 @@ jobs:
           fi
           exit 1
 
-      # イシュー #505/#609/#2667: examples e2e 6 件（`fw_new_example_*_output_passes_fw_gate`、
-      # crates.io 依存の cargo ビルドを伴う `fw gate` 検証）の所要時間を
-      # ステップ単位で常時計測可視化する。上の 2 ステップと合わせて
-      # `new_gate_e2e.rs` 全件を実行する（3 フィルタが相補的で重複・漏れが
-      # ないことは確認済み）。
+      # イシュー #505/#609/#2667/#3290: examples e2e 7 件
+      # （`fw_new_example_*_output_passes_fw_gate`、crates.io 依存の
+      # cargo ビルドを伴う `fw gate` 検証）の所要時間をステップ単位で
+      # 常時計測可視化する。上の 2 ステップと合わせて `new_gate_e2e.rs`
+      # 全件を実行する（3 フィルタが相補的で重複・漏れがないことは確認済み）。
       #
       # 前提: runner が crates.io（https://index.crates.io・
       # https://static.crates.io）へ到達可能であること（`.claude/rules/ci.md`
@@ -333,13 +333,13 @@ jobs:
       # 実測（#505 時点、main push run 29824015053）: 4 件合計で数秒
       # （ステップ全体で約 8 秒）であり、ジョブ分離判断基準（+10 分超）に
       # 遠く及ばないため `examples-gate-e2e` ジョブへの分離は行っていない
-      # （#609 で 5 件目・#2667 で 6 件目を追加後も同一判断基準を適用する）。
-      # 本ステップの所要時間が恒常的に 10 分超となった場合、`test` ジョブ側は
-      # `--skip example_ --skip fw_new_app_template` のみ残し、本ステップの
-      # 内容を専用の `examples-gate-e2e` ジョブ（同構成の checkout /
-      # rust-toolchain / ensure-gate-tools.sh を前置、runs-on: ubuntu-latest）
-      # へ分離することを再検討する。
-      - name: "examples gate e2e 6 件の実行と時間計測 (issue #505/#609/#2667)"
+      # （#609 で 5 件目・#2667 で 6 件目・#3290 で 7 件目を追加後も同一判断
+      # 基準を適用する）。本ステップの所要時間が恒常的に 10 分超となった場合、
+      # `test` ジョブ側は `--skip example_ --skip fw_new_app_template` のみ
+      # 残し、本ステップの内容を専用の `examples-gate-e2e` ジョブ（同構成の
+      # checkout / rust-toolchain / ensure-gate-tools.sh を前置、
+      # runs-on: ubuntu-latest）へ分離することを再検討する。
+      - name: "examples gate e2e 7 件の実行と時間計測 (issue #505/#609/#2667/#3290)"
         run: cargo test -p fandhe-frontend-cli --test new_gate_e2e --locked -- example_
 
       # TASK-10.2b（#110、REQ-10 条件 3）: crates/dist-server/build.rs が既定で実行する

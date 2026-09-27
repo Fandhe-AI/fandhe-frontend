@@ -112,6 +112,11 @@ title = "wireframe-ui"
 source = "examples/wireframe-ui/README.md"
 path = "/examples/wireframe-ui/"
 
+[[section.page]]
+title = "vercel-ssg"
+source = "examples/vercel-ssg/README.md"
+path = "/examples/vercel-ssg/"
+
 [[section]]
 title = "Primitives"
 # fandhe-frontend-headless-ui（unstyled headless UI）の索引・部品ページ
