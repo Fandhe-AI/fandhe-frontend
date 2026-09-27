@@ -429,7 +429,7 @@ const LAYOUT_CSS: &str = "\
 @media (min-width: 40rem) {\n  [data-scope=\"list\"][data-part=\"root\"][data-blocks-grid-list-compact-tiles-list] {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n}\n\
 @media (min-width: 64rem) {\n  [data-scope=\"list\"][data-part=\"root\"][data-blocks-grid-list-compact-tiles-list] {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n}\n\
 [data-scope=\"item\"][data-part=\"root\"][data-blocks-grid-list-compact-tiles-tile] {\n  position: relative;\n}\n\
-[data-scope=\"item\"][data-part=\"title\"], [data-scope=\"item\"][data-part=\"description\"] {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\
+[data-blocks-grid-list-compact-tiles-list] [data-scope=\"item\"][data-part=\"title\"], [data-blocks-grid-list-compact-tiles-list] [data-scope=\"item\"][data-part=\"description\"] {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\
 [data-blocks-grid-list-compact-tiles-icon] {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  width: var(--fandhe-space-10);\n  height: var(--fandhe-space-10);\n  border-radius: var(--fandhe-radius-sm);\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
 [data-blocks-grid-list-compact-tiles-icon][data-tone=\"accent\"] {\n  background: var(--fandhe-color-accent-subtle);\n  color: var(--fandhe-color-accent-fg);\n}\n\
 [data-blocks-grid-list-compact-tiles-icon][data-tone=\"info\"] {\n  background: var(--fandhe-color-info-subtle);\n  color: var(--fandhe-color-info-fg);\n}\n\
