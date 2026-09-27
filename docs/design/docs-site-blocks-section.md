@@ -965,6 +965,7 @@ pub enum LayoutCss {
 | card-media-footer | #2900（親 #2892） | `application/card/card_media_footer.rs` |
 | card-meta-cta | #2901（親 #2892） | `application/card/card_meta_cta.rs` |
 | chart-bar-list | #2903 | `application/chart/chart_bar_list.rs` |
+| chart-metric-area | #2904（親 #2892） | `application/chart/chart_metric_area.rs` |
 | chart-stat-cards | #2905 | `application/chart/chart_stat_cards.rs` |
 | description-list-horizontal | #2906（親 #2892） | `application/description_list/description_list_horizontal.rs` |
 | description-list-summary-card | #2907（親 #2892） | `application/description_list/description_list_summary_card.rs` |
