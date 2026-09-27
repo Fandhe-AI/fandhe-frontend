@@ -686,7 +686,7 @@ fn check_routes_dest_targets(routes: &[Json], output_dir: &Path) -> CheckResult 
         let Some(relative) = dest.strip_prefix('/') else {
             return CheckResult::fail(
                 "routes_dest_targets",
-                format!("routes[{index}].dest: must start with `/` (got `{dest}`)"),
+                format!("routes[{index}].dest: must start with `/`"),
             );
         };
 
@@ -701,7 +701,7 @@ fn check_routes_dest_targets(routes: &[Json], output_dir: &Path) -> CheckResult 
             if relative.is_empty() || relative.contains('\\') {
                 return CheckResult::fail(
                     "routes_dest_targets",
-                    format!("routes[{index}].dest: unsafe relative path `{dest}`"),
+                    format!("routes[{index}].dest: unsafe relative path"),
                 );
             }
             if Path::new(relative)
@@ -711,7 +711,7 @@ fn check_routes_dest_targets(routes: &[Json], output_dir: &Path) -> CheckResult 
                 return CheckResult::fail(
                     "routes_dest_targets",
                     format!(
-                        "routes[{index}].dest: replacement-ref dest must not contain `..` segments (`{dest}`)"
+                        "routes[{index}].dest: replacement-ref dest must not contain `..` segments"
                     ),
                 );
             }
@@ -731,7 +731,7 @@ fn check_routes_dest_targets(routes: &[Json], output_dir: &Path) -> CheckResult 
                 return CheckResult::fail(
                     "routes_dest_targets",
                     format!(
-                        "routes[{index}].dest: replacement-ref dest must not contain empty path segments (`{dest}`)"
+                        "routes[{index}].dest: replacement-ref dest must not contain empty path segments"
                     ),
                 );
             }
@@ -743,7 +743,7 @@ fn check_routes_dest_targets(routes: &[Json], output_dir: &Path) -> CheckResult 
         if !is_safe_relative_dest(relative) {
             return CheckResult::fail(
                 "routes_dest_targets",
-                format!("routes[{index}].dest: unsafe relative path `{dest}`"),
+                format!("routes[{index}].dest: unsafe relative path"),
             );
         }
 
@@ -753,13 +753,13 @@ fn check_routes_dest_targets(routes: &[Json], output_dir: &Path) -> CheckResult 
             Ok(_) => {
                 return CheckResult::fail(
                     "routes_dest_targets",
-                    format!("routes[{index}].dest: target is not a regular file (`{dest}`)"),
+                    format!("routes[{index}].dest: target is not a regular file"),
                 );
             }
             Err(_) => {
                 return CheckResult::fail(
                     "routes_dest_targets",
-                    format!("routes[{index}].dest: target file does not exist (`{dest}`)"),
+                    format!("routes[{index}].dest: target file does not exist"),
                 );
             }
         }
@@ -803,6 +803,14 @@ fn is_valid_replacement_dest(dest: &str) -> bool {
 /// prefix を含む）を拒否する。
 fn is_safe_relative_dest(relative: &str) -> bool {
     if relative.is_empty() || relative.contains('\\') {
+        return false;
+    }
+    // `Path::components()` は連続する `/`（空パス要素）を正規化して
+    // 読み飛ばすため、`Path` へ変換する前に `/` 区切りで空要素の有無を
+    // 検査する必要がある（PR #3322 レビュー指摘への対処、Codex P2:
+    // `foo//bar.html` のような空要素混入 dest が `Component::Normal`
+    // 全称検証をすり抜けて誤って安全と判定されてしまう）。
+    if relative.split('/').any(str::is_empty) {
         return false;
     }
     let path = Path::new(relative);
@@ -1177,6 +1185,37 @@ mod tests {
     fn is_safe_relative_dest_rejects_backslash_and_empty() {
         assert!(!is_safe_relative_dest("a\\b"));
         assert!(!is_safe_relative_dest(""));
+    }
+
+    /// PR #3322 レビュー指摘（Codex P2）の回帰テスト: `Path::components()`
+    /// は連続する `/` を正規化して読み飛ばすため、`Path` 変換に頼るだけ
+    /// では空パス要素混入の `dest` を誤って安全と判定してしまう。
+    #[test]
+    fn is_safe_relative_dest_rejects_empty_path_segment() {
+        assert!(!is_safe_relative_dest("foo//bar.html"));
+        assert!(!is_safe_relative_dest("/foo.html"));
+        assert!(!is_safe_relative_dest("foo/bar.html/"));
+    }
+
+    /// PR #3322 レビュー指摘（Codex P1）の回帰テスト: `dest` が `/` で
+    /// 始まらない不正値でも、FAIL detail には配列位置とキー名のみを含み
+    /// `dest` の実値そのものは出力しない（A09 機微情報の露出防止）。
+    #[test]
+    fn check_routes_dest_targets_detail_excludes_dest_value() {
+        let secret_dest = "super-secret-internal-path.html";
+        let routes = vec![obj(vec![("dest", s(secret_dest))])];
+        let output_dir = std::env::temp_dir();
+        let result = check_routes_dest_targets(&routes, &output_dir);
+        assert!(!result.passed);
+        let detail = result.detail.expect("FAIL には detail が必須");
+        assert!(
+            !detail.contains(secret_dest),
+            "detail に dest の実値が含まれてはならない: {detail}"
+        );
+        assert!(
+            detail.contains("routes[0]") && detail.contains("dest"),
+            "detail に配列位置とキー名が含まれるべき: {detail}"
+        );
     }
 
     #[test]
