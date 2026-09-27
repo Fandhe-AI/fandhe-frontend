@@ -21,23 +21,29 @@
 //! `>= 80rem` で 4 列へ切り替える（mobile-first の `min-width` メディア
 //! クエリ。値は [`fandhe_frontend_pre_styled_ui::recipe::Breakpoint::Sm`]/
 //! `Lg`/`Xl` と一致するリテラル値、`content_with_testimonial` と同じ判断）。
-//! `grid-auto-flow: row dense` + `align-items: start` により、通常カードは
-//! 自然な高さのまま隙間なく詰まり、高さは列間で揃わない（真の masonry
-//! ではなく grid ベースの近似。後半 #2888 の CSS multi-column 版〔R1366〕
-//! が隙間なく詰める形を担う）。
+//! 列数は CSS multi-column（`column-count` + `break-inside: avoid`）で
+//! 実現する。`grid-auto-flow: row dense` は空きセルを埋めるだけで、その
+//! 空きセルへ**後続カードを再配置する**指定ではないため、`align-items:
+//! start` の下にできる縦方向の空白を埋められない（真の masonry 表示
+//! 契約を満たさない、イシュー #2887 のレビュー指摘）。CSS multi-column は
+//! 各列が独立して上から詰まるため、高さ不揃いのカードでも縦方向の空白が
+//! 実際に埋まる（列積み上げ方式、後半 #2888 の R1366 が検討していた
+//! アプローチを本 block へ前倒しで採用）。
 //!
 //! # 先頭・末尾カードの featured 強調（R0361）
 //!
 //! [`TESTIMONIALS`] の先頭（index 0）と末尾（index 7）を `featured: true`
-//! にし、`>= 40rem` で `grid-row: span 2` を与えて 2 行分の高さに
-//! またがらせる（1 列表示時は span を付けない。dense によりカードの間の
-//! 隙間へ後続カードが詰めて配置される）。
+//! にし、アクセントカラーの枠線と拡大した引用文フォントサイズで強調する。
+//! multi-column レイアウトは行の概念を持たない（`grid-row: span N` に
+//! 相当する「複数列にまたがる」指定ができない）ため、2 行分の高さへ
+//! またがらせる表現は行わない。
 //!
 //! # DOM 順と視覚順のずれ（既知の制約）
 //!
-//! `grid-auto-flow: row dense` は視覚上の隙間を詰めるためカードの表示
-//! 位置を並べ替えるが、DOM 順（＝読み上げ順）は [`TESTIMONIALS`] の宣言
-//! 順のまま変わらない。静的な Demo であるため許容する。
+//! CSS multi-column は各列を左から右へ埋めるが、列内では上から下へ
+//! 詰めるため、視覚上の並び順（列優先）は [`TESTIMONIALS`] の宣言順
+//! （行優先）と一致しない。DOM 順（＝読み上げ順）は宣言順のまま変わらない。
+//! 静的な Demo であるため許容する。
 //!
 //! # アバターは架空・共通ダミー素材を再利用
 //!
@@ -314,15 +320,18 @@ pub const BLOCK: Block = Block {
 /// `testimonial_masonry_grid` 固有のレイアウト規則（`crate::blocks::
 /// LAYOUT_CSS` doc「block 固有 CSS の置き場」節）。色・間隔はすべて既存
 /// トークン（`--fandhe-*`）のみを使う。mobile-first（`min-width: 40rem`/
-/// `64rem`/`80rem`）で列数を切り替える（モジュール doc「レイアウトと
-/// ブレークポイント」節参照）。
+/// `64rem`/`80rem`）で `column-count` を切り替える真の masonry（列積み上げ）
+/// レイアウト（モジュール doc「レイアウトとブレークポイント」節参照）。
+/// `column-gap` は multi-column の列間隔、カード側の `margin-bottom` が
+/// 列内カード間の縦間隔を担う（multi-column は `row-gap` を持たないため）。
 const LAYOUT_CSS: &str = "\
 .blocks-testimonial-masonry-grid-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-testimonial-masonry-grid-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
-.blocks-testimonial-masonry-grid-grid {\n  display: grid;\n  gap: var(--fandhe-space-6);\n  grid-template-columns: 1fr;\n  grid-auto-flow: row dense;\n  align-items: start;\n}\n\
-@media (min-width: 40rem) {\n  .blocks-testimonial-masonry-grid-grid {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n  [data-scope=\"card\"][data-part=\"root\"][data-blocks-testimonial-masonry-grid-card=\"featured\"] {\n    grid-row: span 2;\n    align-self: stretch;\n  }\n}\n\
-@media (min-width: 64rem) {\n  .blocks-testimonial-masonry-grid-grid {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n}\n\
-@media (min-width: 80rem) {\n  .blocks-testimonial-masonry-grid-grid {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n}\n\
+.blocks-testimonial-masonry-grid-grid {\n  column-count: 1;\n  column-gap: var(--fandhe-space-6);\n}\n\
+[data-scope=\"card\"][data-part=\"root\"][data-blocks-testimonial-masonry-grid-card] {\n  break-inside: avoid;\n  margin: 0 0 var(--fandhe-space-6);\n}\n\
+@media (min-width: 40rem) {\n  .blocks-testimonial-masonry-grid-grid {\n    column-count: 2;\n  }\n}\n\
+@media (min-width: 64rem) {\n  .blocks-testimonial-masonry-grid-grid {\n    column-count: 3;\n  }\n}\n\
+@media (min-width: 80rem) {\n  .blocks-testimonial-masonry-grid-grid {\n    column-count: 4;\n  }\n}\n\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-testimonial-masonry-grid-card=\"featured\"] {\n  border: 2px solid var(--fandhe-color-accent);\n}\n\
 [data-blocks-testimonial-masonry-grid-card=\"featured\"] [data-scope=\"blockquote\"][data-part=\"content\"] {\n  font-size: var(--fandhe-font-font-size-lg);\n}\n\
 [data-scope=\"blockquote\"][data-part=\"caption\"].blocks-testimonial-masonry-grid-meta {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
@@ -388,14 +397,18 @@ mod tests {
         assert!(last_featured > last_default, "last card should be featured");
     }
 
-    /// [`LAYOUT_CSS`] が 3 段のブレークポイント条件と `grid-row: span 2`
-    /// を持つこと。
+    /// [`LAYOUT_CSS`] が 3 段のブレークポイント条件と、真の masonry
+    /// （列積み上げ）を担う `column-count`/`break-inside: avoid` を
+    /// 持つこと。
     #[test]
-    fn layout_css_has_breakpoints_and_featured_span() {
+    fn layout_css_has_breakpoints_and_column_masonry() {
         assert!(LAYOUT_CSS.contains("@media (min-width: 40rem)"));
         assert!(LAYOUT_CSS.contains("@media (min-width: 64rem)"));
         assert!(LAYOUT_CSS.contains("@media (min-width: 80rem)"));
-        assert!(LAYOUT_CSS.contains("grid-row: span 2;"));
+        assert!(LAYOUT_CSS.contains("column-count: 2;"));
+        assert!(LAYOUT_CSS.contains("column-count: 3;"));
+        assert!(LAYOUT_CSS.contains("column-count: 4;"));
+        assert!(LAYOUT_CSS.contains("break-inside: avoid;"));
     }
 
     /// caption 行の flex 化セレクタが詳細度 (0,3,0) で宣言されていること
