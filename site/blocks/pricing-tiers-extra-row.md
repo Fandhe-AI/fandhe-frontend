@@ -24,6 +24,9 @@ JS ハイドレーションを行わないため、trigger を押しても開閉
 見た目を静的に並記しています。trigger は無 JS では機能しないため
 `disabled` にし、アクセシブルネームは `aria-label="<機能名> の補足"` を
 固定で付与しています。
+閉状態は `hidden` により補足文が非表示になるため、閉状態の 2 件
+（「SLA 保証」「監査ログ 30 日保持」）は補足文を常時可視のテキストとし
+ても別途表示し、無 JS でも読めるようにしています。
 
 補足行はカード群と同じグリッド幅で 3 案を縦に並べています。
 
@@ -169,36 +172,53 @@ fn info_icon() -> Node {
 
 /// [`FEATURE_NOTES`] に一致する機能名なら補足 toggle tip を添えた
 /// トリガーを返す（モジュール doc「機能項目の toggle tip」節参照）。
+///
+/// headless 層の `positioner`/`content` は `OpenState::Closed` のとき
+/// `hidden` 存在属性を付与するため（`crates/headless-ui/src/toggle_tip.rs`）、
+/// docs サイトの無 JS 静的 Demo では `Closed` 固定の 2 件（Scale の
+/// 「SLA 保証」・共通機能の「監査ログ 30 日保持」）は toggle tip 経由では
+/// 補足文を一切閲覧できない（Codex レビュー指摘、イシュー #2877）。
+/// 開閉トリガーの静的並記（モジュール doc「機能項目の toggle tip」節）は
+/// 維持したまま、`Closed` の場合のみ [`LAYOUT_CSS`] の
+/// `.blocks-pricing-tiers-extra-row-tip-note` で常時可視の補足文を別途
+/// 添える（`Open` は `content` 自体が非 `hidden` で可視なため重複させない）。
 fn feature_note(feature: &str) -> Option<Node> {
     let (_, content_id, note, state) = FEATURE_NOTES
         .iter()
         .find(|(name, ..)| *name == feature)?
         .to_owned();
+    let mut children = vec![toggle_tip::root(
+        state,
+        vec![],
+        vec![
+            toggle_tip::trigger(
+                state,
+                true,
+                Some(content_id),
+                vec![("aria-label", &format!("{feature} の補足"))],
+                vec![info_icon()],
+            ),
+            toggle_tip::positioner(
+                state,
+                vec![],
+                vec![toggle_tip::content(
+                    state,
+                    Some(content_id),
+                    vec![],
+                    vec![text(note)],
+                )],
+            ),
+        ],
+    )];
+    if matches!(state, OpenState::Closed) {
+        children.push(span(
+            vec![("class", "blocks-pricing-tiers-extra-row-tip-note")],
+            vec![text(note)],
+        ));
+    }
     Some(div(
         vec![("class", "blocks-pricing-tiers-extra-row-tip")],
-        vec![toggle_tip::root(
-            state,
-            vec![],
-            vec![
-                toggle_tip::trigger(
-                    state,
-                    true,
-                    Some(content_id),
-                    vec![("aria-label", &format!("{feature} の補足"))],
-                    vec![info_icon()],
-                ),
-                toggle_tip::positioner(
-                    state,
-                    vec![],
-                    vec![toggle_tip::content(
-                        state,
-                        Some(content_id),
-                        vec![],
-                        vec![text(note)],
-                    )],
-                ),
-            ],
-        )],
+        children,
     ))
 }
 

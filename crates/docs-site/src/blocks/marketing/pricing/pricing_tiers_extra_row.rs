@@ -47,6 +47,15 @@
 //! `flex-wrap: wrap` にし、open 時の content が折り返して表示されるように
 //! する。
 //!
+//! `Closed` 固定の 2 件（Scale の「SLA 保証」・共通機能の「監査ログ 30 日
+//! 保持」）は headless 層（`crates/headless-ui/src/toggle_tip.rs`）が
+//! `Closed` の `positioner`/`content` へ `hidden` 存在属性を付与するため、
+//! toggle tip 経由では補足文を静的に閲覧できない。[`feature_note`] は
+//! `Closed` の場合のみ `.blocks-pricing-tiers-extra-row-tip-note`
+//! （常時可視・muted）で補足文を別途添え、無 JS でも読める状態を保証する
+//! （`Open` は `content` 自体が非 `hidden` のため重複させない、イシュー
+//! #2877 Codex レビュー指摘）。
+//!
 //! # 補足行 3 案の並記（R0205/R0202/R1143）
 //!
 //! カードは 1 組のみ描画し、補足行をグリッド全幅で 3 つ縦に並べる。各行の
@@ -238,36 +247,53 @@ fn info_icon() -> Node {
 
 /// [`FEATURE_NOTES`] に一致する機能名なら補足 toggle tip を添えた
 /// トリガーを返す（モジュール doc「機能項目の toggle tip」節参照）。
+///
+/// headless 層の `positioner`/`content` は `OpenState::Closed` のとき
+/// `hidden` 存在属性を付与するため（`crates/headless-ui/src/toggle_tip.rs`）、
+/// docs サイトの無 JS 静的 Demo では `Closed` 固定の 2 件（Scale の
+/// 「SLA 保証」・共通機能の「監査ログ 30 日保持」）は toggle tip 経由では
+/// 補足文を一切閲覧できない（Codex レビュー指摘、イシュー #2877）。
+/// 開閉トリガーの静的並記（モジュール doc「機能項目の toggle tip」節）は
+/// 維持したまま、`Closed` の場合のみ [`LAYOUT_CSS`] の
+/// `.blocks-pricing-tiers-extra-row-tip-note` で常時可視の補足文を別途
+/// 添える（`Open` は `content` 自体が非 `hidden` で可視なため重複させない）。
 fn feature_note(feature: &str) -> Option<Node> {
     let (_, content_id, note, state) = FEATURE_NOTES
         .iter()
         .find(|(name, ..)| *name == feature)?
         .to_owned();
+    let mut children = vec![toggle_tip::root(
+        state,
+        vec![],
+        vec![
+            toggle_tip::trigger(
+                state,
+                true,
+                Some(content_id),
+                vec![("aria-label", &format!("{feature} の補足"))],
+                vec![info_icon()],
+            ),
+            toggle_tip::positioner(
+                state,
+                vec![],
+                vec![toggle_tip::content(
+                    state,
+                    Some(content_id),
+                    vec![],
+                    vec![text(note)],
+                )],
+            ),
+        ],
+    )];
+    if matches!(state, OpenState::Closed) {
+        children.push(span(
+            vec![("class", "blocks-pricing-tiers-extra-row-tip-note")],
+            vec![text(note)],
+        ));
+    }
     Some(div(
         vec![("class", "blocks-pricing-tiers-extra-row-tip")],
-        vec![toggle_tip::root(
-            state,
-            vec![],
-            vec![
-                toggle_tip::trigger(
-                    state,
-                    true,
-                    Some(content_id),
-                    vec![("aria-label", &format!("{feature} の補足"))],
-                    vec![info_icon()],
-                ),
-                toggle_tip::positioner(
-                    state,
-                    vec![],
-                    vec![toggle_tip::content(
-                        state,
-                        Some(content_id),
-                        vec![],
-                        vec![text(note)],
-                    )],
-                ),
-            ],
-        )],
+        children,
     ))
 }
 
@@ -689,7 +715,8 @@ const LAYOUT_CSS: &str = "\
 @media (min-width: 64rem) {\n  [data-scope=\"list\"][data-part=\"root\"][data-blocks-pricing-tiers-extra-row-common] {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n}\n\
 .blocks-pricing-tiers-extra-row-state-label {\n  display: block;\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: 600;\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-pricing-tiers-extra-row-layout [data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
-.blocks-pricing-tiers-extra-row-tip {\n  display: inline-flex;\n}\n\
+.blocks-pricing-tiers-extra-row-tip {\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n}\n\
+.blocks-pricing-tiers-extra-row-tip-note {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-pricing-tiers-extra-row-custom-card] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-4);\n}\n\
 @media (min-width: 40rem) {\n  [data-scope=\"card\"][data-part=\"root\"][data-blocks-pricing-tiers-extra-row-custom-card] {\n    flex-direction: row;\n    align-items: center;\n    justify-content: space-between;\n  }\n}\n\
 .blocks-pricing-tiers-extra-row-custom-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
