@@ -1,6 +1,7 @@
-//! Marketing / Team カテゴリの block 登録点（イシュー #2734。最初の block
-//! 追加〔`team-avatar-grid`、イシュー #2879〕により空雛形からディレクトリ化
-//! した、`testimonial/mod.rs` と同型の構造）。
+//! Marketing / Team カテゴリの block 登録点（イシュー #2734 で雛形新設、
+//! イシュー #2879 で最初の block（`team-avatar-grid`）を追加しディレクトリ化
+//! して卒業、イシュー #2880 で `team_bio_rows` を追加した。手順は
+//! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
 //! 新規 block を追加する際は本ファイルへ `mod` 宣言と `blocks()` への追記を
@@ -9,8 +10,10 @@
 //! ための構造、イシュー #2734）。
 
 mod team_avatar_grid;
+mod team_bio_rows;
+
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![team_avatar_grid::BLOCK]
+    vec![team_avatar_grid::BLOCK, team_bio_rows::BLOCK]
 }

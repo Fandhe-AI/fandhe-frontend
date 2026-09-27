@@ -1523,6 +1523,11 @@ title = "team-avatar-grid"
 source = "site/blocks/team-avatar-grid.md"
 path = "/blocks/team-avatar-grid/"
 
+[[section.group.page]]
+title = "team-bio-rows"
+source = "site/blocks/team-bio-rows.md"
+path = "/blocks/team-bio-rows/"
+
 [[section.group]]
 title = "FAQ"
 
