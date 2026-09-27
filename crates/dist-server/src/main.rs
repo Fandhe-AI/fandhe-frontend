@@ -18,6 +18,23 @@
 //! 委譲し、本ファイルは「hyper の接続を受けてバイト列に変換する」薄い
 //! トランスポート層のみを担う。
 //!
+//! # graceful shutdown（イシュー #3337）
+//!
+//! Vercel Container Images はスケールイン時に `SIGTERM` を送り、30 秒の猶予後に
+//! 強制終了する契約を持つ。accept ループは新規接続の受付と [`ShutdownSignals`]
+//! のポーリングを [`std::future::poll_fn`] で手動 race させ、`SIGTERM`（Unix）・
+//! `SIGINT`（Unix、Ctrl-C 相当）・非 Unix の Ctrl-C のいずれかを受信すると
+//! ループを抜けて `listener` を明示的に drop する（以後の新規接続は OS レベルで
+//! 即座に拒否され、backlog に滞留しない）。続けて `hyper_util::server::graceful::
+//! GracefulShutdown` が処理中の接続の完了を [`DRAIN_TIMEOUT_SECS`]（Vercel の
+//! 30 秒猶予より短い既定値）まで待ち、間に合わなければ待たずに終了する
+//! （悪意ある・低速なクライアントがプロセス終了を無期限に妨げる事態を防ぐ、
+//! `security.md` A05 参照）。`tokio::select!`/`tokio::join!` は `macros` feature
+//! （`tokio-macros → syn → quote → proc-macro2` の proc-macro 連鎖、本クレートが
+//! 依存グラフ抑制のため意図的に避けている構成）を要求するため使わず、
+//! `std::future::poll_fn` + `std::pin::pin!`（標準ライブラリのみ、追加依存なし）
+//! で手動 race を組む（`drain_within` 参照）。
+//!
 //! # セキュリティ設定（`security.md` A05 セキュリティ設定ミス）
 //!
 //! 既定 bind アドレスはループバック（`127.0.0.1`）とし、外部公開は
@@ -26,6 +43,10 @@
 //! （内部パス・スタックトレース等の機微情報は出力しない）。`PORT` の値が不正な場合も
 //! 黙って既定値へフォールバックせず起動を失敗させ（fail-closed）、エラーメッセージには
 //! `PORT` の実際の値を含めない（カテゴリのみの固定英語文言、機微情報を露出しない）。
+//! シグナルハンドラの登録に失敗した場合（通常起こらない）も `panic!` せず、固定の
+//! 英語メッセージのみを stderr に出して起動を継続する（この場合 graceful shutdown は
+//! 機能しなくなるが、OS 既定の signal disposition〔即時終了〕は引き続き有効なため
+//! 無応答のまま残り続ける危険な状態には陥らない、安全側フォールバック）。
 
 // `lib.rs` の `#![forbid(unsafe_code)]`（REQ-2）はクレートルートを跨いで継承
 // されないため、バイナリクレートルートである本ファイルにも明示的に付与し、
@@ -40,13 +61,24 @@ use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response};
 use hyper_util::rt::TokioIo;
+use hyper_util::server::graceful::GracefulShutdown;
 use std::convert::Infallible;
+use std::future::Future;
 use std::process::ExitCode;
+use std::task::{Context, Poll};
+use std::time::Duration;
 use tokio::net::TcpListener;
 
 /// 既定の bind アドレス。`FANDHE_FRONTEND_BIND_ADDR` も `PORT` も未設定のときに使う
 /// （ループバック限定。`security.md` 参照）。
 const DEFAULT_BIND_ADDR: &str = "127.0.0.1:3100";
+
+/// シグナル受信後、処理中の接続の完了を待つ猶予秒数。
+///
+/// Vercel Container Images の `SIGTERM` 後 30 秒強制終了猶予より短い値とし、
+/// 悪意ある・低速なクライアントが接続を握り続けてプロセス終了を無期限に
+/// 妨げる事態を防ぐ（`security.md` A05、モジュール冒頭 doc 参照）。
+const DRAIN_TIMEOUT_SECS: u64 = 25;
 
 /// [`resolve_bind_addr`] が返しうる失敗の種類。
 ///
@@ -105,6 +137,104 @@ fn resolve_bind_addr(bind_addr: Option<&str>, port: Option<&str>) -> Result<Stri
     }
 }
 
+/// `SIGTERM`/`SIGINT`（Unix）または Ctrl-C（非 Unix）の受信を待ち受ける状態。
+///
+/// `run()` の accept ループが [`std::future::poll_fn`] で毎回 [`Self::poll`] を
+/// 呼び出し、新規接続の到着と競合させる（`tokio::select!` を使わない理由は
+/// モジュール冒頭 doc 参照）。Unix では `tokio::signal::unix::Signal` を
+/// `poll_recv` で繰り返しポーリングできるため `Pin` は不要、非 Unix では
+/// 単発の `tokio::signal::ctrl_c()` をヒープに `Pin` して繰り返しポーリング
+/// する。
+struct ShutdownSignals {
+    #[cfg(unix)]
+    sigterm: Option<tokio::signal::unix::Signal>,
+    #[cfg(unix)]
+    sigint: Option<tokio::signal::unix::Signal>,
+    #[cfg(not(unix))]
+    ctrl_c: std::pin::Pin<Box<dyn Future<Output = std::io::Result<()>> + Send>>,
+}
+
+impl ShutdownSignals {
+    /// シグナルハンドラを登録する。
+    ///
+    /// 登録自体の失敗（OS リソース枯渇等、通常起こらない）は `panic!` せず、
+    /// 固定の英語メッセージを stderr に出したうえで当該シグナルを「待たない」
+    /// 扱いにする（`coding-rust.md` のエラー処理規約。SIGKILL 相当の外部終了は
+    /// 引き続き OS 既定動作が効くため安全側に倒れる）。
+    fn install() -> Self {
+        #[cfg(unix)]
+        {
+            use tokio::signal::unix::{signal, SignalKind};
+            let sigterm = signal(SignalKind::terminate())
+                .inspect_err(|err| {
+                    eprintln!(
+                        "fandhe-frontend-dist-server: failed to install SIGTERM handler: {err}"
+                    );
+                })
+                .ok();
+            let sigint = signal(SignalKind::interrupt())
+                .inspect_err(|err| {
+                    eprintln!(
+                        "fandhe-frontend-dist-server: failed to install SIGINT handler: {err}"
+                    );
+                })
+                .ok();
+            Self { sigterm, sigint }
+        }
+        #[cfg(not(unix))]
+        {
+            Self {
+                ctrl_c: Box::pin(tokio::signal::ctrl_c()),
+            }
+        }
+    }
+
+    /// 登録済みのいずれかのシグナルを受信していれば固定名
+    /// （`"SIGTERM"`/`"SIGINT"`/`"Ctrl-C"`）を返す。ログにのみ使う固定文字列
+    /// であり機微情報を含まない。
+    fn poll(&mut self, cx: &mut Context<'_>) -> Poll<&'static str> {
+        #[cfg(unix)]
+        {
+            if let Some(sig) = self.sigterm.as_mut() {
+                if sig.poll_recv(cx).is_ready() {
+                    return Poll::Ready("SIGTERM");
+                }
+            }
+            if let Some(sig) = self.sigint.as_mut() {
+                if sig.poll_recv(cx).is_ready() {
+                    return Poll::Ready("SIGINT");
+                }
+            }
+            Poll::Pending
+        }
+        #[cfg(not(unix))]
+        {
+            self.ctrl_c.as_mut().poll(cx).map(|_| "Ctrl-C")
+        }
+    }
+}
+
+/// [`GracefulShutdown::shutdown`] の完了を `timeout` まで待つ。
+///
+/// 間に合えば `true`、打ち切ったら `false` を返す。`tokio::select!` を使わず
+/// `poll_fn` で手動 race を組む（モジュール冒頭 doc 参照）。「同期コア／
+/// 非同期シェル」分離方針（`routes::route_request` 等と同様）に沿い、
+/// 分岐そのものは `#[cfg(test)]` のユニットテストで確定的に検証できる。
+async fn drain_within(graceful: GracefulShutdown, timeout: Duration) -> bool {
+    let mut shutdown_fut = std::pin::pin!(graceful.shutdown());
+    let mut sleep_fut = std::pin::pin!(tokio::time::sleep(timeout));
+    std::future::poll_fn(|cx| {
+        if shutdown_fut.as_mut().poll(cx).is_ready() {
+            return Poll::Ready(true);
+        }
+        if sleep_fut.as_mut().poll(cx).is_ready() {
+            return Poll::Ready(false);
+        }
+        Poll::Pending
+    })
+    .await
+}
+
 fn main() -> ExitCode {
     // `#[tokio::main]`（tokio-macros、依存グラフ深さ増の一因）を使わず、
     // `Builder` を直接呼ぶ（`Cargo.toml` の REQ-3 実測コメント参照）。
@@ -122,9 +252,15 @@ fn main() -> ExitCode {
     runtime.block_on(run())
 }
 
-/// 非同期本体。bind 成功後は無限に接続を受け付け続ける
-/// （通常運用では戻らない。bind 失敗時のみ `ExitCode::FAILURE` を返す）。
+/// 非同期本体。bind 成功後は `SIGTERM`/`SIGINT`（非 Unix は Ctrl-C）を受信する
+/// まで接続を受け付け続け、受信後は graceful shutdown（モジュール冒頭 doc
+/// 参照）を経て `ExitCode::SUCCESS` を返す（bind 失敗時のみ `ExitCode::FAILURE`
+/// を返す）。
 async fn run() -> ExitCode {
+    // bind に時間がかかるケースでもその間に届いた SIGTERM を取りこぼさない
+    // よう、シグナルハンドラは bind より先にできるだけ早く登録する。
+    let mut signals = ShutdownSignals::install();
+
     // `FANDHE_FRONTEND_BIND_ADDR` は非 UTF-8 値を「未設定」扱いへ畳み込む（既存動作を維持）。
     let bind_addr_env = std::env::var("FANDHE_FRONTEND_BIND_ADDR").ok();
     // `PORT` の UTF-8 デコードは `bind_addr_env` が未設定（＝優先順位 1 が不成立）の
@@ -193,27 +329,62 @@ async fn run() -> ExitCode {
         }
     );
 
-    loop {
-        let (stream, _peer_addr) = match listener.accept().await {
-            Ok(accepted) => accepted,
-            Err(err) => {
+    let graceful = GracefulShutdown::new();
+
+    // シグナル受信と新規接続の到着を手動 race させる（`tokio::select!` を
+    // 使わない理由はモジュール冒頭 doc 参照）。`Err` 側にシグナル名を載せて
+    // ループを抜ける契機として使う（実際の accept エラーではない）。
+    let shutdown_reason: &'static str = loop {
+        let event = std::future::poll_fn(|cx| {
+            if let Poll::Ready(reason) = signals.poll(cx) {
+                return Poll::Ready(Err(reason));
+            }
+            listener.poll_accept(cx).map(Ok)
+        })
+        .await;
+
+        let (stream, _peer_addr) = match event {
+            Ok(Ok(accepted)) => accepted,
+            Ok(Err(err)) => {
                 // 個別接続の accept 失敗でプロセス全体を落とさない
                 // （エラー処理規約 `coding-rust.md`: panic! を避ける）。
                 eprintln!("fandhe-frontend-dist-server: accept error: {err}");
                 continue;
             }
+            Err(reason) => break reason,
         };
         let io = TokioIo::new(stream);
 
+        // `graceful.watch(..)` は呼び出した時点で同期的に watcher を登録する。
+        // `tokio::spawn` に渡す「前」にここで呼ぶ必要がある（spawn 後に watch
+        // すると、spawn されたタスクが初めて poll されるまでの間 shutdown の
+        // 対象から漏れる可能性がある）。
+        let conn = graceful.watch(http1::Builder::new().serve_connection(io, service_fn(handle)));
         tokio::spawn(async move {
-            if let Err(err) = http1::Builder::new()
-                .serve_connection(io, service_fn(handle))
-                .await
-            {
+            if let Err(err) = conn.await {
                 eprintln!("fandhe-frontend-dist-server: connection error: {err}");
             }
         });
+    };
+
+    eprintln!(
+        "fandhe-frontend-dist-server: {shutdown_reason} received, no longer accepting new connections"
+    );
+    // listener を明示的に drop し、以後の新規接続を OS レベルで即座に拒否
+    // させる（backlog に滞留させない。クライアントからは connection refused
+    // が返る。`security.md` A01 参照）。
+    drop(listener);
+
+    eprintln!(
+        "fandhe-frontend-dist-server: draining in-flight connections (up to {DRAIN_TIMEOUT_SECS}s)"
+    );
+    if drain_within(graceful, Duration::from_secs(DRAIN_TIMEOUT_SECS)).await {
+        eprintln!("fandhe-frontend-dist-server: graceful shutdown complete");
+    } else {
+        eprintln!("fandhe-frontend-dist-server: drain timeout exceeded, forcing shutdown");
     }
+
+    ExitCode::SUCCESS
 }
 
 /// hyper の 1 リクエストを [`route_request`] へ委譲し、結果を
@@ -295,7 +466,11 @@ fn response_for(method: &Method, path: &str) -> Response<Full<Bytes>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{resolve_bind_addr, response_for, BindAddrError, Method, DEFAULT_BIND_ADDR};
+    use super::{
+        drain_within, resolve_bind_addr, response_for, BindAddrError, Method, DEFAULT_BIND_ADDR,
+    };
+    use hyper_util::server::graceful::GracefulShutdown;
+    use std::time::Duration;
 
     // `resolve_bind_addr` はプロセス環境変数を読まない純粋関数のため、以下は
     // 環境変数を書き換えずに全分岐を検証できる（イシュー #3336）。
@@ -430,5 +605,38 @@ mod tests {
             .headers()
             .get(hyper::header::CACHE_CONTROL)
             .is_none());
+    }
+
+    /// `#[tokio::test]` は `macros` feature を要求するため使わず、`main()` と
+    /// 同様に手書きの `current_thread` ランタイムで `block_on` する
+    /// （テストコードでの `.expect()` は `coding-rust.md` の対象外）。
+    fn block_on<F: std::future::Future>(future: F) -> F::Output {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime must build")
+            .block_on(future)
+    }
+
+    #[test]
+    fn drain_within_returns_true_when_no_connections_are_in_flight() {
+        block_on(async {
+            let graceful = GracefulShutdown::new();
+            // watcher を作らず（＝処理中コネクションなしを模す）即座に
+            // `shutdown()` が完了することを確認する。
+            assert!(drain_within(graceful, Duration::from_millis(50)).await);
+        });
+    }
+
+    #[test]
+    fn drain_within_returns_false_when_a_connection_outlives_the_timeout() {
+        block_on(async {
+            let graceful = GracefulShutdown::new();
+            // 実コネクションを経由せず「処理中コネクションが 1 件ある」状態を
+            // 安価に模す（`GracefulShutdown::watcher()` の直接利用）。
+            let watcher = graceful.watcher();
+            assert!(!drain_within(graceful, Duration::from_millis(50)).await);
+            drop(watcher);
+        });
     }
 }
