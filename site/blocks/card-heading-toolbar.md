@@ -150,8 +150,8 @@ fn toolbar(search_field_id: &'static str, menu_content_id: &'static str) -> Node
                         InputGroupAlign::InlineEnd,
                         &group_props,
                         vec![],
-                        vec![button::button(
-                            &ButtonProps::default(),
+                        vec![input_group::button(
+                            &group_props,
                             vec![],
                             vec![text("検索")],
                         )],
