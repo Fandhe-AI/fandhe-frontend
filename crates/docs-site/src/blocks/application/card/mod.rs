@@ -5,10 +5,15 @@
 //! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
 //! ための構造、イシュー #2734）。
 
+mod card_form_footer;
 mod card_media_footer;
 mod cursor_hover_cards;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![cursor_hover_cards::BLOCK, card_media_footer::BLOCK]
+    vec![
+        cursor_hover_cards::BLOCK,
+        card_media_footer::BLOCK,
+        card_form_footer::BLOCK,
+    ]
 }
