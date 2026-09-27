@@ -6,12 +6,14 @@
 //! ための構造、イシュー #2734）。
 
 mod testimonial_background_image;
+mod testimonial_masonry_grid;
 mod testimonials_stack;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
     vec![
         testimonial_background_image::BLOCK,
+        testimonial_masonry_grid::BLOCK,
         testimonials_stack::BLOCK,
     ]
 }
