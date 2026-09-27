@@ -160,6 +160,12 @@ fn instance_switch() -> Node {
             show_grid: true,
             width: 720.0,
             height: 220.0,
+            // `size: Size::Lg` は plot の `--fandhe-area-chart-height`
+            // トークンを 220px（viewBox の高さと一致）へ揃える。CSS 上書き
+            // による特異性の上書き合戦はしない（モジュール doc「面グラフ
+            // 高さは size: Size::Lg で揃え…」節、Cursor Bugbot Medium 指摘
+            // の是正）。
+            size: Size::Lg,
             ..AreaChartProps::new(&data, "Sessions over the selected period")
         },
         vec![("data-blocks-chart-metric-area-chart", "")],
@@ -268,6 +274,9 @@ fn instance_breakdown() -> Node {
             legend: true,
             width: 720.0,
             height: 220.0,
+            // switch 側と同じ理由（`size: Size::Lg` で揃える。モジュール
+            // doc参照）。
+            size: Size::Lg,
             ..AreaChartProps::new(
                 &data,
                 "Desktop and mobile sessions over the selected period",

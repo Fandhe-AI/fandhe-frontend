@@ -105,6 +105,17 @@
 //! が全 block を横断して ID 重複を検査するため、2 variant の
 //! `gradient_id` は互いに異なる値にする。
 //!
+//! # 面グラフ高さの揃え方（Cursor Bugbot Medium 指摘の是正）
+//!
+//! [`LAYOUT_CSS`] の `[data-blocks-chart-metric-area-chart] svg { height:
+//! auto; }` は `pre-styled-ui` 側の `[data-scope="area-chart"]
+//! [data-part="plot"] { height: var(--fandhe-area-chart-height) }`
+//! （属性セレクタで特異性が上回る）に必ず負けるため無効だった。CSS の
+//! 特異性を上書き合戦で競うのではなく、`area_chart()` が用意する寸法
+//! 変更手段（`AreaChartProps::size`）を使い、2 variant とも
+//! `size: Size::Lg`（`--fandhe-area-chart-height: 220px`）を指定して
+//! `viewBox` の高さ（220.0）と一致させる（PR #3345 Bugbot 指摘）。
+//!
 //! # 集約元との差分
 //!
 //! 主参照（指標切り替え、`variant="switch"`）と、見出しに合計値と系列別の
@@ -252,6 +263,12 @@ fn instance_switch() -> Node {
             show_grid: true,
             width: 720.0,
             height: 220.0,
+            // `size: Size::Lg` は plot の `--fandhe-area-chart-height`
+            // トークンを 220px（viewBox の高さと一致）へ揃える。CSS 上書き
+            // による特異性の上書き合戦はしない（モジュール doc「面グラフ
+            // 高さは size: Size::Lg で揃え…」節、Cursor Bugbot Medium 指摘
+            // の是正）。
+            size: Size::Lg,
             ..AreaChartProps::new(&data, "Sessions over the selected period")
         },
         vec![("data-blocks-chart-metric-area-chart", "")],
@@ -360,6 +377,9 @@ fn instance_breakdown() -> Node {
             legend: true,
             width: 720.0,
             height: 220.0,
+            // switch 側と同じ理由（`size: Size::Lg` で揃える。モジュール
+            // doc参照）。
+            size: Size::Lg,
             ..AreaChartProps::new(
                 &data,
                 "Desktop and mobile sessions over the selected period",
@@ -463,7 +483,6 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"button\"][data-part=\"root\"][data-disabled][data-blocks-chart-metric-area-selected] {\n  border-block-end: 2px solid var(--fandhe-color-accent);\n}\n\
 [data-blocks-chart-metric-area-total] [data-scope=\"stat\"][data-part=\"value-text\"] {\n  flex-direction: column;\n  align-items: flex-start;\n}\n\
 [data-blocks-chart-metric-area-chart] {\n  width: 100%;\n}\n\
-[data-blocks-chart-metric-area-chart] svg {\n  width: 100%;\n  height: auto;\n}\n\
 [data-scope=\"card\"][data-part=\"header\"][data-blocks-chart-metric-area-summary-row] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-chart-metric-area-breakdown-list {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 @media (min-width: 40rem) {\n  \
@@ -618,5 +637,16 @@ mod tests {
         assert!(LAYOUT_CSS.contains(
             "[data-blocks-chart-metric-area-total] [data-scope=\"stat\"][data-part=\"value-text\"] {\n  flex-direction: column;\n  align-items: flex-start;\n}"
         ));
+    }
+
+    /// 2 variant の面グラフとも `size: Size::Lg`（220px）へ揃っていて、
+    /// 特異性で負ける `svg { height: auto }` の無効な CSS 上書きが
+    /// [`LAYOUT_CSS`] に残っていないこと（Cursor Bugbot Medium 指摘の
+    /// 回帰、PR #3345、モジュール doc「面グラフ高さの揃え方」節参照）。
+    #[test]
+    fn both_area_charts_use_size_lg_and_layout_css_has_no_svg_override() {
+        let html = render(&demo());
+        assert_eq!(html.matches("fd-area-chart--size-lg").count(), 2);
+        assert!(!LAYOUT_CSS.contains("svg {"));
     }
 }
