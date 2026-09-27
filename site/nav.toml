@@ -2052,6 +2052,11 @@ path = "/blocks/feed-upvote-cards/"
 title = "Form Layout"
 
 [[section.group.page]]
+title = "form-layout-inline-labels"
+source = "site/blocks/form-layout-inline-labels.md"
+path = "/blocks/form-layout-inline-labels/"
+
+[[section.group.page]]
 title = "form-layout-stacked"
 source = "site/blocks/form-layout-stacked.md"
 path = "/blocks/form-layout-stacked/"
