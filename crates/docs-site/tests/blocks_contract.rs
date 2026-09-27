@@ -9317,6 +9317,10 @@ fn app_shell_stacked_composes_expected_parts() {
         assert!(
             !html.contains(absent),
             "app-shell-stacked demo should never contain {absent}"
+        );
+    }
+}
+
 /// app-shell-sidebar-header の Demo ラッパ・CSS フックが実際に出力され、
 /// `blocks::stylesheet()` に対応するセレクタが存在することを固定する
 /// （`sidebar_07_page_wires_demo_class_and_css_hooks` と同型、イシュー

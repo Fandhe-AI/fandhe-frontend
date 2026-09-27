@@ -274,8 +274,19 @@ fn breadcrumb_nav() -> Node {
 }
 
 /// `separate-tabs` variant のタブ風ナビ（先頭を `aria-current="page"`）。
+/// 現在ページタブ（概要）はサイト内相対パス `./`（自ページ）へリンクし、
+/// 他タブは表示内容に対応する実在 URL（アクティビティ→コミット履歴、
+/// 設定→組織ページ、`app_shell_navbar_columns.rs` の「設定」→ORG と同じ
+/// 対応）を持つ（codex レビュー是正、`href` が全タブ同一の REPO 固定で
+/// 現在ページタブをクリックすると別ページへ遷移してしまう問題を修正）。
 fn tabs_nav() -> Node {
     let props = NavigationMenuProps::default();
+    let activity_href = format!("{REPO}/commits");
+    let items: [(&str, &str, bool, &str); 3] = [
+        ("overview", "概要", true, "./"),
+        ("activity", "アクティビティ", false, activity_href.as_str()),
+        ("settings", "設定", false, ORG),
+    ];
     navigation_menu::root(
         &props,
         "セクションタブ",
@@ -283,28 +294,24 @@ fn tabs_nav() -> Node {
         vec![navigation_menu::list(
             &props,
             vec![],
-            [
-                ("overview", "概要", true),
-                ("activity", "アクティビティ", false),
-                ("settings", "設定", false),
-            ]
-            .into_iter()
-            .map(|(value, label, current)| {
-                navigation_menu::item(
-                    navigation_menu::OpenState::Closed,
-                    false,
-                    &props,
-                    value,
-                    vec![],
-                    vec![navigation_menu::link(
-                        REPO,
-                        current,
+            items
+                .into_iter()
+                .map(|(value, label, current, href)| {
+                    navigation_menu::item(
+                        navigation_menu::OpenState::Closed,
+                        false,
+                        &props,
+                        value,
                         vec![],
-                        vec![text(label)],
-                    )],
-                )
-            })
-            .collect(),
+                        vec![navigation_menu::link(
+                            href,
+                            current,
+                            vec![],
+                            vec![text(label)],
+                        )],
+                    )
+                })
+                .collect(),
         )],
     )
 }
@@ -351,6 +358,10 @@ fn heading_band(variant: &str, heading_kind: Option<&str>, title: &'static str) 
 }
 
 /// メイン領域（`card` 1 枚。`no-heading-footer` のみ下部にフッターを持つ）。
+/// `aria-label` は variant ごとに一意にする（4 variant すべてが同一の
+/// 「メインコンテンツ」のままだとランドマークが区別できない、Cursor
+/// Bugbot 指摘の是正。`app-shell-navbar-columns` は単一インスタンスの
+/// ため同種の問題を持たない）。
 fn main_section(variant: &str, with_footer: bool) -> Node {
     let mut children = vec![card::root(
         card::CardVariant::Outline,
@@ -378,9 +389,10 @@ fn main_section(variant: &str, with_footer: bool) -> Node {
             vec![text("© 2026 Fandhe Console. 架空のダミーフッターです。")],
         ));
     }
+    let aria_label = format!("メインコンテンツ（{variant}）");
     section(
         vec![
-            ("aria-label", "メインコンテンツ"),
+            ("aria-label", aria_label.as_str()),
             ("data-blocks-app-shell-stacked-main", ""),
             ("data-blocks-app-shell-stacked-variant", variant),
         ],
