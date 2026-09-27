@@ -280,3 +280,84 @@ fn blocks_index_page_links_to_the_registered_block() {
         "blocks/index.html should include the Auth category heading"
     );
 }
+
+/// `docs/design/docs-site-blocks-section.md` §19「block 一覧索引」の表
+/// （1 列目 slug）と `site/blocks/*.md` 原稿ファイル集合の四方目の突合
+/// （イシュー #3313）。
+///
+/// §19 の表の直後には従来「上記 N 件は…全件であり」という件数の手書き
+/// 表記があったが、block を追加する PR は必ずこの 1 行を書き換えるため、
+/// 並列で進む PR 同士が毎回ここで競合していた（直近 20 件の main マージの
+/// うち 10 件が該当）。件数の手書き表記が並列 PR の競合源だったため数字を
+/// 廃止しテストで一致を保証する（#3313）。
+#[test]
+fn block_index_table_matches_manuscript_files() {
+    let doc_path = repo_root().join("docs/design/docs-site-blocks-section.md");
+    let doc = std::fs::read_to_string(&doc_path)
+        .expect("docs/design/docs-site-blocks-section.md should be readable");
+
+    let heading_start = doc
+        .find("## 19. block 一覧索引")
+        .expect("§19 heading (`## 19. block 一覧索引`) should exist in the doc");
+    let section = &doc[heading_start..];
+    let section_end = section[1..]
+        .find("\n## ")
+        .map(|offset| offset + 1)
+        .unwrap_or(section.len());
+    let section = &section[..section_end];
+
+    let mut table_slugs: Vec<String> = Vec::new();
+    for line in section.lines() {
+        let line = line.trim();
+        if !line.starts_with('|') || line.starts_with("|---") || line.starts_with("| slug ") {
+            continue;
+        }
+        let slug = line
+            .trim_start_matches('|')
+            .split('|')
+            .next()
+            .expect("table row should have at least one column")
+            .trim();
+        if slug.is_empty() {
+            continue;
+        }
+        table_slugs.push(slug.to_owned());
+    }
+
+    let mut seen = BTreeSet::new();
+    let mut duplicates = BTreeSet::new();
+    for slug in &table_slugs {
+        if !seen.insert(slug.clone()) {
+            duplicates.insert(slug.clone());
+        }
+    }
+    assert!(
+        duplicates.is_empty(),
+        "§19 の表に重複した slug がある: {duplicates:?}"
+    );
+
+    let table_slugs: BTreeSet<String> = table_slugs.into_iter().collect();
+
+    let manuscript_dir = repo_root().join("site/blocks");
+    let manuscript_slugs: BTreeSet<String> = std::fs::read_dir(&manuscript_dir)
+        .expect("site/blocks directory should be readable")
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("md"))
+        .filter_map(|path| {
+            path.file_stem()
+                .and_then(|stem| stem.to_str())
+                .map(str::to_owned)
+        })
+        .collect();
+
+    let missing_from_table: Vec<&String> = manuscript_slugs.difference(&table_slugs).collect();
+    let missing_manuscript: Vec<&String> = table_slugs.difference(&manuscript_slugs).collect();
+
+    assert!(
+        missing_from_table.is_empty() && missing_manuscript.is_empty(),
+        "§19 の表と site/blocks/*.md の slug 集合が一致しない: \
+         表に無く原稿にある={missing_from_table:?}, \
+         表にあり原稿に無い={missing_manuscript:?}"
+    );
+}
