@@ -4,7 +4,7 @@
 //! §18 の卒業手順に従う。イシュー #2844 で 2 件目（`faq_question_rows`）を、
 //! イシュー #2845 で 3 件目（`faq_split_accordion`）を、イシュー #2846 で
 //! 4 件目（`faq_split_static`）を、イシュー #2847 で 5 件目（`faq_static_grid`）
-//! を追加した。
+//! を、イシュー #2848 で 6 件目（`faq_tabbed_accordion`）を追加した。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
 //! 新規 block を追加する際は本ファイルへ `mod` 宣言と `blocks()` への追記を
@@ -17,6 +17,7 @@ mod faq_question_rows;
 mod faq_split_accordion;
 mod faq_split_static;
 mod faq_static_grid;
+mod faq_tabbed_accordion;
 
 use crate::blocks::Block;
 
@@ -27,5 +28,6 @@ pub(super) fn blocks() -> Vec<Block> {
         faq_split_accordion::BLOCK,
         faq_split_static::BLOCK,
         faq_static_grid::BLOCK,
+        faq_tabbed_accordion::BLOCK,
     ]
 }
