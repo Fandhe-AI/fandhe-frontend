@@ -1450,6 +1450,11 @@ path = "/blocks/pricing-usage-slider/"
 title = "Testimonial"
 
 [[section.group.page]]
+title = "testimonial-card-grid"
+source = "site/blocks/testimonial-card-grid.md"
+path = "/blocks/testimonial-card-grid/"
+
+[[section.group.page]]
 title = "testimonials-stack"
 source = "site/blocks/testimonials-stack.md"
 path = "/blocks/testimonials-stack/"
