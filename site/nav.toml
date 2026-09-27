@@ -2023,6 +2023,14 @@ source = "site/blocks/card-heading-toolbar.md"
 path = "/blocks/card-heading-toolbar/"
 
 [[section.group]]
+title = "Grid List"
+
+[[section.group.page]]
+title = "grid-list-compact-tiles"
+source = "site/blocks/grid-list-compact-tiles.md"
+path = "/blocks/grid-list-compact-tiles/"
+
+[[section.group]]
 title = "Description List"
 
 [[section.group.page]]
@@ -2065,6 +2073,11 @@ path = "/blocks/form-layout-inline-labels/"
 title = "form-layout-property-panel"
 source = "site/blocks/form-layout-property-panel.md"
 path = "/blocks/form-layout-property-panel/"
+
+[[section.group.page]]
+title = "form-layout-stacked"
+source = "site/blocks/form-layout-stacked.md"
+path = "/blocks/form-layout-stacked/"
 
 [[section.group.page]]
 title = "form-layout-two-column"
