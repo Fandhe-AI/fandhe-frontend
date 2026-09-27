@@ -940,6 +940,7 @@ pub enum LayoutCss {
 | faq-split-accordion | #2845 | `marketing/faq/faq_split_accordion.rs` |
 | faq-split-static | #2846 | `marketing/faq/faq_split_static.rs` |
 | faq-static-grid | #2847 | `marketing/faq/faq_static_grid.rs` |
+| faq-tabbed-accordion | #2848 | `marketing/faq/faq_tabbed_accordion.rs` |
 | footer-inline-nav | #2850 | `marketing/footer/footer_inline_nav.rs` |
 | footer-link-columns | #2851 | `marketing/footer/footer_link_columns.rs` |
 | pricing-slider-tiers | #2868/#2869/#2870 | `marketing/pricing/pricing_slider_tiers.rs` |

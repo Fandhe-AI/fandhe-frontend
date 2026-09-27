@@ -1533,6 +1533,11 @@ title = "faq-static-grid"
 source = "site/blocks/faq-static-grid.md"
 path = "/blocks/faq-static-grid/"
 
+[[section.group.page]]
+title = "faq-tabbed-accordion"
+source = "site/blocks/faq-tabbed-accordion.md"
+path = "/blocks/faq-tabbed-accordion/"
+
 [[section.group]]
 title = "Contact"
 
