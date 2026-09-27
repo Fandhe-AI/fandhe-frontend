@@ -2119,6 +2119,11 @@ source = "site/blocks/chart-bar-list.md"
 path = "/blocks/chart-bar-list/"
 
 [[section.group.page]]
+title = "chart-metric-area"
+source = "site/blocks/chart-metric-area.md"
+path = "/blocks/chart-metric-area/"
+
+[[section.group.page]]
 title = "chart-stat-cards"
 source = "site/blocks/chart-stat-cards.md"
 path = "/blocks/chart-stat-cards/"
