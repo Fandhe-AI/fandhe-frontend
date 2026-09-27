@@ -1992,6 +1992,11 @@ source = "site/blocks/app-shell-sidebar.md"
 path = "/blocks/app-shell-sidebar/"
 
 [[section.group.page]]
+title = "app-shell-stacked-overlap"
+source = "site/blocks/app-shell-stacked-overlap.md"
+path = "/blocks/app-shell-stacked-overlap/"
+
+[[section.group.page]]
 title = "app-shell-stacked"
 source = "site/blocks/app-shell-stacked.md"
 path = "/blocks/app-shell-stacked/"
@@ -2060,6 +2065,11 @@ title = "Form Layout"
 title = "form-layout-inline-labels"
 source = "site/blocks/form-layout-inline-labels.md"
 path = "/blocks/form-layout-inline-labels/"
+
+[[section.group.page]]
+title = "form-layout-property-panel"
+source = "site/blocks/form-layout-property-panel.md"
+path = "/blocks/form-layout-property-panel/"
 
 [[section.group.page]]
 title = "form-layout-two-column"

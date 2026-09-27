@@ -9583,6 +9583,90 @@ fn app_shell_navbar_columns_composes_expected_parts() {
     }
 }
 
+/// app-shell-stacked-overlap ページが Demo class・専用 CSS を配線している
+/// こと、block 固有 CSS（コンテナクエリ・重なり用 `calc(-1 *`・帯 2 配色）
+/// が実際に出力されていることを固定する（イシュー #2897）。
+#[test]
+fn app_shell_stacked_overlap_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/app-shell-stacked-overlap/index.html"))
+        .expect("blocks/app-shell-stacked-overlap/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-app-shell-stacked-overlap\""),
+        "app-shell-stacked-overlap page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "app-shell-stacked-overlap page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "app-shell-stacked-overlap page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-app-shell-stacked-overlap-root",
+        "data-blocks-app-shell-stacked-overlap-band",
+        "data-blocks-app-shell-stacked-overlap-bar",
+        "data-blocks-app-shell-stacked-overlap-body",
+        "data-blocks-app-shell-stacked-overlap-row2",
+        "data-blocks-app-shell-stacked-overlap-heading-row",
+    ] {
+        assert!(
+            html.contains(hook),
+            "app-shell-stacked-overlap page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "container-type: inline-size;",
+        "@container blocks-app-shell-stacked-overlap (min-width: 48rem)",
+        "margin-block-start: calc(-1 * var(--blocks-app-shell-stacked-overlap-overlap));",
+        "background: var(--fandhe-color-fg);",
+        "background: var(--fandhe-color-accent);",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// app-shell-stacked-overlap の Demo が使用部品（navigation-menu/
+/// input-group/field/avatar/menu/button/card/heading/collapsible/icon）を
+/// すべて実際に合成し、`<form>`・`src="data:"`・`href="#"` を出力しないこと
+/// を固定する（イシュー #2897）。
+#[test]
+fn app_shell_stacked_overlap_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/app-shell-stacked-overlap/")
+        .expect("app-shell-stacked-overlap should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"navigation-menu\"",
+        "data-scope=\"input-group\"",
+        "data-scope=\"field\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"menu\"",
+        "data-scope=\"button\"",
+        "data-scope=\"card\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"collapsible\"",
+        "data-scope=\"icon\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "app-shell-stacked-overlap demo should contain {scope}"
+        );
+    }
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "app-shell-stacked-overlap demo should never contain {absent}"
+        );
+    }
+}
+
 /// app-shell-three-column ページが Demo class・専用 CSS を配線している
 /// こと、block 固有の CSS フック（トップバー・補助カラム・inset・
 /// stack）が実際に出力され、`blocks::stylesheet()` に container query の
