@@ -315,11 +315,21 @@ function constantTimeEqual(a, b) {
 対話プロンプトで値を入力します（シェル履歴に値を残さないため、
 コマンドライン引数や `echo | vercel env add` は避けてください）。
 
+前述の「Deployment Protection（既定で有効）」の手順 1 は
+`vercel deploy --prebuilt`（`--prod` なし、すなわち preview デプロイ）で
+ミドルウェアの動作を確認する前提です。preview 環境に
+`BASIC_AUTH_USER`/`BASIC_AUTH_PASSWORD` が未設定のままだと、ミドルウェアは
+fail-closed の設計どおり常に 503 を返し、Basic 認証を確認できません。
+そのため **preview への登録は任意ではなく必須**です。production のみに
+登録して確認したい場合は、preview 登録を省略する代わりに `--prod` 付きで
+デプロイして確認してください。
+
 ```bash
+# 検証に使うデプロイ種別（preview / production）の両方に登録する。
+# 少なくとも「動作確認に実際に使う環境」への登録は省略できない。
 vercel env add BASIC_AUTH_USER production
 vercel env add BASIC_AUTH_PASSWORD production
 
-# preview 環境でも保護したい場合は同様に追加する
 vercel env add BASIC_AUTH_USER preview
 vercel env add BASIC_AUTH_PASSWORD preview
 ```
