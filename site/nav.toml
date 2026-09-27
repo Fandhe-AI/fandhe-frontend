@@ -73,6 +73,11 @@ title = "アニメーション機能ガイド"
 source = "docs/guides/animation.md"
 path = "/guides/animation/"
 
+[[section.page]]
+title = "デプロイガイド"
+source = "docs/guides/deployment.md"
+path = "/guides/deployment/"
+
 [[section]]
 title = "Examples"
 index_path = "/examples/"
