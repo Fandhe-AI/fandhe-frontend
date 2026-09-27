@@ -9416,6 +9416,92 @@ fn app_shell_sidebar_header_composes_expected_parts() {
     }
 }
 
+/// app-shell-sidebar の Demo ラッパ・CSS フックが実際に出力され、
+/// `blocks::stylesheet()` に対応するセレクタが存在することを固定する
+/// （`app_shell_sidebar_header_page_wires_demo_class_and_css_hooks` と同型、
+/// イシュー #2894）。
+#[test]
+fn app_shell_sidebar_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/app-shell-sidebar/index.html"))
+        .expect("blocks/app-shell-sidebar/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-app-shell-sidebar\""),
+        "app-shell-sidebar page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "app-shell-sidebar page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "app-shell-sidebar page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-app-shell-sidebar-stack=\"\"",
+        "data-blocks-app-shell-sidebar-frame=\"\"",
+        "data-blocks-app-shell-sidebar-brand=\"\"",
+        "data-blocks-app-shell-sidebar-topbar=",
+        "data-blocks-app-shell-sidebar-mobile-nav=",
+        "data-blocks-app-shell-sidebar-main=\"\"",
+        "data-blocks-app-shell-sidebar-placeholder=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "app-shell-sidebar page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-app-shell-sidebar-stack]",
+        "[data-blocks-app-shell-sidebar-frame]",
+        "[data-blocks-app-shell-sidebar-topbar]",
+        "[data-blocks-app-shell-sidebar-mobile-nav]",
+        "[data-blocks-app-shell-sidebar-placeholder]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+    assert!(
+        sheet_css.contains("@container blocks-app-shell-sidebar (max-width: 40rem)"),
+        "blocks.css should define the narrow-width container query for app-shell-sidebar"
+    );
+}
+
+/// app-shell-sidebar の合成部品（sidebar/avatar/collapsible/icon/heading）が
+/// anatomy の `data-*` として実際に出力され、`<form>`・死リンク・`data:`
+/// URI が無いことを固定する（イシュー #2894）。
+#[test]
+fn app_shell_sidebar_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/app-shell-sidebar/")
+        .expect("app-shell-sidebar should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"sidebar\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"collapsible\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"heading\"",
+        "data-part=\"menu-badge\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "app-shell-sidebar demo should contain {scope}"
+        );
+    }
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "app-shell-sidebar demo should never contain {absent}"
+        );
+    }
+}
+
 /// app-shell-navbar-columns ページが Demo class・専用 CSS を配線している
 /// こと、block 固有 CSS（コンテナクエリ・sticky・grid-template-areas・
 /// disabled 中和）が実際に出力されていることを固定する（イシュー

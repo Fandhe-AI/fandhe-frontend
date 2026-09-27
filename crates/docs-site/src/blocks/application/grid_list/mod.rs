@@ -1,6 +1,7 @@
 //! Application / Grid List カテゴリの block 登録点（イシュー #2734 で
 //! 雛形新設、イシュー #2918 で最初の block（`grid-list-compact-tiles`）を
-//! 追加しディレクトリ化して卒業した。手順は
+//! 追加しディレクトリ化して卒業した。イシュー #2921（親 #2892）で 2 件目
+//! の block（[`grid_list_logo_cards`]）を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -11,6 +12,7 @@
 
 mod grid_list_compact_tiles;
 mod grid_list_contact_cards;
+mod grid_list_logo_cards;
 
 use crate::blocks::Block;
 
@@ -18,5 +20,6 @@ pub(super) fn blocks() -> Vec<Block> {
     vec![
         grid_list_compact_tiles::BLOCK,
         grid_list_contact_cards::BLOCK,
+        grid_list_logo_cards::BLOCK,
     ]
 }

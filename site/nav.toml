@@ -1987,6 +1987,11 @@ source = "site/blocks/app-shell-sidebar-header.md"
 path = "/blocks/app-shell-sidebar-header/"
 
 [[section.group.page]]
+title = "app-shell-sidebar"
+source = "site/blocks/app-shell-sidebar.md"
+path = "/blocks/app-shell-sidebar/"
+
+[[section.group.page]]
 title = "app-shell-stacked-overlap"
 source = "site/blocks/app-shell-stacked-overlap.md"
 path = "/blocks/app-shell-stacked-overlap/"
@@ -2034,6 +2039,11 @@ path = "/blocks/grid-list-compact-tiles/"
 title = "grid-list-contact-cards"
 source = "site/blocks/grid-list-contact-cards.md"
 path = "/blocks/grid-list-contact-cards/"
+
+[[section.group.page]]
+title = "grid-list-logo-cards"
+source = "site/blocks/grid-list-logo-cards.md"
+path = "/blocks/grid-list-logo-cards/"
 
 [[section.group]]
 title = "Description List"
