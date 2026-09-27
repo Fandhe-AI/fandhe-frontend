@@ -2054,6 +2054,14 @@ source = "site/blocks/cursor-hover-cards.md"
 path = "/blocks/cursor-hover-cards/"
 
 [[section.group]]
+title = "Chart"
+
+[[section.group.page]]
+title = "chart-bar-list"
+source = "site/blocks/chart-bar-list.md"
+path = "/blocks/chart-bar-list/"
+
+[[section.group]]
 title = "Dashboard"
 
 [[section.group.page]]
