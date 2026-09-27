@@ -2028,6 +2028,14 @@ source = "site/blocks/card-heading-toolbar.md"
 path = "/blocks/card-heading-toolbar/"
 
 [[section.group]]
+title = "List"
+
+[[section.group.page]]
+title = "list-people"
+source = "site/blocks/list-people.md"
+path = "/blocks/list-people/"
+
+[[section.group]]
 title = "Grid List"
 
 [[section.group.page]]

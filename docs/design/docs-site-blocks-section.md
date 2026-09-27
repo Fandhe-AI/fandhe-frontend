@@ -984,6 +984,7 @@ pub enum LayoutCss {
 | pricing-upgrade-card | #2878（親 #2807） | `marketing/pricing/pricing_upgrade_card.rs` |
 | testimonial-card-grid | #2884（親 #2807） | `marketing/testimonial/testimonial_card_grid.rs` |
 | testimonial-split-image | #2890（親 #2807） | `marketing/testimonial/testimonial_split_image.rs` |
+| list-people | #2923（親 #2892） | `application/list/list_people.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
 個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の全件であり、
