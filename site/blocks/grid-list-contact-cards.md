@@ -298,8 +298,12 @@ fn vertical_card(item: &Contact) -> Node {
 }
 
 /// 1 枚のカードを `list::item` へ包む（モジュール doc「CSS フックの選び方」
-/// 節。`ListVariant::Plain` の item は `display: flex` になるため
-/// `blocks-grid-list-contact-cards-item` で伸長させる）。
+/// 節。`ListVariant::Plain` の item は `display: flex; align-items:
+/// flex-start` になり item 自身は親 grid セルいっぱいに伸びるが、その
+/// 唯一の子である card は主軸方向（既定 row）にサイズが content 依存の
+/// まま先頭寄せに残る。`blocks-grid-list-contact-cards-item` 側は
+/// `min-width: 0`（オーバーフロー対策）のみを持ち、card 側のセレクタへ
+/// `flex: 1; width: 100%` を持たせてグリッドセルいっぱいへ伸長させる）。
 fn card_item(card: Node) -> Node {
     list::item(
         vec![("class", "blocks-grid-list-contact-cards-item")],

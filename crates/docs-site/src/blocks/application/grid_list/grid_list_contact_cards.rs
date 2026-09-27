@@ -29,7 +29,16 @@
 //! スタイルフックは `data-blocks-grid-list-contact-cards-*` 属性で渡す。
 //! `card::body`/`card::footer`/`list::item`/素の `div` には `class` が
 //! そのまま効くため、レイアウトは `.blocks-grid-list-contact-cards-*`
-//! クラスセレクタを使う。
+//! クラスセレクタを使う。ただし `card::footer`/`button::button` が持つ
+//! recipe セレクタ（`[data-scope="card"][data-part="footer"]`/
+//! `[data-scope="button"][data-part="root"]`、いずれも属性 2 個で
+//! 詳細度 (0,2,0,0)）が padding/border-radius を宣言しているため、
+//! 単一クラス・単一属性セレクタ（詳細度 (0,1,0,0)）の上書きは詳細度負けで
+//! 効かない。`actions_footer`/`actions_footer` 内ボタンの CSS フックは
+//! recipe セレクタと同じ要素へ複合セレクタ（`[data-scope=...][data-part=...]
+//! .blocks-grid-list-contact-cards-actions` 等、詳細度 (0,3,0,0)）で書き、
+//! カスケード順ではなく詳細度で確実に上書きする（`layout_css_contract`
+//! テスト参照）。
 //!
 //! # `@container` で列数を切り替える理由
 //!
@@ -350,8 +359,12 @@ fn vertical_card(item: &Contact) -> Node {
 }
 
 /// 1 枚のカードを `list::item` へ包む（モジュール doc「CSS フックの選び方」
-/// 節。`ListVariant::Plain` の item は `display: flex` になるため
-/// `blocks-grid-list-contact-cards-item` で伸長させる）。
+/// 節。`ListVariant::Plain` の item は `display: flex; align-items:
+/// flex-start` になり item 自身は親 grid セルいっぱいに伸びるが、その
+/// 唯一の子である card は主軸方向（既定 row）にサイズが content 依存の
+/// まま先頭寄せに残る。`blocks-grid-list-contact-cards-item` 側は
+/// `min-width: 0`（オーバーフロー対策）のみを持ち、card 側のセレクタへ
+/// `flex: 1; width: 100%` を持たせてグリッドセルいっぱいへ伸長させる）。
 fn card_item(card: Node) -> Node {
     list::item(
         vec![("class", "blocks-grid-list-contact-cards-item")],
@@ -450,15 +463,15 @@ const LAYOUT_CSS: &str = "\
 .blocks-grid-list-contact-cards-layout > [data-blocks-grid-list-contact-cards-variant] {\n  container-type: inline-size;\n  container-name: blocks-grid-list-contact-cards;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-grid-list-contact-cards-label {\n  color: var(--fandhe-color-fg-muted);\n  font-size: 0.875rem;\n}\n\
 [data-blocks-grid-list-contact-cards-grid] {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-6);\n  margin: 0;\n  padding: 0;\n}\n\
-.blocks-grid-list-contact-cards-item {\n  flex: 1;\n  min-width: 0;\n}\n\
-.blocks-grid-list-contact-cards-item [data-scope=\"card\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: column;\n  height: 100%;\n}\n\
+.blocks-grid-list-contact-cards-item {\n  min-width: 0;\n}\n\
+.blocks-grid-list-contact-cards-item [data-scope=\"card\"][data-part=\"root\"] {\n  display: flex;\n  flex: 1;\n  flex-direction: column;\n  width: 100%;\n  height: 100%;\n}\n\
 .blocks-grid-list-contact-cards-main {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-grid-list-contact-cards-info {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
 .blocks-grid-list-contact-cards-role {\n  color: var(--fandhe-color-fg-muted);\n  font-size: 0.875rem;\n}\n\
 .blocks-grid-list-contact-cards-stack {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  text-align: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-grid-list-contact-cards-avatar] {\n  flex-shrink: 0;\n}\n\
-.blocks-grid-list-contact-cards-actions {\n  display: flex;\n  padding: 0;\n  border-top: 1px solid var(--fandhe-color-border);\n  margin-top: auto;\n}\n\
-[data-blocks-grid-list-contact-cards-action] {\n  flex: 1;\n  border-radius: 0;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: var(--fandhe-space-2);\n}\n\
+[data-scope=\"card\"][data-part=\"footer\"].blocks-grid-list-contact-cards-actions {\n  display: flex;\n  padding: 0;\n  border-top: 1px solid var(--fandhe-color-border);\n  margin-top: auto;\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-grid-list-contact-cards-action] {\n  flex: 1;\n  border-radius: 0;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-grid-list-contact-cards-action] + [data-blocks-grid-list-contact-cards-action] {\n  border-inline-start: 1px solid var(--fandhe-color-border);\n}\n\
 @container blocks-grid-list-contact-cards (min-width: 36rem) {\n  \
 [data-blocks-grid-list-contact-cards-grid] {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n\
