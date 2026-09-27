@@ -133,11 +133,18 @@ fn author_footer(author_index: usize, date: &str) -> Node {
 }
 
 /// 下端のメンバー群行（`avatar::group` に 3 名 + 「+2」fallback）。
+/// `avatar::group` へ包むだけでは重なり表示にならず、各 `avatar::root` へ
+/// 個別に `stacked: true` を渡す必要がある（`AvatarProps::default()` は
+/// `stacked: false`、Bugbot 指摘・レビュー是正）。
 fn members_footer() -> Node {
+    let stacked_props = AvatarProps {
+        stacked: true,
+        ..AvatarProps::default()
+    };
     let member_avatar = |index: usize| -> Node {
         let name = dummy_assets::PERSON_NAMES[index % dummy_assets::PERSON_NAMES.len()];
         avatar::root(
-            &AvatarProps::default(),
+            &stacked_props,
             vec![],
             vec![avatar::image(
                 ImageStatus::Loaded,
@@ -157,7 +164,7 @@ fn members_footer() -> Node {
                     member_avatar(1),
                     member_avatar(2),
                     avatar::root(
-                        &AvatarProps::default(),
+                        &stacked_props,
                         vec![],
                         vec![avatar::fallback(
                             ImageStatus::Error,
@@ -183,11 +190,14 @@ fn members_footer() -> Node {
 /// カード b（操作バー表示状態）専用の操作バー。プレビュー/保存ボタンと、
 /// 3 項目 + 区切り線を持つ `menu` を静的な開状態ではなく閉状態のまま
 /// マークアップだけを示す（モジュール doc「ホバー表示化の CSS を実装しない
-/// 理由」節参照）。
+/// 理由」節参照）。無 JS のため押しても何も起きず、`menu` も開けないので、
+/// いずれも `disabled: true`（menu は `trigger` 第 2 引数）を固定し
+/// `[data-disabled]` を [`LAYOUT_CSS`] で `opacity: 1; cursor: default;` へ
+/// 中和する（`app_shell_stacked` と同型の判断、レビュー是正）。
 fn media_actions() -> Node {
     let trigger = menu::trigger(
         OpenState::Closed,
-        false,
+        true,
         Some("blocks-card-media-footer-menu"),
         vec![("aria-label", "その他の操作")],
         vec![core_text("\u{2026}")],
@@ -229,18 +239,20 @@ fn media_actions() -> Node {
                 &ButtonProps {
                     variant: ButtonVariant::Subtle,
                     size: Size::Sm,
+                    disabled: true,
                     ..ButtonProps::default()
                 },
-                vec![],
+                vec![("data-blocks-card-media-footer-preview", "")],
                 vec![core_text("プレビュー")],
             ),
             button::button(
                 &ButtonProps {
                     variant: ButtonVariant::Subtle,
                     size: Size::Sm,
+                    disabled: true,
                     ..ButtonProps::default()
                 },
-                vec![],
+                vec![("data-blocks-card-media-footer-save", "")],
                 vec![core_text("保存")],
             ),
             menu_root,
