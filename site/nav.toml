@@ -2057,6 +2057,11 @@ path = "/blocks/cursor-hover-cards/"
 title = "Chart"
 
 [[section.group.page]]
+title = "chart-bar-list"
+source = "site/blocks/chart-bar-list.md"
+path = "/blocks/chart-bar-list/"
+
+[[section.group.page]]
 title = "chart-metric-area"
 source = "site/blocks/chart-metric-area.md"
 path = "/blocks/chart-metric-area/"
