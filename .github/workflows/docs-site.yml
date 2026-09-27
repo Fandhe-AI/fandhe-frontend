@@ -406,8 +406,10 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/description-list-summary-card/index.html"
           # Application / Calendar
           # Application / Feed
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feed-comments-timeline/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feed-upvote-cards/index.html"
           # Application / Form Layout
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/form-layout-two-column/index.html"
           # Application / Auth
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-01/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-04/index.html"
@@ -429,6 +431,7 @@ jobs:
           # Application / Profile
           # Application / Chart
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/chart-bar-list/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/chart-stat-cards/index.html"
           # Application / Dashboard
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/dashboard-01/index.html"
           # Application / AI Chat

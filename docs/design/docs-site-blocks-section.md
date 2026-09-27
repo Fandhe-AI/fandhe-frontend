@@ -963,13 +963,16 @@ pub enum LayoutCss {
 | card-heading-toolbar | #2902 | `application/card_heading/card_heading_toolbar.rs` |
 | card-meta-cta | #2901（親 #2892） | `application/card/card_meta_cta.rs` |
 | chart-bar-list | #2903 | `application/chart/chart_bar_list.rs` |
+| chart-stat-cards | #2905 | `application/chart/chart_stat_cards.rs` |
 | description-list-horizontal | #2906（親 #2892） | `application/description_list/description_list_horizontal.rs` |
 | description-list-summary-card | #2907（親 #2892） | `application/description_list/description_list_summary_card.rs` |
 | description-list-two-column | #2908 | `application/description_list/description_list_two_column.rs` |
 | feed-upvote-cards | #2910（親 #2892） | `application/feed/feed_upvote_cards.rs` |
+| feed-comments-timeline | #2909（親 #2892） | `application/feed/feed_comments_timeline.rs` |
+| form-layout-two-column | #2916（親 #2892） | `application/form_layout/form_layout_two_column.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
-151 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
+152 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
 全件であり、`crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別
 モジュール（§17/§18 参照）が存在するが、それらは個別の Markdown 原稿を
