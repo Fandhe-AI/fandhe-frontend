@@ -501,9 +501,10 @@ const LAYOUT_CSS: &str = "\
 .blocks-form-layout-inline-labels-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  flex-wrap: wrap;\n}\n\
 .blocks-form-layout-inline-labels-actions {\n  display: flex;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-form-layout-inline-labels-rows {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-form-layout-inline-labels;\n}\n\
-[data-scope=\"separator\"] {\n  margin: 0;\n}\n\
+.blocks-form-layout-inline-labels-rows [data-scope=\"separator\"] {\n  margin: 0;\n}\n\
 @container blocks-form-layout-inline-labels (min-width: 36rem) {\n  \
 .blocks-form-layout-inline-labels-rows [data-scope=\"field\"][data-part=\"root\"][data-blocks-form-layout-inline-labels-row] {\n    display: grid;\n    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);\n    align-items: start;\n    gap: var(--fandhe-space-4);\n  }\n\
+.blocks-form-layout-inline-labels-rows [data-scope=\"field\"][data-part=\"root\"][data-blocks-form-layout-inline-labels-row] [data-scope=\"field\"][data-part=\"helper-text\"] {\n    grid-column: 2;\n  }\n\
 .blocks-form-layout-inline-labels-rows [data-scope=\"data-list\"][data-part=\"root\"] {\n    --fandhe-data-list-item-flex-direction: row;\n    --fandhe-data-list-item-gap: var(--fandhe-space-4);\n    --fandhe-data-list-label-min-width: 12rem;\n  }\n\
 }\n\
 .blocks-form-layout-inline-labels-rows [data-scope=\"data-list\"][data-part=\"item\"][data-blocks-form-layout-inline-labels-item] {\n  padding-block-start: var(--fandhe-space-4);\n  border-top: 1px solid var(--fandhe-color-border);\n}\n\
@@ -630,6 +631,25 @@ mod tests {
         assert!(LAYOUT_CSS.contains("grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);"));
         assert!(LAYOUT_CSS.contains("border-top: 1px solid var(--fandhe-color-border);"));
         assert!(!LAYOUT_CSS.contains('<'));
+    }
+
+    /// separator の余白リセットセレクタが本 block のルート class 配下へ
+    /// 限定され、他 block・他ページの `[data-scope="separator"]` へ影響
+    /// しないこと（レビュー指摘対応）。
+    #[test]
+    fn layout_css_scopes_separator_reset_to_this_block() {
+        assert!(!LAYOUT_CSS.contains("\n[data-scope=\"separator\"] {"));
+        assert!(LAYOUT_CSS
+            .contains(".blocks-form-layout-inline-labels-rows [data-scope=\"separator\"] {"));
+    }
+
+    /// 2 列グリッド時、`helper-text` が明示的に入力列（2 列目）へ配置され
+    /// auto-placement でラベル列へ入り込まないこと（レビュー指摘対応）。
+    #[test]
+    fn layout_css_places_helper_text_in_input_column() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"field\"][data-part=\"root\"][data-blocks-form-layout-inline-labels-row] [data-scope=\"field\"][data-part=\"helper-text\"] {\n    grid-column: 2;\n  }"
+        ));
     }
 
     /// ルート class（`demo_class` とは別名）が [`demo`] の出力へ実際に
