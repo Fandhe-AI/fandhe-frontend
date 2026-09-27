@@ -104,8 +104,11 @@ Basic 認証は Deployment Protection を無効化した（あるいは対象外
      が完了していることを確認する。
   2. 保護したい旧デプロイ（ミドルウェア未導入のまま残っているもの）を
      ダッシュボードで洗い出し、公開のままでよいか判断する。公開すべきで
-     なければ `vercel remove <deployment-url>` で削除するか、ミドルウェア
-     入りの内容で再デプロイして置き換える。
+     なければ `vercel remove <deployment-url>` で**削除する**。Vercel の
+     デプロイ URL はデプロイごとに不変であり、ミドルウェア入りの内容で
+     再デプロイしても旧デプロイの URL は別に存在し続け無保護のまま残る
+     ため、「再デプロイして置き換える」は保護の代替にならない。旧 URL
+     を無効化する手段は削除のみと理解してください。
   3. 上記が済んでから Project Settings → Deployment Protection →
      Vercel Authentication のトグルを無効にして保存する。
 - **確認手順**（`<deployment-url>` は実際のデプロイ URL に読み替え）:
