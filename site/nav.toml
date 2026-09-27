@@ -2023,6 +2023,14 @@ source = "site/blocks/card-heading-toolbar.md"
 path = "/blocks/card-heading-toolbar/"
 
 [[section.group]]
+title = "List"
+
+[[section.group.page]]
+title = "list-narrow-activity"
+source = "site/blocks/list-narrow-activity.md"
+path = "/blocks/list-narrow-activity/"
+
+[[section.group]]
 title = "Grid List"
 
 [[section.group.page]]
