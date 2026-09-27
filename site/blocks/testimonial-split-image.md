@@ -218,14 +218,19 @@ fn instance_author_column() -> Node {
                     dummy_assets::JOB_TITLES[2 % dummy_assets::JOB_TITLES.len()],
                 )],
             ),
-            separator::separator(
-                &SeparatorProps {
-                    orientation: Orientation::Vertical,
-                    ..SeparatorProps::default()
-                },
-                vec![("data-blocks-testimonial-split-image-separator", "")],
-            ),
         ],
+    );
+    // `separator::separator` の垂直バリアントは `align-self: stretch` で高さを
+    // 得る契約（`fandhe_frontend_pre_styled_ui::separator` 参照）。`.author`
+    // （column flex）の子に置くと stretch が横方向に働き高さ 0 になるため、
+    // `.layout` 直下（md 以上で row flex）の兄弟として置き、row 親の高さへ
+    // 正しく stretch させる（Bugbot 指摘、PR #3316）。
+    let sep = separator::separator(
+        &SeparatorProps {
+            orientation: Orientation::Vertical,
+            ..SeparatorProps::default()
+        },
+        vec![("data-blocks-testimonial-split-image-separator", "")],
     );
     let content = div(
         vec![("class", "blocks-testimonial-split-image-content")],
@@ -243,7 +248,7 @@ fn instance_author_column() -> Node {
                 "author-column",
             ),
         ],
-        vec![author_column, content],
+        vec![author_column, sep, content],
     )
 }
 

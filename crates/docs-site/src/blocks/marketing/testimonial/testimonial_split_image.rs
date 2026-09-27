@@ -270,14 +270,19 @@ fn instance_author_column() -> Node {
                     dummy_assets::JOB_TITLES[2 % dummy_assets::JOB_TITLES.len()],
                 )],
             ),
-            separator::separator(
-                &SeparatorProps {
-                    orientation: Orientation::Vertical,
-                    ..SeparatorProps::default()
-                },
-                vec![("data-blocks-testimonial-split-image-separator", "")],
-            ),
         ],
+    );
+    // `separator::separator` の垂直バリアントは `align-self: stretch` で高さを
+    // 得る契約（`fandhe_frontend_pre_styled_ui::separator` 参照）。`.author`
+    // （column flex）の子に置くと stretch が横方向に働き高さ 0 になるため、
+    // `.layout` 直下（md 以上で row flex）の兄弟として置き、row 親の高さへ
+    // 正しく stretch させる（Bugbot 指摘、PR #3316）。
+    let sep = separator::separator(
+        &SeparatorProps {
+            orientation: Orientation::Vertical,
+            ..SeparatorProps::default()
+        },
+        vec![("data-blocks-testimonial-split-image-separator", "")],
     );
     let content = div(
         vec![("class", "blocks-testimonial-split-image-content")],
@@ -295,7 +300,7 @@ fn instance_author_column() -> Node {
                 "author-column",
             ),
         ],
-        vec![author_column, content],
+        vec![author_column, sep, content],
     )
 }
 
@@ -374,6 +379,12 @@ pub const BLOCK: Block = Block {
 /// 以上で 2 カラムへ切り替える。`band` variant の写真は `48rem` 以上で
 /// `order` により右側へ回す（DOM 順・読み上げ順は変えない）。縦罫線
 /// （`author-column`）は狭幅で非表示（縦積み時に意味を失うため）。
+///
+/// `band` の暗色 `::before` は狭幅（縦積み）では `inset: 0` でコンテナ全体
+/// を覆う（写真の高さに関わらず本文〔ロゴ・引用文〕が常に帯の内側に収まる
+/// ようにするため）。「写真が帯からはみ出す」演出は `48rem` 以上の 2 カラム
+/// 時のみ `inset-block` を写真の高さより狭くして再現する（codex レビュー
+/// 指摘、PR #3316）。
 const LAYOUT_CSS: &str = "\
 .blocks-testimonial-split-image-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-testimonial-split-image-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
@@ -383,7 +394,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-testimonial-split-image-author {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  text-align: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"separator\"][data-part=\"root\"][data-blocks-testimonial-split-image-separator] {\n  display: none;\n}\n\
 .blocks-testimonial-split-image-layout[data-blocks-testimonial-split-image-band] {\n  position: relative;\n  isolation: isolate;\n  padding: var(--fandhe-space-6);\n}\n\
-.blocks-testimonial-split-image-layout[data-blocks-testimonial-split-image-band]::before {\n  content: \"\";\n  position: absolute;\n  inset-block: var(--fandhe-space-8) var(--fandhe-space-4);\n  inset-inline: 0;\n  z-index: -1;\n  border-radius: var(--fandhe-radius-lg);\n  background: color-mix(in srgb, var(--fandhe-color-fg) 85%, transparent);\n}\n\
+.blocks-testimonial-split-image-layout[data-blocks-testimonial-split-image-band]::before {\n  content: \"\";\n  position: absolute;\n  inset: 0;\n  z-index: -1;\n  border-radius: var(--fandhe-radius-lg);\n  background: color-mix(in srgb, var(--fandhe-color-fg) 85%, transparent);\n}\n\
 .blocks-testimonial-split-image-layout[data-blocks-testimonial-split-image-band] .blocks-testimonial-split-image-content {\n  color: var(--fandhe-color-bg);\n}\n\
 .blocks-testimonial-split-image-layout[data-blocks-testimonial-split-image-band] [data-scope=\"blockquote\"][data-part=\"root\"] {\n  --fandhe-blockquote-caption-fg: color-mix(in srgb, var(--fandhe-color-bg) 78%, transparent);\n}\n\
 @media (min-width: 48rem) {\n  \
@@ -392,7 +403,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-testimonial-split-image-content {\n    flex: 1;\n  }\n  \
 .blocks-testimonial-split-image-author {\n    flex: 0 0 12rem;\n  }\n  \
 [data-scope=\"separator\"][data-part=\"root\"][data-blocks-testimonial-split-image-separator] {\n    display: block;\n  }\n  \
-.blocks-testimonial-split-image-layout[data-blocks-testimonial-split-image-band] [data-scope=\"image\"][data-part=\"root\"][data-blocks-testimonial-split-image-photo] {\n    order: 2;\n  }\n\
+.blocks-testimonial-split-image-layout[data-blocks-testimonial-split-image-band] [data-scope=\"image\"][data-part=\"root\"][data-blocks-testimonial-split-image-photo] {\n    order: 2;\n  }\n  \
+.blocks-testimonial-split-image-layout[data-blocks-testimonial-split-image-band]::before {\n    inset-block: var(--fandhe-space-8) var(--fandhe-space-4);\n    inset-inline: 0;\n  }\n\
 }\n";
 
 #[cfg(test)]
