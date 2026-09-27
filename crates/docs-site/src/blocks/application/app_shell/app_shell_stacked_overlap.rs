@@ -358,14 +358,17 @@ fn actions(suffix: &str) -> Node {
 }
 
 /// ハンバーガートリガー（狭い幅専用、常時展開の [`mobile_panel`] を
-/// `aria-controls` で指す。`header_simple_bar::hamburger` と同型）。
+/// `aria-controls` で指す。`header_simple_bar::hamburger` と同型で
+/// `disabled: true` 固定 — 押しても何も起きない静的表示のため、`aria-label`
+/// は「開く」等の実行可能な操作を示唆しない名称にする（イシュー #2897
+/// codex レビュー指摘）。
 fn hamburger(panel_id: &str) -> Node {
     collapsible::trigger(
         OpenState::Open,
         true,
         Some(panel_id),
         vec![
-            ("aria-label", "メニューを開く"),
+            ("aria-label", "メニュー"),
             ("data-blocks-app-shell-stacked-overlap-toggle", ""),
         ],
         vec![hamburger_icon()],
@@ -679,7 +682,7 @@ mod tests {
                 .count(),
             2
         );
-        assert_eq!(html.matches(r#"aria-label="メニューを開く""#).count(), 2);
+        assert_eq!(html.matches(r#"aria-label="メニュー""#).count(), 2);
         for variant in ["single-row", "two-row-search"] {
             let panel_id = format!("blocks-app-shell-stacked-overlap-panel-{variant}");
             assert!(
