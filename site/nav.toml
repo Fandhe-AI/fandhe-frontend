@@ -2013,6 +2013,14 @@ source = "site/blocks/description-list-horizontal.md"
 path = "/blocks/description-list-horizontal/"
 
 [[section.group]]
+title = "Card Heading"
+
+[[section.group.page]]
+title = "card-heading-toolbar"
+source = "site/blocks/card-heading-toolbar.md"
+path = "/blocks/card-heading-toolbar/"
+
+[[section.group]]
 title = "Auth"
 
 [[section.group.page]]
