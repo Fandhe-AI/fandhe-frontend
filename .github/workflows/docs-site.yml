@@ -403,6 +403,7 @@ jobs:
           # Application / Description List
           # Application / Calendar
           # Application / Feed
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/feed-comments-timeline/index.html"
           # Application / Form Layout
           # Application / Auth
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-01/index.html"

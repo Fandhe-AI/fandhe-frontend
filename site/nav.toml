@@ -2013,6 +2013,14 @@ source = "site/blocks/card-heading-toolbar.md"
 path = "/blocks/card-heading-toolbar/"
 
 [[section.group]]
+title = "Feed"
+
+[[section.group.page]]
+title = "feed-comments-timeline"
+source = "site/blocks/feed-comments-timeline.md"
+path = "/blocks/feed-comments-timeline/"
+
+[[section.group]]
 title = "Auth"
 
 [[section.group.page]]
