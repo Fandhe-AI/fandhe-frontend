@@ -9496,3 +9496,99 @@ fn app_shell_navbar_columns_composes_expected_parts() {
         );
     }
 }
+
+/// app-shell-three-column ページが Demo class・専用 CSS を配線している
+/// こと、block 固有の CSS フック（トップバー・補助カラム・inset・
+/// stack）が実際に出力され、`blocks::stylesheet()` に container query の
+/// 規則があることを固定する（`app_shell_sidebar_header_page_wires_demo_
+/// class_and_css_hooks` と同型、イシュー #2898）。
+#[test]
+fn app_shell_three_column_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/app-shell-three-column/index.html"))
+        .expect("blocks/app-shell-three-column/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-app-shell-three-column\""),
+        "app-shell-three-column page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "app-shell-three-column page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "app-shell-three-column page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-app-shell-three-column-stack",
+        "data-blocks-app-shell-three-column-instance",
+        "data-blocks-app-shell-three-column-brand",
+        "data-blocks-app-shell-three-column-topbar",
+        "data-blocks-app-shell-three-column-search",
+        "data-blocks-app-shell-three-column-actions",
+        "data-blocks-app-shell-three-column-inset",
+        "data-blocks-app-shell-three-column-body",
+        "data-blocks-app-shell-three-column-main",
+        "data-blocks-app-shell-three-column-aux",
+    ] {
+        assert!(
+            html.contains(hook),
+            "app-shell-three-column page should output the {hook} CSS hook attribute"
+        );
+    }
+
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-app-shell-three-column-topbar]",
+        "[data-blocks-app-shell-three-column-search]",
+        "[data-blocks-app-shell-three-column-aux]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+    // provider の複合セレクタは子孫コンビネータではなく同一要素へ適用する
+    // （sidebar-header の codex-review/Bugbot 指摘の回帰防止と同型）。
+    assert!(
+        sheet_css.contains(
+            "[data-blocks-app-shell-three-column-instance][data-scope=\"sidebar\"][data-part=\"provider\"]"
+        ),
+        "blocks.css should target [data-blocks-app-shell-three-column-instance] as a compound selector on the provider element, not a descendant combinator"
+    );
+}
+
+/// app-shell-three-column の合成部品（sidebar/avatar/button/icon/
+/// input-group/input/menu/visually-hidden の 8 部品）が anatomy の
+/// `data-*` として実際に出力され、`<form>`・死リンク・`data:` URI が無い
+/// ことを固定する（イシュー #2898）。
+#[test]
+fn app_shell_three_column_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/app-shell-three-column/")
+        .expect("app-shell-three-column should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"sidebar\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"button\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"input-group\"",
+        "data-scope=\"field\" data-part=\"input\"",
+        "data-scope=\"menu\"",
+        "data-scope=\"visually-hidden\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "app-shell-three-column demo should contain {scope}"
+        );
+    }
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "app-shell-three-column demo should never contain {absent}"
+        );
+    }
+}
