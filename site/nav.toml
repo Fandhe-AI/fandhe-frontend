@@ -2026,6 +2026,11 @@ path = "/blocks/card-heading-toolbar/"
 title = "Grid List"
 
 [[section.group.page]]
+title = "grid-list-compact-tiles"
+source = "site/blocks/grid-list-compact-tiles.md"
+path = "/blocks/grid-list-compact-tiles/"
+
+[[section.group.page]]
 title = "grid-list-contact-cards"
 source = "site/blocks/grid-list-contact-cards.md"
 path = "/blocks/grid-list-contact-cards/"
@@ -2073,6 +2078,11 @@ path = "/blocks/form-layout-inline-labels/"
 title = "form-layout-property-panel"
 source = "site/blocks/form-layout-property-panel.md"
 path = "/blocks/form-layout-property-panel/"
+
+[[section.group.page]]
+title = "form-layout-stacked"
+source = "site/blocks/form-layout-stacked.md"
+path = "/blocks/form-layout-stacked/"
 
 [[section.group.page]]
 title = "form-layout-two-column"
