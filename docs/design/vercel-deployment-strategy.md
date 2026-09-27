@@ -78,39 +78,81 @@ Vercel 対応方式の比較と採用方式の決定を行う決定記録です�
 `fandhe_frontend_server::ssg::generate_pages`（外部依存ゼロ・既定エスケープ
 経由）だけで行います。
 
-### 併用（条件付き）: 案 a（`vercel_runtime = "=2.4.1"`）を動的処理・SSR 用に採用する
+### 取り下げ: 案 a（`vercel_runtime = "=2.4.1"`）の動的処理・SSR 用併用
+
+当初は「動的処理・SSR 用に条件付きで併用する」という判断でした（当初の
+条件・判断根拠は本節末尾「（当初判断の経緯）」に残します）。しかし
+#3288 の実測（`docs/reports/vercel-runtime-2x-dependency-audit-3288.md`）に
+より、§7 の再評価トリガー（案 a 併用の前提条件として自ら設定した
+「`vercel_runtime 2.x` の依存木が上限（60 件/深さ 6）を超える」
+「`build.rs` を持つ依存が見つかる」）がいずれも発火したため、
+**案 a の併用を取り下げ、案 c 単独を Vercel 上の既定方式として確定します**
+（2026-09-27）。
+
+- 一時クレートでの実測: パッケージ数 66〜71 件（上限 60 件を超過）・最大
+  深さ 11（上限 6 を超過）。`vercel_runtime` 単体のサブツリーだけでも 62〜
+  67 件・深さ 10 で単独で上限超過です。`vercel_runtime` の feature（`axum`/
+  `actix` のみが optional）では依存を削減できません。
+- `build.rs` を持つ依存が 9〜10 件（`httparse`・`libc`・
+  `parking_lot_core`・`proc-macro2`・`quote`・`serde`・`serde_core`・
+  `serde_json`・`zmij`、macOS では `system-configuration-sys` も追加）
+  見つかりました。
+- 一方で cargo-deny（bans/licenses/sources/advisories）はすべて PASS して
+  おり、ライセンス・既知脆弱性の観点では問題ありませんでした。
+- **適用範囲についての明記**: 案 a は当初から `crates/*`（標準サーバー
+  構成）へ `vercel_runtime` を追加しない設計でした（下記「（当初判断の
+  経緯）」参照）。アダプタは `examples/vercel-ssr` という独立 workspace に
+  閉じ、`fandhe-frontend-dist-server` の依存グラフには一切入りません。
+  したがって、この一時クレートでの実測は「`fandhe-frontend-dist-server`
+  等の標準サーバー構成へ実際に組み込んだ場合の依存グラフ」の代理計測
+  **ではなく**、REQ-3 が本来対象とする「標準サーバー構成」の定義
+  （`docs/spec/04-requirements.md` REQ-3、`docs/policy/dependency-graph-policy.md`
+  §2）にも当てはまりません。`docs/policy/dependency-graph-policy.md` §4
+  はこの点を明確化しており、本ポリシー・REQ-3 の適用範囲を examples へ
+  拡張するものではありません
+- **それでも取り下げに至る根拠**: 60 件/深さ 6 という数値は、案 a を
+  当初条件付きで併用すると決めた PR #3315（マージ済み）の決定記録
+  §7「再評価トリガー」自身が、2.x を使う前提条件として自ら設定した
+  もので、REQ-3 の適用範囲を examples へ拡張した結果ではなく、この
+  決定記録が自らに課した受け入れ基準です。今回の実測（66〜71 件・
+  深さ 11、`vercel_runtime` 単体でも 62〜67 件・深さ 10）はこの
+  自己設定した基準を満たしませんでした。加えて次の独立した根拠も
+  併せて取り下げの判断材料とします。
+  - `build.rs` を持つ依存が 9〜10 件（`-sys` クレートを含む）追加される
+    ことは、`.claude/rules/security.md`「依存追加は脅威面の拡大」の
+    観点で、単体クレートとしても軽微とは言えません
+  - Vercel Rust ランタイム自体が公式に Beta（§3「beta 依存リスク」参照）
+    であり、[vercel/vercel#14532](https://github.com/vercel/vercel/issues/14532)
+    が open のままです
+- 以上により、案 a は §7 の再評価トリガー（決定記録自身が設定した
+  依存木基準）を満たせず、`build.rs`・beta 依存という独立した懸念も
+  残るため、Vercel 上の SSR/動的処理をアダプタ方式で実現する経路は
+  現時点ではありません（下記「再評価トリガー」を満たさない限り、この
+  判断は変わりません）。
+
+**#3288 の受入基準（「Vercel 上で HTTP 200 / 404 を返す SSR/動的処理」）は
+この取り下げにより、アダプタ方式では達成していません。** 静的配信の
+404 は案 c（Build Output API の `routes`）が別途担います（#3290）。
+
+#### （当初判断の経緯: 2026-09-27 撤回済み）
 
 「案 a」は `vercel_runtime = "=2.4.1"`（2.x 系の完全一致固定）という意味に
-**限定**します。「`lambda_runtime` の版を固定する」という読み方は #3285 §7
-のとおり構造的に成立しないため、この意味では不採用です。
+**限定**していました。「`lambda_runtime` の版を固定する」という読み方は
+#3285 §7 のとおり構造的に成立しないため、この意味では不採用のままです。
 
-配置の決定は次のとおりです。
+当初の配置案は次のとおりでした（依存木計測前の想定）。
 
-- **`vercel_runtime` は `crates/*`（公開クレート）の依存に入れません。**
-  アダプタ（ハンドラ）は `examples/vercel-ssr`（`examples/ssr-routing` と
-  同様に独立 workspace として root から切り離す）の中に置きます。理由:
-  1. 新しい公開クレートを作ると `docs/ci/version-bump-publish-order-gap.md`
-     §11 の初回公開手順が必要になる
-  2. root の `deny.toml` と REQ-3（60 件・深さ 6）の計測対象に、依存木が
-     未確認の 2.x が入ってしまう
-  3. beta の上流が変化したときの影響範囲を example に閉じ込められる
-  4. コアクレートの「外部依存ゼロ」を崩さない
-- **ラップする対象**: #3288 のタイトルにある `route_request` は
-  `fandhe-frontend-dist-server`（hyper / hyper-util / tokio と WASM ビルド用
-  `build.rs` を持つ）にあり、Vercel 関数からの呼び出しには向きません。HTTP
-  に依存しない面として `fandhe_frontend_server::ssr::respond` /
-  `respond_with`（`SsrResponse { status, content_type, body }` を返し、外部
-  依存ゼロ、`crates/server/src/ssr.rs`）を推奨対象とします。ただし
-  `respond_with` の loader 型は `Item` の一覧・詳細というデモ用の形に固定
-  されているため、利用者のアプリで「自前ルータ → `Node` → `render()` →
-  (status, content_type, body)」の形にどう適用するかは #3288 で確かめる
-  課題として引き継ぎます。静的アセットは Build Output API の `static/` が
-  担うため、`route_request` の `/static/` 分岐は不要です。
-- **Phase 2 の前提条件**: 2.x を使う前に、`vercel_runtime 2.4.1` の依存木に
-  ついて `cargo tree` / `cargo metadata` による件数・深さの計測と、依存各
-  クレートの `build.rs` の有無を確認します。あわせて example ローカルの
-  `deny.toml` で advisories を確認します（#3285 ではこの確認をしていない
-  ため、#3288 の完了条件に含めます）。
+- `vercel_runtime` は `crates/*`（公開クレート）の依存に入れず、アダプタ
+  （ハンドラ）は `examples/vercel-ssr`（`examples/ssr-routing` と同様に
+  独立 workspace として root から切り離す）の中に置く想定でした。
+- ラップする対象は #3288 のタイトルにある `route_request`
+  （`fandhe-frontend-dist-server`）ではなく、HTTP に依存しない面として
+  `fandhe_frontend_server::ssr::respond` / `respond_with`（外部依存ゼロ、
+  `crates/server/src/ssr.rs`）を推奨対象としていました。
+- 2.x を使う前提条件として、依存木の件数・深さの計測と `build.rs` の
+  有無・advisories の確認を #3288 の完了条件としていました。今回の実測は
+  この前提条件の実施そのものであり、結果として条件を満たさなかったため
+  上記のとおり取り下げに至りました。
 
 ### 不採用: 案 b（自作アダプタ）
 
@@ -156,28 +198,32 @@ Vercel は Container Images（Beta、2026-07-07 確認）により、ローカ�
 
 ## 5. 実装上の決定事項
 
-- アダプタ（案 a）は `examples/vercel-ssr` に閉じ込め、`crates/*` の依存
-  グラフには一切入れません。
-- ラップ対象は `fandhe_frontend_server::ssr::respond` / `respond_with`
-  系であり、`fandhe-frontend-dist-server::routes::route_request` ではあり
-  ません（HTTP ソケット層に依存しない純粋関数を Vercel ハンドラから直接
-  呼ぶ設計とします）。
+- **`vercel_runtime` はリポジトリへ一切追加しません**（`crates/*` にも
+  `examples/*` にも）。#3288 の実測（§4「取り下げ」参照）により、案 a
+  併用の前提条件として自ら設定した依存木基準（60 件/深さ 6）を構造的に
+  超えることが判明したためです。
+- Vercel 上の動的処理・SSR をアダプタ方式（`fandhe_frontend_server::ssr::
+  respond` / `respond_with` を Vercel ハンドラから呼ぶ設計）で実現する
+  経路は、現時点では存在しません。案 c（SSG + Build Output API）が唯一の
+  既定方式です。
+- `vercel.json` の `functions.*.runtime` 明示指定は、案 c（静的出力の
+  `--prebuilt` 配置）では不要です（Build Output API は Rust ツールチェーン
+  を Vercel 側に要求しないため）。
 - 2.x の依存木計測（`cargo tree`/`cargo metadata`）・`build.rs` の有無確認・
-  example ローカル `deny.toml` による advisories 確認は #3288 の完了条件に
-  含めます（本イシューでは未実施）。
-- `vercel.json` の `functions.*.runtime` 明示指定は 2.x（`@vercel/rust`
-  ゼロコンフィグ）では不要です（#3285 §3.3・§10、公式ドキュメントの
-  `Cargo.toml` 例でも `vercel.json` を必要としていません）。
+  example ローカル `deny.toml` による advisories 確認は #3288 で実施
+  完了しました。結果は
+  `docs/reports/vercel-runtime-2x-dependency-audit-3288.md` を参照して
+  ください。
 
 ## 6. Phase 2 への引き継ぎ表
 
 | Issue | 引き継ぐ前提 |
 |---|---|
-| #3288（feat: `route_request` を Vercel Functions で動かすアダプタを実装する） | **要見直し**: issue タイトルは `route_request`（`fandhe-frontend-dist-server`）を指しているが、本決定記録の推奨ラップ対象は `fandhe_frontend_server::ssr::respond`/`respond_with`（外部依存ゼロ、HTTP ソケット非依存）である。案 a（`vercel_runtime = "=2.4.1"`）でハンドラを `examples/vercel-ssr` 内に実装し、依存木計測（`cargo tree`/`cargo metadata`）・`build.rs` の有無確認・`deny.toml` advisories 確認を完了条件に含める |
-| #3289（feat: `examples/vercel-ssr` を追加し `fw new --example` で取得可能にする） | `examples/vercel-ssr` は `examples/ssr-routing` と同様に独立 workspace とし、`fw new --example` への同梱（`crates/cli/embedded-examples/` の複製ドリフト検知）を行う |
-| #3290（feat: `examples/vercel-ssg`〔`generate_pages` → Build Output API → `--prebuilt`〕を追加する） | 案 c が既定の推奨方式。Vercel 側に Rust ツールチェーンは不要 |
-| #3291（docs: デプロイガイドに Vercel の節を追加する） | SSG（既定、案 c）と SSR（2.x・beta 前提、案 a）の選び方を書く。Deployment Protection（既定 SSO 有効、302 リダイレクト）・fail-closed の Basic 認証は本 issue の範囲として詳述する（本決定記録では前提事実の引用のみ） |
-| #3292（ci: Build Output API 出力構造のスモークテストを追加する） | 案 c の出力（`.vercel/output` ディレクトリ構造、`config.json` の `version` フィールド等）を対象とする |
+| #3288（feat: `route_request` を Vercel Functions で動かすアダプタを実装する） | **完了・取り下げ**: #3288 で実測した結果、`vercel_runtime 2.4.1` の依存木は案 a 併用の前提条件として自ら設定した基準（60 件/深さ 6）を構造的に超過することが判明し（`docs/reports/vercel-runtime-2x-dependency-audit-3288.md`）、案 a の併用を取り下げました。本イシューの成果物は計測レポートと本文書の改訂（docs のみ）に限られ、「Vercel 上で HTTP 200/404」の受入基準はアダプタ方式では達成していません。issue タイトルの `route_request`（`fandhe-frontend-dist-server`）自体も、この取り下げにより対象外になりました |
+| #3289（feat: `examples/vercel-ssr` を追加し `fw new --example` で取得可能にする） | **要再スコープ**: 前提だった案 a のアダプタが取り下げられたため、`examples/vercel-ssr`（`vercel_runtime` 併用）は成立しません。クローズするか、別方式（案 d の再評価等）へ置き換えるかはユーザー判断が必要です |
+| #3290（feat: `examples/vercel-ssg`〔`generate_pages` → Build Output API → `--prebuilt`〕を追加する） | 案 c が唯一の既定方式（案 a 併用の取り下げにより「唯一」に変更）。Vercel 側に Rust ツールチェーンは不要 |
+| #3291（docs: デプロイガイドに Vercel の節を追加する） | **要再スコープ**: SSR（案 a・2.x）は選択肢から外れたため、SSG（案 c）のみを推奨方式として書く。「SSR は Rust ランタイムでは非対応（案 a 併用の前提条件として設定した依存木基準の超過のため）」と明記する。Deployment Protection（既定 SSO 有効、302 リダイレクト）・fail-closed の Basic 認証は引き続き本 issue の範囲とする |
+| #3292（ci: Build Output API 出力構造のスモークテストを追加する） | 案 c の出力（`.vercel/output` ディレクトリ構造、`config.json` の `version` フィールド等）を対象とする（変更なし） |
 
 ## 7. 再評価トリガー
 
@@ -185,9 +231,34 @@ Vercel は Container Images（Beta、2026-07-07 確認）により、ローカ�
   破壊的変更（`vercel_runtime` 3.x 以降の非 alpha リリース等）
 - [vercel/vercel#14532](https://github.com/vercel/vercel/issues/14532) の
   クローズ、または fandhe-frontend 構成での再現の有無が判明したとき
-- `vercel_runtime 2.x` の依存木が REQ-3 上限を超える、`build.rs` を持つ
-  依存が見つかる、cargo-deny の advisories に違反する、のいずれかが判明
-  したとき（→ 案 a の併用を取り下げて案 c 単独にする）
+- 案 a を条件付き併用と決めた際（PR #3315）に自ら設定した前提条件
+  （`vercel_runtime 2.x` の依存木が 60 件/深さ 6 を超える、`build.rs` を
+  持つ依存が見つかる、cargo-deny の advisories に違反する、のいずれか）
+  が判明したとき（→ 案 a の併用を取り下げて案 c 単独にする）。この
+  60 件/深さ 6 という数値は REQ-3 と同一の値を決定記録が自ら借用した
+  ものであり、REQ-3 の適用範囲（標準サーバー構成）を examples へ拡張
+  した結果ではありません（`docs/policy/dependency-graph-policy.md` §4
+  参照）。
+  **2026-09-27 #3288 で発火済み**: 依存木が 66〜71 件・深さ 11（借用した
+  上限 60 件/深さ 6 を超過）、`build.rs` を持つ依存が 9〜10 件見つかりました
+  （advisories は PASS）。詳細は
+  `docs/reports/vercel-runtime-2x-dependency-audit-3288.md`、反映は本文書
+  §4「取り下げ」節を参照してください。この判断を再評価する条件は次の
+  いずれかです: (a) `vercel_runtime` が `tokio/full`・`hyper/full` 等を
+  optional 化し、依存木が 60 件/深さ 6 に収まる新版を crates.io へ公開
+  したとき。`build.rs` を持つ依存の発見という条件も独立に発火済みですが、
+  これは「解消が必須の追加条件」ではありません。`docs/policy/
+  dependency-graph-policy.md` §6・§7 のとおり `build.rs` の存在自体は
+  違反ではなく（監査可能性を担保する対象であって禁止事項ではない）、
+  Cargo エコシステムに共通する構造的リスクとして本フレームワーク単体
+  では解消できないためです。したがって、新版が (a) の依存木条件を
+  満たせば、その新版に `build.rs` を持つ依存が残っていても、それだけ
+  を理由に案 a の再採用を妨げません。ただし再採用の判断時には、新版
+  に対して `cargo run --locked -p xtask -- list-build-scripts` を再実行
+  して `build.rs` を持つ依存の一覧を更新し、実行内容が既知のビルド
+  スクリプト以上の任意コード実行を伴わないかを個別に確認したうえで
+  判断してください（新規に増えた `build.rs` 保有依存があれば、その
+  監査結果を再評価の記録に含めます）。
 - Vercel Container Images（Beta）が GA 化したとき、または
   `fandhe-frontend-dist-server` が `$PORT`/`SIGTERM` 対応を実装したとき
   （→ 案 d を Vercel 上の方式として再評価する）
@@ -196,21 +267,31 @@ Vercel は Container Images（Beta、2026-07-07 確認）により、ローカ�
 
 ## 8. セキュリティ考慮事項（OWASP Top 10 観点）
 
-- **A03 インジェクション / XSS**: 採用する 2 方式（案 c・併用の案 a）は
-  いずれも、レンダリングを `ssg::generate_pages` または `ssr::respond` /
-  `respond_with`（いずれも既定エスケープ経由）に限定します。Vercel
-  ハンドラで `format!` による HTML 文字列の直接組み立てや `raw_html()` の
-  不当な使用をしないことを、本決定記録の不変条件として #3288 の完了条件へ
-  引き継ぎます。
+- **A03 インジェクション / XSS**: 採用する唯一の方式（案 c。案 a は §4 の
+  とおり取り下げ済み）は、レンダリングを `ssg::generate_pages`（既定
+  エスケープ経由）に限定します。`format!` による HTML 文字列の直接組み立て
+  や `raw_html()` の不当な使用をしないことは、この既定エスケープ経由の
+  レンダリングに限定する方針の不変条件として引き続き有効です（§4「取り
+  下げ」により、`ssr::respond`/`respond_with` を Vercel ハンドラから呼ぶ
+  アダプタ方式自体は現時点では存在しません）。
 - **REQ-2（`forbid(unsafe_code)`）**: 本決定は `crates/core`/`crates/interactive`
-  に影響しません。`vercel_runtime` を example に閉じるため、公開クレートの
-  `unsafe` 境界（`docs/policy/unsafe-boundary.md`）も変わりません。
-- **A06 脆弱・古いコンポーネント / サプライチェーン**: 2.x は `=2.4.1` の
-  完全一致で固定し、依存木の件数・深さの計測、`build.rs` の有無の確認、
-  example ローカルの `deny.toml` による advisories 確認を Phase 2（#3288）
-  の前提条件とします。beta の上流の変化を再評価トリガー（§7）として監視
-  します。案 b の不採用理由として、文書化されていない内部プロトコルを
-  自前実装する脅威面の拡大も挙げます。
+  に影響しません。`vercel_runtime` はリポジトリへ一切追加しない（§5）ため、
+  公開クレートの `unsafe` 境界（`docs/policy/unsafe-boundary.md`）も変わり
+  ません。
+- **A06 脆弱・古いコンポーネント / サプライチェーン**: #3288 で実測した
+  結果（`docs/reports/vercel-runtime-2x-dependency-audit-3288.md`）、
+  `vercel_runtime 2.4.1` は依存木が 66〜71 件・深さ 11 と、PR #3315 の
+  決定記録が案 a 併用の前提条件として自ら借用した基準（60 件・深さ 6、
+  §4「それでも取り下げに至る根拠」参照。REQ-3 の適用範囲を examples へ
+  拡張したものではありません）を大幅に超え、`build.rs` を持つ依存
+  （`-sys` クレートを含む）も 9〜10 件追加されることが判明したため、
+  案 a の併用を取り下げました（§4）。これによりリポジトリへ
+  `vercel_runtime` を一切追加しないため、この依存に起因する脅威面の
+  拡大自体が発生しません。cargo-deny（bans/licenses/sources/advisories）
+  は計測時点で全て PASS でしたが、上記の依存木基準・`build.rs` 件数・
+  beta 依存という別の受入基準で不採用となりました。beta の上流の変化を
+  再評価トリガー（§7）として引き続き監視します。案 b の不採用理由として、
+  文書化されていない内部プロトコルを自前実装する脅威面の拡大も挙げます。
 - **A05 セキュリティ設定ミス / A01 アクセス制御**: 新規 Vercel プロジェクト
   では Deployment Protection が既定で有効であること（§2）、SSG に Basic
   認証をかける場合は環境変数で管理し未設定なら拒否する（fail-closed）こと
@@ -234,9 +315,15 @@ Vercel は Container Images（Beta、2026-07-07 確認）により、ローカ�
   等）は本決定記録の対象外です。
 - Phase 2（#3288〜#3292）の実装自体は本文書に含みません。
 - `vercel_runtime 2.4.1` の依存木計測・`build.rs` 確認・advisories 確認は
-  #3288 の完了条件として引き継ぎ、本文書では実施していません。
+  #3288 の完了条件として引き継いでいました。**2026-09-27 に #3288 で実施
+  完了**し、結果は
+  `docs/reports/vercel-runtime-2x-dependency-audit-3288.md` と本文書 §4・
+  §5・§6・§7・§8 の改訂に反映済みです（当初の見送り記載は本項目のまま
+  履歴として残します）。
 - #3288 の issue タイトル（`route_request`）自体の修正は本イシューの
-  作業範囲外です（§6 の引き継ぎ表に「要見直し」として記録するに留めます）。
+  作業範囲外でした。#3288 は依存木超過により案 a を取り下げたため、
+  タイトルの `route_request` 自体を実装対象にする作業は今後も発生しません
+  （§6 参照）。
 
 ## 10. 参照
 
@@ -247,7 +334,9 @@ Vercel は Container Images（Beta、2026-07-07 確認）により、ローカ�
 - Phase 2: #3287（feat(phase-2): Vercel 向けアダプタ・example・ドキュメント
   整備）配下の #3288〜#3292
 - レポート: `docs/reports/vercel-runtime-panic-repro-3284.md`（PR #3311）・
-  `docs/reports/vercel-runtime-version-survey-3285.md`（PR #3312）
+  `docs/reports/vercel-runtime-version-survey-3285.md`（PR #3312）・
+  `docs/reports/vercel-runtime-2x-dependency-audit-3288.md`（#3288。依存木
+  計測により案 a の併用取り下げを確定）
 - 外部ドキュメント（いずれも 2026-09-27 取得）:
   - Rust ランタイム（Beta）: <https://vercel.com/docs/functions/runtimes/rust>
     （`last_updated: 2025-12-08`）
