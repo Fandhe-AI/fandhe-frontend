@@ -128,7 +128,10 @@ fn bio_field() -> Node {
 
 /// 写真アップロード欄（`file_upload` + イニシャル `avatar` fallback）。
 fn photo_upload_field() -> Node {
-    let props = FileUploadProps::default();
+    let props = FileUploadProps {
+        disabled: true,
+        ..FileUploadProps::default()
+    };
     let initials: String = PERSON_NAMES[0]
         .split_whitespace()
         .filter_map(|part| part.chars().next())
@@ -168,7 +171,10 @@ fn photo_upload_field() -> Node {
 
 /// カバー画像アップロード欄（`file_upload` の `dropzone`、全幅）。
 fn cover_image_upload_field() -> Node {
-    let props = FileUploadProps::default();
+    let props = FileUploadProps {
+        disabled: true,
+        ..FileUploadProps::default()
+    };
     file_upload::root(
         Size::Md,
         &props,

@@ -39,7 +39,8 @@
 //! `disabled_declarations()`（既定 `opacity: 0.5` + `cursor: not-allowed`）は
 //! [`LAYOUT_CSS`] で中和し、通常の checkbox/radio と同じ見た目に保つ。
 //!
-//! # file-upload の hidden input に `hidden` を付ける理由
+//! # file-upload の hidden input に `hidden` を付ける理由・trigger/dropzone を
+//! ネイティブ `disabled` にする理由
 //!
 //! `file_upload::hidden_input` はネイティブ `<input type="file">` であり、
 //! 通常はクリック不可視のまま `trigger`/`dropzone` から `click()` 転送する
@@ -48,9 +49,21 @@
 //! 不可視・操作不能にし、無 JS でもネイティブファイル選択 UI が露出しない
 //! ようにする（`hidden` は headless 側の予約キーではないため `attrs` から
 //! 渡せる、`crates/headless-ui/src/file_upload.rs::HIDDEN_INPUT_RESERVED`
-//! 参照）。トリガー・ドロップゾーンは無 JS では何も起こさない静的表示の
-//! ままにする。アップロード済みファイルの一覧（`item_group`/`item`）は
-//! 初期状態に存在しないため出力しない。
+//! 参照）。加えて `trigger`（`<button>`）・`dropzone`（`role="button"` の
+//! `div`）は無 JS では `click()` 転送が一切発生せず何も起こらないにも
+//! かかわらず、既定状態のままではフォーカス可能・クリック可能に見える
+//! 操作 UI として描画されてしまう（codex-review 再指摘）。checkbox/radio
+//! と同型の判断（本モジュール doc「checkbox / radio group をネイティブ
+//! disabled にする理由」節）で [`FileUploadProps`] の `disabled: true` を
+//! 共有し、trigger をネイティブ `disabled`（フォーカス不可・クリック不可）、
+//! dropzone を `tabindex="-1"` + `aria-disabled="true"` にして「操作可能に
+//! 見えるが実は無反応」という不整合を構造的に無くす。[`LAYOUT_CSS`] では
+//! checkbox/radio と異なり disabled の視覚（`opacity: 0.5`/`cursor:
+//! not-allowed`）を中和しない。中和すると「無効化されているように見えない
+//! 操作可能な UI」という元の問題へ逆戻りするため、ここでは disabled の
+//! 見た目をそのまま活かして非操作であることを視覚的にも伝える。
+//! アップロード済みファイルの一覧（`item_group`/`item`）は初期状態に
+//! 存在しないため出力しない。
 //!
 //! # avatar を fallback のみにする理由
 //!
@@ -187,7 +200,10 @@ fn bio_field() -> Node {
 
 /// 写真アップロード欄（`file_upload` + イニシャル `avatar` fallback）。
 fn photo_upload_field() -> Node {
-    let props = FileUploadProps::default();
+    let props = FileUploadProps {
+        disabled: true,
+        ..FileUploadProps::default()
+    };
     let initials: String = PERSON_NAMES[0]
         .split_whitespace()
         .filter_map(|part| part.chars().next())
@@ -227,7 +243,10 @@ fn photo_upload_field() -> Node {
 
 /// カバー画像アップロード欄（`file_upload` の `dropzone`、全幅）。
 fn cover_image_upload_field() -> Node {
-    let props = FileUploadProps::default();
+    let props = FileUploadProps {
+        disabled: true,
+        ..FileUploadProps::default()
+    };
     file_upload::root(
         Size::Md,
         &props,
@@ -806,8 +825,11 @@ mod tests {
     #[test]
     fn checkbox_and_radio_are_natively_disabled_with_single_checked_default() {
         let html = render(&demo());
-        // 3 checkbox + 3 radio = 6 個の disabled hidden input。
-        assert_eq!(html.matches(" disabled=\"\"").count(), 6);
+        // 3 checkbox + 3 radio = 6 個の disabled hidden input に加え、
+        // file-upload の trigger 2 個・hidden input 2 個も disabled
+        // （下記 `file_upload_trigger_and_dropzone_are_not_operable`
+        // 参照）のため合計 10 個。
+        assert_eq!(html.matches(" disabled=\"\"").count(), 10);
         // ネイティブ `checked` 存在属性は checkbox 1 件 + radio 1 件の
         // 計 2 個のみ（`data-state="checked"` は root/control/indicator/
         // label 等の複数パーツへ伝播するため個数の固定には使わない）。
@@ -830,6 +852,31 @@ mod tests {
                 "expected hidden attribute on file input tag: {tag}"
             );
         }
+    }
+
+    /// file-upload の `trigger`（写真変更・ファイルを選択の 2 個）が
+    /// ネイティブ `disabled` でフォーカス・クリック不能であり、dropzone
+    /// が `tabindex="-1"` + `aria-disabled="true"` であること（無 JS の
+    /// docs サイトで操作可能に見える静的 UI にならないための固定、
+    /// codex-review 再指摘）。
+    #[test]
+    fn file_upload_trigger_and_dropzone_are_not_operable() {
+        let html = render(&demo());
+        // trigger（写真変更・ファイルを選択の 2 個）はいずれもネイティブ
+        // disabled でフォーカス・クリック不能。
+        assert_eq!(
+            html.matches(r#"data-part="trigger""#).count(),
+            2,
+            "expected 2 file-upload trigger parts"
+        );
+        // dropzone（カバー画像の 1 個）は tabindex="-1" +
+        // aria-disabled="true" でキーボード操作対象から外れる。
+        assert_eq!(
+            html.matches(r#"data-part="dropzone""#).count(),
+            1,
+            "expected 1 file-upload dropzone part"
+        );
+        assert!(html.contains(r#"role="button" tabindex="-1" aria-disabled="true""#));
     }
 
     /// [`LAYOUT_CSS`] がコンテナクエリ・disabled 中和規則を含み、`<` を
