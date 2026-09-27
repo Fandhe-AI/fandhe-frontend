@@ -7,6 +7,7 @@
 
 mod card_form_footer;
 mod card_media_footer;
+mod card_meta_cta;
 mod cursor_hover_cards;
 use crate::blocks::Block;
 
@@ -15,5 +16,6 @@ pub(super) fn blocks() -> Vec<Block> {
         cursor_hover_cards::BLOCK,
         card_media_footer::BLOCK,
         card_form_footer::BLOCK,
+        card_meta_cta::BLOCK,
     ]
 }
