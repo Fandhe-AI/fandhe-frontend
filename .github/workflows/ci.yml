@@ -384,6 +384,21 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # イシュー #3292 の PR #3322 レビュー指摘への対処: 上記 2 ステップが
+      # `examples/vercel-ssg/` 配下へ `cargo run` でビルド生成物
+      # （`.vercel/output/` 等、`.gitignore` の `/examples/*/.vercel/` で
+      # 無視される）を書き込むが、後段の `crates/cli/tests/new_e2e.rs::
+      # example_output_is_byte_identical_to_source_example` は `fs::read_dir`
+      # で `examples/vercel-ssg/` を素の再帰走査するため `.gitignore` を
+      # 考慮せず、残置された `.vercel/` を正本の一部として拾って
+      # `fw new --example vercel-ssg` の生成物とのバイト一致比較を破壊する
+      # （`always()` で成果物確認前でも必ず削除し、後続の
+      # `cargo test --workspace` 実行前にソース側ディレクトリを
+      # クリーンな状態へ戻す）。
+      - name: "vercel-ssg Build Output API 生成物のクリーンアップ (issue #3292)"
+        if: always()
+        run: rm -rf examples/vercel-ssg/.vercel
+
       # TASK-10.2b（#110、REQ-10 条件 3）: crates/dist-server/build.rs が既定で実行する
       # WASM ビルドステージ（ネスト `cargo build --target wasm32-unknown-unknown`
       # + `wasm-bindgen`）に必要なツールチェーンを導入する。本ジョブに限り

@@ -298,6 +298,52 @@ fn missing_404_fallback_route_fails() {
     let _ = fs::remove_dir_all(&dir);
 }
 
+/// PR #3322 レビュー指摘（Codex P1）の回帰テスト: `src` が `/(.*)`（全パス
+/// 捕捉）でない部分一致ルートは `status`/`dest` が一致していても FAIL
+/// する（`/foo` 配下にしか適用されないフォールバックは受け入れ基準 2 の
+/// 「ファイルシステム未一致はすべて 404」を満たさない）。
+#[test]
+fn fallback_with_partial_match_src_fails() {
+    let dir = make_fixture_dir("fallback-partial-match-src");
+    write_valid_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    fs::write(
+        output_dir.join("config.json"),
+        r#"{"version": 3, "routes": [{"handle": "filesystem"}, {"src": "/foo", "status": 404, "dest": "/404.html"}]}"#,
+    )
+    .unwrap();
+
+    let result = run_check_vercel_output(&["--output-dir", output_dir.to_str().unwrap()]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=config_routes_404_fallback result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// PR #3322 レビュー指摘（Codex P1）の回帰テスト: `dest` が `$` 置換参照を
+/// 含んでいても、先頭 `/../../` のような明白な親ディレクトリ脱出は境界
+/// 検証（`is_safe_relative_dest` 相当）で検知する（`$` を含むと即
+/// `continue` して境界検証自体を素通りする実装は本テストで FAIL する）。
+#[test]
+fn dest_with_replacement_ref_and_parent_traversal_fails() {
+    let dir = make_fixture_dir("dest-replacement-ref-traversal");
+    write_valid_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    fs::write(
+        output_dir.join("config.json"),
+        r#"{"version": 3, "routes": [{"handle": "filesystem"}, {"src": "/(.*)", "status": 404, "dest": "/../../$1"}]}"#,
+    )
+    .unwrap();
+
+    let result = run_check_vercel_output(&["--output-dir", output_dir.to_str().unwrap()]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=routes_dest_targets result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn dest_pointing_at_missing_file_fails() {
     let dir = make_fixture_dir("dest-missing-file");

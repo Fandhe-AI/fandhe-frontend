@@ -519,9 +519,20 @@ fn is_valid_status(value: &Json) -> bool {
 }
 
 /// `{"handle": "filesystem"}` が存在し、それより後ろに
-/// `status == 404 && dest == "/404.html"` の source route があることを
-/// 検証する（#3290 受け入れ基準 2 の構造的な再検証）。
+/// `src == "/(.*)" && status == 404 && dest == "/404.html"` の source route
+/// があることを検証する（#3290 受け入れ基準 2 の構造的な再検証）。
+///
+/// # PR #3322 レビュー指摘への対処（Codex P1）
+///
+/// `src` の一致範囲を確認せず `status`/`dest` のみで判定すると、
+/// `{"src": "/foo", "status": 404, "dest": "/404.html"}` のような部分一致
+/// ルート（`/foo` にしか適用されない）でも「ファイルシステム未一致は
+/// すべて 404 にフォールバックする」という受け入れ基準 2 の意図に反して
+/// PASS してしまう。全パスを捕捉する正規表現 `/(.*)` であることまで
+/// 検証する（`examples/vercel-ssg/src/main.rs` の `CONFIG_JSON` 実装参照）。
 fn check_routes_404_fallback(routes: &[Json]) -> CheckResult {
+    const CATCH_ALL_SRC: &str = "/(.*)";
+
     let filesystem_index = routes.iter().position(|route| {
         route
             .get("handle")
@@ -537,11 +548,12 @@ fn check_routes_404_fallback(routes: &[Json]) -> CheckResult {
     };
 
     let has_fallback = routes[filesystem_index + 1..].iter().any(|route| {
+        let src_ok = route.get("src").and_then(Json::as_str) == Some(CATCH_ALL_SRC);
         let status_ok = route
             .get("status")
             .is_some_and(|s| is_valid_status(s) && s.as_f64() == Some(404.0));
         let dest_ok = route.get("dest").and_then(Json::as_str) == Some("/404.html");
-        status_ok && dest_ok
+        src_ok && status_ok && dest_ok
     });
 
     if has_fallback {
@@ -549,14 +561,19 @@ fn check_routes_404_fallback(routes: &[Json]) -> CheckResult {
     } else {
         CheckResult::fail(
             "config_routes_404_fallback",
-            "no route after `{\"handle\": \"filesystem\"}` with status=404 dest=/404.html",
+            "no route after `{\"handle\": \"filesystem\"}` with src=/(.*) status=404 dest=/404.html",
         )
     }
 }
 
-/// `$` 置換参照を含まないリテラルの `dest` について、`static/` 配下の実
-/// ファイルを指すことを検証する（A01 パストラバーサル防止のため、まず
-/// 相対パスの安全性を検証してから結合する）。
+/// `dest` について、`static/` 配下の実ファイルを指すことを検証する（A01
+/// パストラバーサル防止のため、まず相対パスの安全性を検証してから結合
+/// する）。`$1` 等の正規表現後方参照を含む `dest`（例:
+/// `/../../$1`）は置換後の実パスを静的解析できないため実ファイル存在
+/// チェックは対象外とするが、先頭 `/` の有無・`..`/空要素/バックスラッシュ
+/// を含む境界検証（[`is_safe_relative_dest`]）は置換参照の有無に関わらず
+/// 適用する（PR #3322 レビュー指摘への対処、Codex P1: 置換参照の直後で
+/// `continue` すると境界検証自体を素通りしてしまう）。
 fn check_routes_dest_targets(routes: &[Json], output_dir: &Path) -> CheckResult {
     let static_dir = output_dir.join("static");
 
@@ -564,10 +581,7 @@ fn check_routes_dest_targets(routes: &[Json], output_dir: &Path) -> CheckResult 
         let Some(dest) = route.get("dest").and_then(Json::as_str) else {
             continue;
         };
-        if dest.contains('$') {
-            // 置換参照は静的解析できないため対象外（モジュール doc 参照）。
-            continue;
-        }
+        let has_replacement_ref = dest.contains('$');
 
         let Some(relative) = dest.strip_prefix('/') else {
             return CheckResult::fail(
@@ -575,6 +589,36 @@ fn check_routes_dest_targets(routes: &[Json], output_dir: &Path) -> CheckResult 
                 format!("routes[{index}].dest: must start with `/` (got `{dest}`)"),
             );
         };
+
+        // 置換参照（`$1` 等）を含む場合、展開後の実パスは静的解析できない
+        // ため `is_safe_relative_dest` の `Component::Normal` 全称検証は
+        // そのまま適用できない（置換元パターンにマッチした文字列が
+        // セグメントへ入り得る）。それでも境界の入口（先頭 `/` の除去・
+        // 空要素でないこと・バックスラッシュを含まないこと）だけは
+        // 置換参照の有無に関わらず機械検証し、`../../$1` のような
+        // 明白な親ディレクトリ脱出リテラルはここで弾く。
+        if has_replacement_ref {
+            if relative.is_empty() || relative.contains('\\') {
+                return CheckResult::fail(
+                    "routes_dest_targets",
+                    format!("routes[{index}].dest: unsafe relative path `{dest}`"),
+                );
+            }
+            if Path::new(relative)
+                .components()
+                .any(|c| c.as_os_str() == std::ffi::OsStr::new(".."))
+            {
+                return CheckResult::fail(
+                    "routes_dest_targets",
+                    format!(
+                        "routes[{index}].dest: replacement-ref dest must not contain `..` segments (`{dest}`)"
+                    ),
+                );
+            }
+            // 実ファイル存在チェックは置換後の実パスに依存するため対象外
+            // （モジュール doc「参照仕様」節参照）。
+            continue;
+        }
 
         if !is_safe_relative_dest(relative) {
             return CheckResult::fail(
@@ -873,6 +917,21 @@ mod tests {
             ("status", Json::Number(404.0)),
             ("dest", s("/404.html")),
         ])];
+        assert!(!check_routes_404_fallback(&routes).passed);
+    }
+
+    /// PR #3322 レビュー指摘（Codex P1）の回帰テスト: `src` の一致範囲を
+    /// 検証しないと `/foo` のような部分一致ルートでも通ってしまう。
+    #[test]
+    fn check_routes_404_fallback_rejects_partial_match_src() {
+        let routes = vec![
+            obj(vec![("handle", s("filesystem"))]),
+            obj(vec![
+                ("src", s("/foo")),
+                ("status", Json::Number(404.0)),
+                ("dest", s("/404.html")),
+            ]),
+        ];
         assert!(!check_routes_404_fallback(&routes).passed);
     }
 
