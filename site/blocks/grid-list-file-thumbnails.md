@@ -31,9 +31,10 @@ use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 
-/// 架空のファイル名とサイズのセット（8 件。2/3/4 列のいずれでも最終行が
-/// 埋まる枚数）。実在の人名・社名・PII は含まない。
-const FILES: [(&str, &str); 8] = [
+/// 架空のファイル名とサイズのセット（12 件。12 は 2/3/4 いずれの列数でも
+/// 割り切れる最小公倍数のため、2/3/4 列のいずれでも最終行が埋まる）。実在の
+/// 人名・社名・PII は含まない。
+const FILES: [(&str, &str); 12] = [
     ("IMG_4821.jpg", "3.9 MB"),
     ("harbor-sunset.png", "2.4 MB"),
     ("team-offsite-04.jpg", "5.1 MB"),
@@ -42,6 +43,10 @@ const FILES: [(&str, &str); 8] = [
     ("workshop-notes.png", "0.9 MB"),
     ("studio-shelf.jpg", "3.2 MB"),
     ("river-bridge-evening.jpg", "6.0 MB"),
+    ("conference-badge.png", "0.7 MB"),
+    ("rooftop-garden.jpg", "4.1 MB"),
+    ("archive-notes-scan.png", "1.2 MB"),
+    ("lakeside-cabin.jpg", "5.5 MB"),
 ];
 
 /// キャプション（見出し代わりの短い説明文）。
