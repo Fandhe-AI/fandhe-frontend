@@ -12,7 +12,7 @@ R0453/R0454/R0889/R0890/R0891。出典の固有名・ファイル名は記載し
 です。
 
 - 代表構成: 見出し行に一括編集ボタン、値の 1 つとして添付ファイル一覧
-  （ダウンロード操作つき）を持つ
+  （リポジトリへのリンクつき）を持つ
 - 値ごとに編集ボタンを置く版
 - カード枠（`card::root`）に入れる版
 - 偶数行へ背景色を敷く縞模様の版（区切り線は付けない）
@@ -21,9 +21,10 @@ R0453/R0454/R0889/R0890/R0891。出典の固有名・ファイル名は記載し
 機能ではなく、本 block 固有の CSS（コンテナクエリ `@container` を含む）
 が実現しています。本 Demo は静的な表示例であり、`<form>` 要素は一切
 持たず、データの取得・送信・状態管理を行いません。添付ファイルの
-ダウンロードリンクは死リンク（`href="#"`）を避けるため本リポジトリ自身
-を指しています。文言はすべて独自に書いた架空のものであり、実企業名・
-実クレデンシャル・PII を含みません。
+リンクは実ファイルを持たないため死リンク（`href="#"`）を避けて本
+リポジトリ自身を指し、文言も「リポジトリで確認」として実際の遷移先
+どおりに表しています。文言はすべて独自に書いた架空のものであり、
+実企業名・実クレデンシャル・PII を含みません。
 
 ## Rust コード
 
@@ -40,7 +41,7 @@ use fandhe_frontend_pre_styled_ui::link;
 use fandhe_frontend_pre_styled_ui::recipe::Size;
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 
-/// ダウンロードリンクの死リンク回避先（`href="#"` を使わない、他 block の
+/// 添付ファイルリンクの死リンク回避先（`href="#"` を使わない、他 block の
 /// 慣例と同型）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
@@ -130,7 +131,7 @@ fn attachment_row(kind: &str, file_name: &str, size: &str) -> Node {
                         ..link::LinkProps::default()
                     },
                     vec![("data-blocks-description-list-horizontal-download", "")],
-                    vec![text("ダウンロード")],
+                    vec![text("リポジトリで確認")],
                 )],
             ),
         ],
@@ -325,7 +326,9 @@ pub fn demo() -> Node {
   `card::header` に見出し・説明文を、`card::body` に `data_list` を
   収めます。
 - **縞模様版（R0890）**: `data_list` の偶数行へ背景色（`--fandhe-color-
-  bg-subtle`）を敷き、区切り線は付けません。
+  bg-muted`。Demo 枠自体の背景〔`.blocks-demo` の `--fandhe-color-
+  bg-subtle`〕と同色にならないよう 1 段濃い色を使う）を敷き、区切り線は
+  付けません。
 - 区切り線（罫線）・縞模様・値の右寄せボタンの配置はいずれも
   `data_list` 部品自体の機能ではなく、`data_list` が意図的に非採用として
   いる `divideY`（区切り線ユーティリティ）を block 側 CSS で補う形です。
@@ -333,8 +336,9 @@ pub fn demo() -> Node {
   へ切り替えます。判定はビューポート幅ではなく Demo 枠自体の幅を基準に
   する `@container` コンテナクエリで行います。
 - 添付ファイルの種別表示（PDF/ZIP）はモノトーンの文字ラベルのみで、
-  絵文字や参照元由来のアイコンは持ち込んでいません。ダウンロードリンク
-  の遷移先は死リンク回避のため本リポジトリ自身です。
+  絵文字や参照元由来のアイコンは持ち込んでいません。添付ファイルの
+  リンクは実ファイルを持たないため死リンク回避で本リポジトリ自身を
+  指し、文言も「リポジトリで確認」として遷移先どおりに表しています。
 
 関連情報: [Data List](../themes/data-list.md) / [Heading](../themes/heading.md) /
 [Text](../themes/text.md) / [Button](../themes/button.md) /

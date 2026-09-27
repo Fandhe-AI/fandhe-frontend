@@ -60,12 +60,14 @@
 //! `crate::blocks` モジュール doc の不変条件どおり、本 Demo は `<form>` を
 //! 出力しない静的表示のみで、送信処理・送信先は一切持たない。
 //!
-//! # ダウンロードリンクの向き先・アイコンを使わない理由
+//! # 添付ファイルリンクの向き先・文言・アイコンを使わない理由
 //!
-//! 添付ファイルのダウンロードリンクは死リンク（`href="#"`）を避けるため
-//! 本リポジトリ自身（[`REPO`]）を指す（他 block の慣例と同型）。種別表示
-//! （PDF/ZIP）はモノトーンの文字ラベルのみとし、参照元由来のアイコンや
-//! 絵文字は持ち込まない。
+//! 本 Demo は実ファイルを配布しないため、添付ファイルのリンクは死リンク
+//! （`href="#"`）を避けるため本リポジトリ自身（[`REPO`]）を指す（他 block
+//! の慣例と同型）。リンク文言は「ダウンロード」のような実ファイル取得を
+//! 期待させる語にせず、実際の遷移先どおり「リポジトリで確認」とする
+//! （codex レビュー是正、イシュー #2906）。種別表示（PDF/ZIP）はモノトーン
+//! の文字ラベルのみとし、参照元由来のアイコンや絵文字は持ち込まない。
 //!
 //! # 参照について
 //!
@@ -89,7 +91,7 @@ use fandhe_frontend_pre_styled_ui::link;
 use fandhe_frontend_pre_styled_ui::recipe::Size;
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 
-/// ダウンロードリンクの死リンク回避先（`href="#"` を使わない、他 block の
+/// 添付ファイルリンクの死リンク回避先（`href="#"` を使わない、他 block の
 /// 慣例と同型）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
@@ -179,7 +181,7 @@ fn attachment_row(kind: &str, file_name: &str, size: &str) -> Node {
                         ..link::LinkProps::default()
                     },
                     vec![("data-blocks-description-list-horizontal-download", "")],
-                    vec![text("ダウンロード")],
+                    vec![text("リポジトリで確認")],
                 )],
             ),
         ],
@@ -416,7 +418,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-description-list-horizontal-list] > [data-scope=\"data-list\"][data-part=\"item\"] {\n  border-top: 1px solid var(--fandhe-color-border);\n  padding-block: var(--fandhe-space-4);\n}\n\
 [data-blocks-description-list-horizontal-striped] {\n  --fandhe-data-list-gap: 0;\n}\n\
 [data-blocks-description-list-horizontal-striped] > [data-scope=\"data-list\"][data-part=\"item\"] {\n  padding-block: var(--fandhe-space-3);\n  padding-inline: var(--fandhe-space-3);\n}\n\
-[data-blocks-description-list-horizontal-striped] > [data-scope=\"data-list\"][data-part=\"item\"]:nth-child(even) {\n  background: var(--fandhe-color-bg-subtle);\n}\n\
+[data-blocks-description-list-horizontal-striped] > [data-scope=\"data-list\"][data-part=\"item\"]:nth-child(even) {\n  background: var(--fandhe-color-bg-muted);\n}\n\
 [data-blocks-description-list-horizontal-row-action] {\n  margin-inline-start: auto;\n}\n\
 @container blocks-description-list-horizontal (max-width: 36rem) {\n  \
 .blocks-description-list-horizontal-stack [data-scope=\"data-list\"][data-part=\"item\"] {\n    flex-direction: column;\n    gap: var(--fandhe-space-1);\n  }\n  \
