@@ -963,9 +963,11 @@ pub enum LayoutCss {
 | card-heading-toolbar | #2902 | `application/card_heading/card_heading_toolbar.rs` |
 | card-meta-cta | #2901（親 #2892） | `application/card/card_meta_cta.rs` |
 | chart-bar-list | #2903 | `application/chart/chart_bar_list.rs` |
+| description-list-horizontal | #2906（親 #2892） | `application/description_list/description_list_horizontal.rs` |
 | description-list-summary-card | #2907（親 #2892） | `application/description_list/description_list_summary_card.rs` |
 | description-list-two-column | #2908 | `application/description_list/description_list_two_column.rs` |
 | form-layout-inline-labels | #2911（親 #2892） | `application/form_layout/form_layout_inline_labels.rs` |
+| feed-upvote-cards | #2910（親 #2892） | `application/feed/feed_upvote_cards.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 151 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
