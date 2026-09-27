@@ -406,6 +406,7 @@ jobs:
           # Application / Calendar
           # Application / Feed
           # Application / Form Layout
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/form-layout-inline-labels/index.html"
           # Application / Auth
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-01/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-04/index.html"
