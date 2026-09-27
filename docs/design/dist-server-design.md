@@ -388,6 +388,16 @@ PoC-4 は `axum::Router` で `/`・`/items/:id`・`/static/*path` を直接ル�
   （4.4 節、`tokio` の `macros` フィーチャー不要化）。
 - 開発時の即時反映（REQ-10 本体は対象外だが 4.5 節のラッパーで維持する DX）は
   `#[cfg(debug_assertions)]` 分岐に閉じる。
+- **graceful shutdown（イシュー #3337）**: Vercel Container Images はスケール
+  イン時に `SIGTERM` を送り 30 秒の猶予後に強制終了する契約を持つ。accept
+  ループは新規接続の受付とシグナル（Unix は `SIGTERM`/`SIGINT`、非 Unix は
+  Ctrl-C）のポーリングを `std::future::poll_fn` で手動 race させ、受信後は
+  `listener` を明示的に drop（新規接続を即座に拒否）したうえで
+  `hyper_util::server::graceful::GracefulShutdown` が処理中の接続の完了を
+  猶予秒数（Vercel の 30 秒より短い既定値）まで待つ。`tokio::select!`/
+  `tokio::join!` は `macros` フィーチャー（4.4 節が避けている proc-macro
+  連鎖）を要求するため使わず、`std::future::poll_fn` + `std::pin::pin!`
+  （標準ライブラリのみ）で手動 race を組む。
 
 ## 8. TASK-9.1c（#97）テスト設計の骨子
 
