@@ -29,13 +29,15 @@
 //!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
-//! `blockquote::root`/`caption` は `drop_class_attr` により呼び出し側
-//! `attrs` の `class` を黙って除去する契約を持つため、Demo 固有のスタイル
-//! フックは `data-blocks-testimonial-quote-stats-*` 属性で渡し、
-//! [`LAYOUT_CSS`] 側も同じ属性セレクタで対応する。`image::image`/
-//! `icon`/`stat::root`/`stat::label` も同様。素の `div` には `class` が
-//! そのまま効くため、骨格は `.blocks-testimonial-quote-stats-*` クラス
-//! セレクタを使う。
+//! `blockquote::root`/`image::image`/`icon`/`stat::root` は
+//! `drop_class_attr` により呼び出し側 `attrs` の `class` を黙って除去する
+//! 契約を持つため、Demo 固有のスタイルフックは
+//! `data-blocks-testimonial-quote-stats-*` 属性で渡し、[`LAYOUT_CSS`] 側
+//! も同じ属性セレクタで対応する。一方 `blockquote::caption`/
+//! `stat::label`/`stat::value_text` は `drop_class_attr` を経由せず
+//! 呼び出し側 `attrs` をそのまま透過するため、これらのパーツと素の `div`
+//! には `class` がそのまま効き、骨格・byline は
+//! `.blocks-testimonial-quote-stats-*` クラスセレクタを使う。
 //!
 //! # 詳細度の罠（recipe への勝ち方）
 //!
@@ -218,7 +220,7 @@ pub const BLOCK: Block = Block {
 /// する。
 const LAYOUT_CSS: &str = "\
 .blocks-testimonial-quote-stats-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
-.blocks-testimonial-quote-stats-media {\n  position: relative;\n  width: fit-content;\n  max-width: 20rem;\n}\n\
+.blocks-testimonial-quote-stats-media {\n  position: relative;\n  width: 100%;\n  max-width: 20rem;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-testimonial-quote-stats-photo] {\n  display: block;\n  width: 100%;\n  max-width: 20rem;\n  aspect-ratio: 1;\n  object-fit: cover;\n  border-radius: var(--fandhe-radius-xl);\n}\n\
 [data-scope=\"icon\"][data-part=\"root\"][data-blocks-testimonial-quote-stats-badge] {\n  position: absolute;\n  inset-block-end: var(--fandhe-space-3);\n  inset-inline-end: var(--fandhe-space-3);\n  width: 2.5rem;\n  height: 2.5rem;\n  padding: var(--fandhe-space-2);\n  box-sizing: border-box;\n  border-radius: var(--fandhe-radius-full);\n  background: var(--fandhe-color-bg);\n  border: 1px solid var(--fandhe-color-border);\n  color: var(--fandhe-color-fg);\n}\n\
 .blocks-testimonial-quote-stats-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  min-width: 0;\n}\n\
