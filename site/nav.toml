@@ -2023,6 +2023,14 @@ source = "site/blocks/card-heading-toolbar.md"
 path = "/blocks/card-heading-toolbar/"
 
 [[section.group]]
+title = "Grid List"
+
+[[section.group.page]]
+title = "grid-list-file-thumbnails"
+source = "site/blocks/grid-list-file-thumbnails.md"
+path = "/blocks/grid-list-file-thumbnails/"
+
+[[section.group]]
 title = "Description List"
 
 [[section.group.page]]
