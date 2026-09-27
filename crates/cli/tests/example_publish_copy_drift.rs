@@ -45,6 +45,7 @@ const EXAMPLE_NAMES: &[&str] = &[
     "interactive-view-transitions",
     "headless-pre-styled-ui",
     "wireframe-ui",
+    "vercel-ssg",
 ];
 
 /// workspace ルート（`cli/` の親の親ディレクトリ）の絶対パスを返す。
@@ -65,7 +66,10 @@ fn workspace_root() -> PathBuf {
 /// ワークツリーで本テストを走らせても偽陽性ドリフト検知を起こさないよう、
 /// 走査対象から除外する。同梱コピー `crates/cli/embedded-examples/` 側は
 /// これらのディレクトリを含まないため非対称除外で問題ない。
-const IGNORED_BUILD_ARTIFACT_DIRS: &[&str] = &["target", "dist"];
+/// `.vercel`（イシュー #3290）は `examples/vercel-ssg` の `src/main.rs`・
+/// `vercel link` の出力先で、正本側で `cargo run`/`vercel link` を実行すると
+/// 生成される（`.gitignore` の `/.vercel/` に対応）。
+const IGNORED_BUILD_ARTIFACT_DIRS: &[&str] = &["target", "dist", ".vercel"];
 
 /// `root` 配下の全ファイルの相対パス集合を再帰的に収集する
 /// （ディレクトリ自体は含めない。`IGNORED_BUILD_ARTIFACT_DIRS` に該当する

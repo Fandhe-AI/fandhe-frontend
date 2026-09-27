@@ -19,6 +19,7 @@ https://fandhe-ai.github.io/fandhe-frontend/examples/ ）でも閲覧できま�
 | [interactive-view-transitions](./interactive-view-transitions/README.md) | `Component` trait による状態機械・`dispatch`/`hydrate`・`start_router` による SPA 内 View Transitions の自動有効化 | `fandhe-frontend-core` / `-app` / `-interactive`（+ `-wasm-full`） |
 | [headless-pre-styled-ui](./headless-pre-styled-ui/README.md) | `fandhe-frontend-headless-ui`（ark-ui 相当）の anatomy・`data-*`・WAI-ARIA 属性（Tabs/Accordion/Dialog/Switch/RadioGroup/Avatar） | `fandhe-frontend-core` / `-pre-styled-ui`（headless 層は再エクスポート経由） |
 | [wireframe-ui](./wireframe-ui/README.md) | `fandhe-frontend-wireframe-ui`（blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI）Phase 1〜8・全 49 部品のショーケース | `fandhe-frontend-core` / `-wireframe-ui` |
+| [vercel-ssg](./vercel-ssg/README.md) | `generate_pages`/`generate_assets` による Vercel Build Output API 形式の静的出力生成・`vercel deploy --prebuilt` でのデプロイ | `fandhe-frontend-core` / `-server` |
 
 ## 2. 選び方
 
@@ -28,6 +29,7 @@ https://fandhe-ai.github.io/fandhe-frontend/examples/ ）でも閲覧できま�
 - **クライアント側の状態管理・ページ遷移アニメーションを試したい**: [interactive-view-transitions](./interactive-view-transitions/README.md) が `fandhe-frontend-interactive` の状態機械と View Transitions を実演します。
 - **headless UI コンポーネント（ark-ui 相当）を試したい**: [headless-pre-styled-ui](./headless-pre-styled-ui/README.md) が `fandhe-frontend-headless-ui` の Tabs/Accordion/Dialog/Switch/RadioGroup/Avatar を実演します。
 - **ローファイ・モノクロのワイヤーフレーム UI（blocks.pm 相当）を試したい**: [wireframe-ui](./wireframe-ui/README.md) が `fandhe-frontend-wireframe-ui` の全 49 部品を Phase 1〜8 の区分どおりに実演します。
+- **Vercel へ静的配置したい**: [vercel-ssg](./vercel-ssg/README.md) が SSG → Vercel Build Output API → `vercel deploy --prebuilt` の唯一の既定方式を実演します。
 
 ## 3. `fw new --example` での取得
 
@@ -41,7 +43,7 @@ fw new my-app --example ssr-routing
 
 `--example` に指定できる名前は `ssr-routing` / `ssg-blog` /
 `dist-server-docker` / `interactive-view-transitions` /
-`headless-pre-styled-ui` / `wireframe-ui` の 6 種類です
+`headless-pre-styled-ui` / `wireframe-ui` / `vercel-ssg` の 7 種類です
 （本ディレクトリ直下のディレクトリ名と一致します）。展開されたプロジェクト
 は本ディレクトリ配下の該当サンプルと全ファイルバイト一致（パッケージ名の
 置換は行いません）で、そのまま `cargo build` / `cargo test` / `fw gate
@@ -100,3 +102,12 @@ headless-pre-styled-ui`・`crates/cli/embedded-examples/`（§5）への同梱�
 2026-09-24 に v0.52.0 で crates.io へ初回公開されたため（イシュー #2668）、
 最初から §4「crates.io バージョン依存のみ」の原則に従う構成で追加しました
 （`headless-pre-styled-ui` の §7 のような path 依存の暫定期間は経ていません）。
+
+## 9. `vercel-ssg`（イシュー #3290）
+
+`vercel-ssg` は親トラッキング #3282 の Phase 1（#3284〜#3286、#3288）で
+確定した Vercel 上での唯一の既定方式（SSG → Vercel Build Output API →
+`vercel deploy --prebuilt`、`docs/design/vercel-deployment-strategy.md`
+参照）を示す 7 件目のサンプルです。`wireframe-ui` と同じく、最初から
+§4「crates.io バージョン依存のみ」の原則に従う構成（依存
+`fandhe-frontend-core`/`-server` は既に公開済み）で追加しました。
