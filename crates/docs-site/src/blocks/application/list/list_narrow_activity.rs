@@ -358,6 +358,14 @@ pub const BLOCK: Block = Block {
 /// 実際に効くようにする（`minmax(0, 1fr)` だけでは孫要素の `min-width`
 /// 既定値 `auto` により省略が効かないため、`main` 自身にも明示する）。
 ///
+/// `list` recipe の `ListVariant::Plain` item は `display: flex` の
+/// row 方向コンテナだが、flex item である本 grid（`row`）自身は既定の
+/// `flex-grow: 0` のままでは内容幅にしか広がらず、短いエントリで
+/// `header` の `justify-content: space-between` が効く前の余白が狭く
+/// タイムスタンプの縦位置が行ごとに揃わない。`flex: 1 1 auto;
+/// min-width: 0;` を明示して item の残り幅いっぱいに `row` を広げ、
+/// header 内の space-between が item 全幅を基準に効くようにする。
+///
 /// # 本文の 2 行クランプ・要約の 1 行切り詰め
 ///
 /// `-webkit-line-clamp: 2`（`blog_grid_text` と同じ書き方）と
@@ -377,7 +385,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-list-narrow-activity-panel-heading {\n  display: block;\n  margin-bottom: var(--fandhe-space-3);\n  font-weight: var(--fandhe-font-weight-bold, 700);\n}\n\
 .blocks-list-narrow-activity-panel [data-blocks-list-narrow-activity-item] {\n  margin-block: 0;\n  padding-block: var(--fandhe-space-3);\n  border-top: 1px solid var(--fandhe-color-border);\n}\n\
 .blocks-list-narrow-activity-panel [data-blocks-list-narrow-activity-item]:first-child {\n  border-top: none;\n  padding-top: 0;\n}\n\
-.blocks-list-narrow-activity-row {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr);\n  gap: var(--fandhe-space-2);\n}\n\
+.blocks-list-narrow-activity-row {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr);\n  gap: var(--fandhe-space-2);\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\
 .blocks-list-narrow-activity-main {\n  min-width: 0;\n}\n\
 .blocks-list-narrow-activity-header {\n  display: flex;\n  align-items: baseline;\n  justify-content: space-between;\n  gap: var(--fandhe-space-2);\n  min-width: 0;\n}\n\
 .blocks-list-narrow-activity-name {\n  font-weight: var(--fandhe-font-weight-bold, 700);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\
