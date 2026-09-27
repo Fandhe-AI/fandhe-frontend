@@ -414,6 +414,11 @@ mod tests {
 
         // block を 1 件も持たないカテゴリ（application/Chart）の見出しは出力されない。
         assert!(!html.contains(">Chart<"));
+
+        // Team カテゴリは `team-avatar-grid`（イシュー #2879）で block を
+        // 持つようになったため、見出しが出力される（block を 1 件も持たない
+        // 空カテゴリが存在しない現状では非表示分岐の直接確認はできない）。
+        assert!(html.contains(">Team<"));
     }
 
     #[test]
