@@ -2026,6 +2026,14 @@ source = "site/blocks/description-list-two-column.md"
 path = "/blocks/description-list-two-column/"
 
 [[section.group]]
+title = "Feed"
+
+[[section.group.page]]
+title = "feed-upvote-cards"
+source = "site/blocks/feed-upvote-cards.md"
+path = "/blocks/feed-upvote-cards/"
+
+[[section.group]]
 title = "Auth"
 
 [[section.group.page]]
