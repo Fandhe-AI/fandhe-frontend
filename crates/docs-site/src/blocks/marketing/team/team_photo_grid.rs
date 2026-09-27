@@ -7,7 +7,7 @@
 //!
 //! # 使用部品
 //!
-//! `heading` / `text` / `image` / `button` / `link` / `icon` の 6 部品のみを
+//! `heading` / `text` / `image` / `link` / `icon` の 5 部品のみを
 //! 合成する（[`BLOCK`] の `parts` に一致させる契約、
 //! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証する）。
 //! 新しい UI 部品は追加しない。
@@ -20,7 +20,7 @@
 //!
 //! - **3:2 比率形**（R1350 主参照）: 3:2 の画像 + SNS リンク、`lg` で 3 列
 //! - **高さ固定形**（R0352 集約）: 高さ固定の画像 + SNS + 見出しエリアに
-//!   ボタン 2 個（「ボタンは任意」を示す差分）
+//!   CTA 2 本（「CTA は任意」を示す差分）
 //! - **正方形装飾形**（R0353 集約）: 正方形の画像 + 背面にずらした装飾 +
 //!   説明文
 //! - **4:3 説明文形**（R0723 集約）: 4:3 の画像 + 説明文 + SNS
@@ -44,22 +44,21 @@
 //! # `<form>` を持たない・データ取得/送信を行わない
 //!
 //! `crate::blocks` モジュール doc の不変条件に従い、本 Demo はフォーム・
-//! 状態機械を持たない静的な合成例である。ボタンは `type="button"`（既定）
-//! のまま、遷移を伴わない装飾的な CTA として置く（`header` の
-//! doc コメント参照）。
+//! 状態機械を持たない静的な合成例である。見出しエリアの CTA は
+//! `link::root` + 固定 URL による「実際に押せる」導線であり、装飾的な
+//! `<button>` は置かない（`header` の doc コメント参照）。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
 use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, el, text, Node};
-use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::heading::{
     heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
 };
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps};
-use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
+use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
@@ -275,12 +274,15 @@ fn card(
     )
 }
 
-/// 見出しエリア（heading + text）。`show_actions` のときのみボタン 2 個を
-/// 追加する（「ボタンは任意」を示す差分、高さ固定形（R0352）のみで示す）。
-/// ボタンは遷移先を持たない装飾的な CTA のため `type="button"`（既定）の
-/// まま `<button>` として出力し、`link::root` へは置き換えない
-/// （実際の遷移がある `logo_cloud_split` の CTA とは異なり、本 block の
-/// ボタンは「見出しエリアの横に置ける」ことだけを示す構造上の実演）。
+/// 見出しエリア（heading + text）。`show_actions` のときのみ CTA 2 本を
+/// 追加する（「CTA は任意」を示す差分、高さ固定形（R0352）のみで示す）。
+/// 当初は遷移先を持たない `<button>` で組み立てていたが、フォーカス
+/// 可能なのにクリックしても何も起きない操作可能要素は利用者を混乱させる
+/// （`logo_cloud_split` で受けた codex レビュー是正と同じ指摘、イシュー
+/// #2881 PR #3306）。このため `logo_cloud_split::copy_with_cta` と同型に
+/// `link::root` + 固定 URL（[`REPO`]/[`REPO_DISCUSSIONS`]）で「実際に
+/// 押せる」導線へ置き換え、CTA 文言も遷移先に合わせた（「チームを見る」
+/// → 「GitHub で見る」、「採用情報」→「Discussions に参加する」）。
 fn header(heading_text: &'static str, show_actions: bool) -> Node {
     let mut children: Vec<Node> = vec![
         heading(
@@ -305,14 +307,23 @@ fn header(heading_text: &'static str, show_actions: bool) -> Node {
         children.push(div(
             vec![("class", "blocks-team-photo-grid-actions")],
             vec![
-                button(&ButtonProps::default(), vec![], vec![text("チームを見る")]),
-                button(
-                    &ButtonProps {
-                        variant: ButtonVariant::Outline,
-                        ..ButtonProps::default()
+                link::root(
+                    REPO,
+                    &LinkProps {
+                        variant: LinkVariant::Underline,
+                        ..LinkProps::default()
                     },
                     vec![],
-                    vec![text("採用情報")],
+                    vec![text("GitHub で見る")],
+                ),
+                link::root(
+                    REPO_DISCUSSIONS,
+                    &LinkProps {
+                        variant: LinkVariant::Underline,
+                        ..LinkProps::default()
+                    },
+                    vec![],
+                    vec![text("Discussions に参加する")],
                 ),
             ],
         ));
@@ -469,10 +480,6 @@ pub const BLOCK: Block = Block {
             path: "/themes/image/",
         },
         Part {
-            label: "Button",
-            path: "/themes/button/",
-        },
-        Part {
             label: "Link",
             path: "/themes/link/",
         },
@@ -514,8 +521,10 @@ mod tests {
     use fandhe_frontend_core::render;
     use fandhe_frontend_pre_styled_ui::recipe::Breakpoint;
 
-    /// Demo が使用部品（heading/text/image/button/link/icon）の anatomy を
-    /// すべて実際に出力していることを固定する。
+    /// Demo が使用部品（heading/text/image/link/icon）の anatomy を
+    /// すべて実際に出力していることを固定する。`button` 部品は使わない
+    /// （`data-scope="button"` の非出現は `demo_has_no_form_or_unsafe_output`
+    /// が固定する）。
     #[test]
     fn demo_composes_expected_parts() {
         let html = render(&demo());
@@ -523,7 +532,6 @@ mod tests {
             "data-scope=\"heading\"",
             "data-scope=\"text\"",
             "data-scope=\"image\"",
-            "data-scope=\"button\"",
             "data-scope=\"link\"",
             "data-scope=\"icon\"",
         ] {
@@ -531,9 +539,9 @@ mod tests {
         }
     }
 
-    /// カード数・キャプション数・装飾数・ボタン数を固定する（3+3+3+3+4=16
+    /// カード数・キャプション数・装飾数・CTA 数を固定する（3+3+3+3+4=16
     /// 枚の写真、5 形分のキャプション、装飾は正方形装飾形の 1 グリッドのみ、
-    /// ボタンは高さ固定形の 2 個のみ）。
+    /// CTA は高さ固定形の 2 本のみ）。
     #[test]
     fn demo_renders_expected_counts() {
         let html = render(&demo());
@@ -553,20 +561,28 @@ mod tests {
             "only the square-decor variant (3 cards) should render the offset decoration"
         );
         assert_eq!(
-            html.matches(r#"type="button""#).count(),
-            2,
-            "only the fixed-height variant should render 2 buttons"
+            html.matches("GitHub で見る").count(),
+            1,
+            "only the fixed-height variant should render the GitHub CTA"
+        );
+        assert_eq!(
+            html.matches("Discussions に参加する").count(),
+            1,
+            "only the fixed-height variant should render the Discussions CTA"
         );
     }
 
     /// 非対話・XSS 回帰の不変条件（`crate::blocks` モジュール doc）を
-    /// 固定する。
+    /// 固定する。`data-scope="button"` の非出現は「CTA は `link::root` の
+    /// みで構成する」（`header` の doc コメント参照）を固定する
+    /// （`logo_cloud_split` の同名テストと同型）。
     #[test]
     fn demo_has_no_form_or_unsafe_output() {
         let html = render(&demo());
         for absent in [
             "<form",
             "type=\"submit\"",
+            "data-scope=\"button\"",
             "href=\"#\"",
             "src=\"data:",
             "id=\"",

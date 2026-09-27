@@ -9198,9 +9198,11 @@ fn team_photo_grid_page_wires_demo_class_and_css_hooks() {
     }
 }
 
-/// team-photo-grid の Demo が使用部品（heading/text/image/button/link/
-/// icon）をすべて実際に合成し、`<form>`・`src="data:"`・`href="#"`・
-/// `id="` を出力しないことを固定する（イシュー #2881）。
+/// team-photo-grid の Demo が使用部品（heading/text/image/link/icon）を
+/// すべて実際に合成し、`<form>`・`src="data:"`・`href="#"`・`id="` を
+/// 出力しないことを固定する（イシュー #2881）。`button` 部品は使わない
+/// （見出しエリアの CTA は `link::root` へ置き換え済み、PR #3306 の
+/// codex レビュー是正）。
 #[test]
 fn team_photo_grid_composes_expected_parts() {
     let block = blocks::block_for_path("/blocks/team-photo-grid/")
@@ -9210,7 +9212,6 @@ fn team_photo_grid_composes_expected_parts() {
         "data-scope=\"heading\"",
         "data-scope=\"text\"",
         "data-scope=\"image\"",
-        "data-scope=\"button\"",
         "data-scope=\"link\"",
         "data-scope=\"icon\"",
     ] {
@@ -9224,7 +9225,13 @@ fn team_photo_grid_composes_expected_parts() {
         16,
         "team-photo-grid demo should render exactly 16 member cards (3+3+3+3+4)"
     );
-    for absent in ["<form", "src=\"data:", "href=\"#\"", " id=\""] {
+    for absent in [
+        "<form",
+        "src=\"data:",
+        "href=\"#\"",
+        " id=\"",
+        "data-scope=\"button\"",
+    ] {
         assert!(
             !html.contains(absent),
             "team-photo-grid demo should never contain {absent}"

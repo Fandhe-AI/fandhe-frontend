@@ -1,11 +1,11 @@
 # team-photo-grid
 
 写真を主役にしたメンバーグリッドの合成例です。見出しエリア（見出し +
-説明文、ボタン 2 個は任意）の下に、比率を固定した大きな写真カードを
+説明文、CTA 2 本は任意）の下に、比率を固定した大きな写真カードを
 グリッドで並べます。カードは写真・氏名・役職を持ち、説明・所在地・SNS
 リンクは任意です。列数は狭幅で 1 列、`md`（768px 以上）で 2 列、`lg`
 （1024px 以上）で 3〜4 列です。新しい UI 部品は作らず、既存部品
-（heading/text/image/button/link/icon）のみで構成しています。無 JS の
+（heading/text/image/link/icon）のみで構成しています。無 JS の
 静的な表示で `<form>` は出力しません。
 
 主参照は対応表 ID R1350、集約元は対応表 ID R0352・R0353・R0723・R1357 の
@@ -18,13 +18,12 @@
 ```rust
 use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, el, text, Node};
-use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::heading::{
     heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
 };
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps};
-use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
+use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
@@ -240,12 +239,15 @@ fn card(
     )
 }
 
-/// 見出しエリア（heading + text）。`show_actions` のときのみボタン 2 個を
-/// 追加する（「ボタンは任意」を示す差分、高さ固定形（R0352）のみで示す）。
-/// ボタンは遷移先を持たない装飾的な CTA のため `type="button"`（既定）の
-/// まま `<button>` として出力し、`link::root` へは置き換えない
-/// （実際の遷移がある `logo_cloud_split` の CTA とは異なり、本 block の
-/// ボタンは「見出しエリアの横に置ける」ことだけを示す構造上の実演）。
+/// 見出しエリア（heading + text）。`show_actions` のときのみ CTA 2 本を
+/// 追加する（「CTA は任意」を示す差分、高さ固定形（R0352）のみで示す）。
+/// 当初は遷移先を持たない `<button>` で組み立てていたが、フォーカス
+/// 可能なのにクリックしても何も起きない操作可能要素は利用者を混乱させる
+/// （`logo_cloud_split` で受けた codex レビュー是正と同じ指摘、イシュー
+/// #2881 PR #3306）。このため `logo_cloud_split::copy_with_cta` と同型に
+/// `link::root` + 固定 URL（[`REPO`]/[`REPO_DISCUSSIONS`]）で「実際に
+/// 押せる」導線へ置き換え、CTA 文言も遷移先に合わせた（「チームを見る」
+/// → 「GitHub で見る」、「採用情報」→「Discussions に参加する」）。
 fn header(heading_text: &'static str, show_actions: bool) -> Node {
     let mut children: Vec<Node> = vec![
         heading(
@@ -270,14 +272,23 @@ fn header(heading_text: &'static str, show_actions: bool) -> Node {
         children.push(div(
             vec![("class", "blocks-team-photo-grid-actions")],
             vec![
-                button(&ButtonProps::default(), vec![], vec![text("チームを見る")]),
-                button(
-                    &ButtonProps {
-                        variant: ButtonVariant::Outline,
-                        ..ButtonProps::default()
+                link::root(
+                    REPO,
+                    &LinkProps {
+                        variant: LinkVariant::Underline,
+                        ..LinkProps::default()
                     },
                     vec![],
-                    vec![text("採用情報")],
+                    vec![text("GitHub で見る")],
+                ),
+                link::root(
+                    REPO_DISCUSSIONS,
+                    &LinkProps {
+                        variant: LinkVariant::Underline,
+                        ..LinkProps::default()
+                    },
+                    vec![],
+                    vec![text("Discussions に参加する")],
                 ),
             ],
         ));
@@ -419,7 +430,8 @@ pub fn demo() -> Node {
   エリア + 写真グリッドの組を 5 つ縦に並記する形へ統合しました。
 - 3:2 比率形（R1350）: 3:2 の画像 + SNS リンク、`lg` で 3 列。
 - 高さ固定形（R0352）: 高さ固定の画像 + SNS に加え、見出しエリアへ
-  ボタン 2 個を置き「ボタンは任意」であることを示しています。
+  CTA 2 本（link::root + 固定 URL）を置き「CTA は任意」であることを
+  示しています。
 - 正方形装飾形（R0353）: 正方形の画像 + 背面にずらした装飾 + 説明文。
 - 4:3 説明文形（R0723）: 4:3 の画像 + 説明文 + SNS。
 - 縦長所在地形（R1357）: 縦長の画像 + 所在地、`lg` で 4 列。
@@ -432,6 +444,5 @@ pub fn demo() -> Node {
 [Heading](../themes/heading.md) /
 [Text](../themes/text.md) /
 [Image](../themes/image.md) /
-[Button](../themes/button.md) /
 [Link](../themes/link.md) /
 [Icon](../themes/icon.md)
