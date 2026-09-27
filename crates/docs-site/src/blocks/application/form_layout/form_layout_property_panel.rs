@@ -26,10 +26,15 @@
 //!   動かないため、`pricing_seats_split`/`card_form_footer` と同じ判断）。
 //!   input 本体はネイティブ text input のままで良い（`readonly` にはせず、
 //!   値を編集できるように見せる。増減ボタンのみ操作不能にする）。
-//! - `segment_group` は `item_hidden_input` へ `disabled: true` を渡し
-//!   ネイティブ操作を構造的に禁止する。現在の選択は `data-state`/`checked`
-//!   で表す（`card_form_footer` の radio card と同型の判断）。中和 CSS
-//!   （`[data-disabled]` の opacity 復元）は [`LAYOUT_CSS`] が担う。
+//! - `segment_group` は `item`/`item_control`/`item_text`/`item_hidden_input`
+//!   の全パーツへ `disabled: true` を渡しネイティブ操作を構造的に禁止する
+//!   （`item_hidden_input` のみを disabled にすると `data-disabled` が同
+//!   パーツにしか付かず、[`LAYOUT_CSS`] の中和セレクタが空振りするため、
+//!   イシュー #3355 コードレビューで是正）。現在の選択は `data-state`/
+//!   `checked` で表す（`card_form_footer` の radio card と同型の判断）。
+//!   中和 CSS（`[data-disabled]` の opacity 復元。`.blocks-form-layout-
+//!   property-panel-layout` 配下へスコープし他 block への波及を防ぐ）は
+//!   [`LAYOUT_CSS`] が担う。
 //! - `select`（フォント欄のみ）は `OpenState::Closed` で固定し、trigger は
 //!   `disabled: true`。`positioner`/`content` は `hidden` 付きのまま出し、
 //!   `aria-controls`/`aria-labelledby` の参照先を残す（`card_form_footer`
@@ -86,6 +91,8 @@ use fandhe_frontend_pre_styled_ui::Size;
 const FONT_LABEL_ID: &str = "blocks-form-layout-property-panel-font-label";
 const FONT_CONTENT_ID: &str = "blocks-form-layout-property-panel-font-content";
 const COLOR_HEX_ID: &str = "blocks-form-layout-property-panel-color-hex";
+const DIRECTION_LABEL_ID: &str = "blocks-form-layout-property-panel-direction-label";
+const TEXT_ALIGN_LABEL_ID: &str = "blocks-form-layout-property-panel-text-align-label";
 
 /// 節見出し 1 節分の `FieldsetProps`（`legend`/`helper-text` 等の id 生成に
 /// 使う base id のみ渡す。本 Demo は helper-text/error-text を出さない）。
@@ -100,8 +107,17 @@ fn fieldset_props(id: &'static str) -> FieldsetProps<'static> {
 
 /// 数値入力 1 行分（`number_input`。増減ボタンは静的固定のため
 /// `disabled: true`、モジュール doc「静的表示」節）。`id` はラベルの
-/// `for`/コントロールの紐付けに使う。
-fn number_field(id: &'static str, label_text: &'static str, value: &'static str) -> Node {
+/// `for`/コントロールの紐付けに使う。`min`/`max` は欄ごとの実際の許容範囲
+/// を `aria-valuemin`/`aria-valuemax` へそのまま反映する（X/Y 座標・回転角
+/// のように負値を取り得る欄と、幅・高さ・間隔のように非負のみの欄とで
+/// 支援技術へ伝える範囲を区別する）。
+fn number_field(
+    id: &'static str,
+    label_text: &'static str,
+    value: &'static str,
+    min: &'static str,
+    max: &'static str,
+) -> Node {
     let flags = NumberInputFlags::default();
     number_input::root(
         Size::Sm,
@@ -116,7 +132,7 @@ fn number_field(id: &'static str, label_text: &'static str, value: &'static str)
                 vec![],
                 vec![
                     number_input::decrement_trigger(Some(id), true, vec![], vec![text("-")]),
-                    number_input::input(id, Some(id), Some(value), "0", "9999", flags, vec![]),
+                    number_input::input(id, Some(id), Some(value), min, max, flags, vec![]),
                     number_input::increment_trigger(Some(id), true, vec![], vec![text("+")]),
                 ],
             ),
@@ -149,7 +165,10 @@ fn unit_select(
         })
         .collect();
     native_select::native_select(
-        &NativeSelectProps::default(),
+        &NativeSelectProps {
+            size: Size::Sm,
+            ..NativeSelectProps::default()
+        },
         &field_props,
         vec![("aria-label", aria_label)],
         option_nodes,
@@ -168,10 +187,34 @@ fn position_section() -> Node {
             div(
                 vec![("class", "blocks-form-layout-property-panel-grid")],
                 vec![
-                    number_field("blocks-form-layout-property-panel-pos-x", "X", "120"),
-                    number_field("blocks-form-layout-property-panel-pos-y", "Y", "48"),
-                    number_field("blocks-form-layout-property-panel-pos-w", "幅", "320"),
-                    number_field("blocks-form-layout-property-panel-pos-h", "高さ", "180"),
+                    number_field(
+                        "blocks-form-layout-property-panel-pos-x",
+                        "X",
+                        "120",
+                        "-9999",
+                        "9999",
+                    ),
+                    number_field(
+                        "blocks-form-layout-property-panel-pos-y",
+                        "Y",
+                        "48",
+                        "-9999",
+                        "9999",
+                    ),
+                    number_field(
+                        "blocks-form-layout-property-panel-pos-w",
+                        "幅",
+                        "320",
+                        "0",
+                        "9999",
+                    ),
+                    number_field(
+                        "blocks-form-layout-property-panel-pos-h",
+                        "高さ",
+                        "180",
+                        "0",
+                        "9999",
+                    ),
                     div(
                         vec![("class", "blocks-form-layout-property-panel-grid-span-2")],
                         vec![unit_select(
@@ -189,6 +232,8 @@ fn position_section() -> Node {
                                     "blocks-form-layout-property-panel-rotation",
                                     "回転",
                                     "0",
+                                    "-360",
+                                    "360",
                                 ),
                                 styled_text::text(
                                     &TextProps {
@@ -213,6 +258,16 @@ fn position_section() -> Node {
 fn layout_section() -> Node {
     let props = fieldset_props("blocks-form-layout-property-panel-layout-fieldset");
     let direction_props = SegmentGroupProps::default();
+    // ネイティブ操作を構造的に禁止するため item 系パーツ全体を disabled
+    // 扱いにする（モジュール doc「静的表示」節）。`item`/`item_control`/
+    // `item_text` も `item_hidden_input` と揃えて disabled: true を渡し、
+    // 3 パーツすべてに `data-disabled` を反映させる（disabled_direction_props
+    // を経由しないと data-disabled が `item_hidden_input` にしか付かず、
+    // LAYOUT_CSS の中和セレクタが空振りするため）。
+    let disabled_direction_props = SegmentGroupProps {
+        disabled: true,
+        ..direction_props
+    };
     fieldset::root(
         &FieldsetRootProps { size: Size::Sm },
         &props,
@@ -230,40 +285,37 @@ fn layout_section() -> Node {
                                     size: TextSize::Sm,
                                     ..TextProps::default()
                                 },
-                                vec![],
+                                vec![("id", DIRECTION_LABEL_ID)],
                                 vec![text("方向")],
                             ),
                             segment_group::root_with_props(
                                 Size::Sm,
                                 &direction_props,
                                 None,
-                                None,
+                                Some(DIRECTION_LABEL_ID),
                                 vec![],
                                 vec![
                                     segment_group::item(
                                         true,
-                                        &direction_props,
+                                        &disabled_direction_props,
                                         "row",
                                         vec![],
                                         vec![
                                             segment_group::item_hidden_input(
                                                 true,
-                                                &SegmentGroupProps {
-                                                    disabled: true,
-                                                    ..direction_props
-                                                },
+                                                &disabled_direction_props,
                                                 Some("blocks-form-layout-property-panel-direction"),
                                                 "row",
                                                 vec![],
                                             ),
                                             segment_group::item_control(
                                                 true,
-                                                &direction_props,
+                                                &disabled_direction_props,
                                                 vec![],
                                             ),
                                             segment_group::item_text(
                                                 true,
-                                                &direction_props,
+                                                &disabled_direction_props,
                                                 vec![],
                                                 vec![text("横")],
                                             ),
@@ -271,28 +323,25 @@ fn layout_section() -> Node {
                                     ),
                                     segment_group::item(
                                         false,
-                                        &direction_props,
+                                        &disabled_direction_props,
                                         "column",
                                         vec![],
                                         vec![
                                             segment_group::item_hidden_input(
                                                 false,
-                                                &SegmentGroupProps {
-                                                    disabled: true,
-                                                    ..direction_props
-                                                },
+                                                &disabled_direction_props,
                                                 Some("blocks-form-layout-property-panel-direction"),
                                                 "column",
                                                 vec![],
                                             ),
                                             segment_group::item_control(
                                                 false,
-                                                &direction_props,
+                                                &disabled_direction_props,
                                                 vec![],
                                             ),
                                             segment_group::item_text(
                                                 false,
-                                                &direction_props,
+                                                &disabled_direction_props,
                                                 vec![],
                                                 vec![text("縦")],
                                             ),
@@ -302,7 +351,13 @@ fn layout_section() -> Node {
                             ),
                         ],
                     ),
-                    number_field("blocks-form-layout-property-panel-gap", "間隔", "16"),
+                    number_field(
+                        "blocks-form-layout-property-panel-gap",
+                        "間隔",
+                        "16",
+                        "0",
+                        "9999",
+                    ),
                     div(
                         vec![("class", "blocks-form-layout-property-panel-grid-span-2")],
                         vec![unit_select(
@@ -353,6 +408,8 @@ fn text_section() -> Node {
                         "blocks-form-layout-property-panel-font-size",
                         "サイズ",
                         "16",
+                        "0",
+                        "9999",
                     ),
                     unit_select(
                         "blocks-form-layout-property-panel-font-weight",
@@ -367,14 +424,14 @@ fn text_section() -> Node {
                                     size: TextSize::Sm,
                                     ..TextProps::default()
                                 },
-                                vec![],
+                                vec![("id", TEXT_ALIGN_LABEL_ID)],
                                 vec![text("揃え")],
                             ),
                             segment_group::root_with_props(
                                 Size::Sm,
                                 &align_props,
                                 None,
-                                None,
+                                Some(TEXT_ALIGN_LABEL_ID),
                                 vec![],
                                 vec![
                                     align_item(true, "left", "左"),
@@ -405,7 +462,10 @@ fn text_section() -> Node {
                                     vec![
                                         field::label(&color_id_props, vec![], vec![text("文字色")]),
                                         input::input(
-                                            &InputProps::default(),
+                                            &InputProps {
+                                                size: Size::Sm,
+                                                ..InputProps::default()
+                                            },
                                             &color_id_props,
                                             vec![
                                                 ("type", "text"),
@@ -426,14 +486,17 @@ fn text_section() -> Node {
 
 /// 「揃え」segment group の項目 1 件。
 fn align_item(checked: bool, value: &'static str, label_text: &'static str) -> Node {
-    let props = SegmentGroupProps::default();
+    // レイアウト節の direction 同様、item/item_control/item_text も
+    // disabled_props で揃え、3 パーツすべてに `data-disabled` を反映させる
+    // （item_hidden_input のみ disabled だと LAYOUT_CSS の中和セレクタが
+    // 空振りする、モジュール doc「静的表示」節参照）。
     let disabled_props = SegmentGroupProps {
         disabled: true,
-        ..props
+        ..SegmentGroupProps::default()
     };
     segment_group::item(
         checked,
-        &props,
+        &disabled_props,
         value,
         vec![],
         vec![
@@ -444,8 +507,8 @@ fn align_item(checked: bool, value: &'static str, label_text: &'static str) -> N
                 value,
                 vec![],
             ),
-            segment_group::item_control(checked, &props, vec![]),
-            segment_group::item_text(checked, &props, vec![], vec![text(label_text)]),
+            segment_group::item_control(checked, &disabled_props, vec![]),
+            segment_group::item_text(checked, &disabled_props, vec![], vec![text(label_text)]),
         ],
     )
 }
@@ -604,12 +667,12 @@ const LAYOUT_CSS: &str = "\
 .blocks-form-layout-property-panel-select {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1-5, 0.375rem);\n}\n\
 .blocks-form-layout-property-panel-color {\n  display: flex;\n  align-items: flex-end;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-form-layout-property-panel-color] {\n  flex: 1;\n}\n\
-[data-scope=\"segment-group\"][data-part=\"item-control\"][data-disabled],\n\
-[data-scope=\"segment-group\"][data-part=\"item-text\"][data-disabled],\n\
-[data-scope=\"segment-group\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+.blocks-form-layout-property-panel-layout [data-scope=\"segment-group\"][data-part=\"item-control\"][data-disabled],\n\
+.blocks-form-layout-property-panel-layout [data-scope=\"segment-group\"][data-part=\"item-text\"][data-disabled],\n\
+.blocks-form-layout-property-panel-layout [data-scope=\"segment-group\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-form-layout-property-panel-select [data-scope=\"select\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-[data-scope=\"number-input\"][data-part=\"increment-trigger\"][data-disabled],\n\
-[data-scope=\"number-input\"][data-part=\"decrement-trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n";
+.blocks-form-layout-property-panel-layout [data-scope=\"number-input\"][data-part=\"increment-trigger\"][data-disabled],\n\
+.blocks-form-layout-property-panel-layout [data-scope=\"number-input\"][data-part=\"decrement-trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n";
 
 #[cfg(test)]
 mod tests {
