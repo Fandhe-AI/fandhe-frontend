@@ -397,6 +397,16 @@ pub const BLOCK: Block = Block {
 /// `[data-scope="blockquote"][data-part="caption"].blocks-testimonial-
 /// card-grid-meta`（詳細度 0,3,0）で `blockquote` recipe の base
 /// （0,2,0）に勝つ（モジュール doc「詳細度」節）。
+///
+/// # 著者行の下部揃え（`margin-top: auto` が効くための前提）
+///
+/// `blockquote::root`（`<figure>`）は既定で `display: block` のため、
+/// 子の `caption` へ `margin-top: auto` を付けても auto margin は flex/grid
+/// コンテナの子にしか効かず、引用文の長さがカードごとに異なると著者行の
+/// 高さが揃わない（PR #3309 レビュー指摘）。`.blocks-testimonial-card-grid-
+/// body` 配下に限定して `blockquote::root` を縦方向 flex コンテナ化し
+/// （`flex: 1` で `body` の残り高さいっぱいに伸ばす）、`caption` の
+/// `margin-top: auto` を機能させる。
 const LAYOUT_CSS: &str = "\
 .blocks-testimonial-card-grid-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-12);\n}\n\
 .blocks-testimonial-card-grid-header {\n  display: flex;\n  flex-direction: column;\n  gap: 0.75rem;\n  max-width: 40rem;\n  text-align: center;\n  margin-inline: auto;\n}\n\
@@ -405,6 +415,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-testimonial-card-grid-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-6);\n  align-items: stretch;\n}\n\
 [data-blocks-testimonial-card-grid-card] {\n  height: 100%;\n}\n\
 .blocks-testimonial-card-grid-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  height: 100%;\n}\n\
+.blocks-testimonial-card-grid-body [data-scope=\"blockquote\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: column;\n  flex: 1;\n}\n\
 .blocks-testimonial-card-grid-logo-row {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-testimonial-card-grid-logo] {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-scope=\"blockquote\"][data-part=\"caption\"].blocks-testimonial-card-grid-meta {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  margin-top: auto;\n}\n\
@@ -488,6 +499,12 @@ mod tests {
         assert!(LAYOUT_CSS.contains("repeat(3, minmax(0, 1fr))"));
         assert!(LAYOUT_CSS.contains(
             "[data-scope=\"blockquote\"][data-part=\"caption\"].blocks-testimonial-card-grid-meta {"
+        ));
+        // 著者行の下部揃え（margin-top: auto）が効くには blockquote::root
+        // が縦方向 flex コンテナである必要がある（モジュール doc
+        // 「著者行の下部揃え」節、PR #3309 レビュー指摘の回帰）。
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"blockquote\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: column;\n  flex: 1;\n}"
         ));
     }
 
