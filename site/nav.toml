@@ -1417,6 +1417,21 @@ source = "site/blocks/pricing-slider-tiers.md"
 path = "/blocks/pricing-slider-tiers/"
 
 [[section.group.page]]
+title = "pricing-tier-cards"
+source = "site/blocks/pricing-tier-cards.md"
+path = "/blocks/pricing-tier-cards/"
+
+[[section.group.page]]
+title = "pricing-tiers-comparison"
+source = "site/blocks/pricing-tiers-comparison.md"
+path = "/blocks/pricing-tiers-comparison/"
+
+[[section.group.page]]
+title = "pricing-tiers-extra-row"
+source = "site/blocks/pricing-tiers-extra-row.md"
+path = "/blocks/pricing-tiers-extra-row/"
+
+[[section.group.page]]
 title = "pricing-tiers-morph"
 source = "site/blocks/pricing-tiers-morph.md"
 path = "/blocks/pricing-tiers-morph/"
@@ -1667,6 +1682,11 @@ path = "/blocks/header-flyout-menu/"
 title = "header-mega-menu"
 source = "site/blocks/header-mega-menu.md"
 path = "/blocks/header-mega-menu/"
+
+[[section.group.page]]
+title = "header-simple-bar"
+source = "site/blocks/header-simple-bar.md"
+path = "/blocks/header-simple-bar/"
 
 [[section.group]]
 title = "Footer"

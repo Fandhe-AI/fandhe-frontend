@@ -267,10 +267,13 @@ jobs:
           # Marketing / Pricing
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-seats-split/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-slider-tiers/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-tiers-comparison/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-tiers-extra-row/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-tiers-morph/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-usage-slider/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-comparison-table/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-single-split/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-tier-cards/index.html"
           # Marketing / Testimonial
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonials-stack/index.html"
           # Marketing / Logo Cloud
@@ -324,6 +327,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/header-floating-pill/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/header-flyout-menu/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/header-mega-menu/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/header-simple-bar/index.html"
           # Marketing / Footer
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-cta-columns/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/footer-sticky-reveal/index.html"
