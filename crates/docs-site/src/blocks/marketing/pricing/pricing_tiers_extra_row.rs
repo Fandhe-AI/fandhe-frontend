@@ -405,7 +405,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-pricing-tiers-extra-row-price {\n  font-size: var(--fandhe-font-font-size-2xl);\n  font-weight: var(--fandhe-font-font-weight-bold);\n}\n\
 .blocks-pricing-tiers-extra-row-price-period {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-scope=\"list\"][data-part=\"root\"][data-blocks-pricing-tiers-extra-row-features] {\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n}\n\
-[data-scope=\"list\"][data-part=\"item\"].blocks-pricing-tiers-extra-row-feature {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
+[data-scope=\"list\"][data-part=\"item\"].blocks-pricing-tiers-extra-row-feature {\n  display: flex;\n  align-items: center;\n}\n\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-pricing-tiers-extra-row-card=\"featured\"] {\n  border: 2px solid var(--fandhe-color-accent);\n}\n\
 .blocks-pricing-tiers-extra-row-extra {\n  grid-column: 1 / -1;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-scope=\"list\"][data-part=\"root\"][data-blocks-pricing-tiers-extra-row-common] {\n  margin: 0;\n  padding: 0;\n  display: grid;\n  gap: var(--fandhe-space-2) var(--fandhe-space-6);\n  grid-template-columns: 1fr;\n}\n\
