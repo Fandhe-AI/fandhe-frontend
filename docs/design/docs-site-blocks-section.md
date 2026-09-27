@@ -947,7 +947,7 @@ pub enum LayoutCss {
 | header-mega-menu | #2858/#2859（親 #2857） | `marketing/header/header_mega_menu.rs` |
 | header-simple-bar | #2860（親 #2807） | `marketing/header/header_simple_bar.rs` |
 | pricing-tiers-comparison | #2873/#2874（親 #2872） | `marketing/pricing/pricing_tiers_comparison.rs` |
-| pricing-tiers-extra-row | #2876（親 #2875） | `marketing/pricing/pricing_tiers_extra_row.rs` |
+| pricing-tiers-extra-row | #2876/#2877（親 #2875） | `marketing/pricing/pricing_tiers_extra_row.rs` |
 | team-avatar-grid | #2879（親 #2807） | `marketing/team/team_avatar_grid.rs` |
 | testimonial-background-image | #2883 | `marketing/testimonial/testimonial_background_image.rs` |
 
