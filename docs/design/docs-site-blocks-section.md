@@ -963,6 +963,7 @@ pub enum LayoutCss {
 | app-shell-three-column | #2898 | `application/app_shell/app_shell_three_column.rs` |
 | card-form-footer | #2899 | `application/card/card_form_footer.rs` |
 | card-heading-toolbar | #2902 | `application/card_heading/card_heading_toolbar.rs` |
+| card-media-footer | #2900（親 #2892） | `application/card/card_media_footer.rs` |
 | card-meta-cta | #2901（親 #2892） | `application/card/card_meta_cta.rs` |
 | chart-bar-list | #2903 | `application/chart/chart_bar_list.rs` |
 | chart-metric-area | #2904（親 #2892） | `application/chart/chart_metric_area.rs` |
