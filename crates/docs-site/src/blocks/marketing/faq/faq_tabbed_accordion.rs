@@ -55,6 +55,22 @@
 //! 採らない。差分は `site/blocks/faq-tabbed-accordion.md` の「原案差分
 //! メモ」節にも記す。
 //!
+//! # 見出し階層（`H4`/`h5`、3 回目のレビュー是正）
+//!
+//! カテゴリキャプション（[`category_caption`]）は [`HeadingLevel::H4`]、
+//! 各質問トリガーは `<h5>`（[`super::faq_split_accordion`] と同じ
+//! WAI-ARIA APG のアコーディオンパターン準拠）とする。当初は両方とも
+//! `h4` で並列に描画しており、支援技術の見出し一覧でカテゴリ配下に質問が
+//! ネストされず同列に見えていた（Codex P2 2 件 + Bugbot Medium 1 件）。
+//!
+//! # キャプションの色指定（3 回目のレビュー是正）
+//!
+//! [`category_caption`] は `heading()` へ直接 `class` を渡していたが、
+//! `heading()` は呼び出し側 `class` を `drop_class_attr` で除去するため
+//! `LAYOUT_CSS` のミュート色ルールが適用されなかった（Codex P2 1 件 +
+//! Bugbot Medium 1 件）。ミュート色用の class は `heading()` を包む `div`
+//! へ付け、子孫セレクタ経由（継承）で適用するよう是正した。
+//!
 //! # id の一意性
 //!
 //! accordion の id は
@@ -258,7 +274,7 @@ fn faq_item(category: &str, index: usize, question: &str, answer: &str) -> Node 
         vec![],
         vec![
             el(
-                "h4",
+                "h5",
                 vec![("class", "blocks-faq-tabbed-accordion-trigger-heading")],
                 vec![item_trigger(
                     state,
@@ -313,19 +329,27 @@ fn category_accordion(category: &str, faqs: &[(&str, &str); 3]) -> Node {
 /// カテゴリキャプション見出し（PR #3268 レビュー是正 4 件目、Codex P2）。
 /// [`category_preview`]/[`category_current`] のキャプションを
 /// `styled_text::text` の段落のままにすると、支援技術の見出し一覧から
-/// カテゴリ名の所在が把握できない（`faq_item` 内の h4 は各質問文であり
+/// カテゴリ名の所在が把握できない（`faq_item` 内の h5 は各質問文であり
 /// カテゴリ名を持たない）。`HeadingLevel::H4` + `HeadingSize::Sm` で
 /// 見出し化し、視覚サイズは既存のキャプション（`TextSize::Sm` +
 /// `TextVariant::Muted` 相当）を保ったまま見出しツリーへ載せる。
 fn category_caption(text_content: String) -> Node {
-    heading(
-        HeadingLevel::H4,
-        &HeadingProps {
-            size: HeadingSize::Sm,
-            ..HeadingProps::default()
-        },
+    // `heading()` は呼び出し側 `class` を `drop_class_attr` で除去するため
+    // （PR #3268 レビュー是正、Codex P2 + Bugbot Medium）、ミュート色付与用の
+    // class は `heading()` へ直接渡さず、包む `div` へ付けて子孫セレクタで
+    // 適用する（`LAYOUT_CSS` の `.blocks-faq-tabbed-accordion-caption`
+    // セレクタ参照）。`heading()` 自体は色を明示しないため継承で反映される。
+    div(
         vec![("class", "blocks-faq-tabbed-accordion-caption")],
-        vec![text(text_content)],
+        vec![heading(
+            HeadingLevel::H4,
+            &HeadingProps {
+                size: HeadingSize::Sm,
+                ..HeadingProps::default()
+            },
+            vec![],
+            vec![text(text_content)],
+        )],
     )
 }
 
@@ -550,5 +574,38 @@ mod tests {
             super::BLOCK.demo_class,
             "blocks-faq-tabbed-accordion-layout"
         );
+    }
+
+    /// カテゴリ見出し（`<h4`）と質問トリガー見出し（`<h5`）が階層を
+    /// なすこと（PR #3268 3 回目のレビュー是正、Codex P2 2 件 + Bugbot
+    /// Medium 1 件の回帰固定。モジュール doc「見出し階層」節参照）。
+    #[test]
+    fn category_and_question_headings_form_a_hierarchy() {
+        let html = render(&demo());
+        assert!(!html.contains("<h4 class=\"blocks-faq-tabbed-accordion-trigger-heading\""));
+        assert!(html.contains("<h5 class=\"blocks-faq-tabbed-accordion-trigger-heading\""));
+        let total_faqs: usize = CATEGORIES.iter().map(|(_, _, faqs)| faqs.len()).sum();
+        assert_eq!(
+            html.matches("<h5 class=\"blocks-faq-tabbed-accordion-trigger-heading\"")
+                .count(),
+            total_faqs
+        );
+        assert_eq!(html.matches("<h4").count(), CATEGORIES.len());
+    }
+
+    /// カテゴリキャプションのミュート色 class が `heading()` ではなく
+    /// 包む `div` に付くこと（PR #3268 3 回目のレビュー是正、Codex P2 1
+    /// 件 + Bugbot Medium 1 件の回帰固定。`heading()` は `drop_class_attr`
+    /// で呼び出し側 class を除去するため、`heading` 要素自体に class が
+    /// 付いていないことも確認する）。
+    #[test]
+    fn category_caption_class_is_on_wrapper_not_heading() {
+        let html = render(&demo());
+        assert_eq!(
+            html.matches("class=\"blocks-faq-tabbed-accordion-caption\"")
+                .count(),
+            CATEGORIES.len()
+        );
+        assert!(!html.contains("<h4 class=\"blocks-faq-tabbed-accordion-caption\""));
     }
 }

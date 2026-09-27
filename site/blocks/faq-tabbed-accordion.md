@@ -198,7 +198,7 @@ fn faq_item(category: &str, index: usize, question: &str, answer: &str) -> Node 
         vec![],
         vec![
             el(
-                "h4",
+                "h5",
                 vec![("class", "blocks-faq-tabbed-accordion-trigger-heading")],
                 vec![item_trigger(
                     state,
@@ -253,19 +253,27 @@ fn category_accordion(category: &str, faqs: &[(&str, &str); 3]) -> Node {
 /// カテゴリキャプション見出し（PR #3268 レビュー是正 4 件目、Codex P2）。
 /// [`category_preview`]/[`category_current`] のキャプションを
 /// `styled_text::text` の段落のままにすると、支援技術の見出し一覧から
-/// カテゴリ名の所在が把握できない（`faq_item` 内の h4 は各質問文であり
+/// カテゴリ名の所在が把握できない（`faq_item` 内の h5 は各質問文であり
 /// カテゴリ名を持たない）。`HeadingLevel::H4` + `HeadingSize::Sm` で
 /// 見出し化し、視覚サイズは既存のキャプション（`TextSize::Sm` +
 /// `TextVariant::Muted` 相当）を保ったまま見出しツリーへ載せる。
 fn category_caption(text_content: String) -> Node {
-    heading(
-        HeadingLevel::H4,
-        &HeadingProps {
-            size: HeadingSize::Sm,
-            ..HeadingProps::default()
-        },
+    // `heading()` は呼び出し側 `class` を `drop_class_attr` で除去するため
+    // （PR #3268 レビュー是正、Codex P2 + Bugbot Medium）、ミュート色付与用の
+    // class は `heading()` へ直接渡さず、包む `div` へ付けて子孫セレクタで
+    // 適用する（`LAYOUT_CSS` の `.blocks-faq-tabbed-accordion-caption`
+    // セレクタ参照）。`heading()` 自体は色を明示しないため継承で反映される。
+    div(
         vec![("class", "blocks-faq-tabbed-accordion-caption")],
-        vec![text(text_content)],
+        vec![heading(
+            HeadingLevel::H4,
+            &HeadingProps {
+                size: HeadingSize::Sm,
+                ..HeadingProps::default()
+            },
+            vec![],
+            vec![text(text_content)],
+        )],
     )
 }
 
