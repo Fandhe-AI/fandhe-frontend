@@ -15,7 +15,7 @@ avatar/menu/button/card/heading/collapsible/icon）のみで構成していま�
 ## Rust コード
 
 ```rust
-use fandhe_frontend_core::{a, div, el, header, main_tag, nav as nav_el, p, span, text, Node};
+use fandhe_frontend_core::{a, div, el, header, nav as nav_el, p, span, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarProps, ImageStatus};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
@@ -402,7 +402,7 @@ fn shell(
                 vec![("data-blocks-app-shell-stacked-overlap-band", "")],
                 band_children,
             ),
-            main_tag(vec![], vec![body_cards()]),
+            body_cards(),
         ],
     )
 }

@@ -73,7 +73,7 @@
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
-use fandhe_frontend_core::{a, div, el, header, main_tag, nav as nav_el, p, span, text, Node};
+use fandhe_frontend_core::{a, div, el, header, nav as nav_el, p, span, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarProps, ImageStatus};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
@@ -460,7 +460,7 @@ fn shell(
                 vec![("data-blocks-app-shell-stacked-overlap-band", "")],
                 band_children,
             ),
-            main_tag(vec![], vec![body_cards()]),
+            body_cards(),
         ],
     )
 }
@@ -559,7 +559,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-app-shell-stacked-overlap-band] {\n  padding: var(--fandhe-space-4) var(--fandhe-space-4) calc(var(--fandhe-space-4) + var(--blocks-app-shell-stacked-overlap-overlap));\n}\n\
 [data-blocks-app-shell-stacked-overlap-root][data-blocks-app-shell-stacked-overlap-variant=\"single-row\"] [data-blocks-app-shell-stacked-overlap-band] {\n  background: var(--fandhe-color-fg);\n  color: var(--fandhe-color-bg);\n}\n\
 [data-blocks-app-shell-stacked-overlap-root][data-blocks-app-shell-stacked-overlap-variant=\"two-row-search\"] [data-blocks-app-shell-stacked-overlap-band] {\n  background: var(--fandhe-color-accent);\n  color: var(--fandhe-color-accent-fg);\n}\n\
-[data-blocks-app-shell-stacked-overlap-bar] {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
+[data-blocks-app-shell-stacked-overlap-bar] {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-app-shell-stacked-overlap-logo] {\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  white-space: nowrap;\n}\n\
 [data-blocks-app-shell-stacked-overlap-nav-wrap] {\n  display: none;\n  flex-basis: 100%;\n}\n\
 [data-blocks-app-shell-stacked-overlap-actions-wrap] {\n  display: none;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  margin-inline-start: auto;\n}\n\
@@ -569,8 +569,8 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-app-shell-stacked-overlap-toggle] {\n  color: inherit;\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-app-shell-stacked-overlap-panel] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  margin-block-start: var(--fandhe-space-3);\n}\n\
 [data-blocks-app-shell-stacked-overlap-heading-row] {\n  margin-block-start: var(--fandhe-space-4);\n}\n\
-[data-scope=\"navigation-menu\"][data-part=\"link\"][data-blocks-app-shell-stacked-overlap-band]::before {\n  content: none;\n}\n\
 [data-blocks-app-shell-stacked-overlap-band] [data-scope=\"navigation-menu\"] {\n  color: inherit;\n}\n\
+[data-blocks-app-shell-stacked-overlap-band] [data-scope=\"navigation-menu\"][data-part=\"link\"] {\n  color: inherit;\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-app-shell-stacked-overlap-notify] {\n  color: inherit;\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-app-shell-stacked-overlap-notify][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"menu\"][data-part=\"trigger\"][data-blocks-app-shell-stacked-overlap-profile] {\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  color: inherit;\n}\n\
