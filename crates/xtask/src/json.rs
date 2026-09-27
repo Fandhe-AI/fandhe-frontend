@@ -196,6 +196,21 @@ fn parse_object(bytes: &[u8], pos: &mut usize, depth: usize) -> Result<Json, Jso
         }
         *pos += 1;
         let value = parse_value(bytes, pos, depth + 1)?;
+        // PR #3322 レビュー指摘（Codex P1）への対処: RFC 8259 は重複キーの
+        // 扱いを未規定のまま許容しているが、`Json::get` は最初の一致キーを
+        // 返す実装のため、重複キーを黙って許すと「後勝ち」を期待する読み手
+        // （人間・他ツール）と「先勝ち」で読む本パーサとで解釈が食い違う。
+        // `check_vercel_output::read_config_json` はこの食い違いを悪用され
+        // ると、有効な `routes` の後ろに不正な `routes` を追記しても
+        // 最初の値だけを検証して PASS してしまう（本パーサ利用箇所すべてに
+        // 影響する構造的な問題のため、`json` モジュール側で fail-closed に
+        // 拒否する）。
+        if entries.iter().any(|(k, _): &(String, Json)| *k == key) {
+            return Err(JsonError {
+                offset: *pos,
+                message: format!("duplicate object key `{key}`"),
+            });
+        }
         entries.push((key, value));
         skip_whitespace(bytes, pos);
         match peek(bytes, *pos)? {
@@ -540,5 +555,19 @@ mod tests {
     #[test]
     fn rejects_trailing_data() {
         assert!(parse("null null").is_err());
+    }
+
+    /// PR #3322 レビュー指摘（Codex P1）の回帰テスト:
+    /// `check_vercel_output::read_config_json` は `Json::get` が最初の
+    /// 一致キーを返すことを前提に検証している。重複キーを許すと
+    /// 「有効な値の後に不正な値」を追記しても最初の値だけが検証され
+    /// PASS してしまうため、パーサ側で拒否する。
+    #[test]
+    fn rejects_duplicate_object_keys() {
+        assert!(parse(r#"{"a": 1, "a": 2}"#).is_err());
+        // ネストしたオブジェクト内の重複キーも拒否する。
+        assert!(parse(r#"{"a": {"b": 1, "b": 2}}"#).is_err());
+        // 異なるキーは引き続き許容する。
+        assert!(parse(r#"{"a": 1, "b": 2}"#).is_ok());
     }
 }
