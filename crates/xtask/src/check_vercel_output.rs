@@ -593,6 +593,13 @@ fn check_routes_404_fallback(routes: &[Json]) -> CheckResult {
     };
 
     let is_fallback_route = |route: &Json| {
+        // `{"handle": ...}` はビルトインのステージ切替ハンドラルートであり
+        // `src`/`status`/`dest` を併記していても source route（実リクエストに
+        // マッチする通常ルート）ではない（PR #3322 レビュー指摘への対処、
+        // Codex P1）。`handle` を持つルートを 404 フォールバックとして誤認
+        // すると「未一致の全パスへ 404 を返す」契約を検証できていないのに
+        // PASS してしまうため、`handle` キーの不在を必須条件にする。
+        let is_handler = route.get("handle").is_some();
         let src_ok = route.get("src").and_then(Json::as_str) == Some(CATCH_ALL_SRC);
         let status_ok = route
             .get("status")
@@ -600,7 +607,7 @@ fn check_routes_404_fallback(routes: &[Json]) -> CheckResult {
         let dest_ok = route.get("dest").and_then(Json::as_str) == Some("/404.html");
         // 404 フォールバック自体が `continue: true` を持つと、そのルートで
         // 応答を確定させず後続ルートへ処理が続いてしまい終端しない。
-        src_ok && status_ok && dest_ok && !route_continues(route)
+        !is_handler && src_ok && status_ok && dest_ok && !route_continues(route)
     };
 
     let fallback_offset = routes[filesystem_index + 1..]
@@ -666,7 +673,15 @@ fn check_routes_dest_targets(routes: &[Json], output_dir: &Path) -> CheckResult 
         let Some(dest) = route.get("dest").and_then(Json::as_str) else {
             continue;
         };
-        let has_replacement_ref = dest.contains('$');
+        // `dest.contains('$')` だけで置換参照と判定すると、`$` を含むが
+        // 数字が後続しない値（例: `/missing$bogus.html`）まで置換参照
+        // 扱いとなり、直後の実ファイル存在チェック（`static/` 配下の
+        // 通常ファイル確認）を素通りしてしまう（PR #3322 レビュー指摘
+        // への対処、Codex P1）。有効な後方参照（`$1`・`$12` 等、`$` の
+        // 直後に 1 桁以上の数字が続く形）だけを置換参照とみなし、それ
+        // 以外の `$` を含む値は通常のリテラル `dest` として
+        // `is_safe_relative_dest` + 実ファイル存在チェックの対象にする。
+        let has_replacement_ref = is_valid_replacement_dest(dest);
 
         let Some(relative) = dest.strip_prefix('/') else {
             return CheckResult::fail(
@@ -751,6 +766,36 @@ fn check_routes_dest_targets(routes: &[Json], output_dir: &Path) -> CheckResult 
     }
 
     CheckResult::pass("routes_dest_targets")
+}
+
+/// `dest` が Vercel の正規表現後方参照（`$1`・`$12` 等、`$` の直後に 1 桁
+/// 以上の数字が続く形）のみで `$` を使っているかを判定する（PR #3322
+/// レビュー指摘への対処、Codex P1）。`$` を含んでいても後方参照の形を
+/// 満たさない文字（数字が続かない `$`）が 1 つでもあれば `false` を返し、
+/// 呼び出し元（[`check_routes_dest_targets`]）はそれを通常のリテラル
+/// `dest` として実ファイル存在チェックの対象にする。`$` を 1 つも含まない
+/// 文字列も `false`（置換参照ではない）を返す。
+fn is_valid_replacement_dest(dest: &str) -> bool {
+    let bytes = dest.as_bytes();
+    let mut has_ref = false;
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'$' {
+            let mut j = i + 1;
+            while j < bytes.len() && bytes[j].is_ascii_digit() {
+                j += 1;
+            }
+            if j == i + 1 {
+                // `$` の直後に数字が続かない（後方参照の形を満たさない）。
+                return false;
+            }
+            has_ref = true;
+            i = j;
+        } else {
+            i += 1;
+        }
+    }
+    has_ref
 }
 
 /// `relative`（先頭 `/` を除いた `dest` 相対パス）が `static/` の外へ

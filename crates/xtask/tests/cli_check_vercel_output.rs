@@ -321,6 +321,31 @@ fn fallback_with_partial_match_src_fails() {
     let _ = fs::remove_dir_all(&dir);
 }
 
+/// PR #3322 レビュー指摘（Codex P1、4 回目）の回帰テスト: `{"handle": ...}`
+/// ハンドラルートが `src`/`status`/`dest` を併記していても、それは
+/// ビルトインのステージ切替ハンドラであって実リクエストにマッチする
+/// source route ではないため、404 フォールバックの候補として PASS させて
+/// はならない。`handle` の有無を確認せず 3 キーの一致だけで判定する実装は
+/// 本テストで FAIL する（フォールバックが実質存在しないのに PASS してしまう）。
+#[test]
+fn handler_route_disguised_as_fallback_fails() {
+    let dir = make_fixture_dir("handler-route-disguised-as-fallback");
+    write_valid_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    fs::write(
+        output_dir.join("config.json"),
+        r#"{"version": 3, "routes": [{"handle": "filesystem"}, {"handle": "resource", "src": "/(.*)", "status": 404, "dest": "/404.html"}]}"#,
+    )
+    .unwrap();
+
+    let result = run_check_vercel_output(&["--output-dir", output_dir.to_str().unwrap()]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=config_routes_404_fallback result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
 /// PR #3322 レビュー指摘（Codex P1）の回帰テスト: `dest` が `$` 置換参照を
 /// 含んでいても、先頭 `/../../` のような明白な親ディレクトリ脱出は境界
 /// 検証（`is_safe_relative_dest` 相当）で検知する（`$` を含むと即
@@ -377,6 +402,31 @@ fn dest_with_replacement_ref_and_leading_empty_segment_fails() {
     fs::write(
         output_dir.join("config.json"),
         r#"{"version": 3, "routes": [{"handle": "filesystem"}, {"src": "/(.*)", "status": 404, "dest": "//$1"}]}"#,
+    )
+    .unwrap();
+
+    let result = run_check_vercel_output(&["--output-dir", output_dir.to_str().unwrap()]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=routes_dest_targets result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// PR #3322 レビュー指摘（Codex P1、4 回目）の回帰テスト: `$` を含むが
+/// 数字が後続しない `dest`（有効な後方参照 `$1` 等ではない）は置換参照
+/// として扱わず、通常のリテラル `dest` として実ファイル存在チェックの
+/// 対象にする。`dest.contains('$')` のみで置換参照と判定する実装は、
+/// 実在しないファイルを指していても検証を素通りして本テストで FAIL する
+/// （＝ PASS してしまい fixture 上意図した FAIL が検知されない）。
+#[test]
+fn dest_with_stray_dollar_and_missing_file_fails() {
+    let dir = make_fixture_dir("dest-stray-dollar-missing-file");
+    write_valid_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    fs::write(
+        output_dir.join("config.json"),
+        r#"{"version": 3, "routes": [{"handle": "filesystem"}, {"src": "/(.*)", "status": 404, "dest": "/missing$bogus.html"}]}"#,
     )
     .unwrap();
 
