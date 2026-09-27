@@ -98,10 +98,18 @@ Vercel 対応方式の比較と採用方式の決定を行う決定記録です�
   見つかりました。
 - 一方で cargo-deny（bans/licenses/sources/advisories）はすべて PASS して
   おり、ライセンス・既知脆弱性の観点では問題ありませんでした。
-- 結論として、案 a は依存グラフ上限（REQ-3）という受入基準を満たせない
-  ため、Vercel 上の SSR/動的処理をアダプタ方式で実現する経路は現時点では
-  ありません（下記「案 a を再評価する条件」を満たさない限り、この判断は
-  変わりません）。
+- **適用範囲についての留保**: `docs/policy/dependency-graph-policy.md` の
+  60 件/深さ 6 上限は「標準サーバー構成」（`fandhe-frontend-dist-server`
+  相当）を対象と定めており、今回計測したのは独立 workspace の
+  `examples/vercel-ssr` 相当の一時クレートです。examples をこの上限の対象に
+  含めるかどうかは §7 のトリガー (b) のとおり明示的な再判断事項として残して
+  おり、本節の結論は「examples にも同上限を適用する」という現時点の運用
+  判断に基づくものです。ユーザーが REQ-3 の対象範囲に `examples/*` を含め
+  ないと明示的に判断した場合、この判断は再評価されます（§7 参照）。
+- 上記の適用範囲の判断のもとでは、案 a は依存グラフ上限（REQ-3）という
+  受入基準を満たせないため、Vercel 上の SSR/動的処理をアダプタ方式で実現
+  する経路は現時点ではありません（下記「案 a を再評価する条件」を満たさ
+  ない限り、この判断は変わりません）。
 
 **#3288 の受入基準（「Vercel 上で HTTP 200 / 404 を返す SSR/動的処理」）は
 この取り下げにより、アダプタ方式では達成していません。** 静的配信の
@@ -224,15 +232,17 @@ Vercel は Container Images（Beta、2026-07-07 確認）により、ローカ�
 
 ## 8. セキュリティ考慮事項（OWASP Top 10 観点）
 
-- **A03 インジェクション / XSS**: 採用する 2 方式（案 c・併用の案 a）は
-  いずれも、レンダリングを `ssg::generate_pages` または `ssr::respond` /
-  `respond_with`（いずれも既定エスケープ経由）に限定します。Vercel
-  ハンドラで `format!` による HTML 文字列の直接組み立てや `raw_html()` の
-  不当な使用をしないことを、本決定記録の不変条件として #3288 の完了条件へ
-  引き継ぎます。
+- **A03 インジェクション / XSS**: 採用する唯一の方式（案 c。案 a は §4 の
+  とおり取り下げ済み）は、レンダリングを `ssg::generate_pages`（既定
+  エスケープ経由）に限定します。`format!` による HTML 文字列の直接組み立て
+  や `raw_html()` の不当な使用をしないことは、この既定エスケープ経由の
+  レンダリングに限定する方針の不変条件として引き続き有効です（§4「取り
+  下げ」により、`ssr::respond`/`respond_with` を Vercel ハンドラから呼ぶ
+  アダプタ方式自体は現時点では存在しません）。
 - **REQ-2（`forbid(unsafe_code)`）**: 本決定は `crates/core`/`crates/interactive`
-  に影響しません。`vercel_runtime` を example に閉じるため、公開クレートの
-  `unsafe` 境界（`docs/policy/unsafe-boundary.md`）も変わりません。
+  に影響しません。`vercel_runtime` はリポジトリへ一切追加しない（§5）ため、
+  公開クレートの `unsafe` 境界（`docs/policy/unsafe-boundary.md`）も変わり
+  ません。
 - **A06 脆弱・古いコンポーネント / サプライチェーン**: #3288 で実測した
   結果（`docs/reports/vercel-runtime-2x-dependency-audit-3288.md`）、
   `vercel_runtime 2.4.1` は依存木が 66〜71 件・深さ 11 と REQ-3 上限
