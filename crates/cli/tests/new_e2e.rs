@@ -482,6 +482,7 @@ const EXAMPLE_NAMES: &[&str] = &[
     "interactive-view-transitions",
     "headless-pre-styled-ui",
     "wireframe-ui",
+    "vercel-ssg",
 ];
 
 fn example_root_dir(name: &str) -> PathBuf {
