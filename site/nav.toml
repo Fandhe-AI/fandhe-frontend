@@ -2052,6 +2052,14 @@ source = "site/blocks/feed-upvote-cards.md"
 path = "/blocks/feed-upvote-cards/"
 
 [[section.group]]
+title = "Form Layout"
+
+[[section.group.page]]
+title = "form-layout-two-column"
+source = "site/blocks/form-layout-two-column.md"
+path = "/blocks/form-layout-two-column/"
+
+[[section.group]]
 title = "Auth"
 
 [[section.group.page]]
