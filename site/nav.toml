@@ -1987,6 +1987,11 @@ source = "site/blocks/app-shell-sidebar-header.md"
 path = "/blocks/app-shell-sidebar-header/"
 
 [[section.group.page]]
+title = "app-shell-stacked-overlap"
+source = "site/blocks/app-shell-stacked-overlap.md"
+path = "/blocks/app-shell-stacked-overlap/"
+
+[[section.group.page]]
 title = "app-shell-stacked"
 source = "site/blocks/app-shell-stacked.md"
 path = "/blocks/app-shell-stacked/"
