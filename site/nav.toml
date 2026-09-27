@@ -2026,6 +2026,11 @@ path = "/blocks/card-heading-toolbar/"
 title = "Grid List"
 
 [[section.group.page]]
+title = "grid-list-compact-tiles"
+source = "site/blocks/grid-list-compact-tiles.md"
+path = "/blocks/grid-list-compact-tiles/"
+
+[[section.group.page]]
 title = "grid-list-file-thumbnails"
 source = "site/blocks/grid-list-file-thumbnails.md"
 path = "/blocks/grid-list-file-thumbnails/"
