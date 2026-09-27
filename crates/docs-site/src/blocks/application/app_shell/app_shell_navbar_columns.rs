@@ -51,14 +51,21 @@
 //! `flex-basis: auto` に戻し、ロゴ・ナビ・アクションが 1 行に収まる。
 //! アクションは常に `margin-inline-start: auto` で自身の行の末尾へ寄せる。
 //!
-//! # sticky を見せるための固定高スクロールコンテナ
+//! # 固定高の shell ルートとメインカラムだけの独立スクロール
 //!
 //! `footer_sticky_reveal`/`sidebar_07` と同じ判断で、各 shell ルート
 //! （`data-blocks-app-shell-navbar-columns-root`）自体を固定高
-//! （`max-block-size`）+ `overflow-y: auto` のスクロールコンテナにし、枠内で
-//! ナビバー・左右カラムの sticky を再現する。キーボードでもスクロール
-//! できるよう `tabindex="0"` + `role="region"` + variant ごとに一意な
-//! `aria-label` を付与する。
+//! （`max-block-size`）にする。狭い幅（1 列積み）ではルート自体が
+//! `overflow-y: auto` のスクロールコンテナになる。広い幅
+//! （`@container blocks-app-shell-navbar-columns (min-width: 48rem)`）では
+//! ルート・本体（`-body`）は `overflow-y: hidden`/`flex: 1 1 auto` へ切り替え、
+//! 代わりに `data-blocks-app-shell-navbar-columns-main` へ
+//! `overflow-y: auto` を与える。これによりナビバー・左右カラムは画面上で
+//! 位置が変わらず、メインカラムだけが自身のスクロールバーで独立に
+//! スクロールする（`site/blocks/app-shell-navbar-columns.md` の「メイン
+//! カラムだけが独立してスクロールします」という記述どおりの挙動）。
+//! キーボードでもスクロールできるよう shell ルートへ `tabindex="0"` +
+//! `role="region"` + variant ごとに一意な `aria-label` を付与する。
 //!
 //! # 幅の判定はビューポートではなく Demo 枠の幅（`@container`）
 //!
@@ -482,8 +489,10 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-app-shell-navbar-columns-notify][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-app-shell-navbar-columns-profile] {\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-app-shell-navbar-columns-profile][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-[data-blocks-app-shell-navbar-columns-body] {\n  display: grid;\n  gap: var(--fandhe-space-6);\n  grid-template-areas: \"main\" \"left\" \"right\";\n  max-inline-size: 72rem;\n  inline-size: 100%;\n  margin-inline: auto;\n  padding: var(--fandhe-space-6) var(--fandhe-space-4);\n}\n\
-[data-blocks-app-shell-navbar-columns-main] {\n  grid-area: main;\n  min-inline-size: 0;\n}\n\
+[data-blocks-app-shell-navbar-columns-body] {\n  display: grid;\n  gap: var(--fandhe-space-6);\n  max-inline-size: 72rem;\n  inline-size: 100%;\n  margin-inline: auto;\n  padding: var(--fandhe-space-6) var(--fandhe-space-4);\n}\n\
+[data-blocks-app-shell-navbar-columns-variant=\"three-column\"] [data-blocks-app-shell-navbar-columns-body] {\n  grid-template-areas: \"main\" \"left\" \"right\";\n}\n\
+[data-blocks-app-shell-navbar-columns-variant=\"two-column-footer\"] [data-blocks-app-shell-navbar-columns-body] {\n  grid-template-areas: \"main\" \"right\";\n}\n\
+[data-blocks-app-shell-navbar-columns-main] {\n  grid-area: main;\n  min-inline-size: 0;\n  min-block-size: 0;\n}\n\
 [data-blocks-app-shell-navbar-columns-left] {\n  grid-area: left;\n}\n\
 [data-blocks-app-shell-navbar-columns-right] {\n  grid-area: right;\n}\n\
 .blocks-app-shell-navbar-columns-side-list {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
@@ -495,7 +504,10 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-app-shell-navbar-columns-nav] {\n    flex: 0 1 auto;\n  }\n  \
 [data-blocks-app-shell-navbar-columns-variant=\"three-column\"] [data-blocks-app-shell-navbar-columns-body] {\n    grid-template-columns: 12rem minmax(0, 1fr) 14rem;\n    grid-template-areas: \"left main right\";\n  }\n  \
 [data-blocks-app-shell-navbar-columns-variant=\"two-column-footer\"] [data-blocks-app-shell-navbar-columns-body] {\n    grid-template-columns: minmax(0, 1fr) 14rem;\n    grid-template-areas: \"main right\";\n  }\n  \
-[data-blocks-app-shell-navbar-columns-left],\n  [data-blocks-app-shell-navbar-columns-right] {\n    position: sticky;\n    top: var(--blocks-app-shell-navbar-columns-bar-h);\n    align-self: start;\n  }\n\
+[data-blocks-app-shell-navbar-columns-left],\n  [data-blocks-app-shell-navbar-columns-right] {\n    position: sticky;\n    top: var(--blocks-app-shell-navbar-columns-bar-h);\n    align-self: start;\n  }\n  \
+[data-blocks-app-shell-navbar-columns-root] {\n    overflow-y: hidden;\n  }\n  \
+[data-blocks-app-shell-navbar-columns-body] {\n    flex: 1 1 auto;\n    min-block-size: 0;\n  }\n  \
+[data-blocks-app-shell-navbar-columns-main] {\n    overflow-y: auto;\n  }\n\
 }\n";
 
 #[cfg(test)]
