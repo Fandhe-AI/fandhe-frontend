@@ -21,7 +21,12 @@
 //! `data-mobile` を一切使わず、Demo 枠（`[data-blocks-app-shell-sidebar-
 //! frame]`）へ `container-type: inline-size` を設定し、[`LAYOUT_CSS`] の
 //! `@container` 規則だけでサイドバー非表示・上部バー表示を切り替える
-//! （`header_flyout_menu` の `@container` 前例と同型）。
+//! （`header_flyout_menu` の `@container` 前例と同型）。`@container` は
+//! コンテナ自身ではなく子孫のみに適用されるため、規則内ではコンテナ
+//! （フレーム）を祖先セレクタとして再度要求せず、`[data-scope="sidebar"]
+//! [data-part="root"]` を直接選択する（PR #3324 codex(P1) 再指摘の是正。
+//! 祖先セレクタを重ねると規則が一致せず、狭幅でも常設サイドバーが非表示
+//! にならなかった）。
 //!
 //! # 3 インスタンスを静的に並記する理由（無 JS）
 //!
@@ -515,7 +520,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-app-shell-sidebar-main] {\n  display: flex;\n  flex-direction: column;\n  gap: 1rem;\n  padding: 1.5rem;\n}\n\
 [data-blocks-app-shell-sidebar-placeholder] {\n  min-height: 16rem;\n  border: 2px dashed var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n}\n\
 @container blocks-app-shell-sidebar (max-width: 40rem) {\n  \
-[data-blocks-app-shell-sidebar-frame] [data-scope=\"sidebar\"][data-part=\"root\"] {\n    display: none;\n  }\n  \
+[data-scope=\"sidebar\"][data-part=\"root\"] {\n    display: none;\n  }\n  \
 [data-blocks-app-shell-sidebar-topbar] {\n    display: flex;\n  }\n  \
 [data-blocks-app-shell-sidebar-mobile-nav] {\n    display: flex;\n  }\n\
 }\n";
