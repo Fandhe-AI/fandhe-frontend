@@ -10,9 +10,10 @@
 //! ための構造、イシュー #2734）。
 
 mod chart_bar_list;
+mod chart_stat_cards;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![chart_bar_list::BLOCK]
+    vec![chart_bar_list::BLOCK, chart_stat_cards::BLOCK]
 }
