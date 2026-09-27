@@ -18,7 +18,15 @@
 //! `feature_accordion_image` のカテゴリ切替ボタン列（形 B）と同じ考え方で
 //! `ButtonProps { disabled: true, .. }`（ネイティブ `disabled` +
 //! `aria-disabled="true"`）を併せ持たせ、キーボード・クリックいずれの
-//! 操作対象からも外す（[`LAYOUT_CSS`] 参照）。
+//! 操作対象からも外す（[`LAYOUT_CSS`] 参照）。breakdown 側の凡例
+//! （`legend()`、系列ごとの `<button type="button">` トリガー）も同じ
+//! dead control にあたる（PR #3345 codex-review P1 指摘、1 ラウンド後の
+//! 再指摘）ため、[`disable_legend_triggers`] で `legend()` の戻り値を
+//! post-process し、同じ `disabled`/`aria-disabled="true"` を trigger
+//! ボタンへ付与する。`fandhe_frontend_pre_styled_ui::charts::legend`
+//! は disabled オプションを持たない共有部品（他の docs サイトページ・
+//! 将来の block からも呼ばれ得る）ため、この block 固有の post-process
+//! に閉じ、共有クレート側は変更しない。
 //!
 //! # `<button>` の内側に `dl`/`dd` を置かない理由
 //!
@@ -72,6 +80,42 @@ use fandhe_frontend_pre_styled_ui::charts::data::{total, ChartData, Series};
 use fandhe_frontend_pre_styled_ui::charts::legend::{legend, LegendProps};
 use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::Size;
+
+/// `legend()`（`fandhe_frontend_pre_styled_ui::charts::legend`）が生成する
+/// `data-part="trigger"` の `<button type="button">` をすべて無効化する
+/// （PR #3345 codex-review P1 是正、モジュール doc参照）。`legend()` は
+/// disabled オプションを持たない共有部品のため、返された [`Node`] 木を
+/// 走査し `disabled`/`data-disabled`/`aria-disabled="true"`（`metric_button`
+/// と同じ 3 点セット、`button::button` の disabled 規約に合わせる）を
+/// 該当ボタンへ追加で付与する。`aria-pressed` はそのまま残す
+/// （`metric_button` も選択状態を静的に伝える `aria-pressed` を disabled と
+/// 併存させており、同じ扱い）。
+fn disable_legend_triggers(node: Node) -> Node {
+    match node {
+        Node::Element {
+            tag,
+            mut attrs,
+            children,
+        } => {
+            if tag == "button"
+                && attrs
+                    .iter()
+                    .any(|(k, v)| k == "data-part" && v == "trigger")
+            {
+                attrs.push(("disabled".to_string(), String::new()));
+                attrs.push(("data-disabled".to_string(), String::new()));
+                attrs.push(("aria-disabled".to_string(), "true".to_string()));
+            }
+            let children = children.into_iter().map(disable_legend_triggers).collect();
+            Node::Element {
+                tag,
+                attrs,
+                children,
+            }
+        }
+        other => other,
+    }
+}
 
 /// 指標切り替えボタン 1 個分（`<button>` の phrasing content 制約のため
 /// `span` のみで組む、モジュール doc「`<button>` の内側に…」節参照）。
@@ -269,7 +313,7 @@ fn instance_breakdown() -> Node {
     )
     .expect("chart-metric-area 固定データは常に有効な area_chart を構築できる");
 
-    let legend_node = legend(&data, &LegendProps::default());
+    let legend_node = disable_legend_triggers(legend(&data, &LegendProps::default()));
 
     div(
         vec![
@@ -412,17 +456,18 @@ mod tests {
         assert_eq!(html.matches("type=\"button\"").count(), 5);
     }
 
-    /// 指標切り替えボタン 3 個が `disabled`/`aria-disabled="true"` を持ち、
-    /// クリック操作不能な dead control ではないこと（PR #3345 codex-review
-    /// P1 指摘の是正）。legend トリガー（breakdown 側）は disabled ではない
-    /// ため、`aria-disabled="true"` の件数は指標ボタン分の 3 件に限る。
+    /// 指標切り替えボタン 3 個・legend トリガー（breakdown 側）2 個の
+    /// 計 5 個が `disabled`/`aria-disabled="true"` を持ち、クリック操作
+    /// 不能な dead control ではないこと（PR #3345 codex-review P1 指摘の
+    /// 是正。legend トリガーは 1 ラウンド後の再指摘〔`disable_legend_triggers`
+    /// 参照〕で同様に無効化した）。
     #[test]
     fn metric_buttons_are_disabled_not_clickable() {
         let html = render(&demo());
-        assert_eq!(html.matches(r#"aria-disabled="true""#).count(), 3);
+        assert_eq!(html.matches(r#"aria-disabled="true""#).count(), 5);
         // `data-disabled=""` も部分文字列として `disabled=""` を含むため、
         // ネイティブ `disabled` 属性のみを数えるには先頭の空白まで含める。
-        assert_eq!(html.matches(r#" disabled="""#).count(), 3);
+        assert_eq!(html.matches(r#" disabled="""#).count(), 5);
     }
 
     /// 選択中「Sessions」の表示値が、直下の面グラフが描画する系列

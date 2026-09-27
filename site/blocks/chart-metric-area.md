@@ -34,6 +34,42 @@ use fandhe_frontend_pre_styled_ui::charts::legend::{legend, LegendProps};
 use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::Size;
 
+/// `legend()`（`fandhe_frontend_pre_styled_ui::charts::legend`）が生成する
+/// `data-part="trigger"` の `<button type="button">` をすべて無効化する
+/// （PR #3345 codex-review P1 是正、モジュール doc参照）。`legend()` は
+/// disabled オプションを持たない共有部品のため、返された [`Node`] 木を
+/// 走査し `disabled`/`data-disabled`/`aria-disabled="true"`（`metric_button`
+/// と同じ 3 点セット、`button::button` の disabled 規約に合わせる）を
+/// 該当ボタンへ追加で付与する。`aria-pressed` はそのまま残す
+/// （`metric_button` も選択状態を静的に伝える `aria-pressed` を disabled と
+/// 併存させており、同じ扱い）。
+fn disable_legend_triggers(node: Node) -> Node {
+    match node {
+        Node::Element {
+            tag,
+            mut attrs,
+            children,
+        } => {
+            if tag == "button"
+                && attrs
+                    .iter()
+                    .any(|(k, v)| k == "data-part" && v == "trigger")
+            {
+                attrs.push(("disabled".to_string(), String::new()));
+                attrs.push(("data-disabled".to_string(), String::new()));
+                attrs.push(("aria-disabled".to_string(), "true".to_string()));
+            }
+            let children = children.into_iter().map(disable_legend_triggers).collect();
+            Node::Element {
+                tag,
+                attrs,
+                children,
+            }
+        }
+        other => other,
+    }
+}
+
 /// 指標切り替えボタン 1 個分（`<button>` の phrasing content 制約のため
 /// `span` のみで組む、モジュール doc「`<button>` の内側に…」節参照）。
 fn metric_button(
@@ -230,7 +266,7 @@ fn instance_breakdown() -> Node {
     )
     .expect("chart-metric-area 固定データは常に有効な area_chart を構築できる");
 
-    let legend_node = legend(&data, &LegendProps::default());
+    let legend_node = disable_legend_triggers(legend(&data, &LegendProps::default()));
 
     div(
         vec![
