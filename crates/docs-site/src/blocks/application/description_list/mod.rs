@@ -1,6 +1,7 @@
 //! Application / Description List カテゴリの block 登録点（イシュー #2734
 //! で雛形新設、イシュー #2906 で最初の block（[`description_list_horizontal`]）、
-//! イシュー #2907 で 2 件目（[`description_list_summary_card`]）を追加し
+//! イシュー #2907 で 2 件目（[`description_list_summary_card`]）、
+//! イシュー #2908 で 3 件目（[`description_list_two_column`]）を追加し
 //! ディレクトリ化して卒業した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
@@ -12,6 +13,7 @@
 
 mod description_list_horizontal;
 mod description_list_summary_card;
+mod description_list_two_column;
 
 use crate::blocks::Block;
 
@@ -19,5 +21,6 @@ pub(super) fn blocks() -> Vec<Block> {
     vec![
         description_list_horizontal::BLOCK,
         description_list_summary_card::BLOCK,
+        description_list_two_column::BLOCK,
     ]
 }

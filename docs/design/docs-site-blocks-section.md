@@ -965,6 +965,7 @@ pub enum LayoutCss {
 | chart-bar-list | #2903 | `application/chart/chart_bar_list.rs` |
 | description-list-horizontal | #2906（親 #2892） | `application/description_list/description_list_horizontal.rs` |
 | description-list-summary-card | #2907（親 #2892） | `application/description_list/description_list_summary_card.rs` |
+| description-list-two-column | #2908 | `application/description_list/description_list_two_column.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 150 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の
