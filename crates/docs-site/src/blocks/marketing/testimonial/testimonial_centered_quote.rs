@@ -343,7 +343,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-testimonial-centered-quote-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n  text-align: center;\n}\n\
 .blocks-testimonial-centered-quote-layout {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  text-align: center;\n  gap: var(--fandhe-space-4);\n  max-inline-size: 32rem;\n  margin-inline: auto;\n}\n\
 [data-blocks-testimonial-centered-quote-mark] {\n  display: inline-flex;\n  color: var(--fandhe-color-fg-muted);\n}\n\
-[data-blocks-testimonial-centered-quote-stars] {\n  display: inline-flex;\n  gap: var(--fandhe-space-1);\n  color: var(--fandhe-color-accent-fg, var(--fandhe-color-fg));\n}\n\
+[data-blocks-testimonial-centered-quote-stars] {\n  display: inline-flex;\n  gap: var(--fandhe-space-1);\n  color: var(--fandhe-color-accent);\n}\n\
 [data-scope=\"blockquote\"][data-part=\"root\"][data-blocks-testimonial-centered-quote-quote] {\n  border-inline-start: 0;\n  padding-inline-start: 0;\n}\n\
 .blocks-testimonial-centered-quote-layout [data-scope=\"blockquote\"][data-part=\"content\"] {\n  font-size: var(--fandhe-font-font-size-xl);\n}\n\
 [data-scope=\"blockquote\"][data-part=\"caption\"].blocks-testimonial-centered-quote-meta {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  margin-top: var(--fandhe-space-4);\n}\n\
@@ -419,6 +419,16 @@ mod tests {
                 .count(),
             5
         );
+    }
+
+    /// 星評価の配色が通常背景上で視認できる `--fandhe-color-accent`
+    /// であること（`--fandhe-color-accent-fg` はアクセント背景上専用の
+    /// 前景色であり、通常背景に置くと両テーマで背景に同化する。
+    /// `comparison_split_table.rs` と同じ判断軸）。
+    #[test]
+    fn stars_color_uses_accent_not_accent_fg() {
+        assert!(LAYOUT_CSS.contains("var(--fandhe-color-accent)"));
+        assert!(!LAYOUT_CSS.contains("var(--fandhe-color-accent-fg)"));
     }
 
     /// ロゴバッジ形に `data-part="badge"` があること。
