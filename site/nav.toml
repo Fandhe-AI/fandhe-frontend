@@ -2016,6 +2016,11 @@ path = "/blocks/card-heading-toolbar/"
 title = "Description List"
 
 [[section.group.page]]
+title = "description-list-horizontal"
+source = "site/blocks/description-list-horizontal.md"
+path = "/blocks/description-list-horizontal/"
+
+[[section.group.page]]
 title = "description-list-summary-card"
 source = "site/blocks/description-list-summary-card.md"
 path = "/blocks/description-list-summary-card/"
@@ -2024,6 +2029,27 @@ path = "/blocks/description-list-summary-card/"
 title = "description-list-two-column"
 source = "site/blocks/description-list-two-column.md"
 path = "/blocks/description-list-two-column/"
+
+[[section.group]]
+title = "Feed"
+
+[[section.group.page]]
+title = "feed-comments-timeline"
+source = "site/blocks/feed-comments-timeline.md"
+path = "/blocks/feed-comments-timeline/"
+
+[[section.group.page]]
+title = "feed-upvote-cards"
+source = "site/blocks/feed-upvote-cards.md"
+path = "/blocks/feed-upvote-cards/"
+
+[[section.group]]
+title = "Form Layout"
+
+[[section.group.page]]
+title = "form-layout-two-column"
+source = "site/blocks/form-layout-two-column.md"
+path = "/blocks/form-layout-two-column/"
 
 [[section.group]]
 title = "Auth"
@@ -2086,6 +2112,11 @@ path = "/blocks/chart-bar-list/"
 title = "chart-metric-area"
 source = "site/blocks/chart-metric-area.md"
 path = "/blocks/chart-metric-area/"
+
+[[section.group.page]]
+title = "chart-stat-cards"
+source = "site/blocks/chart-stat-cards.md"
+path = "/blocks/chart-stat-cards/"
 
 [[section.group]]
 title = "Dashboard"
