@@ -31,10 +31,23 @@ use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 
 /// R0050 相当のカード 1 枚（合計値 + 増減 + sparkline）を組み立てる小さな
-/// helper（内部専用）。`up` が `true` なら増加インジケーター、`false` なら
-/// 減少インジケーターを使う。
-fn sparkline_card(label: &str, value: &str, change: &str, up: bool, history: &[f64]) -> Node {
-    let indicator = if up {
+/// helper（内部専用）。`favorable` は指標の実測値の増減方向ではなく
+/// **良し悪し**を表す（`stat::up_indicator`/`down_indicator` は固定で
+/// 成功色/危険色を持つため、良い変化は常に `up_indicator`、悪い変化は
+/// 常に `down_indicator` を使う）。実際の増減方向・符号は `change`
+/// 引数の文字列（例: `"前週比 +12ms"`）にそのまま残るため、矢印の向きと
+/// 実測値の符号が一致しないケース（例: 応答時間の悪化 = 増加）があっても
+/// 数値からは判別できる。codex レビュー指摘（#3347, P1）: 応答時間の
+/// 悪化に増加インジケーター（成功色）、エラー率の改善に減少インジケー
+/// ター（危険色）を使っていたため、方向と良否が逆転し誤解を招いていた。
+fn sparkline_card(
+    label: &str,
+    value: &str,
+    change: &str,
+    favorable: bool,
+    history: &[f64],
+) -> Node {
+    let indicator = if favorable {
         stat::up_indicator(vec![])
     } else {
         stat::down_indicator(vec![])
@@ -79,6 +92,38 @@ struct CompareCard<'a> {
     previous: &'a [f64],
 }
 
+/// 2 系列 line-chart の色・系列名を静的に対応付ける凡例（codex レビュー
+/// 指摘、#3347 P2）。[`fandhe_frontend_pre_styled_ui::charts::legend`] は
+/// `<button aria-pressed>` のトグル UI（無 JS の docs サイトでは押しても
+/// 何も起きない）のため、本 block では使わず、色見本 `<span>`（装飾のため
+/// `aria-hidden`）+ ラベルのみの静的な行を自前で組む（[`crate::blocks`]
+/// モジュール doc の無 JS 制約を満たす）。
+fn series_legend(data: &ChartData) -> Node {
+    let items = data
+        .series()
+        .iter()
+        .enumerate()
+        .map(|(i, series)| {
+            let color = data.series_color_var(i);
+            div(
+                vec![("class", "blocks-chart-stat-cards-legend-item")],
+                vec![
+                    div(
+                        vec![
+                            ("class", "blocks-chart-stat-cards-legend-swatch"),
+                            ("style", &format!("background: {color}")),
+                            ("aria-hidden", "true"),
+                        ],
+                        vec![],
+                    ),
+                    text(series.display_label()),
+                ],
+            )
+        })
+        .collect();
+    div(vec![("class", "blocks-chart-stat-cards-legend")], items)
+}
+
 /// R0049 相当のカード 1 枚（今期合計 + 状態表示 + 2 系列比較の line-chart）
 /// を組み立てる小さな helper（内部専用）。
 fn compare_card(input: CompareCard<'_>) -> Node {
@@ -90,7 +135,12 @@ fn compare_card(input: CompareCard<'_>) -> Node {
         ],
     )
     .expect("chart-stat-cards の固定データは常に有効な ChartData を構成する");
-    let aria_label = format!("{}（今期と前期の月次推移）", input.description);
+    // `input.title` を含めて aria_label を組む（codex/Bugbot 指摘、#3347）:
+    // 2 枚のカードが同一の `description`（"今期と前期の月次推移"）を持つため
+    // `description` のみでは aria_label が重複し、スクリーンリーダーで
+    // 月次売上/新規契約数のどちらのグラフかを区別できなかった。
+    let aria_label = format!("{}（今期と前期の月次推移）", input.title);
+    let legend = series_legend(&data);
     let chart = line_chart(&LineChartProps::new(&data, &aria_label), vec![])
         .expect("chart-stat-cards の固定データに未知系列・負値は含まれない");
 
@@ -130,6 +180,7 @@ fn compare_card(input: CompareCard<'_>) -> Node {
                         vec![],
                         vec![status::indicator(vec![]), text(input.status_text)],
                     ),
+                    legend,
                     chart,
                 ],
             ),
@@ -154,21 +205,29 @@ pub fn demo() -> Node {
                 "12,480",
                 "前週比 +8.2%",
                 true,
-                &[820.0, 910.0, 880.0, 1020.0, 1150.0, 1080.0, 1240.0, 1248.0],
+                // 末尾 2 週（11,534 → 12,480）が表示値・前週比 +8.2% と一致
+                // （codex 指摘、#3347 P1）。
+                &[
+                    9800.0, 10120.0, 10480.0, 10800.0, 11080.0, 11310.0, 11534.0, 12480.0,
+                ],
             ),
             sparkline_card(
                 "エラー率",
                 "0.42%",
                 "前週比 -0.15pt",
-                false,
-                &[0.9, 0.8, 0.75, 0.7, 0.6, 0.55, 0.48, 0.42],
+                true,
+                // 末尾 2 週（0.57% → 0.42%）が表示値・前週比 -0.15pt と一致
+                // （codex 指摘、#3347 P1）。減少は改善のため favorable = true。
+                &[0.90, 0.82, 0.75, 0.68, 0.63, 0.60, 0.57, 0.42],
             ),
             sparkline_card(
                 "平均応答時間",
                 "184ms",
                 "前週比 +12ms",
-                true,
-                &[160.0, 165.0, 158.0, 170.0, 175.0, 172.0, 180.0, 184.0],
+                false,
+                // 末尾 2 週（172ms → 184ms）が表示値・前週比 +12ms と一致
+                // （codex 指摘、#3347 P1）。増加は悪化のため favorable = false。
+                &[150.0, 155.0, 160.0, 163.0, 166.0, 169.0, 172.0, 184.0],
             ),
         ],
     );
