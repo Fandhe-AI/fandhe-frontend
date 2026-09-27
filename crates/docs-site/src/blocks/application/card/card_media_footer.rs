@@ -272,7 +272,7 @@ fn media_actions() -> Node {
     let content = menu::content(
         OpenState::Closed,
         Some("blocks-card-media-footer-menu"),
-        None,
+        Some(TRIGGER_ID),
         vec![],
         vec![
             menu::item("share", false, false, vec![], vec![core_text("共有")]),
