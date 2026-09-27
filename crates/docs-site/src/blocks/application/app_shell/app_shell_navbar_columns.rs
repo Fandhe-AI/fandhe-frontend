@@ -60,12 +60,21 @@
 //! （`@container blocks-app-shell-navbar-columns (min-width: 48rem)`）では
 //! ルート・本体（`-body`）は `overflow-y: hidden`/`flex: 1 1 auto` へ切り替え、
 //! 代わりに `data-blocks-app-shell-navbar-columns-main` へ
-//! `overflow-y: auto` を与える。これによりナビバー・左右カラムは画面上で
-//! 位置が変わらず、メインカラムだけが自身のスクロールバーで独立に
-//! スクロールする（`site/blocks/app-shell-navbar-columns.md` の「メイン
-//! カラムだけが独立してスクロールします」という記述どおりの挙動）。
-//! キーボードでもスクロールできるよう shell ルートへ `tabindex="0"` +
-//! `role="region"` + variant ごとに一意な `aria-label` を付与する。
+//! `overflow-y: auto` を与える。本体グリッド（`-body`）にも広い幅でだけ
+//! `grid-template-rows: minmax(0, 1fr)` を与え、メインカラムの行の高さを
+//! 利用可能な高さへ明示的に制約する（`auto` のままでは本文の分量に応じて
+//! 行が伸び、`overflow-y: auto` がスクロール領域を作れず固定高のルートから
+//! 本文が切れるため）。これによりナビバー・左右カラムは画面上で位置が
+//! 変わらず、メインカラムだけが自身のスクロールバーで独立にスクロール
+//! する（`site/blocks/app-shell-navbar-columns.md` の「メインカラムだけが
+//! 独立してスクロールします」という記述どおりの挙動）。
+//! キーボードでもスクロールできるよう、shell ルート（狭い幅での実際の
+//! スクロール先）と [`main_column`] の `<section>`（広い幅での実際の
+//! スクロール先）の双方へ `tabindex="0"` + `role="region"` + 一意な
+//! `aria-label` を付与する（実スクロール先が幅で切り替わるため、無 JS の
+//! 静的 HTML では両方を常設する。非スクロール状態側は no-op のフォーカス
+//! 対象になるが、実スクロール先にフォーカス可能な要素が皆無になる方の
+//! 不具合を避けるための意図的なトレードオフ）。
 //!
 //! # 幅の判定はビューポートではなく Demo 枠の幅（`@container`）
 //!
@@ -336,6 +345,8 @@ fn main_column(aria_label: &str) -> Node {
         .collect();
     section(
         vec![
+            ("tabindex", "0"),
+            ("role", "region"),
             ("aria-label", aria_label),
             ("data-blocks-app-shell-navbar-columns-main", ""),
         ],
@@ -506,7 +517,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-app-shell-navbar-columns-variant=\"two-column-footer\"] [data-blocks-app-shell-navbar-columns-body] {\n    grid-template-columns: minmax(0, 1fr) 14rem;\n    grid-template-areas: \"main right\";\n  }\n  \
 [data-blocks-app-shell-navbar-columns-left],\n  [data-blocks-app-shell-navbar-columns-right] {\n    position: sticky;\n    top: var(--blocks-app-shell-navbar-columns-bar-h);\n    align-self: start;\n  }\n  \
 [data-blocks-app-shell-navbar-columns-root] {\n    overflow-y: hidden;\n  }\n  \
-[data-blocks-app-shell-navbar-columns-body] {\n    flex: 1 1 auto;\n    min-block-size: 0;\n  }\n  \
+[data-blocks-app-shell-navbar-columns-body] {\n    flex: 1 1 auto;\n    min-block-size: 0;\n    grid-template-rows: minmax(0, 1fr);\n  }\n  \
 [data-blocks-app-shell-navbar-columns-main] {\n    overflow-y: auto;\n  }\n\
 }\n";
 
@@ -636,9 +647,12 @@ mod tests {
         );
     }
 
-    /// スクロールコンテナのルートに `tabindex="0"`・`role="region"`・
-    /// 一意な `aria-label` があり、nav/aside の `aria-label` が variant 間で
-    /// 重複しないこと。
+    /// スクロールコンテナのルートと、広い幅での実スクロール先である
+    /// メインカラムの双方に `tabindex="0"`・`role="region"`・一意な
+    /// `aria-label` があり、nav/aside の `aria-label` が variant 間で
+    /// 重複しないこと（モジュール doc「固定高の shell ルートとメイン
+    /// カラムだけの独立スクロール」節参照。実スクロール先が幅で切り替わる
+    /// ため両方に付与する）。
     #[test]
     fn root_is_keyboard_scrollable_region_with_unique_labels() {
         let html = render(&demo());
@@ -647,8 +661,10 @@ mod tests {
                 .count(),
             2
         );
-        assert_eq!(html.matches(r#"tabindex="0""#).count(), 2);
-        assert_eq!(html.matches(r#"role="region""#).count(), 2);
+        // root（狭い幅の実スクロール先）× 2 + main（広い幅の実スクロール先）
+        // × 2 の計 4 件。
+        assert_eq!(html.matches(r#"tabindex="0""#).count(), 4);
+        assert_eq!(html.matches(r#"role="region""#).count(), 4);
         for label in [
             "アプリシェル（3 列レイアウト）",
             "アプリシェル（2 列 + フッター）",
@@ -683,5 +699,15 @@ mod tests {
         assert!(LAYOUT_CSS.contains("opacity: 1;"));
         assert!(!LAYOUT_CSS.contains("{\n  order:"));
         assert!(!LAYOUT_CSS.contains(";\n  order:"));
+    }
+
+    /// 広い幅でメインカラムの行の高さが `minmax(0, 1fr)` で明示的に
+    /// 制約されていること（モジュール doc「固定高の shell ルートと
+    /// メインカラムだけの独立スクロール」節参照。制約がないと本文の
+    /// 分量に応じて行が伸び、`overflow-y: auto` がスクロール領域を
+    /// 作れず本文が切れる）。
+    #[test]
+    fn wide_breakpoint_bounds_body_row_height_for_main_scroll() {
+        assert!(LAYOUT_CSS.contains("grid-template-rows: minmax(0, 1fr);"));
     }
 }

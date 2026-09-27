@@ -248,6 +248,8 @@ fn main_column(aria_label: &str) -> Node {
         .collect();
     section(
         vec![
+            ("tabindex", "0"),
+            ("role", "region"),
             ("aria-label", aria_label),
             ("data-blocks-app-shell-navbar-columns-main", ""),
         ],
