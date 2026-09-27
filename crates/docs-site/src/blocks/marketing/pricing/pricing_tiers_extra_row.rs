@@ -204,7 +204,7 @@ fn plan_card(plan: &Plan) -> Node {
         ButtonVariant::Outline
     };
 
-    let mut header_children = vec![heading(
+    let mut heading_row_children = vec![heading(
         HeadingLevel::H4,
         &HeadingProps {
             size: HeadingSize::Lg,
@@ -214,7 +214,7 @@ fn plan_card(plan: &Plan) -> Node {
         vec![text(plan.name)],
     )];
     if plan.featured {
-        header_children.push(badge::badge(
+        heading_row_children.push(badge::badge(
             &BadgeProps {
                 variant: BadgeVariant::Solid,
                 ..BadgeProps::default()
@@ -223,7 +223,13 @@ fn plan_card(plan: &Plan) -> Node {
             vec![text("おすすめ")],
         ));
     }
-    header_children.push(card::description(vec![], vec![text(plan.description)]));
+    let header_children = vec![
+        div(
+            vec![("class", "blocks-pricing-tiers-extra-row-tier-heading")],
+            heading_row_children,
+        ),
+        card::description(vec![], vec![text(plan.description)]),
+    ];
 
     let price_row = div(
         vec![("class", "blocks-pricing-tiers-extra-row-price-row")],
@@ -400,6 +406,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-pricing-tiers-extra-row-grid {\n  display: grid;\n  gap: var(--fandhe-space-6);\n  grid-template-columns: 1fr;\n}\n\
 @media (min-width: 64rem) {\n  .blocks-pricing-tiers-extra-row-grid {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n}\n\
 .blocks-pricing-tiers-extra-row-card-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
+.blocks-pricing-tiers-extra-row-tier-heading {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-pricing-tiers-extra-row-card-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-pricing-tiers-extra-row-price-row {\n  display: flex;\n  align-items: baseline;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-pricing-tiers-extra-row-price {\n  font-size: var(--fandhe-font-font-size-2xl);\n  font-weight: var(--fandhe-font-font-weight-bold);\n}\n\

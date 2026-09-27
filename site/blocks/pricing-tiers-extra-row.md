@@ -158,7 +158,7 @@ fn plan_card(plan: &Plan) -> Node {
         ButtonVariant::Outline
     };
 
-    let mut header_children = vec![heading(
+    let mut heading_row_children = vec![heading(
         HeadingLevel::H4,
         &HeadingProps {
             size: HeadingSize::Lg,
@@ -168,7 +168,7 @@ fn plan_card(plan: &Plan) -> Node {
         vec![text(plan.name)],
     )];
     if plan.featured {
-        header_children.push(badge::badge(
+        heading_row_children.push(badge::badge(
             &BadgeProps {
                 variant: BadgeVariant::Solid,
                 ..BadgeProps::default()
@@ -177,7 +177,13 @@ fn plan_card(plan: &Plan) -> Node {
             vec![text("おすすめ")],
         ));
     }
-    header_children.push(card::description(vec![], vec![text(plan.description)]));
+    let header_children = vec![
+        div(
+            vec![("class", "blocks-pricing-tiers-extra-row-tier-heading")],
+            heading_row_children,
+        ),
+        card::description(vec![], vec![text(plan.description)]),
+    ];
 
     let price_row = div(
         vec![("class", "blocks-pricing-tiers-extra-row-price-row")],
