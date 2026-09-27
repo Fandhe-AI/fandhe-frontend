@@ -141,6 +141,19 @@ deps-check: packages=13/60 depth=7/6 result=FAIL  (fandhe-frontend-wasm-thin)
 「WASM クライアント向け基準が別途必要か」は本リポジトリの判断で決めず、REQ-3 の対象定義自体の見直しとして
 `fandhe-frontend-spec` リポジトリへの提案事項に留めます（本リポジトリでは既存ゲートを一切緩和しません）。
 
+### `examples/*` のスコープ（イシュー #3288 レビュー対応で明確化）
+
+`examples/*` は本節冒頭の計測対象 9 パッケージに含まれておらず、`.github/workflows/deps-check.yml` の
+計測対象にもなっていません。REQ-3 の受け入れ基準（`docs/spec/04-requirements.md` REQ-3）が対象とするのは
+「標準サーバー構成（SSR サーバー相当）」であり、`examples/*` 配下の独立 workspace（`fandhe-frontend-server`
+等を path 依存ではなく crates.io 版で参照し、`crates/*` の依存グラフから隔離されたサンプル）はこの定義に
+含まれません。この既定は変更しません（本ポリシーの適用範囲を examples へ拡張する一般規則は設けません）。
+
+`examples/*` を対象とする個別の決定記録（例: `docs/design/vercel-deployment-strategy.md`）が、その決定記録
+自身の受け入れ基準として REQ-3 と同じ数値（60 件/深さ 6）を独自に借用して判断材料にすることはあり得ますが、
+これは決定記録側が自らに課した前提条件であって、本ポリシー・REQ-3 の適用範囲を examples へ拡張したことを
+意味しません。個別の借用の経緯・根拠は各決定記録に委ねます。
+
 ## 5. 上限超過時の対応フロー
 
 1. **検出**: `deps-check` CI ジョブが FAIL する（`deps-check: packages=<n>/<limit> depth=<n>/<limit>

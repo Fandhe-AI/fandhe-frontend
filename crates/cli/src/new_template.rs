@@ -813,7 +813,69 @@ const WIREFRAME_UI_EXAMPLE_FILES: &[TemplateFile] = &[
     },
 ];
 
-/// `--example` の allowlist（イシュー #500・#501・#502・#503・#609・#2667）。
+/// `examples/vercel-ssg/` の全ファイル（9 件）を git の相対パス順・
+/// 実行ビットどおりに埋め込んだ固定配列（イシュー #3290）。
+///
+/// `crates/cli/embedded-examples/vercel-ssg/` は正本 `examples/vercel-ssg/`
+/// のバイト単位同梱コピーであり、乖離は [`SSR_ROUTING_EXAMPLE_FILES`] と
+/// 同じく `cli/tests/example_publish_copy_drift.rs` が検知する。
+/// `examples/ssg-blog`（#501）と同じく `fandhe-frontend-core`/
+/// `-server` への crates.io バージョン依存のみで完結する構成として登録する。
+/// 全ファイル `executable: false`（正本側に実行ビット付きファイルが
+/// 存在しないため）。
+///
+/// イシュー #1133 と同じ動機で `.gitignore` を同梱し、`fw new --example`
+/// 生成プロジェクトの `target/`・`.vercel/`（`src/main.rs` の出力先）・
+/// `.env` の誤コミットを既定で防ぐ。
+const VERCEL_SSG_EXAMPLE_FILES: &[TemplateFile] = &[
+    TemplateFile {
+        rel_path: ".gitignore",
+        contents: include_str!("../embedded-examples/vercel-ssg/.gitignore"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "Cargo.lock",
+        contents: include_str!("../embedded-examples/vercel-ssg/Cargo.lock"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "Cargo.toml",
+        contents: include_str!("../embedded-examples/vercel-ssg/Cargo.toml.embed"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "README.md",
+        contents: include_str!("../embedded-examples/vercel-ssg/README.md"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "clippy.toml",
+        contents: include_str!("../embedded-examples/vercel-ssg/clippy.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "deny.toml",
+        contents: include_str!("../embedded-examples/vercel-ssg/deny.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "src/main.rs",
+        contents: include_str!("../embedded-examples/vercel-ssg/src/main.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "structure.toml",
+        contents: include_str!("../embedded-examples/vercel-ssg/structure.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "tests/build_output.rs",
+        contents: include_str!("../embedded-examples/vercel-ssg/tests/build_output.rs"),
+        executable: false,
+    },
+];
+
+/// `--example` の allowlist（イシュー #500・#501・#502・#503・#609・#2667・#3290）。
 ///
 /// サンプル名はここに列挙したコンパイル時定数との完全一致照合のみで解決し、
 /// ユーザー入力から動的にパス・`include_str!` 対象を組み立てない
@@ -869,6 +931,13 @@ pub(crate) const EXAMPLES: &[Template] = &[
         files: WIREFRAME_UI_EXAMPLE_FILES,
         // 上記 "ssr-routing" と同じ理由でパッケージ名置換を行わない（イシュー #2667）。
         needle: "fandhe-frontend-example-placeholder-unused-wireframe-ui",
+        substituted_files: &[],
+    },
+    Template {
+        name: "vercel-ssg",
+        files: VERCEL_SSG_EXAMPLE_FILES,
+        // 上記 "ssr-routing" と同じ理由でパッケージ名置換を行わない（イシュー #3290）。
+        needle: "fandhe-frontend-example-placeholder-unused-vercel-ssg",
         substituted_files: &[],
     },
 ];
@@ -1027,6 +1096,25 @@ mod tests {
         assert!(
             e.files.iter().all(|f| !f.executable),
             "wireframe-ui example has no executable files in the source"
+        );
+    }
+
+    #[test]
+    fn vercel_ssg_example_is_registered() {
+        let e = find_example("vercel-ssg").expect("vercel-ssg example must be registered");
+        assert_eq!(e.name, "vercel-ssg");
+        assert_eq!(
+            e.files.len(),
+            9,
+            "vercel-ssg example must contain exactly 9 files"
+        );
+        assert!(
+            e.substituted_files.is_empty(),
+            "examples do not substitute package names (see module doc comment, issue #500)"
+        );
+        assert!(
+            e.files.iter().all(|f| !f.executable),
+            "vercel-ssg example has no executable files in the source"
         );
     }
 

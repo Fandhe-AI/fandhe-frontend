@@ -16,7 +16,13 @@ name = "fandhe-frontend-cli"
 # 新設）。公開 API（`new_template.rs::EXAMPLES` の要素追加は下位互換）は
 # 破壊しないが、`include_str!` で埋め込まれる `fw` バイナリの内容が
 # 変わるため patch バンプする。
-version = "0.4.5"
+# イシュー #3290: `examples/vercel-ssg`（generate_pages → Vercel Build
+# Output API → `vercel deploy --prebuilt` の正本サンプル）を
+# `fw new --example vercel-ssg` へ登録した（`EXAMPLES` 配列への新規エントリ
+# 追加 + `embedded-examples/vercel-ssg/` 新設）。公開 API は下位互換だが
+# `include_str!` で埋め込まれる `fw` バイナリの内容が変わるため patch
+# バンプする。
+version = "0.4.6"
 edition = "2021"
 description = "fandhe-frontend-cli: AI 自己保守フック向け `fw` コマンド（TASK-13.1、structure.toml のスキーマ・パース・生成）。外部依存ゼロ。"
 license = "MIT OR Apache-2.0"
