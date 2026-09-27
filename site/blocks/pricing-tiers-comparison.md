@@ -1,28 +1,29 @@
 # pricing-tiers-comparison
 
 `fandhe-frontend-pre-styled-ui` の `heading` / `text` / `badge` / `card` /
-`button` / `list` / `icon` / `table` 部品を合成した、カードと表の 2 段構成
-の料金セクションの合成例です。Blocks セクションは新規部品を追加するもの
-ではなく、既存の Themes/Primitives 部品を組み合わせた実例集であることに
-注意してください。
+`button` / `list` / `icon` / `table` / `tabs` 部品を合成した、カードと表の
+2 段構成の料金セクションの合成例です。Blocks セクションは新規部品を追加
+するものではなく、既存の Themes/Primitives 部品を組み合わせた実例集で
+あることに注意してください。
 
-上段にプランカード 3 枚、下段に同じプランの詳細比較表（カテゴリ見出し行
-付き）を配置します。幅広（48rem 以上）では比較表を表示し、狭幅ではその
-代わりに「プランごとの機能一覧」を表示します（無 JS の静的な表示切替）。
+Demo は 2 つの形を縦に併記します。
 
-本イシューは規模が大きいため 2 分割します。**前半（本イシュー #2873）は
-骨格と主要領域（カード・比較表・狭幅一覧）まで**を実装し、**後半
-（#2874）でカードと表の間の顧客ロゴ列・暗色帯 + 周期切替のバリエーション・
-状態の並記・差分メモの最終版**を仕上げます。
+- **形 A（ロゴ列を挟む形）**: header → プランカード 3 枚 → 顧客ロゴ列 →
+  幅広比較表（48rem 以上）/ 狭幅一覧（48rem 未満）
+- **形 B（暗色帯 + 周期切替バリエーション）**: 見出し・リード文を暗色帯に
+  置き、その下へ月額/年額の周期切替（`tabs`）を月額選択・年額選択の 2
+  インスタンスで並記します（無 JS の docs サイトでは両状態を静的に併記
+  する必要があるため）
 
 CTA ボタンは `type="button"` のまま送信先を持たない静的な合成例であり、
-`<form>` は出力しません。プラン名・価格・機能・文言はすべて架空のもので
-す。
+`<form>` は出力しません。プラン名・価格・機能・社名・文言はすべて架空の
+ものです。
 
 ## Rust コード
 
 ```rust
-use fandhe_frontend_core::{div, el, span, text, Node};
+use crate::blocks::dummy_assets;
+use fandhe_frontend_core::{div, el, p, span, text, Node};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps, CardVariant};
@@ -30,8 +31,11 @@ use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
+use fandhe_frontend_pre_styled_ui::tabs::{
+    self, ActivationMode, Orientation, TabItem, TabsProps, TabsVariant,
+};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
-use fandhe_frontend_pre_styled_ui::Size;
+use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
 /// 表の列数（機能名列 + プラン数）を文字列表記した定数。プラン数が
 /// [`PLANS`] 固定のため `colspan` 属性値としてリテラルで持つ（ファイル内
@@ -48,10 +52,13 @@ enum FeatureValue {
     Text(&'static str),
 }
 
-/// 料金プラン 1 件分の静的データ（架空）。
+/// 料金プラン 1 件分の静的データ（架空）。`price_yearly` は暗色帯の
+/// 年額 tabs パネル（[`billing_grid`]）専用で、月額比較表・狭幅一覧では
+/// 使わない。
 struct Plan {
     name: &'static str,
     price: &'static str,
+    price_yearly: &'static str,
     description: &'static str,
     cta: &'static str,
     recommended: bool,
@@ -77,6 +84,7 @@ const PLANS: [Plan; 3] = [
     Plan {
         name: "Starter",
         price: "$9",
+        price_yearly: "$86",
         description: "個人・小規模プロジェクト向け",
         cta: "Starter を選ぶ",
         recommended: false,
@@ -84,6 +92,7 @@ const PLANS: [Plan; 3] = [
     Plan {
         name: "Growth",
         price: "$29",
+        price_yearly: "$278",
         description: "成長中のチーム向け",
         cta: "Growth を選ぶ",
         recommended: true,
@@ -91,6 +100,7 @@ const PLANS: [Plan; 3] = [
     Plan {
         name: "Scale",
         price: "$79",
+        price_yearly: "$758",
         description: "大規模組織向け",
         cta: "Scale を選ぶ",
         recommended: false,
@@ -238,8 +248,9 @@ fn header() -> Node {
 }
 
 /// プランカード 1 件。推奨プラン（Growth）には badge と強調ボーダーを
-/// 付ける。
-fn plan_card(plan: &Plan) -> Node {
+/// 付ける。`price`/`period` は呼び出し側の billing 状態（月額/年額）に
+/// 応じて切り替える（[`billing_grid`] 参照）。
+fn plan_card(plan: &Plan, price: &'static str, period: &'static str) -> Node {
     let mut heading_children = vec![heading::heading(
         HeadingLevel::H4,
         &HeadingProps::default(),
@@ -284,10 +295,10 @@ fn plan_card(plan: &Plan) -> Node {
                 vec![div(
                     vec![("class", "blocks-pricing-tiers-comparison-price")],
                     vec![
-                        text(plan.price),
+                        text(price),
                         span(
                             vec![("class", "blocks-pricing-tiers-comparison-price-period")],
-                            vec![text(" / 月")],
+                            vec![text(period)],
                         ),
                     ],
                 )],
@@ -434,18 +445,198 @@ fn narrow_lists() -> Node {
     )
 }
 
+/// 顧客ロゴ列 1 枚分（装飾アイコン + 可視社名）。モジュール doc「顧客
+/// ロゴ列（装飾アイコン + 可視社名）」節参照。
+fn logo_item(name: &'static str) -> Node {
+    list::item(
+        vec![("class", "blocks-pricing-tiers-comparison-logo")],
+        vec![
+            icon(
+                &IconProps {
+                    size: Size::Sm,
+                    label: None,
+                    ..IconProps::default()
+                },
+                vec![],
+                vec![el(
+                    "path",
+                    vec![
+                        ("d", "M4 17V7l8-4 8 4v10l-8 4-8-4Z"),
+                        ("fill", "none"),
+                        ("stroke", "currentColor"),
+                        ("stroke-width", "1.5"),
+                        ("stroke-linejoin", "round"),
+                    ],
+                    vec![],
+                )],
+            ),
+            text(name),
+        ],
+    )
+}
+
+/// カードと比較表の間に挟む顧客ロゴ列（対応表 ID R1142）。
+/// [`dummy_assets::COMPANY_NAMES`] 先頭 5 件を使う。
+fn logo_row() -> Node {
+    div(
+        vec![("data-blocks-pricing-tiers-comparison-logos-section", "")],
+        vec![
+            styled_text::text(
+                &TextProps {
+                    variant: TextVariant::Muted,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text("多くのチームに選ばれています")],
+            ),
+            list::root(
+                ListType::Unordered,
+                ListVariant::Plain,
+                vec![("data-blocks-pricing-tiers-comparison-logos", "")],
+                dummy_assets::COMPANY_NAMES[..5]
+                    .iter()
+                    .map(|name| logo_item(name))
+                    .collect(),
+            ),
+        ],
+    )
+}
+
+/// billing 状態 1 件分（月額 or 年額）のプランカードグリッドを組み立てる
+/// （モジュール doc「暗色帯で比較表を繰り返さない理由」節参照。機能比較は
+/// 上段の比較表・狭幅一覧が正であり、ここでは価格・期間表記のみを
+/// 切り替える）。
+fn billing_grid(price_of: fn(&Plan) -> &'static str, period: &'static str) -> Node {
+    div(
+        vec![("data-blocks-pricing-tiers-comparison-grid", "")],
+        PLANS
+            .iter()
+            .map(|plan| plan_card(plan, price_of(plan), period))
+            .collect(),
+    )
+}
+
+/// billing 状態 2 件（月額/年額）分の `TabItem` 一覧。2 インスタンスで
+/// 同一の構成を使うため呼び出し側で複製せず都度生成する
+/// （`pricing_tiers_morph::tab_items` と同型）。
+fn billing_tab_items() -> Vec<TabItem<'static>> {
+    vec![
+        TabItem {
+            value: "monthly",
+            trigger: vec![text("月額")],
+            content: vec![billing_grid(|plan| plan.price, " / 月")],
+            disabled: false,
+        },
+        TabItem {
+            value: "yearly",
+            trigger: vec![text("年額")],
+            content: vec![billing_grid(|plan| plan.price_yearly, " / 年")],
+            disabled: false,
+        },
+    ]
+}
+
+/// キャプション 1 行（`p`、muted）。
+fn caption(label: &'static str) -> Node {
+    p(
+        vec![("data-blocks-pricing-tiers-comparison-caption", "")],
+        vec![text(label)],
+    )
+}
+
+/// 暗色帯 + 周期切替バリエーション（集約元 R1151）。見出し・リード文は
+/// 帯内に 1 回だけ出し、その下へ月額選択・年額選択の 2 インスタンスを
+/// 縦に並べる（モジュール doc「暗色帯と周期切替の 2 状態並記」節参照）。
+fn billing_band() -> Node {
+    let band_header = div(
+        vec![("data-blocks-pricing-tiers-comparison-band-header", "")],
+        vec![
+            heading::heading(
+                HeadingLevel::H3,
+                &HeadingProps::default(),
+                vec![],
+                vec![text("月額・年額から選べます")],
+            ),
+            styled_text::text(
+                &TextProps {
+                    variant: TextVariant::Muted,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text("周期を切り替えて、年間契約の割引を確認できます。")],
+            ),
+        ],
+    );
+
+    let monthly_props = TabsProps {
+        id: "blocks-pricing-tiers-comparison-billing-monthly",
+        selected: "monthly",
+        orientation: Orientation::Horizontal,
+        activation_mode: ActivationMode::Automatic,
+        loop_focus: true,
+        indicator: false,
+    };
+    let yearly_props = TabsProps {
+        id: "blocks-pricing-tiers-comparison-billing-yearly",
+        selected: "yearly",
+        orientation: Orientation::Horizontal,
+        activation_mode: ActivationMode::Automatic,
+        loop_focus: true,
+        indicator: false,
+    };
+
+    let monthly_tabs = tabs::tabs(
+        TabsVariant::Enclosed,
+        Size::Md,
+        ColorPalette::Accent,
+        &monthly_props,
+        billing_tab_items(),
+    );
+    let yearly_tabs = tabs::tabs(
+        TabsVariant::Enclosed,
+        Size::Md,
+        ColorPalette::Accent,
+        &yearly_props,
+        billing_tab_items(),
+    );
+
+    div(
+        vec![("data-blocks-pricing-tiers-comparison-band", "")],
+        vec![
+            band_header,
+            caption("月額選択時"),
+            monthly_tabs,
+            caption("年額選択時"),
+            yearly_tabs,
+        ],
+    )
+}
+
 /// `pricing-tiers-comparison` の Demo 本体。呼び出しごとに同一の `Node` を
-/// 返す純関数。header → プランカード 3 枚 → 幅広比較表 → 狭幅一覧 の順に
-/// 並べる（表/一覧の表示切替は [`LAYOUT_CSS`] の `@media` が担う）。
+/// 返す純関数。形 A（header → プランカード → 顧客ロゴ列 → 幅広比較表 /
+/// 狭幅一覧）+ 形 B（暗色帯 + 周期切替の月額/年額 2 状態）の順に並べる
+/// （表/一覧の表示切替は [`LAYOUT_CSS`] の `@media` が担う）。
 pub fn demo() -> Node {
     let cards = div(
         vec![("data-blocks-pricing-tiers-comparison-grid", "")],
-        PLANS.iter().map(plan_card).collect(),
+        PLANS
+            .iter()
+            .map(|plan| plan_card(plan, plan.price, " / 月"))
+            .collect(),
     );
 
     div(
         vec![("class", "blocks-pricing-tiers-comparison-layout")],
-        vec![header(), cards, comparison_table(), narrow_lists()],
+        vec![
+            caption("ロゴ列を挟む形"),
+            header(),
+            cards,
+            logo_row(),
+            comparison_table(),
+            narrow_lists(),
+            caption("暗色帯 + 周期切替バリエーション"),
+            billing_band(),
+        ],
     )
 }
 ```
@@ -456,10 +647,26 @@ pub fn demo() -> Node {
   はカテゴリ見出し行付きの幅広表と狭幅カード・select 2 列表を持つのに
   対し、本 block はカードと表の 2 段構成で、狭幅では表の代わりに
   「プランごとの機能一覧」を表示する点が異なります。
-- カードと表の間の顧客ロゴ列、暗色帯 + 周期切替（`tabs`）のバリエーション
-  と状態の並記は後半（#2874）で追加します。
+- **顧客ロゴ列（対応表 ID R1142）**: カードと比較表の間に、装飾アイコン +
+  可視社名（`list`+`icon`）の顧客ロゴ列を挟みました。ロゴ画像
+  （`image` 部品）は使わず、社名を必ず可視テキストとして併記すること
+  で、`logo-cloud-grid`（PR #3244）で指摘された「装飾ロゴだけでは社名が
+  スクリーンリーダーに伝わらない」欠落を構造的に防いでいます。
+- **暗色帯 + 周期切替（集約元 R1151）**: 見出し・リード文を暗色帯
+  （`background: var(--fandhe-color-fg)`、`pricing-tier-cards` の
+  `inverted` と同型）に置き、`tabs` で月額/年額の周期を切り替えます。
+  docs サイトは JS ハイドレーションを行わないため、`pricing-tiers-morph`
+  と同じ「`selected` が異なる 2 インスタンスの静的併記」で月額選択・年額
+  選択の両状態を可視化しています。
+- **暗色帯で比較表を繰り返さない理由**: 暗色帯配下のプランカードは価格・
+  期間表記のみを月額/年額で切り替え、機能比較（比較表・狭幅一覧）は複製
+  していません。表を複製すると `scope="row"` の件数契約・aria-label
+  region の重複を招くうえ Demo が肥大化するためです。周期切替のクライア
+  ント配線（wasm-full の tabs 配線）は行いません（無 JS の静的な合成例、
+  `docs/policy/intentional-non-adoption.md` §3.25）。
 
 関連情報: [Heading](../themes/heading.md) / [Text](../themes/text.md) /
 [Badge](../themes/badge.md) / [Card](../themes/card.md) /
 [Button](../themes/button.md) / [List](../themes/list.md) /
-[Icon](../themes/icon.md) / [Table](../themes/table.md)
+[Icon](../themes/icon.md) / [Table](../themes/table.md) /
+[Tabs](../themes/tabs.md)
