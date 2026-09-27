@@ -9239,6 +9239,101 @@ fn team_photo_grid_composes_expected_parts() {
     }
 }
 
+/// app-shell-sidebar-header の Demo ラッパ・CSS フックが実際に出力され、
+/// `blocks::stylesheet()` に対応するセレクタが存在することを固定する
+/// （`sidebar_07_page_wires_demo_class_and_css_hooks` と同型、イシュー
+/// #2895）。
+#[test]
+fn app_shell_sidebar_header_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/app-shell-sidebar-header/index.html"))
+        .expect("blocks/app-shell-sidebar-header/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-app-shell-sidebar-header\""),
+        "app-shell-sidebar-header page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "app-shell-sidebar-header page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "app-shell-sidebar-header page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-app-shell-sidebar-header-stack=\"\"",
+        "data-blocks-app-shell-sidebar-header-instance=\"\"",
+        "data-blocks-app-shell-sidebar-header-brand=\"\"",
+        "data-blocks-app-shell-sidebar-header-topbar=\"\"",
+        "data-blocks-app-shell-sidebar-header-search=\"\"",
+        "data-blocks-app-shell-sidebar-header-actions=\"\"",
+        "data-blocks-app-shell-sidebar-header-inset=\"\"",
+        "data-blocks-app-shell-sidebar-header-main=\"\"",
+        "data-blocks-app-shell-sidebar-header-main-constrained=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "app-shell-sidebar-header page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-app-shell-sidebar-header-stack]",
+        "[data-blocks-app-shell-sidebar-header-topbar]",
+        "[data-blocks-app-shell-sidebar-header-search]",
+        "[data-blocks-app-shell-sidebar-header-main-constrained]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+    // provider の複合セレクタは子孫コンビネータではなく同一要素へ適用する
+    // （sidebar-07/sidebar-03 の codex-review/Bugbot 指摘の回帰防止と同型）。
+    assert!(
+        sheet_css.contains(
+            "[data-blocks-app-shell-sidebar-header-instance][data-scope=\"sidebar\"][data-part=\"provider\"]"
+        ),
+        "blocks.css should target [data-blocks-app-shell-sidebar-header-instance] as a compound selector on the provider element, not a descendant combinator"
+    );
+}
+
+/// app-shell-sidebar-header の合成部品（sidebar/input-group/field/input/
+/// button/menu/avatar/icon）が anatomy の `data-*` として実際に出力され、
+/// `<form>`・死リンク・`data:` URI が無いことを固定する（イシュー #2895）。
+#[test]
+fn app_shell_sidebar_header_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/app-shell-sidebar-header/")
+        .expect("app-shell-sidebar-header should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"sidebar\"",
+        "data-scope=\"input-group\"",
+        "data-scope=\"field\" data-part=\"input\"",
+        "data-scope=\"button\"",
+        "data-scope=\"menu\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"icon\"",
+        "data-state=\"collapsed\"",
+        "data-collapsible=\"offcanvas\"",
+        "data-part=\"trigger\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "app-shell-sidebar-header demo should contain {scope}"
+        );
+    }
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "app-shell-sidebar-header demo should never contain {absent}"
+        );
+    }
+}
+
 /// app-shell-navbar-columns ページが Demo class・専用 CSS を配線している
 /// こと、block 固有 CSS（コンテナクエリ・sticky・grid-template-areas・
 /// disabled 中和）が実際に出力されていることを固定する（イシュー

@@ -1981,6 +1981,11 @@ title = "app-shell-sidebar"
 source = "site/blocks/app-shell-sidebar.md"
 path = "/blocks/app-shell-sidebar/"
 
+[[section.group.page]]
+title = "app-shell-sidebar-header"
+source = "site/blocks/app-shell-sidebar-header.md"
+path = "/blocks/app-shell-sidebar-header/"
+
 [[section.group]]
 title = "Sidebar"
 
