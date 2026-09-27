@@ -196,6 +196,7 @@ fn version_representative() -> Node {
 fn version_per_row_action() -> Node {
     let header = section_header("連絡先情報", "各項目を個別に編集できます。", None);
     let field = |label: &str, value: &str| {
+        let aria_label = format!("{label}を変更");
         row(
             label,
             vec![
@@ -206,7 +207,10 @@ fn version_per_row_action() -> Node {
                         size: Size::Sm,
                         ..ButtonProps::default()
                     },
-                    vec![("data-blocks-description-list-horizontal-row-action", "")],
+                    vec![
+                        ("data-blocks-description-list-horizontal-row-action", ""),
+                        ("aria-label", aria_label.as_str()),
+                    ],
                     vec![text("変更")],
                 ),
             ],

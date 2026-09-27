@@ -246,6 +246,7 @@ fn version_representative() -> Node {
 fn version_per_row_action() -> Node {
     let header = section_header("連絡先情報", "各項目を個別に編集できます。", None);
     let field = |label: &str, value: &str| {
+        let aria_label = format!("{label}を変更");
         row(
             label,
             vec![
@@ -256,7 +257,10 @@ fn version_per_row_action() -> Node {
                         size: Size::Sm,
                         ..ButtonProps::default()
                     },
-                    vec![("data-blocks-description-list-horizontal-row-action", "")],
+                    vec![
+                        ("data-blocks-description-list-horizontal-row-action", ""),
+                        ("aria-label", aria_label.as_str()),
+                    ],
                     vec![text("変更")],
                 ),
             ],
@@ -478,6 +482,21 @@ mod tests {
         assert!(
             LAYOUT_CSS.contains("@container blocks-description-list-horizontal (max-width: 36rem)")
         );
+    }
+
+    /// codex-review 是正（イシュー #2906）: 版 B の各行「変更」ボタンが
+    /// すべて同名の `aria-label` なしボタンとして出力され、支援技術の
+    /// ボタン一覧で対象項目を区別できなかった不具合。`field` へラベルを
+    /// 渡し `<label>を変更` の項目固有アクセシブル名を付与したことを固定する。
+    #[test]
+    fn per_row_action_buttons_have_item_specific_accessible_names() {
+        let html = demo_html();
+        for expected in ["氏名を変更", "部署を変更", "内線番号を変更"] {
+            assert!(
+                html.contains(&format!(r#"aria-label="{expected}""#)),
+                "missing accessible name: {expected}"
+            );
+        }
     }
 
     /// codex-review 是正（見出しと補足説明の間に余白がなく密着していた不具合）。
