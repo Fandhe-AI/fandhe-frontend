@@ -263,11 +263,27 @@ SSR 用途に限りこの優先順位判断を上書きし、上記「採用（S
   `127.0.0.1:3100` を使う。既存のループバック既定・環境変数名
   （`FANDHE_FRONTEND_BIND_ADDR`）は変更せず、Vercel 向けに `PORT` 読み取り
   を追加する設計です（実装は #3336）。
+- **`Dockerfile.vercel` は `ENV FANDHE_FRONTEND_BIND_ADDR` を設定しません**:
+  ルート `Dockerfile`（単一バイナリ配布の既定サンプル、REQ-9）は
+  `ENV FANDHE_FRONTEND_BIND_ADDR=0.0.0.0:3100` を固定で設定しています。
+  上記の優先順位（`FANDHE_FRONTEND_BIND_ADDR` が最優先）のもとでこの行を
+  そのまま Vercel 用イメージへ持ち込むと、`FANDHE_FRONTEND_BIND_ADDR` が
+  常に設定済みのため `PORT` 側の分岐に到達せず、Vercel プロジェクト設定で
+  `PORT` を変更してもサーバーは常に `3100` で待ち受け続け、Vercel の
+  接続先ポートと一致しなくなります（値がたまたま `3100` で揃っている
+  間だけ動作する状態で、`PORT` を別値へ変更すると壊れます）。このため
+  Phase 4（#3289）で作成する `Dockerfile.vercel` は、ルート `Dockerfile`
+  をベースにしつつ `ENV FANDHE_FRONTEND_BIND_ADDR=...` の行のみ持ち込まず、
+  `USER 65532:65532`（非 root）はそのまま維持します。これにより
+  `FANDHE_FRONTEND_BIND_ADDR` は未設定のまま `PORT` 分岐が有効になり、
+  Vercel プロジェクト設定の `PORT` 変更がそのまま反映されます。
 - **ポート 80 問題**: ルート `Dockerfile` は `FROM scratch` +
   `USER 65532:65532`（非 root）でビルドしており、1024 未満のポートを
   bind できない可能性があります。root 実行に切り替える対応はせず、
   Vercel プロジェクトの環境変数 `PORT` に 1024 以上の値（例: `3100`）を
-  設定して運用することを既定とします。この運用が成立する根拠は、Vercel
+  設定して運用することを既定とします（前項のとおり `Dockerfile.vercel`
+  では `FANDHE_FRONTEND_BIND_ADDR` を設定しないため、この `PORT` 設定が
+  実際に待受ポートへ反映されます）。この運用が成立する根拠は、Vercel
   公式ドキュメントの Port resolution 節（§2 表内の該当行参照）が
   「既定ポートは 80 だが、プロジェクト設定で `PORT` を上書きすればその値へ
   接続する」と明記していることです。Vercel 側は `PORT` の値を読んで
@@ -387,10 +403,12 @@ SSR 用途に限りこの優先順位判断を上書きし、上記「採用（S
   では Deployment Protection が既定で有効であること（§2）、SSG に Basic
   認証をかける場合は環境変数で管理し未設定なら拒否する（fail-closed）こと
   は #3291 の範囲として参照し、本文書では重複記述しません。案 d（Container
-  Images）採用に伴い、ルート `Dockerfile` の非 root 実行（`USER
-  65532:65532`）は維持し、root 実行への切り替えは行いません。1024 未満の
-  ポートは非 root では bind できない可能性があるため、Vercel 環境変数
-  `PORT` は 1024 以上を既定運用とします（§5）。案 d は Container Images
+  Images）採用に伴い、`Dockerfile.vercel`（ルート `Dockerfile` をベースに
+  `ENV FANDHE_FRONTEND_BIND_ADDR` のみ持ち込まない構成、§5 参照）でも
+  非 root 実行（`USER 65532:65532`）は維持し、root 実行への切り替えは
+  行いません。1024 未満のポートは非 root では bind できない可能性がある
+  ため、Vercel 環境変数 `PORT` は 1024 以上を既定運用とします（§5）。
+  案 d は Container Images
   （Beta）への依存を継続する判断であり、beta 依存リスクは §4・§7 の
   枠組みで引き続き監視します。Deployment Protection の既定有効という
   アクセス制御方針自体は案 d 採用によって変更しません。
