@@ -947,6 +947,7 @@ pub enum LayoutCss {
 | header-simple-bar | #2860（親 #2807） | `marketing/header/header_simple_bar.rs` |
 | pricing-tiers-comparison | #2873/#2874（親 #2872） | `marketing/pricing/pricing_tiers_comparison.rs` |
 | pricing-tiers-extra-row | #2876（親 #2875） | `marketing/pricing/pricing_tiers_extra_row.rs` |
+| team-photo-grid | #2881 | `marketing/team/team_photo_grid.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 132 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の

@@ -9148,3 +9148,86 @@ fn pricing_comparison_table_page_wires_select_view() {
         "blocks.css should declare the narrow wrapper rule"
     );
 }
+
+/// team-photo-grid ページが Demo class・専用 CSS を配線していること、
+/// block 固有 CSS（写真グリッド・3:2 比率・4 列・オフセット装飾・
+/// ブレークポイント）が実際に出力されていることを固定する（イシュー
+/// #2881）。
+#[test]
+fn team_photo_grid_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/team-photo-grid/index.html"))
+        .expect("blocks/team-photo-grid/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-team-photo-grid\""),
+        "team-photo-grid page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "team-photo-grid page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "team-photo-grid page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-team-photo-grid-card",
+        "data-blocks-team-photo-grid-photo",
+        "data-blocks-team-photo-grid-offset",
+        "data-blocks-team-photo-grid-columns",
+    ] {
+        assert!(
+            html.contains(hook),
+            "team-photo-grid page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        ".blocks-team-photo-grid-grid",
+        "@media (min-width: 48rem)",
+        "@media (min-width: 64rem)",
+        "data-blocks-team-photo-grid-columns=\"4\"",
+        "aspect-ratio: 3 / 2;",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// team-photo-grid の Demo が使用部品（heading/text/image/button/link/
+/// icon）をすべて実際に合成し、`<form>`・`src="data:"`・`href="#"`・
+/// `id="` を出力しないことを固定する（イシュー #2881）。
+#[test]
+fn team_photo_grid_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/team-photo-grid/")
+        .expect("team-photo-grid should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"heading\"",
+        "data-scope=\"text\"",
+        "data-scope=\"image\"",
+        "data-scope=\"button\"",
+        "data-scope=\"link\"",
+        "data-scope=\"icon\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "team-photo-grid demo should contain {scope}"
+        );
+    }
+    assert_eq!(
+        html.matches("data-blocks-team-photo-grid-card").count(),
+        16,
+        "team-photo-grid demo should render exactly 16 member cards (3+3+3+3+4)"
+    );
+    for absent in ["<form", "src=\"data:", "href=\"#\"", " id=\""] {
+        assert!(
+            !html.contains(absent),
+            "team-photo-grid demo should never contain {absent}"
+        );
+    }
+}
