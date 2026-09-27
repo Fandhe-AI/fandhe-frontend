@@ -221,7 +221,7 @@ Vercel は Container Images（Beta、2026-07-07 確認）により、ローカ�
 |---|---|
 | #3288（feat: `route_request` を Vercel Functions で動かすアダプタを実装する） | **完了・取り下げ**: #3288 で実測した結果、`vercel_runtime 2.4.1` の依存木は案 a 併用の前提条件として自ら設定した基準（60 件/深さ 6）を構造的に超過することが判明し（`docs/reports/vercel-runtime-2x-dependency-audit-3288.md`）、案 a の併用を取り下げました。本イシューの成果物は計測レポートと本文書の改訂（docs のみ）に限られ、「Vercel 上で HTTP 200/404」の受入基準はアダプタ方式では達成していません。issue タイトルの `route_request`（`fandhe-frontend-dist-server`）自体も、この取り下げにより対象外になりました |
 | #3289（feat: `examples/vercel-ssr` を追加し `fw new --example` で取得可能にする） | **要再スコープ**: 前提だった案 a のアダプタが取り下げられたため、`examples/vercel-ssr`（`vercel_runtime` 併用）は成立しません。クローズするか、別方式（案 d の再評価等）へ置き換えるかはユーザー判断が必要です |
-| #3290（feat: `examples/vercel-ssg`〔`generate_pages` → Build Output API → `--prebuilt`〕を追加する） | 案 c が唯一の既定方式（案 a 併用の取り下げにより「唯一」に変更）。Vercel 側に Rust ツールチェーンは不要 |
+| #3290（feat: `examples/vercel-ssg`〔`generate_pages` → Build Output API → `--prebuilt`〕を追加する） | **実装済み（本 PR）**。案 c が唯一の既定方式（案 a 併用の取り下げにより「唯一」に変更）。Vercel 側に Rust ツールチェーンは不要 |
 | #3291（docs: デプロイガイドに Vercel の節を追加する） | **要再スコープ**: SSR（案 a・2.x）は選択肢から外れたため、SSG（案 c）のみを推奨方式として書く。「SSR は Rust ランタイムでは非対応（案 a 併用の前提条件として設定した依存木基準の超過のため）」と明記する。Deployment Protection（既定 SSO 有効、302 リダイレクト）・fail-closed の Basic 認証は引き続き本 issue の範囲とする |
 | #3292（ci: Build Output API 出力構造のスモークテストを追加する） | 案 c の出力（`.vercel/output` ディレクトリ構造、`config.json` の `version` フィールド等）を対象とする（変更なし） |
 
