@@ -1,34 +1,54 @@
 # form-layout-property-panel
 
 `fandhe-frontend-pre-styled-ui` の `fieldset` / `field` / `number-input` /
-`native-select` / `select` / `segment-group` / `color-swatch` / `separator`
-部品を合成した、デザインツール風プロパティパネルの実例です。Blocks
-セクションは新規部品を追加するものではなく、既存の Themes 部品を組み合わ
-せた実例集であることに注意してください（主参照は対応表 ID R0225。出典の
-固有名・ファイル名は記載しません）。
+`native-select` / `select` / `color-picker` / `color-swatch` /
+`segment-group` / `collapsible` / `tooltip` / `card` / `breadcrumb` /
+`clipboard` / `separator` の 14 部品を合成した、デザインツール風プロパティ
+パネルの実例です。Blocks セクションは新規部品を追加するものではなく、既存
+の Themes 部品を組み合わせた実例集であることに注意してください（集約元は
+対応表 ID R0225〜R0228 の 4 件。出典の固有名・ファイル名は記載しません）。
 
-幅の狭い縦長パネルに「位置」「レイアウト」「文字」の 3 節を区切り線
-（`separator`）で分けて縦に積んでいます。各節は 2 列グリッドの行にラベル
-付き数値入力・選択・切替を詰めて配置し、狭い画面幅でもパネル幅を保ちます。
+4 つの版（A〜D）を並記しています。
+
+- **A（基本）**: 幅の狭い縦長パネルに「位置」「レイアウト」「文字」の 3 節
+  を区切り線（`separator`）で分けて縦に積みます。各節は 2 列グリッドの行に
+  ラベル付き数値入力・選択・切替を詰めて配置し、狭い画面幅でもパネル幅を
+  保ちます。
+- **B（テーマ選択 + 開閉式の節）**: 先頭にテーマ選択、続けて開閉式の節
+  （`collapsible`）を 2 つ持ちます。「塗り」は開いた状態（`color_picker`
+  の閉じた trigger + 不透明度）、「枠線」は閉じた状態（太さ + 色見本）で、
+  開閉 2 状態を並べて示します。
+- **C（カード枠 + パンくずのヘッダー）**: `card` で包み、ヘッダーに
+  `breadcrumb` とタイトルを、本文にフォント設定を、フッターに CSS 宣言を
+  コピーする `clipboard` を置きます。行間ラベルの横には閉じた `tooltip`
+  を添えます。
+- **D（極小サイズの狭幅パネル）**: 入力に `Size::Xs` を使う、より狭い
+  パネルです。位置節の X/Y/幅/高さと単位選択のみを持ちます。
 
 本 Demo は静的な表示例であり、`<form>` 要素は一切持たず、データの取得・
 送信・状態管理を行いません。`number_input` の増減ボタンと入力本体は静的
 固定のため `readonly`（`aria-valuenow` は初期値のまま更新されないため、
-表示値とのずれを防ぐ目的です）、`segment_group` の選択・フォント欄の
-`select` は開閉/切替が JS ハイドレーション前提のためネイティブ `disabled`
-で操作不能にし、現在値は固定表示にしています（単位・配置・太さのネイティブ
-`<select>` は JS なしでも実際に動作するため `disabled` を付けず、可視ラベル
-付きにしています）。文言はすべて独自に書いた架空のものであり、実企業名・
-実クレデンシャル・PII を含みません。
-
-後続イシュー #2914 で、テーマ選択＋開閉式の節・カード枠＋パンくずの
-ヘッダー・極小サイズの狭幅パネルを追加する予定です。
+表示値とのずれを防ぐ目的です）、`segment_group`/`collapsible` の trigger は
+開閉/切替が JS ハイドレーション前提のためネイティブ `disabled` で操作不能
+にし、現在値は固定表示にしています（単位・配置・太さ・テーマ・フォントの
+ネイティブ `<select>` は JS なしでも実際に動作するため `disabled` を付け
+ず、可視ラベル付きにしています）。`tooltip`/`clipboard` の trigger は
+`fandhe-frontend-wasm-full` に組み込めば実際に機能する部品のため無効化し
+ていません。パンくずの途中項目は遷移先を持ちません（末尾のみ現在ページ
+を示します）。文言はすべて独自に書いた架空のものであり、実企業名・実
+クレデンシャル・PII を含みません。
 
 ## Rust コード
 
 ```rust
 use fandhe_frontend_core::{div, text, Node};
+use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbVariant};
+use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
+use fandhe_frontend_pre_styled_ui::clipboard;
+use fandhe_frontend_pre_styled_ui::collapsible;
+use fandhe_frontend_pre_styled_ui::color_picker::{self, ColorPickerProps};
 use fandhe_frontend_pre_styled_ui::color_swatch::{self, Color, ColorSwatchProps, Rgb};
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::color_picker::ColorPicker;
 use fandhe_frontend_pre_styled_ui::field::{self, FieldIds, FieldProps, FieldRootProps};
 use fandhe_frontend_pre_styled_ui::fieldset::{self, FieldsetProps, FieldsetRootProps};
 use fandhe_frontend_pre_styled_ui::input::{self, InputProps};
@@ -38,6 +58,8 @@ use fandhe_frontend_pre_styled_ui::segment_group::{self, SegmentGroupProps};
 use fandhe_frontend_pre_styled_ui::select::{self, OpenState, SelectProps};
 use fandhe_frontend_pre_styled_ui::separator::{self, SeparatorProps};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
+use fandhe_frontend_pre_styled_ui::tooltip;
+use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::Size;
 
 const FONT_LABEL_ID: &str = "blocks-form-layout-property-panel-font-label";
@@ -45,6 +67,21 @@ const FONT_CONTENT_ID: &str = "blocks-form-layout-property-panel-font-content";
 const COLOR_HEX_ID: &str = "blocks-form-layout-property-panel-color-hex";
 const DIRECTION_LABEL_ID: &str = "blocks-form-layout-property-panel-direction-label";
 const TEXT_ALIGN_LABEL_ID: &str = "blocks-form-layout-property-panel-text-align-label";
+
+// --- B（R0226: テーマ選択 + 開閉式の節 2 つ）で使う id 群。他版と衝突
+// しない `-b-` 接頭辞で分離する（`blocks_contract` の id 重複検査対応）。
+const B_FILL_CONTENT_ID: &str = "blocks-form-layout-property-panel-b-fill-content";
+const B_BORDER_CONTENT_ID: &str = "blocks-form-layout-property-panel-b-border-content";
+const B_COLOR_LABEL_ID: &str = "blocks-form-layout-property-panel-b-color-label";
+
+// --- C（R0227: カード枠 + パンくずのヘッダー）で使う id 群。
+const C_TOOLTIP_CONTENT_ID: &str = "blocks-form-layout-property-panel-c-tooltip-content";
+const C_CLIP_LABEL_ID: &str = "blocks-form-layout-property-panel-c-clip-label";
+const C_CLIP_INPUT_ID: &str = "blocks-form-layout-property-panel-c-clip-input";
+
+/// コピー対象の CSS 宣言（C 版の `card::footer` clipboard）。無害な
+/// フォント指定 1 行のみで、実在のトークン・秘密情報を含まない。
+const C_FONT_CSS_DECLARATION: &str = "font: 700 20px/1.4 \"Noto Sans JP\", sans-serif;";
 
 /// 節見出し 1 節分の `FieldsetProps`（`legend`/`helper-text` 等の id 生成に
 /// 使う base id のみ渡す。本 Demo は helper-text/error-text を出さない）。
@@ -62,20 +99,23 @@ fn fieldset_props(id: &'static str) -> FieldsetProps<'static> {
 /// `for`/コントロールの紐付けに使う。`min`/`max` は欄ごとの実際の許容範囲
 /// を `aria-valuemin`/`aria-valuemax` へそのまま反映する（X/Y 座標・回転角
 /// のように負値を取り得る欄と、幅・高さ・間隔のように非負のみの欄とで
-/// 支援技術へ伝える範囲を区別する）。
+/// 支援技術へ伝える範囲を区別する）。`size` は D 版（狭幅パネル）が
+/// `Size::Xs` を渡せるよう #2914 で引数化した（A〜C は従来どおり
+/// `Size::Sm`、イシュー #2914）。
 fn number_field(
     id: &'static str,
     label_text: &'static str,
     value: &'static str,
     min: &'static str,
     max: &'static str,
+    size: Size,
 ) -> Node {
     let flags = NumberInputFlags {
         readonly: true,
         ..NumberInputFlags::default()
     };
     number_input::root(
-        Size::Sm,
+        size,
         false,
         false,
         true,
@@ -106,6 +146,7 @@ fn unit_select(
     id: &'static str,
     label_text: &'static str,
     options: &[(&'static str, &'static str)],
+    size: Size,
 ) -> Node {
     let field_props = FieldProps {
         id,
@@ -130,7 +171,7 @@ fn unit_select(
             field::label(&field_props, vec![], vec![text(label_text)]),
             native_select::native_select(
                 &NativeSelectProps {
-                    size: Size::Sm,
+                    size,
                     ..NativeSelectProps::default()
                 },
                 &field_props,
@@ -159,6 +200,7 @@ fn position_section() -> Node {
                         "120",
                         "-9999",
                         "9999",
+                        Size::Sm,
                     ),
                     number_field(
                         "blocks-form-layout-property-panel-pos-y",
@@ -166,6 +208,7 @@ fn position_section() -> Node {
                         "48",
                         "-9999",
                         "9999",
+                        Size::Sm,
                     ),
                     number_field(
                         "blocks-form-layout-property-panel-pos-w",
@@ -173,6 +216,7 @@ fn position_section() -> Node {
                         "320",
                         "0",
                         "9999",
+                        Size::Sm,
                     ),
                     number_field(
                         "blocks-form-layout-property-panel-pos-h",
@@ -180,6 +224,7 @@ fn position_section() -> Node {
                         "180",
                         "0",
                         "9999",
+                        Size::Sm,
                     ),
                     div(
                         vec![("class", "blocks-form-layout-property-panel-grid-span-2")],
@@ -187,6 +232,7 @@ fn position_section() -> Node {
                             "blocks-form-layout-property-panel-pos-unit",
                             "位置・サイズの単位",
                             &[("px", "px"), ("percent", "%"), ("rem", "rem")],
+                            Size::Sm,
                         )],
                     ),
                     div(
@@ -200,6 +246,7 @@ fn position_section() -> Node {
                                     "0",
                                     "-360",
                                     "360",
+                                    Size::Sm,
                                 ),
                                 styled_text::text(
                                     &TextProps {
@@ -329,6 +376,7 @@ fn layout_section() -> Node {
                         "16",
                         "0",
                         "9999",
+                        Size::Sm,
                     ),
                     div(
                         vec![("class", "blocks-form-layout-property-panel-grid-span-2")],
@@ -341,6 +389,7 @@ fn layout_section() -> Node {
                                 ("end", "末尾揃え"),
                                 ("stretch", "引き伸ばし"),
                             ],
+                            Size::Sm,
                         )],
                     ),
                 ],
@@ -385,11 +434,13 @@ fn text_section() -> Node {
                         "16",
                         "0",
                         "9999",
+                        Size::Sm,
                     ),
                     unit_select(
                         "blocks-form-layout-property-panel-font-weight",
                         "太さ",
                         &[("400", "標準"), ("700", "太字"), ("300", "細字")],
+                        Size::Sm,
                     ),
                     div(
                         vec![("class", "blocks-form-layout-property-panel-grid-span-2")],
@@ -577,12 +628,28 @@ fn closed_font_select() -> Node {
     )
 }
 
-/// `form-layout-property-panel` の Demo 本体。呼び出しごとに同一の
-/// `Node` を返す純関数。
-pub fn demo() -> Node {
+/// 版見出し（A〜D の先頭に置く短いキャプション）。
+fn version_caption(label_text: &'static str) -> Node {
+    styled_text::text(
+        &TextProps {
+            size: TextSize::Xs,
+            variant: TextVariant::Muted,
+            ..TextProps::default()
+        },
+        vec![],
+        vec![text(label_text)],
+    )
+}
+
+/// A（R0225 基準形）: 骨格（狭い縦長パネル・節の区切り・行の 2 列配置）と
+/// 位置／レイアウト／文字の主要 3 節。#2913 で実装済みの中身は変えず、
+/// `.blocks-form-layout-property-panel-panel` へ外枠クラスを移した
+/// （#2914、モジュール doc「集約元と版の対応」節参照）。
+fn panel_basic() -> Node {
     div(
-        vec![("class", "blocks-form-layout-property-panel-layout")],
+        vec![("class", "blocks-form-layout-property-panel-panel")],
         vec![
+            version_caption("基本（位置・レイアウト・文字）"),
             position_section(),
             separator::separator(&SeparatorProps::default(), vec![]),
             layout_section(),
@@ -591,28 +658,405 @@ pub fn demo() -> Node {
         ],
     )
 }
+
+/// B（R0226）: テーマ選択（先頭）+ 開閉式の節 2 つ（「塗り」= open・
+/// 「枠線」= closed）。`collapsible::trigger`/`content` は
+/// `app_shell_stacked_overlap::hamburger`/`mobile_panel` と同じ判断で
+/// `disabled: true` 固定（無 JS の docs サイトでは押しても何も起きない
+/// ため、モジュール doc「静的表示（無 JS）の扱い」節参照）。
+fn panel_theme_collapsible() -> Node {
+    let fill_color = ColorPicker::from_color(Color::from_rgb(Rgb::new(0x22, 0x63, 0xeb)));
+    let readonly_color_props = ColorPickerProps {
+        readonly: true,
+        ..ColorPickerProps::default()
+    };
+    let fill_section = collapsible::content(
+        collapsible::OpenState::Open,
+        true,
+        Some(B_FILL_CONTENT_ID),
+        vec![("data-blocks-form-layout-property-panel-b-section", "")],
+        vec![
+            color_picker::root(
+                &fill_color,
+                &readonly_color_props,
+                vec![],
+                vec![
+                    color_picker::label(
+                        &readonly_color_props,
+                        vec![("id", B_COLOR_LABEL_ID)],
+                        vec![text("塗り色")],
+                    ),
+                    color_picker::control(
+                        OpenState::Closed,
+                        &readonly_color_props,
+                        vec![],
+                        vec![
+                            color_picker::channel_input(
+                                fill_color.hex().as_str(),
+                                &readonly_color_props,
+                                vec![("aria-labelledby", B_COLOR_LABEL_ID)],
+                            ),
+                            color_picker::trigger(
+                                &fill_color,
+                                &readonly_color_props,
+                                None,
+                                vec![("aria-label", "塗り色を選ぶ")],
+                                vec![],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            number_field(
+                "blocks-form-layout-property-panel-b-opacity",
+                "不透明度",
+                "100",
+                "0",
+                "100",
+                Size::Sm,
+            ),
+        ],
+    );
+    let border_section = collapsible::content(
+        collapsible::OpenState::Closed,
+        true,
+        Some(B_BORDER_CONTENT_ID),
+        vec![("data-blocks-form-layout-property-panel-b-section", "")],
+        vec![
+            number_field(
+                "blocks-form-layout-property-panel-b-border-width",
+                "太さ",
+                "1",
+                "0",
+                "9999",
+                Size::Sm,
+            ),
+            color_swatch::color_swatch(
+                &ColorSwatchProps {
+                    value: Color::from_rgb(Rgb::new(0xd1, 0xd5, 0xdb)),
+                    size: Size::Sm,
+                    ..ColorSwatchProps::default()
+                },
+                vec![("aria-label", "枠線の色")],
+                vec![],
+            ),
+        ],
+    );
+    div(
+        vec![("class", "blocks-form-layout-property-panel-panel")],
+        vec![
+            version_caption("テーマ選択 + 開閉式の節（R0226）"),
+            unit_select(
+                "blocks-form-layout-property-panel-b-theme",
+                "テーマ",
+                &[
+                    ("standard", "標準"),
+                    ("dark", "ダーク"),
+                    ("high-contrast", "ハイコントラスト"),
+                ],
+                Size::Sm,
+            ),
+            separator::separator(&SeparatorProps::default(), vec![]),
+            collapsible::trigger(
+                collapsible::OpenState::Open,
+                true,
+                Some(B_FILL_CONTENT_ID),
+                vec![],
+                vec![
+                    text("塗り"),
+                    collapsible::indicator(collapsible::OpenState::Open, true, vec![], vec![]),
+                ],
+            ),
+            fill_section,
+            collapsible::trigger(
+                collapsible::OpenState::Closed,
+                true,
+                Some(B_BORDER_CONTENT_ID),
+                vec![],
+                vec![
+                    text("枠線"),
+                    collapsible::indicator(collapsible::OpenState::Closed, true, vec![], vec![]),
+                ],
+            ),
+            border_section,
+        ],
+    )
+}
+
+/// C（R0227）: カード枠 + パンくずのヘッダーで包んだフォント設定。
+fn panel_card_font() -> Node {
+    let breadcrumb_nav = breadcrumb::root(
+        Size::Sm,
+        BreadcrumbVariant::Plain,
+        Some("プロパティの階層"),
+        vec![],
+        vec![breadcrumb::list(
+            vec![],
+            vec![
+                breadcrumb::item(vec![], vec![text("レイヤー")]),
+                breadcrumb::separator(vec![], vec![text("/")]),
+                breadcrumb::item(vec![], vec![text("テキスト")]),
+                breadcrumb::separator(vec![], vec![text("/")]),
+                breadcrumb::item(
+                    vec![],
+                    vec![breadcrumb::current_link(vec![], vec![text("フォント")])],
+                ),
+            ],
+        )],
+    );
+    let line_height_row = div(
+        vec![("class", "blocks-form-layout-property-panel-c-tooltip-row")],
+        vec![
+            number_field(
+                "blocks-form-layout-property-panel-c-line-height",
+                "行間",
+                "1.4",
+                "0",
+                "9999",
+                Size::Sm,
+            ),
+            tooltip::root(
+                OpenState::Closed,
+                vec![],
+                vec![
+                    tooltip::trigger(
+                        OpenState::Closed,
+                        false,
+                        Some(C_TOOLTIP_CONTENT_ID),
+                        vec![("aria-label", "行間についてのヘルプ")],
+                        vec![text("?")],
+                    ),
+                    tooltip::positioner(
+                        OpenState::Closed,
+                        vec![],
+                        vec![tooltip::content(
+                            OpenState::Closed,
+                            Some(C_TOOLTIP_CONTENT_ID),
+                            vec![],
+                            vec![text("フォントサイズに対する行の高さの倍率です。")],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    );
+    div(
+        vec![("class", "blocks-form-layout-property-panel-panel")],
+        vec![
+            version_caption("カード枠 + パンくず（R0227）"),
+            card::root(
+                CardProps {
+                    size: Size::Sm,
+                    ..CardProps::default()
+                },
+                vec![],
+                vec![
+                    card::header(
+                        vec![],
+                        vec![
+                            breadcrumb_nav,
+                            card::title(vec![], vec![text("フォント設定")]),
+                        ],
+                    ),
+                    card::body(
+                        vec![],
+                        vec![
+                            unit_select(
+                                "blocks-form-layout-property-panel-c-font",
+                                "フォント",
+                                &[
+                                    ("noto-sans-jp", "Noto Sans JP"),
+                                    ("noto-serif-jp", "Noto Serif JP"),
+                                ],
+                                Size::Sm,
+                            ),
+                            number_field(
+                                "blocks-form-layout-property-panel-c-size",
+                                "サイズ",
+                                "20",
+                                "0",
+                                "9999",
+                                Size::Sm,
+                            ),
+                            line_height_row,
+                        ],
+                    ),
+                    card::footer(
+                        vec![],
+                        vec![clipboard::root(
+                            C_FONT_CSS_DECLARATION,
+                            false,
+                            vec![],
+                            vec![
+                                visually_hidden::root(
+                                    vec![],
+                                    vec![clipboard::label(
+                                        false,
+                                        Some(C_CLIP_INPUT_ID),
+                                        vec![("id", C_CLIP_LABEL_ID)],
+                                        vec![text("CSS 宣言")],
+                                    )],
+                                ),
+                                clipboard::control(
+                                    false,
+                                    vec![],
+                                    vec![
+                                        clipboard::value_text(
+                                            vec![("id", C_CLIP_INPUT_ID)],
+                                            vec![text(C_FONT_CSS_DECLARATION)],
+                                        ),
+                                        clipboard::trigger(
+                                            false,
+                                            vec![],
+                                            vec![
+                                                clipboard::indicator(
+                                                    false,
+                                                    false,
+                                                    vec![],
+                                                    vec![text("Copy")],
+                                                ),
+                                                clipboard::indicator(
+                                                    true,
+                                                    false,
+                                                    vec![],
+                                                    vec![text("Copied!")],
+                                                ),
+                                            ],
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
+/// D（R0228）: 極小サイズの入力を並べた狭幅パネル。「位置」の X/Y/幅/高さ +
+/// 単位選択のみを持つ（`fieldset` は Xs 段を登録していないため
+/// `Size::Sm` のまま、モジュール doc「使用部品」節参照）。
+fn panel_compact() -> Node {
+    let props = fieldset_props("blocks-form-layout-property-panel-d-position");
+    div(
+        vec![(
+            "class",
+            "blocks-form-layout-property-panel-panel blocks-form-layout-property-panel-panel--compact",
+        )],
+        vec![
+            version_caption("極小サイズの狭幅パネル（R0228）"),
+            fieldset::root(
+                &FieldsetRootProps { size: Size::Sm },
+                &props,
+                vec![],
+                vec![
+                    fieldset::legend(&props, vec![], vec![text("位置")]),
+                    div(
+                        vec![("class", "blocks-form-layout-property-panel-grid")],
+                        vec![
+                            number_field(
+                                "blocks-form-layout-property-panel-d-pos-x",
+                                "X",
+                                "120",
+                                "-9999",
+                                "9999",
+                                Size::Xs,
+                            ),
+                            number_field(
+                                "blocks-form-layout-property-panel-d-pos-y",
+                                "Y",
+                                "48",
+                                "-9999",
+                                "9999",
+                                Size::Xs,
+                            ),
+                            number_field(
+                                "blocks-form-layout-property-panel-d-pos-w",
+                                "幅",
+                                "320",
+                                "0",
+                                "9999",
+                                Size::Xs,
+                            ),
+                            number_field(
+                                "blocks-form-layout-property-panel-d-pos-h",
+                                "高さ",
+                                "180",
+                                "0",
+                                "9999",
+                                Size::Xs,
+                            ),
+                            div(
+                                vec![("class", "blocks-form-layout-property-panel-grid-span-2")],
+                                vec![unit_select(
+                                    "blocks-form-layout-property-panel-d-unit",
+                                    "単位",
+                                    &[("px", "px"), ("percent", "%"), ("rem", "rem")],
+                                    Size::Xs,
+                                )],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
+/// `form-layout-property-panel` の Demo 本体。集約元 4 件（R0225〜R0228、
+/// A〜D）を並記する（#2914。モジュール doc「集約元と版の対応」節参照）。
+/// 呼び出しごとに同一の `Node` を返す純関数。
+pub fn demo() -> Node {
+    div(
+        vec![("class", "blocks-form-layout-property-panel-layout")],
+        vec![
+            panel_basic(),
+            panel_theme_collapsible(),
+            panel_card_font(),
+            panel_compact(),
+        ],
+    )
+}
 ```
 
 ## 原案差分メモ
 
-- 主参照（対応表 ID R0225）は位置／レイアウト／文字の 3 節を持つプロパティ
-  パネルです。本 block は骨格（狭い縦長パネル・節の区切り・行の 2 列配置）
-  と主要 3 節を実装し、テーマ選択・カード枠・極小サイズ構成は後続イシュー
-  #2914 に回しています。
-- 単位選択（px/%/rem）は X/Y/幅/高さの 4 欄で 1 個の `native_select` を
-  共有する簡略化をしています（デザインツールの慣行に合わせた判断で、
-  欄ごとに 4 個の selector を並べていません）。回転は単位が `deg` 固定
-  のため selector を持たず、平文で添えています。
-- `segment_group`（方向・揃え）はネイティブ `disabled` の radio で選択
-  状態を固定表示にしています。フォント欄の `select` も閉じた状態で固定
-  です（開閉には `fandhe-frontend-wasm-full` の JS 配線が必要で、docs
-  サイトは JS ハイドレーションを行いません）。
-- 色欄は `color_swatch`（装飾、`aria-hidden`）+ 16 進値のテキスト入力
-  （`field`/`input`）の組み合わせで表現しています。
+- **R0225（A・主参照）**: 位置／レイアウト／文字の 3 節を持つプロパティ
+  パネルです（前半 #2913 で実装済み）。単位選択（px/%/rem）は X/Y/幅/高さ
+  の 4 欄で 1 個の `native_select` を共有する簡略化をしています（デザイン
+  ツールの慣行に合わせた判断で、欄ごとに 4 個の selector を並べていませ
+  ん）。回転は単位が `deg` 固定のため selector を持たず、平文で添えていま
+  す。`segment_group`（方向・揃え）はネイティブ `disabled` の radio で選択
+  状態を固定表示にしています。色欄は `color_swatch`（装飾、`aria-hidden`）
+  + 16 進値のテキスト入力（`field`/`input`）の組み合わせで表現していま
+  す。
+- **R0226（B）**: テーマ選択を先頭に、開閉式の節を 2 つ持つ版です。「塗り」
+  は開いた状態、「枠線」は閉じた状態で並記し、状態の違いを示します。
+  `collapsible` の trigger/content は無 JS の docs サイトでは開閉できない
+  ため `disabled: true` で固定し、開いた節・閉じた節の両方を SSR へ含める
+  ことで表現しています。`color_picker` は `ColorPickerProps { readonly:
+  true, .. }` を全パーツへ一律に渡し、表示値と見本がずれないようにしてい
+  ます。
+- **R0227（C）**: カード枠 + パンくずのヘッダーで包んだフォント設定の版で
+  す。パンくずの途中項目は遷移先を持たない平文表示（末尾のみ現在ページを
+  示す `current-link`）にしています。行間ラベルの横に添えた `tooltip` は
+  閉じた状態で固定です。フッターの `clipboard` はコピー対象を無害な CSS
+  宣言 1 行にしています。
+- **R0228（D）**: 極小サイズ（`Size::Xs`）の入力を並べた狭幅パネルです。
+  `fieldset` は Xs 段のサイズ variant を持たないため `Size::Sm` のままにし
+  ています。
+- `tooltip`/`clipboard` の trigger は `fandhe-frontend-wasm-full` に組み
+  込めば実際に機能する部品のため無効化していません（`disabled` を付けた
+  のは `segment_group`/`collapsible`/フォント欄の `select` のみ）。
 - 文言・配色・数値はすべて架空のものです。
 
-関連情報: [Fieldset](../themes/fieldset.md) / [Field](../themes/field.md) /
+関連情報: [Field](../themes/field.md) / [Fieldset](../themes/fieldset.md) /
 [Number Input](../themes/number-input.md) /
 [Native Select](../themes/native-select.md) / [Select](../themes/select.md) /
+[Color Picker](../themes/color-picker.md) /
+[Color Swatch](../themes/color-swatch.md) /
 [Segment Group](../themes/segment-group.md) /
-[Color Swatch](../themes/color-swatch.md) / [Separator](../themes/separator.md)
+[Collapsible](../themes/collapsible.md) / [Tooltip](../themes/tooltip.md) /
+[Card](../themes/card.md) / [Breadcrumb](../themes/breadcrumb.md) /
+[Clipboard](../themes/clipboard.md) / [Separator](../themes/separator.md)
