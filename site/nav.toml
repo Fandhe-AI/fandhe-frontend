@@ -112,6 +112,11 @@ title = "wireframe-ui"
 source = "examples/wireframe-ui/README.md"
 path = "/examples/wireframe-ui/"
 
+[[section.page]]
+title = "vercel-ssg"
+source = "examples/vercel-ssg/README.md"
+path = "/examples/vercel-ssg/"
+
 [[section]]
 title = "Primitives"
 # fandhe-frontend-headless-ui（unstyled headless UI）の索引・部品ページ
@@ -1532,6 +1537,11 @@ path = "/blocks/team-avatar-grid/"
 title = "team-bio-rows"
 source = "site/blocks/team-bio-rows.md"
 path = "/blocks/team-bio-rows/"
+
+[[section.group.page]]
+title = "team-photo-grid"
+source = "site/blocks/team-photo-grid.md"
+path = "/blocks/team-photo-grid/"
 
 [[section.group.page]]
 title = "team-split-list"

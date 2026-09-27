@@ -950,6 +950,7 @@ pub enum LayoutCss {
 | pricing-tiers-extra-row | #2876/#2877（親 #2875） | `marketing/pricing/pricing_tiers_extra_row.rs` |
 | team-avatar-grid | #2879（親 #2807） | `marketing/team/team_avatar_grid.rs` |
 | team-bio-rows | #2880（親 #2807） | `marketing/team/team_bio_rows.rs` |
+| team-photo-grid | #2881 | `marketing/team/team_photo_grid.rs` |
 | team-split-list | #2882（親 #2807） | `marketing/team/team_split_list.rs` |
 | testimonial-background-image | #2883 | `marketing/testimonial/testimonial_background_image.rs` |
 | testimonial-two-up | #2891 | `marketing/testimonial/testimonial_two_up.rs` |

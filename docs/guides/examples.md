@@ -6,7 +6,7 @@
 cargo プロジェクトです。本ページはサンプルの比較・読む順・
 `fw new --example` による取得手順をまとめます。
 
-## 1. 6 サンプルの比較
+## 1. 7 サンプルの比較
 
 全サンプルに共通する前提は「Rust ツールチェーン（`cargo`）」「crates.io
 （`https://index.crates.io` / `https://static.crates.io`）への到達性」
@@ -22,6 +22,7 @@ cargo-deny（`tools/ci/ensure-gate-tools.sh` で導入）」の 3 点です。�
 | [interactive-view-transitions](../../examples/interactive-view-transitions/README.md) | クライアント側状態管理・View Transitions の実演 | `fandhe-frontend-core` / `-app` / `-interactive`（+ `-wasm-full`） | `rustup target add wasm32-unknown-unknown` と、`wasm/Cargo.lock` の解決版に一致する wasm-bindgen-cli（ブラウザでの実動作確認時のみ） | 長 |
 | [headless-pre-styled-ui](../../examples/headless-pre-styled-ui/README.md) | Primitives / Themes 2 層 UI コンポーネントのショーケース | `fandhe-frontend-core` / `-pre-styled-ui`（headless 層 API は再エクスポート経由） | なし | 短 |
 | [wireframe-ui](../../examples/wireframe-ui/README.md) | ローファイ・モノクロのワイヤーフレーム UI（Phase 1〜8・全 49 部品）のショーケース | `fandhe-frontend-core` / `-wireframe-ui` | なし | 短 |
+| [vercel-ssg](../../examples/vercel-ssg/README.md) | SSG → Vercel Build Output API → `vercel deploy --prebuilt` の静的配置 | `fandhe-frontend-core` / `-server` | Vercel CLI とアカウント（デプロイを試す場合のみ） | 短 |
 
 > 「所要目安」は追加ツール導入の有無と手順ステップ数から算出した目安であり、実測値ではありません。
 
@@ -41,6 +42,7 @@ cargo-deny（`tools/ci/ensure-gate-tools.sh` で導入）」の 3 点です。�
    - クライアント側の状態管理・ページ遷移アニメーションを試したい → [interactive-view-transitions](../../examples/interactive-view-transitions/README.md)
    - UI 部品（Primitives / Themes 2 層）を試したい → [headless-pre-styled-ui](../../examples/headless-pre-styled-ui/README.md)
    - ローファイ・モノクロのワイヤーフレーム UI（blocks.pm 相当）を試したい → [wireframe-ui](../../examples/wireframe-ui/README.md)
+   - Vercel へ静的配置したい → [vercel-ssg](../../examples/vercel-ssg/README.md)
 3. **Step 3（応用）**
    目的別ガイド（[コンポーネント作成ガイド](./component-authoring.md) 等）と
    [API Reference](../api/component-api.md) へ進んでください。
@@ -167,6 +169,26 @@ RadioGroup/Avatar 等）を学べます。加えて `Theme::upsert_color` /
 セクション関数を参照してください。関連:
 `docs/design/wireframe-ui-architecture.md`。
 
+### 3.7 vercel-ssg
+
+親トラッキング #3282 の Phase 1（#3284〜#3286、#3288）で確定した Vercel
+上での唯一の既定方式（SSG → Vercel Build Output API →
+`vercel deploy --prebuilt`）を学べます。`vercel_runtime` 1.x は起動時に
+panic し、2.x は依存グラフ上限（60 件/深さ 6）を超えるため不採用と
+なった経緯は `docs/design/vercel-deployment-strategy.md`（docs サイト
+非掲載のためリンクではなくファイルパスで示します）を参照してください。
+
+`generate_pages`（HTML ページを Build Output API の `static/` へ）と
+`generate_assets`（`config.json`・`404.html` の生成）を組み合わせ、
+「ファイルシステムに一致しなければ 404」を `config.json` の `routes` で
+表現する方法を実演します。生成前に固定リテラルの出力先
+（`.vercel/output`）だけを削除する fail-closed な取り扱い（
+`vercel link` が作る `.vercel/project.json` は削除しない）も含みます。
+実装例は `src/main.rs` の `clean_output_dir` / `main` を参照してください。
+Vercel の Deployment Protection（Vercel Authentication／SSO）に関する
+注意は [vercel-ssg](../../examples/vercel-ssg/README.md) の README を
+参照してください。
+
 ## 4. `fw new --example` での取得
 
 各サンプルは `fw` CLI（`fandhe-frontend-cli`）の `--example` オプションで
@@ -180,7 +202,7 @@ fw new my-app --example ssr-routing
 
 `--example` に指定できるサンプル名は `ssr-routing` / `ssg-blog` /
 `dist-server-docker` / `interactive-view-transitions` /
-`headless-pre-styled-ui` / `wireframe-ui` の 6 種類です。展開
+`headless-pre-styled-ui` / `wireframe-ui` / `vercel-ssg` の 7 種類です。展開
 されたプロジェクトはリポジトリの `examples/` 配下と全ファイルバイト一致
 （パッケージ名の置換は行いません）で、そのまま `cargo build` / `cargo
 test` / `fw gate --project .` が通る状態です。

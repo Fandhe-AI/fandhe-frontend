@@ -2,8 +2,9 @@
 
 このディレクトリはリポジトリルート `examples/`（`ssr-routing/` /
 `ssg-blog/` / `dist-server-docker/` / `interactive-view-transitions/` /
-`headless-pre-styled-ui/` / `wireframe-ui/`）のバイト単位同梱コピーです。**正本は
-ルート `examples/` のまま**であり、本ディレクトリを直接編集しないでください。
+`headless-pre-styled-ui/` / `wireframe-ui/` / `vercel-ssg/`）のバイト単位同梱
+コピーです。**正本はルート `examples/` のまま**であり、本ディレクトリを
+直接編集しないでください。
 
 ## なぜ必要か
 
