@@ -318,6 +318,105 @@ jobs:
 
           docker rm -f "${CONTAINER_NAME}"
 
+      - name: Verify PORT / SIGTERM handling (issue #3338)
+        if: steps.changes.outputs.relevant == 'true'
+        # Vercel Container Images 移行（親 #3334）に向けて、dist-server が
+        # 実装済みの 2 挙動を CI で継続的に退行検知する。
+        #   - PORT 経路（#3336）: `FANDHE_FRONTEND_BIND_ADDR` 未設定時に
+        #     `PORT` 環境変数の値で listen する（`resolve_bind_addr`、
+        #     crates/dist-server/src/main.rs）。Vercel Container Images は
+        #     `PORT` でリスニングポートを渡すため、この経路が壊れると
+        #     コンテナが到達不能になる。
+        #   - graceful shutdown（#3337）: SIGTERM 受信後も処理中の接続を
+        #     `DRAIN_TIMEOUT_SECS`（25s）以内で drain してから終了コード 0
+        #     で終わる（`ShutdownSignals` / `GracefulShutdown` /
+        #     `drain_within`）。Vercel はコンテナ差し替え時に SIGTERM を
+        #     送るため、無視されると強制終了（SIGKILL）され接続が中断する。
+        #
+        # 検証範囲: (1) `FANDHE_FRONTEND_BIND_ADDR` を空文字で打ち消し
+        # `PORT` のみを渡した状態で readiness が通ること（PORT 経路が実際
+        # に使われたことの証拠）、(2) `docker stop`（SIGTERM 送信）後の
+        # コンテナ終了コードが 0 であること（無視されて `docker stop` の
+        # タイムアウトで SIGKILL された場合は 137 になる）、(3) drain の
+        # 開始・終了ログ（main.rs の固定英語リテラル文言との契約）が
+        # 出力されていること。3 点のいずれか欠落でも fail-closed で
+        # ジョブを失敗させる。
+        #
+        # ポートは直前の「Allocate app port」ステップの出力を再利用する
+        # （新たな割り当てステップは起こさない。直前の WASM 確認ステップが
+        # 必ず `docker rm -f "${CONTAINER_NAME}"` で片付けているためポート・
+        # コンテナ名とも競合しない）。ホスト側公開は既存ステップと同じく
+        # ループバック限定（`-p 127.0.0.1:PORT:PORT`）で外部到達不能。
+        env:
+          APP_PORT: ${{ steps.app_port.outputs.port }}
+        run: |
+          set -euo pipefail
+          # 念のための防御的 cleanup（直前ステップが必ず rm -f 済みのはずだが、
+          # 想定外の残存があっても衝突させず fail-closed に進める）。
+          docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
+
+          # FANDHE_FRONTEND_BIND_ADDR を空文字で渡し、Dockerfile 既定の
+          # `0.0.0.0:3100` を打ち消す（non_empty() が空文字を「未設定」に
+          # 正規化する契約、crates/dist-server/src/main.rs）。これにより
+          # PORT 環境変数のみが有効なリスニングポート決定要因になる。
+          docker run -d --name "${CONTAINER_NAME}" \
+            -p "127.0.0.1:${APP_PORT}:${APP_PORT}" \
+            -e "FANDHE_FRONTEND_BIND_ADDR=" \
+            -e "PORT=${APP_PORT}" \
+            fandhe-frontend-dist-server:ci
+          base_url="http://127.0.0.1:${APP_PORT}"
+
+          discard="$(mktemp)"
+          trap 'rm -f "$discard"' EXIT
+
+          ready=0
+          for _ in $(seq 1 30); do
+            if curl -fsS --max-time 2 -o "$discard" "${base_url}/"; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "::error::PORT env var did not bring up a reachable listener within 30s" >&2
+            docker logs "${CONTAINER_NAME}" || true
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+
+          # `docker stop -t 30`: SIGTERM を送り、DRAIN_TIMEOUT_SECS(25s) より
+          # 長い猶予（Vercel の 30 秒猶予に合わせた値）を明示指定する。
+          # `docker stop` の既定 10 秒には依存しない。ルート Dockerfile の
+          # `ENTRYPOINT ["/dist-server"]` は exec 形式のため dist-server が
+          # PID 1 として SIGTERM を直接受け取る。
+          docker stop -t 30 "${CONTAINER_NAME}"
+
+          exit_code=$(docker inspect -f '{{.State.ExitCode}}' "${CONTAINER_NAME}")
+          logs=$(docker logs "${CONTAINER_NAME}" 2>&1)
+
+          if [ "$exit_code" != "0" ]; then
+            echo "::error::dist-server did not exit cleanly after SIGTERM (exit_code=${exit_code}; 137 means it was force-killed, i.e. SIGTERM was ignored)" >&2
+            echo "$logs" >&2
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+
+          if ! echo "$logs" | grep -qF "draining in-flight connections (up to 25s)"; then
+            echo "::error::graceful shutdown drain-start log line not found" >&2
+            echo "$logs" >&2
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+
+          if ! echo "$logs" | grep -qF "graceful shutdown complete"; then
+            echo "::error::graceful shutdown drain-complete log line not found" >&2
+            echo "$logs" >&2
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+
+          docker rm -f "${CONTAINER_NAME}"
+
       - name: Verify final image does not leak the build toolchain (TASK-10.3c, issue #117)
         if: steps.changes.outputs.relevant == 'true'
         # TASK-10.3b で builder ステージへ追加した curl・wasm32 ターゲット・
