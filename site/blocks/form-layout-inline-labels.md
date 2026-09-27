@@ -21,6 +21,7 @@ Demo は 2 variant を併記します: 見出しとキャンセル/保存ボタ�
 ## Rust コード
 
 ```rust
+use crate::blocks::dummy_assets::{COMPANY_NAMES, PERSON_NAMES};
 use fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataListProps};

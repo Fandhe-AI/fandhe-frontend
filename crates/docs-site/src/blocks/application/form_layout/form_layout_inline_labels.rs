@@ -77,10 +77,10 @@
 //! 企業・PII を含まない、`crate::blocks::dummy_assets::PERSON_NAMES`/
 //! `COMPANY_NAMES` を使用）。
 
-use crate::blocks::dummy_assets::{COMPANY_NAMES, PERSON_NAMES};
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
+use crate::blocks::dummy_assets::{COMPANY_NAMES, PERSON_NAMES};
 use fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataListProps};
