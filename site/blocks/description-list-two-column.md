@@ -106,50 +106,56 @@ fn field_full(label: &str, value_children: Vec<Node>) -> Node {
     )
 }
 
+/// [`dummy_assets::PERSON_NAMES`] の氏名から架空メールアドレスを導出する
+/// （空白をピリオドへ・小文字化。実在するメールとの一致を避けるための
+/// 機械的な変換であり、氏名との対応が取れた実例にする）。
+fn applicant_email(name: &str) -> String {
+    format!("{}@example.com", name.to_lowercase().replace(' ', "."))
+}
+
 /// インスタンス 1 件分（`index` で人物・文言をずらす。`with_action` で
 /// 見出し行の右側に操作ボタンを持つか切り替える、モジュール doc「2
 /// インスタンス併記」参照）。
 fn instance(index: usize, with_action: bool) -> Node {
     let applicant = dummy_assets::PERSON_NAMES[index];
     let department = dummy_assets::JOB_TITLES[index % dummy_assets::JOB_TITLES.len()];
-    let email = "yamada.taro@example.com";
+    let email = applicant_email(applicant);
     let start_date = "2026-11-01";
     let summary = SUMMARIES[index % SUMMARIES.len()];
 
-    let header_children: Vec<Node> = vec![
-        div(
-            vec![("data-blocks-description-list-two-column-header-text", "")],
-            vec![
-                heading::heading(
-                    HeadingLevel::H3,
-                    &HeadingProps::default(),
-                    vec![],
-                    vec![text("申請内容")],
-                ),
-                styled_text::text(
-                    &TextProps {
-                        variant: TextVariant::Muted,
-                        ..TextProps::default()
-                    },
-                    vec![],
-                    vec![text("勤務条件の変更申請です。")],
-                ),
-            ],
-        ),
-        if with_action {
-            button::button(
-                &ButtonProps {
-                    variant: ButtonVariant::Outline,
-                    size: Size::Sm,
-                    ..ButtonProps::default()
+    let mut header_children: Vec<Node> = vec![div(
+        vec![("data-blocks-description-list-two-column-header-text", "")],
+        vec![
+            heading::heading(
+                HeadingLevel::H3,
+                &HeadingProps::default(),
+                vec![],
+                vec![text("申請内容")],
+            ),
+            styled_text::text(
+                &TextProps {
+                    variant: TextVariant::Muted,
+                    ..TextProps::default()
                 },
                 vec![],
-                vec![text("編集")],
-            )
-        } else {
-            div(vec![], vec![])
-        },
-    ];
+                vec![text("勤務条件の変更申請です。")],
+            ),
+        ],
+    )];
+    // with_action が false のときは第 2 子（ボタン）を挿入しない。空の
+    // div を置くと header の `gap` により見出し下へ余分な隙間が生じるため
+    // （Cursor Bugbot 指摘、PR #3350）。
+    if with_action {
+        header_children.push(button::button(
+            &ButtonProps {
+                variant: ButtonVariant::Outline,
+                size: Size::Sm,
+                ..ButtonProps::default()
+            },
+            vec![],
+            vec![text("編集")],
+        ));
+    }
 
     div(
         vec![("data-blocks-description-list-two-column-layout", "")],
@@ -167,7 +173,7 @@ fn instance(index: usize, with_action: bool) -> Node {
                 vec![
                     field("申請者", applicant),
                     field("所属", department),
-                    field("連絡先", email),
+                    field("連絡先", &email),
                     field("希望開始日", start_date),
                     field_full("概要", vec![text(summary)]),
                     field_full(
