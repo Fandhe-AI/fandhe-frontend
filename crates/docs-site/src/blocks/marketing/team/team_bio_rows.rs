@@ -336,12 +336,12 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-team-bio-rows-photo] {\n    flex: 0 0 8rem;\n  }\n\
 }\n\
 @media (min-width: 48rem) {\n  \
-[data-blocks-team-bio-rows-layout][data-blocks-team-bio-rows-variant=\"side\"] {\n    flex-direction: row;\n    align-items: flex-start;\n  }\n  \
-[data-blocks-team-bio-rows-layout][data-blocks-team-bio-rows-variant=\"side\"] .blocks-team-bio-rows-intro {\n    flex: 0 0 16rem;\n  }\n  \
-[data-blocks-team-bio-rows-layout][data-blocks-team-bio-rows-variant=\"side\"] .blocks-team-bio-rows-list {\n    flex: 1;\n  }\n\
+.blocks-team-bio-rows-layout[data-blocks-team-bio-rows-variant=\"side\"] {\n    flex-direction: row;\n    align-items: flex-start;\n  }\n  \
+.blocks-team-bio-rows-layout[data-blocks-team-bio-rows-variant=\"side\"] .blocks-team-bio-rows-intro {\n    flex: 0 0 16rem;\n  }\n  \
+.blocks-team-bio-rows-layout[data-blocks-team-bio-rows-variant=\"side\"] .blocks-team-bio-rows-list {\n    flex: 1;\n  }\n\
 }\n\
 @media (min-width: 64rem) {\n  \
-[data-blocks-team-bio-rows-layout][data-blocks-team-bio-rows-variant=\"top\"] .blocks-team-bio-rows-grid {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n\
+.blocks-team-bio-rows-layout[data-blocks-team-bio-rows-variant=\"top\"] .blocks-team-bio-rows-grid {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n\
 }\n";
 
 #[cfg(test)]
