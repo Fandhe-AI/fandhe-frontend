@@ -319,20 +319,28 @@ fn heading_band(variant: &str, heading_kind: Option<&str>, title: &'static str) 
         "breadcrumb" => Some(breadcrumb_nav()),
         _ => None,
     };
-    let mut children: Vec<Node> = Vec::new();
+    // 上段（見出し + アクション。`breadcrumb` kind はここへパンくずも含める）
+    // と下段（`tabs` kind のみのタブ風ナビ）の 2 行へ分ける。狭幅で
+    // タブナビが見出しと同一行に押し込まれて overflow: hidden により
+    // 切り取られるのを避けるため（Bugbot Medium/codex P1 是正）。
+    let mut top_row: Vec<Node> = Vec::new();
     if let Some(lead) = lead {
-        children.push(lead);
+        top_row.push(lead);
     }
-    children.push(heading(
+    top_row.push(heading(
         HeadingLevel::H3,
         &HeadingProps::default(),
         vec![],
         vec![text(title)],
     ));
+    top_row.push(heading_action());
+    let mut children = vec![div(
+        vec![("data-blocks-app-shell-stacked-heading-row", "")],
+        top_row,
+    )];
     if heading_kind == "tabs" {
         children.push(tabs_nav());
     }
-    children.push(heading_action());
     Some(div(
         vec![
             ("data-blocks-app-shell-stacked-heading", ""),

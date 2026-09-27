@@ -350,20 +350,28 @@ fn heading_band(variant: &str, heading_kind: Option<&str>, title: &'static str) 
         "breadcrumb" => Some(breadcrumb_nav()),
         _ => None,
     };
-    let mut children: Vec<Node> = Vec::new();
+    // 上段（見出し + アクション。`breadcrumb` kind はここへパンくずも含める）
+    // と下段（`tabs` kind のみのタブ風ナビ）の 2 行へ分ける。狭幅で
+    // タブナビが見出しと同一行に押し込まれて overflow: hidden により
+    // 切り取られるのを避けるため（Bugbot Medium/codex P1 是正）。
+    let mut top_row: Vec<Node> = Vec::new();
     if let Some(lead) = lead {
-        children.push(lead);
+        top_row.push(lead);
     }
-    children.push(heading(
+    top_row.push(heading(
         HeadingLevel::H3,
         &HeadingProps::default(),
         vec![],
         vec![text(title)],
     ));
+    top_row.push(heading_action());
+    let mut children = vec![div(
+        vec![("data-blocks-app-shell-stacked-heading-row", "")],
+        top_row,
+    )];
     if heading_kind == "tabs" {
         children.push(tabs_nav());
     }
-    children.push(heading_action());
     Some(div(
         vec![
             ("data-blocks-app-shell-stacked-heading", ""),
@@ -525,7 +533,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-app-shell-stacked-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-app-shell-stacked-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-app-shell-stacked-shell] {\n  container-type: inline-size;\n  container-name: blocks-app-shell-stacked;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n  overflow: hidden;\n}\n\
-[data-blocks-app-shell-stacked-root] {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
+[data-blocks-app-shell-stacked-root] {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-2) var(--fandhe-space-4);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
 [data-blocks-app-shell-stacked-logo] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  white-space: nowrap;\n}\n\
 [data-blocks-app-shell-stacked-nav-wrap] {\n  display: none;\n}\n\
 [data-blocks-app-shell-stacked-actions] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  margin-inline-start: auto;\n}\n\
@@ -534,7 +542,8 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-app-shell-stacked-toggle] {\n  display: inline-flex;\n}\n\
 [data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-app-shell-stacked-toggle][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-app-shell-stacked-panel] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  padding: 0 var(--fandhe-space-4) var(--fandhe-space-3);\n}\n\
-[data-blocks-app-shell-stacked-heading] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  padding: var(--fandhe-space-4);\n}\n\
+[data-blocks-app-shell-stacked-heading] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  padding: var(--fandhe-space-4);\n}\n\
+[data-blocks-app-shell-stacked-heading-row] {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-app-shell-stacked-heading][data-blocks-app-shell-stacked-variant=\"unified\"] {\n  background: var(--fandhe-color-bg-subtle);\n}\n\
 [data-blocks-app-shell-stacked-heading][data-blocks-app-shell-stacked-variant^=\"separate\"] {\n  background: var(--fandhe-color-bg);\n  border-block-end: 1px solid var(--fandhe-color-border);\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-app-shell-stacked-heading-action] {\n  margin-inline-start: auto;\n}\n\
