@@ -31,7 +31,13 @@
 //! 寄せを保つ。引用文（`blockquote::content`）の `font-size` は既定
 //! `--fandhe-font-font-size-xl` とし、`@media (min-width: 48rem)` で
 //! `--fandhe-font-font-size-2xl` へ上げる（モバイルファーストで「狭幅で
-//! 1 段小さい」を表す）。
+//! 1 段小さい」を表す）。この 2 セレクタは `.blocks-testimonial-centered-
+//! quote-layout` 祖先クラスを必須の前置とする。`[data-scope="blockquote"]
+//! [data-part="content"]` は他 block の `blockquote` にも一致する汎用属性
+//! セレクタのため、祖先クラスなしでは `assets/blocks.css`（全 block の
+//! `layout_css` を単一ファイルへ連結する設計）を介して他 block の引用文
+//! サイズまで変えてしまう（PR #3310 レビュー指摘、`blocks::stylesheet`
+//! 参照）。
 //!
 //! # 罫線の打ち消し（詳細度対策）
 //!
@@ -339,11 +345,11 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-testimonial-centered-quote-mark] {\n  display: inline-flex;\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-testimonial-centered-quote-stars] {\n  display: inline-flex;\n  gap: var(--fandhe-space-1);\n  color: var(--fandhe-color-accent-fg, var(--fandhe-color-fg));\n}\n\
 [data-scope=\"blockquote\"][data-part=\"root\"][data-blocks-testimonial-centered-quote-quote] {\n  border-inline-start: 0;\n  padding-inline-start: 0;\n}\n\
-[data-scope=\"blockquote\"][data-part=\"content\"] {\n  font-size: var(--fandhe-font-font-size-xl);\n}\n\
+.blocks-testimonial-centered-quote-layout [data-scope=\"blockquote\"][data-part=\"content\"] {\n  font-size: var(--fandhe-font-font-size-xl);\n}\n\
 [data-scope=\"blockquote\"][data-part=\"caption\"].blocks-testimonial-centered-quote-meta {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  margin-top: var(--fandhe-space-4);\n}\n\
 [data-scope=\"blockquote\"][data-part=\"caption\"][data-blocks-testimonial-centered-quote-inline] {\n  display: flex;\n  flex-direction: row;\n  align-items: baseline;\n  justify-content: center;\n  gap: var(--fandhe-space-2);\n  margin-top: var(--fandhe-space-4);\n}\n\
 @media (min-width: 48rem) {\n  \
-[data-scope=\"blockquote\"][data-part=\"content\"] {\n    font-size: var(--fandhe-font-font-size-2xl);\n  }\n\
+.blocks-testimonial-centered-quote-layout [data-scope=\"blockquote\"][data-part=\"content\"] {\n    font-size: var(--fandhe-font-font-size-2xl);\n  }\n\
 }\n";
 
 #[cfg(test)]
