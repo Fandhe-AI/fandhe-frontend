@@ -281,6 +281,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonial-card-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonial-masonry-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonial-split-image/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonial-two-up/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonials-stack/index.html"
           # Marketing / Logo Cloud
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/logo-cloud-grid/index.html"
@@ -386,6 +387,8 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/section-heading-stacked/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/section-heading-stats/index.html"
           # Application / App Shell
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/app-shell-sidebar-header/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/app-shell-navbar-columns/index.html"
           # Application / Sidebar
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/sidebar-07/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/sidebar-03/index.html"

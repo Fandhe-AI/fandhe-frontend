@@ -1485,6 +1485,11 @@ source = "site/blocks/testimonial-split-image.md"
 path = "/blocks/testimonial-split-image/"
 
 [[section.group.page]]
+title = "testimonial-two-up"
+source = "site/blocks/testimonial-two-up.md"
+path = "/blocks/testimonial-two-up/"
+
+[[section.group.page]]
 title = "testimonials-stack"
 source = "site/blocks/testimonials-stack.md"
 path = "/blocks/testimonials-stack/"
@@ -1967,6 +1972,19 @@ path = "/blocks/section-heading-stacked/"
 title = "section-heading-stats"
 source = "site/blocks/section-heading-stats.md"
 path = "/blocks/section-heading-stats/"
+
+[[section.group]]
+title = "App Shell"
+
+[[section.group.page]]
+title = "app-shell-navbar-columns"
+source = "site/blocks/app-shell-navbar-columns.md"
+path = "/blocks/app-shell-navbar-columns/"
+
+[[section.group.page]]
+title = "app-shell-sidebar-header"
+source = "site/blocks/app-shell-sidebar-header.md"
+path = "/blocks/app-shell-sidebar-header/"
 
 [[section.group]]
 title = "Sidebar"
