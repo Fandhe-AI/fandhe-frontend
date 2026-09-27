@@ -396,6 +396,7 @@ jobs:
           # Application / Navbar
           # Application / Page Heading
           # Application / Card Heading
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-heading-toolbar/index.html"
           # Application / List
           # Application / Table
           # Application / Grid List
