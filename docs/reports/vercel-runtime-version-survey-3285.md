@@ -62,7 +62,7 @@
 | 対象 | 状態 | SHA / 版 | 備考 |
 |---|---|---|---|
 | `vercel/vercel`（main） | active | `c628be7835e03a965b93e9cf9e2bd5ac2acbf5eb`（2026-09-08） | `crates/vercel_runtime/Cargo.toml` は `version = "2.4.0"`。crates.io 公開の `2.4.1` より 1 パッチ古い（モノレポの publish タイミングのずれと見られ、依存の構造〔`lambda_runtime` 非依存〕は同一） |
-| `vercel-community/rust`（main） | **archived**（`pushed_at` 2026-01-22） | `dd0ba46aed5a6baeb5b65bbd915dde0408c42665`（2025-12-08） | `crates/vercel_runtime/Cargo.toml` は `version = "1.1.6"`、`lambda_runtime = "0.14.2"` 依存。**crates.io 公開の 1.1.6 と完全に同一内容**のため、別途ビルド・デプロイを行わずローカル静的確認のみで十分と判断した（下記 §8 のとおり README に明示的な Deprecation Notice あり） |
+| `vercel-community/rust`（main） | **archived**（`pushed_at` 2026-01-22） | `dd0ba46aed5a6baeb5b65bbd915dde0408c42665`（2025-12-08） | `crates/vercel_runtime/Cargo.toml` は `version = "1.1.6"`、`lambda_runtime = "0.14.2"` 依存。crates.io 公開の `1.1.6` パッケージと `src/*.rs`（4 ファイル）・`Cargo.toml.orig` を SHA-256 で突合し **バイト単位で完全一致**することを実測した（下記 §6.1 参照）。別途ビルド・デプロイは行わず、この実測差分確認のみで十分と判断した（下記 §8 のとおり README に明示的な Deprecation Notice あり） |
 
 ### 3.3 ビルダー（npm パッケージ）
 
@@ -156,10 +156,15 @@ async fn main() -> Result<(), Error> {
    → `vercel deploy --prod --yes`（Vercel 側ビルド、`--prebuilt` 不使用）→
    `curl` → `vercel logs --expand --limit 200` → `vercel project remove` の順で
    実 Vercel 環境の検証を行った。
-6. セル E（`vercel-community/rust` main）はリポジトリ内容が crates.io 公開の
-   `1.1.6` と完全一致することを `Cargo.toml` の版・依存指定の突合で確認し、
-   別途ビルド・デプロイは行わなかった（README の明示的な Deprecation Notice も
-   踏まえ、費用対効果の観点から静的確認で打ち切った）。
+6. セル E（`vercel-community/rust` main）は `crates.io` から `1.1.6` パッケージ
+   （`.crate` ファイル）を取得し、`gh api repos/vercel-community/rust/contents/...`
+   で git 側の `crates/vercel_runtime/` 配下の同名ファイルを取得したうえで、
+   両者を `diff`・`sha256sum` で突合した。`Cargo.toml` の版・依存指定だけでなく
+   実装ソース（`src/http.rs`・`src/lib.rs`・`src/request.rs`・`src/response.rs`）
+   と `Cargo.toml.orig` の 5 ファイル全てがバイト単位で完全一致することを実測し
+   （§6.1）、別途ビルド・デプロイは行わなかった（README の明示的な
+   Deprecation Notice も踏まえ、費用対効果の観点でビルド・デプロイまでは
+   打ち切った）。
 7. セル A・C・D・F は本調査では実デプロイを行わなかった（§6 のとおり、セル B の
    実測とクレート依存構造の静的解析だけで受入基準を満たす結論に達したため。
    理由は各セルの表に記載）。
@@ -172,10 +177,39 @@ async fn main() -> Result<(), Error> {
 | B | **2.4.1（crates.io）** | `@vercel/rust`（npm 12.0.1 系、zero-config） | **成功**（実測） | **成功**（実測） | **200**（実測） | なし。ローカルは `Dev server listening: 3000` で待受、Vercel でも同一 43 個の環境変数名（`AWS_LAMBDA_*` なし）で正常応答 | **該当パッケージなし**（`error: package ID specification lambda_runtime did not match any packages`）＝依存グラフに存在しない |
 | C | 2.4.1 | `vercel-rust@4.0.11` | 未検証（B で解消を確認済みのため、旧コミュニティビルダーとの組み合わせを別途検証する実益が薄いと判断し打ち切り） | 未検証（同上） | 未検証 | 未検証 | 未検証 |
 | D | git `vercel/vercel` main（`c628be78`、`Cargo.toml` は `version = "2.4.0"`） | `@vercel/rust`（npm 12.0.1 系） | 未実施（Cargo.toml 突合で B の crates.io `2.4.1` と依存構造が同一〔`lambda_runtime` 非依存〕であることを確認済みのため、追加のビルドを打ち切り） | 未検証 | 未検証 | 未検証 | 未検証（静的確認では B と同型） |
-| E | git `vercel-community/rust` main（`dd0ba46a`、`Cargo.toml` は `version = "1.1.6"`） | `vercel-rust@4.0.11` | 未実施（`Cargo.toml`・依存指定〔`lambda_runtime = "0.14.2"`〕が crates.io 公開の 1.1.6 と完全一致することを確認済み。README に Deprecation Notice あり） | 未検証 | 未検証 | A と同一と推定（静的確認） | 静的確認では A と同型 |
+| E | git `vercel-community/rust` main（`dd0ba46a`、`Cargo.toml` は `version = "1.1.6"`） | `vercel-rust@4.0.11` | 未実施（`src/*.rs` 4 ファイル + `Cargo.toml.orig` が crates.io 公開の 1.1.6 と SHA-256 でバイト完全一致することを実測済み〔§6.1〕。README に Deprecation Notice あり） | 未検証 | 未検証 | A と同一と推定（ソース完全一致の実測に基づく推定。ビルド・デプロイ自体は未実施） | 実測で A と同一ソース |
 | F | 1.1.6 | `@vercel/rust`（npm 12.0.1 系） | 未検証 | 未検証（30 分の打ち切り基準内で優先度を B に割いたため） | 未検証 | 未検証 | 未検証 |
 | G | `lambda_runtime = "=1.4.0"`（単体） | デプロイなし | `cargo fetch` 成功 | 該当なし | 該当なし | 該当なし（静的確認のみ） | 該当（対象そのもの） |
 | - | `vercel_runtime 5.0.0-alpha.1` | - | - | - | - | - | crates.io で **yanked** のため対象外 |
+
+### 6.1 セル E: crates.io `1.1.6` パッケージと git `dd0ba46a` のソース突合
+
+`crates.io` の `/api/v1/crates/vercel_runtime/1.1.6/download`（`.crate` アーカイブ、
+crates.io が公開時にビルドした tarball）を取得して展開し、
+`gh api repos/vercel-community/rust/contents/crates/vercel_runtime/<path>?ref=dd0ba46aed5a6baeb5b65bbd915dde0408c42665`
+で同じパスの git 側ファイルを取得したうえで、両者を `diff -u` と `sha256sum` で
+突合した（実装ソース全 4 ファイル + `Cargo.toml.orig`）。
+
+| ファイル | `diff -u` | SHA-256（両者一致） |
+|---|---|---|
+| `src/http.rs` | 差分なし | `06687546912cf3fee920a5b1b08f8509fc439e66c1a82d425f567d627855b164` |
+| `src/lib.rs` | 差分なし | `31714502741a0e89fb9163cd23975401296285d08c4dbd12da3816f66328cb36` |
+| `src/request.rs` | 差分なし | `0704794995564d7ac82f4c6d19d02708df88c499f33119ef459570eeacd55291` |
+| `src/response.rs` | 差分なし | `6f98d3efbf344b726a07c862bbf450520dcbf94ff942eecb2320c3e43de9145c` |
+| `Cargo.toml.orig` | 差分なし | `6fb520f9c0fe9f568697a6bf0fbf8a5311341763ad3e4643ce525f54383badc8` |
+
+実装ソース 4 ファイル・`Cargo.toml.orig` の計 5 ファイルすべてがバイト単位で
+完全一致した。したがって「crates.io 公開の `1.1.6` と git `dd0ba46a` は
+`Cargo.toml` の版・依存指定が一致する」という弱い主張ではなく、
+**実装ソース自体が完全一致する**ことを実測で確認している。この実測は
+検証用の一時ディレクトリ（リポジトリ外）で行い、取得ファイルはいずれも
+本リポジトリには含めていない。
+
+一方、実際のビルド・実行（`cargo build`・Vercel デプロイ）は git `dd0ba46a`
+に対しては行っていない。上表「A と同一と推定」は、ソースが完全一致する
+という実測結果からの論理的帰結（同一ソース・同一依存版であれば同一挙動に
+なるはず）であり、ビルド・デプロイでの再現までは実施していない推定である
+旨を明記する。
 
 セル C・D・F を打ち切った理由の補足: セル B（新クレート + 新ビルダー、zero-config）
 で「2.x なら解消する」という受入基準の核心が実測で確定し、かつ §7 の静的解析で
