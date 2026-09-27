@@ -94,8 +94,18 @@ use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::sidebar;
 use fandhe_frontend_pre_styled_ui::sidebar::{
-    Sidebar, SidebarCollapsible, SidebarMenuButtonProps, SidebarProps, SidebarState,
+    Sidebar, SidebarCollapsible, SidebarMenuButtonProps, SidebarMenuButtonSize, SidebarProps,
+    SidebarState,
 };
+
+/// 実在の自リポジトリ URL（`header_simple_bar` の「`href` の方針」節と
+/// 同型。`href="#"` は `linkcheck` が拒否する死リンクのため使わない）。
+/// メインナビ項目・モバイルナビパネル双方の唯一のリンク先とし、狭幅で
+/// キーボード利用者が到達した先を実際に操作可能なリンクにする（codex(P2)
+/// 指摘、イシュー #2894 PR #3324。`href: None` の `menu_button` は無 JS 環境
+/// では動作のない `<button>` になり、モバイルナビパネル経由の唯一の到達
+/// 手段が塞がれてしまう）。
+const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 /// 自作の単純な矩形アイコン（`sidebar_07::geo_icon` と同型。lucide 等の
 /// 著作物を複製しないためのモジュール doc「アイコンは自作」節参照）。
@@ -153,7 +163,7 @@ fn nav_item(
 ) -> Node {
     let button = sidebar::menu_button(
         &SidebarMenuButtonProps {
-            href: None,
+            href: Some(REPO),
             active,
             ..Default::default()
         },
@@ -252,6 +262,9 @@ fn teams_group(suffix: &str) -> Node {
 }
 
 /// footer のプロフィール行（avatar フォールバック + 架空氏名・役職）。
+/// `SidebarMenuButtonSize::Lg`（`height: 3rem`）を指定する（cursor(Medium)
+/// 指摘、PR #3324。既定の `height: 2rem` では氏名 + 役職の 2 行
+/// （`line-height: 1.2` で約 2.1rem）と avatar がボタン内で欠落・はみ出す）。
 fn profile_footer() -> Node {
     let name = dummy_assets::PERSON_NAMES[0];
     let title = dummy_assets::JOB_TITLES[0];
@@ -269,6 +282,7 @@ fn profile_footer() -> Node {
                     &SidebarMenuButtonProps {
                         href: None,
                         active: false,
+                        size: SidebarMenuButtonSize::Lg,
                         ..Default::default()
                     },
                     Some(avatar::root(
@@ -530,6 +544,17 @@ pub const BLOCK: Block = Block {
 /// 行う」節参照。`header_flyout_menu` の前例と同型）。面色（`surface`）は
 /// リテラル色を書かず `--fandhe-color-accent*` トークン参照のみで
 /// `--fandhe-color-sidebar-*` を上書きする。
+///
+/// `[data-blocks-app-shell-sidebar-mobile-nav]` は単独の属性セレクタ
+/// （詳細度 `(0,1,0)`）ではなく `[data-scope="collapsible"][data-part=
+/// "content"][data-blocks-app-shell-sidebar-mobile-nav]`（`(0,3,0)`）で
+/// 記述する（Bugbot/codex(P2) 再指摘、PR #3324。pre-styled-ui の
+/// collapsible content base 規則が同じ `(0,2,0)` の `margin-top`/
+/// `padding`/`border`/`border-radius` を常時宣言しており、単独属性
+/// セレクタでは詳細度で負けてカード風の余白・枠線・角丸が残っていた。
+/// `header_simple_bar` の「CSS 特異性」節と同型の対処。`margin-top`/
+/// `border`/`border-radius` を明示的に `0` へ戻し、フラットな
+/// パネル境界線（`border-bottom` のみ）を保つ）。
 const LAYOUT_CSS: &str = "\
 .blocks-demo.blocks-app-shell-sidebar {\n  padding: 0;\n}\n\
 [data-blocks-app-shell-sidebar-stack] {\n  display: flex;\n  flex-direction: column;\n  gap: 1rem;\n}\n\
@@ -543,13 +568,13 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-app-shell-sidebar-topbar] {\n  display: none;\n  align-items: center;\n  gap: 0.75rem;\n  padding: 0.75rem 1rem;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 [data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-app-shell-sidebar-toggle][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-blocks-app-shell-sidebar-screen-name] {\n  margin-inline-end: auto;\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n}\n\
-[data-blocks-app-shell-sidebar-mobile-nav] {\n  display: none;\n  flex-direction: column;\n  gap: 0.25rem;\n  padding: 0.5rem 1rem 1rem;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
+[data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-app-shell-sidebar-mobile-nav] {\n  display: none;\n  flex-direction: column;\n  gap: 0.25rem;\n  margin-top: 0;\n  padding: 0.5rem 1rem 1rem;\n  border: 0;\n  border-radius: 0;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-app-shell-sidebar-main] {\n  display: flex;\n  flex-direction: column;\n  gap: 1rem;\n  padding: 1.5rem;\n}\n\
 [data-blocks-app-shell-sidebar-placeholder] {\n  min-height: 16rem;\n  border: 2px dashed var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n}\n\
 @container blocks-app-shell-sidebar (max-width: 40rem) {\n  \
 [data-scope=\"sidebar\"][data-part=\"root\"] {\n    display: none;\n  }\n  \
 [data-blocks-app-shell-sidebar-topbar] {\n    display: flex;\n  }\n  \
-[data-blocks-app-shell-sidebar-mobile-nav] {\n    display: flex;\n  }\n\
+[data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-app-shell-sidebar-mobile-nav] {\n    display: flex;\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -733,6 +758,60 @@ mod tests {
         assert!(
             !LAYOUT_CSS.contains('#'),
             "LAYOUT_CSS should not contain literal hex color values"
+        );
+    }
+
+    /// メインナビ項目（常設サイドバー・モバイルナビパネル双方）が実在の
+    /// 自リポジトリ URL を `href` に持つ操作可能なリンクであること
+    /// （`href="#"` は使わない。codex(P2) 指摘、PR #3324）。
+    #[test]
+    fn main_nav_items_are_reachable_links() {
+        let html = render(&demo());
+        assert!(
+            html.matches(r#"href="https://github.com/Fandhe-AI/fandhe-frontend""#)
+                .count()
+                >= 10,
+            "main nav items across the 3 sidebar instances and 3 mobile nav \
+             panels (5 items each) should render real hrefs"
+        );
+        assert!(
+            !html.contains(r##"href="#""##),
+            "demo should not use dead href=\"#\" links (linkcheck rejects them)"
+        );
+    }
+
+    /// `LAYOUT_CSS` の mobile-nav 規則が pre-styled-ui の collapsible
+    /// content base 規則（`(0,2,0)`）へ詳細度で勝つ複合セレクタ（`(0,3,0)`）
+    /// で書かれ、カード風の余白・枠線・角丸を明示的に打ち消すこと
+    /// （Bugbot/codex(P2) 再指摘、PR #3324）。
+    #[test]
+    fn mobile_nav_layout_css_outranks_collapsible_content_recipe() {
+        assert!(
+            LAYOUT_CSS.contains(
+                r#"[data-scope="collapsible"][data-part="content"][data-blocks-app-shell-sidebar-mobile-nav]"#
+            ),
+            "mobile-nav rule should be compounded with the collapsible content \
+             part selector to win specificity over the base recipe"
+        );
+        assert!(
+            LAYOUT_CSS.contains("margin-top: 0")
+                && LAYOUT_CSS.contains("border: 0")
+                && LAYOUT_CSS.contains("border-radius: 0"),
+            "mobile-nav rule should explicitly reset the card-like spacing/border \
+             the collapsible content base recipe always declares"
+        );
+    }
+
+    /// footer のプロフィール行が `data-size="lg"`（`height: 3rem`）を持つこと
+    /// （cursor(Medium) 指摘、PR #3324。既定の 2rem では氏名 + 役職の 2 行 +
+    /// avatar がボタン内に収まらない）。
+    #[test]
+    fn profile_footer_menu_button_uses_lg_size() {
+        let html = render(&demo());
+        assert_eq!(
+            html.matches(r#"data-size="lg""#).count(),
+            3,
+            "each of the 3 instances should render its profile menu-button at size=lg"
         );
     }
 }

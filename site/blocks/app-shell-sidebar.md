@@ -52,8 +52,18 @@ use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::sidebar;
 use fandhe_frontend_pre_styled_ui::sidebar::{
-    Sidebar, SidebarCollapsible, SidebarMenuButtonProps, SidebarProps, SidebarState,
+    Sidebar, SidebarCollapsible, SidebarMenuButtonProps, SidebarMenuButtonSize, SidebarProps,
+    SidebarState,
 };
+
+/// 実在の自リポジトリ URL（`header_simple_bar` の「`href` の方針」節と
+/// 同型。`href="#"` は `linkcheck` が拒否する死リンクのため使わない）。
+/// メインナビ項目・モバイルナビパネル双方の唯一のリンク先とし、狭幅で
+/// キーボード利用者が到達した先を実際に操作可能なリンクにする（codex(P2)
+/// 指摘、イシュー #2894 PR #3324。`href: None` の `menu_button` は無 JS 環境
+/// では動作のない `<button>` になり、モバイルナビパネル経由の唯一の到達
+/// 手段が塞がれてしまう）。
+const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 /// 自作の単純な矩形アイコン（`sidebar_07::geo_icon` と同型。lucide 等の
 /// 著作物を複製しないためのモジュール doc「アイコンは自作」節参照）。
@@ -111,7 +121,7 @@ fn nav_item(
 ) -> Node {
     let button = sidebar::menu_button(
         &SidebarMenuButtonProps {
-            href: None,
+            href: Some(REPO),
             active,
             ..Default::default()
         },
@@ -210,6 +220,9 @@ fn teams_group(suffix: &str) -> Node {
 }
 
 /// footer のプロフィール行（avatar フォールバック + 架空氏名・役職）。
+/// `SidebarMenuButtonSize::Lg`（`height: 3rem`）を指定する（cursor(Medium)
+/// 指摘、PR #3324。既定の `height: 2rem` では氏名 + 役職の 2 行
+/// （`line-height: 1.2` で約 2.1rem）と avatar がボタン内で欠落・はみ出す）。
 fn profile_footer() -> Node {
     let name = dummy_assets::PERSON_NAMES[0];
     let title = dummy_assets::JOB_TITLES[0];
@@ -227,6 +240,7 @@ fn profile_footer() -> Node {
                     &SidebarMenuButtonProps {
                         href: None,
                         active: false,
+                        size: SidebarMenuButtonSize::Lg,
                         ..Default::default()
                     },
                     Some(avatar::root(
