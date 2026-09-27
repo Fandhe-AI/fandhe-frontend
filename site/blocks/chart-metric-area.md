@@ -38,7 +38,7 @@ use fandhe_frontend_pre_styled_ui::Size;
 /// `span` のみで組む、モジュール doc「`<button>` の内側に…」節参照）。
 fn metric_button(
     label: &'static str,
-    value: &'static str,
+    value: &str,
     delta: &'static str,
     up: bool,
     selected: bool,
@@ -51,6 +51,7 @@ fn metric_button(
     button::button(
         &ButtonProps {
             variant: ButtonVariant::Ghost,
+            disabled: true,
             ..ButtonProps::default()
         },
         attrs,
@@ -81,15 +82,6 @@ fn metric_button(
 /// 「指標切り替え」variant（主参照。`variant="switch"`）。3 指標のうち
 /// 「Sessions」のみ選択中の固定状態を示す（無 JS のため切り替えない）。
 fn instance_switch() -> Node {
-    let metrics = div(
-        vec![("data-blocks-chart-metric-area-metrics", "")],
-        vec![
-            metric_button("Active users", "8,420", "+3.2%", true, false),
-            metric_button("Sessions", "21,930", "+11.4%", true, true),
-            metric_button("Conversion", "4.6%", "-0.3%", false, false),
-        ],
-    );
-
     let categories: Vec<String> = dummy_assets::SAMPLE_CHART_CATEGORIES
         .iter()
         .map(|s| (*s).to_string())
@@ -102,6 +94,25 @@ fn instance_switch() -> Node {
         )],
     )
     .expect("chart-metric-area 固定データは常に有効な ChartData を構築できる");
+
+    // 選択中「Sessions」の表示値は直下の面グラフが描画する系列
+    // （`SAMPLE_CHART_SERIES_A`）の合計から算出する（PR #3345 codex-review
+    // P2 指摘の是正: 固定文言だとグラフのデータと食い違う）。
+    let sessions_total = total(&data.series()[0]);
+    let metrics = div(
+        vec![("data-blocks-chart-metric-area-metrics", "")],
+        vec![
+            metric_button("Active users", "8,420", "+3.2%", true, false),
+            metric_button(
+                "Sessions",
+                &format!("{sessions_total:.0}"),
+                "+11.4%",
+                true,
+                true,
+            ),
+            metric_button("Conversion", "4.6%", "-0.3%", false, false),
+        ],
+    );
 
     let chart = area_chart::area_chart(
         &AreaChartProps {

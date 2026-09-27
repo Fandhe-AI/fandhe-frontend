@@ -12,8 +12,13 @@
 //! 面グラフを表示）と「合計＋内訳」（`variant="breakdown"`。合計と系列別
 //! 内訳を並べ、下に積み上げ面グラフ＋凡例を表示）を 1 ページに縦へ併記
 //! する（片方を選んで JS で切り替える機構は持たない）。指標切り替えボタン
-//! は `aria-pressed` で選択状態を静的に伝えるのみで、クリックしても表示は
-//! 変化しない（[`LAYOUT_CSS`] 参照）。
+//! は `aria-pressed` で選択状態を静的に伝えるが、クリックしても表示は
+//! 変化しない（無 JS の静的表示のため）。押しても何も起きない有効な
+//! `<button>` は dead control（PR #3345 codex-review P1 指摘）にあたるため、
+//! `feature_accordion_image` のカテゴリ切替ボタン列（形 B）と同じ考え方で
+//! `ButtonProps { disabled: true, .. }`（ネイティブ `disabled` +
+//! `aria-disabled="true"`）を併せ持たせ、キーボード・クリックいずれの
+//! 操作対象からも外す（[`LAYOUT_CSS`] 参照）。
 //!
 //! # `<button>` の内側に `dl`/`dd` を置かない理由
 //!
@@ -23,6 +28,15 @@
 //! `down_indicator` の装飾 `span` のみを流用する）。合計・内訳側は
 //! ボタンで括らない静的な見出しのため、`stat::root` の `<dl>` 意味論を
 //! そのまま使える。
+//!
+//! # 指標切り替えボタン内部の縦積み（Cursor Bugbot Medium 指摘の是正）
+//!
+//! `button::button` の recipe は `display: inline-flex`（横並び）で
+//! ラベル・値・増減の 3 `span` を並べるため、各 `span` に `display: block`
+//! を指定するだけでは flex item 化されて無視され縦積みにならない。
+//! [`LAYOUT_CSS`] で `[data-blocks-chart-metric-area-metrics]
+//! [data-scope="button"]` に `flex-direction: column` を上書きし、意図した
+//! 縦積みへ矯正する。
 //!
 //! # CSS フックに data 属性を使う理由
 //!
@@ -63,7 +77,7 @@ use fandhe_frontend_pre_styled_ui::Size;
 /// `span` のみで組む、モジュール doc「`<button>` の内側に…」節参照）。
 fn metric_button(
     label: &'static str,
-    value: &'static str,
+    value: &str,
     delta: &'static str,
     up: bool,
     selected: bool,
@@ -76,6 +90,7 @@ fn metric_button(
     button::button(
         &ButtonProps {
             variant: ButtonVariant::Ghost,
+            disabled: true,
             ..ButtonProps::default()
         },
         attrs,
@@ -106,15 +121,6 @@ fn metric_button(
 /// 「指標切り替え」variant（主参照。`variant="switch"`）。3 指標のうち
 /// 「Sessions」のみ選択中の固定状態を示す（無 JS のため切り替えない）。
 fn instance_switch() -> Node {
-    let metrics = div(
-        vec![("data-blocks-chart-metric-area-metrics", "")],
-        vec![
-            metric_button("Active users", "8,420", "+3.2%", true, false),
-            metric_button("Sessions", "21,930", "+11.4%", true, true),
-            metric_button("Conversion", "4.6%", "-0.3%", false, false),
-        ],
-    );
-
     let categories: Vec<String> = dummy_assets::SAMPLE_CHART_CATEGORIES
         .iter()
         .map(|s| (*s).to_string())
@@ -127,6 +133,25 @@ fn instance_switch() -> Node {
         )],
     )
     .expect("chart-metric-area 固定データは常に有効な ChartData を構築できる");
+
+    // 選択中「Sessions」の表示値は直下の面グラフが描画する系列
+    // （`SAMPLE_CHART_SERIES_A`）の合計から算出する（PR #3345 codex-review
+    // P2 指摘の是正: 固定文言だとグラフのデータと食い違う）。
+    let sessions_total = total(&data.series()[0]);
+    let metrics = div(
+        vec![("data-blocks-chart-metric-area-metrics", "")],
+        vec![
+            metric_button("Active users", "8,420", "+3.2%", true, false),
+            metric_button(
+                "Sessions",
+                &format!("{sessions_total:.0}"),
+                "+11.4%",
+                true,
+                true,
+            ),
+            metric_button("Conversion", "4.6%", "-0.3%", false, false),
+        ],
+    );
 
     let chart = area_chart::area_chart(
         &AreaChartProps {
@@ -331,6 +356,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-chart-metric-area-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-chart-metric-area-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-chart-metric-area-metrics] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  margin-block-end: var(--fandhe-space-4);\n}\n\
+[data-blocks-chart-metric-area-metrics] [data-scope=\"button\"] {\n  flex-direction: column;\n  align-items: flex-start;\n  gap: 0.125rem;\n}\n\
 .blocks-chart-metric-area-metric-label {\n  display: block;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-chart-metric-area-metric-value {\n  display: block;\n  font-size: var(--fandhe-font-font-size-lg, 1.125rem);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n}\n\
 .blocks-chart-metric-area-metric-delta {\n  display: block;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n}\n\
@@ -384,6 +410,31 @@ mod tests {
         );
         // 指標ボタン 3 + legend トリガー 2 = type="button" 5 件。
         assert_eq!(html.matches("type=\"button\"").count(), 5);
+    }
+
+    /// 指標切り替えボタン 3 個が `disabled`/`aria-disabled="true"` を持ち、
+    /// クリック操作不能な dead control ではないこと（PR #3345 codex-review
+    /// P1 指摘の是正）。legend トリガー（breakdown 側）は disabled ではない
+    /// ため、`aria-disabled="true"` の件数は指標ボタン分の 3 件に限る。
+    #[test]
+    fn metric_buttons_are_disabled_not_clickable() {
+        let html = render(&demo());
+        assert_eq!(html.matches(r#"aria-disabled="true""#).count(), 3);
+        // `data-disabled=""` も部分文字列として `disabled=""` を含むため、
+        // ネイティブ `disabled` 属性のみを数えるには先頭の空白まで含める。
+        assert_eq!(html.matches(r#" disabled="""#).count(), 3);
+    }
+
+    /// 選択中「Sessions」の表示値が、直下の面グラフが描画する系列
+    /// （`SAMPLE_CHART_SERIES_A`）の合計と一致すること（PR #3345
+    /// codex-review P2 指摘の是正）。
+    #[test]
+    fn selected_metric_value_matches_chart_series_total() {
+        use crate::blocks::dummy_assets::SAMPLE_CHART_SERIES_A;
+        let expected: f64 = SAMPLE_CHART_SERIES_A.iter().sum();
+        let html = render(&demo());
+        let needle = format!("class=\"blocks-chart-metric-area-metric-value\">{expected:.0}<");
+        assert!(html.contains(&needle), "html={html}");
     }
 
     /// `<button` の内側に `<dl`/`<dd` が現れないこと（phrasing content 制約）。
