@@ -21,7 +21,15 @@ name = "fandhe-frontend-dist-server"
 # （公開項目追加）したことも踏まえ 0.2.8 から 0.3.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項、0.x の破壊的変更相当は
 # マイナーバンプ）。
-version = "0.3.1"
+# イシュー #3336: Vercel Container Images（`PORT` 環境変数でのポート指定を
+# 要求、#3335 で確定）向けに bind 先アドレス決定へ `PORT` 経由の優先順位
+# （`FANDHE_FRONTEND_BIND_ADDR` > `PORT`（`0.0.0.0:$PORT`）> 既定
+# `127.0.0.1:3100`）を追加した。`main.rs` の起動時挙動が変わる実体変更
+# （新しい環境変数を読み取るようになる）のため patch バンプとし、
+# 0.3.1 から 0.3.2 とする（`.claude/rules/coding-rust.md` #638 条項。
+# 公開 API 自体〔`lib.rs`〕は無変更、バイナリの実行時挙動のみの変更の
+# ため minor ではなく patch とした）。
+version = "0.3.2"
 edition = "2021"
 description = "fandhe-frontend-dist-server: TASK-9.1b。fandhe-frontend-core / fandhe-frontend-app / fandhe-frontend-server を単一実行ファイルへ統合し、コンパイル時埋め込みの静的アセットと fandhe-frontend-app の SSR ページを配信する配布用サーバー。"
 license = "MIT OR Apache-2.0"

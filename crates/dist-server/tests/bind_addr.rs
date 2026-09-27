@@ -27,7 +27,7 @@
 
 mod support;
 
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
@@ -188,6 +188,11 @@ fn legacy_rws_bind_addr_name_is_ignored_and_falls_back_to_default() {
     let mut command = Command::new(binary);
     command
         .env_remove("FANDHE_FRONTEND_BIND_ADDR")
+        // `PORT` を明示的に取り除く（イシュー #3336 で `PORT` 経由の優先順位 2
+        // 〔`0.0.0.0:$PORT`〕が新設されたため、CI/ローカル実行環境の `PORT` が
+        // 偶然設定されていると本テストが `0.0.0.0` へ bind してしまい、既定
+        // アドレス `127.0.0.1:3100` を期待する下記アサーションが壊れる）。
+        .env_remove("PORT")
         .env("RWS_BIND_ADDR", "127.0.0.2:0")
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
@@ -312,4 +317,57 @@ fn bind_addr_env_switches_address() {
         .is_some(),
         "listening line format contract must still hold for the reported address"
     );
+}
+
+/// `PORT` に不正値（`FANDHE_FRONTEND_BIND_ADDR` 未設定時）を指定すると、既定値へ黙って
+/// フォールバックせず起動を失敗させ、固定の英語メッセージを stderr へ出力する
+/// ことを検証する（イシュー #3336、fail-closed の受け入れ条件）。
+///
+/// 本テストは `0.0.0.0` への bind を一切試みない不正値（`0`/`65536`/`abc`）のみを
+/// 対象とし、`resolve_bind_addr` が bind 試行前にエラーを返す契約（`main.rs`
+/// 冒頭コメント参照）を、TCP bind を伴わずにプロセス起動のみで確認する。
+#[test]
+fn invalid_port_without_bind_addr_fails_startup_without_binding() {
+    let binary = Path::new(env!("CARGO_BIN_EXE_dist-server"));
+
+    for invalid_port in ["0", "65536", "abc"] {
+        let mut command = Command::new(binary);
+        command
+            .env_remove("FANDHE_FRONTEND_BIND_ADDR")
+            .env("PORT", invalid_port)
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped());
+        let mut child = command.spawn().expect("dist-server binary must spawn");
+
+        let mut stderr = child
+            .stderr
+            .take()
+            .expect("stderr must be piped for spawned child");
+
+        let status = child
+            .wait()
+            .expect("dist-server process must exit for invalid PORT");
+        assert!(
+            !status.success(),
+            "invalid_port={invalid_port}: dist-server must exit non-zero on invalid PORT"
+        );
+
+        let mut output = String::new();
+        stderr
+            .read_to_string(&mut output)
+            .expect("stderr must be readable after process exit");
+        assert!(
+            output.contains(
+                "fandhe-frontend-dist-server: PORT must be a valid port number between 1 and 65535"
+            ),
+            "invalid_port={invalid_port}: stderr must contain the fixed English error message, got: {output:?}"
+        );
+        // 機微情報の露出防止（`security.md` A09）: エラーメッセージに実際の
+        // `PORT` 値を含めない（固定メッセージは数字を含まないため、値の
+        // 文字列がそのまま出力へ混入していないことをそのまま assert できる）。
+        assert!(
+            !output.contains(invalid_port),
+            "invalid_port={invalid_port}: stderr must not leak the raw PORT value, got: {output:?}"
+        );
+    }
 }
