@@ -32,9 +32,11 @@
 //! - HTML はすべて `fandhe_frontend_core` のノード木 API（`el` / `text` /
 //!   タグヘルパー）と `render` を経由する。`raw_html()` も、タグ文字列の
 //!   `format!` 組み立ても使わない（`coding-rust.md`「HTML 文字列の直接
-//!   組み立て禁止」）。`format!` を使うのは属性値のリンク先パスと
-//!   `<!DOCTYPE html>` の固定前置のみ（[`generate_pages`] rustdoc が推奨する
-//!   許容パターンと同じ）。
+//!   組み立て禁止」）。href 等の属性値はすべて固定リテラルで、`format!`
+//!   の組み立ては行わない。本サンプルで `format!` を使うのは
+//!   `<!DOCTYPE html>` の固定前置（[`generate_pages`] rustdoc が推奨する
+//!   許容パターンと同じ）と、[`clean_output_dir`] の内部エラーメッセージ
+//!   （HTML ではないため本規約の対象外）のみ。
 //! - `config.json` の内容（[`CONFIG_JSON`]）は静的な定数リテラルで、
 //!   ユーザー入力を一切混ぜない。
 //! - 出力パスはすべて `generate_pages`/`generate_assets` の fail-closed
