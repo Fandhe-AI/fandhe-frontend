@@ -222,7 +222,10 @@ fn profile_section() -> Node {
     let username_field = field::root(
         &orientation(),
         &username_props,
-        vec![("data-blocks-form-layout-stacked-field", "")],
+        vec![
+            ("data-blocks-form-layout-stacked-field", ""),
+            ("data-blocks-form-layout-stacked-wide", ""),
+        ],
         vec![
             field::label(&username_props, vec![], vec![text("ユーザー名")]),
             input::input(
@@ -286,7 +289,10 @@ fn personal_info_section() -> Node {
     let country_field = field::root(
         &orientation(),
         &country_props,
-        vec![("data-blocks-form-layout-stacked-field", "")],
+        vec![
+            ("data-blocks-form-layout-stacked-field", ""),
+            ("data-blocks-form-layout-stacked-wide", ""),
+        ],
         vec![
             field::label(&country_props, vec![], vec![text("国・地域")]),
             native_select::native_select(
@@ -432,7 +438,10 @@ fn notifications_section() -> Node {
     let email_fieldset = fieldset::root(
         &FieldsetRootProps::default(),
         &email_fieldset_props,
-        vec![("data-blocks-form-layout-stacked-fieldset", "")],
+        vec![
+            ("data-blocks-form-layout-stacked-fieldset", ""),
+            ("data-blocks-form-layout-stacked-wide", ""),
+        ],
         vec![
             fieldset::legend(&email_fieldset_props, vec![], vec![text("メール通知")]),
             fieldset::helper_text(
@@ -478,7 +487,10 @@ fn notifications_section() -> Node {
     let push_fieldset = fieldset::root(
         &FieldsetRootProps::default(),
         &push_fieldset_props,
-        vec![("data-blocks-form-layout-stacked-fieldset", "")],
+        vec![
+            ("data-blocks-form-layout-stacked-fieldset", ""),
+            ("data-blocks-form-layout-stacked-wide", ""),
+        ],
         vec![
             fieldset::legend(&push_fieldset_props, vec![], vec![text("プッシュ通知")]),
             radio_group::root(

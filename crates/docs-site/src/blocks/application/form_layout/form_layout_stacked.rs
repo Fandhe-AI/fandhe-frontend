@@ -281,7 +281,10 @@ fn profile_section() -> Node {
     let username_field = field::root(
         &orientation(),
         &username_props,
-        vec![("data-blocks-form-layout-stacked-field", "")],
+        vec![
+            ("data-blocks-form-layout-stacked-field", ""),
+            ("data-blocks-form-layout-stacked-wide", ""),
+        ],
         vec![
             field::label(&username_props, vec![], vec![text("ユーザー名")]),
             input::input(
@@ -345,7 +348,10 @@ fn personal_info_section() -> Node {
     let country_field = field::root(
         &orientation(),
         &country_props,
-        vec![("data-blocks-form-layout-stacked-field", "")],
+        vec![
+            ("data-blocks-form-layout-stacked-field", ""),
+            ("data-blocks-form-layout-stacked-wide", ""),
+        ],
         vec![
             field::label(&country_props, vec![], vec![text("国・地域")]),
             native_select::native_select(
@@ -491,7 +497,10 @@ fn notifications_section() -> Node {
     let email_fieldset = fieldset::root(
         &FieldsetRootProps::default(),
         &email_fieldset_props,
-        vec![("data-blocks-form-layout-stacked-fieldset", "")],
+        vec![
+            ("data-blocks-form-layout-stacked-fieldset", ""),
+            ("data-blocks-form-layout-stacked-wide", ""),
+        ],
         vec![
             fieldset::legend(&email_fieldset_props, vec![], vec![text("メール通知")]),
             fieldset::helper_text(
@@ -537,7 +546,10 @@ fn notifications_section() -> Node {
     let push_fieldset = fieldset::root(
         &FieldsetRootProps::default(),
         &push_fieldset_props,
-        vec![("data-blocks-form-layout-stacked-fieldset", "")],
+        vec![
+            ("data-blocks-form-layout-stacked-fieldset", ""),
+            ("data-blocks-form-layout-stacked-wide", ""),
+        ],
         vec![
             fieldset::legend(&push_fieldset_props, vec![], vec![text("プッシュ通知")]),
             radio_group::root(
@@ -693,9 +705,9 @@ pub const BLOCK: Block = Block {
 
 /// `form_layout_stacked` 固有のレイアウト規則（`crate::blocks` モジュール
 /// doc「CSS の置き場」節）。セレクタは `.blocks-form-layout-stacked-*` と
-/// `[data-blocks-form-layout-stacked-*]`、および styled `field`/`checkbox`/
-/// `radio-group`/`file-upload` の `[data-scope=...]` 系セレクタへの上書き
-/// のみを用い、他 block や部品の素のセレクタへ影響させない。
+/// `[data-blocks-form-layout-stacked-*]`、および styled `field`/`fieldset`/
+/// `checkbox`/`radio-group`/`file-upload` の `[data-scope=...]` 系セレクタへの
+/// 上書きのみを用い、他 block や部品の素のセレクタへ影響させない。
 const LAYOUT_CSS: &str = "\
 .blocks-form-layout-stacked-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  width: 100%;\n  max-width: 42rem;\n  margin-inline: auto;\n}\n\
 .blocks-form-layout-stacked-sections {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
@@ -706,6 +718,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-form-layout-stacked-name-row {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-scope=\"field\"][data-part=\"root\"][data-blocks-form-layout-stacked-wide] {\n  grid-column: 1 / -1;\n}\n\
 [data-scope=\"file-upload\"][data-part=\"root\"][data-blocks-form-layout-stacked-wide] {\n  grid-column: 1 / -1;\n}\n\
+[data-scope=\"fieldset\"][data-part=\"root\"][data-blocks-form-layout-stacked-wide] {\n  grid-column: 1 / -1;\n}\n\
+.blocks-form-layout-stacked-name-row {\n  grid-column: 1 / -1;\n}\n\
 @container blocks-form-layout-stacked (min-width: 32rem) {\n  \
 .blocks-form-layout-stacked-grid {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n\
 .blocks-form-layout-stacked-name-row {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n\
@@ -828,6 +842,29 @@ mod tests {
             "[data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-form-layout-stacked-checkbox][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
         ));
         assert!(!LAYOUT_CSS.contains('<'));
+    }
+
+    /// 2 列化時（`@container ... (min-width: 32rem)`）に姓名・市区町村行
+    /// （`.blocks-form-layout-stacked-name-row`）が二重分割されないこと、
+    /// および `wide` 指定のない単独フィールド（ユーザー名・国地域・
+    /// fieldset）も全幅を維持することを固定する（レビュー指摘の回帰防止）。
+    #[test]
+    fn name_row_and_standalone_fields_span_full_width() {
+        assert!(LAYOUT_CSS
+            .contains(".blocks-form-layout-stacked-name-row {\n  grid-column: 1 / -1;\n}"));
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"fieldset\"][data-part=\"root\"][data-blocks-form-layout-stacked-wide] {\n  grid-column: 1 / -1;\n}"
+        ));
+
+        // wide 属性を持つ部品は 9 件（bio・photo・cover-image・email・
+        // address・username・country の field 7 件 + email/push fieldset
+        // 2 件）。username・country・fieldset 2 件を追加した分の回帰を
+        // 個数で固定する。
+        let html = render(&demo());
+        assert_eq!(
+            html.matches("data-blocks-form-layout-stacked-wide").count(),
+            9
+        );
     }
 
     /// ルート class（`demo_class` とは別名）が [`demo`] の出力へ実際に
