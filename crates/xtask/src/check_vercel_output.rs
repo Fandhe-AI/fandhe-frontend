@@ -522,7 +522,7 @@ fn is_valid_status(value: &Json) -> bool {
 /// `src == "/(.*)" && status == 404 && dest == "/404.html"` の source route
 /// があることを検証する（#3290 受け入れ基準 2 の構造的な再検証）。
 ///
-/// # PR #3322 レビュー指摘への対処（Codex P1）
+/// # PR #3322 レビュー指摘への対処（Codex P1、1 回目）
 ///
 /// `src` の一致範囲を確認せず `status`/`dest` のみで判定すると、
 /// `{"src": "/foo", "status": 404, "dest": "/404.html"}` のような部分一致
@@ -530,6 +530,22 @@ fn is_valid_status(value: &Json) -> bool {
 /// すべて 404 にフォールバックする」という受け入れ基準 2 の意図に反して
 /// PASS してしまう。全パスを捕捉する正規表現 `/(.*)` であることまで
 /// 検証する（`examples/vercel-ssg/src/main.rs` の `CONFIG_JSON` 実装参照）。
+///
+/// # PR #3322 レビュー指摘への対処（Codex P1、2 回目）
+///
+/// 上記の「一致範囲」検証だけでは、`{"handle": "filesystem"}` より後ろの
+/// どこかに 404 フォールバック条件を満たすルートが「存在する」ことしか
+/// 確認できていなかった。Vercel のルーティングは配列順に評価し最初に
+/// マッチしたルートで終端するため、404 フォールバックより手前
+/// （`filesystem` の直後から 404 ルートの直前まで）に、終端条件を満たす
+/// （`continue: true` を持たない）ルートが挟まっていると、実際には
+/// そちらが先にマッチしてしまい 404 フォールバックへ到達しない。例えば
+/// `{"src": "/(.*)", "status": 200, "dest": "/index.html"}` のような SPA
+/// フォールバックが 404 ルートより前にあると、旧実装は「404 ルートは
+/// 存在する」の一点のみで PASS してしまっていた。本実装は 404
+/// フォールバックの「最初の」出現位置を特定したうえで、`filesystem` から
+/// その直前までの区間に非終端（`continue: true`）でないルートが無いこと
+/// まで検証する（イシュー #3290 受け入れ基準 2）。
 fn check_routes_404_fallback(routes: &[Json]) -> CheckResult {
     const CATCH_ALL_SRC: &str = "/(.*)";
 
@@ -547,23 +563,49 @@ fn check_routes_404_fallback(routes: &[Json]) -> CheckResult {
         );
     };
 
-    let has_fallback = routes[filesystem_index + 1..].iter().any(|route| {
+    let is_fallback_route = |route: &Json| {
         let src_ok = route.get("src").and_then(Json::as_str) == Some(CATCH_ALL_SRC);
         let status_ok = route
             .get("status")
             .is_some_and(|s| is_valid_status(s) && s.as_f64() == Some(404.0));
         let dest_ok = route.get("dest").and_then(Json::as_str) == Some("/404.html");
         src_ok && status_ok && dest_ok
-    });
+    };
 
-    if has_fallback {
-        CheckResult::pass("config_routes_404_fallback")
-    } else {
-        CheckResult::fail(
+    let fallback_offset = routes[filesystem_index + 1..]
+        .iter()
+        .position(is_fallback_route);
+
+    let Some(fallback_offset) = fallback_offset else {
+        return CheckResult::fail(
             "config_routes_404_fallback",
             "no route after `{\"handle\": \"filesystem\"}` with src=/(.*) status=404 dest=/404.html",
-        )
+        );
+    };
+    let fallback_index = filesystem_index + 1 + fallback_offset;
+
+    // `filesystem` の直後から 404 フォールバックの直前までの区間
+    // （両端とも exclusive）に、途中でルーティングを終端させ得るルート
+    // （`continue: true` を持たない）が挟まっていないか検証する。
+    let shadowing_route = routes[filesystem_index + 1..fallback_index]
+        .iter()
+        .find(|route| {
+            !route
+                .get("continue")
+                .and_then(Json::as_bool)
+                .unwrap_or(false)
+        });
+
+    if let Some(shadowing) = shadowing_route {
+        return CheckResult::fail(
+            "config_routes_404_fallback",
+            format!(
+                "a terminating route ({shadowing:?}) sits between `{{\"handle\": \"filesystem\"}}` and the 404 fallback and may shadow it (missing `continue: true`)"
+            ),
+        );
     }
+
+    CheckResult::pass("config_routes_404_fallback")
 }
 
 /// `dest` について、`static/` 配下の実ファイルを指すことを検証する（A01
@@ -933,6 +975,53 @@ mod tests {
             ]),
         ];
         assert!(!check_routes_404_fallback(&routes).passed);
+    }
+
+    /// PR #3322 レビュー指摘（Codex P1、2 回目）の回帰テスト:
+    /// `filesystem` と 404 フォールバックの間に終端ルート（`continue: true`
+    /// を持たない SPA フォールバック等）が挟まっていると、実際のルーティ
+    /// ングではそちらが先にマッチして 404 へ到達しないにもかかわらず、
+    /// 「404 フォールバック条件を満たすルートがどこかに存在する」ことしか
+    /// 見ない実装では PASS してしまっていた。
+    #[test]
+    fn check_routes_404_fallback_rejects_shadowing_catch_all_before_fallback() {
+        let routes = vec![
+            obj(vec![("handle", s("filesystem"))]),
+            obj(vec![
+                ("src", s("/(.*)")),
+                ("status", Json::Number(200.0)),
+                ("dest", s("/index.html")),
+            ]),
+            obj(vec![
+                ("src", s("/(.*)")),
+                ("status", Json::Number(404.0)),
+                ("dest", s("/404.html")),
+            ]),
+        ];
+        assert!(!check_routes_404_fallback(&routes).passed);
+    }
+
+    /// 上記のシャドーイング検知は `continue: true` を持つ非終端ルート
+    /// （ヘッダー付与等）までは誤って弾かない。
+    #[test]
+    fn check_routes_404_fallback_accepts_continue_route_before_fallback() {
+        let routes = vec![
+            obj(vec![("handle", s("filesystem"))]),
+            obj(vec![
+                ("src", s("/(.*)")),
+                (
+                    "headers",
+                    obj(vec![("X-Content-Type-Options", s("nosniff"))]),
+                ),
+                ("continue", Json::Bool(true)),
+            ]),
+            obj(vec![
+                ("src", s("/(.*)")),
+                ("status", Json::Number(404.0)),
+                ("dest", s("/404.html")),
+            ]),
+        ];
+        assert!(check_routes_404_fallback(&routes).passed);
     }
 
     #[test]
