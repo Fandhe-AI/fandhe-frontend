@@ -2039,6 +2039,14 @@ source = "site/blocks/feed-upvote-cards.md"
 path = "/blocks/feed-upvote-cards/"
 
 [[section.group]]
+title = "Form Layout"
+
+[[section.group.page]]
+title = "form-layout-stacked"
+source = "site/blocks/form-layout-stacked.md"
+path = "/blocks/form-layout-stacked/"
+
+[[section.group]]
 title = "Auth"
 
 [[section.group.page]]
