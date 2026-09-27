@@ -1964,6 +1964,14 @@ source = "site/blocks/section-heading-stats.md"
 path = "/blocks/section-heading-stats/"
 
 [[section.group]]
+title = "App Shell"
+
+[[section.group.page]]
+title = "app-shell-navbar-columns"
+source = "site/blocks/app-shell-navbar-columns.md"
+path = "/blocks/app-shell-navbar-columns/"
+
+[[section.group]]
 title = "Sidebar"
 
 [[section.group.page]]
