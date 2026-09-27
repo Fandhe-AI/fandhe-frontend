@@ -1,14 +1,18 @@
-//! Application / Form Layout カテゴリの block 登録点（イシュー #2734）。
-//!
-//! `form-layout-inline-labels`（イシュー #2911）で本カテゴリを空雛形から
-//! 卒業させた（`docs/design/docs-site-blocks-section.md` §18 の手順）。
-//! `super`（`application`）側の宣言・集約コードは変更不要（`pub(super)
-//! fn blocks()` のシグネチャを維持するため）。
+//! Application / Form Layout カテゴリの block 登録点（イシュー #2734、
+//! 最初の block はイシュー #2916）。本カテゴリ配下の block 実装モジュールを
+//! 宣言し、[`blocks`] で集約する。新規 block を追加する際は本ファイルへ
+//! `mod` 宣言と `blocks()` への追記を行うだけでよく、`super`
+//! （`application`）側・トップレベル `crate::blocks` 側の変更は不要
+//! （並列 PR 間の衝突をカテゴリ内へ閉じ込めるための構造、イシュー #2734）。
 
 mod form_layout_inline_labels;
+mod form_layout_two_column;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![form_layout_inline_labels::BLOCK]
+    vec![
+        form_layout_inline_labels::BLOCK,
+        form_layout_two_column::BLOCK,
+    ]
 }

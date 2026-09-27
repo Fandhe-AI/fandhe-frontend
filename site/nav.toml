@@ -2051,6 +2051,11 @@ title = "form-layout-inline-labels"
 source = "site/blocks/form-layout-inline-labels.md"
 path = "/blocks/form-layout-inline-labels/"
 
+[[section.group.page]]
+title = "form-layout-two-column"
+source = "site/blocks/form-layout-two-column.md"
+path = "/blocks/form-layout-two-column/"
+
 [[section.group]]
 title = "Auth"
 
