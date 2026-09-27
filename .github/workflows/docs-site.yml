@@ -422,6 +422,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-form-footer/index.html"
           # Application / Profile
           # Application / Chart
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/chart-bar-list/index.html"
           # Application / Dashboard
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/dashboard-01/index.html"
           # Application / AI Chat
