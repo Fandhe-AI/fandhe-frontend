@@ -405,7 +405,7 @@ fn push_notification_item(
         checked,
         props,
         value,
-        vec![],
+        vec![("data-blocks-form-layout-stacked-radio-item", "")],
         vec![
             radio_group::item_hidden_input(
                 checked,
@@ -552,9 +552,22 @@ pub fn demo() -> Node {
     div(
         vec![("class", "blocks-form-layout-stacked-layout")],
         vec![
-            profile_section(),
-            personal_info_section(),
-            notifications_section(),
+            // セクション 3 件を専用ラッパへまとめる（`LAYOUT_CSS` の
+            // `.blocks-form-layout-stacked-section:last-child` が
+            // footer_actions（同じく `div` の兄弟）を挟まず、実際に最後の
+            // セクションだけへボーダー除去を適用できるようにするため。
+            // ラップせず `:last-of-type` を使うと、タグ名一致の
+            // `:last-of-type` は class を見ないため footer_actions の
+            // `div` が「最後の div」になり、どのセクションにも一致しない
+            // 不具合があった）。
+            div(
+                vec![("class", "blocks-form-layout-stacked-sections")],
+                vec![
+                    profile_section(),
+                    personal_info_section(),
+                    notifications_section(),
+                ],
+            ),
             footer_actions(),
         ],
     )

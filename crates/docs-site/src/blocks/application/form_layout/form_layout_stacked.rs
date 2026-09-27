@@ -464,7 +464,7 @@ fn push_notification_item(
         checked,
         props,
         value,
-        vec![],
+        vec![("data-blocks-form-layout-stacked-radio-item", "")],
         vec![
             radio_group::item_hidden_input(
                 checked,
@@ -611,9 +611,22 @@ pub fn demo() -> Node {
     div(
         vec![("class", "blocks-form-layout-stacked-layout")],
         vec![
-            profile_section(),
-            personal_info_section(),
-            notifications_section(),
+            // セクション 3 件を専用ラッパへまとめる（`LAYOUT_CSS` の
+            // `.blocks-form-layout-stacked-section:last-child` が
+            // footer_actions（同じく `div` の兄弟）を挟まず、実際に最後の
+            // セクションだけへボーダー除去を適用できるようにするため。
+            // ラップせず `:last-of-type` を使うと、タグ名一致の
+            // `:last-of-type` は class を見ないため footer_actions の
+            // `div` が「最後の div」になり、どのセクションにも一致しない
+            // 不具合があった）。
+            div(
+                vec![("class", "blocks-form-layout-stacked-sections")],
+                vec![
+                    profile_section(),
+                    personal_info_section(),
+                    notifications_section(),
+                ],
+            ),
             footer_actions(),
         ],
     )
@@ -685,10 +698,11 @@ pub const BLOCK: Block = Block {
 /// のみを用い、他 block や部品の素のセレクタへ影響させない。
 const LAYOUT_CSS: &str = "\
 .blocks-form-layout-stacked-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  width: 100%;\n  max-width: 42rem;\n  margin-inline: auto;\n}\n\
-.blocks-form-layout-stacked-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  padding-block-end: var(--fandhe-space-8);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
-.blocks-form-layout-stacked-section:last-of-type {\n  padding-block-end: 0;\n  border-bottom: none;\n}\n\
+.blocks-form-layout-stacked-sections {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
+.blocks-form-layout-stacked-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  padding-block-end: var(--fandhe-space-8);\n  border-bottom: 1px solid var(--fandhe-color-border);\n  container-type: inline-size;\n  container-name: blocks-form-layout-stacked;\n}\n\
+.blocks-form-layout-stacked-section:last-child {\n  padding-block-end: 0;\n  border-bottom: none;\n}\n\
 .blocks-form-layout-stacked-description {\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n}\n\
-.blocks-form-layout-stacked-grid {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-4);\n  container-type: inline-size;\n  container-name: blocks-form-layout-stacked;\n}\n\
+.blocks-form-layout-stacked-grid {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-form-layout-stacked-name-row {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-scope=\"field\"][data-part=\"root\"][data-blocks-form-layout-stacked-wide] {\n  grid-column: 1 / -1;\n}\n\
 [data-scope=\"file-upload\"][data-part=\"root\"][data-blocks-form-layout-stacked-wide] {\n  grid-column: 1 / -1;\n}\n\
@@ -701,7 +715,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-form-layout-stacked-dropzone-note {\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-form-layout-stacked-checkbox-list {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-form-layout-stacked-checkbox][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-[data-scope=\"radio-group\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"radio-group\"][data-part=\"item\"][data-blocks-form-layout-stacked-radio-item][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-form-layout-stacked-actions {\n  display: flex;\n  justify-content: flex-end;\n  gap: var(--fandhe-space-2);\n}\n";
 
 #[cfg(test)]
