@@ -407,13 +407,16 @@ fn layout_section() -> Node {
 fn text_section() -> Node {
     let props = fieldset_props("blocks-form-layout-property-panel-text-fieldset");
     let align_props = SegmentGroupProps::default();
+    // 隣接する color_swatch は固定値 #1a1a1a のまま更新されない静的 Demo
+    // のため、input を編集可能に見せると値と色見本がずれる（イシュー #3355
+    // コードレビューで是正、モジュール doc「静的表示」節と同じ判断）。
     let color_id_props = FieldProps {
         id: COLOR_HEX_ID,
         ids: FieldIds::default(),
         disabled: false,
         invalid: false,
         required: false,
-        readonly: false,
+        readonly: true,
         has_helper_text: false,
     };
     fieldset::root(
@@ -769,13 +772,16 @@ mod tests {
 
     #[test]
     fn number_inputs_are_readonly() {
-        // X/Y/幅/高さ/回転/間隔/サイズの 7 欄すべてが readonly（イシュー
-        // #2913 コードレビュー是正: 編集可能に見せると `aria-valuenow` が
-        // 初期値のまま更新されず表示値とずれるため）。input パーツのみが
-        // ネイティブ `readonly` 属性を持つ（root/control は `data-readonly`
-        // のみ）ため、両者が隣接する組み合わせで input パーツの件数を数える。
+        // X/Y/幅/高さ/回転/間隔/サイズの 7 欄 + 文字色 hex 入力の計 8 欄が
+        // readonly（イシュー #2913 コードレビュー是正: 編集可能に見せると
+        // `aria-valuenow`/表示値が初期値のまま更新されず色見本等とずれる
+        // ため。文字色欄は隣接する color_swatch が固定値のまま動かない
+        // 静的 Demo であることが理由、イシュー #3355 コードレビューで
+        // 追加是正）。input パーツのみがネイティブ `readonly` 属性を持つ
+        // （root/control は `data-readonly` のみ）ため、両者が隣接する
+        // 組み合わせで input パーツの件数を数える。
         let html = demo_html();
-        assert_eq!(html.matches(r#"readonly="" data-readonly="""#).count(), 7);
+        assert_eq!(html.matches(r#"readonly="" data-readonly="""#).count(), 8);
     }
 
     #[test]

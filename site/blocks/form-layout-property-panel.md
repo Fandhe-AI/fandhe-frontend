@@ -354,13 +354,16 @@ fn layout_section() -> Node {
 fn text_section() -> Node {
     let props = fieldset_props("blocks-form-layout-property-panel-text-fieldset");
     let align_props = SegmentGroupProps::default();
+    // 隣接する color_swatch は固定値 #1a1a1a のまま更新されない静的 Demo
+    // のため、input を編集可能に見せると値と色見本がずれる（イシュー #3355
+    // コードレビューで是正、モジュール doc「静的表示」節と同じ判断）。
     let color_id_props = FieldProps {
         id: COLOR_HEX_ID,
         ids: FieldIds::default(),
         disabled: false,
         invalid: false,
         required: false,
-        readonly: false,
+        readonly: true,
         has_helper_text: false,
     };
     fieldset::root(
