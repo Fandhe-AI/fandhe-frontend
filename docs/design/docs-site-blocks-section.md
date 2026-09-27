@@ -950,6 +950,7 @@ pub enum LayoutCss {
 | pricing-tiers-extra-row | #2876（親 #2875） | `marketing/pricing/pricing_tiers_extra_row.rs` |
 | team-avatar-grid | #2879（親 #2807） | `marketing/team/team_avatar_grid.rs` |
 | team-bio-rows | #2880（親 #2807） | `marketing/team/team_bio_rows.rs` |
+| testimonial-background-image | #2883 | `marketing/testimonial/testimonial_background_image.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 134 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の

@@ -1450,6 +1450,11 @@ path = "/blocks/pricing-usage-slider/"
 title = "Testimonial"
 
 [[section.group.page]]
+title = "testimonial-background-image"
+source = "site/blocks/testimonial-background-image.md"
+path = "/blocks/testimonial-background-image/"
+
+[[section.group.page]]
 title = "testimonials-stack"
 source = "site/blocks/testimonials-stack.md"
 path = "/blocks/testimonials-stack/"
