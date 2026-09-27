@@ -1971,6 +1971,11 @@ title = "app-shell-navbar-columns"
 source = "site/blocks/app-shell-navbar-columns.md"
 path = "/blocks/app-shell-navbar-columns/"
 
+[[section.group.page]]
+title = "app-shell-stacked-overlap"
+source = "site/blocks/app-shell-stacked-overlap.md"
+path = "/blocks/app-shell-stacked-overlap/"
+
 [[section.group]]
 title = "Sidebar"
 

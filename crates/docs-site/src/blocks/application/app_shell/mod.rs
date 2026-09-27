@@ -10,9 +10,13 @@
 //! ための構造、イシュー #2734）。
 
 mod app_shell_navbar_columns;
+mod app_shell_stacked_overlap;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![app_shell_navbar_columns::BLOCK]
+    vec![
+        app_shell_navbar_columns::BLOCK,
+        app_shell_stacked_overlap::BLOCK,
+    ]
 }
