@@ -11,9 +11,14 @@
 
 mod team_avatar_grid;
 mod team_bio_rows;
+mod team_split_list;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![team_avatar_grid::BLOCK, team_bio_rows::BLOCK]
+    vec![
+        team_avatar_grid::BLOCK,
+        team_bio_rows::BLOCK,
+        team_split_list::BLOCK,
+    ]
 }

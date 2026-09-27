@@ -277,6 +277,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/pricing-upgrade-card/index.html"
           # Marketing / Testimonial
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonial-background-image/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonial-card-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonials-stack/index.html"
           # Marketing / Logo Cloud
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/logo-cloud-grid/index.html"
@@ -292,6 +293,7 @@ jobs:
           # Marketing / Team
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/team-avatar-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/team-bio-rows/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/team-split-list/index.html"
           # Marketing / Faq
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-accordion-centered/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/faq-question-rows/index.html"
