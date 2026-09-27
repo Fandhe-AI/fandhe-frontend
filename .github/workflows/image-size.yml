@@ -473,7 +473,24 @@ jobs:
           # `docker-proxy` を経由せず、コンテナ自身の `tcp_wmem`／接続相手
           # （このホスト側 curl プロセス）の `tcp_rmem` の 2 つの縮小した
           # バッファだけで滞留が起きる経路になる。
+          #
+          # `--retry 3 --retry-all-errors`: ubuntu-latest 上の curl 8.x が
+          # `--limit-rate` + `-o` の組み合わせで稀に
+          # `curl: (23) Failure writing output to destination` を返す事例を
+          # 実測した（イシュー #3338 PR #3362 CI 失敗、run:
+          # https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/36353313092/job/108716024901）。
+          # このダウンロードは Send-Q > 0 を観測するまでの間だけ in-flight
+          # であればよく、`-o` の書き込み先も冪等（同一 URL の GET を
+          # 最初から取り直すだけ）なので、exit 23 を含む一時的な失敗は
+          # curl 自身の再試行に任せて良い。既定の `--retry` は特定の
+          # 一時的エラー（タイムアウト・5xx 等）のみを対象とし exit 23 を
+          # 再試行しないため、`--retry-all-errors`（curl 7.71+、
+          # ubuntu-latest の curl 8.x は満たす）で明示的に対象へ含める。
+          # 再試行は同一 curl プロセス内で完結するため、`inflight_pid`
+          # （直下の `sudo` の PID）と後続の `sudo kill`/`wait` の契約は
+          # 変わらない。
           sudo nsenter -t "$container_pid" -n curl -fsS --max-time 25 \
+            --retry 3 --retry-all-errors \
             --limit-rate "${limit_rate}" -o "$inflight_out" \
             "http://127.0.0.1:${APP_PORT}${asset_path}" &
           inflight_pid=$!
