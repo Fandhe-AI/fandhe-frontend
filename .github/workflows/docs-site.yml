@@ -420,6 +420,7 @@ jobs:
           # Application / Onboarding
           # Application / Card
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cursor-hover-cards/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-form-footer/index.html"
           # Application / Profile
           # Application / Chart
           # Application / Dashboard
