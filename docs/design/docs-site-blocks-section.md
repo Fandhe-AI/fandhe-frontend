@@ -957,6 +957,7 @@ pub enum LayoutCss {
 | testimonial-quote-stats | #2889 | `marketing/testimonial/testimonial_quote_stats.rs` |
 | testimonial-two-up | #2891 | `marketing/testimonial/testimonial_two_up.rs` |
 | app-shell-navbar-columns | #2893（親 #2892） | `application/app_shell/app_shell_navbar_columns.rs` |
+| app-shell-sidebar | #2894（親 #2892） | `application/app_shell/app_shell_sidebar.rs` |
 | app-shell-sidebar-header | #2895 | `application/app_shell/app_shell_sidebar_header.rs` |
 | app-shell-stacked | #2896（親 #2892） | `application/app_shell/app_shell_stacked.rs` |
 | app-shell-stacked-overlap | #2897（親 #2892） | `application/app_shell/app_shell_stacked_overlap.rs` |
@@ -977,6 +978,7 @@ pub enum LayoutCss {
 | form-layout-property-panel | #2913（親 #2912） | `application/form_layout/form_layout_property_panel.rs` |
 | form-layout-stacked | #2915（親 #2892） | `application/form_layout/form_layout_stacked.rs` |
 | form-layout-two-column | #2916（親 #2892） | `application/form_layout/form_layout_two_column.rs` |
+| grid-list-compact-tiles | #2918（親 #2892） | `application/grid_list/grid_list_compact_tiles.rs` |
 | grid-list-logo-cards | #2921（親 #2892） | `application/grid_list/grid_list_logo_cards.rs` |
 | pricing-single-split | #2867（親 #2807） | `marketing/pricing/pricing_single_split.rs` |
 | pricing-tier-cards | #2871（親 #2807） | `marketing/pricing/pricing_tier_cards.rs` |
