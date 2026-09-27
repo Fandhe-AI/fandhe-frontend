@@ -954,6 +954,7 @@ pub enum LayoutCss {
 | team-split-list | #2882（親 #2807） | `marketing/team/team_split_list.rs` |
 | testimonial-background-image | #2883 | `marketing/testimonial/testimonial_background_image.rs` |
 | testimonial-quote-stats | #2889 | `marketing/testimonial/testimonial_quote_stats.rs` |
+| app-shell-stacked | #2896（親 #2892） | `application/app_shell/app_shell_stacked.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 138 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の

@@ -9238,3 +9238,85 @@ fn team_photo_grid_composes_expected_parts() {
         );
     }
 }
+
+/// app-shell-stacked ページが Demo class・専用 CSS を配線していること、
+/// block 固有の CSS フック（バー・見出し帯・メイン・パネル）が実際に
+/// 出力され、`blocks::stylesheet()` に container query の規則があることを
+/// 固定する（`sidebar_07_page_wires_demo_class_and_css_hooks` と同型、
+/// イシュー #2896）。
+#[test]
+fn app_shell_stacked_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/app-shell-stacked/index.html"))
+        .expect("blocks/app-shell-stacked/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-app-shell-stacked\""),
+        "app-shell-stacked page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "app-shell-stacked page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "app-shell-stacked page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-app-shell-stacked-shell",
+        "data-blocks-app-shell-stacked-bar",
+        "data-blocks-app-shell-stacked-nav-wrap",
+        "data-blocks-app-shell-stacked-heading",
+        "data-blocks-app-shell-stacked-main",
+        "data-blocks-app-shell-stacked-panel",
+    ] {
+        assert!(
+            html.contains(hook),
+            "app-shell-stacked page should output the {hook} CSS hook attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "[data-blocks-app-shell-stacked-shell]",
+        "@container blocks-app-shell-stacked (min-width: 48rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// app-shell-stacked の合成部品（10 部品）が期待どおりの構成で実際に
+/// 出力されていること、禁止文字列（`<form>`・死リンク・`data:` URI）が
+/// 無いことを固定する（イシュー #2896）。
+#[test]
+fn app_shell_stacked_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/app-shell-stacked/")
+        .expect("app-shell-stacked should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"navigation-menu\"",
+        "data-scope=\"breadcrumb\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"menu\"",
+        "data-scope=\"button\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"separator\"",
+        "data-scope=\"card\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"collapsible\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "app-shell-stacked demo should contain {scope}"
+        );
+    }
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "app-shell-stacked demo should never contain {absent}"
+        );
+    }
+}
