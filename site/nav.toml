@@ -1501,6 +1501,14 @@ source = "site/blocks/stats-with-image.md"
 path = "/blocks/stats-with-image/"
 
 [[section.group]]
+title = "Team"
+
+[[section.group.page]]
+title = "team-bio-rows"
+source = "site/blocks/team-bio-rows.md"
+path = "/blocks/team-bio-rows/"
+
+[[section.group]]
 title = "FAQ"
 
 [[section.group.page]]
