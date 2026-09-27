@@ -959,6 +959,7 @@ pub enum LayoutCss {
 | app-shell-navbar-columns | #2893（親 #2892） | `application/app_shell/app_shell_navbar_columns.rs` |
 | app-shell-sidebar | #2894（親 #2892） | `application/app_shell/app_shell_sidebar.rs` |
 | app-shell-sidebar-header | #2895 | `application/app_shell/app_shell_sidebar_header.rs` |
+| app-shell-stacked | #2896（親 #2892） | `application/app_shell/app_shell_stacked.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記
 144 件は個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の

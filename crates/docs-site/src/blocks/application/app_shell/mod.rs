@@ -1,7 +1,8 @@
 //! Application / App Shell カテゴリの block 登録点（イシュー #2734 で雛形
-//! 新設、イシュー #2893 で最初の block（`app-shell-navbar-columns`）を、
-//! イシュー #2894 で `app-shell-sidebar`、イシュー #2895 で
-//! `app-shell-sidebar-header` を追加しディレクトリ化して卒業した）。手順は
+//! 新設、イシュー #2893 で最初の block（`app-shell-navbar-columns`）を
+//! 追加しディレクトリ化して卒業した。イシュー #2894 で `app-shell-sidebar`、
+//! イシュー #2895 で `app-shell-sidebar-header`、イシュー #2896 で
+//! [`app_shell_stacked`] を追加した。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -13,6 +14,7 @@
 mod app_shell_navbar_columns;
 mod app_shell_sidebar;
 mod app_shell_sidebar_header;
+mod app_shell_stacked;
 
 use crate::blocks::Block;
 
@@ -21,5 +23,6 @@ pub(super) fn blocks() -> Vec<Block> {
         app_shell_navbar_columns::BLOCK,
         app_shell_sidebar::BLOCK,
         app_shell_sidebar_header::BLOCK,
+        app_shell_stacked::BLOCK,
     ]
 }
