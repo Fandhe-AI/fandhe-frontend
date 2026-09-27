@@ -194,12 +194,20 @@ fn members_footer() -> Node {
 /// いずれも `disabled: true`（menu は `trigger` 第 2 引数）を固定し
 /// `[data-disabled]` を [`LAYOUT_CSS`] で `opacity: 1; cursor: default;` へ
 /// 中和する（`app_shell_stacked` と同型の判断、レビュー是正）。
+/// `menu::trigger` の `controls` 引数（第 3 引数）は `aria-controls` に
+/// 書き込まれるだけで `id` にはならない（`id` を持つのは [`menu::content`]
+/// 側）。[`LAYOUT_CSS`] の無効化スタイルは trigger 自身を id セレクタで
+/// 狙う必要があるため、`content` の id（`blocks-card-media-footer-menu`）
+/// とは別の一意な `id` を trigger 自身へ明示付与する（同一 id を 2 要素へ
+/// 付けると HTML 上不正なため使い回さない。Bugbot 指摘 Medium 是正）。
+const TRIGGER_ID: &str = "blocks-card-media-footer-menu-trigger";
+
 fn media_actions() -> Node {
     let trigger = menu::trigger(
         OpenState::Closed,
         true,
         Some("blocks-card-media-footer-menu"),
-        vec![("aria-label", "その他の操作")],
+        vec![("id", TRIGGER_ID), ("aria-label", "その他の操作")],
         vec![core_text("\u{2026}")],
     );
     let content = menu::content(
@@ -385,4 +393,10 @@ pub fn demo() -> Node {
   可能だが不可視な要素を作らないための判断）。実利用時にホバーでの
   表示切り替えを実装する場合は、`:hover`/`:focus-within` で
   `.blocks-card-media-footer-actions` の `opacity`/`visibility` を
-  切り替える CSS を追加してください。
+  切り替える CSS の追加に加えて、掲載コードのプレビュー/保存ボタンと
+  `menu` トリガーに固定している `disabled: true`（`media_actions()` 参照）
+  を解除し、`menu` の開閉状態（`OpenState`）を実際に切り替える JS 配線
+  （`fandhe-frontend-wasm-full` のハイドレーション、または独自の
+  クリック/キーボードハンドラ）を実装してください。CSS だけでは操作
+  バー自体を表示できても、各ボタン・メニューは無効固定のままで操作
+  できません。

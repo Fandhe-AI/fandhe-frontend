@@ -253,12 +253,20 @@ fn members_footer() -> Node {
 /// いずれも `disabled: true`（menu は `trigger` 第 2 引数）を固定し
 /// `[data-disabled]` を [`LAYOUT_CSS`] で `opacity: 1; cursor: default;` へ
 /// 中和する（`app_shell_stacked` と同型の判断、レビュー是正）。
+/// `menu::trigger` の `controls` 引数（第 3 引数）は `aria-controls` に
+/// 書き込まれるだけで `id` にはならない（`id` を持つのは [`menu::content`]
+/// 側）。[`LAYOUT_CSS`] の無効化スタイルは trigger 自身を id セレクタで
+/// 狙う必要があるため、`content` の id（`blocks-card-media-footer-menu`）
+/// とは別の一意な `id` を trigger 自身へ明示付与する（同一 id を 2 要素へ
+/// 付けると HTML 上不正なため使い回さない。Bugbot 指摘 Medium 是正）。
+const TRIGGER_ID: &str = "blocks-card-media-footer-menu-trigger";
+
 fn media_actions() -> Node {
     let trigger = menu::trigger(
         OpenState::Closed,
         true,
         Some("blocks-card-media-footer-menu"),
-        vec![("aria-label", "その他の操作")],
+        vec![("id", TRIGGER_ID), ("aria-label", "その他の操作")],
         vec![core_text("\u{2026}")],
     );
     let content = menu::content(
@@ -494,7 +502,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-card-media-footer-actions {\n  position: absolute;\n  inset-inline: var(--fandhe-space-3);\n  bottom: var(--fandhe-space-3);\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  padding: var(--fandhe-space-2);\n  border-radius: var(--fandhe-radius-md);\n  background-color: var(--fandhe-color-bg-canvas);\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-card-media-footer-preview][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-card-media-footer-save][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-[data-scope=\"menu\"][data-part=\"trigger\"]#blocks-card-media-footer-menu[data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"menu\"][data-part=\"trigger\"]#blocks-card-media-footer-menu-trigger[data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 ";
 
 #[cfg(test)]
