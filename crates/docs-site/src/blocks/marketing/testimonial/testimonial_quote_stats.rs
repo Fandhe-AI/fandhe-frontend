@@ -222,7 +222,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-testimonial-quote-stats-photo] {\n  display: block;\n  width: 100%;\n  max-width: 20rem;\n  aspect-ratio: 1;\n  object-fit: cover;\n  border-radius: var(--fandhe-radius-xl);\n}\n\
 [data-scope=\"icon\"][data-part=\"root\"][data-blocks-testimonial-quote-stats-badge] {\n  position: absolute;\n  inset-block-end: var(--fandhe-space-3);\n  inset-inline-end: var(--fandhe-space-3);\n  width: 2.5rem;\n  height: 2.5rem;\n  padding: var(--fandhe-space-2);\n  box-sizing: border-box;\n  border-radius: var(--fandhe-radius-full);\n  background: var(--fandhe-color-bg);\n  border: 1px solid var(--fandhe-color-border);\n  color: var(--fandhe-color-fg);\n}\n\
 .blocks-testimonial-quote-stats-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  min-width: 0;\n}\n\
-.blocks-testimonial-quote-stats-byline {\n  display: flex;\n  flex-direction: column;\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
+[data-scope=\"blockquote\"][data-part=\"caption\"].blocks-testimonial-quote-stats-byline {\n  display: flex;\n  flex-direction: column;\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 .blocks-testimonial-quote-stats-stats {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-6);\n}\n\
 [data-scope=\"stat\"][data-part=\"root\"][data-blocks-testimonial-quote-stats-stat] {\n  border-block-start: 1px solid var(--fandhe-color-border);\n  padding-block-start: var(--fandhe-space-4);\n}\n\
 @media (min-width: 48rem) {\n  \
