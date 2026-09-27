@@ -412,8 +412,10 @@ mod tests {
         assert!(html.contains(">Auth<"));
         assert!(html.contains(r#"href="/fandhe-frontend/blocks/login-01/""#));
 
-        // block を 1 件も持たないカテゴリ（marketing/Team）の見出しは出力されない。
-        assert!(!html.contains(">Team<"));
+        // Team カテゴリは `team-avatar-grid`（イシュー #2879）で block を
+        // 持つようになったため、見出しが出力される（block を 1 件も持たない
+        // 空カテゴリが存在しない現状では非表示分岐の直接確認はできない）。
+        assert!(html.contains(">Team<"));
     }
 
     #[test]
