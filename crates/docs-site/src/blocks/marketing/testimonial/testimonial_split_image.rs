@@ -397,6 +397,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-testimonial-split-image-layout[data-blocks-testimonial-split-image-band]::before {\n  content: \"\";\n  position: absolute;\n  inset: 0;\n  z-index: -1;\n  border-radius: var(--fandhe-radius-lg);\n  background: color-mix(in srgb, var(--fandhe-color-fg) 85%, transparent);\n}\n\
 .blocks-testimonial-split-image-layout[data-blocks-testimonial-split-image-band] .blocks-testimonial-split-image-content {\n  color: var(--fandhe-color-bg);\n}\n\
 .blocks-testimonial-split-image-layout[data-blocks-testimonial-split-image-band] [data-scope=\"blockquote\"][data-part=\"root\"] {\n  --fandhe-blockquote-caption-fg: color-mix(in srgb, var(--fandhe-color-bg) 78%, transparent);\n}\n\
+.blocks-testimonial-split-image-layout[data-blocks-testimonial-split-image-band] [data-scope=\"link\"][data-part=\"root\"] {\n  color: inherit;\n}\n\
 @media (min-width: 48rem) {\n  \
 .blocks-testimonial-split-image-layout {\n    flex-direction: row;\n    align-items: center;\n  }\n  \
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-testimonial-split-image-photo] {\n    flex: 0 0 16rem;\n    align-self: stretch;\n  }\n  \
