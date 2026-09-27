@@ -414,6 +414,7 @@ jobs:
           # Application / Form Layout
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/form-layout-property-panel/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/form-layout-inline-labels/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/form-layout-stacked/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/form-layout-two-column/index.html"
           # Application / Auth
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-01/index.html"

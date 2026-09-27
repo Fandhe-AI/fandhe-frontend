@@ -318,6 +318,327 @@ jobs:
 
           docker rm -f "${CONTAINER_NAME}"
 
+      - name: Verify PORT / SIGTERM handling (issue #3338)
+        if: steps.changes.outputs.relevant == 'true'
+        # Vercel Container Images 移行（親 #3334）に向けて、dist-server が
+        # 実装済みの 2 挙動を CI で継続的に退行検知する。
+        #   - PORT 経路（#3336）: `FANDHE_FRONTEND_BIND_ADDR` 未設定時に
+        #     `PORT` 環境変数の値で listen する（`resolve_bind_addr`、
+        #     crates/dist-server/src/main.rs）。Vercel Container Images は
+        #     `PORT` でリスニングポートを渡すため、この経路が壊れると
+        #     コンテナが到達不能になる。
+        #   - graceful shutdown（#3337）: SIGTERM 受信後も処理中の接続を
+        #     `DRAIN_TIMEOUT_SECS`（25s）以内で drain してから終了コード 0
+        #     で終わる（`ShutdownSignals` / `GracefulShutdown` /
+        #     `drain_within`）。Vercel はコンテナ差し替え時に SIGTERM を
+        #     送るため、無視されると強制終了（SIGKILL）され接続が中断する。
+        #
+        # 検証範囲: (1) `FANDHE_FRONTEND_BIND_ADDR` を空文字で打ち消し
+        # `PORT` のみを渡した状態で readiness が通ること（PORT 経路が実際
+        # に使われたことの証拠）、(2) `docker stop`（SIGTERM 送信）を送る
+        # 時点で処理中の接続（未完了リクエスト）を実際に維持し、その接続が
+        # SIGTERM 後も切断されず完了すること（#3337 の drain 退行＝処理中
+        # 接続の途中切断を検知できることの証拠。readiness 確認用の完結済み
+        # curl だけでは、この経路が壊れて即座に接続を切断しても
+        # `docker stop` の待ち時間内であれば区別できず見逃す）、
+        # (3) `docker stop`（SIGTERM 送信）後のコンテナ終了コードが 0 で
+        # あること（無視されて `docker stop` のタイムアウトで SIGKILL され
+        # た場合は 137 になる）、(4) drain の開始・終了ログ（main.rs の
+        # 固定英語リテラル文言との契約）が出力されていること。4 点のいず
+        # れか欠落でも fail-closed でジョブを失敗させる。
+        #
+        # ポートは直前の「Allocate app port」ステップの出力を再利用する
+        # （新たな割り当てステップは起こさない。直前の WASM 確認ステップが
+        # 必ず `docker rm -f "${CONTAINER_NAME}"` で片付けているためポート・
+        # コンテナ名とも競合しない）。ホスト側公開は既存ステップと同じく
+        # ループバック限定（`-p 127.0.0.1:PORT:PORT`）で外部到達不能。
+        env:
+          APP_PORT: ${{ steps.app_port.outputs.port }}
+        run: |
+          set -euo pipefail
+          # 念のための防御的 cleanup（直前ステップが必ず rm -f 済みのはずだが、
+          # 想定外の残存があっても衝突させず fail-closed に進める）。
+          docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
+
+          # FANDHE_FRONTEND_BIND_ADDR を空文字で渡し、Dockerfile 既定の
+          # `0.0.0.0:3100` を打ち消す（non_empty() が空文字を「未設定」に
+          # 正規化する契約、crates/dist-server/src/main.rs）。これにより
+          # PORT 環境変数のみが有効なリスニングポート決定要因になる。
+          #
+          # `--sysctl net.ipv4.tcp_wmem` / `net.ipv4.tcp_rmem`: コンテナの
+          # ネットワーク名前空間限定（docker が許可する net.* sysctl、
+          # ホストへは波及しない）でカーネル送受信バッファを意図的に小さく
+          # する（最大 16KiB）。WASM 資産がループバック上のデフォルト
+          # バッファ容量に収まってしまうと、hyper の応答書き込みがカーネル
+          # へ即座に受理されて「送信完了」扱いになり、クライアント側の
+          # `--limit-rate` による低速化がサーバー側の実際の書き込み滞留
+          # （drain 検証の前提）を再現しないおそれがある。送受信バッファを
+          # 縮小することで、後段の in-flight 接続確立チェック（Send-Q 実測）
+          # が確実に非 0 を観測できる状態を作る（`tcp_rmem` は後述のとおり
+          # コンテナのネットワーク名前空間内で完結させる in-flight ダウン
+          # ロードの受信側バッファとして働く）。
+          docker run -d --name "${CONTAINER_NAME}" \
+            -p "127.0.0.1:${APP_PORT}:${APP_PORT}" \
+            -e "FANDHE_FRONTEND_BIND_ADDR=" \
+            -e "PORT=${APP_PORT}" \
+            --sysctl net.ipv4.tcp_wmem="4096 16384 16384" \
+            --sysctl net.ipv4.tcp_rmem="4096 16384 16384" \
+            fandhe-frontend-dist-server:ci
+          base_url="http://127.0.0.1:${APP_PORT}"
+
+          discard="$(mktemp)"
+          trap 'rm -f "$discard"' EXIT
+
+          ready=0
+          for _ in $(seq 1 30); do
+            if curl -fsS --max-time 2 -o "$discard" "${base_url}/"; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "::error::PORT env var did not bring up a reachable listener within 30s" >&2
+            docker logs "${CONTAINER_NAME}" || true
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+
+          # `docker stop` を送る時点で処理中の接続（未完了リクエスト）を
+          # 実際に維持する。readiness 確認の完結済み curl だけでは
+          # `docker stop` 送信時に in-flight な接続が存在しないため、
+          # drain が正しく機能しているか（#3337 の退行＝接続の途中切断）
+          # を区別できず見逃す。既存の WASM 資産（サイズが確保でき転送に
+          # 数秒かかる）を `--limit-rate` で意図的に低速化しながら
+          # バックグラウンドでダウンロードし、その転送が確立してから
+          # `docker stop` を送ることで、SIGTERM 後も接続が生き延びて
+          # 完走することを検証する。
+          # curl の body 破棄先は `/dev/null` を使わない（本ワークフロー冒頭の
+          # 「WASM 確認」ステップと同じ理由: ubuntu-latest の curl 8.x が
+          # `-o /dev/null` に対して間欠的に書き込みエラー (23) を返す既知事象
+          # があり、`set -e` 下では即座にジョブが失敗し得る）。readiness 確認
+          # 用に確保済みの `$discard`（実ファイル）を再利用する。
+          asset_path="/static/wasm/fandhe_frontend_wasm_full_bg.wasm"
+          content_length=$(curl -fsS --max-time 5 -o "$discard" -w '%{size_download}' "${base_url}${asset_path}")
+          if [ -z "$content_length" ] || [ "$content_length" -le 0 ]; then
+            echo "::error::failed to determine size of ${asset_path} for in-flight connection test" >&2
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+
+          # 転送に概ね 10 秒かかる速度まで意図的に絞る（`DRAIN_TIMEOUT_SECS`
+          # (25s) 未満・`docker stop -t 30` の猶予未満に収まるよう安全側の
+          # 下限を設ける）。ファイルが小さい場合でも過度に遅くしすぎない。
+          limit_rate=$((content_length / 10))
+          if [ "$limit_rate" -lt 1024 ]; then
+            limit_rate=1024
+          fi
+
+          # 要: ubuntu-latest ランナーに `nsenter`（util-linux）・`ss`
+          # （iproute2）・パスワードなし `sudo` が導入済みであることを前提
+          # とする（GitHub ホステッドランナーの標準イメージに常設）。
+          # `docker exec` を使わない理由: 最終イメージは `FROM scratch`
+          # （TASK-10.3c）でシェル・コアユーティリティを一切含まないため、
+          # コンテナ内部からの観測はできない。ホスト側から
+          # `nsenter -t <pid> -n` でコンテナのネットワーク名前空間へ入る
+          # ことで、コンテナ内にツールがなくても外部から観測できる。
+          if ! command -v nsenter >/dev/null 2>&1 || ! command -v ss >/dev/null 2>&1; then
+            echo "::error::nsenter (util-linux) or ss (iproute2) not found on runner; cannot verify server-side in-flight state" >&2
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+
+          container_pid=$(docker inspect -f '{{.State.Pid}}' "${CONTAINER_NAME}")
+          if [ -z "$container_pid" ] || [ "$container_pid" -le 0 ]; then
+            echo "::error::failed to resolve container PID for network namespace inspection" >&2
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+
+          inflight_out="$(mktemp)"
+          trap 'rm -f "$discard" "$inflight_out"' EXIT
+          # in-flight ダウンロードはホスト公開ポート（`-p 127.0.0.1:...`）
+          # 経由ではなく、`nsenter -t "$container_pid" -n` でコンテナの
+          # ネットワーク名前空間へ入ったホスト側 curl から
+          # `127.0.0.1:${APP_PORT}` へ直接接続する（cursor[bot] 指摘:
+          # ループバック `-p` 経由だと dockerd の userland `docker-proxy`
+          # が中継し、そのプロセス自身のコピーバッファ・ホスト側 TCP
+          # バッファがコンテナのカーネル送信バッファより先に WASM 資産
+          # 全体を吸収し得るため、`--limit-rate` によるクライアント側の
+          # 低速化がコンテナ側の Send-Q 滞留に反映されない・drain 検証が
+          # 本物の in-flight 応答を観測できない設計上の懸念があった）。
+          # `nsenter -n` はネットワーク名前空間のみを切り替え、マウント
+          # 名前空間はホストのままのため `$inflight_out`（ホスト側の
+          # 一時ファイル）はそのまま書き込み先として使える。これにより
+          # `docker-proxy` を経由せず、コンテナ自身の `tcp_wmem`／接続相手
+          # （このホスト側 curl プロセス）の `tcp_rmem` の 2 つの縮小した
+          # バッファだけで滞留が起きる経路になる。
+          #
+          # `-o "$inflight_out"` ではなくシェルリダイレクト `> "$inflight_out"`
+          # を使う: ubuntu-latest 上の curl 8.x が `sudo`（root）実行下で
+          # `--limit-rate` + `-o` の組み合わせにより
+          # `curl: (23) Failure writing output to destination` を毎回・
+          # 即座（転送開始から 1 秒未満）に返す事例を実測した（イシュー
+          # #3338 PR #3362 CI 失敗、run:
+          # https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/36353313092/job/108716024901
+          # および
+          # https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/36354084918/job/108718207906）。
+          # 一度 `--retry 3 --retry-all-errors` を追加したが、同一条件で
+          # 4 回全ての試行が同様に即時失敗し解消しなかった（一時的な
+          # ネットワーク flake ではなく決定論的な失敗であることの証拠）。
+          # 原因は Linux の `fs.protected_regular`（Ubuntu 既定で有効）:
+          # `mktemp` が作る `/tmp`（sticky bit 付き・world-writable）配下の
+          # ファイルを、そのファイルの所有者ではないプロセスが `O_CREAT`
+          # で開こうとすると拒否される。curl は `-o` の書き込み先を自身の
+          # `fopen(..., "wb")`（`O_CREAT|O_TRUNC`）で遅延オープンするため、
+          # `sudo`（root）で動く curl プロセスが `runner` ユーザー所有の
+          # `$inflight_out` を開こうとしてこの保護に引っかかる（root は
+          # `may_create_in_sticky()` の対象外にならない）。curl は
+          # 遅延オープン失敗を `CURLE_WRITE_ERROR`（exit 23）として報告し、
+          # `-s` で "Failed to open" 警告が抑制されるため一見原因不明の
+          # 書き込みエラーに見える。対策として、ファイルのオープン自体を
+          # （所有者である）ホスト側シェルに行わせ、curl（root）へは
+          # 継承済みの fd だけを渡す形にする。CI ステップに tty は無いため
+          # `sudo` の `use_pty` がリダイレクトへ介入することもない。
+          # `$!`（`inflight_pid`）・後続の `sudo kill`/`wait` の契約は
+          # 変わらない。post-SIGTERM のリトライは drain 検証（後続の
+          # `inflight_exit`/`inflight_size` 比較）を「再ダウンロードで
+          # たまたま成功しただけ」に汚しかねないため、リトライは付けない
+          # （このダウンロードは冪等だが、drain 検証の証拠性を保つには
+          # SIGTERM 前後を通じて単一の試行で完結させる必要がある）。
+          sudo nsenter -t "$container_pid" -n curl -fsS --max-time 25 \
+            --limit-rate "${limit_rate}" \
+            "http://127.0.0.1:${APP_PORT}${asset_path}" > "$inflight_out" &
+          inflight_pid=$!
+
+          # 接続が実際に確立し in-flight であることを、クライアント側の
+          # プロセス生存（`kill -0`）ではなく、コンテナ側のカーネル送信
+          # バッファに未送出バイトが滞留していること（Send-Q > 0）で確認
+          # してから `docker stop` を送る。`kill -0`（curl プロセスの生存）
+          # だけでは「dist-server がまだ書き込み中」の証拠にならない:
+          # 応答本体がコンテナのカーネル送信バッファへ即座に収まってしまえ
+          # ば、hyper の書き込みは完了しクライアント側の受信ペースとは無
+          # 関係に「送信済み」になり得る（curl 側の `--limit-rate` は読み
+          # 出し側の速度制限に過ぎない）。この場合 SIGTERM 送信時点で
+          # サーバー側に drain 対象の未完了応答が存在しないまま、たまたま
+          # クライアントの受信が遅いだけの状態でテストが緑になり、#3337 の
+          # 退行（処理中接続の途中切断）を見逃す。
+          #
+          # Send-Q（コンテナのネットワーク名前空間内、dist-server が listen
+          # するポートの ESTABLISHED ソケット）は、OS のカーネルバッファに
+          # 未送出のバイト列が滞留していることの直接証拠であり、
+          # dist-server（またはカーネル）が実際に書き込みをブロックされて
+          # いることを示す。`docker run` 側で当該コンテナの送信バッファを
+          # 意図的に縮小（`net.ipv4.tcp_wmem` 上限 16KiB）しているため、
+          # WASM 資産サイズがバッファ容量を上回っていれば Send-Q は確実に
+          # 非 0 になる。
+          #
+          # `inflight_pid`（`$!`）は `sudo nsenter ... curl` の直接の子で
+          # あるバックグラウンドジョブの PID だが、実プロセスは root 権限
+          # で動くため、シグナル送信には `sudo kill` を使う必要がある
+          # （`wait` はシェルのジョブ管理経由のため無権限のまま使える）。
+
+          # `ss -Htn` は通常 State, Recv-Q, Send-Q, Local Address:Port,
+          # Peer Address:Port の列順だが、`state established` のように
+          # 単一状態でフィルタすると iproute2 は State 列自体を出力しない
+          # （列構成が Recv-Q, Send-Q, Local, Peer にずれる）。本ステップは
+          # 単一状態フィルタを使っているため、Send-Q は 2 列目のままで
+          # 正しい（cursor[bot] の「フィールド 2 は Recv-Q」という指摘は
+          # フィルタなし `ss -tn` の列構成に基づくもので、本呼び出しには
+          # 当てはまらないことをローカル実測（Ubuntu 24.04 + iproute2、
+          # `ss -tn state established` vs `ss -tn`）で確認済み）。次にこの
+          # 行を触る人が誤って列をずらさないよう記録する。
+          inflight_established=0
+          received_before_stop=0
+          for i in $(seq 1 40); do
+            send_q=$(sudo nsenter -t "$container_pid" -n ss -Htn state established "( sport = :${APP_PORT} )" 2>/dev/null | awk '{print $2; exit}')
+            if [ -n "$send_q" ] && [ "$send_q" -gt 0 ] 2>/dev/null; then
+              inflight_established=1
+              # `inflight_out` は本ループ開始前の `mktemp` で必ず作成済み
+              # だが、万一読み取れない場合でも `set -e` 下でジョブを異常
+              # 終了させず 0 として扱う（Send-Q 実測が本証拠、受信量は
+              # あくまで補強のため）。
+              received_before_stop=$(wc -c < "$inflight_out" 2>/dev/null | tr -d ' ') || true
+              received_before_stop="${received_before_stop:-0}"
+              break
+            fi
+            if ! sudo kill -0 "$inflight_pid" 2>/dev/null; then
+              # 転送が完了してプロセスが正常終了していれば、送信済みバイト
+              # は既にコンテナのバッファを離れているため in-flight ではない
+              # （証拠にならない）。
+              break
+            fi
+            sleep 0.25
+          done
+          if [ "$inflight_established" -ne 1 ]; then
+            echo "::error::could not observe a genuine server-side in-flight write (Send-Q > 0) before sending SIGTERM" >&2
+            sudo kill "$inflight_pid" 2>/dev/null || true
+            wait "$inflight_pid" 2>/dev/null || true
+            docker logs "${CONTAINER_NAME}" || true
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+          # 副次的な証拠として、SIGTERM 送信直前時点でクライアントの受信量が
+          # 応答全体に満たないことも確認する（Send-Q 実測が本証拠、これは
+          # 補強）。
+          if [ "$received_before_stop" -ge "$content_length" ]; then
+            echo "::error::download already completed before SIGTERM despite non-zero Send-Q observation; test setup invalid" >&2
+            sudo kill "$inflight_pid" 2>/dev/null || true
+            wait "$inflight_pid" 2>/dev/null || true
+            docker logs "${CONTAINER_NAME}" || true
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+
+          # `docker stop -t 30`: SIGTERM を送り、DRAIN_TIMEOUT_SECS(25s) より
+          # 長い猶予（Vercel の 30 秒猶予に合わせた値）を明示指定する。
+          # `docker stop` の既定 10 秒には依存しない。ルート Dockerfile の
+          # `ENTRYPOINT ["/dist-server"]` は exec 形式のため dist-server が
+          # PID 1 として SIGTERM を直接受け取る。処理中の接続（上記
+          # `inflight_pid`）がまだ完了していない状態でこれを送ることが
+          # drain 検証の核心である。
+          docker stop -t 30 "${CONTAINER_NAME}"
+
+          # SIGTERM 送信時点で処理中だった接続が、drain により正常完了する
+          # ことを確認する（#3337 の退行＝途中切断の検知）。切断されていれ
+          # ば curl は非 0 で終了するか、受信バイト数が content-length に
+          # 満たない。
+          inflight_exit=0
+          wait "$inflight_pid" || inflight_exit=$?
+          inflight_size=$(wc -c < "$inflight_out" | tr -d ' ')
+          if [ "$inflight_exit" -ne 0 ] || [ "$inflight_size" != "$content_length" ]; then
+            echo "::error::in-flight connection was not drained cleanly after SIGTERM (curl_exit=${inflight_exit}, received=${inflight_size}, expected=${content_length})" >&2
+            docker logs "${CONTAINER_NAME}" || true
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+
+          exit_code=$(docker inspect -f '{{.State.ExitCode}}' "${CONTAINER_NAME}")
+          logs=$(docker logs "${CONTAINER_NAME}" 2>&1)
+
+          if [ "$exit_code" != "0" ]; then
+            echo "::error::dist-server did not exit cleanly after SIGTERM (exit_code=${exit_code}; 137 means it was force-killed, i.e. SIGTERM was ignored)" >&2
+            echo "$logs" >&2
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+
+          if ! echo "$logs" | grep -qF "draining in-flight connections (up to 25s)"; then
+            echo "::error::graceful shutdown drain-start log line not found" >&2
+            echo "$logs" >&2
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+
+          if ! echo "$logs" | grep -qF "graceful shutdown complete"; then
+            echo "::error::graceful shutdown drain-complete log line not found" >&2
+            echo "$logs" >&2
+            docker rm -f "${CONTAINER_NAME}" || true
+            exit 1
+          fi
+
+          docker rm -f "${CONTAINER_NAME}"
+
       - name: Verify final image does not leak the build toolchain (TASK-10.3c, issue #117)
         if: steps.changes.outputs.relevant == 'true'
         # TASK-10.3b で builder ステージへ追加した curl・wasm32 ターゲット・

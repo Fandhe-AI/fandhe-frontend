@@ -975,6 +975,7 @@ pub enum LayoutCss {
 | feed-upvote-cards | #2910（親 #2892） | `application/feed/feed_upvote_cards.rs` |
 | feed-comments-timeline | #2909（親 #2892） | `application/feed/feed_comments_timeline.rs` |
 | form-layout-property-panel | #2913（親 #2912） | `application/form_layout/form_layout_property_panel.rs` |
+| form-layout-stacked | #2915（親 #2892） | `application/form_layout/form_layout_stacked.rs` |
 | form-layout-two-column | #2916（親 #2892） | `application/form_layout/form_layout_two_column.rs` |
 | grid-list-file-thumbnails | #2920 | `application/grid_list/grid_list_file_thumbnails.rs` |
 | pricing-single-split | #2867（親 #2807） | `marketing/pricing/pricing_single_split.rs` |
