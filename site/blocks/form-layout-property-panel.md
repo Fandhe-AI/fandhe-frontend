@@ -12,12 +12,14 @@
 付き数値入力・選択・切替を詰めて配置し、狭い画面幅でもパネル幅を保ちます。
 
 本 Demo は静的な表示例であり、`<form>` 要素は一切持たず、データの取得・
-送信・状態管理を行いません。`number_input` の増減ボタン・`segment_group`
-の選択・フォント欄の `select` は開閉/切替が JS ハイドレーション前提のため
-ネイティブ `disabled` で操作不能にし、現在値は固定表示にしています
-（単位・配置・太さのネイティブ `<select>` は JS なしでも実際に動作するため
-`disabled` を付けていません）。文言はすべて独自に書いた架空のものであり、
-実企業名・実クレデンシャル・PII を含みません。
+送信・状態管理を行いません。`number_input` の増減ボタンと入力本体は静的
+固定のため `readonly`（`aria-valuenow` は初期値のまま更新されないため、
+表示値とのずれを防ぐ目的です）、`segment_group` の選択・フォント欄の
+`select` は開閉/切替が JS ハイドレーション前提のためネイティブ `disabled`
+で操作不能にし、現在値は固定表示にしています（単位・配置・太さのネイティブ
+`<select>` は JS なしでも実際に動作するため `disabled` を付けず、可視ラベル
+付きにしています）。文言はすべて独自に書いた架空のものであり、実企業名・
+実クレデンシャル・PII を含みません。
 
 後続イシュー #2914 で、テーマ選択＋開閉式の節・カード枠＋パンくずの
 ヘッダー・極小サイズの狭幅パネルを追加する予定です。
@@ -68,12 +70,15 @@ fn number_field(
     min: &'static str,
     max: &'static str,
 ) -> Node {
-    let flags = NumberInputFlags::default();
+    let flags = NumberInputFlags {
+        readonly: true,
+        ..NumberInputFlags::default()
+    };
     number_input::root(
         Size::Sm,
         false,
         false,
-        false,
+        true,
         vec![],
         vec![
             number_input::label(flags, Some(id), vec![], vec![text(label_text)]),
@@ -92,11 +97,14 @@ fn number_field(
 
 /// 単位・その他の選択欄（ネイティブ `<select>`。JS なしでも実際に動作
 /// するため静的固定は行わない、モジュール doc「静的表示」節）。
-/// `visible_label` を与えると可視ラベル付き（`field::root` 相当を持たず
-/// [`native_select::native_select`] 単体で `aria-label` によりラベル付けする）。
+/// `field::root` + `field::label` + [`native_select::native_select`] の
+/// 構成で可視ラベルを持たせる（`label_text` がそのままラベル文言になる。
+/// `aria-label` だけだと隣のサイズ欄〔ラベルが上にある縦並び〕とグリッドの
+/// 行内で縦位置がずれるため、`form_layout_two_column` の「国・地域」欄と
+/// 同型の構成へ揃えた、イシュー #2913 コードレビューで是正）。
 fn unit_select(
     id: &'static str,
-    aria_label: &'static str,
+    label_text: &'static str,
     options: &[(&'static str, &'static str)],
 ) -> Node {
     let field_props = FieldProps {
@@ -114,14 +122,22 @@ fn unit_select(
             fandhe_frontend_core::el("option", vec![("value", value)], vec![text(*label)])
         })
         .collect();
-    native_select::native_select(
-        &NativeSelectProps {
-            size: Size::Sm,
-            ..NativeSelectProps::default()
-        },
+    field::root(
+        &FieldRootProps::default(),
         &field_props,
-        vec![("aria-label", aria_label)],
-        option_nodes,
+        vec![],
+        vec![
+            field::label(&field_props, vec![], vec![text(label_text)]),
+            native_select::native_select(
+                &NativeSelectProps {
+                    size: Size::Sm,
+                    ..NativeSelectProps::default()
+                },
+                &field_props,
+                vec![],
+                option_nodes,
+            ),
+        ],
     )
 }
 
@@ -245,6 +261,12 @@ fn layout_section() -> Node {
                                 Some(DIRECTION_LABEL_ID),
                                 vec![],
                                 vec![
+                                    segment_group::indicator(
+                                        Some((0, 2)),
+                                        &disabled_direction_props,
+                                        None,
+                                        vec![],
+                                    ),
                                     segment_group::item(
                                         true,
                                         &disabled_direction_props,
@@ -317,7 +339,7 @@ fn layout_section() -> Node {
                                 ("start", "先頭揃え"),
                                 ("center", "中央揃え"),
                                 ("end", "末尾揃え"),
-                                ("stretch", "両端揃え"),
+                                ("stretch", "引き伸ばし"),
                             ],
                         )],
                     ),
@@ -384,6 +406,15 @@ fn text_section() -> Node {
                                 Some(TEXT_ALIGN_LABEL_ID),
                                 vec![],
                                 vec![
+                                    segment_group::indicator(
+                                        Some((0, 3)),
+                                        &SegmentGroupProps {
+                                            disabled: true,
+                                            ..SegmentGroupProps::default()
+                                        },
+                                        None,
+                                        vec![],
+                                    ),
                                     align_item(true, "left", "左"),
                                     align_item(false, "center", "中央"),
                                     align_item(false, "right", "右"),
