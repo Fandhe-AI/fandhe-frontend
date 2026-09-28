@@ -2065,6 +2065,11 @@ title = "page-heading-cover"
 source = "site/blocks/page-heading-cover.md"
 path = "/blocks/page-heading-cover/"
 
+[[section.group.page]]
+title = "page-heading-meta"
+source = "site/blocks/page-heading-meta.md"
+path = "/blocks/page-heading-meta/"
+
 [[section.group]]
 title = "Card Heading"
 
