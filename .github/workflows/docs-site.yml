@@ -403,6 +403,7 @@ jobs:
           # Application / List
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/list-people/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/list-narrow-activity/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/list-sticky-groups/index.html"
           # Application / Table
           # Application / Grid List
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/grid-list-compact-tiles/index.html"

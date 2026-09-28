@@ -1,6 +1,7 @@
-//! Application / List カテゴリの block 登録点（イシュー #2734 で雛形新設。
-//! イシュー #2922 で最初の block（[`list_narrow_activity`]）を、
-//! イシュー #2923（親 #2892）で [`list_people`] を追加した）。手順は
+//! Application / List カテゴリの block 登録点（イシュー #2734 で雛形新設、
+//! イシュー #2922 で最初の block（[`list_narrow_activity`]）・イシュー
+//! #2924 で 2 件目（[`list_sticky_groups`]）・イシュー #2923（親 #2892）で
+//! [`list_people`] を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -11,9 +12,14 @@
 
 mod list_narrow_activity;
 mod list_people;
+mod list_sticky_groups;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![list_narrow_activity::BLOCK, list_people::BLOCK]
+    vec![
+        list_narrow_activity::BLOCK,
+        list_people::BLOCK,
+        list_sticky_groups::BLOCK,
+    ]
 }
