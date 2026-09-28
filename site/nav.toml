@@ -2233,6 +2233,14 @@ source = "site/blocks/cursor-hover-cards.md"
 path = "/blocks/cursor-hover-cards/"
 
 [[section.group]]
+title = "Profile"
+
+[[section.group.page]]
+title = "profile-detail-skills"
+source = "site/blocks/profile-detail-skills.md"
+path = "/blocks/profile-detail-skills/"
+
+[[section.group]]
 title = "Chart"
 
 [[section.group.page]]
