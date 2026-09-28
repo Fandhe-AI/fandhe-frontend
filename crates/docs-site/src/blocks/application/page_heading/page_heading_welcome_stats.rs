@@ -239,7 +239,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"card\"][data-part=\"header\"][data-blocks-page-heading-welcome-stats-header] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-6);\n}\n\
 [data-blocks-page-heading-welcome-stats-identity] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-page-heading-welcome-stats-greeting] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
-[data-scope=\"card\"][data-part=\"body\"][data-blocks-page-heading-welcome-stats-stats] {\n  display: grid;\n  grid-template-columns: 1fr;\n}\n\
+[data-scope=\"card\"][data-part=\"body\"][data-blocks-page-heading-welcome-stats-stats] {\n  display: grid;\n  grid-template-columns: 1fr;\n  padding: 0;\n}\n\
 [data-scope=\"stat\"][data-part=\"root\"][data-blocks-page-heading-welcome-stats-stat] {\n  padding: var(--fandhe-space-4) var(--fandhe-space-6);\n}\n\
 [data-blocks-page-heading-welcome-stats-stat] + [data-blocks-page-heading-welcome-stats-stat] {\n  border-block-start: 1px solid var(--fandhe-color-border);\n}\n\
 @media (min-width: 40rem) {\n  [data-scope=\"card\"][data-part=\"header\"][data-blocks-page-heading-welcome-stats-header] {\n    flex-direction: row;\n    justify-content: space-between;\n    align-items: center;\n  }\n  [data-scope=\"card\"][data-part=\"body\"][data-blocks-page-heading-welcome-stats-stats] {\n    grid-template-columns: repeat(3, 1fr);\n  }\n  [data-blocks-page-heading-welcome-stats-stat] + [data-blocks-page-heading-welcome-stats-stat] {\n    border-block-start: 0;\n    border-inline-start: 1px solid var(--fandhe-color-border);\n  }\n}\n";
