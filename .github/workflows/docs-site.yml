@@ -411,6 +411,7 @@ jobs:
           # Application / Card Heading
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-heading-toolbar/index.html"
           # Application / List
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/list-people/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/list-narrow-activity/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/list-sticky-groups/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/list-title-meta/index.html"
