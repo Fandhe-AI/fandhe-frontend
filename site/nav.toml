@@ -2060,6 +2060,11 @@ title = "page-heading-welcome-stats"
 source = "site/blocks/page-heading-welcome-stats.md"
 path = "/blocks/page-heading-welcome-stats/"
 
+[[section.group.page]]
+title = "page-heading-cover"
+source = "site/blocks/page-heading-cover.md"
+path = "/blocks/page-heading-cover/"
+
 [[section.group]]
 title = "Card Heading"
 
