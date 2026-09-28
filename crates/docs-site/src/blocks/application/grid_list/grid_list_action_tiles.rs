@@ -73,6 +73,20 @@
 //! `cta_feature_links::geo_icon` と同型のパターンで、実在ブランドの
 //! ロゴ・商標を模さない自作の線画アイコンのみを使う。
 //!
+//! # media（アイコン枠）の寸法上書きの詳細度
+//!
+//! `item::media(ItemMediaVariant::Icon, ..)` は `pre-styled-ui.css` 側で
+//! `[data-scope="item"][data-part="media"][data-variant="icon"]`（3 属性
+//! セレクタ、詳細度 `(0,3,0)`）により `width`/`height`/`border-radius` を
+//! 既に宣言している。block 固有フックのみの単一属性セレクタ
+//! （`[data-blocks-grid-list-action-tiles-media]`、詳細度 `(0,1,0)`）では
+//! 詳細度で負けて上書きできないため、[`LAYOUT_CSS`] 側も
+//! `[data-scope="item"][data-part="media"]` を前置した同格の 3 属性
+//! セレクタにして詳細度を揃える（`!important` は使わない）。詳細度が
+//! 同格であれば、`blocks.css` は `pre-styled-ui.css` より後に `<link>`
+//! される（`crates/docs-site/src/build.rs` の `extra_stylesheets` 配線
+//! 順）ためソース順で本 block 側が勝つ。
+//!
 //! # `<form>` を持たない・データ取得/送信を行わない
 //!
 //! `crate::blocks` モジュール doc の不変条件どおり、本 Demo はフォーム・
@@ -266,7 +280,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"link-overlay\"][data-part=\"root\"][data-blocks-grid-list-action-tiles-tile]:first-child {\n  border-top-left-radius: var(--fandhe-radius-lg);\n  border-top-right-radius: var(--fandhe-radius-lg);\n}\n\
 [data-scope=\"link-overlay\"][data-part=\"root\"][data-blocks-grid-list-action-tiles-tile]:last-child {\n  border-bottom-left-radius: var(--fandhe-radius-lg);\n  border-bottom-right-radius: var(--fandhe-radius-lg);\n}\n\
 [data-scope=\"item\"][data-part=\"root\"][data-blocks-grid-list-action-tiles-item] {\n  flex-direction: column;\n  align-items: flex-start;\n  padding: 0;\n  border: 0;\n  border-radius: 0;\n  gap: var(--fandhe-space-4);\n}\n\
-[data-blocks-grid-list-action-tiles-media] {\n  width: 2.5rem;\n  height: 2.5rem;\n  border-radius: var(--fandhe-radius-md);\n}\n\
+[data-scope=\"item\"][data-part=\"media\"][data-blocks-grid-list-action-tiles-media] {\n  width: 2.5rem;\n  height: 2.5rem;\n  border-radius: var(--fandhe-radius-md);\n}\n\
 [data-scope=\"item\"][data-part=\"content\"][data-blocks-grid-list-action-tiles-content] {\n  padding-right: var(--fandhe-space-8);\n}\n\
 [data-blocks-grid-list-action-tiles-arrow] {\n  position: absolute;\n  top: var(--fandhe-space-6);\n  right: var(--fandhe-space-6);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 @media (min-width: 40rem) {\n  .blocks-grid-list-action-tiles-grid {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n\
@@ -351,5 +365,18 @@ mod tests {
     fn layout_root_class_is_present() {
         let html = render(&demo());
         assert!(html.contains("class=\"blocks-grid-list-action-tiles-grid\""));
+    }
+
+    /// media（アイコン枠）の寸法上書きセレクタが `pre-styled-ui.css` の
+    /// `[data-scope="item"][data-part="media"][data-variant="icon"]`
+    /// （詳細度 `(0,3,0)`）と同格の 3 属性セレクタであることを固定する
+    /// （モジュール doc「media（アイコン枠）の寸法上書きの詳細度」節。
+    /// 単一属性セレクタへ後退すると詳細度で負けて上書きが効かなくなる
+    /// 回帰を防ぐ）。
+    #[test]
+    fn layout_css_media_size_selector_matches_icon_variant_specificity() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"item\"][data-part=\"media\"][data-blocks-grid-list-action-tiles-media] {"
+        ));
     }
 }
