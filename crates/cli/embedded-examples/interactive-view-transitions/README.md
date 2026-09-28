@@ -61,7 +61,7 @@ stagger の実演（`motion-demo-root` セクション・`item-list` の opt-in 
   `fandhe-frontend-wasm-full` の gating 対象外 API（`Runtime` を経由せず
   直接呼び出す公開 API）である点。`wasm/Cargo.toml` は
   `default-features = false` + 本サンプルが実際に使う配線のみを
-  `features` で実指定しています（[wasm-full feature 選択ガイド](../../docs/guides/wasm-full-features.md)参照）
+  `features` で実指定しています（[wasm-full feature 選択ガイド](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/guides/wasm-full-features.md)参照）
 - **Phase 4 動きの実演（イシュー #2525）**: `<section id="motion-demo-root">`
   （`wasm/src/lib.rs::hydrate_motion_demo`）が `in_view::wire_in_view`/
   `gesture::wire_gesture`/`scroll_driver::wire_scroll_driver`（いずれも
@@ -91,8 +91,8 @@ stagger の実演（`motion-demo-root` セクション・`item-list` の opt-in 
   を使う本サンプルからは呼び出す経路がありません。`animate`
   （`fandhe_frontend_animation` の re-export のみ・宣言的配線なし）とあわせ、
   `wasm/Cargo.toml` の feature 指定例として掲載するに留めています。詳細は
-  [`docs/guides/animation.md`](../../docs/guides/animation.md) /
-  [`docs/guides/animation-core.md`](../../docs/guides/animation-core.md) を
+  [`docs/guides/animation.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/guides/animation.md) /
+  [`docs/guides/animation-core.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/guides/animation-core.md) を
   参照してください
 
 ## 前提
@@ -144,10 +144,10 @@ python3 -m http.server --directory static 8000
 
 ## 関連ガイド
 
-- [`docs/guides/quickstart.md`](../../docs/guides/quickstart.md)
-- [`docs/guides/wasm-full-features.md`](../../docs/guides/wasm-full-features.md)
-- [`docs/guides/animation.md`](../../docs/guides/animation.md)
-- [`docs/guides/animation-core.md`](../../docs/guides/animation-core.md)
-- [`docs/api/interactive-api.md`](../../docs/api/interactive-api.md)
-- [`docs/api/hydration-api.md`](../../docs/api/hydration-api.md)
+- [`docs/guides/quickstart.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/guides/quickstart.md)
+- [`docs/guides/wasm-full-features.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/guides/wasm-full-features.md)
+- [`docs/guides/animation.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/guides/animation.md)
+- [`docs/guides/animation-core.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/guides/animation-core.md)
+- [`docs/api/interactive-api.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/api/interactive-api.md)
+- [`docs/api/hydration-api.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/api/hydration-api.md)
 - [`docs/design/wasm-full-architecture.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/design/wasm-full-architecture.md)

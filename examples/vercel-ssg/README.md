@@ -137,10 +137,10 @@ Basic 認証によるアクセス制御（fail-closed な設定手順）は
 
 ## 関連ガイド
 
-- [`docs/guides/quickstart.md`](../../docs/guides/quickstart.md)
-- [`docs/guides/examples.md`](../../docs/guides/examples.md)
-- [`docs/api/server-api.md`](../../docs/api/server-api.md)
-- [`examples/ssg-blog/README.md`](../ssg-blog/README.md)
+- [`docs/guides/quickstart.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/guides/quickstart.md)
+- [`docs/guides/examples.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/guides/examples.md)
+- [`docs/api/server-api.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/api/server-api.md)
+- [`examples/ssg-blog/README.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/examples/ssg-blog/README.md)
 
 デプロイ方式の決定根拠は `docs/design/vercel-deployment-strategy.md`
 （docs サイト非掲載のため上記はリンクにせずプレーンテキストで参照して

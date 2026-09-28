@@ -953,6 +953,7 @@ pub enum LayoutCss {
 | team-photo-grid | #2881 | `marketing/team/team_photo_grid.rs` |
 | team-split-list | #2882（親 #2807） | `marketing/team/team_split_list.rs` |
 | testimonial-background-image | #2883 | `marketing/testimonial/testimonial_background_image.rs` |
+| testimonial-centered-quote | #2885（親 #2807） | `marketing/testimonial/testimonial_centered_quote.rs` |
 | testimonial-masonry-grid | #2887/#2888（親 #2886） | `marketing/testimonial/testimonial_masonry_grid.rs` |
 | testimonial-quote-stats | #2889 | `marketing/testimonial/testimonial_quote_stats.rs` |
 | testimonial-two-up | #2891 | `marketing/testimonial/testimonial_two_up.rs` |
@@ -983,6 +984,7 @@ pub enum LayoutCss {
 | grid-list-compact-tiles | #2918（親 #2892） | `application/grid_list/grid_list_compact_tiles.rs` |
 | grid-list-file-thumbnails | #2920 | `application/grid_list/grid_list_file_thumbnails.rs` |
 | grid-list-logo-cards | #2921（親 #2892） | `application/grid_list/grid_list_logo_cards.rs` |
+| grid-list-action-tiles | #2917 | `application/grid_list/grid_list_action_tiles.rs` |
 | pricing-single-split | #2867（親 #2807） | `marketing/pricing/pricing_single_split.rs` |
 | pricing-tier-cards | #2871（親 #2807） | `marketing/pricing/pricing_tier_cards.rs` |
 | pricing-upgrade-card | #2878（親 #2807） | `marketing/pricing/pricing_upgrade_card.rs` |
