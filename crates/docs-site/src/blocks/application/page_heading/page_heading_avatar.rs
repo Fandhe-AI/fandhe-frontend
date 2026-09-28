@@ -99,11 +99,13 @@ use fandhe_frontend_pre_styled_ui::Size;
 /// invite インスタンスの応募関連リンクの遷移先（外部の実在 URL、
 /// `href="#"` は使わない、他 block と同型の判断）。個々の応募内容・応募
 /// 一覧いずれの実在ページも持たないため、遷移先の実体を特定の意味に
-/// 見せる固有のラベル（「応募内容を見る」「応募一覧を見る」）は避け、
-/// `careers_card_grid.rs` の「詳細を見る」と同型の汎用ラベルへ変更する
-/// （イシュー #2931 codex レビュー再指摘。「応募一覧を見る」は遷移先の
-/// 語感には一致していたが、実際には求人応募とは無関係な GitHub Pull
-/// Requests 一覧であり、依然として意味不一致だった）。
+/// 見せる固有のラベル（「応募内容を見る」「応募一覧を見る」「詳細を見る」）
+/// は避け、`contact_split_info.rs`「表示文言と遷移先の食い違い是正」節と
+/// 同型の方針（可視テキストを遷移先がわかる「GitHub で見る」へ変更する）
+/// を採る（イシュー #2931 codex レビュー再々指摘。「詳細を見る」は
+/// `careers_card_grid.rs` と同型の汎用ラベルだったが、応募内容の詳細を
+/// 示す文脈では遷移先〔無関係な GitHub リポジトリトップページ〕との
+/// 意味不一致が解消しなかった）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 /// アバター（円形）を組み立てる。氏名をアクセシブルネームとして `root` へ
@@ -330,9 +332,12 @@ fn invite_instance() -> Node {
                 dot_separator(),
                 link::root(
                     REPO,
-                    &LinkProps::default(),
-                    vec![],
-                    vec![text("詳細を見る")],
+                    &LinkProps {
+                        external: true,
+                        ..LinkProps::default()
+                    },
+                    vec![("aria-label", "GitHub で見る（応募者情報のリンク先）")],
+                    vec![text("GitHub で見る")],
                 ),
                 dot_separator(),
                 time_el("2026-09-26", "9 月 26 日に応募"),
@@ -543,16 +548,18 @@ mod tests {
     #[test]
     fn application_link_label_does_not_overclaim_destination() {
         // ラベルと遷移先の意味不一致の回帰ガード（イシュー #2931 codex
-        // レビュー指摘・再指摘）。「応募内容を見る」「応募一覧を見る」は
-        // いずれも実在しない特定ページを指すと誤認させる固有ラベルだった
-        // （実際の遷移先は求人応募と無関係な GitHub リポジトリ）。
-        // `careers_card_grid.rs` と同型の汎用ラベル「詳細を見る」+ REPO
-        // 直下へ変更し、特定の意味を持つ実在ページを指すと誤認させない。
+        // レビュー指摘・再指摘・再々指摘）。「応募内容を見る」「応募一覧を
+        // 見る」「詳細を見る」はいずれも実在しない特定ページ（応募内容の
+        // 詳細）を指すと誤認させるラベルだった（実際の遷移先は求人応募と
+        // 無関係な GitHub リポジトリトップページ）。`contact_split_info.rs`
+        // と同型の方針で、可視テキストを遷移先がわかる「GitHub で見る」へ
+        // 変更し、`external: true` で新規タブ遷移であることも明示する。
         let html = demo_html();
         assert!(html.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend\""));
-        assert!(html.contains("詳細を見る"));
+        assert!(html.contains("GitHub で見る"));
         assert!(!html.contains("応募内容を見る"));
         assert!(!html.contains("応募一覧を見る"));
+        assert!(!html.contains(">詳細を見る<"));
     }
 
     #[test]
