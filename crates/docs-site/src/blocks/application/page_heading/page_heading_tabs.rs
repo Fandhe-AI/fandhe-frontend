@@ -12,9 +12,21 @@
 //! `tabs::tabs` は非選択パネルが `hidden` になり、無 JS の docs サイトでは
 //! そこへ到達する経路がない（`feature_tabs_panel` 等 3 block で過去に
 //! 是正された前例）。本 block は「ページ見出し」であり切替先の本文を含ま
-//! ない Demo であるため、リンク + `aria-current="page"` で現在位置を示す
-//! `tab_nav::root`/`tab_nav::link` が無 JS で正しく機能する唯一の手段。
-//! `role="tab"` は一切出力しない。
+//! ない Demo であるため、リンク集合として無 JS で正しく機能する
+//! `tab_nav::root`/`tab_nav::link` を使う。`role="tab"` は一切出力しない。
+//! `aria-current="page"` は付与しない（次節「`aria-current` を付与しない」
+//! 参照）。
+//!
+//! # `aria-current` を付与しない（イシュー #2934 codex レビュー P2 是正）
+//!
+//! `tab_nav::link` は `current: true` で `aria-current="page"` を固定出力
+//! する API だが、本 Demo は無 JS の静的 SSR ページ内フラグメントリンクで
+//! あり、利用者がリンクをクリックして別セクションへ移動しても
+//! （ブラウザ側のフラグメント遷移のみで）サーバー再レンダーは起きないため
+//! `aria-current` を追随更新する手段がない。固定表示のまま放置すると
+//! 移動後も古いリンクを「現在位置」と支援技術へ誤って伝え続けるため、
+//! `section_tabs` はすべてのリンクへ `current: false` を渡し
+//! `aria-current` を一切出力しない（同期不能な状態表示は撤去する判断）。
 //!
 //! # 4 インスタンスで配置パターンを表現する（無 JS のため静的併記）
 //!
@@ -24,15 +36,17 @@
 //! - **inline**: 見出し・タブ・操作ボタン 1 個を 1 行に横並び（狭幅は縦積み）。
 //! - **above**: セクションタブを上段、見出し + 操作行（並び替えメニュー・
 //!   表示切替・新規作成ボタン）を下段。
-//! - **filter**: 見出し + 期間フィルタ（`40rem` 以上は `tab_nav`、未満は
-//!   `native_select` に出し分け）。
+//! - **filter**: 見出し + 期間フィルタ（`tab_nav` は常時表示、`40rem` 未満は
+//!   `native_select` を補助表示として併記する）。
 //!
 //! # 狭幅対応
 //!
-//! `below`/`inline`/`above` はタブ列を横スクロールコンテナ
-//! （`overflow-x: auto`）にする。`filter` はタブ/select を `display: none`
-//! で出し分ける（非表示側は支援技術ツリーからも消えるため重複読み上げが
-//! 起きない）。
+//! `below`/`inline`/`above`/`filter` はいずれもタブ列を横スクロール
+//! コンテナ（`overflow-x: auto`）にし、狭幅でも `display: none` で隠さず
+//! 常時表示のまま保つ（`tab_nav::link` が無 JS で機能する唯一の遷移手段の
+//! ため、狭幅で到達不能にしない。イシュー #2934 codex レビュー P1 是正）。
+//! `filter` の `native_select` は `40rem` 未満のみの補助表示（操作しても
+//! 反映されない `disabled: true` のため、あくまで tab_nav の補足）。
 //!
 //! # メニュー・SegmentGroup は無 JS のため静的固定
 //!
@@ -90,13 +104,14 @@ fn heading_block(level: HeadingLevel, title: &'static str) -> Node {
 /// current)` の組。`id` は `#` なしのフラグメント名で、[`section_markers`]
 /// が同じ `id` を持つ見出しを出力することでリンク先を実在させる
 /// （linkcheck の「同一ページ内アンカーの参照先実在」契約、モジュール doc
-/// 参照）。
+/// 参照）。`current` はここでは使わず（モジュール doc「`aria-current` を
+/// 付与しない」節参照）、`period_filter` の初期選択導出専用として残す。
 fn section_tabs(aria_label: &'static str, items: &[(&'static str, &'static str, bool)]) -> Node {
     let link_nodes: Vec<Node> = items
         .iter()
-        .map(|(id, label, current)| {
+        .map(|(id, label, _current)| {
             let href = format!("#{id}");
-            tab_nav::link(&href, *current, vec![], vec![text(*label)])
+            tab_nav::link(&href, false, vec![], vec![text(*label)])
         })
         .collect();
     div(
@@ -221,18 +236,19 @@ fn view_switch() -> Node {
     )
 }
 
-/// 期間フィルタ。`40rem` 以上は `tab_nav`、未満は `native_select` を CSS で
-/// 出し分ける（モジュール doc「狭幅対応」節参照）。
+/// 期間フィルタ。`tab_nav` は常時表示（狭幅でも `display: none` にしない。
+/// モジュール doc「狭幅対応」節参照）、`native_select` は `40rem` 未満のみの
+/// 補助表示。
 ///
 /// 選択状態は `period_items`（`tab_nav` の現在位置）を単一の真実源とし、
 /// `native_select` の初期選択（`option` の `selected`）をそこから導出する
-/// ことで、狭幅/広幅間で表示される初期選択が食い違わないようにする
-/// （イシュー #2934 codex レビュー P1 是正）。本 Demo は静的な合成例であり
-/// 選択操作をフォーム送信・状態更新へ結び付ける手段を持たないため、
-/// `native_select` 自体を `disabled: true` にして「操作しても変わらない
-/// ように見える」誤りを防ぐ（`view_switch` の `segment_group` と同型の
-/// 無 JS 対応、モジュール doc「メニュー・SegmentGroup は無 JS のため
-/// 静的固定」節参照）。
+/// ことで、狭幅/広幅間で表示される初期選択が食い違わないようにする。
+/// 本 Demo は静的な合成例であり選択操作をフォーム送信・状態更新へ結び付ける
+/// 手段を持たないため、`native_select` 自体を `disabled: true` にして
+/// 「操作しても変わらないように見える」誤りを防ぐ（`view_switch` の
+/// `segment_group` と同型の無 JS 対応、モジュール doc「メニュー・
+/// SegmentGroup は無 JS のため静的固定」節参照）。狭幅での実際の遷移手段は
+/// 常時表示の `tab_nav` が担う（イシュー #2934 codex レビュー P1 是正）。
 fn period_filter() -> Node {
     let period_props = FieldProps {
         id: "blocks-page-heading-tabs-period",
@@ -282,7 +298,7 @@ fn period_filter() -> Node {
     );
     let tabs = section_tabs("期間の絞り込み", &period_items);
     div(
-        vec![],
+        vec![("data-blocks-page-heading-tabs-period-fields", "")],
         vec![
             div(
                 vec![("data-blocks-page-heading-tabs-period-select", "")],
@@ -387,7 +403,7 @@ fn panel_above() -> Node {
     )
 }
 
-/// filter: 見出し + 期間フィルタ（狭幅は `native_select`、広幅は `tab_nav`）。
+/// filter: 見出し + 期間フィルタ（`tab_nav` は常時表示、狭幅は `native_select` を補助併記）。
 fn panel_filter() -> Node {
     div(
         vec![
@@ -461,10 +477,10 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-page-heading-tabs-inline-row] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-page-heading-tabs-actions] {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-page-heading-tabs-tab-scroller] {\n  overflow-x: auto;\n  white-space: nowrap;\n  min-width: 0;\n}\n\
+[data-blocks-page-heading-tabs-period-fields] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-page-heading-tabs-period-select] {\n  display: block;\n}\n\
-[data-blocks-page-heading-tabs-period-tabs] {\n  display: none;\n}\n\
 [data-blocks-page-heading-tabs-sections] {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-4);\n  padding-top: var(--fandhe-space-2);\n  border-top: 1px dashed var(--fandhe-color-border);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-@media (min-width: 40rem) {\n  [data-blocks-page-heading-tabs-header-row] {\n    flex-direction: row;\n    justify-content: space-between;\n    align-items: flex-start;\n  }\n  [data-blocks-page-heading-tabs-inline-row] {\n    flex-direction: row;\n    align-items: center;\n    justify-content: space-between;\n  }\n  [data-blocks-page-heading-tabs-inline-row] > [data-blocks-page-heading-tabs-tab-scroller] {\n    flex: 1 1 auto;\n  }\n  [data-blocks-page-heading-tabs-period-select] {\n    display: none;\n  }\n  [data-blocks-page-heading-tabs-period-tabs] {\n    display: block;\n  }\n}\n";
+@media (min-width: 40rem) {\n  [data-blocks-page-heading-tabs-header-row] {\n    flex-direction: row;\n    justify-content: space-between;\n    align-items: flex-start;\n  }\n  [data-blocks-page-heading-tabs-inline-row] {\n    flex-direction: row;\n    align-items: center;\n    justify-content: space-between;\n  }\n  [data-blocks-page-heading-tabs-inline-row] > [data-blocks-page-heading-tabs-tab-scroller] {\n    flex: 1 1 auto;\n  }\n  [data-blocks-page-heading-tabs-period-select] {\n    display: none;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -507,13 +523,14 @@ mod tests {
         );
     }
 
-    /// 各 `tab_nav` に現在位置を示す `aria-current="page"` がちょうど 1 個
-    /// ずつ付与されること（below/inline/above/filter の 4 個の `tab_nav`
-    /// につき 1 個ずつ、計 4 個）。
+    /// `tab_nav` へ `aria-current="page"` を一切付与しないこと（無 JS の
+    /// 静的 SSR フラグメントリンクは移動後に追随更新できないため、同期
+    /// 不能な状態表示を撤去する。モジュール doc「`aria-current` を付与
+    /// しない」節参照、イシュー #2934 codex レビュー P2 是正）。
     #[test]
-    fn demo_marks_exactly_one_current_link_per_nav() {
+    fn demo_never_marks_aria_current() {
         let html = render(&demo());
-        assert_eq!(html.matches("aria-current=\"page\"").count(), 4);
+        assert!(!html.contains("aria-current"));
     }
 
     /// `<form>` を出力しない・`raw_html`/生の `<script` を含まない（静的
