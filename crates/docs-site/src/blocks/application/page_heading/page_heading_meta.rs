@@ -490,11 +490,11 @@ const LAYOUT_CSS: &str = "\
 .blocks-page-heading-meta-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 [data-blocks-page-heading-meta-instance] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-page-heading-meta-top-row] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
-[data-blocks-page-heading-meta-eyebrow] {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-size-sm);\n}\n\
+[data-blocks-page-heading-meta-eyebrow] {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 [data-blocks-page-heading-meta-header] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-page-heading-meta-heading-group] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  min-width: 0;\n}\n\
 [data-blocks-page-heading-meta-title-row] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
-[data-blocks-page-heading-meta-meta-row] {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2) var(--fandhe-space-4);\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-size-sm);\n}\n\
+[data-blocks-page-heading-meta-meta-row] {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2) var(--fandhe-space-4);\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 [data-blocks-page-heading-meta-meta-item] {\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n}\n\
 [data-blocks-page-heading-meta-actions] {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 @media (min-width: 40rem) {\n  [data-blocks-page-heading-meta-header] {\n    flex-direction: row;\n    justify-content: space-between;\n    align-items: flex-start;\n  }\n}\n";
