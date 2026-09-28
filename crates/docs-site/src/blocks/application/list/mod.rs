@@ -9,9 +9,10 @@
 //! ための構造、イシュー #2734）。
 
 mod list_narrow_activity;
+mod list_title_meta;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![list_narrow_activity::BLOCK]
+    vec![list_narrow_activity::BLOCK, list_title_meta::BLOCK]
 }

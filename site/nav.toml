@@ -2035,6 +2035,11 @@ title = "list-narrow-activity"
 source = "site/blocks/list-narrow-activity.md"
 path = "/blocks/list-narrow-activity/"
 
+[[section.group.page]]
+title = "list-title-meta"
+source = "site/blocks/list-title-meta.md"
+path = "/blocks/list-title-meta/"
+
 [[section.group]]
 title = "Grid List"
 
