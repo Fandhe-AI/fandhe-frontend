@@ -73,6 +73,11 @@ title = "アニメーション機能ガイド"
 source = "docs/guides/animation.md"
 path = "/guides/animation/"
 
+[[section.page]]
+title = "デプロイガイド"
+source = "docs/guides/deployment.md"
+path = "/guides/deployment/"
+
 [[section]]
 title = "Examples"
 index_path = "/examples/"
@@ -1470,9 +1475,24 @@ source = "site/blocks/testimonial-centered-quote.md"
 path = "/blocks/testimonial-centered-quote/"
 
 [[section.group.page]]
+title = "testimonial-masonry-grid"
+source = "site/blocks/testimonial-masonry-grid.md"
+path = "/blocks/testimonial-masonry-grid/"
+
+[[section.group.page]]
+title = "testimonial-quote-stats"
+source = "site/blocks/testimonial-quote-stats.md"
+path = "/blocks/testimonial-quote-stats/"
+
+[[section.group.page]]
 title = "testimonial-split-image"
 source = "site/blocks/testimonial-split-image.md"
 path = "/blocks/testimonial-split-image/"
+
+[[section.group.page]]
+title = "testimonial-two-up"
+source = "site/blocks/testimonial-two-up.md"
+path = "/blocks/testimonial-two-up/"
 
 [[section.group.page]]
 title = "testimonials-stack"
@@ -1959,6 +1979,39 @@ source = "site/blocks/section-heading-stats.md"
 path = "/blocks/section-heading-stats/"
 
 [[section.group]]
+title = "App Shell"
+
+[[section.group.page]]
+title = "app-shell-navbar-columns"
+source = "site/blocks/app-shell-navbar-columns.md"
+path = "/blocks/app-shell-navbar-columns/"
+
+[[section.group.page]]
+title = "app-shell-sidebar-header"
+source = "site/blocks/app-shell-sidebar-header.md"
+path = "/blocks/app-shell-sidebar-header/"
+
+[[section.group.page]]
+title = "app-shell-sidebar"
+source = "site/blocks/app-shell-sidebar.md"
+path = "/blocks/app-shell-sidebar/"
+
+[[section.group.page]]
+title = "app-shell-stacked-overlap"
+source = "site/blocks/app-shell-stacked-overlap.md"
+path = "/blocks/app-shell-stacked-overlap/"
+
+[[section.group.page]]
+title = "app-shell-stacked"
+source = "site/blocks/app-shell-stacked.md"
+path = "/blocks/app-shell-stacked/"
+
+[[section.group.page]]
+title = "app-shell-three-column"
+source = "site/blocks/app-shell-three-column.md"
+path = "/blocks/app-shell-three-column/"
+
+[[section.group]]
 title = "Sidebar"
 
 [[section.group.page]]
@@ -1970,6 +2023,94 @@ path = "/blocks/sidebar-03/"
 title = "sidebar-07"
 source = "site/blocks/sidebar-07.md"
 path = "/blocks/sidebar-07/"
+
+[[section.group]]
+title = "Card Heading"
+
+[[section.group.page]]
+title = "card-heading-toolbar"
+source = "site/blocks/card-heading-toolbar.md"
+path = "/blocks/card-heading-toolbar/"
+
+[[section.group]]
+title = "List"
+
+[[section.group.page]]
+title = "list-narrow-activity"
+source = "site/blocks/list-narrow-activity.md"
+path = "/blocks/list-narrow-activity/"
+
+[[section.group.page]]
+title = "list-sticky-groups"
+source = "site/blocks/list-sticky-groups.md"
+path = "/blocks/list-sticky-groups/"
+
+[[section.group]]
+title = "Grid List"
+
+[[section.group.page]]
+title = "grid-list-compact-tiles"
+source = "site/blocks/grid-list-compact-tiles.md"
+path = "/blocks/grid-list-compact-tiles/"
+
+[[section.group.page]]
+title = "grid-list-logo-cards"
+source = "site/blocks/grid-list-logo-cards.md"
+path = "/blocks/grid-list-logo-cards/"
+
+[[section.group]]
+title = "Description List"
+
+[[section.group.page]]
+title = "description-list-horizontal"
+source = "site/blocks/description-list-horizontal.md"
+path = "/blocks/description-list-horizontal/"
+
+[[section.group.page]]
+title = "description-list-summary-card"
+source = "site/blocks/description-list-summary-card.md"
+path = "/blocks/description-list-summary-card/"
+
+[[section.group.page]]
+title = "description-list-two-column"
+source = "site/blocks/description-list-two-column.md"
+path = "/blocks/description-list-two-column/"
+
+[[section.group]]
+title = "Feed"
+
+[[section.group.page]]
+title = "feed-comments-timeline"
+source = "site/blocks/feed-comments-timeline.md"
+path = "/blocks/feed-comments-timeline/"
+
+[[section.group.page]]
+title = "feed-upvote-cards"
+source = "site/blocks/feed-upvote-cards.md"
+path = "/blocks/feed-upvote-cards/"
+
+[[section.group]]
+title = "Form Layout"
+
+[[section.group.page]]
+title = "form-layout-inline-labels"
+source = "site/blocks/form-layout-inline-labels.md"
+path = "/blocks/form-layout-inline-labels/"
+
+[[section.group.page]]
+title = "form-layout-property-panel"
+source = "site/blocks/form-layout-property-panel.md"
+path = "/blocks/form-layout-property-panel/"
+
+[[section.group.page]]
+title = "form-layout-stacked"
+source = "site/blocks/form-layout-stacked.md"
+path = "/blocks/form-layout-stacked/"
+
+[[section.group.page]]
+title = "form-layout-two-column"
+source = "site/blocks/form-layout-two-column.md"
+path = "/blocks/form-layout-two-column/"
 
 [[section.group]]
 title = "Auth"
@@ -2006,9 +2147,42 @@ path = "/blocks/game-ui-modal/"
 title = "Card"
 
 [[section.group.page]]
+title = "card-form-footer"
+source = "site/blocks/card-form-footer.md"
+path = "/blocks/card-form-footer/"
+
+[[section.group.page]]
+title = "card-media-footer"
+source = "site/blocks/card-media-footer.md"
+path = "/blocks/card-media-footer/"
+
+[[section.group.page]]
+title = "card-meta-cta"
+source = "site/blocks/card-meta-cta.md"
+path = "/blocks/card-meta-cta/"
+
+[[section.group.page]]
 title = "cursor-hover-cards"
 source = "site/blocks/cursor-hover-cards.md"
 path = "/blocks/cursor-hover-cards/"
+
+[[section.group]]
+title = "Chart"
+
+[[section.group.page]]
+title = "chart-bar-list"
+source = "site/blocks/chart-bar-list.md"
+path = "/blocks/chart-bar-list/"
+
+[[section.group.page]]
+title = "chart-metric-area"
+source = "site/blocks/chart-metric-area.md"
+path = "/blocks/chart-metric-area/"
+
+[[section.group.page]]
+title = "chart-stat-cards"
+source = "site/blocks/chart-stat-cards.md"
+path = "/blocks/chart-stat-cards/"
 
 [[section.group]]
 title = "Dashboard"

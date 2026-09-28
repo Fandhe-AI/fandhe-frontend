@@ -139,6 +139,20 @@
 //!   フロー YAML との整合（マニフェスト ⇔ workflows）はオフライン契約テスト
 //!   `xtask/tests/workflow_required_checks_manifest.rs` が別途担う。
 //!
+//! - `check-vercel-output --output-dir <DIR>`: イシュー #3292。
+//!   `examples/vercel-ssg`（#3290）が生成する Vercel Build Output API v3
+//!   出力ツリー（`.vercel/output/config.json` + `static/`）を JSON として
+//!   パースし、型・キー・参照整合まで構造的に検証する（`check_vercel_output`
+//!   モジュール）。既存検証（`examples/vercel-ssg/tests/build_output.rs`・
+//!   `crates/cli/tests/new_gate_e2e.rs`）は部分文字列一致のみで、型崩れ・
+//!   キー打ち間違いを検知できないことが動機。`functions/` の非存在検証を
+//!   含む（案 c: 静的配置のみ、`docs/design/vercel-deployment-strategy.md`）。
+//!   Vercel への実デプロイは行わない。呼び出し元は `.github/workflows/ci.yml`
+//!   の `test` ジョブ（examples gate e2e 直後のステップ）。判定対象は
+//!   CLI 引数で差し替え不可。1 行サマリ・総括行は
+//!   `check_vercel_output::format_line`/`format_summary` 参照。CLI 契約の
+//!   回帰テストは `xtask/tests/cli_check_vercel_output.rs`。
+//!
 //! `core` / `interactive` と異なりプロセス起動（`std::process::Command`）を行うが、
 //! `unsafe` は使わない（REQ-2 は core/interactive 限定だが、xtask でも forbid する。
 //! core/tests/unsafe_boundary.rs の WASM/FFI 境界許可リストにも含まれない）。
@@ -153,6 +167,7 @@ mod check_deps;
 mod check_image_size;
 mod check_loc;
 mod check_ruleset_sync;
+mod check_vercel_output;
 mod check_version_bump;
 mod json;
 mod list_build_scripts;
@@ -177,6 +192,7 @@ fn main() -> ExitCode {
         Some("check-dep-versions") => run_check_dep_versions(&args[2..]),
         Some("patch-template-smoke") => run_patch_template_smoke(&args[2..]),
         Some("check-ruleset-sync") => run_check_ruleset_sync(&args[2..]),
+        Some("check-vercel-output") => run_check_vercel_output(&args[2..]),
         Some(other) => {
             eprintln!("xtask: unknown subcommand `{other}`");
             print_usage();
@@ -267,6 +283,14 @@ fn print_usage() {
     eprintln!("      (GET /repos/{{repo}}/rules/branches/{{branch}}) and the workspace's");
     eprintln!("      manifest (default .github/required-status-checks.json, issue #2325).");
     eprintln!("      Reads GITHUB_TOKEN from the environment if present (never printed).");
+    eprintln!("  check-vercel-output --output-dir <DIR>");
+    eprintln!("      Validate that a Vercel Build Output API v3 tree (examples/vercel-ssg's");
+    eprintln!("      `.vercel/output`, issue #3292) is structurally well-formed: config.json");
+    eprintln!("      parses as JSON with version=3 and well-typed routes, the 404 fallback");
+    eprintln!("      route follows `{{\"handle\": \"filesystem\"}}`, literal route dests point");
+    eprintln!("      at real files under static/, the required static pages exist, static/");
+    eprintln!("      has no symlinks, and functions/ does not exist (static-only deployment).");
+    eprintln!("      Judged targets are fixed by check_vercel_output module constants.");
 }
 
 /// `check-deps` サブコマンド: `--package <NAME>` を 1 つ以上受け取り、
@@ -1300,5 +1324,55 @@ on the PR."
         ExitCode::FAILURE
     } else {
         ExitCode::SUCCESS
+    }
+}
+
+/// `check-vercel-output` サブコマンド（イシュー #3292）: `--output-dir <DIR>`
+/// のみを受け付け、`examples/vercel-ssg` が生成する Vercel Build Output
+/// API v3 出力ツリーを [`check_vercel_output::check`] で検証する。
+///
+/// 判定対象（許可リスト・必須ページ一覧・`functions/` の禁止）は
+/// `check_vercel_output` モジュールの定数で固定し、他の CLI 引数では
+/// 差し替え不可（`check-loc`/`check-core-deps` と同じ運用原則）。
+/// 1 件でも FAIL があれば終了コード 1（fail-closed）。
+fn run_check_vercel_output(args: &[String]) -> ExitCode {
+    let mut output_dir: Option<String> = None;
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--output-dir" => {
+                let Some(value) = args.get(i + 1) else {
+                    eprintln!("xtask check-vercel-output: `--output-dir` requires a value");
+                    return ExitCode::from(2);
+                };
+                output_dir = Some(value.clone());
+                i += 2;
+            }
+            other => {
+                eprintln!("xtask check-vercel-output: unknown argument `{other}`");
+                return ExitCode::from(2);
+            }
+        }
+    }
+
+    let Some(output_dir) = output_dir else {
+        eprintln!("xtask check-vercel-output: `--output-dir <DIR>` is required");
+        return ExitCode::from(2);
+    };
+    let output_dir = std::path::PathBuf::from(output_dir);
+
+    let results = check_vercel_output::check(&output_dir);
+    for result in &results {
+        println!("{}", check_vercel_output::format_line(result));
+    }
+    println!(
+        "{}",
+        check_vercel_output::format_summary(&output_dir, &results)
+    );
+
+    if results.iter().all(|r| r.passed) {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
     }
 }

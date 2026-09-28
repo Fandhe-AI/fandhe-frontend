@@ -9238,3 +9238,527 @@ fn team_photo_grid_composes_expected_parts() {
         );
     }
 }
+
+/// app-shell-stacked ページが Demo class・専用 CSS を配線していること、
+/// block 固有の CSS フック（バー・見出し帯・メイン・パネル）が実際に
+/// 出力され、`blocks::stylesheet()` に container query の規則があることを
+/// 固定する（`sidebar_07_page_wires_demo_class_and_css_hooks` と同型、
+/// イシュー #2896）。
+#[test]
+fn app_shell_stacked_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/app-shell-stacked/index.html"))
+        .expect("blocks/app-shell-stacked/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-app-shell-stacked\""),
+        "app-shell-stacked page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "app-shell-stacked page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "app-shell-stacked page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-app-shell-stacked-shell",
+        "data-blocks-app-shell-stacked-bar",
+        "data-blocks-app-shell-stacked-nav-wrap",
+        "data-blocks-app-shell-stacked-heading",
+        "data-blocks-app-shell-stacked-main",
+        "data-blocks-app-shell-stacked-panel",
+    ] {
+        assert!(
+            html.contains(hook),
+            "app-shell-stacked page should output the {hook} CSS hook attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "[data-blocks-app-shell-stacked-shell]",
+        "@container blocks-app-shell-stacked (min-width: 48rem)",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// app-shell-stacked の合成部品（10 部品）が期待どおりの構成で実際に
+/// 出力されていること、禁止文字列（`<form>`・死リンク・`data:` URI）が
+/// 無いことを固定する（イシュー #2896）。
+#[test]
+fn app_shell_stacked_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/app-shell-stacked/")
+        .expect("app-shell-stacked should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"navigation-menu\"",
+        "data-scope=\"breadcrumb\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"menu\"",
+        "data-scope=\"button\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"separator\"",
+        "data-scope=\"card\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"collapsible\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "app-shell-stacked demo should contain {scope}"
+        );
+    }
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "app-shell-stacked demo should never contain {absent}"
+        );
+    }
+}
+
+/// app-shell-sidebar-header の Demo ラッパ・CSS フックが実際に出力され、
+/// `blocks::stylesheet()` に対応するセレクタが存在することを固定する
+/// （`sidebar_07_page_wires_demo_class_and_css_hooks` と同型、イシュー
+/// #2895）。
+#[test]
+fn app_shell_sidebar_header_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/app-shell-sidebar-header/index.html"))
+        .expect("blocks/app-shell-sidebar-header/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-app-shell-sidebar-header\""),
+        "app-shell-sidebar-header page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "app-shell-sidebar-header page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "app-shell-sidebar-header page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-app-shell-sidebar-header-stack=\"\"",
+        "data-blocks-app-shell-sidebar-header-instance=\"\"",
+        "data-blocks-app-shell-sidebar-header-brand=\"\"",
+        "data-blocks-app-shell-sidebar-header-topbar=\"\"",
+        "data-blocks-app-shell-sidebar-header-search=\"\"",
+        "data-blocks-app-shell-sidebar-header-actions=\"\"",
+        "data-blocks-app-shell-sidebar-header-inset=\"\"",
+        "data-blocks-app-shell-sidebar-header-main=\"\"",
+        "data-blocks-app-shell-sidebar-header-main-constrained=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "app-shell-sidebar-header page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-app-shell-sidebar-header-stack]",
+        "[data-blocks-app-shell-sidebar-header-topbar]",
+        "[data-blocks-app-shell-sidebar-header-search]",
+        "[data-blocks-app-shell-sidebar-header-main-constrained]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+    // provider の複合セレクタは子孫コンビネータではなく同一要素へ適用する
+    // （sidebar-07/sidebar-03 の codex-review/Bugbot 指摘の回帰防止と同型）。
+    assert!(
+        sheet_css.contains(
+            "[data-blocks-app-shell-sidebar-header-instance][data-scope=\"sidebar\"][data-part=\"provider\"]"
+        ),
+        "blocks.css should target [data-blocks-app-shell-sidebar-header-instance] as a compound selector on the provider element, not a descendant combinator"
+    );
+}
+
+/// app-shell-sidebar-header の合成部品（sidebar/input-group/field/input/
+/// button/menu/avatar/icon）が anatomy の `data-*` として実際に出力され、
+/// `<form>`・死リンク・`data:` URI が無いことを固定する（イシュー #2895）。
+#[test]
+fn app_shell_sidebar_header_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/app-shell-sidebar-header/")
+        .expect("app-shell-sidebar-header should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"sidebar\"",
+        "data-scope=\"input-group\"",
+        "data-scope=\"field\" data-part=\"input\"",
+        "data-scope=\"button\"",
+        "data-scope=\"menu\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"icon\"",
+        "data-state=\"collapsed\"",
+        "data-collapsible=\"offcanvas\"",
+        "data-part=\"trigger\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "app-shell-sidebar-header demo should contain {scope}"
+        );
+    }
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "app-shell-sidebar-header demo should never contain {absent}"
+        );
+    }
+}
+
+/// app-shell-sidebar の Demo ラッパ・CSS フックが実際に出力され、
+/// `blocks::stylesheet()` に対応するセレクタが存在することを固定する
+/// （`app_shell_sidebar_header_page_wires_demo_class_and_css_hooks` と同型、
+/// イシュー #2894）。
+#[test]
+fn app_shell_sidebar_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/app-shell-sidebar/index.html"))
+        .expect("blocks/app-shell-sidebar/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-app-shell-sidebar\""),
+        "app-shell-sidebar page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "app-shell-sidebar page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "app-shell-sidebar page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-app-shell-sidebar-stack=\"\"",
+        "data-blocks-app-shell-sidebar-frame=\"\"",
+        "data-blocks-app-shell-sidebar-brand=\"\"",
+        "data-blocks-app-shell-sidebar-topbar=",
+        "data-blocks-app-shell-sidebar-mobile-nav=",
+        "data-blocks-app-shell-sidebar-main=\"\"",
+        "data-blocks-app-shell-sidebar-placeholder=\"\"",
+    ] {
+        assert!(
+            html.contains(hook),
+            "app-shell-sidebar page should output the {hook} CSS hook attribute"
+        );
+    }
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-app-shell-sidebar-stack]",
+        "[data-blocks-app-shell-sidebar-frame]",
+        "[data-blocks-app-shell-sidebar-topbar]",
+        "[data-blocks-app-shell-sidebar-mobile-nav]",
+        "[data-blocks-app-shell-sidebar-placeholder]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+    assert!(
+        sheet_css.contains("@container blocks-app-shell-sidebar (max-width: 40rem)"),
+        "blocks.css should define the narrow-width container query for app-shell-sidebar"
+    );
+}
+
+/// app-shell-sidebar の合成部品（sidebar/avatar/collapsible/icon/heading）が
+/// anatomy の `data-*` として実際に出力され、`<form>`・死リンク・`data:`
+/// URI が無いことを固定する（イシュー #2894）。
+#[test]
+fn app_shell_sidebar_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/app-shell-sidebar/")
+        .expect("app-shell-sidebar should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"sidebar\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"collapsible\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"heading\"",
+        "data-part=\"menu-badge\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "app-shell-sidebar demo should contain {scope}"
+        );
+    }
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "app-shell-sidebar demo should never contain {absent}"
+        );
+    }
+}
+
+/// app-shell-navbar-columns ページが Demo class・専用 CSS を配線している
+/// こと、block 固有 CSS（コンテナクエリ・sticky・grid-template-areas・
+/// disabled 中和）が実際に出力されていることを固定する（イシュー
+/// #2893）。
+#[test]
+fn app_shell_navbar_columns_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/app-shell-navbar-columns/index.html"))
+        .expect("blocks/app-shell-navbar-columns/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-app-shell-navbar-columns\""),
+        "app-shell-navbar-columns page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "app-shell-navbar-columns page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "app-shell-navbar-columns page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-app-shell-navbar-columns-root",
+        "data-blocks-app-shell-navbar-columns-bar",
+        "data-blocks-app-shell-navbar-columns-body",
+        "data-blocks-app-shell-navbar-columns-left",
+        "data-blocks-app-shell-navbar-columns-right",
+        "data-blocks-app-shell-navbar-columns-footer",
+    ] {
+        assert!(
+            html.contains(hook),
+            "app-shell-navbar-columns page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "container-type: inline-size;",
+        "@container blocks-app-shell-navbar-columns (min-width: 48rem)",
+        "position: sticky;",
+        "grid-template-areas: \"left main right\";",
+        "grid-template-areas: \"main right\";",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// app-shell-navbar-columns の Demo が使用部品（navigation-menu/avatar/
+/// button/icon/separator/visually-hidden）をすべて実際に合成し、
+/// `<form>`・`src="data:"`・`href="#"` を出力しないことを固定する
+/// （イシュー #2893）。
+#[test]
+fn app_shell_navbar_columns_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/app-shell-navbar-columns/")
+        .expect("app-shell-navbar-columns should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"navigation-menu\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"button\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"separator\"",
+        "data-scope=\"visually-hidden\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "app-shell-navbar-columns demo should contain {scope}"
+        );
+    }
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "app-shell-navbar-columns demo should never contain {absent}"
+        );
+    }
+}
+
+/// app-shell-stacked-overlap ページが Demo class・専用 CSS を配線している
+/// こと、block 固有 CSS（コンテナクエリ・重なり用 `calc(-1 *`・帯 2 配色）
+/// が実際に出力されていることを固定する（イシュー #2897）。
+#[test]
+fn app_shell_stacked_overlap_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/app-shell-stacked-overlap/index.html"))
+        .expect("blocks/app-shell-stacked-overlap/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-app-shell-stacked-overlap\""),
+        "app-shell-stacked-overlap page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "app-shell-stacked-overlap page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "app-shell-stacked-overlap page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-app-shell-stacked-overlap-root",
+        "data-blocks-app-shell-stacked-overlap-band",
+        "data-blocks-app-shell-stacked-overlap-bar",
+        "data-blocks-app-shell-stacked-overlap-body",
+        "data-blocks-app-shell-stacked-overlap-row2",
+        "data-blocks-app-shell-stacked-overlap-heading-row",
+    ] {
+        assert!(
+            html.contains(hook),
+            "app-shell-stacked-overlap page should render the {hook} attribute"
+        );
+    }
+
+    let sheet = blocks::stylesheet().expect("blocks::stylesheet() should build");
+    let sheet_css = sheet.as_css();
+    for selector in [
+        "container-type: inline-size;",
+        "@container blocks-app-shell-stacked-overlap (min-width: 48rem)",
+        "margin-block-start: calc(-1 * var(--blocks-app-shell-stacked-overlap-overlap));",
+        "background: var(--fandhe-color-fg);",
+        "background: var(--fandhe-color-accent);",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+}
+
+/// app-shell-stacked-overlap の Demo が使用部品（navigation-menu/
+/// input-group/field/avatar/menu/button/card/heading/collapsible/icon）を
+/// すべて実際に合成し、`<form>`・`src="data:"`・`href="#"` を出力しないこと
+/// を固定する（イシュー #2897）。
+#[test]
+fn app_shell_stacked_overlap_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/app-shell-stacked-overlap/")
+        .expect("app-shell-stacked-overlap should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"navigation-menu\"",
+        "data-scope=\"input-group\"",
+        "data-scope=\"field\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"menu\"",
+        "data-scope=\"button\"",
+        "data-scope=\"card\"",
+        "data-scope=\"heading\"",
+        "data-scope=\"collapsible\"",
+        "data-scope=\"icon\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "app-shell-stacked-overlap demo should contain {scope}"
+        );
+    }
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "app-shell-stacked-overlap demo should never contain {absent}"
+        );
+    }
+}
+
+/// app-shell-three-column ページが Demo class・専用 CSS を配線している
+/// こと、block 固有の CSS フック（トップバー・補助カラム・inset・
+/// stack）が実際に出力され、`blocks::stylesheet()` に container query の
+/// 規則があることを固定する（`app_shell_sidebar_header_page_wires_demo_
+/// class_and_css_hooks` と同型、イシュー #2898）。
+#[test]
+fn app_shell_three_column_page_wires_demo_class_and_css_hooks() {
+    let out = build_real_site();
+    let html = std::fs::read_to_string(out.join("blocks/app-shell-three-column/index.html"))
+        .expect("blocks/app-shell-three-column/index.html should be generated");
+    assert!(
+        html.contains("class=\"blocks-demo blocks-app-shell-three-column\""),
+        "app-shell-three-column page should wrap the Demo in blocks-demo + block-specific class"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#),
+        "app-shell-three-column page should link pre-styled-ui.css (parts' own look)"
+    );
+    assert!(
+        html.contains(r#"href="/fandhe-frontend/assets/blocks.css""#),
+        "app-shell-three-column page should link the Blocks-specific stylesheet"
+    );
+    for hook in [
+        "data-blocks-app-shell-three-column-stack",
+        "data-blocks-app-shell-three-column-instance",
+        "data-blocks-app-shell-three-column-brand",
+        "data-blocks-app-shell-three-column-topbar",
+        "data-blocks-app-shell-three-column-search",
+        "data-blocks-app-shell-three-column-actions",
+        "data-blocks-app-shell-three-column-inset",
+        "data-blocks-app-shell-three-column-body",
+        "data-blocks-app-shell-three-column-main",
+        "data-blocks-app-shell-three-column-aux",
+    ] {
+        assert!(
+            html.contains(hook),
+            "app-shell-three-column page should output the {hook} CSS hook attribute"
+        );
+    }
+
+    let sheet_css = blocks::stylesheet()
+        .expect("blocks::stylesheet should build")
+        .as_css()
+        .to_string();
+    for selector in [
+        "[data-blocks-app-shell-three-column-topbar]",
+        "[data-blocks-app-shell-three-column-search]",
+        "[data-blocks-app-shell-three-column-aux]",
+    ] {
+        assert!(
+            sheet_css.contains(selector),
+            "blocks.css should declare a rule for {selector}"
+        );
+    }
+    // provider の複合セレクタは子孫コンビネータではなく同一要素へ適用する
+    // （sidebar-header の codex-review/Bugbot 指摘の回帰防止と同型）。
+    assert!(
+        sheet_css.contains(
+            "[data-blocks-app-shell-three-column-instance][data-scope=\"sidebar\"][data-part=\"provider\"]"
+        ),
+        "blocks.css should target [data-blocks-app-shell-three-column-instance] as a compound selector on the provider element, not a descendant combinator"
+    );
+}
+
+/// app-shell-three-column の合成部品（sidebar/avatar/button/icon/
+/// input-group/input/menu/visually-hidden の 8 部品）が anatomy の
+/// `data-*` として実際に出力され、`<form>`・死リンク・`data:` URI が無い
+/// ことを固定する（イシュー #2898）。
+#[test]
+fn app_shell_three_column_composes_expected_parts() {
+    let block = blocks::block_for_path("/blocks/app-shell-three-column/")
+        .expect("app-shell-three-column should be registered");
+    let html = render(&(block.demo)());
+    for scope in [
+        "data-scope=\"sidebar\"",
+        "data-scope=\"avatar\"",
+        "data-scope=\"button\"",
+        "data-scope=\"icon\"",
+        "data-scope=\"input-group\"",
+        "data-scope=\"field\" data-part=\"input\"",
+        "data-scope=\"menu\"",
+        "data-scope=\"visually-hidden\"",
+    ] {
+        assert!(
+            html.contains(scope),
+            "app-shell-three-column demo should contain {scope}"
+        );
+    }
+    for absent in ["<form", "src=\"data:", "href=\"#\""] {
+        assert!(
+            !html.contains(absent),
+            "app-shell-three-column demo should never contain {absent}"
+        );
+    }
+}
