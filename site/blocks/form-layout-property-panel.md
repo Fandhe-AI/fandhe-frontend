@@ -830,17 +830,65 @@ fn panel_card_font() -> Node {
             ],
         )],
     );
+    // `number_field` ヘルパーは呼び出し側で属性を追加できないため、行間欄
+    // だけは `number_input` パーツを直接組み立てる。ヘルパーへ describedby
+    // 引数を足して全 15 呼び出し箇所を書き換えるより、この 1 箇所だけ
+    // 展開するほうが差分が小さい。tooltip の説明文（`C_TOOLTIP_CONTENT_ID`）
+    // を input へ `aria-describedby` で関連付ける（disabled な
+    // `tooltip::trigger` にしか説明が結び付いておらず、行間欄へフォーカス
+    // 移動した支援技術利用者に説明が伝わらなかったため、イシュー #2914
+    // コードレビュー是正、P2）。
+    let line_height_id = "blocks-form-layout-property-panel-c-line-height";
+    let line_height_flags = NumberInputFlags {
+        readonly: true,
+        ..NumberInputFlags::default()
+    };
+    let line_height_field = number_input::root(
+        Size::Sm,
+        false,
+        false,
+        true,
+        vec![],
+        vec![
+            number_input::label(
+                line_height_flags,
+                Some(line_height_id),
+                vec![],
+                vec![text("行間")],
+            ),
+            number_input::control(
+                line_height_flags,
+                vec![],
+                vec![
+                    number_input::decrement_trigger(
+                        Some(line_height_id),
+                        true,
+                        vec![],
+                        vec![text("-")],
+                    ),
+                    number_input::input(
+                        line_height_id,
+                        Some(line_height_id),
+                        Some("1.4"),
+                        "0",
+                        "9999",
+                        line_height_flags,
+                        vec![("aria-describedby", C_TOOLTIP_CONTENT_ID)],
+                    ),
+                    number_input::increment_trigger(
+                        Some(line_height_id),
+                        true,
+                        vec![],
+                        vec![text("+")],
+                    ),
+                ],
+            ),
+        ],
+    );
     let line_height_row = div(
         vec![("class", "blocks-form-layout-property-panel-c-tooltip-row")],
         vec![
-            number_field(
-                "blocks-form-layout-property-panel-c-line-height",
-                "行間",
-                "1.4",
-                "0",
-                "9999",
-                Size::Sm,
-            ),
+            line_height_field,
             tooltip::root(
                 OpenState::Open,
                 vec![],
