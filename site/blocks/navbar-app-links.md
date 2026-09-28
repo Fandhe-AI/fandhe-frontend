@@ -244,7 +244,16 @@ fn bar(
     actions.push(notification_button());
     actions.push(user_menu(variant));
 
-    let mut frame_attrs = vec![("data-blocks-navbar-app-links-shell", "")];
+    let mut frame_attrs = vec![
+        ("data-blocks-navbar-app-links-shell", ""),
+        // 狭幅ではハンバーガーパネルが root（header）の外側（兄弟）に置かれる
+        // ため、current-style は root ではなくパネルとの共通祖先である shell
+        // へ付ける。LAYOUT_CSS の current-style セレクタは shell を祖先に
+        // 見るため、この属性位置がパネル内リンクへも下線/ピルを届かせる
+        // 前提になる（イシュー #2926 レビュー指摘: root 限定だと狭幅表示で
+        // 現在地スタイルがパネル内に反映されない）。
+        ("data-blocks-navbar-app-links-current-style", current_style),
+    ];
     if narrow {
         frame_attrs.push(("data-blocks-navbar-app-links-frame", "narrow"));
     }
@@ -256,7 +265,6 @@ fn bar(
                 vec![
                     ("data-blocks-navbar-app-links-root", ""),
                     ("data-blocks-navbar-app-links-variant", variant),
-                    ("data-blocks-navbar-app-links-current-style", current_style),
                 ],
                 vec![
                     logo(),

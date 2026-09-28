@@ -287,7 +287,16 @@ fn bar(
     actions.push(notification_button());
     actions.push(user_menu(variant));
 
-    let mut frame_attrs = vec![("data-blocks-navbar-app-links-shell", "")];
+    let mut frame_attrs = vec![
+        ("data-blocks-navbar-app-links-shell", ""),
+        // 狭幅ではハンバーガーパネルが root（header）の外側（兄弟）に置かれる
+        // ため、current-style は root ではなくパネルとの共通祖先である shell
+        // へ付ける。LAYOUT_CSS の current-style セレクタは shell を祖先に
+        // 見るため、この属性位置がパネル内リンクへも下線/ピルを届かせる
+        // 前提になる（イシュー #2926 レビュー指摘: root 限定だと狭幅表示で
+        // 現在地スタイルがパネル内に反映されない）。
+        ("data-blocks-navbar-app-links-current-style", current_style),
+    ];
     if narrow {
         frame_attrs.push(("data-blocks-navbar-app-links-frame", "narrow"));
     }
@@ -299,7 +308,6 @@ fn bar(
                 vec![
                     ("data-blocks-navbar-app-links-root", ""),
                     ("data-blocks-navbar-app-links-variant", variant),
-                    ("data-blocks-navbar-app-links-current-style", current_style),
                 ],
                 vec![
                     logo(),
@@ -398,8 +406,8 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-navbar-app-links-toggle] {\n  display: inline-flex;\n}\n\
 [data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-navbar-app-links-toggle][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-navbar-app-links-panel] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  padding: 0 var(--fandhe-space-4) var(--fandhe-space-3);\n}\n\
-[data-blocks-navbar-app-links-root][data-blocks-navbar-app-links-current-style=\"pill\"] [data-scope=\"navigation-menu\"][data-part=\"link\"] {\n  border-radius: var(--fandhe-radius-full);\n}\n\
-[data-blocks-navbar-app-links-root][data-blocks-navbar-app-links-current-style=\"underline\"] [data-scope=\"navigation-menu\"][data-part=\"link\"][data-current] {\n  background: transparent;\n  color: var(--fandhe-color-fg);\n  border-radius: 0;\n  border-block-end: 2px solid var(--fandhe-color-accent);\n}\n\
+[data-blocks-navbar-app-links-shell][data-blocks-navbar-app-links-current-style=\"pill\"] [data-scope=\"navigation-menu\"][data-part=\"link\"] {\n  border-radius: var(--fandhe-radius-full);\n}\n\
+[data-blocks-navbar-app-links-shell][data-blocks-navbar-app-links-current-style=\"underline\"] [data-scope=\"navigation-menu\"][data-part=\"link\"][data-current] {\n  background: transparent;\n  color: var(--fandhe-color-fg);\n  border-radius: 0;\n  border-block-end: 2px solid var(--fandhe-color-accent);\n}\n\
 @container blocks-navbar-app-links (min-width: 48rem) {\n  \
 [data-blocks-navbar-app-links-nav-wrap] {\n    display: block;\n  }\n  \
 [data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-navbar-app-links-toggle] {\n    display: none;\n  }\n  \
