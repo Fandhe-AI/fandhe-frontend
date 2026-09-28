@@ -144,11 +144,19 @@ fn number_field(
 /// `aria-label` だけだと隣のサイズ欄〔ラベルが上にある縦並び〕とグリッドの
 /// 行内で縦位置がずれるため、`form_layout_two_column` の「国・地域」欄と
 /// 同型の構成へ揃えた、イシュー #2913 コードレビューで是正）。
+///
+/// `note`（`Some` のとき `field::helper_text` を添える）は、選択操作自体が
+/// 実際に効く（`native_select` は無 JS でも開閉・選択できる）が選択結果を
+/// 反映する対象がこの静的デモには無い欄向け。B 版のテーマ選択がこれに
+/// 該当し、選んでも配下のパネル配色は変わらない（無 JS デモのため）ことを
+/// 明示して誤解を防ぐ（イシュー #2914 コードレビュー是正、P2）。他の呼び
+/// 出し（単位・配置・フォント）は選択自体が示す意味が完結するため `None`。
 fn unit_select(
     id: &'static str,
     label_text: &'static str,
     options: &[(&'static str, &'static str)],
     size: Size,
+    note: Option<&'static str>,
 ) -> Node {
     let field_props = FieldProps {
         id,
@@ -157,7 +165,7 @@ fn unit_select(
         invalid: false,
         required: false,
         readonly: false,
-        has_helper_text: false,
+        has_helper_text: note.is_some(),
     };
     let option_nodes: Vec<Node> = options
         .iter()
@@ -165,23 +173,26 @@ fn unit_select(
             fandhe_frontend_core::el("option", vec![("value", value)], vec![text(*label)])
         })
         .collect();
-    field::root(
-        &FieldRootProps::default(),
-        &field_props,
-        vec![],
-        vec![
-            field::label(&field_props, vec![], vec![text(label_text)]),
-            native_select::native_select(
-                &NativeSelectProps {
-                    size,
-                    ..NativeSelectProps::default()
-                },
-                &field_props,
-                vec![],
-                option_nodes,
-            ),
-        ],
-    )
+    let mut children = vec![
+        field::label(&field_props, vec![], vec![text(label_text)]),
+        native_select::native_select(
+            &NativeSelectProps {
+                size,
+                ..NativeSelectProps::default()
+            },
+            &field_props,
+            vec![],
+            option_nodes,
+        ),
+    ];
+    if let Some(note_text) = note {
+        children.push(field::helper_text(
+            &field_props,
+            vec![],
+            vec![text(note_text)],
+        ));
+    }
+    field::root(&FieldRootProps::default(), &field_props, vec![], children)
 }
 
 /// 「位置」節。X/Y/幅/高さ（数値 4 件・単位共有）+ 回転（数値 + `deg` 平文）。
@@ -235,6 +246,7 @@ fn position_section() -> Node {
                             "位置・サイズの単位",
                             &[("px", "px"), ("percent", "%"), ("rem", "rem")],
                             Size::Sm,
+                            None,
                         )],
                     ),
                     div(
@@ -392,6 +404,7 @@ fn layout_section() -> Node {
                                 ("stretch", "引き伸ばし"),
                             ],
                             Size::Sm,
+                            None,
                         )],
                     ),
                 ],
@@ -443,6 +456,7 @@ fn text_section() -> Node {
                         "太さ",
                         &[("400", "標準"), ("700", "太字"), ("300", "細字")],
                         Size::Sm,
+                        None,
                     ),
                     div(
                         vec![("class", "blocks-form-layout-property-panel-grid-span-2")],
@@ -672,6 +686,15 @@ fn panel_theme_collapsible() -> Node {
         readonly: true,
         ..ColorPickerProps::default()
     };
+    // `trigger` のみ `disabled: true` も重ねる（`readonly` は
+    // ネイティブ `disabled` 属性を出さず操作可能に見えてしまうため、
+    // `number_field` の増減ボタンと同じ判断。イシュー #2914 コード
+    // レビュー是正、P1）。
+    let disabled_trigger_color_props = ColorPickerProps {
+        readonly: true,
+        disabled: true,
+        ..ColorPickerProps::default()
+    };
     let fill_section = collapsible::content(
         collapsible::OpenState::Open,
         true,
@@ -700,7 +723,7 @@ fn panel_theme_collapsible() -> Node {
                             ),
                             color_picker::trigger(
                                 &fill_color,
-                                &readonly_color_props,
+                                &disabled_trigger_color_props,
                                 None,
                                 vec![("aria-label", "塗り色を選ぶ")],
                                 vec![],
@@ -757,6 +780,7 @@ fn panel_theme_collapsible() -> Node {
                     ("high-contrast", "ハイコントラスト"),
                 ],
                 Size::Sm,
+                Some("選択操作自体は無 JS でも行えますが、この静的デモでは配下パネルの配色は変わりません。"),
             ),
             separator::separator(&SeparatorProps::default(), vec![]),
             collapsible::trigger(
@@ -878,6 +902,7 @@ fn panel_card_font() -> Node {
                                 "フォント",
                                 &[("noto-sans-jp", "Noto Sans JP")],
                                 Size::Sm,
+                                None,
                             ),
                             number_field(
                                 "blocks-form-layout-property-panel-c-size",
@@ -1020,6 +1045,7 @@ fn panel_compact() -> Node {
                                     "単位",
                                     &[("px", "px"), ("percent", "%"), ("rem", "rem")],
                                     Size::Xs,
+                                    None,
                                 )],
                             ),
                         ],
