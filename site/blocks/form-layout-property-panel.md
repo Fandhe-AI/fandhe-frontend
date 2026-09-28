@@ -1067,14 +1067,15 @@ pub fn demo() -> Node {
 - **R0227（C）**: カード枠 + パンくずのヘッダーで包んだフォント設定の版で
   す。パンくずの途中項目は遷移先を持たない平文表示（末尾のみ現在ページを
   示す `current-link`）にしています。行間ラベルの横に添えた `tooltip` は
-  閉じた状態で固定です。フッターの `clipboard` はコピー対象を無害な CSS
-  宣言 1 行にしています。
+  開いた状態（`OpenState::Open`）で常時表示です。フッターの `clipboard` は
+  コピー対象を無害な CSS 宣言 1 行にしています。
 - **R0228（D）**: 極小サイズ（`Size::Xs`）の入力を並べた狭幅パネルです。
   `fieldset` は Xs 段のサイズ variant を持たないため `Size::Sm` のままにし
   ています。
-- `tooltip`/`clipboard` の trigger は `fandhe-frontend-wasm-full` に組み
-  込めば実際に機能する部品のため無効化していません（`disabled` を付けた
-  のは `segment_group`/`collapsible`/フォント欄の `select` のみ）。
+- `tooltip`/`clipboard` の trigger は開閉・コピー操作が JS ハイドレーション
+  前提のため（無 JS の docs サイトでは押しても機能しません）ネイティブ
+  `disabled` で操作不能にしています（`segment_group`/`collapsible`/フォント
+  欄の `select` も同様です）。
 - 文言・配色・数値はすべて架空のものです。
 
 関連情報: [Field](../themes/field.md) / [Fieldset](../themes/fieldset.md) /
