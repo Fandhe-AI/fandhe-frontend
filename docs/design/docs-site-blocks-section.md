@@ -965,6 +965,7 @@ pub enum LayoutCss {
 | app-shell-three-column | #2898 | `application/app_shell/app_shell_three_column.rs` |
 | card-form-footer | #2899 | `application/card/card_form_footer.rs` |
 | card-heading-toolbar | #2902 | `application/card_heading/card_heading_toolbar.rs` |
+| page-heading-actions | #2930 | `application/page_heading/page_heading_actions.rs` |
 | card-media-footer | #2900（親 #2892） | `application/card/card_media_footer.rs` |
 | card-meta-cta | #2901（親 #2892） | `application/card/card_meta_cta.rs` |
 | chart-bar-list | #2903 | `application/chart/chart_bar_list.rs` |
@@ -993,6 +994,7 @@ pub enum LayoutCss {
 | pricing-upgrade-card | #2878（親 #2807） | `marketing/pricing/pricing_upgrade_card.rs` |
 | testimonial-card-grid | #2884（親 #2807） | `marketing/testimonial/testimonial_card_grid.rs` |
 | testimonial-split-image | #2890（親 #2807） | `marketing/testimonial/testimonial_split_image.rs` |
+| grid-list-contact-cards | #2919（親 #2892） | `application/grid_list/grid_list_contact_cards.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
 個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の全件であり、

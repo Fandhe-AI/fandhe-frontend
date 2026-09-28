@@ -14,6 +14,7 @@
 
 mod grid_list_action_tiles;
 mod grid_list_compact_tiles;
+mod grid_list_contact_cards;
 mod grid_list_file_thumbnails;
 mod grid_list_logo_cards;
 
@@ -22,6 +23,7 @@ use crate::blocks::Block;
 pub(super) fn blocks() -> Vec<Block> {
     vec![
         grid_list_compact_tiles::BLOCK,
+        grid_list_contact_cards::BLOCK,
         grid_list_file_thumbnails::BLOCK,
         grid_list_logo_cards::BLOCK,
         grid_list_action_tiles::BLOCK,

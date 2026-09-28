@@ -2038,6 +2038,14 @@ source = "site/blocks/navbar-app-links.md"
 path = "/blocks/navbar-app-links/"
 
 [[section.group]]
+title = "Page Heading"
+
+[[section.group.page]]
+title = "page-heading-actions"
+source = "site/blocks/page-heading-actions.md"
+path = "/blocks/page-heading-actions/"
+
+[[section.group]]
 title = "Card Heading"
 
 [[section.group.page]]
@@ -2080,6 +2088,11 @@ path = "/blocks/grid-list-action-tiles/"
 title = "grid-list-compact-tiles"
 source = "site/blocks/grid-list-compact-tiles.md"
 path = "/blocks/grid-list-compact-tiles/"
+
+[[section.group.page]]
+title = "grid-list-contact-cards"
+source = "site/blocks/grid-list-contact-cards.md"
+path = "/blocks/grid-list-contact-cards/"
 
 [[section.group.page]]
 title = "grid-list-file-thumbnails"
