@@ -2228,6 +2228,14 @@ source = "site/blocks/cursor-hover-cards.md"
 path = "/blocks/cursor-hover-cards/"
 
 [[section.group]]
+title = "Profile"
+
+[[section.group.page]]
+title = "profile-card-centered"
+source = "site/blocks/profile-card-centered.md"
+path = "/blocks/profile-card-centered/"
+
+[[section.group]]
 title = "Chart"
 
 [[section.group.page]]

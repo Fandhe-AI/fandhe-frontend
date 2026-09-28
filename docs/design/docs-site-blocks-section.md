@@ -998,6 +998,7 @@ pub enum LayoutCss {
 | testimonial-card-grid | #2884（親 #2807） | `marketing/testimonial/testimonial_card_grid.rs` |
 | testimonial-split-image | #2890（親 #2807） | `marketing/testimonial/testimonial_split_image.rs` |
 | grid-list-contact-cards | #2919（親 #2892） | `application/grid_list/grid_list_contact_cards.rs` |
+| profile-card-centered | #2936（親 #2892） | `application/profile/profile_card_centered.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
 個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の全件であり、
