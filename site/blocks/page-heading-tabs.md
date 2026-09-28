@@ -190,25 +190,56 @@ fn view_switch() -> Node {
 
 /// 期間フィルタ。`40rem` 以上は `tab_nav`、未満は `native_select` を CSS で
 /// 出し分ける（モジュール doc「狭幅対応」節参照）。
+///
+/// 選択状態は `period_items`（`tab_nav` の現在位置）を単一の真実源とし、
+/// `native_select` の初期選択（`option` の `selected`）をそこから導出する
+/// ことで、狭幅/広幅間で表示される初期選択が食い違わないようにする
+/// （イシュー #2934 codex レビュー P1 是正）。本 Demo は静的な合成例であり
+/// 選択操作をフォーム送信・状態更新へ結び付ける手段を持たないため、
+/// `native_select` 自体を `disabled: true` にして「操作しても変わらない
+/// ように見える」誤りを防ぐ（`view_switch` の `segment_group` と同型の
+/// 無 JS 対応、モジュール doc「メニュー・SegmentGroup は無 JS のため
+/// 静的固定」節参照）。
 fn period_filter() -> Node {
     let period_props = FieldProps {
         id: "blocks-page-heading-tabs-period",
         ids: FieldIds::default(),
-        disabled: false,
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
         has_helper_text: false,
     };
+    let period_items = [
+        ("period-today", "今日", false),
+        ("period-7d", "7 日間", true),
+        ("period-30d", "30 日間", false),
+        ("period-all", "全期間", false),
+    ];
     let options = [
         ("today", "今日"),
         ("7d", "7 日間"),
         ("30d", "30 日間"),
         ("all", "全期間"),
     ];
+    let selected_value =
+        period_items
+            .iter()
+            .find(|(_, _, current)| *current)
+            .map_or(options[0].0, |(id, _, _)| {
+                // period_items の id（`period-` 接頭辞付き）から options の value
+                // （接頭辞なし）を導出する。
+                id.trim_start_matches("period-")
+            });
     let option_nodes: Vec<Node> = options
         .iter()
-        .map(|(value, label)| el("option", vec![("value", value)], vec![text(*label)]))
+        .map(|(value, label)| {
+            let mut attrs = vec![("value", *value)];
+            if *value == selected_value {
+                attrs.push(("selected", "selected"));
+            }
+            el("option", attrs, vec![text(*label)])
+        })
         .collect();
     let select = native_select::native_select(
         &NativeSelectProps::default(),
@@ -216,12 +247,6 @@ fn period_filter() -> Node {
         vec![("aria-label", "期間")],
         option_nodes,
     );
-    let period_items = [
-        ("period-today", "今日", false),
-        ("period-7d", "7 日間", true),
-        ("period-30d", "30 日間", false),
-        ("period-all", "全期間", false),
-    ];
     let tabs = section_tabs("期間の絞り込み", &period_items);
     div(
         vec![],
