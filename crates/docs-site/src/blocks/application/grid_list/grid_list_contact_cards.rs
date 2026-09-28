@@ -482,7 +482,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-grid-list-contact-cards-label {\n  color: var(--fandhe-color-fg-muted);\n  font-size: 0.875rem;\n}\n\
 [data-blocks-grid-list-contact-cards-grid] {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-6);\n  margin: 0;\n  padding: 0;\n}\n\
 .blocks-grid-list-contact-cards-item {\n  min-width: 0;\n}\n\
-.blocks-grid-list-contact-cards-item [data-scope=\"card\"][data-part=\"root\"] {\n  display: flex;\n  flex: 1;\n  flex-direction: column;\n  width: 100%;\n  height: 100%;\n}\n\
+.blocks-grid-list-contact-cards-item [data-scope=\"card\"][data-part=\"root\"] {\n  display: flex;\n  flex: 1;\n  flex-direction: column;\n  width: 100%;\n  height: 100%;\n  overflow: hidden;\n}\n\
 [data-scope=\"card\"][data-part=\"body\"].blocks-grid-list-contact-cards-main {\n  display: flex;\n  flex-direction: row;\n  justify-content: space-between;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-grid-list-contact-cards-info {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
 .blocks-grid-list-contact-cards-role {\n  color: var(--fandhe-color-fg-muted);\n  font-size: 0.875rem;\n}\n\
