@@ -276,7 +276,7 @@ fn invite_instance() -> Node {
                         external: true,
                         ..LinkProps::default()
                     },
-                    vec![("aria-label", "GitHub で見る（応募者情報のリンク先）")],
+                    vec![],
                     vec![text("GitHub で見る")],
                 ),
                 dot_separator(),

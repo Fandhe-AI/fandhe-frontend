@@ -336,7 +336,7 @@ fn invite_instance() -> Node {
                         external: true,
                         ..LinkProps::default()
                     },
-                    vec![("aria-label", "GitHub で見る（応募者情報のリンク先）")],
+                    vec![],
                     vec![text("GitHub で見る")],
                 ),
                 dot_separator(),
@@ -554,12 +554,17 @@ mod tests {
         // 無関係な GitHub リポジトリトップページ）。`contact_split_info.rs`
         // と同型の方針で、可視テキストを遷移先がわかる「GitHub で見る」へ
         // 変更し、`external: true` で新規タブ遷移であることも明示する。
+        // `aria-label` で「応募者情報のリンク先」を上書きすると可視テキスト
+        // より遷移先を過大に主張するアクセシブルネームになる回帰があった
+        // （イシュー #2931 codex/Bugbot 再々指摘）ため、`aria-label` を
+        // 付与せず可視テキストをそのままアクセシブルネームにする。
         let html = demo_html();
         assert!(html.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend\""));
         assert!(html.contains("GitHub で見る"));
         assert!(!html.contains("応募内容を見る"));
         assert!(!html.contains("応募一覧を見る"));
         assert!(!html.contains(">詳細を見る<"));
+        assert!(!html.contains("応募者情報のリンク先"));
     }
 
     #[test]
