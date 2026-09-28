@@ -67,7 +67,12 @@
 //! `[data-disabled]` 複合セレクタで `opacity: 1; cursor: default;` に
 //! 中和して通常状態と同じ見た目に保つ。検索欄（[`search_box`]）も
 //! `FieldProps`/`InputGroupProps` の両方を `disabled: true` にして入力
-//! 不能にし、送信先を持たず `<form>` へは包まない。
+//! 不能にし、送信先を持たず `<form>` へは包まない。無効化に伴い
+//! `field`/`input` パート・`input-group`/`addon` パート（検索アイコン）
+//! が自前で持つ `opacity: 0.5` も、上記アクション群と同じく
+//! [`LAYOUT_CSS`] の `[data-blocks-navbar-two-row-search]` 配下の
+//! `[data-disabled]` 複合セレクタで `opacity: 1;` に中和する
+//! （中和しないと検索欄だけ他のアクションより薄く見える不整合になる）。
 //!
 //! # `<form>`/`href="#"`/`data:` を持たない
 //!
@@ -488,6 +493,8 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-navbar-two-row-variant=\"tabs-center\"] [data-blocks-navbar-two-row-row-primary] {\n  grid-template-columns: auto auto minmax(0, 1fr) auto;\n}\n\
 [data-blocks-navbar-two-row-logo] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  white-space: nowrap;\n}\n\
 [data-blocks-navbar-two-row-search] {\n  max-inline-size: 32rem;\n  margin-inline: auto;\n  inline-size: 100%;\n}\n\
+[data-blocks-navbar-two-row-search] [data-scope=\"field\"][data-part=\"input\"][data-disabled] {\n  opacity: 1;\n  cursor: not-allowed;\n}\n\
+[data-blocks-navbar-two-row-search] [data-scope=\"input-group\"][data-part=\"addon\"][data-disabled] {\n  opacity: 1;\n  cursor: not-allowed;\n}\n\
 [data-blocks-navbar-two-row-actions] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-navbar-two-row-notify][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"menu\"][data-part=\"trigger\"][data-blocks-navbar-two-row-profile-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
@@ -599,6 +606,20 @@ mod tests {
             .count(),
             2
         );
+    }
+
+    /// 検索欄の `field`/`input` パート・`input-group`/`addon`
+    /// パート（検索アイコン）が、無効化に伴う自前の `opacity: 0.5`
+    /// フェードを [`LAYOUT_CSS`] で中和していること（Cursor Bugbot
+    /// 指摘、検索欄だけ他のアクションより薄く見える不整合の回帰防止）。
+    #[test]
+    fn search_box_disabled_fade_is_counteracted() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-navbar-two-row-search] [data-scope=\"field\"][data-part=\"input\"][data-disabled] {\n  opacity: 1;\n  cursor: not-allowed;\n}"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-navbar-two-row-search] [data-scope=\"input-group\"][data-part=\"addon\"][data-disabled] {\n  opacity: 1;\n  cursor: not-allowed;\n}"
+        ));
     }
 
     /// ハンバーガーが variant 数だけあり、`aria-controls`/`id` が
