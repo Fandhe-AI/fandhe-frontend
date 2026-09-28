@@ -118,8 +118,10 @@ cargo run -p fandhe-frontend-cli -- gate --project examples/vercel-ssg
 `examples/vercel-ssg` 本体は Basic 認証の Routing Middleware を組み込み
 済みですが、既定のビルドには含まれません（`.vercel/output` は
 本機能導入前とバイト単位で同一です）。有効化するにはビルド時に環境変数
-`FANDHE_VERCEL_SSG_BASIC_AUTH` を正確に `1` に設定してください
-（`0`・`true`・空文字・未設定はすべて無効として扱われる fail-closed な
+`FANDHE_VERCEL_SSG_BASIC_AUTH` を正確に `1` に設定してください。
+未設定時は無効として扱われますが、設定済みで `1` 以外の値（`0`・`true`・
+空文字・前後に空白や改行を含む `1` 系等）を指定した場合はビルド自体が
+エラー終了します（無保護の成果物を誤って生成しないための fail-closed な
 判定です）。
 
 ```bash

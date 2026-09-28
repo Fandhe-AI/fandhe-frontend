@@ -52,9 +52,13 @@
 //!   README のいずれにも含めない。
 //! - Basic 認証の Routing Middleware は既定では無効の opt-in 機能
 //!   （[`BASIC_AUTH_FLAG_ENV`] が正確に `"1"` のときだけ有効、イシュー
-//!   #3343）。無効時（未設定・空文字・`"1"` 以外の任意の値）は
-//!   [`output_root_assets`] が [`CONFIG_JSON`] の 1 件のみを返し、
-//!   `.vercel/output` はミドルウェア導入前とバイト単位で同一になる。
+//!   #3343）。**未設定**時のみ無効扱い（[`output_root_assets`] が
+//!   [`CONFIG_JSON`] の 1 件のみを返し、`.vercel/output` はミドルウェア
+//!   導入前とバイト単位で同一になる）。**設定済みだが `"1"` 以外**の値
+//!   （空文字・`"1"` 以外の任意の値）は、誤って無保護の成果物を生成しない
+//!   よう [`basic_auth_enabled`] がエラーを返しビルド自体を失敗させる
+//!   （fail-closed。「未設定＝無効」と「設定済みだが不正な値＝エラー」を
+//!   区別する）。
 
 #![forbid(unsafe_code)]
 
@@ -71,8 +75,9 @@ const STATIC_DIR: &str = ".vercel/output/static";
 
 /// Basic 認証 Routing Middleware の有効化フラグ（ビルド時専用）。
 ///
-/// [`basic_auth_enabled`] が値を厳密に `"1"` かどうかでのみ判定する
-/// （未設定・空文字・`"0"`・`"true"` 等はすべて無効）。**この環境変数は
+/// [`basic_auth_enabled`] が判定する: 未設定は無効、`"1"` は有効、
+/// それ以外の設定済みの値（空文字・`"0"`・`"true"` 等）はビルドエラー
+/// とする（fail-closed）。**この環境変数は
 /// `cargo run` 実行時にのみ読まれ、Vercel のランタイム（デプロイ後の
 /// Edge Runtime ミドルウェア）では一切読まれない**。ランタイムで実際に
 /// 認証情報として使う `BASIC_AUTH_USER`/`BASIC_AUTH_PASSWORD`（Vercel の
@@ -376,12 +381,24 @@ fn not_found_page() -> Node {
 
 /// [`BASIC_AUTH_FLAG_ENV`] の値から有効・無効を判定する（純関数）。
 ///
-/// 値が正確に `"1"` の場合のみ `true`。未設定（`None`）・空文字・
-/// `"0"`・`"true"`・前後に空白や改行を含む `"1"` 系（` 1`・`1\n` 等）は
-/// すべて `false` として扱う（意図しない値での有効化を避ける fail-closed
-/// な判定）。
-fn basic_auth_enabled(value: Option<&OsStr>) -> bool {
-    value == Some(OsStr::new("1"))
+/// **未設定**（`None`）の場合のみ既定で `false`（無効）を返す。値が
+/// **設定済み**の場合は、正確に `"1"` なら `Ok(true)`、それ以外
+/// （空文字・`"0"`・`"true"`・前後に空白や改行を含む `"1"` 系〔` 1`・
+/// `1\n` 等〕）はすべて `Err` を返す。誤って `"true"`/`"1 "` のような
+/// 値を設定した場合に、意図せず [`output_root_assets`] が無保護
+/// （ミドルウェアなし）の成果物を生成してビルドを成功させてしまう
+/// ことを防ぐ fail-closed な判定（イシュー #3343、P1 指摘対応）。
+/// 「未設定＝無効」と「設定済みだが不正な値＝エラー」を区別する。
+fn basic_auth_enabled(value: Option<&OsStr>) -> Result<bool, String> {
+    match value {
+        None => Ok(false),
+        Some(v) if v == OsStr::new("1") => Ok(true),
+        Some(v) => Err(format!(
+            "{BASIC_AUTH_FLAG_ENV} is set to an unexpected value ({v:?}); \
+             set it to \"1\" to enable Basic auth middleware, or leave it \
+             unset to disable it"
+        )),
+    }
 }
 
 /// `generate_assets` に渡す (リクエストパス, コンテンツ文字列) 列を組み立てる。
@@ -461,6 +478,10 @@ fn clean_output_dir() -> std::io::Result<()> {
 enum BuildError {
     Clean(std::io::Error),
     Ssg(SsgError),
+    /// [`basic_auth_enabled`] が不正な環境変数値を検出した場合
+    /// （イシュー #3343）。無保護の成果物を誤って生成しないよう、
+    /// ビルド自体を失敗させる。
+    BasicAuthFlag(String),
 }
 
 impl std::fmt::Display for BuildError {
@@ -468,6 +489,7 @@ impl std::fmt::Display for BuildError {
         match self {
             BuildError::Clean(err) => write!(f, "failed to clean {OUTPUT_ROOT}: {err}"),
             BuildError::Ssg(err) => write!(f, "{err}"),
+            BuildError::BasicAuthFlag(msg) => write!(f, "{msg}"),
         }
     }
 }
@@ -489,18 +511,13 @@ impl From<SsgError> for BuildError {
 /// 成功時は書き出したファイルパスを 1 行ずつ標準出力へ、失敗時はエラーを
 /// 標準エラーへ出力して非ゼロ終了する（`unwrap`/`panic!` は使わない）。
 fn main() {
-    let basic_auth = basic_auth_enabled(std::env::var_os(BASIC_AUTH_FLAG_ENV).as_deref());
-    let result = clean_output_dir()
-        .map_err(BuildError::Clean)
-        .and_then(|()| Ok(generate_pages(&build_pages(), Path::new(STATIC_DIR))?))
-        .and_then(|pages| {
-            let not_found = generate_assets(&not_found_asset(), Path::new(STATIC_DIR))?;
-            let config = generate_assets(&output_root_assets(basic_auth), Path::new(OUTPUT_ROOT))?;
-            Ok(pages
-                .into_iter()
-                .chain(not_found)
-                .chain(config)
-                .collect::<Vec<_>>())
+    let result = basic_auth_enabled(std::env::var_os(BASIC_AUTH_FLAG_ENV).as_deref())
+        .map_err(BuildError::BasicAuthFlag)
+        .and_then(|basic_auth| {
+            clean_output_dir()
+                .map_err(BuildError::Clean)
+                .and_then(|()| Ok(generate_pages(&build_pages(), Path::new(STATIC_DIR))?))
+                .and_then(|pages| build_assets(basic_auth, pages))
         });
 
     match result {
@@ -516,6 +533,23 @@ fn main() {
     }
 }
 
+/// `main` から呼ばれる、[`STATIC_DIR`] へのページ生成後の残り処理
+/// （404 ページ・`config.json`・有効時のミドルウェアの書き出し）を
+/// まとめた関数。`basic_auth` の判定（[`basic_auth_enabled`]）が
+/// エラーの場合はそもそも呼ばれない。
+fn build_assets(
+    basic_auth: bool,
+    pages: Vec<std::path::PathBuf>,
+) -> Result<Vec<std::path::PathBuf>, BuildError> {
+    let not_found = generate_assets(&not_found_asset(), Path::new(STATIC_DIR))?;
+    let config = generate_assets(&output_root_assets(basic_auth), Path::new(OUTPUT_ROOT))?;
+    Ok(pages
+        .into_iter()
+        .chain(not_found)
+        .chain(config)
+        .collect::<Vec<_>>())
+}
+
 /// [`basic_auth_enabled`]・[`output_root_assets`]・
 /// `CONFIG_JSON_WITH_BASIC_AUTH` の単体テスト（イシュー #3343）。
 /// CLI ブラックボックステスト（両モードの `.vercel/output/` 生成結果）は
@@ -524,17 +558,20 @@ fn main() {
 mod tests {
     use super::*;
 
-    /// フラグの真理値表: `"1"` だけが有効、それ以外はすべて無効
-    /// （fail-closed。意図しない値での有効化を避ける）。
+    /// フラグの真理値表: 未設定は無効（`Ok(false)`）、`"1"` は有効
+    /// （`Ok(true)`）、それ以外の設定済みの値はすべてエラー（fail-closed。
+    /// 「未設定＝無効」と「設定済みだが不正な値＝エラー」を区別する、
+    /// イシュー #3343 P1 指摘対応）。
     #[test]
     fn basic_auth_enabled_truth_table() {
-        assert!(!basic_auth_enabled(None));
-        assert!(!basic_auth_enabled(Some(OsStr::new(""))));
-        assert!(!basic_auth_enabled(Some(OsStr::new("0"))));
-        assert!(!basic_auth_enabled(Some(OsStr::new("true"))));
-        assert!(!basic_auth_enabled(Some(OsStr::new(" 1"))));
-        assert!(!basic_auth_enabled(Some(OsStr::new("1\n"))));
-        assert!(basic_auth_enabled(Some(OsStr::new("1"))));
+        assert_eq!(basic_auth_enabled(None), Ok(false));
+        assert!(basic_auth_enabled(Some(OsStr::new(""))).is_err());
+        assert!(basic_auth_enabled(Some(OsStr::new("0"))).is_err());
+        assert!(basic_auth_enabled(Some(OsStr::new("true"))).is_err());
+        assert!(basic_auth_enabled(Some(OsStr::new(" 1"))).is_err());
+        assert!(basic_auth_enabled(Some(OsStr::new("1 "))).is_err());
+        assert!(basic_auth_enabled(Some(OsStr::new("1\n"))).is_err());
+        assert_eq!(basic_auth_enabled(Some(OsStr::new("1"))), Ok(true));
     }
 
     /// `CONFIG_JSON_WITH_BASIC_AUTH` から先頭の middlewarePath ルート

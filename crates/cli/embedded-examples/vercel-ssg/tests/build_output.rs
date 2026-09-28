@@ -247,17 +247,66 @@ fn cli_basic_auth_disabled_by_default_produces_unchanged_output() {
     );
 }
 
-/// Basic 認証フラグが `"1"` 以外の値（未設定・空文字・`"0"`・`"true"`）
-/// のときはすべて無効扱い（`functions/` 非生成）になることを固定する
-/// （fail-closed: 誤った値での意図しない有効化を防ぐ）。
+/// Basic 認証フラグが**未設定**のときは無効扱い（`functions/` 非生成、
+/// ビルド成功）になることを固定する。
 #[test]
-fn cli_basic_auth_non_one_values_are_treated_as_disabled() {
-    for value in [None, Some(""), Some("0"), Some("true")] {
-        let tag = format!("basic-auth-disabled-{}", value.unwrap_or("unset"));
-        let scratch = run_cli_in_scratch_dir_with_flag(&tag, value);
+fn cli_basic_auth_unset_is_treated_as_disabled() {
+    let scratch = run_cli_in_scratch_dir_with_flag("basic-auth-unset", None);
+    assert!(
+        !scratch.0.join(".vercel/output/functions").exists(),
+        "functions/ should not exist when the flag is unset"
+    );
+}
+
+/// Basic 認証フラグが**設定済みだが `"1"` 以外**の値（空文字・`"0"`・
+/// `"true"`・前後に空白や改行を含む `"1"` 系）のときは、無保護の成果物を
+/// 誤って生成しないよう、ビルド自体が失敗（非ゼロ終了）することを固定
+/// する（イシュー #3343 P1 指摘対応。fail-closed: 誤った値での意図しない
+/// 無効化＝無保護出力を防ぐ。「未設定＝無効」と「設定済みだが不正な値＝
+/// エラー」を区別する）。
+#[test]
+fn cli_basic_auth_invalid_set_values_fail_the_build() {
+    for (index, value) in [
+        Some(""),
+        Some("0"),
+        Some("true"),
+        Some(" 1"),
+        Some("1 "),
+        Some("1\n"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        // タグにはディレクトリ名として不適切な値（改行・空文字等）が
+        // そのまま入り得るため、インデックスのみを使う（Unix でも
+        // 改行入りディレクトリ名は許容されるが、テストの可読性・
+        // 移植性のために避ける）。
+        let tag = format!("basic-auth-invalid-{index}");
+        let scratch = TempDir::new(&tag);
+        std::fs::create_dir_all(&scratch.0).expect("failed to create scratch dir");
+
+        let mut command = Command::new(env!("CARGO_BIN_EXE_fandhe-frontend-example-vercel-ssg"));
+        command
+            .current_dir(&scratch.0)
+            .env_remove(BASIC_AUTH_FLAG_ENV);
+        if let Some(value) = value {
+            command.env(BASIC_AUTH_FLAG_ENV, value);
+        }
+        let output = command
+            .output()
+            .expect("binary should spawn and run to completion");
+
         assert!(
-            !scratch.0.join(".vercel/output/functions").exists(),
-            "functions/ should not exist for flag value {value:?}"
+            !output.status.success(),
+            "CLI should exit non-zero for invalid flag value {value:?}"
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(BASIC_AUTH_FLAG_ENV),
+            "stderr should mention {BASIC_AUTH_FLAG_ENV} for invalid flag value {value:?}"
+        );
+        assert!(
+            !scratch.0.join(".vercel/output").exists(),
+            "no output tree should be written when the flag value is invalid ({value:?})"
         );
     }
 }
