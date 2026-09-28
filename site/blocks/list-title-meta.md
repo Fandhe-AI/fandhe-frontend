@@ -195,7 +195,11 @@ const DEPLOY_ROWS: [DeployRow; 3] = [
 ];
 
 /// メタ行（日付 + 作成者、中黒区切り）。`<time datetime>` の `iso`/`label`
-/// は常に同じ日時を指す組にする不変条件（他 block と同型）。
+/// は常に同じ日時を指す組にする不変条件（他 block と同型）。中黒（`\u{b7}`）
+/// 自体は装飾として `aria-hidden` で読み上げから除外するが、支援技術に
+/// 日付と作成者を区切る文字が一切渡らなくなるのを避けるため、
+/// [`visually_hidden::root`] で読み上げ専用の区切りテキストを別途補う
+/// （codex レビュー P2 指摘、discussion_r4118300487）。
 fn meta_line(iso: &str, label: &str, author: &str) -> Node {
     el(
         "p",
@@ -203,6 +207,7 @@ fn meta_line(iso: &str, label: &str, author: &str) -> Node {
         vec![
             el("time", vec![("datetime", iso)], vec![text(label)]),
             span(vec![("aria-hidden", "true")], vec![text(" \u{b7} ")]),
+            visually_hidden::root(vec![], vec![text(", ")]),
             text(author),
         ],
     )
