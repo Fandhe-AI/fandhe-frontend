@@ -75,6 +75,6 @@ cargo run -p fandhe-frontend-cli -- gate --project examples/ssg-blog
 
 ## 関連ガイド
 
-- [`docs/guides/quickstart.md`](../../docs/guides/quickstart.md)
-- [`docs/api/app-api.md`](../../docs/api/app-api.md)
-- [`examples/ssr-routing/README.md`](../ssr-routing/README.md)
+- [`docs/guides/quickstart.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/guides/quickstart.md)
+- [`docs/api/app-api.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/api/app-api.md)
+- [`examples/ssr-routing/README.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/examples/ssr-routing/README.md)

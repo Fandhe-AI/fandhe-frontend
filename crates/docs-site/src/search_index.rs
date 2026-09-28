@@ -1,17 +1,28 @@
-//! ビルド時検索インデックス（`assets/search-index.json`）の生成（イシュー #957）。
+//! ビルド時検索インデックスの生成（イシュー #957、セクション粒度分割は
+//! イシュー #3173）。
 //!
 //! # 役割・呼び出し文脈
 //!
 //! [`crate::build::build_site`] がページループ内で [`page_entry`] を各ページから
-//! 収集し、`ssg::generate_pages` による書き出しより前に [`render_json`] +
-//! [`check_size`] を完了させてから `assets/search-index.json` として書き出す
-//! （`crate::build` モジュール doc の処理順を参照）。生成した JSON は
-//! `#958`（検索 UI、`crate::script` へ第 3 の IIFE として追加予定）が
-//! `fetch()` で遅延読み込みする契約であり、本モジュールは HTML へのインライン化
-//! を一切行わない（不変条件は下記参照）。
+//! 収集し、`site/nav.toml` の `[[section]]`（[`crate::nav::Section`]）ごとに
+//! まとめて [`build_files`] へ渡す。[`build_files`] は `ssg::generate_pages`
+//! による書き出しより前に完了し、次の 2 種類のファイルを返す:
 //!
-//! 設計の正は `docs/design/docs-site-search-design.md` §3 であり、本モジュールは
-//! 同文書から逸脱しない（`MAX_PAGE_TEXT_BYTES` 等の定数値を含む）。
+//! - マニフェスト [`REL_PATH`]（`assets/search-index.json`）: セクション一覧
+//!   （`title` と各セクションファイルの `href`）のみを持つ小さな JSON。
+//!   `layout` の `data-search-index` 属性が指す唯一の入口。
+//! - セクションファイル `assets/search-index/<slug>.json`（[`section_rel_path`]）:
+//!   当該セクション配下のページエントリ（`pages`）。ファイル数は nav.toml の
+//!   `[[section]]` 数と常に一致し、セクション追加時に本モジュール・
+//!   `crate::build`・`crate::script` のいずれにも分岐を足す必要がない
+//!   （レジストリ駆動、設計文書 §10-15）。
+//!
+//! 生成した JSON は検索 UI（`crate::script` の第 3 IIFE）が初回 focus 時に
+//! マニフェスト → 全セクションファイルの順で `fetch()` する契約であり、本
+//! モジュールは HTML へのインライン化を一切行わない（不変条件は下記参照）。
+//!
+//! 設計の正は `docs/design/docs-site-search-design.md` §3・§10-15 であり、本
+//! モジュールは同文書から逸脱しない（`MAX_PAGE_TEXT_BYTES` 等の定数値を含む）。
 //!
 //! # セキュリティ不変条件（REQ-1、`.claude/rules/coding-rust.md`）
 //!
@@ -33,71 +44,59 @@ use fandhe_frontend_core::Node;
 
 use crate::layout;
 
-/// `assets/search-index.json` の `out_dir` 起点相対パス（`crate::build` が
-/// 書き出し先の単一実装点として使う）。
+/// マニフェスト JSON（`assets/search-index.json`）の `out_dir` 起点相対パス。
+/// `crate::layout` の `data-search-index` 属性値（[`crate::layout::asset_href`]
+/// 経由）と `crate::build` の書き出し先の単一実装点。イシュー #3173 以前は
+/// 全ページを 1 ファイルに集約した索引本体だったが、現在はセクション一覧のみ
+/// を持つ（ページエントリは [`section_rel_path`] のファイルへ分割される）。
 pub const REL_PATH: &str = "assets/search-index.json";
 
+/// セクションファイルを置くディレクトリの `out_dir` 起点相対パス
+/// （[`section_rel_path`] が `"<dir>/<slug>.json"` を組み立てる）。
+/// `site/assets/` はディレクトリを許容しない（`crate::build` の
+/// `list_regular_files` が `UnsupportedAssetEntry` で拒否する）ため、
+/// `RESERVED_ASSET_NAMES` による basename 衝突判定の対象外である。
+pub const SECTION_DIR_REL_PATH: &str = "assets/search-index";
+
 /// インデックス JSON のスキーマバージョン。破壊的変更時にインクリメントする。
-/// JS 側（#958）は `version !== 1` を fail-closed で不使用（検索を無効表示の
-/// まま）とする契約（設計文書 §3-1）。
-pub const SCHEMA_VERSION: u32 = 1;
+/// マニフェスト・セクションファイルの双方が同じ値を持ち、JS 側は
+/// `version !== 2` を fail-closed で不使用（検索を無効表示のまま）とする契約
+/// （設計文書 §3-1）。イシュー #3173 で 1 → 2（単一ファイル → マニフェスト
+/// + セクションファイル）。
+pub const SCHEMA_VERSION: u32 = 2;
 
 /// 1 ページあたりの `text` フィールドの最大バイト数。超過分は UTF-8 文字境界で
 /// 決定的に切り詰める（エラーにしない、設計文書 §3-4）。
 ///
-/// イシュー #2849（`footer-cta-columns` block 追加）で `MAX_INDEX_BYTES`
-/// 超過を検知した際、257 ページが既にこの上限で切り詰められていた
-/// （§10-4・§10-5 の実測時点〔124/313〕から大幅に増加）ことを踏まえ、
-/// `MAX_INDEX_BYTES` を据え置いたまま本定数を 4096 → 4032 へ引き下げて
-/// 対処した（設計文書 §10-10）。`MAX_INDEX_BYTES` の「これ以上引き上げない」
-/// ハードルール（設計文書 §10-6）は本定数を対象にしないため抵触しない。
-/// ただし恒久対処ではない緊急避難であり、余裕は薄いままである。恒久対処は
-/// セクション粒度インデックスへの分割（追跡: イシュー #3173）であり、本定数
-/// の再引き下げの繰り返しでは対処しない。イシュー #2851（`footer-link-columns`
-/// block 追加）を base 取り込みで合流させた時点では実測はこの 4032 の範囲内に
-/// 収まっていたが、イシュー #2853（`header-floating-pill` block 追加）と
-/// イシュー #2855（`header-flyout-menu` block 追加）が並行してマージされ、
-/// 双方を base 取り込みで合流させた PR #3272 の時点で実測が
-/// 1,708,308 バイトへ達し `MAX_INDEX_BYTES`（1,703,936 バイト）を再度超過した
-/// ため、本定数を 4032 → 4000 へ再度引き下げて対処した（実測 1,699,483
-/// バイト、全体の約 99.7%。設計文書 §10-12）。イシュー #2862
-/// （`pricing-comparison-table` block 追加）・イシュー #2865
-/// （`pricing-seats-split` block 追加）でも独立に `MAX_INDEX_BYTES`
-/// 超過を検知したが、本定数の再引き下げ（§10-10・§10-12 と同型の対症療法の
-/// 繰り返し）は採らなかった（設計文書 §10-13 参照）。代わりに
-/// [`collect_text_into`] が Blocks ページのフェンスコードブロック本文を
-/// 索引対象から除外する恒久対処を採ったため、本定数は 4000 のまま据え置く。
-///
-/// イシュー #2856（`header-flyout-menu` の残り領域・状態表示・原稿を仕上げる、
-/// PR #3276）は上記の対処を base 取り込みで引き継いだうえで実装し、
-/// `MAX_INDEX_BYTES` 超過が生じないことを実測確認した（設計文書 §10-13）。
-/// **本定数のこれ以上の引き下げは行わない**（同一ハードルールの機械的な
-/// 繰り返しは索引精度を際限なく落とすだけで恒久対処にならないため）。
-/// 恒久対処（セクション粒度インデックスへの分割、追跡: イシュー #3173）が
-/// 必要になった場合はそちらへ着手する。
+/// #957 設計時点の 4096 から、旧 `MAX_INDEX_BYTES`（1 ファイル全体上限）超過
+/// への緊急避難として 4032（§10-10）→ 4000（§10-12）へ引き下げられた経緯を
+/// 持つ。イシュー #3173 のセクション分割で全体上限の概念自体が消えたため、
+/// 本定数を索引総量の調整弁として再び上下させることはしない（索引精度を
+/// 一律に落とす対症療法であり、§10-14 で「機械的に繰り返さない」と決定
+/// 済み）。値は 4000 のまま据え置く。
 pub const MAX_PAGE_TEXT_BYTES: usize = 4000;
 
-/// インデックス JSON 全体の最大バイト数。超過時は fail-closed（設計文書 §3-4）。
+/// セクションファイル 1 件あたりの最大バイト数（2.5 MiB）。超過時は
+/// fail-closed（[`SearchIndexError::TooLarge`]、設計文書 §10-15）。
 ///
-/// #957 設計時点の 1 MiB から複数回引き上げて現在値（1.625 MiB）に至る
-/// （#2552 → 1.125 MiB、#2645 → 1.25 MiB、#2750（`bento-two-column`）・
-/// #2814（`blog-split-header-grid`）が並行して 1.25 MiB 超過を検知し、
-/// うち #2814 の実測（1,313,108 バイト）に基づく引き上げ幅
-/// （+393,216 バイト）が最終的に採用され現在値へ至った）。#2750 の
-/// 実測（1,313,033 バイト）は #2814 とほぼ同水準であり、いずれの引き上げ
-/// 幅でも「引き上げ直後から §8 トリガー 1（新上限の 80% 超過）に抵触する」
-/// 結果に終わっており、**これ以上の引き上げは行わない**（ハードルール、
-/// 設計文書 §10-6）。次回 [`SearchIndexError::TooLarge`] が発生した場合の
-/// 恒久対処はセクション粒度インデックスへの分割（追跡: イシュー #3173）
-/// であり、本定数の値を変更することでは対処しない。判断の実測根拠・却下
-/// した代替案（per-page 上限引き下げ・索引対象精査）は設計文書 §10-4・
-/// §10-5・§10-6 を正とし、変更履歴の逐次追記はここでは行わない。イシュー
-/// #2751（`content-article` block 追加、Marketing / Content カテゴリ）
-/// を base 取り込みで合流させた時点でも実測は現在値
-/// （1.625 MiB）の範囲内（80% 未満）に収まっており、ハードルールに抵触
-/// せず `MAX_INDEX_BYTES` の追加引き上げは不要だった（設計文書 §10-9
-/// 参照）。
-pub const MAX_INDEX_BYTES: usize = 1_703_936;
+/// イシュー #3173 以前の `MAX_INDEX_BYTES`（全ページを集約した 1 ファイルの
+/// 上限、最終値 1,703,936 バイト）は「これ以上引き上げない」ハードルール
+/// （設計文書 §10-6）のもとで Blocks ページ 1 件の追加ごとに超過していた。
+/// セクション分割後は「1 ファイル全体」という概念自体が存在せず、本定数が
+/// 唯一のサイズ防波堤である。
+///
+/// 値の根拠（イシュー #3173 時点の実測、設計文書 §10-15）: 最大セクション
+/// Blocks は 174 ページ・527,062 バイト（1 ページ平均 3,029 バイト、`text`
+/// 以外のオーバーヘッド平均 337 バイト・最大 1,826 バイト）。拡充ツリー
+/// #2730 完了後の約 400 ページへ線形外挿すると、平均で約 1.19 MB（本上限の
+/// 約 46%）、全ページが [`MAX_PAGE_TEXT_BYTES`] に張り付いた現実的な最悪値
+/// （4,000 + 337）× 400 = 1.73 MB（約 66%）、理論上の最悪値（4,000 + 1,826）
+/// × 400 = 2.33 MB（約 89%）のいずれも本上限に収まる。
+///
+/// 再評価トリガー: いずれかのセクションファイルが本上限の 80% を超えた場合、
+/// 本定数を引き上げるのではなく、当該セクションをさらに分割する
+/// （Blocks なら `crate::blocks::BlockSection` 単位）ことを先に検討する。
+pub const MAX_SECTION_INDEX_BYTES: usize = 2_621_440;
 
 /// ページ内目次の 1 見出しに対応するインデックスエントリ。
 ///
@@ -131,25 +130,64 @@ pub struct PageEntry {
     pub text: String,
 }
 
-/// [`check_size`] が返す失敗理由。
+/// [`build_files`] / [`check_size`] が返す失敗理由。
 #[derive(Debug)]
 pub enum SearchIndexError {
-    /// 生成した JSON が [`MAX_INDEX_BYTES`] を超過した。
+    /// 生成したセクションファイル JSON が [`MAX_SECTION_INDEX_BYTES`] を
+    /// 超過した。
     TooLarge {
+        /// 超過したセクションのスラッグ（[`section_slug`]）。
+        section: String,
         /// 実際のバイト数。
         bytes: usize,
-        /// 上限バイト数（[`MAX_INDEX_BYTES`]）。
+        /// 上限バイト数（[`MAX_SECTION_INDEX_BYTES`]）。
         limit: usize,
+    },
+    /// セクションタイトルから ASCII 英数字を 1 文字も取り出せず、ファイル名
+    /// を決定できない（[`section_slug`] が空文字を返した）。
+    EmptySectionSlug {
+        /// 元のセクションタイトル。
+        title: String,
+    },
+    /// 2 つのセクションタイトルが同じスラッグに写り、ファイルが上書きされる
+    /// （`"API Reference"` と `"api-reference"` 等）。
+    DuplicateSectionSlug {
+        /// 衝突したスラッグ。
+        slug: String,
+        /// 先に登録されたセクションタイトル。
+        first: String,
+        /// 後から衝突したセクションタイトル。
+        second: String,
     },
 }
 
 impl fmt::Display for SearchIndexError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SearchIndexError::TooLarge { bytes, limit } => {
+            SearchIndexError::TooLarge {
+                section,
+                bytes,
+                limit,
+            } => {
                 write!(
                     f,
-                    "search index is {bytes} bytes, exceeding the {limit} byte limit"
+                    "search index section `{section}` is {bytes} bytes, exceeding the {limit} byte per-file limit"
+                )
+            }
+            SearchIndexError::EmptySectionSlug { title } => {
+                write!(
+                    f,
+                    "search index section title {title:?} yields an empty file name slug"
+                )
+            }
+            SearchIndexError::DuplicateSectionSlug {
+                slug,
+                first,
+                second,
+            } => {
+                write!(
+                    f,
+                    "search index sections {first:?} and {second:?} both map to file name slug `{slug}`"
                 )
             }
         }
@@ -362,15 +400,137 @@ fn escape_json_string(s: &str, out: &mut String) {
     out.push('"');
 }
 
-/// [`PageEntry`] 列から決定的な JSON を組み立てる（外部クレート非依存の手書き
-/// シリアライザ）。
+/// セクションタイトルをファイル名スラッグへ写す（`"API Reference"` →
+/// `"api-reference"`）。
+///
+/// ASCII 英数字は小文字化してそのまま、それ以外の文字の連続は 1 個の `-`
+/// に畳み、先頭・末尾の `-` は落とす。出力は `fandhe_frontend_server::ssg`
+/// のアセットファイル名検証（`is_safe_asset_file_name`）を常に通る文字集合
+/// （`[a-z0-9-]`）に閉じる。非 ASCII のみのタイトルは空文字になり、
+/// [`build_files`] が [`SearchIndexError::EmptySectionSlug`] で拒否する。
+pub fn section_slug(title: &str) -> String {
+    let mut out = String::with_capacity(title.len());
+    for c in title.chars() {
+        if c.is_ascii_alphanumeric() {
+            out.push(c.to_ascii_lowercase());
+        } else if !out.ends_with('-') {
+            out.push('-');
+        }
+    }
+    out.trim_matches('-').to_string()
+}
+
+/// セクションファイルの `out_dir` 起点相対パス（`assets/search-index/<slug>.json`）。
+pub fn section_rel_path(slug: &str) -> String {
+    format!("{SECTION_DIR_REL_PATH}/{slug}.json")
+}
+
+/// 1 セクション分の入力（[`build_files`] の引数）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SectionInput {
+    /// `[[section]]` の `title`（マニフェストへそのまま写す。ファイル名は
+    /// [`section_slug`] で導出する）。
+    pub title: String,
+    /// このセクション配下のページエントリ（[`crate::nav::Section::all_pages`]
+    /// の順）。
+    pub entries: Vec<PageEntry>,
+}
+
+/// セクション別インデックスファイル群とマニフェストを組み立てる
+/// （イシュー #3173）。
+///
+/// 戻り値は `("/<out_dir 起点相対パス>", JSON)` の列で、先頭がマニフェスト
+/// （[`REL_PATH`]）、以降が `sections` の順のセクションファイル
+/// （[`section_rel_path`]）。呼び出し元（[`crate::build::build_site`]）は
+/// そのまま `ssg::generate_assets` へ渡す。
+///
+/// # Errors
+///
+/// セクションファイルが 1 件でも [`MAX_SECTION_INDEX_BYTES`] を超えた場合
+/// （[`SearchIndexError::TooLarge`]）、スラッグが空・重複した場合
+/// （[`SearchIndexError::EmptySectionSlug`] /
+/// [`SearchIndexError::DuplicateSectionSlug`]）。いずれも呼び出し元が
+/// `ssg::generate_pages` より前に検知し `out_dir` を汚さない fail-closed。
+pub fn build_files(
+    base_path: &str,
+    sections: &[SectionInput],
+) -> Result<Vec<(String, String)>, SearchIndexError> {
+    let mut files = Vec::with_capacity(sections.len() + 1);
+    let mut manifest_entries: Vec<(String, String)> = Vec::with_capacity(sections.len());
+    let mut seen: Vec<(String, &str)> = Vec::with_capacity(sections.len());
+    for section in sections {
+        let slug = section_slug(&section.title);
+        if slug.is_empty() {
+            return Err(SearchIndexError::EmptySectionSlug {
+                title: section.title.clone(),
+            });
+        }
+        if let Some((_, first)) = seen.iter().find(|(s, _)| *s == slug) {
+            return Err(SearchIndexError::DuplicateSectionSlug {
+                slug,
+                first: (*first).to_string(),
+                second: section.title.clone(),
+            });
+        }
+        let json = render_section_json(base_path, &section.entries);
+        check_size(&slug, &json)?;
+        let rel_path = section_rel_path(&slug);
+        manifest_entries.push((
+            section.title.clone(),
+            layout::asset_href(base_path, &rel_path),
+        ));
+        files.push((format!("/{rel_path}"), json));
+        seen.push((slug, &section.title));
+    }
+    files.insert(
+        0,
+        (
+            format!("/{REL_PATH}"),
+            render_manifest_json(base_path, &manifest_entries),
+        ),
+    );
+    Ok(files)
+}
+
+/// マニフェスト JSON（`{"version":2,"base_path":"…","sections":[{"title":"…","href":"…"}]}`）
+/// を決定的に組み立てる。`sections` は `(title, href)` の列で、`href` は
+/// `base_path` 適用済みのサイト絶対パス（ページエントリの `href` と同じ
+/// [`layout::asset_href`] 単一実装点）。
+pub fn render_manifest_json(base_path: &str, sections: &[(String, String)]) -> String {
+    let mut out = String::new();
+    out.push('{');
+    out.push_str("\"version\":");
+    out.push_str(&SCHEMA_VERSION.to_string());
+    out.push(',');
+    out.push_str("\"base_path\":");
+    escape_json_string(base_path, &mut out);
+    out.push(',');
+    out.push_str("\"sections\":[");
+    for (i, (title, href)) in sections.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        out.push('{');
+        out.push_str("\"title\":");
+        escape_json_string(title, &mut out);
+        out.push(',');
+        out.push_str("\"href\":");
+        escape_json_string(href, &mut out);
+        out.push('}');
+    }
+    out.push_str("]}");
+    out
+}
+
+/// [`PageEntry`] 列から 1 セクションファイル分の決定的な JSON を組み立てる
+/// （外部クレート非依存の手書きシリアライザ）。
 ///
 /// キー順を固定する: `version` → `base_path` → `pages`、`pages` 内は
 /// `href` → `title` → `sections` → `text`、`sections` 内は
 /// `id` → `level` → `title`。`HashMap` を一切使わない（`Vec` のみ）ため
 /// キー順は常に決定的である。`base_path` も `escape_json_string` を通す
 /// （`nav.toml` 由来の著者入力であり、素の補間で埋め込まない）。
-pub fn render_json(base_path: &str, entries: &[PageEntry]) -> String {
+pub fn render_section_json(base_path: &str, entries: &[PageEntry]) -> String {
     let mut out = String::new();
     out.push('{');
 
@@ -425,19 +585,21 @@ pub fn render_json(base_path: &str, entries: &[PageEntry]) -> String {
     out
 }
 
-/// `json` のバイト数が [`MAX_INDEX_BYTES`] 以下であることを検証する。
+/// セクションファイル `json` のバイト数が [`MAX_SECTION_INDEX_BYTES`] 以下で
+/// あることを検証する（`section` は診断メッセージ用のスラッグ）。
 ///
 /// # Errors
 ///
-/// 超過時は [`SearchIndexError::TooLarge`] を返す。呼び出し元
-/// （[`crate::build::build_site`]）はこれを `ssg::generate_pages` より前に
-/// 呼び、失敗時は `out_dir` に一切書き出さない（fail-closed、設計文書 §3-4）。
-pub fn check_size(json: &str) -> Result<(), SearchIndexError> {
+/// 超過時は [`SearchIndexError::TooLarge`] を返す。[`build_files`] 経由で
+/// `ssg::generate_pages` より前に呼ばれ、失敗時は `out_dir` に一切書き出さ
+/// ない（fail-closed、設計文書 §3-4）。
+pub fn check_size(section: &str, json: &str) -> Result<(), SearchIndexError> {
     let bytes = json.len();
-    if bytes > MAX_INDEX_BYTES {
+    if bytes > MAX_SECTION_INDEX_BYTES {
         return Err(SearchIndexError::TooLarge {
+            section: section.to_string(),
             bytes,
-            limit: MAX_INDEX_BYTES,
+            limit: MAX_SECTION_INDEX_BYTES,
         });
     }
     Ok(())
@@ -528,20 +690,81 @@ mod tests {
 
     #[test]
     fn check_size_passes_at_exact_limit_and_fails_one_byte_over() {
-        let ok = "a".repeat(MAX_INDEX_BYTES);
-        assert!(check_size(&ok).is_ok());
-        let too_big = "a".repeat(MAX_INDEX_BYTES + 1);
-        match check_size(&too_big) {
-            Err(SearchIndexError::TooLarge { bytes, limit }) => {
-                assert_eq!(bytes, MAX_INDEX_BYTES + 1);
-                assert_eq!(limit, MAX_INDEX_BYTES);
+        let ok = "a".repeat(MAX_SECTION_INDEX_BYTES);
+        assert!(check_size("blocks", &ok).is_ok());
+        let too_big = "a".repeat(MAX_SECTION_INDEX_BYTES + 1);
+        match check_size("blocks", &too_big) {
+            Err(SearchIndexError::TooLarge {
+                section,
+                bytes,
+                limit,
+            }) => {
+                assert_eq!(section, "blocks");
+                assert_eq!(bytes, MAX_SECTION_INDEX_BYTES + 1);
+                assert_eq!(limit, MAX_SECTION_INDEX_BYTES);
             }
+            Err(other) => panic!("expected TooLarge error, got {other}"),
             Ok(()) => panic!("expected TooLarge error"),
         }
     }
 
     #[test]
-    fn render_json_key_order_is_fixed() {
+    fn section_slug_lowercases_and_collapses_non_alphanumerics() {
+        assert_eq!(section_slug("API Reference"), "api-reference");
+        assert_eq!(section_slug("Getting Started"), "getting-started");
+        assert_eq!(section_slug("  Blocks / Extra!! "), "blocks-extra");
+        assert_eq!(section_slug("日本語"), "");
+    }
+
+    fn section(title: &str) -> SectionInput {
+        SectionInput {
+            title: title.to_string(),
+            entries: vec![PageEntry {
+                href: format!("/{}/", section_slug(title)),
+                title: title.to_string(),
+                sections: vec![],
+                text: "t".to_string(),
+            }],
+        }
+    }
+
+    #[test]
+    fn build_files_emits_manifest_first_then_one_file_per_section_in_order() {
+        let files = build_files("/base", &[section("Guides"), section("API Reference")])
+            .expect("build_files should succeed");
+        assert_eq!(files.len(), 3);
+        assert_eq!(files[0].0, "/assets/search-index.json");
+        assert_eq!(
+            files[0].1,
+            "{\"version\":2,\"base_path\":\"/base\",\"sections\":[{\"title\":\"Guides\",\"href\":\"/base/assets/search-index/guides.json\"},{\"title\":\"API Reference\",\"href\":\"/base/assets/search-index/api-reference.json\"}]}"
+        );
+        assert_eq!(files[1].0, "/assets/search-index/guides.json");
+        assert_eq!(files[2].0, "/assets/search-index/api-reference.json");
+        assert!(files[1].1.contains("\"href\":\"/guides/\""));
+    }
+
+    #[test]
+    fn build_files_rejects_empty_and_duplicate_slugs() {
+        match build_files("", &[section("日本語")]) {
+            Err(SearchIndexError::EmptySectionSlug { title }) => assert_eq!(title, "日本語"),
+            other => panic!("expected EmptySectionSlug, got {other:?}"),
+        }
+        match build_files("", &[section("API Reference"), section("api-reference")]) {
+            Err(SearchIndexError::DuplicateSectionSlug {
+                slug,
+                first,
+                second,
+            }) => {
+                assert_eq!(slug, "api-reference");
+                assert_eq!(first, "API Reference");
+                assert_eq!(second, "api-reference");
+            }
+            other => panic!("expected DuplicateSectionSlug, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn render_section_json_key_order_is_fixed() {
         let entries = vec![PageEntry {
             href: "/a/".to_string(),
             title: "A".to_string(),
@@ -552,23 +775,23 @@ mod tests {
             }],
             text: "body text".to_string(),
         }];
-        let json = render_json("/base", &entries);
+        let json = render_section_json("/base", &entries);
         assert_eq!(
             json,
-            "{\"version\":1,\"base_path\":\"/base\",\"pages\":[{\"href\":\"/a/\",\"title\":\"A\",\"sections\":[{\"id\":\"s1\",\"level\":2,\"title\":\"S1\"}],\"text\":\"body text\"}]}"
+            "{\"version\":2,\"base_path\":\"/base\",\"pages\":[{\"href\":\"/a/\",\"title\":\"A\",\"sections\":[{\"id\":\"s1\",\"level\":2,\"title\":\"S1\"}],\"text\":\"body text\"}]}"
         );
     }
 
     #[test]
-    fn render_json_is_deterministic() {
+    fn render_section_json_is_deterministic() {
         let entries = vec![PageEntry {
             href: "/a/".to_string(),
             title: "A".to_string(),
             sections: vec![],
             text: "t".to_string(),
         }];
-        let first = render_json("/base", &entries);
-        let second = render_json("/base", &entries);
+        let first = render_section_json("/base", &entries);
+        let second = render_section_json("/base", &entries);
         assert_eq!(first, second);
     }
 
