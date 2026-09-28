@@ -2060,6 +2060,11 @@ title = "page-heading-avatar"
 source = "site/blocks/page-heading-avatar.md"
 path = "/blocks/page-heading-avatar/"
 
+[[section.group.page]]
+title = "page-heading-cover"
+source = "site/blocks/page-heading-cover.md"
+path = "/blocks/page-heading-cover/"
+
 [[section.group]]
 title = "Card Heading"
 
