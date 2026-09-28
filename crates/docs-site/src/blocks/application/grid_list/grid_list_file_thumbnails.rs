@@ -237,7 +237,7 @@ pub const BLOCK: Block = Block {
 /// `[data-blocks-grid-list-file-thumbnails-*]` のみを用いる。
 const LAYOUT_CSS: &str = "\
 .blocks-grid-list-file-thumbnails-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  container-type: inline-size;\n  container-name: blocks-grid-list-file-thumbnails;\n}\n\
-.blocks-grid-list-file-thumbnails-stack .blocks-grid-list-file-thumbnails-caption {\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-size-sm);\n}\n\
+.blocks-grid-list-file-thumbnails-stack .blocks-grid-list-file-thumbnails-caption {\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 [data-scope=\"list\"][data-part=\"root\"][data-blocks-grid-list-file-thumbnails-grid] {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-4);\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\
 [data-scope=\"list\"][data-part=\"root\"][data-blocks-grid-list-file-thumbnails-grid] > [data-scope=\"list\"][data-part=\"item\"][data-blocks-grid-list-file-thumbnails-item] {\n  display: flex;\n  flex-direction: column;\n  align-items: stretch;\n  gap: var(--fandhe-space-2);\n  margin-block: 0;\n  min-width: 0;\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-grid-list-file-thumbnails-trigger] {\n  display: block;\n  width: 100%;\n  height: auto;\n  min-height: 0;\n  padding: 0;\n  overflow: hidden;\n  border-radius: var(--fandhe-radius-md);\n}\n\
