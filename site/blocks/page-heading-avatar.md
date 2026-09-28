@@ -36,8 +36,13 @@ use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::menu::{self, OpenState};
 use fandhe_frontend_pre_styled_ui::Size;
 
-/// 外部の実在 URL（`href="#"` は使わない、他 block と同型の判断）。
-const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+/// 「応募内容を見る」（invite インスタンス）の遷移先（外部の実在 URL、
+/// `href="#"` は使わない、他 block と同型の判断）。リポジトリ直下は
+/// ラベルの意味と一致しない（イシュー #2931 codex レビュー指摘）ため、
+/// 提出物がレビューされるという点で「応募内容」に最も近い実在ページ
+/// （GitHub Pull Requests 一覧）へ張る（`footer_inline_nav.rs` の是正と
+/// 同型の判断）。
+const APPLICATION_LINK: &str = "https://github.com/Fandhe-AI/fandhe-frontend/pulls";
 
 /// アバター（円形）を組み立てる。氏名をアクセシブルネームとして `root` へ
 /// 直接付与し、フォールバックは氏名の先頭 1 文字を表示する
@@ -60,7 +65,12 @@ fn profile_avatar(name: &str) -> Node {
 
 /// 企業ロゴ（invoice インスタンスの media）。`image` 部品（avatar とは別の
 /// 単純画像部品）を使い、固定 `4rem` 角の枠を `data-blocks-page-heading-
-/// avatar-logo` へ CSS で与える。
+/// avatar-logo` へ CSS で与える。`image` recipe の base
+/// （`[data-scope="image"][data-part="root"]`、詳細度 (0,2,0)）に
+/// `height: auto`/`max-width: 100%` が乗るため、[`LAYOUT_CSS`] 側は
+/// `img[data-scope="image"][data-blocks-page-heading-avatar-logo]`
+/// （詳細度 (0,2,1)）で上回る（イシュー #2931 Bugbot 指摘: 単一属性
+/// セレクタでは詳細度が並び、flex item として縮小し得た）。
 fn logo_image(company: &str) -> Node {
     image::image(
         &ImageProps {
@@ -257,7 +267,7 @@ fn invite_instance() -> Node {
                 text("elena.vasquez@example.com"),
                 dot_separator(),
                 link::root(
-                    REPO,
+                    APPLICATION_LINK,
                     &LinkProps::default(),
                     vec![],
                     vec![text("応募内容を見る")],

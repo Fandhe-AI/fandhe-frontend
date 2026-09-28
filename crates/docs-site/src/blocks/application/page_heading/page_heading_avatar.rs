@@ -96,8 +96,13 @@ use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::menu::{self, OpenState};
 use fandhe_frontend_pre_styled_ui::Size;
 
-/// 外部の実在 URL（`href="#"` は使わない、他 block と同型の判断）。
-const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+/// 「応募内容を見る」（invite インスタンス）の遷移先（外部の実在 URL、
+/// `href="#"` は使わない、他 block と同型の判断）。リポジトリ直下は
+/// ラベルの意味と一致しない（イシュー #2931 codex レビュー指摘）ため、
+/// 提出物がレビューされるという点で「応募内容」に最も近い実在ページ
+/// （GitHub Pull Requests 一覧）へ張る（`footer_inline_nav.rs` の是正と
+/// 同型の判断）。
+const APPLICATION_LINK: &str = "https://github.com/Fandhe-AI/fandhe-frontend/pulls";
 
 /// アバター（円形）を組み立てる。氏名をアクセシブルネームとして `root` へ
 /// 直接付与し、フォールバックは氏名の先頭 1 文字を表示する
@@ -120,7 +125,12 @@ fn profile_avatar(name: &str) -> Node {
 
 /// 企業ロゴ（invoice インスタンスの media）。`image` 部品（avatar とは別の
 /// 単純画像部品）を使い、固定 `4rem` 角の枠を `data-blocks-page-heading-
-/// avatar-logo` へ CSS で与える。
+/// avatar-logo` へ CSS で与える。`image` recipe の base
+/// （`[data-scope="image"][data-part="root"]`、詳細度 (0,2,0)）に
+/// `height: auto`/`max-width: 100%` が乗るため、[`LAYOUT_CSS`] 側は
+/// `img[data-scope="image"][data-blocks-page-heading-avatar-logo]`
+/// （詳細度 (0,2,1)）で上回る（イシュー #2931 Bugbot 指摘: 単一属性
+/// セレクタでは詳細度が並び、flex item として縮小し得た）。
 fn logo_image(company: &str) -> Node {
     image::image(
         &ImageProps {
@@ -317,7 +327,7 @@ fn invite_instance() -> Node {
                 text("elena.vasquez@example.com"),
                 dot_separator(),
                 link::root(
-                    REPO,
+                    APPLICATION_LINK,
                     &LinkProps::default(),
                     vec![],
                     vec![text("応募内容を見る")],
@@ -417,7 +427,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-page-heading-avatar-body {\n  display: flex;\n  flex: 1 1 12rem;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
 .blocks-page-heading-avatar-meta {\n  margin: 0;\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-page-heading-avatar-actions {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  flex-shrink: 0;\n}\n\
-[data-blocks-page-heading-avatar-logo] {\n  width: 4rem;\n  height: 4rem;\n}\n";
+img[data-scope=\"image\"][data-blocks-page-heading-avatar-logo] {\n  width: 4rem;\n  height: 4rem;\n  flex-shrink: 0;\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -526,5 +536,24 @@ mod tests {
         let html = demo_html();
         assert!(html.contains(super::dummy_assets::AVATAR_SRC));
         assert!(html.contains(super::dummy_assets::LOGO_SRC));
+    }
+
+    #[test]
+    fn application_link_does_not_point_at_repo_root() {
+        // 「応募内容を見る」が REPO 直下（遷移先の意味不一致）へ戻らないことの
+        // 回帰ガード（イシュー #2931 codex レビュー指摘）。
+        let html = demo_html();
+        assert!(html.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend/pulls\""));
+        assert!(!html.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend\""));
+    }
+
+    #[test]
+    fn logo_selector_specificity_beats_image_recipe_base() {
+        // `[data-scope="image"][data-part="root"]`（詳細度 (0,2,0)）の
+        // `height: auto`/`max-width: 100%` に負けないことの回帰ガード
+        // （イシュー #2931 Bugbot 指摘）。
+        assert!(
+            LAYOUT_CSS.contains("img[data-scope=\"image\"][data-blocks-page-heading-avatar-logo]")
+        );
     }
 }
