@@ -404,6 +404,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/sidebar-03/index.html"
           # Application / Navbar
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/navbar-app-links/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/navbar-with-search/index.html"
           # Application / Page Heading
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-actions/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-avatar/index.html"
