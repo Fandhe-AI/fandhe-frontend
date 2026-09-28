@@ -84,5 +84,6 @@ SVG path drawing といった、宣言的な `data-*` 属性を書くだけで�
 [デプロイガイドを見る](../docs/guides/deployment.md)
 
 静的出力（SSG）と単一実行ファイル配布の使い分け、および Vercel への
-デプロイ方法（`--prebuilt` によるデプロイ手順・Deployment Protection・
+デプロイ方法（静的配置の `--prebuilt` によるデプロイ手順、Vercel
+Container Images（Beta）によるリクエスト時 SSR、Deployment Protection・
 Routing Middleware による Basic 認証）を解説します。
