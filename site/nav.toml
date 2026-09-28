@@ -2236,6 +2236,11 @@ path = "/blocks/cursor-hover-cards/"
 title = "Profile"
 
 [[section.group.page]]
+title = "profile-detail-datalist"
+source = "site/blocks/profile-detail-datalist.md"
+path = "/blocks/profile-detail-datalist/"
+
+[[section.group.page]]
 title = "profile-detail-skills"
 source = "site/blocks/profile-detail-skills.md"
 path = "/blocks/profile-detail-skills/"
