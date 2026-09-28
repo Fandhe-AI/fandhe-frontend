@@ -1,0 +1,16 @@
+# `fw gate`（`crates/cli/src/gate.rs::run_gate`）が唯一の情報源として読む
+# 構造マニフェスト（イシュー #351 の方針を examples/vercel-ssr にも
+# 適用する。詳細は `docs/design/structure-manifest.md` §2.2 を参照）。
+#
+# ディレクトリ名 `root` について: 本サンプルのクレートはプロジェクトルート
+# 直下（`src/`）に置かれる。`root` はスキーマ v1 の正式な予約名
+# （`cli/src/structure.rs::ROOT_DIR_KEY`）であり、`examples/dist-server-docker`
+# と同じ配置規約に従う。
+
+[manifest]
+version = 1
+
+[directories.root]
+role = "distribution"
+crate = "fandhe-frontend-example-vercel-ssr"
+description = "Vercel Container Images（案 d）上でリクエスト時 SSR を行う正本サンプル（イシュー #3289）"

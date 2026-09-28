@@ -62,7 +62,8 @@ fandhe-frontend/
 │   ├── interactive-view-transitions/  # 状態管理（fandhe-frontend-interactive）+ View Transitions 正本サンプル（イシュー #503。wasm-full feature 実指定・Phase 4 アニメーション配線の実演、#2330/#2525）
 │   ├── headless-pre-styled-ui/  # headless-ui / pre-styled-ui コンポーネントショーケース（crates.io バージョン依存、`fw new --example` 対応、イシュー #609）
 │   ├── wireframe-ui/          # wireframe-ui Phase 1〜8・全 49 部品ショーケース正本サンプル（crates.io バージョン依存、`fw new --example` 対応、イシュー #2667。`fandhe-frontend-wireframe-ui` は headless-ui/pre-styled-ui 非依存の第 3 の UI 層のため `fandhe-frontend-app`/`-server` にも依存しない最小構成）
-│   └── vercel-ssg/            # SSG（generate_pages）→ Vercel Build Output API → `vercel deploy --prebuilt` 正本サンプル（crates.io バージョン依存、`fw new --example` 対応、イシュー #3290。Vercel 側の既定方式は `docs/design/vercel-deployment-strategy.md` が確定した案 c〔SSG → Build Output API → `--prebuilt`〕のみ）
+│   ├── vercel-ssg/            # SSG（generate_pages）→ Vercel Build Output API → `vercel deploy --prebuilt` 正本サンプル（crates.io バージョン依存、`fw new --example` 対応、イシュー #3290。Vercel 側の既定方式は `docs/design/vercel-deployment-strategy.md` が確定した案 c〔SSG → Build Output API → `--prebuilt`〕のみ）
+│   └── vercel-ssr/            # Vercel Container Images（案 d、Beta）上で `fandhe-frontend-dist-server` を実行するリクエスト時 SSR 正本サンプル（crates.io バージョン依存、`fw new --example` 対応、イシュー #3289。`Dockerfile.vercel` は `FANDHE_FRONTEND_BIND_ADDR` を設定せず `PORT` を優先させる。外部依存のため WASM は出荷されない）
 ├── docker/                     # コンテナ定義（製品配布用 `Dockerfile` とは別。開発ループ専用）
 │   └── dev/                    # 開発用 Docker イメージ・compose 定義
 │       ├── Dockerfile         # Rust toolchain + wasm32 + 開発ツール一式。`make docker-dev-build` で構築

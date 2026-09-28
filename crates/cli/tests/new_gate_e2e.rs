@@ -257,8 +257,8 @@ fn scratch_dir_pid_is_stale(path: &std::path::Path, pid: u32) -> bool {
 /// # 背景
 ///
 /// `run_fw_gate`（`support::run_fw` 既定）は `project_dir/target` を専用
-/// `CARGO_TARGET_DIR` として起動するため、examples 7 例（イシュー #3290 で
-/// vercel-ssg が加わり 6 → 7）は毎回コールドで
+/// `CARGO_TARGET_DIR` として起動するため、examples 8 例（イシュー #3289 で
+/// vercel-ssr が加わり 7 → 8）は毎回コールドで
 /// fandhe-frontend-core/-app/-server 等の crates.io 依存を重複ビルドしていた。
 /// 本ヘルパーが返す共有ディレクトリを [`run_fw_gate_with_target_dir`] と
 /// `cargo run` smoke（各テスト末尾）の双方に明示指定することで、2 例目
@@ -269,11 +269,11 @@ fn scratch_dir_pid_is_stale(path: &std::path::Path, pid: u32) -> bool {
 /// `support::run_fw` doc コメントが警告する偽陰性リスク（`CARGO_TARGET_DIR`
 /// 共有によりフィンガープリント衝突で直前フィクスチャの結果を誤って
 /// 再利用する）は「同名パッケージを異内容で再利用する欠陥注入フィクスチャ」
-/// （`negative_cases.rs` 等）に固有のリスクである。examples 7 例は
+/// （`negative_cases.rs` 等）に固有のリスクである。examples 8 例は
 /// パッケージ名が相互に一意（`fandhe-frontend-example-ssr-routing` /
 /// `-ssg-blog` / `-dist-server-docker` / `-interactive-view-transitions` /
-/// `-headless-pre-styled-ui` / `-wireframe-ui` / `-vercel-ssg`）であり、
-/// リーフクレート自体は `fw new` が
+/// `-headless-pre-styled-ui` / `-wireframe-ui` / `-vercel-ssg` / `-vercel-ssr`）
+/// であり、リーフクレート自体は `fw new` が
 /// [`unique_scratch_dir`] 配下へ毎回新規展開する（mtime が必ず新しくなる）
 /// ため必ず再ビルドされる。crates.io 依存側もバージョン不変であり、cargo
 /// 自身の build-dir ロック（複数 `cargo` 起動の直列化）により並行実行も安全。
@@ -1802,6 +1802,95 @@ fn fw_new_example_vercel_ssg_output_passes_fw_gate() {
                 .join("index.html")
                 .is_file(),
             "static/pages/{slug}/index.html が生成されていない"
+        );
+    }
+}
+
+/// `fw new --example vercel-ssr` 生成直後のプロジェクトが `fw gate` PASS
+/// 構成であることを検証する e2e（イシュー #3289）。`dist-server-docker` 分と
+/// 同型（常駐サーバーのため `cargo run` での追加確認はしない。HTTP・
+/// シグナルの検証は生成プロジェクトの `tests/`〔`boot.rs`・
+/// `graceful_shutdown.rs`〕が担い、`test` チェックの PASS をもって確認済み
+/// とする）。
+///
+/// `cargo build`/`fw gate` はいずれも crates.io
+/// （`https://index.crates.io`・`https://static.crates.io`）への到達性を
+/// 前提とする。到達不可の場合は環境エラーとして扱い、テストの弱体化で
+/// 対処しない（他の examples e2e と同じ前提、`.claude/rules/ci.md` 参照）。
+#[test]
+fn fw_new_example_vercel_ssr_output_passes_fw_gate() {
+    let scratch = unique_scratch_dir();
+    let _scratch_guard = ScratchProject(scratch.clone());
+
+    let (new_code, new_stdout, new_stderr) = run_fw_new(&[
+        "gate-pass-example-vercel-ssr",
+        "--example",
+        "vercel-ssr",
+        "--dir",
+        &scratch.to_string_lossy(),
+    ]);
+    assert_eq!(
+        new_code, 0,
+        "fw new --example vercel-ssr が失敗した: stdout={new_stdout} stderr={new_stderr}"
+    );
+
+    let project_dir = scratch.join("gate-pass-example-vercel-ssr");
+    let shared_target = example_shared_target_dir();
+    let (gate_code, gate_stdout, gate_stderr) =
+        run_fw_gate_with_target_dir(&project_dir, &shared_target);
+
+    for name in [
+        "type_check",
+        "default_escape_check",
+        "url_validation_check",
+        "lint",
+        "lint_wasm32",
+        "test",
+        "policy",
+    ] {
+        assert!(
+            gate_stdout.contains(&format!("\"name\":\"{name}\"")),
+            "fw gate のレポートにチェック `{name}` が現れない: stdout={gate_stdout}"
+        );
+    }
+
+    for name in [
+        "type_check",
+        "default_escape_check",
+        "url_validation_check",
+        "lint",
+        "lint_wasm32",
+        "test",
+    ] {
+        assert_eq!(
+            check_passed(&gate_stdout, name),
+            Some(true),
+            "fw new --example vercel-ssr 生成直後のプロジェクトで `{name}` が \
+             失敗した（vercel-ssr サンプルと fw gate の前提がドリフトしている）: \
+             stdout={gate_stdout} stderr={gate_stderr}"
+        );
+    }
+
+    if cargo_deny_available() {
+        assert_eq!(
+            gate_code, 0,
+            "cargo-deny 導入環境では fw new --example vercel-ssr 生成直後は \
+             PASS するはず: stdout={gate_stdout} stderr={gate_stderr}"
+        );
+        assert!(
+            gate_stdout.contains("\"gate_result\":\"PASS\""),
+            "stdout={gate_stdout}"
+        );
+    } else {
+        assert_eq!(
+            gate_code, 1,
+            "cargo-deny 未導入環境では policy の fail-closed により BLOCKED \
+             (終了コード 1) のはず: stdout={gate_stdout}"
+        );
+        assert!(
+            gate_stdout.contains("environment error: "),
+            "policy の failed 出力は environment error であることを明示する \
+             プレフィックスを含むはず: stdout={gate_stdout}"
         );
     }
 }

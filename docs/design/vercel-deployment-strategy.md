@@ -307,7 +307,7 @@ SSR 用途に限りこの優先順位判断を上書きし、上記「採用（S
 | Issue | 引き継ぐ前提 |
 |---|---|
 | #3288（feat: `route_request` を Vercel Functions で動かすアダプタを実装する） | **完了・取り下げ**: #3288 で実測した結果、`vercel_runtime 2.4.1` の依存木は案 a 併用の前提条件として自ら設定した基準（60 件/深さ 6）を構造的に超過することが判明し（`docs/reports/vercel-runtime-2x-dependency-audit-3288.md`）、案 a の併用を取り下げました。本イシューの成果物は計測レポートと本文書の改訂（docs のみ）に限られ、「Vercel 上で HTTP 200/404」の受入基準はアダプタ方式では達成していません。issue タイトルの `route_request`（`fandhe-frontend-dist-server`）自体も、この取り下げにより対象外になりました |
-| #3289（feat: `examples/vercel-ssr` を追加し `fw new --example` で取得可能にする） | **Phase 2 から Phase 4 へ移設・案 d（Container Images）で再スコープ済み**: 前提だった案 a のアダプタは取り下げられましたが、2026-09-28 の案 d 採用（#3335）により `examples/vercel-ssr` は Container Images ベースの SSR サンプルとして Phase 4 で再スコープされます |
+| #3289（feat: `examples/vercel-ssr` を追加し `fw new --example` で取得可能にする） | **実装済み（本 PR）**。案 d（Container Images）ベースの SSR サンプルとして Phase 4 で再スコープ済みの内容どおり実装。`fandhe-frontend-dist-server = "0.3.4"`（#3336/#3337 双方の対応を含む）への crates.io バージョン依存で完結し、`Dockerfile.vercel` は `FANDHE_FRONTEND_BIND_ADDR` を設定せず `PORT` を優先させる。`fw new --example vercel-ssr` に登録済み |
 | #3290（feat: `examples/vercel-ssg`〔`generate_pages` → Build Output API → `--prebuilt`〕を追加する） | **実装済み（本 PR）**。案 c が静的配置の既定方式（案 a 併用の取り下げにより唯一の静的配置方式）。Vercel 側に Rust ツールチェーンは不要 |
 | #3291（docs: デプロイガイドに Vercel の節を追加する） | **実装済み（`docs/guides/deployment.md`）**。現行は SSG（案 c）のみを推奨方式として明記し、「SSR は Rust ランタイムでは非対応」の理由も記載している。この「SSR 非対応」記述の更新は Phase 4（#3341）のスコープ（本イシュー #3335 では触れない）。Deployment Protection（既定 SSO 有効、302 リダイレクト）・fail-closed の Basic 認証（Routing Middleware）も範囲どおり記載済み |
 | #3292（ci: Build Output API 出力構造のスモークテストを追加する） | 案 c の出力（`.vercel/output` ディレクトリ構造、`config.json` の `version` フィールド等）を対象とする（変更なし） |
