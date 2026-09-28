@@ -46,6 +46,7 @@ const EXAMPLE_NAMES: &[&str] = &[
     "headless-pre-styled-ui",
     "wireframe-ui",
     "vercel-ssg",
+    "vercel-ssr",
 ];
 
 /// workspace ルート（`cli/` の親の親ディレクトリ）の絶対パスを返す。

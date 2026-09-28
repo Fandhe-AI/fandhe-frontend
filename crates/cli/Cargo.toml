@@ -29,7 +29,12 @@ name = "fandhe-frontend-cli"
 # 再発防止テスト `tests/example_readme_links.rs` を追加。公開 API は不変
 # だが `include_str!` で埋め込まれる `fw` バイナリの内容が変わるため
 # patch バンプする。
-version = "0.4.7"
+# イシュー #3289: `examples/vercel-ssr`（Vercel Container Images〔案 d〕上で
+# `fandhe-frontend-dist-server` を実行するリクエスト時 SSR の正本サンプル）を
+# `fw new --example vercel-ssr` へ登録した（`EXAMPLES` 配列への新規エントリ
+# 追加 + `embedded-examples/vercel-ssr/` 新設）。公開 API は下位互換だが、
+# イシュー本文の明示指定によりマイナーバンプとする。
+version = "0.5.0"
 edition = "2021"
 description = "fandhe-frontend-cli: AI 自己保守フック向け `fw` コマンド（TASK-13.1、structure.toml のスキーマ・パース・生成）。外部依存ゼロ。"
 license = "MIT OR Apache-2.0"

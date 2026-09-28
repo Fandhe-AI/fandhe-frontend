@@ -70,6 +70,7 @@ API 詳細は
 | [headless-pre-styled-ui](./examples/headless-pre-styled-ui/README.md) | headless-ui コンポーネント（Tabs/Accordion/Dialog/Switch/RadioGroup/Avatar）の anatomy・`data-*`・WAI-ARIA | `fandhe-frontend-core` / `-headless-ui` |
 | [wireframe-ui](./examples/wireframe-ui/README.md) | wireframe-ui（blocks.pm 参照のローファイ・モノクロ UI）Phase 1〜8・全 49 部品のショーケース | `fandhe-frontend-core` / `-wireframe-ui` |
 | [vercel-ssg](./examples/vercel-ssg/README.md) | SSG → Vercel Build Output API → `vercel deploy --prebuilt` の静的配置 | `fandhe-frontend-core` / `-server` |
+| [vercel-ssr](./examples/vercel-ssr/README.md) | Vercel Container Images（Beta）上でのリクエスト時 SSR・`PORT`/`SIGTERM` 対応 | `fandhe-frontend-dist-server` |
 
 `fw` CLI の `--example` オプションで、上記のサンプルをすべて自分の
 プロジェクトとして展開できます。

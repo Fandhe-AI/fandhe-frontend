@@ -1,0 +1,84 @@
+# examples/vercel-ssr の正本 Dockerfile（イシュー #3289）。
+#
+# `examples/dist-server-docker/Dockerfile` を単純化して流用したもの。musl
+# 静的リンクの release バイナリをビルドし、最終イメージは scratch（libc すら
+# 含まない空イメージ）へバイナリ 1 つだけをコピーする。Vercel Container
+# Images（Beta、`docs/design/vercel-deployment-strategy.md` §4 が確定した
+# 案 d）上でこのイメージをそのまま実行し、リクエスト時 SSR を行う。
+#
+# 本サンプルは crates.io の `fandhe-frontend-dist-server` を通常の外部依存
+# として使う独立パッケージ（`Cargo.toml` の `[workspace] members = ["."]`
+# 参照）であり、wasm ビルドステージ（`crates/dist-server/build.rs` のネスト
+# wasm32 ビルド + wasm-bindgen）を持たない。`static/` アセットの自前配信も
+# 持たない（README「制約」参照）ため wasm-bindgen-cli の導入・curl/
+# ca-certificates も不要。
+
+# --- build stage ---
+# バージョン・ダイジェストともルート Dockerfile と同一の pin を使う
+# （更新時は `docker buildx imagetools inspect rust:1.96-slim-bookworm` で
+# 再取得し、ルート Dockerfile・examples/dist-server-docker/Dockerfile・本
+# ファイルを同時に差し替えること）。
+FROM rust:1.96-slim-bookworm@sha256:e18a79fc84dfcfc3ab5ba72290398a644c135c97eaa881447fddc354ee4701a3 AS builder
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends musl-tools pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# ビルドホストのアーキテクチャに合わせて musl ターゲットを切り替える
+# （ルート Dockerfile と同じ理由: Apple Silicon 上の Docker Desktop は既定で
+# linux/arm64 イメージを使うため x86_64 固定では動かない。Vercel Container
+# Images の実行時アーキテクチャは本 PR 時点で未確定のため、ビルド側の判定を
+# 変更しない）。
+RUN case "$(uname -m)" in \
+        aarch64) echo aarch64-unknown-linux-musl > /musl_target ;; \
+        x86_64) echo x86_64-unknown-linux-musl > /musl_target ;; \
+        *) echo "unsupported arch: $(uname -m)" && exit 1 ;; \
+    esac \
+    && rustup target add "$(cat /musl_target)"
+
+WORKDIR /work
+
+# ビルドコンテキストを明示 COPY する（`COPY . .` は使わない、
+# `.dockerignore` との多重防御で `.git`・`.env` 等の混入を防ぐ、
+# `security.md`「秘密情報の混入防止」）。
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+
+# --locked で Cargo.lock 固定ビルドを強制し、依存解決の非決定性を排除する
+# （REQ-3・security.md のサプライチェーン対策）。crates.io からの依存取得
+# ネットワークアクセスを要する（他の examples/vercel-ssg・dist-server-docker
+# と同じ前提）。
+RUN cargo build --release --locked --target "$(cat /musl_target)" \
+    && strip "target/$(cat /musl_target)/release/fandhe-frontend-example-vercel-ssr" \
+    && cp "target/$(cat /musl_target)/release/fandhe-frontend-example-vercel-ssr" /vercel-ssr-example-out
+
+# --- runtime stage ---
+# scratch（シェル・パッケージマネージャ・libc を含まない空イメージ）をルート
+# Dockerfile と同じ既定として採用する（REQ-9）。
+FROM scratch
+
+COPY --from=builder /vercel-ssr-example-out /vercel-ssr-example
+
+# 数値 UID/GID での非 root 実行（distroless の nonroot 慣行 65532 に合わせる、
+# ルート Dockerfile と同じ理由。scratch には /etc/passwd が存在しないため
+# 名前ではなく数値指定が必須）。非 root のため 1024 未満のポート（既定 80）
+# には bind できない ── README「Vercel 設定」の `PORT` 必須指定はこの制約への
+# 対処である。
+USER 65532:65532
+
+# `FANDHE_FRONTEND_BIND_ADDR` は意図的に設定しない。
+#
+# `src/main.rs` の bind 先優先順位は
+# `FANDHE_FRONTEND_BIND_ADDR` > `PORT`（`0.0.0.0:$PORT`） > 既定
+# `127.0.0.1:3100` であり、`FANDHE_FRONTEND_BIND_ADDR` を固定してしまうと
+# Vercel Container Images がプロジェクト設定の `PORT` 環境変数でポートを
+# 上書きしても効かなくなる（Vercel 側は上書き後の `PORT` 値へ接続する仕様、
+# `docs/design/vercel-deployment-strategy.md` §2 参照）。`examples/
+# dist-server-docker/Dockerfile` が `ENV FANDHE_FRONTEND_BIND_ADDR=0.0.0.0:3100`
+# を固定しているのとは対照的な、本サンプル固有の意図的な相違点である。
+#
+# `EXPOSE 3100` は情報提供目的のみ（実際の待受ポートは Vercel が注入する
+# `PORT` に従って実行時に決まる。README「Vercel 設定」参照）。
+EXPOSE 3100
+
+ENTRYPOINT ["/vercel-ssr-example"]
