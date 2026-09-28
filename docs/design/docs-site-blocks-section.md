@@ -977,6 +977,7 @@ pub enum LayoutCss {
 | description-list-horizontal | #2906（親 #2892） | `application/description_list/description_list_horizontal.rs` |
 | description-list-summary-card | #2907（親 #2892） | `application/description_list/description_list_summary_card.rs` |
 | description-list-two-column | #2908 | `application/description_list/description_list_two_column.rs` |
+| profile-detail-datalist | #2937（親 #2892） | `application/profile/profile_detail_datalist.rs` |
 | form-layout-inline-labels | #2911（親 #2892） | `application/form_layout/form_layout_inline_labels.rs` |
 | feed-upvote-cards | #2910（親 #2892） | `application/feed/feed_upvote_cards.rs` |
 | feed-comments-timeline | #2909（親 #2892） | `application/feed/feed_comments_timeline.rs` |
