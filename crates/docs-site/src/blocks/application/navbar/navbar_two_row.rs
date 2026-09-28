@@ -65,8 +65,9 @@
 //! ハンバーガー・通知・プロフィール trigger はいずれも `disabled: true`
 //! で押しても何も起きないことを明示し、[`LAYOUT_CSS`] の
 //! `[data-disabled]` 複合セレクタで `opacity: 1; cursor: default;` に
-//! 中和して通常状態と同じ見た目に保つ。検索欄・検索ボタンも送信先を持たず、
-//! `<form>` へは包まない。
+//! 中和して通常状態と同じ見た目に保つ。検索欄（[`search_box`]）も
+//! `FieldProps`/`InputGroupProps` の両方を `disabled: true` にして入力
+//! 不能にし、送信先を持たず `<form>` へは包まない。
 //!
 //! # `<form>`/`href="#"`/`data:` を持たない
 //!
@@ -160,14 +161,14 @@ fn search_box(variant: &'static str) -> Node {
     let query_field = FieldProps {
         id: &field_id,
         ids: FieldIds::default(),
-        disabled: false,
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
         has_helper_text: false,
     };
     let group_props = InputGroupProps {
-        disabled: false,
+        disabled: true,
         invalid: false,
     };
     div(
@@ -498,6 +499,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-navbar-two-row-variant=\"pills\"] [data-scope=\"navigation-menu\"][data-part=\"link\"] {\n  border-radius: var(--fandhe-radius-full);\n}\n\
 [data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-navbar-two-row-panel] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  padding: 0 var(--fandhe-space-4) var(--fandhe-space-3);\n}\n\
 [data-blocks-navbar-two-row-panel] [data-scope=\"navigation-menu\"][data-part=\"list\"] {\n  flex-direction: column;\n}\n\
+[data-blocks-navbar-two-row-panel] [data-scope=\"tab-nav\"][data-part=\"root\"] {\n  flex-direction: column;\n}\n\
 @container blocks-navbar-two-row (min-width: 48rem) {\n  \
 [data-blocks-navbar-two-row-row-primary] {\n    grid-template-columns: auto minmax(0, 1fr) auto;\n  }\n  \
 [data-blocks-navbar-two-row-variant=\"tabs-center\"] [data-blocks-navbar-two-row-row-primary] {\n    grid-template-columns: auto minmax(0, 1fr) auto;\n  }\n  \
@@ -565,6 +567,38 @@ mod tests {
                 "hook {hook} should render once per variant"
             );
         }
+    }
+
+    /// 検索欄が variant ごとに 1 回、入力欄自体（`data-scope="field"
+    /// data-part="input"`）へ `disabled=""` が付き、`data-scope="input-group"
+    /// data-part="root"` へ `data-disabled` が付くこと（無 JS のため操作
+    /// 不能な静的 Demo である契約）。
+    #[test]
+    fn search_box_is_disabled() {
+        let html = render(&demo());
+        assert_eq!(html.matches("data-blocks-navbar-two-row-search").count(), 2);
+        for variant in ["pills", "tabs-center"] {
+            let control_id = format!("blocks-navbar-two-row-search-{variant}-control");
+            let input_pos = html
+                .find(&format!(r#"id="{control_id}""#))
+                .unwrap_or_else(|| panic!("search input id={control_id} should render"));
+            let tag_end = html[input_pos..]
+                .find('>')
+                .map(|rel| input_pos + rel)
+                .expect("input tag should close");
+            let tag_start = html[..input_pos]
+                .rfind("<input")
+                .expect("search input should have an opening tag");
+            let input_tag = &html[tag_start..tag_end];
+            assert!(input_tag.contains("disabled=\"\""), "input_tag={input_tag}");
+        }
+        assert_eq!(
+            html.matches(
+                "data-scope=\"input-group\" data-part=\"root\" role=\"group\" data-disabled=\"\""
+            )
+            .count(),
+            2
+        );
     }
 
     /// ハンバーガーが variant 数だけあり、`aria-controls`/`id` が
@@ -646,6 +680,9 @@ mod tests {
         ));
         assert!(LAYOUT_CSS.contains(
             "[data-blocks-navbar-two-row-panel] [data-scope=\"navigation-menu\"][data-part=\"list\"] {\n  flex-direction: column;\n}"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-navbar-two-row-panel] [data-scope=\"tab-nav\"][data-part=\"root\"] {\n  flex-direction: column;\n}"
         ));
         assert!(LAYOUT_CSS.contains("border-radius: var(--fandhe-radius-full);"));
     }

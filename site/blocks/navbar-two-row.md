@@ -97,14 +97,14 @@ fn search_box(variant: &'static str) -> Node {
     let query_field = FieldProps {
         id: &field_id,
         ids: FieldIds::default(),
-        disabled: false,
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
         has_helper_text: false,
     };
     let group_props = InputGroupProps {
-        disabled: false,
+        disabled: true,
         invalid: false,
     };
     div(
