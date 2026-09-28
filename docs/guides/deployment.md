@@ -9,21 +9,50 @@ fandhe-frontend の配布形態は主に 2 通りです。
   単一バイナリをビルドし、Docker で配布します（REQ-9。正本サンプル:
   `examples/dist-server-docker`）。
 
-本ガイドでは、このうち Vercel へのデプロイ方法を解説します。
+本ガイドでは、このうち Vercel へのデプロイ方法を解説します。Vercel には
+静的配置（SSG）と SSR（Vercel Container Images 経由）の 2 通りの方式が
+あります。
 
 ## Vercel
 
 ### 方式の選び方
 
-fandhe-frontend を Vercel にデプロイする際の推奨方式は 1 つだけです。
+fandhe-frontend を Vercel にデプロイする方式は、静的配置と SSR の
+2 通りです。
 
-- **推奨: SSG → Vercel Build Output API → `vercel deploy --prebuilt`**
-  （正本サンプル: `examples/vercel-ssg`）。`generate_pages`/`generate_assets`
-  でローカルまたは CI であらかじめ静的出力を生成し、ビルド済み成果物を
-  そのままデプロイします。Vercel 側に Rust ツールチェーンは不要です。
+- **静的配置（既定・推奨）: SSG → Vercel Build Output API →
+  `vercel deploy --prebuilt`**（案 c、正本サンプル: `examples/vercel-ssg`）。
+  `generate_pages`/`generate_assets` でローカルまたは CI であらかじめ
+  静的出力を生成し、ビルド済み成果物をそのままデプロイします。Vercel 側に
+  Rust ツールチェーンは不要で、Beta 機能にも依存しません。
+- **SSR（Beta 依存）: Vercel Container Images**（案 d、正本サンプル:
+  `examples/vercel-ssr`）。`Dockerfile.vercel` のコンテナイメージを Vercel
+  上で実行し、`fandhe-frontend-dist-server`（0.3.4 以降。`PORT` 対応・
+  graceful shutdown 対応を含む）でリクエストごとの描画を行います。
 
-**SSR・動的処理は、Vercel の Rust ランタイム経由では現時点で対応していません。**
-理由は次のとおりです。
+選び方の原則は次のとおりです。静的出力で足りるなら案 c を推奨します。
+リクエストごとの描画が必要な場合にだけ案 d を選び、Beta 依存の影響を
+SSR 用途に限定してください。
+
+案 d を選ぶ場合は次の点に注意してください。
+
+- Container Images は公式に Beta であり、チームでの有効化（権限）が
+  必要な場合があります
+- Vercel プロジェクトの環境変数 `PORT` に **1024 以上**（例 `3100`）を
+  設定する必要があります（イメージは非 root の `USER 65532:65532` で
+  動くため、1024 未満のポートに bind できません。既定の `80` は使えません）
+- `Dockerfile.vercel` は `FANDHE_FRONTEND_BIND_ADDR` を設定しません
+  （設定すると `PORT` より優先されてしまうためです）
+- SIGTERM を受けると最大 25 秒かけて処理中の接続を終えます（Vercel の
+  猶予 30 秒以内です）
+- 静的アセットと WASM は出荷しません
+- Vercel 実機での検証はまだ行っていません（イシュー #3339）
+
+### Vercel の Rust ランタイム（`vercel_runtime`）を使わない理由
+
+SSR を Vercel で行う場合は、上記の案 d（Vercel Container Images）を
+使います。Vercel の公式 Rust ランタイムである `vercel_runtime` は、
+次の理由から採用していません。
 
 - `vercel_runtime` 1.x（`vercel-community/rust` 系統）は依存先
   `lambda_runtime` が Vercel の Rust Function 実行環境に存在しない
@@ -34,25 +63,26 @@ fandhe-frontend を Vercel にデプロイする際の推奨方式は 1 つだ�
   （60 件/深さ 6）を構造的に超過し、`build.rs` を持つ依存も多数追加されます。
 - Vercel の Rust Function 実行自体もまだ Beta です。
 
-判断の根拠・実測データの詳細は `docs/design/vercel-deployment-strategy.md`
-（docs サイト非掲載のため、本ガイドではリンクにせずプレーンテキストで
-参照します）を参照してください。
-
-SSR・動的処理が必要な場合は、Vercel 以外のコンテナ実行基盤で
-`examples/dist-server-docker` の単一バイナリを使ってください。
+判断の根拠・実測データの詳細は
+[`docs/design/vercel-deployment-strategy.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/design/vercel-deployment-strategy.md)
+を参照してください。
 
 判断の目安は次のとおりです。
 
 | ページ内容 | 推奨 |
 |-----------|------|
-| ビルド時に内容が確定する（ブログ・ドキュメント・マーケティングページ等） | `examples/vercel-ssg`（本ガイド） |
-| リクエストごとの描画・フォーム受付・DB アクセス等が必要 | Vercel 以外のコンテナ基盤 + `examples/dist-server-docker` |
+| ビルド時に内容が確定する（ブログ・ドキュメント・マーケティングページ等） | `examples/vercel-ssg`（案 c、推奨） |
+| リクエストごとの描画が必要で、Vercel 上で動かす | `examples/vercel-ssr`（案 d、Container Images・Beta） |
+| リクエストごとの描画が必要で、Vercel 以外のコンテナ基盤で動かす | `examples/dist-server-docker` |
 
 再評価条件（Vercel Rust ランタイムの GA 化、Vercel Container Images（Beta）の
-GA 化、`fandhe-frontend-dist-server` の `$PORT`/`SIGTERM` 対応等）は
-`docs/design/vercel-deployment-strategy.md` §7 を参照してください。
+GA 化等）は
+[`docs/design/vercel-deployment-strategy.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/design/vercel-deployment-strategy.md)
+§7 を参照してください。
 
 ### デプロイ手順の要約
+
+#### 静的配置（vercel-ssg）
 
 詳細な手順・生成物の説明は [`examples/vercel-ssg` の README](../../examples/vercel-ssg/README.md)
 を参照してください。要約すると次の 3 ステップです。
@@ -73,7 +103,38 @@ vercel deploy --prebuilt
 # 本番デプロイの場合は --prod を付ける
 ```
 
+#### SSR（vercel-ssr）
+
+詳細な手順は [`examples/vercel-ssr` の README](../../examples/vercel-ssr/README.md)
+を参照してください（Vercel プロジェクト設定・`vercel deploy` の内容は
+README の「Vercel へのデプロイ」節が正です）。要約すると次のとおりです。
+
+```bash
+# 0. サンプルディレクトリへ移動する
+cd examples/vercel-ssr
+
+# 1. Vercel プロジェクト設定で PORT を 1024 以上（例 3100）に設定する
+#    （Project Settings → Environment Variables）
+
+# 2. プロジェクトを Vercel と紐付ける
+vercel link
+
+# 3. デプロイする（build step が Dockerfile.vercel を自動検出してビルドする）
+vercel deploy
+# 本番デプロイの場合は --prod を付ける
+vercel deploy --prod
+```
+
+`--prebuilt` は付けません（`.vercel/output/` の事前ビルド成果物を使う
+Build Output API 経路〔案 c〕向けのオプションで、`Dockerfile.vercel` の
+build step とは無関係です）。
+
 ### Deployment Protection（既定で有効）
+
+Deployment Protection は静的配置（案 c・vercel-ssg）・SSR（案 d・
+vercel-ssr）のどちらのデプロイにも適用されます。以下の説明は主に
+vercel-ssg を前提としていますが、Vercel Authentication 自体の挙動
+（未認証アクセスの扱い）は両方式で共通です。
 
 新規に作成した Vercel プロジェクトでは、既定で Vercel Authentication
 （Standard Protection、SSO によるデプロイ保護）が有効になっています。
@@ -91,17 +152,19 @@ including those to Routing Middleware.」（Deployment Protection はミドル
 Basic 認証は Deployment Protection を無効化した（あるいは対象外の）
 デプロイに対する軽量な門、または多層防御の 2 層目として位置づけてください。
 
-- **無効化前に必ず確認すること**: `examples/vercel-ssg` 本体は後述の
-  Routing Middleware（Basic 認証）を組み込んでいません。Deployment
-  Protection を無効化すると、ミドルウェア未導入のデプロイ（既存デプロイを
-  含む）は**認証なしで誰でも閲覧できる状態**になります。「無効化しても
+- **無効化前に必ず確認すること**（vercel-ssg の場合）: `examples/vercel-ssg`
+  本体は後述の Routing Middleware（Basic 認証）を opt-in（既定では無効。
+  ビルド時に `FANDHE_VERCEL_SSG_BASIC_AUTH=1` を指定したときだけ組み込ま
+  れます）で組み込み済みです。フラグなしでビルドしたデプロイにはミドル
+  ウェアが含まれないため、Deployment Protection を無効化すると、そのまま
+  では**認証なしで誰でも閲覧できる状態**になります。「無効化しても
   既存デプロイが全拒否される」わけではなく、逆に**無保護で公開される**
   点を混同しないでください。Basic 認証で保護したい場合は、無効化する前に
   次の順序で進めてください。
-  1. 後述の「Routing Middleware による Basic 認証」の手順でミドルウェア
-     組み込み済みの新しいデプロイを作成し、`BASIC_AUTH_USER` /
-     `BASIC_AUTH_PASSWORD` を設定した状態で `vercel deploy --prebuilt`
-     が完了していることを確認する。
+  1. 後述の「Routing Middleware による Basic 認証」の手順で
+     `FANDHE_VERCEL_SSG_BASIC_AUTH=1` を指定してビルドした新しいデプロイ
+     を作成し、`BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` を設定した状態で
+     `vercel deploy --prebuilt` が完了していることを確認する。
   2. **Deployment Protection を無効化する前に、Basic 認証が実際に効いて
      いることを確認する**（後述の「Deployment Protection が有効なままの
      Basic 認証確認（必須）」）。未認証で 401、正しい資格情報で 200 に
@@ -117,14 +180,15 @@ Basic 認証は Deployment Protection を無効化した（あるいは対象外
      を無効化する手段は削除のみと理解してください。
   4. 上記が済んでから Project Settings → Deployment Protection →
      Vercel Authentication のトグルを無効にして保存する。
-- **確認手順**（`<deployment-url>` は実際のデプロイ URL に読み替え）:
+- **確認手順**（`<deployment-url>` は実際のデプロイ URL に読み替え、
+  404 の確認は vercel-ssg（`config.json` の 404 フォールバック）の場合）:
 
   ```bash
   # Deployment Protection が有効なら 200 以外
   # （Vercel のログインへ誘導する応答）になる
   curl -sI "https://<deployment-url>/"
 
-  # 存在しないパスで 404（config.json の 404 フォールバック）を確認する
+  # 存在しないパスで 404（config.json の 404 フォールバック、vercel-ssg の場合）を確認する
   curl -sI "https://<deployment-url>/does-not-exist"
   ```
 
@@ -213,11 +277,19 @@ Project Settings → Deployment Protection →
 
 ### Routing Middleware による Basic 認証
 
+本節の手順は Build Output API（`config.json` の `routes`・`--prebuilt`、
+案 c・vercel-ssg）を前提とします。Container Images（案 d・vercel-ssr）の
+デプロイには未検証のため、そのまま適用しないでください。
+
 Deployment Protection を無効化した公開デプロイに、追加の軽量な認証を
 かけたい場合は、Build Output API の Routing Middleware で Basic 認証を
-実装できます。**`examples/vercel-ssg` 本体はこの認証を組み込んでいません**
-（別イシューでの検討対象です）。ここでは既存の `generate_assets` 呼び出しに
-追記する形で拡張する手順を示します。
+実装できます。**`examples/vercel-ssg` 本体はこの認証を opt-in で組み込み
+済みです**（既定では無効。ビルド時に環境変数
+`FANDHE_VERCEL_SSG_BASIC_AUTH` を正確に `1` に設定したときだけ有効化され
+ます。詳細は [`examples/vercel-ssg` の README](../../examples/vercel-ssg/README.md)
+の「Basic 認証（opt-in、既定では無効）」を参照してください）。以下では
+仕組みと生成される内容を説明します（自前のプロジェクトへ同等の実装を
+移植する際の参考にもなります）。
 
 #### 仕組み
 
@@ -252,14 +324,20 @@ Middleware は Build Output API 上「Edge Runtime 関数」として仕様化�
 
 #### 生成物の追加
 
-`examples/vercel-ssg` の `clean_output_dir()` は毎回 `.vercel/output` を
-削除するため、手書きファイルを直接置いても消えてしまいます。追加する
-ファイルは `generate_assets` で `OUTPUT_ROOT`（`.vercel/output`）配下へ
-書き出してください。追加するのは次の 3 点です。
+`examples/vercel-ssg` では、ビルド時に環境変数
+`FANDHE_VERCEL_SSG_BASIC_AUTH=1` を指定するだけで、`src/main.rs` の
+`output_root_assets()` が次の 3 点を `OUTPUT_ROOT`（`.vercel/output`）配下へ
+`generate_assets` 経由で書き出します（フラグなしの既定ビルドではこの 3 点
+は生成されず、`config.json` は導入前とバイト単位で同一のままです）。
 
 - `/functions/_middleware.func/.vc-config.json`
 - `/functions/_middleware.func/index.js`
 - `middlewarePath` ルートを先頭に加えた `config.json`
+
+自前のプロジェクトへ同等の実装を移植する場合は、`clean_output_dir()` が
+毎回 `.vercel/output` を削除する構成である点に注意してください。手書き
+ファイルを直接置いても消えてしまうため、追加ファイルは同じく
+`generate_assets` で書き出す形にする必要があります。
 
 `.vc-config.json` の例です。
 
@@ -283,6 +361,12 @@ Middleware は Build Output API 上「Edge Runtime 関数」として仕様化�
 - 失敗時は 401 と `WWW-Authenticate: Basic realm="Restricted",
   charset="UTF-8"` を返します。
 - `Authorization` ヘッダー・認証情報を `console.log` 等でログ出力しません。
+- 資格情報の比較は入力の長さで早期リターンしない定数時間比較（後述）を
+  使い、ユーザー名・パスワードの両方を必ず比較してから結果を結合します
+  （`||` の短絡評価で比較回数を減らしません）。
+
+以下は `examples/vercel-ssg` の `src/main.rs::MIDDLEWARE_INDEX_JS` と同一
+内容です（乖離させないため、実装を変更した場合は両方を更新してください）。
 
 ```js
 /**
@@ -293,7 +377,7 @@ Middleware は Build Output API 上「Edge Runtime 関数」として仕様化�
  * 未設定・空文字の場合は誤設定とみなし、常に 503 で拒否する（認証情報の
  * 入力を促す 401 は返さない）。
  */
-export default function middleware(request) {
+export default async function middleware(request) {
   const user = process.env.BASIC_AUTH_USER;
   const password = process.env.BASIC_AUTH_PASSWORD;
 
@@ -344,8 +428,8 @@ export default function middleware(request) {
   // givenPassword 側の比較が実行されず、比較回数（延いては処理時間）が
   // 入力によって変わってタイミング攻撃の手がかりになり得る。両方を必ず
   // 比較してから真偽値を結合する。
-  const userMatches = constantTimeEqual(givenUser, user);
-  const passwordMatches = constantTimeEqual(givenPassword, password);
+  const userMatches = await constantTimeEqual(givenUser, user);
+  const passwordMatches = await constantTimeEqual(givenPassword, password);
   if (!userMatches || !passwordMatches) {
     return unauthorized();
   }
@@ -358,18 +442,23 @@ export default function middleware(request) {
 }
 
 /**
- * ベストエフォートの定数時間比較。タイミング攻撃を完全には排除しないが、
- * 単純な `===` 比較より漏洩する情報を減らす。
+ * 固定長（SHA-256 ダイジェスト）の定数時間比較。
+ *
+ * 入力文字列同士の長さ比較による早期リターンは行わない: 両文字列を
+ * SHA-256 でハッシュ化してから、常に 32 バイト分を最後まで XOR 累積する
+ * ことで、入力の長さに比較回数・処理時間が依存しないようにする
+ * （長さそのものが漏れる情報になり得るため）。
  */
-function constantTimeEqual(a, b) {
-  if (a.length !== b.length) {
-    // 長さの不一致自体も情報になり得るが、ここでは簡潔さを優先する
-    // （ベストエフォート）。
-    return false;
-  }
+async function constantTimeEqual(a, b) {
+  const digestA = new Uint8Array(
+    await crypto.subtle.digest('SHA-256', new TextEncoder().encode(a)),
+  );
+  const digestB = new Uint8Array(
+    await crypto.subtle.digest('SHA-256', new TextEncoder().encode(b)),
+  );
   let diff = 0;
-  for (let i = 0; i < a.length; i += 1) {
-    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  for (let i = 0; i < digestA.length; i += 1) {
+    diff |= digestA[i] ^ digestB[i];
   }
   return diff === 0;
 }
@@ -434,6 +523,7 @@ vercel env add BASIC_AUTH_PASSWORD preview
 ### 関連リンク
 
 - [`examples/vercel-ssg` の README](../../examples/vercel-ssg/README.md)
+- [`examples/vercel-ssr` の README](../../examples/vercel-ssr/README.md)
 - [`examples/ssg-blog` の README](../../examples/ssg-blog/README.md)
 - [`examples/dist-server-docker` の README](../../examples/dist-server-docker/README.md)
 - [サンプル集](examples.md)
@@ -452,3 +542,5 @@ vercel env add BASIC_AUTH_PASSWORD preview
 - [vercel env](https://vercel.com/docs/cli/env)
 - [vercel remove](https://vercel.com/docs/cli/remove)
 - [Managing environment variables](https://vercel.com/docs/environment-variables/managing-environment-variables)
+- [Container Images](https://vercel.com/docs/functions/container-images)
+- [Container Registry](https://vercel.com/docs/container-registry)

@@ -122,6 +122,11 @@ title = "vercel-ssg"
 source = "examples/vercel-ssg/README.md"
 path = "/examples/vercel-ssg/"
 
+[[section.page]]
+title = "vercel-ssr"
+source = "examples/vercel-ssr/README.md"
+path = "/examples/vercel-ssr/"
+
 [[section]]
 title = "Primitives"
 # fandhe-frontend-headless-ui（unstyled headless UI）の索引・部品ページ

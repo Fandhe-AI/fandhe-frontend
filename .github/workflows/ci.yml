@@ -366,8 +366,9 @@ jobs:
 
       # `functions/` が存在しないことも検証する（`examples/vercel-ssg` は案 c
       # 〔SSG → Build Output API → `--prebuilt`〕の実演で Vercel 側に Rust
-      # ランタイムを配置しない。将来 functions を持つ example が追加された
-      # 場合は `check_vercel_output` モジュールの拡張を検討する）。
+      # ランタイムを配置しない）。opt-in の Basic 認証 Routing Middleware
+      # （#3343）有効時の `functions/_middleware.func/` 構造検証は、この
+      # 直後の 3 ステップ（issue #3344）で同一ジョブへ拡張済み。
       - name: "vercel-ssg Build Output API 構造スモーク (issue #3292)"
         run: |
           set -o pipefail
@@ -385,7 +386,40 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # イシュー #3292 の PR #3322 レビュー指摘への対処: 上記 2 ステップが
+      # イシュー #3344: 上記 2 ステップは既定（`FANDHE_VERCEL_SSG_BASIC_AUTH`
+      # 未設定）出力しか検証しない。opt-in の Basic 認証 Routing Middleware
+      # （#3343）を有効化した出力（`functions/_middleware.func/` を持つ）は
+      # 別の構造を持つため、同じ `examples/vercel-ssg` を有効化して再生成し、
+      # `--expect-basic-auth-middleware` で別途検証する。既存の 2 ステップと
+      # 同じ `CARGO_TARGET_DIR` を再利用してビルドキャッシュを共有する。
+      # 新規ジョブは起こさない（理由は上記コメント §「examples gate e2e」〜
+      # 「vercel-ssg Build Output API 出力の生成」節と同じ 2 点）。
+      - name: "vercel-ssg Build Output API 出力の生成（Basic 認証ミドルウェア有効, issue #3344）"
+        working-directory: examples/vercel-ssg
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/vercel-ssg-target
+          FANDHE_VERCEL_SSG_BASIC_AUTH: "1"
+        run: cargo run --locked
+
+      - name: "vercel-ssg Build Output API 構造スモーク（Basic 認証ミドルウェア有効, issue #3344）"
+        run: |
+          set -o pipefail
+          cargo run --locked -p xtask -- check-vercel-output \
+            --output-dir examples/vercel-ssg/.vercel/output \
+            --expect-basic-auth-middleware \
+            | tee "${RUNNER_TEMP}/check-vercel-output-basic-auth.log"
+
+      - name: "Publish check-vercel-output (basic auth) summary"
+        if: always()
+        run: |
+          {
+            echo '## check-vercel-output --expect-basic-auth-middleware (issue #3344)'
+            echo '```'
+            grep '^check-vercel-output:' "${RUNNER_TEMP}/check-vercel-output-basic-auth.log" || echo 'no summary line found'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # イシュー #3292 の PR #3322 レビュー指摘への対処: 上記ステップが
       # `examples/vercel-ssg/` 配下へ `cargo run` でビルド生成物
       # （`.vercel/output/` 等、`.gitignore` の `/examples/*/.vercel/` で
       # 無視される）を書き込むが、後段の `crates/cli/tests/new_e2e.rs::
