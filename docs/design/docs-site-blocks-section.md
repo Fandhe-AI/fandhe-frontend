@@ -983,6 +983,7 @@ pub enum LayoutCss {
 | list-sticky-groups | #2924（親 #2892） | `application/list/list_sticky_groups.rs` |
 | grid-list-compact-tiles | #2918（親 #2892） | `application/grid_list/grid_list_compact_tiles.rs` |
 | grid-list-logo-cards | #2921（親 #2892） | `application/grid_list/grid_list_logo_cards.rs` |
+| grid-list-action-tiles | #2917 | `application/grid_list/grid_list_action_tiles.rs` |
 | pricing-single-split | #2867（親 #2807） | `marketing/pricing/pricing_single_split.rs` |
 | pricing-tier-cards | #2871（親 #2807） | `marketing/pricing/pricing_tier_cards.rs` |
 | pricing-upgrade-card | #2878（親 #2807） | `marketing/pricing/pricing_upgrade_card.rs` |
