@@ -2052,6 +2052,11 @@ path = "/blocks/list-sticky-groups/"
 title = "Grid List"
 
 [[section.group.page]]
+title = "grid-list-action-tiles"
+source = "site/blocks/grid-list-action-tiles.md"
+path = "/blocks/grid-list-action-tiles/"
+
+[[section.group.page]]
 title = "grid-list-compact-tiles"
 source = "site/blocks/grid-list-compact-tiles.md"
 path = "/blocks/grid-list-compact-tiles/"
