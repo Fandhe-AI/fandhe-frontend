@@ -979,6 +979,7 @@ pub enum LayoutCss {
 | form-layout-property-panel | #2913（親 #2912） | `application/form_layout/form_layout_property_panel.rs` |
 | form-layout-stacked | #2915（親 #2892） | `application/form_layout/form_layout_stacked.rs` |
 | form-layout-two-column | #2916（親 #2892） | `application/form_layout/form_layout_two_column.rs` |
+| navbar-app-links | #2926（親 #2892） | `application/navbar/navbar_app_links.rs` |
 | list-narrow-activity | #2922（親 #2892） | `application/list/list_narrow_activity.rs` |
 | list-sticky-groups | #2924（親 #2892） | `application/list/list_sticky_groups.rs` |
 | list-title-meta | #2925（親 #2892） | `application/list/list_title_meta.rs` |

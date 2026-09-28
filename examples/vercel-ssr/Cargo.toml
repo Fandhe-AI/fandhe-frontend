@@ -1,0 +1,35 @@
+[package]
+name = "fandhe-frontend-example-vercel-ssr"
+version = "0.1.0"
+edition = "2021"
+description = "fandhe-frontend フレームワークの Vercel Container Images（案 d）上でリクエスト時 SSR を行う正本サンプル（examples 規約、イシュー #3289）。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# examples/ は「crates.io 公開済みクレートを実際に使う正本サンプル」であり、
+# templates/（`fw new` が展開する雛形）とは異なりバージョン依存で完結する
+# （examples/ssr-routing で確立した規約、イシュー #499）。
+#
+# `docs/design/vercel-deployment-strategy.md` が確定した案 d（Vercel
+# Container Images）の実演であり、静的配置（案 c、`examples/vercel-ssg`）
+# では賄えないリクエスト時 SSR を扱う。依存は `fandhe-frontend-dist-server`
+# （v0.3.4、#3336 の PORT 対応・#3337 の graceful shutdown 対応を含む）が
+# 要求する hyper/hyper-util/http-body-util/tokio の直接構成と同一指定にする
+# （`crates/dist-server/Cargo.toml` の REQ-3 実測コメント参照）。本サンプルは
+# `fandhe-frontend-dist-server` の hyper トランスポート層（`src/main.rs`）を
+# 雛形にした薄いバイナリを自前で持つため、hyper 系クレートを直接依存に含める。
+# `hyper-util` の "server-graceful"・`tokio` の "signal"/"time" は #3337 の
+# graceful shutdown（SIGTERM 受信後の drain）移植に必要。
+[dependencies]
+fandhe-frontend-dist-server = "0.3.4"
+hyper = { version = "1", default-features = false, features = ["http1", "server"] }
+hyper-util = { version = "0.1", default-features = false, features = ["http1", "server", "tokio", "server-graceful"] }
+http-body-util = { version = "0.1", default-features = false }
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "net", "signal", "time"] }
+
+[dev-dependencies]
+
+# root workspace（リポジトリ直下 Cargo.toml の `members = ["crates/*"]`）から
+# 意図的に切り離す（examples/ssr-routing と同じ方針、`ci.md` #412/#493 参照）。
+[workspace]
+members = ["."]

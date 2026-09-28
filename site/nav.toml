@@ -2025,6 +2025,14 @@ source = "site/blocks/sidebar-07.md"
 path = "/blocks/sidebar-07/"
 
 [[section.group]]
+title = "Navbar"
+
+[[section.group.page]]
+title = "navbar-app-links"
+source = "site/blocks/navbar-app-links.md"
+path = "/blocks/navbar-app-links/"
+
+[[section.group]]
 title = "Card Heading"
 
 [[section.group.page]]
