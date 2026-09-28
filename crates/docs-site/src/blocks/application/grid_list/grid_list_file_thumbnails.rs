@@ -42,6 +42,17 @@
 //! 到達可能な `min-width: 30rem`/`40rem` へ引き下げ、実際のページ幅で
 //! 3 列・4 列へ切り替わることを保証する。
 //!
+//! # サムネイル画像を 5 種で使い回す理由（PR #3364 Codex(P2) 指摘の是正）
+//!
+//! 本モジュールは 12 件全ファイルへ [`dummy_assets::PRODUCT_SRC`] のみを
+//! 割り当てていたため、ファイルサムネイル一覧というデモ説明に反して見た目が
+//! 単調に見える不整合があった。`dummy_assets` はいずれもモノトーンの抽象
+//! 図形（実在の写真ではない）画像ヘルパを 5 種（商品・アバター・ロゴ・
+//! スクリーンショット・背景タイル）持つため、新規アセットを追加せず
+//! [`THUMBNAIL_SRCS`] でこの 5 種を `FILES` のインデックスに応じて循環割当
+//! し、ファイルごとに異なるサムネイルへ見せる（`bento_two_column.rs` 等の
+//! 既存 block と同型の使い回し）。
+//!
 //! # `alt=""` にする理由
 //!
 //! 同一プレースホルダー画像を複数枚並べる際、内容を伝えない同一文言の
@@ -96,6 +107,17 @@ const FILES: [(&str, &str); 12] = [
     ("lakeside-cabin.jpg", "5.5 MB"),
 ];
 
+/// [`FILES`] のインデックスへ循環割当するサムネイル `src` の候補
+/// （`dummy_assets` の 5 種すべて。PR #3364 Codex(P2) 指摘の是正、モジュール
+/// doc 参照）。
+const THUMBNAIL_SRCS: [&str; 5] = [
+    dummy_assets::PRODUCT_SRC,
+    dummy_assets::AVATAR_SRC,
+    dummy_assets::LOGO_SRC,
+    dummy_assets::SCREENSHOT_SRC,
+    dummy_assets::BACKGROUND_SRC,
+];
+
 /// キャプション（見出し代わりの短い説明文）。
 fn caption() -> Node {
     p(
@@ -105,8 +127,9 @@ fn caption() -> Node {
 }
 
 /// グリッド 1 セル分（サムネイル全体を「詳細を表示」ボタンにし、下へ
-/// ファイル名・サイズを表示する）。
-fn cell(name: &str, size: &str) -> Node {
+/// ファイル名・サイズを表示する）。`thumbnail_src` は [`THUMBNAIL_SRCS`] を
+/// 呼び出し側が循環割当した値。
+fn cell(name: &str, size: &str, thumbnail_src: &str) -> Node {
     let sr_label = format!("{name} の詳細を表示");
     let trigger = button::button(
         &ButtonProps {
@@ -118,7 +141,7 @@ fn cell(name: &str, size: &str) -> Node {
             image::image(
                 &ImageProps {
                     aspect_ratio: AspectRatio::Landscape,
-                    ..ImageProps::new(dummy_assets::PRODUCT_SRC, "")
+                    ..ImageProps::new(thumbnail_src, "")
                 },
                 vec![("data-blocks-grid-list-file-thumbnails-image", "")],
             ),
@@ -149,7 +172,11 @@ fn cell(name: &str, size: &str) -> Node {
 /// `grid-list-file-thumbnails` の Demo 本体。呼び出しごとに同一の `Node`
 /// を返す純関数。
 pub fn demo() -> Node {
-    let items = FILES.iter().map(|(name, size)| cell(name, size)).collect();
+    let items = FILES
+        .iter()
+        .enumerate()
+        .map(|(i, (name, size))| cell(name, size, THUMBNAIL_SRCS[i % THUMBNAIL_SRCS.len()]))
+        .collect();
     let grid = list::root(
         ListType::Unordered,
         ListVariant::Plain,
@@ -216,7 +243,7 @@ const LAYOUT_CSS: &str = "\
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, FILES, LAYOUT_CSS};
+    use super::{demo, FILES, LAYOUT_CSS, THUMBNAIL_SRCS};
     use fandhe_frontend_core::render;
 
     /// Demo が期待する部品・構造・非対話制約を満たしていることの単体
@@ -259,6 +286,19 @@ mod tests {
     #[test]
     fn demo_is_deterministic() {
         assert_eq!(render(&demo()), render(&demo()));
+    }
+
+    /// PR #3364 Codex(P2) 指摘の回帰: 12 件のファイルへ同一プレースホルダー
+    /// 画像のみを割り当てず、[`THUMBNAIL_SRCS`] の全種を使い回すこと。
+    #[test]
+    fn demo_cycles_through_all_thumbnail_srcs() {
+        let html = render(&demo());
+        for src in THUMBNAIL_SRCS {
+            assert!(
+                html.contains(src),
+                "demo output should reference thumbnail src {src}"
+            );
+        }
     }
 
     /// [`LAYOUT_CSS`] がコンテナクエリ（2 → 3 → 4 列）と `:hover` 強調を

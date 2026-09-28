@@ -12,7 +12,9 @@
 クエリで判定し、既定（狭幅）は 2 列、`min-width: 30rem` で 3 列、
 `min-width: 40rem` で 4 列へ切り替わります。サムネイル全体は `button`
 （`plain` variant）で包んだ「詳細を表示」ボタンで、ホバー時に画像を弱く
-表示して強調します。
+表示して強調します。サムネイル画像は `dummy_assets` の 5 種（商品・
+アバター・ロゴ・スクリーンショット・背景タイル）を循環割当し、ファイル
+ごとに異なる見た目にしています。
 
 本 Demo は静的な表示例であり、`<form>` 要素は一切持たず、データの取得・
 送信・状態管理を行いません。ボタンはすべて `type="button"` のまま送信先を
@@ -49,6 +51,17 @@ const FILES: [(&str, &str); 12] = [
     ("lakeside-cabin.jpg", "5.5 MB"),
 ];
 
+/// [`FILES`] のインデックスへ循環割当するサムネイル `src` の候補
+/// （`dummy_assets` の 5 種すべて。PR #3364 Codex(P2) 指摘の是正、モジュール
+/// doc 参照）。
+const THUMBNAIL_SRCS: [&str; 5] = [
+    dummy_assets::PRODUCT_SRC,
+    dummy_assets::AVATAR_SRC,
+    dummy_assets::LOGO_SRC,
+    dummy_assets::SCREENSHOT_SRC,
+    dummy_assets::BACKGROUND_SRC,
+];
+
 /// キャプション（見出し代わりの短い説明文）。
 fn caption() -> Node {
     p(
@@ -58,8 +71,9 @@ fn caption() -> Node {
 }
 
 /// グリッド 1 セル分（サムネイル全体を「詳細を表示」ボタンにし、下へ
-/// ファイル名・サイズを表示する）。
-fn cell(name: &str, size: &str) -> Node {
+/// ファイル名・サイズを表示する）。`thumbnail_src` は [`THUMBNAIL_SRCS`] を
+/// 呼び出し側が循環割当した値。
+fn cell(name: &str, size: &str, thumbnail_src: &str) -> Node {
     let sr_label = format!("{name} の詳細を表示");
     let trigger = button::button(
         &ButtonProps {
@@ -71,7 +85,7 @@ fn cell(name: &str, size: &str) -> Node {
             image::image(
                 &ImageProps {
                     aspect_ratio: AspectRatio::Landscape,
-                    ..ImageProps::new(dummy_assets::PRODUCT_SRC, "")
+                    ..ImageProps::new(thumbnail_src, "")
                 },
                 vec![("data-blocks-grid-list-file-thumbnails-image", "")],
             ),
@@ -102,7 +116,11 @@ fn cell(name: &str, size: &str) -> Node {
 /// `grid-list-file-thumbnails` の Demo 本体。呼び出しごとに同一の `Node`
 /// を返す純関数。
 pub fn demo() -> Node {
-    let items = FILES.iter().map(|(name, size)| cell(name, size)).collect();
+    let items = FILES
+        .iter()
+        .enumerate()
+        .map(|(i, (name, size))| cell(name, size, THUMBNAIL_SRCS[i % THUMBNAIL_SRCS.len()]))
+        .collect();
     let grid = list::root(
         ListType::Unordered,
         ListVariant::Plain,
