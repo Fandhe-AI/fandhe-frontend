@@ -25,7 +25,7 @@
 //!   （中黒区切り） + 「メッセージ」「プロフィールを編集」ボタン + 三点
 //!   メニュー。
 //! - **invite**（R0594）: 同じアバター骨格 + メールアドレス（プレーン
-//!   テキスト） + 応募内容へのリンク + 応募日 + 「却下」「面接に進める」
+//!   テキスト） + 応募一覧へのリンク + 応募日 + 「却下」「面接に進める」
 //!   ボタン + 三点メニュー。
 //! - **invoice**（R1134）: media を企業ロゴ画像へ差し替え + 社名 + 請求書
 //!   番号 + 発行日 + 「PDF をダウンロード」「支払いを記録」ボタン + 三点
@@ -96,12 +96,12 @@ use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::menu::{self, OpenState};
 use fandhe_frontend_pre_styled_ui::Size;
 
-/// 「応募内容を見る」（invite インスタンス）の遷移先（外部の実在 URL、
-/// `href="#"` は使わない、他 block と同型の判断）。リポジトリ直下は
-/// ラベルの意味と一致しない（イシュー #2931 codex レビュー指摘）ため、
-/// 提出物がレビューされるという点で「応募内容」に最も近い実在ページ
-/// （GitHub Pull Requests 一覧）へ張る（`footer_inline_nav.rs` の是正と
-/// 同型の判断）。
+/// invite インスタンスの応募関連リンクの遷移先（外部の実在 URL、
+/// `href="#"` は使わない、他 block と同型の判断）。個々の応募内容を示す
+/// 実在ページは持たないため、遷移先の実体（GitHub Pull Requests 一覧）に
+/// 合わせてラベルを「応募一覧を見る」とし、ラベルと遷移先を一致させる
+/// （イシュー #2931 codex レビュー指摘。当初のラベル「応募内容を見る」は
+/// 遷移先が一覧ページであることと不一致だった）。
 const APPLICATION_LINK: &str = "https://github.com/Fandhe-AI/fandhe-frontend/pulls";
 
 /// アバター（円形）を組み立てる。氏名をアクセシブルネームとして `root` へ
@@ -330,7 +330,7 @@ fn invite_instance() -> Node {
                     APPLICATION_LINK,
                     &LinkProps::default(),
                     vec![],
-                    vec![text("応募内容を見る")],
+                    vec![text("応募一覧を見る")],
                 ),
                 dot_separator(),
                 time_el("2026-09-26", "9 月 26 日に応募"),
@@ -540,11 +540,22 @@ mod tests {
 
     #[test]
     fn application_link_does_not_point_at_repo_root() {
-        // 「応募内容を見る」が REPO 直下（遷移先の意味不一致）へ戻らないことの
+        // 応募関連リンクが REPO 直下（遷移先の意味不一致）へ戻らないことの
         // 回帰ガード（イシュー #2931 codex レビュー指摘）。
         let html = demo_html();
         assert!(html.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend/pulls\""));
         assert!(!html.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend\""));
+    }
+
+    #[test]
+    fn application_link_label_matches_list_destination() {
+        // ラベルと遷移先の不一致（PR 一覧を指すのに「応募内容を見る」と
+        // 表示していた）の回帰ガード（イシュー #2931 codex レビュー
+        // 再指摘、コメント URL #discussion_r4120102538）。遷移先が一覧
+        // ページである以上、ラベルもそれと分かる文言にする。
+        let html = demo_html();
+        assert!(html.contains("応募一覧を見る"));
+        assert!(!html.contains("応募内容を見る"));
     }
 
     #[test]
