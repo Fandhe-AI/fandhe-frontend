@@ -31,21 +31,33 @@
 //! 本 Demo は無 JS の docs サイトで静的な初期状態のみを示す（JS
 //! ハイドレーションを行わない）。押しても何も起きない要素を操作可能に
 //! 見せないため、`menu::trigger` の `disabled: true`（第 2 引数）・行末
-//! 「表示」ボタンの `ButtonProps { disabled: true, .. }` を固定し、
-//! `[data-disabled]` の既定 `opacity: 0.5` を [`LAYOUT_CSS`] で
-//! `opacity: 1; cursor: default;` へ中和する（`list_people` と同型）。
-//! 「表示」ボタンが隠れる狭幅でも `menu` content に同じ「表示」項目が
-//! あるため機能は失われない。
+//! 「表示」ボタンの `ButtonProps { disabled: true, .. }` を固定する。
+//! `[data-disabled]` の既定 `opacity: 0.5; cursor: not-allowed;` は
+//! 中和しない（無効な操作を有効に見せてはならないため。以前の版は
+//! `opacity: 1; cursor: default;` で打ち消していたが、これは「押しても
+//! 何も起きない要素を操作可能に見せない」という本節冒頭の意図と矛盾する
+//! codex レビュー指摘であり削除した）。「表示」ボタンが隠れる狭幅の
+//! コンテナでも `menu` content に同じ「表示」項目があるため見た目の
+//! 到達手段は失われないが、`menu::trigger` 自体も本 Demo では
+//! `disabled: true` の静的表示であり実際には操作できない（本 Demo が
+//! 無 JS の静的表示に限定されるための一般的な制約であり、実運用で
+//! `disabled` を外して配線する場合はこの限りではない旨を
+//! `site/blocks/list-title-meta.md` に明記する）。
 //!
 //! # `menu`/ボタンの id をページ内で一意にする理由
 //!
 //! `demo_output_has_no_dangling_aria_references_or_duplicate_ids`
 //! （`crates/docs-site/tests/blocks_contract.rs`）が id 重複を fail-closed に
-//! 検知するため、`menu::trigger`/`menu::content` の id・行末ボタンの
-//! アクセシブル名（[`visually_hidden::root`] で「、{タイトル}」を追加して
-//! 一意化する）は行ごとに固定の `&'static str` 定数として持つ（`format!`
-//! で作る `String` の寿命問題を避けるため、`list_people` と異なり配列の
-//! 添字ではなく行データへ直接 id 文字列を持たせる）。
+//! 検知するため、`menu::trigger`/`menu::content` の id は行ごとに固定の
+//! `&'static str` 定数として持つ（`format!` で作る `String` の寿命問題を
+//! 避けるため、`list_people` と異なり配列の添字ではなく行データへ直接 id
+//! 文字列を持たせる）。行末ボタン・`menu::trigger` のアクセシブル名は
+//! いずれも [`visually_hidden::root`] で「、{タイトル}」を追加して行ごとに
+//! 一意化する（`menu::trigger` の可視テキストは全行共通の「…」のみのため、
+//! `aria-label` 固定文言のままでは行を移動する利用者がどのタスクの操作か
+//! 区別できない、codex レビュー指摘・イシュー #2925）。id と異なり
+//! アクセシブル名は `children` 経由（`text(format!(...))`）で供給できる
+//! ため寿命問題は生じない。
 //!
 //! # `href="#"` を使わない
 //!
@@ -301,8 +313,14 @@ fn action_trailing(row: &ActionRow) -> Node {
                 OpenState::Closed,
                 true,
                 Some(row.menu_id),
-                vec![("id", row.menu_trigger_id), ("aria-label", "その他の操作")],
-                vec![text("\u{2026}")],
+                vec![("id", row.menu_trigger_id)],
+                vec![
+                    text("\u{2026}"),
+                    visually_hidden::root(
+                        vec![],
+                        vec![text(format!("その他の操作、{}", row.title))],
+                    ),
+                ],
             ),
             menu::positioner(
                 OpenState::Closed,
@@ -354,7 +372,11 @@ fn action_item(row: &ActionRow) -> Node {
 /// 支援技術に氏名が伝わらないため、`root` へ `aria-label` で氏名全体を
 /// 供給する（`avatar::badge` doc「アクセシブルネームが必要な場合は
 /// 呼び出し側が `root` の `aria-label` 等で供給する」節と同型の判断、
-/// codex レビュー指摘）。
+/// codex レビュー指摘）。`avatar::root` が出力する `<div>` は役割を持たず
+/// `aria-label` だけでは支援技術がアクセシブルネームとして採用しない
+/// （role なし要素の name computation の対象外になり得るため）ため、
+/// `role="img"` を明示付与して氏名全体をアクセシブルネームとして確実に
+/// 伝える（codex/Bugbot レビュー指摘、イシュー #2925）。
 fn initial_avatar(name: &str) -> Node {
     let initial: String = name.chars().take(1).collect();
     avatar::root(
@@ -363,7 +385,7 @@ fn initial_avatar(name: &str) -> Node {
             stacked: true,
             ..AvatarProps::default()
         },
-        vec![("aria-label", name)],
+        vec![("role", "img"), ("aria-label", name)],
         vec![avatar::fallback(
             ImageStatus::default(),
             vec![],
@@ -669,9 +691,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-list-title-meta-panel [data-blocks-list-title-meta-view-button] {\n  display: none;\n}\n\
 @container blocks-list-title-meta (min-width: 40rem) {\n  \
 .blocks-list-title-meta-panel [data-blocks-list-title-meta-view-button] {\n    display: inline-flex;\n  }\n\
-}\n\
-.blocks-list-title-meta-panel [data-scope=\"menu\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-.blocks-list-title-meta-panel [data-scope=\"button\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n";
+}\n";
 
 #[cfg(test)]
 mod tests {

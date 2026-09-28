@@ -12,8 +12,9 @@
 
 1. **表示ボタン + メニュー**: 行末に「表示」ボタンと三点メニュー（項目
    3 件 + 区切り線、閉状態固定）を置きます。狭いコンテナ幅では「表示」
-   ボタンを隠しますが、メニュー内に同じ「表示」項目があるため機能は
-   失われません。
+   ボタンを隠し、メニュー内に同じ「表示」項目を残す構成ですが、本 Demo
+   は無 JS の静的表示のためメニュー自体も `disabled` 固定です（実運用で
+   `disabled` を外して配線する場合はこの限りではありません）。
 2. **重ねたアバター + 件数**: 行末に重ねた小さなアバター 3 件と「+N」の
    残り人数表示を置きます。
 3. **状態ドット + 環境バッジ**: 行全体をリンク化し、タイトルの隣に状態
@@ -262,8 +263,14 @@ fn action_trailing(row: &ActionRow) -> Node {
                 OpenState::Closed,
                 true,
                 Some(row.menu_id),
-                vec![("id", row.menu_trigger_id), ("aria-label", "その他の操作")],
-                vec![text("\u{2026}")],
+                vec![("id", row.menu_trigger_id)],
+                vec![
+                    text("\u{2026}"),
+                    visually_hidden::root(
+                        vec![],
+                        vec![text(format!("その他の操作、{}", row.title))],
+                    ),
+                ],
             ),
             menu::positioner(
                 OpenState::Closed,
@@ -315,7 +322,11 @@ fn action_item(row: &ActionRow) -> Node {
 /// 支援技術に氏名が伝わらないため、`root` へ `aria-label` で氏名全体を
 /// 供給する（`avatar::badge` doc「アクセシブルネームが必要な場合は
 /// 呼び出し側が `root` の `aria-label` 等で供給する」節と同型の判断、
-/// codex レビュー指摘）。
+/// codex レビュー指摘）。`avatar::root` が出力する `<div>` は役割を持たず
+/// `aria-label` だけでは支援技術がアクセシブルネームとして採用しない
+/// （role なし要素の name computation の対象外になり得るため）ため、
+/// `role="img"` を明示付与して氏名全体をアクセシブルネームとして確実に
+/// 伝える（codex/Bugbot レビュー指摘、イシュー #2925）。
 fn initial_avatar(name: &str) -> Node {
     let initial: String = name.chars().take(1).collect();
     avatar::root(
@@ -324,7 +335,7 @@ fn initial_avatar(name: &str) -> Node {
             stacked: true,
             ..AvatarProps::default()
         },
-        vec![("aria-label", name)],
+        vec![("role", "img"), ("aria-label", name)],
         vec![avatar::fallback(
             ImageStatus::default(),
             vec![],
