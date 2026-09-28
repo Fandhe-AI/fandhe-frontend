@@ -6,7 +6,7 @@
 cargo プロジェクトです。本ページはサンプルの比較・読む順・
 `fw new --example` による取得手順をまとめます。
 
-## 1. 7 サンプルの比較
+## 1. 8 サンプルの比較
 
 全サンプルに共通する前提は「Rust ツールチェーン（`cargo`）」「crates.io
 （`https://index.crates.io` / `https://static.crates.io`）への到達性」
@@ -23,6 +23,7 @@ cargo-deny（`tools/ci/ensure-gate-tools.sh` で導入）」の 3 点です。�
 | [headless-pre-styled-ui](../../examples/headless-pre-styled-ui/README.md) | Primitives / Themes 2 層 UI コンポーネントのショーケース | `fandhe-frontend-core` / `-pre-styled-ui`（headless 層 API は再エクスポート経由） | なし | 短 |
 | [wireframe-ui](../../examples/wireframe-ui/README.md) | ローファイ・モノクロのワイヤーフレーム UI（Phase 1〜8・全 49 部品）のショーケース | `fandhe-frontend-core` / `-wireframe-ui` | なし | 短 |
 | [vercel-ssg](../../examples/vercel-ssg/README.md) | SSG → Vercel Build Output API → `vercel deploy --prebuilt` の静的配置 | `fandhe-frontend-core` / `-server` | Vercel CLI とアカウント（デプロイを試す場合のみ） | 短 |
+| [vercel-ssr](../../examples/vercel-ssr/README.md) | Vercel Container Images（Beta）上でのリクエスト時 SSR（`PORT` による bind 先解決・SIGTERM による graceful shutdown） | `fandhe-frontend-dist-server` | Docker（イメージのビルド・起動を試す場合）、Vercel CLI とアカウント・Container Images（Beta）の有効化（デプロイを試す場合のみ） | 中 |
 
 > 「所要目安」は追加ツール導入の有無と手順ステップ数から算出した目安であり、実測値ではありません。
 
@@ -42,7 +43,8 @@ cargo-deny（`tools/ci/ensure-gate-tools.sh` で導入）」の 3 点です。�
    - クライアント側の状態管理・ページ遷移アニメーションを試したい → [interactive-view-transitions](../../examples/interactive-view-transitions/README.md)
    - UI 部品（Primitives / Themes 2 層）を試したい → [headless-pre-styled-ui](../../examples/headless-pre-styled-ui/README.md)
    - ローファイ・モノクロのワイヤーフレーム UI（blocks.pm 相当）を試したい → [wireframe-ui](../../examples/wireframe-ui/README.md)
-   - Vercel へ静的配置したい → [vercel-ssg](../../examples/vercel-ssg/README.md)
+   - Vercel へ静的配置したい（推奨） → [vercel-ssg](../../examples/vercel-ssg/README.md)
+   - Vercel 上でリクエスト時 SSR をしたい → [vercel-ssr](../../examples/vercel-ssr/README.md)
 3. **Step 3（応用）**
    目的別ガイド（[コンポーネント作成ガイド](./component-authoring.md) 等）と
    [API Reference](../api/component-api.md) へ進んでください。
@@ -172,11 +174,13 @@ RadioGroup/Avatar 等）を学べます。加えて `Theme::upsert_color` /
 ### 3.7 vercel-ssg
 
 親トラッキング #3282 の Phase 1（#3284〜#3286、#3288）で確定した Vercel
-上での唯一の既定方式（SSG → Vercel Build Output API →
-`vercel deploy --prebuilt`）を学べます。`vercel_runtime` 1.x は起動時に
-panic し、2.x は依存グラフ上限（60 件/深さ 6）を超えるため不採用と
-なった経緯は `docs/design/vercel-deployment-strategy.md`（docs サイト
-非掲載のためリンクではなくファイルパスで示します）を参照してください。
+上の**静的配置**の既定方式（SSG → Vercel Build Output API →
+`vercel deploy --prebuilt`、案 c）を学べます。`vercel_runtime` 1.x は
+起動時に panic し、2.x は依存グラフ上限（60 件/深さ 6）を超えるため
+不採用となった経緯は
+[`docs/design/vercel-deployment-strategy.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/design/vercel-deployment-strategy.md)
+を参照してください。Vercel 上でリクエストごとの SSR が必要な場合は
+次の §3.8 vercel-ssr を参照してください。
 
 `generate_pages`（HTML ページを Build Output API の `static/` へ）と
 `generate_assets`（`config.json`・`404.html` の生成）を組み合わせ、
@@ -188,6 +192,32 @@ panic し、2.x は依存グラフ上限（60 件/深さ 6）を超えるため�
 Vercel の Deployment Protection（Vercel Authentication／SSO）に関する
 注意は [vercel-ssg](../../examples/vercel-ssg/README.md) の README を
 参照してください。
+
+### 3.8 vercel-ssr
+
+決定記録
+[`docs/design/vercel-deployment-strategy.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/design/vercel-deployment-strategy.md)
+で SSR 用に §3.7 の案 c と並置採用された案 d（Vercel Container Images・
+Beta）の実演です。crates.io へ公開済みの `fandhe-frontend-dist-server`
+を通常の外部依存として使い、Vercel Container Images 上でリクエストごとの
+SSR を行います。
+
+- bind 先アドレスの優先順位: `FANDHE_FRONTEND_BIND_ADDR` >
+  `PORT`（`0.0.0.0:$PORT`）> 既定 `127.0.0.1:3100`。`PORT` が不正値なら
+  fail-closed に起動失敗します
+- `SIGTERM`/`SIGINT` を受けると listener を drop し、処理中の接続を
+  最大 25 秒 drain してから `exit 0` します
+- `Dockerfile.vercel` は `FANDHE_FRONTEND_BIND_ADDR` を設定しません。
+  非 root 実行のため、Vercel プロジェクトの `PORT` は 1024 以上に
+  設定する必要があります
+- 外部依存として利用するため、`examples/dist-server-docker` と同様に
+  静的アセット（`/static/*`）と WASM は出荷しません
+- 静的出力で足りる場合は §3.7 vercel-ssg（案 c）を推奨します
+- Vercel 実機での検証はまだ行っていません（イシュー #3339）
+
+実装例・デプロイ手順の詳細は
+[vercel-ssr](../../examples/vercel-ssr/README.md) の README を、Vercel
+での全体的な選び方は [デプロイガイド](./deployment.md) を参照してください。
 
 ## 4. `fw new --example` での取得
 
@@ -202,7 +232,8 @@ fw new my-app --example ssr-routing
 
 `--example` に指定できるサンプル名は `ssr-routing` / `ssg-blog` /
 `dist-server-docker` / `interactive-view-transitions` /
-`headless-pre-styled-ui` / `wireframe-ui` / `vercel-ssg` の 7 種類です。展開
+`headless-pre-styled-ui` / `wireframe-ui` / `vercel-ssg` / `vercel-ssr` の
+8 種類です。展開
 されたプロジェクトはリポジトリの `examples/` 配下と全ファイルバイト一致
 （パッケージ名の置換は行いません）で、そのまま `cargo build` / `cargo
 test` / `fw gate --project .` が通る状態です。

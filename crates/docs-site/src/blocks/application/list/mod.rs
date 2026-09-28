@@ -11,9 +11,14 @@
 
 mod list_narrow_activity;
 mod list_sticky_groups;
+mod list_title_meta;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![list_narrow_activity::BLOCK, list_sticky_groups::BLOCK]
+    vec![
+        list_narrow_activity::BLOCK,
+        list_sticky_groups::BLOCK,
+        list_title_meta::BLOCK,
+    ]
 }

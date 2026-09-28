@@ -139,17 +139,22 @@
 //!   フロー YAML との整合（マニフェスト ⇔ workflows）はオフライン契約テスト
 //!   `xtask/tests/workflow_required_checks_manifest.rs` が別途担う。
 //!
-//! - `check-vercel-output --output-dir <DIR>`: イシュー #3292。
+//! - `check-vercel-output --output-dir <DIR> [--expect-basic-auth-middleware]`:
+//!   イシュー #3292（`--expect-basic-auth-middleware` はイシュー #3344）。
 //!   `examples/vercel-ssg`（#3290）が生成する Vercel Build Output API v3
 //!   出力ツリー（`.vercel/output/config.json` + `static/`）を JSON として
 //!   パースし、型・キー・参照整合まで構造的に検証する（`check_vercel_output`
 //!   モジュール）。既存検証（`examples/vercel-ssg/tests/build_output.rs`・
 //!   `crates/cli/tests/new_gate_e2e.rs`）は部分文字列一致のみで、型崩れ・
-//!   キー打ち間違いを検知できないことが動機。`functions/` の非存在検証を
-//!   含む（案 c: 静的配置のみ、`docs/design/vercel-deployment-strategy.md`）。
-//!   Vercel への実デプロイは行わない。呼び出し元は `.github/workflows/ci.yml`
-//!   の `test` ジョブ（examples gate e2e 直後のステップ）。判定対象は
-//!   CLI 引数で差し替え不可。1 行サマリ・総括行は
+//!   キー打ち間違いを検知できないことが動機。既定は `functions/` の非存在を
+//!   検証する（案 c: 静的配置のみ、`docs/design/vercel-deployment-strategy.md`）。
+//!   `--expect-basic-auth-middleware` を渡すと、`examples/vercel-ssg` の
+//!   opt-in Basic 認証 Routing Middleware（#3343）が生成する
+//!   `functions/_middleware.func/` 構造を代わりに検証する
+//!   （`check_vercel_output::FunctionsExpectation`）。Vercel への実デプロイは
+//!   行わない。呼び出し元は `.github/workflows/ci.yml` の `test` ジョブ
+//!   （examples gate e2e 直後のステップ）。判定対象は CLI 引数で差し替え
+//!   不可。1 行サマリ・総括行は
 //!   `check_vercel_output::format_line`/`format_summary` 参照。CLI 契約の
 //!   回帰テストは `xtask/tests/cli_check_vercel_output.rs`。
 //!
@@ -283,13 +288,17 @@ fn print_usage() {
     eprintln!("      (GET /repos/{{repo}}/rules/branches/{{branch}}) and the workspace's");
     eprintln!("      manifest (default .github/required-status-checks.json, issue #2325).");
     eprintln!("      Reads GITHUB_TOKEN from the environment if present (never printed).");
-    eprintln!("  check-vercel-output --output-dir <DIR>");
+    eprintln!("  check-vercel-output --output-dir <DIR> [--expect-basic-auth-middleware]");
     eprintln!("      Validate that a Vercel Build Output API v3 tree (examples/vercel-ssg's");
     eprintln!("      `.vercel/output`, issue #3292) is structurally well-formed: config.json");
     eprintln!("      parses as JSON with version=3 and well-typed routes, the 404 fallback");
     eprintln!("      route follows `{{\"handle\": \"filesystem\"}}`, literal route dests point");
-    eprintln!("      at real files under static/, the required static pages exist, static/");
-    eprintln!("      has no symlinks, and functions/ does not exist (static-only deployment).");
+    eprintln!("      at real files under static/, the required static pages exist, and static/");
+    eprintln!("      has no symlinks. By default functions/ must not exist (static-only");
+    eprintln!("      deployment). With --expect-basic-auth-middleware (issue #3344), instead");
+    eprintln!("      validates the opt-in Basic-auth Routing Middleware output: routes[0] is");
+    eprintln!("      the middlewarePath route, functions/ contains only _middleware.func/,");
+    eprintln!("      its .vc-config.json declares runtime=\"edge\", and its index.js exists.");
     eprintln!("      Judged targets are fixed by check_vercel_output module constants.");
 }
 
@@ -1327,16 +1336,21 @@ on the PR."
     }
 }
 
-/// `check-vercel-output` サブコマンド（イシュー #3292）: `--output-dir <DIR>`
-/// のみを受け付け、`examples/vercel-ssg` が生成する Vercel Build Output
-/// API v3 出力ツリーを [`check_vercel_output::check`] で検証する。
+/// `check-vercel-output` サブコマンド（イシュー #3292、`--expect-basic-auth-middleware`
+/// はイシュー #3344）: `--output-dir <DIR>` に加え、値を取らない真偽フラグ
+/// `--expect-basic-auth-middleware` を受け付け、`examples/vercel-ssg` が生成
+/// する Vercel Build Output API v3 出力ツリーを [`check_vercel_output::check`]
+/// で検証する。
 ///
-/// 判定対象（許可リスト・必須ページ一覧・`functions/` の禁止）は
-/// `check_vercel_output` モジュールの定数で固定し、他の CLI 引数では
-/// 差し替え不可（`check-loc`/`check-core-deps` と同じ運用原則）。
-/// 1 件でも FAIL があれば終了コード 1（fail-closed）。
+/// 判定対象（許可リスト・必須ページ一覧・`functions/` の期待形）は
+/// `check_vercel_output` モジュールの定数・`FunctionsExpectation` の 2 値で
+/// 固定し、他の CLI 引数では差し替え不可（`check-loc`/`check-core-deps` と
+/// 同じ運用原則）。`--expect-basic-auth-middleware` に値を付けた場合
+/// （例: `--expect-basic-auth-middleware=1`）も未知の引数として終了コード 2
+/// を返す。1 件でも FAIL があれば終了コード 1（fail-closed）。
 fn run_check_vercel_output(args: &[String]) -> ExitCode {
     let mut output_dir: Option<String> = None;
+    let mut expectation = check_vercel_output::FunctionsExpectation::None;
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -1347,6 +1361,10 @@ fn run_check_vercel_output(args: &[String]) -> ExitCode {
                 };
                 output_dir = Some(value.clone());
                 i += 2;
+            }
+            "--expect-basic-auth-middleware" => {
+                expectation = check_vercel_output::FunctionsExpectation::BasicAuthMiddleware;
+                i += 1;
             }
             other => {
                 eprintln!("xtask check-vercel-output: unknown argument `{other}`");
@@ -1361,7 +1379,7 @@ fn run_check_vercel_output(args: &[String]) -> ExitCode {
     };
     let output_dir = std::path::PathBuf::from(output_dir);
 
-    let results = check_vercel_output::check(&output_dir);
+    let results = check_vercel_output::check(&output_dir, expectation);
     for result in &results {
         println!("{}", check_vercel_output::format_line(result));
     }
