@@ -489,10 +489,10 @@ const LAYOUT_CSS: &str = "\
 .blocks-navbar-two-row-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-navbar-two-row-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-navbar-two-row-shell] {\n  container-type: inline-size;\n  container-name: blocks-navbar-two-row;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n  overflow: hidden;\n  background: var(--fandhe-color-bg);\n}\n\
-[data-blocks-navbar-two-row-row-primary] {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr) auto auto;\n  align-items: center;\n  gap: var(--fandhe-space-3) var(--fandhe-space-4);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
-[data-blocks-navbar-two-row-variant=\"tabs-center\"] [data-blocks-navbar-two-row-row-primary] {\n  grid-template-columns: auto auto minmax(0, 1fr) auto;\n}\n\
+[data-blocks-navbar-two-row-row-primary] {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-3) var(--fandhe-space-4);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
 [data-blocks-navbar-two-row-logo] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  white-space: nowrap;\n}\n\
-[data-blocks-navbar-two-row-search] {\n  max-inline-size: 32rem;\n  margin-inline: auto;\n  inline-size: 100%;\n}\n\
+[data-blocks-navbar-two-row-actions] {\n  margin-inline-start: auto;\n}\n\
+[data-blocks-navbar-two-row-search] {\n  flex: 1 1 100%;\n  max-inline-size: 32rem;\n  margin-inline: auto;\n  inline-size: 100%;\n}\n\
 [data-blocks-navbar-two-row-search] [data-scope=\"field\"][data-part=\"input\"][data-disabled] {\n  opacity: 1;\n  cursor: not-allowed;\n}\n\
 [data-blocks-navbar-two-row-search] [data-scope=\"input-group\"][data-part=\"addon\"][data-disabled] {\n  opacity: 1;\n  cursor: not-allowed;\n}\n\
 [data-blocks-navbar-two-row-actions] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
@@ -508,8 +508,10 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-navbar-two-row-panel] [data-scope=\"navigation-menu\"][data-part=\"list\"] {\n  flex-direction: column;\n}\n\
 [data-blocks-navbar-two-row-panel] [data-scope=\"tab-nav\"][data-part=\"root\"] {\n  flex-direction: column;\n}\n\
 @container blocks-navbar-two-row (min-width: 48rem) {\n  \
-[data-blocks-navbar-two-row-row-primary] {\n    grid-template-columns: auto minmax(0, 1fr) auto;\n  }\n  \
+[data-blocks-navbar-two-row-row-primary] {\n    display: grid;\n    grid-template-columns: auto minmax(0, 1fr) auto;\n  }\n  \
 [data-blocks-navbar-two-row-variant=\"tabs-center\"] [data-blocks-navbar-two-row-row-primary] {\n    grid-template-columns: auto minmax(0, 1fr) auto;\n  }\n  \
+[data-blocks-navbar-two-row-actions] {\n    margin-inline-start: 0;\n  }\n  \
+[data-blocks-navbar-two-row-search] {\n    flex: initial;\n  }\n  \
 [data-blocks-navbar-two-row-row-secondary] {\n    display: flex;\n  }\n  \
 [data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-navbar-two-row-toggle] {\n    display: none;\n  }\n  \
 [data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-navbar-two-row-panel] {\n    display: none;\n  }\n\
