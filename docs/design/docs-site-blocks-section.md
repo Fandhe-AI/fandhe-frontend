@@ -966,6 +966,7 @@ pub enum LayoutCss {
 | card-form-footer | #2899 | `application/card/card_form_footer.rs` |
 | card-heading-toolbar | #2902 | `application/card_heading/card_heading_toolbar.rs` |
 | page-heading-actions | #2930 | `application/page_heading/page_heading_actions.rs` |
+| page-heading-cover | #2932（親 #2892） | `application/page_heading/page_heading_cover.rs` |
 | page-heading-tabs | #2934 | `application/page_heading/page_heading_tabs.rs` |
 | card-media-footer | #2900（親 #2892） | `application/card/card_media_footer.rs` |
 | card-meta-cta | #2901（親 #2892） | `application/card/card_meta_cta.rs` |
@@ -982,6 +983,7 @@ pub enum LayoutCss {
 | form-layout-stacked | #2915（親 #2892） | `application/form_layout/form_layout_stacked.rs` |
 | form-layout-two-column | #2916（親 #2892） | `application/form_layout/form_layout_two_column.rs` |
 | navbar-app-links | #2926（親 #2892） | `application/navbar/navbar_app_links.rs` |
+| navbar-two-row | #2928 | `application/navbar/navbar_two_row.rs` |
 | navbar-with-search | #2929（親 #2892） | `application/navbar/navbar_with_search.rs` |
 | list-narrow-activity | #2922（親 #2892） | `application/list/list_narrow_activity.rs` |
 | list-people | #2923（親 #2892） | `application/list/list_people.rs` |
