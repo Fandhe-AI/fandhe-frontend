@@ -92,19 +92,45 @@ use fandhe_frontend_pre_styled_ui::recipe::ColorPalette;
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
 use fandhe_frontend_pre_styled_ui::{Orientation, Size};
 
-/// 自作の単純な幾何アイコン（`sidebar_03.rs::geo_icon` と同型、モジュール
-/// doc「アイコンは自作の単純幾何図形」参照）。
+/// 自作の単純な幾何アイコン（`cta_split_actions.rs::geo_icon` と同型。
+/// モジュール doc「アイコンは自作の単純幾何図形」参照）。
+///
+/// 本ファイルの `path_d` はいずれも開いた線分（moveto/lineto のみで
+/// `z` 閉曲線を持たない）ため、`icon::icon` 既定の `fill="currentColor"`
+/// のままでは面積ゼロで何も描画されない（`sidebar_03.rs::geo_icon` が
+/// 使う閉じた矩形パスとの差異）。`path` 要素へ `fill="none"` +
+/// `stroke="currentColor"` を上書きしてアウトライン描画にする。
 fn geo_icon(path_d: &'static str) -> Node {
     icon(
         &IconProps::default(),
         vec![],
-        vec![el("path", vec![("d", path_d)], vec![])],
+        vec![el(
+            "path",
+            vec![
+                ("d", path_d),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+                ("stroke-linecap", "round"),
+                ("stroke-linejoin", "round"),
+            ],
+            vec![],
+        )],
     )
 }
 
 /// 三点メニュー（無 JS のため閉じた状態で固定する。モジュール doc
 /// 「メニューは無 JS のため閉じた状態で固定する」節参照）。
-fn overflow_menu(content_id: &'static str) -> Node {
+///
+/// `collapsed_items`（`(id, ラベル)`）は `40rem` 未満で非表示になる
+/// `data-blocks-page-heading-actions-collapsible` 付きボタンと同じ操作を
+/// 表す項目で、共通の書き出す/複製する/削除するより前に挿入する。狭幅では
+/// 三点メニュー経由でしか到達できないため、`export`/`duplicate`/`delete`
+/// のみを常時列挙する構成では狭幅操作が失われる（codex/bugbot 指摘）。
+fn overflow_menu(
+    content_id: &'static str,
+    collapsed_items: &[(&'static str, &'static str)],
+) -> Node {
     let trigger = menu::trigger(
         OpenState::Closed,
         false,
@@ -112,18 +138,20 @@ fn overflow_menu(content_id: &'static str) -> Node {
         vec![("aria-label", "その他の操作")],
         vec![text("\u{2026}")],
     );
-    let content = menu::content(
-        OpenState::Closed,
-        Some(content_id),
-        None,
-        vec![],
-        vec![
-            menu::item("export", false, false, vec![], vec![text("書き出す")]),
-            menu::item("duplicate", false, false, vec![], vec![text("複製する")]),
-            menu::separator(vec![], vec![]),
-            menu::item("delete", false, false, vec![], vec![text("削除する")]),
-        ],
-    );
+    let mut items: Vec<Node> = collapsed_items
+        .iter()
+        .map(|(id, label)| menu::item(id, false, false, vec![], vec![text(*label)]))
+        .collect();
+    if !collapsed_items.is_empty() {
+        items.push(menu::separator(vec![], vec![]));
+    }
+    items.extend([
+        menu::item("export", false, false, vec![], vec![text("書き出す")]),
+        menu::item("duplicate", false, false, vec![], vec![text("複製する")]),
+        menu::separator(vec![], vec![]),
+        menu::item("delete", false, false, vec![], vec![text("削除する")]),
+    ]);
+    let content = menu::content(OpenState::Closed, Some(content_id), None, vec![], items);
     let positioner = menu::positioner(OpenState::Closed, vec![], vec![content]);
     menu::root(
         Size::Sm,
@@ -240,7 +268,10 @@ fn instance_a() -> Node {
                 vec![text("下書きを保存")],
             ),
             button::button(&ButtonProps::default(), vec![], vec![text("変更を公開")]),
-            overflow_menu("blocks-page-heading-actions-menu-a"),
+            overflow_menu(
+                "blocks-page-heading-actions-menu-a",
+                &[("draft-save", "下書きを保存")],
+            ),
         ],
     );
     div(
@@ -348,14 +379,24 @@ fn instance_c() -> Node {
                 vec![("data-blocks-page-heading-actions-collapsible", "")],
                 vec![text("請求書をダウンロード")],
             ),
-            button::button(&ButtonProps::default(), vec![], vec![text("プランを変更")]),
+            button::button(
+                &ButtonProps::default(),
+                vec![("data-blocks-page-heading-actions-primary-action", "")],
+                vec![text("プランを変更")],
+            ),
         ],
     );
     let actions = div(
         vec![("data-blocks-page-heading-actions-actions", "")],
         vec![
             button_group_node,
-            overflow_menu("blocks-page-heading-actions-menu-c"),
+            overflow_menu(
+                "blocks-page-heading-actions-menu-c",
+                &[
+                    ("detail-settings", "詳細設定"),
+                    ("invoice-download", "請求書をダウンロード"),
+                ],
+            ),
         ],
     );
     div(
@@ -413,7 +454,7 @@ fn instance_d() -> Node {
                 &group_props,
                 vec![],
                 vec![geo_icon(
-                    "M11 4a7 7 0 105.29 12.29l3.7 3.7 1.42-1.42-3.7-3.7A7 7 0 0011 4z",
+                    "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm9 17-5.2-5.2",
                 )],
             ),
             input::input(
@@ -441,7 +482,7 @@ fn instance_d() -> Node {
         vec![("data-blocks-page-heading-actions-actions", "")],
         vec![
             search_group,
-            overflow_menu("blocks-page-heading-actions-menu-d"),
+            overflow_menu("blocks-page-heading-actions-menu-d", &[]),
         ],
     );
     div(
@@ -577,6 +618,23 @@ pub const BLOCK: Block = Block {
 /// [`Block::demo_class`] は `blocks-page-heading-actions` だが、`demo()`
 /// が返すルート `div` の class は `blocks-page-heading-actions-layout`
 /// という別名にする（`card_heading_toolbar` 等と同じ Bugbot 教訓の回避）。
+///
+/// # `data-blocks-page-heading-actions-primary-action` に `!important` を使う理由
+///
+/// C の `button_group` は `40rem` 未満で先頭 2 個の子（アイコンのみの
+/// 「詳細設定」・「請求書をダウンロード」、いずれも
+/// `data-blocks-page-heading-actions-collapsible`）を `display: none` で
+/// 隠すが、`button_group`（`crate::button_group` の角丸連結規則）は
+/// `:not(:first-child)`/`:not(:last-child)` という DOM 上の位置で判定する
+/// 構造的擬似クラスを使う。`display: none` は要素を DOM から取り除かない
+/// ため、最後に残る「プランを変更」は `display: none` の兄弟が存在する
+/// 限り常に `:not(:first-child)` に一致し続け、単独表示なのに左端の角丸
+/// だけが 0 のまま（接続端スタイル）になる（bugbot 指摘）。無 JS のため
+/// この不一致を検知する手段は CSS のみで、`button_group` 側の規則は
+/// 複数の属性セレクタ + 擬似クラスで特異度が高く（`:has()` で緩衝しても
+/// 上回れない）、`!important` なしでは上書きできない。影響範囲を
+/// `data-blocks-page-heading-actions-primary-action` を持つ要素 1 個の
+/// 角丸・境界幅 3 プロパティのみに限定して局所化する。
 const LAYOUT_CSS: &str = "\
 .blocks-page-heading-actions-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 [data-blocks-page-heading-actions-instance] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
@@ -588,7 +646,8 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-page-heading-actions-actions] {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-page-heading-actions-search-group] {\n  flex: 1 1 100%;\n  min-width: 0;\n}\n\
 [data-blocks-page-heading-actions-collapsible] {\n  display: none;\n}\n\
-@media (min-width: 40rem) {\n  [data-blocks-page-heading-actions-header] {\n    flex-direction: row;\n    justify-content: space-between;\n    align-items: flex-start;\n  }\n  [data-blocks-page-heading-actions-collapsible] {\n    display: inline-flex;\n  }\n  [data-blocks-page-heading-actions-search-group] {\n    flex: 0 1 18rem;\n  }\n}\n";
+[data-blocks-page-heading-actions-primary-action] {\n  border-start-start-radius: var(--fandhe-radius-md) !important;\n  border-end-start-radius: var(--fandhe-radius-md) !important;\n  border-inline-start-width: 1px !important;\n}\n\
+@media (min-width: 40rem) {\n  [data-blocks-page-heading-actions-header] {\n    flex-direction: row;\n    justify-content: space-between;\n    align-items: flex-start;\n  }\n  [data-blocks-page-heading-actions-collapsible] {\n    display: inline-flex;\n  }\n  [data-blocks-page-heading-actions-search-group] {\n    flex: 0 1 18rem;\n  }\n  [data-blocks-page-heading-actions-primary-action] {\n    border-start-start-radius: 0 !important;\n    border-end-start-radius: 0 !important;\n    border-inline-start-width: 0 !important;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {

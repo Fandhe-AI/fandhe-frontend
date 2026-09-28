@@ -43,19 +43,45 @@ use fandhe_frontend_pre_styled_ui::recipe::ColorPalette;
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
 use fandhe_frontend_pre_styled_ui::{Orientation, Size};
 
-/// 自作の単純な幾何アイコン（`sidebar_03.rs::geo_icon` と同型、モジュール
-/// doc「アイコンは自作の単純幾何図形」参照）。
+/// 自作の単純な幾何アイコン（`cta_split_actions.rs::geo_icon` と同型。
+/// モジュール doc「アイコンは自作の単純幾何図形」参照）。
+///
+/// 本ファイルの `path_d` はいずれも開いた線分（moveto/lineto のみで
+/// `z` 閉曲線を持たない）ため、`icon::icon` 既定の `fill="currentColor"`
+/// のままでは面積ゼロで何も描画されない（`sidebar_03.rs::geo_icon` が
+/// 使う閉じた矩形パスとの差異）。`path` 要素へ `fill="none"` +
+/// `stroke="currentColor"` を上書きしてアウトライン描画にする。
 fn geo_icon(path_d: &'static str) -> Node {
     icon(
         &IconProps::default(),
         vec![],
-        vec![el("path", vec![("d", path_d)], vec![])],
+        vec![el(
+            "path",
+            vec![
+                ("d", path_d),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+                ("stroke-linecap", "round"),
+                ("stroke-linejoin", "round"),
+            ],
+            vec![],
+        )],
     )
 }
 
 /// 三点メニュー（無 JS のため閉じた状態で固定する。モジュール doc
 /// 「メニューは無 JS のため閉じた状態で固定する」節参照）。
-fn overflow_menu(content_id: &'static str) -> Node {
+///
+/// `collapsed_items`（`(id, ラベル)`）は `40rem` 未満で非表示になる
+/// `data-blocks-page-heading-actions-collapsible` 付きボタンと同じ操作を
+/// 表す項目で、共通の書き出す/複製する/削除するより前に挿入する。狭幅では
+/// 三点メニュー経由でしか到達できないため、`export`/`duplicate`/`delete`
+/// のみを常時列挙する構成では狭幅操作が失われる（codex/bugbot 指摘）。
+fn overflow_menu(
+    content_id: &'static str,
+    collapsed_items: &[(&'static str, &'static str)],
+) -> Node {
     let trigger = menu::trigger(
         OpenState::Closed,
         false,
@@ -63,18 +89,20 @@ fn overflow_menu(content_id: &'static str) -> Node {
         vec![("aria-label", "その他の操作")],
         vec![text("\u{2026}")],
     );
-    let content = menu::content(
-        OpenState::Closed,
-        Some(content_id),
-        None,
-        vec![],
-        vec![
-            menu::item("export", false, false, vec![], vec![text("書き出す")]),
-            menu::item("duplicate", false, false, vec![], vec![text("複製する")]),
-            menu::separator(vec![], vec![]),
-            menu::item("delete", false, false, vec![], vec![text("削除する")]),
-        ],
-    );
+    let mut items: Vec<Node> = collapsed_items
+        .iter()
+        .map(|(id, label)| menu::item(id, false, false, vec![], vec![text(*label)]))
+        .collect();
+    if !collapsed_items.is_empty() {
+        items.push(menu::separator(vec![], vec![]));
+    }
+    items.extend([
+        menu::item("export", false, false, vec![], vec![text("書き出す")]),
+        menu::item("duplicate", false, false, vec![], vec![text("複製する")]),
+        menu::separator(vec![], vec![]),
+        menu::item("delete", false, false, vec![], vec![text("削除する")]),
+    ]);
+    let content = menu::content(OpenState::Closed, Some(content_id), None, vec![], items);
     let positioner = menu::positioner(OpenState::Closed, vec![], vec![content]);
     menu::root(
         Size::Sm,
@@ -191,7 +219,10 @@ fn instance_a() -> Node {
                 vec![text("下書きを保存")],
             ),
             button::button(&ButtonProps::default(), vec![], vec![text("変更を公開")]),
-            overflow_menu("blocks-page-heading-actions-menu-a"),
+            overflow_menu(
+                "blocks-page-heading-actions-menu-a",
+                &[("draft-save", "下書きを保存")],
+            ),
         ],
     );
     div(
@@ -299,14 +330,24 @@ fn instance_c() -> Node {
                 vec![("data-blocks-page-heading-actions-collapsible", "")],
                 vec![text("請求書をダウンロード")],
             ),
-            button::button(&ButtonProps::default(), vec![], vec![text("プランを変更")]),
+            button::button(
+                &ButtonProps::default(),
+                vec![("data-blocks-page-heading-actions-primary-action", "")],
+                vec![text("プランを変更")],
+            ),
         ],
     );
     let actions = div(
         vec![("data-blocks-page-heading-actions-actions", "")],
         vec![
             button_group_node,
-            overflow_menu("blocks-page-heading-actions-menu-c"),
+            overflow_menu(
+                "blocks-page-heading-actions-menu-c",
+                &[
+                    ("detail-settings", "詳細設定"),
+                    ("invoice-download", "請求書をダウンロード"),
+                ],
+            ),
         ],
     );
     div(
@@ -364,7 +405,7 @@ fn instance_d() -> Node {
                 &group_props,
                 vec![],
                 vec![geo_icon(
-                    "M11 4a7 7 0 105.29 12.29l3.7 3.7 1.42-1.42-3.7-3.7A7 7 0 0011 4z",
+                    "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm9 17-5.2-5.2",
                 )],
             ),
             input::input(
@@ -392,7 +433,7 @@ fn instance_d() -> Node {
         vec![("data-blocks-page-heading-actions-actions", "")],
         vec![
             search_group,
-            overflow_menu("blocks-page-heading-actions-menu-d"),
+            overflow_menu("blocks-page-heading-actions-menu-d", &[]),
         ],
     );
     div(
