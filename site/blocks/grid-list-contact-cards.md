@@ -313,6 +313,14 @@ fn vertical_card(item: &Contact) -> Node {
 /// まま先頭寄せに残る。`blocks-grid-list-contact-cards-item` 側は
 /// `min-width: 0`（オーバーフロー対策）のみを持ち、card 側のセレクタへ
 /// `flex: 1; width: 100%` を持たせてグリッドセルいっぱいへ伸長させる）。
+///
+/// `list::item` recipe（`[data-scope="list"][data-part="item"]`）の既定
+/// `margin-block: var(--fandhe-space-1)` はリセットされておらず、grid の
+/// `gap`（行間隔）に上乗せされて先頭・末尾行に余分な余白を生む（Bugbot 指摘、
+/// イシュー #3363 レビュー）。grid レイアウトでは行間隔は `gap` のみが担う
+/// べきのため、`[data-scope="list"][data-part="item"].blocks-grid-list-contact-cards-item`
+/// の複合セレクタ（recipe と同じ詳細度 (0,2,0,0)）で `margin-block: 0` を
+/// 明示上書きする。
 fn card_item(card: Node) -> Node {
     list::item(
         vec![("class", "blocks-grid-list-contact-cards-item")],

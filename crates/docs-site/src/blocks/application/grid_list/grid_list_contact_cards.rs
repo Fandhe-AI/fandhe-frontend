@@ -86,6 +86,19 @@
 //! `min-width: 0` を追加して flex item がカード幅に収まるまで縮められる
 //! ようにする。
 //!
+//! それでもなお `vertical` インスタンスが 4 列（`40rem` 幅）に達すると
+//! カード幅は約 `142px`（ボタン 1 個あたり約 `71px`）まで縮み、
+//! アイコン（`1rem`）+ ボタン内 `gap`（`0.5rem`）+ ラベル（全角 3 文字 ×
+//! `font-size-sm` ≈ `42px`）+ 左右 padding（`0.75rem` × 2）の content
+//! 幅（約 `90px`）を上回ってしまい、`overflow: hidden` の `card::root` に
+//! 依然としてクリップされる（イシュー #3363 レビュー指摘）。アイコンは
+//! `aria-hidden="true"` の装飾でありラベルのみで操作の意味が伝わるため
+//! （モジュール doc「アバター・アイコンの a11y」節）、3 列以上（`34rem`
+//! 幅から。3 列でもカード幅次第では同様に不足し得るため 4 列限定にしない）
+//! では `[data-blocks-grid-list-contact-cards-action] svg` を非表示にして
+//! content 幅からアイコン分（`1.5rem`）を除き、ボタン padding も
+//! `--fandhe-space-2`（`0.5rem`）へさらに縮めて安全余裕を確保する。
+//!
 //! # 見出しを使わない理由
 //!
 //! ページ側が `## Demo` として `h2` を出す前提の上に、本 block はさらに
@@ -410,6 +423,14 @@ fn vertical_card(item: &Contact) -> Node {
 /// まま先頭寄せに残る。`blocks-grid-list-contact-cards-item` 側は
 /// `min-width: 0`（オーバーフロー対策）のみを持ち、card 側のセレクタへ
 /// `flex: 1; width: 100%` を持たせてグリッドセルいっぱいへ伸長させる）。
+///
+/// `list::item` recipe（`[data-scope="list"][data-part="item"]`）の既定
+/// `margin-block: var(--fandhe-space-1)` はリセットされておらず、grid の
+/// `gap`（行間隔）に上乗せされて先頭・末尾行に余分な余白を生む（Bugbot 指摘、
+/// イシュー #3363 レビュー）。grid レイアウトでは行間隔は `gap` のみが担う
+/// べきのため、`[data-scope="list"][data-part="item"].blocks-grid-list-contact-cards-item`
+/// の複合セレクタ（recipe と同じ詳細度 (0,2,0,0)）で `margin-block: 0` を
+/// 明示上書きする。
 fn card_item(card: Node) -> Node {
     list::item(
         vec![("class", "blocks-grid-list-contact-cards-item")],
@@ -512,6 +533,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-grid-list-contact-cards-label {\n  color: var(--fandhe-color-fg-muted);\n  font-size: 0.875rem;\n}\n\
 [data-blocks-grid-list-contact-cards-grid] {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-6);\n  margin: 0;\n  padding: 0;\n}\n\
 .blocks-grid-list-contact-cards-item {\n  min-width: 0;\n}\n\
+[data-scope=\"list\"][data-part=\"item\"].blocks-grid-list-contact-cards-item {\n  margin-block: 0;\n}\n\
 .blocks-grid-list-contact-cards-item [data-scope=\"card\"][data-part=\"root\"] {\n  display: flex;\n  flex: 1;\n  flex-direction: column;\n  width: 100%;\n  height: 100%;\n  overflow: hidden;\n}\n\
 [data-scope=\"card\"][data-part=\"body\"].blocks-grid-list-contact-cards-main {\n  display: flex;\n  flex-direction: row;\n  justify-content: space-between;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-grid-list-contact-cards-info {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
@@ -525,7 +547,9 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-grid-list-contact-cards-grid] {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n\
 }\n\
 @container blocks-grid-list-contact-cards (min-width: 34rem) {\n  \
-[data-blocks-grid-list-contact-cards-grid] {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n\
+[data-blocks-grid-list-contact-cards-grid] {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n  \
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-grid-list-contact-cards-action] {\n    padding: 0 var(--fandhe-space-2);\n  }\n  \
+[data-blocks-grid-list-contact-cards-action] svg {\n    display: none;\n  }\n\
 }\n\
 @container blocks-grid-list-contact-cards (min-width: 40rem) {\n  \
 [data-blocks-grid-list-contact-cards-grid][data-blocks-grid-list-contact-cards-grid-variant=\"vertical\"] {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n\
@@ -626,6 +650,23 @@ mod tests {
         assert!(LAYOUT_CSS.contains(
             "[data-scope=\"button\"][data-part=\"root\"][data-blocks-grid-list-contact-cards-action] {\n  flex: 1;\n  min-width: 0;"
         ));
+        // list::item recipe の既定 margin-block（イシュー #3363 レビュー
+        // 指摘、モジュール doc「1 枚のカードを list::item へ包む」節参照）を
+        // リセットしないと grid の gap に上乗せされ、先頭・末尾行に余分な
+        // 余白が生じる。
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"list\"][data-part=\"item\"].blocks-grid-list-contact-cards-item {\n  margin-block: 0;"
+        ));
+        // 3 列以上ではアイコン＋ラベル＋既定 padding の content 幅がカード
+        // 幅の半分を上回り、4 列（`40rem`）では実測で約 90px 対 71px と
+        // クリップする（イシュー #3363 レビュー指摘、モジュール doc「3・4
+        // 列でのアクションボタンのクリップ回避」節参照）。装飾アイコンを
+        // 非表示にし padding をさらに縮めて安全余裕を確保する。
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"button\"][data-part=\"root\"][data-blocks-grid-list-contact-cards-action] {\n    padding: 0 var(--fandhe-space-2);"
+        ));
+        assert!(LAYOUT_CSS
+            .contains("[data-blocks-grid-list-contact-cards-action] svg {\n    display: none;"));
     }
 
     #[test]
