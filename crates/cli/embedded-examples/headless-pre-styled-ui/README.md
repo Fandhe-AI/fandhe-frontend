@@ -153,7 +153,7 @@ cargo run -p fandhe-frontend-cli -- gate --project examples/headless-pre-styled-
 
 ## 関連ガイド
 
-- [`docs/api/headless-ui-api.md`](../../docs/api/headless-ui-api.md)
-- [`docs/api/pre-styled-ui-api.md`](../../docs/api/pre-styled-ui-api.md)
-- [`docs/api/component-api.md`](../../docs/api/component-api.md)
-- [`examples/ssg-blog/README.md`](../ssg-blog/README.md)
+- [`docs/api/headless-ui-api.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/api/headless-ui-api.md)
+- [`docs/api/pre-styled-ui-api.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/api/pre-styled-ui-api.md)
+- [`docs/api/component-api.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/api/component-api.md)
+- [`examples/ssg-blog/README.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/examples/ssg-blog/README.md)
