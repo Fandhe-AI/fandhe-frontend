@@ -11,13 +11,12 @@ Demo は 4 インスタンスを並記します: ロゴ → リンク群 → 検
 `center-search`、12 列グリッドでロゴ・検索欄・操作を割り付ける `grid-12`、
 そして Demo 枠を狭幅へ固定し検索欄が実際に見える状態を示す `narrow`。
 
-狭い幅（Demo 枠基準の container query、48rem 未満）では、通常は検索欄
-ラッパーを隠し代わりに検索アイコンボタン（無 JS のため無効化）を表示しま
-すが、無 JS ではこのボタンから検索欄を開けず主要機能を確認できないため、
-`narrow` インスタンスのみ Demo 枠を強制的に狭幅へ固定したうえで検索欄
-ラッパーを常時表示し検索アイコンボタンを隠します。`links-end` のナビは
-狭幅で折り返すのみとし、ハンバーガー化はしません（collapsible は使用部品
-の契約外のため持ち込みません）。
+検索欄は幅にかかわらず常時表示します（アイコンボタンへの折りたたみは、
+無 JS では開けず検索欄へ到達できなくなるため採用しません）。`narrow`
+インスタンスは Demo 枠を強制的に狭幅（48rem 未満）へ固定し、実際の狭幅
+でも検索欄が操作可能であることを示します。`links-end` のナビは狭幅で
+折り返すのみとし、ハンバーガー化はしません（collapsible は使用部品の
+契約外のため持ち込みません）。
 
 本 Demo は静的表示例です。docs サイトは JS ハイドレーションを行わないため
 操作系ボタンはすべて無効化しています。`<form>` は使わず、検索欄も送信先を
@@ -101,12 +100,13 @@ fn logo() -> Node {
     )
 }
 
-/// メインナビ本体（`links-end` のみが持つ）。
-fn nav() -> Node {
+/// メインナビ本体（`links-end`/`narrow` が持つ）。`aria_label` は variant
+/// ごとに一意にする（モジュール doc「id と ARIA の一意性」節参照）。
+fn nav(aria_label: &str) -> Node {
     let props = NavigationMenuProps::default();
     navigation_menu::root(
         &props,
-        "メインナビゲーション",
+        aria_label,
         vec![("data-blocks-navbar-with-search-nav", "")],
         vec![navigation_menu::list(
             &props,
@@ -210,19 +210,6 @@ fn search_group(variant: &'static str) -> Node {
     )
 }
 
-/// 検索アイコンボタン（狭幅専用、無 JS のため `disabled: true` 固定）。
-fn search_toggle() -> Node {
-    button::icon_button(
-        &ButtonProps {
-            disabled: true,
-            ..ButtonProps::default()
-        },
-        "検索を開く",
-        vec![("data-blocks-navbar-with-search-search-toggle", "")],
-        vec![search_icon()],
-    )
-}
-
 /// 通知ボタン（無 JS のため `disabled: true` 固定、アクセシブルネーム付き）。
 fn notification_button() -> Node {
     button::icon_button(
@@ -290,7 +277,7 @@ fn bar(variant: &'static str, layout: &'static str, with_nav: bool, narrow: bool
     if with_nav {
         children.push(div(
             vec![("data-blocks-navbar-with-search-nav-wrap", "")],
-            vec![nav()],
+            vec![nav(&format!("メインナビゲーション（{variant}）"))],
         ));
     }
     children.push(div(
@@ -299,11 +286,7 @@ fn bar(variant: &'static str, layout: &'static str, with_nav: bool, narrow: bool
     ));
     children.push(div(
         vec![("data-blocks-navbar-with-search-actions", "")],
-        vec![
-            search_toggle(),
-            notification_button(),
-            profile_menu(variant),
-        ],
+        vec![notification_button(), profile_menu(variant)],
     ));
 
     let mut frame_attrs = vec![("data-blocks-navbar-with-search-shell", "")];
@@ -356,11 +339,10 @@ pub fn demo() -> Node {
   はテーマの明暗切り替えへ統一し独立インスタンスにしていません。
 - R0161/R0580（リンクなし・検索欄を中央に置く構成）は `center-search` に、
   R1094（12 列グリッド割り付け）は `grid-12` に対応します。
-- 検索欄は `navbar-app-links` のハンバーガーパネルとは異なり、狭幅で
-  アイコンボタンへ縮むのみで常時展開パネルは持ちません（使用部品 8 件の
+- 検索欄は `navbar-app-links` のハンバーガーパネルとは異なり、幅にかかわ
+  らず常時表示するのみで折りたたみパネルは持ちません（使用部品 8 件の
   契約外のため collapsible は持ち込みません）。
-- 操作系ボタン（検索トグル・通知・アバターメニュー trigger）はすべて
-  無効化しています。
+- 操作系ボタン（通知・アバターメニュー trigger）はすべて無効化しています。
 
 関連情報: [Input Group](../themes/input-group.md) /
 [Input](../themes/input.md) / [Field](../themes/field.md) /

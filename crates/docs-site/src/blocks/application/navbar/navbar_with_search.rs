@@ -26,19 +26,17 @@
 //! `links-end` レイアウトの 2 インスタンス（`links-end`/`narrow`）のみ
 //! `navigation-menu` を持つ。
 //!
-//! # 検索欄は狭幅でアイコンボタンへ縮む
+//! # 検索欄は全幅で常時表示する
 //!
-//! `< 48rem`（Demo 枠基準の container query、[`super::navbar_app_links`] と
-//! 同じ判断）では検索欄ラッパーを隠し、代わりに検索アイコンボタン
-//! （無 JS のため `disabled: true` 固定）を表示する。`links-end` のナビは
-//! 狭幅で折り返すのみとし、ハンバーガー化はしない（使用部品 7 件の契約外
-//! のため collapsible は持ち込まない）。狭幅は無 JS のため検索アイコン
-//! ボタンだけでは実際に検索欄を開けず、主要機能を Demo 上で確認できない
-//! （イシュー #2929 PR レビュー指摘）。このため `narrow` インスタンスのみ
+//! 検索アイコンボタンへの折りたたみ（無 JS では開けず検索欄へ到達不能に
+//! なる、イシュー #2929 PR レビュー指摘）は行わず、`< 48rem` を含む全幅で
+//! 検索欄ラッパーを常時表示する。`links-end` のナビは狭幅で折り返すのみと
+//! し、ハンバーガー化はしない（使用部品 7 件の契約外のため collapsible は
+//! 持ち込まない）。`narrow` インスタンスは
 //! [`super::navbar_app_links`] と同型の `data-blocks-navbar-with-search-
-//! frame="narrow"` を付けて Demo 枠を強制的に `< 48rem` に固定しつつ、検索
-//! 欄ラッパーを常時表示・検索アイコンボタンを非表示にするオーバーライドを
-//! [`LAYOUT_CSS`] に持つ（狭幅でも検索欄そのものが操作可能であることを示す）。
+//! frame="narrow"` で Demo 枠を強制的に `< 48rem` に固定し、検索欄が実際の
+//! 狭幅でも操作可能であることを示す（レイアウト分岐のための特別扱いは
+//! [`LAYOUT_CSS`] に残らない）。
 //!
 //! # id と ARIA の一意性
 //!
@@ -46,14 +44,18 @@
 //! variant ごとに `blocks-navbar-with-search-query-{variant}` /
 //! `blocks-navbar-with-search-profile-menu-{variant}` と一意にする
 //! （`demo_output_has_no_dangling_aria_references_or_duplicate_ids` 契約）。
+//! `links-end`/`narrow` が持つ `nav` の `aria-label` も variant ごとに
+//! `メインナビゲーション（{variant}）` と一意にする（[`super::navbar_app_links`]
+//! と同じ判断。固定文言のままでは同一 Demo ページに navigation landmark が
+//! 2 つ重複し、スクリーンリーダー等で区別できなくなる、イシュー #2929 PR
+//! レビュー指摘）。
 //!
 //! # 無 JS のため全アクションを disabled 固定
 //!
-//! 検索トグル・通知・アバターメニュー trigger はいずれも `disabled: true`
-//! で押しても何も起きないことを明示し、[`LAYOUT_CSS`] の
-//! `[data-disabled]` 複合セレクタで `opacity: 1; cursor: default;` に
-//! 中和して通常状態と同じ見た目に保つ（[`super::navbar_app_links`] と
-//! 同じ判断）。
+//! 通知・アバターメニュー trigger はいずれも `disabled: true` で押しても
+//! 何も起きないことを明示し、[`LAYOUT_CSS`] の `[data-disabled]` 複合
+//! セレクタで `opacity: 1; cursor: default;` に中和して通常状態と同じ見た目
+//! に保つ（[`super::navbar_app_links`] と同じ判断）。
 //!
 //! # `<form>`/`href="#"`/`data:` を持たない
 //!
@@ -139,12 +141,13 @@ fn logo() -> Node {
     )
 }
 
-/// メインナビ本体（`links-end` のみが持つ）。
-fn nav() -> Node {
+/// メインナビ本体（`links-end`/`narrow` が持つ）。`aria_label` は variant
+/// ごとに一意にする（モジュール doc「id と ARIA の一意性」節参照）。
+fn nav(aria_label: &str) -> Node {
     let props = NavigationMenuProps::default();
     navigation_menu::root(
         &props,
-        "メインナビゲーション",
+        aria_label,
         vec![("data-blocks-navbar-with-search-nav", "")],
         vec![navigation_menu::list(
             &props,
@@ -248,19 +251,6 @@ fn search_group(variant: &'static str) -> Node {
     )
 }
 
-/// 検索アイコンボタン（狭幅専用、無 JS のため `disabled: true` 固定）。
-fn search_toggle() -> Node {
-    button::icon_button(
-        &ButtonProps {
-            disabled: true,
-            ..ButtonProps::default()
-        },
-        "検索を開く",
-        vec![("data-blocks-navbar-with-search-search-toggle", "")],
-        vec![search_icon()],
-    )
-}
-
 /// 通知ボタン（無 JS のため `disabled: true` 固定、アクセシブルネーム付き）。
 fn notification_button() -> Node {
     button::icon_button(
@@ -328,7 +318,7 @@ fn bar(variant: &'static str, layout: &'static str, with_nav: bool, narrow: bool
     if with_nav {
         children.push(div(
             vec![("data-blocks-navbar-with-search-nav-wrap", "")],
-            vec![nav()],
+            vec![nav(&format!("メインナビゲーション（{variant}）"))],
         ));
     }
     children.push(div(
@@ -337,11 +327,7 @@ fn bar(variant: &'static str, layout: &'static str, with_nav: bool, narrow: bool
     ));
     children.push(div(
         vec![("data-blocks-navbar-with-search-actions", "")],
-        vec![
-            search_toggle(),
-            notification_button(),
-            profile_menu(variant),
-        ],
+        vec![notification_button(), profile_menu(variant)],
     ));
 
     let mut frame_attrs = vec![("data-blocks-navbar-with-search-shell", "")];
@@ -448,20 +434,14 @@ const LAYOUT_CSS: &str = "\
 .blocks-navbar-with-search-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-navbar-with-search-shell] {\n  container-type: inline-size;\n  container-name: blocks-navbar-with-search;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n  overflow: hidden;\n}\n\
 [data-blocks-navbar-with-search-shell][data-blocks-navbar-with-search-frame=\"narrow\"] {\n  max-inline-size: 22rem;\n}\n\
-[data-blocks-navbar-with-search-shell][data-blocks-navbar-with-search-frame=\"narrow\"] [data-blocks-navbar-with-search-search-wrap] {\n  display: block;\n}\n\
-[data-blocks-navbar-with-search-shell][data-blocks-navbar-with-search-frame=\"narrow\"] [data-scope=\"button\"][data-part=\"root\"][data-blocks-navbar-with-search-search-toggle] {\n  display: none;\n}\n\
 [data-blocks-navbar-with-search-root] {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2) var(--fandhe-space-4);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
 [data-blocks-navbar-with-search-logo] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  white-space: nowrap;\n}\n\
 [data-blocks-navbar-with-search-nav-wrap] {\n  flex-basis: 100%;\n}\n\
-[data-blocks-navbar-with-search-search-wrap] {\n  display: none;\n}\n\
 [data-blocks-navbar-with-search-actions] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  margin-inline-start: auto;\n}\n\
-[data-scope=\"button\"][data-part=\"root\"][data-blocks-navbar-with-search-search-toggle][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-navbar-with-search-notify][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"menu\"][data-part=\"trigger\"][data-blocks-navbar-with-search-profile-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 @container blocks-navbar-with-search (min-width: 48rem) {\n  \
 [data-blocks-navbar-with-search-root][data-blocks-navbar-with-search-layout=\"links-end\"] [data-blocks-navbar-with-search-nav-wrap] {\n    flex-basis: auto;\n  }\n  \
-[data-blocks-navbar-with-search-search-wrap] {\n    display: block;\n  }\n  \
-[data-scope=\"button\"][data-part=\"root\"][data-blocks-navbar-with-search-search-toggle] {\n    display: none;\n  }\n  \
 [data-blocks-navbar-with-search-root][data-blocks-navbar-with-search-layout=\"links-end\"] [data-blocks-navbar-with-search-search-wrap] {\n    flex: 0 1 20rem;\n    margin-inline-start: auto;\n  }\n  \
 [data-blocks-navbar-with-search-root][data-blocks-navbar-with-search-layout=\"links-end\"] [data-blocks-navbar-with-search-actions] {\n    margin-inline-start: 0;\n  }\n  \
 [data-blocks-navbar-with-search-root][data-blocks-navbar-with-search-layout=\"center-search\"] [data-blocks-navbar-with-search-search-wrap] {\n    flex: 1;\n    max-inline-size: 36rem;\n    margin-inline: auto;\n  }\n  \
@@ -525,12 +505,20 @@ mod tests {
     /// `data-scope` は `root`/`list`/`item`×3/`link`×3 の 8 パーツすべてに
     /// 付くため、1 nav あたり 8 件（root/list/item×3/link×3、アイテム数は
     /// モジュール doc の `nav()` 定義に従う）× 2 variant = 16 件が正しい
-    /// 期待値である。
+    /// 期待値である。`aria-label` は variant ごとに一意（`メインナビゲー
+    /// ション（{variant}）`）であること（イシュー #2929 PR レビュー指摘:
+    /// 固定文言では landmark が重複する）。
     #[test]
     fn links_end_and_narrow_have_navigation_menu() {
         let html = render(&demo());
         assert_eq!(html.matches("data-scope=\"navigation-menu\"").count(), 16);
-        assert_eq!(html.matches("メインナビゲーション").count(), 2);
+        for variant in ["links-end", "narrow"] {
+            assert_eq!(
+                html.matches(&format!("メインナビゲーション（{variant}）"))
+                    .count(),
+                1
+            );
+        }
     }
 
     /// 検索欄の `id`/`for` が 4 variant すべてで一意であり、`type="search"`
@@ -549,13 +537,12 @@ mod tests {
         assert_eq!(html.matches(r#"type="search""#).count(), 4);
     }
 
-    /// 通知・検索トグル・アバターメニュー trigger が押しても何も起きない
-    /// よう無効化されていること。
+    /// 通知・アバターメニュー trigger が押しても何も起きないよう無効化
+    /// されていること。
     #[test]
     fn action_controls_are_disabled() {
         let html = render(&demo());
         for hook in [
-            "data-blocks-navbar-with-search-search-toggle",
             "data-blocks-navbar-with-search-notify",
             "data-blocks-navbar-with-search-profile-trigger",
         ] {
@@ -590,8 +577,9 @@ mod tests {
     }
 
     /// `narrow` インスタンスのみ frame 属性を持ち、Demo 枠を強制的に狭幅へ
-    /// 固定して検索欄を常時表示すること（イシュー #2929 PR レビュー指摘の
-    /// 是正: 狭幅でも検索欄が操作可能であることを示す）。
+    /// 固定すること。検索欄は全幅で常時表示（`display: none` を一切持たない）
+    /// のため、狭幅専用の表示オーバーライドは不要である（イシュー #2929 PR
+    /// レビュー指摘の是正: 狭幅でも検索欄が操作可能であることを示す）。
     #[test]
     fn only_narrow_instance_has_the_frame_attribute() {
         let html = render(&demo());
@@ -600,9 +588,8 @@ mod tests {
                 .count(),
             1
         );
-        assert!(LAYOUT_CSS.contains(
-            "[data-blocks-navbar-with-search-shell][data-blocks-navbar-with-search-frame=\"narrow\"] [data-blocks-navbar-with-search-search-wrap] {\n  display: block;\n}"
-        ));
+        assert!(!LAYOUT_CSS.contains("search-wrap] {\n  display: none;\n}"));
+        assert!(!LAYOUT_CSS.contains("search-toggle"));
     }
 
     /// リンクは現在地（`./`）と実在の自リポジトリ・自組織 URL のみを
@@ -625,7 +612,6 @@ mod tests {
         assert!(LAYOUT_CSS.contains("grid-template-columns: repeat(12, minmax(0, 1fr));"));
         assert!(LAYOUT_CSS.contains("grid-column: 4 / span 6;"));
         assert!(LAYOUT_CSS.contains("opacity: 1;"));
-        assert!(LAYOUT_CSS.contains("display: none;"));
     }
 
     /// ルート class（`demo_class` とは別名）が [`demo`] の出力へ実際に
