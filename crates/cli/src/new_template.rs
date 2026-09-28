@@ -875,7 +875,84 @@ const VERCEL_SSG_EXAMPLE_FILES: &[TemplateFile] = &[
     },
 ];
 
-/// `--example` の allowlist（イシュー #500・#501・#502・#503・#609・#2667・#3290）。
+/// `examples/vercel-ssr/` の全ファイル（12 件）を git の相対パス順・
+/// 実行ビットどおりに埋め込んだ固定配列（イシュー #3289）。
+///
+/// `crates/cli/embedded-examples/vercel-ssr/` は正本 `examples/vercel-ssr/`
+/// のバイト単位同梱コピーであり、乖離は [`VERCEL_SSG_EXAMPLE_FILES`] と
+/// 同じく `cli/tests/example_publish_copy_drift.rs` が検知する。
+/// `fandhe-frontend-dist-server` への crates.io バージョン依存のみで完結する
+/// 構成として登録する（`examples/dist-server-docker` と同型。#3336 の PORT
+/// 対応・#3337 の graceful shutdown 対応を含む v0.3.4 に固定）。全ファイル
+/// `executable: false`（正本側に実行ビット付きファイルが存在しないため）。
+///
+/// `.gitignore` を同梱し、`fw new --example` 生成プロジェクトの `target/`・
+/// `.vercel/`（`vercel link` の出力先）・`.env` の誤コミットを既定で防ぐ
+/// （`VERCEL_SSG_EXAMPLE_FILES` と同じ動機、イシュー #1133）。
+const VERCEL_SSR_EXAMPLE_FILES: &[TemplateFile] = &[
+    TemplateFile {
+        rel_path: ".dockerignore",
+        contents: include_str!("../embedded-examples/vercel-ssr/.dockerignore"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: ".gitignore",
+        contents: include_str!("../embedded-examples/vercel-ssr/.gitignore"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "Cargo.lock",
+        contents: include_str!("../embedded-examples/vercel-ssr/Cargo.lock"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "Cargo.toml",
+        contents: include_str!("../embedded-examples/vercel-ssr/Cargo.toml.embed"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "Dockerfile.vercel",
+        contents: include_str!("../embedded-examples/vercel-ssr/Dockerfile.vercel"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "README.md",
+        contents: include_str!("../embedded-examples/vercel-ssr/README.md"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "clippy.toml",
+        contents: include_str!("../embedded-examples/vercel-ssr/clippy.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "deny.toml",
+        contents: include_str!("../embedded-examples/vercel-ssr/deny.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "src/main.rs",
+        contents: include_str!("../embedded-examples/vercel-ssr/src/main.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "structure.toml",
+        contents: include_str!("../embedded-examples/vercel-ssr/structure.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "tests/boot.rs",
+        contents: include_str!("../embedded-examples/vercel-ssr/tests/boot.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "tests/graceful_shutdown.rs",
+        contents: include_str!("../embedded-examples/vercel-ssr/tests/graceful_shutdown.rs"),
+        executable: false,
+    },
+];
+
+/// `--example` の allowlist（イシュー #500・#501・#502・#503・#609・#2667・#3290・#3289）。
 ///
 /// サンプル名はここに列挙したコンパイル時定数との完全一致照合のみで解決し、
 /// ユーザー入力から動的にパス・`include_str!` 対象を組み立てない
@@ -938,6 +1015,13 @@ pub(crate) const EXAMPLES: &[Template] = &[
         files: VERCEL_SSG_EXAMPLE_FILES,
         // 上記 "ssr-routing" と同じ理由でパッケージ名置換を行わない（イシュー #3290）。
         needle: "fandhe-frontend-example-placeholder-unused-vercel-ssg",
+        substituted_files: &[],
+    },
+    Template {
+        name: "vercel-ssr",
+        files: VERCEL_SSR_EXAMPLE_FILES,
+        // 上記 "ssr-routing" と同じ理由でパッケージ名置換を行わない（イシュー #3289）。
+        needle: "fandhe-frontend-example-placeholder-unused-vercel-ssr",
         substituted_files: &[],
     },
 ];
@@ -1115,6 +1199,25 @@ mod tests {
         assert!(
             e.files.iter().all(|f| !f.executable),
             "vercel-ssg example has no executable files in the source"
+        );
+    }
+
+    #[test]
+    fn vercel_ssr_example_is_registered() {
+        let e = find_example("vercel-ssr").expect("vercel-ssr example must be registered");
+        assert_eq!(e.name, "vercel-ssr");
+        assert_eq!(
+            e.files.len(),
+            12,
+            "vercel-ssr example must contain exactly 12 files"
+        );
+        assert!(
+            e.substituted_files.is_empty(),
+            "examples do not substitute package names (see module doc comment, issue #500)"
+        );
+        assert!(
+            e.files.iter().all(|f| !f.executable),
+            "vercel-ssr example has no executable files in the source"
         );
     }
 
