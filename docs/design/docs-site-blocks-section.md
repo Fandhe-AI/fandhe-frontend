@@ -992,6 +992,7 @@ pub enum LayoutCss {
 | pricing-upgrade-card | #2878（親 #2807） | `marketing/pricing/pricing_upgrade_card.rs` |
 | testimonial-card-grid | #2884（親 #2807） | `marketing/testimonial/testimonial_card_grid.rs` |
 | testimonial-split-image | #2890（親 #2807） | `marketing/testimonial/testimonial_split_image.rs` |
+| grid-list-contact-cards | #2919（親 #2892） | `application/grid_list/grid_list_contact_cards.rs` |
 | navbar-docs-site | #2927（親 #2892） | `application/navbar/navbar_docs_site.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
