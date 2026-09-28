@@ -82,8 +82,10 @@ fn build_site_generates_all_pages_and_assets_for_ok_fixture() {
     // `crate::admonition` 専用 CSS も条件付きで書き出される）
     // + skip-nav.css（イシュー #776、全ビルドで無条件に書き出す）
     // + site.js（イシュー #951、同じく全ビルドで無条件に書き出す）
-    // + search-index.json（イシュー #957、同じく全ビルドで無条件に書き出す）。
-    assert_eq!(report.assets.len(), 5);
+    // + search-index.json（マニフェスト）+ search-index/guide.json
+    // （`[[section]]` 1 件分のセクションファイル。イシュー #957 / #3173、
+    // 同じく全ビルドで無条件に書き出す）。
+    assert_eq!(report.assets.len(), 6);
     assert!(out.0.join("index.html").exists());
     assert!(out.0.join("guide/quickstart/index.html").exists());
     assert!(out.0.join("assets/site.css").exists());
@@ -91,6 +93,7 @@ fn build_site_generates_all_pages_and_assets_for_ok_fixture() {
     assert!(out.0.join("assets/skip-nav.css").exists());
     assert!(out.0.join("assets/site.js").exists());
     assert!(out.0.join("assets/search-index.json").exists());
+    assert!(out.0.join("assets/search-index/guide.json").exists());
 }
 
 /// イシュー #715: admonition 専用 CSS（`assets/admonition.css`）への
@@ -289,8 +292,16 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // イシュー #2737 で Blocks 共通デモ用ダミー素材ヘルパの画像 5 種
     // （`blocks::dummy_assets::IMAGE_ASSETS`）が加わり 10 → 15 になった
     // （`has_blocks_page` と同条件で無条件に書き出す設計、
-    // `crate::build::build_site` 参照）。
-    assert_eq!(report.assets.len(), 15, "{:?}", report.assets);
+    // `crate::build::build_site` 参照）。イシュー #3173 で検索インデックスが
+    // マニフェスト + `site/nav.toml` の `[[section]]` 数分のセクション
+    // ファイルへ分割され、15 → 15 + セクション数になった（件数は nav.toml
+    // から導出し、セクション追加時に本テストの手修正を要しない）。
+    assert_eq!(
+        report.assets.len(),
+        15 + nav.sections.len(),
+        "{:?}",
+        report.assets
+    );
 
     // イシュー #1016: リダイレクトページは `written`（本体ページ）にも
     // `assets` にも含めない独立フィールド（`BuildReport::redirects`）。
@@ -325,6 +336,7 @@ fn build_site_succeeds_for_the_real_repository_site() {
         "assets/site.js",
         "assets/pre-styled-ui.css",
         "assets/search-index.json",
+        "assets/search-index/blocks.json",
     ] {
         assert!(out.join(rel).exists(), "{rel} should be written");
     }
