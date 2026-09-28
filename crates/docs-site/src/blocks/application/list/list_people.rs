@@ -59,14 +59,6 @@
 //! （詳細度 (0,5,0)）へ書き直し、CSS ソース順で基本規則より後段に置くこと
 //! で両方に打ち勝たせた。
 //!
-//! # disabled ボタンの中和規則を 2 カラムパネルにも広げる理由
-//!
-//! 例 5（2 カラム）の行末ボタンは `.blocks-list-people-panel-columns` 配下に
-//! あるため、`.blocks-list-people-panel` にしかスコープしない
-//! `[data-disabled] { opacity: 1; }` 中和規則では効かず、既定の
-//! `opacity: 0.5` のまま薄く表示されていた（Cursor Medium 指摘）。両パネル
-//! class を `:is()` でまとめて対象にする。
-//!
 //! # メールアドレスの省略記号が効かない理由
 //!
 //! `.blocks-list-people-email` は `overflow: hidden` + `text-overflow:
@@ -97,10 +89,13 @@
 //! 本 Demo は無 JS の docs サイトで静的な初期状態のみを示す（JS
 //! ハイドレーションを行わない）。押しても何も起きない要素を操作可能に
 //! 見せないため、`menu::trigger` の `disabled: true`（第 2 引数）・行末
-//! 「表示」ボタンの `ButtonProps { disabled: true, .. }` を固定し、
-//! `[data-disabled]` の既定 `opacity: 0.5` を [`LAYOUT_CSS`] で
-//! `opacity: 1; cursor: default;` へ中和する（`card_media_footer`/
-//! `form_layout_two_column` と同型の判断）。
+//! 「表示」ボタンの `ButtonProps { disabled: true, .. }` を固定する。
+//! `[data-disabled]` の既定 `opacity: 0.5; cursor: not-allowed;` は
+//! 中和しない（無効な操作を有効に見せてはならないため。以前の版は
+//! `opacity: 1; cursor: default;` で打ち消していたが、これは「押しても
+//! 何も起きない要素を操作可能に見せない」という本節冒頭の意図と矛盾する
+//! codex レビュー指摘であり削除した。`list_title_meta`〔イシュー #3370〕の
+//! 同型判断を踏襲する）。
 //!
 //! # `menu`/ボタンの id をページ内で一意にする理由
 //!
@@ -152,13 +147,30 @@
 //! trailing 自体を縦積み（既定の `flex-direction: column`）にし、40rem
 //! 以上でのみ横並びへ切り替える。
 //!
-//! # chevron が末尾のメタ情報と重なる理由（Bugbot 指摘）
+//! # chevron が末尾のメタ情報と重なる理由（Bugbot 指摘・codex P1 指摘）
 //!
 //! 例 2（行全体リンク）は 40rem 以上で `link-overlay` 内部が横並びになり
 //! meta が行末へ来るが、chevron は `inset-inline-end` の絶対配置で予約
 //! スペースを持たないため、長い役職名・最終ログイン文言と重なっていた。
-//! 是正として `.blocks-list-people-row-link` へ 40rem クエリ内でのみ
-//! `padding-inline-end` を確保し、chevron の矩形をこの余白へ収める。
+//! 是正として `.blocks-list-people-row-link` へ常時（40rem 未満・hover/
+//! focus-within 時も含む）`padding-inline-end` を確保し、chevron の矩形を
+//! この余白へ収める。当初は 40rem クエリ内限定だったが、行全体リンクの
+//! クリック領域を行幅まで広げる下記是正（`align-items: stretch`）により
+//! 狭幅でもメタ文言が chevron まで届き得るため常時適用へ改めた。また
+//! hover/focus-within 規則（`padding-inline: space-3` ショートハンド）が
+//! `padding-inline-end` を巻き戻してしまうため、hover 規則より CSS ソース
+//! 順で後段に同一詳細度 (0,2,0) の規則を置き、hover 時も `space-8` を
+//! 維持する（codex P1 指摘）。
+//!
+//! # 狭幅で行全体リンクの右側がクリックできない理由（codex P1 指摘）
+//!
+//! 行の基本規則（`display: flex; flex-direction: column;`）が
+//! `align-items` を宣言していなかったため、list recipe の item 規則
+//! （`align-items: flex-start`、詳細度 (0,3,0)）が生き残り、column flex の
+//! 子（`link-overlay::root` を含む）が shrink-to-fit で行幅に満たない
+//! 幅に縮んでいた。`inset: 0` の overlay も root 幅までしか覆わないため、
+//! 行の右側をクリックしても overlay の `<a>` に当たらなかった。行の基本
+//! 規則へ `align-items: stretch` を追加し、子要素を常に行幅へ揃える。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -628,10 +640,11 @@ const LAYOUT_CSS: &str = "\
 .blocks-list-people-section-title {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-list-people-panel {\n  display: flex;\n  flex-direction: column;\n  container-type: inline-size;\n  container-name: blocks-list-people;\n}\n\
 .blocks-list-people-panel-columns {\n  display: flex;\n  flex-direction: column;\n}\n\
-:is(.blocks-list-people-panel, .blocks-list-people-panel-columns) [data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > .blocks-list-people-row {\n  margin-block: 0;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  padding-block: var(--fandhe-space-4);\n  position: relative;\n}\n\
+:is(.blocks-list-people-panel, .blocks-list-people-panel-columns) [data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > .blocks-list-people-row {\n  margin-block: 0;\n  display: flex;\n  flex-direction: column;\n  align-items: stretch;\n  gap: var(--fandhe-space-3);\n  padding-block: var(--fandhe-space-4);\n  position: relative;\n}\n\
 .blocks-list-people-row + .blocks-list-people-row {\n  border-block-start: 1px solid var(--fandhe-color-border);\n}\n\
 .blocks-list-people-row-link {\n  transition: background-color 0.15s ease;\n}\n\
 .blocks-list-people-row-link:hover, .blocks-list-people-row-link:focus-within {\n  background-color: var(--fandhe-color-bg-subtle);\n  padding-inline: var(--fandhe-space-3);\n}\n\
+.blocks-list-people-panel .blocks-list-people-row-link, .blocks-list-people-panel .blocks-list-people-row-link:hover, .blocks-list-people-panel .blocks-list-people-row-link:focus-within {\n  padding-inline-end: var(--fandhe-space-8);\n}\n\
 .blocks-list-people-row-link > [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: column;\n  flex: 1;\n  min-width: 0;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-list-people-body {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  min-width: 0;\n}\n\
 .blocks-list-people-identity {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\
@@ -642,11 +655,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-list-people-presence {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-list-people-trailing {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-list-people-chevron {\n  position: absolute;\n  inset-inline-end: var(--fandhe-space-2);\n  top: 50%;\n  transform: translateY(-50%);\n  color: var(--fandhe-color-fg-muted);\n  pointer-events: none;\n}\n\
-.blocks-list-people-panel [data-scope=\"menu\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-:is(.blocks-list-people-panel, .blocks-list-people-panel-columns) [data-scope=\"button\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 @container blocks-list-people (min-width: 40rem) {\n  \
 .blocks-list-people-panel [data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > .blocks-list-people-row {\n    flex-direction: row;\n    align-items: center;\n    justify-content: space-between;\n  }\n  \
-.blocks-list-people-row-link {\n    padding-inline-end: var(--fandhe-space-8);\n  }\n  \
 .blocks-list-people-row-link > [data-scope=\"link-overlay\"][data-part=\"root\"] {\n    flex-direction: row;\n    align-items: center;\n    justify-content: space-between;\n  }\n  \
 .blocks-list-people-meta {\n    align-items: flex-end;\n  }\n  \
 .blocks-list-people-trailing {\n    flex-direction: row;\n    align-items: center;\n    gap: var(--fandhe-space-3);\n  }\n\
@@ -727,8 +737,10 @@ mod tests {
         // list recipe の item 規則（`[data-part="root"].fd-list--variant-plain >
         // [data-part="item"] { align-items: flex-start }`、詳細度 (0,5,0)）に
         // 行の余白・整列を上書きされないための回帰（Bugbot 指摘）。
+        // `align-items: stretch` は狭幅で行全体リンクのクリック領域が
+        // 行幅まで広がらない不具合の是正（codex P1 指摘）。
         assert!(LAYOUT_CSS.contains(
-            "[data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > .blocks-list-people-row {\n  margin-block: 0;"
+            "[data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > .blocks-list-people-row {\n  margin-block: 0;\n  display: flex;\n  flex-direction: column;\n  align-items: stretch;"
         ));
     }
 
@@ -745,17 +757,6 @@ mod tests {
         // ことで両方に打ち勝つ回帰。
         assert!(LAYOUT_CSS.contains(
             "@container blocks-list-people (min-width: 40rem) {\n  .blocks-list-people-panel [data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > .blocks-list-people-row {\n    flex-direction: row;"
-        ));
-    }
-
-    #[test]
-    fn layout_css_disabled_button_opacity_covers_two_column_panel() {
-        // 例 5（2 カラム）の disabled ボタンは `.blocks-list-people-panel-columns`
-        // 配下にあるため、`.blocks-list-people-panel` にしかスコープしない
-        // 中和規則では効かず opacity: 0.5 のまま薄く表示される
-        // （Cursor Medium 指摘）。両パネル class を :is() でまとめて対象にする。
-        assert!(LAYOUT_CSS.contains(
-            ":is(.blocks-list-people-panel, .blocks-list-people-panel-columns) [data-scope=\"button\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;"
         ));
     }
 
@@ -798,11 +799,21 @@ mod tests {
 
     #[test]
     fn layout_css_row_link_reserves_space_for_chevron() {
-        // 40rem 以上で chevron の絶対配置矩形が末尾のメタ情報と重ならない
-        // よう、行に予約余白を確保する回帰（Bugbot 指摘）。
-        assert!(LAYOUT_CSS.contains(
-            "@container blocks-list-people (min-width: 40rem) {\n  .blocks-list-people-panel [data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > .blocks-list-people-row {\n    flex-direction: row;\n    align-items: center;\n    justify-content: space-between;\n  }\n  .blocks-list-people-row-link {\n    padding-inline-end: var(--fandhe-space-8);\n  }"
-        ));
+        // chevron の絶対配置矩形が末尾のメタ情報と重ならないよう、行に常時
+        // （hover/focus-within 時も含む）予約余白を確保する回帰
+        // （Bugbot 指摘・codex P1 指摘）。hover 規則（`padding-inline:
+        // space-3` ショートハンド）に巻き戻されないよう、本規則が hover
+        // 規則より CSS ソース順で後段にあることも固定する。
+        let marker = ".blocks-list-people-panel .blocks-list-people-row-link, .blocks-list-people-panel .blocks-list-people-row-link:hover, .blocks-list-people-panel .blocks-list-people-row-link:focus-within {\n  padding-inline-end: var(--fandhe-space-8);\n}";
+        assert!(LAYOUT_CSS.contains(marker));
+        let hover_pos = LAYOUT_CSS
+            .find(".blocks-list-people-row-link:hover, .blocks-list-people-row-link:focus-within {\n  background-color:")
+            .expect("hover 規則が存在する");
+        let marker_pos = LAYOUT_CSS.find(marker).expect("marker が存在する");
+        assert!(
+            marker_pos > hover_pos,
+            "padding-inline-end 固定規則は hover 規則より後段になければならない"
+        );
     }
 
     #[test]
