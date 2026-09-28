@@ -654,7 +654,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-list-people-row-link {\n  transition: background-color 0.15s ease;\n}\n\
 .blocks-list-people-row-link:hover, .blocks-list-people-row-link:focus-within {\n  background-color: var(--fandhe-color-bg-subtle);\n  padding-inline: var(--fandhe-space-3);\n}\n\
 .blocks-list-people-row-link > [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: column;\n  flex: 1;\n  align-self: stretch;\n  min-width: 0;\n  gap: var(--fandhe-space-3);\n  padding-inline-end: var(--fandhe-space-8);\n}\n\
-.blocks-list-people-body {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  min-width: 0;\n}\n\
+.blocks-list-people-body {\n  display: flex;\n  align-items: center;\n  align-self: stretch;\n  gap: var(--fandhe-space-3);\n  min-width: 0;\n}\n\
 .blocks-list-people-identity {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\
 .blocks-list-people-name {\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
 .blocks-list-people-identity > [data-scope=\"link\"][data-part=\"root\"] {\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
@@ -777,6 +777,20 @@ mod tests {
         // `text-overflow: ellipsis` が効かない（Cursor Low 指摘）。
         assert!(LAYOUT_CSS.contains(
             ".blocks-list-people-email {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}"
+        ));
+    }
+
+    #[test]
+    fn layout_css_body_stretches_so_email_ellipsis_has_a_width_to_clip_to() {
+        // 行（`<li>`、list recipe の既定 `align-items: flex-start`）に直接
+        // 子として並ぶ body（例 1・3・5）は、`align-self: stretch` が無いと
+        // 行幅ではなく自身の内容（`nowrap` なメールアドレスの全文幅）に
+        // 合わせて縮む。すると email の `overflow: hidden` +
+        // `text-overflow: ellipsis` の前提（コンテナ幅 < 内容幅）が成立せず、
+        // stacked レイアウト（例 5 は常時 stacked）で長いメールアドレスが
+        // はみ出す（Cursor Bugbot Medium 指摘）。
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-list-people-body {\n  display: flex;\n  align-items: center;\n  align-self: stretch;\n  gap: var(--fandhe-space-3);\n  min-width: 0;\n}"
         ));
     }
 
