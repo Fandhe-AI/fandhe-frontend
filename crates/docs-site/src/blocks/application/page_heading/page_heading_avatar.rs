@@ -25,7 +25,7 @@
 //!   （中黒区切り） + 「メッセージ」「プロフィールを編集」ボタン + 三点
 //!   メニュー。
 //! - **invite**（R0594）: 同じアバター骨格 + メールアドレス（プレーン
-//!   テキスト） + 応募一覧へのリンク + 応募日 + 「却下」「面接に進める」
+//!   テキスト） + 応募関連リンク + 応募日 + 「却下」「面接に進める」
 //!   ボタン + 三点メニュー。
 //! - **invoice**（R1134）: media を企業ロゴ画像へ差し替え + 社名 + 請求書
 //!   番号 + 発行日 + 「PDF をダウンロード」「支払いを記録」ボタン + 三点
@@ -97,12 +97,14 @@ use fandhe_frontend_pre_styled_ui::menu::{self, OpenState};
 use fandhe_frontend_pre_styled_ui::Size;
 
 /// invite インスタンスの応募関連リンクの遷移先（外部の実在 URL、
-/// `href="#"` は使わない、他 block と同型の判断）。個々の応募内容を示す
-/// 実在ページは持たないため、遷移先の実体（GitHub Pull Requests 一覧）に
-/// 合わせてラベルを「応募一覧を見る」とし、ラベルと遷移先を一致させる
-/// （イシュー #2931 codex レビュー指摘。当初のラベル「応募内容を見る」は
-/// 遷移先が一覧ページであることと不一致だった）。
-const APPLICATION_LINK: &str = "https://github.com/Fandhe-AI/fandhe-frontend/pulls";
+/// `href="#"` は使わない、他 block と同型の判断）。個々の応募内容・応募
+/// 一覧いずれの実在ページも持たないため、遷移先の実体を特定の意味に
+/// 見せる固有のラベル（「応募内容を見る」「応募一覧を見る」）は避け、
+/// `careers_card_grid.rs` の「詳細を見る」と同型の汎用ラベルへ変更する
+/// （イシュー #2931 codex レビュー再指摘。「応募一覧を見る」は遷移先の
+/// 語感には一致していたが、実際には求人応募とは無関係な GitHub Pull
+/// Requests 一覧であり、依然として意味不一致だった）。
+const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 /// アバター（円形）を組み立てる。氏名をアクセシブルネームとして `root` へ
 /// 直接付与し、フォールバックは氏名の先頭 1 文字を表示する
@@ -327,10 +329,10 @@ fn invite_instance() -> Node {
                 text("elena.vasquez@example.com"),
                 dot_separator(),
                 link::root(
-                    APPLICATION_LINK,
+                    REPO,
                     &LinkProps::default(),
                     vec![],
-                    vec![text("応募一覧を見る")],
+                    vec![text("詳細を見る")],
                 ),
                 dot_separator(),
                 time_el("2026-09-26", "9 月 26 日に応募"),
@@ -539,23 +541,18 @@ mod tests {
     }
 
     #[test]
-    fn application_link_does_not_point_at_repo_root() {
-        // 応募関連リンクが REPO 直下（遷移先の意味不一致）へ戻らないことの
-        // 回帰ガード（イシュー #2931 codex レビュー指摘）。
+    fn application_link_label_does_not_overclaim_destination() {
+        // ラベルと遷移先の意味不一致の回帰ガード（イシュー #2931 codex
+        // レビュー指摘・再指摘）。「応募内容を見る」「応募一覧を見る」は
+        // いずれも実在しない特定ページを指すと誤認させる固有ラベルだった
+        // （実際の遷移先は求人応募と無関係な GitHub リポジトリ）。
+        // `careers_card_grid.rs` と同型の汎用ラベル「詳細を見る」+ REPO
+        // 直下へ変更し、特定の意味を持つ実在ページを指すと誤認させない。
         let html = demo_html();
-        assert!(html.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend/pulls\""));
-        assert!(!html.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend\""));
-    }
-
-    #[test]
-    fn application_link_label_matches_list_destination() {
-        // ラベルと遷移先の不一致（PR 一覧を指すのに「応募内容を見る」と
-        // 表示していた）の回帰ガード（イシュー #2931 codex レビュー
-        // 再指摘、コメント URL #discussion_r4120102538）。遷移先が一覧
-        // ページである以上、ラベルもそれと分かる文言にする。
-        let html = demo_html();
-        assert!(html.contains("応募一覧を見る"));
+        assert!(html.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend\""));
+        assert!(html.contains("詳細を見る"));
         assert!(!html.contains("応募内容を見る"));
+        assert!(!html.contains("応募一覧を見る"));
     }
 
     #[test]
