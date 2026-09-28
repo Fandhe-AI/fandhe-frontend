@@ -2043,6 +2043,11 @@ source = "site/blocks/navbar-docs-site.md"
 path = "/blocks/navbar-docs-site/"
 
 [[section.group.page]]
+title = "navbar-two-row"
+source = "site/blocks/navbar-two-row.md"
+path = "/blocks/navbar-two-row/"
+
+[[section.group.page]]
 title = "navbar-with-search"
 source = "site/blocks/navbar-with-search.md"
 path = "/blocks/navbar-with-search/"
@@ -2070,6 +2075,11 @@ title = "List"
 title = "list-narrow-activity"
 source = "site/blocks/list-narrow-activity.md"
 path = "/blocks/list-narrow-activity/"
+
+[[section.group.page]]
+title = "list-people"
+source = "site/blocks/list-people.md"
+path = "/blocks/list-people/"
 
 [[section.group.page]]
 title = "list-sticky-groups"
