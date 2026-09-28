@@ -47,10 +47,10 @@
 //! のまま用いる。氏名・肩書・所在地・自己紹介はすべて架空のもの（実在の
 //! 人物・企業・ブランドとは無関係）。
 
-use crate::blocks::dummy_assets;
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
+use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarProps, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps, BadgeVariant};

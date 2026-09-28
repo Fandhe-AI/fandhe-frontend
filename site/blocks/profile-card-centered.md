@@ -5,8 +5,8 @@
 Blocks セクションは新規部品を追加するものではなく、既存の
 Themes/Primitives 部品を組み合わせた実例集であることに注意してください。
 
-avatar（認証済みを示す badge 付き）→ 氏名 → 肩書・所在地 → 自己紹介の順に
-縦積みし、下に SNS アイコンリンクと主操作ボタンを置いた構成（代表構成）
+avatar → 氏名（隣に認証済みを示す badge を併記）→ 肩書・所在地 → 自己紹介の
+順に縦積みし、下に SNS アイコンリンクと主操作ボタンを置いた構成（代表構成）
 と、主操作を全幅ボタン 1 個にして自己紹介の下へテキスト付きリンク一覧を
 縦並びにした最小版の 2 インスタンスを併記します。カードは固定幅ですが
 狭いコンテナではコンテナ幅に追従します。
@@ -19,6 +19,7 @@ avatar（認証済みを示す badge 付き）→ 氏名 → 肩書・所在地 
 ## Rust コード
 
 ```rust
+use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarProps, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps, BadgeVariant};
