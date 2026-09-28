@@ -2067,6 +2067,11 @@ source = "site/blocks/list-narrow-activity.md"
 path = "/blocks/list-narrow-activity/"
 
 [[section.group.page]]
+title = "list-people"
+source = "site/blocks/list-people.md"
+path = "/blocks/list-people/"
+
+[[section.group.page]]
 title = "list-sticky-groups"
 source = "site/blocks/list-sticky-groups.md"
 path = "/blocks/list-sticky-groups/"
