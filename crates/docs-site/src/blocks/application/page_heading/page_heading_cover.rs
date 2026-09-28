@@ -206,9 +206,9 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-page-heading-cover-layout {\n  display: flex;\n  flex-direction: column;\n}\n\
 [data-blocks-page-heading-cover-cover] {\n  height: 8rem;\n  overflow: hidden;\n  border-radius: var(--fandhe-radius-lg);\n}\n\
-[data-blocks-page-heading-cover-cover-image] {\n  width: 100%;\n  height: 100%;\n}\n\
+[data-scope=\"image\"][data-part=\"root\"][data-blocks-page-heading-cover-cover-image] {\n  width: 100%;\n  height: 100%;\n}\n\
 [data-blocks-page-heading-cover-header] {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-4);\n  padding: 0 var(--fandhe-space-4);\n}\n\
-[data-blocks-page-heading-cover-avatar] {\n  margin-top: -2.5rem;\n  box-shadow: 0 0 0 4px var(--fandhe-color-bg);\n}\n\
+[data-blocks-page-heading-cover-avatar] {\n  margin-top: -2.5rem;\n  box-shadow: 0 0 0 4px var(--fandhe-color-bg-subtle);\n}\n\
 [data-blocks-page-heading-cover-actions] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  width: 100%;\n}\n\
 [data-blocks-page-heading-cover-actions] [data-scope=\"button\"] {\n  width: 100%;\n}\n\
 @media (min-width: 40rem) {\n  [data-blocks-page-heading-cover-cover] {\n    height: 12rem;\n  }\n  [data-blocks-page-heading-cover-header] {\n    flex-direction: row;\n    align-items: flex-end;\n  }\n  [data-blocks-page-heading-cover-avatar] {\n    margin-top: -3rem;\n  }\n  [data-blocks-page-heading-cover-actions] {\n    flex-direction: row;\n    width: auto;\n    margin-inline-start: auto;\n  }\n  [data-blocks-page-heading-cover-actions] [data-scope=\"button\"] {\n    width: auto;\n  }\n}\n";
