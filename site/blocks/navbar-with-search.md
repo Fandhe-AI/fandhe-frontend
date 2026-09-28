@@ -6,14 +6,18 @@
 の「リンク群 + アクション」に対し、本 block は検索欄の置き方 3 通りを
 並記します（主参照は対応表 ID R0162、出典の固有名は記載しません）。
 
-Demo は 3 インスタンスを並記します: ロゴ → リンク群 → 検索欄 → 通知 →
+Demo は 4 インスタンスを並記します: ロゴ → リンク群 → 検索欄 → 通知 →
 アバターメニューの `links-end`、リンクなしで検索欄を中央に置く
-`center-search`、12 列グリッドでロゴ・検索欄・操作を割り付ける `grid-12`。
+`center-search`、12 列グリッドでロゴ・検索欄・操作を割り付ける `grid-12`、
+そして Demo 枠を狭幅へ固定し検索欄が実際に見える状態を示す `narrow`。
 
-狭い幅（Demo 枠基準の container query、48rem 未満）では検索欄ラッパーを
-隠し、代わりに検索アイコンボタン（無 JS のため無効化）を表示します。
-`links-end` のナビは狭幅で折り返すのみとし、ハンバーガー化はしません
-（collapsible は使用部品の契約外のため持ち込みません）。
+狭い幅（Demo 枠基準の container query、48rem 未満）では、通常は検索欄
+ラッパーを隠し代わりに検索アイコンボタン（無 JS のため無効化）を表示しま
+すが、無 JS ではこのボタンから検索欄を開けず主要機能を確認できないため、
+`narrow` インスタンスのみ Demo 枠を強制的に狭幅へ固定したうえで検索欄
+ラッパーを常時表示し検索アイコンボタンを隠します。`links-end` のナビは
+狭幅で折り返すのみとし、ハンバーガー化はしません（collapsible は使用部品
+の契約外のため持ち込みません）。
 
 本 Demo は静的表示例です。docs サイトは JS ハイドレーションを行わないため
 操作系ボタンはすべて無効化しています。`<form>` は使わず、検索欄も送信先を
@@ -53,10 +57,32 @@ fn geo_icon(d: &'static str) -> Node {
     )
 }
 
-/// 検索アイコン（円 + 柄の 2 path、[`super::super::hero::hero_search`] と
-/// 同型の自作幾何アイコン）。
+/// 検索アイコン（円 + 柄の 1 path、[`super::super::hero::hero_search`] と
+/// 同型の自作幾何アイコン）。`geo_icon`（`fill="currentColor"` 固定）は
+/// 塗りつぶし図形専用のため、輪郭のみで構成される虫眼鏡には使えない
+/// （`fill="currentColor"` のまま柄を描くと直線はゼロ面積で消え、円弧は
+/// 開始点への暗黙クローズで塗りつぶし円になってしまう）。`hero_search` と
+/// 同じく `fill="none"` + `stroke="currentColor"` で明示的に上書きする。
 fn search_icon() -> Node {
-    geo_icon("M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm9 17-5.2-5.2")
+    icon(
+        &IconProps {
+            label: None,
+            ..IconProps::default()
+        },
+        vec![],
+        vec![el(
+            "path",
+            vec![
+                ("d", "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm9 17-5.2-5.2"),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+                ("stroke-linecap", "round"),
+                ("stroke-linejoin", "round"),
+            ],
+            vec![],
+        )],
+    )
 }
 
 /// ベル（通知）の幾何アイコン。
@@ -254,8 +280,12 @@ fn profile_menu(variant: &str) -> Node {
 }
 
 /// 1 variant 分のナビバー本体を組み立てる。`with_nav` はリンク群の有無、
-/// `layout` は [`LAYOUT_CSS`] が分岐に使う `data-*` 値。
-fn bar(variant: &'static str, layout: &'static str, with_nav: bool) -> Node {
+/// `layout` は [`LAYOUT_CSS`] が分岐に使う `data-*` 値、`narrow` は
+/// [`super::navbar_app_links`] と同型の「Demo 枠を `< 48rem` に固定する」
+/// フラグ（閲覧者の画面幅に関係なく container query を狭幅側に倒し、検索欄
+/// が実際に使える主要機能であることを Demo 上で示す。モジュール doc
+/// 「検索欄は狭幅でアイコンボタンへ縮む」節の是正）。
+fn bar(variant: &'static str, layout: &'static str, with_nav: bool, narrow: bool) -> Node {
     let mut children: Vec<Node> = vec![logo()];
     if with_nav {
         children.push(div(
@@ -276,8 +306,13 @@ fn bar(variant: &'static str, layout: &'static str, with_nav: bool) -> Node {
         ],
     ));
 
+    let mut frame_attrs = vec![("data-blocks-navbar-with-search-shell", "")];
+    if narrow {
+        frame_attrs.push(("data-blocks-navbar-with-search-frame", "narrow"));
+    }
+
     div(
-        vec![("data-blocks-navbar-with-search-shell", "")],
+        frame_attrs,
         vec![header(
             vec![
                 ("data-blocks-navbar-with-search-root", ""),
@@ -297,17 +332,19 @@ fn caption(label: &'static str) -> Node {
     )
 }
 
-/// `navbar-with-search` の Demo 本体。3 variant を縦に並記する純関数。
+/// `navbar-with-search` の Demo 本体。4 variant を縦に並記する純関数。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-navbar-with-search-stack")],
         vec![
             caption("リンク群の右に検索欄を置く（links-end）"),
-            bar("links-end", "links-end", true),
+            bar("links-end", "links-end", true, false),
             caption("リンクなし・検索欄を中央に置く（center-search）"),
-            bar("center-search", "center-search", false),
+            bar("center-search", "center-search", false, false),
             caption("12 列グリッドでロゴ / 検索欄 / 操作を割り付ける（grid-12）"),
-            bar("grid-12", "grid-12", false),
+            bar("grid-12", "grid-12", false, false),
+            caption("狭幅（< 48rem）でも検索欄が操作可能であること（narrow）"),
+            bar("narrow", "links-end", true, true),
         ],
     )
 }

@@ -1,9 +1,10 @@
 //! `navbar-with-search` block（イシュー #2929。親トラッキング #2892
 //! 「Blocks アプリケーション A（phase:3）」配下）。対応表 ID R0162（代表）を
 //! 軸に、集約元 6 件（R1090/R1091/R1094/R0161/R0162/R0580）の差分を、本
-//! Demo の 3 インスタンス並記と原稿の「集約元との差分メモ」節（取得手段・
-//! ファイル名は記載しない、[`super::navbar_app_links`] と同じライセンス上の
-//! 転記制限）で読み取れるようにする。
+//! Demo の 3 レイアウト並記（+ 狭幅実演用の `narrow` インスタンス、後述）と
+//! 原稿の「集約元との差分メモ」節（取得手段・ファイル名は記載しない、
+//! [`super::navbar_app_links`] と同じライセンス上の転記制限）で読み取れる
+//! ようにする。
 //!
 //! # 構成（検索欄付きの 1 段アプリナビバー）
 //!
@@ -22,7 +23,8 @@
 //! `menu` / `icon` の 7 部品に加え、検索欄のアクセシブルラベル付けに
 //! `field`（`visually_hidden` と組み合わせる、[`super::super::hero`] の
 //! `hero_search` と同型）を使う（[`BLOCK`] の `parts` に一致させる契約）。
-//! `links-end` のみ `navigation-menu` を持つ。
+//! `links-end` レイアウトの 2 インスタンス（`links-end`/`narrow`）のみ
+//! `navigation-menu` を持つ。
 //!
 //! # 検索欄は狭幅でアイコンボタンへ縮む
 //!
@@ -30,7 +32,13 @@
 //! 同じ判断）では検索欄ラッパーを隠し、代わりに検索アイコンボタン
 //! （無 JS のため `disabled: true` 固定）を表示する。`links-end` のナビは
 //! 狭幅で折り返すのみとし、ハンバーガー化はしない（使用部品 7 件の契約外
-//! のため collapsible は持ち込まない）。
+//! のため collapsible は持ち込まない）。狭幅は無 JS のため検索アイコン
+//! ボタンだけでは実際に検索欄を開けず、主要機能を Demo 上で確認できない
+//! （イシュー #2929 PR レビュー指摘）。このため `narrow` インスタンスのみ
+//! [`super::navbar_app_links`] と同型の `data-blocks-navbar-with-search-
+//! frame="narrow"` を付けて Demo 枠を強制的に `< 48rem` に固定しつつ、検索
+//! 欄ラッパーを常時表示・検索アイコンボタンを非表示にするオーバーライドを
+//! [`LAYOUT_CSS`] に持つ（狭幅でも検索欄そのものが操作可能であることを示す）。
 //!
 //! # id と ARIA の一意性
 //!
@@ -87,10 +95,32 @@ fn geo_icon(d: &'static str) -> Node {
     )
 }
 
-/// 検索アイコン（円 + 柄の 2 path、[`super::super::hero::hero_search`] と
-/// 同型の自作幾何アイコン）。
+/// 検索アイコン（円 + 柄の 1 path、[`super::super::hero::hero_search`] と
+/// 同型の自作幾何アイコン）。`geo_icon`（`fill="currentColor"` 固定）は
+/// 塗りつぶし図形専用のため、輪郭のみで構成される虫眼鏡には使えない
+/// （`fill="currentColor"` のまま柄を描くと直線はゼロ面積で消え、円弧は
+/// 開始点への暗黙クローズで塗りつぶし円になってしまう）。`hero_search` と
+/// 同じく `fill="none"` + `stroke="currentColor"` で明示的に上書きする。
 fn search_icon() -> Node {
-    geo_icon("M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm9 17-5.2-5.2")
+    icon(
+        &IconProps {
+            label: None,
+            ..IconProps::default()
+        },
+        vec![],
+        vec![el(
+            "path",
+            vec![
+                ("d", "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm9 17-5.2-5.2"),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+                ("stroke-linecap", "round"),
+                ("stroke-linejoin", "round"),
+            ],
+            vec![],
+        )],
+    )
 }
 
 /// ベル（通知）の幾何アイコン。
@@ -288,8 +318,12 @@ fn profile_menu(variant: &str) -> Node {
 }
 
 /// 1 variant 分のナビバー本体を組み立てる。`with_nav` はリンク群の有無、
-/// `layout` は [`LAYOUT_CSS`] が分岐に使う `data-*` 値。
-fn bar(variant: &'static str, layout: &'static str, with_nav: bool) -> Node {
+/// `layout` は [`LAYOUT_CSS`] が分岐に使う `data-*` 値、`narrow` は
+/// [`super::navbar_app_links`] と同型の「Demo 枠を `< 48rem` に固定する」
+/// フラグ（閲覧者の画面幅に関係なく container query を狭幅側に倒し、検索欄
+/// が実際に使える主要機能であることを Demo 上で示す。モジュール doc
+/// 「検索欄は狭幅でアイコンボタンへ縮む」節の是正）。
+fn bar(variant: &'static str, layout: &'static str, with_nav: bool, narrow: bool) -> Node {
     let mut children: Vec<Node> = vec![logo()];
     if with_nav {
         children.push(div(
@@ -310,8 +344,13 @@ fn bar(variant: &'static str, layout: &'static str, with_nav: bool) -> Node {
         ],
     ));
 
+    let mut frame_attrs = vec![("data-blocks-navbar-with-search-shell", "")];
+    if narrow {
+        frame_attrs.push(("data-blocks-navbar-with-search-frame", "narrow"));
+    }
+
     div(
-        vec![("data-blocks-navbar-with-search-shell", "")],
+        frame_attrs,
         vec![header(
             vec![
                 ("data-blocks-navbar-with-search-root", ""),
@@ -331,17 +370,19 @@ fn caption(label: &'static str) -> Node {
     )
 }
 
-/// `navbar-with-search` の Demo 本体。3 variant を縦に並記する純関数。
+/// `navbar-with-search` の Demo 本体。4 variant を縦に並記する純関数。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-navbar-with-search-stack")],
         vec![
             caption("リンク群の右に検索欄を置く（links-end）"),
-            bar("links-end", "links-end", true),
+            bar("links-end", "links-end", true, false),
             caption("リンクなし・検索欄を中央に置く（center-search）"),
-            bar("center-search", "center-search", false),
+            bar("center-search", "center-search", false, false),
             caption("12 列グリッドでロゴ / 検索欄 / 操作を割り付ける（grid-12）"),
-            bar("grid-12", "grid-12", false),
+            bar("grid-12", "grid-12", false, false),
+            caption("狭幅（< 48rem）でも検索欄が操作可能であること（narrow）"),
+            bar("narrow", "links-end", true, true),
         ],
     )
 }
@@ -393,7 +434,12 @@ pub const BLOCK: Block = Block {
 };
 
 /// `navbar_with_search` 固有のレイアウト規則（`--fandhe-*` トークンのみ
-/// 使用）。セレクタは `.blocks-navbar-with-search-*` /
+/// 使用）。`links-end`/`center-search` の広幅（`>= 48rem`）オーバーライドは
+/// `[data-blocks-navbar-with-search-actions]` の基準 `margin-inline-start:
+/// auto` を `0` に打ち消す（検索欄側の auto margin と競合させると、flex の
+/// 残り空間が検索欄前・検索欄後の 2 箇所へ分割され、検索欄が通知・
+/// アバターから離れて見える。`grid-12` レイアウトの同名オーバーライドと
+/// 同じ判断）。セレクタは `.blocks-navbar-with-search-*` /
 /// `[data-blocks-navbar-with-search-*]`、および styled 部品の
 /// `[data-scope][data-part]` セレクタとの複合セレクタのみを用い、他 block
 /// や部品の素のセレクタへは影響させない。
@@ -401,6 +447,9 @@ const LAYOUT_CSS: &str = "\
 .blocks-navbar-with-search-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-navbar-with-search-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-navbar-with-search-shell] {\n  container-type: inline-size;\n  container-name: blocks-navbar-with-search;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n  overflow: hidden;\n}\n\
+[data-blocks-navbar-with-search-shell][data-blocks-navbar-with-search-frame=\"narrow\"] {\n  max-inline-size: 22rem;\n}\n\
+[data-blocks-navbar-with-search-shell][data-blocks-navbar-with-search-frame=\"narrow\"] [data-blocks-navbar-with-search-search-wrap] {\n  display: block;\n}\n\
+[data-blocks-navbar-with-search-shell][data-blocks-navbar-with-search-frame=\"narrow\"] [data-scope=\"button\"][data-part=\"root\"][data-blocks-navbar-with-search-search-toggle] {\n  display: none;\n}\n\
 [data-blocks-navbar-with-search-root] {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2) var(--fandhe-space-4);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
 [data-blocks-navbar-with-search-logo] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  white-space: nowrap;\n}\n\
 [data-blocks-navbar-with-search-nav-wrap] {\n  flex-basis: 100%;\n}\n\
@@ -414,7 +463,9 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-navbar-with-search-search-wrap] {\n    display: block;\n  }\n  \
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-navbar-with-search-search-toggle] {\n    display: none;\n  }\n  \
 [data-blocks-navbar-with-search-root][data-blocks-navbar-with-search-layout=\"links-end\"] [data-blocks-navbar-with-search-search-wrap] {\n    flex: 0 1 20rem;\n    margin-inline-start: auto;\n  }\n  \
+[data-blocks-navbar-with-search-root][data-blocks-navbar-with-search-layout=\"links-end\"] [data-blocks-navbar-with-search-actions] {\n    margin-inline-start: 0;\n  }\n  \
 [data-blocks-navbar-with-search-root][data-blocks-navbar-with-search-layout=\"center-search\"] [data-blocks-navbar-with-search-search-wrap] {\n    flex: 1;\n    max-inline-size: 36rem;\n    margin-inline: auto;\n  }\n  \
+[data-blocks-navbar-with-search-root][data-blocks-navbar-with-search-layout=\"center-search\"] [data-blocks-navbar-with-search-actions] {\n    margin-inline-start: 0;\n  }\n  \
 [data-blocks-navbar-with-search-root][data-blocks-navbar-with-search-layout=\"grid-12\"] {\n    display: grid;\n    grid-template-columns: repeat(12, minmax(0, 1fr));\n    align-items: center;\n  }\n  \
 [data-blocks-navbar-with-search-root][data-blocks-navbar-with-search-layout=\"grid-12\"] [data-blocks-navbar-with-search-logo] {\n    grid-column: 1 / span 3;\n  }\n  \
 [data-blocks-navbar-with-search-root][data-blocks-navbar-with-search-layout=\"grid-12\"] [data-blocks-navbar-with-search-search-wrap] {\n    grid-column: 4 / span 6;\n    max-inline-size: none;\n    margin-inline: 0;\n  }\n  \
@@ -451,11 +502,11 @@ mod tests {
         assert!(!html.contains("src=\"data:"));
     }
 
-    /// 3 variant がそれぞれ 1 回ずつ描画され、caption が 3 件あること。
+    /// 4 variant がそれぞれ 1 回ずつ描画され、caption が 4 件あること。
     #[test]
-    fn demo_renders_all_three_variants() {
+    fn demo_renders_all_four_variants() {
         let html = render(&demo());
-        for variant in ["links-end", "center-search", "grid-12"] {
+        for variant in ["links-end", "center-search", "grid-12", "narrow"] {
             assert!(
                 html.contains(&format!(
                     "data-blocks-navbar-with-search-variant=\"{variant}\""
@@ -463,38 +514,39 @@ mod tests {
                 "variant {variant} should render"
             );
         }
-        assert_eq!(html.matches("blocks-navbar-with-search-caption").count(), 3);
+        assert_eq!(html.matches("blocks-navbar-with-search-caption").count(), 4);
         assert_eq!(
             html.matches("data-blocks-navbar-with-search-shell").count(),
-            3
+            4
         );
     }
 
-    /// `links-end` のみが `navigation-menu` を持つこと。`data-scope` は
-    /// `root`/`list`/`item`×3/`link`×3 の 8 パーツすべてに付くため、1 nav
-    /// あたり 8 件（root/list/item×3/link×3、アイテム数はモジュール doc
-    /// の `nav()` 定義に従う）が正しい期待値である。
+    /// `links-end`/`narrow` の 2 variant が `navigation-menu` を持つこと。
+    /// `data-scope` は `root`/`list`/`item`×3/`link`×3 の 8 パーツすべてに
+    /// 付くため、1 nav あたり 8 件（root/list/item×3/link×3、アイテム数は
+    /// モジュール doc の `nav()` 定義に従う）× 2 variant = 16 件が正しい
+    /// 期待値である。
     #[test]
-    fn only_links_end_has_navigation_menu() {
+    fn links_end_and_narrow_have_navigation_menu() {
         let html = render(&demo());
-        assert_eq!(html.matches("data-scope=\"navigation-menu\"").count(), 8);
-        assert_eq!(html.matches("メインナビゲーション").count(), 1);
+        assert_eq!(html.matches("data-scope=\"navigation-menu\"").count(), 16);
+        assert_eq!(html.matches("メインナビゲーション").count(), 2);
     }
 
-    /// 検索欄の `id`/`for` が 3 variant すべてで一意であり、`type="search"`
-    /// が 3 件あること。headless `field::label`/`field::input` は
+    /// 検索欄の `id`/`for` が 4 variant すべてで一意であり、`type="search"`
+    /// が 4 件あること。headless `field::label`/`field::input` は
     /// `FieldProps::id` からコントロール id を `"{id}-control"` として
     /// 決定的に派生させる（`crates/headless-ui/src/field.rs` の
     /// `control_id`/`label` 参照）ため、比較対象もその派生形にする。
     #[test]
     fn search_inputs_have_unique_ids_and_labels() {
         let html = render(&demo());
-        for variant in ["links-end", "center-search", "grid-12"] {
+        for variant in ["links-end", "center-search", "grid-12", "narrow"] {
             let control_id = format!("blocks-navbar-with-search-query-{variant}-control");
             assert_eq!(html.matches(&format!(r#"id="{control_id}""#)).count(), 1);
             assert_eq!(html.matches(&format!(r#"for="{control_id}""#)).count(), 1);
         }
-        assert_eq!(html.matches(r#"type="search""#).count(), 3);
+        assert_eq!(html.matches(r#"type="search""#).count(), 4);
     }
 
     /// 通知・検索トグル・アバターメニュー trigger が押しても何も起きない
@@ -509,7 +561,7 @@ mod tests {
         ] {
             assert_eq!(
                 html.matches(hook).count(),
-                3,
+                4,
                 "hook {hook} should render once per variant"
             );
         }
@@ -530,11 +582,27 @@ mod tests {
     #[test]
     fn profile_menus_reference_their_content() {
         let html = render(&demo());
-        for variant in ["links-end", "center-search", "grid-12"] {
+        for variant in ["links-end", "center-search", "grid-12", "narrow"] {
             let content_id = format!("blocks-navbar-with-search-profile-menu-{variant}");
             assert!(html.contains(&format!(r#"aria-controls="{content_id}""#)));
             assert!(html.contains(&format!(r#"id="{content_id}""#)));
         }
+    }
+
+    /// `narrow` インスタンスのみ frame 属性を持ち、Demo 枠を強制的に狭幅へ
+    /// 固定して検索欄を常時表示すること（イシュー #2929 PR レビュー指摘の
+    /// 是正: 狭幅でも検索欄が操作可能であることを示す）。
+    #[test]
+    fn only_narrow_instance_has_the_frame_attribute() {
+        let html = render(&demo());
+        assert_eq!(
+            html.matches("data-blocks-navbar-with-search-frame=\"narrow\"")
+                .count(),
+            1
+        );
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-navbar-with-search-shell][data-blocks-navbar-with-search-frame=\"narrow\"] [data-blocks-navbar-with-search-search-wrap] {\n  display: block;\n}"
+        ));
     }
 
     /// リンクは現在地（`./`）と実在の自リポジトリ・自組織 URL のみを
