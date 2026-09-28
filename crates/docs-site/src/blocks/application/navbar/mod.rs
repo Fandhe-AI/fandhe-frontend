@@ -10,9 +10,10 @@
 //! ための構造、イシュー #2734）。
 
 mod navbar_app_links;
+mod navbar_with_search;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![navbar_app_links::BLOCK]
+    vec![navbar_app_links::BLOCK, navbar_with_search::BLOCK]
 }
