@@ -206,11 +206,14 @@ fn example_representative() -> Node {
             )
         })
         .collect();
-    list::root(
-        ListType::Unordered,
-        ListVariant::Plain,
+    div(
         vec![("class", "blocks-list-people-panel")],
-        rows,
+        vec![list::root(
+            ListType::Unordered,
+            ListVariant::Plain,
+            vec![],
+            rows,
+        )],
     )
 }
 
@@ -249,11 +252,14 @@ fn example_row_link() -> Node {
             )
         })
         .collect();
-    list::root(
-        ListType::Unordered,
-        ListVariant::Plain,
+    div(
         vec![("class", "blocks-list-people-panel")],
-        rows,
+        vec![list::root(
+            ListType::Unordered,
+            ListVariant::Plain,
+            vec![],
+            rows,
+        )],
     )
 }
 
@@ -316,12 +322,7 @@ fn example_inline_link_menu() -> Node {
                     body(
                         name,
                         person.email,
-                        link::root(
-                            REPO,
-                            &LinkProps::default(),
-                            vec![("class", "blocks-list-people-name")],
-                            vec![text(name)],
-                        ),
+                        link::root(REPO, &LinkProps::default(), vec![], vec![text(name)]),
                     ),
                     meta(role, &person.presence),
                     menu_root,
@@ -329,11 +330,14 @@ fn example_inline_link_menu() -> Node {
             )
         })
         .collect();
-    list::root(
-        ListType::Unordered,
-        ListVariant::Plain,
+    div(
         vec![("class", "blocks-list-people-panel")],
-        rows,
+        vec![list::root(
+            ListType::Unordered,
+            ListVariant::Plain,
+            vec![],
+            rows,
+        )],
     )
 }
 
@@ -387,11 +391,14 @@ fn example_two_column() -> Node {
         .collect();
     div(
         vec![("class", "blocks-list-people-two-column")],
-        vec![list::root(
-            ListType::Unordered,
-            ListVariant::Plain,
+        vec![div(
             vec![("class", "blocks-list-people-panel")],
-            rows,
+            vec![list::root(
+                ListType::Unordered,
+                ListVariant::Plain,
+                vec![],
+                rows,
+            )],
         )],
     )
 }

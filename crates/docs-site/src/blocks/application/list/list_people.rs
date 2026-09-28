@@ -255,11 +255,14 @@ fn example_representative() -> Node {
             )
         })
         .collect();
-    list::root(
-        ListType::Unordered,
-        ListVariant::Plain,
+    div(
         vec![("class", "blocks-list-people-panel")],
-        rows,
+        vec![list::root(
+            ListType::Unordered,
+            ListVariant::Plain,
+            vec![],
+            rows,
+        )],
     )
 }
 
@@ -298,11 +301,14 @@ fn example_row_link() -> Node {
             )
         })
         .collect();
-    list::root(
-        ListType::Unordered,
-        ListVariant::Plain,
+    div(
         vec![("class", "blocks-list-people-panel")],
-        rows,
+        vec![list::root(
+            ListType::Unordered,
+            ListVariant::Plain,
+            vec![],
+            rows,
+        )],
     )
 }
 
@@ -365,12 +371,7 @@ fn example_inline_link_menu() -> Node {
                     body(
                         name,
                         person.email,
-                        link::root(
-                            REPO,
-                            &LinkProps::default(),
-                            vec![("class", "blocks-list-people-name")],
-                            vec![text(name)],
-                        ),
+                        link::root(REPO, &LinkProps::default(), vec![], vec![text(name)]),
                     ),
                     meta(role, &person.presence),
                     menu_root,
@@ -378,11 +379,14 @@ fn example_inline_link_menu() -> Node {
             )
         })
         .collect();
-    list::root(
-        ListType::Unordered,
-        ListVariant::Plain,
+    div(
         vec![("class", "blocks-list-people-panel")],
-        rows,
+        vec![list::root(
+            ListType::Unordered,
+            ListVariant::Plain,
+            vec![],
+            rows,
+        )],
     )
 }
 
@@ -436,11 +440,14 @@ fn example_two_column() -> Node {
         .collect();
     div(
         vec![("class", "blocks-list-people-two-column")],
-        vec![list::root(
-            ListType::Unordered,
-            ListVariant::Plain,
+        vec![div(
             vec![("class", "blocks-list-people-panel")],
-            rows,
+            vec![list::root(
+                ListType::Unordered,
+                ListVariant::Plain,
+                vec![],
+                rows,
+            )],
         )],
     )
 }
@@ -530,28 +537,31 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-list-people-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n}\n\
 .blocks-list-people-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
-.blocks-list-people-section-title {\n  margin: 0;\n  font-size: var(--fandhe-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-list-people-section-title {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-list-people-panel {\n  display: flex;\n  flex-direction: column;\n  container-type: inline-size;\n  container-name: blocks-list-people;\n}\n\
 .blocks-list-people-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  padding-block: var(--fandhe-space-4);\n  position: relative;\n}\n\
 .blocks-list-people-row + .blocks-list-people-row {\n  border-block-start: 1px solid var(--fandhe-color-border);\n}\n\
 .blocks-list-people-row-link {\n  transition: background-color 0.15s ease;\n}\n\
 .blocks-list-people-row-link:hover, .blocks-list-people-row-link:focus-within {\n  background-color: var(--fandhe-color-bg-subtle);\n  padding-inline: var(--fandhe-space-3);\n}\n\
+.blocks-list-people-row-link > [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: column;\n  flex: 1;\n  min-width: 0;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-list-people-body {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  min-width: 0;\n}\n\
 .blocks-list-people-identity {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\
 .blocks-list-people-name {\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
-.blocks-list-people-email {\n  font-size: var(--fandhe-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\
-.blocks-list-people-meta {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  font-size: var(--fandhe-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-list-people-identity > [data-scope=\"link\"][data-part=\"root\"] {\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
+.blocks-list-people-email {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\
+.blocks-list-people-meta {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-list-people-presence {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-list-people-chevron {\n  position: absolute;\n  inset-inline-end: var(--fandhe-space-2);\n  top: 50%;\n  transform: translateY(-50%);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-list-people-panel [data-scope=\"menu\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-list-people-panel [data-scope=\"button\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 @container blocks-list-people (min-width: 40rem) {\n  \
 .blocks-list-people-row {\n    flex-direction: row;\n    align-items: center;\n    justify-content: space-between;\n  }\n  \
+.blocks-list-people-row-link > [data-scope=\"link-overlay\"][data-part=\"root\"] {\n    flex-direction: row;\n    align-items: center;\n    justify-content: space-between;\n  }\n  \
 .blocks-list-people-meta {\n    align-items: flex-end;\n  }\n\
 }\n\
 .blocks-list-people-two-column {\n  container-type: inline-size;\n  container-name: blocks-list-people-two-column;\n}\n\
 @container blocks-list-people-two-column (min-width: 48rem) {\n  \
-.blocks-list-people-two-column .blocks-list-people-panel {\n    display: grid;\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n    column-gap: var(--fandhe-space-8);\n  }\n\
+.blocks-list-people-two-column [data-scope=\"list\"][data-part=\"root\"] {\n    display: grid;\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n    column-gap: var(--fandhe-space-8);\n  }\n\
 }\n";
 
 #[cfg(test)]
