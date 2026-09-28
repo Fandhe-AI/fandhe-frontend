@@ -18,6 +18,11 @@
 //! 判定対象（許可リスト・必須ページ一覧）はコード定数で固定されており CLI
 //! 引数での差し替えはできないため、フィクスチャツリーを一時ディレクトリへ
 //! 直接組み立てて検証する（`cli_check_loc.rs` と同じ構成）。
+//!
+//! `--expect-basic-auth-middleware`（値を取らない真偽フラグ、イシュー #3344）
+//! を渡すと、既定の「`functions/` 非存在」検証の代わりに、`examples/vercel-ssg`
+//! の opt-in Basic 認証 Routing Middleware（#3343）が生成する
+//! `functions/_middleware.func/` 構造を検証するモードに切り替わる。
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -83,6 +88,60 @@ fn write_valid_tree(root: &Path) {
   ]
 }
 "#,
+    )
+    .unwrap();
+}
+
+/// [`write_valid_tree`] を有効時（Basic 認証ミドルウェア、イシュー #3343/#3344）
+/// の構成へ拡張する: `config.json` を先頭にミドルウェアルートを持つ内容
+/// （`examples/vercel-ssg` の `CONFIG_JSON_WITH_BASIC_AUTH` と同内容）へ
+/// 上書きし、`functions/_middleware.func/.vc-config.json`（`MIDDLEWARE_VC_CONFIG_JSON`
+/// と同内容）とダミー内容の `index.js` を追加する。
+fn write_valid_middleware_tree(root: &Path) {
+    write_valid_tree(root);
+    let output = root.join(".vercel/output");
+
+    fs::write(
+        output.join("config.json"),
+        r#"{
+  "version": 3,
+  "routes": [
+    {
+      "src": "/(.*)",
+      "middlewarePath": "_middleware",
+      "continue": true
+    },
+    {
+      "src": "/(.*)",
+      "headers": {
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "strict-origin-when-cross-origin"
+      },
+      "continue": true
+    },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "status": 404, "dest": "/404.html" }
+  ]
+}
+"#,
+    )
+    .unwrap();
+
+    let middleware_dir = output.join("functions/_middleware.func");
+    fs::create_dir_all(&middleware_dir).unwrap();
+    fs::write(
+        middleware_dir.join(".vc-config.json"),
+        r#"{
+  "runtime": "edge",
+  "entrypoint": "index.js",
+  "envVarsInUse": ["BASIC_AUTH_USER", "BASIC_AUTH_PASSWORD"]
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        middleware_dir.join("index.js"),
+        "export default async function middleware() {}\n",
     )
     .unwrap();
 }
@@ -609,4 +668,471 @@ fn missing_output_dir_flag_is_usage_error() {
 fn unknown_argument_is_usage_error() {
     let result = run_check_vercel_output(&["--bogus"]);
     assert_eq!(result.status.code(), Some(2));
+}
+
+// --- イシュー #3344: `--expect-basic-auth-middleware` ---
+
+#[test]
+fn middleware_mode_valid_tree_passes_with_exit_code_zero() {
+    let dir = make_fixture_dir("middleware-valid-tree");
+    write_valid_middleware_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+
+    let result = run_check_vercel_output(&[
+        "--output-dir",
+        output_dir.to_str().unwrap(),
+        "--expect-basic-auth-middleware",
+    ]);
+
+    assert!(
+        result.status.success(),
+        "stdout={} stderr={}",
+        stdout(&result),
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let out = stdout(&result);
+    assert!(out.lines().all(|line| !line.contains("result=FAIL")));
+    let summary_line = out.lines().last().unwrap();
+    assert_eq!(
+        summary_line,
+        format!(
+            "check-vercel-output: output_dir={} result=PASS failed=0",
+            output_dir.display()
+        )
+    );
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// R1/R2 の境界: 新モードを無効時（`functions/` なし）のツリーへ適用すると
+/// `functions_dir` が FAIL する。
+#[test]
+fn middleware_mode_on_default_tree_fails_functions_dir() {
+    let dir = make_fixture_dir("middleware-mode-on-default-tree");
+    write_valid_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+
+    let result = run_check_vercel_output(&[
+        "--output-dir",
+        output_dir.to_str().unwrap(),
+        "--expect-basic-auth-middleware",
+    ]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=functions_dir result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// R1 の境界: 既定モードを有効時のツリーへ適用すると `functions/` が
+/// 存在するため `no_functions_dir` が FAIL する。
+#[test]
+fn default_mode_on_middleware_tree_fails_no_functions_dir() {
+    let dir = make_fixture_dir("default-mode-on-middleware-tree");
+    write_valid_middleware_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+
+    let result = run_check_vercel_output(&["--output-dir", output_dir.to_str().unwrap()]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=no_functions_dir result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn middleware_mode_extra_func_entry_fails_functions_layout() {
+    let dir = make_fixture_dir("middleware-extra-func-entry");
+    write_valid_middleware_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    fs::create_dir_all(output_dir.join("functions/other.func")).unwrap();
+
+    let result = run_check_vercel_output(&[
+        "--output-dir",
+        output_dir.to_str().unwrap(),
+        "--expect-basic-auth-middleware",
+    ]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=functions_layout result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn middleware_mode_extra_plain_file_fails_functions_layout() {
+    let dir = make_fixture_dir("middleware-extra-plain-file");
+    write_valid_middleware_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    fs::write(output_dir.join("functions/README.md"), "extra").unwrap();
+
+    let result = run_check_vercel_output(&[
+        "--output-dir",
+        output_dir.to_str().unwrap(),
+        "--expect-basic-auth-middleware",
+    ]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=functions_layout result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn middleware_mode_wrong_func_dir_name_fails_functions_layout() {
+    let dir = make_fixture_dir("middleware-wrong-func-dir-name");
+    write_valid_middleware_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    fs::rename(
+        output_dir.join("functions/_middleware.func"),
+        output_dir.join("functions/middleware.func"),
+    )
+    .unwrap();
+
+    let result = run_check_vercel_output(&[
+        "--output-dir",
+        output_dir.to_str().unwrap(),
+        "--expect-basic-auth-middleware",
+    ]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=functions_layout result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn middleware_mode_runtime_nodejs_fails_middleware_vc_config() {
+    let dir = make_fixture_dir("middleware-runtime-nodejs");
+    write_valid_middleware_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    fs::write(
+        output_dir.join("functions/_middleware.func/.vc-config.json"),
+        r#"{"runtime": "nodejs20.x", "entrypoint": "index.js"}"#,
+    )
+    .unwrap();
+
+    let result = run_check_vercel_output(&[
+        "--output-dir",
+        output_dir.to_str().unwrap(),
+        "--expect-basic-auth-middleware",
+    ]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=middleware_vc_config result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn middleware_mode_invalid_vc_config_json_fails() {
+    let dir = make_fixture_dir("middleware-invalid-vc-config-json");
+    write_valid_middleware_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    fs::write(
+        output_dir.join("functions/_middleware.func/.vc-config.json"),
+        "{ not json",
+    )
+    .unwrap();
+
+    let result = run_check_vercel_output(&[
+        "--output-dir",
+        output_dir.to_str().unwrap(),
+        "--expect-basic-auth-middleware",
+    ]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=middleware_vc_config result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn middleware_mode_missing_vc_config_fails() {
+    let dir = make_fixture_dir("middleware-missing-vc-config");
+    write_valid_middleware_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    fs::remove_file(output_dir.join("functions/_middleware.func/.vc-config.json")).unwrap();
+
+    let result = run_check_vercel_output(&[
+        "--output-dir",
+        output_dir.to_str().unwrap(),
+        "--expect-basic-auth-middleware",
+    ]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=middleware_vc_config result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn middleware_mode_missing_index_js_fails() {
+    let dir = make_fixture_dir("middleware-missing-index-js");
+    write_valid_middleware_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    fs::remove_file(output_dir.join("functions/_middleware.func/index.js")).unwrap();
+
+    let result = run_check_vercel_output(&[
+        "--output-dir",
+        output_dir.to_str().unwrap(),
+        "--expect-basic-auth-middleware",
+    ]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=middleware_index_js result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn middleware_mode_missing_middleware_route_fails() {
+    let dir = make_fixture_dir("middleware-missing-route");
+    // 無効時の config.json（先頭ミドルウェアルートなし）のまま functions/ だけ用意する。
+    write_valid_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    let middleware_dir = output_dir.join("functions/_middleware.func");
+    fs::create_dir_all(&middleware_dir).unwrap();
+    fs::write(
+        middleware_dir.join(".vc-config.json"),
+        r#"{"runtime": "edge", "entrypoint": "index.js"}"#,
+    )
+    .unwrap();
+    fs::write(middleware_dir.join("index.js"), "export default () => {};").unwrap();
+
+    let result = run_check_vercel_output(&[
+        "--output-dir",
+        output_dir.to_str().unwrap(),
+        "--expect-basic-auth-middleware",
+    ]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=config_routes_middleware_first result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn middleware_mode_route_in_second_position_fails() {
+    let dir = make_fixture_dir("middleware-route-second-position");
+    write_valid_middleware_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    fs::write(
+        output_dir.join("config.json"),
+        r#"{"version": 3, "routes": [
+            {"handle": "filesystem"},
+            {"src": "/(.*)", "middlewarePath": "_middleware", "continue": true},
+            {"src": "/(.*)", "status": 404, "dest": "/404.html"}
+        ]}"#,
+    )
+    .unwrap();
+
+    let result = run_check_vercel_output(&[
+        "--output-dir",
+        output_dir.to_str().unwrap(),
+        "--expect-basic-auth-middleware",
+    ]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=config_routes_middleware_first result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn middleware_mode_wrong_middleware_path_value_fails() {
+    let dir = make_fixture_dir("middleware-wrong-path-value");
+    write_valid_middleware_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    fs::write(
+        output_dir.join("config.json"),
+        r#"{"version": 3, "routes": [
+            {"src": "/(.*)", "middlewarePath": "_other", "continue": true},
+            {"handle": "filesystem"},
+            {"src": "/(.*)", "status": 404, "dest": "/404.html"}
+        ]}"#,
+    )
+    .unwrap();
+
+    let result = run_check_vercel_output(&[
+        "--output-dir",
+        output_dir.to_str().unwrap(),
+        "--expect-basic-auth-middleware",
+    ]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=config_routes_middleware_first result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// 先頭ルートに `continue: true` が無いと、ミドルウェアが起動しないまま
+/// ルーティングが終端し得るため FAIL する
+/// （`config_routes_404_fallback` も併せて FAIL になってよい）。
+#[test]
+fn middleware_mode_leading_route_without_continue_fails() {
+    let dir = make_fixture_dir("middleware-leading-route-without-continue");
+    write_valid_middleware_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    fs::write(
+        output_dir.join("config.json"),
+        r#"{"version": 3, "routes": [
+            {"src": "/(.*)", "middlewarePath": "_middleware"},
+            {"handle": "filesystem"},
+            {"src": "/(.*)", "status": 404, "dest": "/404.html"}
+        ]}"#,
+    )
+    .unwrap();
+
+    let result = run_check_vercel_output(&[
+        "--output-dir",
+        output_dir.to_str().unwrap(),
+        "--expect-basic-auth-middleware",
+    ]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=config_routes_middleware_first result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn middleware_mode_symlinked_func_dir_fails_functions_layout() {
+    let dir = make_fixture_dir("middleware-symlinked-func-dir");
+    write_valid_middleware_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    let real_dir = dir.join("real-middleware-func");
+    fs::rename(output_dir.join("functions/_middleware.func"), &real_dir).unwrap();
+    std::os::unix::fs::symlink(&real_dir, output_dir.join("functions/_middleware.func")).unwrap();
+
+    let result = run_check_vercel_output(&[
+        "--output-dir",
+        output_dir.to_str().unwrap(),
+        "--expect-basic-auth-middleware",
+    ]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=functions_layout result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn middleware_mode_symlinked_functions_dir_fails_functions_dir() {
+    let dir = make_fixture_dir("middleware-symlinked-functions-dir");
+    write_valid_middleware_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    let real_dir = dir.join("real-functions");
+    fs::rename(output_dir.join("functions"), &real_dir).unwrap();
+    std::os::unix::fs::symlink(&real_dir, output_dir.join("functions")).unwrap();
+
+    let result = run_check_vercel_output(&[
+        "--output-dir",
+        output_dir.to_str().unwrap(),
+        "--expect-basic-auth-middleware",
+    ]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=functions_dir result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn middleware_mode_symlinked_vc_config_fails_middleware_vc_config() {
+    let dir = make_fixture_dir("middleware-symlinked-vc-config");
+    write_valid_middleware_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    let vc_config = output_dir.join("functions/_middleware.func/.vc-config.json");
+    let real_file = dir.join("real-vc-config.json");
+    fs::rename(&vc_config, &real_file).unwrap();
+    std::os::unix::fs::symlink(&real_file, &vc_config).unwrap();
+
+    let result = run_check_vercel_output(&[
+        "--output-dir",
+        output_dir.to_str().unwrap(),
+        "--expect-basic-auth-middleware",
+    ]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=middleware_vc_config result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn middleware_mode_symlink_inside_func_dir_fails_functions_no_symlinks() {
+    let dir = make_fixture_dir("middleware-symlink-inside-func-dir");
+    write_valid_middleware_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+    let target = dir.join("outside.txt");
+    fs::write(&target, "outside").unwrap();
+    std::os::unix::fs::symlink(
+        &target,
+        output_dir.join("functions/_middleware.func/evil.txt"),
+    )
+    .unwrap();
+
+    let result = run_check_vercel_output(&[
+        "--output-dir",
+        output_dir.to_str().unwrap(),
+        "--expect-basic-auth-middleware",
+    ]);
+
+    assert_eq!(result.status.code(), Some(1));
+    assert!(stdout(&result).contains("check=functions_no_symlinks result=FAIL"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// fail-closed 回帰: `functions_dir` が FAIL すると後続の `middleware_*` は
+/// 黙って PASS にならず `skipped: depends on functions_dir` になる。
+#[test]
+fn middleware_mode_functions_dir_failure_skips_middleware_checks() {
+    let dir = make_fixture_dir("middleware-functions-dir-failure-skips");
+    write_valid_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+
+    let result = run_check_vercel_output(&[
+        "--output-dir",
+        output_dir.to_str().unwrap(),
+        "--expect-basic-auth-middleware",
+    ]);
+
+    let out = stdout(&result);
+    assert!(out.contains(
+        "check=middleware_vc_config result=FAIL detail=skipped: depends on functions_dir"
+    ));
+    assert!(out.contains(
+        "check=middleware_index_js result=FAIL detail=skipped: depends on functions_dir"
+    ));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn expect_basic_auth_middleware_without_output_dir_is_usage_error() {
+    let result = run_check_vercel_output(&["--expect-basic-auth-middleware"]);
+    assert_eq!(result.status.code(), Some(2));
+}
+
+#[test]
+fn expect_basic_auth_middleware_with_value_is_usage_error() {
+    let dir = make_fixture_dir("middleware-flag-with-value");
+    write_valid_middleware_tree(&dir);
+    let output_dir = dir.join(".vercel/output");
+
+    let result = run_check_vercel_output(&[
+        "--output-dir",
+        output_dir.to_str().unwrap(),
+        "--expect-basic-auth-middleware=1",
+    ]);
+
+    assert_eq!(result.status.code(), Some(2));
+
+    let _ = fs::remove_dir_all(&dir);
 }
