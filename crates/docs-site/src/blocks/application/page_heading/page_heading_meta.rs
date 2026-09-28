@@ -324,32 +324,21 @@ fn instance_b() -> Node {
     )
 }
 
-/// C: 上段ラベル + バッジ + 共有 URL（R0187）。
+/// C: 上段ラベル + バッジ + 共有 URL（R0187）。バッジは上段（`top-row`）に
+/// ラベルと並べて置く（モジュール doc 例 C 参照。見出しと同じ `title-row`
+/// には置かない）。
 fn instance_c() -> Node {
     let heading_group = div(
         vec![("data-blocks-page-heading-meta-heading-group", "")],
         vec![
-            div(
-                vec![("data-blocks-page-heading-meta-title-row", "")],
-                vec![
-                    heading(
-                        HeadingLevel::H1,
-                        &HeadingProps {
-                            size: HeadingSize::Xl2,
-                            ..HeadingProps::default()
-                        },
-                        vec![],
-                        vec![text("Fandhe 移行プロジェクト")],
-                    ),
-                    badge::badge(
-                        &BadgeProps {
-                            palette: ColorPalette::Accent,
-                            ..BadgeProps::default()
-                        },
-                        vec![],
-                        vec![text("ベータ")],
-                    ),
-                ],
+            heading(
+                HeadingLevel::H1,
+                &HeadingProps {
+                    size: HeadingSize::Xl2,
+                    ..HeadingProps::default()
+                },
+                vec![],
+                vec![text("Fandhe 移行プロジェクト")],
             ),
             div(
                 vec![("data-blocks-page-heading-meta-meta-row", "")],
@@ -406,10 +395,20 @@ fn instance_c() -> Node {
         vec![
             div(
                 vec![("data-blocks-page-heading-meta-top-row", "")],
-                vec![span(
-                    vec![("data-blocks-page-heading-meta-eyebrow", "")],
-                    vec![text("プロジェクト")],
-                )],
+                vec![
+                    span(
+                        vec![("data-blocks-page-heading-meta-eyebrow", "")],
+                        vec![text("プロジェクト")],
+                    ),
+                    badge::badge(
+                        &BadgeProps {
+                            palette: ColorPalette::Accent,
+                            ..BadgeProps::default()
+                        },
+                        vec![],
+                        vec![text("ベータ")],
+                    ),
+                ],
             ),
             div(
                 vec![("data-blocks-page-heading-meta-header", "")],
@@ -490,7 +489,7 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-page-heading-meta-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 [data-blocks-page-heading-meta-instance] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
-[data-blocks-page-heading-meta-top-row] {\n  display: flex;\n  align-items: center;\n}\n\
+[data-blocks-page-heading-meta-top-row] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-page-heading-meta-eyebrow] {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-size-sm);\n}\n\
 [data-blocks-page-heading-meta-header] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-page-heading-meta-heading-group] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  min-width: 0;\n}\n\
