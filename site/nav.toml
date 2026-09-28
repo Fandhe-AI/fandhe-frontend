@@ -1470,6 +1470,11 @@ source = "site/blocks/testimonial-card-grid.md"
 path = "/blocks/testimonial-card-grid/"
 
 [[section.group.page]]
+title = "testimonial-centered-quote"
+source = "site/blocks/testimonial-centered-quote.md"
+path = "/blocks/testimonial-centered-quote/"
+
+[[section.group.page]]
 title = "testimonial-masonry-grid"
 source = "site/blocks/testimonial-masonry-grid.md"
 path = "/blocks/testimonial-masonry-grid/"
@@ -2035,8 +2040,18 @@ title = "list-narrow-activity"
 source = "site/blocks/list-narrow-activity.md"
 path = "/blocks/list-narrow-activity/"
 
+[[section.group.page]]
+title = "list-sticky-groups"
+source = "site/blocks/list-sticky-groups.md"
+path = "/blocks/list-sticky-groups/"
+
 [[section.group]]
 title = "Grid List"
+
+[[section.group.page]]
+title = "grid-list-action-tiles"
+source = "site/blocks/grid-list-action-tiles.md"
+path = "/blocks/grid-list-action-tiles/"
 
 [[section.group.page]]
 title = "grid-list-compact-tiles"

@@ -1,9 +1,12 @@
-//! 検索インデックス（`assets/search-index.json`）のテスト契約
-//! （イシュー #957、`docs/design/docs-site-search-design.md` §3-6）。
+//! 検索インデックス（マニフェスト `assets/search-index.json` + セクション別
+//! `assets/search-index/<slug>.json`、イシュー #957 / #3173）のテスト契約
+//! （`docs/design/docs-site-search-design.md` §3-6・§10-15）。
 //!
 //! 決定性・エスケープ・サイズ・生成範囲・見出し id パリティ・冪等性・
 //! `data-scope` 除外の 7 項目に加え、部品ページの索引テキストが空でない
-//! ことの経験的確認を固定する。フィクスチャは `env!("CARGO_TARGET_TMPDIR")`
+//! ことの経験的確認、およびセクション分割後の契約（マニフェストと
+//! `site/nav.toml` の `[[section]]` の過不足なき一致・per-file 上限の
+//! fail-closed・旧単一ファイル形式を生成しないこと）を固定する。フィクスチャは `env!("CARGO_TARGET_TMPDIR")`
 //! 基点の一時ディレクトリへ生成し、コミットしない（`ci.md` イシュー #637
 //! の一時領域方針、`crates/docs-site/tests/site_build.rs` と同パターン）。
 
@@ -60,9 +63,47 @@ fn fixture_root(name: &str) -> PathBuf {
         .join(name)
 }
 
-fn read_index(out_dir: &Path) -> String {
+/// マニフェスト（`assets/search-index.json`）の生 JSON。
+fn read_manifest(out_dir: &Path) -> String {
     std::fs::read_to_string(out_dir.join(search_index::REL_PATH))
         .expect("assets/search-index.json should be generated")
+}
+
+/// マニフェストが列挙する順に `(dist 相対パス, 生 JSON)` を返す
+/// （先頭はマニフェスト自身）。決定性の比較・エスケープの全域検査に使う。
+fn read_index_files(out_dir: &Path) -> Vec<(String, String)> {
+    let manifest = read_manifest(out_dir);
+    let parsed = parse_json(&manifest);
+    let base_path = parsed.get("base_path").as_str().to_string();
+    let mut files = vec![(search_index::REL_PATH.to_string(), manifest.clone())];
+    for section in parsed.get("sections").as_array() {
+        let href = section.get("href").as_str();
+        let relative = href
+            .strip_prefix(&base_path)
+            .unwrap_or(href)
+            .trim_start_matches('/')
+            .to_string();
+        let json = std::fs::read_to_string(out_dir.join(&relative))
+            .unwrap_or_else(|e| panic!("section index {relative} should be generated: {e}"));
+        files.push((relative, json));
+    }
+    files
+}
+
+/// 全セクションファイルの `pages` をマニフェスト順に連結して返す
+/// （検索 UI が `Promise.all` 後に行う結合と同じ順序）。
+fn read_all_pages(out_dir: &Path) -> Vec<JsonValue> {
+    let mut pages = Vec::new();
+    for (relative, json) in read_index_files(out_dir).into_iter().skip(1) {
+        let parsed = parse_json(&json);
+        assert_eq!(
+            parsed.get("version").as_str_number(),
+            search_index::SCHEMA_VERSION.to_string(),
+            "{relative}: section file schema version"
+        );
+        pages.extend(parsed.get("pages").as_array().iter().cloned());
+    }
+    pages
 }
 
 // ---------------------------------------------------------------------
@@ -92,6 +133,13 @@ impl JsonValue {
         match self {
             JsonValue::Array(items) => items,
             other => panic!("expected array, got {other:?}"),
+        }
+    }
+
+    fn has_key(&self, key: &str) -> bool {
+        match self {
+            JsonValue::Object(entries) => entries.iter().any(|(k, _)| k == key),
+            other => panic!("expected object, got {other:?}"),
         }
     }
 
@@ -289,7 +337,7 @@ fn search_index_is_byte_identical_across_two_builds_of_the_fixture_site() {
     build_site(&fixture_root("site-ok"), &out_a.0).expect("site-ok fixture should build");
     build_site(&fixture_root("site-ok"), &out_b.0).expect("site-ok fixture should build");
 
-    assert_eq!(read_index(&out_a.0), read_index(&out_b.0));
+    assert_eq!(read_index_files(&out_a.0), read_index_files(&out_b.0));
 }
 
 // ---------------------------------------------------------------------
@@ -327,9 +375,7 @@ fn real_site_search_index_does_not_contain_redirect_hrefs() {
         std::fs::read_to_string(root.join("site/nav.toml")).expect("read real site/nav.toml");
     let real_nav = nav::parse_nav(&real_nav_input).expect("parse real site/nav.toml");
 
-    let json = read_index(out_dir);
-    let parsed = parse_json(&json);
-    let pages = parsed.get("pages").as_array();
+    let pages = read_all_pages(out_dir);
     let actual_hrefs: std::collections::BTreeSet<String> = pages
         .iter()
         .map(|p| p.get("href").as_str().to_string())
@@ -362,16 +408,18 @@ fn real_site_search_index_is_deterministic_covers_all_nav_pages_and_matches_html
 
     build_site(&root, &out_b.0).expect("real site/nav.toml should build cleanly");
 
-    let json_a = read_index(out_a_dir);
-    let json_b = read_index(&out_b.0);
-    // 2. 決定性（実サイト）。
+    // 2. 決定性（実サイト）: マニフェスト + 全セクションファイルがバイト一致。
     assert_eq!(
-        json_a, json_b,
-        "search index should be byte-identical across builds"
+        read_index_files(out_a_dir),
+        read_index_files(&out_b.0),
+        "search index files should be byte-identical across builds"
     );
 
-    let parsed = parse_json(&json_a);
-    assert_eq!(parsed.get("version").as_str_number(), "1");
+    let manifest = parse_json(&read_manifest(out_a_dir));
+    assert_eq!(
+        manifest.get("version").as_str_number(),
+        search_index::SCHEMA_VERSION.to_string()
+    );
 
     let nav_input =
         std::fs::read_to_string(root.join("site/nav.toml")).expect("read real site/nav.toml");
@@ -381,7 +429,7 @@ fn real_site_search_index_is_deterministic_covers_all_nav_pages_and_matches_html
         .map(|page| layout::asset_href(&real_nav.site.base_path, &page.path))
         .collect();
 
-    let pages = parsed.get("pages").as_array();
+    let pages = read_all_pages(out_a_dir);
     let actual_hrefs: std::collections::BTreeSet<String> = pages
         .iter()
         .map(|p| p.get("href").as_str().to_string())
@@ -403,7 +451,7 @@ fn real_site_search_index_is_deterministic_covers_all_nav_pages_and_matches_html
     // id="<id>" として存在する（§3-3 の 3 前提の機械固定）。
     let mut checked_pages_with_sections = 0usize;
     let mut component_page_has_non_empty_text = false;
-    for page in pages {
+    for page in &pages {
         let href = page.get("href").as_str();
         // href は base_path 適用済みのサイト絶対パス。dist 上の相対パスは
         // base_path を取り除いた上で「.../index.html」に対応する。
@@ -486,9 +534,7 @@ fn real_site_search_index_excludes_blocks_page_rust_code_fence_but_keeps_prose()
     // フェンス除外の対象外であり、引き続き索引に残る。
     let shared = shared_site::real_site();
 
-    let json = read_index(&shared.out_dir);
-    let parsed = parse_json(&json);
-    let pages = parsed.get("pages").as_array();
+    let pages = read_all_pages(&shared.out_dir);
 
     let page = pages
         .iter()
@@ -532,9 +578,7 @@ fn real_site_search_index_still_contains_code_block_keywords_after_highlighting(
     // 使い回す。
     let shared = shared_site::real_site();
 
-    let json = read_index(&shared.out_dir);
-    let parsed = parse_json(&json);
-    let pages = parsed.get("pages").as_array();
+    let pages = read_all_pages(&shared.out_dir);
 
     // docs/guides/component-authoring.md（`site/nav.toml` の
     // `/guides/component-authoring/`）は ```rust フェンスを複数含み、識別子
@@ -576,9 +620,7 @@ fn real_site_search_index_keeps_words_adjacent_to_highlight_token_spans_contiguo
     build_site(&fixture_root("site-highlighted-code"), &out.0)
         .expect("site-highlighted-code fixture should build cleanly");
 
-    let json = read_index(&out.0);
-    let parsed = parse_json(&json);
-    let pages = parsed.get("pages").as_array();
+    let pages = read_all_pages(&out.0);
     let page = pages
         .iter()
         .find(|p| p.get("href").as_str().ends_with("/fixture-base/"))
@@ -687,26 +729,39 @@ fn search_index_json_contains_no_raw_angle_brackets_ampersands_or_control_chars(
     let out_dir = temp.0.join("dist");
 
     build_site(&temp.0, &out_dir).expect("escape fixture should build");
-    let json = read_index(&out_dir);
+    let files = read_index_files(&out_dir);
+    assert_eq!(files.len(), 2, "manifest + 1 section file");
 
-    assert!(json.starts_with(r#"{"version":1"#));
-
-    // グローバル不変条件: 出力 JSON 全体に生の `<` `>` `&` が 1 文字も
-    // 現れない（多層防御。個別フィールド検証より強く短い）。
-    assert!(!json.contains('<'), "raw '<' must not appear: {json}");
-    assert!(!json.contains('>'), "raw '>' must not appear: {json}");
-    assert!(!json.contains('&'), "raw '&' must not appear: {json}");
+    // グローバル不変条件: マニフェスト・セクションファイルのいずれにも
+    // 生の `<` `>` `&` が 1 文字も現れない（多層防御。個別フィールド検証
+    // より強く短い）。
+    for (relative, json) in &files {
+        assert!(json.starts_with(r#"{"version":2"#), "{relative}: {json}");
+        assert!(
+            !json.contains('<'),
+            "{relative}: raw '<' must not appear: {json}"
+        );
+        assert!(
+            !json.contains('>'),
+            "{relative}: raw '>' must not appear: {json}"
+        );
+        assert!(
+            !json.contains('&'),
+            "{relative}: raw '&' must not appear: {json}"
+        );
+        // JSON として構文的に妥当であること（parse_json がパニックしなければ
+        // 未エスケープの `"` や生制御文字が文字列中に紛れていない）。
+        parse_json(json);
+    }
 
     // エスケープされた形で実際に現れること（何もエスケープしていない
-    // 誤検知を防ぐ）。
-    assert!(json.contains("\\u003C"));
-    assert!(json.contains("\\u003E"));
-    assert!(json.contains("\\u0026"));
+    // 誤検知を防ぐ）。フィクスチャの本文はセクションファイル側にある。
+    let section_json = &files[1].1;
+    assert!(section_json.contains("\\u003C"));
+    assert!(section_json.contains("\\u003E"));
+    assert!(section_json.contains("\\u0026"));
 
-    // JSON として構文的に妥当であること（parse_json がパニックしなければ
-    // 未エスケープの `"` や生制御文字が文字列中に紛れていない）。
-    let parsed = parse_json(&json);
-    let pages = parsed.get("pages").as_array();
+    let pages = read_all_pages(&out_dir);
     assert_eq!(pages.len(), 1);
 }
 
@@ -755,9 +810,7 @@ fn page_text_is_truncated_at_a_valid_utf8_char_boundary_within_the_byte_limit() 
     let out_dir = temp.0.join("dist");
 
     build_site(&temp.0, &out_dir).expect("truncation fixture should build");
-    let json = read_index(&out_dir);
-    let parsed = parse_json(&json);
-    let pages = parsed.get("pages").as_array();
+    let pages = read_all_pages(&out_dir);
     assert_eq!(pages.len(), 1);
     let text = pages[0].get("text").as_str();
 
@@ -781,17 +834,24 @@ fn page_text_is_truncated_at_a_valid_utf8_char_boundary_within_the_byte_limit() 
 
 #[test]
 fn check_size_returns_too_large_when_json_exceeds_the_byte_limit() {
-    let oversized = "a".repeat(search_index::MAX_INDEX_BYTES + 1);
-    match search_index::check_size(&oversized) {
-        Err(SearchIndexError::TooLarge { bytes, limit }) => {
-            assert_eq!(bytes, search_index::MAX_INDEX_BYTES + 1);
-            assert_eq!(limit, search_index::MAX_INDEX_BYTES);
+    let oversized = "a".repeat(search_index::MAX_SECTION_INDEX_BYTES + 1);
+    match search_index::check_size("guide", &oversized) {
+        Err(SearchIndexError::TooLarge {
+            section,
+            bytes,
+            limit,
+        }) => {
+            assert_eq!(section, "guide");
+            assert_eq!(bytes, search_index::MAX_SECTION_INDEX_BYTES + 1);
+            assert_eq!(limit, search_index::MAX_SECTION_INDEX_BYTES);
         }
+        Err(other) => panic!("expected TooLarge error, got {other}"),
         Ok(()) => panic!("expected TooLarge error"),
     }
 }
 
-/// 単一ページに大量の見出しを持たせ、`MAX_INDEX_BYTES` 超過を
+/// 単一ページに大量の見出しを持たせ、セクションファイルの
+/// `MAX_SECTION_INDEX_BYTES` 超過を
 /// 起こす合成フィクスチャ。見出しは per-page 上限（`MAX_PAGE_TEXT_BYTES`、
 /// テキストのみに適用）の対象外（設計文書 §3-3）であるため、320 ページ生成より
 /// 圧倒的に安価に総量超過を作れる。
@@ -840,9 +900,14 @@ fn build_site_fails_closed_when_search_index_exceeds_the_byte_limit_without_writ
         let out_dir = temp.0.join("dist");
 
         match build_site(&temp.0, &out_dir) {
-            Err(BuildError::SearchIndex(SearchIndexError::TooLarge { bytes, limit })) => {
+            Err(BuildError::SearchIndex(SearchIndexError::TooLarge {
+                section,
+                bytes,
+                limit,
+            })) => {
+                assert_eq!(section, "guide");
                 assert!(bytes > limit);
-                assert_eq!(limit, search_index::MAX_INDEX_BYTES);
+                assert_eq!(limit, search_index::MAX_SECTION_INDEX_BYTES);
                 assert!(
                     !out_dir.exists(),
                     "out_dir must not be written when the search index is too large"
@@ -864,25 +929,88 @@ fn build_site_fails_closed_when_search_index_exceeds_the_byte_limit_without_writ
     );
 }
 
-/// `MAX_INDEX_BYTES` を機械的な刻み幅で再引き上げすることを牽制するための
-/// 固定ピン（イシュー #2816 §10-8・イシュー #2814 §10-4・#3173 参照）。
+/// `MAX_SECTION_INDEX_BYTES` を機械的に再引き上げすることを牽制するための
+/// 固定ピン（イシュー #3173、`docs/design/docs-site-search-design.md` §10-15）。
 ///
-/// 本値は base 取り込み（イシュー #2814 の `1_703_936` への引き上げ）を
-/// 経ても新上限比 80% 未満（§8 トリガー 1 未到達）に収まっている
-/// （`docs/design/docs-site-search-design.md` §10-8）。次に
-/// `SearchIndexError::TooLarge` が発生した場合は、値の機械的な再引き上げを
-/// 繰り返す前に per-page 上限見直し・セクション粒度分割（イシュー #3173）
-/// を実際に検討すること。本テストが FAIL した場合、まず #3173 の状況を
-/// 確認し、安易に定数を書き換えて再度 PASS させない（`crates/xtask/tests/`
-/// `SKIPPED_ALLOWLIST` と同種の意図的な摩擦点）。
+/// 旧 `MAX_INDEX_BYTES`（1 ファイル全体上限）は引き上げを繰り返した末に
+/// 「これ以上引き上げない」ハードルールへ至った（§10-6）。セクション分割後の
+/// per-file 上限も同じ轍を踏まないよう、本テストが FAIL した場合は値を書き
+/// 換える前に §10-15 の再評価トリガー（超過セクションのさらなる分割、Blocks
+/// なら `crate::blocks::BlockSection` 単位）を先に検討すること
+/// （`crates/xtask/tests/` `SKIPPED_ALLOWLIST` と同種の意図的な摩擦点）。
 #[test]
-fn max_index_bytes_is_pinned_pending_issue_3173_section_granularity_split() {
+fn max_section_index_bytes_is_pinned_to_the_issue_3173_rationale() {
     assert_eq!(
-        search_index::MAX_INDEX_BYTES,
-        1_703_936,
-        "MAX_INDEX_BYTES の機械的な再引き上げは牽制されている。次回超過時は \
-         イシュー #3173（検索インデックスのセクション粒度分割）の実装で \
-         対応することを優先検討すること \
-         （docs/design/docs-site-search-design.md §10-4・§10-8 参照）。"
+        search_index::MAX_SECTION_INDEX_BYTES,
+        2_621_440,
+        "MAX_SECTION_INDEX_BYTES の機械的な再引き上げは牽制されている。超過した \
+         セクションをさらに分割することを先に検討すること \
+         （docs/design/docs-site-search-design.md §10-15 参照）。"
     );
+}
+
+// ---------------------------------------------------------------------
+// イシュー #3173: セクション分割後の構造契約
+// ---------------------------------------------------------------------
+
+/// マニフェストの `sections[]` が `site/nav.toml` の `[[section]]` と宣言順
+/// まで含めて過不足なく一致し、各セクションファイルが当該セクション配下の
+/// ページ（`Section::all_pages` の順）だけを持つことを固定する
+/// （レジストリ駆動: セクション追加時に build.rs / script.rs へ分岐が増えて
+/// いないことの機械的な裏付け）。あわせて、旧単一ファイル形式（マニフェスト
+/// パスに `pages` を直接持つ形）を生成していないことを固定する。
+#[test]
+fn real_site_search_index_manifest_matches_nav_sections_and_each_file_holds_its_section_pages() {
+    let shared = shared_site::real_site();
+    let root = shared_site::repo_root();
+    let out_dir = shared.out_dir.as_path();
+
+    let nav_input =
+        std::fs::read_to_string(root.join("site/nav.toml")).expect("read real site/nav.toml");
+    let real_nav = nav::parse_nav(&nav_input).expect("parse real site/nav.toml");
+
+    let manifest = parse_json(&read_manifest(out_dir));
+    assert!(
+        !manifest.has_key("pages"),
+        "manifest must not carry page entries (legacy single-file form)"
+    );
+    let manifest_sections = manifest.get("sections").as_array();
+    let manifest_titles: Vec<&str> = manifest_sections
+        .iter()
+        .map(|s| s.get("title").as_str())
+        .collect();
+    let nav_titles: Vec<&str> = real_nav.sections.iter().map(|s| s.title.as_str()).collect();
+    assert_eq!(
+        manifest_titles, nav_titles,
+        "manifest sections should equal nav.toml [[section]] titles in declaration order"
+    );
+
+    let files = read_index_files(out_dir);
+    assert_eq!(files.len(), 1 + real_nav.sections.len());
+    for (section, (relative, json)) in real_nav.sections.iter().zip(files.iter().skip(1)) {
+        assert_eq!(
+            *relative,
+            search_index::section_rel_path(&search_index::section_slug(&section.title)),
+            "section file path should be derived from the section title slug"
+        );
+        assert!(
+            json.len() <= search_index::MAX_SECTION_INDEX_BYTES,
+            "{relative}: {} bytes exceeds MAX_SECTION_INDEX_BYTES",
+            json.len()
+        );
+        let expected: Vec<String> = section
+            .all_pages()
+            .map(|page| layout::asset_href(&real_nav.site.base_path, &page.path))
+            .collect();
+        let actual: Vec<String> = parse_json(json)
+            .get("pages")
+            .as_array()
+            .iter()
+            .map(|p| p.get("href").as_str().to_string())
+            .collect();
+        assert_eq!(
+            actual, expected,
+            "{relative}: pages should be exactly this section's pages in Section::all_pages order"
+        );
+    }
 }
