@@ -413,6 +413,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/list-title-meta/index.html"
           # Application / Table
           # Application / Grid List
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/grid-list-contact-cards/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/grid-list-compact-tiles/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/grid-list-file-thumbnails/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/grid-list-logo-cards/index.html"
