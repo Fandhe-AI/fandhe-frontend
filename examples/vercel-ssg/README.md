@@ -30,6 +30,7 @@ Rust ツールチェーンは不要**で、ローカルまたは CI でビルド
   `vercel link` 由来ファイルは削除しません）
 - 既定エスケープ（REQ-1）: ページ本文はすべて `text()` 経由でノード木へ
   載せ、`raw_html()` や HTML 文字列の直接組み立ては使いません
+- Basic 認証 Routing Middleware（opt-in、既定では無効。後述）
 
 ## 前提
 
@@ -66,6 +67,10 @@ cargo run -p fandhe-frontend-cli -- gate --project examples/vercel-ssg
 ```
 .vercel/output/
 ├── config.json              # generate_assets（Build Output API v3）
+├── functions/                          # Basic 認証を有効化した場合のみ生成（後述）
+│   └── _middleware.func/
+│       ├── .vc-config.json
+│       └── index.js
 └── static/
     ├── index.html           # generate_pages
     ├── pages/
@@ -108,8 +113,42 @@ cargo run -p fandhe-frontend-cli -- gate --project examples/vercel-ssg
    vercel deploy --prebuilt --prod
    ```
 
-Basic 認証によるアクセス制御（fail-closed な設定手順）は
-[デプロイガイド](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/guides/deployment.md)を参照してください。
+## Basic 認証（opt-in、既定では無効）
+
+`examples/vercel-ssg` 本体は Basic 認証の Routing Middleware を組み込み
+済みですが、既定のビルドには含まれません（`.vercel/output` は
+本機能導入前とバイト単位で同一です）。有効化するにはビルド時に環境変数
+`FANDHE_VERCEL_SSG_BASIC_AUTH` を正確に `1` に設定してください
+（`0`・`true`・空文字・未設定はすべて無効として扱われる fail-closed な
+判定です）。
+
+```bash
+# 1. フラグを立てて生成する（functions/_middleware.func/ が追加で生成される）
+FANDHE_VERCEL_SSG_BASIC_AUTH=1 cargo run --release
+
+# 2. 資格情報を Vercel 環境変数として登録する（対話プロンプトで入力。
+#    preview・production の両方への登録が必要。詳細はデプロイガイド参照）
+vercel env add BASIC_AUTH_USER production
+vercel env add BASIC_AUTH_PASSWORD production
+vercel env add BASIC_AUTH_USER preview
+vercel env add BASIC_AUTH_PASSWORD preview
+
+# 3. デプロイする
+vercel deploy --prebuilt
+```
+
+- **注意 1**: フラグなしで再ビルドすると `clean_output_dir` によって
+  `functions/` が削除され、無保護の出力に戻ります。
+- **注意 2**: Deployment Protection（後述）のほうが強い統制です。無効化
+  する前に、Basic 認証が実際に効いていることを確認してください
+  （手順は[デプロイガイド](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/guides/deployment.md)の
+  「Deployment Protection が有効なままの Basic 認証確認（必須）」参照）。
+- **注意 3**: 資格情報（`BASIC_AUTH_USER`/`BASIC_AUTH_PASSWORD`）は
+  リポジトリ・`vercel.json`・README のいずれにも書かないでください。
+
+fail-closed な設定手順・ミドルウェアの仕組みの詳細は
+[デプロイガイド](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/guides/deployment.md)の
+「Routing Middleware による Basic 認証」を参照してください。
 
 ## Deployment Protection（SSO）の注意
 
@@ -132,8 +171,8 @@ Basic 認証によるアクセス制御（fail-closed な設定手順）は
 | `structure.toml` | `fw gate` が唯一の情報源として読む構造マニフェスト |
 | `clippy.toml` | `raw_html()` 迂回検出ポリシー（`templates/default/` と内容同一） |
 | `deny.toml` | 依存ポリシー（`templates/default/` と内容同一） |
-| `src/main.rs` | Build Output API 生成エントリ（`layout` / `build_pages` / `not_found_page` / `clean_output_dir` + `generate_pages`/`generate_assets` 呼び出し） |
-| `tests/build_output.rs` | 既定エスケープ・fail-closed・古い出力削除・シンボリックリンク拒否の回帰と CLI ブラックボックステスト |
+| `src/main.rs` | Build Output API 生成エントリ（`layout` / `build_pages` / `not_found_page` / `clean_output_dir` + `generate_pages`/`generate_assets` 呼び出し）。opt-in Basic 認証（`basic_auth_enabled` / `output_root_assets` / ミドルウェア定数群）も含む |
+| `tests/build_output.rs` | 既定エスケープ・fail-closed・古い出力削除・シンボリックリンク拒否の回帰、Basic 認証の有効・無効両モードの CLI ブラックボックステスト |
 
 ## 関連ガイド
 

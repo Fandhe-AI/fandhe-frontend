@@ -34,7 +34,13 @@ name = "fandhe-frontend-cli"
 # `fw new --example vercel-ssr` へ登録した（`EXAMPLES` 配列への新規エントリ
 # 追加 + `embedded-examples/vercel-ssr/` 新設）。公開 API は下位互換だが、
 # イシュー本文の明示指定によりマイナーバンプとする。
-version = "0.5.0"
+# イシュー #3343: `examples/vercel-ssg` に opt-in（既定 off）の Basic 認証
+# Routing Middleware を追加した（`FANDHE_VERCEL_SSG_BASIC_AUTH=1` 指定時のみ
+# `functions/_middleware.func/` を生成、無効時は既存出力とバイト単位で
+# 同一）。`embedded-examples/vercel-ssg/` を再同期した。公開 API は不変だが
+# `include_str!` で埋め込まれる `fw` バイナリの内容が変わるため patch
+# バンプする。
+version = "0.5.1"
 edition = "2021"
 description = "fandhe-frontend-cli: AI 自己保守フック向け `fw` コマンド（TASK-13.1、structure.toml のスキーマ・パース・生成）。外部依存ゼロ。"
 license = "MIT OR Apache-2.0"

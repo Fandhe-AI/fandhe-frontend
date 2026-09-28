@@ -10,11 +10,20 @@
 //! 2. CLI ブラックボックス検証: ビルド済みバイナリを
 //!    `env!("CARGO_BIN_EXE_fandhe-frontend-example-vercel-ssg")` で
 //!    サブプロセス起動し、`.vercel/output/` の生成結果を確認する。
+//!    Basic 認証 Routing Middleware（イシュー #3343、opt-in・既定 off）の
+//!    有効・無効両モードをここで検証する。フラグ環境変数
+//!    （`BASIC_AUTH_FLAG_ENV`、`src/main.rs` と同じ文字列リテラル）は
+//!    サブプロセス起動時に明示指定し、開発者のシェル環境の値が結果へ
+//!    紛れ込まないよう全呼び出しで `env_remove` する。
 
 use fandhe_frontend_core::{el, render, text};
 use fandhe_frontend_server::ssg::{generate_assets, generate_pages, SsgError};
 use std::path::PathBuf;
 use std::process::Command;
+
+/// `src/main.rs::BASIC_AUTH_FLAG_ENV` と同じ環境変数名（バイナリクレート
+/// のため直接 `use` できず、リテラルとして複製する）。
+const BASIC_AUTH_FLAG_ENV: &str = "FANDHE_VERCEL_SSG_BASIC_AUTH";
 
 /// テスト専用の一時ディレクトリ。`Drop` でベストエフォート削除する
 /// （`examples/ssg-blog/tests/ssg_output.rs::TempDir` と同じ方針。`tempfile`
@@ -122,12 +131,27 @@ fn generate_assets_writes_content_verbatim_without_escaping() {
 
 /// `src/main.rs` のバイナリを一意な一時ディレクトリを `current_dir` として
 /// 起動し、生成された `.vercel/output/` を含むディレクトリのパスを返す。
+/// `BASIC_AUTH_FLAG_ENV` は常に `env_remove` してから起動する
+/// （開発者のシェル環境の値が紛れ込まないようにする既定の無効モード）。
 fn run_cli_in_scratch_dir(tag: &str) -> TempDir {
+    run_cli_in_scratch_dir_with_flag(tag, None)
+}
+
+/// [`run_cli_in_scratch_dir`] のフラグ指定版。`flag` が `None` なら
+/// `env_remove`（未設定）、`Some(v)` なら `BASIC_AUTH_FLAG_ENV=v` を設定
+/// してから CLI を起動する。
+fn run_cli_in_scratch_dir_with_flag(tag: &str, flag: Option<&str>) -> TempDir {
     let scratch = TempDir::new(tag);
     std::fs::create_dir_all(&scratch.0).expect("failed to create scratch dir");
 
-    let output = Command::new(env!("CARGO_BIN_EXE_fandhe-frontend-example-vercel-ssg"))
+    let mut command = Command::new(env!("CARGO_BIN_EXE_fandhe-frontend-example-vercel-ssg"));
+    command
         .current_dir(&scratch.0)
+        .env_remove(BASIC_AUTH_FLAG_ENV);
+    if let Some(value) = flag {
+        command.env(BASIC_AUTH_FLAG_ENV, value);
+    }
+    let output = command
         .output()
         .expect("binary should spawn and run to completion");
     assert!(
@@ -178,6 +202,143 @@ fn cli_config_json_declares_filesystem_fallback_to_404() {
     assert!(config.contains("\"dest\": \"/404.html\""));
 }
 
+/// `src/main.rs::CONFIG_JSON` のリテラルコピー。無効時のバイト同一性を
+/// 固定するため、ここでも独立に定義する（バイナリクレートのため `use`
+/// できない。乖離した場合は下記テストが検知する）。
+const CONFIG_JSON_LITERAL_COPY: &str = r#"{
+  "version": 3,
+  "routes": [
+    {
+      "src": "/(.*)",
+      "headers": {
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "strict-origin-when-cross-origin"
+      },
+      "continue": true
+    },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "status": 404, "dest": "/404.html" }
+  ]
+}
+"#;
+
+/// Basic 認証（イシュー #3343）無効時の受け入れ条件: `functions/` が
+/// 生成されず、`config.json` が本機能導入前とバイト単位で同一であること
+/// を固定する（無効時の出力に一切影響しないことの機械的な保証）。
+#[test]
+fn cli_basic_auth_disabled_by_default_produces_unchanged_output() {
+    let scratch = run_cli_in_scratch_dir("basic-auth-default");
+    let output = scratch.0.join(".vercel/output");
+
+    assert!(
+        !output.join("functions").exists(),
+        "functions/ should not exist when basic auth is disabled (default)"
+    );
+
+    let config = std::fs::read_to_string(output.join("config.json"))
+        .expect("config.json should be readable");
+    assert!(
+        !config.contains("middlewarePath"),
+        "config.json must not reference middlewarePath when basic auth is disabled"
+    );
+    assert_eq!(
+        config, CONFIG_JSON_LITERAL_COPY,
+        "config.json must remain byte-identical to the pre-#3343 CONFIG_JSON when disabled"
+    );
+}
+
+/// Basic 認証フラグが `"1"` 以外の値（未設定・空文字・`"0"`・`"true"`）
+/// のときはすべて無効扱い（`functions/` 非生成）になることを固定する
+/// （fail-closed: 誤った値での意図しない有効化を防ぐ）。
+#[test]
+fn cli_basic_auth_non_one_values_are_treated_as_disabled() {
+    for value in [None, Some(""), Some("0"), Some("true")] {
+        let tag = format!("basic-auth-disabled-{}", value.unwrap_or("unset"));
+        let scratch = run_cli_in_scratch_dir_with_flag(&tag, value);
+        assert!(
+            !scratch.0.join(".vercel/output/functions").exists(),
+            "functions/ should not exist for flag value {value:?}"
+        );
+    }
+}
+
+/// Basic 認証（イシュー #3343）有効時（`"1"`）の受け入れ条件:
+/// ミドルウェア Function 2 ファイル + middlewarePath 入りの `config.json`
+/// が生成され、静的ページ群と 404 も引き続き生成されることを固定する。
+#[test]
+fn cli_basic_auth_enabled_generates_middleware_function() {
+    let scratch = run_cli_in_scratch_dir_with_flag("basic-auth-enabled", Some("1"));
+    let output = scratch.0.join(".vercel/output");
+
+    let vc_config = output.join("functions/_middleware.func/.vc-config.json");
+    let index_js = output.join("functions/_middleware.func/index.js");
+    assert!(vc_config.is_file(), ".vc-config.json should be generated");
+    assert!(index_js.is_file(), "index.js should be generated");
+
+    let vc_config_body =
+        std::fs::read_to_string(&vc_config).expect(".vc-config.json should be readable");
+    assert!(vc_config_body.contains("\"runtime\": \"edge\""));
+
+    let config = std::fs::read_to_string(output.join("config.json"))
+        .expect("config.json should be readable");
+    // middlewarePath ルートが `{"handle": "filesystem"}` より前（先頭）に
+    // 置かれていることを文字列位置で確認する（全パスを保護する契約）。
+    let middleware_pos = config
+        .find("middlewarePath")
+        .expect("config.json should declare middlewarePath");
+    let filesystem_pos = config
+        .find("\"handle\": \"filesystem\"")
+        .expect("config.json should declare filesystem handler");
+    assert!(
+        middleware_pos < filesystem_pos,
+        "middlewarePath route must precede the filesystem handler"
+    );
+
+    assert!(output.join("static/index.html").is_file());
+    assert!(output.join("static/404.html").is_file());
+}
+
+/// ミドルウェア本体の静的検査（イシュー #3343）: Node をテストランナーへ
+/// 持ち込まず（REQ-12）、生成された `index.js` の文字列内容だけで
+/// fail-closed 実装であることと機微情報の非ログ出力を固定する。
+/// 実際の認証応答の最終確認はコードレビューとガイドの curl 手順
+/// （Vercel 上のデプロイ）で行う。
+#[test]
+fn cli_basic_auth_index_js_has_expected_fail_closed_shape() {
+    let scratch = run_cli_in_scratch_dir_with_flag("basic-auth-index-js-shape", Some("1"));
+    let index_js = std::fs::read_to_string(
+        scratch
+            .0
+            .join(".vercel/output/functions/_middleware.func/index.js"),
+    )
+    .expect("index.js should be readable");
+
+    for expected in [
+        "status: 503",
+        "status: 401",
+        "WWW-Authenticate",
+        "Basic realm=",
+        "x-middleware-next",
+        "process.env.BASIC_AUTH_USER",
+        "process.env.BASIC_AUTH_PASSWORD",
+        "crypto.subtle.digest",
+    ] {
+        assert!(
+            index_js.contains(expected),
+            "index.js should contain {expected:?}"
+        );
+    }
+
+    assert!(
+        !index_js.contains("console."),
+        "index.js must not log to console (avoid leaking credentials/Authorization)"
+    );
+    assert!(
+        !index_js.contains(".length !=="),
+        "index.js must not short-circuit constant-time comparison on length mismatch"
+    );
+}
+
 /// 古い出力の削除（OWASP A05）: 事前に置いた古いファイルが実行後に消え、
 /// `.vercel/project.json`（`vercel link` 相当のダミー）は残ることを固定する。
 #[test]
@@ -194,6 +355,7 @@ fn cli_removes_stale_output_but_keeps_vercel_project_files() {
 
     let output = Command::new(env!("CARGO_BIN_EXE_fandhe-frontend-example-vercel-ssg"))
         .current_dir(&scratch.0)
+        .env_remove(BASIC_AUTH_FLAG_ENV)
         .output()
         .expect("binary should spawn and run to completion");
     assert!(output.status.success());
@@ -264,6 +426,7 @@ fn cli_refuses_to_clean_symlinked_output_dir() {
 
     let output = Command::new(env!("CARGO_BIN_EXE_fandhe-frontend-example-vercel-ssg"))
         .current_dir(&scratch.0)
+        .env_remove(BASIC_AUTH_FLAG_ENV)
         .output()
         .expect("binary should spawn and run to completion");
 
@@ -296,6 +459,7 @@ fn cli_refuses_to_clean_when_vercel_parent_is_symlink() {
 
     let output = Command::new(env!("CARGO_BIN_EXE_fandhe-frontend-example-vercel-ssg"))
         .current_dir(&scratch.0)
+        .env_remove(BASIC_AUTH_FLAG_ENV)
         .output()
         .expect("binary should spawn and run to completion");
 
