@@ -2043,6 +2043,14 @@ source = "site/blocks/navbar-two-row.md"
 path = "/blocks/navbar-two-row/"
 
 [[section.group]]
+title = "Page Heading"
+
+[[section.group.page]]
+title = "page-heading-actions"
+source = "site/blocks/page-heading-actions.md"
+path = "/blocks/page-heading-actions/"
+
+[[section.group]]
 title = "Card Heading"
 
 [[section.group.page]]
