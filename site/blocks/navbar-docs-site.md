@@ -63,7 +63,11 @@ const NAV_ITEMS: &[(&str, &str, &str)] = &[
     ("themes", "コンポーネント", THEMES_URL),
 ];
 
-/// 自作の単純な幾何アイコン（装飾用途のため `label: None`）。
+/// 自作の単純な幾何アイコン（塗り。装飾用途のため `label: None`）。
+/// 閉じた領域（矩形・円等）を表す `d` にのみ使う。開いた線分（`M...L`
+/// のみで閉じない部分パス）を混在させると、その部分は面積 0 で
+/// `fill` が効かず描画されない（Bugbot 指摘、イシュー #2927 PR
+/// レビュー）。線分を含むアイコンは [`stroke_icon`] を使うこと。
 fn geo_icon(d: &'static str) -> Node {
     icon(
         &IconProps::default(),
@@ -72,9 +76,34 @@ fn geo_icon(d: &'static str) -> Node {
     )
 }
 
-/// 虫眼鏡アイコン（検索欄・検索ボタン共通）。
+/// 自作の単純な幾何アイコン（線画。装飾用途のため `label: None`）。
+/// 光線・罫線のような開いた線分は `fill`（面積 0 で不可視）ではなく
+/// `stroke` で描く必要があるため、[`geo_icon`] と分けて `fill="none"` +
+/// `stroke="currentColor"` を明示する（虫眼鏡の柄・テーマ切替の陽光線・
+/// ドキュメントリンクの罫線に使用）。
+fn stroke_icon(d: &'static str) -> Node {
+    icon(
+        &IconProps::default(),
+        vec![],
+        vec![el(
+            "path",
+            vec![
+                ("d", d),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "1.8"),
+                ("stroke-linecap", "round"),
+                ("stroke-linejoin", "round"),
+            ],
+            vec![],
+        )],
+    )
+}
+
+/// 虫眼鏡アイコン（検索欄・検索ボタン共通）。柄（`m20 17-5.2-5.2` の
+/// 開いた線分）は塗りでは不可視なため [`stroke_icon`] を使う。
 fn search_icon() -> Node {
-    geo_icon("M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm9 17-5.2-5.2")
+    stroke_icon("M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm9 17-5.2-5.2")
 }
 
 /// ロゴ（幾何図形アイコン + 架空のブランド名テキスト。href はサイト
@@ -238,6 +267,8 @@ fn repo_link() -> Node {
 
 /// テーマ切替（サイト本体の `.docs-theme-toggle`（`site.js` が掴む唯一の
 /// セレクタ）とは別の class/id を持つ、押しても何も起きない静的表示）。
+/// 陽光線は開いた線分のため [`stroke_icon`] で描く（塗りでは不可視、
+/// Bugbot 指摘）。
 fn theme_toggle() -> Node {
     button::icon_button(
         &ButtonProps {
@@ -246,7 +277,7 @@ fn theme_toggle() -> Node {
         },
         "配色テーマを切り替え",
         vec![("data-blocks-navbar-docs-site-theme-toggle", "")],
-        vec![geo_icon(
+        vec![stroke_icon(
             "M12 4V2M12 22v-2M4.9 4.9 3.5 3.5M20.5 20.5l-1.4-1.4M4 12H2M22 12h-2M4.9 19.1l-1.4 1.4M20.5 3.5l-1.4 1.4M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z",
         )],
     )
@@ -275,6 +306,24 @@ fn primary_icon_button(size: Size) -> Node {
         "はじめる",
         vec![("data-blocks-navbar-docs-site-primary", "")],
         vec![geo_icon("M12 2 4 20l8-4 8 4z")],
+    )
+}
+
+/// `narrow` variant 専用のドキュメント系アイコンリンク（[`NAV_ITEMS`] の
+/// 1 件を表す）。ページ罫線は開いた線分のため [`stroke_icon`] で描く
+/// （塗りでは不可視、`docs_nav_menu`/`docs_tab_nav` と同じ 3 項目を
+/// アイコン化しても到達性を落とさない、codex レビュー指摘: narrow が
+/// ガイドのみ残し API/Themes への導線を落としていた）。
+fn docs_icon_link(label: &str, href: &str) -> Node {
+    let aria_label = format!("{label}を開く");
+    link::root(
+        href,
+        &LinkProps::default(),
+        vec![
+            ("aria-label", aria_label.as_str()),
+            ("data-blocks-navbar-docs-site-docs-link", ""),
+        ],
+        vec![stroke_icon("M4 3h16v18H4zM8 7h8M8 11h8M8 15h4")],
     )
 }
 
@@ -354,21 +403,15 @@ fn narrow() -> Node {
             ),
             div(
                 vec![("data-blocks-navbar-docs-site-end", "")],
-                vec![
-                    search_icon_button(),
-                    link::root(
-                        GUIDE_URL,
-                        &LinkProps::default(),
-                        vec![
-                            ("aria-label", "ガイドを開く"),
-                            ("data-blocks-navbar-docs-site-docs-link", ""),
-                        ],
-                        vec![geo_icon("M4 3h16v18H4zM8 7h8M8 11h8M8 15h4")],
-                    ),
-                    repo_link(),
-                    theme_toggle(),
-                    primary_icon_button(Size::Sm),
-                ],
+                [search_icon_button()]
+                    .into_iter()
+                    .chain(
+                        NAV_ITEMS
+                            .iter()
+                            .map(|(_, label, href)| docs_icon_link(label, href)),
+                    )
+                    .chain([repo_link(), theme_toggle(), primary_icon_button(Size::Sm)])
+                    .collect(),
             ),
         ],
     )
