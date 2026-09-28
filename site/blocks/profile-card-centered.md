@@ -69,35 +69,39 @@ fn geo_icon(size: Size, path_d: &'static str, label: Option<&'static str>) -> No
     )
 }
 
-/// リンク（鎖）の幾何アイコン。
-fn link_shape(size: Size) -> Node {
+/// リンク（鎖）の幾何アイコン。`label` はアイコン単独リンク（[`social_link`]）
+/// でのみ `Some`（可視テキスト付きの [`minimal_card`] リンク一覧では装飾
+/// 扱いの `None`、モジュール doc「アイコン単独リンクと可視テキスト付き
+/// リンクでのアクセシブル名の作り分け」参照）。
+fn link_shape(size: Size, label: Option<&'static str>) -> Node {
     geo_icon(
         size,
         "M9 15l6-6 M11 6l1-1a3 3 0 114 4l-1 1 M13 18l-1 1a3 3 0 11-4-4l1-1",
-        Some(REPO_LABEL),
+        label,
     )
 }
 
-/// 吹き出し（メッセージ）の幾何アイコン。
-fn message_shape(size: Size) -> Node {
+/// 吹き出し（メッセージ）の幾何アイコン（`label` の扱いは [`link_shape`] 参照）。
+fn message_shape(size: Size, label: Option<&'static str>) -> Node {
     geo_icon(
         size,
         "M21 15a2 2 0 01-2 2H8l-4 4V6a2 2 0 012-2h13a2 2 0 012 2z",
-        Some(REPO_LABEL),
+        label,
     )
 }
 
-/// 地球儀の幾何アイコン。
-fn globe_shape(size: Size) -> Node {
+/// 地球儀の幾何アイコン（`label` の扱いは [`link_shape`] 参照）。
+fn globe_shape(size: Size, label: Option<&'static str>) -> Node {
     geo_icon(
         size,
         "M12 3a9 9 0 100 18 9 9 0 000-18z M3 12h18 M12 3c2.2 2.4 3.5 5.5 3.5 9s-1.3 6.6-3.5 9c-2.2-2.4-3.5-5.5-3.5-9s1.3-6.6 3.5-9z",
-        Some(REPO_LABEL),
+        label,
     )
 }
 
-/// [`REPO`] へ遷移する SNS アイコンのみのリンク。
-fn social_link(shape: fn(Size) -> Node) -> Node {
+/// [`REPO`] へ遷移する SNS アイコンのみのリンク。可視テキストを持たない
+/// ためアイコン自体に [`REPO_LABEL`] を与え `aria-label` を出す。
+fn social_link(shape: fn(Size, Option<&'static str>) -> Node) -> Node {
     link::root(
         REPO,
         &LinkProps {
@@ -105,7 +109,7 @@ fn social_link(shape: fn(Size) -> Node) -> Node {
             ..LinkProps::default()
         },
         vec![("data-blocks-profile-card-centered-social-link", "")],
-        vec![shape(Size::Sm)],
+        vec![shape(Size::Sm, Some(REPO_LABEL))],
     )
 }
 
@@ -141,13 +145,15 @@ fn avatar_node() -> Node {
 }
 
 /// 氏名見出し + 「認証済み」badge（モジュール doc「認証済みを可視テキスト
-/// 付き badge で表す理由」節参照）。
+/// 付き badge で表す理由」節参照）。見出しレベルは [`section`] の
+/// variant タイトル（`h3`）配下として `H4`（`team_avatar_grid` の
+/// 変種見出し `H3`・メンバー氏名 `H4` と同じ階層、PR #3388 Bugbot 指摘）。
 fn name_row() -> Node {
     div(
         vec![("class", "blocks-profile-card-centered-name-row")],
         vec![
             heading(
-                HeadingLevel::H3,
+                HeadingLevel::H4,
                 &HeadingProps {
                     size: HeadingSize::Md,
                     weight: HeadingWeight::Semibold,
@@ -233,7 +239,11 @@ fn representative_card() -> Node {
 /// 最小版（R0224）: avatar → 氏名/認証済み → 肩書・所在地 → 全幅ボタン
 /// 1 個 → 自己紹介 → リンク一覧（テキスト付き 3 件、縦並び）。
 fn minimal_card() -> Node {
-    let link_list_item = |shape: fn(Size) -> Node, label: &'static str| {
+    // アイコンは装飾（`label: None`）とし、可視テキスト自体を遷移先
+    // （GitHub リポジトリ）と一致する文言にする（モジュール doc「アイコン
+    // 単独リンクと可視テキスト付きリンクでのアクセシブル名の作り分け」
+    // 参照。イシュー #2936 codex レビュー P1 対応）。
+    let link_list_item = |shape: fn(Size, Option<&'static str>) -> Node, label: &'static str| {
         el(
             "li",
             vec![],
@@ -244,7 +254,7 @@ fn minimal_card() -> Node {
                     ..LinkProps::default()
                 },
                 vec![("class", "blocks-profile-card-centered-link-list-item")],
-                vec![shape(Size::Sm), text(label)],
+                vec![shape(Size::Sm, None), text(label)],
             )],
         )
     };
@@ -268,8 +278,8 @@ fn minimal_card() -> Node {
                     vec![("class", "blocks-profile-card-centered-link-list")],
                     vec![
                         link_list_item(link_shape, "GitHub"),
-                        link_list_item(message_shape, "連絡する"),
-                        link_list_item(globe_shape, "Webサイト"),
+                        link_list_item(message_shape, "連絡する（GitHub）"),
+                        link_list_item(globe_shape, "Webサイト（GitHub）"),
                     ],
                 ),
             ],
