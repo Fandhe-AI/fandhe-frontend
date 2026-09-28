@@ -46,10 +46,12 @@
 //! ハンバーガーは `collapsible::trigger(OpenState::Open, disabled: true,
 //! …)`（押しても何も起きないが常に到達可能）とし、
 //! `collapsible::content(OpenState::Open, true, …)` の常時展開パネルへ
-//! 2 段目ナビの `Node::clone()` を渡す。`>= 48rem` ではパネル・
-//! ハンバーガーを非表示にし、`< 48rem` では 2 段目の行自体を非表示にする
-//! （非表示側は `display: none` で a11y ツリーから除外されるため、同一
-//! リンクの重複は実害を持たない）。
+//! 2 段目ナビの `Node::clone()` を渡す。画面幅ではなく Demo 枠自体の幅で
+//! 切り替えるため `@media` ではなく `@container`（`navbar_app_links` と
+//! 同じ判断）を用い、`>= 48rem` ではパネル・ハンバーガーを非表示にし、
+//! `< 48rem`（既定）では 2 段目の行自体を非表示にする（非表示側は
+//! `display: none` で a11y ツリーから除外されるため、同一リンクの重複は
+//! 実害を持たない）。
 //!
 //! # `id`/`aria-label` の一意性
 //!
@@ -480,8 +482,8 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-navbar-two-row-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-navbar-two-row-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-[data-blocks-navbar-two-row-shell] {\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n  overflow: hidden;\n  background: var(--fandhe-color-bg);\n}\n\
-[data-blocks-navbar-two-row-row-primary] {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr) auto;\n  align-items: center;\n  gap: var(--fandhe-space-3) var(--fandhe-space-4);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
+[data-blocks-navbar-two-row-shell] {\n  container-type: inline-size;\n  container-name: blocks-navbar-two-row;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n  overflow: hidden;\n  background: var(--fandhe-color-bg);\n}\n\
+[data-blocks-navbar-two-row-row-primary] {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr) auto auto;\n  align-items: center;\n  gap: var(--fandhe-space-3) var(--fandhe-space-4);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
 [data-blocks-navbar-two-row-variant=\"tabs-center\"] [data-blocks-navbar-two-row-row-primary] {\n  grid-template-columns: auto auto minmax(0, 1fr) auto;\n}\n\
 [data-blocks-navbar-two-row-logo] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  white-space: nowrap;\n}\n\
 [data-blocks-navbar-two-row-search] {\n  max-inline-size: 32rem;\n  margin-inline: auto;\n  inline-size: 100%;\n}\n\
@@ -490,18 +492,18 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"menu\"][data-part=\"trigger\"][data-blocks-navbar-two-row-profile-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-navbar-two-row-toggle] {\n  display: inline-flex;\n}\n\
 [data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-navbar-two-row-toggle][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-[data-blocks-navbar-two-row-row-secondary] {\n  display: flex;\n  padding: var(--fandhe-space-2) var(--fandhe-space-4);\n  border-block-start: 1px solid var(--fandhe-color-border);\n}\n\
+[data-blocks-navbar-two-row-row-secondary] {\n  display: none;\n  padding: var(--fandhe-space-2) var(--fandhe-space-4);\n  border-block-start: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-navbar-two-row-variant=\"pills\"] [data-blocks-navbar-two-row-row-secondary] {\n  justify-content: flex-start;\n}\n\
 [data-blocks-navbar-two-row-variant=\"tabs-center\"] [data-blocks-navbar-two-row-row-secondary] {\n  justify-content: center;\n}\n\
 [data-blocks-navbar-two-row-variant=\"pills\"] [data-scope=\"navigation-menu\"][data-part=\"link\"] {\n  border-radius: var(--fandhe-radius-full);\n}\n\
 [data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-navbar-two-row-panel] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  padding: 0 var(--fandhe-space-4) var(--fandhe-space-3);\n}\n\
-@media (min-width: 48rem) {\n  \
+[data-blocks-navbar-two-row-panel] [data-scope=\"navigation-menu\"][data-part=\"list\"] {\n  flex-direction: column;\n}\n\
+@container blocks-navbar-two-row (min-width: 48rem) {\n  \
+[data-blocks-navbar-two-row-row-primary] {\n    grid-template-columns: auto minmax(0, 1fr) auto;\n  }\n  \
+[data-blocks-navbar-two-row-variant=\"tabs-center\"] [data-blocks-navbar-two-row-row-primary] {\n    grid-template-columns: auto minmax(0, 1fr) auto;\n  }\n  \
 [data-blocks-navbar-two-row-row-secondary] {\n    display: flex;\n  }\n  \
 [data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-navbar-two-row-toggle] {\n    display: none;\n  }\n  \
 [data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-navbar-two-row-panel] {\n    display: none;\n  }\n\
-}\n\
-@media (max-width: 47.9375rem) {\n  \
-[data-blocks-navbar-two-row-row-secondary] {\n    display: none;\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -625,19 +627,25 @@ mod tests {
         }
     }
 
-    /// [`LAYOUT_CSS`] が `@media (min-width: 48rem)` の境界・2 段目非表示・
-    /// disabled 中和・ピル型 CSS を持つこと（DOM 順自体を variant ごとに
-    /// 並べ替える設計のため CSS `order` は使わない、`header_simple_bar` と
-    /// 同じ判断。DOM 順自体の検証は別テストが担う）。
+    /// [`LAYOUT_CSS`] が container query の境界・2 段目非表示・disabled 中和・
+    /// ピル型 CSS を持つこと（DOM 順自体を variant ごとに並べ替える設計の
+    /// ため CSS `order` は使わない、`header_simple_bar` と同じ判断。DOM 順
+    /// 自体の検証は別テストが担う）。`navbar_app_links` と同じく画面幅では
+    /// なく Demo 枠自体の幅で切り替えるため `@media` ではなく `@container`
+    /// を用いる（狭幅パネル内のナビリンクを縦積みにする規則も併せて検証）。
     #[test]
-    fn layout_css_has_responsive_rules() {
+    fn layout_css_has_container_query_and_style_rules() {
         assert!(!LAYOUT_CSS.contains('<'));
-        assert!(LAYOUT_CSS.contains("@media (min-width: 48rem)"));
+        assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
+        assert!(LAYOUT_CSS.contains("@container blocks-navbar-two-row (min-width: 48rem)"));
         assert!(LAYOUT_CSS.contains(
             "[data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-navbar-two-row-toggle] {\n    display: none;\n  }"
         ));
         assert!(LAYOUT_CSS.contains(
             "[data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-navbar-two-row-panel] {\n    display: none;\n  }"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-navbar-two-row-panel] [data-scope=\"navigation-menu\"][data-part=\"list\"] {\n  flex-direction: column;\n}"
         ));
         assert!(LAYOUT_CSS.contains("border-radius: var(--fandhe-radius-full);"));
     }
