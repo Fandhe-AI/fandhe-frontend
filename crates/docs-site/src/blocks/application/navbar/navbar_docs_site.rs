@@ -460,7 +460,11 @@ fn end_search() -> Node {
 /// `narrow` variant（狭幅表示。ドキュメント系リンク・検索・リポジトリを
 /// アイコンボタン/アイコンリンクへ縮める。ビューポート幅・リサイズには
 /// 連動しない固定状態、モジュール doc「3 variant を 1 つの Demo に縦
-/// 並記する」節参照）。
+/// 並記する」節参照）。ロゴ縮約・[`Size::Sm`] 統一（イシュー #2927 PR
+/// レビュー指摘）だけでは 7 項目が `max-inline-size: 24rem`（[`LAYOUT_CSS`]）
+/// に収まらないため、`[data-blocks-navbar-docs-site-end]` へ narrow 限定の
+/// `flex-wrap: wrap` を適用し折り返しで幅超過を防ぐ（イシュー #2927 PR
+/// レビュー再指摘）。
 fn narrow() -> Node {
     div(
         vec![
@@ -570,6 +574,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-navbar-docs-site-center] {\n  flex: 1 1 auto;\n  display: flex;\n  justify-content: center;\n}\n\
 [data-scope=\"input-group\"][data-part=\"root\"][data-blocks-navbar-docs-site-search] {\n  inline-size: 100%;\n  max-inline-size: 20rem;\n}\n\
 [data-blocks-navbar-docs-site-end] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  margin-inline-start: auto;\n}\n\
+[data-blocks-navbar-docs-site-variant=\"narrow\"] [data-blocks-navbar-docs-site-end] {\n  flex-wrap: wrap;\n  justify-content: flex-end;\n  row-gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"link\"][data-part=\"root\"][data-blocks-navbar-docs-site-logo] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: var(--fandhe-font-font-weight-semibold, 600);\n  white-space: nowrap;\n}\n";
 
 #[cfg(test)]

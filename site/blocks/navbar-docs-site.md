@@ -400,7 +400,11 @@ fn end_search() -> Node {
 /// `narrow` variant（狭幅表示。ドキュメント系リンク・検索・リポジトリを
 /// アイコンボタン/アイコンリンクへ縮める。ビューポート幅・リサイズには
 /// 連動しない固定状態、モジュール doc「3 variant を 1 つの Demo に縦
-/// 並記する」節参照）。
+/// 並記する」節参照）。ロゴ縮約・[`Size::Sm`] 統一（イシュー #2927 PR
+/// レビュー指摘）だけでは 7 項目が `max-inline-size: 24rem`（[`LAYOUT_CSS`]）
+/// に収まらないため、`[data-blocks-navbar-docs-site-end]` へ narrow 限定の
+/// `flex-wrap: wrap` を適用し折り返しで幅超過を防ぐ（イシュー #2927 PR
+/// レビュー再指摘）。
 fn narrow() -> Node {
     div(
         vec![
