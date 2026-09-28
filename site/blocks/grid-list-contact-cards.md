@@ -131,9 +131,12 @@ const CONTACTS_VERTICAL: [Contact; 8] = [
 ];
 
 /// メール封筒アイコン（装飾、モジュール doc「アバター・アイコンの a11y」節）。
+/// `Size::Sm`（`actions_footer` のボタンサイズに合わせる。モジュール doc
+/// 「3・4 列でのアクションボタンのクリップ回避」節参照）。
 fn mail_icon() -> Node {
     icon(
         &IconProps {
+            size: Size::Sm,
             label: None,
             ..IconProps::default()
         },
@@ -153,10 +156,11 @@ fn mail_icon() -> Node {
     )
 }
 
-/// 電話受話器アイコン（装飾）。
+/// 電話受話器アイコン（装飾、`Size::Sm`。`mail_icon` と同じ理由）。
 fn phone_icon() -> Node {
     icon(
         &IconProps {
+            size: Size::Sm,
             label: None,
             ..IconProps::default()
         },
@@ -193,7 +197,10 @@ fn permission_badge(item: &Contact) -> Node {
 }
 
 /// メール・電話の 2 分割アクション行（横型・縦型共通、モジュール doc
-/// 「`mailto:`/`tel:` リンクを使わない理由」節）。
+/// 「`mailto:`/`tel:` リンクを使わない理由」節）。`Size::Sm`（既定 `Md`
+/// より水平 padding・font-size が小さい）にする理由はモジュール doc
+/// 「3・4 列でのアクションボタンのクリップ回避」節参照（イシュー #3363
+/// レビュー指摘）。
 fn actions_footer() -> Node {
     card::footer(
         vec![("class", "blocks-grid-list-contact-cards-actions")],
@@ -201,6 +208,7 @@ fn actions_footer() -> Node {
             button::button(
                 &ButtonProps {
                     variant: ButtonVariant::Ghost,
+                    size: Size::Sm,
                     ..ButtonProps::default()
                 },
                 vec![("data-blocks-grid-list-contact-cards-action", "")],
@@ -209,6 +217,7 @@ fn actions_footer() -> Node {
             button::button(
                 &ButtonProps {
                     variant: ButtonVariant::Ghost,
+                    size: Size::Sm,
                     ..ButtonProps::default()
                 },
                 vec![("data-blocks-grid-list-contact-cards-action", "")],

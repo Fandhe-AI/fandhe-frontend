@@ -68,6 +68,24 @@
 //! （`[data-blocks-grid-list-contact-cards-grid][data-blocks-grid-list-contact-cards-grid-variant="vertical"]`）
 //! へ付け替えている。
 //!
+//! # 3・4 列でのアクションボタンのクリップ回避
+//!
+//! `card::footer`（recipe セレクタ）の既定 `gap: var(--fandhe-space-2)` を
+//! `.blocks-grid-list-contact-cards-actions` が上書きしていなかったため、
+//! 2 分割アクション（メール/電話）のボタン間に余白が残り、中央の区切り線
+//! （`border-inline-start`）が片側へ寄る不具合があった（イシュー #3363
+//! レビュー指摘）。`footer` セレクタへ `gap: 0` を明示する。
+//!
+//! さらに既定 `Size::Md`（横 padding `1rem` + アイコン + ラベル）の
+//! ghost ボタンは、3・4 列ブレークポイントのカード幅の半分より広くなり
+//! やすい。flex item は既定で content サイズ未満に縮まないため、
+//! `overflow: hidden` の `card::root`（モジュール doc「CSS フックの
+//! 選び方」節）がメール/電話ボタンをクリップしていた（同レビュー指摘）。
+//! `Size::Sm`（`icon_size_for` の写像に合わせ [`mail_icon`]/[`phone_icon`]
+//! も `Size::Sm`）で content サイズ自体を縮め、ボタンの CSS セレクタへ
+//! `min-width: 0` を追加して flex item がカード幅に収まるまで縮められる
+//! ようにする。
+//!
 //! # 見出しを使わない理由
 //!
 //! ページ側が `## Demo` として `h2` を出す前提の上に、本 block はさらに
@@ -210,9 +228,12 @@ const CONTACTS_VERTICAL: [Contact; 8] = [
 ];
 
 /// メール封筒アイコン（装飾、モジュール doc「アバター・アイコンの a11y」節）。
+/// `Size::Sm`（`actions_footer` のボタンサイズに合わせる。モジュール doc
+/// 「3・4 列でのアクションボタンのクリップ回避」節参照）。
 fn mail_icon() -> Node {
     icon(
         &IconProps {
+            size: Size::Sm,
             label: None,
             ..IconProps::default()
         },
@@ -232,10 +253,11 @@ fn mail_icon() -> Node {
     )
 }
 
-/// 電話受話器アイコン（装飾）。
+/// 電話受話器アイコン（装飾、`Size::Sm`。`mail_icon` と同じ理由）。
 fn phone_icon() -> Node {
     icon(
         &IconProps {
+            size: Size::Sm,
             label: None,
             ..IconProps::default()
         },
@@ -272,7 +294,10 @@ fn permission_badge(item: &Contact) -> Node {
 }
 
 /// メール・電話の 2 分割アクション行（横型・縦型共通、モジュール doc
-/// 「`mailto:`/`tel:` リンクを使わない理由」節）。
+/// 「`mailto:`/`tel:` リンクを使わない理由」節）。`Size::Sm`（既定 `Md`
+/// より水平 padding・font-size が小さい）にする理由はモジュール doc
+/// 「3・4 列でのアクションボタンのクリップ回避」節参照（イシュー #3363
+/// レビュー指摘）。
 fn actions_footer() -> Node {
     card::footer(
         vec![("class", "blocks-grid-list-contact-cards-actions")],
@@ -280,6 +305,7 @@ fn actions_footer() -> Node {
             button::button(
                 &ButtonProps {
                     variant: ButtonVariant::Ghost,
+                    size: Size::Sm,
                     ..ButtonProps::default()
                 },
                 vec![("data-blocks-grid-list-contact-cards-action", "")],
@@ -288,6 +314,7 @@ fn actions_footer() -> Node {
             button::button(
                 &ButtonProps {
                     variant: ButtonVariant::Ghost,
+                    size: Size::Sm,
                     ..ButtonProps::default()
                 },
                 vec![("data-blocks-grid-list-contact-cards-action", "")],
@@ -491,8 +518,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-grid-list-contact-cards-role {\n  color: var(--fandhe-color-fg-muted);\n  font-size: 0.875rem;\n}\n\
 .blocks-grid-list-contact-cards-stack {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  text-align: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-grid-list-contact-cards-avatar] {\n  flex-shrink: 0;\n}\n\
-[data-scope=\"card\"][data-part=\"footer\"].blocks-grid-list-contact-cards-actions {\n  display: flex;\n  padding: 0;\n  border-top: 1px solid var(--fandhe-color-border);\n  margin-top: auto;\n}\n\
-[data-scope=\"button\"][data-part=\"root\"][data-blocks-grid-list-contact-cards-action] {\n  flex: 1;\n  border-radius: 0;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: var(--fandhe-space-2);\n}\n\
+[data-scope=\"card\"][data-part=\"footer\"].blocks-grid-list-contact-cards-actions {\n  display: flex;\n  gap: 0;\n  padding: 0;\n  border-top: 1px solid var(--fandhe-color-border);\n  margin-top: auto;\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-grid-list-contact-cards-action] {\n  flex: 1;\n  min-width: 0;\n  border-radius: 0;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-grid-list-contact-cards-action] + [data-blocks-grid-list-contact-cards-action] {\n  border-inline-start: 1px solid var(--fandhe-color-border);\n}\n\
 @container blocks-grid-list-contact-cards (min-width: 28rem) {\n  \
 [data-blocks-grid-list-contact-cards-grid] {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n\
@@ -585,6 +612,19 @@ mod tests {
         // 明示上書きする（モジュール doc「CSS フックの選び方」節参照）。
         assert!(LAYOUT_CSS.contains(
             "[data-scope=\"card\"][data-part=\"body\"].blocks-grid-list-contact-cards-main {\n  display: flex;\n  flex-direction: row;"
+        ));
+        // footer の recipe 既定 gap（`--fandhe-space-2`）を 0 で上書きしない
+        // と、2 分割アクションのボタン間に隙間が残り区切り線が片側へ寄る
+        // （イシュー #3363 レビュー指摘、モジュール doc「3・4 列での
+        // アクションボタンのクリップ回避」節参照）。
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"card\"][data-part=\"footer\"].blocks-grid-list-contact-cards-actions {\n  display: flex;\n  gap: 0;"
+        ));
+        // ボタンへ `min-width: 0` を与えないと flex item は content サイズ
+        // 未満に縮まず、3・4 列カードで overflow: hidden により
+        // メール/電話アクションがクリップされる（同レビュー指摘）。
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"button\"][data-part=\"root\"][data-blocks-grid-list-contact-cards-action] {\n  flex: 1;\n  min-width: 0;"
         ));
     }
 
