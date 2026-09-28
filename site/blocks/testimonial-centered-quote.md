@@ -9,8 +9,11 @@
 なし）、その下に大きな引用文、さらにその下へアバター・氏名・役職を並べる
 レイアウトです。狭い幅でも中央寄せのまま、`48rem` 未満では引用文の
 文字サイズを 1 段下げます。4 variant（ロゴマーク形・引用アイコン形・
-ロゴバッジ形・星評価形）を静的に縦へ並記しています。星評価・ロゴバッジは
-いずれも装飾扱いで、隣接する氏名テキストがアクセシブルネームを担います。
+ロゴバッジ形・星評価形）を静的に縦へ並記しています。各 variant は
+見出しと testimonial 本体を 1 組のラッパーへまとめ、組内の間隔を組同士の
+間隔より狭くすることで区切りを読み取れるようにしています。星評価・
+ロゴバッジはいずれも装飾扱いで、隣接する氏名テキストがアクセシブル
+ネームを担います。
 本 Demo は静的な表示例であり、`<form>` 要素を一切持たず、送信処理・データ
 取得を行いません。
 
@@ -211,43 +214,62 @@ fn testimonial(variant: Variant, quote: &str, name: &str, role_title: &str, comp
     )
 }
 
+/// 見出し + testimonial 本体を 1 組にまとめるラッパー（`blocks-feature-
+/// tabs-panel-variant` と同型。両者の間隔を [`LAYOUT_CSS`] の
+/// `--fandhe-space-3` に狭め、4 組間の間隔（stack 側 `--fandhe-space-8`）
+/// と区別が付くようにする）。
+fn labeled_variant(label: &str, testimonial_node: Node) -> Node {
+    div(
+        vec![("class", "blocks-testimonial-centered-quote-variant")],
+        vec![caption_label(label), testimonial_node],
+    )
+}
+
 /// `testimonial-centered-quote` の Demo 本体。呼び出しごとに同一の `Node`
 /// を返す純関数。4 variant を静的に縦に並記する。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-testimonial-centered-quote-stack")],
         vec![
-            caption_label("ロゴマーク＋縦積み著者"),
-            testimonial(
-                Variant::Base,
-                TESTIMONIAL_QUOTES[0],
-                PERSON_NAMES[0],
-                JOB_TITLES[0],
-                COMPANY_NAMES[0],
+            labeled_variant(
+                "ロゴマーク＋縦積み著者",
+                testimonial(
+                    Variant::Base,
+                    TESTIMONIAL_QUOTES[0],
+                    PERSON_NAMES[0],
+                    JOB_TITLES[0],
+                    COMPANY_NAMES[0],
+                ),
             ),
-            caption_label("引用アイコン＋1 行キャプション"),
-            testimonial(
-                Variant::QuoteIcon,
-                TESTIMONIAL_QUOTES[1],
-                PERSON_NAMES[1],
-                JOB_TITLES[1],
-                COMPANY_NAMES[1],
+            labeled_variant(
+                "引用アイコン＋1 行キャプション",
+                testimonial(
+                    Variant::QuoteIcon,
+                    TESTIMONIAL_QUOTES[1],
+                    PERSON_NAMES[1],
+                    JOB_TITLES[1],
+                    COMPANY_NAMES[1],
+                ),
             ),
-            caption_label("アバター右下にロゴバッジ"),
-            testimonial(
-                Variant::LogoBadge,
-                TESTIMONIAL_QUOTES[2],
-                PERSON_NAMES[2],
-                JOB_TITLES[2],
-                COMPANY_NAMES[2],
+            labeled_variant(
+                "アバター右下にロゴバッジ",
+                testimonial(
+                    Variant::LogoBadge,
+                    TESTIMONIAL_QUOTES[2],
+                    PERSON_NAMES[2],
+                    JOB_TITLES[2],
+                    COMPANY_NAMES[2],
+                ),
             ),
-            caption_label("星評価付き"),
-            testimonial(
-                Variant::Stars,
-                TESTIMONIAL_QUOTES[3],
-                PERSON_NAMES[3],
-                JOB_TITLES[3],
-                COMPANY_NAMES[3],
+            labeled_variant(
+                "星評価付き",
+                testimonial(
+                    Variant::Stars,
+                    TESTIMONIAL_QUOTES[3],
+                    PERSON_NAMES[3],
+                    JOB_TITLES[3],
+                    COMPANY_NAMES[3],
+                ),
             ),
         ],
     )

@@ -17,6 +17,13 @@
 //!
 //! 上部の飾り・著者表示だけが異なる 4 variant を 1 ページに縦に並べる
 //! （`super::header::header_simple_bar` の「4 variant の並記」と同型）。
+//! 各 variant の見出し（[`caption_label`]）と testimonial 本体
+//! （[`testimonial`]）は [`labeled_variant`] が 1 つのラッパーへまとめ、
+//! ラッパー内の間隔（`--fandhe-space-3`）と 4 組間の間隔（stack 側
+//! `--fandhe-space-8`）を区別する（`super::feature::feature_tabs_panel`
+//! の `.blocks-feature-tabs-panel-variant` と同型。見出しと隣の
+//! testimonial が等距離になり区切りが読み取れない状態の是正、
+//! PR #3310 レビュー指摘）。
 //!
 //! | variant | 上部 | 著者表示 | 対応する集約元 |
 //! |---|---|---|---|
@@ -262,43 +269,62 @@ fn testimonial(variant: Variant, quote: &str, name: &str, role_title: &str, comp
     )
 }
 
+/// 見出し + testimonial 本体を 1 組にまとめるラッパー（`blocks-feature-
+/// tabs-panel-variant` と同型。両者の間隔を [`LAYOUT_CSS`] の
+/// `--fandhe-space-3` に狭め、4 組間の間隔（stack 側 `--fandhe-space-8`）
+/// と区別が付くようにする）。
+fn labeled_variant(label: &str, testimonial_node: Node) -> Node {
+    div(
+        vec![("class", "blocks-testimonial-centered-quote-variant")],
+        vec![caption_label(label), testimonial_node],
+    )
+}
+
 /// `testimonial-centered-quote` の Demo 本体。呼び出しごとに同一の `Node`
 /// を返す純関数。4 variant を静的に縦に並記する。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-testimonial-centered-quote-stack")],
         vec![
-            caption_label("ロゴマーク＋縦積み著者"),
-            testimonial(
-                Variant::Base,
-                TESTIMONIAL_QUOTES[0],
-                PERSON_NAMES[0],
-                JOB_TITLES[0],
-                COMPANY_NAMES[0],
+            labeled_variant(
+                "ロゴマーク＋縦積み著者",
+                testimonial(
+                    Variant::Base,
+                    TESTIMONIAL_QUOTES[0],
+                    PERSON_NAMES[0],
+                    JOB_TITLES[0],
+                    COMPANY_NAMES[0],
+                ),
             ),
-            caption_label("引用アイコン＋1 行キャプション"),
-            testimonial(
-                Variant::QuoteIcon,
-                TESTIMONIAL_QUOTES[1],
-                PERSON_NAMES[1],
-                JOB_TITLES[1],
-                COMPANY_NAMES[1],
+            labeled_variant(
+                "引用アイコン＋1 行キャプション",
+                testimonial(
+                    Variant::QuoteIcon,
+                    TESTIMONIAL_QUOTES[1],
+                    PERSON_NAMES[1],
+                    JOB_TITLES[1],
+                    COMPANY_NAMES[1],
+                ),
             ),
-            caption_label("アバター右下にロゴバッジ"),
-            testimonial(
-                Variant::LogoBadge,
-                TESTIMONIAL_QUOTES[2],
-                PERSON_NAMES[2],
-                JOB_TITLES[2],
-                COMPANY_NAMES[2],
+            labeled_variant(
+                "アバター右下にロゴバッジ",
+                testimonial(
+                    Variant::LogoBadge,
+                    TESTIMONIAL_QUOTES[2],
+                    PERSON_NAMES[2],
+                    JOB_TITLES[2],
+                    COMPANY_NAMES[2],
+                ),
             ),
-            caption_label("星評価付き"),
-            testimonial(
-                Variant::Stars,
-                TESTIMONIAL_QUOTES[3],
-                PERSON_NAMES[3],
-                JOB_TITLES[3],
-                COMPANY_NAMES[3],
+            labeled_variant(
+                "星評価付き",
+                testimonial(
+                    Variant::Stars,
+                    TESTIMONIAL_QUOTES[3],
+                    PERSON_NAMES[3],
+                    JOB_TITLES[3],
+                    COMPANY_NAMES[3],
+                ),
             ),
         ],
     )
@@ -340,6 +366,7 @@ pub const BLOCK: Block = Block {
 /// 参照。
 const LAYOUT_CSS: &str = "\
 .blocks-testimonial-centered-quote-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
+.blocks-testimonial-centered-quote-variant {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-testimonial-centered-quote-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n  text-align: center;\n}\n\
 .blocks-testimonial-centered-quote-layout {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  text-align: center;\n  gap: var(--fandhe-space-4);\n  max-inline-size: 32rem;\n  margin-inline: auto;\n}\n\
 [data-blocks-testimonial-centered-quote-mark] {\n  display: inline-flex;\n  color: var(--fandhe-color-fg-muted);\n}\n\
@@ -466,5 +493,40 @@ mod tests {
             super::BLOCK.demo_class,
             "blocks-testimonial-centered-quote-layout"
         );
+    }
+
+    /// 4 variant それぞれで、見出し（caption）と testimonial 本体
+    /// （layout）が同じ `blocks-testimonial-centered-quote-variant`
+    /// ラッパー直下に 1 組ずつ入っていること（見出しが対応する本体と
+    /// グループ化されている構造の固定）。各ラッパーの開始位置で
+    /// `html` を分割し、隣接するラッパー同士の境界とする。
+    #[test]
+    fn each_variant_groups_its_caption_with_its_testimonial() {
+        let html = render(&demo());
+        let wrapper_marker = "class=\"blocks-testimonial-centered-quote-variant\"";
+        let segments: Vec<&str> = html.split(wrapper_marker).collect();
+        // 先頭 segment はラッパー開始前の内容（`caption`/`layout` を
+        // 含まない）、残り 4 個が各ラッパー本体。
+        assert_eq!(
+            segments.len(),
+            5,
+            "expected 4 variant wrappers, html={html}"
+        );
+        for segment in &segments[1..] {
+            assert_eq!(
+                segment
+                    .matches("blocks-testimonial-centered-quote-caption")
+                    .count(),
+                1,
+                "each variant wrapper should contain exactly one caption, html={html}"
+            );
+            assert_eq!(
+                segment
+                    .matches("class=\"blocks-testimonial-centered-quote-layout\"")
+                    .count(),
+                1,
+                "each variant wrapper should contain exactly one testimonial layout, html={html}"
+            );
+        }
     }
 }
