@@ -76,10 +76,13 @@
 //! - `color_picker`（B 版の「塗り」節）: `showcase.rs` の
 //!   `color_picker_section` にある閉状態のパターンを流用し、
 //!   `ColorPickerProps { readonly: true, .. }` を root/label/control/
-//!   channel_input/trigger の全パーツへ一律に渡す（イシュー #1604 の
-//!   方針。表示値と見本がずれないようにするため）。`label` は `span` で
-//!   `for` を持たないため、`label` に `id` を付け `channel_input` の
-//!   `aria-labelledby` から参照する。
+//!   channel_input の各パーツへ渡す（イシュー #1604 の方針。表示値と
+//!   見本がずれないようにするため）。`trigger` のみ追加で `disabled: true`
+//!   も重ねた props を渡す（`readonly` はネイティブ `disabled` 属性を
+//!   出さず押せる見た目のまま残るため、`number_field` の増減ボタンと
+//!   同じ判断でネイティブ無効化する。イシュー #2914 コードレビュー
+//!   是正、P1）。`label` は `span` で `for` を持たないため、`label` に
+//!   `id` を付け `channel_input` の `aria-labelledby` から参照する。
 //! - `tooltip`（C 版の行間ラベル）: `component_specs_overlay.rs` の
 //!   `ex_tooltip_with_kbd` と同じ構成を、`trigger` は `disabled: true` +
 //!   常時 `OpenState::Open` で使う（無 JS の docs サイトでは開閉できず、
@@ -765,6 +768,15 @@ fn panel_theme_collapsible() -> Node {
         readonly: true,
         ..ColorPickerProps::default()
     };
+    // `trigger` のみ `disabled: true` も重ねる（`readonly` は
+    // ネイティブ `disabled` 属性を出さず操作可能に見えてしまうため、
+    // `number_field` の増減ボタンと同じ判断。イシュー #2914 コード
+    // レビュー是正、P1）。
+    let disabled_trigger_color_props = ColorPickerProps {
+        readonly: true,
+        disabled: true,
+        ..ColorPickerProps::default()
+    };
     let fill_section = collapsible::content(
         collapsible::OpenState::Open,
         true,
@@ -793,7 +805,7 @@ fn panel_theme_collapsible() -> Node {
                             ),
                             color_picker::trigger(
                                 &fill_color,
-                                &readonly_color_props,
+                                &disabled_trigger_color_props,
                                 None,
                                 vec![("aria-label", "塗り色を選ぶ")],
                                 vec![],
@@ -1282,6 +1294,18 @@ mod tests {
         let type_button_count = html.matches(r#"type="button""#).count();
         assert!(button_count > 0);
         assert_eq!(button_count, type_button_count);
+    }
+
+    #[test]
+    fn fill_color_trigger_is_natively_disabled() {
+        // B 版「塗り」節の色選択トリガーは `readonly` だけでは
+        // ネイティブ `disabled` 属性が付かず操作可能に見えるため、
+        // `disabled: true` も重ねて無効化する（イシュー #2914 コード
+        // レビュー是正、P1。モジュール doc「静的表示」節参照）。
+        let html = demo_html();
+        assert!(html.contains(
+            r#"data-scope="color-picker" data-part="trigger" type="button" aria-haspopup="dialog" aria-expanded="false" data-state="closed" data-disabled="" data-readonly="" disabled="""#
+        ));
     }
 
     #[test]
