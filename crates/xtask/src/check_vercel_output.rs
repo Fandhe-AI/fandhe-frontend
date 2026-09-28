@@ -37,35 +37,75 @@
 //! 追加された場合は本モジュールの拡張を検討すること
 //! （`out-of-scope-tracking.md`）。
 //!
-//! # `functions/` を意図的に対象外とする理由
+//! # `functions/` の検証モード（イシュー #3344）
 //!
 //! `examples/vercel-ssg` は案 c（`docs/design/vercel-deployment-strategy.md`
 //! が確定した「SSG → Build Output API → `--prebuilt`」方式）の実演であり、
-//! Vercel 側で Rust ランタイムを実行しない。このため `functions/` を生成
-//! しない。本モジュールは「`functions/` が存在しないこと」を検証すること
-//! で、この設計判断が知らないうちに崩れた場合に検知する（[`no_functions_dir`]）。
-//! これは Issue #3292 の「Build Output API 出力構造」という文言を意図的に
-//! 狭める解釈である。将来 functions を持つ example が追加された場合は、
-//! `.func/.vc-config.json` の検証へ本モジュールを拡張するものとする。
+//! Vercel 側で Rust ランタイムを実行しない。既定モード（[`FunctionsExpectation::None`]）
+//! は「`functions/` が存在しないこと」を検証する（[`check_no_functions_dir`]）。
+//! 一方 `examples/vercel-ssg` はイシュー #3343 で opt-in の Basic 認証
+//! Routing Middleware（Edge Function、`FANDHE_VERCEL_SSG_BASIC_AUTH=1` で
+//! 有効化）を持ち、有効時は `functions/_middleware.func/` を生成する。
+//! `--expect-basic-auth-middleware`（`crate::main`）を渡すと
+//! [`FunctionsExpectation::BasicAuthMiddleware`] に切り替わり、`functions/`
+//! の構成・`.vc-config.json`・`index.js`・`config.json` 先頭のミドルウェア
+//! ルートを構造的に検証する（本節末尾「Basic 認証ミドルウェア出力の検証
+//! 内容」参照）。既定モードの判定結果（チェック名・順序・PASS/FAIL 条件）は
+//! 変更しない。
+//!
+//! ## Basic 認証ミドルウェア出力の検証内容
+//!
+//! - [`check_routes_middleware_first`]: `routes[0]` が
+//!   `{"src": "/(.*)", "middlewarePath": "_middleware", "continue": true}`
+//!   の形（`handle` キーを持たない）であり、`middlewarePath` を持つルートが
+//!   `routes[0]` 以外に存在しないことを検証する。
+//! - [`check_functions_dir`]: `<output>/functions` が存在するディレクトリで
+//!   シンボリックリンクでないことを検証する。
+//! - [`check_functions_layout`]: `functions/` 直下のエントリが
+//!   `_middleware.func`（ディレクトリ、非シンボリックリンク）1 件のみで
+//!   あることを検証する。
+//! - [`check_functions_no_symlinks`]: `functions/` 以下にシンボリックリンクが
+//!   ないことを検証する（[`find_symlink`] を再利用）。
+//! - [`check_middleware_vc_config`]: `_middleware.func/.vc-config.json` が
+//!   JSON オブジェクトとしてパースでき、`runtime == "edge"` であること
+//!   （`entrypoint` があれば文字列 `"index.js"` と一致すること）を検証する。
+//! - [`check_middleware_index_js`]: `_middleware.func/index.js` が通常
+//!   ファイルとして存在し、空でないことを検証する（内容は読まない）。
+//!
+//! `.vc-config.json` の全キーの許可リスト検証・`index.js` の内容検証は
+//! スコープ外とする（`out-of-scope-tracking.md`）。
 //!
 //! # セキュリティ不変条件（OWASP Top 10、`security.md` 参照）
 //!
 //! - **A01 パストラバーサル**: `routes[].dest` を `static/` へ結合する前に、
 //!   構成要素に `..`・ルート・プレフィックス・`\`・空要素が含まれないことを
-//!   検証する（[`is_safe_relative_dest`]）。`static/` 走査はシンボリック
-//!   リンクをたどらず（`symlink_metadata`）、リンクを検出したら FAIL に
-//!   する（[`static_no_symlinks`]）。出力ディレクトリ自体がシンボリック
-//!   リンクの場合も FAIL にする（[`output_dir`]）。本モジュールはファイルを
-//!   削除・書き込みしない（読み取り専用）。
-//! - **A05 / DoS 耐性**: `config.json` の読み込みに [`MAX_CONFIG_JSON_BYTES`]
-//!   の上限を設ける。`json` モジュールの `MAX_DEPTH` によるネスト上限を
-//!   引き継ぐ。ディレクトリ走査にも深さ上限（[`MAX_WALK_DEPTH`]）を設ける。
+//!   検証する（[`is_safe_relative_dest`]）。`static/`・`functions/` の走査は
+//!   シンボリックリンクをたどらず（`symlink_metadata`）、リンクを検出したら
+//!   FAIL にする（[`static_no_symlinks`]・[`check_functions_no_symlinks`]）。
+//!   出力ディレクトリ自体がシンボリックリンクの場合も FAIL にする
+//!   （[`output_dir`]）。走査対象パス（`functions`・`_middleware.func`・
+//!   `.vc-config.json`・`index.js`）は固定リテラルのみで、JSON の値
+//!   （`middlewarePath`・`entrypoint` 等）からパスを組み立てることはない。
+//!   本モジュールはファイルを削除・書き込みしない（読み取り専用）。
+//! - **A05 / DoS 耐性**: `config.json`・`.vc-config.json` の読み込みに
+//!   [`MAX_CONFIG_JSON_BYTES`] の上限を設ける。`json` モジュールの
+//!   `MAX_DEPTH` によるネスト上限を引き継ぐ。ディレクトリ走査にも深さ上限
+//!   （[`MAX_WALK_DEPTH`]）を設ける。`functions_layout` の FAIL detail に
+//!   列挙する余分なエントリ名にも件数上限を設ける。
+//! - **A08 ソフトウェアとデータの整合性**: `.vc-config.json` の
+//!   `runtime == "edge"` と `entrypoint` の整合を確認し、意図しないランタイム
+//!   への差し替えを検知する。`middlewarePath` を持つルートが `routes[0]`
+//!   だけであることを確認し、参照先のないミドルウェアや二重のミドルウェア
+//!   参照を検知する。
 //! - **A09 機微情報の露出防止**: 失敗メッセージにはチェック名・相対パス・
 //!   キー名・理由だけを出し、ファイル全文・環境変数・トークンは出さない
-//!   （`json.rs::JsonError` と同じ方針）。
+//!   （`json.rs::JsonError` と同じ方針）。`.vc-config.json` の `envVarsInUse`
+//!   等の値全体・`index.js` の内容は出力しない。
 //! - **fail-closed**: 前段のチェックが失敗して後段が判定できない場合
-//!   （`config.json` がパースできない等）、後段は黙って PASS にせず
-//!   `result=FAIL detail=skipped: depends on <name>` として明示する。
+//!   （`config.json` がパースできない・`functions/` が存在しない等）、
+//!   後段は黙って PASS にせず `result=FAIL detail=skipped: depends on <name>`
+//!   として明示する。全チェック名は [`check_names`] で一元管理し、直書きの
+//!   skipped 一覧で漏れが生じないようにする。
 
 use crate::json::{self, Json};
 use std::fmt;
@@ -107,6 +147,101 @@ const ALLOWED_HANDLE_VALUES: &[&str] =
 
 /// Handler route で許可されるキー（`handle` 必須 + 任意）。
 const ALLOWED_HANDLER_KEYS: &[&str] = &["handle", "src", "dest", "status"];
+
+/// `functions_layout` の FAIL detail に列挙する余分なエントリ名の上限
+/// （A05 DoS 防御。大量エントリでもログが際限なく膨らまないようにする）。
+const MAX_LISTED_EXTRA_ENTRIES: usize = 5;
+
+/// ミドルウェア Function ディレクトリの固定名
+/// （`examples/vercel-ssg` の `CONFIG_JSON_WITH_BASIC_AUTH`/
+/// `MIDDLEWARE_VC_CONFIG_JSON` が生成する構成と一致させる）。
+const MIDDLEWARE_FUNC_DIR_NAME: &str = "_middleware.func";
+
+/// ミドルウェア Function のエントリポイントファイル名。
+const MIDDLEWARE_INDEX_JS_NAME: &str = "index.js";
+
+/// ミドルウェアが起動する `config.json` の `middlewarePath` 値。
+const MIDDLEWARE_PATH_VALUE: &str = "_middleware";
+
+/// `check-vercel-output` が検証する `functions/` の期待形（イシュー #3344）。
+///
+/// CLI フラグ（`--expect-basic-auth-middleware`）はこの固定された 2 値の
+/// どちらを使うかを選ぶだけで、判定対象そのもの（パス・許可リスト・値）は
+/// 引き続き CLI から差し替え不可（`check_loc::LOC_CHECK_TARGETS` と同じ
+/// 運用原則、モジュール doc 参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FunctionsExpectation {
+    /// 既定: `functions/` が存在しないこと（案 c、静的配置のみ）を検証する。
+    #[default]
+    None,
+    /// `examples/vercel-ssg` の opt-in Basic 認証 Routing Middleware
+    /// （イシュー #3343）が生成する `functions/_middleware.func/` 構造を
+    /// 検証する。
+    BasicAuthMiddleware,
+}
+
+/// `expectation` が出力する全チェック名を、出力順で返す（一元管理。
+/// [`check`] 内の直書き配列に代わるもので、fail-closed の skipped 一覧が
+/// モードの追加時に漏れないようにする）。既定モード（[`FunctionsExpectation::None`]）
+/// の並びは旧実装の 11 件と完全一致させる（R1 の回帰固定、
+/// `tests::check_names_none_matches_legacy_order` 参照）。
+fn check_names(expectation: FunctionsExpectation) -> &'static [&'static str] {
+    match expectation {
+        FunctionsExpectation::None => &[
+            "output_dir",
+            "config_json_parse",
+            "config_version",
+            "config_top_level_keys",
+            "config_routes_shape",
+            "config_routes_404_fallback",
+            "routes_dest_targets",
+            "static_dir",
+            "static_required_pages",
+            "static_no_symlinks",
+            "no_functions_dir",
+        ],
+        FunctionsExpectation::BasicAuthMiddleware => &[
+            "output_dir",
+            "config_json_parse",
+            "config_version",
+            "config_top_level_keys",
+            "config_routes_shape",
+            "config_routes_404_fallback",
+            "routes_dest_targets",
+            "config_routes_middleware_first",
+            "static_dir",
+            "static_required_pages",
+            "static_no_symlinks",
+            "functions_dir",
+            "functions_layout",
+            "functions_no_symlinks",
+            "middleware_vc_config",
+            "middleware_index_js",
+        ],
+    }
+}
+
+/// `config_json_parse` の成否に判定が依存するチェック名を返す
+/// （`config_json_parse` が FAIL したときに一括で skipped にする対象）。
+fn config_dependent_names(expectation: FunctionsExpectation) -> &'static [&'static str] {
+    match expectation {
+        FunctionsExpectation::None => &[
+            "config_version",
+            "config_top_level_keys",
+            "config_routes_shape",
+            "config_routes_404_fallback",
+            "routes_dest_targets",
+        ],
+        FunctionsExpectation::BasicAuthMiddleware => &[
+            "config_version",
+            "config_top_level_keys",
+            "config_routes_shape",
+            "config_routes_404_fallback",
+            "routes_dest_targets",
+            "config_routes_middleware_first",
+        ],
+    }
+}
 
 /// Source route で許可されるキー（`src` 必須 + 任意）。
 const ALLOWED_SOURCE_KEYS: &[&str] = &[
@@ -163,9 +298,11 @@ impl CheckResult {
 
 /// `output_dir` に対して全チェックを順に実行する。
 ///
-/// 各チェックは独立した `CheckResult` を返す（例外的に、前段の失敗で後段が
-/// 判定不能な場合は [`CheckResult::skipped`] を返し、黙って PASS にしない）。
-pub fn check(output_dir: &Path) -> Vec<CheckResult> {
+/// `expectation` は `functions/` の検証モードを選ぶ（[`FunctionsExpectation`]
+/// 参照）。各チェックは独立した `CheckResult` を返す（例外的に、前段の失敗で
+/// 後段が判定不能な場合は [`CheckResult::skipped`] を返し、黙って PASS に
+/// しない）。
+pub fn check(output_dir: &Path, expectation: FunctionsExpectation) -> Vec<CheckResult> {
     let mut results = Vec::new();
 
     // 1. output_dir 自体の検証（シンボリックリンク経由の誤参照を拒否）。
@@ -193,18 +330,7 @@ pub fn check(output_dir: &Path) -> Vec<CheckResult> {
 
     if !output_dir_ok {
         // output_dir 自体が不正なら以降すべて判定不能。
-        for name in [
-            "config_json_parse",
-            "config_version",
-            "config_top_level_keys",
-            "config_routes_shape",
-            "config_routes_404_fallback",
-            "routes_dest_targets",
-            "static_dir",
-            "static_required_pages",
-            "static_no_symlinks",
-            "no_functions_dir",
-        ] {
+        for name in check_names(expectation).iter().skip(1) {
             results.push(CheckResult::skipped(name, "output_dir"));
         }
         return results;
@@ -212,7 +338,7 @@ pub fn check(output_dir: &Path) -> Vec<CheckResult> {
 
     // 2. config.json の読み込み・パース。
     let config_path = output_dir.join("config.json");
-    let config_json = match read_config_json(&config_path) {
+    let config_json = match read_json_object(&config_path, "config.json") {
         Ok(json) => {
             results.push(CheckResult::pass("config_json_parse"));
             Some(json)
@@ -226,13 +352,7 @@ pub fn check(output_dir: &Path) -> Vec<CheckResult> {
     let config_json = match &config_json {
         Some(json) => Some(json),
         None => {
-            for name in [
-                "config_version",
-                "config_top_level_keys",
-                "config_routes_shape",
-                "config_routes_404_fallback",
-                "routes_dest_targets",
-            ] {
+            for name in config_dependent_names(expectation) {
                 results.push(CheckResult::skipped(name, "config_json_parse"));
             }
             None
@@ -269,6 +389,17 @@ pub fn check(output_dir: &Path) -> Vec<CheckResult> {
                 "config_routes_shape",
             ));
         }
+
+        if expectation == FunctionsExpectation::BasicAuthMiddleware {
+            if let Some(routes) = routes {
+                results.push(check_routes_middleware_first(routes));
+            } else {
+                results.push(CheckResult::skipped(
+                    "config_routes_middleware_first",
+                    "config_routes_shape",
+                ));
+            }
+        }
     }
 
     // 3. static/ ディレクトリの検証。
@@ -303,25 +434,87 @@ pub fn check(output_dir: &Path) -> Vec<CheckResult> {
         results.push(CheckResult::skipped("static_no_symlinks", "static_dir"));
     }
 
-    // 4. functions/ の非存在（案 c: 静的配置のみ、モジュール doc 参照）。
-    results.push(check_no_functions_dir(output_dir));
+    // 4. functions/ の検証（モードにより分岐、モジュール doc 参照）。
+    match expectation {
+        FunctionsExpectation::None => {
+            results.push(check_no_functions_dir(output_dir));
+        }
+        FunctionsExpectation::BasicAuthMiddleware => {
+            let functions_dir = output_dir.join("functions");
+            let functions_dir_ok = match std::fs::symlink_metadata(&functions_dir) {
+                Ok(meta) if meta.file_type().is_symlink() => {
+                    results.push(CheckResult::fail(
+                        "functions_dir",
+                        "functions/ must not be a symlink",
+                    ));
+                    false
+                }
+                Ok(meta) if meta.is_dir() => {
+                    results.push(CheckResult::pass("functions_dir"));
+                    true
+                }
+                Ok(_) => {
+                    results.push(CheckResult::fail("functions_dir", "not a directory"));
+                    false
+                }
+                Err(err) => {
+                    results.push(CheckResult::fail("functions_dir", format!("{err}")));
+                    false
+                }
+            };
+
+            if functions_dir_ok {
+                let layout_result = check_functions_layout(&functions_dir);
+                let layout_ok = layout_result.passed;
+                results.push(layout_result);
+                results.push(check_functions_no_symlinks(&functions_dir));
+
+                let middleware_dir = functions_dir.join(MIDDLEWARE_FUNC_DIR_NAME);
+                if layout_ok {
+                    results.push(check_middleware_vc_config(&middleware_dir));
+                    results.push(check_middleware_index_js(&middleware_dir));
+                } else {
+                    results.push(CheckResult::skipped(
+                        "middleware_vc_config",
+                        "functions_layout",
+                    ));
+                    results.push(CheckResult::skipped(
+                        "middleware_index_js",
+                        "functions_layout",
+                    ));
+                }
+            } else {
+                for name in [
+                    "functions_layout",
+                    "functions_no_symlinks",
+                    "middleware_vc_config",
+                    "middleware_index_js",
+                ] {
+                    results.push(CheckResult::skipped(name, "functions_dir"));
+                }
+            }
+        }
+    }
 
     results
 }
 
-/// `config.json` を読み込んでパースする。サイズ上限（DoS 防御）・UTF-8・
-/// JSON 構文・トップレベルがオブジェクトであることを検証する。
-fn read_config_json(path: &Path) -> Result<Json, String> {
+/// `path` を読み込んで JSON オブジェクトとしてパースする（`read_config_json`
+/// の一般化、イシュー #3344）。サイズ上限（DoS 防御）・シンボリックリンク
+/// 拒否・UTF-8・JSON 構文・トップレベルがオブジェクトであることを検証する。
+/// `label` は FAIL メッセージの対象表示名（例: `"config.json"`・
+/// `".vc-config.json"`）。
+fn read_json_object(path: &Path, label: &str) -> Result<Json, String> {
     let metadata = std::fs::symlink_metadata(path).map_err(|err| format!("{err}"))?;
     if metadata.file_type().is_symlink() {
-        return Err("config.json must not be a symlink".to_string());
+        return Err(format!("{label} must not be a symlink"));
     }
     if !metadata.is_file() {
-        return Err("config.json is not a regular file".to_string());
+        return Err(format!("{label} is not a regular file"));
     }
     if metadata.len() > MAX_CONFIG_JSON_BYTES {
         return Err(format!(
-            "config.json exceeds size limit ({} > {} bytes)",
+            "{label} exceeds size limit ({} > {} bytes)",
             metadata.len(),
             MAX_CONFIG_JSON_BYTES
         ));
@@ -330,7 +523,7 @@ fn read_config_json(path: &Path) -> Result<Json, String> {
     let content = std::fs::read_to_string(path).map_err(|err| format!("{err}"))?;
     let value = json::parse(&content).map_err(|err| format!("{err}"))?;
     if !matches!(value, Json::Object(_)) {
-        return Err("top-level JSON value is not an object".to_string());
+        return Err(format!("top-level JSON value of {label} is not an object"));
     }
     Ok(value)
 }
@@ -908,6 +1101,202 @@ fn check_no_functions_dir(output_dir: &Path) -> CheckResult {
     }
 }
 
+/// `routes[0]` がミドルウェア起動ルート（`{"src": "/(.*)",
+/// "middlewarePath": "_middleware", "continue": true}` の形、`handle` キー
+/// なし）であり、`middlewarePath` を持つルートが `routes[0]` 以外に
+/// 存在しないことを検証する（イシュー #3344、`config_routes_shape` が
+/// PASS したうえで呼ばれる前提。`examples/vercel-ssg` の
+/// `CONFIG_JSON_WITH_BASIC_AUTH` 参照）。
+fn check_routes_middleware_first(routes: &[Json]) -> CheckResult {
+    let Some(first) = routes.first() else {
+        return CheckResult::fail("config_routes_middleware_first", "`routes` is empty");
+    };
+
+    if first.get("handle").is_some() {
+        return CheckResult::fail(
+            "config_routes_middleware_first",
+            "routes[0]: must not be a handle route",
+        );
+    }
+    if first.get("src").and_then(Json::as_str) != Some("/(.*)") {
+        return CheckResult::fail(
+            "config_routes_middleware_first",
+            "routes[0].src: must be `/(.*)`",
+        );
+    }
+    if first.get("middlewarePath").and_then(Json::as_str) != Some(MIDDLEWARE_PATH_VALUE) {
+        return CheckResult::fail(
+            "config_routes_middleware_first",
+            format!("routes[0].middlewarePath: must be `{MIDDLEWARE_PATH_VALUE}`"),
+        );
+    }
+    if first.get("continue").and_then(Json::as_bool) != Some(true) {
+        return CheckResult::fail(
+            "config_routes_middleware_first",
+            "routes[0].continue: must be `true`",
+        );
+    }
+
+    // `middlewarePath` を持つ二重・誤参照ルートの検知（A08）。
+    if let Some((index, _)) = routes
+        .iter()
+        .enumerate()
+        .skip(1)
+        .find(|(_, route)| route.get("middlewarePath").is_some())
+    {
+        return CheckResult::fail(
+            "config_routes_middleware_first",
+            format!("routes[{index}]: unexpected additional `middlewarePath` route"),
+        );
+    }
+
+    CheckResult::pass("config_routes_middleware_first")
+}
+
+/// `functions/` 直下のエントリが [`MIDDLEWARE_FUNC_DIR_NAME`]（ディレクトリ、
+/// 非シンボリックリンク）1 件のみであることを検証する（イシュー #3344）。
+/// 走査順を決定的にするため名前でソートしてから判定する。
+fn check_functions_layout(functions_dir: &Path) -> CheckResult {
+    let entries: Vec<_> = match std::fs::read_dir(functions_dir) {
+        Ok(read_dir) => match read_dir.collect::<Result<Vec<_>, _>>() {
+            Ok(entries) => entries,
+            Err(err) => return CheckResult::fail("functions_layout", format!("{err}")),
+        },
+        Err(err) => return CheckResult::fail("functions_layout", format!("{err}")),
+    };
+    let mut names: Vec<std::ffi::OsString> =
+        entries.iter().map(std::fs::DirEntry::file_name).collect();
+    names.sort();
+
+    let extra: Vec<String> = names
+        .iter()
+        .filter(|name| name.as_os_str() != std::ffi::OsStr::new(MIDDLEWARE_FUNC_DIR_NAME))
+        .map(|name| name.to_string_lossy().into_owned())
+        .collect();
+    if !extra.is_empty() {
+        let listed: Vec<&str> = extra
+            .iter()
+            .take(MAX_LISTED_EXTRA_ENTRIES)
+            .map(String::as_str)
+            .collect();
+        let mut detail = format!("functions/: unexpected entr(y|ies): {}", listed.join(", "));
+        if extra.len() > MAX_LISTED_EXTRA_ENTRIES {
+            detail.push_str(&format!(
+                " and {} more",
+                extra.len() - MAX_LISTED_EXTRA_ENTRIES
+            ));
+        }
+        return CheckResult::fail("functions_layout", detail);
+    }
+
+    let has_middleware = names
+        .iter()
+        .any(|name| name.as_os_str() == std::ffi::OsStr::new(MIDDLEWARE_FUNC_DIR_NAME));
+    if !has_middleware {
+        return CheckResult::fail(
+            "functions_layout",
+            format!("functions/: missing `{MIDDLEWARE_FUNC_DIR_NAME}`"),
+        );
+    }
+
+    let middleware_path = functions_dir.join(MIDDLEWARE_FUNC_DIR_NAME);
+    match std::fs::symlink_metadata(&middleware_path) {
+        Ok(meta) if meta.file_type().is_symlink() => CheckResult::fail(
+            "functions_layout",
+            format!("functions/{MIDDLEWARE_FUNC_DIR_NAME}: must not be a symlink"),
+        ),
+        Ok(meta) if meta.is_dir() => CheckResult::pass("functions_layout"),
+        Ok(_) => CheckResult::fail(
+            "functions_layout",
+            format!("functions/{MIDDLEWARE_FUNC_DIR_NAME}: not a directory"),
+        ),
+        Err(err) => CheckResult::fail("functions_layout", format!("{err}")),
+    }
+}
+
+/// `functions/` 以下を再帰的に走査し、シンボリックリンクが 1 つでもあれば
+/// FAIL にする（A01、[`check_static_no_symlinks`] と同型）。
+fn check_functions_no_symlinks(functions_dir: &Path) -> CheckResult {
+    match find_symlink(functions_dir, functions_dir, 0) {
+        Ok(None) => CheckResult::pass("functions_no_symlinks"),
+        Ok(Some(rel)) => CheckResult::fail(
+            "functions_no_symlinks",
+            format!("symlink found at functions/{}", rel.display()),
+        ),
+        Err(err) => CheckResult::fail("functions_no_symlinks", format!("{err}")),
+    }
+}
+
+/// `<middleware_dir>/.vc-config.json` を検証する（イシュー #3344）。
+/// `runtime` が文字列 `"edge"` であること、`entrypoint` があれば文字列
+/// [`MIDDLEWARE_INDEX_JS_NAME`] と一致することを確認する（A08）。全キーの
+/// 許可リスト検証は行わない（モジュール doc「Basic 認証ミドルウェア出力の
+/// 検証内容」節参照）。
+fn check_middleware_vc_config(middleware_dir: &Path) -> CheckResult {
+    let path = middleware_dir.join(".vc-config.json");
+    let config = match read_json_object(&path, ".vc-config.json") {
+        Ok(json) => json,
+        Err(detail) => return CheckResult::fail("middleware_vc_config", detail),
+    };
+
+    match config.get("runtime") {
+        Some(Json::String(s)) if s == "edge" => {}
+        Some(other) => {
+            return CheckResult::fail(
+                "middleware_vc_config",
+                format!("runtime: expected \"edge\", got {}", json_kind(other)),
+            );
+        }
+        None => {
+            return CheckResult::fail("middleware_vc_config", "missing `runtime` key");
+        }
+    }
+
+    if let Some(entrypoint) = config.get("entrypoint") {
+        match entrypoint.as_str() {
+            Some(s) if s == MIDDLEWARE_INDEX_JS_NAME => {}
+            Some(_) => {
+                return CheckResult::fail(
+                    "middleware_vc_config",
+                    format!("entrypoint: must be `{MIDDLEWARE_INDEX_JS_NAME}`"),
+                );
+            }
+            None => {
+                return CheckResult::fail("middleware_vc_config", "entrypoint: must be a string");
+            }
+        }
+    }
+
+    CheckResult::pass("middleware_vc_config")
+}
+
+/// `<middleware_dir>/index.js` が通常ファイルとして存在し、シンボリック
+/// リンクでなく、空でないことを検証する（内容は読まない。イシュー #3344）。
+fn check_middleware_index_js(middleware_dir: &Path) -> CheckResult {
+    let path = middleware_dir.join(MIDDLEWARE_INDEX_JS_NAME);
+    match std::fs::symlink_metadata(&path) {
+        Ok(meta) if meta.file_type().is_symlink() => CheckResult::fail(
+            "middleware_index_js",
+            format!("{MIDDLEWARE_INDEX_JS_NAME} must not be a symlink"),
+        ),
+        Ok(meta) if meta.is_file() => {
+            if meta.len() == 0 {
+                CheckResult::fail(
+                    "middleware_index_js",
+                    format!("{MIDDLEWARE_INDEX_JS_NAME} is empty"),
+                )
+            } else {
+                CheckResult::pass("middleware_index_js")
+            }
+        }
+        Ok(_) => CheckResult::fail(
+            "middleware_index_js",
+            format!("{MIDDLEWARE_INDEX_JS_NAME} is not a regular file"),
+        ),
+        Err(err) => CheckResult::fail("middleware_index_js", format!("{err}")),
+    }
+}
+
 fn json_kind(value: &Json) -> &'static str {
     match value {
         Json::Null => "null",
@@ -1297,5 +1686,476 @@ mod tests {
             summary,
             "check-vercel-output: output_dir=/tmp/out result=PASS failed=0"
         );
+    }
+
+    // --- イシュー #3344: FunctionsExpectation / Basic 認証ミドルウェア検証 ---
+
+    /// R1 の回帰固定: 既定モード（`FunctionsExpectation::None`）のチェック名
+    /// 一覧・順序は旧実装の 11 件と完全一致する。
+    #[test]
+    fn check_names_none_matches_legacy_order() {
+        let legacy = [
+            "output_dir",
+            "config_json_parse",
+            "config_version",
+            "config_top_level_keys",
+            "config_routes_shape",
+            "config_routes_404_fallback",
+            "routes_dest_targets",
+            "static_dir",
+            "static_required_pages",
+            "static_no_symlinks",
+            "no_functions_dir",
+        ];
+        assert_eq!(check_names(FunctionsExpectation::None), &legacy);
+    }
+
+    /// `examples/vercel-ssg` の `CONFIG_JSON_WITH_BASIC_AUTH` 実装と同一の
+    /// 先頭ミドルウェアルート。
+    fn middleware_route() -> Json {
+        obj(vec![
+            ("src", s("/(.*)")),
+            ("middlewarePath", s("_middleware")),
+            ("continue", Json::Bool(true)),
+        ])
+    }
+
+    #[test]
+    fn check_routes_middleware_first_accepts_valid_leading_route() {
+        let routes = vec![
+            middleware_route(),
+            obj(vec![("handle", s("filesystem"))]),
+            obj(vec![
+                ("src", s("/(.*)")),
+                ("status", Json::Number(404.0)),
+                ("dest", s("/404.html")),
+            ]),
+        ];
+        assert!(check_routes_middleware_first(&routes).passed);
+    }
+
+    #[test]
+    fn check_routes_middleware_first_rejects_empty_routes() {
+        assert!(!check_routes_middleware_first(&[]).passed);
+    }
+
+    #[test]
+    fn check_routes_middleware_first_rejects_other_route_first() {
+        let routes = vec![obj(vec![("handle", s("filesystem"))]), middleware_route()];
+        assert!(!check_routes_middleware_first(&routes).passed);
+    }
+
+    #[test]
+    fn check_routes_middleware_first_rejects_missing_continue() {
+        let routes = vec![obj(vec![
+            ("src", s("/(.*)")),
+            ("middlewarePath", s("_middleware")),
+        ])];
+        assert!(!check_routes_middleware_first(&routes).passed);
+    }
+
+    #[test]
+    fn check_routes_middleware_first_rejects_continue_false() {
+        let routes = vec![obj(vec![
+            ("src", s("/(.*)")),
+            ("middlewarePath", s("_middleware")),
+            ("continue", Json::Bool(false)),
+        ])];
+        assert!(!check_routes_middleware_first(&routes).passed);
+    }
+
+    #[test]
+    fn check_routes_middleware_first_rejects_wrong_middleware_path() {
+        let routes = vec![obj(vec![
+            ("src", s("/(.*)")),
+            ("middlewarePath", s("_other")),
+            ("continue", Json::Bool(true)),
+        ])];
+        assert!(!check_routes_middleware_first(&routes).passed);
+    }
+
+    #[test]
+    fn check_routes_middleware_first_rejects_partial_src() {
+        let routes = vec![obj(vec![
+            ("src", s("/foo")),
+            ("middlewarePath", s("_middleware")),
+            ("continue", Json::Bool(true)),
+        ])];
+        assert!(!check_routes_middleware_first(&routes).passed);
+    }
+
+    #[test]
+    fn check_routes_middleware_first_rejects_handle_route() {
+        let routes = vec![obj(vec![
+            ("handle", s("filesystem")),
+            ("src", s("/(.*)")),
+            ("middlewarePath", s("_middleware")),
+            ("continue", Json::Bool(true)),
+        ])];
+        assert!(!check_routes_middleware_first(&routes).passed);
+    }
+
+    #[test]
+    fn check_routes_middleware_first_rejects_duplicate_middleware_path() {
+        let routes = vec![
+            middleware_route(),
+            obj(vec![
+                ("src", s("/api/(.*)")),
+                ("middlewarePath", s("_middleware")),
+            ]),
+        ];
+        assert!(!check_routes_middleware_first(&routes).passed);
+    }
+
+    /// 有効時の `CONFIG_JSON_WITH_BASIC_AUTH`（`examples/vercel-ssg`）と同内容
+    /// の config が既存の `check_routes_404_fallback`（shadowing 検査）を
+    /// 無改変で PASS することを固定する（計画§3.4 補足）。
+    #[test]
+    fn config_json_with_basic_auth_passes_existing_404_fallback_check() {
+        let routes = vec![
+            middleware_route(),
+            obj(vec![
+                ("src", s("/(.*)")),
+                (
+                    "headers",
+                    obj(vec![
+                        ("X-Content-Type-Options", s("nosniff")),
+                        ("Referrer-Policy", s("strict-origin-when-cross-origin")),
+                    ]),
+                ),
+                ("continue", Json::Bool(true)),
+            ]),
+            obj(vec![("handle", s("filesystem"))]),
+            obj(vec![
+                ("src", s("/(.*)")),
+                ("status", Json::Number(404.0)),
+                ("dest", s("/404.html")),
+            ]),
+        ];
+        assert!(check_routes_404_fallback(&routes).passed);
+    }
+
+    fn valid_vc_config() -> Json {
+        obj(vec![
+            ("runtime", s("edge")),
+            ("entrypoint", s("index.js")),
+            (
+                "envVarsInUse",
+                Json::Array(vec![s("BASIC_AUTH_USER"), s("BASIC_AUTH_PASSWORD")]),
+            ),
+        ])
+    }
+
+    /// `check_middleware_vc_config` はファイル読み取りを経由するため、
+    /// 一時ディレクトリへ `.vc-config.json` を書き出して検証する。
+    fn write_vc_config(dir: &Path, content: &str) {
+        std::fs::create_dir_all(dir).unwrap();
+        std::fs::write(dir.join(".vc-config.json"), content).unwrap();
+    }
+
+    fn unique_test_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "xtask-check-vercel-output-unit-{name}-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn check_middleware_vc_config_accepts_valid_config() {
+        let dir = unique_test_dir("vc-config-valid");
+        let json_text = json_to_string(&valid_vc_config());
+        write_vc_config(&dir, &json_text);
+        assert!(check_middleware_vc_config(&dir).passed);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn check_middleware_vc_config_rejects_nodejs_runtime() {
+        let dir = unique_test_dir("vc-config-nodejs");
+        write_vc_config(
+            &dir,
+            r#"{"runtime": "nodejs20.x", "entrypoint": "index.js"}"#,
+        );
+        let result = check_middleware_vc_config(&dir);
+        assert!(!result.passed);
+        assert!(result.detail.unwrap().contains("runtime"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn check_middleware_vc_config_rejects_numeric_runtime() {
+        let dir = unique_test_dir("vc-config-numeric-runtime");
+        write_vc_config(&dir, r#"{"runtime": 1, "entrypoint": "index.js"}"#);
+        assert!(!check_middleware_vc_config(&dir).passed);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn check_middleware_vc_config_rejects_missing_runtime() {
+        let dir = unique_test_dir("vc-config-missing-runtime");
+        write_vc_config(&dir, r#"{"entrypoint": "index.js"}"#);
+        assert!(!check_middleware_vc_config(&dir).passed);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn check_middleware_vc_config_rejects_entrypoint_mismatch() {
+        let dir = unique_test_dir("vc-config-entrypoint-mismatch");
+        write_vc_config(&dir, r#"{"runtime": "edge", "entrypoint": "main.js"}"#);
+        assert!(!check_middleware_vc_config(&dir).passed);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn check_middleware_vc_config_rejects_top_level_array() {
+        let dir = unique_test_dir("vc-config-top-level-array");
+        write_vc_config(&dir, r#"["edge"]"#);
+        assert!(!check_middleware_vc_config(&dir).passed);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn check_middleware_vc_config_rejects_invalid_json() {
+        let dir = unique_test_dir("vc-config-invalid-json");
+        write_vc_config(&dir, "{ not json");
+        assert!(!check_middleware_vc_config(&dir).passed);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn check_middleware_vc_config_rejects_missing_file() {
+        let dir = unique_test_dir("vc-config-missing-file");
+        assert!(!check_middleware_vc_config(&dir).passed);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A09 回帰テスト: `.vc-config.json` の `envVarsInUse` の中身（機微な
+    /// 環境変数名の並び）は FAIL detail に出さない。
+    #[test]
+    fn check_middleware_vc_config_detail_excludes_env_vars_in_use_values() {
+        let dir = unique_test_dir("vc-config-a09");
+        write_vc_config(
+            &dir,
+            r#"{"runtime": "nodejs", "envVarsInUse": ["SUPER_SECRET_VAR_NAME"]}"#,
+        );
+        let result = check_middleware_vc_config(&dir);
+        assert!(!result.passed);
+        let detail = result.detail.expect("FAIL には detail が必須");
+        assert!(!detail.contains("SUPER_SECRET_VAR_NAME"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn check_middleware_index_js_accepts_nonempty_file() {
+        let dir = unique_test_dir("index-js-valid");
+        std::fs::write(dir.join("index.js"), b"export default () => {};").unwrap();
+        assert!(check_middleware_index_js(&dir).passed);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn check_middleware_index_js_rejects_missing_file() {
+        let dir = unique_test_dir("index-js-missing");
+        assert!(!check_middleware_index_js(&dir).passed);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn check_middleware_index_js_rejects_empty_file() {
+        let dir = unique_test_dir("index-js-empty");
+        std::fs::write(dir.join("index.js"), b"").unwrap();
+        assert!(!check_middleware_index_js(&dir).passed);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// JSON 値を最小限のシリアライズで文字列化するテスト専用ヘルパー
+    /// （`json` モジュールはパースのみを提供し逆方向を持たないため）。
+    fn json_to_string(value: &Json) -> String {
+        match value {
+            Json::Null => "null".to_string(),
+            Json::Bool(b) => b.to_string(),
+            Json::Number(n) => n.to_string(),
+            Json::String(s) => format!("{s:?}"),
+            Json::Array(items) => {
+                let parts: Vec<String> = items.iter().map(json_to_string).collect();
+                format!("[{}]", parts.join(","))
+            }
+            Json::Object(entries) => {
+                let parts: Vec<String> = entries
+                    .iter()
+                    .map(|(k, v)| format!("{k:?}:{}", json_to_string(v)))
+                    .collect();
+                format!("{{{}}}", parts.join(","))
+            }
+        }
+    }
+
+    /// `check()` のモード別スナップショット。合格ツリー・`output_dir` 不在・
+    /// `config.json` パース失敗の 3 状況について、返る `CheckResult` の
+    /// チェック名集合が `check_names(mode)` と重複・欠落なく完全一致する
+    /// ことを固定する（R1・R3〜R9 の全体整合性を担保）。
+    fn assert_check_names_match(results: &[CheckResult], expectation: FunctionsExpectation) {
+        let expected = check_names(expectation);
+        let actual: Vec<&str> = results.iter().map(|r| r.name).collect();
+        let mut expected_sorted = expected.to_vec();
+        expected_sorted.sort_unstable();
+        let mut actual_sorted = actual.clone();
+        actual_sorted.sort_unstable();
+        assert_eq!(
+            expected_sorted, actual_sorted,
+            "expected check name set {expected:?}, got {actual:?}"
+        );
+    }
+
+    fn write_valid_basic_auth_tree(root: &Path) {
+        let output = root.join(".vercel/output");
+        let static_dir = output.join("static");
+        std::fs::create_dir_all(static_dir.join("pages/about")).unwrap();
+        std::fs::create_dir_all(static_dir.join("pages/default-escaping")).unwrap();
+        std::fs::write(static_dir.join("index.html"), "<html>index</html>").unwrap();
+        std::fs::write(static_dir.join("404.html"), "<html>404</html>").unwrap();
+        std::fs::write(
+            static_dir.join("pages/about/index.html"),
+            "<html>about</html>",
+        )
+        .unwrap();
+        std::fs::write(
+            static_dir.join("pages/default-escaping/index.html"),
+            "<html>escaping</html>",
+        )
+        .unwrap();
+
+        std::fs::write(
+            output.join("config.json"),
+            r#"{
+  "version": 3,
+  "routes": [
+    {"src": "/(.*)", "middlewarePath": "_middleware", "continue": true},
+    {"src": "/(.*)", "headers": {"X-Content-Type-Options": "nosniff"}, "continue": true},
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "status": 404, "dest": "/404.html" }
+  ]
+}
+"#,
+        )
+        .unwrap();
+
+        let middleware_dir = output.join("functions/_middleware.func");
+        std::fs::create_dir_all(&middleware_dir).unwrap();
+        std::fs::write(
+            middleware_dir.join(".vc-config.json"),
+            r#"{"runtime": "edge", "entrypoint": "index.js", "envVarsInUse": ["BASIC_AUTH_USER", "BASIC_AUTH_PASSWORD"]}"#,
+        )
+        .unwrap();
+        std::fs::write(middleware_dir.join("index.js"), b"export default () => {};").unwrap();
+    }
+
+    #[test]
+    fn check_none_mode_on_valid_tree_matches_check_names() {
+        let dir = unique_test_dir("check-none-valid-tree");
+        let output = dir.join(".vercel/output");
+        let static_dir = output.join("static");
+        std::fs::create_dir_all(static_dir.join("pages/about")).unwrap();
+        std::fs::create_dir_all(static_dir.join("pages/default-escaping")).unwrap();
+        std::fs::write(static_dir.join("index.html"), "x").unwrap();
+        std::fs::write(static_dir.join("404.html"), "x").unwrap();
+        std::fs::write(static_dir.join("pages/about/index.html"), "x").unwrap();
+        std::fs::write(static_dir.join("pages/default-escaping/index.html"), "x").unwrap();
+        std::fs::write(
+            output.join("config.json"),
+            r#"{"version": 3, "routes": [{"handle": "filesystem"}, {"src": "/(.*)", "status": 404, "dest": "/404.html"}]}"#,
+        )
+        .unwrap();
+
+        let results = check(&output, FunctionsExpectation::None);
+        assert!(results.iter().all(|r| r.passed));
+        assert_check_names_match(&results, FunctionsExpectation::None);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn check_basic_auth_mode_on_valid_tree_passes_and_matches_check_names() {
+        let dir = unique_test_dir("check-basic-auth-valid-tree");
+        write_valid_basic_auth_tree(&dir);
+        let output = dir.join(".vercel/output");
+
+        let results = check(&output, FunctionsExpectation::BasicAuthMiddleware);
+        assert!(
+            results.iter().all(|r| r.passed),
+            "expected all PASS, got {results:?}"
+        );
+        assert_check_names_match(&results, FunctionsExpectation::BasicAuthMiddleware);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// R1/R2 の境界: 既定モードを有効時のツリーへ適用すると `functions/` が
+    /// 存在するため `no_functions_dir` が FAIL する。
+    #[test]
+    fn check_none_mode_on_basic_auth_tree_fails_no_functions_dir() {
+        let dir = unique_test_dir("check-none-on-basic-auth-tree");
+        write_valid_basic_auth_tree(&dir);
+        let output = dir.join(".vercel/output");
+
+        let results = check(&output, FunctionsExpectation::None);
+        assert_check_names_match(&results, FunctionsExpectation::None);
+        assert!(results
+            .iter()
+            .any(|r| r.name == "no_functions_dir" && !r.passed));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 新モードを無効時（`functions/` なし）のツリーへ適用すると
+    /// `functions_dir` が FAIL する。
+    #[test]
+    fn check_basic_auth_mode_on_none_tree_fails_functions_dir() {
+        let dir = unique_test_dir("check-basic-auth-on-none-tree");
+        let output = dir.join(".vercel/output");
+        let static_dir = output.join("static");
+        std::fs::create_dir_all(static_dir.join("pages/about")).unwrap();
+        std::fs::create_dir_all(static_dir.join("pages/default-escaping")).unwrap();
+        std::fs::write(static_dir.join("index.html"), "x").unwrap();
+        std::fs::write(static_dir.join("404.html"), "x").unwrap();
+        std::fs::write(static_dir.join("pages/about/index.html"), "x").unwrap();
+        std::fs::write(static_dir.join("pages/default-escaping/index.html"), "x").unwrap();
+        std::fs::write(
+            output.join("config.json"),
+            r#"{"version": 3, "routes": [{"handle": "filesystem"}, {"src": "/(.*)", "status": 404, "dest": "/404.html"}]}"#,
+        )
+        .unwrap();
+
+        let results = check(&output, FunctionsExpectation::BasicAuthMiddleware);
+        assert_check_names_match(&results, FunctionsExpectation::BasicAuthMiddleware);
+        assert!(results
+            .iter()
+            .any(|r| r.name == "functions_dir" && !r.passed));
+        assert!(results.iter().any(|r| r.name == "middleware_vc_config"
+            && !r.passed
+            && r.detail.as_deref() == Some("skipped: depends on functions_dir")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn check_basic_auth_mode_output_dir_missing_matches_check_names() {
+        let dir = unique_test_dir("check-basic-auth-missing-output-dir");
+        let output = dir.join("does-not-exist");
+        let results = check(&output, FunctionsExpectation::BasicAuthMiddleware);
+        assert_check_names_match(&results, FunctionsExpectation::BasicAuthMiddleware);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn check_basic_auth_mode_config_parse_failure_matches_check_names() {
+        let dir = unique_test_dir("check-basic-auth-config-parse-failure");
+        write_valid_basic_auth_tree(&dir);
+        let output = dir.join(".vercel/output");
+        std::fs::write(output.join("config.json"), "{ not json").unwrap();
+
+        let results = check(&output, FunctionsExpectation::BasicAuthMiddleware);
+        assert_check_names_match(&results, FunctionsExpectation::BasicAuthMiddleware);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
