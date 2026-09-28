@@ -406,6 +406,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-navbar-app-links-toggle] {\n  display: inline-flex;\n}\n\
 [data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-navbar-app-links-toggle][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-navbar-app-links-panel] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  padding: 0 var(--fandhe-space-4) var(--fandhe-space-3);\n}\n\
+[data-blocks-navbar-app-links-panel] [data-scope=\"navigation-menu\"][data-part=\"list\"] {\n  flex-direction: column;\n}\n\
 [data-blocks-navbar-app-links-shell][data-blocks-navbar-app-links-current-style=\"pill\"] [data-scope=\"navigation-menu\"][data-part=\"link\"] {\n  border-radius: var(--fandhe-radius-full);\n}\n\
 [data-blocks-navbar-app-links-shell][data-blocks-navbar-app-links-current-style=\"underline\"] [data-scope=\"navigation-menu\"][data-part=\"link\"][data-current] {\n  background: transparent;\n  color: var(--fandhe-color-fg);\n  border-radius: 0;\n  border-block-end: 2px solid var(--fandhe-color-accent);\n}\n\
 @container blocks-navbar-app-links (min-width: 48rem) {\n  \
