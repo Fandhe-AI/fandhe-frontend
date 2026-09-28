@@ -408,6 +408,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/navbar-with-search/index.html"
           # Application / Page Heading
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-actions/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-avatar/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-cover/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-meta/index.html"
           # Application / Card Heading
