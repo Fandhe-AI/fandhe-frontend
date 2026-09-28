@@ -167,17 +167,20 @@ fn search_icon() -> Node {
 }
 
 /// ロゴ（幾何図形アイコン + 架空のブランド名テキスト。href はサイト
-/// トップページ [`HOME_URL`]）。
-fn logo() -> Node {
-    link::root(
-        HOME_URL,
-        &LinkProps::default(),
-        vec![("data-blocks-navbar-docs-site-logo", "")],
-        vec![
-            geo_icon("M4 4h16v16H4zM8 8h8v8H8z"),
-            span(vec![], vec![text("Nimbus Docs")]),
-        ],
-    )
+/// トップページ [`HOME_URL`]）。`compact` が `true` のときはワードマーク
+/// テキストを描画せず、代わりに `aria-label` でアクセシブルネームを保つ
+/// （`narrow` variant 専用。ワードマークがロゴ・検索・ドキュメント 3 件・
+/// リポジトリ・テーマ切替・主操作の計 7 項目と並んで 24rem を超えて
+/// はみ出していた、イシュー #2927 PR レビュー〔codex/Bugbot〕指摘）。
+fn logo(compact: bool) -> Node {
+    let mut attrs = vec![("data-blocks-navbar-docs-site-logo", "")];
+    let mut children = vec![geo_icon("M4 4h16v16H4zM8 8h8v8H8z")];
+    if compact {
+        attrs.push(("aria-label", "Nimbus Docs"));
+    } else {
+        children.push(span(vec![], vec![text("Nimbus Docs")]));
+    }
+    link::root(HOME_URL, &LinkProps::default(), attrs, children)
 }
 
 /// メインナビ（`navigation_menu`。トリガー・パネルを持たない単純なリンク
@@ -214,7 +217,10 @@ fn docs_nav_menu(aria_label: &str) -> Node {
 }
 
 /// メインナビ（`tab_nav`。「見た目は tabs、意味論はナビゲーション」の
-/// end-search variant 向け。1 件だけ `current` を立てる）。
+/// end-search variant 向け）。この Demo 自体は `/blocks/navbar-docs-site/`
+/// に表示され [`NAV_ITEMS`] のいずれとも一致しないため、どの項目にも
+/// `current` を立てない（閲覧中のページと食い違う `current` 表示は
+/// 支援技術へ誤った現在位置を伝える、イシュー #2927 PR レビュー指摘）。
 fn docs_tab_nav(aria_label: &str) -> Node {
     tab_nav::root(
         Size::Md,
@@ -222,9 +228,7 @@ fn docs_tab_nav(aria_label: &str) -> Node {
         vec![("data-blocks-navbar-docs-site-tabs", "")],
         NAV_ITEMS
             .iter()
-            .map(|(value, label, href)| {
-                tab_nav::link(href, *value == "guides", vec![], vec![text(*label)])
-            })
+            .map(|(_value, label, href)| tab_nav::link(href, false, vec![], vec![text(*label)]))
             .collect(),
     )
 }
@@ -300,10 +304,15 @@ fn search_button() -> Node {
     )
 }
 
-/// 狭幅専用のアイコンボタン型検索トリガー。
-fn search_icon_button() -> Node {
+/// アイコンボタン型検索トリガー（`size` は呼び出し側の variant に合わせる。
+/// `narrow` は他の全アイコン項目と揃えて [`Size::Sm`] を使い、[`logo`] の
+/// doc コメントに記した 24rem 超過を避ける）。
+fn search_icon_button(size: Size) -> Node {
     button::icon_button(
-        &ButtonProps::default(),
+        &ButtonProps {
+            size,
+            ..ButtonProps::default()
+        },
         "ドキュメントを検索",
         vec![("data-blocks-navbar-docs-site-search-button", "")],
         vec![search_icon()],
@@ -328,11 +337,13 @@ fn repo_link() -> Node {
 /// テーマ切替（サイト本体の `.docs-theme-toggle`（`site.js` が掴む唯一の
 /// セレクタ）とは別の class/id を持つ、押しても何も起きない静的表示）。
 /// 陽光線は開いた線分のため [`stroke_icon`] で描く（塗りでは不可視、
-/// Bugbot 指摘）。
-fn theme_toggle() -> Node {
+/// Bugbot 指摘）。`size` は [`search_icon_button`] と同じ理由で呼び出し側の
+/// variant に合わせる。
+fn theme_toggle(size: Size) -> Node {
     button::icon_button(
         &ButtonProps {
             variant: ButtonVariant::Ghost,
+            size,
             ..ButtonProps::default()
         },
         "配色テーマを切り替え",
@@ -406,7 +417,7 @@ fn center_search() -> Node {
         vec![
             div(
                 vec![("data-blocks-navbar-docs-site-start", "")],
-                vec![logo(), docs_nav_menu("メイン（中央検索）")],
+                vec![logo(false), docs_nav_menu("メイン（中央検索）")],
             ),
             div(
                 vec![("data-blocks-navbar-docs-site-center", "")],
@@ -414,7 +425,7 @@ fn center_search() -> Node {
             ),
             div(
                 vec![("data-blocks-navbar-docs-site-end", "")],
-                vec![repo_link(), theme_toggle(), primary(Size::Md)],
+                vec![repo_link(), theme_toggle(Size::Md), primary(Size::Md)],
             ),
         ],
     )
@@ -431,14 +442,14 @@ fn end_search() -> Node {
         vec![
             div(
                 vec![("data-blocks-navbar-docs-site-start", "")],
-                vec![logo(), docs_tab_nav("メイン（右寄せ検索）")],
+                vec![logo(false), docs_tab_nav("メイン（右寄せ検索）")],
             ),
             div(
                 vec![("data-blocks-navbar-docs-site-end", "")],
                 vec![
                     search_button(),
                     repo_link(),
-                    theme_toggle(),
+                    theme_toggle(Size::Md),
                     primary(Size::Md),
                 ],
             ),
@@ -459,18 +470,22 @@ fn narrow() -> Node {
         vec![
             div(
                 vec![("data-blocks-navbar-docs-site-start", "")],
-                vec![logo()],
+                vec![logo(true)],
             ),
             div(
                 vec![("data-blocks-navbar-docs-site-end", "")],
-                [search_icon_button()]
+                [search_icon_button(Size::Sm)]
                     .into_iter()
                     .chain(
                         NAV_ITEMS
                             .iter()
                             .map(|(_, label, href)| docs_icon_link(label, href)),
                     )
-                    .chain([repo_link(), theme_toggle(), primary_icon_button(Size::Sm)])
+                    .chain([
+                        repo_link(),
+                        theme_toggle(Size::Sm),
+                        primary_icon_button(Size::Sm),
+                    ])
                     .collect(),
             ),
         ],
