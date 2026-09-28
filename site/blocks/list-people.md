@@ -323,8 +323,10 @@ fn example_inline_link_menu() -> Node {
                         person.email,
                         link::root(REPO, &LinkProps::default(), vec![], vec![text(name)]),
                     ),
-                    meta(role, &person.presence),
-                    menu_root,
+                    div(
+                        vec![("class", "blocks-list-people-trailing")],
+                        vec![meta(role, &person.presence), menu_root],
+                    ),
                 ],
             )
         })

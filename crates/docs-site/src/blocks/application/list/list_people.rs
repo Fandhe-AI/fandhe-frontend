@@ -130,6 +130,35 @@
 //! R1292/R1294（詳細は `site/blocks/list-people.md` の「集約元との差分
 //! メモ」節）。文言・配色・アイコンは独自に書く（他 block と同じライセンス
 //! 上の転記制限）。実在の人物・企業名・PII は使わない。
+//!
+//! # chevron が行クリックを奪う理由（Bugbot 指摘）
+//!
+//! 例 2・4 の chevron（`.blocks-list-people-chevron`）は装飾用の絶対配置
+//! `<span aria-hidden>` だが、`link_overlay::overlay` より DOM 順で後に
+//! あるため描画スタック上は overlay より手前に来て、chevron の矩形内の
+//! クリックが overlay の `<a>` ではなく chevron 自身に当たり行クリック
+//! ナビゲーションが機能しなかった。`pointer-events: none;` を追加し、
+//! chevron を常にクリック透過にした。
+//!
+//! # 3 要素構成の行が広幅で中央分離する理由（Bugbot 指摘）
+//!
+//! 40rem クエリの `justify-content: space-between` は行の直接の flex
+//! 子要素すべてへ等間隔配置を適用するため、例 3（body/meta/menu の 3
+//! 要素構成）では meta と menu が両端へ引き離され、右寄せグループとして
+//! まとまらなかった（`justify-content: space-between` は子要素数に依らず
+//! 先頭と末尾を両端へ、残りを均等配置する仕様上の帰結）。是正として
+//! meta と menu を `.blocks-list-people-trailing` 1 つの子要素へまとめ、
+//! 行の直接の子を常に 2 つ（本体・trailing）に固定する。狭幅では
+//! trailing 自体を縦積み（既定の `flex-direction: column`）にし、40rem
+//! 以上でのみ横並びへ切り替える。
+//!
+//! # chevron が末尾のメタ情報と重なる理由（Bugbot 指摘）
+//!
+//! 例 2（行全体リンク）は 40rem 以上で `link-overlay` 内部が横並びになり
+//! meta が行末へ来るが、chevron は `inset-inline-end` の絶対配置で予約
+//! スペースを持たないため、長い役職名・最終ログイン文言と重なっていた。
+//! 是正として `.blocks-list-people-row-link` へ 40rem クエリ内でのみ
+//! `padding-inline-end` を確保し、chevron の矩形をこの余白へ収める。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -430,8 +459,10 @@ fn example_inline_link_menu() -> Node {
                         person.email,
                         link::root(REPO, &LinkProps::default(), vec![], vec![text(name)]),
                     ),
-                    meta(role, &person.presence),
-                    menu_root,
+                    div(
+                        vec![("class", "blocks-list-people-trailing")],
+                        vec![meta(role, &person.presence), menu_root],
+                    ),
                 ],
             )
         })
@@ -609,13 +640,16 @@ const LAYOUT_CSS: &str = "\
 .blocks-list-people-email {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\
 .blocks-list-people-meta {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-list-people-presence {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n}\n\
-.blocks-list-people-chevron {\n  position: absolute;\n  inset-inline-end: var(--fandhe-space-2);\n  top: 50%;\n  transform: translateY(-50%);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-list-people-trailing {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
+.blocks-list-people-chevron {\n  position: absolute;\n  inset-inline-end: var(--fandhe-space-2);\n  top: 50%;\n  transform: translateY(-50%);\n  color: var(--fandhe-color-fg-muted);\n  pointer-events: none;\n}\n\
 .blocks-list-people-panel [data-scope=\"menu\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 :is(.blocks-list-people-panel, .blocks-list-people-panel-columns) [data-scope=\"button\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 @container blocks-list-people (min-width: 40rem) {\n  \
 .blocks-list-people-panel [data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > .blocks-list-people-row {\n    flex-direction: row;\n    align-items: center;\n    justify-content: space-between;\n  }\n  \
+.blocks-list-people-row-link {\n    padding-inline-end: var(--fandhe-space-8);\n  }\n  \
 .blocks-list-people-row-link > [data-scope=\"link-overlay\"][data-part=\"root\"] {\n    flex-direction: row;\n    align-items: center;\n    justify-content: space-between;\n  }\n  \
-.blocks-list-people-meta {\n    align-items: flex-end;\n  }\n\
+.blocks-list-people-meta {\n    align-items: flex-end;\n  }\n  \
+.blocks-list-people-trailing {\n    flex-direction: row;\n    align-items: center;\n    gap: var(--fandhe-space-3);\n  }\n\
 }\n\
 .blocks-list-people-two-column {\n  container-type: inline-size;\n  container-name: blocks-list-people-two-column;\n}\n\
 @container blocks-list-people-two-column (min-width: 48rem) {\n  \
@@ -626,7 +660,7 @@ const LAYOUT_CSS: &str = "\
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, example_two_column, LAYOUT_CSS};
+    use super::{demo, example_inline_link_menu, example_two_column, LAYOUT_CSS};
     use fandhe_frontend_core::render;
 
     fn demo_html() -> String {
@@ -750,6 +784,34 @@ mod tests {
         let html = render(&example_two_column());
         assert!(html.contains("blocks-list-people-panel-columns\""));
         assert!(!html.contains("blocks-list-people-panel\""));
+    }
+
+    #[test]
+    fn layout_css_chevron_is_click_transparent() {
+        // 装飾用 chevron が overlay より DOM 順で後にあり、pointer-events:
+        // none がないと行クリックナビゲーションを奪ってしまう
+        // （Bugbot 指摘）。
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-list-people-chevron {\n  position: absolute;\n  inset-inline-end: var(--fandhe-space-2);\n  top: 50%;\n  transform: translateY(-50%);\n  color: var(--fandhe-color-fg-muted);\n  pointer-events: none;\n}"
+        ));
+    }
+
+    #[test]
+    fn layout_css_row_link_reserves_space_for_chevron() {
+        // 40rem 以上で chevron の絶対配置矩形が末尾のメタ情報と重ならない
+        // よう、行に予約余白を確保する回帰（Bugbot 指摘）。
+        assert!(LAYOUT_CSS.contains(
+            "@container blocks-list-people (min-width: 40rem) {\n  .blocks-list-people-panel [data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > .blocks-list-people-row {\n    flex-direction: row;\n    align-items: center;\n    justify-content: space-between;\n  }\n  .blocks-list-people-row-link {\n    padding-inline-end: var(--fandhe-space-8);\n  }"
+        ));
+    }
+
+    #[test]
+    fn inline_link_menu_example_groups_meta_and_menu_into_trailing_wrapper() {
+        // 例 3 の行は body/trailing の 2 要素構成に固定し、meta と menu が
+        // 3 要素の space-between で中央分離しないようにする回帰
+        // （Bugbot 指摘）。
+        let html = render(&example_inline_link_menu());
+        assert!(html.contains("class=\"blocks-list-people-trailing\""));
     }
 
     #[test]
