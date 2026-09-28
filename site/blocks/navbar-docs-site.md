@@ -41,29 +41,64 @@ use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::navigation_menu::{self, NavigationMenuProps, OpenState};
 use fandhe_frontend_pre_styled_ui::tab_nav;
 use fandhe_frontend_pre_styled_ui::Size;
+use std::sync::OnceLock;
 
-/// 実在の自リポジトリ URL（`href` の方針、モジュール doc 参照。
-/// `header_simple_bar::REPO` と同一 URL）。
+/// 実在の自リポジトリ URL（サイト内ページではなく GitHub 上の外部
+/// リポジトリを指すため `base_path` の対象外。`href` の方針、モジュール
+/// doc 参照。`header_simple_bar::REPO` と同一 URL）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
-/// docs サイトのトップページ（`site/index.md` が原稿、ロゴの遷移先）。
-/// `linkcheck` は Demo 出力内の絶対パスを `base_path` 込みで解決するため、
-/// `crate::blocks::marketing::footer::footer_link_columns` と同じく実在
-/// するデプロイ先 URL を直接使う契約にする。
-const HOME_URL: &str = "https://fandhe-ai.github.io/fandhe-frontend/";
-/// docs サイト「Guide」の実在ページ（`site/nav.toml` `index_path = "/guides/"`）。
-const GUIDE_URL: &str = "https://fandhe-ai.github.io/fandhe-frontend/guides/";
-/// docs サイト「API Reference」の実在ページ（同 `index_path = "/api/"`）。
-const API_REFERENCE_URL: &str = "https://fandhe-ai.github.io/fandhe-frontend/api/";
-/// docs サイト「Themes」の実在ページ（同 `index_path = "/themes/"`）。
-const THEMES_URL: &str = "https://fandhe-ai.github.io/fandhe-frontend/themes/";
 
-/// ドキュメント系ナビ項目（value, label, href）。実在するデプロイ先 URL
-/// のみを指す（上記定数群参照）。
-const NAV_ITEMS: &[(&str, &str, &str)] = &[
-    ("guides", "ガイド", GUIDE_URL),
-    ("api", "API", API_REFERENCE_URL),
-    ("themes", "コンポーネント", THEMES_URL),
-];
+/// `site/nav.toml` の `[site] base_path`（ビルド時の配信パス接頭辞）。
+///
+/// [`crate::blocks::Block::demo`] は `fn() -> Node` のため、実行時に
+/// `crate::build::build_site` から実際の `base_path` を引数で受け取れない
+/// （プロセス内 1 回だけ計算してキャッシュする点は
+/// [`crate::component_page::showcase_css_cache`] と同型）。単一の情報源
+/// （`site/nav.toml`）から `base_path` だけを読み取るため、docs-site 自身の
+/// ソースからの相対パスでコンパイル時に埋め込み [`crate::nav::parse_nav`]
+/// （唯一の解析経路）へ通す。これによりサイト内リンクの host をハード
+/// コードせず、`base_path` を反映した root-relative な href を生成できる
+/// （ローカル/プレビュービルドでも現在のホストへ正しく遷移する、
+/// イシュー #2927 PR レビュー〔codex〕指摘）。`site/nav.toml` の解析に
+/// 失敗した場合（本来到達しない）は空文字へ fail-closed する。
+fn site_base_path() -> &'static str {
+    static BASE_PATH: OnceLock<String> = OnceLock::new();
+    BASE_PATH.get_or_init(|| {
+        crate::nav::parse_nav(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../site/nav.toml"
+        )))
+        .map(|nav| nav.site.base_path)
+        .unwrap_or_default()
+    })
+}
+
+/// docs サイトのトップページ（`site/index.md` が原稿、ロゴの遷移先）。
+fn home_url() -> String {
+    crate::layout::asset_href(site_base_path(), "/")
+}
+/// docs サイト「Guide」の実在ページ（`site/nav.toml` `index_path = "/guides/"`）。
+fn guide_url() -> String {
+    crate::layout::asset_href(site_base_path(), "/guides/")
+}
+/// docs サイト「API Reference」の実在ページ（同 `index_path = "/api/"`）。
+fn api_reference_url() -> String {
+    crate::layout::asset_href(site_base_path(), "/api/")
+}
+/// docs サイト「Themes」の実在ページ（同 `index_path = "/themes/"`）。
+fn themes_url() -> String {
+    crate::layout::asset_href(site_base_path(), "/themes/")
+}
+
+/// ドキュメント系ナビ項目（value, label, href）。`base_path` を反映した
+/// サイト内 root-relative href のみを指す（上記関数群参照）。
+fn nav_items() -> Vec<(&'static str, &'static str, String)> {
+    vec![
+        ("guides", "ガイド", guide_url()),
+        ("api", "API", api_reference_url()),
+        ("themes", "コンポーネント", themes_url()),
+    ]
+}
 
 /// 自作の単純な幾何アイコン（塗り。装飾用途のため `label: None`）。
 /// 閉じた領域（矩形・円等）を表す `d` にのみ使う。開いた線分（`M...L`
@@ -109,7 +144,7 @@ fn search_icon() -> Node {
 }
 
 /// ロゴ（幾何図形アイコン + 架空のブランド名テキスト。href はサイト
-/// トップページ [`HOME_URL`]）。`compact` が `true` のときはワードマーク
+/// トップページ [`home_url`]）。`compact` が `true` のときはワードマーク
 /// テキストを描画せず、代わりに `aria-label` でアクセシブルネームを保つ
 /// （`narrow` variant 専用。ワードマークがロゴ・検索・ドキュメント 3 件・
 /// リポジトリ・テーマ切替・主操作の計 7 項目と並んで 24rem を超えて
@@ -122,7 +157,7 @@ fn logo(compact: bool) -> Node {
     } else {
         children.push(span(vec![], vec![text("Nimbus Docs")]));
     }
-    link::root(HOME_URL, &LinkProps::default(), attrs, children)
+    link::root(&home_url(), &LinkProps::default(), attrs, children)
 }
 
 /// メインナビ（`navigation_menu`。トリガー・パネルを持たない単純なリンク
@@ -136,7 +171,7 @@ fn docs_nav_menu(aria_label: &str) -> Node {
         vec![navigation_menu::list(
             &props,
             vec![],
-            NAV_ITEMS
+            nav_items()
                 .iter()
                 .map(|(value, label, href)| {
                     navigation_menu::item(
@@ -160,7 +195,7 @@ fn docs_nav_menu(aria_label: &str) -> Node {
 
 /// メインナビ（`tab_nav`。「見た目は tabs、意味論はナビゲーション」の
 /// end-search variant 向け）。この Demo 自体は `/blocks/navbar-docs-site/`
-/// に表示され [`NAV_ITEMS`] のいずれとも一致しないため、どの項目にも
+/// に表示され [`nav_items`] のいずれとも一致しないため、どの項目にも
 /// `current` を立てない（閲覧中のページと食い違う `current` 表示は
 /// 支援技術へ誤った現在位置を伝える、イシュー #2927 PR レビュー指摘）。
 fn docs_tab_nav(aria_label: &str) -> Node {
@@ -168,7 +203,7 @@ fn docs_tab_nav(aria_label: &str) -> Node {
         Size::Md,
         aria_label,
         vec![("data-blocks-navbar-docs-site-tabs", "")],
-        NAV_ITEMS
+        nav_items()
             .iter()
             .map(|(_value, label, href)| tab_nav::link(href, false, vec![], vec![text(*label)]))
             .collect(),
@@ -322,7 +357,7 @@ fn primary_icon_button(size: Size) -> Node {
     )
 }
 
-/// `narrow` variant 専用のドキュメント系アイコンリンク（[`NAV_ITEMS`] の
+/// `narrow` variant 専用のドキュメント系アイコンリンク（[`nav_items`] の
 /// 1 件を表す）。ページ罫線は開いた線分のため [`stroke_icon`] で描く
 /// （塗りでは不可視、`docs_nav_menu`/`docs_tab_nav` と同じ 3 項目を
 /// アイコン化しても到達性を落とさない、codex レビュー指摘: narrow が
@@ -423,7 +458,7 @@ fn narrow() -> Node {
                 [search_icon_button(Size::Sm)]
                     .into_iter()
                     .chain(
-                        NAV_ITEMS
+                        nav_items()
                             .iter()
                             .map(|(_, label, href)| docs_icon_link(label, href)),
                     )
