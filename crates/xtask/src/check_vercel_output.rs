@@ -1107,17 +1107,46 @@ fn check_no_functions_dir(output_dir: &Path) -> CheckResult {
 /// 存在しないことを検証する（イシュー #3344、`config_routes_shape` が
 /// PASS したうえで呼ばれる前提。`examples/vercel-ssg` の
 /// `CONFIG_JSON_WITH_BASIC_AUTH` 参照）。
+///
+/// # PR #3380 レビュー指摘への対処（Codex P0）
+///
+/// `validate_source_route`（`config_routes_shape` が先に適用する構造検証）
+/// は `methods`/`has`/`missing` 等の追加キーを持つ source route を許容する。
+/// 本関数が `src`/`middlewarePath`/`continue` の 3 キーの値のみを検証し
+/// キー集合そのものを固定していないと、先頭ルートへ `methods`（例:
+/// `["POST"]`）のような追加条件キーを足しても本関数は PASS してしまい、
+/// その条件に一致しないリクエスト（例: `GET`）が Basic 認証ミドルウェアを
+/// 経由せず後続ルートへ直接到達し得る構造上の欠陥になる（Vercel の
+/// ルーティング仕様上、`methods` 等の追加条件は当該ルートの適用範囲を
+/// 狭める側にしか働かないため）。生成元 `CONFIG_JSON_WITH_BASIC_AUTH` が
+/// 実際に生成するキー集合は `{src, middlewarePath, continue}` の 3 つ
+/// ちょうどであるため、先頭ルートのキー集合をこの 3 つに固定し、
+/// それ以外のキーが 1 つでもあれば FAIL にする。
 fn check_routes_middleware_first(routes: &[Json]) -> CheckResult {
     let Some(first) = routes.first() else {
         return CheckResult::fail("config_routes_middleware_first", "`routes` is empty");
     };
 
-    if first.get("handle").is_some() {
+    let Json::Object(entries) = first else {
         return CheckResult::fail(
             "config_routes_middleware_first",
-            "routes[0]: must not be a handle route",
+            "routes[0]: must be an object",
+        );
+    };
+
+    const ALLOWED_MIDDLEWARE_ROUTE_KEYS: [&str; 3] = ["src", "middlewarePath", "continue"];
+    if let Some((key, _)) = entries
+        .iter()
+        .find(|(k, _)| !ALLOWED_MIDDLEWARE_ROUTE_KEYS.contains(&k.as_str()))
+    {
+        return CheckResult::fail(
+            "config_routes_middleware_first",
+            format!(
+                "routes[0]: unexpected key `{key}` (must be exactly {{src, middlewarePath, continue}})"
+            ),
         );
     }
+
     if first.get("src").and_then(Json::as_str) != Some("/(.*)") {
         return CheckResult::fail(
             "config_routes_middleware_first",
@@ -1791,6 +1820,22 @@ mod tests {
             ("src", s("/(.*)")),
             ("middlewarePath", s("_middleware")),
             ("continue", Json::Bool(true)),
+        ])];
+        assert!(!check_routes_middleware_first(&routes).passed);
+    }
+
+    /// PR #3380 レビュー指摘（Codex P0）の回帰テスト: 先頭ルートへ
+    /// `validate_source_route` が許容する追加キー（`methods`）を足しても
+    /// `src`/`middlewarePath`/`continue` の値さえ合っていれば PASS して
+    /// しまっていた構造上の欠陥を固定する。`methods: ["POST"]` を足すと
+    /// GET 等の他メソッドがミドルウェアを経由せず後続ルートへ到達し得る。
+    #[test]
+    fn check_routes_middleware_first_rejects_additional_methods_key() {
+        let routes = vec![obj(vec![
+            ("src", s("/(.*)")),
+            ("middlewarePath", s("_middleware")),
+            ("continue", Json::Bool(true)),
+            ("methods", Json::Array(vec![s("POST")])),
         ])];
         assert!(!check_routes_middleware_first(&routes).passed);
     }
