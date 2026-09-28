@@ -61,6 +61,14 @@
 //! `alt=""` を使う。accessible name はボタンの visually-hidden ラベルが
 //! 単独で決める。
 //!
+//! # メタ情報段落へ `margin: 0` を付ける理由（PR #3364 codex(P2) 指摘の是正）
+//!
+//! `styled_text::text` は `<p>` を出力し、`.docs-content p` の下余白
+//! （1.05rem）がファイル名・サイズの段落にも適用され、指定した
+//! `gap: var(--fandhe-space-1)` より間隔が広がっていた。
+//! `[data-blocks-grid-list-file-thumbnails-meta] p` へ `margin: 0` を付け、
+//! 段落間隔を `gap` のみで制御する。
+//!
 //! # `<form>` を持たない・実データを持たない
 //!
 //! `crate::blocks` モジュール doc の不変条件どおり、本 Demo はフォーム・
@@ -236,7 +244,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-grid-list-file-thumbnails-image] {\n  display: block;\n  width: 100%;\n  transition: opacity var(--fandhe-motion-duration-fast, 150ms) var(--fandhe-motion-easing-standard, ease);\n}\n\
 [data-blocks-grid-list-file-thumbnails-trigger]:hover [data-blocks-grid-list-file-thumbnails-image] {\n  opacity: 0.75;\n}\n\
 [data-blocks-grid-list-file-thumbnails-meta] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
-[data-blocks-grid-list-file-thumbnails-meta] p {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\
+[data-blocks-grid-list-file-thumbnails-meta] p {\n  margin: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\
 @media (prefers-reduced-motion: reduce) {\n  [data-scope=\"image\"][data-part=\"root\"][data-blocks-grid-list-file-thumbnails-image] {\n    transition: none;\n  }\n}\n\
 @container blocks-grid-list-file-thumbnails (min-width: 30rem) {\n  [data-scope=\"list\"][data-part=\"root\"][data-blocks-grid-list-file-thumbnails-grid] {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n}\n\
 @container blocks-grid-list-file-thumbnails (min-width: 40rem) {\n  [data-scope=\"list\"][data-part=\"root\"][data-blocks-grid-list-file-thumbnails-grid] {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n}\n";
@@ -314,5 +322,14 @@ mod tests {
             LAYOUT_CSS.contains("@container blocks-grid-list-file-thumbnails (min-width: 40rem)")
         );
         assert!(LAYOUT_CSS.contains(":hover"));
+    }
+
+    /// PR #3364 codex(P2) 指摘の回帰: メタ情報の段落が `.docs-content p` の
+    /// 既定下余白を持ち込まないよう `margin: 0` を明示していること。
+    #[test]
+    fn layout_css_resets_meta_paragraph_margin() {
+        assert!(
+            LAYOUT_CSS.contains("[data-blocks-grid-list-file-thumbnails-meta] p {\n  margin: 0;\n")
+        );
     }
 }
