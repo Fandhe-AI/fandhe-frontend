@@ -21,6 +21,7 @@
 ## Rust コード
 
 ```rust
+use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarProps, ImageStatus};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};

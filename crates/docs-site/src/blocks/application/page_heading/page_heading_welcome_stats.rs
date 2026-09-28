@@ -49,10 +49,10 @@
 //! 送信処理は UI コンポーネント層の責務外）。文言・数値はすべて独自の
 //! 架空のダミー（実企業名・実クレデンシャル・PII を含まない）。
 
-use crate::blocks::dummy_assets;
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
+use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarProps, ImageStatus};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
@@ -220,7 +220,13 @@ pub const BLOCK: Block = Block {
 /// 連結される）。
 ///
 /// セレクタは `.blocks-page-heading-welcome-stats-*` と
-/// `[data-blocks-page-heading-welcome-stats-*]` のみを用いる。
+/// `[data-blocks-page-heading-welcome-stats-*]` を基本とする。ただし
+/// header/stats（`card::header`/`card::body`）は Card レシピが
+/// `[data-scope="card"][data-part="header"|"body"]`（2 属性）で狙っており
+/// 単一 `[data-blocks-*]` 属性（1 属性）では CSS 詳細度で負けるため、
+/// これらの選択子には `[data-scope="card"][data-part="..."]` を前置して
+/// 詳細度を揃える（`[data-scope="stat"][data-part="root"][data-blocks-*]`
+/// と同じ手当て）。
 ///
 /// # ルート class を `demo_class` と別名にする理由
 ///
@@ -230,13 +236,13 @@ pub const BLOCK: Block = Block {
 /// （`page_heading_actions` 等と同じ Bugbot 教訓の回避）。
 const LAYOUT_CSS: &str = "\
 .blocks-page-heading-welcome-stats-layout {\n  display: flex;\n  flex-direction: column;\n}\n\
-[data-blocks-page-heading-welcome-stats-header] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-6);\n}\n\
+[data-scope=\"card\"][data-part=\"header\"][data-blocks-page-heading-welcome-stats-header] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-6);\n}\n\
 [data-blocks-page-heading-welcome-stats-identity] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-page-heading-welcome-stats-greeting] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
-[data-blocks-page-heading-welcome-stats-stats] {\n  display: grid;\n  grid-template-columns: 1fr;\n}\n\
+[data-scope=\"card\"][data-part=\"body\"][data-blocks-page-heading-welcome-stats-stats] {\n  display: grid;\n  grid-template-columns: 1fr;\n}\n\
 [data-scope=\"stat\"][data-part=\"root\"][data-blocks-page-heading-welcome-stats-stat] {\n  padding: var(--fandhe-space-4) var(--fandhe-space-6);\n}\n\
 [data-blocks-page-heading-welcome-stats-stat] + [data-blocks-page-heading-welcome-stats-stat] {\n  border-block-start: 1px solid var(--fandhe-color-border);\n}\n\
-@media (min-width: 40rem) {\n  [data-blocks-page-heading-welcome-stats-header] {\n    flex-direction: row;\n    justify-content: space-between;\n    align-items: center;\n  }\n  [data-blocks-page-heading-welcome-stats-stats] {\n    grid-template-columns: repeat(3, 1fr);\n  }\n  [data-blocks-page-heading-welcome-stats-stat] + [data-blocks-page-heading-welcome-stats-stat] {\n    border-block-start: 0;\n    border-inline-start: 1px solid var(--fandhe-color-border);\n  }\n}\n";
+@media (min-width: 40rem) {\n  [data-scope=\"card\"][data-part=\"header\"][data-blocks-page-heading-welcome-stats-header] {\n    flex-direction: row;\n    justify-content: space-between;\n    align-items: center;\n  }\n  [data-scope=\"card\"][data-part=\"body\"][data-blocks-page-heading-welcome-stats-stats] {\n    grid-template-columns: repeat(3, 1fr);\n  }\n  [data-blocks-page-heading-welcome-stats-stat] + [data-blocks-page-heading-welcome-stats-stat] {\n    border-block-start: 0;\n    border-inline-start: 1px solid var(--fandhe-color-border);\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
