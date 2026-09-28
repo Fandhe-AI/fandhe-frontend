@@ -46,6 +46,34 @@
 //! `assets/pre-styled-ui.css` より後段の `assets/blocks.css` で宣言される
 //! ため後勝ちする）へ書き直した。
 //!
+//! # 広幅時（40rem 以上）の横並び規則も同じ詳細度まで引き上げる理由
+//!
+//! 上記の是正で行の基本規則が詳細度 (0,5,0) になった一方、`@container
+//! blocks-list-people (min-width: 40rem)` 内の横並び規則は単一 class
+//! （`.blocks-list-people-row`、詳細度 (0,1,0)）のままだったため、基本規則
+//! （(0,5,0)）にも list recipe の item 規則（`align-items: flex-start`、
+//! 詳細度 (0,3,0)）にも詳細度で負け、広幅でも縦積みのまま崩れなかった
+//! （Codex P1 指摘・Cursor High 指摘）。是正として横並び規則のセレクタを
+//! 基本規則と同じ `.blocks-list-people-panel [data-scope="list"]
+//! [data-part="root"].fd-list--variant-plain > .blocks-list-people-row`
+//! （詳細度 (0,5,0)）へ書き直し、CSS ソース順で基本規則より後段に置くこと
+//! で両方に打ち勝たせた。
+//!
+//! # disabled ボタンの中和規則を 2 カラムパネルにも広げる理由
+//!
+//! 例 5（2 カラム）の行末ボタンは `.blocks-list-people-panel-columns` 配下に
+//! あるため、`.blocks-list-people-panel` にしかスコープしない
+//! `[data-disabled] { opacity: 1; }` 中和規則では効かず、既定の
+//! `opacity: 0.5` のまま薄く表示されていた（Cursor Medium 指摘）。両パネル
+//! class を `:is()` でまとめて対象にする。
+//!
+//! # メールアドレスの省略記号が効かない理由
+//!
+//! `.blocks-list-people-email` は `overflow: hidden` + `text-overflow:
+//! ellipsis` のみで `white-space: nowrap` を欠いていたため、長いメール
+//! アドレスは省略されず折り返してしまっていた（Cursor Low 指摘）。
+//! `white-space: nowrap` を追加した。
+//!
 //! # グリッド時（例 5）の区切り線を先頭視覚行だけ消す理由
 //!
 //! 48rem 以上でグリッド化すると DOM 順の `.row + .row` セレクタでは各
@@ -578,14 +606,14 @@ const LAYOUT_CSS: &str = "\
 .blocks-list-people-identity {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\
 .blocks-list-people-name {\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
 .blocks-list-people-identity > [data-scope=\"link\"][data-part=\"root\"] {\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
-.blocks-list-people-email {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\
+.blocks-list-people-email {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\
 .blocks-list-people-meta {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-list-people-presence {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-list-people-chevron {\n  position: absolute;\n  inset-inline-end: var(--fandhe-space-2);\n  top: 50%;\n  transform: translateY(-50%);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-list-people-panel [data-scope=\"menu\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-.blocks-list-people-panel [data-scope=\"button\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+:is(.blocks-list-people-panel, .blocks-list-people-panel-columns) [data-scope=\"button\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 @container blocks-list-people (min-width: 40rem) {\n  \
-.blocks-list-people-row {\n    flex-direction: row;\n    align-items: center;\n    justify-content: space-between;\n  }\n  \
+.blocks-list-people-panel [data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > .blocks-list-people-row {\n    flex-direction: row;\n    align-items: center;\n    justify-content: space-between;\n  }\n  \
 .blocks-list-people-row-link > [data-scope=\"link-overlay\"][data-part=\"root\"] {\n    flex-direction: row;\n    align-items: center;\n    justify-content: space-between;\n  }\n  \
 .blocks-list-people-meta {\n    align-items: flex-end;\n  }\n\
 }\n\
@@ -667,6 +695,42 @@ mod tests {
         // 行の余白・整列を上書きされないための回帰（Bugbot 指摘）。
         assert!(LAYOUT_CSS.contains(
             "[data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > .blocks-list-people-row {\n  margin-block: 0;"
+        ));
+    }
+
+    #[test]
+    fn layout_css_wide_row_override_matches_base_rule_specificity() {
+        // 40rem 以上の行横並び規則（`.blocks-list-people-row { flex-direction:
+        // row; ... }`）は class 単体（詳細度 (0,1,0)）のままだと、狭幅の
+        // 基本規則（`.blocks-list-people-panel [data-scope="list"]
+        // [data-part="root"].fd-list--variant-plain > .blocks-list-people-row`、
+        // 詳細度 (0,5,0)）にも list recipe の item 規則（`align-items:
+        // flex-start`、詳細度 (0,3,0)）にも負けて横並びへ切り替わらない
+        // （Codex P1 指摘・Cursor High 指摘、Bugbot 指摘と同根）。基本規則と
+        // 同じ詳細度 (0,5,0) のセレクタへ書き直し、CSS ソース順で後勝ちさせる
+        // ことで両方に打ち勝つ回帰。
+        assert!(LAYOUT_CSS.contains(
+            "@container blocks-list-people (min-width: 40rem) {\n  .blocks-list-people-panel [data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > .blocks-list-people-row {\n    flex-direction: row;"
+        ));
+    }
+
+    #[test]
+    fn layout_css_disabled_button_opacity_covers_two_column_panel() {
+        // 例 5（2 カラム）の disabled ボタンは `.blocks-list-people-panel-columns`
+        // 配下にあるため、`.blocks-list-people-panel` にしかスコープしない
+        // 中和規則では効かず opacity: 0.5 のまま薄く表示される
+        // （Cursor Medium 指摘）。両パネル class を :is() でまとめて対象にする。
+        assert!(LAYOUT_CSS.contains(
+            ":is(.blocks-list-people-panel, .blocks-list-people-panel-columns) [data-scope=\"button\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;"
+        ));
+    }
+
+    #[test]
+    fn layout_css_email_truncates_with_nowrap() {
+        // `white-space: nowrap` が無いと折り返してしまい `overflow: hidden` +
+        // `text-overflow: ellipsis` が効かない（Cursor Low 指摘）。
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-list-people-email {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}"
         ));
     }
 
