@@ -90,18 +90,27 @@ cd examples/vercel-ssr
 # 1. プロジェクトを Vercel と紐付ける
 vercel link
 
-# 2. デプロイする（Dockerfile.vercel からコンテナイメージをビルドし、
-#    Vercel Container Registry へ格納してデプロイする。プロジェクト
-#    設定で PORT を 1024 以上に設定していることを確認してから実行する）
+# 2. デプロイする（`vercel deploy` の build step が Dockerfile.vercel を
+#    自動検出してコンテナイメージをビルドし、Vercel Container Registry
+#    （VCR）へ格納してからデプロイする。ビルドはこの build step 内で
+#    行われ、事前にローカルで `docker build`/`docker push` する必要は
+#    ない。プロジェクト設定で PORT を 1024 以上に設定していることを
+#    確認してから実行する）
 vercel deploy
 # 本番デプロイの場合は --prod を付ける
 vercel deploy --prod
 ```
 
+`--prebuilt` は付けません（`.vercel/output/` の事前ビルド成果物を使う
+Build Output API 経路〔案 c、`examples/vercel-ssg` 参照〕向けのオプションで、
+`Dockerfile.vercel` の build step とは無関係です）。
+
 Vercel CLI の Container Images 固有の挙動（デプロイ経路・イメージの
 ビルド主体等）は公式ドキュメント
-<https://vercel.com/docs/functions/container-images> に従ってください
-（2026-09-27 時点で `last_updated: 2026-07-07`、Beta のため今後変わり得ます）。
+<https://vercel.com/docs/functions/container-images>・
+<https://vercel.com/docs/container-registry> に従ってください
+（2026-09-28 時点で `last_updated: 2026-07-07`・`2026-09-04`、Beta のため
+今後変わり得ます）。
 
 ### Deployment Protection（既定で有効）
 

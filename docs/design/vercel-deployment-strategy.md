@@ -50,7 +50,7 @@ Vercel 対応方式の比較と採用方式の決定を行う決定記録です�
 | 新規 Vercel プロジェクトは既定で Deployment Protection（Vercel Authentication / SSO）が有効で、無効化しないと 302 でリダイレクトされる | 親 #3282 issue 本文 |
 | ただし #3284 の検証では、この迂回操作は不要だった（本番エイリアス URL への直接アクセスで 401/302 を挟まず 500 が返り、Function ログにも到達できた） | #3284 §5 補足 |
 | Vercel Rust ランタイム（`vercel_runtime`/`@vercel/rust`）は 2026-09-27 時点で公式に **Beta** と明記されている（"🔒 Permissions Required: The Rust runtime (Beta)"、変更履歴「Rust runtime now in public beta for Vercel Functions」） | 公式ドキュメント <https://vercel.com/docs/functions/runtimes/rust>（`last_updated: 2025-12-08`、2026-09-27 取得） |
-| Vercel は Container Images（OCI 互換の任意コンテナイメージを Vercel Functions として実行する仕組み）を提供しており、2026-09-27 時点で公式に **Beta** と明記されている。デプロイ経路はローカル/CI で `Dockerfile.vercel` を**利用者側がビルド**し、そのコンテナイメージを `vercel deploy` 等で Vercel Container Registry へ格納・Fluid Compute 上で自動スケールする形態であり、Vercel 側が Dockerfile からイメージをビルドするわけではない（Vercel 側に Rust ツールチェーンは不要）。要件は「`$PORT`（既定 80）で HTTP サーバーを待ち受ける」「スケールイン時に 30 秒の猶予付き `SIGTERM` を受け取り自身で終了処理する」の 2 点 | 公式ドキュメント <https://vercel.com/docs/functions/container-images>（`last_updated: 2026-07-07`、2026-09-27 取得） |
+| Vercel は Container Images（OCI 互換の任意コンテナイメージを Vercel Functions として実行する仕組み）を提供しており、2026-09-27 時点で公式に **Beta** と明記されている。プロジェクトルートに `Dockerfile.vercel` を置いて `vercel deploy`（または Git リポジトリへの push）を実行すると、Vercel の build step が `Dockerfile.vercel` を自動検出してイメージをビルドし、Vercel Container Registry（VCR）へ格納したうえで Fluid Compute 上で自動スケールする（原文: "Deploy your application using the Vercel CLI or by pushing to a Git repository. During the build step, the image will be built and pushed to VCR."）。ビルド自体は Vercel の build step 内で実行されるが、Vercel が用意する Rust ツールチェーンでコンパイルするわけではなく、`Dockerfile.vercel` のマルチステージビルドが自身の base image 内で `cargo build` を完結させる（Vercel 側に Rust ツールチェーンは不要）。要件は「`$PORT`（既定 80）で HTTP サーバーを待ち受ける」「スケールイン時に 30 秒の猶予付き `SIGTERM` を受け取り自身で終了処理する」の 2 点。なお `vercel vcr build`/`vercel vcr push`（ローカルの Docker/Podman/Buildah を使って明示的に VCR へイメージを登録する別コマンド群）も存在するが、Vercel Functions のデプロイ経路として文書化されているのは `Dockerfile.vercel` + `vercel deploy` の自動検出フローであり、本サンプルはこちらに従う | 公式ドキュメント <https://vercel.com/docs/functions/container-images>・<https://vercel.com/docs/container-registry>（`last_updated: 2026-07-07`・`2026-09-04`、2026-09-28 再取得） |
 | `crates/dist-server/src/main.rs` の既定 bind は `FANDHE_FRONTEND_BIND_ADDR`（既定 `127.0.0.1` 系のループバック）であり、Vercel Container Images が要求する `$PORT` 環境変数の読み取りには対応済み（イシュー #3336 で実装。優先順位: `FANDHE_FRONTEND_BIND_ADDR` > `PORT`〔`0.0.0.0:$PORT`〕> 既定 `127.0.0.1:3100`） | `crates/dist-server/src/main.rs` 実装確認（2026-09-27、#3336） |
 | Vercel Container Images の Port resolution（待受ポートの決定方法）は「既定ポートは `80`。Vercel プロジェクト設定で `PORT` 環境変数を設定すれば、その値で上書きできる（override）」と明記されている（原文: "The default port is 80, and it can be overridden by setting the `PORT` environment variable in the project settings."）。すなわち Vercel 側は非 root 実行等の理由でコンテナが `PORT` を 1024 以上へ上書きしても、その上書き後の値へ接続する仕様であり、§5「ポート 80 問題」の運用（`USER 65532:65532` を維持し `PORT` を 1024 以上へ設定）が Vercel 側の待受ポート決定と整合することを公式ドキュメントの当該節で確認済み | 公式ドキュメント <https://vercel.com/docs/functions/container-images>（`last_updated: 2026-07-07`、"Port resolution" 節、本 PR（#3335）のレビュー対応コミットで再取得。再取得日は当該コミットの日付を正とする） |
 
@@ -68,7 +68,7 @@ Vercel 対応方式の比較と採用方式の決定を行う決定記録です�
 | **beta 依存リスク** | あり。Rust ランタイム自体が公式に Beta（上表参照）。加えて [vercel/vercel#14532](https://github.com/vercel/vercel/issues/14532)（Rust runtime v2 の「address already in use」、2026-09-27 時点で open）が既知の留意点 | **該当なしではない**。案 b も `@vercel/rust` ビルダー（下表「Vercel 側で Rust ツールチェーンが必要か」参照）を前提とするため、Rust ランタイム自体が公式に Beta である点は案 a と共有するリスクである。これに加えて、文書化されていない Vercel Functions 内部プロトコルを自前実装する非公開プロトコル再実装リスクを独自に負う（案 a より広いリスク面） | 低。Build Output API・`--prebuilt` は Vercel の基盤機能であり Rust 固有の beta 機能に依存しない | あり。Container Images 自体が公式に Beta（2026-07-07 確認） |
 | REQ-3（依存 60 件/深さ 6） | 未確認。`vercel_runtime 2.4.1` 単体の依存木の件数・深さは #3285 で未計測（`lambda_runtime` が消えたことのみ確認済み）。Phase 2（#3288）の前提条件とする | 該当なし（依存追加なし） | 影響なし（既存クレートのみ） | 影響なし（既存 `dist-server` の構成のまま） |
 | REQ-4（cargo-deny） | 未確認。`=2.4.1` の advisories は example ローカルの `deny.toml` で確認する（Phase 2 前提条件） | 該当なし | 影響なし | 影響なし |
-| Vercel 側で Rust ツールチェーンが必要か | 必要（`@vercel/rust` ビルダーが Vercel 側でコンパイル） | 必要（同上、自作でも Rust ハンドラをビルドする以上不可避） | 不要（ローカル/CI でビルド済みの静的出力を配置するのみ） | 不要（コンテナイメージはローカル/CI でビルド済み。Vercel は VCR へ格納するのみ） |
+| Vercel 側で Rust ツールチェーンが必要か | 必要（`@vercel/rust` ビルダーが Vercel 側でコンパイル） | 必要（同上、自作でも Rust ハンドラをビルドする以上不可避） | 不要（ローカル/CI でビルド済みの静的出力を配置するのみ） | 不要（`vercel deploy` の build step が `Dockerfile.vercel` を検出してイメージをビルドし VCR へ格納するが、Rust のコンパイルは Dockerfile 自身のマルチステージビルドが担い、Vercel 側の専用ビルダーは介さない） |
 
 ## 4. 採否判定
 
@@ -194,10 +194,10 @@ Vercel で SSR を利用できるよう案 d を追加機能として採用し�
 #### （当初判断の経緯: 2026-09-27 時点の判断、SSR 用途では 2026-09-28 に上書き）
 
 **#2 節の実測事実を踏まえ、当初想定より成立性の見通しは改善していました。**
-Vercel は Container Images（Beta、2026-07-07 確認）により、ローカル/CI で
-`Dockerfile.vercel` からビルドした任意の OCI イメージを Vercel Functions
-として実行できます（Vercel 側は当該イメージを Container Registry へ格納
-するのみで、Dockerfile からのビルド自体は行いません）。これは
+Vercel は Container Images（Beta、2026-07-07 確認）により、`Dockerfile.vercel`
+を検出した `vercel deploy`（または Git push）の build step が任意の OCI
+イメージをビルドし、Vercel Container Registry（VCR）へ格納したうえで
+Vercel Functions として実行できます。これは
 「Vercel は任意のコンテナイメージの実行を一切サポートしない」という単純な
 不成立ではなく、「Vercel Functions の一形態として、`$PORT` 待受・
 `SIGTERM` 対応というアプリケーション側の追加要件を満たせばコンテナイメージ
