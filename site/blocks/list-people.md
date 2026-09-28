@@ -275,6 +275,10 @@ fn example_inline_link_menu() -> Node {
             let role = dummy_assets::JOB_TITLES[person.role_index];
             let content_id = format!("blocks-list-people-menu-{i}");
             let trigger_id = format!("blocks-list-people-menu-trigger-{i}");
+            // 5 件の menu::trigger が同一 aria-label だとスクリーンリーダー
+            // 利用時に区別できないため、行末ボタンと同様に氏名を付与して
+            // 一意にする（Low 指摘）。
+            let trigger_label = format!("その他の操作、{name}");
             let menu_root = menu::root(
                 Size::Sm,
                 OpenState::Closed,
@@ -284,7 +288,10 @@ fn example_inline_link_menu() -> Node {
                         OpenState::Closed,
                         true,
                         Some(content_id.as_str()),
-                        vec![("id", trigger_id.as_str()), ("aria-label", "その他の操作")],
+                        vec![
+                            ("id", trigger_id.as_str()),
+                            ("aria-label", trigger_label.as_str()),
+                        ],
                         vec![text("\u{2026}")],
                     ),
                     menu::positioner(

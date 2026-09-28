@@ -147,30 +147,36 @@
 //! trailing 自体を縦積み（既定の `flex-direction: column`）にし、40rem
 //! 以上でのみ横並びへ切り替える。
 //!
-//! # chevron が末尾のメタ情報と重なる理由（Bugbot 指摘・codex P1 指摘）
+//! # 行全体リンクの余白・クリック領域・chevron 重なりを root 側へ集約する
+//! 理由（Bugbot 指摘・codex P1 指摘、2 回目の是正）
 //!
-//! 例 2（行全体リンク）は 40rem 以上で `link-overlay` 内部が横並びになり
-//! meta が行末へ来るが、chevron は `inset-inline-end` の絶対配置で予約
-//! スペースを持たないため、長い役職名・最終ログイン文言と重なっていた。
-//! 是正として `.blocks-list-people-row-link` へ常時（40rem 未満・hover/
-//! focus-within 時も含む）`padding-inline-end` を確保し、chevron の矩形を
-//! この余白へ収める。当初は 40rem クエリ内限定だったが、行全体リンクの
-//! クリック領域を行幅まで広げる下記是正（`align-items: stretch`）により
-//! 狭幅でもメタ文言が chevron まで届き得るため常時適用へ改めた。また
-//! hover/focus-within 規則（`padding-inline: space-3` ショートハンド）が
-//! `padding-inline-end` を巻き戻してしまうため、hover 規則より CSS ソース
-//! 順で後段に同一詳細度 (0,2,0) の規則を置き、hover 時も `space-8` を
-//! 維持する（codex P1 指摘）。
+//! 当初は「行（`<li>`、`.blocks-list-people-row-link`）に
+//! `align-items: stretch` と `padding-inline-end` を持たせ、
+//! `link-overlay::root` はその内側に収まる」構成だったが、3 つの不具合を
+//! 生んでいた: (1) `align-items: stretch` が行の**全**子要素へ及ぶため、
+//! 例 5（2 カラム）の「表示」ボタンまで行幅へ全幅化してしまう
+//! （`.blocks-list-people-panel-columns` は 40rem クエリの対象外で
+//! `flex-direction: row` へ切り替わらず、常にこの stretch の影響を受け
+//! 続ける）。(2) `padding-inline-end` が行側にあると、`link-overlay::root`
+//! はその内側（行の content box）に収まるため `inset: 0` の overlay も
+//! root 幅までしか覆わず、予約余白（chevron の矩形がある領域）をクリック
+//! しても overlay の `<a>` に当たらない。(3) chevron は root の子で
+//! `position: relative` な root 自身の box 内に留まるが、root 自身は
+//! 予約余白を持たないため、meta のテキストが root の右端（chevron が
+//! `inset-inline-end` で陣取る位置のすぐ内側）まで届いてしまい重なる。
 //!
-//! # 狭幅で行全体リンクの右側がクリックできない理由（codex P1 指摘）
-//!
-//! 行の基本規則（`display: flex; flex-direction: column;`）が
-//! `align-items` を宣言していなかったため、list recipe の item 規則
-//! （`align-items: flex-start`、詳細度 (0,3,0)）が生き残り、column flex の
-//! 子（`link-overlay::root` を含む）が shrink-to-fit で行幅に満たない
-//! 幅に縮んでいた。`inset: 0` の overlay も root 幅までしか覆わないため、
-//! 行の右側をクリックしても overlay の `<a>` に当たらなかった。行の基本
-//! 規則へ `align-items: stretch` を追加し、子要素を常に行幅へ揃える。
+//! 是正として `align-self: stretch`（行の `align-items` に依存せず常に
+//! 行幅へ揃う）と `padding-inline-end: space-8`（メタ情報の予約余白）を
+//! いずれも `link-overlay::root` 自身へ移した。`inset: 0` の overlay は
+//! `root` の padding edge（＝ root の border box 全体）を覆うため、この
+//! 予約余白ごとクリック可能になり (2) を解消する。meta は root の
+//! content box（予約余白を除いた領域）までしか描画されないため chevron
+//! と重ならず (3) も解消する。行自身は `align-items` を宣言しなくなり
+//! list recipe の既定（`align-items: flex-start`）に委ねるため、例 5 の
+//! ボタンは自然な幅のまま (1) も解消する。hover/focus-within 規則
+//! （`.blocks-list-people-row-link` 側の `padding-inline` ショートハンド）
+//! は別要素（`<li>` 自身、装飾用の背景余白）を触るだけになり、root の
+//! `padding-inline-end` とは競合しなくなった。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -421,6 +427,10 @@ fn example_inline_link_menu() -> Node {
             let role = dummy_assets::JOB_TITLES[person.role_index];
             let content_id = format!("blocks-list-people-menu-{i}");
             let trigger_id = format!("blocks-list-people-menu-trigger-{i}");
+            // 5 件の menu::trigger が同一 aria-label だとスクリーンリーダー
+            // 利用時に区別できないため、行末ボタンと同様に氏名を付与して
+            // 一意にする（Low 指摘）。
+            let trigger_label = format!("その他の操作、{name}");
             let menu_root = menu::root(
                 Size::Sm,
                 OpenState::Closed,
@@ -430,7 +440,10 @@ fn example_inline_link_menu() -> Node {
                         OpenState::Closed,
                         true,
                         Some(content_id.as_str()),
-                        vec![("id", trigger_id.as_str()), ("aria-label", "その他の操作")],
+                        vec![
+                            ("id", trigger_id.as_str()),
+                            ("aria-label", trigger_label.as_str()),
+                        ],
                         vec![text("\u{2026}")],
                     ),
                     menu::positioner(
@@ -636,12 +649,11 @@ const LAYOUT_CSS: &str = "\
 .blocks-list-people-section-title {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-list-people-panel {\n  display: flex;\n  flex-direction: column;\n  container-type: inline-size;\n  container-name: blocks-list-people;\n}\n\
 .blocks-list-people-panel-columns {\n  display: flex;\n  flex-direction: column;\n}\n\
-:is(.blocks-list-people-panel, .blocks-list-people-panel-columns) [data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > .blocks-list-people-row {\n  margin-block: 0;\n  display: flex;\n  flex-direction: column;\n  align-items: stretch;\n  gap: var(--fandhe-space-3);\n  padding-block: var(--fandhe-space-4);\n  position: relative;\n}\n\
+:is(.blocks-list-people-panel, .blocks-list-people-panel-columns) [data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > .blocks-list-people-row {\n  margin-block: 0;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  padding-block: var(--fandhe-space-4);\n  position: relative;\n}\n\
 .blocks-list-people-row + .blocks-list-people-row {\n  border-block-start: 1px solid var(--fandhe-color-border);\n}\n\
 .blocks-list-people-row-link {\n  transition: background-color 0.15s ease;\n}\n\
 .blocks-list-people-row-link:hover, .blocks-list-people-row-link:focus-within {\n  background-color: var(--fandhe-color-bg-subtle);\n  padding-inline: var(--fandhe-space-3);\n}\n\
-.blocks-list-people-panel .blocks-list-people-row-link, .blocks-list-people-panel .blocks-list-people-row-link:hover, .blocks-list-people-panel .blocks-list-people-row-link:focus-within {\n  padding-inline-end: var(--fandhe-space-8);\n}\n\
-.blocks-list-people-row-link > [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: column;\n  flex: 1;\n  min-width: 0;\n  gap: var(--fandhe-space-3);\n}\n\
+.blocks-list-people-row-link > [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: column;\n  flex: 1;\n  align-self: stretch;\n  min-width: 0;\n  gap: var(--fandhe-space-3);\n  padding-inline-end: var(--fandhe-space-8);\n}\n\
 .blocks-list-people-body {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  min-width: 0;\n}\n\
 .blocks-list-people-identity {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n\
 .blocks-list-people-name {\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
@@ -666,7 +678,7 @@ const LAYOUT_CSS: &str = "\
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, example_inline_link_menu, example_two_column, LAYOUT_CSS};
+    use super::{demo, example_inline_link_menu, example_two_column, LAYOUT_CSS, PEOPLE};
     use fandhe_frontend_core::render;
 
     fn demo_html() -> String {
@@ -732,12 +744,15 @@ mod tests {
     fn layout_css_row_rule_outranks_list_recipe_plain_item_rule() {
         // list recipe の item 規則（`[data-part="root"].fd-list--variant-plain >
         // [data-part="item"] { align-items: flex-start }`、詳細度 (0,5,0)）に
-        // 行の余白・整列を上書きされないための回帰（Bugbot 指摘）。
-        // `align-items: stretch` は狭幅で行全体リンクのクリック領域が
-        // 行幅まで広がらない不具合の是正（codex P1 指摘）。
+        // 行の余白（margin-block 二重化）を上書きされないための回帰
+        // （Bugbot 指摘）。`align-items` は行自身では宣言せず list recipe の
+        // 既定（`flex-start`）へ委ねる（2 カラム例のボタン全幅化を防ぐ、
+        // Medium 指摘。クリック領域の確保は `link-overlay::root` 自身の
+        // `align-self: stretch` が担う、下記テスト参照）。
         assert!(LAYOUT_CSS.contains(
-            "[data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > .blocks-list-people-row {\n  margin-block: 0;\n  display: flex;\n  flex-direction: column;\n  align-items: stretch;"
+            "[data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > .blocks-list-people-row {\n  margin-block: 0;\n  display: flex;\n  flex-direction: column;\n  gap:"
         ));
+        assert!(!LAYOUT_CSS.contains("align-items: stretch"));
     }
 
     #[test]
@@ -794,22 +809,21 @@ mod tests {
     }
 
     #[test]
-    fn layout_css_row_link_reserves_space_for_chevron() {
-        // chevron の絶対配置矩形が末尾のメタ情報と重ならないよう、行に常時
-        // （hover/focus-within 時も含む）予約余白を確保する回帰
-        // （Bugbot 指摘・codex P1 指摘）。hover 規則（`padding-inline:
-        // space-3` ショートハンド）に巻き戻されないよう、本規則が hover
-        // 規則より CSS ソース順で後段にあることも固定する。
-        let marker = ".blocks-list-people-panel .blocks-list-people-row-link, .blocks-list-people-panel .blocks-list-people-row-link:hover, .blocks-list-people-panel .blocks-list-people-row-link:focus-within {\n  padding-inline-end: var(--fandhe-space-8);\n}";
-        assert!(LAYOUT_CSS.contains(marker));
-        let hover_pos = LAYOUT_CSS
-            .find(".blocks-list-people-row-link:hover, .blocks-list-people-row-link:focus-within {\n  background-color:")
-            .expect("hover 規則が存在する");
-        let marker_pos = LAYOUT_CSS.find(marker).expect("marker が存在する");
-        assert!(
-            marker_pos > hover_pos,
-            "padding-inline-end 固定規則は hover 規則より後段になければならない"
-        );
+    fn layout_css_row_link_reserves_space_for_chevron_on_root() {
+        // chevron の絶対配置矩形が末尾のメタ情報と重ならないよう、
+        // `link-overlay::root` 自身に予約余白（`padding-inline-end`）を
+        // 持たせる回帰（Bugbot 指摘・codex P1 指摘、2 回目の是正）。
+        // 行（`<li>`）側に持たせると overlay の `inset: 0` が root 幅までしか
+        // 覆わず余白部分がクリックできない不具合があったため、root 自身へ
+        // 移した（モジュール doc「行全体リンクの余白・クリック領域・chevron
+        // 重なりを root 側へ集約する理由」節）。`align-self: stretch` も同じ
+        // 規則内で root に付与し、行の `align-items` に依存せず常に行幅へ
+        // 揃える。hover/focus-within 規則（`<li>` 側の `padding-inline`
+        // ショートハンド）は別要素を触るだけになり、この予約余白とは
+        // 競合しない。
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-list-people-row-link > [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: column;\n  flex: 1;\n  align-self: stretch;\n  min-width: 0;\n  gap: var(--fandhe-space-3);\n  padding-inline-end: var(--fandhe-space-8);\n}"
+        ));
     }
 
     #[test]
@@ -819,6 +833,44 @@ mod tests {
         // （Bugbot 指摘）。
         let html = render(&example_inline_link_menu());
         assert!(html.contains("class=\"blocks-list-people-trailing\""));
+    }
+
+    #[test]
+    fn two_column_example_button_does_not_stretch_full_width() {
+        // 行が `align-items` を宣言しなくなった（list recipe の既定
+        // `flex-start` に委ねる）ことで、例 5 の「表示」ボタンが行幅へ
+        // 全幅化しない回帰（Medium 指摘）。
+        assert!(!LAYOUT_CSS.contains("align-items: stretch"));
+        let html = render(&example_two_column());
+        assert!(html.contains("data-scope=\"button\""));
+    }
+
+    #[test]
+    fn inline_link_menu_example_trigger_labels_are_unique_per_row() {
+        // 5 件の menu::trigger が同一 aria-label だとスクリーンリーダー
+        // 利用時に区別できない回帰（Low 指摘）。氏名を含めて一意にする。
+        let html = render(&example_inline_link_menu());
+        let mut labels: Vec<&str> = Vec::new();
+        for chunk in html.split("aria-label=\"").skip(1) {
+            if let Some(end) = chunk.find('"') {
+                labels.push(&chunk[..end]);
+            }
+        }
+        assert_eq!(labels.len(), PEOPLE.len(), "行数と同数の aria-label が必要");
+        let mut sorted = labels.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(
+            labels.len(),
+            sorted.len(),
+            "menu::trigger の aria-label が重複している: {labels:?}"
+        );
+        for label in &labels {
+            assert!(
+                label.starts_with("その他の操作、"),
+                "aria-label は氏名付きで一意化する: {label}"
+            );
+        }
     }
 
     #[test]
