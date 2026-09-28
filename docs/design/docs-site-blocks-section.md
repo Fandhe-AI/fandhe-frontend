@@ -982,6 +982,7 @@ pub enum LayoutCss {
 | navbar-app-links | #2926（親 #2892） | `application/navbar/navbar_app_links.rs` |
 | list-narrow-activity | #2922（親 #2892） | `application/list/list_narrow_activity.rs` |
 | list-sticky-groups | #2924（親 #2892） | `application/list/list_sticky_groups.rs` |
+| list-title-meta | #2925（親 #2892） | `application/list/list_title_meta.rs` |
 | grid-list-compact-tiles | #2918（親 #2892） | `application/grid_list/grid_list_compact_tiles.rs` |
 | grid-list-file-thumbnails | #2920 | `application/grid_list/grid_list_file_thumbnails.rs` |
 | grid-list-logo-cards | #2921（親 #2892） | `application/grid_list/grid_list_logo_cards.rs` |
