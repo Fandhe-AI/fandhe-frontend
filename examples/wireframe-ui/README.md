@@ -74,5 +74,5 @@ cargo run -p fandhe-frontend-cli -- gate --project examples/wireframe-ui
 ## 関連ガイド
 
 - `docs/design/wireframe-ui-architecture.md`
-- [`docs/guides/quickstart.md`](../../docs/guides/quickstart.md)
-- [`examples/headless-pre-styled-ui/README.md`](../headless-pre-styled-ui/README.md)
+- [`docs/guides/quickstart.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/guides/quickstart.md)
+- [`examples/headless-pre-styled-ui/README.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/examples/headless-pre-styled-ui/README.md)
