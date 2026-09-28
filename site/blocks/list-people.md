@@ -18,7 +18,7 @@ Themes/Primitives 部品を組み合わせた実例集であることに注意�
    3 項目 + 区切り線を持つ `menu`（閉状態固定）を置きます。
 4. **カード枠**: 行全体リンク版を `card` の枠内に収めた構成です。
 5. **2 カラム + 行末ボタン**: `min-width: 48rem` 以上で 2 カラムへ広がり、
-   各行末に「表示」ボタンを置きます。
+   各行末に「表示」ボタンを置きます（各セルは常に縦積みです）。
 
 いずれも静的な表示例であり、`<form>` 要素を持ちません。人名・メール
 アドレスは架空のもの（メールは IANA 予約ドメイン `example.com`）。
@@ -391,7 +391,7 @@ fn example_two_column() -> Node {
     div(
         vec![("class", "blocks-list-people-two-column")],
         vec![div(
-            vec![("class", "blocks-list-people-panel")],
+            vec![("class", "blocks-list-people-panel-columns")],
             vec![list::root(
                 ListType::Unordered,
                 ListVariant::Plain,
@@ -440,7 +440,6 @@ pub fn demo() -> Node {
   インラインリンク + メニュー・カード枠）に 1 対 1 で対応します。
 - **R1289** / **R1294**: 例 5「2 カラム + 行末ボタン」に集約しています
   （一次資料で同一案か別案か確認できなかったため 1 例へまとめました）。
-- **R1291**: 最大幅制限のみの差分で、実装は集約せず例 1 への
-  `max-width` 追加として扱います。
+- **R1291**: 最大幅制限のみの差分メモです（実装には反映しません）。
 - **R1292**: メタ欄なしの差分で、実装は集約せず例 1 から
   メタ欄を省いた形として扱います。

@@ -25,7 +25,36 @@
 //! `container-type: inline-size; container-name: blocks-list-people;` を
 //! 宣言し、`(min-width: 40rem)` のときだけメタ欄（役職 + 最終ログイン）を
 //! 右寄せへ切り替える。既定（狭幅）は名前の下にメタ欄が縦積みになる
-//! （隠さず回り込ませる、イシュー本文の要件）。
+//! （隠さず回り込ませる、イシュー本文の要件）。2 カラム例（例 5）のパネル
+//! は列幅がコンテナ幅の約半分になるため `container-name: blocks-list-people`
+//! を持たせず（`.blocks-list-people-panel-columns`）、この 40rem クエリの
+//! 対象外として常に縦積み（コンパクト形）に固定する（codex P1 指摘）。
+//!
+//! # list recipe の item 余白を上書きする理由
+//!
+//! `list::root(_, ListVariant::Plain, ..)` は recipe 側で
+//! `[data-scope="list"][data-part="item"] { margin-block: var(--fandhe-space-1) }`
+//! と `[data-part="root"].fd-list--variant-plain > [data-part="item"] {
+//! align-items: flex-start }`（詳細度 (0,2,0)/(0,5,0)）を持つため、単一
+//! class（(0,1,0)）の `.blocks-list-people-row` 規則はこれらに負け、行の
+//! 余白が二重になり広幅でも縦中央揃えが効かない不具合があった
+//! （Bugbot 指摘）。是正として行の基本規則（`margin-block: 0`・
+//! `display: flex`・`flex-direction: column` 等）を
+//! `:is(.blocks-list-people-panel, .blocks-list-people-panel-columns)
+//! [data-scope="list"][data-part="root"].fd-list--variant-plain >
+//! .blocks-list-people-row`（詳細度 (0,5,0)、list recipe と同着でも
+//! `assets/pre-styled-ui.css` より後段の `assets/blocks.css` で宣言される
+//! ため後勝ちする）へ書き直した。
+//!
+//! # グリッド時（例 5）の区切り線を先頭視覚行だけ消す理由
+//!
+//! 48rem 以上でグリッド化すると DOM 順の `.row + .row` セレクタでは各
+//! グリッドセルの右列にだけ上罫線が付いてしまう（第 1 視覚行の右セルに
+//! 誤って罫線が出る、Bugbot 指摘）。是正として 48rem クエリ内で
+//! `.blocks-list-people-panel-columns .blocks-list-people-row + .blocks-list-people-row`
+//! を一旦無効化し、`:nth-child(n+3)` で 3 件目以降の行にのみ上罫線を
+//! 再適用する（5 人・奇数でも DOM 順 1,2 / 3,4 / 5 の配置で左右の罫線が
+//! 揃う）。
 //!
 //! # 行全体リンク（例 2）と インラインリンク + menu（例 3）を分ける理由
 //!
@@ -441,7 +470,7 @@ fn example_two_column() -> Node {
     div(
         vec![("class", "blocks-list-people-two-column")],
         vec![div(
-            vec![("class", "blocks-list-people-panel")],
+            vec![("class", "blocks-list-people-panel-columns")],
             vec![list::root(
                 ListType::Unordered,
                 ListVariant::Plain,
@@ -539,7 +568,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-list-people-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-list-people-section-title {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-list-people-panel {\n  display: flex;\n  flex-direction: column;\n  container-type: inline-size;\n  container-name: blocks-list-people;\n}\n\
-.blocks-list-people-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  padding-block: var(--fandhe-space-4);\n  position: relative;\n}\n\
+.blocks-list-people-panel-columns {\n  display: flex;\n  flex-direction: column;\n}\n\
+:is(.blocks-list-people-panel, .blocks-list-people-panel-columns) [data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > .blocks-list-people-row {\n  margin-block: 0;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  padding-block: var(--fandhe-space-4);\n  position: relative;\n}\n\
 .blocks-list-people-row + .blocks-list-people-row {\n  border-block-start: 1px solid var(--fandhe-color-border);\n}\n\
 .blocks-list-people-row-link {\n  transition: background-color 0.15s ease;\n}\n\
 .blocks-list-people-row-link:hover, .blocks-list-people-row-link:focus-within {\n  background-color: var(--fandhe-color-bg-subtle);\n  padding-inline: var(--fandhe-space-3);\n}\n\
@@ -561,12 +591,14 @@ const LAYOUT_CSS: &str = "\
 }\n\
 .blocks-list-people-two-column {\n  container-type: inline-size;\n  container-name: blocks-list-people-two-column;\n}\n\
 @container blocks-list-people-two-column (min-width: 48rem) {\n  \
-.blocks-list-people-two-column [data-scope=\"list\"][data-part=\"root\"] {\n    display: grid;\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n    column-gap: var(--fandhe-space-8);\n  }\n\
+.blocks-list-people-two-column [data-scope=\"list\"][data-part=\"root\"] {\n    display: grid;\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n    column-gap: var(--fandhe-space-8);\n  }\n  \
+.blocks-list-people-panel-columns .blocks-list-people-row + .blocks-list-people-row {\n    border-block-start: none;\n  }\n  \
+.blocks-list-people-panel-columns .blocks-list-people-row:nth-child(n+3) {\n    border-block-start: 1px solid var(--fandhe-color-border);\n  }\n\
 }\n";
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, LAYOUT_CSS};
+    use super::{demo, example_two_column, LAYOUT_CSS};
     use fandhe_frontend_core::render;
 
     fn demo_html() -> String {
@@ -626,6 +658,34 @@ mod tests {
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
         assert!(LAYOUT_CSS.contains("@container blocks-list-people (min-width: 40rem)"));
         assert!(LAYOUT_CSS.contains(":hover"));
+    }
+
+    #[test]
+    fn layout_css_row_rule_outranks_list_recipe_plain_item_rule() {
+        // list recipe の item 規則（`[data-part="root"].fd-list--variant-plain >
+        // [data-part="item"] { align-items: flex-start }`、詳細度 (0,5,0)）に
+        // 行の余白・整列を上書きされないための回帰（Bugbot 指摘）。
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > .blocks-list-people-row {\n  margin-block: 0;"
+        ));
+    }
+
+    #[test]
+    fn layout_css_two_column_grid_has_first_row_border_exception() {
+        // 48rem 以上のグリッドで先頭視覚行（1・2 番目のセル）にだけ上罫線が
+        // 付かないための回帰（Bugbot 指摘）。
+        assert!(LAYOUT_CSS.contains("@container blocks-list-people-two-column (min-width: 48rem)"));
+        assert!(LAYOUT_CSS.contains(".blocks-list-people-row:nth-child(n+3)"));
+    }
+
+    #[test]
+    fn two_column_example_panel_is_not_the_narrow_wrap_container() {
+        // 2 カラム例のパネルは `container-name: blocks-list-people`（40rem
+        // クエリの対象）を持たず、幅に依らず常に縦積みへ固定される
+        // ための回帰（codex P1 指摘）。
+        let html = render(&example_two_column());
+        assert!(html.contains("blocks-list-people-panel-columns\""));
+        assert!(!html.contains("blocks-list-people-panel\""));
     }
 
     #[test]
