@@ -22,7 +22,14 @@ name = "fandhe-frontend-cli"
 # 追加 + `embedded-examples/vercel-ssg/` 新設）。公開 API は下位互換だが
 # `include_str!` で埋め込まれる `fw` バイナリの内容が変わるため patch
 # バンプする。
-version = "0.4.6"
+# イシュー #3342: `examples/<name>/README.md`（7 件）の example ディレクトリ
+# 外を指す相対リンクを `https://github.com/Fandhe-AI/fandhe-frontend/
+# blob/main/<path>` 形式の絶対 URL へ統一し、`embedded-examples/` を
+# 再同期した（同梱コピー・`fw new --example` 生成物でのリンク切れ解消）。
+# 再発防止テスト `tests/example_readme_links.rs` を追加。公開 API は不変
+# だが `include_str!` で埋め込まれる `fw` バイナリの内容が変わるため
+# patch バンプする。
+version = "0.4.7"
 edition = "2021"
 description = "fandhe-frontend-cli: AI 自己保守フック向け `fw` コマンド（TASK-13.1、structure.toml のスキーマ・パース・生成）。外部依存ゼロ。"
 license = "MIT OR Apache-2.0"

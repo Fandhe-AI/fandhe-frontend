@@ -73,7 +73,7 @@ cargo run -p fandhe-frontend-cli -- gate --project examples/ssr-routing
 
 ## 関連ガイド
 
-- [`docs/guides/quickstart.md`](../../docs/guides/quickstart.md)
-- [`docs/api/app-api.md`](../../docs/api/app-api.md)
+- [`docs/guides/quickstart.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/guides/quickstart.md)
+- [`docs/api/app-api.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/api/app-api.md)
 - [`docs/design/loader-trait-design.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/design/loader-trait-design.md)
 - [`docs/design/route-definition-sharing.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/design/route-definition-sharing.md)

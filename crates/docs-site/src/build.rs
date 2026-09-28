@@ -97,21 +97,26 @@
 //! は `href` 属性のみを走査し `<script src>` を見ないため（[`crate::linkcheck`]
 //! 参照）、CSS 群と異なり `asset_hrefs` への登録は不要（登録しても no-op）。
 //!
-//! # 検索インデックス（[`crate::search_index`]、イシュー #957）
+//! # 検索インデックス（[`crate::search_index`]、イシュー #957 / #3173）
 //!
-//! `assets/search-index.json` は `#958`（検索 UI）が `fetch()` で遅延読み込みする
-//! 独立ファイルであり、`assets/site.js` と同じ理由（`linkcheck::check_links` は
-//! `href` 属性のみを走査し `data-*` 属性の値を見ない）で `asset_hrefs` への登録が
-//! 不要である。ただし CSS 群と同じ fail-closed 規律で、
-//! [`search_index::render_json`] + [`search_index::check_size`] は**ステップ 4
-//! （`ssg::generate_pages`）より前**に完了させる（1 MiB 超過時に `out_dir` を
-//! 一切汚さないため）。書き出し自体はステップ 4 の後、`assets/site.js` と同じ
-//! 「全ビルド無条件」区分で [`ssg::generate_assets`] 経由で行う。
+//! マニフェスト `assets/search-index.json` と `site/nav.toml` の `[[section]]`
+//! ごとのセクションファイル `assets/search-index/<slug>.json` は、検索 UI
+//! （`assets/site.js`）が `fetch()` で遅延読み込みする独立ファイルであり、
+//! `assets/site.js` と同じ理由（`linkcheck::check_links` は `href` 属性のみを
+//! 走査し `data-*` 属性の値を見ない）で `asset_hrefs` への登録が不要である。
+//! ただし CSS 群と同じ fail-closed 規律で、[`search_index::build_files`]
+//! （セクションファイルごとの上限検査を含む）は**ステップ 4
+//! （`ssg::generate_pages`）より前**に完了させる（超過時に `out_dir` を一切
+//! 汚さないため）。書き出し自体はステップ 4 の後、`assets/site.js` と同じ
+//! 「全ビルド無条件」区分で [`ssg::generate_assets`] 経由で行う。ページを
+//! セクションへ振り分ける唯一の経路は [`nav::Nav::section_for_path`] であり、
+//! セクション追加時に本モジュールへ分岐を足す必要はない。
 //!
 //! # ビルド時生成アセットの書き出し経路（[`fandhe_frontend_server::ssg::generate_assets`]、イシュー #1136）
 //!
 //! 上記の CSS 5 種（showcase / primitive_showcase / admonition / skip_nav /
-//! site_theme）・JS 1 種（`site.js`）・検索インデックス JSON 1 種・
+//! site_theme）・JS 1 種（`site.js`）・検索インデックス JSON
+//! （マニフェスト 1 種 + セクション数分）・
 //! showcase ページが実在するときのみ書き出す SVG 1 種
 //! （`showcase::image_demo_svg`、イシュー #1562。Image 節 demo の
 //! `data:` URI が core の `is_safe_url` で拒否され `src` 属性ごと欠落する
@@ -239,8 +244,9 @@ pub enum BuildError {
     /// が存在する（静的ファイルの黙った上書き・生成物のすり替わりを防ぐ
     /// fail-closed 検証、イシュー #905）。
     ReservedAssetName(PathBuf),
-    /// 検索インデックス（[`search_index::render_json`]）が
-    /// [`search_index::MAX_INDEX_BYTES`] を超過した（イシュー #957。
+    /// 検索インデックス（[`search_index::build_files`]）の組み立てに失敗した
+    /// （セクションファイルの [`search_index::MAX_SECTION_INDEX_BYTES`] 超過・
+    /// セクションスラッグの空/重複、イシュー #957 / #3173。
     /// `ssg::generate_pages` より前に検知し `out_dir` を汚さない fail-closed）。
     SearchIndex(SearchIndexError),
     /// `site/redirects.toml` の読込・パース・`nav.toml` との突合検証
@@ -416,10 +422,21 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
     // （`crate::wireframes` モジュール doc「CSS の置き場」節参照）ため
     // `has_showcase_page` は立てない。
     let mut has_wireframes_page = false;
-    // 検索インデックス（イシュー #957）用に収集するページエントリ。
-    // `nav.all_pages()` の宣言順（= サイドバー順）で積まれ、この順序が
-    // #958 の検索結果スコア同点時のタイブレークの正となる（設計文書 §3-1）。
-    let mut search_index_entries: Vec<search_index::PageEntry> = Vec::new();
+    // 検索インデックス（イシュー #957 / #3173）用に収集するページエントリを
+    // `nav.sections` と同じ順序・同じ件数のバケットへ振り分ける。各バケット
+    // 内は `nav.all_pages()` の宣言順（= サイドバー順）で積まれ、マニフェスト
+    // のセクション順と合わせてこの順序が検索結果スコア同点時のタイブレーク
+    // の正となる（設計文書 §3-1）。振り分けは `Nav::section_for_path`
+    // （唯一の解決経路）に委ね、`nav.sections` を直接手繰る二重ループを
+    // 新設しない。
+    let mut search_index_sections: Vec<search_index::SectionInput> = nav
+        .sections
+        .iter()
+        .map(|section| search_index::SectionInput {
+            title: section.title.clone(),
+            entries: Vec::new(),
+        })
+        .collect();
 
     // `nav.all_pages()`（唯一の正規走査経路）でページ生成する。グループ
     // 配下ページ（イシュー #939）も直下ページと同一のビルド経路を通り、
@@ -530,12 +547,27 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
         // `href` は下の `docs_page_with_assets` が使う `layout::asset_href`
         // と同一の単一実装点で生成し、URL 組み立てロジックを二重実装しない。
         let index_body = div(vec![], body_children.clone());
-        search_index_entries.push(search_index::page_entry(
+        let entry = search_index::page_entry(
             &layout::asset_href(&nav.site.base_path, &page.path),
             &page.title,
             &index_body,
             blocks::block_for_path(&page.path).is_some(),
-        ));
+        );
+        // `all_pages()` が返すページは必ずいずれかのセクションに属し、
+        // `index_path` はセクション間で一意（`index_path ⊆` 自セクションの
+        // `page.path` 集合、かつ `page.path` は全体で重複なし）なので、
+        // 一致するバケットは常にちょうど 1 つ存在する。
+        // ponytail: 456 ページ × 8 セクションの線形探索。ページ数が数千に
+        // なったら path → セクション index のマップへ置き換える。
+        let section = nav
+            .section_for_path(&page.path)
+            .expect("nav.all_pages() page must belong to a section");
+        let bucket = nav
+            .sections
+            .iter()
+            .position(|s| s.index_path == section.index_path)
+            .expect("section_for_path returns one of nav.sections");
+        search_index_sections[bucket].entries.push(entry);
 
         body_children.push(nav::prev_next_nav(&nav, &page.path));
         let body = div(vec![], body_children);
@@ -652,12 +684,13 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
         return Err(BuildError::LinkCheck(broken));
     }
 
-    // 検索インデックス（イシュー #957）: CSS 群と同じ「書き出し前に fallible
-    // 処理を終える」規律に従い、`render_json` + `check_size` を
-    // `ssg::generate_pages` より前に完了させる。1 MiB 超過時は `out_dir` を
-    // 一切汚さない（`BuildError::SearchIndex` への変換は上の `From` 実装参照）。
-    let search_index_json = search_index::render_json(&nav.site.base_path, &search_index_entries);
-    search_index::check_size(&search_index_json)?;
+    // 検索インデックス（イシュー #957 / #3173）: CSS 群と同じ「書き出し前に
+    // fallible 処理を終える」規律に従い、マニフェスト + セクションファイルの
+    // 組み立て（セクションファイルごとの上限検査を含む）を
+    // `ssg::generate_pages` より前に完了させる。失敗時は `out_dir` を一切
+    // 汚さない（`BuildError::SearchIndex` への変換は上の `From` 実装参照）。
+    let search_index_files =
+        search_index::build_files(&nav.site.base_path, &search_index_sections)?;
 
     // リダイレクトページ（イシュー #1016）を本体ページより先に書き出す。
     // `ssg::generate_pages` の重複検出は 1 回の呼び出し内でしか効かないため、
@@ -670,7 +703,8 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
     let written = ssg::generate_pages(&pages, out_dir)?;
     let mut assets = copy_assets(repo_root, out_dir)?;
 
-    // ビルド時生成アセット（CSS 5 種・JS 1 種・検索インデックス JSON 1 種）を
+    // ビルド時生成アセット（CSS 5 種・JS 1 種・検索インデックス JSON
+    // 〔マニフェスト + セクション数分〕）を
     // `ssg::generate_assets`（イシュー #1136）へまとめて渡す。かつては
     // `StyleSheet::write_css_file` / 素の `fs::write` による直書きだったが、
     // `generate_pages` と同型のパス検証（先頭 `/` 必須・`normalize_asset_path`
@@ -725,7 +759,7 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
         format!("/{}", script::SCRIPT_REL_PATH),
         script::site_js().to_string(),
     ));
-    generated_assets.push((format!("/{}", search_index::REL_PATH), search_index_json));
+    generated_assets.extend(search_index_files);
     if has_showcase_page {
         generated_assets.push((
             format!("/{}", showcase::IMAGE_DEMO_ASSET_REL_PATH),
@@ -933,16 +967,21 @@ path = "/next/"
         // サイト骨格 CSS（`site_theme`、ビルド時生成）+ SkipNav 専用 CSS
         // （イシュー #776、全ビルドで無条件に書き出す。`crate::skip_nav`
         // モジュール doc 参照）+ `assets/site.js`（イシュー #951、同じく
-        // 全ビルド無条件）+ `assets/search-index.json`（イシュー #957、同じく
-        // 全ビルド無条件）の 4 件。showcase/admonition 専用 CSS は本
-        // フィクスチャが使わないため含まれない。
-        assert_eq!(report.assets.len(), 4);
+        // 全ビルド無条件）+ 検索インデックスのマニフェスト
+        // `assets/search-index.json` とセクションファイル 1 件
+        // （`[[section]]` が 1 つ、イシュー #957 / #3173、同じく全ビルド
+        // 無条件）の 5 件。showcase/admonition 専用 CSS は本フィクスチャが
+        // 使わないため含まれない。
+        assert_eq!(report.assets.len(), 5);
         assert!(out_dir.join("index.html").exists());
         assert!(out_dir.join("next/index.html").exists());
         assert!(out_dir.join("assets/site.css").exists());
         assert!(out_dir.join(skip_nav::STYLESHEET_REL_PATH).exists());
         assert!(out_dir.join(script::SCRIPT_REL_PATH).exists());
         assert!(out_dir.join(search_index::REL_PATH).exists());
+        assert!(out_dir
+            .join(search_index::section_rel_path("guide"))
+            .exists());
         assert_eq!(
             fs::read_to_string(out_dir.join(script::SCRIPT_REL_PATH)).unwrap(),
             script::site_js()
@@ -1039,9 +1078,9 @@ path = "/next/"
         let report =
             build_site(&temp.0, &out_dir).expect("missing site/assets/ directory should build");
         // サイト骨格 CSS + SkipNav 専用 CSS + `assets/site.js` +
-        // `assets/search-index.json` のみ（`site/assets/` 由来のコピー
-        // アセットは 0 件）。
-        assert_eq!(report.assets.len(), 4);
+        // 検索インデックス（マニフェスト + セクションファイル 1 件）のみ
+        // （`site/assets/` 由来のコピーアセットは 0 件）。
+        assert_eq!(report.assets.len(), 5);
         assert!(out_dir.join("assets/site.css").exists());
         assert!(out_dir.join(script::SCRIPT_REL_PATH).exists());
         assert!(out_dir.join(search_index::REL_PATH).exists());
