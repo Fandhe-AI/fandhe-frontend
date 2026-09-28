@@ -2032,6 +2032,11 @@ title = "navbar-app-links"
 source = "site/blocks/navbar-app-links.md"
 path = "/blocks/navbar-app-links/"
 
+[[section.group.page]]
+title = "navbar-with-search"
+source = "site/blocks/navbar-with-search.md"
+path = "/blocks/navbar-with-search/"
+
 [[section.group]]
 title = "Card Heading"
 
