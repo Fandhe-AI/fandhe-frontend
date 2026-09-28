@@ -5,4 +5,7 @@
 # 生じないが、`vercel link`/`vercel deploy` 自体がこのディレクトリを作る）。
 /.vercel/
 # 秘密情報を含むローカル env（コミット禁止。実値は各環境で管理する。.dockerignore の除外と多重防御）
+# `/.env` だけでなく `.env.local` / `.env.production` 等の派生ファイルも
+# 生成プロジェクトで通常の `git add` によりコミットされ得るため除外する。
 /.env
+/.env.*
