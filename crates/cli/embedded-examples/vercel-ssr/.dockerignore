@@ -1,0 +1,13 @@
+# Docker ビルドコンテキストから除外する。Dockerfile 側の明示 COPY 列挙と
+# あわせた多重防御であり、.git・.env 等の秘密情報混入・不要ファイルの
+# ビルドコンテキスト送信を防ぐ（security.md「秘密情報の混入防止」）。
+.git
+target
+docs
+_
+.claude
+.agents
+.github
+*.md
+.env
+.env.*

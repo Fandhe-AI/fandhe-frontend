@@ -323,3 +323,25 @@ fn default_template_and_dist_server_docker_example_share_identical_bytes_for_com
         );
     }
 }
+
+/// `templates/default/` と `examples/vercel-ssr/` の間でバイト単位で
+/// 一致することを検証する共有ファイルの一覧（イシュー #3289。
+/// `DIST_SERVER_DOCKER_SHARED_RELATIVE_FILES` と同じ契約を新サンプルにも
+/// 適用する）。
+const VERCEL_SSR_SHARED_RELATIVE_FILES: &[&str] = &["clippy.toml", "deny.toml"];
+
+#[test]
+fn default_template_and_vercel_ssr_example_share_identical_bytes_for_common_files() {
+    let root = workspace_root();
+    for rel in VERCEL_SSR_SHARED_RELATIVE_FILES {
+        let default_path = root.join("templates/default").join(rel);
+        let example_path = root.join("examples/vercel-ssr").join(rel);
+        assert_eq!(
+            read_bytes(&default_path),
+            read_bytes(&example_path),
+            "templates/default/{rel} と examples/vercel-ssr/{rel} は \
+             バイト単位で一致する契約（イシュー #3289）。一方だけを \
+             変更した場合は他方にも反映すること"
+        );
+    }
+}

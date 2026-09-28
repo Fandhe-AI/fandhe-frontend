@@ -20,6 +20,7 @@ https://fandhe-ai.github.io/fandhe-frontend/examples/ ）でも閲覧できま�
 | [headless-pre-styled-ui](./headless-pre-styled-ui/README.md) | `fandhe-frontend-headless-ui`（ark-ui 相当）の anatomy・`data-*`・WAI-ARIA 属性（Tabs/Accordion/Dialog/Switch/RadioGroup/Avatar） | `fandhe-frontend-core` / `-pre-styled-ui`（headless 層は再エクスポート経由） |
 | [wireframe-ui](./wireframe-ui/README.md) | `fandhe-frontend-wireframe-ui`（blocks.pm 参照のローファイ・モノクロワイヤーフレーム UI）Phase 1〜8・全 49 部品のショーケース | `fandhe-frontend-core` / `-wireframe-ui` |
 | [vercel-ssg](./vercel-ssg/README.md) | `generate_pages`/`generate_assets` による Vercel Build Output API 形式の静的出力生成・`vercel deploy --prebuilt` でのデプロイ | `fandhe-frontend-core` / `-server` |
+| [vercel-ssr](./vercel-ssr/README.md) | Vercel Container Images（案 d、Beta）上でのリクエスト時 SSR・`PORT` 環境変数による bind 先解決・`SIGTERM` を受けた graceful shutdown | `fandhe-frontend-dist-server` |
 
 ## 2. 選び方
 
@@ -30,6 +31,7 @@ https://fandhe-ai.github.io/fandhe-frontend/examples/ ）でも閲覧できま�
 - **headless UI コンポーネント（ark-ui 相当）を試したい**: [headless-pre-styled-ui](./headless-pre-styled-ui/README.md) が `fandhe-frontend-headless-ui` の Tabs/Accordion/Dialog/Switch/RadioGroup/Avatar を実演します。
 - **ローファイ・モノクロのワイヤーフレーム UI（blocks.pm 相当）を試したい**: [wireframe-ui](./wireframe-ui/README.md) が `fandhe-frontend-wireframe-ui` の全 49 部品を Phase 1〜8 の区分どおりに実演します。
 - **Vercel へ静的配置したい**: [vercel-ssg](./vercel-ssg/README.md) が SSG → Vercel Build Output API → `vercel deploy --prebuilt` の唯一の既定方式を実演します。
+- **Vercel 上でリクエスト時 SSR をしたい**: [vercel-ssr](./vercel-ssr/README.md) が Vercel Container Images（Beta）上で `fandhe-frontend-dist-server` を動かす構成を実演します。
 
 ## 3. `fw new --example` での取得
 
@@ -43,8 +45,8 @@ fw new my-app --example ssr-routing
 
 `--example` に指定できる名前は `ssr-routing` / `ssg-blog` /
 `dist-server-docker` / `interactive-view-transitions` /
-`headless-pre-styled-ui` / `wireframe-ui` / `vercel-ssg` の 7 種類です
-（本ディレクトリ直下のディレクトリ名と一致します）。展開されたプロジェクト
+`headless-pre-styled-ui` / `wireframe-ui` / `vercel-ssg` / `vercel-ssr` の
+8 種類です（本ディレクトリ直下のディレクトリ名と一致します）。展開されたプロジェクト
 は本ディレクトリ配下の該当サンプルと全ファイルバイト一致（パッケージ名の
 置換は行いません）で、そのまま `cargo build` / `cargo test` / `fw gate
 --project .` が通る状態です。
@@ -111,3 +113,15 @@ headless-pre-styled-ui`・`crates/cli/embedded-examples/`（§5）への同梱�
 参照）を示す 7 件目のサンプルです。`wireframe-ui` と同じく、最初から
 §4「crates.io バージョン依存のみ」の原則に従う構成（依存
 `fandhe-frontend-core`/`-server` は既に公開済み）で追加しました。
+
+## 10. `vercel-ssr`（イシュー #3289）
+
+`vercel-ssr` は親トラッキング #3282 の Phase 3（#3336・#3337）で確定した
+Vercel Container Images（案 d、Beta）向けの `PORT` 対応・graceful shutdown
+対応（`fandhe-frontend-dist-server` v0.3.4）を実際に使う 8 件目のサンプル
+です。`vercel-ssg`（案 c、静的配置）では賄えないリクエスト時 SSR を扱い、
+`examples/dist-server-docker` と同型（crates.io バージョン依存のみで完結、
+`Dockerfile.vercel` は `FANDHE_FRONTEND_BIND_ADDR` を設定せず `PORT` を優先
+させる）です。詳細は
+[`docs/design/vercel-deployment-strategy.md`](../docs/design/vercel-deployment-strategy.md)
+を参照してください。
