@@ -138,8 +138,12 @@ jobs:
         # assets/site.js（イシュー #951、crates/docs-site/src/script.rs による
         # ビルド生成物）も同型の最終確認を行う。assets/search-index.json
         # （イシュー #957、crates/docs-site/src/search_index.rs による
-        # ビルド生成物）も同型。決定性・エスケープ・サイズ上限等の内容検証は
-        # crates/docs-site/tests/search_index.rs が担い、ここでは二重管理しない。
+        # ビルド生成物。イシュー #3173 以降はセクション一覧のみを持つ
+        # マニフェストで、ページエントリは assets/search-index/<slug>.json へ
+        # セクション別に分割される。代表として最大セクション blocks.json の
+        # 存在を確認する）も同型。決定性・エスケープ・サイズ上限・セクション
+        # 網羅等の内容検証は crates/docs-site/tests/search_index.rs が担い、
+        # ここでは二重管理しない。
         #
         # イシュー #944: #943 でサイトの大半が
         # /components/<kebab>/ の部品ページになったため、索引ページだけの
@@ -211,6 +215,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.css"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.js"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/search-index.json"
+          test -f "${RUNNER_TEMP}/docs-site-dist/assets/search-index/blocks.json"
           test -f "${RUNNER_TEMP}/docs-site-dist/themes/button/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/themes/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/pre-styled-ui.css"
@@ -279,6 +284,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonial-background-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonial-quote-stats/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonial-card-grid/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonial-centered-quote/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonial-masonry-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonial-split-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/testimonial-two-up/index.html"
@@ -407,6 +413,7 @@ jobs:
           # Application / Grid List
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/grid-list-compact-tiles/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/grid-list-logo-cards/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/grid-list-action-tiles/index.html"
           # Application / Description List
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/description-list-horizontal/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/description-list-two-column/index.html"
