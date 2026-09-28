@@ -19,7 +19,8 @@
 //!   `nav.docs-toc`）のスクロールスパイ（現在地ハイライト）を担う。加えて
 //!   イシュー #958 で検索 UI（`crate::layout::docs_page_with_assets` が
 //!   出力する `div.docs-search`）を担う: 初回フォーカス時に
-//!   `crate::search_index` が生成する `assets/search-index.json` を遅延
+//!   `crate::search_index` が生成する `assets/search-index.json`
+//!   （マニフェスト）とセクション別 `assets/search-index/<slug>.json` を遅延
 //!   `fetch()` し、部分一致検索・結果一覧描画・キーボード操作
 //!   （`/`・矢印キー・`Enter`・`Escape`）を配線する。
 //!   テーマトグルの IIFE は `.docs-theme-toggle` が無いページで早期
@@ -121,15 +122,22 @@ pub const INLINE_THEME_BOOTSTRAP: &str = "try{var t=localStorage.getItem(`fandhe
 ///    する（他 2 つの IIFE 同様、要素が消えても例外を投げない）。
 ///    `window.fetch` 非対応・`data-search-index` 属性が空の場合も同様に
 ///    即 return する。
-/// 10. インデックス JSON（`crate::search_index::REL_PATH`）は初回 `focus`
-///     イベントでのみ `fetch()` する（single-flight。状態は
-///     `idle`/`loading`/`ready`/`failed` の 4 値で管理し、再フェッチしない。
-///     `failed` の場合のみ再フォーカス時に再試行を許す）。
-///     `response.ok`・`data.version !== 1`（[`crate::search_index::SCHEMA_VERSION`]
-///     と数値リテラルで一致させる契約。ドリフト検知は本モジュールの
+/// 10. インデックスは初回 `focus` イベントでのみ `fetch()` する
+///     （single-flight。状態は `idle`/`loading`/`ready`/`failed` の 4 値で
+///     管理し、再フェッチしない。`failed` の場合のみ再フォーカス時に再試行を
+///     許す）。取得はマニフェスト（`crate::search_index::REL_PATH`、
+///     `data-search-index` 属性）→ その `sections[].href` が指す全セクション
+///     ファイル（`assets/search-index/<slug>.json`、イシュー #3173）の 2 段で、
+///     セクションファイルは `Promise.all` で並列 fetch しマニフェスト順に
+///     結合する（結合後の `pages` 順 = `nav.toml` 宣言順というタイブレーク
+///     契約を保つ）。`response.ok`・`version !== 2`
+///     （[`crate::search_index::SCHEMA_VERSION`] と数値リテラルで一致させる
+///     契約。ドリフト検知は本モジュールの
 ///     `tests::site_js_pins_the_same_schema_version_as_search_index_rs`
-///     参照）・`Array.isArray(data.pages)` のいずれかを満たさない応答は
-///     `failed` として扱う（fail-closed。壊れた検索結果を表示しない）。
+///     参照）・`Array.isArray(manifest.sections)`・各 `section.href` の
+///     `isSafePath`・`Array.isArray(data.pages)` のいずれかを 1 件でも満たさ
+///     ない場合は全体を `failed` として扱う（fail-closed。部分的な索引で
+///     「見つからない」と誤答せず、壊れた検索結果も表示しない）。
 /// 11. `input` イベントで部分一致検索を実行する。正規化は
 ///     `toLowerCase()`/`trim()` のみ。マッチは `indexOf(query) !== -1` の
 ///     部分一致で、ページタイトル一致を最優先（スコア 3）・見出しタイトル
@@ -559,24 +567,55 @@ pub const SITE_JS: &str = "\
       return;
     }
     state = `loading`;
-    fetch(indexUrl).then(function (response) {
-      if (!response.ok) {
-        throw new Error(`bad response`);
+    fetchJson(indexUrl).then(function (manifest) {
+      if (!Array.isArray(manifest.sections)) {
+        throw new Error(`bad sections`);
       }
-      return response.json();
-    }).then(function (data) {
-      if (data.version !== 1) {
-        throw new Error(`bad version`);
-      }
-      if (!Array.isArray(data.pages)) {
-        throw new Error(`bad pages`);
-      }
-      indexData = data;
+      // マニフェスト順に全セクションファイルを並列 fetch する（順序は
+      // Promise.all が保つため、結合後の pages 順 = nav.toml 宣言順という
+      // タイブレーク契約が崩れない）。1 件でも失敗すれば全体を failed に
+      // する（部分的な索引で「見つからない」と誤答しない fail-closed）。
+      return Promise.all(manifest.sections.map(function (section) {
+        if (typeof section.href !== `string` || !isSafePath(section.href)) {
+          throw new Error(`bad section href`);
+        }
+        return fetchJson(section.href).then(function (data) {
+          if (!Array.isArray(data.pages)) {
+            throw new Error(`bad pages`);
+          }
+          return data.pages;
+        });
+      }));
+    }).then(function (pageLists) {
+      var pages = [];
+      pageLists.forEach(function (list) {
+        list.forEach(function (page) {
+          pages.push(page);
+        });
+      });
+      indexData = { pages: pages };
       state = `ready`;
       runSearch();
     }).catch(function () {
       state = `failed`;
       runSearch();
+    });
+  }
+
+  // マニフェスト・セクションファイルに共通の取得 + スキーマ検証。
+  // `version` は `crate::search_index::SCHEMA_VERSION` と数値リテラルで
+  // 一致させる（ドリフト検知は tests::site_js_pins_the_same_schema_version_as_search_index_rs）。
+  function fetchJson(url) {
+    return fetch(url).then(function (response) {
+      if (!response.ok) {
+        throw new Error(`bad response`);
+      }
+      return response.json();
+    }).then(function (data) {
+      if (!data || data.version !== 2) {
+        throw new Error(`bad version`);
+      }
+      return data;
     });
   }
 

@@ -1470,6 +1470,11 @@ source = "site/blocks/testimonial-card-grid.md"
 path = "/blocks/testimonial-card-grid/"
 
 [[section.group.page]]
+title = "testimonial-centered-quote"
+source = "site/blocks/testimonial-centered-quote.md"
+path = "/blocks/testimonial-centered-quote/"
+
+[[section.group.page]]
 title = "testimonial-masonry-grid"
 source = "site/blocks/testimonial-masonry-grid.md"
 path = "/blocks/testimonial-masonry-grid/"
@@ -2047,6 +2052,11 @@ path = "/blocks/list-title-meta/"
 
 [[section.group]]
 title = "Grid List"
+
+[[section.group.page]]
+title = "grid-list-action-tiles"
+source = "site/blocks/grid-list-action-tiles.md"
+path = "/blocks/grid-list-action-tiles/"
 
 [[section.group.page]]
 title = "grid-list-compact-tiles"

@@ -93,11 +93,27 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
 
 ## 3. インデックス JSON の仕様（#957 の実装仕様）
 
-### 3-1 スキーマ v1
+### 3-1 スキーマ v2（セクション分割、イシュー #3173。v1 は §10-15 参照）
+
+**マニフェスト** `assets/search-index.json`（`data-search-index` が指す
+唯一の入口。`sections` は `site/nav.toml` の `[[section]]` 宣言順）:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
+  "base_path": "/fandhe-frontend",
+  "sections": [
+    { "title": "Blocks", "href": "/fandhe-frontend/assets/search-index/blocks.json" }
+  ]
+}
+```
+
+**セクションファイル** `assets/search-index/<slug>.json`（`slug` は
+`search_index::section_slug(title)`、`"API Reference"` → `api-reference`）:
+
+```json
+{
+  "version": 2,
   "base_path": "/fandhe-frontend",
   "pages": [
     {
@@ -120,8 +136,9 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
   を作らない。
 - `base_path` は診断・将来の相対解決用に併記するが、JS は `href` を
   そのまま使う。
-- `pages` の順序は `nav.all_pages()` の宣言順（= サイドバー順）とする。
-  この順序が §4-4 のスコア同点時のタイブレークの正となる。
+- 各セクションファイルの `pages` の順序は `Section::all_pages()` の宣言順
+  （= サイドバー順）とし、JS はマニフェスト順に結合する。結合後の順序は
+  `nav.all_pages()` と一致し、§4-4 のスコア同点時のタイブレークの正となる。
 - `sections` は `layout::with_heading_anchors` が返す `TocEntry`
   （`level` は 2 または 3）と 1:1 対応する。`id` は同関数が確定した
   最終値（著者指定 id・衝突時の `-2` 採番を含む）を使い、UI のディープ
@@ -132,8 +149,8 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
   `id` → `level` → `title`）は固定する。手書きシリアライザで決定的に
   出力する。
 - スキーマを変更する場合は `version` をインクリメントする。JS は
-  `version !== 1` を **fail-closed で不使用**（検索を無効表示のまま）
-  とする。
+  マニフェスト・セクションファイルの双方で `version !== 2` を
+  **fail-closed で不使用**（検索を無効表示のまま）とする。
 
 **JSON エンコード規則（外部クレートなしの手書きシリアライザ）**:
 
@@ -208,26 +225,14 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
 | 定数 | 値 | 超過時の扱い |
 |---|---|---|
 | `MAX_PAGE_TEXT_BYTES` | 4,000 バイト（イシュー #2849 で 4,096 から 4,032 へ暫定引き下げ〔§10-10〕、イシュー #2851 の base 取り込み時点では追加の引き下げ不要〔§10-11〕、PR #3272（イシュー #2853・#2855 の並行マージ）で再度超過を検知し 4,032 から 4,000 へ再引き下げ、§10-12 参照。イシュー #2852（`footer-newsletter-band` block 追加）の base 取り込みで #3272 の変更を合流させた時点でも実測はこの範囲内に収まり追加の引き下げは不要だった、§10-13 参照。`MAX_INDEX_BYTES` のハードルール〔§10-5・§10-6〕に抵触せず超過分を吸収する最小限の暫定調整。余裕は約 0.3% まで薄くなっている。イシュー #2862（`pricing-comparison-table` block 追加）・イシュー #2865（`pricing-seats-split` block 追加）でも独立に再度超過を検知したが、本定数の再引き下げは採らず Blocks ページのフェンスコードブロック本文を索引テキストから除外する対処で吸収した、§10-14 参照） | **決定的に切り詰める**（エラーにしない）。UTF-8 文字境界で切る（`char_indices` で境界を求め、バイト単位切断で不正 UTF-8 を作らない）。切り詰め痕跡の付加文字（`…` 等）は付けない（決定性と単純さを優先する） |
-| `MAX_INDEX_BYTES` | 1,703,936 バイト（1.625 MiB。#2552 で 1 MiB から 1.125 MiB へ、#2645 で 1.125 MiB から 1.25 MiB へ、イシュー #2814 で 1.25 MiB から 1.625 MiB へ引き上げ、§10・§10-4 参照。イシュー #2637（Menu）・#2639（Breadcrumbs）の base 取り込み時点では実測が 1.25 MiB の範囲内に収まり引き上げ不要だったが、イシュー #2750（`bento-two-column` block ページ追加）・#2814（`blog-split-header-grid` block 追加）の双方が並行して 1.25 MiB 超過を検知し、#2814 の実測に基づく引き上げが採用された、§10-4・§10-5 参照。イシュー #2817（careers-split-photo-list、§10-7 参照）・#2816（careers-split-accordion、§10-8 参照）・#2751（`content-article` block 追加、§10-9 参照）の base 取り込み時点ではいずれも実測が 1.625 MiB の範囲内に収まっており、追加の引き上げは不要だった） | **fail-closed**。`BuildError::SearchIndexTooLarge { bytes, limit }` を返し、**ページ書き出し前**に打ち切る |
+| `MAX_SECTION_INDEX_BYTES` | 2,621,440 バイト（2.5 MiB、**セクションファイル 1 件あたり**。イシュー #3173 で旧 `MAX_INDEX_BYTES`〔1 ファイル全体上限、最終値 1,703,936 バイト〕を廃止して新設、根拠と実測は §10-15） | **fail-closed**。`BuildError::SearchIndex(TooLarge { section, bytes, limit })` を返し、**ページ書き出し前**に打ち切る。超過時は値を引き上げず、当該セクションのさらなる分割を先に検討する（§10-15 再評価トリガー） |
 
-- 選定根拠（#957 設計時点、121 ページ）: 全ページが per-page 上限に
-  張り付いた最悪ケースでも 121 × 4 KiB ≒ 496 KiB であり、1 MiB は
-  「ページ数がおよそ倍増するまで到達しない」バックストップとして
-  機能する想定だった。**この想定は 313 ページに達した時点で崩れている**
-  （§10-4・§10-5 参照）。313 ページでの理論上限（全ページ per-page
-  上限到達）は 1,281,088 バイトであり、実測の索引 `text` 合計は既に
-  その約 85.4% に達している。`MAX_INDEX_BYTES` の引き上げは
-  §10・§10-1・§10-4・§10-5 のいずれも「引き上げ直後から §8 トリガー 1
-  （新上限の 80% 超過）に抵触する」結果に終わっており、以後の追加
-  引き上げは行わない（§10-5 のハードルール）。恒久対処はセクション
-  粒度インデックスへの分割であり、追跡は §10-5 参照（イシュー #3173）。
-- 実測（§1）が 512 KiB を超えた場合は §8 再評価トリガーとして
-  per-page 上限の引き下げ、またはセクション粒度への分割を再検討する
-  （§10-5 の実測評価により、512 KiB という絶対値は既に #2552 の
-  時点で飛び越えている。§8 トリガー 1 の実効判定は「新しい
-  `MAX_INDEX_BYTES` の 80% 超過」を正とする、§10-6 参照）。
-- **正規化として切り詰め（per-page）+ 総量は fail-closed（global）**
-  という二段構えを採用する理由: per-page をエラーにすると 1 本の
+- 旧 `MAX_INDEX_BYTES`（1 ファイル全体上限）の選定根拠・引き上げ履歴・
+  ハードルール化の経緯は §10〜§10-14 に歴史記録として残す。イシュー
+  #3173 で「1 ファイル全体」という概念自体を取り除き、上限はセクション
+  ファイル単位（`MAX_SECTION_INDEX_BYTES`）のみになった（§10-15）。
+- **正規化として切り詰め（per-page）+ セクションファイル総量は
+  fail-closed（per-file）** という二段構えを採用する理由: per-page をエラーにすると 1 本の
   長い API ページが docs デプロイ全体を止めてしまい、可用性の毀損に
   見合わない。一方、総量の暴走はネットワーク・体感性能への影響が
   大きく、無自覚な肥大化を許してはならない。
@@ -236,24 +241,27 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
 
 - 新規モジュール `crates/docs-site/src/search_index.rs`（`lib.rs` に
   `pub mod search_index;` を追加）。公開項目:
-  - `pub const REL_PATH: &str = "assets/search-index.json";`
-  - `pub const SCHEMA_VERSION: u32 = 1;`
+  - `pub const REL_PATH: &str = "assets/search-index.json";`（イシュー #3173 以降はマニフェスト）
+  - `pub const SECTION_DIR_REL_PATH: &str = "assets/search-index";`・`pub fn section_slug(title: &str) -> String`・`pub fn section_rel_path(slug: &str) -> String`（イシュー #3173）
+  - `pub const SCHEMA_VERSION: u32 = 2;`（イシュー #3173 で 1 → 2）
   - `pub const MAX_PAGE_TEXT_BYTES: usize = 4000;`（イシュー #2849 で `4096` から `4032` へ暫定引き下げ、§10-10 参照。イシュー #2851 では追加の変更なし、§10-11 参照。PR #3272（イシュー #2853・#2855 の並行マージ）で `4032` から `4000` へ再度暫定引き下げ、§10-12 参照。イシュー #2852 の base 取り込み時点でも実測はこの範囲内に収まり追加の引き下げは不要だった、§10-13 参照。イシュー #2862・#2865 は独立に再度超過を検知したが本定数は据え置き、§10-14 参照）
-  - `pub const MAX_INDEX_BYTES: usize = 1_703_936;`（#2552 で `1_048_576` から `1_179_648` へ、#2645 で `1_179_648` から `1_310_720` へ、イシュー #2814 で `1_310_720` から `1_703_936` へ引き上げ、§10・§10-4 参照。イシュー #2637・#2639 の base 取り込み時点でも実測は範囲内だったが、#2750・#2814 の双方が並行して超過を検知し、#2814 の実測に基づく引き上げが採用された。#2817（§10-7 参照）・#2816（§10-8 参照）・#2751（§10-9 参照）の base 取り込み時点でもいずれも実測は範囲内であり追加の引き上げは不要だった）
+  - `pub const MAX_SECTION_INDEX_BYTES: usize = 2_621_440;`（イシュー #3173 で旧 `MAX_INDEX_BYTES` を廃止して新設、§10-15）
   - `pub struct PageEntry { href, title, sections: Vec<SectionEntry>, text }`
   - `pub struct SectionEntry { id, level, title }`
   - `pub fn page_entry(href: &str, title: &str, body: &Node, exclude_code_blocks: bool) -> PageEntry`（`exclude_code_blocks` はイシュー #2862（§10-13）で追加。Blocks ページのみ `true` を渡し、フェンスコードブロック本文を索引テキストから除外する）
-  - `pub fn render_json(base_path: &str, entries: &[PageEntry]) -> String`
-  - `pub fn check_size(json: &str) -> Result<(), SearchIndexError>`
+  - `pub struct SectionInput { title, entries: Vec<PageEntry> }`・`pub fn build_files(base_path: &str, sections: &[SectionInput]) -> Result<Vec<(String, String)>, SearchIndexError>`（マニフェスト + セクションファイルの `("/<rel_path>", JSON)` 列。スラッグの空/重複と per-file 上限を fail-closed に検査する、イシュー #3173）
+  - `pub fn render_manifest_json(base_path: &str, sections: &[(String, String)]) -> String`・`pub fn render_section_json(base_path: &str, entries: &[PageEntry]) -> String`
+  - `pub fn check_size(section: &str, json: &str) -> Result<(), SearchIndexError>`
 - `build_site` の処理順（既存の fail-closed 境界を崩さない）:
-  1. ページループ内で `search_index::page_entry(...)` を収集する
-     （`prev_next_nav` 追記前の body から）。
+  1. ページループ内で `search_index::page_entry(...)` を収集し、
+     `Nav::section_for_path` で `nav.sections` と同順のバケット
+     （`SectionInput`）へ振り分ける（`prev_next_nav` 追記前の body から）。
   2. `linkcheck::check_links` の前後どちらでもよいが、**`ssg::generate_pages`
-     より前**に `render_json` + `check_size` を完了させる（CSS 組み立て
-     と同じ「書き出し前に fallible 処理を終える」規律に従う）。
-  3. `generate_pages` → `copy_assets` → 各 CSS → `assets/site.js` の後に
-     `assets/search-index.json` を `fs::write` で書き出し、
-     `BuildReport.assets` へ push する。
+     より前**に `build_files` を完了させる（CSS 組み立てと同じ「書き出し
+     前に fallible 処理を終える」規律に従う）。
+  3. `generate_pages` → `copy_assets` の後、`build_files` の戻り値をそのまま
+     `ssg::generate_assets` へ渡して書き出し、`BuildReport.assets` へ
+     加える（マニフェスト 1 件 + セクション数分）。
 - `RESERVED_ASSET_NAMES` へ `"search-index.json"` を追加する
   （`site/assets/` 側の同名静的ファイルによるすり替え防止）。
 - **linkcheck への href 登録は不要**である。`check_links` は `href`
@@ -413,12 +421,16 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
 - 状態は IIFE スコープの変数 1 つで管理する:
   `idle` → `loading` → `ready` / `failed`。
 - **初回 `focus` で fetch を開始**する（`input` イベントではなく
-  `focus`）。`loading` 中の再フォーカス・再入力では**新たな fetch を
+  `focus`）。取得はマニフェスト → その `sections[].href` が指す全
+  セクションファイルを `Promise.all` で並列 fetch する 2 段構成で、
+  結合はマニフェスト順（イシュー #3173、§10-15）。`loading` 中の再フォーカス・再入力では**新たな fetch を
   発行しない**（single-flight）。`ready` 後はメモリ上のオブジェクトを
   再利用し、再 fetch しない。
 - `fetch(url)` の失敗（ネットワーク断・`response.ok !== true`・
-  `JSON.parse` 例外・`version !== 1`・`pages` が配列でない）は
-  すべて `failed` として扱い、`docs-search-empty` に静的文言
+  `JSON.parse` 例外・`version !== 2`・`sections` が配列でない・
+  `section.href` が `isSafePath` を満たさない・`pages` が配列でない）は
+  **セクションファイル 1 件でも起きれば全体を** `failed` として扱い
+  （部分的な索引で「見つからない」と誤答しない）、`docs-search-empty` に静的文言
   （例: `Search is unavailable`）を `textContent` で表示する。
   入力欄は使用可能なまま残す。**タイマーによる自動リトライは行わない。**
   `failed` 後に再度フォーカスされた場合に限り 1 回だけ再試行してよい
@@ -477,7 +489,7 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
 |---|---|---|
 | `crates/docs-site/src/build.rs` | `RESERVED_ASSET_NAMES` に `search-index.json` 追加、`BuildError::SearchIndexTooLarge` 追加、書き出し配線 | #957 |
 | `crates/docs-site/tests/site_build.rs` | `report.assets.len()` の期待値更新（ok フィクスチャ・実サイト双方）、`assets/search-index.json` の存在確認と決定性（2 回ビルドでバイト一致） | #957 |
-| `.github/workflows/docs-site.yml` | `verify: dist sanity check` に `test -f "${RUNNER_TEMP}/docs-site-dist/assets/search-index.json"` を追加 | #957 |
+| `.github/workflows/docs-site.yml` | `verify: dist sanity check` に `test -f "${RUNNER_TEMP}/docs-site-dist/assets/search-index.json"` を追加（#957）。イシュー #3173 で代表セクションファイル `assets/search-index/blocks.json` の `test -f` を追加 | #957 / #3173 |
 | `crates/docs-site/tests/site_css_contract.rs` | `STRUCTURE_CLASS_CONTRACT` へ `docs-search*` 3 件、`SEARCH_JS_ONLY_CLASSES`（新設）へ JS 実行時生成 4 件を登録し、3 方向（(b)/(a′)/(c′)）の新規テスト 3 本を追加（実装結果は §4-1 参照） | #958 |
 | `crates/docs-site/src/site_theme.rs` | 対応セレクタ 7 件を `STRUCTURAL_CSS` へ追加（層 1 (b) 方向）、`stylesheet_contains_structural_selectors` へ追加 | #958 |
 | `crates/docs-site/src/script.rs` | 第 3 IIFE 追加、`site_js_scrollspy_is_isolated_from_the_theme_toggle_guard` の期待値を `>= 2` → `>= 3` に更新、`site_js_does_not_use_dangerous_dom_apis` へ `insertAdjacentHTML` を追加、`SCHEMA_VERSION` 二重管理ドリフト検知テストを新設 | #958 |
@@ -566,7 +578,12 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
    追跡はイシュー #3173）。
 2. nav 登録ページが 200 件を超えた場合（→ 線形走査の同期実行が
    体感性能を損なわないか再確認。313 ページに達した時点で未対応、
-   §10-5・イシュー #3173 のセクション分割作業と合わせて確認すること）。
+   追跡はイシュー #3171。セクション分割〔§10-15〕は転送量・走査量を
+   変えないためこのトリガーの対応ではない）。
+6. **（イシュー #3173 で新設）** いずれかのセクションファイルが
+   `MAX_SECTION_INDEX_BYTES` の 80%（2,097,152 バイト）を超えた場合
+   （→ 値の引き上げではなく当該セクションのさらなる分割。Blocks なら
+   `crate::blocks::BlockSection` 単位。詳細は §10-15）。
 3. 部分一致検索で実用に耐えないという利用者フィードバックが出た場合
    （→ セクション粒度インデックス・スコアリング見直し）。
 4. `docs/internal/` を索引対象にする要求が出た場合（既定は含めない）。
@@ -1101,3 +1118,106 @@ base 取り込みで §10-12 の `4_000` および §10-13 のフェンスコー
   引き続き未着手のまま。次回の Blocks 追加（コード比率が低いページ等）で
   再び超過が発生する可能性はあるため、イシュー #3173 の優先度を上げることを
   重ねて推奨する。
+
+### 10-15 イシュー #3173: 検索インデックスをセクション粒度へ分割した（実装記録）
+
+open PR #3363 / #3365 / #3370（各 Blocks 1 件追加）が `SearchIndex(TooLarge)`
+で同時に FAIL し、§10-6 のハードルール（`MAX_INDEX_BYTES` を引き上げない）と
+§10-14 の決定（`MAX_PAGE_TEXT_BYTES` を再引き下げしない）により対症療法の
+余地が尽きたため、§10-4 選択肢 3 を実装した。
+
+#### 実測（`origin/main` `7222198b`、456 ページ、旧単一ファイル 1,703,469 バイト = 旧上限の 99.97%）
+
+| セクション | ページ数 | バイト | 1 ページ平均 |
+| --- | --- | --- | --- |
+| Getting Started | 2 | 7,311 | 3,655 |
+| Guides | 11 | 59,602 | 5,418 |
+| Examples | 8 | 35,852 | 4,481 |
+| Primitives | 76 | 360,909 | 4,748 |
+| Themes | 124 | 439,558 | 3,544 |
+| Blocks | 174 | 527,062 | 3,029 |
+| Wireframes | 50 | 196,295 | 3,925 |
+| API Reference | 11 | 65,025 | 5,911 |
+
+Blocks ページの `text` 以外（`href`/`title`/`sections`）のオーバーヘッドは
+平均 337 バイト・最大 1,826 バイト（`/blocks/` 索引ページ）。分割後の実測は
+`blocks.json` 530,060 バイト、`themes.json` 442,306 バイト、
+`primitives.json` 362,659 バイト、マニフェスト 725 バイト。
+
+#### 採用した設計
+
+- **分割単位は `site/nav.toml` の `[[section]]`**（`Nav::sections` の宣言順。
+  現行 8 セクション）。`crate::build::build_site` はページを
+  `Nav::section_for_path` で `nav.sections` と同順のバケットへ振り分け、
+  `search_index::build_files` がマニフェスト + セクションファイルを返す。
+  セクション追加時に `build.rs` / `script.rs` / テストのいずれにも分岐を
+  足す必要がない（レジストリ駆動）。ファイル名は `section_slug(title)`
+  （`[a-z0-9-]` へ写像）で導出し、空・重複は `BuildError::SearchIndex`
+  で fail-closed。
+- **マニフェスト方式**（`assets/search-index.json` にセクション一覧、
+  `data-search-index` は不変）。理由: (1) `layout` の属性契約・
+  `tests/layout_render.rs`・`docs-site.yml` の `test -f` の入口パスを
+  変えずに済む、(2) セクション一覧を HTML 全ページへ複製せずビルド生成物
+  1 か所で持てる、(3) ファイル名にハッシュを付けない現行方針と同じく
+  URL が決定的でキャッシュ性を損なわない。代替案「HTML の `data-*` に
+  セクションファイル一覧を列挙」は初回 focus の往復を 1 回減らせるが、
+  全ページ HTML へ同じ一覧を埋め込む二重管理になるため却下した。
+- **JS は初回 focus でマニフェスト → 全セクションを `Promise.all` で並列
+  fetch** し、マニフェスト順に `pages` を結合する（§4-4 のタイブレーク
+  順序を保つ）。「必要な範囲」= 全域検索では全セクションであり、
+  セクション単位の遅延 fetch（現在ページのセクションのみ先読み等）は
+  検索 UI がセクション絞り込みを持たない現状では複雑さに見合わないため
+  採らない（§8 トリガー 3 の再評価対象）。転送量は分割前と同じ（約 1.7 MB）
+  であり、本イシューの目的はビルドゲートの恒久化であって転送量削減では
+  ない。1 件でも失敗すれば全体を `failed`（`Search is unavailable`）にし、
+  部分索引で「見つからない」と誤答しない。
+- **旧単一ファイル形式は生成しない**（互換維持なし）。JS と JSON は同一
+  ビルドで同時にデプロイされ、旧 JS が新マニフェストを読んでも
+  `version !== 1` で fail-closed になるだけであり、互換を残す動機がない。
+
+#### per-file 上限 `MAX_SECTION_INDEX_BYTES = 2,621,440`（2.5 MiB）の根拠
+
+Blocks は拡充ツリー #2730 の残り約 220 block を加えて約 400 ページになる
+前提で線形外挿した:
+
+| 試算 | 1 ページ | × 400 ページ | 上限比 |
+| --- | --- | --- | --- |
+| 実測平均 | 3,029 | 1,211,600 | 46% |
+| 現実的最悪（`MAX_PAGE_TEXT_BYTES` 4,000 + 平均オーバーヘッド 337） | 4,337 | 1,734,800 | 66% |
+| 理論最悪（4,000 + 最大オーバーヘッド 1,826） | 5,826 | 2,330,400 | 89% |
+
+2 MiB では現実的最悪が 83%（§8 トリガー 6 の 80% を最初から超える）、
+理論最悪が上限超過となるため、2.5 MiB を採った。これは Blocks 400 ページ
+到達までに再び上限に触れないことを保証しつつ、「1 ファイルが際限なく
+肥大化する」ことへの防波堤として機能する値である。`MAX_INDEX_BYTES` は
+削除した（意味を変えて残さない。`tests/search_index.rs` の固定ピンは
+`MAX_SECTION_INDEX_BYTES` へ付け替えた）。`MAX_PAGE_TEXT_BYTES` は 4,000 の
+まま据え置き、以後は索引総量の調整弁として上下させない。
+
+#### 却下案
+
+- `MAX_INDEX_BYTES` の再引き上げ・`MAX_PAGE_TEXT_BYTES` の再引き下げ:
+  §10-6・§10-14 で禁止済み。
+- Blocks を `BlockSection`（Marketing / Application 等）単位でさらに分割:
+  現時点では 1 ファイル 530 KB で不要。§8 トリガー 6 発火時の第一候補
+  として温存する（`crate::blocks::BlockSection` は既存レジストリであり、
+  `SectionInput` を Blocks だけ複数件に展開すれば実装できる）。
+- インデックスの圧縮・語彙の共有化・転置索引: 外部依存ゼロ・素の JS
+  単一ファイルという制約下で実装コストが大きく、上限問題の解決には
+  分割で十分。
+
+#### 契約テスト（`crates/docs-site/tests/search_index.rs`）
+
+既存 7 項目はマニフェスト + 全セクションファイルを対象に読み替えて維持
+（削除・弱体化なし）。新規: マニフェストの `sections[]` と nav.toml の
+`[[section]]` の宣言順一致・各ファイルの `pages` が当該セクションの
+`Section::all_pages` と完全一致・マニフェストに `pages` を持たない
+（旧形式非生成）・per-file 上限の fail-closed（`section` 名付き）・
+スラッグの空/重複拒否・`MAX_SECTION_INDEX_BYTES` の固定ピン。
+`tests/site_build.rs` のアセット件数は `15 + nav.sections.len()` で導出し、
+セクション追加時の手修正を不要にした。
+
+#### 再評価トリガー（§8 の 6 として追加）
+
+いずれかのセクションファイルが 2,097,152 バイト（上限の 80%）を超えたら、
+値を引き上げず当該セクションを分割する。

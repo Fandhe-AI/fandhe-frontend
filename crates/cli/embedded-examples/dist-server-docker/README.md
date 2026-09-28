@@ -38,7 +38,7 @@
   クライアント側の対話部品を使いたい場合は、`fandhe-frontend-wasm-full` を
   自アプリの直接依存として追加し feature を選ぶ
   （`examples/interactive-view-transitions` 参照）必要があります。詳細は
-  [wasm-full feature 選択ガイド](../../docs/guides/wasm-full-features.md)
+  [wasm-full feature 選択ガイド](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/guides/wasm-full-features.md)
   を参照
 
 ## 実測結果（イシュー #502 実装時、scratchpad の使い捨てプロジェクトで確認）
@@ -112,7 +112,7 @@ curl -sS http://127.0.0.1:3100/
 
 ## 関連ガイド
 
-- [`docs/guides/quickstart.md`](../../docs/guides/quickstart.md)
-- [`docs/guides/wasm-full-features.md`](../../docs/guides/wasm-full-features.md)
+- [`docs/guides/quickstart.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/guides/quickstart.md)
+- [`docs/guides/wasm-full-features.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/guides/wasm-full-features.md)
 - [`docs/design/dist-server-design.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/design/dist-server-design.md)
-- [`examples/ssr-routing/README.md`](../ssr-routing/README.md)（examples 規約の初例）
+- [`examples/ssr-routing/README.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/examples/ssr-routing/README.md)（examples 規約の初例）
