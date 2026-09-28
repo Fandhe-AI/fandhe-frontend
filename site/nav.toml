@@ -2050,6 +2050,11 @@ title = "page-heading-actions"
 source = "site/blocks/page-heading-actions.md"
 path = "/blocks/page-heading-actions/"
 
+[[section.group.page]]
+title = "page-heading-meta"
+source = "site/blocks/page-heading-meta.md"
+path = "/blocks/page-heading-meta/"
+
 [[section.group]]
 title = "Card Heading"
 

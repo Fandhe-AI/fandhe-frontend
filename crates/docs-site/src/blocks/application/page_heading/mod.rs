@@ -7,12 +7,14 @@
 //! 新規 block を追加する際は本ファイルへ `mod` 宣言と `blocks()` への追記を
 //! 行うだけでよく、`super`（`application`）側・トップレベル
 //! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
-//! ための構造、イシュー #2734）。
+//! ための構造、イシュー #2734）。イシュー #2933 で `page-heading-meta` を
+//! 追加した。
 
 mod page_heading_actions;
+mod page_heading_meta;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![page_heading_actions::BLOCK]
+    vec![page_heading_actions::BLOCK, page_heading_meta::BLOCK]
 }
