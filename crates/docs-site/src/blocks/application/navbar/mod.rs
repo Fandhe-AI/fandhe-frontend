@@ -12,9 +12,14 @@
 
 mod navbar_app_links;
 mod navbar_docs_site;
+mod navbar_with_search;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![navbar_app_links::BLOCK, navbar_docs_site::BLOCK]
+    vec![
+        navbar_app_links::BLOCK,
+        navbar_docs_site::BLOCK,
+        navbar_with_search::BLOCK,
+    ]
 }
