@@ -50,10 +50,13 @@
 //! Demo 枠の幅はビューポート幅と一致しないため、`@media` ではなく
 //! `form_layout_two_column`/`testimonial_card_grid` と同型の `@container`
 //! を使う。各インスタンスのラッパーへ `container-type: inline-size;
-//! container-name: blocks-grid-list-contact-cards;` を宣言し、`36rem`/
-//! `52rem` で列数を 1 → 2 → 3 へ増やす。`vertical` インスタンスのみ
-//! `68rem` でさらに 4 列へ増やす（横型カードは情報量が多く 4 列だと
-//! 窮屈になるため据え置く）。`68rem` の縦型限定判定は
+//! container-name: blocks-grid-list-contact-cards;` を宣言し、`28rem`/
+//! `34rem` で列数を 1 → 2 → 3 へ増やす。`vertical` インスタンスのみ
+//! `40rem` でさらに 4 列へ増やす（横型カードは情報量が多く 4 列だと
+//! 窮屈になるため据え置く）。実際の Demo 枠幅（`.docs-content`
+//! `max-width: 46rem` から `.blocks-demo` の左右 padding 各 `1.5rem` を
+//! 差し引いた約 `43rem` が上限、イシュー #2919 レビュー指摘）を超えない
+//! 値へ選定している。`40rem` の縦型限定判定は
 //! `[data-blocks-grid-list-contact-cards-variant="vertical"]
 //! [data-blocks-grid-list-contact-cards-grid]`（コンテナー自身への祖先
 //! 参照を含む子孫セレクタ）では一致しない。`@container` 内のスタイル規則は
@@ -472,8 +475,8 @@ pub const BLOCK: Block = Block {
 };
 
 /// `grid_list_contact_cards` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。既定（狭幅）は 1 列、`36rem`
-/// 以上で 2 列、`52rem` 以上で 3 列、`vertical` インスタンスのみ `68rem`
+/// doc「block 固有 CSS の置き場」節と同型）。既定（狭幅）は 1 列、`28rem`
+/// 以上で 2 列、`34rem` 以上で 3 列、`vertical` インスタンスのみ `40rem`
 /// 以上でさらに 4 列へ増やす（モジュール doc「`@container` で列数を
 /// 切り替える理由」節）。
 const LAYOUT_CSS: &str = "\
@@ -491,13 +494,13 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"card\"][data-part=\"footer\"].blocks-grid-list-contact-cards-actions {\n  display: flex;\n  padding: 0;\n  border-top: 1px solid var(--fandhe-color-border);\n  margin-top: auto;\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-grid-list-contact-cards-action] {\n  flex: 1;\n  border-radius: 0;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-grid-list-contact-cards-action] + [data-blocks-grid-list-contact-cards-action] {\n  border-inline-start: 1px solid var(--fandhe-color-border);\n}\n\
-@container blocks-grid-list-contact-cards (min-width: 36rem) {\n  \
+@container blocks-grid-list-contact-cards (min-width: 28rem) {\n  \
 [data-blocks-grid-list-contact-cards-grid] {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n\
 }\n\
-@container blocks-grid-list-contact-cards (min-width: 52rem) {\n  \
+@container blocks-grid-list-contact-cards (min-width: 34rem) {\n  \
 [data-blocks-grid-list-contact-cards-grid] {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n\
 }\n\
-@container blocks-grid-list-contact-cards (min-width: 68rem) {\n  \
+@container blocks-grid-list-contact-cards (min-width: 40rem) {\n  \
 [data-blocks-grid-list-contact-cards-grid][data-blocks-grid-list-contact-cards-grid-variant=\"vertical\"] {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n\
 }\n";
 
@@ -567,9 +570,9 @@ mod tests {
     fn layout_css_contract() {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
-        assert!(LAYOUT_CSS.contains("@container blocks-grid-list-contact-cards (min-width: 36rem)"));
-        assert!(LAYOUT_CSS.contains("@container blocks-grid-list-contact-cards (min-width: 52rem)"));
-        assert!(LAYOUT_CSS.contains("@container blocks-grid-list-contact-cards (min-width: 68rem)"));
+        assert!(LAYOUT_CSS.contains("@container blocks-grid-list-contact-cards (min-width: 28rem)"));
+        assert!(LAYOUT_CSS.contains("@container blocks-grid-list-contact-cards (min-width: 34rem)"));
+        assert!(LAYOUT_CSS.contains("@container blocks-grid-list-contact-cards (min-width: 40rem)"));
         assert!(LAYOUT_CSS.contains("repeat(4, minmax(0, 1fr));"));
         // 縦型限定の 4 列判定は grid 要素自身の属性で行う（コンテナー自身
         // への祖先参照を含む子孫セレクタは @container 内で一致しないため、
