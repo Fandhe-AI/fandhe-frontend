@@ -2042,6 +2042,11 @@ title = "navbar-two-row"
 source = "site/blocks/navbar-two-row.md"
 path = "/blocks/navbar-two-row/"
 
+[[section.group.page]]
+title = "navbar-with-search"
+source = "site/blocks/navbar-with-search.md"
+path = "/blocks/navbar-with-search/"
+
 [[section.group]]
 title = "Page Heading"
 
