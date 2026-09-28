@@ -178,6 +178,32 @@ pub struct Part {
     pub path: &'static str,
 }
 
+thread_local! {
+    /// [`insert_generated_sections`] が `(block.demo)()` 呼び出し直前に
+    /// セットする、現在のビルド対象の `base_path`。[`Block::demo`] は
+    /// `fn() -> Node` で引数を持てないため、`navbar_docs_site` のように
+    /// サイト内リンクを生成する必要がある demo へ実行時の `base_path` を
+    /// 渡す唯一の経路として使う（イシュー #2927 PR #3373 レビュー
+    /// 〔codex〕指摘: コンパイル時に埋め込んだ `site/nav.toml` では
+    /// `build_site` へ渡された実際の `repo_root`/`base_path` と食い違い
+    /// 得る。他の大半の block は `REPO` 等の外部絶対 URL でこの制約を
+    /// 回避する既存方針〔`banner_announcement_pill` モジュール doc
+    /// 「`href` に絶対 URL を使う理由」節〕を維持し、この値を読まない）。
+    /// `insert_generated_sections` を経由しない直接呼び出し（単体テスト等）
+    /// では既定値 `""`（`layout::asset_href` はサイトルートとして扱う）
+    /// になる。`cargo test` はスレッドを跨いで並列実行されるため、
+    /// グローバル `static` ではなく thread-local にして並行ビルド間の
+    /// 取り違えを構造的に防ぐ。
+    static DEMO_BASE_PATH: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
+}
+
+/// 現在の `(block.demo)()` 呼び出し中に有効な `base_path` を返す
+/// （[`DEMO_BASE_PATH`] 参照）。
+#[must_use]
+pub(crate) fn demo_base_path() -> String {
+    DEMO_BASE_PATH.with(|cell| cell.borrow().clone())
+}
+
 /// block 1 件分のレジストリエントリ（モジュール doc「レジストリ構造」節）。
 #[derive(Clone, Copy)]
 pub struct Block {
@@ -265,9 +291,13 @@ pub fn insert_generated_sections(page_path: &str, base_path: &str, blocks: Vec<N
         })
         .collect();
 
+    let demo_node = {
+        DEMO_BASE_PATH.with(|cell| *cell.borrow_mut() = base_path.to_string());
+        (block.demo)()
+    };
     let generated = vec![
         h2(vec![], vec![text("Demo")]),
-        div(vec![("class", demo_class.as_str())], vec![(block.demo)()]),
+        div(vec![("class", demo_class.as_str())], vec![demo_node]),
         h2(vec![], vec![text("使用部品")]),
         ul(vec![], parts_items),
     ];

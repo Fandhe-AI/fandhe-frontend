@@ -44,6 +44,18 @@
 //! （`docs/policy/intentional-non-adoption.md` §3.25）。ブランド名は架空
 //! （実企業名・実クレデンシャル・PII を含まない）。
 //!
+//! # 無 JS のため検索ボタン・テーマ切替・主操作ボタンは disabled 固定
+//!
+//! 検索欄本体（`input_group`/`input`）は文字入力自体は可能な素の
+//! text input のため `disabled: false` のまま保つが、押しても何も起きない
+//! ボタン（[`search_button`]/[`search_icon_button`]/[`theme_toggle`]/
+//! [`primary`]/[`primary_icon_button`]）はいずれも `disabled: true` で
+//! ネイティブ `disabled`・`data-disabled`・`aria-disabled="true"` を付与し、
+//! 無 JS であることを支援技術・視覚の双方に明示する（`navbar_with_search`
+//! の通知ボタン・アバターメニュー trigger と同じ判断）。[`LAYOUT_CSS`] の
+//! `[data-disabled]` 複合セレクタで opacity/cursor を通常のボタンと同じ
+//! 見た目に中和する（Cursor Bugbot 指摘、イシュー #2927 PR #3373 レビュー）。
+//!
 //! # `site.js` のセレクタと衝突しない
 //!
 //! `crates/docs-site` の `assets/site.js`（`src/script.rs`）は
@@ -100,53 +112,36 @@ use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::navigation_menu::{self, NavigationMenuProps, OpenState};
 use fandhe_frontend_pre_styled_ui::tab_nav;
 use fandhe_frontend_pre_styled_ui::Size;
-use std::sync::OnceLock;
 
 /// 実在の自リポジトリ URL（サイト内ページではなく GitHub 上の外部
 /// リポジトリを指すため `base_path` の対象外。`href` の方針、モジュール
 /// doc 参照。`header_simple_bar::REPO` と同一 URL）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
-/// `site/nav.toml` の `[site] base_path`（ビルド時の配信パス接頭辞）。
-///
-/// [`crate::blocks::Block::demo`] は `fn() -> Node` のため、実行時に
-/// `crate::build::build_site` から実際の `base_path` を引数で受け取れない
-/// （プロセス内 1 回だけ計算してキャッシュする点は
-/// [`crate::component_page::showcase_css_cache`] と同型）。単一の情報源
-/// （`site/nav.toml`）から `base_path` だけを読み取るため、docs-site 自身の
-/// ソースからの相対パスでコンパイル時に埋め込み [`crate::nav::parse_nav`]
-/// （唯一の解析経路）へ通す。これによりサイト内リンクの host をハード
-/// コードせず、`base_path` を反映した root-relative な href を生成できる
-/// （ローカル/プレビュービルドでも現在のホストへ正しく遷移する、
-/// イシュー #2927 PR レビュー〔codex〕指摘）。`site/nav.toml` の解析に
-/// 失敗した場合（本来到達しない）は空文字へ fail-closed する。
-fn site_base_path() -> &'static str {
-    static BASE_PATH: OnceLock<String> = OnceLock::new();
-    BASE_PATH.get_or_init(|| {
-        crate::nav::parse_nav(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../site/nav.toml"
-        )))
-        .map(|nav| nav.site.base_path)
-        .unwrap_or_default()
-    })
-}
-
 /// docs サイトのトップページ（`site/index.md` が原稿、ロゴの遷移先）。
+///
+/// [`crate::blocks::Block::demo`] は `fn() -> Node` のため実行時引数を
+/// 受け取れないが、[`crate::blocks::demo_base_path`]（`insert_generated_sections`
+/// が `(block.demo)()` 呼び出し直前にセットする thread-local）から
+/// `crate::build::build_site` へ実際に渡された `base_path` を読む。
+/// コンパイル時に埋め込んだ `site/nav.toml` から `base_path` だけを
+/// 抜き出す従来方式は、`build_site` へ渡す `repo_root`/`base_path` が
+/// docs-site 自身のソースツリーと異なる場合に食い違い得たため廃止した
+/// （イシュー #2927 PR #3373 レビュー〔codex〕指摘）。
 fn home_url() -> String {
-    crate::layout::asset_href(site_base_path(), "/")
+    crate::layout::asset_href(&crate::blocks::demo_base_path(), "/")
 }
 /// docs サイト「Guide」の実在ページ（`site/nav.toml` `index_path = "/guides/"`）。
 fn guide_url() -> String {
-    crate::layout::asset_href(site_base_path(), "/guides/")
+    crate::layout::asset_href(&crate::blocks::demo_base_path(), "/guides/")
 }
 /// docs サイト「API Reference」の実在ページ（同 `index_path = "/api/"`）。
 fn api_reference_url() -> String {
-    crate::layout::asset_href(site_base_path(), "/api/")
+    crate::layout::asset_href(&crate::blocks::demo_base_path(), "/api/")
 }
 /// docs サイト「Themes」の実在ページ（同 `index_path = "/themes/"`）。
 fn themes_url() -> String {
-    crate::layout::asset_href(site_base_path(), "/themes/")
+    crate::layout::asset_href(&crate::blocks::demo_base_path(), "/themes/")
 }
 
 /// ドキュメント系ナビ項目（value, label, href）。`base_path` を反映した
@@ -169,6 +164,21 @@ fn geo_icon(d: &'static str) -> Node {
         &IconProps::default(),
         vec![],
         vec![el("path", vec![("d", d)], vec![])],
+    )
+}
+
+/// [`geo_icon`] の変種。内側に別の閉じた矩形/円を重ねて「くり抜き」を
+/// 表現する `d`（例: ロゴの外枠 + 内側正方形）向けに `fill-rule="evenodd"`
+/// を付与する。既定の `fill-rule="nonzero"` では同方向に描いた 2 つの
+/// 閉領域が単純に合算され内側が塗りつぶされたまま見えなくなるため
+/// （Bugbot 指摘、イシュー #2927 PR #3373 レビュー）、[`geo_icon`] とは
+/// 分けて明示する。単一閉領域の [`geo_icon`] 呼び出し（例: GitHub
+/// アイコン・三角形）には影響しない。
+fn geo_icon_evenodd(d: &'static str) -> Node {
+    icon(
+        &IconProps::default(),
+        vec![],
+        vec![el("path", vec![("d", d), ("fill-rule", "evenodd")], vec![])],
     )
 }
 
@@ -210,7 +220,7 @@ fn search_icon() -> Node {
 /// はみ出していた、イシュー #2927 PR レビュー〔codex/Bugbot〕指摘）。
 fn logo(compact: bool) -> Node {
     let mut attrs = vec![("data-blocks-navbar-docs-site-logo", "")];
-    let mut children = vec![geo_icon("M4 4h16v16H4zM8 8h8v8H8z")];
+    let mut children = vec![geo_icon_evenodd("M4 4h16v16H4zM8 8h8v8H8z")];
     if compact {
         attrs.push(("aria-label", "Nimbus Docs"));
     } else {
@@ -327,12 +337,14 @@ fn search_field(variant: &'static str) -> Node {
     )
 }
 
-/// 右寄せのボタン型検索トリガー（end-search variant。押しても何も起きない
-/// 静的表示）。
+/// 右寄せのボタン型検索トリガー（end-search variant。無 JS のため
+/// `disabled: true` 固定で押しても何も起きないことを明示する。
+/// `navbar_with_search::notify` と同じ判断）。
 fn search_button() -> Node {
     button::button(
         &ButtonProps {
             variant: ButtonVariant::Outline,
+            disabled: true,
             ..ButtonProps::default()
         },
         vec![("data-blocks-navbar-docs-site-search-button", "")],
@@ -342,11 +354,13 @@ fn search_button() -> Node {
 
 /// アイコンボタン型検索トリガー（`size` は呼び出し側の variant に合わせる。
 /// `narrow` は他の全アイコン項目と揃えて [`Size::Sm`] を使い、[`logo`] の
-/// doc コメントに記した 24rem 超過を避ける）。
+/// doc コメントに記した 24rem 超過を避ける）。[`search_button`] と同じ
+/// 理由で `disabled: true` 固定。
 fn search_icon_button(size: Size) -> Node {
     button::icon_button(
         &ButtonProps {
             size,
+            disabled: true,
             ..ButtonProps::default()
         },
         "ドキュメントを検索",
@@ -371,7 +385,8 @@ fn repo_link() -> Node {
 }
 
 /// テーマ切替（サイト本体の `.docs-theme-toggle`（`site.js` が掴む唯一の
-/// セレクタ）とは別の class/id を持つ、押しても何も起きない静的表示）。
+/// セレクタ）とは別の class/id を持つ、無 JS のため `disabled: true` 固定
+/// で押しても何も起きないことを明示する静的表示）。
 /// 陽光線は開いた線分のため [`stroke_icon`] で描く（塗りでは不可視、
 /// Bugbot 指摘）。`size` は [`search_icon_button`] と同じ理由で呼び出し側の
 /// variant に合わせる。
@@ -380,6 +395,7 @@ fn theme_toggle(size: Size) -> Node {
         &ButtonProps {
             variant: ButtonVariant::Ghost,
             size,
+            disabled: true,
             ..ButtonProps::default()
         },
         "配色テーマを切り替え",
@@ -390,11 +406,13 @@ fn theme_toggle(size: Size) -> Node {
     )
 }
 
-/// 主操作ボタン（押しても何も起きない静的表示）。
+/// 主操作ボタン（無 JS のため `disabled: true` 固定で押しても何も起きない
+/// ことを明示する静的表示）。
 fn primary(size: Size) -> Node {
     button::button(
         &ButtonProps {
             size,
+            disabled: true,
             ..ButtonProps::default()
         },
         vec![("data-blocks-navbar-docs-site-primary", "")],
@@ -403,11 +421,12 @@ fn primary(size: Size) -> Node {
 }
 
 /// 主操作のアイコンボタン版（narrow variant 専用。文言の代わりにロケット
-/// 状の幾何アイコンを使う）。
+/// 状の幾何アイコンを使う）。[`primary`] と同じ理由で `disabled: true` 固定。
 fn primary_icon_button(size: Size) -> Node {
     button::icon_button(
         &ButtonProps {
             size,
+            disabled: true,
             ..ButtonProps::default()
         },
         "はじめる",
@@ -611,7 +630,10 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"input-group\"][data-part=\"root\"][data-blocks-navbar-docs-site-search] {\n  inline-size: 100%;\n  max-inline-size: 20rem;\n}\n\
 [data-blocks-navbar-docs-site-end] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  margin-inline-start: auto;\n}\n\
 [data-blocks-navbar-docs-site-variant=\"narrow\"] [data-blocks-navbar-docs-site-end] {\n  flex-wrap: wrap;\n  justify-content: flex-end;\n  row-gap: var(--fandhe-space-2);\n}\n\
-[data-scope=\"link\"][data-part=\"root\"][data-blocks-navbar-docs-site-logo] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: var(--fandhe-font-font-weight-semibold, 600);\n  white-space: nowrap;\n}\n";
+[data-scope=\"link\"][data-part=\"root\"][data-blocks-navbar-docs-site-logo] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: var(--fandhe-font-font-weight-semibold, 600);\n  white-space: nowrap;\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-navbar-docs-site-search-button][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-navbar-docs-site-theme-toggle][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-navbar-docs-site-primary][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -688,5 +710,58 @@ mod tests {
                 "demo should not reuse the site.js hook {needle}"
             );
         }
+    }
+
+    /// 無 JS の no-op ボタン（検索・テーマ切替・主操作）が `data-disabled`
+    /// を持ち、実在の検索 input は disabled にならないこと
+    /// （Cursor Bugbot 指摘、イシュー #2927 PR #3373 レビュー）。
+    #[test]
+    fn no_op_buttons_are_disabled_but_search_input_is_not() {
+        for html in [
+            render(&search_button()),
+            render(&search_icon_button(Size::Md)),
+            render(&theme_toggle(Size::Md)),
+            render(&primary(Size::Md)),
+            render(&primary_icon_button(Size::Md)),
+        ] {
+            assert!(
+                html.contains("data-disabled"),
+                "no-op button should carry data-disabled: {html}"
+            );
+        }
+        let search_field_html = render(&search_field("center-search"));
+        assert!(
+            !search_field_html.contains("data-disabled"),
+            "the real search input should remain enabled"
+        );
+    }
+
+    /// [`crate::blocks::insert_generated_sections`] が渡す `base_path` が
+    /// このブロックのロゴ・ナビリンクへ反映されること（ビルド対象の
+    /// `base_path` と食い違わない、イシュー #2927 PR #3373 レビュー
+    /// 〔codex〕指摘の回帰）。
+    #[test]
+    fn demo_links_follow_the_base_path_passed_by_build_site() {
+        let html_with_prefix = render(&fandhe_frontend_core::div(
+            vec![],
+            crate::blocks::insert_generated_sections(BLOCK.path, "/prefix", vec![]),
+        ));
+        assert!(
+            html_with_prefix.contains("href=\"/prefix/\""),
+            "home link should honor the base_path passed to insert_generated_sections"
+        );
+        assert!(
+            html_with_prefix.contains("href=\"/prefix/guides/\""),
+            "guide link should honor the base_path passed to insert_generated_sections"
+        );
+
+        let html_without_prefix = render(&fandhe_frontend_core::div(
+            vec![],
+            crate::blocks::insert_generated_sections(BLOCK.path, "", vec![]),
+        ));
+        assert!(
+            html_without_prefix.contains("href=\"/\""),
+            "home link should fall back to root when base_path is empty"
+        );
     }
 }
