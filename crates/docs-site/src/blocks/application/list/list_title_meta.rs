@@ -382,7 +382,10 @@ fn avatars_trailing(row: &AvatarRow) -> Node {
             span(
                 vec![("class", "blocks-list-title-meta-avatar-count")],
                 vec![
-                    text(format!("+{}", row.extra_count)),
+                    span(
+                        vec![("aria-hidden", "true")],
+                        vec![text(format!("+{}", row.extra_count))],
+                    ),
                     visually_hidden::root(
                         vec![],
                         vec![text(format!("、他 {} 名", row.extra_count))],
@@ -455,10 +458,14 @@ fn deploy_trailing(row: &DeployRow) -> Node {
 /// R1297 行の `list::item`。行全体を [`link_overlay`] でリンク化するため
 /// タイトルは素のテキストのまま使う（インラインリンクと行全体リンクを
 /// 同居させない、モジュール doc「3 種の右端要素を 1 行に同居させない
-/// 理由」節）。
+/// 理由」節）。`list::item` 自体には `blocks-list-title-meta-row` を
+/// 付与しない（grid レイアウト・`padding-block` は内側の
+/// `link_overlay::root` 側にのみ属性セレクタで適用する契約。両方へ
+/// 付与すると `padding-block` が二重適用され行の高さが 2 倍になる、
+/// [`LAYOUT_CSS`] doc「行の骨格をどこに置くか」節参照）。
 fn deploy_item(row: &DeployRow) -> Node {
     list::item(
-        vec![("class", "blocks-list-title-meta-row")],
+        vec![],
         vec![link_overlay::root(
             vec![],
             vec![
@@ -619,6 +626,20 @@ pub const BLOCK: Block = Block {
 /// を起点にした属性セレクタ `[data-scope="link-overlay"][data-part="root"]`
 /// でスコープする（`list::root` の呼び出し側 `class` も同じ理由で落ちる
 /// ため、パネル外枠には別途 `div` を巻いている、[`panel`] 参照）。
+/// [`deploy_item`] の `list::item` 自体には `blocks-list-title-meta-row`
+/// を付与しない（内側の `link_overlay::root` と二重適用になり
+/// `padding-block` が 2 倍になるため。詳細は [`deploy_item`] 参照）。
+///
+/// # `list::item` の grid 化が Plain variant の `display: flex` に負けない理由
+///
+/// `pre-styled-ui` の `ListVariant::Plain` は
+/// `[data-scope="list"][data-part="root"].fd-list--variant-plain > [data-scope="list"][data-part="item"]`
+/// （5 セレクタ分の詳細度）へ `display: flex` を宣言する。単なる
+/// `.blocks-list-title-meta-row { display: grid; }`（詳細度 1）はこれに
+/// 負けて grid が無効化される。そのためこのセレクタは
+/// `.blocks-list-title-meta-panel [data-scope="list"][data-part="root"]
+/// [data-scope="list"][data-part="item"].blocks-list-title-meta-row`
+/// （詳細度 6）まで持ち上げ、CSS ソース順に頼らず確実に勝つようにする。
 ///
 /// # `list` recipe の item 余白の上書き
 ///
@@ -629,17 +650,17 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-list-title-meta-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-list-title-meta-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
-.blocks-list-title-meta-section-title {\n  margin: 0;\n  font-size: var(--fandhe-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-list-title-meta-section-title {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-list-title-meta-panel {\n  display: flex;\n  flex-direction: column;\n  container-type: inline-size;\n  container-name: blocks-list-title-meta;\n}\n\
 .blocks-list-title-meta-panel [data-scope=\"list\"][data-part=\"item\"] {\n  margin-block: 0;\n}\n\
 .blocks-list-title-meta-panel [data-scope=\"list\"][data-part=\"item\"] + [data-scope=\"list\"][data-part=\"item\"] {\n  border-top: 1px solid var(--fandhe-color-border);\n}\n\
-.blocks-list-title-meta-row,\n.blocks-list-title-meta-panel [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n  padding-block: var(--fandhe-space-4);\n  width: 100%;\n}\n\
+.blocks-list-title-meta-panel [data-scope=\"list\"][data-part=\"root\"] [data-scope=\"list\"][data-part=\"item\"].blocks-list-title-meta-row,\n.blocks-list-title-meta-panel [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n  padding-block: var(--fandhe-space-4);\n  width: 100%;\n}\n\
 .blocks-list-title-meta-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
 .blocks-list-title-meta-title-row {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  min-width: 0;\n}\n\
 .blocks-list-title-meta-title-text {\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
-.blocks-list-title-meta-meta {\n  margin: 0;\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-size-sm);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\
+.blocks-list-title-meta-meta {\n  margin: 0;\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\
 .blocks-list-title-meta-trailing {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  flex-shrink: 0;\n}\n\
-.blocks-list-title-meta-avatar-count {\n  font-size: var(--fandhe-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-list-title-meta-avatar-count {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-list-title-meta-arrow {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-list-title-meta-panel [data-blocks-list-title-meta-view-button] {\n  display: none;\n}\n\
 @container blocks-list-title-meta (min-width: 40rem) {\n  \
