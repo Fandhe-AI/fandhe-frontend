@@ -143,14 +143,16 @@ fn profile_header(name: &str, title: &str, location: &str, header_badges: Vec<No
 
 /// 統計値 1 件（`stat::root` + `label`/`value_text`(+`value_unit`)/`help_text`）。
 fn stat_card(label: &str, value: &str, unit: Option<&str>, help: &str) -> Node {
-    let mut children = vec![
-        stat::label(vec![], vec![text(label)]),
-        stat::value_text(vec![], vec![text(value)]),
-    ];
+    let mut value_children = vec![text(value)];
     if let Some(unit) = unit {
-        children.push(stat::value_unit(vec![], vec![text(unit)]));
+        value_children.push(stat::value_unit(vec![], vec![text(unit)]));
     }
-    children.push(stat::help_text(vec![], vec![text(help)]));
+
+    let children = vec![
+        stat::label(vec![], vec![text(label)]),
+        stat::value_text(vec![], value_children),
+        stat::help_text(vec![], vec![text(help)]),
+    ];
 
     stat::root(
         Size::Md,

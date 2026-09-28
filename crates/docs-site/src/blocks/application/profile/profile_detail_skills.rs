@@ -179,14 +179,16 @@ fn profile_header(name: &str, title: &str, location: &str, header_badges: Vec<No
 
 /// 統計値 1 件（`stat::root` + `label`/`value_text`(+`value_unit`)/`help_text`）。
 fn stat_card(label: &str, value: &str, unit: Option<&str>, help: &str) -> Node {
-    let mut children = vec![
-        stat::label(vec![], vec![text(label)]),
-        stat::value_text(vec![], vec![text(value)]),
-    ];
+    let mut value_children = vec![text(value)];
     if let Some(unit) = unit {
-        children.push(stat::value_unit(vec![], vec![text(unit)]));
+        value_children.push(stat::value_unit(vec![], vec![text(unit)]));
     }
-    children.push(stat::help_text(vec![], vec![text(help)]));
+
+    let children = vec![
+        stat::label(vec![], vec![text(label)]),
+        stat::value_text(vec![], value_children),
+        stat::help_text(vec![], vec![text(help)]),
+    ];
 
     stat::root(
         Size::Md,
@@ -418,7 +420,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-profile-detail-skills-stats {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-profile-detail-skills-badges {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"list\"][data-part=\"root\"][data-blocks-profile-detail-skills-list] {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-2) var(--fandhe-space-6);\n}\n\
-[data-blocks-profile-detail-skills-list] > [data-scope=\"list\"][data-part=\"item\"] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
+[data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain[data-blocks-profile-detail-skills-list] > [data-scope=\"list\"][data-part=\"item\"] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 @container blocks-profile-detail-skills (max-width: 36rem) {\n  \
 .blocks-profile-detail-skills-stats {\n    grid-template-columns: 1fr;\n  }\n  \
 [data-scope=\"list\"][data-part=\"root\"][data-blocks-profile-detail-skills-list] {\n    grid-template-columns: 1fr;\n  }\n\
