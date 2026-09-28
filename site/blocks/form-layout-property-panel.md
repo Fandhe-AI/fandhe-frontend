@@ -783,28 +783,52 @@ fn panel_theme_collapsible() -> Node {
                 Some("選択操作自体は無 JS でも行えますが、この静的デモでは配下パネルの配色は変わりません。"),
             ),
             separator::separator(&SeparatorProps::default(), vec![]),
-            collapsible::trigger(
+            collapsible::root(
                 collapsible::OpenState::Open,
                 true,
-                Some(B_FILL_CONTENT_ID),
                 vec![],
                 vec![
-                    text("塗り"),
-                    collapsible::indicator(collapsible::OpenState::Open, true, vec![], vec![]),
+                    collapsible::trigger(
+                        collapsible::OpenState::Open,
+                        true,
+                        Some(B_FILL_CONTENT_ID),
+                        vec![],
+                        vec![
+                            text("塗り"),
+                            collapsible::indicator(
+                                collapsible::OpenState::Open,
+                                true,
+                                vec![],
+                                vec![],
+                            ),
+                        ],
+                    ),
+                    fill_section,
                 ],
             ),
-            fill_section,
-            collapsible::trigger(
+            collapsible::root(
                 collapsible::OpenState::Closed,
                 true,
-                Some(B_BORDER_CONTENT_ID),
                 vec![],
                 vec![
-                    text("枠線"),
-                    collapsible::indicator(collapsible::OpenState::Closed, true, vec![], vec![]),
+                    collapsible::trigger(
+                        collapsible::OpenState::Closed,
+                        true,
+                        Some(B_BORDER_CONTENT_ID),
+                        vec![],
+                        vec![
+                            text("枠線"),
+                            collapsible::indicator(
+                                collapsible::OpenState::Closed,
+                                true,
+                                vec![],
+                                vec![],
+                            ),
+                        ],
+                    ),
+                    border_section,
                 ],
             ),
-            border_section,
         ],
     )
 }
