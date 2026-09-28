@@ -359,8 +359,7 @@ fn example_card() -> Node {
 fn example_two_column() -> Node {
     let rows: Vec<Node> = PEOPLE
         .iter()
-        .enumerate()
-        .map(|(i, person)| {
+        .map(|person| {
             let name = dummy_assets::PERSON_NAMES[person.name_index];
             let role = dummy_assets::JOB_TITLES[person.role_index];
             list::item(
@@ -379,10 +378,7 @@ fn example_two_column() -> Node {
                             disabled: true,
                             ..ButtonProps::default()
                         },
-                        vec![(
-                            "data-blocks-list-people-view",
-                            if i == 0 { "true" } else { "" },
-                        )],
+                        vec![],
                         vec![
                             text("表示"),
                             visually_hidden::root(vec![], vec![text(format!("、{name}"))]),
