@@ -311,7 +311,11 @@ fn action_item(row: &ActionRow) -> Node {
 }
 
 /// 氏名の先頭 1 文字をアバターのフォールバック表示に使う（`list_people`
-/// と同型のヘルパ）。
+/// と同型のヘルパ）。フォールバックの表示文字は先頭 1 文字のみで
+/// 支援技術に氏名が伝わらないため、`root` へ `aria-label` で氏名全体を
+/// 供給する（`avatar::badge` doc「アクセシブルネームが必要な場合は
+/// 呼び出し側が `root` の `aria-label` 等で供給する」節と同型の判断、
+/// codex レビュー指摘）。
 fn initial_avatar(name: &str) -> Node {
     let initial: String = name.chars().take(1).collect();
     avatar::root(
@@ -320,7 +324,7 @@ fn initial_avatar(name: &str) -> Node {
             stacked: true,
             ..AvatarProps::default()
         },
-        vec![],
+        vec![("aria-label", name)],
         vec![avatar::fallback(
             ImageStatus::default(),
             vec![],
