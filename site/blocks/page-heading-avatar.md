@@ -1,6 +1,6 @@
 # page-heading-avatar
 
-`fandhe-frontend-pre-styled-ui` の `avatar` / `image` / `heading` / `text` /
+`fandhe-frontend-pre-styled-ui` の `avatar` / `image` / `heading` /
 `link` / `button` / `menu` 部品を合成した、アバター・ロゴ付きページ見出しの
 実例です。Blocks セクションは新規部品を追加するものではなく、既存の
 Themes/Primitives 部品を組み合わせた実例集であることに注意してください
@@ -11,8 +11,9 @@ Themes/Primitives 部品を組み合わせた実例集であることに注意�
 請求書番号など）、右端に操作ボタン列と三点メニューを横並びに配置した基本形
 （profile）に加え、メールアドレスと応募内容へのリンク・応募日を持つ形
 （invite）、media を企業ロゴへ差し替えた請求書向けの形（invoice）の 3 通り
-を並べています。狭い幅（`40rem` 未満）では操作ボタンが非表示になりますが、
-同じ操作は三点メニューからも常に到達できます。
+を並べています。狭い幅では名前・補足行と操作ボタン列・三点メニューが折り
+返して複数行になりますが、操作ボタンが非表示になることはなく常に到達
+できます。
 
 本 Demo は静的な表示例であり、`<form>` 要素は一切持たず、データの取得・
 送信・状態管理を行いません。ボタンは `type="button"` のまま送信先を持たず、
@@ -33,7 +34,6 @@ use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps, H
 use fandhe_frontend_pre_styled_ui::image::{self, ImageFit, ImageProps, ImageShape};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::menu::{self, OpenState};
-use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
 use fandhe_frontend_pre_styled_ui::Size;
 
 /// 外部の実在 URL（`href="#"` は使わない、他 block と同型の判断）。
@@ -93,13 +93,12 @@ fn name_heading(name: &str) -> Node {
     )
 }
 
-/// メタ行の外枠（`<p>` 相当、[`Text`](styled_text) 部品）。
+/// メタ行の外枠（素の `<p>`。モジュール doc「メタ行を素の `<p>` で組み立てる
+/// 理由」参照。`fandhe_frontend_pre_styled_ui::text::text` は呼び出し側の
+/// `class` を `drop_class_attr` で除去するため使わない）。
 fn meta_line(children: Vec<Node>) -> Node {
-    styled_text::text(
-        &TextProps {
-            variant: TextVariant::Muted,
-            ..TextProps::default()
-        },
+    el(
+        "p",
         vec![("class", "blocks-page-heading-avatar-meta")],
         children,
     )
@@ -153,9 +152,10 @@ fn overflow_menu(
     )
 }
 
-/// 操作ボタン + 三点メニューをまとめた actions 列。`primary`/`secondary` の
-/// 2 ボタンには `data-blocks-page-heading-avatar-action` を付与し、
-/// `40rem` 未満では非表示にする（[`LAYOUT_CSS`] 参照）。
+/// 操作ボタン + 三点メニューをまとめた actions 列。狭幅では [`LAYOUT_CSS`]
+/// の `flex-wrap` で折り返すのみで、`primary`/`secondary` の 2 ボタンを
+/// 非表示にはしない（モジュール doc「狭幅では操作列を折り返す（非表示には
+/// しない）」節参照）。
 fn actions(secondary_label: &str, primary_label: &str, menu_node: Node) -> Node {
     let secondary = button::button(
         &ButtonProps {
@@ -196,7 +196,7 @@ fn header(media: Node, name_node: Node, meta: Node, actions_node: Node) -> Node 
     )
 }
 
-/// パネル外枠（`@container` の名前付きコンテナ）。
+/// パネル外枠。
 fn panel(variant: &'static str, content: Node) -> Node {
     div(
         vec![

@@ -6,9 +6,11 @@
 //!
 //! # 使用部品
 //!
-//! `avatar` / `image` / `heading` / `text` / `link` / `button` / `menu` の
-//! 7 部品のみを合成する（[`BLOCK`] の `parts` に一致させる契約）。新しい
-//! UI 部品は追加しない。
+//! `avatar` / `image` / `heading` / `link` / `button` / `menu` の
+//! 6 部品のみを合成する（[`BLOCK`] の `parts` に一致させる契約）。新しい
+//! UI 部品は追加しない。メタ行は `fandhe_frontend_pre_styled_ui::text::text`
+//! を使わず `el("p", ...)` で直接組み立てる（下記「メタ行を素の `<p>` で
+//! 組み立てる理由」参照）。
 //!
 //! # 3 インスタンスで派生形を表現する（無 JS のため静的併記）
 //!
@@ -29,13 +31,23 @@
 //!   番号 + 発行日 + 「PDF をダウンロード」「支払いを記録」ボタン + 三点
 //!   メニュー。
 //!
-//! # 狭幅ではボタン列を三点メニューへ集約する
+//! # 狭幅では操作列を折り返す（非表示にはしない）
 //!
-//! `panel` は名前付き `@container`（`blocks-page-heading-avatar`）を宣言し、
-//! `data-blocks-page-heading-avatar-action` を持つボタンは `40rem` 未満で
-//! 非表示にする（`list_title_meta.rs` の `@container` 方式と同型）。三点
-//! メニューの `content` には常に同じ操作項目を含めるため、狭幅でも到達
-//! 手段は失われない。
+//! `header` は `flex-wrap: wrap` の単純な折り返しレイアウトであり、名前・
+//! メタ行と操作列（ボタン 2 個 + 三点メニュー）を幅に応じて複数行へ折り返す。
+//! `list_title_meta.rs` の `@container` 方式のように狭幅でボタンを非表示に
+//! する設計は、無 JS の docs サイトでは三点メニューが実際には開かず操作に
+//! 到達できなくなるため採らない（イシュー #2931 の codex レビュー指摘）。
+//! ボタンは常にすべて到達可能なまま折り返すだけとする。
+//!
+//! # メタ行を素の `<p>` で組み立てる理由
+//!
+//! `fandhe_frontend_pre_styled_ui::text::text` は呼び出し側が渡した
+//! `class` 属性を `drop_class_attr` で無条件に除去するため、
+//! `blocks-page-heading-avatar-meta` クラスを渡しても [`LAYOUT_CSS`] の
+//! flex/wrap/gap 規則が一切適用されない（イシュー #2931 の Bugbot 指摘）。
+//! `list_title_meta.rs::meta_line` と同型に、Text 部品を使わず
+//! `el("p", ...)` で直接組み立てることでこの問題を避ける。
 //!
 //! # メールをリンク化しない理由
 //!
@@ -82,7 +94,6 @@ use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps, H
 use fandhe_frontend_pre_styled_ui::image::{self, ImageFit, ImageProps, ImageShape};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::menu::{self, OpenState};
-use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
 use fandhe_frontend_pre_styled_ui::Size;
 
 /// 外部の実在 URL（`href="#"` は使わない、他 block と同型の判断）。
@@ -142,13 +153,12 @@ fn name_heading(name: &str) -> Node {
     )
 }
 
-/// メタ行の外枠（`<p>` 相当、[`Text`](styled_text) 部品）。
+/// メタ行の外枠（素の `<p>`。モジュール doc「メタ行を素の `<p>` で組み立てる
+/// 理由」参照。`fandhe_frontend_pre_styled_ui::text::text` は呼び出し側の
+/// `class` を `drop_class_attr` で除去するため使わない）。
 fn meta_line(children: Vec<Node>) -> Node {
-    styled_text::text(
-        &TextProps {
-            variant: TextVariant::Muted,
-            ..TextProps::default()
-        },
+    el(
+        "p",
         vec![("class", "blocks-page-heading-avatar-meta")],
         children,
     )
@@ -202,9 +212,10 @@ fn overflow_menu(
     )
 }
 
-/// 操作ボタン + 三点メニューをまとめた actions 列。`primary`/`secondary` の
-/// 2 ボタンには `data-blocks-page-heading-avatar-action` を付与し、
-/// `40rem` 未満では非表示にする（[`LAYOUT_CSS`] 参照）。
+/// 操作ボタン + 三点メニューをまとめた actions 列。狭幅では [`LAYOUT_CSS`]
+/// の `flex-wrap` で折り返すのみで、`primary`/`secondary` の 2 ボタンを
+/// 非表示にはしない（モジュール doc「狭幅では操作列を折り返す（非表示には
+/// しない）」節参照）。
 fn actions(secondary_label: &str, primary_label: &str, menu_node: Node) -> Node {
     let secondary = button::button(
         &ButtonProps {
@@ -245,7 +256,7 @@ fn header(media: Node, name_node: Node, meta: Node, actions_node: Node) -> Node 
     )
 }
 
-/// パネル外枠（`@container` の名前付きコンテナ）。
+/// パネル外枠。
 fn panel(variant: &'static str, content: Node) -> Node {
     div(
         vec![
@@ -380,10 +391,6 @@ pub const BLOCK: Block = Block {
             path: "/themes/heading/",
         },
         Part {
-            label: "Text",
-            path: "/themes/text/",
-        },
-        Part {
             label: "Link",
             path: "/themes/link/",
         },
@@ -401,21 +408,16 @@ pub const BLOCK: Block = Block {
 };
 
 /// `page_heading_avatar` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。狭幅（`40rem` 未満）では
-/// `data-blocks-page-heading-avatar-action` を持つボタンを隠し、三点
-/// メニューへ操作を集約する（[`overflow_menu`] 参照）。
+/// doc「block 固有 CSS の置き場」節と同型）。狭幅では `header` が
+/// `flex-wrap` で折り返すのみで、操作ボタンを非表示にはしない（モジュール
+/// doc「狭幅では操作列を折り返す（非表示にはしない）」節参照）。
 const LAYOUT_CSS: &str = "\
 .blocks-page-heading-avatar-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
-.blocks-page-heading-avatar-panel {\n  container-type: inline-size;\n  container-name: blocks-page-heading-avatar;\n}\n\
-.blocks-page-heading-avatar-header {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr) auto;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n}\n\
-.blocks-page-heading-avatar-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
-.blocks-page-heading-avatar-meta {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n}\n\
-.blocks-page-heading-avatar-actions {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  flex-shrink: 0;\n}\n\
-[data-blocks-page-heading-avatar-logo] {\n  width: 4rem;\n  height: 4rem;\n}\n\
-.blocks-page-heading-avatar-panel [data-blocks-page-heading-avatar-action] {\n  display: none;\n}\n\
-@container blocks-page-heading-avatar (min-width: 40rem) {\n  \
-.blocks-page-heading-avatar-panel [data-blocks-page-heading-avatar-action] {\n    display: inline-flex;\n  }\n\
-}\n";
+.blocks-page-heading-avatar-header {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n}\n\
+.blocks-page-heading-avatar-body {\n  display: flex;\n  flex: 1 1 12rem;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
+.blocks-page-heading-avatar-meta {\n  margin: 0;\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-page-heading-avatar-actions {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  flex-shrink: 0;\n}\n\
+[data-blocks-page-heading-avatar-logo] {\n  width: 4rem;\n  height: 4rem;\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -433,7 +435,6 @@ mod tests {
             "data-scope=\"avatar\"",
             "data-scope=\"image\"",
             "data-scope=\"heading\"",
-            "data-scope=\"text\"",
             "data-scope=\"link\"",
             "data-scope=\"button\"",
             "data-scope=\"menu\"",
@@ -492,10 +493,20 @@ mod tests {
     }
 
     #[test]
-    fn layout_css_is_safe_and_declares_container_query() {
+    fn layout_css_is_safe_and_reflows_actions_without_hiding_them() {
         assert!(!LAYOUT_CSS.contains('<'));
-        assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
-        assert!(LAYOUT_CSS.contains("@container blocks-page-heading-avatar (min-width: 40rem)"));
+        assert!(LAYOUT_CSS.contains("flex-wrap: wrap;"));
+        // 狭幅でも操作ボタンへ到達できることの回帰ガード（イシュー #2931
+        // codex レビュー指摘）: 非表示ルールを再導入しない。
+        assert!(!LAYOUT_CSS.contains("display: none"));
+    }
+
+    #[test]
+    fn meta_line_class_is_not_stripped() {
+        // `styled_text::text` の `drop_class_attr` に巻き込まれないことの
+        // 回帰ガード（イシュー #2931 Bugbot 指摘）。
+        let html = demo_html();
+        assert!(html.contains("class=\"blocks-page-heading-avatar-meta\""));
     }
 
     #[test]
