@@ -2030,6 +2030,11 @@ source = "site/blocks/sidebar-07.md"
 path = "/blocks/sidebar-07/"
 
 [[section.group.page]]
+title = "sidebar-grouped-nav"
+source = "site/blocks/sidebar-grouped-nav.md"
+path = "/blocks/sidebar-grouped-nav/"
+
+[[section.group.page]]
 title = "sidebar-rail-panel"
 source = "site/blocks/sidebar-rail-panel.md"
 path = "/blocks/sidebar-rail-panel/"
