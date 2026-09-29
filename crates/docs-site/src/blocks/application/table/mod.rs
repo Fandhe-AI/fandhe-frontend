@@ -1,6 +1,7 @@
 //! Application / Table カテゴリの block 登録点（イシュー #2734 で雛形新設、
-//! イシュー #2945（親 #2892）で最初の block（[`table_sortable_bulk`]）を
-//! 追加しディレクトリ化して卒業した）。手順は
+//! イシュー #2945（親 #2892）で最初の block（[`table_sortable_bulk`]）を、
+//! イシュー #2947 で 2 件目の block（[`table_with_heading`]）を追加し
+//! ディレクトリ化して卒業した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -10,9 +11,10 @@
 //! ための構造、イシュー #2734）。
 
 mod table_sortable_bulk;
+mod table_with_heading;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![table_sortable_bulk::BLOCK]
+    vec![table_sortable_bulk::BLOCK, table_with_heading::BLOCK]
 }
