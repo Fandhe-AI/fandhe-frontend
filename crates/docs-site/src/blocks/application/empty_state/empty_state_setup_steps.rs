@@ -39,12 +39,16 @@
 //! 状態機械は動かず、最初の手順を current・残りを incomplete とする静的
 //! 表示。「ここから始める」の導入手順という趣旨と一致する）。
 //!
-//! # 狭幅では縦並び
+//! # 狭幅では縦並び（`@container`）
 //!
 //! `steps::root` の `list`/`item` recipe 既定は横並び（`(0,2,0)` の
-//! 詳細度）だが、[`LAYOUT_CSS`] が `40rem` 未満で縦並びへ強制する
-//! （`page_heading_actions`/`page_heading_meta` と同じリテラル値。テーマの
-//! breakpoint トークンは `@media` 条件式の中では解決できない）。
+//! 詳細度）だが、[`LAYOUT_CSS`] が `40rem` 未満で縦並びへ強制する。
+//! Demo 枠（`.blocks-demo`）の幅はブラウザビューポート幅と一致しない
+//! （デモ枠が `40rem` 未満でもウィンドウが広ければ横並びのままになる）
+//! ため、`@media (min-width: ...)` ではなく `@container`（コンテナクエリ）
+//! で判定する（`empty_state_invite_team`/`profile_detail_datalist` と
+//! 同型のパターン）。ラッパー `.blocks-empty-state-setup-steps-root` へ
+//! `container-type: inline-size` を宣言し、コンテナ幅基準で切り替える。
 //!
 //! # アイコンは自作の単純幾何図形
 //!
@@ -86,7 +90,13 @@ use fandhe_frontend_pre_styled_ui::{Orientation, Size};
 fn folder_icon() -> Node {
     icon(
         &IconProps::default(),
-        vec![],
+        // `empty_state::indicator` は `font-size` を Size 連動（Lg で拡大）
+        // させ、子アイコンが `1em` で追従する設計（`empty_state.rs` モジュール
+        // doc「`_icon: { boxSize: 1em }`」節）。`icon::icon` の `Size` variant
+        // は固定 rem 実寸のため、インライン style で上書きして追従させる
+        // （インライン style は recipe が発行するクラスより詳細度で勝つ、
+        // `empty_state_card_header::folder_plus_icon` と同型の判断）。
+        vec![("style", "width: 1em; height: 1em;")],
         vec![
             el(
                 "rect",
@@ -122,10 +132,20 @@ fn folder_icon() -> Node {
 /// 置く（モジュール冒頭「`steps::trigger`/`content`/`separator` を置かない
 /// 理由」節参照）。
 fn step<'a>(s: &Steps, index: usize, heading: &'a str, description: &'a str) -> Node {
+    // `aria-current="step"` は本来 `trigger` のみに付与される
+    // （`steps.rs` モジュール doc）が、本 Demo は `trigger` を置かないため
+    // （モジュール冒頭「`steps::trigger`/`content`/`separator` を置かない
+    // 理由」節）現在地が支援技術へ一切伝わらない。`item` は同属性を
+    // 予約しないため、current な段にのみ明示付与して代替する。
+    let item_attrs = if index == s.step() {
+        vec![("aria-current", "step")]
+    } else {
+        vec![]
+    };
     steps::item(
         s,
         index,
-        vec![],
+        item_attrs,
         vec![
             steps::indicator(s, index, vec![], vec![text((index + 1).to_string())]),
             div(
@@ -256,15 +276,19 @@ pub const BLOCK: Block = Block {
 /// セレクタのみを用い、他 block や部品の素のセレクタへ影響させない。
 ///
 /// `list`/`item` の既定（横並び、`(0,2,0)` の詳細度）を `40rem` 未満で
-/// 縦並びへ強制する（モジュール冒頭「狭幅では縦並び」節参照。詳細度
-/// `(0,3,0)` の複合セレクタで recipe に勝つ）。
+/// 縦並びへ強制する（モジュール冒頭「狭幅では縦並び（`@container`）」節
+/// 参照。詳細度 `(0,3,0)` の複合セレクタで recipe に勝つ）。
 const LAYOUT_CSS: &str = "\
-.blocks-empty-state-setup-steps-root {\n  display: grid;\n  gap: var(--fandhe-space-10);\n  padding: var(--fandhe-space-12) var(--fandhe-space-6);\n  justify-items: center;\n  text-align: center;\n}\n\
+.blocks-empty-state-setup-steps-root {\n  display: grid;\n  gap: var(--fandhe-space-10);\n  padding: var(--fandhe-space-12) var(--fandhe-space-6);\n  justify-items: center;\n  text-align: center;\n  container-type: inline-size;\n  container-name: blocks-empty-state-setup-steps;\n}\n\
 [data-blocks-empty-state-setup-steps-message] {\n  max-width: 36rem;\n  width: 100%;\n}\n\
 [data-blocks-empty-state-setup-steps-steps] {\n  width: 100%;\n  max-width: 56rem;\n}\n\
 .blocks-empty-state-setup-steps [data-scope=\"steps\"][data-part=\"list\"] {\n  flex-direction: column;\n  align-items: stretch;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-empty-state-setup-steps [data-scope=\"steps\"][data-part=\"item\"] {\n  align-items: flex-start;\n  text-align: left;\n}\n\
-@media (min-width: 40rem) {\n  .blocks-empty-state-setup-steps [data-scope=\"steps\"][data-part=\"list\"] {\n    flex-direction: row;\n    align-items: flex-start;\n  }\n  .blocks-empty-state-setup-steps [data-scope=\"steps\"][data-part=\"item\"] {\n    flex: 1 1 0;\n  }\n  .blocks-empty-state-setup-steps [data-scope=\"steps\"][data-part=\"item\"]:last-child {\n    flex: 1 1 0;\n  }\n}\n\
+@container blocks-empty-state-setup-steps (min-width: 40rem) {\n  \
+.blocks-empty-state-setup-steps [data-scope=\"steps\"][data-part=\"list\"] {\n    flex-direction: row;\n    align-items: flex-start;\n  }\n  \
+.blocks-empty-state-setup-steps [data-scope=\"steps\"][data-part=\"item\"] {\n    flex: 1 1 0;\n  }\n  \
+.blocks-empty-state-setup-steps [data-scope=\"steps\"][data-part=\"item\"]:last-child {\n    flex: 1 1 0;\n  }\n\
+}\n\
 [data-blocks-empty-state-setup-steps-step-title] {\n  font-weight: 600;\n}\n\
 [data-blocks-empty-state-setup-steps-step-body] {\n  display: grid;\n  gap: var(--fandhe-space-1);\n  color: var(--fandhe-color-fg-muted);\n}\n";
 
@@ -298,6 +322,7 @@ mod tests {
             "data-scope=\"steps\" data-part=\"indicator\"",
             "data-state=\"current\"",
             "data-state=\"incomplete\"",
+            "aria-current=\"step\"",
         ] {
             assert!(html.contains(hook), "demo output should contain {hook}");
         }
@@ -322,6 +347,11 @@ mod tests {
             "demo should have exactly 1 <button> (the empty-state create action)"
         );
         assert_eq!(html.matches("type=\"button\"").count(), 1);
+        assert_eq!(
+            html.matches("aria-current=\"step\"").count(),
+            1,
+            "aria-current=\"step\" should be on exactly the current step's item"
+        );
     }
 
     /// [`LAYOUT_CSS`] が全セレクタ・狭幅ブレークポイントを宣言し、リテラル
@@ -342,7 +372,10 @@ mod tests {
                 "LAYOUT_CSS should declare a rule for {selector}"
             );
         }
-        assert!(LAYOUT_CSS.contains("@media (min-width: 40rem)"));
+        assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
+        assert!(LAYOUT_CSS.contains("container-name: blocks-empty-state-setup-steps;"));
+        assert!(LAYOUT_CSS.contains("@container blocks-empty-state-setup-steps (min-width: 40rem)"));
+        assert!(!LAYOUT_CSS.contains("@media"));
         assert!(!LAYOUT_CSS.contains('#'));
         assert!(!LAYOUT_CSS.contains("white"));
     }

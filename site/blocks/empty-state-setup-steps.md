@@ -9,11 +9,12 @@
 
 空状態（アイコン・見出し・説明・「最初のプロジェクトを作成」ボタン）の
 下に、導入手順を 3 段（番号・見出し・説明）並べます。作成ボタンは空状態
-の直下に 1 個だけで、手順の各段は表示専用で操作要素を持ちません。画面幅が
-`40rem` 未満では手順を縦並びに折り返します。
+の直下に 1 個だけで、手順の各段は表示専用で操作要素を持ちません。Demo 枠
+の幅が `40rem` 未満では手順を縦並びに折り返します（コンテナクエリ判定）。
 
 本 Demo は静的な表示例であり、最初の手順のみを「現在地」として色分けし、
-残り 2 段は「未着手」の色のまま固定表示します。`<form>` 要素は出力せず、
+`aria-current="step"` を付与して支援技術へも伝えます。残り 2 段は
+「未着手」の色のまま固定表示します。`<form>` 要素は出力せず、
 ボタンは `type="button"` のままで、送信先・入力値検証・状態管理は一切
 持ちません（`docs/policy/intentional-non-adoption.md` §3.25 の責務境界:
 UI コンポーネント層はアプリケーションロジックを内包しません。実際の
@@ -41,7 +42,13 @@ use fandhe_frontend_pre_styled_ui::{Orientation, Size};
 fn folder_icon() -> Node {
     icon(
         &IconProps::default(),
-        vec![],
+        // `empty_state::indicator` は `font-size` を Size 連動（Lg で拡大）
+        // させ、子アイコンが `1em` で追従する設計（`empty_state.rs` モジュール
+        // doc「`_icon: { boxSize: 1em }`」節）。`icon::icon` の `Size` variant
+        // は固定 rem 実寸のため、インライン style で上書きして追従させる
+        // （インライン style は recipe が発行するクラスより詳細度で勝つ、
+        // `empty_state_card_header::folder_plus_icon` と同型の判断）。
+        vec![("style", "width: 1em; height: 1em;")],
         vec![
             el(
                 "rect",
@@ -77,10 +84,20 @@ fn folder_icon() -> Node {
 /// 置く（モジュール冒頭「`steps::trigger`/`content`/`separator` を置かない
 /// 理由」節参照）。
 fn step<'a>(s: &Steps, index: usize, heading: &'a str, description: &'a str) -> Node {
+    // `aria-current="step"` は本来 `trigger` のみに付与される
+    // （`steps.rs` モジュール doc）が、本 Demo は `trigger` を置かないため
+    // （モジュール冒頭「`steps::trigger`/`content`/`separator` を置かない
+    // 理由」節）現在地が支援技術へ一切伝わらない。`item` は同属性を
+    // 予約しないため、current な段にのみ明示付与して代替する。
+    let item_attrs = if index == s.step() {
+        vec![("aria-current", "step")]
+    } else {
+        vec![]
+    };
     steps::item(
         s,
         index,
-        vec![],
+        item_attrs,
         vec![
             steps::indicator(s, index, vec![], vec![text((index + 1).to_string())]),
             div(
