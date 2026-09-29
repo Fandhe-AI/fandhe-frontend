@@ -2278,14 +2278,14 @@ path = "/blocks/signup-05/"
 title = "Action Panel"
 
 [[section.group.page]]
-title = "action-panel-stacked"
-source = "site/blocks/action-panel-stacked.md"
-path = "/blocks/action-panel-stacked/"
-
-[[section.group.page]]
 title = "action-panel-footer-bar"
 source = "site/blocks/action-panel-footer-bar.md"
 path = "/blocks/action-panel-footer-bar/"
+
+[[section.group.page]]
+title = "action-panel-stacked"
+source = "site/blocks/action-panel-stacked.md"
+path = "/blocks/action-panel-stacked/"
 
 [[section.group]]
 title = "Dialog"

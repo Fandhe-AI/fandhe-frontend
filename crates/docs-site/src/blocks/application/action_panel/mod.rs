@@ -15,5 +15,5 @@ mod action_panel_stacked;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![action_panel_stacked::BLOCK, action_panel_footer_bar::BLOCK]
+    vec![action_panel_footer_bar::BLOCK, action_panel_stacked::BLOCK]
 }
