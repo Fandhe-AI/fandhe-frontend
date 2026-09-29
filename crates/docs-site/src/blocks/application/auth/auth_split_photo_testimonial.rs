@@ -505,6 +505,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-auth-split-photo-testimonial-label {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-auth-split-photo-testimonial-variant] {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  overflow: hidden;\n  min-height: 28rem;\n}\n\
 [data-blocks-auth-split-photo-testimonial-form] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-8);\n}\n\
+.blocks-auth-split-photo-testimonial-intro {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-auth-split-photo-testimonial-title {\n  font-size: var(--fandhe-font-font-size-xl);\n  font-weight: var(--fandhe-font-font-weight-bold);\n}\n\
 .blocks-auth-split-photo-testimonial-description {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-auth-split-photo-testimonial-providers {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
@@ -515,7 +516,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-auth-split-photo-testimonial-panel] {\n  display: none;\n  position: relative;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-auth-split-photo-testimonial-photo] {\n  position: absolute;\n  inset: 0;\n  width: 100%;\n  height: 100%;\n}\n\
 .blocks-auth-split-photo-testimonial-scrim {\n  position: absolute;\n  inset: 0;\n  background: var(--fandhe-color-fg);\n  opacity: 0.75;\n}\n\
-[data-scope=\"blockquote\"][data-part=\"root\"][data-blocks-auth-split-photo-testimonial-quote] {\n  position: relative;\n  color: var(--fandhe-color-bg);\n  padding: var(--fandhe-space-8);\n  height: 100%;\n  display: flex;\n  flex-direction: column;\n  justify-content: flex-end;\n  gap: var(--fandhe-space-4);\n}\n\
+[data-scope=\"blockquote\"][data-part=\"root\"][data-blocks-auth-split-photo-testimonial-quote] {\n  position: relative;\n  color: var(--fandhe-color-bg);\n  padding: var(--fandhe-space-8);\n  height: 100%;\n  display: flex;\n  flex-direction: column;\n  justify-content: flex-end;\n  gap: var(--fandhe-space-4);\n  --fandhe-blockquote-caption-fg: var(--fandhe-color-bg);\n}\n\
 [data-scope=\"blockquote\"][data-part=\"caption\"].blocks-auth-split-photo-testimonial-meta {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-auth-split-photo-testimonial-byline {\n  display: flex;\n  flex-direction: column;\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 @media (min-width: 48rem) {\n  \
