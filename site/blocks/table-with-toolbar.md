@@ -248,25 +248,35 @@ fn actions(export: bool) -> Node {
 }
 
 /// タブ型の絞り込み（版 D 専用）。実物 `tabs::tabs` を使い「すべて」を
-/// 初期選択として固定する。全パネルを空にし、表は tabs の外へ常時可視で
-/// 置く（モジュール doc「D（タブ型の絞り込み）」節参照）。`search_id` ごと
-/// に呼び出し側の `id` が変わるのと同様、本関数は版 D でのみ呼ばれるため
-/// 固定 id を持たせてよい（demo 内で 1 回しか呼ばれない契約）。
+/// 初期選択として固定する。選択中「すべて」のパネルにのみ `table`（引数
+/// `table_node`）を置き、非選択の 3 パネルは空のままとする（モジュール doc
+/// 「D（タブ型の絞り込み）」節参照）。`search_id` ごとに呼び出し側の `id` が
+/// 変わるのと同様、本関数は版 D でのみ呼ばれるため固定 id を持たせてよい
+/// （demo 内で 1 回しか呼ばれない契約）。
 ///
-/// 「すべて」以外の 3 タブは `disabled: true` の静的固定とする
-/// （Codex レビュー指摘 #3404 是正）。絞り込み処理を実装しない以上、選択中
-/// 以外のタブを操作可能なまま見せると「押せるが表の内容が変わらない」
-/// dead control になる。版 B の期間選択ボタン（モジュール doc「B」節）と
-/// 同じ判断だが、tabs は選択中 trigger を `disabled` にすると
+/// 表を「すべて」パネルの内側へ置くのは Codex レビュー指摘 #3404
+/// （`role="tab"`/`aria-controls` が指す tabpanel に実体がなく、表が
+/// `variant()` によりタブの外に置かれていたため選択操作と表示内容が
+/// 構造的に不整合だった）の是正である。以前の実装は全パネルを空にし表を
+/// tabs の外側へ常時可視で置いていたが、これは選択中パネルが空のまま
+/// 可視化され（Cursor Bugbot レビュー指摘 #3404: 既定 padding で空白帯が
+/// 表示され `tabindex="0"` の空パネルが読み上げ対象になる）、かつ
+/// `aria-controls` の参照先に実体がない二重の不整合を生んでいた。表を
+/// 「すべて」パネルへ移すことで、選択中 trigger の `aria-controls` は
+/// 実際に表を含むパネルを指すようになり、非選択の 3 タブは
+/// `disabled: true` の静的固定（絞り込み処理を実装しない以上、操作可能な
+/// まま見せると「押せるが表の内容が変わらない」dead control になるため、
+/// 版 B の期間選択ボタンと同じ判断）のため到達不能であり構造不整合が
+/// 顕在化しない。tabs は選択中 trigger を `disabled` にすると
 /// `aria-selected`/`data-state` が「未選択」扱いへ落ちる仕様
 /// （`crates/headless-ui/src/tabs.rs` `selected_matching_disabled_item_is_treated_as_unselected`
 /// 参照）のため、選択中の「すべて」のみ非 disabled のまま残す。
-fn status_tabs() -> Node {
+fn status_tabs(table_node: Node) -> Node {
     let items = vec![
         TabItem {
             value: "all",
             trigger: vec![text("すべて")],
-            content: vec![],
+            content: vec![table_node],
             disabled: false,
         },
         TabItem {
@@ -309,8 +319,12 @@ fn status_tabs() -> Node {
 
 /// 見出し帯右側（検索 + [期間選択（版 B）] + 操作ボタン列）。`search_id` は
 /// 呼び出し側（[`variant`]）が版ごとに一意な値を渡し、複数版並記時の
-/// `id` 重複（`tests/blocks_contract.rs`）を避ける。
-fn toolbar(search_id: &'static str, period: bool, export: bool) -> Node {
+/// `id` 重複（`tests/blocks_contract.rs`）を避ける。`label` は
+/// [`table_section`]/[`footer`] と同じ理由で検索欄の `aria-label` を版ごとに
+/// 一意化する（Cursor Bugbot レビュー指摘 #3404 是正: 4 版すべてが同一
+/// `aria-label`「請求書を検索」を再利用し、支援技術上で区別できなかった）。
+fn toolbar(search_id: &'static str, label: &str, period: bool, export: bool) -> Node {
+    let search_aria_label = format!("請求書を検索（{label}）");
     let field = FieldProps {
         id: search_id,
         ids: FieldIds::default(),
@@ -340,7 +354,7 @@ fn toolbar(search_id: &'static str, period: bool, export: bool) -> Node {
                 vec![
                     ("type", "search"),
                     ("placeholder", "請求書を検索"),
-                    ("aria-label", "請求書を検索"),
+                    ("aria-label", &search_aria_label),
                 ],
             ),
         ],
@@ -356,10 +370,10 @@ fn toolbar(search_id: &'static str, period: bool, export: bool) -> Node {
 }
 
 /// 見出し帯全体（表題群 + ツールバー）。
-fn header(search_id: &'static str, period: bool, export: bool) -> Node {
+fn header(search_id: &'static str, label: &str, period: bool, export: bool) -> Node {
     div(
         vec![("data-blocks-table-with-toolbar-header", "")],
-        vec![title_group(), toolbar(search_id, period, export)],
+        vec![title_group(), toolbar(search_id, label, period, export)],
     )
 }
 
@@ -489,11 +503,14 @@ fn variant(
     export: bool,
     show_tabs: bool,
 ) -> Node {
-    let mut children = vec![header(search_id, period, export)];
+    let mut children = vec![header(search_id, label, period, export)];
     if show_tabs {
-        children.push(status_tabs());
+        // 表は「すべて」タブのパネル内へ置く（tabs の外へは置かない）。
+        // [`status_tabs`] rustdoc「Codex レビュー指摘 #3404 是正」節参照。
+        children.push(status_tabs(table_section(label)));
+    } else {
+        children.push(table_section(label));
     }
-    children.push(table_section(label));
     children.push(footer(label));
     section(
         vec![("data-blocks-table-with-toolbar-variant", kind)],

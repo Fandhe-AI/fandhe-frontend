@@ -28,7 +28,12 @@
 //!   （先頭のみ `ButtonVariant::Solid` + `aria-pressed="true"`、他は
 //!   `Outline` + `aria-pressed="false"`、全て `disabled: true`）で、押せる
 //!   が何も起きない dead control にしない（`aria-pressed` で状態を明示）。
-//!   参照元の期間区切り定義は持ち込まず独自の文言を使う
+//!   参照元の期間区切り定義は持ち込まず独自の文言を使う。ツールバーの
+//!   横並び時（`@container (min-width: 40rem)`）は検索欄・期間ボタン 3
+//!   個・操作ボタン 2 個が 1 行に収まらずコンテナ幅を超えるため
+//!   `[data-blocks-table-with-toolbar-toolbar]` に `flex-wrap: wrap` を
+//!   与えて折り返し可能にする（Codex レビュー指摘 #3404 是正、`LAYOUT_CSS`
+//!   参照）
 //! - **C（R0717、常時縦積み + エクスポート）**: `@container` の横並び
 //!   切り替えを持たず、幅に関係なく見出し帯・ツールバーが常時縦積み
 //!   （`[data-blocks-table-with-toolbar-variant="stacked"]` 配下の属性
@@ -37,13 +42,14 @@
 //!   （[`export_icon`] の自作線画）を追加する
 //! - **D（R0718、タブ型の絞り込み）**: 実物 `tabs::tabs`
 //!   （[`status_tabs`]）で「すべて/支払済み/未払い/期限超過」の 4 タブを
-//!   静的表示する。**全パネルを空（`content: vec![]`）にし、表は tabs の
-//!   外に常時可視で 1 つだけ置く**（絞り込み条件の静的表示であり、実際の
+//!   静的表示する。**選択中「すべて」のパネルにのみ表を置き、非選択の 3
+//!   パネルは空のままとする**（絞り込み条件の静的表示であり、実際の
 //!   絞り込み処理は UI コンポーネント層の責務外
-//!   `docs/policy/intentional-non-adoption.md` §3.25）。これは
-//!   `marketing/faq/faq_tabbed_accordion.rs` で指摘された「非選択パネルに
-//!   内容を閉じ込める」構造を回避するための意図的な判断であり、原稿にも
-//!   明記する。`tabs` は attrs を受け取らない
+//!   `docs/policy/intentional-non-adoption.md` §3.25）。表を tabs の外へ
+//!   常時可視で置いていた旧実装は、選択中 trigger の `aria-controls` が
+//!   指すパネルに実体がなく表とタブの選択操作が構造的に不整合だった
+//!   （Codex レビュー指摘 #3404 是正。詳細は [`status_tabs`] rustdoc
+//!   参照）。`tabs` は attrs を受け取らない
 //!   （`crate::tabs` モジュール doc「選択的 re-export」節参照）ため
 //!   `div[data-blocks-table-with-toolbar-tabs]` で包む。選択中「すべて」
 //!   以外の 3 タブは `disabled: true` の静的固定（[`status_tabs`] rustdoc
@@ -317,25 +323,35 @@ fn actions(export: bool) -> Node {
 }
 
 /// タブ型の絞り込み（版 D 専用）。実物 `tabs::tabs` を使い「すべて」を
-/// 初期選択として固定する。全パネルを空にし、表は tabs の外へ常時可視で
-/// 置く（モジュール doc「D（タブ型の絞り込み）」節参照）。`search_id` ごと
-/// に呼び出し側の `id` が変わるのと同様、本関数は版 D でのみ呼ばれるため
-/// 固定 id を持たせてよい（demo 内で 1 回しか呼ばれない契約）。
+/// 初期選択として固定する。選択中「すべて」のパネルにのみ `table`（引数
+/// `table_node`）を置き、非選択の 3 パネルは空のままとする（モジュール doc
+/// 「D（タブ型の絞り込み）」節参照）。`search_id` ごとに呼び出し側の `id` が
+/// 変わるのと同様、本関数は版 D でのみ呼ばれるため固定 id を持たせてよい
+/// （demo 内で 1 回しか呼ばれない契約）。
 ///
-/// 「すべて」以外の 3 タブは `disabled: true` の静的固定とする
-/// （Codex レビュー指摘 #3404 是正）。絞り込み処理を実装しない以上、選択中
-/// 以外のタブを操作可能なまま見せると「押せるが表の内容が変わらない」
-/// dead control になる。版 B の期間選択ボタン（モジュール doc「B」節）と
-/// 同じ判断だが、tabs は選択中 trigger を `disabled` にすると
+/// 表を「すべて」パネルの内側へ置くのは Codex レビュー指摘 #3404
+/// （`role="tab"`/`aria-controls` が指す tabpanel に実体がなく、表が
+/// `variant()` によりタブの外に置かれていたため選択操作と表示内容が
+/// 構造的に不整合だった）の是正である。以前の実装は全パネルを空にし表を
+/// tabs の外側へ常時可視で置いていたが、これは選択中パネルが空のまま
+/// 可視化され（Cursor Bugbot レビュー指摘 #3404: 既定 padding で空白帯が
+/// 表示され `tabindex="0"` の空パネルが読み上げ対象になる）、かつ
+/// `aria-controls` の参照先に実体がない二重の不整合を生んでいた。表を
+/// 「すべて」パネルへ移すことで、選択中 trigger の `aria-controls` は
+/// 実際に表を含むパネルを指すようになり、非選択の 3 タブは
+/// `disabled: true` の静的固定（絞り込み処理を実装しない以上、操作可能な
+/// まま見せると「押せるが表の内容が変わらない」dead control になるため、
+/// 版 B の期間選択ボタンと同じ判断）のため到達不能であり構造不整合が
+/// 顕在化しない。tabs は選択中 trigger を `disabled` にすると
 /// `aria-selected`/`data-state` が「未選択」扱いへ落ちる仕様
 /// （`crates/headless-ui/src/tabs.rs` `selected_matching_disabled_item_is_treated_as_unselected`
 /// 参照）のため、選択中の「すべて」のみ非 disabled のまま残す。
-fn status_tabs() -> Node {
+fn status_tabs(table_node: Node) -> Node {
     let items = vec![
         TabItem {
             value: "all",
             trigger: vec![text("すべて")],
-            content: vec![],
+            content: vec![table_node],
             disabled: false,
         },
         TabItem {
@@ -378,8 +394,12 @@ fn status_tabs() -> Node {
 
 /// 見出し帯右側（検索 + [期間選択（版 B）] + 操作ボタン列）。`search_id` は
 /// 呼び出し側（[`variant`]）が版ごとに一意な値を渡し、複数版並記時の
-/// `id` 重複（`tests/blocks_contract.rs`）を避ける。
-fn toolbar(search_id: &'static str, period: bool, export: bool) -> Node {
+/// `id` 重複（`tests/blocks_contract.rs`）を避ける。`label` は
+/// [`table_section`]/[`footer`] と同じ理由で検索欄の `aria-label` を版ごとに
+/// 一意化する（Cursor Bugbot レビュー指摘 #3404 是正: 4 版すべてが同一
+/// `aria-label`「請求書を検索」を再利用し、支援技術上で区別できなかった）。
+fn toolbar(search_id: &'static str, label: &str, period: bool, export: bool) -> Node {
+    let search_aria_label = format!("請求書を検索（{label}）");
     let field = FieldProps {
         id: search_id,
         ids: FieldIds::default(),
@@ -409,7 +429,7 @@ fn toolbar(search_id: &'static str, period: bool, export: bool) -> Node {
                 vec![
                     ("type", "search"),
                     ("placeholder", "請求書を検索"),
-                    ("aria-label", "請求書を検索"),
+                    ("aria-label", &search_aria_label),
                 ],
             ),
         ],
@@ -425,10 +445,10 @@ fn toolbar(search_id: &'static str, period: bool, export: bool) -> Node {
 }
 
 /// 見出し帯全体（表題群 + ツールバー）。
-fn header(search_id: &'static str, period: bool, export: bool) -> Node {
+fn header(search_id: &'static str, label: &str, period: bool, export: bool) -> Node {
     div(
         vec![("data-blocks-table-with-toolbar-header", "")],
-        vec![title_group(), toolbar(search_id, period, export)],
+        vec![title_group(), toolbar(search_id, label, period, export)],
     )
 }
 
@@ -558,11 +578,14 @@ fn variant(
     export: bool,
     show_tabs: bool,
 ) -> Node {
-    let mut children = vec![header(search_id, period, export)];
+    let mut children = vec![header(search_id, label, period, export)];
     if show_tabs {
-        children.push(status_tabs());
+        // 表は「すべて」タブのパネル内へ置く（tabs の外へは置かない）。
+        // [`status_tabs`] rustdoc「Codex レビュー指摘 #3404 是正」節参照。
+        children.push(status_tabs(table_section(label)));
+    } else {
+        children.push(table_section(label));
     }
-    children.push(table_section(label));
     children.push(footer(label));
     section(
         vec![("data-blocks-table-with-toolbar-variant", kind)],
@@ -705,7 +728,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-table-with-toolbar-table] {\n  min-width: 42rem;\n}\n\
 [data-blocks-table-with-toolbar-table] [data-align=\"end\"] {\n  text-align: end;\n}\n\
 [data-blocks-table-with-toolbar-footer] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  align-items: flex-start;\n  justify-content: space-between;\n  border-top: 1px solid var(--fandhe-color-border);\n  padding-top: var(--fandhe-space-4);\n}\n\
-@container (min-width: 40rem) {\n  [data-blocks-table-with-toolbar-header] {\n    flex-direction: row;\n    align-items: flex-end;\n  }\n  [data-blocks-table-with-toolbar-toolbar] {\n    flex-direction: row;\n    align-items: center;\n  }\n  [data-blocks-table-with-toolbar-footer] {\n    flex-direction: row;\n    align-items: center;\n  }\n}\n\
+@container (min-width: 40rem) {\n  [data-blocks-table-with-toolbar-header] {\n    flex-direction: row;\n    align-items: flex-end;\n  }\n  [data-blocks-table-with-toolbar-toolbar] {\n    flex-direction: row;\n    flex-wrap: wrap;\n    align-items: center;\n  }\n  [data-blocks-table-with-toolbar-footer] {\n    flex-direction: row;\n    align-items: center;\n  }\n}\n\
 [data-blocks-table-with-toolbar-variant=\"stacked\"] [data-blocks-table-with-toolbar-header], [data-blocks-table-with-toolbar-variant=\"stacked\"] [data-blocks-table-with-toolbar-toolbar] {\n  flex-direction: column;\n  align-items: stretch;\n}\n";
 
 #[cfg(test)]
@@ -787,12 +810,14 @@ mod tests {
         assert_eq!(html.matches(r#"aria-pressed="false""#).count(), 2);
     }
 
-    /// 版 D の `tabs` は 4 trigger を持ち全パネルが空、表は tabs の外に
-    /// 常時可視で 1 つだけ置かれる（モジュール doc「D（タブ型の絞り込み）」
-    /// 節参照。`faq_tabbed_accordion` で指摘された「非選択パネルに内容を
-    /// 閉じ込める」構造を作らないことの回帰検知）。
+    /// 版 D の `tabs` は 4 trigger を持ち、選択中「すべて」パネルにのみ表を
+    /// 持つ（非選択の 3 パネルは空のまま）。表を tabs の外へ常時可視で置く
+    /// 旧実装は選択中 trigger の `aria-controls` が指すパネルに実体がなく
+    /// 構造的に不整合だったため、[`status_tabs`] rustdoc「Codex レビュー
+    /// 指摘 #3404 是正」節の判断で表を「すべて」パネルの内側へ移した
+    /// （モジュール doc「D（タブ型の絞り込み）」節参照）。
     #[test]
-    fn tabs_panels_are_empty_and_table_is_outside() {
+    fn tabs_all_panel_contains_table_others_are_empty() {
         let html = render(&demo());
         assert_eq!(
             html.matches("data-scope=\"tabs\" data-part=\"trigger\"")
@@ -804,28 +829,36 @@ mod tests {
                 .count(),
             4
         );
-        // 各 content パネルが子ノードを持たない（開始タグ直後に閉じタグ）
-        // ことを、`data-scope="tabs" data-part="content"` の開始タグ末尾
-        // `>` の直後が必ず `</div>` であるかどうかで確認する（`scroll_area`
-        // も `data-part="content"` を持つため `data-scope="tabs"` を
-        // 併記して区別する）。
-        let mut search_from = 0usize;
-        let mut panel_count = 0usize;
-        while let Some(rel) = html[search_from..].find("data-scope=\"tabs\" data-part=\"content\"")
-        {
-            let tag_start = search_from + rel;
-            let Some(tag_end_rel) = html[tag_start..].find('>') else {
-                break;
+        // 「すべて」パネル（`id="…-content-all"`）の開始タグ直後に、表を
+        // 包む `scroll_area` の root（`data-scope="scroll-area"`）が続く。
+        let all_panel_needle = "id=\"blocks-table-with-toolbar-tabs-content-all\"";
+        let all_panel_start = html
+            .find(all_panel_needle)
+            .expect("all panel should be present");
+        let Some(tag_end_rel) = html[all_panel_start..].find('>') else {
+            panic!("all panel opening tag should be closed");
+        };
+        let after_all_panel_tag = all_panel_start + tag_end_rel + 1;
+        assert!(
+            html[after_all_panel_tag..].starts_with("<div data-scope=\"scroll-area\""),
+            "all panel should contain the table's scroll_area wrapper"
+        );
+        // 非選択の 3 パネル（paid/unpaid/overdue）は子ノードを持たない
+        // （開始タグ直後に閉じタグ）。
+        for value in ["paid", "unpaid", "overdue"] {
+            let needle = format!("id=\"blocks-table-with-toolbar-tabs-content-{value}\"");
+            let panel_start = html
+                .find(&needle)
+                .unwrap_or_else(|| panic!("{value} panel should be present"));
+            let Some(tag_end_rel) = html[panel_start..].find('>') else {
+                panic!("{value} panel opening tag should be closed");
             };
-            let after_tag = tag_start + tag_end_rel + 1;
+            let after_tag = panel_start + tag_end_rel + 1;
             assert!(
                 html[after_tag..].starts_with("</div>"),
-                "tabs content panel should have no children"
+                "{value} panel should have no children"
             );
-            panel_count += 1;
-            search_from = after_tag;
         }
-        assert_eq!(panel_count, 4);
     }
 
     /// 版 D の `tabs` は選択中「すべて」以外の 3 タブが `disabled` の静的
@@ -849,10 +882,12 @@ mod tests {
         ));
     }
 
-    /// `table_section`/`footer` のランドマーク名（`aria-label`）が 4 版で
-    /// 一意（Cursor Bugbot レビュー指摘 #3404 是正: 同一名の再利用で支援
-    /// 技術上 4 つの区別不能なコピーとして列挙されないこと）。テーブル
-    /// 自体にも `aria-label` が付き無名のままにならない。
+    /// `toolbar`/`table_section`/`footer` のランドマーク名（`aria-label`）が
+    /// 4 版で一意（Cursor Bugbot レビュー指摘 #3404 是正: 同一名の再利用で
+    /// 支援技術上 4 つの区別不能なコピーとして列挙されないこと。検索欄は
+    /// 当初 4 版とも `aria-label="請求書を検索"` を再利用していたため個別に
+    /// 追加是正した）。テーブル自体にも `aria-label` が付き無名のままに
+    /// ならない。
     #[test]
     fn landmark_names_are_unique_per_variant_and_table_is_named() {
         let html = render(&demo());
@@ -862,6 +897,12 @@ mod tests {
             "常時縦積み + エクスポート",
             "タブ型の絞り込み付き",
         ] {
+            assert_eq!(
+                html.matches(&format!("aria-label=\"請求書を検索（{label}）\""))
+                    .count(),
+                1,
+                "search aria-label should be unique for {label}"
+            );
             assert_eq!(
                 html.matches(&format!("aria-label=\"請求書一覧表（{label}）\""))
                     .count(),
@@ -881,6 +922,18 @@ mod tests {
                 "pagination nav aria-label should be unique for {label}"
             );
         }
+    }
+
+    /// 版 B のツールバー（検索欄・期間ボタン 3 個・操作ボタン 2 個）が
+    /// `@container` 横並び時に 1 行へ収まらずコンテナ幅を超えていた
+    /// （Codex レビュー指摘 #3404）ため、`flex-wrap: wrap` で折り返し可能に
+    /// したことの回帰検知。
+    #[test]
+    fn toolbar_wraps_when_row_exceeds_container_width() {
+        assert!(!LAYOUT_CSS.contains('<'));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-table-with-toolbar-toolbar] {\n    flex-direction: row;\n    flex-wrap: wrap;"
+        ));
     }
 
     /// 版 C の常時縦積み CSS が `@container` 内の横並び規則を上書きする
