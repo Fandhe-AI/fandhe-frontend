@@ -37,7 +37,13 @@
 //!   個・操作ボタン 2 個が 1 行に収まらずコンテナ幅を超えるため
 //!   `[data-blocks-table-with-toolbar-toolbar]` に `flex-wrap: wrap` を
 //!   与えて折り返し可能にする（Codex レビュー指摘 #3404 是正、`LAYOUT_CSS`
-//!   参照）
+//!   参照）。検索欄（[`input_group::root`]）は base CSS で `width: 100%`
+//!   を持つため `flex-wrap: wrap` だけでは自身の flex-basis が行全体を
+//!   専有し期間ボタン・操作ボタンが常に折り返される（Cursor Bugbot
+//!   レビュー指摘 #3404 是正）。`[data-blocks-table-with-toolbar-search]`
+//!   に `flex: 1 1 12rem` を与えて非 `auto` の flex-basis で `width` を
+//!   上書きし、`card_heading_toolbar` と同型の縮小可能な検索欄にする
+//!   （版 A/D は 1 行、版 B はコンテナ幅超過時のみ折り返す）
 //! - **C（R0717、常時縦積み + エクスポート）**: `@container` の横並び
 //!   切り替えを持たず、幅に関係なく見出し帯・ツールバーが常時縦積み
 //!   （`[data-blocks-table-with-toolbar-variant="stacked"]` 配下の属性
@@ -739,7 +745,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-table-with-toolbar-table] {\n  min-width: 42rem;\n}\n\
 [data-blocks-table-with-toolbar-table] [data-align=\"end\"] {\n  text-align: end;\n}\n\
 [data-blocks-table-with-toolbar-footer] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  align-items: flex-start;\n  justify-content: space-between;\n  border-top: 1px solid var(--fandhe-color-border);\n  padding-top: var(--fandhe-space-4);\n}\n\
-@container (min-width: 40rem) {\n  [data-blocks-table-with-toolbar-header] {\n    flex-direction: row;\n    align-items: flex-end;\n  }\n  [data-blocks-table-with-toolbar-toolbar] {\n    flex-direction: row;\n    flex-wrap: wrap;\n    align-items: center;\n  }\n  [data-blocks-table-with-toolbar-footer] {\n    flex-direction: row;\n    align-items: center;\n  }\n}\n\
+@container (min-width: 40rem) {\n  [data-blocks-table-with-toolbar-header] {\n    flex-direction: row;\n    align-items: flex-end;\n  }\n  [data-blocks-table-with-toolbar-toolbar] {\n    flex-direction: row;\n    flex-wrap: wrap;\n    align-items: center;\n  }\n  [data-blocks-table-with-toolbar-search] {\n    flex: 1 1 12rem;\n    min-width: 0;\n  }\n  [data-blocks-table-with-toolbar-footer] {\n    flex-direction: row;\n    align-items: center;\n  }\n}\n\
 [data-blocks-table-with-toolbar-variant=\"stacked\"] [data-blocks-table-with-toolbar-header], [data-blocks-table-with-toolbar-variant=\"stacked\"] [data-blocks-table-with-toolbar-toolbar] {\n  flex-direction: column;\n  align-items: stretch;\n}\n";
 
 #[cfg(test)]
@@ -944,6 +950,21 @@ mod tests {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains(
             "[data-blocks-table-with-toolbar-toolbar] {\n    flex-direction: row;\n    flex-wrap: wrap;"
+        ));
+    }
+
+    /// 検索欄（`input_group::root`）の base CSS が `width: 100%` を持つ
+    /// ため、`flex-wrap: wrap` だけでは検索欄の flex-basis が行全体を
+    /// 専有し、版 A/D が常時 1 行のツールバーを失い、版 B がコンテナ幅
+    /// 超過時のみ折り返すべき検索欄が常に折り返されていた（Cursor Bugbot
+    /// レビュー指摘 #3404）。`[data-blocks-table-with-toolbar-search]` に
+    /// 非 `auto` の `flex-basis`（`flex: 1 1 12rem`）を与え `width` の
+    /// 専有を上書きしたことの回帰検知。
+    #[test]
+    fn search_field_has_shrinkable_flex_basis_in_row_layout() {
+        assert!(!LAYOUT_CSS.contains('<'));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-table-with-toolbar-search] {\n    flex: 1 1 12rem;\n    min-width: 0;\n  }\n"
         ));
     }
 
