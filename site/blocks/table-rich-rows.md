@@ -66,10 +66,18 @@ fn two_line(primary: Node, secondary: &str) -> Node {
 }
 
 /// 先頭列（アバター + 2 段テキスト）の `<td>`。
+///
+/// `blocks-table-rich-rows-identity`（`display: flex`）は `<td>` 自体では
+/// なく内側の `div` に適用する。`<td>` に `display: flex` を当てると
+/// `table-cell` 表示から外れ、テーブルレイアウトに参加しなくなり見出しと
+/// 本文の列配置がずれるため（レビュー指摘対応）。
 fn identity_cell(name: &str, sub: &str) -> Node {
     table::cell(
-        vec![("class", "blocks-table-rich-rows-identity")],
-        vec![person_avatar(name), two_line(text(name), sub)],
+        vec![],
+        vec![div(
+            vec![("class", "blocks-table-rich-rows-identity")],
+            vec![person_avatar(name), two_line(text(name), sub)],
+        )],
     )
 }
 
