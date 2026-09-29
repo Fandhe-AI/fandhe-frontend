@@ -47,7 +47,8 @@ impl BlockSection {
     }
 }
 
-/// block のカテゴリ（イシュー #2733 本文の 66 種、区分内は本文記載順で宣言）。
+/// block のカテゴリ（イシュー #2733 本文の 66 種 + #3228 で追加した
+/// `MediaObject` の計 67 種、区分内は本文記載順で宣言）。
 ///
 /// # `Ecommerce::CategoryListing` の命名（イシュー本文の `category` カテゴリ）
 ///
@@ -110,6 +111,7 @@ pub enum BlockCategory {
     Dashboard,
     AiChat,
     HelpCenter,
+    MediaObject,
     // ecommerce
     ProductOverview,
     ProductList,
@@ -187,6 +189,7 @@ impl BlockCategory {
         BlockCategory::Dashboard,
         BlockCategory::AiChat,
         BlockCategory::HelpCenter,
+        BlockCategory::MediaObject,
         // ecommerce
         BlockCategory::ProductOverview,
         BlockCategory::ProductList,
@@ -261,7 +264,8 @@ impl BlockCategory {
             | BlockCategory::Chart
             | BlockCategory::Dashboard
             | BlockCategory::AiChat
-            | BlockCategory::HelpCenter => BlockSection::Application,
+            | BlockCategory::HelpCenter
+            | BlockCategory::MediaObject => BlockSection::Application,
             BlockCategory::ProductOverview
             | BlockCategory::ProductList
             | BlockCategory::Quickview
@@ -335,6 +339,7 @@ impl BlockCategory {
             BlockCategory::Dashboard => "Dashboard",
             BlockCategory::AiChat => "AI Chat",
             BlockCategory::HelpCenter => "Help Center",
+            BlockCategory::MediaObject => "Media Object",
             BlockCategory::ProductOverview => "Product Overview",
             BlockCategory::ProductList => "Product List",
             BlockCategory::Quickview => "Quickview",
@@ -410,6 +415,7 @@ impl BlockCategory {
             BlockCategory::Dashboard => "dashboard",
             BlockCategory::AiChat => "ai-chat",
             BlockCategory::HelpCenter => "help-center",
+            BlockCategory::MediaObject => "media-object",
             BlockCategory::ProductOverview => "product-overview",
             BlockCategory::ProductList => "product-list",
             BlockCategory::Quickview => "quickview",
@@ -450,9 +456,10 @@ mod tests {
 
     #[test]
     fn all_categories_resolve_a_section() {
-        // 全 66 variant を網羅していることの明示的な固定（コンパイルが通れば
-        // 自明だが、ALL の件数と section() が正常終了することを回帰させる）。
-        assert_eq!(BlockCategory::ALL.len(), 66);
+        // 全 67 variant（#3228 で MediaObject を追加）を網羅していることの
+        // 明示的な固定（コンパイルが通れば自明だが、ALL の件数と section()
+        // が正常終了することを回帰させる）。
+        assert_eq!(BlockCategory::ALL.len(), 67);
         for category in BlockCategory::ALL {
             let _ = category.section();
             assert!(!category.label().is_empty());
