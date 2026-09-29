@@ -1,5 +1,6 @@
-//! `ai-chat-code-preview` block（イシュー #2958。親 #2957「Application /
-//! AI Chat」区分の 1 件目、Application / AI Chat カテゴリの卒業を伴う）。
+//! `ai-chat-code-preview` block（前半骨格はイシュー #2958〔PR #3411〕、
+//! 状態違いの並記・原稿仕上げは #2959。親 #2957「Application / AI Chat」
+//! 区分の 1 件目、Application / AI Chat カテゴリの卒業を伴う）。
 //! 「上部にナビ、左列にチャット、右列にプレビュー/コード切替タブ」を持つ
 //! コード生成チャット画面の合成例。
 //!
@@ -7,7 +8,39 @@
 //!
 //! `message` / `message-scroller` / `textarea` / `button` / `menu` /
 //! `code` の 6 部品のみを合成する（[`BLOCK`] の `parts` に一致させる
-//! 契約）。新しい UI 部品は追加しない。
+//! 契約）。新しい UI 部品は追加しない。実物の `tabs::tabs` は次節のとおり
+//! 意図的に未使用（親 issue の使用部品一覧に `tabs` があるが、本 block の
+//! 構造とは相容れないため採用しない）。
+//!
+//! # 3 版の並記（イシュー #2959）
+//!
+//! [`demo`] はキャプション付きで 3 版を縦に並べる（`table_with_toolbar.rs`
+//! 等の sibling block と同型のパターン）。対応表の主参照 R0001 は 1 件
+//! のみで参照由来の差分が無いため、版は本 block 固有の**状態違い**で
+//! 構成する:
+//!
+//! 1. **代表構成**（[`shell`] の `generating: false`）: 応答完了状態。
+//! 2. **応答生成中**（`generating: true`）: 履歴末尾に
+//!    [`MessageRootProps::loading`] を立てたアシスタント発言（本文
+//!    「コードを生成しています…」、コード片なし）を追加し、送信ボタンを
+//!    「停止」（`ButtonVariant::Outline`）へ差し替える。右列は代表構成と
+//!    同一。
+//! 3. **狭幅（見出し表示 + 縦積み）**: 代表構成と同内容を
+//!    `.blocks-ai-chat-code-preview-narrow`（`max-inline-size: 36rem`）で
+//!    包む。shell が `container-type: inline-size` を持つため、既存の
+//!    `@container (max-width: 47.99rem)` 規則がページ上でリサイズなしに
+//!    そのまま効き、[`switch_group`] の見出し表示と 1 列縦積みを確認
+//!    できる。
+//!
+//! 前半 #2958 時点で先送りしていた「code タブ選択時の第 2 インスタンス」
+//! という状態違い案は、その後の Codex P1 是正で右列がプレビュー・コード
+//! 両パネル常時併記へ変更されたことで前提が消滅しており、本 block では
+//! 扱わない（次々節「右列は実物の `tabs::tabs` を使わない」参照）。
+//!
+//! 3 版は `overflow_menu`/`chat_pane` の id（`menu-trigger`/`menu-content`/
+//! `prompt`）が衝突するため、呼び出し側から一意な接尾辞（`"a"`/`"b"`/
+//! `"c"`）を渡して `format!` で分岐する（`ids_have_no_duplicates` テスト
+//! 参照）。
 //!
 //! # 右列は実物の `tabs::tabs` を使わない（Codex P1 是正）
 //!
@@ -20,8 +53,7 @@
 //! [`static_tab_list`]（`role`/`tabindex`/`<button>` を持たない装飾のみの
 //! 見た目、`data-scope="tabs"` とは意図的に不一致な独自 class）で
 //! タブ列の見た目だけを再現し、プレビュー・コードの両パネルを常に
-//! 可視のまま縦積みで併記する（`hidden` を一切使わない）。状態違いの
-//! 原稿仕上げ・併記は #2959 のスコープ。
+//! 可視のまま縦積みで併記する（`hidden` を一切使わない）。
 //!
 //! # 狭幅の「見出し表示 + 縦積み」から独立した右列の常時併記
 //!
@@ -72,13 +104,13 @@
 //! 対応表の主参照 R0001（集約元 1 件）を軸にするが、`_/blocks-intake/`
 //! の対応ファイルは本イシュー着手時点で本 worktree に存在しないため、
 //! 対応表 ID のみを記す（`page_heading_avatar.rs` モジュール doc と同じ
-//! 扱い）。状態違いの併記・原稿の差分メモの仕上げは #2959。
+//! 扱い）。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, el, span, text, Node};
+use fandhe_frontend_core::{div, el, p, section, span, text, Node};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::code::{self, CodeProps};
 use fandhe_frontend_pre_styled_ui::menu::{self, OpenState};
@@ -97,7 +129,8 @@ const CODE_SNIPPET: &str =
     "async fn inventory() -> Json<Vec<Item>> {\n    Json(fetch_items().await)\n}";
 
 /// 上部ナビ（ロゴ + プロジェクト名 + 操作ボタン + 三点メニュー）を組み立てる。
-fn top_nav() -> Node {
+/// `suffix` は 3 版並記時の id 衝突回避用（モジュール doc「3 版の並記」節参照）。
+fn top_nav(suffix: &str) -> Node {
     let brand = div(
         vec![("class", "blocks-ai-chat-code-preview-brand")],
         vec![
@@ -128,7 +161,7 @@ fn top_nav() -> Node {
         vec![],
         vec![text("公開")],
     );
-    let overflow = overflow_menu();
+    let overflow = overflow_menu(suffix);
 
     let actions = div(
         vec![("class", "blocks-ai-chat-code-preview-nav-actions")],
@@ -142,10 +175,11 @@ fn top_nav() -> Node {
 }
 
 /// 三点メニュー（無 JS のため [`OpenState::Closed`] 固定、
-/// `page_heading_avatar.rs::overflow_menu` と同型）。
-fn overflow_menu() -> Node {
-    const TRIGGER_ID: &str = "blocks-ai-chat-code-preview-menu-trigger";
-    const CONTENT_ID: &str = "blocks-ai-chat-code-preview-menu-content";
+/// `page_heading_avatar.rs::overflow_menu` と同型）。`suffix` は 3 版並記時の
+/// id 衝突回避用（モジュール doc「3 版の並記」節参照）。
+fn overflow_menu(suffix: &str) -> Node {
+    let trigger_id = format!("blocks-ai-chat-code-preview-menu-trigger-{suffix}");
+    let content_id = format!("blocks-ai-chat-code-preview-menu-content-{suffix}");
 
     let items = [
         ("rename", "プロジェクト名を変更"),
@@ -163,17 +197,17 @@ fn overflow_menu() -> Node {
     let trigger = menu::trigger(
         OpenState::Closed,
         false,
-        Some(CONTENT_ID),
+        Some(content_id.as_str()),
         vec![
-            ("id", TRIGGER_ID),
+            ("id", &trigger_id),
             ("aria-label", &format!("その他の操作、{PROJECT_NAME}")),
         ],
         vec![text("\u{2026}")],
     );
     let content = menu::content(
         OpenState::Closed,
-        Some(CONTENT_ID),
-        Some(TRIGGER_ID),
+        Some(content_id.as_str()),
+        Some(trigger_id.as_str()),
         vec![],
         menu_items,
     );
@@ -211,12 +245,17 @@ fn switch_group() -> Node {
 }
 
 /// 会話 1 発言を組み立てる。`code_snippet` が `Some` のとき `content` 内へ
-/// [`code::code`] のインライン片を差し込む。
+/// [`code::code`] のインライン片を差し込む。`loading` は
+/// [`MessageRootProps::loading`] へそのまま渡す（`data-loading` の見た目
+/// のみで `aria-busy` は headless 側が意図的に出さない、
+/// `fandhe_frontend_headless_ui::message` doc「`aria-live`/`aria-busy` を
+/// 付けない理由」参照）。
 fn message_bubble(
     role: MessageRole,
     align: MessageAlign,
     body: &str,
     code_snippet: Option<&str>,
+    loading: bool,
 ) -> Node {
     let mut content_children = vec![text(body)];
     if let Some(snippet) = code_snippet {
@@ -231,7 +270,7 @@ fn message_bubble(
         MessageRootProps {
             role,
             align,
-            loading: false,
+            loading,
             error: false,
         },
         vec![],
@@ -239,28 +278,42 @@ fn message_bubble(
     )
 }
 
-/// 左列（チャット履歴 + 入力欄）を組み立てる。
-fn chat_pane() -> Node {
-    let history = vec![
+/// 左列（チャット履歴 + 入力欄）を組み立てる。`suffix` は id 衝突回避用、
+/// `generating` は「応答生成中」版（モジュール doc「3 版の並記」節参照）
+/// のときに履歴末尾の loading 発言を追加し送信ボタンを「停止」へ差し替える。
+fn chat_pane(suffix: &str, generating: bool) -> Node {
+    let mut history = vec![
         message_bubble(
             MessageRole::User,
             MessageAlign::End,
             "在庫一覧を取得する API エンドポイントを Rust で書いて",
             None,
+            false,
         ),
         message_bubble(
             MessageRole::Assistant,
             MessageAlign::Start,
             "在庫一覧を返すハンドラを用意しました:",
             Some("GET /api/inventory"),
+            false,
         ),
         message_bubble(
             MessageRole::User,
             MessageAlign::End,
             "レスポンスを JSON にして",
             None,
+            false,
         ),
     ];
+    if generating {
+        history.push(message_bubble(
+            MessageRole::Assistant,
+            MessageAlign::Start,
+            "コードを生成しています\u{2026}",
+            None,
+            true,
+        ));
+    }
 
     // 高さは `message_scroller::root` recipe が持つ CSS カスタムプロパティ
     // `--fandhe-message-scroller-height`（既定 24rem）を `style` で上書きして
@@ -269,6 +322,15 @@ fn chat_pane() -> Node {
     // [data-part="root"]`〔属性 2 個〕より詳細度が低く、カスケードで負けて
     // 反映されなかった不具合。CSS カスタムプロパティは recipe が
     // `var(...)` で参照する側であり詳細度勝負にならないため確実に効く）。
+    // Bugbot 是正: `suffix` ごとに一意な aria-label を与える。demo() は
+    // 3 版（代表構成/応答生成中/狭幅）を同一ページに並記するため、
+    // 固定文言だと landmark navigation 上で 3 つの region が区別できない。
+    let variant_label = match suffix {
+        "b" => "会話履歴（応答生成中）",
+        "c" => "会話履歴（狭幅）",
+        _ => "会話履歴（代表構成）",
+    };
+
     let scroller = message_scroller::root(
         MessageScrollerRootProps {
             stuck: MessageScrollerStuck::Bottom,
@@ -280,7 +342,7 @@ fn chat_pane() -> Node {
         ],
         vec![
             message_scroller::viewport(
-                "会話履歴",
+                variant_label,
                 vec![],
                 vec![message_scroller::content(
                     vec![],
@@ -291,13 +353,36 @@ fn chat_pane() -> Node {
         ],
     );
 
+    let prompt_id = format!("blocks-ai-chat-code-preview-prompt-{suffix}");
+    let submit_button = if generating {
+        button::button(
+            &ButtonProps {
+                variant: ButtonVariant::Outline,
+                size: Size::Sm,
+                ..ButtonProps::default()
+            },
+            vec![],
+            vec![text("停止")],
+        )
+    } else {
+        button::button(
+            &ButtonProps {
+                variant: ButtonVariant::Solid,
+                size: Size::Sm,
+                ..ButtonProps::default()
+            },
+            vec![],
+            vec![text("送信")],
+        )
+    };
+
     let composer = div(
         vec![("class", "blocks-ai-chat-code-preview-composer")],
         vec![
             textarea::textarea(
                 &TextareaProps::default(),
                 &FieldProps {
-                    id: "blocks-ai-chat-code-preview-prompt",
+                    id: &prompt_id,
                     ids: FieldIds::default(),
                     disabled: false,
                     invalid: false,
@@ -313,15 +398,7 @@ fn chat_pane() -> Node {
                 ],
                 vec![],
             ),
-            button::button(
-                &ButtonProps {
-                    variant: ButtonVariant::Solid,
-                    size: Size::Sm,
-                    ..ButtonProps::default()
-                },
-                vec![],
-                vec![text("送信")],
-            ),
+            submit_button,
         ],
     );
 
@@ -345,7 +422,9 @@ fn chat_pane() -> Node {
 /// 常に併記されるため、コード側が未選択であるかのように示す表示状態の
 /// 不一致だった。`switch_group` の Codex P2 是正〔対等な見出しへ変更〕と
 /// 同型の判断で、選択状態を表す視覚的な強調を持たない対等な見出しへ
-/// 変更した）。
+/// 変更した）。「code タブ選択時の状態違い」という別案は、この両パネル
+/// 常時併記の設計そのものにより不要になっている（モジュール doc「3 版の
+/// 並記」節参照）。
 fn static_tab_list() -> Node {
     div(
         vec![
@@ -392,18 +471,52 @@ fn preview_pane() -> Node {
     )
 }
 
-/// `ai-chat-code-preview` の Demo 本体。呼び出しごとに同一の `Node` を
-/// 返す純関数。
-#[must_use]
-pub fn demo() -> Node {
+/// 版キャプション（多数派の慣例に合わせ `heading` 部品を使わず素の `<p>`。
+/// [`crate::blocks::dummy_assets`] のような共有部品を増やさない、
+/// `footer_inline_nav.rs` 等 sibling block と同型のパターン）。
+fn caption(label: &str) -> Node {
+    p(
+        vec![("class", "blocks-ai-chat-code-preview-caption")],
+        vec![text(label)],
+    )
+}
+
+/// 1 版分の shell（上部ナビ + 狭幅見出し + 本体 2 列）を組み立てる。
+/// `suffix` は id 衝突回避用、`generating` は「応答生成中」版かどうか
+/// （モジュール doc「3 版の並記」節参照）。
+fn shell(suffix: &str, generating: bool) -> Node {
     div(
         vec![("class", "blocks-ai-chat-code-preview-shell")],
         vec![
-            top_nav(),
+            top_nav(suffix),
             switch_group(),
             div(
                 vec![("class", "blocks-ai-chat-code-preview-body")],
-                vec![chat_pane(), preview_pane()],
+                vec![chat_pane(suffix, generating), preview_pane()],
+            ),
+        ],
+    )
+}
+
+/// `ai-chat-code-preview` の Demo 本体。呼び出しごとに同一の `Node` を
+/// 返す純関数。3 版（代表構成・応答生成中・狭幅）を縦に並べる
+/// （モジュール doc「3 版の並記」節参照）。
+#[must_use]
+pub fn demo() -> Node {
+    div(
+        vec![("class", "blocks-ai-chat-code-preview-layout")],
+        vec![
+            caption("代表構成"),
+            section(vec![], vec![shell("a", false)]),
+            caption("応答生成中"),
+            section(vec![], vec![shell("b", true)]),
+            caption("狭幅（見出し表示 + 縦積み）"),
+            section(
+                vec![],
+                vec![div(
+                    vec![("class", "blocks-ai-chat-code-preview-narrow")],
+                    vec![shell("c", false)],
+                )],
             ),
         ],
     )
@@ -454,7 +567,9 @@ pub const BLOCK: Block = Block {
 /// 持たない（モジュール doc「狭幅では『見出し表示 + 縦積み』で表現し、
 /// 要素を隠さない」節参照）。
 const LAYOUT_CSS: &str = "\
-.blocks-demo.blocks-ai-chat-code-preview {\n  padding: 0;\n}\n\
+.blocks-ai-chat-code-preview-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
+.blocks-ai-chat-code-preview-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-ai-chat-code-preview-narrow {\n  max-inline-size: 36rem;\n}\n\
 .blocks-ai-chat-code-preview-shell {\n  container-type: inline-size;\n  container-name: blocks-ai-chat-code-preview;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  overflow: hidden;\n}\n\
 .blocks-ai-chat-code-preview-nav {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 .blocks-ai-chat-code-preview-brand {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: 600;\n  min-width: 0;\n}\n\
@@ -499,30 +614,36 @@ mod tests {
 
     /// 右列は `hidden` を一切使わず、プレビュー・コードの両パネルが常に
     /// 到達可能であることを固定する回帰ガード（Codex P1 是正、モジュール
-    /// doc「右列は実物の `tabs::tabs` を使わない」節参照）。
+    /// doc「右列は実物の `tabs::tabs` を使わない」節参照）。3 版並記
+    /// （イシュー #2959）のため、各版の preview pane 断片を個別に切り出して
+    /// 検証する（先頭からの単純スライスでは後続版の三点メニュー
+    /// `OpenState::Closed` の `hidden` を誤検知するため）。
     #[test]
     fn preview_and_code_panels_are_both_reachable_without_hidden() {
         let html = demo_html();
-        // 右列（`data-blocks-ai-chat-code-preview-pane="preview"`）に限定して
-        // `hidden` の不在を検証する（三点メニューの `OpenState::Closed` は
-        // `overflow_menu` doc の既定判断どおり `hidden` を持つため、全文
-        // 検証にすると無関係な既定挙動を誤検知する）。
-        let pane_start = html
-            .find("data-blocks-ai-chat-code-preview-pane=\"preview\"")
-            .expect("preview pane should exist");
-        let pane_html = &html[pane_start..];
-        // `aria-hidden="true"`（[`static_tab_list`] の装飾用、支援技術の
-        // ツリーからの除外であり視覚的な非表示ではない）は許容し、実際に
-        // 内容を非表示にする `hidden` 真偽属性（` hidden` の形で出力される）
-        // のみを検知する。
-        assert!(
-            !pane_html.contains(" hidden"),
-            "preview pane should not hide any content: {pane_html}"
-        );
-        // `CODE_SNIPPET` は `<`/`>` を含み HTML エスケープ後は非一致になる
-        // ため、エスケープの影響を受けない語で存在確認する。
-        assert!(pane_html.contains("async fn inventory"));
-        assert!(pane_html.contains("blocks-ai-chat-code-preview-tablist"));
+        let marker = "data-blocks-ai-chat-code-preview-pane=\"preview\"";
+        let mut checked = 0;
+        for (index, _) in html.match_indices(marker) {
+            let fragment_end = html[index..]
+                .find("</section>")
+                .map(|end| index + end)
+                .unwrap_or(html.len());
+            let pane_html = &html[index..fragment_end];
+            // `aria-hidden="true"`（[`static_tab_list`] の装飾用、支援技術の
+            // ツリーからの除外であり視覚的な非表示ではない）は許容し、
+            // 実際に内容を非表示にする `hidden` 真偽属性（` hidden` の形で
+            // 出力される）のみを検知する。
+            assert!(
+                !pane_html.contains(" hidden"),
+                "preview pane should not hide any content: {pane_html}"
+            );
+            // `CODE_SNIPPET` は `<`/`>` を含み HTML エスケープ後は非一致に
+            // なるため、エスケープの影響を受けない語で存在確認する。
+            assert!(pane_html.contains("async fn inventory"));
+            assert!(pane_html.contains("blocks-ai-chat-code-preview-tablist"));
+            checked += 1;
+        }
+        assert_eq!(checked, 3, "3 版すべての preview pane を検証すること");
     }
 
     /// タブ列の見た目は、直後に併記されるプレビュー・コードのどちらか
@@ -596,6 +717,8 @@ mod tests {
         let hide_count = LAYOUT_CSS.matches("display: none;").count();
         assert_eq!(hide_count, 1);
         assert!(LAYOUT_CSS.contains(".blocks-ai-chat-code-preview-switch {\n  display: none;"));
+        assert!(LAYOUT_CSS.contains(".blocks-ai-chat-code-preview-narrow {\n  max-inline-size:"));
+        assert!(LAYOUT_CSS.contains(".blocks-ai-chat-code-preview-caption {"));
     }
 
     #[test]
@@ -607,5 +730,67 @@ mod tests {
     fn uses_shared_dummy_assets() {
         let html = demo_html();
         assert!(html.contains(super::dummy_assets::LOGO_SRC));
+    }
+
+    /// 3 版（代表構成・応答生成中・狭幅）がキャプション付きで並ぶことを
+    /// 固定する（イシュー #2959、モジュール doc「3 版の並記」節参照）。
+    #[test]
+    fn demo_renders_three_captioned_variants() {
+        let html = demo_html();
+        assert_eq!(
+            html.matches("blocks-ai-chat-code-preview-caption").count(),
+            3
+        );
+        assert_eq!(html.matches("blocks-ai-chat-code-preview-shell").count(), 3);
+        for caption in ["代表構成", "応答生成中", "狭幅（見出し表示 + 縦積み）"]
+        {
+            assert!(html.contains(caption), "caption not found: {caption}");
+        }
+    }
+
+    /// 応答生成中版は loading 発言 1 件のみ・「停止」ボタン 1 個のみを持ち、
+    /// 他 2 版は変わらず「送信」であることを固定する。
+    #[test]
+    fn generating_variant_marks_exactly_one_loading_message_and_stop_button() {
+        let html = demo_html();
+        assert_eq!(html.matches("data-loading").count(), 1);
+        assert_eq!(html.matches("停止").count(), 1);
+        assert_eq!(html.matches("送信").count(), 2);
+    }
+
+    /// 狭幅版は `-narrow` ラッパー直後に shell 全体（`-switch` 込み）が
+    /// 収まっていることを固定する（モジュール doc「3 版の並記」節参照）。
+    #[test]
+    fn narrow_variant_wraps_a_full_shell() {
+        let html = demo_html();
+        let narrow_start = html
+            .find("blocks-ai-chat-code-preview-narrow")
+            .expect("narrow wrapper should exist");
+        let fragment = &html[narrow_start..];
+        assert!(fragment.contains("blocks-ai-chat-code-preview-shell"));
+        assert!(fragment.contains("blocks-ai-chat-code-preview-switch"));
+    }
+
+    /// 3 版の id（menu trigger/content・textarea）が接尾辞 `a`/`b`/`c` で
+    /// 一意化されていることを固定する（`ids_have_no_duplicates` が重複
+    /// なしを保証する前提）。
+    #[test]
+    fn variant_ids_use_suffixes() {
+        let html = demo_html();
+        for suffix in ["a", "b", "c"] {
+            assert!(html.contains(&format!(
+                "blocks-ai-chat-code-preview-menu-trigger-{suffix}"
+            )));
+            assert!(html.contains(&format!("blocks-ai-chat-code-preview-prompt-{suffix}")));
+        }
+    }
+
+    /// 応答生成中の見た目は `data-loading` のみで、実際には更新されない
+    /// `aria-busy` を出さないことを固定する（`fandhe_frontend_headless_ui::
+    /// message` doc「`aria-live`/`aria-busy` を付けない理由」と同じ契約）。
+    #[test]
+    fn no_aria_busy_in_generating_state() {
+        let html = demo_html();
+        assert!(!html.contains("aria-busy"));
     }
 }
