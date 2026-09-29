@@ -14,9 +14,13 @@
 //!
 //! # 4 版の並記（イシュー #2950）
 //!
-//! `demo()` は版 A〜D を `p.blocks-table-with-toolbar-caption` の見出しで
-//! 区切って縦に並べる（`marketing/footer/footer_inline_nav.rs` と同じ並記
-//! パターン）。表・フッターのデータは 4 版で共有し（[`ROWS`]・
+//! `demo()` は版 A〜D を [`caption`]（`h2`）の見出しで区切って縦に並べる
+//! （`marketing/footer/footer_inline_nav.rs` と同じ並記パターン）。各版の
+//! `title_group()` は `h3`「Invoices」で 4 版共通のため、`caption` の `h2`
+//! を版名の一意な見出しとして先に置くことで見出し一覧上でも版を区別できる
+//! ようにする（Codex レビュー指摘 #3404 是正: 版名が `p` の平文だった旧実装
+//! は見出し一覧から区別できなかった）。表・フッターのデータは 4 版で共有し
+//! （[`ROWS`]・
 //! [`footer`]）、差分は見出し帯（`header`）と絞り込み表現のみに絞る。
 //!
 //! - **A（R0645/R0715、代表構成）**: 検索 + 絞り込み/新規作成ボタン。
@@ -110,7 +114,7 @@ use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, el, p, section, text, Node};
+use fandhe_frontend_core::{div, el, section, text, Node};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::field::{FieldIds, FieldProps};
@@ -236,7 +240,7 @@ fn title_group() -> Node {
         vec![("data-blocks-table-with-toolbar-title", "")],
         vec![
             heading(
-                HeadingLevel::H2,
+                HeadingLevel::H3,
                 &HeadingProps {
                     size: HeadingSize::Xl,
                     ..HeadingProps::default()
@@ -599,10 +603,7 @@ pub fn demo() -> Node {
     div(
         vec![("class", "blocks-table-with-toolbar-layout")],
         vec![
-            p(
-                vec![("class", "blocks-table-with-toolbar-caption")],
-                vec![text("代表構成")],
-            ),
+            caption("代表構成"),
             variant(
                 "standard",
                 "blocks-table-with-toolbar-search-a",
@@ -611,10 +612,7 @@ pub fn demo() -> Node {
                 false,
                 false,
             ),
-            p(
-                vec![("class", "blocks-table-with-toolbar-caption")],
-                vec![text("期間選択ボタン付き")],
-            ),
+            caption("期間選択ボタン付き"),
             variant(
                 "period",
                 "blocks-table-with-toolbar-search-b",
@@ -623,10 +621,7 @@ pub fn demo() -> Node {
                 false,
                 false,
             ),
-            p(
-                vec![("class", "blocks-table-with-toolbar-caption")],
-                vec![text("常時縦積み + エクスポート")],
-            ),
+            caption("常時縦積み + エクスポート"),
             variant(
                 "stacked",
                 "blocks-table-with-toolbar-search-c",
@@ -635,10 +630,7 @@ pub fn demo() -> Node {
                 true,
                 false,
             ),
-            p(
-                vec![("class", "blocks-table-with-toolbar-caption")],
-                vec![text("タブ型の絞り込み付き")],
-            ),
+            caption("タブ型の絞り込み付き"),
             variant(
                 "tabs",
                 "blocks-table-with-toolbar-search-d",
@@ -648,6 +640,25 @@ pub fn demo() -> Node {
                 true,
             ),
         ],
+    )
+}
+
+/// 版のキャプション（見出し）。`h2`（[`title_group`] の `h3`「Invoices」の
+/// 親階層）として構造化する。4 版すべてが同一の `h3`「Invoices」を持つため
+/// `p` の平文キャプションのままでは見出し一覧上で版を区別できなかった
+/// （Codex レビュー指摘 #3404 是正）。`heading` は `class` を
+/// `drop_class_attr` 経由で除去するため、スタイルフックには
+/// `data-blocks-table-with-toolbar-caption` を使う
+/// （モジュール doc「`class` と `data-*` の使い分け」節参照）。
+fn caption(label: &'static str) -> Node {
+    heading(
+        HeadingLevel::H2,
+        &HeadingProps {
+            size: HeadingSize::Sm,
+            ..HeadingProps::default()
+        },
+        vec![("data-blocks-table-with-toolbar-caption", "")],
+        vec![text(label)],
     )
 }
 // blocks-code:end
@@ -717,7 +728,7 @@ pub const BLOCK: Block = Block {
 /// （モジュール doc「`@container` で狭幅レイアウトを切り替える」節参照）。
 const LAYOUT_CSS: &str = "\
 .blocks-table-with-toolbar-layout {\n  container-type: inline-size;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
-.blocks-table-with-toolbar-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+[data-blocks-table-with-toolbar-caption] {\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-table-with-toolbar-variant] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-table-with-toolbar-header] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  justify-content: space-between;\n}\n\
 [data-blocks-table-with-toolbar-toolbar] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\

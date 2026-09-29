@@ -17,9 +17,9 @@ Themes/Primitives 部品を組み合わせた実例集であることに注意�
 - **版 C（常時縦積み + エクスポート）**: 検索欄・ボタン行が Demo 枠の幅に
   関係なく常時縦積みで、操作列にエクスポートボタンを追加します。
 - **版 D（タブ型の絞り込み付き）**: 「すべて/支払済み/未払い/期限超過」の
-  4 タブで絞り込み条件を静的に表示します。タブのパネルはすべて空で、表は
-  タブの外側に常時 1 つだけ表示します（絞り込みの実処理は UI コンポー
-  ネント層の責務外のため行いません）。
+  4 タブで絞り込み条件を静的に表示します。選択中「すべて」のパネルにのみ
+  表を置き、非選択の 3 パネルは空のままです（絞り込みの実処理は UI コン
+  ポーネント層の責務外のため行いません）。
 
 版 A の見出し帯・テーブル・フッターは、検索欄・ボタン群が狭い幅では
 コンテナクエリ（`@container`）により縦積みへ切り替わります。表・フッター
@@ -35,7 +35,7 @@ Themes/Primitives 部品を組み合わせた実例集であることに注意�
 
 ```rust
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, el, p, section, text, Node};
+use fandhe_frontend_core::{div, el, section, text, Node};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::field::{FieldIds, FieldProps};
@@ -161,7 +161,7 @@ fn title_group() -> Node {
         vec![("data-blocks-table-with-toolbar-title", "")],
         vec![
             heading(
-                HeadingLevel::H2,
+                HeadingLevel::H3,
                 &HeadingProps {
                     size: HeadingSize::Xl,
                     ..HeadingProps::default()
@@ -524,10 +524,7 @@ pub fn demo() -> Node {
     div(
         vec![("class", "blocks-table-with-toolbar-layout")],
         vec![
-            p(
-                vec![("class", "blocks-table-with-toolbar-caption")],
-                vec![text("代表構成")],
-            ),
+            caption("代表構成"),
             variant(
                 "standard",
                 "blocks-table-with-toolbar-search-a",
@@ -536,10 +533,7 @@ pub fn demo() -> Node {
                 false,
                 false,
             ),
-            p(
-                vec![("class", "blocks-table-with-toolbar-caption")],
-                vec![text("期間選択ボタン付き")],
-            ),
+            caption("期間選択ボタン付き"),
             variant(
                 "period",
                 "blocks-table-with-toolbar-search-b",
@@ -548,10 +542,7 @@ pub fn demo() -> Node {
                 false,
                 false,
             ),
-            p(
-                vec![("class", "blocks-table-with-toolbar-caption")],
-                vec![text("常時縦積み + エクスポート")],
-            ),
+            caption("常時縦積み + エクスポート"),
             variant(
                 "stacked",
                 "blocks-table-with-toolbar-search-c",
@@ -560,10 +551,7 @@ pub fn demo() -> Node {
                 true,
                 false,
             ),
-            p(
-                vec![("class", "blocks-table-with-toolbar-caption")],
-                vec![text("タブ型の絞り込み付き")],
-            ),
+            caption("タブ型の絞り込み付き"),
             variant(
                 "tabs",
                 "blocks-table-with-toolbar-search-d",
@@ -573,6 +561,25 @@ pub fn demo() -> Node {
                 true,
             ),
         ],
+    )
+}
+
+/// 版のキャプション（見出し）。`h2`（[`title_group`] の `h3`「Invoices」の
+/// 親階層）として構造化する。4 版すべてが同一の `h3`「Invoices」を持つため
+/// `p` の平文キャプションのままでは見出し一覧上で版を区別できなかった
+/// （Codex レビュー指摘 #3404 是正）。`heading` は `class` を
+/// `drop_class_attr` 経由で除去するため、スタイルフックには
+/// `data-blocks-table-with-toolbar-caption` を使う
+/// （モジュール doc「`class` と `data-*` の使い分け」節参照）。
+fn caption(label: &'static str) -> Node {
+    heading(
+        HeadingLevel::H2,
+        &HeadingProps {
+            size: HeadingSize::Sm,
+            ..HeadingProps::default()
+        },
+        vec![("data-blocks-table-with-toolbar-caption", "")],
+        vec![text(label)],
     )
 }
 ```
@@ -592,10 +599,15 @@ pub fn demo() -> Node {
   横並び切り替えを持たず幅に関係なく常時縦積みにした見せ方です。操作列に
   エクスポートボタン（自作の下矢印 + トレイ線画）を追加しています。
 - 版 D（タブ型の絞り込み付き、対応表 ID R0718）は、実物の `tabs` 部品で
-  絞り込み条件を静的に表示した見せ方です。**全パネルを空にし、表はタブの
-  外側に常時可視で 1 つだけ置いています**。これは非選択パネルへ内容を
-  閉じ込める構造（同じ Blocks セクションの `faq-tabbed-accordion` で
-  見つかった課題）を避けるための判断です。
+  絞り込み条件を静的に表示した見せ方です。**選択中「すべて」のパネルに
+  のみ表を置き、非選択の 3 パネルは空のままにしています**。表をタブの
+  外側へ常時可視で置く旧実装は、選択中 trigger の `aria-controls` が指す
+  パネルに実体がなく選択操作と表示内容が構造的に不整合だったため、表を
+  「すべて」パネルの内側へ移しています。
+- 非選択の 3 タブ（支払済み/未払い/期限超過）は `disabled` の静的固定
+  です。絞り込み処理を実装しない以上、操作可能なまま見せると「押せるが
+  表の内容が変わらない」dead control になるため、版 B の期間選択ボタンと
+  同じ判断で到達不能にしています。
 - テーブルは `scroll_area` で包み、横にはみ出す幅（`min-width: 42rem`）を
   与えて横スクロールを確認できるようにしています（4 版共通）。
 
