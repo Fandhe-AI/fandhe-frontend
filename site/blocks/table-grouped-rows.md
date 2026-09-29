@@ -189,57 +189,63 @@ fn column_headers(hidden: bool) -> Node {
     table::row(vec![], cells)
 }
 
-/// グループ分けされた `table` 1 本を組み立てる。
-fn grouped_table(hidden_head: bool, groups: &[(&str, &[Row])]) -> Node {
-    let mut body_rows = Vec::new();
+/// グループ分けされた `table` 1 本を組み立てる。`heading_id` は
+/// `aria-labelledby` で参照する見出し `id`（モジュール doc
+/// 「`caption`/`aria-labelledby` によるテーブル命名」節参照）。
+///
+/// グループごとに独立した `tbody` を発行し、グループ見出し行をその先頭行として
+/// 同居させる（モジュール doc「グループ見出し行を `row_header`
+/// （`scope="row"`）+ グループ単位 `tbody` で表す」節参照、codex-review P1
+/// 是正）。
+fn grouped_table(hidden_head: bool, heading_id: &'static str, groups: &[(&str, &[Row])]) -> Node {
+    let mut sections: Vec<Node> = vec![table::header(vec![], vec![column_headers(hidden_head)])];
     for (label, rows) in groups {
-        body_rows.push(group_row(label));
+        let mut body_rows = vec![group_row(label)];
         for row in *rows {
             body_rows.push(data_row(row));
         }
+        sections.push(table::body(vec![], body_rows));
     }
-    let mut table_attrs: Vec<(&str, &str)> = vec![("data-blocks-table-grouped-rows-table", "")];
+    let mut table_attrs: Vec<(&str, &str)> = vec![
+        ("data-blocks-table-grouped-rows-table", ""),
+        ("aria-labelledby", heading_id),
+    ];
     if hidden_head {
         table_attrs.push(("data-blocks-table-grouped-rows-hidden-head", ""));
     }
-    table::root(
-        TableProps::default(),
-        table_attrs,
-        vec![
-            table::header(vec![], vec![column_headers(hidden_head)]),
-            table::body(vec![], body_rows),
-        ],
-    )
+    table::root(TableProps::default(), table_attrs, sections)
 }
 
 /// A: 列見出し可視 + 地域グループ（R1332・代表構成）。
 fn version_regions() -> Node {
+    const HEADING_ID: &str = "blocks-table-grouped-rows-regions-heading";
     div(
         vec![("class", "blocks-table-grouped-rows-section")],
         vec![
             heading(
                 HeadingLevel::H3,
                 &HeadingProps::default(),
-                vec![],
+                vec![("id", HEADING_ID)],
                 vec![text("地域別の受注一覧")],
             ),
-            grouped_table(false, GROUPS_A),
+            grouped_table(false, HEADING_ID, GROUPS_A),
         ],
     )
 }
 
 /// B: 列見出し非表示 + 日付グループ（R1336・集約元）。
 fn version_dates_hidden_head() -> Node {
+    const HEADING_ID: &str = "blocks-table-grouped-rows-dates-heading";
     div(
         vec![("class", "blocks-table-grouped-rows-section")],
         vec![
             heading(
                 HeadingLevel::H3,
                 &HeadingProps::default(),
-                vec![],
+                vec![("id", HEADING_ID)],
                 vec![text("日付別の入金一覧")],
             ),
-            grouped_table(true, GROUPS_B),
+            grouped_table(true, HEADING_ID, GROUPS_B),
         ],
     )
 }
