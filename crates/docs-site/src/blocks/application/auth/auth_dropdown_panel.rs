@@ -411,7 +411,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"popover\"][data-part=\"trigger\"][data-blocks-auth-dropdown-panel-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"popover\"][data-part=\"positioner\"][data-blocks-auth-dropdown-panel-positioner] {\n  left: auto;\n  right: 0;\n}\n\
 [data-scope=\"popover\"][data-part=\"content\"][data-blocks-auth-dropdown-panel-panel] {\n  inline-size: 22rem;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
-[data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
+.blocks-auth-dropdown-panel [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 [data-blocks-auth-dropdown-panel-field] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 [data-blocks-auth-dropdown-panel-submit] {\n  width: 100%;\n}\n\
 [data-blocks-auth-dropdown-panel-links] {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-2);\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n}\n\
