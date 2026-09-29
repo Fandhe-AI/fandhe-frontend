@@ -467,6 +467,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-footer-bar/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-with-well/index.html"
           # Application / Empty State
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-card-header/index.html"
           # Application / Notification
           # Application / Dialog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/game-ui-modal/index.html"
