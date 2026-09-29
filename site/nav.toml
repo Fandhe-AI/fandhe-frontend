@@ -2155,6 +2155,11 @@ source = "site/blocks/table-sortable-bulk.md"
 path = "/blocks/table-sortable-bulk/"
 
 [[section.group.page]]
+title = "table-summary-rows"
+source = "site/blocks/table-summary-rows.md"
+path = "/blocks/table-summary-rows/"
+
+[[section.group.page]]
 title = "table-with-heading"
 source = "site/blocks/table-with-heading.md"
 path = "/blocks/table-with-heading/"
