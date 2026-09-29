@@ -18,8 +18,8 @@ use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
     vec![
-        table_sortable_bulk::BLOCK,
         table_responsive_stacked::BLOCK,
+        table_sortable_bulk::BLOCK,
         table_with_heading::BLOCK,
     ]
 }

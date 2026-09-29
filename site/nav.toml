@@ -2120,14 +2120,14 @@ path = "/blocks/list-title-meta/"
 title = "Table"
 
 [[section.group.page]]
-title = "table-sortable-bulk"
-source = "site/blocks/table-sortable-bulk.md"
-path = "/blocks/table-sortable-bulk/"
-
-[[section.group.page]]
 title = "table-responsive-stacked"
 source = "site/blocks/table-responsive-stacked.md"
 path = "/blocks/table-responsive-stacked/"
+
+[[section.group.page]]
+title = "table-sortable-bulk"
+source = "site/blocks/table-sortable-bulk.md"
+path = "/blocks/table-sortable-bulk/"
 
 [[section.group.page]]
 title = "table-with-heading"
