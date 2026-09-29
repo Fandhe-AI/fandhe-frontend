@@ -2038,6 +2038,11 @@ source = "site/blocks/navbar-app-links.md"
 path = "/blocks/navbar-app-links/"
 
 [[section.group.page]]
+title = "navbar-docs-site"
+source = "site/blocks/navbar-docs-site.md"
+path = "/blocks/navbar-docs-site/"
+
+[[section.group.page]]
 title = "navbar-two-row"
 source = "site/blocks/navbar-two-row.md"
 path = "/blocks/navbar-two-row/"
@@ -2069,6 +2074,11 @@ path = "/blocks/page-heading-cover/"
 title = "page-heading-meta"
 source = "site/blocks/page-heading-meta.md"
 path = "/blocks/page-heading-meta/"
+
+[[section.group.page]]
+title = "page-heading-welcome-stats"
+source = "site/blocks/page-heading-welcome-stats.md"
+path = "/blocks/page-heading-welcome-stats/"
 
 [[section.group]]
 title = "Card Heading"

@@ -969,6 +969,7 @@ pub enum LayoutCss {
 | page-heading-avatar | #2931（親 #2892） | `application/page_heading/page_heading_avatar.rs` |
 | page-heading-cover | #2932（親 #2892） | `application/page_heading/page_heading_cover.rs` |
 | page-heading-meta | #2933（親 #2892） | `application/page_heading/page_heading_meta.rs` |
+| page-heading-welcome-stats | #2935（親 #2892） | `application/page_heading/page_heading_welcome_stats.rs` |
 | card-media-footer | #2900（親 #2892） | `application/card/card_media_footer.rs` |
 | card-meta-cta | #2901（親 #2892） | `application/card/card_meta_cta.rs` |
 | chart-bar-list | #2903 | `application/chart/chart_bar_list.rs` |
@@ -1002,6 +1003,7 @@ pub enum LayoutCss {
 | testimonial-card-grid | #2884（親 #2807） | `marketing/testimonial/testimonial_card_grid.rs` |
 | testimonial-split-image | #2890（親 #2807） | `marketing/testimonial/testimonial_split_image.rs` |
 | grid-list-contact-cards | #2919（親 #2892） | `application/grid_list/grid_list_contact_cards.rs` |
+| navbar-docs-site | #2927（親 #2892） | `application/navbar/navbar_docs_site.rs` |
 | profile-detail-skills | #2938（親 #2892） | `application/profile/profile_detail_skills.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
