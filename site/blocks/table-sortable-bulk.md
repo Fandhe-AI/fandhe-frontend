@@ -38,18 +38,32 @@ use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 /// `demo_output_has_no_dangling_aria_references_or_duplicate_ids`
 /// （`crates/docs-site/tests/blocks_contract.rs`）の id 重複検知に抵触
 /// しないよう `id` 属性自体を持たない（`aria-label` のみで名前付け）。
-fn row_select_checkbox(name: &str, checked: checkbox::CheckedState, label: &str) -> Node {
+///
+/// `focusable = false` は、選択中パネルの一括操作ツールバーが見出し行に
+/// 重なり本チェックボックスを覆い隠す間（[`panel`] 内 `tabindex="-1"` 付与
+/// 箇所参照）、フォーカス先が見えないまま Tab 移動対象になる問題
+/// （Codex レビュー指摘、イシュー #2945 PR #3393）を避けるための指定。
+fn row_select_checkbox(
+    name: &str,
+    checked: checkbox::CheckedState,
+    label: &str,
+    focusable: bool,
+) -> Node {
     let props = CheckboxProps {
         checked,
         ..CheckboxProps::default()
     };
+    let mut hidden_input_attrs = vec![("aria-label", label)];
+    if !focusable {
+        hidden_input_attrs.push(("tabindex", "-1"));
+    }
     checkbox::root(
         Size::Sm,
         ColorPalette::Accent,
         &props,
         vec![],
         vec![
-            checkbox::hidden_input(&props, name, "on", vec![("aria-label", label)]),
+            checkbox::hidden_input(&props, name, "on", hidden_input_attrs),
             checkbox::control(
                 &props,
                 vec![],
@@ -230,6 +244,20 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
 
     let secondary_attr = ("data-blocks-table-sortable-bulk-secondary", "");
 
+    // 選択中パネルでは一括操作ツールバーが見出し行に重なって覆い隠す
+    // （モジュール doc「一括操作ツールバーを見出し行へ重ねる実装」節）。
+    // 覆われている間は見出し行の操作要素（全行選択チェックボックス・
+    // 並び替えボタン）を Tab 移動対象から外す（`tabindex="-1"`）。フォーカ
+    // ス先が視覚的に見えないまま操作可能になることを防ぐ（Codex レビュー
+    // 指摘、イシュー #2945 PR #3393）。「未選択」パネルはツールバー自体を
+    // 出力しないため常にフォーカス可能のまま。
+    let header_focusable = variant != "selected";
+    let header_tabindex_attr: Vec<(&str, &str)> = if header_focusable {
+        vec![]
+    } else {
+        vec![("tabindex", "-1")]
+    };
+
     let header_row = table::row(
         vec![],
         vec![
@@ -246,6 +274,7 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
                         _ => checkbox::CheckedState::Indeterminate,
                     },
                     "Select all rows",
+                    header_focusable,
                 )],
             ),
             table::column_header(
@@ -256,7 +285,7 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
                 vec![data_table::sort_trigger(
                     &table_state,
                     "name",
-                    vec![],
+                    header_tabindex_attr.clone(),
                     vec![text("名前")],
                 )],
             ),
@@ -272,7 +301,7 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
                 vec![data_table::sort_trigger(
                     &table_state,
                     "status",
-                    vec![],
+                    header_tabindex_attr.clone(),
                     vec![text("ステータス")],
                 )],
             ),
@@ -325,6 +354,7 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
                             checkbox::CheckedState::Unchecked
                         },
                         &format!("Select row: {}", row.name),
+                        true,
                     )],
                 ),
                 table::cell(data_table::column_attrs(&name_column), vec![text(row.name)]),
