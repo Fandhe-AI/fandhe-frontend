@@ -484,6 +484,7 @@ jobs:
           # Application / Dashboard
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/dashboard-01/index.html"
           # Application / AI Chat
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/ai-chat-playground/index.html"
           # Application / Help Center
           # Application / Media Object
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/media-object/index.html"
