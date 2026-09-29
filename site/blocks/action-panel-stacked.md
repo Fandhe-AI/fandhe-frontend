@@ -109,8 +109,8 @@ fn link_elevated_panel() -> Node {
     panel(
         CardVariant::Elevated,
         "link-elevated",
-        "リリースノートを確認する",
-        "直近の変更点をリポジトリでまとめて確認できます。",
+        "リポジトリを見る",
+        "ソースコードや Issue をリポジトリでまとめて確認できます。",
         action,
     )
 }
