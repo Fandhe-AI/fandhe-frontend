@@ -9,7 +9,7 @@
 ## Rust コード
 
 ```rust
-use fandhe_frontend_core::{div, text, Node};
+use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::recipe::Size;
 use fandhe_frontend_pre_styled_ui::strong;
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps};
@@ -42,6 +42,28 @@ fn yen(amount: u32) -> String {
     }
     let grouped: String = grouped.chars().rev().collect();
     format!("¥{grouped}")
+}
+
+/// `<col>` 1 本を組み立てる（`table.rs` に `colgroup`/`col` の anatomy が
+/// ないため `fandhe_frontend_core::el` で直接組み立てる、モジュール doc
+/// 「狭幅で数量列を隠し」節参照）。
+fn col<'a>(attrs: Vec<(&'a str, &'a str)>) -> Node {
+    el("col", attrs, vec![])
+}
+
+/// `<colgroup>`（品目・数量・金額の 3 列）を組み立てる。数量列の `<col>`
+/// にのみ `data-blocks-table-summary-rows-qty-col` を付け、狭幅時に
+/// [`LAYOUT_CSS`] がこの列を `visibility: collapse` で縮める。
+fn column_group() -> Node {
+    el(
+        "colgroup",
+        vec![],
+        vec![
+            col(vec![]),
+            col(vec![("data-blocks-table-summary-rows-qty-col", "")]),
+            col(vec![]),
+        ],
+    )
 }
 
 /// 明細 1 行（`tbody` の `tr`）を組み立てる。品目名セルには狭幅専用の
@@ -137,6 +159,7 @@ pub fn demo() -> Node {
         vec![],
         vec![
             table::caption(vec![], vec![text("注文明細")]),
+            column_group(),
             table::header(vec![], vec![header_row]),
             table::body(vec![], body_rows),
             table::footer(
@@ -152,7 +175,14 @@ pub fn demo() -> Node {
 
     div(
         vec![("class", "blocks-table-summary-rows-layout")],
-        vec![table::scroll_area(vec![], vec![root])],
+        vec![table::scroll_area(
+            vec![
+                ("role", "region"),
+                ("aria-label", "注文明細テーブル"),
+                ("tabindex", "0"),
+            ],
+            vec![root],
+        )],
     )
 }
 ```

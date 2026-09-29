@@ -30,18 +30,24 @@
 //!
 //! # 狭幅で数量列を隠し、品目名の下へ補足を回す
 //!
-//! 数量列（`th`/`td`）は `data-blocks-table-summary-rows-qty` 属性で選択し、
-//! `47.99rem` 以下でのみ非表示にする（`:nth-child` は `tfoot` の
-//! `colspan="2"` セルと干渉しうるため専用属性を使う、下記 [`LAYOUT_CSS`]
-//! 参照）。非表示は `display: none` ではなく `visibility: collapse` を使う
-//! （`display: none` はセルのボックス生成自体を止めるため、`tfoot` 側の
-//! `colspan="2"` が想定する列番号と `thead`/`tbody` 側の残り列の実列番号が
-//! ずれ、狭幅で金額列が食い違う。`visibility: collapse` は列を見た目上
-//! 詰めつつ表の列構造・`colspan` の対応は変えない、イシュー #2946 レビュー
-//! 指摘）。非表示にした数量は品目名の直下へ「数量 n」という
-//! `text` 部品の補足行（`data-blocks-table-summary-rows-note`、既定
-//! `display: none`）として残し、狭幅時のみ表示へ切り替える。情報の欠落を
-//! 起こさない（列を隠すだけで DOM からは削除しない）。
+//! 数量列は `<colgroup>`/`<col>`（[`col`] helper、`table.rs` に anatomy を
+//! 追加せずブロック側で `fandhe_frontend_core::el` を直接使う。`table.rs`
+//! モジュール doc「スコープ外」節の `colgroup`/`col` は pre-styled-ui 側の
+//! 公開部品としての話であり、ブロックが素の `<col>` を子要素として置く
+//! ことは妨げない）で選択し、`47.99rem` 以下で `data-blocks-table-summary
+//! -rows-qty-col` を持つ `<col>` へ `visibility: collapse` を当てて列ごと
+//! 縮める。以前は `th`/`td` セルへ個別に `visibility: collapse` を指定して
+//! いたが、これはセルの表示を隠すだけで列の計算幅を縮めず、狭幅でも数量
+//! 列の空白が残っていた（イシュー #2946 レビュー指摘）。`<col>` 側での
+//! collapse は CSS Table 仕様上その列の計算幅を 0 にするため、`tfoot` の
+//! `colspan="2"`（品目列 + 数量列をまとめる）はセル数・列番号を変えずに
+//! そのまま使え、視覚的には品目列の幅だけに縮む。数量列の `th`/`td` 自体
+//! は DOM から削除しない（`data-blocks-table-summary-rows-qty` 属性はセル
+//! 側にも残し、対応する `<col>` との対応関係をコード上明示する用途に限定
+//! し、CSS 選択には使わない）。非表示にした数量は品目名の直下へ
+//! 「数量 n」という `text` 部品の補足行（`data-blocks-table-summary-rows
+//! -note`、既定 `display: none`）として残し、狭幅時のみ表示へ切り替える。
+//! 情報の欠落を起こさない。
 //!
 //! # 金額計算はデータから導出する
 //!
@@ -63,7 +69,7 @@
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
-use fandhe_frontend_core::{div, text, Node};
+use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::recipe::Size;
 use fandhe_frontend_pre_styled_ui::strong;
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps};
@@ -96,6 +102,28 @@ fn yen(amount: u32) -> String {
     }
     let grouped: String = grouped.chars().rev().collect();
     format!("¥{grouped}")
+}
+
+/// `<col>` 1 本を組み立てる（`table.rs` に `colgroup`/`col` の anatomy が
+/// ないため `fandhe_frontend_core::el` で直接組み立てる、モジュール doc
+/// 「狭幅で数量列を隠し」節参照）。
+fn col<'a>(attrs: Vec<(&'a str, &'a str)>) -> Node {
+    el("col", attrs, vec![])
+}
+
+/// `<colgroup>`（品目・数量・金額の 3 列）を組み立てる。数量列の `<col>`
+/// にのみ `data-blocks-table-summary-rows-qty-col` を付け、狭幅時に
+/// [`LAYOUT_CSS`] がこの列を `visibility: collapse` で縮める。
+fn column_group() -> Node {
+    el(
+        "colgroup",
+        vec![],
+        vec![
+            col(vec![]),
+            col(vec![("data-blocks-table-summary-rows-qty-col", "")]),
+            col(vec![]),
+        ],
+    )
 }
 
 /// 明細 1 行（`tbody` の `tr`）を組み立てる。品目名セルには狭幅専用の
@@ -191,6 +219,7 @@ pub fn demo() -> Node {
         vec![],
         vec![
             table::caption(vec![], vec![text("注文明細")]),
+            column_group(),
             table::header(vec![], vec![header_row]),
             table::body(vec![], body_rows),
             table::footer(
@@ -206,7 +235,14 @@ pub fn demo() -> Node {
 
     div(
         vec![("class", "blocks-table-summary-rows-layout")],
-        vec![table::scroll_area(vec![], vec![root])],
+        vec![table::scroll_area(
+            vec![
+                ("role", "region"),
+                ("aria-label", "注文明細テーブル"),
+                ("tabindex", "0"),
+            ],
+            vec![root],
+        )],
     )
 }
 // blocks-code:end
@@ -244,7 +280,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-table-summary-rows-layout [data-scope=\"table\"][data-part=\"row-header\"][data-align=\"end\"] {\n  text-align: end;\n}\n\
 [data-blocks-table-summary-rows-note] {\n  display: none;\n}\n\
 [data-scope=\"table\"][data-part=\"row\"][data-blocks-table-summary-rows-total] > * {\n  border-top: 1px solid var(--fandhe-color-border);\n  font-size: var(--fandhe-font-font-size-lg);\n}\n\
-@media (max-width: 47.99rem) {\n  [data-blocks-table-summary-rows-qty] {\n    visibility: collapse;\n  }\n  [data-blocks-table-summary-rows-note] {\n    display: block;\n  }\n}\n";
+@media (max-width: 47.99rem) {\n  [data-blocks-table-summary-rows-qty-col] {\n    visibility: collapse;\n  }\n  [data-blocks-table-summary-rows-note] {\n    display: block;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -293,14 +329,58 @@ mod tests {
     #[test]
     fn qty_cells_and_notes_carry_toggle_attributes() {
         let html = demo_html();
+        // `data-blocks-table-summary-rows-qty` は「...-qty」を前方一致で
+        // 含む「...-qty-col」（col 側の属性、下記 `column_group_collapses
+        // _qty_column` 参照）も数えるため、期待値へ col 分の 1 件を含める。
         assert_eq!(
             html.matches("data-blocks-table-summary-rows-qty").count(),
-            ITEMS.len() + 1
+            ITEMS.len() + 1 + 1
         );
         assert_eq!(
             html.matches("data-blocks-table-summary-rows-note").count(),
             ITEMS.len()
         );
+    }
+
+    #[test]
+    fn column_group_collapses_qty_column() {
+        // 数量列は `<col>` 単位で `visibility: collapse` を当てる契約
+        // （モジュール doc「狭幅で数量列を隠し」節・イシュー #2946
+        // レビュー指摘）。`<colgroup>` が品目・数量・金額の 3 `<col>` を
+        // 持ち、数量列の `<col>` にのみ collapse 用属性が付くことを固定
+        // する。
+        let html = demo_html();
+        assert_eq!(html.matches("<colgroup").count(), 1);
+        // `col` は void 要素のため `<col>`（属性なし・品目/金額列）が 2 件、
+        // 収集属性付きの数量列 `<col>` が 1 件で計 3 `<col>` になる。
+        // `"<col"` は `"<colgroup"` の部分文字列でもあるため、colgroup 分
+        // （1 件）を差し引いた件数で判定する。
+        assert_eq!(html.matches("<col").count() - 1, 3);
+        assert_eq!(html.matches("<col>").count(), 2);
+        assert_eq!(
+            html.matches("data-blocks-table-summary-rows-qty-col")
+                .count(),
+            1
+        );
+        // colgroup は caption の直後・thead より前（HTML の子要素順序
+        // 契約）。
+        let colgroup_pos = html.find("<colgroup").expect("colgroup should exist");
+        let thead_pos = html.find("<thead").expect("thead should exist");
+        assert!(colgroup_pos < thead_pos);
+    }
+
+    #[test]
+    fn scroll_area_is_keyboard_focusable_with_accessible_name() {
+        // `table::scroll_area` は `tabindex` を固定付与しない設計
+        // （`table.rs` モジュール doc「`scroll-area` パーツ」節）のため、
+        // 呼び出し側で `tabindex="0"` + `role="region"` + `aria-label` を
+        // 付与してオーバーフロー時のキーボード到達性を担保する
+        // （イシュー #2946 レビュー指摘）。
+        let html = demo_html();
+        assert!(html.contains(r#"data-part="scroll-area""#));
+        assert!(html.contains(r#"role="region""#));
+        assert!(html.contains(r#"tabindex="0""#));
+        assert!(html.contains("aria-label=\"注文明細テーブル\""));
     }
 
     #[test]
@@ -335,12 +415,13 @@ mod tests {
     fn qty_column_is_hidden_with_visibility_collapse_not_display_none() {
         // `display: none` はセルのボックス生成を止め `tfoot` の
         // `colspan="2"` と実列番号がずれる（モジュール doc「狭幅で数量列を
-        // 隠し」節参照、イシュー #2946 レビュー指摘）。列構造を保つ
-        // `visibility: collapse` を使っていることを固定する。
-        assert!(LAYOUT_CSS
-            .contains("[data-blocks-table-summary-rows-qty] {\n    visibility: collapse;\n  }"));
-        assert!(
-            !LAYOUT_CSS.contains("[data-blocks-table-summary-rows-qty] {\n    display: none;\n  }")
-        );
+        // 隠し」節参照、イシュー #2946 レビュー指摘）。`<col>` 側で
+        // `visibility: collapse` を使い、列の計算幅ごと縮めていることを
+        // 固定する（セル個別の `-qty` ではなく `-qty-col` を対象にする）。
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-table-summary-rows-qty-col] {\n    visibility: collapse;\n  }"
+        ));
+        assert!(!LAYOUT_CSS
+            .contains("[data-blocks-table-summary-rows-qty-col] {\n    display: none;\n  }"));
     }
 }
