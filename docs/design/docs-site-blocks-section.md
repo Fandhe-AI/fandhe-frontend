@@ -1004,6 +1004,7 @@ pub enum LayoutCss {
 | testimonial-split-image | #2890（親 #2807） | `marketing/testimonial/testimonial_split_image.rs` |
 | grid-list-contact-cards | #2919（親 #2892） | `application/grid_list/grid_list_contact_cards.rs` |
 | navbar-docs-site | #2927（親 #2892） | `application/navbar/navbar_docs_site.rs` |
+| table-with-heading | #2947（親 #2892） | `application/table/table_with_heading.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
 個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の全件であり、
