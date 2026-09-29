@@ -416,14 +416,17 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-meta/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-welcome-stats/index.html"
           # Application / Card Heading
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-heading-basic/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-heading-toolbar/index.html"
           # Application / List
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/list-container/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/list-people/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/list-narrow-activity/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/list-sticky-groups/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/list-title-meta/index.html"
           # Application / Table
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/table-grouped-rows/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/table-sortable-bulk/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/table-responsive-stacked/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/table-rich-rows/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/table-with-heading/index.html"
