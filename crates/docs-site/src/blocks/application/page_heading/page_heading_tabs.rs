@@ -124,12 +124,16 @@ fn section_tabs(aria_label: &'static str, items: &[(&'static str, &'static str, 
 /// 小さな見出しの並び（`content_article_toc.rs::article_body` と同型の
 /// 「目次リンク先に見出し `id` を実在させる」規約）。`items` は
 /// `section_tabs` と同じ `(id, label, current)` の組を渡す。
+///
+/// パネル内の `H1` 直下の見出しであるため `HeadingLevel::H2` を使う
+/// （`H1` → `H4` への階層飛び越えの是正、イシュー #2934 レビュー指摘）。
+/// 見た目は `HeadingSize::Sm` で維持する。
 fn section_markers(items: &[(&'static str, &'static str, bool)]) -> Node {
     let marker_nodes: Vec<Node> = items
         .iter()
         .map(|(id, label, _)| {
             heading(
-                HeadingLevel::H4,
+                HeadingLevel::H2,
                 &HeadingProps {
                     size: HeadingSize::Sm,
                     ..HeadingProps::default()
@@ -470,6 +474,13 @@ pub const BLOCK: Block = Block {
 /// `[data-blocks-page-heading-tabs-*]` のみを用いる。ルート class は
 /// `demo_class`（`blocks-page-heading-tabs`）と別名の `-layout` にする
 /// （`card_heading_toolbar.rs` 等と同じ Bugbot 教訓の回避）。
+///
+/// `view_switch` の `segment_group` は無 JS のため item 系パーツ全体を
+/// `disabled: true` にしているが、既定の `[data-disabled]` スタイルは
+/// opacity を落とすため無効化した表示切替だけが周囲より薄く見えてしまう
+/// （`form_layout_property_panel.rs` と同じ既知パターン）。`item`/
+/// `item-control`/`item-text` の `[data-disabled]` へ opacity を 1 に
+/// 戻す中和 CSS を重ねる（イシュー #2934 レビュー指摘の是正）。
 const LAYOUT_CSS: &str = "\
 .blocks-page-heading-tabs-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 [data-blocks-page-heading-tabs-panel] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-4);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n}\n\
@@ -480,6 +491,9 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-page-heading-tabs-period-fields] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-page-heading-tabs-period-select] {\n  display: block;\n}\n\
 [data-blocks-page-heading-tabs-sections] {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-4);\n  padding-top: var(--fandhe-space-2);\n  border-top: 1px dashed var(--fandhe-color-border);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-page-heading-tabs-layout [data-scope=\"segment-group\"][data-part=\"item\"][data-disabled],\n\
+.blocks-page-heading-tabs-layout [data-scope=\"segment-group\"][data-part=\"item-control\"][data-disabled],\n\
+.blocks-page-heading-tabs-layout [data-scope=\"segment-group\"][data-part=\"item-text\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 @media (min-width: 40rem) {\n  [data-blocks-page-heading-tabs-header-row] {\n    flex-direction: row;\n    justify-content: space-between;\n    align-items: flex-start;\n  }\n  [data-blocks-page-heading-tabs-inline-row] {\n    flex-direction: row;\n    align-items: center;\n    justify-content: space-between;\n  }\n  [data-blocks-page-heading-tabs-inline-row] > [data-blocks-page-heading-tabs-tab-scroller] {\n    flex: 1 1 auto;\n  }\n  [data-blocks-page-heading-tabs-period-select] {\n    display: none;\n  }\n}\n";
 
 #[cfg(test)]

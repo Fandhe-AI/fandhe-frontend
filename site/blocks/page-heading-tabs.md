@@ -80,12 +80,16 @@ fn section_tabs(aria_label: &'static str, items: &[(&'static str, &'static str, 
 /// 小さな見出しの並び（`content_article_toc.rs::article_body` と同型の
 /// 「目次リンク先に見出し `id` を実在させる」規約）。`items` は
 /// `section_tabs` と同じ `(id, label, current)` の組を渡す。
+///
+/// パネル内の `H1` 直下の見出しであるため `HeadingLevel::H2` を使う
+/// （`H1` → `H4` への階層飛び越えの是正、イシュー #2934 レビュー指摘）。
+/// 見た目は `HeadingSize::Sm` で維持する。
 fn section_markers(items: &[(&'static str, &'static str, bool)]) -> Node {
     let marker_nodes: Vec<Node> = items
         .iter()
         .map(|(id, label, _)| {
             heading(
-                HeadingLevel::H4,
+                HeadingLevel::H2,
                 &HeadingProps {
                     size: HeadingSize::Sm,
                     ..HeadingProps::default()
