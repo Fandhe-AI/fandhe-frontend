@@ -453,6 +453,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/form-layout-two-column/index.html"
           # Application / Auth
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-dropdown-panel/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-oauth-consent/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-01/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-04/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-01/index.html"
