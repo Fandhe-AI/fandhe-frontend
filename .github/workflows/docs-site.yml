@@ -424,6 +424,7 @@ jobs:
           # Application / Table
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/table-responsive-stacked/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/table-with-heading/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/table-with-toolbar/index.html"
           # Application / Grid List
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/grid-list-contact-cards/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/grid-list-compact-tiles/index.html"

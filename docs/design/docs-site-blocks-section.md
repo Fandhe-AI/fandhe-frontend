@@ -1006,6 +1006,7 @@ pub enum LayoutCss {
 | grid-list-contact-cards | #2919（親 #2892） | `application/grid_list/grid_list_contact_cards.rs` |
 | navbar-docs-site | #2927（親 #2892） | `application/navbar/navbar_docs_site.rs` |
 | table-with-heading | #2947（親 #2892） | `application/table/table_with_heading.rs` |
+| table-with-toolbar | #2949・#2950（親 #2948） | `application/table/table_with_toolbar.rs` |
 | profile-detail-skills | #2938（親 #2892） | `application/profile/profile_detail_skills.rs` |
 | profile-card-centered | #2936（親 #2892） | `application/profile/profile_card_centered.rs` |
 | sidebar-rail-panel | #2941 | `application/sidebar/sidebar_rail_panel.rs` |

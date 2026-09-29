@@ -2129,6 +2129,11 @@ title = "table-with-heading"
 source = "site/blocks/table-with-heading.md"
 path = "/blocks/table-with-heading/"
 
+[[section.group.page]]
+title = "table-with-toolbar"
+source = "site/blocks/table-with-toolbar.md"
+path = "/blocks/table-with-toolbar/"
+
 [[section.group]]
 title = "Grid List"
 
