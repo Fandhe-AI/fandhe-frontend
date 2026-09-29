@@ -1,21 +1,51 @@
-//! `table-with-toolbar` block 前半（イシュー #2949。親 #2948「Blocks に
-//! Application / Table カテゴリ block `table-with-toolbar` を追加する」
-//! の骨格 + 主要領域実装分）。見出し帯（表題・説明・検索・操作ボタン）と
-//! テーブル（横スクロール対応）とフッター（件数表示・ページ送り）から
-//! なる基本形を、既存部品（`heading` / `text` / `input_group` / `input` /
-//! `button` / `icon` / `table` / `badge` / `pagination` / `scroll_area` の
-//! 計 10 部品のみ）の合成で示す。対応表 ID は主参照 R0645（代表構成）・
-//! 集約 R0715。`_/blocks-intake/` の対応ファイルは本イシュー着手時点で
-//! 本 worktree に存在しないため、原稿・本コメントには対応表 ID のみを
-//! 記す（`page_heading_meta.rs`〔イシュー #2933〕・
+//! `table-with-toolbar` block（親 #2948「Blocks に Application / Table
+//! カテゴリ block `table-with-toolbar` を追加する」）。前半 #2949
+//! （PR #3401、`43661548`）で骨格 + 版 A（代表構成: 見出し帯・検索・
+//! 絞り込み/新規作成・横スクロール表・件数表示/ページ送り）を実装済み。
+//! 後半 #2950 で残り 3 版（期間選択ボタン版 R0716・常時縦積み +
+//! エクスポート版 R0717・タブ型絞り込み版 R0718）を並記し、既存部品
+//! （`heading` / `text` / `input_group` / `input` / `button` / `icon` /
+//! `table` / `badge` / `pagination` / `scroll_area`）に `tabs` を加えた
+//! 計 11 部品の合成で示す。対応表 ID は主参照 R0645（代表構成）・集約
+//! R0715/R0716/R0717/R0718。`_/blocks-intake/` の対応ファイルは本イシュー
+//! 着手時点で本 worktree に存在しないため、原稿・本コメントには対応表 ID
+//! のみを記す（`page_heading_meta.rs`〔イシュー #2933〕・
 //! `table_with_heading.rs`〔イシュー #2947〕と同じ扱い）。
 //!
-//! # 後半 #2950 で追加予定の版・部品
+//! # 4 版の並記（イシュー #2950）
 //!
-//! 本イシューは版 A（代表構成）のみを実装する。後半 #2950 で期間選択
-//! ボタン版（R0716）・常時縦積み + エクスポート版（R0717）・タブ型絞り込み
-//! 版（R0718）を並記し、D 版でのみ `tabs` 部品を追加する（`parts` 未使用
-//! 宣言を避けるため、本 PR の `parts` には含めない）。
+//! `demo()` は版 A〜D を `p.blocks-table-with-toolbar-caption` の見出しで
+//! 区切って縦に並べる（`marketing/footer/footer_inline_nav.rs` と同じ並記
+//! パターン）。表・フッターのデータは 4 版で共有し（[`ROWS`]・
+//! [`footer`]）、差分は見出し帯（`header`）と絞り込み表現のみに絞る。
+//!
+//! - **A（R0645/R0715、代表構成）**: 検索 + 絞り込み/新規作成ボタン。
+//!   `@container (min-width: 40rem)` で見出し帯・ツールバー・フッターが
+//!   縦積み ↔ 横並びを切り替える
+//! - **B（R0716、期間選択ボタン）**: ツールバーに「7 日間/30 日間/90 日間」
+//!   の期間選択ボタン列（[`period_buttons`]）を追加する。各ボタンは
+//!   `feature_accordion_image::category_button` と同型の静的固定
+//!   （先頭のみ `ButtonVariant::Solid` + `aria-pressed="true"`、他は
+//!   `Outline` + `aria-pressed="false"`、全て `disabled: true`）で、押せる
+//!   が何も起きない dead control にしない（`aria-pressed` で状態を明示）。
+//!   参照元の期間区切り定義は持ち込まず独自の文言を使う
+//! - **C（R0717、常時縦積み + エクスポート）**: `@container` の横並び
+//!   切り替えを持たず、幅に関係なく見出し帯・ツールバーが常時縦積み
+//!   （`[data-blocks-table-with-toolbar-variant="stacked"]` 配下の属性
+//!   セレクタ 2 段（詳細度 `(0,2,0)`）で `@container` 内の `(0,1,0)` を
+//!   上書きする、`LAYOUT_CSS` 参照）。操作列にエクスポートボタン
+//!   （[`export_icon`] の自作線画）を追加する
+//! - **D（R0718、タブ型の絞り込み）**: 実物 `tabs::tabs`
+//!   （[`status_tabs`]）で「すべて/支払済み/未払い/期限超過」の 4 タブを
+//!   静的表示する。**全パネルを空（`content: vec![]`）にし、表は tabs の
+//!   外に常時可視で 1 つだけ置く**（絞り込み条件の静的表示であり、実際の
+//!   絞り込み処理は UI コンポーネント層の責務外
+//!   `docs/policy/intentional-non-adoption.md` §3.25）。これは
+//!   `marketing/faq/faq_tabbed_accordion.rs` で指摘された「非選択パネルに
+//!   内容を閉じ込める」構造を回避するための意図的な判断であり、原稿にも
+//!   明記する。`tabs` は attrs を受け取らない
+//!   （`crate::tabs` モジュール doc「選択的 re-export」節参照）ため
+//!   `div[data-blocks-table-with-toolbar-tabs]` で包む
 //!
 //! # `scroll_area` を選ぶ理由（`table::scroll_area` ではなく独立部品）
 //!
@@ -63,13 +93,15 @@
 //! 持たせない（静的表示のため遷移先を持たせない）。架空の請求書番号・
 //! 顧客名・金額・期日はすべてダミー（実企業名・PII・クレデンシャルを
 //! 含まない。顧客名は [`crate::blocks::dummy_assets::COMPANY_NAMES`] を
-//! 再利用する）。
+//! 再利用する）。版 B の期間選択ボタン（`disabled: true` +
+//! `aria-pressed` 固定）・版 D の `tabs`（`selected: "all"` 固定・パネル
+//! 空）も同じ静的固定方針に従う。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, el, text, Node};
+use fandhe_frontend_core::{div, el, p, section, text, Node};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::field::{FieldIds, FieldProps};
@@ -81,6 +113,9 @@ use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode};
 use fandhe_frontend_pre_styled_ui::recipe::ColorPalette;
 use fandhe_frontend_pre_styled_ui::scroll_area;
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
+use fandhe_frontend_pre_styled_ui::tabs::{
+    self, ActivationMode, Orientation, TabItem, TabsProps, TabsVariant,
+};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
 use fandhe_frontend_pre_styled_ui::Size;
 
@@ -118,6 +153,11 @@ fn filter_icon() -> Node {
 /// 新規作成アイコン（プラス）。
 fn plus_icon() -> Node {
     geo_icon("M12 5v14 M5 12h14")
+}
+
+/// エクスポートアイコン（下向き矢印 + トレイ、版 C 専用）。
+fn export_icon() -> Node {
+    geo_icon("M12 4v12 M7 11l5 5 5-5 M4 20h16")
 }
 
 /// 請求書 1 行分のダミーデータ。
@@ -207,10 +247,129 @@ fn title_group() -> Node {
     )
 }
 
-/// 見出し帯右側（検索 + 絞り込み/新規作成ボタン）。
-fn toolbar() -> Node {
+/// 期間選択ボタン 1 個（版 B 専用）。`feature_accordion_image::
+/// category_button` と同型: 先頭のみ選択済み（`Solid` +
+/// `aria-pressed="true"`）、他は非選択（`Outline` + `aria-pressed="false"`）。
+/// 全ボタン `disabled: true` の静的固定（モジュール doc「B（期間選択
+/// ボタン）」節参照）。
+fn period_button(label: &'static str, selected: bool) -> Node {
+    let (variant, pressed) = if selected {
+        (ButtonVariant::Solid, "true")
+    } else {
+        (ButtonVariant::Outline, "false")
+    };
+    button::button(
+        &ButtonProps {
+            variant,
+            size: Size::Sm,
+            disabled: true,
+            ..ButtonProps::default()
+        },
+        vec![("aria-pressed", pressed)],
+        vec![text(label)],
+    )
+}
+
+/// 期間選択ボタン列（版 B 専用。「7 日間」を初期選択として固定する）。
+fn period_buttons() -> Node {
+    div(
+        vec![("data-blocks-table-with-toolbar-period", "")],
+        vec![
+            period_button("7 日間", true),
+            period_button("30 日間", false),
+            period_button("90 日間", false),
+        ],
+    )
+}
+
+/// 操作ボタン列（絞り込み → [エクスポート（版 C のみ）] → 新規作成）。
+fn actions(export: bool) -> Node {
+    let mut children = vec![button::button(
+        &ButtonProps {
+            variant: ButtonVariant::Outline,
+            ..ButtonProps::default()
+        },
+        vec![],
+        vec![filter_icon(), text("絞り込み")],
+    )];
+    if export {
+        children.push(button::button(
+            &ButtonProps {
+                variant: ButtonVariant::Outline,
+                ..ButtonProps::default()
+            },
+            vec![],
+            vec![export_icon(), text("エクスポート")],
+        ));
+    }
+    children.push(button::button(
+        &ButtonProps::default(),
+        vec![],
+        vec![plus_icon(), text("新規作成")],
+    ));
+    div(
+        vec![("data-blocks-table-with-toolbar-actions", "")],
+        children,
+    )
+}
+
+/// タブ型の絞り込み（版 D 専用）。実物 `tabs::tabs` を使い「すべて」を
+/// 初期選択として固定する。全パネルを空にし、表は tabs の外へ常時可視で
+/// 置く（モジュール doc「D（タブ型の絞り込み）」節参照）。`search_id` ごと
+/// に呼び出し側の `id` が変わるのと同様、本関数は版 D でのみ呼ばれるため
+/// 固定 id を持たせてよい（demo 内で 1 回しか呼ばれない契約）。
+fn status_tabs() -> Node {
+    let items = vec![
+        TabItem {
+            value: "all",
+            trigger: vec![text("すべて")],
+            content: vec![],
+            disabled: false,
+        },
+        TabItem {
+            value: "paid",
+            trigger: vec![text("支払済み")],
+            content: vec![],
+            disabled: false,
+        },
+        TabItem {
+            value: "unpaid",
+            trigger: vec![text("未払い")],
+            content: vec![],
+            disabled: false,
+        },
+        TabItem {
+            value: "overdue",
+            trigger: vec![text("期限超過")],
+            content: vec![],
+            disabled: false,
+        },
+    ];
+    div(
+        vec![("data-blocks-table-with-toolbar-tabs", "")],
+        vec![tabs::tabs(
+            TabsVariant::Line,
+            Size::Sm,
+            ColorPalette::Accent,
+            &TabsProps {
+                id: "blocks-table-with-toolbar-tabs",
+                selected: "all",
+                orientation: Orientation::Horizontal,
+                activation_mode: ActivationMode::Automatic,
+                loop_focus: true,
+                indicator: false,
+            },
+            items,
+        )],
+    )
+}
+
+/// 見出し帯右側（検索 + [期間選択（版 B）] + 操作ボタン列）。`search_id` は
+/// 呼び出し側（[`variant`]）が版ごとに一意な値を渡し、複数版並記時の
+/// `id` 重複（`tests/blocks_contract.rs`）を避ける。
+fn toolbar(search_id: &'static str, period: bool, export: bool) -> Node {
     let field = FieldProps {
-        id: "blocks-table-with-toolbar-search",
+        id: search_id,
         ids: FieldIds::default(),
         disabled: false,
         invalid: false,
@@ -222,57 +381,42 @@ fn toolbar() -> Node {
         disabled: false,
         invalid: false,
     };
-    div(
-        vec![("data-blocks-table-with-toolbar-toolbar", "")],
+    let mut children = vec![input_group::root(
+        &group_props,
+        vec![("data-blocks-table-with-toolbar-search", "")],
         vec![
-            input_group::root(
+            input_group::addon(
+                InputGroupAlign::InlineStart,
                 &group_props,
-                vec![("data-blocks-table-with-toolbar-search", "")],
-                vec![
-                    input_group::addon(
-                        InputGroupAlign::InlineStart,
-                        &group_props,
-                        vec![],
-                        vec![search_icon()],
-                    ),
-                    input::input(
-                        &InputProps::default(),
-                        &field,
-                        vec![
-                            ("type", "search"),
-                            ("placeholder", "請求書を検索"),
-                            ("aria-label", "請求書を検索"),
-                        ],
-                    ),
-                ],
+                vec![],
+                vec![search_icon()],
             ),
-            div(
-                vec![("data-blocks-table-with-toolbar-actions", "")],
+            input::input(
+                &InputProps::default(),
+                &field,
                 vec![
-                    button::button(
-                        &ButtonProps {
-                            variant: ButtonVariant::Outline,
-                            ..ButtonProps::default()
-                        },
-                        vec![],
-                        vec![filter_icon(), text("絞り込み")],
-                    ),
-                    button::button(
-                        &ButtonProps::default(),
-                        vec![],
-                        vec![plus_icon(), text("新規作成")],
-                    ),
+                    ("type", "search"),
+                    ("placeholder", "請求書を検索"),
+                    ("aria-label", "請求書を検索"),
                 ],
             ),
         ],
+    )];
+    if period {
+        children.push(period_buttons());
+    }
+    children.push(actions(export));
+    div(
+        vec![("data-blocks-table-with-toolbar-toolbar", "")],
+        children,
     )
 }
 
 /// 見出し帯全体（表題群 + ツールバー）。
-fn header() -> Node {
+fn header(search_id: &'static str, period: bool, export: bool) -> Node {
     div(
         vec![("data-blocks-table-with-toolbar-header", "")],
-        vec![title_group(), toolbar()],
+        vec![title_group(), toolbar(search_id, period, export)],
     )
 }
 
@@ -375,12 +519,80 @@ fn footer() -> Node {
     )
 }
 
-/// `table-with-toolbar` の Demo 本体（版 A のみ。呼び出しごとに同一の
-/// `Node` を返す純関数）。
+/// 版 1 つ分（見出し帯 + [タブ行] + テーブル + フッター）。`kind` は
+/// `data-blocks-table-with-toolbar-variant` の値（`"standard"`/`"period"`/
+/// `"stacked"`/`"tabs"`）。`search_id` は版ごとに一意な検索欄 `id`
+/// （[`toolbar`] rustdoc「`id` 重複を避ける」節参照）。
+fn variant(
+    kind: &'static str,
+    search_id: &'static str,
+    period: bool,
+    export: bool,
+    show_tabs: bool,
+) -> Node {
+    let mut children = vec![header(search_id, period, export)];
+    if show_tabs {
+        children.push(status_tabs());
+    }
+    children.push(table_section());
+    children.push(footer());
+    section(
+        vec![("data-blocks-table-with-toolbar-variant", kind)],
+        children,
+    )
+}
+
+/// `table-with-toolbar` の Demo 本体（版 A〜D を並記。呼び出しごとに同一の
+/// `Node` を返す純関数。モジュール doc「4 版の並記」節参照）。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-table-with-toolbar-layout")],
-        vec![header(), table_section(), footer()],
+        vec![
+            p(
+                vec![("class", "blocks-table-with-toolbar-caption")],
+                vec![text("代表構成")],
+            ),
+            variant(
+                "standard",
+                "blocks-table-with-toolbar-search-a",
+                false,
+                false,
+                false,
+            ),
+            p(
+                vec![("class", "blocks-table-with-toolbar-caption")],
+                vec![text("期間選択ボタン付き")],
+            ),
+            variant(
+                "period",
+                "blocks-table-with-toolbar-search-b",
+                true,
+                false,
+                false,
+            ),
+            p(
+                vec![("class", "blocks-table-with-toolbar-caption")],
+                vec![text("常時縦積み + エクスポート")],
+            ),
+            variant(
+                "stacked",
+                "blocks-table-with-toolbar-search-c",
+                false,
+                true,
+                false,
+            ),
+            p(
+                vec![("class", "blocks-table-with-toolbar-caption")],
+                vec![text("タブ型の絞り込み付き")],
+            ),
+            variant(
+                "tabs",
+                "blocks-table-with-toolbar-search-d",
+                false,
+                false,
+                true,
+            ),
+        ],
     )
 }
 // blocks-code:end
@@ -434,6 +646,10 @@ pub const BLOCK: Block = Block {
             label: "Scroll Area",
             path: "/themes/scroll-area/",
         },
+        Part {
+            label: "Tabs",
+            path: "/themes/tabs/",
+        },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
     demo,
@@ -445,15 +661,20 @@ pub const BLOCK: Block = Block {
 /// 同じ Bugbot 教訓の回避）。狭幅判定は `@media` ではなく `@container`
 /// （モジュール doc「`@container` で狭幅レイアウトを切り替える」節参照）。
 const LAYOUT_CSS: &str = "\
-.blocks-table-with-toolbar-layout {\n  container-type: inline-size;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
+.blocks-table-with-toolbar-layout {\n  container-type: inline-size;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
+.blocks-table-with-toolbar-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+[data-blocks-table-with-toolbar-variant] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-table-with-toolbar-header] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  justify-content: space-between;\n}\n\
 [data-blocks-table-with-toolbar-toolbar] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
+[data-blocks-table-with-toolbar-period] {\n  display: flex;\n  gap: var(--fandhe-space-1);\n}\n\
 [data-blocks-table-with-toolbar-actions] {\n  display: flex;\n  gap: var(--fandhe-space-2);\n}\n\
+[data-blocks-table-with-toolbar-tabs] {\n  overflow-x: auto;\n}\n\
 [data-blocks-table-with-toolbar-scroll] {\n  max-width: 100%;\n}\n\
 [data-blocks-table-with-toolbar-table] {\n  min-width: 42rem;\n}\n\
 [data-blocks-table-with-toolbar-table] [data-align=\"end\"] {\n  text-align: end;\n}\n\
 [data-blocks-table-with-toolbar-footer] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  align-items: flex-start;\n  justify-content: space-between;\n  border-top: 1px solid var(--fandhe-color-border);\n  padding-top: var(--fandhe-space-4);\n}\n\
-@container (min-width: 40rem) {\n  [data-blocks-table-with-toolbar-header] {\n    flex-direction: row;\n    align-items: flex-end;\n  }\n  [data-blocks-table-with-toolbar-toolbar] {\n    flex-direction: row;\n    align-items: center;\n  }\n  [data-blocks-table-with-toolbar-footer] {\n    flex-direction: row;\n    align-items: center;\n  }\n}\n";
+@container (min-width: 40rem) {\n  [data-blocks-table-with-toolbar-header] {\n    flex-direction: row;\n    align-items: flex-end;\n  }\n  [data-blocks-table-with-toolbar-toolbar] {\n    flex-direction: row;\n    align-items: center;\n  }\n  [data-blocks-table-with-toolbar-footer] {\n    flex-direction: row;\n    align-items: center;\n  }\n}\n\
+[data-blocks-table-with-toolbar-variant=\"stacked\"] [data-blocks-table-with-toolbar-header], [data-blocks-table-with-toolbar-variant=\"stacked\"] [data-blocks-table-with-toolbar-toolbar] {\n  flex-direction: column;\n  align-items: stretch;\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -461,7 +682,7 @@ mod tests {
     use fandhe_frontend_core::render;
 
     /// Demo が使用部品（heading/text/input-group/field(input)/button/icon/
-    /// table/badge/pagination/scroll-area）の anatomy をすべて実際に
+    /// table/badge/pagination/scroll-area/tabs）の anatomy をすべて実際に
     /// 出力していること。
     #[test]
     fn demo_composes_expected_parts() {
@@ -477,6 +698,7 @@ mod tests {
             "data-scope=\"badge\"",
             "data-scope=\"pagination\"",
             "data-scope=\"scroll-area\"",
+            "data-scope=\"tabs\"",
         ] {
             assert!(html.contains(scope), "demo output should contain {scope}");
         }
@@ -497,15 +719,89 @@ mod tests {
         }
     }
 
-    /// 請求書行はちょうど 6 件（`table::row_header` の出力件数で数える）。
+    /// 請求書行はちょうど 24 件（6 行 × 4 版、`table::row_header` の出力
+    /// 件数で数える）。
     #[test]
     fn demo_row_count() {
         let html = render(&demo());
         assert_eq!(
             html.matches("data-scope=\"table\" data-part=\"row-header\"")
                 .count(),
-            6
+            24
         );
+    }
+
+    /// 4 版すべてが `data-blocks-table-with-toolbar-variant` で 1 回ずつ
+    /// 現れる（版の並記漏れ・重複の検知）。
+    #[test]
+    fn demo_declares_four_variants() {
+        let html = render(&demo());
+        for kind in ["standard", "period", "stacked", "tabs"] {
+            let needle = format!("data-blocks-table-with-toolbar-variant=\"{kind}\"");
+            assert_eq!(
+                html.matches(&needle).count(),
+                1,
+                "expected exactly one {needle} in demo output"
+            );
+        }
+    }
+
+    /// 版 B の期間選択ボタンは先頭のみ `aria-pressed="true"`、残り 2 件は
+    /// `"false"` の静的固定（モジュール doc「B（期間選択ボタン）」節参照）。
+    #[test]
+    fn period_buttons_are_static_pressed_state() {
+        let html = render(&demo());
+        assert_eq!(html.matches(r#"aria-pressed="true""#).count(), 1);
+        assert_eq!(html.matches(r#"aria-pressed="false""#).count(), 2);
+    }
+
+    /// 版 D の `tabs` は 4 trigger を持ち全パネルが空、表は tabs の外に
+    /// 常時可視で 1 つだけ置かれる（モジュール doc「D（タブ型の絞り込み）」
+    /// 節参照。`faq_tabbed_accordion` で指摘された「非選択パネルに内容を
+    /// 閉じ込める」構造を作らないことの回帰検知）。
+    #[test]
+    fn tabs_panels_are_empty_and_table_is_outside() {
+        let html = render(&demo());
+        assert_eq!(
+            html.matches("data-scope=\"tabs\" data-part=\"trigger\"")
+                .count(),
+            4
+        );
+        assert_eq!(
+            html.matches("data-scope=\"table\" data-part=\"root\"")
+                .count(),
+            4
+        );
+        // 各 content パネルが子ノードを持たない（開始タグ直後に閉じタグ）
+        // ことを、`data-scope="tabs" data-part="content"` の開始タグ末尾
+        // `>` の直後が必ず `</div>` であるかどうかで確認する（`scroll_area`
+        // も `data-part="content"` を持つため `data-scope="tabs"` を
+        // 併記して区別する）。
+        let mut search_from = 0usize;
+        let mut panel_count = 0usize;
+        while let Some(rel) = html[search_from..].find("data-scope=\"tabs\" data-part=\"content\"")
+        {
+            let tag_start = search_from + rel;
+            let Some(tag_end_rel) = html[tag_start..].find('>') else {
+                break;
+            };
+            let after_tag = tag_start + tag_end_rel + 1;
+            assert!(
+                html[after_tag..].starts_with("</div>"),
+                "tabs content panel should have no children"
+            );
+            panel_count += 1;
+            search_from = after_tag;
+        }
+        assert_eq!(panel_count, 4);
+    }
+
+    /// 版 C の常時縦積み CSS が `@container` 内の横並び規則を上書きする
+    /// セレクタを持ち、`<` を含まない（REQ-1）。
+    #[test]
+    fn stacked_variant_css_overrides_container_query() {
+        assert!(!LAYOUT_CSS.contains('<'));
+        assert!(LAYOUT_CSS.contains(r#"[data-blocks-table-with-toolbar-variant="stacked"]"#));
     }
 
     /// ページ送りは 1 ページ目選択・前ページ無効の静的表示。
@@ -545,7 +841,7 @@ mod tests {
         assert_ne!(super::BLOCK.demo_class, "blocks-table-with-toolbar-layout");
     }
 
-    /// `parts` 10 件が全て render 出力の `data-scope` に対応する
+    /// `parts` 11 件が全て render 出力の `data-scope` に対応する
     /// （未使用宣言の検知）。
     #[test]
     fn all_declared_parts_are_used() {
@@ -561,6 +857,7 @@ mod tests {
             "badge",
             "pagination",
             "scroll-area",
+            "tabs",
         ];
         assert_eq!(super::BLOCK.parts.len(), expected_scopes.len());
         for scope in expected_scopes {
