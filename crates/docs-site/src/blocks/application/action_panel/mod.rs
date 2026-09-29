@@ -1,6 +1,7 @@
-//! 雛形新設、イシュー #2952 で最初の block（`action-panel-footer-bar`）を
-//! 追加しディレクトリ化して卒業した後、イシュー #2956 で
-//! `action-panel-with-well` を追加した）。手順は
+//! Application / Action Panel カテゴリの block 登録点（イシュー #2734 で
+//! 雛形新設、イシュー #2952 で `action-panel-footer-bar`、イシュー #2955 で
+//! `action-panel-with-input`、イシュー #2956 で `action-panel-with-well` を
+//! 追加しディレクトリ化して卒業した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -10,6 +11,7 @@
 //! ための構造、イシュー #2734）。
 
 mod action_panel_footer_bar;
+mod action_panel_with_input;
 mod action_panel_with_well;
 
 use crate::blocks::Block;
@@ -17,6 +19,7 @@ use crate::blocks::Block;
 pub(super) fn blocks() -> Vec<Block> {
     vec![
         action_panel_footer_bar::BLOCK,
+        action_panel_with_input::BLOCK,
         action_panel_with_well::BLOCK,
     ]
 }
