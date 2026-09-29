@@ -9,10 +9,11 @@
 //! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
 //! ための構造、イシュー #2734）。
 
+mod card_heading_basic;
 mod card_heading_toolbar;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![card_heading_toolbar::BLOCK]
+    vec![card_heading_basic::BLOCK, card_heading_toolbar::BLOCK]
 }
