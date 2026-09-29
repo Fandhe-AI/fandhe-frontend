@@ -2324,6 +2324,14 @@ title = "dashboard-01"
 source = "site/blocks/dashboard-01.md"
 path = "/blocks/dashboard-01/"
 
+[[section.group]]
+title = "Media Object"
+
+[[section.group.page]]
+title = "media-object"
+source = "site/blocks/media-object.md"
+path = "/blocks/media-object/"
+
 # --- 以下は block 追加時の挿入先アンカー（イシュー #2734、#2735 でカテゴリ
 # 見出し導入に伴い運用を更新）。カテゴリ単位で行ブロックを分ける点は不変
 # だが、新規 block は該当カテゴリの既存 `[[section.group]]` があればその
@@ -2385,6 +2393,7 @@ path = "/blocks/dashboard-01/"
 # Application / Dashboard
 # Application / AI Chat
 # Application / Help Center
+# Application / Media Object
 # Ecommerce / Product Overview
 # Ecommerce / Product List
 # Ecommerce / Quickview
