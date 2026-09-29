@@ -225,8 +225,8 @@ fn caption(label: &'static str) -> Node {
 }
 
 /// 1 レイアウト分のナビバー本体を組み立てる。`narrow` は Demo 枠を
-/// `< 48rem` に固定するフラグ（[`super::super::navbar::
-/// navbar_with_search`] と同型）。
+/// `max-inline-size: 22rem`（`< 24rem` の狭幅判定を確実に満たす幅）に
+/// 固定するフラグ（[`super::super::navbar::navbar_with_search`] と同型）。
 fn bar(variant: &'static str, narrow: bool) -> Node {
     let actions = div(
         vec![("data-blocks-auth-dropdown-panel-actions", "")],
@@ -258,7 +258,7 @@ pub fn demo() -> Node {
         vec![
             caption("広幅（トリガー右揃えでパネルを絶対配置）"),
             bar("wide", false),
-            caption("狭幅（< 48rem、パネルをトリガー直下へ全幅表示）"),
+            caption("狭幅（< 24rem、パネルをトリガー直下へ全幅表示）"),
             bar("narrow", true),
         ],
     )
@@ -271,7 +271,7 @@ pub fn demo() -> Node {
   ありません。
 - `_/blocks-intake/` は本リポジトリの worktree に含まれないため対応表 ID
   のみを記載しており、実物ファイルへの参照は行っていません。
-- 実機ブラウザでの `48rem` 境界・ライト/ダーク両テーマの目視確認は、
+- 実機ブラウザでの `24rem` 境界・ライト/ダーク両テーマの目視確認は、
   サンドボックス制約のため未実施です。
 
 関連情報: [Popover](../themes/popover.md) / [Menu](../themes/menu.md) /

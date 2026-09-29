@@ -32,8 +32,12 @@
 //! "narrow"` で Demo 枠を `max-inline-size: 22rem` に固定した
 //! インスタンス）を caption 付きで縦に並記する（
 //! [`super::super::navbar::navbar_with_search`] と同型）。広幅では
-//! パネルをトリガー右揃えで絶対配置し、`< 48rem` の狭幅ではパネルを
-//! ヘッダー全幅に広げてトリガー直下へ配置する（イシュー本文の要件）。
+//! パネルをトリガー右揃えで絶対配置し、狭幅ではパネルをヘッダー全幅に
+//! 広げてトリガー直下へ配置する（イシュー本文の要件）。狭幅判定の
+//! 閾値は `< 48rem` ではなく `< 24rem`（`@container` 節参照）。docs
+//! サイトの `.docs-content` は最大幅 46rem のため、`48rem` のままでは
+//! `wide` インスタンスも常に狭幅条件を満たしてしまい広幅レイアウトを
+//! 実演できない（PR #3415 レビュー指摘）。
 //!
 //! # id と ARIA の一意性
 //!
@@ -258,8 +262,8 @@ fn caption(label: &'static str) -> Node {
 }
 
 /// 1 レイアウト分のナビバー本体を組み立てる。`narrow` は Demo 枠を
-/// `< 48rem` に固定するフラグ（[`super::super::navbar::
-/// navbar_with_search`] と同型）。
+/// `max-inline-size: 22rem`（`< 24rem` の狭幅判定を確実に満たす幅）に
+/// 固定するフラグ（[`super::super::navbar::navbar_with_search`] と同型）。
 fn bar(variant: &'static str, narrow: bool) -> Node {
     let actions = div(
         vec![("data-blocks-auth-dropdown-panel-actions", "")],
@@ -291,7 +295,7 @@ pub fn demo() -> Node {
         vec![
             caption("広幅（トリガー右揃えでパネルを絶対配置）"),
             bar("wide", false),
-            caption("狭幅（< 48rem、パネルをトリガー直下へ全幅表示）"),
+            caption("狭幅（< 24rem、パネルをトリガー直下へ全幅表示）"),
             bar("narrow", true),
         ],
     )
@@ -369,15 +373,26 @@ pub const BLOCK: Block = Block {
 /// する。`right: 0; left: auto;` へ上書きしトリガー右揃えにする。`content`
 /// は `inline-size: 22rem` で固定幅にする。
 ///
-/// # 狭幅時（`< 48rem`）のパネル配置
+/// # 狭幅時（`< 24rem`）のパネル配置
 ///
-/// `@container blocks-auth-dropdown-panel (max-width: 47.99rem)` で
+/// `@container blocks-auth-dropdown-panel (max-width: 23.99rem)` で
 /// popover の `root` を `position: static` に切り替え、包含ブロックを
 /// 共通祖先の `header`（[data-blocks-auth-dropdown-panel-root] へ常時
 /// `position: relative` を宣言済み）へ移す。`positioner` を
 /// `inset-inline: 0`（左右 0）にしてヘッダー幅いっぱいに広げ、`content`
 /// の固定幅は `inline-size: auto` で解除する（イシュー本文の「狭幅では
 /// パネルを幅いっぱいに広げトリガー直下に置く」要件）。
+///
+/// 閾値はイシュー本文が挙げる `48rem` ではなく `24rem` にする。docs
+/// サイトの `.docs-content` は最大幅 46rem のため、`48rem` のままでは
+/// `max-inline-size` を持たない `wide` インスタンスも常にこの
+/// `@container` 条件を満たしてしまい、広幅レイアウト（絶対配置・
+/// `content` 固定幅 22rem）を Demo 上で確認できなくなる（PR #3415
+/// レビュー指摘、コメント URL:
+/// <https://github.com/Fandhe-AI/fandhe-frontend/pull/3415#discussion_r4134148535>）。
+/// `narrow` インスタンスは `max-inline-size: 22rem` に固定済みのため、
+/// 22rem 超 46rem 以下のどの閾値でも両インスタンスを意図どおり
+/// 分離できる。
 ///
 /// # `h2` の見た目リセット
 ///
@@ -400,7 +415,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-auth-dropdown-panel-field] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 [data-blocks-auth-dropdown-panel-submit] {\n  width: 100%;\n}\n\
 [data-blocks-auth-dropdown-panel-links] {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-2);\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n}\n\
-@container blocks-auth-dropdown-panel (max-width: 47.99rem) {\n  \
+@container blocks-auth-dropdown-panel (max-width: 23.99rem) {\n  \
 [data-scope=\"popover\"][data-part=\"root\"][data-blocks-auth-dropdown-panel-popover] {\n    position: static;\n  }\n  \
 [data-scope=\"popover\"][data-part=\"positioner\"][data-blocks-auth-dropdown-panel-positioner] {\n    left: 0;\n    right: 0;\n    inset-inline: 0;\n  }\n  \
 [data-scope=\"popover\"][data-part=\"content\"][data-blocks-auth-dropdown-panel-panel] {\n    inline-size: auto;\n  }\n\
@@ -556,7 +571,7 @@ mod tests {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
         assert!(LAYOUT_CSS.contains("min-block-size: 26rem;"));
-        assert!(LAYOUT_CSS.contains("@container blocks-auth-dropdown-panel (max-width: 47.99rem)"));
+        assert!(LAYOUT_CSS.contains("@container blocks-auth-dropdown-panel (max-width: 23.99rem)"));
         assert!(LAYOUT_CSS.contains("opacity: 1;"));
         assert!(LAYOUT_CSS.contains("position: static;"));
     }
