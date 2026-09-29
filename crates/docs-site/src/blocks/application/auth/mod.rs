@@ -6,6 +6,7 @@
 //! ための構造、イシュー #2734）。
 
 mod auth_oauth_consent;
+mod auth_split_photo_testimonial;
 mod login_01;
 mod login_04;
 mod signup_01;
@@ -15,6 +16,7 @@ use crate::blocks::Block;
 pub(super) fn blocks() -> Vec<Block> {
     vec![
         auth_oauth_consent::BLOCK,
+        auth_split_photo_testimonial::BLOCK,
         login_01::BLOCK,
         login_04::BLOCK,
         signup_01::BLOCK,
