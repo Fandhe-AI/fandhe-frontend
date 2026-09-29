@@ -1,8 +1,8 @@
 //! Application / Action Panel カテゴリの block 登録点（イシュー #2734 で
-//! 雛形新設、イシュー #2952 で最初の block（`action-panel-footer-bar`）を、
-//! イシュー #2953 で 2 件目（`action-panel-inline`）を追加しディレクトリ化
-//! して卒業した）。手順は `docs/design/docs-site-blocks-section.md` §18
-//! 参照。
+//! 雛形新設、イシュー #2952 で `action-panel-footer-bar`、イシュー #2953 で
+//! `action-panel-inline`、イシュー #2955 で `action-panel-with-input` を
+//! 追加しディレクトリ化して卒業した）。手順は
+//! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
 //! 新規 block を追加する際は本ファイルへ `mod` 宣言と `blocks()` への追記を
@@ -12,9 +12,14 @@
 
 mod action_panel_footer_bar;
 mod action_panel_inline;
+mod action_panel_with_input;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![action_panel_footer_bar::BLOCK, action_panel_inline::BLOCK]
+    vec![
+        action_panel_footer_bar::BLOCK,
+        action_panel_inline::BLOCK,
+        action_panel_with_input::BLOCK,
+    ]
 }
