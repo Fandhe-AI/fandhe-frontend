@@ -40,14 +40,19 @@
 //! のみ状態列に `badge`（`Solid`）を置き、操作列のボタンは
 //! `disabled: true` にする（他行は `Outline` variant の通常ボタン）。
 //! `data-selected` は使わない（静的表示のため、行状態の永続化は行わない）。
+//! 月額・上限列は「狭幅では副次列を隠す」節の対象外（下記参照）。
+//! 表題行の右端ボタンは持たない（プラン選択は行ごとの「選択」ボタンが
+//! 担うため、A〜I の「追加」ボタンに相当する操作がない）。
 //!
-//! # 狭幅では副次列を隠す（R1326、全インスタンス共通）
+//! # 狭幅では副次列を隠す（R1326、A〜I 共通。J は対象外）
 //!
 //! 役職・メール列（`column_header`/`cell`）へ
 //! `data-blocks-table-with-heading-secondary` を付与し、[`LAYOUT_CSS`] が
 //! `40rem` 未満で `display: none` にする（既存 block と同じ `40rem`
 //! リテラル。テーマの breakpoint トークンは `@media` 条件式の中では解決
-//! できない）。
+//! できない）。J（[`plans_instance`]）の月額・上限列は料金・利用上限と
+//! いう主要情報であり隠すと「選択」ボタンだけが残ってしまうため、この
+//! 副次列扱いにしない（狭幅では折り返し表示のまま維持する）。
 //!
 //! # 縦罫線は block 固有 CSS で表現する
 //!
@@ -58,7 +63,9 @@
 //! （`data-blocks-table-with-heading-rule`）+ `border-inline-start` で
 //! 表現し、`table` 部品自体への機能追加は行わない
 //! （`.claude/rules/out-of-scope-tracking.md` 対応、モジュール doc
-//! 「スコープ外」節参照）。
+//! 「スコープ外」節参照）。列間の区切りを表すため先頭列（名前）には
+//! 付けず、2 列目以降にのみ付与する（先頭列に付けると存在しない左端の
+//! 区切り線が描画されてしまう）。
 //!
 //! # `<form>` を持たない・データ取得/送信を行わない
 //!
@@ -244,8 +251,10 @@ const VARIANTS: &[Variant] = &[
 ];
 
 /// 列見出し（副次列は `data-blocks-table-with-heading-secondary` を持つ）。
+/// 縦罫線（`rule`）は列間の区切りを表すため先頭列には付けない
+/// （先頭列に付けると存在しない左端の区切り線が描画されてしまう）。
 fn column_headers(caps: bool, rules: bool) -> Node {
-    let attrs_for = |secondary: bool| -> Vec<(&'static str, &'static str)> {
+    let attrs_for = |secondary: bool, rule: bool| -> Vec<(&'static str, &'static str)> {
         let mut a = Vec::new();
         if secondary {
             a.push(("data-blocks-table-with-heading-secondary", ""));
@@ -253,7 +262,7 @@ fn column_headers(caps: bool, rules: bool) -> Node {
         if caps {
             a.push(("data-blocks-table-with-heading-caps", ""));
         }
-        if rules {
+        if rule {
             a.push(("data-blocks-table-with-heading-rule", ""));
         }
         a
@@ -261,12 +270,12 @@ fn column_headers(caps: bool, rules: bool) -> Node {
     table::row(
         vec![],
         vec![
-            table::column_header(attrs_for(false), vec![text("名前")]),
-            table::column_header(attrs_for(true), vec![text("役職")]),
-            table::column_header(attrs_for(true), vec![text("メール")]),
-            table::column_header(attrs_for(false), vec![text("状態")]),
+            table::column_header(attrs_for(false, false), vec![text("名前")]),
+            table::column_header(attrs_for(true, rules), vec![text("役職")]),
+            table::column_header(attrs_for(true, rules), vec![text("メール")]),
+            table::column_header(attrs_for(false, rules), vec![text("状態")]),
             table::column_header(
-                attrs_for(false),
+                attrs_for(false, rules),
                 vec![span(
                     vec![("data-blocks-table-with-heading-sr-only", "")],
                     vec![text("編集")],
@@ -277,6 +286,8 @@ fn column_headers(caps: bool, rules: bool) -> Node {
 }
 
 /// 本文 1 行（`row_index` で氏名・メール・状態を周回させる）。
+/// 縦罫線（`rule_attr`）は列間の区切りを表すため先頭列（名前）には付けない
+/// （`column_headers` と同じ理由）。
 fn body_row(row_index: usize, rules: bool) -> Node {
     let name_index = row_index % dummy_assets::PERSON_NAMES.len();
     let job_index = row_index % dummy_assets::JOB_TITLES.len();
@@ -293,10 +304,7 @@ fn body_row(row_index: usize, rules: bool) -> Node {
     table::row(
         vec![],
         vec![
-            table::cell(
-                rule_attr.clone(),
-                vec![text(dummy_assets::PERSON_NAMES[name_index])],
-            ),
+            table::cell(vec![], vec![text(dummy_assets::PERSON_NAMES[name_index])]),
             table::cell(role_attr, vec![text(dummy_assets::JOB_TITLES[job_index])]),
             table::cell(email_attr, vec![text(MEMBER_EMAILS[name_index])]),
             table::cell(
@@ -402,7 +410,10 @@ fn instance(v: &Variant) -> Node {
             ],
         )
     } else {
-        div(vec![], vec![heading_row, scroll])
+        div(
+            vec![("data-blocks-table-with-heading-body", "")],
+            vec![heading_row, scroll],
+        )
     };
 
     let mut frame_attrs: Vec<(&str, &str)> = vec![("data-blocks-table-with-heading-frame", "")];
@@ -433,35 +444,28 @@ fn plans_instance() -> Node {
     ];
     let heading_row = div(
         vec![("data-blocks-table-with-heading-header", "")],
-        vec![
-            div(
-                vec![],
-                vec![
-                    heading(
-                        HeadingLevel::H3,
-                        &HeadingProps {
-                            size: HeadingSize::Lg,
-                            ..HeadingProps::default()
-                        },
-                        vec![],
-                        vec![text("プラン一覧")],
-                    ),
-                    styled_text::text(
-                        &fandhe_frontend_pre_styled_ui::text::TextProps {
-                            variant: TextVariant::Muted,
-                            ..Default::default()
-                        },
-                        vec![],
-                        vec![text("チームの利用状況に合わせてプランを選べます。")],
-                    ),
-                ],
-            ),
-            button::button(
-                &ButtonProps::default(),
-                vec![],
-                vec![text("メンバーを追加")],
-            ),
-        ],
+        vec![div(
+            vec![],
+            vec![
+                heading(
+                    HeadingLevel::H3,
+                    &HeadingProps {
+                        size: HeadingSize::Lg,
+                        ..HeadingProps::default()
+                    },
+                    vec![],
+                    vec![text("プラン一覧")],
+                ),
+                styled_text::text(
+                    &fandhe_frontend_pre_styled_ui::text::TextProps {
+                        variant: TextVariant::Muted,
+                        ..Default::default()
+                    },
+                    vec![],
+                    vec![text("チームの利用状況に合わせてプランを選べます。")],
+                ),
+            ],
+        )],
     );
     let rows: Vec<Node> = PLANS
         .iter()
@@ -486,14 +490,8 @@ fn plans_instance() -> Node {
                 vec![],
                 vec![
                     table::cell(vec![], vec![text(*name)]),
-                    table::cell(
-                        vec![("data-blocks-table-with-heading-secondary", "")],
-                        vec![text(*price)],
-                    ),
-                    table::cell(
-                        vec![("data-blocks-table-with-heading-secondary", "")],
-                        vec![text(*limit)],
-                    ),
+                    table::cell(vec![], vec![text(*price)]),
+                    table::cell(vec![], vec![text(*limit)]),
                     status_cell,
                     table::cell(
                         vec![],
@@ -525,14 +523,8 @@ fn plans_instance() -> Node {
                     vec![],
                     vec![
                         table::column_header(vec![], vec![text("プラン")]),
-                        table::column_header(
-                            vec![("data-blocks-table-with-heading-secondary", "")],
-                            vec![text("月額")],
-                        ),
-                        table::column_header(
-                            vec![("data-blocks-table-with-heading-secondary", "")],
-                            vec![text("上限")],
-                        ),
+                        table::column_header(vec![], vec![text("月額")]),
+                        table::column_header(vec![], vec![text("上限")]),
                         table::column_header(vec![], vec![text("状態")]),
                         table::column_header(
                             vec![],
@@ -565,7 +557,10 @@ fn plans_instance() -> Node {
             ),
             div(
                 vec![("data-blocks-table-with-heading-frame", "")],
-                vec![div(vec![], vec![heading_row, scroll])],
+                vec![div(
+                    vec![("data-blocks-table-with-heading-body", "")],
+                    vec![heading_row, scroll],
+                )],
             ),
         ],
     )
@@ -634,6 +629,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-table-with-heading-instance] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-table-with-heading-section-title] {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
 [data-blocks-table-with-heading-frame] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  padding-inline: var(--fandhe-space-4);\n}\n\
+[data-blocks-table-with-heading-body] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-table-with-heading-full-bleed] {\n  padding-inline: 0;\n}\n\
 [data-blocks-table-with-heading-content-max] {\n  max-width: 40rem;\n  margin-inline: auto;\n}\n\
 [data-blocks-table-with-heading-header] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
