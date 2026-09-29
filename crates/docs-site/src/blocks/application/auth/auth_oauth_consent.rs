@@ -82,8 +82,8 @@ use fandhe_frontend_pre_styled_ui::Size;
 
 /// 補足リンクの遷移先（外部の実在 URL、`href="#"` は使わない、
 /// `page_heading_avatar.rs::REPO` と同型の判断。アクセス許可の仕組み自体を
-/// 説明する実在ページは持たないため、遷移先がわかる文言「GitHub で見る」を
-/// 可視テキストにする）。
+/// 説明する実在ページは持たないため、遷移先はリポジトリトップページとし、
+/// 可視テキストもその実態に合わせる（案内文と遷移先の不一致を避ける）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 /// 連携元/連携先アプリのアイコン（円形アバター）。`role_hint` は
@@ -232,7 +232,7 @@ pub fn demo() -> Node {
                     el(
                         "span",
                         vec![("class", "blocks-auth-oauth-consent-email")],
-                        vec![text("yamada@example.com")],
+                        vec![text("haruto.fujimaki@example.com")],
                     ),
                 ],
             ),
@@ -302,7 +302,7 @@ pub fn demo() -> Node {
                     ..LinkProps::default()
                 },
                 vec![],
-                vec![text("アクセス許可の仕組みを GitHub で見る")],
+                vec![text("fandhe-frontend のリポジトリを見る")],
             ),
         ],
     );
@@ -374,11 +374,22 @@ pub const BLOCK: Block = Block {
 /// 同型の判断）。このためセレクタを
 /// `[data-scope="card"][data-part="footer"][data-blocks-auth-oauth-consent-actions]`
 /// （詳細度 (0,3,0)）へ結合し、Card recipe を確実に上書きする。
+///
+/// # `indicator` の `margin-inline-end` を打ち消す
+///
+/// `list::indicator` は Plain variant 向けに既定で
+/// `margin-inline-end: var(--fandhe-space-2)` を持つ（`crate::list` recipe。
+/// この余白は item 側で `gap` を足さない前提で設計されている）。本 block は
+/// item セレクタへ独自に `gap: var(--fandhe-space-3)` を指定しているため、
+/// 両方が効くとアイコン↔テキスト間隔が `space-2 + space-3` に加算されて
+/// 意図（`space-3` 一本）より広くなる。`indicator` の `margin-inline-end` を
+/// この block のスコープ内でのみ `0` に打ち消し、`gap` 側の値だけを効かせる。
 const LAYOUT_CSS: &str = "\
 .blocks-auth-oauth-consent-layout {\n  display: flex;\n  flex-direction: column;\n  align-items: stretch;\n  gap: var(--fandhe-space-4);\n  max-width: 28rem;\n  margin-inline: auto;\n}\n\
 .blocks-auth-oauth-consent-apps {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-auth-oauth-consent-scopes] {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n}\n\
 [data-blocks-auth-oauth-consent-scopes] [data-scope=\"list\"][data-part=\"item\"] {\n  display: flex;\n  gap: var(--fandhe-space-3);\n  padding-block: var(--fandhe-space-3);\n}\n\
+[data-blocks-auth-oauth-consent-scopes] [data-scope=\"list\"][data-part=\"indicator\"] {\n  margin-inline-end: 0;\n}\n\
 [data-blocks-auth-oauth-consent-scopes] [data-scope=\"list\"][data-part=\"item\"] + [data-scope=\"list\"][data-part=\"item\"] {\n  border-top: 1px solid var(--fandhe-color-border);\n}\n\
 .blocks-auth-oauth-consent-scope-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
 .blocks-auth-oauth-consent-scope-desc {\n  color: var(--fandhe-color-fg-muted);\n}\n\

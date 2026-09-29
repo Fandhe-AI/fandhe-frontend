@@ -44,8 +44,8 @@ use fandhe_frontend_pre_styled_ui::Size;
 
 /// 補足リンクの遷移先（外部の実在 URL、`href="#"` は使わない、
 /// `page_heading_avatar.rs::REPO` と同型の判断。アクセス許可の仕組み自体を
-/// 説明する実在ページは持たないため、遷移先がわかる文言「GitHub で見る」を
-/// 可視テキストにする）。
+/// 説明する実在ページは持たないため、遷移先はリポジトリトップページとし、
+/// 可視テキストもその実態に合わせる（案内文と遷移先の不一致を避ける）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 /// 連携元/連携先アプリのアイコン（円形アバター）。`role_hint` は
@@ -194,7 +194,7 @@ pub fn demo() -> Node {
                     el(
                         "span",
                         vec![("class", "blocks-auth-oauth-consent-email")],
-                        vec![text("yamada@example.com")],
+                        vec![text("haruto.fujimaki@example.com")],
                     ),
                 ],
             ),
@@ -264,7 +264,7 @@ pub fn demo() -> Node {
                     ..LinkProps::default()
                 },
                 vec![],
-                vec![text("アクセス許可の仕組みを GitHub で見る")],
+                vec![text("fandhe-frontend のリポジトリを見る")],
             ),
         ],
     );
