@@ -78,7 +78,18 @@
 //! 含まない content 領域のみの高さとなり、実際の `th` が同じ
 //! `height: 3rem` のツールバーより高くなって、ツールバー下端からソート
 //! ラベルがはみ出して透けて見える（Cursor Bugbot 指摘、イシュー #2945
-//! PR #3393 レビュー）。狭幅（`@container ... (max-width: 40rem)`）では
+//! PR #3393 レビュー）。`.blocks-table-sortable-bulk-table-wrap` に
+//! `overflow-x: auto` を、内側の `table` に `min-width: 32rem` を付与する:
+//! 残る氏名・ステータス・担当の 3 列（`select_row` の固定列幅と合わせて
+//! 実測で 32rem 程度）には最小限の可読幅があり、`min-width` なしでは
+//! `40rem` 以下でセルが可読限界を超えて圧縮され表がラップ幅を超えて
+//! はみ出していた（絶対配置のツールバーはラップ幅に収まるため見出し行を
+//! 覆う契約が崩れる。Codex 指摘、イシュー #2945 PR #3393）。`overflow-x:
+//! auto` で表本体を横スクロール可能にすると、ツールバーはラップの
+//! containing block 上に絶対配置されたまま横スクロールに追従するため
+//! （absolute 配置の子要素はスクロールコンテナの overflow 領域に含まれる）、
+//! 表とツールバーの幅・スクロール位置が常に一致し続ける。狭幅
+//! （`@container ... (max-width: 40rem)`）では
 //! 副次列（役割・最終更新）を隠し、ツールバーは全幅帯
 //! （`inset-inline-start: 0`）として残す。この幅切替でもツールバーが
 //! 全行選択チェックボックスを覆うため、同じ `@container` 規則内で
@@ -668,7 +679,8 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-table-sortable-bulk-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-table-sortable-bulk-panel {\n  display: flex;\n  flex-direction: column;\n}\n\
-.blocks-table-sortable-bulk-table-wrap {\n  position: relative;\n  container-type: inline-size;\n  container-name: blocks-table-sortable-bulk;\n}\n\
+.blocks-table-sortable-bulk-table-wrap {\n  position: relative;\n  container-type: inline-size;\n  container-name: blocks-table-sortable-bulk;\n  overflow-x: auto;\n}\n\
+.blocks-table-sortable-bulk-table-wrap table {\n  min-width: 32rem;\n}\n\
 .blocks-table-sortable-bulk-table-wrap thead th {\n  box-sizing: border-box;\n  height: 3rem;\n}\n\
 .blocks-table-sortable-bulk-table-wrap [data-blocks-table-sortable-bulk-select-cell] {\n  box-sizing: border-box;\n  padding-inline: 0;\n  width: var(--fandhe-data-table-select-width, 2.5rem);\n  text-align: center;\n}\n\
 [data-blocks-table-sortable-bulk-toolbar] {\n  position: absolute;\n  top: 0;\n  inset-inline-start: var(--fandhe-data-table-select-width, 2.5rem);\n  inset-inline-end: 0;\n  height: 3rem;\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  padding-inline: var(--fandhe-space-3);\n  background: var(--fandhe-color-bg);\n  z-index: 1;\n}\n\
