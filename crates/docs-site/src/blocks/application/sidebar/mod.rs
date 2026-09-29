@@ -7,8 +7,13 @@
 
 mod sidebar_03;
 mod sidebar_07;
+mod sidebar_rail_panel;
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![sidebar_07::BLOCK, sidebar_03::BLOCK]
+    vec![
+        sidebar_07::BLOCK,
+        sidebar_03::BLOCK,
+        sidebar_rail_panel::BLOCK,
+    ]
 }
