@@ -1011,6 +1011,7 @@ pub enum LayoutCss {
 | profile-detail-skills | #2938（親 #2892） | `application/profile/profile_detail_skills.rs` |
 | profile-card-centered | #2936（親 #2892） | `application/profile/profile_card_centered.rs` |
 | sidebar-rail-panel | #2941 | `application/sidebar/sidebar_rail_panel.rs` |
+| list-container | #3227 | `application/list/list_container.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
 個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の全件であり、

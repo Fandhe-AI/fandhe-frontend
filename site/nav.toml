@@ -2102,6 +2102,11 @@ path = "/blocks/card-heading-toolbar/"
 title = "List"
 
 [[section.group.page]]
+title = "list-container"
+source = "site/blocks/list-container.md"
+path = "/blocks/list-container/"
+
+[[section.group.page]]
 title = "list-narrow-activity"
 source = "site/blocks/list-narrow-activity.md"
 path = "/blocks/list-narrow-activity/"
