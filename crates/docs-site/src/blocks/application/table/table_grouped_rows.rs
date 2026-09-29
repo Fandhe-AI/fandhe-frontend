@@ -430,7 +430,7 @@ pub const BLOCK: Block = Block {
 /// （Bugbot 指摘是正、イシュー #2942）。
 const LAYOUT_CSS: &str = "\
 .blocks-table-grouped-rows-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n  container-type: inline-size;\n  container-name: blocks-table-grouped-rows;\n}\n\
-.blocks-table-grouped-rows-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
+.blocks-table-grouped-rows-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  min-width: 0;\n}\n\
 [data-blocks-table-grouped-rows-group] > [data-scope=\"table\"][data-part=\"row-header\"] {\n  background: var(--fandhe-color-bg-muted);\n  font-weight: var(--fandhe-font-font-weight-semibold);\n  text-align: start;\n}\n\
 [data-blocks-table-grouped-rows-hidden-head] > [data-part=\"header\"] [data-part=\"column-header\"] {\n  padding: 0;\n  border: 0;\n  height: 0;\n  min-height: 0;\n  line-height: 0;\n  font-size: 0;\n  background: transparent;\n}\n\
 @container blocks-table-grouped-rows (max-width: 36rem) {\n  \
@@ -559,6 +559,20 @@ mod tests {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
         assert!(LAYOUT_CSS.contains("@container blocks-table-grouped-rows"));
+    }
+
+    /// Bugbot 指摘是正（イシュー #2942）: `.blocks-table-grouped-rows-section`
+    /// は列方向 flex コンテナ（`.blocks-table-grouped-rows-stack`）の
+    /// flex item であり、`min-width: 0` が無いと flex item の既定最小幅
+    /// （内容の max-content 幅）に縛られてテーブルが縮小できず、狭幅時の
+    /// `overflow-x: auto` によるスクロールポートが形成されない
+    /// （モジュール doc「グループ見出しとデータ行を `headers` 属性で明示的に
+    /// 関連付ける」節の隣、狭幅スクロール節参照）。
+    #[test]
+    fn section_allows_table_to_shrink_below_content_width() {
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-table-grouped-rows-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  min-width: 0;\n}"
+        ));
     }
 
     #[test]
