@@ -597,10 +597,18 @@ pub const BLOCK: Block = Block {
 /// 従い、並列進行する他 block との `mod.rs::LAYOUT_CSS` 追記衝突を避け
 /// 本モジュール側の定数へ分離する）。生の色・時間値は書かず `--fandhe-*`
 /// トークンのみを使う。
+///
+/// provider の `min-width` は `sidebar::root` の既定幅（16rem）+ inset
+/// 側の可視域を確保できる値にする（codex 指摘 threadId
+/// PRRT_kwDOTarxgc6nB4pc: 20rem のままだと inset が約 4rem まで縮み、
+/// 見出し・プレースホルダーが実質非表示になる）。狭い画面は `.blocks-demo`
+/// の `overflow-x: auto`（本 CSS 冒頭）で横スクロールに委ね、
+/// `sidebar_03`/`sidebar_07` と同様「専用の狭画面レイアウトは定義しない」
+/// 方針を踏襲する。
 const LAYOUT_CSS: &str = "\
 .blocks-demo.blocks-sidebar-grouped-nav {\n  padding: 0;\n  overflow-x: auto;\n}\n\
 [data-blocks-sidebar-grouped-nav-stack] {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: 1rem;\n}\n\
-[data-blocks-sidebar-grouped-nav-instance][data-scope=\"sidebar\"][data-part=\"provider\"] {\n  min-height: 36rem;\n  height: auto;\n  min-width: 20rem;\n}\n\
+[data-blocks-sidebar-grouped-nav-instance][data-scope=\"sidebar\"][data-part=\"provider\"] {\n  min-height: 36rem;\n  height: auto;\n  min-width: 40rem;\n}\n\
 [data-blocks-sidebar-grouped-nav-brand-icon] {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  width: 2rem;\n  height: 2rem;\n  flex-shrink: 0;\n  border-radius: var(--fandhe-radius-md);\n  background: var(--fandhe-color-fg);\n  color: var(--fandhe-color-bg);\n}\n\
 [data-blocks-sidebar-grouped-nav-search-header] {\n  padding: 0.75rem;\n}\n\
 [data-blocks-sidebar-grouped-nav-initial] {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  width: 1.25rem;\n  height: 1.25rem;\n  flex-shrink: 0;\n  border-radius: var(--fandhe-radius-sm);\n  background: var(--fandhe-color-bg-muted);\n  font-size: var(--fandhe-font-font-size-xs, 0.75rem);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n}\n\
