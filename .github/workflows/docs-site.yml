@@ -469,6 +469,7 @@ jobs:
           # Application / Empty State
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-invite-team/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-card-header/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-starter-grid/index.html"
           # Application / Notification
           # Application / Dialog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/game-ui-modal/index.html"
