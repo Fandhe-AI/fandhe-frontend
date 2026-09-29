@@ -405,6 +405,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/sidebar-rail-panel/index.html"
           # Application / Navbar
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/navbar-app-links/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/navbar-docs-site/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/navbar-two-row/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/navbar-with-search/index.html"
           # Application / Page Heading
@@ -412,6 +413,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-avatar/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-cover/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-meta/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-welcome-stats/index.html"
           # Application / Card Heading
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-heading-toolbar/index.html"
           # Application / List
@@ -420,6 +422,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/list-sticky-groups/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/list-title-meta/index.html"
           # Application / Table
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/table-with-heading/index.html"
           # Application / Grid List
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/grid-list-contact-cards/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/grid-list-compact-tiles/index.html"
@@ -460,6 +463,8 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-form-footer/index.html"
           # Application / Profile
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/profile-detail-datalist/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/profile-detail-skills/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/profile-header-follow/index.html"
           # Application / Chart
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/chart-bar-list/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/chart-metric-area/index.html"
