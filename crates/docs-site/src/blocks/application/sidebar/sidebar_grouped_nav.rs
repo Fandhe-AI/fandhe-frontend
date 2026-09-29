@@ -194,6 +194,12 @@ fn nav_item(
 
 /// メインナビ群（`label` が `Some` なら見出し付きグループとして組む。
 /// インスタンス A は見出しなし、インスタンス B は `Workspace` 見出し付き）。
+///
+/// アイコンの `path` はすべて `z` で閉じた矩形の組み合わせにする
+/// （Cursor Bugbot 指摘 threadId PRRT_kwDOTarxgc6m-xIf: `geo_icon` の
+/// `icon()` は `<svg fill="currentColor">` のみで `stroke` を持たない
+/// ため、`M4 6h16` のような閉じていない直線パスは面積 0 で描画されない。
+/// 「開いた直線の集合」ではなく必ず閉じた矩形の集合として設計する）。
 fn main_group(suffix: &str, label: Option<&'static str>, active_label: &'static str) -> Node {
     let items = vec![
         nav_item(
@@ -209,19 +215,19 @@ fn main_group(suffix: &str, label: Option<&'static str>, active_label: &'static 
             None,
         ),
         nav_item(
-            "M4 6h16M4 12h16M4 18h10",
+            "M4 5h16v3H4zM4 11h16v3H4zM4 17h10v3H4z",
             "Inbox",
             active_label == "Inbox",
             Some("12"),
         ),
         nav_item(
-            "M7 3v4M17 3v4M4 9h16M5 6h14v14H5z",
+            "M5 6h14v14H5zM4 8h16v2H4zM6 3h2v4H6zM16 3h2v4H16z",
             "Calendar",
             active_label == "Calendar",
             None,
         ),
         nav_item(
-            "M4 19h16M6 19V9l6-4 6 4v10",
+            "M4 15h4v5H4zM10 10h4v10H10zM16 5h4v15H16z",
             "Reports",
             active_label == "Reports",
             None,
@@ -358,7 +364,11 @@ fn user_menu_footer(suffix: &str) -> Node {
 /// footer のプロフィール行（メニューではなく `menu_button` 1 個のみ。
 /// avatar fallback + 名前 + 役職の 2 行ラベル。「プロフィール行」パターン
 /// の実演、モジュール doc「無 JS のため 2 インスタンスを静的に並記する」
-/// 節参照）。
+/// 節参照）。名前・役職は `user_menu_footer` と同じ
+/// `data-blocks-sidebar-grouped-nav-label`（`flex-direction: column`）で
+/// 包み縦積みにする（codex P1・Cursor Bugbot 指摘 threadId
+/// PRRT_kwDOTarxgc6m-xIk: 2 つの `span` を横並びのまま `menu_button` の
+/// `nowrap` ラベル領域に直接渡すと 1 行に収まってしまうため）。
 fn profile_footer() -> Node {
     let avatar_box = avatar::root(
         &AvatarProps::default(),
@@ -369,6 +379,13 @@ fn profile_footer() -> Node {
             vec![text("EV")],
         )],
     );
+    let label = span(
+        vec![("data-blocks-sidebar-grouped-nav-label", "")],
+        vec![
+            span(vec![], vec![text(PERSON_NAMES[1])]),
+            span(vec![], vec![text(JOB_TITLES[0])]),
+        ],
+    );
     let button = sidebar::menu_button(
         &SidebarMenuButtonProps {
             href: None,
@@ -377,10 +394,7 @@ fn profile_footer() -> Node {
         },
         Some(avatar_box),
         vec![("data-blocks-sidebar-grouped-nav-profile", "")],
-        vec![
-            span(vec![], vec![text(PERSON_NAMES[1])]),
-            span(vec![], vec![text(JOB_TITLES[0])]),
-        ],
+        vec![label],
     );
     sidebar::footer(
         vec![],
@@ -392,26 +406,34 @@ fn profile_footer() -> Node {
 }
 
 /// 左サイドバーの `root`（`provider` の直接の子として置く、`sidebar_03::
-/// app_sidebar` と同型）。
+/// app_sidebar` と同型）。`nav_label`/`rail_label` はインスタンスごとに
+/// 一意な文言を渡す（`demo_output_has_no_dangling_aria_references_or_
+/// duplicate_ids` 契約・Cursor Bugbot 指摘 threadId PRRT_kwDOTarxgc6m-xIq
+/// 参照。2 つの `nav` landmark・rail トグルが同一アクセシブル名になると
+/// スクリーンリーダーで区別できないため、インスタンスごとに区別できる
+/// 文言にする）。
 fn app_sidebar(
     state: &Sidebar,
     props: &SidebarProps,
-    root_id: &str,
+    // `(root_id, nav_label, rail_label)`。clippy `too_many_arguments`
+    // 回避のため 1 引数へまとめる。
+    ids: (&str, &str, &str),
     header: Node,
     content: Node,
     footer: Node,
 ) -> Node {
+    let (root_id, nav_label, rail_label) = ids;
     sidebar::root(
         state,
         props,
-        "Main navigation",
+        nav_label,
         Some(root_id),
         vec![],
         vec![
             header,
             content,
             footer,
-            sidebar::rail(state, "Toggle sidebar rail", vec![], vec![]),
+            sidebar::rail(state, rail_label, vec![], vec![]),
         ],
     )
 }
@@ -463,7 +485,7 @@ pub fn demo() -> Node {
             app_sidebar(
                 &a_state,
                 &a_props,
-                a_root_id,
+                (a_root_id, "Main navigation", "Toggle main sidebar rail"),
                 brand_header(),
                 a_content,
                 user_menu_footer("logo"),
@@ -492,7 +514,11 @@ pub fn demo() -> Node {
             app_sidebar(
                 &b_state,
                 &b_props,
-                b_root_id,
+                (
+                    b_root_id,
+                    "Workspace navigation",
+                    "Toggle workspace sidebar rail",
+                ),
                 search_header("search"),
                 b_content,
                 profile_footer(),
