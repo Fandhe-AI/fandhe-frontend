@@ -2,24 +2,32 @@
 
 `fandhe-frontend-pre-styled-ui` の `heading` / `text` / `input-group` /
 `input` / `button` / `icon` / `table` / `badge` / `pagination` /
-`scroll-area` の 10 部品を合成した、ツールバー付きテーブルの実例です。
-Blocks セクションは新規部品を追加するものではなく、既存の Themes/Primitives
-部品を組み合わせた実例集であることに注意してください（主参照は対応表 ID
-R0645、集約は R0715。出典の固有名・ファイル名は記載しません）。
+`scroll-area` / `tabs` の 11 部品を合成した、ツールバー付きテーブルの実例
+です。Blocks セクションは新規部品を追加するものではなく、既存の
+Themes/Primitives 部品を組み合わせた実例集であることに注意してください
+（主参照は対応表 ID R0645、集約は R0715/R0716/R0717/R0718。出典の固有名・
+ファイル名は記載しません）。
 
-見出し帯（表題「Invoices」・説明文・検索欄・絞り込み/新規作成ボタン）、
-横スクロール対応のテーブル（請求書番号・顧客・状態・金額・期日の 5 列、
-状態はバッジで色分け）、フッター（件数表示 + ページ送り）の 3 領域で構成
-します。検索欄・ボタン群は狭い幅ではコンテナクエリ（`@container`）により
-縦積みへ切り替わります。
+版 A（代表構成: 見出し帯「Invoices」・検索・絞り込み/新規作成ボタン・
+横スクロール対応の表・フッターの件数表示/ページ送り）を基本形とし、
+次の 3 版を並記して見せ方の違いを比較できるようにしています。
 
-本 Demo は版 A（代表構成）のみを実装したものです。期間選択ボタン版・
-常時縦積み + エクスポート版・タブ型絞り込み版は後続のイシューで追加予定
-です。
+- **版 B（期間選択ボタン付き）**: ツールバーに「7 日間/30 日間/90 日間」
+  の期間選択ボタン列を追加します（先頭のみ選択済み表示で固定）。
+- **版 C（常時縦積み + エクスポート）**: 検索欄・ボタン行が Demo 枠の幅に
+  関係なく常時縦積みで、操作列にエクスポートボタンを追加します。
+- **版 D（タブ型の絞り込み付き）**: 「すべて/支払済み/未払い/期限超過」の
+  4 タブで絞り込み条件を静的に表示します。選択中「すべて」のパネルにのみ
+  表を置き、非選択の 3 パネルは空のままです（絞り込みの実処理は UI コン
+  ポーネント層の責務外のため行いません）。
+
+版 A の見出し帯・テーブル・フッターは、検索欄・ボタン群が狭い幅では
+コンテナクエリ（`@container`）により縦積みへ切り替わります。表・フッター
+のデータは 4 版で共有し、各版で異なるのは見出し帯の操作要素のみです。
 
 本 Demo は静的な表示例であり、`<form>` 要素は一切持たず、データの取得・
 送信を行いません。検索欄は空、ページ送りは 1 ページ目選択・前ページ無効の
-固定表示です。ボタンは `type="button"` のまま送信先を持ちません。請求書
+固定表示、期間選択ボタンとタブも選択状態を固定表示するのみです。請求書
 番号・顧客名・金額・期日はすべて独自に書いた架空のものであり、実企業名・
 実クレデンシャル・PII を含みません。
 
@@ -27,7 +35,7 @@ R0645、集約は R0715。出典の固有名・ファイル名は記載しませ
 
 ```rust
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, el, text, Node};
+use fandhe_frontend_core::{div, el, section, text, Node};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::field::{FieldIds, FieldProps};
@@ -39,6 +47,9 @@ use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode};
 use fandhe_frontend_pre_styled_ui::recipe::ColorPalette;
 use fandhe_frontend_pre_styled_ui::scroll_area;
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
+use fandhe_frontend_pre_styled_ui::tabs::{
+    self, ActivationMode, Orientation, TabItem, TabsProps, TabsVariant,
+};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
 use fandhe_frontend_pre_styled_ui::Size;
 
@@ -76,6 +87,11 @@ fn filter_icon() -> Node {
 /// 新規作成アイコン（プラス）。
 fn plus_icon() -> Node {
     geo_icon("M12 5v14 M5 12h14")
+}
+
+/// エクスポートアイコン（下向き矢印 + トレイ、版 C 専用）。
+fn export_icon() -> Node {
+    geo_icon("M12 4v12 M7 11l5 5 5-5 M4 20h16")
 }
 
 /// 請求書 1 行分のダミーデータ。
@@ -145,7 +161,7 @@ fn title_group() -> Node {
         vec![("data-blocks-table-with-toolbar-title", "")],
         vec![
             heading(
-                HeadingLevel::H2,
+                HeadingLevel::H3,
                 &HeadingProps {
                     size: HeadingSize::Xl,
                     ..HeadingProps::default()
@@ -165,10 +181,152 @@ fn title_group() -> Node {
     )
 }
 
-/// 見出し帯右側（検索 + 絞り込み/新規作成ボタン）。
-fn toolbar() -> Node {
+/// 期間選択ボタン 1 個（版 B 専用）。`feature_accordion_image::
+/// category_button` と同型: 先頭のみ選択済み（`Solid` +
+/// `aria-pressed="true"`）、他は非選択（`Outline` + `aria-pressed="false"`）。
+/// 全ボタン `disabled: true` の静的固定（モジュール doc「B（期間選択
+/// ボタン）」節参照）。
+fn period_button(label: &'static str, selected: bool) -> Node {
+    let (variant, pressed) = if selected {
+        (ButtonVariant::Solid, "true")
+    } else {
+        (ButtonVariant::Outline, "false")
+    };
+    button::button(
+        &ButtonProps {
+            variant,
+            size: Size::Sm,
+            disabled: true,
+            ..ButtonProps::default()
+        },
+        vec![("aria-pressed", pressed)],
+        vec![text(label)],
+    )
+}
+
+/// 期間選択ボタン列（版 B 専用。「7 日間」を初期選択として固定する）。
+fn period_buttons() -> Node {
+    div(
+        vec![("data-blocks-table-with-toolbar-period", "")],
+        vec![
+            period_button("7 日間", true),
+            period_button("30 日間", false),
+            period_button("90 日間", false),
+        ],
+    )
+}
+
+/// 操作ボタン列（絞り込み → [エクスポート（版 C のみ）] → 新規作成）。
+fn actions(export: bool) -> Node {
+    let mut children = vec![button::button(
+        &ButtonProps {
+            variant: ButtonVariant::Outline,
+            ..ButtonProps::default()
+        },
+        vec![],
+        vec![filter_icon(), text("絞り込み")],
+    )];
+    if export {
+        children.push(button::button(
+            &ButtonProps {
+                variant: ButtonVariant::Outline,
+                ..ButtonProps::default()
+            },
+            vec![],
+            vec![export_icon(), text("エクスポート")],
+        ));
+    }
+    children.push(button::button(
+        &ButtonProps::default(),
+        vec![],
+        vec![plus_icon(), text("新規作成")],
+    ));
+    div(
+        vec![("data-blocks-table-with-toolbar-actions", "")],
+        children,
+    )
+}
+
+/// タブ型の絞り込み（版 D 専用）。実物 `tabs::tabs` を使い「すべて」を
+/// 初期選択として固定する。選択中「すべて」のパネルにのみ `table`（引数
+/// `table_node`）を置き、非選択の 3 パネルは空のままとする（モジュール doc
+/// 「D（タブ型の絞り込み）」節参照）。`search_id` ごとに呼び出し側の `id` が
+/// 変わるのと同様、本関数は版 D でのみ呼ばれるため固定 id を持たせてよい
+/// （demo 内で 1 回しか呼ばれない契約）。
+///
+/// 表を「すべて」パネルの内側へ置くのは Codex レビュー指摘 #3404
+/// （`role="tab"`/`aria-controls` が指す tabpanel に実体がなく、表が
+/// `variant()` によりタブの外に置かれていたため選択操作と表示内容が
+/// 構造的に不整合だった）の是正である。以前の実装は全パネルを空にし表を
+/// tabs の外側へ常時可視で置いていたが、これは選択中パネルが空のまま
+/// 可視化され（Cursor Bugbot レビュー指摘 #3404: 既定 padding で空白帯が
+/// 表示され `tabindex="0"` の空パネルが読み上げ対象になる）、かつ
+/// `aria-controls` の参照先に実体がない二重の不整合を生んでいた。表を
+/// 「すべて」パネルへ移すことで、選択中 trigger の `aria-controls` は
+/// 実際に表を含むパネルを指すようになり、非選択の 3 タブは
+/// `disabled: true` の静的固定（絞り込み処理を実装しない以上、操作可能な
+/// まま見せると「押せるが表の内容が変わらない」dead control になるため、
+/// 版 B の期間選択ボタンと同じ判断）のため到達不能であり構造不整合が
+/// 顕在化しない。tabs は選択中 trigger を `disabled` にすると
+/// `aria-selected`/`data-state` が「未選択」扱いへ落ちる仕様
+/// （`crates/headless-ui/src/tabs.rs` `selected_matching_disabled_item_is_treated_as_unselected`
+/// 参照）のため、選択中の「すべて」のみ非 disabled のまま残す。
+fn status_tabs(table_node: Node) -> Node {
+    let items = vec![
+        TabItem {
+            value: "all",
+            trigger: vec![text("すべて")],
+            content: vec![table_node],
+            disabled: false,
+        },
+        TabItem {
+            value: "paid",
+            trigger: vec![text("支払済み")],
+            content: vec![],
+            disabled: true,
+        },
+        TabItem {
+            value: "unpaid",
+            trigger: vec![text("未払い")],
+            content: vec![],
+            disabled: true,
+        },
+        TabItem {
+            value: "overdue",
+            trigger: vec![text("期限超過")],
+            content: vec![],
+            disabled: true,
+        },
+    ];
+    div(
+        vec![("data-blocks-table-with-toolbar-tabs", "")],
+        vec![tabs::tabs(
+            TabsVariant::Line,
+            Size::Sm,
+            ColorPalette::Accent,
+            &TabsProps {
+                id: "blocks-table-with-toolbar-tabs",
+                selected: "all",
+                orientation: Orientation::Horizontal,
+                activation_mode: ActivationMode::Automatic,
+                loop_focus: true,
+                indicator: false,
+            },
+            items,
+        )],
+    )
+}
+
+/// 見出し帯右側（検索 + [期間選択（版 B）] + 操作ボタン列）。`search_id` は
+/// 呼び出し側（[`variant`]）が版ごとに一意な値を渡し、複数版並記時の
+/// `id` 重複（`tests/blocks_contract.rs`）を避ける。`label` は
+/// [`table_section`]/[`footer`] と同じ理由で検索欄の `aria-label` を版ごとに
+/// 一意化する（Cursor Bugbot レビュー指摘 #3404 是正: 4 版すべてが同一
+/// `aria-label`「請求書を検索」を再利用し、支援技術上で区別できなかった）。
+fn toolbar(search_id: &'static str, label: &str, period: bool, export: bool) -> Node {
+    let search_aria_label = format!("請求書を検索（{label}）");
     let field = FieldProps {
-        id: "blocks-table-with-toolbar-search",
+        id: search_id,
         ids: FieldIds::default(),
         disabled: false,
         invalid: false,
@@ -180,57 +338,42 @@ fn toolbar() -> Node {
         disabled: false,
         invalid: false,
     };
-    div(
-        vec![("data-blocks-table-with-toolbar-toolbar", "")],
+    let mut children = vec![input_group::root(
+        &group_props,
+        vec![("data-blocks-table-with-toolbar-search", "")],
         vec![
-            input_group::root(
+            input_group::addon(
+                InputGroupAlign::InlineStart,
                 &group_props,
-                vec![("data-blocks-table-with-toolbar-search", "")],
-                vec![
-                    input_group::addon(
-                        InputGroupAlign::InlineStart,
-                        &group_props,
-                        vec![],
-                        vec![search_icon()],
-                    ),
-                    input::input(
-                        &InputProps::default(),
-                        &field,
-                        vec![
-                            ("type", "search"),
-                            ("placeholder", "請求書を検索"),
-                            ("aria-label", "請求書を検索"),
-                        ],
-                    ),
-                ],
+                vec![],
+                vec![search_icon()],
             ),
-            div(
-                vec![("data-blocks-table-with-toolbar-actions", "")],
+            input::input(
+                &InputProps::default(),
+                &field,
                 vec![
-                    button::button(
-                        &ButtonProps {
-                            variant: ButtonVariant::Outline,
-                            ..ButtonProps::default()
-                        },
-                        vec![],
-                        vec![filter_icon(), text("絞り込み")],
-                    ),
-                    button::button(
-                        &ButtonProps::default(),
-                        vec![],
-                        vec![plus_icon(), text("新規作成")],
-                    ),
+                    ("type", "search"),
+                    ("placeholder", "請求書を検索"),
+                    ("aria-label", &search_aria_label),
                 ],
             ),
         ],
+    )];
+    if period {
+        children.push(period_buttons());
+    }
+    children.push(actions(export));
+    div(
+        vec![("data-blocks-table-with-toolbar-toolbar", "")],
+        children,
     )
 }
 
 /// 見出し帯全体（表題群 + ツールバー）。
-fn header() -> Node {
+fn header(search_id: &'static str, label: &str, period: bool, export: bool) -> Node {
     div(
         vec![("data-blocks-table-with-toolbar-header", "")],
-        vec![title_group(), toolbar()],
+        vec![title_group(), toolbar(search_id, label, period, export)],
     )
 }
 
@@ -278,15 +421,25 @@ fn body_row(row: &InvoiceRow) -> Node {
     )
 }
 
-/// テーブル本体（横スクロール対応の `scroll_area` 包み）。
-fn table_section() -> Node {
+/// テーブル本体（横スクロール対応の `scroll_area` 包み）。`label` は
+/// 呼び出し側（[`variant`]）が版ごとに一意な文言を渡し、複数版並記時の
+/// ランドマーク名重複・テーブル無名化（Cursor Bugbot レビュー指摘 #3404
+/// 是正: 4 版が同一 `aria-label`「請求書一覧」を再利用し、テーブル自体は
+/// 無名のままだったため支援技術上区別できなかった）を避ける。`table::root`
+/// へも `aria-label` を付け、テーブル自体に固有の名前を持たせる。
+fn table_section(label: &str) -> Node {
+    let table_aria_label = format!("請求書一覧表（{label}）");
+    let scroll_aria_label = format!("請求書一覧（{label}）");
     let table_node = table::root(
         TableProps {
             variant: TableVariant::Line,
             size: Size::Md,
             ..TableProps::default()
         },
-        vec![("data-blocks-table-with-toolbar-table", "")],
+        vec![
+            ("data-blocks-table-with-toolbar-table", ""),
+            ("aria-label", &table_aria_label),
+        ],
         vec![
             table::header(vec![], vec![column_headers()]),
             table::body(vec![], ROWS.iter().map(body_row).collect()),
@@ -295,14 +448,17 @@ fn table_section() -> Node {
     scroll_area::root(
         vec![("data-blocks-table-with-toolbar-scroll", "")],
         vec![scroll_area::viewport(
-            vec![("role", "region"), ("aria-label", "請求書一覧")],
+            vec![("role", "region"), ("aria-label", &scroll_aria_label)],
             vec![scroll_area::content(vec![], vec![table_node])],
         )],
     )
 }
 
 /// フッター（件数表示 + ページ送り。1 ページ目選択・前ページ無効で固定）。
-fn footer() -> Node {
+/// `label` は [`table_section`] と同じ理由でページ送り `nav` の
+/// アクセシブルネーム（`aria-label`）を版ごとに一意化する。
+fn footer(label: &str) -> Node {
+    let nav_aria_label = format!("請求書ページ（{label}）");
     div(
         vec![("data-blocks-table-with-toolbar-footer", "")],
         vec![
@@ -317,7 +473,7 @@ fn footer() -> Node {
             pagination::root(
                 Size::Sm,
                 ColorPalette::Accent,
-                "請求書ページ",
+                &nav_aria_label,
                 vec![("data-blocks-table-with-toolbar-pagination", "")],
                 vec![
                     pagination::prev_trigger(ItemMode::Button, true, vec![], vec![text("前へ")]),
@@ -333,32 +489,131 @@ fn footer() -> Node {
     )
 }
 
-/// `table-with-toolbar` の Demo 本体（版 A のみ。呼び出しごとに同一の
-/// `Node` を返す純関数）。
+/// 版 1 つ分（見出し帯 + [タブ行] + テーブル + フッター）。`kind` は
+/// `data-blocks-table-with-toolbar-variant` の値（`"standard"`/`"period"`/
+/// `"stacked"`/`"tabs"`）。`search_id` は版ごとに一意な検索欄 `id`
+/// （[`toolbar`] rustdoc「`id` 重複を避ける」節参照）。`label` は
+/// [`table_section`]/[`footer`] のランドマーク名一意化に使う人間可読な
+/// 版名（`demo()` のキャプション文言を再利用する）。
+fn variant(
+    kind: &'static str,
+    search_id: &'static str,
+    label: &'static str,
+    period: bool,
+    export: bool,
+    show_tabs: bool,
+) -> Node {
+    let mut children = vec![header(search_id, label, period, export)];
+    if show_tabs {
+        // 表は「すべて」タブのパネル内へ置く（tabs の外へは置かない）。
+        // [`status_tabs`] rustdoc「Codex レビュー指摘 #3404 是正」節参照。
+        children.push(status_tabs(table_section(label)));
+    } else {
+        children.push(table_section(label));
+    }
+    children.push(footer(label));
+    section(
+        vec![("data-blocks-table-with-toolbar-variant", kind)],
+        children,
+    )
+}
+
+/// `table-with-toolbar` の Demo 本体（版 A〜D を並記。呼び出しごとに同一の
+/// `Node` を返す純関数。モジュール doc「4 版の並記」節参照）。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-table-with-toolbar-layout")],
-        vec![header(), table_section(), footer()],
+        vec![
+            caption("代表構成"),
+            variant(
+                "standard",
+                "blocks-table-with-toolbar-search-a",
+                "代表構成",
+                false,
+                false,
+                false,
+            ),
+            caption("期間選択ボタン付き"),
+            variant(
+                "period",
+                "blocks-table-with-toolbar-search-b",
+                "期間選択ボタン付き",
+                true,
+                false,
+                false,
+            ),
+            caption("常時縦積み + エクスポート"),
+            variant(
+                "stacked",
+                "blocks-table-with-toolbar-search-c",
+                "常時縦積み + エクスポート",
+                false,
+                true,
+                false,
+            ),
+            caption("タブ型の絞り込み付き"),
+            variant(
+                "tabs",
+                "blocks-table-with-toolbar-search-d",
+                "タブ型の絞り込み付き",
+                false,
+                false,
+                true,
+            ),
+        ],
+    )
+}
+
+/// 版のキャプション（見出し）。`h2`（[`title_group`] の `h3`「Invoices」の
+/// 親階層）として構造化する。4 版すべてが同一の `h3`「Invoices」を持つため
+/// `p` の平文キャプションのままでは見出し一覧上で版を区別できなかった
+/// （Codex レビュー指摘 #3404 是正）。`heading` は `class` を
+/// `drop_class_attr` 経由で除去するため、スタイルフックには
+/// `data-blocks-table-with-toolbar-caption` を使う
+/// （モジュール doc「`class` と `data-*` の使い分け」節参照）。
+fn caption(label: &'static str) -> Node {
+    heading(
+        HeadingLevel::H2,
+        &HeadingProps {
+            size: HeadingSize::Sm,
+            ..HeadingProps::default()
+        },
+        vec![("data-blocks-table-with-toolbar-caption", "")],
+        vec![text(label)],
     )
 }
 ```
 
 ## 原案差分メモ
 
-- 版 A（代表構成）は主参照（対応表 ID R0645、集約 R0715）を軸に、見出し帯
-  （表題・説明・検索・絞り込み/新規作成ボタン）・テーブル・フッター
-  （件数表示・ページ送り）の基本形を表します。
-- 検索欄・絞り込み/新規作成ボタンの行と見出し行は、Demo 枠の幅が
-  `40rem` 未満のコンテナクエリで縦積みに切り替わります（`@media` の
-  ビューポート幅ではなく block 自体の描画幅で判定します）。
+- 版 A（代表構成、対応表 ID R0645/R0715）は、見出し帯（表題・説明・検索・
+  絞り込み/新規作成ボタン）・テーブル・フッター（件数表示・ページ送り）の
+  基本形を表します。検索欄・絞り込み/新規作成ボタンの行と見出し行は、
+  Demo 枠の幅が `40rem` 未満のコンテナクエリで縦積みに切り替わります
+  （`@media` のビューポート幅ではなく block 自体の描画幅で判定します）。
+- 版 B（期間選択ボタン付き、対応表 ID R0716）は、ツールバーへ期間選択
+  ボタン列を追加した見せ方です。各ボタンは `aria-pressed` で選択状態を
+  示しつつ `disabled` の静的固定とし、参照元の期間区切り定義（日数の
+  境界値等）は持ち込まず独自の文言を使っています。
+- 版 C（常時縦積み + エクスポート、対応表 ID R0717）は、`@container` の
+  横並び切り替えを持たず幅に関係なく常時縦積みにした見せ方です。操作列に
+  エクスポートボタン（自作の下矢印 + トレイ線画）を追加しています。
+- 版 D（タブ型の絞り込み付き、対応表 ID R0718）は、実物の `tabs` 部品で
+  絞り込み条件を静的に表示した見せ方です。**選択中「すべて」のパネルに
+  のみ表を置き、非選択の 3 パネルは空のままにしています**。表をタブの
+  外側へ常時可視で置く旧実装は、選択中 trigger の `aria-controls` が指す
+  パネルに実体がなく選択操作と表示内容が構造的に不整合だったため、表を
+  「すべて」パネルの内側へ移しています。
+- 非選択の 3 タブ（支払済み/未払い/期限超過）は `disabled` の静的固定
+  です。絞り込み処理を実装しない以上、操作可能なまま見せると「押せるが
+  表の内容が変わらない」dead control になるため、版 B の期間選択ボタンと
+  同じ判断で到達不能にしています。
 - テーブルは `scroll_area` で包み、横にはみ出す幅（`min-width: 42rem`）を
-  与えて横スクロールを確認できるようにしています。
-- 期間選択ボタン版・常時縦積み + エクスポート版・タブ型絞り込み版の 3 つ
-  の見せ方は後続のイシューで並記する予定です。
+  与えて横スクロールを確認できるようにしています（4 版共通）。
 
 関連情報: [Heading](../themes/heading.md) / [Text](../themes/text.md) /
 [Input Group](../themes/input-group.md) / [Input](../themes/input.md) /
 [Button](../themes/button.md) / [Icon](../themes/icon.md) /
 [Table](../themes/table.md) / [Badge](../themes/badge.md) /
 [Pagination](../themes/pagination.md) /
-[Scroll Area](../themes/scroll-area.md)
+[Scroll Area](../themes/scroll-area.md) / [Tabs](../themes/tabs.md)
