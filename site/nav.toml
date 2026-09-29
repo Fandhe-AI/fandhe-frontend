@@ -2038,6 +2038,11 @@ source = "site/blocks/navbar-app-links.md"
 path = "/blocks/navbar-app-links/"
 
 [[section.group.page]]
+title = "navbar-docs-site"
+source = "site/blocks/navbar-docs-site.md"
+path = "/blocks/navbar-docs-site/"
+
+[[section.group.page]]
 title = "navbar-two-row"
 source = "site/blocks/navbar-two-row.md"
 path = "/blocks/navbar-two-row/"
