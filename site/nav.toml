@@ -2275,6 +2275,14 @@ source = "site/blocks/signup-05.md"
 path = "/blocks/signup-05/"
 
 [[section.group]]
+title = "Action Panel"
+
+[[section.group.page]]
+title = "action-panel-footer-bar"
+source = "site/blocks/action-panel-footer-bar.md"
+path = "/blocks/action-panel-footer-bar/"
+
+[[section.group]]
 title = "Dialog"
 
 [[section.group.page]]

@@ -1017,6 +1017,7 @@ pub enum LayoutCss {
 | table-summary-rows | #2946（親 #2892） | `application/table/table_summary_rows.rs` |
 | list-container | #3227 | `application/list/list_container.rs` |
 | media-object | #3228 | `application/media_object/media_object_alignments.rs` |
+| action-panel-footer-bar | #2952（親 #2951） | `application/action_panel/action_panel_footer_bar.rs` |
 | card-heading-basic | #3229 | `application/card_heading/card_heading_basic.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
