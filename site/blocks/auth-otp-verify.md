@@ -75,7 +75,10 @@ pub fn demo() -> Node {
     let orientation = FieldRootProps {
         orientation: FieldOrientation::Vertical,
     };
-    let pin_props = PinInputProps::default();
+    let pin_props = PinInputProps {
+        required: true,
+        ..PinInputProps::default()
+    };
     let link_button = ButtonProps {
         variant: ButtonVariant::Link,
         ..ButtonProps::default()
