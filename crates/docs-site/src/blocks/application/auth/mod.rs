@@ -8,6 +8,7 @@
 
 mod auth_dropdown_panel;
 mod auth_oauth_consent;
+mod auth_otp_verify;
 mod login_01;
 mod login_04;
 mod signup_01;
@@ -18,6 +19,7 @@ pub(super) fn blocks() -> Vec<Block> {
     vec![
         auth_dropdown_panel::BLOCK,
         auth_oauth_consent::BLOCK,
+        auth_otp_verify::BLOCK,
         login_01::BLOCK,
         login_04::BLOCK,
         signup_01::BLOCK,

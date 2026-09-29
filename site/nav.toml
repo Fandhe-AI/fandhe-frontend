@@ -2265,6 +2265,11 @@ source = "site/blocks/auth-oauth-consent.md"
 path = "/blocks/auth-oauth-consent/"
 
 [[section.group.page]]
+title = "auth-otp-verify"
+source = "site/blocks/auth-otp-verify.md"
+path = "/blocks/auth-otp-verify/"
+
+[[section.group.page]]
 title = "login-01"
 source = "site/blocks/login-01.md"
 path = "/blocks/login-01/"
