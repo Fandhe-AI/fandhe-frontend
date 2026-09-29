@@ -257,10 +257,20 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
     // 見えない状態を作らない。Codex/Cursor Bugbot 指摘、イシュー #2945
     // PR #3393）。
     let header_focusable = variant != "selected";
+    // `tabindex="-1"` は Tab 移動からは外れるが、アクセシビリティツリーからは
+    // 除外されないためスクリーンリーダーからは発見・操作可能なまま残る
+    // （github-actions 自動レビュー指摘、イシュー #2945 PR #3393
+    // 追加レビュー）。`select-header`（下記 `select_header_attrs`）と同じ
+    // `data-blocks-table-sortable-bulk-covered` フックを付与し、CSS の
+    // `visibility: hidden` で可視状態とフォーカス可否・アクセシビリティ
+    // ツリーからの除外を一致させる。
     let header_tabindex_attr: Vec<(&str, &str)> = if header_focusable {
         vec![]
     } else {
-        vec![("tabindex", "-1")]
+        vec![
+            ("tabindex", "-1"),
+            ("data-blocks-table-sortable-bulk-covered", ""),
+        ]
     };
     let select_header_attrs: Vec<(&str, &str)> = if variant == "selected" {
         vec![

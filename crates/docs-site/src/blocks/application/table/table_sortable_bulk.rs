@@ -89,6 +89,18 @@
 //! 「未選択」パネルはツールバー自体を出力しない（1 行も選択されていない
 //! 状態を JS 無しで正しく表す）。
 //!
+//! 並び替え可能な列見出しの `sort-trigger`（名前・ステータス列）は、
+//! ツールバーが選択中パネルでは幅を問わず常に見出し行へ重なるため、
+//! `tabindex="-1"` に加え `data-blocks-table-sortable-bulk-covered`
+//! フックを付与し、CSS で `visibility: hidden` を適用する。当初
+//! `tabindex="-1"` のみで対処していたが、Tab 移動からは外れても
+//! アクセシビリティツリーからは除外されずスクリーンリーダーからは発見・
+//! 操作可能なまま残っていた（github-actions 自動レビュー指摘、イシュー
+//! #2945 PR #3393 追加レビュー）。`select-header` と異なり狭幅
+//! `@container` 規則の内側に限定せず常時適用する: 通常幅でもツールバーの
+//! `inset-inline-start`（選択列幅）〜`inset-inline-end: 0` は選択列を
+//! 除く全列見出しを覆うため。
+//!
 //! # `menu`/ボタンを disabled にしない理由
 //!
 //! 一括操作ボタン（アーカイブ・削除）は `type="button"` で送信先を
@@ -348,10 +360,20 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
     // 見えない状態を作らない。Codex/Cursor Bugbot 指摘、イシュー #2945
     // PR #3393）。
     let header_focusable = variant != "selected";
+    // `tabindex="-1"` は Tab 移動からは外れるが、アクセシビリティツリーからは
+    // 除外されないためスクリーンリーダーからは発見・操作可能なまま残る
+    // （github-actions 自動レビュー指摘、イシュー #2945 PR #3393
+    // 追加レビュー）。`select-header`（下記 `select_header_attrs`）と同じ
+    // `data-blocks-table-sortable-bulk-covered` フックを付与し、CSS の
+    // `visibility: hidden` で可視状態とフォーカス可否・アクセシビリティ
+    // ツリーからの除外を一致させる。
     let header_tabindex_attr: Vec<(&str, &str)> = if header_focusable {
         vec![]
     } else {
-        vec![("tabindex", "-1")]
+        vec![
+            ("tabindex", "-1"),
+            ("data-blocks-table-sortable-bulk-covered", ""),
+        ]
     };
     let select_header_attrs: Vec<(&str, &str)> = if variant == "selected" {
         vec![
@@ -620,6 +642,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-table-sortable-bulk-table-wrap thead th {\n  box-sizing: border-box;\n  height: 3rem;\n}\n\
 .blocks-table-sortable-bulk-table-wrap [data-blocks-table-sortable-bulk-select-cell] {\n  box-sizing: border-box;\n  padding-inline: 0;\n  width: var(--fandhe-data-table-select-width, 2.5rem);\n  text-align: center;\n}\n\
 [data-blocks-table-sortable-bulk-toolbar] {\n  position: absolute;\n  top: 0;\n  inset-inline-start: var(--fandhe-data-table-select-width, 2.5rem);\n  inset-inline-end: 0;\n  height: 3rem;\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  padding-inline: var(--fandhe-space-3);\n  background: var(--fandhe-color-bg);\n  z-index: 1;\n}\n\
+[data-blocks-table-sortable-bulk-covered] {\n  visibility: hidden;\n}\n\
 @container blocks-table-sortable-bulk (max-width: 40rem) {\n  [data-blocks-table-sortable-bulk-secondary] {\n    display: none;\n  }\n\n  [data-blocks-table-sortable-bulk-toolbar] {\n    inset-inline-start: 0;\n  }\n\n  [data-blocks-table-sortable-bulk-select-header] {\n    visibility: hidden;\n  }\n}\n";
 
 #[cfg(test)]
@@ -764,6 +787,25 @@ mod tests {
     /// ため）。狭幅で覆われる間の不可視化は `visibility: hidden`（CSS）が
     /// 担い、Tab 移動からの除外も自動的に伴う（Codex/Cursor Bugbot 指摘、
     /// イシュー #2945 PR #3393）。
+    /// 選択中パネルの並び替え可能な列見出し（名前・ステータス）は、
+    /// `tabindex="-1"` だけでなく `data-blocks-table-sortable-bulk-covered`
+    /// フックも持ち、CSS 側で `visibility: hidden` が対応付けられている
+    /// ことを固定する。`tabindex="-1"` のみではアクセシビリティツリーから
+    /// 除外されずスクリーンリーダーから発見・操作可能なまま残るための
+    /// 回帰防止（github-actions 指摘、イシュー #2945 PR #3393 追加レビュー）。
+    #[test]
+    fn covered_sort_triggers_are_hidden_from_accessibility_tree() {
+        let html = html();
+        assert_eq!(
+            html.matches("data-blocks-table-sortable-bulk-covered")
+                .count(),
+            2,
+            "選択中パネルの名前・ステータス 2 列分のみ付与される"
+        );
+        assert!(LAYOUT_CSS
+            .contains("[data-blocks-table-sortable-bulk-covered] {\n  visibility: hidden;\n}"));
+    }
+
     #[test]
     fn select_all_checkbox_has_no_static_tabindex() {
         let html = html();
