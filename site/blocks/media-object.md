@@ -70,8 +70,12 @@ fn caption(text_content: &str) -> Node {
 }
 
 /// パネル外枠。`narrow` が `true` のパネルは
-/// `data-blocks-media-object-narrow`（[`LAYOUT_CSS`] の `max-width` 規則）を
-/// 追加で持つ（`stack`/`stack-full` 用）。
+/// `data-blocks-media-object-narrow`（[`LAYOUT_CSS`] の `max-width: 20rem`
+/// 規則）を追加で持つ。`stack`/`stack-full` は `@container` 分岐の実測幅
+/// 確保用、`stretch`（Bugbot 指摘、イシュー #3228 PR #3402）は説明文を
+/// 折り返させて行高を media の既定 6rem 角より高くし、`align-items:
+/// stretch` が実際に media を伸長させる様子を可視化する用途で使う
+/// （デモ幅が広いままだと 1 行に収まり `top` と見分けがつかない）。
 fn panel(variant: &'static str, caption_text: &str, narrow: bool, item_node: Node) -> Node {
     let mut attrs: Vec<(&str, &str)> = vec![
         ("class", "blocks-media-object-panel"),
@@ -169,13 +173,13 @@ fn stretch_instance() -> Node {
     panel(
         "stretch",
         "画像を行高いっぱいに伸ばす",
-        false,
+        true,
         media_object_root(
             "stretch",
             media_image(("data-blocks-media-object-media", "")),
             body(
                 "検索結果の並べ替え",
-                "更新日時・関連度・名前の 3 種類から並べ替え基準を選べます。",
+                "更新日時・関連度・名前の 3 種類から並べ替え基準を選べます。狭いカラムで折り返すことで、media が行高いっぱいに伸びる様子を確認できます。",
             ),
         ),
     )
