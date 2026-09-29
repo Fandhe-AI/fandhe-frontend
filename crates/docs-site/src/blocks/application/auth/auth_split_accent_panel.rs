@@ -128,11 +128,27 @@ const BENEFITS: [(&str, &str); 3] = [
 /// 単純な幾何アイコン（実ブランドロゴを複製しない、モジュール doc
 /// 「利点一覧のアイコン」節参照。`login_04::geo_icon` と同型だが
 /// `pub(super)` で共有されていないためローカルに定義する）。
+///
+/// `icon` の svg root が固定する `fill="currentColor"`（塗りつぶし）は
+/// チェック・矢印のような開いた path を面として潰してしまうため、
+/// path 側で `fill="none"` + `stroke="currentColor"` に上書きし線画として
+/// 描画する（塗りではなくストロークのアイコンにする）。
 fn geo_icon(path_d: &'static str) -> Node {
     icon(
         &IconProps::default(),
         vec![("data-blocks-auth-split-accent-panel-benefit-icon", "")],
-        vec![el("path", vec![("d", path_d)], vec![])],
+        vec![el(
+            "path",
+            vec![
+                ("d", path_d),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+                ("stroke-linecap", "round"),
+                ("stroke-linejoin", "round"),
+            ],
+            vec![],
+        )],
     )
 }
 
@@ -154,6 +170,14 @@ fn orientation() -> FieldRootProps {
     FieldRootProps {
         orientation: FieldOrientation::Vertical,
     }
+}
+
+/// 氏名から avatar フォールバック用のイニシャルを組み立てる
+/// （`content_article::byline` と同型のロジック）。
+fn initials(name: &str) -> String {
+    name.split_whitespace()
+        .filter_map(|part| part.chars().next())
+        .collect()
 }
 
 /// インスタンス A（サインイン + 顧客の声パネル、主参照 R0689）。
@@ -196,18 +220,7 @@ fn signin_instance() -> Node {
                     &password_field,
                     vec![("data-blocks-auth-split-accent-panel-field", "")],
                     vec![
-                        div(
-                            vec![("class", "blocks-auth-split-accent-panel-password-row")],
-                            vec![
-                                field::label(&password_field, vec![], vec![text("パスワード")]),
-                                link::root(
-                                    "#blocks-auth-split-accent-panel-signin",
-                                    &LinkProps::default(),
-                                    vec![],
-                                    vec![text("パスワードをお忘れですか")],
-                                ),
-                            ],
-                        ),
+                        field::label(&password_field, vec![], vec![text("パスワード")]),
                         input::input(
                             &InputProps::default(),
                             &password_field,
@@ -277,16 +290,15 @@ fn signin_instance() -> Node {
             vec![
                 blockquote::content(vec![], vec![text(dummy_assets::TESTIMONIAL_QUOTES[0])]),
                 blockquote::caption(
-                    vec![("class", "blocks-auth-split-accent-panel-caption")],
+                    vec![("data-blocks-auth-split-accent-panel-caption", "")],
                     vec![
                         avatar::root(
                             &AvatarProps::default(),
                             vec![("data-blocks-auth-split-accent-panel-avatar", "")],
-                            vec![avatar::image(
-                                ImageStatus::Loaded,
-                                dummy_assets::AVATAR_SRC,
-                                "",
+                            vec![avatar::fallback(
+                                ImageStatus::Error,
                                 vec![],
+                                vec![text(initials(dummy_assets::PERSON_NAMES[0]))],
                             )],
                         ),
                         div(
@@ -545,19 +557,19 @@ pub const BLOCK: Block = Block {
 /// `[data-scope=...]` 系セレクタへの上書き（モジュール doc「アクセント面
 /// パネルの色反転」節参照）のみを用いる。
 const LAYOUT_CSS: &str = "\
-.blocks-auth-split-accent-panel-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
+[data-blocks-auth-split-accent-panel-stack] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 [data-blocks-auth-split-accent-panel-instance] {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  border-radius: var(--fandhe-radius-lg);\n  overflow: hidden;\n  border: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-auth-split-accent-panel-instance=\"signup\"] [data-blocks-auth-split-accent-panel-panel] {\n  order: -1;\n}\n\
 [data-blocks-auth-split-accent-panel-form] {\n  padding: var(--fandhe-space-8);\n  min-width: 0;\n}\n\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-auth-split-accent-panel-card] {\n  border: none;\n  box-shadow: none;\n}\n\
 .blocks-auth-split-accent-panel-intro {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1-5);\n  margin: 0 0 var(--fandhe-space-2);\n}\n\
-.blocks-auth-split-accent-panel-password-row {\n  display: flex;\n  align-items: baseline;\n  justify-content: space-between;\n  gap: var(--fandhe-space-2);\n}\n\
+[data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-auth-split-accent-panel-remember][data-disabled],\n[data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-auth-split-accent-panel-terms][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-auth-split-accent-panel-submit] {\n  width: 100%;\n}\n\
 .blocks-auth-split-accent-panel-switch {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n  text-align: center;\n}\n\
 [data-blocks-auth-split-accent-panel-panel] {\n  background: var(--fandhe-color-accent);\n  color: var(--fandhe-color-accent-fg);\n  padding: var(--fandhe-space-8);\n  display: flex;\n  flex-direction: column;\n  justify-content: center;\n  gap: var(--fandhe-space-6);\n}\n\
 [data-scope=\"blockquote\"][data-part=\"root\"][data-blocks-auth-split-accent-panel-quote] {\n  color: inherit;\n  border-color: var(--fandhe-color-accent-fg);\n}\n\
 [data-blocks-auth-split-accent-panel-panel] [data-scope=\"blockquote\"][data-part=\"content\"] {\n  color: inherit;\n}\n\
-.blocks-auth-split-accent-panel-caption {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
+[data-scope=\"blockquote\"][data-part=\"caption\"][data-blocks-auth-split-accent-panel-caption] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  color: inherit;\n}\n\
 [data-scope=\"avatar\"][data-part=\"root\"][data-blocks-auth-split-accent-panel-avatar] {\n  color: inherit;\n}\n\
 .blocks-auth-split-accent-panel-byline {\n  display: flex;\n  flex-direction: column;\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 .blocks-auth-split-accent-panel-benefits {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
@@ -610,11 +622,15 @@ mod tests {
         assert!(html.contains(r#"type="checkbox""#));
     }
 
-    /// [`dummy_assets::AVATAR_SRC`] を参照していること。
+    /// アクセント面パネルは「画像なし」の契約どおり、`<img>` を出力せず
+    /// イニシャルの avatar フォールバックのみを持つこと（モジュール doc
+    /// 「2 インスタンスの並記」節の R0689 契約、[`crate::blocks::dummy_assets`]
+    /// の `PERSON_NAMES[0]` から導出したイニシャルを表示する）。
     #[test]
-    fn demo_uses_shared_avatar_asset() {
+    fn demo_panel_avatar_has_no_image() {
         let html = render(&demo());
-        assert!(html.contains(dummy_assets::AVATAR_SRC));
+        assert!(!html.contains("<img"));
+        assert!(html.contains(&super::initials(dummy_assets::PERSON_NAMES[0])));
     }
 
     /// 2 インスタンス間のページ内アンカー（`href`）と対応する `id` が

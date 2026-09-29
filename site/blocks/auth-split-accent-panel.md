@@ -52,11 +52,27 @@ const BENEFITS: [(&str, &str); 3] = [
 /// 単純な幾何アイコン（実ブランドロゴを複製しない、モジュール doc
 /// 「利点一覧のアイコン」節参照。`login_04::geo_icon` と同型だが
 /// `pub(super)` で共有されていないためローカルに定義する）。
+///
+/// `icon` の svg root が固定する `fill="currentColor"`（塗りつぶし）は
+/// チェック・矢印のような開いた path を面として潰してしまうため、
+/// path 側で `fill="none"` + `stroke="currentColor"` に上書きし線画として
+/// 描画する（塗りではなくストロークのアイコンにする）。
 fn geo_icon(path_d: &'static str) -> Node {
     icon(
         &IconProps::default(),
         vec![("data-blocks-auth-split-accent-panel-benefit-icon", "")],
-        vec![el("path", vec![("d", path_d)], vec![])],
+        vec![el(
+            "path",
+            vec![
+                ("d", path_d),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+                ("stroke-linecap", "round"),
+                ("stroke-linejoin", "round"),
+            ],
+            vec![],
+        )],
     )
 }
 
@@ -78,6 +94,14 @@ fn orientation() -> FieldRootProps {
     FieldRootProps {
         orientation: FieldOrientation::Vertical,
     }
+}
+
+/// 氏名から avatar フォールバック用のイニシャルを組み立てる
+/// （`content_article::byline` と同型のロジック）。
+fn initials(name: &str) -> String {
+    name.split_whitespace()
+        .filter_map(|part| part.chars().next())
+        .collect()
 }
 
 /// インスタンス A（サインイン + 顧客の声パネル、主参照 R0689）。
@@ -120,18 +144,7 @@ fn signin_instance() -> Node {
                     &password_field,
                     vec![("data-blocks-auth-split-accent-panel-field", "")],
                     vec![
-                        div(
-                            vec![("class", "blocks-auth-split-accent-panel-password-row")],
-                            vec![
-                                field::label(&password_field, vec![], vec![text("パスワード")]),
-                                link::root(
-                                    "#blocks-auth-split-accent-panel-signin",
-                                    &LinkProps::default(),
-                                    vec![],
-                                    vec![text("パスワードをお忘れですか")],
-                                ),
-                            ],
-                        ),
+                        field::label(&password_field, vec![], vec![text("パスワード")]),
                         input::input(
                             &InputProps::default(),
                             &password_field,
@@ -201,16 +214,15 @@ fn signin_instance() -> Node {
             vec![
                 blockquote::content(vec![], vec![text(dummy_assets::TESTIMONIAL_QUOTES[0])]),
                 blockquote::caption(
-                    vec![("class", "blocks-auth-split-accent-panel-caption")],
+                    vec![("data-blocks-auth-split-accent-panel-caption", "")],
                     vec![
                         avatar::root(
                             &AvatarProps::default(),
                             vec![("data-blocks-auth-split-accent-panel-avatar", "")],
-                            vec![avatar::image(
-                                ImageStatus::Loaded,
-                                dummy_assets::AVATAR_SRC,
-                                "",
+                            vec![avatar::fallback(
+                                ImageStatus::Error,
                                 vec![],
+                                vec![text(initials(dummy_assets::PERSON_NAMES[0]))],
                             )],
                         ),
                         div(
