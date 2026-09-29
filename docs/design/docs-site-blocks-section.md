@@ -996,6 +996,7 @@ pub enum LayoutCss {
 | list-title-meta | #2925（親 #2892） | `application/list/list_title_meta.rs` |
 | table-grouped-rows | #2942（親 #2892） | `application/table/table_grouped_rows.rs` |
 | table-responsive-stacked | #2943（親 #2892） | `application/table/table_responsive_stacked.rs` |
+| table-rich-rows | #2944（親 #2892） | `application/table/table_rich_rows.rs` |
 | grid-list-compact-tiles | #2918（親 #2892） | `application/grid_list/grid_list_compact_tiles.rs` |
 | grid-list-file-thumbnails | #2920 | `application/grid_list/grid_list_file_thumbnails.rs` |
 | grid-list-logo-cards | #2921（親 #2892） | `application/grid_list/grid_list_logo_cards.rs` |
