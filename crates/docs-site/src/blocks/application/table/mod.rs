@@ -1,9 +1,9 @@
 //! Application / Table カテゴリの block 登録点（イシュー #2734 で雛形
 //! 新設。イシュー #2947 で `table_with_heading`、イシュー #2943 で
 //! `table_responsive_stacked`、イシュー #2942（親 #2892）で
-//! `table_grouped_rows` を追加しディレクトリ化して卒業した。
-//! イシュー #2949 で `table_with_toolbar` を追加）。
-//! 手順は `docs/design/docs-site-blocks-section.md` §18 参照。
+//! `table_grouped_rows`、イシュー #2944 で `table_rich_rows`、
+//! イシュー #2949 で `table_with_toolbar` を追加しディレクトリ化して
+//! 卒業した）。手順は `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
 //! 新規 block を追加する際は本ファイルへ `mod` 宣言と `blocks()` への追記を
@@ -13,6 +13,7 @@
 
 mod table_grouped_rows;
 mod table_responsive_stacked;
+mod table_rich_rows;
 mod table_with_heading;
 mod table_with_toolbar;
 
@@ -22,6 +23,7 @@ pub(super) fn blocks() -> Vec<Block> {
     vec![
         table_grouped_rows::BLOCK,
         table_responsive_stacked::BLOCK,
+        table_rich_rows::BLOCK,
         table_with_heading::BLOCK,
         table_with_toolbar::BLOCK,
     ]

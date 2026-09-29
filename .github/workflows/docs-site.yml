@@ -426,6 +426,7 @@ jobs:
           # Application / Table
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/table-grouped-rows/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/table-responsive-stacked/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/table-rich-rows/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/table-with-heading/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/table-with-toolbar/index.html"
           # Application / Grid List
@@ -479,6 +480,8 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/dashboard-01/index.html"
           # Application / AI Chat
           # Application / Help Center
+          # Application / Media Object
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/media-object/index.html"
           # Ecommerce / Product Overview
           # Ecommerce / Product List
           # Ecommerce / Quickview

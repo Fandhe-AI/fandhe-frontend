@@ -27,6 +27,7 @@ mod form_layout;
 mod grid_list;
 mod help_center;
 mod list;
+mod media_object;
 mod navbar;
 mod notification;
 mod onboarding;
@@ -67,5 +68,6 @@ pub(super) fn blocks() -> Vec<Block> {
     items.extend(dashboard::blocks());
     items.extend(ai_chat::blocks());
     items.extend(help_center::blocks());
+    items.extend(media_object::blocks());
     items
 }
