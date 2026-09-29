@@ -966,8 +966,10 @@ pub enum LayoutCss {
 | card-form-footer | #2899 | `application/card/card_form_footer.rs` |
 | card-heading-toolbar | #2902 | `application/card_heading/card_heading_toolbar.rs` |
 | page-heading-actions | #2930 | `application/page_heading/page_heading_actions.rs` |
+| page-heading-avatar | #2931（親 #2892） | `application/page_heading/page_heading_avatar.rs` |
 | page-heading-cover | #2932（親 #2892） | `application/page_heading/page_heading_cover.rs` |
 | page-heading-meta | #2933（親 #2892） | `application/page_heading/page_heading_meta.rs` |
+| page-heading-welcome-stats | #2935（親 #2892） | `application/page_heading/page_heading_welcome_stats.rs` |
 | card-media-footer | #2900（親 #2892） | `application/card/card_media_footer.rs` |
 | card-meta-cta | #2901（親 #2892） | `application/card/card_meta_cta.rs` |
 | chart-bar-list | #2903 | `application/chart/chart_bar_list.rs` |
@@ -977,6 +979,7 @@ pub enum LayoutCss {
 | description-list-summary-card | #2907（親 #2892） | `application/description_list/description_list_summary_card.rs` |
 | description-list-two-column | #2908 | `application/description_list/description_list_two_column.rs` |
 | profile-detail-datalist | #2937（親 #2892） | `application/profile/profile_detail_datalist.rs` |
+| profile-header-follow | #2939（親 #2892） | `application/profile/profile_header_follow.rs` |
 | form-layout-inline-labels | #2911（親 #2892） | `application/form_layout/form_layout_inline_labels.rs` |
 | feed-upvote-cards | #2910（親 #2892） | `application/feed/feed_upvote_cards.rs` |
 | feed-comments-timeline | #2909（親 #2892） | `application/feed/feed_comments_timeline.rs` |
@@ -1000,6 +1003,9 @@ pub enum LayoutCss {
 | testimonial-card-grid | #2884（親 #2807） | `marketing/testimonial/testimonial_card_grid.rs` |
 | testimonial-split-image | #2890（親 #2807） | `marketing/testimonial/testimonial_split_image.rs` |
 | grid-list-contact-cards | #2919（親 #2892） | `application/grid_list/grid_list_contact_cards.rs` |
+| navbar-docs-site | #2927（親 #2892） | `application/navbar/navbar_docs_site.rs` |
+| table-with-heading | #2947（親 #2892） | `application/table/table_with_heading.rs` |
+| profile-detail-skills | #2938（親 #2892） | `application/profile/profile_detail_skills.rs` |
 | profile-card-centered | #2936（親 #2892） | `application/profile/profile_card_centered.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は

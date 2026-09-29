@@ -244,17 +244,23 @@ fn minimal_card() -> Node {
     // （GitHub リポジトリ）と一致する文言にする（モジュール doc「アイコン
     // 単独リンクと可視テキスト付きリンクでのアクセシブル名の作り分け」
     // 参照。イシュー #2936 codex レビュー P1 対応）。
+    // `link::root` は自身の variant class を組み立てるため呼び出し側の
+    // `class` 属性を drop する（`drop_class_attr`、`crates/pre-styled-ui/
+    // src/link.rs`）。レイアウト用 class はリンクではなく `li` へ持たせる
+    // （イシュー #2936 レビュー指摘: リンクへ渡した class が DOM に届かず
+    // `.blocks-profile-card-centered-link-list-item` セレクタが不発になる
+    // 不具合の修正）。
     let link_list_item = |shape: fn(Size, Option<&'static str>) -> Node, label: &'static str| {
         el(
             "li",
-            vec![],
+            vec![("class", "blocks-profile-card-centered-link-list-item")],
             vec![link::root(
                 REPO,
                 &LinkProps {
                     external: true,
                     ..LinkProps::default()
                 },
-                vec![("class", "blocks-profile-card-centered-link-list-item")],
+                vec![],
                 vec![shape(Size::Sm, None), text(label)],
             )],
         )
