@@ -277,21 +277,23 @@ fn minimal_card() -> Node {
     // 参照。イシュー #2936 codex レビュー P1 対応）。
     // `link::root` は自身の variant class を組み立てるため呼び出し側の
     // `class` 属性を drop する（`drop_class_attr`、`crates/pre-styled-ui/
-    // src/link.rs`）。レイアウト用 class はリンクではなく `li` へ持たせる
-    // （イシュー #2936 レビュー指摘: リンクへ渡した class が DOM に届かず
-    // `.blocks-profile-card-centered-link-list-item` セレクタが不発になる
-    // 不具合の修正）。
+    // src/link.rs`）。`class` 以外の属性はそのまま素通りするため、
+    // レイアウト用セレクタは `class` ではなく `data-*` 属性で `a` 自身へ
+    // 付与する（イシュー #2936 レビュー指摘: (1) `li` へ `class` を
+    // 逃がしても `li` の子は `a` 1 個のみで `gap` は効かない、
+    // (2) アイコンとテキストの間隔が必要なのは `a` の内側なので、
+    // `a` 自体を `inline-flex` にして `gap` を持たせる）。
     let link_list_item = |shape: fn(Size, Option<&'static str>) -> Node, label: &'static str| {
         el(
             "li",
-            vec![("class", "blocks-profile-card-centered-link-list-item")],
+            vec![],
             vec![link::root(
                 REPO,
                 &LinkProps {
                     external: true,
                     ..LinkProps::default()
                 },
-                vec![],
+                vec![("data-blocks-profile-card-centered-link-list-item", "")],
                 vec![shape(Size::Sm, None), text(label)],
             )],
         )
@@ -419,7 +421,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-profile-card-centered-actions {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: center;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-profile-card-centered-cta-full] {\n  width: 100%;\n}\n\
 .blocks-profile-card-centered-link-list {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  width: 100%;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
-.blocks-profile-card-centered-link-list-item {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n";
+[data-blocks-profile-card-centered-link-list-item] {\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n";
 
 #[cfg(test)]
 mod tests {
