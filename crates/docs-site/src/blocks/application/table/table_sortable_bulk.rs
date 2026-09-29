@@ -42,16 +42,27 @@
 //! `.blocks-table-sortable-bulk-table-wrap`（`position: relative;
 //! container-type: inline-size;`）の子として配置し、
 //! `position: absolute; top: 0; inset-inline-start/-end` で見出し行に
-//! 重ねて表示する。狭幅（`@container ... (max-width: 40rem)`）では副次列
-//! （役割・最終更新）を隠し、ツールバーは全幅帯（`inset-inline-start: 0`）
-//! として残す。この幅切替でツールバーが全行選択チェックボックスを覆う
-//! ようになるため、同じ `@container` 規則内で `[data-blocks-table-
-//! sortable-bulk-select-header]` に `visibility: hidden` を適用し、覆われて
-//! いる間はチェックボックスをフォーカス対象からも外す（`visibility:
-//! hidden` は Tab 移動・アクセシビリティツリーの双方から除外するため、
-//! 可視状態とフォーカス可否が常に一致する。Codex/Cursor Bugbot 指摘、
-//! イシュー #2945 PR #3393）。「未選択」パネルはツールバー自体を出力しない
-//! （1 行も選択されていない状態を JS 無しで正しく表す）。
+//! 重ねて表示する。`inset-inline-start` は選択列幅の既定値
+//! `var(--fandhe-data-table-select-width, 2.5rem)` に固定するため、選択列
+//! （`data_table::select_all`/`select_row` の共有 base）が持つ左右
+//! padding（`--fandhe-space-4`）ぶん実際の列幅が `2.5rem` を超えると、
+//! 通常幅でもツールバーが全行選択チェックボックスへ重なってしまう
+//! （box-sizing 既定の `content-box` では `width` に padding が加算される
+//! ため。Codex 指摘、イシュー #2945 PR #3393）。これを本 block 局所の CSS
+//! オーバーライド（`[data-scope="data-table"][data-part="select-all"/
+//! "select-row"]` へ `box-sizing: border-box; padding-inline: 0;` を上書き）
+//! で解消し、選択列の実幅を `inset-inline-start` の前提どおり厳密に
+//! `2.5rem` へ固定する（`select-cell` の垂直 padding は保持、チェックボッ
+//! クスは既存の `text-align: center` で中央寄せのまま）。狭幅
+//! （`@container ... (max-width: 40rem)`）では副次列（役割・最終更新）を
+//! 隠し、ツールバーは全幅帯（`inset-inline-start: 0`）として残す。この
+//! 幅切替でもツールバーが全行選択チェックボックスを覆うため、同じ
+//! `@container` 規則内で `[data-blocks-table-sortable-bulk-select-header]`
+//! に `visibility: hidden` を適用し、覆われている間はチェックボックスを
+//! フォーカス対象からも外す（`visibility: hidden` は Tab 移動・アクセシ
+//! ビリティツリーの双方から除外するため、可視状態とフォーカス可否が常に
+//! 一致する）。「未選択」パネルはツールバー自体を出力しない（1 行も選択
+//! されていない状態を JS 無しで正しく表す）。
 //!
 //! # `menu`/ボタンを disabled にしない理由
 //!
@@ -562,14 +573,23 @@ pub const BLOCK: Block = Block {
 };
 
 /// `table_sortable_bulk` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。すべて `--fandhe-*` トークンを
-/// 参照し、`[data-scope=` セレクタは書かない（`css_var_scope_prefix.rs` の
-/// 対象外に保つ）。
+/// doc「block 固有 CSS の置き場」節）。`--fandhe-*` トークンを参照する
+/// 宣言に加え、選択列の実幅を一括操作ツールバーの `inset-inline-start`
+/// 前提へ合わせる 1 箇所のみ `[data-scope="data-table"][data-part=
+/// "select-all"/"select-row"]` セレクタを持つ（モジュール doc「一括操作
+/// ツールバーを見出し行へ重ねる実装」節、イシュー #2945 PR #3393）。本
+/// 定数は `crate::showcase::stylesheet()` には集約されない block 固有
+/// LAYOUT_CSS（[`Block::layout_css`](crate::blocks::Block::layout_css)）
+/// のため `css_var_scope_prefix.rs`（`showcase::stylesheet()` のみ走査）
+/// の対象外であり、custom property を新設しないためカスタムプロパティの
+/// プレフィックス規約とも衝突しない。
 const LAYOUT_CSS: &str = "\
 .blocks-table-sortable-bulk-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-table-sortable-bulk-panel {\n  display: flex;\n  flex-direction: column;\n}\n\
 .blocks-table-sortable-bulk-table-wrap {\n  position: relative;\n  container-type: inline-size;\n  container-name: blocks-table-sortable-bulk;\n}\n\
 .blocks-table-sortable-bulk-table-wrap thead th {\n  height: 3rem;\n}\n\
+.blocks-table-sortable-bulk-table-wrap [data-scope=\"data-table\"][data-part=\"select-all\"],\n\
+.blocks-table-sortable-bulk-table-wrap [data-scope=\"data-table\"][data-part=\"select-row\"] {\n  box-sizing: border-box;\n  padding-inline: 0;\n}\n\
 [data-blocks-table-sortable-bulk-toolbar] {\n  position: absolute;\n  top: 0;\n  inset-inline-start: var(--fandhe-data-table-select-width, 2.5rem);\n  inset-inline-end: 0;\n  height: 3rem;\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  padding-inline: var(--fandhe-space-3);\n  background: var(--fandhe-color-bg);\n  z-index: 1;\n}\n\
 @container blocks-table-sortable-bulk (max-width: 40rem) {\n  [data-blocks-table-sortable-bulk-secondary] {\n    display: none;\n  }\n\n  [data-blocks-table-sortable-bulk-toolbar] {\n    inset-inline-start: 0;\n  }\n\n  [data-blocks-table-sortable-bulk-select-header] {\n    visibility: hidden;\n  }\n}\n";
 
@@ -641,6 +661,19 @@ mod tests {
         assert!(!LAYOUT_CSS.contains("</style"));
         assert!(LAYOUT_CSS.contains("@container blocks-table-sortable-bulk (max-width: 40rem)"));
         assert!(LAYOUT_CSS.contains("position: absolute"));
+    }
+
+    /// 選択列（`select-all`/`select-row`）の実幅をツールバーの
+    /// `inset-inline-start` 前提（選択列幅の既定値 `2.5rem`）へ一致させる
+    /// `box-sizing: border-box; padding-inline: 0;` オーバーライドが両
+    /// パーツに適用されていることを固定する（通常幅での重なり回帰防止、
+    /// Codex 指摘・イシュー #2945 PR #3393）。
+    #[test]
+    fn select_column_width_override_matches_toolbar_inset_assumption() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"data-table\"][data-part=\"select-all\"],\n\
+.blocks-table-sortable-bulk-table-wrap [data-scope=\"data-table\"][data-part=\"select-row\"] {\n  box-sizing: border-box;\n  padding-inline: 0;\n}"
+        ));
     }
 
     /// 全行選択チェックボックスは選択中パネルでも静的な `tabindex="-1"` を
