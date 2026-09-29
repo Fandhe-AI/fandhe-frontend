@@ -23,11 +23,18 @@
 docs サイトは JS ハイドレーションを行いません）。文言はすべて独自に書いた
 架空のものであり、実企業名・実クレデンシャル・PII を含みません。
 
+本 block は状態違いを 3 版並べて示します: (A) 代表構成（応答完了状態）、
+(B) 応答生成中（アシスタント発言の末尾を半透明化する
+`data-loading`〔`message` 部品の表示状態〕で示し、送信ボタンを「停止」に
+差し替え）、(C) 狭幅（`max-inline-size: 36rem` のコンテナで包み、
+リサイズなしで「見出し表示 + 縦積み」を確認できる版）。いずれも A と同じ
+右列（プレビュー・コード両パネル常時併記）を持ちます。
+
 ## Rust コード
 
 ```rust
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, el, span, text, Node};
+use fandhe_frontend_core::{div, el, p, section, span, text, Node};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::code::{self, CodeProps};
 use fandhe_frontend_pre_styled_ui::menu::{self, OpenState};
@@ -46,7 +53,8 @@ const CODE_SNIPPET: &str =
     "async fn inventory() -> Json<Vec<Item>> {\n    Json(fetch_items().await)\n}";
 
 /// 上部ナビ（ロゴ + プロジェクト名 + 操作ボタン + 三点メニュー）を組み立てる。
-fn top_nav() -> Node {
+/// `suffix` は 3 版並記時の id 衝突回避用（モジュール doc「3 版の並記」節参照）。
+fn top_nav(suffix: &str) -> Node {
     let brand = div(
         vec![("class", "blocks-ai-chat-code-preview-brand")],
         vec![
@@ -77,7 +85,7 @@ fn top_nav() -> Node {
         vec![],
         vec![text("公開")],
     );
-    let overflow = overflow_menu();
+    let overflow = overflow_menu(suffix);
 
     let actions = div(
         vec![("class", "blocks-ai-chat-code-preview-nav-actions")],
@@ -91,10 +99,11 @@ fn top_nav() -> Node {
 }
 
 /// 三点メニュー（無 JS のため [`OpenState::Closed`] 固定、
-/// `page_heading_avatar.rs::overflow_menu` と同型）。
-fn overflow_menu() -> Node {
-    const TRIGGER_ID: &str = "blocks-ai-chat-code-preview-menu-trigger";
-    const CONTENT_ID: &str = "blocks-ai-chat-code-preview-menu-content";
+/// `page_heading_avatar.rs::overflow_menu` と同型）。`suffix` は 3 版並記時の
+/// id 衝突回避用（モジュール doc「3 版の並記」節参照）。
+fn overflow_menu(suffix: &str) -> Node {
+    let trigger_id = format!("blocks-ai-chat-code-preview-menu-trigger-{suffix}");
+    let content_id = format!("blocks-ai-chat-code-preview-menu-content-{suffix}");
 
     let items = [
         ("rename", "プロジェクト名を変更"),
@@ -112,17 +121,17 @@ fn overflow_menu() -> Node {
     let trigger = menu::trigger(
         OpenState::Closed,
         false,
-        Some(CONTENT_ID),
+        Some(content_id.as_str()),
         vec![
-            ("id", TRIGGER_ID),
+            ("id", &trigger_id),
             ("aria-label", &format!("その他の操作、{PROJECT_NAME}")),
         ],
         vec![text("\u{2026}")],
     );
     let content = menu::content(
         OpenState::Closed,
-        Some(CONTENT_ID),
-        Some(TRIGGER_ID),
+        Some(content_id.as_str()),
+        Some(trigger_id.as_str()),
         vec![],
         menu_items,
     );
@@ -160,12 +169,17 @@ fn switch_group() -> Node {
 }
 
 /// 会話 1 発言を組み立てる。`code_snippet` が `Some` のとき `content` 内へ
-/// [`code::code`] のインライン片を差し込む。
+/// [`code::code`] のインライン片を差し込む。`loading` は
+/// [`MessageRootProps::loading`] へそのまま渡す（`data-loading` の見た目
+/// のみで `aria-busy` は headless 側が意図的に出さない、
+/// `fandhe_frontend_headless_ui::message` doc「`aria-live`/`aria-busy` を
+/// 付けない理由」参照）。
 fn message_bubble(
     role: MessageRole,
     align: MessageAlign,
     body: &str,
     code_snippet: Option<&str>,
+    loading: bool,
 ) -> Node {
     let mut content_children = vec![text(body)];
     if let Some(snippet) = code_snippet {
@@ -180,7 +194,7 @@ fn message_bubble(
         MessageRootProps {
             role,
             align,
-            loading: false,
+            loading,
             error: false,
         },
         vec![],
@@ -188,28 +202,42 @@ fn message_bubble(
     )
 }
 
-/// 左列（チャット履歴 + 入力欄）を組み立てる。
-fn chat_pane() -> Node {
-    let history = vec![
+/// 左列（チャット履歴 + 入力欄）を組み立てる。`suffix` は id 衝突回避用、
+/// `generating` は「応答生成中」版（モジュール doc「3 版の並記」節参照）
+/// のときに履歴末尾の loading 発言を追加し送信ボタンを「停止」へ差し替える。
+fn chat_pane(suffix: &str, generating: bool) -> Node {
+    let mut history = vec![
         message_bubble(
             MessageRole::User,
             MessageAlign::End,
             "在庫一覧を取得する API エンドポイントを Rust で書いて",
             None,
+            false,
         ),
         message_bubble(
             MessageRole::Assistant,
             MessageAlign::Start,
             "在庫一覧を返すハンドラを用意しました:",
             Some("GET /api/inventory"),
+            false,
         ),
         message_bubble(
             MessageRole::User,
             MessageAlign::End,
             "レスポンスを JSON にして",
             None,
+            false,
         ),
     ];
+    if generating {
+        history.push(message_bubble(
+            MessageRole::Assistant,
+            MessageAlign::Start,
+            "コードを生成しています\u{2026}",
+            None,
+            true,
+        ));
+    }
 
     // 高さは `message_scroller::root` recipe が持つ CSS カスタムプロパティ
     // `--fandhe-message-scroller-height`（既定 24rem）を `style` で上書きして
@@ -240,13 +268,36 @@ fn chat_pane() -> Node {
         ],
     );
 
+    let prompt_id = format!("blocks-ai-chat-code-preview-prompt-{suffix}");
+    let submit_button = if generating {
+        button::button(
+            &ButtonProps {
+                variant: ButtonVariant::Outline,
+                size: Size::Sm,
+                ..ButtonProps::default()
+            },
+            vec![],
+            vec![text("停止")],
+        )
+    } else {
+        button::button(
+            &ButtonProps {
+                variant: ButtonVariant::Solid,
+                size: Size::Sm,
+                ..ButtonProps::default()
+            },
+            vec![],
+            vec![text("送信")],
+        )
+    };
+
     let composer = div(
         vec![("class", "blocks-ai-chat-code-preview-composer")],
         vec![
             textarea::textarea(
                 &TextareaProps::default(),
                 &FieldProps {
-                    id: "blocks-ai-chat-code-preview-prompt",
+                    id: &prompt_id,
                     ids: FieldIds::default(),
                     disabled: false,
                     invalid: false,
@@ -262,15 +313,7 @@ fn chat_pane() -> Node {
                 ],
                 vec![],
             ),
-            button::button(
-                &ButtonProps {
-                    variant: ButtonVariant::Solid,
-                    size: Size::Sm,
-                    ..ButtonProps::default()
-                },
-                vec![],
-                vec![text("送信")],
-            ),
+            submit_button,
         ],
     );
 
@@ -294,7 +337,9 @@ fn chat_pane() -> Node {
 /// 常に併記されるため、コード側が未選択であるかのように示す表示状態の
 /// 不一致だった。`switch_group` の Codex P2 是正〔対等な見出しへ変更〕と
 /// 同型の判断で、選択状態を表す視覚的な強調を持たない対等な見出しへ
-/// 変更した）。
+/// 変更した）。「code タブ選択時の状態違い」という別案は、この両パネル
+/// 常時併記の設計そのものにより不要になっている（モジュール doc「3 版の
+/// 並記」節参照）。
 fn static_tab_list() -> Node {
     div(
         vec![
@@ -341,18 +386,52 @@ fn preview_pane() -> Node {
     )
 }
 
-/// `ai-chat-code-preview` の Demo 本体。呼び出しごとに同一の `Node` を
-/// 返す純関数。
-#[must_use]
-pub fn demo() -> Node {
+/// 版キャプション（多数派の慣例に合わせ `heading` 部品を使わず素の `<p>`。
+/// [`crate::blocks::dummy_assets`] のような共有部品を増やさない、
+/// `footer_inline_nav.rs` 等 sibling block と同型のパターン）。
+fn caption(label: &str) -> Node {
+    p(
+        vec![("class", "blocks-ai-chat-code-preview-caption")],
+        vec![text(label)],
+    )
+}
+
+/// 1 版分の shell（上部ナビ + 狭幅見出し + 本体 2 列）を組み立てる。
+/// `suffix` は id 衝突回避用、`generating` は「応答生成中」版かどうか
+/// （モジュール doc「3 版の並記」節参照）。
+fn shell(suffix: &str, generating: bool) -> Node {
     div(
         vec![("class", "blocks-ai-chat-code-preview-shell")],
         vec![
-            top_nav(),
+            top_nav(suffix),
             switch_group(),
             div(
                 vec![("class", "blocks-ai-chat-code-preview-body")],
-                vec![chat_pane(), preview_pane()],
+                vec![chat_pane(suffix, generating), preview_pane()],
+            ),
+        ],
+    )
+}
+
+/// `ai-chat-code-preview` の Demo 本体。呼び出しごとに同一の `Node` を
+/// 返す純関数。3 版（代表構成・応答生成中・狭幅）を縦に並べる
+/// （モジュール doc「3 版の並記」節参照）。
+#[must_use]
+pub fn demo() -> Node {
+    div(
+        vec![("class", "blocks-ai-chat-code-preview-layout")],
+        vec![
+            caption("代表構成"),
+            section(vec![], vec![shell("a", false)]),
+            caption("応答生成中"),
+            section(vec![], vec![shell("b", true)]),
+            caption("狭幅（見出し表示 + 縦積み）"),
+            section(
+                vec![],
+                vec![div(
+                    vec![("class", "blocks-ai-chat-code-preview-narrow")],
+                    vec![shell("c", false)],
+                )],
             ),
         ],
     )
@@ -361,19 +440,31 @@ pub fn demo() -> Node {
 
 ## 原案差分メモ
 
-- 主参照は R0001 のみ（集約元 1 件）です。`_/blocks-intake/` の対応
-  ファイルは本イシュー着手時点で本 worktree に存在しないため、対応表 ID
-  のみを記録しています（`page-heading-avatar.md` と同じ扱い）。
-- PR #3411 レビュー（Codex P1/P2、Bugbot Medium）の是正として、右列は
-  実物の `tabs::tabs` の使用をやめ、静的タブ列 + 両パネル常時併記へ変更
-  しました。狭幅専用の表示切替も `aria-pressed` を外し非対話 `span` へ
-  変更しています。左列のメッセージスクローラーの高さ指定は CSS カスタム
-  プロパティ経由に変更し、cascade specificity の不具合を解消しました。
-  状態違いの併記・本メモの差分反映の仕上げは後続イシュー #2959 で行い
-  ます。
+- 主参照は R0001 のみ（集約元 1 件）です。参照由来の差分はありません。
+  `_/blocks-intake/` の対応ファイルは本イシュー（#2959）着手時点でも本
+  worktree に存在しないため、対応表 ID のみを記録しています
+  （`page-heading-avatar.md` と同じ扱い）。
+- PR #3411（前半 #2958）レビュー（Codex P1/P2、Bugbot Medium）の是正
+  として、右列は実物の `tabs::tabs` の使用をやめ、静的タブ列 + 両パネル
+  常時併記へ変更しました。狭幅専用の表示切替も `aria-pressed` を外し
+  非対話 `span` へ変更しています。左列のメッセージスクローラーの高さ
+  指定は CSS カスタムプロパティ経由に変更し、cascade specificity の
+  不具合を解消しました。
+- `tabs` 部品は意図的に未使用です（親 issue の使用部品一覧には
+  `tabs` がありますが、両パネルを常時併記する本 block の構造とは
+  相容れないため採用していません。`tabs::tabs` を使うと広幅で 2 列に
+  並ぶ実パネルを tabpanel 内に置けず空 tabpanel を出すことになります）。
+- 前半 #2958 時点で検討していた「code タブ選択時の第 2 インスタンス」
+  という状態違い案は、その後の右列常時併記への変更で前提が消滅したため
+  扱いません。代わりに本イシュー（#2959）で「応答生成中」「狭幅」の
+  2 状態を新たに並記しました。
+- 「応答生成中」版は `message` 部品の `data-loading`（見た目のみの表示
+  状態）で表現し、実際には更新されない `aria-busy`/`aria-live` は付けて
+  いません（`fandhe_frontend_headless_ui::message` の既定方針に準拠）。
 - 実データ取得・生成処理・メニュー開閉・ボタン押下は行わず、静的な初期
   状態のみを示します。プロジェクト名・会話文・コード片はすべて独自の
   架空データです。
 - ブラウザでの実機確認（`48rem` 前後のコンテナ幅切替・ライト/ダーク両
   テーマ）はサンドボックス制約により未実施です。cargo test による出力
-  検証のみで代替しました。
+  検証（3 版の縦並び・loading 表示 1 件・狭幅ラッパー内の shell 展開）
+  のみで代替しました。
