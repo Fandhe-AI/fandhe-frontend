@@ -479,6 +479,8 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/dashboard-01/index.html"
           # Application / AI Chat
           # Application / Help Center
+          # Application / Media Object
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/media-object/index.html"
           # Ecommerce / Product Overview
           # Ecommerce / Product List
           # Ecommerce / Quickview
