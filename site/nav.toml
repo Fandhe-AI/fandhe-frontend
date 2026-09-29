@@ -2250,6 +2250,11 @@ title = "profile-detail-datalist"
 source = "site/blocks/profile-detail-datalist.md"
 path = "/blocks/profile-detail-datalist/"
 
+[[section.group.page]]
+title = "profile-header-follow"
+source = "site/blocks/profile-header-follow.md"
+path = "/blocks/profile-header-follow/"
+
 [[section.group]]
 title = "Chart"
 
