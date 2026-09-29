@@ -375,6 +375,30 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
             ("data-blocks-table-sortable-bulk-covered", ""),
         ]
     };
+    // `sort_trigger`（button）の子はソート可能な列名テキストのみであり、
+    // これが `visibility: hidden`（上記 `[data-blocks-table-sortable-bulk-
+    // covered]`）で不可視化されると `th` の中身がまるごと消え、列見出し名が
+    // アクセシビリティツリーから失われる（Codex 指摘 P1、イシュー #2945
+    // PR #3393）。覆われている間だけ、clip 手法（`visually_hidden` と同じ
+    // 技法。`display: none`/`visibility: hidden` にしない — それらは支援
+    // 技術からも要素を除外してしまう）で視覚的には隠しつつ DOM・
+    // アクセシビリティツリーには残るフォールバックテキストを `th` へ
+    // 追加する。「未覆時」は可視ボタンのテキストが唯一の情報源のため、
+    // フォールバックは追加しない（二重読み上げの防止）。
+    let sortable_header_children = |trigger: Node, label: &'static str| -> Vec<Node> {
+        if header_focusable {
+            vec![trigger]
+        } else {
+            vec![
+                trigger,
+                el(
+                    "span",
+                    vec![("data-blocks-table-sortable-bulk-header-fallback-label", "")],
+                    vec![text(label)],
+                ),
+            ]
+        }
+    };
     let select_header_attrs: Vec<(&str, &str)> = if variant == "selected" {
         vec![
             ("scope", "col"),
@@ -411,12 +435,15 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
                     column: name_column,
                     sort: Some(table_state.sort_direction_of("name").unwrap()),
                 }),
-                vec![data_table::sort_trigger(
-                    &table_state,
-                    "name",
-                    header_tabindex_attr.clone(),
-                    vec![text("名前")],
-                )],
+                sortable_header_children(
+                    data_table::sort_trigger(
+                        &table_state,
+                        "name",
+                        header_tabindex_attr.clone(),
+                        vec![text("名前")],
+                    ),
+                    "名前",
+                ),
             ),
             table::column_header(
                 data_table::column_header_attrs(&ColumnHeaderProps {
@@ -427,12 +454,15 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
                             .unwrap_or(SortDirection::None),
                     ),
                 }),
-                vec![data_table::sort_trigger(
-                    &table_state,
-                    "status",
-                    header_tabindex_attr.clone(),
-                    vec![text("ステータス")],
-                )],
+                sortable_header_children(
+                    data_table::sort_trigger(
+                        &table_state,
+                        "status",
+                        header_tabindex_attr.clone(),
+                        vec![text("ステータス")],
+                    ),
+                    "ステータス",
+                ),
             ),
             table::column_header(
                 {
@@ -643,6 +673,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-table-sortable-bulk-table-wrap [data-blocks-table-sortable-bulk-select-cell] {\n  box-sizing: border-box;\n  padding-inline: 0;\n  width: var(--fandhe-data-table-select-width, 2.5rem);\n  text-align: center;\n}\n\
 [data-blocks-table-sortable-bulk-toolbar] {\n  position: absolute;\n  top: 0;\n  inset-inline-start: var(--fandhe-data-table-select-width, 2.5rem);\n  inset-inline-end: 0;\n  height: 3rem;\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  padding-inline: var(--fandhe-space-3);\n  background: var(--fandhe-color-bg);\n  z-index: 1;\n}\n\
 [data-blocks-table-sortable-bulk-covered] {\n  visibility: hidden;\n}\n\
+[data-blocks-table-sortable-bulk-header-fallback-label] {\n  position: absolute;\n  width: 1px;\n  height: 1px;\n  padding: 0;\n  margin: -1px;\n  overflow: hidden;\n  clip: rect(0, 0, 0, 0);\n  white-space: nowrap;\n  overflow-wrap: normal;\n  border-width: 0;\n}\n\
 @container blocks-table-sortable-bulk (max-width: 40rem) {\n  [data-blocks-table-sortable-bulk-secondary] {\n    display: none;\n  }\n\n  [data-blocks-table-sortable-bulk-toolbar] {\n    inset-inline-start: 0;\n  }\n\n  [data-blocks-table-sortable-bulk-select-header] {\n    visibility: hidden;\n  }\n}\n";
 
 #[cfg(test)]
@@ -804,6 +835,36 @@ mod tests {
         );
         assert!(LAYOUT_CSS
             .contains("[data-blocks-table-sortable-bulk-covered] {\n  visibility: hidden;\n}"));
+    }
+
+    /// `covered_sort_triggers_are_hidden_from_accessibility_tree` が固定する
+    /// `visibility: hidden` は `sort_trigger`（button）の唯一の子である
+    /// 列名テキストごと不可視化するため、`th` の中身がまるごと
+    /// アクセシビリティツリーから消え、支援技術で表を読み上げた際に
+    /// 名前・ステータス列の見出し名が失われていた（Codex 指摘 P1、イシュー
+    /// #2945 PR #3393）。覆われている間だけ clip 手法（`display: none`/
+    /// `visibility: hidden` を使わない）のフォールバックテキストを `th` へ
+    /// 追加して埋めたことを固定する。「未選択」パネルは可視ボタンの
+    /// テキストが唯一の情報源のため、このフォールバックを持たない
+    /// （二重読み上げの防止）。
+    #[test]
+    fn covered_headers_keep_column_name_accessible_via_fallback_label() {
+        let html = html();
+        assert_eq!(
+            html.matches("data-blocks-table-sortable-bulk-header-fallback-label")
+                .count(),
+            2,
+            "選択中パネルの名前・ステータス 2 列分のみ付与される"
+        );
+        assert!(html.contains(
+            r#"<span data-blocks-table-sortable-bulk-header-fallback-label="">名前</span>"#
+        ));
+        assert!(html.contains(
+            r#"<span data-blocks-table-sortable-bulk-header-fallback-label="">ステータス</span>"#
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-table-sortable-bulk-header-fallback-label] {\n  position: absolute;"
+        ));
     }
 
     #[test]

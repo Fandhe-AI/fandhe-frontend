@@ -272,6 +272,30 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
             ("data-blocks-table-sortable-bulk-covered", ""),
         ]
     };
+    // `sort_trigger`（button）の子はソート可能な列名テキストのみであり、
+    // これが `visibility: hidden`（上記 `[data-blocks-table-sortable-bulk-
+    // covered]`）で不可視化されると `th` の中身がまるごと消え、列見出し名が
+    // アクセシビリティツリーから失われる（Codex 指摘 P1、イシュー #2945
+    // PR #3393）。覆われている間だけ、clip 手法（`visually_hidden` と同じ
+    // 技法。`display: none`/`visibility: hidden` にしない — それらは支援
+    // 技術からも要素を除外してしまう）で視覚的には隠しつつ DOM・
+    // アクセシビリティツリーには残るフォールバックテキストを `th` へ
+    // 追加する。「未覆時」は可視ボタンのテキストが唯一の情報源のため、
+    // フォールバックは追加しない（二重読み上げの防止）。
+    let sortable_header_children = |trigger: Node, label: &'static str| -> Vec<Node> {
+        if header_focusable {
+            vec![trigger]
+        } else {
+            vec![
+                trigger,
+                el(
+                    "span",
+                    vec![("data-blocks-table-sortable-bulk-header-fallback-label", "")],
+                    vec![text(label)],
+                ),
+            ]
+        }
+    };
     let select_header_attrs: Vec<(&str, &str)> = if variant == "selected" {
         vec![
             ("scope", "col"),
@@ -308,12 +332,15 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
                     column: name_column,
                     sort: Some(table_state.sort_direction_of("name").unwrap()),
                 }),
-                vec![data_table::sort_trigger(
-                    &table_state,
-                    "name",
-                    header_tabindex_attr.clone(),
-                    vec![text("名前")],
-                )],
+                sortable_header_children(
+                    data_table::sort_trigger(
+                        &table_state,
+                        "name",
+                        header_tabindex_attr.clone(),
+                        vec![text("名前")],
+                    ),
+                    "名前",
+                ),
             ),
             table::column_header(
                 data_table::column_header_attrs(&ColumnHeaderProps {
@@ -324,12 +351,15 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
                             .unwrap_or(SortDirection::None),
                     ),
                 }),
-                vec![data_table::sort_trigger(
-                    &table_state,
-                    "status",
-                    header_tabindex_attr.clone(),
-                    vec![text("ステータス")],
-                )],
+                sortable_header_children(
+                    data_table::sort_trigger(
+                        &table_state,
+                        "status",
+                        header_tabindex_attr.clone(),
+                        vec![text("ステータス")],
+                    ),
+                    "ステータス",
+                ),
             ),
             table::column_header(
                 {
