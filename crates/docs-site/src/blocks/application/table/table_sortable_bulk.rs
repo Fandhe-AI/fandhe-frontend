@@ -48,12 +48,19 @@
 //! padding（`--fandhe-space-4`）ぶん実際の列幅が `2.5rem` を超えると、
 //! 通常幅でもツールバーが全行選択チェックボックスへ重なってしまう
 //! （box-sizing 既定の `content-box` では `width` に padding が加算される
-//! ため。Codex 指摘、イシュー #2945 PR #3393）。これを本 block 局所の CSS
-//! オーバーライド（`[data-scope="data-table"][data-part="select-all"/
-//! "select-row"]` へ `box-sizing: border-box; padding-inline: 0;` を上書き）
-//! で解消し、選択列の実幅を `inset-inline-start` の前提どおり厳密に
-//! `2.5rem` へ固定する（`select-cell` の垂直 padding は保持、チェックボッ
-//! クスは既存の `text-align: center` で中央寄せのまま）。狭幅
+//! ため。Codex 指摘、イシュー #2945 PR #3393）。`table::column_header`/
+//! `table::cell`（`crate::table`）は呼び出し側の `data-scope`/`data-part`
+//! を強制的に上書きし常に `data-scope="table"` の `column-header`/`cell`
+//! パーツへ固定するため（`data_table::select_all`/`select_row` が本来
+//! 持つ `data-scope="data-table"` の `select-all`/`select-row` パーツは
+//! 実際の DOM には現れない。同一指摘の再発、イシュー #2945 PR #3393
+//! 追加レビュー）、選択列だけを識別する block 固有属性
+//! `data-blocks-table-sortable-bulk-select-cell` を選択列の見出しセル・
+//! 各行のセルへ付与し、本 block 局所の CSS オーバーライド（同属性へ
+//! `box-sizing: border-box; padding-inline: 0;` を適用）で解消する。
+//! 選択列の実幅を `inset-inline-start` の前提どおり厳密に `2.5rem` へ
+//! 固定する（`select-cell` の垂直 padding は保持、チェックボックスは
+//! 既存の `text-align: center` で中央寄せのまま）。狭幅
 //! （`@container ... (max-width: 40rem)`）では副次列（役割・最終更新）を
 //! 隠し、ツールバーは全幅帯（`inset-inline-start: 0`）として残す。この
 //! 幅切替でもツールバーが全行選択チェックボックスを覆うため、同じ
@@ -331,10 +338,14 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
     let select_header_attrs: Vec<(&str, &str)> = if variant == "selected" {
         vec![
             ("scope", "col"),
+            ("data-blocks-table-sortable-bulk-select-cell", ""),
             ("data-blocks-table-sortable-bulk-select-header", ""),
         ]
     } else {
-        vec![("scope", "col")]
+        vec![
+            ("scope", "col"),
+            ("data-blocks-table-sortable-bulk-select-cell", ""),
+        ]
     };
 
     let header_row = table::row(
@@ -423,7 +434,7 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
             data_table::row_attrs(is_selected),
             vec![
                 table::cell(
-                    vec![],
+                    vec![("data-blocks-table-sortable-bulk-select-cell", "")],
                     vec![row_select_checkbox(
                         &row_checkbox_name,
                         if is_selected {
@@ -575,8 +586,8 @@ pub const BLOCK: Block = Block {
 /// `table_sortable_bulk` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
 /// doc「block 固有 CSS の置き場」節）。`--fandhe-*` トークンを参照する
 /// 宣言に加え、選択列の実幅を一括操作ツールバーの `inset-inline-start`
-/// 前提へ合わせる 1 箇所のみ `[data-scope="data-table"][data-part=
-/// "select-all"/"select-row"]` セレクタを持つ（モジュール doc「一括操作
+/// 前提へ合わせる 1 箇所のみ `[data-blocks-table-sortable-bulk-select-cell]`
+/// セレクタを持つ（モジュール doc「一括操作
 /// ツールバーを見出し行へ重ねる実装」節、イシュー #2945 PR #3393）。本
 /// 定数は `crate::showcase::stylesheet()` には集約されない block 固有
 /// LAYOUT_CSS（[`Block::layout_css`](crate::blocks::Block::layout_css)）
@@ -588,8 +599,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-table-sortable-bulk-panel {\n  display: flex;\n  flex-direction: column;\n}\n\
 .blocks-table-sortable-bulk-table-wrap {\n  position: relative;\n  container-type: inline-size;\n  container-name: blocks-table-sortable-bulk;\n}\n\
 .blocks-table-sortable-bulk-table-wrap thead th {\n  height: 3rem;\n}\n\
-.blocks-table-sortable-bulk-table-wrap [data-scope=\"data-table\"][data-part=\"select-all\"],\n\
-.blocks-table-sortable-bulk-table-wrap [data-scope=\"data-table\"][data-part=\"select-row\"] {\n  box-sizing: border-box;\n  padding-inline: 0;\n}\n\
+.blocks-table-sortable-bulk-table-wrap [data-blocks-table-sortable-bulk-select-cell] {\n  box-sizing: border-box;\n  padding-inline: 0;\n}\n\
 [data-blocks-table-sortable-bulk-toolbar] {\n  position: absolute;\n  top: 0;\n  inset-inline-start: var(--fandhe-data-table-select-width, 2.5rem);\n  inset-inline-end: 0;\n  height: 3rem;\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  padding-inline: var(--fandhe-space-3);\n  background: var(--fandhe-color-bg);\n  z-index: 1;\n}\n\
 @container blocks-table-sortable-bulk (max-width: 40rem) {\n  [data-blocks-table-sortable-bulk-secondary] {\n    display: none;\n  }\n\n  [data-blocks-table-sortable-bulk-toolbar] {\n    inset-inline-start: 0;\n  }\n\n  [data-blocks-table-sortable-bulk-select-header] {\n    visibility: hidden;\n  }\n}\n";
 
@@ -663,17 +673,37 @@ mod tests {
         assert!(LAYOUT_CSS.contains("position: absolute"));
     }
 
-    /// 選択列（`select-all`/`select-row`）の実幅をツールバーの
+    /// 選択列（見出しセル・各行セル）の実幅をツールバーの
     /// `inset-inline-start` 前提（選択列幅の既定値 `2.5rem`）へ一致させる
-    /// `box-sizing: border-box; padding-inline: 0;` オーバーライドが両
-    /// パーツに適用されていることを固定する（通常幅での重なり回帰防止、
-    /// Codex 指摘・イシュー #2945 PR #3393）。
+    /// `box-sizing: border-box; padding-inline: 0;` オーバーライドが
+    /// block 固有属性 `data-blocks-table-sortable-bulk-select-cell` に
+    /// 適用されていることを固定する（通常幅での重なり回帰防止、
+    /// Codex/Cursor Bugbot 指摘・イシュー #2945 PR #3393）。CSS 側の
+    /// セレクタが実際に描画される DOM 属性（`table::column_header`/
+    /// `table::cell` が強制する `data-scope="table"`）と一致しない
+    /// 旧セレクタ（`data-scope="data-table"`）への回帰を防ぐ。
     #[test]
     fn select_column_width_override_matches_toolbar_inset_assumption() {
         assert!(LAYOUT_CSS.contains(
-            "[data-scope=\"data-table\"][data-part=\"select-all\"],\n\
-.blocks-table-sortable-bulk-table-wrap [data-scope=\"data-table\"][data-part=\"select-row\"] {\n  box-sizing: border-box;\n  padding-inline: 0;\n}"
+            "[data-blocks-table-sortable-bulk-select-cell] {\n  box-sizing: border-box;\n  padding-inline: 0;\n}"
         ));
+        assert!(!LAYOUT_CSS.contains("data-scope=\"data-table\""));
+    }
+
+    /// 選択列の見出しセル・各行セルの双方に
+    /// `data-blocks-table-sortable-bulk-select-cell` が付与されていることを
+    /// 固定する（行数 4 + 見出し 1 = 5 回、両パネル分で 10 回。
+    /// イシュー #2945 PR #3393 追加レビュー）。
+    #[test]
+    fn select_cell_hook_appears_on_header_and_every_row_in_both_panels() {
+        let html = html();
+        let rows_per_panel = rows_data().len();
+        let expected = (rows_per_panel + 1) * 2;
+        assert_eq!(
+            html.matches("data-blocks-table-sortable-bulk-select-cell")
+                .count(),
+            expected
+        );
     }
 
     /// 全行選択チェックボックスは選択中パネルでも静的な `tabindex="-1"` を

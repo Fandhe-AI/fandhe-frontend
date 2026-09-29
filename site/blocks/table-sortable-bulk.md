@@ -265,10 +265,14 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
     let select_header_attrs: Vec<(&str, &str)> = if variant == "selected" {
         vec![
             ("scope", "col"),
+            ("data-blocks-table-sortable-bulk-select-cell", ""),
             ("data-blocks-table-sortable-bulk-select-header", ""),
         ]
     } else {
-        vec![("scope", "col")]
+        vec![
+            ("scope", "col"),
+            ("data-blocks-table-sortable-bulk-select-cell", ""),
+        ]
     };
 
     let header_row = table::row(
@@ -357,7 +361,7 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
             data_table::row_attrs(is_selected),
             vec![
                 table::cell(
-                    vec![],
+                    vec![("data-blocks-table-sortable-bulk-select-cell", "")],
                     vec![row_select_checkbox(
                         &row_checkbox_name,
                         if is_selected {
