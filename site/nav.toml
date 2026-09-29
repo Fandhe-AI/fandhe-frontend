@@ -2269,6 +2269,11 @@ path = "/blocks/cursor-hover-cards/"
 title = "Profile"
 
 [[section.group.page]]
+title = "profile-card-centered"
+source = "site/blocks/profile-card-centered.md"
+path = "/blocks/profile-card-centered/"
+
+[[section.group.page]]
 title = "profile-detail-datalist"
 source = "site/blocks/profile-detail-datalist.md"
 path = "/blocks/profile-detail-datalist/"

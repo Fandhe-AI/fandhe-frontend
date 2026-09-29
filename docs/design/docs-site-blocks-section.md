@@ -1007,6 +1007,7 @@ pub enum LayoutCss {
 | navbar-docs-site | #2927（親 #2892） | `application/navbar/navbar_docs_site.rs` |
 | table-with-heading | #2947（親 #2892） | `application/table/table_with_heading.rs` |
 | profile-detail-skills | #2938（親 #2892） | `application/profile/profile_detail_skills.rs` |
+| profile-card-centered | #2936（親 #2892） | `application/profile/profile_card_centered.rs` |
 | sidebar-rail-panel | #2941 | `application/sidebar/sidebar_rail_panel.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
