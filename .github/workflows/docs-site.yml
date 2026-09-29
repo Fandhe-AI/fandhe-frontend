@@ -488,6 +488,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/dashboard-01/index.html"
           # Application / AI Chat
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/ai-chat-prompt-start/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/ai-chat-code-preview/index.html"
           # Application / Help Center
           # Application / Media Object
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/media-object/index.html"
