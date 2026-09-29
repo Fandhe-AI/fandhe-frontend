@@ -48,6 +48,18 @@
 //! 持たない（`docs/policy/intentional-non-adoption.md` §3.25：バリデーション・
 //! 送信処理は UI コンポーネント層の責務外）。文言・数値はすべて独自の
 //! 架空のダミー（実企業名・実クレデンシャル・PII を含まない）。
+//!
+//! # 「プロフィールを見る」ボタンは `disabled: true`
+//!
+//! 他の page-heading 系 block（`page_heading_actions`/`page_heading_cover`/
+//! `page_heading_meta`）の操作ボタンは「公開する」「設定を開く」等、その場の
+//! 状態を変える操作動詞のラベルであり、押しても何も起きなくても導線として
+//! 誤解を招かない。一方このボタンは「見る」（=遷移先へ移動する）という
+//! リンク相当の意味論を持つラベルでありながら遷移先を持たないため、押下が
+//! 無反応であることが利用者に伝わらない（イシュー #2935 PR #3387 の指摘）。
+//! `ButtonProps::disabled` で `disabled` 属性・`data-disabled`・
+//! `aria-disabled="true"` を付与し、静的な表示例であることを見た目・
+//! 支援技術の双方に明示する。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -137,6 +149,7 @@ pub fn demo() -> Node {
             button::button(
                 &ButtonProps {
                     variant: ButtonVariant::Outline,
+                    disabled: true,
                     ..ButtonProps::default()
                 },
                 vec![],

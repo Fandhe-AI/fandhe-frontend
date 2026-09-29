@@ -106,6 +106,7 @@ pub fn demo() -> Node {
             button::button(
                 &ButtonProps {
                     variant: ButtonVariant::Outline,
+                    disabled: true,
                     ..ButtonProps::default()
                 },
                 vec![],
