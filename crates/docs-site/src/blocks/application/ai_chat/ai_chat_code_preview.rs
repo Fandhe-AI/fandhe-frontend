@@ -32,9 +32,14 @@
 //!
 //! `@container` で [`LAYOUT_CSS`] が body を 1 列へ縮退させるだけで、両
 //! パネル（chat/preview）はどちらも常に到達可能なまま DOM に残る。狭幅
-//! 専用の [`switch_group`] は表示の目安を示す `role="group"` の
-//! `aria-pressed` トグル 2 個であり、実際のパネル切替（`display: none`）
-//! は行わない（`page_heading_avatar.rs` の codex レビュー指摘「狭幅で
+//! 専用の [`switch_group`] は選択状態を示さない非対話の領域見出し `span`
+//! 2 個であり、実際のパネル切替（`display: none`）は行わない
+//! （Codex P2 是正: 当初は `aria-pressed` トグルだったが、押しても
+//! 状態が変わらないため支援技術に誤った操作性を示唆していた。続けて
+//! `aria-current="true"` へ差し替えたが、両領域が常に併記されるのに
+//! チャット側だけを「現在表示中」と示すのは同じく誤りだったため、
+//! 最終的に選択状態を持たない対等な見出しへ変更した。`page_heading_avatar.rs`
+//! の codex レビュー指摘「狭幅で
 //! 操作列を非表示にすると無 JS では到達不能になる」と同型の判断。`tabs`
 //! 部品を切替 UI に使わない理由: tabs は content パネルを伴うため、広幅で
 //! 2 列に並ぶ実パネルを tabpanel 内に置けず空 tabpanel を出すことになる）。
@@ -181,20 +186,18 @@ fn overflow_menu() -> Node {
     )
 }
 
-/// 狭幅専用の表示切替（モジュール doc「狭幅では『見出し表示 + 縦積み』で
-/// 表現し、要素を隠さない」節参照）。実際のパネル切替は起きない静的表示の
-/// ため、`button`/`aria-pressed`（実際に押せて状態が変わるトグルを示唆
-/// する ARIA）は使わない（Codex P2 是正: 押しても状態が変わらないのに
-/// `aria-pressed` を持つと支援技術利用者に誤った操作性を示唆する）。
+/// 狭幅専用の領域見出し（モジュール doc「狭幅では『見出し表示 + 縦積み』で
+/// 表現し、要素を隠さない」節参照）。チャット・プレビューの両領域は狭幅でも
+/// 常に併記表示され切替は起きないため、`button`/`aria-pressed`（Codex P2
+/// 是正済み）に加えて `role="group"`/`aria-label="表示切替"`/
+/// `aria-current="true"` も使わない（Codex P2 是正: 両領域が表示された
+/// ままチャット側だけへ「切替グループ」「現在表示中」を示す ARIA を
+/// 付けると、支援技術にはプレビューが表示されていないかのように伝わる）。
 /// [`static_tab_list`] と同型の非対話 `span`（`role`/`tabindex`/`<button>`
-/// なし）にし、選択中側のみへ「現在表示中」を示す `aria-current="true"`
-/// を付与する。
+/// なし）2 個を、選択状態の区別を持たない対等な見出しラベルとして並べる。
 fn switch_group() -> Node {
     let chat = span(
-        vec![
-            ("class", "blocks-ai-chat-code-preview-switch-item is-active"),
-            ("aria-current", "true"),
-        ],
+        vec![("class", "blocks-ai-chat-code-preview-switch-item")],
         vec![text("チャット")],
     );
     let preview = span(
@@ -202,11 +205,7 @@ fn switch_group() -> Node {
         vec![text("プレビュー")],
     );
     div(
-        vec![
-            ("class", "blocks-ai-chat-code-preview-switch"),
-            ("role", "group"),
-            ("aria-label", "表示切替"),
-        ],
+        vec![("class", "blocks-ai-chat-code-preview-switch")],
         vec![chat, preview],
     )
 }
@@ -458,7 +457,6 @@ const LAYOUT_CSS: &str = "\
 .blocks-ai-chat-code-preview-nav-actions {\n  margin-inline-start: auto;\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-ai-chat-code-preview-switch {\n  display: none;\n  gap: var(--fandhe-space-2);\n  padding: var(--fandhe-space-2) var(--fandhe-space-4);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 .blocks-ai-chat-code-preview-switch-item {\n  padding: var(--fandhe-space-1) var(--fandhe-space-3);\n  border-radius: var(--fandhe-radius-md);\n  font-size: var(--fandhe-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-.blocks-ai-chat-code-preview-switch-item.is-active {\n  background: var(--fandhe-color-bg-muted);\n  color: var(--fandhe-color-fg);\n  font-weight: 600;\n}\n\
 .blocks-ai-chat-code-preview-body {\n  display: grid;\n  grid-template-columns: minmax(18rem, 2fr) minmax(0, 3fr);\n  min-block-size: 28rem;\n}\n\
 [data-blocks-ai-chat-code-preview-pane] {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n  padding: var(--fandhe-space-4);\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-ai-chat-code-preview-pane=\"chat\"] {\n  border-inline-end: 1px solid var(--fandhe-color-border);\n}\n\
@@ -529,6 +527,17 @@ mod tests {
     fn switch_group_has_no_misleading_aria_pressed() {
         let html = demo_html();
         assert!(!html.contains("aria-pressed"));
+    }
+
+    /// チャット・プレビューの両領域は狭幅でも常に併記表示されるため、
+    /// 片方だけを「現在表示中」と示す `aria-current` や、実際には切り替わ
+    /// らない「切替グループ」を示唆する `aria-label="表示切替"` を持たない
+    /// ことを固定する（Codex P2 是正、[`switch_group`] doc 参照）。
+    #[test]
+    fn switch_group_has_no_misleading_current_state() {
+        let html = demo_html();
+        assert!(!html.contains("aria-current"));
+        assert!(!html.contains("表示切替"));
     }
 
     #[test]

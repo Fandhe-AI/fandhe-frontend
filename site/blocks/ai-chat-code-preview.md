@@ -135,20 +135,18 @@ fn overflow_menu() -> Node {
     )
 }
 
-/// 狭幅専用の表示切替（モジュール doc「狭幅では『見出し表示 + 縦積み』で
-/// 表現し、要素を隠さない」節参照）。実際のパネル切替は起きない静的表示の
-/// ため、`button`/`aria-pressed`（実際に押せて状態が変わるトグルを示唆
-/// する ARIA）は使わない（Codex P2 是正: 押しても状態が変わらないのに
-/// `aria-pressed` を持つと支援技術利用者に誤った操作性を示唆する）。
+/// 狭幅専用の領域見出し（モジュール doc「狭幅では『見出し表示 + 縦積み』で
+/// 表現し、要素を隠さない」節参照）。チャット・プレビューの両領域は狭幅でも
+/// 常に併記表示され切替は起きないため、`button`/`aria-pressed`（Codex P2
+/// 是正済み）に加えて `role="group"`/`aria-label="表示切替"`/
+/// `aria-current="true"` も使わない（Codex P2 是正: 両領域が表示された
+/// ままチャット側だけへ「切替グループ」「現在表示中」を示す ARIA を
+/// 付けると、支援技術にはプレビューが表示されていないかのように伝わる）。
 /// [`static_tab_list`] と同型の非対話 `span`（`role`/`tabindex`/`<button>`
-/// なし）にし、選択中側のみへ「現在表示中」を示す `aria-current="true"`
-/// を付与する。
+/// なし）2 個を、選択状態の区別を持たない対等な見出しラベルとして並べる。
 fn switch_group() -> Node {
     let chat = span(
-        vec![
-            ("class", "blocks-ai-chat-code-preview-switch-item is-active"),
-            ("aria-current", "true"),
-        ],
+        vec![("class", "blocks-ai-chat-code-preview-switch-item")],
         vec![text("チャット")],
     );
     let preview = span(
@@ -156,11 +154,7 @@ fn switch_group() -> Node {
         vec![text("プレビュー")],
     );
     div(
-        vec![
-            ("class", "blocks-ai-chat-code-preview-switch"),
-            ("role", "group"),
-            ("aria-label", "表示切替"),
-        ],
+        vec![("class", "blocks-ai-chat-code-preview-switch")],
         vec![chat, preview],
     )
 }
