@@ -183,7 +183,7 @@ fn nav_item(
         },
         Some(geo_icon(icon_path)),
         vec![],
-        vec![text(label)],
+        current_page_label(label, active),
     );
     let mut children = vec![button];
     if let Some(count) = count {
@@ -270,9 +270,26 @@ fn team_item(initial: &'static str, label: &'static str, active: bool) -> Node {
             },
             Some(initial_box),
             vec![],
-            vec![text(label)],
+            current_page_label(label, active),
         )],
     )
+}
+
+/// `nav_item`/`team_item` 共通のラベル組み立て。`sidebar::menu_button` は
+/// `href: None`（`<button>`）のとき `aria-current` を付与しない
+/// （`fandhe_frontend_headless_ui::sidebar::menu_button` の契約、モジュール
+/// doc「`<form>` を使わない・全データが架空」節参照。ナビ項目はすべて
+/// `href="#"` の死リンクを避けるため `href: None` に固定しており、リンク化
+/// では解決できない）。本 Demo は無 JS で実ページ遷移を持たないため、
+/// `active` のときのみ visually-hidden な "(current)" をラベル末尾へ加え、
+/// 現在地の強調を視覚だけでなく支援技術（スクリーンリーダー）にも伝える
+/// （codex P2 指摘 threadId PRRT_kwDOTarxgc6m_DYn 対応）。
+fn current_page_label(label: &'static str, active: bool) -> Vec<Node> {
+    let mut children = vec![text(label)];
+    if active {
+        children.push(visually_hidden::root(vec![], vec![text(" (current)")]));
+    }
+    children
 }
 
 /// `Teams` グループ（見出し付き、3 チーム）。`active_label` に一致する
@@ -582,7 +599,7 @@ pub const BLOCK: Block = Block {
 /// トークンのみを使う。
 const LAYOUT_CSS: &str = "\
 .blocks-demo.blocks-sidebar-grouped-nav {\n  padding: 0;\n  overflow-x: auto;\n}\n\
-[data-blocks-sidebar-grouped-nav-stack] {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 1rem;\n}\n\
+[data-blocks-sidebar-grouped-nav-stack] {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: 1rem;\n}\n\
 [data-blocks-sidebar-grouped-nav-instance][data-scope=\"sidebar\"][data-part=\"provider\"] {\n  min-height: 36rem;\n  height: auto;\n  min-width: 20rem;\n}\n\
 [data-blocks-sidebar-grouped-nav-brand-icon] {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  width: 2rem;\n  height: 2rem;\n  flex-shrink: 0;\n  border-radius: var(--fandhe-radius-md);\n  background: var(--fandhe-color-fg);\n  color: var(--fandhe-color-bg);\n}\n\
 [data-blocks-sidebar-grouped-nav-search-header] {\n  padding: 0.75rem;\n}\n\
