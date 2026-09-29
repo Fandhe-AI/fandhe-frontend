@@ -57,9 +57,15 @@
 //! 追加レビュー）、選択列だけを識別する block 固有属性
 //! `data-blocks-table-sortable-bulk-select-cell` を選択列の見出しセル・
 //! 各行のセルへ付与し、本 block 局所の CSS オーバーライド（同属性へ
-//! `box-sizing: border-box; padding-inline: 0;` を適用）で解消する。
-//! 選択列の実幅を `inset-inline-start` の前提どおり厳密に `2.5rem` へ
-//! 固定する（`select-cell` の垂直 padding は保持、チェックボックスは
+//! `box-sizing: border-box; padding-inline: 0;
+//! width: var(--fandhe-data-table-select-width, 2.5rem);` を適用）で
+//! 解消する。`width` を明示しないと `box-sizing`/`padding-inline: 0` だけ
+//! では列幅が定まらず、`select_all`/`select_row` 共有 base の他の暗黙幅
+//! （フォントサイズ等）次第でツールバーの `inset-inline-start` 前提から
+//! 実幅がずれ得るため、`inset-inline-start` と同じ
+//! `var(--fandhe-data-table-select-width, 2.5rem)` を選択列の実幅として
+//! 明示し厳密に一致させる（Codex 指摘、イシュー #2945 PR #3393 追加
+//! レビュー）。（`select-cell` の垂直 padding は保持、チェックボックスは
 //! 既存の `text-align: center` で中央寄せのまま）。狭幅
 //! （`@container ... (max-width: 40rem)`）では副次列（役割・最終更新）を
 //! 隠し、ツールバーは全幅帯（`inset-inline-start: 0`）として残す。この
@@ -599,7 +605,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-table-sortable-bulk-panel {\n  display: flex;\n  flex-direction: column;\n}\n\
 .blocks-table-sortable-bulk-table-wrap {\n  position: relative;\n  container-type: inline-size;\n  container-name: blocks-table-sortable-bulk;\n}\n\
 .blocks-table-sortable-bulk-table-wrap thead th {\n  height: 3rem;\n}\n\
-.blocks-table-sortable-bulk-table-wrap [data-blocks-table-sortable-bulk-select-cell] {\n  box-sizing: border-box;\n  padding-inline: 0;\n}\n\
+.blocks-table-sortable-bulk-table-wrap [data-blocks-table-sortable-bulk-select-cell] {\n  box-sizing: border-box;\n  padding-inline: 0;\n  width: var(--fandhe-data-table-select-width, 2.5rem);\n}\n\
 [data-blocks-table-sortable-bulk-toolbar] {\n  position: absolute;\n  top: 0;\n  inset-inline-start: var(--fandhe-data-table-select-width, 2.5rem);\n  inset-inline-end: 0;\n  height: 3rem;\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  padding-inline: var(--fandhe-space-3);\n  background: var(--fandhe-color-bg);\n  z-index: 1;\n}\n\
 @container blocks-table-sortable-bulk (max-width: 40rem) {\n  [data-blocks-table-sortable-bulk-secondary] {\n    display: none;\n  }\n\n  [data-blocks-table-sortable-bulk-toolbar] {\n    inset-inline-start: 0;\n  }\n\n  [data-blocks-table-sortable-bulk-select-header] {\n    visibility: hidden;\n  }\n}\n";
 
@@ -675,17 +681,22 @@ mod tests {
 
     /// 選択列（見出しセル・各行セル）の実幅をツールバーの
     /// `inset-inline-start` 前提（選択列幅の既定値 `2.5rem`）へ一致させる
-    /// `box-sizing: border-box; padding-inline: 0;` オーバーライドが
-    /// block 固有属性 `data-blocks-table-sortable-bulk-select-cell` に
-    /// 適用されていることを固定する（通常幅での重なり回帰防止、
-    /// Codex/Cursor Bugbot 指摘・イシュー #2945 PR #3393）。CSS 側の
-    /// セレクタが実際に描画される DOM 属性（`table::column_header`/
-    /// `table::cell` が強制する `data-scope="table"`）と一致しない
-    /// 旧セレクタ（`data-scope="data-table"`）への回帰を防ぐ。
+    /// `box-sizing: border-box; padding-inline: 0;
+    /// width: var(--fandhe-data-table-select-width, 2.5rem);`
+    /// オーバーライドが block 固有属性
+    /// `data-blocks-table-sortable-bulk-select-cell` に適用されて
+    /// いることを固定する（通常幅での重なり回帰防止、
+    /// Codex/Cursor Bugbot 指摘・イシュー #2945 PR #3393。`width` 明示は
+    /// 追加レビュー分: `box-sizing`/`padding-inline: 0` だけでは実幅が
+    /// `inset-inline-start` の前提どおり `2.5rem` になる保証がない）。
+    /// CSS 側のセレクタが実際に描画される DOM 属性
+    /// （`table::column_header`/`table::cell` が強制する
+    /// `data-scope="table"`）と一致しない旧セレクタ
+    /// （`data-scope="data-table"`）への回帰を防ぐ。
     #[test]
     fn select_column_width_override_matches_toolbar_inset_assumption() {
         assert!(LAYOUT_CSS.contains(
-            "[data-blocks-table-sortable-bulk-select-cell] {\n  box-sizing: border-box;\n  padding-inline: 0;\n}"
+            "[data-blocks-table-sortable-bulk-select-cell] {\n  box-sizing: border-box;\n  padding-inline: 0;\n  width: var(--fandhe-data-table-select-width, 2.5rem);\n}"
         ));
         assert!(!LAYOUT_CSS.contains("data-scope=\"data-table\""));
     }
