@@ -2030,6 +2030,11 @@ source = "site/blocks/sidebar-07.md"
 path = "/blocks/sidebar-07/"
 
 [[section.group.page]]
+title = "sidebar-grouped-nav"
+source = "site/blocks/sidebar-grouped-nav.md"
+path = "/blocks/sidebar-grouped-nav/"
+
+[[section.group.page]]
 title = "sidebar-rail-panel"
 source = "site/blocks/sidebar-rail-panel.md"
 path = "/blocks/sidebar-rail-panel/"
@@ -2118,6 +2123,11 @@ path = "/blocks/list-title-meta/"
 
 [[section.group]]
 title = "Table"
+
+[[section.group.page]]
+title = "table-grouped-rows"
+source = "site/blocks/table-grouped-rows.md"
+path = "/blocks/table-grouped-rows/"
 
 [[section.group.page]]
 title = "table-responsive-stacked"
@@ -2272,6 +2282,11 @@ path = "/blocks/cursor-hover-cards/"
 
 [[section.group]]
 title = "Profile"
+
+[[section.group.page]]
+title = "profile-card-centered"
+source = "site/blocks/profile-card-centered.md"
+path = "/blocks/profile-card-centered/"
 
 [[section.group.page]]
 title = "profile-detail-datalist"
