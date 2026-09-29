@@ -460,6 +460,7 @@ jobs:
           # Application / Profile
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/profile-detail-datalist/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/profile-detail-skills/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/profile-header-follow/index.html"
           # Application / Chart
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/chart-bar-list/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/chart-metric-area/index.html"

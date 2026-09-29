@@ -2250,6 +2250,11 @@ title = "profile-detail-skills"
 source = "site/blocks/profile-detail-skills.md"
 path = "/blocks/profile-detail-skills/"
 
+[[section.group.page]]
+title = "profile-header-follow"
+source = "site/blocks/profile-header-follow.md"
+path = "/blocks/profile-header-follow/"
+
 [[section.group]]
 title = "Chart"
 
