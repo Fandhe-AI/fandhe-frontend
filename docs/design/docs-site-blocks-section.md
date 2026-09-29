@@ -994,6 +994,7 @@ pub enum LayoutCss {
 | list-people | #2923（親 #2892） | `application/list/list_people.rs` |
 | list-sticky-groups | #2924（親 #2892） | `application/list/list_sticky_groups.rs` |
 | list-title-meta | #2925（親 #2892） | `application/list/list_title_meta.rs` |
+| table-sortable-bulk | #2945（親 #2892） | `application/table/table_sortable_bulk.rs` |
 | table-grouped-rows | #2942（親 #2892） | `application/table/table_grouped_rows.rs` |
 | table-responsive-stacked | #2943（親 #2892） | `application/table/table_responsive_stacked.rs` |
 | table-rich-rows | #2944（親 #2892） | `application/table/table_rich_rows.rs` |
