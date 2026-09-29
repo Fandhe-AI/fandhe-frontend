@@ -60,22 +60,40 @@
 //! 参照）。`disabled_declarations()` の既定 `opacity: 0.5` は
 //! [`LAYOUT_CSS`] で中和する。
 //!
-//! # 「または」区切りに `field::separator` を使う理由
+//! # 区切りはテキストなしの罫線のみ
 //!
-//! `login_04` と同型に、縦積みフォーム内の区切りは `field::separator`
-//! を使う（`field::group` 内の縦積みリズムを崩さない）。使用部品一覧の
-//! `separator` は、フォーム末尾の切替行の直前に置く
-//! `separator::separator`（罫線のみ、テキストなし）で満たす。
+//! サインインボタンの直後には代替のサインイン手段（SSO 等）を持たない
+//! ため、「または」等の代替操作を示唆するテキスト区切りは置かない
+//! （レビュー指摘: テキストなしの区切りが暗示する代替操作が存在しない
+//! 問題）。フォーム末尾の切替行の直前に置く罫線のみの
+//! `separator::separator`（テキストなし）だけで区切りを満たす。
 //!
 //! # アクセント面パネルの色反転
 //!
 //! パネル背景は `var(--fandhe-color-accent)`、前景は
 //! `var(--fandhe-color-accent-fg)` にし（`cta_centered.rs` の
-//! `tone="accent"` と同型）、パネル内の `blockquote`/`avatar`/`icon`
+//! `tone="accent"` と同型）、パネル内の `blockquote`/`icon`
 //! recipe が持つ既定の色指定は [`LAYOUT_CSS`] のセレクタ結合（`[data-
 //! scope=...][data-part=...][data-blocks-auth-split-accent-panel-*]`、
 //! 詳細度を recipe 以上へ上げる）で `color: inherit` へ上書きする
-//! （`login_04` の「recipe への勝ち方」と同型の判断）。
+//! （`login_04` の「recipe への勝ち方」と同型の判断）。`avatar` のみは
+//! `color: inherit` だけでは背景が recipe 既定の `neutral-muted` の
+//! ままコントラスト不足になる（レビュー指摘）ため、背景・前景を対で
+//! `accent-fg` 地に `accent` 文字色へ反転させる（`accent`/`accent-fg`
+//! はこのペア自体がコントラストを持つよう設計されたトークンのため、
+//! 反転させても可読性が保たれる）。
+//!
+//! # signup 側フォーム列の padding 二重取り回避（レビュー指摘）
+//!
+//! `[data-blocks-auth-split-accent-panel-form]` は `space-8` の外側
+//! padding を持つが、`card::root` の各スロット（header/body/footer）も
+//! recipe 既定の padding を持つため、signin（`div` 直下にフォームを
+//! 置くだけ）と異なり signup（`card::root` を内包）では二重に内側へ
+//! 寄っていた（レビュー指摘）。`card` 側には `border`/`box-shadow` の
+//! 除去のみを残し、signup インスタンス限定で外側フォーム列の padding を
+//! [`LAYOUT_CSS`] の `[data-blocks-auth-split-accent-panel-instance=
+//! "signup"] [data-blocks-auth-split-accent-panel-form]` で `0` に
+//! 上書きし、カードのスロット padding のみを内側余白として残す。
 //!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
@@ -256,10 +274,6 @@ fn signin_instance() -> Node {
                     &ButtonProps::default(),
                     vec![("data-blocks-auth-split-accent-panel-submit", "")],
                     vec![text("サインイン")],
-                ),
-                field::separator(
-                    vec![("data-blocks-auth-split-accent-panel-separator", "")],
-                    vec![text("または")],
                 ),
                 separator::separator(
                     &SeparatorProps::default(),
@@ -561,6 +575,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-auth-split-accent-panel-instance] {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  border-radius: var(--fandhe-radius-lg);\n  overflow: hidden;\n  border: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-auth-split-accent-panel-instance=\"signup\"] [data-blocks-auth-split-accent-panel-panel] {\n  order: -1;\n}\n\
 [data-blocks-auth-split-accent-panel-form] {\n  padding: var(--fandhe-space-8);\n  min-width: 0;\n}\n\
+[data-blocks-auth-split-accent-panel-instance=\"signup\"] [data-blocks-auth-split-accent-panel-form] {\n  padding: 0;\n}\n\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-auth-split-accent-panel-card] {\n  border: none;\n  box-shadow: none;\n}\n\
 .blocks-auth-split-accent-panel-intro {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1-5);\n  margin: 0 0 var(--fandhe-space-2);\n}\n\
 [data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-auth-split-accent-panel-remember][data-disabled],\n[data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-auth-split-accent-panel-terms][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
@@ -570,7 +585,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"blockquote\"][data-part=\"root\"][data-blocks-auth-split-accent-panel-quote] {\n  color: inherit;\n  border-color: var(--fandhe-color-accent-fg);\n}\n\
 [data-blocks-auth-split-accent-panel-panel] [data-scope=\"blockquote\"][data-part=\"content\"] {\n  color: inherit;\n}\n\
 [data-scope=\"blockquote\"][data-part=\"caption\"][data-blocks-auth-split-accent-panel-caption] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  color: inherit;\n}\n\
-[data-scope=\"avatar\"][data-part=\"root\"][data-blocks-auth-split-accent-panel-avatar] {\n  color: inherit;\n}\n\
+[data-scope=\"avatar\"][data-part=\"root\"][data-blocks-auth-split-accent-panel-avatar] {\n  background: var(--fandhe-color-accent-fg);\n  color: var(--fandhe-color-accent);\n}\n\
 .blocks-auth-split-accent-panel-byline {\n  display: flex;\n  flex-direction: column;\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 .blocks-auth-split-accent-panel-benefits {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-auth-split-accent-panel-benefit {\n  display: flex;\n  align-items: flex-start;\n  gap: var(--fandhe-space-2);\n}\n\

@@ -181,10 +181,6 @@ fn signin_instance() -> Node {
                     vec![("data-blocks-auth-split-accent-panel-submit", "")],
                     vec![text("サインイン")],
                 ),
-                field::separator(
-                    vec![("data-blocks-auth-split-accent-panel-separator", "")],
-                    vec![text("または")],
-                ),
                 separator::separator(
                     &SeparatorProps::default(),
                     vec![("data-blocks-auth-split-accent-panel-switch-rule", "")],
