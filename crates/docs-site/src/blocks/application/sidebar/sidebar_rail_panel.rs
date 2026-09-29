@@ -119,6 +119,29 @@ fn settings_icon() -> Node {
     geo_icon("M12 2a10 10 0 1 0 .001 20.001A10 10 0 0 0 12 2z")
 }
 
+/// パネル検索欄の虫眼鏡アイコン（`footer_cta_columns::geo_icon` と同型の
+/// ストローク描画。`geo_icon`〔`fill="currentColor"` 固定〕をそのまま使うと
+/// 円と柄が塗り潰されて虫眼鏡に見えなくなる〔#2941 PR レビュー指摘〕ため、
+/// `fill="none"` + `stroke="currentColor"` を path 個別に上書きする）。
+fn search_icon() -> Node {
+    icon(
+        &IconProps::default(),
+        vec![],
+        vec![el(
+            "path",
+            vec![
+                ("d", "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm9 17-5.2-5.2"),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+                ("stroke-linecap", "round"),
+                ("stroke-linejoin", "round"),
+            ],
+            vec![],
+        )],
+    )
+}
+
 /// レール上部 1 項目（`icon_button` + 現在地の強調表示）。
 fn rail_item(icon_path: &'static str, label: &'static str, current: bool) -> Node {
     let mut attrs: Vec<(&str, &str)> = vec![("data-blocks-sidebar-rail-panel-rail-item", "")];
@@ -185,15 +208,22 @@ fn user_menu(suffix: &str) -> Node {
 
 /// アイコンレール本体（上部: 主要セクション、下部: 設定 + ユーザー
 /// メニュー）。素の `nav`（モジュール doc「レールは素の `nav`」節参照）。
-fn rail(suffix: &str) -> Node {
+///
+/// `aria-label` へ `instance_caption`（"Desktop"/"Narrow (rail only)"）を
+/// 含め、Desktop/Narrow 両インスタンスの `nav` ランドマークを一意化する
+/// （`panel` の `sidebar::root` label と同型。両インスタンスを無 JS で
+/// 静的に並記するため常に両方 DOM 上に存在し、支援技術から同名で
+/// 区別不能になっていた〔#2941 PR レビュー指摘〕）。
+fn rail(suffix: &str, instance_caption: &str) -> Node {
     let top_items: Vec<Node> = SECTIONS
         .iter()
         .enumerate()
         .map(|(i, (icon_path, label, _))| rail_item(icon_path, label, i == CURRENT_SECTION))
         .collect();
+    let aria_label = format!("Primary sections ({instance_caption})");
     nav(
         vec![
-            ("aria-label", "Primary sections"),
+            ("aria-label", aria_label.as_str()),
             ("data-blocks-sidebar-rail-panel-rail", ""),
         ],
         vec![
@@ -256,9 +286,7 @@ fn search_group(suffix: &str) -> Node {
                         InputGroupAlign::InlineStart,
                         &group_props,
                         vec![],
-                        vec![geo_icon(
-                            "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm9 17-5.2-5.2",
-                        )],
+                        vec![search_icon()],
                     ),
                     input::input(
                         &InputProps::default(),
@@ -272,8 +300,13 @@ fn search_group(suffix: &str) -> Node {
 }
 
 /// パネル本体（見出し + 検索欄 + 選択中セクションのリンク一覧）。
-fn panel(suffix: &str, root_id: &str) -> Node {
+///
+/// `sidebar::root` の label（`nav`/`aside` の `aria-label` 相当）へ
+/// `instance_caption` を含め、`rail` と同じ理由で一意化する（#2941 PR
+/// レビュー指摘）。
+fn panel(suffix: &str, root_id: &str, instance_caption: &str) -> Node {
     let (_, label, items) = SECTIONS[CURRENT_SECTION];
+    let sidebar_label = format!("Section navigation ({instance_caption})");
     let label_id = format!("blocks-sidebar-rail-panel-group-label-{suffix}");
     let state = Sidebar::new(SidebarState::Expanded);
     let props = SidebarProps {
@@ -302,7 +335,7 @@ fn panel(suffix: &str, root_id: &str) -> Node {
     sidebar::root(
         &state,
         &props,
-        "Section navigation",
+        sidebar_label.as_str(),
         Some(root_id),
         vec![],
         vec![
@@ -310,7 +343,7 @@ fn panel(suffix: &str, root_id: &str) -> Node {
                 vec![("data-blocks-sidebar-rail-panel-header", "")],
                 vec![
                     heading::heading(
-                        HeadingLevel::H2,
+                        HeadingLevel::H3,
                         &HeadingProps {
                             size: fandhe_frontend_pre_styled_ui::heading::HeadingSize::Sm,
                             ..HeadingProps::default()
@@ -339,7 +372,7 @@ fn panel(suffix: &str, root_id: &str) -> Node {
 /// 1 インスタンス分（レール + パネル + 本文プレースホルダ）。`narrow` は
 /// `true` のとき [`LAYOUT_CSS`] がフレーム幅を固定し常にパネル非表示
 /// にする。
-fn instance(suffix: &str, narrow: bool) -> Node {
+fn instance(suffix: &str, narrow: bool, instance_caption: &str) -> Node {
     let root_id = format!("blocks-sidebar-rail-panel-root-{suffix}");
     let mut frame_attrs: Vec<(&str, &str)> = vec![("data-blocks-sidebar-rail-panel-frame", "")];
     if narrow {
@@ -348,8 +381,8 @@ fn instance(suffix: &str, narrow: bool) -> Node {
     div(
         frame_attrs,
         vec![
-            rail(suffix),
-            panel(suffix, &root_id),
+            rail(suffix, instance_caption),
+            panel(suffix, &root_id, instance_caption),
             div(
                 vec![("data-blocks-sidebar-rail-panel-placeholder", "")],
                 vec![],
@@ -369,12 +402,12 @@ pub fn demo() -> Node {
                 vec![("data-blocks-sidebar-rail-panel-caption", "")],
                 vec![text("Desktop")],
             ),
-            instance("desktop", false),
+            instance("desktop", false, "Desktop"),
             p(
                 vec![("data-blocks-sidebar-rail-panel-caption", "")],
                 vec![text("Narrow (rail only)")],
             ),
-            instance("narrow", true),
+            instance("narrow", true, "Narrow (rail only)"),
         ],
     )
 }
@@ -541,6 +574,43 @@ mod tests {
             4,
             "current section label should appear as both heading and group label per instance"
         );
+    }
+
+    /// 検索アイコンがストローク描画（`fill="none"` + `stroke="currentColor"`）
+    /// であること（`fill="currentColor"` 継承のままだと虫眼鏡パスが塗り
+    /// 潰された円になる、#2941 PR レビュー指摘の回帰防止）。
+    #[test]
+    fn search_icon_is_stroke_drawn_not_filled() {
+        let html = render(&demo());
+        assert_eq!(
+            html.matches("fill=\"none\"").count(),
+            2,
+            "each instance's search icon path should override fill to none"
+        );
+        assert_eq!(html.matches("stroke=\"currentColor\"").count(), 2);
+    }
+
+    /// Desktop/Narrow 両インスタンスの `nav`（レール）・`sidebar::root`
+    /// （パネル）のランドマークラベルが重複しないこと（#2941 PR レビュー
+    /// 指摘: 両方とも無 JS で常時 DOM 上に存在するため、同名だと支援技術が
+    /// 区別できない）。
+    #[test]
+    fn rail_and_panel_landmark_labels_are_unique_per_instance() {
+        let html = render(&demo());
+        assert!(html.contains("aria-label=\"Primary sections (Desktop)\""));
+        assert!(html.contains("aria-label=\"Primary sections (Narrow (rail only))\""));
+        assert!(html.contains("Section navigation (Desktop)"));
+        assert!(html.contains("Section navigation (Narrow (rail only))"));
+    }
+
+    /// パネル見出しは Demo 本文の H2（block ページ側）の子として構造化
+    /// されるよう H3 であること（#2941 PR レビュー指摘: H2 のままだと
+    /// Demo 見出しの兄弟になり配下として構造化されない）。
+    #[test]
+    fn panel_heading_is_h3_not_h2() {
+        let html = render(&demo());
+        assert_eq!(html.matches("<h3").count(), 2);
+        assert_eq!(html.matches("<h2").count(), 0);
     }
 
     /// `<form>`・死リンク（`href="#"`）・`data:` URI を出力しないこと。
