@@ -144,7 +144,15 @@ fn profile_header(name: &str, title: &str, location: &str, header_badges: Vec<No
     )
 }
 
-/// 統計値 1 件（`stat::root` + `label`/`value_text`(+`value_unit`)/`help_text`）。
+/// 統計値 1 件（`stat::root`(`<dl>`) + `label`(`<dt>`)/`value_text`(`<dd>`)）。
+///
+/// `stat::help_text`（`<span>`）は `stat::root`（`<dl>`）の直下へ置くと
+/// `<dt>`/`<dd>` のみを許容する定義リストとして不正になるため、
+/// `value_text`（`<dd>`）の内側へ入れ子にする（`chart_metric_area.rs`
+/// 「`<dl>` 直下に `<span>` を置かない」節と同型の是正、PR #3390 Cursor
+/// Bugbot Medium 指摘）。数値＋単位は baseline 揃えの内側 `span` へ包み、
+/// `value_text` 自身は `LAYOUT_CSS` の override で縦積み（値＋単位の行、
+/// help-text の行）へ切り替える。
 fn stat_card(label: &str, value: &str, unit: Option<&str>, help: &str) -> Node {
     let mut value_children = vec![text(value)];
     if let Some(unit) = unit {
@@ -153,8 +161,17 @@ fn stat_card(label: &str, value: &str, unit: Option<&str>, help: &str) -> Node {
 
     let children = vec![
         stat::label(vec![], vec![text(label)]),
-        stat::value_text(vec![], value_children),
-        stat::help_text(vec![], vec![text(help)]),
+        stat::value_text(
+            vec![],
+            vec![
+                el(
+                    "span",
+                    vec![("class", "blocks-profile-detail-skills-stat-value")],
+                    value_children,
+                ),
+                stat::help_text(vec![], vec![text(help)]),
+            ],
+        ),
     ];
 
     stat::root(
