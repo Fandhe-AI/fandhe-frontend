@@ -93,7 +93,10 @@ fn profile_header(name: &str, title: &str, location: &str, header_badges: Vec<No
         .collect(),
     );
 
-    let location_row = div(vec![], vec![pin_icon(), text(location)]);
+    let location_row = div(
+        vec![("class", "blocks-profile-detail-skills-location")],
+        vec![pin_icon(), text(location)],
+    );
 
     let online_status = status::root(
         &StatusProps {
@@ -164,7 +167,7 @@ fn stat_card(label: &str, value: &str, unit: Option<&str>, help: &str) -> Node {
 /// 自己紹介（見出し + 本文段落）。
 fn intro(paragraph: &str) -> Node {
     div(
-        vec![],
+        vec![("class", "blocks-profile-detail-skills-section")],
         vec![
             heading(
                 HeadingLevel::H4,
@@ -180,7 +183,7 @@ fn intro(paragraph: &str) -> Node {
 /// スキルバッジ群（見出し + `badge` 列挙）。
 fn skill_badges(names: &[&str]) -> Node {
     div(
-        vec![],
+        vec![("class", "blocks-profile-detail-skills-section")],
         vec![
             heading(
                 HeadingLevel::H4,
