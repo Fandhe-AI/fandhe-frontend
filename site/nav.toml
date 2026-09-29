@@ -2318,6 +2318,14 @@ source = "site/blocks/action-panel-with-well.md"
 path = "/blocks/action-panel-with-well/"
 
 [[section.group]]
+title = "Empty State"
+
+[[section.group.page]]
+title = "empty-state-invite-team"
+source = "site/blocks/empty-state-invite-team.md"
+path = "/blocks/empty-state-invite-team/"
+
+[[section.group]]
 title = "Dialog"
 
 [[section.group.page]]
