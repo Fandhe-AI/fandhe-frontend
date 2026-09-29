@@ -19,8 +19,12 @@
 //!
 //! Demo 枠の幅はビューポート幅と一致しないため `@container`（コンテナ
 //! クエリ）で判定する（`profile_detail_datalist` 等と同型のパターン）。
-//! [`LAYOUT_CSS`] のルート `.blocks-ai-chat-playground-layout` へ
-//! `container-type: inline-size` を宣言し、コンテナ幅が `48rem` 未満のとき
+//! コンテナクエリは `container-type` を持つ要素自身を再スタイル対象に
+//! できない（Bugbot/codex レビュー指摘、コンテナ自身は不変のまま子孫の
+//! みが再評価される）ため、[`LAYOUT_CSS`] のルート
+//! `.blocks-ai-chat-playground-layout` へ `container-type: inline-size` を
+//! 宣言し、実際にグリッド化する子要素 `.blocks-ai-chat-playground-grid`
+//! を別要素として分離する。コンテナ幅が `48rem` 未満のとき `-grid` 側の
 //! 2 列グリッドを 1 列へ切り替える。設定カラムは DOM 順で本文カラムの
 //! 後ろに置くため、`order` の上書きは不要（開閉パネル案は無 JS のため
 //! 開閉できず不採用、1 列化のみで対応する）。
@@ -412,7 +416,10 @@ pub fn demo() -> Node {
 
     div(
         vec![("class", "blocks-ai-chat-playground-layout")],
-        vec![main_column, settings_column],
+        vec![div(
+            vec![("class", "blocks-ai-chat-playground-grid")],
+            vec![main_column, settings_column],
+        )],
     )
 }
 // blocks-code:end
@@ -462,7 +469,8 @@ pub const BLOCK: Block = Block {
 /// `ai_chat_playground` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
 /// doc「block 固有 CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
-.blocks-ai-chat-playground-layout {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) 18rem;\n  gap: var(--fandhe-space-8);\n  container-type: inline-size;\n  container-name: blocks-ai-chat-playground;\n}\n\
+.blocks-ai-chat-playground-layout {\n  container-type: inline-size;\n  container-name: blocks-ai-chat-playground;\n}\n\
+.blocks-ai-chat-playground-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) 18rem;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-ai-chat-playground-main {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-5);\n  min-width: 0;\n}\n\
 .blocks-ai-chat-playground-settings {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-5);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: 0.5rem;\n  padding: var(--fandhe-space-5);\n}\n\
 .blocks-ai-chat-playground-selectors {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-4);\n  align-items: flex-end;\n}\n\
@@ -473,7 +481,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-ai-chat-playground-actions {\n  display: flex;\n  gap: var(--fandhe-space-2);\n  justify-content: flex-end;\n}\n\
 .blocks-ai-chat-playground-layout [data-scope=\"popover\"][data-part=\"positioner\"] {\n  position: static;\n  margin-top: var(--fandhe-space-2);\n}\n\
 @container blocks-ai-chat-playground (max-width: 48rem) {\n  \
-.blocks-ai-chat-playground-layout {\n    grid-template-columns: minmax(0, 1fr);\n  }\n\
+.blocks-ai-chat-playground-grid {\n    grid-template-columns: minmax(0, 1fr);\n  }\n\
 }\n";
 
 #[cfg(test)]

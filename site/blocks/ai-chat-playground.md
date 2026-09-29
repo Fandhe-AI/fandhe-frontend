@@ -362,7 +362,10 @@ pub fn demo() -> Node {
 
     div(
         vec![("class", "blocks-ai-chat-playground-layout")],
-        vec![main_column, settings_column],
+        vec![div(
+            vec![("class", "blocks-ai-chat-playground-grid")],
+            vec![main_column, settings_column],
+        )],
     )
 }
 ```
