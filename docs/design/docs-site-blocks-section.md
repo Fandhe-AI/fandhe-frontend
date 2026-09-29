@@ -979,6 +979,7 @@ pub enum LayoutCss {
 | description-list-summary-card | #2907（親 #2892） | `application/description_list/description_list_summary_card.rs` |
 | description-list-two-column | #2908 | `application/description_list/description_list_two_column.rs` |
 | profile-detail-datalist | #2937（親 #2892） | `application/profile/profile_detail_datalist.rs` |
+| sidebar-grouped-nav | #2940（親 #2892） | `application/sidebar/sidebar_grouped_nav.rs` |
 | profile-header-follow | #2939（親 #2892） | `application/profile/profile_header_follow.rs` |
 | form-layout-inline-labels | #2911（親 #2892） | `application/form_layout/form_layout_inline_labels.rs` |
 | feed-upvote-cards | #2910（親 #2892） | `application/feed/feed_upvote_cards.rs` |
@@ -993,6 +994,7 @@ pub enum LayoutCss {
 | list-people | #2923（親 #2892） | `application/list/list_people.rs` |
 | list-sticky-groups | #2924（親 #2892） | `application/list/list_sticky_groups.rs` |
 | list-title-meta | #2925（親 #2892） | `application/list/list_title_meta.rs` |
+| table-grouped-rows | #2942（親 #2892） | `application/table/table_grouped_rows.rs` |
 | table-responsive-stacked | #2943（親 #2892） | `application/table/table_responsive_stacked.rs` |
 | grid-list-compact-tiles | #2918（親 #2892） | `application/grid_list/grid_list_compact_tiles.rs` |
 | grid-list-file-thumbnails | #2920 | `application/grid_list/grid_list_file_thumbnails.rs` |
