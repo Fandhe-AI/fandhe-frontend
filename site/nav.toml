@@ -2334,6 +2334,14 @@ source = "site/blocks/game-ui-modal.md"
 path = "/blocks/game-ui-modal/"
 
 [[section.group]]
+title = "Command Palette"
+
+[[section.group.page]]
+title = "command-palette-preview"
+source = "site/blocks/command-palette-preview.md"
+path = "/blocks/command-palette-preview/"
+
+[[section.group]]
 title = "Card"
 
 [[section.group.page]]

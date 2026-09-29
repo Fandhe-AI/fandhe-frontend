@@ -1028,6 +1028,7 @@ pub enum LayoutCss {
 | auth-oauth-consent | #2963（親 #2951） | `application/auth/auth_oauth_consent.rs` |
 | auth-otp-verify | #2964（親 #2951） | `application/auth/auth_otp_verify.rs` |
 | auth-split-accent-panel | #2965 | `application/auth/auth_split_accent_panel.rs` |
+| command-palette-preview | #2968 | `application/command_palette/command_palette_preview.rs` |
 | empty-state-card-header | #2969 | `application/empty_state/empty_state_card_header.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
