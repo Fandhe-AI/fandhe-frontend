@@ -26,6 +26,7 @@ use fandhe_frontend_pre_styled_ui::input::{FieldIds, FieldProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::pin_input::{self, PinInputKind, PinInputProps};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
+use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::Size;
 
 /// `field` の `id` 派生元（`"{FIELD_ID}-control"`/`"{FIELD_ID}-helper-text"`
@@ -34,19 +35,29 @@ use fandhe_frontend_pre_styled_ui::Size;
 const FIELD_ID: &str = "blocks-auth-otp-verify-code";
 const CONTROL_ID: &str = "blocks-auth-otp-verify-code-control";
 const HELPER_TEXT_ID: &str = "blocks-auth-otp-verify-code-helper-text";
+/// `field::label` の既定 `id` 導出（`"{FIELD_ID}-label"`）と同じ値
+/// （モジュール doc「各桁の `aria-labelledby`」節参照）。
+const LABEL_ID: &str = "blocks-auth-otp-verify-code-label";
 
 /// 部分入力状態（先頭 3 桁のみ値を持つ）で固定した 6 桁の pin-input 入力群。
+/// 各桁 `input` の直後に、桁位置を読み上げる visually-hidden テキストを
+/// 並べて出力する（`aria-labelledby` の参照先、モジュール doc 参照）。
 fn pin_digits(props: &PinInputProps) -> Vec<Node> {
     let values = ["4", "2", "7", "", "", ""];
     values
         .into_iter()
         .enumerate()
-        .map(|(index, value)| {
-            let mut attrs: Vec<(&str, &str)> = vec![("aria-describedby", HELPER_TEXT_ID)];
+        .flat_map(|(index, value)| {
+            let digit_id = format!("{FIELD_ID}-digit-{}", index + 1);
+            let labelledby = format!("{LABEL_ID} {digit_id}");
+            let mut attrs: Vec<(&str, &str)> = vec![
+                ("aria-describedby", HELPER_TEXT_ID),
+                ("aria-labelledby", labelledby.as_str()),
+            ];
             if index == 0 {
                 attrs.push(("id", CONTROL_ID));
             }
-            pin_input::input(
+            let input = pin_input::input(
                 index,
                 values.len(),
                 value,
@@ -56,7 +67,12 @@ fn pin_digits(props: &PinInputProps) -> Vec<Node> {
                 props,
                 false,
                 attrs,
-            )
+            );
+            let digit_text = visually_hidden::root(
+                vec![("id", digit_id.as_str())],
+                vec![text(format!("digit {} of {}", index + 1, values.len()))],
+            );
+            vec![input, digit_text]
         })
         .collect()
 }

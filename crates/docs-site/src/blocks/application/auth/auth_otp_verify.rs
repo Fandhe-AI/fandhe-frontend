@@ -41,6 +41,24 @@
 //! 自身の自動配線対象〔input/textarea/select〕には該当せず、この手動
 //! 配線が唯一の接続経路になる）。
 //!
+//! # 各桁の `aria-labelledby`（Codex 指摘 #3416 対応）
+//!
+//! [`fandhe_frontend_headless_ui::pin_input::input`] は `aria-label="PIN
+//! digit N of M"` を固定で付与するが、これは桁位置のみを表し
+//! `field::label` の「Verification code」を含まない。`field::label` の
+//! `for`（`"{FIELD_ID}-control"`）は先頭桁のみを指すため、スクリーン
+//! リーダーは残り 5 桁を「Verification code」の一部と認識できない。
+//! 本 block は全桁の `input` に `aria-labelledby="{field label id}
+//! {桁位置の visually-hidden id}"` を追加で渡し（headless 側の固定
+//! `aria-label` はそのまま残す。WAI-ARIA では両方存在する場合
+//! `aria-labelledby` が優先されるため、値の重複や矛盾は生じない）、
+//! [`fandhe_frontend_pre_styled_ui::visually_hidden::root`] で桁ごとの
+//! 「digit N of M」テキストを持つ非表示要素を各 `input` の直後に置く
+//! ことで、各桁で「Verification code」+「digit N of M」の両方が
+//! アクセシブルネームとして読み上げられるようにする。`field::label` の
+//! `id` は `FieldProps` の既定導出（`"{FIELD_ID}-label"`、`FieldIds` を
+//! 渡していないため上書きされない）にそのまま追随する。
+//!
 //! # 「戻る」導線は `link`、「再送信」は `ButtonVariant::Link`
 //!
 //! 「戻る」は実在する兄弟ページ `../login-01/` への遷移のため `link::root`
@@ -73,6 +91,7 @@ use fandhe_frontend_pre_styled_ui::input::{FieldIds, FieldProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::pin_input::{self, PinInputKind, PinInputProps};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
+use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::Size;
 
 /// `field` の `id` 派生元（`"{FIELD_ID}-control"`/`"{FIELD_ID}-helper-text"`
@@ -81,19 +100,29 @@ use fandhe_frontend_pre_styled_ui::Size;
 const FIELD_ID: &str = "blocks-auth-otp-verify-code";
 const CONTROL_ID: &str = "blocks-auth-otp-verify-code-control";
 const HELPER_TEXT_ID: &str = "blocks-auth-otp-verify-code-helper-text";
+/// `field::label` の既定 `id` 導出（`"{FIELD_ID}-label"`）と同じ値
+/// （モジュール doc「各桁の `aria-labelledby`」節参照）。
+const LABEL_ID: &str = "blocks-auth-otp-verify-code-label";
 
 /// 部分入力状態（先頭 3 桁のみ値を持つ）で固定した 6 桁の pin-input 入力群。
+/// 各桁 `input` の直後に、桁位置を読み上げる visually-hidden テキストを
+/// 並べて出力する（`aria-labelledby` の参照先、モジュール doc 参照）。
 fn pin_digits(props: &PinInputProps) -> Vec<Node> {
     let values = ["4", "2", "7", "", "", ""];
     values
         .into_iter()
         .enumerate()
-        .map(|(index, value)| {
-            let mut attrs: Vec<(&str, &str)> = vec![("aria-describedby", HELPER_TEXT_ID)];
+        .flat_map(|(index, value)| {
+            let digit_id = format!("{FIELD_ID}-digit-{}", index + 1);
+            let labelledby = format!("{LABEL_ID} {digit_id}");
+            let mut attrs: Vec<(&str, &str)> = vec![
+                ("aria-describedby", HELPER_TEXT_ID),
+                ("aria-labelledby", labelledby.as_str()),
+            ];
             if index == 0 {
                 attrs.push(("id", CONTROL_ID));
             }
-            pin_input::input(
+            let input = pin_input::input(
                 index,
                 values.len(),
                 value,
@@ -103,7 +132,12 @@ fn pin_digits(props: &PinInputProps) -> Vec<Node> {
                 props,
                 false,
                 attrs,
-            )
+            );
+            let digit_text = visually_hidden::root(
+                vec![("id", digit_id.as_str())],
+                vec![text(format!("digit {} of {}", index + 1, values.len()))],
+            );
+            vec![input, digit_text]
         })
         .collect()
 }
