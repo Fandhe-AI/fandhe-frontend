@@ -18,7 +18,9 @@
 //! - **default**（R0002 主参照 + R0003 の候補ボタン意匠）: [`empty_state`]
 //!   の挨拶見出し（アイコン + 見出し + 説明文） → 候補ボタン 2×2
 //!   （`ButtonVariant::Outline`） → composer（下記）の順に縦積みする。
-//!   composer はパネル下端へ寄せる（`margin-top: auto`）。
+//!   composer はパネル下端へ寄せる（`margin-top: auto`、`default` 変種限定。
+//!   `centered` は `justify-content: center` でパネル自体を中央寄せするため
+//!   composer への下端固定は適用しない）。
 //! - **centered**（R0004）: パネルを縦方向中央へ寄せ、見出し → composer →
 //!   控えめな候補ボタン（`ButtonVariant::Ghost`、R0003 の「控えめ」）の順に
 //!   置く。
@@ -39,9 +41,15 @@
 //! `position: sticky` は Demo 内で機能保証がなく（`content_article_toc.rs`
 //! の判断と同型）、`position: fixed` も使わない（`content_article.rs` に
 //! 前例なし）。本 block では composer をパネル内の flex 末尾（`margin-top:
-//! auto`）へ寄せることで「下端に固定された入力欄」を表現する。実アプリでは
-//! `position: sticky; bottom: 0` を使える旨を `site/blocks/
-//! ai-chat-prompt-start.md` の差分メモに明記する。
+//! auto`）へ寄せることで「下端に固定された入力欄」を表現する。この下端
+//! 寄せは `default` 変種限定（`[data-blocks-ai-chat-prompt-start-variant=
+//! "default"] .blocks-ai-chat-prompt-start-composer` セレクタで限定）で
+//! ある。`centered` 変種はパネル自体を `justify-content: center` で中央へ
+//! 寄せる構成のため、composer にも `margin-top: auto` を適用すると flex
+//! auto-margin が中央寄せより優先され、見出しと入力欄が下端へ押し下げら
+//! れてしまう（R0004 の表示契約に反する）。実アプリでは `position: sticky;
+//! bottom: 0` を使える旨を `site/blocks/ai-chat-prompt-start.md` の差分
+//! メモに明記する。
 //!
 //! # 三点メニューは無 JS のため閉じた状態で固定する
 //!
@@ -393,19 +401,24 @@ pub const BLOCK: Block = Block {
 };
 
 /// `ai_chat_prompt_start` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。狭幅では候補ボタンを 1 列に
-/// 積み、composer をパネル下端へ寄せる（モジュール doc「下端固定を
-/// `margin-top: auto` で表現する理由」節参照）。
+/// doc「block 固有 CSS の置き場」節と同型）。候補ボタンの列数はデモ枠
+/// （`.blocks-demo` 本文カラム内）の実測幅に追随させる必要があるため
+/// ビューポート幅ベースの `@media` ではなくパネル自身を名前付き
+/// コンテナ（`container-type: inline-size`）とした `@container` クエリで
+/// 判定し、狭い場合は 1 列に積む（`list_title_meta.rs` と同型のパターン）。
+/// composer をパネル下端へ寄せる（モジュール doc「下端固定を
+/// `margin-top: auto` で表現する理由」節参照）のは `default` 変種限定。
 const LAYOUT_CSS: &str = "\
 .blocks-ai-chat-prompt-start-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
-.blocks-ai-chat-prompt-start-panel {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  min-height: 28rem;\n  max-width: 48rem;\n  margin-inline: auto;\n  width: 100%;\n}\n\
+.blocks-ai-chat-prompt-start-panel {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  min-height: 28rem;\n  max-width: 48rem;\n  margin-inline: auto;\n  width: 100%;\n  container-type: inline-size;\n  container-name: blocks-ai-chat-prompt-start;\n}\n\
 [data-blocks-ai-chat-prompt-start-variant=\"centered\"] {\n  justify-content: center;\n}\n\
-.blocks-ai-chat-prompt-start-suggestions {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-3);\n}\n\
-.blocks-ai-chat-prompt-start-composer {\n  margin-top: auto;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  padding: var(--fandhe-space-3);\n}\n\
-[data-scope=\"field\"][data-part=\"textarea\"][data-blocks-ai-chat-prompt-start-variant] {\n  border: 0;\n}\n\
+.blocks-ai-chat-prompt-start-suggestions {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-3);\n}\n\
+[data-blocks-ai-chat-prompt-start-variant=\"default\"] .blocks-ai-chat-prompt-start-composer {\n  margin-top: auto;\n}\n\
+.blocks-ai-chat-prompt-start-composer {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  padding: var(--fandhe-space-3);\n}\n\
+[data-blocks-ai-chat-prompt-start-variant] [data-scope=\"field\"][data-part=\"textarea\"] {\n  border: 0;\n}\n\
 .blocks-ai-chat-prompt-start-composer-actions {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-ai-chat-prompt-start-composer-actions [data-scope=\"button\"]:last-child {\n  margin-inline-start: auto;\n}\n\
-@media (max-width: 47.99rem) {\n  .blocks-ai-chat-prompt-start-suggestions {\n    grid-template-columns: 1fr;\n  }\n}\n";
+@container blocks-ai-chat-prompt-start (min-width: 28rem) {\n  .blocks-ai-chat-prompt-start-suggestions {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -487,10 +500,25 @@ mod tests {
     #[test]
     fn layout_css_is_safe_and_stacks_suggestions_on_narrow() {
         assert!(!LAYOUT_CSS.contains('<'));
-        assert!(LAYOUT_CSS.contains("@media (max-width: 47.99rem)"));
+        assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
+        assert!(LAYOUT_CSS.contains("@container blocks-ai-chat-prompt-start (min-width: 28rem)"));
         assert!(LAYOUT_CSS.contains("grid-template-columns: 1fr;"));
         assert!(!LAYOUT_CSS.contains("position: fixed"));
         assert!(!LAYOUT_CSS.contains("display: none"));
+    }
+
+    #[test]
+    fn composer_bottom_margin_is_scoped_to_default_variant() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-ai-chat-prompt-start-variant=\"default\"] .blocks-ai-chat-prompt-start-composer {\n  margin-top: auto;\n}"
+        ));
+    }
+
+    #[test]
+    fn textarea_border_reset_uses_ancestor_selector() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-ai-chat-prompt-start-variant] [data-scope=\"field\"][data-part=\"textarea\"] {\n  border: 0;\n}"
+        ));
     }
 
     #[test]
