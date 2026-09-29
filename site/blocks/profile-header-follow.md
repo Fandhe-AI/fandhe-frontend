@@ -121,8 +121,8 @@ fn stat_entry(value: &'static str, label: &'static str) -> Node {
         Size::Sm,
         vec![("data-blocks-profile-header-follow-stat", "")],
         vec![
-            stat::value_text(vec![], vec![text(value)]),
             stat::label(vec![], vec![text(label)]),
+            stat::value_text(vec![], vec![text(value)]),
         ],
     )
 }
