@@ -1,6 +1,7 @@
 //! Application / Table カテゴリの block 登録点（イシュー #2734 で雛形
-//! 新設。イシュー #2947 で `table-with-heading`、イシュー #2943 で
-//! `table_responsive_stacked` を追加しディレクトリ化して卒業した）。
+//! 新設。イシュー #2947 で `table_with_heading`、イシュー #2943 で
+//! `table_responsive_stacked`、イシュー #2942（親 #2892）で
+//! `table_grouped_rows` を追加しディレクトリ化して卒業した）。
 //! 手順は `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -9,11 +10,16 @@
 //! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
 //! ための構造、イシュー #2734）。
 
+mod table_grouped_rows;
 mod table_responsive_stacked;
 mod table_with_heading;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![table_responsive_stacked::BLOCK, table_with_heading::BLOCK]
+    vec![
+        table_grouped_rows::BLOCK,
+        table_responsive_stacked::BLOCK,
+        table_with_heading::BLOCK,
+    ]
 }

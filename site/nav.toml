@@ -2120,6 +2120,11 @@ path = "/blocks/list-title-meta/"
 title = "Table"
 
 [[section.group.page]]
+title = "table-grouped-rows"
+source = "site/blocks/table-grouped-rows.md"
+path = "/blocks/table-grouped-rows/"
+
+[[section.group.page]]
 title = "table-responsive-stacked"
 source = "site/blocks/table-responsive-stacked.md"
 path = "/blocks/table-responsive-stacked/"
