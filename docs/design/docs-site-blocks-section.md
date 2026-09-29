@@ -1024,7 +1024,9 @@ pub enum LayoutCss {
 | ai-chat-code-preview | #2958（親 #2957） | `application/ai_chat/ai_chat_code_preview.rs` |
 | action-panel-with-well | #2956 | `application/action_panel/action_panel_with_well.rs` |
 | ai-chat-prompt-start | #2961（親 #2951） | `application/ai_chat/ai_chat_prompt_start.rs` |
+| auth-dropdown-panel | #2962 | `application/auth/auth_dropdown_panel.rs` |
 | auth-oauth-consent | #2963（親 #2951） | `application/auth/auth_oauth_consent.rs` |
+| auth-otp-verify | #2964（親 #2951） | `application/auth/auth_otp_verify.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
