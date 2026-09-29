@@ -1020,6 +1020,7 @@ pub enum LayoutCss {
 | action-panel-footer-bar | #2952（親 #2951） | `application/action_panel/action_panel_footer_bar.rs` |
 | card-heading-basic | #3229 | `application/card_heading/card_heading_basic.rs` |
 | action-panel-with-input | #2955 | `application/action_panel/action_panel_with_input.rs` |
+| action-panel-stacked | #2954 | `application/action_panel/action_panel_stacked.rs` |
 | action-panel-with-well | #2956 | `application/action_panel/action_panel_with_well.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
