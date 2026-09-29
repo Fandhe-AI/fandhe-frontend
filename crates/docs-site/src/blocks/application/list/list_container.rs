@@ -33,7 +33,11 @@
 //! `@container blocks-list-container (max-width: 30rem)` 規則が両方へ
 //! 一貫して適用されることで狭幅時の見た目差分（角丸解除・全幅化・左右
 //! 余白解除）を静的に併記する。3（R1052）は狭幅対応の集約元がないため
-//! 単一インスタンスのみとする。
+//! 単一インスタンスのみとする。通常幅パネルには `min-width: 32rem`
+//! （コンテナクエリのしきい値 30rem を上回る値）を明示し、`flex-wrap`
+//! によるパネル自体の収縮でしきい値を割り込んで狭幅スタイルが誤適用
+//! されないよう固定する（`@container` はパネル自身の実測幅を見るため、
+//! `flex-basis` だけでは収縮時にしきい値を下回り得る）。
 //!
 //! # `card::body` の padding を 0 にする理由
 //!
@@ -260,13 +264,13 @@ const LAYOUT_CSS: &str = "\
 .blocks-list-container-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-list-container-section-title {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-list-container-pair {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: flex-start;\n  gap: var(--fandhe-space-6);\n}\n\
-.blocks-list-container-panel {\n  flex: 1 1 22rem;\n  min-width: 0;\n  container-type: inline-size;\n  container-name: blocks-list-container;\n}\n\
-.blocks-list-container-narrow {\n  flex: 0 1 20rem;\n  max-width: 20rem;\n}\n\
+.blocks-list-container-panel {\n  flex: 1 1 22rem;\n  min-width: 32rem;\n  container-type: inline-size;\n  container-name: blocks-list-container;\n}\n\
+.blocks-list-container-narrow {\n  flex: 0 1 20rem;\n  max-width: 20rem;\n  min-width: 0;\n}\n\
 [data-scope=\"card\"][data-part=\"body\"][data-blocks-list-container-body] {\n  padding: 0;\n}\n\
 [data-scope=\"item\"][data-part=\"group\"][data-blocks-list-container-cards] {\n  gap: var(--fandhe-space-4);\n}\n\
 [data-scope=\"item\"][data-part=\"root\"][data-blocks-list-container-row] {\n  border-radius: 0;\n}\n\
 @container blocks-list-container (max-width: 30rem) {\n  \
-.blocks-list-container-panel [data-scope=\"card\"][data-part=\"root\"][data-blocks-list-container-card] {\n    border-radius: 0;\n    border-inline-width: 0;\n  }\n  \
+[data-scope=\"card\"][data-part=\"root\"][data-blocks-list-container-card] {\n    border-radius: 0;\n    border-inline-width: 0;\n  }\n  \
 [data-scope=\"item\"][data-part=\"root\"][data-blocks-list-container-row=\"plain\"] {\n    padding-inline: 0;\n  }\n\
 }\n";
 
