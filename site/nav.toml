@@ -2373,6 +2373,14 @@ source = "site/blocks/dashboard-01.md"
 path = "/blocks/dashboard-01/"
 
 [[section.group]]
+title = "AI Chat"
+
+[[section.group.page]]
+title = "ai-chat-prompt-start"
+source = "site/blocks/ai-chat-prompt-start.md"
+path = "/blocks/ai-chat-prompt-start/"
+
+[[section.group]]
 title = "Media Object"
 
 [[section.group.page]]
