@@ -43,13 +43,24 @@
 //!   レビュー指摘 #3404 是正）。`[data-blocks-table-with-toolbar-search]`
 //!   に `flex: 1 1 12rem` を与えて非 `auto` の flex-basis で `width` を
 //!   上書きし、`card_heading_toolbar` と同型の縮小可能な検索欄にする
-//!   （版 A/D は 1 行、版 B はコンテナ幅超過時のみ折り返す）
+//!   （版 A/D は 1 行、版 B はコンテナ幅超過時のみ折り返す）。操作ボタン列
+//!   （[`actions`]）も `flex-wrap: wrap` を持ち、Demo 枠が版 B のボタン
+//!   合計幅（絞り込み + 期間ボタン 3 個 + 新規作成）より狭い場合に折り返す
+//!   （Codex レビュー指摘 #3404 是正: `display: flex` のみで折り返し不可
+//!   だったため、狭い Demo 枠でボタン列がコンテナ幅を超えてはみ出していた）
 //! - **C（R0717、常時縦積み + エクスポート）**: `@container` の横並び
 //!   切り替えを持たず、幅に関係なく見出し帯・ツールバーが常時縦積み
 //!   （`[data-blocks-table-with-toolbar-variant="stacked"]` 配下の属性
 //!   セレクタ 2 段（詳細度 `(0,2,0)`）で `@container` 内の `(0,1,0)` を
 //!   上書きする、`LAYOUT_CSS` 参照）。操作列にエクスポートボタン
-//!   （[`export_icon`] の自作線画）を追加する
+//!   （[`export_icon`] の自作線画）を追加する。検索欄
+//!   （[`toolbar`] 内の `[data-blocks-table-with-toolbar-search]`）は
+//!   `@container` 内の `flex: 1 1 12rem` が常時縦積みでも詳細度 `(0,1,0)`
+//!   のまま残るため、`column` 方向の flex コンテナ下では `flex-basis` が
+//!   高さへ転用され検索欄が 12rem 丈に伸びていた（Cursor Bugbot レビュー
+//!   指摘 #3404 是正）。`[data-blocks-table-with-toolbar-variant="stacked"]
+//!   [data-blocks-table-with-toolbar-search]`（詳細度 `(0,2,0)`）で
+//!   `flex: 1 1 auto` に戻し、高さを内容依存（`auto`）へ復元する
 //! - **D（R0718、タブ型の絞り込み）**: 実物 `tabs::tabs`
 //!   （[`status_tabs`]）で「すべて/支払済み/未払い/期限超過」の 4 タブを
 //!   静的表示する。**選択中「すべて」のパネルにのみ表を置き、非選択の 3
@@ -739,14 +750,15 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-table-with-toolbar-header] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  justify-content: space-between;\n}\n\
 [data-blocks-table-with-toolbar-toolbar] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-table-with-toolbar-period] {\n  display: flex;\n  gap: var(--fandhe-space-1);\n}\n\
-[data-blocks-table-with-toolbar-actions] {\n  display: flex;\n  gap: var(--fandhe-space-2);\n}\n\
+[data-blocks-table-with-toolbar-actions] {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-table-with-toolbar-tabs] {\n  overflow-x: auto;\n}\n\
 [data-blocks-table-with-toolbar-scroll] {\n  max-width: 100%;\n}\n\
 [data-blocks-table-with-toolbar-table] {\n  min-width: 42rem;\n}\n\
 [data-blocks-table-with-toolbar-table] [data-align=\"end\"] {\n  text-align: end;\n}\n\
 [data-blocks-table-with-toolbar-footer] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  align-items: flex-start;\n  justify-content: space-between;\n  border-top: 1px solid var(--fandhe-color-border);\n  padding-top: var(--fandhe-space-4);\n}\n\
 @container (min-width: 40rem) {\n  [data-blocks-table-with-toolbar-header] {\n    flex-direction: row;\n    align-items: flex-end;\n  }\n  [data-blocks-table-with-toolbar-toolbar] {\n    flex-direction: row;\n    flex-wrap: wrap;\n    align-items: center;\n  }\n  [data-blocks-table-with-toolbar-search] {\n    flex: 1 1 12rem;\n    min-width: 0;\n  }\n  [data-blocks-table-with-toolbar-footer] {\n    flex-direction: row;\n    align-items: center;\n  }\n}\n\
-[data-blocks-table-with-toolbar-variant=\"stacked\"] [data-blocks-table-with-toolbar-header], [data-blocks-table-with-toolbar-variant=\"stacked\"] [data-blocks-table-with-toolbar-toolbar] {\n  flex-direction: column;\n  align-items: stretch;\n}\n";
+[data-blocks-table-with-toolbar-variant=\"stacked\"] [data-blocks-table-with-toolbar-header], [data-blocks-table-with-toolbar-variant=\"stacked\"] [data-blocks-table-with-toolbar-toolbar] {\n  flex-direction: column;\n  align-items: stretch;\n}\n\
+[data-blocks-table-with-toolbar-variant=\"stacked\"] [data-blocks-table-with-toolbar-search] {\n  flex: 1 1 auto;\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -974,6 +986,34 @@ mod tests {
     fn stacked_variant_css_overrides_container_query() {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains(r#"[data-blocks-table-with-toolbar-variant="stacked"]"#));
+    }
+
+    /// 操作ボタン列（絞り込み/[エクスポート]/新規作成）が `flex-wrap: wrap`
+    /// を持つ（Codex レビュー指摘 #3404 是正の回帰検知: 版 B の操作ボタン
+    /// 列は `display: flex` のみでは折り返せず、Demo 枠がボタン合計幅より
+    /// 狭いと常時縦積み版も含めてコンテナ幅を超えてはみ出していた。
+    /// モジュール doc「B（期間選択ボタン）」節参照）。
+    #[test]
+    fn actions_wrap_when_row_exceeds_container_width() {
+        assert!(!LAYOUT_CSS.contains('<'));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-table-with-toolbar-actions] {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-2);\n}\n"
+        ));
+    }
+
+    /// 版 C（常時縦積み）の検索欄は `@container` 内の `flex: 1 1 12rem`
+    /// （詳細度 `(0,1,0)`）が column 方向の flex コンテナ下で高さへ転用され
+    /// 12rem 丈に伸びるのを、`[data-blocks-table-with-toolbar-variant=
+    /// "stacked"] [data-blocks-table-with-toolbar-search]`（詳細度
+    /// `(0,2,0)`）の `flex: 1 1 auto` で上書きする（Cursor Bugbot レビュー
+    /// 指摘 #3404 是正の回帰検知。モジュール doc「C（常時縦積み +
+    /// エクスポート）」節参照）。
+    #[test]
+    fn stacked_variant_search_field_flex_basis_is_reset() {
+        assert!(!LAYOUT_CSS.contains('<'));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-table-with-toolbar-variant=\"stacked\"] [data-blocks-table-with-toolbar-search] {\n  flex: 1 1 auto;\n}\n"
+        ));
     }
 
     /// ページ送りは 1 ページ目選択・前ページ無効の静的表示。
