@@ -12,7 +12,7 @@ Demo は 2 インスタンスを縦に並記します。インスタンス A は
 見出し付き `Teams` グループ → ユーザーメニュー footer（avatar + 名前 +
 メール + chevron を内包した閉じた `menu`）。インスタンス B は検索欄
 header → 見出し付き `Workspace` グループ（現在地は `Dashboard`）→ 見出し
-付き `Teams` グループ（現在地は `Growth`）→ プロフィール行 footer（メニュー
+付き `Teams` グループ（現在地の強調なし）→ プロフィール行 footer（メニュー
 ではなく `menu_button` 1 個のみの「プロフィール行」パターン）。
 
 件数バッジは `sidebar::menu_badge` が単独で件数表示用の装飾を持つため
@@ -33,6 +33,7 @@ header → 見出し付き `Workspace` グループ（現在地は `Dashboard`�
 ## Rust コード
 
 ```rust
+use crate::blocks::dummy_assets::{COMPANY_NAMES, JOB_TITLES, PERSON_NAMES};
 use fandhe_frontend_core::{div, el, span, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarProps, ImageStatus};
 use fandhe_frontend_pre_styled_ui::field::{
@@ -497,7 +498,7 @@ pub fn demo() -> Node {
         vec![],
         vec![
             main_group("search", Some("Workspace"), "Dashboard"),
-            teams_group("search", Some("Growth")),
+            teams_group("search", None),
         ],
     );
     let instance_b = sidebar::provider(

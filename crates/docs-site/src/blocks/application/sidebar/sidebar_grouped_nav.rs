@@ -52,10 +52,10 @@
 //! lucide 等の実アイコンセット由来の path データは使わず、`sidebar_03`/
 //! `sidebar_07` と同程度の単純な矩形図形を自作する。
 
-use crate::blocks::dummy_assets::{COMPANY_NAMES, JOB_TITLES, PERSON_NAMES};
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
+use crate::blocks::dummy_assets::{COMPANY_NAMES, JOB_TITLES, PERSON_NAMES};
 use fandhe_frontend_core::{div, el, span, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarProps, ImageStatus};
 use fandhe_frontend_pre_styled_ui::field::{
@@ -520,7 +520,7 @@ pub fn demo() -> Node {
         vec![],
         vec![
             main_group("search", Some("Workspace"), "Dashboard"),
-            teams_group("search", Some("Growth")),
+            teams_group("search", None),
         ],
     );
     let instance_b = sidebar::provider(
