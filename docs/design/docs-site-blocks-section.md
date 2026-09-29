@@ -969,6 +969,7 @@ pub enum LayoutCss {
 | page-heading-avatar | #2931（親 #2892） | `application/page_heading/page_heading_avatar.rs` |
 | page-heading-cover | #2932（親 #2892） | `application/page_heading/page_heading_cover.rs` |
 | page-heading-meta | #2933（親 #2892） | `application/page_heading/page_heading_meta.rs` |
+| page-heading-welcome-stats | #2935（親 #2892） | `application/page_heading/page_heading_welcome_stats.rs` |
 | card-media-footer | #2900（親 #2892） | `application/card/card_media_footer.rs` |
 | card-meta-cta | #2901（親 #2892） | `application/card/card_meta_cta.rs` |
 | chart-bar-list | #2903 | `application/chart/chart_bar_list.rs` |

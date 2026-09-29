@@ -2070,6 +2070,11 @@ title = "page-heading-meta"
 source = "site/blocks/page-heading-meta.md"
 path = "/blocks/page-heading-meta/"
 
+[[section.group.page]]
+title = "page-heading-welcome-stats"
+source = "site/blocks/page-heading-welcome-stats.md"
+path = "/blocks/page-heading-welcome-stats/"
+
 [[section.group]]
 title = "Card Heading"
 
