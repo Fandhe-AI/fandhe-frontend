@@ -288,8 +288,13 @@ fn chat_pane() -> Node {
 /// 見た目を組む（`feature_tabs_panel.rs::static_tab_list` と同型の判断:
 /// recipe とセレクタを共有すると `:hover` 規則が非対話タブ列にも当たり
 /// 操作可能に見えてしまうため）。プレビュー・コードのどちらも常に可視で
-/// 併記するため選択状態を表す視覚的な強調のみを持つ（`aria-hidden` で
-/// 装飾として支援技術のツリーから除外する）。
+/// 併記するため、どちらか一方だけを選択中として強調しない（`aria-hidden`
+/// で装飾として支援技術のツリーから除外する。Codex P2 是正: 当初は
+/// 「プレビュー」側にのみ `is-active` を付けていたが、直後の両パネルは
+/// 常に併記されるため、コード側が未選択であるかのように示す表示状態の
+/// 不一致だった。`switch_group` の Codex P2 是正〔対等な見出しへ変更〕と
+/// 同型の判断で、選択状態を表す視覚的な強調を持たない対等な見出しへ
+/// 変更した）。
 fn static_tab_list() -> Node {
     div(
         vec![
@@ -298,7 +303,7 @@ fn static_tab_list() -> Node {
         ],
         vec![
             span(
-                vec![("class", "blocks-ai-chat-code-preview-tab is-active")],
+                vec![("class", "blocks-ai-chat-code-preview-tab")],
                 vec![text("プレビュー")],
             ),
             span(

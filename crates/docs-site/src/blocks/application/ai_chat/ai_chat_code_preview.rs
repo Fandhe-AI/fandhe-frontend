@@ -339,8 +339,13 @@ fn chat_pane() -> Node {
 /// 見た目を組む（`feature_tabs_panel.rs::static_tab_list` と同型の判断:
 /// recipe とセレクタを共有すると `:hover` 規則が非対話タブ列にも当たり
 /// 操作可能に見えてしまうため）。プレビュー・コードのどちらも常に可視で
-/// 併記するため選択状態を表す視覚的な強調のみを持つ（`aria-hidden` で
-/// 装飾として支援技術のツリーから除外する）。
+/// 併記するため、どちらか一方だけを選択中として強調しない（`aria-hidden`
+/// で装飾として支援技術のツリーから除外する。Codex P2 是正: 当初は
+/// 「プレビュー」側にのみ `is-active` を付けていたが、直後の両パネルは
+/// 常に併記されるため、コード側が未選択であるかのように示す表示状態の
+/// 不一致だった。`switch_group` の Codex P2 是正〔対等な見出しへ変更〕と
+/// 同型の判断で、選択状態を表す視覚的な強調を持たない対等な見出しへ
+/// 変更した）。
 fn static_tab_list() -> Node {
     div(
         vec![
@@ -349,7 +354,7 @@ fn static_tab_list() -> Node {
         ],
         vec![
             span(
-                vec![("class", "blocks-ai-chat-code-preview-tab is-active")],
+                vec![("class", "blocks-ai-chat-code-preview-tab")],
                 vec![text("プレビュー")],
             ),
             span(
@@ -464,7 +469,6 @@ const LAYOUT_CSS: &str = "\
 .blocks-ai-chat-code-preview-composer [data-scope=\"field\"][data-part=\"textarea\"] {\n  flex: 1;\n}\n\
 .blocks-ai-chat-code-preview-tablist {\n  display: flex;\n  gap: var(--fandhe-space-2);\n  border-bottom: 1px solid var(--fandhe-color-border);\n  padding-bottom: var(--fandhe-space-2);\n}\n\
 .blocks-ai-chat-code-preview-tab {\n  padding: var(--fandhe-space-1) var(--fandhe-space-3);\n  border-radius: var(--fandhe-radius-md) var(--fandhe-radius-md) 0 0;\n  font-size: var(--fandhe-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-.blocks-ai-chat-code-preview-tab.is-active {\n  color: var(--fandhe-color-fg);\n  font-weight: 600;\n  box-shadow: inset 0 -2px 0 var(--fandhe-color-focus-ring, currentColor);\n}\n\
 .blocks-ai-chat-code-preview-frame {\n  flex: 1;\n  min-block-size: 16rem;\n  border: 1px dashed var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n  display: grid;\n  place-items: center;\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-ai-chat-code-preview-code {\n  margin: 0;\n  padding: var(--fandhe-space-3);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n  overflow-x: auto;\n}\n\
 @container blocks-ai-chat-code-preview (max-width: 47.99rem) {\n  .blocks-ai-chat-code-preview-body {\n    grid-template-columns: 1fr;\n  }\n  [data-blocks-ai-chat-code-preview-pane=\"chat\"] {\n    border-inline-end: 0;\n    border-block-end: 1px solid var(--fandhe-color-border);\n  }\n  .blocks-ai-chat-code-preview-switch {\n    display: flex;\n  }\n}\n";
@@ -519,6 +523,16 @@ mod tests {
         // ため、エスケープの影響を受けない語で存在確認する。
         assert!(pane_html.contains("async fn inventory"));
         assert!(pane_html.contains("blocks-ai-chat-code-preview-tablist"));
+    }
+
+    /// タブ列の見た目は、直後に併記されるプレビュー・コードのどちらか
+    /// 一方だけを選択中として強調しないことを固定する（Codex P2 是正、
+    /// [`static_tab_list`] doc 参照）。`is-active` は両パネル併記という
+    /// 実態と矛盾する表示状態を示すため使わない。
+    #[test]
+    fn static_tab_list_has_no_misleading_active_state() {
+        let html = demo_html();
+        assert!(!html.contains("is-active"));
     }
 
     /// 狭幅専用の表示切替は `aria-pressed`（実際に押せて状態が変わる
