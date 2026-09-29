@@ -31,6 +31,18 @@
 //! block と同じくリテラル値を直書きする）。`top-right-button` は card の
 //! recipe が既に grid レイアウトを担うため、本 block 側の CSS は関与しない。
 //!
+//! # 行セレクタは `card::body` の recipe より詳細度を上げる
+//! （イシュー #2953 実装後の指摘対応。PR #3407 codex/review・Cursor 指摘）
+//!
+//! `card::body` は `[data-scope="card"][data-part="body"]`（詳細度 0,2,0）
+//! に `flex-direction: column` を base で持つ。当初 `.blocks-action-panel
+//! -inline-row`（詳細度 0,1,0）のみで上書きを試みたが、詳細度不足のため
+//! `40rem` 以上でも縦積みのまま変わらなかった。`card::body` が出力する
+//! 同一要素は `data-scope`/`data-part` 属性と `class` 属性を両方持つため、
+//! `[data-scope="card"][data-part="body"].blocks-action-panel-inline-row`
+//! （詳細度 0,3,0）で確実に上回るセレクタへ差し替える。`!important` は
+//! 使わない（詳細度で解決できる場合の濫用を避ける、CSS カスケード規約）。
+//!
 //! # switch は `disabled: true` の `checked` 初期状態で固定する
 //! （イシュー #2953 実装後の指摘対応。PR #3407 codex/review 指摘）
 //!
@@ -267,7 +279,11 @@ pub const BLOCK: Block = Block {
 /// `super::stylesheet` 経由の `push_css` で連結される）。
 ///
 /// セレクタは `.blocks-action-panel-inline-*` と
-/// `[data-blocks-action-panel-inline-*]` のみを用いる
+/// `[data-blocks-action-panel-inline-*]` を基本とするが、行セレクタのみ
+/// `card::body` の recipe（`[data-scope="card"][data-part="body"]`）より
+/// 詳細度を上げるため `[data-scope="card"][data-part="body"].blocks-
+/// action-panel-inline-row` を用いる（本 doc 冒頭「行セレクタは
+/// `card::body` の recipe より詳細度を上げる」節参照）。
 /// （`top-right-button` は card 自身の recipe に委譲するため対象外）。
 ///
 /// # ルート class を `demo_class` と別名にする理由
@@ -277,9 +293,9 @@ pub const BLOCK: Block = Block {
 /// という別名にする（`card_heading_toolbar` 等と同じ Bugbot 教訓の回避）。
 const LAYOUT_CSS: &str = "\
 .blocks-action-panel-inline-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
-.blocks-action-panel-inline-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
+[data-scope=\"card\"][data-part=\"body\"].blocks-action-panel-inline-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-action-panel-inline-action] {\n  display: flex;\n  flex-shrink: 0;\n  align-items: center;\n}\n\
-@media (min-width: 40rem) {\n  .blocks-action-panel-inline-row {\n    flex-direction: row;\n    justify-content: space-between;\n    align-items: center;\n  }\n}\n";
+@media (min-width: 40rem) {\n  [data-scope=\"card\"][data-part=\"body\"].blocks-action-panel-inline-row {\n    flex-direction: row;\n    justify-content: space-between;\n    align-items: center;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -353,6 +369,24 @@ mod tests {
     fn layout_css_declares_breakpoint_and_no_angle_bracket() {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains("@media (min-width: 40rem)"));
+    }
+
+    /// 行セレクタが `card::body`（`[data-scope="card"][data-part="body"]`、
+    /// 詳細度 0,2,0）より詳細度の高いセレクタ（0,3,0）で `@media` 内外の
+    /// 両方に出現していること（本モジュール doc「行セレクタは
+    /// `card::body` の recipe より詳細度を上げる」節、PR #3407
+    /// codex/review・Cursor 指摘の回帰防止）。
+    #[test]
+    fn row_selector_outranks_card_body_specificity() {
+        let selector = "[data-scope=\"card\"][data-part=\"body\"].blocks-action-panel-inline-row";
+        assert_eq!(
+            LAYOUT_CSS.matches(selector).count(),
+            2,
+            "row selector should appear once outside and once inside the @media block"
+        );
+        // 詳細度不足で上書きに失敗していた旧セレクタ（クラスのみ）が
+        // 再導入されないこと。
+        assert!(!LAYOUT_CSS.contains("\n.blocks-action-panel-inline-row {"));
     }
 
     /// ルート class（`demo_class` とは別名）が `demo()` の出力へ実際に
