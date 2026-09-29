@@ -9,9 +9,12 @@
 //! `image` / `blockquote` / `avatar` の 9 部品を合成する（[`BLOCK`] の
 //! `parts` に一致させる契約、`crates/docs-site/tests/blocks_nav.rs`/
 //! `blocks_contract.rs` が検証する）。`heading`/`text`/`icon` は使用部品に
-//! 含まれないため、見出し・説明文・ソーシャルログインボタンはいずれも
-//! 素の `div`（レイアウト用 CSS クラスのみ）とアイコンなしのテキスト
-//! ボタンで表現する（実ブランド名・ロゴを持ち込まない方針とも整合する）。
+//! 含まれないため、説明文・ソーシャルログインボタンは素の `div`（レイアウト
+//! 用 CSS クラスのみ）とアイコンなしのテキストボタンで表現する（実ブランド
+//! 名・ロゴを持ち込まない方針とも整合する）。フォーム見出し（「おかえり
+//! なさい」/「アカウントを作成」）のみ `fandhe_frontend_core::el("h2", ...)`
+//! で意味づける（`profile_card_centered::section` の `el("h3", ...)` と同型の
+//! 判断。pre-styled-ui `heading` 部品は使用部品に含めないため使わない）。
 //!
 //! # 1 つの Demo に 2 つの形（サインイン/サインアップ）を縦に並べる
 //!
@@ -95,7 +98,7 @@ use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, text, Node};
+use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarProps, ImageStatus};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
@@ -295,7 +298,8 @@ fn form_column(variant: AuthVariant) -> Node {
             div(
                 vec![("class", "blocks-auth-split-photo-testimonial-intro")],
                 vec![
-                    div(
+                    el(
+                        "h2",
                         vec![("class", "blocks-auth-split-photo-testimonial-title")],
                         vec![text(title)],
                     ),

@@ -25,7 +25,7 @@
 
 ```rust
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, text, Node};
+use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarProps, ImageStatus};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
@@ -225,7 +225,8 @@ fn form_column(variant: AuthVariant) -> Node {
             div(
                 vec![("class", "blocks-auth-split-photo-testimonial-intro")],
                 vec![
-                    div(
+                    el(
+                        "h2",
                         vec![("class", "blocks-auth-split-photo-testimonial-title")],
                         vec![text(title)],
                     ),
