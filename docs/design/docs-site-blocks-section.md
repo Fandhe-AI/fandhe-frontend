@@ -1019,6 +1019,7 @@ pub enum LayoutCss {
 | media-object | #3228 | `application/media_object/media_object_alignments.rs` |
 | action-panel-footer-bar | #2952（親 #2951） | `application/action_panel/action_panel_footer_bar.rs` |
 | card-heading-basic | #3229 | `application/card_heading/card_heading_basic.rs` |
+| action-panel-with-input | #2955 | `application/action_panel/action_panel_with_input.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
