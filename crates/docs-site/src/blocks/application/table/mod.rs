@@ -1,7 +1,7 @@
-//! Application / Table カテゴリの block 登録点（イシュー #2734 で雛形新設、
-//! イシュー #2942（親 #2892）で最初の block（[`table_grouped_rows`]）を
-//! 追加し卒業した）。手順は `docs/design/docs-site-blocks-section.md` §18
-//! 参照。
+//! Application / Table カテゴリの block 登録点（イシュー #2734 で雛形
+//! 新設。イシュー #2942（親 #2892）で `table_grouped_rows`、イシュー
+//! #2947 で `table_with_heading` を追加しディレクトリ化して卒業した）。
+//! 手順は `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
 //! 新規 block を追加する際は本ファイルへ `mod` 宣言と `blocks()` への追記を
@@ -10,9 +10,10 @@
 //! ための構造、イシュー #2734）。
 
 mod table_grouped_rows;
+mod table_with_heading;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![table_grouped_rows::BLOCK]
+    vec![table_grouped_rows::BLOCK, table_with_heading::BLOCK]
 }

@@ -2038,6 +2038,11 @@ source = "site/blocks/navbar-app-links.md"
 path = "/blocks/navbar-app-links/"
 
 [[section.group.page]]
+title = "navbar-docs-site"
+source = "site/blocks/navbar-docs-site.md"
+path = "/blocks/navbar-docs-site/"
+
+[[section.group.page]]
 title = "navbar-two-row"
 source = "site/blocks/navbar-two-row.md"
 path = "/blocks/navbar-two-row/"
@@ -2069,6 +2074,11 @@ path = "/blocks/page-heading-cover/"
 title = "page-heading-meta"
 source = "site/blocks/page-heading-meta.md"
 path = "/blocks/page-heading-meta/"
+
+[[section.group.page]]
+title = "page-heading-welcome-stats"
+source = "site/blocks/page-heading-welcome-stats.md"
+path = "/blocks/page-heading-welcome-stats/"
 
 [[section.group]]
 title = "Card Heading"
@@ -2108,6 +2118,11 @@ title = "Table"
 title = "table-grouped-rows"
 source = "site/blocks/table-grouped-rows.md"
 path = "/blocks/table-grouped-rows/"
+
+[[section.group.page]]
+title = "table-with-heading"
+source = "site/blocks/table-with-heading.md"
+path = "/blocks/table-with-heading/"
 
 [[section.group]]
 title = "Grid List"
@@ -2252,6 +2267,11 @@ title = "Profile"
 title = "profile-detail-datalist"
 source = "site/blocks/profile-detail-datalist.md"
 path = "/blocks/profile-detail-datalist/"
+
+[[section.group.page]]
+title = "profile-detail-skills"
+source = "site/blocks/profile-detail-skills.md"
+path = "/blocks/profile-detail-skills/"
 
 [[section.group.page]]
 title = "profile-header-follow"
