@@ -44,7 +44,13 @@
 //! `position: absolute; top: 0; inset-inline-start/-end` で見出し行に
 //! 重ねて表示する。狭幅（`@container ... (max-width: 40rem)`）では副次列
 //! （役割・最終更新）を隠し、ツールバーは全幅帯（`inset-inline-start: 0`）
-//! として残す。「未選択」パネルはツールバー自体を出力しない
+//! として残す。この幅切替でツールバーが全行選択チェックボックスを覆う
+//! ようになるため、同じ `@container` 規則内で `[data-blocks-table-
+//! sortable-bulk-select-header]` に `visibility: hidden` を適用し、覆われて
+//! いる間はチェックボックスをフォーカス対象からも外す（`visibility:
+//! hidden` は Tab 移動・アクセシビリティツリーの双方から除外するため、
+//! 可視状態とフォーカス可否が常に一致する。Codex/Cursor Bugbot 指摘、
+//! イシュー #2945 PR #3393）。「未選択」パネルはツールバー自体を出力しない
 //! （1 行も選択されていない状態を JS 無しで正しく表す）。
 //!
 //! # `menu`/ボタンを disabled にしない理由
@@ -88,24 +94,16 @@ use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 /// （`crates/docs-site/tests/blocks_contract.rs`）の id 重複検知に抵触
 /// しないよう `id` 属性自体を持たない（`aria-label` のみで名前付け）。
 ///
-/// `focusable = false` は、選択中パネルの一括操作ツールバーが見出し行に
-/// 重なり本チェックボックスを覆い隠す間（[`panel`] 内 `tabindex="-1"` 付与
-/// 箇所参照）、フォーカス先が見えないまま Tab 移動対象になる問題
-/// （Codex レビュー指摘、イシュー #2945 PR #3393）を避けるための指定。
-fn row_select_checkbox(
-    name: &str,
-    checked: checkbox::CheckedState,
-    label: &str,
-    focusable: bool,
-) -> Node {
+/// 常にフォーカス可能（`tabindex` を持たない）。全行選択チェックボックスが
+/// 選択中パネルの狭幅表示で一時的に覆い隠される問題は、[`panel`] 内の
+/// CSS `visibility: hidden`（`select-header` 属性）で解決している
+/// （可視状態とフォーカス可否を一致させる方針、イシュー #2945 PR #3393）。
+fn row_select_checkbox(name: &str, checked: checkbox::CheckedState, label: &str) -> Node {
     let props = CheckboxProps {
         checked,
         ..CheckboxProps::default()
     };
-    let mut hidden_input_attrs = vec![("aria-label", label)];
-    if !focusable {
-        hidden_input_attrs.push(("tabindex", "-1"));
-    }
+    let hidden_input_attrs = vec![("aria-label", label)];
     checkbox::root(
         Size::Sm,
         ColorPalette::Accent,
@@ -295,23 +293,44 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
 
     // 選択中パネルでは一括操作ツールバーが見出し行に重なって覆い隠す
     // （モジュール doc「一括操作ツールバーを見出し行へ重ねる実装」節）。
-    // 覆われている間は見出し行の操作要素（全行選択チェックボックス・
-    // 並び替えボタン）を Tab 移動対象から外す（`tabindex="-1"`）。フォーカ
-    // ス先が視覚的に見えないまま操作可能になることを防ぐ（Codex レビュー
-    // 指摘、イシュー #2945 PR #3393）。「未選択」パネルはツールバー自体を
-    // 出力しないため常にフォーカス可能のまま。
+    // 覆われている間は見出し行のソート操作要素（並び替えボタン）を
+    // Tab 移動対象から外す（`tabindex="-1"`）。フォーカス先が視覚的に
+    // 見えないまま操作可能になることを防ぐ（Codex レビュー指摘、イシュー
+    // #2945 PR #3393）。「未選択」パネルはツールバー自体を出力しないため
+    // 常にフォーカス可能のまま。
+    //
+    // 全行選択チェックボックスはこの一律判定に含めない: ツールバーの
+    // `inset-inline-start` は通常幅では選択列幅ぶんオフセットされ
+    // チェックボックスを覆わないが、狭幅（`@container` 切替）では
+    // `0` になり覆う（CSS 定数 `[data-blocks-table-sortable-bulk-toolbar]`
+    // 節参照）。無 JS の静的 SSR ではこの幅依存の可視状態を tabindex の
+    // 静的付与で追従できないため、覆われている間だけ CSS
+    // `visibility: hidden` で不可視化する（`select-header` 属性 + 狭幅
+    // `@container` 規則）。`visibility: hidden` は要素をフォーカス対象・
+    // アクセシビリティツリーからも除外するため、可視状態とフォーカス
+    // 可否が常に一致する（見えているのに Tab で届かない／届くのに
+    // 見えない状態を作らない。Codex/Cursor Bugbot 指摘、イシュー #2945
+    // PR #3393）。
     let header_focusable = variant != "selected";
     let header_tabindex_attr: Vec<(&str, &str)> = if header_focusable {
         vec![]
     } else {
         vec![("tabindex", "-1")]
     };
+    let select_header_attrs: Vec<(&str, &str)> = if variant == "selected" {
+        vec![
+            ("scope", "col"),
+            ("data-blocks-table-sortable-bulk-select-header", ""),
+        ]
+    } else {
+        vec![("scope", "col")]
+    };
 
     let header_row = table::row(
         vec![],
         vec![
             table::column_header(
-                vec![("scope", "col")],
+                select_header_attrs,
                 vec![row_select_checkbox(
                     match variant {
                         "selected" => "select-selected-all",
@@ -323,7 +342,6 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
                         _ => checkbox::CheckedState::Indeterminate,
                     },
                     "Select all rows",
-                    header_focusable,
                 )],
             ),
             table::column_header(
@@ -403,7 +421,6 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
                             checkbox::CheckedState::Unchecked
                         },
                         &format!("Select row: {}", row.name),
-                        true,
                     )],
                 ),
                 table::cell(data_table::column_attrs(&name_column), vec![text(row.name)]),
@@ -554,7 +571,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-table-sortable-bulk-table-wrap {\n  position: relative;\n  container-type: inline-size;\n  container-name: blocks-table-sortable-bulk;\n}\n\
 .blocks-table-sortable-bulk-table-wrap thead th {\n  height: 3rem;\n}\n\
 [data-blocks-table-sortable-bulk-toolbar] {\n  position: absolute;\n  top: 0;\n  inset-inline-start: var(--fandhe-data-table-select-width, 2.5rem);\n  inset-inline-end: 0;\n  height: 3rem;\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  padding-inline: var(--fandhe-space-3);\n  background: var(--fandhe-color-bg);\n  z-index: 1;\n}\n\
-@container blocks-table-sortable-bulk (max-width: 40rem) {\n  [data-blocks-table-sortable-bulk-secondary] {\n    display: none;\n  }\n\n  [data-blocks-table-sortable-bulk-toolbar] {\n    inset-inline-start: 0;\n  }\n}\n";
+@container blocks-table-sortable-bulk (max-width: 40rem) {\n  [data-blocks-table-sortable-bulk-secondary] {\n    display: none;\n  }\n\n  [data-blocks-table-sortable-bulk-toolbar] {\n    inset-inline-start: 0;\n  }\n\n  [data-blocks-table-sortable-bulk-select-header] {\n    visibility: hidden;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -624,5 +641,33 @@ mod tests {
         assert!(!LAYOUT_CSS.contains("</style"));
         assert!(LAYOUT_CSS.contains("@container blocks-table-sortable-bulk (max-width: 40rem)"));
         assert!(LAYOUT_CSS.contains("position: absolute"));
+    }
+
+    /// 全行選択チェックボックスは選択中パネルでも静的な `tabindex="-1"` を
+    /// 持たない（通常幅ではツールバーに覆われず見えたまま操作可能である
+    /// ため）。狭幅で覆われる間の不可視化は `visibility: hidden`（CSS）が
+    /// 担い、Tab 移動からの除外も自動的に伴う（Codex/Cursor Bugbot 指摘、
+    /// イシュー #2945 PR #3393）。
+    #[test]
+    fn select_all_checkbox_has_no_static_tabindex() {
+        let html = html();
+        assert!(!html.contains(r#"aria-label="Select all rows" tabindex="-1""#));
+        assert!(!html.contains(r#"tabindex="-1" aria-label="Select all rows""#));
+    }
+
+    /// 選択中パネルの見出しセル（全行選択チェックボックスの `th`）だけが
+    /// `select-header` フックを持ち、CSS の狭幅 `@container` 規則内で
+    /// `visibility: hidden` が対応付けられていることを固定する。
+    #[test]
+    fn select_header_hook_appears_once_and_is_hidden_only_in_narrow_container_query() {
+        let html = html();
+        assert_eq!(
+            html.matches("data-blocks-table-sortable-bulk-select-header")
+                .count(),
+            1
+        );
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-table-sortable-bulk-select-header] {\n    visibility: hidden;\n  }"
+        ));
     }
 }
