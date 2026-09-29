@@ -37,12 +37,6 @@ use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
 use fandhe_frontend_pre_styled_ui::separator::{self, SeparatorProps};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
-/// 補助リンク（パスワード再設定・アカウント切り替え導線）の固定外部 URL
-/// （モジュール doc「参照元と原案からの差分」節参照。
-/// `contact_split_form_info::REPO` と同じ判断で、実在の外部サービスへは
-/// 接続せず本リポジトリ自身を指す）。
-const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
-
 /// [`form_column`]/[`agree_checkbox`] が形（サインイン/サインアップ）を
 /// 区別するための block ローカル列挙型（モジュール doc「id/name の
 /// 一意性」節）。id/name の接頭辞を `format!`/`Box::leak` に頼らず、形ごとの
@@ -171,8 +165,10 @@ fn agree_checkbox(name: &'static str, label_text: &'static str) -> Node {
     )
 }
 
-/// 補助リンク（`link::root`。`href`/`external` は呼び出し側が形（サインイン/
-/// サインアップ）ごとに選ぶ契約、モジュール doc「補助リンク」節参照）。
+/// アカウント切り替え導線（サインアップ形限定、`link::root`。モジュール doc
+/// 「補助リンク」節参照）。サインイン形の「パスワードをお忘れですか」は
+/// 遷移先を持たないため本関数を使わず [`form_column`] 内で直接
+/// `ButtonVariant::Link` の button を組む。
 fn helper_link(label_text: &'static str, href: &str, external: bool) -> Node {
     link::root(
         href,
@@ -231,23 +227,33 @@ fn form_column(variant: AuthVariant) -> Node {
         None,
     ));
 
-    // helper_href/helper_external: サインイン形は実装のないパスワード再設定
-    // への固定外部 URL、サインアップ形は Demo 内に実在するサインイン形への
-    // 同一ページ内アンカー（モジュール doc「補助リンク」節参照）。
-    let (checkbox_name, checkbox_label, helper_label, helper_href, helper_external) = match variant
-    {
+    let (checkbox_name, checkbox_label) = match variant {
         AuthVariant::SignIn => (
             "blocks-auth-split-photo-testimonial-signin-remember",
             "ログイン状態を保持する",
-            "パスワードをお忘れですか",
-            REPO.to_string(),
-            true,
         ),
         AuthVariant::SignUp => (
             "blocks-auth-split-photo-testimonial-signup-agree",
             "利用規約に同意する",
+        ),
+    };
+
+    // helper: サインイン形は遷移先を持たないパスワード再設定のため
+    // `ButtonVariant::Link` の `<button type="button">`（`auth_dropdown_panel`
+    // と同じ判断）。サインアップ形は Demo 内に実在するサインイン形への
+    // 同一ページ内アンカー（モジュール doc「補助リンク」節参照）。
+    let helper = match variant {
+        AuthVariant::SignIn => button::button(
+            &ButtonProps {
+                variant: ButtonVariant::Link,
+                ..ButtonProps::default()
+            },
+            vec![],
+            vec![text("パスワードをお忘れですか")],
+        ),
+        AuthVariant::SignUp => helper_link(
             "すでにアカウントをお持ちの方はこちら",
-            format!("#{}", AuthVariant::SignIn.id()),
+            &format!("#{}", AuthVariant::SignIn.id()),
             false,
         ),
     };
@@ -289,7 +295,7 @@ fn form_column(variant: AuthVariant) -> Node {
             ),
             div(
                 vec![("class", "blocks-auth-split-photo-testimonial-helper")],
-                vec![helper_link(helper_label, &helper_href, helper_external)],
+                vec![helper],
             ),
         ],
     )
@@ -414,9 +420,11 @@ pub fn demo() -> Node {
   テキストボタンにしています。実ブランドロゴの複製は行いません。
 - 暗幕の配色は `--fandhe-color-fg`/`--fandhe-color-bg` の反転ペア（既存
   block `blog-overlay-cards` と同型の判断）です。
-- 補助リンク: パスワード再設定（サインイン形）は実装を持たないため固定
-  外部 URL（本リポジトリ自身）へ遷移させます。アカウント切り替え導線
+- 補助リンク: パスワード再設定（サインイン形「パスワードをお忘れですか」）
+  は遷移先を持たないため、リンクではなく `ButtonVariant::Link` の
+  `<button type="button">` にしています（PR #3418 レビュー指摘対応。文言と
+  無関係のリポジトリへ遷移する以前の実装を修正）。アカウント切り替え導線
   （サインアップ形）は Demo 内に実在するサインイン形コンテナへの同一
-  ページ内アンカーにし、いずれも `href="#"` の死リンクは使いません。
+  ページ内アンカーにし、`href="#"` の死リンクは使いません。
 - チェックボックスは未チェック固定・`<form>` 非出力・送信処理なしの静的
   表示です。
