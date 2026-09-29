@@ -457,6 +457,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-05/index.html"
           # Application / Settings
           # Application / Action Panel
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-stacked/index.html"
           # Application / Empty State
           # Application / Notification
           # Application / Dialog
