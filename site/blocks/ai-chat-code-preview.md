@@ -246,6 +246,15 @@ fn chat_pane(suffix: &str, generating: bool) -> Node {
     // [data-part="root"]`〔属性 2 個〕より詳細度が低く、カスケードで負けて
     // 反映されなかった不具合。CSS カスタムプロパティは recipe が
     // `var(...)` で参照する側であり詳細度勝負にならないため確実に効く）。
+    // Bugbot 是正: `suffix` ごとに一意な aria-label を与える。demo() は
+    // 3 版（代表構成/応答生成中/狭幅）を同一ページに並記するため、
+    // 固定文言だと landmark navigation 上で 3 つの region が区別できない。
+    let variant_label = match suffix {
+        "b" => "会話履歴（応答生成中）",
+        "c" => "会話履歴（狭幅）",
+        _ => "会話履歴（代表構成）",
+    };
+
     let scroller = message_scroller::root(
         MessageScrollerRootProps {
             stuck: MessageScrollerStuck::Bottom,
@@ -257,7 +266,7 @@ fn chat_pane(suffix: &str, generating: bool) -> Node {
         ],
         vec![
             message_scroller::viewport(
-                "会話履歴",
+                variant_label,
                 vec![],
                 vec![message_scroller::content(
                     vec![],
