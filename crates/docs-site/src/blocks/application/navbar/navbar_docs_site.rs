@@ -440,8 +440,22 @@ fn primary_icon_button(size: Size) -> Node {
 /// （塗りでは不可視、`docs_nav_menu`/`docs_tab_nav` と同じ 3 項目を
 /// アイコン化しても到達性を落とさない、codex レビュー指摘: narrow が
 /// ガイドのみ残し API/Themes への導線を落としていた）。
-fn docs_icon_link(label: &str, href: &str) -> Node {
+///
+/// `key`（[`nav_items`] の値）ごとに固有アイコンへ切り替える（Bugbot
+/// 指摘、イシュー #2927 PR #3373 レビュー: 3 リンクが同一アイコン・
+/// 可視テキストなしで行き先を判別できなかった）。`aria-label` は
+/// 支援技術向けの名前を保つのみで、視覚的な判別はアイコン形状の違いが
+/// 担う。
+fn docs_icon_link(key: &str, label: &str, href: &str) -> Node {
     let aria_label = format!("{label}を開く");
+    let icon_node = match key {
+        // API: 山括弧（コードの意匠、開いた線分のため stroke で描く）。
+        "api" => stroke_icon("M8 6 3 12l5 6M16 6l5 6-5 6"),
+        // コンポーネント（Themes）: 2x2 のスウォッチ格子（閉じた矩形 4 件、塗り）。
+        "themes" => geo_icon("M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"),
+        // ガイド: 罫線付きページ（既定、開いた線分のため stroke で描く）。
+        _ => stroke_icon("M4 3h16v18H4zM8 7h8M8 11h8M8 15h4"),
+    };
     link::root(
         href,
         &LinkProps::default(),
@@ -449,7 +463,7 @@ fn docs_icon_link(label: &str, href: &str) -> Node {
             ("aria-label", aria_label.as_str()),
             ("data-blocks-navbar-docs-site-docs-link", ""),
         ],
-        vec![stroke_icon("M4 3h16v18H4zM8 7h8M8 11h8M8 15h4")],
+        vec![icon_node],
     )
 }
 
@@ -538,7 +552,7 @@ fn narrow() -> Node {
                     .chain(
                         nav_items()
                             .iter()
-                            .map(|(_, label, href)| docs_icon_link(label, href)),
+                            .map(|(key, label, href)| docs_icon_link(key, label, href)),
                     )
                     .chain([
                         repo_link(),
