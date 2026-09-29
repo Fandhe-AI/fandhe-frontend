@@ -301,6 +301,7 @@ pub fn demo() -> Node {
                     button(
                         &ButtonProps {
                             variant: ButtonVariant::Solid,
+                            disabled: true,
                             ..ButtonProps::default()
                         },
                         vec![],
@@ -309,6 +310,7 @@ pub fn demo() -> Node {
                     button(
                         &ButtonProps {
                             variant: ButtonVariant::Outline,
+                            disabled: true,
                             ..ButtonProps::default()
                         },
                         vec![],
@@ -322,6 +324,7 @@ pub fn demo() -> Node {
     let settings_column = div(
         vec![
             ("class", "blocks-ai-chat-playground-settings"),
+            ("role", "group"),
             ("aria-label", "生成設定"),
         ],
         vec![

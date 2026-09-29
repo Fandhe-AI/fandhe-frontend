@@ -40,15 +40,30 @@
 //! の overlay として描画されるため、[`LAYOUT_CSS`] で本 block のルート配下
 //! に限定したセレクタへ `position: static` を上書きし、説明カードとして
 //! 本文の流れへインライン表示する（他 block・他ページの popover 見た目へ
-//! 波及しない）。
+//! 波及しない）。`.blocks-ai-chat-playground-selectors`（`align-items:
+//! flex-end` の flex row）内では popover の `root`（trigger + positioner
+//! を子に持つ既定 `display: block`）が単一の flex item となり、
+//! `position: static` 化した説明カードの高さが item の cross-size へ
+//! 合算されるため、広い viewport で select 欄・trigger の下端が説明
+//! カード分だけずれる（Bugbot レビュー指摘）。[`LAYOUT_CSS`] は
+//! `.selectors` 配下の popover `root` を `display: contents` で透過させ
+//! `trigger`/`positioner` を `.selectors` 自身の直接の flex item へ昇格
+//! させたうえで、`positioner` に `flex-basis: 100%` を与えて常に独立した
+//! 折り返し行へ送る（flex-wrap の定番手法）。これにより 1 行目
+//! （モデル・プリセット select + trigger）は `align-items: flex-end` の
+//! まま高さを揃え、説明カードは 2 行目として独立した cross-size で描画
+//! される。
 //!
 //! # `<form>` を使わない・生成中状態を表現しない
 //!
 //! `crate::blocks` モジュール doc の不変条件どおり、本 Demo は `<form>` を
 //! 出力しない静的表示のみで、送信処理・送信先・API キー入力欄を一切持たな
 //! い。ボタンは [`fandhe_frontend_pre_styled_ui::button::button`] の既定
-//! `type="button"` のまま用いる。生成中（スピナー・ストリーミング途中）の
-//! 状態も表現しない（入力済みプロンプトと応答例の固定表示のみ）。
+//! `type="button"` のまま用いるが、`disabled: true` を指定し操作不能な
+//! ボタンとして表示する（codex レビュー指摘。popover trigger と同じく
+//! 「押しても何も起きない有効ボタン」を作らず、静的操作例であることを
+//! 明示する）。生成中（スピナー・ストリーミング途中）の状態も表現しない
+//! （入力済みプロンプトと応答例の固定表示のみ）。
 //!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
@@ -355,6 +370,7 @@ pub fn demo() -> Node {
                     button(
                         &ButtonProps {
                             variant: ButtonVariant::Solid,
+                            disabled: true,
                             ..ButtonProps::default()
                         },
                         vec![],
@@ -363,6 +379,7 @@ pub fn demo() -> Node {
                     button(
                         &ButtonProps {
                             variant: ButtonVariant::Outline,
+                            disabled: true,
                             ..ButtonProps::default()
                         },
                         vec![],
@@ -376,6 +393,7 @@ pub fn demo() -> Node {
     let settings_column = div(
         vec![
             ("class", "blocks-ai-chat-playground-settings"),
+            ("role", "group"),
             ("aria-label", "生成設定"),
         ],
         vec![
@@ -479,7 +497,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-ai-chat-playground-message {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-ai-chat-playground-message-speaker {\n  font-weight: 600;\n}\n\
 .blocks-ai-chat-playground-actions {\n  display: flex;\n  gap: var(--fandhe-space-2);\n  justify-content: flex-end;\n}\n\
-.blocks-ai-chat-playground-layout [data-scope=\"popover\"][data-part=\"positioner\"] {\n  position: static;\n  margin-top: var(--fandhe-space-2);\n}\n\
+.blocks-ai-chat-playground-selectors [data-scope=\"popover\"][data-part=\"root\"] {\n  display: contents;\n}\n\
+.blocks-ai-chat-playground-layout [data-scope=\"popover\"][data-part=\"positioner\"] {\n  position: static;\n  flex-basis: 100%;\n  margin-top: var(--fandhe-space-2);\n}\n\
 @container blocks-ai-chat-playground (max-width: 48rem) {\n  \
 .blocks-ai-chat-playground-grid {\n    grid-template-columns: minmax(0, 1fr);\n  }\n\
 }\n";
