@@ -2386,6 +2386,11 @@ path = "/blocks/dashboard-01/"
 title = "AI Chat"
 
 [[section.group.page]]
+title = "ai-chat-code-preview"
+source = "site/blocks/ai-chat-code-preview.md"
+path = "/blocks/ai-chat-code-preview/"
+
+[[section.group.page]]
 title = "ai-chat-playground"
 source = "site/blocks/ai-chat-playground.md"
 path = "/blocks/ai-chat-playground/"
