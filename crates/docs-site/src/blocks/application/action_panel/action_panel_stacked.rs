@@ -24,6 +24,13 @@
 //! 淡色背景の `Subtle` が対応する（`crates/pre-styled-ui/src/card.rs` の
 //! variant 定義参照）。
 //!
+//! `Subtle` の背景は `--fandhe-color-bg-subtle` で、`.blocks-demo` 枠の
+//! 背景と同一トークンのため境界線なしではデモ上でパネルが同化して見える
+//! （イシュー #2954 Bugbot レビュー）。`card.rs` 共有 variant 定義は変えず、
+//! 本 block 固有の `[data-blocks-action-panel-stacked-panel="button-subtle"]`
+//! セレクタで境界線のみ追加し、デモ上での視認性を確保する（[`LAYOUT_CSS`]
+//! 参照）。
+//!
 //! # リンク操作のラベルと遷移先
 //!
 //! 矢印付きリンク版は `href="#"` を使わず、他 block と同型の実在 URL
@@ -225,7 +232,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-action-panel-stacked-layout {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-6);\n  max-width: 40rem;\n}\n\
 .blocks-action-panel-stacked-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-action-panel-stacked-footer {\n  display: flex;\n  justify-content: flex-start;\n}\n\
-[data-blocks-action-panel-stacked-action] {\n  width: auto;\n}\n";
+[data-blocks-action-panel-stacked-action] {\n  width: auto;\n}\n\
+[data-blocks-action-panel-stacked-panel=\"button-subtle\"] {\n  border: 1px solid var(--fandhe-color-border);\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -291,5 +299,14 @@ mod tests {
             super::BLOCK.demo_class,
             "blocks-action-panel-stacked-layout"
         );
+    }
+
+    /// `Subtle` パネル（背景が `.blocks-demo` と同一トークン）が境界線を
+    /// 持ち、デモ上で同化しないこと（イシュー #2954 Bugbot レビュー）。
+    #[test]
+    fn subtle_panel_has_visible_border() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-action-panel-stacked-panel=\"button-subtle\"] {\n  border: 1px solid var(--fandhe-color-border);\n}"
+        ));
     }
 }
