@@ -1,6 +1,6 @@
 //! Application / Action Panel カテゴリの block 登録点（イシュー #2734 で
-//! 雛形新設、イシュー #2954 で最初の block（`action-panel-stacked`）を
-//! 追加しディレクトリ化して卒業した）。手順は
+//! 雛形新設、イシュー #2954 で `action-panel-stacked`・イシュー #2952 で
+//! `action-panel-footer-bar` を追加しディレクトリ化して卒業した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -9,10 +9,11 @@
 //! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
 //! ための構造、イシュー #2734）。
 
+mod action_panel_footer_bar;
 mod action_panel_stacked;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![action_panel_stacked::BLOCK]
+    vec![action_panel_stacked::BLOCK, action_panel_footer_bar::BLOCK]
 }
