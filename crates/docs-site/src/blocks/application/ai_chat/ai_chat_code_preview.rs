@@ -5,16 +5,28 @@
 //!
 //! # 使用部品
 //!
-//! `message` / `message-scroller` / `textarea` / `tabs` / `button` /
-//! `menu` / `code` の 7 部品のみを合成する（[`BLOCK`] の `parts` に一致
-//! させる契約）。新しい UI 部品は追加しない。
+//! `message` / `message-scroller` / `textarea` / `button` / `menu` /
+//! `code` の 6 部品のみを合成する（[`BLOCK`] の `parts` に一致させる
+//! 契約）。新しい UI 部品は追加しない。
 //!
-//! # 状態は 1 インスタンスに固定する（状態違いの併記は #2959）
+//! # 右列は実物の `tabs::tabs` を使わない（Codex P1 是正）
 //!
-//! 無 JS のため実際の送信・生成・タブ切替は起きない。右列の tabs は
-//! `preview` 選択で固定し、`code` パネルは headless tabs の `hidden` 属性で
-//! 非表示になる（初期状態固定の方針どおり）。code 側を可視で示す「code
-//! 選択の状態違い併記」は後半 #2959 のスコープ。
+//! 当初は `fandhe_frontend_pre_styled_ui::tabs::tabs` を `preview` 選択
+//! 固定で使い、`code` パネルは headless tabs の `hidden` 属性で非表示に
+//! していた。無 JS の docs サイトではタブ切替が実際には起きないため、
+//! `code` パネル（コード例という主要コンテンツ）が恒久的に到達不能に
+//! なる不具合だった（`feature_tabs_panel.rs`「無 JS での扱い」節と同型の
+//! 判断軸）。是正として右列は実物の `tabs::tabs` を一切使わず、
+//! [`static_tab_list`]（`role`/`tabindex`/`<button>` を持たない装飾のみの
+//! 見た目、`data-scope="tabs"` とは意図的に不一致な独自 class）で
+//! タブ列の見た目だけを再現し、プレビュー・コードの両パネルを常に
+//! 可視のまま縦積みで併記する（`hidden` を一切使わない）。状態違いの
+//! 原稿仕上げ・併記は #2959 のスコープ。
+//!
+//! # 狭幅の「見出し表示 + 縦積み」から独立した右列の常時併記
+//!
+//! 上記の右列縦積みは幅に関わらず常時であり、次節の左右 2 列 ⇔ 縦積みの
+//! 切替（狭幅専用）とは別の層の設計判断である。
 //!
 //! # 狭幅では「見出し表示 + 縦積み」で表現し、要素を隠さない
 //!
@@ -69,11 +81,8 @@ use fandhe_frontend_pre_styled_ui::message::{self, MessageAlign, MessageRole, Me
 use fandhe_frontend_pre_styled_ui::message_scroller::{
     self, MessageScrollerRootProps, MessageScrollerStuck,
 };
-use fandhe_frontend_pre_styled_ui::tabs::{
-    self, ActivationMode, Orientation, TabItem, TabsProps, TabsVariant,
-};
 use fandhe_frontend_pre_styled_ui::textarea::{self, FieldIds, FieldProps, TextareaProps};
-use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
+use fandhe_frontend_pre_styled_ui::Size;
 
 /// 架空のプロジェクト名（実企業名・実サービス名とは無関係）。
 const PROJECT_NAME: &str = "在庫 API ジェネレーター";
@@ -172,26 +181,24 @@ fn overflow_menu() -> Node {
     )
 }
 
-/// 狭幅専用の表示切替（`role="group"`、`aria-pressed` トグル 2 個）。
-/// 実際のパネル切替は起きない静的表示（モジュール doc「狭幅では
-/// 『見出し表示 + 縦積み』で表現し、要素を隠さない」節参照）。
+/// 狭幅専用の表示切替（モジュール doc「狭幅では『見出し表示 + 縦積み』で
+/// 表現し、要素を隠さない」節参照）。実際のパネル切替は起きない静的表示の
+/// ため、`button`/`aria-pressed`（実際に押せて状態が変わるトグルを示唆
+/// する ARIA）は使わない（Codex P2 是正: 押しても状態が変わらないのに
+/// `aria-pressed` を持つと支援技術利用者に誤った操作性を示唆する）。
+/// [`static_tab_list`] と同型の非対話 `span`（`role`/`tabindex`/`<button>`
+/// なし）にし、選択中側のみへ「現在表示中」を示す `aria-current="true"`
+/// を付与する。
 fn switch_group() -> Node {
-    let chat = button::button(
-        &ButtonProps {
-            variant: ButtonVariant::Solid,
-            size: Size::Sm,
-            ..ButtonProps::default()
-        },
-        vec![("aria-pressed", "true")],
+    let chat = span(
+        vec![
+            ("class", "blocks-ai-chat-code-preview-switch-item is-active"),
+            ("aria-current", "true"),
+        ],
         vec![text("チャット")],
     );
-    let preview = button::button(
-        &ButtonProps {
-            variant: ButtonVariant::Outline,
-            size: Size::Sm,
-            ..ButtonProps::default()
-        },
-        vec![("aria-pressed", "false")],
+    let preview = span(
+        vec![("class", "blocks-ai-chat-code-preview-switch-item")],
         vec![text("プレビュー")],
     );
     div(
@@ -256,12 +263,22 @@ fn chat_pane() -> Node {
         ),
     ];
 
+    // 高さは `message_scroller::root` recipe が持つ CSS カスタムプロパティ
+    // `--fandhe-message-scroller-height`（既定 24rem）を `style` で上書きして
+    // 指定する（Bugbot 是正: block 固有属性セレクタ 1 個での `block-size`
+    // 上書きは recipe 本体セレクタ `[data-scope="message-scroller"]
+    // [data-part="root"]`〔属性 2 個〕より詳細度が低く、カスケードで負けて
+    // 反映されなかった不具合。CSS カスタムプロパティは recipe が
+    // `var(...)` で参照する側であり詳細度勝負にならないため確実に効く）。
     let scroller = message_scroller::root(
         MessageScrollerRootProps {
             stuck: MessageScrollerStuck::Bottom,
             has_new: false,
         },
-        vec![("data-blocks-ai-chat-code-preview-scroller", "")],
+        vec![
+            ("data-blocks-ai-chat-code-preview-scroller", ""),
+            ("style", "--fandhe-message-scroller-height: 18rem"),
+        ],
         vec![
             message_scroller::viewport(
                 "会話履歴",
@@ -316,8 +333,39 @@ fn chat_pane() -> Node {
     )
 }
 
-/// 右列（プレビュー/コード切替タブ）を組み立てる。`preview` 選択で固定
-/// （モジュール doc「状態は 1 インスタンスに固定する」節参照）。
+/// タブ列の見た目だけを再現する非対話表示（モジュール doc「右列は実物の
+/// `tabs::tabs` を使わない」節参照）。`role`/`tabindex`/`<button>` を
+/// 一切持たず、`data-scope="tabs"` とも意図的に不一致な独自 class
+/// （`.blocks-ai-chat-code-preview-tablist`/`-tab`）で `LAYOUT_CSS` 側の
+/// 見た目を組む（`feature_tabs_panel.rs::static_tab_list` と同型の判断:
+/// recipe とセレクタを共有すると `:hover` 規則が非対話タブ列にも当たり
+/// 操作可能に見えてしまうため）。プレビュー・コードのどちらも常に可視で
+/// 併記するため選択状態を表す視覚的な強調のみを持つ（`aria-hidden` で
+/// 装飾として支援技術のツリーから除外する）。
+fn static_tab_list() -> Node {
+    div(
+        vec![
+            ("class", "blocks-ai-chat-code-preview-tablist"),
+            ("aria-hidden", "true"),
+        ],
+        vec![
+            span(
+                vec![("class", "blocks-ai-chat-code-preview-tab is-active")],
+                vec![text("プレビュー")],
+            ),
+            span(
+                vec![("class", "blocks-ai-chat-code-preview-tab")],
+                vec![text("コード")],
+            ),
+        ],
+    )
+}
+
+/// 右列（プレビュー + コード例）を組み立てる。タブ切替の見た目は
+/// [`static_tab_list`] で示すのみで、プレビュー・コードの両パネルは
+/// `hidden` を使わず常に可視のまま縦積みで併記する（モジュール doc
+/// 「右列は実物の `tabs::tabs` を使わない」節参照、Codex P1 是正:
+/// 無 JS では到達不能になる `hidden` パネルを持たない）。
 fn preview_pane() -> Node {
     let frame = div(
         vec![("class", "blocks-ai-chat-code-preview-frame")],
@@ -325,7 +373,7 @@ fn preview_pane() -> Node {
     );
     let code_block = el(
         "pre",
-        vec![],
+        vec![("class", "blocks-ai-chat-code-preview-code")],
         vec![code::code(
             &CodeProps::default(),
             vec![],
@@ -333,38 +381,10 @@ fn preview_pane() -> Node {
         )],
     );
 
-    let tabs_node = tabs::tabs(
-        TabsVariant::Line,
-        Size::Sm,
-        ColorPalette::Accent,
-        &TabsProps {
-            id: "blocks-ai-chat-code-preview-tabs",
-            selected: "preview",
-            orientation: Orientation::Horizontal,
-            activation_mode: ActivationMode::Automatic,
-            loop_focus: true,
-            indicator: false,
-        },
-        vec![
-            TabItem {
-                value: "preview",
-                trigger: vec![text("プレビュー")],
-                content: vec![frame],
-                disabled: false,
-            },
-            TabItem {
-                value: "code",
-                trigger: vec![text("コード")],
-                content: vec![code_block],
-                disabled: false,
-            },
-        ],
-    );
-
     el(
         "section",
         vec![("data-blocks-ai-chat-code-preview-pane", "preview")],
-        vec![tabs_node],
+        vec![static_tab_list(), frame, code_block],
     )
 }
 
@@ -408,10 +428,6 @@ pub const BLOCK: Block = Block {
             path: "/themes/textarea/",
         },
         Part {
-            label: "Tabs",
-            path: "/themes/tabs/",
-        },
-        Part {
             label: "Button",
             path: "/themes/button/",
         },
@@ -441,13 +457,18 @@ const LAYOUT_CSS: &str = "\
 .blocks-ai-chat-code-preview-brand img {\n  width: 1.5rem;\n  height: 1.5rem;\n  flex-shrink: 0;\n}\n\
 .blocks-ai-chat-code-preview-nav-actions {\n  margin-inline-start: auto;\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-ai-chat-code-preview-switch {\n  display: none;\n  gap: var(--fandhe-space-2);\n  padding: var(--fandhe-space-2) var(--fandhe-space-4);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
+.blocks-ai-chat-code-preview-switch-item {\n  padding: var(--fandhe-space-1) var(--fandhe-space-3);\n  border-radius: var(--fandhe-radius-md);\n  font-size: var(--fandhe-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-ai-chat-code-preview-switch-item.is-active {\n  background: var(--fandhe-color-bg-muted);\n  color: var(--fandhe-color-fg);\n  font-weight: 600;\n}\n\
 .blocks-ai-chat-code-preview-body {\n  display: grid;\n  grid-template-columns: minmax(18rem, 2fr) minmax(0, 3fr);\n  min-block-size: 28rem;\n}\n\
 [data-blocks-ai-chat-code-preview-pane] {\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n  padding: var(--fandhe-space-4);\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-ai-chat-code-preview-pane=\"chat\"] {\n  border-inline-end: 1px solid var(--fandhe-color-border);\n}\n\
-[data-blocks-ai-chat-code-preview-scroller] {\n  block-size: 18rem;\n  overflow-y: auto;\n}\n\
 .blocks-ai-chat-code-preview-composer {\n  display: flex;\n  gap: var(--fandhe-space-2);\n  align-items: flex-end;\n}\n\
 .blocks-ai-chat-code-preview-composer [data-scope=\"field\"][data-part=\"textarea\"] {\n  flex: 1;\n}\n\
+.blocks-ai-chat-code-preview-tablist {\n  display: flex;\n  gap: var(--fandhe-space-2);\n  border-bottom: 1px solid var(--fandhe-color-border);\n  padding-bottom: var(--fandhe-space-2);\n}\n\
+.blocks-ai-chat-code-preview-tab {\n  padding: var(--fandhe-space-1) var(--fandhe-space-3);\n  border-radius: var(--fandhe-radius-md) var(--fandhe-radius-md) 0 0;\n  font-size: var(--fandhe-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-ai-chat-code-preview-tab.is-active {\n  color: var(--fandhe-color-fg);\n  font-weight: 600;\n  box-shadow: inset 0 -2px 0 var(--fandhe-color-focus-ring, currentColor);\n}\n\
 .blocks-ai-chat-code-preview-frame {\n  flex: 1;\n  min-block-size: 16rem;\n  border: 1px dashed var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n  display: grid;\n  place-items: center;\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-ai-chat-code-preview-code {\n  margin: 0;\n  padding: var(--fandhe-space-3);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n  overflow-x: auto;\n}\n\
 @container blocks-ai-chat-code-preview (max-width: 47.99rem) {\n  .blocks-ai-chat-code-preview-body {\n    grid-template-columns: 1fr;\n  }\n  [data-blocks-ai-chat-code-preview-pane=\"chat\"] {\n    border-inline-end: 0;\n    border-block-end: 1px solid var(--fandhe-color-border);\n  }\n  .blocks-ai-chat-code-preview-switch {\n    display: flex;\n  }\n}\n";
 
 #[cfg(test)]
@@ -465,7 +486,6 @@ mod tests {
         for scope in [
             "data-scope=\"message\"",
             "data-scope=\"message-scroller\"",
-            "data-scope=\"tabs\"",
             "data-scope=\"button\"",
             "data-scope=\"menu\"",
             "data-scope=\"code\"",
@@ -475,18 +495,40 @@ mod tests {
         assert!(html.contains("data-scope=\"field\" data-part=\"textarea\""));
     }
 
+    /// 右列は `hidden` を一切使わず、プレビュー・コードの両パネルが常に
+    /// 到達可能であることを固定する回帰ガード（Codex P1 是正、モジュール
+    /// doc「右列は実物の `tabs::tabs` を使わない」節参照）。
     #[test]
-    fn preview_tab_is_selected_and_code_tab_is_hidden() {
+    fn preview_and_code_panels_are_both_reachable_without_hidden() {
         let html = demo_html();
-        assert!(html.contains(
-            "id=\"blocks-ai-chat-code-preview-tabs-content-preview\" role=\"tabpanel\" aria-labelledby=\"blocks-ai-chat-code-preview-tabs-trigger-preview\" data-state=\"active\""
-        ));
-        let code_content_start = html
-            .find("id=\"blocks-ai-chat-code-preview-tabs-content-code\"")
-            .expect("code content should exist");
-        let tail = &html[code_content_start..];
-        let tag_end = tail.find('>').expect("content tag should close");
-        assert!(tail[..tag_end].contains("hidden"));
+        // 右列（`data-blocks-ai-chat-code-preview-pane="preview"`）に限定して
+        // `hidden` の不在を検証する（三点メニューの `OpenState::Closed` は
+        // `overflow_menu` doc の既定判断どおり `hidden` を持つため、全文
+        // 検証にすると無関係な既定挙動を誤検知する）。
+        let pane_start = html
+            .find("data-blocks-ai-chat-code-preview-pane=\"preview\"")
+            .expect("preview pane should exist");
+        let pane_html = &html[pane_start..];
+        // `aria-hidden="true"`（[`static_tab_list`] の装飾用、支援技術の
+        // ツリーからの除外であり視覚的な非表示ではない）は許容し、実際に
+        // 内容を非表示にする `hidden` 真偽属性（` hidden` の形で出力される）
+        // のみを検知する。
+        assert!(
+            !pane_html.contains(" hidden"),
+            "preview pane should not hide any content: {pane_html}"
+        );
+        // `CODE_SNIPPET` は `<`/`>` を含み HTML エスケープ後は非一致になる
+        // ため、エスケープの影響を受けない語で存在確認する。
+        assert!(pane_html.contains("async fn inventory"));
+        assert!(pane_html.contains("blocks-ai-chat-code-preview-tablist"));
+    }
+
+    /// 狭幅専用の表示切替は `aria-pressed`（実際に押せて状態が変わる
+    /// トグルを示唆する ARIA）を持たないことを固定する（Codex P2 是正）。
+    #[test]
+    fn switch_group_has_no_misleading_aria_pressed() {
+        let html = demo_html();
+        assert!(!html.contains("aria-pressed"));
     }
 
     #[test]

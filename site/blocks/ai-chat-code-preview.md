@@ -1,28 +1,27 @@
 # ai-chat-code-preview
 
 `fandhe-frontend-pre-styled-ui` の `message` / `message-scroller` /
-`textarea` / `tabs` / `button` / `menu` / `code` 部品を合成した、コード
-生成チャット画面の骨格の実例です。Blocks セクションは新規部品を追加する
-ものではなく、既存の Themes/Primitives 部品を組み合わせた実例集である
-ことに注意してください（主参照は対応表 ID R0001。出典の固有名・ファイル
-名は記載しません）。
+`textarea` / `button` / `menu` / `code` 部品を合成した、コード生成チャット
+画面の骨格の実例です。Blocks セクションは新規部品を追加するものではなく、
+既存の Themes/Primitives 部品を組み合わせた実例集であることに注意して
+ください（主参照は対応表 ID R0001。出典の固有名・ファイル名は記載しません）。
 
 上部にロゴ・プロジェクト名・操作ボタン（共有/公開）・三点メニューを持つ
-ナビ、左列にメッセージ履歴と入力欄、右列に「プレビュー / コード」を
-切り替えるタブ付き表示領域（プレビューは枠のみの静的表示、コードは短い
-Rust コード例）を配置しています。狭い幅では左右 2 列が縦積みに切り替わり、
-どちらの領域も常に到達できます（`display: none` で隠すのは狭幅専用の
-表示切替 UI のみで、内容パネル自体は隠しません）。
+ナビ、左列にメッセージ履歴と入力欄、右列に「プレビュー / コード」の見出し
+タブ列 + 両パネルの常時併記を配置しています。狭い幅では左右 2 列が縦積みに
+切り替わり、どちらの領域も常に到達できます（`display: none` で隠すのは
+狭幅専用の表示切替 UI のみで、内容パネル自体は隠しません）。
 
 本 Demo は静的な表示例であり、`<form>` 要素は一切持たず、送信・生成処理・
-永続化を行いません。ボタンは `type="button"` のまま送信先を持たず、
-右列の tabs は「プレビュー」選択で固定した初期状態のみを描画します
-（`code` パネルは無 JS のため `hidden` 属性で非表示になります。コード
-パネルを可視の状態違いとして併記する対応は後続イシュー #2959 で行い
-ます）。三点メニューは閉じた状態の固定表示です（開閉には
-`fandhe-frontend-wasm-full` の JS 配線が必要で、docs サイトは JS
-ハイドレーションを行いません）。文言はすべて独自に書いた架空のものであり、
-実企業名・実クレデンシャル・PII を含みません。
+永続化を行いません。右列は実物の `tabs::tabs` を使わず、タブ列の見た目
+だけを非対話表示で再現し、プレビュー・コードの両パネルを `hidden` なしで
+常に可視のまま縦積みで併記します（無 JS のためタブ切替自体が実際には起き
+ず、`hidden` パネルにすると主要コンテンツであるコード例が恒久的に到達
+不能になるため）。狭幅専用の表示切替も同じ理由で `aria-pressed` を持つ
+`button` ではなく非対話 `span` にしています。三点メニューは閉じた状態の
+固定表示です（開閉には `fandhe-frontend-wasm-full` の JS 配線が必要で、
+docs サイトは JS ハイドレーションを行いません）。文言はすべて独自に書いた
+架空のものであり、実企業名・実クレデンシャル・PII を含みません。
 
 ## Rust コード
 
@@ -36,11 +35,8 @@ use fandhe_frontend_pre_styled_ui::message::{self, MessageAlign, MessageRole, Me
 use fandhe_frontend_pre_styled_ui::message_scroller::{
     self, MessageScrollerRootProps, MessageScrollerStuck,
 };
-use fandhe_frontend_pre_styled_ui::tabs::{
-    self, ActivationMode, Orientation, TabItem, TabsProps, TabsVariant,
-};
 use fandhe_frontend_pre_styled_ui::textarea::{self, FieldIds, FieldProps, TextareaProps};
-use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
+use fandhe_frontend_pre_styled_ui::Size;
 
 /// 架空のプロジェクト名（実企業名・実サービス名とは無関係）。
 const PROJECT_NAME: &str = "在庫 API ジェネレーター";
@@ -139,26 +135,24 @@ fn overflow_menu() -> Node {
     )
 }
 
-/// 狭幅専用の表示切替（`role="group"`、`aria-pressed` トグル 2 個）。
-/// 実際のパネル切替は起きない静的表示（モジュール doc「狭幅では
-/// 『見出し表示 + 縦積み』で表現し、要素を隠さない」節参照）。
+/// 狭幅専用の表示切替（モジュール doc「狭幅では『見出し表示 + 縦積み』で
+/// 表現し、要素を隠さない」節参照）。実際のパネル切替は起きない静的表示の
+/// ため、`button`/`aria-pressed`（実際に押せて状態が変わるトグルを示唆
+/// する ARIA）は使わない（Codex P2 是正: 押しても状態が変わらないのに
+/// `aria-pressed` を持つと支援技術利用者に誤った操作性を示唆する）。
+/// [`static_tab_list`] と同型の非対話 `span`（`role`/`tabindex`/`<button>`
+/// なし）にし、選択中側のみへ「現在表示中」を示す `aria-current="true"`
+/// を付与する。
 fn switch_group() -> Node {
-    let chat = button::button(
-        &ButtonProps {
-            variant: ButtonVariant::Solid,
-            size: Size::Sm,
-            ..ButtonProps::default()
-        },
-        vec![("aria-pressed", "true")],
+    let chat = span(
+        vec![
+            ("class", "blocks-ai-chat-code-preview-switch-item is-active"),
+            ("aria-current", "true"),
+        ],
         vec![text("チャット")],
     );
-    let preview = button::button(
-        &ButtonProps {
-            variant: ButtonVariant::Outline,
-            size: Size::Sm,
-            ..ButtonProps::default()
-        },
-        vec![("aria-pressed", "false")],
+    let preview = span(
+        vec![("class", "blocks-ai-chat-code-preview-switch-item")],
         vec![text("プレビュー")],
     );
     div(
@@ -223,12 +217,22 @@ fn chat_pane() -> Node {
         ),
     ];
 
+    // 高さは `message_scroller::root` recipe が持つ CSS カスタムプロパティ
+    // `--fandhe-message-scroller-height`（既定 24rem）を `style` で上書きして
+    // 指定する（Bugbot 是正: block 固有属性セレクタ 1 個での `block-size`
+    // 上書きは recipe 本体セレクタ `[data-scope="message-scroller"]
+    // [data-part="root"]`〔属性 2 個〕より詳細度が低く、カスケードで負けて
+    // 反映されなかった不具合。CSS カスタムプロパティは recipe が
+    // `var(...)` で参照する側であり詳細度勝負にならないため確実に効く）。
     let scroller = message_scroller::root(
         MessageScrollerRootProps {
             stuck: MessageScrollerStuck::Bottom,
             has_new: false,
         },
-        vec![("data-blocks-ai-chat-code-preview-scroller", "")],
+        vec![
+            ("data-blocks-ai-chat-code-preview-scroller", ""),
+            ("style", "--fandhe-message-scroller-height: 18rem"),
+        ],
         vec![
             message_scroller::viewport(
                 "会話履歴",
@@ -283,8 +287,39 @@ fn chat_pane() -> Node {
     )
 }
 
-/// 右列（プレビュー/コード切替タブ）を組み立てる。`preview` 選択で固定
-/// （モジュール doc「状態は 1 インスタンスに固定する」節参照）。
+/// タブ列の見た目だけを再現する非対話表示（モジュール doc「右列は実物の
+/// `tabs::tabs` を使わない」節参照）。`role`/`tabindex`/`<button>` を
+/// 一切持たず、`data-scope="tabs"` とも意図的に不一致な独自 class
+/// （`.blocks-ai-chat-code-preview-tablist`/`-tab`）で `LAYOUT_CSS` 側の
+/// 見た目を組む（`feature_tabs_panel.rs::static_tab_list` と同型の判断:
+/// recipe とセレクタを共有すると `:hover` 規則が非対話タブ列にも当たり
+/// 操作可能に見えてしまうため）。プレビュー・コードのどちらも常に可視で
+/// 併記するため選択状態を表す視覚的な強調のみを持つ（`aria-hidden` で
+/// 装飾として支援技術のツリーから除外する）。
+fn static_tab_list() -> Node {
+    div(
+        vec![
+            ("class", "blocks-ai-chat-code-preview-tablist"),
+            ("aria-hidden", "true"),
+        ],
+        vec![
+            span(
+                vec![("class", "blocks-ai-chat-code-preview-tab is-active")],
+                vec![text("プレビュー")],
+            ),
+            span(
+                vec![("class", "blocks-ai-chat-code-preview-tab")],
+                vec![text("コード")],
+            ),
+        ],
+    )
+}
+
+/// 右列（プレビュー + コード例）を組み立てる。タブ切替の見た目は
+/// [`static_tab_list`] で示すのみで、プレビュー・コードの両パネルは
+/// `hidden` を使わず常に可視のまま縦積みで併記する（モジュール doc
+/// 「右列は実物の `tabs::tabs` を使わない」節参照、Codex P1 是正:
+/// 無 JS では到達不能になる `hidden` パネルを持たない）。
 fn preview_pane() -> Node {
     let frame = div(
         vec![("class", "blocks-ai-chat-code-preview-frame")],
@@ -292,7 +327,7 @@ fn preview_pane() -> Node {
     );
     let code_block = el(
         "pre",
-        vec![],
+        vec![("class", "blocks-ai-chat-code-preview-code")],
         vec![code::code(
             &CodeProps::default(),
             vec![],
@@ -300,38 +335,10 @@ fn preview_pane() -> Node {
         )],
     );
 
-    let tabs_node = tabs::tabs(
-        TabsVariant::Line,
-        Size::Sm,
-        ColorPalette::Accent,
-        &TabsProps {
-            id: "blocks-ai-chat-code-preview-tabs",
-            selected: "preview",
-            orientation: Orientation::Horizontal,
-            activation_mode: ActivationMode::Automatic,
-            loop_focus: true,
-            indicator: false,
-        },
-        vec![
-            TabItem {
-                value: "preview",
-                trigger: vec![text("プレビュー")],
-                content: vec![frame],
-                disabled: false,
-            },
-            TabItem {
-                value: "code",
-                trigger: vec![text("コード")],
-                content: vec![code_block],
-                disabled: false,
-            },
-        ],
-    );
-
     el(
         "section",
         vec![("data-blocks-ai-chat-code-preview-pane", "preview")],
-        vec![tabs_node],
+        vec![static_tab_list(), frame, code_block],
     )
 }
 
@@ -358,9 +365,13 @@ pub fn demo() -> Node {
 - 主参照は R0001 のみ（集約元 1 件）です。`_/blocks-intake/` の対応
   ファイルは本イシュー着手時点で本 worktree に存在しないため、対応表 ID
   のみを記録しています（`page-heading-avatar.md` と同じ扱い）。
-- 右列の tabs は「プレビュー」選択の 1 インスタンスのみを描画します。
-  `code` タブ選択時の状態違い（コード例を可視で示す第 2 インスタンス）の
-  併記、および本メモの差分反映の仕上げは後続イシュー #2959 で行います。
+- PR #3411 レビュー（Codex P1/P2、Bugbot Medium）の是正として、右列は
+  実物の `tabs::tabs` の使用をやめ、静的タブ列 + 両パネル常時併記へ変更
+  しました。狭幅専用の表示切替も `aria-pressed` を外し非対話 `span` へ
+  変更しています。左列のメッセージスクローラーの高さ指定は CSS カスタム
+  プロパティ経由に変更し、cascade specificity の不具合を解消しました。
+  状態違いの併記・本メモの差分反映の仕上げは後続イシュー #2959 で行い
+  ます。
 - 実データ取得・生成処理・メニュー開閉・ボタン押下は行わず、静的な初期
   状態のみを示します。プロジェクト名・会話文・コード片はすべて独自の
   架空データです。
