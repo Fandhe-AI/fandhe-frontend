@@ -211,9 +211,17 @@ pub const BLOCK: Block = Block {
 /// doc「block 固有 CSS の置き場」節と同型）。狭幅では `flex-wrap` で
 /// 折り返すのみで、編集ボタンを非表示にはしない（モジュール doc「狭幅では
 /// 折り返すのみで非表示にしない」節参照）。
+///
+/// `.blocks-action-panel-with-well-row` は `card::body`（well 内側カードの
+/// body）に付与するクラスだが、`card` recipe の `[data-scope="card"]
+/// [data-part="body"]` セレクタが `flex-direction: column` を
+/// 詳細度（0,2,0）で先に固定しているため、クラス単体（詳細度 0,1,0）の
+/// `flex-direction: row` 指定は打ち消される。本セレクタは同じ属性 2 つ
+/// （`data-scope`/`data-part`）にクラスを重ねて詳細度 (0,3,0) にし、確実に
+/// row を上書きする（レビュー指摘、イシュー #2956）。
 const LAYOUT_CSS: &str = "\
 [data-blocks-action-panel-with-well-panel] {\n  max-inline-size: 40rem;\n}\n\
-.blocks-action-panel-with-well-row {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
+[data-scope=\"card\"][data-part=\"body\"].blocks-action-panel-with-well-row {\n  display: flex;\n  flex-direction: row;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-action-panel-with-well-summary {\n  display: flex;\n  flex: 1 1 12rem;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
 [data-blocks-action-panel-with-well-well] [data-scope=\"icon\"] {\n  flex-shrink: 0;\n}\n\
 [data-blocks-action-panel-with-well-well] [data-scope=\"button\"] {\n  margin-inline-start: auto;\n}\n";
@@ -272,6 +280,18 @@ mod tests {
         // 狭幅でも編集ボタンへ到達できることの回帰ガード（`page_heading_avatar.rs`
         // と同型の意図的判断）。
         assert!(!LAYOUT_CSS.contains("display: none"));
+    }
+
+    #[test]
+    fn row_selector_outranks_card_body_column_specificity() {
+        // レビュー指摘の回帰ガード（イシュー #2956）: `card::body` の
+        // `[data-scope="card"][data-part="body"]`（詳細度 0,2,0）に
+        // `flex-direction: column` が先に固定されているため、行レイアウト
+        // 側のセレクタは同じ 2 属性 + クラスの詳細度 (0,3,0) で
+        // `flex-direction: row` を持たなければ打ち消される。
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"card\"][data-part=\"body\"].blocks-action-panel-with-well-row {\n  display: flex;\n  flex-direction: row;"
+        ));
     }
 
     #[test]
