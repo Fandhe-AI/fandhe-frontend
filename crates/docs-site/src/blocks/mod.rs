@@ -291,10 +291,16 @@ pub fn insert_generated_sections(page_path: &str, base_path: &str, blocks: Vec<N
         })
         .collect();
 
-    let demo_node = {
-        DEMO_BASE_PATH.with(|cell| *cell.borrow_mut() = base_path.to_string());
-        (block.demo)()
-    };
+    // 呼び出し中だけ base_path を設定し、終了時に元へ戻す（呼び出しごとに
+    // 決定的な Node を返す `Block::demo` の契約・「直接呼び出しでは空の
+    // base_path を使う」既定を、この関数の呼び出し前後で保つため。復元し
+    // ないと同一スレッドで別ページの `insert_generated_sections` 呼び出し
+    // 後に `navbar_docs_site::demo()` 等を直接呼んだ際、直前ページの
+    // base_path が残留する。PR #3373 レビュー〔codex〕指摘）。
+    let previous_base_path = demo_base_path();
+    DEMO_BASE_PATH.with(|cell| *cell.borrow_mut() = base_path.to_string());
+    let demo_node = (block.demo)();
+    DEMO_BASE_PATH.with(|cell| *cell.borrow_mut() = previous_base_path);
     let generated = vec![
         h2(vec![], vec![text("Demo")]),
         div(vec![("class", demo_class.as_str())], vec![demo_node]),
@@ -475,6 +481,16 @@ mod tests {
         assert!(html.contains("Rust コード"));
         assert!(html.contains(r#"class="blocks-demo blocks-login-01""#));
         assert!(html.contains(r#"href="/fandhe-frontend/themes/card/""#));
+    }
+
+    #[test]
+    fn insert_generated_sections_restores_demo_base_path_after_call() {
+        // PR #3373 レビュー〔codex〕P1 指摘の回帰: 呼び出し前の base_path
+        // （直接呼び出し既定の "" を想定）が呼び出し後に残留しないこと。
+        assert_eq!(demo_base_path(), "");
+        let blocks = vec![p(vec![], vec![text("x")])];
+        let _ = insert_generated_sections("/blocks/login-01/", "/prefix", blocks);
+        assert_eq!(demo_base_path(), "");
     }
 
     #[test]
