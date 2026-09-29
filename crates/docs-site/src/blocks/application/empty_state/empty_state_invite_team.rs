@@ -10,9 +10,9 @@
 //! # 使用部品
 //!
 //! `empty-state` / `field` / `input-group` / `input` / `button` / `avatar` /
-//! `item` の 7 部品を合成する（[`BLOCK`] の `parts` に一致させる契約、
-//! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証する）。
-//! 新しい UI 部品は追加しない。
+//! `item` / `text` の 8 部品を合成する（[`BLOCK`] の `parts` に一致させる
+//! 契約、`crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が
+//! 検証する）。新しい UI 部品は追加しない。
 //!
 //! # 2 版と集約元の対応（原稿「原案差分メモ」節と対になる索引）
 //!
@@ -93,8 +93,8 @@ use fandhe_frontend_pre_styled_ui::item::{
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 use fandhe_frontend_pre_styled_ui::Size;
 
-/// 版ラベル（`hero_email_signup::variant_label` と同型）。素の `<p>`（core）
-/// で出し、使用部品を Issue 指定の 7 部品のまま維持する。
+/// 版ラベル（`hero_email_signup::variant_label` と同型）。[`fandhe_frontend_pre_styled_ui::text::text`]
+/// を使い、使用部品一覧（[`crate::blocks`] の `parts`）へ Text を含める。
 fn variant_label(label: &'static str) -> Node {
     styled_text::text(
         &TextProps {
@@ -238,7 +238,7 @@ fn candidate_item(name: &'static str, job_title: &'static str, added: bool) -> N
                 size: Size::Sm,
                 ..ButtonProps::default()
             },
-            vec![],
+            vec![("aria-label", &format!("{name} を追加"))],
             vec![text("追加")],
         )
     };
@@ -312,16 +312,21 @@ fn invite_block(instance: &'static str, layout: &'static str, people: &[(usize, 
                 vec![("data-blocks-empty-state-invite-team-empty", "")],
                 vec![
                     empty_state::indicator(vec![], vec![invite_icon()]),
-                    empty_state::title(vec![], vec![text("まだメンバーがいません")]),
-                    empty_state::description(
+                    empty_state::content(
                         vec![],
-                        vec![text(
-                            "チームメンバーをメールで招待するか、おすすめの候補から追加してください。",
-                        )],
-                    ),
-                    empty_state::actions(
-                        vec![("data-blocks-empty-state-invite-team-field-wrap", "")],
-                        vec![invite_field(instance)],
+                        vec![
+                            empty_state::title(vec![], vec![text("まだメンバーがいません")]),
+                            empty_state::description(
+                                vec![],
+                                vec![text(
+                                    "チームメンバーをメールで招待するか、おすすめの候補から追加してください。",
+                                )],
+                            ),
+                            empty_state::actions(
+                                vec![("data-blocks-empty-state-invite-team-field-wrap", "")],
+                                vec![invite_field(instance)],
+                            ),
+                        ],
                     ),
                 ],
             ),
@@ -385,6 +390,10 @@ pub const BLOCK: Block = Block {
         Part {
             label: "Item",
             path: "/themes/item/",
+        },
+        Part {
+            label: "Text",
+            path: "/themes/text/",
         },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
