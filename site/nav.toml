@@ -2283,6 +2283,11 @@ source = "site/blocks/action-panel-footer-bar.md"
 path = "/blocks/action-panel-footer-bar/"
 
 [[section.group.page]]
+title = "action-panel-stacked"
+source = "site/blocks/action-panel-stacked.md"
+path = "/blocks/action-panel-stacked/"
+
+[[section.group.page]]
 title = "action-panel-with-input"
 source = "site/blocks/action-panel-with-input.md"
 path = "/blocks/action-panel-with-input/"
