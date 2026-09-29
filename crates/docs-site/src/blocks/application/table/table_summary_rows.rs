@@ -24,13 +24,21 @@
 //! `text-align: inherit`）、集計行ラベルの `data-align="end"` はそのままでは
 //! 効かない。[`LAYOUT_CSS`] で `row-header` パーツに限定した
 //! `text-align: end` を明示指定する（イシュー #2946 レビュー指摘）。
+//! このルールは `.blocks-table-summary-rows-layout` 配下に限定する
+//! （block 固有 CSS は他 block の `row-header` へ波及させない契約、
+//! イシュー #2946 レビュー指摘）。
 //!
 //! # 狭幅で数量列を隠し、品目名の下へ補足を回す
 //!
 //! 数量列（`th`/`td`）は `data-blocks-table-summary-rows-qty` 属性で選択し、
 //! `47.99rem` 以下でのみ非表示にする（`:nth-child` は `tfoot` の
 //! `colspan="2"` セルと干渉しうるため専用属性を使う、下記 [`LAYOUT_CSS`]
-//! 参照）。非表示にした数量は品目名の直下へ「数量 n」という
+//! 参照）。非表示は `display: none` ではなく `visibility: collapse` を使う
+//! （`display: none` はセルのボックス生成自体を止めるため、`tfoot` 側の
+//! `colspan="2"` が想定する列番号と `thead`/`tbody` 側の残り列の実列番号が
+//! ずれ、狭幅で金額列が食い違う。`visibility: collapse` は列を見た目上
+//! 詰めつつ表の列構造・`colspan` の対応は変えない、イシュー #2946 レビュー
+//! 指摘）。非表示にした数量は品目名の直下へ「数量 n」という
 //! `text` 部品の補足行（`data-blocks-table-summary-rows-note`、既定
 //! `display: none`）として残し、狭幅時のみ表示へ切り替える。情報の欠落を
 //! 起こさない（列を隠すだけで DOM からは削除しない）。
@@ -233,10 +241,10 @@ pub const BLOCK: Block = Block {
 /// doc「block 固有 CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-table-summary-rows-layout {\n  max-width: 40rem;\n  width: 100%;\n}\n\
-[data-scope=\"table\"][data-part=\"row-header\"][data-align=\"end\"] {\n  text-align: end;\n}\n\
+.blocks-table-summary-rows-layout [data-scope=\"table\"][data-part=\"row-header\"][data-align=\"end\"] {\n  text-align: end;\n}\n\
 [data-blocks-table-summary-rows-note] {\n  display: none;\n}\n\
 [data-scope=\"table\"][data-part=\"row\"][data-blocks-table-summary-rows-total] > * {\n  border-top: 1px solid var(--fandhe-color-border);\n  font-size: var(--fandhe-font-font-size-lg);\n}\n\
-@media (max-width: 47.99rem) {\n  [data-blocks-table-summary-rows-qty] {\n    display: none;\n  }\n  [data-blocks-table-summary-rows-note] {\n    display: block;\n  }\n}\n";
+@media (max-width: 47.99rem) {\n  [data-blocks-table-summary-rows-qty] {\n    visibility: collapse;\n  }\n  [data-blocks-table-summary-rows-note] {\n    display: block;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -315,9 +323,24 @@ mod tests {
     fn layout_css_right_aligns_summary_row_headers() {
         // `table.rs` の `data-align` state 規則は row-header を対象外のため
         // （モジュール doc冒頭参照）、本 block 固有 CSS で明示指定している
-        // ことを固定する。
+        // ことを固定する。他 block の row-header へ波及しないよう
+        // `.blocks-table-summary-rows-layout` 配下へ限定する
+        // （イシュー #2946 レビュー指摘）。
         assert!(LAYOUT_CSS.contains(
-            "[data-scope=\"table\"][data-part=\"row-header\"][data-align=\"end\"] {\n  text-align: end;\n}"
+            ".blocks-table-summary-rows-layout [data-scope=\"table\"][data-part=\"row-header\"][data-align=\"end\"] {\n  text-align: end;\n}"
         ));
+    }
+
+    #[test]
+    fn qty_column_is_hidden_with_visibility_collapse_not_display_none() {
+        // `display: none` はセルのボックス生成を止め `tfoot` の
+        // `colspan="2"` と実列番号がずれる（モジュール doc「狭幅で数量列を
+        // 隠し」節参照、イシュー #2946 レビュー指摘）。列構造を保つ
+        // `visibility: collapse` を使っていることを固定する。
+        assert!(LAYOUT_CSS
+            .contains("[data-blocks-table-summary-rows-qty] {\n    visibility: collapse;\n  }"));
+        assert!(
+            !LAYOUT_CSS.contains("[data-blocks-table-summary-rows-qty] {\n    display: none;\n  }")
+        );
     }
 }
