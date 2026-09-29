@@ -2135,6 +2135,11 @@ source = "site/blocks/table-responsive-stacked.md"
 path = "/blocks/table-responsive-stacked/"
 
 [[section.group.page]]
+title = "table-rich-rows"
+source = "site/blocks/table-rich-rows.md"
+path = "/blocks/table-rich-rows/"
+
+[[section.group.page]]
 title = "table-sortable-bulk"
 source = "site/blocks/table-sortable-bulk.md"
 path = "/blocks/table-sortable-bulk/"
