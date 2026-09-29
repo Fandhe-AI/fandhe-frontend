@@ -419,6 +419,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-heading-basic/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-heading-toolbar/index.html"
           # Application / List
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/list-container/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/list-people/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/list-narrow-activity/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/list-sticky-groups/index.html"

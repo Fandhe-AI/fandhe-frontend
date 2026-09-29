@@ -1014,6 +1014,7 @@ pub enum LayoutCss {
 | profile-detail-skills | #2938（親 #2892） | `application/profile/profile_detail_skills.rs` |
 | profile-card-centered | #2936（親 #2892） | `application/profile/profile_card_centered.rs` |
 | sidebar-rail-panel | #2941 | `application/sidebar/sidebar_rail_panel.rs` |
+| list-container | #3227 | `application/list/list_container.rs` |
 | media-object | #3228 | `application/media_object/media_object_alignments.rs` |
 | action-panel-footer-bar | #2952（親 #2951） | `application/action_panel/action_panel_footer_bar.rs` |
 | card-heading-basic | #3229 | `application/card_heading/card_heading_basic.rs` |
