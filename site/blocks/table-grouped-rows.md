@@ -139,44 +139,58 @@ fn status_badge(label: &'static str, variant: BadgeVariant) -> Node {
     )
 }
 
-/// データ行 1 件（取引先・担当・状態・金額の 4 セル）。
-fn data_row(row: &Row) -> Node {
+/// データ行 1 件（取引先・担当・状態・金額の 4 セル）。`headers` に
+/// 「対応列見出し `id` + 所属グループ見出し `id`」を空白区切りで列挙し、
+/// 各セルを両方の見出しへ明示的に関連付ける（codex-review P2 是正、モジュール
+/// doc「グループ見出しとデータ行を `headers` 属性で明示的に関連付ける」節
+/// 参照）。
+fn data_row(row: &Row, prefix: &str, group_id: &str) -> Node {
+    let headers = |col: usize| format!("{prefix}-col-{col} {group_id}");
+    let h: Vec<String> = (0..4).map(headers).collect();
     table::row(
         vec![],
         vec![
-            table::cell(vec![], vec![text(row.company)]),
-            table::cell(vec![], vec![text(row.owner)]),
-            table::cell(vec![], vec![status_badge(row.status, row.status_variant)]),
-            table::cell(vec![("data-align", "end")], vec![text(row.amount)]),
+            table::cell(vec![("headers", h[0].as_str())], vec![text(row.company)]),
+            table::cell(vec![("headers", h[1].as_str())], vec![text(row.owner)]),
+            table::cell(
+                vec![("headers", h[2].as_str())],
+                vec![status_badge(row.status, row.status_variant)],
+            ),
+            table::cell(
+                vec![("data-align", "end"), ("headers", h[3].as_str())],
+                vec![text(row.amount)],
+            ),
         ],
     )
 }
 
-/// グループ見出し行（`th scope="row" colspan="4"`）。
-fn group_row(label: &str) -> Node {
+/// グループ見出し行（`th scope="row" colspan="4" id="<group_id>"`）。`id` は
+/// 同一グループのデータ行 `headers` から参照される（codex-review P2 是正）。
+fn group_row(label: &str, group_id: &str) -> Node {
     table::row(
         vec![("data-blocks-table-grouped-rows-group", "")],
         vec![table::row_header(
-            vec![("colspan", "4")],
+            vec![("colspan", "4"), ("id", group_id)],
             vec![text(label.to_string())],
         )],
     )
 }
 
-/// 列見出し行。`hidden` のとき各ラベルを `visually_hidden::root` で包み、
-/// `th` 自体は DOM に残したまま可視領域からは [`LAYOUT_CSS`] が箱を潰す
-/// （モジュール doc「版 B」節参照）。
-fn column_headers(hidden: bool) -> Node {
+/// 列見出し行。各 `th` に `id="<prefix>-col-<i>"` を付け、データセルの
+/// `headers` から参照できるようにする（codex-review P2 是正）。`hidden` の
+/// とき各ラベルを `visually_hidden::root` で包み、`th` 自体は DOM に残した
+/// まま可視領域からは [`LAYOUT_CSS`] が箱を潰す（モジュール doc「版 B」節
+/// 参照）。
+fn column_headers(hidden: bool, prefix: &str) -> Node {
     let cells: Vec<Node> = COLUMN_LABELS
         .iter()
         .enumerate()
         .map(|(i, label)| {
-            let align = if i == 3 {
-                Some(("data-align", "end"))
-            } else {
-                None
-            };
-            let attrs: Vec<(&str, &str)> = align.into_iter().collect();
+            let id = format!("{prefix}-col-{i}");
+            let mut attrs: Vec<(&str, &str)> = vec![("id", id.as_str())];
+            if i == 3 {
+                attrs.push(("data-align", "end"));
+            }
             let label_node: Node = text(*label);
             let content = if hidden {
                 visually_hidden::root(vec![], vec![label_node])
@@ -191,18 +205,30 @@ fn column_headers(hidden: bool) -> Node {
 
 /// グループ分けされた `table` 1 本を組み立てる。`heading_id` は
 /// `aria-labelledby` で参照する見出し `id`（モジュール doc
-/// 「`caption`/`aria-labelledby` によるテーブル命名」節参照）。
+/// 「`caption`/`aria-labelledby` によるテーブル命名」節参照）。`id_prefix`
+/// は列見出し・グループ見出しの `id`、`headers` 属性の接頭辞（テーブルごとに
+/// 一意な値を渡し、demo 全体で `id` が重複しないようにする、codex-review P2
+/// 是正）。
 ///
 /// グループごとに独立した `tbody` を発行し、グループ見出し行をその先頭行として
 /// 同居させる（モジュール doc「グループ見出し行を `row_header`
 /// （`scope="row"`）+ グループ単位 `tbody` で表す」節参照、codex-review P1
 /// 是正）。
-fn grouped_table(hidden_head: bool, heading_id: &'static str, groups: &[(&str, &[Row])]) -> Node {
-    let mut sections: Vec<Node> = vec![table::header(vec![], vec![column_headers(hidden_head)])];
-    for (label, rows) in groups {
-        let mut body_rows = vec![group_row(label)];
+fn grouped_table(
+    hidden_head: bool,
+    heading_id: &'static str,
+    id_prefix: &str,
+    groups: &[(&str, &[Row])],
+) -> Node {
+    let mut sections: Vec<Node> = vec![table::header(
+        vec![],
+        vec![column_headers(hidden_head, id_prefix)],
+    )];
+    for (n, (label, rows)) in groups.iter().enumerate() {
+        let group_id = format!("{id_prefix}-g{}", n + 1);
+        let mut body_rows = vec![group_row(label, &group_id)];
         for row in *rows {
-            body_rows.push(data_row(row));
+            body_rows.push(data_row(row, id_prefix, &group_id));
         }
         sections.push(table::body(vec![], body_rows));
     }
@@ -228,7 +254,12 @@ fn version_regions() -> Node {
                 vec![("id", HEADING_ID)],
                 vec![text("地域別の受注一覧")],
             ),
-            grouped_table(false, HEADING_ID, GROUPS_A),
+            grouped_table(
+                false,
+                HEADING_ID,
+                "blocks-table-grouped-rows-regions",
+                GROUPS_A,
+            ),
         ],
     )
 }
@@ -245,7 +276,12 @@ fn version_dates_hidden_head() -> Node {
                 vec![("id", HEADING_ID)],
                 vec![text("日付別の入金一覧")],
             ),
-            grouped_table(true, HEADING_ID, GROUPS_B),
+            grouped_table(
+                true,
+                HEADING_ID,
+                "blocks-table-grouped-rows-dates",
+                GROUPS_B,
+            ),
         ],
     )
 }
@@ -273,8 +309,10 @@ pub fn demo() -> Node {
 - グループ見出し行の背景色・太字表示、ヘッダー行の見た目の潰しはいずれも
   `table` 部品自体の機能ではなく、本 block の CSS が付与しています。
 - グループ見出し行は `table::row_header`（`scope="row"` 固定）で表現し
-  ています。列全体へまたがる `scope="colgroup"` は現状の API では表現でき
-  ません。
+  ています。行グループ全体へ及ぶ `scope="rowgroup"` は現状の API では表現
+  できませんが、各データセルへ `headers` 属性（列見出し `id` + グループ
+  見出し `id`）を付与して明示的に関連付けているため、支援技術は各セルが
+  どの列・どのグループに属するかを判別できます。
 - 金額は右揃え（`data-align="end"`）の固定文字列、状態は `badge` で表示
   します。
 - 狭幅（コンテナ幅 36rem 未満）ではテーブルが横スクロール可能なブロックへ
