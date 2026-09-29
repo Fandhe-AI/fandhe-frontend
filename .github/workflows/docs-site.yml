@@ -409,6 +409,9 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/navbar-with-search/index.html"
           # Application / Page Heading
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-actions/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-avatar/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-cover/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-meta/index.html"
           # Application / Card Heading
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-heading-toolbar/index.html"
           # Application / List
@@ -456,6 +459,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-media-footer/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-form-footer/index.html"
           # Application / Profile
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/profile-detail-datalist/index.html"
           # Application / Chart
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/chart-bar-list/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/chart-metric-area/index.html"

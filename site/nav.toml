@@ -2060,6 +2060,21 @@ title = "page-heading-actions"
 source = "site/blocks/page-heading-actions.md"
 path = "/blocks/page-heading-actions/"
 
+[[section.group.page]]
+title = "page-heading-avatar"
+source = "site/blocks/page-heading-avatar.md"
+path = "/blocks/page-heading-avatar/"
+
+[[section.group.page]]
+title = "page-heading-cover"
+source = "site/blocks/page-heading-cover.md"
+path = "/blocks/page-heading-cover/"
+
+[[section.group.page]]
+title = "page-heading-meta"
+source = "site/blocks/page-heading-meta.md"
+path = "/blocks/page-heading-meta/"
+
 [[section.group]]
 title = "Card Heading"
 
@@ -2226,6 +2241,14 @@ path = "/blocks/card-meta-cta/"
 title = "cursor-hover-cards"
 source = "site/blocks/cursor-hover-cards.md"
 path = "/blocks/cursor-hover-cards/"
+
+[[section.group]]
+title = "Profile"
+
+[[section.group.page]]
+title = "profile-detail-datalist"
+source = "site/blocks/profile-detail-datalist.md"
+path = "/blocks/profile-detail-datalist/"
 
 [[section.group]]
 title = "Chart"

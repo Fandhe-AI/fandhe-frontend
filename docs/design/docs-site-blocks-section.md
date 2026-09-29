@@ -966,6 +966,9 @@ pub enum LayoutCss {
 | card-form-footer | #2899 | `application/card/card_form_footer.rs` |
 | card-heading-toolbar | #2902 | `application/card_heading/card_heading_toolbar.rs` |
 | page-heading-actions | #2930 | `application/page_heading/page_heading_actions.rs` |
+| page-heading-avatar | #2931（親 #2892） | `application/page_heading/page_heading_avatar.rs` |
+| page-heading-cover | #2932（親 #2892） | `application/page_heading/page_heading_cover.rs` |
+| page-heading-meta | #2933（親 #2892） | `application/page_heading/page_heading_meta.rs` |
 | card-media-footer | #2900（親 #2892） | `application/card/card_media_footer.rs` |
 | card-meta-cta | #2901（親 #2892） | `application/card/card_meta_cta.rs` |
 | chart-bar-list | #2903 | `application/chart/chart_bar_list.rs` |
@@ -974,6 +977,7 @@ pub enum LayoutCss {
 | description-list-horizontal | #2906（親 #2892） | `application/description_list/description_list_horizontal.rs` |
 | description-list-summary-card | #2907（親 #2892） | `application/description_list/description_list_summary_card.rs` |
 | description-list-two-column | #2908 | `application/description_list/description_list_two_column.rs` |
+| profile-detail-datalist | #2937（親 #2892） | `application/profile/profile_detail_datalist.rs` |
 | form-layout-inline-labels | #2911（親 #2892） | `application/form_layout/form_layout_inline_labels.rs` |
 | feed-upvote-cards | #2910（親 #2892） | `application/feed/feed_upvote_cards.rs` |
 | feed-comments-timeline | #2909（親 #2892） | `application/feed/feed_comments_timeline.rs` |
