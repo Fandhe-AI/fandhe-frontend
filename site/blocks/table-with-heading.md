@@ -282,7 +282,7 @@ fn instance(v: &Variant) -> Node {
                 vec![],
                 vec![
                     heading(
-                        HeadingLevel::H3,
+                        HeadingLevel::H4,
                         &HeadingProps {
                             size: HeadingSize::Lg,
                             ..HeadingProps::default()
@@ -389,7 +389,7 @@ fn plans_instance() -> Node {
             vec![],
             vec![
                 heading(
-                    HeadingLevel::H3,
+                    HeadingLevel::H4,
                     &HeadingProps {
                         size: HeadingSize::Lg,
                         ..HeadingProps::default()
