@@ -994,6 +994,7 @@ pub enum LayoutCss {
 | list-people | #2923（親 #2892） | `application/list/list_people.rs` |
 | list-sticky-groups | #2924（親 #2892） | `application/list/list_sticky_groups.rs` |
 | list-title-meta | #2925（親 #2892） | `application/list/list_title_meta.rs` |
+| table-sortable-bulk | #2945（親 #2892） | `application/table/table_sortable_bulk.rs` |
 | table-grouped-rows | #2942（親 #2892） | `application/table/table_grouped_rows.rs` |
 | table-responsive-stacked | #2943（親 #2892） | `application/table/table_responsive_stacked.rs` |
 | table-rich-rows | #2944（親 #2892） | `application/table/table_rich_rows.rs` |
@@ -1014,7 +1015,9 @@ pub enum LayoutCss {
 | profile-card-centered | #2936（親 #2892） | `application/profile/profile_card_centered.rs` |
 | sidebar-rail-panel | #2941 | `application/sidebar/sidebar_rail_panel.rs` |
 | table-summary-rows | #2946（親 #2892） | `application/table/table_summary_rows.rs` |
+| list-container | #3227 | `application/list/list_container.rs` |
 | media-object | #3228 | `application/media_object/media_object_alignments.rs` |
+| card-heading-basic | #3229 | `application/card_heading/card_heading_basic.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
