@@ -5,6 +5,7 @@
 //! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
 //! ための構造、イシュー #2734）。
 
+mod auth_oauth_consent;
 mod auth_split_accent_panel;
 mod login_01;
 mod login_04;
@@ -14,6 +15,7 @@ use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
     vec![
+        auth_oauth_consent::BLOCK,
         auth_split_accent_panel::BLOCK,
         login_01::BLOCK,
         login_04::BLOCK,
