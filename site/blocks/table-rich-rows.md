@@ -5,9 +5,9 @@
 2 インスタンスを静的に併記します。
 
 - **members**（主参照）: メンバー一覧。状態列は `badge`（有効 = Success / 招待中 = Warning / 停止 = Danger）、操作列は実在 URL への「GitHub で見る」リンクです。
-- **deploys**（集約元・全幅版）: 同じ骨格をデプロイ履歴（作業ログ）へ流用したものです。結果列は `status`（成功 = Success / 実行中 = Info / 失敗 = Danger）、完了時刻列は `<time datetime>` で表します。全幅表示にするため `table` の `root` へ `data-blocks-table-rich-rows-full` を付与しています。
+- **deploys**（集約元・全幅版）: 同じ骨格をデプロイ履歴（作業ログ）へ流用したものです。結果列は `status`（成功 = Success / 実行中 = Info / 失敗 = Danger）、開始時刻列は `<time datetime>` で表します（実行中の行にも意味が通る全行共通の列見出しです）。全幅表示にするため `table` の `root` へ `data-blocks-table-rich-rows-full` を付与しています。
 
-先頭列（アバター + 2 段テキスト）と状態列は幅に関わらず常に表示します。副次列（役割/変更内容の列）のみ、`@container` で狭幅時に非表示にします。
+先頭列（アバター + 2 段テキスト）と状態列は幅に関わらず常に表示します。副次列（役割/変更内容の列）のみ、`@container` で狭幅時に非表示にします。各テーブルは `table::scroll_area`（`role="region"` + `aria-label` + `tabindex="0"`）で包み、狭幅で列がはみ出す場合に横スクロールできるようにします。
 
 本 Demo は無 JS の静的表示です。`<form>` は出力せず、送信・取得等の対話処理は一切行いません。氏名・役職・メールアドレス・部署名・ブランチ名・コミット要約・ハッシュ・日付はすべて架空の文言で、実在の人物・企業・クレデンシャルとは無関係です。
 
@@ -91,14 +91,26 @@ fn secondary_header(label: &str) -> Node {
 }
 
 /// パネル外枠。`container-type: inline-size` を宣言し `@container` の対象に
-/// する（`profile_detail_datalist.rs` と同型）。
-fn panel(variant: &'static str, table_node: Node) -> Node {
+/// する（`profile_detail_datalist.rs` と同型）。狭幅で副次列を隠しても
+/// members/deploys の残り列（アバター + 2 段テキスト・状態/バッジ・操作）が
+/// なお枠内に収まらない場合に備え、`table::scroll_area` で横スクロール手段を
+/// 確保する（`table_with_heading.rs`/`comparison_split_table.rs` と同型の
+/// `role="region"` + `aria-label` + `tabindex="0"` 構成、codex-review 指摘
+/// 是正）。
+fn panel(variant: &'static str, aria_label: &str, table_node: Node) -> Node {
     div(
         vec![
             ("class", "blocks-table-rich-rows-panel"),
             ("data-blocks-table-rich-rows-variant", variant),
         ],
-        vec![table_node],
+        vec![table::scroll_area(
+            vec![
+                ("role", "region"),
+                ("aria-label", aria_label),
+                ("tabindex", "0"),
+            ],
+            vec![table_node],
+        )],
     )
 }
 
@@ -188,6 +200,7 @@ fn members_instance() -> Node {
 
     panel(
         "members",
+        "メンバー一覧",
         table::root(
             TableProps {
                 interactive: true,
@@ -294,6 +307,7 @@ fn deploys_instance() -> Node {
 
     panel(
         "deploys",
+        "デプロイ履歴",
         table::root(
             TableProps {
                 interactive: true,
@@ -310,7 +324,7 @@ fn deploys_instance() -> Node {
                             table::column_header(vec![], vec![text("実行者")]),
                             secondary_header("変更内容"),
                             table::column_header(vec![], vec![text("結果")]),
-                            table::column_header(vec![], vec![text("完了時刻")]),
+                            table::column_header(vec![], vec![text("開始時刻")]),
                         ],
                     )],
                 ),
@@ -333,6 +347,6 @@ pub fn demo() -> Node {
 
 ## 差分メモ
 
-- members（代表構成）→ deploys（全幅版）で、列の意味を「メンバー / 役割 / 状態 / 操作」から「実行者 / 変更内容 / 結果 / 完了時刻」へ読み替えています。
+- members（代表構成）→ deploys（全幅版）で、列の意味を「メンバー / 役割 / 状態 / 操作」から「実行者 / 変更内容 / 結果 / 開始時刻」へ読み替えています。
 - 状態表現は `badge`（members、離散的な区分値）と `status`（deploys、進行中を含む実行結果）を使い分けています。
 - deploys は `table` の `root` に `data-blocks-table-rich-rows-full` を付与し、全幅表示にしています。

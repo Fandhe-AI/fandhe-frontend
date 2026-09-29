@@ -21,8 +21,11 @@
 //! - **deploys**: 同じ骨格をデプロイ履歴（作業ログ）へ流用。実行者
 //!   （アバター + 氏名/ブランチ名 2 段）| 変更内容（コミット要約/短縮
 //!   ハッシュ 2 段）| 結果（`status::root`: 成功 = Success / 実行中 = Info /
-//!   失敗 = Danger）| 完了時刻（`<time datetime>`）。`table::root` の
-//!   `data-blocks-table-rich-rows-full` を付与し全幅表示にする。
+//!   失敗 = Danger）| 開始時刻（`<time datetime>`。実行中の行にも意味が
+//!   通る全行共通の列見出しとする。`完了時刻` は未完了の実行中行にまで
+//!   完了済みの含意を持たせてしまうため codex-review 指摘で改称した）。
+//!   `table::root` の `data-blocks-table-rich-rows-full` を付与し全幅表示
+//!   にする。
 //!
 //! # 狭幅では副次列のみ隠す（`@container`）
 //!
@@ -131,14 +134,26 @@ fn secondary_header(label: &str) -> Node {
 }
 
 /// パネル外枠。`container-type: inline-size` を宣言し `@container` の対象に
-/// する（`profile_detail_datalist.rs` と同型）。
-fn panel(variant: &'static str, table_node: Node) -> Node {
+/// する（`profile_detail_datalist.rs` と同型）。狭幅で副次列を隠しても
+/// members/deploys の残り列（アバター + 2 段テキスト・状態/バッジ・操作）が
+/// なお枠内に収まらない場合に備え、`table::scroll_area` で横スクロール手段を
+/// 確保する（`table_with_heading.rs`/`comparison_split_table.rs` と同型の
+/// `role="region"` + `aria-label` + `tabindex="0"` 構成、codex-review 指摘
+/// 是正）。
+fn panel(variant: &'static str, aria_label: &str, table_node: Node) -> Node {
     div(
         vec![
             ("class", "blocks-table-rich-rows-panel"),
             ("data-blocks-table-rich-rows-variant", variant),
         ],
-        vec![table_node],
+        vec![table::scroll_area(
+            vec![
+                ("role", "region"),
+                ("aria-label", aria_label),
+                ("tabindex", "0"),
+            ],
+            vec![table_node],
+        )],
     )
 }
 
@@ -228,6 +243,7 @@ fn members_instance() -> Node {
 
     panel(
         "members",
+        "メンバー一覧",
         table::root(
             TableProps {
                 interactive: true,
@@ -334,6 +350,7 @@ fn deploys_instance() -> Node {
 
     panel(
         "deploys",
+        "デプロイ履歴",
         table::root(
             TableProps {
                 interactive: true,
@@ -350,7 +367,7 @@ fn deploys_instance() -> Node {
                             table::column_header(vec![], vec![text("実行者")]),
                             secondary_header("変更内容"),
                             table::column_header(vec![], vec![text("結果")]),
-                            table::column_header(vec![], vec![text("完了時刻")]),
+                            table::column_header(vec![], vec![text("開始時刻")]),
                         ],
                     )],
                 ),
@@ -521,5 +538,27 @@ mod tests {
         let html = demo_html();
         assert!(html.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend\""));
         assert!(html.contains("GitHub で見る"));
+    }
+
+    /// codex-review 指摘是正（狭幅時の横スクロール手段）: 各 `panel` が
+    /// `table::scroll_area`（`role="region"` + `aria-label` + `tabindex="0"`）
+    /// で `table::root` を包んでいることを固定する。
+    #[test]
+    fn tables_are_wrapped_in_scroll_area() {
+        let html = demo_html();
+        assert_eq!(html.matches("data-part=\"scroll-area\"").count(), 2);
+        assert!(html.contains(r#"role="region" aria-label="メンバー一覧""#));
+        assert!(html.contains(r#"role="region" aria-label="デプロイ履歴""#));
+        assert_eq!(html.matches(r#"tabindex="0""#).count(), 2);
+    }
+
+    /// codex-review 指摘是正（実行中行の完了時刻誤読）: 列見出しは全行
+    /// 共通の意味を持つ「開始時刻」を使い、完了済みを含意する
+    /// 「完了時刻」は使わない。
+    #[test]
+    fn deploys_time_column_uses_start_time_label_not_completion() {
+        let html = demo_html();
+        assert!(html.contains("開始時刻"));
+        assert!(!html.contains("完了時刻"));
     }
 }
