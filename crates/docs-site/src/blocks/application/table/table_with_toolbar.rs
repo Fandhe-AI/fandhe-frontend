@@ -45,7 +45,10 @@
 //!   内容を閉じ込める」構造を回避するための意図的な判断であり、原稿にも
 //!   明記する。`tabs` は attrs を受け取らない
 //!   （`crate::tabs` モジュール doc「選択的 re-export」節参照）ため
-//!   `div[data-blocks-table-with-toolbar-tabs]` で包む
+//!   `div[data-blocks-table-with-toolbar-tabs]` で包む。選択中「すべて」
+//!   以外の 3 タブは `disabled: true` の静的固定（[`status_tabs`] rustdoc
+//!   参照。Codex レビュー指摘 #3404 是正: 押せるが表が変わらない
+//!   dead control にしない）
 //!
 //! # `scroll_area` を選ぶ理由（`table::scroll_area` ではなく独立部品）
 //!
@@ -318,6 +321,15 @@ fn actions(export: bool) -> Node {
 /// 置く（モジュール doc「D（タブ型の絞り込み）」節参照）。`search_id` ごと
 /// に呼び出し側の `id` が変わるのと同様、本関数は版 D でのみ呼ばれるため
 /// 固定 id を持たせてよい（demo 内で 1 回しか呼ばれない契約）。
+///
+/// 「すべて」以外の 3 タブは `disabled: true` の静的固定とする
+/// （Codex レビュー指摘 #3404 是正）。絞り込み処理を実装しない以上、選択中
+/// 以外のタブを操作可能なまま見せると「押せるが表の内容が変わらない」
+/// dead control になる。版 B の期間選択ボタン（モジュール doc「B」節）と
+/// 同じ判断だが、tabs は選択中 trigger を `disabled` にすると
+/// `aria-selected`/`data-state` が「未選択」扱いへ落ちる仕様
+/// （`crates/headless-ui/src/tabs.rs` `selected_matching_disabled_item_is_treated_as_unselected`
+/// 参照）のため、選択中の「すべて」のみ非 disabled のまま残す。
 fn status_tabs() -> Node {
     let items = vec![
         TabItem {
@@ -330,19 +342,19 @@ fn status_tabs() -> Node {
             value: "paid",
             trigger: vec![text("支払済み")],
             content: vec![],
-            disabled: false,
+            disabled: true,
         },
         TabItem {
             value: "unpaid",
             trigger: vec![text("未払い")],
             content: vec![],
-            disabled: false,
+            disabled: true,
         },
         TabItem {
             value: "overdue",
             trigger: vec![text("期限超過")],
             content: vec![],
-            disabled: false,
+            disabled: true,
         },
     ];
     div(
@@ -464,15 +476,25 @@ fn body_row(row: &InvoiceRow) -> Node {
     )
 }
 
-/// テーブル本体（横スクロール対応の `scroll_area` 包み）。
-fn table_section() -> Node {
+/// テーブル本体（横スクロール対応の `scroll_area` 包み）。`label` は
+/// 呼び出し側（[`variant`]）が版ごとに一意な文言を渡し、複数版並記時の
+/// ランドマーク名重複・テーブル無名化（Cursor Bugbot レビュー指摘 #3404
+/// 是正: 4 版が同一 `aria-label`「請求書一覧」を再利用し、テーブル自体は
+/// 無名のままだったため支援技術上区別できなかった）を避ける。`table::root`
+/// へも `aria-label` を付け、テーブル自体に固有の名前を持たせる。
+fn table_section(label: &str) -> Node {
+    let table_aria_label = format!("請求書一覧表（{label}）");
+    let scroll_aria_label = format!("請求書一覧（{label}）");
     let table_node = table::root(
         TableProps {
             variant: TableVariant::Line,
             size: Size::Md,
             ..TableProps::default()
         },
-        vec![("data-blocks-table-with-toolbar-table", "")],
+        vec![
+            ("data-blocks-table-with-toolbar-table", ""),
+            ("aria-label", &table_aria_label),
+        ],
         vec![
             table::header(vec![], vec![column_headers()]),
             table::body(vec![], ROWS.iter().map(body_row).collect()),
@@ -481,14 +503,17 @@ fn table_section() -> Node {
     scroll_area::root(
         vec![("data-blocks-table-with-toolbar-scroll", "")],
         vec![scroll_area::viewport(
-            vec![("role", "region"), ("aria-label", "請求書一覧")],
+            vec![("role", "region"), ("aria-label", &scroll_aria_label)],
             vec![scroll_area::content(vec![], vec![table_node])],
         )],
     )
 }
 
 /// フッター（件数表示 + ページ送り。1 ページ目選択・前ページ無効で固定）。
-fn footer() -> Node {
+/// `label` は [`table_section`] と同じ理由でページ送り `nav` の
+/// アクセシブルネーム（`aria-label`）を版ごとに一意化する。
+fn footer(label: &str) -> Node {
+    let nav_aria_label = format!("請求書ページ（{label}）");
     div(
         vec![("data-blocks-table-with-toolbar-footer", "")],
         vec![
@@ -503,7 +528,7 @@ fn footer() -> Node {
             pagination::root(
                 Size::Sm,
                 ColorPalette::Accent,
-                "請求書ページ",
+                &nav_aria_label,
                 vec![("data-blocks-table-with-toolbar-pagination", "")],
                 vec![
                     pagination::prev_trigger(ItemMode::Button, true, vec![], vec![text("前へ")]),
@@ -522,10 +547,13 @@ fn footer() -> Node {
 /// 版 1 つ分（見出し帯 + [タブ行] + テーブル + フッター）。`kind` は
 /// `data-blocks-table-with-toolbar-variant` の値（`"standard"`/`"period"`/
 /// `"stacked"`/`"tabs"`）。`search_id` は版ごとに一意な検索欄 `id`
-/// （[`toolbar`] rustdoc「`id` 重複を避ける」節参照）。
+/// （[`toolbar`] rustdoc「`id` 重複を避ける」節参照）。`label` は
+/// [`table_section`]/[`footer`] のランドマーク名一意化に使う人間可読な
+/// 版名（`demo()` のキャプション文言を再利用する）。
 fn variant(
     kind: &'static str,
     search_id: &'static str,
+    label: &'static str,
     period: bool,
     export: bool,
     show_tabs: bool,
@@ -534,8 +562,8 @@ fn variant(
     if show_tabs {
         children.push(status_tabs());
     }
-    children.push(table_section());
-    children.push(footer());
+    children.push(table_section(label));
+    children.push(footer(label));
     section(
         vec![("data-blocks-table-with-toolbar-variant", kind)],
         children,
@@ -555,6 +583,7 @@ pub fn demo() -> Node {
             variant(
                 "standard",
                 "blocks-table-with-toolbar-search-a",
+                "代表構成",
                 false,
                 false,
                 false,
@@ -566,6 +595,7 @@ pub fn demo() -> Node {
             variant(
                 "period",
                 "blocks-table-with-toolbar-search-b",
+                "期間選択ボタン付き",
                 true,
                 false,
                 false,
@@ -577,6 +607,7 @@ pub fn demo() -> Node {
             variant(
                 "stacked",
                 "blocks-table-with-toolbar-search-c",
+                "常時縦積み + エクスポート",
                 false,
                 true,
                 false,
@@ -588,6 +619,7 @@ pub fn demo() -> Node {
             variant(
                 "tabs",
                 "blocks-table-with-toolbar-search-d",
+                "タブ型の絞り込み付き",
                 false,
                 false,
                 true,
@@ -794,6 +826,61 @@ mod tests {
             search_from = after_tag;
         }
         assert_eq!(panel_count, 4);
+    }
+
+    /// 版 D の `tabs` は選択中「すべて」以外の 3 タブが `disabled` の静的
+    /// 固定（Codex レビュー指摘 #3404 是正の回帰検知: 押せるが表の内容が
+    /// 変わらない dead control にしないこと。[`status_tabs`] rustdoc
+    /// 参照）。選択中「すべて」は `disabled` を持たない。
+    #[test]
+    fn tabs_non_selected_triggers_are_disabled() {
+        let html = render(&demo());
+        for value in ["paid", "unpaid", "overdue"] {
+            let needle = format!(
+                r#"data-value="{value}" disabled="" data-disabled="" aria-disabled="true""#
+            );
+            assert!(html.contains(&needle), "expected {value} trigger disabled");
+        }
+        assert!(
+            !html.contains(r#"data-value="all" disabled="" data-disabled="" aria-disabled="true""#)
+        );
+        assert!(html.contains(
+            r#"id="blocks-table-with-toolbar-tabs-trigger-all" role="tab" aria-selected="true""#
+        ));
+    }
+
+    /// `table_section`/`footer` のランドマーク名（`aria-label`）が 4 版で
+    /// 一意（Cursor Bugbot レビュー指摘 #3404 是正: 同一名の再利用で支援
+    /// 技術上 4 つの区別不能なコピーとして列挙されないこと）。テーブル
+    /// 自体にも `aria-label` が付き無名のままにならない。
+    #[test]
+    fn landmark_names_are_unique_per_variant_and_table_is_named() {
+        let html = render(&demo());
+        for label in [
+            "代表構成",
+            "期間選択ボタン付き",
+            "常時縦積み + エクスポート",
+            "タブ型の絞り込み付き",
+        ] {
+            assert_eq!(
+                html.matches(&format!("aria-label=\"請求書一覧表（{label}）\""))
+                    .count(),
+                1,
+                "table aria-label should be unique for {label}"
+            );
+            assert_eq!(
+                html.matches(&format!("aria-label=\"請求書一覧（{label}）\""))
+                    .count(),
+                1,
+                "scroll region aria-label should be unique for {label}"
+            );
+            assert_eq!(
+                html.matches(&format!("aria-label=\"請求書ページ（{label}）\""))
+                    .count(),
+                1,
+                "pagination nav aria-label should be unique for {label}"
+            );
+        }
     }
 
     /// 版 C の常時縦積み CSS が `@container` 内の横並び規則を上書きする
