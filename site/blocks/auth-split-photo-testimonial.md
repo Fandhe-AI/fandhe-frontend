@@ -127,8 +127,18 @@ fn text_field(
 /// 「`<form>` を持たない」節参照）。`name`/`label_text` は呼び出し側が
 /// 形（サインイン/サインアップ）ごとに一意な値を渡す契約であり、本関数
 /// 自体は形を区別しない。
+///
+/// `disabled: true`（PR #3418 レビュー指摘対応）: ネイティブ `hidden_input`
+/// はクリック・キーボードで操作可能な一方、視覚上の `indicator` は
+/// レンダリング時の `CheckedState::Unchecked` に固定されたまま更新されない
+/// （docs-site は無 JS 制約〔`crate` モジュール doc 参照〕で hydration を
+/// 行わないため）。「未チェック固定の静的表示」という意図を `disabled` で
+/// 実際に操作不能化し、見た目と状態の食い違いを構造的に防ぐ。
 fn agree_checkbox(name: &'static str, label_text: &'static str) -> Node {
-    let props = CheckboxProps::default();
+    let props = CheckboxProps {
+        disabled: true,
+        ..CheckboxProps::default()
+    };
     checkbox::root(
         Size::Sm,
         ColorPalette::Accent,

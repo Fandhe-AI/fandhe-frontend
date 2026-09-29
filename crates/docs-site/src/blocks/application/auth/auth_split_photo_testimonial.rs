@@ -200,8 +200,18 @@ fn text_field(
 /// 「`<form>` を持たない」節参照）。`name`/`label_text` は呼び出し側が
 /// 形（サインイン/サインアップ）ごとに一意な値を渡す契約であり、本関数
 /// 自体は形を区別しない。
+///
+/// `disabled: true`（PR #3418 レビュー指摘対応）: ネイティブ `hidden_input`
+/// はクリック・キーボードで操作可能な一方、視覚上の `indicator` は
+/// レンダリング時の `CheckedState::Unchecked` に固定されたまま更新されない
+/// （docs-site は無 JS 制約〔`crate` モジュール doc 参照〕で hydration を
+/// 行わないため）。「未チェック固定の静的表示」という意図を `disabled` で
+/// 実際に操作不能化し、見た目と状態の食い違いを構造的に防ぐ。
 fn agree_checkbox(name: &'static str, label_text: &'static str) -> Node {
-    let props = CheckboxProps::default();
+    let props = CheckboxProps {
+        disabled: true,
+        ..CheckboxProps::default()
+    };
     checkbox::root(
         Size::Sm,
         ColorPalette::Accent,
@@ -503,6 +513,18 @@ pub const BLOCK: Block = Block {
 /// リテラル値、CSS custom property は `@media` 条件式内で解決できないため
 /// 直書きする、`login_04`/`contact_split_form_info` と同じ判断）で 2 カラム
 /// grid へ切り替えて表示する。
+///
+/// # `h2` の見た目リセット（PR #3418 レビュー指摘）
+///
+/// フォーム見出し（`el("h2", ...)`）は `.docs-content` 配下に埋め込まれる
+/// ため、サイト本文の `.docs-content h2` 規則（`border-top`・`padding-top`・
+/// `2.25rem` の上余白・`2xl` サイズ、`crate::site_theme::typography_css`）が
+/// 漏れ込む。単純なクラスセレクタ `.blocks-auth-split-photo-testimonial-title`
+/// （詳細度 (0,1,0)）は `.docs-content h2`（(0,1,1)）より必ず負けるため、
+/// 祖先クラス + 要素型 + 自クラスの組み合わせ
+/// `.blocks-auth-split-photo-testimonial-intro h2.blocks-auth-split-photo-testimonial-title`
+/// （(0,2,1)）で確実に上回るようにする（[`super::auth_dropdown_panel`] の
+/// `h2` リセットと同型の判断。`site.css` 側は変更しない）。
 const LAYOUT_CSS: &str = "\
 .blocks-auth-split-photo-testimonial-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n}\n\
 .blocks-auth-split-photo-testimonial-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
@@ -510,7 +532,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-auth-split-photo-testimonial-variant] {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  overflow: hidden;\n  min-height: 28rem;\n}\n\
 [data-blocks-auth-split-photo-testimonial-form] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-8);\n}\n\
 .blocks-auth-split-photo-testimonial-intro {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
-.blocks-auth-split-photo-testimonial-title {\n  font-size: var(--fandhe-font-font-size-xl);\n  font-weight: var(--fandhe-font-font-weight-bold);\n}\n\
+.blocks-auth-split-photo-testimonial-intro h2.blocks-auth-split-photo-testimonial-title {\n  margin: 0;\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n  line-height: 1.3;\n  font-size: var(--fandhe-font-font-size-xl);\n  font-weight: var(--fandhe-font-font-weight-bold);\n}\n\
 .blocks-auth-split-photo-testimonial-description {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-auth-split-photo-testimonial-providers {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-auth-split-photo-testimonial-provider] {\n  width: 100%;\n}\n\
