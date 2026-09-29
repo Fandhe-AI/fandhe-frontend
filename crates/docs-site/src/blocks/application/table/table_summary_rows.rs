@@ -1,6 +1,6 @@
-//! `table-summary-rows` block（イシュー #2946。Application/Table カテゴリ、
-//! 最初の block）。主参照は対応表 ID R1333 のみで、集約元との差分を並べる
-//! 対象はない。
+//! `table-summary-rows` block（イシュー #2946。Application/Table カテゴリの
+//! table-with-heading・table-responsive-stacked に続く 3 件目）。主参照は
+//! 対応表 ID R1333 のみで、集約元との差分を並べる対象はない。
 //!
 //! # 使用部品
 //!
