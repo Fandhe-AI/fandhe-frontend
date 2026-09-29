@@ -52,7 +52,14 @@
 //! 折り返し行へ送る（flex-wrap の定番手法）。これにより 1 行目
 //! （モデル・プリセット select + trigger）は `align-items: flex-end` の
 //! まま高さを揃え、説明カードは 2 行目として独立した cross-size で描画
-//! される。
+//! される。[`fandhe_frontend_pre_styled_ui::field::root`] の base 宣言は
+//! `width: 100%` を持つため、`.selectors` 配下では model/preset の
+//! `select_field` が生成する `field::root` 自身も flex item として
+//! 「コンテナ幅 100%」を basis に取り、2 件目が同じ行に収まらず折り返す
+//! （Bugbot レビュー指摘）。[`LAYOUT_CSS`] は `.selectors` 配下の
+//! `field::root`（`data-scope="field"][data-part="root"]`）へ `width: auto`
+//! と `flex: 1 1 10rem` を上書きし、model/preset select が 1 行目で並んで
+//! 伸縮する通常の flex item として振る舞うようにする。
 //!
 //! # `<form>` を使わない・生成中状態を表現しない
 //!
@@ -70,10 +77,14 @@
 //! `field::root` / `native_select::native_select` / `textarea::textarea` /
 //! `slider::root` / `switch::root` / `button::button` はいずれも
 //! `drop_class_attr` により呼び出し側 `attrs` の `class` を黙って除去する
-//! 契約を持つため、これらへの CSS フックは付与しない（本 block はレイアウト
-//! 用ラッパーのみへスタイルを与え、部品自体の見た目は変更しない）。
-//! `popover` は headless anatomy を素の再エクスポートで使うため `class`
-//! 属性がそのまま出力される。レイアウト用ラッパー（素の `<div>`）は
+//! 契約を持つため、これらへ `class` 属性の CSS フックは付与しない（本
+//! block はレイアウト用ラッパーのみへスタイルを与え、部品自体の見た目は
+//! 変更しない）。`field::root` の `.selectors` 内幅上書き（上記「popover
+//! はプリセット説明を常時開いた静的カードとして表示する」節末尾）は
+//! `class` ではなく popover 側と同じ `[data-scope="field"][data-part=
+//! "root"]` 属性セレクタで行うため、この `drop_class_attr` 契約と矛盾
+//! しない。`popover` は headless anatomy を素の再エクスポートで使うため
+//! `class` 属性がそのまま出力される。レイアウト用ラッパー（素の `<div>`）は
 //! `class="blocks-ai-chat-playground-*"` を使う。ルート class
 //! （`blocks-ai-chat-playground-layout`）は [`Block::demo_class`]
 //! （`blocks-ai-chat-playground`）とは意図的に別名にする（`profile_detail_
@@ -268,8 +279,20 @@ fn param_slider(spec: SliderSpec) -> Node {
 }
 
 /// 生成設定の switch 1 件（`pricing_seats_split` と同型の構成）。
+///
+/// `disabled: true` を指定する（Bugbot レビュー指摘）。docs サイトは JS
+/// ハイドレーションを行わないため、`disabled` なしでは hidden checkbox が
+/// native トグル可能なまま残り、クリックで checked state だけが変化して
+/// track/thumb の SSR 時点 `data-state`（本 Demo は変化しない固定表示）と
+/// 乖離し、支援技術が視覚と異なる on/off を読み上げる。ボタン・popover
+/// trigger を `disabled: true` にした判断（モジュール doc「`<form>` を
+/// 使わない・生成中状態を表現しない」節）と同じ理由で switch も操作不能に
+/// する。
 fn param_switch(hidden_name: &'static str, label_text: &'static str, checked: bool) -> Node {
-    let props = SwitchProps::default();
+    let props = SwitchProps {
+        disabled: true,
+        ..SwitchProps::default()
+    };
     switch::root(
         Size::Md,
         ColorPalette::Accent,
@@ -492,6 +515,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-ai-chat-playground-main {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-5);\n  min-width: 0;\n}\n\
 .blocks-ai-chat-playground-settings {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-5);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: 0.5rem;\n  padding: var(--fandhe-space-5);\n}\n\
 .blocks-ai-chat-playground-selectors {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-4);\n  align-items: flex-end;\n}\n\
+.blocks-ai-chat-playground-selectors [data-scope=\"field\"][data-part=\"root\"] {\n  width: auto;\n  flex: 1 1 10rem;\n  min-width: 0;\n}\n\
 .blocks-ai-chat-playground-preview {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: 0.5rem;\n  padding: var(--fandhe-space-4);\n  background: var(--fandhe-color-bg);\n}\n\
 .blocks-ai-chat-playground-preview-label {\n  font-weight: 600;\n  color: var(--fandhe-color-fg-muted, var(--fandhe-color-fg));\n}\n\
 .blocks-ai-chat-playground-message {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
@@ -558,6 +582,37 @@ mod tests {
             ".blocks-ai-chat-playground-layout [data-scope=\"popover\"][data-part=\"positioner\"]"
         ));
         assert!(!LAYOUT_CSS.contains('<'));
+    }
+
+    /// select_field が生成する `field::root` は base 宣言に `width: 100%`
+    /// を持つため（`crates/pre-styled-ui/src/field.rs`）、`.selectors` 内で
+    /// 上書きしないと model/preset select が同じ行に並ばない
+    /// （Bugbot レビュー指摘、モジュール doc「popover はプリセット説明を
+    /// 常時開いた静的カードとして表示する」節末尾）。
+    #[test]
+    fn layout_css_overrides_field_root_width_inside_selectors() {
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-ai-chat-playground-selectors [data-scope=\"field\"][data-part=\"root\"]"
+        ));
+        assert!(LAYOUT_CSS.contains("flex: 1 1 10rem"));
+    }
+
+    /// switch は無 JS では native トグル後も track/thumb の SSR `data-state`
+    /// が変化せず視覚と乖離するため `disabled` にする（Bugbot レビュー
+    /// 指摘）。hidden checkbox の native `disabled` 属性の有無で検証する。
+    #[test]
+    fn param_switches_are_disabled() {
+        let html = demo_html();
+        assert!(html.contains(
+            "data-part=\"hidden-input\" data-state=\"checked\" data-disabled=\"\" \
+             type=\"checkbox\" role=\"switch\" name=\"streaming\" value=\"on\" \
+             checked=\"\" disabled=\"\""
+        ));
+        assert!(html.contains(
+            "data-part=\"hidden-input\" data-state=\"unchecked\" data-disabled=\"\" \
+             type=\"checkbox\" role=\"switch\" name=\"include-system-prompt\" \
+             value=\"on\" disabled=\"\""
+        ));
     }
 
     #[test]

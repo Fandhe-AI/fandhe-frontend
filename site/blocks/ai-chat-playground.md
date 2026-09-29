@@ -199,8 +199,20 @@ fn param_slider(spec: SliderSpec) -> Node {
 }
 
 /// 生成設定の switch 1 件（`pricing_seats_split` と同型の構成）。
+///
+/// `disabled: true` を指定する（Bugbot レビュー指摘）。docs サイトは JS
+/// ハイドレーションを行わないため、`disabled` なしでは hidden checkbox が
+/// native トグル可能なまま残り、クリックで checked state だけが変化して
+/// track/thumb の SSR 時点 `data-state`（本 Demo は変化しない固定表示）と
+/// 乖離し、支援技術が視覚と異なる on/off を読み上げる。ボタン・popover
+/// trigger を `disabled: true` にした判断（モジュール doc「`<form>` を
+/// 使わない・生成中状態を表現しない」節）と同じ理由で switch も操作不能に
+/// する。
 fn param_switch(hidden_name: &'static str, label_text: &'static str, checked: bool) -> Node {
-    let props = SwitchProps::default();
+    let props = SwitchProps {
+        disabled: true,
+        ..SwitchProps::default()
+    };
     switch::root(
         Size::Md,
         ColorPalette::Accent,
