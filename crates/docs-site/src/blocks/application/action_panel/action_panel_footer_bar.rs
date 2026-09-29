@@ -25,6 +25,15 @@
 //! `data-blocks-action-panel-footer-bar-stack` 値で切り替える
 //! （`note-first`/`actions-first`/`full-width`）。
 //!
+//! # 狭幅判定は `@container`（デモ枠の実幅基準）
+//!
+//! この block は `.docs-content` 内の `.blocks-demo` に表示され、
+//! ビューポート幅（`@media`）はデモ枠自体の幅と一致しない
+//! （`profile_detail_datalist.rs` と同じ教訓）。ルート
+//! `.blocks-action-panel-footer-bar-layout` に `container-type:
+//! inline-size` を設定し、`@container blocks-action-panel-footer-bar
+//! (min-width: 40rem)` でデモ枠の実幅を基準に切り替える。
+//!
 //! # アイコンのみのボタンには `aria-label` を付与する
 //!
 //! 「その他の操作」ボタンは `button::icon_button` 経由で組み立て、
@@ -271,13 +280,13 @@ pub const BLOCK: Block = Block {
 /// `blocks-action-panel-footer-bar-layout` にする（既存 block と同じ
 /// Bugbot 教訓の回避）。
 const LAYOUT_CSS: &str = "\
-.blocks-action-panel-footer-bar-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
+.blocks-action-panel-footer-bar-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  container-type: inline-size;\n  container-name: blocks-action-panel-footer-bar;\n}\n\
 [data-blocks-action-panel-footer-bar-bar] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  padding-top: var(--fandhe-space-3);\n}\n\
 [data-blocks-action-panel-footer-bar-bar][data-blocks-action-panel-footer-bar-stack=\"actions-first\"] {\n  flex-direction: column-reverse;\n}\n\
 [data-blocks-action-panel-footer-bar-actions] {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-action-panel-footer-bar-stack=\"full-width\"] [data-blocks-action-panel-footer-bar-actions] {\n  flex-direction: column;\n  align-items: stretch;\n}\n\
 [data-blocks-action-panel-footer-bar-stack=\"full-width\"] [data-blocks-action-panel-footer-bar-actions] [data-scope=\"button\"][data-part=\"root\"] {\n  width: 100%;\n}\n\
-@media (min-width: 40rem) {\n  [data-blocks-action-panel-footer-bar-bar] {\n    flex-direction: row;\n    align-items: center;\n    justify-content: space-between;\n  }\n  [data-blocks-action-panel-footer-bar-bar][data-blocks-action-panel-footer-bar-stack=\"actions-first\"] {\n    flex-direction: row;\n  }\n  [data-blocks-action-panel-footer-bar-actions] {\n    flex-direction: row;\n    width: auto;\n    margin-inline-start: auto;\n  }\n  [data-blocks-action-panel-footer-bar-stack=\"full-width\"] [data-blocks-action-panel-footer-bar-actions] {\n    flex-direction: row;\n    align-items: center;\n  }\n  [data-blocks-action-panel-footer-bar-stack=\"full-width\"] [data-blocks-action-panel-footer-bar-actions] [data-scope=\"button\"][data-part=\"root\"] {\n    width: auto;\n  }\n}\n";
+@container blocks-action-panel-footer-bar (min-width: 40rem) {\n  [data-blocks-action-panel-footer-bar-bar] {\n    flex-direction: row;\n    align-items: center;\n    justify-content: space-between;\n  }\n  [data-blocks-action-panel-footer-bar-bar][data-blocks-action-panel-footer-bar-stack=\"actions-first\"] {\n    flex-direction: row;\n  }\n  [data-blocks-action-panel-footer-bar-actions] {\n    flex-direction: row;\n    width: auto;\n    margin-inline-start: auto;\n  }\n  [data-blocks-action-panel-footer-bar-stack=\"full-width\"] [data-blocks-action-panel-footer-bar-actions] {\n    flex-direction: row;\n    align-items: center;\n  }\n  [data-blocks-action-panel-footer-bar-stack=\"full-width\"] [data-blocks-action-panel-footer-bar-actions] [data-scope=\"button\"][data-part=\"root\"] {\n    width: auto;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -340,11 +349,14 @@ mod tests {
 
     /// [`LAYOUT_CSS`] が想定するブレークポイントを持ち、`<` を含まない
     /// （REQ-1: `</style>` によるスタイル脱出を防ぐ）。3 つの `stack` 値が
-    /// すべて `demo()` 出力の属性値として現れること。
+    /// すべて `demo()` 出力の属性値として現れること。デモ枠の実幅基準の
+    /// `@container`（ビューポート幅基準の `@media` ではない）であることも
+    /// 固定する。
     #[test]
     fn layout_css_declares_breakpoint_and_stack_values_present() {
         assert!(!LAYOUT_CSS.contains('<'));
-        assert!(LAYOUT_CSS.contains("@media (min-width: 40rem)"));
+        assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
+        assert!(LAYOUT_CSS.contains("@container blocks-action-panel-footer-bar (min-width: 40rem)"));
         let html = render(&demo());
         for stack in ["note-first", "actions-first", "full-width"] {
             let needle = format!("data-blocks-action-panel-footer-bar-stack=\"{stack}\"");
