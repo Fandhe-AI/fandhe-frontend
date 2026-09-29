@@ -2155,6 +2155,11 @@ source = "site/blocks/table-sortable-bulk.md"
 path = "/blocks/table-sortable-bulk/"
 
 [[section.group.page]]
+title = "table-summary-rows"
+source = "site/blocks/table-summary-rows.md"
+path = "/blocks/table-summary-rows/"
+
+[[section.group.page]]
 title = "table-with-heading"
 source = "site/blocks/table-with-heading.md"
 path = "/blocks/table-with-heading/"
@@ -2268,6 +2273,14 @@ path = "/blocks/signup-01/"
 title = "signup-05"
 source = "site/blocks/signup-05.md"
 path = "/blocks/signup-05/"
+
+[[section.group]]
+title = "Action Panel"
+
+[[section.group.page]]
+title = "action-panel-footer-bar"
+source = "site/blocks/action-panel-footer-bar.md"
+path = "/blocks/action-panel-footer-bar/"
 
 [[section.group]]
 title = "Dialog"
