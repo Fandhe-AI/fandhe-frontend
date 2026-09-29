@@ -33,11 +33,18 @@
 //! `@container blocks-list-container (max-width: 30rem)` 規則が両方へ
 //! 一貫して適用されることで狭幅時の見た目差分（角丸解除・全幅化・左右
 //! 余白解除）を静的に併記する。3（R1052）は狭幅対応の集約元がないため
-//! 単一インスタンスのみとする。通常幅パネルには `min-width: 32rem`
-//! （コンテナクエリのしきい値 30rem を上回る値）を明示し、`flex-wrap`
-//! によるパネル自体の収縮でしきい値を割り込んで狭幅スタイルが誤適用
-//! されないよう固定する（`@container` はパネル自身の実測幅を見るため、
-//! `flex-basis` だけでは収縮時にしきい値を下回り得る）。
+//! 単一インスタンスのみとする。通常幅パネルには `min-width: min(31rem,
+//! 100%)`（コンテナクエリのしきい値 30rem を上回る値。ただし `100%` と
+//! の `min()` で実ビューポート幅が 31rem を下回る場合は縮小を許す）を
+//! 明示し、`flex-wrap` によるパネル自体の収縮でしきい値を割り込んで
+//! 狭幅スタイルが誤適用されないよう固定する（`@container` はパネル自身
+//! の実測幅を見るため、`flex-basis` だけでは収縮時にしきい値を下回り得
+//! る）。通常幅パネル（31rem）+ 狭幅パネル（12rem）+ 間隔（1rem）の合計
+//! 44rem は `.docs-content` の `max-width: 46rem` に収まり、`flex-wrap`
+//! による意図しない折り返しを起こさない（イシュー #3227 PR #3403 の
+//! レビュー指摘 P1 対応）。`min-width: min(..., 100%)` は同時に、画面幅が
+//! 44rem を下回る場合に通常幅パネルが固定下限で横スクロールを強制する
+//! 問題（同 P2 指摘）も避ける。
 //!
 //! # `card::body` の padding を 0 にする理由
 //!
@@ -263,9 +270,9 @@ const LAYOUT_CSS: &str = "\
 .blocks-list-container-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-list-container-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-list-container-section-title {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-.blocks-list-container-pair {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: flex-start;\n  gap: var(--fandhe-space-6);\n}\n\
-.blocks-list-container-panel {\n  flex: 1 1 22rem;\n  min-width: 32rem;\n  container-type: inline-size;\n  container-name: blocks-list-container;\n}\n\
-.blocks-list-container-narrow {\n  flex: 0 1 20rem;\n  max-width: 20rem;\n  min-width: 0;\n}\n\
+.blocks-list-container-pair {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: flex-start;\n  gap: var(--fandhe-space-4);\n}\n\
+.blocks-list-container-panel {\n  flex: 1 1 20rem;\n  min-width: min(31rem, 100%);\n  container-type: inline-size;\n  container-name: blocks-list-container;\n}\n\
+.blocks-list-container-narrow {\n  flex: 0 1 12rem;\n  max-width: 12rem;\n  min-width: 0;\n}\n\
 [data-scope=\"card\"][data-part=\"body\"][data-blocks-list-container-body] {\n  padding: 0;\n}\n\
 [data-scope=\"item\"][data-part=\"group\"][data-blocks-list-container-cards] {\n  gap: var(--fandhe-space-4);\n}\n\
 [data-scope=\"item\"][data-part=\"root\"][data-blocks-list-container-row] {\n  border-radius: 0;\n}\n\
