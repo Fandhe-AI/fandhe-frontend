@@ -65,14 +65,17 @@ fn two_line(primary: Node, secondary: &str) -> Node {
     )
 }
 
-/// 先頭列（アバター + 2 段テキスト）の `<td>`。
+/// 先頭列（アバター + 2 段テキスト）の `<th scope="row">`。
 ///
-/// `blocks-table-rich-rows-identity`（`display: flex`）は `<td>` 自体では
-/// なく内側の `div` に適用する。`<td>` に `display: flex` を当てると
+/// 行の識別子（人物名/ブランチ名）を表すため `table::cell`（`<td>`）ではなく
+/// `table::row_header`（`<th scope="row">`）で出力し、行見出しとしての意味論
+/// を持たせる（イシュー #2825 の `row_header` を使用、codex-review 指摘対応）。
+/// `blocks-table-rich-rows-identity`（`display: flex`）は `<th>` 自体では
+/// なく内側の `div` に適用する。`<th>` に `display: flex` を当てると
 /// `table-cell` 表示から外れ、テーブルレイアウトに参加しなくなり見出しと
 /// 本文の列配置がずれるため（レビュー指摘対応）。
 fn identity_cell(name: &str, sub: &str) -> Node {
-    table::cell(
+    table::row_header(
         vec![],
         vec![div(
             vec![("class", "blocks-table-rich-rows-identity")],
