@@ -2255,6 +2255,11 @@ path = "/blocks/form-layout-two-column/"
 title = "Auth"
 
 [[section.group.page]]
+title = "auth-dropdown-panel"
+source = "site/blocks/auth-dropdown-panel.md"
+path = "/blocks/auth-dropdown-panel/"
+
+[[section.group.page]]
 title = "auth-oauth-consent"
 source = "site/blocks/auth-oauth-consent.md"
 path = "/blocks/auth-oauth-consent/"
