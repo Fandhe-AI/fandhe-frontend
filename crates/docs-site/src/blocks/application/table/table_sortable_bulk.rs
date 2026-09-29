@@ -211,21 +211,24 @@ struct RowData {
 }
 
 /// 4 行分の共通ダミーデータ（「未選択」「選択中」両パネルで共有する）。
+/// 名前列を `aria-sort="ascending"` 表示するため、行の並びも名前の
+/// 昇順（Elena, Haruto, Kwame, Mei）にする（表示順とソート表示の矛盾を
+/// 防ぐ。Codex レビュー指摘、イシュー #2945 PR #3393）。
 fn rows_data() -> [RowData; 4] {
     [
-        RowData {
-            name: dummy_assets::PERSON_NAMES[0],
-            status: "Active",
-            role: dummy_assets::JOB_TITLES[0],
-            updated: ("2026-09-20", "Sep 20, 2026"),
-            assignee: dummy_assets::PERSON_NAMES[4],
-        },
         RowData {
             name: dummy_assets::PERSON_NAMES[1],
             status: "Pending",
             role: dummy_assets::JOB_TITLES[1],
             updated: ("2026-09-18", "Sep 18, 2026"),
             assignee: dummy_assets::PERSON_NAMES[5],
+        },
+        RowData {
+            name: dummy_assets::PERSON_NAMES[0],
+            status: "Active",
+            role: dummy_assets::JOB_TITLES[0],
+            updated: ("2026-09-20", "Sep 20, 2026"),
+            assignee: dummy_assets::PERSON_NAMES[4],
         },
         RowData {
             name: dummy_assets::PERSON_NAMES[2],
@@ -370,7 +373,7 @@ fn panel(variant: &'static str, selected_count: usize) -> Node {
                         } else {
                             checkbox::CheckedState::Unchecked
                         },
-                        "Select row",
+                        &format!("Select row: {}", row.name),
                     )],
                 ),
                 table::cell(data_table::column_attrs(&name_column), vec![text(row.name)]),
