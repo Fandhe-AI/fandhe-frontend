@@ -993,6 +993,7 @@ pub enum LayoutCss {
 | list-people | #2923（親 #2892） | `application/list/list_people.rs` |
 | list-sticky-groups | #2924（親 #2892） | `application/list/list_sticky_groups.rs` |
 | list-title-meta | #2925（親 #2892） | `application/list/list_title_meta.rs` |
+| table-sortable-bulk | #2945（親 #2892） | `application/table/table_sortable_bulk.rs` |
 | grid-list-compact-tiles | #2918（親 #2892） | `application/grid_list/grid_list_compact_tiles.rs` |
 | grid-list-file-thumbnails | #2920 | `application/grid_list/grid_list_file_thumbnails.rs` |
 | grid-list-logo-cards | #2921（親 #2892） | `application/grid_list/grid_list_logo_cards.rs` |

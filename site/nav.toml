@@ -2112,6 +2112,14 @@ source = "site/blocks/list-title-meta.md"
 path = "/blocks/list-title-meta/"
 
 [[section.group]]
+title = "Table"
+
+[[section.group.page]]
+title = "table-sortable-bulk"
+source = "site/blocks/table-sortable-bulk.md"
+path = "/blocks/table-sortable-bulk/"
+
+[[section.group]]
 title = "Grid List"
 
 [[section.group.page]]
