@@ -2297,6 +2297,11 @@ title = "action-panel-with-input"
 source = "site/blocks/action-panel-with-input.md"
 path = "/blocks/action-panel-with-input/"
 
+[[section.group.page]]
+title = "action-panel-with-well"
+source = "site/blocks/action-panel-with-well.md"
+path = "/blocks/action-panel-with-well/"
+
 [[section.group]]
 title = "Dialog"
 
