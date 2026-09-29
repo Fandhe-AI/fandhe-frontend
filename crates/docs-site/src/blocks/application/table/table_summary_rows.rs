@@ -19,6 +19,12 @@
 //! `data-blocks-table-summary-rows-total` 属性で [`LAYOUT_CSS`] から
 //! 上罫線・拡大フォントを当てる。
 //!
+//! `table.rs` の `data-align` state 規則は `cell`/`column-header` パーツ
+//! のみを対象とし `row-header` を含まないため（`row-header` は既定で
+//! `text-align: inherit`）、集計行ラベルの `data-align="end"` はそのままでは
+//! 効かない。[`LAYOUT_CSS`] で `row-header` パーツに限定した
+//! `text-align: end` を明示指定する（イシュー #2946 レビュー指摘）。
+//!
 //! # 狭幅で数量列を隠し、品目名の下へ補足を回す
 //!
 //! 数量列（`th`/`td`）は `data-blocks-table-summary-rows-qty` 属性で選択し、
@@ -227,6 +233,7 @@ pub const BLOCK: Block = Block {
 /// doc「block 固有 CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-table-summary-rows-layout {\n  max-width: 40rem;\n  width: 100%;\n}\n\
+[data-scope=\"table\"][data-part=\"row-header\"][data-align=\"end\"] {\n  text-align: end;\n}\n\
 [data-blocks-table-summary-rows-note] {\n  display: none;\n}\n\
 [data-scope=\"table\"][data-part=\"row\"][data-blocks-table-summary-rows-total] > * {\n  border-top: 1px solid var(--fandhe-color-border);\n  font-size: var(--fandhe-font-font-size-lg);\n}\n\
 @media (max-width: 47.99rem) {\n  [data-blocks-table-summary-rows-qty] {\n    display: none;\n  }\n  [data-blocks-table-summary-rows-note] {\n    display: block;\n  }\n}\n";
@@ -302,5 +309,15 @@ mod tests {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains(".blocks-table-summary-rows-layout"));
         assert!(LAYOUT_CSS.contains("@media (max-width: 47.99rem)"));
+    }
+
+    #[test]
+    fn layout_css_right_aligns_summary_row_headers() {
+        // `table.rs` の `data-align` state 規則は row-header を対象外のため
+        // （モジュール doc冒頭参照）、本 block 固有 CSS で明示指定している
+        // ことを固定する。
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"table\"][data-part=\"row-header\"][data-align=\"end\"] {\n  text-align: end;\n}"
+        ));
     }
 }
