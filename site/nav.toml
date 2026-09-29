@@ -2323,6 +2323,14 @@ source = "site/blocks/action-panel-with-well.md"
 path = "/blocks/action-panel-with-well/"
 
 [[section.group]]
+title = "Empty State"
+
+[[section.group.page]]
+title = "empty-state-card-header"
+source = "site/blocks/empty-state-card-header.md"
+path = "/blocks/empty-state-card-header/"
+
+[[section.group]]
 title = "Dialog"
 
 [[section.group.page]]
