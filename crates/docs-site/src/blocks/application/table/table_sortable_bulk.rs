@@ -58,24 +58,36 @@
 //! `data-blocks-table-sortable-bulk-select-cell` を選択列の見出しセル・
 //! 各行のセルへ付与し、本 block 局所の CSS オーバーライド（同属性へ
 //! `box-sizing: border-box; padding-inline: 0;
-//! width: var(--fandhe-data-table-select-width, 2.5rem);` を適用）で
-//! 解消する。`width` を明示しないと `box-sizing`/`padding-inline: 0` だけ
-//! では列幅が定まらず、`select_all`/`select_row` 共有 base の他の暗黙幅
-//! （フォントサイズ等）次第でツールバーの `inset-inline-start` 前提から
-//! 実幅がずれ得るため、`inset-inline-start` と同じ
-//! `var(--fandhe-data-table-select-width, 2.5rem)` を選択列の実幅として
-//! 明示し厳密に一致させる（Codex 指摘、イシュー #2945 PR #3393 追加
-//! レビュー）。（`select-cell` の垂直 padding は保持、チェックボックスは
-//! 既存の `text-align: center` で中央寄せのまま）。狭幅
-//! （`@container ... (max-width: 40rem)`）では副次列（役割・最終更新）を
-//! 隠し、ツールバーは全幅帯（`inset-inline-start: 0`）として残す。この
-//! 幅切替でもツールバーが全行選択チェックボックスを覆うため、同じ
-//! `@container` 規則内で `[data-blocks-table-sortable-bulk-select-header]`
-//! に `visibility: hidden` を適用し、覆われている間はチェックボックスを
-//! フォーカス対象からも外す（`visibility: hidden` は Tab 移動・アクセシ
-//! ビリティツリーの双方から除外するため、可視状態とフォーカス可否が常に
-//! 一致する）。「未選択」パネルはツールバー自体を出力しない（1 行も選択
-//! されていない状態を JS 無しで正しく表す）。
+//! width: var(--fandhe-data-table-select-width, 2.5rem);
+//! text-align: center;` を適用）で解消する。`width` を明示しないと
+//! `box-sizing`/`padding-inline: 0` だけでは列幅が定まらず、
+//! `select_all`/`select_row` 共有 base の他の暗黙幅（フォントサイズ等）
+//! 次第でツールバーの `inset-inline-start` 前提から実幅がずれ得るため、
+//! `inset-inline-start` と同じ `var(--fandhe-data-table-select-width,
+//! 2.5rem)` を選択列の実幅として明示し厳密に一致させる（Codex 指摘、
+//! イシュー #2945 PR #3393 追加レビュー）。`text-align: center` も
+//! block 固有属性側で明示する: `select_all`/`select_row` 共有 base が
+//! 本来持つ `text-align: center` は `data-scope="data-table"` を要求する
+//! セレクタのため、`table::column_header`/`table::cell` が強制する
+//! `data-scope="table"` の実際の DOM には適用されず、`padding-inline: 0`
+//! のままではチェックボックス（`inline-flex`）が列内で左寄せに描画される
+//! （Cursor Bugbot 指摘、イシュー #2945 PR #3393 レビュー）。見出し行の
+//! `th`（`.blocks-table-sortable-bulk-table-wrap thead th`）にも
+//! `box-sizing: border-box` を明示する: 既定の `content-box` のままでは
+//! `height: 3rem` が `column-header` base の `padding`/`border-bottom` を
+//! 含まない content 領域のみの高さとなり、実際の `th` が同じ
+//! `height: 3rem` のツールバーより高くなって、ツールバー下端からソート
+//! ラベルがはみ出して透けて見える（Cursor Bugbot 指摘、イシュー #2945
+//! PR #3393 レビュー）。狭幅（`@container ... (max-width: 40rem)`）では
+//! 副次列（役割・最終更新）を隠し、ツールバーは全幅帯
+//! （`inset-inline-start: 0`）として残す。この幅切替でもツールバーが
+//! 全行選択チェックボックスを覆うため、同じ `@container` 規則内で
+//! `[data-blocks-table-sortable-bulk-select-header]` に `visibility:
+//! hidden` を適用し、覆われている間はチェックボックスをフォーカス対象
+//! からも外す（`visibility: hidden` は Tab 移動・アクセシビリティツリー
+//! の双方から除外するため、可視状態とフォーカス可否が常に一致する）。
+//! 「未選択」パネルはツールバー自体を出力しない（1 行も選択されていない
+//! 状態を JS 無しで正しく表す）。
 //!
 //! # `menu`/ボタンを disabled にしない理由
 //!
@@ -591,9 +603,10 @@ pub const BLOCK: Block = Block {
 
 /// `table_sortable_bulk` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
 /// doc「block 固有 CSS の置き場」節）。`--fandhe-*` トークンを参照する
-/// 宣言に加え、選択列の実幅を一括操作ツールバーの `inset-inline-start`
-/// 前提へ合わせる 1 箇所のみ `[data-blocks-table-sortable-bulk-select-cell]`
-/// セレクタを持つ（モジュール doc「一括操作
+/// 宣言に加え、選択列の実幅・中央寄せを一括操作ツールバーの
+/// `inset-inline-start` 前提へ合わせる `[data-blocks-table-sortable-bulk-
+/// select-cell]` セレクタと、見出し行の外形高さをツールバーへ一致させる
+/// `thead th` セレクタを持つ（モジュール doc「一括操作
 /// ツールバーを見出し行へ重ねる実装」節、イシュー #2945 PR #3393）。本
 /// 定数は `crate::showcase::stylesheet()` には集約されない block 固有
 /// LAYOUT_CSS（[`Block::layout_css`](crate::blocks::Block::layout_css)）
@@ -604,8 +617,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-table-sortable-bulk-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-table-sortable-bulk-panel {\n  display: flex;\n  flex-direction: column;\n}\n\
 .blocks-table-sortable-bulk-table-wrap {\n  position: relative;\n  container-type: inline-size;\n  container-name: blocks-table-sortable-bulk;\n}\n\
-.blocks-table-sortable-bulk-table-wrap thead th {\n  height: 3rem;\n}\n\
-.blocks-table-sortable-bulk-table-wrap [data-blocks-table-sortable-bulk-select-cell] {\n  box-sizing: border-box;\n  padding-inline: 0;\n  width: var(--fandhe-data-table-select-width, 2.5rem);\n}\n\
+.blocks-table-sortable-bulk-table-wrap thead th {\n  box-sizing: border-box;\n  height: 3rem;\n}\n\
+.blocks-table-sortable-bulk-table-wrap [data-blocks-table-sortable-bulk-select-cell] {\n  box-sizing: border-box;\n  padding-inline: 0;\n  width: var(--fandhe-data-table-select-width, 2.5rem);\n  text-align: center;\n}\n\
 [data-blocks-table-sortable-bulk-toolbar] {\n  position: absolute;\n  top: 0;\n  inset-inline-start: var(--fandhe-data-table-select-width, 2.5rem);\n  inset-inline-end: 0;\n  height: 3rem;\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  padding-inline: var(--fandhe-space-3);\n  background: var(--fandhe-color-bg);\n  z-index: 1;\n}\n\
 @container blocks-table-sortable-bulk (max-width: 40rem) {\n  [data-blocks-table-sortable-bulk-secondary] {\n    display: none;\n  }\n\n  [data-blocks-table-sortable-bulk-toolbar] {\n    inset-inline-start: 0;\n  }\n\n  [data-blocks-table-sortable-bulk-select-header] {\n    visibility: hidden;\n  }\n}\n";
 
@@ -696,9 +709,38 @@ mod tests {
     #[test]
     fn select_column_width_override_matches_toolbar_inset_assumption() {
         assert!(LAYOUT_CSS.contains(
-            "[data-blocks-table-sortable-bulk-select-cell] {\n  box-sizing: border-box;\n  padding-inline: 0;\n  width: var(--fandhe-data-table-select-width, 2.5rem);\n}"
+            "[data-blocks-table-sortable-bulk-select-cell] {\n  box-sizing: border-box;\n  padding-inline: 0;\n  width: var(--fandhe-data-table-select-width, 2.5rem);\n  text-align: center;\n}"
         ));
         assert!(!LAYOUT_CSS.contains("data-scope=\"data-table\""));
+    }
+
+    /// 選択列セルの中央寄せを固定する。`table::column_header`/`table::cell`
+    /// が強制する `data-scope="table"` の下では
+    /// `data_table::select_all`/`select_row` 共有 base の `text-align:
+    /// center` が実際の DOM に適用されない（セレクタが
+    /// `data-scope="data-table"` を要求するため）。`padding-inline: 0` で
+    /// 左右余白を消した状態のまま放置すると、チェックボックス
+    /// （`inline-flex`）が `2.5rem` 幅の列内で左寄せのまま描画される
+    /// ため、`select-cell` 局所 CSS で `text-align: center` を明示する
+    /// （Cursor Bugbot 指摘、イシュー #2945 PR #3393 レビュー）。
+    #[test]
+    fn select_cell_override_centers_checkbox_horizontally() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-table-sortable-bulk-select-cell] {\n  box-sizing: border-box;\n  padding-inline: 0;\n  width: var(--fandhe-data-table-select-width, 2.5rem);\n  text-align: center;\n}"
+        ));
+    }
+
+    /// 見出し行の `th` を `box-sizing: border-box` にし、`height: 3rem` が
+    /// `column-header` base の `padding`（`--fandhe-space-3`
+    /// `--fandhe-space-4`）+ `border-bottom`（1px）込みの外形高さになる
+    /// ことを固定する。`content-box`（既定）のままだと `height: 3rem` は
+    /// content 領域のみの高さで、実際の `th` はそれより高くなり、同じ
+    /// `height: 3rem` の一括操作ツールバーの下端からソートラベルが
+    /// はみ出して透けて見える（Cursor Bugbot 指摘、イシュー #2945 PR
+    /// #3393 レビュー、L606-609）。
+    #[test]
+    fn header_row_th_uses_border_box_to_match_toolbar_height() {
+        assert!(LAYOUT_CSS.contains("thead th {\n  box-sizing: border-box;\n  height: 3rem;\n}"));
     }
 
     /// 選択列の見出しセル・各行セルの双方に
