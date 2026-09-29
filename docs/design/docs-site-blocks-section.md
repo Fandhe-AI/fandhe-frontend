@@ -994,6 +994,7 @@ pub enum LayoutCss {
 | list-sticky-groups | #2924（親 #2892） | `application/list/list_sticky_groups.rs` |
 | list-title-meta | #2925（親 #2892） | `application/list/list_title_meta.rs` |
 | table-grouped-rows | #2942（親 #2892） | `application/table/table_grouped_rows.rs` |
+| table-responsive-stacked | #2943（親 #2892） | `application/table/table_responsive_stacked.rs` |
 | grid-list-compact-tiles | #2918（親 #2892） | `application/grid_list/grid_list_compact_tiles.rs` |
 | grid-list-file-thumbnails | #2920 | `application/grid_list/grid_list_file_thumbnails.rs` |
 | grid-list-logo-cards | #2921（親 #2892） | `application/grid_list/grid_list_logo_cards.rs` |
@@ -1007,6 +1008,7 @@ pub enum LayoutCss {
 | navbar-docs-site | #2927（親 #2892） | `application/navbar/navbar_docs_site.rs` |
 | table-with-heading | #2947（親 #2892） | `application/table/table_with_heading.rs` |
 | profile-detail-skills | #2938（親 #2892） | `application/profile/profile_detail_skills.rs` |
+| sidebar-rail-panel | #2941 | `application/sidebar/sidebar_rail_panel.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
 個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の全件であり、
