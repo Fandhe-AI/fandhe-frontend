@@ -46,14 +46,16 @@
 //! `true` にし、`command::input` の `aria-activedescendant` を同じ id へ
 //! 向ける。右ペインのプレビューはこの先頭候補を表示する。
 //!
-//! # 狭幅では右ペイン（プレビュー）を隠す
+//! # 狭幅ではプレビューを候補一覧の下へ移す
 //!
 //! Demo 枠の幅はビューポート幅と一致しないため `@container`
 //! （コンテナクエリ）で判定する（`profile_detail_datalist` 等と同型の
 //! パターン）。[`LAYOUT_CSS`] は `.blocks-command-palette-preview-panes` へ
 //! `container-type: inline-size` の祖先を持たせ、コンテナ幅が `40rem`
-//! 未満のとき右ペインを `display: none` にする。プレビュー内容は左候補と
-//! 重複するダミーであり、隠しても情報欠落にはならない。
+//! 未満のとき `grid-template-columns` を 1 カラムへ畳んで右ペインを
+//! 候補一覧の下へ積む（`display: none` にはしない）。右ペインにのみ
+//! ある連絡先（メール・電話・所属・送信ボタン）は左候補一覧に含まれず
+//! 隠すと欠落するため（イシュー #2968 レビュー指摘の是正）。
 //!
 //! # 固定オーバーレイの中和
 //!
@@ -412,14 +414,17 @@ pub const BLOCK: Block = Block {
 /// 角丸をそのまま content の輪郭として見せる。`command::root` 自身の枠は
 /// `border: 0` で消し、二重枠を避ける。
 ///
-/// # 2 ペイン分割・狭幅での右ペイン非表示
+/// # 2 ペイン分割・狭幅ではプレビューを下へ積む
 ///
 /// `.blocks-command-palette-preview-panes` を 2 カラムの grid にし、右
 /// ペイン（`.blocks-command-palette-preview-pane`）は左境界線・中央寄せの
 /// 縦積みで構成する。`container-type: inline-size` を持つ祖先
 /// `[data-blocks-command-palette-preview-root]` を基準にした `@container`
-/// （幅 40rem 未満）で右ペインを隠す（モジュール doc「狭幅では右ペイン
-/// （プレビュー）を隠す」節参照）。
+/// （幅 40rem 未満）で `grid-template-columns` を 1 カラムへ畳み、右ペインを
+/// `display: none` にはせず候補一覧の下へ積む（左境界線も上境界線へ
+/// 差し替える）。連絡先（メール・電話・所属・送信ボタン）は右ペインにしか
+/// なく隠すと欠落するため（モジュール doc「狭幅ではプレビューを候補
+/// 一覧の下へ移す」節参照）。
 const LAYOUT_CSS: &str = "\
 [data-blocks-command-palette-preview-root] {\n  position: relative;\n  container-type: inline-size;\n  container-name: blocks-command-palette-preview;\n}\n\
 .blocks-command-palette-preview [data-scope=\"dialog\"][data-part=\"backdrop\"] {\n  position: absolute;\n  inset: 0;\n  z-index: auto;\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
@@ -434,7 +439,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-command-palette-preview-item-title {\n  font-size: var(--fandhe-font-font-size-xs);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 @container blocks-command-palette-preview (max-width: 40rem) {\n  \
 .blocks-command-palette-preview-panes {\n    grid-template-columns: minmax(0, 1fr);\n  }\n  \
-.blocks-command-palette-preview-pane {\n    display: none;\n  }\n\
+.blocks-command-palette-preview-pane {\n    border-inline-start: 0;\n    border-block-start: 1px solid var(--fandhe-color-border);\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -477,11 +482,15 @@ mod tests {
     }
 
     #[test]
-    fn layout_css_is_safe_and_hides_preview_on_narrow_container() {
+    fn layout_css_is_safe_and_stacks_preview_below_list_on_narrow_container() {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
         assert!(LAYOUT_CSS.contains("@container blocks-command-palette-preview (max-width: 40rem)"));
-        assert!(LAYOUT_CSS.contains("display: none;"));
+        // 右ペイン（連絡先を含むプレビュー）を display: none にはせず、
+        // 1 カラムへ畳んで候補一覧の下へ積む（イシュー #2968 レビュー指摘の是正）。
+        assert!(!LAYOUT_CSS.contains("display: none;"));
+        assert!(LAYOUT_CSS.contains("grid-template-columns: minmax(0, 1fr);"));
+        assert!(LAYOUT_CSS.contains("border-block-start: 1px solid var(--fandhe-color-border);"));
     }
 
     #[test]
