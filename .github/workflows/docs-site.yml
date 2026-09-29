@@ -471,6 +471,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/game-ui-modal/index.html"
           # Application / Drawer
           # Application / Command Palette
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/command-palette-preview/index.html"
           # Application / Onboarding
           # Application / Card
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-meta-cta/index.html"
