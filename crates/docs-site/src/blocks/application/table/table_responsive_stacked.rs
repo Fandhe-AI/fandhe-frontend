@@ -297,11 +297,10 @@ const LAYOUT_CSS: &str = "\
 .blocks-table-responsive-stacked-frame {\n  container-type: inline-size;\n  container-name: blocks-table-responsive-stacked;\n}\n\
 .blocks-table-responsive-stacked-frame--narrow {\n  max-inline-size: 24rem;\n}\n\
 .blocks-table-responsive-stacked-toolbar {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  margin-block-end: var(--fandhe-space-4);\n}\n\
-[data-blocks-table-responsive-stacked-stacked] {\n  display: none;\n}\n\
-[data-scope=\"data-list\"][data-part=\"root\"][data-blocks-table-responsive-stacked-stacked] {\n  --fandhe-data-list-gap: var(--fandhe-space-1);\n  margin-block-start: var(--fandhe-space-1);\n}\n\
+[data-scope=\"data-list\"][data-part=\"root\"][data-blocks-table-responsive-stacked-stacked] {\n  display: none;\n  --fandhe-data-list-gap: var(--fandhe-space-1);\n  margin-block-start: var(--fandhe-space-1);\n}\n\
 @container blocks-table-responsive-stacked (max-width: 40rem) {\n  \
 [data-blocks-table-responsive-stacked-secondary] {\n    display: none;\n  }\n  \
-[data-blocks-table-responsive-stacked-stacked] {\n    display: block;\n  }\n  \
+[data-scope=\"data-list\"][data-part=\"root\"][data-blocks-table-responsive-stacked-stacked] {\n    display: flex;\n  }\n  \
 .blocks-table-responsive-stacked-toolbar {\n    flex-wrap: wrap;\n  }\n\
 }\n";
 
@@ -357,6 +356,32 @@ mod tests {
             LAYOUT_CSS.contains("@container blocks-table-responsive-stacked (max-width: 40rem)")
         );
         assert!(LAYOUT_CSS.contains("max-inline-size: 24rem;"));
+    }
+
+    /// レビュー指摘（PR #3396）の回帰: 折り畳み用 `dl` の表示切替は
+    /// `data-list` recipe の base ルール `[data-scope="data-list"][data-part="root"]`
+    /// （詳細度 0,2,0）に対して詳細度で負けない `data-scope`/`data-part` 併記
+    /// セレクタで行う（単一属性セレクタ `[data-blocks-table-responsive-stacked-stacked]`
+    /// 〔詳細度 0,1,0〕は base の `display: flex` に負けて常に表示されたままに
+    /// なり、広幅状態で email/title/company が二重表示される）。狭幅側は
+    /// `display: block` ではなく `display: flex` に戻し、同ブロックが設定する
+    /// `gap`（`--fandhe-data-list-gap`）を無効化しない。
+    #[test]
+    fn stacked_datalist_toggle_wins_specificity_against_recipe_base() {
+        let scoped_selector = r#"[data-scope="data-list"][data-part="root"][data-blocks-table-responsive-stacked-stacked]"#;
+        assert!(
+            LAYOUT_CSS.contains(&format!("{scoped_selector} {{\n  display: none;")),
+            "wide state must hide the stacked dl via a selector at least as specific as the recipe base"
+        );
+        assert!(
+            LAYOUT_CSS.contains(&format!("{scoped_selector} {{\n    display: flex;")),
+            "narrow state must show the stacked dl as flex (not block) to keep --fandhe-data-list-gap effective"
+        );
+        assert!(
+            !LAYOUT_CSS
+                .contains("[data-blocks-table-responsive-stacked-stacked] {\n  display: none;\n}"),
+            "must not use the single-attribute selector that loses specificity to the recipe base"
+        );
     }
 
     #[test]
