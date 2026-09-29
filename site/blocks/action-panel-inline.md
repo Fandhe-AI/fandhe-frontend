@@ -125,7 +125,14 @@ fn panel_top_right_button() -> Node {
 /// `inline-switch`（R0735 トグルスイッチ版）: `inline-button` と同じ行構造
 /// で、右側をトグルスイッチへ差し替える。
 fn panel_inline_switch() -> Node {
-    let switch_props = SwitchProps::default();
+    let switch_props = SwitchProps {
+        // モジュール doc「switch は `disabled: true` の `checked` 初期状態で
+        // 固定する」節参照。native checkbox の操作を実際に抑止し、
+        // 操作後の状態不一致（AT が伝える状態と `data-state` 固定表示の
+        // 食い違い）を構造的に防ぐ。
+        disabled: true,
+        ..SwitchProps::default()
+    };
     card::root(
         CardProps::from(CardVariant::Outline),
         vec![("data-blocks-action-panel-inline-panel", "inline-switch")],

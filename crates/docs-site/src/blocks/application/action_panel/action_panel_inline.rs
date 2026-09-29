@@ -31,13 +31,18 @@
 //! block と同じくリテラル値を直書きする）。`top-right-button` は card の
 //! recipe が既に grid レイアウトを担うため、本 block 側の CSS は関与しない。
 //!
-//! # switch は enabled のまま `checked: true` の初期状態で固定する
+//! # switch は `disabled: true` の `checked` 初期状態で固定する
+//! （イシュー #2953 実装後の指摘対応。PR #3407 codex/review 指摘）
 //!
-//! 依存する表示（`pricing_seats_split` の月額表示のような、切替と矛盾する
-//! 併記情報）を持たないため、ボタンと同様に「押せるが無 JS のため何も
-//! 起きない」静的表示として `disabled` を付与しない
-//! （`docs/policy/intentional-non-adoption.md` §3.25: バリデーション・
-//! 送信処理・状態同期は UI コンポーネント層 / block Demo の責務外）。
+//! 本 Demo は無 JS のため、`switch::hidden_input` が出力する native
+//! checkbox はクリック/Space で `checked` を切り替えられる一方、
+//! `root`/`control`/`thumb` の `data-state` は描画時の固定値のまま
+//! 更新されない。`disabled` を付与しなかった当初実装では、支援技術が
+//! 伝える状態（native checkbox の実際の checked）と画面表示（`control`/
+//! `thumb` の位置）が操作後に食い違う不変条件違反を起こしていた。
+//! `pricing_seats_split` の年払い switch（`disabled: true` により
+//! `SwitchProps::disabled` を経由して `hidden_input` へ native
+//! `disabled` を出力し、操作自体を実際に抑止する）と同じ解決を採る。
 //!
 //! # `text` の名前衝突
 //!
@@ -155,7 +160,14 @@ fn panel_top_right_button() -> Node {
 /// `inline-switch`（R0735 トグルスイッチ版）: `inline-button` と同じ行構造
 /// で、右側をトグルスイッチへ差し替える。
 fn panel_inline_switch() -> Node {
-    let switch_props = SwitchProps::default();
+    let switch_props = SwitchProps {
+        // モジュール doc「switch は `disabled: true` の `checked` 初期状態で
+        // 固定する」節参照。native checkbox の操作を実際に抑止し、
+        // 操作後の状態不一致（AT が伝える状態と `data-state` 固定表示の
+        // 食い違い）を構造的に防ぐ。
+        disabled: true,
+        ..SwitchProps::default()
+    };
     card::root(
         CardProps::from(CardVariant::Outline),
         vec![("data-blocks-action-panel-inline-panel", "inline-switch")],
@@ -312,13 +324,17 @@ mod tests {
         assert_eq!(html.matches("data-part=\"action\"").count(), 1);
     }
 
-    /// switch は `checked` の初期状態で固定され、`role="switch"` を持つ。
+    /// switch は `checked`・`disabled` の初期状態で固定され、
+    /// `role="switch"` を持つ（モジュール doc「switch は `disabled: true`
+    /// の `checked` 初期状態で固定する」節。操作後の状態不一致を防ぐため
+    /// native checkbox の操作自体を抑止する契約を固定する）。
     #[test]
     fn switch_is_checked_initial_state() {
         let html = render(&demo());
         assert_eq!(html.matches("role=\"switch\"").count(), 1);
         assert!(html.contains("checked=\"\""));
         assert!(html.contains("data-state=\"checked\""));
+        assert!(html.contains("disabled=\"\""));
     }
 
     /// `<form>` を出力しない・XSS 回帰の不変条件を固定する
