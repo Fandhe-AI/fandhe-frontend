@@ -1,7 +1,8 @@
 //! Application / Empty State カテゴリの block 登録点（イシュー #2734 で
-//! 雛形新設、イシュー #2969 で最初の block（`empty-state-card-header`）を
-//! 追加しディレクトリ化して卒業した）。手順は
-//! `docs/design/docs-site-blocks-section.md` §18 参照。
+//! 雛形新設、イシュー #2969 で最初の block（`empty-state-card-header`）を、
+//! イシュー #2970 で 2 件目（[`empty_state_invite_team`]）を、
+//! イシュー #2971 で 3 件目（[`empty_state_setup_steps`]）を追加した）。
+//! 手順は `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
 //! 新規 block を追加する際は本ファイルへ `mod` 宣言と `blocks()` への追記を
@@ -10,6 +11,7 @@
 //! ための構造、イシュー #2734）。
 
 mod empty_state_card_header;
+mod empty_state_invite_team;
 mod empty_state_setup_steps;
 
 use crate::blocks::Block;
@@ -17,6 +19,7 @@ use crate::blocks::Block;
 pub(super) fn blocks() -> Vec<Block> {
     vec![
         empty_state_card_header::BLOCK,
+        empty_state_invite_team::BLOCK,
         empty_state_setup_steps::BLOCK,
     ]
 }
