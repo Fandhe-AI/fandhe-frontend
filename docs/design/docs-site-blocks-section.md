@@ -1008,6 +1008,7 @@ pub enum LayoutCss {
 | table-with-heading | #2947（親 #2892） | `application/table/table_with_heading.rs` |
 | profile-detail-skills | #2938（親 #2892） | `application/profile/profile_detail_skills.rs` |
 | sidebar-rail-panel | #2941 | `application/sidebar/sidebar_rail_panel.rs` |
+| table-summary-rows | #2946（親 #2892） | `application/table/table_summary_rows.rs` |
 
 （`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
 個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の全件であり、
