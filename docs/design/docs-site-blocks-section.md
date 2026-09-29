@@ -1022,6 +1022,7 @@ pub enum LayoutCss {
 | action-panel-with-input | #2955 | `application/action_panel/action_panel_with_input.rs` |
 | action-panel-stacked | #2954 | `application/action_panel/action_panel_stacked.rs` |
 | action-panel-with-well | #2956 | `application/action_panel/action_panel_with_well.rs` |
+| ai-chat-prompt-start | #2961（親 #2951） | `application/ai_chat/ai_chat_prompt_start.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
