@@ -10,9 +10,13 @@
 //! ための構造、イシュー #2734）。
 
 mod empty_state_card_header;
+mod empty_state_setup_steps;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![empty_state_card_header::BLOCK]
+    vec![
+        empty_state_card_header::BLOCK,
+        empty_state_setup_steps::BLOCK,
+    ]
 }
