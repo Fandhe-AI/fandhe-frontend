@@ -62,6 +62,15 @@ impl AuthVariant {
             AuthVariant::SignUp => "sign-up",
         }
     }
+
+    /// [`variant_layout`] が variant コンテナへ付与する `id`（フラグメント
+    /// アンカーの遷移先、モジュール doc「補助リンク」節参照）。
+    fn id(self) -> &'static str {
+        match self {
+            AuthVariant::SignIn => "blocks-auth-split-photo-testimonial-sign-in",
+            AuthVariant::SignUp => "blocks-auth-split-photo-testimonial-sign-up",
+        }
+    }
 }
 
 /// ソーシャルログインボタン（アイコンなしのテキストボタン、モジュール doc
@@ -134,6 +143,12 @@ fn text_field(
 /// （docs-site は無 JS 制約〔`crate` モジュール doc 参照〕で hydration を
 /// 行わないため）。「未チェック固定の静的表示」という意図を `disabled` で
 /// 実際に操作不能化し、見た目と状態の食い違いを構造的に防ぐ。
+///
+/// `disabled` の既定 CSS（opacity: 0.5 / cursor: not-allowed）は
+/// `[data-blocks-auth-split-photo-testimonial-agree][data-disabled]` を
+/// [`LAYOUT_CSS`] で中和する（`auth_split_accent_panel::agree_checkbox`
+/// と同じ判断・同型のセレクタ、PR #3418 レビュー指摘対応）。「未チェック
+/// 固定の静的表示」という意図の伝達に薄い見た目は不要なため。
 fn agree_checkbox(name: &'static str, label_text: &'static str) -> Node {
     let props = CheckboxProps {
         disabled: true,
@@ -143,7 +158,7 @@ fn agree_checkbox(name: &'static str, label_text: &'static str) -> Node {
         Size::Sm,
         ColorPalette::Accent,
         &props,
-        vec![],
+        vec![("data-blocks-auth-split-photo-testimonial-agree", "")],
         vec![
             checkbox::hidden_input(&props, name, "on", vec![]),
             checkbox::control(
@@ -156,13 +171,13 @@ fn agree_checkbox(name: &'static str, label_text: &'static str) -> Node {
     )
 }
 
-/// 補助リンク（`link::root`、常に外部の固定 URL、モジュール doc
-/// 「参照元と原案からの差分」節参照）。
-fn helper_link(label_text: &'static str) -> Node {
+/// 補助リンク（`link::root`。`href`/`external` は呼び出し側が形（サインイン/
+/// サインアップ）ごとに選ぶ契約、モジュール doc「補助リンク」節参照）。
+fn helper_link(label_text: &'static str, href: &str, external: bool) -> Node {
     link::root(
-        REPO,
+        href,
         &LinkProps {
-            external: true,
+            external,
             variant: LinkVariant::Underline,
             palette: ColorPalette::Neutral,
             ..LinkProps::default()
@@ -216,16 +231,24 @@ fn form_column(variant: AuthVariant) -> Node {
         None,
     ));
 
-    let (checkbox_name, checkbox_label, helper_label) = match variant {
+    // helper_href/helper_external: サインイン形は実装のないパスワード再設定
+    // への固定外部 URL、サインアップ形は Demo 内に実在するサインイン形への
+    // 同一ページ内アンカー（モジュール doc「補助リンク」節参照）。
+    let (checkbox_name, checkbox_label, helper_label, helper_href, helper_external) = match variant
+    {
         AuthVariant::SignIn => (
             "blocks-auth-split-photo-testimonial-signin-remember",
             "ログイン状態を保持する",
             "パスワードをお忘れですか",
+            REPO.to_string(),
+            true,
         ),
         AuthVariant::SignUp => (
             "blocks-auth-split-photo-testimonial-signup-agree",
             "利用規約に同意する",
             "すでにアカウントをお持ちの方はこちら",
+            format!("#{}", AuthVariant::SignIn.id()),
+            false,
         ),
     };
 
@@ -266,7 +289,7 @@ fn form_column(variant: AuthVariant) -> Node {
             ),
             div(
                 vec![("class", "blocks-auth-split-photo-testimonial-helper")],
-                vec![helper_link(helper_label)],
+                vec![helper_link(helper_label, &helper_href, helper_external)],
             ),
         ],
     )
@@ -346,10 +369,13 @@ fn variant_layout(variant: AuthVariant, label: &'static str, first: Node, second
                 vec![text(label)],
             ),
             div(
-                vec![(
-                    "data-blocks-auth-split-photo-testimonial-variant",
-                    variant.attr(),
-                )],
+                vec![
+                    (
+                        "data-blocks-auth-split-photo-testimonial-variant",
+                        variant.attr(),
+                    ),
+                    ("id", variant.id()),
+                ],
                 vec![first, second],
             ),
         ],
@@ -388,7 +414,9 @@ pub fn demo() -> Node {
   テキストボタンにしています。実ブランドロゴの複製は行いません。
 - 暗幕の配色は `--fandhe-color-fg`/`--fandhe-color-bg` の反転ペア（既存
   block `blog-overlay-cards` と同型の判断）です。
-- 補助リンク（パスワード再設定・アカウント切り替え導線）はすべて固定外部
-  URL（本リポジトリ自身）へ遷移させ、`href="#"` の死リンクは使いません。
+- 補助リンク: パスワード再設定（サインイン形）は実装を持たないため固定
+  外部 URL（本リポジトリ自身）へ遷移させます。アカウント切り替え導線
+  （サインアップ形）は Demo 内に実在するサインイン形コンテナへの同一
+  ページ内アンカーにし、いずれも `href="#"` の死リンクは使いません。
 - チェックボックスは未チェック固定・`<form>` 非出力・送信処理なしの静的
   表示です。

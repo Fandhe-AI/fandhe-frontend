@@ -45,8 +45,14 @@
 //! - 暗幕の配色は `--fandhe-color-fg`/`--fandhe-color-bg` の反転ペア
 //!   （[`blog_overlay_cards`](super::super::blog::blog_overlay_cards) と
 //!   同型）。
-//! - 補助リンク（パスワード再設定・アカウント切り替え導線）は固定外部 URL
-//!   （[`REPO`]、`external: true`）を使い、`href="#"` の死リンクは出さない。
+//! - 補助リンク: パスワード再設定（サインイン形）は実装を持たないため固定
+//!   外部 URL（[`REPO`]、`external: true`）を使い、`href="#"` の死リンクは
+//!   出さない。アカウント切り替え導線（サインアップ形「すでにアカウントを
+//!   お持ちの方はこちら」）は Demo 内にサインイン形が実在するため、外部
+//!   URL ではなくサインイン形コンテナの `id`（[`AuthVariant::id`]）への
+//!   同一ページ内アンカー（`href="#..."`、`external: false`）にする（PR
+//!   #3418 レビュー指摘対応。文言と遷移先の不一致——遷移すると謳いながら
+//!   実際には別ページへ飛ぶ——を防ぐ）。
 //! - チェックボックスは未チェック固定の静的表示（状態遷移は扱わない）。
 //! - `<form>` は出力せず、送信ボタンは `button::button` の既定
 //!   `type="button"` のまま用いる。
@@ -135,6 +141,15 @@ impl AuthVariant {
             AuthVariant::SignUp => "sign-up",
         }
     }
+
+    /// [`variant_layout`] が variant コンテナへ付与する `id`（フラグメント
+    /// アンカーの遷移先、モジュール doc「補助リンク」節参照）。
+    fn id(self) -> &'static str {
+        match self {
+            AuthVariant::SignIn => "blocks-auth-split-photo-testimonial-sign-in",
+            AuthVariant::SignUp => "blocks-auth-split-photo-testimonial-sign-up",
+        }
+    }
 }
 
 /// ソーシャルログインボタン（アイコンなしのテキストボタン、モジュール doc
@@ -207,6 +222,12 @@ fn text_field(
 /// （docs-site は無 JS 制約〔`crate` モジュール doc 参照〕で hydration を
 /// 行わないため）。「未チェック固定の静的表示」という意図を `disabled` で
 /// 実際に操作不能化し、見た目と状態の食い違いを構造的に防ぐ。
+///
+/// `disabled` の既定 CSS（opacity: 0.5 / cursor: not-allowed）は
+/// `[data-blocks-auth-split-photo-testimonial-agree][data-disabled]` を
+/// [`LAYOUT_CSS`] で中和する（`auth_split_accent_panel::agree_checkbox`
+/// と同じ判断・同型のセレクタ、PR #3418 レビュー指摘対応）。「未チェック
+/// 固定の静的表示」という意図の伝達に薄い見た目は不要なため。
 fn agree_checkbox(name: &'static str, label_text: &'static str) -> Node {
     let props = CheckboxProps {
         disabled: true,
@@ -216,7 +237,7 @@ fn agree_checkbox(name: &'static str, label_text: &'static str) -> Node {
         Size::Sm,
         ColorPalette::Accent,
         &props,
-        vec![],
+        vec![("data-blocks-auth-split-photo-testimonial-agree", "")],
         vec![
             checkbox::hidden_input(&props, name, "on", vec![]),
             checkbox::control(
@@ -229,13 +250,13 @@ fn agree_checkbox(name: &'static str, label_text: &'static str) -> Node {
     )
 }
 
-/// 補助リンク（`link::root`、常に外部の固定 URL、モジュール doc
-/// 「参照元と原案からの差分」節参照）。
-fn helper_link(label_text: &'static str) -> Node {
+/// 補助リンク（`link::root`。`href`/`external` は呼び出し側が形（サインイン/
+/// サインアップ）ごとに選ぶ契約、モジュール doc「補助リンク」節参照）。
+fn helper_link(label_text: &'static str, href: &str, external: bool) -> Node {
     link::root(
-        REPO,
+        href,
         &LinkProps {
-            external: true,
+            external,
             variant: LinkVariant::Underline,
             palette: ColorPalette::Neutral,
             ..LinkProps::default()
@@ -289,16 +310,24 @@ fn form_column(variant: AuthVariant) -> Node {
         None,
     ));
 
-    let (checkbox_name, checkbox_label, helper_label) = match variant {
+    // helper_href/helper_external: サインイン形は実装のないパスワード再設定
+    // への固定外部 URL、サインアップ形は Demo 内に実在するサインイン形への
+    // 同一ページ内アンカー（モジュール doc「補助リンク」節参照）。
+    let (checkbox_name, checkbox_label, helper_label, helper_href, helper_external) = match variant
+    {
         AuthVariant::SignIn => (
             "blocks-auth-split-photo-testimonial-signin-remember",
             "ログイン状態を保持する",
             "パスワードをお忘れですか",
+            REPO.to_string(),
+            true,
         ),
         AuthVariant::SignUp => (
             "blocks-auth-split-photo-testimonial-signup-agree",
             "利用規約に同意する",
             "すでにアカウントをお持ちの方はこちら",
+            format!("#{}", AuthVariant::SignIn.id()),
+            false,
         ),
     };
 
@@ -339,7 +368,7 @@ fn form_column(variant: AuthVariant) -> Node {
             ),
             div(
                 vec![("class", "blocks-auth-split-photo-testimonial-helper")],
-                vec![helper_link(helper_label)],
+                vec![helper_link(helper_label, &helper_href, helper_external)],
             ),
         ],
     )
@@ -419,10 +448,13 @@ fn variant_layout(variant: AuthVariant, label: &'static str, first: Node, second
                 vec![text(label)],
             ),
             div(
-                vec![(
-                    "data-blocks-auth-split-photo-testimonial-variant",
-                    variant.attr(),
-                )],
+                vec![
+                    (
+                        "data-blocks-auth-split-photo-testimonial-variant",
+                        variant.attr(),
+                    ),
+                    ("id", variant.id()),
+                ],
                 vec![first, second],
             ),
         ],
@@ -539,6 +571,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-auth-split-photo-testimonial-fields {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-auth-split-photo-testimonial-submit] {\n  width: 100%;\n}\n\
 .blocks-auth-split-photo-testimonial-helper {\n  font-size: var(--fandhe-font-font-size-sm);\n  text-align: center;\n}\n\
+[data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-auth-split-photo-testimonial-agree][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-blocks-auth-split-photo-testimonial-panel] {\n  display: none;\n  position: relative;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-auth-split-photo-testimonial-photo] {\n  position: absolute;\n  inset: 0;\n  width: 100%;\n  height: 100%;\n}\n\
 .blocks-auth-split-photo-testimonial-scrim {\n  position: absolute;\n  inset: 0;\n  background: var(--fandhe-color-fg);\n  opacity: 0.75;\n}\n\
@@ -600,6 +633,25 @@ mod tests {
         );
     }
 
+    /// サインアップ形の「すでにアカウントをお持ちの方はこちら」がサインイン
+    /// 形コンテナの実在 `id` を指す同一ページ内アンカーであること（PR #3418
+    /// レビュー指摘対応。文言と遷移先の不一致・死リンクの回避を固定する。
+    /// `auth_split_accent_panel::switch_links_point_at_existing_instance_ids`
+    /// と同型）。
+    #[test]
+    fn signup_helper_link_points_at_existing_signin_id() {
+        let html = render(&demo());
+        assert!(html.contains(r##"href="#blocks-auth-split-photo-testimonial-sign-in""##));
+        assert!(html.contains(r#"id="blocks-auth-split-photo-testimonial-sign-in""#));
+        // 同一ページ内アンカーは `external` を立てない（リンク先が外部
+        // ドメインでないことの固定）。
+        assert_eq!(
+            html.matches(r##"href="#blocks-auth-split-photo-testimonial-sign-in""##)
+                .count(),
+            1
+        );
+    }
+
     /// id の重複がないことを固定する（アクセシビリティ上の不変条件）。
     #[test]
     fn demo_has_no_duplicate_ids() {
@@ -633,6 +685,19 @@ mod tests {
             "[data-blocks-auth-split-photo-testimonial-panel] {\n  display: none;\n  position: relative;\n}"
         ));
         assert!(LAYOUT_CSS.contains("repeat(2, minmax(0, 1fr))"));
+    }
+
+    /// `agree_checkbox` の `disabled` 既定 CSS（opacity: 0.5 相当）を
+    /// [`LAYOUT_CSS`] が中和すること（PR #3418 レビュー指摘対応。
+    /// `data-blocks-auth-split-photo-testimonial-agree` 属性が実際に出力
+    /// されることも合わせて固定する）。
+    #[test]
+    fn layout_css_neutralizes_disabled_checkbox_opacity() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-auth-split-photo-testimonial-agree][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
+        ));
+        let html = render(&demo());
+        assert!(html.contains("data-blocks-auth-split-photo-testimonial-agree"));
     }
 
     /// ルート class（`demo_class` とは別名）が `demo()` の出力へ実際に現れる
