@@ -1021,6 +1021,7 @@ pub enum LayoutCss {
 | media-object | #3228 | `application/media_object/media_object_alignments.rs` |
 | action-panel-footer-bar | #2952（親 #2951） | `application/action_panel/action_panel_footer_bar.rs` |
 | card-heading-basic | #3229 | `application/card_heading/card_heading_basic.rs` |
+| action-panel-inline | #2953（親 #2951） | `application/action_panel/action_panel_inline.rs` |
 | action-panel-with-input | #2955 | `application/action_panel/action_panel_with_input.rs` |
 | action-panel-stacked | #2954 | `application/action_panel/action_panel_stacked.rs` |
 | ai-chat-code-preview | #2958（親 #2957） | `application/ai_chat/ai_chat_code_preview.rs` |
