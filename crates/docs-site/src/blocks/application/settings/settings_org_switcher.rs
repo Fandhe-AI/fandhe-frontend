@@ -37,19 +37,29 @@
 //!
 //! # 無 JS のため全操作を disabled 固定
 //!
-//! メニュートリガー・操作ボタンはいずれも `disabled: true` で押しても
-//! 何も起きないことを明示し、[`LAYOUT_CSS`] の `[data-disabled]`
+//! メニュートリガー・radio item・操作ボタンはいずれも `disabled: true` で
+//! 押しても何も起きないことを明示し、[`LAYOUT_CSS`] の `[data-disabled]`
 //! 複合セレクタで `opacity: 1; cursor: default;` に中和する
-//! （`navbar_two_row`/`header_flyout_menu` と同じ確定パターン）。
+//! （`navbar_two_row`/`header_flyout_menu` と同じ確定パターン）。headless 層
+//! の virtual focus 設計（`crates/headless-ui/src/menu.rs`）では item へ実
+//! DOM フォーカスが決して移らないため、trigger を disabled にする本 Demo
+//! では radio item も構造的にキーボード到達不能である。両者の意味付けを
+//! 一致させるため radio item も `disabled: true` を明示する（codex レビュー
+//! 指摘、イシュー #2999、[`org_radio_row`] rustdoc参照）。作成・設定の操作
+//! ボタン（[`action_row`]）には加えて `role="menuitem"` を付与し、メニュー内
+//! の操作であることを支援技術へ伝える（同指摘）。
 //!
-//! # `id`/`aria-label` の一意性
+//! # `id`/`aria-label`/`aria-labelledby` の一意性
 //!
-//! `menu` の `content_id`/`item_group_label` の `id` は `{kind}-{variant}`
-//! （`kind` は `"org"`/`"project"`）を suffix にして一意化する
-//! （`demo_output_has_no_dangling_aria_references_or_duplicate_ids` 契約）。
-//! `breadcrumb` variant の閉じた組織メニューも `content` を必ず描画する
-//! （`hidden` 存在属性のみで隠す。`aria-controls` の参照先を欠落させない
-//! ための確定パターン）。
+//! `menu` の `trigger`/`content`/`item_group_label` の `id` はいずれも
+//! `{kind}-{variant}`（`kind` は `"org"`/`"project"`）を suffix にして
+//! 一意化する（`demo_output_has_no_dangling_aria_references_or_duplicate_ids`
+//! 契約）。`content`（`role="menu"`）は `trigger` の `id` を
+//! `aria-labelledby` で参照し、開いたメニューへアクセシブルな名前を与える
+//! （codex レビュー指摘、イシュー #2999。`auth_dropdown_panel::help_menu`
+//! と同型のパターン）。`breadcrumb` variant の閉じた組織メニューも
+//! `content` を必ず描画する（`hidden` 存在属性のみで隠す。`aria-controls`
+//! の参照先を欠落させないための確定パターン）。
 //!
 //! # `<form>`/`href="#"`/`data:` を持たない
 //!
@@ -125,6 +135,15 @@ fn initials_avatar(initials: &'static str) -> Node {
 }
 
 /// 組織の radio item 1 件（アバター + 名前 + メンバー数バッジ）。
+///
+/// `disabled: true` に固定する（codex レビュー指摘、イシュー #2999）:
+/// headless 層の virtual focus 設計（`crates/headless-ui/src/menu.rs`
+/// モジュール doc「参考サイトとの意図的な差分」節）では item へ実 DOM
+/// フォーカスが決して移らないため、無 JS の本 Demo では
+/// `menuitemradio` はそもそもキーボード到達不能である。トリガー・操作
+/// ボタン（[`action_row`]）が既に `disabled: true` で揃えている「無 JS の
+/// ため全操作を disabled 固定」（モジュール doc参照）の不変条件に radio
+/// item も揃え、操作できない見本であることの意味付けを一致させる。
 fn org_radio_row(
     checked: bool,
     name: &'static str,
@@ -134,9 +153,9 @@ fn org_radio_row(
     menu::radio_item(
         checked,
         name,
+        true,
         false,
-        false,
-        vec![],
+        vec![("data-blocks-settings-org-switcher-item", "")],
         vec![
             initials_avatar(initials),
             span(vec![], vec![text(name)]),
@@ -145,19 +164,25 @@ fn org_radio_row(
     )
 }
 
-/// プロジェクトの radio item 1 件（名前のみ）。
+/// プロジェクトの radio item 1 件（名前のみ）。[`org_radio_row`] と同じ理由で
+/// `disabled: true` に固定する。
 fn project_radio_row(checked: bool, name: &'static str) -> Node {
     menu::radio_item(
         checked,
         name,
+        true,
         false,
-        false,
-        vec![],
+        vec![("data-blocks-settings-org-switcher-item", "")],
         vec![span(vec![], vec![text(name)])],
     )
 }
 
 /// 作成・設定の操作行（末尾に置く 2 個の `disabled: true` ボタン）。
+///
+/// `role="menuitem"` を明示付与し、メニュー内の操作であることを支援技術へ
+/// 伝える（codex レビュー指摘、イシュー #2999。`button::button` の `attrs` は
+/// `role` を予約キーとして落とさないため、既存の Ghost/Outline 見た目を
+/// 保ったまま role のみ上書きできる）。
 fn action_row(create_label: &'static str, manage_label: &'static str) -> Node {
     div(
         vec![("data-blocks-settings-org-switcher-actions", "")],
@@ -168,7 +193,10 @@ fn action_row(create_label: &'static str, manage_label: &'static str) -> Node {
                     disabled: true,
                     ..ButtonProps::default()
                 },
-                vec![("data-blocks-settings-org-switcher-action", "")],
+                vec![
+                    ("role", "menuitem"),
+                    ("data-blocks-settings-org-switcher-action", ""),
+                ],
                 vec![text(create_label)],
             ),
             button::button(
@@ -177,7 +205,10 @@ fn action_row(create_label: &'static str, manage_label: &'static str) -> Node {
                     disabled: true,
                     ..ButtonProps::default()
                 },
-                vec![("data-blocks-settings-org-switcher-action", "")],
+                vec![
+                    ("role", "menuitem"),
+                    ("data-blocks-settings-org-switcher-action", ""),
+                ],
                 vec![text(manage_label)],
             ),
         ],
@@ -201,12 +232,14 @@ fn menu_shell(
 ) -> Node {
     let content_id = format!("blocks-settings-org-switcher-{kind}-content-{variant}");
     let label_id = format!("blocks-settings-org-switcher-{kind}-label-{variant}");
+    let trigger_id = format!("blocks-settings-org-switcher-{kind}-trigger-{variant}");
 
     let trigger = menu::trigger(
         state,
         true,
         Some(content_id.as_str()),
         vec![
+            ("id", trigger_id.as_str()),
             ("aria-label", trigger_label),
             ("data-blocks-settings-org-switcher-trigger", ""),
         ],
@@ -220,10 +253,14 @@ fn menu_shell(
     )];
     group_children.extend(items);
 
+    // codex レビュー指摘（イシュー #2999）: `role="menu"` に
+    // `aria-labelledby` でトリガーの id を関連付け、開いたメニューへ
+    // アクセシブルな名前を与える（`auth_dropdown_panel::help_menu` と
+    // 同型のパターン）。
     let content = menu::content(
         state,
         Some(content_id.as_str()),
-        None,
+        Some(trigger_id.as_str()),
         vec![("data-blocks-settings-org-switcher-content", "")],
         vec![
             menu::radio_item_group(Some(label_id.as_str()), vec![], group_children),
@@ -390,6 +427,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-settings-org-switcher-trigger] {\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"menu\"][data-part=\"trigger\"][data-blocks-settings-org-switcher-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-settings-org-switcher-action][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"menu\"][data-part=\"radio-item\"][data-blocks-settings-org-switcher-item][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"menu\"][data-part=\"positioner\"][data-blocks-settings-org-switcher-positioner] {\n  position: static;\n  margin-block-start: var(--fandhe-space-2);\n}\n\
 [data-scope=\"menu\"][data-part=\"content\"][data-blocks-settings-org-switcher-content] {\n  max-inline-size: 20rem;\n}\n\
 [data-blocks-settings-org-switcher-actions] {\n  display: flex;\n  justify-content: flex-end;\n  gap: var(--fandhe-space-2);\n  padding: var(--fandhe-space-2);\n}\n\
@@ -469,6 +507,62 @@ mod tests {
         let tag = &html[tag_start..tag_end];
         assert!(tag.contains("hidden"), "tag={tag}");
         assert!(html.contains(&format!(r#"aria-controls="{content_id}""#)));
+    }
+
+    /// codex レビュー指摘（イシュー #2999）: 開いた `role="menu"` が
+    /// `aria-labelledby` でトリガーの `id` を参照し、アクセシブルな名前を
+    /// 持つこと。
+    #[test]
+    fn open_menu_content_is_labelled_by_its_trigger() {
+        let html = render(&demo());
+        for (kind, variant) in [("org", "single"), ("project", "breadcrumb")] {
+            let trigger_id = format!("blocks-settings-org-switcher-{kind}-trigger-{variant}");
+            let content_id = format!("blocks-settings-org-switcher-{kind}-content-{variant}");
+            assert!(
+                html.contains(&format!(r#"id="{trigger_id}""#)),
+                "trigger id={trigger_id} should render"
+            );
+            let pos = html
+                .find(&format!(r#"id="{content_id}""#))
+                .unwrap_or_else(|| panic!("open content id={content_id} should render"));
+            let tag_start = html[..pos]
+                .rfind("<div")
+                .expect("content div should have an opening tag");
+            let tag_end = html[tag_start..]
+                .find('>')
+                .map(|rel| tag_start + rel)
+                .expect("content opening tag should close");
+            let tag = &html[tag_start..tag_end];
+            assert!(
+                tag.contains(&format!(r#"aria-labelledby="{trigger_id}""#)),
+                "content tag={tag} should reference trigger id={trigger_id}"
+            );
+        }
+    }
+
+    /// codex レビュー指摘（イシュー #2999）: radio item が `disabled` 状態
+    /// （`aria-disabled="true"` + `data-disabled`）で描画され、作成・設定
+    /// ボタンが `role="menuitem"` を持つこと。radio item 総数は single の
+    /// 組織 3 件 + breadcrumb の組織 3 件・プロジェクト 3 件 = 9 件。
+    #[test]
+    fn radio_items_are_disabled_and_action_buttons_are_menuitems() {
+        let html = render(&demo());
+        assert_eq!(html.matches(r#"role="menuitemradio""#).count(), 9);
+        assert_eq!(
+            html.matches(r#"role="menuitemradio" aria-checked"#).count(),
+            9
+        );
+        // radio item 9 件すべてが disabled（aria-disabled="true" は radio
+        // item 以外にも付き得るため `data-blocks-settings-org-switcher-item`
+        // フック付きの出現数を数える）。
+        assert_eq!(
+            html.matches("data-blocks-settings-org-switcher-item")
+                .count(),
+            9
+        );
+        // action button 2 個 × menu_shell 呼び出し 3 回（single 組織 +
+        // breadcrumb 組織・プロジェクト）= 6 件。
+        assert_eq!(html.matches(r#"role="menuitem""#).count(), 6);
     }
 
     /// `BLOCK.parts` の `path` が全件 kebab-case の `/themes/…/` であること。

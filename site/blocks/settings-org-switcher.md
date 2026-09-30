@@ -82,6 +82,15 @@ fn initials_avatar(initials: &'static str) -> Node {
 }
 
 /// 組織の radio item 1 件（アバター + 名前 + メンバー数バッジ）。
+///
+/// `disabled: true` に固定する（codex レビュー指摘、イシュー #2999）:
+/// headless 層の virtual focus 設計（`crates/headless-ui/src/menu.rs`
+/// モジュール doc「参考サイトとの意図的な差分」節）では item へ実 DOM
+/// フォーカスが決して移らないため、無 JS の本 Demo では
+/// `menuitemradio` はそもそもキーボード到達不能である。トリガー・操作
+/// ボタン（[`action_row`]）が既に `disabled: true` で揃えている「無 JS の
+/// ため全操作を disabled 固定」（モジュール doc参照）の不変条件に radio
+/// item も揃え、操作できない見本であることの意味付けを一致させる。
 fn org_radio_row(
     checked: bool,
     name: &'static str,
@@ -91,9 +100,9 @@ fn org_radio_row(
     menu::radio_item(
         checked,
         name,
+        true,
         false,
-        false,
-        vec![],
+        vec![("data-blocks-settings-org-switcher-item", "")],
         vec![
             initials_avatar(initials),
             span(vec![], vec![text(name)]),
@@ -102,19 +111,25 @@ fn org_radio_row(
     )
 }
 
-/// プロジェクトの radio item 1 件（名前のみ）。
+/// プロジェクトの radio item 1 件（名前のみ）。[`org_radio_row`] と同じ理由で
+/// `disabled: true` に固定する。
 fn project_radio_row(checked: bool, name: &'static str) -> Node {
     menu::radio_item(
         checked,
         name,
+        true,
         false,
-        false,
-        vec![],
+        vec![("data-blocks-settings-org-switcher-item", "")],
         vec![span(vec![], vec![text(name)])],
     )
 }
 
 /// 作成・設定の操作行（末尾に置く 2 個の `disabled: true` ボタン）。
+///
+/// `role="menuitem"` を明示付与し、メニュー内の操作であることを支援技術へ
+/// 伝える（codex レビュー指摘、イシュー #2999。`button::button` の `attrs` は
+/// `role` を予約キーとして落とさないため、既存の Ghost/Outline 見た目を
+/// 保ったまま role のみ上書きできる）。
 fn action_row(create_label: &'static str, manage_label: &'static str) -> Node {
     div(
         vec![("data-blocks-settings-org-switcher-actions", "")],
@@ -125,7 +140,10 @@ fn action_row(create_label: &'static str, manage_label: &'static str) -> Node {
                     disabled: true,
                     ..ButtonProps::default()
                 },
-                vec![("data-blocks-settings-org-switcher-action", "")],
+                vec![
+                    ("role", "menuitem"),
+                    ("data-blocks-settings-org-switcher-action", ""),
+                ],
                 vec![text(create_label)],
             ),
             button::button(
@@ -134,7 +152,10 @@ fn action_row(create_label: &'static str, manage_label: &'static str) -> Node {
                     disabled: true,
                     ..ButtonProps::default()
                 },
-                vec![("data-blocks-settings-org-switcher-action", "")],
+                vec![
+                    ("role", "menuitem"),
+                    ("data-blocks-settings-org-switcher-action", ""),
+                ],
                 vec![text(manage_label)],
             ),
         ],
@@ -158,12 +179,14 @@ fn menu_shell(
 ) -> Node {
     let content_id = format!("blocks-settings-org-switcher-{kind}-content-{variant}");
     let label_id = format!("blocks-settings-org-switcher-{kind}-label-{variant}");
+    let trigger_id = format!("blocks-settings-org-switcher-{kind}-trigger-{variant}");
 
     let trigger = menu::trigger(
         state,
         true,
         Some(content_id.as_str()),
         vec![
+            ("id", trigger_id.as_str()),
             ("aria-label", trigger_label),
             ("data-blocks-settings-org-switcher-trigger", ""),
         ],
@@ -177,10 +200,14 @@ fn menu_shell(
     )];
     group_children.extend(items);
 
+    // codex レビュー指摘（イシュー #2999）: `role="menu"` に
+    // `aria-labelledby` でトリガーの id を関連付け、開いたメニューへ
+    // アクセシブルな名前を与える（`auth_dropdown_panel::help_menu` と
+    // 同型のパターン）。
     let content = menu::content(
         state,
         Some(content_id.as_str()),
-        None,
+        Some(trigger_id.as_str()),
         vec![("data-blocks-settings-org-switcher-content", "")],
         vec![
             menu::radio_item_group(Some(label_id.as_str()), vec![], group_children),
