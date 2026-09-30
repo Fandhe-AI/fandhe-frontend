@@ -2634,6 +2634,11 @@ title = "product-overview-image-grid"
 source = "site/blocks/product-overview-image-grid.md"
 path = "/blocks/product-overview-image-grid/"
 
+[[section.group.page]]
+title = "product-overview-tabs-below"
+source = "site/blocks/product-overview-tabs-below.md"
+path = "/blocks/product-overview-tabs-below/"
+
 [[section.group]]
 title = "Cart"
 
