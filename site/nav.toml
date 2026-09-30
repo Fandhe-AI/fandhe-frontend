@@ -2375,6 +2375,11 @@ path = "/blocks/command-palette-preview/"
 title = "Onboarding"
 
 [[section.group.page]]
+title = "onboarding-checklist"
+source = "site/blocks/onboarding-checklist.md"
+path = "/blocks/onboarding-checklist/"
+
+[[section.group.page]]
 title = "onboarding-vertical-steps"
 source = "site/blocks/onboarding-vertical-steps.md"
 path = "/blocks/onboarding-vertical-steps/"
