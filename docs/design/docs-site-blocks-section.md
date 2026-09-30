@@ -1051,7 +1051,7 @@ pub enum LayoutCss {
 | settings-billing-overview | #2984 | `application/settings/settings_billing_overview.rs` |
 | settings-billing-usage | #2985 | `application/settings/settings_billing_usage.rs` |
 | settings-api-key-created | #2982（親 #2951） | `application/settings/settings_api_key_created.rs` |
-| settings-integration-detail | #2989（親 #2988） | `application/settings/settings_integration_detail.rs` |
+| settings-integration-detail | #2989・#2990（親 #2988） | `application/settings/settings_integration_detail.rs` |
 | settings-integrations-grid | #2991（親 #2951） | `application/settings/settings_integrations_grid.rs` |
 | settings-integrations-list | #2993/#2994（親 #2992） | `application/settings/settings_integrations_list.rs` |
 | settings-integrations-search | #2995（親 #2951） | `application/settings/settings_integrations_search.rs` |
