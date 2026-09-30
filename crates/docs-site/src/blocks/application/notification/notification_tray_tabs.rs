@@ -28,7 +28,11 @@
 //!   `hidden` を付与し、閲覧者はタブを切り替えられない。1 インスタンス
 //!   のみだと「未読」パネル（3 件）が一度も可視化されないため、
 //!   `pricing_tiers_comparison`/`pricing_tiers_morph` と同じ「2 インスタ
-//!   ンス併記」で両パネルを可視化する（レビュー指摘、PR #3429）
+//!   ンス併記」で両パネルを可視化する（レビュー指摘、PR #3429）。加えて
+//!   各インスタンスとも非選択タブは `disabled: true` の静的固定にする
+//!   （`table_with_toolbar::status_tabs` と同型の判断。押しても選択状態・
+//!   パネルが変わらない dead control のまま `disabled: false` で放置しな
+//!   い。Codex レビュー指摘 PR #3429 是正）
 //!
 //! 全版とも同じ `tray` 関数から組み立て、全 id・`aria-controls`/
 //! `aria-labelledby` の参照先を `variant` でサフィックスして一意にする
@@ -291,7 +295,7 @@ fn tab_group(
                 ),
             ],
             content: vec![all_list],
-            disabled: false,
+            disabled: selected != "all",
         },
         TabItem {
             value: "unread",
@@ -307,7 +311,7 @@ fn tab_group(
                 ),
             ],
             content: vec![unread_list],
-            disabled: false,
+            disabled: selected != "unread",
         },
     ];
     tabs::tabs(

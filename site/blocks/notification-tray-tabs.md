@@ -203,7 +203,7 @@ fn tab_group(
                 ),
             ],
             content: vec![all_list],
-            disabled: false,
+            disabled: selected != "all",
         },
         TabItem {
             value: "unread",
@@ -219,7 +219,7 @@ fn tab_group(
                 ),
             ],
             content: vec![unread_list],
-            disabled: false,
+            disabled: selected != "unread",
         },
     ];
     tabs::tabs(
