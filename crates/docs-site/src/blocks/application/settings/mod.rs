@@ -7,7 +7,8 @@
 //! [`settings_integrations_grid`]、イシュー #2995 で
 //! [`settings_integrations_search`]、イシュー #2996 で
 //! [`settings_item_cards`]、イシュー #2997 で
-//! [`settings_log_table`] を追加した）。手順は
+//! [`settings_log_table`]、イシュー #2998 で
+//! [`settings_notification_matrix`] を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -26,6 +27,7 @@ mod settings_integrations_list;
 mod settings_integrations_search;
 mod settings_item_cards;
 mod settings_log_table;
+mod settings_notification_matrix;
 
 use crate::blocks::Block;
 
@@ -41,5 +43,6 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_integrations_search::BLOCK,
         settings_item_cards::BLOCK,
         settings_log_table::BLOCK,
+        settings_notification_matrix::BLOCK,
     ]
 }

@@ -2362,6 +2362,11 @@ title = "settings-log-table"
 source = "site/blocks/settings-log-table.md"
 path = "/blocks/settings-log-table/"
 
+[[section.group.page]]
+title = "settings-notification-matrix"
+source = "site/blocks/settings-notification-matrix.md"
+path = "/blocks/settings-notification-matrix/"
+
 [[section.group]]
 title = "Action Panel"
 
