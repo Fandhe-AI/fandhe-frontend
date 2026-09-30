@@ -141,6 +141,10 @@ fn starter_row(starter: &Starter) -> Node {
 
 /// 開始候補一覧を組み立てる（行と行の間にのみ `separator` を挟み、末尾
 /// には置かない。モジュール doc「`list` を使わない理由」節参照）。
+///
+/// 各行は `role="listitem"` を付けた `div` で包み、一覧全体のコンテナには
+/// `role="list"` を付ける（支援技術へ一覧・項目数を伝えるための素の
+/// ARIA 属性付与。モジュール doc「`list` を使わない理由」節参照）。
 fn starter_list(rows: &[Starter]) -> Node {
     let mut children = Vec::with_capacity(rows.len() * 2 - 1);
     for (index, starter) in rows.iter().enumerate() {
@@ -150,9 +154,9 @@ fn starter_list(rows: &[Starter]) -> Node {
                 vec![(RULE_ATTR, "")],
             ));
         }
-        children.push(starter_row(starter));
+        children.push(div(vec![("role", "listitem")], vec![starter_row(starter)]));
     }
-    div(vec![("class", LIST_CLASS)], children)
+    div(vec![("class", LIST_CLASS), ("role", "list")], children)
 }
 
 /// 見出し + 説明 + 開始候補一覧 + 末尾の別導線リンクの 1 インスタンス分を

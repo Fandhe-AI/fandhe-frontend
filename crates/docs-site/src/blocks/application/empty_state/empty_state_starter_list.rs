@@ -22,6 +22,16 @@
 //! 各行は素の `div` コンテナ内へ `item::root` と `separator::separator`
 //! を交互配置し、区切り線は `separator` 部品自身に担わせる。
 //!
+//! `list` 部品（`<ul>`/`<li>`）を使わない代わりに、支援技術へ一覧・項目数を
+//! 伝えるため各行コンテナへ素の `role="list"`/`role="listitem"` 属性を
+//! 直接付与する（新しい UI 部品の追加ではなく、既存の素の `div` への
+//! 属性追加に留める）。区切り線（`separator::separator`、`role="separator"`）
+//! は `listitem` の兄弟として残るが、`role="separator"` は
+//! `role="presentation"`/`none` と同様にリスト構造の計算に干渉しない
+//! WAI-ARIA の慣用パターンであり（chakra-ui の Menu 区切り線等に同型の
+//! 先例がある）、`role="list"` の子として `listitem` 以外が混在すること自体
+//! は許容される。
+//!
 //! # 行全体がリンクになる仕組み
 //!
 //! `item::root` は `ItemRootProps::href` が `Some` のとき `<a>` として
@@ -200,6 +210,10 @@ fn starter_row(starter: &Starter) -> Node {
 
 /// 開始候補一覧を組み立てる（行と行の間にのみ `separator` を挟み、末尾
 /// には置かない。モジュール doc「`list` を使わない理由」節参照）。
+///
+/// 各行は `role="listitem"` を付けた `div` で包み、一覧全体のコンテナには
+/// `role="list"` を付ける（支援技術へ一覧・項目数を伝えるための素の
+/// ARIA 属性付与。モジュール doc「`list` を使わない理由」節参照）。
 fn starter_list(rows: &[Starter]) -> Node {
     let mut children = Vec::with_capacity(rows.len() * 2 - 1);
     for (index, starter) in rows.iter().enumerate() {
@@ -209,9 +223,9 @@ fn starter_list(rows: &[Starter]) -> Node {
                 vec![(RULE_ATTR, "")],
             ));
         }
-        children.push(starter_row(starter));
+        children.push(div(vec![("role", "listitem")], vec![starter_row(starter)]));
     }
-    div(vec![("class", LIST_CLASS)], children)
+    div(vec![("class", LIST_CLASS), ("role", "list")], children)
 }
 
 /// 見出し + 説明 + 開始候補一覧 + 末尾の別導線リンクの 1 インスタンス分を
@@ -426,6 +440,24 @@ mod tests {
                 "demo should link to {href}"
             );
         }
+    }
+
+    /// 一覧コンテナに `role="list"`、各行に `role="listitem"` が付与され、
+    /// 支援技術へ一覧・項目数（7 行）が伝わること（P2 是正、モジュール doc
+    /// 「`list` を使わない理由」節）。
+    #[test]
+    fn list_and_listitem_roles_are_present_for_assistive_technology() {
+        let html = demo_html();
+        assert_eq!(
+            html.matches(r#"role="list""#).count(),
+            2,
+            "expected one role=\"list\" container per instance (2 instances)"
+        );
+        assert_eq!(
+            html.matches(r#"role="listitem""#).count(),
+            7,
+            "expected one role=\"listitem\" wrapper per starter row (7 rows total)"
+        );
     }
 
     /// [`LAYOUT_CSS`] がトークンのみを使い、縦リスト固定（横並びへの
