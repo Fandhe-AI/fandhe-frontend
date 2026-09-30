@@ -2313,6 +2313,11 @@ path = "/blocks/signup-05/"
 title = "Settings"
 
 [[section.group.page]]
+title = "settings-api-key-created"
+source = "site/blocks/settings-api-key-created.md"
+path = "/blocks/settings-api-key-created/"
+
+[[section.group.page]]
 title = "settings-api-keys-table"
 source = "site/blocks/settings-api-keys-table.md"
 path = "/blocks/settings-api-keys-table/"
