@@ -11,7 +11,8 @@
 //! [`settings_notification_matrix`]、イシュー #2999 で
 //! [`settings_org_switcher`]、イシュー #3009 で
 //! [`settings_preferences`]、イシュー #3010 で
-//! [`settings_profile_form`]、イシュー #3004 で
+//! [`settings_profile_form`]、イシュー #3001 で
+//! [`settings_page_aside_nav`]、イシュー #3004 で
 //! [`settings_page_sidebar`] を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
@@ -26,6 +27,7 @@ mod settings_api_keys_table;
 mod settings_billing_overview;
 mod settings_billing_usage;
 mod settings_event_accordion;
+mod settings_integration_detail;
 mod settings_integrations_grid;
 mod settings_integrations_list;
 mod settings_integrations_search;
@@ -33,6 +35,7 @@ mod settings_item_cards;
 mod settings_log_table;
 mod settings_notification_matrix;
 mod settings_org_switcher;
+mod settings_page_aside_nav;
 mod settings_page_sidebar;
 mod settings_preferences;
 mod settings_profile_form;
@@ -46,6 +49,7 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_billing_overview::BLOCK,
         settings_billing_usage::BLOCK,
         settings_event_accordion::BLOCK,
+        settings_integration_detail::BLOCK,
         settings_integrations_grid::BLOCK,
         settings_integrations_list::BLOCK,
         settings_integrations_search::BLOCK,
@@ -53,6 +57,7 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_log_table::BLOCK,
         settings_notification_matrix::BLOCK,
         settings_org_switcher::BLOCK,
+        settings_page_aside_nav::BLOCK,
         settings_page_sidebar::BLOCK,
         settings_preferences::BLOCK,
         settings_profile_form::BLOCK,
