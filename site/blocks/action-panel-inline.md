@@ -11,8 +11,8 @@ Themes/Primitives 部品を組み合わせた実例集であることに注意�
 配置します。ボタンを右上へ固定した版も併記しており、こちらは
 `fandhe-frontend-pre-styled-ui` の `card` が提供する `data-has-action`/
 `action` スロット（見出しの右上にアクションを固定する既存 recipe）を
-そのまま再利用しています。狭い幅（`40rem` 未満）では、左右並びの版の
-操作が説明文の下へ回り込みます。
+そのまま再利用しています。Demo 枠の幅が狭い（`40rem` 未満）ときは、
+左右並びの版の操作が説明文の下へ回り込みます。
 
 3 つのレイアウト差分を 1 block・3 インスタンス縦積みで並べています。
 トグルスイッチは `checked`（オン）かつ `disabled` の初期状態で固定表示
@@ -206,9 +206,9 @@ pub fn demo() -> Node {
   スイッチは `checked`（オン）かつ `disabled` の初期状態で固定された
   操作不能な表示例です（native checkbox 自体が `disabled` のため、無 JS
   であることとは無関係に操作を受け付けません）。
-- いずれも `40rem` 未満で操作が説明文の下へ回り込み、`40rem` 以上で左右
-  配置になります（`top-right-button` は card 自身の recipe が grid 配置を
-  担うため対象外）。
+- いずれも Demo 枠の幅が `40rem` 未満で操作が説明文の下へ回り込み、
+  `40rem` 以上で左右配置になります（`top-right-button` は card 自身の
+  recipe が grid 配置を担うため対象外）。
 - 文言・配色は既存のテーマトークンに従い、独自に書いた架空のものです。
 
 関連情報: [Card](../themes/card.md) / [Heading](../themes/heading.md) /

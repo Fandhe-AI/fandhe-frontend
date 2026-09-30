@@ -26,9 +26,13 @@
 //! # レイアウト（`40rem` 未満で操作を説明文の下へ回す）
 //!
 //! `inline-button`/`inline-switch` の行は既定で縦積み（説明文 → 操作）。
-//! `40rem` 以上で左右配置（説明文 | 操作）へ切り替える（テーマの
-//! breakpoint トークンは `@media` 条件式の中では解決できないため、他の
-//! block と同じくリテラル値を直書きする）。`top-right-button` は card の
+//! Demo 枠（ルート `.blocks-action-panel-inline-layout`）の幅が `40rem`
+//! 以上で左右配置（説明文 | 操作）へ切り替える。Demo は幅の制限された
+//! `.docs-content` 内に置かれるため、画面幅を見る `@media` ではなく
+//! ルートを `container-type: inline-size` とした `@container` で判定する
+//! （PR #3407 codex/review 指摘、`navbar_two_row` と同じ解決）。テーマの
+//! breakpoint トークンは条件式の中では解決できないため、他の block と
+//! 同じくリテラル値を直書きする。`top-right-button` は card の
 //! recipe が既に grid レイアウトを担うため、本 block 側の CSS は関与しない。
 //!
 //! # 行セレクタは `card::body` の recipe より詳細度を上げる
@@ -37,7 +41,7 @@
 //! `card::body` は `[data-scope="card"][data-part="body"]`（詳細度 0,2,0）
 //! に `flex-direction: column` を base で持つ。当初 `.blocks-action-panel
 //! -inline-row`（詳細度 0,1,0）のみで上書きを試みたが、詳細度不足のため
-//! `40rem` 以上でも縦積みのまま変わらなかった。`card::body` が出力する
+//! 幅が十分でも縦積みのまま変わらなかった。`card::body` が出力する
 //! 同一要素は `data-scope`/`data-part` 属性と `class` 属性を両方持つため、
 //! `[data-scope="card"][data-part="body"].blocks-action-panel-inline-row`
 //! （詳細度 0,3,0）で確実に上回るセレクタへ差し替える。`!important` は
@@ -292,10 +296,10 @@ pub const BLOCK: Block = Block {
 /// が返すルート `div` の class は `blocks-action-panel-inline-layout`
 /// という別名にする（`card_heading_toolbar` 等と同じ Bugbot 教訓の回避）。
 const LAYOUT_CSS: &str = "\
-.blocks-action-panel-inline-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
+.blocks-action-panel-inline-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  container-type: inline-size;\n  container-name: blocks-action-panel-inline;\n}\n\
 [data-scope=\"card\"][data-part=\"body\"].blocks-action-panel-inline-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-action-panel-inline-action] {\n  display: flex;\n  flex-shrink: 0;\n  align-items: center;\n}\n\
-@media (min-width: 40rem) {\n  [data-scope=\"card\"][data-part=\"body\"].blocks-action-panel-inline-row {\n    flex-direction: row;\n    justify-content: space-between;\n    align-items: center;\n  }\n}\n";
+@container blocks-action-panel-inline (min-width: 40rem) {\n  [data-scope=\"card\"][data-part=\"body\"].blocks-action-panel-inline-row {\n    flex-direction: row;\n    justify-content: space-between;\n    align-items: center;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -368,11 +372,12 @@ mod tests {
     #[test]
     fn layout_css_declares_breakpoint_and_no_angle_bracket() {
         assert!(!LAYOUT_CSS.contains('<'));
-        assert!(LAYOUT_CSS.contains("@media (min-width: 40rem)"));
+        assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
+        assert!(LAYOUT_CSS.contains("@container blocks-action-panel-inline (min-width: 40rem)"));
     }
 
     /// 行セレクタが `card::body`（`[data-scope="card"][data-part="body"]`、
-    /// 詳細度 0,2,0）より詳細度の高いセレクタ（0,3,0）で `@media` 内外の
+    /// 詳細度 0,2,0）より詳細度の高いセレクタ（0,3,0）で `@container` 内外の
     /// 両方に出現していること（本モジュール doc「行セレクタは
     /// `card::body` の recipe より詳細度を上げる」節、PR #3407
     /// codex/review・Cursor 指摘の回帰防止）。
@@ -382,7 +387,7 @@ mod tests {
         assert_eq!(
             LAYOUT_CSS.matches(selector).count(),
             2,
-            "row selector should appear once outside and once inside the @media block"
+            "row selector should appear once outside and once inside the @container block"
         );
         // 詳細度不足で上書きに失敗していた旧セレクタ（クラスのみ）が
         // 再導入されないこと。
