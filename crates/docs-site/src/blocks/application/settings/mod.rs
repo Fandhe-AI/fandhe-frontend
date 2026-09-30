@@ -9,7 +9,8 @@
 //! [`settings_item_cards`]、イシュー #2997 で
 //! [`settings_log_table`]、イシュー #2998 で
 //! [`settings_notification_matrix`]、イシュー #2999 で
-//! [`settings_org_switcher`]、イシュー #3011 で
+//! [`settings_org_switcher`]、イシュー #3010 で
+//! [`settings_profile_form`]、イシュー #3011 で
 //! [`settings_share_link`] を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
@@ -31,6 +32,7 @@ mod settings_item_cards;
 mod settings_log_table;
 mod settings_notification_matrix;
 mod settings_org_switcher;
+mod settings_profile_form;
 mod settings_share_link;
 
 use crate::blocks::Block;
@@ -49,6 +51,7 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_log_table::BLOCK,
         settings_notification_matrix::BLOCK,
         settings_org_switcher::BLOCK,
+        settings_profile_form::BLOCK,
         settings_share_link::BLOCK,
     ]
 }
