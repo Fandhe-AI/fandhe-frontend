@@ -25,9 +25,17 @@
 //! `sidebar_07` は狭幅を `overflow-x: auto` + `min-width: 56rem` の横
 //! スクロールで吸収するが、本 block はイシュー要件「狭幅ではサイドバーを
 //! 隠す」に従い、`@container`（デモ枠自体の幅基準、`settings_billing_overview`
-//! 等と同型）でコンテナ幅 48rem 未満のとき `provider` の直接の子である
+//! 等と同型）でコンテナ幅 40rem 未満のとき `provider` の直接の子である
 //! `root`（サイドバー本体）を `display: none` にし、`inset` 側を全幅へ
-//! 広げる。`display: none` にした `root` を `sidebar::trigger` の
+//! 広げる。docs サイトの `.docs-content` は `max-width: 46rem` が上限で、
+//! 本 block は `.blocks-demo` の padding を `0` にリセットしているため
+//! （`.blocks-demo.blocks-settings-page-sidebar { padding: 0; }`）実際の
+//! コンテナ幅上限も約 `46rem`。旧 `48rem` はこの上限を常に上回り
+//! `@container` 条件が恒真となってサイドバーが実際には一度も表示できて
+//! いなかった（`settings_page_aside_nav` と同型の Bugbot 指摘。`36rem` では
+//! なく `settings_billing_overview`/`settings_integration_detail` と同じ
+//! `40rem` を採用し、上限を下回る余裕を確保しつつ実質的な「狭幅」の閾値を
+//! 保つ）。`display: none` にした `root` を `sidebar::trigger` の
 //! `aria-controls` が指すが、DOM 上は実在するため参照切れにはならない
 //! （`demo_output_has_no_dangling_aria_references_or_duplicate_ids` 契約と
 //! 同型の検証を本ファイルの単体テストでも固定する）。同じ幅で
@@ -533,10 +541,12 @@ pub const BLOCK: Block = Block {
 /// 従い、並列進行する他 block との `mod.rs::LAYOUT_CSS` 追記衝突を避け
 /// 本モジュール側の定数へ分離する）。
 ///
-/// 狭幅（コンテナ幅 48rem 未満）では `provider` の直接の子である
+/// 狭幅（コンテナ幅 40rem 未満）では `provider` の直接の子である
 /// `root`（サイドバー本体）を `display: none` にし `inset` を全幅へ広げる
 /// （モジュール doc「狭幅ではサイドバーを隠す」節参照。`sidebar_07` の
-/// `overflow-x: auto` + `min-width: 56rem` の横スクロール方式とは異なる）。
+/// `overflow-x: auto` + `min-width: 56rem` の横スクロール方式とは異なる。
+/// 旧 `48rem` は `.docs-content` の `max-width: 46rem` 上限を常に上回り
+/// 恒真になっていた指摘への対応で `40rem` へ変更、Bugbot 指摘対応）。
 /// 同じ幅で `inset_header` 内の `sidebar::trigger` も `display: none` にし、
 /// 見えない `root` を開閉する操作不能なトリガーだけが `aria-expanded` 付きで
 /// 残る表示・ARIA 不整合を防ぐ（モジュール doc 同節参照、codex レビュー
@@ -553,7 +563,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-page-sidebar-row-text {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-settings-page-sidebar-row-text p {\n  margin: 0;\n}\n\
 .blocks-settings-page-sidebar-row-description {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-@container blocks-settings-page-sidebar (max-width: 48rem) {\n  \
+@container blocks-settings-page-sidebar (max-width: 40rem) {\n  \
 [data-blocks-settings-page-sidebar-instance] > [data-scope=\"sidebar\"][data-part=\"root\"] {\n    display: none;\n  }\n  \
 [data-blocks-settings-page-sidebar-header] [data-scope=\"sidebar\"][data-part=\"trigger\"] {\n    display: none;\n  }\n\
 }\n";
@@ -657,7 +667,7 @@ mod tests {
     fn layout_css_hides_sidebar_root_on_narrow_container() {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
-        assert!(LAYOUT_CSS.contains("@container blocks-settings-page-sidebar (max-width: 48rem)"));
+        assert!(LAYOUT_CSS.contains("@container blocks-settings-page-sidebar (max-width: 40rem)"));
         assert!(LAYOUT_CSS.contains(
             "[data-blocks-settings-page-sidebar-instance] > [data-scope=\"sidebar\"][data-part=\"root\"] {\n    display: none;"
         ));
