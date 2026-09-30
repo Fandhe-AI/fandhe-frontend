@@ -389,6 +389,17 @@ fn bar() -> Node {
     )
 }
 
+/// ダミーのページ本文（`.blocks-demo` のはみ出し対策、モジュール冒頭
+/// rustdoc「`.blocks-demo` のはみ出し対策」節参照）。
+fn page_placeholder() -> Node {
+    div(
+        vec![("class", "blocks-store-nav-mega-menu-page")],
+        vec![text(
+            "ページ本文（ダミー）。常時展開済みパネルの下に十分な高さを確保するための枠。",
+        )],
+    )
+}
+
 /// `store-nav-mega-menu` の Demo 本体。呼び出しごとに同一の `Node` を返す
 /// 純関数（モジュール doc「静的表示」節）。
 pub fn demo() -> Node {
@@ -400,6 +411,7 @@ pub fn demo() -> Node {
                 vec![("class", "blocks-store-nav-mega-menu-bar-wrap")],
                 vec![bar()],
             ),
+            page_placeholder(),
         ],
     )
 }

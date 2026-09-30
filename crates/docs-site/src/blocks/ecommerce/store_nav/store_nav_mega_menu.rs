@@ -56,6 +56,20 @@
 //! 持たせられず、隠すと到達不能になる `header_mega_menu` と同じ教訓）。
 //! 狭幅時の「メニュー展開時」ドロワー状態の並記は後半 #3098 のスコープ。
 //!
+//! # `.blocks-demo` のはみ出し対策
+//!
+//! `crate::blocks::stylesheet` の `.blocks-demo` は `overflow-x: auto` を
+//! 持つ（CSS 仕様上 `overflow-y` も暗黙に `auto` へ計算される）。「新作」
+//! パネルは常時 open だが `content` は `position: absolute` のままで
+//! フローに寄与しないため、`.blocks-store-nav-mega-menu-page`（ダミー本文
+//! 枠、[`crate::blocks::marketing::header::header_mega_menu`] の
+//! `page_placeholder` と同型の判断）へ `min-block-size` を持たせ、常時
+//! 展開済みパネルがレイアウトボックスの内側に収まるようにする（レビュー
+//! 是正: 元の実装はこの枠を持たず、パネルが後続の「使用部品」見出し等と
+//! 重なる・`.blocks-demo` 内でクリップされる不具合があった）。狭幅では
+//! パネルが列見出しの下でスタックし縦に伸びる分、`min-block-size` を
+//! `@container` でこの幅のみ引き上げる。
+//!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
 //! `navigation_menu` のパート関数は呼び出し側 `attrs` の `class` を除去
@@ -451,6 +465,17 @@ fn bar() -> Node {
     )
 }
 
+/// ダミーのページ本文（`.blocks-demo` のはみ出し対策、モジュール冒頭
+/// rustdoc「`.blocks-demo` のはみ出し対策」節参照）。
+fn page_placeholder() -> Node {
+    div(
+        vec![("class", "blocks-store-nav-mega-menu-page")],
+        vec![text(
+            "ページ本文（ダミー）。常時展開済みパネルの下に十分な高さを確保するための枠。",
+        )],
+    )
+}
+
 /// `store-nav-mega-menu` の Demo 本体。呼び出しごとに同一の `Node` を返す
 /// 純関数（モジュール doc「静的表示」節）。
 pub fn demo() -> Node {
@@ -462,6 +487,7 @@ pub fn demo() -> Node {
                 vec![("class", "blocks-store-nav-mega-menu-bar-wrap")],
                 vec![bar()],
             ),
+            page_placeholder(),
         ],
     )
 }
@@ -526,7 +552,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-store-nav-mega-menu-bar-wrap {\n  position: relative;\n  background: var(--fandhe-color-bg);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 .blocks-store-nav-mega-menu-bar {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  max-inline-size: 64rem;\n  margin-inline: auto;\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n}\n\
 .blocks-store-nav-mega-menu-brand {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: 600;\n  white-space: nowrap;\n}\n\
-.blocks-store-nav-mega-menu-nav[data-scope=\"navigation-menu\"][data-part=\"root\"] {\n  order: 1;\n  flex: 1 1 auto;\n  display: flex;\n  justify-content: center;\n}\n\
+.blocks-store-nav-mega-menu-nav[data-scope=\"navigation-menu\"][data-part=\"root\"] {\n  flex: 1 1 auto;\n  display: flex;\n  justify-content: center;\n}\n\
 .blocks-store-nav-mega-menu-shell [data-scope=\"navigation-menu\"][data-part=\"root\"],\n\
 .blocks-store-nav-mega-menu-shell [data-scope=\"navigation-menu\"][data-part=\"item\"] {\n  position: static;\n}\n\
 .blocks-store-nav-mega-menu-shell [data-scope=\"navigation-menu\"][data-part=\"list\"] {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: center;\n  gap: var(--fandhe-space-4);\n}\n\
@@ -541,7 +567,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-store-nav-mega-menu-actions {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  white-space: nowrap;\n}\n\
 .blocks-store-nav-mega-menu-cart {\n  position: relative;\n  display: inline-flex;\n}\n\
 [data-blocks-store-nav-mega-menu-cart-badge] {\n  position: absolute;\n  top: -0.25rem;\n  right: -0.25rem;\n}\n\
-@container blocks-store-nav-mega-menu (max-width: 47.99rem) {\n  .blocks-store-nav-mega-menu-nav[data-scope=\"navigation-menu\"][data-part=\"root\"] {\n    order: 2;\n    flex-basis: 100%;\n  }\n  .blocks-store-nav-mega-menu-panel-inner {\n    grid-template-columns: 1fr;\n  }\n}\n";
+.blocks-store-nav-mega-menu-page {\n  min-block-size: 22rem;\n  padding: var(--fandhe-space-6) var(--fandhe-space-4);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+@container blocks-store-nav-mega-menu (max-width: 47.99rem) {\n  .blocks-store-nav-mega-menu-nav[data-scope=\"navigation-menu\"][data-part=\"root\"] {\n    order: 2;\n    flex-basis: 100%;\n  }\n  .blocks-store-nav-mega-menu-panel-inner {\n    grid-template-columns: 1fr;\n  }\n  .blocks-store-nav-mega-menu-page {\n    min-block-size: 40rem;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -654,6 +681,34 @@ mod tests {
         assert!(LAYOUT_CSS.contains("position: static;"));
         assert!(LAYOUT_CSS.contains("inset-inline: 0;"));
         assert!(LAYOUT_CSS.contains("minmax(min(14rem, 100%), 1fr)"));
+    }
+
+    /// 常時 open のパネルが `.blocks-demo` のはみ出し・クリップを起こさぬ
+    /// よう、ダミー本文枠（`min-block-size`）で高さを確保すること（レビュー
+    /// 是正、モジュール冒頭 rustdoc「`.blocks-demo` のはみ出し対策」節）。
+    #[test]
+    fn page_placeholder_reserves_space_for_open_panel() {
+        assert!(LAYOUT_CSS.contains(".blocks-store-nav-mega-menu-page"));
+        assert!(LAYOUT_CSS.contains("min-block-size: 22rem;"));
+        assert!(LAYOUT_CSS.contains("min-block-size: 40rem;"));
+        assert!(render(&demo()).contains("class=\"blocks-store-nav-mega-menu-page\""));
+    }
+
+    /// バーの `order` 上書きが DOM 順（ブランド → ナビ → 操作）を崩さない
+    /// こと（レビュー是正: 幅広時のみ `nav` に `order: 1` が付与され、
+    /// `order: 0`（既定）のブランド・操作より後ろへ描画されていた不具合。
+    /// 狭幅 `@container` 内の `order: 2`〔ナビを折り返して 2 行目へ送る
+    /// 意図的な上書き〕は対象外のため、`@container` より前の宣言のみを
+    /// 検査する）。
+    #[test]
+    fn wide_bar_order_matches_dom_order() {
+        let (wide, _) = LAYOUT_CSS
+            .split_once("@container")
+            .expect("LAYOUT_CSS should declare narrow @container rules");
+        assert!(
+            !wide.contains("order:"),
+            "wide bar should rely on DOM order (brand, nav, actions) without `order` overrides: {wide}"
+        );
     }
 
     /// ルート class（`demo_class` とは別名）が [`demo`] の出力へ実際に
