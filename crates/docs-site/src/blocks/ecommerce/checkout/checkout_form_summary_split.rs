@@ -62,6 +62,32 @@
 //! 使わないため、この列配置でも視覚順は DOM 順＝サマリ→フォームのまま
 //! 一致する）。
 //!
+//! # 2 カラム切り替え・行内 2 列化はコンテナクエリで判定する（`@container`、
+//! #3462 Bugbot 指摘対応）
+//!
+//! Demo 枠の幅はビューポート幅と一致しない（サイドバー分だけ実際の
+//! コンテナ幅が狭い）ため、`@media (min-width: ...)` をブレークポイント
+//! 判定に使うと、ビューポートは `64rem` 以上でも Demo の実コンテナ幅は
+//! それ未満のままレイアウトが崩れる（`cart_two_column_summary` と同型の
+//! 判断）。`.blocks-checkout-form-summary-split-layout` へ
+//! `container-type: inline-size` を宣言し、サマリ/フォームの 2 カラム
+//! 切り替えを `@container` で判定する。姓名・市区町村/都道府県の行内
+//! 2 列化はフォーム列（`.blocks-checkout-form-summary-split-form`）自体の
+//! 幅に依存する（2 カラム化後はフォーム列がレイアウト全体より狭くなる）
+//! ため、フォーム列へネストした `container-type: inline-size` を別途
+//! 宣言し、レイアウト全体のコンテナクエリとは独立した
+//! `blocks-checkout-form-summary-split-form` コンテナで判定する（レイア
+//! ウト全体の `64rem` ブレークポイントへ相乗りさせていた旧実装は、フォー
+//! ム列が狭くなる条件下でかえって 2 列化するという意図と逆の挙動を生ん
+//! でいた、#3462 Bugbot 指摘）。
+//!
+//! # サマリの `position: sticky` は使わない（#3462 Bugbot 指摘対応）
+//!
+//! `.blocks-demo` は `overflow-x: auto` の横スクロールコンテナのため、
+//! Demo 内でサマリを `position: sticky` 追従させても意図どおりに機能し
+//! ない（`cart_two_column_summary`・`content_article_toc` の判断を踏襲）。
+//! 実アプリで組み込む際は呼び出し側で `sticky` を付与してよい。
+//!
 //! # 都道府県 select をネイティブのまま操作可能にする理由
 //!
 //! [`native_select::native_select`] は `<select>` 自体をそのまま使う薄い
@@ -774,26 +800,26 @@ pub const BLOCK: Block = Block {
 /// `checkout_form_summary_split` 固有のレイアウト規則（`crate::blocks::
 /// LAYOUT_CSS` doc「block 固有 CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
-.blocks-checkout-form-summary-split-layout {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-8);\n}\n\
-.blocks-checkout-form-summary-split-form {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
+.blocks-checkout-form-summary-split-layout {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-8);\n  container-type: inline-size;\n  container-name: blocks-checkout-form-summary-split;\n}\n\
+.blocks-checkout-form-summary-split-form {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-checkout-form-summary-split-form;\n}\n\
 [data-blocks-checkout-form-summary-split-summary] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-checkout-form-summary-split-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-checkout-form-summary-split-name-row {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-checkout-form-summary-split-city-row {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-checkout-form-summary-split-product-list {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\
 .blocks-checkout-form-summary-split-product-row {\n  display: grid;\n  grid-template-columns: 4rem 1fr auto;\n  gap: var(--fandhe-space-3);\n  align-items: center;\n}\n\
+[data-blocks-checkout-form-summary-split-product-image] {\n  inline-size: 4rem;\n  block-size: 4rem;\n}\n\
 .blocks-checkout-form-summary-split-product-detail {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1, 0.25rem);\n  min-inline-size: 0;\n}\n\
 [data-blocks-checkout-form-summary-split-product-price] {\n  white-space: nowrap;\n}\n\
 [data-blocks-checkout-form-summary-split-confirm] {\n  inline-size: 100%;\n}\n\
 .blocks-checkout-form-summary-split-layout [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-checkout-form-summary-split-newsletter][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-@media (min-width: 40rem) {\n  \
-.blocks-checkout-form-summary-split-name-row {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n\
-}\n\
-@media (min-width: 64rem) {\n  \
-.blocks-checkout-form-summary-split-layout {\n    grid-template-columns: minmax(0, 24rem) minmax(0, 1fr);\n    align-items: start;\n  }\n  \
-[data-blocks-checkout-form-summary-split-summary] {\n    position: sticky;\n    top: var(--fandhe-space-4);\n  }\n  \
+@container blocks-checkout-form-summary-split-form (min-width: 40rem) {\n  \
+.blocks-checkout-form-summary-split-name-row {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n  \
 .blocks-checkout-form-summary-split-city-row {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n\
+}\n\
+@container blocks-checkout-form-summary-split (min-width: 64rem) {\n  \
+.blocks-checkout-form-summary-split-layout {\n    grid-template-columns: minmax(0, 24rem) minmax(0, 1fr);\n    align-items: start;\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -882,8 +908,46 @@ mod tests {
         // 視覚順へ一致させる理由」節）。
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(!LAYOUT_CSS.contains("order:"));
-        assert!(LAYOUT_CSS.contains("@media (min-width: 64rem)"));
+        // 2 カラム切り替えは Demo の実コンテナ幅で判定する（ビューポート
+        // 幅と一致しないため `@media` ではなく `@container` を使う、
+        // モジュール doc「2 カラム切り替え・行内 2 列化はコンテナクエリで
+        // 判定する理由」節、#3462 Bugbot 指摘対応）。
+        assert!(!LAYOUT_CSS.contains("@media"));
+        assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
+        assert!(
+            LAYOUT_CSS.contains("@container blocks-checkout-form-summary-split (min-width: 64rem)")
+        );
         assert!(LAYOUT_CSS.contains("grid-template-columns: minmax(0, 24rem) minmax(0, 1fr);"));
+    }
+
+    #[test]
+    fn layout_css_form_row_wrapping_uses_form_container_not_page_breakpoint() {
+        // 姓名・市区町村/都道府県の行内 2 列化はフォーム列自体の幅に依存する
+        // ため、レイアウト全体の 2 カラム切り替えとは別のネストした
+        // コンテナ（`blocks-checkout-form-summary-split-form`）で判定する
+        // （#3462 Bugbot 指摘対応、モジュール doc 同節）。
+        assert!(LAYOUT_CSS
+            .contains("@container blocks-checkout-form-summary-split-form (min-width: 40rem)"));
+    }
+
+    #[test]
+    fn layout_css_does_not_use_sticky_summary() {
+        // `.blocks-demo` は overflow-x: auto の横スクロールコンテナのため
+        // `position: sticky` が意図どおり機能しない
+        // （`cart_two_column_summary` と同型の判断、#3462 Bugbot 指摘対応、
+        // モジュール doc「サマリの `position: sticky` は使わない」節）。
+        assert!(!LAYOUT_CSS.contains("sticky"));
+    }
+
+    #[test]
+    fn layout_css_product_image_has_explicit_size() {
+        // グリッド列（4rem）に対し画像の実寸が明示されていないと
+        // `min-width: auto` の既定でダミー SVG の実寸がはみ出し summary が
+        // 崩れうる（#3462 Bugbot 指摘対応、姉妹ブロック
+        // `cart_two_column_summary` の `[data-...-thumb]` と同型の判断）。
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-checkout-form-summary-split-product-image] {\n  inline-size: 4rem;\n  block-size: 4rem;\n}"
+        ));
     }
 
     #[test]
