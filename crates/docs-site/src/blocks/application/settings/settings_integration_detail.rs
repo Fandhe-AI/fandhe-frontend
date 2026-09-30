@@ -38,13 +38,17 @@
 //! # 2 版の並記と見出し階層
 //!
 //! `table_with_toolbar.rs`（複数版並記の先例）と同型で、版キャプション
-//! （[`caption`]、`h2`）→ アプリ名（`h3`）→ section 見出し（`h4`）→
-//! 関連連携カード・作成導線カードの表題（`h5`）の 4 階層で構造化する。
+//! （[`caption`]、`h2`）→ アプリ名（`h3`）→ section 見出し・作成導線表題
+//! （`h4`）→ 関連連携カードの表題（`h5`）の 4 階層で構造化する。
 //! カード表題に [`fandhe_frontend_pre_styled_ui::card::title`]（`<h3>`
 //! 固定）を使うと section 見出し（`h4`）より上位の階層になってしまうため、
 //! `settings_integrations_grid.rs` が `card::title` を避けて
 //! `heading(level, ..)` を使う判断と同型で、本 block も `card::title` を
-//! 使わず [`heading`] で `h5` を明示する。
+//! 使わず [`heading`] で明示する。作成導線（[`create_cta_section`]）は
+//! 「関連する連携」（h4）と対等な独立導線であり、その子項目ではないため
+//! 表題を `h4` にする（`h5` のままだと直前の h4 の下位見出しに読めてしまう、
+//! Codex 指摘・PR #3458）。関連連携カードの表題のみ「関連する連携」（h4）の
+//! 子として `h5` のままとする。
 //!
 //! # `class` と `data-*` の使い分け
 //!
@@ -487,9 +491,11 @@ fn related_integrations_section() -> Node {
     )
 }
 
-/// 作成導線（H4 なしの単独カード。「独自の連携を作成」（`h5`）+ 説明 +
-/// footer にボタン + 外部リンク、両版で共有。`card::title` を使わない
-/// 理由は [`related_card`] rustdoc と同じ）。
+/// 作成導線（単独カード。「独自の連携を作成」（`h4`）+ 説明 + footer に
+/// ボタン + 外部リンク、両版で共有。「関連する連携」（h4）と対等な独立導線
+/// のため表題も `h4` に揃える（モジュール doc「2 版の並記と見出し階層」
+/// 節参照、Codex 指摘・PR #3458）。`card::title` を使わない理由は
+/// [`related_card`] rustdoc と同じ）。
 fn create_cta_section() -> Node {
     card::root(
         CardProps::default(),
@@ -499,7 +505,7 @@ fn create_cta_section() -> Node {
                 vec![],
                 vec![
                     heading(
-                        HeadingLevel::H5,
+                        HeadingLevel::H4,
                         &HeadingProps::default(),
                         vec![],
                         vec![text("独自の連携を作成")],
@@ -669,7 +675,7 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-settings-integration-detail-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-12);\n  container-type: inline-size;\n  container-name: blocks-settings-integration-detail;\n}\n\
 .blocks-settings-integration-detail-version {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
-[data-scope=\"heading\"][data-blocks-settings-integration-detail-caption] {\n  border-top: none;\n  padding-top: 0;\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n}\n\
+[data-scope=\"heading\"][data-blocks-settings-integration-detail-caption] {\n  border-top: none;\n  padding-top: 0;\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-settings-integration-detail-header {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: flex-start;\n  gap: var(--fandhe-space-4);\n}\n\
 img[data-scope=\"image\"][data-blocks-settings-integration-detail-logo] {\n  width: 3rem;\n  height: 3rem;\n  flex-shrink: 0;\n}\n\
 .blocks-settings-integration-detail-identity {\n  display: flex;\n  flex: 1 1 16rem;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
@@ -684,7 +690,7 @@ img[data-scope=\"image\"][data-blocks-settings-integration-detail-logo] {\n  wid
 .blocks-settings-integration-detail-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-settings-integration-detail-section [data-scope=\"heading\"] {\n  margin: 0;\n}\n\
 .blocks-settings-integration-detail-related-grid {\n  display: grid;\n  grid-template-columns: repeat(3, 1fr);\n  gap: var(--fandhe-space-4);\n}\n\
-.blocks-settings-integration-detail-card-header {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
+[data-scope=\"card\"][data-part=\"header\"].blocks-settings-integration-detail-card-header {\n  display: flex;\n  flex-direction: row;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-settings-integration-detail-card-header [data-scope=\"heading\"] {\n  margin: 0;\n}\n\
 img[data-scope=\"image\"][data-blocks-settings-integration-detail-card-logo] {\n  width: 2rem;\n  height: 2rem;\n  flex-shrink: 0;\n}\n\
 [data-blocks-settings-integration-detail-cta] [data-scope=\"heading\"] {\n  margin: 0;\n}\n\
@@ -723,11 +729,13 @@ mod tests {
         // アプリ名（h3）2 個（版 A・B 各 1）。
         assert_eq!(html.matches("<h3").count(), 2);
         // section() の見出し（h4）: 版 A（概要・主な機能・導入手順・
-        // 関連する連携 = 4）+ 版 B（概要・主な機能・利点・関連する連携 = 4）。
-        assert_eq!(html.matches("<h4").count(), 8);
-        // 関連連携カード表題（3 枚）+ 作成導線表題（1 枚）を版ごとに
-        // heading(H5) で出力（`card::title` は使わない）。
-        assert_eq!(html.matches("<h5").count(), 8);
+        // 関連する連携 = 4）+ 版 B（概要・主な機能・利点・関連する連携 = 4）
+        // + 作成導線表題（h4、両版で共有 = 2）。作成導線は「関連する連携」
+        // と対等な独立導線のため h4 に揃える（Codex 指摘・PR #3458）。
+        assert_eq!(html.matches("<h4").count(), 10);
+        // 関連連携カード表題（3 枚）を版ごとに heading(H5) で出力
+        // （`card::title` は使わない）。
+        assert_eq!(html.matches("<h5").count(), 6);
         // 導入手順（番号付き）は版 A のみ。
         assert_eq!(html.matches("<ol").count(), 1);
         // 主な機能（版 A・B 共通）+ 利点（版 B のみ）。
@@ -807,13 +815,20 @@ mod tests {
     }
 
     /// `.docs-content h2`（`site_theme.rs` の文書タイポグラフィ、
-    /// `border-top`/`padding-top`/`margin`）が版キャプションへ漏れ出さない
-    /// ことを固定する（`title_row` に対する PR #3440 の対策の版キャプション
-    /// 版、モジュール doc「2 版の並記と見出し階層」節参照）。
+    /// `border-top`/`padding-top`/`margin`/`font-size: 2xl`）が版キャプション
+    /// へ漏れ出さないことを固定する（`title_row` に対する PR #3440 の対策の
+    /// 版キャプション版、モジュール doc「2 版の並記と見出し階層」節参照）。
+    /// `font-size` は Cursor Bugbot 指摘（PR #3458）の是正: `caption()` は
+    /// `HeadingSize::Sm` を指定するが、`fd-heading--size-sm` クラス
+    /// （specificity 0,1,0）は `.docs-content h2`（要素+クラス、specificity
+    /// 0,1,1）に負けて `2xl` のまま残ってしまうため、本 block 固有の
+    /// 属性セレクタ（specificity 0,2,0）で明示的に `sm` へ上書きし、
+    /// キャプション（`sm`）< 節見出し（`lg`）< アプリ名（`xl`）の階層を
+    /// 成立させる。
     #[test]
     fn caption_overrides_docs_content_h2() {
         assert!(LAYOUT_CSS.contains(
-            "[data-scope=\"heading\"][data-blocks-settings-integration-detail-caption] {\n  border-top: none;\n  padding-top: 0;\n  margin: 0;"
+            "[data-scope=\"heading\"][data-blocks-settings-integration-detail-caption] {\n  border-top: none;\n  padding-top: 0;\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);"
         ));
     }
 
@@ -853,6 +868,20 @@ mod tests {
         ));
         assert!(LAYOUT_CSS.contains(
             "[data-blocks-settings-integration-detail-cta] [data-scope=\"heading\"] {\n  margin: 0;\n}"
+        ));
+    }
+
+    /// 関連連携カードのヘッダー（ロゴ + アプリ名）が `card::header` 既定の
+    /// `flex-direction: column` のまま縦積みにならず横並びになることを
+    /// 固定する（Cursor Bugbot 指摘、PR #3458。`[data-scope="card"]
+    /// [data-part="header"]` 基底規則（specificity 0,2,0）に対し、本
+    /// block 固有の上書きセレクタも `[data-scope="card"][data-part="header"]`
+    /// を明示して同格以上の specificity を確保する、`page_heading_welcome_stats.rs`
+    /// 等と同型のパターン）。
+    #[test]
+    fn card_header_overrides_default_column_direction_to_row() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"card\"][data-part=\"header\"].blocks-settings-integration-detail-card-header {\n  display: flex;\n  flex-direction: row;"
         ));
     }
 

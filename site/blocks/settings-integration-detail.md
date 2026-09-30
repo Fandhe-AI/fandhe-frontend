@@ -387,9 +387,11 @@ fn related_integrations_section() -> Node {
     )
 }
 
-/// 作成導線（H4 なしの単独カード。「独自の連携を作成」（`h5`）+ 説明 +
-/// footer にボタン + 外部リンク、両版で共有。`card::title` を使わない
-/// 理由は [`related_card`] rustdoc と同じ）。
+/// 作成導線（単独カード。「独自の連携を作成」（`h4`）+ 説明 + footer に
+/// ボタン + 外部リンク、両版で共有。「関連する連携」（h4）と対等な独立導線
+/// のため表題も `h4` に揃える（モジュール doc「2 版の並記と見出し階層」
+/// 節参照、Codex 指摘・PR #3458）。`card::title` を使わない理由は
+/// [`related_card`] rustdoc と同じ）。
 fn create_cta_section() -> Node {
     card::root(
         CardProps::default(),
@@ -399,7 +401,7 @@ fn create_cta_section() -> Node {
                 vec![],
                 vec![
                     heading(
-                        HeadingLevel::H5,
+                        HeadingLevel::H4,
                         &HeadingProps::default(),
                         vec![],
                         vec![text("独自の連携を作成")],
