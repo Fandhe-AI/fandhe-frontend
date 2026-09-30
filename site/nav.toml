@@ -2317,6 +2317,11 @@ title = "settings-billing-overview"
 source = "site/blocks/settings-billing-overview.md"
 path = "/blocks/settings-billing-overview/"
 
+[[section.group.page]]
+title = "settings-integrations-grid"
+source = "site/blocks/settings-integrations-grid.md"
+path = "/blocks/settings-integrations-grid/"
+
 [[section.group]]
 title = "Action Panel"
 
