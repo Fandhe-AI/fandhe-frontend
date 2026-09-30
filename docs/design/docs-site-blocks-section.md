@@ -1055,6 +1055,7 @@ pub enum LayoutCss {
 | settings-integrations-list | #2993（親 #2992） | `application/settings/settings_integrations_list.rs` |
 | settings-integrations-search | #2995（親 #2951） | `application/settings/settings_integrations_search.rs` |
 | settings-item-cards | #2996（親 #2951） | `application/settings/settings_item_cards.rs` |
+| settings-notification-matrix | #2998（親 #2951） | `application/settings/settings_notification_matrix.rs` |
 | settings-org-switcher | #2999（親 #2951） | `application/settings/settings_org_switcher.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した

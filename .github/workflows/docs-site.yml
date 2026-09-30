@@ -473,6 +473,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-integrations-search/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-api-key-created/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-org-switcher/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-notification-matrix/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-item-cards/index.html"
           # Application / Action Panel
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-stacked/index.html"
