@@ -541,6 +541,7 @@ jobs:
           # Ecommerce / Cart
           # Ecommerce / Checkout
           # Ecommerce / Order
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/order-tracking-progress/index.html"
           # Ecommerce / Reviews
           # Ecommerce / Store Nav
           # Ecommerce / Incentives
