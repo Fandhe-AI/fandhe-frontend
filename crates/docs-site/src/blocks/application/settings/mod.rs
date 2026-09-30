@@ -15,7 +15,9 @@
 //! 原稿の仕上げは #3008 で完了）、イシュー #3009 で
 //! [`settings_preferences`]、イシュー #3010 で
 //! [`settings_profile_form`]、イシュー #3001 で
-//! [`settings_page_aside_nav`] を追加した）。手順は
+//! [`settings_page_aside_nav`]、イシュー #3013 で
+//! [`settings_share_members`]（骨格・主要領域。QR 版・状態差分は
+//! 後半 #3014）を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -42,6 +44,7 @@ mod settings_page_aside_nav;
 mod settings_page_tabs;
 mod settings_preferences;
 mod settings_profile_form;
+mod settings_share_members;
 
 use crate::blocks::Block;
 
@@ -65,5 +68,6 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_page_tabs::BLOCK,
         settings_preferences::BLOCK,
         settings_profile_form::BLOCK,
+        settings_share_members::BLOCK,
     ]
 }
