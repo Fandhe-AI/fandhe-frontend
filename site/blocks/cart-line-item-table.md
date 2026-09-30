@@ -12,13 +12,16 @@
 配置しています。狭い幅（`40rem` 以下）では列見出し行を隠し、各行を
 「商品画像 | 商品情報・数量・価格・合計」の 2 段組みへ組み替えます。この
 とき各セルには列名ラベルを表示し、列見出しが隠れても値の意味が失われない
-ようにしています。
+ようにしています。列見出しが見えている広い幅でも、各セルの列名ラベルは
+視覚的にのみ隠して DOM 上に残すため、スクリーンリーダーは値の直前に列名
+（数量・価格・合計）を読み上げます。
 
 本 Demo は静的な表示例であり、`<form>` 要素は一切持たず、データの取得・
-送信・状態管理を行いません。数量の `native-select` は初期状態（1 個）の
-まま固定表示で、選択操作をしても合計は再計算されません。購入手続き
-ボタンは `type="button"` のまま送信先を持ちません。商品名・バリエー
-ション・価格はすべて独自に書いた架空のものであり、実企業名・実商品・
+送信・状態管理を行いません。docs-site は無 JS のため選択に応じた再計算は
+できず、数量の `native-select` は `disabled` にして初期状態（1 個）の
+まま固定表示します（変更可能に見えて金額が追従しない不整合を避けるため）。
+購入手続きボタンは `type="button"` のまま送信先を持ちません。商品名・
+バリエーション・価格はすべて独自に書いた架空のものであり、実企業名・実商品・
 PII を含みません。行削除操作・送料/税/割引の追加サマリ行・在庫状況等の
 状態表示は後続イシューで追加予定です。
 
@@ -154,8 +157,12 @@ fn product_cell(item: &LineItem) -> Node {
     )
 }
 
-/// 狭幅時のみ表示するセルラベル（[`LAYOUT_CSS`] の `@container` で表示を
-/// 切り替える。列見出しが隠れる代わりに各セルへ意味を残す）。
+/// セルラベル（数量・価格・合計の各値に列の意味を関連付ける）。広幅では
+/// [`LAYOUT_CSS`] の clip 手法で視覚的にのみ隠し（`display: none` ではなく
+/// DOM 上に残すため、スクリーンリーダーは値の直前に読み上げる）、狭幅の
+/// `@container` では通常表示へ切り替える（PR #3461 レビュー指摘対応。
+/// `<table>`/`<th>` へ組み替えず、`@container` に応じたセル並べ替えを保った
+/// まま列見出しとの意味的関連付けだけを補う判断）。
 fn cell_label(label: &'static str) -> Node {
     span(
         vec![("class", "blocks-cart-line-item-table-cell-label")],
@@ -165,14 +172,16 @@ fn cell_label(label: &'static str) -> Node {
 
 /// 数量 `native_select`（[`native_select`] 部品）。行ごとに `id` を一意化
 /// し、`aria-label` でアクセシブルネームを持たせる（モジュール doc
-/// 「数量セレクトのアクセシブルネーム」節参照）。option は 1〜3 個、選択値
-/// は 1 個で固定（静的表示）。
+/// 「数量セレクトのアクセシブルネーム」節参照）。option は 1〜3 個を表示
+/// しつつ `disabled` にして選択値を 1 個に固定する（モジュール doc
+/// 「静的表示・`<form>` を使わない」節参照。無 JS のため選択操作しても
+/// 金額を追従できず、操作可能に見える不整合を避ける）。
 fn quantity_select(item: &LineItem) -> Node {
     let id = format!("blocks-cart-line-item-table-qty-{}", item.row);
     let field = FieldProps {
         id: id.as_str(),
         ids: FieldIds::default(),
-        disabled: false,
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,

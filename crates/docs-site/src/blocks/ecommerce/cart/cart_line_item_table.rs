@@ -38,9 +38,10 @@
 //!
 //! `crate::blocks` モジュール doc の不変条件どおり、本 Demo は `<form>` を
 //! 出力しない。ボタンは `button::button` 既定の `type="button"` のまま
-//! 用い、送信処理・送信先は一切持たない。数量 `<select>` の選択値は初期
-//! 状態のまま固定し、選択操作しても合計は再計算されない（無 JS の静的
-//! 表示。行削除・追加サマリ行・在庫状況等の状態表示は #3029 で追加）。
+//! 用い、送信処理・送信先は一切持たない。docs-site は無 JS のため選択に
+//! 応じた再計算はできず、数量 `<select>` は `disabled` にして初期値のまま
+//! 固定する（変更可能に見えて金額が追従しない不整合を避ける。PR #3461 レビュー
+//! 指摘対応）。行削除・追加サマリ行・在庫状況等の状態表示は #3029 で追加。
 //!
 //! # ダミー素材について
 //!
@@ -181,8 +182,12 @@ fn product_cell(item: &LineItem) -> Node {
     )
 }
 
-/// 狭幅時のみ表示するセルラベル（[`LAYOUT_CSS`] の `@container` で表示を
-/// 切り替える。列見出しが隠れる代わりに各セルへ意味を残す）。
+/// セルラベル（数量・価格・合計の各値に列の意味を関連付ける）。広幅では
+/// [`LAYOUT_CSS`] の clip 手法で視覚的にのみ隠し（`display: none` ではなく
+/// DOM 上に残すため、スクリーンリーダーは値の直前に読み上げる）、狭幅の
+/// `@container` では通常表示へ切り替える（PR #3461 レビュー指摘対応。
+/// `<table>`/`<th>` へ組み替えず、`@container` に応じたセル並べ替えを保った
+/// まま列見出しとの意味的関連付けだけを補う判断）。
 fn cell_label(label: &'static str) -> Node {
     span(
         vec![("class", "blocks-cart-line-item-table-cell-label")],
@@ -192,14 +197,16 @@ fn cell_label(label: &'static str) -> Node {
 
 /// 数量 `native_select`（[`native_select`] 部品）。行ごとに `id` を一意化
 /// し、`aria-label` でアクセシブルネームを持たせる（モジュール doc
-/// 「数量セレクトのアクセシブルネーム」節参照）。option は 1〜3 個、選択値
-/// は 1 個で固定（静的表示）。
+/// 「数量セレクトのアクセシブルネーム」節参照）。option は 1〜3 個を表示
+/// しつつ `disabled` にして選択値を 1 個に固定する（モジュール doc
+/// 「静的表示・`<form>` を使わない」節参照。無 JS のため選択操作しても
+/// 金額を追従できず、操作可能に見える不整合を避ける）。
 fn quantity_select(item: &LineItem) -> Node {
     let id = format!("blocks-cart-line-item-table-qty-{}", item.row);
     let field = FieldProps {
         id: id.as_str(),
         ids: FieldIds::default(),
-        disabled: false,
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
@@ -392,9 +399,9 @@ const LAYOUT_CSS: &str = "\
 .blocks-cart-line-item-table-product {\n  display: flex;\n  gap: var(--fandhe-space-3);\n  align-items: center;\n  min-width: 0;\n}\n\
 .blocks-cart-line-item-table-info {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
 img[data-scope=\"image\"][data-blocks-cart-line-item-table-thumb] {\n  width: 4rem;\n  height: 4rem;\n  flex-shrink: 0;\n}\n\
-.blocks-cart-line-item-table-cell-label {\n  display: none;\n}\n\
+.blocks-cart-line-item-table-cell-label {\n  position: absolute;\n  width: 1px;\n  height: 1px;\n  padding: 0;\n  margin: -1px;\n  overflow: hidden;\n  clip: rect(0, 0, 0, 0);\n  white-space: nowrap;\n  border-width: 0;\n}\n\
 .blocks-cart-line-item-table-summary {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-end;\n  gap: var(--fandhe-space-4);\n}\n\
-@container blocks-cart-line-item-table (max-width: 40rem) {\n  .blocks-cart-line-item-table-head {\n    display: none;\n  }\n  .blocks-cart-line-item-table-row {\n    grid-template-columns: 4rem minmax(0, 1fr);\n  }\n  .blocks-cart-line-item-table-product {\n    grid-column: 1 / -1;\n  }\n  .blocks-cart-line-item-table-cell {\n    grid-column: 2;\n  }\n  .blocks-cart-line-item-table-cell-label {\n    display: inline;\n    color: var(--fandhe-color-fg-muted);\n    margin-inline-end: var(--fandhe-space-1);\n  }\n}\n";
+@container blocks-cart-line-item-table (max-width: 40rem) {\n  .blocks-cart-line-item-table-head {\n    display: none;\n  }\n  .blocks-cart-line-item-table-row {\n    grid-template-columns: 4rem minmax(0, 1fr);\n  }\n  .blocks-cart-line-item-table-product {\n    grid-column: 1 / -1;\n  }\n  .blocks-cart-line-item-table-cell {\n    grid-column: 2;\n  }\n  .blocks-cart-line-item-table-cell-label {\n    position: static;\n    width: auto;\n    height: auto;\n    padding: 0;\n    margin: 0 var(--fandhe-space-1) 0 0;\n    overflow: visible;\n    clip: auto;\n    white-space: normal;\n    color: var(--fandhe-color-fg-muted);\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
