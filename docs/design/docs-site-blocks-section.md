@@ -1052,7 +1052,7 @@ pub enum LayoutCss {
 | settings-billing-overview | #2984 | `application/settings/settings_billing_overview.rs` |
 | settings-billing-usage | #2985 | `application/settings/settings_billing_usage.rs` |
 | settings-api-key-created | #2982（親 #2951） | `application/settings/settings_api_key_created.rs` |
-| settings-integration-detail | #2989（親 #2988） | `application/settings/settings_integration_detail.rs` |
+| settings-integration-detail | #2989・#2990（親 #2988） | `application/settings/settings_integration_detail.rs` |
 | settings-integrations-grid | #2991（親 #2951） | `application/settings/settings_integrations_grid.rs` |
 | settings-integrations-list | #2993/#2994（親 #2992） | `application/settings/settings_integrations_list.rs` |
 | settings-integrations-search | #2995（親 #2951） | `application/settings/settings_integrations_search.rs` |
@@ -1060,11 +1060,12 @@ pub enum LayoutCss {
 | settings-log-table | #2997 | `application/settings/settings_log_table.rs` |
 | settings-notification-matrix | #2998（親 #2951） | `application/settings/settings_notification_matrix.rs` |
 | settings-org-switcher | #2999（親 #2951） | `application/settings/settings_org_switcher.rs` |
-| settings-page-aside-nav | #3001（親 #3000） | `application/settings/settings_page_aside_nav.rs` |
+| settings-page-aside-nav | #3001/#3002（親 #3000） | `application/settings/settings_page_aside_nav.rs` |
 | settings-page-tabs | #3007（親 #3006） | `application/settings/settings_page_tabs.rs` |
 | settings-preferences | #3009（親 #2951） | `application/settings/settings_preferences.rs` |
 | settings-profile-form | #3010 | `application/settings/settings_profile_form.rs` |
 | notification-tray | #2976（親 #2951） | `application/notification/notification_tray.rs` |
+| settings-share-members | #3013（親 #3012） | `application/settings/settings_share_members.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
