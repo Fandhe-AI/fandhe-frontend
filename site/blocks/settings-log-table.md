@@ -191,15 +191,18 @@ fn operator_cell(name: &'static str) -> Node {
 }
 
 /// 日時・操作者・イベント・結果の 4 列テーブル（版 A/B 共通の骨格）。
-fn log_table(rows: &[&LogRow]) -> Node {
+/// `label` はテーブル・スクロールコンテナ双方の accessible name に使う
+/// （版 A の監査ログ 1 件・版 B のタブ 4 件で計 5 テーブル、支援技術が
+/// 互いを区別できるよう呼び出し側で一意な文言を渡す契約）。
+fn log_table(rows: &[&LogRow], label: &str) -> Node {
     table::scroll_area(
-        vec![],
+        vec![("role", "region"), ("aria-label", label), ("tabindex", "0")],
         vec![table::root(
             TableProps {
                 size: Size::Sm,
                 ..TableProps::default()
             },
-            vec![],
+            vec![("aria-label", label)],
             vec![
                 table::header(
                     vec![],
@@ -276,27 +279,62 @@ fn filter_field(id_suffix: &str, label_text: &'static str, options: &[(&str, &st
 }
 
 /// 件数サマリ + ページ送り（版 A/B 共通の骨格、常に先頭ページ表示中の
-/// 静的表示）。
-fn pager(aria_label: &'static str, summary: &'static str) -> Node {
+/// 静的表示）。`total_pages` は実件数から算出した実ページ数（版 A: 42 件 /
+/// 5 件毎 = 9 ページ、版 B: 18 件 / 6 件毎 = 3 ページ）を渡す契約とし、
+/// 存在しないページ番号を表示しない。4 ページ以下は省略記号を使わず
+/// 全ページを列挙し、5 ページ以上は先頭 3 ページ + 省略記号 + 最終ページの
+/// 形に畳む。
+fn pager(aria_label: &'static str, summary: &'static str, total_pages: u64) -> Node {
+    let mut items: Vec<Node> = vec![pagination::prev_trigger(
+        ItemMode::Button,
+        true,
+        vec![],
+        vec![text("前へ")],
+    )];
+    if total_pages <= 4 {
+        for page in 1..=total_pages {
+            items.push(pagination::item(
+                ItemMode::Button,
+                page,
+                page == 1,
+                false,
+                vec![],
+                vec![text(page.to_string())],
+            ));
+        }
+    } else {
+        for page in 1..=3 {
+            items.push(pagination::item(
+                ItemMode::Button,
+                page,
+                page == 1,
+                false,
+                vec![],
+                vec![text(page.to_string())],
+            ));
+        }
+        items.push(pagination::ellipsis(vec![], vec![text("…")]));
+        items.push(pagination::item(
+            ItemMode::Button,
+            total_pages,
+            false,
+            false,
+            vec![],
+            vec![text(total_pages.to_string())],
+        ));
+    }
+    items.push(pagination::next_trigger(
+        ItemMode::Button,
+        false,
+        vec![],
+        vec![text("次へ")],
+    ));
+
     div(
         vec![("class", "blocks-settings-log-table-footer")],
         vec![
             text(summary),
-            pagination::root(
-                Size::Sm,
-                ColorPalette::Accent,
-                aria_label,
-                vec![],
-                vec![
-                    pagination::prev_trigger(ItemMode::Button, true, vec![], vec![text("前へ")]),
-                    pagination::item(ItemMode::Button, 1, true, false, vec![], vec![text("1")]),
-                    pagination::item(ItemMode::Button, 2, false, false, vec![], vec![text("2")]),
-                    pagination::item(ItemMode::Button, 3, false, false, vec![], vec![text("3")]),
-                    pagination::ellipsis(vec![], vec![text("…")]),
-                    pagination::item(ItemMode::Button, 9, false, false, vec![], vec![text("9")]),
-                    pagination::next_trigger(ItemMode::Button, false, vec![], vec![text("次へ")]),
-                ],
-            ),
+            pagination::root(Size::Sm, ColorPalette::Accent, aria_label, vec![], items),
         ],
     )
 }
@@ -370,8 +408,8 @@ fn version_audit() -> Node {
                 vec![text("A: 選択欄で絞り込み（監査ログ）")],
             ),
             toolbar,
-            log_table(&AUDIT_ROWS.iter().collect::<Vec<_>>()),
-            pager("監査ログのページ送り", "全 42 件中 1〜5 件を表示"),
+            log_table(&AUDIT_ROWS.iter().collect::<Vec<_>>(), "監査ログ"),
+            pager("監査ログのページ送り", "全 42 件中 1〜5 件を表示", 9),
         ],
     )
 }
@@ -387,10 +425,11 @@ fn version_delivery() -> Node {
             vec![],
             vec![text(rows.len().to_string())],
         ));
+        let label = format!("配信ログ（{trigger_label}）");
         TabItem {
             value,
             trigger,
-            content: vec![log_table(&rows)],
+            content: vec![log_table(&rows, &label)],
             disabled: false,
         }
     };
@@ -428,7 +467,7 @@ fn version_delivery() -> Node {
                 &props,
                 items,
             ),
-            pager("配信ログのページ送り", "全 18 件中 1〜6 件を表示"),
+            pager("配信ログのページ送り", "全 18 件中 1〜6 件を表示", 3),
         ],
     )
 }
