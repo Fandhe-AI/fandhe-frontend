@@ -75,7 +75,7 @@ use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
-use fandhe_frontend_pre_styled_ui::field::{self, FieldIds};
+use fandhe_frontend_pre_styled_ui::field::{self, FieldIds, FieldRootProps};
 use fandhe_frontend_pre_styled_ui::heading::{
     heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
 };
@@ -153,6 +153,12 @@ impl SplitImageVariant {
 /// 進捗表示（[`Steps`] 4 段。`trigger`/`content`/`separator` は置かず、
 /// 番号インジケータのみを横に並べる。主見出しは [`SplitImageVariant::
 /// heading_text`] 側で別途出すため、`item` 直下に本文は持たない）。
+///
+/// `steps::trigger` を使わない構成のため、既定では現在ステップを示す
+/// `aria-current="step"` が出力されない（headless-ui `steps.rs` の設計上
+/// `trigger` にのみ付与される）。スクリーンリーダーへ進捗を伝えるため、
+/// 現在ステップの `item` へ `aria-current="step"` を明示付与する
+/// （Codex レビュー指摘、イシュー #2980）。
 fn steps_row(variant: SplitImageVariant) -> Node {
     let s = Steps::new(4, variant.step_index(), Orientation::Horizontal);
     steps::root(
@@ -165,10 +171,15 @@ fn steps_row(variant: SplitImageVariant) -> Node {
             vec![],
             (0..4)
                 .map(|index| {
+                    let item_attrs = if index == variant.step_index() {
+                        vec![("aria-current", "step")]
+                    } else {
+                        vec![]
+                    };
                     steps::item(
                         &s,
                         index,
-                        vec![],
+                        item_attrs,
                         vec![steps::indicator(
                             &s,
                             index,
@@ -445,8 +456,15 @@ fn plan_cards() -> Node {
         vec![],
         vec![
             cards,
-            field::label(&team_size_props, vec![], vec![text("チーム規模")]),
-            team_size,
+            field::root(
+                &FieldRootProps::default(),
+                &team_size_props,
+                vec![],
+                vec![
+                    field::label(&team_size_props, vec![], vec![text("チーム規模")]),
+                    team_size,
+                ],
+            ),
         ],
     )
 }
