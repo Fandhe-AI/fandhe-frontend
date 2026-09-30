@@ -468,6 +468,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-billing-usage/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-event-accordion/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-export-data/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-api-key-created/index.html"
           # Application / Action Panel
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-stacked/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-with-input/index.html"
@@ -490,6 +491,7 @@ jobs:
           # Application / Onboarding
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-centered-steps/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-checklist/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-vertical-steps/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-split-image/index.html"
           # Application / Card
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-meta-cta/index.html"
