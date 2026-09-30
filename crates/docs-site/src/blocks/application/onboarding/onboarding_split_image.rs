@@ -1,7 +1,8 @@
 //! `onboarding-split-image` block（イシュー #2980。親トラッキング #2951
 //! 「Blocks 目的別パーツ拡充」配下、区分は application、カテゴリは
-//! Onboarding。カテゴリ本体は本 block が最初のため #2980 でディレクトリ化
-//! した、`docs/design/docs-site-blocks-section.md` §18 参照）。左カラムに
+//! Onboarding、`onboarding_checklist`〔#2979〕・`onboarding_centered_steps`
+//! 〔#2978〕に続く 3 件目、`docs/design/docs-site-blocks-section.md` §18
+//! 参照）。左カラムに
 //! ロゴ・進捗・見出し・選択カード群・次へボタン、右カラムに装飾画像を置く
 //! 分割オンボーディング。狭幅では右カラムを隠し左カラムのみを表示する。
 //!
