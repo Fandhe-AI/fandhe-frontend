@@ -58,9 +58,9 @@
 //! [`qr_frame`] が
 //! [`fandhe_frontend_pre_styled_ui::qr_code::encode`]（固定の共有リンク
 //! 文字列を符号化、`component_page_specs_948.rs::qr_code_example` と同じ
-//! 組み立て）を呼び、`Result` を `.ok()` で `Option`化する
+//! 組み立て）を呼び、`Result` を `match` で処理する
 //! （本 block の Demo 関数群は `Result` を返さない純関数契約のため）。
-//! 値は固定 const のため実際には失敗しないが、`None` になった場合は QR
+//! 値は固定 const のため実際には失敗しないが、`Err` になった場合は QR
 //! コードの代わりに muted テキストを表示し、黙って要素が欠落しないように
 //! する（ユニットテスト `qr_version_renders_qr_frame_with_label_and_no_copied_state`
 //! が `data-scope="qr-code"` の存在を固定）。`frame` には
