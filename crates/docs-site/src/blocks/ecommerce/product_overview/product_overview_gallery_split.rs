@@ -135,8 +135,11 @@ const COLOR_NAME: &str = "blocks-product-overview-gallery-split-color";
 /// サイズ選択 radio card のネイティブ `name`。
 const SIZE_NAME: &str = "blocks-product-overview-gallery-split-size";
 
-/// パンくず（カテゴリ階層。`href="#"` は使わず実在する相対パスへ向ける、
-/// モジュール doc「`<form>` を持たない」節参照）。
+/// パンくず。`href="#"` は使わず実在する相対パスへ向ける
+/// （モジュール doc「`<form>` を持たない」節参照）。中間項目は実在しない
+/// カテゴリ名を騙らず、実際の遷移先（`/blocks/`）と一致する「Blocks」を
+/// ラベルにする（`page_heading_meta.rs`・`help_center_article_list.rs` と
+/// 同じ判断、レビュー指摘対応）。
 fn product_breadcrumb() -> Node {
     breadcrumb::root(
         Size::Sm,
@@ -153,11 +156,7 @@ fn product_breadcrumb() -> Node {
                 breadcrumb::separator(vec![], vec![text("/")]),
                 breadcrumb::item(
                     vec![],
-                    vec![breadcrumb::link(
-                        "../",
-                        vec![],
-                        vec![text("オーディオ機器")],
-                    )],
+                    vec![breadcrumb::link("../", vec![], vec![text("Blocks")])],
                 ),
                 breadcrumb::separator(vec![], vec![text("/")]),
                 breadcrumb::item(
@@ -174,15 +173,13 @@ fn product_breadcrumb() -> Node {
 
 /// ギャラリーのサムネイル 1 枚分（`carousel::item` + [`image::image`]）。
 /// 装飾ではなくカルーセルの主要コンテンツのため `alt` を空文字列にしない
-/// （`gallery_split_carousel.rs::slide` と同じ判断）。
+/// （`gallery_split_carousel.rs::slide` と同じ判断）。すべて単一商品の
+/// 画像であるため [`dummy_assets::PRODUCT_SRC`] のみを使う
+/// （`cart_two_column_summary.rs`・`order_tracking_progress.rs` と同じ
+/// 判断。`BACKGROUND_SRC`/`SCREENSHOT_SRC`/`LOGO_SRC` は無関係カテゴリの
+/// プレースホルダーのため商品画像としては使わない、レビュー指摘対応）。
 fn thumbnail(index: usize, count: usize) -> Node {
-    let sources = [
-        dummy_assets::PRODUCT_SRC,
-        dummy_assets::BACKGROUND_SRC,
-        dummy_assets::SCREENSHOT_SRC,
-        dummy_assets::LOGO_SRC,
-    ];
-    let src = sources[index % sources.len()];
+    let src = dummy_assets::PRODUCT_SRC;
     let alt = format!("商品画像{}", index + 1);
     carousel::item(
         Orientation::Horizontal,
@@ -617,14 +614,52 @@ pub const BLOCK: Block = Block {
 /// モジュール doc「block 固有 CSS の置き場」節と同型）。`48rem` 以上で
 /// 2 カラム、未満は縦積み（モジュール doc「レイアウト（骨格）」節参照）。
 /// `display: none` は使わない。
+///
+/// # サムネイル `carousel` の item 上書き（レビュー指摘対応）
+///
+/// styled carousel の既定 `item` 規則（`[data-scope="carousel"]
+/// [data-part="item"]`、詳細度 (0,2,0)）は `flex: 0 0 100%`（1 枚だけを
+/// 表示するスライドショー前提）を持つため、無上書きのままだと 4 枚の
+/// サムネイルがそれぞれ container 全幅を占め、1 枚目だけが実質的に見え、
+/// 残り 3 枚は `root` の `overflow: hidden` を含む既定挙動の外側へ追い
+/// やられる（前後トリガーを出さない本 Demo では index を変えられず到達
+/// 不能になる）。`.blocks-product-overview-gallery-split-thumbs`
+/// （`item-group` へ付与）を祖先にした子孫セレクタ（詳細度 (0,3,0)）で
+/// `item` を `flex: 0 0 auto` へ上書きし、[`thumbnail`] が固定する
+/// `4rem` 角のサムネイル画像がそのままの寸法で横並びになるようにする
+/// （`.thumbs` 側の既存 `overflow-x: auto` がそのまま横スクロール領域を
+/// 担う）。`root` の `overflow: hidden` 自体は本 block では無害
+/// （item 群は自身の `item-group` 内でスクロールし `root` の外へは
+/// はみ出さない）だが、指摘の趣旨に沿い `overflow: visible` へ明示的に
+/// 中和し「他パーツを隠す既定値のまま残さない」ことを機械的に固定する。
+///
+/// # 色・サイズ選択 radio card と詳細アコーディオンの disabled 減光の中和
+///
+/// `pricing_single_split.rs`「支払周期 radio card をネイティブ disabled に
+/// する理由」節と同じ判断: ネイティブ disabled はアクセシビリティ上の
+/// 理由（無 JS で選択を実配線できない）で付けているだけで、選択自体は
+/// 「無効化された機能」ではないため、styled radio-card の既定
+/// `disabled_declarations()`（`opacity: 0.5` + `cursor: not-allowed`）を
+/// `.blocks-product-overview-gallery-split-option` 祖先の子孫セレクタ
+/// （詳細度 (0,4,0)、`item` disabled 規則の詳細度 (0,3,0) より高い）で
+/// 中和する。詳細アコーディオンも同型: `AccordionProps { disabled: true,
+/// .. }` は「本文を閉じさせない」ためのフォーカス制御目的であり、
+/// styled accordion の `item-trigger` disabled 規則
+/// （`[data-scope="accordion"][data-part="item-trigger"][data-disabled]`、
+/// 詳細度 (0,3,0)）を `[data-blocks-product-overview-gallery-split-details]`
+/// 祖先の子孫セレクタ（詳細度 (0,4,0)）で中和する。
 const LAYOUT_CSS: &str = "\
 .blocks-product-overview-gallery-split-layout {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-product-overview-gallery-split-gallery {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  min-width: 0;\n}\n\
 .blocks-product-overview-gallery-split-thumbs {\n  display: flex;\n  flex-wrap: nowrap;\n  overflow-x: auto;\n  gap: var(--fandhe-space-2);\n}\n\
+.blocks-product-overview-gallery-split-thumbs [data-scope=\"carousel\"][data-part=\"item\"] {\n  flex: 0 0 auto;\n  overflow: visible;\n}\n\
+.blocks-product-overview-gallery-split-gallery [data-scope=\"carousel\"][data-part=\"root\"] {\n  overflow: visible;\n}\n\
 img[data-scope=\"image\"][data-blocks-product-overview-gallery-split-thumb] {\n  width: 4rem;\n  height: 4rem;\n  flex-shrink: 0;\n}\n\
 .blocks-product-overview-gallery-split-panel {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  min-width: 0;\n}\n\
 .blocks-product-overview-gallery-split-price {\n  margin: 0;\n  font-size: var(--fandhe-font-size-xl);\n  font-weight: var(--fandhe-font-weight-bold);\n}\n\
 .blocks-product-overview-gallery-split-option {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
+.blocks-product-overview-gallery-split-option [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-blocks-product-overview-gallery-split-details] [data-scope=\"accordion\"][data-part=\"item-trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 @media (min-width: 48rem) {\n  .blocks-product-overview-gallery-split-layout {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n    align-items: start;\n  }\n}\n";
 
 #[cfg(test)]
@@ -694,6 +729,34 @@ mod tests {
     fn thumb_selector_specificity_beats_image_recipe_base() {
         assert!(LAYOUT_CSS.contains(
             "img[data-scope=\"image\"][data-blocks-product-overview-gallery-split-thumb]"
+        ));
+    }
+
+    /// レビュー指摘対応（Cursor Bugbot、High）: サムネイル carousel の
+    /// `item` を `flex: 0 0 auto` へ、`root` の `overflow` を `visible` へ
+    /// 上書きし、既定のスライドショー挙動（1 枚だけ表示・残りが到達不能）
+    /// を残さないこと。
+    #[test]
+    fn thumbs_carousel_item_and_root_are_overridden() {
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-product-overview-gallery-split-thumbs [data-scope=\"carousel\"][data-part=\"item\"] {\n  flex: 0 0 auto;"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-product-overview-gallery-split-gallery [data-scope=\"carousel\"][data-part=\"root\"] {\n  overflow: visible;"
+        ));
+    }
+
+    /// レビュー指摘対応（Cursor Bugbot、Medium）: 固定 disabled の
+    /// radio card・アコーディオンが `disabled_declarations()` の
+    /// `opacity: 0.5` で薄く表示され続けないよう中和すること
+    /// （`pricing_single_split.rs` と同型の判断）。
+    #[test]
+    fn disabled_dimming_is_neutralized_for_options_and_details() {
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-product-overview-gallery-split-option [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-product-overview-gallery-split-details] [data-scope=\"accordion\"][data-part=\"item-trigger\"][data-disabled] {\n  opacity: 1;"
         ));
     }
 

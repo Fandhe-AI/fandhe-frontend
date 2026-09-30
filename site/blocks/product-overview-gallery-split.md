@@ -59,8 +59,11 @@ const COLOR_NAME: &str = "blocks-product-overview-gallery-split-color";
 /// サイズ選択 radio card のネイティブ `name`。
 const SIZE_NAME: &str = "blocks-product-overview-gallery-split-size";
 
-/// パンくず（カテゴリ階層。`href="#"` は使わず実在する相対パスへ向ける、
-/// モジュール doc「`<form>` を持たない」節参照）。
+/// パンくず。`href="#"` は使わず実在する相対パスへ向ける
+/// （モジュール doc「`<form>` を持たない」節参照）。中間項目は実在しない
+/// カテゴリ名を騙らず、実際の遷移先（`/blocks/`）と一致する「Blocks」を
+/// ラベルにする（`page_heading_meta.rs`・`help_center_article_list.rs` と
+/// 同じ判断、レビュー指摘対応）。
 fn product_breadcrumb() -> Node {
     breadcrumb::root(
         Size::Sm,
@@ -77,11 +80,7 @@ fn product_breadcrumb() -> Node {
                 breadcrumb::separator(vec![], vec![text("/")]),
                 breadcrumb::item(
                     vec![],
-                    vec![breadcrumb::link(
-                        "../",
-                        vec![],
-                        vec![text("オーディオ機器")],
-                    )],
+                    vec![breadcrumb::link("../", vec![], vec![text("Blocks")])],
                 ),
                 breadcrumb::separator(vec![], vec![text("/")]),
                 breadcrumb::item(
@@ -98,15 +97,13 @@ fn product_breadcrumb() -> Node {
 
 /// ギャラリーのサムネイル 1 枚分（`carousel::item` + [`image::image`]）。
 /// 装飾ではなくカルーセルの主要コンテンツのため `alt` を空文字列にしない
-/// （`gallery_split_carousel.rs::slide` と同じ判断）。
+/// （`gallery_split_carousel.rs::slide` と同じ判断）。すべて単一商品の
+/// 画像であるため [`dummy_assets::PRODUCT_SRC`] のみを使う
+/// （`cart_two_column_summary.rs`・`order_tracking_progress.rs` と同じ
+/// 判断。`BACKGROUND_SRC`/`SCREENSHOT_SRC`/`LOGO_SRC` は無関係カテゴリの
+/// プレースホルダーのため商品画像としては使わない、レビュー指摘対応）。
 fn thumbnail(index: usize, count: usize) -> Node {
-    let sources = [
-        dummy_assets::PRODUCT_SRC,
-        dummy_assets::BACKGROUND_SRC,
-        dummy_assets::SCREENSHOT_SRC,
-        dummy_assets::LOGO_SRC,
-    ];
-    let src = sources[index % sources.len()];
+    let src = dummy_assets::PRODUCT_SRC;
     let alt = format!("商品画像{}", index + 1);
     carousel::item(
         Orientation::Horizontal,
