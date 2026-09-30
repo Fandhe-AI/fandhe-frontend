@@ -332,13 +332,15 @@ fn row(item: &Integration) -> Node {
 }
 
 /// 1 グループ分（見出し + `ul` 行リスト）。版 A のみが使う（版 B〜D は単一
-/// リストのため本関数を経由しない）。
+/// リストのため本関数を経由しない）。グループ見出しは版見出し（H3）の
+/// 配下にあるため H4 とし、見出し階層を版見出しと一致させる（#3447 レビュー
+/// 指摘対応）。
 fn group_section(group: &Group) -> Node {
     div(
         vec![("class", "blocks-settings-integrations-list-group")],
         vec![
             heading(
-                HeadingLevel::H3,
+                HeadingLevel::H4,
                 &HeadingProps {
                     size: HeadingSize::Sm,
                     ..HeadingProps::default()
