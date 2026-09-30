@@ -116,7 +116,14 @@ radio_group / rating_group /
 **scroll_area（イシュー #1584 で golden 新設。#2054 で横スクロール・端フェード規則を末尾へ純追加、`starts_with` による純追加固定アサーションも追加）** /
 **select（イシュー #2186 で separator / scroll-up-button /
 scroll-down-button の base 3 ブロックを `hidden-select` ブロック直後へ
-純追加、`starts_with` による純追加固定アサーションも追加）** /
+純追加、`starts_with` による純追加固定アサーションも追加。イシュー #3117
+で共通 shape 軸を追加し、trigger base の `border-radius` 行を
+`var(--fandhe-radius-md)` 直接参照から
+`var(--fandhe-select-trigger-radius, var(--fandhe-radius-md))` へ変更
+〔唯一の既存行変更、描画結果は同値〕。3 定数（`SELECT_GOLDEN_CSS`/
+`SELECT_GOLDEN_CSS_BEFORE_2391`/`GOLDEN_PREFIX_THROUGH_HIDDEN_SELECT`）の
+trigger 行を同期し、新規 `Shape::Pill` variant ブロックは
+`SELECT_GOLDEN_CSS` の size-xl ブロック直後へ追加した）** /
 separator / **sidebar（イシュー #2073 で golden 新設。
 `stylesheet()` 全文）** / skeleton / skip_nav / **spinner（イシュー #1567 で
 golden 新設）** / splitter / stat / steps / switch /

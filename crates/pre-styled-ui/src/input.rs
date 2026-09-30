@@ -90,7 +90,7 @@ use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
     disabled_declarations, focus_ring_declarations, transition_declarations, FocusRingColor,
-    FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
+    FocusRingOffset, MotionDuration, Shape, Size, SlotRecipe, StateCondition, VariantValue,
 };
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 
@@ -142,6 +142,12 @@ pub struct InputProps {
     pub variant: InputVariant,
     /// サイズ variant（既定 `Md`）。
     pub size: Size,
+    /// 共通 shape 軸（イシュー #3117）。`None`（既定）は現行の角丸
+    /// （`--fandhe-radius-md`）のまま class を追加出力しない。
+    /// `Some(Shape::Pill)` は両端を最大まで丸める（検索入力等の pill 形状）。
+    /// `Circle` は登録しない（用途が確認できるまで未登録。指定しても
+    /// class のみ出力され宣言は出ない、未登録 [`Size`] 段と同じ既存挙動）。
+    pub shape: Option<Shape>,
 }
 
 impl Default for InputProps {
@@ -149,6 +155,7 @@ impl Default for InputProps {
         InputProps {
             variant: InputVariant::Outline,
             size: Size::Md,
+            shape: None,
         }
     }
 }
@@ -289,6 +296,14 @@ fn recipe() -> SlotRecipe {
                 decl("border-radius", "0"),
             ],
         )
+        // イシュー #3117: 共通 shape 軸。`InputVariant` 登録の後に置き、
+        // `Flushed` の `border-radius: 0` より後段の CSS 出力順（後勝ち）で
+        // `Pill` が上書きできるようにする（純追加、`Circle` は未登録）。
+        .variant(
+            Shape::Pill,
+            "input",
+            vec![decl("border-radius", "var(--fandhe-radius-full)")],
+        )
         .default_variant(Size::Md)
         .default_variant(InputVariant::Outline)
 }
@@ -333,10 +348,14 @@ pub fn input<'a>(
     extra_attrs: Vec<(&'a str, &'a str)>,
 ) -> Node {
     let recipe = recipe();
-    let class = recipe.variant_classes(&[
+    let mut selection: Vec<(&str, &str)> = vec![
         ("variant", props.variant.value()),
         ("size", props.size.value()),
-    ]);
+    ];
+    if let Some(shape) = props.shape {
+        selection.push(("shape", shape.value()));
+    }
+    let class = recipe.variant_classes(&selection);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(extra_attrs));
     fandhe_frontend_headless_ui::field::input(field, merged)
@@ -473,6 +492,27 @@ mod tests {
             let html = render(&input(&props, &field, vec![]));
             assert!(html.contains(class), "size={size:?} -> {html}");
         }
+    }
+
+    /// イシュー #3117: `shape: None`（既定）は class 出力を変えない。
+    #[test]
+    fn shape_none_leaves_class_output_unchanged() {
+        let field = default_field("f");
+        let html = render(&input(&InputProps::default(), &field, vec![]));
+        assert!(!html.contains("fd-field--shape"));
+    }
+
+    /// イシュー #3117: `Some(Shape::Pill)` は `fd-field--shape-pill` を
+    /// 追加出力する。
+    #[test]
+    fn shape_pill_maps_to_expected_class() {
+        let field = default_field("f");
+        let props = InputProps {
+            shape: Some(Shape::Pill),
+            ..InputProps::default()
+        };
+        let html = render(&input(&props, &field, vec![]));
+        assert!(html.contains("fd-field--shape-pill"));
     }
 
     #[test]

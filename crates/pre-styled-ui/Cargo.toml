@@ -3588,7 +3588,17 @@ name = "fandhe-frontend-pre-styled-ui"
 # パーツ（`root`/`header`/`body`/`footer`/`row`/`column-header`/`cell`/
 # `caption`/`scroll-area`）のシグネチャ・出力バイトは不変で、新規公開 API
 # の純追加のため minor バンプする。
-version = "0.216.0"
+#
+# イシュー #3117: button/badge/input/select が共有する共通 shape 軸
+# （`recipe::Shape`、pill/circle）を新設した。`ButtonProps`/`BadgeProps`/
+# `InputProps` へ `pub shape: Option<Shape>`（既定 `None`）を純追加し、
+# select は既存 `root` のシグネチャを変えず `root_with` を新設した。
+# `shape: None`（既定）の class 出力・golden CSS は全部品でバイト不変
+# だが、select の trigger `border-radius` 宣言のみ固定リテラル参照から
+# `var(--fandhe-select-trigger-radius, var(--fandhe-radius-md))` へ
+# 変更した（描画結果は同値、CSS 出力バイトは変わる観測可能な変更）ため
+# minor バンプする。
+version = "0.217.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
