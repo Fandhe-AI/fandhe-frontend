@@ -66,9 +66,16 @@
 //! `page_placeholder` と同型の判断）へ `min-block-size` を持たせ、常時
 //! 展開済みパネルがレイアウトボックスの内側に収まるようにする（レビュー
 //! 是正: 元の実装はこの枠を持たず、パネルが後続の「使用部品」見出し等と
-//! 重なる・`.blocks-demo` 内でクリップされる不具合があった）。狭幅では
-//! パネルが列見出しの下でスタックし縦に伸びる分、`min-block-size` を
-//! `@container` でこの幅のみ引き上げる。
+//! 重なる・`.blocks-demo` 内でクリップされる不具合があった）。狭幅
+//! （`@container` 47.99rem 以下）では列が 1 列積みになり注目画像カード＋
+//! 列見出し＋リンクの合計高さが伸びるため、固定 `min-block-size` の加算
+//! では不足しうる（レビュー是正 #3475: 後続ドキュメントレビューで固定
+//! 40rem が内容合計を超える場合の重なり・クリップを指摘された）。固定値を
+//! 積み増す代わりに `content`（`data-part="content"`）自体を
+//! `position: static` へ上書きして通常フローへ戻し、後続の
+//! [`page_placeholder`] がパネルの実高さぶん自然に押し下げられるようにする
+//! （固定値の当てずっぽうをやめ、内容にかかわらず重なり・クリップが起きない
+//! 構造にする判断）。
 //!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
@@ -568,7 +575,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-store-nav-mega-menu-cart {\n  position: relative;\n  display: inline-flex;\n}\n\
 [data-blocks-store-nav-mega-menu-cart-badge] {\n  position: absolute;\n  top: -0.25rem;\n  right: -0.25rem;\n}\n\
 .blocks-store-nav-mega-menu-page {\n  min-block-size: 22rem;\n  padding: var(--fandhe-space-6) var(--fandhe-space-4);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-@container blocks-store-nav-mega-menu (max-width: 47.99rem) {\n  .blocks-store-nav-mega-menu-nav[data-scope=\"navigation-menu\"][data-part=\"root\"] {\n    order: 2;\n    flex-basis: 100%;\n  }\n  .blocks-store-nav-mega-menu-panel-inner {\n    grid-template-columns: 1fr;\n  }\n  .blocks-store-nav-mega-menu-page {\n    min-block-size: 40rem;\n  }\n}\n";
+@container blocks-store-nav-mega-menu (max-width: 47.99rem) {\n  .blocks-store-nav-mega-menu-nav[data-scope=\"navigation-menu\"][data-part=\"root\"] {\n    order: 2;\n    flex-basis: 100%;\n  }\n  .blocks-store-nav-mega-menu-shell [data-scope=\"navigation-menu\"][data-part=\"content\"] {\n    position: static;\n  }\n  .blocks-store-nav-mega-menu-panel-inner {\n    grid-template-columns: 1fr;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -690,8 +697,27 @@ mod tests {
     fn page_placeholder_reserves_space_for_open_panel() {
         assert!(LAYOUT_CSS.contains(".blocks-store-nav-mega-menu-page"));
         assert!(LAYOUT_CSS.contains("min-block-size: 22rem;"));
-        assert!(LAYOUT_CSS.contains("min-block-size: 40rem;"));
         assert!(render(&demo()).contains("class=\"blocks-store-nav-mega-menu-page\""));
+    }
+
+    /// 狭幅（`@container` 47.99rem 以下）ではパネルの内容合計が固定高さを
+    /// 超えうるため、固定 `min-block-size` を積み増すのではなく `content`
+    /// を通常フローへ戻す（レビュー是正 #3475、モジュール冒頭 rustdoc
+    /// 「`.blocks-demo` のはみ出し対策」節）。固定 40rem 加算のような
+    /// 当てずっぽうの数値には戻さないことを固定する。
+    #[test]
+    fn narrow_panel_returns_to_normal_flow_instead_of_fixed_height() {
+        let (_, narrow) = LAYOUT_CSS
+            .split_once("@container")
+            .expect("LAYOUT_CSS should declare narrow @container rules");
+        assert!(
+            narrow.contains("[data-part=\"content\"]") && narrow.contains("position: static;"),
+            "narrow rules should return the panel content to normal flow: {narrow}"
+        );
+        assert!(
+            !narrow.contains("min-block-size"),
+            "narrow rules should not reserve a fixed magic-number height: {narrow}"
+        );
     }
 
     /// バーの `order` 上書きが DOM 順（ブランド → ナビ → 操作）を崩さない
