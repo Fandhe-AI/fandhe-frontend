@@ -2343,6 +2343,11 @@ source = "site/blocks/settings-export-data.md"
 path = "/blocks/settings-export-data/"
 
 [[section.group.page]]
+title = "settings-integration-detail"
+source = "site/blocks/settings-integration-detail.md"
+path = "/blocks/settings-integration-detail/"
+
+[[section.group.page]]
 title = "settings-integrations-grid"
 source = "site/blocks/settings-integrations-grid.md"
 path = "/blocks/settings-integrations-grid/"
@@ -2376,6 +2381,11 @@ path = "/blocks/settings-notification-matrix/"
 title = "settings-org-switcher"
 source = "site/blocks/settings-org-switcher.md"
 path = "/blocks/settings-org-switcher/"
+
+[[section.group.page]]
+title = "settings-page-aside-nav"
+source = "site/blocks/settings-page-aside-nav.md"
+path = "/blocks/settings-page-aside-nav/"
 
 [[section.group.page]]
 title = "settings-preferences"
