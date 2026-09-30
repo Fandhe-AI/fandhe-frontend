@@ -534,6 +534,7 @@ jobs:
           # Application / Media Object
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/media-object/index.html"
           # Ecommerce / Product Overview
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/product-overview-gallery-split/index.html"
           # Ecommerce / Product List
           # Ecommerce / Quickview
           # Ecommerce / Category

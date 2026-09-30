@@ -2627,6 +2627,14 @@ source = "site/blocks/media-object.md"
 path = "/blocks/media-object/"
 
 [[section.group]]
+title = "Product Overview"
+
+[[section.group.page]]
+title = "product-overview-gallery-split"
+source = "site/blocks/product-overview-gallery-split.md"
+path = "/blocks/product-overview-gallery-split/"
+
+[[section.group]]
 title = "Cart"
 
 [[section.group.page]]
