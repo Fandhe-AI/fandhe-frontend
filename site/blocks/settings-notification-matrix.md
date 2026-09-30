@@ -178,7 +178,7 @@ fn narrow_row(type_idx: usize, channel_idx: usize) -> Node {
     field::root(
         &FieldRootProps::default(),
         &field_props,
-        vec![("class", "blocks-settings-notification-matrix-narrow-row")],
+        vec![("data-blocks-settings-notification-matrix-narrow-row", "")],
         vec![
             checkbox::root(
                 Size::Md,

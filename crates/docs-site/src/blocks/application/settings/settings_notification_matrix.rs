@@ -235,7 +235,7 @@ fn narrow_row(type_idx: usize, channel_idx: usize) -> Node {
     field::root(
         &FieldRootProps::default(),
         &field_props,
-        vec![("class", "blocks-settings-notification-matrix-narrow-row")],
+        vec![("data-blocks-settings-notification-matrix-narrow-row", "")],
         vec![
             checkbox::root(
                 Size::Md,
@@ -375,7 +375,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-notification-matrix-narrow {\n  display: none;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-settings-notification-matrix-channel-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  padding-block-start: var(--fandhe-space-4);\n  border-top: 1px solid var(--fandhe-color-border);\n}\n\
 .blocks-settings-notification-matrix-channel-section:first-child {\n  padding-block-start: 0;\n  border-top: none;\n}\n\
-.blocks-settings-notification-matrix-narrow-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
+[data-blocks-settings-notification-matrix-narrow-row] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
+[data-blocks-settings-notification-matrix-narrow-row][data-scope=\"field\"][data-part=\"root\"] [data-scope=\"field\"][data-part=\"helper-text\"][data-disabled] {\n  opacity: 1;\n}\n\
 .blocks-settings-notification-matrix-actions {\n  display: flex;\n  justify-content: flex-end;\n}\n\
 @container blocks-settings-notification-matrix (max-width: 40rem) {\n  \
 [data-blocks-settings-notification-matrix-view=\"table\"] {\n    display: none;\n  }\n  \
@@ -469,5 +470,34 @@ mod tests {
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
         assert!(LAYOUT_CSS
             .contains("@container blocks-settings-notification-matrix (max-width: 40rem)"));
+    }
+
+    /// レビュー指摘（field::root は drop_class_attr で呼び出し側 `class` を
+    /// 除去するため narrow-row 用フックが出力されない）の回帰。`class` では
+    /// なく `data-*` 属性で狭幅行を識別できることを固定する
+    /// （field::root は `class`/`data-scope`/`data-part` 以外の呼び出し側
+    /// 属性をそのまま透過するため、`data-*` は drop_class_attr の対象外）。
+    #[test]
+    fn narrow_row_hook_survives_field_root_class_drop() {
+        let html = demo_html();
+        assert!(!html.contains("class=\"blocks-settings-notification-matrix-narrow-row\""));
+        assert_eq!(
+            html.matches("data-blocks-settings-notification-matrix-narrow-row")
+                .count(),
+            super::NOTIFICATION_TYPES.len() * super::CHANNELS.len(),
+            "narrow-row hook should appear once per narrow row"
+        );
+    }
+
+    /// レビュー指摘（narrow_row の `disabled: true` により
+    /// `field::helper_text` が `data-disabled` を持ち共通 CSS の
+    /// `opacity: 0.5` を継承するが、checkbox 本体の opacity のみ中和して
+    /// 説明文が薄いまま残る）の回帰。狭幅行スコープで helper-text の
+    /// opacity を明示的に 1 へ戻す規則を固定する。
+    #[test]
+    fn layout_css_restores_helper_text_opacity_in_narrow_row() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-settings-notification-matrix-narrow-row][data-scope=\"field\"][data-part=\"root\"] [data-scope=\"field\"][data-part=\"helper-text\"][data-disabled] {\n  opacity: 1;\n}"
+        ));
     }
 }
