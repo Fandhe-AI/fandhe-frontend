@@ -489,6 +489,7 @@ jobs:
           # Application / Onboarding
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-centered-steps/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-checklist/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-split-image/index.html"
           # Application / Card
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-meta-cta/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cursor-hover-cards/index.html"
