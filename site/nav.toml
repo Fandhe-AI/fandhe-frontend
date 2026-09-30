@@ -2626,6 +2626,14 @@ title = "media-object"
 source = "site/blocks/media-object.md"
 path = "/blocks/media-object/"
 
+[[section.group]]
+title = "Cart"
+
+[[section.group.page]]
+title = "cart-two-column-summary"
+source = "site/blocks/cart-two-column-summary.md"
+path = "/blocks/cart-two-column-summary/"
+
 # --- 以下は block 追加時の挿入先アンカー（イシュー #2734、#2735 でカテゴリ
 # 見出し導入に伴い運用を更新）。カテゴリ単位で行ブロックを分ける点は不変
 # だが、新規 block は該当カテゴリの既存 `[[section.group]]` があればその
