@@ -292,6 +292,13 @@ fn list_panel() -> Node {
 /// `aria-disabled`/`data-disabled` を反映させる（codex 指摘
 /// PRRT_kwDOTarxgc6nZBJh 対応。item 系のみへ渡すと支援技術は root の
 /// role="radiogroup" しか読まないため、無効化状態が伝わらなかった）。
+/// root へ `data-disabled` を反映させたことで pre-styled-ui の
+/// `segment-group` root 既定 CSS（`opacity: 0.5`）が root 自身にも適用
+/// されるようになったが、item 系のみを打ち消す `LAYOUT_CSS` では祖先
+/// 要素の不透明度を子の `opacity: 1` で打ち消せない（opacity はサブ
+/// ツリー全体の合成に効くため）。root の `[data-disabled]` にも同様の
+/// 中和セレクタを追加し、コントロール全体が薄く見えないようにする
+/// （codex 指摘 PRRT_kwDOTarxgc6nZQ9L 対応）。
 fn scope_segment_group() -> Node {
     let props = SegmentGroupProps::default();
     let disabled_props = SegmentGroupProps {

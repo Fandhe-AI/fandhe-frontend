@@ -344,6 +344,13 @@ fn list_panel() -> Node {
 /// `aria-disabled`/`data-disabled` を反映させる（codex 指摘
 /// PRRT_kwDOTarxgc6nZBJh 対応。item 系のみへ渡すと支援技術は root の
 /// role="radiogroup" しか読まないため、無効化状態が伝わらなかった）。
+/// root へ `data-disabled` を反映させたことで pre-styled-ui の
+/// `segment-group` root 既定 CSS（`opacity: 0.5`）が root 自身にも適用
+/// されるようになったが、item 系のみを打ち消す `LAYOUT_CSS` では祖先
+/// 要素の不透明度を子の `opacity: 1` で打ち消せない（opacity はサブ
+/// ツリー全体の合成に効くため）。root の `[data-disabled]` にも同様の
+/// 中和セレクタを追加し、コントロール全体が薄く見えないようにする
+/// （codex 指摘 PRRT_kwDOTarxgc6nZQ9L 対応）。
 fn scope_segment_group() -> Node {
     let props = SegmentGroupProps::default();
     let disabled_props = SegmentGroupProps {
@@ -705,6 +712,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-api-keys-table-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-settings-api-keys-table-toolbar {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: space-between;\n  align-items: flex-start;\n  gap: var(--fandhe-space-4);\n  margin-block-end: var(--fandhe-space-4);\n}\n\
 .blocks-settings-api-keys-table-segment-label {\n  display: block;\n  margin-block-end: var(--fandhe-space-2);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
+.blocks-settings-api-keys-table [data-scope=\"segment-group\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;\n}\n\
 .blocks-settings-api-keys-table [data-scope=\"segment-group\"][data-part=\"item-control\"][data-disabled],\n\
 .blocks-settings-api-keys-table [data-scope=\"segment-group\"][data-part=\"item-text\"][data-disabled],\n\
 .blocks-settings-api-keys-table [data-scope=\"segment-group\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
@@ -907,6 +915,22 @@ mod tests {
                 "[data-scope=\"segment-group\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;"
             ),
             "LAYOUT_CSS は disabled な segment group item の opacity を 1 に戻すはず"
+        );
+    }
+
+    /// codex 指摘 PRRT_kwDOTarxgc6nZQ9L の回帰ガード: root へも
+    /// `data-disabled` を反映させた結果 pre-styled-ui 既定 CSS の
+    /// `opacity: 0.5` が root 自身に適用されるようになったため、
+    /// `LAYOUT_CSS` は root の `[data-disabled]` に対しても
+    /// `opacity: 1` を指定していること（item 系のみの中和では祖先の
+    /// 不透明度を打ち消せず、権限コントロール全体が薄く見えてしまう）。
+    #[test]
+    fn layout_css_neutralizes_disabled_segment_group_root_opacity() {
+        assert!(
+            LAYOUT_CSS.contains(
+                "[data-scope=\"segment-group\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;"
+            ),
+            "LAYOUT_CSS は disabled な segment group root の opacity を 1 に戻すはず"
         );
     }
 }
