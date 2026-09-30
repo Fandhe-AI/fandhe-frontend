@@ -27,11 +27,13 @@
 //! 重複を避ける）。各版は [`fandhe_frontend_core::section`] で包み、
 //! `aria-label`（「版 A: API 設定」/「版 B: プラン」）+
 //! `data-blocks-settings-page-tabs-version` 属性で区別し、先頭に
-//! [`fandhe_frontend_pre_styled_ui::heading::heading`]（H3）のキャプションを
-//! 置く（`heading` は `data-scope="heading"` を持ち TOC 収集から除外される
-//! ため、目次を汚染しない。素の `h3` は使わない）。`tab_nav::root` の
-//! `aria-label` も版ごとに一意化する（「設定セクション（API 選択）」/
-//! 「設定セクション（プラン選択）」）。
+//! [`fandhe_frontend_pre_styled_ui::text::text`]（`<p>`）のキャプションを
+//! 置く。[`page_heading`] が出す「設定」見出しは H2 のため、キャプションを
+//! 見出し要素（`heading`/H3 等）で実装すると H3 → H2 の見出し階層逆転になる
+//! （codex レビュー指摘の是正）。キャプションは見出しナビゲーションに載せる
+//! 必要のない装飾的なラベルであるため、`heading` ではなく非見出し要素の
+//! `text` を使う。`tab_nav::root` の `aria-label` も版ごとに一意化する
+//! （「設定セクション（API 選択）」/「設定セクション（プラン選択）」）。
 //!
 //! | 版 | 選択タブ | 本文 | 集約元 |
 //! |---|---|---|---|
@@ -179,6 +181,7 @@ use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode};
 use fandhe_frontend_pre_styled_ui::progress::{self, Orientation, ProgressProps};
 use fandhe_frontend_pre_styled_ui::tab_nav;
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps};
+use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize, TextWeight};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
 /// 実在の自リポジトリ URL（`href` の方針、モジュール doc参照）。
@@ -595,9 +598,12 @@ fn version_api() -> Node {
             ("data-blocks-settings-page-tabs-version", "api"),
         ],
         vec![
-            heading(
-                HeadingLevel::H3,
-                &HeadingProps::default(),
+            styled_text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    weight: TextWeight::Semibold,
+                    ..TextProps::default()
+                },
                 vec![("data-blocks-settings-page-tabs-version-title", "")],
                 vec![text("版 A: API 設定")],
             ),
@@ -932,9 +938,12 @@ fn version_plan() -> Node {
             ("data-blocks-settings-page-tabs-version", "plan"),
         ],
         vec![
-            heading(
-                HeadingLevel::H3,
-                &HeadingProps::default(),
+            styled_text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    weight: TextWeight::Semibold,
+                    ..TextProps::default()
+                },
                 vec![("data-blocks-settings-page-tabs-version-title", "")],
                 vec![text("版 B: プラン")],
             ),
