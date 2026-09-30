@@ -242,6 +242,10 @@ fn radio_card_item(
 /// radio-card グループ（見出し + `radio_card::root`、モジュール doc
 /// 「id/name の一意性」節）。`columns` は [`LAYOUT_CSS`] の
 /// `[data-blocks-onboarding-split-image-cards]` セレクタが読む列数フック。
+/// `radio_card::root` は `disabled` から `aria-disabled` を自動付与しない
+/// ため、常に `disabled: true` で呼ぶ本 block では明示付与する
+/// （`onboarding_centered_steps.rs::preference_radio_group` と同型、
+/// Cursor Bugbot 指摘・イシュー #2980）。
 fn radio_card_group(
     labelled_by: &'static str,
     label_text: &'static str,
@@ -258,7 +262,10 @@ fn radio_card_group(
                 true,
                 None::<Orientation>,
                 Some(labelled_by),
-                vec![("data-blocks-onboarding-split-image-cards", columns)],
+                vec![
+                    ("data-blocks-onboarding-split-image-cards", columns),
+                    ("aria-disabled", "true"),
+                ],
                 items,
             ),
         ],
@@ -427,7 +434,12 @@ fn plan_cards() -> Node {
     let team_size_props = FieldProps {
         id: team_size_id,
         ids: FieldIds::default(),
-        disabled: false,
+        // 静的・非 JS 表示契約のため `disabled: true` 固定
+        // （`onboarding_centered_steps.rs::select_field` と同型判断。
+        // native-select はネイティブ `readonly` を出力しないため
+        // `readonly` は使えない。減光は [`LAYOUT_CSS`] で中和する、
+        // Cursor Bugbot 指摘・イシュー #2980）。
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
@@ -650,11 +662,11 @@ pub const BLOCK: Block = Block {
 /// にし、`>= 48rem`（[`fandhe_frontend_pre_styled_ui::recipe::Breakpoint::Md`]
 /// と一致するリテラル値、CSS custom property は `@media` 条件式内で解決
 /// できないため直書きする、`auth_split_photo_testimonial` と同じ判断）で
-/// 2 カラム grid へ切り替えて表示する。radio-card/checkbox-card は
+/// 2 カラム grid へ切り替えて表示する。radio-card/checkbox-card/native-select は
 /// `disabled: true` 固定のため、既定の `opacity: 0.5`（
 /// [`fandhe_frontend_pre_styled_ui::recipe::disabled_declarations`]）を
 /// 中和し「静的な選択済み表示」を薄く見せない（`card_form_footer`/
-/// `auth_split_photo_testimonial` と同じ判断）。
+/// `auth_split_photo_testimonial`/`onboarding_centered_steps` と同じ判断）。
 const LAYOUT_CSS: &str = "\
 .blocks-onboarding-split-image-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n}\n\
 .blocks-onboarding-split-image-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
@@ -670,6 +682,8 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-onboarding-split-image-cards=\"days\"], [data-scope=\"radio-card\"][data-part=\"root\"][data-blocks-onboarding-split-image-cards=\"days\"] {\n  grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));\n}\n\
 [data-blocks-onboarding-split-image-cards] [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n}\n\
 [data-blocks-onboarding-split-image-cards] [data-scope=\"checkbox-card\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;\n}\n\
+[data-blocks-onboarding-split-image-form] [data-scope=\"field\"][data-part=\"select\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-blocks-onboarding-split-image-form] [data-scope=\"field\"][data-part=\"label\"][data-disabled] {\n  opacity: 1;\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-onboarding-split-image-next] {\n  width: 100%;\n}\n\
 [data-blocks-onboarding-split-image-panel] {\n  display: none;\n  position: relative;\n  min-height: 16rem;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-onboarding-split-image-photo] {\n  position: absolute;\n  inset: 0;\n  width: 100%;\n  height: 100%;\n}\n\

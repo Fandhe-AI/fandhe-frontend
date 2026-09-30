@@ -194,6 +194,10 @@ fn radio_card_item(
 /// radio-card グループ（見出し + `radio_card::root`、モジュール doc
 /// 「id/name の一意性」節）。`columns` は [`LAYOUT_CSS`] の
 /// `[data-blocks-onboarding-split-image-cards]` セレクタが読む列数フック。
+/// `radio_card::root` は `disabled` から `aria-disabled` を自動付与しない
+/// ため、常に `disabled: true` で呼ぶ本 block では明示付与する
+/// （`onboarding_centered_steps.rs::preference_radio_group` と同型、
+/// Cursor Bugbot 指摘・イシュー #2980）。
 fn radio_card_group(
     labelled_by: &'static str,
     label_text: &'static str,
@@ -210,7 +214,10 @@ fn radio_card_group(
                 true,
                 None::<Orientation>,
                 Some(labelled_by),
-                vec![("data-blocks-onboarding-split-image-cards", columns)],
+                vec![
+                    ("data-blocks-onboarding-split-image-cards", columns),
+                    ("aria-disabled", "true"),
+                ],
                 items,
             ),
         ],
@@ -379,7 +386,12 @@ fn plan_cards() -> Node {
     let team_size_props = FieldProps {
         id: team_size_id,
         ids: FieldIds::default(),
-        disabled: false,
+        // 静的・非 JS 表示契約のため `disabled: true` 固定
+        // （`onboarding_centered_steps.rs::select_field` と同型判断。
+        // native-select はネイティブ `readonly` を出力しないため
+        // `readonly` は使えない。減光は [`LAYOUT_CSS`] で中和する、
+        // Cursor Bugbot 指摘・イシュー #2980）。
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
