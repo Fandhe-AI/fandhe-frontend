@@ -482,6 +482,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-page-tabs/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-preferences/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-profile-form/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-share-members/index.html"
           # Application / Action Panel
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-stacked/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-with-input/index.html"
@@ -496,6 +497,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-starter-list/index.html"
           # Application / Notification
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/notification-tray-tabs/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/notification-tray/index.html"
           # Application / Dialog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/game-ui-modal/index.html"
           # Application / Drawer

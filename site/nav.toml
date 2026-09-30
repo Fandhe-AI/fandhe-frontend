@@ -2402,6 +2402,11 @@ title = "settings-profile-form"
 source = "site/blocks/settings-profile-form.md"
 path = "/blocks/settings-profile-form/"
 
+[[section.group.page]]
+title = "settings-share-members"
+source = "site/blocks/settings-share-members.md"
+path = "/blocks/settings-share-members/"
+
 [[section.group]]
 title = "Action Panel"
 
@@ -2465,6 +2470,11 @@ title = "Notification"
 title = "notification-tray-tabs"
 source = "site/blocks/notification-tray-tabs.md"
 path = "/blocks/notification-tray-tabs/"
+
+[[section.group.page]]
+title = "notification-tray"
+source = "site/blocks/notification-tray.md"
+path = "/blocks/notification-tray/"
 
 [[section.group]]
 title = "Dialog"
