@@ -1,42 +1,77 @@
-//! `settings-integrations-list` block（イシュー #2993、親 #2992。Application /
-//! Settings カテゴリ）。枠付き行リストで連携アプリを個人用・組織用の 2 グ
-//! ループに分け、各行にロゴ・名前・接続状態・説明・詳細リンク・接続/解除
-//! 操作を並べる骨格と主要領域のみを実装する。主参照 R0252（代表構成）、
-//! 集約元 R0251（要望一覧 + 送信フォーム）/ R0254（末尾の空状態）/ R0255
-//! （スイッチ展開 + API キー欄）。`_/blocks-intake/` の対応ファイルは本
-//! イシュー着手時点で本 worktree に存在しないため、原稿・本コメントには
-//! 対応表 ID のみを記す（`settings_billing_overview` と同じ扱い）。
+//! `settings-integrations-list` block（イシュー #2993/#2994、親 #2992。
+//! Application / Settings カテゴリ）。枠付き行リストで連携アプリを表示する
+//! block。集約元は R0251（要望一覧 + 送信フォーム）/ R0252（個人用・組織用
+//! 2 グループの代表構成）/ R0254（末尾の空状態）/ R0255（スイッチ展開 +
+//! API キー欄）の 4 件。`_/blocks-intake/` の対応ファイルは本イシュー着手
+//! 時点で本 worktree に存在しないため、原稿・本コメントには対応表 ID のみを
+//! 記す（`settings_billing_overview` と同じ扱い）。
 //!
-//! # 前半（本 block, #2993）と後半（#2994）の分担
+//! # 版 A〜D と集約元の対応（#2994 で仕上げ）
 //!
-//! 本 block が持たないのは次の 3 領域で、後続 #2994 が同じ class/data-*
-//! 命名規約の上へ追加する:
+//! 単一 Demo 内に 4 つの「版」を縦に並記し、集約元ごとの差分を読み取れる
+//! ようにする（[`demo`] 参照）。
 //!
-//! - R0255: 行をスイッチで展開して表示する API キー欄
-//! - R0251: 連携要望の一覧 + 送信フォーム
-//! - R0254: 末尾の空状態枠
+//! - **版 A**（R0252、#2993 で実装済み）: 個人用・組織用の 2 グループ、
+//!   各行に接続/解除ボタン
+//! - **版 B**（R0255）: 単一グループ 3 行。操作領域が接続ボタンではなく
+//!   `switch`（有効化トグル）で、先頭行のみ展開して `clipboard`（API キー
+//!   欄）を表示する。残り 2 行は折りたたみのまま
+//! - **版 C**（R0251）: 単一グループ 2 行の末尾に「連携の要望」領域
+//!   （要望済み一覧 + `field`/`input-group` による要望送信欄）
+//! - **版 D**（R0254）: 単一グループ 2 行の末尾に `empty_state`（末尾の
+//!   空状態枠）
 //!
 //! # 使用部品
 //!
-//! `badge` / `button` / `separator` / `link` / `image` の 5 部品を合成する
-//! （[`BLOCK`] の `parts` に一致させる契約、`blocks_nav.rs`/`blocks_contract.rs`
-//! が検証する）。`image` は使用部品一覧に無いロゴ表示のため追加した
+//! `badge` / `button` / `separator` / `link` / `image`（#2993 分）に加え、
+//! `switch` / `clipboard` / `field` / `input-group` / `input` /
+//! `empty-state` / `heading`（#2994 で追加）の 12 部品を合成する（[`BLOCK`]
+//! の `parts` に一致させる契約、`blocks_nav.rs`/`blocks_contract.rs` が
+//! 検証する）。`image` は使用部品一覧に無いロゴ表示のため追加した
 //! （`page_heading_avatar::logo_image` と同じ判断）。新しい UI 部品は
-//! 追加しない。`switch`/`clipboard`/`input-group`/`input`/`empty-state` は
-//! 本 block の使用部品ではなく、#2994 が追加する。
+//! 追加しない。
+//!
+//! # `clipboard` root は版 B の展開行 1 個に限る
+//!
+//! [`fandhe_frontend_pre_styled_ui::clipboard`] モジュール doc の
+//! 「1 root : 1 状態機械契約」（`settings_api_key_created` と同じ制約）に
+//! 従い、本 Demo 全体で `clipboard::root` の呼び出しは版 B の先頭行
+//! （展開状態）1 箇所のみとする。
+//!
+//! # スイッチは readonly + disabled で静的固定
+//!
+//! 版 B の `switch::root` は `pricing_seats_split` と同じ判断で
+//! `SwitchProps { readonly: true, disabled: true, .. }` を使う。`readonly`
+//! は `data-readonly` を出すのみで native トグル操作自体を止めないため、
+//! `disabled: true` も併用して [`fandhe_frontend_pre_styled_ui::switch::hidden_input`]
+//! へ native `disabled` を出力し実際に操作を止める。展開（先頭行）/折りたたみ
+//! （残り 2 行）の両状態を同一リスト内に静的に並記する。
+//!
+//! # グループ/版見出しは `heading` を使う（TOC 混入回避）
+//!
+//! `heading::heading` は `data-scope="heading"` を持つため
+//! `crate::layout::with_heading_anchors` の TOC 収集（`.docs-toc`）から
+//! 除外される。#2993 時点の素の `h3` はこの除外対象外で TOC へ混入し得た
+//! （`settings_api_keys_table` の Bugbot 指摘と同型）ため、本イシューで
+//! グループ見出し・版見出しの双方を `heading` へ寄せた。CSS フックは
+//! `class`（`heading` は `drop_class_attr` で呼び出し側 `class` を除去する）
+//! ではなく `data-blocks-settings-integrations-list-group-title`/
+//! `-version-title` の `data-*` 属性で渡す。
+//!
+//! # 要望フォームは `<form>` を持たず送信先も持たない
+//!
+//! `crate::blocks` モジュール doc の不変条件どおり、版 C の要望送信欄は
+//! `<form>` を出力しない静的表示のみで、送信処理・送信先は一切持たない。
+//! 送信ボタンは `button::button` の既定 `type="button"` のまま用いる。
 //!
 //! # `class` と `data-*` の使い分け
 //!
-//! [`fandhe_frontend_pre_styled_ui::badge::badge`]・
-//! [`fandhe_frontend_pre_styled_ui::button::button`]・
-//! [`fandhe_frontend_pre_styled_ui::link::root`]・
-//! [`fandhe_frontend_pre_styled_ui::separator::separator`]・
-//! [`fandhe_frontend_pre_styled_ui::image::image`] はいずれも `drop_class_attr`
-//! で呼び出し側 `class` を除去してから内部 variant クラスと合成するため、
-//! これらへの CSS フックは `data-*` 属性で渡す
+//! [`fandhe_frontend_pre_styled_ui`] の各パーツ関数はいずれも
+//! `drop_class_attr` で呼び出し側 `class` を除去してから内部 variant クラス
+//! と合成するため、これらへの CSS フックは `data-*` 属性で渡す
 //! （`data-blocks-settings-integrations-list-*`）。レイアウト用ラッパー
-//! （グループ・行・本文・操作領域）は素の `class="blocks-settings-integrations-list-*"`
-//! を使う。
+//! （グループ・行・本文・操作領域・要望領域・空状態領域）は素の
+//! `class="blocks-settings-integrations-list-*"` を使う。
 //!
 //! # 狭幅切替はコンテナクエリで判定する
 //!
@@ -44,13 +79,8 @@
 //! 等と同型に `@container`（コンテナクエリ）で判定する。
 //! `.blocks-settings-integrations-list-stack` へ `container-type: inline-size`
 //! を宣言し、コンテナ幅が `40rem` 未満のとき行のグリッドを「ロゴ + 本文」を
-//! 上段、「操作」を下段（説明の下）へ回す 2 行構成へ切り替える。
-//!
-//! # `<form>` を使わない
-//!
-//! `crate::blocks` モジュール doc の不変条件どおり、本 Demo は `<form>` を
-//! 出力しない静的表示のみで、送信処理・送信先は一切持たない。接続/解除
-//! ボタンは `button::button` の既定 `type="button"` のまま用いる。
+//! 上段、「操作」を中段、「API キー欄（版 B 展開行のみ）」を下段へ回す
+//! 3 行構成へ切り替える。
 //!
 //! # 詳細リンクの遷移先
 //!
@@ -63,27 +93,44 @@
 //! 「GitHub で見る」とする（近隣 block と同じ表記、PR #3441 Codex/Bugbot
 //! 指摘の是正。「詳細を見る」は全アプリ同一の遷移先と矛盾するため使わない）。
 //!
-//! # ダミー素材について
+//! # API キー値・ダミー素材について
 //!
-//! アプリ名（Lattice Notes / Harbor Calendar / Pulse Alerts / Ledger Sync /
-//! Beacon Chat / Quarry Storage）・説明文はすべて架空で、実在の企業・製品・
-//! 商標・PII は含まない。ロゴは共通ダミー画像
-//! [`crate::blocks::dummy_assets::LOGO_SRC`] を使う。
+//! API キー値（[`API_KEY_DEMO`]）は `fd_demo_` 接頭辞の明白な架空パターン
+//! で、実クレデンシャル形式・実企業名・PII を含まない。アプリ名
+//! （Lattice Notes / Harbor Calendar / Pulse Alerts / Ledger Sync /
+//! Beacon Chat / Quarry Storage）・要望済みアプリ名（Flow Board / Signal
+//! Mail）・説明文はすべて架空で、実在の企業・製品・商標・PII は含まない。
+//! ロゴは共通ダミー画像 [`crate::blocks::dummy_assets::LOGO_SRC`] を使う。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
 use crate::blocks::dummy_assets::LOGO_SRC;
-use fandhe_frontend_core::{div, h3, li, text, ul, Node};
+use fandhe_frontend_core::{div, li, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
+use fandhe_frontend_pre_styled_ui::clipboard;
+use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps, EmptyStateVariant};
+use fandhe_frontend_pre_styled_ui::field::{
+    self, FieldIds, FieldOrientation, FieldProps, FieldRootProps,
+};
+use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::image::{image, ImageFit, ImageProps, ImageShape};
+use fandhe_frontend_pre_styled_ui::input::{self, InputProps};
+use fandhe_frontend_pre_styled_ui::input_group::{self, InputGroupAlign, InputGroupProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps};
+use fandhe_frontend_pre_styled_ui::switch::{self, SwitchProps};
+use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
 /// 詳細リンクの遷移先（架空アプリのため本リポジトリへの外部リンクで代替、
 /// モジュール doc「詳細リンクの遷移先」節参照）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+
+/// 版 B 展開行の API キーデモ値（モジュール doc「API キー値・ダミー素材に
+/// ついて」節参照。`fd_demo_` 接頭辞の明白な架空パターンで実クレデンシャル
+/// 形式と衝突しない）。
+const API_KEY_DEMO: &str = "fd_demo_7f0c1a2e9b3d4f5a8c6e";
 
 /// 連携アプリ 1 件分のデータ（名前・説明・接続状態）。
 struct Integration {
@@ -99,7 +146,8 @@ struct Group {
 }
 
 /// 個人用・組織用の 2 グループ（各 3 件、接続済み/未接続を混在させ両分岐を
-/// Demo に出す）。
+/// Demo に出す）。版 B〜D も本配列の一部を再利用する（モジュール doc
+/// 「版 A〜D と集約元の対応」節参照）。
 const GROUPS: &[Group] = &[
     Group {
         title: "個人用",
@@ -160,10 +208,9 @@ fn logo(name: &str) -> Node {
     )
 }
 
-/// 枠付きリストの 1 行（ロゴ・本文（名前 + 状態バッジ + 説明 + 詳細
-/// リンク）・接続/解除操作）。
-fn row(item: &Integration) -> Node {
-    let status_badge = if item.connected {
+/// 接続状態バッジ（本文の `name_row` に埋め込む）。
+fn status_badge(item: &Integration) -> Node {
+    if item.connected {
         badge(
             &BadgeProps {
                 variant: BadgeVariant::Subtle,
@@ -181,12 +228,16 @@ fn row(item: &Integration) -> Node {
             vec![("data-blocks-settings-integrations-list-status", "")],
             vec![text("未接続")],
         )
-    };
+    }
+}
 
-    // 接続/解除ボタンの可視ラベルは全行共通（「接続」/「解除」）のため、
-    // 支援技術がどのアプリへの操作か区別できるよう `aria-label` へアプリ名を
-    // 埋め込む（PR #3441 Codex 指摘）。
-    let action_button = if item.connected {
+/// 接続/解除操作ボタン（版 A/C/D の操作領域）。
+///
+/// 接続/解除ボタンの可視ラベルは全行共通（「接続」/「解除」）のため、
+/// 支援技術がどのアプリへの操作か区別できるよう `aria-label` へアプリ名を
+/// 埋め込む（PR #3441 Codex 指摘）。
+fn action_button(item: &Integration) -> Node {
+    if item.connected {
         button(
             &ButtonProps {
                 variant: ButtonVariant::Outline,
@@ -210,11 +261,19 @@ fn row(item: &Integration) -> Node {
             ],
             vec![text("接続")],
         )
-    };
+    }
+}
 
+/// 枠付きリストの 1 行（ロゴ・本文（名前 + 状態バッジ + 説明 + 詳細
+/// リンク）・操作領域・任意の展開領域）。
+///
+/// `actions` は操作領域の中身（版 A/C/D は [`action_button`]、版 B は
+/// `switch::root`）、`expanded` は版 B の展開行のみが持つ API キー欄
+/// （`grid-area: key`）。
+fn row_with(item: &Integration, actions: Node, expanded: Option<Node>) -> Node {
     let name_row = div(
         vec![("class", "blocks-settings-integrations-list-name")],
-        vec![text(item.name), status_badge],
+        vec![text(item.name), status_badge(item)],
     );
 
     let description_row = div(
@@ -239,24 +298,41 @@ fn row(item: &Integration) -> Node {
         vec![name_row, description_row],
     );
 
-    let actions = div(
+    let actions_wrap = div(
         vec![("class", "blocks-settings-integrations-list-actions")],
-        vec![action_button],
+        vec![actions],
     );
+
+    let mut children = vec![logo(item.name), body, actions_wrap];
+    if let Some(expanded) = expanded {
+        children.push(expanded);
+    }
 
     li(
         vec![("class", "blocks-settings-integrations-list-row")],
-        vec![logo(item.name), body, actions],
+        children,
     )
 }
 
-/// 1 グループ分（見出し + `ul` 行リスト）。
+/// 版 A/C/D 共通の行（接続/解除ボタン、展開領域なし）。[`row_with`] の薄い
+/// ラッパー。
+fn row(item: &Integration) -> Node {
+    row_with(item, action_button(item), None)
+}
+
+/// 1 グループ分（見出し + `ul` 行リスト）。版 A のみが使う（版 B〜D は単一
+/// リストのため本関数を経由しない）。
 fn group_section(group: &Group) -> Node {
     div(
         vec![("class", "blocks-settings-integrations-list-group")],
         vec![
-            h3(
-                vec![("class", "blocks-settings-integrations-list-group-title")],
+            heading(
+                HeadingLevel::H3,
+                &HeadingProps {
+                    size: HeadingSize::Sm,
+                    ..HeadingProps::default()
+                },
+                vec![("data-blocks-settings-integrations-list-group-title", "")],
                 vec![text(group.title)],
             ),
             ul(
@@ -267,18 +343,280 @@ fn group_section(group: &Group) -> Node {
     )
 }
 
+/// 版見出し（H3、`heading` 部品。モジュール doc「グループ/版見出しは
+/// `heading` を使う」節参照）。
+fn version_title(label: &str) -> Node {
+    heading(
+        HeadingLevel::H3,
+        &HeadingProps {
+            size: HeadingSize::Sm,
+            ..HeadingProps::default()
+        },
+        vec![("data-blocks-settings-integrations-list-version-title", "")],
+        vec![text(label)],
+    )
+}
+
+/// 版 B 展開行の API キー欄（`clipboard`、Demo 全体で唯一の
+/// `clipboard::root` 呼び出し。モジュール doc「`clipboard` root は版 B の
+/// 展開行 1 個に限る」節参照）。
+fn api_key_clipboard() -> Node {
+    const INPUT_ID: &str = "blocks-settings-integrations-list-api-key";
+    div(
+        vec![("class", "blocks-settings-integrations-list-key")],
+        vec![clipboard::root(
+            API_KEY_DEMO,
+            false,
+            vec![("data-blocks-settings-integrations-list-clipboard", "")],
+            vec![
+                clipboard::label(false, Some(INPUT_ID), vec![], vec![text("API キー")]),
+                clipboard::control(
+                    false,
+                    vec![],
+                    vec![
+                        clipboard::input(API_KEY_DEMO, false, vec![("id", INPUT_ID)]),
+                        clipboard::trigger(
+                            false,
+                            vec![],
+                            vec![
+                                clipboard::indicator(false, false, vec![], vec![text("コピー")]),
+                                clipboard::indicator(true, false, vec![], vec![text("コピー済み")]),
+                            ],
+                        ),
+                    ],
+                ),
+            ],
+        )],
+    )
+}
+
+/// 版 B（R0255）: 有効化スイッチで行を展開し API キー欄を表示する版。
+///
+/// 先頭行のみ `checked: true` で展開し [`api_key_clipboard`] を表示する。
+/// 残り 2 行は `checked: false` で折りたたみのまま（展開/折りたたみの両
+/// 状態を同一リスト内に並記する）。スイッチは `readonly` + `disabled` で
+/// 静的固定する（モジュール doc「スイッチは readonly + disabled で静的
+/// 固定」節参照）。
+fn version_switch_keys() -> Node {
+    let items = GROUPS[0].items;
+    let switch_props = SwitchProps {
+        readonly: true,
+        disabled: true,
+        ..SwitchProps::default()
+    };
+    let rows: Vec<Node> = items
+        .iter()
+        .enumerate()
+        .map(|(i, item)| {
+            let checked = i == 0;
+            let hidden_input_name = format!("blocks-settings-integrations-list-enabled-{i}");
+            let switch_node = switch::root(
+                Size::Md,
+                ColorPalette::Accent,
+                checked,
+                &switch_props,
+                vec![("data-blocks-settings-integrations-list-switch", "")],
+                vec![
+                    switch::label(
+                        checked,
+                        &switch_props,
+                        vec![],
+                        vec![text(format!("{} を有効化", item.name))],
+                    ),
+                    switch::hidden_input(&hidden_input_name, "on", checked, &switch_props, vec![]),
+                    switch::control(
+                        checked,
+                        &switch_props,
+                        vec![],
+                        vec![switch::thumb(checked, &switch_props, vec![], vec![])],
+                    ),
+                ],
+            );
+            let expanded = checked.then(api_key_clipboard);
+            row_with(item, switch_node, expanded)
+        })
+        .collect();
+    ul(
+        vec![("class", "blocks-settings-integrations-list-list")],
+        rows,
+    )
+}
+
+/// 要望済みアプリ 2 件（名前 + 検討状況バッジ）。
+const REQUESTED_APPS: &[(&str, &str, BadgeVariant)] = &[
+    ("Flow Board", "検討中", BadgeVariant::Subtle),
+    ("Signal Mail", "予定", BadgeVariant::Outline),
+];
+
+/// 要望済みアプリの小リスト（版 C 要望領域の一部）。
+fn requested_apps_list() -> Node {
+    ul(
+        vec![("class", "blocks-settings-integrations-list-requested-list")],
+        REQUESTED_APPS
+            .iter()
+            .map(|(name, status, variant)| {
+                li(
+                    vec![],
+                    vec![
+                        text(*name),
+                        badge(
+                            &BadgeProps {
+                                variant: *variant,
+                                ..BadgeProps::default()
+                            },
+                            vec![(
+                                "data-blocks-settings-integrations-list-requested-status",
+                                "",
+                            )],
+                            vec![text(*status)],
+                        ),
+                    ],
+                )
+            })
+            .collect(),
+    )
+}
+
+/// 版 C（R0251）: 連携要望の一覧 + 要望送信フォームを末尾に持つ版。
+///
+/// `<form>` は使わず送信先も持たない静的表示（モジュール doc「要望フォーム
+/// は `<form>` を持たず送信先も持たない」節参照）。
+fn version_request_form() -> Node {
+    const FIELD_ID: &str = "blocks-settings-integrations-list-request-app";
+    let field_props = FieldProps {
+        id: FIELD_ID,
+        ids: FieldIds::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    let group_props = InputGroupProps {
+        disabled: false,
+        invalid: false,
+    };
+
+    let request_area = li(
+        vec![("class", "blocks-settings-integrations-list-request")],
+        vec![
+            requested_apps_list(),
+            field::root(
+                &FieldRootProps {
+                    orientation: FieldOrientation::Vertical,
+                },
+                &field_props,
+                vec![],
+                vec![
+                    field::label(&field_props, vec![], vec![text("連携してほしいアプリ")]),
+                    input_group::root(
+                        &group_props,
+                        vec![],
+                        vec![
+                            input::input(
+                                &InputProps::default(),
+                                &field_props,
+                                vec![("type", "text"), ("placeholder", "例: Slack, Notion")],
+                            ),
+                            input_group::addon(
+                                InputGroupAlign::InlineEnd,
+                                &group_props,
+                                vec![],
+                                vec![button(
+                                    &ButtonProps::default(),
+                                    vec![],
+                                    vec![text("要望を送る")],
+                                )],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+    );
+
+    let mut rows: Vec<Node> = GROUPS[1].items[0..2].iter().map(row).collect();
+    rows.push(request_area);
+    ul(
+        vec![("class", "blocks-settings-integrations-list-list")],
+        rows,
+    )
+}
+
+/// 版 D（R0254）: 末尾に空状態の枠を持つ版。
+fn version_empty_state() -> Node {
+    let empty_area = li(
+        vec![("class", "blocks-settings-integrations-list-empty")],
+        vec![empty_state::root(
+            &EmptyStateProps {
+                variant: EmptyStateVariant::Outline,
+                ..EmptyStateProps::default()
+            },
+            vec![],
+            vec![empty_state::content(
+                vec![],
+                vec![
+                    empty_state::title(vec![], vec![text("ほかの連携アプリを探す")]),
+                    empty_state::description(
+                        vec![],
+                        vec![text("カタログから追加の連携アプリを探して接続できます。")],
+                    ),
+                    empty_state::actions(
+                        vec![],
+                        vec![button(
+                            &ButtonProps {
+                                variant: ButtonVariant::Outline,
+                                ..ButtonProps::default()
+                            },
+                            vec![],
+                            vec![text("アプリを追加")],
+                        )],
+                    ),
+                ],
+            )],
+        )],
+    );
+
+    let mut rows: Vec<Node> = GROUPS[1].items[1..3].iter().map(row).collect();
+    rows.push(empty_area);
+    ul(
+        vec![("class", "blocks-settings-integrations-list-list")],
+        rows,
+    )
+}
+
 /// `settings-integrations-list` の Demo 本体。呼び出しごとに同一の `Node`
-/// を返す純関数。
+/// を返す純関数。版 A〜D を縦に並記する（モジュール doc「版 A〜D と集約元の
+/// 対応」節参照）。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-settings-integrations-list-stack")],
         vec![
+            version_title("版 A: 個人用・組織用グループ（R0252）"),
             group_section(&GROUPS[0]),
             separator(
                 &SeparatorProps::default(),
                 vec![("data-blocks-settings-integrations-list-divider", "")],
             ),
             group_section(&GROUPS[1]),
+            separator(
+                &SeparatorProps::default(),
+                vec![("data-blocks-settings-integrations-list-divider", "")],
+            ),
+            version_title("版 B: 有効化スイッチと API キー欄（R0255）"),
+            version_switch_keys(),
+            separator(
+                &SeparatorProps::default(),
+                vec![("data-blocks-settings-integrations-list-divider", "")],
+            ),
+            version_title("版 C: 連携要望フォーム付き（R0251）"),
+            version_request_form(),
+            separator(
+                &SeparatorProps::default(),
+                vec![("data-blocks-settings-integrations-list-divider", "")],
+            ),
+            version_title("版 D: 空状態付き（R0254）"),
+            version_empty_state(),
         ],
     )
 }
@@ -313,6 +651,34 @@ pub const BLOCK: Block = Block {
             label: "Image",
             path: "/themes/image/",
         },
+        Part {
+            label: "Switch",
+            path: "/themes/switch/",
+        },
+        Part {
+            label: "Clipboard",
+            path: "/themes/clipboard/",
+        },
+        Part {
+            label: "Field",
+            path: "/themes/field/",
+        },
+        Part {
+            label: "Input Group",
+            path: "/themes/input-group/",
+        },
+        Part {
+            label: "Input",
+            path: "/themes/input/",
+        },
+        Part {
+            label: "Empty State",
+            path: "/themes/empty-state/",
+        },
+        Part {
+            label: "Heading",
+            path: "/themes/heading/",
+        },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
     demo,
@@ -321,25 +687,34 @@ pub const BLOCK: Block = Block {
 /// `settings_integrations_list` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
 /// doc「block 固有 CSS の置き場」節と同型）。
 ///
-/// `group-title`（`h3`）/`list`（`ul`）/`row`（`li`）の 3 セレクタは、素の
+/// `list`（`ul`）/`row`（`li`）の 2 セレクタは、素の
 /// `.blocks-settings-integrations-list-*` 単一クラス（詳細度 (0,1,0)）のみで
 /// 宣言すると、サイト共通 typography（`site_theme.rs` の
-/// `.docs-content h3`/`.docs-content ul,ol`/`.docs-content li`、いずれも
-/// 詳細度 (0,1,1)）に負けて見出しサイズ・余白・リストの
-/// ビュレット/パディング/`margin-block` が意図通りにならない
+/// `.docs-content ul,ol`/`.docs-content li`、いずれも詳細度 (0,1,1)）に負けて
+/// リストのビュレット/パディング/`margin-block` が意図通りにならない
 /// （PR #3441 Bugbot 指摘）。`.blocks-settings-integrations-list-stack`/
 /// `-list` を祖先に持つ子孫セレクタへ書き換えてクラス数を 2 に増やし
-/// （詳細度 (0,2,0)）、クラス数比較で `.docs-content h3` 等を確実に上回る
-/// （型セレクタの有無に依存しないため、`site.css`/本 CSS の読み込み順序に
-/// 左右されない）。`row` はさらに `margin-block: 0` を明示し、
+/// （詳細度 (0,2,0)）、クラス数比較で `.docs-content ul,ol`/`li` を確実に
+/// 上回る（型セレクタの有無に依存しないため、`site.css`/本 CSS の読み込み
+/// 順序に左右されない）。`row` はさらに `margin-block: 0` を明示し、
 /// `.docs-content li` の `margin-block` を打ち消して行間を `border-top`
 /// のみに委ねる（image recipe base への `img[data-scope=...]` 上書きと同じ
 /// 「サイト共通スタイルは変更せず block 側で限定的に上回る」判断）。
+///
+/// グループ見出し・版見出しは `h3` 直書きから `heading` 部品（#2994）へ
+/// 移行したため、CSS フックは `class` ではなく `data-*` 属性で渡す
+/// （モジュール doc「グループ/版見出しは `heading` を使う」節参照）。
+/// `heading` の base 規則（`[data-scope="heading"][data-part="root"]`、
+/// 詳細度 (0,2,0)）の `margin: 0` を上書きするため、`.blocks-settings-
+/// integrations-list-stack` を祖先に持つ 3 クラス相当の子孫セレクタ
+/// （1 class + 2 attribute selector、詳細度 (0,3,0)）を使い、読み込み順序に
+/// 依存せず確実に上回る。
 const LAYOUT_CSS: &str = "\
 .blocks-settings-integrations-list-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-settings-integrations-list;\n}\n\
-.blocks-settings-integrations-list-stack .blocks-settings-integrations-list-group-title {\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-semibold);\n  color: var(--fandhe-color-fg-muted);\n  margin: 0 0 var(--fandhe-space-2);\n}\n\
+.blocks-settings-integrations-list-stack [data-scope=\"heading\"][data-blocks-settings-integrations-list-version-title] {\n  margin: 0 0 var(--fandhe-space-3);\n}\n\
+.blocks-settings-integrations-list-stack [data-scope=\"heading\"][data-blocks-settings-integrations-list-group-title] {\n  color: var(--fandhe-color-fg-muted);\n  margin: 0 0 var(--fandhe-space-2);\n}\n\
 .blocks-settings-integrations-list-stack .blocks-settings-integrations-list-list {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg);\n}\n\
-.blocks-settings-integrations-list-list .blocks-settings-integrations-list-row {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr) auto;\n  grid-template-areas: \"logo body actions\";\n  align-items: center;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-4);\n  margin-block: 0;\n}\n\
+.blocks-settings-integrations-list-list .blocks-settings-integrations-list-row {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr) auto;\n  grid-template-areas: \"logo body actions\" \"logo key key\";\n  align-items: center;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-4);\n  margin-block: 0;\n}\n\
 .blocks-settings-integrations-list-row + .blocks-settings-integrations-list-row {\n  border-top: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-settings-integrations-list-logo] {\n  grid-area: logo;\n}\n\
 img[data-scope=\"image\"][data-blocks-settings-integrations-list-logo] {\n  width: 2.5rem;\n  height: 2.5rem;\n}\n\
@@ -347,8 +722,13 @@ img[data-scope=\"image\"][data-blocks-settings-integrations-list-logo] {\n  widt
 .blocks-settings-integrations-list-name {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
 .blocks-settings-integrations-list-description {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 .blocks-settings-integrations-list-actions {\n  grid-area: actions;\n}\n\
+.blocks-settings-integrations-list-key {\n  grid-area: key;\n  padding-top: var(--fandhe-space-2);\n}\n\
+.blocks-settings-integrations-list-list .blocks-settings-integrations-list-request {\n  padding: var(--fandhe-space-4);\n  border-top: 1px solid var(--fandhe-color-border);\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  margin-block: 0;\n}\n\
+.blocks-settings-integrations-list-requested-list {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
+.blocks-settings-integrations-list-requested-list li {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-2);\n  margin-block: 0;\n}\n\
+.blocks-settings-integrations-list-list .blocks-settings-integrations-list-empty {\n  padding: var(--fandhe-space-4);\n  border-top: 1px solid var(--fandhe-color-border);\n  margin-block: 0;\n}\n\
 @container blocks-settings-integrations-list (max-width: 40rem) {\n  \
-.blocks-settings-integrations-list-list .blocks-settings-integrations-list-row {\n    grid-template-columns: auto minmax(0, 1fr);\n    grid-template-areas: \"logo body\" \"logo actions\";\n  }\n  \
+.blocks-settings-integrations-list-list .blocks-settings-integrations-list-row {\n    grid-template-columns: auto minmax(0, 1fr);\n    grid-template-areas: \"logo body\" \"logo actions\" \"logo key\";\n  }\n  \
 .blocks-settings-integrations-list-actions {\n    justify-self: start;\n  }\n\
 }\n";
 
@@ -370,25 +750,32 @@ mod tests {
             "data-scope=\"link\"",
             "data-scope=\"separator\"",
             "data-scope=\"image\"",
+            "data-scope=\"switch\"",
+            "data-scope=\"clipboard\"",
+            "data-scope=\"field\"",
+            "data-scope=\"input-group\"",
+            "data-scope=\"empty-state\"",
+            "data-scope=\"heading\"",
         ] {
             assert!(html.contains(scope), "demo should contain {scope}");
         }
     }
 
     #[test]
-    fn demo_has_two_groups_and_six_rows() {
+    fn demo_has_two_groups_and_thirteen_rows() {
         let html = demo_html();
         assert_eq!(
-            html.matches("blocks-settings-integrations-list-group-title")
+            html.matches("data-blocks-settings-integrations-list-group-title")
                 .count(),
             2
         );
         assert_eq!(
             html.matches("blocks-settings-integrations-list-row")
                 .count(),
-            // 各行の class 出現は 1 回だが、隣接セレクタ用の `+` 記述は
-            // LAYOUT_CSS 側にのみ存在するため、demo 側は行要素数と一致する。
-            6
+            // 版 A(6) + 版 B(3) + 版 C(2) + 版 D(2) = 13。各行の class 出現は
+            // 1 回だが、隣接セレクタ用の `+` 記述は LAYOUT_CSS 側にのみ
+            // 存在するため、demo 側は行要素数と一致する。
+            13
         );
         assert!(html.contains("接続済み"));
         assert!(html.contains("未接続"));
@@ -409,8 +796,10 @@ mod tests {
     #[test]
     fn buttons_use_type_button_only() {
         let html = demo_html();
-        assert_eq!(html.matches("<button").count(), 6);
-        assert_eq!(html.matches("type=\"button\"").count(), 6);
+        // 接続/解除ボタン 10（版 A:6・版 C:2・版 D:2）+ clipboard trigger 1 +
+        // 要望送信ボタン 1 + 空状態アクションボタン 1 = 13。
+        assert_eq!(html.matches("<button").count(), 13);
+        assert_eq!(html.matches("type=\"button\"").count(), 13);
     }
 
     #[test]
@@ -418,8 +807,8 @@ mod tests {
         let html = demo_html();
         assert_eq!(
             html.matches("rel=\"noopener noreferrer\"").count(),
-            6,
-            "each of the 6 rows should have one external detail link"
+            13,
+            "each of the 13 rows should have one external detail link"
         );
     }
 
@@ -430,13 +819,14 @@ mod tests {
         // 文言）ではなく「GitHub で見る」を使う（PR #3441 Codex/Bugbot 指摘）。
         let html = demo_html();
         assert!(!html.contains("詳細を見る"));
-        assert_eq!(html.matches("GitHub で見る").count(), 6);
+        assert_eq!(html.matches("GitHub で見る").count(), 13);
     }
 
     #[test]
     fn action_buttons_have_app_specific_accessible_name() {
         // 「接続」「解除」だけでは支援技術上どのアプリへの操作か区別できない
         // ため、`aria-label` にアプリ名を含める（PR #3441 Codex 指摘）。
+        // 版 B はスイッチ操作のため対象外（接続/解除ボタンを持たない）。
         let html = demo_html();
         for name in [
             "Lattice Notes",
@@ -451,7 +841,74 @@ mod tests {
                 "expected an accessible action-button label mentioning {name}"
             );
         }
-        assert_eq!(html.matches("aria-label=\"").count(), 6);
+    }
+
+    #[test]
+    fn switch_rows_show_both_expanded_and_collapsed_states() {
+        // 版 B: 先頭行のみ展開（checked）、残り 2 行は折りたたみ
+        // （unchecked）のまま同一リスト内に並記する。
+        let html = demo_html();
+        assert_eq!(
+            html.matches("data-part=\"control\" data-state=\"checked\"")
+                .count(),
+            1
+        );
+        assert_eq!(
+            html.matches("data-part=\"control\" data-state=\"unchecked\"")
+                .count(),
+            2
+        );
+        assert_eq!(
+            html.matches("data-scope=\"clipboard\" data-part=\"root\"")
+                .count(),
+            1,
+            "clipboard root は 1 root : 1 状態機械契約のため Demo 全体で 1 個のみ"
+        );
+    }
+
+    #[test]
+    fn switch_is_statically_fixed() {
+        // readonly + disabled で native トグル操作自体を止める
+        // （モジュール doc「スイッチは readonly + disabled で静的固定」節）。
+        let html = demo_html();
+        assert!(html.contains("data-readonly"));
+        for line in html.split("<input") {
+            if line.contains("role=\"switch\"") {
+                assert!(
+                    line.contains("disabled"),
+                    "switch hidden_input should carry native disabled: {line}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn request_area_has_labelled_input_and_no_form() {
+        let request_html = render(&super::version_request_form());
+        assert!(!request_html.contains("<form"));
+        assert!(request_html.contains("<label"));
+        assert!(
+            request_html.contains("for=\"blocks-settings-integrations-list-request-app-control\"")
+        );
+        assert!(
+            request_html.contains("id=\"blocks-settings-integrations-list-request-app-control\"")
+        );
+        assert!(request_html.trim_end().ends_with("</li></ul>"));
+    }
+
+    #[test]
+    fn empty_state_is_last_item_of_its_list() {
+        let empty_html = render(&super::version_empty_state());
+        assert!(empty_html.contains("data-scope=\"empty-state\" data-part=\"root\""));
+        assert!(empty_html.trim_end().ends_with("</li></ul>"));
+    }
+
+    #[test]
+    fn headings_use_pre_styled_heading_not_raw_h3() {
+        let html = demo_html();
+        assert!(!html.contains("<h3 class=\"blocks-"));
+        assert!(html.contains("data-blocks-settings-integrations-list-version-title"));
+        assert!(html.contains("data-blocks-settings-integrations-list-group-title"));
     }
 
     #[test]
@@ -462,6 +919,14 @@ mod tests {
             LAYOUT_CSS.contains("@container blocks-settings-integrations-list (max-width: 40rem)")
         );
         assert!(LAYOUT_CSS.contains("grid-template-areas: \"logo body\" \"logo actions\""));
+    }
+
+    #[test]
+    fn layout_css_declares_key_area_on_wide_and_narrow() {
+        assert!(LAYOUT_CSS.contains("grid-template-areas: \"logo body actions\" \"logo key key\";"));
+        assert!(LAYOUT_CSS
+            .contains("grid-template-areas: \"logo body\" \"logo actions\" \"logo key\";"));
+        assert!(LAYOUT_CSS.contains(".blocks-settings-integrations-list-key {\n  grid-area: key;"));
     }
 
     #[test]
@@ -487,13 +952,16 @@ mod tests {
 
     #[test]
     fn typography_selectors_beat_docs_content_specificity() {
-        // `.docs-content h3`/`.docs-content ul,ol`/`.docs-content li`
-        // （いずれも詳細度 (0,1,1)）に負けないよう、group-title/list/row は
-        // 2 クラスの子孫セレクタ（詳細度 (0,2,0)）で宣言する回帰ガード
-        // （PR #3441 Bugbot 指摘）。単一クラスの旧セレクタが復活していない
-        // ことも合わせて固定する。
+        // `.docs-content ul,ol`/`.docs-content li`（いずれも詳細度 (0,1,1)）
+        // に負けないよう list/row は 2 クラスの子孫セレクタ（詳細度
+        // (0,2,0)）で宣言する回帰ガード（PR #3441 Bugbot 指摘）。単一クラスの
+        // 旧セレクタが復活していないことも合わせて固定する。グループ見出し・
+        // 版見出しは #2994 で `heading` 部品（`data-scope="heading"`）へ
+        // 移行したため、対応するセレクタも子孫 data 属性形へ変わる
+        // （詳細度 (0,3,0)、モジュール doc「グループ/版見出しは `heading`
+        // を使う」節参照）。
         assert!(LAYOUT_CSS.contains(
-            ".blocks-settings-integrations-list-stack .blocks-settings-integrations-list-group-title {"
+            ".blocks-settings-integrations-list-stack [data-scope=\"heading\"][data-blocks-settings-integrations-list-group-title] {"
         ));
         assert!(LAYOUT_CSS.contains(
             ".blocks-settings-integrations-list-stack .blocks-settings-integrations-list-list {"
