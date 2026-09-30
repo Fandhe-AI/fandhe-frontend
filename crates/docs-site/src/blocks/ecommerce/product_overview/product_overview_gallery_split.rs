@@ -178,6 +178,19 @@ fn product_breadcrumb() -> Node {
 /// （`cart_two_column_summary.rs`・`order_tracking_progress.rs` と同じ
 /// 判断。`BACKGROUND_SRC`/`SCREENSHOT_SRC`/`LOGO_SRC` は無関係カテゴリの
 /// プレースホルダーのため商品画像としては使わない、レビュー指摘対応）。
+///
+/// `carousel::item` の `current` 引数は `true` を渡す（レビュー指摘対応、
+/// Codex）。[`LAYOUT_CSS`] の上書き（「サムネイル `carousel` の item
+/// 上書き」節参照）により 4 枚全てが常時横並びで画面に見えており、
+/// 1 枚だけを表示するスライドショー（1 枚だけが実際に viewport 内）を
+/// 前提にした `index == 0` 判定では `data-inview`/`data-current` が
+/// 先頭 1 枚にしか付かず、実際の表示状態（4 枚とも常に可視）と
+/// カルーセルの状態表現が食い違う。`item` パーツの `data-current`
+/// （`data-inview` も同一 bool から生成される、
+/// `fandhe_frontend_headless_ui::carousel::item` 参照）には styled
+/// carousel のスタイル規則が存在しない（強調は `indicator` パーツのみ）
+/// ため、全枚 `true` にしても見た目の変化はなく、可視状態の表現のみが
+/// 実態に合う。
 fn thumbnail(index: usize, count: usize) -> Node {
     let src = dummy_assets::PRODUCT_SRC;
     let alt = format!("商品画像{}", index + 1);
@@ -185,7 +198,7 @@ fn thumbnail(index: usize, count: usize) -> Node {
         Orientation::Horizontal,
         index,
         count,
-        index == 0,
+        true,
         vec![],
         vec![image::image(
             &ImageProps {
@@ -744,6 +757,16 @@ mod tests {
         assert!(LAYOUT_CSS.contains(
             ".blocks-product-overview-gallery-split-gallery [data-scope=\"carousel\"][data-part=\"root\"] {\n  overflow: visible;"
         ));
+    }
+
+    /// レビュー指摘対応（Codex）: サムネイル 4 枚は [`LAYOUT_CSS`] の
+    /// 上書きにより常時全て可視のため、`carousel::item` の
+    /// `data-inview`（＝可視状態）は 4 枚全てに付き、1 枚だけに限定
+    /// されないこと（`thumbnail` 関数 doc 参照）。
+    #[test]
+    fn all_thumbnails_are_marked_inview() {
+        let html = demo_html();
+        assert_eq!(html.matches("data-inview").count(), 4, "html={html}");
     }
 
     /// レビュー指摘対応（Cursor Bugbot、Medium）: 固定 disabled の
