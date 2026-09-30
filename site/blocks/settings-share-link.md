@@ -348,7 +348,10 @@ fn version_domain_qr() -> Node {
         disabled: false,
         invalid: false,
         required: false,
-        readonly: false,
+        // QR コードは固定の `SHARE_URL` から生成する静的表示のため、スラッグを
+        // 編集可能にすると表示スラッグと QR コードのリンク先が食い違う
+        // （レビュー指摘、PR #3454）。読み取り専用にして不整合を防ぐ。
+        readonly: true,
         has_helper_text: false,
     };
     let select_label_id = format!("{id_prefix}-select-label");

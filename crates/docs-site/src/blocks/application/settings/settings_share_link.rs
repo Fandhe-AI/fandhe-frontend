@@ -440,7 +440,10 @@ fn version_domain_qr() -> Node {
         disabled: false,
         invalid: false,
         required: false,
-        readonly: false,
+        // QR コードは固定の `SHARE_URL` から生成する静的表示のため、スラッグを
+        // 編集可能にすると表示スラッグと QR コードのリンク先が食い違う
+        // （レビュー指摘、PR #3454）。読み取り専用にして不整合を防ぐ。
+        readonly: true,
         has_helper_text: false,
     };
     let select_label_id = format!("{id_prefix}-select-label");
@@ -657,13 +660,13 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-share-link-audience-field {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1-5, 0.375rem);\n}\n\
 .blocks-settings-share-link-domain-row {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-3);\n  align-items: flex-end;\n}\n\
 .blocks-settings-share-link-qr-row {\n  display: flex;\n  justify-content: center;\n}\n\
-.blocks-settings-share-link-embed-snippet {\n  font-family: var(--fandhe-font-font-mono);\n  font-size: var(--fandhe-font-size-sm);\n  word-break: break-all;\n}\n\
+.blocks-settings-share-link-embed-snippet {\n  font-family: var(--fandhe-font-font-mono);\n  font-size: var(--fandhe-font-font-size-sm);\n  word-break: break-all;\n}\n\
 [data-blocks-settings-share-link-toggle] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-settings-share-link-toggle][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-blocks-settings-share-link-clipboard] {\n  display: flex;\n  flex-direction: column;\n  width: 100%;\n}\n\
 [data-blocks-settings-share-link-clipboard] [data-scope=\"clipboard\"][data-part=\"control\"] {\n  width: 100%;\n}\n\
-[data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-[data-scope=\"select\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+.blocks-settings-share-link-layout [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+.blocks-settings-share-link-layout [data-scope=\"select\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-blocks-settings-share-link-actions] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  width: 100%;\n}\n\
 [data-blocks-settings-share-link-actions] [data-scope=\"button\"] {\n  inline-size: 100%;\n}\n\
 @media (min-width: 40rem) {\n  \
