@@ -6,7 +6,9 @@
 //! [`settings_api_key_created`]、イシュー #2991 で
 //! [`settings_integrations_grid`]、イシュー #2995 で
 //! [`settings_integrations_search`]、イシュー #2996 で
-//! [`settings_item_cards`] を追加した）。手順は
+//! [`settings_item_cards`] を追加し、イシュー #3007 で
+//! [`settings_page_tabs`]（骨格・API 設定領域。親 #3006、残りの版 B・
+//! 状態並記は #3008）を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -24,6 +26,7 @@ mod settings_integrations_grid;
 mod settings_integrations_list;
 mod settings_integrations_search;
 mod settings_item_cards;
+mod settings_page_tabs;
 
 use crate::blocks::Block;
 
@@ -38,5 +41,6 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_integrations_list::BLOCK,
         settings_integrations_search::BLOCK,
         settings_item_cards::BLOCK,
+        settings_page_tabs::BLOCK,
     ]
 }
