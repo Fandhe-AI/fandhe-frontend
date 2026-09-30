@@ -467,6 +467,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-api-keys-table/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-billing-usage/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-billing-overview/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-integrations-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-integrations-list/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-event-accordion/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-api-key-created/index.html"
