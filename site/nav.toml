@@ -2338,6 +2338,11 @@ source = "site/blocks/settings-event-accordion.md"
 path = "/blocks/settings-event-accordion/"
 
 [[section.group.page]]
+title = "settings-export-data"
+source = "site/blocks/settings-export-data.md"
+path = "/blocks/settings-export-data/"
+
+[[section.group.page]]
 title = "settings-integration-detail"
 source = "site/blocks/settings-integration-detail.md"
 path = "/blocks/settings-integration-detail/"
@@ -2386,6 +2391,11 @@ path = "/blocks/settings-page-aside-nav/"
 title = "settings-page-sidebar"
 source = "site/blocks/settings-page-sidebar.md"
 path = "/blocks/settings-page-sidebar/"
+
+[[section.group.page]]
+title = "settings-page-tabs"
+source = "site/blocks/settings-page-tabs.md"
+path = "/blocks/settings-page-tabs/"
 
 [[section.group.page]]
 title = "settings-preferences"

@@ -989,6 +989,7 @@ pub enum LayoutCss {
 | form-layout-property-panel | #2913・#2914（親 #2912） | `application/form_layout/form_layout_property_panel.rs` |
 | form-layout-stacked | #2915（親 #2892） | `application/form_layout/form_layout_stacked.rs` |
 | form-layout-two-column | #2916（親 #2892） | `application/form_layout/form_layout_two_column.rs` |
+| settings-export-data | #2987（親 #2951） | `application/settings/settings_export_data.rs` |
 | navbar-app-links | #2926（親 #2892） | `application/navbar/navbar_app_links.rs` |
 | navbar-two-row | #2928 | `application/navbar/navbar_two_row.rs` |
 | navbar-with-search | #2929（親 #2892） | `application/navbar/navbar_with_search.rs` |
@@ -1061,6 +1062,7 @@ pub enum LayoutCss {
 | settings-org-switcher | #2999（親 #2951） | `application/settings/settings_org_switcher.rs` |
 | settings-page-aside-nav | #3001（親 #3000） | `application/settings/settings_page_aside_nav.rs` |
 | settings-page-sidebar | #3004（親 #3003） | `application/settings/settings_page_sidebar.rs` |
+| settings-page-tabs | #3007（親 #3006） | `application/settings/settings_page_tabs.rs` |
 | settings-preferences | #3009（親 #2951） | `application/settings/settings_preferences.rs` |
 | settings-profile-form | #3010 | `application/settings/settings_profile_form.rs` |
 
