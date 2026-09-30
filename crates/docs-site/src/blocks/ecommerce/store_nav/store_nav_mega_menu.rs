@@ -55,6 +55,13 @@
 //! （ハンバーガーメニューへの畳み込みは行わない。無 JS では開閉処理を
 //! 持たせられず、隠すと到達不能になる `header_mega_menu` と同じ教訓）。
 //! 狭幅時の「メニュー展開時」ドロワー状態の並記は後半 #3098 のスコープ。
+//! 狭幅では中央ナビを `order: 1`・操作領域を `order: 2` で明示し、DOM 順
+//! （ブランド → ナビ → 操作）と表示順を一致させる（レビュー是正 #3475:
+//! ナビのみへ `order: 2` を付け操作領域を既定 `order: 0` のままにしていた
+//! ため、狭幅で操作領域がナビより先に表示され DOM 順と食い違っていた）。
+//! 常時 open の「新作」項目（`[data-part="item"][data-state="open"]`）にも
+//! `flex-basis: 100%` を与え、ナビ一覧の flex 兄弟として他の項目と並ぶ・
+//! 折り返されるのを避けて専有行を確保する（レビュー是正 #3475）。
 //!
 //! # `.blocks-demo` のはみ出し対策
 //!
@@ -67,7 +74,7 @@
 //! 展開済みパネルがレイアウトボックスの内側に収まるようにする（レビュー
 //! 是正: 元の実装はこの枠を持たず、パネルが後続の「使用部品」見出し等と
 //! 重なる・`.blocks-demo` 内でクリップされる不具合があった）。狭幅
-//! （`@container` 47.99rem 以下）では列が 1 列積みになり注目画像カード＋
+//! （`@container` 50.99rem 以下）では列が 1 列積みになり注目画像カード＋
 //! 列見出し＋リンクの合計高さが伸びるため、固定 `min-block-size` の加算
 //! では不足しうる（レビュー是正 #3475: 後続ドキュメントレビューで固定
 //! 40rem が内容合計を超える場合の重なり・クリップを指摘された）。固定値を
@@ -551,7 +558,13 @@ pub const BLOCK: Block = Block {
 /// （全幅パネル化、モジュール冒頭 rustdoc「全幅パネルの配置方法」節）
 /// のみを用いる。値はすべて `var(--fandhe-*)` トークンで書き、生の色
 /// リテラルは使わない。狭幅の折り返しは `@container`（Demo 枠幅基準、
-/// モジュール冒頭 rustdoc「レスポンシブ」節）で行う。
+/// モジュール冒頭 rustdoc「レスポンシブ」節）で行う。4 列パネル
+/// （`panel-inner`）の列最小幅合計は 14rem + 10rem × 3 = 44rem、列間
+/// gap（`--fandhe-space-6` = 1.5rem × 3）+ 左右 padding
+/// （`--fandhe-space-4` = 1rem × 2）を足すと 50.5rem になる。切替幅を
+/// これより低い `47.99rem` にすると約 48〜50.5rem の Demo 枠で 4 列の
+/// まま最小幅合計がコンテナ幅を超えパネルが横にはみ出す（レビュー是正
+/// #3475）ため、切替幅は 50.5rem 以上の `50.99rem` にする。
 const LAYOUT_CSS: &str = "\
 .blocks-store-nav-mega-menu-shell {\n  container-type: inline-size;\n  container-name: blocks-store-nav-mega-menu;\n}\n\
 .blocks-store-nav-mega-menu-band {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-3);\n  padding: var(--fandhe-space-2) var(--fandhe-space-4);\n  background: var(--fandhe-color-bg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
@@ -575,7 +588,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-store-nav-mega-menu-cart {\n  position: relative;\n  display: inline-flex;\n}\n\
 [data-blocks-store-nav-mega-menu-cart-badge] {\n  position: absolute;\n  top: -0.25rem;\n  right: -0.25rem;\n}\n\
 .blocks-store-nav-mega-menu-page {\n  min-block-size: 22rem;\n  padding: var(--fandhe-space-6) var(--fandhe-space-4);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-@container blocks-store-nav-mega-menu (max-width: 47.99rem) {\n  .blocks-store-nav-mega-menu-nav[data-scope=\"navigation-menu\"][data-part=\"root\"] {\n    order: 2;\n    flex-basis: 100%;\n  }\n  .blocks-store-nav-mega-menu-shell [data-scope=\"navigation-menu\"][data-part=\"content\"] {\n    position: static;\n  }\n  .blocks-store-nav-mega-menu-panel-inner {\n    grid-template-columns: 1fr;\n  }\n}\n";
+@container blocks-store-nav-mega-menu (max-width: 50.99rem) {\n  .blocks-store-nav-mega-menu-nav[data-scope=\"navigation-menu\"][data-part=\"root\"] {\n    order: 1;\n    flex-basis: 100%;\n  }\n  .blocks-store-nav-mega-menu-actions {\n    order: 2;\n  }\n  .blocks-store-nav-mega-menu-shell [data-scope=\"navigation-menu\"][data-part=\"content\"] {\n    position: static;\n  }\n  .blocks-store-nav-mega-menu-shell [data-scope=\"navigation-menu\"][data-part=\"item\"][data-state=\"open\"] {\n    flex-basis: 100%;\n  }\n  .blocks-store-nav-mega-menu-panel-inner {\n    grid-template-columns: 1fr;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -700,7 +713,7 @@ mod tests {
         assert!(render(&demo()).contains("class=\"blocks-store-nav-mega-menu-page\""));
     }
 
-    /// 狭幅（`@container` 47.99rem 以下）ではパネルの内容合計が固定高さを
+    /// 狭幅（`@container` 50.99rem 以下）ではパネルの内容合計が固定高さを
     /// 超えうるため、固定 `min-block-size` を積み増すのではなく `content`
     /// を通常フローへ戻す（レビュー是正 #3475、モジュール冒頭 rustdoc
     /// 「`.blocks-demo` のはみ出し対策」節）。固定 40rem 加算のような
@@ -720,12 +733,8 @@ mod tests {
         );
     }
 
-    /// バーの `order` 上書きが DOM 順（ブランド → ナビ → 操作）を崩さない
-    /// こと（レビュー是正: 幅広時のみ `nav` に `order: 1` が付与され、
-    /// `order: 0`（既定）のブランド・操作より後ろへ描画されていた不具合。
-    /// 狭幅 `@container` 内の `order: 2`〔ナビを折り返して 2 行目へ送る
-    /// 意図的な上書き〕は対象外のため、`@container` より前の宣言のみを
-    /// 検査する）。
+    /// バーの `order` 上書きが幅広時に存在しないこと（DOM 順＝ブランド →
+    /// ナビ → 操作のまま、余計な `order` を付けない）。
     #[test]
     fn wide_bar_order_matches_dom_order() {
         let (wide, _) = LAYOUT_CSS
@@ -734,6 +743,44 @@ mod tests {
         assert!(
             !wide.contains("order:"),
             "wide bar should rely on DOM order (brand, nav, actions) without `order` overrides: {wide}"
+        );
+    }
+
+    /// 狭幅 `@container` 内の `order` 上書きが DOM 順（ブランド → ナビ →
+    /// 操作）と一致すること（レビュー是正 #3475: ナビのみへ `order: 2` を
+    /// 付け操作領域を既定 `order: 0` のまま残していたため、狭幅で操作領域
+    /// がナビより先に表示され DOM 順と食い違っていた。ナビを `order: 1`・
+    /// 操作領域を `order: 2` にして DOM 順（ブランド=0 < ナビ=1 <
+    /// 操作=2）を保ったまま、ナビだけが `flex-basis: 100%` で専有行に
+    /// 折り返るようにする）。
+    #[test]
+    fn narrow_bar_order_matches_dom_order() {
+        let (_, narrow) = LAYOUT_CSS
+            .split_once("@container")
+            .expect("LAYOUT_CSS should declare narrow @container rules");
+        assert!(
+            narrow.contains(".blocks-store-nav-mega-menu-nav") && narrow.contains("order: 1;"),
+            "narrow nav should use order: 1 (after brand, before actions): {narrow}"
+        );
+        assert!(
+            narrow.contains(".blocks-store-nav-mega-menu-actions") && narrow.contains("order: 2;"),
+            "narrow actions should use order: 2 (after nav) to match DOM order: {narrow}"
+        );
+    }
+
+    /// 常時 open の「新作」項目（`[data-part="item"][data-state="open"]`）
+    /// が狭幅で `flex-basis: 100%` を持ち、ナビ一覧の flex 兄弟として他の
+    /// 項目と並ぶ・折り返されるのを避けて専有行を確保すること（レビュー
+    /// 是正 #3475、Bugbot 指摘: in-flow panel breaks narrow nav layout）。
+    #[test]
+    fn narrow_open_item_reserves_own_flex_line() {
+        let (_, narrow) = LAYOUT_CSS
+            .split_once("@container")
+            .expect("LAYOUT_CSS should declare narrow @container rules");
+        assert!(
+            narrow.contains(r#"[data-part="item"][data-state="open"]"#)
+                && narrow.contains("flex-basis: 100%;"),
+            "narrow open item should reserve its own flex line: {narrow}"
         );
     }
 
