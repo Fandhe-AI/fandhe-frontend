@@ -227,7 +227,12 @@ fn nav_actions(s: &Steps, next_label: &'static str) -> Node {
     )
 }
 
-/// 通常フィールド（`field`/`input`）を組み立てる。
+/// 通常フィールド（`field`/`input`）を組み立てる。静的デモのため
+/// `readonly: true`（モジュール doc 「`<form>` を持たない・送信処理を持た
+/// ない」節と同じ判断: 実際の編集を受け付けない値を編集可能に見せない。
+/// `<input readonly>` は選択・キャレット操作は可能なままだが値の変更は
+/// 起きないため、[`readonly_field`] と同様ネイティブ `disabled` の減光は
+/// 生じない）。
 fn text_field<'a>(id: &'a str, label_text: &'a str, input_type: &'a str, value: &'a str) -> Node {
     let props = FieldProps {
         id,
@@ -235,7 +240,7 @@ fn text_field<'a>(id: &'a str, label_text: &'a str, input_type: &'a str, value: 
         disabled: false,
         invalid: false,
         required: false,
-        readonly: false,
+        readonly: true,
         has_helper_text: false,
     };
     field::root(
@@ -290,10 +295,14 @@ fn readonly_field<'a>(id: &'a str, label_text: &'a str, value: &'a str) -> Node 
 fn profile_step() -> Node {
     let name_id = field_id("profile", "name");
     let role_id = field_id("profile", "role");
+    // native_select はネイティブ `readonly` を出力しない（`<select readonly>`
+    // は HTML 仕様上無効、`native_select.rs` モジュール doc 参照）ため、
+    // 静的デモとして編集不能にするには `disabled: true` を使う。減光は
+    // [`LAYOUT_CSS`] で中和する（[`preference_radio_group`] と同型の判断）。
     let role_props = FieldProps {
         id: &role_id,
         ids: FieldIds::default(),
-        disabled: false,
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
@@ -353,7 +362,7 @@ fn profile_step() -> Node {
                         },
                         vec![],
                         vec![avatar::fallback(
-                            ImageStatus::Loaded,
+                            ImageStatus::Error,
                             vec![],
                             vec![text(
                                 dummy_assets::PERSON_NAMES[0]
@@ -535,7 +544,9 @@ fn preference_radio_group(label_id: String, label_text: &'static str, items: Vec
 /// `field`/`native_select` の選択欄 1 件を組み立てる（`id` を所有した
 /// `String` のまま `FieldProps` へ借用させ、`Node` を組み立て終えるまでの間
 /// だけ生かす。呼び出し側で `id` を先に確保することで `Box::leak` のような
-/// ヒープリークを避ける）。
+/// ヒープリークを避ける）。静的デモのため `disabled: true`
+/// （`profile_step::role_field` と同じ理由で `readonly` は使えない。減光は
+/// [`LAYOUT_CSS`] で中和する）。
 fn select_field(
     id: String,
     label_text: &'static str,
@@ -544,7 +555,7 @@ fn select_field(
     let props = FieldProps {
         id: &id,
         ids: FieldIds::default(),
-        disabled: false,
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
@@ -938,6 +949,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-onboarding-centered-steps-actions {\n  display: flex;\n  justify-content: space-between;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-2);\n  width: 100%;\n}\n\
 [data-scope=\"checkbox-card\"][data-part=\"root\"][data-blocks-onboarding-centered-steps-interest-card][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-onboarding-centered-steps-layout [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+.blocks-onboarding-centered-steps-layout [data-scope=\"field\"][data-part=\"select\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-onboarding-centered-steps-cc-checkbox][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n";
 
 #[cfg(test)]
