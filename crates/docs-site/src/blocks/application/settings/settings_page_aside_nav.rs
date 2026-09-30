@@ -97,13 +97,16 @@
 //! 伝える契約である。本 Demo の「プロフィール」リンク先は実在する GitHub の
 //! プロフィール設定ページであり、閲覧者が実際に見ているのは docs サイトの
 //! この block デモページであるため、`aria-current="page"` を付けると遷移先
-//! と矛盾した情報を支援技術に与えてしまう（codex 指摘）。このため
-//! `nav_list::link` へは常に `current: false` を渡し、視覚的な強調は
-//! `data-blocks-settings-page-aside-nav-current` 属性（[`LAYOUT_CSS`]）で
-//! 行い、支援技術への現在地の伝達は
-//! `fandhe_frontend_pre_styled_ui::visually_hidden::root` によるラベル末尾
-//! の非表示テキスト（`sidebar_grouped_nav::current_page_label` と同型の
-//! パターン）で行う。
+//! と矛盾した情報を支援技術に与えてしまう（codex 指摘）。この矛盾は
+//! `aria-current` 属性そのものに限らず、`sidebar_grouped_nav::
+//! current_page_label` と同型の非表示テキスト（"(current)"）で代替しても
+//! 同じ支援技術への誤伝達になる（2 度目の codex 指摘: デモページ閲覧中に
+//! 外部リンクを current item として "(current)" を付与するのは誤り）。
+//! このため `nav_list::link` へは常に `current: false` を渡し、支援技術
+//! 向けの現在地ラベルは一切付けない。「プロフィール」を強調表示したいだけ
+//! の視覚上の意図は `data-blocks-settings-page-aside-nav-current` 属性
+//! （[`LAYOUT_CSS`]）のみで表現する（`aria-*`/非表示テキストいずれも伴わ
+//! ない、見た目だけの装飾。支援技術には他の項目と等価なリンクとして伝わる）。
 //!
 //! # 請求周期トグルは静的表示のみ（`disabled: true`）
 //!
@@ -156,7 +159,6 @@ use fandhe_frontend_pre_styled_ui::recipe::Size;
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 use fandhe_frontend_pre_styled_ui::toggle_group::{self, ToggleGroupProps, ToggleGroupVariant};
-use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::ColorPalette;
 
 /// 実在の GitHub リポジトリへの固定外部 URL（`href="#"` 等の非実在リンクを
@@ -191,18 +193,20 @@ const NAVBAR_LINKS: &[(&str, &str, &str)] = &[
 /// （`github.com/settings/*`）へラベルの意味を合わせる。「危険な操作」は
 /// 当初リポジトリの `/settings`（管理権限を持つメンバーのみ閲覧できる）を
 /// 指していたが、管理権限のない閲覧者には機能しない（Codex レビュー指摘）
-/// ため、常にアクセス可能な GitHub 個人設定のランディングページへ変更した
-/// （「プロフィール」と同一 URL になる。危険な操作に対応する個人設定の
-/// 個別サブページ名は GitHub 側の変更で流動的なため、URL の一意性よりも
-/// 常時到達可能性を優先する）。現在項目（「プロフィール」）に
-/// `aria-current` を付けない理由・視覚的な現在地強調の方法は「左ナビの
-/// 現在項目は `aria-current` を実在外部リンクへ付けない」節参照。
+/// ため、GitHub 個人アカウント設定のうち誰でも自分のアカウントで開ける
+/// `/settings/admin`（Account ページ、末尾に Delete account = Danger Zone
+/// を含む）へ変更した。「プロフィール」の `/settings/profile` とは別の
+/// 実在 URL であり、ラベルと遷移先が対応する（2 度目の Codex レビュー
+/// 指摘: 「プロフィール」と同一 URL のままではラベルに対応する遷移先が
+/// 無い）。現在項目（「プロフィール」）に `aria-current` を付けない理由・
+/// 視覚的な現在地強調の方法は「左ナビの現在項目は `aria-current` を実在
+/// 外部リンクへ付けない」節参照。
 const ASIDE_NAV_LINKS: &[(&str, &str, bool)] = &[
     ("プロフィール", "https://github.com/settings/profile", true),
     ("アカウント", "https://github.com/settings/security", false),
     ("プラン", "https://github.com/settings/billing", false),
     ("通知", "https://github.com/settings/notifications", false),
-    ("危険な操作", "https://github.com/settings/profile", false),
+    ("危険な操作", "https://github.com/settings/admin", false),
 ];
 
 /// フィールド id の共通接頭辞を付ける小さなヘルパ（綴り間違い防止、
@@ -314,28 +318,24 @@ fn page_heading(name: &'static str, email: &'static str) -> Node {
 /// 左ナビ（設定項目、モジュール doc「構成」節 3.）。「プロフィール」だけ
 /// 現在項目とする（`footer_inline_nav::primary_nav` と同型のリンク列
 /// 組み立て）が、`nav_list::link` の `current` 引数には常に `false` を渡し
-/// `aria-current` は付けない。視覚的な強調は
-/// `data-blocks-settings-page-aside-nav-current` 属性（[`LAYOUT_CSS`]）、
-/// 支援技術への伝達は [`current_item_label`] の非表示テキストで行う
-/// （理由は「左ナビの現在項目は `aria-current` を実在外部リンクへ付けない」
-/// 節参照）。
+/// `aria-current` は付けない。ここでの `highlighted` は「プロフィール」を
+/// 視覚的に目立たせるだけの装飾フラグであり、`data-blocks-settings-page-
+/// aside-nav-current` 属性（[`LAYOUT_CSS`]）のみに反映する。支援技術向け
+/// の現在地ラベルは付けない（理由は「左ナビの現在項目は `aria-current` を
+/// 実在外部リンクへ付けない」節参照。非表示テキストによる代替も同節の
+/// 2 度目の指摘により不採用）。
 fn aside_nav() -> Node {
     let children: Vec<Node> = ASIDE_NAV_LINKS
         .iter()
-        .map(|(label, href, current)| {
-            let link_attrs = if *current {
+        .map(|(label, href, highlighted)| {
+            let link_attrs = if *highlighted {
                 vec![("data-blocks-settings-page-aside-nav-current", "")]
             } else {
                 vec![]
             };
             nav_list::item(
                 vec![],
-                vec![nav_list::link(
-                    href,
-                    false,
-                    link_attrs,
-                    current_item_label(label, *current),
-                )],
+                vec![nav_list::link(href, false, link_attrs, vec![text(*label)])],
             )
         })
         .collect();
@@ -344,18 +344,6 @@ fn aside_nav() -> Node {
         vec![("data-blocks-settings-page-aside-nav-aside", "")],
         vec![nav_list::list(vec![], children)],
     )
-}
-
-/// `aside_nav` 各リンクのラベル組み立て。`current` のときのみ
-/// visually-hidden な "(current)" をラベル末尾へ加え、`aria-current` を
-/// 使わずに現在地を支援技術へ伝える（`sidebar_grouped_nav::
-/// current_page_label` と同型のパターン）。
-fn current_item_label(label: &'static str, current: bool) -> Vec<Node> {
-    let mut children = vec![text(label)];
-    if current {
-        children.push(visually_hidden::root(vec![], vec![text(" (current)")]));
-    }
-    children
 }
 
 /// プロフィールカード（表示名・ユーザー名・タイムゾーン・アバター変更、
@@ -821,15 +809,16 @@ mod tests {
     #[test]
     fn aside_nav_marks_current_item_without_aria_current() {
         let html = demo_html();
-        // `aria-current` は実在外部リンクへ付けない（codex 指摘対応）。現在
-        // 項目の伝達は視覚的な `data-*` 属性 + 非表示テキストで行う。
+        // `aria-current` は実在外部リンクへ付けない（codex 指摘対応）。強調
+        // 表示は視覚専用の `data-*` 属性のみで行い、支援技術向けの現在地
+        // ラベル（非表示テキスト含む）は付けない（2 度目の codex 指摘対応）。
         assert!(!html.contains("aria-current=\"page\""));
         assert_eq!(
             html.matches("data-blocks-settings-page-aside-nav-current")
                 .count(),
             1
         );
-        assert!(html.contains("(current)"));
+        assert!(!html.contains("(current)"));
     }
 
     #[test]

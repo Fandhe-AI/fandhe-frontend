@@ -12,11 +12,14 @@ R0661（通知の配信先トグル）・R0662（積み上げ 4 カード + 削�
 対象外とし、後続イシューで追加します（`_/blocks-intake/` の対応ファイルは
 本 worktree に存在しないため、対応表 ID のみを記載します）。
 
-左ナビは「プロフィール」を現在項目（`aria-current="page"`）とし、本文には
-プロフィールカード（表示名・ユーザー名・タイムゾーン・アバター変更）と
-プランカード（請求周期の切替 + 利用状況テーブル）を縦に並べています。
-デモ枠の幅が `48rem` 未満では、左ナビが本文の上へ横並び（折り返し）で移り
-ます（コンテナクエリ判定、ページのビューポート幅では判定しません）。請求
+左ナビは「プロフィール」を視覚的に強調表示していますが、リンク先は実在の
+GitHub 設定ページ（デモページ自身ではない）であるため `aria-current="page"`
+は付けず、支援技術向けの現在地ラベルも付けません（強調は `data-*` 属性に
+よる見た目のみ）。本文にはプロフィールカード（表示名・ユーザー名・タイム
+ゾーン・アバター変更）とプランカード（請求周期の切替 + 利用状況テーブル）
+を縦に並べています。デモ枠の幅が `36rem` 未満では、左ナビが本文の上へ横並び
+（折り返し）で移ります（コンテナクエリ判定、ページのビューポート幅では判定
+しません）。請求
 周期の切替は無 JS では選択状態が変わらないため、操作不能を明示するため
 disabled 表示にしています。本 Demo は無 JS の静的表示のみであり、`<form>`
 を含みません。氏名・メールアドレスはすべて独自に書いた架空のものであり、
@@ -44,7 +47,6 @@ use fandhe_frontend_pre_styled_ui::recipe::Size;
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 use fandhe_frontend_pre_styled_ui::toggle_group::{self, ToggleGroupProps, ToggleGroupVariant};
-use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::ColorPalette;
 
 /// 実在の GitHub リポジトリへの固定外部 URL（`href="#"` 等の非実在リンクを
@@ -79,18 +81,20 @@ const NAVBAR_LINKS: &[(&str, &str, &str)] = &[
 /// （`github.com/settings/*`）へラベルの意味を合わせる。「危険な操作」は
 /// 当初リポジトリの `/settings`（管理権限を持つメンバーのみ閲覧できる）を
 /// 指していたが、管理権限のない閲覧者には機能しない（Codex レビュー指摘）
-/// ため、常にアクセス可能な GitHub 個人設定のランディングページへ変更した
-/// （「プロフィール」と同一 URL になる。危険な操作に対応する個人設定の
-/// 個別サブページ名は GitHub 側の変更で流動的なため、URL の一意性よりも
-/// 常時到達可能性を優先する）。現在項目（「プロフィール」）に
-/// `aria-current` を付けない理由・視覚的な現在地強調の方法は「左ナビの
-/// 現在項目は `aria-current` を実在外部リンクへ付けない」節参照。
+/// ため、GitHub 個人アカウント設定のうち誰でも自分のアカウントで開ける
+/// `/settings/admin`（Account ページ、末尾に Delete account = Danger Zone
+/// を含む）へ変更した。「プロフィール」の `/settings/profile` とは別の
+/// 実在 URL であり、ラベルと遷移先が対応する（2 度目の Codex レビュー
+/// 指摘: 「プロフィール」と同一 URL のままではラベルに対応する遷移先が
+/// 無い）。現在項目（「プロフィール」）に `aria-current` を付けない理由・
+/// 視覚的な現在地強調の方法は「左ナビの現在項目は `aria-current` を実在
+/// 外部リンクへ付けない」節参照。
 const ASIDE_NAV_LINKS: &[(&str, &str, bool)] = &[
     ("プロフィール", "https://github.com/settings/profile", true),
     ("アカウント", "https://github.com/settings/security", false),
     ("プラン", "https://github.com/settings/billing", false),
     ("通知", "https://github.com/settings/notifications", false),
-    ("危険な操作", "https://github.com/settings/profile", false),
+    ("危険な操作", "https://github.com/settings/admin", false),
 ];
 
 /// フィールド id の共通接頭辞を付ける小さなヘルパ（綴り間違い防止、
@@ -202,28 +206,24 @@ fn page_heading(name: &'static str, email: &'static str) -> Node {
 /// 左ナビ（設定項目、モジュール doc「構成」節 3.）。「プロフィール」だけ
 /// 現在項目とする（`footer_inline_nav::primary_nav` と同型のリンク列
 /// 組み立て）が、`nav_list::link` の `current` 引数には常に `false` を渡し
-/// `aria-current` は付けない。視覚的な強調は
-/// `data-blocks-settings-page-aside-nav-current` 属性（[`LAYOUT_CSS`]）、
-/// 支援技術への伝達は [`current_item_label`] の非表示テキストで行う
-/// （理由は「左ナビの現在項目は `aria-current` を実在外部リンクへ付けない」
-/// 節参照）。
+/// `aria-current` は付けない。ここでの `highlighted` は「プロフィール」を
+/// 視覚的に目立たせるだけの装飾フラグであり、`data-blocks-settings-page-
+/// aside-nav-current` 属性（[`LAYOUT_CSS`]）のみに反映する。支援技術向け
+/// の現在地ラベルは付けない（理由は「左ナビの現在項目は `aria-current` を
+/// 実在外部リンクへ付けない」節参照。非表示テキストによる代替も同節の
+/// 2 度目の指摘により不採用）。
 fn aside_nav() -> Node {
     let children: Vec<Node> = ASIDE_NAV_LINKS
         .iter()
-        .map(|(label, href, current)| {
-            let link_attrs = if *current {
+        .map(|(label, href, highlighted)| {
+            let link_attrs = if *highlighted {
                 vec![("data-blocks-settings-page-aside-nav-current", "")]
             } else {
                 vec![]
             };
             nav_list::item(
                 vec![],
-                vec![nav_list::link(
-                    href,
-                    false,
-                    link_attrs,
-                    current_item_label(label, *current),
-                )],
+                vec![nav_list::link(href, false, link_attrs, vec![text(*label)])],
             )
         })
         .collect();
@@ -232,18 +232,6 @@ fn aside_nav() -> Node {
         vec![("data-blocks-settings-page-aside-nav-aside", "")],
         vec![nav_list::list(vec![], children)],
     )
-}
-
-/// `aside_nav` 各リンクのラベル組み立て。`current` のときのみ
-/// visually-hidden な "(current)" をラベル末尾へ加え、`aria-current` を
-/// 使わずに現在地を支援技術へ伝える（`sidebar_grouped_nav::
-/// current_page_label` と同型のパターン）。
-fn current_item_label(label: &'static str, current: bool) -> Vec<Node> {
-    let mut children = vec![text(label)];
-    if current {
-        children.push(visually_hidden::root(vec![], vec![text(" (current)")]));
-    }
-    children
 }
 
 /// プロフィールカード（表示名・ユーザー名・タイムゾーン・アバター変更、
@@ -566,7 +554,7 @@ pub fn demo() -> Node {
 - 主参照は R0656（骨格の代表構成）です。R0657（区切り線 3 セクション版）・
   R0661（通知の配信先トグル）・R0662（積み上げ 4 カード + 削除）は本 PR の
   対象外とし、後続イシューで骨格・主要領域に追記する形で扱います。
-- 左ナビ（`nav-list`）と本文の 2 カラムは `48rem` 未満のコンテナ幅で 1 列
+- 左ナビ（`nav-list`）と本文の 2 カラムは `36rem` 未満のコンテナ幅で 1 列
   へ切り替わり、左ナビ自体も縦積みから横並び（折り返し）へ変わります。
   これは本 block 側の CSS が担っています（`nav-list`/`navigation-menu`
   部品自体の機能ではありません）。
@@ -577,7 +565,7 @@ pub fn demo() -> Node {
 - 実データ取得・保存・プラン変更・アバターアップロードの各処理は行わず、
   静的な初期状態のみを示します。氏名・メールアドレスは独自の架空データ
   です。
-- ブラウザでの実機確認（`48rem` 前後の幅切替・ライト/ダーク両テーマ）は
+- ブラウザでの実機確認（`36rem` 前後の幅切替・ライト/ダーク両テーマ）は
   未実施です。`cargo test` による出力検証のみで代替しました。
 
 関連情報: [Navigation Menu](../themes/navigation-menu.md) /
