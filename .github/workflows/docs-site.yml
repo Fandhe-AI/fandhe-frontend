@@ -464,6 +464,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-01/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-05/index.html"
           # Application / Settings
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-billing-usage/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-billing-overview/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-integration-detail/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-event-accordion/index.html"
