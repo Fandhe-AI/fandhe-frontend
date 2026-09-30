@@ -516,6 +516,15 @@ pub const BLOCK: Block = Block {
 /// 複数トラックにまたがるグリッド領域を画像が自動的に埋めることは保証
 /// しないため、両セレクタへ `width: 100%` を明示する（PR #3468 レビュー
 /// P1 是正）。
+///
+/// 色・サイズ選択の radio card は無 JS で選択を実配線できないため
+/// ネイティブ disabled で固定しているだけで、選択肢自体は「利用不可」では
+/// ない。styled radio-card の既定 `disabled_declarations()`（`opacity: 0.5`
+/// + `cursor: not-allowed`、`item` disabled 規則の詳細度 (0,3,0)）で
+/// 減光されないよう、`.blocks-product-overview-image-grid-options` 祖先の
+/// 子孫セレクタ（詳細度 (0,4,0)）で中和する
+/// （`product_overview_gallery_split.rs`・`card_form_footer.rs` と同型、
+/// PR #3468 Bugbot 指摘の是正）。
 const LAYOUT_CSS: &str = "\
 .blocks-product-overview-image-grid-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-product-overview-image-grid;\n}\n\
 .blocks-product-overview-image-grid-gallery {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n  grid-auto-rows: minmax(0, 1fr) minmax(0, 1fr) auto;\n  gap: var(--fandhe-space-3);\n}\n\
@@ -524,6 +533,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-product-overview-image-grid-panel {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  max-width: 40rem;\n}\n\
 .blocks-product-overview-image-grid-rating-row {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-product-overview-image-grid-options {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
+.blocks-product-overview-image-grid-options [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 @container blocks-product-overview-image-grid (max-width: 40rem) {\n  \
 .blocks-product-overview-image-grid-gallery {\n    grid-template-columns: minmax(0, 1fr);\n  }\n  \
 [data-blocks-product-overview-image-grid-tile=\"hero\"] {\n    grid-column: auto;\n    grid-row: auto;\n  }\n  \
@@ -625,6 +635,15 @@ mod tests {
             LAYOUT_CSS.contains("@container blocks-product-overview-image-grid (max-width: 40rem)")
         );
         assert!(LAYOUT_CSS.contains("[data-blocks-product-overview-image-grid-tile=\"wide\"]"));
+    }
+
+    #[test]
+    fn disabled_radio_cards_are_not_dimmed() {
+        // 無 JS 固定のためのネイティブ disabled で選択肢が減光表示され
+        // ないことを固定する（PR #3468 Bugbot 指摘の回帰防止）。
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-product-overview-image-grid-options [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
+        ));
     }
 
     #[test]
