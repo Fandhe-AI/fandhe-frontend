@@ -1053,6 +1053,7 @@ pub enum LayoutCss {
 | settings-api-key-created | #2982（親 #2951） | `application/settings/settings_api_key_created.rs` |
 | settings-integrations-grid | #2991（親 #2951） | `application/settings/settings_integrations_grid.rs` |
 | settings-integrations-list | #2993（親 #2992） | `application/settings/settings_integrations_list.rs` |
+| settings-integrations-search | #2995（親 #2951） | `application/settings/settings_integrations_search.rs` |
 | settings-item-cards | #2996（親 #2951） | `application/settings/settings_item_cards.rs` |
 | settings-page-sidebar | #3004（親 #3003） | `application/settings/settings_page_sidebar.rs` |
 
