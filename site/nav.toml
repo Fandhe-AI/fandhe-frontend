@@ -2356,6 +2356,14 @@ source = "site/blocks/empty-state-starter-list.md"
 path = "/blocks/empty-state-starter-list/"
 
 [[section.group]]
+title = "Notification"
+
+[[section.group.page]]
+title = "notification-tray-tabs"
+source = "site/blocks/notification-tray-tabs.md"
+path = "/blocks/notification-tray-tabs/"
+
+[[section.group]]
 title = "Dialog"
 
 [[section.group.page]]
@@ -2373,6 +2381,11 @@ path = "/blocks/command-palette-preview/"
 
 [[section.group]]
 title = "Onboarding"
+
+[[section.group.page]]
+title = "onboarding-centered-steps"
+source = "site/blocks/onboarding-centered-steps.md"
+path = "/blocks/onboarding-centered-steps/"
 
 [[section.group.page]]
 title = "onboarding-checklist"
