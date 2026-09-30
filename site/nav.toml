@@ -2446,6 +2446,11 @@ title = "notification-tray-tabs"
 source = "site/blocks/notification-tray-tabs.md"
 path = "/blocks/notification-tray-tabs/"
 
+[[section.group.page]]
+title = "notification-tray"
+source = "site/blocks/notification-tray.md"
+path = "/blocks/notification-tray/"
+
 [[section.group]]
 title = "Dialog"
 
