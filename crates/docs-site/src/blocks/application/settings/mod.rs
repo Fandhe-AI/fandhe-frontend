@@ -6,7 +6,8 @@
 //! [`settings_api_key_created`]、イシュー #2991 で
 //! [`settings_integrations_grid`]、イシュー #2995 で
 //! [`settings_integrations_search`]、イシュー #2996 で
-//! [`settings_item_cards`]、イシュー #2998 で
+//! [`settings_item_cards`]、イシュー #2997 で
+//! [`settings_log_table`]、イシュー #2998 で
 //! [`settings_notification_matrix`]、イシュー #2999 で
 //! [`settings_org_switcher`] を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
@@ -26,6 +27,7 @@ mod settings_integrations_grid;
 mod settings_integrations_list;
 mod settings_integrations_search;
 mod settings_item_cards;
+mod settings_log_table;
 mod settings_notification_matrix;
 mod settings_org_switcher;
 
@@ -42,6 +44,7 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_integrations_list::BLOCK,
         settings_integrations_search::BLOCK,
         settings_item_cards::BLOCK,
+        settings_log_table::BLOCK,
         settings_notification_matrix::BLOCK,
         settings_org_switcher::BLOCK,
     ]
