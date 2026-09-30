@@ -84,7 +84,15 @@
 //! `list`/`body` が内容幅にしか広がらず `flex-wrap` が機能しないため、
 //! この幅でのみ `root` の `align-items` を `stretch` へ上書きし、
 //! `list` がコンテナ幅いっぱいに広がって折り返せるようにする
-//! （Bugbot #2981 指摘の是正）。
+//! （Bugbot #2981 指摘の是正）。この上書きセレクタは
+//! `[data-blocks-onboarding-vertical-steps-root]` 単独（詳細度 (0,1,0)）
+//! ではなく、`root` が同時に持つ `[data-scope="steps"][data-part="root"]
+//! [data-orientation="vertical"]` を連結した詳細度 (0,4,0) で書く。
+//! `crates/pre-styled-ui/src/steps.rs` の `root` 既定 CSS が縦向きで
+//! `align-items: flex-start` を詳細度 (0,3,0) で宣言しており、
+//! `@container` はカスケードの詳細度に影響しない（適用条件を絞るだけ）
+//! ため、詳細度で下回る単独セレクタでは狭幅でも上書きが効かず
+//! `stretch` に切り替わらなかった（Codex #2981 指摘の是正）。
 //!
 //! # ダミー素材について
 //!
@@ -136,8 +144,14 @@ fn step_list(s: &Steps) -> Node {
             // 無 JS の docs サイトでは押しても状態遷移しない dead control
             // になるため、ネイティブ `disabled` で操作不能を構造的に表現
             // する（Codex #2981 指摘の是正。prev/next と同型、モジュール
-            // 冒頭 doc「状態は固定」節参照）。
-            vec![("disabled", "")],
+            // 冒頭 doc「状態は固定」節参照）。`data-disabled` も併記する:
+            // `crates/pre-styled-ui/src/steps.rs` の `trigger` hover 規則
+            // （`StateCondition::Hover` が自動生成する
+            // `:hover:not([data-disabled])`）はネイティブ `disabled` 属性
+            // を条件に含まないため、`disabled` のみではホバー表示・
+            // ポインターカーソルが無効ステップに残っていた（Codex #2981
+            // 指摘の是正）。
+            vec![("disabled", ""), ("data-disabled", "")],
             vec![
                 steps::indicator(s, index, vec![], vec![core_text((index + 1).to_string())]),
                 core_text(*title),
@@ -289,7 +303,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-onboarding-vertical-steps-media {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-onboarding-vertical-steps-nav {\n  display: flex;\n  gap: var(--fandhe-space-2);\n  justify-content: flex-end;\n}\n\
 @container blocks-onboarding-vertical-steps (max-width: 40rem) {\n  \
-[data-blocks-onboarding-vertical-steps-root] {\n    align-items: stretch;\n  }\n  \
+[data-blocks-onboarding-vertical-steps-root][data-scope=\"steps\"][data-part=\"root\"][data-orientation=\"vertical\"] {\n    align-items: stretch;\n  }\n  \
 [data-scope=\"steps\"][data-part=\"root\"][data-orientation=\"vertical\"] {\n    flex-direction: column;\n  }\n  \
 [data-blocks-onboarding-vertical-steps-root] > [data-scope=\"steps\"][data-part=\"list\"] {\n    flex-basis: auto;\n    flex-direction: row;\n    flex-wrap: wrap;\n  }\n  \
 [data-scope=\"steps\"][data-part=\"separator\"] {\n    display: none;\n  }\n\
@@ -297,7 +311,7 @@ const LAYOUT_CSS: &str = "\
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, LAYOUT_CSS};
+    use super::{demo, LAYOUT_CSS, STEP_TITLES};
     use fandhe_frontend_core::render;
 
     fn demo_html() -> String {
@@ -415,5 +429,41 @@ mod tests {
         }
         // trigger x4 + prev-trigger + next-trigger + 再生ボタン = 7 件。
         assert_eq!(html.matches(" disabled").count(), 7, "{html}");
+    }
+
+    #[test]
+    fn narrow_container_stretch_override_beats_root_default_specificity() {
+        // 詳細度 (0,4,0) の上書きセレクタが root 既定（詳細度 (0,3,0)）を
+        // 上回ることを固定する（Codex #2981 指摘の是正）。単独属性
+        // セレクタ（詳細度 (0,1,0)）へ後退させない回帰防止。
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-onboarding-vertical-steps-root][data-scope=\"steps\"][data-part=\"root\"][data-orientation=\"vertical\"] {\n    align-items: stretch;\n  }"
+        ));
+    }
+
+    #[test]
+    fn disabled_step_triggers_also_carry_data_disabled() {
+        // trigger の hover 抑制（`crates/pre-styled-ui/src/steps.rs` の
+        // `StateCondition::Hover` が自動生成する
+        // `:hover:not([data-disabled])`）はネイティブ `disabled` 属性を
+        // 条件に含まないため、`data-disabled` 併記がないとホバー表示が
+        // 無効ステップに残る（Codex #2981 指摘の是正）。
+        let html = demo_html();
+        let needle = "data-part=\"trigger\"";
+        let mut search_from = 0;
+        let mut count = 0;
+        while let Some(rel) = html[search_from..].find(needle) {
+            let pos = search_from + rel;
+            let start = html[..pos].rfind("<button").unwrap();
+            let end = html[start..].find('>').unwrap() + start;
+            assert!(
+                html[start..end].contains("data-disabled"),
+                "trigger button should carry data-disabled: {}",
+                &html[start..end]
+            );
+            count += 1;
+            search_from = end;
+        }
+        assert_eq!(count, STEP_TITLES.len());
     }
 }

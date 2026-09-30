@@ -58,8 +58,14 @@ fn step_list(s: &Steps) -> Node {
             // 無 JS の docs サイトでは押しても状態遷移しない dead control
             // になるため、ネイティブ `disabled` で操作不能を構造的に表現
             // する（Codex #2981 指摘の是正。prev/next と同型、モジュール
-            // 冒頭 doc「状態は固定」節参照）。
-            vec![("disabled", "")],
+            // 冒頭 doc「状態は固定」節参照）。`data-disabled` も併記する:
+            // `crates/pre-styled-ui/src/steps.rs` の `trigger` hover 規則
+            // （`StateCondition::Hover` が自動生成する
+            // `:hover:not([data-disabled])`）はネイティブ `disabled` 属性
+            // を条件に含まないため、`disabled` のみではホバー表示・
+            // ポインターカーソルが無効ステップに残っていた（Codex #2981
+            // 指摘の是正）。
+            vec![("disabled", ""), ("data-disabled", "")],
             vec![
                 steps::indicator(s, index, vec![], vec![core_text((index + 1).to_string())]),
                 core_text(*title),
