@@ -648,6 +648,16 @@ pub const BLOCK: Block = Block {
 /// はみ出さない）だが、指摘の趣旨に沿い `overflow: visible` へ明示的に
 /// 中和し「他パーツを隠す既定値のまま残さない」ことを機械的に固定する。
 ///
+/// # カート追加ボタンの全幅化（レビュー指摘対応）
+///
+/// [`add_to_cart_button`] は `data-blocks-product-overview-gallery-split-add`
+/// を公開し、rustdoc 上「全幅」と明記しているが、styled `button` の
+/// `root` は `display: inline-flex`（コンテンツ幅）で、幅を明示しない
+/// 限り `.blocks-product-overview-gallery-split-panel`（`flex-direction:
+/// column`）内でもコンテンツ幅のまま残ってしまう。この data 属性を
+/// セレクタに `width: 100%` を明示し、rustdoc の「全幅」を実際のレイ
+/// アウトと一致させる。
+///
 /// # 色・サイズ選択 radio card と詳細アコーディオンの disabled 減光の中和
 ///
 /// `pricing_single_split.rs`「支払周期 radio card をネイティブ disabled に
@@ -676,6 +686,7 @@ img[data-scope=\"image\"][data-blocks-product-overview-gallery-split-main-image]
 .blocks-product-overview-gallery-split-option {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-product-overview-gallery-split-option [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-blocks-product-overview-gallery-split-details] [data-scope=\"accordion\"][data-part=\"item-trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-blocks-product-overview-gallery-split-add] {\n  width: 100%;\n}\n\
 @media (min-width: 48rem) {\n  .blocks-product-overview-gallery-split-layout {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n    align-items: start;\n  }\n}\n";
 
 #[cfg(test)]
@@ -818,6 +829,18 @@ mod tests {
         assert!(LAYOUT_CSS.contains(
             "[data-blocks-product-overview-gallery-split-details] [data-scope=\"accordion\"][data-part=\"item-trigger\"][data-disabled] {\n  opacity: 1;"
         ));
+    }
+
+    /// レビュー指摘対応（Cursor Bugbot、Medium）: カート追加ボタンは
+    /// `data-blocks-product-overview-gallery-split-add` を公開し rustdoc
+    /// 上「全幅」と明記しているが、styled `button` の `root` は
+    /// `display: inline-flex`（コンテンツ幅）のため、この属性を
+    /// [`LAYOUT_CSS`] が明示的にターゲットして `width: 100%` を当てて
+    /// いなければ実際には全幅にならない。
+    #[test]
+    fn add_to_cart_button_is_full_width() {
+        assert!(LAYOUT_CSS
+            .contains("[data-blocks-product-overview-gallery-split-add] {\n  width: 100%;\n}"));
     }
 
     #[test]
