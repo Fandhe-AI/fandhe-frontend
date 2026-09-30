@@ -1040,6 +1040,7 @@ pub enum LayoutCss {
 | help-center-article-list | #2974（親 #2951） | `application/help_center/help_center_article_list.rs` |
 | notification-tray-tabs | #2977（親 #2951） | `application/notification/notification_tray_tabs.rs` |
 | onboarding-checklist | #2979 | `application/onboarding/onboarding_checklist.rs` |
+| onboarding-centered-steps | #2978（親 #2951） | `application/onboarding/onboarding_centered_steps.rs` |
 | settings-api-keys-table | #2983 | `application/settings/settings_api_keys_table.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
