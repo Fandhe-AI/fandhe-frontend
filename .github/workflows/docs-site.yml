@@ -470,6 +470,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-integrations-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-integrations-list/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-event-accordion/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-integrations-search/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-api-key-created/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-org-switcher/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-item-cards/index.html"
