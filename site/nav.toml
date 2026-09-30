@@ -2343,6 +2343,11 @@ source = "site/blocks/settings-integrations-list.md"
 path = "/blocks/settings-integrations-list/"
 
 [[section.group.page]]
+title = "settings-item-cards"
+source = "site/blocks/settings-item-cards.md"
+path = "/blocks/settings-item-cards/"
+
+[[section.group.page]]
 title = "settings-log-table"
 source = "site/blocks/settings-log-table.md"
 path = "/blocks/settings-log-table/"
