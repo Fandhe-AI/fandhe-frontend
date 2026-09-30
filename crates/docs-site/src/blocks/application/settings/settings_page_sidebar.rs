@@ -30,7 +30,11 @@
 //! 広げる。`display: none` にした `root` を `sidebar::trigger` の
 //! `aria-controls` が指すが、DOM 上は実在するため参照切れにはならない
 //! （`demo_output_has_no_dangling_aria_references_or_duplicate_ids` 契約と
-//! 同型の検証を本ファイルの単体テストでも固定する）。
+//! 同型の検証を本ファイルの単体テストでも固定する）。同じ幅で
+//! `inset_header` の `sidebar::trigger` も併せて `display: none` にする
+//! （codex レビュー指摘、P2）。狭幅では `root` が見えず開閉できないため、
+//! `aria-expanded="true"` のまま操作不能なトリガーだけが残ると表示と
+//! ARIA 状態が食い違う。トリガー自体を隠すことで両者を一致させる。
 //!
 //! # `switch` を静的固定表示にする理由
 //!
@@ -533,6 +537,10 @@ pub const BLOCK: Block = Block {
 /// `root`（サイドバー本体）を `display: none` にし `inset` を全幅へ広げる
 /// （モジュール doc「狭幅ではサイドバーを隠す」節参照。`sidebar_07` の
 /// `overflow-x: auto` + `min-width: 56rem` の横スクロール方式とは異なる）。
+/// 同じ幅で `inset_header` 内の `sidebar::trigger` も `display: none` にし、
+/// 見えない `root` を開閉する操作不能なトリガーだけが `aria-expanded` 付きで
+/// 残る表示・ARIA 不整合を防ぐ（モジュール doc 同節参照、codex レビュー
+/// 指摘 P2 対応）。
 const LAYOUT_CSS: &str = "\
 .blocks-demo.blocks-settings-page-sidebar {\n  padding: 0;\n}\n\
 [data-blocks-settings-page-sidebar-stack] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  container-type: inline-size;\n  container-name: blocks-settings-page-sidebar;\n}\n\
@@ -546,7 +554,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-page-sidebar-row-text p {\n  margin: 0;\n}\n\
 .blocks-settings-page-sidebar-row-description {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 @container blocks-settings-page-sidebar (max-width: 48rem) {\n  \
-[data-blocks-settings-page-sidebar-instance] > [data-scope=\"sidebar\"][data-part=\"root\"] {\n    display: none;\n  }\n\
+[data-blocks-settings-page-sidebar-instance] > [data-scope=\"sidebar\"][data-part=\"root\"] {\n    display: none;\n  }\n  \
+[data-blocks-settings-page-sidebar-header] [data-scope=\"sidebar\"][data-part=\"trigger\"] {\n    display: none;\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -653,6 +662,16 @@ mod tests {
             "[data-blocks-settings-page-sidebar-instance] > [data-scope=\"sidebar\"][data-part=\"root\"] {\n    display: none;"
         ));
         assert!(!LAYOUT_CSS.contains("min-width: 56rem"));
+    }
+
+    /// codex レビュー指摘（P2）の回帰: 狭幅で `root` を隠すのと同じ幅で
+    /// `inset_header` の `sidebar::trigger` も隠し、表示されないトリガーが
+    /// `aria-expanded="true"` を出したまま残らないようにする。
+    #[test]
+    fn layout_css_hides_trigger_alongside_sidebar_root() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-settings-page-sidebar-header] [data-scope=\"sidebar\"][data-part=\"trigger\"] {\n    display: none;"
+        ));
     }
 
     #[test]
