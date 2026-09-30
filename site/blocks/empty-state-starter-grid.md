@@ -198,7 +198,7 @@ fn starter_instance(
                             ..TextProps::default()
                         },
                         vec![],
-                        vec![text("テンプレートを使わずに始めますか。")],
+                        vec![text("テンプレートが合わない場合は")],
                     ),
                     link::root(
                         "../",
@@ -207,7 +207,7 @@ fn starter_instance(
                             ..LinkProps::default()
                         },
                         vec![],
-                        vec![text("空のプロジェクトから始める")],
+                        vec![text("Blocks 一覧に戻る")],
                     ),
                 ],
             ),

@@ -23,8 +23,10 @@
 //! （`button` を `parts` から除外しボタン風外見の `link::root` へ置き換えた
 //! 先例）と同型の判断で `link::root`（[`open_link`]）をボタン風に装飾し、
 //! CSS の stretched-link（`::after { inset: 0 }`）でタイル全面へ拡張する。
-//! 末尾の「テンプレートを使わず空のプロジェクトから始める」導線も
-//! `link::root`（`LinkVariant::Underline`）にする。
+//! 末尾の「Blocks 一覧に戻る」導線も `link::root`（`LinkVariant::Underline`）
+//! にする。`href="../"` は Blocks 索引ページへ戻るリンクであり（空の
+//! プロジェクトを開始する導線ではない）、レビュー指摘（イシュー #2972
+//! PR #3424 の Codex 指摘）を受けてリンク文言を実遷移先に合わせている。
 //!
 //! # 構造（1 タイル = `<a>` 1 個）
 //!
@@ -259,7 +261,7 @@ fn starter_instance(
                             ..TextProps::default()
                         },
                         vec![],
-                        vec![text("テンプレートを使わずに始めますか。")],
+                        vec![text("テンプレートが合わない場合は")],
                     ),
                     link::root(
                         "../",
@@ -268,7 +270,7 @@ fn starter_instance(
                             ..LinkProps::default()
                         },
                         vec![],
-                        vec![text("空のプロジェクトから始める")],
+                        vec![text("Blocks 一覧に戻る")],
                     ),
                 ],
             ),
@@ -403,7 +405,7 @@ mod tests {
             10
         );
         assert_eq!(html.matches("を開く\"").count(), 10);
-        assert_eq!(html.matches("空のプロジェクトから始める").count(), 2);
+        assert_eq!(html.matches("Blocks 一覧に戻る").count(), 2);
     }
 
     /// 非対話・XSS の不変条件（`crate::blocks` モジュール doc）と、
