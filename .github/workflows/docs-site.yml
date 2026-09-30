@@ -464,9 +464,11 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-01/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-05/index.html"
           # Application / Settings
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-billing-usage/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-billing-overview/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-integrations-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-event-accordion/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-api-key-created/index.html"
           # Application / Action Panel
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-stacked/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-with-input/index.html"

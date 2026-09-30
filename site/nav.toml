@@ -2313,9 +2313,19 @@ path = "/blocks/signup-05/"
 title = "Settings"
 
 [[section.group.page]]
+title = "settings-api-key-created"
+source = "site/blocks/settings-api-key-created.md"
+path = "/blocks/settings-api-key-created/"
+
+[[section.group.page]]
 title = "settings-billing-overview"
 source = "site/blocks/settings-billing-overview.md"
 path = "/blocks/settings-billing-overview/"
+
+[[section.group.page]]
+title = "settings-billing-usage"
+source = "site/blocks/settings-billing-usage.md"
+path = "/blocks/settings-billing-usage/"
 
 [[section.group.page]]
 title = "settings-event-accordion"
