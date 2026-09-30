@@ -331,7 +331,13 @@ pub const BLOCK: Block = Block {
 /// - vertical な `steps::root` の既定（list 左・content 右の横並び、
 ///   `steps.rs` モジュール doc「`body`」節参照）を、詳細度 0,4,0 の
 ///   追加属性セレクタで通常の縦積みへ打ち消す（モジュール冒頭
-///   「先頭の未完了タスクだけ展開」節参照）。
+///   「先頭の未完了タスクだけ展開」節参照）。`steps::root` の vertical
+///   state は `align-items: flex-start`（`steps.rs` 既定）のままのため、
+///   `flex-direction: column` だけを打ち消すと交差軸（幅）方向で子
+///   （`list`）が shrink-wrap し、`steps::list` 自身の `align-items:
+///   stretch`（`steps.rs` 既定）もその狭い幅までしか作用しない。ここで
+///   `align-items: stretch` も併せて打ち消し、`list` がチェックリスト全体の
+///   幅まで伸びるようにする（Codex #2979 指摘の是正）。
 /// - 完了タスクの取り消し線・checkbox の disabled 中和は
 ///   モジュール冒頭「checkbox をネイティブ `disabled` にする理由」節参照。
 ///   取り消し線セレクタは本 block の `[data-blocks-onboarding-checklist-steps]`
@@ -346,7 +352,7 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-onboarding-checklist-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-onboarding-checklist;\n}\n\
 .blocks-onboarding-checklist-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
-[data-scope=\"steps\"][data-part=\"root\"][data-orientation=\"vertical\"][data-blocks-onboarding-checklist-steps] {\n  flex-direction: column;\n}\n\
+[data-scope=\"steps\"][data-part=\"root\"][data-orientation=\"vertical\"][data-blocks-onboarding-checklist-steps] {\n  flex-direction: column;\n  align-items: stretch;\n}\n\
 [data-blocks-onboarding-checklist-steps] [data-scope=\"steps\"][data-part=\"item\"] {\n  border-top: 1px solid var(--fandhe-color-border);\n  padding-block: var(--fandhe-space-3);\n}\n\
 [data-blocks-onboarding-checklist-steps] [data-scope=\"steps\"][data-part=\"item\"][data-complete] [data-scope=\"checkbox\"][data-part=\"label\"] {\n  text-decoration: line-through;\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-onboarding-checklist-task][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
@@ -437,6 +443,17 @@ mod tests {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
         assert!(LAYOUT_CSS.contains("@container blocks-onboarding-checklist (max-width: 32rem)"));
+    }
+
+    /// `steps::root` vertical state の既定 `align-items: flex-start` を
+    /// 打ち消さないと、`list` が交差軸（幅）方向で shrink-wrap し
+    /// チェックリスト全体の幅を確保できない（Codex #2979 指摘の是正）。
+    #[test]
+    fn root_stretches_list_to_full_width() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"steps\"][data-part=\"root\"][data-orientation=\"vertical\"]\
+[data-blocks-onboarding-checklist-steps] {\n  flex-direction: column;\n  align-items: stretch;\n}"
+        ));
     }
 
     #[test]
