@@ -464,9 +464,11 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-01/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-05/index.html"
           # Application / Settings
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-api-keys-table/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-billing-usage/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-billing-overview/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-integrations-grid/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-integrations-list/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-event-accordion/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-api-key-created/index.html"
           # Application / Action Panel
@@ -491,6 +493,7 @@ jobs:
           # Application / Onboarding
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-centered-steps/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-checklist/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-vertical-steps/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-split-image/index.html"
           # Application / Card
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-meta-cta/index.html"

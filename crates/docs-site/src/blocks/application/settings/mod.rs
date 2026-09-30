@@ -14,19 +14,23 @@
 //! ための構造、イシュー #2734）。
 
 mod settings_api_key_created;
+mod settings_api_keys_table;
 mod settings_billing_overview;
 mod settings_billing_usage;
 mod settings_event_accordion;
 mod settings_integrations_grid;
+mod settings_integrations_list;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
     vec![
         settings_api_key_created::BLOCK,
+        settings_api_keys_table::BLOCK,
         settings_billing_overview::BLOCK,
         settings_billing_usage::BLOCK,
         settings_event_accordion::BLOCK,
         settings_integrations_grid::BLOCK,
+        settings_integrations_list::BLOCK,
     ]
 }
