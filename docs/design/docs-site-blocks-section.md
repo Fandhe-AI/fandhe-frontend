@@ -980,6 +980,8 @@ pub enum LayoutCss {
 | description-list-summary-card | #2907（親 #2892） | `application/description_list/description_list_summary_card.rs` |
 | description-list-two-column | #2908 | `application/description_list/description_list_two_column.rs` |
 | profile-detail-datalist | #2937（親 #2892） | `application/profile/profile_detail_datalist.rs` |
+| empty-state-invite-team | #2970（親 #2951） | `application/empty_state/empty_state_invite_team.rs` |
+| sidebar-grouped-nav | #2940（親 #2892） | `application/sidebar/sidebar_grouped_nav.rs` |
 | profile-header-follow | #2939（親 #2892） | `application/profile/profile_header_follow.rs` |
 | form-layout-inline-labels | #2911（親 #2892） | `application/form_layout/form_layout_inline_labels.rs` |
 | feed-upvote-cards | #2910（親 #2892） | `application/feed/feed_upvote_cards.rs` |
@@ -994,7 +996,10 @@ pub enum LayoutCss {
 | list-people | #2923（親 #2892） | `application/list/list_people.rs` |
 | list-sticky-groups | #2924（親 #2892） | `application/list/list_sticky_groups.rs` |
 | list-title-meta | #2925（親 #2892） | `application/list/list_title_meta.rs` |
+| table-sortable-bulk | #2945（親 #2892） | `application/table/table_sortable_bulk.rs` |
+| table-grouped-rows | #2942（親 #2892） | `application/table/table_grouped_rows.rs` |
 | table-responsive-stacked | #2943（親 #2892） | `application/table/table_responsive_stacked.rs` |
+| table-rich-rows | #2944（親 #2892） | `application/table/table_rich_rows.rs` |
 | grid-list-compact-tiles | #2918（親 #2892） | `application/grid_list/grid_list_compact_tiles.rs` |
 | grid-list-file-thumbnails | #2920 | `application/grid_list/grid_list_file_thumbnails.rs` |
 | grid-list-logo-cards | #2921（親 #2892） | `application/grid_list/grid_list_logo_cards.rs` |
@@ -1007,10 +1012,30 @@ pub enum LayoutCss {
 | grid-list-contact-cards | #2919（親 #2892） | `application/grid_list/grid_list_contact_cards.rs` |
 | navbar-docs-site | #2927（親 #2892） | `application/navbar/navbar_docs_site.rs` |
 | table-with-heading | #2947（親 #2892） | `application/table/table_with_heading.rs` |
+| table-with-toolbar | #2949・#2950（親 #2948） | `application/table/table_with_toolbar.rs` |
 | profile-detail-skills | #2938（親 #2892） | `application/profile/profile_detail_skills.rs` |
+| profile-card-centered | #2936（親 #2892） | `application/profile/profile_card_centered.rs` |
 | sidebar-rail-panel | #2941 | `application/sidebar/sidebar_rail_panel.rs` |
+| table-summary-rows | #2946（親 #2892） | `application/table/table_summary_rows.rs` |
+| list-container | #3227 | `application/list/list_container.rs` |
+| media-object | #3228 | `application/media_object/media_object_alignments.rs` |
+| action-panel-footer-bar | #2952（親 #2951） | `application/action_panel/action_panel_footer_bar.rs` |
+| card-heading-basic | #3229 | `application/card_heading/card_heading_basic.rs` |
+| action-panel-with-input | #2955 | `application/action_panel/action_panel_with_input.rs` |
+| action-panel-stacked | #2954 | `application/action_panel/action_panel_stacked.rs` |
+| ai-chat-code-preview | #2958（親 #2957） | `application/ai_chat/ai_chat_code_preview.rs` |
+| action-panel-with-well | #2956 | `application/action_panel/action_panel_with_well.rs` |
+| ai-chat-prompt-start | #2961（親 #2951） | `application/ai_chat/ai_chat_prompt_start.rs` |
+| auth-dropdown-panel | #2962 | `application/auth/auth_dropdown_panel.rs` |
+| auth-oauth-consent | #2963（親 #2951） | `application/auth/auth_oauth_consent.rs` |
+| auth-otp-verify | #2964（親 #2951） | `application/auth/auth_otp_verify.rs` |
+| auth-split-accent-panel | #2965 | `application/auth/auth_split_accent_panel.rs` |
+| command-palette-preview | #2968 | `application/command_palette/command_palette_preview.rs` |
+| empty-state-card-header | #2969 | `application/empty_state/empty_state_card_header.rs` |
+| empty-state-setup-steps | #2971（親 #2951） | `application/empty_state/empty_state_setup_steps.rs` |
 
-（`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
+（#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
+（§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
 個別の Markdown 原稿〔`site/blocks/<kebab>.md`〕を持つ block の全件であり、
 `crates/docs-site/src/blocks/` 配下にはこれとは別に
 イシュー #2730 系トラッキング配下で追加された空雛形・カテゴリ別

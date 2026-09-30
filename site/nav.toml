@@ -2030,6 +2030,11 @@ source = "site/blocks/sidebar-07.md"
 path = "/blocks/sidebar-07/"
 
 [[section.group.page]]
+title = "sidebar-grouped-nav"
+source = "site/blocks/sidebar-grouped-nav.md"
+path = "/blocks/sidebar-grouped-nav/"
+
+[[section.group.page]]
 title = "sidebar-rail-panel"
 source = "site/blocks/sidebar-rail-panel.md"
 path = "/blocks/sidebar-rail-panel/"
@@ -2094,12 +2099,22 @@ path = "/blocks/page-heading-welcome-stats/"
 title = "Card Heading"
 
 [[section.group.page]]
+title = "card-heading-basic"
+source = "site/blocks/card-heading-basic.md"
+path = "/blocks/card-heading-basic/"
+
+[[section.group.page]]
 title = "card-heading-toolbar"
 source = "site/blocks/card-heading-toolbar.md"
 path = "/blocks/card-heading-toolbar/"
 
 [[section.group]]
 title = "List"
+
+[[section.group.page]]
+title = "list-container"
+source = "site/blocks/list-container.md"
+path = "/blocks/list-container/"
 
 [[section.group.page]]
 title = "list-narrow-activity"
@@ -2125,14 +2140,39 @@ path = "/blocks/list-title-meta/"
 title = "Table"
 
 [[section.group.page]]
+title = "table-grouped-rows"
+source = "site/blocks/table-grouped-rows.md"
+path = "/blocks/table-grouped-rows/"
+
+[[section.group.page]]
 title = "table-responsive-stacked"
 source = "site/blocks/table-responsive-stacked.md"
 path = "/blocks/table-responsive-stacked/"
 
 [[section.group.page]]
+title = "table-rich-rows"
+source = "site/blocks/table-rich-rows.md"
+path = "/blocks/table-rich-rows/"
+
+[[section.group.page]]
+title = "table-sortable-bulk"
+source = "site/blocks/table-sortable-bulk.md"
+path = "/blocks/table-sortable-bulk/"
+
+[[section.group.page]]
+title = "table-summary-rows"
+source = "site/blocks/table-summary-rows.md"
+path = "/blocks/table-summary-rows/"
+
+[[section.group.page]]
 title = "table-with-heading"
 source = "site/blocks/table-with-heading.md"
 path = "/blocks/table-with-heading/"
+
+[[section.group.page]]
+title = "table-with-toolbar"
+source = "site/blocks/table-with-toolbar.md"
+path = "/blocks/table-with-toolbar/"
 
 [[section.group]]
 title = "Grid List"
@@ -2220,6 +2260,26 @@ path = "/blocks/form-layout-two-column/"
 title = "Auth"
 
 [[section.group.page]]
+title = "auth-dropdown-panel"
+source = "site/blocks/auth-dropdown-panel.md"
+path = "/blocks/auth-dropdown-panel/"
+
+[[section.group.page]]
+title = "auth-oauth-consent"
+source = "site/blocks/auth-oauth-consent.md"
+path = "/blocks/auth-oauth-consent/"
+
+[[section.group.page]]
+title = "auth-otp-verify"
+source = "site/blocks/auth-otp-verify.md"
+path = "/blocks/auth-otp-verify/"
+
+[[section.group.page]]
+title = "auth-split-accent-panel"
+source = "site/blocks/auth-split-accent-panel.md"
+path = "/blocks/auth-split-accent-panel/"
+
+[[section.group.page]]
 title = "login-01"
 source = "site/blocks/login-01.md"
 path = "/blocks/login-01/"
@@ -2240,12 +2300,61 @@ source = "site/blocks/signup-05.md"
 path = "/blocks/signup-05/"
 
 [[section.group]]
+title = "Action Panel"
+
+[[section.group.page]]
+title = "action-panel-footer-bar"
+source = "site/blocks/action-panel-footer-bar.md"
+path = "/blocks/action-panel-footer-bar/"
+
+[[section.group.page]]
+title = "action-panel-stacked"
+source = "site/blocks/action-panel-stacked.md"
+path = "/blocks/action-panel-stacked/"
+
+[[section.group.page]]
+title = "action-panel-with-input"
+source = "site/blocks/action-panel-with-input.md"
+path = "/blocks/action-panel-with-input/"
+
+[[section.group.page]]
+title = "action-panel-with-well"
+source = "site/blocks/action-panel-with-well.md"
+path = "/blocks/action-panel-with-well/"
+
+[[section.group]]
+title = "Empty State"
+
+[[section.group.page]]
+title = "empty-state-card-header"
+source = "site/blocks/empty-state-card-header.md"
+path = "/blocks/empty-state-card-header/"
+
+[[section.group.page]]
+title = "empty-state-invite-team"
+source = "site/blocks/empty-state-invite-team.md"
+path = "/blocks/empty-state-invite-team/"
+
+[[section.group.page]]
+title = "empty-state-setup-steps"
+source = "site/blocks/empty-state-setup-steps.md"
+path = "/blocks/empty-state-setup-steps/"
+
+[[section.group]]
 title = "Dialog"
 
 [[section.group.page]]
 title = "game-ui-modal"
 source = "site/blocks/game-ui-modal.md"
 path = "/blocks/game-ui-modal/"
+
+[[section.group]]
+title = "Command Palette"
+
+[[section.group.page]]
+title = "command-palette-preview"
+source = "site/blocks/command-palette-preview.md"
+path = "/blocks/command-palette-preview/"
 
 [[section.group]]
 title = "Card"
@@ -2272,6 +2381,11 @@ path = "/blocks/cursor-hover-cards/"
 
 [[section.group]]
 title = "Profile"
+
+[[section.group.page]]
+title = "profile-card-centered"
+source = "site/blocks/profile-card-centered.md"
+path = "/blocks/profile-card-centered/"
 
 [[section.group.page]]
 title = "profile-detail-datalist"
@@ -2313,6 +2427,27 @@ title = "Dashboard"
 title = "dashboard-01"
 source = "site/blocks/dashboard-01.md"
 path = "/blocks/dashboard-01/"
+
+[[section.group]]
+title = "AI Chat"
+
+[[section.group.page]]
+title = "ai-chat-code-preview"
+source = "site/blocks/ai-chat-code-preview.md"
+path = "/blocks/ai-chat-code-preview/"
+
+[[section.group.page]]
+title = "ai-chat-prompt-start"
+source = "site/blocks/ai-chat-prompt-start.md"
+path = "/blocks/ai-chat-prompt-start/"
+
+[[section.group]]
+title = "Media Object"
+
+[[section.group.page]]
+title = "media-object"
+source = "site/blocks/media-object.md"
+path = "/blocks/media-object/"
 
 # --- 以下は block 追加時の挿入先アンカー（イシュー #2734、#2735 でカテゴリ
 # 見出し導入に伴い運用を更新）。カテゴリ単位で行ブロックを分ける点は不変
@@ -2375,6 +2510,7 @@ path = "/blocks/dashboard-01/"
 # Application / Dashboard
 # Application / AI Chat
 # Application / Help Center
+# Application / Media Object
 # Ecommerce / Product Overview
 # Ecommerce / Product List
 # Ecommerce / Quickview
