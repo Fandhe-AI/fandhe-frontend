@@ -38,12 +38,11 @@
 //! `disabled: true` を共有してネイティブ操作を構造的に禁止し、`root` へ
 //! `aria-disabled="true"` を明示付与したうえで現在の選択を独立した
 //! [`styled_text::text`] で明文化する（disabled radio がフォームモード
-//! 走査から除外されても選択が支援技術へ伝わるようにするため）。中和 CSS
-//! （`opacity: 1; cursor: default;`）は [`LAYOUT_CSS`] が担う。`[data-scope=
-//! "radio-card"]` セレクタは block 間で共有される汎用 data-attribute のため、
-//! `.blocks-checkout-form-summary-split-layout` 配下限定のセレクタにして
-//! 他 block の disabled radio-card 表示へ波及させない（`LAYOUT_CSS` は全
-//! block 分が連結されて配信される、`crate::blocks::LAYOUT_CSS` doc 参照）。
+//! 走査から除外されても選択が支援技術へ伝わるようにするため）。disabled の
+//! 見た目（`opacity: 0.5; cursor: not-allowed;`）は中和せずそのまま残し、
+//! 操作できない固定表示であることを視覚的にも示す（中和すると通常の選択
+//! 項目に見える、#3462 codex 指摘。`cart_line_item_table` の数量 select と
+//! 同じ扱い）。
 //!
 //! # DOM 順を視覚順へ一致させる理由（サマリ → フォーム、#3462 レビュー
 //! 指摘対応）
@@ -69,9 +68,12 @@
 //! コンテナ幅が狭い）ため、`@media (min-width: ...)` をブレークポイント
 //! 判定に使うと、ビューポートは `64rem` 以上でも Demo の実コンテナ幅は
 //! それ未満のままレイアウトが崩れる（`cart_two_column_summary` と同型の
-//! 判断）。`.blocks-checkout-form-summary-split-layout` へ
+//! 判断）。外側の `.blocks-checkout-form-summary-split-layout` へ
 //! `container-type: inline-size` を宣言し、サマリ/フォームの 2 カラム
-//! 切り替えを `@container` で判定する。姓名・市区町村/都道府県の行内
+//! 切り替えは子の `.blocks-checkout-form-summary-split-columns` を
+//! `@container` 内で選んで行う（コンテナクエリは祖先のコンテナを参照
+//! するため、コンテナ自身を `@container` 内で選んでも規則は適用されない、
+//! #3462 codex 指摘。`notification_tray` の `-stack`/`-row` と同型）。姓名・市区町村/都道府県の行内
 //! 2 列化はフォーム列（`.blocks-checkout-form-summary-split-form`）自体の
 //! 幅に依存する（2 カラム化後はフォーム列がレイアウト全体より狭くなる）
 //! ため、フォーム列へネストした `container-type: inline-size` を別途
@@ -207,13 +209,9 @@ fn section_heading(title: &'static str) -> Node {
 /// 未チェック固定の静的表示のため、JS ハイドレーションなしでもネイティブ
 /// input の checked 状態とカスタム indicator の表示が食い違わないよう
 /// `disabled: true` でネイティブ操作を止める（#3462 レビュー指摘対応）。
-/// `disabled: true` は styled checkbox の `disabled_declarations()`
-/// （`opacity: 0.5; cursor: not-allowed;`）を波及させ、未チェック固定の
-/// 静的表示が「操作できない項目」に見えてしまう（#3462 Bugbot 指摘）ため、
-/// 配送方法・支払い方法 radio card と同じ判断で中和 CSS
-/// （`opacity: 1; cursor: default;`）を [`LAYOUT_CSS`] へ追加し、`root` に
-/// `data-blocks-checkout-form-summary-split-newsletter` を付けて他 block の
-/// disabled checkbox 表示へ波及させないスコープにする。
+/// styled checkbox の disabled の見た目（`opacity: 0.5; cursor:
+/// not-allowed;`）は中和せず残し、操作できない固定表示であることを示す
+/// （配送方法・支払い方法 radio card と同じ判断、#3462 codex 指摘）。
 fn contact_section() -> Node {
     let email = field_props(EMAIL_ID, true);
     let checkbox_props = CheckboxProps {
@@ -245,7 +243,7 @@ fn contact_section() -> Node {
                 Size::Sm,
                 ColorPalette::Accent,
                 &checkbox_props,
-                vec![("data-blocks-checkout-form-summary-split-newsletter", "")],
+                vec![],
                 vec![
                     checkbox::hidden_input(
                         &checkbox_props,
@@ -734,7 +732,10 @@ fn summary_column() -> Node {
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-checkout-form-summary-split-layout")],
-        vec![summary_column(), form_column()],
+        vec![div(
+            vec![("class", "blocks-checkout-form-summary-split-columns")],
+            vec![summary_column(), form_column()],
+        )],
     )
 }
 // blocks-code:end
@@ -800,7 +801,8 @@ pub const BLOCK: Block = Block {
 /// `checkout_form_summary_split` 固有のレイアウト規則（`crate::blocks::
 /// LAYOUT_CSS` doc「block 固有 CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
-.blocks-checkout-form-summary-split-layout {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-8);\n  container-type: inline-size;\n  container-name: blocks-checkout-form-summary-split;\n}\n\
+.blocks-checkout-form-summary-split-layout {\n  container-type: inline-size;\n  container-name: blocks-checkout-form-summary-split;\n}\n\
+.blocks-checkout-form-summary-split-columns {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-checkout-form-summary-split-form {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-checkout-form-summary-split-form;\n}\n\
 [data-blocks-checkout-form-summary-split-summary] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-checkout-form-summary-split-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
@@ -812,14 +814,12 @@ const LAYOUT_CSS: &str = "\
 .blocks-checkout-form-summary-split-product-detail {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1, 0.25rem);\n  min-inline-size: 0;\n}\n\
 [data-blocks-checkout-form-summary-split-product-price] {\n  white-space: nowrap;\n}\n\
 [data-blocks-checkout-form-summary-split-confirm] {\n  inline-size: 100%;\n}\n\
-.blocks-checkout-form-summary-split-layout [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-[data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-checkout-form-summary-split-newsletter][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 @container blocks-checkout-form-summary-split-form (min-width: 40rem) {\n  \
 .blocks-checkout-form-summary-split-name-row {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n  \
 .blocks-checkout-form-summary-split-city-row {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n\
 }\n\
 @container blocks-checkout-form-summary-split (min-width: 64rem) {\n  \
-.blocks-checkout-form-summary-split-layout {\n    grid-template-columns: minmax(0, 24rem) minmax(0, 1fr);\n    align-items: start;\n  }\n\
+.blocks-checkout-form-summary-split-columns {\n    grid-template-columns: minmax(0, 24rem) minmax(0, 1fr);\n    align-items: start;\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -880,15 +880,27 @@ mod tests {
     }
 
     #[test]
-    fn newsletter_checkbox_disabled_opacity_is_neutralized() {
-        // `disabled: true`（静的表示保持のため）が disabled_declarations の
-        // opacity/cursor を波及させ、未チェック固定の checkbox が
-        // 「操作できない項目」に見えてしまう回帰の防止（#3462 Bugbot 指摘）。
-        let html = demo_html();
-        assert!(html.contains(r#"data-blocks-checkout-form-summary-split-newsletter"#));
+    fn disabled_appearance_is_not_neutralized() {
+        // 無 JS の固定表示（disabled）を通常の選択項目に見せない（#3462
+        // codex 指摘）。disabled の opacity/cursor を打ち消す規則を持たない。
+        assert!(!LAYOUT_CSS.contains("opacity: 1;"));
+        assert!(!LAYOUT_CSS.contains("[data-disabled]"));
+    }
+
+    #[test]
+    fn container_query_target_is_not_the_container_itself() {
+        // codex(P1) 是正: container-type/name を持つ要素（`-layout`）と
+        // @container セレクタの対象（`-columns`）を分離する。
         assert!(LAYOUT_CSS.contains(
-            "[data-scope=\"checkbox\"][data-part=\"root\"]\
-[data-blocks-checkout-form-summary-split-newsletter][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
+            ".blocks-checkout-form-summary-split-layout {\n  container-type: inline-size;\n  container-name: blocks-checkout-form-summary-split;\n}\n"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "@container blocks-checkout-form-summary-split (min-width: 64rem) {\n  \
+.blocks-checkout-form-summary-split-columns {\n    grid-template-columns: minmax(0, 24rem) minmax(0, 1fr);"
+        ));
+        let html = demo_html();
+        assert!(html.contains(
+            "class=\"blocks-checkout-form-summary-split-layout\"><div class=\"blocks-checkout-form-summary-split-columns\">"
         ));
     }
 

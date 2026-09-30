@@ -91,13 +91,9 @@ fn section_heading(title: &'static str) -> Node {
 /// 未チェック固定の静的表示のため、JS ハイドレーションなしでもネイティブ
 /// input の checked 状態とカスタム indicator の表示が食い違わないよう
 /// `disabled: true` でネイティブ操作を止める（#3462 レビュー指摘対応）。
-/// `disabled: true` は styled checkbox の `disabled_declarations()`
-/// （`opacity: 0.5; cursor: not-allowed;`）を波及させ、未チェック固定の
-/// 静的表示が「操作できない項目」に見えてしまう（#3462 Bugbot 指摘）ため、
-/// 配送方法・支払い方法 radio card と同じ判断で中和 CSS
-/// （`opacity: 1; cursor: default;`）を [`LAYOUT_CSS`] へ追加し、`root` に
-/// `data-blocks-checkout-form-summary-split-newsletter` を付けて他 block の
-/// disabled checkbox 表示へ波及させないスコープにする。
+/// styled checkbox の disabled の見た目（`opacity: 0.5; cursor:
+/// not-allowed;`）は中和せず残し、操作できない固定表示であることを示す
+/// （配送方法・支払い方法 radio card と同じ判断、#3462 codex 指摘）。
 fn contact_section() -> Node {
     let email = field_props(EMAIL_ID, true);
     let checkbox_props = CheckboxProps {
@@ -129,7 +125,7 @@ fn contact_section() -> Node {
                 Size::Sm,
                 ColorPalette::Accent,
                 &checkbox_props,
-                vec![("data-blocks-checkout-form-summary-split-newsletter", "")],
+                vec![],
                 vec![
                     checkbox::hidden_input(
                         &checkbox_props,
@@ -618,7 +614,10 @@ fn summary_column() -> Node {
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-checkout-form-summary-split-layout")],
-        vec![summary_column(), form_column()],
+        vec![div(
+            vec![("class", "blocks-checkout-form-summary-split-columns")],
+            vec![summary_column(), form_column()],
+        )],
     )
 }
 ```
@@ -627,7 +626,11 @@ pub fn demo() -> Node {
 
 - 配送方法・支払い方法は `radio-card` を使い、ネイティブ `disabled` で
   固定した静的な初期状態のみを描きます（選択状態の JS 追従を行わない
-  ため）。
+  ため）。disabled の見た目は打ち消さずに残し、現在の選択は
+  「現在の選択: …」のテキストでも示します。お知らせ配信の checkbox も
+  同じ扱いです。
+- 2 カラム切り替えはコンテナクエリで判定します。コンテナは外側の
+  ラッパー要素に宣言し、列の切り替えはその子要素に当てます。
 - 支払い方法にカード番号・CVC 等の入力欄は置きません（実在の決済フォーム
   に見せないための判断）。
 - DOM 順はサマリ → フォームに固定しています（`order` は使いません）。
