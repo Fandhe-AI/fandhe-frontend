@@ -10,9 +10,13 @@
 //! ための構造、イシュー #2734）。
 
 mod settings_billing_overview;
+mod settings_integration_detail;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![settings_billing_overview::BLOCK]
+    vec![
+        settings_billing_overview::BLOCK,
+        settings_integration_detail::BLOCK,
+    ]
 }
