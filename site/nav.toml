@@ -2357,6 +2357,11 @@ title = "settings-item-cards"
 source = "site/blocks/settings-item-cards.md"
 path = "/blocks/settings-item-cards/"
 
+[[section.group.page]]
+title = "settings-notification-matrix"
+source = "site/blocks/settings-notification-matrix.md"
+path = "/blocks/settings-notification-matrix/"
+
 [[section.group]]
 title = "Action Panel"
 
