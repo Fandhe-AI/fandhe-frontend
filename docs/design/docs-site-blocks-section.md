@@ -1048,6 +1048,7 @@ pub enum LayoutCss {
 | onboarding-split-image | #2980（親 #2951） | `application/onboarding/onboarding_split_image.rs` |
 | settings-billing-overview | #2984 | `application/settings/settings_billing_overview.rs` |
 | settings-billing-usage | #2985 | `application/settings/settings_billing_usage.rs` |
+| settings-api-key-created | #2982（親 #2951） | `application/settings/settings_api_key_created.rs` |
 | settings-item-cards | #2996（親 #2951） | `application/settings/settings_item_cards.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
