@@ -2305,6 +2305,14 @@ source = "site/blocks/signup-05.md"
 path = "/blocks/signup-05/"
 
 [[section.group]]
+title = "Settings"
+
+[[section.group.page]]
+title = "settings-event-accordion"
+source = "site/blocks/settings-event-accordion.md"
+path = "/blocks/settings-event-accordion/"
+
+[[section.group]]
 title = "Action Panel"
 
 [[section.group.page]]
