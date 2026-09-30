@@ -10,7 +10,10 @@
 初期状態でユーザー・プロジェクト・タスク・コメントの 4 件を選択済み、添付
 ファイル・監査ログの 2 件を未選択で固定表示します。履歴は完了 3 件・処理中
 1 件を並記し、状態はバッジで示します。処理中の行はダウンロード対象が存在
-しないため、ダウンロードボタンをネイティブ `disabled` にしています。
+しないため、ダウンロードボタンをネイティブ `disabled` にしています。無 JS
+のため見た目の `data-state` は初期状態から変化せず、エクスポート対象の
+チェックボックスもネイティブ `disabled` で固定し、クリック後に選択状態と
+チェック表示が食い違わないようにしています。
 
 本 Demo は無 JS の静的表示のみであり、`<form>` を含みません。エクスポート
 実行ボタン・ダウンロードボタンはいずれも既定 `type="button"` で、送信先・
@@ -39,12 +42,10 @@ fn field_id(suffix: &str) -> String {
     format!("blocks-settings-export-data-{suffix}")
 }
 
-/// エクスポート対象チェックボックス 1 件を組み立てる（無 JS のためネイティブ
-/// `disabled` は付与せず、`checked` のみで初期状態を固定表示する。docs
-/// サイトは JS ハイドレーションを行わないため、ネイティブ操作で `checked`
-/// が変化しても Demo の意図した初期状態がページ読み込み直後に見えていれば
-/// 十分という判断は他 block と揃える一方、本 block は「対象を選ぶ」という
-/// 操作 UI の見た目自体は活かしたいため disabled にはしない）。
+/// エクスポート対象チェックボックス 1 件を組み立てる。ネイティブ `disabled`
+/// で操作不能にする理由はモジュール冒頭「checkbox をネイティブ `disabled`
+/// にする理由」節参照（`onboarding_checklist.rs`/`form_layout_stacked.rs`
+/// と同型の判断）。
 fn export_target_checkbox(value: &'static str, label_text: &'static str, checked: bool) -> Node {
     let props = CheckboxProps {
         checked: if checked {
@@ -52,6 +53,7 @@ fn export_target_checkbox(value: &'static str, label_text: &'static str, checked
         } else {
             CheckedState::Unchecked
         },
+        disabled: true,
         ..CheckboxProps::default()
     };
     checkbox::root(

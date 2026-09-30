@@ -24,6 +24,20 @@
 //! `heading::heading` は `data-scope="heading"` を持つため同関数の
 //! 「`data-scope` を持つ要素の部分木は収集除外」規則に構造的に乗る。
 //!
+//! # checkbox をネイティブ `disabled` にする理由
+//!
+//! `checkbox::hidden_input` は有効なネイティブ `<input>` であり、`disabled`
+//! を渡さない構成では docs サイトが JS ハイドレーションを行わなくても
+//! クリックでブラウザが `checked` をネイティブに切り替えてしまう。一方
+//! `control`/`indicator` の見た目（`data-state`）は SSR 時の `checked`
+//! 引数から固定生成されるため追従せず、クリック後に選択状態とチェック
+//! 表示が食い違う（Codex 指摘対応）。全 checkbox へ `disabled: true` を
+//! 共有し、ネイティブ `disabled` 属性でフォーカス・操作を不能にして状態が
+//! 二度と変化しないことを構造的に保証する（`onboarding_checklist.rs`/
+//! `form_layout_stacked.rs` と同型の判断）。`disabled_declarations()`
+//! （既定 `opacity: 0.5` + `cursor: not-allowed`）は [`LAYOUT_CSS`] で
+//! 中和し、通常の checkbox と同じ見た目に保つ。
+//!
 //! # `<form>` を持たない・送信処理を持たない
 //!
 //! `crate::blocks` モジュール doc の不変条件どおり、本 Demo はフォーム・
@@ -86,12 +100,10 @@ fn field_id(suffix: &str) -> String {
     format!("blocks-settings-export-data-{suffix}")
 }
 
-/// エクスポート対象チェックボックス 1 件を組み立てる（無 JS のためネイティブ
-/// `disabled` は付与せず、`checked` のみで初期状態を固定表示する。docs
-/// サイトは JS ハイドレーションを行わないため、ネイティブ操作で `checked`
-/// が変化しても Demo の意図した初期状態がページ読み込み直後に見えていれば
-/// 十分という判断は他 block と揃える一方、本 block は「対象を選ぶ」という
-/// 操作 UI の見た目自体は活かしたいため disabled にはしない）。
+/// エクスポート対象チェックボックス 1 件を組み立てる。ネイティブ `disabled`
+/// で操作不能にする理由はモジュール冒頭「checkbox をネイティブ `disabled`
+/// にする理由」節参照（`onboarding_checklist.rs`/`form_layout_stacked.rs`
+/// と同型の判断）。
 fn export_target_checkbox(value: &'static str, label_text: &'static str, checked: bool) -> Node {
     let props = CheckboxProps {
         checked: if checked {
@@ -99,6 +111,7 @@ fn export_target_checkbox(value: &'static str, label_text: &'static str, checked
         } else {
             CheckedState::Unchecked
         },
+        disabled: true,
         ..CheckboxProps::default()
     };
     checkbox::root(
@@ -419,6 +432,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-export-data-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-settings-export-data-hint {\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 .blocks-settings-export-data-targets {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-3);\n}\n\
+[data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-settings-export-data-checkbox][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-blocks-settings-export-data-field] {\n  max-width: 20rem;\n}\n\
 .blocks-settings-export-data-actions {\n  display: flex;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-settings-export-data-sr-only {\n  position: absolute;\n  width: 1px;\n  height: 1px;\n  overflow: hidden;\n  clip: rect(0 0 0 0);\n  white-space: nowrap;\n}\n\
@@ -484,7 +498,10 @@ mod tests {
         assert_eq!(html.matches("<tr").count(), 5);
         // `data-disabled=""` も部分文字列として `disabled=""` を含むため、
         // 前方に空白を要求してネイティブ `disabled` 属性のみを数える。
-        assert_eq!(html.matches(" disabled=\"\"").count(), 1);
+        // 6 件のエクスポート対象 checkbox（ネイティブ `disabled` で状態固定、
+        // モジュール冒頭「checkbox をネイティブ `disabled` にする理由」節
+        // 参照）+ 処理中の履歴行のダウンロードボタン 1 件 = 7。
+        assert_eq!(html.matches(" disabled=\"\"").count(), 7);
     }
 
     #[test]
