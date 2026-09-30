@@ -281,6 +281,10 @@ fn notification_item(
             ],
             vec![],
         ));
+        // codex(P2) 是正: 視覚上の未読印（空 span + aria-hidden）だけでは
+        // 支援技術に未読状態が伝わらないため、通知本文の末尾へ
+        // visually-hidden で「未読」を補足する。
+        children.push(visually_hidden::root(vec![], vec![text("未読")]));
     }
     li(vec![("class", "blocks-notification-tray-item")], children)
 }
@@ -333,10 +337,24 @@ fn skeleton_row() -> Node {
 }
 
 /// B: 読み込み中（R0167）。行 3 本 ×（アバター占位 + テキスト占位 2 本）。
+///
+/// `skeleton::skeleton` の root は pre-styled-ui 側の不変条件により常時
+/// `aria-hidden="true"`（装飾要素、`crates/pre-styled-ui/src/skeleton.rs`
+/// 冒頭 doc 参照）のため、このままでは読み込み中であることが支援技術に
+/// 伝わらない。codex(P2) 是正: 行の親要素に `role="status"` を付与し、
+/// [`visually_hidden::root`] で「通知を読み込み中」を補足する。
 fn version_loading() -> Node {
     div(
-        vec![("class", "blocks-notification-tray-skeleton-list")],
-        vec![skeleton_row(), skeleton_row(), skeleton_row()],
+        vec![
+            ("class", "blocks-notification-tray-skeleton-list"),
+            ("role", "status"),
+        ],
+        vec![
+            visually_hidden::root(vec![], vec![text("通知を読み込み中")]),
+            skeleton_row(),
+            skeleton_row(),
+            skeleton_row(),
+        ],
     )
 }
 
@@ -694,6 +712,34 @@ mod tests {
         assert!(LAYOUT_CSS.contains(
             ".blocks-notification-tray [data-scope=\"popover\"] h2 {\n  margin: 0;\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}"
         ));
+    }
+
+    #[test]
+    fn loading_version_announces_status_to_assistive_tech() {
+        // codex(P2) 是正: skeleton root は pre-styled-ui 側の不変条件で常時
+        // aria-hidden のため、読み込み中の行の親へ role="status" +
+        // visually-hidden テキストを付与して支援技術に伝える。
+        let html = demo_html();
+        assert!(html.contains("role=\"status\""));
+        assert!(html.contains("通知を読み込み中"));
+    }
+
+    #[test]
+    fn unread_notifications_announce_unread_state() {
+        // codex(P2) 是正: 未読印（空 span + aria-hidden）だけでは
+        // スクリーンリーダーに未読状態が伝わらないため、visually-hidden で
+        // 「未読」を補足する（未読 2 件分）。
+        let html = demo_html();
+        assert_eq!(
+            html.matches("blocks-notification-tray-unread-dot").count(),
+            2,
+            "list version has 2 unread notifications (empty/loading have none)"
+        );
+        assert_eq!(
+            html.matches(">未読<").count(),
+            2,
+            "each unread notification gets a visually-hidden \"未読\" marker"
+        );
     }
 
     #[test]
