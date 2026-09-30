@@ -2367,6 +2367,14 @@ source = "site/blocks/command-palette-preview.md"
 path = "/blocks/command-palette-preview/"
 
 [[section.group]]
+title = "Onboarding"
+
+[[section.group.page]]
+title = "onboarding-split-image"
+source = "site/blocks/onboarding-split-image.md"
+path = "/blocks/onboarding-split-image/"
+
+[[section.group]]
 title = "Card"
 
 [[section.group.page]]
