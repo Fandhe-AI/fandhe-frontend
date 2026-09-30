@@ -394,6 +394,12 @@ fn placeholder_tab_note(message: &'static str) -> Node {
 }
 
 /// inset 本体（タブ 3 件、先頭タブのみ内容あり。残りタブの内容は #3005）。
+///
+/// 「メンバー」「通知」は `disabled: true` の静的固定にする（無 JS の
+/// ためタブ切替 JS がなく、`disabled: false` のままでは押しても選択
+/// 状態・パネルが変わらない dead control になる。`table_with_toolbar::
+/// status_tabs`〔Codex レビュー指摘 #3404 是正〕・`notification_tray_tabs`
+/// と同型の判断。codex レビュー指摘 P1 是正、PR #3450）。
 fn inset_body(suffix: &str) -> Node {
     let props = TabsProps {
         id: &format!("blocks-settings-page-sidebar-tabs-{suffix}"),
@@ -416,7 +422,7 @@ fn inset_body(suffix: &str) -> Node {
             content: vec![placeholder_tab_note(
                 "メンバー管理は後続で追加する静的な合成例です。",
             )],
-            disabled: false,
+            disabled: true,
         },
         TabItem {
             value: "notifications",
@@ -424,7 +430,7 @@ fn inset_body(suffix: &str) -> Node {
             content: vec![placeholder_tab_note(
                 "通知設定は後続で追加する静的な合成例です。",
             )],
-            disabled: false,
+            disabled: true,
         },
     ];
     div(
@@ -550,7 +556,10 @@ pub const BLOCK: Block = Block {
 /// 同じ幅で `inset_header` 内の `sidebar::trigger` も `display: none` にし、
 /// 見えない `root` を開閉する操作不能なトリガーだけが `aria-expanded` 付きで
 /// 残る表示・ARIA 不整合を防ぐ（モジュール doc 同節参照、codex レビュー
-/// 指摘 P2 対応）。
+/// 指摘 P2 対応）。同じ幅で `inset_header` 内の縦 `separator` も
+/// `display: none` にする。`trigger` を隠したあとに残る区切り線は、もはや
+/// 何と何を区切っているのか意味を失うため（cursor レビュー指摘 Low 対応、
+/// PR #3450）。
 const LAYOUT_CSS: &str = "\
 .blocks-demo.blocks-settings-page-sidebar {\n  padding: 0;\n}\n\
 [data-blocks-settings-page-sidebar-stack] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  container-type: inline-size;\n  container-name: blocks-settings-page-sidebar;\n}\n\
@@ -565,7 +574,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-page-sidebar-row-description {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 @container blocks-settings-page-sidebar (max-width: 40rem) {\n  \
 [data-blocks-settings-page-sidebar-instance] > [data-scope=\"sidebar\"][data-part=\"root\"] {\n    display: none;\n  }\n  \
-[data-blocks-settings-page-sidebar-header] [data-scope=\"sidebar\"][data-part=\"trigger\"] {\n    display: none;\n  }\n\
+[data-blocks-settings-page-sidebar-header] [data-scope=\"sidebar\"][data-part=\"trigger\"] {\n    display: none;\n  }\n  \
+[data-blocks-settings-page-sidebar-header] [data-scope=\"separator\"][data-part=\"root\"] {\n    display: none;\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -682,6 +692,41 @@ mod tests {
         assert!(LAYOUT_CSS.contains(
             "[data-blocks-settings-page-sidebar-header] [data-scope=\"sidebar\"][data-part=\"trigger\"] {\n    display: none;"
         ));
+    }
+
+    /// cursor レビュー指摘（Low, PR #3450）の回帰: 狭幅で `trigger` を隠す
+    /// のと同じ幅で、隣接する縦 `separator` も隠し、区切る対象を失った
+    /// 区切り線だけが残らないようにする。
+    #[test]
+    fn layout_css_hides_separator_alongside_trigger() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-settings-page-sidebar-header] [data-scope=\"separator\"][data-part=\"root\"] {\n    display: none;"
+        ));
+    }
+
+    /// codex レビュー指摘（P1, PR #3450）の回帰: 無 JS のためタブ切替
+    /// できない「メンバー」「通知」トリガーは、押しても選択状態・パネルが
+    /// 変わらない dead control のまま `disabled: false` で残さない
+    /// （`table_with_toolbar::status_tabs`・`notification_tray_tabs` と
+    /// 同型の判断、モジュール doc `inset_body` 参照）。
+    #[test]
+    fn non_general_tab_triggers_are_disabled() {
+        let html = demo_html();
+        for value in ["members", "notifications"] {
+            for suffix in ["expanded", "collapsed"] {
+                let id = format!("blocks-settings-page-sidebar-tabs-{suffix}-trigger-{value}");
+                let start = html
+                    .find(&format!("id=\"{id}\""))
+                    .unwrap_or_else(|| panic!("missing trigger {id}"));
+                let window_end = (start + 500).min(html.len());
+                assert!(
+                    html[start..window_end].contains("aria-disabled=\"true\""),
+                    "trigger {id} should be disabled (dead control fix)"
+                );
+            }
+        }
+        // 「全般」トリガーは既定選択のため disabled にしない。
+        assert!(!html.contains("id=\"blocks-settings-page-sidebar-tabs-expanded-trigger-general\" role=\"tab\" aria-selected=\"true\" aria-controls=\"blocks-settings-page-sidebar-tabs-expanded-content-general\" data-state=\"active\" data-orientation=\"horizontal\" tabindex=\"0\" data-value=\"general\" disabled"));
     }
 
     #[test]

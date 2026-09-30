@@ -17,7 +17,8 @@
 静的に掲示します。デモ枠の幅が `40rem` 未満になると左サイドバーが非表示に
 なり、本文（`inset`）側が全幅になります（コンテナクエリ判定）。設定カードの
 スイッチ 3 行はいずれも操作不能な固定表示（`disabled`）で、初期状態を示す
-のみです。
+のみです。タブは「全般」のみが選択可能で、「メンバー」「通知」のトリガーは
+無 JS のため切り替えられないことを示す `disabled` 固定表示です。
 
 主参照は対応表 ID R0659 です（`_/blocks-intake/` の対応ファイルは本
 worktree に存在しないため、対応表 ID のみを記載します）。
@@ -327,6 +328,12 @@ fn placeholder_tab_note(message: &'static str) -> Node {
 }
 
 /// inset 本体（タブ 3 件、先頭タブのみ内容あり。残りタブの内容は #3005）。
+///
+/// 「メンバー」「通知」は `disabled: true` の静的固定にする（無 JS の
+/// ためタブ切替 JS がなく、`disabled: false` のままでは押しても選択
+/// 状態・パネルが変わらない dead control になる。`table_with_toolbar::
+/// status_tabs`〔Codex レビュー指摘 #3404 是正〕・`notification_tray_tabs`
+/// と同型の判断。codex レビュー指摘 P1 是正、PR #3450）。
 fn inset_body(suffix: &str) -> Node {
     let props = TabsProps {
         id: &format!("blocks-settings-page-sidebar-tabs-{suffix}"),
@@ -349,7 +356,7 @@ fn inset_body(suffix: &str) -> Node {
             content: vec![placeholder_tab_note(
                 "メンバー管理は後続で追加する静的な合成例です。",
             )],
-            disabled: false,
+            disabled: true,
         },
         TabItem {
             value: "notifications",
@@ -357,7 +364,7 @@ fn inset_body(suffix: &str) -> Node {
             content: vec![placeholder_tab_note(
                 "通知設定は後続で追加する静的な合成例です。",
             )],
-            disabled: false,
+            disabled: true,
         },
     ];
     div(
