@@ -440,7 +440,8 @@ pub fn demo() -> Node {
 - 使用量カードの見出し横の toggle tip は `OpenState::Open` 固定で、トリガー
   は `disabled` にしています。無 JS の静的 Demo で常時可視の補足文にする
   ための構成であり、開閉操作自体は意味を持ちません。
-- 狭幅（コンテナ幅 40rem 未満）では広幅 2 列グリッド配置のカードが 1 列へ
+- 版 A は 3 `card` を常時 1 列で縦に積みます。版 B は狭幅（コンテナ幅
+  40rem 未満）で広幅 2 列グリッド配置（`card` + `table`）が 1 列へ
   切り替わります（`@container` によるコンテナクエリ判定）。
 
 関連情報: [Data List](../themes/data-list.md) / [Progress](../themes/progress.md) /

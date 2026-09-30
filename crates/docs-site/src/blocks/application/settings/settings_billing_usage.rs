@@ -62,13 +62,17 @@
 //! （素の `<div>`）は `class="blocks-settings-billing-usage-*"` を使う
 //! （`profile_detail_datalist` と同型の判断）。
 //!
-//! # 狭幅では 1 列へ積む（`@container`）
+//! # 版 A は常時 1 列・版 B のみ狭幅で 1 列へ切り替え（`@container`）
 //!
-//! Demo 枠の幅はビューポート幅と一致しないため `@container`
-//! （コンテナクエリ）で判定する。[`LAYOUT_CSS`] のラッパー
+//! `.blocks-settings-billing-usage-cards` は両版で共有するが、版 A
+//! （3 `card` 縦積み、モジュール doc冒頭「2 版と集約元の対応」節参照）は
+//! `[data-variant="a"] > .blocks-settings-billing-usage-cards` の
+//! grid-template-columns 上書きで常時 1 列固定とする。版 B（`card` +
+//! `table` の 2 ブロック）のみ、`@container`（コンテナクエリ）で広幅
+//! 2 列 → 狭幅 1 列へ切り替える。Demo 枠の幅はビューポート幅と一致
+//! しないため `@container` で判定し、[`LAYOUT_CSS`] のラッパー
 //! `.blocks-settings-billing-usage-stack` へ `container-type:
-//! inline-size` を宣言し、コンテナ幅が `40rem` 未満のとき広幅 2 列
-//! グリッド配置（支払方法カード等）を 1 列へ切り替える。
+//! inline-size` を宣言する。
 //!
 //! # `<form>` を使わない
 //!
@@ -552,6 +556,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-billing-usage-variant {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-settings-billing-usage-variant-label {\n  font-weight: 600;\n}\n\
 .blocks-settings-billing-usage-cards {\n  display: grid;\n  grid-template-columns: repeat(2, 1fr);\n  gap: var(--fandhe-space-4);\n}\n\
+[data-variant=\"a\"] > .blocks-settings-billing-usage-cards {\n  grid-template-columns: 1fr;\n}\n\
 .blocks-settings-billing-usage-usage-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-settings-billing-usage-usage-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-settings-billing-usage-usage-row-header {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  justify-content: space-between;\n}\n\
