@@ -2,15 +2,15 @@
 //! 「Blocks 目的別パーツ拡充」配下、区分は application、カテゴリは
 //! Onboarding、`onboarding_checklist`〔#2979〕・`onboarding_centered_steps`
 //! 〔#2978〕に続く 3 件目、`docs/design/docs-site-blocks-section.md` §18
-//! 参照）。左カラムに
-//! ロゴ・進捗・見出し・選択カード群・次へボタン、右カラムに装飾画像を置く
-//! 分割オンボーディング。狭幅では右カラムを隠し左カラムのみを表示する。
+//! 参照）。左カラムにロゴ・進捗・見出し・選択カード群・次へボタン、
+//! 右カラムに装飾画像を置く分割オンボーディング。狭幅では右カラムを隠し
+//! 左カラムのみを表示する。
 //!
 //! # 使用部品
 //!
 //! `steps` / `radio-card` / `checkbox-card` / `image` / `button` /
-//! `heading` / `native-select` の 7 部品を合成する（[`BLOCK`] の `parts` に
-//! 一致させる契約、`crates/docs-site/tests/blocks_nav.rs`/
+//! `heading` / `native-select` / `field` の 8 部品を合成する（[`BLOCK`] の
+//! `parts` に一致させる契約、`crates/docs-site/tests/blocks_nav.rs`/
 //! `blocks_contract.rs` が検証する）。新しい UI 部品は追加しない。
 //!
 //! # 1 つの Demo に 4 つの形を縦に並べる
@@ -315,17 +315,31 @@ fn checkbox_card_item(
     )
 }
 
-/// checkbox-card グループ（見出し + 列数フック付きグリッド）。
-fn checkbox_card_group(label_text: &'static str, columns: &'static str, items: Vec<Node>) -> Node {
+/// checkbox-card グループ（見出し + 列数フック付きグリッド）。見出しを
+/// `role="group"` + `aria-labelledby` でグリッドへ関連付け、ラジオ群
+/// （[`radio_card_group`]）と同じく選択肢群の名前を支援技術へ伝える。
+fn checkbox_card_group(
+    labelled_by: &'static str,
+    label_text: &'static str,
+    columns: &'static str,
+    items: Vec<Node>,
+) -> Node {
     div(
         vec![],
         vec![
             div(
-                vec![("class", "blocks-onboarding-split-image-cards-label")],
+                vec![
+                    ("id", labelled_by),
+                    ("class", "blocks-onboarding-split-image-cards-label"),
+                ],
                 vec![text(label_text)],
             ),
             div(
-                vec![("data-blocks-onboarding-split-image-cards", columns)],
+                vec![
+                    ("role", "group"),
+                    ("aria-labelledby", labelled_by),
+                    ("data-blocks-onboarding-split-image-cards", columns),
+                ],
                 items,
             ),
         ],
@@ -376,6 +390,7 @@ fn interests_cards() -> Node {
         ("data", "データ分析", false),
     ];
     checkbox_card_group(
+        "blocks-onboarding-split-image-interests-label",
         "興味のある分野",
         "three",
         items
@@ -495,6 +510,7 @@ fn schedule_cards() -> Node {
         ("sun", "日", false),
     ];
     checkbox_card_group(
+        "blocks-onboarding-split-image-schedule-label",
         "通知を受け取る曜日",
         "days",
         items
@@ -654,6 +670,10 @@ pub const BLOCK: Block = Block {
             label: "Native Select",
             path: "/themes/native-select/",
         },
+        Part {
+            label: "Field",
+            path: "/themes/field/",
+        },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
     demo,
@@ -704,7 +724,7 @@ mod tests {
     use super::{demo, dummy_assets, LAYOUT_CSS};
     use fandhe_frontend_core::render;
 
-    /// Demo が期待する 7 部品を出力すること、非対話制約（`<form>` 不在・
+    /// Demo が期待する 8 部品を出力すること、非対話制約（`<form>` 不在・
     /// `data:` URI 不在・チェック済みマーク不在〔`disabled` の
     /// hidden-input はネイティブ操作を封じるため、選択済み分の `checked`
     /// のみ許容する〕）を満たすことの単体回帰。
@@ -719,6 +739,7 @@ mod tests {
             "data-scope=\"button\"",
             "data-scope=\"heading\"",
             "data-part=\"select\"",
+            "data-scope=\"field\"",
         ] {
             assert!(html.contains(scope), "demo output should contain {scope}");
         }

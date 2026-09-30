@@ -1,8 +1,8 @@
 # onboarding-split-image
 
 `fandhe-frontend-pre-styled-ui` の `steps` / `radio-card` / `checkbox-card` /
-`image` / `button` / `heading` / `native-select` 部品を合成した、画像付き
-分割オンボーディングの合成例です。Blocks セクションは新規部品を追加する
+`image` / `button` / `heading` / `native-select` / `field` 部品を
+合成した、画像付き分割オンボーディングの合成例です。Blocks セクションは新規部品を追加する
 ものではなく、既存の Themes/Primitives 部品を組み合わせた実例集であること
 に注意してください（対応表 ID R0174 を代表参照とし、R0175（チェックボック
 スカード版）・R0176（見出し付きラジオカード 4 件）・R0177（曜日チェック
@@ -266,17 +266,31 @@ fn checkbox_card_item(
     )
 }
 
-/// checkbox-card グループ（見出し + 列数フック付きグリッド）。
-fn checkbox_card_group(label_text: &'static str, columns: &'static str, items: Vec<Node>) -> Node {
+/// checkbox-card グループ（見出し + 列数フック付きグリッド）。見出しを
+/// `role="group"` + `aria-labelledby` でグリッドへ関連付け、ラジオ群
+/// （[`radio_card_group`]）と同じく選択肢群の名前を支援技術へ伝える。
+fn checkbox_card_group(
+    labelled_by: &'static str,
+    label_text: &'static str,
+    columns: &'static str,
+    items: Vec<Node>,
+) -> Node {
     div(
         vec![],
         vec![
             div(
-                vec![("class", "blocks-onboarding-split-image-cards-label")],
+                vec![
+                    ("id", labelled_by),
+                    ("class", "blocks-onboarding-split-image-cards-label"),
+                ],
                 vec![text(label_text)],
             ),
             div(
-                vec![("data-blocks-onboarding-split-image-cards", columns)],
+                vec![
+                    ("role", "group"),
+                    ("aria-labelledby", labelled_by),
+                    ("data-blocks-onboarding-split-image-cards", columns),
+                ],
                 items,
             ),
         ],
@@ -327,6 +341,7 @@ fn interests_cards() -> Node {
         ("data", "データ分析", false),
     ];
     checkbox_card_group(
+        "blocks-onboarding-split-image-interests-label",
         "興味のある分野",
         "three",
         items
@@ -446,6 +461,7 @@ fn schedule_cards() -> Node {
         ("sun", "日", false),
     ];
     checkbox_card_group(
+        "blocks-onboarding-split-image-schedule-label",
         "通知を受け取る曜日",
         "days",
         items
