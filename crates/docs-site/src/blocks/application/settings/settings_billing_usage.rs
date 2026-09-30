@@ -146,32 +146,24 @@ fn usage_bar(label: &'static str, percent: f64, value_text: String) -> Node {
     } else {
         ColorPalette::Accent
     };
-    // ラベルと値は 1 つの flex グループにまとめ、バッジ（存在すれば）を
-    // ヘッダーのもう一方の flex child にする。3 つ全てを同じ親へ並べると
-    // `justify-content: space-between` が 3 分割になりラベル・数値・バッジが
-    // 行全体へ分散し、数値がバッジから離れて中央寄りになってしまうため
-    // （PR #3437 レビュー指摘）。
-    let label_and_value = div(
-        vec![(
-            "class",
-            "blocks-settings-billing-usage-usage-row-label-group",
-        )],
-        vec![
-            styled_text::text(&TextProps::default(), vec![], vec![text(label)]),
-            styled_text::text(
-                &TextProps {
-                    size: TextSize::Sm,
-                    variant: TextVariant::Muted,
-                    ..TextProps::default()
-                },
-                vec![],
-                vec![text(value_text)],
-            ),
-        ],
+    // ヘッダーはラベル（左）と、数値・バッジをまとめた 1 つの flex グループ
+    // （右）の 2 child のみを `justify-content: space-between` で並べる。
+    // 数値を独立の flex child にすると、バッジ側との間隔がラベル側との間隔と
+    // 同じ扱いになり数値とバッジが離れて見えるため（PR #3437 レビュー指摘）、
+    // 数値とバッジは常に同じ右側グループへ入れる。
+    let label_node = styled_text::text(&TextProps::default(), vec![], vec![text(label)]);
+    let value_node = styled_text::text(
+        &TextProps {
+            size: TextSize::Sm,
+            variant: TextVariant::Muted,
+            ..TextProps::default()
+        },
+        vec![],
+        vec![text(value_text)],
     );
-    let mut header_children = vec![label_and_value];
+    let mut value_and_badge_children = vec![value_node];
     if percent >= WARN_THRESHOLD {
-        header_children.push(badge(
+        value_and_badge_children.push(badge(
             &BadgeProps {
                 variant: BadgeVariant::Outline,
                 palette: ColorPalette::Warning,
@@ -181,6 +173,14 @@ fn usage_bar(label: &'static str, percent: f64, value_text: String) -> Node {
             vec![text("上限間近")],
         ));
     }
+    let value_and_badge = div(
+        vec![(
+            "class",
+            "blocks-settings-billing-usage-usage-row-value-group",
+        )],
+        value_and_badge_children,
+    );
+    let header_children = vec![label_node, value_and_badge];
     div(
         vec![("class", "blocks-settings-billing-usage-usage-row")],
         vec![
@@ -572,7 +572,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-billing-usage-usage-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-settings-billing-usage-usage-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-settings-billing-usage-usage-row-header {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  justify-content: space-between;\n}\n\
-.blocks-settings-billing-usage-usage-row-label-group {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  gap: var(--fandhe-space-2);\n}\n\
+.blocks-settings-billing-usage-usage-row-value-group {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-settings-billing-usage-seats-footer {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-2);\n  margin-block-start: var(--fandhe-space-4);\n}\n\
 .blocks-settings-billing-usage-stack [data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 @container blocks-settings-billing-usage (max-width: 40rem) {\n  \
