@@ -202,7 +202,12 @@ fn static_tab_list(tablist_id: &str) -> Node {
 }
 
 /// 見出し + JSON ペイロードの 1 ブロック（`pre` は横スクロール、
-/// [`LAYOUT_CSS`] 参照）。
+/// [`LAYOUT_CSS`] 参照）。内側の [`code`] はインライン片用の recipe
+/// （padding 付きチップ・`display: inline`）を持つため、`data-blocks-
+/// settings-event-accordion-code` フックを [`LAYOUT_CSS`] 側で
+/// `display: block` + 背景/余白除去へ上書きし、複数行 JSON が 1 行ごと
+/// に分断されたチップとして表示されないようにする（Bugbot Medium 是正:
+/// 「Inline code styles JSON payloads」）。
 fn payload_block(caption: &str, json: &'static str) -> Node {
     div(
         vec![],
@@ -355,6 +360,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-event-accordion-tab[data-state=\"active\"] {\n  color: var(--fandhe-color-fg);\n  border-bottom-color: var(--fandhe-color-accent);\n}\n\
 .blocks-settings-event-accordion-payload-heading {\n  margin: 0 0 var(--fandhe-space-1) 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-settings-event-accordion-pre {\n  overflow-x: auto;\n  margin: 0 0 var(--fandhe-space-4) 0;\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
+.blocks-settings-event-accordion-pre [data-blocks-settings-event-accordion-code] {\n  display: block;\n  background: none;\n  padding: 0;\n  border-radius: 0;\n  white-space: pre;\n}\n\
 .blocks-settings-event-accordion-layout [data-scope=\"accordion\"][data-part=\"item-trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 @container (max-width: 40rem) {\n  \
 .blocks-settings-event-accordion-header {\n    flex-direction: column;\n    align-items: flex-start;\n  }\n  \
@@ -455,6 +461,19 @@ mod tests {
         assert!(LAYOUT_CSS
             .contains(r#"[data-scope="accordion"][data-part="item-trigger"][data-disabled] {"#));
         assert!(LAYOUT_CSS.contains("overflow-x: auto;"));
+    }
+
+    #[test]
+    fn layout_css_overrides_inline_code_chip_inside_pre() {
+        // Bugbot Medium 是正: JSON ペイロードの `code` はインライン片用
+        // recipe のままだと複数行が行ごとに分断されたチップとして表示
+        // されるため、`data-blocks-settings-event-accordion-code` フック
+        // を block 表示へ上書きする CSS が存在することを固定する。
+        assert!(
+            LAYOUT_CSS.contains("[data-blocks-settings-event-accordion-code] {\n  display: block;")
+        );
+        let html = demo_html();
+        assert!(html.contains("data-blocks-settings-event-accordion-code"));
     }
 
     #[test]

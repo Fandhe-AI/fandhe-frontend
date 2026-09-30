@@ -166,7 +166,12 @@ fn static_tab_list(tablist_id: &str) -> Node {
 }
 
 /// 見出し + JSON ペイロードの 1 ブロック（`pre` は横スクロール、
-/// [`LAYOUT_CSS`] 参照）。
+/// [`LAYOUT_CSS`] 参照）。内側の [`code`] はインライン片用の recipe
+/// （padding 付きチップ・`display: inline`）を持つため、`data-blocks-
+/// settings-event-accordion-code` フックを [`LAYOUT_CSS`] 側で
+/// `display: block` + 背景/余白除去へ上書きし、複数行 JSON が 1 行ごと
+/// に分断されたチップとして表示されないようにする（Bugbot Medium 是正:
+/// 「Inline code styles JSON payloads」）。
 fn payload_block(caption: &str, json: &'static str) -> Node {
     div(
         vec![],
