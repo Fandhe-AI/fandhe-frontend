@@ -35,6 +35,7 @@ use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode};
 use fandhe_frontend_pre_styled_ui::progress::{self, Orientation, ProgressProps};
 use fandhe_frontend_pre_styled_ui::tab_nav;
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps};
+use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize, TextWeight};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
 /// 実在の自リポジトリ URL（`href` の方針、モジュール doc参照）。
@@ -451,9 +452,12 @@ fn version_api() -> Node {
             ("data-blocks-settings-page-tabs-version", "api"),
         ],
         vec![
-            heading(
-                HeadingLevel::H3,
-                &HeadingProps::default(),
+            styled_text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    weight: TextWeight::Semibold,
+                    ..TextProps::default()
+                },
                 vec![("data-blocks-settings-page-tabs-version-title", "")],
                 vec![text("版 A: API 設定")],
             ),
@@ -788,9 +792,12 @@ fn version_plan() -> Node {
             ("data-blocks-settings-page-tabs-version", "plan"),
         ],
         vec![
-            heading(
-                HeadingLevel::H3,
-                &HeadingProps::default(),
+            styled_text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    weight: TextWeight::Semibold,
+                    ..TextProps::default()
+                },
                 vec![("data-blocks-settings-page-tabs-version-title", "")],
                 vec![text("版 B: プラン")],
             ),
