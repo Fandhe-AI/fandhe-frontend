@@ -1048,6 +1048,7 @@ pub enum LayoutCss {
 | onboarding-split-image | #2980（親 #2951） | `application/onboarding/onboarding_split_image.rs` |
 | settings-billing-overview | #2984 | `application/settings/settings_billing_overview.rs` |
 | settings-billing-usage | #2985 | `application/settings/settings_billing_usage.rs` |
+| settings-log-table | #2997 | `application/settings/settings_log_table.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
