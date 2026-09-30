@@ -2317,6 +2317,11 @@ title = "settings-billing-overview"
 source = "site/blocks/settings-billing-overview.md"
 path = "/blocks/settings-billing-overview/"
 
+[[section.group.page]]
+title = "settings-event-accordion"
+source = "site/blocks/settings-event-accordion.md"
+path = "/blocks/settings-event-accordion/"
+
 [[section.group]]
 title = "Action Panel"
 
