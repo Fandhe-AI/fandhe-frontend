@@ -305,7 +305,7 @@ fn version_featured() -> Node {
                 vec![text("Featured collections")],
             ),
             link::root(
-                "../",
+                "../../guides/",
                 &LinkProps::default(),
                 vec![("data-blocks-help-center-collection-grid-view-all", "")],
                 vec![text("View all")],

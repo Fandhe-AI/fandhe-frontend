@@ -67,7 +67,9 @@
 //! # `href="#"` は使わない（`blog_grid_image.rs`「href の方針」節と同型）
 //!
 //! 題名リンク・「View all」リンクはいずれもサイト内に実在する索引ページ
-//! （`/guides/<slug>/`・`/api/`・`/blocks/`）への相対パスを使う
+//! （`/guides/<slug>/`・`/api/`・`/guides/`）への相対パスを使う。注目
+//! コレクションはすべて `/guides/` 配下のため、「View all」は表示文言と
+//! 遷移先を一致させて `/guides/` 索引へ向ける
 //! （`linkcheck::check_links` が `crates/docs-site/tests/support/shared_site.rs`
 //! 経由で fail-closed に検証する）。`external: true` は付けない
 //! （reverse tabnabbing 面を持たない）。
@@ -372,7 +374,7 @@ fn version_featured() -> Node {
                 vec![text("Featured collections")],
             ),
             link::root(
-                "../",
+                "../../guides/",
                 &LinkProps::default(),
                 vec![("data-blocks-help-center-collection-grid-view-all", "")],
                 vec![text("View all")],
