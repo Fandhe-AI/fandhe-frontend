@@ -412,6 +412,7 @@ jobs:
           # Application / Page Heading
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-actions/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-avatar/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-tabs/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-cover/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-meta/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-welcome-stats/index.html"
@@ -475,12 +476,15 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-setup-steps/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-starter-list/index.html"
           # Application / Notification
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/notification-tray-tabs/index.html"
           # Application / Dialog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/game-ui-modal/index.html"
           # Application / Drawer
           # Application / Command Palette
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/command-palette-preview/index.html"
           # Application / Onboarding
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-centered-steps/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-checklist/index.html"
           # Application / Card
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-meta-cta/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cursor-hover-cards/index.html"

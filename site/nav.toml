@@ -2086,6 +2086,11 @@ source = "site/blocks/page-heading-meta.md"
 path = "/blocks/page-heading-meta/"
 
 [[section.group.page]]
+title = "page-heading-tabs"
+source = "site/blocks/page-heading-tabs.md"
+path = "/blocks/page-heading-tabs/"
+
+[[section.group.page]]
 title = "page-heading-welcome-stats"
 source = "site/blocks/page-heading-welcome-stats.md"
 path = "/blocks/page-heading-welcome-stats/"
@@ -2356,6 +2361,14 @@ source = "site/blocks/empty-state-starter-list.md"
 path = "/blocks/empty-state-starter-list/"
 
 [[section.group]]
+title = "Notification"
+
+[[section.group.page]]
+title = "notification-tray-tabs"
+source = "site/blocks/notification-tray-tabs.md"
+path = "/blocks/notification-tray-tabs/"
+
+[[section.group]]
 title = "Dialog"
 
 [[section.group.page]]
@@ -2370,6 +2383,19 @@ title = "Command Palette"
 title = "command-palette-preview"
 source = "site/blocks/command-palette-preview.md"
 path = "/blocks/command-palette-preview/"
+
+[[section.group]]
+title = "Onboarding"
+
+[[section.group.page]]
+title = "onboarding-centered-steps"
+source = "site/blocks/onboarding-centered-steps.md"
+path = "/blocks/onboarding-centered-steps/"
+
+[[section.group.page]]
+title = "onboarding-checklist"
+source = "site/blocks/onboarding-checklist.md"
+path = "/blocks/onboarding-checklist/"
 
 [[section.group]]
 title = "Card"
