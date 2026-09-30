@@ -20,17 +20,16 @@
 //! `list::item`（`<li>`）の直接の子として `item::root` を置くが、本 block
 //! の使用部品には `list` を含めない（Issue の使用部品指定に無いため）。
 //! 各行は素の `div` コンテナ内へ `item::root` と `separator::separator`
-//! を交互配置し、区切り線は `separator` 部品自身に担わせる。
+//! を配置し、区切り線は `separator` 部品自身に担わせる。
 //!
 //! `list` 部品（`<ul>`/`<li>`）を使わない代わりに、支援技術へ一覧・項目数を
 //! 伝えるため各行コンテナへ素の `role="list"`/`role="listitem"` 属性を
 //! 直接付与する（新しい UI 部品の追加ではなく、既存の素の `div` への
 //! 属性追加に留める）。区切り線（`separator::separator`、`role="separator"`）
-//! は `listitem` の兄弟として残るが、`role="separator"` は
-//! `role="presentation"`/`none` と同様にリスト構造の計算に干渉しない
-//! WAI-ARIA の慣用パターンであり（chakra-ui の Menu 区切り線等に同型の
-//! 先例がある）、`role="list"` の子として `listitem` 以外が混在すること自体
-//! は許容される。
+//! は `role="list"` の直接の子には置かず、2 行目以降の `listitem` の
+//! 内側（行本体の手前）へ入れ子にする。`role="list"` の直接の子を
+//! `listitem` のみに揃えることで、支援技術の一覧構造・項目数の計算が
+//! 区切り線の混入で乱れないようにする（P1 是正、`starter_list` 参照）。
 //!
 //! # 行全体がリンクになる仕組み
 //!
@@ -214,16 +213,23 @@ fn starter_row(starter: &Starter) -> Node {
 /// 各行は `role="listitem"` を付けた `div` で包み、一覧全体のコンテナには
 /// `role="list"` を付ける（支援技術へ一覧・項目数を伝えるための素の
 /// ARIA 属性付与。モジュール doc「`list` を使わない理由」節参照）。
+/// 区切り線（`separator::separator`、`role="separator"`）は `role="list"`
+/// の直接の子には置かず、2 行目以降の `listitem` の内側（`starter_row`
+/// の手前）へ入れ子にする。`role="list"` の直接の子を `listitem` のみに
+/// 揃えることで、支援技術が一覧の項目数を `listitem` 数どおりに計算
+/// できるようにする（P1 是正）。
 fn starter_list(rows: &[Starter]) -> Node {
-    let mut children = Vec::with_capacity(rows.len() * 2 - 1);
+    let mut children = Vec::with_capacity(rows.len());
     for (index, starter) in rows.iter().enumerate() {
+        let mut item_children = Vec::with_capacity(2);
         if index > 0 {
-            children.push(separator::separator(
+            item_children.push(separator::separator(
                 &SeparatorProps::default(),
                 vec![(RULE_ATTR, "")],
             ));
         }
-        children.push(div(vec![("role", "listitem")], vec![starter_row(starter)]));
+        item_children.push(starter_row(starter));
+        children.push(div(vec![("role", "listitem")], item_children));
     }
     div(vec![("class", LIST_CLASS), ("role", "list")], children)
 }
@@ -304,7 +310,7 @@ pub fn demo() -> Node {
                 "テンプレートを選ぶと、すぐに編集を始められます。",
                 &STARTERS[..4],
                 "テンプレートを使わずに始めることもできます。",
-                "../",
+                "../../guides/",
                 "空のプロジェクトから始める →",
             ),
             starter_instance(
@@ -432,7 +438,6 @@ mod tests {
             "../../examples/",
             "../../primitives/",
             "../../themes/",
-            "../",
             "../../api/",
         ] {
             assert!(

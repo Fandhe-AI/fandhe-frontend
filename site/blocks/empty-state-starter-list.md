@@ -145,16 +145,23 @@ fn starter_row(starter: &Starter) -> Node {
 /// 各行は `role="listitem"` を付けた `div` で包み、一覧全体のコンテナには
 /// `role="list"` を付ける（支援技術へ一覧・項目数を伝えるための素の
 /// ARIA 属性付与。モジュール doc「`list` を使わない理由」節参照）。
+/// 区切り線（`separator::separator`、`role="separator"`）は `role="list"`
+/// の直接の子には置かず、2 行目以降の `listitem` の内側（`starter_row`
+/// の手前）へ入れ子にする。`role="list"` の直接の子を `listitem` のみに
+/// 揃えることで、支援技術が一覧の項目数を `listitem` 数どおりに計算
+/// できるようにする（P1 是正）。
 fn starter_list(rows: &[Starter]) -> Node {
-    let mut children = Vec::with_capacity(rows.len() * 2 - 1);
+    let mut children = Vec::with_capacity(rows.len());
     for (index, starter) in rows.iter().enumerate() {
+        let mut item_children = Vec::with_capacity(2);
         if index > 0 {
-            children.push(separator::separator(
+            item_children.push(separator::separator(
                 &SeparatorProps::default(),
                 vec![(RULE_ATTR, "")],
             ));
         }
-        children.push(div(vec![("role", "listitem")], vec![starter_row(starter)]));
+        item_children.push(starter_row(starter));
+        children.push(div(vec![("role", "listitem")], item_children));
     }
     div(vec![("class", LIST_CLASS), ("role", "list")], children)
 }
@@ -235,7 +242,7 @@ pub fn demo() -> Node {
                 "テンプレートを選ぶと、すぐに編集を始められます。",
                 &STARTERS[..4],
                 "テンプレートを使わずに始めることもできます。",
-                "../",
+                "../../guides/",
                 "空のプロジェクトから始める →",
             ),
             starter_instance(
