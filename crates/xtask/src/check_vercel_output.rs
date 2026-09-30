@@ -1022,7 +1022,7 @@ fn check_required_static_pages(static_dir: &Path) -> CheckResult {
         .filter(|page| {
             let path = static_dir.join(page);
             match std::fs::symlink_metadata(&path) {
-                Ok(meta) => !(meta.is_file() && !meta.file_type().is_symlink()),
+                Ok(meta) => !meta.is_file() || meta.file_type().is_symlink(),
                 Err(_) => true,
             }
         })

@@ -2280,6 +2280,11 @@ source = "site/blocks/auth-split-photo-testimonial.md"
 path = "/blocks/auth-split-photo-testimonial/"
 
 [[section.group.page]]
+title = "auth-tabs-card"
+source = "site/blocks/auth-tabs-card.md"
+path = "/blocks/auth-tabs-card/"
+
+[[section.group.page]]
 title = "login-01"
 source = "site/blocks/login-01.md"
 path = "/blocks/login-01/"
