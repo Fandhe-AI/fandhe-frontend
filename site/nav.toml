@@ -2415,6 +2415,11 @@ title = "onboarding-checklist"
 source = "site/blocks/onboarding-checklist.md"
 path = "/blocks/onboarding-checklist/"
 
+[[section.group.page]]
+title = "onboarding-split-image"
+source = "site/blocks/onboarding-split-image.md"
+path = "/blocks/onboarding-split-image/"
+
 [[section.group]]
 title = "Card"
 
