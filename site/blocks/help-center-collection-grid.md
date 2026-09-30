@@ -1,8 +1,8 @@
 # help-center-collection-grid
 
 パンくずと見出しの下に、ヘルプ記事コレクションをカードのグリッドで並べる
-ヘルプセンター向けブロックです。`breadcrumb` / `heading` / `card` / `icon` /
-`stat` / `avatar` / `link` の 7 部品を合成します。Blocks は既存部品の合成例
+ヘルプセンター向けブロックです。`breadcrumb` / `heading` / `text` / `card` /
+`icon` / `stat` / `avatar` / `link` の 8 部品を合成します。Blocks は既存部品の合成例
 であり、新しい UI 部品は追加しません。
 
 主参照は対応表 ID R0116（代表構成）で、R0117（細部差のみ）・R0118（著者
@@ -408,5 +408,5 @@ pub fn demo() -> Node {
   ありません。
 
 関連情報: [Breadcrumb](../themes/breadcrumb.md) / [Heading](../themes/heading.md) /
-[Card](../themes/card.md) / [Icon](../themes/icon.md) / [Stat](../themes/stat.md) /
-[Avatar](../themes/avatar.md) / [Link](../themes/link.md)
+[Text](../themes/text.md) / [Card](../themes/card.md) / [Icon](../themes/icon.md) /
+[Stat](../themes/stat.md) / [Avatar](../themes/avatar.md) / [Link](../themes/link.md)

@@ -7,8 +7,8 @@
 //!
 //! # 使用部品
 //!
-//! `breadcrumb` / `heading` / `card` / `icon` / `stat` / `avatar` / `link`
-//! の 7 部品を合成する（[`BLOCK`] の `parts` に一致させる契約、
+//! `breadcrumb` / `heading` / `text` / `card` / `icon` / `stat` / `avatar` /
+//! `link` の 8 部品を合成する（[`BLOCK`] の `parts` に一致させる契約、
 //! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証する）。
 //! 新しい UI 部品は追加しない。
 //!
@@ -480,6 +480,10 @@ pub const BLOCK: Block = Block {
             path: "/themes/heading/",
         },
         Part {
+            label: "Text",
+            path: "/themes/text/",
+        },
+        Part {
             label: "Card",
             path: "/themes/card/",
         },
@@ -536,6 +540,7 @@ mod tests {
         for scope in [
             "data-scope=\"breadcrumb\"",
             "data-scope=\"heading\"",
+            "data-scope=\"text\"",
             "data-scope=\"card\"",
             "data-scope=\"icon\"",
             "data-scope=\"stat\"",
