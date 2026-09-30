@@ -2442,6 +2442,14 @@ source = "site/blocks/ai-chat-prompt-start.md"
 path = "/blocks/ai-chat-prompt-start/"
 
 [[section.group]]
+title = "Help Center"
+
+[[section.group.page]]
+title = "help-center-collection-grid"
+source = "site/blocks/help-center-collection-grid.md"
+path = "/blocks/help-center-collection-grid/"
+
+[[section.group]]
 title = "Media Object"
 
 [[section.group.page]]
