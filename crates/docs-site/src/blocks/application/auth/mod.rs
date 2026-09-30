@@ -6,13 +6,15 @@
 //! ための構造、イシュー #2734）。5 件目は `auth_dropdown_panel`（#2962）、
 //! 6 件目は `auth_oauth_consent`（#3414）、7 件目は `auth_otp_verify`
 //! （#3416）、8 件目は `auth_split_accent_panel`（#2965）、9 件目は
-//! `auth_split_photo_testimonial`（#2966）。
+//! `auth_split_photo_testimonial`（#2966）、10 件目は
+//! `auth_tabs_card`（#2967）。
 
 mod auth_dropdown_panel;
 mod auth_oauth_consent;
 mod auth_otp_verify;
 mod auth_split_accent_panel;
 mod auth_split_photo_testimonial;
+mod auth_tabs_card;
 mod login_01;
 mod login_04;
 mod signup_01;
@@ -26,6 +28,7 @@ pub(super) fn blocks() -> Vec<Block> {
         auth_otp_verify::BLOCK,
         auth_split_accent_panel::BLOCK,
         auth_split_photo_testimonial::BLOCK,
+        auth_tabs_card::BLOCK,
         login_01::BLOCK,
         login_04::BLOCK,
         signup_01::BLOCK,

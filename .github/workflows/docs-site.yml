@@ -457,6 +457,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-split-photo-testimonial/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-otp-verify/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-split-accent-panel/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-tabs-card/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-01/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-04/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-01/index.html"
@@ -472,6 +473,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-card-header/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-starter-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-setup-steps/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-starter-list/index.html"
           # Application / Notification
           # Application / Dialog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/game-ui-modal/index.html"
