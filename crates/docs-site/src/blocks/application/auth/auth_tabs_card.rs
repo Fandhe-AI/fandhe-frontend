@@ -496,6 +496,13 @@ pub const BLOCK: Block = Block {
 /// 負けるため、`login_04` と同型で `[data-scope="card"][data-part="root"]`
 /// を結合したセレクタ（(0,3,0)）にする。
 ///
+/// タブ一覧をカード上端に密着させるため、`[data-blocks-auth-tabs-card-panel]`
+/// （タブ一覧 + フォームを包む div）の `padding-top` のみ 0 にし、左右・下は
+/// `--fandhe-space-6` を維持する（`padding: 0 var(--fandhe-space-6)
+/// var(--fandhe-space-6);`）。全方向 padding のままだとタブ一覧の上にも
+/// 余白が残り、`card::root` の padding を 0 にした意味が失われる（PR #3426
+/// レビュー指摘）。
+///
 /// # 形 C: `contact_dialog_form` と同じ固定オーバーレイの中和
 ///
 /// `dialog::positioner`/`backdrop` は本来 `position: fixed; inset: 0` の
@@ -510,7 +517,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-auth-tabs-card-card] {\n  width: 100%;\n  max-width: 28rem;\n}\n\
 .blocks-auth-tabs-card [data-scope=\"tabs\"][data-part=\"list\"] {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n}\n\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-auth-tabs-card-flush] {\n  padding: 0;\n  overflow: hidden;\n}\n\
-[data-blocks-auth-tabs-card-panel] {\n  padding: var(--fandhe-space-6);\n}\n\
+[data-blocks-auth-tabs-card-panel] {\n  padding: 0 var(--fandhe-space-6) var(--fandhe-space-6);\n}\n\
 [data-blocks-auth-tabs-card-field] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-auth-tabs-card-password-row {\n  display: flex;\n  justify-content: space-between;\n  align-items: baseline;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-auth-tabs-card-submit] {\n  width: 100%;\n}\n\
