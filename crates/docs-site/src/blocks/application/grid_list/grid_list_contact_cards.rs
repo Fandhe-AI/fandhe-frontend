@@ -300,6 +300,7 @@ fn permission_badge(item: &Contact) -> Node {
             variant: BadgeVariant::Subtle,
             size: Size::Sm,
             palette: item.palette,
+            shape: None,
         },
         vec![],
         vec![text(item.permission)],

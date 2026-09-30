@@ -132,6 +132,18 @@ const BADGE_GOLDEN_CSS: &str = r#"[data-scope="badge"][data-part="root"] {
   --fandhe-palette-fg-subtle: var(--fandhe-color-neutral-fg-subtle);
 }
 
+[data-scope="badge"][data-part="root"].fd-badge--shape-pill {
+  border-radius: var(--fandhe-radius-full);
+}
+
+[data-scope="badge"][data-part="root"].fd-badge--shape-circle {
+  border-radius: var(--fandhe-radius-full);
+  padding: 0;
+  min-width: 1.5em;
+  aspect-ratio: 1 / 1;
+  justify-content: center;
+}
+
 [data-scope="badge"][data-part="root"][href] {
   cursor: pointer;
   text-decoration: none;
