@@ -2634,8 +2634,18 @@ title = "product-overview-gallery-split"
 source = "site/blocks/product-overview-gallery-split.md"
 path = "/blocks/product-overview-gallery-split/"
 
+[[section.group.page]]
+title = "product-overview-tabs-below"
+source = "site/blocks/product-overview-tabs-below.md"
+path = "/blocks/product-overview-tabs-below/"
+
 [[section.group]]
 title = "Cart"
+
+[[section.group.page]]
+title = "cart-line-item-table"
+source = "site/blocks/cart-line-item-table.md"
+path = "/blocks/cart-line-item-table/"
 
 [[section.group.page]]
 title = "cart-two-column-summary"
