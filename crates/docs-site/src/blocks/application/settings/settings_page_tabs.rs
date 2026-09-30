@@ -55,7 +55,10 @@
 //! のみで名前付け、`table_sortable_bulk::row_select_checkbox` と同型）、
 //! 1 行を `CheckedState::Checked`、ヘッダーの全選択チェックボックスを
 //! `CheckedState::Indeterminate`（`aria-checked="mixed"`）に固定し、
-//! チェック状態の違いを静的に並記する。ページ送り（`pagination`）は
+//! チェック状態の違いを静的に並記する。無 JS のため全選択↔各行の同期は
+//! 実装できず、`disabled: true` を固定して操作不可であることを明示する
+//! （静的固定の選択状態がクリック操作と食い違って見える表示を防ぐ、codex
+//! レビュー P1 是正、イシュー #3460）。ページ送り（`pagination`）は
 //! `ItemMode::Button` 固定で、`INVOICES` 4 件が 1 ページに収まるため
 //! `prev_trigger`/`next_trigger` を両方 disabled・1 ページ目を
 //! `aria-current="page"` として固定表示する（`table_with_toolbar::footer`
@@ -74,8 +77,8 @@
 //! `tab_nav::root` の `aria-label` は本 block 内で一意にする。「API」タブへ
 //! `aria-current="page"` を固定する。無 JS のため他タブは実在フラグメント
 //! （`href="#<id>"`）で [`other_section_stub`] のスタブ見出しへ遷移し、本
-//! Demo〔設定画面〕からは離脱しない（`href` の方針は「ナビは実在 URL、タブ
-//! は現在地のみ `./`・他タブは実在フラグメント」節参照）。
+//! Demo〔設定画面〕からは離脱しない（`href` の方針は「ナビは実在 URL、タブは
+//! 全件実在フラグメント」節参照）。
 //!
 //! # 狭幅ではタブを横スクロールする
 //!
@@ -118,8 +121,7 @@
 //! ラッパーのみ `class="blocks-settings-page-tabs-*"` を使う
 //! （`navbar_app_links`/`profile_detail_datalist` と同型の判断）。
 //!
-//! # ナビは実在 URL、タブは現在地のみ `./`・他タブは実在フラグメント
-//! （codex レビュー P1 是正 v2）
+//! # ナビは実在 URL、タブは全件実在フラグメント（codex レビュー P1 是正 v3）
 //!
 //! docs サイトの link check（`crate::linkcheck`）は絶対パス（`/settings` 等）
 //! を実在ページとして検証するため、サイトに存在しない架空パスは使えない
@@ -135,15 +137,20 @@
 //! 別 block（`page_heading_tabs.rs`、イシュー #2934）が確立した「無 JS の
 //! 静的 SSR ページではページ内フラグメントリンクを実在させる」規約に反する
 //! との指摘を受けた（codex レビュー P1 是正 v2）。本 block も同じ規約を
-//! 採用する: 各版の現在地タブのみ自ページを指す `href="./"` を維持し
-//! （すでに表示中のセクションへの自己参照であり誤解を生まない）、他タブは
-//! `href="#<id>"` で実在の `id` へリンクする。#3008 で版 B（プラン・請求の
-//! フル本文）を実装したため、API/プラン/請求の 3 タブは実在する `id`
-//! （[`version_api`] の `id="api"`、[`plan_card`] の `id="plan"`、
-//! [`invoices_table_card`] の `id="billing"`）へリンクし、一般/メンバーの
-//! 2 タブのみ [`other_section_stub`] が出力する「準備中」の最小限スタブ
-//! 見出しへリンクする（着手予定なし）。タブとして提示する以上は実在する
-//! 遷移先を必ず持たせる（`href="#"`・`data:` URI は持ち込まない）。
+//! 採用したうえで、v2 では各版の現在地タブのみ自ページを指す `href="./"`
+//! を維持していたが、版 B（プラン）は版 A の下に位置するため、現在地タブ
+//! （プラン）を `href="./"` にすると再読み込みでスクロール位置が先頭へ
+//! 戻ってしまうとの指摘を受けた（codex レビュー P1 是正 v3、イシュー
+//! #3460）。是正として現在地タブも含め全タブを実在アンカーへ統一する:
+//! #3008 で版 B（プラン・請求のフル本文）を実装したため、API/プラン/請求の
+//! 3 タブは実在する `id`（[`version_api`] の `id="api"`、[`plan_card`] の
+//! `id="plan"`、[`invoices_table_card`] の `id="billing"`）へリンクし、
+//! 一般/メンバーの 2 タブのみ [`other_section_stub`] が出力する「準備中」の
+//! 最小限スタブ見出しへリンクする（着手予定なし）。タブとして提示する以上は
+//! 実在する遷移先を必ず持たせる（`href="#"`・`data:` URI は持ち込まない）。
+//! 現在地タブの自己参照アンカー（例: 版 B から `href="#plan"`）は同一
+//! セクション内の見出しへ戻るだけで表示位置を保つため、`./` と異なり
+//! 版の位置に依存しない。
 //!
 //! # アイコンは自作の線画
 //!
@@ -319,19 +326,19 @@ const TAB_ITEMS: [(&str, &str); 5] = [
 ];
 
 /// タブ見出し（heading「設定」+ タブ列）。`current` は現在地タブの `id`
-/// （`href="./"` + `aria-current="page"` を付与）、`tabs_label` は
-/// `tab_nav::root` の `aria-label`（版ごとに一意にする、モジュール doc
-/// 「版の並記」節参照）。
+/// （実在アンカー `href="#<id>"` + `aria-current="page"` を付与。版 B
+/// （プラン）はページ先頭ではなく版 A の下に位置するため、現在地タブを
+/// `href="./"` にすると再読み込みで表示位置が先頭へ戻ってしまう。全タブを
+/// 実在アンカーへ統一し、現在地タブは自セクションの見出しへ戻るだけの
+/// 自己参照として扱う。codex レビュー P1 是正、イシュー #3460）。
+/// `tabs_label` は `tab_nav::root` の `aria-label`（版ごとに一意にする、
+/// モジュール doc「版の並記」節参照）。
 fn page_heading(current: &str, tabs_label: &str) -> Node {
     let tab_nodes: Vec<Node> = TAB_ITEMS
         .iter()
         .map(|(id, label)| {
             let is_current = *id == current;
-            let href = if is_current {
-                "./".to_string()
-            } else {
-                format!("#{id}")
-            };
+            let href = format!("#{id}");
             tab_nav::link(&href, is_current, vec![], vec![text(*label)])
         })
         .collect();
@@ -570,8 +577,8 @@ fn api_keys_table_card() -> Node {
 /// 非選択タブ（一般/メンバー）の実在するリンク先。両タブとも着手予定が
 /// ないため、「準備中」であることを示す最小限の見出しスタブのみを置き、
 /// タブの `href="#<id>"` を実在させる（モジュール doc「ナビは実在 URL、
-/// タブは現在地のみ `./`・他タブは実在フラグメント」節参照、codex レビュー
-/// P1 是正 v2）。API/プラン/請求の 3 タブは [`version_api`]/[`plan_card`]/
+/// タブは全件実在フラグメント」節参照、codex レビュー P1 是正 v3）。
+/// API/プラン/請求の 3 タブは [`version_api`]/[`plan_card`]/
 /// [`invoices_table_card`] が出力する実在の `id` へリンクするため、本スタブ
 /// の対象ではない。
 fn other_section_stub(id: &str, label: &str) -> Node {
@@ -753,10 +760,15 @@ const INVOICES: [InvoiceRow; 4] = [
 
 /// 請求書の行選択チェックボックス（`table_sortable_bulk::row_select_
 /// checkbox` と同型）。`name` は行ごとに一意にし、`id` 属性は持たない
-/// （`aria-label` のみで名前付け、id 重複検知を回避する）。
+/// （`aria-label` のみで名前付け、id 重複検知を回避する）。無 JS のため
+/// 全選択↔各行チェック状態の同期は実装できない。`disabled: true` を固定し
+/// ネイティブ `<input>` を操作不可にすることで、静的固定の選択状態が
+/// クリックで各行と食い違って見える表示を防ぐ（codex レビュー P1 是正、
+/// イシュー #3460）。
 fn invoice_select_checkbox(name: &str, checked: CheckedState, label: &str) -> Node {
     let props = CheckboxProps {
         checked,
+        disabled: true,
         ..CheckboxProps::default()
     };
     checkbox::root(
@@ -1091,16 +1103,18 @@ mod tests {
         assert!(!html.contains("src=\"data:"));
     }
 
-    /// 各版がそれぞれの現在地タブを固定表示し、他タブは実在する `id` へ
+    /// 各版がそれぞれの現在地タブを固定表示し、全タブが実在する `id` へ
     /// リンクすること。`aria-current="page"` はナビの「設定」項目 1 +
     /// 版 A・版 B の現在地タブ計 2 + pagination の 1 ページ目 1 の計 4、
-    /// `href="./"` はナビの「設定」+ 版 A/B の現在地タブ計 3 のみ出現する
-    /// （codex レビュー P1 是正 v2、モジュール doc「版の並記」節参照）。
+    /// `href="./"` はナビの「設定」の 1 件のみ出現する（版 B の現在地タブ
+    /// が `href="./"` だと再読み込みで表示位置が先頭へ戻る codex レビュー
+    /// P1 是正 v3 により、タブの現在地も実在アンカーへ統一したため。
+    /// イシュー #3460、モジュール doc「版の並記」節参照）。
     #[test]
     fn each_version_shows_its_own_current_tab_with_real_targets() {
         let html = render(&demo());
         assert_eq!(html.matches(r#"aria-current="page""#).count(), 4);
-        assert_eq!(html.matches(r#"href="./""#).count(), 3);
+        assert_eq!(html.matches(r#"href="./""#).count(), 1);
         for id in ["general", "members", "api", "plan", "billing"] {
             assert!(
                 html.contains(&format!("id=\"{id}\"")),
@@ -1189,12 +1203,32 @@ mod tests {
     /// 1 行が選択済み・ヘッダーの全選択が `Indeterminate`
     /// （`aria-checked="mixed"`）であること（状態違いの静的併記、モジュール
     /// doc「チェックボックス・ページ送りは無 JS の静的固定」節参照）。
+    /// 全 5 個（全選択 1 + 行 4）が `disabled` 固定で操作不可であること
+    /// （無 JS のため全選択↔各行の同期を実装できず、静的固定の選択状態が
+    /// クリックで食い違って見える表示を防ぐ、codex レビュー P1 是正、
+    /// イシュー #3460）。
     #[test]
     fn invoice_checkboxes_have_unique_names_and_mixed_states() {
         let html = render(&demo());
         assert_eq!(html.matches("name=\"invoice-").count(), 5);
         assert_eq!(html.matches(r#"checked="""#).count(), 1);
         assert_eq!(html.matches(r#"aria-checked="mixed""#).count(), 1);
+        let invoice_checkbox_tags: Vec<&str> = html
+            .split("<input")
+            .filter_map(|chunk| chunk.split_once('>').map(|(tag, _)| tag))
+            .filter(|tag| tag.contains(r#"name="invoice-"#))
+            .collect();
+        assert_eq!(
+            invoice_checkbox_tags.len(),
+            5,
+            "all 5 invoice checkboxes should exist"
+        );
+        for tag in &invoice_checkbox_tags {
+            assert!(
+                tag.contains(r#"disabled="""#),
+                "invoice checkbox should be disabled (no-JS static demo): {tag}"
+            );
+        }
         for label in [
             "すべての請求書を選択",
             "INV-2026-0091を選択",

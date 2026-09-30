@@ -173,19 +173,19 @@ const TAB_ITEMS: [(&str, &str); 5] = [
 ];
 
 /// タブ見出し（heading「設定」+ タブ列）。`current` は現在地タブの `id`
-/// （`href="./"` + `aria-current="page"` を付与）、`tabs_label` は
-/// `tab_nav::root` の `aria-label`（版ごとに一意にする、モジュール doc
-/// 「版の並記」節参照）。
+/// （実在アンカー `href="#<id>"` + `aria-current="page"` を付与。版 B
+/// （プラン）はページ先頭ではなく版 A の下に位置するため、現在地タブを
+/// `href="./"` にすると再読み込みで表示位置が先頭へ戻ってしまう。全タブを
+/// 実在アンカーへ統一し、現在地タブは自セクションの見出しへ戻るだけの
+/// 自己参照として扱う。codex レビュー P1 是正、イシュー #3460）。
+/// `tabs_label` は `tab_nav::root` の `aria-label`（版ごとに一意にする、
+/// モジュール doc「版の並記」節参照）。
 fn page_heading(current: &str, tabs_label: &str) -> Node {
     let tab_nodes: Vec<Node> = TAB_ITEMS
         .iter()
         .map(|(id, label)| {
             let is_current = *id == current;
-            let href = if is_current {
-                "./".to_string()
-            } else {
-                format!("#{id}")
-            };
+            let href = format!("#{id}");
             tab_nav::link(&href, is_current, vec![], vec![text(*label)])
         })
         .collect();
@@ -424,8 +424,8 @@ fn api_keys_table_card() -> Node {
 /// 非選択タブ（一般/メンバー）の実在するリンク先。両タブとも着手予定が
 /// ないため、「準備中」であることを示す最小限の見出しスタブのみを置き、
 /// タブの `href="#<id>"` を実在させる（モジュール doc「ナビは実在 URL、
-/// タブは現在地のみ `./`・他タブは実在フラグメント」節参照、codex レビュー
-/// P1 是正 v2）。API/プラン/請求の 3 タブは [`version_api`]/[`plan_card`]/
+/// タブは全件実在フラグメント」節参照、codex レビュー P1 是正 v3）。
+/// API/プラン/請求の 3 タブは [`version_api`]/[`plan_card`]/
 /// [`invoices_table_card`] が出力する実在の `id` へリンクするため、本スタブ
 /// の対象ではない。
 fn other_section_stub(id: &str, label: &str) -> Node {
@@ -607,10 +607,15 @@ const INVOICES: [InvoiceRow; 4] = [
 
 /// 請求書の行選択チェックボックス（`table_sortable_bulk::row_select_
 /// checkbox` と同型）。`name` は行ごとに一意にし、`id` 属性は持たない
-/// （`aria-label` のみで名前付け、id 重複検知を回避する）。
+/// （`aria-label` のみで名前付け、id 重複検知を回避する）。無 JS のため
+/// 全選択↔各行チェック状態の同期は実装できない。`disabled: true` を固定し
+/// ネイティブ `<input>` を操作不可にすることで、静的固定の選択状態が
+/// クリックで各行と食い違って見える表示を防ぐ（codex レビュー P1 是正、
+/// イシュー #3460）。
 fn invoice_select_checkbox(name: &str, checked: CheckedState, label: &str) -> Node {
     let props = CheckboxProps {
         checked,
+        disabled: true,
         ..CheckboxProps::default()
     };
     checkbox::root(
