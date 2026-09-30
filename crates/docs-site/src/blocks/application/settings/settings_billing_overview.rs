@@ -28,7 +28,11 @@
 //! 同型）。本 block は現在プランカードの補足ヒント 1 個だけを持つため、
 //! `OpenState::Open` 固定で常時可視にする（`Closed` 併記による補足文の
 //! 別経路は不要）。`trigger` は `disabled: true`（静的表示のため開閉自体を
-//! 提供しない）。
+//! 提供しない）。headless 層の `positioner` は既定 `position: absolute` の
+//! ため、`Open` 固定のままだとプラン価格・説明の上へ重なって表示される。
+//! [`LAYOUT_CSS`] で `[data-scope="toggle-tip"][data-part="positioner"]` を
+//! `position: static` へ中和し、通常のドキュメントフローへ乗せて重なりを
+//! 解消する（`pricing_tiers_extra_row` の既存判断と同型）。
 //!
 //! # `class` と `data-*` の使い分け
 //!
@@ -475,8 +479,10 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-billing-overview-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  container-type: inline-size;\n  container-name: blocks-settings-billing-overview;\n}\n\
 .blocks-settings-billing-overview-stats {\n  display: grid;\n  grid-template-columns: repeat(3, 1fr);\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-settings-billing-overview-plans {\n  display: grid;\n  grid-template-columns: repeat(2, 1fr);\n  gap: var(--fandhe-space-4);\n}\n\
-.blocks-settings-billing-overview-plan-price {\n  font-size: var(--fandhe-font-font-size-2xl);\n  font-weight: var(--fandhe-font-weight-bold);\n}\n\
+.blocks-settings-billing-overview-plan-price {\n  font-size: var(--fandhe-font-font-size-2xl);\n  font-weight: var(--fandhe-font-font-weight-bold);\n}\n\
+.blocks-settings-billing-overview-stat-label {\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-normal);\n}\n\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-settings-billing-overview-plan-card][data-current] {\n  border-color: var(--fandhe-color-accent);\n}\n\
+[data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 @container blocks-settings-billing-overview (max-width: 40rem) {\n  \
 .blocks-settings-billing-overview-stats {\n    grid-template-columns: 1fr;\n  }\n  \
 .blocks-settings-billing-overview-plans {\n    grid-template-columns: 1fr;\n  }\n\
