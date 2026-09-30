@@ -1,8 +1,8 @@
 # auth-split-photo-testimonial
 
 `fandhe-frontend-pre-styled-ui` の `field` / `input` / `button` / `link` /
-`checkbox` / `separator` / `image` / `blockquote` / `avatar` の 9 部品を
-合成した、片側にサインイン/サインアップフォーム・もう片側に背景写真 +
+`checkbox` / `separator` / `image` / `blockquote` / `avatar` / `heading` の
+10 部品を合成した、片側にサインイン/サインアップフォーム・もう片側に背景写真 +
 暗幕 + 顧客の声（引用・氏名・肩書）を置く分割サインインの実例です。Blocks
 セクションは新規部品を追加するものではなく、既存の Themes 部品を組み合わ
 せた実例集であることに注意してください（レイアウト仕様は Issue #2966 の
@@ -25,12 +25,15 @@
 
 ```rust
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, el, text, Node};
+use fandhe_frontend_core::{div, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarProps, ImageStatus};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::field::{self, FieldOrientation, FieldRootProps};
+use fandhe_frontend_pre_styled_ui::heading::{
+    heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
+};
 use fandhe_frontend_pre_styled_ui::image::{self, ImageFit, ImageProps};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
@@ -264,9 +267,13 @@ fn form_column(variant: AuthVariant) -> Node {
             div(
                 vec![("class", "blocks-auth-split-photo-testimonial-intro")],
                 vec![
-                    el(
-                        "h2",
-                        vec![("class", "blocks-auth-split-photo-testimonial-title")],
+                    heading(
+                        HeadingLevel::H3,
+                        &HeadingProps {
+                            size: HeadingSize::Xl,
+                            weight: HeadingWeight::Bold,
+                        },
+                        vec![("data-blocks-auth-split-photo-testimonial-title", "")],
                         vec![text(title)],
                     ),
                     div(
@@ -414,8 +421,13 @@ pub fn demo() -> Node {
 ## 原案差分メモ
 
 - レイアウト仕様は Issue #2966 の記述（片側フォーム・片側写真+暗幕+顧客の
-  声、9 部品構成）から構成しており、特定の参照ファイル・内部識別子は転記
+  声、10 部品構成）から構成しており、特定の参照ファイル・内部識別子は転記
   しません。
+- フォーム見出し（「おかえりなさい」/「アカウントを作成」）は素の `h2`
+  ではなく pre-styled-ui `heading` 部品（`h3`）で意味づけています（PR
+  #3418 レビュー指摘対応）。`heading` は `data-scope` を持つため右目次
+  （`.docs-toc`）の見出し収集から構造的に除外され、Demo 見出しが目次へ
+  混入しません。
 - ソーシャルログインは `icon` 部品を使用部品に含めないため、アイコンなしの
   テキストボタンにしています。実ブランドロゴの複製は行いません。
 - 暗幕の配色は `--fandhe-color-fg`/`--fandhe-color-bg` の反転ペア（既存

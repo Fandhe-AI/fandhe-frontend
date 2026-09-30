@@ -6,15 +6,20 @@
 //! # 使用部品
 //!
 //! `field` / `input` / `button` / `link` / `checkbox` / `separator` /
-//! `image` / `blockquote` / `avatar` の 9 部品を合成する（[`BLOCK`] の
-//! `parts` に一致させる契約、`crates/docs-site/tests/blocks_nav.rs`/
-//! `blocks_contract.rs` が検証する）。`heading`/`text`/`icon` は使用部品に
-//! 含まれないため、説明文・ソーシャルログインボタンは素の `div`（レイアウト
-//! 用 CSS クラスのみ）とアイコンなしのテキストボタンで表現する（実ブランド
-//! 名・ロゴを持ち込まない方針とも整合する）。フォーム見出し（「おかえり
-//! なさい」/「アカウントを作成」）のみ `fandhe_frontend_core::el("h2", ...)`
-//! で意味づける（`profile_card_centered::section` の `el("h3", ...)` と同型の
-//! 判断。pre-styled-ui `heading` 部品は使用部品に含めないため使わない）。
+//! `image` / `blockquote` / `avatar` / `heading` の 10 部品を合成する
+//! （[`BLOCK`] の `parts` に一致させる契約、
+//! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証する）。
+//! `text`/`icon` は使用部品に含まれないため、説明文・ソーシャルログイン
+//! ボタンは素の `div`（レイアウト用 CSS クラスのみ）とアイコンなしの
+//! テキストボタンで表現する（実ブランド名・ロゴを持ち込まない方針とも
+//! 整合する）。フォーム見出し（「おかえりなさい」/「アカウントを作成」）は
+//! pre-styled-ui `heading::heading`（`HeadingLevel::H3`）で意味づける（PR
+//! #3418 レビュー指摘対応・Bugbot: 素の `el("h2", ...)` は
+//! `data-scope` 祖先を持たないため `crate::layout::with_heading_anchors`
+//! の `h2`/`h3` 収集から除外されず、Demo 見出しが右目次（`.docs-toc`）へ
+//! 混入していた。`heading` は `data-scope="heading"` を持つため同関数の
+//! 「`data-scope` を持つ要素の部分木は収集除外」規則に構造的に乗る。
+//! `contact_form_testimonial` 等の既存 block と同じ手法）。
 //!
 //! # 1 つの Demo に 2 つの形（サインイン/サインアップ）を縦に並べる
 //!
@@ -108,12 +113,15 @@ use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, el, text, Node};
+use fandhe_frontend_core::{div, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarProps, ImageStatus};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::field::{self, FieldOrientation, FieldRootProps};
+use fandhe_frontend_pre_styled_ui::heading::{
+    heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
+};
 use fandhe_frontend_pre_styled_ui::image::{self, ImageFit, ImageProps};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
@@ -347,9 +355,13 @@ fn form_column(variant: AuthVariant) -> Node {
             div(
                 vec![("class", "blocks-auth-split-photo-testimonial-intro")],
                 vec![
-                    el(
-                        "h2",
-                        vec![("class", "blocks-auth-split-photo-testimonial-title")],
+                    heading(
+                        HeadingLevel::H3,
+                        &HeadingProps {
+                            size: HeadingSize::Xl,
+                            weight: HeadingWeight::Bold,
+                        },
+                        vec![("data-blocks-auth-split-photo-testimonial-title", "")],
                         vec![text(title)],
                     ),
                     div(
@@ -539,6 +551,10 @@ pub const BLOCK: Block = Block {
             label: "Avatar",
             path: "/themes/avatar/",
         },
+        Part {
+            label: "Heading",
+            path: "/themes/heading/",
+        },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
     demo,
@@ -556,17 +572,11 @@ pub const BLOCK: Block = Block {
 /// 直書きする、`login_04`/`contact_split_form_info` と同じ判断）で 2 カラム
 /// grid へ切り替えて表示する。
 ///
-/// # `h2` の見た目リセット（PR #3418 レビュー指摘）
-///
-/// フォーム見出し（`el("h2", ...)`）は `.docs-content` 配下に埋め込まれる
-/// ため、サイト本文の `.docs-content h2` 規則（`border-top`・`padding-top`・
-/// `2.25rem` の上余白・`2xl` サイズ、`crate::site_theme::typography_css`）が
-/// 漏れ込む。単純なクラスセレクタ `.blocks-auth-split-photo-testimonial-title`
-/// （詳細度 (0,1,0)）は `.docs-content h2`（(0,1,1)）より必ず負けるため、
-/// 祖先クラス + 要素型 + 自クラスの組み合わせ
-/// `.blocks-auth-split-photo-testimonial-intro h2.blocks-auth-split-photo-testimonial-title`
-/// （(0,2,1)）で確実に上回るようにする（[`super::auth_dropdown_panel`] の
-/// `h2` リセットと同型の判断。`site.css` 側は変更しない）。
+/// フォーム見出しは pre-styled-ui `heading::heading` を使うため、
+/// `.docs-content h2` のサイト typography（`border-top`・上余白等）が
+/// 漏れ込む問題は起きない（`heading` recipe が `data-scope="heading"` の
+/// 属性セレクタ経由でスタイルを持ち、素の `h2` 要素セレクタには一致しない
+/// ため、詳細度勝負を要しない。モジュール doc「使用部品」節参照）。
 const LAYOUT_CSS: &str = "\
 .blocks-auth-split-photo-testimonial-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n}\n\
 .blocks-auth-split-photo-testimonial-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
@@ -574,7 +584,6 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-auth-split-photo-testimonial-variant] {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  overflow: hidden;\n  min-height: 28rem;\n}\n\
 [data-blocks-auth-split-photo-testimonial-form] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-8);\n}\n\
 .blocks-auth-split-photo-testimonial-intro {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
-.blocks-auth-split-photo-testimonial-intro h2.blocks-auth-split-photo-testimonial-title {\n  margin: 0;\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n  line-height: 1.3;\n  font-size: var(--fandhe-font-font-size-xl);\n  font-weight: var(--fandhe-font-font-weight-bold);\n}\n\
 .blocks-auth-split-photo-testimonial-description {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-auth-split-photo-testimonial-providers {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-auth-split-photo-testimonial-provider] {\n  width: 100%;\n}\n\
@@ -598,9 +607,11 @@ mod tests {
     use super::{demo, dummy_assets, LAYOUT_CSS};
     use fandhe_frontend_core::render;
 
-    /// Demo が期待する 9 部品を出力すること、非対話制約（`<form>` 不在・
+    /// Demo が期待する 10 部品を出力すること、非対話制約（`<form>` 不在・
     /// `data:` URI 不在・`href="#"` 不在・チェック済みマーク不在）を満たす
-    /// ことの単体回帰。
+    /// ことの単体回帰。フォーム見出しが `heading` 部品（`data-scope`
+    /// を持つ）で意味づけられ、素の `<h2` を出力しないこと（PR #3418
+    /// レビュー指摘対応・TOC 混入の回帰固定）も合わせて固定する。
     #[test]
     fn demo_composes_expected_parts_and_avoids_forms() {
         let html = render(&demo());
@@ -613,12 +624,14 @@ mod tests {
             "data-scope=\"image\"",
             "data-scope=\"blockquote\"",
             "data-scope=\"avatar\"",
+            "data-scope=\"heading\"",
         ] {
             assert!(html.contains(scope), "demo output should contain {scope}");
         }
         assert!(html.contains("data-part=\"input\""));
         assert_eq!(html.matches("<form").count(), 0);
         assert_eq!(html.matches("type=\"submit\"").count(), 0);
+        assert_eq!(html.matches("<h2").count(), 0);
         assert!(!html.contains("href=\"#\""));
         assert!(!html.contains("src=\"data:"));
         assert!(!html.contains(" checked"));
