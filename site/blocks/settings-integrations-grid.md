@@ -35,7 +35,7 @@ use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::recipe::{ColorPalette, Size};
 use fandhe_frontend_pre_styled_ui::switch::{self, SwitchProps};
 
-/// 「詳細を見る」リンクの遷移先（本 block 専用のプレースホルダー実践、
+/// 「リポジトリを見る」リンクの遷移先（本 block 専用のプレースホルダー実践、
 /// モジュール doc「死リンクを避ける」節参照）。
 const DETAIL_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
@@ -150,7 +150,9 @@ fn connect_button(connected: bool) -> Node {
     )
 }
 
-/// 「詳細を見る」リンク（[`DETAIL_URL`] を指す、死リンクにしない）。
+/// 「リポジトリを見る」リンク（[`DETAIL_URL`] を指す、死リンクにしない）。
+/// 全カード共通で同じ URL へ遷移するため、リンク名は遷移先の実体
+/// （リポジトリ）に合わせる（モジュール doc「死リンクを避ける」節参照）。
 fn detail_link() -> Node {
     link::root(
         DETAIL_URL,
@@ -159,7 +161,7 @@ fn detail_link() -> Node {
             ..LinkProps::default()
         },
         vec![],
-        vec![text("詳細を見る")],
+        vec![text("リポジトリを見る")],
     )
 }
 
@@ -231,6 +233,11 @@ fn card_grouped_by_category(app: &Integration) -> Node {
         disabled: true,
         ..SwitchProps::default()
     };
+    let status_label = if app.connected {
+        "接続中"
+    } else {
+        "未接続"
+    };
     let integration_switch = switch::root(
         Size::Sm,
         ColorPalette::Accent,
@@ -242,18 +249,20 @@ fn card_grouped_by_category(app: &Integration) -> Node {
                 app.connected,
                 &switch_props,
                 vec![],
-                vec![text(if app.connected {
-                    "接続中"
-                } else {
-                    "未接続"
-                })],
+                vec![text(status_label)],
             ),
+            // アクセシブルネームにアプリ名を含める（`root` の `<label>` に
+            // よる暗黙の関連付けは `switch::label` の可視テキスト
+            // 「接続中」/「未接続」のみを拾い、隣接する `heading`（アプリ名）
+            // は関連付け対象外のため、支援技術では複数カード間で状態の
+            // 主体を識別できない。`aria-label` で明示上書きして区別する
+            // （PR #3442 レビュー指摘の是正、Codex P2）。
             switch::hidden_input(
                 "blocks-settings-integrations-grid-toggle",
                 app.name,
                 app.connected,
                 &switch_props,
-                vec![],
+                vec![("aria-label", &format!("{}: {status_label}", app.name))],
             ),
             switch::control(
                 app.connected,
@@ -453,9 +462,10 @@ pub fn demo() -> Node {
 - **版 C（R0253）**: グループ見出しを持たない単一グリッドで、導入数テキスト
   と「認証済み」バッジ（該当するアプリのみ）を添え、操作ボタンを
   「インストール」にします。
-- 各カードの「詳細を見る」リンクは、架空データのため実在の詳細ページを
-  持ちません。`href="#"` の死リンクにはせず、marketing 系 footer block と
-  同じプレースホルダー実践（フレームワークのリポジトリ URL）を使います。
+- 各カードの「リポジトリを見る」リンクは、架空データのため実在の詳細ページを
+  持たず全カード共通で同じ URL へ遷移します。`href="#"` の死リンクにはせず、
+  marketing 系 footer block と同じプレースホルダー実践（フレームワークの
+  リポジトリ URL）を使い、リンク名も実際の遷移先に合わせています。
 - 狭幅（コンテナ幅 36rem 未満）ではカードグリッドが 1 列へ切り替わります
   （`@container` によるコンテナクエリ判定）。
 

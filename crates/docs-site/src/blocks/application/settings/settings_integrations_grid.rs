@@ -43,10 +43,12 @@
 //!
 //! # 死リンクを避ける（`href="#"` を使わない）
 //!
-//! 各カードの「詳細を見る」リンクは実在する外部 URL
-//! （`https://github.com/Fandhe-AI/fandhe-frontend`、marketing 系 footer
-//! block の `REPO` 定数と同じプレースホルダー実践）を指す。詳細ページを
-//! 持たない架空データのため `href="#"` の死リンクにはしない。
+//! 各カードのリンクは実在する外部 URL（`https://github.com/Fandhe-AI/fandhe-frontend`、
+//! marketing 系 footer block の `REPO` 定数と同じプレースホルダー実践）を
+//! 指す。架空データのためアプリ個別の詳細ページを持たず、全カード共通で
+//! 同じ URL へ遷移する。リンク名は「詳細を見る」ではなく実際の遷移先に
+//! 合わせて「リポジトリを見る」とし、アプリ個別ページへ遷移するという
+//! 誤った期待を与えない（PR #3442 レビュー指摘の是正、Codex P2）。
 //!
 //! # `class` と `data-*` の使い分け
 //!
@@ -90,7 +92,7 @@ use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::recipe::{ColorPalette, Size};
 use fandhe_frontend_pre_styled_ui::switch::{self, SwitchProps};
 
-/// 「詳細を見る」リンクの遷移先（本 block 専用のプレースホルダー実践、
+/// 「リポジトリを見る」リンクの遷移先（本 block 専用のプレースホルダー実践、
 /// モジュール doc「死リンクを避ける」節参照）。
 const DETAIL_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
@@ -205,7 +207,9 @@ fn connect_button(connected: bool) -> Node {
     )
 }
 
-/// 「詳細を見る」リンク（[`DETAIL_URL`] を指す、死リンクにしない）。
+/// 「リポジトリを見る」リンク（[`DETAIL_URL`] を指す、死リンクにしない）。
+/// 全カード共通で同じ URL へ遷移するため、リンク名は遷移先の実体
+/// （リポジトリ）に合わせる（モジュール doc「死リンクを避ける」節参照）。
 fn detail_link() -> Node {
     link::root(
         DETAIL_URL,
@@ -214,7 +218,7 @@ fn detail_link() -> Node {
             ..LinkProps::default()
         },
         vec![],
-        vec![text("詳細を見る")],
+        vec![text("リポジトリを見る")],
     )
 }
 
@@ -286,6 +290,11 @@ fn card_grouped_by_category(app: &Integration) -> Node {
         disabled: true,
         ..SwitchProps::default()
     };
+    let status_label = if app.connected {
+        "接続中"
+    } else {
+        "未接続"
+    };
     let integration_switch = switch::root(
         Size::Sm,
         ColorPalette::Accent,
@@ -297,18 +306,20 @@ fn card_grouped_by_category(app: &Integration) -> Node {
                 app.connected,
                 &switch_props,
                 vec![],
-                vec![text(if app.connected {
-                    "接続中"
-                } else {
-                    "未接続"
-                })],
+                vec![text(status_label)],
             ),
+            // アクセシブルネームにアプリ名を含める（`root` の `<label>` に
+            // よる暗黙の関連付けは `switch::label` の可視テキスト
+            // 「接続中」/「未接続」のみを拾い、隣接する `heading`（アプリ名）
+            // は関連付け対象外のため、支援技術では複数カード間で状態の
+            // 主体を識別できない。`aria-label` で明示上書きして区別する
+            // （PR #3442 レビュー指摘の是正、Codex P2）。
             switch::hidden_input(
                 "blocks-settings-integrations-grid-toggle",
                 app.name,
                 app.connected,
                 &switch_props,
-                vec![],
+                vec![("aria-label", &format!("{}: {status_label}", app.name))],
             ),
             switch::control(
                 app.connected,
@@ -549,7 +560,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-integrations-grid-identity {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-settings-integrations-grid-logo] {\n  inline-size: 2.5rem;\n  block-size: 2.5rem;\n  flex-shrink: 0;\n}\n\
 .blocks-settings-integrations-grid-description-clamp {\n  display: -webkit-box;\n  -webkit-line-clamp: 3;\n  -webkit-box-orient: vertical;\n  overflow: hidden;\n}\n\
-.blocks-settings-integrations-grid-footer-row {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-3);\n}\n\
+.blocks-settings-integrations-grid-footer-row {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-3);\n  flex: 1;\n  min-width: 0;\n}\n\
 .blocks-settings-integrations-grid-installs {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-settings-integrations-grid-marketplace-meta {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  margin-top: var(--fandhe-space-2);\n}\n\
 @container blocks-settings-integrations-grid (max-width: 36rem) {\n  \
