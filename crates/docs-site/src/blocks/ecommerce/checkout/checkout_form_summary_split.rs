@@ -171,10 +171,15 @@ fn section_heading(title: &'static str) -> Node {
 }
 
 /// 連絡先セクション（メールアドレス + お知らせ配信 checkbox。checkbox は
-/// 未チェック固定の静的表示）。
+/// 未チェック固定の静的表示のため、JS ハイドレーションなしでもネイティブ
+/// input の checked 状態とカスタム indicator の表示が食い違わないよう
+/// `disabled: true` でネイティブ操作を止める（#3462 レビュー指摘対応）。
 fn contact_section() -> Node {
     let email = field_props(EMAIL_ID, true);
-    let checkbox_props = CheckboxProps::default();
+    let checkbox_props = CheckboxProps {
+        disabled: true,
+        ..CheckboxProps::default()
+    };
     div(
         vec![("class", "blocks-checkout-form-summary-split-section")],
         vec![
@@ -811,12 +816,25 @@ mod tests {
     fn radio_items_are_natively_disabled_and_one_is_checked_per_group() {
         let html = demo_html();
         // 配送方法 2 件 + 支払い方法 3 件 = radio 5 件、いずれも disabled。
+        // + お知らせ配信 checkbox 1 件（静的表示、#3462 レビュー指摘対応で
+        // ネイティブ disabled 化済み）で計 6 件。
         assert_eq!(html.matches(r#"type="radio""#).count(), 5);
-        assert_eq!(html.matches(" disabled=\"\"").count(), 5);
+        assert_eq!(html.matches(" disabled=\"\"").count(), 6);
         assert_eq!(html.matches(" checked").count(), 2);
         assert_eq!(html.matches(r#"aria-disabled="true""#).count(), 2);
         assert!(html.contains("現在の選択: 通常配送"));
         assert!(html.contains("現在の選択: カード払い"));
+    }
+
+    #[test]
+    fn newsletter_checkbox_is_natively_disabled() {
+        // 静的 Demo の表示契約: JS ハイドレーションなしでネイティブ input が
+        // 操作可能だと、クリック後にカスタム indicator（未チェック表示）と
+        // ネイティブ checked 状態が食い違う（#3462 レビュー指摘対応）。
+        let html = demo_html();
+        assert!(html.contains(
+            r#"data-scope="checkbox" data-part="hidden-input" data-state="unchecked" data-disabled="""#
+        ));
     }
 
     #[test]

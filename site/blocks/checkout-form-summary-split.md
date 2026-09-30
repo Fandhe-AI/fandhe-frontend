@@ -88,10 +88,15 @@ fn section_heading(title: &'static str) -> Node {
 }
 
 /// 連絡先セクション（メールアドレス + お知らせ配信 checkbox。checkbox は
-/// 未チェック固定の静的表示）。
+/// 未チェック固定の静的表示のため、JS ハイドレーションなしでもネイティブ
+/// input の checked 状態とカスタム indicator の表示が食い違わないよう
+/// `disabled: true` でネイティブ操作を止める（#3462 レビュー指摘対応）。
 fn contact_section() -> Node {
     let email = field_props(EMAIL_ID, true);
-    let checkbox_props = CheckboxProps::default();
+    let checkbox_props = CheckboxProps {
+        disabled: true,
+        ..CheckboxProps::default()
+    };
     div(
         vec![("class", "blocks-checkout-form-summary-split-section")],
         vec![
