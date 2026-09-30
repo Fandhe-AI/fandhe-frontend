@@ -76,7 +76,17 @@ const SIZE_OPTIONS: &[&str] = &["S", "M", "L", "XL"];
 /// 不整合（PR #3468 レビュー P1 指摘）を、全画像の配置を明示することで
 /// 解消する。
 fn gallery_tile(index: usize, total: usize) -> Node {
-    let alt = format!("{PRODUCT_NAME} の画像 {}", index + 1);
+    // 4 枚すべて同一の `dummy_assets::PRODUCT_SRC`（同一プレースホルダー画像）
+    // を参照しているため、「画像 1」〜「画像 4」のように異なる商品写真で
+    // あるかのような alt を付けるとスクリーンリーダーで同一画像が異なる
+    // 写真として読み上げられてしまう（PR #3468 レビュー P2 指摘）。実際の
+    // 内容と一致する alt を持てるのは代表画像（1 枚目）のみとし、残り
+    // 3 枚は代表画像の重複描画（装飾目的）として空 alt にする。
+    let alt = if index == 0 {
+        PRODUCT_NAME.to_string()
+    } else {
+        String::new()
+    };
     let mut props = ImageProps::new(dummy_assets::PRODUCT_SRC, &alt);
     props.aspect_ratio = AspectRatio::Square;
     props.shape = ImageShape::Rounded;

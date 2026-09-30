@@ -92,7 +92,10 @@
 //! 商品名・価格・レビュー件数・色/サイズ・説明はすべて本ファイル内の架空
 //! データ（実在のブランド・商品・PII を含まない）。商品画像はビルド時生成
 //! の同梱 SVG（[`dummy_assets::PRODUCT_SRC`]）を 4 枚使う（外部 URL・
-//! `data:` URI は使わない）。`alt` は商品名を含む説明文にする。
+//! `data:` URI は使わない）。4 枚とも同一画像のため、内容と一致する
+//! `alt`（商品名）を持てるのは代表画像（1 枚目）のみとし、残りは代表
+//! 画像の重複描画として空 `alt`（装飾扱い）にする（PR #3468 レビュー P2
+//! 指摘の是正、詳細は [`gallery_tile`] のコメント参照）。
 //!
 //! # 後半 #3072 で追加する領域（本 PR のスコープ外）
 //!
@@ -164,7 +167,17 @@ const SIZE_OPTIONS: &[&str] = &["S", "M", "L", "XL"];
 /// 不整合（PR #3468 レビュー P1 指摘）を、全画像の配置を明示することで
 /// 解消する。
 fn gallery_tile(index: usize, total: usize) -> Node {
-    let alt = format!("{PRODUCT_NAME} の画像 {}", index + 1);
+    // 4 枚すべて同一の `dummy_assets::PRODUCT_SRC`（同一プレースホルダー画像）
+    // を参照しているため、「画像 1」〜「画像 4」のように異なる商品写真で
+    // あるかのような alt を付けるとスクリーンリーダーで同一画像が異なる
+    // 写真として読み上げられてしまう（PR #3468 レビュー P2 指摘）。実際の
+    // 内容と一致する alt を持てるのは代表画像（1 枚目）のみとし、残り
+    // 3 枚は代表画像の重複描画（装飾目的）として空 alt にする。
+    let alt = if index == 0 {
+        PRODUCT_NAME.to_string()
+    } else {
+        String::new()
+    };
     let mut props = ImageProps::new(dummy_assets::PRODUCT_SRC, &alt);
     props.aspect_ratio = AspectRatio::Square;
     props.shape = ImageShape::Rounded;
@@ -511,7 +524,7 @@ const LAYOUT_CSS: &str = "\
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, COLOR_OPTIONS, LAYOUT_CSS, SIZE_OPTIONS};
+    use super::{demo, COLOR_OPTIONS, LAYOUT_CSS, PRODUCT_NAME, SIZE_OPTIONS};
     use fandhe_frontend_core::render;
 
     fn demo_html() -> String {
@@ -546,6 +559,11 @@ mod tests {
                 .count(),
             1
         );
+        // 4 枚とも同一画像のため、内容と一致する alt を持てるのは代表
+        // 画像（1 枚目）のみ。異なる商品写真であるかのような alt
+        // （「画像 1」〜「画像 4」等）を付けない（PR #3468 レビュー P2 是正）。
+        assert_eq!(html.matches(&format!("alt=\"{PRODUCT_NAME}\"")).count(), 1);
+        assert_eq!(html.matches("alt=\"\"").count(), 3);
         assert!(html.contains("レビュー 128 件"));
         assert!(
             !html.contains("data-scope=\"link\""),
