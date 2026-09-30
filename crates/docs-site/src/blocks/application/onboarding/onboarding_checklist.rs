@@ -223,6 +223,12 @@ fn task_body(steps: &Steps, index: usize, title: &'static str, description: &'st
             button::button(
                 &ButtonProps {
                     size: Size::Sm,
+                    // 静的デモ（無 JS）では押しても何も起きないため、checkbox
+                    // と同様にネイティブ `disabled` で操作不能であることを
+                    // 構造的に表現する（Codex #2979 指摘の是正。`steps::trigger`
+                    // を避けた理由と同型）。checkbox と異なり見た目の減衰
+                    // （既定 `disabled_declarations()`）はあえて中和しない。
+                    disabled: true,
                     ..ButtonProps::default()
                 },
                 vec![],
@@ -328,14 +334,23 @@ pub const BLOCK: Block = Block {
 ///   「先頭の未完了タスクだけ展開」節参照）。
 /// - 完了タスクの取り消し線・checkbox の disabled 中和は
 ///   モジュール冒頭「checkbox をネイティブ `disabled` にする理由」節参照。
+///   取り消し線セレクタは本 block の `[data-blocks-onboarding-checklist-steps]`
+///   祖先スコープ必須（`assets/blocks.css` が全 block ページで読み込まれる
+///   ため、祖先スコープを欠くと他ページの完了 `steps` アイテムへ漏れて
+///   適用される。Cursor Bugbot #2979 指摘の是正）。
+/// - `.blocks-onboarding-checklist-task-body` の `justify-content:
+///   space-between` は `align-self: stretch` を伴わせる（親 `steps::item` が
+///   `align-items: flex-start`〔column 軸〕のため、指定しないとコンテンツ
+///   ボックスが shrink-wrap して余白が生まれず space-between が効かない。
+///   Cursor Bugbot #2979 指摘の是正）。
 const LAYOUT_CSS: &str = "\
 .blocks-onboarding-checklist-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-onboarding-checklist;\n}\n\
 .blocks-onboarding-checklist-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"steps\"][data-part=\"root\"][data-orientation=\"vertical\"][data-blocks-onboarding-checklist-steps] {\n  flex-direction: column;\n}\n\
 [data-blocks-onboarding-checklist-steps] [data-scope=\"steps\"][data-part=\"item\"] {\n  border-top: 1px solid var(--fandhe-color-border);\n  padding-block: var(--fandhe-space-3);\n}\n\
-[data-scope=\"steps\"][data-part=\"item\"][data-complete] [data-scope=\"checkbox\"][data-part=\"label\"] {\n  text-decoration: line-through;\n  color: var(--fandhe-color-fg-muted);\n}\n\
+[data-blocks-onboarding-checklist-steps] [data-scope=\"steps\"][data-part=\"item\"][data-complete] [data-scope=\"checkbox\"][data-part=\"label\"] {\n  text-decoration: line-through;\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-onboarding-checklist-task][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-.blocks-onboarding-checklist-task-body {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  padding-inline-start: calc(var(--fandhe-steps-indicator-size, 2rem) + var(--fandhe-space-2));\n}\n\
+.blocks-onboarding-checklist-task-body {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  align-self: stretch;\n  gap: var(--fandhe-space-4);\n  padding-inline-start: calc(var(--fandhe-steps-indicator-size, 2rem) + var(--fandhe-space-2));\n}\n\
 @container blocks-onboarding-checklist (max-width: 32rem) {\n  \
 .blocks-onboarding-checklist-task-body {\n    flex-direction: column;\n  }\n\
 }\n";
@@ -394,6 +409,27 @@ mod tests {
         assert!(!html.contains("href=\"#\""));
         assert!(!html.contains("<script"));
         assert!(!html.contains("src=\"data:"));
+    }
+
+    /// 静的デモの実行ボタンは無 JS では押しても何も起きないため、
+    /// ネイティブ `disabled` で操作不能であることを構造的に表現する
+    /// （Codex #2979 指摘の是正）。全 3 個の実行ボタンが対象。
+    #[test]
+    fn start_buttons_are_disabled() {
+        let html = demo_html();
+        let button_tags: Vec<&str> = html
+            .split("<button data-scope=\"button\"")
+            .skip(1)
+            .collect();
+        assert_eq!(button_tags.len(), 3, "expected 3 start buttons");
+        for tag in button_tags {
+            let end = tag.find('>').expect("button tag must close");
+            let open_tag = &tag[..end];
+            assert!(
+                open_tag.contains(r#"disabled="""#) && open_tag.contains(r#"aria-disabled="true""#),
+                "start button must be natively disabled: {open_tag}"
+            );
+        }
     }
 
     #[test]

@@ -145,6 +145,12 @@ fn task_body(steps: &Steps, index: usize, title: &'static str, description: &'st
             button::button(
                 &ButtonProps {
                     size: Size::Sm,
+                    // 静的デモ（無 JS）では押しても何も起きないため、checkbox
+                    // と同様にネイティブ `disabled` で操作不能であることを
+                    // 構造的に表現する（Codex #2979 指摘の是正。`steps::trigger`
+                    // を避けた理由と同型）。checkbox と異なり見た目の減衰
+                    // （既定 `disabled_declarations()`）はあえて中和しない。
+                    disabled: true,
                     ..ButtonProps::default()
                 },
                 vec![],
