@@ -1047,6 +1047,7 @@ pub enum LayoutCss {
 | onboarding-centered-steps | #2978（親 #2951） | `application/onboarding/onboarding_centered_steps.rs` |
 | onboarding-split-image | #2980（親 #2951） | `application/onboarding/onboarding_split_image.rs` |
 | settings-billing-overview | #2984 | `application/settings/settings_billing_overview.rs` |
+| settings-billing-usage | #2985 | `application/settings/settings_billing_usage.rs` |
 | settings-integrations-list | #2993（親 #2992） | `application/settings/settings_integrations_list.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
