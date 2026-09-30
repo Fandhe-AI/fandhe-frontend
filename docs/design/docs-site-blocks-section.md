@@ -1052,9 +1052,10 @@ pub enum LayoutCss {
 | settings-billing-usage | #2985 | `application/settings/settings_billing_usage.rs` |
 | settings-api-key-created | #2982（親 #2951） | `application/settings/settings_api_key_created.rs` |
 | settings-integrations-grid | #2991（親 #2951） | `application/settings/settings_integrations_grid.rs` |
-| settings-integrations-list | #2993（親 #2992） | `application/settings/settings_integrations_list.rs` |
+| settings-integrations-list | #2993/#2994（親 #2992） | `application/settings/settings_integrations_list.rs` |
 | settings-integrations-search | #2995（親 #2951） | `application/settings/settings_integrations_search.rs` |
 | settings-item-cards | #2996（親 #2951） | `application/settings/settings_item_cards.rs` |
+| settings-log-table | #2997 | `application/settings/settings_log_table.rs` |
 | settings-notification-matrix | #2998（親 #2951） | `application/settings/settings_notification_matrix.rs` |
 | settings-org-switcher | #2999（親 #2951） | `application/settings/settings_org_switcher.rs` |
 | settings-page-tabs | #3007（親 #3006） | `application/settings/settings_page_tabs.rs` |
