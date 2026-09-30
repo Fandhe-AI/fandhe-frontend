@@ -50,6 +50,46 @@ use fandhe_frontend_pre_styled_ui::ColorPalette;
 /// 避けるための方針、`navbar_two_row`/`footer_inline_nav` と同型）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
+/// アプリのナビバー 4 項目のラベルと遷移先。全項目が `REPO` 直下へ揃うと
+/// ラベルと遷移先が食い違う（Codex レビュー指摘、`footer_inline_nav::
+/// NAV_LINKS` と同じ是正）ため、ラベルの意味に対応する実在サブパスへ
+/// 個別に張る。
+const NAVBAR_LINKS: &[(&str, &str, &str)] = &[
+    ("home", "ホーム", REPO),
+    (
+        "projects",
+        "プロジェクト",
+        "https://github.com/Fandhe-AI/fandhe-frontend/projects",
+    ),
+    (
+        "reports",
+        "レポート",
+        "https://github.com/Fandhe-AI/fandhe-frontend/pulse",
+    ),
+    (
+        "settings",
+        "設定",
+        "https://github.com/Fandhe-AI/fandhe-frontend/settings",
+    ),
+];
+
+/// 左ナビ（設定項目）5 件のラベルと遷移先。GitHub の実在する設定系ページ
+/// （`github.com/settings/*`）へラベルの意味を合わせる。「プロフィール」は
+/// 現在項目（`aria-current="page"`）だが、他項目と区別が付く実在 URL
+/// （アカウントプロフィール設定）を割り当てる（Codex レビュー指摘: 全項目
+/// が `REPO` へ遷移し現在項目まで別サイトへ飛ぶ状態の是正）。
+const ASIDE_NAV_LINKS: &[(&str, &str, bool)] = &[
+    ("プロフィール", "https://github.com/settings/profile", true),
+    ("アカウント", "https://github.com/settings/security", false),
+    ("プラン", "https://github.com/settings/billing", false),
+    ("通知", "https://github.com/settings/notifications", false),
+    (
+        "危険な操作",
+        "https://github.com/Fandhe-AI/fandhe-frontend/settings",
+        false,
+    ),
+];
+
 /// フィールド id の共通接頭辞を付ける小さなヘルパ（綴り間違い防止、
 /// `contact_centered_form::field_id` と同型）。
 fn field_id(suffix: &str) -> String {
@@ -77,15 +117,9 @@ fn username_group_props() -> InputGroupProps {
 /// 4 件のみ。モジュール doc「構成」節 1.）。
 fn app_navbar() -> Node {
     let props = NavigationMenuProps::default();
-    let items: Vec<(&str, &str)> = vec![
-        ("home", "ホーム"),
-        ("projects", "プロジェクト"),
-        ("reports", "レポート"),
-        ("settings", "設定"),
-    ];
-    let children: Vec<Node> = items
-        .into_iter()
-        .map(|(value, label)| {
+    let children: Vec<Node> = NAVBAR_LINKS
+        .iter()
+        .map(|(value, label, href)| {
             navigation_menu::item(
                 OpenState::Closed,
                 false,
@@ -93,10 +127,10 @@ fn app_navbar() -> Node {
                 value,
                 vec![],
                 vec![navigation_menu::link(
-                    REPO,
+                    href,
                     false,
                     vec![],
-                    vec![text(label)],
+                    vec![text(*label)],
                 )],
             )
         })
@@ -166,19 +200,12 @@ fn page_heading(name: &'static str, email: &'static str) -> Node {
 /// 現在項目（`aria-current="page"`）とする
 /// （`footer_inline_nav::primary_nav` と同型のリンク列組み立て）。
 fn aside_nav() -> Node {
-    let items: Vec<(&str, bool)> = vec![
-        ("プロフィール", true),
-        ("アカウント", false),
-        ("プラン", false),
-        ("通知", false),
-        ("危険な操作", false),
-    ];
-    let children: Vec<Node> = items
-        .into_iter()
-        .map(|(label, current)| {
+    let children: Vec<Node> = ASIDE_NAV_LINKS
+        .iter()
+        .map(|(label, href, current)| {
             nav_list::item(
                 vec![],
-                vec![nav_list::link(REPO, current, vec![], vec![text(label)])],
+                vec![nav_list::link(href, *current, vec![], vec![text(*label)])],
             )
         })
         .collect();
@@ -291,12 +318,14 @@ fn profile_card() -> Node {
                                     &timezone,
                                     vec![],
                                     vec![
+                                        // Asia/Tokyo は夏時間を持たないため固定オフセット表記で
+                                        // 通年正しいが、Europe/London・America/New_York は夏時間で
+                                        // オフセットが変動する（London: UTC+0/+1、New_York:
+                                        // UTC-5/-4）ため固定オフセットを付けない
+                                        // （Codex レビュー指摘: 通年不正確な固定表記の是正）。
                                         select_option("Asia/Tokyo", "Asia/Tokyo（UTC+9）"),
-                                        select_option("Europe/London", "Europe/London（UTC+0）"),
-                                        select_option(
-                                            "America/New_York",
-                                            "America/New_York（UTC-5）",
-                                        ),
+                                        select_option("Europe/London", "Europe/London"),
+                                        select_option("America/New_York", "America/New_York"),
                                     ],
                                 ),
                             ],
