@@ -260,14 +260,14 @@ fn member_row(index: usize, name: &'static str, email: String, perm_selected: us
             div(
                 vec![("data-blocks-settings-share-members-perm", "")],
                 vec![
-                    select::label(
-                        &SelectProps {
-                            disabled: true,
-                            ..SelectProps::default()
-                        },
-                        Some(label_id.as_str()),
+                    fandhe_frontend_pre_styled_ui::visually_hidden::root(
                         vec![],
-                        vec![fandhe_frontend_pre_styled_ui::visually_hidden::root(
+                        vec![select::label(
+                            &SelectProps {
+                                disabled: true,
+                                ..SelectProps::default()
+                            },
+                            Some(label_id.as_str()),
                             vec![],
                             vec![text("権限")],
                         )],
@@ -328,9 +328,16 @@ fn share_link_section() -> Node {
                     vec![],
                     vec![
                         clipboard::input(value, false, vec![("id", input_id)]),
+                        // headless `clipboard::trigger` は disabled 引数・`data-disabled`
+                        // 出力を持たないため、ネイティブ `disabled` 属性を `attrs` 経由で
+                        // 直接付与する（`form_layout_property_panel` の C 版クリップボードと
+                        // 同じ手段。減光 CSS は [`LAYOUT_CSS`] のブロック固有セレクタが担う）。
                         clipboard::trigger(
                             false,
-                            vec![],
+                            vec![
+                                ("disabled", ""),
+                                ("data-blocks-settings-share-members-copy-trigger", ""),
+                            ],
                             vec![
                                 clipboard::indicator(false, false, vec![], vec![text("コピー")]),
                                 clipboard::indicator(true, false, vec![], vec![text("コピー済み")]),

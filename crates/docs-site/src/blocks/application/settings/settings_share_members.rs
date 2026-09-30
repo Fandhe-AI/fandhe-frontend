@@ -39,11 +39,16 @@
 //! メール招待の「招待」ボタンは `input-group` の addon ボタンであり
 //! `clipboard` scope の外側にあるため送信処理を持たない（`disabled: true`
 //! で押下不能を明示、`hero_install_command::instance_b` と同型の判断）。
-//! 一方、共有リンクの `clipboard::root`/`control`/`input`/`trigger` は
+//! 共有リンクの `clipboard::root`/`control`/`input`/`trigger` も、本
+//! block は無 JS の docs サイトでは押しても無反応であることを共有範囲
+//! select・招待ボタンと同じ基準で明示する（実アプリへ組み込めば
 //! `fandhe-frontend-wasm-full` の `headless_clipboard` 配線が
-//! `mount`/`hydrate` 時に自動で `navigator.clipboard.writeText` を配線する
-//! ため、実アプリへ組み込めばコピー操作は実際に機能する（無 JS の docs
-//! サイト自体では他の全部品と同じく静的表示に留まる）。
+//! `mount`/`hydrate` 時にコピー操作を機能させる）。headless
+//! `clipboard::trigger` は disabled 引数・`data-disabled` 出力を持たない
+//! ため、`form_layout_property_panel` の C 版クリップボードと同じ手段
+//! （ネイティブ `disabled` 属性 + block 固有 class スコープの `:disabled`
+//! 減光 CSS）で操作不能を明示する（[`LAYOUT_CSS`] 参照、PR #3455
+//! コードレビュー是正）。
 //!
 //! # `id`/ARIA の一意性
 //!
@@ -324,14 +329,14 @@ fn member_row(index: usize, name: &'static str, email: String, perm_selected: us
             div(
                 vec![("data-blocks-settings-share-members-perm", "")],
                 vec![
-                    select::label(
-                        &SelectProps {
-                            disabled: true,
-                            ..SelectProps::default()
-                        },
-                        Some(label_id.as_str()),
+                    fandhe_frontend_pre_styled_ui::visually_hidden::root(
                         vec![],
-                        vec![fandhe_frontend_pre_styled_ui::visually_hidden::root(
+                        vec![select::label(
+                            &SelectProps {
+                                disabled: true,
+                                ..SelectProps::default()
+                            },
+                            Some(label_id.as_str()),
                             vec![],
                             vec![text("権限")],
                         )],
@@ -392,9 +397,16 @@ fn share_link_section() -> Node {
                     vec![],
                     vec![
                         clipboard::input(value, false, vec![("id", input_id)]),
+                        // headless `clipboard::trigger` は disabled 引数・`data-disabled`
+                        // 出力を持たないため、ネイティブ `disabled` 属性を `attrs` 経由で
+                        // 直接付与する（`form_layout_property_panel` の C 版クリップボードと
+                        // 同じ手段。減光 CSS は [`LAYOUT_CSS`] のブロック固有セレクタが担う）。
                         clipboard::trigger(
                             false,
-                            vec![],
+                            vec![
+                                ("disabled", ""),
+                                ("data-blocks-settings-share-members-copy-trigger", ""),
+                            ],
                             vec![
                                 clipboard::indicator(false, false, vec![], vec![text("コピー")]),
                                 clipboard::indicator(true, false, vec![], vec![text("コピー済み")]),
@@ -502,6 +514,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-share-members-member {\n  display: grid;\n  grid-template-columns: auto 1fr auto;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-settings-share-members-identity {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
 [data-scope=\"select\"][data-part=\"trigger\"][data-blocks-settings-share-members-select][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"clipboard\"][data-part=\"trigger\"][data-blocks-settings-share-members-copy-trigger]:disabled {\n  opacity: 0.5;\n  cursor: not-allowed;\n}\n\
 @container blocks-settings-share-members (max-width: 36rem) {\n  \
 .blocks-settings-share-members-member {\n    grid-template-columns: auto 1fr;\n  }\n  \
 [data-blocks-settings-share-members-perm] {\n    grid-column: 2;\n  }\n\
