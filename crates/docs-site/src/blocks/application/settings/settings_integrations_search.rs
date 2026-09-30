@@ -223,7 +223,7 @@ fn integration_card(integration: &Integration) -> Node {
                     } else {
                         button::button(
                             &ButtonProps::default(),
-                            vec![("aria-label", &format!("{} と接続", integration.name))],
+                            vec![("aria-label", &format!("{} と接続する", integration.name))],
                             vec![text("接続する")],
                         )
                     },
