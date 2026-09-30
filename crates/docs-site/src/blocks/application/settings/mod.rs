@@ -16,6 +16,7 @@ mod settings_api_key_created;
 mod settings_billing_overview;
 mod settings_billing_usage;
 mod settings_event_accordion;
+mod settings_integrations_list;
 
 use crate::blocks::Block;
 
@@ -25,5 +26,6 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_billing_overview::BLOCK,
         settings_billing_usage::BLOCK,
         settings_event_accordion::BLOCK,
+        settings_integrations_list::BLOCK,
     ]
 }
