@@ -2367,6 +2367,14 @@ source = "site/blocks/command-palette-preview.md"
 path = "/blocks/command-palette-preview/"
 
 [[section.group]]
+title = "Onboarding"
+
+[[section.group.page]]
+title = "onboarding-centered-steps"
+source = "site/blocks/onboarding-centered-steps.md"
+path = "/blocks/onboarding-centered-steps/"
+
+[[section.group]]
 title = "Card"
 
 [[section.group.page]]
