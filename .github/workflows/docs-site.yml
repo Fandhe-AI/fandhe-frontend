@@ -549,6 +549,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/order-tracking-progress/index.html"
           # Ecommerce / Reviews
           # Ecommerce / Store Nav
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/store-nav-centered-logo/index.html"
           # Ecommerce / Incentives
           # Ecommerce / Promo
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-collection-cards/index.html"

@@ -1,8 +1,9 @@
 //! Ecommerce / Product Overview カテゴリの block 登録点（イシュー #2734 で
-//! 雛形新設。イシュー #3068（親 #3067）で最初の block
-//! （`product-overview-gallery-split`）を、イシュー #3074（親 #3073）で
-//! 2 件目の block（[`product_overview_tabs_below`]）をそれぞれ追加し
-//! ディレクトリ化して卒業した。手順は
+//! 雛形新設。イシュー #3074（親 #3073、前半）で最初の block
+//! （[`product_overview_tabs_below`]）を追加しディレクトリ化して卒業し、
+//! 残り領域・状態表示・原案差分メモの仕上げは後半イシュー #3075 で仕上げ済み。
+//! イシュー #3068（親 #3067）で 2 件目の block
+//! （`product-overview-gallery-split`）を追加した。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
