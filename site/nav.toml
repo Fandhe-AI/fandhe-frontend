@@ -2318,6 +2318,11 @@ source = "site/blocks/settings-api-key-created.md"
 path = "/blocks/settings-api-key-created/"
 
 [[section.group.page]]
+title = "settings-api-keys-table"
+source = "site/blocks/settings-api-keys-table.md"
+path = "/blocks/settings-api-keys-table/"
+
+[[section.group.page]]
 title = "settings-billing-overview"
 source = "site/blocks/settings-billing-overview.md"
 path = "/blocks/settings-billing-overview/"
@@ -2331,6 +2336,11 @@ path = "/blocks/settings-billing-usage/"
 title = "settings-event-accordion"
 source = "site/blocks/settings-event-accordion.md"
 path = "/blocks/settings-event-accordion/"
+
+[[section.group.page]]
+title = "settings-integrations-list"
+source = "site/blocks/settings-integrations-list.md"
+path = "/blocks/settings-integrations-list/"
 
 [[section.group.page]]
 title = "settings-integrations-search"
@@ -2434,6 +2444,11 @@ path = "/blocks/onboarding-checklist/"
 title = "onboarding-split-image"
 source = "site/blocks/onboarding-split-image.md"
 path = "/blocks/onboarding-split-image/"
+
+[[section.group.page]]
+title = "onboarding-vertical-steps"
+source = "site/blocks/onboarding-vertical-steps.md"
+path = "/blocks/onboarding-vertical-steps/"
 
 [[section.group]]
 title = "Card"
