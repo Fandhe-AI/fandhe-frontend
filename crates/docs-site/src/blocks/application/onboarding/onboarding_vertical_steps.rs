@@ -94,6 +94,31 @@
 //! ため、詳細度で下回る単独セレクタでは狭幅でも上書きが効かず
 //! `stretch` に切り替わらなかった（Codex #2981 指摘の是正）。
 //!
+//! # 狭幅で `item` が折り返さず題名が潰れる不具合の是正
+//!
+//! `steps` の `item` 既定 CSS（`crates/pre-styled-ui/src/steps.rs`）は
+//! `flex: 1`（= `flex-basis: 0%`）を持つ。狭幅で `list` を
+//! `flex-wrap: wrap` に切り替えても、折り返し判定に使う各 `item` の
+//! 仮定主寸法（flex-basis）が 0 のままだと、ブラウザは 4 件すべてが
+//! 1 行に収まると判定してから `flex-grow` で残り幅を均等分配するため、
+//! 実際には折り返さず題名だけが極端に細く潰れる（Codex #2981 指摘）。
+//! `@container` 内で `item` に `flex: 1 1 10rem; min-width: 10rem;` を
+//! 上書きし、仮定主寸法を実寸に近づけて折り返し判定を機能させる
+//! （セレクタは `[data-blocks-onboarding-vertical-steps-root]
+//! [data-scope="steps"][data-part="item"]` の詳細度 (0,3,0) で `item`
+//! 既定 CSS の (0,2,0) を上回る）。
+//!
+//! # 狭幅の `root` `gap` 上書きが効かない不具合の是正
+//!
+//! [`LAYOUT_CSS`] 冒頭の `root` 用ルール（`gap: var(--fandhe-space-8)`）は
+//! 元は `[data-blocks-onboarding-vertical-steps-root]` 単独（詳細度
+//! (0,1,0)）で書かれており、`steps` `root` 既定 CSS の `gap:
+//! var(--fandhe-space-4)`（`[data-scope="steps"][data-part="root"]`、
+//! 詳細度 (0,2,0)）に負けて `list`/`body` の間隔が縮まったままになって
+//! いた（Cursor Bugbot #2981 指摘）。上記「`align-items` 上書き」と同じ
+//! 理由でカスケード順にも頼れないため、`data-scope`/`data-part` を連結
+//! した詳細度 (0,3,0) のセレクタへ書き換えて確実に上回るようにする。
+//!
 //! # ダミー素材について
 //!
 //! ステップの題名・見出し・説明文はすべて独自の架空ダミーであり、実企業名・
@@ -296,7 +321,7 @@ pub const BLOCK: Block = Block {
 /// LAYOUT_CSS` doc「block 固有 CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-onboarding-vertical-steps-stack {\n  container-type: inline-size;\n  container-name: blocks-onboarding-vertical-steps;\n}\n\
-[data-blocks-onboarding-vertical-steps-root] {\n  gap: var(--fandhe-space-8);\n  align-items: flex-start;\n}\n\
+[data-blocks-onboarding-vertical-steps-root][data-scope=\"steps\"][data-part=\"root\"] {\n  gap: var(--fandhe-space-8);\n  align-items: flex-start;\n}\n\
 [data-blocks-onboarding-vertical-steps-root] > [data-scope=\"steps\"][data-part=\"list\"] {\n  flex: 0 0 16rem;\n}\n\
 [data-blocks-onboarding-vertical-steps-root] > [data-scope=\"steps\"][data-part=\"body\"] {\n  flex: 1 1 0;\n  min-width: 0;\n}\n\
 [data-blocks-onboarding-vertical-steps-root] [data-scope=\"steps\"][data-part=\"content\"] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
@@ -306,6 +331,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-onboarding-vertical-steps-root][data-scope=\"steps\"][data-part=\"root\"][data-orientation=\"vertical\"] {\n    align-items: stretch;\n  }\n  \
 [data-scope=\"steps\"][data-part=\"root\"][data-orientation=\"vertical\"] {\n    flex-direction: column;\n  }\n  \
 [data-blocks-onboarding-vertical-steps-root] > [data-scope=\"steps\"][data-part=\"list\"] {\n    flex-basis: auto;\n    flex-direction: row;\n    flex-wrap: wrap;\n  }\n  \
+[data-blocks-onboarding-vertical-steps-root] [data-scope=\"steps\"][data-part=\"item\"] {\n    flex: 1 1 10rem;\n    min-width: 10rem;\n  }\n  \
 [data-scope=\"steps\"][data-part=\"separator\"] {\n    display: none;\n  }\n\
 }\n";
 
@@ -465,5 +491,30 @@ mod tests {
             search_from = end;
         }
         assert_eq!(count, STEP_TITLES.len());
+    }
+
+    #[test]
+    fn narrow_container_item_gets_basis_so_it_can_wrap_per_item() {
+        // `item` 既定は `flex: 1`（flex-basis 0%）のため、`list` を
+        // `flex-wrap: wrap` にしただけでは折り返し判定が機能せず
+        // 4 件が 1 行に押し込まれて題名が潰れる（PR #3433 Codex 指摘の
+        // 是正）。狭幅では実寸に近い flex-basis/min-width を与え、
+        // item 単位で折り返させる。詳細度 (0,3,0) が item 既定
+        // （詳細度 (0,2,0)）を確実に上回ることも固定する。
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-onboarding-vertical-steps-root] [data-scope=\"steps\"][data-part=\"item\"] {\n    flex: 1 1 10rem;\n    min-width: 10rem;\n  }"
+        ));
+    }
+
+    #[test]
+    fn root_gap_override_beats_steps_root_default_specificity() {
+        // root の gap 上書き（`var(--fandhe-space-8)`）が単独属性セレクタ
+        // （詳細度 (0,1,0)）のままだと steps root 既定の gap（詳細度
+        // (0,2,0)）に負けて縮まったままになる（PR #3433 Cursor Bugbot
+        // 指摘の是正）。`data-scope`/`data-part` を連結した詳細度
+        // (0,3,0) へ後退させない回帰防止。
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-onboarding-vertical-steps-root][data-scope=\"steps\"][data-part=\"root\"] {\n  gap: var(--fandhe-space-8);"
+        ));
     }
 }
