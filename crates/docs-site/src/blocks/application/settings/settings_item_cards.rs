@@ -31,9 +31,11 @@
 //!
 //! [`LAYOUT_CSS`] は `.blocks-settings-item-cards-row` を既定 2 列
 //! （アイコン列・本文列）とし、操作ボタンを本文列の下（`grid-column: 2`）に
-//! 置く。`min-width: 40rem` 以上で 3 列（アイコン・本文・操作）へ切り替え、
-//! 操作ボタンを右端（`grid-column: auto`）へ戻す（`card_meta_cta` 系と
-//! 同型のブレークポイント判断）。
+//! 置く。コンテナ幅 `min-width: 40rem` 以上で 3 列（アイコン・本文・操作）へ
+//! 切り替え、操作ボタンを右端（`grid-column: auto`）へ戻す。判定は
+//! `@media`（ビューポート基準）ではなく `@container`（`.docs-content` の
+//! デモ枠自体の幅基準、`settings_billing_overview` 系と同型）で行う
+//! （Bugbot 指摘対応）。
 //!
 //! # 装飾アイコンと a11y
 //!
@@ -122,13 +124,16 @@ fn laptop_icon() -> Node {
 }
 
 /// 設定対象カード 1 枚分のデータ（アイコン・題名・説明・状態バッジ・
-/// 操作ボタン）。
+/// 操作ボタン）。`action_aria_label` は同名の操作ボタン（「編集」「終了」等）
+/// が複数カードに重複するため、対象を含む読み上げ名（例:「管理者を編集」）を
+/// 個別に持たせる（P1 指摘対応、AGENTS.md UI a11y 観点2）。
 struct SettingItem {
     icon: fn() -> Node,
     title: &'static str,
     description: &'static str,
     badge: Option<(&'static str, BadgeVariant, ColorPalette)>,
     action_label: &'static str,
+    action_aria_label: &'static str,
     action_variant: ButtonVariant,
     action_palette: ColorPalette,
 }
@@ -161,39 +166,48 @@ fn item_card(item: &SettingItem) -> Node {
         CardProps::default(),
         vec![("data-blocks-settings-item-cards-card", "")],
         vec![card::body(
-            vec![("class", "blocks-settings-item-cards-row")],
-            vec![
-                (item.icon)(),
-                div(
-                    vec![("class", "blocks-settings-item-cards-body")],
-                    vec![
-                        div(
-                            vec![("class", "blocks-settings-item-cards-title-line")],
-                            title_line,
-                        ),
-                        styled_text::text(
-                            &TextProps {
-                                variant: TextVariant::Muted,
-                                ..TextProps::default()
+            vec![],
+            vec![div(
+                // `card::body` は `[data-scope="card"][data-part="body"]`
+                // （属性セレクタ 2 個、詳細度 0,2,0）で `display: flex;
+                // flex-direction: column` を既定持ちしており、`class`
+                // 1 個（詳細度 0,1,0）のグリッド化は詳細度で負けて
+                // 適用されない（Bugbot 指摘）。そのため body 直下へ
+                // 素の `div` を 1 枚はさみ、グリッド化はそちらへ適用する。
+                vec![("class", "blocks-settings-item-cards-row")],
+                vec![
+                    (item.icon)(),
+                    div(
+                        vec![("class", "blocks-settings-item-cards-body")],
+                        vec![
+                            div(
+                                vec![("class", "blocks-settings-item-cards-title-line")],
+                                title_line,
+                            ),
+                            styled_text::text(
+                                &TextProps {
+                                    variant: TextVariant::Muted,
+                                    ..TextProps::default()
+                                },
+                                vec![],
+                                vec![text(item.description)],
+                            ),
+                        ],
+                    ),
+                    div(
+                        vec![("class", "blocks-settings-item-cards-action")],
+                        vec![button(
+                            &ButtonProps {
+                                variant: item.action_variant,
+                                palette: item.action_palette,
+                                ..ButtonProps::default()
                             },
-                            vec![],
-                            vec![text(item.description)],
-                        ),
-                    ],
-                ),
-                div(
-                    vec![("class", "blocks-settings-item-cards-action")],
-                    vec![button(
-                        &ButtonProps {
-                            variant: item.action_variant,
-                            palette: item.action_palette,
-                            ..ButtonProps::default()
-                        },
-                        vec![],
-                        vec![text(item.action_label)],
-                    )],
-                ),
-            ],
+                            vec![("aria-label", item.action_aria_label)],
+                            vec![text(item.action_label)],
+                        )],
+                    ),
+                ],
+            )],
         )],
     )
 }
@@ -206,6 +220,7 @@ const AUTH_METHOD_ITEMS: &[SettingItem] = &[
         description: "サインイン時に使うパスワードです。",
         badge: Some(("有効", BadgeVariant::Subtle, ColorPalette::Success)),
         action_label: "変更",
+        action_aria_label: "パスワードを変更",
         action_variant: ButtonVariant::Outline,
         action_palette: ColorPalette::Accent,
     },
@@ -215,6 +230,7 @@ const AUTH_METHOD_ITEMS: &[SettingItem] = &[
         description: "ワンタイムコードによる 2 段階認証です。",
         badge: Some(("未設定", BadgeVariant::Outline, ColorPalette::Warning)),
         action_label: "設定する",
+        action_aria_label: "認証アプリを設定する",
         action_variant: ButtonVariant::Solid,
         action_palette: ColorPalette::Accent,
     },
@@ -224,6 +240,7 @@ const AUTH_METHOD_ITEMS: &[SettingItem] = &[
         description: "物理キーによる 2 段階認証です。",
         badge: Some(("未設定", BadgeVariant::Outline, ColorPalette::Warning)),
         action_label: "追加する",
+        action_aria_label: "セキュリティキーを追加する",
         action_variant: ButtonVariant::Solid,
         action_palette: ColorPalette::Accent,
     },
@@ -237,6 +254,7 @@ const ROLE_ITEMS: &[SettingItem] = &[
         description: "請求・メンバー管理を含む全操作が可能です。",
         badge: None,
         action_label: "編集",
+        action_aria_label: "管理者を編集",
         action_variant: ButtonVariant::Outline,
         action_palette: ColorPalette::Accent,
     },
@@ -246,6 +264,7 @@ const ROLE_ITEMS: &[SettingItem] = &[
         description: "コンテンツの作成・更新が可能です。",
         badge: None,
         action_label: "編集",
+        action_aria_label: "編集者を編集",
         action_variant: ButtonVariant::Outline,
         action_palette: ColorPalette::Accent,
     },
@@ -255,6 +274,7 @@ const ROLE_ITEMS: &[SettingItem] = &[
         description: "閲覧のみが可能です。",
         badge: None,
         action_label: "編集",
+        action_aria_label: "閲覧者を編集",
         action_variant: ButtonVariant::Outline,
         action_palette: ColorPalette::Accent,
     },
@@ -269,6 +289,7 @@ const SESSION_ITEMS: &[SettingItem] = &[
         description: "最終アクセス：たった今",
         badge: Some(("このデバイス", BadgeVariant::Subtle, ColorPalette::Info)),
         action_label: "終了",
+        action_aria_label: "東京 / ブラウザのセッションを終了",
         action_variant: ButtonVariant::Outline,
         action_palette: ColorPalette::Danger,
     },
@@ -278,6 +299,7 @@ const SESSION_ITEMS: &[SettingItem] = &[
         description: "最終アクセス：2 時間前",
         badge: None,
         action_label: "終了",
+        action_aria_label: "大阪 / モバイルアプリのセッションを終了",
         action_variant: ButtonVariant::Outline,
         action_palette: ColorPalette::Danger,
     },
@@ -287,6 +309,7 @@ const SESSION_ITEMS: &[SettingItem] = &[
         description: "最終アクセス：3 日前",
         badge: None,
         action_label: "終了",
+        action_aria_label: "福岡 / ブラウザのセッションを終了",
         action_variant: ButtonVariant::Outline,
         action_palette: ColorPalette::Danger,
     },
@@ -387,14 +410,26 @@ pub const BLOCK: Block = Block {
 /// ルート class（`-layout`）は [`Block::demo_class`]
 /// （`blocks-settings-item-cards`）と意図的に別名にする（`card_meta_cta`
 /// と同じ Bugbot 教訓の回避）。
+///
+/// # 狭幅判定はコンテナクエリ（ビューポート基準にしない）
+///
+/// `.blocks-settings-item-cards-row` の 2〜3 列切り替えは `.docs-content` の
+/// デモ枠自体の幅で判定する必要があり、ページ全体のビューポート幅で判定する
+/// `@media` は「ビューポートは広いがデモ枠は狭い」場合に誤って 3 列化する
+/// （Bugbot 指摘）。`settings_billing_overview`・`profile_detail_datalist` と
+/// 同型の `container-type: inline-size` をルート（`-layout`）へ宣言し、
+/// `.blocks-settings-item-cards-row` の切り替えは `@container` で判定する。
 const LAYOUT_CSS: &str = "\
 .blocks-settings-item-cards {\n  padding: 3rem 1.5rem;\n}\n\
-.blocks-settings-item-cards-layout {\n  display: grid;\n  gap: var(--fandhe-space-8);\n  max-width: 48rem;\n}\n\
+.blocks-settings-item-cards-layout {\n  display: grid;\n  gap: var(--fandhe-space-8);\n  max-width: 48rem;\n  container-type: inline-size;\n  container-name: blocks-settings-item-cards;\n}\n\
 .blocks-settings-item-cards-toolbar {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-3);\n  flex-wrap: wrap;\n  margin-bottom: var(--fandhe-space-3);\n}\n\
 .blocks-settings-item-cards-list {\n  display: grid;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-settings-item-cards-row {\n  display: grid;\n  grid-template-columns: auto 1fr;\n  gap: var(--fandhe-space-3);\n  align-items: start;\n}\n\
 .blocks-settings-item-cards-action {\n  grid-column: 2;\n}\n\
-@media (min-width: 40rem) {\n  .blocks-settings-item-cards-row {\n    grid-template-columns: auto 1fr auto;\n    align-items: center;\n  }\n  .blocks-settings-item-cards-action {\n    grid-column: auto;\n  }\n}\n\
+@container blocks-settings-item-cards (min-width: 40rem) {\n  \
+.blocks-settings-item-cards-row {\n    grid-template-columns: auto 1fr auto;\n    align-items: center;\n  }\n  \
+.blocks-settings-item-cards-action {\n    grid-column: auto;\n  }\n\
+}\n\
 .blocks-settings-item-cards-title-line {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  flex-wrap: wrap;\n}\n";
 
 #[cfg(test)]
@@ -459,13 +494,52 @@ mod tests {
         );
     }
 
-    /// [`LAYOUT_CSS`] が想定するブレークポイント条件・`<` 非混入を持つこと。
+    /// [`LAYOUT_CSS`] が想定するコンテナクエリ条件・`<` 非混入を持つこと
+    /// （ビューポート基準の `@media` ではなく `@container` で判定する契約、
+    /// Bugbot 指摘対応）。
     #[test]
     fn layout_css_moves_action_below_body_on_narrow_width() {
         assert!(!LAYOUT_CSS.contains('<'));
-        assert!(LAYOUT_CSS.contains("@media (min-width: 40rem)"));
+        assert!(!LAYOUT_CSS.contains("@media"));
+        assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
+        assert!(LAYOUT_CSS.contains("container-name: blocks-settings-item-cards;"));
+        assert!(LAYOUT_CSS.contains("@container blocks-settings-item-cards (min-width: 40rem)"));
         assert!(LAYOUT_CSS.contains("grid-column: 2;"));
         assert!(LAYOUT_CSS.contains("grid-column: auto;"));
+    }
+
+    /// `card::body` へグリッド化 class を直接付けていないこと
+    /// （`[data-scope="card"][data-part="body"]` の既定 `display: flex`
+    /// に詳細度で負けて grid が無効化される Bugbot 指摘の再発防止。
+    /// レイアウト用 class は body 直下の素の `div` へ付ける）。
+    #[test]
+    fn row_layout_class_is_not_on_card_body() {
+        let html = demo_html();
+        assert!(!html.contains(
+            "data-scope=\"card\" data-part=\"body\" class=\"blocks-settings-item-cards-row\""
+        ));
+        assert!(html.contains("class=\"blocks-settings-item-cards-row\""));
+    }
+
+    /// 操作ボタンが対象を含む `aria-label` を持ち、同名ラベル
+    /// （「編集」「終了」）の重複下でも読み上げが区別できること
+    /// （P1 指摘対応、AGENTS.md UI a11y 観点2）。
+    #[test]
+    fn action_buttons_have_target_specific_aria_label() {
+        let html = demo_html();
+        for label in [
+            "管理者を編集",
+            "編集者を編集",
+            "閲覧者を編集",
+            "東京 / ブラウザのセッションを終了",
+            "大阪 / モバイルアプリのセッションを終了",
+            "福岡 / ブラウザのセッションを終了",
+        ] {
+            assert!(
+                html.contains(&format!("aria-label=\"{label}\"")),
+                "missing aria-label: {label}"
+            );
+        }
     }
 
     /// ルート class（`-layout`）が `demo_class` と別名であること。

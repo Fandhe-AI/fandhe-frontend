@@ -14,8 +14,12 @@ R0265（ロール一覧 + 新規作成）を集約元とします（`_/blocks-in
 「他のセッションをすべて終了」のツールバー操作ボタンを置き、現在の
 セッションはバッジ（「このデバイス」）で区別しています。
 
-狭い幅では各カードの操作ボタンが本文（題名・説明）の下へ回り、`40rem` 以上
-で右端へ戻ります。本 Demo は無 JS の静的表示のみであり、`<form>` を含みません。
+デモ枠の幅が `40rem` 未満では各カードの操作ボタンが本文（題名・説明）の下へ
+回り、`40rem` 以上で右端へ戻ります（コンテナクエリ判定、ページのビューポート
+幅では判定しません）。操作ボタンは「管理者を編集」「東京 / ブラウザの
+セッションを終了」のように対象を含む `aria-label` を持ち、同名ラベルが
+複数カードに重複しても読み上げで区別できます。本 Demo は無 JS の静的表示の
+みであり、`<form>` を含みません。
 デバイス名・場所・氏名を示す情報はすべて独自に書いた架空のものであり、実在の
 企業・人物・IP アドレス・クレデンシャル・PII を含みません。
 
@@ -84,13 +88,16 @@ fn laptop_icon() -> Node {
 }
 
 /// 設定対象カード 1 枚分のデータ（アイコン・題名・説明・状態バッジ・
-/// 操作ボタン）。
+/// 操作ボタン）。`action_aria_label` は同名の操作ボタン（「編集」「終了」等）
+/// が複数カードに重複するため、対象を含む読み上げ名（例:「管理者を編集」）を
+/// 個別に持たせる（P1 指摘対応、AGENTS.md UI a11y 観点2）。
 struct SettingItem {
     icon: fn() -> Node,
     title: &'static str,
     description: &'static str,
     badge: Option<(&'static str, BadgeVariant, ColorPalette)>,
     action_label: &'static str,
+    action_aria_label: &'static str,
     action_variant: ButtonVariant,
     action_palette: ColorPalette,
 }
@@ -123,39 +130,48 @@ fn item_card(item: &SettingItem) -> Node {
         CardProps::default(),
         vec![("data-blocks-settings-item-cards-card", "")],
         vec![card::body(
-            vec![("class", "blocks-settings-item-cards-row")],
-            vec![
-                (item.icon)(),
-                div(
-                    vec![("class", "blocks-settings-item-cards-body")],
-                    vec![
-                        div(
-                            vec![("class", "blocks-settings-item-cards-title-line")],
-                            title_line,
-                        ),
-                        styled_text::text(
-                            &TextProps {
-                                variant: TextVariant::Muted,
-                                ..TextProps::default()
+            vec![],
+            vec![div(
+                // `card::body` は `[data-scope="card"][data-part="body"]`
+                // （属性セレクタ 2 個、詳細度 0,2,0）で `display: flex;
+                // flex-direction: column` を既定持ちしており、`class`
+                // 1 個（詳細度 0,1,0）のグリッド化は詳細度で負けて
+                // 適用されない（Bugbot 指摘）。そのため body 直下へ
+                // 素の `div` を 1 枚はさみ、グリッド化はそちらへ適用する。
+                vec![("class", "blocks-settings-item-cards-row")],
+                vec![
+                    (item.icon)(),
+                    div(
+                        vec![("class", "blocks-settings-item-cards-body")],
+                        vec![
+                            div(
+                                vec![("class", "blocks-settings-item-cards-title-line")],
+                                title_line,
+                            ),
+                            styled_text::text(
+                                &TextProps {
+                                    variant: TextVariant::Muted,
+                                    ..TextProps::default()
+                                },
+                                vec![],
+                                vec![text(item.description)],
+                            ),
+                        ],
+                    ),
+                    div(
+                        vec![("class", "blocks-settings-item-cards-action")],
+                        vec![button(
+                            &ButtonProps {
+                                variant: item.action_variant,
+                                palette: item.action_palette,
+                                ..ButtonProps::default()
                             },
-                            vec![],
-                            vec![text(item.description)],
-                        ),
-                    ],
-                ),
-                div(
-                    vec![("class", "blocks-settings-item-cards-action")],
-                    vec![button(
-                        &ButtonProps {
-                            variant: item.action_variant,
-                            palette: item.action_palette,
-                            ..ButtonProps::default()
-                        },
-                        vec![],
-                        vec![text(item.action_label)],
-                    )],
-                ),
-            ],
+                            vec![("aria-label", item.action_aria_label)],
+                            vec![text(item.action_label)],
+                        )],
+                    ),
+                ],
+            )],
         )],
     )
 }
@@ -168,6 +184,7 @@ const AUTH_METHOD_ITEMS: &[SettingItem] = &[
         description: "サインイン時に使うパスワードです。",
         badge: Some(("有効", BadgeVariant::Subtle, ColorPalette::Success)),
         action_label: "変更",
+        action_aria_label: "パスワードを変更",
         action_variant: ButtonVariant::Outline,
         action_palette: ColorPalette::Accent,
     },
@@ -177,6 +194,7 @@ const AUTH_METHOD_ITEMS: &[SettingItem] = &[
         description: "ワンタイムコードによる 2 段階認証です。",
         badge: Some(("未設定", BadgeVariant::Outline, ColorPalette::Warning)),
         action_label: "設定する",
+        action_aria_label: "認証アプリを設定する",
         action_variant: ButtonVariant::Solid,
         action_palette: ColorPalette::Accent,
     },
@@ -186,6 +204,7 @@ const AUTH_METHOD_ITEMS: &[SettingItem] = &[
         description: "物理キーによる 2 段階認証です。",
         badge: Some(("未設定", BadgeVariant::Outline, ColorPalette::Warning)),
         action_label: "追加する",
+        action_aria_label: "セキュリティキーを追加する",
         action_variant: ButtonVariant::Solid,
         action_palette: ColorPalette::Accent,
     },
@@ -199,6 +218,7 @@ const ROLE_ITEMS: &[SettingItem] = &[
         description: "請求・メンバー管理を含む全操作が可能です。",
         badge: None,
         action_label: "編集",
+        action_aria_label: "管理者を編集",
         action_variant: ButtonVariant::Outline,
         action_palette: ColorPalette::Accent,
     },
@@ -208,6 +228,7 @@ const ROLE_ITEMS: &[SettingItem] = &[
         description: "コンテンツの作成・更新が可能です。",
         badge: None,
         action_label: "編集",
+        action_aria_label: "編集者を編集",
         action_variant: ButtonVariant::Outline,
         action_palette: ColorPalette::Accent,
     },
@@ -217,6 +238,7 @@ const ROLE_ITEMS: &[SettingItem] = &[
         description: "閲覧のみが可能です。",
         badge: None,
         action_label: "編集",
+        action_aria_label: "閲覧者を編集",
         action_variant: ButtonVariant::Outline,
         action_palette: ColorPalette::Accent,
     },
@@ -231,6 +253,7 @@ const SESSION_ITEMS: &[SettingItem] = &[
         description: "最終アクセス：たった今",
         badge: Some(("このデバイス", BadgeVariant::Subtle, ColorPalette::Info)),
         action_label: "終了",
+        action_aria_label: "東京 / ブラウザのセッションを終了",
         action_variant: ButtonVariant::Outline,
         action_palette: ColorPalette::Danger,
     },
@@ -240,6 +263,7 @@ const SESSION_ITEMS: &[SettingItem] = &[
         description: "最終アクセス：2 時間前",
         badge: None,
         action_label: "終了",
+        action_aria_label: "大阪 / モバイルアプリのセッションを終了",
         action_variant: ButtonVariant::Outline,
         action_palette: ColorPalette::Danger,
     },
@@ -249,6 +273,7 @@ const SESSION_ITEMS: &[SettingItem] = &[
         description: "最終アクセス：3 日前",
         badge: None,
         action_label: "終了",
+        action_aria_label: "福岡 / ブラウザのセッションを終了",
         action_variant: ButtonVariant::Outline,
         action_palette: ColorPalette::Danger,
     },
