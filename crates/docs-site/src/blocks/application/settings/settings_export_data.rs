@@ -9,10 +9,20 @@
 //!
 //! # 使用部品
 //!
-//! `checkbox` / `native-select` / `field` / `button` / `table` / `badge` の
-//! 6 部品を合成する（[`BLOCK`] の `parts` に一致させる契約、
+//! `checkbox` / `native-select` / `field` / `button` / `table` / `badge` /
+//! `heading` の 7 部品を合成する（[`BLOCK`] の `parts` に一致させる契約、
 //! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が
 //! 検証する）。新しい UI 部品は追加しない。
+//!
+//! # 見出しは `heading::heading` で意味づける（`data-scope` 祖先を持たせる）
+//!
+//! 「エクスポート対象」「エクスポート履歴」の見出しを素の `el("h3", ...)`
+//! で出力すると `data-scope` 祖先を持たないため、
+//! `crate::layout::with_heading_anchors` の `h2`/`h3` 収集対象になり、
+//! Demo 見出しが permalink アンカー付与・右目次（`.docs-toc`）へ混入する
+//! （`auth-split-photo-testimonial`〔#3418〕で修正した同種のリーク）。
+//! `heading::heading` は `data-scope="heading"` を持つため同関数の
+//! 「`data-scope` を持つ要素の部分木は収集除外」規則に構造的に乗る。
 //!
 //! # `<form>` を持たない・送信処理を持たない
 //!
@@ -63,6 +73,9 @@ use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState}
 use fandhe_frontend_pre_styled_ui::field::{
     self, FieldIds, FieldOrientation, FieldProps, FieldRootProps,
 };
+use fandhe_frontend_pre_styled_ui::heading::{
+    heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
+};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
@@ -112,8 +125,12 @@ fn export_targets() -> Node {
     div(
         vec![("class", "blocks-settings-export-data-section")],
         vec![
-            el(
-                "h3",
+            heading(
+                HeadingLevel::H3,
+                &HeadingProps {
+                    size: HeadingSize::Lg,
+                    weight: HeadingWeight::Bold,
+                },
                 vec![("id", heading_id)],
                 vec![text("エクスポート対象")],
             ),
@@ -288,7 +305,15 @@ fn history_section() -> Node {
     div(
         vec![("class", "blocks-settings-export-data-section")],
         vec![
-            el("h3", vec![], vec![text("エクスポート履歴")]),
+            heading(
+                HeadingLevel::H3,
+                &HeadingProps {
+                    size: HeadingSize::Lg,
+                    weight: HeadingWeight::Bold,
+                },
+                vec![],
+                vec![text("エクスポート履歴")],
+            ),
             table::scroll_area(
                 vec![],
                 vec![table::root(
@@ -358,6 +383,10 @@ pub const BLOCK: Block = Block {
             label: "Badge",
             path: "/themes/badge/",
         },
+        Part {
+            label: "Heading",
+            path: "/themes/heading/",
+        },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
     demo,
@@ -368,7 +397,7 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-settings-export-data-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n  container-type: inline-size;\n  container-name: blocks-settings-export-data;\n}\n\
 .blocks-settings-export-data-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
-.blocks-settings-export-data-hint {\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-size-sm);\n}\n\
+.blocks-settings-export-data-hint {\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 .blocks-settings-export-data-targets {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-settings-export-data-field] {\n  max-width: 20rem;\n}\n\
 .blocks-settings-export-data-actions {\n  display: flex;\n  gap: var(--fandhe-space-2);\n}\n\
@@ -394,6 +423,7 @@ mod tests {
             "data-scope=\"button\"",
             "data-scope=\"table\"",
             "data-scope=\"badge\"",
+            "data-scope=\"heading\"",
         ] {
             assert!(html.contains(scope), "demo should contain {scope}");
         }
@@ -404,6 +434,25 @@ mod tests {
         assert_eq!(html.matches("<option").count(), 3);
         assert_eq!(html.matches("name=\"export-target\"").count(), 6);
         assert_eq!(html.matches("checked=\"\"").count(), 4);
+    }
+
+    /// 「エクスポート対象」「エクスポート履歴」の見出しが `heading` 部品
+    /// （`data-scope="heading"` を持つ h3）で意味づけられ、素の
+    /// `<h3>`（`data-scope` 祖先を持たない見出し）を出力しないことの単体
+    /// 回帰（Bugbot 指摘対応・`auth-split-photo-testimonial`〔PR #3418〕と
+    /// 同型の TOC 混入回帰固定）。`heading::heading` 自体は h3 タグを
+    /// 出力するため `<h3` の不在ではなく、出現する全 `<h3` が
+    /// `data-scope="heading"` を伴うことを固定する。
+    #[test]
+    fn section_headings_use_heading_part_not_bare_h3() {
+        let html = demo_html();
+        let h3_count = html.matches("<h3").count();
+        assert_eq!(h3_count, 2, "demo should render exactly 2 h3 headings");
+        assert_eq!(
+            html.matches("<h3 data-scope=\"heading\"").count(),
+            h3_count,
+            "every <h3 should carry data-scope=\"heading\" (no bare h3 leaking into the page TOC)"
+        );
     }
 
     #[test]

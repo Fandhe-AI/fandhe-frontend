@@ -3,8 +3,8 @@
 エクスポート対象のチェックボックス一覧・ファイル形式の選択欄・実行ボタンを
 上段に置き、過去のエクスポート履歴テーブル（日時・形式・状態・ダウンロード）
 を下段に並べたデータエクスポート設定ブロックです。`checkbox` /
-`native-select` / `field` / `button` / `table` / `badge` の 6 部品を合成しま
-す。Blocks は既存部品の合成例であり、新しい UI 部品は追加しません。
+`native-select` / `field` / `button` / `table` / `badge` / `heading` の 7 部品を
+合成します。Blocks は既存部品の合成例であり、新しい UI 部品は追加しません。
 
 主参照は対応表 ID R0243（代表構成、集約元 1 件）です。エクスポート対象は
 初期状態でユーザー・プロジェクト・タスク・コメントの 4 件を選択済み、添付
@@ -25,6 +25,9 @@ use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::field::{
     self, FieldIds, FieldOrientation, FieldProps, FieldRootProps,
+};
+use fandhe_frontend_pre_styled_ui::heading::{
+    heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
 };
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps};
@@ -75,8 +78,12 @@ fn export_targets() -> Node {
     div(
         vec![("class", "blocks-settings-export-data-section")],
         vec![
-            el(
-                "h3",
+            heading(
+                HeadingLevel::H3,
+                &HeadingProps {
+                    size: HeadingSize::Lg,
+                    weight: HeadingWeight::Bold,
+                },
                 vec![("id", heading_id)],
                 vec![text("エクスポート対象")],
             ),
@@ -251,7 +258,15 @@ fn history_section() -> Node {
     div(
         vec![("class", "blocks-settings-export-data-section")],
         vec![
-            el("h3", vec![], vec![text("エクスポート履歴")]),
+            heading(
+                HeadingLevel::H3,
+                &HeadingProps {
+                    size: HeadingSize::Lg,
+                    weight: HeadingWeight::Bold,
+                },
+                vec![],
+                vec![text("エクスポート履歴")],
+            ),
             table::scroll_area(
                 vec![],
                 vec![table::root(
@@ -302,4 +317,4 @@ pub fn demo() -> Node {
 関連情報: [Checkbox](../themes/checkbox.md) /
 [Native Select](../themes/native-select.md) / [Field](../themes/field.md) /
 [Button](../themes/button.md) / [Table](../themes/table.md) /
-[Badge](../themes/badge.md)
+[Badge](../themes/badge.md) / [Heading](../themes/heading.md)
