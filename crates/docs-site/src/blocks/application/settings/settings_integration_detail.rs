@@ -485,7 +485,7 @@ const LAYOUT_CSS: &str = "\
 img[data-scope=\"image\"][data-blocks-settings-integration-detail-logo] {\n  width: 3rem;\n  height: 3rem;\n  flex-shrink: 0;\n}\n\
 .blocks-settings-integration-detail-identity {\n  display: flex;\n  flex: 1 1 16rem;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
 .blocks-settings-integration-detail-title-row {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
-.blocks-settings-integration-detail-title-row [data-scope=\"heading\"] {\n  border-top: none;\n  padding-top: 0;\n}\n\
+.blocks-settings-integration-detail-title-row [data-scope=\"heading\"] {\n  border-top: none;\n  padding-top: 0;\n  margin: 0;\n}\n\
 .blocks-settings-integration-detail-identity .blocks-settings-integration-detail-summary {\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-settings-integration-detail-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-2);\n  margin-inline-start: auto;\n}\n\
 .blocks-settings-integration-detail-meta {\n  margin: 0;\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-6);\n}\n\
@@ -560,11 +560,12 @@ mod tests {
 
     /// `.docs-content h2`/`.docs-content p`（`site_theme.rs` の文書タイポグラフィ、
     /// `border-top`/`padding-top`/`margin`）がヘッダー識別行（ロゴ + アプリ名）へ
-    /// 漏れ出さないことを固定する（Bugbot 指摘、PR #3440）。
+    /// 漏れ出さないことを固定する（Bugbot 指摘、PR #3440。`margin` 未解除で
+    /// アプリ名がロゴより下がる回帰は Codex 指摘、PR #3440）。
     #[test]
     fn header_heading_and_summary_override_docs_content_typography() {
         assert!(LAYOUT_CSS.contains(
-            ".blocks-settings-integration-detail-title-row [data-scope=\"heading\"] {\n  border-top: none;\n  padding-top: 0;\n}"
+            ".blocks-settings-integration-detail-title-row [data-scope=\"heading\"] {\n  border-top: none;\n  padding-top: 0;\n  margin: 0;\n}"
         ));
         assert!(LAYOUT_CSS.contains(
             ".blocks-settings-integration-detail-identity .blocks-settings-integration-detail-summary {\n  margin: 0;"
