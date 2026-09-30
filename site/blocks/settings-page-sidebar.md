@@ -1,9 +1,9 @@
 # settings-page-sidebar
 
 アイコン幅へ折りたたみ可能な左サイドバーと、右上のパンくず付きヘッダー、
-本文のタブ + 設定カード（スイッチ行）を持つ設定ページです。`sidebar` /
-`breadcrumb` / `separator` / `tabs` / `card` / `switch` / `button` / `icon`
-の 8 部品を合成します。Blocks は既存部品の合成例であり、新しい UI 部品は
+本文のタブ列 + 設定カード（スイッチ行）を持つ設定ページです。`sidebar` /
+`breadcrumb` / `separator` / `card` / `switch` / `button` / `icon` の 7 部品を
+合成します。Blocks は既存部品の合成例であり、新しい UI 部品は
 追加しません。
 
 イシュー #3004（親 #3003）の前半として、骨格（`provider`/`root`/`inset` の
@@ -17,8 +17,10 @@
 静的に掲示します。デモ枠の幅が `40rem` 未満になると左サイドバーが非表示に
 なり、本文（`inset`）側が全幅になります（コンテナクエリ判定）。設定カードの
 スイッチ 3 行はいずれも操作不能な固定表示（`disabled`）で、初期状態を示す
-のみです。タブは「全般」のみが選択可能で、「メンバー」「通知」のトリガーは
-無 JS のため切り替えられないことを示す `disabled` 固定表示です。
+のみです。保存ボタン・サイドバーのナビ項目・開閉トリガー・rail も、押しても
+何も起きないことが分かる `disabled` の固定表示です。タブ列は無 JS で切り
+替えられないため実物の `tabs` を使わず、block 固有の class で見た目だけを
+模した非対話の表示とし、選択中の「全般」の内容のみを描画します。
 
 主参照は対応表 ID R0659 です（`_/blocks-intake/` の対応ファイルは本
 worktree に存在しないため、対応表 ID のみを記載します）。
@@ -37,7 +39,6 @@ use fandhe_frontend_pre_styled_ui::sidebar::{
     Sidebar, SidebarCollapsible, SidebarMenuButtonProps, SidebarProps, SidebarState,
 };
 use fandhe_frontend_pre_styled_ui::switch::{self, SwitchProps};
-use fandhe_frontend_pre_styled_ui::tabs::{self, ActivationMode, TabItem, TabsProps, TabsVariant};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Orientation, Size};
 
 /// 自作の単純な矩形・幾何アイコン（`sidebar_07::geo_icon` と同型。lucide
@@ -49,6 +50,11 @@ fn geo_icon(path_d: &'static str) -> Node {
         vec![el("path", vec![("d", path_d)], vec![])],
     )
 }
+
+/// 無 JS のため押しても何も起きない sidebar の `<button>`（ナビ項目・
+/// トリガー・rail）へ付ける静的固定表示の属性（codex レビュー指摘 P2 是正、
+/// PR #3450。`order_tracking_progress` と同型の `disabled` + `data-disabled`）。
+const STATIC_BUTTON_ATTRS: [(&str, &str); 2] = [("disabled", ""), ("data-disabled", "")];
 
 /// サイドバー header（ワークスペース名の静的表示。実際のワークスペース
 /// 切替は持たず、`sidebar::menu_button` 1 行のみの表示）。
@@ -66,7 +72,11 @@ fn workspace_header() -> Node {
                         ..Default::default()
                     },
                     Some(geo_icon("M4 4h16v16H4z")),
-                    vec![("aria-label", "Nimbus ワークスペース")],
+                    vec![
+                        ("aria-label", "Nimbus ワークスペース"),
+                        STATIC_BUTTON_ATTRS[0],
+                        STATIC_BUTTON_ATTRS[1],
+                    ],
                     vec![text("Nimbus ワークスペース")],
                 )],
             )],
@@ -111,7 +121,9 @@ const NAV_ITEMS: &[NavItem] = &[
 ];
 
 /// 設定ナビ（`sidebar::group` 1 グループ + `menu_button` 5 件、現在項目は
-/// `active` を立てる）。
+/// `active` を立てる）。遷移先ページを持たない静的な構成例のため、`href`
+/// は付けず全項目を `disabled` の固定表示にする（`href="#"` の死リンクも
+/// 操作可能な空ボタンも出さない。codex レビュー指摘 P2 是正、PR #3450）。
 fn settings_nav(suffix: &str) -> Node {
     let label_id = format!("blocks-settings-page-sidebar-nav-label-{suffix}");
     let items = NAV_ITEMS
@@ -126,7 +138,7 @@ fn settings_nav(suffix: &str) -> Node {
                         ..Default::default()
                     },
                     Some(geo_icon(item.icon_path)),
-                    vec![],
+                    STATIC_BUTTON_ATTRS.to_vec(),
                     vec![text(item.label)],
                 )],
             )
@@ -154,17 +166,30 @@ fn settings_sidebar(state: &Sidebar, props: &SidebarProps, root_id: &str, suffix
         vec![
             workspace_header(),
             sidebar::content(vec![], vec![settings_nav(suffix)]),
-            sidebar::rail(state, "Toggle sidebar rail", vec![], vec![]),
+            sidebar::rail(
+                state,
+                "Toggle sidebar rail",
+                STATIC_BUTTON_ATTRS.to_vec(),
+                vec![],
+            ),
         ],
     )
 }
 
 /// inset 側ヘッダー（トリガー + 縦 separator + breadcrumb 2 階層）。
+/// トリガーは開閉処理を持たないため `disabled` の固定表示にする（開閉の
+/// 2 状態はインスタンスの並置で示す。codex レビュー指摘 P2 是正、PR #3450）。
 fn inset_header(state: &Sidebar, root_id: &str) -> Node {
     div(
         vec![("data-blocks-settings-page-sidebar-header", "")],
         vec![
-            sidebar::trigger(state, "Toggle sidebar", Some(root_id), vec![], vec![]),
+            sidebar::trigger(
+                state,
+                "Toggle sidebar",
+                Some(root_id),
+                STATIC_BUTTON_ATTRS.to_vec(),
+                vec![],
+            ),
             separator::separator(
                 &SeparatorProps {
                     orientation: Orientation::Vertical,
@@ -280,7 +305,8 @@ fn switch_row(row: &SwitchRow, suffix: &str) -> Node {
 }
 
 /// タブ「全般」内の設定カード（見出し + 説明 + スイッチ行 3 件 + フッターの
-/// 保存ボタン）。
+/// 保存ボタン）。スイッチと同じく保存も行わないため、保存ボタンも
+/// `disabled` の固定表示にする（codex レビュー指摘 P2 是正、PR #3450）。
 fn general_settings_card(suffix: &str) -> Node {
     card::root(
         CardProps::default(),
@@ -311,6 +337,7 @@ fn general_settings_card(suffix: &str) -> Node {
                 vec![button(
                     &ButtonProps {
                         variant: ButtonVariant::Solid,
+                        disabled: true,
                         ..ButtonProps::default()
                     },
                     vec![("data-blocks-settings-page-sidebar-save", "")],
@@ -321,61 +348,45 @@ fn general_settings_card(suffix: &str) -> Node {
     )
 }
 
-/// タブ「メンバー」「通知」の暫定内容（#3005 で実データへ差し替え予定の
-/// 静的なメモ、`dashboard_01::short_note` と同型）。
-fn placeholder_tab_note(message: &'static str) -> Node {
-    div(vec![], vec![text(message)])
-}
+/// 静的タブ列のラベル（先頭が選択中の「全般」）。
+const TAB_LABELS: [&str; 3] = ["全般", "メンバー", "通知"];
 
-/// inset 本体（タブ 3 件、先頭タブのみ内容あり。残りタブの内容は #3005）。
+/// inset 本体（静的タブ列 + 選択中タブ「全般」の設定カード）。
 ///
-/// 「メンバー」「通知」は `disabled: true` の静的固定にする（無 JS の
-/// ためタブ切替 JS がなく、`disabled: false` のままでは押しても選択
-/// 状態・パネルが変わらない dead control になる。`table_with_toolbar::
-/// status_tabs`〔Codex レビュー指摘 #3404 是正〕・`notification_tray_tabs`
-/// と同型の判断。codex レビュー指摘 P1 是正、PR #3450）。
+/// 無 JS のため実物の `tabs::tabs` は使わない（未選択パネルへ `hidden` が
+/// 付き、切り替える手段もないため「メンバー」「通知」の内容へ到達できない。
+/// codex レビュー指摘 P1 是正、PR #3450）。`feature_tabs_panel::
+/// static_tab_list` と同型に、block 固有 class のみで見た目を模した非対話の
+/// タブ列（`role`/`tabindex`/`<button>` を持たず、pre-styled-ui の
+/// `data-scope`/`data-part` も流用しない）を `aria-hidden` の装飾として置き、
+/// 選択中パネルの本文だけを描画する。
 fn inset_body(suffix: &str) -> Node {
-    let props = TabsProps {
-        id: &format!("blocks-settings-page-sidebar-tabs-{suffix}"),
-        selected: "general",
-        orientation: Orientation::Horizontal,
-        activation_mode: ActivationMode::Automatic,
-        loop_focus: true,
-        indicator: false,
-    };
-    let items = vec![
-        TabItem {
-            value: "general",
-            trigger: vec![text("全般")],
-            content: vec![general_settings_card(suffix)],
-            disabled: false,
-        },
-        TabItem {
-            value: "members",
-            trigger: vec![text("メンバー")],
-            content: vec![placeholder_tab_note(
-                "メンバー管理は後続で追加する静的な合成例です。",
-            )],
-            disabled: true,
-        },
-        TabItem {
-            value: "notifications",
-            trigger: vec![text("通知")],
-            content: vec![placeholder_tab_note(
-                "通知設定は後続で追加する静的な合成例です。",
-            )],
-            disabled: true,
-        },
-    ];
+    let tabs = TAB_LABELS
+        .iter()
+        .enumerate()
+        .map(|(i, label)| {
+            let state = if i == 0 { "active" } else { "inactive" };
+            div(
+                vec![
+                    ("class", "blocks-settings-page-sidebar-tab"),
+                    ("data-state", state),
+                ],
+                vec![text(*label)],
+            )
+        })
+        .collect();
     div(
         vec![("class", "blocks-settings-page-sidebar-body")],
-        vec![tabs::tabs(
-            TabsVariant::Enclosed,
-            Size::Md,
-            ColorPalette::Accent,
-            &props,
-            items,
-        )],
+        vec![
+            div(
+                vec![
+                    ("class", "blocks-settings-page-sidebar-tablist"),
+                    ("aria-hidden", "true"),
+                ],
+                tabs,
+            ),
+            general_settings_card(suffix),
+        ],
     )
 }
 
@@ -435,16 +446,19 @@ pub fn demo() -> Node {
 - 本イシュー（#3004）は骨格と主要領域のみを対象とし、サイドバー footer の
   ユーザー行 + `menu`・追加の設定カード（通知・危険操作等）・残りタブ
   （メンバー・通知）の内容・狭幅時のキャプション等の状態表示は後半の
-  イシュー #3005 で追加します。`parts` は本 PR で実際に合成した 8 部品
-  （`menu` を含まない）に一致させています。
+  イシュー #3005 で追加します。`parts` は本 PR で実際に合成した 7 部品
+  （`menu`・`tabs` を含まない）に一致させています。
 - `sidebar_07` は狭幅対応に横スクロール（`overflow-x: auto` +
   `min-width: 56rem`）を使いますが、本 block はイシュー要件「狭幅では
   サイドバーを隠す」に従い、コンテナ幅 `40rem` 未満で `provider` の
   直接の子である `root` を非表示にする方式にしています。`display: none`
   にした `root` は DOM 上に実在するため、`sidebar::trigger` の
   `aria-controls` が指す ID は参照切れになりません。
-- タブは 3 件のうち先頭（全般）のみが実際の設定カードを持ち、残り
-  （メンバー・通知）は後続追加を示す静的な短いメモに留めています。
+- タブ列は `feature-tabs-panel` と同じく、pre-styled-ui の `tabs` を
+  使わない静的モック（`aria-hidden` の装飾、`role`/`<button>` なし）です。
+  実物の `tabs` は未選択パネルに `hidden` を付けるため、無 JS では
+  「メンバー」「通知」の内容へ到達できません。選択中の「全般」の設定
+  カードのみを描画し、残りタブの内容は後半のイシュー #3005 で扱います。
 - スイッチ 3 行はすべて `disabled` の静的固定表示で、送信・永続化・
   認証処理は行いません。`aria-label` に行ラベルと状態（例:「公開
   プロフィール: オン」）を含め、支援技術で状態を区別できるようにして

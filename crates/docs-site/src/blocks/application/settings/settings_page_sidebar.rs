@@ -8,9 +8,12 @@
 //!
 //! # 使用部品
 //!
-//! `sidebar` / `breadcrumb` / `separator` / `tabs` / `card` / `switch` /
-//! `button` / `icon` の 8 部品を合成する（[`BLOCK`] の `parts` に一致させる
-//! 契約。`menu` は #3005 でサイドバー footer 追加時に加わる）。
+//! `sidebar` / `breadcrumb` / `separator` / `card` / `switch` / `button` /
+//! `icon` の 7 部品を合成する（[`BLOCK`] の `parts` に一致させる契約。
+//! `menu` は #3005 でサイドバー footer 追加時に加わる）。タブ列は無 JS で
+//! 切り替えられない実物の `tabs::tabs` を使わず block 固有 class の静的
+//! モックで模すため、`tabs` は `parts` に含めない（[`inset_body`] 参照、
+//! `feature_tabs_panel` と同型。codex レビュー指摘 P1 是正、PR #3450）。
 //!
 //! # 無 JS のため展開・折りたたみの 2 状態を静的に並置する
 //!
@@ -58,7 +61,7 @@
 //! `crate::blocks` モジュール doc の不変条件どおり、本 Demo は `<form>` を
 //! 出力しない。ワークスペース名・ナビ項目・スイッチのラベル・説明文は
 //! すべて架空のものであり、実企業名・実在人物・実クレデンシャル・PII を
-//! 含まない。ナビの折りたたみ・タブ切替・スイッチ・保存ボタンはいずれも
+//! 含まない。ナビ項目・トリガー・rail・タブ列・スイッチ・保存ボタンはいずれも
 //! 静的な初期状態を表示するのみで、選択・送信・永続化・認証処理は行わない。
 //!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
@@ -103,7 +106,6 @@ use fandhe_frontend_pre_styled_ui::sidebar::{
     Sidebar, SidebarCollapsible, SidebarMenuButtonProps, SidebarProps, SidebarState,
 };
 use fandhe_frontend_pre_styled_ui::switch::{self, SwitchProps};
-use fandhe_frontend_pre_styled_ui::tabs::{self, ActivationMode, TabItem, TabsProps, TabsVariant};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Orientation, Size};
 
 /// 自作の単純な矩形・幾何アイコン（`sidebar_07::geo_icon` と同型。lucide
@@ -115,6 +117,11 @@ fn geo_icon(path_d: &'static str) -> Node {
         vec![el("path", vec![("d", path_d)], vec![])],
     )
 }
+
+/// 無 JS のため押しても何も起きない sidebar の `<button>`（ナビ項目・
+/// トリガー・rail）へ付ける静的固定表示の属性（codex レビュー指摘 P2 是正、
+/// PR #3450。`order_tracking_progress` と同型の `disabled` + `data-disabled`）。
+const STATIC_BUTTON_ATTRS: [(&str, &str); 2] = [("disabled", ""), ("data-disabled", "")];
 
 /// サイドバー header（ワークスペース名の静的表示。実際のワークスペース
 /// 切替は持たず、`sidebar::menu_button` 1 行のみの表示）。
@@ -132,7 +139,11 @@ fn workspace_header() -> Node {
                         ..Default::default()
                     },
                     Some(geo_icon("M4 4h16v16H4z")),
-                    vec![("aria-label", "Nimbus ワークスペース")],
+                    vec![
+                        ("aria-label", "Nimbus ワークスペース"),
+                        STATIC_BUTTON_ATTRS[0],
+                        STATIC_BUTTON_ATTRS[1],
+                    ],
                     vec![text("Nimbus ワークスペース")],
                 )],
             )],
@@ -177,7 +188,9 @@ const NAV_ITEMS: &[NavItem] = &[
 ];
 
 /// 設定ナビ（`sidebar::group` 1 グループ + `menu_button` 5 件、現在項目は
-/// `active` を立てる）。
+/// `active` を立てる）。遷移先ページを持たない静的な構成例のため、`href`
+/// は付けず全項目を `disabled` の固定表示にする（`href="#"` の死リンクも
+/// 操作可能な空ボタンも出さない。codex レビュー指摘 P2 是正、PR #3450）。
 fn settings_nav(suffix: &str) -> Node {
     let label_id = format!("blocks-settings-page-sidebar-nav-label-{suffix}");
     let items = NAV_ITEMS
@@ -192,7 +205,7 @@ fn settings_nav(suffix: &str) -> Node {
                         ..Default::default()
                     },
                     Some(geo_icon(item.icon_path)),
-                    vec![],
+                    STATIC_BUTTON_ATTRS.to_vec(),
                     vec![text(item.label)],
                 )],
             )
@@ -220,17 +233,30 @@ fn settings_sidebar(state: &Sidebar, props: &SidebarProps, root_id: &str, suffix
         vec![
             workspace_header(),
             sidebar::content(vec![], vec![settings_nav(suffix)]),
-            sidebar::rail(state, "Toggle sidebar rail", vec![], vec![]),
+            sidebar::rail(
+                state,
+                "Toggle sidebar rail",
+                STATIC_BUTTON_ATTRS.to_vec(),
+                vec![],
+            ),
         ],
     )
 }
 
 /// inset 側ヘッダー（トリガー + 縦 separator + breadcrumb 2 階層）。
+/// トリガーは開閉処理を持たないため `disabled` の固定表示にする（開閉の
+/// 2 状態はインスタンスの並置で示す。codex レビュー指摘 P2 是正、PR #3450）。
 fn inset_header(state: &Sidebar, root_id: &str) -> Node {
     div(
         vec![("data-blocks-settings-page-sidebar-header", "")],
         vec![
-            sidebar::trigger(state, "Toggle sidebar", Some(root_id), vec![], vec![]),
+            sidebar::trigger(
+                state,
+                "Toggle sidebar",
+                Some(root_id),
+                STATIC_BUTTON_ATTRS.to_vec(),
+                vec![],
+            ),
             separator::separator(
                 &SeparatorProps {
                     orientation: Orientation::Vertical,
@@ -346,7 +372,8 @@ fn switch_row(row: &SwitchRow, suffix: &str) -> Node {
 }
 
 /// タブ「全般」内の設定カード（見出し + 説明 + スイッチ行 3 件 + フッターの
-/// 保存ボタン）。
+/// 保存ボタン）。スイッチと同じく保存も行わないため、保存ボタンも
+/// `disabled` の固定表示にする（codex レビュー指摘 P2 是正、PR #3450）。
 fn general_settings_card(suffix: &str) -> Node {
     card::root(
         CardProps::default(),
@@ -377,6 +404,7 @@ fn general_settings_card(suffix: &str) -> Node {
                 vec![button(
                     &ButtonProps {
                         variant: ButtonVariant::Solid,
+                        disabled: true,
                         ..ButtonProps::default()
                     },
                     vec![("data-blocks-settings-page-sidebar-save", "")],
@@ -387,61 +415,45 @@ fn general_settings_card(suffix: &str) -> Node {
     )
 }
 
-/// タブ「メンバー」「通知」の暫定内容（#3005 で実データへ差し替え予定の
-/// 静的なメモ、`dashboard_01::short_note` と同型）。
-fn placeholder_tab_note(message: &'static str) -> Node {
-    div(vec![], vec![text(message)])
-}
+/// 静的タブ列のラベル（先頭が選択中の「全般」）。
+const TAB_LABELS: [&str; 3] = ["全般", "メンバー", "通知"];
 
-/// inset 本体（タブ 3 件、先頭タブのみ内容あり。残りタブの内容は #3005）。
+/// inset 本体（静的タブ列 + 選択中タブ「全般」の設定カード）。
 ///
-/// 「メンバー」「通知」は `disabled: true` の静的固定にする（無 JS の
-/// ためタブ切替 JS がなく、`disabled: false` のままでは押しても選択
-/// 状態・パネルが変わらない dead control になる。`table_with_toolbar::
-/// status_tabs`〔Codex レビュー指摘 #3404 是正〕・`notification_tray_tabs`
-/// と同型の判断。codex レビュー指摘 P1 是正、PR #3450）。
+/// 無 JS のため実物の `tabs::tabs` は使わない（未選択パネルへ `hidden` が
+/// 付き、切り替える手段もないため「メンバー」「通知」の内容へ到達できない。
+/// codex レビュー指摘 P1 是正、PR #3450）。`feature_tabs_panel::
+/// static_tab_list` と同型に、block 固有 class のみで見た目を模した非対話の
+/// タブ列（`role`/`tabindex`/`<button>` を持たず、pre-styled-ui の
+/// `data-scope`/`data-part` も流用しない）を `aria-hidden` の装飾として置き、
+/// 選択中パネルの本文だけを描画する。
 fn inset_body(suffix: &str) -> Node {
-    let props = TabsProps {
-        id: &format!("blocks-settings-page-sidebar-tabs-{suffix}"),
-        selected: "general",
-        orientation: Orientation::Horizontal,
-        activation_mode: ActivationMode::Automatic,
-        loop_focus: true,
-        indicator: false,
-    };
-    let items = vec![
-        TabItem {
-            value: "general",
-            trigger: vec![text("全般")],
-            content: vec![general_settings_card(suffix)],
-            disabled: false,
-        },
-        TabItem {
-            value: "members",
-            trigger: vec![text("メンバー")],
-            content: vec![placeholder_tab_note(
-                "メンバー管理は後続で追加する静的な合成例です。",
-            )],
-            disabled: true,
-        },
-        TabItem {
-            value: "notifications",
-            trigger: vec![text("通知")],
-            content: vec![placeholder_tab_note(
-                "通知設定は後続で追加する静的な合成例です。",
-            )],
-            disabled: true,
-        },
-    ];
+    let tabs = TAB_LABELS
+        .iter()
+        .enumerate()
+        .map(|(i, label)| {
+            let state = if i == 0 { "active" } else { "inactive" };
+            div(
+                vec![
+                    ("class", "blocks-settings-page-sidebar-tab"),
+                    ("data-state", state),
+                ],
+                vec![text(*label)],
+            )
+        })
+        .collect();
     div(
         vec![("class", "blocks-settings-page-sidebar-body")],
-        vec![tabs::tabs(
-            TabsVariant::Enclosed,
-            Size::Md,
-            ColorPalette::Accent,
-            &props,
-            items,
-        )],
+        vec![
+            div(
+                vec![
+                    ("class", "blocks-settings-page-sidebar-tablist"),
+                    ("aria-hidden", "true"),
+                ],
+                tabs,
+            ),
+            general_settings_card(suffix),
+        ],
     )
 }
 
@@ -518,10 +530,6 @@ pub const BLOCK: Block = Block {
             path: "/themes/separator/",
         },
         Part {
-            label: "Tabs",
-            path: "/themes/tabs/",
-        },
-        Part {
             label: "Card",
             path: "/themes/card/",
         },
@@ -566,7 +574,10 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-settings-page-sidebar-caption] {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-settings-page-sidebar-instance][data-scope=\"sidebar\"][data-part=\"provider\"] {\n  min-height: 28rem;\n  height: auto;\n}\n\
 [data-blocks-settings-page-sidebar-header] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
-.blocks-settings-page-sidebar-body {\n  padding: var(--fandhe-space-4);\n}\n\
+.blocks-settings-page-sidebar-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-4);\n}\n\
+.blocks-settings-page-sidebar-tablist {\n  display: flex;\n  gap: var(--fandhe-space-1);\n  overflow-x: auto;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
+.blocks-settings-page-sidebar-tab {\n  padding: var(--fandhe-space-2) var(--fandhe-space-3);\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  white-space: nowrap;\n  color: var(--fandhe-color-fg-muted);\n  border-bottom: 2px solid transparent;\n  margin-bottom: -1px;\n}\n\
+.blocks-settings-page-sidebar-tab[data-state=\"active\"] {\n  color: var(--fandhe-color-fg);\n  border-bottom-color: var(--fandhe-color-accent);\n}\n\
 .blocks-settings-page-sidebar-rows {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-settings-page-sidebar-rows .blocks-settings-page-sidebar-row {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-settings-page-sidebar-row-text {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
@@ -594,7 +605,6 @@ mod tests {
             "data-scope=\"sidebar\"",
             "data-scope=\"breadcrumb\"",
             "data-scope=\"separator\"",
-            "data-scope=\"tabs\"",
             "data-scope=\"card\"",
             "data-scope=\"switch\"",
             "data-scope=\"button\"",
@@ -618,8 +628,6 @@ mod tests {
             1
         );
         assert!(html.contains("data-state=\"collapsed\""));
-        assert!(html.contains("id=\"blocks-settings-page-sidebar-tabs-expanded\""));
-        assert!(html.contains("id=\"blocks-settings-page-sidebar-tabs-collapsed\""));
     }
 
     #[test]
@@ -704,29 +712,39 @@ mod tests {
         ));
     }
 
-    /// codex レビュー指摘（P1, PR #3450）の回帰: 無 JS のためタブ切替
-    /// できない「メンバー」「通知」トリガーは、押しても選択状態・パネルが
-    /// 変わらない dead control のまま `disabled: false` で残さない
-    /// （`table_with_toolbar::status_tabs`・`notification_tray_tabs` と
-    /// 同型の判断、モジュール doc `inset_body` 参照）。
+    /// codex レビュー指摘（P1, PR #3450）の回帰: 実物の `tabs::tabs` を使わず
+    /// （未選択パネルへ `hidden` が付き到達不能になるため）、非対話の静的
+    /// タブ列 + 選択中パネルのみを描画する。
     #[test]
-    fn non_general_tab_triggers_are_disabled() {
+    fn tabs_are_static_mock_without_hidden_panels() {
         let html = demo_html();
-        for value in ["members", "notifications"] {
-            for suffix in ["expanded", "collapsed"] {
-                let id = format!("blocks-settings-page-sidebar-tabs-{suffix}-trigger-{value}");
-                let start = html
-                    .find(&format!("id=\"{id}\""))
-                    .unwrap_or_else(|| panic!("missing trigger {id}"));
-                let window_end = (start + 500).min(html.len());
-                assert!(
-                    html[start..window_end].contains("aria-disabled=\"true\""),
-                    "trigger {id} should be disabled (dead control fix)"
-                );
-            }
+        assert!(!html.contains("data-scope=\"tabs\""));
+        assert!(!html.contains("role=\"tab"));
+        assert!(!html.contains(" hidden"));
+        assert_eq!(
+            html.matches("class=\"blocks-settings-page-sidebar-tablist\" aria-hidden=\"true\"")
+                .count(),
+            2
+        );
+    }
+
+    /// codex レビュー指摘（P2, PR #3450）の回帰: 押しても何も起きない
+    /// `<button>`（ナビ項目・ワークスペース行・トリガー・rail・保存）は
+    /// すべて `disabled` の静的固定表示にする。
+    #[test]
+    fn all_buttons_are_disabled_static_display() {
+        let html = demo_html();
+        let mut count = 0;
+        for (start, _) in html.match_indices("<button") {
+            let end = start + html[start..].find('>').expect("button tag closes");
+            assert!(
+                html[start..end].contains(" disabled"),
+                "button should be disabled: {}",
+                &html[start..end]
+            );
+            count += 1;
         }
-        // 「全般」トリガーは既定選択のため disabled にしない。
-        assert!(!html.contains("id=\"blocks-settings-page-sidebar-tabs-expanded-trigger-general\" role=\"tab\" aria-selected=\"true\" aria-controls=\"blocks-settings-page-sidebar-tabs-expanded-content-general\" data-state=\"active\" data-orientation=\"horizontal\" tabindex=\"0\" data-value=\"general\" disabled"));
+        assert!(count > 0);
     }
 
     #[test]
