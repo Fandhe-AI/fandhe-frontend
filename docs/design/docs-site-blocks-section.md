@@ -1045,6 +1045,7 @@ pub enum LayoutCss {
 | notification-tray-tabs | #2977（親 #2951） | `application/notification/notification_tray_tabs.rs` |
 | onboarding-checklist | #2979 | `application/onboarding/onboarding_checklist.rs` |
 | onboarding-centered-steps | #2978（親 #2951） | `application/onboarding/onboarding_centered_steps.rs` |
+| onboarding-vertical-steps | #2981（親 #2951） | `application/onboarding/onboarding_vertical_steps.rs` |
 | onboarding-split-image | #2980（親 #2951） | `application/onboarding/onboarding_split_image.rs` |
 | settings-billing-overview | #2984 | `application/settings/settings_billing_overview.rs` |
 | settings-billing-usage | #2985 | `application/settings/settings_billing_usage.rs` |

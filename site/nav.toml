@@ -2430,6 +2430,11 @@ title = "onboarding-split-image"
 source = "site/blocks/onboarding-split-image.md"
 path = "/blocks/onboarding-split-image/"
 
+[[section.group.page]]
+title = "onboarding-vertical-steps"
+source = "site/blocks/onboarding-vertical-steps.md"
+path = "/blocks/onboarding-vertical-steps/"
+
 [[section.group]]
 title = "Card"
 
