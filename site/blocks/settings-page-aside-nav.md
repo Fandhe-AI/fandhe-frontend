@@ -44,6 +44,7 @@ use fandhe_frontend_pre_styled_ui::recipe::Size;
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 use fandhe_frontend_pre_styled_ui::toggle_group::{self, ToggleGroupProps, ToggleGroupVariant};
+use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::ColorPalette;
 
 /// 実在の GitHub リポジトリへの固定外部 URL（`href="#"` 等の非実在リンクを
@@ -53,7 +54,12 @@ const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 /// アプリのナビバー 4 項目のラベルと遷移先。全項目が `REPO` 直下へ揃うと
 /// ラベルと遷移先が食い違う（Codex レビュー指摘、`footer_inline_nav::
 /// NAV_LINKS` と同じ是正）ため、ラベルの意味に対応する実在サブパスへ
-/// 個別に張る。
+/// 個別に張る。「設定」は当初リポジトリの `/settings`（管理権限を持つ
+/// メンバーのみ閲覧できる）を指していたが、管理権限のない閲覧者には機能
+/// しない（Codex レビュー指摘）ため、常にアクセス可能な GitHub 個人設定の
+/// ランディングページへ変更した（`ASIDE_NAV_LINKS` の「プロフィール」と
+/// 同一 URL になるが、両者は別ナビ内の別項目であり、いずれも「閲覧者
+/// 自身が実際に開ける設定系ページ」という意味は保たれる）。
 const NAVBAR_LINKS: &[(&str, &str, &str)] = &[
     ("home", "ホーム", REPO),
     (
@@ -66,28 +72,25 @@ const NAVBAR_LINKS: &[(&str, &str, &str)] = &[
         "レポート",
         "https://github.com/Fandhe-AI/fandhe-frontend/pulse",
     ),
-    (
-        "settings",
-        "設定",
-        "https://github.com/Fandhe-AI/fandhe-frontend/settings",
-    ),
+    ("settings", "設定", "https://github.com/settings/profile"),
 ];
 
 /// 左ナビ（設定項目）5 件のラベルと遷移先。GitHub の実在する設定系ページ
-/// （`github.com/settings/*`）へラベルの意味を合わせる。「プロフィール」は
-/// 現在項目（`aria-current="page"`）だが、他項目と区別が付く実在 URL
-/// （アカウントプロフィール設定）を割り当てる（Codex レビュー指摘: 全項目
-/// が `REPO` へ遷移し現在項目まで別サイトへ飛ぶ状態の是正）。
+/// （`github.com/settings/*`）へラベルの意味を合わせる。「危険な操作」は
+/// 当初リポジトリの `/settings`（管理権限を持つメンバーのみ閲覧できる）を
+/// 指していたが、管理権限のない閲覧者には機能しない（Codex レビュー指摘）
+/// ため、常にアクセス可能な GitHub 個人設定のランディングページへ変更した
+/// （「プロフィール」と同一 URL になる。危険な操作に対応する個人設定の
+/// 個別サブページ名は GitHub 側の変更で流動的なため、URL の一意性よりも
+/// 常時到達可能性を優先する）。現在項目（「プロフィール」）に
+/// `aria-current` を付けない理由・視覚的な現在地強調の方法は「左ナビの
+/// 現在項目は `aria-current` を実在外部リンクへ付けない」節参照。
 const ASIDE_NAV_LINKS: &[(&str, &str, bool)] = &[
     ("プロフィール", "https://github.com/settings/profile", true),
     ("アカウント", "https://github.com/settings/security", false),
     ("プラン", "https://github.com/settings/billing", false),
     ("通知", "https://github.com/settings/notifications", false),
-    (
-        "危険な操作",
-        "https://github.com/Fandhe-AI/fandhe-frontend/settings",
-        false,
-    ),
+    ("危険な操作", "https://github.com/settings/profile", false),
 ];
 
 /// フィールド id の共通接頭辞を付ける小さなヘルパ（綴り間違い防止、
@@ -197,15 +200,30 @@ fn page_heading(name: &'static str, email: &'static str) -> Node {
 }
 
 /// 左ナビ（設定項目、モジュール doc「構成」節 3.）。「プロフィール」だけ
-/// 現在項目（`aria-current="page"`）とする
-/// （`footer_inline_nav::primary_nav` と同型のリンク列組み立て）。
+/// 現在項目とする（`footer_inline_nav::primary_nav` と同型のリンク列
+/// 組み立て）が、`nav_list::link` の `current` 引数には常に `false` を渡し
+/// `aria-current` は付けない。視覚的な強調は
+/// `data-blocks-settings-page-aside-nav-current` 属性（[`LAYOUT_CSS`]）、
+/// 支援技術への伝達は [`current_item_label`] の非表示テキストで行う
+/// （理由は「左ナビの現在項目は `aria-current` を実在外部リンクへ付けない」
+/// 節参照）。
 fn aside_nav() -> Node {
     let children: Vec<Node> = ASIDE_NAV_LINKS
         .iter()
         .map(|(label, href, current)| {
+            let link_attrs = if *current {
+                vec![("data-blocks-settings-page-aside-nav-current", "")]
+            } else {
+                vec![]
+            };
             nav_list::item(
                 vec![],
-                vec![nav_list::link(href, *current, vec![], vec![text(*label)])],
+                vec![nav_list::link(
+                    href,
+                    false,
+                    link_attrs,
+                    current_item_label(label, *current),
+                )],
             )
         })
         .collect();
@@ -214,6 +232,18 @@ fn aside_nav() -> Node {
         vec![("data-blocks-settings-page-aside-nav-aside", "")],
         vec![nav_list::list(vec![], children)],
     )
+}
+
+/// `aside_nav` 各リンクのラベル組み立て。`current` のときのみ
+/// visually-hidden な "(current)" をラベル末尾へ加え、`aria-current` を
+/// 使わずに現在地を支援技術へ伝える（`sidebar_grouped_nav::
+/// current_page_label` と同型のパターン）。
+fn current_item_label(label: &'static str, current: bool) -> Vec<Node> {
+    let mut children = vec![text(label)];
+    if current {
+        children.push(visually_hidden::root(vec![], vec![text(" (current)")]));
+    }
+    children
 }
 
 /// プロフィールカード（表示名・ユーザー名・タイムゾーン・アバター変更、

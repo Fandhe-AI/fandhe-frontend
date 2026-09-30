@@ -35,8 +35,9 @@
 //!    理由で `item` + `link` のみ使う）
 //! 2. **ページ見出し**: `avatar`（`Size::Lg`）+ 氏名（`heading` H2）/
 //!    メール（`text`）+ プランバッジ
-//! 3. **左ナビ**: `nav_list`（現在項目に `aria-current="page"`。
-//!    [`footer_inline_nav::primary_nav`] と同型のリンク列組み立て）
+//! 3. **左ナビ**: `nav_list`（[`footer_inline_nav::primary_nav`] と同型の
+//!    リンク列組み立て。現在項目の伝達は「左ナビの現在項目は
+//!    `aria-current` を実在外部リンクへ付けない」節参照）
 //! 4. **本文**: プロフィールカード（表示名・ユーザー名・タイムゾーン・
 //!    アバター変更）+ プランカード（請求周期 toggle-group + 利用状況
 //!    table）
@@ -50,12 +51,20 @@
 //! `toggle_group::root_with_props`/`native_select::native_select`/
 //! `input_group::root`/`table::root` は `drop_class_attr` により呼び出し側
 //! `class` を除去する契約を持つため、これらへの CSS フックは
-//! `data-blocks-settings-page-aside-nav-*` 属性で渡す。`navigation_menu`/
-//! `nav_list` の各パーツは `class` をそのまま透過する契約
-//! （`header_mega_menu`/`footer_inline_nav` モジュール doc 参照）ため、
-//! ナビバー本体には素の `class` を使う。素の `div`/`card::header|body|
-//! footer` には `class="blocks-settings-page-aside-nav-*"` を使う
-//! （`crate::blocks` モジュール doc の CSS フック規則どおり）。
+//! `data-blocks-settings-page-aside-nav-*` 属性で渡す。`navigation_menu` の
+//! 各パーツは `class` をそのまま透過する契約
+//! （`header_mega_menu` モジュール doc 参照）ため、ナビバー本体には素の
+//! `class` を使う。一方 `nav_list::root` は styled 版
+//! （`fandhe_frontend_pre_styled_ui::nav_list`）が `drop_class_attr` で
+//! 呼び出し側 `class` を除去する契約を持つため（`crate::breadcrumb`/
+//! `crate::avatar` と同型の「`root` のみ再定義」構造、`nav_list` モジュール
+//! doc「選択的 re-export」節参照）、左ナビの CSS フックは
+//! `data-blocks-settings-page-aside-nav-aside` 属性で渡す（`item`/`list`/
+//! `link` は headless そのままの再エクスポートで `class` を透過するが、
+//! 本 block は `list`/`link` へ `class` を渡さず `data-*` 属性のみで
+//! フックしている）。素の `div`/`card::header|body|footer` には
+//! `class="blocks-settings-page-aside-nav-*"` を使う（`crate::blocks`
+//! モジュール doc の CSS フック規則どおり）。
 //!
 //! # 狭幅では左ナビを本文の上へ横並びで移す（`@container`）
 //!
@@ -63,8 +72,38 @@
 //! （コンテナクエリ）で判定する（`profile_detail_datalist` と同型の
 //! パターン）。[`LAYOUT_CSS`] のラッパー `.blocks-settings-page-aside-nav-
 //! stack` へ `container-type: inline-size` を宣言し、コンテナ幅が
-//! `48rem` 未満のとき 2 カラム grid を 1 列へ切り替え、左ナビ
-//! （`nav_list::list`）を縦積みから横並び（折り返し）へ変える。
+//! `36rem` 未満のとき 2 カラム grid を 1 列へ切り替え、左ナビ
+//! （`nav_list::list`）を縦積みから横並び（折り返し）へ変える。実際の
+//! Demo 枠幅（`.docs-content` `max-width: 46rem` から `.blocks-demo` の
+//! 左右 padding 各 `1.5rem` を差し引いた約 `43rem` が上限、
+//! `grid_list_contact_cards` と同型の算出）を超える閾値（旧 `48rem`）では
+//! デモ内で 2 カラム表示に一度も到達できないため（codex/Bugbot 指摘）、
+//! 上限を下回る `36rem` へ変更した。
+//!
+//! # 氏名見出しはサイト共通の `h2` 罫線を持たない（`page_heading` slot）
+//!
+//! 氏名の `heading(HeadingLevel::H2, ...)` は `.docs-content h2`
+//! （`site_theme.rs`）の `border-top`/`padding-top` をそのまま継承すると、
+//! 文書の節区切りに見える罫線がページ見出しに紛れ込む
+//! （`settings_item_cards` の `section_toolbar` と同型の Bugbot/codex
+//! 指摘）。[`LAYOUT_CSS`] は `.blocks-settings-page-aside-nav-identity h2`
+//! へ同パターンの `border-top: none; padding-top: 0; letter-spacing:
+//! normal;` を当てる。
+//!
+//! # 左ナビの現在項目は `aria-current` を実在外部リンクへ付けない
+//!
+//! `nav_list::link` は `current: true` で `aria-current="page"` を付与する
+//! が、これは「このリンク先が現在表示中のページである」ことを支援技術へ
+//! 伝える契約である。本 Demo の「プロフィール」リンク先は実在する GitHub の
+//! プロフィール設定ページであり、閲覧者が実際に見ているのは docs サイトの
+//! この block デモページであるため、`aria-current="page"` を付けると遷移先
+//! と矛盾した情報を支援技術に与えてしまう（codex 指摘）。このため
+//! `nav_list::link` へは常に `current: false` を渡し、視覚的な強調は
+//! `data-blocks-settings-page-aside-nav-current` 属性（[`LAYOUT_CSS`]）で
+//! 行い、支援技術への現在地の伝達は
+//! `fandhe_frontend_pre_styled_ui::visually_hidden::root` によるラベル末尾
+//! の非表示テキスト（`sidebar_grouped_nav::current_page_label` と同型の
+//! パターン）で行う。
 //!
 //! # 請求周期トグルは静的表示のみ（`disabled: true`）
 //!
@@ -117,6 +156,7 @@ use fandhe_frontend_pre_styled_ui::recipe::Size;
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 use fandhe_frontend_pre_styled_ui::toggle_group::{self, ToggleGroupProps, ToggleGroupVariant};
+use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::ColorPalette;
 
 /// 実在の GitHub リポジトリへの固定外部 URL（`href="#"` 等の非実在リンクを
@@ -126,7 +166,12 @@ const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 /// アプリのナビバー 4 項目のラベルと遷移先。全項目が `REPO` 直下へ揃うと
 /// ラベルと遷移先が食い違う（Codex レビュー指摘、`footer_inline_nav::
 /// NAV_LINKS` と同じ是正）ため、ラベルの意味に対応する実在サブパスへ
-/// 個別に張る。
+/// 個別に張る。「設定」は当初リポジトリの `/settings`（管理権限を持つ
+/// メンバーのみ閲覧できる）を指していたが、管理権限のない閲覧者には機能
+/// しない（Codex レビュー指摘）ため、常にアクセス可能な GitHub 個人設定の
+/// ランディングページへ変更した（`ASIDE_NAV_LINKS` の「プロフィール」と
+/// 同一 URL になるが、両者は別ナビ内の別項目であり、いずれも「閲覧者
+/// 自身が実際に開ける設定系ページ」という意味は保たれる）。
 const NAVBAR_LINKS: &[(&str, &str, &str)] = &[
     ("home", "ホーム", REPO),
     (
@@ -139,28 +184,25 @@ const NAVBAR_LINKS: &[(&str, &str, &str)] = &[
         "レポート",
         "https://github.com/Fandhe-AI/fandhe-frontend/pulse",
     ),
-    (
-        "settings",
-        "設定",
-        "https://github.com/Fandhe-AI/fandhe-frontend/settings",
-    ),
+    ("settings", "設定", "https://github.com/settings/profile"),
 ];
 
 /// 左ナビ（設定項目）5 件のラベルと遷移先。GitHub の実在する設定系ページ
-/// （`github.com/settings/*`）へラベルの意味を合わせる。「プロフィール」は
-/// 現在項目（`aria-current="page"`）だが、他項目と区別が付く実在 URL
-/// （アカウントプロフィール設定）を割り当てる（Codex レビュー指摘: 全項目
-/// が `REPO` へ遷移し現在項目まで別サイトへ飛ぶ状態の是正）。
+/// （`github.com/settings/*`）へラベルの意味を合わせる。「危険な操作」は
+/// 当初リポジトリの `/settings`（管理権限を持つメンバーのみ閲覧できる）を
+/// 指していたが、管理権限のない閲覧者には機能しない（Codex レビュー指摘）
+/// ため、常にアクセス可能な GitHub 個人設定のランディングページへ変更した
+/// （「プロフィール」と同一 URL になる。危険な操作に対応する個人設定の
+/// 個別サブページ名は GitHub 側の変更で流動的なため、URL の一意性よりも
+/// 常時到達可能性を優先する）。現在項目（「プロフィール」）に
+/// `aria-current` を付けない理由・視覚的な現在地強調の方法は「左ナビの
+/// 現在項目は `aria-current` を実在外部リンクへ付けない」節参照。
 const ASIDE_NAV_LINKS: &[(&str, &str, bool)] = &[
     ("プロフィール", "https://github.com/settings/profile", true),
     ("アカウント", "https://github.com/settings/security", false),
     ("プラン", "https://github.com/settings/billing", false),
     ("通知", "https://github.com/settings/notifications", false),
-    (
-        "危険な操作",
-        "https://github.com/Fandhe-AI/fandhe-frontend/settings",
-        false,
-    ),
+    ("危険な操作", "https://github.com/settings/profile", false),
 ];
 
 /// フィールド id の共通接頭辞を付ける小さなヘルパ（綴り間違い防止、
@@ -270,15 +312,30 @@ fn page_heading(name: &'static str, email: &'static str) -> Node {
 }
 
 /// 左ナビ（設定項目、モジュール doc「構成」節 3.）。「プロフィール」だけ
-/// 現在項目（`aria-current="page"`）とする
-/// （`footer_inline_nav::primary_nav` と同型のリンク列組み立て）。
+/// 現在項目とする（`footer_inline_nav::primary_nav` と同型のリンク列
+/// 組み立て）が、`nav_list::link` の `current` 引数には常に `false` を渡し
+/// `aria-current` は付けない。視覚的な強調は
+/// `data-blocks-settings-page-aside-nav-current` 属性（[`LAYOUT_CSS`]）、
+/// 支援技術への伝達は [`current_item_label`] の非表示テキストで行う
+/// （理由は「左ナビの現在項目は `aria-current` を実在外部リンクへ付けない」
+/// 節参照）。
 fn aside_nav() -> Node {
     let children: Vec<Node> = ASIDE_NAV_LINKS
         .iter()
         .map(|(label, href, current)| {
+            let link_attrs = if *current {
+                vec![("data-blocks-settings-page-aside-nav-current", "")]
+            } else {
+                vec![]
+            };
             nav_list::item(
                 vec![],
-                vec![nav_list::link(href, *current, vec![], vec![text(*label)])],
+                vec![nav_list::link(
+                    href,
+                    false,
+                    link_attrs,
+                    current_item_label(label, *current),
+                )],
             )
         })
         .collect();
@@ -287,6 +344,18 @@ fn aside_nav() -> Node {
         vec![("data-blocks-settings-page-aside-nav-aside", "")],
         vec![nav_list::list(vec![], children)],
     )
+}
+
+/// `aside_nav` 各リンクのラベル組み立て。`current` のときのみ
+/// visually-hidden な "(current)" をラベル末尾へ加え、`aria-current` を
+/// 使わずに現在地を支援技術へ伝える（`sidebar_grouped_nav::
+/// current_page_label` と同型のパターン）。
+fn current_item_label(label: &'static str, current: bool) -> Vec<Node> {
+    let mut children = vec![text(label)];
+    if current {
+        children.push(visually_hidden::root(vec![], vec![text(" (current)")]));
+    }
+    children
 }
 
 /// プロフィールカード（表示名・ユーザー名・タイムゾーン・アバター変更、
@@ -682,13 +751,15 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-page-aside-nav-navbar [data-scope=\"navigation-menu\"][data-part=\"list\"] {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-4);\n  list-style: none;\n  margin: 0;\n  padding: 0;\n}\n\
 .blocks-settings-page-aside-nav-heading {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n  flex-wrap: wrap;\n}\n\
 .blocks-settings-page-aside-nav-identity {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
+.blocks-settings-page-aside-nav-identity h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .blocks-settings-page-aside-nav-layout {\n  display: grid;\n  grid-template-columns: 14rem minmax(0, 1fr);\n  gap: var(--fandhe-space-8);\n  align-items: start;\n}\n\
 [data-blocks-settings-page-aside-nav-aside] [data-scope=\"nav-list\"][data-part=\"list\"] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
+[data-blocks-settings-page-aside-nav-aside] [data-scope=\"nav-list\"][data-part=\"link\"][data-blocks-settings-page-aside-nav-current] {\n  color: var(--fandhe-color-accent, var(--fandhe-color-fg));\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
 .blocks-settings-page-aside-nav-main {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  min-width: 0;\n}\n\
 .blocks-settings-page-aside-nav-fields {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-settings-page-aside-nav-avatar-row {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-settings-page-aside-nav-actions {\n  display: flex;\n  gap: var(--fandhe-space-2);\n  flex-wrap: wrap;\n}\n\
-@container blocks-settings-page-aside-nav (max-width: 48rem) {\n  \
+@container blocks-settings-page-aside-nav (max-width: 36rem) {\n  \
 .blocks-settings-page-aside-nav-layout {\n    grid-template-columns: minmax(0, 1fr);\n  }\n  \
 [data-blocks-settings-page-aside-nav-aside] [data-scope=\"nav-list\"][data-part=\"list\"] {\n    flex-direction: row;\n    flex-wrap: wrap;\n    gap: var(--fandhe-space-2);\n  }\n\
 }\n";
@@ -738,13 +809,27 @@ mod tests {
     fn layout_css_is_safe_and_stacks_on_narrow_container() {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
-        assert!(LAYOUT_CSS.contains("@container blocks-settings-page-aside-nav (max-width: 48rem)"));
+        assert!(LAYOUT_CSS.contains("@container blocks-settings-page-aside-nav (max-width: 36rem)"));
     }
 
     #[test]
-    fn aside_nav_marks_current_item_once() {
+    fn page_heading_resets_docs_content_h2_rule() {
+        assert!(LAYOUT_CSS.contains(".blocks-settings-page-aside-nav-identity h2"));
+        assert!(LAYOUT_CSS.contains("border-top: none;"));
+    }
+
+    #[test]
+    fn aside_nav_marks_current_item_without_aria_current() {
         let html = demo_html();
-        assert_eq!(html.matches("aria-current=\"page\"").count(), 1);
+        // `aria-current` は実在外部リンクへ付けない（codex 指摘対応）。現在
+        // 項目の伝達は視覚的な `data-*` 属性 + 非表示テキストで行う。
+        assert!(!html.contains("aria-current=\"page\""));
+        assert_eq!(
+            html.matches("data-blocks-settings-page-aside-nav-current")
+                .count(),
+            1
+        );
+        assert!(html.contains("(current)"));
     }
 
     #[test]
