@@ -1052,6 +1052,7 @@ pub enum LayoutCss {
 | settings-billing-usage | #2985 | `application/settings/settings_billing_usage.rs` |
 | settings-api-key-created | #2982（親 #2951） | `application/settings/settings_api_key_created.rs` |
 | settings-integrations-list | #2993（親 #2992） | `application/settings/settings_integrations_list.rs` |
+| settings-notification-matrix | #2998（親 #2951） | `application/settings/settings_notification_matrix.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は

@@ -2342,6 +2342,11 @@ title = "settings-integrations-list"
 source = "site/blocks/settings-integrations-list.md"
 path = "/blocks/settings-integrations-list/"
 
+[[section.group.page]]
+title = "settings-notification-matrix"
+source = "site/blocks/settings-notification-matrix.md"
+path = "/blocks/settings-notification-matrix/"
+
 [[section.group]]
 title = "Action Panel"
 
