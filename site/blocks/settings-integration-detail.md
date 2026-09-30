@@ -241,19 +241,22 @@ fn related_card(name: &'static str, desc: &'static str) -> Node {
     card::root(
         CardProps::default(),
         vec![("data-blocks-settings-integration-detail-card", "")],
-        vec![
-            card::title(vec![], vec![text(name)]),
-            card::description(vec![], vec![text(desc)]),
-            link::root(
-                REPO,
-                &LinkProps {
-                    external: true,
-                    ..LinkProps::default()
-                },
-                vec![("data-blocks-settings-integration-detail-link", "")],
-                vec![text("GitHub で見る")],
-            ),
-        ],
+        vec![card::body(
+            vec![],
+            vec![
+                card::title(vec![], vec![text(name)]),
+                card::description(vec![], vec![text(desc)]),
+                link::root(
+                    REPO,
+                    &LinkProps {
+                        external: true,
+                        ..LinkProps::default()
+                    },
+                    vec![("data-blocks-settings-integration-detail-link", "")],
+                    vec![text("GitHub で見る")],
+                ),
+            ],
+        )],
     )
 }
 
@@ -288,12 +291,17 @@ fn create_cta_section() -> Node {
         CardProps::default(),
         vec![("data-blocks-settings-integration-detail-cta", "")],
         vec![
-            card::title(vec![], vec![text("独自の連携を作成")]),
-            card::description(
+            card::body(
                 vec![],
-                vec![text(
-                    "公開 API を使って、社内ツール向けの独自連携を構築できます。",
-                )],
+                vec![
+                    card::title(vec![], vec![text("独自の連携を作成")]),
+                    card::description(
+                        vec![],
+                        vec![text(
+                            "公開 API を使って、社内ツール向けの独自連携を構築できます。",
+                        )],
+                    ),
+                ],
             ),
             card::footer(
                 vec![],
