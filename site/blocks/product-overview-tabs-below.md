@@ -279,15 +279,20 @@ fn info_column(variant: &Variant) -> Node {
             "在庫切れ"
         })],
     ));
+    let mut features = vec![
+        feature_item("サイズ：90 × 40 cm"),
+        feature_item("素材：撥水コーティング表面"),
+    ];
+    features.push(feature_item(if variant.in_stock {
+        "お届け目安：3〜5 営業日"
+    } else {
+        "お届け目安：入荷後 3〜5 営業日"
+    }));
     children.push(list::root(
         ListType::default(),
         ListVariant::Plain,
         vec![("data-blocks-product-overview-tabs-below-features", "")],
-        vec![
-            feature_item("サイズ：90 × 40 cm"),
-            feature_item("素材：撥水コーティング表面"),
-            feature_item("お届け目安：3〜5 営業日"),
-        ],
+        features,
     ));
     children.push(div(
         vec![("class", "blocks-product-overview-tabs-below-share")],

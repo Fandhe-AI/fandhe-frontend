@@ -42,8 +42,10 @@
 //! 2. **在庫切れ・評価なし**（`in_stock: false, rated: false`）: 購入
 //!    ボタンのラベルを「在庫切れ」に差し替え、上段へ在庫注記を追加。評価
 //!    行は「まだ評価はありません」に差し替え、レビューパネルは「レビュー
-//!    はまだありません。」に差し替える。「よくある質問」「利用条件」の
-//!    プレビューは両版で同一。
+//!    はまだありません。」に差し替える。特徴リストの配送目安も「お届け
+//!    目安：入荷後 3〜5 営業日」に差し替え、在庫あり版の「お届け目安：
+//!    3〜5 営業日」と矛盾しないようにする（Codex レビュー指摘、PR #3473）。
+//!    「よくある質問」「利用条件」のプレビューは両版で同一。
 //!
 //! 3 つ目の案（狭幅版の並記）は採らない: 本 block の 2 カラム切替は
 //! `LAYOUT_CSS` の `@media (min-width: 48rem)` viewport クエリであり、
@@ -344,15 +346,20 @@ fn info_column(variant: &Variant) -> Node {
             "在庫切れ"
         })],
     ));
+    let mut features = vec![
+        feature_item("サイズ：90 × 40 cm"),
+        feature_item("素材：撥水コーティング表面"),
+    ];
+    features.push(feature_item(if variant.in_stock {
+        "お届け目安：3〜5 営業日"
+    } else {
+        "お届け目安：入荷後 3〜5 営業日"
+    }));
     children.push(list::root(
         ListType::default(),
         ListVariant::Plain,
         vec![("data-blocks-product-overview-tabs-below-features", "")],
-        vec![
-            feature_item("サイズ：90 × 40 cm"),
-            feature_item("素材：撥水コーティング表面"),
-            feature_item("お届け目安：3〜5 営業日"),
-        ],
+        features,
     ));
     children.push(div(
         vec![("class", "blocks-product-overview-tabs-below-share")],
