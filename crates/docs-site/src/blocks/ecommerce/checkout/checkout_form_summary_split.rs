@@ -174,6 +174,13 @@ fn section_heading(title: &'static str) -> Node {
 /// 未チェック固定の静的表示のため、JS ハイドレーションなしでもネイティブ
 /// input の checked 状態とカスタム indicator の表示が食い違わないよう
 /// `disabled: true` でネイティブ操作を止める（#3462 レビュー指摘対応）。
+/// `disabled: true` は styled checkbox の `disabled_declarations()`
+/// （`opacity: 0.5; cursor: not-allowed;`）を波及させ、未チェック固定の
+/// 静的表示が「操作できない項目」に見えてしまう（#3462 Bugbot 指摘）ため、
+/// 配送方法・支払い方法 radio card と同じ判断で中和 CSS
+/// （`opacity: 1; cursor: default;`）を [`LAYOUT_CSS`] へ追加し、`root` に
+/// `data-blocks-checkout-form-summary-split-newsletter` を付けて他 block の
+/// disabled checkbox 表示へ波及させないスコープにする。
 fn contact_section() -> Node {
     let email = field_props(EMAIL_ID, true);
     let checkbox_props = CheckboxProps {
@@ -205,7 +212,7 @@ fn contact_section() -> Node {
                 Size::Sm,
                 ColorPalette::Accent,
                 &checkbox_props,
-                vec![],
+                vec![("data-blocks-checkout-form-summary-split-newsletter", "")],
                 vec![
                     checkbox::hidden_input(
                         &checkbox_props,
@@ -771,6 +778,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-checkout-form-summary-split-product-price] {\n  white-space: nowrap;\n}\n\
 [data-blocks-checkout-form-summary-split-summary] [data-scope=\"button\"] {\n  inline-size: 100%;\n}\n\
 .blocks-checkout-form-summary-split-layout [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-checkout-form-summary-split-newsletter][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 @media (min-width: 40rem) {\n  \
 .blocks-checkout-form-summary-split-name-row {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n\
 }\n\
@@ -834,6 +842,19 @@ mod tests {
         let html = demo_html();
         assert!(html.contains(
             r#"data-scope="checkbox" data-part="hidden-input" data-state="unchecked" data-disabled="""#
+        ));
+    }
+
+    #[test]
+    fn newsletter_checkbox_disabled_opacity_is_neutralized() {
+        // `disabled: true`（静的表示保持のため）が disabled_declarations の
+        // opacity/cursor を波及させ、未チェック固定の checkbox が
+        // 「操作できない項目」に見えてしまう回帰の防止（#3462 Bugbot 指摘）。
+        let html = demo_html();
+        assert!(html.contains(r#"data-blocks-checkout-form-summary-split-newsletter"#));
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"checkbox\"][data-part=\"root\"]\
+[data-blocks-checkout-form-summary-split-newsletter][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
         ));
     }
 
