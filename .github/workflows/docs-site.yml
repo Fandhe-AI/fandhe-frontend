@@ -482,6 +482,7 @@ jobs:
           # Application / Command Palette
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/command-palette-preview/index.html"
           # Application / Onboarding
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-checklist/index.html"
           # Application / Card
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-meta-cta/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cursor-hover-cards/index.html"
