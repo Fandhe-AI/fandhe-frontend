@@ -328,16 +328,12 @@ fn share_link_section() -> Node {
                     vec![],
                     vec![
                         clipboard::input(value, false, vec![("id", input_id)]),
-                        // headless `clipboard::trigger` は disabled 引数・`data-disabled`
-                        // 出力を持たないため、ネイティブ `disabled` 属性を `attrs` 経由で
-                        // 直接付与する（`form_layout_property_panel` の C 版クリップボードと
-                        // 同じ手段。減光 CSS は [`LAYOUT_CSS`] のブロック固有セレクタが担う）。
+                        // ネイティブ `disabled` は付与しない（モジュール doc「招待ボタン・
+                        // コピー配線の範囲」節参照。実アプリへ組み込んだ際にクリック
+                        // イベント自体が発火しなくなるのを避けるため）。
                         clipboard::trigger(
                             false,
-                            vec![
-                                ("disabled", ""),
-                                ("data-blocks-settings-share-members-copy-trigger", ""),
-                            ],
+                            vec![],
                             vec![
                                 clipboard::indicator(false, false, vec![], vec![text("コピー")]),
                                 clipboard::indicator(true, false, vec![], vec![text("コピー済み")]),
