@@ -162,11 +162,11 @@ pub struct InputProps {
     /// 出力しない。`Some(Shape::Pill)` は両端を最大まで丸める（検索入力
     /// 等の pill 形状）。`Some(Shape::Circle)` は真円（`aspect-ratio: 1 / 1`
     /// + `text-align: center` に加え、size ごとの compound variant で
-    /// `width` を選択中 `Size` の確定 `height` と同値へ固定し真円を保証する。
-    /// ネイティブ `<input>` は固有幅を持つため `aspect-ratio` 単体では真円に
-    /// ならない、codex レビュー是正）。`Flushed` と併用した場合は
-    /// `border-radius` 宣言の登録順（Flushed → shape）により shape が
-    /// 後勝ちする。
+    ///   `width` を選択中 `Size` の確定 `height` と同値へ固定し真円を保証する。
+    ///   ネイティブ `<input>` は固有幅を持つため `aspect-ratio` 単体では真円に
+    ///   ならない、codex レビュー是正）。`Flushed` と併用した場合は
+    ///   `border-radius` 宣言の登録順（Flushed → shape）により shape が
+    ///   後勝ちする。
     pub shape: Option<Shape>,
 }
 
