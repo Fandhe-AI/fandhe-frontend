@@ -75,7 +75,7 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: var(--fandhe-radius-md);
+  border-radius: var(--fandhe-select-trigger-radius, var(--fandhe-radius-md));
   padding: var(--fandhe-select-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-3));
   cursor: pointer;
   --fandhe-hover-bg: var(--fandhe-color-bg-muted);
@@ -246,6 +246,10 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   --fandhe-select-content-max-height: 24rem;
 }
 
+[data-scope="select"][data-part="root"].fd-select--shape-pill {
+  --fandhe-select-trigger-radius: var(--fandhe-radius-full);
+}
+
 [data-scope="select"][data-part="trigger"][data-state="open"] {
   border-color: var(--fandhe-color-accent);
 }
@@ -357,7 +361,7 @@ const SELECT_GOLDEN_CSS_BEFORE_2391: &str = r#"[data-scope="select"][data-part="
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: var(--fandhe-radius-md);
+  border-radius: var(--fandhe-select-trigger-radius, var(--fandhe-radius-md));
   padding: var(--fandhe-select-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-3));
   cursor: pointer;
   --fandhe-hover-bg: var(--fandhe-color-bg-muted);
@@ -518,6 +522,10 @@ const SELECT_GOLDEN_CSS_BEFORE_2391: &str = r#"[data-scope="select"][data-part="
   --fandhe-select-item-padding: var(--fandhe-space-4) var(--fandhe-space-5);
   --fandhe-select-content-padding: var(--fandhe-space-4);
   --fandhe-select-content-max-height: 24rem;
+}
+
+[data-scope="select"][data-part="root"].fd-select--shape-pill {
+  --fandhe-select-trigger-radius: var(--fandhe-radius-full);
 }
 
 [data-scope="select"][data-part="trigger"][data-state="open"] {
@@ -709,7 +717,7 @@ fn golden_prefix_through_hidden_select_is_unchanged() {
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: var(--fandhe-radius-md);
+  border-radius: var(--fandhe-select-trigger-radius, var(--fandhe-radius-md));
   padding: var(--fandhe-select-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-3));
   cursor: pointer;
   --fandhe-hover-bg: var(--fandhe-color-bg-muted);
