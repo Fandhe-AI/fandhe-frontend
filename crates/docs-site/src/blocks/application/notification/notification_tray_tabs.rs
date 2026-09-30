@@ -15,18 +15,26 @@
 //! blocks_nav.rs`/`blocks_contract.rs` が検証する）。新しい UI 部品は
 //! 追加しない。
 //!
-//! # 2 版の並記（`variant` サフィックス）
+//! # 2 版・計 3 インスタンスの並記（`variant` サフィックス）
 //!
 //! - **A（`"empty"`）**: R0168。「すべて」「未読」いずれのタブ内も
-//!   [`fandhe_frontend_pre_styled_ui::empty_state`] を表示する
-//! - **B（`"filled"`、代表構成）**: R0169。「すべて」タブに通知 4 件
-//!   （うち未読 3 件）、「未読」タブに未読分のみを表示する
+//!   [`fandhe_frontend_pre_styled_ui::empty_state`] を表示する（1 インス
+//!   タンス。両タブとも同一の空表示のため `selected` 違いを並記する意味
+//!   がなく、1 枚のみ）
+//! - **B（`"filled"`/`"filled-unread"`、代表構成）**: R0169。通知 4 件
+//!   （うち未読 3 件）を、`selected: "all"`（`"filled"`）・
+//!   `selected: "unread"`（`"filled-unread"`）の 2 インスタンスへ分けて
+//!   並記する。docs サイトは無 JS のため `tabs::tabs` は非選択パネルへ
+//!   `hidden` を付与し、閲覧者はタブを切り替えられない。1 インスタンス
+//!   のみだと「未読」パネル（3 件）が一度も可視化されないため、
+//!   `pricing_tiers_comparison`/`pricing_tiers_morph` と同じ「2 インスタ
+//!   ンス併記」で両パネルを可視化する（レビュー指摘、PR #3429）
 //!
-//! 両版とも同じ `tray` 関数から組み立て、全 id・`aria-controls`/
+//! 全版とも同じ `tray` 関数から組み立て、全 id・`aria-controls`/
 //! `aria-labelledby` の参照先を `variant` でサフィックスして一意にする
-//! （`demo()` は両版を連結して返すため、`demo_output_has_no_dangling_
-//! aria_references_or_duplicate_ids` が demo 全体で id 重複を禁止する
-//! 契約に従う）。
+//! （`demo()` は 3 インスタンスを連結して返すため、`demo_output_has_no_
+//! dangling_aria_references_or_duplicate_ids` が demo 全体で id 重複を
+//! 禁止する契約に従う）。
 //!
 //! # 無 JS での扱い（popover は開状態固定、menu は閉状態固定）
 //!
@@ -252,12 +260,20 @@ fn header_menu(variant: &str) -> Node {
 
 /// タブ 2 個（すべて・未読）+ 各 content を組む。`total`/`unread` は
 /// トリガーのバッジ数値、`all_list`/`unread_list` は各タブの一覧。
+/// `selected` は SSR 時点の選択状態（`"all"`/`"unread"`）。
 #[allow(clippy::too_many_arguments)]
-fn tab_group(variant: &str, total: u32, unread: u32, all_list: Node, unread_list: Node) -> Node {
+fn tab_group(
+    variant: &str,
+    selected: &'static str,
+    total: u32,
+    unread: u32,
+    all_list: Node,
+    unread_list: Node,
+) -> Node {
     let tabs_id = format!("blocks-notification-tray-tabs-{variant}-tabs");
     let props = TabsProps {
         id: tabs_id.as_str(),
-        selected: "all",
+        selected,
         orientation: Orientation::Horizontal,
         activation_mode: ActivationMode::Automatic,
         loop_focus: true,
@@ -303,10 +319,19 @@ fn tab_group(variant: &str, total: u32, unread: u32, all_list: Node, unread_list
     )
 }
 
-/// 1 版分（`variant`: `"empty"`/`"filled"`）のトレイ全体を組み立てる。
-/// `total`/`unread`/`all_list`/`unread_list` はタブ内訳（[`tab_group`]
-/// へそのまま渡す）。
-fn tray(variant: &str, total: u32, unread: u32, all_list: Node, unread_list: Node) -> Node {
+/// 1 版分（`variant`: `"empty"`/`"filled"`/`"filled-unread"`）のトレイ全体を
+/// 組み立てる。`total`/`unread`/`all_list`/`unread_list` はタブ内訳
+/// （[`tab_group`] へそのまま渡す）。`selected` は SSR 時点の選択状態
+/// （`"all"`/`"unread"`）。
+#[allow(clippy::too_many_arguments)]
+fn tray(
+    variant: &str,
+    selected: &'static str,
+    total: u32,
+    unread: u32,
+    all_list: Node,
+    unread_list: Node,
+) -> Node {
     let content_id = format!("blocks-notification-tray-tabs-{variant}-content");
     let title_id = format!("blocks-notification-tray-tabs-{variant}-title");
 
@@ -341,10 +366,14 @@ fn tray(variant: &str, total: u32, unread: u32, all_list: Node, unread_list: Nod
         ],
     );
 
+    // フッターボタンは遷移先を持たない（無 JS のため実際の一覧ページへの
+    // 導線がない）。有効な button のまま放置すると押しても何も起きない
+    // ため、bell trigger・header_menu と同じ判断で disabled 固定にする。
     let footer = button(
         &ButtonProps {
             variant: ButtonVariant::Ghost,
             size: Size::Sm,
+            disabled: true,
             ..ButtonProps::default()
         },
         vec![],
@@ -359,7 +388,7 @@ fn tray(variant: &str, total: u32, unread: u32, all_list: Node, unread_list: Nod
         vec![("data-blocks-notification-tray-tabs-content", "")],
         vec![
             header,
-            tab_group(variant, total, unread, all_list, unread_list),
+            tab_group(variant, selected, total, unread, all_list, unread_list),
             footer,
         ],
     );
@@ -367,13 +396,16 @@ fn tray(variant: &str, total: u32, unread: u32, all_list: Node, unread_list: Nod
     popover::root(OpenState::Open, vec![], vec![trigger, positioner])
 }
 
-/// A: 空の状態（R0168）。「すべて」「未読」いずれのタブも空表示。
+/// A: 空の状態（R0168）。「すべて」「未読」いずれのタブも空表示（両タブとも
+/// 同一の空表示のため、選択状態を変えて 2 枚並記する意味がない）。
 fn version_empty() -> Node {
-    tray("empty", 0, 0, empty_list(), empty_list())
+    tray("empty", "all", 0, 0, empty_list(), empty_list())
 }
 
-/// B: 代表構成（R0169）。通知 4 件（うち未読 3 件）。
-fn version_filled() -> Node {
+/// B: 代表構成（R0169）。通知 4 件（うち未読 3 件）。`variant`/`selected` は
+/// 呼び出し側から受け取り、「すべて」選択版と「未読」選択版の 2 インスタンス
+/// （[`demo`] 参照）で同じ通知データを使い回す。
+fn version_filled(variant: &str, selected: &'static str) -> Node {
     let names = dummy_assets::PERSON_NAMES;
     let all_list = div(
         vec![("class", "blocks-notification-tray-tabs-list")],
@@ -402,15 +434,26 @@ fn version_filled() -> Node {
             notification_item(names[2], "タスクを完了にしました", "3 時間前", true),
         ],
     );
-    tray("filled", 4, 3, all_list, unread_list)
+    tray(variant, selected, 4, 3, all_list, unread_list)
 }
 
 /// `notification-tray-tabs` の Demo 本体。呼び出しごとに同一の `Node` を
 /// 返す純関数。
+///
+/// docs サイトは無 JS のため `tabs::tabs` は非選択パネルへ `hidden` を
+/// 付与し、閲覧者はタブを切り替えられない。「未読」パネルが一度も可視化
+/// されないままでは代表構成の内容を確認できないため、`version_filled` を
+/// `selected` 違い（`"all"`/`"unread"`）の 2 インスタンス併記にして両パネル
+/// を可視化する（`pricing_tiers_comparison`/`pricing_tiers_morph` の
+/// 「2 インスタンス併記」と同じ判断、レビュー指摘 PR #3429）。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-notification-tray-tabs-stack")],
-        vec![version_empty(), version_filled()],
+        vec![
+            version_empty(),
+            version_filled("filled", "all"),
+            version_filled("filled-unread", "unread"),
+        ],
     )
 }
 // blocks-code:end
@@ -512,9 +555,9 @@ mod tests {
         assert_eq!(
             html.matches("data-scope=\"tabs\" data-part=\"root\"")
                 .count(),
-            2
+            3
         );
-        assert_eq!(html.matches("role=\"tab\"").count(), 4);
+        assert_eq!(html.matches("role=\"tab\"").count(), 6);
         assert_eq!(
             html.matches("data-scope=\"empty-state\" data-part=\"root\"")
                 .count(),
@@ -551,10 +594,26 @@ mod tests {
     #[test]
     fn unread_counts_match_badges() {
         let html = demo_html();
-        // 版 B（filled）の「未読」バッジは 3、`data-unread` 行は
-        // 版 B の 2 タブ内容（all/unread）を合わせて 3 + 3 = 6 個出力される
-        // （headless 層は非選択タブの content も SSR 出力するため）。
+        // 版 B は「すべて」選択（filled）・「未読」選択（filled-unread）の
+        // 2 インスタンス。各インスタンスとも `data-unread` 行は all/unread
+        // 2 タブ内容を合わせて 3 + 3 = 6 個出力される（headless 層は非選択
+        // タブの content も SSR 出力するため）、2 インスタンス分で 12。
         assert!(html.contains(">3<"));
-        assert_eq!(html.matches("data-unread=\"\"").count(), 6);
+        assert_eq!(html.matches("data-unread=\"\"").count(), 12);
+    }
+
+    #[test]
+    fn unread_panel_is_visible_in_filled_unread_instance() {
+        // レビュー指摘（PR #3429）: 無 JS では非選択タブの content に
+        // `hidden` が付くため、1 インスタンスのみだと「未読」パネルが
+        // 一度も可視化されない。`filled-unread` インスタンスでは「未読」
+        // タブを選択し、対応する content が hidden でないことを固定する。
+        let html = demo_html();
+        assert!(html.contains(
+            r#"id="blocks-notification-tray-tabs-filled-unread-tabs-content-unread" role="tabpanel""#
+        ));
+        assert!(!html.contains(
+            r#"id="blocks-notification-tray-tabs-filled-unread-tabs-content-unread" role="tabpanel" aria-labelledby="blocks-notification-tray-tabs-filled-unread-tabs-trigger-unread" data-state="inactive""#
+        ));
     }
 }
