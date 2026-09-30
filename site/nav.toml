@@ -2676,6 +2676,11 @@ title = "store-nav-centered-logo"
 source = "site/blocks/store-nav-centered-logo.md"
 path = "/blocks/store-nav-centered-logo/"
 
+[[section.group.page]]
+title = "store-nav-mega-menu"
+source = "site/blocks/store-nav-mega-menu.md"
+path = "/blocks/store-nav-mega-menu/"
+
 [[section.group]]
 title = "Promo"
 
