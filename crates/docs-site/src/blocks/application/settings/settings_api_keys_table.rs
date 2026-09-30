@@ -1,7 +1,7 @@
 //! `settings-api-keys-table` block（イシュー #2983。Application / Settings
-//! カテゴリ最初の block で、本ファイルの追加によりカテゴリを空雛形から
-//! ディレクトリ化した〔卒業〕、`docs/design/docs-site-blocks-section.md`
-//! §18 参照）。API キー一覧テーブル（名前・伏せ字の値・権限・作成日・
+//! カテゴリの block で、`settings_billing_overview` 等と同じく
+//! `settings/mod.rs` の `blocks()` へ登録する、
+//! `docs/design/docs-site-blocks-section.md` §18 参照）。API キー一覧テーブル（名前・伏せ字の値・権限・作成日・
 //! 最終使用日・失効操作）+ 作成ダイアログ + 失効確認ダイアログを併記する
 //! 合成例。
 //!
@@ -67,8 +67,11 @@
 //! # 狭幅では副次列を隠す（操作列は隠さない）
 //!
 //! `作成日`/`最終使用` の 2 列は `data-blocks-settings-api-keys-table-secondary`
-//! を持つ `th`/`td` にのみ適用される `@media (max-width: 47.99rem)` の
-//! `display: none` で狭幅時に隠す。`名前`/`キー`/`権限`/`操作` の 4 列は
+//! を持つ `th`/`td` にのみ適用される `@container
+//! blocks-settings-api-keys-table (max-width: 47.99rem)` の `display: none` で
+//! 狭幅時に隠す。判定対象はビューポートではなく Demo 枠内のレイアウトルート
+//! （`container-type: inline-size`）の幅であり、ビューポートが広くても Demo 枠
+//! が狭ければ隠れる（`action_panel_inline.rs`・`navbar_two_row.rs` と同型）。`名前`/`キー`/`権限`/`操作` の 4 列は
 //! 常に到達可能なまま残す（`page_heading_avatar.rs`「狭幅では操作列を
 //! 折り返す（非表示にはしない）」節と同じ判断軸: 操作到達性を優先する）。
 //!
@@ -703,13 +706,14 @@ pub const BLOCK: Block = Block {
 ///
 /// ダイアログの固定オーバーレイ中和（`backdrop`/`positioner`）は 2 件の
 /// ダイアログで属性値を共有する `[data-blocks-settings-api-keys-table-
-/// dialog-root]` セレクタを介して同一 CSS を適用する。狭幅（47.99rem 未満）
+/// dialog-root]` セレクタを介して同一 CSS を適用する。レイアウトルートの
+/// コンテナ幅が狭幅（47.99rem 未満）
 /// では `作成日`/`最終使用` 列（`data-blocks-settings-api-keys-table-secondary`）
 /// のみを隠し、`操作` 列は残す（モジュール doc「狭幅では副次列を隠す」節
 /// 参照）。
 const LAYOUT_CSS: &str = "\
 .blocks-settings-api-keys-table.blocks-demo {\n  overflow: visible;\n}\n\
-.blocks-settings-api-keys-table-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
+.blocks-settings-api-keys-table-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  container-type: inline-size;\n  container-name: blocks-settings-api-keys-table;\n}\n\
 .blocks-settings-api-keys-table-toolbar {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: space-between;\n  align-items: flex-start;\n  gap: var(--fandhe-space-4);\n  margin-block-end: var(--fandhe-space-4);\n}\n\
 .blocks-settings-api-keys-table-segment-label {\n  display: block;\n  margin-block-end: var(--fandhe-space-2);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 .blocks-settings-api-keys-table [data-scope=\"segment-group\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;\n}\n\
@@ -721,7 +725,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-api-keys-table [data-scope=\"dialog\"][data-part=\"backdrop\"] {\n  position: absolute;\n  inset: 0;\n  z-index: auto;\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
 .blocks-settings-api-keys-table [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: relative;\n  inset: auto;\n  z-index: auto;\n  width: 100%;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: var(--fandhe-space-6);\n}\n\
 .blocks-settings-api-keys-table [data-scope=\"dialog\"][data-part=\"body\"] {\n  max-height: none;\n  overflow: visible;\n}\n\
-@media (max-width: 47.99rem) {\n  [data-blocks-settings-api-keys-table-secondary] {\n    display: none;\n  }\n  .blocks-settings-api-keys-table [data-scope=\"dialog\"][data-part=\"positioner\"] {\n    padding: var(--fandhe-space-3);\n  }\n}\n";
+@container blocks-settings-api-keys-table (max-width: 47.99rem) {\n  [data-blocks-settings-api-keys-table-secondary] {\n    display: none;\n  }\n  .blocks-settings-api-keys-table [data-scope=\"dialog\"][data-part=\"positioner\"] {\n    padding: var(--fandhe-space-3);\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -804,10 +808,14 @@ mod tests {
 
     #[test]
     fn secondary_columns_are_hidden_only_on_narrow_width_and_action_column_is_not() {
-        assert!(LAYOUT_CSS.contains("@media (max-width: 47.99rem)"));
+        // ビューポートではなく Demo 枠内のレイアウトルート幅で判定する
+        // （Bugbot 指摘 PRRT_kwDOTarxgc6nZ1hI の回帰ガード）。
+        assert!(!LAYOUT_CSS.contains("@media"));
+        assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
+        assert!(LAYOUT_CSS.contains("container-name: blocks-settings-api-keys-table;"));
         let media_start = LAYOUT_CSS
-            .find("@media (max-width: 47.99rem)")
-            .expect("media query should exist");
+            .find("@container blocks-settings-api-keys-table (max-width: 47.99rem)")
+            .expect("container query should exist");
         let media_body = &LAYOUT_CSS[media_start..];
         assert!(media_body.contains("[data-blocks-settings-api-keys-table-secondary]"));
         assert!(media_body.contains("display: none;"));
