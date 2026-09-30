@@ -10,7 +10,8 @@
 上部に見出し、続いて列見出し行（商品 / 数量 / 価格 / 合計）、同じ列割りの
 商品行を 3 件、区切り線、明細下に小計・合計と購入手続きボタン（右寄せ）を
 配置しています。狭い幅（`40rem` 以下）では列見出し行を隠し、各行を
-「商品画像 | 商品情報・数量・価格・合計」の 2 段組みへ組み替えます。この
+「商品画像 | 商品情報・数量・価格・合計」の 2 段組みへ組み替えます（数量・
+価格・合計は商品情報と同じ列の開始位置に揃えます）。この
 とき各セルには列名ラベルを表示し、列見出しが隠れても値の意味が失われない
 ようにしています。列見出しが見えている広い幅でも、各セルの列名ラベルは
 視覚的にのみ隠して DOM 上に残すため、スクリーンリーダーは値の直前に列名
@@ -128,13 +129,14 @@ fn column_headers() -> Node {
     )
 }
 
-/// 商品サムネイル画像。
-fn product_thumbnail(name: &str) -> Node {
+/// 商品サムネイル画像。装飾的なダミー図形のため `alt=""` とし、同じセル内の
+/// 可視の商品名との二重読み上げを避ける（`cart_two_column_summary.rs` と同じ扱い）。
+fn product_thumbnail() -> Node {
     image::image(
         &ImageProps {
             shape: ImageShape::Rounded,
             fit: ImageFit::Cover,
-            ..ImageProps::new(dummy_assets::PRODUCT_SRC, name)
+            ..ImageProps::new(dummy_assets::PRODUCT_SRC, "")
         },
         vec![("data-blocks-cart-line-item-table-thumb", "")],
     )
@@ -172,7 +174,7 @@ fn product_cell(item: &LineItem) -> Node {
             ("class", "blocks-cart-line-item-table-product"),
             ("role", "cell"),
         ],
-        vec![product_thumbnail(item.name), product_info(item)],
+        vec![product_thumbnail(), product_info(item)],
     )
 }
 

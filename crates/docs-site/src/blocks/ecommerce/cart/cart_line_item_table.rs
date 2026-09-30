@@ -149,13 +149,14 @@ fn column_headers() -> Node {
     )
 }
 
-/// 商品サムネイル画像。
-fn product_thumbnail(name: &str) -> Node {
+/// 商品サムネイル画像。装飾的なダミー図形のため `alt=""` とし、同じセル内の
+/// 可視の商品名との二重読み上げを避ける（`cart_two_column_summary.rs` と同じ扱い）。
+fn product_thumbnail() -> Node {
     image::image(
         &ImageProps {
             shape: ImageShape::Rounded,
             fit: ImageFit::Cover,
-            ..ImageProps::new(dummy_assets::PRODUCT_SRC, name)
+            ..ImageProps::new(dummy_assets::PRODUCT_SRC, "")
         },
         vec![("data-blocks-cart-line-item-table-thumb", "")],
     )
@@ -193,7 +194,7 @@ fn product_cell(item: &LineItem) -> Node {
             ("class", "blocks-cart-line-item-table-product"),
             ("role", "cell"),
         ],
-        vec![product_thumbnail(item.name), product_info(item)],
+        vec![product_thumbnail(), product_info(item)],
     )
 }
 
@@ -440,7 +441,9 @@ pub const BLOCK: Block = Block {
 /// doc「block 固有 CSS の置き場」節と同型）。`container-type: inline-size`
 /// を持つ独自コンテナ名で `@container` を切り替える。狭幅では列見出し行を
 /// 隠し、各行を「画像 | 情報」の 2 段へ組み替え、セル内ラベルを表示して
-/// 列の意味を保つ。
+/// 列の意味を保つ。商品セルは全幅に広げつつ `subgrid` で行の 2 列を継承し、
+/// 商品情報と後続セル（数量・価格・合計）の開始位置を情報列に揃える
+/// （PR #3461 レビュー指摘対応）。
 const LAYOUT_CSS: &str = "\
 .blocks-cart-line-item-table-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-cart-line-item-table;\n}\n\
 .blocks-cart-line-item-table-head,\n.blocks-cart-line-item-table-row {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) 6rem 6rem 6rem;\n  gap: var(--fandhe-space-4);\n  align-items: center;\n}\n\
@@ -451,7 +454,7 @@ const LAYOUT_CSS: &str = "\
 img[data-scope=\"image\"][data-blocks-cart-line-item-table-thumb] {\n  width: 4rem;\n  height: 4rem;\n  flex-shrink: 0;\n}\n\
 .blocks-cart-line-item-table-cell-label {\n  position: absolute;\n  width: 1px;\n  height: 1px;\n  padding: 0;\n  margin: -1px;\n  overflow: hidden;\n  clip: rect(0, 0, 0, 0);\n  white-space: nowrap;\n  border-width: 0;\n}\n\
 .blocks-cart-line-item-table-summary {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-end;\n  gap: var(--fandhe-space-4);\n}\n\
-@container blocks-cart-line-item-table (max-width: 40rem) {\n  .blocks-cart-line-item-table-head {\n    position: absolute;\n    width: 1px;\n    height: 1px;\n    padding: 0;\n    margin: -1px;\n    overflow: hidden;\n    clip: rect(0, 0, 0, 0);\n    white-space: nowrap;\n    border-width: 0;\n  }\n  .blocks-cart-line-item-table-row {\n    grid-template-columns: 4rem minmax(0, 1fr);\n  }\n  .blocks-cart-line-item-table-product {\n    grid-column: 1 / -1;\n  }\n  .blocks-cart-line-item-table-cell {\n    grid-column: 2;\n  }\n  .blocks-cart-line-item-table-cell-label {\n    position: static;\n    width: auto;\n    height: auto;\n    padding: 0;\n    margin: 0 var(--fandhe-space-1) 0 0;\n    overflow: visible;\n    clip: auto;\n    white-space: normal;\n    color: var(--fandhe-color-fg-muted);\n  }\n}\n";
+@container blocks-cart-line-item-table (max-width: 40rem) {\n  .blocks-cart-line-item-table-head {\n    position: absolute;\n    width: 1px;\n    height: 1px;\n    padding: 0;\n    margin: -1px;\n    overflow: hidden;\n    clip: rect(0, 0, 0, 0);\n    white-space: nowrap;\n    border-width: 0;\n  }\n  .blocks-cart-line-item-table-row {\n    grid-template-columns: 4rem minmax(0, 1fr);\n  }\n  .blocks-cart-line-item-table-product {\n    grid-column: 1 / -1;\n    display: grid;\n    grid-template-columns: subgrid;\n  }\n  .blocks-cart-line-item-table-cell {\n    grid-column: 2;\n  }\n  .blocks-cart-line-item-table-cell-label {\n    position: static;\n    width: auto;\n    height: auto;\n    padding: 0;\n    margin: 0 var(--fandhe-space-1) 0 0;\n    overflow: visible;\n    clip: auto;\n    white-space: normal;\n    color: var(--fandhe-color-fg-muted);\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -532,6 +535,20 @@ mod tests {
         assert!(LAYOUT_CSS.contains(".blocks-cart-line-item-table-head {\n    position: absolute;"));
         assert!(!LAYOUT_CSS.contains(".blocks-cart-line-item-table-head {\n    display: none;"));
         assert!(LAYOUT_CSS.contains("grid-template-columns:"));
+        // 狭幅: 商品セルは全幅 + subgrid で「画像 | 情報」列を継承し、
+        // 後続セルは第 2 列（情報列）から始まる。
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-cart-line-item-table-product {\n    grid-column: 1 / -1;\n    display: grid;\n    grid-template-columns: subgrid;\n  }"
+        ));
+        assert!(
+            LAYOUT_CSS.contains(".blocks-cart-line-item-table-cell {\n    grid-column: 2;\n  }")
+        );
+    }
+
+    #[test]
+    fn thumbnail_is_decorative() {
+        let html = demo_html();
+        assert_eq!(html.matches("alt=\"\"").count(), 3, "html={html}");
     }
 
     #[test]
