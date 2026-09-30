@@ -670,6 +670,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-product-overview-gallery-split-thumbs [data-scope=\"carousel\"][data-part=\"item\"] {\n  flex: 0 0 auto;\n  overflow: visible;\n}\n\
 .blocks-product-overview-gallery-split-gallery [data-scope=\"carousel\"][data-part=\"root\"] {\n  overflow: visible;\n}\n\
 img[data-scope=\"image\"][data-blocks-product-overview-gallery-split-thumb] {\n  width: 4rem;\n  height: 4rem;\n  flex-shrink: 0;\n}\n\
+img[data-scope=\"image\"][data-blocks-product-overview-gallery-split-main-image] {\n  width: 100%;\n}\n\
 .blocks-product-overview-gallery-split-panel {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  min-width: 0;\n}\n\
 .blocks-product-overview-gallery-split-price {\n  margin: 0;\n  font-size: var(--fandhe-font-size-xl);\n  font-weight: var(--fandhe-font-weight-bold);\n}\n\
 .blocks-product-overview-gallery-split-option {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
@@ -744,6 +745,20 @@ mod tests {
     fn thumb_selector_specificity_beats_image_recipe_base() {
         assert!(LAYOUT_CSS.contains(
             "img[data-scope=\"image\"][data-blocks-product-overview-gallery-split-thumb]"
+        ));
+    }
+
+    /// レビュー指摘対応（Cursor Bugbot、Medium）: `PRODUCT_SRC` は
+    /// 160×160 の SVG のため、pre-styled-ui `image` 部品の base 規則
+    /// （`max-width: 100%; height: auto`）だけでは縮小方向の制約にしか
+    /// ならず、ギャラリー列幅が 160px を超える場合にメイン画像が実寸の
+    /// 小さいタイルのまま表示される。`width: 100%` を明示して列幅へ追従
+    /// させる（サムネイルと異なり固定 px にはしない。メイン画像は列幅に
+    /// 応じて伸縮すべき領域のため）。
+    #[test]
+    fn main_image_selector_stretches_to_column_width() {
+        assert!(LAYOUT_CSS.contains(
+            "img[data-scope=\"image\"][data-blocks-product-overview-gallery-split-main-image] {\n  width: 100%;\n}"
         ));
     }
 
