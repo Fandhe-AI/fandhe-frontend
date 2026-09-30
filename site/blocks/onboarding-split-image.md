@@ -27,7 +27,7 @@ use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
-use fandhe_frontend_pre_styled_ui::field::FieldIds;
+use fandhe_frontend_pre_styled_ui::field::{self, FieldIds};
 use fandhe_frontend_pre_styled_ui::heading::{
     heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
 };
@@ -393,7 +393,14 @@ fn plan_cards() -> Node {
         ],
     );
 
-    div(vec![], vec![cards, team_size])
+    div(
+        vec![],
+        vec![
+            cards,
+            field::label(&team_size_props, vec![], vec![text("チーム規模")]),
+            team_size,
+        ],
+    )
 }
 
 /// 「schedule」形のカード群（通知曜日、`checkbox-card` 7 択・auto-fill

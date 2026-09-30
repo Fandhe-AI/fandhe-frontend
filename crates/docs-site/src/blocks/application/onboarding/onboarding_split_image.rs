@@ -75,7 +75,7 @@ use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
-use fandhe_frontend_pre_styled_ui::field::FieldIds;
+use fandhe_frontend_pre_styled_ui::field::{self, FieldIds};
 use fandhe_frontend_pre_styled_ui::heading::{
     heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
 };
@@ -441,7 +441,14 @@ fn plan_cards() -> Node {
         ],
     );
 
-    div(vec![], vec![cards, team_size])
+    div(
+        vec![],
+        vec![
+            cards,
+            field::label(&team_size_props, vec![], vec![text("チーム規模")]),
+            team_size,
+        ],
+    )
 }
 
 /// 「schedule」形のカード群（通知曜日、`checkbox-card` 7 択・auto-fill
@@ -641,16 +648,16 @@ const LAYOUT_CSS: &str = "\
 .blocks-onboarding-split-image-intro {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-onboarding-split-image-description {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-onboarding-split-image-cards-label {\n  font-size: var(--fandhe-font-font-size-sm);\n  margin-bottom: var(--fandhe-space-2);\n}\n\
-[data-blocks-onboarding-split-image-cards] {\n  display: grid;\n  gap: var(--fandhe-space-3);\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n}\n\
-[data-blocks-onboarding-split-image-cards=\"days\"] {\n  grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));\n}\n\
-[data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n}\n\
-[data-scope=\"checkbox-card\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;\n}\n\
+[data-blocks-onboarding-split-image-cards], [data-scope=\"radio-card\"][data-part=\"root\"][data-blocks-onboarding-split-image-cards] {\n  display: grid;\n  gap: var(--fandhe-space-3);\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n}\n\
+[data-blocks-onboarding-split-image-cards=\"days\"], [data-scope=\"radio-card\"][data-part=\"root\"][data-blocks-onboarding-split-image-cards=\"days\"] {\n  grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));\n}\n\
+[data-blocks-onboarding-split-image-cards] [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n}\n\
+[data-blocks-onboarding-split-image-cards] [data-scope=\"checkbox-card\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-onboarding-split-image-next] {\n  width: 100%;\n}\n\
 [data-blocks-onboarding-split-image-panel] {\n  display: none;\n  position: relative;\n  min-height: 16rem;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-onboarding-split-image-photo] {\n  position: absolute;\n  inset: 0;\n  width: 100%;\n  height: 100%;\n}\n\
 @media (min-width: 48rem) {\n  \
 [data-blocks-onboarding-split-image-variant] {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n\
-[data-blocks-onboarding-split-image-cards=\"three\"] {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n\
+[data-blocks-onboarding-split-image-cards=\"three\"], [data-scope=\"radio-card\"][data-part=\"root\"][data-blocks-onboarding-split-image-cards=\"three\"] {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n\
 [data-blocks-onboarding-split-image-panel] {\n    display: block;\n  }\n\
 }\n";
 
