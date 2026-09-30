@@ -155,7 +155,7 @@ const CURRENT_STEP_HEADING: &str = "最初のプロジェクトを設定";
 /// 現在ステップ（step 2）の説明文。
 const CURRENT_STEP_DESCRIPTION: &str =
     "テンプレートを選び、チームで使う最初のプロジェクトを数分で立ち上げます。\
-     動画の手順に沿って進めると、設定は自動的に保存されます。";
+     右側の動画で手順を確認しながら進められます。";
 
 /// 縦向きステップ一覧（左カラム）。`showcase::steps_demo` と同型に
 /// `item` → `trigger`（`indicator` に番号 + 題名 `text`）+ 末尾以外に
