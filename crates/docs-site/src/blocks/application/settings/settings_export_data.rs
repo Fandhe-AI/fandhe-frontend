@@ -35,8 +35,10 @@
 //! 共有し、ネイティブ `disabled` 属性でフォーカス・操作を不能にして状態が
 //! 二度と変化しないことを構造的に保証する（`onboarding_checklist.rs`/
 //! `form_layout_stacked.rs` と同型の判断）。`disabled_declarations()`
-//! （既定 `opacity: 0.5` + `cursor: not-allowed`）は [`LAYOUT_CSS`] で
-//! 中和し、通常の checkbox と同じ見た目に保つ。
+//! （既定 `opacity: 0.5` + `cursor: not-allowed`）はそのまま有効にし、
+//! 無効な操作であることを視覚的にも示す（[`LAYOUT_CSS`] で中和しない。
+//! 中和すると選択可能に見えるが実際は反応しない死んだ操作面になる、
+//! Codex 指摘対応 #3439）。
 //!
 //! # `<form>` を持たない・送信処理を持たない
 //!
@@ -57,8 +59,9 @@
 //! 「エクスポートを開始」ボタンと全履歴行の「ダウンロード」ボタン
 //! （完了行も含め、実際にはファイルを取得しない）を `disabled: true` で
 //! 揃える。`disabled_declarations()`（既定 `opacity: 0.5` +
-//! `cursor: not-allowed`）は [`LAYOUT_CSS`] の `[data-disabled]` 中和規則で
-//! 通常ボタンと同じ見た目に戻し、処理中行のみを区別する視覚的手掛かりは
+//! `cursor: not-allowed`）はそのまま有効にし、押しても反応しない操作で
+//! あることを視覚的に示す（checkbox 同様 [`LAYOUT_CSS`] で中和しない、
+//! Codex 指摘対応 #3439）。処理中行のみを区別する視覚的手掛かりは
 //! 状態バッジ（`badge`）に一元化する。
 //!
 //! # `class` と `data-*` の使い分け
@@ -187,13 +190,18 @@ fn export_targets() -> Node {
     )
 }
 
-/// ファイル形式選択欄（`field` + `native_select`）。
+/// ファイル形式選択欄（`field` + `native_select`）。選択結果を消費する
+/// 処理を持たず「エクスポートを開始」ボタンも常時無効のため、`disabled:
+/// true` で選択欄自体も固定する（checkbox・ボタンと同じ「実処理を持たない
+/// 静的表示」の判断。`native_select` は [`LAYOUT_CSS`] に中和規則を
+/// 持たないため `disabled_declarations()` の既定スタイルがそのまま効く。
+/// Codex 指摘対応 #3439）。
 fn format_field() -> Node {
     let id = field_id("format");
     let props = FieldProps {
         id: id.as_str(),
         ids: FieldIds::default(),
-        disabled: false,
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
@@ -450,8 +458,6 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-export-data-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-settings-export-data-hint {\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 .blocks-settings-export-data-targets {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-3);\n}\n\
-[data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-settings-export-data-checkbox][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-[data-scope=\"button\"][data-part=\"root\"][data-blocks-settings-export-data-action][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-blocks-settings-export-data-field] {\n  max-width: 20rem;\n}\n\
 .blocks-settings-export-data-actions {\n  display: flex;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-settings-export-data-sr-only {\n  position: absolute;\n  width: 1px;\n  height: 1px;\n  overflow: hidden;\n  clip: rect(0 0 0 0);\n  white-space: nowrap;\n}\n\
@@ -517,11 +523,12 @@ mod tests {
         assert_eq!(html.matches("<tr").count(), 5);
         // `data-disabled=""` も部分文字列として `disabled=""` を含むため、
         // 前方に空白を要求してネイティブ `disabled` 属性のみを数える。
-        // 6 件のエクスポート対象 checkbox + 「エクスポートを開始」ボタン
-        // 1 件 + 履歴行の全ダウンロードボタン 4 件（モジュール doc
-        // 「実行ボタン・ダウンロードボタンをネイティブ `disabled` にする
-        // 理由」節、Codex 指摘対応）= 11。
-        assert_eq!(html.matches(" disabled=\"\"").count(), 11);
+        // 6 件のエクスポート対象 checkbox + ファイル形式 native_select
+        // 1 件（Codex 指摘対応 #3439、`format_field` doc 参照）+
+        // 「エクスポートを開始」ボタン 1 件 + 履歴行の全ダウンロードボタン
+        // 4 件（モジュール doc「実行ボタン・ダウンロードボタンをネイティブ
+        // `disabled` にする理由」節）= 12。
+        assert_eq!(html.matches(" disabled=\"\"").count(), 12);
     }
 
     #[test]
@@ -540,6 +547,15 @@ mod tests {
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
         assert!(LAYOUT_CSS.contains("@container blocks-settings-export-data (max-width: 36rem)"));
         assert!(LAYOUT_CSS.contains("repeat(2, minmax(0, 1fr))"));
+    }
+
+    /// disabled な checkbox・ボタンの見た目を通常表示へ戻す中和規則を
+    /// [`LAYOUT_CSS`] へ再導入しないことの回帰（Codex 指摘対応 #3439）。
+    /// 中和すると操作可能に見えるが実際は反応しない死んだ操作面になる。
+    #[test]
+    fn layout_css_does_not_neutralize_disabled_styling() {
+        assert!(!LAYOUT_CSS.contains("data-disabled"));
+        assert!(!LAYOUT_CSS.contains("cursor: default"));
     }
 
     #[test]

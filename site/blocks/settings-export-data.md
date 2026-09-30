@@ -116,13 +116,18 @@ fn export_targets() -> Node {
     )
 }
 
-/// ファイル形式選択欄（`field` + `native_select`）。
+/// ファイル形式選択欄（`field` + `native_select`）。選択結果を消費する
+/// 処理を持たず「エクスポートを開始」ボタンも常時無効のため、`disabled:
+/// true` で選択欄自体も固定する（checkbox・ボタンと同じ「実処理を持たない
+/// 静的表示」の判断。`native_select` は [`LAYOUT_CSS`] に中和規則を
+/// 持たないため `disabled_declarations()` の既定スタイルがそのまま効く。
+/// Codex 指摘対応 #3439）。
 fn format_field() -> Node {
     let id = field_id("format");
     let props = FieldProps {
         id: id.as_str(),
         ids: FieldIds::default(),
-        disabled: false,
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
