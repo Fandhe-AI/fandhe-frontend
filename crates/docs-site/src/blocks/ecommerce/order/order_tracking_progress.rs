@@ -76,13 +76,17 @@
 //! # ダミー素材について
 //!
 //! 注文番号・住所・氏名・決済情報はすべて架空（`crate::blocks::
-//! dummy_assets` の人名・社名・価格帯セットを流用しつつ、注文番号・住所・
-//! カード末尾 4 桁は本 block 独自の架空値）。メールアドレスは
+//! dummy_assets` の人名・社名を流用しつつ、注文番号・住所・カード末尾 4
+//! 桁・商品価格は本 block 独自の架空値）。メールアドレスは
 //! `example.com` ドメイン、電話番号・住所は架空パターンとし、実在の
 //! 人物・企業・PII・実クレデンシャルは含まない。カード番号は末尾 4 桁の
 //! 伏字表現のみとし、実在パターンは使わない。商品画像はビルド時生成の
 //! 同梱 SVG（[`dummy_assets::PRODUCT_SRC`]）を使う（外部 URL・`data:` URI
-//! は使わない）。参照元の商品名・ブランド・アイコンは持ち込まない。
+//! は使わない）。参照元の商品名・ブランド・アイコンは持ち込まない。商品
+//! 価格は円建てで固定し（`crate::blocks::dummy_assets::SAMPLE_PRICE_TIERS`
+//! はドル建てのため使わない）、小計・送料・税・合計と通貨・金額を一致
+//! させる（2 商品の価格合計 ¥18,400 + 送料 ¥600 + 税 ¥1,900 = 合計
+//! ¥20,900）。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -329,7 +333,7 @@ pub fn demo() -> Node {
                 vec![
                     product_card(
                         dummy_assets::COMPANY_NAMES[0],
-                        dummy_assets::SAMPLE_PRICE_TIERS[0].1,
+                        "¥12,800",
                         "東京都渋谷区 1-2-3",
                         "配送中",
                         "9/27 到着予定",
@@ -337,7 +341,7 @@ pub fn demo() -> Node {
                     ),
                     product_card(
                         dummy_assets::COMPANY_NAMES[1],
-                        dummy_assets::SAMPLE_PRICE_TIERS[1].1,
+                        "¥5,600",
                         "大阪府大阪市 4-5-6",
                         "発送準備中",
                         "9/29 到着予定",

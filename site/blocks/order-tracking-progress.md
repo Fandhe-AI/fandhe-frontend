@@ -264,7 +264,7 @@ pub fn demo() -> Node {
                 vec![
                     product_card(
                         dummy_assets::COMPANY_NAMES[0],
-                        dummy_assets::SAMPLE_PRICE_TIERS[0].1,
+                        "¥12,800",
                         "東京都渋谷区 1-2-3",
                         "配送中",
                         "9/27 到着予定",
@@ -272,7 +272,7 @@ pub fn demo() -> Node {
                     ),
                     product_card(
                         dummy_assets::COMPANY_NAMES[1],
-                        dummy_assets::SAMPLE_PRICE_TIERS[1].1,
+                        "¥5,600",
                         "大阪府大阪市 4-5-6",
                         "発送準備中",
                         "9/29 到着予定",
