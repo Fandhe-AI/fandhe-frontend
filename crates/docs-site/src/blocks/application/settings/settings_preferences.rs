@@ -462,8 +462,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-preferences-switch-row {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-settings-preferences-actions {\n  display: flex;\n  justify-content: flex-end;\n}\n\
 .blocks-settings-preferences-stack [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-.blocks-settings-preferences-stack [data-scope=\"native-select\"][data-part=\"select\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-settings-preferences-stack [data-scope=\"switch\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+.blocks-settings-preferences-stack [data-scope=\"field\"][data-part=\"select\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-settings-preferences-stack [data-scope=\"field\"][data-part=\"label\"][data-disabled],\n\
 .blocks-settings-preferences-stack [data-scope=\"field\"][data-part=\"helper-text\"][data-disabled] {\n  opacity: 1;\n}\n\
 @container blocks-settings-preferences (max-width: 36rem) {\n  \
@@ -609,5 +609,18 @@ mod tests {
         assert!(LAYOUT_CSS.contains(
             "[data-scope=\"radio-card\"][data-part=\"root\"][data-blocks-settings-preferences-cards] [data-scope=\"radio-card\"][data-part=\"label\"] {\n  grid-column: 1 / -1;\n}"
         ));
+    }
+
+    #[test]
+    fn native_select_dimming_neutralization_targets_actual_data_part() {
+        // codex-review 指摘（#3452）: native_select() の実際の出力は
+        // `data-scope="field" data-part="select"`（headless-ui の
+        // `field::select` へ委譲、native_select モジュール rustdoc 参照）で
+        // あり、旧セレクタ `[data-scope="native-select"]` は実在しないため
+        // disabled 時の減光中和 CSS が適用されなかった。
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"field\"][data-part=\"select\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
+        ));
+        assert!(!LAYOUT_CSS.contains("native-select"));
     }
 }
