@@ -20,7 +20,8 @@
 //!   記事 6 件をフラットに並べる。
 //! - **B（グループ見出しで分割。R0121）**: 同じ見出し（アイコンは省き
 //!   バッジのみ）の下、カード内を H3 のグループ見出しで 3 区分
-//!   （はじめに・アカウント・請求）し、区分ごとに記事を並べる。
+//!   （リファレンスを読む・部品を探す・サイト内を移動する）し、区分
+//!   ごとに記事を並べる。
 //!
 //! # `class` と `data-*` の使い分け
 //!
@@ -45,6 +46,27 @@
 //! center-article-list-row]` で前置して勝たせる
 //! （`error_page_popular_links` と同型の判断）。
 //!
+//! # カード余白オーバーライドの詳細度（`card::root` size variant との勝ち負け）
+//!
+//! [`fandhe_frontend_pre_styled_ui::card::root`] の size variant は
+//! `[data-scope="card"][data-part="root"].fd-card--size-<size>`（詳細度
+//! 0,3,0）で `--fandhe-card-padding` を宣言する。狭幅時の padding
+//! override を単独属性セレクタ（`[data-blocks-help-center-article-list-
+//! card]`、詳細度 0,1,0）のまま宣言すると詳細度規則上 size variant 側が
+//! 勝ち、狭幅でも padding が詰まらない。行リンクの規則と同じ判断で、
+//! card 側フックも base と同じ 2 属性セレクタへ前置して詳細度を揃え
+//! （`[data-scope="card"][data-part="root"][data-blocks-help-center-
+//! article-list-card]`）、ソース順（`blocks.css` は `pre-styled-ui.css`
+//! の後に読み込まれる、`crate::build::build_site` の stylesheet 配線順）
+//! で後勝ちさせる。
+//!
+//! # インスタンス内セクション間の余白
+//!
+//! `[data-blocks-help-center-article-list-instance]`（パンくず・見出し・
+//! stat・card を縦に並べるラッパー）へ `display: flex` + `gap` を宣言し、
+//! 各パーツ自身の margin に頼らずセクション間の間隔を確保する（隣接パーツ
+//! が marginless のまま密着しないようにする）。
+//!
 //! # 狭い幅ではカードの余白を詰め、矢印は右端に残す（`@container`）
 //!
 //! Demo 枠の幅はビューポート幅と一致しないため `@container`（コンテナ
@@ -54,10 +76,16 @@
 //! とき `card` の padding とカード内行の padding を詰める。シェブロンは
 //! `margin-inline-start: auto` のまま右端に残る。
 //!
-//! # `<form>` を使わない・`href="#"` を使わない
+//! # `<form>` を使わない・`href="#"` を使わない・記事名と遷移先を一致させる
 //!
 //! `crate::blocks` モジュール doc の不変条件どおり、本 Demo はフォーム・
-//! 送信処理を持たない静的表示のみである。パンくずは `../`（Blocks 索引）、
+//! 送信処理を持たない静的表示のみである。個別記事へ実際に遷移できる
+//! 専用ページは用意していないため、記事名はダミーの見出しではなく
+//! 遷移先ページの内容をそのまま表す文言にし（例: 「利用ガイドを読む」→
+//! `../../guides/`）、記事名と無関係なページへ遷移しないようにする。
+//! パンくずの中間項目も同様に、実際の遷移先（ドキュメントサイトの
+//! トップ `../../`）を表す「ドキュメントトップ」を label とする。
+//! パンくずは `../`（Blocks 索引）・`../../`（ドキュメントトップ）、
 //! 記事行はサイト内実在ページの相対パス（`../../guides/`・`../../api/`・
 //! `../../primitives/`・`../../themes/`・`../../wireframes/`・`../../`）を
 //! 割り当てる（`href="#"` は使わない、`linkcheck` fail-closed）。
@@ -122,7 +150,7 @@ fn chevron_icon() -> Node {
     geo_icon("M9 5l7 7-7 7")
 }
 
-/// パンくず 1 本（Blocks → ヘルプセンター → 現在のコレクション）。
+/// パンくず 1 本（Blocks → ドキュメントトップ → 現在のコレクション）。
 /// A/B 共通で使う（`page_heading_meta.rs` の常時パンくず付きインスタンスと
 /// 同型の合成）。
 fn breadcrumb_row() -> Node {
@@ -144,7 +172,7 @@ fn breadcrumb_row() -> Node {
                     vec![breadcrumb::link(
                         "../../",
                         vec![],
-                        vec![text("ヘルプセンター")],
+                        vec![text("ドキュメントトップ")],
                     )],
                 ),
                 breadcrumb::separator(vec![], vec![text("/")]),
@@ -152,7 +180,7 @@ fn breadcrumb_row() -> Node {
                     vec![],
                     vec![breadcrumb::current_link(
                         vec![],
-                        vec![text("アカウントと請求")],
+                        vec![text("サイトの歩き方")],
                     )],
                 ),
             ],
@@ -174,7 +202,7 @@ fn collection_heading(with_icon: bool, article_count: &'static str) -> Node {
             ..HeadingProps::default()
         },
         vec![],
-        vec![text("アカウントと請求")],
+        vec![text("サイトの歩き方")],
     ));
     heading_row_children.push(badge(
         &BadgeProps {
@@ -194,8 +222,9 @@ fn collection_heading(with_icon: bool, article_count: &'static str) -> Node {
             p(
                 vec![("class", "blocks-help-center-article-list-description")],
                 vec![text(
-                    "アカウント設定・お支払い方法の変更・請求書の再発行など、\
-                     契約管理に関するよくある質問をまとめています。",
+                    "ドキュメントサイト内の主要セクションへの入り口をまとめた\
+                     記事一覧です。目的のページが見つからないときはこちらから\
+                     探してください。",
                 )],
             ),
         ],
@@ -218,7 +247,7 @@ fn stat_item(label: &'static str, value: &'static str) -> Node {
 fn stat_row() -> Node {
     div(
         vec![("class", "blocks-help-center-article-list-stats")],
-        vec![stat_item("記事", "12"), stat_item("最終更新", "2026-09-18")],
+        vec![stat_item("記事", "6"), stat_item("最終更新", "2026-09-18")],
     )
 }
 
@@ -240,12 +269,12 @@ fn version_flat() -> Node {
     let rows = ul(
         vec![("class", "blocks-help-center-article-list-rows")],
         vec![
-            article_row("お支払い方法を登録・変更する", "../../guides/"),
-            article_row("請求書（領収書）を再発行する", "../../api/"),
-            article_row("プランをアップグレードする", "../../primitives/"),
-            article_row("年払いと月払いの違い", "../../themes/"),
-            article_row("解約・返金ポリシーについて", "../../wireframes/"),
-            article_row("チームメンバーへの請求権限の付与", "../../"),
+            article_row("利用ガイドを読む", "../../guides/"),
+            article_row("API リファレンスを開く", "../../api/"),
+            article_row("Primitives 部品を探す", "../../primitives/"),
+            article_row("Themes 部品を探す", "../../themes/"),
+            article_row("Wireframes 部品を探す", "../../wireframes/"),
+            article_row("ドキュメントトップへ戻る", "../../"),
         ],
     );
     let card_node = card::root(
@@ -260,7 +289,7 @@ fn version_flat() -> Node {
         ],
         vec![
             breadcrumb_row(),
-            collection_heading(true, "12"),
+            collection_heading(true, "6"),
             stat_row(),
             card_node,
         ],
@@ -297,24 +326,24 @@ fn version_grouped() -> Node {
             vec![],
             vec![
                 article_group(
-                    "はじめに",
+                    "リファレンスを読む",
                     vec![
-                        ("アカウントを作成する", "../../guides/"),
-                        ("初期設定チェックリスト", "../../api/"),
+                        ("利用ガイドを読む", "../../guides/"),
+                        ("API リファレンスを開く", "../../api/"),
                     ],
                 ),
                 article_group(
-                    "アカウント",
+                    "部品を探す",
                     vec![
-                        ("メールアドレスを変更する", "../../primitives/"),
-                        ("二段階認証を設定する", "../../themes/"),
+                        ("Primitives 部品を探す", "../../primitives/"),
+                        ("Themes 部品を探す", "../../themes/"),
                     ],
                 ),
                 article_group(
-                    "請求",
+                    "サイト内を移動する",
                     vec![
-                        ("お支払い方法を登録・変更する", "../../wireframes/"),
-                        ("請求書（領収書）を再発行する", "../../"),
+                        ("Wireframes 部品を探す", "../../wireframes/"),
+                        ("ドキュメントトップへ戻る", "../../"),
                     ],
                 ),
             ],
@@ -386,9 +415,13 @@ pub const BLOCK: Block = Block {
 ///
 /// 行リンクの規則は `[data-scope="link"][data-part="root"]`（詳細度
 /// 0,2,0）に勝つよう `[data-blocks-help-center-article-list-row]` を
-/// 併記する（モジュール doc「行リンクの詳細度」節参照）。
+/// 併記する（モジュール doc「行リンクの詳細度」節参照）。カードの狭幅
+/// padding override も同様に `[data-scope="card"][data-part="root"]`
+/// （size variant の詳細度 0,3,0）に勝つよう併記する（モジュール doc
+/// 「カード余白オーバーライドの詳細度」節参照）。
 const LAYOUT_CSS: &str = "\
 .blocks-help-center-article-list-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n  container-type: inline-size;\n  container-name: blocks-help-center-article-list;\n}\n\
+[data-blocks-help-center-article-list-instance] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-help-center-article-list-heading {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-help-center-article-list-heading-row] {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-help-center-article-list-description {\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n}\n\
@@ -400,7 +433,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"link\"][data-part=\"root\"][data-blocks-help-center-article-list-row] {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-3);\n  padding-block: var(--fandhe-space-3);\n  padding-inline: var(--fandhe-space-4);\n  color: var(--fandhe-color-fg);\n}\n\
 [data-blocks-help-center-article-list-row] > svg {\n  margin-inline-start: auto;\n  color: var(--fandhe-color-fg-subtle);\n  flex-shrink: 0;\n}\n\
 @container blocks-help-center-article-list (max-width: 36rem) {\n  \
-[data-blocks-help-center-article-list-card] {\n    --fandhe-card-padding: var(--fandhe-space-3);\n  }\n  \
+[data-scope=\"card\"][data-part=\"root\"][data-blocks-help-center-article-list-card] {\n    --fandhe-card-padding: var(--fandhe-space-3);\n  }\n  \
 [data-scope=\"link\"][data-part=\"root\"][data-blocks-help-center-article-list-row] {\n    padding-inline: var(--fandhe-space-3);\n  }\n\
 }\n";
 
@@ -448,6 +481,20 @@ mod tests {
                 .count(),
             12
         );
+    }
+
+    #[test]
+    fn version_a_badge_count_matches_its_own_row_count() {
+        // 版 A の見出しバッジ・stat が「6 件」で、実際に並ぶ記事も 6 件で
+        // 一致すること（P2 回帰防止）。
+        let html = render(&super::version_flat());
+        assert_eq!(
+            html.matches("data-blocks-help-center-article-list-row")
+                .count(),
+            6
+        );
+        assert!(html.contains("6 件"));
+        assert!(!html.contains("12 件"));
     }
 
     #[test]

@@ -61,7 +61,7 @@ fn chevron_icon() -> Node {
     geo_icon("M9 5l7 7-7 7")
 }
 
-/// パンくず 1 本（Blocks → ヘルプセンター → 現在のコレクション）。
+/// パンくず 1 本（Blocks → ドキュメントトップ → 現在のコレクション）。
 /// A/B 共通で使う（`page_heading_meta.rs` の常時パンくず付きインスタンスと
 /// 同型の合成）。
 fn breadcrumb_row() -> Node {
@@ -83,7 +83,7 @@ fn breadcrumb_row() -> Node {
                     vec![breadcrumb::link(
                         "../../",
                         vec![],
-                        vec![text("ヘルプセンター")],
+                        vec![text("ドキュメントトップ")],
                     )],
                 ),
                 breadcrumb::separator(vec![], vec![text("/")]),
@@ -91,7 +91,7 @@ fn breadcrumb_row() -> Node {
                     vec![],
                     vec![breadcrumb::current_link(
                         vec![],
-                        vec![text("アカウントと請求")],
+                        vec![text("サイトの歩き方")],
                     )],
                 ),
             ],
@@ -113,7 +113,7 @@ fn collection_heading(with_icon: bool, article_count: &'static str) -> Node {
             ..HeadingProps::default()
         },
         vec![],
-        vec![text("アカウントと請求")],
+        vec![text("サイトの歩き方")],
     ));
     heading_row_children.push(badge(
         &BadgeProps {
@@ -133,8 +133,9 @@ fn collection_heading(with_icon: bool, article_count: &'static str) -> Node {
             p(
                 vec![("class", "blocks-help-center-article-list-description")],
                 vec![text(
-                    "アカウント設定・お支払い方法の変更・請求書の再発行など、\
-                     契約管理に関するよくある質問をまとめています。",
+                    "ドキュメントサイト内の主要セクションへの入り口をまとめた\
+                     記事一覧です。目的のページが見つからないときはこちらから\
+                     探してください。",
                 )],
             ),
         ],
@@ -157,7 +158,7 @@ fn stat_item(label: &'static str, value: &'static str) -> Node {
 fn stat_row() -> Node {
     div(
         vec![("class", "blocks-help-center-article-list-stats")],
-        vec![stat_item("記事", "12"), stat_item("最終更新", "2026-09-18")],
+        vec![stat_item("記事", "6"), stat_item("最終更新", "2026-09-18")],
     )
 }
 
@@ -179,12 +180,12 @@ fn version_flat() -> Node {
     let rows = ul(
         vec![("class", "blocks-help-center-article-list-rows")],
         vec![
-            article_row("お支払い方法を登録・変更する", "../../guides/"),
-            article_row("請求書（領収書）を再発行する", "../../api/"),
-            article_row("プランをアップグレードする", "../../primitives/"),
-            article_row("年払いと月払いの違い", "../../themes/"),
-            article_row("解約・返金ポリシーについて", "../../wireframes/"),
-            article_row("チームメンバーへの請求権限の付与", "../../"),
+            article_row("利用ガイドを読む", "../../guides/"),
+            article_row("API リファレンスを開く", "../../api/"),
+            article_row("Primitives 部品を探す", "../../primitives/"),
+            article_row("Themes 部品を探す", "../../themes/"),
+            article_row("Wireframes 部品を探す", "../../wireframes/"),
+            article_row("ドキュメントトップへ戻る", "../../"),
         ],
     );
     let card_node = card::root(
@@ -199,7 +200,7 @@ fn version_flat() -> Node {
         ],
         vec![
             breadcrumb_row(),
-            collection_heading(true, "12"),
+            collection_heading(true, "6"),
             stat_row(),
             card_node,
         ],
@@ -236,24 +237,24 @@ fn version_grouped() -> Node {
             vec![],
             vec![
                 article_group(
-                    "はじめに",
+                    "リファレンスを読む",
                     vec![
-                        ("アカウントを作成する", "../../guides/"),
-                        ("初期設定チェックリスト", "../../api/"),
+                        ("利用ガイドを読む", "../../guides/"),
+                        ("API リファレンスを開く", "../../api/"),
                     ],
                 ),
                 article_group(
-                    "アカウント",
+                    "部品を探す",
                     vec![
-                        ("メールアドレスを変更する", "../../primitives/"),
-                        ("二段階認証を設定する", "../../themes/"),
+                        ("Primitives 部品を探す", "../../primitives/"),
+                        ("Themes 部品を探す", "../../themes/"),
                     ],
                 ),
                 article_group(
-                    "請求",
+                    "サイト内を移動する",
                     vec![
-                        ("お支払い方法を登録・変更する", "../../wireframes/"),
-                        ("請求書（領収書）を再発行する", "../../"),
+                        ("Wireframes 部品を探す", "../../wireframes/"),
+                        ("ドキュメントトップへ戻る", "../../"),
                     ],
                 ),
             ],
@@ -284,8 +285,11 @@ pub fn demo() -> Node {
   + 記事数バッジを添え、`stat` を 2 個（記事数・最終更新）横並びで表示した
   あと、1 枚の `card` に記事 6 件をフラットに並べます。
 - **版 B（グループ見出しで分割、R0121）**: 見出しはアイコンを省いてバッジ
-  のみとし、カード内を H3 のグループ見出し（はじめに・アカウント・請求）
-  で 3 区分し、区分ごとに記事を並べます。
+  のみとし、カード内を H3 のグループ見出し（リファレンスを読む・部品を
+  探す・サイト内を移動する）で 3 区分し、区分ごとに記事を並べます。
+- 個別記事へ実際に遷移できる専用ページは用意していないため、記事名は
+  遷移先ページの内容をそのまま表す文言にし、パンくずの中間項目
+  （ドキュメントトップ）も同様に実際の遷移先を表す label にしています。
 - 記事行間の罫線・狭幅時のカード余白の詰めは `card`/`link` 部品自体の機能
   ではなく、本 block の CSS が付与しています。
 - 狭幅（コンテナ幅 36rem 未満）では `card` のパディングとカード内行の
