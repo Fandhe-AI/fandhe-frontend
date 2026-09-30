@@ -102,34 +102,36 @@ fn product_breadcrumb() -> Node {
 /// （`cart_two_column_summary.rs`・`order_tracking_progress.rs` と同じ
 /// 判断。`BACKGROUND_SRC`/`SCREENSHOT_SRC`/`LOGO_SRC` は無関係カテゴリの
 /// プレースホルダーのため商品画像としては使わない、レビュー指摘対応）。
+/// 4 枚とも同一のプレースホルダー画像であり異なる商品写真ではないため、
+/// `alt` は連番を付けず全枚同一の文言にする（レビュー指摘対応、Codex:
+/// 「商品画像1」〜「商品画像4」という連番の `alt` は 4 枚が異なる写真で
+/// あることを含意し、実態〔同一画像の使い回し〕と食い違い誤解を招く）。
 ///
-/// `carousel::item` の `current` 引数は `true` を渡す（レビュー指摘対応、
-/// Codex）。[`LAYOUT_CSS`] の上書き（「サムネイル `carousel` の item
-/// 上書き」節参照）により 4 枚全てが常時横並びで画面に見えており、
-/// 1 枚だけを表示するスライドショー（1 枚だけが実際に viewport 内）を
-/// 前提にした `index == 0` 判定では `data-inview`/`data-current` が
-/// 先頭 1 枚にしか付かず、実際の表示状態（4 枚とも常に可視）と
-/// カルーセルの状態表現が食い違う。`item` パーツの `data-current`
-/// （`data-inview` も同一 bool から生成される、
-/// `fandhe_frontend_headless_ui::carousel::item` 参照）には styled
-/// carousel のスタイル規則が存在しない（強調は `indicator` パーツのみ）
-/// ため、全枚 `true` にしても見た目の変化はなく、可視状態の表現のみが
-/// 実態に合う。
+/// `carousel::item` の `current` 引数は `index == 0` の 1 枚のみ `true` を
+/// 渡す（レビュー指摘対応、Codex）。`data-current` はカルーセルの
+/// headless 契約上「現在選択中の 1 件」を示す属性であり
+/// （`fandhe_frontend_headless_ui::carousel::item` 参照）、
+/// [`LAYOUT_CSS`] の上書きで 4 枚全てが横並びに常時可視であることは
+/// 「選択状態」とは別の関心である。全枚を `true` にすると「4 件とも
+/// 選択中」という誤った状態表現になるため、初期選択（メイン画像が
+/// 表示する 1 枚目）のみを `current` とし、可視性の表現は行わない
+/// （styled carousel に `data-current`/`data-inview` 向けの視覚強調規則が
+/// ないため見た目には影響しない）。
 fn thumbnail(index: usize, count: usize) -> Node {
     let src = dummy_assets::PRODUCT_SRC;
-    let alt = format!("商品画像{}", index + 1);
+    let alt = "ワイヤレスヘッドホン 商品画像（プレースホルダー）";
     carousel::item(
         Orientation::Horizontal,
         index,
         count,
-        true,
+        index == 0,
         vec![],
         vec![image::image(
             &ImageProps {
                 fit: ImageFit::Cover,
                 aspect_ratio: AspectRatio::Square,
                 shape: ImageShape::Rounded,
-                ..ImageProps::new(src, &alt)
+                ..ImageProps::new(src, alt)
             },
             vec![("data-blocks-product-overview-gallery-split-thumb", "")],
         )],
