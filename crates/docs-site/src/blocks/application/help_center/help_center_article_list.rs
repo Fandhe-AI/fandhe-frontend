@@ -420,7 +420,12 @@ pub const BLOCK: Block = Block {
 /// 併記する（モジュール doc「行リンクの詳細度」節参照）。カードの狭幅
 /// padding override も同様に `[data-scope="card"][data-part="root"]`
 /// （size variant の詳細度 0,3,0）に勝つよう併記する（モジュール doc
-/// 「カード余白オーバーライドの詳細度」節参照）。
+/// 「カード余白オーバーライドの詳細度」節参照）。row-end のシェブロン
+/// アイコンの減色規則も同様に、icon 基底の
+/// `[data-scope="icon"][data-part="root"] { color: currentColor }`
+/// （詳細度 0,2,0）に勝つよう `svg` 側の `[data-scope="icon"]
+/// [data-part="root"]` を併記して詳細度 0,3,0 へ引き上げる
+/// （`!important` は使わない）。
 const LAYOUT_CSS: &str = "\
 .blocks-help-center-article-list-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n  container-type: inline-size;\n  container-name: blocks-help-center-article-list;\n}\n\
 [data-blocks-help-center-article-list-instance] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
@@ -433,7 +438,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-help-center-article-list-rows {\n  display: flex;\n  flex-direction: column;\n  list-style: none;\n  margin: 0;\n  padding: 0;\n}\n\
 .blocks-help-center-article-list-rows > li + li {\n  border-top: 1px solid var(--fandhe-color-border);\n}\n\
 [data-scope=\"link\"][data-part=\"root\"][data-blocks-help-center-article-list-row] {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-3);\n  padding-block: var(--fandhe-space-3);\n  padding-inline: var(--fandhe-space-4);\n  color: var(--fandhe-color-fg);\n}\n\
-[data-blocks-help-center-article-list-row] > svg {\n  margin-inline-start: auto;\n  color: var(--fandhe-color-fg-subtle);\n  flex-shrink: 0;\n}\n\
+[data-blocks-help-center-article-list-row] > svg[data-scope=\"icon\"][data-part=\"root\"] {\n  margin-inline-start: auto;\n  color: var(--fandhe-color-fg-subtle);\n  flex-shrink: 0;\n}\n\
 @container blocks-help-center-article-list (max-width: 36rem) {\n  \
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-help-center-article-list-card] {\n    --fandhe-card-padding: var(--fandhe-space-3);\n  }\n  \
 [data-scope=\"link\"][data-part=\"root\"][data-blocks-help-center-article-list-row] {\n    padding-inline: var(--fandhe-space-3);\n  }\n\
