@@ -69,10 +69,15 @@
 //! # `.blocks-demo` のはみ出し対策
 //!
 //! `crate::blocks::stylesheet` の `.blocks-demo` は `overflow-x: auto` を
-//! 持つ（`blocks_stylesheet_declares_demo_frame_overflow` 契約）。絶対配置
-//! パネルがフローに寄与しないため、`.blocks-store-nav-centered-logo-page`
-//! （ダミー本文枠）へ `min-block-size` を持たせ、展開済みパネルが
-//! レイアウトボックスの内側に収まるようにする。
+//! 持つ（`blocks_stylesheet_declares_demo_frame_overflow` 契約）。幅広時は
+//! 絶対配置パネルがフローに寄与しないため、`.blocks-store-nav-centered-logo-page`
+//! （ダミー本文枠）へ `min-block-size: 30rem` を持たせ、展開済みパネルが
+//! レイアウトボックスの内側に収まるようにする。狭幅
+//! （`@media (max-width: 47.99rem)`）では画像 1 列 + リンク列の実高さが
+//! 固定枠を超えてはみ出し得るレビュー指摘（PR #3472）を踏まえ、`content`
+//! パートを `position: static` へ上書きしてパネルをフロー内に戻す
+//! （固定 `min-block-size` の当て推量に頼らず、実内容の高さぶんだけ
+//! `.blocks-store-nav-centered-logo-page` の手前へ自然に積み増す構造）。
 //!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
@@ -510,6 +515,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-store-nav-centered-logo-panel-inner {\n  max-inline-size: 64rem;\n  margin-inline: auto;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-4);\n}\n\
 .blocks-store-nav-centered-logo-featured-row {\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-store-nav-centered-logo-featured[data-scope=\"navigation-menu\"][data-part=\"link\"] {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-1);\n}\n\
+[data-scope=\"image\"][data-part=\"root\"][data-blocks-store-nav-centered-logo-featured-image] {\n  display: block;\n  width: 100%;\n  height: 8rem;\n  object-fit: cover;\n  border-radius: var(--fandhe-radius-md);\n}\n\
 .blocks-store-nav-centered-logo-featured-title {\n  font-weight: 600;\n}\n\
 .blocks-store-nav-centered-logo-featured-note {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-store-nav-centered-logo-panel-columns {\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(min(10rem, 100%), 1fr));\n  gap: var(--fandhe-space-6);\n}\n\
@@ -517,7 +523,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-store-nav-centered-logo-panel-heading {\n  display: block;\n  font-weight: 600;\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n  margin-block-end: var(--fandhe-space-2);\n}\n\
 .blocks-store-nav-centered-logo-layout [data-scope=\"navigation-menu\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-store-nav-centered-logo-page {\n  min-block-size: 30rem;\n  padding: var(--fandhe-space-6) var(--fandhe-space-4);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-@media (max-width: 47.99rem) {\n  .blocks-store-nav-centered-logo-bar {\n    grid-template-columns: 1fr;\n    justify-items: center;\n  }\n  .blocks-store-nav-centered-logo-nav[data-scope=\"navigation-menu\"][data-part=\"root\"] {\n    justify-self: center;\n  }\n  .blocks-store-nav-centered-logo-layout [data-scope=\"navigation-menu\"][data-part=\"list\"] {\n    flex-wrap: wrap;\n    justify-content: center;\n  }\n  .blocks-store-nav-centered-logo-actions {\n    justify-self: center;\n  }\n  .blocks-store-nav-centered-logo-page {\n    min-block-size: 46rem;\n  }\n}\n";
+@media (max-width: 47.99rem) {\n  .blocks-store-nav-centered-logo-bar {\n    grid-template-columns: 1fr;\n    justify-items: center;\n  }\n  .blocks-store-nav-centered-logo-nav[data-scope=\"navigation-menu\"][data-part=\"root\"] {\n    justify-self: center;\n    inline-size: 100%;\n  }\n  .blocks-store-nav-centered-logo-layout [data-scope=\"navigation-menu\"][data-part=\"list\"] {\n    flex-wrap: wrap;\n    justify-content: center;\n  }\n  .blocks-store-nav-centered-logo-layout [data-scope=\"navigation-menu\"][data-part=\"item\"] {\n    inline-size: 100%;\n  }\n  .blocks-store-nav-centered-logo-layout [data-scope=\"navigation-menu\"][data-part=\"content\"] {\n    position: static;\n    inset-inline: auto;\n  }\n  .blocks-store-nav-centered-logo-actions {\n    justify-self: center;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
