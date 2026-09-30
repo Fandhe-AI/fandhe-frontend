@@ -11,12 +11,14 @@
 //! 新規 block を追加する際は本ファイルへ `mod` 宣言と `blocks()` への追記を
 //! 行うだけでよく、`super`（`application`）側・トップレベル
 //! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
-//! ための構造、イシュー #2734）。
+//! ための構造、イシュー #2734）。イシュー #2934 で `page-heading-tabs`
+//! （タブ付きのページ見出し）を追加した。
 
 mod page_heading_actions;
 mod page_heading_avatar;
 mod page_heading_cover;
 mod page_heading_meta;
+mod page_heading_tabs;
 mod page_heading_welcome_stats;
 
 use crate::blocks::Block;
@@ -27,6 +29,7 @@ pub(super) fn blocks() -> Vec<Block> {
         page_heading_avatar::BLOCK,
         page_heading_cover::BLOCK,
         page_heading_meta::BLOCK,
+        page_heading_tabs::BLOCK,
         page_heading_welcome_stats::BLOCK,
     ]
 }

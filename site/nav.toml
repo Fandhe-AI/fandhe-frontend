@@ -2086,6 +2086,11 @@ source = "site/blocks/page-heading-meta.md"
 path = "/blocks/page-heading-meta/"
 
 [[section.group.page]]
+title = "page-heading-tabs"
+source = "site/blocks/page-heading-tabs.md"
+path = "/blocks/page-heading-tabs/"
+
+[[section.group.page]]
 title = "page-heading-welcome-stats"
 source = "site/blocks/page-heading-welcome-stats.md"
 path = "/blocks/page-heading-welcome-stats/"
@@ -2312,6 +2317,21 @@ title = "settings-api-key-created"
 source = "site/blocks/settings-api-key-created.md"
 path = "/blocks/settings-api-key-created/"
 
+[[section.group.page]]
+title = "settings-billing-overview"
+source = "site/blocks/settings-billing-overview.md"
+path = "/blocks/settings-billing-overview/"
+
+[[section.group.page]]
+title = "settings-billing-usage"
+source = "site/blocks/settings-billing-usage.md"
+path = "/blocks/settings-billing-usage/"
+
+[[section.group.page]]
+title = "settings-event-accordion"
+source = "site/blocks/settings-event-accordion.md"
+path = "/blocks/settings-event-accordion/"
+
 [[section.group]]
 title = "Action Panel"
 
@@ -2319,6 +2339,11 @@ title = "Action Panel"
 title = "action-panel-footer-bar"
 source = "site/blocks/action-panel-footer-bar.md"
 path = "/blocks/action-panel-footer-bar/"
+
+[[section.group.page]]
+title = "action-panel-inline"
+source = "site/blocks/action-panel-inline.md"
+path = "/blocks/action-panel-inline/"
 
 [[section.group.page]]
 title = "action-panel-stacked"
@@ -2399,6 +2424,11 @@ path = "/blocks/onboarding-centered-steps/"
 title = "onboarding-checklist"
 source = "site/blocks/onboarding-checklist.md"
 path = "/blocks/onboarding-checklist/"
+
+[[section.group.page]]
+title = "onboarding-split-image"
+source = "site/blocks/onboarding-split-image.md"
+path = "/blocks/onboarding-split-image/"
 
 [[section.group]]
 title = "Card"
@@ -2497,6 +2527,11 @@ title = "Help Center"
 title = "help-center-article-list"
 source = "site/blocks/help-center-article-list.md"
 path = "/blocks/help-center-article-list/"
+
+[[section.group.page]]
+title = "help-center-collection-grid"
+source = "site/blocks/help-center-collection-grid.md"
+path = "/blocks/help-center-collection-grid/"
 
 [[section.group]]
 title = "Media Object"

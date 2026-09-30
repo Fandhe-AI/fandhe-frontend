@@ -969,6 +969,7 @@ pub enum LayoutCss {
 | page-heading-avatar | #2931（親 #2892） | `application/page_heading/page_heading_avatar.rs` |
 | page-heading-cover | #2932（親 #2892） | `application/page_heading/page_heading_cover.rs` |
 | page-heading-meta | #2933（親 #2892） | `application/page_heading/page_heading_meta.rs` |
+| page-heading-tabs | #2934 | `application/page_heading/page_heading_tabs.rs` |
 | page-heading-welcome-stats | #2935（親 #2892） | `application/page_heading/page_heading_welcome_stats.rs` |
 | card-media-footer | #2900（親 #2892） | `application/card/card_media_footer.rs` |
 | card-meta-cta | #2901（親 #2892） | `application/card/card_meta_cta.rs` |
@@ -1014,12 +1015,14 @@ pub enum LayoutCss {
 | table-with-toolbar | #2949・#2950（親 #2948） | `application/table/table_with_toolbar.rs` |
 | profile-detail-skills | #2938（親 #2892） | `application/profile/profile_detail_skills.rs` |
 | profile-card-centered | #2936（親 #2892） | `application/profile/profile_card_centered.rs` |
+| settings-event-accordion | #2986 | `application/settings/settings_event_accordion.rs` |
 | sidebar-rail-panel | #2941 | `application/sidebar/sidebar_rail_panel.rs` |
 | table-summary-rows | #2946（親 #2892） | `application/table/table_summary_rows.rs` |
 | list-container | #3227 | `application/list/list_container.rs` |
 | media-object | #3228 | `application/media_object/media_object_alignments.rs` |
 | action-panel-footer-bar | #2952（親 #2951） | `application/action_panel/action_panel_footer_bar.rs` |
 | card-heading-basic | #3229 | `application/card_heading/card_heading_basic.rs` |
+| action-panel-inline | #2953（親 #2951） | `application/action_panel/action_panel_inline.rs` |
 | action-panel-with-input | #2955 | `application/action_panel/action_panel_with_input.rs` |
 | action-panel-stacked | #2954 | `application/action_panel/action_panel_stacked.rs` |
 | ai-chat-code-preview | #2958（親 #2957） | `application/ai_chat/ai_chat_code_preview.rs` |
@@ -1038,9 +1041,13 @@ pub enum LayoutCss {
 | empty-state-starter-grid | #2972（親 #2951） | `application/empty_state/empty_state_starter_grid.rs` |
 | empty-state-starter-list | #2973（親 #2951） | `application/empty_state/empty_state_starter_list.rs` |
 | help-center-article-list | #2974（親 #2951） | `application/help_center/help_center_article_list.rs` |
+| help-center-collection-grid | #2975 | `application/help_center/help_center_collection_grid.rs` |
 | notification-tray-tabs | #2977（親 #2951） | `application/notification/notification_tray_tabs.rs` |
 | onboarding-checklist | #2979 | `application/onboarding/onboarding_checklist.rs` |
 | onboarding-centered-steps | #2978（親 #2951） | `application/onboarding/onboarding_centered_steps.rs` |
+| onboarding-split-image | #2980（親 #2951） | `application/onboarding/onboarding_split_image.rs` |
+| settings-billing-overview | #2984 | `application/settings/settings_billing_overview.rs` |
+| settings-billing-usage | #2985 | `application/settings/settings_billing_usage.rs` |
 | settings-api-key-created | #2982（親 #2951） | `application/settings/settings_api_key_created.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
