@@ -2358,9 +2358,34 @@ source = "site/blocks/settings-item-cards.md"
 path = "/blocks/settings-item-cards/"
 
 [[section.group.page]]
+title = "settings-log-table"
+source = "site/blocks/settings-log-table.md"
+path = "/blocks/settings-log-table/"
+
+[[section.group.page]]
+title = "settings-notification-matrix"
+source = "site/blocks/settings-notification-matrix.md"
+path = "/blocks/settings-notification-matrix/"
+
+[[section.group.page]]
+title = "settings-org-switcher"
+source = "site/blocks/settings-org-switcher.md"
+path = "/blocks/settings-org-switcher/"
+
+[[section.group.page]]
 title = "settings-page-sidebar"
 source = "site/blocks/settings-page-sidebar.md"
 path = "/blocks/settings-page-sidebar/"
+
+[[section.group.page]]
+title = "settings-preferences"
+source = "site/blocks/settings-preferences.md"
+path = "/blocks/settings-preferences/"
+
+[[section.group.page]]
+title = "settings-profile-form"
+source = "site/blocks/settings-profile-form.md"
+path = "/blocks/settings-profile-form/"
 
 [[section.group]]
 title = "Action Panel"
