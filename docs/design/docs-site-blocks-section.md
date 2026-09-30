@@ -988,6 +988,7 @@ pub enum LayoutCss {
 | form-layout-property-panel | #2913・#2914（親 #2912） | `application/form_layout/form_layout_property_panel.rs` |
 | form-layout-stacked | #2915（親 #2892） | `application/form_layout/form_layout_stacked.rs` |
 | form-layout-two-column | #2916（親 #2892） | `application/form_layout/form_layout_two_column.rs` |
+| settings-export-data | #2987（親 #2951） | `application/settings/settings_export_data.rs` |
 | navbar-app-links | #2926（親 #2892） | `application/navbar/navbar_app_links.rs` |
 | navbar-two-row | #2928 | `application/navbar/navbar_two_row.rs` |
 | navbar-with-search | #2929（親 #2892） | `application/navbar/navbar_with_search.rs` |
