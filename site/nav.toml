@@ -2330,6 +2330,16 @@ title = "empty-state-card-header"
 source = "site/blocks/empty-state-card-header.md"
 path = "/blocks/empty-state-card-header/"
 
+[[section.group.page]]
+title = "empty-state-invite-team"
+source = "site/blocks/empty-state-invite-team.md"
+path = "/blocks/empty-state-invite-team/"
+
+[[section.group.page]]
+title = "empty-state-setup-steps"
+source = "site/blocks/empty-state-setup-steps.md"
+path = "/blocks/empty-state-setup-steps/"
+
 [[section.group]]
 title = "Dialog"
 
