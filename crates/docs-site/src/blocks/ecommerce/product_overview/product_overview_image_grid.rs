@@ -76,6 +76,17 @@
 //! よう改めた。実在の Reviews block が追加され次第、その相対パスへの
 //! `link` へ差し替える（#3072）。
 //!
+//! # 下段の全幅画像は行サイズ計算から独立させる
+//!
+//! [`LAYOUT_CSS`] の `.blocks-product-overview-image-grid-gallery` は
+//! `grid-auto-rows: minmax(0, 1fr) minmax(0, 1fr) auto;` とし、1・2 行目
+//! （hero が span する 2 行）のみ `1fr` を共有させ、3 行目（`wide` タイル）
+//! は `auto` にする。全行を単一の `minmax(0, 1fr)` にすると、正方形
+//! `aspect_ratio` の全幅画像（3 列分の幅）が要求する高さへ他の行も
+//! 揃ってしまい、意図した 2×2 の段差配置が崩れる（PR #3468 レビュー P1
+//! 指摘）。`auto` にした 3 行目は `fr` の使用可能領域分配（flex fraction）
+//! に加わらないため、1・2 行目のサイズ計算から切り離される。
+//!
 //! # ダミー素材について
 //!
 //! 商品名・価格・レビュー件数・色/サイズ・説明はすべて本ファイル内の架空
@@ -486,7 +497,7 @@ pub const BLOCK: Block = Block {
 /// （`crate::blocks::LAYOUT_CSS` doc「block 固有 CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-product-overview-image-grid-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-product-overview-image-grid;\n}\n\
-.blocks-product-overview-image-grid-gallery {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n  grid-auto-rows: minmax(0, 1fr);\n  gap: var(--fandhe-space-3);\n}\n\
+.blocks-product-overview-image-grid-gallery {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n  grid-auto-rows: minmax(0, 1fr) minmax(0, 1fr) auto;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-product-overview-image-grid-tile=\"hero\"] {\n  grid-column: span 2;\n  grid-row: span 2;\n}\n\
 [data-blocks-product-overview-image-grid-tile=\"wide\"] {\n  grid-column: 1 / -1;\n}\n\
 .blocks-product-overview-image-grid-panel {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  max-width: 40rem;\n}\n\
