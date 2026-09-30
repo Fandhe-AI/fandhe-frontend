@@ -191,7 +191,7 @@ fn preset_help_popover() -> Node {
                             Some(POPOVER_DESC_ID),
                             vec![],
                             vec![text(
-                                "プリセットを選ぶと、右側の生成設定（温度・最大トークン数・Top P 等）がまとめて切り替わります。",
+                                "プリセットは、右側の生成設定（温度・最大トークン数・Top P 等）の組み合わせ例です。本ページは静的な構成例のため、選択欄・生成設定は固定表示で切り替わりません。",
                             )],
                         ),
                     ],
@@ -234,7 +234,14 @@ struct SliderSpec {
 /// 指定パラメータのスライダー 1 件（ラベル + control/track/range/thumb +
 /// hidden_input、`pricing_usage_slider` と同型の構成）。
 fn param_slider(spec: SliderSpec) -> Node {
-    let props = SliderProps::default();
+    // 無 JS の静的デモではキー操作をしても値が変わらないため、`disabled: true`
+    // で thumb を `tabindex="-1"` にしフォーカス不能にする（codex レビュー
+    // 指摘。popover trigger・button と同じく「操作可能に見える静的要素」を
+    // 作らない判断）。
+    let props = SliderProps {
+        disabled: true,
+        ..SliderProps::default()
+    };
     let state = Slider::new(
         spec.min,
         spec.max,
