@@ -950,6 +950,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"checkbox-card\"][data-part=\"root\"][data-blocks-onboarding-centered-steps-interest-card][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-onboarding-centered-steps-layout [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-onboarding-centered-steps-layout [data-scope=\"field\"][data-part=\"select\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+.blocks-onboarding-centered-steps-layout [data-scope=\"field\"][data-part=\"label\"][data-disabled] {\n  opacity: 1;\n}\n\
 [data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-onboarding-centered-steps-cc-checkbox][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n";
 
 #[cfg(test)]
