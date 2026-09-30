@@ -11,8 +11,8 @@
 //! [`settings_log_table`]、イシュー #2998 で
 //! [`settings_notification_matrix`]、イシュー #2999 で
 //! [`settings_org_switcher`]、イシュー #3007 で
-//! [`settings_page_tabs`]（骨格・API 設定領域。親 #3006、残りの版 B・
-//! 状態並記は #3008）、イシュー #3009 で
+//! [`settings_page_tabs`]（親 #3006、骨格・版 A は #3007、版 B・状態並記・
+//! 原稿の仕上げは #3008 で完了）、イシュー #3009 で
 //! [`settings_preferences`]、イシュー #3010 で
 //! [`settings_profile_form`]、イシュー #3001 で
 //! [`settings_page_aside_nav`] を追加した）。手順は

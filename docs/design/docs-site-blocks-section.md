@@ -1061,7 +1061,7 @@ pub enum LayoutCss {
 | settings-notification-matrix | #2998（親 #2951） | `application/settings/settings_notification_matrix.rs` |
 | settings-org-switcher | #2999（親 #2951） | `application/settings/settings_org_switcher.rs` |
 | settings-page-aside-nav | #3001（親 #3000） | `application/settings/settings_page_aside_nav.rs` |
-| settings-page-tabs | #3007（親 #3006） | `application/settings/settings_page_tabs.rs` |
+| settings-page-tabs | #3007/#3008（親 #3006） | `application/settings/settings_page_tabs.rs` |
 | settings-preferences | #3009（親 #2951） | `application/settings/settings_preferences.rs` |
 | settings-profile-form | #3010 | `application/settings/settings_profile_form.rs` |
 
