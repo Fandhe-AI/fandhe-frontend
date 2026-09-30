@@ -54,7 +54,8 @@
 //! 1 行を `CheckedState::Checked`、ヘッダーの全選択チェックボックスを
 //! `CheckedState::Indeterminate`（`aria-checked="mixed"`）に固定し、
 //! チェック状態の違いを静的に並記する。ページ送り（`pagination`）は
-//! `ItemMode::Button` 固定で、`prev_trigger` を disabled・1 ページ目を
+//! `ItemMode::Button` 固定で、`INVOICES` 4 件が 1 ページに収まるため
+//! `prev_trigger`/`next_trigger` を両方 disabled・1 ページ目を
 //! `aria-current="page"` として固定表示する（`table_with_toolbar::footer`
 //! と同型）。
 //!
@@ -768,8 +769,9 @@ fn invoice_select_checkbox(name: &str, checked: CheckedState, label: &str) -> No
     )
 }
 
-/// 請求書テーブルのフッター（件数表示 + ページ送り。1 ページ目固定・前
-/// ページ無効、`table_with_toolbar::footer` と同型）。
+/// 請求書テーブルのフッター（件数表示 + ページ送り。`INVOICES` 4 件が
+/// 1 ページに収まるため前へ/次へとも無効固定、`table_with_toolbar::footer`
+/// と同型）。
 fn invoices_footer() -> Node {
     div(
         vec![("class", "blocks-settings-page-tabs-invoices-footer")],
@@ -784,11 +786,12 @@ fn invoices_footer() -> Node {
                 "請求書ページ",
                 vec![("data-blocks-settings-page-tabs-pagination", "")],
                 vec![
+                    // 請求書は INVOICES 4 件のみで全件 1 ページに収まるため、
+                    // ページ送りは前へ/次へとも disabled 固定（件数表示
+                    // 「4 件中 1–4 件を表示」との整合、イシュー #3460 review）。
                     pagination::prev_trigger(ItemMode::Button, true, vec![], vec![text("前へ")]),
                     pagination::item(ItemMode::Button, 1, true, false, vec![], vec![text("1")]),
-                    pagination::item(ItemMode::Button, 2, false, false, vec![], vec![text("2")]),
-                    pagination::item(ItemMode::Button, 3, false, false, vec![], vec![text("3")]),
-                    pagination::next_trigger(ItemMode::Button, false, vec![], vec![text("次へ")]),
+                    pagination::next_trigger(ItemMode::Button, true, vec![], vec![text("次へ")]),
                 ],
             ),
         ],
@@ -1197,14 +1200,34 @@ mod tests {
         }
     }
 
-    /// ページ送りが 1 ページ目固定（前ページ無効・1 ページ目が
-    /// `data-selected`）であること。
+    /// ページ送りが 1 ページ目固定（前へ/次へとも無効・1 ページ目が
+    /// `data-selected`）であること。請求書 4 件が 1 ページに収まるため
+    /// ページ 2/3 は存在せず、件数表示「4 件中 1–4 件を表示」との矛盾
+    /// （次へ有効 + 複数ページボタン）を再発させない固定テスト
+    /// （イシュー #3460 review 是正）。
     #[test]
     fn pagination_is_fixed_on_first_page() {
         let html = render(&demo());
         assert!(html.contains(r#"data-part="prev-trigger""#));
         assert!(html.contains(r#"data-index="1""#));
         assert!(html.contains("disabled"));
+        assert_eq!(
+            html.matches(r#"data-part="item" type="button" data-index="#)
+                .count(),
+            1,
+            "expected exactly one page item (page 1) since invoices fit on a single page"
+        );
+        let next_trigger_start = html
+            .find(r#"data-part="next-trigger""#)
+            .expect("next-trigger should be rendered");
+        let next_trigger_end = html[next_trigger_start..]
+            .find('>')
+            .map(|i| next_trigger_start + i)
+            .expect("next-trigger opening tag should be closed");
+        assert!(
+            html[next_trigger_start..next_trigger_end].contains("disabled"),
+            "next-trigger should be disabled: only one page of invoices exists"
+        );
     }
 
     /// `tab_nav::root` の `aria-label` が版ごとに一意であること（版の並記で

@@ -625,8 +625,9 @@ fn invoice_select_checkbox(name: &str, checked: CheckedState, label: &str) -> No
     )
 }
 
-/// 請求書テーブルのフッター（件数表示 + ページ送り。1 ページ目固定・前
-/// ページ無効、`table_with_toolbar::footer` と同型）。
+/// 請求書テーブルのフッター（件数表示 + ページ送り。`INVOICES` 4 件が
+/// 1 ページに収まるため前へ/次へとも無効固定、`table_with_toolbar::footer`
+/// と同型）。
 fn invoices_footer() -> Node {
     div(
         vec![("class", "blocks-settings-page-tabs-invoices-footer")],
@@ -641,11 +642,12 @@ fn invoices_footer() -> Node {
                 "請求書ページ",
                 vec![("data-blocks-settings-page-tabs-pagination", "")],
                 vec![
+                    // 請求書は INVOICES 4 件のみで全件 1 ページに収まるため、
+                    // ページ送りは前へ/次へとも disabled 固定（件数表示
+                    // 「4 件中 1–4 件を表示」との整合、イシュー #3460 review）。
                     pagination::prev_trigger(ItemMode::Button, true, vec![], vec![text("前へ")]),
                     pagination::item(ItemMode::Button, 1, true, false, vec![], vec![text("1")]),
-                    pagination::item(ItemMode::Button, 2, false, false, vec![], vec![text("2")]),
-                    pagination::item(ItemMode::Button, 3, false, false, vec![], vec![text("3")]),
-                    pagination::next_trigger(ItemMode::Button, false, vec![], vec![text("次へ")]),
+                    pagination::next_trigger(ItemMode::Button, true, vec![], vec![text("次へ")]),
                 ],
             ),
         ],
@@ -837,7 +839,8 @@ pub fn demo() -> Node {
 - 請求書テーブルの行選択チェックボックスは 1 行を選択済み、ヘッダーの
   全選択チェックボックスを `Indeterminate`（`aria-checked="mixed"`）に
   固定し、選択状態の違いを静的に併記します。ページ送りは `ItemMode::Button`
-  固定で 1 ページ目・前ページ無効の状態のみを示します。
+  固定で、請求書 4 件が 1 ページに収まるため前へ/次へとも無効固定の状態
+  のみを示します。
 - 狭い幅でのタブ横スクロールは、`tab-nav` root へ常時 `overflow-x: auto;
   flex-wrap: nowrap; white-space: nowrap;` を宣言することで実現します
   （`@container` によるコンテナクエリ分岐は不要です）。
