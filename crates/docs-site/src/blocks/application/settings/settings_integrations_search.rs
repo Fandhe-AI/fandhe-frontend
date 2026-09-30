@@ -27,7 +27,14 @@
 //!
 //! 絞り込みボタン群は `40rem` 未満で `overflow-x: auto`（折り返さず横
 //! スクロール）、`40rem` 以上で通常の折り返しへ切り替える。カードグリッドは
-//! `40rem` 未満で 1 列、以上で 2 列にする（[`LAYOUT_CSS`] 参照）。
+//! `40rem` 未満で 1 列、以上で 2 列にする（[`LAYOUT_CSS`] 参照）。判定は
+//! ビューポート幅ではなくルート（`.blocks-settings-integrations-search-layout`）
+//! を基準にした `@container`（コンテナクエリ）で行う。`.docs-content`/
+//! `.blocks-demo` の幅制限フレーム内で表示されるため、ビューポート基準の
+//! `@media` では切替がフレーム幅とずれる（兄弟 block の
+//! `settings_billing_usage` と同じ回避）。空状態カード（[`empty_card`]）は
+//! グリッド内で唯一のアイテムのため `grid-column: 1 / -1;` で全幅化し、
+//! 2 列時にも半幅タイルへ収まらないようにする。
 //!
 //! # ダミーリンクは外部 URL に限定する（`linkcheck` 対応）
 //!
@@ -344,15 +351,15 @@ pub const BLOCK: Block = Block {
 /// `blocks-settings-integrations-search-layout` という別名にする
 /// （`card_heading_toolbar` 等と同じ Bugbot 教訓の回避）。
 const LAYOUT_CSS: &str = "\
-.blocks-settings-integrations-search-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
+.blocks-settings-integrations-search-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  container-type: inline-size;\n  container-name: blocks-settings-integrations-search;\n}\n\
 [data-blocks-settings-integrations-search-panel] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-6);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n}\n\
 [data-blocks-settings-integrations-search-panel] [data-scope=\"input-group\"][data-part=\"root\"] {\n  max-width: 28rem;\n}\n\
 [data-blocks-settings-integrations-search-filters] {\n  display: flex;\n  gap: var(--fandhe-space-2);\n  flex-wrap: nowrap;\n  overflow-x: auto;\n  padding-bottom: var(--fandhe-space-1);\n}\n\
 [data-blocks-settings-integrations-search-grid] {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-settings-integrations-search-card] [data-scope=\"card\"][data-part=\"footer\"] {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
-[data-blocks-settings-integrations-search-empty] {\n  text-align: center;\n}\n\
+[data-blocks-settings-integrations-search-empty] {\n  grid-column: 1 / -1;\n  text-align: center;\n}\n\
 [data-blocks-settings-integrations-search-empty] [data-scope=\"card\"][data-part=\"footer\"] {\n  justify-content: center;\n}\n\
-@media (min-width: 40rem) {\n  [data-blocks-settings-integrations-search-filters] {\n    flex-wrap: wrap;\n    overflow-x: visible;\n  }\n  [data-blocks-settings-integrations-search-grid] {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n}\n";
+@container blocks-settings-integrations-search (min-width: 40rem) {\n  [data-blocks-settings-integrations-search-filters] {\n    flex-wrap: wrap;\n    overflow-x: visible;\n  }\n  [data-blocks-settings-integrations-search-grid] {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -427,11 +434,26 @@ mod tests {
     }
 
     /// [`LAYOUT_CSS`] が想定するブレークポイントを持ち、`<` を含まない
-    /// （REQ-1: `</style>` によるスタイル脱出を防ぐ）。
+    /// （REQ-1: `</style>` によるスタイル脱出を防ぐ）。判定はビューポート
+    /// 幅ではなくルート要素基準の `@container`（`.docs-content`/
+    /// `.blocks-demo` の幅制限フレーム内対応、兄弟 block
+    /// `settings_billing_usage` と同型）であること。
     #[test]
     fn layout_css_declares_breakpoint_and_no_angle_bracket() {
         assert!(!LAYOUT_CSS.contains('<'));
-        assert!(LAYOUT_CSS.contains("@media (min-width: 40rem)"));
+        assert!(!LAYOUT_CSS.contains("@media (min-width: 40rem)"));
+        assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
+        assert!(LAYOUT_CSS
+            .contains("@container blocks-settings-integrations-search (min-width: 40rem)"));
+    }
+
+    /// 空状態カード（[`empty_card`]）はグリッド内で `grid-column: 1 / -1;`
+    /// により全幅化され、2 列レイアウトでも半幅タイルへ収まらないこと。
+    #[test]
+    fn empty_card_spans_full_grid_width() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-settings-integrations-search-empty] {\n  grid-column: 1 / -1;"
+        ));
     }
 
     /// ルート class（`demo_class` とは別名）が `demo()` の出力へ実際に
