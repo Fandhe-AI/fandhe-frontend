@@ -13,7 +13,9 @@
 PII を含みません。
 
 本 Demo は無 JS の静的表示のみであり、`<form>` を含みません。保存ボタンは
-`type="button"` で送信先を持ちません。
+`type="button"` で送信先を持ちません。全ラジオカード・セレクト・スイッチは
+ネイティブ `disabled` で操作自体を封じています（クリックでネイティブ state
+のみ変わり render 時固定の状態と乖離するのを防ぐため）。
 
 ## Rust コード
 
@@ -46,7 +48,11 @@ fn select_field(
     let props = FieldProps {
         id,
         ids: FieldIds::default(),
-        disabled: false,
+        // 無 JS 静的デモの契約（モジュール doc「初期状態は固定（無 JS）」節）:
+        // クリックでネイティブ state のみ変わり render 時固定の data-state と
+        // 乖離することを防ぐため、ネイティブ disabled で操作自体を封じる
+        // （`settings_notification_matrix` の checkbox と同じ判断）。
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
@@ -83,17 +89,21 @@ fn radio_card_group(
     items: &[(&str, &str, &str, bool)],
 ) -> Node {
     let mut children = vec![radio_card::label(Some(group_id), vec![], vec![text(title)])];
+    // 無 JS 静的デモの契約（モジュール doc「初期状態は固定（無 JS）」節）:
+    // クリックでネイティブ state のみ変わり render 時固定の data-state と
+    // 乖離することを防ぐため、各カードをネイティブ disabled にする
+    // （`settings_notification_matrix` の checkbox と同じ判断）。
     children.extend(items.iter().map(|(value, label, description, checked)| {
         radio_card::item(
             *checked,
-            false,
+            true,
             value,
             vec![],
             vec![
-                radio_card::item_hidden_input(*checked, false, Some(name), value, vec![]),
+                radio_card::item_hidden_input(*checked, true, Some(name), value, vec![]),
                 radio_card::item_control(
                     *checked,
-                    false,
+                    true,
                     vec![],
                     vec![
                         radio_card::item_content(
@@ -103,7 +113,7 @@ fn radio_card_group(
                                 radio_card::item_description(vec![], vec![text(*description)]),
                             ],
                         ),
-                        radio_card::item_indicator(*checked, false, false, vec![]),
+                        radio_card::item_indicator(*checked, true, false, vec![]),
                     ],
                 ),
             ],
@@ -122,7 +132,14 @@ fn radio_card_group(
 
 /// 1 行のスイッチ（見出し・説明文とスイッチ本体を横並びにする）。
 fn switch_row(name: &str, label_text: &str, description: &str, checked: bool) -> Node {
-    let props = SwitchProps::default();
+    let props = SwitchProps {
+        // 無 JS 静的デモの契約（モジュール doc「初期状態は固定（無 JS）」節）:
+        // クリックでネイティブ state のみ変わり render 時固定の data-state と
+        // 乖離することを防ぐため、ネイティブ disabled で操作自体を封じる
+        // （`settings_notification_matrix` の checkbox と同じ判断）。
+        disabled: true,
+        ..SwitchProps::default()
+    };
     div(
         vec![("class", "blocks-settings-preferences-switch-row")],
         vec![
@@ -143,7 +160,18 @@ fn switch_row(name: &str, label_text: &str, description: &str, checked: bool) ->
                 &props,
                 vec![],
                 vec![
-                    switch::hidden_input(name, "on", checked, &props, vec![]),
+                    // `switch::root` の兄弟要素にラベルを置いても `<label>`
+                    // 内の入力名として認識されないため（codex-review 指摘）、
+                    // `hidden_input` へ直接 `aria-label` を付与しアクセシブル
+                    // ネームを確定させる（見出しテキストは switch-row の
+                    // 兄弟 div に残し、見た目の配置は変えない）。
+                    switch::hidden_input(
+                        name,
+                        "on",
+                        checked,
+                        &props,
+                        vec![("aria-label", label_text)],
+                    ),
                     switch::control(
                         checked,
                         &props,
@@ -349,6 +377,9 @@ pub fn demo() -> Node {
   おり、`radio-card`/`switch` 部品自体の機能ではありません。
 - 初期状態（選択中のテーマ・文字サイズ・配置・言語等）はすべて固定値です
   （無 JS のため動的な状態遷移は持ちません）。
+- 全ラジオカード・セレクト・スイッチはネイティブ `disabled` にしています。
+  クリックでネイティブ state のみ変わり render 時固定の状態と乖離するのを
+  防ぐための判断です（`settings-notification-matrix` の checkbox と同じ）。
 
 関連情報: [Radio Card](../themes/radio-card.md) /
 [Native Select](../themes/native-select.md) / [Switch](../themes/switch.md) /

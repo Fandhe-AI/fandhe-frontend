@@ -29,11 +29,16 @@
 //! 出力しない静的表示のみで、送信処理・送信先は一切持たない。保存ボタンは
 //! `button::button` の既定 `type="button"` のまま用いる（送信先を持たない）。
 //!
-//! # 初期状態は固定（無 JS）
+//! # 初期状態は固定（無 JS）・全操作をネイティブ disabled にする
 //!
 //! docs サイトは無 JS 制約のため、ラジオカード・セレクト・スイッチの選択
 //! 状態はすべて本ファイル内の固定値で決定的に描画する（クリック等の動的な
-//! 状態遷移は持たない）。
+//! 状態遷移は持たない）。クリックでネイティブ state のみ変わり render 時
+//! 固定の `data-state` と乖離することを防ぐため、全ラジオカード・セレクト・
+//! スイッチをネイティブ `disabled` にする（`settings_notification_matrix`
+//! の checkbox と同じ判断、codex/cursor レビュー指摘 #3452）。disabled 化で
+//! 生じる減光（`crate::recipe::disabled_declarations`）は [`LAYOUT_CSS`] で
+//! `opacity: 1` へ中和し、静的デモの見た目自体は変えない。
 //!
 //! # 狭幅ではラジオカードを 1 列に積む（`@container`）
 //!
@@ -90,7 +95,11 @@ fn select_field(
     let props = FieldProps {
         id,
         ids: FieldIds::default(),
-        disabled: false,
+        // 無 JS 静的デモの契約（モジュール doc「初期状態は固定（無 JS）」節）:
+        // クリックでネイティブ state のみ変わり render 時固定の data-state と
+        // 乖離することを防ぐため、ネイティブ disabled で操作自体を封じる
+        // （`settings_notification_matrix` の checkbox と同じ判断）。
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
@@ -127,17 +136,21 @@ fn radio_card_group(
     items: &[(&str, &str, &str, bool)],
 ) -> Node {
     let mut children = vec![radio_card::label(Some(group_id), vec![], vec![text(title)])];
+    // 無 JS 静的デモの契約（モジュール doc「初期状態は固定（無 JS）」節）:
+    // クリックでネイティブ state のみ変わり render 時固定の data-state と
+    // 乖離することを防ぐため、各カードをネイティブ disabled にする
+    // （`settings_notification_matrix` の checkbox と同じ判断）。
     children.extend(items.iter().map(|(value, label, description, checked)| {
         radio_card::item(
             *checked,
-            false,
+            true,
             value,
             vec![],
             vec![
-                radio_card::item_hidden_input(*checked, false, Some(name), value, vec![]),
+                radio_card::item_hidden_input(*checked, true, Some(name), value, vec![]),
                 radio_card::item_control(
                     *checked,
-                    false,
+                    true,
                     vec![],
                     vec![
                         radio_card::item_content(
@@ -147,7 +160,7 @@ fn radio_card_group(
                                 radio_card::item_description(vec![], vec![text(*description)]),
                             ],
                         ),
-                        radio_card::item_indicator(*checked, false, false, vec![]),
+                        radio_card::item_indicator(*checked, true, false, vec![]),
                     ],
                 ),
             ],
@@ -166,7 +179,14 @@ fn radio_card_group(
 
 /// 1 行のスイッチ（見出し・説明文とスイッチ本体を横並びにする）。
 fn switch_row(name: &str, label_text: &str, description: &str, checked: bool) -> Node {
-    let props = SwitchProps::default();
+    let props = SwitchProps {
+        // 無 JS 静的デモの契約（モジュール doc「初期状態は固定（無 JS）」節）:
+        // クリックでネイティブ state のみ変わり render 時固定の data-state と
+        // 乖離することを防ぐため、ネイティブ disabled で操作自体を封じる
+        // （`settings_notification_matrix` の checkbox と同じ判断）。
+        disabled: true,
+        ..SwitchProps::default()
+    };
     div(
         vec![("class", "blocks-settings-preferences-switch-row")],
         vec![
@@ -187,7 +207,18 @@ fn switch_row(name: &str, label_text: &str, description: &str, checked: bool) ->
                 &props,
                 vec![],
                 vec![
-                    switch::hidden_input(name, "on", checked, &props, vec![]),
+                    // `switch::root` の兄弟要素にラベルを置いても `<label>`
+                    // 内の入力名として認識されないため（codex-review 指摘）、
+                    // `hidden_input` へ直接 `aria-label` を付与しアクセシブル
+                    // ネームを確定させる（見出しテキストは switch-row の
+                    // 兄弟 div に残し、見た目の配置は変えない）。
+                    switch::hidden_input(
+                        name,
+                        "on",
+                        checked,
+                        &props,
+                        vec![("aria-label", label_text)],
+                    ),
                     switch::control(
                         checked,
                         &props,
@@ -427,8 +458,14 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-preferences-group {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-settings-preferences-description {\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 [data-scope=\"radio-card\"][data-part=\"root\"][data-blocks-settings-preferences-cards] {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n  gap: var(--fandhe-space-3);\n}\n\
+[data-scope=\"radio-card\"][data-part=\"root\"][data-blocks-settings-preferences-cards] [data-scope=\"radio-card\"][data-part=\"label\"] {\n  grid-column: 1 / -1;\n}\n\
 .blocks-settings-preferences-switch-row {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-settings-preferences-actions {\n  display: flex;\n  justify-content: flex-end;\n}\n\
+.blocks-settings-preferences-stack [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+.blocks-settings-preferences-stack [data-scope=\"native-select\"][data-part=\"select\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+.blocks-settings-preferences-stack [data-scope=\"switch\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+.blocks-settings-preferences-stack [data-scope=\"field\"][data-part=\"label\"][data-disabled],\n\
+.blocks-settings-preferences-stack [data-scope=\"field\"][data-part=\"helper-text\"][data-disabled] {\n  opacity: 1;\n}\n\
 @container blocks-settings-preferences (max-width: 36rem) {\n  \
 [data-scope=\"radio-card\"][data-part=\"root\"][data-blocks-settings-preferences-cards] {\n    grid-template-columns: 1fr;\n  }\n  \
 .blocks-settings-preferences-switch-row {\n    flex-direction: column;\n  }\n\
@@ -514,6 +551,32 @@ mod tests {
     }
 
     #[test]
+    fn all_interactive_controls_are_natively_disabled() {
+        // 無 JS 静的デモの契約（モジュール doc「初期状態は固定（無 JS）・
+        // 全操作をネイティブ disabled にする」節）: 9 ラジオ + 7 セレクト +
+        // 1 スイッチ = 17 件全てが `disabled=""` を持つ（codex/cursor
+        // レビュー指摘 #3452）。
+        let html = demo_html();
+        assert_eq!(
+            html.matches(" disabled=\"\"").count(),
+            17,
+            "expected 17 disabled controls (9 radio + 7 select + 1 switch): {html}"
+        );
+    }
+
+    #[test]
+    fn switch_has_accessible_name() {
+        // switch::root の兄弟要素にラベルがあるだけでは `<label>` 内の入力名
+        // として認識されないため（codex-review 指摘）、hidden_input へ直接
+        // aria-label を付与している。
+        let html = demo_html();
+        assert!(
+            html.contains(r#"aria-label="アニメーションを減らす""#),
+            "switch hidden_input should carry an accessible name: {html}"
+        );
+    }
+
+    #[test]
     fn radio_groups_are_labelled() {
         let html = demo_html();
         for id in [
@@ -537,5 +600,14 @@ mod tests {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
         assert!(LAYOUT_CSS.contains("@container blocks-settings-preferences (max-width: 36rem)"));
+    }
+
+    #[test]
+    fn radio_card_group_heading_spans_full_grid_width() {
+        // codex-review 指摘: 見出しが 3 列グリッドの 1 列目にしか配置されず
+        // 選択肢カードと同段で崩れる問題の是正。
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"radio-card\"][data-part=\"root\"][data-blocks-settings-preferences-cards] [data-scope=\"radio-card\"][data-part=\"label\"] {\n  grid-column: 1 / -1;\n}"
+        ));
     }
 }
