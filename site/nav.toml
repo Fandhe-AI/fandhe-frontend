@@ -2442,6 +2442,11 @@ source = "site/blocks/ai-chat-code-preview.md"
 path = "/blocks/ai-chat-code-preview/"
 
 [[section.group.page]]
+title = "ai-chat-playground"
+source = "site/blocks/ai-chat-playground.md"
+path = "/blocks/ai-chat-playground/"
+
+[[section.group.page]]
 title = "ai-chat-prompt-start"
 source = "site/blocks/ai-chat-prompt-start.md"
 path = "/blocks/ai-chat-prompt-start/"
