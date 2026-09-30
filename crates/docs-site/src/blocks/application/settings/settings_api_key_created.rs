@@ -8,70 +8,52 @@
 //!
 //! # 使用部品
 //!
-//! `card` / `callout` / `clipboard` / `input-group` / `button` の 5 部品を
-//! 合成する（[`BLOCK`] の `parts` に一致させる契約、
+//! `card` / `callout` / `clipboard` / `input-group` / `field` / `input` /
+//! `button` の 7 部品を合成する（[`BLOCK`] の `parts` に一致させる契約、
 //! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証する）。
 //! 新しい UI 部品は追加しない。
 //!
 //! # 2 版と集約元の対応（原稿「原案差分メモ」節と対になる索引）
 //!
 //! - **A（代表構成）**: R0241。単一キーを 1 個の
-//!   [`fandhe_frontend_pre_styled_ui::clipboard`] で提示する。
-//! - **B（複数キー行表示）**: R0242。3 個のキーをそれぞれ別々の
-//!   `clipboard` root（行ごとに一意な `id`）で行表示する（下記「行ごとの
-//!   `clipboard` root と実アプリでの独立方法」節参照。単一マウント内での
-//!   コピー状態の連動自体は解消しない）。`clipboard::input` を
-//!   [`fandhe_frontend_pre_styled_ui::input_group`] の `root`/`addon` で
-//!   包み、trigger を addon 側へ配置する。
+//!   [`fandhe_frontend_pre_styled_ui::clipboard`] で提示する。実アプリへ
+//!   組み込めばコピー操作が機能する。
+//! - **B（複数キー行表示）**: R0242。3 個のキーを行ごとに `field::root` +
+//!   `input_group::root` + `input::input`（`readonly`）+
+//!   `input_group::addon`（`InlineEnd`）+ `input_group::button` で行表示
+//!   する（`hero_install_command` の版 B と同じ構成）。コピー状態は持たず、
+//!   コピーボタンは `disabled: true` で押下不能を明示する（下記「Demo 内の
+//!   `clipboard` root は 1 個に限る」節参照）。
 //!
-//! # 行ごとの `clipboard` root と実アプリでの独立方法（1 root : 1 状態機械契約、
+//! # Demo 内の `clipboard` root は 1 個に限る（1 root : 1 状態機械契約、
 //! レビュー指摘対応 P1、イシュー #2982 codex 指摘）
 //!
 //! `fandhe-frontend-wasm-full` の `headless_clipboard` 配線は「1 root : 1
-//! 状態機械契約」という簡略化を持ち、`data-copied` の反映を `Runtime::mount`/
-//! `hydrate` に渡されたマウントルート配下の**全** `clipboard` パーツへ及ぼす
-//! （`crates/wasm-full/src/headless_clipboard.rs` モジュール doc 同名節、
-//! `hero_install_command` モジュール doc「コピー配線の範囲」節と同型の制約）。
-//! 版 B の 3 行それぞれへ `clipboard::root` を分けても、**この Demo 全体を
-//! 1 回の `mount`/`hydrate` で同一マウントルート配下に置く限り**、1 行を
-//! コピーすると版 A・他の行も含めて表示が連動して変わる（当初「行ごとに
-//! 独立させた」としていた説明は誤りだった）。行ごとに `id`
-//! （`blocks-settings-api-key-created-b-<n>`）を分けてあるのは、実アプリへ
-//! 組み込む際に `hero_install_command` の A・C と同様、この `id` を持つ
-//! 要素それぞれへ**個別に** `mount`/`hydrate` を呼ぶことで初めて独立させ
-//! られるようにするためであり、単一マウント内で自動的に独立するわけでは
-//! ない。`headless_clipboard` 自体の「1 root : 1 状態機械契約」を変更する
-//! 提案は本 block のスコープ外である（`.claude/rules/coding-rust.md` の
-//! 意図的非採用機能の再評価基準と同様、cross-cutting な変更は個別 Issue で
-//! 評価する）。
+//! 状態機械契約」という簡略化を持ち、`data-copied` と indicator の反映を
+//! `Runtime::mount`/`hydrate` に渡されたマウントルート配下の**全**
+//! `clipboard` パーツへ及ぼす（`crates/wasm-full/src/headless_clipboard.rs`
+//! モジュール doc 同名節）。当初は版 B の 3 行もそれぞれ `clipboard` root に
+//! していたため、この Demo を 1 回でマウントすると 1 つのキーをコピーした
+//! だけで他のキーまで「コピーしました」表示に連動した。そこで `clipboard`
+//! root は版 A の 1 個だけとし、版 B の各行は `clipboard` scope の外側の
+//! `input_group::button` を `disabled: true` で置く（`hero_install_command`
+//! の版 B〔addon ボタンを `clipboard` scope の外側へ置き `disabled: true`
+//! にする〕と同じ判断）。版 B は複数キーの行レイアウト見本であり、実アプリで
+//! 行ごとにコピーさせる場合は版 A の `clipboard` を行ごとに別々のマウント
+//! ルートへ置いて個別に `mount`/`hydrate` する。`headless_clipboard` 自体の
+//! 「1 root : 1 状態機械契約」を変更する提案は本 block のスコープ外である
+//! （cross-cutting な変更は個別 Issue で評価する）。
 //!
-//! # `input_group` を使う理由（版 B のみ、版 A は `clipboard::control` 直接）
+//! # コピー配線の範囲（A は実アプリで機能する・B は機能しない）
 //!
-//! [`fandhe_frontend_pre_styled_ui::input_group::root`] は `role="group"`
-//! の配置コンテナで内包する `<input>` の種類を限定しない（headless
-//! rustdoc）ため、[`fandhe_frontend_pre_styled_ui::clipboard::input`]
-//! （`flex: 1 1 0%` として振る舞う）を子に置いても構造上問題ない。trigger
-//! は [`fandhe_frontend_pre_styled_ui::input_group::button`] ではなく
-//! `clipboard::trigger` を `input_group::addon` の子として配置する（trigger
-//! を `clipboard` scope 内に保つことで、実アプリでは `headless_clipboard`
-//! 配線が有効に働く。`hero_install_command` の版 B〔addon ボタンを
-//! `clipboard` scope の外側へ置き `disabled: true` にする〕とは逆の判断で
-//! あり、本 block では複数行の視覚整列に `input_group` の flex レイアウトを
-//! 借りつつコピー機能自体は保つ）。
-//!
-//! # コピー配線の範囲（実アプリに組み込めば A/B とも機能する）
-//!
-//! A・B ともキー値は [`fandhe_frontend_pre_styled_ui::clipboard`] の
+//! 版 A のキー値は [`fandhe_frontend_pre_styled_ui::clipboard`] の
 //! `root`/`control`/`input`/`trigger` を組み合わせているため、
-//! `headless_clipboard` 配線（`crates/wasm-full/src/headless_clipboard.rs`）
-//! が `mount`/`hydrate` 時に自動で `navigator.clipboard.writeText` を配線
-//! する。無 JS の docs サイト自体では他の全部品と同じく静的表示に留まる
-//! （`site/primitives/clipboard.md` が明記する既存の site 全体の制約）が、
-//! この block を実アプリへ組み込めば A/B のコピー操作は実際に機能する
-//! （行ごとの独立性については上記「行ごとの `clipboard` root と実アプリ
-//! での独立方法」節を参照。この Demo をそのまま 1 回でマウントする限りは
-//! A・B 全行が連動する）。各 `clipboard::root` は `copied: false`（idle）で
-//! 初期化する。
+//! `headless_clipboard` 配線が `mount`/`hydrate` 時に自動で
+//! `navigator.clipboard.writeText` を配線する。無 JS の docs サイト自体では
+//! 他の全部品と同じく静的表示に留まる（`site/primitives/clipboard.md` が
+//! 明記する既存の site 全体の制約）。`clipboard::root` は `copied: false`
+//! （idle）で初期化する。版 B のキー値は `readonly` の入力欄であり、選択して
+//! 手動でコピーできる。
 //!
 //! # `<form>` を使わない・完了ボタンは静的表示
 //!
@@ -94,7 +76,8 @@
 //!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
-//! `card::root`/`callout::root`/`clipboard::root`/`input_group::root`/
+//! `card::root`/`callout::root`/`clipboard::root`/`field::root`/
+//! `input_group::root`/`input::input`/
 //! `button::button` はいずれも `drop_class_attr` により呼び出し側 `attrs`
 //! の `class` を黙って除去する契約を持つため、Demo 固有のスタイルフックは
 //! `data-blocks-settings-api-key-created-*` 属性で渡す。素の `div` は
@@ -109,6 +92,10 @@ use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::callout::{self, CalloutProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps, CardVariant};
 use fandhe_frontend_pre_styled_ui::clipboard;
+use fandhe_frontend_pre_styled_ui::field::{
+    self, FieldIds, FieldOrientation, FieldProps, FieldRootProps,
+};
+use fandhe_frontend_pre_styled_ui::input::{self, InputProps};
 use fandhe_frontend_pre_styled_ui::input_group::{self, InputGroupAlign, InputGroupProps};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 
@@ -207,67 +194,62 @@ fn version_single_key() -> Node {
     card_with(key_area)
 }
 
-/// B の 1 行分（`label`・キー値）を組み立てる。行ごとに `id` を分ける
-/// 理由（実アプリで独立させるには行ごとに別々の `mount`/`hydrate` が
-/// 必要であること）はモジュール doc「行ごとの `clipboard` root と実
-/// アプリでの独立方法」節参照。`row_index` は `id` 一意性のための連番
-/// （0 始まり）。
+/// B の 1 行分（`label`・キー値）を組み立てる。`clipboard` root を使わない
+/// 理由はモジュール doc「Demo 内の `clipboard` root は 1 個に限る」節参照。
+/// `row_index` は `id` 一意性のための連番（0 始まり）。
 fn key_row(row_index: usize, label: &'static str, value: &'static str) -> Node {
-    let root_id = format!("blocks-settings-api-key-created-b-{row_index}");
     let input_id = format!("blocks-settings-api-key-created-b-{row_index}-input");
+    let field_props = FieldProps {
+        id: input_id.as_str(),
+        ids: FieldIds::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: true,
+        has_helper_text: false,
+    };
     let group_props = InputGroupProps {
         disabled: false,
         invalid: false,
     };
-    clipboard::root(
-        value,
-        false,
+    field::root(
+        &FieldRootProps {
+            orientation: FieldOrientation::Vertical,
+        },
+        &field_props,
+        vec![],
         vec![
-            ("id", root_id.as_str()),
-            ("data-blocks-settings-api-key-created-clipboard", ""),
-        ],
-        vec![
-            clipboard::label(false, Some(input_id.as_str()), vec![], vec![text(label)]),
-            clipboard::control(
-                false,
-                vec![],
-                vec![input_group::root(
-                    &group_props,
-                    vec![],
-                    vec![
-                        clipboard::input(value, false, vec![("id", input_id.as_str())]),
-                        input_group::addon(
-                            InputGroupAlign::InlineEnd,
-                            &group_props,
+            field::label(&field_props, vec![], vec![text(label)]),
+            input_group::root(
+                &group_props,
+                vec![("data-blocks-settings-api-key-created-key", "")],
+                vec![
+                    input::input(&InputProps::default(), &field_props, vec![("value", value)]),
+                    input_group::addon(
+                        InputGroupAlign::InlineEnd,
+                        &group_props,
+                        vec![],
+                        vec![input_group::button(
+                            // `clipboard` scope の外側にあり `headless_clipboard`
+                            // 配線が届かないため、押しても何も起きないことを
+                            // `disabled: true` で明示する（`hero_install_command`
+                            // の版 B と同型の判断）。
+                            &InputGroupProps {
+                                disabled: true,
+                                ..group_props
+                            },
                             vec![],
-                            vec![clipboard::trigger(
-                                false,
-                                vec![],
-                                vec![
-                                    clipboard::indicator(
-                                        false,
-                                        false,
-                                        vec![],
-                                        vec![text("コピー")],
-                                    ),
-                                    clipboard::indicator(
-                                        true,
-                                        false,
-                                        vec![],
-                                        vec![text("コピーしました")],
-                                    ),
-                                ],
-                            )],
-                        ),
-                    ],
-                )],
+                            vec![text("コピー")],
+                        )],
+                    ),
+                ],
             ),
         ],
     )
 }
 
-/// B: 複数キー行表示版（R0242）。3 行の独立した `clipboard` root を
-/// 縦に積む。
+/// B: 複数キー行表示版（R0242）。3 行のキー欄を縦に積む（コピー状態は
+/// 持たない）。
 fn version_multiple_keys() -> Node {
     let rows: Vec<Node> = KEYS_B
         .iter()
@@ -317,6 +299,14 @@ pub const BLOCK: Block = Block {
             path: "/themes/input-group/",
         },
         Part {
+            label: "Field",
+            path: "/themes/field/",
+        },
+        Part {
+            label: "Input",
+            path: "/themes/input/",
+        },
+        Part {
             label: "Button",
             path: "/themes/button/",
         },
@@ -327,41 +317,13 @@ pub const BLOCK: Block = Block {
 
 /// `settings_api_key_created` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
 /// doc「block 固有 CSS の置き場」節と同型）。
-///
-/// # `input_group` にネストした `clipboard::input`/`trigger` の内側 chrome 除去
-/// （レビュー指摘対応、Medium、イシュー #2982 Cursor Bugbot 指摘）
-///
-/// [`fandhe_frontend_pre_styled_ui::input_group`] の子結合子 raw CSS
-/// （`crates/pre-styled-ui/src/input_group.rs` 「raw CSS 追記の理由」節）は
-/// `data-scope="field"` の `input`/`textarea` のみを対象とし、
-/// `data-scope="clipboard"` の `input`/`trigger` は対象外である。版 B は
-/// `clipboard::input`/`clipboard::trigger` を `input_group::root`/`addon` の
-/// 子として配置するため、無対策では両パーツ自身の枠線・角丸・背景
-/// （`crates/pre-styled-ui/src/clipboard.rs` の `input`/`trigger` base 宣言）
-/// が `input_group::root` の外枠と二重に重なって見える。ここでは
-/// `input_group.rs` と同型の子孫セレクタ上書きを Demo 固有 CSS として追記し、
-/// 両パーツの枠線・角丸・背景を除去して `input_group::root` 側 1 本の外枠へ
-/// 統一する（`input_group.rs` 自身の変更は行わない。同モジュールへ
-/// `clipboard` slot 対応を追加する横断変更は本 block のスコープ外である）。
-///
-/// `trigger` 側の背景除去のみ `:not(:hover)` を付ける（レビュー指摘対応、
-/// イシュー #2982 Codex/Cursor Bugbot 指摘）: 本規則は子孫セレクタ 5 段
-/// （詳細度 (0,5,0)）で `clipboard::trigger` base の hover 規則
-/// `[data-scope="clipboard"][data-part="trigger"]:hover:not([data-disabled])`
-/// （詳細度 (0,4,0)、`crates/pre-styled-ui/src/clipboard.rs`）より高く、
-/// 無対策では hover 中も `background: transparent` が勝ってしまい版 B の
-/// コピーボタンだけ hover 背景が出ない。`input` 側は hover 背景を持たない
-/// ため対象外（`:not(:hover)` を付けない）。
 const LAYOUT_CSS: &str = "\
 .blocks-settings-api-key-created-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n}\n\
 .blocks-settings-api-key-created-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-settings-api-key-created-rows {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-settings-api-key-created-clipboard] {\n  display: flex;\n  flex-direction: column;\n  width: 100%;\n}\n\
 [data-blocks-settings-api-key-created-clipboard] [data-scope=\"clipboard\"][data-part=\"control\"] {\n  width: 100%;\n}\n\
-[data-blocks-settings-api-key-created-clipboard] [data-scope=\"input-group\"][data-part=\"root\"] {\n  width: 100%;\n}\n\
-[data-blocks-settings-api-key-created-clipboard] [data-scope=\"input-group\"][data-part=\"root\"] [data-scope=\"clipboard\"][data-part=\"input\"] {\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n}\n\
-[data-blocks-settings-api-key-created-clipboard] [data-scope=\"input-group\"][data-part=\"root\"] [data-scope=\"clipboard\"][data-part=\"trigger\"] {\n  border: 0;\n  border-radius: 0;\n}\n\
-[data-blocks-settings-api-key-created-clipboard] [data-scope=\"input-group\"][data-part=\"root\"] [data-scope=\"clipboard\"][data-part=\"trigger\"]:not(:hover) {\n  background: transparent;\n}\n\
+[data-blocks-settings-api-key-created-key] {\n  width: 100%;\n  font-family: var(--fandhe-font-font-mono);\n}\n\
 .blocks-settings-api-key-created-footer {\n  display: flex;\n  justify-content: flex-end;\n}\n";
 
 #[cfg(test)]
@@ -395,7 +357,7 @@ mod tests {
         assert_eq!(
             html.matches("data-blocks-settings-api-key-created-clipboard=\"\"")
                 .count(),
-            4
+            1
         );
     }
 
@@ -430,37 +392,19 @@ mod tests {
         assert!(LAYOUT_CSS.contains("--fandhe-space-"));
     }
 
-    /// レビュー指摘対応（Medium、イシュー #2982 Cursor Bugbot 指摘）の
-    /// 回帰テスト: `input_group` にネストした `clipboard::input`/
-    /// `clipboard::trigger` 自身の枠線・角丸を除去する上書き規則が
-    /// 両パーツ分とも存在すること。
+    /// レビュー指摘対応（P1、イシュー #2982 codex 指摘）の回帰テスト:
+    /// Demo 内の `clipboard` root は版 A の 1 個だけで、版 B の 3 行の
+    /// コピーボタンは `disabled` であること（1 root : 1 状態機械契約による
+    /// 表示連動を避ける）。
     #[test]
-    fn nested_clipboard_parts_inside_input_group_have_chrome_reset() {
-        for part in ["input", "trigger"] {
-            let selector = format!(
-                "[data-scope=\"input-group\"][data-part=\"root\"] [data-scope=\"clipboard\"][data-part=\"{part}\"] {{"
-            );
-            assert!(
-                LAYOUT_CSS.contains(&selector),
-                "missing chrome-reset rule for nested clipboard {part}"
-            );
-        }
-        assert!(LAYOUT_CSS.contains("border: 0;"));
-    }
-
-    /// レビュー指摘対応（Codex/Cursor Bugbot 指摘、イシュー #2982 追加分）の
-    /// 回帰テスト: `trigger` の背景透過は `:not(:hover)` 限定であり、
-    /// `clipboard::trigger` base の hover 背景規則
-    /// （`crates/pre-styled-ui/src/clipboard.rs`）を上書きしないこと。
-    #[test]
-    fn nested_clipboard_trigger_background_reset_excludes_hover() {
-        assert!(LAYOUT_CSS.contains(
-            "[data-scope=\"input-group\"][data-part=\"root\"] [data-scope=\"clipboard\"][data-part=\"trigger\"]:not(:hover) {\n  background: transparent;\n}"
-        ));
-        // input 側は hover 背景を持たないため無条件の背景透過のまま。
-        assert!(LAYOUT_CSS.contains(
-            "[data-scope=\"input-group\"][data-part=\"root\"] [data-scope=\"clipboard\"][data-part=\"input\"] {\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n}"
-        ));
+    fn only_one_clipboard_root_and_row_buttons_disabled() {
+        let html = demo_html();
+        assert_eq!(
+            html.matches(r#"data-scope="clipboard" data-part="root""#)
+                .count(),
+            1
+        );
+        assert_eq!(html.matches(" disabled=\"\"").count(), 3);
     }
 
     #[test]

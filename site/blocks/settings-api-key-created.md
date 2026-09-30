@@ -2,7 +2,7 @@
 
 API キーを発行した直後に、「一度しか表示しない」注意とともにキー値を提示し
 コピーできるカードです。`card` / `callout` / `clipboard` / `input-group` /
-`button` の 5 部品を合成します。Blocks は既存部品の合成例であり、新しい UI
+`field` / `input` / `button` の 7 部品を合成します。Blocks は既存部品の合成例であり、新しい UI
 部品は追加しません。
 
 主参照は対応表 ID R0241（代表構成: 単一キー）で、R0242（複数キー行表示）を
@@ -19,6 +19,10 @@ use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::callout::{self, CalloutProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps, CardVariant};
 use fandhe_frontend_pre_styled_ui::clipboard;
+use fandhe_frontend_pre_styled_ui::field::{
+    self, FieldIds, FieldOrientation, FieldProps, FieldRootProps,
+};
+use fandhe_frontend_pre_styled_ui::input::{self, InputProps};
 use fandhe_frontend_pre_styled_ui::input_group::{self, InputGroupAlign, InputGroupProps};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 
@@ -117,67 +121,62 @@ fn version_single_key() -> Node {
     card_with(key_area)
 }
 
-/// B の 1 行分（`label`・キー値）を組み立てる。行ごとに `id` を分ける
-/// 理由（実アプリで独立させるには行ごとに別々の `mount`/`hydrate` が
-/// 必要であること）はモジュール doc「行ごとの `clipboard` root と実
-/// アプリでの独立方法」節参照。`row_index` は `id` 一意性のための連番
-/// （0 始まり）。
+/// B の 1 行分（`label`・キー値）を組み立てる。`clipboard` root を使わない
+/// 理由はモジュール doc「Demo 内の `clipboard` root は 1 個に限る」節参照。
+/// `row_index` は `id` 一意性のための連番（0 始まり）。
 fn key_row(row_index: usize, label: &'static str, value: &'static str) -> Node {
-    let root_id = format!("blocks-settings-api-key-created-b-{row_index}");
     let input_id = format!("blocks-settings-api-key-created-b-{row_index}-input");
+    let field_props = FieldProps {
+        id: input_id.as_str(),
+        ids: FieldIds::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: true,
+        has_helper_text: false,
+    };
     let group_props = InputGroupProps {
         disabled: false,
         invalid: false,
     };
-    clipboard::root(
-        value,
-        false,
+    field::root(
+        &FieldRootProps {
+            orientation: FieldOrientation::Vertical,
+        },
+        &field_props,
+        vec![],
         vec![
-            ("id", root_id.as_str()),
-            ("data-blocks-settings-api-key-created-clipboard", ""),
-        ],
-        vec![
-            clipboard::label(false, Some(input_id.as_str()), vec![], vec![text(label)]),
-            clipboard::control(
-                false,
-                vec![],
-                vec![input_group::root(
-                    &group_props,
-                    vec![],
-                    vec![
-                        clipboard::input(value, false, vec![("id", input_id.as_str())]),
-                        input_group::addon(
-                            InputGroupAlign::InlineEnd,
-                            &group_props,
+            field::label(&field_props, vec![], vec![text(label)]),
+            input_group::root(
+                &group_props,
+                vec![("data-blocks-settings-api-key-created-key", "")],
+                vec![
+                    input::input(&InputProps::default(), &field_props, vec![("value", value)]),
+                    input_group::addon(
+                        InputGroupAlign::InlineEnd,
+                        &group_props,
+                        vec![],
+                        vec![input_group::button(
+                            // `clipboard` scope の外側にあり `headless_clipboard`
+                            // 配線が届かないため、押しても何も起きないことを
+                            // `disabled: true` で明示する（`hero_install_command`
+                            // の版 B と同型の判断）。
+                            &InputGroupProps {
+                                disabled: true,
+                                ..group_props
+                            },
                             vec![],
-                            vec![clipboard::trigger(
-                                false,
-                                vec![],
-                                vec![
-                                    clipboard::indicator(
-                                        false,
-                                        false,
-                                        vec![],
-                                        vec![text("コピー")],
-                                    ),
-                                    clipboard::indicator(
-                                        true,
-                                        false,
-                                        vec![],
-                                        vec![text("コピーしました")],
-                                    ),
-                                ],
-                            )],
-                        ),
-                    ],
-                )],
+                            vec![text("コピー")],
+                        )],
+                    ),
+                ],
             ),
         ],
     )
 }
 
-/// B: 複数キー行表示版（R0242）。3 行の独立した `clipboard` root を
-/// 縦に積む。
+/// B: 複数キー行表示版（R0242）。3 行のキー欄を縦に積む（コピー状態は
+/// 持たない）。
 fn version_multiple_keys() -> Node {
     let rows: Vec<Node> = KEYS_B
         .iter()
@@ -205,20 +204,22 @@ pub fn demo() -> Node {
 
 - **版 A（代表構成、R0241）**: 単一キーを `clipboard` 1 個で提示します。
 - **版 B（複数キー行表示、R0242）**: 3 個のキー（本番用・ステージング用・
-  読み取り専用）をそれぞれ別々の `clipboard` root（行ごとに一意な `id`）で
-  行表示します。`headless_clipboard` 配線は「1 root : 1 状態機械契約」
-  （`Runtime::mount`/`hydrate` に渡されたマウントルート配下の全
-  `clipboard` パーツの表示が連動する簡略化）を持つため、この Demo 全体を
-  1 回でマウントする限り行ごとの表示は連動します。行ごとに `id` を分けて
-  あるのは、実アプリへ組み込む際にこの `id` を持つ要素それぞれへ個別に
-  `mount`/`hydrate` を呼ぶことで初めて独立させられるようにするためです。
-- 版 B は `input-group` でキー入力欄とコピーボタンを 1 行に整列しますが、
-  ボタン自体は `input_group::button` ではなく `clipboard` scope 内の
-  `clipboard::trigger` を使います。これにより実アプリへ組み込んだ際、
-  ボタン押下で実際にコピー機能が働きます。
+  読み取り専用）を行ごとに `field` + `input-group` + `readonly` の `input`
+  で行表示します（`hero-install-command` の版 B と同じ構成）。キー値は選択
+  して手動でコピーできます。
+- 版 B の各行のコピーボタンは `clipboard` scope の外側にある
+  `input_group::button` で、`disabled` にしています。`headless_clipboard`
+  配線は「1 root : 1 状態機械契約」（`Runtime::mount`/`hydrate` に渡された
+  マウントルート配下の全 `clipboard` パーツの表示が連動する簡略化）を持つ
+  ため、Demo 内に `clipboard` root を複数置くと 1 つのキーをコピーした
+  だけで他のキーまで「コピーしました」表示になります。これを避けるため
+  `clipboard` root は版 A の 1 個に限っています。実アプリで行ごとにコピー
+  させる場合は、版 A の `clipboard` を行ごとに別々のマウントルートへ置き、
+  個別に `mount`/`hydrate` してください。
 - 「完了」ボタンは遷移先を持たない合成例のボタンです（押下は無効化して
   いません）。
 
 関連情報: [Card](../themes/card.md) / [Callout](../themes/callout.md) /
 [Clipboard](../themes/clipboard.md) / [Input Group](../themes/input-group.md) /
+[Field](../themes/field.md) / [Input](../themes/input.md) /
 [Button](../themes/button.md)
