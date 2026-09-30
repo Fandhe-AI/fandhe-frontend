@@ -35,10 +35,11 @@
 //! 一致させる契約、`crates/docs-site/tests/blocks_nav.rs`/
 //! `blocks_contract.rs` が検証する）。新しい UI 部品は追加しない。
 //!
-//! # トリガーを `disabled: true` にする理由
+//! # トリガー・操作ボタンを `disabled: true` にする理由
 //!
 //! [`super::super::auth::auth_dropdown_panel`] と同じ判断: 無 JS で押しても
-//! 何も起きないため、ベルトリガー・絞り込みメニュートリガーの双方を
+//! 何も起きないため、ベルトリガー・絞り込みメニュートリガーに加え、
+//! 「すべて既読にする」・「すべての通知を見る」の 2 ボタンも
 //! `disabled: true`（ネイティブ `disabled` 属性 + `aria-disabled="true"`）
 //! にし、[`LAYOUT_CSS`] の `[data-disabled]` 複合セレクタで中和して通常
 //! 状態と同じ見た目に保つ。パネル自体は `OpenState::Open` 固定のため、
@@ -69,7 +70,9 @@
 //!
 //! `crate::blocks` モジュール doc の不変条件どおり、本 Demo はフォームを
 //! 出力しない静的な合成例である。既読化ボタン・全件表示ボタンはいずれも
-//! `button::button` の既定 `type="button"` のまま用いる。
+//! `button::button` の既定 `type="button"` のまま用い、モジュール doc
+//! 「トリガー・操作ボタンを `disabled: true` にする理由」節のとおり
+//! `disabled: true` で無効化する。
 //!
 //! # アイコンは自作の単純図形
 //!
@@ -203,9 +206,10 @@ fn tray_header(suffix: &str, title_id: &str) -> Node {
                         &ButtonProps {
                             variant: ButtonVariant::Ghost,
                             size: Size::Sm,
+                            disabled: true,
                             ..ButtonProps::default()
                         },
-                        vec![],
+                        vec![("data-blocks-notification-tray-mark-all-read", "")],
                         vec![text("すべて既読にする")],
                     ),
                     filter_menu(suffix),
@@ -223,9 +227,10 @@ fn tray_footer() -> Node {
             &ButtonProps {
                 variant: ButtonVariant::Outline,
                 size: Size::Sm,
+                disabled: true,
                 ..ButtonProps::default()
             },
-            vec![],
+            vec![("data-blocks-notification-tray-view-all", "")],
             vec![text("すべての通知を見る")],
         )],
     )
@@ -257,7 +262,10 @@ fn notification_item(
         div(
             vec![("class", "blocks-notification-tray-item-body")],
             vec![
-                span(vec![], vec![text(body)]),
+                span(
+                    vec![],
+                    vec![el("strong", vec![], vec![text(name)]), text(body)],
+                ),
                 span(
                     vec![("class", "blocks-notification-tray-meta")],
                     vec![text(when)],
@@ -284,8 +292,13 @@ fn version_empty() -> Node {
         vec![("data-blocks-notification-tray-empty", "")],
         vec![
             empty_state::indicator(vec![], vec![bell_icon()]),
-            empty_state::title(vec![], vec![text("新しい通知はありません")]),
-            empty_state::description(vec![], vec![text("新着があるとここに表示されます")]),
+            empty_state::content(
+                vec![],
+                vec![
+                    empty_state::title(vec![], vec![text("新しい通知はありません")]),
+                    empty_state::description(vec![], vec![text("新着があるとここに表示されます")]),
+                ],
+            ),
         ],
     )
 }
@@ -431,14 +444,25 @@ fn version(
 
 /// `notification-tray` の Demo 本体。呼び出しごとに同一の `Node` を返す
 /// 純関数。
+///
+/// コンテナクエリの対象を自分自身にしない（[`super::super::settings::
+/// settings_item_cards`] と同型の判断）ため、`container-type`/
+/// `container-name` を持つ `-stack`（コンテナ）と `grid-template-columns`
+/// を持つ `-row`（クエリ対象・[`LAYOUT_CSS`] の `@container` セレクタ）を
+/// 別要素に分ける。同一要素に両方を宣言すると、狭幅でもコンテナ自身の
+/// 列数が切り替わらない（コンテナは自身のレイアウト決定プロパティを
+/// 自己参照できない）。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-notification-tray-stack")],
-        vec![
-            version("空", "empty", None, version_empty()),
-            version("読み込み中", "loading", None, version_loading()),
-            version("通知あり", "list", Some("未読 2 件"), version_list()),
-        ],
+        vec![div(
+            vec![("class", "blocks-notification-tray-row")],
+            vec![
+                version("空", "empty", None, version_empty()),
+                version("読み込み中", "loading", None, version_loading()),
+                version("通知あり", "list", Some("未読 2 件"), version_list()),
+            ],
+        )],
     )
 }
 // blocks-code:end
@@ -493,20 +517,24 @@ pub const BLOCK: Block = Block {
 /// doc「block 固有 CSS の置き場」節と同型）。`--fandhe-*` トークンのみ
 /// 使用し、生値は幅・rem 指定のみに限る。
 const LAYOUT_CSS: &str = "\
-.blocks-notification-tray-stack {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-notification-tray;\n}\n\
+.blocks-notification-tray-stack {\n  container-type: inline-size;\n  container-name: blocks-notification-tray;\n}\n\
+.blocks-notification-tray-row {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-notification-tray-version {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  min-width: 0;\n}\n\
-.blocks-notification-tray-caption {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-size-sm);\n}\n\
+.blocks-notification-tray-caption {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 [data-scope=\"popover\"][data-part=\"positioner\"][data-blocks-notification-tray-positioner] {\n  position: static;\n}\n\
 [data-scope=\"popover\"][data-part=\"content\"][data-blocks-notification-tray-content] {\n  width: min(22rem, 100%);\n}\n\
 [data-scope=\"popover\"][data-part=\"trigger\"][data-blocks-notification-tray-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"menu\"][data-part=\"trigger\"][data-blocks-notification-tray-menu-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-notification-tray-mark-all-read][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-notification-tray-view-all][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+.blocks-notification-tray [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .blocks-notification-tray-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-3);\n  padding-block-end: var(--fandhe-space-3);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 .blocks-notification-tray-header-actions {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-notification-tray-list {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n}\n\
 .blocks-notification-tray-item {\n  display: grid;\n  grid-template-columns: auto 1fr auto;\n  align-items: start;\n  gap: var(--fandhe-space-3);\n  padding-block: var(--fandhe-space-3);\n  border-top: 1px solid var(--fandhe-color-border);\n}\n\
 .blocks-notification-tray-list > :first-child {\n  border-top: none;\n}\n\
 .blocks-notification-tray-item-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
-.blocks-notification-tray-meta {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-size-sm);\n}\n\
+.blocks-notification-tray-meta {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 .blocks-notification-tray-unread-dot {\n  display: block;\n  width: 0.5rem;\n  height: 0.5rem;\n  margin-block-start: var(--fandhe-space-1);\n  border-radius: var(--fandhe-radius-full);\n  background: var(--fandhe-color-accent);\n}\n\
 .blocks-notification-tray-skeleton-list {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-notification-tray-skeleton-row {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
@@ -516,7 +544,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-notification-tray-footer {\n  padding-block-start: var(--fandhe-space-3);\n  border-top: 1px solid var(--fandhe-color-border);\n}\n\
 .blocks-notification-tray-footer [data-scope=\"button\"][data-part=\"root\"] {\n  width: 100%;\n}\n\
 @container blocks-notification-tray (max-width: 60rem) {\n  \
-.blocks-notification-tray-stack {\n    grid-template-columns: 1fr;\n  }\n\
+.blocks-notification-tray-row {\n    grid-template-columns: 1fr;\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -603,5 +631,77 @@ mod tests {
         let html = demo_html();
         assert!(html.contains("通知を開く"));
         assert!(html.contains("未読 2 件"));
+    }
+
+    #[test]
+    fn container_query_target_is_not_the_container_itself() {
+        // codex(P1)/cursor(Medium) 是正: container-type/name を持つ要素
+        // （`-stack`）と @container セレクタの対象（`-row`）を分離する。
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-notification-tray-stack {\n  container-type: inline-size;\n  container-name: blocks-notification-tray;\n}\n"
+        ));
+        assert!(LAYOUT_CSS.contains("@container blocks-notification-tray (max-width: 60rem) {"));
+        assert!(LAYOUT_CSS
+            .contains(".blocks-notification-tray-row {\n    grid-template-columns: 1fr;\n  }"));
+    }
+
+    #[test]
+    fn mark_all_read_and_view_all_buttons_are_disabled() {
+        // codex(P2) 是正: 動作しない静的 Demo ボタンは他のトリガーと同様
+        // disabled にし、[data-disabled] で見た目を中和する。
+        let html = demo_html();
+        assert_eq!(
+            html.matches("data-blocks-notification-tray-mark-all-read")
+                .count(),
+            3
+        );
+        assert_eq!(
+            html.matches("data-blocks-notification-tray-view-all")
+                .count(),
+            3
+        );
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"button\"][data-part=\"root\"][data-blocks-notification-tray-mark-all-read][data-disabled]"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"button\"][data-part=\"root\"][data-blocks-notification-tray-view-all][data-disabled]"
+        ));
+    }
+
+    #[test]
+    fn notification_body_includes_actor_name() {
+        // cursor(Medium) 是正: 本文が「が〜」始まりで主語を欠いていたため、
+        // 先頭に `<strong>` でアクター名を併記する。
+        let html = demo_html();
+        assert!(html.contains("<strong>"));
+        assert!(html.contains("があなたをレビュアーに指定しました"));
+    }
+
+    #[test]
+    fn empty_state_uses_content_slot() {
+        // cursor(Medium) 是正: title/description は `content` スロット直下へ
+        // 置く（indicator は root 直下のまま）。
+        let html = demo_html();
+        assert!(html.contains("data-scope=\"empty-state\" data-part=\"content\""));
+    }
+
+    #[test]
+    fn popover_title_heading_style_is_reset() {
+        // cursor(Low) 是正: `.docs-content h2` の見出し装飾がパネル内へ
+        // 漏れないよう `demo_class` スコープで中和する。
+        assert!(LAYOUT_CSS.contains(".blocks-notification-tray [data-scope=\"popover\"] h2"));
+    }
+
+    #[test]
+    fn caption_and_meta_use_correct_font_size_token() {
+        // cursor(Low) 是正: 存在しない `--fandhe-font-size-sm` ではなく
+        // `--fandhe-font-font-size-sm` を参照する。
+        assert!(!LAYOUT_CSS.contains("var(--fandhe-font-size-sm)"));
+        assert_eq!(
+            LAYOUT_CSS
+                .matches("var(--fandhe-font-font-size-sm)")
+                .count(),
+            2
+        );
     }
 }

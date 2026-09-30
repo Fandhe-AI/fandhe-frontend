@@ -114,9 +114,10 @@ fn tray_header(suffix: &str, title_id: &str) -> Node {
                         &ButtonProps {
                             variant: ButtonVariant::Ghost,
                             size: Size::Sm,
+                            disabled: true,
                             ..ButtonProps::default()
                         },
-                        vec![],
+                        vec![("data-blocks-notification-tray-mark-all-read", "")],
                         vec![text("すべて既読にする")],
                     ),
                     filter_menu(suffix),
@@ -134,9 +135,10 @@ fn tray_footer() -> Node {
             &ButtonProps {
                 variant: ButtonVariant::Outline,
                 size: Size::Sm,
+                disabled: true,
                 ..ButtonProps::default()
             },
-            vec![],
+            vec![("data-blocks-notification-tray-view-all", "")],
             vec![text("すべての通知を見る")],
         )],
     )
@@ -168,7 +170,10 @@ fn notification_item(
         div(
             vec![("class", "blocks-notification-tray-item-body")],
             vec![
-                span(vec![], vec![text(body)]),
+                span(
+                    vec![],
+                    vec![el("strong", vec![], vec![text(name)]), text(body)],
+                ),
                 span(
                     vec![("class", "blocks-notification-tray-meta")],
                     vec![text(when)],
@@ -195,8 +200,13 @@ fn version_empty() -> Node {
         vec![("data-blocks-notification-tray-empty", "")],
         vec![
             empty_state::indicator(vec![], vec![bell_icon()]),
-            empty_state::title(vec![], vec![text("新しい通知はありません")]),
-            empty_state::description(vec![], vec![text("新着があるとここに表示されます")]),
+            empty_state::content(
+                vec![],
+                vec![
+                    empty_state::title(vec![], vec![text("新しい通知はありません")]),
+                    empty_state::description(vec![], vec![text("新着があるとここに表示されます")]),
+                ],
+            ),
         ],
     )
 }
@@ -342,14 +352,25 @@ fn version(
 
 /// `notification-tray` の Demo 本体。呼び出しごとに同一の `Node` を返す
 /// 純関数。
+///
+/// コンテナクエリの対象を自分自身にしない（[`super::super::settings::
+/// settings_item_cards`] と同型の判断）ため、`container-type`/
+/// `container-name` を持つ `-stack`（コンテナ）と `grid-template-columns`
+/// を持つ `-row`（クエリ対象・[`LAYOUT_CSS`] の `@container` セレクタ）を
+/// 別要素に分ける。同一要素に両方を宣言すると、狭幅でもコンテナ自身の
+/// 列数が切り替わらない（コンテナは自身のレイアウト決定プロパティを
+/// 自己参照できない）。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-notification-tray-stack")],
-        vec![
-            version("空", "empty", None, version_empty()),
-            version("読み込み中", "loading", None, version_loading()),
-            version("通知あり", "list", Some("未読 2 件"), version_list()),
-        ],
+        vec![div(
+            vec![("class", "blocks-notification-tray-row")],
+            vec![
+                version("空", "empty", None, version_empty()),
+                version("読み込み中", "loading", None, version_loading()),
+                version("通知あり", "list", Some("未読 2 件"), version_list()),
+            ],
+        )],
     )
 }
 ```
