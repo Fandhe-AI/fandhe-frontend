@@ -1036,6 +1036,7 @@ pub enum LayoutCss {
 | empty-state-card-header | #2969 | `application/empty_state/empty_state_card_header.rs` |
 | empty-state-setup-steps | #2971（親 #2951） | `application/empty_state/empty_state_setup_steps.rs` |
 | empty-state-starter-list | #2973（親 #2951） | `application/empty_state/empty_state_starter_list.rs` |
+| help-center-article-list | #2974（親 #2951） | `application/help_center/help_center_article_list.rs` |
 | help-center-collection-grid | #2975 | `application/help_center/help_center_collection_grid.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
