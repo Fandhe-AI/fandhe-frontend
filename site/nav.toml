@@ -2327,6 +2327,11 @@ title = "settings-event-accordion"
 source = "site/blocks/settings-event-accordion.md"
 path = "/blocks/settings-event-accordion/"
 
+[[section.group.page]]
+title = "settings-item-cards"
+source = "site/blocks/settings-item-cards.md"
+path = "/blocks/settings-item-cards/"
+
 [[section.group]]
 title = "Action Panel"
 
