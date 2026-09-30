@@ -659,12 +659,13 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"file-upload\"][data-part=\"root\"][data-blocks-settings-profile-form-wide] {\n  grid-column: 1 / -1;\n}\n\
 .blocks-settings-profile-form-theme[data-blocks-settings-profile-form-wide] {\n  grid-column: 1 / -1;\n}\n\
 @container blocks-settings-profile-form (min-width: 36rem) {\n  \
-[data-blocks-settings-profile-form-variant=\"inline\"] [data-scope=\"field\"][data-part=\"root\"] {\n    display: grid;\n    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);\n    align-items: start;\n    gap: var(--fandhe-space-4);\n  }\n\
+[data-blocks-settings-profile-form-variant=\"inline\"] [data-scope=\"field\"][data-part=\"root\"],\n  \
+[data-blocks-settings-profile-form-variant=\"inline\"] [data-scope=\"file-upload\"][data-part=\"root\"] {\n    display: grid;\n    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);\n    align-items: start;\n    gap: var(--fandhe-space-4);\n  }\n\
 }\n\
 .blocks-settings-profile-form-photo-row {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-settings-profile-form-switch-list {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"switch\"][data-part=\"root\"][data-blocks-settings-profile-form-switch][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-[data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+.blocks-settings-profile-form-theme [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-settings-profile-form-actions {\n  display: flex;\n  justify-content: flex-end;\n  gap: var(--fandhe-space-2);\n}\n";
 
 #[cfg(test)]
@@ -762,7 +763,7 @@ mod tests {
         assert!(LAYOUT_CSS.contains("container-name: blocks-settings-profile-form;"));
         assert!(LAYOUT_CSS.contains("@container blocks-settings-profile-form (min-width: 36rem)"));
         assert!(LAYOUT_CSS.contains(
-            "[data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
+            ".blocks-settings-profile-form-theme [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
         ));
         assert!(!LAYOUT_CSS.contains('<'));
     }
