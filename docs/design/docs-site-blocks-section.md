@@ -1059,6 +1059,7 @@ pub enum LayoutCss {
 | settings-notification-matrix | #2998（親 #2951） | `application/settings/settings_notification_matrix.rs` |
 | settings-org-switcher | #2999（親 #2951） | `application/settings/settings_org_switcher.rs` |
 | settings-page-tabs | #3007（親 #3006） | `application/settings/settings_page_tabs.rs` |
+| settings-profile-form | #3010 | `application/settings/settings_profile_form.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
