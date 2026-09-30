@@ -2346,6 +2346,11 @@ source = "site/blocks/empty-state-setup-steps.md"
 path = "/blocks/empty-state-setup-steps/"
 
 [[section.group.page]]
+title = "empty-state-starter-grid"
+source = "site/blocks/empty-state-starter-grid.md"
+path = "/blocks/empty-state-starter-grid/"
+
+[[section.group.page]]
 title = "empty-state-starter-list"
 source = "site/blocks/empty-state-starter-list.md"
 path = "/blocks/empty-state-starter-list/"
