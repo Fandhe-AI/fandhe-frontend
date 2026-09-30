@@ -1024,11 +1024,13 @@ pub enum LayoutCss {
 | action-panel-stacked | #2954 | `application/action_panel/action_panel_stacked.rs` |
 | ai-chat-code-preview | #2958（親 #2957） | `application/ai_chat/ai_chat_code_preview.rs` |
 | action-panel-with-well | #2956 | `application/action_panel/action_panel_with_well.rs` |
+| ai-chat-playground | #2960 | `application/ai_chat/ai_chat_playground.rs` |
 | ai-chat-prompt-start | #2961（親 #2951） | `application/ai_chat/ai_chat_prompt_start.rs` |
 | auth-dropdown-panel | #2962 | `application/auth/auth_dropdown_panel.rs` |
 | auth-oauth-consent | #2963（親 #2951） | `application/auth/auth_oauth_consent.rs` |
 | auth-otp-verify | #2964（親 #2951） | `application/auth/auth_otp_verify.rs` |
 | auth-split-accent-panel | #2965 | `application/auth/auth_split_accent_panel.rs` |
+| auth-split-photo-testimonial | #2966 | `application/auth/auth_split_photo_testimonial.rs` |
 | command-palette-preview | #2968 | `application/command_palette/command_palette_preview.rs` |
 | empty-state-card-header | #2969 | `application/empty_state/empty_state_card_header.rs` |
 | empty-state-setup-steps | #2971（親 #2951） | `application/empty_state/empty_state_setup_steps.rs` |

@@ -2275,6 +2275,11 @@ source = "site/blocks/auth-split-accent-panel.md"
 path = "/blocks/auth-split-accent-panel/"
 
 [[section.group.page]]
+title = "auth-split-photo-testimonial"
+source = "site/blocks/auth-split-photo-testimonial.md"
+path = "/blocks/auth-split-photo-testimonial/"
+
+[[section.group.page]]
 title = "login-01"
 source = "site/blocks/login-01.md"
 path = "/blocks/login-01/"
@@ -2435,6 +2440,11 @@ title = "AI Chat"
 title = "ai-chat-code-preview"
 source = "site/blocks/ai-chat-code-preview.md"
 path = "/blocks/ai-chat-code-preview/"
+
+[[section.group.page]]
+title = "ai-chat-playground"
+source = "site/blocks/ai-chat-playground.md"
+path = "/blocks/ai-chat-playground/"
 
 [[section.group.page]]
 title = "ai-chat-prompt-start"
