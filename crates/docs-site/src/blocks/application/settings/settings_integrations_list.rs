@@ -304,14 +304,22 @@ fn row_with(item: &Integration, actions: Node, expanded: Option<Node>) -> Node {
     );
 
     let mut children = vec![logo(item.name), body, actions_wrap];
+    let has_expanded = expanded.is_some();
     if let Some(expanded) = expanded {
         children.push(expanded);
     }
 
-    li(
-        vec![("class", "blocks-settings-integrations-list-row")],
-        children,
-    )
+    // 展開行（版 B の先頭行）のみ `expanded-row` 修飾クラスを併せて
+    // 付与し、CSS 側で key トラックを持つ grid-template-areas を限定
+    // 適用する（PR #3447 Codex/Bugbot 指摘: 全行が key トラックを持つと
+    // 展開領域のない行にも空段の `gap` が乗り余分な余白が生じるため）。
+    let class = if has_expanded {
+        "blocks-settings-integrations-list-row blocks-settings-integrations-list-expanded-row"
+    } else {
+        "blocks-settings-integrations-list-row"
+    };
+
+    li(vec![("class", class)], children)
 }
 
 /// 版 A/C/D 共通の行（接続/解除ボタン、展開領域なし）。[`row_with`] の薄い
@@ -700,6 +708,23 @@ pub const BLOCK: Block = Block {
 /// `.docs-content li` の `margin-block` を打ち消して行間を `border-top`
 /// のみに委ねる（image recipe base への `img[data-scope=...]` 上書きと同じ
 /// 「サイト共通スタイルは変更せず block 側で限定的に上回る」判断）。
+/// `requested-list`（版 C の要望済み一覧）も同じ理由で単一クラス
+/// （詳細度 (0,1,0)、`li` は (0,1,1)）のままでは `.docs-content ul,ol`/`li`
+/// に負けてビュレット/パディングが復活する（PR #3447 Codex/Bugbot 指摘）ため、
+/// `.blocks-settings-integrations-list-stack` を祖先に持つ子孫セレクタへ
+/// 書き換えて詳細度を (0,2,0)/(0,2,1) に引き上げる。
+///
+/// `row` の `grid-template-areas` 第 2 段（key トラック）は版 B の展開行
+/// 1 個にのみ存在する API キー欄用であり、他 12 行には対応する子要素が
+/// 無い。全行へ無条件で `"logo key key"` 第 2 段を宣言すると、子要素の
+/// 無い行にも空の grid トラックができ `gap` 分の余分な下部余白が生じる
+/// （PR #3447 Codex/Bugbot 指摘）。このため base の `row` ルールは
+/// `"logo body actions"` の単一行のみを宣言し、展開行だけが持つ
+/// `expanded-row` 修飾クラス（[`row_with`] が `expanded: Some(_)` の
+/// ときのみ付与）側で key トラックを追加する `grid-template-areas` 上書き
+/// ルールを別に持つ（詳細度は base と同じ 2 クラスの子孫セレクタ
+/// (0,2,0) で揃え、ソース順で後勝ちにする）。狭幅時の `@container` 内
+/// ルールも同型に分割する。
 ///
 /// グループ見出し・版見出しは `h3` 直書きから `heading` 部品（#2994）へ
 /// 移行したため、CSS フックは `class` ではなく `data-*` 属性で渡す
@@ -714,7 +739,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-integrations-list-stack [data-scope=\"heading\"][data-blocks-settings-integrations-list-version-title] {\n  margin: 0 0 var(--fandhe-space-3);\n}\n\
 .blocks-settings-integrations-list-stack [data-scope=\"heading\"][data-blocks-settings-integrations-list-group-title] {\n  color: var(--fandhe-color-fg-muted);\n  margin: 0 0 var(--fandhe-space-2);\n}\n\
 .blocks-settings-integrations-list-stack .blocks-settings-integrations-list-list {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg);\n}\n\
-.blocks-settings-integrations-list-list .blocks-settings-integrations-list-row {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr) auto;\n  grid-template-areas: \"logo body actions\" \"logo key key\";\n  align-items: center;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-4);\n  margin-block: 0;\n}\n\
+.blocks-settings-integrations-list-list .blocks-settings-integrations-list-row {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr) auto;\n  grid-template-areas: \"logo body actions\";\n  align-items: center;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-4);\n  margin-block: 0;\n}\n\
+.blocks-settings-integrations-list-list .blocks-settings-integrations-list-expanded-row {\n  grid-template-areas: \"logo body actions\" \"logo key key\";\n}\n\
 .blocks-settings-integrations-list-row + .blocks-settings-integrations-list-row {\n  border-top: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-settings-integrations-list-logo] {\n  grid-area: logo;\n}\n\
 img[data-scope=\"image\"][data-blocks-settings-integrations-list-logo] {\n  width: 2.5rem;\n  height: 2.5rem;\n}\n\
@@ -724,11 +750,12 @@ img[data-scope=\"image\"][data-blocks-settings-integrations-list-logo] {\n  widt
 .blocks-settings-integrations-list-actions {\n  grid-area: actions;\n}\n\
 .blocks-settings-integrations-list-key {\n  grid-area: key;\n  padding-top: var(--fandhe-space-2);\n}\n\
 .blocks-settings-integrations-list-list .blocks-settings-integrations-list-request {\n  padding: var(--fandhe-space-4);\n  border-top: 1px solid var(--fandhe-color-border);\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  margin-block: 0;\n}\n\
-.blocks-settings-integrations-list-requested-list {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
-.blocks-settings-integrations-list-requested-list li {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-2);\n  margin-block: 0;\n}\n\
+.blocks-settings-integrations-list-stack .blocks-settings-integrations-list-requested-list {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
+.blocks-settings-integrations-list-stack .blocks-settings-integrations-list-requested-list li {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-2);\n  margin-block: 0;\n}\n\
 .blocks-settings-integrations-list-list .blocks-settings-integrations-list-empty {\n  padding: var(--fandhe-space-4);\n  border-top: 1px solid var(--fandhe-color-border);\n  margin-block: 0;\n}\n\
 @container blocks-settings-integrations-list (max-width: 40rem) {\n  \
-.blocks-settings-integrations-list-list .blocks-settings-integrations-list-row {\n    grid-template-columns: auto minmax(0, 1fr);\n    grid-template-areas: \"logo body\" \"logo actions\" \"logo key\";\n  }\n  \
+.blocks-settings-integrations-list-list .blocks-settings-integrations-list-row {\n    grid-template-columns: auto minmax(0, 1fr);\n    grid-template-areas: \"logo body\" \"logo actions\";\n  }\n  \
+.blocks-settings-integrations-list-list .blocks-settings-integrations-list-expanded-row {\n    grid-template-areas: \"logo body\" \"logo actions\" \"logo key\";\n  }\n  \
 .blocks-settings-integrations-list-actions {\n    justify-self: start;\n  }\n\
 }\n";
 
@@ -923,10 +950,29 @@ mod tests {
 
     #[test]
     fn layout_css_declares_key_area_on_wide_and_narrow() {
-        assert!(LAYOUT_CSS.contains("grid-template-areas: \"logo body actions\" \"logo key key\";"));
-        assert!(LAYOUT_CSS
-            .contains("grid-template-areas: \"logo body\" \"logo actions\" \"logo key\";"));
+        // key トラックは展開行専用の `expanded-row` 修飾クラスへ限定される
+        // （PR #3447 Codex/Bugbot 指摘。通常行への波及防止は
+        // `layout_css_key_area_is_scoped_to_expanded_row` が固定する）。
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-settings-integrations-list-list .blocks-settings-integrations-list-expanded-row {\n  grid-template-areas: \"logo body actions\" \"logo key key\";"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-settings-integrations-list-list .blocks-settings-integrations-list-expanded-row {\n    grid-template-areas: \"logo body\" \"logo actions\" \"logo key\";"
+        ));
         assert!(LAYOUT_CSS.contains(".blocks-settings-integrations-list-key {\n  grid-area: key;"));
+    }
+
+    #[test]
+    fn layout_css_key_area_is_scoped_to_expanded_row() {
+        // 通常行（`row`）は key トラックを持たず、展開領域の無い 12 行に
+        // 空段の `gap` が乗らないことの回帰ガード（PR #3447 Codex/Bugbot
+        // 指摘）。
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-settings-integrations-list-list .blocks-settings-integrations-list-row {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr) auto;\n  grid-template-areas: \"logo body actions\";"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-settings-integrations-list-list .blocks-settings-integrations-list-row {\n    grid-template-columns: auto minmax(0, 1fr);\n    grid-template-areas: \"logo body\" \"logo actions\";"
+        ));
     }
 
     #[test]
@@ -972,5 +1018,23 @@ mod tests {
         assert!(!LAYOUT_CSS.contains("\n.blocks-settings-integrations-list-group-title {"));
         assert!(!LAYOUT_CSS.contains("\n.blocks-settings-integrations-list-list {"));
         assert!(LAYOUT_CSS.contains("margin-block: 0;"));
+    }
+
+    #[test]
+    fn requested_list_selectors_beat_docs_content_specificity() {
+        // 版 C の要望済み一覧（`requested-list`）も `.docs-content ul,ol`/
+        // `.docs-content li`（いずれも詳細度 (0,1,1)）に負けないよう
+        // `.blocks-settings-integrations-list-stack` を祖先に持つ 2 クラスの
+        // 子孫セレクタ（詳細度 (0,2,0)/(0,2,1)）で宣言する回帰ガード
+        // （PR #3447 Codex/Bugbot 指摘）。単一クラスの旧セレクタが復活して
+        // いないことも合わせて固定する。
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-settings-integrations-list-stack .blocks-settings-integrations-list-requested-list {"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-settings-integrations-list-stack .blocks-settings-integrations-list-requested-list li {"
+        ));
+        assert!(!LAYOUT_CSS.contains("\n.blocks-settings-integrations-list-requested-list {"));
+        assert!(!LAYOUT_CSS.contains("\n.blocks-settings-integrations-list-requested-list li {"));
     }
 }

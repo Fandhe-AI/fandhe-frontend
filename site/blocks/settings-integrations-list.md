@@ -223,14 +223,22 @@ fn row_with(item: &Integration, actions: Node, expanded: Option<Node>) -> Node {
     );
 
     let mut children = vec![logo(item.name), body, actions_wrap];
+    let has_expanded = expanded.is_some();
     if let Some(expanded) = expanded {
         children.push(expanded);
     }
 
-    li(
-        vec![("class", "blocks-settings-integrations-list-row")],
-        children,
-    )
+    // 展開行（版 B の先頭行）のみ `expanded-row` 修飾クラスを併せて
+    // 付与し、CSS 側で key トラックを持つ grid-template-areas を限定
+    // 適用する（PR #3447 Codex/Bugbot 指摘: 全行が key トラックを持つと
+    // 展開領域のない行にも空段の `gap` が乗り余分な余白が生じるため）。
+    let class = if has_expanded {
+        "blocks-settings-integrations-list-row blocks-settings-integrations-list-expanded-row"
+    } else {
+        "blocks-settings-integrations-list-row"
+    };
+
+    li(vec![("class", class)], children)
 }
 
 /// 版 A/C/D 共通の行（接続/解除ボタン、展開領域なし）。[`row_with`] の薄い
