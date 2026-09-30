@@ -24,7 +24,7 @@
 ## Rust コード
 
 ```rust
-use fandhe_frontend_core::{div, el, text, Node};
+use fandhe_frontend_core::{div, el, span, text, Node};
 use fandhe_frontend_pre_styled_ui::accordion::{
     self, item, item_content, item_indicator, item_trigger, AccordionProps, OpenState,
 };
@@ -99,10 +99,19 @@ fn intro() -> Node {
     )
 }
 
-/// 見出し行（状態バッジ・種類・日時）。日時は `margin-inline-start: auto`
-/// で右寄せする（[`LAYOUT_CSS`] 参照）。
+/// 見出し行（状態バッジ・種類・日時）。`item_trigger` が生成する
+/// `<button>` の内部に配置されるため、`<button>` の内容モデル
+/// （phrasing content 限定）を満たす `span` で組む（`div`・`styled_text::
+/// text`〔`<p>`〕は不可。Codex P1・Bugbot Medium 是正）。日時は
+/// `margin-inline-start: auto` で右寄せする（[`LAYOUT_CSS`] 参照）。
+/// `styled_text::text` は `drop_class_attr` で呼び出し側 `class` を除去
+/// するため（`faq_tabbed_accordion::category_caption` と同型の制約）、
+/// 日時のミュート色・右寄せクラスは素の `span` へ直接付与し、色は
+/// [`LAYOUT_CSS`] の `.blocks-settings-event-accordion-time` へ埋め込む
+/// （Bugbot Medium「クラスが届かず margin-inline-start:auto が効かない」
+/// 是正と同根）。
 fn event_header(event: &Event) -> Node {
-    div(
+    span(
         vec![("class", "blocks-settings-event-accordion-header")],
         vec![
             badge(
@@ -115,11 +124,7 @@ fn event_header(event: &Event) -> Node {
                 vec![text(event.status_label)],
             ),
             code(&CodeProps::default(), vec![], vec![text(event.event_type)]),
-            styled_text::text(
-                &TextProps {
-                    variant: TextVariant::Muted,
-                    ..TextProps::default()
-                },
+            span(
                 vec![("class", "blocks-settings-event-accordion-time")],
                 vec![text(event.occurred_at)],
             ),

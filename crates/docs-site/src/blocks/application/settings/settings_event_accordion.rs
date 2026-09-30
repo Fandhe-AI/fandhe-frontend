@@ -60,7 +60,7 @@
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
-use fandhe_frontend_core::{div, el, text, Node};
+use fandhe_frontend_core::{div, el, span, text, Node};
 use fandhe_frontend_pre_styled_ui::accordion::{
     self, item, item_content, item_indicator, item_trigger, AccordionProps, OpenState,
 };
@@ -135,10 +135,19 @@ fn intro() -> Node {
     )
 }
 
-/// 見出し行（状態バッジ・種類・日時）。日時は `margin-inline-start: auto`
-/// で右寄せする（[`LAYOUT_CSS`] 参照）。
+/// 見出し行（状態バッジ・種類・日時）。`item_trigger` が生成する
+/// `<button>` の内部に配置されるため、`<button>` の内容モデル
+/// （phrasing content 限定）を満たす `span` で組む（`div`・`styled_text::
+/// text`〔`<p>`〕は不可。Codex P1・Bugbot Medium 是正）。日時は
+/// `margin-inline-start: auto` で右寄せする（[`LAYOUT_CSS`] 参照）。
+/// `styled_text::text` は `drop_class_attr` で呼び出し側 `class` を除去
+/// するため（`faq_tabbed_accordion::category_caption` と同型の制約）、
+/// 日時のミュート色・右寄せクラスは素の `span` へ直接付与し、色は
+/// [`LAYOUT_CSS`] の `.blocks-settings-event-accordion-time` へ埋め込む
+/// （Bugbot Medium「クラスが届かず margin-inline-start:auto が効かない」
+/// 是正と同根）。
 fn event_header(event: &Event) -> Node {
-    div(
+    span(
         vec![("class", "blocks-settings-event-accordion-header")],
         vec![
             badge(
@@ -151,11 +160,7 @@ fn event_header(event: &Event) -> Node {
                 vec![text(event.status_label)],
             ),
             code(&CodeProps::default(), vec![], vec![text(event.event_type)]),
-            styled_text::text(
-                &TextProps {
-                    variant: TextVariant::Muted,
-                    ..TextProps::default()
-                },
+            span(
                 vec![("class", "blocks-settings-event-accordion-time")],
                 vec![text(event.occurred_at)],
             ),
@@ -340,11 +345,11 @@ pub const BLOCK: Block = Block {
 /// 判断。狭幅ではタブ列・見出し行が折り返し、`pre` のみが横スクロール
 /// する。
 const LAYOUT_CSS: &str = "\
-.blocks-settings-event-accordion-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
+.blocks-settings-event-accordion-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n}\n\
 .blocks-settings-event-accordion-intro {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-settings-event-accordion-trigger-heading {\n  margin: 0;\n  font-size: inherit;\n  font-weight: inherit;\n  width: 100%;\n}\n\
 .blocks-settings-event-accordion-header {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  width: 100%;\n}\n\
-.blocks-settings-event-accordion-time {\n  margin-inline-start: auto;\n}\n\
+.blocks-settings-event-accordion-time {\n  margin-inline-start: auto;\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-settings-event-accordion-tablist {\n  display: flex;\n  gap: var(--fandhe-space-2);\n  overflow-x: auto;\n  white-space: nowrap;\n  border-bottom: 1px solid var(--fandhe-color-border);\n  margin-bottom: var(--fandhe-space-3);\n}\n\
 .blocks-settings-event-accordion-tab {\n  display: inline-flex;\n  align-items: center;\n  flex-shrink: 0;\n  padding: var(--fandhe-space-2) var(--fandhe-space-3);\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n  border-bottom: 2px solid transparent;\n  margin-bottom: -1px;\n  cursor: default;\n}\n\
 .blocks-settings-event-accordion-tab[data-state=\"active\"] {\n  color: var(--fandhe-color-fg);\n  border-bottom-color: var(--fandhe-color-accent);\n}\n\
