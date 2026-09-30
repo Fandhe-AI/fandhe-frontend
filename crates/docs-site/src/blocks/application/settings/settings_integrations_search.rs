@@ -204,8 +204,12 @@ fn integration_card(integration: &Integration) -> Node {
                             ..LinkProps::default()
                         },
                         vec![],
-                        vec![text("詳細を見る")],
+                        vec![text("GitHub で見る")],
                     ),
+                    // 接続ボタンの可視ラベルは全カード共通（「接続する」/「接続済み」）
+                    // のため、支援技術がどのアプリへの操作か区別できるよう
+                    // `aria-label` へアプリ名を埋め込む（settings_integrations_list
+                    // と同じ回避、PR #3441/#3443 レビュー指摘対応）。
                     if integration.connected {
                         button::button(
                             &ButtonProps {
@@ -213,11 +217,15 @@ fn integration_card(integration: &Integration) -> Node {
                                 disabled: true,
                                 ..ButtonProps::default()
                             },
-                            vec![],
+                            vec![("aria-label", &format!("{} と接続済み", integration.name))],
                             vec![text("接続済み")],
                         )
                     } else {
-                        button::button(&ButtonProps::default(), vec![], vec![text("接続する")])
+                        button::button(
+                            &ButtonProps::default(),
+                            vec![("aria-label", &format!("{} と接続", integration.name))],
+                            vec![text("接続する")],
+                        )
                     },
                 ],
             ),
@@ -423,6 +431,37 @@ mod tests {
         for absent in ["<form", "type=\"submit\"", "href=\"#\"", "src=\"data:"] {
             assert!(!html.contains(absent), "demo should never contain {absent}");
         }
+    }
+
+    /// 詳細リンクの遷移先は全カード共通で本リポジトリの GitHub ページ
+    /// であるため、実在する詳細ページがあるかのように読める「詳細を見る」
+    /// ではなく「GitHub で見る」を使う（`settings_integrations_list` と
+    /// 同じ回避、PR #3443 Codex/Bugbot 指摘対応）。
+    #[test]
+    fn detail_link_text_matches_destination() {
+        let html = render(&demo());
+        assert!(!html.contains("詳細を見る"));
+        assert_eq!(html.matches("GitHub で見る").count(), 4);
+    }
+
+    /// 接続ボタンの可視ラベルは全カード共通（「接続する」/「接続済み」）の
+    /// ため、支援技術がどのアプリへの操作か区別できるよう `aria-label` へ
+    /// アプリ名を含める（`settings_integrations_list` と同じ回避、PR #3443
+    /// Codex/Bugbot 指摘対応）。
+    #[test]
+    fn action_buttons_have_app_specific_accessible_name() {
+        let html = render(&demo());
+        for name in ["Hinoki Chat", "Kasumi Talk", "Sumire Bot", "Ao Messenger"] {
+            assert!(
+                html.contains(&format!("aria-label=\"{name} ")),
+                "expected an accessible action-button label mentioning {name}"
+            );
+        }
+        assert_eq!(
+            html.matches("aria-label=\"").count(),
+            6,
+            "4 個の接続ボタン + 絞り込みボタン群（`role=\"group\"`）の aria-label 2 件（各パネル 1 件）"
+        );
     }
 
     /// 検索欄の id はパネルごとに一意（`results`/`empty` suffix、

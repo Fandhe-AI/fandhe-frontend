@@ -17,7 +17,10 @@ Blocks セクションは新規部品を追加するものではなく、既存�
 絞り込み処理は行いません。`<form>` 要素は一切持たず、データの取得・送信・
 状態管理も行いません。連携アプリ名・説明文はすべて独自に書いた架空のもの
 であり、実企業名・実クレデンシャル・PII を含みません。ダミーリンクは
-`href="#"` ではなく実在の外部 URL（本リポジトリの GitHub ページ）を指します。
+`href="#"` ではなく実在の外部 URL（本リポジトリの GitHub ページ）を指し、
+リンク文言も遷移先と一致する「GitHub で見る」を使います。接続ボタンは
+全カード共通の可視ラベル（「接続する」/「接続済み」）のため、支援技術が
+どのアプリへの操作か区別できるよう `aria-label` へアプリ名を含めます。
 
 ## Rust コード
 
@@ -171,8 +174,12 @@ fn integration_card(integration: &Integration) -> Node {
                             ..LinkProps::default()
                         },
                         vec![],
-                        vec![text("詳細を見る")],
+                        vec![text("GitHub で見る")],
                     ),
+                    // 接続ボタンの可視ラベルは全カード共通（「接続する」/「接続済み」）
+                    // のため、支援技術がどのアプリへの操作か区別できるよう
+                    // `aria-label` へアプリ名を埋め込む（settings_integrations_list
+                    // と同じ回避、PR #3441/#3443 レビュー指摘対応）。
                     if integration.connected {
                         button::button(
                             &ButtonProps {
@@ -180,11 +187,15 @@ fn integration_card(integration: &Integration) -> Node {
                                 disabled: true,
                                 ..ButtonProps::default()
                             },
-                            vec![],
+                            vec![("aria-label", &format!("{} と接続済み", integration.name))],
                             vec![text("接続済み")],
                         )
                     } else {
-                        button::button(&ButtonProps::default(), vec![], vec![text("接続する")])
+                        button::button(
+                            &ButtonProps::default(),
+                            vec![("aria-label", &format!("{} と接続", integration.name))],
+                            vec![text("接続する")],
+                        )
                     },
                 ],
             ),
