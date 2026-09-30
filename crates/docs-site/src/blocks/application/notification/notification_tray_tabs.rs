@@ -524,8 +524,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-notification-tray-tabs-list {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-notification-tray-tabs-item {\n  display: flex;\n  align-items: flex-start;\n  gap: var(--fandhe-space-3);\n  position: relative;\n}\n\
 .blocks-notification-tray-tabs-item-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
-.blocks-notification-tray-tabs-item-time {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-size-sm);\n}\n\
-.blocks-notification-tray-tabs-item[data-unread]::before {\n  content: \"\";\n  position: absolute;\n  inset-inline-start: -0.75rem;\n  inset-block-start: var(--fandhe-space-2);\n  width: 0.5rem;\n  height: 0.5rem;\n  border-radius: var(--fandhe-radius-full);\n  background: var(--fandhe-color-fg-accent);\n}\n";
+.blocks-notification-tray-tabs-item-time {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
+.blocks-notification-tray-tabs-item[data-unread]::before {\n  content: \"\";\n  position: absolute;\n  inset-inline-start: -0.75rem;\n  inset-block-start: var(--fandhe-space-2);\n  width: 0.5rem;\n  height: 0.5rem;\n  border-radius: var(--fandhe-radius-full);\n  background: var(--fandhe-color-accent);\n}\n";
 
 #[cfg(test)]
 mod tests {
