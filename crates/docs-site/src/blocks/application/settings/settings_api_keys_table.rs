@@ -340,6 +340,10 @@ fn list_panel() -> Node {
 /// （`Some((0, 2))`）を固定描画するしかなく、隠しラジオの `checked` を
 /// クリックで動かせる状態のまま残すと、視覚的インジケータと実際の選択
 /// 状態が乖離する（Bugbot 指摘 PRRT_kwDOTarxgc6nYvWS 対応）。
+/// `root_with_props` へも `disabled_props` を渡し、`radiogroup` 自体に
+/// `aria-disabled`/`data-disabled` を反映させる（codex 指摘
+/// PRRT_kwDOTarxgc6nZBJh 対応。item 系のみへ渡すと支援技術は root の
+/// role="radiogroup" しか読まないため、無効化状態が伝わらなかった）。
 fn scope_segment_group() -> Node {
     let props = SegmentGroupProps::default();
     let disabled_props = SegmentGroupProps {
@@ -360,7 +364,7 @@ fn scope_segment_group() -> Node {
             ),
             segment_group::root_with_props(
                 Size::Sm,
-                &props,
+                &disabled_props,
                 None,
                 Some(label_id),
                 vec![],
@@ -701,6 +705,9 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-api-keys-table-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-settings-api-keys-table-toolbar {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: space-between;\n  align-items: flex-start;\n  gap: var(--fandhe-space-4);\n  margin-block-end: var(--fandhe-space-4);\n}\n\
 .blocks-settings-api-keys-table-segment-label {\n  display: block;\n  margin-block-end: var(--fandhe-space-2);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
+.blocks-settings-api-keys-table [data-scope=\"segment-group\"][data-part=\"item-control\"][data-disabled],\n\
+.blocks-settings-api-keys-table [data-scope=\"segment-group\"][data-part=\"item-text\"][data-disabled],\n\
+.blocks-settings-api-keys-table [data-scope=\"segment-group\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-blocks-settings-api-keys-table-dialog-root] {\n  position: relative;\n}\n\
 .blocks-settings-api-keys-table [data-scope=\"dialog\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .blocks-settings-api-keys-table [data-scope=\"dialog\"][data-part=\"backdrop\"] {\n  position: absolute;\n  inset: 0;\n  z-index: auto;\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
@@ -864,6 +871,42 @@ mod tests {
         assert!(
             scope_html.matches("data-disabled").count() >= 2,
             "権限 segment group の item 系パーツは disabled であるはず: {scope_html}"
+        );
+    }
+
+    /// codex 指摘 PRRT_kwDOTarxgc6nZBJh の回帰ガード: 「権限」segment
+    /// group の root（`role="radiogroup"`）自体にも `aria-disabled`/
+    /// `data-disabled` が反映されていること（item 系のみでは支援技術が
+    /// root の role しか読まず無効化状態が伝わらない）。
+    #[test]
+    fn scope_segment_group_root_reflects_disabled() {
+        let html = demo_html();
+        let root_pos = html
+            .find(r#"role="radiogroup""#)
+            .expect("権限 segment group の root が見つかるはず");
+        let root_start = html[..root_pos].rfind("<div").unwrap_or(0);
+        let root_line_end = html[root_pos..]
+            .find('>')
+            .map(|i| root_pos + i)
+            .unwrap_or(html.len());
+        let root_tag = &html[root_start..root_line_end];
+        assert!(
+            root_tag.contains("aria-disabled") && root_tag.contains("data-disabled"),
+            "権限 segment group の root は aria-disabled/data-disabled を持つはず: {root_tag}"
+        );
+    }
+
+    /// cursor Bugbot 指摘 PRRT_kwDOTarxgc6nZBwS の回帰ガード: disabled に
+    /// した「権限」segment group の item 系パーツが薄く見えないよう、
+    /// `LAYOUT_CSS` が `form_layout_property_panel.rs` と同型の不透明度
+    /// 中和セレクタ（`opacity: 1`）を持つこと。
+    #[test]
+    fn layout_css_neutralizes_disabled_segment_group_opacity() {
+        assert!(
+            LAYOUT_CSS.contains(
+                "[data-scope=\"segment-group\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;"
+            ),
+            "LAYOUT_CSS は disabled な segment group item の opacity を 1 に戻すはず"
         );
     }
 }

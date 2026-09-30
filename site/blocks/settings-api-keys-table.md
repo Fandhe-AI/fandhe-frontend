@@ -288,6 +288,10 @@ fn list_panel() -> Node {
 /// （`Some((0, 2))`）を固定描画するしかなく、隠しラジオの `checked` を
 /// クリックで動かせる状態のまま残すと、視覚的インジケータと実際の選択
 /// 状態が乖離する（Bugbot 指摘 PRRT_kwDOTarxgc6nYvWS 対応）。
+/// `root_with_props` へも `disabled_props` を渡し、`radiogroup` 自体に
+/// `aria-disabled`/`data-disabled` を反映させる（codex 指摘
+/// PRRT_kwDOTarxgc6nZBJh 対応。item 系のみへ渡すと支援技術は root の
+/// role="radiogroup" しか読まないため、無効化状態が伝わらなかった）。
 fn scope_segment_group() -> Node {
     let props = SegmentGroupProps::default();
     let disabled_props = SegmentGroupProps {
@@ -308,7 +312,7 @@ fn scope_segment_group() -> Node {
             ),
             segment_group::root_with_props(
                 Size::Sm,
-                &props,
+                &disabled_props,
                 None,
                 Some(label_id),
                 vec![],
