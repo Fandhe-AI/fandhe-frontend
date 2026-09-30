@@ -1038,6 +1038,7 @@ pub enum LayoutCss {
 | empty-state-starter-grid | #2972（親 #2951） | `application/empty_state/empty_state_starter_grid.rs` |
 | empty-state-starter-list | #2973（親 #2951） | `application/empty_state/empty_state_starter_list.rs` |
 | help-center-article-list | #2974（親 #2951） | `application/help_center/help_center_article_list.rs` |
+| notification-tray-tabs | #2977（親 #2951） | `application/notification/notification_tray_tabs.rs` |
 | onboarding-checklist | #2979 | `application/onboarding/onboarding_checklist.rs` |
 | settings-api-keys-table | #2983 | `application/settings/settings_api_keys_table.rs` |
 
