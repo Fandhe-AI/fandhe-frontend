@@ -75,6 +75,16 @@
 //! （説明・素材と手入れ・配送と返品）をすべて `OpenState::Open` +
 //! `AccordionProps { disabled: true, .. }` で固定する。
 //!
+//! # アコーディオントリガーの見出しレベル（`h3`）
+//!
+//! `faq_accordion_centered.rs`・`changelog_accordion.rs` と同じく、各
+//! `item_trigger` を WAI-ARIA APG のアコーディオンパターンに合わせて見出し
+//! 要素で包み、支援技術の見出し移動で「説明」「素材と手入れ」「配送と
+//! 返品」の間を移動できるようにする。購入パネルの商品名が
+//! [`HeadingLevel::H2`] のため、その配下の `<h3>` とする
+//! （[`fandhe_frontend_core::el`] で直接組み立てる）。docs サイト本文の
+//! 見出し既定 margin・字体が干渉しないよう [`LAYOUT_CSS`] でリセットする。
+//!
 //! # `<form>` を持たない・データ取得/送信を行わない
 //!
 //! `crate::blocks` モジュール doc「`<form>` を使わない」節・「セキュリティ
@@ -467,7 +477,9 @@ fn add_to_cart_button() -> Node {
 
 /// 詳細アコーディオン 1 項目（トリガー + 本文）。全件 `OpenState::Open` +
 /// `disabled: true` で固定する（モジュール doc「詳細アコーディオンを全件
-/// open + disabled で固定する理由」節参照）。
+/// open + disabled で固定する理由」節参照）。トリガーは WAI-ARIA APG のアコーディオン
+/// パターンに合わせて `<h3>` で包む（モジュール doc「アコーディオン
+/// トリガーの見出しレベル」節参照）。
 fn detail_item(index: usize, title: &str, body: &str) -> Node {
     let state = OpenState::Open;
     let props = AccordionProps {
@@ -483,18 +495,25 @@ fn detail_item(index: usize, title: &str, body: &str) -> Node {
         &props,
         vec![],
         vec![
-            item_trigger(
-                state,
-                false,
-                &props,
-                title,
-                Some(trigger_id.as_str()),
-                Some(content_id.as_str()),
-                vec![],
-                vec![
-                    fandhe_frontend_core::span(vec![], vec![text(title)]),
-                    item_indicator(state, false, &props, vec![], vec![text("\u{25be}")]),
-                ],
+            el(
+                "h3",
+                vec![(
+                    "class",
+                    "blocks-product-overview-gallery-split-detail-heading",
+                )],
+                vec![item_trigger(
+                    state,
+                    false,
+                    &props,
+                    title,
+                    Some(trigger_id.as_str()),
+                    Some(content_id.as_str()),
+                    vec![],
+                    vec![
+                        fandhe_frontend_core::span(vec![], vec![text(title)]),
+                        item_indicator(state, false, &props, vec![], vec![text("\u{25be}")]),
+                    ],
+                )],
             ),
             item_content(
                 state,
@@ -694,6 +713,7 @@ img[data-scope=\"image\"][data-blocks-product-overview-gallery-split-main-image]
 .blocks-product-overview-gallery-split-option [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-blocks-product-overview-gallery-split-details] [data-scope=\"accordion\"][data-part=\"item-trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-blocks-product-overview-gallery-split-add] {\n  width: 100%;\n}\n\
+.blocks-product-overview-gallery-split-detail-heading {\n  margin: 0;\n  font-size: inherit;\n  font-weight: inherit;\n}\n\
 @media (min-width: 48rem) {\n  .blocks-product-overview-gallery-split-layout {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n    align-items: start;\n  }\n}\n";
 
 #[cfg(test)]
@@ -857,6 +877,18 @@ mod tests {
         // disabled 属性 + aria-disabled + data-disabled）を持つこと。
         assert!(html.matches("aria-disabled=\"true\"").count() >= 3);
         assert!(html.matches("data-state=\"open\"").count() >= 3);
+    }
+
+    #[test]
+    fn accordion_triggers_are_wrapped_in_h3() {
+        let html = demo_html();
+        // 3 項目すべてのトリガーが見出し（h3）で包まれ、見出し既定の
+        // margin・字体がリセットされていること。
+        let open = "<h3 class=\"blocks-product-overview-gallery-split-detail-heading\"><button";
+        assert_eq!(html.matches(open).count(), 3);
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-product-overview-gallery-split-detail-heading {\n  margin: 0;\n  font-size: inherit;\n  font-weight: inherit;\n}"
+        ));
     }
 
     #[test]

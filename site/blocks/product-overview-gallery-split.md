@@ -22,7 +22,9 @@ R0616・R0617・R1176。出典の固有名・ファイル名は記載しませ�
 `disabled` で固定表示します。カラー・サイズの選択欄はネイティブ
 `disabled` のまま固定表示し、現在の選択を本文テキストで明文化しています。詳細情報
 アコーディオンは無 JS のため開閉できず、3 項目すべてを開いた状態のまま
-固定しています（閉じた項目を残すと本文が到達不能になるため）。パンくずの
+固定しています（閉じた項目を残すと本文が到達不能になるため）。各項目の
+トリガーは見出し（`h3`）で包み、支援技術の見出し移動で項目間を移動
+できるようにしています。パンくずの
 リンクは `href="#"` を避け、実在する相対パスへ向けています。商品名・
 価格・評価件数・カラー名・サイズ・説明文はすべて独自に書いた架空のもので
 あり、実企業名・実クレデンシャル・PII を含みません。
@@ -386,7 +388,9 @@ fn add_to_cart_button() -> Node {
 
 /// 詳細アコーディオン 1 項目（トリガー + 本文）。全件 `OpenState::Open` +
 /// `disabled: true` で固定する（モジュール doc「詳細アコーディオンを全件
-/// open + disabled で固定する理由」節参照）。
+/// open + disabled で固定する理由」節参照）。トリガーは WAI-ARIA APG のアコーディオン
+/// パターンに合わせて `<h3>` で包む（モジュール doc「アコーディオン
+/// トリガーの見出しレベル」節参照）。
 fn detail_item(index: usize, title: &str, body: &str) -> Node {
     let state = OpenState::Open;
     let props = AccordionProps {
@@ -402,18 +406,25 @@ fn detail_item(index: usize, title: &str, body: &str) -> Node {
         &props,
         vec![],
         vec![
-            item_trigger(
-                state,
-                false,
-                &props,
-                title,
-                Some(trigger_id.as_str()),
-                Some(content_id.as_str()),
-                vec![],
-                vec![
-                    fandhe_frontend_core::span(vec![], vec![text(title)]),
-                    item_indicator(state, false, &props, vec![], vec![text("\u{25be}")]),
-                ],
+            el(
+                "h3",
+                vec![(
+                    "class",
+                    "blocks-product-overview-gallery-split-detail-heading",
+                )],
+                vec![item_trigger(
+                    state,
+                    false,
+                    &props,
+                    title,
+                    Some(trigger_id.as_str()),
+                    Some(content_id.as_str()),
+                    vec![],
+                    vec![
+                        fandhe_frontend_core::span(vec![], vec![text(title)]),
+                        item_indicator(state, false, &props, vec![], vec![text("\u{25be}")]),
+                    ],
+                )],
             ),
             item_content(
                 state,
