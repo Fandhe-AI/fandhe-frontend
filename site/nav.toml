@@ -2305,6 +2305,14 @@ source = "site/blocks/signup-05.md"
 path = "/blocks/signup-05/"
 
 [[section.group]]
+title = "Settings"
+
+[[section.group.page]]
+title = "settings-api-keys-table"
+source = "site/blocks/settings-api-keys-table.md"
+path = "/blocks/settings-api-keys-table/"
+
+[[section.group]]
 title = "Action Panel"
 
 [[section.group.page]]
