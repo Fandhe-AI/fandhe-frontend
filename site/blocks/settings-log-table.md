@@ -152,6 +152,21 @@ fn delivery_rows(status: Option<LogStatus>) -> Vec<&'static LogRow> {
         .collect()
 }
 
+/// タブバッジに出す各結果の総件数。[`DELIVERY_ROWS`] はページ送り
+/// フッター「全 18 件中 1〜6 件を表示」の 1 ページ目分（6 件）のみを
+/// 保持する架空データのため、`delivery_rows` の長さ（表示中ページ内件数）
+/// をそのままバッジへ出すとフッターの総件数（18 件）と食い違う
+/// （codex レビュー指摘、イシュー #2997）。バッジは「該当件数」を示す
+/// 表示のため、フッターと整合する総件数側の架空値（合計 18 件）を返す。
+fn delivery_total(status: Option<LogStatus>) -> u32 {
+    match status {
+        None => 18,
+        Some(LogStatus::Success) => 9,
+        Some(LogStatus::Failure) => 6,
+        Some(LogStatus::Pending) => 3,
+    }
+}
+
 /// 結果バッジ（[`LogStatus::palette`]/[`LogStatus::label`] を委譲）。
 fn status_badge(status: LogStatus) -> Node {
     badge::badge(
@@ -423,7 +438,7 @@ fn version_delivery() -> Node {
         trigger.push(badge::badge(
             &BadgeProps::default(),
             vec![],
-            vec![text(rows.len().to_string())],
+            vec![text(delivery_total(status).to_string())],
         ));
         let label = format!("配信ログ（{trigger_label}）");
         TabItem {
@@ -489,9 +504,12 @@ pub fn demo() -> Node {
   ログテーブルとページ送りを置きます。無 JS のため各選択欄は `option` の
   1 つに `selected` を固定しています。
 - **版 B（配信ログ、R0377）**: `tabs`（すべて/成功/失敗/保留）で結果を
-  絞り込む版です。各タブの trigger には該当件数のバッジを添え、content は
-  静的に確定した該当行のみを表示します（実行時の絞り込みではなく初期状態
-  固定の表示）。
+  絞り込む版です。各タブの trigger には全 18 件に対する該当総件数
+  （`delivery_total`: すべて 18・成功 9・失敗 6・保留 3）のバッジを添え、
+  content はページ送り 1 ページ目（「全 18 件中 1〜6 件を表示」）に
+  含まれる該当行のみを静的に表示します（実行時の絞り込みではなく初期状態
+  固定の表示）。バッジはページ内件数ではなく総件数のため、表示行数とは
+  一致しません。
 - 結果バッジは成功 = Success・失敗 = Danger・保留 = Warning の
   `colorPalette` で示します。
 - 操作者セルはアバター（Xs）+ 氏名の横並びです。
