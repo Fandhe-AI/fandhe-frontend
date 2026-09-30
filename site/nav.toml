@@ -2642,6 +2642,14 @@ title = "checkout-form-summary-split"
 source = "site/blocks/checkout-form-summary-split.md"
 path = "/blocks/checkout-form-summary-split/"
 
+[[section.group]]
+title = "Order"
+
+[[section.group.page]]
+title = "order-tracking-progress"
+source = "site/blocks/order-tracking-progress.md"
+path = "/blocks/order-tracking-progress/"
+
 # --- 以下は block 追加時の挿入先アンカー（イシュー #2734、#2735 でカテゴリ
 # 見出し導入に伴い運用を更新）。カテゴリ単位で行ブロックを分ける点は不変
 # だが、新規 block は該当カテゴリの既存 `[[section.group]]` があればその
