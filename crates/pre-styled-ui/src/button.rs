@@ -164,7 +164,7 @@ use crate::icon::{icon, IconProps};
 use crate::recipe::{
     disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_bg_solid,
     hover_surface_declarations, palette_scale_declarations, transition_declarations, when,
-    ColorPalette, FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe,
+    ColorPalette, FocusRingColor, FocusRingOffset, MotionDuration, Shape, Size, SlotRecipe,
     StateCondition, VariantValue,
 };
 use crate::spinner::spinner_decorative;
@@ -314,6 +314,14 @@ pub struct ButtonProps {
     /// `aria-disabled="true"` も付与し、読み込み中のクリック・暗黙 submit
     /// を止める。
     pub loading: bool,
+    /// 共通 shape 軸（イシュー #3117）。`None`（既定）は現行の角丸
+    /// （`--fandhe-radius-md`）のまま class を追加出力しない。`Some(Shape::Pill)`
+    /// は両端を最大まで丸め、`Some(Shape::Circle)` は [`icon_button`]/
+    /// [`close_button`]（icon-only、`aspect-ratio: 1 / 1` の確定 `height`）と
+    /// 組み合わせたときのみ真円になる（[`crate::image::ImageShape::Circle`]
+    /// と同型の直交関係）。テキストボタンへ `Circle` を指定しても正方形の
+    /// 確定サイズが無いため真円にはならない（`recipe` rustdoc参照）。
+    pub shape: Option<Shape>,
 }
 
 impl Default for ButtonProps {
@@ -324,6 +332,7 @@ impl Default for ButtonProps {
             palette: ColorPalette::Accent,
             disabled: false,
             loading: false,
+            shape: None,
         }
     }
 }
@@ -381,6 +390,28 @@ fn recipe() -> SlotRecipe {
             ButtonIcon::Only,
             "root",
             vec![decl("aspect-ratio", "1 / 1"), decl("padding", "0")],
+        )
+        // イシュー #3117: 共通 shape 軸。`ButtonIcon::Only` 登録の**後**に
+        // 置くことで、`crates/pre-styled-ui/tests/download_trigger_css.rs`
+        // の共有部分（icon-only マーカー前 + focus-visible 以降）の外へ
+        // 出力させ、`recipe_with_scope` を共有する download_trigger の
+        // golden CSS を不変に保つ（ButtonProps 非公開の `download_trigger`
+        // は `shape` を持たないため、この軸自体が波及しない設計）。
+        // `Circle` は icon-only（`aspect-ratio: 1 / 1` の確定 `height`）との
+        // 併用でのみ真円になる（`ButtonProps::shape` rustdoc 参照）。
+        .variant(
+            Shape::Pill,
+            "root",
+            vec![decl("border-radius", "var(--fandhe-radius-full)")],
+        )
+        .variant(
+            Shape::Circle,
+            "root",
+            vec![
+                decl("border-radius", "var(--fandhe-radius-full)"),
+                decl("aspect-ratio", "1 / 1"),
+                decl("padding", "0"),
+            ],
         )
         .compound_variant(
             vec![when(ButtonIcon::Only), when(Size::Xs)],
@@ -855,6 +886,9 @@ fn assemble<'a>(
     if icon_only {
         selection.push(("icon", "only"));
     }
+    if let Some(shape) = props.shape {
+        selection.push(("shape", shape.value()));
+    }
     let class = recipe.variant_classes(&selection);
 
     let mut merged: Vec<(&str, &str)> = vec![("type", "button"), ("class", class.as_str())];
@@ -1077,6 +1111,45 @@ mod tests {
                 "size={size:?} -> {html}"
             );
         }
+    }
+
+    /// イシュー #3117: `shape: None`（既定）は class 出力を変えない
+    /// （後方互換、`ButtonIcon` と同型の非侵襲契約）。
+    #[test]
+    fn shape_none_leaves_class_output_unchanged() {
+        let html = render(&button(&ButtonProps::default(), vec![], vec![text("Save")]));
+        assert!(!html.contains("fd-button--shape"));
+    }
+
+    /// イシュー #3117: `shape` の 2 値が期待どおりのクラスへ写像されることを
+    /// 固定する。
+    #[test]
+    fn shape_enumeration_maps_to_expected_classes() {
+        for (shape, class) in [
+            (Shape::Pill, "fd-button--shape-pill"),
+            (Shape::Circle, "fd-button--shape-circle"),
+        ] {
+            let props = ButtonProps {
+                shape: Some(shape),
+                ..ButtonProps::default()
+            };
+            let html = render(&button(&props, vec![], vec![]));
+            assert!(html.contains(class), "shape={shape:?} -> {html}");
+        }
+    }
+
+    /// イシュー #3117: icon-only + `Circle` は `fd-button--icon-only` と
+    /// `fd-button--shape-circle` の両 class を出す（真円は icon-only の
+    /// 確定 `height` との併用で成立、`ButtonProps::shape` rustdoc 参照）。
+    #[test]
+    fn icon_button_with_circle_shape_has_both_classes() {
+        let props = ButtonProps {
+            shape: Some(Shape::Circle),
+            ..ButtonProps::default()
+        };
+        let html = render(&icon_button(&props, "Search", vec![], vec![]));
+        assert!(html.contains("fd-button--icon-only"));
+        assert!(html.contains("fd-button--shape-circle"));
     }
 
     /// イシュー #606: `palette` の 5 値が期待どおりのクラス

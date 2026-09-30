@@ -213,6 +213,7 @@ fn client_data_list(client: &Client) -> Node {
                             variant: BadgeVariant::Subtle,
                             size: Size::Sm,
                             palette: client.status.palette(),
+                            shape: None,
                         },
                         vec![],
                         vec![text(client.status.label())],

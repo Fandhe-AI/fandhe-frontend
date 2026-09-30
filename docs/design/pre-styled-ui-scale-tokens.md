@@ -364,6 +364,44 @@ breakpoint と同じくスキップする。純追加不変条件（`container_s
 `container`/`container_variant` を呼ばない recipe の `css()` はバイト
 不変）も同様に維持する。
 
+### 3.8 shape 軸（イシュー #3117）
+
+button/badge/input/select が共有する共通 shape 軸（`recipe::Shape`、
+`Pill`/`Circle`）。新規トークンは追加しない: pill・circle とも既存
+`--fandhe-radius-full`（§3.1、9999px）を参照する。
+
+- **型**: `Shape` は `VariantValue` 実装 enum（axis `"shape"`）。`Default`
+  は実装せず、部品 props 側は `shape: Option<Shape>`（既定 `None`）で
+  「既定形状」を表す。各部品 recipe も `default_variant(Shape::...)` を
+  登録しない（`ButtonIcon`〔#830〕と同じ非侵襲契約）。これにより
+  `shape: None` の class 出力・golden CSS は既存呼び出し元でバイト不変
+  のまま保たれる
+- **class 表現**: pre-styled-ui の variant 規約どおり `fd-<scope>--shape-<value>`
+  class で表現する。`data-shape` 等の `data-*` 属性は追加しない
+  （`docs/design/pre-styled-ui-data-attr-vocabulary.md` の語彙を増やさない）
+- **部品別宣言**（後方互換のため既存 variant 登録の後に置く。CSS 出力順の
+  後勝ちで size/variant の padding・radius を上書きする）:
+  - button: `Pill`/`Circle` とも `border-radius: var(--fandhe-radius-full)`。
+    `Circle` は追加で `aspect-ratio: 1 / 1` + `padding: 0`（真円は icon-only
+    variant の確定 `height` との併用でのみ成立する直交関係、
+    `ImageShape::Circle` と同型）
+  - badge: `Pill` は `border-radius` のみ。`Circle` は追加で `padding: 0` +
+    `min-width: 1.5em` + `aspect-ratio: 1 / 1` + `justify-content: center`
+    （カウントバッジ向け。`1.5em` は size の font-size に追随させる暫定
+    リテラルで、専用トークンが必要になれば §5.4 経由で置換する）
+  - input: `Pill` のみ登録（`InputVariant::Flushed` の `border-radius: 0`
+    より後段に置き、両方指定時は `Pill` が後勝ちする）。`Circle` は未登録
+    （用途が確認できるまで対象外）
+  - select: root の `Pill` variant が部品ローカル CSS 変数
+    `--fandhe-select-trigger-radius` を上書きし、trigger base の
+    `border-radius` がそれを `var(..., var(--fandhe-radius-md))` で参照する
+    （root → trigger の伝搬は `--fandhe-select-trigger-padding` と同型の
+    既存イディオム）。`Circle` は未登録
+- **公開 API**: `ButtonProps`/`BadgeProps`/`InputProps` へ `pub shape:
+  Option<Shape>` を純追加。select は既存 `root` のシグネチャを変えず
+  `root_with(size, shape, state, props, attrs, children)` を新設し、`root`
+  は `shape: None` で `root_with` へ委譲する
+
 ## 4. 対象ファイル
 
 | パス | 変更内容 |
