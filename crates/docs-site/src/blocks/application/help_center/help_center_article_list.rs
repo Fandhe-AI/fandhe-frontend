@@ -150,7 +150,9 @@ fn chevron_icon() -> Node {
     geo_icon("M9 5l7 7-7 7")
 }
 
-/// パンくず 1 本（Blocks → ドキュメントトップ → 現在のコレクション）。
+/// パンくず 1 本（ドキュメントトップ → Blocks → 現在のコレクション。
+/// 実サイト階層〔ドキュメントトップ配下に Blocks、その配下に本ページ〕と
+/// 一致させる順序、イシュー #3427 レビュー指摘対応）。
 /// A/B 共通で使う（`page_heading_meta.rs` の常時パンくず付きインスタンスと
 /// 同型の合成）。
 fn breadcrumb_row() -> Node {
@@ -164,16 +166,16 @@ fn breadcrumb_row() -> Node {
             vec![
                 breadcrumb::item(
                     vec![],
-                    vec![breadcrumb::link("../", vec![], vec![text("Blocks")])],
-                ),
-                breadcrumb::separator(vec![], vec![text("/")]),
-                breadcrumb::item(
-                    vec![],
                     vec![breadcrumb::link(
                         "../../",
                         vec![],
                         vec![text("ドキュメントトップ")],
                     )],
+                ),
+                breadcrumb::separator(vec![], vec![text("/")]),
+                breadcrumb::item(
+                    vec![],
+                    vec![breadcrumb::link("../", vec![], vec![text("Blocks")])],
                 ),
                 breadcrumb::separator(vec![], vec![text("/")]),
                 breadcrumb::item(
