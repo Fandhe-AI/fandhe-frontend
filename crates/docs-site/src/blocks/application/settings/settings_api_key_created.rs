@@ -343,6 +343,15 @@ pub const BLOCK: Block = Block {
 /// 両パーツの枠線・角丸・背景を除去して `input_group::root` 側 1 本の外枠へ
 /// 統一する（`input_group.rs` 自身の変更は行わない。同モジュールへ
 /// `clipboard` slot 対応を追加する横断変更は本 block のスコープ外である）。
+///
+/// `trigger` 側の背景除去のみ `:not(:hover)` を付ける（レビュー指摘対応、
+/// イシュー #2982 Codex/Cursor Bugbot 指摘）: 本規則は子孫セレクタ 5 段
+/// （詳細度 (0,5,0)）で `clipboard::trigger` base の hover 規則
+/// `[data-scope="clipboard"][data-part="trigger"]:hover:not([data-disabled])`
+/// （詳細度 (0,4,0)、`crates/pre-styled-ui/src/clipboard.rs`）より高く、
+/// 無対策では hover 中も `background: transparent` が勝ってしまい版 B の
+/// コピーボタンだけ hover 背景が出ない。`input` 側は hover 背景を持たない
+/// ため対象外（`:not(:hover)` を付けない）。
 const LAYOUT_CSS: &str = "\
 .blocks-settings-api-key-created-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n}\n\
 .blocks-settings-api-key-created-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
@@ -351,7 +360,8 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-settings-api-key-created-clipboard] [data-scope=\"clipboard\"][data-part=\"control\"] {\n  width: 100%;\n}\n\
 [data-blocks-settings-api-key-created-clipboard] [data-scope=\"input-group\"][data-part=\"root\"] {\n  width: 100%;\n}\n\
 [data-blocks-settings-api-key-created-clipboard] [data-scope=\"input-group\"][data-part=\"root\"] [data-scope=\"clipboard\"][data-part=\"input\"] {\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n}\n\
-[data-blocks-settings-api-key-created-clipboard] [data-scope=\"input-group\"][data-part=\"root\"] [data-scope=\"clipboard\"][data-part=\"trigger\"] {\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n}\n\
+[data-blocks-settings-api-key-created-clipboard] [data-scope=\"input-group\"][data-part=\"root\"] [data-scope=\"clipboard\"][data-part=\"trigger\"] {\n  border: 0;\n  border-radius: 0;\n}\n\
+[data-blocks-settings-api-key-created-clipboard] [data-scope=\"input-group\"][data-part=\"root\"] [data-scope=\"clipboard\"][data-part=\"trigger\"]:not(:hover) {\n  background: transparent;\n}\n\
 .blocks-settings-api-key-created-footer {\n  display: flex;\n  justify-content: flex-end;\n}\n";
 
 #[cfg(test)]
@@ -422,7 +432,7 @@ mod tests {
 
     /// レビュー指摘対応（Medium、イシュー #2982 Cursor Bugbot 指摘）の
     /// 回帰テスト: `input_group` にネストした `clipboard::input`/
-    /// `clipboard::trigger` 自身の枠線・角丸・背景を除去する上書き規則が
+    /// `clipboard::trigger` 自身の枠線・角丸を除去する上書き規則が
     /// 両パーツ分とも存在すること。
     #[test]
     fn nested_clipboard_parts_inside_input_group_have_chrome_reset() {
@@ -436,7 +446,21 @@ mod tests {
             );
         }
         assert!(LAYOUT_CSS.contains("border: 0;"));
-        assert!(LAYOUT_CSS.contains("background: transparent;"));
+    }
+
+    /// レビュー指摘対応（Codex/Cursor Bugbot 指摘、イシュー #2982 追加分）の
+    /// 回帰テスト: `trigger` の背景透過は `:not(:hover)` 限定であり、
+    /// `clipboard::trigger` base の hover 背景規則
+    /// （`crates/pre-styled-ui/src/clipboard.rs`）を上書きしないこと。
+    #[test]
+    fn nested_clipboard_trigger_background_reset_excludes_hover() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"input-group\"][data-part=\"root\"] [data-scope=\"clipboard\"][data-part=\"trigger\"]:not(:hover) {\n  background: transparent;\n}"
+        ));
+        // input 側は hover 背景を持たないため無条件の背景透過のまま。
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"input-group\"][data-part=\"root\"] [data-scope=\"clipboard\"][data-part=\"input\"] {\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n}"
+        ));
     }
 
     #[test]
