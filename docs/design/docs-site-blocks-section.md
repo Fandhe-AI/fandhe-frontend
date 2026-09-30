@@ -1064,6 +1064,7 @@ pub enum LayoutCss {
 | settings-page-tabs | #3007（親 #3006） | `application/settings/settings_page_tabs.rs` |
 | settings-preferences | #3009（親 #2951） | `application/settings/settings_preferences.rs` |
 | settings-profile-form | #3010 | `application/settings/settings_profile_form.rs` |
+| notification-tray | #2976（親 #2951） | `application/notification/notification_tray.rs` |
 | settings-share-members | #3013・#3014（親 #3012） | `application/settings/settings_share_members.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した

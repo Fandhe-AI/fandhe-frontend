@@ -1,6 +1,7 @@
 //! Application / Notification カテゴリの block 登録点（イシュー #2734 で
 //! 雛形新設、イシュー #2977 で最初の block（[`notification_tray_tabs`]）を
-//! 追加しディレクトリ化して卒業した）。手順は
+//! 追加しディレクトリ化して卒業し、イシュー #2976（親 #2951）で
+//! [`notification_tray`] を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -9,10 +10,11 @@
 //! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
 //! ための構造、イシュー #2734）。
 
+mod notification_tray;
 mod notification_tray_tabs;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![notification_tray_tabs::BLOCK]
+    vec![notification_tray_tabs::BLOCK, notification_tray::BLOCK]
 }
