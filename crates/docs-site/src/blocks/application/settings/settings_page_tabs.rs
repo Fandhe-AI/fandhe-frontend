@@ -624,6 +624,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-settings-page-tabs-logo] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  white-space: nowrap;\n}\n\
 [data-blocks-settings-page-tabs-navbar-cta] {\n  margin-inline-start: auto;\n}\n\
 .blocks-settings-page-tabs-heading {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  min-width: 0;\n}\n\
+.blocks-settings-page-tabs-heading h2 {\n  border-top: none;\n  padding-top: 0;\n}\n\
 [data-scope=\"tab-nav\"][data-part=\"root\"][data-blocks-settings-page-tabs-tabs] {\n  overflow-x: auto;\n  flex-wrap: nowrap;\n  white-space: nowrap;\n}\n\
 .blocks-settings-page-tabs-content {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 [data-blocks-settings-page-tabs-access-group] {\n  max-inline-size: 28rem;\n}\n\
@@ -732,5 +733,14 @@ mod tests {
         let html = render(&demo());
         assert!(html.contains("class=\"blocks-settings-page-tabs-stack\""));
         assert_ne!(super::BLOCK.demo_class, "blocks-settings-page-tabs-stack");
+    }
+
+    /// ページ見出し「設定」の `h2` が `.docs-content h2`
+    /// （`site_theme.rs`）の `border-top`/`padding-top` を継承しないこと
+    /// （Bugbot 指摘。兄弟 block `settings_page_aside_nav` と同型の打ち消し）。
+    #[test]
+    fn page_heading_resets_docs_content_h2_rule() {
+        assert!(LAYOUT_CSS.contains(".blocks-settings-page-tabs-heading h2"));
+        assert!(LAYOUT_CSS.contains("border-top: none;"));
     }
 }
