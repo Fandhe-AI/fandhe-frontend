@@ -2656,6 +2656,14 @@ source = "site/blocks/order-tracking-progress.md"
 path = "/blocks/order-tracking-progress/"
 
 [[section.group]]
+title = "Store Nav"
+
+[[section.group.page]]
+title = "store-nav-mega-menu"
+source = "site/blocks/store-nav-mega-menu.md"
+path = "/blocks/store-nav-mega-menu/"
+
+[[section.group]]
 title = "Promo"
 
 [[section.group.page]]
