@@ -1,9 +1,10 @@
-//! `promo-collection-cards` block（イシュー #3078。親 #3077 を骨格 + 主要
-//! 領域とカード hover/focus 等の仕上げへ 2 分割した前半。Ecommerce / Promo
-//! カテゴリ最初の block であり、本ファイル追加に伴い雛形 `promo.rs` を
-//! `promo/mod.rs` へディレクトリ化して卒業する、`docs/design/docs-site-
-//! blocks-section.md` §18 参照）。仕上げ（カード hover/focus の視覚状態・
-//! 補助行・secondary CTA・原稿の差分メモ）は兄弟 #3079 へ委ねる。
+//! `promo-collection-cards` block（イシュー #3078/#3079。親 #3077 を骨格 +
+//! 主要領域（#3078）とカード hover/focus 等の仕上げ（#3079）へ 2 分割。
+//! Ecommerce / Promo カテゴリ最初の block であり、本ファイル追加に伴い
+//! 雛形 `promo.rs` を `promo/mod.rs` へディレクトリ化して卒業する、
+//! `docs/design/docs-site-blocks-section.md` §18 参照）。仕上げ
+//! （カード hover/focus の視覚状態・補助行・secondary CTA・原稿の差分
+//! メモ）は #3079 で完了している。
 //!
 //! # 出典に関する注記
 //!
@@ -21,8 +22,36 @@
 //! したスクリムを重ね、見出し・リード文は `--fandhe-color-bg` トークンで
 //! 描く。色リテラル（`#`/`white` 等）は使わず、ライトテーマでは
 //! 「暗幕 + 明るい文字」、ダークテーマでは前景/背景の意味が反転し
-//! 「明るい幕 + 暗い文字」になる既知の挙動である（原稿の差分メモは
-//! 分割後半 #3079 に委ねる）。
+//! 「明るい幕 + 暗い文字」になる既知の挙動である（原稿の差分メモに明記、
+//! `hero_background_media` と同じ判断）。
+//!
+//! # secondary CTA の反転色に詳細度対策が要る
+//!
+//! `[data-blocks-promo-collection-cards-cta-secondary]` 単体（属性
+//! セレクタ 1 個、詳細度 0,1,0）では `button::button` の Outline variant
+//! セレクタ `[data-scope="button"][data-part="root"].fd-button--variant-
+//! outline`（属性 2 個 + クラス 1 個、詳細度 0,3,0）に確実に負け、暗幕上で
+//! secondary ボタンが `--fandhe-palette`（既定 accent）のまま残って
+//! しまう。`hero_background_media` と同じ解法で、`[data-scope="button"]
+//! [data-part="root"]` を前置して詳細度 0,3,0 に揃える（同値のため
+//! `!important` は使わない。CSS 出力順は showcase → blocks の順で
+//! `<link>` するため同値セレクタは後勝ちで確実に本 block 側が勝つ）。
+//!
+//! # カード hover/focus は合成側で持つ
+//!
+//! `card` は hover を意図的に持たず、`link_overlay` も hover 演出を
+//! 意図的に非採用としている（両者の rustdoc）。リンク化した card の
+//! hover/focus は合成側（block）の責務という規約整合のため、本 block が
+//! `[data-scope="card"][data-part="root"][data-blocks-promo-collection-
+//! cards-card]:hover`/`:focus-within` で枠色と影を変える。`card` の
+//! base 宣言 `border: 1px solid transparent` を踏まえ `border-color` の
+//! みを上書きし、ボックス高さは変えない。
+//!
+//! # 補助行（eyebrow・カード点数表示）
+//!
+//! ヒーロー見出しの前に eyebrow（小さめの `text`）、カード名の後ろに
+//! 点数の補助行（`TextVariant::Muted` の `text`）を追加する。いずれも
+//! 架空の文言・データであり、実在の在庫数量を示すものではない。
 //!
 //! # コレクションカードをヒーロー下端へ重ねる
 //!
@@ -77,18 +106,21 @@ use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 // blocks-code:begin
 use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, section, text, Node};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
+use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
 use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::image::{self, ImageFit, ImageProps};
 use fandhe_frontend_pre_styled_ui::link_overlay::{self, overlay};
-use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize};
+use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 
 /// リンク先の固定外部 URL（モジュール doc「リンク先の方針」節参照）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 /// コレクションカード 3 件分の名前（架空、実在の企業・ブランドとは無関係）。
 const COLLECTIONS: [&str; 3] = ["新作コレクション", "定番コレクション", "限定コレクション"];
+
+/// コレクションカード 3 件分の点数表示（架空、`COLLECTIONS` と対で使う）。
+const COLLECTION_COUNTS: [&str; 3] = ["全 12 点", "全 24 点", "全 6 点"];
 
 /// ヒーロー部（背景画像 + 暗幕 + 見出し・リード文・CTA）。
 fn hero() -> Node {
@@ -111,6 +143,14 @@ fn hero() -> Node {
     let content = div(
         vec![("class", "blocks-promo-collection-cards-content")],
         vec![
+            styled_text::text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    ..TextProps::default()
+                },
+                vec![("data-blocks-promo-collection-cards-eyebrow", "")],
+                vec![text("季節限定のラインアップ")],
+            ),
             heading::heading(
                 HeadingLevel::H3,
                 &HeadingProps {
@@ -130,10 +170,23 @@ fn hero() -> Node {
                     "季節ごとに入れ替わる 3 つのコレクションから選べます。",
                 )],
             ),
-            button::button(
-                &ButtonProps::default(),
-                vec![("data-blocks-promo-collection-cards-cta", "")],
-                vec![text("すべて見る")],
+            div(
+                vec![("class", "blocks-promo-collection-cards-actions")],
+                vec![
+                    button::button(
+                        &ButtonProps::default(),
+                        vec![("data-blocks-promo-collection-cards-cta", "")],
+                        vec![text("すべて見る")],
+                    ),
+                    button::button(
+                        &ButtonProps {
+                            variant: ButtonVariant::Outline,
+                            ..ButtonProps::default()
+                        },
+                        vec![("data-blocks-promo-collection-cards-cta-secondary", "")],
+                        vec![text("コレクション一覧")],
+                    ),
+                ],
             ),
         ],
     );
@@ -143,8 +196,8 @@ fn hero() -> Node {
     )
 }
 
-/// コレクションカード 1 件（画像 + 名前、カード全体をリンク化）。
-fn collection_card(name: &'static str) -> Node {
+/// コレクションカード 1 件（画像 + 名前 + 点数、カード全体をリンク化）。
+fn collection_card(name: &'static str, count: &'static str) -> Node {
     card::root(
         CardProps::default(),
         vec![("data-blocks-promo-collection-cards-card", "")],
@@ -160,15 +213,26 @@ fn collection_card(name: &'static str) -> Node {
                 ),
                 card::body(
                     vec![("class", "blocks-promo-collection-cards-card-body")],
-                    vec![heading::heading(
-                        HeadingLevel::H4,
-                        &HeadingProps {
-                            size: HeadingSize::Md,
-                            ..HeadingProps::default()
-                        },
-                        vec![("data-blocks-promo-collection-cards-card-name", "")],
-                        vec![text(name)],
-                    )],
+                    vec![
+                        heading::heading(
+                            HeadingLevel::H4,
+                            &HeadingProps {
+                                size: HeadingSize::Md,
+                                ..HeadingProps::default()
+                            },
+                            vec![("data-blocks-promo-collection-cards-card-name", "")],
+                            vec![text(name)],
+                        ),
+                        styled_text::text(
+                            &TextProps {
+                                size: TextSize::Sm,
+                                variant: TextVariant::Muted,
+                                ..TextProps::default()
+                            },
+                            vec![("data-blocks-promo-collection-cards-card-count", "")],
+                            vec![text(count)],
+                        ),
+                    ],
                 ),
                 overlay(
                     REPO,
@@ -189,7 +253,8 @@ fn collection_card(name: &'static str) -> Node {
 pub fn demo() -> Node {
     let cards: Vec<Node> = COLLECTIONS
         .iter()
-        .map(|name| collection_card(name))
+        .zip(COLLECTION_COUNTS)
+        .map(|(name, count)| collection_card(name, count))
         .collect();
     div(
         vec![("class", "blocks-promo-collection-cards-layout")],
@@ -253,12 +318,16 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-promo-collection-cards-image] {\n  width: 100%;\n  height: 100%;\n  display: block;\n}\n\
 .blocks-promo-collection-cards-scrim {\n  position: absolute;\n  inset: 0;\n  background: color-mix(in srgb, var(--fandhe-color-fg) 64%, transparent);\n}\n\
 .blocks-promo-collection-cards-content {\n  display: grid;\n  gap: var(--fandhe-space-4);\n  max-width: 40rem;\n}\n\
-[data-scope=\"heading\"][data-part=\"root\"][data-blocks-promo-collection-cards-title],\n[data-scope=\"text\"][data-part=\"root\"][data-blocks-promo-collection-cards-lead] {\n  color: inherit;\n}\n\
+[data-scope=\"heading\"][data-part=\"root\"][data-blocks-promo-collection-cards-title],\n[data-scope=\"text\"][data-part=\"root\"][data-blocks-promo-collection-cards-lead],\n[data-scope=\"text\"][data-part=\"root\"][data-blocks-promo-collection-cards-eyebrow] {\n  color: inherit;\n}\n\
+.blocks-promo-collection-cards-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-3);\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-promo-collection-cards-cta-secondary] {\n  color: inherit;\n  border-color: currentColor;\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-promo-collection-cards-cta-secondary]:hover {\n  color: inherit;\n  border-color: currentColor;\n  background: color-mix(in srgb, currentColor 16%, transparent);\n}\n\
 .blocks-promo-collection-cards-grid {\n  position: relative;\n  z-index: 1;\n  display: grid;\n  gap: var(--fandhe-space-4);\n  margin-top: -4rem;\n  padding-inline: var(--fandhe-space-6);\n}\n\
 @media (min-width: 40rem) {\n  .blocks-promo-collection-cards-grid {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n}\n\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-promo-collection-cards-card] {\n  overflow: hidden;\n  padding: 0;\n}\n\
+[data-scope=\"card\"][data-part=\"root\"][data-blocks-promo-collection-cards-card]:hover,\n[data-scope=\"card\"][data-part=\"root\"][data-blocks-promo-collection-cards-card]:focus-within {\n  border-color: var(--fandhe-color-border-emphasized);\n  box-shadow: var(--fandhe-shadow-md);\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-promo-collection-cards-card-image] {\n  width: 100%;\n  display: block;\n}\n\
-.blocks-promo-collection-cards-card-body {\n  padding: var(--fandhe-space-4);\n}\n\
+.blocks-promo-collection-cards-card-body {\n  display: grid;\n  gap: var(--fandhe-space-1);\n  padding: var(--fandhe-space-4);\n}\n\
 [data-scope=\"link-overlay\"][data-part=\"overlay\"][data-blocks-promo-collection-cards-overlay]:focus-visible {\n  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));\n}\n";
 
 #[cfg(test)]
@@ -289,12 +358,15 @@ mod tests {
         assert!(html.contains(dummy_assets::PRODUCT_SRC));
         for hook in [
             "data-blocks-promo-collection-cards-image",
+            "data-blocks-promo-collection-cards-eyebrow",
             "data-blocks-promo-collection-cards-title",
             "data-blocks-promo-collection-cards-lead",
             "data-blocks-promo-collection-cards-cta",
+            "data-blocks-promo-collection-cards-cta-secondary",
             "data-blocks-promo-collection-cards-link",
             "data-blocks-promo-collection-cards-card-image",
             "data-blocks-promo-collection-cards-card-name",
+            "data-blocks-promo-collection-cards-card-count",
             "data-blocks-promo-collection-cards-overlay",
         ] {
             assert!(
@@ -302,12 +374,30 @@ mod tests {
                 "demo should render the {hook} attribute"
             );
         }
+        assert_eq!(
+            html.matches("data-blocks-promo-collection-cards-card-count=\"\"")
+                .count(),
+            3,
+            "should render exactly 3 card count hooks (one per card)"
+        );
+        assert_eq!(
+            html.matches("fd-button--variant-outline").count(),
+            1,
+            "should render exactly 1 outline (secondary) button"
+        );
         for name in COLLECTIONS {
             assert!(
                 html.contains(name),
                 "demo should contain collection name {name}"
             );
         }
+        for count in COLLECTION_COUNTS {
+            assert!(
+                html.contains(count),
+                "demo should contain collection count {count}"
+            );
+        }
+        assert!(!html.contains("type=\"submit\""));
         for absent in ["<form", "href=\"#\"", "src=\"data:", "<script", "id=\""] {
             assert!(!html.contains(absent), "demo should never contain {absent}");
         }
@@ -324,9 +414,14 @@ mod tests {
             ".blocks-promo-collection-cards-backdrop {",
             ".blocks-promo-collection-cards-scrim {",
             ".blocks-promo-collection-cards-content {",
+            ".blocks-promo-collection-cards-actions {",
+            "[data-scope=\"button\"][data-part=\"root\"][data-blocks-promo-collection-cards-cta-secondary] {",
+            "[data-scope=\"button\"][data-part=\"root\"][data-blocks-promo-collection-cards-cta-secondary]:hover {",
             ".blocks-promo-collection-cards-grid {",
             "@media (min-width: 40rem) {",
             "[data-scope=\"card\"][data-part=\"root\"][data-blocks-promo-collection-cards-card] {",
+            "[data-scope=\"card\"][data-part=\"root\"][data-blocks-promo-collection-cards-card]:hover,",
+            "[data-scope=\"card\"][data-part=\"root\"][data-blocks-promo-collection-cards-card]:focus-within {",
         ] {
             assert!(
                 LAYOUT_CSS.contains(selector),
@@ -336,6 +431,7 @@ mod tests {
         assert!(LAYOUT_CSS.contains("margin-top: -"));
         assert!(LAYOUT_CSS.contains("color-mix("));
         assert!(LAYOUT_CSS.contains("outline-offset: calc(-1"));
+        assert!(LAYOUT_CSS.contains("--fandhe-shadow-md"));
         assert!(!LAYOUT_CSS.contains('#'));
         assert!(!LAYOUT_CSS.contains("white"));
         assert!(!LAYOUT_CSS.contains("animation"));
