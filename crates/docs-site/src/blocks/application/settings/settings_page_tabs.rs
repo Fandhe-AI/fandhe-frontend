@@ -88,11 +88,13 @@
 //! 満たされるため、コンテナクエリでの分岐は不要）。[`LAYOUT_CSS`] が
 //! `data-blocks-settings-page-tabs-tabs` 付きの `tab-nav` root へ
 //! `overflow-x: auto; flex-wrap: nowrap; white-space: nowrap;` を宣言する。
-//! `.blocks-settings-page-tabs-heading` は親（`.blocks-settings-page-tabs-stack`
-//! の flex column）の item であるため、`min-width: 0` を明示しないと縦積み
-//! flex item の既定最小幅（内容の自然幅）に縛られ、子の `overflow-x: auto`
-//! が実際には発火せず設定ページ全体が横スクロールしてしまう
-//! （Bugbot レビュー指摘の是正）。
+//! `.blocks-settings-page-tabs-heading` は `.blocks-settings-page-tabs-stack`
+//! の flex column item である `[data-blocks-settings-page-tabs-version]`
+//! （版 A/B/C のラッパー、`section`）の子孫であるため、両方に
+//! `min-width: 0` を明示しないと縦積み flex item の既定最小幅（内容の
+//! 自然幅）に縛られ、子の `overflow-x: auto` が実際には発火せず設定ページ
+//! 全体が横スクロールしてしまう（Bugbot レビュー指摘の是正。version
+//! ラッパー追加時に `min-width: 0` の伝播が途切れた回帰も同様に是正済み）。
 //!
 //! # 版 A: API 設定（`card` + `input_group` + `table` + `menu` + `badge`）
 //!
@@ -1062,7 +1064,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-page-tabs-content {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 [data-blocks-settings-page-tabs-access-group] {\n  max-inline-size: 28rem;\n}\n\
 .blocks-settings-page-tabs-stack [data-scope=\"menu\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n}\n\
-[data-blocks-settings-page-tabs-version] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
+[data-blocks-settings-page-tabs-version] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  min-width: 0;\n}\n\
 [data-blocks-settings-page-tabs-version-title] {\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-settings-page-tabs-usage-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-settings-page-tabs-usage-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
@@ -1178,6 +1180,18 @@ mod tests {
         let html = render(&demo());
         assert!(html.contains("class=\"blocks-settings-page-tabs-stack\""));
         assert_ne!(super::BLOCK.demo_class, "blocks-settings-page-tabs-stack");
+    }
+
+    /// version ラッパー（`[data-blocks-settings-page-tabs-version]`）にも
+    /// `min-width: 0` があること。ここが抜けると
+    /// `.blocks-settings-page-tabs-heading` 単体の `min-width: 0` は途中の
+    /// flex item で最小幅が遮断されて意味を持たず、nowrap タブでページ
+    /// 全体が横に広がってしまう（Bugbot レビュー指摘の是正）。
+    #[test]
+    fn version_wrapper_has_min_width_zero_for_overflow_chain() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-settings-page-tabs-version] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  min-width: 0;\n}"
+        ));
     }
 
     /// ページ見出し「設定」の `h2` が `.docs-content h2`
