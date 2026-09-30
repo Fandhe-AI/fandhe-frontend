@@ -432,6 +432,7 @@ fn purchase_panel() -> Node {
                 &ButtonProps {
                     size: Size::Lg,
                     palette: ColorPalette::Accent,
+                    disabled: true,
                     ..ButtonProps::default()
                 },
                 vec![("data-blocks-product-overview-image-grid-cta", "")],
@@ -592,6 +593,16 @@ mod tests {
         assert!(!html.contains("data:"));
         assert!(!html.contains("type=\"submit\""));
         assert!(!html.contains("<script"));
+    }
+
+    /// カート追加ボタンが disabled の静的表示であること（無 JS・フォーム
+    /// なしの Demo では押しても何も起きないため、`product_overview_tabs_below`
+    /// と同様に操作不能を明示する）。
+    #[test]
+    fn cart_button_is_disabled() {
+        let html = demo_html();
+        assert!(html.contains("disabled"));
+        assert!(html.contains("カートに追加"));
     }
 
     #[test]

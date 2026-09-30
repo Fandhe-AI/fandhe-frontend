@@ -341,6 +341,7 @@ fn purchase_panel() -> Node {
                 &ButtonProps {
                     size: Size::Lg,
                     palette: ColorPalette::Accent,
+                    disabled: true,
                     ..ButtonProps::default()
                 },
                 vec![("data-blocks-product-overview-image-grid-cta", "")],
