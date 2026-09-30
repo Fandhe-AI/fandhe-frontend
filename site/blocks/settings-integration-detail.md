@@ -346,7 +346,7 @@ fn related_card(related: &Related) -> Node {
                 ],
             ),
             card::body(
-                vec![],
+                vec![("class", "blocks-settings-integration-detail-card-body")],
                 vec![
                     badge(
                         &BadgeProps {
@@ -541,7 +541,12 @@ pub fn demo() -> Node {
   実装の `HeadingLevel::H4` 呼び出しに合わせる）。
 - 関連連携カードを充実させた: `card::header` にロゴ + アプリ名（`h5`）、
   `card::body` に分類バッジ（Subtle）+ 説明文、`card::footer` に外部
-  リンクを配置する。3 件のデータは両版で共有する。
+  リンクを配置する。3 件のデータは両版で共有する。`card::body` は既定の
+  column flex に gap がなく子要素の margin も 0 のため、バッジが説明文へ
+  密着し flex item として全幅に引き伸ばされ得た（Bugbot 指摘・PR #3458）。
+  `blocks-settings-integration-detail-card-body` class を追加し、
+  `gap: var(--fandhe-space-2)` とバッジの `align-self: flex-start`
+  （幅を内容に固定）で解消した。
 - 関連連携・作成導線の外部リンクは実在 URL（本フレームワークリポジトリ）
   へ統一している（変更なし）。
 - 狭幅（コンテナ幅 40rem 未満）では、(1) 操作ボタン群の折り返し、(2) メタ

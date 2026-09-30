@@ -450,7 +450,7 @@ fn related_card(related: &Related) -> Node {
                 ],
             ),
             card::body(
-                vec![],
+                vec![("class", "blocks-settings-integration-detail-card-body")],
                 vec![
                     badge(
                         &BadgeProps {
@@ -692,6 +692,8 @@ img[data-scope=\"image\"][data-blocks-settings-integration-detail-logo] {\n  wid
 .blocks-settings-integration-detail-related-grid {\n  display: grid;\n  grid-template-columns: repeat(3, 1fr);\n  gap: var(--fandhe-space-4);\n}\n\
 [data-scope=\"card\"][data-part=\"header\"].blocks-settings-integration-detail-card-header {\n  display: flex;\n  flex-direction: row;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-settings-integration-detail-card-header [data-scope=\"heading\"] {\n  margin: 0;\n}\n\
+[data-scope=\"card\"][data-part=\"body\"].blocks-settings-integration-detail-card-body {\n  gap: var(--fandhe-space-2);\n}\n\
+.blocks-settings-integration-detail-card-body [data-scope=\"badge\"] {\n  align-self: flex-start;\n}\n\
 img[data-scope=\"image\"][data-blocks-settings-integration-detail-card-logo] {\n  width: 2rem;\n  height: 2rem;\n  flex-shrink: 0;\n}\n\
 [data-blocks-settings-integration-detail-cta] [data-scope=\"heading\"] {\n  margin: 0;\n}\n\
 @container blocks-settings-integration-detail (max-width: 40rem) {\n  \
