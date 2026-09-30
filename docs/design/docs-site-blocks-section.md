@@ -1041,6 +1041,7 @@ pub enum LayoutCss {
 | notification-tray-tabs | #2977（親 #2951） | `application/notification/notification_tray_tabs.rs` |
 | onboarding-checklist | #2979 | `application/onboarding/onboarding_checklist.rs` |
 | onboarding-centered-steps | #2978（親 #2951） | `application/onboarding/onboarding_centered_steps.rs` |
+| settings-billing-usage | #2985 | `application/settings/settings_billing_usage.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
