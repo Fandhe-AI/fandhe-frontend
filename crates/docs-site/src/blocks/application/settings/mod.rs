@@ -25,6 +25,7 @@ mod settings_api_keys_table;
 mod settings_billing_overview;
 mod settings_billing_usage;
 mod settings_event_accordion;
+mod settings_integration_detail;
 mod settings_integrations_grid;
 mod settings_integrations_list;
 mod settings_integrations_search;
@@ -44,6 +45,7 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_billing_overview::BLOCK,
         settings_billing_usage::BLOCK,
         settings_event_accordion::BLOCK,
+        settings_integration_detail::BLOCK,
         settings_integrations_grid::BLOCK,
         settings_integrations_list::BLOCK,
         settings_integrations_search::BLOCK,
