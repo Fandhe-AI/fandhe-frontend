@@ -1,67 +1,94 @@
-//! `order-tracking-progress` block（イシュー #3060。Ecommerce / Order
-//! カテゴリ、区分初の block。親 #3059 の前半部分）。注文ヘッダ・商品カード
-//! 列（配送状況の進捗バー + 到達段階ラベル）・サマリの 3 領域を合成する。
-//! 主参照 R1122（代表構成）を軸に実装する。集約元 R1123（大画像・枠なし
-//! 版）・R0585（商品ごと配送先強調）・R0588（`steps` によるアイコン付き
-//! タイムライン版）の差分並記は後半 #3061 へ送る（PR を小さく保つ方針、
-//! 親 #3059 実装メモ参照）。`_/blocks-intake/` の対応ファイルは本イシュー
-//! 着手時点で本 worktree に存在しないため、原稿・本コメントには対応表 ID
-//! のみを記す（`profile_detail_datalist`〔イシュー #2937〕と同じ扱い）。
+//! `order-tracking-progress` block（イシュー #3060/#3061、親 #3059。
+//! Ecommerce / Order カテゴリ、区分初の block）。注文ヘッダ・商品カード列
+//! （配送状況の進捗バー + 到達段階表示）・サマリの 3 領域を合成する。
+//! 主参照 R1122（代表構成）を軸に、集約元 R1123（大画像・枠なし版）・
+//! R0585（商品ごと配送先強調）・R0588（`steps` によるアイコン付き
+//! タイムライン版）の差分は本ファイルと原稿の差分メモ節で扱う。
+//! `_/blocks-intake/` の対応ファイルは着手時点で本 worktree に存在しない
+//! ため、原稿・本コメントには対応表 ID のみを記す
+//! （`profile_detail_datalist`〔イシュー #2937〕と同じ扱い）。
 //!
 //! # 使用部品
 //!
-//! `heading` / `text` / `image` / `progress` / `data-list` / `button` /
-//! `link` / `card` / `separator` / `badge` の 10 部品を合成する
+//! `heading` / `text` / `image` / `progress` / `steps` / `data-list` /
+//! `button` / `link` / `card` / `separator` / `badge` の 11 部品を合成する
 //! （[`BLOCK`] の `parts` に一致させる契約、
 //! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証する）。
-//! `steps`（R0588 のタイムライン版）は後半 #3061 で追加するため、本イシュー
-//! の `parts` には含めない。新しい UI 部品は追加しない。
+//! 新しい UI 部品は追加しない。
 //!
 //! # 構成
 //!
 //! ヘッダ（注文番号・注文日の見出し + 請求書リンク・確認ボタン）の下に、
-//! 商品カード 2 件（画像・名称・価格・配送先 + 配送状況テキスト・
-//! 進捗バー・4 段階の到達ラベル列）、区切り線を挟んでサマリ 3 カラム
-//! （請求先・支払い情報・集計）を積む。2 商品は到達段階を違えることで
-//! 進捗バーの差を見せる（状態違い＝配達完了等の並記は #3061 へ送る）。
+//! 商品カード 3 件（画像・名称・価格・配送先 + 配送状況テキスト・
+//! 進捗バー・到達段階表示）、区切り線を挟んでサマリ 3 カラム（請求先・
+//! 支払い情報・集計）を積む。3 商品は到達段階と段階表示の形式を違える:
+//! 1・2 件目は [`StageView::Labels`]（4 段階のラベル列、R1122 主参照）で
+//! 「配送中」「発送準備中」を、3 件目は [`StageView::Timeline`]（R0588、
+//! `steps` によるアイコン付きタイムライン）で「配達完了」（全段階完了）
+//! を示す。
 //!
-//! # 進捗バーと段階ラベルを同じ値から導く（[`shipment_progress`]）
+//! # 進捗バーと段階表示を同じ値から導く（[`shipment_progress`]/
+//! [`shipment_steps`]）
 //!
-//! `Progress` の `value`（0〜100）と到達段階数（0〜3）が別々の定数から
-//! 食い違って書かれることを構造で防ぐため、到達段階 index（0〜3）だけを
-//! 呼び出し側で決め、[`shipment_progress`] が `value = index * 100 / 3` を
-//! 導出する。段階ラベル列（[`stage_list`]）も同じ `reached` index を受け
-//! 取って `data-reached` を切り替えるため、2 つの表現は常に一致する。
+//! `Progress` の `value`（0〜100）・段階ラベル列（[`stage_list`]）の
+//! `data-reached`・`steps` タイムライン（[`stage_timeline`]）の
+//! `current`/`complete` 状態が別々の定数から食い違って書かれることを
+//! 構造で防ぐため、到達段階 index（0〜3、`reached`）だけを呼び出し側で
+//! 決め、3 表現すべてが同じ `reached` から導出される。[`shipment_steps`]
+//! は `reached + 1 >= STAGES.len()`（最終段階到達）のときのみ
+//! `Steps::step` を `count` に写像し、`steps` の「全 step 完了」
+//! （`is_completed`）を表す。
+//!
+//! # `steps` タイムラインの縦横切替（R0588、[`stage_timeline`]）
+//!
+//! `fandhe_frontend_headless_ui::steps::Steps` の `orientation` は構築時
+//! 固定で CSS だけでは切り替えられないため（`crates/pre-styled-ui/src/
+//! steps.rs` モジュール doc「`item`/`separator` のレイアウト契約」節
+//! 参照）、3 件目の商品カードは横向き・縦向きの [`stage_timeline`] を
+//! それぞれ 1 インスタンスずつ常に両方描画し、[`LAYOUT_CSS`] の
+//! `@container` 規則が幅に応じてどちらか一方を `display: none` で隠す
+//! （`changelog_timeline` と同型のパターン、`crate::blocks::marketing::
+//! changelog::changelog_timeline` 参照）。`display: none` 側は支援技術
+//! ツリーからも除外される。
+//!
+//! # アイコン（[`stage_icon`]）
+//!
+//! 完了段階は自作の幾何学的なチェックマーク SVG（`aria-hidden="true"`）、
+//! 未完了段階は段階番号のテキストを表示する（参照元の絵柄アイコンは
+//! 持ち込まない。インライン SVG の前例は `crate::blocks::marketing::
+//! hero::hero_email_signup::play_icon` と同型）。
 //!
 //! # `class` と `data-*` の使い分け
 //!
 //! `card::root`/`button::button`/`image::image`/`progress::root`/
-//! `link::root`/`badge`/`heading`/`text`/`data_list::root` はいずれも
-//! `drop_class_attr` で呼び出し側 `class` を除去してから内部 variant
-//! クラスと合成するため、これらへの CSS フックは `data-*` 属性で渡す
-//! （`data-blocks-order-tracking-progress-*`）。素の `div`/`ul`/`li` と
+//! `link::root`/`badge`/`heading`/`text`/`data_list::root`/`steps::root`
+//! はいずれも `drop_class_attr` で呼び出し側 `class` を除去してから内部
+//! variant クラスと合成するため、これらへの CSS フックは `data-*` 属性で
+//! 渡す（`data-blocks-order-tracking-progress-*`）。素の `div`/`ul`/`li` と
 //! `card::body`/`card::footer`（variant を持たず `attrs` をそのまま連結
 //! する）は `class="blocks-order-tracking-progress-*"` を使う
 //! （`profile_detail_datalist` と同型の判断）。レイアウト root の class は
 //! `demo_class`（`blocks-order-tracking-progress`）と別名（`-layout`）に
 //! する（既存 block の Bugbot 教訓、`profile_detail_datalist` 系と同型）。
 //!
-//! # 狭い幅では段階ラベルを縦並び・商品グリッド/サマリを 1 カラムにする
-//! （`@container`）
+//! # 狭い幅では段階ラベル・タイムラインを縦並び・商品グリッド/サマリを
+//! 1 カラムにする（`@container`）
 //!
 //! Demo 枠の幅はビューポート幅と一致しないため、`@container`
 //! （コンテナクエリ）で判定する（`profile_detail_datalist` と同型の
 //! パターン）。[`LAYOUT_CSS`] のレイアウト root へ `container-type:
 //! inline-size` を宣言し、コンテナ幅が `40rem` 未満のときヘッダ操作群を
 //! 下段へ折り返し、商品グリッドとサマリを 1 カラム化し、4 段階の段階
-//! ラベル列を 1 カラム（縦並び）へ切り替える（親仕様「狭い幅では段階
-//! ラベルを縦並び」節）。
+//! ラベル列を 1 カラム（縦並び）へ、`steps` タイムラインを横向きから
+//! 縦向きへ切り替える（親仕様「狭い幅では段階ラベルを縦並び」節）。
 //!
 //! # `<form>` を使わない
 //!
 //! `crate::blocks` モジュール doc の不変条件どおり、本 Demo は `<form>` を
 //! 出力しない静的表示のみで、注文処理・決済・送信先を一切持たない。
-//! ボタンは `button::button` の既定 `type="button"` のまま用いる。
+//! ボタンは `button::button` の既定 `type="button"` のまま用いる。`steps`
+//! の `trigger`（実 `<button>`）も無 JS の no-op で、既存の「注文内容を
+//! 確認」ボタンと同じ扱いとする。
 //!
 //! # `href` は外部絶対 URL のダミー値
 //!
@@ -85,26 +112,41 @@
 //! は使わない）。参照元の商品名・ブランド・アイコンは持ち込まない。商品
 //! 価格は円建てで固定し（`crate::blocks::dummy_assets::SAMPLE_PRICE_TIERS`
 //! はドル建てのため使わない）、小計・送料・税・合計と通貨・金額を一致
-//! させる（2 商品の価格合計 ¥18,400 + 送料 ¥600 + 税 ¥1,900 = 合計
-//! ¥20,900）。
+//! させる（3 商品の価格合計 ¥21,600 + 送料 ¥600 + 税 ¥2,200 = 合計
+//! ¥24,400）。
+//!
+//! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
+//!
+//! R1123（大画像・枠なし版）・R0585（商品ごと配送先強調）は、本 block が
+//! 既定として採用する表現（`card` の枠付き・`8rem` 幅の画像列、商品ごと
+//! に「配送先: {destination}」行を明示する構成）が両方とも満たしている
+//! ため、原稿の差分メモ節でその旨を記す扱いとし、枠なし版・大画像版を
+//! Demo に別枠で並べることはしない（1 block 内に枠あり/なしが混在すると
+//! 差分の主眼が読み取れなくなるため）。`blocks_contract.rs` への block
+//! 固有ページテストの追加も見送る（共通契約テストが `<form>`・`data:`・
+//! `raw_html`・重複 id を全 block で検証済みで、本 block が追加する CSS
+//! フックは素の `div` の `class` のみのため「フックが黙って効かない」
+//! リスクがない）。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, li, text, ul, Node};
+use fandhe_frontend_core::{div, el, li, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
 use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataListProps};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::Orientation;
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps};
 use fandhe_frontend_pre_styled_ui::image::{image, ImageFit, ImageProps, ImageShape};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::progress::{self, ProgressProps};
-use fandhe_frontend_pre_styled_ui::recipe::Size;
+use fandhe_frontend_pre_styled_ui::recipe::{ColorPalette, Size};
 use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps};
+use fandhe_frontend_pre_styled_ui::steps;
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 
 /// 配送の 4 段階（表示ラベル）。
@@ -135,6 +177,106 @@ fn stage_list(reached: usize) -> Node {
                 li(attrs, vec![text(*label)])
             })
             .collect(),
+    )
+}
+
+/// 段階表示の形式（[`product_card`] の `view` 引数）。R0588（`steps` に
+/// よるアイコン付きタイムライン版）の差分を、既存のラベル列表示
+/// （[`stage_list`]）と並記するために導入した（モジュール冒頭「構成」節
+/// 参照）。
+enum StageView {
+    /// 4 段階を横並びのラベル列で表示する（R1122 主参照、既定）。
+    Labels,
+    /// `steps` によるアイコン付きタイムラインで表示する（R0588）。狭幅では
+    /// 縦向きへ切り替える（[`LAYOUT_CSS`] の `@container` 規則、
+    /// [`stage_timeline`] 参照）。
+    Timeline,
+}
+
+/// 到達段階 index（0〜3）から `Steps` 状態機械を導く（[`stage_timeline`]
+/// のみが呼ぶ内部ヘルパ）。最終段階（配達完了）到達時のみ `step` を
+/// `count` に写像し、`Steps::is_completed` が真になる（モジュール冒頭
+/// 「進捗バーと段階表示を同じ値から導く」節参照）。
+fn shipment_steps(reached: usize, orientation: Orientation) -> Steps {
+    let step = if reached + 1 >= STAGES.len() {
+        STAGES.len()
+    } else {
+        reached
+    };
+    Steps::new(STAGES.len(), step, orientation)
+}
+
+/// `steps` の indicator 内アイコン。完了段階は自作のチェックマーク SVG、
+/// 未完了段階は段階番号のテキスト（モジュール冒頭「アイコン」節参照）。
+fn stage_icon(complete: bool, index: usize) -> Node {
+    if complete {
+        el(
+            "svg",
+            vec![
+                ("viewBox", "0 0 24 24"),
+                ("width", "16"),
+                ("height", "16"),
+                ("aria-hidden", "true"),
+            ],
+            vec![el(
+                "path",
+                vec![
+                    ("d", "M5 12l4 4L19 7"),
+                    ("fill", "none"),
+                    ("stroke", "currentColor"),
+                    ("stroke-width", "2"),
+                ],
+                vec![],
+            )],
+        )
+    } else {
+        text((index + 1).to_string())
+    }
+}
+
+/// 4 段階の `steps` タイムライン 1 インスタンス（[`Orientation`] を構築時
+/// 固定で受け取る、モジュール冒頭「`steps` タイムラインの縦横切替」節
+/// 参照）。呼び出し側（[`product_card`]）が横向き・縦向きの 2 インスタンス
+/// を常に両方描画し、`@container` で表示を切り替える。
+fn stage_timeline(reached: usize, orientation: Orientation) -> Node {
+    let state = shipment_steps(reached, orientation);
+    let items = STAGES
+        .iter()
+        .enumerate()
+        .map(|(index, label)| {
+            let complete = index < state.step();
+            // 無 JS の静的デモのため、ネイティブ `disabled` で操作不能を
+            // 構造的に表現する（Codex #3469 レビュー指摘対応。`steps::trigger`
+            // は実 `<button>` を生成し、disabled にしないと Tab 移動先には
+            // なるが押しても状態が変化しない dead control になる。
+            // `onboarding_vertical_steps`/`onboarding_centered_steps` と同型の
+            // 対応。`data-disabled` も併記する理由は同モジュール群の
+            // コメント参照: pre-styled-ui の hover セレクタ
+            // （`:hover:not([data-disabled])`）はネイティブ `disabled` 属性を
+            // 条件に含まないため）。
+            let trigger = steps::trigger(
+                &state,
+                index,
+                vec![("disabled", ""), ("data-disabled", "")],
+                vec![
+                    steps::indicator(&state, index, vec![], vec![stage_icon(complete, index)]),
+                    text(*label),
+                ],
+            );
+            let mut item_children = vec![trigger];
+            if index + 1 < STAGES.len() {
+                item_children.push(steps::separator(&state, index, vec![], vec![]));
+            }
+            steps::item(&state, index, vec![], item_children)
+        })
+        .collect();
+    let list = steps::list(&state, vec![], items);
+    steps::root(
+        Size::Sm,
+        ColorPalette::Accent,
+        &state,
+        vec![("data-blocks-order-tracking-progress-timeline", "")],
+        vec![list],
     )
 }
 
@@ -197,6 +339,7 @@ fn product_card(
     status_label: &'static str,
     eta: &'static str,
     reached: usize,
+    view: StageView,
 ) -> Node {
     let progress_state = shipment_progress(reached);
     let progress_aria_label = format!("{name} の配送の進捗");
@@ -280,7 +423,28 @@ fn product_card(
                         vec![progress_state
                             .track(vec![], vec![progress::range(&progress_state, vec![])])],
                     ),
-                    stage_list(reached),
+                    match view {
+                        StageView::Labels => stage_list(reached),
+                        StageView::Timeline => div(
+                            vec![("class", "blocks-order-tracking-progress-timeline-group")],
+                            vec![
+                                div(
+                                    vec![(
+                                        "class",
+                                        "blocks-order-tracking-progress-timeline-horizontal",
+                                    )],
+                                    vec![stage_timeline(reached, Orientation::Horizontal)],
+                                ),
+                                div(
+                                    vec![(
+                                        "class",
+                                        "blocks-order-tracking-progress-timeline-vertical",
+                                    )],
+                                    vec![stage_timeline(reached, Orientation::Vertical)],
+                                ),
+                            ],
+                        ),
+                    },
                 ],
             ),
         ],
@@ -339,6 +503,7 @@ pub fn demo() -> Node {
                         "配送中",
                         "9/27 到着予定",
                         2,
+                        StageView::Labels,
                     ),
                     product_card(
                         dummy_assets::COMPANY_NAMES[1],
@@ -347,6 +512,16 @@ pub fn demo() -> Node {
                         "発送準備中",
                         "9/29 到着予定",
                         1,
+                        StageView::Labels,
+                    ),
+                    product_card(
+                        dummy_assets::COMPANY_NAMES[2],
+                        "¥3,200",
+                        "福岡県福岡市 7-8-9",
+                        "配達完了",
+                        "9/24 到着済み",
+                        3,
+                        StageView::Timeline,
                     ),
                 ],
             ),
@@ -376,10 +551,10 @@ pub fn demo() -> Node {
                         "集計",
                         DataListOrientation::Horizontal,
                         vec![
-                            row("小計", "¥18,400"),
+                            row("小計", "¥21,600"),
                             row("送料", "¥600"),
-                            row("税", "¥1,900"),
-                            row("合計", "¥20,900"),
+                            row("税", "¥2,200"),
+                            row("合計", "¥24,400"),
                         ],
                     ),
                 ],
@@ -438,6 +613,10 @@ pub const BLOCK: Block = Block {
             label: "Badge",
             path: "/themes/badge/",
         },
+        Part {
+            label: "Steps",
+            path: "/themes/steps/",
+        },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
     demo,
@@ -459,12 +638,17 @@ const LAYOUT_CSS: &str = "\
 .blocks-order-tracking-progress-stages {\n  display: grid;\n  grid-template-columns: repeat(4, minmax(0, 1fr));\n  gap: var(--fandhe-space-2);\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\
 .blocks-order-tracking-progress-stages > li {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n  text-align: center;\n}\n\
 .blocks-order-tracking-progress-stages > li[data-reached] {\n  color: var(--fandhe-color-fg);\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
+.blocks-order-tracking-progress-timeline-group {\n  display: flex;\n  flex-direction: column;\n}\n\
+[data-blocks-order-tracking-progress-timeline] {\n  width: 100%;\n}\n\
+.blocks-order-tracking-progress-timeline-vertical {\n  display: none;\n}\n\
 .blocks-order-tracking-progress-summary {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-order-tracking-progress-summary-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 @container blocks-order-tracking-progress (max-width: 40rem) {\n  \
 .blocks-order-tracking-progress-actions {\n    width: 100%;\n  }\n  \
 .blocks-order-tracking-progress-product {\n    grid-template-columns: 1fr;\n  }\n  \
 .blocks-order-tracking-progress-stages {\n    grid-template-columns: 1fr;\n  }\n  \
+.blocks-order-tracking-progress-timeline-horizontal {\n    display: none;\n  }\n  \
+.blocks-order-tracking-progress-timeline-vertical {\n    display: block;\n  }\n  \
 .blocks-order-tracking-progress-summary {\n    grid-template-columns: 1fr;\n  }\n\
 }\n";
 
@@ -485,6 +669,7 @@ mod tests {
             "data-scope=\"text\"",
             "data-scope=\"image\"",
             "data-scope=\"progress\"",
+            "data-scope=\"steps\"",
             "data-scope=\"data-list\"",
             "data-scope=\"button\"",
             "data-scope=\"link\"",
@@ -498,14 +683,23 @@ mod tests {
         assert_eq!(
             html.matches("data-scope=\"card\" data-part=\"root\"")
                 .count(),
-            2
+            3
         );
         assert_eq!(
             html.matches("data-scope=\"progress\" data-part=\"root\"")
                 .count(),
+            3
+        );
+        assert_eq!(
+            html.matches("data-scope=\"steps\" data-part=\"root\"")
+                .count(),
             2
         );
-        assert_eq!(html.matches("<li").count(), 8);
+        assert!(html.contains("data-orientation=\"horizontal\""));
+        assert!(html.contains("data-orientation=\"vertical\""));
+        // ラベル列（ul>li）2 × 4 段階 + steps タイムライン（ol>li）2 インスタンス
+        // （横向き・縦向き）× 4 段階 = 16（モジュール冒頭「構成」節参照）。
+        assert_eq!(html.matches("<li").count(), 16);
     }
 
     #[test]
@@ -526,7 +720,29 @@ mod tests {
         assert!(html.contains("--fandhe-progress-percent: 66.66666666666667%"));
         // 商品 2: reached = 1 → value = 1 * 100 / 3 ≈ 33.33%
         assert!(html.contains("--fandhe-progress-percent: 33.333333333333336%"));
+        // 商品 3: reached = 3（全段階到達）→ value = 3 * 100 / 3 = 100%
+        assert!(html.contains("--fandhe-progress-percent: 100%"));
+        // data-reached はラベル列表示（商品 1・2）のみが持つ属性（商品 3 は
+        // steps タイムラインの data-state/data-complete で到達を表す）。
         assert_eq!(html.matches("data-reached=\"\"").count(), 5);
+        // 商品 3（reached=3 → Steps::step=count=4、全 4 段階完了）の
+        // aria-hidden="true" は、チェックマーク SVG（横向き・縦向きの
+        // 2 インスタンス × 4 完了段階 = 8）と `steps::separator`（`role=
+        // "separator"` + `aria-hidden`、最後の item を除く 3 本 × 2
+        // インスタンス = 6）の合計 14。
+        assert_eq!(html.matches("aria-hidden=\"true\"").count(), 14);
+    }
+
+    #[test]
+    fn timeline_triggers_are_natively_disabled() {
+        // Codex #3469 レビュー指摘の回帰防止: `steps::trigger` が生成する
+        // <button> は無 JS デモで押しても反応せず、disabled にしないと
+        // Tab 移動先になるだけの dead control になる。横向き・縦向き
+        // 2 インスタンス × 4 段階 = 8 個すべてが disabled であることを
+        // 固定する。
+        let html = demo_html();
+        assert_eq!(html.matches(" disabled=\"\"").count(), 8);
+        assert_eq!(html.matches("data-disabled=\"\"").count(), 8);
     }
 
     #[test]
@@ -536,6 +752,14 @@ mod tests {
         assert!(LAYOUT_CSS.contains("@container blocks-order-tracking-progress (max-width: 40rem)"));
         assert!(LAYOUT_CSS.contains(
             ".blocks-order-tracking-progress-stages {\n    grid-template-columns: 1fr;\n  }"
+        ));
+        assert!(LAYOUT_CSS
+            .contains(".blocks-order-tracking-progress-timeline-vertical {\n  display: none;\n}"));
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-order-tracking-progress-timeline-horizontal {\n    display: none;\n  }"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-order-tracking-progress-timeline-vertical {\n    display: block;\n  }"
         ));
     }
 }
