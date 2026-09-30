@@ -70,18 +70,30 @@ fn usage_bar(label: &'static str, percent: f64, value_text: String) -> Node {
     } else {
         ColorPalette::Accent
     };
-    let mut header_children = vec![
-        styled_text::text(&TextProps::default(), vec![], vec![text(label)]),
-        styled_text::text(
-            &TextProps {
-                size: TextSize::Sm,
-                variant: TextVariant::Muted,
-                ..TextProps::default()
-            },
-            vec![],
-            vec![text(value_text)],
-        ),
-    ];
+    // ラベルと値は 1 つの flex グループにまとめ、バッジ（存在すれば）を
+    // ヘッダーのもう一方の flex child にする。3 つ全てを同じ親へ並べると
+    // `justify-content: space-between` が 3 分割になりラベル・数値・バッジが
+    // 行全体へ分散し、数値がバッジから離れて中央寄りになってしまうため
+    // （PR #3437 レビュー指摘）。
+    let label_and_value = div(
+        vec![(
+            "class",
+            "blocks-settings-billing-usage-usage-row-label-group",
+        )],
+        vec![
+            styled_text::text(&TextProps::default(), vec![], vec![text(label)]),
+            styled_text::text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    variant: TextVariant::Muted,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text(value_text)],
+            ),
+        ],
+    );
+    let mut header_children = vec![label_and_value];
     if percent >= WARN_THRESHOLD {
         header_children.push(badge(
             &BadgeProps {
