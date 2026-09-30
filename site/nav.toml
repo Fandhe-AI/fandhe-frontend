@@ -2275,6 +2275,11 @@ source = "site/blocks/auth-split-accent-panel.md"
 path = "/blocks/auth-split-accent-panel/"
 
 [[section.group.page]]
+title = "auth-split-photo-testimonial"
+source = "site/blocks/auth-split-photo-testimonial.md"
+path = "/blocks/auth-split-photo-testimonial/"
+
+[[section.group.page]]
 title = "auth-tabs-card"
 source = "site/blocks/auth-tabs-card.md"
 path = "/blocks/auth-tabs-card/"

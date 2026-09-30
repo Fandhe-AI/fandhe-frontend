@@ -454,6 +454,7 @@ jobs:
           # Application / Auth
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-dropdown-panel/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-oauth-consent/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-split-photo-testimonial/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-otp-verify/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-split-accent-panel/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-tabs-card/index.html"
