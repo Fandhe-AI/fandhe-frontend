@@ -368,6 +368,10 @@ fn version_title(label: &str) -> Node {
 /// 版 B 展開行の API キー欄（`clipboard`、Demo 全体で唯一の
 /// `clipboard::root` 呼び出し。モジュール doc「`clipboard` root は版 B の
 /// 展開行 1 個に限る」節参照）。
+///
+/// `clipboard::trigger` に `aria-label` を明示し、可視ラベル「コピー」と
+/// 一致させる（既定値 `Copy to clipboard` は英語で可視ラベルと不一致の
+/// ため、PR #3447 Codex 指摘）。
 fn api_key_clipboard() -> Node {
     const INPUT_ID: &str = "blocks-settings-integrations-list-api-key";
     div(
@@ -385,7 +389,7 @@ fn api_key_clipboard() -> Node {
                         clipboard::input(API_KEY_DEMO, false, vec![("id", INPUT_ID)]),
                         clipboard::trigger(
                             false,
-                            vec![],
+                            vec![("aria-label", "API キーをコピー")],
                             vec![
                                 clipboard::indicator(false, false, vec![], vec![text("コピー")]),
                                 clipboard::indicator(true, false, vec![], vec![text("コピー済み")]),
