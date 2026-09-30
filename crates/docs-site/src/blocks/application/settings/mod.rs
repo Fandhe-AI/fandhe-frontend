@@ -3,7 +3,8 @@
 //! ディレクトリ化して卒業、イシュー #2985 で
 //! [`settings_billing_usage`]、イシュー #2986 で
 //! [`settings_event_accordion`]、イシュー #2982 で
-//! [`settings_api_key_created`]、イシュー #2991 で
+//! [`settings_api_key_created`]、イシュー #2987 で
+//! [`settings_export_data`]、イシュー #2991 で
 //! [`settings_integrations_grid`]、イシュー #2995 で
 //! [`settings_integrations_search`]、イシュー #2996 で
 //! [`settings_item_cards`]、イシュー #2997 で
@@ -28,6 +29,7 @@ mod settings_api_keys_table;
 mod settings_billing_overview;
 mod settings_billing_usage;
 mod settings_event_accordion;
+mod settings_export_data;
 mod settings_integration_detail;
 mod settings_integrations_grid;
 mod settings_integrations_list;
@@ -50,6 +52,7 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_billing_overview::BLOCK,
         settings_billing_usage::BLOCK,
         settings_event_accordion::BLOCK,
+        settings_export_data::BLOCK,
         settings_integration_detail::BLOCK,
         settings_integrations_grid::BLOCK,
         settings_integrations_list::BLOCK,

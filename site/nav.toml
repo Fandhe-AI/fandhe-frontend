@@ -2338,6 +2338,11 @@ source = "site/blocks/settings-event-accordion.md"
 path = "/blocks/settings-event-accordion/"
 
 [[section.group.page]]
+title = "settings-export-data"
+source = "site/blocks/settings-export-data.md"
+path = "/blocks/settings-export-data/"
+
+[[section.group.page]]
 title = "settings-integration-detail"
 source = "site/blocks/settings-integration-detail.md"
 path = "/blocks/settings-integration-detail/"
