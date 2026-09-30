@@ -2,7 +2,8 @@
 //! イシュー #2984 で最初の block（[`settings_billing_overview`]）を追加し
 //! ディレクトリ化して卒業、イシュー #2985 で
 //! [`settings_billing_usage`]、イシュー #2986 で
-//! [`settings_event_accordion`] を追加した）。手順は
+//! [`settings_event_accordion`]、イシュー #2982 で
+//! [`settings_api_key_created`] を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -11,6 +12,7 @@
 //! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
 //! ための構造、イシュー #2734）。
 
+mod settings_api_key_created;
 mod settings_billing_overview;
 mod settings_billing_usage;
 mod settings_event_accordion;
@@ -20,6 +22,7 @@ use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
     vec![
+        settings_api_key_created::BLOCK,
         settings_billing_overview::BLOCK,
         settings_billing_usage::BLOCK,
         settings_event_accordion::BLOCK,
