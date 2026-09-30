@@ -231,42 +231,42 @@ fn version_representative() -> Node {
                 book_icon(),
                 "../../guides/embedding-guide/",
                 "Getting Started",
-                "Set up your workspace and invite your team.",
+                "Embed the framework into an existing page and mount your first component.",
                 "24",
             ),
             collection_card(
                 card_icon(),
                 "../../guides/npm-asset-build/",
-                "Account & Billing",
-                "Manage plans, invoices, and payment methods.",
+                "Asset Pipeline",
+                "Build and gate NPM-based static assets with the install.sh pipeline.",
                 "18",
             ),
             collection_card(
                 shield_icon(),
                 "../../guides/no-js-ssg/",
-                "Security & Privacy",
-                "Data retention, access control, and audits.",
+                "Zero-JS Sites",
+                "Ship static pages that render correctly without client-side JavaScript.",
                 "15",
             ),
             collection_card(
                 gear_icon(),
                 "../../guides/wasm-full-features/",
-                "Integrations",
-                "Connect third-party tools to your workspace.",
+                "WASM Features",
+                "Pick the wasm-full Cargo feature flags your bundle actually needs.",
                 "31",
             ),
             collection_card(
                 chat_icon(),
                 "../../guides/pre-styled-ui-motion-feature/",
-                "Troubleshooting",
-                "Common errors and how to resolve them.",
+                "Motion & Animation",
+                "Turn on the pre-styled-ui motion feature for interactive effects.",
                 "42",
             ),
             collection_card(
                 rocket_icon(),
                 "../../api/",
                 "API Reference",
-                "Endpoints, authentication, and rate limits.",
+                "Browse component and server API documentation by crate.",
                 "27",
             ),
         ],
@@ -385,24 +385,24 @@ fn version_featured() -> Node {
             featured_card(
                 book_icon(),
                 "../../guides/animation-core/",
-                "Platform Basics",
-                "The essentials every new team member needs.",
+                "Animation Core API",
+                "Call fandhe-animation and fandhe-frontend-animation directly from Rust.",
                 &[0, 1, 2],
                 "16",
             ),
             featured_card(
                 gear_icon(),
                 "../../guides/animation/",
-                "Advanced Workflows",
-                "Automate repetitive tasks across your workspace.",
+                "Animation Features",
+                "Add declarative, data-* driven animations without writing JS.",
                 &[1, 2, 3],
                 "22",
             ),
             featured_card(
                 shield_icon(),
                 "../../guides/deployment/",
-                "Enterprise Setup",
-                "SSO, audit logs, and organization-wide policies.",
+                "Deployment",
+                "Ship as static output (SSG) or a single-binary dist-server.",
                 &[2, 3, 0],
                 "11",
             ),
@@ -426,16 +426,12 @@ fn breadcrumb_row() -> Node {
             vec![
                 breadcrumb::item(
                     vec![],
-                    vec![breadcrumb::link(
-                        "../../",
-                        vec![],
-                        vec![text("Help Center")],
-                    )],
+                    vec![breadcrumb::link("../", vec![], vec![text("Help Center")])],
                 ),
                 breadcrumb::separator(vec![], vec![text("/")]),
                 breadcrumb::item(
                     vec![],
-                    vec![breadcrumb::current_link(vec![], vec![text("Guides")])],
+                    vec![breadcrumb::current_link(vec![], vec![text("Collections")])],
                 ),
             ],
         )],
@@ -594,6 +590,6 @@ mod tests {
     fn breadcrumb_has_accessible_label_and_current_page() {
         let html = demo_html();
         assert!(html.contains(r#"aria-label="Breadcrumb""#));
-        assert!(html.contains("Guides"));
+        assert!(html.contains("Collections"));
     }
 }
