@@ -130,6 +130,7 @@ fn product_card(
     reached: usize,
 ) -> Node {
     let progress_state = shipment_progress(reached);
+    let progress_aria_label = format!("{name} の配送の進捗");
     card::root(
         CardProps::default(),
         vec![("data-blocks-order-tracking-progress-card", "")],
@@ -205,7 +206,7 @@ fn product_card(
                         Some(status_label),
                         vec![
                             ("data-blocks-order-tracking-progress-bar", ""),
-                            ("aria-label", "配送の進捗"),
+                            ("aria-label", progress_aria_label.as_str()),
                         ],
                         vec![progress_state
                             .track(vec![], vec![progress::range(&progress_state, vec![])])],
