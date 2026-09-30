@@ -2318,6 +2318,11 @@ source = "site/blocks/settings-api-key-created.md"
 path = "/blocks/settings-api-key-created/"
 
 [[section.group.page]]
+title = "settings-api-keys-table"
+source = "site/blocks/settings-api-keys-table.md"
+path = "/blocks/settings-api-keys-table/"
+
+[[section.group.page]]
 title = "settings-billing-overview"
 source = "site/blocks/settings-billing-overview.md"
 path = "/blocks/settings-billing-overview/"
@@ -2336,6 +2341,51 @@ path = "/blocks/settings-event-accordion/"
 title = "settings-export-data"
 source = "site/blocks/settings-export-data.md"
 path = "/blocks/settings-export-data/"
+
+[[section.group.page]]
+title = "settings-integrations-grid"
+source = "site/blocks/settings-integrations-grid.md"
+path = "/blocks/settings-integrations-grid/"
+
+[[section.group.page]]
+title = "settings-integrations-list"
+source = "site/blocks/settings-integrations-list.md"
+path = "/blocks/settings-integrations-list/"
+
+[[section.group.page]]
+title = "settings-integrations-search"
+source = "site/blocks/settings-integrations-search.md"
+path = "/blocks/settings-integrations-search/"
+
+[[section.group.page]]
+title = "settings-item-cards"
+source = "site/blocks/settings-item-cards.md"
+path = "/blocks/settings-item-cards/"
+
+[[section.group.page]]
+title = "settings-log-table"
+source = "site/blocks/settings-log-table.md"
+path = "/blocks/settings-log-table/"
+
+[[section.group.page]]
+title = "settings-notification-matrix"
+source = "site/blocks/settings-notification-matrix.md"
+path = "/blocks/settings-notification-matrix/"
+
+[[section.group.page]]
+title = "settings-org-switcher"
+source = "site/blocks/settings-org-switcher.md"
+path = "/blocks/settings-org-switcher/"
+
+[[section.group.page]]
+title = "settings-preferences"
+source = "site/blocks/settings-preferences.md"
+path = "/blocks/settings-preferences/"
+
+[[section.group.page]]
+title = "settings-profile-form"
+source = "site/blocks/settings-profile-form.md"
+path = "/blocks/settings-profile-form/"
 
 [[section.group]]
 title = "Action Panel"
