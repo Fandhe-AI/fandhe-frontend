@@ -228,18 +228,7 @@ fn summary_card() -> Node {
         CardProps::default(),
         vec![("data-blocks-cart-two-column-summary-summary", "")],
         vec![
-            card::header(
-                vec![],
-                vec![card::title(
-                    vec![],
-                    vec![heading(
-                        HeadingLevel::H4,
-                        &HeadingProps::default(),
-                        vec![],
-                        vec![text("注文サマリ")],
-                    )],
-                )],
-            ),
+            card::header(vec![], vec![card::title(vec![], vec![text("注文サマリ")])]),
             card::body(vec![], vec![summary_totals()]),
             card::footer(
                 vec![],

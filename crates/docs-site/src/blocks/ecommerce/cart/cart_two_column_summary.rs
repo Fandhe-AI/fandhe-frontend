@@ -302,18 +302,7 @@ fn summary_card() -> Node {
         CardProps::default(),
         vec![("data-blocks-cart-two-column-summary-summary", "")],
         vec![
-            card::header(
-                vec![],
-                vec![card::title(
-                    vec![],
-                    vec![heading(
-                        HeadingLevel::H4,
-                        &HeadingProps::default(),
-                        vec![],
-                        vec![text("注文サマリ")],
-                    )],
-                )],
-            ),
+            card::header(vec![], vec![card::title(vec![], vec![text("注文サマリ")])]),
             card::body(vec![], vec![summary_totals()]),
             card::footer(
                 vec![],
@@ -404,7 +393,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-cart-two-column-summary-thumb] {\n  width: 6rem;\n  height: 6rem;\n  flex: none;\n}\n\
 .blocks-cart-two-column-summary-item-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\
 .blocks-cart-two-column-summary-item-controls {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-end;\n  gap: var(--fandhe-space-2);\n}\n\
-[data-blocks-cart-two-column-summary-totals] [data-blocks-cart-two-column-summary-total] {\n  border-top: 1px solid var(--fandhe-color-border);\n  padding-top: var(--fandhe-space-2);\n}\n\
+[data-blocks-cart-two-column-summary-totals] [data-blocks-cart-two-column-summary-total] {\n  border-top: 1px solid var(--fandhe-color-border);\n  padding-top: var(--fandhe-space-2);\n  font-weight: var(--fandhe-font-weight-bold, 700);\n}\n\
 [data-blocks-cart-two-column-summary-checkout] {\n  width: 100%;\n}\n\
 @container blocks-cart-two-column-summary (max-width: 48rem) {\n  \
 .blocks-cart-two-column-summary-columns {\n    grid-template-columns: minmax(0, 1fr);\n  }\n  \
