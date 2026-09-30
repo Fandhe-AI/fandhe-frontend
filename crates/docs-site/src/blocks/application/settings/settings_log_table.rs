@@ -212,6 +212,21 @@ fn delivery_rows(status: Option<LogStatus>) -> Vec<&'static LogRow> {
         .collect()
 }
 
+/// タブバッジに出す各結果の総件数。[`DELIVERY_ROWS`] はページ送り
+/// フッター「全 18 件中 1〜6 件を表示」の 1 ページ目分（6 件）のみを
+/// 保持する架空データのため、`delivery_rows` の長さ（表示中ページ内件数）
+/// をそのままバッジへ出すとフッターの総件数（18 件）と食い違う
+/// （codex レビュー指摘、イシュー #2997）。バッジは「該当件数」を示す
+/// 表示のため、フッターと整合する総件数側の架空値（合計 18 件）を返す。
+fn delivery_total(status: Option<LogStatus>) -> u32 {
+    match status {
+        None => 18,
+        Some(LogStatus::Success) => 9,
+        Some(LogStatus::Failure) => 6,
+        Some(LogStatus::Pending) => 3,
+    }
+}
+
 /// 結果バッジ（[`LogStatus::palette`]/[`LogStatus::label`] を委譲）。
 fn status_badge(status: LogStatus) -> Node {
     badge::badge(
@@ -483,7 +498,7 @@ fn version_delivery() -> Node {
         trigger.push(badge::badge(
             &BadgeProps::default(),
             vec![],
-            vec![text(rows.len().to_string())],
+            vec![text(delivery_total(status).to_string())],
         ));
         let label = format!("配信ログ（{trigger_label}）");
         TabItem {
