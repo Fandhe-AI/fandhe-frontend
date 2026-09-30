@@ -466,6 +466,7 @@ jobs:
           # Application / Settings
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-billing-usage/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-billing-overview/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-event-accordion/index.html"
           # Application / Action Panel
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-stacked/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-with-input/index.html"
@@ -488,6 +489,7 @@ jobs:
           # Application / Onboarding
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-centered-steps/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-checklist/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-split-image/index.html"
           # Application / Card
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-meta-cta/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cursor-hover-cards/index.html"
@@ -510,6 +512,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/ai-chat-code-preview/index.html"
           # Application / Help Center
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/help-center-article-list/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/help-center-collection-grid/index.html"
           # Application / Media Object
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/media-object/index.html"
           # Ecommerce / Product Overview

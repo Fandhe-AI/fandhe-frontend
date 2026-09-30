@@ -1015,6 +1015,7 @@ pub enum LayoutCss {
 | table-with-toolbar | #2949・#2950（親 #2948） | `application/table/table_with_toolbar.rs` |
 | profile-detail-skills | #2938（親 #2892） | `application/profile/profile_detail_skills.rs` |
 | profile-card-centered | #2936（親 #2892） | `application/profile/profile_card_centered.rs` |
+| settings-event-accordion | #2986 | `application/settings/settings_event_accordion.rs` |
 | sidebar-rail-panel | #2941 | `application/sidebar/sidebar_rail_panel.rs` |
 | table-summary-rows | #2946（親 #2892） | `application/table/table_summary_rows.rs` |
 | list-container | #3227 | `application/list/list_container.rs` |
@@ -1040,9 +1041,11 @@ pub enum LayoutCss {
 | empty-state-starter-grid | #2972（親 #2951） | `application/empty_state/empty_state_starter_grid.rs` |
 | empty-state-starter-list | #2973（親 #2951） | `application/empty_state/empty_state_starter_list.rs` |
 | help-center-article-list | #2974（親 #2951） | `application/help_center/help_center_article_list.rs` |
+| help-center-collection-grid | #2975 | `application/help_center/help_center_collection_grid.rs` |
 | notification-tray-tabs | #2977（親 #2951） | `application/notification/notification_tray_tabs.rs` |
 | onboarding-checklist | #2979 | `application/onboarding/onboarding_checklist.rs` |
 | onboarding-centered-steps | #2978（親 #2951） | `application/onboarding/onboarding_centered_steps.rs` |
+| onboarding-split-image | #2980（親 #2951） | `application/onboarding/onboarding_split_image.rs` |
 | settings-billing-overview | #2984 | `application/settings/settings_billing_overview.rs` |
 | settings-billing-usage | #2985 | `application/settings/settings_billing_usage.rs` |
 
