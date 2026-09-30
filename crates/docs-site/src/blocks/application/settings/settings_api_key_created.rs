@@ -17,25 +17,33 @@
 //!
 //! - **A（代表構成）**: R0241。単一キーを 1 個の
 //!   [`fandhe_frontend_pre_styled_ui::clipboard`] で提示する。
-//! - **B（複数キー行表示）**: R0242。3 個のキーをそれぞれ独立した
-//!   `clipboard` root で行表示する（下記「行ごとに独立した clipboard root
-//!   にする理由」節参照）。`clipboard::input` を
+//! - **B（複数キー行表示）**: R0242。3 個のキーをそれぞれ別々の
+//!   `clipboard` root（行ごとに一意な `id`）で行表示する（下記「行ごとの
+//!   `clipboard` root と実アプリでの独立方法」節参照。単一マウント内での
+//!   コピー状態の連動自体は解消しない）。`clipboard::input` を
 //!   [`fandhe_frontend_pre_styled_ui::input_group`] の `root`/`addon` で
 //!   包み、trigger を addon 側へ配置する。
 //!
-//! # 行ごとに独立した `clipboard` root にする理由（1 root : 1 状態機械契約）
+//! # 行ごとの `clipboard` root と実アプリでの独立方法（1 root : 1 状態機械契約、
+//! レビュー指摘対応 P1、イシュー #2982 codex 指摘）
 //!
 //! `fandhe-frontend-wasm-full` の `headless_clipboard` 配線は「1 root : 1
-//! 状態機械契約」という簡略化を持ち、同一マウントルート配下の**全**
-//! `clipboard` パーツへ `data-copied` の反映を及ぼす
-//! （`hero_install_command` モジュール doc「コピー配線の範囲」節と同型の
-//! 制約）。版 B の 3 行を 1 個の `clipboard` root にまとめると、1 行を
-//! コピーしただけで他の 2 行の表示も連動して変わってしまうため、行ごとに
-//! 独立した `id` 付き `clipboard::root`（`blocks-settings-api-key-created-b-
-//! <n>`）に分離した。`headless_clipboard` 自体の「1 root : 1 状態機械契約」
-//! を変更する提案は本 block のスコープ外である
-//! （`.claude/rules/coding-rust.md` の意図的非採用機能の再評価基準と同様、
-//! cross-cutting な変更は個別 Issue で評価する）。
+//! 状態機械契約」という簡略化を持ち、`data-copied` の反映を `Runtime::mount`/
+//! `hydrate` に渡されたマウントルート配下の**全** `clipboard` パーツへ及ぼす
+//! （`crates/wasm-full/src/headless_clipboard.rs` モジュール doc 同名節、
+//! `hero_install_command` モジュール doc「コピー配線の範囲」節と同型の制約）。
+//! 版 B の 3 行それぞれへ `clipboard::root` を分けても、**この Demo 全体を
+//! 1 回の `mount`/`hydrate` で同一マウントルート配下に置く限り**、1 行を
+//! コピーすると版 A・他の行も含めて表示が連動して変わる（当初「行ごとに
+//! 独立させた」としていた説明は誤りだった）。行ごとに `id`
+//! （`blocks-settings-api-key-created-b-<n>`）を分けてあるのは、実アプリへ
+//! 組み込む際に `hero_install_command` の A・C と同様、この `id` を持つ
+//! 要素それぞれへ**個別に** `mount`/`hydrate` を呼ぶことで初めて独立させ
+//! られるようにするためであり、単一マウント内で自動的に独立するわけでは
+//! ない。`headless_clipboard` 自体の「1 root : 1 状態機械契約」を変更する
+//! 提案は本 block のスコープ外である（`.claude/rules/coding-rust.md` の
+//! 意図的非採用機能の再評価基準と同様、cross-cutting な変更は個別 Issue で
+//! 評価する）。
 //!
 //! # `input_group` を使う理由（版 B のみ、版 A は `clipboard::control` 直接）
 //!
@@ -59,8 +67,11 @@
 //! が `mount`/`hydrate` 時に自動で `navigator.clipboard.writeText` を配線
 //! する。無 JS の docs サイト自体では他の全部品と同じく静的表示に留まる
 //! （`site/primitives/clipboard.md` が明記する既存の site 全体の制約）が、
-//! この block を実アプリへ組み込めば A/B のコピー操作は実際に機能する。
-//! 各 `clipboard::root` は `copied: false`（idle）で初期化する。
+//! この block を実アプリへ組み込めば A/B のコピー操作は実際に機能する
+//! （行ごとの独立性については上記「行ごとの `clipboard` root と実アプリ
+//! での独立方法」節を参照。この Demo をそのまま 1 回でマウントする限りは
+//! A・B 全行が連動する）。各 `clipboard::root` は `copied: false`（idle）で
+//! 初期化する。
 //!
 //! # `<form>` を使わない・完了ボタンは静的表示
 //!
@@ -196,9 +207,11 @@ fn version_single_key() -> Node {
     card_with(key_area)
 }
 
-/// B の 1 行分（`label`・キー値）を組み立てる。行ごとに独立した
-/// `clipboard::root` にする理由はモジュール doc 参照。`row_index` は
-/// `id` 一意性のための連番（0 始まり）。
+/// B の 1 行分（`label`・キー値）を組み立てる。行ごとに `id` を分ける
+/// 理由（実アプリで独立させるには行ごとに別々の `mount`/`hydrate` が
+/// 必要であること）はモジュール doc「行ごとの `clipboard` root と実
+/// アプリでの独立方法」節参照。`row_index` は `id` 一意性のための連番
+/// （0 始まり）。
 fn key_row(row_index: usize, label: &'static str, value: &'static str) -> Node {
     let root_id = format!("blocks-settings-api-key-created-b-{row_index}");
     let input_id = format!("blocks-settings-api-key-created-b-{row_index}-input");
@@ -314,6 +327,22 @@ pub const BLOCK: Block = Block {
 
 /// `settings_api_key_created` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
 /// doc「block 固有 CSS の置き場」節と同型）。
+///
+/// # `input_group` にネストした `clipboard::input`/`trigger` の内側 chrome 除去
+/// （レビュー指摘対応、Medium、イシュー #2982 Cursor Bugbot 指摘）
+///
+/// [`fandhe_frontend_pre_styled_ui::input_group`] の子結合子 raw CSS
+/// （`crates/pre-styled-ui/src/input_group.rs` 「raw CSS 追記の理由」節）は
+/// `data-scope="field"` の `input`/`textarea` のみを対象とし、
+/// `data-scope="clipboard"` の `input`/`trigger` は対象外である。版 B は
+/// `clipboard::input`/`clipboard::trigger` を `input_group::root`/`addon` の
+/// 子として配置するため、無対策では両パーツ自身の枠線・角丸・背景
+/// （`crates/pre-styled-ui/src/clipboard.rs` の `input`/`trigger` base 宣言）
+/// が `input_group::root` の外枠と二重に重なって見える。ここでは
+/// `input_group.rs` と同型の子孫セレクタ上書きを Demo 固有 CSS として追記し、
+/// 両パーツの枠線・角丸・背景を除去して `input_group::root` 側 1 本の外枠へ
+/// 統一する（`input_group.rs` 自身の変更は行わない。同モジュールへ
+/// `clipboard` slot 対応を追加する横断変更は本 block のスコープ外である）。
 const LAYOUT_CSS: &str = "\
 .blocks-settings-api-key-created-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n}\n\
 .blocks-settings-api-key-created-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
@@ -321,6 +350,8 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-settings-api-key-created-clipboard] {\n  display: flex;\n  flex-direction: column;\n  width: 100%;\n}\n\
 [data-blocks-settings-api-key-created-clipboard] [data-scope=\"clipboard\"][data-part=\"control\"] {\n  width: 100%;\n}\n\
 [data-blocks-settings-api-key-created-clipboard] [data-scope=\"input-group\"][data-part=\"root\"] {\n  width: 100%;\n}\n\
+[data-blocks-settings-api-key-created-clipboard] [data-scope=\"input-group\"][data-part=\"root\"] [data-scope=\"clipboard\"][data-part=\"input\"] {\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n}\n\
+[data-blocks-settings-api-key-created-clipboard] [data-scope=\"input-group\"][data-part=\"root\"] [data-scope=\"clipboard\"][data-part=\"trigger\"] {\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n}\n\
 .blocks-settings-api-key-created-footer {\n  display: flex;\n  justify-content: flex-end;\n}\n";
 
 #[cfg(test)]
@@ -387,6 +418,25 @@ mod tests {
     fn layout_css_is_safe() {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains("--fandhe-space-"));
+    }
+
+    /// レビュー指摘対応（Medium、イシュー #2982 Cursor Bugbot 指摘）の
+    /// 回帰テスト: `input_group` にネストした `clipboard::input`/
+    /// `clipboard::trigger` 自身の枠線・角丸・背景を除去する上書き規則が
+    /// 両パーツ分とも存在すること。
+    #[test]
+    fn nested_clipboard_parts_inside_input_group_have_chrome_reset() {
+        for part in ["input", "trigger"] {
+            let selector = format!(
+                "[data-scope=\"input-group\"][data-part=\"root\"] [data-scope=\"clipboard\"][data-part=\"{part}\"] {{"
+            );
+            assert!(
+                LAYOUT_CSS.contains(&selector),
+                "missing chrome-reset rule for nested clipboard {part}"
+            );
+        }
+        assert!(LAYOUT_CSS.contains("border: 0;"));
+        assert!(LAYOUT_CSS.contains("background: transparent;"));
     }
 
     #[test]

@@ -117,9 +117,11 @@ fn version_single_key() -> Node {
     card_with(key_area)
 }
 
-/// B の 1 行分（`label`・キー値）を組み立てる。行ごとに独立した
-/// `clipboard::root` にする理由はモジュール doc 参照。`row_index` は
-/// `id` 一意性のための連番（0 始まり）。
+/// B の 1 行分（`label`・キー値）を組み立てる。行ごとに `id` を分ける
+/// 理由（実アプリで独立させるには行ごとに別々の `mount`/`hydrate` が
+/// 必要であること）はモジュール doc「行ごとの `clipboard` root と実
+/// アプリでの独立方法」節参照。`row_index` は `id` 一意性のための連番
+/// （0 始まり）。
 fn key_row(row_index: usize, label: &'static str, value: &'static str) -> Node {
     let root_id = format!("blocks-settings-api-key-created-b-{row_index}");
     let input_id = format!("blocks-settings-api-key-created-b-{row_index}-input");
@@ -203,11 +205,13 @@ pub fn demo() -> Node {
 
 - **版 A（代表構成、R0241）**: 単一キーを `clipboard` 1 個で提示します。
 - **版 B（複数キー行表示、R0242）**: 3 個のキー（本番用・ステージング用・
-  読み取り専用）をそれぞれ独立した `clipboard` root で行表示します。
-  `headless_clipboard` 配線が「1 root : 1 状態機械契約」（1 つのマウント
-  ルート配下の全 `clipboard` パーツの表示が連動する簡略化）を持つため、
-  1 行を 1 つの `clipboard` root に分離し、他の行のコピー状態と連動しない
-  ようにしています。
+  読み取り専用）をそれぞれ別々の `clipboard` root（行ごとに一意な `id`）で
+  行表示します。`headless_clipboard` 配線は「1 root : 1 状態機械契約」
+  （`Runtime::mount`/`hydrate` に渡されたマウントルート配下の全
+  `clipboard` パーツの表示が連動する簡略化）を持つため、この Demo 全体を
+  1 回でマウントする限り行ごとの表示は連動します。行ごとに `id` を分けて
+  あるのは、実アプリへ組み込む際にこの `id` を持つ要素それぞれへ個別に
+  `mount`/`hydrate` を呼ぶことで初めて独立させられるようにするためです。
 - 版 B は `input-group` でキー入力欄とコピーボタンを 1 行に整列しますが、
   ボタン自体は `input_group::button` ではなく `clipboard` scope 内の
   `clipboard::trigger` を使います。これにより実アプリへ組み込んだ際、
