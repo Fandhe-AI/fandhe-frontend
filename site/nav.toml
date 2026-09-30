@@ -2362,6 +2362,11 @@ title = "settings-notification-matrix"
 source = "site/blocks/settings-notification-matrix.md"
 path = "/blocks/settings-notification-matrix/"
 
+[[section.group.page]]
+title = "settings-preferences"
+source = "site/blocks/settings-preferences.md"
+path = "/blocks/settings-preferences/"
+
 [[section.group]]
 title = "Action Panel"
 
