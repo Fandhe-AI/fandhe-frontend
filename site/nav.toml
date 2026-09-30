@@ -2342,6 +2342,11 @@ title = "settings-integrations-list"
 source = "site/blocks/settings-integrations-list.md"
 path = "/blocks/settings-integrations-list/"
 
+[[section.group.page]]
+title = "settings-item-cards"
+source = "site/blocks/settings-item-cards.md"
+path = "/blocks/settings-item-cards/"
+
 [[section.group]]
 title = "Action Panel"
 
