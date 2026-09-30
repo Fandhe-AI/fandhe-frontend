@@ -348,7 +348,7 @@ img[data-scope=\"image\"][data-blocks-settings-integrations-list-logo] {\n  widt
 .blocks-settings-integrations-list-description {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 .blocks-settings-integrations-list-actions {\n  grid-area: actions;\n}\n\
 @container blocks-settings-integrations-list (max-width: 40rem) {\n  \
-.blocks-settings-integrations-list-row {\n    grid-template-columns: auto minmax(0, 1fr);\n    grid-template-areas: \"logo body\" \"logo actions\";\n  }\n  \
+.blocks-settings-integrations-list-list .blocks-settings-integrations-list-row {\n    grid-template-columns: auto minmax(0, 1fr);\n    grid-template-areas: \"logo body\" \"logo actions\";\n  }\n  \
 .blocks-settings-integrations-list-actions {\n    justify-self: start;\n  }\n\
 }\n";
 
@@ -462,6 +462,18 @@ mod tests {
             LAYOUT_CSS.contains("@container blocks-settings-integrations-list (max-width: 40rem)")
         );
         assert!(LAYOUT_CSS.contains("grid-template-areas: \"logo body\" \"logo actions\""));
+    }
+
+    #[test]
+    fn narrow_row_selector_specificity_matches_base_rule() {
+        // `@container` 内の狭幅用行セレクタが通常ルール
+        // `.blocks-settings-integrations-list-list .blocks-settings-integrations-list-row`
+        // （詳細度 (0,2,0)）と同じ 2 クラスの子孫セレクタであることの回帰
+        // ガード（PR #3441 Codex/Bugbot 指摘）。単一クラス（詳細度 (0,1,0)）
+        // では通常ルールに負け、40rem 未満でもレイアウトが切り替わらない。
+        assert!(LAYOUT_CSS.contains(
+            "@container blocks-settings-integrations-list (max-width: 40rem) {\n  .blocks-settings-integrations-list-list .blocks-settings-integrations-list-row {"
+        ));
     }
 
     #[test]
