@@ -537,8 +537,13 @@ fn form_column(variant: SplitImageVariant, cards: Node) -> Node {
                 ],
             ),
             cards,
+            // 遷移処理のない静的表示のため `disabled: true` 固定
+            // （PR #3432 レビュー指摘。他 Onboarding block と同じ判断）。
             button::button(
-                &ButtonProps::default(),
+                &ButtonProps {
+                    disabled: true,
+                    ..ButtonProps::default()
+                },
                 vec![("data-blocks-onboarding-split-image-next", "")],
                 vec![text(variant.next_label())],
             ),
