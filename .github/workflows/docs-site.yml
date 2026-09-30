@@ -537,6 +537,7 @@ jobs:
           # Ecommerce / Category
           # Ecommerce / Filter
           # Ecommerce / Cart
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cart-line-item-table/index.html"
           # Ecommerce / Checkout
           # Ecommerce / Order
           # Ecommerce / Reviews
