@@ -5,7 +5,8 @@
 //! [`settings_event_accordion`]、イシュー #2982 で
 //! [`settings_api_key_created`]、イシュー #2991 で
 //! [`settings_integrations_grid`]、イシュー #2996 で
-//! [`settings_item_cards`] を追加した）。手順は
+//! [`settings_item_cards`]、イシュー #3004 で
+//! [`settings_page_sidebar`] を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -22,6 +23,7 @@ mod settings_event_accordion;
 mod settings_integrations_grid;
 mod settings_integrations_list;
 mod settings_item_cards;
+mod settings_page_sidebar;
 
 use crate::blocks::Block;
 
@@ -35,5 +37,6 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_integrations_grid::BLOCK,
         settings_integrations_list::BLOCK,
         settings_item_cards::BLOCK,
+        settings_page_sidebar::BLOCK,
     ]
 }

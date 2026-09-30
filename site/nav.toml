@@ -2352,6 +2352,11 @@ title = "settings-item-cards"
 source = "site/blocks/settings-item-cards.md"
 path = "/blocks/settings-item-cards/"
 
+[[section.group.page]]
+title = "settings-page-sidebar"
+source = "site/blocks/settings-page-sidebar.md"
+path = "/blocks/settings-page-sidebar/"
+
 [[section.group]]
 title = "Action Panel"
 
