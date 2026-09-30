@@ -262,14 +262,17 @@ fn version_representative() -> Node {
             ("data-variant", "a"),
         ],
         vec![
-            styled_text::text(
-                &TextProps {
-                    variant: TextVariant::Muted,
-                    size: TextSize::Sm,
-                    ..TextProps::default()
-                },
+            div(
                 vec![("class", "blocks-settings-billing-usage-variant-label")],
-                vec![text("A: 代表構成（プラン・使用量・支払方法）")],
+                vec![styled_text::text(
+                    &TextProps {
+                        variant: TextVariant::Muted,
+                        size: TextSize::Sm,
+                        ..TextProps::default()
+                    },
+                    vec![],
+                    vec![text("A: 代表構成（プラン・使用量・支払方法）")],
+                )],
             ),
             div(
                 vec![("class", "blocks-settings-billing-usage-cards")],
@@ -395,14 +398,17 @@ fn version_seats_and_history() -> Node {
             ("data-variant", "b"),
         ],
         vec![
-            styled_text::text(
-                &TextProps {
-                    variant: TextVariant::Muted,
-                    size: TextSize::Sm,
-                    ..TextProps::default()
-                },
+            div(
                 vec![("class", "blocks-settings-billing-usage-variant-label")],
-                vec![text("B: 残席数 + 請求履歴テーブル")],
+                vec![styled_text::text(
+                    &TextProps {
+                        variant: TextVariant::Muted,
+                        size: TextSize::Sm,
+                        ..TextProps::default()
+                    },
+                    vec![],
+                    vec![text("B: 残席数 + 請求履歴テーブル")],
+                )],
             ),
             div(
                 vec![("class", "blocks-settings-billing-usage-cards")],

@@ -334,14 +334,17 @@ fn version_representative() -> Node {
             ("data-variant", "a"),
         ],
         vec![
-            styled_text::text(
-                &TextProps {
-                    variant: TextVariant::Muted,
-                    size: TextSize::Sm,
-                    ..TextProps::default()
-                },
+            div(
                 vec![("class", "blocks-settings-billing-usage-variant-label")],
-                vec![text("A: 代表構成（プラン・使用量・支払方法）")],
+                vec![styled_text::text(
+                    &TextProps {
+                        variant: TextVariant::Muted,
+                        size: TextSize::Sm,
+                        ..TextProps::default()
+                    },
+                    vec![],
+                    vec![text("A: 代表構成（プラン・使用量・支払方法）")],
+                )],
             ),
             div(
                 vec![("class", "blocks-settings-billing-usage-cards")],
@@ -467,14 +470,17 @@ fn version_seats_and_history() -> Node {
             ("data-variant", "b"),
         ],
         vec![
-            styled_text::text(
-                &TextProps {
-                    variant: TextVariant::Muted,
-                    size: TextSize::Sm,
-                    ..TextProps::default()
-                },
+            div(
                 vec![("class", "blocks-settings-billing-usage-variant-label")],
-                vec![text("B: 残席数 + 請求履歴テーブル")],
+                vec![styled_text::text(
+                    &TextProps {
+                        variant: TextVariant::Muted,
+                        size: TextSize::Sm,
+                        ..TextProps::default()
+                    },
+                    vec![],
+                    vec![text("B: 残席数 + 請求履歴テーブル")],
+                )],
             ),
             div(
                 vec![("class", "blocks-settings-billing-usage-cards")],
@@ -550,7 +556,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-billing-usage-usage-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-settings-billing-usage-usage-row-header {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  justify-content: space-between;\n}\n\
 .blocks-settings-billing-usage-seats-footer {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-2);\n  margin-block-start: var(--fandhe-space-4);\n}\n\
-[data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
+.blocks-settings-billing-usage-stack [data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 @container blocks-settings-billing-usage (max-width: 40rem) {\n  \
 .blocks-settings-billing-usage-cards {\n    grid-template-columns: 1fr;\n  }\n\
 }\n";
