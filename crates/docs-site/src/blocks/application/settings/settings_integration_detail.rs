@@ -293,9 +293,9 @@ fn features_section() -> Node {
 /// 導入手順 section（H3 + 番号付き手順）。
 fn setup_section() -> Node {
     let steps = [
-        "「設定を開く」から連携アプリの認証を完了する",
-        "同期するプロジェクトを選択する",
+        "「設定を開く」から同期するプロジェクトを選択する",
         "同期頻度（リアルタイム・1 時間ごと・手動）を選ぶ",
+        "同期対象外にしたいタスクの除外条件を設定する",
     ];
     section(
         "導入手順",
@@ -493,6 +493,7 @@ img[data-scope=\"image\"][data-blocks-settings-integration-detail-logo] {\n  wid
 .blocks-settings-integration-detail-meta-item dt {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-settings-integration-detail-meta-item dd {\n  margin: 0;\n}\n\
 .blocks-settings-integration-detail-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
+.blocks-settings-integration-detail-section [data-scope=\"heading\"] {\n  margin: 0;\n}\n\
 .blocks-settings-integration-detail-related-grid {\n  display: grid;\n  grid-template-columns: repeat(3, 1fr);\n  gap: var(--fandhe-space-4);\n}\n\
 @container blocks-settings-integration-detail (max-width: 40rem) {\n  \
 .blocks-settings-integration-detail-actions {\n    margin-inline-start: 0;\n    width: 100%;\n  }\n  \
@@ -569,6 +570,16 @@ mod tests {
         ));
         assert!(LAYOUT_CSS.contains(
             ".blocks-settings-integration-detail-identity .blocks-settings-integration-detail-summary {\n  margin: 0;"
+        ));
+    }
+
+    /// `.docs-content h3`（`site_theme.rs` の文書タイポグラフィ、
+    /// `margin-top: 1.6rem`）が節見出し（概要・主な機能・導入手順・
+    /// 関連する連携）へ漏れ出さないことを固定する（Codex 指摘、PR #3440）。
+    #[test]
+    fn section_heading_overrides_docs_content_h3_margin() {
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-settings-integration-detail-section [data-scope=\"heading\"] {\n  margin: 0;\n}"
         ));
     }
 
