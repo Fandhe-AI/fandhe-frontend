@@ -2364,6 +2364,14 @@ source = "site/blocks/empty-state-starter-list.md"
 path = "/blocks/empty-state-starter-list/"
 
 [[section.group]]
+title = "Notification"
+
+[[section.group.page]]
+title = "notification-tray-tabs"
+source = "site/blocks/notification-tray-tabs.md"
+path = "/blocks/notification-tray-tabs/"
+
+[[section.group]]
 title = "Dialog"
 
 [[section.group.page]]
