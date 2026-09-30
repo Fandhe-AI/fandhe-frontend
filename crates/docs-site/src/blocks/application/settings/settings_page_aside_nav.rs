@@ -48,8 +48,9 @@
 //! [`CheckboxProps`] の `disabled: true` を全 checkbox で共有し、ネイティブ
 //! `disabled` 属性で操作を不能にして状態が二度と変化しないことを構造的に
 //! 保証する。既定の `opacity: 0.5` + `cursor: not-allowed`
-//! （`disabled_declarations()`）は [`LAYOUT_CSS`] で中和し、通常の
-//! checkbox と同じ見た目に保つ。
+//! （`disabled_declarations()`）はそのまま残し、静的デモでも無効状態と
+//! 分かる視覚表現を保つ（中和すると操作可能に見えるがクリックしても
+//! 反応しない不整合になる、Codex レビュー指摘対応）。
 //!
 //! # `separator` は版 B のみで使う
 //!
@@ -1009,11 +1010,10 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-page-aside-nav-fields {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-settings-page-aside-nav-avatar-row {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-settings-page-aside-nav-actions {\n  display: flex;\n  gap: var(--fandhe-space-2);\n  flex-wrap: wrap;\n}\n\
-[data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-settings-page-aside-nav-checkbox][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-settings-page-aside-nav-checkboxes {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-settings-page-aside-nav-plain-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-settings-page-aside-nav-variant-b {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
-[data-scope=\"heading\"][data-blocks-settings-page-aside-nav-version-title] {\n  margin: 0 0 var(--fandhe-space-3);\n}\n\
+[data-scope=\"heading\"][data-blocks-settings-page-aside-nav-version-title] {\n  margin: 0 0 var(--fandhe-space-3);\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 @container blocks-settings-page-aside-nav (max-width: 36rem) {\n  \
 .blocks-settings-page-aside-nav-layout {\n    grid-template-columns: minmax(0, 1fr);\n  }\n  \
 [data-blocks-settings-page-aside-nav-aside] [data-scope=\"nav-list\"][data-part=\"list\"] {\n    flex-direction: row;\n    flex-wrap: wrap;\n    gap: var(--fandhe-space-2);\n  }\n\
@@ -1120,11 +1120,12 @@ mod tests {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
         assert!(LAYOUT_CSS.contains("@container blocks-settings-page-aside-nav (max-width: 36rem)"));
-        // checkbox の既定 `opacity: 0.5`（disabled_declarations()）を中和する
-        // セレクタ（モジュール doc「通知 checkbox をネイティブ disabled に
-        // する理由」節参照）。
-        assert!(LAYOUT_CSS.contains(
-            "[data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-settings-page-aside-nav-checkbox][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
+        // checkbox の既定 `opacity: 0.5` + `cursor: not-allowed`
+        // （disabled_declarations()）を中和しない（モジュール doc「通知
+        // checkbox をネイティブ disabled にする理由」節参照。中和すると
+        // 無効状態が視覚的に分からなくなる、Codex レビュー指摘対応）。
+        assert!(!LAYOUT_CSS.contains(
+            "[data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-settings-page-aside-nav-checkbox][data-disabled]"
         ));
     }
 
@@ -1132,6 +1133,20 @@ mod tests {
     fn page_heading_resets_docs_content_h2_rule() {
         assert!(LAYOUT_CSS.contains(".blocks-settings-page-aside-nav-identity h2"));
         assert!(LAYOUT_CSS.contains("border-top: none;"));
+    }
+
+    #[test]
+    fn version_title_resets_docs_content_h2_rule() {
+        // 版見出し（H2）が `.docs-content h2`（site_theme.rs）由来の
+        // `border-top`/`padding-top` を継承しないことを固定する
+        // （Codex レビュー指摘対応）。
+        let rule_start = LAYOUT_CSS
+            .find("[data-scope=\"heading\"][data-blocks-settings-page-aside-nav-version-title]")
+            .expect("version-title rule must exist");
+        let rule = &LAYOUT_CSS[rule_start..];
+        assert!(rule.starts_with(
+            "[data-scope=\"heading\"][data-blocks-settings-page-aside-nav-version-title] {\n  margin: 0 0 var(--fandhe-space-3);\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}"
+        ));
     }
 
     #[test]
