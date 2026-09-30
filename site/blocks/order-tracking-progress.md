@@ -136,10 +136,19 @@ fn stage_timeline(reached: usize, orientation: Orientation) -> Node {
         .enumerate()
         .map(|(index, label)| {
             let complete = index < state.step();
+            // 無 JS の静的デモのため、ネイティブ `disabled` で操作不能を
+            // 構造的に表現する（Codex #3469 レビュー指摘対応。`steps::trigger`
+            // は実 `<button>` を生成し、disabled にしないと Tab 移動先には
+            // なるが押しても状態が変化しない dead control になる。
+            // `onboarding_vertical_steps`/`onboarding_centered_steps` と同型の
+            // 対応。`data-disabled` も併記する理由は同モジュール群の
+            // コメント参照: pre-styled-ui の hover セレクタ
+            // （`:hover:not([data-disabled])`）はネイティブ `disabled` 属性を
+            // 条件に含まないため）。
             let trigger = steps::trigger(
                 &state,
                 index,
-                vec![],
+                vec![("disabled", ""), ("data-disabled", "")],
                 vec![
                     steps::indicator(&state, index, vec![], vec![stage_icon(complete, index)]),
                     text(*label),

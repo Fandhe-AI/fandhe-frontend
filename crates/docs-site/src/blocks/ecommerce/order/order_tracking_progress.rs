@@ -245,10 +245,19 @@ fn stage_timeline(reached: usize, orientation: Orientation) -> Node {
         .enumerate()
         .map(|(index, label)| {
             let complete = index < state.step();
+            // 無 JS の静的デモのため、ネイティブ `disabled` で操作不能を
+            // 構造的に表現する（Codex #3469 レビュー指摘対応。`steps::trigger`
+            // は実 `<button>` を生成し、disabled にしないと Tab 移動先には
+            // なるが押しても状態が変化しない dead control になる。
+            // `onboarding_vertical_steps`/`onboarding_centered_steps` と同型の
+            // 対応。`data-disabled` も併記する理由は同モジュール群の
+            // コメント参照: pre-styled-ui の hover セレクタ
+            // （`:hover:not([data-disabled])`）はネイティブ `disabled` 属性を
+            // 条件に含まないため）。
             let trigger = steps::trigger(
                 &state,
                 index,
-                vec![],
+                vec![("disabled", ""), ("data-disabled", "")],
                 vec![
                     steps::indicator(&state, index, vec![], vec![stage_icon(complete, index)]),
                     text(*label),
@@ -722,6 +731,18 @@ mod tests {
         // "separator"` + `aria-hidden`、最後の item を除く 3 本 × 2
         // インスタンス = 6）の合計 14。
         assert_eq!(html.matches("aria-hidden=\"true\"").count(), 14);
+    }
+
+    #[test]
+    fn timeline_triggers_are_natively_disabled() {
+        // Codex #3469 レビュー指摘の回帰防止: `steps::trigger` が生成する
+        // <button> は無 JS デモで押しても反応せず、disabled にしないと
+        // Tab 移動先になるだけの dead control になる。横向き・縦向き
+        // 2 インスタンス × 4 段階 = 8 個すべてが disabled であることを
+        // 固定する。
+        let html = demo_html();
+        assert_eq!(html.matches(" disabled=\"\"").count(), 8);
+        assert_eq!(html.matches("data-disabled=\"\"").count(), 8);
     }
 
     #[test]
