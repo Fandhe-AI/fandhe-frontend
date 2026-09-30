@@ -264,8 +264,12 @@ const HISTORY_ROWS: &[HistoryRow] = &[
 
 /// 履歴テーブルの 1 行。処理中の行はダウンロード対象が存在しないため
 /// ボタンをネイティブ `disabled` にする（モジュール doc「ダウンロード列に
-/// リンクではなくボタンを使う理由」節）。
+/// リンクではなくボタンを使う理由」節）。ダウンロードボタンのアクセシブル
+/// 名は全行「ダウンロード」で同一だとスクリーンリーダーで対象履歴を識別
+/// できないため（Codex 指摘対応）、`aria-label` で `row.date`/`row.format`
+/// を含めた行固有の名前を付与する。
 fn history_row(row: &HistoryRow) -> Node {
+    let download_label = format!("{}（{}）をダウンロード", row.date, row.format);
     table::row(
         vec![],
         vec![
@@ -292,7 +296,7 @@ fn history_row(row: &HistoryRow) -> Node {
                         disabled: !row.ready,
                         ..ButtonProps::default()
                     },
-                    vec![],
+                    vec![("aria-label", download_label.as_str())],
                     vec![text("ダウンロード")],
                 )],
             ),
@@ -301,7 +305,15 @@ fn history_row(row: &HistoryRow) -> Node {
 }
 
 /// エクスポート履歴セクション（`table::scroll_area` + `table::root`）。
+/// スクロール領域はキーボード操作・スクリーンリーダー双方に対応させる
+/// （Cursor Bugbot 指摘対応）: `role="region"` + `aria-labelledby` で見出しへ
+/// 意味づけし、`tabindex="0"` でキーボードフォーカス・矢印キースクロールを
+/// 可能にする。テーブル自体のアクセシブル名は `table::caption`（視覚的には
+/// [`LAYOUT_CSS`] の `.blocks-settings-export-data-sr-only` で clip）で補う
+/// （新しい UI 部品は追加しない契約のため `visually_hidden` 部品は使わず、
+/// 既存 `table::caption` パーツ + block 固有 CSS で実現する）。
 fn history_section() -> Node {
+    let heading_id = "blocks-settings-export-data-history-heading";
     div(
         vec![("class", "blocks-settings-export-data-section")],
         vec![
@@ -311,15 +323,23 @@ fn history_section() -> Node {
                     size: HeadingSize::Lg,
                     weight: HeadingWeight::Bold,
                 },
-                vec![],
+                vec![("id", heading_id)],
                 vec![text("エクスポート履歴")],
             ),
             table::scroll_area(
-                vec![],
+                vec![
+                    ("role", "region"),
+                    ("aria-labelledby", heading_id),
+                    ("tabindex", "0"),
+                ],
                 vec![table::root(
                     TableProps::default(),
                     vec![("data-blocks-settings-export-data-table", "")],
                     vec![
+                        table::caption(
+                            vec![("class", "blocks-settings-export-data-sr-only")],
+                            vec![text("エクスポート履歴の一覧")],
+                        ),
                         table::header(
                             vec![],
                             vec![table::row(
@@ -401,13 +421,14 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-export-data-targets {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-settings-export-data-field] {\n  max-width: 20rem;\n}\n\
 .blocks-settings-export-data-actions {\n  display: flex;\n  gap: var(--fandhe-space-2);\n}\n\
+.blocks-settings-export-data-sr-only {\n  position: absolute;\n  width: 1px;\n  height: 1px;\n  overflow: hidden;\n  clip: rect(0 0 0 0);\n  white-space: nowrap;\n}\n\
 @container blocks-settings-export-data (max-width: 36rem) {\n  \
 .blocks-settings-export-data-targets {\n    grid-template-columns: minmax(0, 1fr);\n  }\n\
 }\n";
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, LAYOUT_CSS};
+    use super::{demo, HISTORY_ROWS, LAYOUT_CSS};
     use fandhe_frontend_core::render;
 
     fn demo_html() -> String {
@@ -489,5 +510,41 @@ mod tests {
         let html = demo_html();
         assert!(html.contains(r#"id="blocks-settings-export-data-targets-heading""#));
         assert!(html.contains(r#"aria-labelledby="blocks-settings-export-data-targets-heading""#));
+    }
+
+    /// ダウンロードボタンのアクセシブル名が行ごとに一意であることの回帰
+    /// （Codex 指摘対応）。全 4 行が `row.date`/`row.format` を含む
+    /// `aria-label` を持ち、可視ラベルの「ダウンロード」だけに頼らないこと
+    /// を固定する。
+    #[test]
+    fn download_buttons_have_unique_row_specific_aria_label() {
+        let html = demo_html();
+        for row in HISTORY_ROWS {
+            let expected = format!(
+                r#"aria-label="{}（{}）をダウンロード""#,
+                row.date, row.format
+            );
+            assert!(
+                html.contains(&expected),
+                "missing row-specific aria-label: {expected}"
+            );
+        }
+        assert_eq!(html.matches("をダウンロード\"").count(), HISTORY_ROWS.len());
+    }
+
+    /// 履歴テーブルのスクロール領域がキーボード操作・スクリーンリーダー
+    /// 双方に対応することの回帰（Cursor Bugbot 指摘対応）。
+    /// `role="region"` + `aria-labelledby`（見出し）+ `tabindex="0"` を
+    /// scroll-area へ、`caption` でテーブル自体にアクセシブル名を付与する。
+    #[test]
+    fn history_scroll_area_is_keyboard_and_screen_reader_accessible() {
+        let html = demo_html();
+        let history_heading_id = "blocks-settings-export-data-history-heading";
+        assert!(html.contains(&format!(r#"id="{history_heading_id}""#)));
+        assert!(html.contains(
+            r#"data-scope="table" data-part="scroll-area" role="region" aria-labelledby="blocks-settings-export-data-history-heading" tabindex="0""#
+        ));
+        assert!(html.contains("<caption"));
+        assert!(html.contains("エクスポート履歴の一覧"));
     }
 }

@@ -217,8 +217,12 @@ const HISTORY_ROWS: &[HistoryRow] = &[
 
 /// 履歴テーブルの 1 行。処理中の行はダウンロード対象が存在しないため
 /// ボタンをネイティブ `disabled` にする（モジュール doc「ダウンロード列に
-/// リンクではなくボタンを使う理由」節）。
+/// リンクではなくボタンを使う理由」節）。ダウンロードボタンのアクセシブル
+/// 名は全行「ダウンロード」で同一だとスクリーンリーダーで対象履歴を識別
+/// できないため（Codex 指摘対応）、`aria-label` で `row.date`/`row.format`
+/// を含めた行固有の名前を付与する。
 fn history_row(row: &HistoryRow) -> Node {
+    let download_label = format!("{}（{}）をダウンロード", row.date, row.format);
     table::row(
         vec![],
         vec![
@@ -245,7 +249,7 @@ fn history_row(row: &HistoryRow) -> Node {
                         disabled: !row.ready,
                         ..ButtonProps::default()
                     },
-                    vec![],
+                    vec![("aria-label", download_label.as_str())],
                     vec![text("ダウンロード")],
                 )],
             ),
@@ -254,7 +258,15 @@ fn history_row(row: &HistoryRow) -> Node {
 }
 
 /// エクスポート履歴セクション（`table::scroll_area` + `table::root`）。
+/// スクロール領域はキーボード操作・スクリーンリーダー双方に対応させる
+/// （Cursor Bugbot 指摘対応）: `role="region"` + `aria-labelledby` で見出しへ
+/// 意味づけし、`tabindex="0"` でキーボードフォーカス・矢印キースクロールを
+/// 可能にする。テーブル自体のアクセシブル名は `table::caption`（視覚的には
+/// [`LAYOUT_CSS`] の `.blocks-settings-export-data-sr-only` で clip）で補う
+/// （新しい UI 部品は追加しない契約のため `visually_hidden` 部品は使わず、
+/// 既存 `table::caption` パーツ + block 固有 CSS で実現する）。
 fn history_section() -> Node {
+    let heading_id = "blocks-settings-export-data-history-heading";
     div(
         vec![("class", "blocks-settings-export-data-section")],
         vec![
@@ -264,15 +276,23 @@ fn history_section() -> Node {
                     size: HeadingSize::Lg,
                     weight: HeadingWeight::Bold,
                 },
-                vec![],
+                vec![("id", heading_id)],
                 vec![text("エクスポート履歴")],
             ),
             table::scroll_area(
-                vec![],
+                vec![
+                    ("role", "region"),
+                    ("aria-labelledby", heading_id),
+                    ("tabindex", "0"),
+                ],
                 vec![table::root(
                     TableProps::default(),
                     vec![("data-blocks-settings-export-data-table", "")],
                     vec![
+                        table::caption(
+                            vec![("class", "blocks-settings-export-data-sr-only")],
+                            vec![text("エクスポート履歴の一覧")],
+                        ),
                         table::header(
                             vec![],
                             vec![table::row(
