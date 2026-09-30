@@ -2318,6 +2318,11 @@ source = "site/blocks/settings-api-key-created.md"
 path = "/blocks/settings-api-key-created/"
 
 [[section.group.page]]
+title = "settings-api-keys-table"
+source = "site/blocks/settings-api-keys-table.md"
+path = "/blocks/settings-api-keys-table/"
+
+[[section.group.page]]
 title = "settings-billing-overview"
 source = "site/blocks/settings-billing-overview.md"
 path = "/blocks/settings-billing-overview/"
