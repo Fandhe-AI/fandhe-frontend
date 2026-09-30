@@ -177,10 +177,17 @@ enum LastUsed {
 }
 
 /// 一覧パネル（R0232 代表構成）。
+///
+/// 見出し階層は `section_heading`（H2「API キー」）を先頭に置き、
+/// `panel_heading`（H3「一覧」）をその下位見出しとする。逆順（H3 が H2 より
+/// 先に出る見出し階層逆転）は codex 指摘 PRRT_kwDOTarxgc6nYvWS の対象で
+/// あり、ToC 収集除外（モジュール doc「使用部品」節）とは別に DOM 上の
+/// 出現順そのものを是正する必要があった。
 fn list_panel() -> Node {
     div(
         vec![("data-blocks-settings-api-keys-table-panel", "list")],
         vec![
+            section_heading("API キー"),
             panel_heading("一覧"),
             div(
                 vec![("class", "blocks-settings-api-keys-table-toolbar")],
@@ -188,7 +195,6 @@ fn list_panel() -> Node {
                     div(
                         vec![],
                         vec![
-                            section_heading("API キー"),
                             el(
                                 "p",
                                 vec![],
@@ -275,8 +281,19 @@ fn list_panel() -> Node {
 
 /// 「権限」segment group（読み取り専用 / 読み書き、既定で読み取り専用を
 /// 選択済み）。
+///
+/// item 系パーツ全体を `disabled: true` にしてネイティブ操作を構造的に
+/// 禁止する（`form_layout_property_panel.rs` の `layout_section` と同型の
+/// 判断）。無 JS の静的デモでは `indicator` の選択位置
+/// （`Some((0, 2))`）を固定描画するしかなく、隠しラジオの `checked` を
+/// クリックで動かせる状態のまま残すと、視覚的インジケータと実際の選択
+/// 状態が乖離する（Bugbot 指摘 PRRT_kwDOTarxgc6nYvWS 対応）。
 fn scope_segment_group() -> Node {
     let props = SegmentGroupProps::default();
+    let disabled_props = SegmentGroupProps {
+        disabled: true,
+        ..props
+    };
     let label_id = "blocks-settings-api-keys-table-scope-label";
     div(
         vec![],
@@ -296,24 +313,24 @@ fn scope_segment_group() -> Node {
                 Some(label_id),
                 vec![],
                 vec![
-                    segment_group::indicator(Some((0, 2)), &props, None, vec![]),
+                    segment_group::indicator(Some((0, 2)), &disabled_props, None, vec![]),
                     segment_group::item(
                         true,
-                        &props,
+                        &disabled_props,
                         "read-only",
                         vec![],
                         vec![
                             segment_group::item_hidden_input(
                                 true,
-                                &props,
+                                &disabled_props,
                                 Some("blocks-settings-api-keys-table-scope"),
                                 "read-only",
                                 vec![],
                             ),
-                            segment_group::item_control(true, &props, vec![]),
+                            segment_group::item_control(true, &disabled_props, vec![]),
                             segment_group::item_text(
                                 true,
-                                &props,
+                                &disabled_props,
                                 vec![],
                                 vec![text("読み取り専用")],
                             ),
@@ -321,19 +338,24 @@ fn scope_segment_group() -> Node {
                     ),
                     segment_group::item(
                         false,
-                        &props,
+                        &disabled_props,
                         "read-write",
                         vec![],
                         vec![
                             segment_group::item_hidden_input(
                                 false,
-                                &props,
+                                &disabled_props,
                                 Some("blocks-settings-api-keys-table-scope"),
                                 "read-write",
                                 vec![],
                             ),
-                            segment_group::item_control(false, &props, vec![]),
-                            segment_group::item_text(false, &props, vec![], vec![text("読み書き")]),
+                            segment_group::item_control(false, &disabled_props, vec![]),
+                            segment_group::item_text(
+                                false,
+                                &disabled_props,
+                                vec![],
+                                vec![text("読み書き")],
+                            ),
                         ],
                     ),
                 ],

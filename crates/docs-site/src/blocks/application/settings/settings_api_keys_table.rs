@@ -18,8 +18,10 @@
 //! `crate::layout::with_heading_anchors` の収集対象になり、Demo 見出しが
 //! ページ右目次〔`.docs-toc`〕へ混入していた。`heading` は
 //! `data-scope="heading"` を持つため同関数の「`data-scope` を持つ要素の
-//! 部分木は収集除外」規則に構造的に乗り、一覧パネルの h3 が h2 より先に
-//! 出る見出し階層逆転も同時に解消する）。
+//! 部分木は収集除外」規則に構造的に乗る。一覧パネル内で h3「一覧」が
+//! h2「API キー」より先に出ていた見出し階層逆転は本対応とは別件で、
+//! `list_panel` 側で見出しの出現順を入れ替えて是正した（codex 指摘
+//! PRRT_kwDOTarxgc6nYvWS 対応、詳細は `list_panel` の doc 参照）。
 //!
 //! # native_select と field の関係
 //!
@@ -227,10 +229,17 @@ enum LastUsed {
 }
 
 /// 一覧パネル（R0232 代表構成）。
+///
+/// 見出し階層は `section_heading`（H2「API キー」）を先頭に置き、
+/// `panel_heading`（H3「一覧」）をその下位見出しとする。逆順（H3 が H2 より
+/// 先に出る見出し階層逆転）は codex 指摘 PRRT_kwDOTarxgc6nYvWS の対象で
+/// あり、ToC 収集除外（モジュール doc「使用部品」節）とは別に DOM 上の
+/// 出現順そのものを是正する必要があった。
 fn list_panel() -> Node {
     div(
         vec![("data-blocks-settings-api-keys-table-panel", "list")],
         vec![
+            section_heading("API キー"),
             panel_heading("一覧"),
             div(
                 vec![("class", "blocks-settings-api-keys-table-toolbar")],
@@ -238,7 +247,6 @@ fn list_panel() -> Node {
                     div(
                         vec![],
                         vec![
-                            section_heading("API キー"),
                             el(
                                 "p",
                                 vec![],
@@ -325,8 +333,19 @@ fn list_panel() -> Node {
 
 /// 「権限」segment group（読み取り専用 / 読み書き、既定で読み取り専用を
 /// 選択済み）。
+///
+/// item 系パーツ全体を `disabled: true` にしてネイティブ操作を構造的に
+/// 禁止する（`form_layout_property_panel.rs` の `layout_section` と同型の
+/// 判断）。無 JS の静的デモでは `indicator` の選択位置
+/// （`Some((0, 2))`）を固定描画するしかなく、隠しラジオの `checked` を
+/// クリックで動かせる状態のまま残すと、視覚的インジケータと実際の選択
+/// 状態が乖離する（Bugbot 指摘 PRRT_kwDOTarxgc6nYvWS 対応）。
 fn scope_segment_group() -> Node {
     let props = SegmentGroupProps::default();
+    let disabled_props = SegmentGroupProps {
+        disabled: true,
+        ..props
+    };
     let label_id = "blocks-settings-api-keys-table-scope-label";
     div(
         vec![],
@@ -346,24 +365,24 @@ fn scope_segment_group() -> Node {
                 Some(label_id),
                 vec![],
                 vec![
-                    segment_group::indicator(Some((0, 2)), &props, None, vec![]),
+                    segment_group::indicator(Some((0, 2)), &disabled_props, None, vec![]),
                     segment_group::item(
                         true,
-                        &props,
+                        &disabled_props,
                         "read-only",
                         vec![],
                         vec![
                             segment_group::item_hidden_input(
                                 true,
-                                &props,
+                                &disabled_props,
                                 Some("blocks-settings-api-keys-table-scope"),
                                 "read-only",
                                 vec![],
                             ),
-                            segment_group::item_control(true, &props, vec![]),
+                            segment_group::item_control(true, &disabled_props, vec![]),
                             segment_group::item_text(
                                 true,
-                                &props,
+                                &disabled_props,
                                 vec![],
                                 vec![text("読み取り専用")],
                             ),
@@ -371,19 +390,24 @@ fn scope_segment_group() -> Node {
                     ),
                     segment_group::item(
                         false,
-                        &props,
+                        &disabled_props,
                         "read-write",
                         vec![],
                         vec![
                             segment_group::item_hidden_input(
                                 false,
-                                &props,
+                                &disabled_props,
                                 Some("blocks-settings-api-keys-table-scope"),
                                 "read-write",
                                 vec![],
                             ),
-                            segment_group::item_control(false, &props, vec![]),
-                            segment_group::item_text(false, &props, vec![], vec![text("読み書き")]),
+                            segment_group::item_control(false, &disabled_props, vec![]),
+                            segment_group::item_text(
+                                false,
+                                &disabled_props,
+                                vec![],
+                                vec![text("読み書き")],
+                            ),
                         ],
                     ),
                 ],
@@ -804,5 +828,42 @@ mod tests {
     fn revoked_row_has_no_action_button_but_has_status_badge() {
         let html = demo_html();
         assert!(html.contains("失効済み"));
+    }
+
+    /// codex 指摘 PRRT_kwDOTarxgc6nYvWS の回帰ガード: 一覧パネルの
+    /// h2「API キー」が h3「一覧」より先に出現すること（見出し階層逆転の
+    /// 再発防止）。
+    #[test]
+    fn list_panel_heading_order_is_h2_before_h3() {
+        let html = demo_html();
+        let h2_pos = html
+            .find("API キー")
+            .expect("h2 見出しテキストが見つかるはず");
+        let h3_pos = html.find("一覧").expect("h3 見出しテキストが見つかるはず");
+        assert!(
+            h2_pos < h3_pos,
+            "h2「API キー」は h3「一覧」より先に出現するはず: h2_pos={h2_pos} h3_pos={h3_pos}"
+        );
+    }
+
+    /// cursor Bugbot 指摘 PRRT_kwDOTarxgc6nYykE の回帰ガード: 「権限」
+    /// segment group の item 系パーツが disabled になっており、無 JS で
+    /// 隠しラジオをクリックしても選択状態が変化しない（＝視覚的
+    /// インジケータとの desync が起きない）ことを固定する。
+    #[test]
+    fn scope_segment_group_items_are_disabled() {
+        let html = demo_html();
+        let scope_start = html
+            .find("blocks-settings-api-keys-table-scope-label")
+            .expect("権限 segment group が見つかるはず");
+        let scope_end = scope_start
+            + html[scope_start..]
+                .find("data-scope=\"field\"")
+                .expect("segment group の終端目安（次の field パーツ）が見つかるはず");
+        let scope_html = &html[scope_start..scope_end];
+        assert!(
+            scope_html.matches("data-disabled").count() >= 2,
+            "権限 segment group の item 系パーツは disabled であるはず: {scope_html}"
+        );
     }
 }
