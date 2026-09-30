@@ -59,6 +59,9 @@
 //! `LinkProps::external = true` でリンクする（PR #3440
 //! `settings_integration_detail` と同じ判断。`external: true` は
 //! `rel="noopener noreferrer"` を付与し reverse tabnabbing を防ぐ）。
+//! リンク文言は遷移先の実態（本リポジトリの GitHub ページ）と一致させ
+//! 「GitHub で見る」とする（近隣 block と同じ表記、PR #3441 Codex/Bugbot
+//! 指摘の是正。「詳細を見る」は全アプリ同一の遷移先と矛盾するため使わない）。
 //!
 //! # ダミー素材について
 //!
@@ -180,13 +183,19 @@ fn row(item: &Integration) -> Node {
         )
     };
 
+    // 接続/解除ボタンの可視ラベルは全行共通（「接続」/「解除」）のため、
+    // 支援技術がどのアプリへの操作か区別できるよう `aria-label` へアプリ名を
+    // 埋め込む（PR #3441 Codex 指摘）。
     let action_button = if item.connected {
         button(
             &ButtonProps {
                 variant: ButtonVariant::Outline,
                 ..ButtonProps::default()
             },
-            vec![("data-blocks-settings-integrations-list-action", "")],
+            vec![
+                ("data-blocks-settings-integrations-list-action", ""),
+                ("aria-label", &format!("{} の連携を解除", item.name)),
+            ],
             vec![text("解除")],
         )
     } else {
@@ -195,7 +204,10 @@ fn row(item: &Integration) -> Node {
                 variant: ButtonVariant::Solid,
                 ..ButtonProps::default()
             },
-            vec![("data-blocks-settings-integrations-list-action", "")],
+            vec![
+                ("data-blocks-settings-integrations-list-action", ""),
+                ("aria-label", &format!("{} と連携", item.name)),
+            ],
             vec![text("接続")],
         )
     };
@@ -217,7 +229,7 @@ fn row(item: &Integration) -> Node {
                     ..LinkProps::default()
                 },
                 vec![("data-blocks-settings-integrations-list-detail", "")],
-                vec![text("詳細を見る")],
+                vec![text("GitHub で見る")],
             ),
         ],
     );
@@ -308,11 +320,26 @@ pub const BLOCK: Block = Block {
 
 /// `settings_integrations_list` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
 /// doc「block 固有 CSS の置き場」節と同型）。
+///
+/// `group-title`（`h3`）/`list`（`ul`）/`row`（`li`）の 3 セレクタは、素の
+/// `.blocks-settings-integrations-list-*` 単一クラス（詳細度 (0,1,0)）のみで
+/// 宣言すると、サイト共通 typography（`site_theme.rs` の
+/// `.docs-content h3`/`.docs-content ul,ol`/`.docs-content li`、いずれも
+/// 詳細度 (0,1,1)）に負けて見出しサイズ・余白・リストの
+/// ビュレット/パディング/`margin-block` が意図通りにならない
+/// （PR #3441 Bugbot 指摘）。`.blocks-settings-integrations-list-stack`/
+/// `-list` を祖先に持つ子孫セレクタへ書き換えてクラス数を 2 に増やし
+/// （詳細度 (0,2,0)）、クラス数比較で `.docs-content h3` 等を確実に上回る
+/// （型セレクタの有無に依存しないため、`site.css`/本 CSS の読み込み順序に
+/// 左右されない）。`row` はさらに `margin-block: 0` を明示し、
+/// `.docs-content li` の `margin-block` を打ち消して行間を `border-top`
+/// のみに委ねる（image recipe base への `img[data-scope=...]` 上書きと同じ
+/// 「サイト共通スタイルは変更せず block 側で限定的に上回る」判断）。
 const LAYOUT_CSS: &str = "\
 .blocks-settings-integrations-list-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-settings-integrations-list;\n}\n\
-.blocks-settings-integrations-list-group-title {\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-semibold);\n  color: var(--fandhe-color-fg-muted);\n  margin: 0 0 var(--fandhe-space-2);\n}\n\
-.blocks-settings-integrations-list-list {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg);\n}\n\
-.blocks-settings-integrations-list-row {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr) auto;\n  grid-template-areas: \"logo body actions\";\n  align-items: center;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-4);\n}\n\
+.blocks-settings-integrations-list-stack .blocks-settings-integrations-list-group-title {\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-semibold);\n  color: var(--fandhe-color-fg-muted);\n  margin: 0 0 var(--fandhe-space-2);\n}\n\
+.blocks-settings-integrations-list-stack .blocks-settings-integrations-list-list {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg);\n}\n\
+.blocks-settings-integrations-list-list .blocks-settings-integrations-list-row {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr) auto;\n  grid-template-areas: \"logo body actions\";\n  align-items: center;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-4);\n  margin-block: 0;\n}\n\
 .blocks-settings-integrations-list-row + .blocks-settings-integrations-list-row {\n  border-top: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-settings-integrations-list-logo] {\n  grid-area: logo;\n}\n\
 img[data-scope=\"image\"][data-blocks-settings-integrations-list-logo] {\n  width: 2.5rem;\n  height: 2.5rem;\n}\n\
@@ -397,6 +424,37 @@ mod tests {
     }
 
     #[test]
+    fn detail_link_text_matches_destination() {
+        // 遷移先が全アプリ共通で本リポジトリの GitHub ページである実態に
+        // 合わせ、「詳細を見る」（詳細ページが実在するかのような誤解を招く
+        // 文言）ではなく「GitHub で見る」を使う（PR #3441 Codex/Bugbot 指摘）。
+        let html = demo_html();
+        assert!(!html.contains("詳細を見る"));
+        assert_eq!(html.matches("GitHub で見る").count(), 6);
+    }
+
+    #[test]
+    fn action_buttons_have_app_specific_accessible_name() {
+        // 「接続」「解除」だけでは支援技術上どのアプリへの操作か区別できない
+        // ため、`aria-label` にアプリ名を含める（PR #3441 Codex 指摘）。
+        let html = demo_html();
+        for name in [
+            "Lattice Notes",
+            "Harbor Calendar",
+            "Pulse Alerts",
+            "Ledger Sync",
+            "Beacon Chat",
+            "Quarry Storage",
+        ] {
+            assert!(
+                html.contains(&format!("aria-label=\"{name} ")),
+                "expected an accessible action-button label mentioning {name}"
+            );
+        }
+        assert_eq!(html.matches("aria-label=\"").count(), 6);
+    }
+
+    #[test]
     fn layout_css_is_safe_and_stacks_on_narrow_container() {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
@@ -413,5 +471,26 @@ mod tests {
         // （PR #3441 Bugbot 指摘、イシュー #2931 と同型）。
         assert!(LAYOUT_CSS
             .contains("img[data-scope=\"image\"][data-blocks-settings-integrations-list-logo]"));
+    }
+
+    #[test]
+    fn typography_selectors_beat_docs_content_specificity() {
+        // `.docs-content h3`/`.docs-content ul,ol`/`.docs-content li`
+        // （いずれも詳細度 (0,1,1)）に負けないよう、group-title/list/row は
+        // 2 クラスの子孫セレクタ（詳細度 (0,2,0)）で宣言する回帰ガード
+        // （PR #3441 Bugbot 指摘）。単一クラスの旧セレクタが復活していない
+        // ことも合わせて固定する。
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-settings-integrations-list-stack .blocks-settings-integrations-list-group-title {"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-settings-integrations-list-stack .blocks-settings-integrations-list-list {"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-settings-integrations-list-list .blocks-settings-integrations-list-row {"
+        ));
+        assert!(!LAYOUT_CSS.contains("\n.blocks-settings-integrations-list-group-title {"));
+        assert!(!LAYOUT_CSS.contains("\n.blocks-settings-integrations-list-list {"));
+        assert!(LAYOUT_CSS.contains("margin-block: 0;"));
     }
 }

@@ -131,13 +131,19 @@ fn row(item: &Integration) -> Node {
         )
     };
 
+    // 接続/解除ボタンの可視ラベルは全行共通（「接続」/「解除」）のため、
+    // 支援技術がどのアプリへの操作か区別できるよう `aria-label` へアプリ名を
+    // 埋め込む（PR #3441 Codex 指摘）。
     let action_button = if item.connected {
         button(
             &ButtonProps {
                 variant: ButtonVariant::Outline,
                 ..ButtonProps::default()
             },
-            vec![("data-blocks-settings-integrations-list-action", "")],
+            vec![
+                ("data-blocks-settings-integrations-list-action", ""),
+                ("aria-label", &format!("{} の連携を解除", item.name)),
+            ],
             vec![text("解除")],
         )
     } else {
@@ -146,7 +152,10 @@ fn row(item: &Integration) -> Node {
                 variant: ButtonVariant::Solid,
                 ..ButtonProps::default()
             },
-            vec![("data-blocks-settings-integrations-list-action", "")],
+            vec![
+                ("data-blocks-settings-integrations-list-action", ""),
+                ("aria-label", &format!("{} と連携", item.name)),
+            ],
             vec![text("接続")],
         )
     };
@@ -168,7 +177,7 @@ fn row(item: &Integration) -> Node {
                     ..LinkProps::default()
                 },
                 vec![("data-blocks-settings-integrations-list-detail", "")],
-                vec![text("詳細を見る")],
+                vec![text("GitHub で見る")],
             ),
         ],
     );
