@@ -2086,6 +2086,11 @@ source = "site/blocks/page-heading-meta.md"
 path = "/blocks/page-heading-meta/"
 
 [[section.group.page]]
+title = "page-heading-tabs"
+source = "site/blocks/page-heading-tabs.md"
+path = "/blocks/page-heading-tabs/"
+
+[[section.group.page]]
 title = "page-heading-welcome-stats"
 source = "site/blocks/page-heading-welcome-stats.md"
 path = "/blocks/page-heading-welcome-stats/"
