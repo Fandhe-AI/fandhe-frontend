@@ -10,7 +10,8 @@
 //! [`settings_log_table`]、イシュー #2998 で
 //! [`settings_notification_matrix`]、イシュー #2999 で
 //! [`settings_org_switcher`]、イシュー #3010 で
-//! [`settings_profile_form`] を追加した）。手順は
+//! [`settings_profile_form`]、イシュー #3015 で
+//! [`settings_switch_sections`] を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -32,6 +33,7 @@ mod settings_log_table;
 mod settings_notification_matrix;
 mod settings_org_switcher;
 mod settings_profile_form;
+mod settings_switch_sections;
 
 use crate::blocks::Block;
 
@@ -50,5 +52,6 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_notification_matrix::BLOCK,
         settings_org_switcher::BLOCK,
         settings_profile_form::BLOCK,
+        settings_switch_sections::BLOCK,
     ]
 }

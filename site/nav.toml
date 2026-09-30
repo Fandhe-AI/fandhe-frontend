@@ -2377,6 +2377,11 @@ title = "settings-profile-form"
 source = "site/blocks/settings-profile-form.md"
 path = "/blocks/settings-profile-form/"
 
+[[section.group.page]]
+title = "settings-switch-sections"
+source = "site/blocks/settings-switch-sections.md"
+path = "/blocks/settings-switch-sections/"
+
 [[section.group]]
 title = "Action Panel"
 
