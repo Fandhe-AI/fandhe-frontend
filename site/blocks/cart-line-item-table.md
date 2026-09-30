@@ -106,9 +106,13 @@ fn column_header(col: &'static str, label: &'static str) -> Node {
     )
 }
 
-/// 列見出し行（広幅のみ表示、狭幅では [`LAYOUT_CSS`] の
-/// `@container` で非表示にする）。`role="row"` で [`row_group`] 配下の
-/// 商品行と同じ行として関連付ける。
+/// 列見出し行（広幅では通常表示、狭幅では [`LAYOUT_CSS`] の
+/// `@container` で [`cell_label`] と同じ clip 手法により視覚的にのみ隠す。
+/// `display: none` にすると `role="columnheader"` の見出しごとアクセシビ
+/// リティツリーから消え、狭幅時に `role="table"` を付けた目的である列見出し
+/// との関連付けがテーブルナビゲーションで得られなくなるため（PR #3461
+/// レビュー指摘対応）。`role="row"` で [`row_group`] 配下の商品行と同じ行
+/// として関連付ける。
 fn column_headers() -> Node {
     div(
         vec![

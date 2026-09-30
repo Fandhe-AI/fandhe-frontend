@@ -127,9 +127,13 @@ fn column_header(col: &'static str, label: &'static str) -> Node {
     )
 }
 
-/// 列見出し行（広幅のみ表示、狭幅では [`LAYOUT_CSS`] の
-/// `@container` で非表示にする）。`role="row"` で [`row_group`] 配下の
-/// 商品行と同じ行として関連付ける。
+/// 列見出し行（広幅では通常表示、狭幅では [`LAYOUT_CSS`] の
+/// `@container` で [`cell_label`] と同じ clip 手法により視覚的にのみ隠す。
+/// `display: none` にすると `role="columnheader"` の見出しごとアクセシビ
+/// リティツリーから消え、狭幅時に `role="table"` を付けた目的である列見出し
+/// との関連付けがテーブルナビゲーションで得られなくなるため（PR #3461
+/// レビュー指摘対応）。`role="row"` で [`row_group`] 配下の商品行と同じ行
+/// として関連付ける。
 fn column_headers() -> Node {
     div(
         vec![
@@ -447,7 +451,7 @@ const LAYOUT_CSS: &str = "\
 img[data-scope=\"image\"][data-blocks-cart-line-item-table-thumb] {\n  width: 4rem;\n  height: 4rem;\n  flex-shrink: 0;\n}\n\
 .blocks-cart-line-item-table-cell-label {\n  position: absolute;\n  width: 1px;\n  height: 1px;\n  padding: 0;\n  margin: -1px;\n  overflow: hidden;\n  clip: rect(0, 0, 0, 0);\n  white-space: nowrap;\n  border-width: 0;\n}\n\
 .blocks-cart-line-item-table-summary {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-end;\n  gap: var(--fandhe-space-4);\n}\n\
-@container blocks-cart-line-item-table (max-width: 40rem) {\n  .blocks-cart-line-item-table-head {\n    display: none;\n  }\n  .blocks-cart-line-item-table-row {\n    grid-template-columns: 4rem minmax(0, 1fr);\n  }\n  .blocks-cart-line-item-table-product {\n    grid-column: 1 / -1;\n  }\n  .blocks-cart-line-item-table-cell {\n    grid-column: 2;\n  }\n  .blocks-cart-line-item-table-cell-label {\n    position: static;\n    width: auto;\n    height: auto;\n    padding: 0;\n    margin: 0 var(--fandhe-space-1) 0 0;\n    overflow: visible;\n    clip: auto;\n    white-space: normal;\n    color: var(--fandhe-color-fg-muted);\n  }\n}\n";
+@container blocks-cart-line-item-table (max-width: 40rem) {\n  .blocks-cart-line-item-table-head {\n    position: absolute;\n    width: 1px;\n    height: 1px;\n    padding: 0;\n    margin: -1px;\n    overflow: hidden;\n    clip: rect(0, 0, 0, 0);\n    white-space: nowrap;\n    border-width: 0;\n  }\n  .blocks-cart-line-item-table-row {\n    grid-template-columns: 4rem minmax(0, 1fr);\n  }\n  .blocks-cart-line-item-table-product {\n    grid-column: 1 / -1;\n  }\n  .blocks-cart-line-item-table-cell {\n    grid-column: 2;\n  }\n  .blocks-cart-line-item-table-cell-label {\n    position: static;\n    width: auto;\n    height: auto;\n    padding: 0;\n    margin: 0 var(--fandhe-space-1) 0 0;\n    overflow: visible;\n    clip: auto;\n    white-space: normal;\n    color: var(--fandhe-color-fg-muted);\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -525,7 +529,8 @@ mod tests {
     fn layout_css_is_safe_and_switches_at_narrow_width() {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains("@container blocks-cart-line-item-table"));
-        assert!(LAYOUT_CSS.contains(".blocks-cart-line-item-table-head {\n    display: none;"));
+        assert!(LAYOUT_CSS.contains(".blocks-cart-line-item-table-head {\n    position: absolute;"));
+        assert!(!LAYOUT_CSS.contains(".blocks-cart-line-item-table-head {\n    display: none;"));
         assert!(LAYOUT_CSS.contains("grid-template-columns:"));
     }
 
