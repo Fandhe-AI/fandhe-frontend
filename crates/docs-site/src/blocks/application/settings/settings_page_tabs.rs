@@ -36,8 +36,8 @@
 //!
 //! `tab_nav::root` の `aria-label` は本 block 内で一意にする。「API」タブへ
 //! `aria-current="page"` を固定し、無 JS のため他タブは押しても遷移しない
-//! （`href` の方針はモジュール doc「`href` は現在地が `./`・他は自リポジトリ
-//! の実在 URL」節参照）。
+//! （`href` の方針はモジュール doc「`href` はすべて `./`」節参照。他タブを
+//! 押しても本 Demo〔設定画面〕から離脱しない）。
 //!
 //! # 狭幅ではタブを横スクロールする
 //!
@@ -68,15 +68,22 @@
 //! ラッパーのみ `class="blocks-settings-page-tabs-*"` を使う
 //! （`navbar_app_links`/`profile_detail_datalist` と同型の判断）。
 //!
-//! # `href` は現在地が `./`・他は自リポジトリの実在 URL
+//! # ナビは実在 URL、タブはすべて `./`（codex レビュー P1 是正）
 //!
 //! docs サイトの link check（`crate::linkcheck`）は絶対パス（`/settings` 等）
 //! を実在ページとして検証するため、サイトに存在しない架空パスは使えない
 //! （`navbar_app_links.rs`・`comparison_table.rs` 等の既存 block も同じ制約
-//! に従う）。現在地リンク（ナビの「設定」・タブの「API」）は `href="./"`
-//! （自ページを指す相対パスで常に有効）、他のリンクは `navbar_app_links.rs`
-//! と同じ自リポジトリ・自組織の実在 URL（`REPO`/`ORG`）を使う。`href="#"`・
-//! `data:` URI は持ち込まない。
+//! に従う）。ナビバーの別アプリ領域（ダッシュボード/プロジェクト）は
+//! `navbar_app_links.rs` と同じ自リポジトリ・自組織の実在 URL
+//! （`REPO`/`ORG`）へ遷移してよいが、タブは同一の設定画面内の他セクション
+//! （一般/メンバー/API/プラン/請求）を表すため、「一般」等の未実装タブを
+//! `REPO`/`ORG` へリンクすると利用者が設定画面から離脱してしまう
+//! （当初実装への codex レビュー指摘）。無 JS のためパネル切替はできず
+//! 実在するフラグメント先も持たないので、全タブの `href` を `"./"`
+//! （自ページを指す相対パスで常に有効・常に設定画面内に留まる）へ統一する。
+//! 現在地（ナビの「設定」・タブの「API」）も同じ `href="./"` のため、
+//! `aria-current="page"` の有無のみが選択状態の唯一の手がかりとなる。
+//! `href="#"`・`data:` URI は持ち込まない。
 //!
 //! # アイコンは自作の線画
 //!
@@ -242,11 +249,11 @@ fn page_heading() -> Node {
         "設定セクション",
         vec![("data-blocks-settings-page-tabs-tabs", "")],
         vec![
-            tab_nav::link(REPO, false, vec![], vec![text("一般")]),
-            tab_nav::link(ORG, false, vec![], vec![text("メンバー")]),
+            tab_nav::link("./", false, vec![], vec![text("一般")]),
+            tab_nav::link("./", false, vec![], vec![text("メンバー")]),
             tab_nav::link("./", true, vec![], vec![text("API")]),
-            tab_nav::link(REPO, false, vec![], vec![text("プラン")]),
-            tab_nav::link(ORG, false, vec![], vec![text("請求")]),
+            tab_nav::link("./", false, vec![], vec![text("プラン")]),
+            tab_nav::link("./", false, vec![], vec![text("請求")]),
         ],
     );
     div(
@@ -302,7 +309,7 @@ fn api_access_card() -> Node {
                             &field_props,
                             vec![
                                 ("aria-label", "アクセスキー"),
-                                ("value", "sk_live_••••••••4f2a"),
+                                ("value", "fd_demo_••••••••4f2a"),
                             ],
                         ),
                         input_group::addon(
@@ -371,19 +378,19 @@ fn api_keys_table_card() -> Node {
     let rows: [ApiKeyRow; 3] = [
         ApiKeyRow {
             name: "本番サーバー",
-            prefix: "sk_live_",
+            prefix: "fd_demo_prod_",
             scope: "読み取り/書き込み",
             last_used: "2026-09-28",
         },
         ApiKeyRow {
             name: "CI パイプライン",
-            prefix: "sk_ci_",
+            prefix: "fd_demo_ci_",
             scope: "読み取りのみ",
             last_used: "2026-09-25",
         },
         ApiKeyRow {
             name: "検証環境",
-            prefix: "sk_test_",
+            prefix: "fd_demo_test_",
             scope: "読み取り/書き込み",
             last_used: "未使用",
         },
@@ -421,7 +428,7 @@ fn api_keys_table_card() -> Node {
         vec![("data-blocks-settings-page-tabs-keys-card", "")],
         vec![
             card::header(
-                vec![],
+                vec![("data-has-action", "")],
                 vec![
                     card::title(vec![], vec![text("発行済み API キー")]),
                     card::action(
@@ -585,11 +592,13 @@ mod tests {
 
     /// `aria-current="page"` がタブ内でちょうど 1 回、ナビゲーション
     /// メニュー内でちょうど 1 回（初期状態固定）出現すること。
+    /// `href="./"` はナビの「設定」+ タブ 5 件（全タブが設定画面内に
+    /// 留まる、codex レビュー P1 是正）の計 6 回出現する。
     #[test]
     fn exactly_one_tab_and_one_nav_item_are_current() {
         let html = render(&demo());
         assert_eq!(html.matches(r#"aria-current="page""#).count(), 2);
-        assert_eq!(html.matches(r#"href="./""#).count(), 2);
+        assert_eq!(html.matches(r#"href="./""#).count(), 6);
     }
 
     /// menu の `content_id` が行数分すべて相異なり、`aria-controls` の

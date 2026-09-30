@@ -166,11 +166,11 @@ fn page_heading() -> Node {
         "設定セクション",
         vec![("data-blocks-settings-page-tabs-tabs", "")],
         vec![
-            tab_nav::link(REPO, false, vec![], vec![text("一般")]),
-            tab_nav::link(ORG, false, vec![], vec![text("メンバー")]),
+            tab_nav::link("./", false, vec![], vec![text("一般")]),
+            tab_nav::link("./", false, vec![], vec![text("メンバー")]),
             tab_nav::link("./", true, vec![], vec![text("API")]),
-            tab_nav::link(REPO, false, vec![], vec![text("プラン")]),
-            tab_nav::link(ORG, false, vec![], vec![text("請求")]),
+            tab_nav::link("./", false, vec![], vec![text("プラン")]),
+            tab_nav::link("./", false, vec![], vec![text("請求")]),
         ],
     );
     div(
@@ -226,7 +226,7 @@ fn api_access_card() -> Node {
                             &field_props,
                             vec![
                                 ("aria-label", "アクセスキー"),
-                                ("value", "sk_live_••••••••4f2a"),
+                                ("value", "fd_demo_••••••••4f2a"),
                             ],
                         ),
                         input_group::addon(
@@ -295,19 +295,19 @@ fn api_keys_table_card() -> Node {
     let rows: [ApiKeyRow; 3] = [
         ApiKeyRow {
             name: "本番サーバー",
-            prefix: "sk_live_",
+            prefix: "fd_demo_prod_",
             scope: "読み取り/書き込み",
             last_used: "2026-09-28",
         },
         ApiKeyRow {
             name: "CI パイプライン",
-            prefix: "sk_ci_",
+            prefix: "fd_demo_ci_",
             scope: "読み取りのみ",
             last_used: "2026-09-25",
         },
         ApiKeyRow {
             name: "検証環境",
-            prefix: "sk_test_",
+            prefix: "fd_demo_test_",
             scope: "読み取り/書き込み",
             last_used: "未使用",
         },
@@ -345,7 +345,7 @@ fn api_keys_table_card() -> Node {
         vec![("data-blocks-settings-page-tabs-keys-card", "")],
         vec![
             card::header(
-                vec![],
+                vec![("data-has-action", "")],
                 vec![
                     card::title(vec![], vec![text("発行済み API キー")]),
                     card::action(
