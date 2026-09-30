@@ -158,20 +158,37 @@ fn navbar() -> Node {
     )
 }
 
+/// タブ項目（id, ラベル, 現在地か）。現在地タブ（「API」）のみ `href="./"`
+/// （自ページへの自己参照）、他タブは `#<id>` で [`other_section_stub`] の
+/// 見出しへリンクする（モジュール doc「ナビは実在 URL、タブは現在地のみ
+/// `./`・他タブは実在フラグメント」節参照）。
+const TAB_ITEMS: [(&str, &str, bool); 5] = [
+    ("general", "一般", false),
+    ("members", "メンバー", false),
+    ("api", "API", true),
+    ("plan", "プラン", false),
+    ("billing", "請求", false),
+];
+
 /// タブ見出し（heading「設定」+ タブ列。「API」タブを初期状態として固定
 /// 表示する）。
 fn page_heading() -> Node {
+    let tab_nodes: Vec<Node> = TAB_ITEMS
+        .iter()
+        .map(|(id, label, current)| {
+            let href = if *current {
+                "./".to_string()
+            } else {
+                format!("#{id}")
+            };
+            tab_nav::link(&href, *current, vec![], vec![text(*label)])
+        })
+        .collect();
     let tabs = tab_nav::root(
         Size::Md,
         "設定セクション",
         vec![("data-blocks-settings-page-tabs-tabs", "")],
-        vec![
-            tab_nav::link("./", false, vec![], vec![text("一般")]),
-            tab_nav::link("./", false, vec![], vec![text("メンバー")]),
-            tab_nav::link("./", true, vec![], vec![text("API")]),
-            tab_nav::link("./", false, vec![], vec![text("プラン")]),
-            tab_nav::link("./", false, vec![], vec![text("請求")]),
-        ],
+        tab_nodes,
     );
     div(
         vec![("class", "blocks-settings-page-tabs-heading")],
@@ -260,13 +277,17 @@ struct ApiKeyRow {
 }
 
 /// 発行済み API キーの操作メニュー（無 JS のため `disabled: true` 固定）。
-fn key_actions_menu(content_id: &str) -> Node {
+/// `aria-label` は行名（`row_name`）を含めて行ごとに一意にする（codex/
+/// Bugbot レビュー指摘: 全行「行の操作」では対象行をスクリーンリーダーが
+/// 区別できない）。
+fn key_actions_menu(content_id: &str, row_name: &str) -> Node {
+    let trigger_label = format!("{row_name}の操作");
     let trigger = menu::trigger(
         OpenState::Closed,
         true,
         Some(content_id),
         vec![
-            ("aria-label", "行の操作"),
+            ("aria-label", trigger_label.as_str()),
             ("data-blocks-settings-page-tabs-key-trigger", ""),
         ],
         vec![kebab_icon()],
@@ -334,7 +355,7 @@ fn api_keys_table_card() -> Node {
                         )],
                     ),
                     table::cell(vec![], vec![text(row.last_used)]),
-                    table::cell(vec![], vec![key_actions_menu(&content_id)]),
+                    table::cell(vec![], vec![key_actions_menu(&content_id, row.name)]),
                 ],
             )
         })
@@ -395,9 +416,36 @@ fn api_keys_table_card() -> Node {
     )
 }
 
+/// 非選択タブ（一般/メンバー/プラン/請求）の実在するリンク先。版 B（#3008、
+/// プラン・請求のフル本文）着手前・一般/メンバーは着手予定なしのため、
+/// 「準備中」であることを示す最小限の見出しスタブのみを置き、タブの
+/// `href="#<id>"` を実在させる（モジュール doc「ナビは実在 URL、タブは
+/// 現在地のみ `./`・他タブは実在フラグメント」節参照、codex レビュー P1
+/// 是正 v2）。
+fn other_section_stub(id: &str, label: &str) -> Node {
+    card::root(
+        CardProps::default(),
+        vec![("id", id), ("data-blocks-settings-page-tabs-stub", "")],
+        vec![card::header(
+            vec![],
+            vec![
+                card::title(vec![], vec![text(label)]),
+                card::description(vec![], vec![text("このセクションは準備中です。")]),
+            ],
+        )],
+    )
+}
+
 /// `settings-page-tabs` の Demo 本体。呼び出しごとに同一の `Node` を返す
 /// 純関数（骨格 + 版 A のみ、#3008 で版 B を追加する）。
 pub fn demo() -> Node {
+    let mut content = vec![api_access_card(), api_keys_table_card()];
+    content.extend(
+        TAB_ITEMS
+            .iter()
+            .filter(|(_, _, current)| !current)
+            .map(|(id, label, _)| other_section_stub(id, label)),
+    );
     div(
         vec![("class", "blocks-settings-page-tabs-stack")],
         vec![
@@ -405,7 +453,7 @@ pub fn demo() -> Node {
             page_heading(),
             div(
                 vec![("class", "blocks-settings-page-tabs-content")],
-                vec![api_access_card(), api_keys_table_card()],
+                content,
             ),
         ],
     )

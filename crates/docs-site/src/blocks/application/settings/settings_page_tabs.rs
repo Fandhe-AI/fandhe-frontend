@@ -47,6 +47,11 @@
 //! 満たされるため、コンテナクエリでの分岐は不要）。[`LAYOUT_CSS`] が
 //! `data-blocks-settings-page-tabs-tabs` 付きの `tab-nav` root へ
 //! `overflow-x: auto; flex-wrap: nowrap; white-space: nowrap;` を宣言する。
+//! `.blocks-settings-page-tabs-heading` は親（`.blocks-settings-page-tabs-stack`
+//! の flex column）の item であるため、`min-width: 0` を明示しないと縦積み
+//! flex item の既定最小幅（内容の自然幅）に縛られ、子の `overflow-x: auto`
+//! が実際には発火せず設定ページ全体が横スクロールしてしまう
+//! （Bugbot レビュー指摘の是正）。
 //!
 //! # 版 A: API 設定（`card` + `input_group` + `table` + `menu` + `badge`）
 //!
@@ -57,7 +62,14 @@
 //! 〔`menu`〕）を持つ。`menu` の `content_id` は行ごとに一意にする
 //! （`blocks-settings-page-tabs-key-menu-{n}`、
 //! `blocks_contract.rs::demo_output_has_no_dangling_aria_references_or_duplicate_ids`
-//! の対象）。
+//! の対象）。トリガーの `aria-label` も行名を含めて行ごとに一意にする
+//! （`"<行名>の操作"`。全行同一の「行の操作」では対象行をスクリーン
+//! リーダーが区別できないという codex/Bugbot レビュー指摘の是正）。無 JS
+//! のため `disabled: true` 固定だが、既定の `[data-disabled]` スタイル
+//! （`opacity: 0.5`）は「操作しても変わらない」ことを示す意図に反し他の
+//! 非活性ボタンと表示強度が不揃いになるため、[`LAYOUT_CSS`] で
+//! `opacity: 1` へ中和する（`page_heading_tabs.rs::view_switch` と同型の
+//! 是正）。
 //!
 //! # `class` と `data-*` の使い分け
 //!
@@ -68,7 +80,8 @@
 //! ラッパーのみ `class="blocks-settings-page-tabs-*"` を使う
 //! （`navbar_app_links`/`profile_detail_datalist` と同型の判断）。
 //!
-//! # ナビは実在 URL、タブはすべて `./`（codex レビュー P1 是正）
+//! # ナビは実在 URL、タブは現在地のみ `./`・他タブは実在フラグメント
+//! （codex レビュー P1 是正 v2）
 //!
 //! docs サイトの link check（`crate::linkcheck`）は絶対パス（`/settings` 等）
 //! を実在ページとして検証するため、サイトに存在しない架空パスは使えない
@@ -76,14 +89,20 @@
 //! に従う）。ナビバーの別アプリ領域（ダッシュボード/プロジェクト）は
 //! `navbar_app_links.rs` と同じ自リポジトリ・自組織の実在 URL
 //! （`REPO`/`ORG`）へ遷移してよいが、タブは同一の設定画面内の他セクション
-//! （一般/メンバー/API/プラン/請求）を表すため、「一般」等の未実装タブを
-//! `REPO`/`ORG` へリンクすると利用者が設定画面から離脱してしまう
-//! （当初実装への codex レビュー指摘）。無 JS のためパネル切替はできず
-//! 実在するフラグメント先も持たないので、全タブの `href` を `"./"`
-//! （自ページを指す相対パスで常に有効・常に設定画面内に留まる）へ統一する。
-//! 現在地（ナビの「設定」・タブの「API」）も同じ `href="./"` のため、
-//! `aria-current="page"` の有無のみが選択状態の唯一の手がかりとなる。
-//! `href="#"`・`data:` URI は持ち込まない。
+//! （一般/メンバー/API/プラン/請求）を表すため、`REPO`/`ORG` へリンクすると
+//! 利用者が設定画面から離脱してしまう（当初実装への codex レビュー指摘）。
+//!
+//! 当初は全タブの `href` を `"./"` に統一していたが、これは非選択タブを
+//! クリックしても同一ページを再読み込みするだけで操作結果と表示が一致せず、
+//! 別 block（`page_heading_tabs.rs`、イシュー #2934）が確立した「無 JS の
+//! 静的 SSR ページではページ内フラグメントリンクを実在させる」規約に反する
+//! との指摘を受けた（codex レビュー P1 是正 v2）。本 block も同じ規約を
+//! 採用する: 現在地タブ（「API」）のみ自ページを指す `href="./"` を維持し
+//! （すでに表示中のセクションへの自己参照であり誤解を生まない）、他タブは
+//! `href="#<id>"` で [`other_section_stub`] が出力する実在の見出し `id` へ
+//! リンクする。版 B（#3008、プラン・請求のフル本文）が未着手の間は「準備中」
+//! を示す最小限のスタブ見出しのみを置き、タブとして提示する以上は実在する
+//! 遷移先を必ず持たせる（`href="#"`・`data:` URI は持ち込まない）。
 //!
 //! # アイコンは自作の線画
 //!
@@ -241,20 +260,37 @@ fn navbar() -> Node {
     )
 }
 
+/// タブ項目（id, ラベル, 現在地か）。現在地タブ（「API」）のみ `href="./"`
+/// （自ページへの自己参照）、他タブは `#<id>` で [`other_section_stub`] の
+/// 見出しへリンクする（モジュール doc「ナビは実在 URL、タブは現在地のみ
+/// `./`・他タブは実在フラグメント」節参照）。
+const TAB_ITEMS: [(&str, &str, bool); 5] = [
+    ("general", "一般", false),
+    ("members", "メンバー", false),
+    ("api", "API", true),
+    ("plan", "プラン", false),
+    ("billing", "請求", false),
+];
+
 /// タブ見出し（heading「設定」+ タブ列。「API」タブを初期状態として固定
 /// 表示する）。
 fn page_heading() -> Node {
+    let tab_nodes: Vec<Node> = TAB_ITEMS
+        .iter()
+        .map(|(id, label, current)| {
+            let href = if *current {
+                "./".to_string()
+            } else {
+                format!("#{id}")
+            };
+            tab_nav::link(&href, *current, vec![], vec![text(*label)])
+        })
+        .collect();
     let tabs = tab_nav::root(
         Size::Md,
         "設定セクション",
         vec![("data-blocks-settings-page-tabs-tabs", "")],
-        vec![
-            tab_nav::link("./", false, vec![], vec![text("一般")]),
-            tab_nav::link("./", false, vec![], vec![text("メンバー")]),
-            tab_nav::link("./", true, vec![], vec![text("API")]),
-            tab_nav::link("./", false, vec![], vec![text("プラン")]),
-            tab_nav::link("./", false, vec![], vec![text("請求")]),
-        ],
+        tab_nodes,
     );
     div(
         vec![("class", "blocks-settings-page-tabs-heading")],
@@ -343,13 +379,17 @@ struct ApiKeyRow {
 }
 
 /// 発行済み API キーの操作メニュー（無 JS のため `disabled: true` 固定）。
-fn key_actions_menu(content_id: &str) -> Node {
+/// `aria-label` は行名（`row_name`）を含めて行ごとに一意にする（codex/
+/// Bugbot レビュー指摘: 全行「行の操作」では対象行をスクリーンリーダーが
+/// 区別できない）。
+fn key_actions_menu(content_id: &str, row_name: &str) -> Node {
+    let trigger_label = format!("{row_name}の操作");
     let trigger = menu::trigger(
         OpenState::Closed,
         true,
         Some(content_id),
         vec![
-            ("aria-label", "行の操作"),
+            ("aria-label", trigger_label.as_str()),
             ("data-blocks-settings-page-tabs-key-trigger", ""),
         ],
         vec![kebab_icon()],
@@ -417,7 +457,7 @@ fn api_keys_table_card() -> Node {
                         )],
                     ),
                     table::cell(vec![], vec![text(row.last_used)]),
-                    table::cell(vec![], vec![key_actions_menu(&content_id)]),
+                    table::cell(vec![], vec![key_actions_menu(&content_id, row.name)]),
                 ],
             )
         })
@@ -478,9 +518,36 @@ fn api_keys_table_card() -> Node {
     )
 }
 
+/// 非選択タブ（一般/メンバー/プラン/請求）の実在するリンク先。版 B（#3008、
+/// プラン・請求のフル本文）着手前・一般/メンバーは着手予定なしのため、
+/// 「準備中」であることを示す最小限の見出しスタブのみを置き、タブの
+/// `href="#<id>"` を実在させる（モジュール doc「ナビは実在 URL、タブは
+/// 現在地のみ `./`・他タブは実在フラグメント」節参照、codex レビュー P1
+/// 是正 v2）。
+fn other_section_stub(id: &str, label: &str) -> Node {
+    card::root(
+        CardProps::default(),
+        vec![("id", id), ("data-blocks-settings-page-tabs-stub", "")],
+        vec![card::header(
+            vec![],
+            vec![
+                card::title(vec![], vec![text(label)]),
+                card::description(vec![], vec![text("このセクションは準備中です。")]),
+            ],
+        )],
+    )
+}
+
 /// `settings-page-tabs` の Demo 本体。呼び出しごとに同一の `Node` を返す
 /// 純関数（骨格 + 版 A のみ、#3008 で版 B を追加する）。
 pub fn demo() -> Node {
+    let mut content = vec![api_access_card(), api_keys_table_card()];
+    content.extend(
+        TAB_ITEMS
+            .iter()
+            .filter(|(_, _, current)| !current)
+            .map(|(id, label, _)| other_section_stub(id, label)),
+    );
     div(
         vec![("class", "blocks-settings-page-tabs-stack")],
         vec![
@@ -488,7 +555,7 @@ pub fn demo() -> Node {
             page_heading(),
             div(
                 vec![("class", "blocks-settings-page-tabs-content")],
-                vec![api_access_card(), api_keys_table_card()],
+                content,
             ),
         ],
     )
@@ -555,10 +622,11 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-page-tabs-navbar {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n  padding-block: var(--fandhe-space-3);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-settings-page-tabs-logo] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  white-space: nowrap;\n}\n\
 [data-blocks-settings-page-tabs-navbar-cta] {\n  margin-inline-start: auto;\n}\n\
-.blocks-settings-page-tabs-heading {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
+.blocks-settings-page-tabs-heading {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  min-width: 0;\n}\n\
 [data-scope=\"tab-nav\"][data-part=\"root\"][data-blocks-settings-page-tabs-tabs] {\n  overflow-x: auto;\n  flex-wrap: nowrap;\n  white-space: nowrap;\n}\n\
 .blocks-settings-page-tabs-content {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
-[data-blocks-settings-page-tabs-access-group] {\n  max-inline-size: 28rem;\n}\n";
+[data-blocks-settings-page-tabs-access-group] {\n  max-inline-size: 28rem;\n}\n\
+.blocks-settings-page-tabs-stack [data-scope=\"menu\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -592,13 +660,24 @@ mod tests {
 
     /// `aria-current="page"` がタブ内でちょうど 1 回、ナビゲーション
     /// メニュー内でちょうど 1 回（初期状態固定）出現すること。
-    /// `href="./"` はナビの「設定」+ タブ 5 件（全タブが設定画面内に
-    /// 留まる、codex レビュー P1 是正）の計 6 回出現する。
+    /// `href="./"` はナビの「設定」+ 現在地タブ「API」の計 2 回のみ出現し、
+    /// 他タブは実在フラグメント（`href="#<id>"`）を指す（codex レビュー
+    /// P1 是正 v2、モジュール doc参照）。
     #[test]
     fn exactly_one_tab_and_one_nav_item_are_current() {
         let html = render(&demo());
         assert_eq!(html.matches(r#"aria-current="page""#).count(), 2);
-        assert_eq!(html.matches(r#"href="./""#).count(), 6);
+        assert_eq!(html.matches(r#"href="./""#).count(), 2);
+        for id in ["general", "members", "plan", "billing"] {
+            assert!(
+                html.contains(&format!("href=\"#{id}\"")),
+                "tab href should point to #{id}"
+            );
+            assert!(
+                html.contains(&format!(r#"id="{id}""#)),
+                "stub section id={id} should exist"
+            );
+        }
     }
 
     /// menu の `content_id` が行数分すべて相異なり、`aria-controls` の
@@ -617,12 +696,32 @@ mod tests {
         }
     }
 
+    /// 行操作メニューの `aria-label` が行名を含み、行ごとに相異なること
+    /// （codex/Bugbot レビュー指摘の是正、モジュール doc参照）。
+    #[test]
+    fn key_actions_menu_aria_labels_are_unique_per_row() {
+        let html = render(&demo());
+        for name in ["本番サーバー", "CI パイプライン", "検証環境"] {
+            assert!(
+                html.contains(&format!(r#"aria-label="{name}の操作""#)),
+                "expected unique aria-label for row {name}"
+            );
+        }
+    }
+
     /// `LAYOUT_CSS` に `<` が無く、横スクロール・コンテナ宣言を含むこと。
+    /// 狭幅横スクロールを実際に発火させる `min-width: 0` と、無 JS の
+    /// disabled 行メニューを他の非活性ボタンと揃える `opacity: 1` 中和も
+    /// 含むこと（Bugbot レビュー指摘の是正）。
     #[test]
     fn layout_css_has_no_breakout_and_has_scroll_rules() {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains("overflow-x: auto;"));
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
+        assert!(LAYOUT_CSS.contains("min-width: 0;"));
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"menu\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n}"
+        ));
     }
 
     /// ルート class（`demo_class` とは別名）が [`demo`] の出力へ実際に
