@@ -415,6 +415,10 @@ fn version_featured() -> Node {
 }
 
 /// パンくずリスト（両版で共通）。
+/// `../` は本ページ（`/blocks/help-center-collection-grid/`）から見て
+/// Blocks インデックスを指すため、ラベルも実リンク先と一致させて
+/// 「Blocks」とする（姉妹ブロック help-center-article-list 系の修正と
+/// 同じ判断、PR #3428 レビュー指摘対応）。
 fn breadcrumb_row() -> Node {
     breadcrumb::root(
         Size::Md,
@@ -426,7 +430,7 @@ fn breadcrumb_row() -> Node {
             vec![
                 breadcrumb::item(
                     vec![],
-                    vec![breadcrumb::link("../", vec![], vec![text("Help Center")])],
+                    vec![breadcrumb::link("../", vec![], vec![text("Blocks")])],
                 ),
                 breadcrumb::separator(vec![], vec![text("/")]),
                 breadcrumb::item(
