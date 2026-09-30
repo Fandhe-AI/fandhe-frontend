@@ -133,19 +133,35 @@ fn status_badge(connected: bool) -> Node {
 }
 
 /// 接続/解除ボタン（未接続: Outline「接続」・接続済み: Ghost「解除」）。
-fn connect_button(connected: bool) -> Node {
-    let (variant, label) = if connected {
-        (ButtonVariant::Ghost, "解除")
+fn connect_button(app: &Integration) -> Node {
+    let (variant, label, aria_label) = if app.connected {
+        (
+            ButtonVariant::Ghost,
+            "解除",
+            format!("{} の連携を解除", app.name),
+        )
     } else {
-        (ButtonVariant::Outline, "接続")
+        (
+            ButtonVariant::Outline,
+            "接続",
+            format!("{} に接続", app.name),
+        )
     };
+    action_button(variant, label, &aria_label)
+}
+
+/// カードの操作ボタン（可視ラベルは全カード共通のため、`aria-label` に
+/// アプリ名を含めて支援技術が操作対象を区別できるようにする。可視ラベルを
+/// そのまま含めて WCAG 2.5.3 Label in Name も満たす。
+/// `settings_integrations_list` と同じ扱い、PR #3442 レビュー指摘の是正）。
+fn action_button(variant: ButtonVariant, label: &str, aria_label: &str) -> Node {
     button(
         &ButtonProps {
             variant,
             size: Size::Sm,
             ..ButtonProps::default()
         },
-        vec![],
+        vec![("aria-label", aria_label)],
         vec![text(label)],
     )
 }
@@ -165,24 +181,45 @@ fn detail_link() -> Node {
     )
 }
 
-/// 版 A・C 共通のカード footer（詳細リンク + 右側アクション 1 個）。
-fn card_footer_row(action: Node) -> Node {
+/// 全版共通のカード footer（左: リンク・右: 操作群）。操作が複数でも
+/// `-actions` でまとめて右端へ寄せ、`space-between` が要素間へ均等に
+/// 余白を配らないようにする（PR #3442 レビュー指摘の是正）。
+fn card_footer_row(actions: Vec<Node>) -> Node {
     div(
         vec![("class", "blocks-settings-integrations-grid-footer-row")],
-        vec![detail_link(), action],
+        vec![
+            detail_link(),
+            div(
+                vec![("class", "blocks-settings-integrations-grid-actions")],
+                actions,
+            ),
+        ],
+    )
+}
+
+/// ロゴ + アプリ名見出しの行（見出しレベルは版の見出し階層に合わせて
+/// 呼び出し側が渡す）。
+fn identity(app: &Integration, level: HeadingLevel) -> Node {
+    div(
+        vec![("class", "blocks-settings-integrations-grid-identity")],
+        vec![
+            logo(),
+            heading(
+                level,
+                &HeadingProps::default(),
+                vec![],
+                vec![text(app.name)],
+            ),
+        ],
     )
 }
 
 /// 版 A のカード（R0245「表示」ボタン併記・R0246 説明文 3 行省略を含む）。
 fn card_grouped_by_status(app: &Integration) -> Node {
-    let view_button = button(
-        &ButtonProps {
-            variant: ButtonVariant::Plain,
-            size: Size::Sm,
-            ..ButtonProps::default()
-        },
-        vec![],
-        vec![text("表示")],
+    let view_button = action_button(
+        ButtonVariant::Plain,
+        "表示",
+        &format!("{} を表示", app.name),
     );
     card::root(
         CardVariant::Outline,
@@ -191,18 +228,7 @@ fn card_grouped_by_status(app: &Integration) -> Node {
             card::header(
                 vec![("data-has-action", "")],
                 vec![
-                    div(
-                        vec![("class", "blocks-settings-integrations-grid-identity")],
-                        vec![
-                            logo(),
-                            heading(
-                                HeadingLevel::H4,
-                                &HeadingProps::default(),
-                                vec![],
-                                vec![text(app.name)],
-                            ),
-                        ],
-                    ),
+                    identity(app, HeadingLevel::H5),
                     card::action(vec![], vec![status_badge(app.connected)]),
                 ],
             ),
@@ -218,10 +244,7 @@ fn card_grouped_by_status(app: &Integration) -> Node {
             ),
             card::footer(
                 vec![],
-                vec![div(
-                    vec![("class", "blocks-settings-integrations-grid-footer-row")],
-                    vec![detail_link(), view_button, connect_button(app.connected)],
-                )],
+                vec![card_footer_row(vec![view_button, connect_button(app)])],
             ),
         ],
     )
@@ -277,26 +300,12 @@ fn card_grouped_by_category(app: &Integration) -> Node {
         CardVariant::Outline,
         vec![("data-blocks-settings-integrations-grid-card", "")],
         vec![
-            card::header(
-                vec![],
-                vec![div(
-                    vec![("class", "blocks-settings-integrations-grid-identity")],
-                    vec![
-                        logo(),
-                        heading(
-                            HeadingLevel::H4,
-                            &HeadingProps::default(),
-                            vec![],
-                            vec![text(app.name)],
-                        ),
-                    ],
-                )],
-            ),
+            card::header(vec![], vec![identity(app, HeadingLevel::H5)]),
             card::body(
                 vec![],
                 vec![card::description(vec![], vec![text(app.description)])],
             ),
-            card::footer(vec![], vec![card_footer_row(integration_switch)]),
+            card::footer(vec![], vec![card_footer_row(vec![integration_switch])]),
         ],
     )
 }
@@ -304,14 +313,10 @@ fn card_grouped_by_category(app: &Integration) -> Node {
 /// 版 C のカード（R0253。導入数テキスト + 認証済みバッジ、操作は
 /// 「インストール」ボタン）。
 fn card_marketplace(app: &Integration) -> Node {
-    let install_button = button(
-        &ButtonProps {
-            variant: ButtonVariant::Solid,
-            size: Size::Sm,
-            ..ButtonProps::default()
-        },
-        vec![],
-        vec![text("インストール")],
+    let install_button = action_button(
+        ButtonVariant::Solid,
+        "インストール",
+        &format!("{} をインストール", app.name),
     );
 
     let mut badges = vec![div(
@@ -334,21 +339,7 @@ fn card_marketplace(app: &Integration) -> Node {
         CardVariant::Outline,
         vec![("data-blocks-settings-integrations-grid-card", "")],
         vec![
-            card::header(
-                vec![],
-                vec![div(
-                    vec![("class", "blocks-settings-integrations-grid-identity")],
-                    vec![
-                        logo(),
-                        heading(
-                            HeadingLevel::H4,
-                            &HeadingProps::default(),
-                            vec![],
-                            vec![text(app.name)],
-                        ),
-                    ],
-                )],
-            ),
+            card::header(vec![], vec![identity(app, HeadingLevel::H4)]),
             card::body(
                 vec![],
                 vec![
@@ -362,18 +353,18 @@ fn card_marketplace(app: &Integration) -> Node {
                     ),
                 ],
             ),
-            card::footer(vec![], vec![card_footer_row(install_button)]),
+            card::footer(vec![], vec![card_footer_row(vec![install_button])]),
         ],
     )
 }
 
-/// グループ見出し（H3）+ カードグリッドの合成（版 A/B 共通ヘルパ）。
+/// グループ見出し（H4）+ カードグリッドの合成（版 A/B 共通ヘルパ）。
 fn group(title: &str, cards: Vec<Node>) -> Node {
     div(
         vec![("class", "blocks-settings-integrations-grid-group")],
         vec![
             heading(
-                HeadingLevel::H3,
+                HeadingLevel::H4,
                 &HeadingProps::default(),
                 vec![],
                 vec![text(title)],
@@ -386,14 +377,32 @@ fn group(title: &str, cards: Vec<Node>) -> Node {
     )
 }
 
+/// 版見出し（H3）+ 本体の合成。Demo 節の `h2` 直下で 3 版を見分けられる
+/// ようにする（PR #3442 レビュー指摘の是正）。見出し階層は 版（H3）→
+/// グループ（H4）→ カード（H5）で、グループを持たない版 C はカードを H4
+/// とする。
+fn version(title: &str, body: Vec<Node>) -> Node {
+    div(
+        vec![("class", "blocks-settings-integrations-grid-version")],
+        std::iter::once(heading(
+            HeadingLevel::H3,
+            &HeadingProps::default(),
+            vec![],
+            vec![text(title)],
+        ))
+        .chain(body)
+        .collect(),
+    )
+}
+
 /// 版 A: 接続済み/未接続でグループ見出しを分ける構成（R0244 主参照 +
 /// R0245/R0246 を吸収）。
 fn version_grouped_by_status() -> Node {
     let (connected, not_connected): (Vec<&Integration>, Vec<&Integration>) =
         INTEGRATIONS.iter().partition(|app| app.connected);
 
-    div(
-        vec![("class", "blocks-settings-integrations-grid-version")],
+    version(
+        "版 A: 接続状態別",
         vec![
             group(
                 "接続済み",
@@ -422,18 +431,18 @@ fn version_grouped_by_category() -> Node {
         group(category, cards)
     });
 
-    div(
-        vec![("class", "blocks-settings-integrations-grid-version")],
-        groups.into(),
-    )
+    version("版 B: カテゴリ別", groups.into())
 }
 
 /// 版 C: マーケットプレイス風（導入数 + 認証済み印、R0253）。グループ
 /// 見出しを持たず単一グリッドで並べる。
 fn version_marketplace() -> Node {
-    div(
-        vec![("class", "blocks-settings-integrations-grid-grid")],
-        INTEGRATIONS.iter().map(card_marketplace).collect(),
+    version(
+        "版 C: マーケットプレイス",
+        vec![div(
+            vec![("class", "blocks-settings-integrations-grid-grid")],
+            INTEGRATIONS.iter().map(card_marketplace).collect(),
+        )],
     )
 }
 
@@ -462,6 +471,9 @@ pub fn demo() -> Node {
 - **版 C（R0253）**: グループ見出しを持たない単一グリッドで、導入数テキスト
   と「認証済み」バッジ（該当するアプリのみ）を添え、操作ボタンを
   「インストール」にします。
+- Demo では各版に版見出し（「版 A: 接続状態別」等）を付けます。各カードの
+  操作ボタンは可視ラベルが全カード共通のため、アクセシブルネーム
+  （`aria-label`）にアプリ名を含めます。
 - 各カードの「リポジトリを見る」リンクは、架空データのため実在の詳細ページを
   持たず全カード共通で同じ URL へ遷移します。`href="#"` の死リンクにはせず、
   marketing 系 footer block と同じプレースホルダー実践（フレームワークの
