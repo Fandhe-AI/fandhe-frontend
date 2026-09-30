@@ -452,7 +452,10 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/form-layout-stacked/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/form-layout-two-column/index.html"
           # Application / Auth
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-dropdown-panel/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-oauth-consent/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-otp-verify/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-split-accent-panel/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-01/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-04/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-01/index.html"
@@ -464,11 +467,15 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-footer-bar/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-with-well/index.html"
           # Application / Empty State
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-invite-team/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-card-header/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-setup-steps/index.html"
           # Application / Notification
           # Application / Dialog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/game-ui-modal/index.html"
           # Application / Drawer
           # Application / Command Palette
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/command-palette-preview/index.html"
           # Application / Onboarding
           # Application / Card
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-meta-cta/index.html"

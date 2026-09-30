@@ -2255,9 +2255,24 @@ path = "/blocks/form-layout-two-column/"
 title = "Auth"
 
 [[section.group.page]]
+title = "auth-dropdown-panel"
+source = "site/blocks/auth-dropdown-panel.md"
+path = "/blocks/auth-dropdown-panel/"
+
+[[section.group.page]]
 title = "auth-oauth-consent"
 source = "site/blocks/auth-oauth-consent.md"
 path = "/blocks/auth-oauth-consent/"
+
+[[section.group.page]]
+title = "auth-otp-verify"
+source = "site/blocks/auth-otp-verify.md"
+path = "/blocks/auth-otp-verify/"
+
+[[section.group.page]]
+title = "auth-split-accent-panel"
+source = "site/blocks/auth-split-accent-panel.md"
+path = "/blocks/auth-split-accent-panel/"
 
 [[section.group.page]]
 title = "login-01"
@@ -2303,12 +2318,38 @@ source = "site/blocks/action-panel-with-well.md"
 path = "/blocks/action-panel-with-well/"
 
 [[section.group]]
+title = "Empty State"
+
+[[section.group.page]]
+title = "empty-state-card-header"
+source = "site/blocks/empty-state-card-header.md"
+path = "/blocks/empty-state-card-header/"
+
+[[section.group.page]]
+title = "empty-state-invite-team"
+source = "site/blocks/empty-state-invite-team.md"
+path = "/blocks/empty-state-invite-team/"
+
+[[section.group.page]]
+title = "empty-state-setup-steps"
+source = "site/blocks/empty-state-setup-steps.md"
+path = "/blocks/empty-state-setup-steps/"
+
+[[section.group]]
 title = "Dialog"
 
 [[section.group.page]]
 title = "game-ui-modal"
 source = "site/blocks/game-ui-modal.md"
 path = "/blocks/game-ui-modal/"
+
+[[section.group]]
+title = "Command Palette"
+
+[[section.group.page]]
+title = "command-palette-preview"
+source = "site/blocks/command-palette-preview.md"
+path = "/blocks/command-palette-preview/"
 
 [[section.group]]
 title = "Card"
