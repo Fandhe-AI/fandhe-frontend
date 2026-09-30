@@ -3588,7 +3588,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # パーツ（`root`/`header`/`body`/`footer`/`row`/`column-header`/`cell`/
 # `caption`/`scroll-area`）のシグネチャ・出力バイトは不変で、新規公開 API
 # の純追加のため minor バンプする。
-version = "0.216.0"
+#
+# イシュー #3120: `InputProps` へ公開フィールド `shape`（部品横断 `shape` 軸、
+# `recipe::Shape`）を純追加。既定 `Shape::Default` は selection へ加えず
+# 既存 HTML・golden CSS はバイト不変だが、`InputProps` の構造体リテラル
+# 利用者には破壊的（フィールド追加）のため minor バンプする。
+version = "0.217.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

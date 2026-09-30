@@ -200,6 +200,43 @@ impl VariantValue for Size {
     }
 }
 
+/// 部品横断の `shape` 軸（イシュー #3117/#3116。#3117 未マージのため input
+/// 適用〔イシュー #3120〕が最小定義として純追加した。#3117 マージ後に
+/// 重複が生じた場合は #3117 側の定義を正として本定義を差し替える）。
+///
+/// button / badge / input / select trigger が同じ名前・同じ値で共有する
+/// ことを企図した軸で、`Default` は各部品の既定角丸（class を出さない）を
+/// 表す。[`Size`]/[`ColorPalette`] と異なり、[`SlotRecipe::variant_classes`]
+/// は `default_variant` へ登録されていない軸を selection に含めない限り
+/// class を出さない（`recipe.rs` 本体の挙動）ため、`Shape::Default` は
+/// `default_variant` へ登録せず、呼び出し側（[`crate::input`] 等）が
+/// `shape != Shape::Default` のときのみ selection へ追加する運用とする
+/// （既定入力の HTML 出力を不変に保つため）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Shape {
+    /// 各部品の既定角丸（class を出さない）。
+    #[default]
+    Default,
+    /// 左右が半円の pill（`--fandhe-radius-full`）。
+    Pill,
+    /// 真円（`50%`、幅＝高さが必要な部品向け）。
+    Circle,
+}
+
+impl VariantValue for Shape {
+    fn axis(self) -> &'static str {
+        "shape"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::Default => "default",
+            Self::Pill => "pill",
+            Self::Circle => "circle",
+        }
+    }
+}
+
 /// レスポンシブブレークポイント（`@media (min-width: ...)`）の閾値
 /// （イシュー #2197）。[`StateCondition`] と並ぶ「条件」だが、variant 軸
 /// （[`VariantValue`]）でも状態条件（[`StateCondition`]）でもない別カテゴリ

@@ -1291,7 +1291,7 @@ const IMAGE_CROPPER: ComponentPageSpec = ComponentPageSpec {
 
 const INPUT: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "`variant`（既定 `Outline`）/`size` の 2 軸を持ち、headless-ui の `field::input`（`data-scope=\"field\"`）へ委譲する。",
+        "`variant`（既定 `Outline`）/`size`/`shape`（既定 `Default`、opt-in、イシュー #3120）の 3 軸を持ち、headless-ui の `field::input`（`data-scope=\"field\"`）へ委譲する。",
         "`FieldProps` を通じて `disabled`/`invalid`/`required`/`readonly` を制御する（ラベル・補助テキストの型階層は `field` 部品（`/themes/field/`）が担う）。",
     ],
     arguments: &[
@@ -1299,7 +1299,7 @@ const INPUT: ComponentPageSpec = ComponentPageSpec {
             name: "props",
             kind: "&InputProps",
             default: "",
-            description: "`variant`（既定 `Outline`）・`size`（既定 `Md`）を束ねる構造体。",
+            description: "`variant`（既定 `Outline`）・`size`（既定 `Md`）・`shape`（既定 `Shape::Default`、`Pill`/`Circle` は opt-in）を束ねる構造体。",
         },
         ArgRow {
             name: "field",
@@ -1314,11 +1314,18 @@ const INPUT: ComponentPageSpec = ComponentPageSpec {
             description: "`<input>` へ合成する追加属性（`type` 等）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "ラベル・補助テキストとの組み合わせ",
-        description: "`input` はラベル・補助テキストの型階層を持たず、`field`（`/themes/field/`）が担う（モジュール rustdoc「`field` scope を共有する理由」参照）。`field::label`/`field::helper_text`/`field::root` と組み合わせるだけの合成例です（イシュー #2015、shadcn/ui の label + input + description パターンと同型の構成を本リポジトリの既存 API で再現）。",
-        render: ex_input_with_label_and_helper,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "ラベル・補助テキストとの組み合わせ",
+            description: "`input` はラベル・補助テキストの型階層を持たず、`field`（`/themes/field/`）が担う（モジュール rustdoc「`field` scope を共有する理由」参照）。`field::label`/`field::helper_text`/`field::root` と組み合わせるだけの合成例です（イシュー #2015、shadcn/ui の label + input + description パターンと同型の構成を本リポジトリの既存 API で再現）。",
+            render: ex_input_with_label_and_helper,
+        },
+        ExampleEntry {
+            title: "pill 形状（shape 軸）",
+            description: "`InputProps { shape: Shape::Pill, .. }` で左右が半円の pill 形状にする例です（イシュー #3120）。既定の `Shape::Default` は class を出さず既存 HTML と互換のまま、opt-in で shape を切り替えられます。",
+            render: ex_input_pill_shape,
+        },
+    ],
     keyboard: &[],
     aria: &[],
     demo: None,
@@ -1417,6 +1424,29 @@ fn ex_input_with_label_and_helper() -> Node {
                 vec![text("Your API key is encrypted and stored securely.")],
             ),
         ],
+    )
+}
+
+/// [`INPUT`] の Examples 節「pill 形状（shape 軸）」レンダラ（イシュー #3120）。
+/// `type="search"` + placeholder の単純な field 合成で `Shape::Pill` の
+/// 見た目（`border-radius: var(--fandhe-radius-full)`）を示す。
+fn ex_input_pill_shape() -> Node {
+    let f = fandhe_frontend_pre_styled_ui::input::FieldProps {
+        id: "example-input-pill-search",
+        ids: fandhe_frontend_pre_styled_ui::input::FieldIds::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    fandhe_frontend_pre_styled_ui::input::input(
+        &fandhe_frontend_pre_styled_ui::input::InputProps {
+            shape: fandhe_frontend_pre_styled_ui::recipe::Shape::Pill,
+            ..fandhe_frontend_pre_styled_ui::input::InputProps::default()
+        },
+        &f,
+        vec![("type", "search"), ("placeholder", "Search...")],
     )
 }
 

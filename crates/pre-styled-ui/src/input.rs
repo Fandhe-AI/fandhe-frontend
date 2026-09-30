@@ -85,12 +85,24 @@
 //!   `#2061` 完了後に再評価する。
 //! - **size 段階（差分なし）**: 既存 xs〜xl の 5 段（#1678）が shadcn の
 //!   `h-9` + `sm` の 2 段を包含済み。
+//!
+//! # shape 軸（イシュー #3120）
+//!
+//! 部品横断の `shape` 軸（[`crate::recipe::Shape`]、出所 #3117）を
+//! 純追加した。`Pill`（`border-radius: var(--fandhe-radius-full)`）・
+//! `Circle`（`50%` + `aspect-ratio: 1 / 1` の最小構成）の 2 段を持ち、
+//! 既定 `Shape::Default` は class を出さない（`recipe()` が
+//! `default_variant(Shape::...)` を登録していないため、`input()` 側も
+//! `shape != Shape::Default` のときのみ selection へ加える。両方の意図的な
+//! 不在により既存 HTML はバイト不変）。`InputVariant::Flushed` と併用した
+//! 場合は宣言登録順により shape の `border-radius` が後勝ちする
+//! （compound variant は設けない意図的な単純化）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
     disabled_declarations, focus_ring_declarations, transition_declarations, FocusRingColor,
-    FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
+    FocusRingOffset, MotionDuration, Shape, Size, SlotRecipe, StateCondition, VariantValue,
 };
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 
@@ -142,6 +154,11 @@ pub struct InputProps {
     pub variant: InputVariant,
     /// サイズ variant（既定 `Md`）。
     pub size: Size,
+    /// 形状 variant（既定 `Shape::Default`、イシュー #3120）。
+    /// `Shape::Pill`/`Shape::Circle` は `Flushed` と併用した場合、
+    /// `border-radius` 宣言の登録順（Flushed → shape）により shape が
+    /// 後勝ちする（compound variant は設けない、意図的な単純化）。
+    pub shape: Shape,
 }
 
 impl Default for InputProps {
@@ -149,6 +166,7 @@ impl Default for InputProps {
         InputProps {
             variant: InputVariant::Outline,
             size: Size::Md,
+            shape: Shape::Default,
         }
     }
 }
@@ -289,6 +307,26 @@ fn recipe() -> SlotRecipe {
                 decl("border-radius", "0"),
             ],
         )
+        // shape（イシュー #3120。#3117 の共通軸を input へ適用。`Shape::Default`
+        // は登録しない: `default_variant` に載せると全 input へ
+        // `fd-field--shape-default` が付き既存 HTML が変わるため、未登録の
+        // まま `input()` 側で選択時のみ class を出す運用にする）。
+        .variant(
+            Shape::Pill,
+            "input",
+            vec![decl("border-radius", "var(--fandhe-radius-full)")],
+        )
+        .variant(
+            Shape::Circle,
+            "input",
+            vec![
+                decl("border-radius", "50%"),
+                decl("aspect-ratio", "1 / 1"),
+                decl("width", "auto"),
+                decl("padding", "0"),
+                decl("text-align", "center"),
+            ],
+        )
         .default_variant(Size::Md)
         .default_variant(InputVariant::Outline)
 }
@@ -333,10 +371,19 @@ pub fn input<'a>(
     extra_attrs: Vec<(&'a str, &'a str)>,
 ) -> Node {
     let recipe = recipe();
-    let class = recipe.variant_classes(&[
+    let mut selection: Vec<(&str, &str)> = vec![
         ("variant", props.variant.value()),
         ("size", props.size.value()),
-    ]);
+    ];
+    // `shape` は `Shape::Default` のとき selection へ加えない（`recipe()` が
+    // `default_variant(Shape::...)` を登録していないため、明示的に
+    // `Default` を selection へ渡すと `fd-field--shape-default` という
+    // 対応 CSS を持たないクラスが出力されてしまう。既定入力の HTML を
+    // 不変に保つための条件分岐）。
+    if props.shape != Shape::Default {
+        selection.push(("shape", props.shape.value()));
+    }
+    let class = recipe.variant_classes(&selection);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(extra_attrs));
     fandhe_frontend_headless_ui::field::input(field, merged)
@@ -473,6 +520,45 @@ mod tests {
             let html = render(&input(&props, &field, vec![]));
             assert!(html.contains(class), "size={size:?} -> {html}");
         }
+    }
+
+    #[test]
+    fn shape_enumeration_maps_to_expected_classes() {
+        for (shape, class) in [
+            (Shape::Pill, "fd-field--shape-pill"),
+            (Shape::Circle, "fd-field--shape-circle"),
+        ] {
+            let field = default_field("f");
+            let props = InputProps {
+                shape,
+                ..InputProps::default()
+            };
+            let html = render(&input(&props, &field, vec![]));
+            assert!(html.contains(class), "shape={shape:?} -> {html}");
+        }
+    }
+
+    #[test]
+    fn default_shape_emits_no_shape_class() {
+        let field = default_field("f");
+        // `InputProps::default()` 由来（暗黙の `Shape::Default`）。
+        let html_implicit = render(&input(&InputProps::default(), &field, vec![]));
+        assert!(!html_implicit.contains("fd-field--shape-"));
+
+        // `Shape::Default` を明示指定した場合も同じく class を出さない。
+        let props_explicit = InputProps {
+            shape: Shape::Default,
+            ..InputProps::default()
+        };
+        let html_explicit = render(&input(&props_explicit, &field, vec![]));
+        assert!(!html_explicit.contains("fd-field--shape-"));
+    }
+
+    #[test]
+    fn stylesheet_declares_shape_pill_radius_full() {
+        let out = css();
+        assert!(out.contains(".fd-field--shape-pill {"));
+        assert!(out.contains("border-radius: var(--fandhe-radius-full);"));
     }
 
     #[test]
