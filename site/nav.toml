@@ -2363,6 +2363,11 @@ source = "site/blocks/settings-notification-matrix.md"
 path = "/blocks/settings-notification-matrix/"
 
 [[section.group.page]]
+title = "settings-org-switcher"
+source = "site/blocks/settings-org-switcher.md"
+path = "/blocks/settings-org-switcher/"
+
+[[section.group.page]]
 title = "settings-page-aside-nav"
 source = "site/blocks/settings-page-aside-nav.md"
 path = "/blocks/settings-page-aside-nav/"
