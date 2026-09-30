@@ -97,7 +97,11 @@
 //! 状態機械を持たない静的な合成例である。ボタンは `button::button`/
 //! `file_upload::trigger` の既定 `type="button"` のまま送信先を持たず、
 //! 実際の送信処理・バリデーションは利用者自身の Rust/JS コードで実装する
-//! （`docs/policy/intentional-non-adoption.md` §3.25）。
+//! （`docs/policy/intentional-non-adoption.md` §3.25）。招待リンクの
+//! 「コピー」ボタン（[`invite_step`]）とアプリ案内カードの「詳しく見る」
+//! ボタン（[`app_card`]）は JS 配線・遷移先を持たないため、押しても何も
+//! 起きない要素を操作可能に見せないよう `ButtonProps { disabled: true, .. }`
+//! を固定する（`list_people.rs` と同型の判断。減光は中和しない）。
 //!
 //! # ダミー素材について
 //!
@@ -653,6 +657,7 @@ fn app_card(platform: &'static str, description: &'static str) -> Node {
                     &ButtonProps {
                         variant: ButtonVariant::Outline,
                         size: Size::Sm,
+                        disabled: true,
                         ..ButtonProps::default()
                     },
                     vec![],
@@ -677,6 +682,7 @@ fn invite_step() -> Node {
             button::button(
                 &ButtonProps {
                     variant: ButtonVariant::Outline,
+                    disabled: true,
                     ..ButtonProps::default()
                 },
                 vec![],
@@ -906,13 +912,18 @@ pub const BLOCK: Block = Block {
 /// `.blocks-onboarding-centered-steps-*` と
 /// `[data-blocks-onboarding-centered-steps-*]`、および本 block スコープ配下の
 /// `checkbox`/`checkbox-card`/`radio-card`/`file-upload` disabled 中和セレクタ
-/// のみを用いる。
+/// のみを用いる。`[data-scope="..."]` のような属性セレクタは block 固有の
+/// 接頭辞を持たず他ページの同名部品にも波及するため、必ず
+/// `.blocks-onboarding-centered-steps-layout` を子孫結合子で前置してこの
+/// block の DOM 配下に限定する（`checkbox-card`/`checkbox` は呼び出し側の
+/// `data-blocks-onboarding-centered-steps-*` マーカー属性で個別スコープ
+/// 済みのためこの前置は不要）。
 const LAYOUT_CSS: &str = "\
 .blocks-onboarding-centered-steps-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-onboarding-centered-steps-panel {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-6);\n  max-width: 40rem;\n  margin-inline: auto;\n}\n\
 .blocks-onboarding-centered-steps-top {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n  width: 100%;\n}\n\
 .blocks-onboarding-centered-steps-logo {\n  flex-shrink: 0;\n}\n\
-[data-scope=\"steps\"][data-part=\"root\"] {\n  width: 100%;\n}\n\
+.blocks-onboarding-centered-steps-layout [data-scope=\"steps\"][data-part=\"root\"] {\n  width: 100%;\n}\n\
 .blocks-onboarding-centered-steps-step-label {\n  font-size: var(--fandhe-font-size-sm);\n}\n\
 .blocks-onboarding-centered-steps-body {\n  width: 100%;\n  text-align: start;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-onboarding-centered-steps-description {\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n}\n\
@@ -926,7 +937,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-onboarding-centered-steps-apps {\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-onboarding-centered-steps-actions {\n  display: flex;\n  justify-content: space-between;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-2);\n  width: 100%;\n}\n\
 [data-scope=\"checkbox-card\"][data-part=\"root\"][data-blocks-onboarding-centered-steps-interest-card][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-[data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+.blocks-onboarding-centered-steps-layout [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-onboarding-centered-steps-cc-checkbox][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n";
 
 #[cfg(test)]

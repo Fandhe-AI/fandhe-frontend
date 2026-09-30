@@ -570,6 +570,7 @@ fn app_card(platform: &'static str, description: &'static str) -> Node {
                     &ButtonProps {
                         variant: ButtonVariant::Outline,
                         size: Size::Sm,
+                        disabled: true,
                         ..ButtonProps::default()
                     },
                     vec![],
@@ -594,6 +595,7 @@ fn invite_step() -> Node {
             button::button(
                 &ButtonProps {
                     variant: ButtonVariant::Outline,
+                    disabled: true,
                     ..ButtonProps::default()
                 },
                 vec![],
