@@ -2,28 +2,28 @@
 
 上部にアプリ用ナビバー、その下にタブ状のセクション切替を持つページ見出し、
 本文に設定カードを並べる合成例です。`navigation-menu` / `tab-nav` / `card` /
-`table` / `badge` / `menu` / `input-group` / `input` / `button` の 9 部品を
-合成します。Blocks は既存部品の合成例であり、新しい UI 部品は追加しません。
+`table` / `badge` / `menu` / `input-group` / `input` / `button` / `progress` /
+`checkbox` / `pagination` の 12 部品を合成します。Blocks は既存部品の合成例
+であり、新しい UI 部品は追加しません。
 
-主参照は対応表 ID R0660（代表構成）、集約元は R0658 です。選択中タブ（API）は
-無 JS のため初期状態として固定表示します。狭い幅ではタブ列を横スクロール
-できます。API キーはすべて架空のマスク済みダミー値であり、実在サービスの鍵
-形式・実在の人物・企業・PII は含みません。
+選択中タブが異なる 2 版（版 A: API 設定、版 B: プラン）を静的に併記します。
+版 A は主参照 R0660（代表構成）、版 B は集約元 R0658 に対応します。無 JS の
+ため各版の選択中タブを初期状態として固定表示します。狭い幅ではタブ列を横
+スクロールできます。API キー・請求書番号・金額・プラン名はすべて架空の
+ダミー値であり、実在サービスの鍵形式・実在の人物・企業・PII は含みません。
 
 本 Demo は無 JS の静的表示のみであり、`<form>` を含みません。
-
-本 block は規模が大きいため 2 件（#3007/#3008）へ分割しています。本ページは
-骨格・版 A（API 設定領域）を実装した #3007 時点の内容で、残りの版 B
-（プラン・進捗・請求書テーブル + ページ送り）・状態並記・原案差分メモの仕上げ
-は #3008 で追加します。
 
 ## Rust コード
 
 ```rust
-use fandhe_frontend_core::{div, el, header, span, text, Node};
+use crate::blocks::dummy_assets;
+use fandhe_frontend_core::{div, el, header, section, span, text, Node};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
+use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
 use fandhe_frontend_pre_styled_ui::field::{FieldIds, FieldProps};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
@@ -31,9 +31,12 @@ use fandhe_frontend_pre_styled_ui::input::{self, InputProps};
 use fandhe_frontend_pre_styled_ui::input_group::{self, InputGroupAlign, InputGroupProps};
 use fandhe_frontend_pre_styled_ui::menu::{self, OpenState};
 use fandhe_frontend_pre_styled_ui::navigation_menu::{self, NavigationMenuProps};
+use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode};
+use fandhe_frontend_pre_styled_ui::progress::{self, Orientation, ProgressProps};
 use fandhe_frontend_pre_styled_ui::tab_nav;
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps};
-use fandhe_frontend_pre_styled_ui::Size;
+use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize, TextWeight};
+use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
 /// 実在の自リポジトリ URL（`href` の方針、モジュール doc参照）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
@@ -158,35 +161,37 @@ fn navbar() -> Node {
     )
 }
 
-/// タブ項目（id, ラベル, 現在地か）。現在地タブ（「API」）のみ `href="./"`
-/// （自ページへの自己参照）、他タブは `#<id>` で [`other_section_stub`] の
-/// 見出しへリンクする（モジュール doc「ナビは実在 URL、タブは現在地のみ
-/// `./`・他タブは実在フラグメント」節参照）。
-const TAB_ITEMS: [(&str, &str, bool); 5] = [
-    ("general", "一般", false),
-    ("members", "メンバー", false),
-    ("api", "API", true),
-    ("plan", "プラン", false),
-    ("billing", "請求", false),
+/// タブ項目（id, ラベル）。実在の遷移先は [`page_heading`] が `current`
+/// 引数と突き合わせて決める（モジュール doc「ナビは実在 URL、タブは現在地
+/// のみ `./`・他タブは実在フラグメント」節参照）。
+const TAB_ITEMS: [(&str, &str); 5] = [
+    ("general", "一般"),
+    ("members", "メンバー"),
+    ("api", "API"),
+    ("plan", "プラン"),
+    ("billing", "請求"),
 ];
 
-/// タブ見出し（heading「設定」+ タブ列。「API」タブを初期状態として固定
-/// 表示する）。
-fn page_heading() -> Node {
+/// タブ見出し（heading「設定」+ タブ列）。`current` は現在地タブの `id`
+/// （実在アンカー `href="#<id>"` + `aria-current="page"` を付与。版 B
+/// （プラン）はページ先頭ではなく版 A の下に位置するため、現在地タブを
+/// `href="./"` にすると再読み込みで表示位置が先頭へ戻ってしまう。全タブを
+/// 実在アンカーへ統一し、現在地タブは自セクションの見出しへ戻るだけの
+/// 自己参照として扱う。codex レビュー P1 是正、イシュー #3460）。
+/// `tabs_label` は `tab_nav::root` の `aria-label`（版ごとに一意にする、
+/// モジュール doc「版の並記」節参照）。
+fn page_heading(current: &str, tabs_label: &str) -> Node {
     let tab_nodes: Vec<Node> = TAB_ITEMS
         .iter()
-        .map(|(id, label, current)| {
-            let href = if *current {
-                "./".to_string()
-            } else {
-                format!("#{id}")
-            };
-            tab_nav::link(&href, *current, vec![], vec![text(*label)])
+        .map(|(id, label)| {
+            let is_current = *id == current;
+            let href = format!("#{id}");
+            tab_nav::link(&href, is_current, vec![], vec![text(*label)])
         })
         .collect();
     let tabs = tab_nav::root(
         Size::Md,
-        "設定セクション",
+        tabs_label,
         vec![("data-blocks-settings-page-tabs-tabs", "")],
         tab_nodes,
     );
@@ -416,12 +421,13 @@ fn api_keys_table_card() -> Node {
     )
 }
 
-/// 非選択タブ（一般/メンバー/プラン/請求）の実在するリンク先。版 B（#3008、
-/// プラン・請求のフル本文）着手前・一般/メンバーは着手予定なしのため、
-/// 「準備中」であることを示す最小限の見出しスタブのみを置き、タブの
-/// `href="#<id>"` を実在させる（モジュール doc「ナビは実在 URL、タブは
-/// 現在地のみ `./`・他タブは実在フラグメント」節参照、codex レビュー P1
-/// 是正 v2）。
+/// 非選択タブ（一般/メンバー）の実在するリンク先。両タブとも着手予定が
+/// ないため、「準備中」であることを示す最小限の見出しスタブのみを置き、
+/// タブの `href="#<id>"` を実在させる（モジュール doc「ナビは実在 URL、
+/// タブは全件実在フラグメント」節参照、codex レビュー P1 是正 v3）。
+/// API/プラン/請求の 3 タブは [`version_api`]/[`plan_card`]/
+/// [`invoices_table_card`] が出力する実在の `id` へリンクするため、本スタブ
+/// の対象ではない。
 fn other_section_stub(id: &str, label: &str) -> Node {
     card::root(
         CardProps::default(),
@@ -436,25 +442,390 @@ fn other_section_stub(id: &str, label: &str) -> Node {
     )
 }
 
+/// 版 A（API 設定、選択中タブ「API」）。既存の [`api_access_card`]/
+/// [`api_keys_table_card`] を `id="api"` の本文ラッパーへ包み、
+/// [`page_heading`] へ現在地を渡す（モジュール doc「版の並記」節参照）。
+fn version_api() -> Node {
+    section(
+        vec![
+            ("aria-label", "版 A: API 設定"),
+            ("data-blocks-settings-page-tabs-version", "api"),
+        ],
+        vec![
+            styled_text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    weight: TextWeight::Semibold,
+                    ..TextProps::default()
+                },
+                vec![("data-blocks-settings-page-tabs-version-title", "")],
+                vec![text("版 A: API 設定")],
+            ),
+            page_heading("api", "設定セクション（API 選択）"),
+            div(
+                vec![
+                    ("id", "api"),
+                    ("class", "blocks-settings-page-tabs-content"),
+                ],
+                vec![api_access_card(), api_keys_table_card()],
+            ),
+        ],
+    )
+}
+
+/// ラベル・消費率（%）・可視の値テキストから 1 本の進捗バー行を組む
+/// （`settings_billing_usage::usage_bar` と同型。`aria-label` は
+/// [`fandhe_frontend_pre_styled_ui::progress::root`] が自動配線しないため
+/// 明示が必須、codex P1 是正の踏襲）。
+fn usage_bar(label: &'static str, percent: f64, value_text: String) -> Node {
+    let p = Progress::new(0.0, 100.0, Some(percent), Orientation::Horizontal);
+    div(
+        vec![("class", "blocks-settings-page-tabs-usage-row")],
+        vec![
+            div(
+                vec![("class", "blocks-settings-page-tabs-usage-row-header")],
+                vec![
+                    span(vec![], vec![text(label)]),
+                    span(vec![], vec![text(value_text)]),
+                ],
+            ),
+            progress::root(
+                &p,
+                &ProgressProps {
+                    size: Size::Sm,
+                    ..ProgressProps::default()
+                },
+                None,
+                vec![("aria-label", label)],
+                vec![p.track(vec![], vec![progress::range(&p, vec![])])],
+            ),
+        ],
+    )
+}
+
+/// 「現在のプラン」カード（`id="plan"`。プランバッジ + 変更ボタン + 進捗
+/// バー 2 本）。
+fn plan_card() -> Node {
+    let (tier_name, _tier_price) = dummy_assets::SAMPLE_PRICE_TIERS[1];
+    card::root(
+        CardProps::default(),
+        vec![
+            ("id", "plan"),
+            ("data-blocks-settings-page-tabs-plan-card", ""),
+        ],
+        vec![
+            card::header(
+                vec![("data-has-action", "")],
+                vec![
+                    card::title(vec![], vec![text("現在のプラン")]),
+                    card::action(
+                        vec![],
+                        vec![
+                            badge::badge(
+                                &BadgeProps {
+                                    variant: BadgeVariant::Solid,
+                                    ..BadgeProps::default()
+                                },
+                                vec![],
+                                vec![text(tier_name)],
+                            ),
+                            button::button(
+                                &ButtonProps {
+                                    variant: ButtonVariant::Outline,
+                                    size: Size::Sm,
+                                    ..ButtonProps::default()
+                                },
+                                vec![],
+                                vec![text("プランを変更")],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            card::body(
+                vec![("class", "blocks-settings-page-tabs-usage-body")],
+                vec![
+                    usage_bar("シート使用状況", 66.7, "8 / 12 シート".to_string()),
+                    usage_bar("API 呼び出し", 64.0, "6,400 / 10,000 回".to_string()),
+                ],
+            ),
+        ],
+    )
+}
+
+/// 請求書 1 行分（すべて架空のダミー値、実在の企業・PII を含まない）。
+struct InvoiceRow {
+    number: &'static str,
+    issued_on: &'static str,
+    amount: &'static str,
+    status: &'static str,
+    status_variant: BadgeVariant,
+    status_palette: ColorPalette,
+    selected: bool,
+}
+
+/// 請求書 4 件（1 件を選択中として固定し、ヘッダーの全選択チェックボックス
+/// は `Indeterminate` にする。状態違いの静的併記、モジュール doc参照）。
+const INVOICES: [InvoiceRow; 4] = [
+    InvoiceRow {
+        number: "INV-2026-0091",
+        issued_on: "2026-09-01",
+        amount: "$29.00",
+        status: "支払済み",
+        status_variant: BadgeVariant::Subtle,
+        status_palette: ColorPalette::Accent,
+        selected: true,
+    },
+    InvoiceRow {
+        number: "INV-2026-0078",
+        issued_on: "2026-08-01",
+        amount: "$29.00",
+        status: "支払済み",
+        status_variant: BadgeVariant::Subtle,
+        status_palette: ColorPalette::Accent,
+        selected: false,
+    },
+    InvoiceRow {
+        number: "INV-2026-0065",
+        issued_on: "2026-07-01",
+        amount: "$34.00",
+        status: "未払い",
+        status_variant: BadgeVariant::Outline,
+        status_palette: ColorPalette::Warning,
+        selected: false,
+    },
+    InvoiceRow {
+        number: "INV-2026-0052",
+        issued_on: "2026-06-01",
+        amount: "$29.00",
+        status: "処理中",
+        status_variant: BadgeVariant::Surface,
+        status_palette: ColorPalette::Accent,
+        selected: false,
+    },
+];
+
+/// 請求書の行選択チェックボックス（`table_sortable_bulk::row_select_
+/// checkbox` と同型）。`name` は行ごとに一意にし、`id` 属性は持たない
+/// （`aria-label` のみで名前付け、id 重複検知を回避する）。無 JS のため
+/// 全選択↔各行チェック状態の同期は実装できない。`disabled: true` を固定し
+/// ネイティブ `<input>` を操作不可にすることで、静的固定の選択状態が
+/// クリックで各行と食い違って見える表示を防ぐ（codex レビュー P1 是正、
+/// イシュー #3460）。
+fn invoice_select_checkbox(name: &str, checked: CheckedState, label: &str) -> Node {
+    let props = CheckboxProps {
+        checked,
+        disabled: true,
+        ..CheckboxProps::default()
+    };
+    checkbox::root(
+        Size::Sm,
+        ColorPalette::Accent,
+        &props,
+        vec![],
+        vec![
+            checkbox::hidden_input(&props, name, "on", vec![("aria-label", label)]),
+            checkbox::control(
+                &props,
+                vec![],
+                vec![checkbox::indicator(&props, vec![], vec![])],
+            ),
+        ],
+    )
+}
+
+/// 請求書テーブルのフッター（件数表示 + ページ送り。`INVOICES` 4 件が
+/// 1 ページに収まるため前へ/次へとも無効固定、`table_with_toolbar::footer`
+/// と同型）。
+fn invoices_footer() -> Node {
+    div(
+        vec![("class", "blocks-settings-page-tabs-invoices-footer")],
+        vec![
+            span(
+                vec![("data-blocks-settings-page-tabs-invoices-count", "")],
+                vec![text("4 件中 1–4 件を表示")],
+            ),
+            pagination::root(
+                Size::Sm,
+                ColorPalette::Accent,
+                "請求書ページ",
+                vec![("data-blocks-settings-page-tabs-pagination", "")],
+                vec![
+                    // 請求書は INVOICES 4 件のみで全件 1 ページに収まるため、
+                    // ページ送りは前へ/次へとも disabled 固定（件数表示
+                    // 「4 件中 1–4 件を表示」との整合、イシュー #3460 review）。
+                    pagination::prev_trigger(ItemMode::Button, true, vec![], vec![text("前へ")]),
+                    pagination::item(ItemMode::Button, 1, true, false, vec![], vec![text("1")]),
+                    pagination::next_trigger(ItemMode::Button, true, vec![], vec![text("次へ")]),
+                ],
+            ),
+        ],
+    )
+}
+
+/// 「請求書」カード（`id="billing"`。`table::scroll_area` で包んだ表 +
+/// [`invoices_footer`]）。
+fn invoices_table_card() -> Node {
+    let body_rows: Vec<Node> = INVOICES
+        .iter()
+        .enumerate()
+        .map(|(i, invoice)| {
+            let checked = if invoice.selected {
+                CheckedState::Checked
+            } else {
+                CheckedState::Unchecked
+            };
+            let name = format!("invoice-{i}");
+            let label = format!("{}を選択", invoice.number);
+            table::row(
+                vec![],
+                vec![
+                    table::cell(
+                        vec![("data-blocks-settings-page-tabs-select-cell", "")],
+                        vec![invoice_select_checkbox(&name, checked, &label)],
+                    ),
+                    table::row_header(vec![], vec![text(invoice.number)]),
+                    table::cell(vec![], vec![text(invoice.issued_on)]),
+                    table::cell(vec![], vec![text(invoice.amount)]),
+                    table::cell(
+                        vec![],
+                        vec![badge::badge(
+                            &BadgeProps {
+                                variant: invoice.status_variant,
+                                palette: invoice.status_palette,
+                                ..BadgeProps::default()
+                            },
+                            vec![],
+                            vec![text(invoice.status)],
+                        )],
+                    ),
+                    table::cell(
+                        vec![],
+                        vec![button::button(
+                            &ButtonProps {
+                                variant: ButtonVariant::Ghost,
+                                size: Size::Sm,
+                                ..ButtonProps::default()
+                            },
+                            vec![],
+                            vec![text("PDF")],
+                        )],
+                    ),
+                ],
+            )
+        })
+        .collect();
+
+    card::root(
+        CardProps::default(),
+        vec![
+            ("id", "billing"),
+            ("data-blocks-settings-page-tabs-invoices-card", ""),
+        ],
+        vec![
+            card::header(
+                vec![("data-has-action", "")],
+                vec![
+                    card::title(vec![], vec![text("請求書")]),
+                    card::action(
+                        vec![],
+                        vec![button::button(
+                            &ButtonProps {
+                                size: Size::Sm,
+                                ..ButtonProps::default()
+                            },
+                            vec![],
+                            vec![text("まとめてダウンロード")],
+                        )],
+                    ),
+                ],
+            ),
+            card::body(
+                vec![],
+                vec![
+                    table::scroll_area(
+                        vec![
+                            ("role", "region"),
+                            ("aria-label", "請求書一覧"),
+                            ("tabindex", "0"),
+                        ],
+                        vec![table::root(
+                            TableProps::default(),
+                            vec![],
+                            vec![
+                                table::header(
+                                    vec![],
+                                    vec![table::row(
+                                        vec![],
+                                        vec![
+                                            table::column_header(
+                                                vec![(
+                                                    "data-blocks-settings-page-tabs-select-cell",
+                                                    "",
+                                                )],
+                                                vec![invoice_select_checkbox(
+                                                    "invoice-all",
+                                                    CheckedState::Indeterminate,
+                                                    "すべての請求書を選択",
+                                                )],
+                                            ),
+                                            table::column_header(vec![], vec![text("請求書番号")]),
+                                            table::column_header(vec![], vec![text("発行日")]),
+                                            table::column_header(vec![], vec![text("金額")]),
+                                            table::column_header(vec![], vec![text("状態")]),
+                                            table::column_header(vec![], vec![text("操作")]),
+                                        ],
+                                    )],
+                                ),
+                                table::body(vec![], body_rows),
+                            ],
+                        )],
+                    ),
+                    invoices_footer(),
+                ],
+            ),
+        ],
+    )
+}
+
+/// 版 B（プラン、選択中タブ「プラン」）。[`plan_card`]/
+/// [`invoices_table_card`] を持つ（モジュール doc「版の並記」節参照）。
+fn version_plan() -> Node {
+    section(
+        vec![
+            ("aria-label", "版 B: プラン"),
+            ("data-blocks-settings-page-tabs-version", "plan"),
+        ],
+        vec![
+            styled_text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    weight: TextWeight::Semibold,
+                    ..TextProps::default()
+                },
+                vec![("data-blocks-settings-page-tabs-version-title", "")],
+                vec![text("版 B: プラン")],
+            ),
+            page_heading("plan", "設定セクション（プラン選択）"),
+            div(
+                vec![("class", "blocks-settings-page-tabs-content")],
+                vec![plan_card(), invoices_table_card()],
+            ),
+        ],
+    )
+}
+
 /// `settings-page-tabs` の Demo 本体。呼び出しごとに同一の `Node` を返す
-/// 純関数（骨格 + 版 A のみ、#3008 で版 B を追加する）。
+/// 純関数（共有ナビバー + 版 A + 版 B + 一般/メンバーのスタブ）。
 pub fn demo() -> Node {
-    let mut content = vec![api_access_card(), api_keys_table_card()];
-    content.extend(
-        TAB_ITEMS
-            .iter()
-            .filter(|(_, _, current)| !current)
-            .map(|(id, label, _)| other_section_stub(id, label)),
-    );
     div(
         vec![("class", "blocks-settings-page-tabs-stack")],
         vec![
             navbar(),
-            page_heading(),
-            div(
-                vec![("class", "blocks-settings-page-tabs-content")],
-                content,
-            ),
+            version_api(),
+            version_plan(),
+            other_section_stub("general", "一般"),
+            other_section_stub("members", "メンバー"),
         ],
     )
 }
@@ -463,20 +834,33 @@ pub fn demo() -> Node {
 ## 原案差分メモ
 
 - 骨格はナビバー（ダッシュボード / プロジェクト / 設定〔現在地〕+ 主操作
-  ボタン 1 個）→ タブ見出し（一般 / メンバー / API〔現在地〕/ プラン / 請求）
+  ボタン 1 個）→ タブ見出し（一般 / メンバー / API / プラン / 請求）
   → 本文カード列、の順で構成します（親 issue のレイアウト要件どおり）。
-- 版 A（API 設定）は「API アクセス」カード（マスク済みダミーキーの読み取り
-  専用 `input_group` + 「再生成」ボタン）と「発行済み API キー」カード
-  （`table::scroll_area` で包んだ表、行操作は `menu`、権限は `badge`）の
-  2 枚で構成します。
+- 版 A（API 設定、主参照 R0660）は「API アクセス」カード（マスク済み
+  ダミーキーの読み取り専用 `input_group` + 「再生成」ボタン）と「発行済み
+  API キー」カード（`table::scroll_area` で包んだ表、行操作は `menu`、
+  権限は `badge`）の 2 枚で構成します。
+- 版 B（プラン、集約元 R0658）は「現在のプラン」カード（プランバッジ +
+  `progress` 2 本）と「請求書」カード（`table::scroll_area` で包んだ表、
+  行選択は `checkbox`、状態は `badge`、フッターに件数表示 + `pagination`）
+  の 2 枚で構成します。
+- 選択中タブが異なる 2 版（版 A: API、版 B: プラン）を共有ナビバーの下へ
+  縦に並記し、無 JS のため各版の選択中タブを静的に固定表示します。タブの
+  `href` は API/プラン/請求が実在の本文 `id`（`api`/`plan`/`billing`）を、
+  一般/メンバーは準備中スタブを指します。
+- 請求書テーブルの行選択チェックボックスは 1 行を選択済み、ヘッダーの
+  全選択チェックボックスを `Indeterminate`（`aria-checked="mixed"`）に
+  固定し、選択状態の違いを静的に併記します。ページ送りは `ItemMode::Button`
+  固定で、請求書 4 件が 1 ページに収まるため前へ/次へとも無効固定の状態
+  のみを示します。
 - 狭い幅でのタブ横スクロールは、`tab-nav` root へ常時 `overflow-x: auto;
   flex-wrap: nowrap; white-space: nowrap;` を宣言することで実現します
   （`@container` によるコンテナクエリ分岐は不要です）。
-- 版 B（プラン・進捗・請求書テーブル + ページ送り）・選択中タブ以外の状態
-  並記・原案差分メモの仕上げは #3008 で追加します。
 
 関連情報: [Navigation Menu](../themes/navigation-menu.md) /
 [Tab Nav](../themes/tab-nav.md) / [Card](../themes/card.md) /
 [Table](../themes/table.md) / [Badge](../themes/badge.md) /
 [Menu](../themes/menu.md) / [Input Group](../themes/input-group.md) /
-[Input](../themes/input.md) / [Button](../themes/button.md)
+[Input](../themes/input.md) / [Button](../themes/button.md) /
+[Progress](../themes/progress.md) / [Checkbox](../themes/checkbox.md) /
+[Pagination](../themes/pagination.md)
