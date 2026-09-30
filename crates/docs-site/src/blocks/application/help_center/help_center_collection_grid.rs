@@ -204,8 +204,8 @@ fn collection_card(
                     Size::Sm,
                     vec![("data-blocks-help-center-collection-grid-stat", "")],
                     vec![
-                        stat::value_text(vec![], vec![text(article_count)]),
                         stat::label(vec![], vec![text("articles")]),
+                        stat::value_text(vec![], vec![text(article_count)]),
                     ],
                 ),
             ],
@@ -350,8 +350,8 @@ fn featured_card(
                         Size::Sm,
                         vec![("data-blocks-help-center-collection-grid-stat", "")],
                         vec![
-                            stat::value_text(vec![], vec![text(article_count)]),
                             stat::label(vec![], vec![text("articles")]),
+                            stat::value_text(vec![], vec![text(article_count)]),
                         ],
                     ),
                 ],
