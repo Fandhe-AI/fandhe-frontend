@@ -2508,6 +2508,11 @@ title = "help-center-article-list"
 source = "site/blocks/help-center-article-list.md"
 path = "/blocks/help-center-article-list/"
 
+[[section.group.page]]
+title = "help-center-collection-grid"
+source = "site/blocks/help-center-collection-grid.md"
+path = "/blocks/help-center-collection-grid/"
+
 [[section.group]]
 title = "Media Object"
 
