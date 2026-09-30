@@ -2317,6 +2317,16 @@ title = "settings-billing-overview"
 source = "site/blocks/settings-billing-overview.md"
 path = "/blocks/settings-billing-overview/"
 
+[[section.group.page]]
+title = "settings-billing-usage"
+source = "site/blocks/settings-billing-usage.md"
+path = "/blocks/settings-billing-usage/"
+
+[[section.group.page]]
+title = "settings-event-accordion"
+source = "site/blocks/settings-event-accordion.md"
+path = "/blocks/settings-event-accordion/"
+
 [[section.group]]
 title = "Action Panel"
 
@@ -2324,6 +2334,11 @@ title = "Action Panel"
 title = "action-panel-footer-bar"
 source = "site/blocks/action-panel-footer-bar.md"
 path = "/blocks/action-panel-footer-bar/"
+
+[[section.group.page]]
+title = "action-panel-inline"
+source = "site/blocks/action-panel-inline.md"
+path = "/blocks/action-panel-inline/"
 
 [[section.group.page]]
 title = "action-panel-stacked"
@@ -2404,6 +2419,11 @@ path = "/blocks/onboarding-centered-steps/"
 title = "onboarding-checklist"
 source = "site/blocks/onboarding-checklist.md"
 path = "/blocks/onboarding-checklist/"
+
+[[section.group.page]]
+title = "onboarding-split-image"
+source = "site/blocks/onboarding-split-image.md"
+path = "/blocks/onboarding-split-image/"
 
 [[section.group.page]]
 title = "onboarding-vertical-steps"
@@ -2507,6 +2527,11 @@ title = "Help Center"
 title = "help-center-article-list"
 source = "site/blocks/help-center-article-list.md"
 path = "/blocks/help-center-article-list/"
+
+[[section.group.page]]
+title = "help-center-collection-grid"
+source = "site/blocks/help-center-collection-grid.md"
+path = "/blocks/help-center-collection-grid/"
 
 [[section.group]]
 title = "Media Object"
