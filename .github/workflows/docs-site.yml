@@ -412,6 +412,7 @@ jobs:
           # Application / Page Heading
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-actions/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-avatar/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-tabs/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-cover/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-meta/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/page-heading-welcome-stats/index.html"
@@ -452,22 +453,39 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/form-layout-stacked/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/form-layout-two-column/index.html"
           # Application / Auth
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-dropdown-panel/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-oauth-consent/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-split-photo-testimonial/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-otp-verify/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-split-accent-panel/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-tabs-card/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-01/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-04/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-01/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-05/index.html"
           # Application / Settings
           # Application / Action Panel
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-stacked/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-with-input/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-footer-bar/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-inline/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-with-well/index.html"
           # Application / Empty State
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-invite-team/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-card-header/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-starter-grid/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-setup-steps/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-starter-list/index.html"
           # Application / Notification
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/notification-tray-tabs/index.html"
           # Application / Dialog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/game-ui-modal/index.html"
           # Application / Drawer
           # Application / Command Palette
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/command-palette-preview/index.html"
           # Application / Onboarding
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-centered-steps/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-checklist/index.html"
           # Application / Card
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-meta-cta/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cursor-hover-cards/index.html"
@@ -485,7 +503,11 @@ jobs:
           # Application / Dashboard
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/dashboard-01/index.html"
           # Application / AI Chat
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/ai-chat-playground/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/ai-chat-prompt-start/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/ai-chat-code-preview/index.html"
           # Application / Help Center
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/help-center-article-list/index.html"
           # Application / Media Object
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/media-object/index.html"
           # Ecommerce / Product Overview

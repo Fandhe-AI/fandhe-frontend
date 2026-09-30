@@ -969,6 +969,7 @@ pub enum LayoutCss {
 | page-heading-avatar | #2931（親 #2892） | `application/page_heading/page_heading_avatar.rs` |
 | page-heading-cover | #2932（親 #2892） | `application/page_heading/page_heading_cover.rs` |
 | page-heading-meta | #2933（親 #2892） | `application/page_heading/page_heading_meta.rs` |
+| page-heading-tabs | #2934 | `application/page_heading/page_heading_tabs.rs` |
 | page-heading-welcome-stats | #2935（親 #2892） | `application/page_heading/page_heading_welcome_stats.rs` |
 | card-media-footer | #2900（親 #2892） | `application/card/card_media_footer.rs` |
 | card-meta-cta | #2901（親 #2892） | `application/card/card_meta_cta.rs` |
@@ -979,6 +980,7 @@ pub enum LayoutCss {
 | description-list-summary-card | #2907（親 #2892） | `application/description_list/description_list_summary_card.rs` |
 | description-list-two-column | #2908 | `application/description_list/description_list_two_column.rs` |
 | profile-detail-datalist | #2937（親 #2892） | `application/profile/profile_detail_datalist.rs` |
+| empty-state-invite-team | #2970（親 #2951） | `application/empty_state/empty_state_invite_team.rs` |
 | sidebar-grouped-nav | #2940（親 #2892） | `application/sidebar/sidebar_grouped_nav.rs` |
 | profile-header-follow | #2939（親 #2892） | `application/profile/profile_header_follow.rs` |
 | form-layout-inline-labels | #2911（親 #2892） | `application/form_layout/form_layout_inline_labels.rs` |
@@ -1021,6 +1023,26 @@ pub enum LayoutCss {
 | card-heading-basic | #3229 | `application/card_heading/card_heading_basic.rs` |
 | action-panel-inline | #2953（親 #2951） | `application/action_panel/action_panel_inline.rs` |
 | action-panel-with-input | #2955 | `application/action_panel/action_panel_with_input.rs` |
+| action-panel-stacked | #2954 | `application/action_panel/action_panel_stacked.rs` |
+| ai-chat-code-preview | #2958（親 #2957） | `application/ai_chat/ai_chat_code_preview.rs` |
+| action-panel-with-well | #2956 | `application/action_panel/action_panel_with_well.rs` |
+| ai-chat-playground | #2960 | `application/ai_chat/ai_chat_playground.rs` |
+| ai-chat-prompt-start | #2961（親 #2951） | `application/ai_chat/ai_chat_prompt_start.rs` |
+| auth-dropdown-panel | #2962 | `application/auth/auth_dropdown_panel.rs` |
+| auth-oauth-consent | #2963（親 #2951） | `application/auth/auth_oauth_consent.rs` |
+| auth-otp-verify | #2964（親 #2951） | `application/auth/auth_otp_verify.rs` |
+| auth-split-accent-panel | #2965 | `application/auth/auth_split_accent_panel.rs` |
+| auth-split-photo-testimonial | #2966 | `application/auth/auth_split_photo_testimonial.rs` |
+| auth-tabs-card | #2967 | `application/auth/auth_tabs_card.rs` |
+| command-palette-preview | #2968 | `application/command_palette/command_palette_preview.rs` |
+| empty-state-card-header | #2969 | `application/empty_state/empty_state_card_header.rs` |
+| empty-state-setup-steps | #2971（親 #2951） | `application/empty_state/empty_state_setup_steps.rs` |
+| empty-state-starter-grid | #2972（親 #2951） | `application/empty_state/empty_state_starter_grid.rs` |
+| empty-state-starter-list | #2973（親 #2951） | `application/empty_state/empty_state_starter_list.rs` |
+| help-center-article-list | #2974（親 #2951） | `application/help_center/help_center_article_list.rs` |
+| notification-tray-tabs | #2977（親 #2951） | `application/notification/notification_tray_tabs.rs` |
+| onboarding-checklist | #2979 | `application/onboarding/onboarding_checklist.rs` |
+| onboarding-centered-steps | #2978（親 #2951） | `application/onboarding/onboarding_centered_steps.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
