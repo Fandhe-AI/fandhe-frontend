@@ -1062,12 +1062,13 @@ pub enum LayoutCss {
 | settings-notification-matrix | #2998（親 #2951） | `application/settings/settings_notification_matrix.rs` |
 | settings-org-switcher | #2999（親 #2951） | `application/settings/settings_org_switcher.rs` |
 | settings-page-aside-nav | #3001/#3002（親 #3000） | `application/settings/settings_page_aside_nav.rs` |
-| settings-page-tabs | #3007（親 #3006） | `application/settings/settings_page_tabs.rs` |
+| settings-page-tabs | #3007/#3008（親 #3006） | `application/settings/settings_page_tabs.rs` |
 | settings-preferences | #3009（親 #2951） | `application/settings/settings_preferences.rs` |
 | settings-profile-form | #3010 | `application/settings/settings_profile_form.rs` |
 | notification-tray | #2976（親 #2951） | `application/notification/notification_tray.rs` |
 | settings-share-members | #3013・#3014（親 #3012） | `application/settings/settings_share_members.rs` |
 | cart-line-item-table | #3028（親 #3027） | `ecommerce/cart/cart_line_item_table.rs` |
+| order-tracking-progress | #3060/#3061（親 #3059） | `ecommerce/order/order_tracking_progress.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
