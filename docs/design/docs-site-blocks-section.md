@@ -980,6 +980,7 @@ pub enum LayoutCss {
 | description-list-summary-card | #2907（親 #2892） | `application/description_list/description_list_summary_card.rs` |
 | description-list-two-column | #2908 | `application/description_list/description_list_two_column.rs` |
 | profile-detail-datalist | #2937（親 #2892） | `application/profile/profile_detail_datalist.rs` |
+| cart-two-column-summary | #3033（親 #3032） | `ecommerce/cart/cart_two_column_summary.rs` |
 | empty-state-invite-team | #2970（親 #2951） | `application/empty_state/empty_state_invite_team.rs` |
 | sidebar-grouped-nav | #2940（親 #2892） | `application/sidebar/sidebar_grouped_nav.rs` |
 | profile-header-follow | #2939（親 #2892） | `application/profile/profile_header_follow.rs` |
