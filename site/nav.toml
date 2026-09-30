@@ -2310,6 +2310,14 @@ source = "site/blocks/signup-05.md"
 path = "/blocks/signup-05/"
 
 [[section.group]]
+title = "Settings"
+
+[[section.group.page]]
+title = "settings-billing-overview"
+source = "site/blocks/settings-billing-overview.md"
+path = "/blocks/settings-billing-overview/"
+
+[[section.group]]
 title = "Action Panel"
 
 [[section.group.page]]
