@@ -385,9 +385,8 @@ pub const BLOCK: Block = Block {
 /// `[data-blocks-settings-org-switcher-*]`、および styled 部品の
 /// `[data-scope][data-part]` セレクタとの複合セレクタのみを用いる。
 const LAYOUT_CSS: &str = "\
-.blocks-settings-org-switcher-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
+.blocks-settings-org-switcher-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  container-type: inline-size;\n  container-name: blocks-settings-org-switcher;\n}\n\
 .blocks-settings-org-switcher-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-[data-blocks-settings-org-switcher-variant] {\n  container-type: inline-size;\n  container-name: blocks-settings-org-switcher;\n}\n\
 [data-blocks-settings-org-switcher-trigger] {\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"menu\"][data-part=\"trigger\"][data-blocks-settings-org-switcher-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-settings-org-switcher-action][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
@@ -494,6 +493,23 @@ mod tests {
         assert!(LAYOUT_CSS.contains(
             "[data-scope=\"button\"][data-part=\"root\"][data-blocks-settings-org-switcher-action][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
         ));
+    }
+
+    /// `@container` はコンテナ自身には適用できないため、`container-type` は
+    /// `@container` が対象とする `[data-blocks-settings-org-switcher-breadcrumb]`
+    /// 自身ではなく祖先（`.blocks-settings-org-switcher-stack`）に付ける
+    /// （codex/Bugbot 指摘、イシュー #2999。誤って同一要素へ戻すと 28rem
+    /// 以下でも breadcrumb の縦積みが効かなくなる）。
+    #[test]
+    fn container_type_is_on_ancestor_not_on_breadcrumb_self() {
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-settings-org-switcher-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  container-type: inline-size;\n  container-name: blocks-settings-org-switcher;\n}"
+        ));
+        assert!(!LAYOUT_CSS
+            .contains("[data-blocks-settings-org-switcher-breadcrumb] {\n  container-type"));
+        assert!(
+            !LAYOUT_CSS.contains("[data-blocks-settings-org-switcher-variant] {\n  container-type")
+        );
     }
 
     /// ルート class（`demo_class` とは別名）が [`demo`] の出力へ実際に
