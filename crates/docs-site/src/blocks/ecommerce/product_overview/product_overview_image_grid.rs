@@ -508,11 +508,18 @@ pub const BLOCK: Block = Block {
 
 /// `product_overview_image_grid` 固有のレイアウト規則
 /// （`crate::blocks::LAYOUT_CSS` doc「block 固有 CSS の置き場」節と同型）。
+/// `data-blocks-product-overview-image-grid-tile` は `image` 部品が生成する
+/// `<img>` 自体に付与されるため、グリッド配置の対象要素と幅制約の対象
+/// 要素が同一である。`image` 部品の既定 CSS（`max-width: 100%; height: auto`）
+/// は画像の縮小のみを保証し、hero（2 列×2 行）・wide（3 列全幅）のような
+/// 複数トラックにまたがるグリッド領域を画像が自動的に埋めることは保証
+/// しないため、両セレクタへ `width: 100%` を明示する（PR #3468 レビュー
+/// P1 是正）。
 const LAYOUT_CSS: &str = "\
 .blocks-product-overview-image-grid-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-product-overview-image-grid;\n}\n\
 .blocks-product-overview-image-grid-gallery {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n  grid-auto-rows: minmax(0, 1fr) minmax(0, 1fr) auto;\n  gap: var(--fandhe-space-3);\n}\n\
-[data-blocks-product-overview-image-grid-tile=\"hero\"] {\n  grid-column: span 2;\n  grid-row: span 2;\n}\n\
-[data-blocks-product-overview-image-grid-tile=\"wide\"] {\n  grid-column: 1 / -1;\n}\n\
+[data-blocks-product-overview-image-grid-tile=\"hero\"] {\n  grid-column: span 2;\n  grid-row: span 2;\n  width: 100%;\n}\n\
+[data-blocks-product-overview-image-grid-tile=\"wide\"] {\n  grid-column: 1 / -1;\n  width: 100%;\n}\n\
 .blocks-product-overview-image-grid-panel {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  max-width: 40rem;\n}\n\
 .blocks-product-overview-image-grid-rating-row {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-product-overview-image-grid-options {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
@@ -607,5 +614,19 @@ mod tests {
             LAYOUT_CSS.contains("@container blocks-product-overview-image-grid (max-width: 40rem)")
         );
         assert!(LAYOUT_CSS.contains("[data-blocks-product-overview-image-grid-tile=\"wide\"]"));
+    }
+
+    #[test]
+    fn hero_and_wide_tiles_fill_their_grid_area_width() {
+        // image 部品の既定 CSS（max-width: 100%; height: auto）だけでは
+        // 複数トラックにまたがるグリッド領域を画像が埋めないため、両方の
+        // 段差配置トラックへ width: 100% が明示されていることを固定する
+        // （PR #3468 レビュー P1 是正の回帰防止）。
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-product-overview-image-grid-tile=\"hero\"] {\n  grid-column: span 2;\n  grid-row: span 2;\n  width: 100%;\n}"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-product-overview-image-grid-tile=\"wide\"] {\n  grid-column: 1 / -1;\n  width: 100%;\n}"
+        ));
     }
 }
