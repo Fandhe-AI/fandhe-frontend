@@ -328,6 +328,17 @@ fn api_key_clipboard() -> Node {
 /// 状態を同一リスト内に並記する）。スイッチは `readonly` + `disabled` で
 /// 静的固定する（モジュール doc「スイッチは readonly + disabled で静的
 /// 固定」節参照）。
+///
+/// # 接続済みバッジは `checked` と同じ値を参照する（PR #3447 Codex 指摘）
+///
+/// `GROUPS[0].items` をそのまま [`row_with`] へ渡すと、`status_badge` が
+/// 参照する `item.connected`（版 A/C/D 用の接続状態）と本関数のスイッチ
+/// `checked`（i == 0 のみ true）が独立した値になり、3 行目（Pulse
+/// Alerts、`connected: true`）のように「接続済み」バッジとオフのスイッチ
+/// が同一行に矛盾して並ぶ状態が生じ得た。版 B は元データを複製した
+/// `Integration` を作り `connected` フィールドへ `checked` を代入するこ
+/// とで、バッジとスイッチが必ず同じ状態を指すようにする（`GROUPS` 自体
+/// は版 A/C/D が引き続き参照するため変更しない）。
 fn version_switch_keys() -> Node {
     let items = GROUPS[0].items;
     let switch_props = SwitchProps {
@@ -340,6 +351,15 @@ fn version_switch_keys() -> Node {
         .enumerate()
         .map(|(i, item)| {
             let checked = i == 0;
+            // バッジ（status_badge）とスイッチ（checked）を同じ状態源に
+            // 揃えるための表示用コピー。GROUPS[0].items の connected は
+            // 版 A の接続/解除ボタン用の意味づけであり、版 B の「有効化」
+            // とは独立の状態のため、ここでのみ checked へ上書きする。
+            let display_item = Integration {
+                name: item.name,
+                description: item.description,
+                connected: checked,
+            };
             let hidden_input_name = format!("blocks-settings-integrations-list-enabled-{i}");
             let switch_node = switch::root(
                 Size::Md,
@@ -364,7 +384,7 @@ fn version_switch_keys() -> Node {
                 ],
             );
             let expanded = checked.then(api_key_clipboard);
-            row_with(item, switch_node, expanded)
+            row_with(&display_item, switch_node, expanded)
         })
         .collect();
     ul(
@@ -453,8 +473,8 @@ fn version_request_form() -> Node {
                                 InputGroupAlign::InlineEnd,
                                 &group_props,
                                 vec![],
-                                vec![button(
-                                    &ButtonProps::default(),
+                                vec![input_group::button(
+                                    &group_props,
                                     vec![],
                                     vec![text("要望を送る")],
                                 )],

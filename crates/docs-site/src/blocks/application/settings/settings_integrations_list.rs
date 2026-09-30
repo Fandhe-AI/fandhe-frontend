@@ -62,7 +62,10 @@
 //!
 //! `crate::blocks` モジュール doc の不変条件どおり、版 C の要望送信欄は
 //! `<form>` を出力しない静的表示のみで、送信処理・送信先は一切持たない。
-//! 送信ボタンは `button::button` の既定 `type="button"` のまま用いる。
+//! 送信ボタンは `input_group::addon` 内に配置するため、`button::button`
+//! ではなく `input_group` 専用の `input_group::button`（`type="button"`
+//! 固定・`data-scope="input-group"` 表示規則が適用される）を使う（PR
+//! #3447 Codex 指摘）。
 //!
 //! # `class` と `data-*` の使い分け
 //!
@@ -409,6 +412,17 @@ fn api_key_clipboard() -> Node {
 /// 状態を同一リスト内に並記する）。スイッチは `readonly` + `disabled` で
 /// 静的固定する（モジュール doc「スイッチは readonly + disabled で静的
 /// 固定」節参照）。
+///
+/// # 接続済みバッジは `checked` と同じ値を参照する（PR #3447 Codex 指摘）
+///
+/// `GROUPS[0].items` をそのまま [`row_with`] へ渡すと、`status_badge` が
+/// 参照する `item.connected`（版 A/C/D 用の接続状態）と本関数のスイッチ
+/// `checked`（i == 0 のみ true）が独立した値になり、3 行目（Pulse
+/// Alerts、`connected: true`）のように「接続済み」バッジとオフのスイッチ
+/// が同一行に矛盾して並ぶ状態が生じ得た。版 B は元データを複製した
+/// `Integration` を作り `connected` フィールドへ `checked` を代入するこ
+/// とで、バッジとスイッチが必ず同じ状態を指すようにする（`GROUPS` 自体
+/// は版 A/C/D が引き続き参照するため変更しない）。
 fn version_switch_keys() -> Node {
     let items = GROUPS[0].items;
     let switch_props = SwitchProps {
@@ -421,6 +435,15 @@ fn version_switch_keys() -> Node {
         .enumerate()
         .map(|(i, item)| {
             let checked = i == 0;
+            // バッジ（status_badge）とスイッチ（checked）を同じ状態源に
+            // 揃えるための表示用コピー。GROUPS[0].items の connected は
+            // 版 A の接続/解除ボタン用の意味づけであり、版 B の「有効化」
+            // とは独立の状態のため、ここでのみ checked へ上書きする。
+            let display_item = Integration {
+                name: item.name,
+                description: item.description,
+                connected: checked,
+            };
             let hidden_input_name = format!("blocks-settings-integrations-list-enabled-{i}");
             let switch_node = switch::root(
                 Size::Md,
@@ -445,7 +468,7 @@ fn version_switch_keys() -> Node {
                 ],
             );
             let expanded = checked.then(api_key_clipboard);
-            row_with(item, switch_node, expanded)
+            row_with(&display_item, switch_node, expanded)
         })
         .collect();
     ul(
@@ -534,8 +557,8 @@ fn version_request_form() -> Node {
                                 InputGroupAlign::InlineEnd,
                                 &group_props,
                                 vec![],
-                                vec![button(
-                                    &ButtonProps::default(),
+                                vec![input_group::button(
+                                    &group_props,
                                     vec![],
                                     vec![text("要望を送る")],
                                 )],
@@ -911,6 +934,42 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn switch_state_and_connected_badge_agree_per_row() {
+        // PR #3447 Codex 指摘（P1）の回帰: 版 B は GROUPS[0].items を再利用
+        // するため、スイッチの checked（i == 0 のみ true）と元データの
+        // item.connected（Pulse Alerts は 3 行目で true）が食い違うと、
+        // 「接続済み」バッジとオフのスイッチが同一行に矛盾して並んでいた。
+        // 接続済みバッジの数・展開（checked）行の数は常に一致する。
+        let html = render(&super::version_switch_keys());
+        let connected_count = html.matches("接続済み").count();
+        let checked_count = html
+            .matches("data-part=\"control\" data-state=\"checked\"")
+            .count();
+        assert_eq!(
+            connected_count, checked_count,
+            "接続済みバッジの数とスイッチ checked 行の数は一致するはず: {html}"
+        );
+        assert_eq!(connected_count, 1, "版 B は先頭行のみ展開・有効化する");
+    }
+
+    #[test]
+    fn request_submit_uses_input_group_button_not_plain_button() {
+        // PR #3447 Codex 指摘（P2）の回帰: `input_group::addon` 内は
+        // `input_group` 専用の `button` パーツ（`data-scope="input-group"
+        // data-part="button"`）を使い、汎用 `button::button`
+        // （`data-scope="button"`）の表示規則を適用しない。「要望を送る」
+        // 送信ボタン自体のタグに絞って検証する（版 C は要望一覧の直前に
+        // 通常の接続/解除ボタン〔`data-scope="button"`〕を持つ 2 行を
+        // 含むため、フォーム全体の非包含チェックはしない）。
+        let html = render(&super::version_request_form());
+        let submit_button_tag = html
+            .split("<button")
+            .find(|segment| segment.contains("要望を送る"))
+            .expect("要望を送るボタンが見つかること");
+        assert!(submit_button_tag.starts_with(r#" data-scope="input-group" data-part="button""#));
     }
 
     #[test]
