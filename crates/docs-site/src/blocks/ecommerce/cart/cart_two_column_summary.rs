@@ -59,9 +59,12 @@
 //! # 数量 `select` の id・アクセシブルネーム
 //!
 //! 商品行ごとに `FieldProps::id` を一意にし（`.../qty-<n>`）、
-//! `aria-label="数量"` を `extra_attrs` で付与する。実際に出力される
-//! `<select>` の `id` は `fandhe_frontend_headless_ui::field` の派生規則
-//! により `"{id}-control"` になる。
+//! `aria-label` も商品名を含めて行ごとに区別する
+//! （`format!("{name} の数量")`、`extra_attrs` で付与。
+//! `settings_api_keys_table` の失効ボタン `aria-label` と同型の判断）。
+//! 実際に出力される `<select>` の `id` は
+//! `fandhe_frontend_headless_ui::field` の派生規則により
+//! `"{id}-control"` になる。
 //!
 //! # ダミー素材について
 //!
@@ -117,7 +120,7 @@ const CART_ITEMS: &[(&str, &str, &str, &str, u8)] = &[
         "カラー: ブラック",
         "在庫あり",
         "¥18,200",
-        2,
+        1,
     ),
     (
         "ステンレス タンブラー 500ml",
@@ -158,6 +161,7 @@ fn qty_options(selected: u8) -> Vec<Node> {
 /// `index` は 0 始まりで、数量 `select` の一意な `id` の派生に使う。
 fn item_row(index: usize, name: &str, attrs: &str, stock: &str, price: &str, qty: u8) -> Node {
     let field_id = format!("blocks-cart-two-column-summary-qty-{}", index + 1);
+    let qty_aria_label = format!("{name} の数量");
     let field = FieldProps {
         id: &field_id,
         ids: FieldIds::default(),
@@ -222,7 +226,7 @@ fn item_row(index: usize, name: &str, attrs: &str, stock: &str, price: &str, qty
                     native_select(
                         &NativeSelectProps::default(),
                         &field,
-                        vec![("aria-label", "数量")],
+                        vec![("aria-label", qty_aria_label.as_str())],
                         qty_options(qty),
                     ),
                     button(
@@ -409,7 +413,7 @@ const LAYOUT_CSS: &str = "\
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, LAYOUT_CSS};
+    use super::{demo, CART_ITEMS, LAYOUT_CSS};
     use fandhe_frontend_core::render;
 
     fn demo_html() -> String {
@@ -460,7 +464,14 @@ mod tests {
                 "expected exactly one {needle}"
             );
         }
-        assert_eq!(html.matches("aria-label=\"数量\"").count(), 3);
+        for (name, _, _, _, _) in CART_ITEMS {
+            let needle = format!("aria-label=\"{name} の数量\"");
+            assert_eq!(
+                html.matches(needle.as_str()).count(),
+                1,
+                "expected exactly one {needle}"
+            );
+        }
     }
 
     #[test]

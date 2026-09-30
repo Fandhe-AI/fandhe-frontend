@@ -46,7 +46,7 @@ const CART_ITEMS: &[(&str, &str, &str, &str, u8)] = &[
         "カラー: ブラック",
         "在庫あり",
         "¥18,200",
-        2,
+        1,
     ),
     (
         "ステンレス タンブラー 500ml",
@@ -87,6 +87,7 @@ fn qty_options(selected: u8) -> Vec<Node> {
 /// `index` は 0 始まりで、数量 `select` の一意な `id` の派生に使う。
 fn item_row(index: usize, name: &str, attrs: &str, stock: &str, price: &str, qty: u8) -> Node {
     let field_id = format!("blocks-cart-two-column-summary-qty-{}", index + 1);
+    let qty_aria_label = format!("{name} の数量");
     let field = FieldProps {
         id: &field_id,
         ids: FieldIds::default(),
@@ -151,7 +152,7 @@ fn item_row(index: usize, name: &str, attrs: &str, stock: &str, price: &str, qty
                     native_select(
                         &NativeSelectProps::default(),
                         &field,
-                        vec![("aria-label", "数量")],
+                        vec![("aria-label", qty_aria_label.as_str())],
                         qty_options(qty),
                     ),
                     button(
