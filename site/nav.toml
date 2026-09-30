@@ -2335,6 +2335,11 @@ title = "empty-state-setup-steps"
 source = "site/blocks/empty-state-setup-steps.md"
 path = "/blocks/empty-state-setup-steps/"
 
+[[section.group.page]]
+title = "empty-state-starter-list"
+source = "site/blocks/empty-state-starter-list.md"
+path = "/blocks/empty-state-starter-list/"
+
 [[section.group]]
 title = "Dialog"
 
