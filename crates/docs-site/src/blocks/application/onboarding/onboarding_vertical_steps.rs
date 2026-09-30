@@ -47,6 +47,16 @@
 //! 装飾的な「動画を再生」ボタン（`button::button`、`ButtonVariant::Outline`、
 //! `type="button"` 既定）を置く。実際の再生処理・送信処理は持たない。
 //!
+//! # `content` 直下の縦積み間隔
+//!
+//! [`fandhe_frontend_pre_styled_ui::steps::content`] は既定で
+//! `display`/`gap` を持たない素の `<div>` のため、直下に並べる
+//! 動画枠・見出し・説明文が間隔なしで密着してしまう。[`LAYOUT_CSS`] で
+//! `[data-scope="steps"][data-part="content"]` へ `display: flex;
+//! flex-direction: column; gap: var(--fandhe-space-4)` を明示し、
+//! `help_center_article_list` 等の他 block と同じ縦積み間隔を持たせる
+//! （Bugbot #2981 指摘の是正）。
+//!
 //! # `class` と `data-*` の使い分け
 //!
 //! [`fandhe_frontend_pre_styled_ui::steps::root`]・
@@ -69,7 +79,12 @@
 //! inline-size` を宣言し、コンテナ幅が `40rem` 未満のとき
 //! `[data-scope="steps"][data-part="root"][data-orientation="vertical"]` を
 //! `flex-direction: column` に、`list` を `flex-direction: row; flex-wrap:
-//! wrap` に、`separator` を `display: none` に切り替える。
+//! wrap` に、`separator` を `display: none` に切り替える。`root` 既定の
+//! `align-items: flex-start`（cross-axis 縮小フィット）のままだと
+//! `list`/`body` が内容幅にしか広がらず `flex-wrap` が機能しないため、
+//! この幅でのみ `root` の `align-items` を `stretch` へ上書きし、
+//! `list` がコンテナ幅いっぱいに広がって折り返せるようにする
+//! （Bugbot #2981 指摘の是正）。
 //!
 //! # ダミー素材について
 //!
@@ -118,7 +133,11 @@ fn step_list(s: &Steps) -> Node {
         let mut item_children = vec![steps::trigger(
             s,
             index,
-            vec![],
+            // 無 JS の docs サイトでは押しても状態遷移しない dead control
+            // になるため、ネイティブ `disabled` で操作不能を構造的に表現
+            // する（Codex #2981 指摘の是正。prev/next と同型、モジュール
+            // 冒頭 doc「状態は固定」節参照）。
+            vec![("disabled", "")],
             vec![
                 steps::indicator(s, index, vec![], vec![core_text((index + 1).to_string())]),
                 core_text(*title),
@@ -151,6 +170,11 @@ fn media_frame() -> Node {
             button(
                 &ButtonProps {
                     variant: ButtonVariant::Outline,
+                    // 動画ソース・再生処理を持たない装飾的なボタンのため、
+                    // ネイティブ `disabled` で操作不能であることを構造的に
+                    // 保証する（`onboarding_checklist` の実行ボタンと同型の
+                    // 判断。Codex #2981 指摘の是正）。
+                    disabled: true,
                     ..ButtonProps::default()
                 },
                 vec![("data-blocks-onboarding-vertical-steps-play", "")],
@@ -189,8 +213,13 @@ fn nav(s: &Steps) -> Node {
     div(
         vec![("class", "blocks-onboarding-vertical-steps-nav")],
         vec![
-            steps::prev_trigger(s, vec![], vec![core_text("前へ")]),
-            steps::next_trigger(s, vec![], vec![core_text("次へ")]),
+            // `step` は 0（先頭）でも `count`（末尾）でもないため headless
+            // 側の境界無効化（`step == 0`/`step == count`）は働かない。
+            // 無 JS の静的 Demo では押しても状態遷移しないため、trigger と
+            // 同様にネイティブ `disabled` で操作不能を明示する（Codex
+            // #2981 指摘の是正）。
+            steps::prev_trigger(s, vec![("disabled", "")], vec![core_text("前へ")]),
+            steps::next_trigger(s, vec![("disabled", "")], vec![core_text("次へ")]),
         ],
     )
 }
@@ -256,9 +285,11 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-onboarding-vertical-steps-root] {\n  gap: var(--fandhe-space-8);\n  align-items: flex-start;\n}\n\
 [data-blocks-onboarding-vertical-steps-root] > [data-scope=\"steps\"][data-part=\"list\"] {\n  flex: 0 0 16rem;\n}\n\
 [data-blocks-onboarding-vertical-steps-root] > [data-scope=\"steps\"][data-part=\"body\"] {\n  flex: 1 1 0;\n  min-width: 0;\n}\n\
+[data-blocks-onboarding-vertical-steps-root] [data-scope=\"steps\"][data-part=\"content\"] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-onboarding-vertical-steps-media {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-onboarding-vertical-steps-nav {\n  display: flex;\n  gap: var(--fandhe-space-2);\n  justify-content: flex-end;\n}\n\
 @container blocks-onboarding-vertical-steps (max-width: 40rem) {\n  \
+[data-blocks-onboarding-vertical-steps-root] {\n    align-items: stretch;\n  }\n  \
 [data-scope=\"steps\"][data-part=\"root\"][data-orientation=\"vertical\"] {\n    flex-direction: column;\n  }\n  \
 [data-blocks-onboarding-vertical-steps-root] > [data-scope=\"steps\"][data-part=\"list\"] {\n    flex-basis: auto;\n    flex-direction: row;\n    flex-wrap: wrap;\n  }\n  \
 [data-scope=\"steps\"][data-part=\"separator\"] {\n    display: none;\n  }\n\
@@ -352,5 +383,37 @@ mod tests {
             LAYOUT_CSS.contains("@container blocks-onboarding-vertical-steps (max-width: 40rem)")
         );
         assert!(LAYOUT_CSS.contains("flex-direction: column;"));
+        // 狭幅で list が折り返せるよう root の align-items を上書きする
+        // （Bugbot #2981 指摘の是正）。
+        assert!(LAYOUT_CSS.contains("align-items: stretch;"));
+        // content 直下の縦積み間隔（Bugbot #2981 指摘の是正）。
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"steps\"][data-part=\"content\"] {\n  display: flex;\n  flex-direction: column;\n  gap:"
+        ));
+    }
+
+    #[test]
+    fn all_step_controls_are_natively_disabled() {
+        // 無 JS の静的 Demo では押しても状態遷移しないため、trigger /
+        // prev-trigger / next-trigger / 再生ボタンをすべてネイティブ
+        // `disabled` で操作不能にする（dead control 回避、Codex #2981
+        // 指摘の是正）。
+        let html = demo_html();
+        for part in ["trigger", "prev-trigger", "next-trigger"] {
+            let needle = format!("data-part=\"{part}\"");
+            let pos = html.find(&needle).unwrap_or_else(|| {
+                panic!("expected {part} to be rendered");
+            });
+            let tail = &html[..pos];
+            let start = tail.rfind("<button").unwrap();
+            let end = html[start..].find('>').unwrap() + start;
+            assert!(
+                html[start..end].contains("disabled"),
+                "{part} button should be disabled: {}",
+                &html[start..end]
+            );
+        }
+        // trigger x4 + prev-trigger + next-trigger + 再生ボタン = 7 件。
+        assert_eq!(html.matches(" disabled").count(), 7, "{html}");
     }
 }

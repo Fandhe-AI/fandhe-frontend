@@ -10,7 +10,10 @@ Blocks は既存部品の合成例であり、新しい UI 部品は追加しま
 は含みません。動画ソース資産は持たないため、動画枠はビルド時生成の同梱
 プレースホルダー画像（16:9）+ 装飾的な「動画を再生」ボタンで代替します。
 
-本 Demo は無 JS の静的表示のみであり、`<form>` を含みません。
+本 Demo は無 JS の静的表示のみであり、`<form>` を含みません。無 JS の静的
+Demo では押しても状態遷移・再生が起きないため、trigger / prev-trigger /
+next-trigger / 再生ボタンはすべてネイティブ `disabled` で操作不能にして
+います（dead control 回避）。
 
 ## Rust コード
 
@@ -52,7 +55,11 @@ fn step_list(s: &Steps) -> Node {
         let mut item_children = vec![steps::trigger(
             s,
             index,
-            vec![],
+            // 無 JS の docs サイトでは押しても状態遷移しない dead control
+            // になるため、ネイティブ `disabled` で操作不能を構造的に表現
+            // する（Codex #2981 指摘の是正。prev/next と同型、モジュール
+            // 冒頭 doc「状態は固定」節参照）。
+            vec![("disabled", "")],
             vec![
                 steps::indicator(s, index, vec![], vec![core_text((index + 1).to_string())]),
                 core_text(*title),
@@ -85,6 +92,11 @@ fn media_frame() -> Node {
             button(
                 &ButtonProps {
                     variant: ButtonVariant::Outline,
+                    // 動画ソース・再生処理を持たない装飾的なボタンのため、
+                    // ネイティブ `disabled` で操作不能であることを構造的に
+                    // 保証する（`onboarding_checklist` の実行ボタンと同型の
+                    // 判断。Codex #2981 指摘の是正）。
+                    disabled: true,
                     ..ButtonProps::default()
                 },
                 vec![("data-blocks-onboarding-vertical-steps-play", "")],
@@ -123,8 +135,13 @@ fn nav(s: &Steps) -> Node {
     div(
         vec![("class", "blocks-onboarding-vertical-steps-nav")],
         vec![
-            steps::prev_trigger(s, vec![], vec![core_text("前へ")]),
-            steps::next_trigger(s, vec![], vec![core_text("次へ")]),
+            // `step` は 0（先頭）でも `count`（末尾）でもないため headless
+            // 側の境界無効化（`step == 0`/`step == count`）は働かない。
+            // 無 JS の静的 Demo では押しても状態遷移しないため、trigger と
+            // 同様にネイティブ `disabled` で操作不能を明示する（Codex
+            // #2981 指摘の是正）。
+            steps::prev_trigger(s, vec![("disabled", "")], vec![core_text("前へ")]),
+            steps::next_trigger(s, vec![("disabled", "")], vec![core_text("次へ")]),
         ],
     )
 }
