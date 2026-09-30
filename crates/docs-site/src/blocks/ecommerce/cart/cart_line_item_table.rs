@@ -115,19 +115,27 @@ fn page_heading() -> Node {
 }
 
 /// 列見出しセル 1 個（素の `<span>`。[`LAYOUT_CSS`] のグリッド列割りに
-/// フックする `data-blocks-cart-line-item-table-col` を持つ）。
+/// フックする `data-blocks-cart-line-item-table-col` に加え、`role="columnheader"`
+/// で表の列見出しとして支援技術に伝える）。
 fn column_header(col: &'static str, label: &'static str) -> Node {
     span(
-        vec![("data-blocks-cart-line-item-table-col", col)],
+        vec![
+            ("data-blocks-cart-line-item-table-col", col),
+            ("role", "columnheader"),
+        ],
         vec![text(label)],
     )
 }
 
 /// 列見出し行（広幅のみ表示、狭幅では [`LAYOUT_CSS`] の
-/// `@container` で非表示にする）。
+/// `@container` で非表示にする）。`role="row"` で [`row_group`] 配下の
+/// 商品行と同じ行として関連付ける。
 fn column_headers() -> Node {
     div(
-        vec![("class", "blocks-cart-line-item-table-head")],
+        vec![
+            ("class", "blocks-cart-line-item-table-head"),
+            ("role", "row"),
+        ],
         vec![
             column_header("product", "商品"),
             column_header("qty", "数量"),
@@ -174,10 +182,13 @@ fn product_info(item: &LineItem) -> Node {
     )
 }
 
-/// 商品列（サムネイル + 情報）。
+/// 商品列（サムネイル + 情報）。`role="cell"` で表セルとして関連付ける。
 fn product_cell(item: &LineItem) -> Node {
     div(
-        vec![("class", "blocks-cart-line-item-table-product")],
+        vec![
+            ("class", "blocks-cart-line-item-table-product"),
+            ("role", "cell"),
+        ],
         vec![product_thumbnail(item.name), product_info(item)],
     )
 }
@@ -188,6 +199,19 @@ fn product_cell(item: &LineItem) -> Node {
 /// `@container` では通常表示へ切り替える（PR #3461 レビュー指摘対応。
 /// `<table>`/`<th>` へ組み替えず、`@container` に応じたセル並べ替えを保った
 /// まま列見出しとの意味的関連付けだけを補う判断）。
+///
+/// # 表としての行・列関連付け（WAI-ARIA `table` ロール、PR #3461 追加指摘対応）
+///
+/// 上記のセルラベルは各値の列名を補うのみで、行数・現在位置・列見出しとの
+/// 関連付けといった表としての操作性までは支援技術に伝わらない
+/// （Codex P2 指摘）。`<table>`/`<th>`/`<td>` への置き換えは、`@container`
+/// による「狭幅で行を画像＋情報の 2 段へ組み替える」レイアウトと両立しない
+/// （多くのブラウザは `display` が `table`/`table-row`/`table-cell` 以外へ
+/// 上書きされた要素の暗黙 table ロールを外す）ため、既存の `div`/`span`
+/// 構造を保ったまま [`role_table_wrapper`] 以下で `role="table"` /
+/// `role="rowgroup"` / `role="row"` / `role="columnheader"` /
+/// `role="cell"` を付与し、支援技術のテーブルナビゲーションで行・列を
+/// 把握できるようにする。
 fn cell_label(label: &'static str) -> Node {
     span(
         vec![("class", "blocks-cart-line-item-table-cell-label")],
@@ -231,45 +255,49 @@ fn quantity_select(item: &LineItem) -> Node {
     )
 }
 
-/// 数量セル（狭幅ラベル + select）。
+/// 数量セル（狭幅ラベル + select）。`role="cell"` で表セルとして関連付ける。
 fn quantity_cell(item: &LineItem) -> Node {
     div(
         vec![
             ("class", "blocks-cart-line-item-table-cell"),
             ("data-blocks-cart-line-item-table-col", "qty"),
+            ("role", "cell"),
         ],
         vec![cell_label("数量"), quantity_select(item)],
     )
 }
 
-/// 単価セル。
+/// 単価セル。`role="cell"` で表セルとして関連付ける。
 fn price_cell(item: &LineItem) -> Node {
     div(
         vec![
             ("class", "blocks-cart-line-item-table-cell"),
             ("data-blocks-cart-line-item-table-col", "price"),
+            ("role", "cell"),
         ],
         vec![cell_label("価格"), text(item.unit_price)],
     )
 }
 
-/// 行合計セル。
+/// 行合計セル。`role="cell"` で表セルとして関連付ける。
 fn total_cell(item: &LineItem) -> Node {
     div(
         vec![
             ("class", "blocks-cart-line-item-table-cell"),
             ("data-blocks-cart-line-item-table-col", "total"),
+            ("role", "cell"),
         ],
         vec![cell_label("合計"), text(item.total_price)],
     )
 }
 
-/// 商品行 1 件。
+/// 商品行 1 件。`role="row"` で [`row_group`] 配下の表行として関連付ける。
 fn line_item_row(item: &LineItem) -> Node {
     div(
         vec![
             ("class", "blocks-cart-line-item-table-row"),
             ("data-blocks-cart-line-item-table-row", item.row),
+            ("role", "row"),
         ],
         vec![
             product_cell(item),
@@ -280,11 +308,30 @@ fn line_item_row(item: &LineItem) -> Node {
     )
 }
 
-/// 商品行一覧。
+/// 商品行一覧。`role="rowgroup"`（HTML `<tbody>` 相当）で
+/// [`column_headers`] の行と区別しつつ表構造の一部として関連付ける。
 fn line_item_rows() -> Node {
     div(
-        vec![("class", "blocks-cart-line-item-table-rows")],
+        vec![
+            ("class", "blocks-cart-line-item-table-rows"),
+            ("role", "rowgroup"),
+        ],
         LINE_ITEMS.iter().map(line_item_row).collect(),
+    )
+}
+
+/// [`column_headers`] と [`line_item_rows`] を包む `role="table"` の外枠。
+/// ARIA table ロールでは所有要素が `row`/`rowgroup` のみであることが
+/// 期待されるため、見出し・区切り線・小計等を含む [`demo`] の最上位 `div`
+/// とは別に、表本体だけを囲む専用ラッパーを設ける。
+fn role_table_wrapper() -> Node {
+    div(
+        vec![
+            ("class", "blocks-cart-line-item-table-table"),
+            ("role", "table"),
+            ("aria-label", "カート明細"),
+        ],
+        vec![column_headers(), line_item_rows()],
     )
 }
 
@@ -335,8 +382,7 @@ pub fn demo() -> Node {
         vec![("class", "blocks-cart-line-item-table-layout")],
         vec![
             page_heading(),
-            column_headers(),
-            line_item_rows(),
+            role_table_wrapper(),
             separator::separator(&SeparatorProps::default(), vec![]),
             summary(),
         ],
@@ -469,7 +515,10 @@ mod tests {
         sorted.sort_unstable();
         sorted.dedup();
         assert_eq!(ids.len(), sorted.len(), "id が重複している: {ids:?}");
-        assert_eq!(html.matches("aria-label=\"").count(), 3);
+        // 3 行分の select（数量ラベル）+ role="table" ラッパーの
+        // aria-label="カート明細" の計 4 件（role_table_structure_associates_rows_and_columns
+        // 参照）。
+        assert_eq!(html.matches("aria-label=\"").count(), 4);
     }
 
     #[test]
@@ -505,5 +554,20 @@ mod tests {
     fn uses_shared_dummy_assets() {
         let html = demo_html();
         assert!(html.contains(super::dummy_assets::PRODUCT_SRC));
+    }
+
+    /// PR #3461 追加指摘（Codex P2）対応: `<table>`/`<th>`/`<td>` へ組み替え
+    /// ずとも、WAI-ARIA `table` ロールで行・列の関連付けが支援技術に伝わる
+    /// ことを固定する。列見出し行 1 + 商品行 3 の計 4 行、商品行 1 件あたり
+    /// 4 セル（商品・数量・価格・合計）で計 12 セルとなる。
+    #[test]
+    fn role_table_structure_associates_rows_and_columns() {
+        let html = demo_html();
+        assert_eq!(html.matches("role=\"table\"").count(), 1);
+        assert_eq!(html.matches("role=\"rowgroup\"").count(), 1);
+        assert_eq!(html.matches("role=\"row\"").count(), 4, "html={html}");
+        assert_eq!(html.matches("role=\"columnheader\"").count(), 4);
+        assert_eq!(html.matches("role=\"cell\"").count(), 12, "html={html}");
+        assert!(html.contains("aria-label=\"カート明細\""));
     }
 }
