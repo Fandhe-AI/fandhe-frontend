@@ -14,10 +14,12 @@
 //! # 使用部品
 //!
 //! `breadcrumb` / `image` / `heading` / `text` / `rating-group` /
-//! `radio-card` / `color-swatch` / `button` / `link` の 9 部品を合成する
+//! `radio-card` / `color-swatch` / `button` の 8 部品を合成する
 //! （[`BLOCK`] の `parts` に一致させる契約、
 //! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証する）。
-//! 新しい UI 部品は追加しない。
+//! 新しい UI 部品は追加しない。レビュー件数は実在するレビュー領域を
+//! 持たない（後半 #3072 まで）ため `link` は使わず、`text` の可視テキスト
+//! として表示する（下記「レビュー件数はリンクにしない」節参照）。
 //!
 //! # `class` と `data-*` の使い分け
 //!
@@ -39,8 +41,9 @@
 //! パターン）。[`LAYOUT_CSS`] のラッパー
 //! `.blocks-product-overview-image-grid-stack` へ `container-type:
 //! inline-size` を宣言し、コンテナ幅が `40rem` 未満のとき画像グリッドを
-//! 1 カラムへ切り替え（1 枚目の段差 `grid-column`/`grid-row` の span も
-//! `auto` へ戻す）、購入パネルはその下（DOM 順のまま）に積む。
+//! 1 カラムへ切り替え（1 枚目の段差 `grid-column`/`grid-row` の span・
+//! 最後の 1 枚の全幅 `grid-column` もいずれも `auto` へ戻す）、購入パネル
+//! はその下（DOM 順のまま）に積む。
 //!
 //! # 色/サイズ選択は `disabled` の静的表示（無 JS）
 //!
@@ -61,8 +64,17 @@
 //! # 評価のアクセシブルネーム
 //!
 //! [`fandhe_frontend_pre_styled_ui::rating_group::label`] の `id` を固定
-//! 文字列にし（Demo は 1 ページ 1 block のため重複しない）、レビュー件数
-//! `link` はその隣に可視テキストとして置く（`card_meta_cta` と同型）。
+//! 文字列にする（Demo は 1 ページ 1 block のため重複しない）。
+//!
+//! # レビュー件数はリンクにしない
+//!
+//! 当初はレビュー詳細ページへのリンクとして実装したが、レビュー詳細ページ
+//! （Ecommerce / Reviews カテゴリ）は本イシュー時点で block 未登録のため
+//! 実在せず、リンク先が単なる自己参照（`href="./"`）になり遷移として機能
+//! しない指摘（PR #3468 レビュー）を受けて、実在しないリンク先を作らず
+//! [`fandhe_frontend_pre_styled_ui::text`] の可視テキストとして表示する
+//! よう改めた。実在の Reviews block が追加され次第、その相対パスへの
+//! `link` へ差し替える（#3072）。
 //!
 //! # ダミー素材について
 //!
@@ -89,7 +101,6 @@ use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::color_swatch::{self, Color, ColorSwatchProps, Rgb};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps};
 use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageProps, ImageShape};
-use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::radio_card::{self, Orientation};
 use fandhe_frontend_pre_styled_ui::rating_group::{
     self, RatingGroup, RatingGroupProps, RatingItemFlags,
@@ -130,35 +141,50 @@ const COLOR_OPTIONS: &[(&str, &str, (u8, u8, u8))] = &[
 /// 架空のサイズ選択肢。2 件目（M）を初期選択に固定する。
 const SIZE_OPTIONS: &[&str] = &["S", "M", "L", "XL"];
 
-/// 画像グリッドの 1 枚（`index` は 0 始まり）。1 枚目（`index == 0`）だけ
-/// `data-blocks-product-overview-image-grid-tile="hero"` を付け、
-/// [`LAYOUT_CSS`] の段差配置（2×2）のフックにする。
-fn gallery_tile(index: usize) -> Node {
+/// 画像グリッドの 1 枚（`index` は 0 始まり、`total` は総枚数）。3 列
+/// グリッドに対する明示配置を [`LAYOUT_CSS`] の段差配置（2×2 + 下段 1 枚
+/// 全幅）のフックにする: 1 枚目（`index == 0`）は
+/// `data-blocks-product-overview-image-grid-tile="hero"`（2 列×2 行）、
+/// 最後の 1 枚（`index == total - 1`）は
+/// `data-blocks-product-overview-image-grid-tile="wide"`（3 列全幅の下段）。
+/// 中間の画像は `grid-auto-flow` の暗黙配置に任せ、hero が占有した後の
+/// 残り 2 セル（1・2 行目の 3 列目）へ収まる。この 3 分類により、3 列
+/// グリッド上で「1 枚目が 2×2」「最後の 1 枚が意図せず単独の行になる」
+/// 不整合（PR #3468 レビュー P1 指摘）を、全画像の配置を明示することで
+/// 解消する。
+fn gallery_tile(index: usize, total: usize) -> Node {
     let alt = format!("{PRODUCT_NAME} の画像 {}", index + 1);
-    let hero = index == 0;
     let mut props = ImageProps::new(dummy_assets::PRODUCT_SRC, &alt);
     props.aspect_ratio = AspectRatio::Square;
     props.shape = ImageShape::Rounded;
-    let attrs = if hero {
+    let attrs = if index == 0 {
         vec![("data-blocks-product-overview-image-grid-tile", "hero")]
+    } else if index == total - 1 {
+        vec![("data-blocks-product-overview-image-grid-tile", "wide")]
     } else {
         vec![]
     };
     image(&props, attrs)
 }
 
-/// 上段の画像グリッド（4 枚、1 枚目を 2×2 で大きく = 段差配置。主参照
-/// R1178、集約元 R1175 の段差配置の要素のみを骨格に取り込む）。
+/// 上段の画像グリッド（4 枚、1 枚目を 2×2 で大きく・最後の 1 枚を 3 列
+/// 全幅の下段に明示配置 = 段差配置。主参照 R1178、集約元 R1175 の段差
+/// 配置の要素のみを骨格に取り込む）。
 fn gallery() -> Node {
-    let tiles = (0..4).map(gallery_tile).collect();
+    const TOTAL: usize = 4;
+    let tiles = (0..TOTAL).map(|i| gallery_tile(i, TOTAL)).collect();
     div(
         vec![("class", "blocks-product-overview-image-grid-gallery")],
         tiles,
     )
 }
 
-/// パンくず（Home → Shop → 現在の商品名。`cart_two_column_summary`・
-/// `app_shell_stacked` と同型の相対パス構成）。
+/// パンくず（Home → Blocks → 現在の商品名。`app_shell_stacked` と同型の
+/// 相対パス構成: ページは `/blocks/product-overview-image-grid/` に生成
+/// されるため `../../` はサイトルート、`../` は `/blocks/` を指す。2 階層目
+/// のラベルは実際の遷移先 `/blocks/` に合わせて「Blocks」とする
+/// （「Shop」ラベルで `/blocks/` 索引へ遷移していたラベルと遷移先の不一致
+/// 〔PR #3468 レビュー P2 指摘〕の是正）。
 fn breadcrumb_nav() -> Node {
     breadcrumb::root(
         Size::Sm,
@@ -175,7 +201,7 @@ fn breadcrumb_nav() -> Node {
                 breadcrumb::separator(vec![], vec![text("/")]),
                 breadcrumb::item(
                     vec![],
-                    vec![breadcrumb::link("../", vec![], vec![text("Shop")])],
+                    vec![breadcrumb::link("../", vec![], vec![text("Blocks")])],
                 ),
                 breadcrumb::separator(vec![], vec![text("/")]),
                 breadcrumb::item(
@@ -187,8 +213,10 @@ fn breadcrumb_nav() -> Node {
     )
 }
 
-/// 評価（readonly の 5 段 `rating_group`）+ レビュー件数 `link` の行
-/// （`card_meta_cta` と同型。評価そのものは初期状態固定の静的表示）。
+/// 評価（readonly の 5 段 `rating_group`）+ レビュー件数（可視テキスト）の
+/// 行。評価そのものは初期状態固定の静的表示、レビュー件数は実在する遷移先
+/// を持たないためリンクにしない（上記モジュール doc「レビュー件数は
+/// リンクにしない」節参照）。
 fn rating_row() -> Node {
     let props = RatingGroupProps {
         disabled: false,
@@ -227,20 +255,17 @@ fn rating_row() -> Node {
         vec![label, control],
     );
     // レビュー詳細ページ（Ecommerce / Reviews カテゴリ）は本イシュー時点で
-    // block 未登録のため実在せず、linkcheck（`crates/docs-site/src/
-    // linkcheck.rs`）が到達不能な href を fail-closed に検知する。同一
-    // ページ内への自己参照（`./`）を仮リンク先にする（`href="#"` の
-    // dead link は他 block と同様に使わない）。実在の Reviews block が
-    // 追加され次第、その相対パスへ差し替える。
-    let review_link = link::root(
-        "./",
-        &LinkProps::default(),
-        vec![],
-        vec![text("レビュー 128 件")],
-    );
+    // block 未登録のため実在しない。以前はリンクとして実装していたが、
+    // 遷移先を持たない `link` は自己参照（`href="./"`）になり遷移として
+    // 機能しない指摘（PR #3468 レビュー P2）を受け、実在しないリンク先を
+    // 作らず可視テキストとして表示する（`crate::blocks` 冒頭 doc
+    // 「モジュール doc」不変条件の `href="#"` dead link 禁止とも整合）。
+    // 実在の Reviews block が追加され次第、`link` へ差し替える（#3072）。
+    let review_count =
+        styled_text::text(&TextProps::default(), vec![], vec![text("レビュー 128 件")]);
     div(
         vec![("class", "blocks-product-overview-image-grid-rating-row")],
-        vec![rating, review_link],
+        vec![rating, review_count],
     )
 }
 
@@ -452,10 +477,6 @@ pub const BLOCK: Block = Block {
             label: "Button",
             path: "/themes/button/",
         },
-        Part {
-            label: "Link",
-            path: "/themes/link/",
-        },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
     demo,
@@ -467,12 +488,14 @@ const LAYOUT_CSS: &str = "\
 .blocks-product-overview-image-grid-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-product-overview-image-grid;\n}\n\
 .blocks-product-overview-image-grid-gallery {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n  grid-auto-rows: minmax(0, 1fr);\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-product-overview-image-grid-tile=\"hero\"] {\n  grid-column: span 2;\n  grid-row: span 2;\n}\n\
+[data-blocks-product-overview-image-grid-tile=\"wide\"] {\n  grid-column: 1 / -1;\n}\n\
 .blocks-product-overview-image-grid-panel {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  max-width: 40rem;\n}\n\
 .blocks-product-overview-image-grid-rating-row {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-product-overview-image-grid-options {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 @container blocks-product-overview-image-grid (max-width: 40rem) {\n  \
 .blocks-product-overview-image-grid-gallery {\n    grid-template-columns: minmax(0, 1fr);\n  }\n  \
-[data-blocks-product-overview-image-grid-tile=\"hero\"] {\n    grid-column: auto;\n    grid-row: auto;\n  }\n\
+[data-blocks-product-overview-image-grid-tile=\"hero\"] {\n    grid-column: auto;\n    grid-row: auto;\n  }\n  \
+[data-blocks-product-overview-image-grid-tile=\"wide\"] {\n    grid-column: auto;\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -496,11 +519,27 @@ mod tests {
             "data-scope=\"radio-card\"",
             "data-scope=\"color-swatch\"",
             "data-scope=\"button\"",
-            "data-scope=\"link\"",
         ] {
             assert!(html.contains(scope), "demo should contain {scope}");
         }
         assert_eq!(html.matches("<img").count(), 4);
+        // 段差配置: 1 枚目のみ hero、最後の 1 枚のみ wide（PR #3468
+        // レビュー P1 是正: 全画像の配置を明示し暗黙配置での取り残しを防ぐ）。
+        assert_eq!(
+            html.matches("data-blocks-product-overview-image-grid-tile=\"hero\"")
+                .count(),
+            1
+        );
+        assert_eq!(
+            html.matches("data-blocks-product-overview-image-grid-tile=\"wide\"")
+                .count(),
+            1
+        );
+        assert!(html.contains("レビュー 128 件"));
+        assert!(
+            !html.contains("data-scope=\"link\""),
+            "review count should be plain text, not a link (PR #3468 review P2)"
+        );
         let expected_radios = COLOR_OPTIONS.len() + SIZE_OPTIONS.len();
         assert_eq!(html.matches("type=\"radio\"").count(), expected_radios);
         // `data-checked=""`（rating item 等）は部分文字列として
@@ -538,5 +577,6 @@ mod tests {
         assert!(
             LAYOUT_CSS.contains("@container blocks-product-overview-image-grid (max-width: 40rem)")
         );
+        assert!(LAYOUT_CSS.contains("[data-blocks-product-overview-image-grid-tile=\"wide\"]"));
     }
 }
