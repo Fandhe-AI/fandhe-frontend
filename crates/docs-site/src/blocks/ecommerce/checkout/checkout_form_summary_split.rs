@@ -8,14 +8,16 @@
 //!
 //! # 使用部品
 //!
-//! `field` / `fieldset` / `input` / `input-group` / `native-select` /
+//! `field` / `input` / `input-group` / `native-select` /
 //! `radio-card` / `checkbox` / `button` / `image` / `separator` /
-//! `data-list` / `heading` の 12 部品を合成する（[`BLOCK`] の `parts` に
+//! `data-list` / `heading` の 11 部品を合成する（[`BLOCK`] の `parts` に
 //! 一致させる契約、`crates/docs-site/tests/blocks_nav.rs`/
 //! `blocks_contract.rs` が検証する）。新しい UI 部品は追加しない。
-//! `badge`（割引バッジ）は後半 #3043 のスコープのため、本 Demo では
-//! 未使用（`parts` は Demo が実際に使う部品のみを列挙する契約のため
-//! 含めない）。
+//! `fieldset` は Demo 内で使わない（配送方法・支払い方法は `radio_card::
+//! label` の id を `labelled_by` へ渡す構成のため不要、モジュール doc「id /
+//! ARIA の方針」節）ため `parts` から除く。`badge`（割引バッジ）は後半
+//! #3043 のスコープのため、本 Demo では未使用（`parts` は Demo が実際に
+//! 使う部品のみを列挙する契約のため含めない）。
 //!
 //! # `<form>` を持たない・データ取得/送信を行わない
 //!
@@ -37,7 +39,11 @@
 //! `aria-disabled="true"` を明示付与したうえで現在の選択を独立した
 //! [`styled_text::text`] で明文化する（disabled radio がフォームモード
 //! 走査から除外されても選択が支援技術へ伝わるようにするため）。中和 CSS
-//! （`opacity: 1; cursor: default;`）は [`LAYOUT_CSS`] が担う。
+//! （`opacity: 1; cursor: default;`）は [`LAYOUT_CSS`] が担う。`[data-scope=
+//! "radio-card"]` セレクタは block 間で共有される汎用 data-attribute のため、
+//! `.blocks-checkout-form-summary-split-layout` 配下限定のセレクタにして
+//! 他 block の disabled radio-card 表示へ波及させない（`LAYOUT_CSS` は全
+//! block 分が連結されて配信される、`crate::blocks::LAYOUT_CSS` doc 参照）。
 //!
 //! # 狭幅でサマリを先頭にする理由
 //!
@@ -59,11 +65,12 @@
 //!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
-//! `field::root` / `fieldset::root` / `input::input` /
+//! `field::root` / `input::input` /
 //! `native_select::native_select` / `radio_card::root` /
 //! `checkbox::root` / `button::button` / `input_group::root` /
 //! `data_list::root` / `image::image` / `heading::heading` /
-//! `separator::separator` はいずれも `drop_class_attr` により呼び出し側
+//! `separator::separator` / `styled_text::text` はいずれも `drop_class_attr`
+//! により呼び出し側
 //! `attrs` の `class` を黙って除去する契約を持つため、Demo 固有のスタイル
 //! フックは `data-blocks-checkout-form-summary-split-*` 属性で渡す。素の
 //! `div`/`ul`/`li` には `class` がそのまま効くため、それらは
@@ -573,7 +580,7 @@ fn product_row(name: &'static str, variant_label: &'static str, price: &'static 
                     size: TextSize::Sm,
                     ..TextProps::default()
                 },
-                vec![("class", "blocks-checkout-form-summary-split-product-price")],
+                vec![("data-blocks-checkout-form-summary-split-product-price", "")],
                 vec![text(price)],
             ),
         ],
@@ -700,10 +707,6 @@ pub const BLOCK: Block = Block {
             path: "/themes/field/",
         },
         Part {
-            label: "Fieldset",
-            path: "/themes/fieldset/",
-        },
-        Part {
             label: "Input",
             path: "/themes/input/",
         },
@@ -760,9 +763,9 @@ const LAYOUT_CSS: &str = "\
 .blocks-checkout-form-summary-split-product-list {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\n\
 .blocks-checkout-form-summary-split-product-row {\n  display: grid;\n  grid-template-columns: 4rem 1fr auto;\n  gap: var(--fandhe-space-3);\n  align-items: center;\n}\n\
 .blocks-checkout-form-summary-split-product-detail {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1, 0.25rem);\n  min-inline-size: 0;\n}\n\
-.blocks-checkout-form-summary-split-product-price {\n  white-space: nowrap;\n}\n\
+[data-blocks-checkout-form-summary-split-product-price] {\n  white-space: nowrap;\n}\n\
 [data-blocks-checkout-form-summary-split-summary] [data-scope=\"button\"] {\n  inline-size: 100%;\n}\n\
-[data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+.blocks-checkout-form-summary-split-layout [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 @media (min-width: 40rem) {\n  \
 .blocks-checkout-form-summary-split-name-row {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n\
 }\n\

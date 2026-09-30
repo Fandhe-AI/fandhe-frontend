@@ -2,9 +2,9 @@
 
 入力フォーム（左カラム: 連絡先 → 配送先 → 配送方法 → 支払い情報）と注文
 サマリ（右カラム: 商品行・割引コード・集計・確定ボタン）を並べた、購入
-手続き画面の 2 カラム合成例です。`field` / `fieldset` / `input` /
+手続き画面の 2 カラム合成例です。`field` / `input` /
 `input-group` / `native-select` / `radio-card` / `checkbox` / `button` /
-`image` / `separator` / `data-list` / `heading` の 12 部品を合成します。
+`image` / `separator` / `data-list` / `heading` の 11 部品を合成します。
 Blocks は既存部品の合成例であり、新しい UI 部品は追加しません。
 
 本 Demo は無 JS の静的表示のみです。`<form>` を含まず、送信処理・データ
@@ -497,7 +497,7 @@ fn product_row(name: &'static str, variant_label: &'static str, price: &'static 
                     size: TextSize::Sm,
                     ..TextProps::default()
                 },
-                vec![("class", "blocks-checkout-form-summary-split-product-price")],
+                vec![("data-blocks-checkout-form-summary-split-product-price", "")],
                 vec![text(price)],
             ),
         ],
