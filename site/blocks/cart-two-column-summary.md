@@ -410,35 +410,41 @@ fn summary_card() -> Node {
 }
 
 /// 通常のカート（形 A）。送料無料進捗 + 商品一覧 + 注文サマリの 2 カラム。
-fn cart_with_items() -> Node {
-    div(
-        vec![],
-        vec![
-            variant_label("A: 商品あり"),
-            heading(
-                HeadingLevel::H3,
-                &HeadingProps::default(),
-                vec![],
-                vec![text("ショッピングカート")],
-            ),
-            div(
-                vec![("class", "blocks-cart-two-column-summary-columns")],
-                vec![item_list(), summary_card()],
-            ),
-        ],
-    )
+/// `demo` の `stack`（`display: flex; gap: ...`）へ直接の子として並べる
+/// 契約のため `Vec<Node>` を返す（`contact_split_form_info::demo` と同型。
+/// 各要素を無地の `div` へ包むと `stack` の `gap` が包み `div` 間にしか
+/// 効かず、ラベル・見出し間の余白が消えるため包まない）。
+fn cart_with_items() -> Vec<Node> {
+    vec![
+        variant_label("A: 商品あり"),
+        heading(
+            HeadingLevel::H3,
+            &HeadingProps::default(),
+            vec![],
+            vec![text("ショッピングカート")],
+        ),
+        div(
+            vec![("class", "blocks-cart-two-column-summary-columns")],
+            vec![item_list(), summary_card()],
+        ),
+    ]
 }
 
 /// 空カート状態（形 B、モジュール doc「空カート状態の並記」節参照）。
 /// 見出しは共有せず、`card` 1 枚に文言 + 買い物継続リンクのみを置く。
-fn empty_cart() -> Node {
-    div(
-        vec![],
-        vec![
-            variant_label("B: カートが空の状態"),
-            card::root(
+/// [`cart_with_items`] と同じ理由で `Vec<Node>` を返す。`card::root` は
+/// `drop_class_attr`（モジュール doc「`class` と `data-*` の使い分け」節）
+/// で呼び出し側 `class` を破棄するため、幅制限用の
+/// `blocks-cart-two-column-summary-empty` クラスは `card::root` 自身では
+/// なく `card` を包む `div` へ付ける。
+fn empty_cart() -> Vec<Node> {
+    vec![
+        variant_label("B: カートが空の状態"),
+        div(
+            vec![("class", "blocks-cart-two-column-summary-empty")],
+            vec![card::root(
                 CardProps::default(),
-                vec![("class", "blocks-cart-two-column-summary-empty")],
+                vec![],
                 vec![card::body(
                     vec![],
                     vec![
@@ -459,18 +465,23 @@ fn empty_cart() -> Node {
                         ),
                     ],
                 )],
-            ),
-        ],
-    )
+            )],
+        ),
+    ]
 }
 
 /// `cart-two-column-summary` の Demo 本体。呼び出しごとに同一の `Node` を
 /// 返す純関数。形 A（商品あり）・形 B（空カート）を縦に並記する
-/// （モジュール doc「空カート状態の並記」節参照）。
+/// （モジュール doc「空カート状態の並記」節参照）。[`cart_with_items`]・
+/// [`empty_cart`] の要素を `stack` の直接の子として平坦に並べる
+/// （`contact_split_form_info::demo` と同型。包み `div` を挟むと `stack`
+/// の `gap` がラベル・見出し/カード間に効かなくなるため）。
 pub fn demo() -> Node {
+    let mut children = cart_with_items();
+    children.extend(empty_cart());
     div(
         vec![("class", "blocks-cart-two-column-summary-stack")],
-        vec![cart_with_items(), empty_cart()],
+        children,
     )
 }
 ```
