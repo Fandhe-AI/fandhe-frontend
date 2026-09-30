@@ -2086,6 +2086,11 @@ source = "site/blocks/page-heading-meta.md"
 path = "/blocks/page-heading-meta/"
 
 [[section.group.page]]
+title = "page-heading-tabs"
+source = "site/blocks/page-heading-tabs.md"
+path = "/blocks/page-heading-tabs/"
+
+[[section.group.page]]
 title = "page-heading-welcome-stats"
 source = "site/blocks/page-heading-welcome-stats.md"
 path = "/blocks/page-heading-welcome-stats/"
@@ -2303,6 +2308,14 @@ path = "/blocks/signup-01/"
 title = "signup-05"
 source = "site/blocks/signup-05.md"
 path = "/blocks/signup-05/"
+
+[[section.group]]
+title = "Settings"
+
+[[section.group.page]]
+title = "settings-billing-overview"
+source = "site/blocks/settings-billing-overview.md"
+path = "/blocks/settings-billing-overview/"
 
 [[section.group]]
 title = "Action Panel"
