@@ -105,32 +105,32 @@ struct Tile {
 const TILES: [Tile; 6] = [
     Tile {
         href: "../../guides/",
-        title: "ブログ",
-        description: "記事一覧と詳細ページを備えた構成から始めます。",
+        title: "ガイド集",
+        description: "手順に沿って機能の使い方を学べるガイド一覧から始めます。",
         icon_path_d: "M4 4h16v16H4zM8 8h8M8 12h8M8 16h5",
     },
     Tile {
         href: "../../examples/",
-        title: "ダッシュボード",
-        description: "指標カードとグラフを並べた管理画面から始めます。",
+        title: "サンプル集",
+        description: "動く構成をそのまま確認できるサンプル一覧から始めます。",
         icon_path_d: "M4 4h7v7H4zM13 4h7v4h-7zM13 11h7v9h-7zM4 14h7v6H4z",
     },
     Tile {
         href: "../../primitives/",
-        title: "ランディングページ",
-        description: "見出しと導線を備えた 1 ページ構成から始めます。",
+        title: "Primitives 一覧",
+        description: "アクセシブルな headless UI 部品一覧から始めます。",
         icon_path_d: "M4 4h16v6H4zM4 13h16M4 17h10",
     },
     Tile {
         href: "../../themes/",
-        title: "ドキュメントサイト",
-        description: "サイドバー付きの技術文書構成から始めます。",
+        title: "Themes 一覧",
+        description: "スタイル済みの UI 部品一覧から始めます。",
         icon_path_d: "M4 4h6v16H4zM12 4h8v16h-8zM14 8h4M14 12h4",
     },
     Tile {
         href: "../",
-        title: "設定画面",
-        description: "フォームと保存操作を備えた設定画面から始めます。",
+        title: "Blocks 一覧",
+        description: "既存部品を組み合わせた合成例一覧から始めます。",
         icon_path_d: "M12 3l1.2 2.4 2.6.4-1.9 1.9.5 2.6-2.4-1.3-2.4 1.3.5-2.6-1.9-1.9 2.6-.4z",
     },
     Tile {
@@ -259,7 +259,7 @@ fn starter_instance(
                             ..TextProps::default()
                         },
                         vec![],
-                        vec![text("テンプレートを使いませんか。")],
+                        vec![text("テンプレートを使わずに始めますか。")],
                     ),
                     link::root(
                         "../",
@@ -359,6 +359,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-empty-state-starter-grid-grid {\n  display: grid;\n  gap: var(--fandhe-space-4);\n  grid-template-columns: minmax(0, 1fr);\n}\n\
 [data-scope=\"item\"][data-part=\"root\"][data-blocks-empty-state-starter-grid-tile] {\n  position: relative;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-scope=\"item\"][data-part=\"media\"][data-blocks-empty-state-starter-grid-media] {\n  width: 2.5rem;\n  height: 2.5rem;\n  border-radius: var(--fandhe-radius-md);\n}\n\
+[data-blocks-empty-state-starter-grid-tile] > [data-scope=\"item\"][data-part=\"content\"] {\n  align-self: stretch;\n}\n\
 [data-scope=\"link\"][data-part=\"root\"][data-blocks-empty-state-starter-grid-open] {\n  display: inline-flex;\n  align-items: center;\n  padding: var(--fandhe-space-2) var(--fandhe-space-4);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n  color: var(--fandhe-color-fg);\n}\n\
 [data-scope=\"link\"][data-part=\"root\"][data-blocks-empty-state-starter-grid-open]::after {\n  content: \"\";\n  position: absolute;\n  inset: 0;\n}\n\
 .blocks-empty-state-starter-grid-footer {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-2);\n  align-items: baseline;\n  justify-content: center;\n}\n\
