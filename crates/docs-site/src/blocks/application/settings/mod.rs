@@ -15,9 +15,9 @@
 //! 状態並記は #3008）、イシュー #3009 で
 //! [`settings_preferences`]、イシュー #3010 で
 //! [`settings_profile_form`]、イシュー #3001 で
-//! [`settings_page_aside_nav`]、イシュー #3013 で
-//! [`settings_share_members`]（骨格・主要領域。QR 版・状態差分は
-//! 後半 #3014）を追加した）。手順は
+//! [`settings_page_aside_nav`]、イシュー #3013 で骨格を、イシュー #3014 で
+//! QR 版・状態差分を追加した
+//! [`settings_share_members`] を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。

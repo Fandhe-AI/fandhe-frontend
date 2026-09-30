@@ -1065,7 +1065,7 @@ pub enum LayoutCss {
 | settings-preferences | #3009（親 #2951） | `application/settings/settings_preferences.rs` |
 | settings-profile-form | #3010 | `application/settings/settings_profile_form.rs` |
 | notification-tray | #2976（親 #2951） | `application/notification/notification_tray.rs` |
-| settings-share-members | #3013（親 #3012） | `application/settings/settings_share_members.rs` |
+| settings-share-members | #3013・#3014（親 #3012） | `application/settings/settings_share_members.rs` |
 | order-tracking-progress | #3060/#3061（親 #3059） | `ecommerce/order/order_tracking_progress.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
