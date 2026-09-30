@@ -520,7 +520,7 @@ pub const BLOCK: Block = Block {
 /// 色・サイズ選択の radio card は無 JS で選択を実配線できないため
 /// ネイティブ disabled で固定しているだけで、選択肢自体は「利用不可」では
 /// ない。styled radio-card の既定 `disabled_declarations()`（`opacity: 0.5`
-/// + `cursor: not-allowed`、`item` disabled 規則の詳細度 (0,3,0)）で
+/// と `cursor: not-allowed`、`item` disabled 規則の詳細度 (0,3,0)）で
 /// 減光されないよう、`.blocks-product-overview-image-grid-options` 祖先の
 /// 子孫セレクタ（詳細度 (0,4,0)）で中和する
 /// （`product_overview_gallery_split.rs`・`card_form_footer.rs` と同型、
