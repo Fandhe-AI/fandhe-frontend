@@ -20,6 +20,7 @@ mod settings_billing_usage;
 mod settings_event_accordion;
 mod settings_integrations_list;
 mod settings_item_cards;
+mod settings_page_aside_nav;
 
 use crate::blocks::Block;
 
@@ -32,5 +33,6 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_event_accordion::BLOCK,
         settings_integrations_list::BLOCK,
         settings_item_cards::BLOCK,
+        settings_page_aside_nav::BLOCK,
     ]
 }
