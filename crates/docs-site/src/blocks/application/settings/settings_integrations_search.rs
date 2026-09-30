@@ -355,6 +355,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-settings-integrations-search-panel] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-6);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n}\n\
 [data-blocks-settings-integrations-search-panel] [data-scope=\"input-group\"][data-part=\"root\"] {\n  max-width: 28rem;\n}\n\
 [data-blocks-settings-integrations-search-filters] {\n  display: flex;\n  gap: var(--fandhe-space-2);\n  flex-wrap: nowrap;\n  overflow-x: auto;\n  padding-bottom: var(--fandhe-space-1);\n}\n\
+[data-blocks-settings-integrations-search-filters] [data-scope=\"button\"] {\n  flex-shrink: 0;\n  white-space: nowrap;\n}\n\
 [data-blocks-settings-integrations-search-grid] {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-settings-integrations-search-card] [data-scope=\"card\"][data-part=\"footer\"] {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-settings-integrations-search-empty] {\n  grid-column: 1 / -1;\n  text-align: center;\n}\n\
@@ -445,6 +446,17 @@ mod tests {
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
         assert!(LAYOUT_CSS
             .contains("@container blocks-settings-integrations-search (min-width: 40rem)"));
+    }
+
+    /// 絞り込みボタン行の横スクロール時、子ボタンが `flex-shrink: 0` +
+    /// `white-space: nowrap` で縮小・折り返しされないこと（狭幅で日本語
+    /// ラベルが改行され横スクロール挙動が崩れる回帰の防止、PR #3443
+    /// レビュー指摘対応）。
+    #[test]
+    fn filter_buttons_do_not_shrink_or_wrap() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-settings-integrations-search-filters] [data-scope=\"button\"] {\n  flex-shrink: 0;\n  white-space: nowrap;"
+        ));
     }
 
     /// 空状態カード（[`empty_card`]）はグリッド内で `grid-column: 1 / -1;`
