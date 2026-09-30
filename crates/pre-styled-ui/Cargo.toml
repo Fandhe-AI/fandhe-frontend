@@ -3598,7 +3598,20 @@ name = "fandhe-frontend-pre-styled-ui"
 # `var(--fandhe-select-trigger-radius, var(--fandhe-radius-md))` へ
 # 変更した（描画結果は同値、CSS 出力バイトは変わる観測可能な変更）ため
 # minor バンプする。
-version = "0.217.0"
+#
+# マージコミット注記（origin/main #3117 との統合、イシュー #3120）:
+# 本ブランチは #3117 未マージの時点で input 向けに `shape` の最小定義
+# （`Shape` に `Default` variant を持つ独自実装）を先行追加し独立に
+# 0.217.0 へ到達していたが、#3117 マージに伴い `recipe::Shape` の正を
+# origin/main 側の定義（`Default` なし、`Option<Shape>` で既定値を表現）
+# へ差し替えた（本ファイル冒頭のイシュー #3120 コメントが明記した移行
+# 方針のとおり）。加えて #3117 が未登録のまま残した input の
+# `Shape::Circle` CSS（`50%` + `aspect-ratio: 1 / 1` + `width: auto` +
+# `text-align: center`）を本ブランチの成果として合流させ、input へは
+# pill・circle 両方を登録した状態にした。origin/main の到達値（0.217.0）
+# からさらに +1 して 0.218.0 とする（`.claude/rules/coding-rust.md`
+# #638 条項の同衝突運用）。
+version = "0.218.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

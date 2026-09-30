@@ -200,12 +200,12 @@ impl VariantValue for Size {
     }
 }
 
-/// 共通 `shape` 軸（pill / circle、イシュー #3117）。button/badge/input/
-/// select が共有する opt-in 形状修飾で、`None`（props 側で表現）が既定
-/// 形状を意味する。`Size`/[`ColorPalette`] と異なり `default_variant` を
-/// 各部品側で登録しない契約（[`crate::button::ButtonIcon`] の先例と同型）
-/// のため、`Shape` を一切指定しない既存呼び出し元の class 出力・golden CSS
-/// はバイト不変のまま保たれる。
+/// 共通 `shape` 軸（pill / circle、イシュー #3117。input への適用は
+/// #3120）。button/badge/input/select が共有する opt-in 形状修飾で、
+/// `None`（props 側で表現）が既定形状を意味する。`Size`/[`ColorPalette`]
+/// と異なり `default_variant` を各部品側で登録しない契約（[`crate::button::ButtonIcon`]
+/// の先例と同型）のため、`Shape` を一切指定しない既存呼び出し元の class
+/// 出力・golden CSS はバイト不変のまま保たれる。
 ///
 /// `Default` は実装しない（[`Size`]/[`Breakpoint`] と同じ安全側判断。
 /// 「既定形状は `Option::None`」という契約を型で強制する）。pill・circle
@@ -213,7 +213,7 @@ impl VariantValue for Size {
 /// 参照する（`docs/design/pre-styled-ui-scale-tokens.md` §3.1 の
 /// 「pill・円形 → `full`」方針と一致）。部品ごとの宣言有無・値は各部品
 /// モジュール（`button.rs`/`badge.rs`/`input.rs`/`select.rs`）の rustdoc を
-/// 参照（input/select は `Circle` を登録しない）。
+/// 参照（input は #3120 で `Circle` も登録する。select は `Circle` 未登録）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Shape {
     /// 両端を最大まで丸めた形状（`border-radius: var(--fandhe-radius-full)`）。

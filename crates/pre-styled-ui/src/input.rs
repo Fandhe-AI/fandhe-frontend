@@ -85,11 +85,26 @@
 //!   `#2061` 完了後に再評価する。
 //! - **size 段階（差分なし）**: 既存 xs〜xl の 5 段（#1678）が shadcn の
 //!   `h-9` + `sm` の 2 段を包含済み。
+//!
+//! # shape 軸（イシュー #3120）
+//!
+//! 部品横断の `shape` 軸（[`crate::recipe::Shape`]、出所 #3117）を
+//! 純追加した。`Pill`（`border-radius: var(--fandhe-radius-full)`）・
+//! `Circle`（`50%` + `aspect-ratio: 1 / 1` + size ごとの compound variant
+//! による `width` 固定）の 2 段を持ち、既定 `None`（[`InputProps::shape`]）
+//! は class を出さない（`recipe()` が `default_variant(Shape::...)` を
+//! 登録していないため、`input()` 側も `Some(shape)` のときのみ selection
+//! へ加える。両方の意図的な不在により既存 HTML はバイト不変）。
+//! `InputVariant::Flushed` と併用した場合は宣言登録順により shape の
+//! `border-radius` が後勝ちする。`Circle` は `Shape::Circle` × `Size` の
+//! compound variant（5 段）で `width` を選択中 size の確定 `height` と
+//! 同値に固定し、ネイティブ `<input>` の固有幅に起因する楕円化を防ぐ
+//! （codex レビュー是正、button `icon_button`/`close_button` と同型の解法）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    disabled_declarations, focus_ring_declarations, transition_declarations, FocusRingColor,
+    disabled_declarations, focus_ring_declarations, transition_declarations, when, FocusRingColor,
     FocusRingOffset, MotionDuration, Shape, Size, SlotRecipe, StateCondition, VariantValue,
 };
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
@@ -142,11 +157,16 @@ pub struct InputProps {
     pub variant: InputVariant,
     /// サイズ variant（既定 `Md`）。
     pub size: Size,
-    /// 共通 shape 軸（イシュー #3117）。`None`（既定）は現行の角丸
-    /// （`--fandhe-radius-md`）のまま class を追加出力しない。
-    /// `Some(Shape::Pill)` は両端を最大まで丸める（検索入力等の pill 形状）。
-    /// `Circle` は登録しない（用途が確認できるまで未登録。指定しても
-    /// class のみ出力され宣言は出ない、未登録 [`Size`] 段と同じ既存挙動）。
+    /// 共通 shape 軸（イシュー #3117、input 登録は #3120）。`None`
+    /// （既定）は現行の角丸（`--fandhe-radius-md`）のまま class を追加
+    /// 出力しない。`Some(Shape::Pill)` は両端を最大まで丸める（検索入力
+    /// 等の pill 形状）。`Some(Shape::Circle)` は真円（`aspect-ratio: 1 / 1`
+    /// + `text-align: center` に加え、size ごとの compound variant で
+    ///   `width` を選択中 `Size` の確定 `height` と同値へ固定し真円を保証する。
+    ///   ネイティブ `<input>` は固有幅を持つため `aspect-ratio` 単体では真円に
+    ///   ならない、codex レビュー是正）。`Flushed` と併用した場合は
+    ///   `border-radius` 宣言の登録順（Flushed → shape）により shape が
+    ///   後勝ちする。
     pub shape: Option<Shape>,
 }
 
@@ -296,13 +316,66 @@ fn recipe() -> SlotRecipe {
                 decl("border-radius", "0"),
             ],
         )
-        // イシュー #3117: 共通 shape 軸。`InputVariant` 登録の後に置き、
-        // `Flushed` の `border-radius: 0` より後段の CSS 出力順（後勝ち）で
-        // `Pill` が上書きできるようにする（純追加、`Circle` は未登録）。
+        // shape（イシュー #3117 の共通軸を input へ適用、イシュー #3120）。
+        // `InputVariant` 登録の後に置き、`Flushed` の `border-radius: 0`
+        // より後段の CSS 出力順（後勝ち）で shape が上書きできるようにする
+        // （純追加、`None`（既定）は selection へ加えないため既存 HTML は
+        // バイト不変。compound variant は設けない）。
         .variant(
             Shape::Pill,
             "input",
             vec![decl("border-radius", "var(--fandhe-radius-full)")],
+        )
+        .variant(
+            Shape::Circle,
+            "input",
+            vec![
+                decl("border-radius", "50%"),
+                decl("aspect-ratio", "1 / 1"),
+                decl("padding", "0"),
+                decl("text-align", "center"),
+            ],
+        )
+        // Circle × size の compound variant（codex レビュー是正、イシュー
+        // #3120）。ネイティブ `<input>` は `size` 属性由来の固有幅を持つため
+        // `aspect-ratio: 1 / 1` 単体では真円を保証できない（`width: auto` は
+        // 幅が「未確定」にならず、`aspect-ratio` が採用されない）。各 size
+        // の確定 `height` と同値を `width` へ明示することで正方形を確定させ
+        // る（button `icon_button`/`close_button` の compound_variant と同型
+        // の解法）。
+        .compound_variant(
+            vec![when(Shape::Circle), when(Size::Xs)],
+            "input",
+            vec![decl("width", "var(--fandhe-size-control-height-xs, 2rem)")],
+        )
+        .compound_variant(
+            vec![when(Shape::Circle), when(Size::Sm)],
+            "input",
+            vec![decl(
+                "width",
+                "var(--fandhe-size-control-height-sm, 2.25rem)",
+            )],
+        )
+        .compound_variant(
+            vec![when(Shape::Circle), when(Size::Md)],
+            "input",
+            vec![decl(
+                "width",
+                "var(--fandhe-size-control-height-md, 2.5rem)",
+            )],
+        )
+        .compound_variant(
+            vec![when(Shape::Circle), when(Size::Lg)],
+            "input",
+            vec![decl(
+                "width",
+                "var(--fandhe-size-control-height-lg, 2.75rem)",
+            )],
+        )
+        .compound_variant(
+            vec![when(Shape::Circle), when(Size::Xl)],
+            "input",
+            vec![decl("width", "var(--fandhe-size-control-height-xl, 3rem)")],
         )
         .default_variant(Size::Md)
         .default_variant(InputVariant::Outline)
@@ -513,6 +586,58 @@ mod tests {
         };
         let html = render(&input(&props, &field, vec![]));
         assert!(html.contains("fd-field--shape-pill"));
+    }
+
+    #[test]
+    fn shape_enumeration_maps_to_expected_classes() {
+        for (shape, class) in [
+            (Shape::Pill, "fd-field--shape-pill"),
+            (Shape::Circle, "fd-field--shape-circle"),
+        ] {
+            let field = default_field("f");
+            let props = InputProps {
+                shape: Some(shape),
+                ..InputProps::default()
+            };
+            let html = render(&input(&props, &field, vec![]));
+            assert!(html.contains(class), "shape={shape:?} -> {html}");
+        }
+    }
+
+    #[test]
+    fn default_shape_emits_no_shape_class() {
+        let field = default_field("f");
+        // `InputProps::default()` 由来（暗黙の `None`）。
+        let html_implicit = render(&input(&InputProps::default(), &field, vec![]));
+        assert!(!html_implicit.contains("fd-field--shape-"));
+
+        // `None` を明示指定した場合も同じく class を出さない。
+        let props_explicit = InputProps {
+            shape: None,
+            ..InputProps::default()
+        };
+        let html_explicit = render(&input(&props_explicit, &field, vec![]));
+        assert!(!html_explicit.contains("fd-field--shape-"));
+    }
+
+    #[test]
+    fn stylesheet_declares_shape_pill_radius_full() {
+        let out = css();
+        assert!(out.contains(".fd-field--shape-pill {"));
+        assert!(out.contains("border-radius: var(--fandhe-radius-full);"));
+    }
+
+    /// codex レビュー是正（イシュー #3120）: `Shape::Circle` は size ごとの
+    /// compound variant で `width` を確定 `height` と同値に固定し、
+    /// ネイティブ `<input>` の固有幅由来の楕円化を防ぐ。
+    #[test]
+    fn stylesheet_declares_circle_width_fixed_per_size() {
+        let out = css();
+        assert!(out.contains("width: var(--fandhe-size-control-height-xs, 2rem);"));
+        assert!(out.contains("width: var(--fandhe-size-control-height-sm, 2.25rem);"));
+        assert!(out.contains("width: var(--fandhe-size-control-height-md, 2.5rem);"));
+        assert!(out.contains("width: var(--fandhe-size-control-height-lg, 2.75rem);"));
+        assert!(out.contains("width: var(--fandhe-size-control-height-xl, 3rem);"));
     }
 
     #[test]

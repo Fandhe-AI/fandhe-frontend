@@ -79,6 +79,33 @@ const INPUT_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="input"] {
   border-radius: var(--fandhe-radius-full);
 }
 
+[data-scope="field"][data-part="input"].fd-field--shape-circle {
+  border-radius: 50%;
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  text-align: center;
+}
+
+[data-scope="field"][data-part="input"].fd-field--shape-circle.fd-field--size-xs {
+  width: var(--fandhe-size-control-height-xs, 2rem);
+}
+
+[data-scope="field"][data-part="input"].fd-field--shape-circle.fd-field--size-sm {
+  width: var(--fandhe-size-control-height-sm, 2.25rem);
+}
+
+[data-scope="field"][data-part="input"].fd-field--shape-circle.fd-field--size-md {
+  width: var(--fandhe-size-control-height-md, 2.5rem);
+}
+
+[data-scope="field"][data-part="input"].fd-field--shape-circle.fd-field--size-lg {
+  width: var(--fandhe-size-control-height-lg, 2.75rem);
+}
+
+[data-scope="field"][data-part="input"].fd-field--shape-circle.fd-field--size-xl {
+  width: var(--fandhe-size-control-height-xl, 3rem);
+}
+
 [data-scope="field"][data-part="input"][data-invalid] {
   border-color: var(--fandhe-color-danger);
 }

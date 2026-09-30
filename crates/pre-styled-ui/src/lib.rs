@@ -269,6 +269,7 @@
 //!   軸は提供しない（「複合部品の variant 統一方針」§3 参照。フォーム入力は
 //!   選択・チェック状態を示す部品ではないため）。recipe scope は独自の scope
 //!   を新設せず `"field"` を共有する設計判断は [`input`](mod@input) rustdoc 参照。
+//!   [`input`](mod@input) のみ opt-in の `shape`（`Pill`/`Circle`）軸も持つ（#3120）。
 //! - headless 状態機械を持つ複合部品の styled ラッパー第 6 弾（#742）:
 //!   [`rating_group`](mod@rating_group)。星形 indicator は SVG/icon font/画像 URL を一切
 //!   参照しない `clip-path` によるインライン表現（外部リソース非参照）。
