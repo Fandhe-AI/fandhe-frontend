@@ -534,11 +534,11 @@ fn usage_row(label: &'static str, current: &'static str, limit: &'static str) ->
     )
 }
 
-/// 版見出し（H3、`heading` 部品。`settings_integrations_list::version_title`
-/// と同型。TOC 混入回避のため専用 `data-*` 属性を付ける）。
+/// 版見出し（H2、`heading` 部品。モジュール doc「版見出しは H2（子見出し
+/// との階層整合）」節参照。TOC 混入回避のため専用 `data-*` 属性を付ける）。
 fn version_title(label: &str) -> Node {
     heading(
-        HeadingLevel::H3,
+        HeadingLevel::H2,
         &HeadingProps {
             size: HeadingSize::Sm,
             ..HeadingProps::default()

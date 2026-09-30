@@ -10,8 +10,9 @@
 //!
 //! Demo は単一 [`demo`] 内に版 A・版 B を縦に並記する
 //! （`settings_integrations_list`〔#2994〕と同型のパターン、`heading`
-//! H3 + [`version_title`] の `data-blocks-settings-page-aside-nav-
-//! version-title` 属性で TOC 混入を回避する）。
+//! H2 + [`version_title`] の `data-blocks-settings-page-aside-nav-
+//! version-title` 属性で TOC 混入を回避する）。版見出しを H2 にする理由は
+//! 「版見出しは H2（子見出しとの階層整合）」節参照。
 //!
 //! - **版 A（R0656 + R0661 + R0662）**: 「構成」節どおりの左ナビ + 本文
 //!   2 カラムの本文を、プロフィール / プラン / 通知 / 危険な操作の
@@ -55,6 +56,19 @@
 //! [`variant_b_main`] のみが `separator::separator`（既定 `Horizontal`/
 //! `Solid`）を 2 本使い、3 セクションを区切る。版 A はカード枠
 //! （`card::root`）が区切りの役目を兼ねるため `separator` を使わない。
+//!
+//! # 版見出しは H2（子見出しとの階層整合）
+//!
+//! [`version_title`] は H2 を使う（`settings_integrations_list::
+//! version_title` は H3 だが、あちらは版の下に `card::title` のような
+//! 固定見出しを持たないため階層問題が生じない。本 block は事情が異なる）。
+//! 版 A の各カード見出しは `card::title`（`pre-styled-ui` 側で `<h3>` 固定、
+//! `crate::card` モジュール doc 参照）、版 B の各セクション見出しは
+//! [`plain_section`] 内の `heading(HeadingLevel::H3, ...)` であり、いずれも
+//! 版見出し直下の子見出しである。版見出しを H3 のままにすると子見出しと
+//! 同じ H3 になり、版という区切りが見出し階層に表れない（Codex レビュー
+//! 指摘）。版見出しを H2 にすることで両版の子見出し（H3）が正しく 1 段
+//! 下の階層に揃う。
 //!
 //! # 使用部品
 //!
@@ -682,11 +696,11 @@ fn usage_row(label: &'static str, current: &'static str, limit: &'static str) ->
     )
 }
 
-/// 版見出し（H3、`heading` 部品。`settings_integrations_list::version_title`
-/// と同型。TOC 混入回避のため専用 `data-*` 属性を付ける）。
+/// 版見出し（H2、`heading` 部品。モジュール doc「版見出しは H2（子見出し
+/// との階層整合）」節参照。TOC 混入回避のため専用 `data-*` 属性を付ける）。
 fn version_title(label: &str) -> Node {
     heading(
-        HeadingLevel::H3,
+        HeadingLevel::H2,
         &HeadingProps {
             size: HeadingSize::Sm,
             ..HeadingProps::default()
@@ -1033,11 +1047,12 @@ mod tests {
         ] {
             assert!(html.contains(scope), "demo should contain {scope}");
         }
-        assert_eq!(html.matches("<h2").count(), 1);
-        // 版 A カード title 4（プロフィール/プラン/通知/危険な操作）+ 版見出し
-        // 2（版 A/版 B）+ 版 B セクション見出し 3（プロフィール/通知/危険な
-        // 操作）= 9。
-        assert_eq!(html.matches("<h3").count(), 9);
+        // ページ見出し（氏名）1 + 版見出し 2（版 A/版 B、モジュール doc
+        // 「版見出しは H2（子見出しとの階層整合）」節参照）= 3。
+        assert_eq!(html.matches("<h2").count(), 3);
+        // 版 A カード title 4（プロフィール/プラン/通知/危険な操作）+ 版 B
+        // セクション見出し 3（プロフィール/通知/危険な操作）= 7。
+        assert_eq!(html.matches("<h3").count(), 7);
     }
 
     #[test]
