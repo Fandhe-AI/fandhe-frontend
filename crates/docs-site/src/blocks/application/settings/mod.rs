@@ -3,13 +3,16 @@
 //! ディレクトリ化して卒業、イシュー #2985 で
 //! [`settings_billing_usage`]、イシュー #2986 で
 //! [`settings_event_accordion`]、イシュー #2982 で
-//! [`settings_api_key_created`]、イシュー #2991 で
+//! [`settings_api_key_created`]、イシュー #2987 で
+//! [`settings_export_data`]、イシュー #2991 で
 //! [`settings_integrations_grid`]、イシュー #2995 で
 //! [`settings_integrations_search`]、イシュー #2996 で
 //! [`settings_item_cards`]、イシュー #2997 で
 //! [`settings_log_table`]、イシュー #2998 で
 //! [`settings_notification_matrix`]、イシュー #2999 で
-//! [`settings_org_switcher`]、イシュー #3009 で
+//! [`settings_org_switcher`]、イシュー #3007 で
+//! [`settings_page_tabs`]（骨格・API 設定領域。親 #3006、残りの版 B・
+//! 状態並記は #3008）、イシュー #3009 で
 //! [`settings_preferences`]、イシュー #3010 で
 //! [`settings_profile_form`]、イシュー #3001 で
 //! [`settings_page_aside_nav`] を追加した）。手順は
@@ -26,6 +29,7 @@ mod settings_api_keys_table;
 mod settings_billing_overview;
 mod settings_billing_usage;
 mod settings_event_accordion;
+mod settings_export_data;
 mod settings_integration_detail;
 mod settings_integrations_grid;
 mod settings_integrations_list;
@@ -35,6 +39,7 @@ mod settings_log_table;
 mod settings_notification_matrix;
 mod settings_org_switcher;
 mod settings_page_aside_nav;
+mod settings_page_tabs;
 mod settings_preferences;
 mod settings_profile_form;
 
@@ -47,6 +52,7 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_billing_overview::BLOCK,
         settings_billing_usage::BLOCK,
         settings_event_accordion::BLOCK,
+        settings_export_data::BLOCK,
         settings_integration_detail::BLOCK,
         settings_integrations_grid::BLOCK,
         settings_integrations_list::BLOCK,
@@ -56,6 +62,7 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_notification_matrix::BLOCK,
         settings_org_switcher::BLOCK,
         settings_page_aside_nav::BLOCK,
+        settings_page_tabs::BLOCK,
         settings_preferences::BLOCK,
         settings_profile_form::BLOCK,
     ]
