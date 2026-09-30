@@ -2630,6 +2630,11 @@ path = "/blocks/media-object/"
 title = "Cart"
 
 [[section.group.page]]
+title = "cart-line-item-table"
+source = "site/blocks/cart-line-item-table.md"
+path = "/blocks/cart-line-item-table/"
+
+[[section.group.page]]
 title = "cart-two-column-summary"
 source = "site/blocks/cart-two-column-summary.md"
 path = "/blocks/cart-two-column-summary/"
