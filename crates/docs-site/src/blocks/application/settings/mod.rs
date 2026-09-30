@@ -11,7 +11,8 @@
 //! [`settings_notification_matrix`]、イシュー #2999 で
 //! [`settings_org_switcher`]、イシュー #3007 で
 //! [`settings_page_tabs`]（骨格・API 設定領域。親 #3006、残りの版 B・
-//! 状態並記は #3008）、イシュー #3010 で
+//! 状態並記は #3008）、イシュー #3009 で
+//! [`settings_preferences`]、イシュー #3010 で
 //! [`settings_profile_form`] を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
@@ -34,6 +35,7 @@ mod settings_log_table;
 mod settings_notification_matrix;
 mod settings_org_switcher;
 mod settings_page_tabs;
+mod settings_preferences;
 mod settings_profile_form;
 
 use crate::blocks::Block;
@@ -53,6 +55,7 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_notification_matrix::BLOCK,
         settings_org_switcher::BLOCK,
         settings_page_tabs::BLOCK,
+        settings_preferences::BLOCK,
         settings_profile_form::BLOCK,
     ]
 }

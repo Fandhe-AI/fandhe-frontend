@@ -2378,6 +2378,11 @@ source = "site/blocks/settings-page-tabs.md"
 path = "/blocks/settings-page-tabs/"
 
 [[section.group.page]]
+title = "settings-preferences"
+source = "site/blocks/settings-preferences.md"
+path = "/blocks/settings-preferences/"
+
+[[section.group.page]]
 title = "settings-profile-form"
 source = "site/blocks/settings-profile-form.md"
 path = "/blocks/settings-profile-form/"
