@@ -141,6 +141,11 @@ const GROUPS: &[Group] = &[
 ];
 
 /// 連携アプリのロゴ画像（共通ダミー画像、`data-*` で CSS フックを渡す）。
+/// `image` recipe の base（`[data-scope="image"][data-part="root"]`、詳細度
+/// (0,2,0)）に `height: auto`/`max-width: 100%` が乗るため、[`LAYOUT_CSS`]
+/// 側は `img[data-scope="image"][data-blocks-settings-integrations-list-logo]`
+/// （詳細度 (0,2,1)）で上回る（`page_heading_avatar::logo_image` と同じ
+/// 判断、イシュー #2931 Bugbot 指摘の再発形）。
 fn logo(name: &str) -> Node {
     image(
         &ImageProps {
@@ -309,7 +314,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-integrations-list-list {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg);\n}\n\
 .blocks-settings-integrations-list-row {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr) auto;\n  grid-template-areas: \"logo body actions\";\n  align-items: center;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-4);\n}\n\
 .blocks-settings-integrations-list-row + .blocks-settings-integrations-list-row {\n  border-top: 1px solid var(--fandhe-color-border);\n}\n\
-[data-blocks-settings-integrations-list-logo] {\n  grid-area: logo;\n  width: 2.5rem;\n  height: 2.5rem;\n}\n\
+[data-blocks-settings-integrations-list-logo] {\n  grid-area: logo;\n}\n\
+img[data-scope=\"image\"][data-blocks-settings-integrations-list-logo] {\n  width: 2.5rem;\n  height: 2.5rem;\n}\n\
 .blocks-settings-integrations-list-body {\n  grid-area: body;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-settings-integrations-list-name {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
 .blocks-settings-integrations-list-description {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
@@ -398,5 +404,14 @@ mod tests {
             LAYOUT_CSS.contains("@container blocks-settings-integrations-list (max-width: 40rem)")
         );
         assert!(LAYOUT_CSS.contains("grid-template-areas: \"logo body\" \"logo actions\""));
+    }
+
+    #[test]
+    fn logo_selector_specificity_beats_image_recipe_base() {
+        // `[data-scope="image"][data-part="root"]`（詳細度 (0,2,0)）の
+        // `height: auto`/`max-width: 100%` に負けないことの回帰ガード
+        // （PR #3441 Bugbot 指摘、イシュー #2931 と同型）。
+        assert!(LAYOUT_CSS
+            .contains("img[data-scope=\"image\"][data-blocks-settings-integrations-list-logo]"));
     }
 }

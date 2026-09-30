@@ -92,6 +92,11 @@ const GROUPS: &[Group] = &[
 ];
 
 /// 連携アプリのロゴ画像（共通ダミー画像、`data-*` で CSS フックを渡す）。
+/// `image` recipe の base（`[data-scope="image"][data-part="root"]`、詳細度
+/// (0,2,0)）に `height: auto`/`max-width: 100%` が乗るため、[`LAYOUT_CSS`]
+/// 側は `img[data-scope="image"][data-blocks-settings-integrations-list-logo]`
+/// （詳細度 (0,2,1)）で上回る（`page_heading_avatar::logo_image` と同じ
+/// 判断、イシュー #2931 Bugbot 指摘の再発形）。
 fn logo(name: &str) -> Node {
     image(
         &ImageProps {
