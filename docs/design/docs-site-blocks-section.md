@@ -1044,6 +1044,7 @@ pub enum LayoutCss {
 | onboarding-checklist | #2979 | `application/onboarding/onboarding_checklist.rs` |
 | onboarding-centered-steps | #2978（親 #2951） | `application/onboarding/onboarding_centered_steps.rs` |
 | settings-billing-overview | #2984 | `application/settings/settings_billing_overview.rs` |
+| settings-integrations-list | #2993（親 #2992） | `application/settings/settings_integrations_list.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
