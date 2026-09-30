@@ -550,6 +550,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/store-nav-centered-logo/index.html"
           # Ecommerce / Incentives
           # Ecommerce / Promo
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-collection-cards/index.html"
           # Docs / Docs Layout
           # Docs / Code Block
           # Docs / Example Preview
