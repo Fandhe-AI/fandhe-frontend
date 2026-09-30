@@ -9,11 +9,17 @@
 //!
 //! `table` / `badge` / `button` / `dialog` / `field` / `input` /
 //! `native_select`（実体は `field` の `select` パート、下記「native_select
-//! と field の関係」節参照）/ `segment_group` の 8 部品を合成する
-//! （[`BLOCK`] の `parts` に一致させる契約）。見出しは
-//! `fandhe_frontend_pre_styled_ui::heading`・`text` を使わず素の
-//! `el("h2"/"h3", ...)` で直接組み立てる（`page_heading_avatar.rs::meta_line`
-//! と同型の判断: `parts` を 8 件のまま保つため、新しい部品を追加しない）。
+//! と field の関係」節参照）/ `segment_group` / `heading` の 9 部品を合成する
+//! （[`BLOCK`] の `parts` に一致させる契約）。見出しは pre-styled-ui
+//! `heading::heading`（一覧見出し「API キー」は `HeadingLevel::H2`、各
+//! パネル補助見出しは `HeadingLevel::H3`）で組み立てる（Bugbot 指摘
+//! PRRT_kwDOTarxgc6nYVEr 対応・`auth_split_photo_testimonial.rs` と同型の
+//! 判断: 素の `el("h2"/"h3", ...)` は `data-scope` 祖先を持たないため
+//! `crate::layout::with_heading_anchors` の収集対象になり、Demo 見出しが
+//! ページ右目次〔`.docs-toc`〕へ混入していた。`heading` は
+//! `data-scope="heading"` を持つため同関数の「`data-scope` を持つ要素の
+//! 部分木は収集除外」規則に構造的に乗り、一覧パネルの h3 が h2 より先に
+//! 出る見出し階層逆転も同時に解消する）。
 //!
 //! # native_select と field の関係
 //!
@@ -82,22 +88,35 @@ use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole, OpenState};
 use fandhe_frontend_pre_styled_ui::field::{self, FieldOrientation, FieldRootProps};
+use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::segment_group::{self, SegmentGroupProps};
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
-/// 素の `<h2>`（`heading` 部品を使わず、`parts` を 8 件のまま保つ。
-/// モジュール doc「使用部品」節参照）。
+/// 一覧見出し（`heading::heading` の `HeadingLevel::H2`。`data-scope="heading"`
+/// を持つためページ右目次への混入を構造的に避ける、モジュール doc
+/// 「使用部品」節参照）。
 fn section_heading(text_content: &'static str) -> Node {
-    el("h2", vec![], vec![text(text_content)])
+    heading::heading(
+        HeadingLevel::H2,
+        &HeadingProps::default(),
+        vec![],
+        vec![text(text_content)],
+    )
 }
 
-/// 素の `<h3>`（各パネルの補助見出し。静的表示であることを読み取れる
-/// ようにするための注記、モジュール doc「3 パネルを静的併記する」節参照）。
+/// 各パネルの補助見出し（`heading::heading` の `HeadingLevel::H3`。静的表示
+/// であることを読み取れるようにするための注記、モジュール doc「3 パネルを
+/// 静的併記する」節参照）。
 fn panel_heading(text_content: &'static str) -> Node {
-    el("h3", vec![], vec![text(text_content)])
+    heading::heading(
+        HeadingLevel::H3,
+        &HeadingProps::default(),
+        vec![],
+        vec![text(text_content)],
+    )
 }
 
 /// 伏せ字の API キー値（架空、モジュール doc「伏せ字の値は架空」節参照）。
@@ -635,6 +654,10 @@ pub const BLOCK: Block = Block {
             label: "Segment Group",
             path: "/themes/segment-group/",
         },
+        Part {
+            label: "Heading",
+            path: "/themes/heading/",
+        },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
     demo,
@@ -680,12 +703,27 @@ mod tests {
             "data-scope=\"dialog\"",
             "data-scope=\"field\"",
             "data-scope=\"segment-group\"",
+            "data-scope=\"heading\"",
         ] {
             assert!(html.contains(scope), "demo should contain {scope}");
         }
         assert!(
             html.contains("<select"),
             "demo should render a native select"
+        );
+    }
+
+    /// Bugbot 指摘 PRRT_kwDOTarxgc6nYVEr の回帰ガード: 素の `<h2>`/`<h3>` は
+    /// `crate::layout::with_heading_anchors` の収集対象になり、ページ右目次
+    /// （`.docs-toc`）へ Demo 見出しが混入する。`heading` 部品の
+    /// `data-scope="heading"` により当該部分木が収集除外されることを、
+    /// TOC 抽出関数を実際に通して固定する。
+    #[test]
+    fn headings_are_excluded_from_page_toc() {
+        let (_annotated, toc_entries) = crate::layout::with_heading_anchors(demo());
+        assert!(
+            toc_entries.is_empty(),
+            "demo の見出しはページ右目次に収集されてはならない: {toc_entries:?}"
         );
     }
 
