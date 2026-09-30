@@ -230,6 +230,7 @@ fn members_instance() -> Node {
                                 variant: BadgeVariant::Subtle,
                                 size: Size::Sm,
                                 palette: member.palette,
+                                shape: None,
                             },
                             vec![],
                             vec![text(member.state)],

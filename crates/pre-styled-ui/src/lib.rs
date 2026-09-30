@@ -911,7 +911,7 @@ pub use mark::{mark, MarkProps, MarkVariant};
 pub use marquee::{marquee, MarqueeDirection, MarqueeProps};
 pub use native_select::{native_select, NativeSelectProps, NativeSelectVariant};
 pub use quote::quote;
-pub use recipe::{when, ColorPalette, Size, SlotRecipe, VariantCondition, VariantValue};
+pub use recipe::{when, ColorPalette, Shape, Size, SlotRecipe, VariantCondition, VariantValue};
 pub use separator::{separator, SeparatorProps, SeparatorVariant};
 pub use skeleton::{skeleton, SkeletonAnimation, SkeletonProps, SkeletonVariant};
 pub use spinner::{spinner, SpinnerProps};

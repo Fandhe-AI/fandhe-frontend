@@ -100,7 +100,7 @@ use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
     focus_ring_declarations, palette_scale_declarations, ColorPalette, FocusRingColor,
-    FocusRingOffset, Size, SlotRecipe, StateCondition, VariantValue,
+    FocusRingOffset, Shape, Size, SlotRecipe, StateCondition, VariantValue,
 };
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
@@ -154,6 +154,13 @@ pub struct BadgeProps {
     /// colorPalette 軸（既定 `Accent`、イシュー #606）。[`crate::theme`] の
     /// セマンティック色から選択する。
     pub palette: ColorPalette,
+    /// 共通 shape 軸（イシュー #3117）。`None`（既定）は現行の角丸
+    /// （`--fandhe-radius-sm`）のまま class を追加出力しない。
+    /// `Some(Shape::Pill)` は両端を最大まで丸める（ステータスバッジの
+    /// pill 形状）。`Some(Shape::Circle)` は `padding: 0` +
+    /// `min-width: 1.5em` + `aspect-ratio: 1 / 1` を追加し、1〜2 桁の
+    /// カウントバッジを真円に保つ（`recipe` rustdoc 参照）。
+    pub shape: Option<Shape>,
 }
 
 impl Default for BadgeProps {
@@ -162,6 +169,7 @@ impl Default for BadgeProps {
             variant: BadgeVariant::Subtle,
             size: Size::Md,
             palette: ColorPalette::Accent,
+            shape: None,
         }
     }
 }
@@ -301,6 +309,29 @@ fn recipe() -> SlotRecipe {
     ] {
         recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
+    // イシュー #3117: 共通 shape 軸。palette variant 登録の後に置き、既存の
+    // class 出力・golden CSS（`shape: None` の呼び出し元）を不変に保つ
+    // （純追加、`default_variant` は登録しない）。
+    recipe = recipe
+        .variant(
+            Shape::Pill,
+            "root",
+            vec![decl("border-radius", "var(--fandhe-radius-full)")],
+        )
+        .variant(
+            Shape::Circle,
+            "root",
+            vec![
+                decl("border-radius", "var(--fandhe-radius-full)"),
+                // ponytail: `1.5em` はカウントバッジ（1〜2 桁）想定の
+                // リテラル値。size の font-size に追随させるための暫定値で、
+                // 専用トークンが必要になれば scale-tokens §5.4 経由で置換。
+                decl("padding", "0"),
+                decl("min-width", "1.5em"),
+                decl("aspect-ratio", "1 / 1"),
+                decl("justify-content", "center"),
+            ],
+        );
     recipe
 }
 
@@ -324,11 +355,15 @@ pub fn css() -> String {
 #[must_use]
 pub fn badge<'a>(props: &BadgeProps, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let recipe = recipe();
-    let class = recipe.variant_classes(&[
+    let mut selection: Vec<(&str, &str)> = vec![
         ("variant", props.variant.value()),
         ("size", props.size.value()),
         ("color-palette", props.palette.value()),
-    ]);
+    ];
+    if let Some(shape) = props.shape {
+        selection.push(("shape", shape.value()));
+    }
+    let class = recipe.variant_classes(&selection);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
     ANATOMY.part("root", "span", merged, children)
@@ -397,11 +432,15 @@ pub fn link<'a>(
     children: Vec<Node>,
 ) -> Node {
     let recipe = recipe();
-    let class = recipe.variant_classes(&[
+    let mut selection: Vec<(&str, &str)> = vec![
         ("variant", props.variant.value()),
         ("size", props.size.value()),
         ("color-palette", props.palette.value()),
-    ]);
+    ];
+    if let Some(shape) = props.shape {
+        selection.push(("shape", shape.value()));
+    }
+    let class = recipe.variant_classes(&selection);
     // href/target/rel は予約属性（上記 rustdoc「予約属性」節参照）。class と
     // 同様に呼び出し側 attrs からの上書きを許さず、rel のみ保護トークンを
     // 保持したうえで呼び出し側の追加トークンを統合する。
@@ -501,6 +540,30 @@ mod tests {
                 )),
                 "palette={palette:?} -> {html}"
             );
+        }
+    }
+
+    /// イシュー #3117: `shape: None`（既定）は class 出力を変えない。
+    #[test]
+    fn shape_none_leaves_class_output_unchanged() {
+        let html = render(&badge(&BadgeProps::default(), vec![], vec![]));
+        assert!(!html.contains("fd-badge--shape"));
+    }
+
+    /// イシュー #3117: `shape` の 2 値が期待どおりのクラスへ写像されることを
+    /// 固定する。
+    #[test]
+    fn shape_enumeration_maps_to_expected_classes() {
+        for (shape, class) in [
+            (Shape::Pill, "fd-badge--shape-pill"),
+            (Shape::Circle, "fd-badge--shape-circle"),
+        ] {
+            let props = BadgeProps {
+                shape: Some(shape),
+                ..BadgeProps::default()
+            };
+            let html = render(&badge(&props, vec![], vec![]));
+            assert!(html.contains(class), "shape={shape:?} -> {html}");
         }
     }
 

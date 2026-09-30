@@ -200,26 +200,27 @@ impl VariantValue for Size {
     }
 }
 
-/// 部品横断の `shape` 軸（イシュー #3117/#3116。#3117 未マージのため input
-/// 適用〔イシュー #3120〕が最小定義として純追加した。#3117 マージ後に
-/// 重複が生じた場合は #3117 側の定義を正として本定義を差し替える）。
+/// 共通 `shape` 軸（pill / circle、イシュー #3117。input への適用は
+/// #3120）。button/badge/input/select が共有する opt-in 形状修飾で、
+/// `None`（props 側で表現）が既定形状を意味する。`Size`/[`ColorPalette`]
+/// と異なり `default_variant` を各部品側で登録しない契約（[`crate::button::ButtonIcon`]
+/// の先例と同型）のため、`Shape` を一切指定しない既存呼び出し元の class
+/// 出力・golden CSS はバイト不変のまま保たれる。
 ///
-/// button / badge / input / select trigger が同じ名前・同じ値で共有する
-/// ことを企図した軸で、`Default` は各部品の既定角丸（class を出さない）を
-/// 表す。[`Size`]/[`ColorPalette`] と異なり、[`SlotRecipe::variant_classes`]
-/// は `default_variant` へ登録されていない軸を selection に含めない限り
-/// class を出さない（`recipe.rs` 本体の挙動）ため、`Shape::Default` は
-/// `default_variant` へ登録せず、呼び出し側（[`crate::input`] 等）が
-/// `shape != Shape::Default` のときのみ selection へ追加する運用とする
-/// （既定入力の HTML 出力を不変に保つため）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// `Default` は実装しない（[`Size`]/[`Breakpoint`] と同じ安全側判断。
+/// 「既定形状は `Option::None`」という契約を型で強制する）。pill・circle
+/// とも新規トークンを追加せず既存の `--fandhe-radius-full`（9999px）を
+/// 参照する（`docs/design/pre-styled-ui-scale-tokens.md` §3.1 の
+/// 「pill・円形 → `full`」方針と一致）。部品ごとの宣言有無・値は各部品
+/// モジュール（`button.rs`/`badge.rs`/`input.rs`/`select.rs`）の rustdoc を
+/// 参照（input は #3120 で `Circle` も登録する。select は `Circle` 未登録）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Shape {
-    /// 各部品の既定角丸（class を出さない）。
-    #[default]
-    Default,
-    /// 左右が半円の pill（`--fandhe-radius-full`）。
+    /// 両端を最大まで丸めた形状（`border-radius: var(--fandhe-radius-full)`）。
     Pill,
-    /// 真円（`50%`、幅＝高さが必要な部品向け）。
+    /// 正方形と組み合わせて真円になる形状（[`crate::image::ImageShape::Circle`]
+    /// と同型の直交関係。単独では `border-radius` のみを与え、正方形の確定
+    /// サイズは呼び出し元〔例: icon-only button〕の別 variant が担う）。
     Circle,
 }
 
@@ -230,9 +231,8 @@ impl VariantValue for Shape {
 
     fn value(self) -> &'static str {
         match self {
-            Self::Default => "default",
-            Self::Pill => "pill",
-            Self::Circle => "circle",
+            Shape::Pill => "pill",
+            Shape::Circle => "circle",
         }
     }
 }
@@ -3478,5 +3478,23 @@ mod stagger_parity_tests {
         let s = stagger_index_style(2);
         assert_eq!(s, "--fandhe-motion-stagger-index: 2");
         assert!(s.starts_with(STAGGER_INDEX_VAR));
+    }
+}
+
+/// [`Shape`] の axis/value 写像を固定する（イシュー #3117）。
+#[cfg(test)]
+mod shape_tests {
+    use super::{Shape, VariantValue};
+
+    #[test]
+    fn axis_is_shape() {
+        assert_eq!(Shape::Pill.axis(), "shape");
+        assert_eq!(Shape::Circle.axis(), "shape");
+    }
+
+    #[test]
+    fn value_maps_to_expected_strings() {
+        assert_eq!(Shape::Pill.value(), "pill");
+        assert_eq!(Shape::Circle.value(), "circle");
     }
 }

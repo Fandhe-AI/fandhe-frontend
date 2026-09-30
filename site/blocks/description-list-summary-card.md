@@ -173,6 +173,7 @@ pub fn demo() -> Node {
                             variant: BadgeVariant::Subtle,
                             size: Size::Sm,
                             palette: ColorPalette::Success,
+                            shape: None,
                         },
                         vec![],
                         vec![text("支払済み")],

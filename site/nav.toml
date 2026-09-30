@@ -2630,6 +2630,11 @@ path = "/blocks/media-object/"
 title = "Product Overview"
 
 [[section.group.page]]
+title = "product-overview-gallery-split"
+source = "site/blocks/product-overview-gallery-split.md"
+path = "/blocks/product-overview-gallery-split/"
+
+[[section.group.page]]
 title = "product-overview-tabs-below"
 source = "site/blocks/product-overview-tabs-below.md"
 path = "/blocks/product-overview-tabs-below/"
@@ -2670,6 +2675,11 @@ title = "Store Nav"
 title = "store-nav-centered-logo"
 source = "site/blocks/store-nav-centered-logo.md"
 path = "/blocks/store-nav-centered-logo/"
+
+[[section.group.page]]
+title = "store-nav-mega-menu"
+source = "site/blocks/store-nav-mega-menu.md"
+path = "/blocks/store-nav-mega-menu/"
 
 [[section.group]]
 title = "Promo"

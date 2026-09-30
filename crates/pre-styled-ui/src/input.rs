@@ -91,12 +91,12 @@
 //! 部品横断の `shape` 軸（[`crate::recipe::Shape`]、出所 #3117）を
 //! 純追加した。`Pill`（`border-radius: var(--fandhe-radius-full)`）・
 //! `Circle`（`50%` + `aspect-ratio: 1 / 1` の最小構成）の 2 段を持ち、
-//! 既定 `Shape::Default` は class を出さない（`recipe()` が
+//! 既定 `None`（[`InputProps::shape`]）は class を出さない（`recipe()` が
 //! `default_variant(Shape::...)` を登録していないため、`input()` 側も
-//! `shape != Shape::Default` のときのみ selection へ加える。両方の意図的な
-//! 不在により既存 HTML はバイト不変）。`InputVariant::Flushed` と併用した
-//! 場合は宣言登録順により shape の `border-radius` が後勝ちする
-//! （compound variant は設けない意図的な単純化）。
+//! `Some(shape)` のときのみ selection へ加える。両方の意図的な不在により
+//! 既存 HTML はバイト不変）。`InputVariant::Flushed` と併用した場合は
+//! 宣言登録順により shape の `border-radius` が後勝ちする（compound
+//! variant は設けない意図的な単純化）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -154,11 +154,15 @@ pub struct InputProps {
     pub variant: InputVariant,
     /// サイズ variant（既定 `Md`）。
     pub size: Size,
-    /// 形状 variant（既定 `Shape::Default`、イシュー #3120）。
-    /// `Shape::Pill`/`Shape::Circle` は `Flushed` と併用した場合、
-    /// `border-radius` 宣言の登録順（Flushed → shape）により shape が
-    /// 後勝ちする（compound variant は設けない、意図的な単純化）。
-    pub shape: Shape,
+    /// 共通 shape 軸（イシュー #3117、input 登録は #3120）。`None`
+    /// （既定）は現行の角丸（`--fandhe-radius-md`）のまま class を追加
+    /// 出力しない。`Some(Shape::Pill)` は両端を最大まで丸める（検索入力
+    /// 等の pill 形状）。`Some(Shape::Circle)` は真円（`width: auto` +
+    /// `aspect-ratio: 1 / 1` + `text-align: center`）にする。`Flushed` と
+    /// 併用した場合は `border-radius` 宣言の登録順（Flushed → shape）に
+    /// より shape が後勝ちする（compound variant は設けない、意図的な
+    /// 単純化）。
+    pub shape: Option<Shape>,
 }
 
 impl Default for InputProps {
@@ -166,7 +170,7 @@ impl Default for InputProps {
         InputProps {
             variant: InputVariant::Outline,
             size: Size::Md,
-            shape: Shape::Default,
+            shape: None,
         }
     }
 }
@@ -307,10 +311,11 @@ fn recipe() -> SlotRecipe {
                 decl("border-radius", "0"),
             ],
         )
-        // shape（イシュー #3120。#3117 の共通軸を input へ適用。`Shape::Default`
-        // は登録しない: `default_variant` に載せると全 input へ
-        // `fd-field--shape-default` が付き既存 HTML が変わるため、未登録の
-        // まま `input()` 側で選択時のみ class を出す運用にする）。
+        // shape（イシュー #3117 の共通軸を input へ適用、イシュー #3120）。
+        // `InputVariant` 登録の後に置き、`Flushed` の `border-radius: 0`
+        // より後段の CSS 出力順（後勝ち）で shape が上書きできるようにする
+        // （純追加、`None`（既定）は selection へ加えないため既存 HTML は
+        // バイト不変。compound variant は設けない）。
         .variant(
             Shape::Pill,
             "input",
@@ -375,13 +380,8 @@ pub fn input<'a>(
         ("variant", props.variant.value()),
         ("size", props.size.value()),
     ];
-    // `shape` は `Shape::Default` のとき selection へ加えない（`recipe()` が
-    // `default_variant(Shape::...)` を登録していないため、明示的に
-    // `Default` を selection へ渡すと `fd-field--shape-default` という
-    // 対応 CSS を持たないクラスが出力されてしまう。既定入力の HTML を
-    // 不変に保つための条件分岐）。
-    if props.shape != Shape::Default {
-        selection.push(("shape", props.shape.value()));
+    if let Some(shape) = props.shape {
+        selection.push(("shape", shape.value()));
     }
     let class = recipe.variant_classes(&selection);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
@@ -522,6 +522,27 @@ mod tests {
         }
     }
 
+    /// イシュー #3117: `shape: None`（既定）は class 出力を変えない。
+    #[test]
+    fn shape_none_leaves_class_output_unchanged() {
+        let field = default_field("f");
+        let html = render(&input(&InputProps::default(), &field, vec![]));
+        assert!(!html.contains("fd-field--shape"));
+    }
+
+    /// イシュー #3117: `Some(Shape::Pill)` は `fd-field--shape-pill` を
+    /// 追加出力する。
+    #[test]
+    fn shape_pill_maps_to_expected_class() {
+        let field = default_field("f");
+        let props = InputProps {
+            shape: Some(Shape::Pill),
+            ..InputProps::default()
+        };
+        let html = render(&input(&props, &field, vec![]));
+        assert!(html.contains("fd-field--shape-pill"));
+    }
+
     #[test]
     fn shape_enumeration_maps_to_expected_classes() {
         for (shape, class) in [
@@ -530,7 +551,7 @@ mod tests {
         ] {
             let field = default_field("f");
             let props = InputProps {
-                shape,
+                shape: Some(shape),
                 ..InputProps::default()
             };
             let html = render(&input(&props, &field, vec![]));
@@ -541,13 +562,13 @@ mod tests {
     #[test]
     fn default_shape_emits_no_shape_class() {
         let field = default_field("f");
-        // `InputProps::default()` 由来（暗黙の `Shape::Default`）。
+        // `InputProps::default()` 由来（暗黙の `None`）。
         let html_implicit = render(&input(&InputProps::default(), &field, vec![]));
         assert!(!html_implicit.contains("fd-field--shape-"));
 
-        // `Shape::Default` を明示指定した場合も同じく class を出さない。
+        // `None` を明示指定した場合も同じく class を出さない。
         let props_explicit = InputProps {
-            shape: Shape::Default,
+            shape: None,
             ..InputProps::default()
         };
         let html_explicit = render(&input(&props_explicit, &field, vec![]));
