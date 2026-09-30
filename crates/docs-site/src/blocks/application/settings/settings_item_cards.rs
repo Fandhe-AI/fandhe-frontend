@@ -37,6 +37,16 @@
 //! デモ枠自体の幅基準、`settings_billing_overview` 系と同型）で行う
 //! （Bugbot 指摘対応）。
 //!
+//! # サイト共通の `h2` 見出しスタイルをツールバー見出しでリセットする
+//!
+//! [`section_toolbar`] の `H2` は `.docs-content h2`（`site_theme.rs`）の
+//! `border-top`/`padding-top` を素のまま継承すると、節が縦に並ぶ本 Demo で
+//! 節ごとに上罫線・余白が二重に付いてしまう（`auth_dropdown_panel`・
+//! `auth_tabs_card` 等と同型の Bugbot 指摘）。[`LAYOUT_CSS`] は
+//! `.blocks-settings-item-cards-toolbar h2` へ既存パターンと同じ
+//! `border-top: none; padding-top: 0; letter-spacing: normal;` を当て、
+//! 節間の余白は [`LAYOUT_CSS`] のグリッド `gap`（`-layout`）のみに委ねる。
+//!
 //! # 装飾アイコンと a11y
 //!
 //! [`geo_icon`] は `card_meta_cta::geo_icon` と同型の自作幾何アイコンで、
@@ -424,6 +434,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-item-cards-layout {\n  display: grid;\n  gap: var(--fandhe-space-8);\n  max-width: 48rem;\n  container-type: inline-size;\n  container-name: blocks-settings-item-cards;\n}\n\
 .blocks-settings-item-cards-toolbar {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-3);\n  flex-wrap: wrap;\n  margin-bottom: var(--fandhe-space-3);\n}\n\
 .blocks-settings-item-cards-list {\n  display: grid;\n  gap: var(--fandhe-space-3);\n}\n\
+.blocks-settings-item-cards-toolbar h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
+.blocks-settings-item-cards-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-settings-item-cards-row {\n  display: grid;\n  grid-template-columns: auto 1fr;\n  gap: var(--fandhe-space-3);\n  align-items: start;\n}\n\
 .blocks-settings-item-cards-action {\n  grid-column: 2;\n}\n\
 @container blocks-settings-item-cards (min-width: 40rem) {\n  \
@@ -506,6 +518,18 @@ mod tests {
         assert!(LAYOUT_CSS.contains("@container blocks-settings-item-cards (min-width: 40rem)"));
         assert!(LAYOUT_CSS.contains("grid-column: 2;"));
         assert!(LAYOUT_CSS.contains("grid-column: auto;"));
+    }
+
+    /// [`LAYOUT_CSS`] がツールバー見出し（H2）のサイト共通 `border-top`/
+    /// `padding-top` をリセットし、カード本文（題名 + 説明）へ間隔用の
+    /// `gap` を持つこと（Bugbot 指摘対応: 見出しスタイルの漏れ・題名と
+    /// 説明の詰まり）。
+    #[test]
+    fn layout_css_resets_toolbar_heading_and_spaces_body() {
+        assert!(LAYOUT_CSS.contains(".blocks-settings-item-cards-toolbar h2 {"));
+        assert!(LAYOUT_CSS.contains("border-top: none;"));
+        assert!(LAYOUT_CSS.contains(".blocks-settings-item-cards-body {"));
+        assert!(LAYOUT_CSS.contains("gap: var(--fandhe-space-1);"));
     }
 
     /// `card::body` へグリッド化 class を直接付けていないこと
