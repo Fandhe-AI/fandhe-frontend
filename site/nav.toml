@@ -2358,6 +2358,11 @@ source = "site/blocks/settings-item-cards.md"
 path = "/blocks/settings-item-cards/"
 
 [[section.group.page]]
+title = "settings-log-table"
+source = "site/blocks/settings-log-table.md"
+path = "/blocks/settings-log-table/"
+
+[[section.group.page]]
 title = "settings-notification-matrix"
 source = "site/blocks/settings-notification-matrix.md"
 path = "/blocks/settings-notification-matrix/"
@@ -2371,6 +2376,11 @@ path = "/blocks/settings-org-switcher/"
 title = "settings-page-aside-nav"
 source = "site/blocks/settings-page-aside-nav.md"
 path = "/blocks/settings-page-aside-nav/"
+
+[[section.group.page]]
+title = "settings-profile-form"
+source = "site/blocks/settings-profile-form.md"
+path = "/blocks/settings-profile-form/"
 
 [[section.group]]
 title = "Action Panel"
