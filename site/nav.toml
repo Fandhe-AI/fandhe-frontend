@@ -2372,6 +2372,11 @@ title = "settings-org-switcher"
 source = "site/blocks/settings-org-switcher.md"
 path = "/blocks/settings-org-switcher/"
 
+[[section.group.page]]
+title = "settings-share-link"
+source = "site/blocks/settings-share-link.md"
+path = "/blocks/settings-share-link/"
+
 [[section.group]]
 title = "Action Panel"
 

@@ -476,6 +476,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-org-switcher/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-notification-matrix/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-item-cards/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-share-link/index.html"
           # Application / Action Panel
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-stacked/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-with-input/index.html"
