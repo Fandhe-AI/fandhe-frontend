@@ -52,7 +52,9 @@ fn select_field(
     let field_props = FieldProps {
         id,
         ids: FieldIds::default(),
-        disabled: false,
+        // 無 JS の静的デモではプリセット説明文どおり選択欄の値が変わらない
+        // ため `disabled: true` にする（codex レビュー指摘、PR #3412）。
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
@@ -248,7 +250,9 @@ pub fn demo() -> Node {
         disabled: false,
         invalid: false,
         required: false,
-        readonly: false,
+        // 応答プレビューは固定表示のため、入力文を編集不能にして両者の
+        // 見た目と実際の編集可否を一致させる（codex レビュー指摘、PR #3412）。
+        readonly: true,
         has_helper_text: false,
     };
     let prompt_field = field::root(
