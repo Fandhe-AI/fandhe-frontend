@@ -497,6 +497,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-starter-list/index.html"
           # Application / Notification
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/notification-tray-tabs/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/notification-tray/index.html"
           # Application / Dialog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/game-ui-modal/index.html"
           # Application / Drawer
