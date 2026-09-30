@@ -83,6 +83,12 @@
 //! のまま送信先を持たない。パンくずのリンクは `href="#"` を避け、実在する
 //! 相対パス（`../`）へ向ける（`sidebar_03.rs` と同じ判断）。
 //!
+//! # 購入ボタンは disabled の静的表示
+//!
+//! 無 JS のため押しても何も起きないボタンを操作可能なまま残さない
+//! （`product_overview_tabs_below.rs`・`feature_tabs_panel` の CTA と同じ
+//! 判断）。`ButtonProps { disabled: true, .. }` で固定する。
+//!
 //! # ダミー素材について
 //!
 //! 画像は [`dummy_assets`] のビルド時生成 SVG（`PRODUCT_SRC` を主画像に、
@@ -446,11 +452,12 @@ fn size_options() -> Node {
 }
 
 /// カート追加ボタン（全幅、既定 `type="button"`。モジュール doc「`<form>`
-/// を持たない」節参照）。
+/// を持たない」節・「購入ボタンは disabled の静的表示」節参照）。
 fn add_to_cart_button() -> Node {
     button::button(
         &ButtonProps {
             size: Size::Lg,
+            disabled: true,
             ..ButtonProps::default()
         },
         vec![("data-blocks-product-overview-gallery-split-add", "")],
