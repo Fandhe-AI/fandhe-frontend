@@ -9,15 +9,16 @@
 主参照は対応表 ID R0243（代表構成、集約元 1 件）です。エクスポート対象は
 初期状態でユーザー・プロジェクト・タスク・コメントの 4 件を選択済み、添付
 ファイル・監査ログの 2 件を未選択で固定表示します。履歴は完了 3 件・処理中
-1 件を並記し、状態はバッジで示します。処理中の行はダウンロード対象が存在
-しないため、ダウンロードボタンをネイティブ `disabled` にしています。無 JS
-のため見た目の `data-state` は初期状態から変化せず、エクスポート対象の
-チェックボックスもネイティブ `disabled` で固定し、クリック後に選択状態と
-チェック表示が食い違わないようにしています。
+1 件を並記し、状態はバッジで示します。無 JS のため見た目の `data-state` は
+初期状態から変化せず、エクスポート対象のチェックボックスもネイティブ
+`disabled` で固定し、クリック後に選択状態とチェック表示が食い違わないよう
+にしています。
 
 本 Demo は無 JS の静的表示のみであり、`<form>` を含みません。エクスポート
-実行ボタン・ダウンロードボタンはいずれも既定 `type="button"` で、送信先・
-実処理を一切持ちません。
+実行ボタン・ダウンロードボタンはいずれも既定 `type="button"` で送信先・
+実処理を一切持たないため、押しても何も起きない死んだボタンにならないよう
+全行ネイティブ `disabled` で固定しています（完了行のダウンロードボタンも
+含む）。
 
 ## Rust コード
 
@@ -165,9 +166,10 @@ fn export_settings_section() -> Node {
                 vec![button(
                     &ButtonProps {
                         variant: ButtonVariant::Solid,
+                        disabled: true,
                         ..ButtonProps::default()
                     },
-                    vec![],
+                    vec![("data-blocks-settings-export-data-action", "")],
                     vec![text("エクスポートを開始")],
                 )],
             ),
@@ -175,13 +177,16 @@ fn export_settings_section() -> Node {
     )
 }
 
-/// エクスポート履歴の 1 行（架空データ）。
+/// エクスポート履歴の 1 行（架空データ）。ダウンロードボタンは状態に
+/// かかわらず全行ネイティブ `disabled` にするため（モジュール doc
+/// 「実行ボタン・ダウンロードボタンをネイティブ `disabled` にする理由」
+/// 節）、完了/処理中の区別は `status_label`/`status_palette`（バッジ）
+/// のみが担う。
 struct HistoryRow {
     date: &'static str,
     format: &'static str,
     status_label: &'static str,
     status_palette: ColorPalette,
-    ready: bool,
 }
 
 /// エクスポート履歴データ（架空。日時は ISO 風の固定表記、実在の日時・
@@ -192,34 +197,31 @@ const HISTORY_ROWS: &[HistoryRow] = &[
         format: "CSV",
         status_label: "完了",
         status_palette: ColorPalette::Success,
-        ready: true,
     },
     HistoryRow {
         date: "2026-09-25 18:40",
         format: "JSON",
         status_label: "完了",
         status_palette: ColorPalette::Success,
-        ready: true,
     },
     HistoryRow {
         date: "2026-09-20 07:03",
         format: "XLSX",
         status_label: "完了",
         status_palette: ColorPalette::Success,
-        ready: true,
     },
     HistoryRow {
         date: "2026-09-30 11:55",
         format: "CSV",
         status_label: "処理中",
         status_palette: ColorPalette::Info,
-        ready: false,
     },
 ];
 
-/// 履歴テーブルの 1 行。処理中の行はダウンロード対象が存在しないため
-/// ボタンをネイティブ `disabled` にする（モジュール doc「ダウンロード列に
-/// リンクではなくボタンを使う理由」節）。ダウンロードボタンのアクセシブル
+/// 履歴テーブルの 1 行。全行のダウンロードボタンをネイティブ `disabled`
+/// にする（モジュール doc「実行ボタン・ダウンロードボタンをネイティブ
+/// `disabled` にする理由」節。完了行も実ファイルを取得しない静的表示の
+/// ため対象外にしない、Codex 指摘対応）。ダウンロードボタンのアクセシブル
 /// 名は全行「ダウンロード」で同一だとスクリーンリーダーで対象履歴を識別
 /// できないため（Codex 指摘対応）、`aria-label` で `row.date`/`row.format`
 /// を含めた行固有の名前を付与する。
@@ -248,10 +250,13 @@ fn history_row(row: &HistoryRow) -> Node {
                     &ButtonProps {
                         variant: ButtonVariant::Outline,
                         size: Size::Sm,
-                        disabled: !row.ready,
+                        disabled: true,
                         ..ButtonProps::default()
                     },
-                    vec![("aria-label", download_label.as_str())],
+                    vec![
+                        ("aria-label", download_label.as_str()),
+                        ("data-blocks-settings-export-data-action", ""),
+                    ],
                     vec![text("ダウンロード")],
                 )],
             ),

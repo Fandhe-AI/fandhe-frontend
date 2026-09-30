@@ -48,6 +48,19 @@
 //! 静的表示であり（docs サイトは無 JS）、状態を切り替える JS 配線は
 //! 含まない。
 //!
+//! # 実行ボタン・ダウンロードボタンをネイティブ `disabled` にする理由
+//!
+//! 前節のとおり実処理を持たないため、有効表示のまま置くと押しても何も
+//! 起きない死んだボタンになる（Codex 指摘対応）。`checkbox`（本 doc
+//! 「checkbox をネイティブ `disabled` にする理由」節）・
+//! `settings_org_switcher.rs` の操作ボタン（イシュー #2999）と同じ判断で、
+//! 「エクスポートを開始」ボタンと全履歴行の「ダウンロード」ボタン
+//! （完了行も含め、実際にはファイルを取得しない）を `disabled: true` で
+//! 揃える。`disabled_declarations()`（既定 `opacity: 0.5` +
+//! `cursor: not-allowed`）は [`LAYOUT_CSS`] の `[data-disabled]` 中和規則で
+//! 通常ボタンと同じ見た目に戻し、処理中行のみを区別する視覚的手掛かりは
+//! 状態バッジ（`badge`）に一元化する。
+//!
 //! # `class` と `data-*` の使い分け
 //!
 //! `field::root`/`button::button`/`checkbox::root`/`table::root`/
@@ -69,8 +82,9 @@
 //! # ダウンロード列にリンクではなくボタンを使う理由
 //!
 //! `href="#"` は無 JS 環境で死にリンクになるため使わず、
-//! `button::button`（既定 `type="button"`）を使う。処理中の行は
-//! ダウンロード対象が存在しないため、ボタンをネイティブ `disabled` にする。
+//! `button::button`（既定 `type="button"`）を使う。全行のボタンは前節
+//! 「実行ボタン・ダウンロードボタンをネイティブ `disabled` にする理由」
+//! のとおりネイティブ `disabled` で固定する。
 //!
 //! # ダミー素材について
 //!
@@ -223,9 +237,10 @@ fn export_settings_section() -> Node {
                 vec![button(
                     &ButtonProps {
                         variant: ButtonVariant::Solid,
+                        disabled: true,
                         ..ButtonProps::default()
                     },
-                    vec![],
+                    vec![("data-blocks-settings-export-data-action", "")],
                     vec![text("エクスポートを開始")],
                 )],
             ),
@@ -233,13 +248,16 @@ fn export_settings_section() -> Node {
     )
 }
 
-/// エクスポート履歴の 1 行（架空データ）。
+/// エクスポート履歴の 1 行（架空データ）。ダウンロードボタンは状態に
+/// かかわらず全行ネイティブ `disabled` にするため（モジュール doc
+/// 「実行ボタン・ダウンロードボタンをネイティブ `disabled` にする理由」
+/// 節）、完了/処理中の区別は `status_label`/`status_palette`（バッジ）
+/// のみが担う。
 struct HistoryRow {
     date: &'static str,
     format: &'static str,
     status_label: &'static str,
     status_palette: ColorPalette,
-    ready: bool,
 }
 
 /// エクスポート履歴データ（架空。日時は ISO 風の固定表記、実在の日時・
@@ -250,34 +268,31 @@ const HISTORY_ROWS: &[HistoryRow] = &[
         format: "CSV",
         status_label: "完了",
         status_palette: ColorPalette::Success,
-        ready: true,
     },
     HistoryRow {
         date: "2026-09-25 18:40",
         format: "JSON",
         status_label: "完了",
         status_palette: ColorPalette::Success,
-        ready: true,
     },
     HistoryRow {
         date: "2026-09-20 07:03",
         format: "XLSX",
         status_label: "完了",
         status_palette: ColorPalette::Success,
-        ready: true,
     },
     HistoryRow {
         date: "2026-09-30 11:55",
         format: "CSV",
         status_label: "処理中",
         status_palette: ColorPalette::Info,
-        ready: false,
     },
 ];
 
-/// 履歴テーブルの 1 行。処理中の行はダウンロード対象が存在しないため
-/// ボタンをネイティブ `disabled` にする（モジュール doc「ダウンロード列に
-/// リンクではなくボタンを使う理由」節）。ダウンロードボタンのアクセシブル
+/// 履歴テーブルの 1 行。全行のダウンロードボタンをネイティブ `disabled`
+/// にする（モジュール doc「実行ボタン・ダウンロードボタンをネイティブ
+/// `disabled` にする理由」節。完了行も実ファイルを取得しない静的表示の
+/// ため対象外にしない、Codex 指摘対応）。ダウンロードボタンのアクセシブル
 /// 名は全行「ダウンロード」で同一だとスクリーンリーダーで対象履歴を識別
 /// できないため（Codex 指摘対応）、`aria-label` で `row.date`/`row.format`
 /// を含めた行固有の名前を付与する。
@@ -306,10 +321,13 @@ fn history_row(row: &HistoryRow) -> Node {
                     &ButtonProps {
                         variant: ButtonVariant::Outline,
                         size: Size::Sm,
-                        disabled: !row.ready,
+                        disabled: true,
                         ..ButtonProps::default()
                     },
-                    vec![("aria-label", download_label.as_str())],
+                    vec![
+                        ("aria-label", download_label.as_str()),
+                        ("data-blocks-settings-export-data-action", ""),
+                    ],
                     vec![text("ダウンロード")],
                 )],
             ),
@@ -433,6 +451,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-export-data-hint {\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 .blocks-settings-export-data-targets {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-3);\n}\n\
 [data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-settings-export-data-checkbox][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-settings-export-data-action][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-blocks-settings-export-data-field] {\n  max-width: 20rem;\n}\n\
 .blocks-settings-export-data-actions {\n  display: flex;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-settings-export-data-sr-only {\n  position: absolute;\n  width: 1px;\n  height: 1px;\n  overflow: hidden;\n  clip: rect(0 0 0 0);\n  white-space: nowrap;\n}\n\
@@ -498,10 +517,11 @@ mod tests {
         assert_eq!(html.matches("<tr").count(), 5);
         // `data-disabled=""` も部分文字列として `disabled=""` を含むため、
         // 前方に空白を要求してネイティブ `disabled` 属性のみを数える。
-        // 6 件のエクスポート対象 checkbox（ネイティブ `disabled` で状態固定、
-        // モジュール冒頭「checkbox をネイティブ `disabled` にする理由」節
-        // 参照）+ 処理中の履歴行のダウンロードボタン 1 件 = 7。
-        assert_eq!(html.matches(" disabled=\"\"").count(), 7);
+        // 6 件のエクスポート対象 checkbox + 「エクスポートを開始」ボタン
+        // 1 件 + 履歴行の全ダウンロードボタン 4 件（モジュール doc
+        // 「実行ボタン・ダウンロードボタンをネイティブ `disabled` にする
+        // 理由」節、Codex 指摘対応）= 11。
+        assert_eq!(html.matches(" disabled=\"\"").count(), 11);
     }
 
     #[test]
@@ -563,5 +583,32 @@ mod tests {
         ));
         assert!(html.contains("<caption"));
         assert!(html.contains("エクスポート履歴の一覧"));
+    }
+
+    /// 「エクスポートを開始」ボタン・全履歴行の「ダウンロード」ボタンが
+    /// ネイティブ `disabled` で操作不能であることの回帰（Codex 指摘対応、
+    /// イシュー #2987）。実処理を持たない静的合成例で有効表示のまま
+    /// 置かれた死んだボタンを防ぐ（モジュール doc「実行ボタン・
+    /// ダウンロードボタンをネイティブ `disabled` にする理由」節）。
+    #[test]
+    fn action_buttons_are_natively_disabled() {
+        let html = demo_html();
+        let marker = "data-blocks-settings-export-data-action";
+        assert_eq!(
+            html.matches(marker).count(),
+            HISTORY_ROWS.len() + 1,
+            "expected the start-export button + one download button per history row"
+        );
+        for (idx, _) in html.match_indices(marker) {
+            let tag_start = html[..idx]
+                .rfind('<')
+                .expect("marker should be inside a tag");
+            let tag_end = idx + html[idx..].find('>').expect("tag should close");
+            assert!(
+                html[tag_start..tag_end].contains("disabled=\"\""),
+                "action button should carry native disabled: {}",
+                &html[tag_start..tag_end]
+            );
+        }
     }
 }
