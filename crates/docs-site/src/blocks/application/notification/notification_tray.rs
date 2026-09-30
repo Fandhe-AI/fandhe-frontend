@@ -527,7 +527,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"menu\"][data-part=\"trigger\"][data-blocks-notification-tray-menu-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-notification-tray-mark-all-read][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-notification-tray-view-all][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-.blocks-notification-tray [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
+.blocks-notification-tray [data-scope=\"popover\"] h2 {\n  margin: 0;\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .blocks-notification-tray-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-3);\n  padding-block-end: var(--fandhe-space-3);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 .blocks-notification-tray-header-actions {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-notification-tray-list {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n}\n\
@@ -689,7 +689,11 @@ mod tests {
     fn popover_title_heading_style_is_reset() {
         // cursor(Low) 是正: `.docs-content h2` の見出し装飾がパネル内へ
         // 漏れないよう `demo_class` スコープで中和する。
-        assert!(LAYOUT_CSS.contains(".blocks-notification-tray [data-scope=\"popover\"] h2"));
+        // codex(P2) 是正: `margin: 2.25rem 0 0.85rem`（site_theme.rs）も
+        // 中和対象に含め、パネル内見出し上部の不要な余白を消す。
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-notification-tray [data-scope=\"popover\"] h2 {\n  margin: 0;\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}"
+        ));
     }
 
     #[test]
