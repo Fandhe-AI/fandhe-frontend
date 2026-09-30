@@ -102,8 +102,8 @@ fn scope_badge(label: &'static str, solid: bool) -> Node {
     )
 }
 
-/// API キー一覧テーブル 1 行。`revoked` のとき最終使用列を「失効済み」
-/// badge に差し替え、操作列のボタンを持たない
+/// API キー一覧テーブル 1 行。`revoked` のとき操作列の「失効」ボタンを
+/// 「失効済み」badge に差し替える（最終使用列は `last_used` の表示のまま）
 /// （モジュール doc「使用部品」節の「1 行は既に失効済み」仕様）。
 #[allow(clippy::too_many_arguments)]
 fn key_row(
