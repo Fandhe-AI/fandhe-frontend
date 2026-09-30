@@ -30,9 +30,13 @@
 //! 別経路は不要）。`trigger` は `disabled: true`（静的表示のため開閉自体を
 //! 提供しない）。headless 層の `positioner` は既定 `position: absolute` の
 //! ため、`Open` 固定のままだとプラン価格・説明の上へ重なって表示される。
-//! [`LAYOUT_CSS`] で `[data-scope="toggle-tip"][data-part="positioner"]` を
-//! `position: static` へ中和し、通常のドキュメントフローへ乗せて重なりを
-//! 解消する（`pricing_tiers_extra_row` の既存判断と同型）。
+//! [`LAYOUT_CSS`] で `.blocks-settings-billing-overview-stack
+//! [data-scope="toggle-tip"][data-part="positioner"]` を `position: static`
+//! へ中和し、通常のドキュメントフローへ乗せて重なりを解消する
+//! （`pricing_tiers_extra_row` の既存判断と同型）。このセレクタは block
+//! ルート class で限定する（`blocks.css` は全 block ページ共通で読み込ま
+//! れるため、限定しないと他 block の toggle-tip も `position: static` に
+//! なりオーバーレイ表示が崩れる）。
 //!
 //! # `class` と `data-*` の使い分け
 //!
@@ -482,7 +486,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-billing-overview-plan-price {\n  font-size: var(--fandhe-font-font-size-2xl);\n  font-weight: var(--fandhe-font-font-weight-bold);\n}\n\
 .blocks-settings-billing-overview-stat-label {\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-normal);\n}\n\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-settings-billing-overview-plan-card][data-current] {\n  border-color: var(--fandhe-color-accent);\n}\n\
-[data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
+.blocks-settings-billing-overview-stack [data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 @container blocks-settings-billing-overview (max-width: 40rem) {\n  \
 .blocks-settings-billing-overview-stats {\n    grid-template-columns: 1fr;\n  }\n  \
 .blocks-settings-billing-overview-plans {\n    grid-template-columns: 1fr;\n  }\n\
@@ -552,5 +556,17 @@ mod tests {
         assert!(
             LAYOUT_CSS.contains("@container blocks-settings-billing-overview (max-width: 40rem)")
         );
+    }
+
+    /// [`LAYOUT_CSS`] が toggle-tip positioner を `position: static` へ
+    /// 中和するセレクタを block ルート class で限定していることを固定する
+    /// （`blocks.css` は全 block ページ共通で読み込まれるため、限定しない
+    /// と他 block の toggle-tip 表示が崩れる。`pricing_tiers_extra_row` と
+    /// 同型のセレクタ範囲限定）。
+    #[test]
+    fn layout_css_scopes_toggle_tip_positioner_neutralization_to_block_root() {
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-settings-billing-overview-stack [data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;"
+        ));
     }
 }
