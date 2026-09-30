@@ -2378,6 +2378,11 @@ source = "site/blocks/settings-org-switcher.md"
 path = "/blocks/settings-org-switcher/"
 
 [[section.group.page]]
+title = "settings-page-aside-nav"
+source = "site/blocks/settings-page-aside-nav.md"
+path = "/blocks/settings-page-aside-nav/"
+
+[[section.group.page]]
 title = "settings-preferences"
 source = "site/blocks/settings-preferences.md"
 path = "/blocks/settings-preferences/"
