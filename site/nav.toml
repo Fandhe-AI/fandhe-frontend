@@ -2348,6 +2348,11 @@ source = "site/blocks/settings-integrations-list.md"
 path = "/blocks/settings-integrations-list/"
 
 [[section.group.page]]
+title = "settings-integrations-search"
+source = "site/blocks/settings-integrations-search.md"
+path = "/blocks/settings-integrations-search/"
+
+[[section.group.page]]
 title = "settings-item-cards"
 source = "site/blocks/settings-item-cards.md"
 path = "/blocks/settings-item-cards/"
