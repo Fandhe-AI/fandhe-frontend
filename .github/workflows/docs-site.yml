@@ -464,11 +464,21 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-01/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/signup-05/index.html"
           # Application / Settings
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-api-keys-table/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-billing-usage/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-billing-overview/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-integration-detail/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-integrations-grid/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-integrations-list/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-event-accordion/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-integrations-search/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-api-key-created/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-log-table/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-org-switcher/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-notification-matrix/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-item-cards/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-preferences/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-profile-form/index.html"
           # Application / Action Panel
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-stacked/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-with-input/index.html"
@@ -491,6 +501,7 @@ jobs:
           # Application / Onboarding
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-centered-steps/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-checklist/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-vertical-steps/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/onboarding-split-image/index.html"
           # Application / Card
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/card-meta-cta/index.html"
