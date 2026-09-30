@@ -357,7 +357,7 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-empty-state-starter-grid-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n  container-type: inline-size;\n  container-name: blocks-empty-state-starter-grid;\n}\n\
 .blocks-empty-state-starter-grid-instance {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
-.blocks-empty-state-starter-grid-header {\n  text-align: center;\n  max-width: 32rem;\n  margin-inline: auto;\n}\n\
+.blocks-empty-state-starter-grid-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  text-align: center;\n  max-width: 32rem;\n  margin-inline: auto;\n}\n\
 .blocks-empty-state-starter-grid-grid {\n  display: grid;\n  gap: var(--fandhe-space-4);\n  grid-template-columns: minmax(0, 1fr);\n}\n\
 [data-scope=\"item\"][data-part=\"root\"][data-blocks-empty-state-starter-grid-tile] {\n  position: relative;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-scope=\"item\"][data-part=\"media\"][data-blocks-empty-state-starter-grid-media] {\n  width: 2.5rem;\n  height: 2.5rem;\n  border-radius: var(--fandhe-radius-md);\n}\n\
