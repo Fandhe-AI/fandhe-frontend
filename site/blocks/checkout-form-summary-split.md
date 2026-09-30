@@ -1,8 +1,8 @@
 # checkout-form-summary-split
 
-入力フォーム（左カラム: 連絡先 → 配送先 → 配送方法 → 支払い情報）と注文
-サマリ（右カラム: 商品行・割引コード・集計・確定ボタン）を並べた、購入
-手続き画面の 2 カラム合成例です。`field` / `input` /
+注文サマリ（左カラム: 商品行・割引コード・集計・確定ボタン）と入力
+フォーム（右カラム: 連絡先 → 配送先 → 配送方法 → 支払い情報）を並べた、
+購入手続き画面の 2 カラム合成例です。`field` / `input` /
 `input-group` / `native-select` / `radio-card` / `checkbox` / `button` /
 `image` / `separator` / `data-list` / `heading` の 11 部品を合成します。
 Blocks は既存部品の合成例であり、新しい UI 部品は追加しません。
@@ -458,7 +458,7 @@ fn payment_method_section() -> Node {
     )
 }
 
-/// 左カラム（入力フォーム）全体。連絡先 → 配送先 → 配送方法 → 支払い
+/// 右カラム（入力フォーム）全体。連絡先 → 配送先 → 配送方法 → 支払い
 /// 情報の順に縦積みする。
 fn form_column() -> Node {
     div(
@@ -583,7 +583,7 @@ fn totals() -> Node {
     )
 }
 
-/// 右カラム（注文サマリ）全体。商品行 → 割引コード → 集計 → 確定ボタン
+/// 左カラム（注文サマリ）全体。商品行 → 割引コード → 集計 → 確定ボタン
 /// の順に縦積みする。
 fn summary_column() -> Node {
     div(
@@ -612,12 +612,13 @@ fn summary_column() -> Node {
 }
 
 /// `checkout-form-summary-split` の Demo 本体。呼び出しごとに同一の
-/// `Node` を返す純関数。DOM 順はフォーム → サマリ（モジュール doc「狭幅
-/// でサマリを先頭にする理由」節）。
+/// `Node` を返す純関数。DOM 順はサマリ → フォーム（モジュール doc「DOM
+/// 順を視覚順へ一致させる理由」節、視覚順・キーボード操作順を `order`
+/// なしで一致させるための順序）。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-checkout-form-summary-split-layout")],
-        vec![form_column(), summary_column()],
+        vec![summary_column(), form_column()],
     )
 }
 ```
@@ -629,8 +630,9 @@ pub fn demo() -> Node {
   ため）。
 - 支払い方法にカード番号・CVC 等の入力欄は置きません（実在の決済フォーム
   に見せないための判断）。
-- 狭幅（1 列表示）ではサマリを CSS の `order` で先頭に回します。DOM 順は
-  フォーム → サマリのままです。
+- DOM 順はサマリ → フォームに固定しています（`order` は使いません）。
+  狭幅（1 列表示）ではこの DOM 順どおりサマリが先頭に表示され、視覚順と
+  キーボード操作順（Tab 移動）が常に一致します。
 - 見出しレベルは `h3` に固定しています（ページ側の `## Demo` が `h2` を
   出すため）。
 - 簡易決済ボタン行版・サマリ反転配色版・割引バッジ・状態違いの並記は、

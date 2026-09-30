@@ -2,9 +2,9 @@
 //! #3041「Ecommerce / Checkout カテゴリ初の block」。規模 L のため前半
 //! （骨格・主要領域・Blocks 登録）を本イシューが担い、後半（簡易決済
 //! ボタン行版・サマリ反転配色版・割引バッジ・状態違いの並記）は #3043
-//! へ送る）。左カラムに入力フォーム（連絡先 → 配送先 → 配送方法 →
-//! 支払い情報）、右カラムに注文サマリ（商品行・割引コード・集計・確定
-//! ボタン）を並べる、購入手続き画面の合成例。
+//! へ送る）。左カラムに注文サマリ（商品行・割引コード・集計・確定
+//! ボタン）、右カラムに入力フォーム（連絡先 → 配送先 → 配送方法 →
+//! 支払い情報）を並べる、購入手続き画面の合成例。
 //!
 //! # 使用部品
 //!
@@ -45,15 +45,22 @@
 //! 他 block の disabled radio-card 表示へ波及させない（`LAYOUT_CSS` は全
 //! block 分が連結されて配信される、`crate::blocks::LAYOUT_CSS` doc 参照）。
 //!
-//! # 狭幅でサマリを先頭にする理由
+//! # DOM 順を視覚順へ一致させる理由（サマリ → フォーム、#3462 レビュー
+//! 指摘対応）
 //!
-//! DOM 順はフォーム → サマリ（読み上げ順・確定操作へ至る自然な順序を
-//! フォーム記入後に保つため）。狭幅（既定、1 列）では [`LAYOUT_CSS`] が
-//! サマリへ `order: -1` を与えて視覚順のみ先頭へ回す（購入内容を先に
-//! 確認してからフォームへ進める導線、`docs/design/
-//! docs-site-blocks-section.md` の 2 カラム系 block と同じ判断）。
-//! `64rem` 以上でフォーム: サマリ = 可変幅 : 固定幅の 2 カラムへ切り替え、
-//! `order` を通常順へ戻す。
+//! `order` プロパティは視覚順のみを変え、キーボード操作順（Tab 移動）は
+//! DOM 順のまま変わらないため、CSS `order` で狭幅時だけサマリを先頭へ
+//! 動かす旧実装は狭幅でキーボード操作順（フォーム → サマリ）と視覚順
+//! （サマリ → フォーム）が食い違っていた（#3462 codex 指摘）。本実装は
+//! `order` を一切使わず、DOM 順自体をサマリ → フォームに固定することで
+//! 両順序を常に一致させる。狭幅（既定、1 列）ではサマリが先に表示され、
+//! 購入内容を先に確認してからフォームへ進める導線（`docs/design/
+//! docs-site-blocks-section.md` の 2 カラム系 block と同じ判断）を
+//! `order` なしで実現する。`64rem` 以上ではサマリ = 固定幅・フォーム =
+//! 可変幅の 2 カラムへ切り替え、`grid-template-columns` の並び順のみで
+//! サマリを左（固定幅）・フォームを右（可変幅）に配置する（`order` は
+//! 使わないため、この列配置でも視覚順は DOM 順＝サマリ→フォームのまま
+//! 一致する）。
 //!
 //! # 都道府県 select をネイティブのまま操作可能にする理由
 //!
@@ -541,7 +548,7 @@ fn payment_method_section() -> Node {
     )
 }
 
-/// 左カラム（入力フォーム）全体。連絡先 → 配送先 → 配送方法 → 支払い
+/// 右カラム（入力フォーム）全体。連絡先 → 配送先 → 配送方法 → 支払い
 /// 情報の順に縦積みする。
 fn form_column() -> Node {
     div(
@@ -666,7 +673,7 @@ fn totals() -> Node {
     )
 }
 
-/// 右カラム（注文サマリ）全体。商品行 → 割引コード → 集計 → 確定ボタン
+/// 左カラム（注文サマリ）全体。商品行 → 割引コード → 集計 → 確定ボタン
 /// の順に縦積みする。
 fn summary_column() -> Node {
     div(
@@ -695,12 +702,13 @@ fn summary_column() -> Node {
 }
 
 /// `checkout-form-summary-split` の Demo 本体。呼び出しごとに同一の
-/// `Node` を返す純関数。DOM 順はフォーム → サマリ（モジュール doc「狭幅
-/// でサマリを先頭にする理由」節）。
+/// `Node` を返す純関数。DOM 順はサマリ → フォーム（モジュール doc「DOM
+/// 順を視覚順へ一致させる理由」節、視覚順・キーボード操作順を `order`
+/// なしで一致させるための順序）。
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-checkout-form-summary-split-layout")],
-        vec![form_column(), summary_column()],
+        vec![summary_column(), form_column()],
     )
 }
 // blocks-code:end
@@ -768,7 +776,7 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-checkout-form-summary-split-layout {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-checkout-form-summary-split-form {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
-[data-blocks-checkout-form-summary-split-summary] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  order: -1;\n}\n\
+[data-blocks-checkout-form-summary-split-summary] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-checkout-form-summary-split-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-checkout-form-summary-split-name-row {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-checkout-form-summary-split-city-row {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-4);\n}\n\
@@ -776,21 +784,21 @@ const LAYOUT_CSS: &str = "\
 .blocks-checkout-form-summary-split-product-row {\n  display: grid;\n  grid-template-columns: 4rem 1fr auto;\n  gap: var(--fandhe-space-3);\n  align-items: center;\n}\n\
 .blocks-checkout-form-summary-split-product-detail {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1, 0.25rem);\n  min-inline-size: 0;\n}\n\
 [data-blocks-checkout-form-summary-split-product-price] {\n  white-space: nowrap;\n}\n\
-[data-blocks-checkout-form-summary-split-summary] [data-scope=\"button\"] {\n  inline-size: 100%;\n}\n\
+[data-blocks-checkout-form-summary-split-confirm] {\n  inline-size: 100%;\n}\n\
 .blocks-checkout-form-summary-split-layout [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-checkout-form-summary-split-newsletter][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 @media (min-width: 40rem) {\n  \
 .blocks-checkout-form-summary-split-name-row {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n\
 }\n\
 @media (min-width: 64rem) {\n  \
-.blocks-checkout-form-summary-split-layout {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 24rem);\n    align-items: start;\n  }\n  \
-[data-blocks-checkout-form-summary-split-summary] {\n    order: 0;\n    position: sticky;\n    top: var(--fandhe-space-4);\n  }\n  \
+.blocks-checkout-form-summary-split-layout {\n    grid-template-columns: minmax(0, 24rem) minmax(0, 1fr);\n    align-items: start;\n  }\n  \
+[data-blocks-checkout-form-summary-split-summary] {\n    position: sticky;\n    top: var(--fandhe-space-4);\n  }\n  \
 .blocks-checkout-form-summary-split-city-row {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n\
 }\n";
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, LAYOUT_CSS, PAYMENT_METHOD_LABEL_ID, SHIPPING_METHOD_LABEL_ID};
+    use super::{demo, EMAIL_ID, LAYOUT_CSS, PAYMENT_METHOD_LABEL_ID, SHIPPING_METHOD_LABEL_ID};
     use fandhe_frontend_core::render;
 
     fn demo_html() -> String {
@@ -869,11 +877,48 @@ mod tests {
 
     #[test]
     fn layout_css_stacks_summary_first_on_narrow() {
+        // DOM 順（サマリ → フォーム）と視覚順を一致させるため `order` は
+        // 一切使わない（#3462 レビュー指摘対応、モジュール doc「DOM 順を
+        // 視覚順へ一致させる理由」節）。
         assert!(!LAYOUT_CSS.contains('<'));
-        assert!(LAYOUT_CSS.contains("order: -1;"));
+        assert!(!LAYOUT_CSS.contains("order:"));
         assert!(LAYOUT_CSS.contains("@media (min-width: 64rem)"));
-        assert!(LAYOUT_CSS.contains("order: 0;"));
-        assert!(LAYOUT_CSS.contains("grid-template-columns: minmax(0, 1fr) minmax(0, 24rem);"));
+        assert!(LAYOUT_CSS.contains("grid-template-columns: minmax(0, 24rem) minmax(0, 1fr);"));
+    }
+
+    #[test]
+    fn demo_dom_order_is_summary_then_form() {
+        // 視覚順・キーボード操作順を一致させるため、DOM 順もサマリ →
+        // フォームに固定する（#3462 レビュー指摘対応）。
+        let html = demo_html();
+        let summary_pos = html
+            .find("data-blocks-checkout-form-summary-split-summary")
+            .expect("summary marker should exist");
+        let confirm_pos = html
+            .find("data-blocks-checkout-form-summary-split-confirm")
+            .expect("confirm marker should exist");
+        let email_pos = html
+            .find(EMAIL_ID)
+            .expect("form section marker should exist");
+        assert!(
+            summary_pos < email_pos,
+            "summary should precede the form in DOM order"
+        );
+        assert!(
+            confirm_pos < email_pos,
+            "confirm button (inside summary) should precede the form in DOM order"
+        );
+    }
+
+    #[test]
+    fn confirm_button_full_width_does_not_leak_to_discount_apply_button() {
+        // discount の「適用」ボタンは summary スコープ配下にあるが、確定
+        // ボタン専用の data 属性でのみ全幅化する（#3462 Bugbot 指摘対応）。
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-checkout-form-summary-split-confirm] {\n  inline-size: 100%;\n}"
+        ));
+        assert!(!LAYOUT_CSS
+            .contains("[data-blocks-checkout-form-summary-split-summary] [data-scope=\"button\"]"));
     }
 
     #[test]
