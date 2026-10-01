@@ -52,6 +52,9 @@
 //! `Steps::new(4, 0, Orientation::Horizontal)` で固定し、1 段目（メール）を
 //! 常に現在ステップとして描画する。「前へ」ボタンは 1 段目のみ
 //! `ButtonProps::disabled` で無効化する（遷移前の静的な初期状態を示す）。
+//! 「次へ」ボタンは遷移処理を持たないため常に `ButtonProps::disabled` で
+//! 無効化し、無反応な操作可能ボタンに見せない（`settings_webhook_wizard`
+//! と同型の判断、PR #3501 レビュー対応）。
 //!
 //! # 狭幅でステップラベルを番号のみへ切り替える理由
 //!
@@ -135,7 +138,10 @@ fn option_item(hook: &'static str, title: &str, description: &str) -> Node {
 }
 
 /// 「前へ／次へ」アクション行。`back_disabled` は 1 段目（前のステップが
-/// 存在しない）でのみ `true` にする。
+/// 存在しない）でのみ `true` にする。「次へ」は本 Demo が段の遷移処理を
+/// 持たないため常に `disabled: true`（ネイティブ disabled）にし、押しても
+/// 何も起きない操作可能ボタンに見せない（`settings_webhook_wizard::
+/// nav_actions` と同型の判断、PR #3501 レビュー対応）。
 fn actions_row(back_disabled: bool, next_label: &str) -> Node {
     div(
         vec![("class", "blocks-checkout-wizard-steps-actions")],
@@ -150,7 +156,10 @@ fn actions_row(back_disabled: bool, next_label: &str) -> Node {
                 vec![text("前へ")],
             ),
             button::button(
-                &ButtonProps::default(),
+                &ButtonProps {
+                    disabled: true,
+                    ..ButtonProps::default()
+                },
                 vec![("data-blocks-checkout-wizard-steps-next", "")],
                 vec![text(next_label)],
             ),
