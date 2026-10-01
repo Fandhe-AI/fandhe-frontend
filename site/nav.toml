@@ -2418,6 +2418,11 @@ source = "site/blocks/settings-share-members.md"
 path = "/blocks/settings-share-members/"
 
 [[section.group.page]]
+title = "settings-team-table"
+source = "site/blocks/settings-team-table.md"
+path = "/blocks/settings-team-table/"
+
+[[section.group.page]]
 title = "settings-webhook-detail"
 source = "site/blocks/settings-webhook-detail.md"
 path = "/blocks/settings-webhook-detail/"

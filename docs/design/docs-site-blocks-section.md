@@ -1085,6 +1085,7 @@ pub enum LayoutCss {
 | notification-tray | #2976（親 #2951） | `application/notification/notification_tray.rs` |
 | settings-share-link | #3011 | `application/settings/settings_share_link.rs` |
 | settings-share-members | #3013・#3014（親 #3012） | `application/settings/settings_share_members.rs` |
+| settings-team-table | #3017 | `application/settings/settings_team_table.rs` |
 | settings-webhook-detail | #3018（親 #2951） | `application/settings/settings_webhook_detail.rs` |
 | settings-webhook-form | #3019（親 #2951） | `application/settings/settings_webhook_form.rs` |
 | settings-webhook-stats | #3020（親 #2951） | `application/settings/settings_webhook_stats.rs` |
