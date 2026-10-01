@@ -17,7 +17,8 @@
 //! [`settings_profile_form`]、イシュー #3001 で
 //! [`settings_page_aside_nav`]、イシュー #3013 で骨格を、イシュー #3014 で
 //! QR 版・状態差分を追加した
-//! [`settings_share_members`]、イシュー #3018 で
+//! [`settings_share_members`]、イシュー #3004 で
+//! [`settings_page_sidebar`]、イシュー #3018 で
 //! [`settings_webhook_detail`] を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
@@ -42,6 +43,7 @@ mod settings_log_table;
 mod settings_notification_matrix;
 mod settings_org_switcher;
 mod settings_page_aside_nav;
+mod settings_page_sidebar;
 mod settings_page_tabs;
 mod settings_preferences;
 mod settings_profile_form;
@@ -67,6 +69,7 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_notification_matrix::BLOCK,
         settings_org_switcher::BLOCK,
         settings_page_aside_nav::BLOCK,
+        settings_page_sidebar::BLOCK,
         settings_page_tabs::BLOCK,
         settings_preferences::BLOCK,
         settings_profile_form::BLOCK,

@@ -482,6 +482,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-page-tabs/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-preferences/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-profile-form/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-page-sidebar/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-share-members/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-webhook-detail/index.html"
           # Application / Action Panel
