@@ -551,6 +551,7 @@ jobs:
           # Ecommerce / Product List
           # Ecommerce / Quickview
           # Ecommerce / Category
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-grid-captioned/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-carousel/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-grid-overlay/index.html"
           # Ecommerce / Filter
@@ -558,6 +559,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cart-dialog/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cart-drawer/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cart-line-item-table/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cart-single-column/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cart-two-column-summary/index.html"
           # Ecommerce / Checkout
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/checkout-form-summary-split/index.html"

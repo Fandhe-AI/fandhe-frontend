@@ -10,10 +10,15 @@
 //! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
 mod category_carousel;
+mod category_grid_captioned;
 mod category_grid_overlay;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![category_carousel::BLOCK, category_grid_overlay::BLOCK]
+    vec![
+        category_carousel::BLOCK,
+        category_grid_captioned::BLOCK,
+        category_grid_overlay::BLOCK,
+    ]
 }
