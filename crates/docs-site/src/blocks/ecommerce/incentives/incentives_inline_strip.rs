@@ -250,7 +250,10 @@ pub const BLOCK: Block = Block {
 /// `.blocks-incentives-inline-strip-instance` を祖先に持つ子孫セレクタへ
 /// 書き換えてクラス数を 2 に増やし（詳細度 (0,2,0)）確実に上回る
 /// （A/B 両インスタンスで `list`/`item` の祖先に当たるため、`scroller`
-/// を挟む B 側も同じ祖先セレクタで届く）。
+/// を挟む B 側も同じ祖先セレクタで届く）。`item` には `margin: 0` も明示
+/// する（`margin-block` のみ上書きすると `.docs-content li` の既定値が
+/// `margin-inline` 側で残り得るため、折り返し時に `gap` 以上の余分な縦
+/// 余白が生じないよう両軸をまとめてリセットする、Bugbot Low 指摘 PR #3506）。
 ///
 /// スクロール変種の中央寄せ（48rem 以上）は `justify-content: center` では
 /// なく `safe center` を使う（CSS Box Alignment の `safe`/`unsafe` キー
@@ -266,7 +269,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-incentives-inline-strip-note] {\n  margin: 0;\n  text-align: center;\n}\n\
 .blocks-incentives-inline-strip-instance .blocks-incentives-inline-strip-list {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: center;\n  align-items: center;\n  gap: var(--fandhe-space-6);\n  list-style: none;\n  margin: 0;\n  padding: 0;\n}\n\
 .blocks-incentives-inline-strip-instance .blocks-incentives-inline-strip-list[data-variant=\"scroll\"] {\n  flex-wrap: nowrap;\n  justify-content: flex-start;\n  white-space: nowrap;\n}\n\
-.blocks-incentives-inline-strip-instance .blocks-incentives-inline-strip-item {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  flex: none;\n}\n\
+.blocks-incentives-inline-strip-instance .blocks-incentives-inline-strip-item {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  margin: 0;\n  flex: none;\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-incentives-inline-strip-title] {\n  margin: 0;\n  white-space: nowrap;\n}\n\
 .blocks-incentives-inline-strip-scroller {\n  overflow-x: auto;\n  padding-block: var(--fandhe-space-1);\n}\n\
 .blocks-incentives-inline-strip-scroller:focus-visible {\n  outline: 2px solid var(--fandhe-color-focus-ring, currentColor);\n  outline-offset: 2px;\n}\n\
