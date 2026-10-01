@@ -19,7 +19,8 @@
 //! QR 版・状態差分を追加した
 //! [`settings_share_members`]、イシュー #3004 で
 //! [`settings_page_sidebar`]、イシュー #3011 で
-//! [`settings_share_link`] を追加した）。手順は
+//! [`settings_share_link`]、イシュー #3019 で
+//! [`settings_webhook_form`] を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -49,6 +50,7 @@ mod settings_preferences;
 mod settings_profile_form;
 mod settings_share_link;
 mod settings_share_members;
+mod settings_webhook_form;
 
 use crate::blocks::Block;
 
@@ -75,5 +77,6 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_profile_form::BLOCK,
         settings_share_link::BLOCK,
         settings_share_members::BLOCK,
+        settings_webhook_form::BLOCK,
     ]
 }
