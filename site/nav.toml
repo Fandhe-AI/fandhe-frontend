@@ -2428,6 +2428,11 @@ source = "site/blocks/settings-team-invite.md"
 path = "/blocks/settings-team-invite/"
 
 [[section.group.page]]
+title = "settings-team-table"
+source = "site/blocks/settings-team-table.md"
+path = "/blocks/settings-team-table/"
+
+[[section.group.page]]
 title = "settings-webhook-detail"
 source = "site/blocks/settings-webhook-detail.md"
 path = "/blocks/settings-webhook-detail/"
@@ -2451,6 +2456,11 @@ path = "/blocks/settings-webhook-tester/"
 title = "settings-webhook-wizard"
 source = "site/blocks/settings-webhook-wizard.md"
 path = "/blocks/settings-webhook-wizard/"
+
+[[section.group.page]]
+title = "settings-webhooks-list"
+source = "site/blocks/settings-webhooks-list.md"
+path = "/blocks/settings-webhooks-list/"
 
 [[section.group]]
 title = "Action Panel"
