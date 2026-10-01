@@ -6,10 +6,6 @@
 //! 記載しない（`docs/design/motion-reference-adoption-policy.md` §9 と
 //! 同じライセンス上の転記制限）。
 //!
-//! **Ecommerce / Category カテゴリで最初の block**（`super`
-//! （`category_listing/mod.rs`）参照。カテゴリ雛形からの卒業も本 block が
-//! 担う）。
-//!
 //! # 使用部品
 //!
 //! イシュー本文指定の `heading` / `link` / `carousel` / `card` / `image` /

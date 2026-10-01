@@ -1,9 +1,6 @@
 //! `action-panel-inline` block（イシュー #2953。親トラッキング #2951
 //! 「Blocks アプリケーション B」配下、phase:4）。「タイトルの下に説明文、
 //! その右側に操作（ボタン/トグルスイッチ）を横並びで置く区画」の合成例。
-//! Application / Action Panel カテゴリ最初の block
-//! （`docs/design/docs-site-blocks-section.md` §18 の卒業手順に従い
-//! `action_panel.rs` から本ディレクトリへ改名した）。
 //!
 //! # 使用部品
 //!

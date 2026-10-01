@@ -1,6 +1,6 @@
 //! `content-article-toc` block（イシュー #2752。親トラッキング #2730
 //! 「Blocks 目的別パーツ拡充ツリー」配下、`crate::blocks::marketing::content`
-//! カテゴリ最初の block）。
+//! カテゴリ）。
 //!
 //! # 使用部品
 //!

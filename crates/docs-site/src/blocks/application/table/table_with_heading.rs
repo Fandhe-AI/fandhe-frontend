@@ -1,7 +1,6 @@
 //! `table-with-heading` block（イシュー #2947。親トラッキング #2892
-//! 「Blocks 目的別パーツ拡充」配下）。Application / Table カテゴリ最初の
-//! block（本カテゴリの雛形卒業は本ファイルと同一 PR、`super`（`table/mod.rs`）
-//! 参照）。上部に表題・説明・右端の「追加」ボタン、その下に一覧テーブルを
+//! 「Blocks 目的別パーツ拡充」配下）。上部に表題・説明・右端の「追加」
+//! ボタン、その下に一覧テーブルを
 //! 置く基本形を、既存部品（`heading` / `text` / `button` / `table` /
 //! `card` / `badge` / `link` の 7 部品）のみの合成で示す。
 //! `_/blocks-intake/` の対応ファイルは本イシュー着手時点で本 worktree に

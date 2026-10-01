@@ -1,5 +1,5 @@
 //! `logo-cloud-split` block（イシュー #2795。Marketing / Logo Cloud
-//! カテゴリの最初の block。対応表 ID R1058（主参照）・R0565/R0149/R0566/
+//! カテゴリ。対応表 ID R1058（主参照）・R0565/R0149/R0566/
 //! R0145/R0567（集約元）を構造の参照元とする合成例。見出し左 + ロゴ 2 列
 //! グリッド右）。取得手段・ファイル名・内部コンポーネント識別子は記載
 //! しない（`docs/design/motion-reference-adoption-policy.md` §9 と同じ

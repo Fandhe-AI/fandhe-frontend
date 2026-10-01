@@ -6,9 +6,6 @@
 //! 記載しない（[`super::super::faq::faq_accordion_centered`] と同じ
 //! ライセンス上の転記制限、対応表 ID のみを記す）。
 //!
-//! **Marketing / Header カテゴリで最初の block**（イシュー #2734 の雛形を
-//! 本 block 追加で卒業させた、`super`（`header/mod.rs`）参照）。
-//!
 //! # 使用部品
 //!
 //! `navigation-menu` / `button` / `icon` / `collapsible` の 4 部品を合成

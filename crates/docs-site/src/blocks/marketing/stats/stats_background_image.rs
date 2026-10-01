@@ -1,6 +1,6 @@
 //! `stats-background-image` block（イシュー #2801。親トラッキング #2730
 //! 「Blocks 目的別パーツ拡充ツリー、phase:1」配下、`crate::blocks::
-//! marketing::stats` カテゴリ最初の block）。
+//! marketing::stats` カテゴリ）。
 //!
 //! # 出典に関する注記
 //!

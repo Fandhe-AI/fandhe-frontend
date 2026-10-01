@@ -1,7 +1,4 @@
-//! `app-shell-sidebar-header` block（イシュー #2895。Application / App
-//! Shell カテゴリ最初の block、`docs/design/docs-site-blocks-section.md`
-//! §18 の卒業手順に従い `app_shell.rs`（空雛形）から `app_shell/mod.rs` へ
-//! ディレクトリ化した）。
+//! `app-shell-sidebar-header` block（イシュー #2895）。
 //!
 //! 左の固定サイドバー + 右上の常時表示ヘッダーバー（検索欄・通知ボタン・
 //! プロフィールメニュー）を組み合わせたアプリシェルの合成例。

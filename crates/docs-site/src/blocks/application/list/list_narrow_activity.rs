@@ -7,9 +7,6 @@
 //! 記載しない（`docs/design/motion-reference-adoption-policy.md` §9 と
 //! 同じライセンス上の転記制限）。
 //!
-//! **Application / List カテゴリで最初の block**（`super`（`list/mod.rs`）
-//! 参照）。
-//!
 //! # 使用部品
 //!
 //! `list` / `avatar` / `text` の 3 部品を合成する（[`BLOCK`] の `parts` に

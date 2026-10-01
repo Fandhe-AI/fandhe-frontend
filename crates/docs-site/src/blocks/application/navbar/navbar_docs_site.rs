@@ -1,7 +1,5 @@
 //! `navbar-docs-site` block（イシュー #2927。Application / Navbar
-//! カテゴリ最初の block、`docs/design/docs-site-blocks-section.md` §18 の
-//! 卒業手順に従い `navbar.rs`（空雛形）から `navbar/mod.rs` へ
-//! ディレクトリ化した）。
+//! カテゴリ）。
 //!
 //! ドキュメントサイト用のナビバー。左にロゴとドキュメント系リンク、
 //! 検索トリガー、右端に外部リポジトリへのリンク・テーマ切替・主操作
