@@ -336,7 +336,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-category-featured-banner-overlay {\n  display: flex;\n  flex-direction: column;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-category-featured-banner-overlay-image] {\n  display: block;\n  width: 100%;\n  height: 14rem;\n}\n\
 .blocks-category-featured-banner-panel {\n  box-sizing: border-box;\n  padding: var(--fandhe-space-6);\n  background: color-mix(in srgb, var(--fandhe-color-fg) 80%, transparent);\n  color: var(--fandhe-color-bg);\n  border-radius: var(--fandhe-radius-lg);\n}\n\
-[data-blocks-category-featured-banner-cta] {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  padding: var(--fandhe-space-3) var(--fandhe-space-6);\n  border-radius: var(--fandhe-radius-md);\n  background: var(--fandhe-color-accent);\n  text-decoration: none;\n  font-weight: var(--fandhe-font-weight-medium);\n}\n\
+[data-blocks-category-featured-banner-cta] {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  padding: var(--fandhe-space-3) var(--fandhe-space-6);\n  border-radius: var(--fandhe-radius-md);\n  background: var(--fandhe-color-accent);\n  text-decoration: none;\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
 [data-scope=\"link\"][data-part=\"root\"][data-blocks-category-featured-banner-cta] {\n  color: var(--fandhe-color-accent-fg);\n}\n\
 [data-scope=\"link\"][data-part=\"root\"][data-blocks-category-featured-banner-cta][data-blocks-category-featured-banner-cta-inverted] {\n  background: var(--fandhe-color-bg);\n  color: var(--fandhe-color-fg);\n}\n\
 [data-scope=\"link\"][data-part=\"root\"][data-blocks-category-featured-banner-link] {\n  color: var(--fandhe-color-bg);\n}\n\
