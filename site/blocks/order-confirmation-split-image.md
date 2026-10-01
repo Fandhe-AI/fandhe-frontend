@@ -29,8 +29,21 @@ use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSi
 
 /// ラベル・値の 1 行（`data_list::item` + `item-label` + `item-value`）。
 fn row(label: &'static str, value: &'static str) -> Node {
+    row_with_attrs(label, value, vec![])
+}
+
+/// 強調等の CSS フックを `data_list::item` 自身に付けたい行
+/// （`data_list::root` の `<dl>` 直下は `div`〔item〕のみを子に持てるため、
+/// 合計行の強調フックは `item` を追加の `div` で包まず本関数で直接付与する。
+/// `data_list(dl)` 配下で `item` をさらに `div` で包むと `dt`/`dd` が項目
+/// グループ直下にない無効な入れ子になる、というレビュー指摘の是正）。
+fn row_with_attrs(
+    label: &'static str,
+    value: &'static str,
+    attrs: Vec<(&'static str, &'static str)>,
+) -> Node {
     data_list::item(
-        vec![],
+        attrs,
         vec![
             data_list::item_label(vec![], vec![text(label)]),
             data_list::item_value(vec![], vec![text(value)]),
@@ -143,9 +156,10 @@ pub fn demo() -> Node {
                     row("小計", "¥8,800"),
                     row("送料", "¥500"),
                     row("消費税", "¥880"),
-                    div(
+                    row_with_attrs(
+                        "合計",
+                        "¥10,180",
                         vec![("data-blocks-order-confirmation-split-image-total", "")],
-                        vec![row("合計", "¥10,180")],
                     ),
                 ],
             ),
