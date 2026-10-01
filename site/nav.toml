@@ -2700,6 +2700,14 @@ source = "site/blocks/product-overview-tabs-below.md"
 path = "/blocks/product-overview-tabs-below/"
 
 [[section.group]]
+title = "Product List"
+
+[[section.group.page]]
+title = "product-list-bordered-grid"
+source = "site/blocks/product-list-bordered-grid.md"
+path = "/blocks/product-list-bordered-grid/"
+
+[[section.group]]
 title = "Category"
 
 [[section.group.page]]
