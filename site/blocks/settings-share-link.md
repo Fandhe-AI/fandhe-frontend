@@ -3,8 +3,8 @@
 共有の有効化スイッチ・共有 URL のコピー欄・リンクコピー / プレビューの
 ボタン群を持つ共有リンク設定カードです。`card` / `switch` / `clipboard` /
 `button` / `button-group` / `radio-card` / `qr-code` / `select` /
-`separator` / `input` / `input-group` の 11 部品を合成します。Blocks は
-既存部品の合成例であり、新しい UI 部品は追加しません。
+`separator` / `input` / `input-group` / `text` の 12 部品を合成します。
+Blocks は既存部品の合成例であり、新しい UI 部品は追加しません。
 
 主参照は対応表 ID R0318（代表構成）で、閲覧範囲の radio card（R0319）・
 埋め込み/リンクの切替（R0320）・ドメイン接尾辞 + QR コード（R0321）
@@ -37,6 +37,7 @@ use fandhe_frontend_pre_styled_ui::radio_card::{self, Orientation as RadioCardOr
 use fandhe_frontend_pre_styled_ui::select::{self, OpenState, SelectProps};
 use fandhe_frontend_pre_styled_ui::separator::{self, SeparatorProps};
 use fandhe_frontend_pre_styled_ui::switch::{self, SwitchProps};
+use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
@@ -283,6 +284,13 @@ fn audience_item(checked: bool, value: &'static str, label: &'static str) -> Nod
 }
 
 /// B: 閲覧範囲版（R0319）。A の body へ radio card 3 択を追加する。
+///
+/// radio card 全 item は `disabled: true`（ネイティブ操作禁止）のため、
+/// フォーム走査（スクリーンリーダーの「フォーム項目を読む」操作等）が
+/// disabled な input を読み飛ばす環境では選択状態が伝わらない。
+/// `card_form_footer::payment_method_field` と同型に、radio card の外側へ
+/// 独立した文（[`styled_text::text`]）で現在の選択を明文化する
+/// （レビュー指摘是正、PR #3454 cursor Bugbot）。
 fn version_audience() -> Node {
     let id_prefix = "blocks-settings-share-link-audience";
     let label_id = format!("{id_prefix}-label");
@@ -308,6 +316,15 @@ fn version_audience() -> Node {
                             audience_item(false, "anyone", "リンクを知っている全員"),
                             audience_item(false, "org", "組織内のメンバー"),
                         ],
+                    ),
+                    styled_text::text(
+                        &TextProps {
+                            size: TextSize::Sm,
+                            variant: TextVariant::Muted,
+                            ..TextProps::default()
+                        },
+                        vec![],
+                        vec![text("現在の選択: 招待した人のみ")],
                     ),
                 ],
             ),
@@ -551,7 +568,9 @@ pub fn demo() -> Node {
   `button-group`。`clipboard` のコピーボタンは実アプリへの配線を持たない
   合成例のため `disabled` にしています。
 - **版 B（閲覧範囲、audience、R0319）**: A の body へ「閲覧できる範囲」の
-  `radio-card` 3 択を追加します。
+  `radio-card` 3 択を追加します。radio-card 全 item は disabled のため、
+  フォーム走査で選択状態が読み上げられない環境向けに、独立した `text`
+  の一文（「現在の選択: 招待した人のみ」）で明文化します。
 - **版 C（埋め込み/リンク切替、tabs、R0320）**: body 先頭に静的なタブ列
   （リンク/埋め込みの 2 状態、`selected: "link"` 固定）を置きます。実物の
   `tabs::tabs` は使わず、素の `div` + `data-state` でタブの見た目のみを
@@ -581,4 +600,5 @@ pub fn demo() -> Node {
 [Radio Card](../themes/radio-card.md) /
 [QR Code](../themes/qr-code.md) / [Select](../themes/select.md) /
 [Separator](../themes/separator.md) / [Input](../themes/input.md) /
-[Input Group](../themes/input-group.md)
+[Input Group](../themes/input-group.md) /
+[Text](../themes/text.md)

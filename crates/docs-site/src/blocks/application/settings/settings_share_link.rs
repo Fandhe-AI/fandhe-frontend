@@ -11,15 +11,17 @@
 //!
 //! `card` / `switch` / `clipboard` / `button` / `button-group` /
 //! `radio-card` / `qr-code` / `select` / `separator` / `input` /
-//! `input-group` の 11 部品を合成する（[`BLOCK`] の `parts` に一致させる
-//! 契約、`crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が
-//! 検証する）。新しい UI 部品は追加しない。`input-group` は Issue 本文の
-//! 列挙（11 種）に無いが、`settings_api_key_created` と同じ既存 Themes
-//! 部品であり、下記「Demo 内の `clipboard` root は 1 個に限る」節の制約を
-//! 満たすために追加した（新規 UI 部品の新設ではない）。版 C（埋め込み/
-//! リンク切替）は実物の `tabs::tabs` を使わず素の `div` による静的な
-//! タブ列で表示する（下記「版 C: 無 JS での扱い」節参照）ため、`tabs` は
-//! `parts` に含めない。
+//! `input-group` / `text` の 12 部品を合成する（[`BLOCK`] の `parts` に
+//! 一致させる契約、`crates/docs-site/tests/blocks_nav.rs`/
+//! `blocks_contract.rs` が検証する）。新しい UI 部品は追加しない。
+//! `input-group` は Issue 本文の列挙（11 種）に無いが、
+//! `settings_api_key_created` と同じ既存 Themes 部品であり、下記「Demo 内の
+//! `clipboard` root は 1 個に限る」節の制約を満たすために追加した
+//! （新規 UI 部品の新設ではない）。`text` も同様に既存 Themes 部品であり、
+//! 下記「radio card の選択状態をフォーム走査外でも明文化する」節の制約を
+//! 満たすために追加した。版 C（埋め込み/リンク切替）は実物の `tabs::tabs`
+//! を使わず素の `div` による静的なタブ列で表示する（下記「版 C: 無 JS
+//! での扱い」節参照）ため、`tabs` は `parts` に含めない。
 //!
 //! # 4 版と集約元の対応（原稿「原案差分メモ」節と対になる索引）
 //!
@@ -149,6 +151,7 @@ use fandhe_frontend_pre_styled_ui::radio_card::{self, Orientation as RadioCardOr
 use fandhe_frontend_pre_styled_ui::select::{self, OpenState, SelectProps};
 use fandhe_frontend_pre_styled_ui::separator::{self, SeparatorProps};
 use fandhe_frontend_pre_styled_ui::switch::{self, SwitchProps};
+use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
@@ -395,6 +398,13 @@ fn audience_item(checked: bool, value: &'static str, label: &'static str) -> Nod
 }
 
 /// B: 閲覧範囲版（R0319）。A の body へ radio card 3 択を追加する。
+///
+/// radio card 全 item は `disabled: true`（ネイティブ操作禁止）のため、
+/// フォーム走査（スクリーンリーダーの「フォーム項目を読む」操作等）が
+/// disabled な input を読み飛ばす環境では選択状態が伝わらない。
+/// `card_form_footer::payment_method_field` と同型に、radio card の外側へ
+/// 独立した文（[`styled_text::text`]）で現在の選択を明文化する
+/// （レビュー指摘是正、PR #3454 cursor Bugbot）。
 fn version_audience() -> Node {
     let id_prefix = "blocks-settings-share-link-audience";
     let label_id = format!("{id_prefix}-label");
@@ -420,6 +430,15 @@ fn version_audience() -> Node {
                             audience_item(false, "anyone", "リンクを知っている全員"),
                             audience_item(false, "org", "組織内のメンバー"),
                         ],
+                    ),
+                    styled_text::text(
+                        &TextProps {
+                            size: TextSize::Sm,
+                            variant: TextVariant::Muted,
+                            ..TextProps::default()
+                        },
+                        vec![],
+                        vec![text("現在の選択: 招待した人のみ")],
                     ),
                 ],
             ),
@@ -709,6 +728,10 @@ pub const BLOCK: Block = Block {
             label: "Input Group",
             path: "/themes/input-group/",
         },
+        Part {
+            label: "Text",
+            path: "/themes/text/",
+        },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
     demo,
@@ -768,6 +791,7 @@ mod tests {
             "data-scope=\"separator\"",
             "data-scope=\"field\" data-part=\"input\"",
             "data-scope=\"input-group\"",
+            "data-scope=\"text\"",
         ] {
             assert!(html.contains(scope), "demo should contain {scope}");
         }
@@ -807,6 +831,16 @@ mod tests {
             .map(|i| tag_start + i)
             .expect("trigger tag end");
         assert!(html[tag_start..tag_end].contains("disabled"));
+    }
+
+    #[test]
+    fn audience_selection_is_stated_independently_of_disabled_radio_card() {
+        let html = demo_html();
+        // radio card 全 item が disabled のため、フォーム走査で選択状態が
+        // 読み上げられない環境向けに、独立した文で明文化する
+        // （レビュー指摘是正、PR #3454 cursor Bugbot）。
+        assert!(html.contains("現在の選択: 招待した人のみ"));
+        assert!(html.contains("data-scope=\"text\" data-part=\"root\""));
     }
 
     #[test]
