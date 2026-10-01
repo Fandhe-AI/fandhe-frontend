@@ -1,6 +1,6 @@
 //! `careers-split-accordion` block（イシュー #2816。親 #2807「Phase 2:
-//! Blocks マーケティング B」配下、Marketing / Careers カテゴリの最初の
-//! block。兄弟イシュー #2815「careers-card-grid」と同じカテゴリを担当する）。
+//! Blocks マーケティング B」配下、Marketing / Careers カテゴリ。
+//! 兄弟イシュー #2815「careers-card-grid」と同じカテゴリを担当する）。
 //!
 //! # 使用部品
 //!

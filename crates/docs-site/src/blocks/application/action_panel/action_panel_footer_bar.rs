@@ -1,9 +1,6 @@
 //! `action-panel-footer-bar` block（イシュー #2952。親トラッキング #2951
 //! 配下）。セクション末尾に上罫線付きの細い帯を置き、左に補足テキスト、
 //! 右にボタン群（表示・編集・保存等）を並べる操作バーの合成例。
-//! Application / Action Panel カテゴリ最初の block として追加する
-//! （雛形からディレクトリ化して卒業、`docs/design/docs-site-blocks-section.md`
-//! §18 参照）。
 //!
 //! # 使用部品
 //!

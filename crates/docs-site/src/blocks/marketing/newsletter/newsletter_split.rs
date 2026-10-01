@@ -1,9 +1,7 @@
 //! `newsletter-split` block（イシュー #2796。親トラッキング #2730
 //! 「Blocks 目的別パーツ拡充」配下、対応表 ID R1097（基準形）・R1098
 //! （ブランド色背景）・R1101（暗色カード内で `xl` 横並び）の 3 件を集約
-//! した合成例。Marketing / Newsletter カテゴリ最初の block
-//! （`docs/design/docs-site-blocks-section.md` §18 の卒業手順に従い
-//! `newsletter.rs` から本ディレクトリへ改名した）。取得手段・ファイル名・
+//! した合成例。取得手段・ファイル名・
 //! 内部コンポーネント識別子は記載しない（`contact_split_info` と同じ
 //! ライセンス上の転記制限）。
 //!

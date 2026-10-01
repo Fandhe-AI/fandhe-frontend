@@ -2707,6 +2707,11 @@ title = "product-list-simple-grid"
 source = "site/blocks/product-list-simple-grid.md"
 path = "/blocks/product-list-simple-grid/"
 
+[[section.group.page]]
+title = "product-list-bordered-grid"
+source = "site/blocks/product-list-bordered-grid.md"
+path = "/blocks/product-list-bordered-grid/"
+
 [[section.group]]
 title = "Category"
 

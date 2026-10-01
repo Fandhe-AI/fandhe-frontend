@@ -1,8 +1,6 @@
 //! `card-heading-toolbar` block（イシュー #2902。親トラッキング #2730
 //! 「Blocks 目的別パーツ拡充」配下、phase:3）。「見出しの右にツールバー
-//! （検索・操作ボタン・三点メニュー）を持つ区画」の合成例。Application /
-//! Card Heading カテゴリ最初の block（`docs/design/docs-site-blocks-section.md`
-//! §18 の卒業手順に従い `card_heading.rs` から本ディレクトリへ改名した）。
+//! （検索・操作ボタン・三点メニュー）を持つ区画」の合成例。
 //!
 //! # 使用部品
 //!

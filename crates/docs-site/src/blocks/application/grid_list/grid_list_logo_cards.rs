@@ -1,6 +1,6 @@
 //! `grid-list-logo-cards` block（イシュー #2921。親トラッキング #2892
-//! 「Blocks アプリケーション A」配下、Application/Grid List カテゴリ
-//! 最初の block）。取引先カードを並べるグリッドの合成例。主参照は対応表
+//! 「Blocks アプリケーション A」配下、Application/Grid List カテゴリ）。
+//! 取引先カードを並べるグリッドの合成例。主参照は対応表
 //! ID R0979 のみで、集約元との差分は下記「原案差分メモ」相当の各節に
 //! 記す（`site/blocks/grid-list-logo-cards.md` の「原案差分メモ」節と
 //! 対応する）。

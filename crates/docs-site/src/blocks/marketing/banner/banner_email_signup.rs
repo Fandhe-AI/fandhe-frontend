@@ -1,6 +1,6 @@
 //! `banner-email-signup` block（イシュー #2741。親トラッキング #2738
-//! 「Phase 1: Blocks マーケティング A」配下、Marketing / Banner カテゴリ
-//! 最初の block。対応表 ID R0012 の 1 件を参照する）。
+//! 「Phase 1: Blocks マーケティング A」配下、Marketing / Banner カテゴリ。
+//! 対応表 ID R0012 の 1 件を参照する）。
 //!
 //! # 使用部品
 //!

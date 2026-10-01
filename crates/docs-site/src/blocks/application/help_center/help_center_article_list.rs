@@ -1,6 +1,6 @@
 //! `help-center-article-list` block（イシュー #2974。親トラッキング #2951
-//! 「Blocks 目的別パーツ拡充」配下、Application / Help Center カテゴリの
-//! 最初の block）。パンくず → コレクション見出し（線画アイコン・題名・
+//! 「Blocks 目的別パーツ拡充」配下、Application / Help Center カテゴリ）。
+//! パンくず → コレクション見出し（線画アイコン・題名・
 //! 説明・記事数バッジ）→ 記事一覧カードを合成する。`_/blocks-intake/` の
 //! 対応ファイルは本イシュー着手時点で本 worktree に存在しないため、原稿・
 //! 本コメントには対応表 ID のみを記す（`profile_detail_datalist.rs` と

@@ -4,8 +4,7 @@
 //! R0616/R0617/R1176（集約元）を構造の参照元とする合成例。取得手段・
 //! ファイル名・内部コンポーネント識別子は記載しない
 //! （`docs/design/motion-reference-adoption-policy.md` §9 と同じライセンス
-//! 上の転記制限）。Ecommerce / Product Overview カテゴリ最初の block
-//! （雛形は `mod.rs` を参照）。
+//! 上の転記制限）。
 //!
 //! # 使用部品
 //!

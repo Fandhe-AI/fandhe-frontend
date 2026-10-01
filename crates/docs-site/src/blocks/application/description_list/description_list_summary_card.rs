@@ -1,5 +1,5 @@
 //! `description-list-summary-card` block（イシュー #2907。Application/
-//! Description List カテゴリ、最初の block）。主参照は対応表 ID R0892
+//! Description List カテゴリ）。主参照は対応表 ID R0892
 //! のみで、集約元との差分を並べる対象はない（`chart-bar-list` と同型の
 //! 「単一参照」注記に相当する記述は本 block には存在しない）。
 //!

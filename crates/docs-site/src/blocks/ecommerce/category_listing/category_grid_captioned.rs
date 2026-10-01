@@ -1,8 +1,5 @@
 //! `category-grid-captioned` block（イシュー #3037。親 #3024「Phase 5:
-//! Blocks EC」配下。Ecommerce / Category カテゴリ最初の block であり、
-//! 本ファイル追加に伴い雛形 `category_listing.rs` を
-//! `category_listing/mod.rs` へディレクトリ化して卒業する、
-//! `docs/design/docs-site-blocks-section.md` §18 参照）。
+//! Blocks EC」配下、Ecommerce / Category カテゴリ）。
 //!
 //! カテゴリ一覧（画像の下に名称と説明）を、既存の Themes 部品だけで合成
 //! した実例。取得元の文言・配色・装飾は持ち込まず、文言・データはすべて
