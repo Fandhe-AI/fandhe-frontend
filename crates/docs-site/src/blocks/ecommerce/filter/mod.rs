@@ -11,9 +11,14 @@
 
 mod filter_dropdown_bar;
 mod filter_expandable_panel;
+mod filter_overlay_panel;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![filter_dropdown_bar::BLOCK, filter_expandable_panel::BLOCK]
+    vec![
+        filter_dropdown_bar::BLOCK,
+        filter_expandable_panel::BLOCK,
+        filter_overlay_panel::BLOCK,
+    ]
 }
