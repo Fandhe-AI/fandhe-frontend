@@ -1112,6 +1112,7 @@ pub enum LayoutCss {
 | category-grid-captioned | #3037（親 #3024） | `ecommerce/category_listing/category_grid_captioned.rs` |
 | category-mosaic-featured | #3039 | `ecommerce/category_listing/category_mosaic_featured.rs` |
 | category-grid-overlay | #3038（親 #3024） | `ecommerce/category_listing/category_grid_overlay.rs` |
+| incentives-icon-grid | #3050 | `ecommerce/incentives/incentives_icon_grid.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
