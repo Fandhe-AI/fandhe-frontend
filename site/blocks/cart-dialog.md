@@ -85,7 +85,7 @@ fn item_row(index: usize, name: &str, attrs: &str, price: &str, qty: u8) -> Node
     let field = FieldProps {
         id: &field_id,
         ids: FieldIds::default(),
-        disabled: false,
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
@@ -146,7 +146,7 @@ fn item_row(index: usize, name: &str, attrs: &str, price: &str, qty: u8) -> Node
                             size: Size::Sm,
                             ..ButtonProps::default()
                         },
-                        vec![],
+                        vec![("disabled", ""), ("data-disabled", "")],
                         vec![text("削除")],
                     ),
                 ],
@@ -267,7 +267,11 @@ pub fn demo() -> Node {
                                     vec![],
                                     vec![button(
                                         &ButtonProps::default(),
-                                        vec![("data-blocks-cart-dialog-next", "")],
+                                        vec![
+                                            ("data-blocks-cart-dialog-next", ""),
+                                            ("disabled", ""),
+                                            ("data-disabled", ""),
+                                        ],
                                         vec![text("レジに進む")],
                                     )],
                                 ),
@@ -287,7 +291,9 @@ pub fn demo() -> Node {
   設計のため無 JS 下では開閉を切り替えられません。「開くボタン」「閉じる
   ボタン」を明示する issue のレイアウト仕様に合わせて両方を配置したうえで、
   ネイティブ `disabled` 属性 + `data-disabled` でフォーカス・クリック不能を
-  明示しています（`store-nav-centered-logo` と同型の判断）。
+  明示しています（`store-nav-centered-logo` と同型の判断）。同じ理由で
+  数量 select・削除ボタン・レジに進むボタンも `disabled` にしています
+  （数量 select は集計再計算を持たない静的デモとの矛盾を避けるため）。
 - 静的なデモは閉じる機構を実際には持たず、ダイアログの外側に説明・コード・
   ナビゲーションがあるため、表示の実態と一致させて `aria-modal` は false に
   しています（`contact-dialog-form` と同じ判断）。

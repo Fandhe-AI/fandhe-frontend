@@ -14,7 +14,7 @@
 //! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証する）。
 //! 新しい UI 部品は追加しない。
 //!
-//! # 開く・閉じるボタンは無 JS で no-op のため `disabled`
+//! # 開く・閉じる・削除・レジに進むは無 JS で no-op のため `disabled`
 //!
 //! docs サイトは JS ハイドレーションを行わない設計（CLAUDE.md）のため、
 //! [`fandhe_frontend_pre_styled_ui::dialog::trigger`]/[`close_trigger`] を
@@ -25,6 +25,20 @@
 //! ネイティブ `disabled` 属性 + `data-disabled` でフォーカス・クリック
 //! 不能を明示する（押せない操作をキーボード・支援技術利用者に実行可能な
 //! ものとして提示しない）。
+//!
+//! 同じ理由で「削除」「レジに進む」ボタンも `disabled` にする。送信先・
+//! 削除処理を持たない静的デモで押下可能なまま残すと無反応になり、
+//! 開く・閉じるボタンに適用した上記の判断と矛盾するため
+//! （[`fandhe_frontend_pre_styled_ui::native_select`] の数量選択を
+//! `disabled` にする判断は次節を参照）。
+//!
+//! # 数量 `select` も `disabled`（集計再計算を持たないため）
+//!
+//! 数量 `select` は操作可能なままだと、無 JS の静的デモでは選択を変えても
+//! [`SUMMARY_ROWS`] の小計・合計が追随せず表示が矛盾する。
+//! `cart_two_column_summary.rs::qty_control` が入荷待ち商品で
+//! `FieldProps::disabled = true` にする判断と同型で、本 block は全行を
+//! `disabled` にして集計との矛盾を避ける。
 //!
 //! # `aria-modal` を false にする理由
 //!
@@ -156,7 +170,7 @@ fn item_row(index: usize, name: &str, attrs: &str, price: &str, qty: u8) -> Node
     let field = FieldProps {
         id: &field_id,
         ids: FieldIds::default(),
-        disabled: false,
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
@@ -217,7 +231,7 @@ fn item_row(index: usize, name: &str, attrs: &str, price: &str, qty: u8) -> Node
                             size: Size::Sm,
                             ..ButtonProps::default()
                         },
-                        vec![],
+                        vec![("disabled", ""), ("data-disabled", "")],
                         vec![text("削除")],
                     ),
                 ],
@@ -338,7 +352,11 @@ pub fn demo() -> Node {
                                     vec![],
                                     vec![button(
                                         &ButtonProps::default(),
-                                        vec![("data-blocks-cart-dialog-next", "")],
+                                        vec![
+                                            ("data-blocks-cart-dialog-next", ""),
+                                            ("disabled", ""),
+                                            ("data-disabled", ""),
+                                        ],
                                         vec![text("レジに進む")],
                                     )],
                                 ),
@@ -481,7 +499,7 @@ mod tests {
     }
 
     #[test]
-    fn trigger_and_close_are_disabled_noop() {
+    fn all_interactive_controls_are_disabled_noop() {
         let html = demo_html();
         assert_eq!(
             html.matches("aria-controls=\"blocks-cart-dialog-content\"")
@@ -489,7 +507,10 @@ mod tests {
             1
         );
         assert_eq!(html.matches("id=\"blocks-cart-dialog-content\"").count(), 1);
-        assert_eq!(html.matches(" disabled=\"\"").count(), 2);
+        // trigger + close-trigger + 数量 select 2 + 削除 2 + レジに進む 1 = 7。
+        // いずれも送信先・集計再計算を持たない静的デモのため、操作可能な
+        // まま無反応にしないよう全て disabled にする（モジュール doc参照）。
+        assert_eq!(html.matches(" disabled=\"\"").count(), 7);
     }
 
     #[test]
