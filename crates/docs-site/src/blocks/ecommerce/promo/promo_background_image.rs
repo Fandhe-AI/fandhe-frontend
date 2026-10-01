@@ -15,12 +15,17 @@
 //! CTA は `button::button`（遷移先を持たない `<button>`）ではなく
 //! `link::root`（`<a>`）を使う。「見る」という遷移を示す文言には実在する
 //! リンク先が要る（codex-review P1 指摘、イシュー #3076。`cta_split_image`
-//! の「導入事例を見る」と同型の判断）。文言は実際の遷移先（[`REPO`]、
-//! フレームワークの GitHub リポジトリ）と齟齬がないよう「くわしくは
-//! こちら」という汎用文言にとどめる（「セール会場を見る」等、存在しない
-//! 専用ページへの遷移を示唆する文言は使わない。2 回目の codex-review P1
-//! 指摘、イシュー #3076）。`cta_split_image` と同様 `external: true` で
-//! `rel="noopener noreferrer"` を付与する。
+//! の「導入事例を見る」と同型の判断）。
+//!
+//! 遷移先は外部の GitHub リポジトリではなく、サイト内に実在するコレク
+//! ション訴求ページ [`COLLECTION_HREF`]（`/blocks/promo-collection-cards/`
+//! への相対リンク）とする。見出し・説明・CTA の文言をすべてコレクション
+//! 紹介に揃えることで、告知内容と遷移先が一致しない状態（3 回目の
+//! codex-review P1 指摘、イシュー #3076）を解消する（`store_nav_mega_menu`
+//! の「セール」導線と同型の判断）。内部リンクのため `LinkProps::default()`
+//! を使い、`external`/`rel="noopener noreferrer"`/`target="_blank"` は
+//! 付与しない。相対リンクの実在は `linkcheck::check_links` がビルド時に
+//! 検証する。
 //!
 //! # 3 形を 1 つの Demo に並記する
 //!
@@ -95,11 +100,11 @@
 //!
 //! 3 形とも `id` 属性を使わず（重複 id 回避）。`crate::blocks` モジュール
 //! doc の不変条件どおり `<form>` を出力しない。CTA は `link::root` が
-//! 固定の外部絶対 URL（[`REPO`]）へ遷移する実在のリンクであり、
-//! `href="#"` の死リンクは使わない（`cta_split_image`/`promo_collection_
-//! cards` 等、既存 block 多数と同じ方針。モジュール冒頭「使用部品」節
-//! 参照）。文言はすべて架空のものであり、実企業名・実サービス名・実
-//! クレデンシャル・PII・価格の断定は含まない。
+//! サイト内に実在するコレクション訴求ページ（[`COLLECTION_HREF`]）へ
+//! 遷移する相対リンクであり、`href="#"` の死リンクは使わない
+//! （`store_nav_mega_menu` の「セール」導線と同じ方針。モジュール冒頭
+//! 「使用部品」節参照）。文言はすべて架空のものであり、実企業名・実
+//! サービス名・実クレデンシャル・PII・価格の断定は含まない。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -113,10 +118,11 @@ use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 
 /// CTA のリンク先（モジュール冒頭「`id` を使わない・`<form>` を使わない・
-/// 実データを持たない」節参照）。本 Demo は実データ・バックエンドを持たない
-/// 静的合成例のため、`cta_split_image`/`promo_collection_cards` 等の既存
-/// block と同じく固定の外部絶対 URL を死リンク回避先として使い回す。
-const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+/// 実データを持たない」節参照）。サイト内に実在するコレクション訴求
+/// ページ（`promo-collection-cards` block のページ）への相対リンクで、
+/// `store_nav_mega_menu` の「セール」導線と同じ形。ビルド時に
+/// `linkcheck::check_links` が実在を検証する。
+const COLLECTION_HREF: &str = "../../blocks/promo-collection-cards/";
 
 /// 各形の直前に置く短い形ラベル（`hero_background_media::variant_label`
 /// と同型）。
@@ -164,7 +170,7 @@ fn content(heading_size: HeadingSize) -> Node {
                     ..HeadingProps::default()
                 },
                 vec![("data-blocks-promo-background-image-title", "")],
-                vec![text("季節の入れ替えセール")],
+                vec![text("新しい季節のコレクション")],
             ),
             styled_text::text(
                 &TextProps {
@@ -172,16 +178,15 @@ fn content(heading_size: HeadingSize) -> Node {
                     ..TextProps::default()
                 },
                 vec![("data-blocks-promo-background-image-lead", "")],
-                vec![text("対象の定番アイテムが期間限定でお得になります。")],
+                vec![text(
+                    "定番から限定まで、今季のコレクションをまとめてご紹介します。",
+                )],
             ),
             link::root(
-                REPO,
-                &LinkProps {
-                    external: true,
-                    ..LinkProps::default()
-                },
+                COLLECTION_HREF,
+                &LinkProps::default(),
                 vec![("data-blocks-promo-background-image-cta", "")],
-                vec![text("くわしくはこちら")],
+                vec![text("コレクションを見る")],
             ),
         ],
     )
@@ -313,9 +318,17 @@ mod tests {
             "should render exactly 3 CTA links (one per variant)"
         );
         assert_eq!(
-            html.matches(&format!("href=\"{REPO}\"")).count(),
+            html.matches(&format!("href=\"{COLLECTION_HREF}\"")).count(),
             3,
-            "each CTA should link to the real, existing REPO URL (not a dead href=\"#\")"
+            "each CTA should link to the real, existing collection page (not a dead href=\"#\")"
+        );
+        assert!(
+            !html.contains("rel=\"noopener"),
+            "internal link should not carry external rel attributes"
+        );
+        assert!(
+            !html.contains("target=\"_blank\""),
+            "internal link should not open in a new tab"
         );
         assert!(html.contains(r#"data-scope="card""#));
         assert!(html.contains(r#"data-scope="heading""#));

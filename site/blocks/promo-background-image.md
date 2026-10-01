@@ -2,8 +2,9 @@
 
 背景画像全面のプロモーション。`heading` / `text` / `link` / `image` /
 `card` の 5 部品を合成し、背景画像に暗幕を重ねた上へ中央寄せの見出し・
-説明・反転色 CTA（実在のリンク先へ遷移する `link`）を置くブロックです。
-Blocks は既存部品の合成例であり、新しい UI 部品は追加しません。
+説明・反転色 CTA（サイト内に実在するコレクション訴求ページへ遷移する
+`link`）を置くブロックです。Blocks は既存部品の合成例であり、新しい
+UI 部品は追加しません。
 
 主参照は対応表 ID R1196（基準形）です。角丸カードへ収める形（R1198）と
 トップページ向けの大見出し・大きめの余白形（R1202）を並記形として
@@ -30,10 +31,11 @@ use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 
 /// CTA のリンク先（モジュール冒頭「`id` を使わない・`<form>` を使わない・
-/// 実データを持たない」節参照）。本 Demo は実データ・バックエンドを持たない
-/// 静的合成例のため、`cta_split_image`/`promo_collection_cards` 等の既存
-/// block と同じく固定の外部絶対 URL を死リンク回避先として使い回す。
-const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+/// 実データを持たない」節参照）。サイト内に実在するコレクション訴求
+/// ページ（`promo-collection-cards` block のページ）への相対リンクで、
+/// `store_nav_mega_menu` の「セール」導線と同じ形。ビルド時に
+/// `linkcheck::check_links` が実在を検証する。
+const COLLECTION_HREF: &str = "../../blocks/promo-collection-cards/";
 
 /// 各形の直前に置く短い形ラベル（`hero_background_media::variant_label`
 /// と同型）。
@@ -81,7 +83,7 @@ fn content(heading_size: HeadingSize) -> Node {
                     ..HeadingProps::default()
                 },
                 vec![("data-blocks-promo-background-image-title", "")],
-                vec![text("季節の入れ替えセール")],
+                vec![text("新しい季節のコレクション")],
             ),
             styled_text::text(
                 &TextProps {
@@ -89,16 +91,15 @@ fn content(heading_size: HeadingSize) -> Node {
                     ..TextProps::default()
                 },
                 vec![("data-blocks-promo-background-image-lead", "")],
-                vec![text("対象の定番アイテムが期間限定でお得になります。")],
+                vec![text(
+                    "定番から限定まで、今季のコレクションをまとめてご紹介します。",
+                )],
             ),
             link::root(
-                REPO,
-                &LinkProps {
-                    external: true,
-                    ..LinkProps::default()
-                },
+                COLLECTION_HREF,
+                &LinkProps::default(),
                 vec![("data-blocks-promo-background-image-cta", "")],
-                vec![text("くわしくはこちら")],
+                vec![text("コレクションを見る")],
             ),
         ],
     )
@@ -168,9 +169,13 @@ pub fn demo() -> Node {
 - 参照元の文言・配色・装飾は持ち込まず、見出し・説明・CTA の文言は
   すべて独自の架空文言に差し替えた。
 - CTA は「見る」という遷移を示す文言のため `button::button`（遷移先を
-  持たない `<button>`）ではなく `link::root`（実在する外部絶対 URL へ
-  遷移する `<a>`）で描画する（`cta_split_image` の「導入事例を見る」と
-  同型の判断）。
+  持たない `<button>`）ではなく `link::root`（`<a>`）で描画する。遷移先
+  はサイト内に実在するコレクション訴求ページ（`promo-collection-cards`
+  block のページへの相対リンク）とし、見出し・説明・CTA の文言をすべて
+  コレクション紹介に揃えることで、告知内容と遷移先の不一致を避けた
+  （`store_nav_mega_menu` の「セール」導線と同型の判断）。内部リンクの
+  ため `external`/`rel="noopener noreferrer"`/`target="_blank"` は付与
+  しない。
 
 関連情報: [Heading](../themes/heading.md) / [Text](../themes/text.md) /
 [Link](../themes/link.md) / [Image](../themes/image.md) /
