@@ -154,8 +154,11 @@ fn shop_header(shop_name: &str, content_id: &str) -> Node {
     )
 }
 
-/// 数量表示（basic: 固定テキスト、stepper: readonly ステッパー）。
-fn qty_display(prefix: &str, index: usize, qty: u32, interactive: bool) -> Node {
+/// 数量表示（basic: 固定テキスト、stepper: readonly ステッパー）。`name` は
+/// stepper インスタンスのラベルへ商品名を含め、各行のアクセシブルネームを
+/// 一意にするために使う（`number_input::label` の視覚文言、モジュール doc
+/// 「`class` と `data-*` の使い分け」節参照）。
+fn qty_display(prefix: &str, index: usize, name: &str, qty: u32, interactive: bool) -> Node {
     if !interactive {
         return el(
             "p",
@@ -174,9 +177,19 @@ fn qty_display(prefix: &str, index: usize, qty: u32, interactive: bool) -> Node 
         false,
         false,
         true,
-        vec![("class", "blocks-cart-mini-panel-qty")],
+        // `number_input::root`（pre-styled-ui）は `drop_class_attr` で
+        // 呼び出し側 `class` を除去するため、CSS フックは `class` ではなく
+        // `data-blocks-cart-mini-panel-qty` で渡す（モジュール doc
+        // 「`class` と `data-*` の使い分け」節の前提どおり、`root` だけが
+        // 本ファイル内で誤って `class` を使っていた是正）。
+        vec![("data-blocks-cart-mini-panel-qty", "")],
         vec![
-            number_input::label(flags, Some(&field_id), vec![], vec![text("数量")]),
+            number_input::label(
+                flags,
+                Some(&field_id),
+                vec![],
+                vec![text(format!("{name} の数量"))],
+            ),
             number_input::control(
                 flags,
                 vec![],
@@ -228,7 +241,7 @@ fn item_row(
                         vec![("class", "blocks-cart-mini-panel-item-attrs")],
                         vec![text(attrs)],
                     ),
-                    qty_display(prefix, index, qty, interactive),
+                    qty_display(prefix, index, name, qty, interactive),
                 ],
             ),
             el(
@@ -432,7 +445,7 @@ const LAYOUT_CSS: &str = "\
 img[data-scope=\"image\"][data-blocks-cart-mini-panel-thumb] {\n  width: 3rem;\n  height: 3rem;\n  flex: none;\n}\n\
 .blocks-cart-mini-panel-item-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
 .blocks-cart-mini-panel-item-attrs {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-.blocks-cart-mini-panel-qty {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-cart-mini-panel-qty, [data-blocks-cart-mini-panel-qty] {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-cart-mini-panel-item-price {\n  margin: 0;\n  font-weight: var(--fandhe-font-weight-medium, 500);\n  white-space: nowrap;\n}\n\
 .blocks-cart-mini-panel-subtotal {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-cart-mini-panel-subtotal-line {\n  display: flex;\n  justify-content: space-between;\n  font-weight: var(--fandhe-font-weight-bold, 700);\n}\n\
@@ -579,6 +592,38 @@ mod tests {
         for (name, _, price, _) in CART_ITEMS {
             assert!(html.contains(name), "missing visible product name: {name}");
             assert!(html.contains(price), "missing visible price: {price}");
+        }
+    }
+
+    #[test]
+    fn qty_stepper_css_hook_survives_drop_class_attr() {
+        // Codex/Cursor Bugbot 指摘（PR #3524）の回帰テスト:
+        // `number_input::root`（pre-styled-ui）は `drop_class_attr` で呼び
+        // 出し側 `class` を除去するため、`class="blocks-cart-mini-panel-qty"`
+        // を渡しても LAYOUT_CSS の規則が適用されなかった。CSS フックを
+        // `data-blocks-cart-mini-panel-qty` へ切り替え、`root` へ実際に
+        // その属性が出力されることを固定する。
+        let html = demo_html();
+        let qty_count = CART_ITEMS.len();
+        assert_eq!(
+            html.matches("data-blocks-cart-mini-panel-qty=\"\"").count(),
+            qty_count
+        );
+        assert!(LAYOUT_CSS.contains("[data-blocks-cart-mini-panel-qty]"));
+    }
+
+    #[test]
+    fn stepper_qty_labels_have_distinct_accessible_names() {
+        // Cursor Bugbot 指摘（PR #3524）の回帰テスト: 各商品行の数量入力
+        // ラベルが固定文言「数量」のみだと全行で同一になりアクセシブル
+        // ネームで区別できないため、商品名を含めて一意にする。
+        let html = demo_html();
+        for (name, ..) in CART_ITEMS {
+            let needle = format!("{name} の数量");
+            assert!(
+                html.contains(&needle),
+                "missing distinct qty label for {name}: {html}"
+            );
         }
     }
 

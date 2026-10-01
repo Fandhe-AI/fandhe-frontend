@@ -88,8 +88,11 @@ fn shop_header(shop_name: &str, content_id: &str) -> Node {
     )
 }
 
-/// 数量表示（basic: 固定テキスト、stepper: readonly ステッパー）。
-fn qty_display(prefix: &str, index: usize, qty: u32, interactive: bool) -> Node {
+/// 数量表示（basic: 固定テキスト、stepper: readonly ステッパー）。`name` は
+/// stepper インスタンスのラベルへ商品名を含め、各行のアクセシブルネームを
+/// 一意にするために使う（`number_input::label` の視覚文言、モジュール doc
+/// 「`class` と `data-*` の使い分け」節参照）。
+fn qty_display(prefix: &str, index: usize, name: &str, qty: u32, interactive: bool) -> Node {
     if !interactive {
         return el(
             "p",
@@ -108,9 +111,19 @@ fn qty_display(prefix: &str, index: usize, qty: u32, interactive: bool) -> Node 
         false,
         false,
         true,
-        vec![("class", "blocks-cart-mini-panel-qty")],
+        // `number_input::root`（pre-styled-ui）は `drop_class_attr` で
+        // 呼び出し側 `class` を除去するため、CSS フックは `class` ではなく
+        // `data-blocks-cart-mini-panel-qty` で渡す（モジュール doc
+        // 「`class` と `data-*` の使い分け」節の前提どおり、`root` だけが
+        // 本ファイル内で誤って `class` を使っていた是正）。
+        vec![("data-blocks-cart-mini-panel-qty", "")],
         vec![
-            number_input::label(flags, Some(&field_id), vec![], vec![text("数量")]),
+            number_input::label(
+                flags,
+                Some(&field_id),
+                vec![],
+                vec![text(format!("{name} の数量"))],
+            ),
             number_input::control(
                 flags,
                 vec![],
@@ -162,7 +175,7 @@ fn item_row(
                         vec![("class", "blocks-cart-mini-panel-item-attrs")],
                         vec![text(attrs)],
                     ),
-                    qty_display(prefix, index, qty, interactive),
+                    qty_display(prefix, index, name, qty, interactive),
                 ],
             ),
             el(
