@@ -373,7 +373,7 @@ pub fn demo() -> Node {
         Some(header("特典一覧（視覚的に非表示）", None, true)),
         "見出しを視覚的に隠し、淡色の角丸枠で囲んだアイコン付き項目を 4 件並べる。カードなし。",
         PERKS.iter().map(perk_badge_icon).collect(),
-        vec![],
+        vec![("data-count", "4")],
     );
 
     let instance_c = instance(
@@ -402,7 +402,7 @@ pub fn demo() -> Node {
         )),
         "淡色パネル内に中央見出し + 装飾イラスト 4 点（alt は空、装飾画像）。",
         PERKS.iter().map(perk_illustration).collect(),
-        vec![("data-panel", "subtle")],
+        vec![("data-panel", "subtle"), ("data-count", "4")],
     );
 
     div(
@@ -462,11 +462,22 @@ pub const BLOCK: Block = Block {
 /// 空間分離）。グリッドは `repeat(auto-fit, minmax(min(100%, 12rem), 1fr))`
 /// で組み、デモ枠の幅に応じて自動で列数が変わる（`@media` 不要でも狭い
 /// 幅では 1〜2 列へ落ちる）。4 件グリッド（B/E）が 2 列止まりで収まり
-/// 切らないぶんは `@media (min-width: 48rem)` で `repeat(4, …)` を追加する
-/// （リテラル 48rem は `recipe::Breakpoint::Md` と一致させる）。
+/// 切らないぶんは 4 列へ揃えたいが、Blocks デモ枠は `.docs-content` の
+/// 最大幅（約 46rem）のカラム内にあり、ビューポート幅での `@media` では
+/// デモの実表示幅を反映できない（画面幅が広くても列自体は狭いまま
+/// 4 列固定になり `minmax(min(100%, 12rem), …)` の折り返しが失われる）。
+/// そのため `.blocks-incentives-icon-grid-instance` へ
+/// `container-type: inline-size` を張り、実コンテナ幅で判定する
+/// `@container` へ置き換える（`product_overview_image_grid` と同型）。
+/// しきい値 52.5rem は `minmax(…, 12rem)` の 4 列 + `gap:
+/// var(--fandhe-space-6)`（1.5rem）3 本分（`4 * 12rem + 3 * 1.5rem`）。
+/// 対象は 4 件インスタンス（B/E）のみに限定するため `data-count="4"` を
+/// 付与し、3 件インスタンス（A/C）には付けない（3 件のまま
+/// `repeat(4, …)` を当てると 4 列目が空トラックのまま残り、3 枚の
+/// 中央寄せが崩れるため）。
 const LAYOUT_CSS: &str = "\
 .blocks-incentives-icon-grid-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n}\n\
-.blocks-incentives-icon-grid-instance {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  padding: var(--fandhe-space-6);\n  border-radius: var(--fandhe-radius-lg);\n}\n\
+.blocks-incentives-icon-grid-instance {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  padding: var(--fandhe-space-6);\n  border-radius: var(--fandhe-radius-lg);\n  container-type: inline-size;\n  container-name: blocks-incentives-icon-grid;\n}\n\
 .blocks-incentives-icon-grid-instance[data-panel=\"subtle\"] {\n  background: var(--fandhe-color-bg-subtle);\n}\n\
 .blocks-incentives-icon-grid-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  align-items: center;\n  text-align: center;\n  max-width: 40rem;\n  margin-inline: auto;\n}\n\
 h3[data-blocks-incentives-icon-grid-sr-heading] {\n  margin: 0;\n}\n\
@@ -482,8 +493,8 @@ h3[data-blocks-incentives-icon-grid-sr-heading] {\n  margin: 0;\n}\n\
 [data-blocks-incentives-icon-grid-card-body] {\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-incentives-icon-grid-item-row] {\n  align-items: flex-start;\n}\n\
 [data-blocks-incentives-icon-grid-illustration] {\n  max-width: 8rem;\n}\n\
-@media (min-width: 48rem) {\n  \
-.blocks-incentives-icon-grid-instance:not([data-layout=\"rows\"]) .blocks-incentives-icon-grid-grid {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n\
+@container blocks-incentives-icon-grid (min-width: 52.5rem) {\n  \
+.blocks-incentives-icon-grid-instance[data-count=\"4\"] .blocks-incentives-icon-grid-grid {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -549,13 +560,17 @@ mod tests {
         assert_eq!(html.matches("alt=\"\"").count(), 4);
     }
 
-    /// [`LAYOUT_CSS`] が想定する auto-fit グリッド・md ブレークポイントを
-    /// 持つこと。
+    /// [`LAYOUT_CSS`] が想定する auto-fit グリッド・コンテナクエリでの
+    /// 4 列固定（4 件インスタンス限定）を持つこと（デモ実幅を無視する
+    /// ビューポート `@media` には戻さない固定）。
     #[test]
-    fn layout_css_declares_auto_fit_grid_and_md_breakpoint() {
+    fn layout_css_declares_auto_fit_grid_and_container_query_breakpoint() {
         assert!(LAYOUT_CSS.contains("auto-fit"));
-        assert!(LAYOUT_CSS.contains("@media (min-width: 48rem)"));
+        assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
+        assert!(LAYOUT_CSS.contains("@container blocks-incentives-icon-grid (min-width: 52.5rem)"));
+        assert!(LAYOUT_CSS.contains("[data-count=\"4\"]"));
         assert!(LAYOUT_CSS.contains("repeat(4, minmax(0, 1fr))"));
+        assert!(!LAYOUT_CSS.contains("@media"));
     }
 
     /// ルート class（`demo_class` とは別名）が `demo()` の出力へ実際に

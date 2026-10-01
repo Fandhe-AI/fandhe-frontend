@@ -306,7 +306,7 @@ pub fn demo() -> Node {
         Some(header("特典一覧（視覚的に非表示）", None, true)),
         "見出しを視覚的に隠し、淡色の角丸枠で囲んだアイコン付き項目を 4 件並べる。カードなし。",
         PERKS.iter().map(perk_badge_icon).collect(),
-        vec![],
+        vec![("data-count", "4")],
     );
 
     let instance_c = instance(
@@ -335,7 +335,7 @@ pub fn demo() -> Node {
         )),
         "淡色パネル内に中央見出し + 装飾イラスト 4 点（alt は空、装飾画像）。",
         PERKS.iter().map(perk_illustration).collect(),
-        vec![("data-panel", "subtle")],
+        vec![("data-panel", "subtle"), ("data-count", "4")],
     );
 
     div(
