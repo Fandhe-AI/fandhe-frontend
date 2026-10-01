@@ -14,12 +14,23 @@
 //!
 //! # レイアウト（2 バリアント）
 //!
-//! - **バリアント A（枠付きリッチカード）**: 3 枚。基本 1 列、`>= 40rem` で
-//!   2 列、`>= 64rem` で 3 列。
+//! - **バリアント A（枠付きリッチカード）**: 3 枚。基本 1 列、コンテナ幅
+//!   `>= 40rem` で 2 列、`>= 64rem` で 3 列。
 //! - **バリアント B（密な配置・セール価格）**: 4 枚。基本 2 列、
-//!   `>= 64rem` で 4 列。
+//!   コンテナ幅 `>= 64rem` で 4 列。
 //!
 //! `display: none` は使わない（狭幅でも全操作要素へ到達可能なまま積む）。
+//!
+//! # 列数は `@container` で切り替える
+//!
+//! Demo 枠（`.docs-content`、最大 46rem）の幅はビューポート幅と一致しない
+//! ため、`@media (min-width: ...)` ではなくコンテナクエリで判定する
+//! （`product_list_bordered_grid`/`product_overview_image_grid` と同型）。
+//! コンテナクエリは自分自身のサイズを基準に自分自身を再スタイルできない
+//! （コンテナは子孫にのみ適用される）ため、`container-type`/
+//! `container-name` は祖先の `.blocks-product-list-rich-cards-layout` へ
+//! 宣言し、`@container` では名前付きコンテナを介して子孫の
+//! `.blocks-product-list-rich-cards-grid-a`/`-grid-b` を判定対象にする。
 //!
 //! # カード共通構成
 //!
@@ -34,9 +45,13 @@
 //! `feed_upvote_cards.rs::vote_column` と同じ判断で、無 JS の静的表示の
 //! ため実際の切替は行わない。7 枚中 1 枚のみ `aria-pressed="true"` +
 //! ハート塗りつぶしアイコンに固定し、残りは `aria-pressed="false"` +
-//! 輪郭アイコンに固定する。`disabled` は付けない（クリック自体は妨げない）。
-//! ラベルは `format!("「{name}」をお気に入りに追加")` で商品ごとに一意に
-//! する。
+//! 輪郭アイコンに固定する。`product_overview_gallery_split.rs`「購入ボタン
+//! は disabled の静的表示」節と同じ判断で `disabled` を付け、無 JS のため
+//! 押しても表示が変わらないボタンを操作可能なまま残さない
+//! （`aria-pressed` 自体は状態表示として `disabled` と併存させる）。
+//! ラベルは `format!("「{name}」のお気に入り")` で商品ごとに一意にし、
+//! `aria-pressed` の状態に依存しない文言にする（`favorite: true` でも
+//! 「追加」のまま固定され矛盾した案内になることを避けるため）。
 //!
 //! # カート追加ボタンは disabled の静的表示
 //!
@@ -279,6 +294,7 @@ fn cover(product: &Product, label: &str) -> Node {
         &ButtonProps {
             variant: fav_variant,
             size: Size::Sm,
+            disabled: true,
             ..ButtonProps::default()
         },
         label,
@@ -386,7 +402,7 @@ fn product_card(
     variant: CardVariant,
 ) -> Node {
     let rating_label_id = format!("blocks-product-list-rich-cards-{group}-{index}-rating-label");
-    let favorite_label = format!("「{}」をお気に入りに追加", product.name);
+    let favorite_label = format!("「{}」のお気に入り", product.name);
     card::root(
         variant,
         vec![("data-blocks-product-list-rich-cards-card", "")],
@@ -524,15 +540,16 @@ pub const BLOCK: Block = Block {
 };
 
 /// `product_list_rich_cards` 固有のレイアウト規則（`crate::blocks`
-/// モジュール doc「block 固有 CSS の置き場」節と同型）。`40rem`/`64rem` の
-/// ブレークポイントで列数を切り替える。`display: none` は使わない。
+/// モジュール doc「block 固有 CSS の置き場」節と同型）。モジュール doc
+/// 「列数は `@container` で切り替える」節のとおり、`40rem`/`64rem` の
+/// コンテナ幅境界で列数を切り替える。`display: none` は使わない。
 const LAYOUT_CSS: &str = "\
-.blocks-product-list-rich-cards-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
+.blocks-product-list-rich-cards-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-product-list-rich-cards;\n}\n\
 .blocks-product-list-rich-cards-grid-a {\n  display: grid;\n  gap: var(--fandhe-space-6) var(--fandhe-space-4);\n  grid-template-columns: minmax(0, 1fr);\n}\n\
-@media (min-width: 40rem) {\n  .blocks-product-list-rich-cards-grid-a {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n}\n\
-@media (min-width: 64rem) {\n  .blocks-product-list-rich-cards-grid-a {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n}\n\
+@container blocks-product-list-rich-cards (min-width: 40rem) {\n  .blocks-product-list-rich-cards-grid-a {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n}\n\
+@container blocks-product-list-rich-cards (min-width: 64rem) {\n  .blocks-product-list-rich-cards-grid-a {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n}\n\
 .blocks-product-list-rich-cards-grid-b {\n  display: grid;\n  gap: var(--fandhe-space-4) var(--fandhe-space-3);\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n}\n\
-@media (min-width: 64rem) {\n  .blocks-product-list-rich-cards-grid-b {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n}\n\
+@container blocks-product-list-rich-cards (min-width: 64rem) {\n  .blocks-product-list-rich-cards-grid-b {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n}\n\
 [data-blocks-product-list-rich-cards-cover] {\n  position: relative;\n}\n\
 [data-blocks-product-list-rich-cards-badge] {\n  position: absolute;\n  inset-block-start: var(--fandhe-space-2);\n  inset-inline-start: var(--fandhe-space-2);\n}\n\
 [data-blocks-product-list-rich-cards-favorite] {\n  position: absolute;\n  inset-block-start: var(--fandhe-space-2);\n  inset-inline-end: var(--fandhe-space-2);\n}\n\
@@ -625,8 +642,9 @@ mod tests {
     #[test]
     fn layout_css_is_safe_and_has_breakpoints() {
         assert!(!LAYOUT_CSS.contains('<'));
-        assert!(LAYOUT_CSS.contains("@media (min-width: 40rem)"));
-        assert!(LAYOUT_CSS.contains("@media (min-width: 64rem)"));
+        assert!(LAYOUT_CSS.contains("container-type: inline-size"));
+        assert!(LAYOUT_CSS.contains("@container blocks-product-list-rich-cards (min-width: 40rem)"));
+        assert!(LAYOUT_CSS.contains("@container blocks-product-list-rich-cards (min-width: 64rem)"));
         assert!(!LAYOUT_CSS.contains("display: none"));
     }
 

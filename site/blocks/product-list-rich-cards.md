@@ -213,6 +213,7 @@ fn cover(product: &Product, label: &str) -> Node {
         &ButtonProps {
             variant: fav_variant,
             size: Size::Sm,
+            disabled: true,
             ..ButtonProps::default()
         },
         label,
@@ -320,7 +321,7 @@ fn product_card(
     variant: CardVariant,
 ) -> Node {
     let rating_label_id = format!("blocks-product-list-rich-cards-{group}-{index}-rating-label");
-    let favorite_label = format!("「{}」をお気に入りに追加", product.name);
+    let favorite_label = format!("「{}」のお気に入り", product.name);
     card::root(
         variant,
         vec![("data-blocks-product-list-rich-cards-card", "")],
