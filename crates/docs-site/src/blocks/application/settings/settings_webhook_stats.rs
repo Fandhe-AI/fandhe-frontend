@@ -58,8 +58,14 @@
 //! `clipboard::root` は `copied=false` 固定（未コピー状態の静的表示のみ、
 //! `hero_install_command.rs` の idle インスタンスと同型）。表示値は伏せ字
 //! 混じりの架空値（[`secret_clipboard`] 参照）でコピー可能な実値を持たない
-//! ため、`trigger` には `disabled` を付与し操作可能に見えるボタンが
-//! 無反応になることを避ける。`progress::root` は `Progress::new` で
+//! ため、`trigger` には `disabled`/`data-disabled` を付与し操作可能に見え
+//! るボタンが無反応になることを避ける。headless `clipboard` は `trigger`
+//! へ `data-disabled` を出力せず
+//! （`crates/pre-styled-ui/src/clipboard.rs` モジュール doc 参照）、CSS
+//! 側の `:hover` 抑制以外の disabled 見た目（カーソル・不透明度）を持たな
+//! いため、[`LAYOUT_CSS`] が `data-disabled` 付与箇所を個別スコープし
+//! `opacity: 0.5`/`cursor: not-allowed`（`disabled_declarations()` と同じ
+//! 値）を上書きする。`progress::root` は `Progress::new` で
 //! `value` を固定した determinate 表示のみで、インタラクションは一切
 //! 持たない。
 //!
@@ -682,7 +688,8 @@ const LAYOUT_CSS: &str = "\
 }\n\
 @container blocks-settings-webhook-stats (max-width: 28rem) {\n  \
 .blocks-settings-webhook-stats-grid {\n    grid-template-columns: 1fr;\n  }\n\
-}\n";
+}\n\
+[data-blocks-settings-webhook-stats-secret] [data-scope=\"clipboard\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 0.5;\n  cursor: not-allowed;\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -747,6 +754,22 @@ mod tests {
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
         assert!(LAYOUT_CSS.contains("@container blocks-settings-webhook-stats (max-width: 48rem)"));
         assert!(LAYOUT_CSS.contains("@container blocks-settings-webhook-stats (max-width: 28rem)"));
+    }
+
+    /// レビュー指摘是正（PR #3481）: `secret_clipboard` の `trigger` が
+    /// `data-disabled` を持つにもかかわらず、pre-styled-ui `clipboard` の
+    /// 既定 CSS はこの属性へカーソル・不透明度を一切結び付けないため
+    /// （`crates/pre-styled-ui/src/clipboard.rs` モジュール doc 参照）、
+    /// `cursor: pointer` のまま・フルオパシティのままで無効に見えなかった。
+    /// [`LAYOUT_CSS`] が disabled 見た目を上書きすることを固定する。
+    #[test]
+    fn layout_css_overrides_disabled_clipboard_trigger_appearance() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-settings-webhook-stats-secret] \
+             [data-scope=\"clipboard\"][data-part=\"trigger\"][data-disabled]"
+        ));
+        assert!(LAYOUT_CSS.contains("opacity: 0.5;"));
+        assert!(LAYOUT_CSS.contains("cursor: not-allowed;"));
     }
 
     #[test]
