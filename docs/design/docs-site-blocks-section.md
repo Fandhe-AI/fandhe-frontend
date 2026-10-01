@@ -711,6 +711,14 @@ blocks/
 の `category_mod_docs_do_not_record_per_block_history` が、`//!` 行に雛形新設の
 #2734 以外のイシュー番号が現れないことを検査する。
 
+block 実装モジュールの doc にも追加経緯（最初の block・卒業など）を書かない
+（#3513）。block 実装モジュール（`<section>/<category>/<snake>.rs`）冒頭の
+`//!` には block の役割だけを書き、「カテゴリ最初の block」「本 PR で雛形から
+卒業させた」のような経緯は書かない。同じカテゴリへ並列に block が追加されると
+すぐ事実と合わなくなるためである。`blocks_categories.rs` の
+`block_module_docs_do_not_record_addition_history` が、`mod.rs` 以外の block
+実装モジュールの `//!` 行に「最初の block」「卒業」が現れないことを検査する。
+
 ### `Block` レジストリの関数化（`BLOCKS` 配列の廃止）
 
 66 個の可変長カテゴリを stable Rust の `const fn` だけで単一の

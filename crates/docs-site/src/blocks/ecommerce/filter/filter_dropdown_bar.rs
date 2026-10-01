@@ -1,5 +1,5 @@
 //! `filter-dropdown-bar` block（イシュー #3046。親トラッキング #3024
-//! 「Blocks EC」配下、Ecommerce / Filter カテゴリ最初の block）。主参照
+//! 「Blocks EC」配下、Ecommerce / Filter カテゴリ）。主参照
 //! R0815（中央見出し + 4 フィルタ）・集約元 R0816（左見出し + 3 フィルタ +
 //! 件数バッジ）を対応表 ID とする合成例。`_/blocks-intake/` の対応ファイルは
 //! 本イシュー着手時点で本 worktree に存在しないため、原稿・本コメントには

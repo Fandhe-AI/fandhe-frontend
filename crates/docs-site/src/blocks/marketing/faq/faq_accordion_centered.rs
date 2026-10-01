@@ -6,9 +6,6 @@
 //! （[`super::super::changelog::changelog_accordion`] と同じライセンス上の
 //! 転記制限、対応表 ID のみを記す）。
 //!
-//! **Marketing / Faq カテゴリで最初の block**（イシュー #2734 の雛形を
-//! 本 block 追加で卒業させた、`super`（`faq/mod.rs`）参照）。
-//!
 //! # 使用部品
 //!
 //! `heading` / `text` / `badge` / `accordion` / `button` の 5 部品を合成

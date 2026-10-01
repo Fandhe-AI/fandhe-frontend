@@ -1,6 +1,4 @@
-//! `action-panel-stacked` block（イシュー #2954。Application / Action
-//! Panel カテゴリ最初の block、`docs/design/docs-site-blocks-section.md`
-//! §18「カテゴリの卒業」対象）。
+//! `action-panel-stacked` block（イシュー #2954）。
 //!
 //! # 使用部品
 //!

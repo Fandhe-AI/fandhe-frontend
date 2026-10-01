@@ -1,5 +1,5 @@
 //! `notification-tray-tabs` block（イシュー #2977。Application /
-//! Notification カテゴリ、最初の block）。ベルボタンから開くポップオーバー
+//! Notification カテゴリ）。ベルボタンから開くポップオーバー
 //! の中にタブ（すべて・未読）を置き、タブごとの通知一覧を静的に並記する。
 //! 主参照 R0169（代表構成）を軸に、R0168（空の状態）を Demo の 2 版並記
 //! （`variant`: `"empty"`/`"filled"`）で読み取れるようにする。

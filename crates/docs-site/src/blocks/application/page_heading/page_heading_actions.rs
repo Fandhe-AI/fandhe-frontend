@@ -1,8 +1,6 @@
 //! `page-heading-actions` block（イシュー #2930。親トラッキング #2730
 //! 「Blocks 目的別パーツ拡充」配下、phase:3）。「左に見出し・右に操作
-//! ボタン」を持つページ見出しの合成例。Application / Page Heading
-//! カテゴリ最初の block（`docs/design/docs-site-blocks-section.md` §18 の
-//! 卒業手順に従い `page_heading.rs` から本ディレクトリへ改名した）。
+//! ボタン」を持つページ見出しの合成例。
 //!
 //! # 使用部品
 //!

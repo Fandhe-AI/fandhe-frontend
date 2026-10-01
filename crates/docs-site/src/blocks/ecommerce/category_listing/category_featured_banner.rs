@@ -1,7 +1,5 @@
 //! `category-featured-banner` block（イシュー #3036。親トラッキング #3024
-//! 「Blocks EC」配下、`crate::blocks::ecommerce::category_listing` カテゴリ
-//! 最初の block。本カテゴリをイシュー #2734 の空雛形からディレクトリ化
-//! する）。
+//! 「Blocks EC」配下、`crate::blocks::ecommerce::category_listing` カテゴリ）。
 //!
 //! 1 カテゴリだけを大きく扱う横長バナーを、主参照 R0823（全面画像 +
 //! 半透明パネル）に集約元 R0608（画像 + テキストの左右分割カード）を
