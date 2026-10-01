@@ -578,6 +578,7 @@ jobs:
           # Ecommerce / Incentives
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/incentives-icon-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/incentives-inline-strip/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/incentives-split-header/index.html"
           # Ecommerce / Promo
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-collection-cards/index.html"
           # Docs / Docs Layout

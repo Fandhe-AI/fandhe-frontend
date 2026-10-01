@@ -11,9 +11,14 @@
 
 mod incentives_icon_grid;
 mod incentives_inline_strip;
+mod incentives_split_header;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![incentives_icon_grid::BLOCK, incentives_inline_strip::BLOCK]
+    vec![
+        incentives_icon_grid::BLOCK,
+        incentives_inline_strip::BLOCK,
+        incentives_split_header::BLOCK,
+    ]
 }
