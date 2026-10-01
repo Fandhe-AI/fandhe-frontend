@@ -9,11 +9,16 @@
 //! block ごとの追加経緯は git 履歴と PR を正とし、本コメントには書かない
 //! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
+mod filter_dropdown_bar;
 mod filter_expandable_panel;
 mod filter_overlay_panel;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![filter_expandable_panel::BLOCK, filter_overlay_panel::BLOCK]
+    vec![
+        filter_dropdown_bar::BLOCK,
+        filter_expandable_panel::BLOCK,
+        filter_overlay_panel::BLOCK,
+    ]
 }
