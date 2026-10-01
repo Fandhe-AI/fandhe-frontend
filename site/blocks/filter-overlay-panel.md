@@ -358,7 +358,10 @@ fn dialog_instance() -> Node {
         vec![backdrop, positioner],
     );
     div(
-        vec![("data-blocks-filter-overlay-panel-variant", "dialog")],
+        vec![
+            ("class", "blocks-filter-overlay-panel-variant"),
+            ("data-blocks-filter-overlay-panel-variant", "dialog"),
+        ],
         vec![
             p(vec![], vec![text("ダイアログ版（中央に開く）")]),
             toolbar(ids),

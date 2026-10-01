@@ -418,7 +418,10 @@ fn dialog_instance() -> Node {
         vec![backdrop, positioner],
     );
     div(
-        vec![("data-blocks-filter-overlay-panel-variant", "dialog")],
+        vec![
+            ("class", "blocks-filter-overlay-panel-variant"),
+            ("data-blocks-filter-overlay-panel-variant", "dialog"),
+        ],
         vec![
             p(vec![], vec![text("ダイアログ版（中央に開く）")]),
             toolbar(ids),
@@ -497,7 +500,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-filter-overlay-panel [data-scope=\"drawer\"][data-part=\"backdrop\"], .blocks-filter-overlay-panel [data-scope=\"dialog\"][data-part=\"backdrop\"] {\n  position: absolute;\n  inset: 0;\n  z-index: auto;\n}\n\
 .blocks-filter-overlay-panel [data-scope=\"drawer\"][data-part=\"positioner\"], .blocks-filter-overlay-panel [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: absolute;\n  inset: 0;\n  z-index: auto;\n}\n\
 .blocks-filter-overlay-panel [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: var(--fandhe-space-6);\n}\n\
-.blocks-filter-overlay-panel [data-scope=\"drawer\"][data-part=\"content\"] {\n  height: 100%;\n  max-width: 100%;\n}\n\
+.blocks-filter-overlay-panel [data-scope=\"drawer\"][data-part=\"content\"] {\n  height: 100%;\n  max-width: 100%;\n  display: flex;\n  flex-direction: column;\n}\n\
 .blocks-filter-overlay-panel [data-scope=\"dialog\"][data-part=\"content\"] {\n  max-width: 24rem;\n}\n\
 .blocks-filter-overlay-panel [data-scope=\"drawer\"] h2, .blocks-filter-overlay-panel [data-scope=\"dialog\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .blocks-filter-overlay-panel [data-scope=\"dialog\"][data-part=\"body\"] {\n  max-height: none;\n  overflow: visible;\n}\n\
