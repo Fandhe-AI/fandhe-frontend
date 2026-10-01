@@ -2428,6 +2428,11 @@ source = "site/blocks/settings-team-invite.md"
 path = "/blocks/settings-team-invite/"
 
 [[section.group.page]]
+title = "settings-team-table"
+source = "site/blocks/settings-team-table.md"
+path = "/blocks/settings-team-table/"
+
+[[section.group.page]]
 title = "settings-webhook-detail"
 source = "site/blocks/settings-webhook-detail.md"
 path = "/blocks/settings-webhook-detail/"
@@ -2699,6 +2704,11 @@ path = "/blocks/category-carousel/"
 
 [[section.group]]
 title = "Cart"
+
+[[section.group.page]]
+title = "cart-dialog"
+source = "site/blocks/cart-dialog.md"
+path = "/blocks/cart-dialog/"
 
 [[section.group.page]]
 title = "cart-line-item-table"

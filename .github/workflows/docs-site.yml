@@ -491,6 +491,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-webhook-stats/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-webhook-tester/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-webhook-form/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-team-table/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-webhook-wizard/index.html"
           # Application / Action Panel
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-stacked/index.html"
@@ -552,6 +553,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-carousel/index.html"
           # Ecommerce / Filter
           # Ecommerce / Cart
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cart-dialog/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cart-line-item-table/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cart-two-column-summary/index.html"
           # Ecommerce / Checkout

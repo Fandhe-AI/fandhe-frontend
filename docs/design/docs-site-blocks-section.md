@@ -1086,13 +1086,14 @@ pub enum LayoutCss {
 | settings-share-link | #3011 | `application/settings/settings_share_link.rs` |
 | settings-share-members | #3013・#3014（親 #3012） | `application/settings/settings_share_members.rs` |
 | settings-switch-sections | #3015（親 #2951） | `application/settings/settings_switch_sections.rs` |
+| settings-team-table | #3017 | `application/settings/settings_team_table.rs` |
 | settings-webhook-detail | #3018（親 #2951） | `application/settings/settings_webhook_detail.rs` |
 | settings-webhook-form | #3019（親 #2951） | `application/settings/settings_webhook_form.rs` |
 | settings-webhook-stats | #3020（親 #2951） | `application/settings/settings_webhook_stats.rs` |
 | settings-webhook-tester | #3021（親 #2951） | `application/settings/settings_webhook_tester.rs` |
 | settings-webhook-wizard | #3022（親 #2951） | `application/settings/settings_webhook_wizard.rs` |
 | checkout-form-summary-split | #3042（親 #3041） | `ecommerce/checkout/checkout_form_summary_split.rs` |
-| cart-line-item-table | #3028（親 #3027） | `ecommerce/cart/cart_line_item_table.rs` |
+| cart-line-item-table | #3028/#3029（親 #3027） | `ecommerce/cart/cart_line_item_table.rs` |
 | order-tracking-progress | #3060/#3061（親 #3059） | `ecommerce/order/order_tracking_progress.rs` |
 | product-overview-gallery-split | #3068（親 #3067） | `ecommerce/product_overview/product_overview_gallery_split.rs` |
 | product-overview-image-grid | #3071/#3072（親 #3070） | `ecommerce/product_overview/product_overview_image_grid.rs` |
@@ -1100,6 +1101,7 @@ pub enum LayoutCss {
 | promo-collection-cards | #3078/#3079（親 #3077） | `ecommerce/promo/promo_collection_cards.rs` |
 | store-nav-centered-logo | #3094（親 #3093） | `ecommerce/store_nav/store_nav_centered_logo.rs` |
 | store-nav-mega-menu | #3097/#3098（親 #3096） | `ecommerce/store_nav/store_nav_mega_menu.rs` |
+| cart-dialog | #3025 | `ecommerce/cart/cart_dialog.rs` |
 | settings-team-invite | #3016 | `application/settings/settings_team_invite.rs` |
 | category-carousel | #3035（親 #3024） | `ecommerce/category_listing/category_carousel.rs` |
 
