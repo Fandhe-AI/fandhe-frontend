@@ -10,9 +10,10 @@
 //! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
 mod promo_collection_cards;
+mod promo_sale_products;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![promo_collection_cards::BLOCK]
+    vec![promo_collection_cards::BLOCK, promo_sale_products::BLOCK]
 }

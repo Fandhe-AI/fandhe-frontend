@@ -2886,6 +2886,11 @@ title = "promo-collection-cards"
 source = "site/blocks/promo-collection-cards.md"
 path = "/blocks/promo-collection-cards/"
 
+[[section.group.page]]
+title = "promo-sale-products"
+source = "site/blocks/promo-sale-products.md"
+path = "/blocks/promo-sale-products/"
+
 # --- 以下は block 追加時の挿入先アンカー（イシュー #2734、#2735 でカテゴリ
 # 見出し導入に伴い運用を更新）。カテゴリ単位で行ブロックを分ける点は不変
 # だが、新規 block は該当カテゴリの既存 `[[section.group]]` があればその
