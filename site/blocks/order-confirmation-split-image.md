@@ -23,7 +23,7 @@ use fandhe_frontend_core::{div, text, Node};
 use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataListProps};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps};
 use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps, ImageShape};
-use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
+use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
 use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 
@@ -54,6 +54,14 @@ fn row_with_attrs(
         ],
     )
 }
+
+/// 「買い物を続ける」リンクの遷移先（固定のリポジトリ URL）。
+/// 本 Demo は商品一覧・ストアページを持たないため、レビュー指摘
+/// （`href="../"` は `/blocks/` 直下へ戻るだけで文言の期待先と不一致）を
+/// 受け、`cart_two_column_summary`/`cart_single_column` 等の同種リンクと
+/// 同じ判断（固定のリポジトリ URL + `external: true`、`href="#"` は
+/// 使わない）に揃える。
+const REPO_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 /// 商品行 1 件（サムネイル・商品名・オプション・価格）。
 fn product_line(name: &'static str, option: &'static str, price: &'static str) -> Node {
@@ -186,8 +194,12 @@ pub fn demo() -> Node {
                 ],
             ),
             link::root(
-                "../",
-                &LinkProps::default(),
+                REPO_URL,
+                &LinkProps {
+                    external: true,
+                    variant: LinkVariant::Underline,
+                    ..LinkProps::default()
+                },
                 vec![("data-blocks-order-confirmation-split-image-continue", "")],
                 vec![text("買い物を続ける →")],
             ),
