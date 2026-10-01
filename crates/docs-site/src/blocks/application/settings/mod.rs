@@ -31,6 +31,7 @@ mod settings_profile_form;
 mod settings_share_link;
 mod settings_share_members;
 mod settings_switch_sections;
+mod settings_team_invite;
 mod settings_team_table;
 mod settings_webhook_detail;
 mod settings_webhook_form;
@@ -63,6 +64,7 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_share_link::BLOCK,
         settings_share_members::BLOCK,
         settings_switch_sections::BLOCK,
+        settings_team_invite::BLOCK,
         settings_team_table::BLOCK,
         settings_webhook_detail::BLOCK,
         settings_webhook_form::BLOCK,
