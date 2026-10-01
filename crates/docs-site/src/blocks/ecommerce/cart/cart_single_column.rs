@@ -467,7 +467,7 @@ pub const BLOCK: Block = Block {
 /// `grid-template-columns` は一切使わない。
 const LAYOUT_CSS: &str = "\
 .blocks-cart-single-column-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  container-type: inline-size;\n  container-name: blocks-cart-single-column;\n}\n\
-.blocks-cart-single-column-cart {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  max-width: 42rem;\n  margin-inline: auto;\n}\n\
+.blocks-cart-single-column-cart {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  width: 100%;\n  max-width: 42rem;\n  margin-inline: auto;\n}\n\
 .blocks-cart-single-column-heading {\n  text-align: center;\n}\n\
 .blocks-cart-single-column-items {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-cart-single-column-item {\n  display: flex;\n  gap: var(--fandhe-space-4);\n  flex-wrap: wrap;\n  align-items: flex-start;\n}\n\
@@ -476,6 +476,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-cart-single-column-item-controls {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-end;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-cart-single-column-summary-panel {\n  background: var(--fandhe-color-bg-subtle);\n  border-radius: var(--fandhe-radius-md);\n  padding: var(--fandhe-space-4);\n}\n\
 [data-blocks-cart-single-column-total] {\n  border-top: 1px solid var(--fandhe-color-border);\n  padding-top: var(--fandhe-space-2);\n  font-weight: var(--fandhe-font-weight-bold, 700);\n}\n\
+[data-blocks-cart-single-column-total] [data-part=\"item-label\"] {\n  font-weight: var(--fandhe-font-weight-bold, 700);\n}\n\
 .blocks-cart-single-column-actions {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-cart-single-column-checkout] {\n  width: 100%;\n}\n\
 @container blocks-cart-single-column (min-width: 36rem) {\n  \
