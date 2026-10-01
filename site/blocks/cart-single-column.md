@@ -94,7 +94,13 @@ fn qty_control(variant_key: &str, index: usize, name: &str, qty: u8) -> Node {
     let field = FieldProps {
         id: &field_id,
         ids: FieldIds::default(),
-        disabled: false,
+        // 数量に応じた小計・合計の再計算を本 Demo は持たない（静的表示の
+        // ダミーデータのため）。操作可能なまま残すと選択を変えても
+        // `SUMMARY_ROWS_*` と矛盾するため、他の cart block
+        // （`cart_dialog.rs`/`cart_line_item_table.rs`/
+        // `cart_two_column_summary.rs`）と同型で `disabled` にして
+        // 初期選択値のまま固定する。
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
@@ -169,7 +175,16 @@ fn item_row(
                             size: Size::Sm,
                             ..ButtonProps::default()
                         },
-                        vec![("aria-label", remove_aria_label.as_str())],
+                        // 送信処理を持たない静的 Demo のため、操作可能な
+                        // まま残すと押しても行・集計が消えず矛盾する。
+                        // ネイティブ `disabled` + `data-disabled` で
+                        // フォーカス・クリックの双方を抑止する
+                        // （`cart_dialog.rs` と同型の判断）。
+                        vec![
+                            ("aria-label", remove_aria_label.as_str()),
+                            ("disabled", ""),
+                            ("data-disabled", ""),
+                        ],
                         vec![text("削除")],
                     ),
                 ],
@@ -232,7 +247,15 @@ fn checkout_actions() -> Node {
         vec![
             button(
                 &ButtonProps::default(),
-                vec![("data-blocks-cart-single-column-checkout", "")],
+                // 送信先を持たない静的 Demo のため、操作可能なまま
+                // 残すと押しても何も起きず実際の状態と矛盾する。
+                // ネイティブ `disabled` + `data-disabled` で無効化する
+                // （`cart_dialog.rs` と同型の判断）。
+                vec![
+                    ("data-blocks-cart-single-column-checkout", ""),
+                    ("disabled", ""),
+                    ("data-disabled", ""),
+                ],
                 vec![text("購入手続きへ")],
             ),
             link::root(

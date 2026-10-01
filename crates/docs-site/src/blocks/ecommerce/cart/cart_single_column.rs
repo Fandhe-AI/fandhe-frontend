@@ -40,10 +40,13 @@
 //! # `<form>` を使わない
 //!
 //! `crate::blocks` モジュール doc の不変条件どおり、本 Demo は `<form>` を
-//! 出力しない静的表示のみで、送信処理・送信先は一切持たない。数量選択は
-//! `select` の初期選択値のみを示す静的表示で、削除・購入手続きの各ボタンは
-//! `button::button` の既定 `type="button"` のまま用いる。リンクはすべて
-//! 固定のリポジトリ URL（[`REPO_URL`]）を指し、`href="#"` は使わない。
+//! 出力しない静的表示のみで、送信処理・送信先は一切持たない。数量に応じた
+//! 小計・合計の再計算は持たないため、数量 `select`・削除ボタン・購入手続き
+//! ボタンはいずれもネイティブ `disabled`（+ ボタン側は `data-disabled`）で
+//! 無効化し、操作しても `SUMMARY_ROWS_*` と矛盾しないようにする
+//! （`cart_dialog.rs`/`cart_line_item_table.rs`/`cart_two_column_summary.rs`
+//! と同型の判断、P2 指摘対応）。リンクはすべて固定のリポジトリ URL
+//! （[`REPO_URL`]）を指し、`href="#"` は使わない。
 //!
 //! # 数量 `select` の id・アクセシブルネーム
 //!
@@ -150,7 +153,13 @@ fn qty_control(variant_key: &str, index: usize, name: &str, qty: u8) -> Node {
     let field = FieldProps {
         id: &field_id,
         ids: FieldIds::default(),
-        disabled: false,
+        // 数量に応じた小計・合計の再計算を本 Demo は持たない（静的表示の
+        // ダミーデータのため）。操作可能なまま残すと選択を変えても
+        // `SUMMARY_ROWS_*` と矛盾するため、他の cart block
+        // （`cart_dialog.rs`/`cart_line_item_table.rs`/
+        // `cart_two_column_summary.rs`）と同型で `disabled` にして
+        // 初期選択値のまま固定する。
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
@@ -225,7 +234,16 @@ fn item_row(
                             size: Size::Sm,
                             ..ButtonProps::default()
                         },
-                        vec![("aria-label", remove_aria_label.as_str())],
+                        // 送信処理を持たない静的 Demo のため、操作可能な
+                        // まま残すと押しても行・集計が消えず矛盾する。
+                        // ネイティブ `disabled` + `data-disabled` で
+                        // フォーカス・クリックの双方を抑止する
+                        // （`cart_dialog.rs` と同型の判断）。
+                        vec![
+                            ("aria-label", remove_aria_label.as_str()),
+                            ("disabled", ""),
+                            ("data-disabled", ""),
+                        ],
                         vec![text("削除")],
                     ),
                 ],
@@ -288,7 +306,15 @@ fn checkout_actions() -> Node {
         vec![
             button(
                 &ButtonProps::default(),
-                vec![("data-blocks-cart-single-column-checkout", "")],
+                // 送信先を持たない静的 Demo のため、操作可能なまま
+                // 残すと押しても何も起きず実際の状態と矛盾する。
+                // ネイティブ `disabled` + `data-disabled` で無効化する
+                // （`cart_dialog.rs` と同型の判断）。
+                vec![
+                    ("data-blocks-cart-single-column-checkout", ""),
+                    ("disabled", ""),
+                    ("data-disabled", ""),
+                ],
                 vec![text("購入手続きへ")],
             ),
             link::root(
@@ -569,5 +595,22 @@ mod tests {
         for (name, ..) in CART_ITEMS {
             assert!(html.contains(name), "missing visible product name: {name}");
         }
+    }
+
+    /// Bugbot 指摘回帰: 数量 select・削除・購入手続きの各操作可能要素が
+    /// 送信処理・再計算を持たない静的 Demo で操作可能なまま残ると、操作
+    /// しても `SUMMARY_ROWS_*` の表示額と矛盾する。`cart_dialog.rs` と
+    /// 同型の判断で全て `disabled` にする（モジュール doc「`<form>` を
+    /// 使わない」節参照）。
+    #[test]
+    fn all_interactive_controls_are_disabled_noop() {
+        let html = demo_html();
+        // 数量 select 6（商品 3 件 × 形 A/B）+ 削除ボタン 6 + 購入手続き
+        // ボタン 2（形 A/B）= 14。
+        assert_eq!(html.matches(" disabled=\"\"").count(), 14);
+        // native_select は disabled の field から data-disabled も自動で
+        // 付与する（`field.rs` 参照）ため、select 6 + 削除ボタン 6 +
+        // 購入手続きボタン 2 = 14（" disabled=\"\"" と同数）。
+        assert_eq!(html.matches("data-disabled=\"\"").count(), 14);
     }
 }
