@@ -545,10 +545,12 @@ jobs:
           # Application / Media Object
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/media-object/index.html"
           # Ecommerce / Product Overview
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/product-overview-featured-split/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/product-overview-gallery-split/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/product-overview-image-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/product-overview-tabs-below/index.html"
           # Ecommerce / Product List
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/product-list-simple-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/product-list-bordered-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/product-list-carousel/index.html"
           # Ecommerce / Quickview
