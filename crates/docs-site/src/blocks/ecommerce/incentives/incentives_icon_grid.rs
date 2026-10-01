@@ -600,7 +600,7 @@ mod tests {
         // 到達不能になる）。
         const INSTANCE_CONTENT_WIDTH_CAP_REM: f64 = 40.0;
         const THRESHOLD_REM: f64 = 36.0;
-        assert!(THRESHOLD_REM <= INSTANCE_CONTENT_WIDTH_CAP_REM);
+        const { assert!(THRESHOLD_REM <= INSTANCE_CONTENT_WIDTH_CAP_REM) };
     }
 
     /// ルート class（`demo_class` とは別名）が `demo()` の出力へ実際に
