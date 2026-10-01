@@ -39,6 +39,7 @@ pub fn demo() -> Node {
                         variant: BadgeVariant::Solid,
                         size: Size::Md,
                         palette: *palette,
+                        shape: None,
                     },
                     vec![],
                     vec![text(*label)],

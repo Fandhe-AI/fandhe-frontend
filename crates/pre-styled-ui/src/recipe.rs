@@ -200,6 +200,43 @@ impl VariantValue for Size {
     }
 }
 
+/// 共通 `shape` 軸（pill / circle、イシュー #3117。input への適用は
+/// #3120）。button/badge/input/select が共有する opt-in 形状修飾で、
+/// `None`（props 側で表現）が既定形状を意味する。`Size`/[`ColorPalette`]
+/// と異なり `default_variant` を各部品側で登録しない契約（[`crate::button::ButtonIcon`]
+/// の先例と同型）のため、`Shape` を一切指定しない既存呼び出し元の class
+/// 出力・golden CSS はバイト不変のまま保たれる。
+///
+/// `Default` は実装しない（[`Size`]/[`Breakpoint`] と同じ安全側判断。
+/// 「既定形状は `Option::None`」という契約を型で強制する）。pill・circle
+/// とも新規トークンを追加せず既存の `--fandhe-radius-full`（9999px）を
+/// 参照する（`docs/design/pre-styled-ui-scale-tokens.md` §3.1 の
+/// 「pill・円形 → `full`」方針と一致）。部品ごとの宣言有無・値は各部品
+/// モジュール（`button.rs`/`badge.rs`/`input.rs`/`select.rs`）の rustdoc を
+/// 参照（input は #3120 で `Circle` も登録する。select は `Circle` 未登録）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Shape {
+    /// 両端を最大まで丸めた形状（`border-radius: var(--fandhe-radius-full)`）。
+    Pill,
+    /// 正方形と組み合わせて真円になる形状（[`crate::image::ImageShape::Circle`]
+    /// と同型の直交関係。単独では `border-radius` のみを与え、正方形の確定
+    /// サイズは呼び出し元〔例: icon-only button〕の別 variant が担う）。
+    Circle,
+}
+
+impl VariantValue for Shape {
+    fn axis(self) -> &'static str {
+        "shape"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Shape::Pill => "pill",
+            Shape::Circle => "circle",
+        }
+    }
+}
+
 /// レスポンシブブレークポイント（`@media (min-width: ...)`）の閾値
 /// （イシュー #2197）。[`StateCondition`] と並ぶ「条件」だが、variant 軸
 /// （[`VariantValue`]）でも状態条件（[`StateCondition`]）でもない別カテゴリ
@@ -3441,5 +3478,23 @@ mod stagger_parity_tests {
         let s = stagger_index_style(2);
         assert_eq!(s, "--fandhe-motion-stagger-index: 2");
         assert!(s.starts_with(STAGGER_INDEX_VAR));
+    }
+}
+
+/// [`Shape`] の axis/value 写像を固定する（イシュー #3117）。
+#[cfg(test)]
+mod shape_tests {
+    use super::{Shape, VariantValue};
+
+    #[test]
+    fn axis_is_shape() {
+        assert_eq!(Shape::Pill.axis(), "shape");
+        assert_eq!(Shape::Circle.axis(), "shape");
+    }
+
+    #[test]
+    fn value_maps_to_expected_strings() {
+        assert_eq!(Shape::Pill.value(), "pill");
+        assert_eq!(Shape::Circle.value(), "circle");
     }
 }

@@ -2338,6 +2338,16 @@ source = "site/blocks/settings-event-accordion.md"
 path = "/blocks/settings-event-accordion/"
 
 [[section.group.page]]
+title = "settings-export-data"
+source = "site/blocks/settings-export-data.md"
+path = "/blocks/settings-export-data/"
+
+[[section.group.page]]
+title = "settings-integration-detail"
+source = "site/blocks/settings-integration-detail.md"
+path = "/blocks/settings-integration-detail/"
+
+[[section.group.page]]
 title = "settings-integrations-grid"
 source = "site/blocks/settings-integrations-grid.md"
 path = "/blocks/settings-integrations-grid/"
@@ -2373,6 +2383,21 @@ source = "site/blocks/settings-org-switcher.md"
 path = "/blocks/settings-org-switcher/"
 
 [[section.group.page]]
+title = "settings-page-aside-nav"
+source = "site/blocks/settings-page-aside-nav.md"
+path = "/blocks/settings-page-aside-nav/"
+
+[[section.group.page]]
+title = "settings-page-tabs"
+source = "site/blocks/settings-page-tabs.md"
+path = "/blocks/settings-page-tabs/"
+
+[[section.group.page]]
+title = "settings-preferences"
+source = "site/blocks/settings-preferences.md"
+path = "/blocks/settings-preferences/"
+
+[[section.group.page]]
 title = "settings-profile-form"
 source = "site/blocks/settings-profile-form.md"
 path = "/blocks/settings-profile-form/"
@@ -2381,6 +2406,11 @@ path = "/blocks/settings-profile-form/"
 title = "settings-share-link"
 source = "site/blocks/settings-share-link.md"
 path = "/blocks/settings-share-link/"
+
+[[section.group.page]]
+title = "settings-share-members"
+source = "site/blocks/settings-share-members.md"
+path = "/blocks/settings-share-members/"
 
 [[section.group]]
 title = "Action Panel"
@@ -2445,6 +2475,11 @@ title = "Notification"
 title = "notification-tray-tabs"
 source = "site/blocks/notification-tray-tabs.md"
 path = "/blocks/notification-tray-tabs/"
+
+[[section.group.page]]
+title = "notification-tray"
+source = "site/blocks/notification-tray.md"
+path = "/blocks/notification-tray/"
 
 [[section.group]]
 title = "Dialog"
@@ -2595,6 +2630,74 @@ title = "Media Object"
 title = "media-object"
 source = "site/blocks/media-object.md"
 path = "/blocks/media-object/"
+
+[[section.group]]
+title = "Product Overview"
+
+[[section.group.page]]
+title = "product-overview-gallery-split"
+source = "site/blocks/product-overview-gallery-split.md"
+path = "/blocks/product-overview-gallery-split/"
+
+[[section.group.page]]
+title = "product-overview-image-grid"
+source = "site/blocks/product-overview-image-grid.md"
+path = "/blocks/product-overview-image-grid/"
+
+[[section.group.page]]
+title = "product-overview-tabs-below"
+source = "site/blocks/product-overview-tabs-below.md"
+path = "/blocks/product-overview-tabs-below/"
+
+[[section.group]]
+title = "Cart"
+
+[[section.group.page]]
+title = "cart-line-item-table"
+source = "site/blocks/cart-line-item-table.md"
+path = "/blocks/cart-line-item-table/"
+
+[[section.group.page]]
+title = "cart-two-column-summary"
+source = "site/blocks/cart-two-column-summary.md"
+path = "/blocks/cart-two-column-summary/"
+
+[[section.group]]
+title = "Checkout"
+
+[[section.group.page]]
+title = "checkout-form-summary-split"
+source = "site/blocks/checkout-form-summary-split.md"
+path = "/blocks/checkout-form-summary-split/"
+
+[[section.group]]
+title = "Order"
+
+[[section.group.page]]
+title = "order-tracking-progress"
+source = "site/blocks/order-tracking-progress.md"
+path = "/blocks/order-tracking-progress/"
+
+[[section.group]]
+title = "Store Nav"
+
+[[section.group.page]]
+title = "store-nav-centered-logo"
+source = "site/blocks/store-nav-centered-logo.md"
+path = "/blocks/store-nav-centered-logo/"
+
+[[section.group.page]]
+title = "store-nav-mega-menu"
+source = "site/blocks/store-nav-mega-menu.md"
+path = "/blocks/store-nav-mega-menu/"
+
+[[section.group]]
+title = "Promo"
+
+[[section.group.page]]
+title = "promo-collection-cards"
+source = "site/blocks/promo-collection-cards.md"
+path = "/blocks/promo-collection-cards/"
 
 # --- 以下は block 追加時の挿入先アンカー（イシュー #2734、#2735 でカテゴリ
 # 見出し導入に伴い運用を更新）。カテゴリ単位で行ブロックを分ける点は不変
