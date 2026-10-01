@@ -1,16 +1,13 @@
-//! Marketing / Faq カテゴリの block 登録点（イシュー #2734 で雛形新設、
-//! イシュー #2843 で最初の block（`faq_accordion_centered`）を追加し
-//! ディレクトリ化して卒業した。`docs/design/docs-site-blocks-section.md`
-//! §18 の卒業手順に従う。イシュー #2844 で 2 件目（`faq_question_rows`）を、
-//! イシュー #2845 で 3 件目（`faq_split_accordion`）を、イシュー #2846 で
-//! 4 件目（`faq_split_static`）を、イシュー #2847 で 5 件目（`faq_static_grid`）
-//! を、イシュー #2848 で 6 件目（`faq_tabbed_accordion`）を追加した。
+//! Marketing / Faq カテゴリの block 登録点。カテゴリ別のモジュール構成と
+//! 「カテゴリの卒業」手順は `docs/design/docs-site-blocks-section.md` §18
+//! 参照（イシュー #2734）。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
 //! 新規 block を追加する際は本ファイルへ `mod` 宣言と `blocks()` への追記を
-//! 行うだけでよく、`super`（`marketing`）側・トップレベル
-//! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
-//! ための構造、イシュー #2734）。
+//! 行うだけでよく、`super`（`marketing`）側・トップレベル `crate::blocks` 側の
+//! 変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込めるための構造）。
+//! block ごとの追加経緯は git 履歴と PR を正とし、本コメントには書かない
+//! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
 mod faq_accordion_centered;
 mod faq_question_rows;

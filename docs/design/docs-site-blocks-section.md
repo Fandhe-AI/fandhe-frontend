@@ -695,6 +695,22 @@ blocks/
 `mod.rs`（`marketing` 等）・トップレベル `crate::blocks` 側は
 `pub(super) fn blocks()` のシグネチャが不変のため変更不要。
 
+### カテゴリ `mod.rs` のモジュール doc に追加履歴を書かない（#3482）
+
+カテゴリ `mod.rs`（`<section>/<category>/mod.rs`）冒頭の `//!` には、役割・
+責務境界・本節への参照など block 追加で変わらない固定文だけを書く。
+「イシュー #NNNN で `xxx` を追加した」のような block ごとの追加履歴は書かない。
+
+- 追加経緯は git 履歴と PR が正であり、コメントで二重管理しない。
+- 並列に作られる block PR が同じコメント行を毎回書き換え、main 取り込み時の
+  競合点になるため（2026-10-01 の実ランで settings カテゴリの競合により
+  PR 作成が連続失敗した）。
+
+この規則により、block 追加 PR がカテゴリ `mod.rs` で触る行は `mod` 宣言と
+`blocks()` への登録行だけになる。`crates/docs-site/tests/blocks_categories.rs`
+の `category_mod_docs_do_not_record_per_block_history` が、`//!` 行に雛形新設の
+#2734 以外のイシュー番号が現れないことを検査する。
+
 ### `Block` レジストリの関数化（`BLOCKS` 配列の廃止）
 
 66 個の可変長カテゴリを stable Rust の `const fn` だけで単一の
@@ -1062,11 +1078,16 @@ pub enum LayoutCss {
 | settings-notification-matrix | #2998（親 #2951） | `application/settings/settings_notification_matrix.rs` |
 | settings-org-switcher | #2999（親 #2951） | `application/settings/settings_org_switcher.rs` |
 | settings-page-aside-nav | #3001/#3002（親 #3000） | `application/settings/settings_page_aside_nav.rs` |
+| settings-page-sidebar | #3004（親 #3003） | `application/settings/settings_page_sidebar.rs` |
 | settings-page-tabs | #3007/#3008（親 #3006） | `application/settings/settings_page_tabs.rs` |
 | settings-preferences | #3009（親 #2951） | `application/settings/settings_preferences.rs` |
 | settings-profile-form | #3010 | `application/settings/settings_profile_form.rs` |
 | notification-tray | #2976（親 #2951） | `application/notification/notification_tray.rs` |
+| settings-share-link | #3011 | `application/settings/settings_share_link.rs` |
 | settings-share-members | #3013・#3014（親 #3012） | `application/settings/settings_share_members.rs` |
+| settings-webhook-detail | #3018（親 #2951） | `application/settings/settings_webhook_detail.rs` |
+| settings-webhook-form | #3019（親 #2951） | `application/settings/settings_webhook_form.rs` |
+| settings-webhook-stats | #3020（親 #2951） | `application/settings/settings_webhook_stats.rs` |
 | checkout-form-summary-split | #3042（親 #3041） | `ecommerce/checkout/checkout_form_summary_split.rs` |
 | cart-line-item-table | #3028（親 #3027） | `ecommerce/cart/cart_line_item_table.rs` |
 | order-tracking-progress | #3060/#3061（親 #3059） | `ecommerce/order/order_tracking_progress.rs` |
