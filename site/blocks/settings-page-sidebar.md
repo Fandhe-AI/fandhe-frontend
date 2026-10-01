@@ -205,14 +205,11 @@ fn inset_header(state: &Sidebar, root_id: &str) -> Node {
                 vec![breadcrumb::list(
                     vec![],
                     vec![
-                        breadcrumb::item(
-                            vec![],
-                            vec![breadcrumb::link(
-                                "../",
-                                vec![],
-                                vec![text("Nimbus ワークスペース")],
-                            )],
-                        ),
+                        // 架空のワークスペースで遷移先ページを持たないため、
+                        // リンクにせず文字のみの項目にする（`href="../"` は
+                        // Blocks 一覧へ誤誘導していた。codex レビュー指摘 P2
+                        // 是正、PR #3450）。
+                        breadcrumb::item(vec![], vec![text("Nimbus ワークスペース")]),
                         breadcrumb::separator(vec![], vec![text("/")]),
                         breadcrumb::item(
                             vec![],
@@ -459,6 +456,8 @@ pub fn demo() -> Node {
   実物の `tabs` は未選択パネルに `hidden` を付けるため、無 JS では
   「メンバー」「通知」の内容へ到達できません。選択中の「全般」の設定
   カードのみを描画し、残りタブの内容は後半のイシュー #3005 で扱います。
+- パンくずの「Nimbus ワークスペース」は架空の項目で遷移先ページを
+  持たないため、リンクにせず文字のみの項目にしています。
 - スイッチ 3 行はすべて `disabled` の静的固定表示で、送信・永続化・
   認証処理は行いません。`aria-label` に行ラベルと状態（例:「公開
   プロフィール: オン」）を含め、支援技術で状態を区別できるようにして

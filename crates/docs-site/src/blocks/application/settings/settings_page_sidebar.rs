@@ -272,14 +272,11 @@ fn inset_header(state: &Sidebar, root_id: &str) -> Node {
                 vec![breadcrumb::list(
                     vec![],
                     vec![
-                        breadcrumb::item(
-                            vec![],
-                            vec![breadcrumb::link(
-                                "../",
-                                vec![],
-                                vec![text("Nimbus ワークスペース")],
-                            )],
-                        ),
+                        // 架空のワークスペースで遷移先ページを持たないため、
+                        // リンクにせず文字のみの項目にする（`href="../"` は
+                        // Blocks 一覧へ誤誘導していた。codex レビュー指摘 P2
+                        // 是正、PR #3450）。
+                        breadcrumb::item(vec![], vec![text("Nimbus ワークスペース")]),
                         breadcrumb::separator(vec![], vec![text("/")]),
                         breadcrumb::item(
                             vec![],
@@ -636,6 +633,8 @@ mod tests {
         assert!(!html.contains("<form"));
         assert!(!html.contains("type=\"submit\""));
         assert!(!html.contains("href=\"#\""));
+        // パンくずの架空ワークスペースはリンクにしない（Blocks 一覧への誤誘導防止）。
+        assert!(!html.contains("href=\"../\""));
         assert!(!html.contains("<script"));
         assert!(!html.contains("src=\"data:"));
     }
