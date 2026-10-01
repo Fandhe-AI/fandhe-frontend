@@ -37,7 +37,10 @@
 //!   防ぐ（`form_layout_stacked` と同じ判断）。disabled の既定の薄い表示
 //!   （opacity）は [`LAYOUT_CSS`] で打ち消す。
 //! - `menu`（並び替え）は `OpenState::Closed` に固定する
-//!   （`settings_page_tabs::key_actions_menu` と同じ判断）。
+//!   （`settings_page_tabs::key_actions_menu` と同じ判断）。trigger は
+//!   `disabled: true` にし（押しても並び替えが実行できないため）、
+//!   checkbox/collapsible と同様に既定の薄い表示（opacity）は
+//!   [`LAYOUT_CSS`] で打ち消す。
 //! - 広い幅ではサイドバーを表示しドロワー関連は非表示、狭い幅
 //!   （`@container blocks-filter-sidebar (max-width: 40rem)`）ではその逆に
 //!   する。これでどちらの幅でもフィルタ・カテゴリへ必ず到達できる
@@ -627,6 +630,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-filter-sidebar [data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-filter-sidebar-checkbox][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-filter-sidebar [data-scope=\"collapsible\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-filter-sidebar [data-scope=\"collapsible\"][data-part=\"content\"][data-disabled] {\n  color: var(--fandhe-color-fg);\n}\n\
+.blocks-filter-sidebar [data-scope=\"menu\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-filter-sidebar-products {\n  display: grid;\n  grid-template-columns: repeat(3, 1fr);\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-filter-sidebar-card {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-filter-sidebar [data-scope=\"skeleton\"][data-blocks-filter-sidebar-card-image] {\n  width: 100%;\n  height: 6rem;\n}\n\
@@ -634,7 +638,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-filter-sidebar [data-scope=\"drawer\"][data-part=\"backdrop\"] {\n  position: absolute;\n  inset: 0;\n  z-index: auto;\n  display: none;\n}\n\
 .blocks-filter-sidebar [data-scope=\"drawer\"][data-part=\"positioner\"] {\n  position: absolute;\n  inset: 0;\n  z-index: auto;\n  display: none;\n}\n\
 .blocks-filter-sidebar [data-scope=\"drawer\"][data-part=\"title\"] {\n  margin: 0;\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
-@container blocks-filter-sidebar (max-width: 40rem) {\n  .blocks-filter-sidebar-aside {\n    display: none;\n  }\n  .blocks-filter-sidebar-drawer-trigger {\n    display: inline-flex;\n  }\n  .blocks-filter-sidebar-body {\n    grid-template-columns: 1fr;\n  }\n  .blocks-filter-sidebar [data-scope=\"drawer\"][data-part=\"positioner\"] {\n    position: static;\n    display: block;\n  }\n}\n";
+@container blocks-filter-sidebar (max-width: 40rem) {\n  .blocks-filter-sidebar-aside {\n    display: none;\n  }\n  .blocks-filter-sidebar-drawer-trigger {\n    display: inline-flex;\n  }\n  .blocks-filter-sidebar-body {\n    grid-template-columns: 1fr;\n  }\n  .blocks-filter-sidebar [data-scope=\"drawer\"][data-part=\"positioner\"] {\n    position: static;\n    display: block;\n  }\n  .blocks-filter-sidebar [data-scope=\"drawer\"][data-part=\"content\"] {\n    width: min(100%, var(--fandhe-drawer-size, 20rem));\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
