@@ -193,7 +193,20 @@ fn item_thumbnail() -> Node {
 }
 
 /// 商品行 1 件（画像 + 商品名・バリエーション・数量 + 価格 + 削除ボタン）。
+///
+/// 削除ボタンは可視ラベル「削除」に加え、行ごとに異なる `aria-label`
+/// （`{商品名} をカートから削除`）を持たせる。3 行とも可視ラベルが
+/// 「削除」で同一だとスクリーンリーダー利用者が操作対象を区別できない
+/// ため（`cart_line_item_table` の `remove_button` と同じ判断軸）。
+///
+/// 価格は `text::text` に `class` 属性を渡しても
+/// `crates/pre-styled-ui/src/class_attr.rs` の `drop_class_attr` が
+/// 呼び出し側 `class` を破棄してしまい [`LAYOUT_CSS`] のクラスセレクタが
+/// 当たらないため、`data-*` 属性（`item_thumbnail` の
+/// `data-blocks-cart-drawer-thumb` と同じ回避策）で `flex-shrink: 0` を
+/// 保護する。
 fn item_row(item: &CartItem) -> Node {
+    let remove_label = format!("{} をカートから削除", item.name);
     li(
         vec![("class", "blocks-cart-drawer-item")],
         vec![
@@ -232,7 +245,7 @@ fn item_row(item: &CartItem) -> Node {
                     weight: TextWeight::Medium,
                     ..TextProps::default()
                 },
-                vec![("class", "blocks-cart-drawer-item-price")],
+                vec![("data-blocks-cart-drawer-item-price", "")],
                 vec![text(item.price)],
             ),
             button::button(
@@ -241,7 +254,7 @@ fn item_row(item: &CartItem) -> Node {
                     size: Size::Sm,
                     ..ButtonProps::default()
                 },
-                vec![],
+                vec![("aria-label", remove_label.as_str())],
                 vec![text("削除")],
             ),
         ],
@@ -314,48 +327,65 @@ fn footer() -> Node {
 }
 
 /// `cart-drawer` の Demo 本体。呼び出しごとに同一の `Node` を返す純関数。
-/// 疑似ページ枠（stage）の中に、カートを開くボタンと、開いた状態の
+/// トリガー行（topbar）と、drawer 本体を収める疑似ページ枠（stage）を
+/// それぞれ独立した要素として並べ、カートを開くボタンと、開いた状態の
 /// drawer（backdrop + positioner + content）を配置する。
+///
+/// topbar を stage の**外**（兄弟要素）に置く理由: [`LAYOUT_CSS`] は
+/// `.blocks-cart-drawer-stage` に `position: relative` を与え、drawer の
+/// backdrop/positioner を `position: absolute; inset: 0` でその内側いっぱい
+/// に重ねる（モジュール doc「fixed オーバーレイの中和」節）。topbar を
+/// stage の内側（子要素）に置くと、position:absolute な backdrop/positioner
+/// は static な topbar より常に上に描画される（CSS2.1 のスタッキング順:
+/// 位置指定なし要素 → 位置指定要素の順）ため、固定開状態のトリガーが
+/// 全面オーバーレイの背後に隠れてクリック不能になる。stage の外に置けば
+/// stage の positioning context に含まれず、この重なりが起きない
+/// （`cart_dialog` の `.blocks-cart-dialog-bar` と同じ回避パターン。
+/// もっとも `cart_dialog` はトリガーが元々 `disabled` のため実害は
+/// なかった）。
 #[must_use]
 pub fn demo() -> Node {
     div(
-        vec![("class", "blocks-cart-drawer-stage")],
+        vec![("class", "blocks-cart-drawer-wrap")],
         vec![
             div(
                 vec![("class", "blocks-cart-drawer-topbar")],
                 vec![open_trigger()],
             ),
-            drawer::root(
-                Size::Md,
-                OpenState::Open,
-                DrawerPlacement::End,
-                vec![("data-blocks-cart-drawer-root", "")],
-                vec![
-                    drawer::backdrop(OpenState::Open, vec![], vec![]),
-                    drawer::positioner(
-                        OpenState::Open,
-                        DrawerPlacement::End,
-                        vec![],
-                        vec![drawer::content(
+            div(
+                vec![("class", "blocks-cart-drawer-stage")],
+                vec![drawer::root(
+                    Size::Lg,
+                    OpenState::Open,
+                    DrawerPlacement::End,
+                    vec![("data-blocks-cart-drawer-root", "")],
+                    vec![
+                        drawer::backdrop(OpenState::Open, vec![], vec![]),
+                        drawer::positioner(
                             OpenState::Open,
                             DrawerPlacement::End,
-                            false,
-                            ContentIds {
-                                id: Some(CONTENT_ID),
-                                labelledby: Some(TITLE_ID),
-                                describedby: None,
-                            },
-                            vec![("data-blocks-cart-drawer-panel", "")],
-                            vec![
-                                header(),
-                                separator::separator(&SeparatorProps::default(), vec![]),
-                                scroll_body(),
-                                separator::separator(&SeparatorProps::default(), vec![]),
-                                footer(),
-                            ],
-                        )],
-                    ),
-                ],
+                            vec![],
+                            vec![drawer::content(
+                                OpenState::Open,
+                                DrawerPlacement::End,
+                                false,
+                                ContentIds {
+                                    id: Some(CONTENT_ID),
+                                    labelledby: Some(TITLE_ID),
+                                    describedby: None,
+                                },
+                                vec![("data-blocks-cart-drawer-panel", "")],
+                                vec![
+                                    header(),
+                                    separator::separator(&SeparatorProps::default(), vec![]),
+                                    scroll_body(),
+                                    separator::separator(&SeparatorProps::default(), vec![]),
+                                    footer(),
+                                ],
+                            )],
+                        ),
+                    ],
+                )],
             ),
         ],
     )
@@ -404,8 +434,9 @@ pub const BLOCK: Block = Block {
 /// 「block 固有 CSS の置き場」節と同型）。モジュール doc「fixed オーバー
 /// レイの中和」「3 段固定レイアウト」「狭幅でのコンテナクエリ」節の実装。
 const LAYOUT_CSS: &str = "\
+.blocks-cart-drawer-wrap {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-cart-drawer-stage {\n  position: relative;\n  height: 34rem;\n  overflow: hidden;\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg-subtle);\n  container-type: inline-size;\n  container-name: blocks-cart-drawer;\n}\n\
-.blocks-cart-drawer-topbar {\n  display: flex;\n  justify-content: flex-end;\n  padding: var(--fandhe-space-4);\n}\n\
+.blocks-cart-drawer-topbar {\n  display: flex;\n  justify-content: flex-end;\n}\n\
 .blocks-cart-drawer [data-scope=\"drawer\"][data-part=\"backdrop\"] {\n  position: absolute;\n  inset: 0;\n  z-index: auto;\n}\n\
 .blocks-cart-drawer [data-scope=\"drawer\"][data-part=\"positioner\"] {\n  position: absolute;\n  inset: 0;\n  z-index: auto;\n}\n\
 .blocks-cart-drawer [data-scope=\"drawer\"][data-part=\"content\"][data-placement] {\n  display: flex;\n  flex-direction: column;\n  height: 100%;\n  padding: 0;\n  overflow: hidden;\n}\n\
@@ -417,6 +448,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-cart-drawer-item:last-child {\n  border-bottom: none;\n  padding-block-end: 0;\n}\n\
 img[data-scope=\"image\"][data-blocks-cart-drawer-thumb] {\n  width: 4rem;\n  height: 4rem;\n  flex-shrink: 0;\n}\n\
 .blocks-cart-drawer-item-info {\n  flex: 1 1 auto;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
+p[data-scope=\"text\"][data-blocks-cart-drawer-item-price] {\n  flex-shrink: 0;\n  white-space: nowrap;\n}\n\
 .blocks-cart-drawer-footer {\n  flex: none;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  padding: var(--fandhe-space-4) var(--fandhe-space-6) var(--fandhe-space-6);\n}\n\
 [data-blocks-cart-drawer-checkout] {\n  width: 100%;\n}\n\
 @container blocks-cart-drawer (max-width: 40rem) {\n  .blocks-cart-drawer [data-scope=\"drawer\"][data-part=\"content\"][data-placement] {\n    width: 100%;\n  }\n}\n";
@@ -476,6 +508,46 @@ mod tests {
         assert!(html.contains("aria-labelledby=\"blocks-cart-drawer-title\""));
         assert!(html.contains("id=\"blocks-cart-drawer-title\""));
         assert!(html.contains("aria-expanded=\"true\""));
+    }
+
+    #[test]
+    fn trigger_is_outside_overlay_positioning_stage() {
+        // トリガーは `.blocks-cart-drawer-stage`（backdrop/positioner が
+        // `position: absolute; inset: 0` で覆う positioning context）の
+        // 兄弟要素として配置し、全面オーバーレイの背後へ回り込まないことを
+        // 固定する（モジュール doc `demo` の「topbar を stage の外に置く
+        // 理由」節参照）。
+        let html = demo_html();
+        let wrap_start = html.find("class=\"blocks-cart-drawer-wrap\"").unwrap();
+        let stage_start = html.find("class=\"blocks-cart-drawer-stage\"").unwrap();
+        let trigger_start = html.find("data-blocks-cart-drawer-trigger").unwrap();
+        assert!(wrap_start < trigger_start && trigger_start < stage_start);
+    }
+
+    #[test]
+    fn remove_buttons_have_distinct_accessible_names() {
+        let html = demo_html();
+        for name in ["リネンシャツ", "コットンパンツ", "キャンバストートバッグ"]
+        {
+            assert!(
+                html.contains(&format!("aria-label=\"{name} をカートから削除\"")),
+                "html={html}"
+            );
+        }
+        assert_eq!(html.matches("をカートから削除").count(), 3, "html={html}");
+    }
+
+    #[test]
+    fn item_price_is_protected_from_shrinking() {
+        let html = demo_html();
+        assert_eq!(
+            html.matches("data-blocks-cart-drawer-item-price").count(),
+            3,
+            "html={html}"
+        );
+        assert!(LAYOUT_CSS.contains(
+            "p[data-scope=\"text\"][data-blocks-cart-drawer-item-price] {\n  flex-shrink: 0;\n  white-space: nowrap;\n}"
+        ));
     }
 
     #[test]

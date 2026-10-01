@@ -111,7 +111,20 @@ fn item_thumbnail() -> Node {
 }
 
 /// 商品行 1 件（画像 + 商品名・バリエーション・数量 + 価格 + 削除ボタン）。
+///
+/// 削除ボタンは可視ラベル「削除」に加え、行ごとに異なる `aria-label`
+/// （`{商品名} をカートから削除`）を持たせる。3 行とも可視ラベルが
+/// 「削除」で同一だとスクリーンリーダー利用者が操作対象を区別できない
+/// ため（`cart_line_item_table` の `remove_button` と同じ判断軸）。
+///
+/// 価格は `text::text` に `class` 属性を渡しても
+/// `crates/pre-styled-ui/src/class_attr.rs` の `drop_class_attr` が
+/// 呼び出し側 `class` を破棄してしまい [`LAYOUT_CSS`] のクラスセレクタが
+/// 当たらないため、`data-*` 属性（`item_thumbnail` の
+/// `data-blocks-cart-drawer-thumb` と同じ回避策）で `flex-shrink: 0` を
+/// 保護する。
 fn item_row(item: &CartItem) -> Node {
+    let remove_label = format!("{} をカートから削除", item.name);
     li(
         vec![("class", "blocks-cart-drawer-item")],
         vec![
@@ -150,7 +163,7 @@ fn item_row(item: &CartItem) -> Node {
                     weight: TextWeight::Medium,
                     ..TextProps::default()
                 },
-                vec![("class", "blocks-cart-drawer-item-price")],
+                vec![("data-blocks-cart-drawer-item-price", "")],
                 vec![text(item.price)],
             ),
             button::button(
@@ -159,7 +172,7 @@ fn item_row(item: &CartItem) -> Node {
                     size: Size::Sm,
                     ..ButtonProps::default()
                 },
-                vec![],
+                vec![("aria-label", remove_label.as_str())],
                 vec![text("削除")],
             ),
         ],
@@ -232,48 +245,65 @@ fn footer() -> Node {
 }
 
 /// `cart-drawer` の Demo 本体。呼び出しごとに同一の `Node` を返す純関数。
-/// 疑似ページ枠（stage）の中に、カートを開くボタンと、開いた状態の
+/// トリガー行（topbar）と、drawer 本体を収める疑似ページ枠（stage）を
+/// それぞれ独立した要素として並べ、カートを開くボタンと、開いた状態の
 /// drawer（backdrop + positioner + content）を配置する。
+///
+/// topbar を stage の**外**（兄弟要素）に置く理由: [`LAYOUT_CSS`] は
+/// `.blocks-cart-drawer-stage` に `position: relative` を与え、drawer の
+/// backdrop/positioner を `position: absolute; inset: 0` でその内側いっぱい
+/// に重ねる（モジュール doc「fixed オーバーレイの中和」節）。topbar を
+/// stage の内側（子要素）に置くと、position:absolute な backdrop/positioner
+/// は static な topbar より常に上に描画される（CSS2.1 のスタッキング順:
+/// 位置指定なし要素 → 位置指定要素の順）ため、固定開状態のトリガーが
+/// 全面オーバーレイの背後に隠れてクリック不能になる。stage の外に置けば
+/// stage の positioning context に含まれず、この重なりが起きない
+/// （`cart_dialog` の `.blocks-cart-dialog-bar` と同じ回避パターン。
+/// もっとも `cart_dialog` はトリガーが元々 `disabled` のため実害は
+/// なかった）。
 #[must_use]
 pub fn demo() -> Node {
     div(
-        vec![("class", "blocks-cart-drawer-stage")],
+        vec![("class", "blocks-cart-drawer-wrap")],
         vec![
             div(
                 vec![("class", "blocks-cart-drawer-topbar")],
                 vec![open_trigger()],
             ),
-            drawer::root(
-                Size::Md,
-                OpenState::Open,
-                DrawerPlacement::End,
-                vec![("data-blocks-cart-drawer-root", "")],
-                vec![
-                    drawer::backdrop(OpenState::Open, vec![], vec![]),
-                    drawer::positioner(
-                        OpenState::Open,
-                        DrawerPlacement::End,
-                        vec![],
-                        vec![drawer::content(
+            div(
+                vec![("class", "blocks-cart-drawer-stage")],
+                vec![drawer::root(
+                    Size::Lg,
+                    OpenState::Open,
+                    DrawerPlacement::End,
+                    vec![("data-blocks-cart-drawer-root", "")],
+                    vec![
+                        drawer::backdrop(OpenState::Open, vec![], vec![]),
+                        drawer::positioner(
                             OpenState::Open,
                             DrawerPlacement::End,
-                            false,
-                            ContentIds {
-                                id: Some(CONTENT_ID),
-                                labelledby: Some(TITLE_ID),
-                                describedby: None,
-                            },
-                            vec![("data-blocks-cart-drawer-panel", "")],
-                            vec![
-                                header(),
-                                separator::separator(&SeparatorProps::default(), vec![]),
-                                scroll_body(),
-                                separator::separator(&SeparatorProps::default(), vec![]),
-                                footer(),
-                            ],
-                        )],
-                    ),
-                ],
+                            vec![],
+                            vec![drawer::content(
+                                OpenState::Open,
+                                DrawerPlacement::End,
+                                false,
+                                ContentIds {
+                                    id: Some(CONTENT_ID),
+                                    labelledby: Some(TITLE_ID),
+                                    describedby: None,
+                                },
+                                vec![("data-blocks-cart-drawer-panel", "")],
+                                vec![
+                                    header(),
+                                    separator::separator(&SeparatorProps::default(), vec![]),
+                                    scroll_body(),
+                                    separator::separator(&SeparatorProps::default(), vec![]),
+                                    footer(),
+                                ],
+                            )],
+                        ),
+                    ],
+                )],
             ),
         ],
     )
