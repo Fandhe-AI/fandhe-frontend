@@ -1,5 +1,5 @@
 //! `help-center-collection-grid` block（イシュー #2975。Application /
-//! Help Center カテゴリ、最初の block）。パンくず + 見出しの下に、ヘルプ
+//! Help Center カテゴリ）。パンくず + 見出しの下に、ヘルプ
 //! 記事コレクションをカードのグリッドで並べる合成例。`_/blocks-intake/`
 //! の対応ファイルは本イシュー着手時点で本 worktree に存在しないため、
 //! 原稿・本コメントには対応表 ID のみを記す（`profile_detail_datalist.rs`

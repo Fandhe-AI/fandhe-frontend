@@ -1,5 +1,5 @@
 //! `settings-event-accordion` block（イシュー #2986。Application / Settings
-//! カテゴリ、最初の block）。Webhook 配信のイベントログを想定した合成例:
+//! カテゴリ）。Webhook 配信のイベントログを想定した合成例:
 //! イベント 1 件 = accordion 1 項目とし、見出し行に状態バッジ・種類・
 //! 日時を並べ、展開部にリクエスト/レスポンスのペイロードをタブ風に切り
 //! 替えて表示する。主参照 R0378。`_/blocks-intake/` の対応ファイルは本

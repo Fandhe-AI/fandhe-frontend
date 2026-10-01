@@ -7,9 +7,6 @@
 //! 記載しない（`docs/design/motion-reference-adoption-policy.md` §9 と
 //! 同じライセンス上の転記制限）。
 //!
-//! **Application / Feed カテゴリで最初の block**（`super`（`feed/mod.rs`）
-//! 参照）。
-//!
 //! # 使用部品
 //!
 //! `timeline` / `avatar` / `card` / `badge` / `textarea` / `select` /

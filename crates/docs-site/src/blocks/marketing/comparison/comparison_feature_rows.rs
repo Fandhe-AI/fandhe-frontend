@@ -5,9 +5,6 @@
 //! コンポーネント識別子は記載しない（`docs/design/motion-reference-
 //! adoption-policy.md` §9 と同じライセンス上の転記制限）。
 //!
-//! **Marketing / Comparison カテゴリで最初の block**（`super`
-//! （`comparison/mod.rs`）参照。カテゴリ雛形からの卒業も本 block が担う）。
-//!
 //! # 使用部品
 //!
 //! `heading` / `text` / `badge` / `icon` / `separator` の 5 部品を合成する

@@ -1,6 +1,6 @@
 //! `filter-overlay-panel` block（イシュー #3048。親トラッキング #3024
-//! 「Blocks Ecommerce 拡充ツリー」phase:5 配下）。Ecommerce / Filter
-//! カテゴリ最初の block。「並び替えメニューとフィルタボタンの横バー、
+//! 「Blocks Ecommerce 拡充ツリー」phase:5 配下）。Ecommerce / Filter カテゴリ。
+//! 「並び替えメニューとフィルタボタンの横バー、
 //! その下の商品一覧、フィルタボタンで開くパネル（フィルタ群と適用・
 //! 解除ボタン）」という EC の典型画面を、無 JS の静的な実例として掲示する。
 //!

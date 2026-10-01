@@ -711,6 +711,14 @@ blocks/
 の `category_mod_docs_do_not_record_per_block_history` が、`//!` 行に雛形新設の
 #2734 以外のイシュー番号が現れないことを検査する。
 
+block 実装モジュールの doc にも追加経緯（最初の block・卒業など）を書かない
+（#3513）。block 実装モジュール（`<section>/<category>/<snake>.rs`）冒頭の
+`//!` には block の役割だけを書き、「カテゴリ最初の block」「本 PR で雛形から
+卒業させた」のような経緯は書かない。同じカテゴリへ並列に block が追加されると
+すぐ事実と合わなくなるためである。`blocks_categories.rs` の
+`block_module_docs_do_not_record_addition_history` が、`mod.rs` 以外の block
+実装モジュールの `//!` 行に「最初の block」「卒業」が現れないことを検査する。
+
 ### `Block` レジストリの関数化（`BLOCKS` 配列の廃止）
 
 66 個の可変長カテゴリを stable Rust の `const fn` だけで単一の
@@ -1099,6 +1107,7 @@ pub enum LayoutCss {
 | checkout-wizard-steps | #3045 | `ecommerce/checkout/checkout_wizard_steps.rs` |
 | cart-drawer | #3026（親 #3024） | `ecommerce/cart/cart_drawer.rs` |
 | cart-line-item-table | #3028/#3029（親 #3027） | `ecommerce/cart/cart_line_item_table.rs` |
+| order-history-table | #3058（親 #3024） | `ecommerce/order/order_history_table.rs` |
 | order-tracking-progress | #3060/#3061（親 #3059） | `ecommerce/order/order_tracking_progress.rs` |
 | order-confirmation-summary | #3054（親 #3024） | `ecommerce/order/order_confirmation_summary.rs` |
 | product-overview-featured-split | #3066（親 #3024） | `ecommerce/product_overview/product_overview_featured_split.rs` |

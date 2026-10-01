@@ -1,6 +1,6 @@
 //! `onboarding-vertical-steps` block（イシュー #2981。親 #2951
-//! 「Blocks アプリケーション B」配下、Application / Onboarding カテゴリの
-//! 最初の block）。左に縦向きのステップ一覧、右に現在ステップの内容
+//! 「Blocks アプリケーション B」配下、Application / Onboarding カテゴリ）。
+//! 左に縦向きのステップ一覧、右に現在ステップの内容
 //! （動画枠 + 見出し + 説明文 + 前へ/次へ操作）を並べる 2 カラム構成を
 //! 合成する。`_/blocks-intake/` の対応ファイルは本イシュー着手時点で本
 //! worktree に存在しないため、原稿・本コメントには対応表 ID（R0178）の

@@ -1,8 +1,6 @@
 //! `promo-collection-cards` block（イシュー #3078/#3079。親 #3077 を骨格 +
 //! 主要領域（#3078）とカード hover/focus 等の仕上げ（#3079）へ 2 分割。
-//! Ecommerce / Promo カテゴリ最初の block であり、本ファイル追加に伴い
-//! 雛形 `promo.rs` を `promo/mod.rs` へディレクトリ化して卒業する、
-//! `docs/design/docs-site-blocks-section.md` §18 参照）。仕上げ
+//! Ecommerce / Promo カテゴリ）。仕上げ
 //! （カード hover/focus の視覚状態・補助行・secondary CTA・原稿の差分
 //! メモ）は #3079 で完了している。
 //!

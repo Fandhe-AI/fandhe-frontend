@@ -1,5 +1,5 @@
 //! `banner-cookie-consent` block（イシュー #2740。親トラッキング #2738
-//! 「目的別パーツ拡充」配下、Marketing / Banner カテゴリの最初の block）。
+//! 「目的別パーツ拡充」配下、Marketing / Banner カテゴリ）。
 //!
 //! # 使用部品
 //!

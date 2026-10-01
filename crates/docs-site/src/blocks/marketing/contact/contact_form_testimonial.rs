@@ -1,6 +1,6 @@
 //! `contact-form-testimonial` block（イシュー #2828。親トラッキング #2730
 //! 「Blocks 目的別パーツ拡充ツリー」配下、区分は marketing、カテゴリは
-//! Contact の最初の block）。問い合わせフォームの列と推薦文の列を横に
+//! Contact）。問い合わせフォームの列と推薦文の列を横に
 //! 並べる 2 列コンテンツの合成例（対応表 ID R0858 の 1 件のみを参照元と
 //! する。取得手段・ファイル名・内部コンポーネント識別子は記載しない、
 //! `docs/design/motion-reference-adoption-policy.md` §9 と同じライセンス
