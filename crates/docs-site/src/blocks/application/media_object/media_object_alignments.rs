@@ -1,5 +1,5 @@
-//! `media-object` block（イシュー #3228。Application 区分に新設した
-//! `MediaObject` カテゴリの最初の block）。「画像（またはアイコン）+
+//! `media-object` block（イシュー #3228。Application 区分の
+//! `MediaObject` カテゴリ）。「画像（またはアイコン）+
 //! 見出し + 説明文」を横並びにする media object の**整列パターン集**。
 //!
 //! # 使用部品

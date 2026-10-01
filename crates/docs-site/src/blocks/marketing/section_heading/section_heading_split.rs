@@ -1,9 +1,7 @@
 //! `section-heading-split` block（イシュー #2798。親トラッキング #2730
 //! 「Blocks 目的別パーツ拡充」配下）。「タグラインの下に、左列の大見出しと
 //! 右列の説明・操作を置き、`lg` 以上で横並びにする」セクション見出しの
-//! 合成例。Marketing / Section Heading カテゴリ最初の block
-//! （`docs/design/docs-site-blocks-section.md` §18 の卒業手順に従い
-//! `section_heading.rs` から本ディレクトリへ改名した）。取得手段・
+//! 合成例。取得手段・
 //! ファイル名・内部コンポーネント識別子は記載しない（`newsletter_split`
 //! と同じライセンス上の転記制限）。
 //!

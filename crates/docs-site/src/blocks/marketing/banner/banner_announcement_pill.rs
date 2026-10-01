@@ -1,10 +1,6 @@
 //! `banner-announcement-pill` block（イシュー #2739。親トラッキング #2730
 //! 「Blocks 目的別パーツ拡充」配下、Phase 1 親 #2738「マーケティング A」の
-//! block の 1 つ。Marketing / Banner カテゴリは既にディレクトリ化済み
-//! （イシュー #2741「banner-email-signup」が同カテゴリ最初の block として
-//! 空雛形から `git mv` した実績があり、本ファイルはその既存カテゴリへの
-//! 追加である。カテゴリの卒業手順は `docs/design/docs-site-blocks-section.md`
-//! §18 参照）。
+//! block の 1 つ）。
 //!
 //! # レイアウト
 //!

@@ -6,10 +6,6 @@
 //! コンポーネント識別子は記載しない（`category_carousel` モジュール doc
 //! 「取得手段…」節と同じライセンス上の転記制限）。
 //!
-//! **Ecommerce / Product List カテゴリで最初の block**（`super`
-//! （`product_list/mod.rs`）参照。カテゴリ雛形からの卒業も本 block が
-//! 担う）。
-//!
 //! # 使用部品
 //!
 //! イシュー本文指定の `heading` / `carousel` / `card` / `image` / `link` /

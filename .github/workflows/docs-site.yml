@@ -549,6 +549,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/product-overview-image-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/product-overview-tabs-below/index.html"
           # Ecommerce / Product List
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/product-list-bordered-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/product-list-carousel/index.html"
           # Ecommerce / Quickview
           # Ecommerce / Category
@@ -573,6 +574,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/checkout-wizard-steps/index.html"
           # Ecommerce / Order
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/order-confirmation-summary/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/order-history-table/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/order-tracking-progress/index.html"
           # Ecommerce / Reviews
           # Ecommerce / Store Nav
