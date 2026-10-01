@@ -2728,6 +2728,14 @@ source = "site/blocks/category-mosaic-featured.md"
 path = "/blocks/category-mosaic-featured/"
 
 [[section.group]]
+title = "Filter"
+
+[[section.group.page]]
+title = "filter-expandable-panel"
+source = "site/blocks/filter-expandable-panel.md"
+path = "/blocks/filter-expandable-panel/"
+
+[[section.group]]
 title = "Cart"
 
 [[section.group.page]]
