@@ -12,13 +12,17 @@
 //!
 //! # 使用部品
 //!
-//! `heading`（見出し）/ `text`（リード文）/ `button`（CTA）/
-//! `link`（外部リンク）/ `image`（タイル）の 5 部品を合成する
+//! `heading`（見出し）/ `text`（リード文）/ `link`（CTA・外部リンク）/
+//! `image`（タイル）の 4 部品を合成する
 //! （[`BLOCK`] の `parts` に一致させる契約）。新しい UI 部品は追加しない。
+//! 当初 `base` 形の CTA は `button::button`（遷移先を持たない非操作要素）
+//! だったが、クリック操作・遷移先のいずれも持たず実質的に操作不能という
+//! レビュー指摘（PR #3528 codex 指摘）を受け、`dark` 形と同じ `link::root`
+//! （[`REPO`] 固定リンク）へ統一した。
 //!
 //! # 2 つの形を縦に並べて差分を示す（R1201 基準形・R1197 暗色帯）
 //!
-//! Demo は `base`（R1201 相当: 見出し・リード文・CTA ボタン 1 個・タイル
+//! Demo は `base`（R1201 相当: 見出し・リード文・CTA リンク 1 個・タイル
 //! 7 枚）と `dark`（R1197 相当: 暗色帯・見出し・リード文・外部リンク・
 //! タイル 6 枚）の 2 形を [`demo`] 内で縦に積んで並記する。列配分は
 //! [`BASE_COLUMNS`]/[`DARK_COLUMNS`] の `const` 配列で持ち、
@@ -47,6 +51,13 @@
 //! 上書きする（`cta_centered` の tone 上書きと同じ判断）。補助テキスト
 //! は `opacity: 0.8` 程度に留め、AA コントラストを確保する。
 //!
+//! リード文（[`copy_dark`]）は `cta_centered`（`lead` 関数 rustdoc 参照）
+//! と同じ理由で [`TextVariant::Plain`] を使う。`Muted` は自身の色
+//! （`--fandhe-color-fg-muted`）を持つため、上記 `color: inherit` 上書き
+//! に対して詳細度で競合し得、`dark` 面でコントラストが崩れる
+//! （Cursor Bugbot 指摘、PR #3528）。`base` 形（[`copy_base`]）は通常の
+//! 前景色のままのため `Muted` を維持する。
+//!
 //! # リンク先の方針
 //!
 //! `footer_link_columns` 等の前例と同じく、外部の絶対 URL
@@ -56,18 +67,18 @@
 //!
 //! # `drop_class_attr` を踏まえた CSS フックの選び方
 //!
-//! `heading::heading`/`styled_text::text`/`button::button`/
-//! `link::root`/`image::image` はいずれも `drop_class_attr` により
-//! 呼び出し側 `attrs` の `class` を黙って除去する契約を持つため、本
-//! block 固有のフックは `data-blocks-promo-image-tiles-*` 属性で渡す。
-//! 素の `div` には `class` がそのまま効くため
-//! `.blocks-promo-image-tiles-*` クラスセレクタを使う。
+//! `heading::heading`/`styled_text::text`/`link::root`/`image::image` は
+//! いずれも `drop_class_attr` により呼び出し側 `attrs` の `class` を
+//! 黙って除去する契約を持つため、本 block 固有のフックは
+//! `data-blocks-promo-image-tiles-*` 属性で渡す。素の `div` には
+//! `class` がそのまま効くため `.blocks-promo-image-tiles-*`
+//! クラスセレクタを使う。
 //!
 //! # `<form>` を使わない・実データを持たない
 //!
 //! `crate::blocks` モジュール doc の不変条件どおり、本 Demo は `<form>`
-//! を出力しない。CTA ボタンは `button::button` の既定 `type="button"`
-//! のまま用いる。文言はすべて架空のものであり、実企業名・実サービス
+//! を出力しない。CTA は `link::root` のみで構成し `<button>` は使わない。
+//! 文言はすべて架空のものであり、実企業名・実サービス
 //! 名・実クレデンシャル・PII を含まない。画像は
 //! [`crate::blocks::dummy_assets::PRODUCT_SRC`]（ビルド時生成の商品
 //! プレースホルダー SVG）を使う。`id`・`aria-labelledby` は出力しない
@@ -78,7 +89,6 @@ use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 // blocks-code:begin
 use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, text, Node};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
 use fandhe_frontend_pre_styled_ui::heading::{
     self as styled_heading, HeadingLevel, HeadingProps, HeadingSize,
 };
@@ -95,7 +105,7 @@ const BASE_COLUMNS: [usize; 3] = [2, 3, 2];
 /// `dark`（R1197 相当）の列ごとのタイル枚数配分（合計 6 枚）。
 const DARK_COLUMNS: [usize; 3] = [2, 2, 2];
 
-/// `base` 形のコピー列（見出し → リード文 → CTA ボタン 1 個）。
+/// `base` 形のコピー列（見出し → リード文 → CTA リンク 1 個）。
 fn copy_base() -> Node {
     div(
         vec![("class", "blocks-promo-image-tiles-copy")],
@@ -120,8 +130,12 @@ fn copy_base() -> Node {
                     "入荷したばかりのアイテムを一覧できる特集ページをご用意しました。",
                 )],
             ),
-            button::button(
-                &ButtonProps::default(),
+            link::root(
+                REPO,
+                &LinkProps {
+                    external: true,
+                    ..LinkProps::default()
+                },
                 vec![("data-blocks-promo-image-tiles-cta", "")],
                 vec![text("特集を見る")],
             ),
@@ -146,7 +160,7 @@ fn copy_dark() -> Node {
             styled_text::text(
                 &TextProps {
                     size: TextSize::Lg,
-                    variant: TextVariant::Muted,
+                    variant: TextVariant::Plain,
                     ..TextProps::default()
                 },
                 vec![("data-blocks-promo-image-tiles-lead", "")],
@@ -161,7 +175,7 @@ fn copy_dark() -> Node {
                     ..LinkProps::default()
                 },
                 vec![("data-blocks-promo-image-tiles-link", "")],
-                vec![text("限定アイテムを見る →")],
+                vec![text("もっと見る →")],
             ),
         ],
     )
@@ -265,10 +279,6 @@ pub const BLOCK: Block = Block {
             path: "/themes/text/",
         },
         Part {
-            label: "Button",
-            path: "/themes/button/",
-        },
-        Part {
             label: "Link",
             path: "/themes/link/",
         },
@@ -323,7 +333,6 @@ mod tests {
         for scope in [
             "data-scope=\"heading\"",
             "data-scope=\"text\"",
-            "data-scope=\"button\"",
             "data-scope=\"link\"",
             "data-scope=\"image\"",
         ] {
@@ -335,10 +344,12 @@ mod tests {
         assert_eq!(html.matches("<img").count(), total_tiles);
         assert_eq!(html.matches("alt=\"\"").count(), total_tiles);
         assert_eq!(html.matches("aria-hidden=\"true\"").count(), 2);
-        assert_eq!(html.matches("type=\"button\"").count(), 1);
         assert!(html.contains("data-blocks-promo-image-tiles-tone=\"base\""));
         assert!(html.contains("data-blocks-promo-image-tiles-tone=\"dark\""));
-        assert!(html.contains("rel=\"noopener noreferrer\""));
+        // 両 CTA（base/dark）が `REPO` への実リンクとして操作可能であること
+        // （Codex 指摘 PR #3528: button::button は遷移先を持たず操作不能
+        // だった）。
+        assert_eq!(html.matches("rel=\"noopener noreferrer\"").count(), 2);
         for absent in ["<form", "<script", "src=\"data:", "id=\"", "href=\"#\""] {
             assert!(!html.contains(absent), "demo should never contain {absent}");
         }

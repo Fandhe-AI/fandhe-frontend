@@ -1,8 +1,8 @@
 # promo-image-tiles
 
-`heading` / `text` / `button` / `link` / `image` の 5 部品だけで組み立てた、画像タイル付きのプロモーションです。新しい UI 部品は追加していません。
+`heading` / `text` / `link` / `image` の 4 部品だけで組み立てた、画像タイル付きのプロモーションです。新しい UI 部品は追加していません。
 
-片側に見出し・リード文・CTA（ボタンまたは外部リンク）、もう片側には画像タイルを 3 列で上下にずらして並べたコラージュを配置します。`base` 形（見出し・リード文・CTA ボタン・タイル 7 枚）と `dark`（暗色の帯の上に見出し・リード文・外部リンク・タイル 6 枚を置く形）の 2 つを縦に並記し、差分が読み取れるようにしています。
+片側に見出し・リード文・CTA（外部リンク）、もう片側には画像タイルを 3 列で上下にずらして並べたコラージュを配置します。`base` 形（見出し・リード文・CTA リンク・タイル 7 枚）と `dark`（暗色の帯の上に見出し・リード文・外部リンク・タイル 6 枚を置く形）の 2 つを縦に並記し、差分が読み取れるようにしています。
 
 タイルのコラージュには `aria-hidden="true"` を付け、装飾画像（`alt=""`）をまとめて支援技術から隠します。sm（640px）未満ではコラージュ自体を非表示にし、sm 以上で表示、lg（1024px）以上でテキストと横並びに切り替えます。`<form>` は使わず送信処理・データ取得を持たない静的な合成例です。
 
@@ -11,7 +11,6 @@
 ```rust
 use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, text, Node};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
 use fandhe_frontend_pre_styled_ui::heading::{
     self as styled_heading, HeadingLevel, HeadingProps, HeadingSize,
 };
@@ -28,7 +27,7 @@ const BASE_COLUMNS: [usize; 3] = [2, 3, 2];
 /// `dark`（R1197 相当）の列ごとのタイル枚数配分（合計 6 枚）。
 const DARK_COLUMNS: [usize; 3] = [2, 2, 2];
 
-/// `base` 形のコピー列（見出し → リード文 → CTA ボタン 1 個）。
+/// `base` 形のコピー列（見出し → リード文 → CTA リンク 1 個）。
 fn copy_base() -> Node {
     div(
         vec![("class", "blocks-promo-image-tiles-copy")],
@@ -53,8 +52,12 @@ fn copy_base() -> Node {
                     "入荷したばかりのアイテムを一覧できる特集ページをご用意しました。",
                 )],
             ),
-            button::button(
-                &ButtonProps::default(),
+            link::root(
+                REPO,
+                &LinkProps {
+                    external: true,
+                    ..LinkProps::default()
+                },
                 vec![("data-blocks-promo-image-tiles-cta", "")],
                 vec![text("特集を見る")],
             ),
@@ -79,7 +82,7 @@ fn copy_dark() -> Node {
             styled_text::text(
                 &TextProps {
                     size: TextSize::Lg,
-                    variant: TextVariant::Muted,
+                    variant: TextVariant::Plain,
                     ..TextProps::default()
                 },
                 vec![("data-blocks-promo-image-tiles-lead", "")],
@@ -94,7 +97,7 @@ fn copy_dark() -> Node {
                     ..LinkProps::default()
                 },
                 vec![("data-blocks-promo-image-tiles-link", "")],
-                vec![text("限定アイテムを見る →")],
+                vec![text("もっと見る →")],
             ),
         ],
     )
@@ -189,9 +192,12 @@ pub fn demo() -> Node {
 レイアウト仕様のみから独自に設計したものであり、参照元の文言・配色・
 装飾は持ち込んでいません。
 
-- 主参照は R1201（基準形: 見出し・リード文・CTA ボタン・タイル 7 枚）、
+- 主参照は R1201（基準形: 見出し・リード文・CTA リンク・タイル 7 枚）、
   集約元は R1197（暗色帯の上に見出し・リード文・外部リンク・タイル
   6 枚を置く形）です。両者の差分を 1 つの Demo に並記して示しています。
+  当初 `base` 形の CTA は操作不能な `button::button` でしたが、
+  レビュー指摘（PR #3528）を受けて `dark` 形と同じ `link::root`
+  （固定の外部リンク）へ統一しています。
 - 文言はすべて独自に書き起こしたもので、実在ブランドの文言・配色は
   含みません。
 - 暗色帯の配色はテーマトークン（`--fandhe-color-fg`/`--fandhe-color-bg`）
