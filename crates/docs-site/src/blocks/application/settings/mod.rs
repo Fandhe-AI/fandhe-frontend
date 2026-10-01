@@ -38,6 +38,7 @@ mod settings_webhook_form;
 mod settings_webhook_stats;
 mod settings_webhook_tester;
 mod settings_webhook_wizard;
+mod settings_webhooks_list;
 
 use crate::blocks::Block;
 
@@ -72,5 +73,6 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_webhook_stats::BLOCK,
         settings_webhook_tester::BLOCK,
         settings_webhook_wizard::BLOCK,
+        settings_webhooks_list::BLOCK,
     ]
 }
