@@ -290,7 +290,7 @@ fn shortcut_hint_row() -> Node {
             div(
                 vec![("class", "blocks-settings-switch-sections-description")],
                 vec![
-                    text("素早く切り替えるには "),
+                    text("切り替えのショートカット例（この静的レイアウト例では操作できません）: "),
                     kbd::group(
                         vec![],
                         vec![
@@ -299,7 +299,6 @@ fn shortcut_hint_row() -> Node {
                             kbd::kbd(&KbdProps::default(), vec![], vec![text("K")]),
                         ],
                     ),
-                    text(" を押します。"),
                 ],
             ),
         ],
@@ -348,7 +347,9 @@ fn card_instance() -> Node {
                         section_heading("表示設定"),
                         div(
                             vec![("class", "blocks-settings-switch-sections-description")],
-                            vec![text("このカード内の設定はすぐに反映されます。")],
+                            vec![text(
+                                "このカードは静的レイアウト例です（スイッチは操作できません）。",
+                            )],
                         ),
                     ],
                 ),
