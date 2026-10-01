@@ -11,9 +11,14 @@
 
 mod category_carousel;
 mod category_grid_captioned;
+mod category_grid_overlay;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![category_carousel::BLOCK, category_grid_captioned::BLOCK]
+    vec![
+        category_carousel::BLOCK,
+        category_grid_captioned::BLOCK,
+        category_grid_overlay::BLOCK,
+    ]
 }
