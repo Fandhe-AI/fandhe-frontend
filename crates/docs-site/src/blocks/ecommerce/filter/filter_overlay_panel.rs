@@ -79,12 +79,19 @@
 //! フィルタ群・適用/解除ボタン列は `data-blocks-filter-overlay-panel-*`
 //! フック付きの素の `div` で組む。
 //!
-//! # `dialog::body`/`dialog::footer` の `max-height` 上書き
+//! # `dialog::content`/`dialog::body` の高さ制約とスクロール
 //!
-//! [`fandhe_frontend_pre_styled_ui::dialog::body`] の既定 `max-height: 50vh;
-//! overflow-y: auto` を [`LAYOUT_CSS`] で打ち消す（`contact_dialog_form` と
-//! 同型の判断。フィルタ 3 グループ程度では不要なスクロールバーが生じる
-//! ため）。
+//! [`fandhe_frontend_pre_styled_ui::dialog::body`] の既定 `max-height: 50vh`
+//! はビューポート単位のため、本 Demo の固定サイズ枠
+//! （`.blocks-filter-overlay-panel-variant`、`overflow: hidden`）内では
+//! 意味を持たない。[`LAYOUT_CSS`] は `max-height: 50vh` の数値のみを
+//! 打ち消し、`dialog::content` 側に `display: flex; flex-direction:
+//! column; max-height: 100%`（positioner の実高さを上限とする）を与えた
+//! うえで `dialog::body` を `flex: 1 1 auto; min-height: 0; overflow-y:
+//! auto` に据え直す。画面高が低く全フィルタ群が収まらない場合は
+//! `dialog::body` がスクロール領域として機能し、枠からのはみ出し・
+//! `overflow: hidden` によるボタン到達不能（イシュー #3048 PR #3503
+//! レビュー指摘）を防ぐ。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -501,10 +508,10 @@ const LAYOUT_CSS: &str = "\
 .blocks-filter-overlay-panel [data-scope=\"drawer\"][data-part=\"positioner\"], .blocks-filter-overlay-panel [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: absolute;\n  inset: 0;\n  z-index: auto;\n}\n\
 .blocks-filter-overlay-panel [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: var(--fandhe-space-6);\n}\n\
 .blocks-filter-overlay-panel [data-scope=\"drawer\"][data-part=\"content\"] {\n  height: 100%;\n  max-width: 100%;\n  display: flex;\n  flex-direction: column;\n}\n\
-.blocks-filter-overlay-panel [data-scope=\"dialog\"][data-part=\"content\"] {\n  max-width: 24rem;\n}\n\
+.blocks-filter-overlay-panel [data-scope=\"dialog\"][data-part=\"content\"] {\n  max-width: 24rem;\n  max-height: 100%;\n  display: flex;\n  flex-direction: column;\n}\n\
 .blocks-filter-overlay-panel [data-scope=\"drawer\"] h2, .blocks-filter-overlay-panel [data-scope=\"dialog\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
-.blocks-filter-overlay-panel [data-scope=\"dialog\"][data-part=\"body\"] {\n  max-height: none;\n  overflow: visible;\n}\n\
-[data-blocks-filter-overlay-panel-body] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  flex: 1 1 auto;\n  min-height: 0;\n  overflow-y: auto;\n}\n\
+.blocks-filter-overlay-panel [data-scope=\"dialog\"][data-part=\"body\"] {\n  flex: 1 1 auto;\n  min-height: 0;\n  max-height: none;\n  overflow-y: auto;\n}\n\
+[data-blocks-filter-overlay-panel-body] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-filter-overlay-panel-footer] {\n  display: flex;\n  justify-content: flex-end;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-filter-overlay-panel-checkbox][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 @media (max-width: 47.99rem) {\n  .blocks-filter-overlay-panel [data-scope=\"drawer\"][data-part=\"content\"] {\n    --fandhe-drawer-size: 85%;\n  }\n  .blocks-filter-overlay-panel [data-scope=\"dialog\"][data-part=\"positioner\"] {\n    padding: var(--fandhe-space-3);\n  }\n  [data-blocks-filter-overlay-panel-footer] {\n    flex-direction: column-reverse;\n  }\n  [data-blocks-filter-overlay-panel-footer] [data-scope=\"button\"] {\n    width: 100%;\n  }\n  .blocks-filter-overlay-panel-grid {\n    grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));\n  }\n}\n";
