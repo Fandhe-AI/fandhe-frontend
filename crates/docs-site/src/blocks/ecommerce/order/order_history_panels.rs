@@ -491,13 +491,24 @@ pub const BLOCK: Block = Block {
 /// `flex-direction: column` に負けて縦積みのまま戻ってしまうため、
 /// recipe が触れない子要素側へレイアウトを持たせて詳細度勝負を避ける。
 /// レビュー指摘対応、イシュー #3056）。
+///
+/// 狭幅用の非表示セレクタ（action-button / date）は、フック属性単体
+/// （`(0,1,0)`）ではなく `[data-scope][data-part]` を併記して詳細度を
+/// 上げる（`[data-blocks-order-history-panels-action-button]
+/// [data-scope="button"][data-part="root"]` / `[data-blocks-order-history-panels-date]
+/// [data-scope="data-list"][data-part="item"]`、ともに `(0,3,0)`）。Button
+/// recipe の `[data-scope="button"][data-part="root"] { display:
+/// inline-flex }` と Data List recipe の `[data-scope="data-list"]
+/// [data-part="item"] { display: var(...) }` が同じ `(0,2,0)` を持つため、
+/// フック属性単体では負けて 40rem 未満でも隠れない（レビュー指摘対応、
+/// イシュー #3056）。
 const LAYOUT_CSS: &str = "\
 .blocks-order-history-panels-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-order-history-panels;\n}\n\
 .blocks-order-history-panels-summary-row {\n  display: flex;\n  flex-direction: row;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-order-history-panels-summary-list][data-scope=\"data-list\"][data-part=\"root\"] {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-order-history-panels-actions {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  margin-inline-start: auto;\n}\n\
-[data-blocks-order-history-panels-action-button] {\n  display: none;\n}\n\
-[data-blocks-order-history-panels-date] {\n  display: none;\n}\n\
+[data-blocks-order-history-panels-action-button][data-scope=\"button\"][data-part=\"root\"] {\n  display: none;\n}\n\
+[data-blocks-order-history-panels-date][data-scope=\"data-list\"][data-part=\"item\"] {\n  display: none;\n}\n\
 .blocks-order-history-panels-items {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-order-history-panels-item {\n  display: grid;\n  grid-template-columns: 5rem minmax(0, 1fr);\n  gap: var(--fandhe-space-2) var(--fandhe-space-4);\n  align-items: start;\n}\n\
 [data-blocks-order-history-panels-image] {\n  grid-row: 1 / 3;\n  width: 100%;\n  height: 5rem;\n}\n\
@@ -505,8 +516,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-order-history-panels-item-heading {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  justify-content: space-between;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-order-history-panels-item-link] {\n  grid-column: 2;\n  grid-row: 2;\n  justify-self: start;\n}\n\
 @container blocks-order-history-panels (min-width: 40rem) {\n  \
-[data-blocks-order-history-panels-action-button] {\n    display: inline-flex;\n  }\n  \
-[data-blocks-order-history-panels-date] {\n    display: flex;\n  }\n  \
+[data-blocks-order-history-panels-action-button][data-scope=\"button\"][data-part=\"root\"] {\n    display: inline-flex;\n  }\n  \
+[data-blocks-order-history-panels-date][data-scope=\"data-list\"][data-part=\"item\"] {\n    display: flex;\n  }\n  \
 .blocks-order-history-panels-actions [data-scope=\"menu\"][data-part=\"root\"] {\n    display: none;\n  }\n  \
 .blocks-order-history-panels-item {\n    grid-template-columns: 5rem minmax(0, 1fr) auto;\n  }\n  \
 [data-blocks-order-history-panels-image] {\n    grid-row: 1;\n  }\n  \
@@ -650,10 +661,11 @@ mod tests {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
         assert!(LAYOUT_CSS.contains("@container blocks-order-history-panels (min-width: 40rem)"));
-        assert!(LAYOUT_CSS
-            .contains("[data-blocks-order-history-panels-action-button] {\n  display: none;\n}"));
         assert!(LAYOUT_CSS.contains(
-            "[data-blocks-order-history-panels-action-button] {\n    display: inline-flex;\n  }"
+            "[data-blocks-order-history-panels-action-button][data-scope=\"button\"][data-part=\"root\"] {\n  display: none;\n}"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-order-history-panels-action-button][data-scope=\"button\"][data-part=\"root\"] {\n    display: inline-flex;\n  }"
         ));
     }
 
