@@ -344,8 +344,8 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-promo-countdown-variant=\"card\"] {\n  align-items: center;\n  padding: var(--fandhe-space-10) var(--fandhe-space-6);\n}\n\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-promo-countdown-card] {\n  max-width: 28rem;\n  display: grid;\n}\n\
 .blocks-promo-countdown-card-body {\n  display: grid;\n  gap: var(--fandhe-space-4);\n}\n\
-[data-scope=\"timer\"][data-part=\"area\"] {\n  display: flex;\n  gap: var(--fandhe-space-3);\n}\n\
-[data-scope=\"timer\"][data-part=\"item\"] {\n  display: grid;\n  gap: var(--fandhe-space-1);\n  text-align: center;\n}\n\
+.blocks-promo-countdown-layout [data-scope=\"timer\"][data-part=\"area\"] {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-3);\n}\n\
+.blocks-promo-countdown-layout [data-scope=\"timer\"][data-part=\"item\"] {\n  display: grid;\n  gap: var(--fandhe-space-1);\n  text-align: center;\n}\n\
 [data-blocks-promo-countdown-variant=\"split\"] {\n  display: grid;\n  gap: var(--fandhe-space-8);\n  padding: var(--fandhe-space-10) var(--fandhe-space-6);\n}\n\
 .blocks-promo-countdown-split-side {\n  display: grid;\n  gap: var(--fandhe-space-4);\n  align-content: start;\n}\n\
 .blocks-promo-countdown-split-timer {\n  display: grid;\n  align-content: start;\n}\n\
