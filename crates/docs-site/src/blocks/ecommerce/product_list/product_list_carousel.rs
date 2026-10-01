@@ -233,11 +233,17 @@ fn header(title: &'static str, link_label: &'static str) -> Node {
     )
 }
 
-/// 商品カード 1 件（`card` > 画像 + 商品名リンク + 価格）。`outline` が
-/// `true` のとき `CardVariant::Outline` を明示する（B 形、モジュール doc
-/// 「枠付きカード」節参照。既定も `Outline` のため見た目は A/C と同じだが
-/// 意図を明示する）。`swatches` が `Some` のときのみ色見本行を末尾へ足す
-/// （C 形専用）。
+/// 商品カード 1 件（`card` > 画像 + `card::body`（商品名リンク + 価格））。
+/// 画像は `card::root` 直下に置いて全幅ベタ塗りにし、テキスト側だけ
+/// `card::body` の既定 padding（`--fandhe-card-padding`）で内側の余白
+/// （content inset）を確保する。画像をそのまま `card::root` 直下へ置いて
+/// 名称・価格を無 padding の `div` にしていた旧実装は、両者がカードの
+/// 外枠（`CardVariant::Outline` のボーダー／`overflow: hidden` のクリップ
+/// 境界）へ接触する不具合があったため是正した（PR #3512 Bugbot 指摘）。
+/// `outline` が `true` のとき `CardVariant::Outline` を明示する（B 形、
+/// モジュール doc 「枠付きカード」節参照。既定も `Outline` のため見た目は
+/// A/C と同じだが意図を明示する）。`swatches` が `Some` のときのみ色見本
+/// 行を末尾へ足す（C 形専用）。
 fn product_card(
     name: &'static str,
     price: &'static str,
@@ -245,15 +251,7 @@ fn product_card(
     outline: bool,
     swatches: Option<&[(u8, u8, u8); 3]>,
 ) -> Node {
-    let mut children: Vec<Node> = vec![
-        image(
-            &ImageProps {
-                fit: ImageFit::Cover,
-                aspect_ratio: AspectRatio::Square,
-                ..ImageProps::new(src, "")
-            },
-            vec![("data-blocks-product-list-carousel-image", "")],
-        ),
+    let mut body_children: Vec<Node> = vec![
         heading(
             HeadingLevel::H4,
             &HeadingProps::default(),
@@ -285,7 +283,7 @@ fn product_card(
                 )
             })
             .collect();
-        children.push(div(
+        body_children.push(div(
             vec![("class", "blocks-product-list-carousel-swatches")],
             vec![
                 div(
@@ -313,7 +311,20 @@ fn product_card(
             CardProps::default()
         },
         vec![("data-blocks-product-list-carousel-card", "")],
-        children,
+        vec![
+            image(
+                &ImageProps {
+                    fit: ImageFit::Cover,
+                    aspect_ratio: AspectRatio::Square,
+                    ..ImageProps::new(src, "")
+                },
+                vec![("data-blocks-product-list-carousel-image", "")],
+            ),
+            card::body(
+                vec![("data-blocks-product-list-carousel-body", "")],
+                body_children,
+            ),
+        ],
     )
 }
 
