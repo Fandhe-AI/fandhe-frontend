@@ -139,8 +139,10 @@ const PRODUCTS_C: [Product; 3] = [
 
 /// インスタンス A の商品カード 1 件（枠なし・正方形画像）。
 fn product_card_a(product: &Product) -> Node {
-    let alt = format!("{}の商品画像", product.name);
-    let mut image_props = ImageProps::new(dummy_assets::PRODUCT_SRC, &alt);
+    // 商品名は隣接する見出しが可視テキストとして既に提供するため、画像は
+    // 装飾として alt を空にする（`product_list_bordered_grid` と同じ判断。
+    // レビュー指摘対応: プレースホルダー画像に実商品固有の alt を与えない）。
+    let mut image_props = ImageProps::new(dummy_assets::PRODUCT_SRC, "");
     image_props.aspect_ratio = AspectRatio::Square;
     let image_node = image::image(&image_props, vec![]);
 
@@ -188,8 +190,10 @@ fn product_card_a(product: &Product) -> Node {
 
 /// インスタンス B の商品カード 1 件（縦長画像・名称の横に価格・補足文）。
 fn product_card_b(product: &Product) -> Node {
-    let alt = format!("{}の商品画像", product.name);
-    let mut image_props = ImageProps::new(dummy_assets::PRODUCT_SRC, &alt);
+    // 商品名は隣接する見出しが可視テキストとして既に提供するため、画像は
+    // 装飾として alt を空にする（`product_list_bordered_grid` と同じ判断。
+    // レビュー指摘対応: プレースホルダー画像に実商品固有の alt を与えない）。
+    let mut image_props = ImageProps::new(dummy_assets::PRODUCT_SRC, "");
     image_props.aspect_ratio = AspectRatio::Portrait;
     image_props.shape = ImageShape::Rounded;
     let image_node = image::image(&image_props, vec![]);
@@ -244,8 +248,10 @@ fn product_card_b(product: &Product) -> Node {
 /// インスタンス C の商品カード 1 件（枠付き・hover/フォーカスで閲覧ラベル
 /// 表示・カテゴリ/説明付き）。
 fn product_card_c(product: &Product) -> Node {
-    let alt = format!("{}の商品画像", product.name);
-    let mut image_props = ImageProps::new(dummy_assets::PRODUCT_SRC, &alt);
+    // 商品名は隣接する見出しが可視テキストとして既に提供するため、画像は
+    // 装飾として alt を空にする（`product_list_bordered_grid` と同じ判断。
+    // レビュー指摘対応: プレースホルダー画像に実商品固有の alt を与えない）。
+    let mut image_props = ImageProps::new(dummy_assets::PRODUCT_SRC, "");
     image_props.aspect_ratio = AspectRatio::Square;
     let image_node = image::image(&image_props, vec![]);
 
@@ -452,17 +458,20 @@ pub fn demo() -> Node {
 
 ## 原案差分メモ
 
-- 4 列で価格を名称の右に置く版: インスタンス A の `product_card_a` の
-  レイアウトを `.blocks-product-list-simple-grid-card` の `flex-direction`
-  のみ変更すれば表現できます（コードを増やさず CSS 調整で対応可能）。
+- 4 列で価格を名称の右に置く版: `.blocks-product-list-simple-grid-card` の
+  `flex-direction` を変えるだけでは画像まで横並びになってしまうため
+  使えません。インスタンス B の `name_row`（名称と価格だけを束ねる
+  `div`）と同じパターンで `product_card_a` 内に名称・価格専用の行を
+  作り、画像はそのまま縦積みの先頭に残せば表現できます。
 - 縦長画像 3 列と CTA を添える版: インスタンス B の画像を
   `AspectRatio::Portrait` のまま列数を 3 固定にし、`instance_a` と同じ
   `.blocks-product-list-simple-grid-more` を追加すれば表現できます。
 - 見出しなしで色名付きの版: インスタンス A から見出しブロックを省き、
   `note`（色名）フィールドをそのまま流用できます。
-- 枠付きカードと説明全文を見せる版: インスタンス C の `description` を
-  `text::text` の `size: TextSize::Md` にすれば全文表示へ切り替えられます
-  （現在は要約表示として `Sm` を使用）。
+- 枠付きカードの説明文字を大きくする版: インスタンス C の `description`
+  は `TextSize::Sm` でも省略なく全文を表示しています（truncate 処理は
+  持ちません）。文字を大きく見せたいだけなら `text::text` の
+  `size: TextSize::Md` に変えれば表現できます。
 - 4 列でカテゴリ・説明なしの版: インスタンス A の画像・レイアウトを流用し
   `PRODUCTS_A` を 8 件へ増やすだけで表現できます。
 

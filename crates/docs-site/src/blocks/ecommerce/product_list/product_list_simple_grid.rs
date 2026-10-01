@@ -1,9 +1,8 @@
-//! `product-list-simple-grid` block（イシュー #3065。Ecommerce/Product List
-//! カテゴリの最初の block、親「Blocks 目的別パーツ拡充」ツリー〔Phase 5、
-//! 親 #3024〕配下。商品をシンプルなグリッドに並べる、shadcn/ui Blocks の
-//! product list セクション相当のレイアウトを、既存の Themes 部品だけで
-//! 合成した実例。取得元の文言・配色・装飾・アイコンは持ち込まず、
-//! 文言・データはすべて架空のものを独自に書く。
+//! `product-list-simple-grid` block（イシュー #3065。親「Blocks 目的別パーツ
+//! 拡充」ツリー〔Phase 5、親 #3024〕配下。商品をシンプルなグリッドに並べる、
+//! shadcn/ui Blocks の product list セクション相当のレイアウトを、既存の
+//! Themes 部品だけで合成した実例。取得元の文言・配色・装飾・アイコンは
+//! 持ち込まず、文言・データはすべて架空のものを独自に書く。
 //!
 //! # 使用部品
 //!
@@ -220,8 +219,10 @@ const PRODUCTS_C: [Product; 3] = [
 
 /// インスタンス A の商品カード 1 件（枠なし・正方形画像）。
 fn product_card_a(product: &Product) -> Node {
-    let alt = format!("{}の商品画像", product.name);
-    let mut image_props = ImageProps::new(dummy_assets::PRODUCT_SRC, &alt);
+    // 商品名は隣接する見出しが可視テキストとして既に提供するため、画像は
+    // 装飾として alt を空にする（`product_list_bordered_grid` と同じ判断。
+    // レビュー指摘対応: プレースホルダー画像に実商品固有の alt を与えない）。
+    let mut image_props = ImageProps::new(dummy_assets::PRODUCT_SRC, "");
     image_props.aspect_ratio = AspectRatio::Square;
     let image_node = image::image(&image_props, vec![]);
 
@@ -269,8 +270,10 @@ fn product_card_a(product: &Product) -> Node {
 
 /// インスタンス B の商品カード 1 件（縦長画像・名称の横に価格・補足文）。
 fn product_card_b(product: &Product) -> Node {
-    let alt = format!("{}の商品画像", product.name);
-    let mut image_props = ImageProps::new(dummy_assets::PRODUCT_SRC, &alt);
+    // 商品名は隣接する見出しが可視テキストとして既に提供するため、画像は
+    // 装飾として alt を空にする（`product_list_bordered_grid` と同じ判断。
+    // レビュー指摘対応: プレースホルダー画像に実商品固有の alt を与えない）。
+    let mut image_props = ImageProps::new(dummy_assets::PRODUCT_SRC, "");
     image_props.aspect_ratio = AspectRatio::Portrait;
     image_props.shape = ImageShape::Rounded;
     let image_node = image::image(&image_props, vec![]);
@@ -325,8 +328,10 @@ fn product_card_b(product: &Product) -> Node {
 /// インスタンス C の商品カード 1 件（枠付き・hover/フォーカスで閲覧ラベル
 /// 表示・カテゴリ/説明付き）。
 fn product_card_c(product: &Product) -> Node {
-    let alt = format!("{}の商品画像", product.name);
-    let mut image_props = ImageProps::new(dummy_assets::PRODUCT_SRC, &alt);
+    // 商品名は隣接する見出しが可視テキストとして既に提供するため、画像は
+    // 装飾として alt を空にする（`product_list_bordered_grid` と同じ判断。
+    // レビュー指摘対応: プレースホルダー画像に実商品固有の alt を与えない）。
+    let mut image_props = ImageProps::new(dummy_assets::PRODUCT_SRC, "");
     image_props.aspect_ratio = AspectRatio::Square;
     let image_node = image::image(&image_props, vec![]);
 
