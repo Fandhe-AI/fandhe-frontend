@@ -23,7 +23,8 @@
 //! - **basic**（主参照 R1252 + 集約元 R0327）: 商品行は「数量 1」の固定
 //!   表示のみで、小計・補足・購入手続き/カートを見るの 2 操作を置く。
 //! - **stepper**（集約元 R0326）: 各商品行の数量を readonly の数量
-//!   ステッパーにし、購入ボタンへ合計額を含める。
+//!   ステッパーにする。購入ボタンの文言は送料・税が未確定である旨と
+//!   矛盾しないよう basic と同一にし、確定額は含めない。
 //!
 //! いずれも `popover::root` を `OpenState::Open` 固定で描き、無 JS の静的
 //! Demo として「パネルが開いた状態」のみを示す（`trigger` 自体は enabled の
@@ -108,10 +109,12 @@ const CART_ITEMS: &[(&str, &str, &str, u32)] = &[
 ];
 
 /// 小計表示（[`CART_ITEMS`] の単価 × 数量の合計と整合する固定値）。
-const SUBTOTAL_TEXT: &str = "¥13,400";
+const SUBTOTAL_TEXT: &str = "¥12,800";
 
-/// stepper インスタンスの購入ボタン文言（送料・税込みの合計額を含む）。
-const STEPPER_CHECKOUT_LABEL: &str = "購入手続きへ（¥14,480）";
+/// stepper インスタンスの購入ボタン文言。送料・税は購入手続きで計算する旨を
+/// [`subtotal_row`] の補足行で示しているため、確定していない合計額はボタン
+/// 文言に含めない（基本形と同一文言）。
+const STEPPER_CHECKOUT_LABEL: &str = "購入手続きへ";
 
 /// 「カートを見る」の遷移先（モジュール doc参照）。
 fn cart_summary_href() -> String {

@@ -44,10 +44,12 @@ const CART_ITEMS: &[(&str, &str, &str, u32)] = &[
 ];
 
 /// 小計表示（[`CART_ITEMS`] の単価 × 数量の合計と整合する固定値）。
-const SUBTOTAL_TEXT: &str = "¥13,400";
+const SUBTOTAL_TEXT: &str = "¥12,800";
 
-/// stepper インスタンスの購入ボタン文言（送料・税込みの合計額を含む）。
-const STEPPER_CHECKOUT_LABEL: &str = "購入手続きへ（¥14,480）";
+/// stepper インスタンスの購入ボタン文言。送料・税は購入手続きで計算する旨を
+/// [`subtotal_row`] の補足行で示しているため、確定していない合計額はボタン
+/// 文言に含めない（基本形と同一文言）。
+const STEPPER_CHECKOUT_LABEL: &str = "購入手続きへ";
 
 /// 「カートを見る」の遷移先（モジュール doc参照）。
 fn cart_summary_href() -> String {
@@ -317,8 +319,9 @@ pub fn demo() -> Node {
   す。無 JS では増減操作が no-op になるため、ステッパーの増減トリガーは
   `disabled: true`、入力自体も `readonly: true` にしています。
 - パネル下端に小計・補足（送料・税は購入手続きで計算する旨）と、2 つの操作
-  （購入手続き・カートを見る）を置いています（集約元 R0327）。「数量ステッ
-  パー付き」の購入ボタンには送料・税込みの合計額を含めています。
+  （購入手続き・カートを見る）を置いています（集約元 R0327）。送料・税が
+  未確定である旨と矛盾しないよう、「数量ステッパー付き」の購入ボタンにも
+  確定額は含めず「基本形」と同一文言にしています。
 - 「カートを見る」は `href="#"` ではなく、サイト内に実在する Cart 一覧
   block（`/blocks/cart-two-column-summary/`）へ `asset_href` で base_path を
   反映してリンクしています。2 インスタンスとも同じリンク先です。
