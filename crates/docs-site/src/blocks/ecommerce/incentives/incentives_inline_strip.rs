@@ -241,18 +241,37 @@ pub const BLOCK: Block = Block {
 /// （`feature_three_column_icons` と同じ名前空間分離）。ブレークポイントの
 /// リテラル 48rem は `recipe::Breakpoint::Md`（768px）と一致させる（テーマの
 /// breakpoint トークンは `@media` 条件の中では解決できないため）。
+///
+/// `list`（`ul`）/`item`（`li`）は、素の `.blocks-incentives-inline-strip-*`
+/// 単一クラス（詳細度 (0,1,0)/(0,1,1)）のみで宣言すると、サイト共通
+/// typography（`site_theme.rs` の `.docs-content ul`/`.docs-content li`、
+/// いずれも詳細度 (0,1,1)）に負けてビュレット/パディング/`margin-block` が
+/// 復活する（`settings_integrations_list` と同型の Bugbot 指摘、PR #3506）。
+/// `.blocks-incentives-inline-strip-instance` を祖先に持つ子孫セレクタへ
+/// 書き換えてクラス数を 2 に増やし（詳細度 (0,2,0)）確実に上回る
+/// （A/B 両インスタンスで `list`/`item` の祖先に当たるため、`scroller`
+/// を挟む B 側も同じ祖先セレクタで届く）。
+///
+/// スクロール変種の中央寄せ（48rem 以上）は `justify-content: center` では
+/// なく `safe center` を使う（CSS Box Alignment の `safe`/`unsafe` キー
+/// ワード）。狭い表示領域・文字拡大等で項目群が `.blocks-demo`/
+/// `.docs-content` の表示幅を超えると、`center` のままでは先頭側の項目が
+/// スクロール開始位置より左へ配置され `overflow-x: auto` でも到達できず
+/// 読めなくなる（Codex P1 指摘、PR #3506）。`safe center` は中央寄せが
+/// コンテナをはみ出す場合のみ `start` 相当へ自動フォールバックするため、
+/// 収まる場合は中央寄せ・はみ出す場合は先頭揃えを 1 プロパティで両立する。
 const LAYOUT_CSS: &str = "\
 .blocks-incentives-inline-strip-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n}\n\
 .blocks-incentives-inline-strip-instance {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-incentives-inline-strip-note] {\n  margin: 0;\n  text-align: center;\n}\n\
-.blocks-incentives-inline-strip-list {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: center;\n  align-items: center;\n  gap: var(--fandhe-space-6);\n  list-style: none;\n  margin: 0;\n  padding: 0;\n}\n\
-.blocks-incentives-inline-strip-list[data-variant=\"scroll\"] {\n  flex-wrap: nowrap;\n  justify-content: flex-start;\n  white-space: nowrap;\n}\n\
-.blocks-incentives-inline-strip-item {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  flex: none;\n}\n\
+.blocks-incentives-inline-strip-instance .blocks-incentives-inline-strip-list {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: center;\n  align-items: center;\n  gap: var(--fandhe-space-6);\n  list-style: none;\n  margin: 0;\n  padding: 0;\n}\n\
+.blocks-incentives-inline-strip-instance .blocks-incentives-inline-strip-list[data-variant=\"scroll\"] {\n  flex-wrap: nowrap;\n  justify-content: flex-start;\n  white-space: nowrap;\n}\n\
+.blocks-incentives-inline-strip-instance .blocks-incentives-inline-strip-item {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  flex: none;\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-incentives-inline-strip-title] {\n  margin: 0;\n  white-space: nowrap;\n}\n\
 .blocks-incentives-inline-strip-scroller {\n  overflow-x: auto;\n  padding-block: var(--fandhe-space-1);\n}\n\
 .blocks-incentives-inline-strip-scroller:focus-visible {\n  outline: 2px solid var(--fandhe-color-focus-ring, currentColor);\n  outline-offset: 2px;\n}\n\
 @media (min-width: 48rem) {\n  \
-.blocks-incentives-inline-strip-list[data-variant=\"scroll\"] {\n    justify-content: center;\n  }\n\
+.blocks-incentives-inline-strip-instance .blocks-incentives-inline-strip-list[data-variant=\"scroll\"] {\n    justify-content: safe center;\n  }\n\
 }\n";
 
 #[cfg(test)]
