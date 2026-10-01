@@ -2808,6 +2808,14 @@ source = "site/blocks/store-nav-mega-menu.md"
 path = "/blocks/store-nav-mega-menu/"
 
 [[section.group]]
+title = "Incentives"
+
+[[section.group.page]]
+title = "incentives-split-header"
+source = "site/blocks/incentives-split-header.md"
+path = "/blocks/incentives-split-header/"
+
+[[section.group]]
 title = "Promo"
 
 [[section.group.page]]

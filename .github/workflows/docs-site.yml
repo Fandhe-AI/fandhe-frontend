@@ -576,6 +576,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/store-nav-centered-logo/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/store-nav-mega-menu/index.html"
           # Ecommerce / Incentives
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/incentives-split-header/index.html"
           # Ecommerce / Promo
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-collection-cards/index.html"
           # Docs / Docs Layout
