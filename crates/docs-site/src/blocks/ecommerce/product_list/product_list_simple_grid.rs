@@ -59,9 +59,13 @@
 //!
 //! `grid_list_contact_cards` モジュール doc「`@container` で列数を切り替える
 //! 理由」節と同じ判断（Demo 枠の幅はビューポート幅と一致しないため
-//! `@media` ではなく `@container` を使う）。各インスタンスのラッパーへ
-//! `container-type: inline-size; container-name:
-//! blocks-product-list-simple-grid;` を宣言する。
+//! `@media` ではなく `@container` を使う）。`container-type: inline-size;
+//! container-name: blocks-product-list-simple-grid;` は 3 インスタンスの
+//! 共通祖先である外側ラッパー（`.blocks-product-list-simple-grid`）へ宣言
+//! する。`@container` のスタイル規則はコンテナ自身ではなく祖先コンテナを
+//! 参照する子孫要素にしか適用されない仕様のため、各インスタンス要素自身に
+//! 宣言すると自分自身への規則が一切適用されない不具合になる（レビュー
+//! 指摘対応）。
 //!
 //! # hover・フォーカス時の閲覧ラベルを `aria-hidden` にする理由
 //!
@@ -579,13 +583,14 @@ pub const BLOCK: Block = Block {
 /// `(0,2,0)`）が持つ `border-radius: inherit` に対し、単一属性セレクタでは
 /// 詳細度で負けて適用されないため、属性 3 つに引き上げて確実に上書きする。
 const LAYOUT_CSS: &str = "\
-.blocks-product-list-simple-grid {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
-.blocks-product-list-simple-grid-instance-a,\n.blocks-product-list-simple-grid-instance-b,\n.blocks-product-list-simple-grid-instance-c {\n  container-type: inline-size;\n  container-name: blocks-product-list-simple-grid;\n  display: grid;\n  gap: var(--fandhe-space-4);\n}\n\
+.blocks-product-list-simple-grid {\n  container-type: inline-size;\n  container-name: blocks-product-list-simple-grid;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
+.blocks-product-list-simple-grid-instance-a,\n.blocks-product-list-simple-grid-instance-b,\n.blocks-product-list-simple-grid-instance-c {\n  display: grid;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-product-list-simple-grid-instance-a {\n  grid-template-columns: 1fr;\n  grid-template-areas: \"head\" \"grid\" \"more\";\n}\n\
 .blocks-product-list-simple-grid-head {\n  grid-area: head;\n}\n\
 .blocks-product-list-simple-grid-more {\n  grid-area: more;\n}\n\
 .blocks-product-list-simple-grid-grid-a {\n  grid-area: grid;\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-product-list-simple-grid-grid-b,\n.blocks-product-list-simple-grid-grid-c {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-6);\n}\n\
+.blocks-product-list-simple-grid-instance-b > [data-scope=\"heading\"][data-part=\"root\"] {\n  display: contents;\n}\n\
 .blocks-product-list-simple-grid-card {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  height: 100%;\n}\n\
 .blocks-product-list-simple-grid-name-row {\n  display: flex;\n  align-items: baseline;\n  justify-content: space-between;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-product-list-simple-grid-cover {\n  position: relative;\n}\n\
@@ -692,5 +697,43 @@ mod tests {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains("@container blocks-product-list-simple-grid"));
         assert!(LAYOUT_CSS.contains("grid-template-areas"));
+    }
+
+    /// レビュー指摘対応（Codex P1 / Cursor Bugbot Medium）: `@container` は
+    /// コンテナ自身ではなく祖先コンテナを参照する子孫要素にしか適用されない
+    /// ため、`container-name` は 3 インスタンスの共通祖先（外側ラッパー）へ
+    /// 宣言し、各インスタンス要素自身には宣言しないことを固定する。
+    #[test]
+    fn container_name_is_declared_on_outer_wrapper_only() {
+        let wrapper_rule = LAYOUT_CSS
+            .split('}')
+            .find(|rule| {
+                rule.trim_start()
+                    .starts_with(".blocks-product-list-simple-grid {")
+            })
+            .expect("outer wrapper rule should exist");
+        assert!(wrapper_rule.contains("container-name: blocks-product-list-simple-grid"));
+
+        let instance_rule = LAYOUT_CSS
+            .split('}')
+            .find(|rule| {
+                rule.contains(".blocks-product-list-simple-grid-instance-a")
+                    && rule.contains("display: grid")
+            })
+            .expect("instance rule should exist");
+        assert!(
+            !instance_rule.contains("container-name"),
+            "インスタンス要素自身に container-name を宣言すると @container 規則が適用されない"
+        );
+    }
+
+    /// レビュー指摘対応（Cursor Bugbot Low）: インスタンス B の視覚的に隠した
+    /// 見出し（`<h3>`）がグリッドアイテムとして残らないよう `display: contents`
+    /// にし、高さゼロの空トラックに gap が適用されないことを固定する。
+    #[test]
+    fn hidden_heading_does_not_reserve_a_grid_track() {
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-product-list-simple-grid-instance-b > [data-scope=\"heading\"][data-part=\"root\"] {\n  display: contents;\n}"
+        ));
     }
 }
