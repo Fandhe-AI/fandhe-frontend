@@ -11,6 +11,7 @@
 
 mod checkout_form_summary_split;
 mod checkout_step_sections;
+mod checkout_wizard_steps;
 
 use crate::blocks::Block;
 
@@ -18,5 +19,6 @@ pub(super) fn blocks() -> Vec<Block> {
     vec![
         checkout_form_summary_split::BLOCK,
         checkout_step_sections::BLOCK,
+        checkout_wizard_steps::BLOCK,
     ]
 }

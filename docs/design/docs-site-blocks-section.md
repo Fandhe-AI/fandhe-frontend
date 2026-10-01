@@ -1096,6 +1096,7 @@ pub enum LayoutCss {
 | settings-webhooks-list | #3023（親 #2951） | `application/settings/settings_webhooks_list.rs` |
 | checkout-form-summary-split | #3042（親 #3041） | `ecommerce/checkout/checkout_form_summary_split.rs` |
 | checkout-step-sections | #3044（親 #3024） | `ecommerce/checkout/checkout_step_sections.rs` |
+| checkout-wizard-steps | #3045 | `ecommerce/checkout/checkout_wizard_steps.rs` |
 | cart-drawer | #3026（親 #3024） | `ecommerce/cart/cart_drawer.rs` |
 | cart-line-item-table | #3028/#3029（親 #3027） | `ecommerce/cart/cart_line_item_table.rs` |
 | order-tracking-progress | #3060/#3061（親 #3059） | `ecommerce/order/order_tracking_progress.rs` |
@@ -1112,6 +1113,7 @@ pub enum LayoutCss {
 | category-grid-captioned | #3037（親 #3024） | `ecommerce/category_listing/category_grid_captioned.rs` |
 | category-mosaic-featured | #3039 | `ecommerce/category_listing/category_mosaic_featured.rs` |
 | category-grid-overlay | #3038（親 #3024） | `ecommerce/category_listing/category_grid_overlay.rs` |
+| filter-dropdown-bar | #3046（親 #3024） | `ecommerce/filter/filter_dropdown_bar.rs` |
 | filter-expandable-panel | #3047（親 #3024） | `ecommerce/filter/filter_expandable_panel.rs` |
 | incentives-inline-strip | #3051 | `ecommerce/incentives/incentives_inline_strip.rs` |
 
