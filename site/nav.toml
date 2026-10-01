@@ -2731,6 +2731,11 @@ path = "/blocks/category-mosaic-featured/"
 title = "Filter"
 
 [[section.group.page]]
+title = "filter-expandable-panel"
+source = "site/blocks/filter-expandable-panel.md"
+path = "/blocks/filter-expandable-panel/"
+
+[[section.group.page]]
 title = "filter-sidebar"
 source = "site/blocks/filter-sidebar.md"
 path = "/blocks/filter-sidebar/"
