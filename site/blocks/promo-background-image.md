@@ -93,9 +93,12 @@ fn content(heading_size: HeadingSize) -> Node {
             ),
             link::root(
                 REPO,
-                &LinkProps::default(),
+                &LinkProps {
+                    external: true,
+                    ..LinkProps::default()
+                },
                 vec![("data-blocks-promo-background-image-cta", "")],
-                vec![text("セール会場を見る")],
+                vec![text("くわしくはこちら")],
             ),
         ],
     )

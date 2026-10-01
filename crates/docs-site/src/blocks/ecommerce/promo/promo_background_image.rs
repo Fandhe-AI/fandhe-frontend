@@ -15,7 +15,12 @@
 //! CTA は `button::button`（遷移先を持たない `<button>`）ではなく
 //! `link::root`（`<a>`）を使う。「見る」という遷移を示す文言には実在する
 //! リンク先が要る（codex-review P1 指摘、イシュー #3076。`cta_split_image`
-//! の「導入事例を見る」と同型の判断）。
+//! の「導入事例を見る」と同型の判断）。文言は実際の遷移先（[`REPO`]、
+//! フレームワークの GitHub リポジトリ）と齟齬がないよう「くわしくは
+//! こちら」という汎用文言にとどめる（「セール会場を見る」等、存在しない
+//! 専用ページへの遷移を示唆する文言は使わない。2 回目の codex-review P1
+//! 指摘、イシュー #3076）。`cta_split_image` と同様 `external: true` で
+//! `rel="noopener noreferrer"` を付与する。
 //!
 //! # 3 形を 1 つの Demo に並記する
 //!
@@ -171,9 +176,12 @@ fn content(heading_size: HeadingSize) -> Node {
             ),
             link::root(
                 REPO,
-                &LinkProps::default(),
+                &LinkProps {
+                    external: true,
+                    ..LinkProps::default()
+                },
                 vec![("data-blocks-promo-background-image-cta", "")],
-                vec![text("セール会場を見る")],
+                vec![text("くわしくはこちら")],
             ),
         ],
     )
