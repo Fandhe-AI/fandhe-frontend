@@ -103,13 +103,15 @@ fn row_with_attrs(
     )
 }
 
-/// 「買い物を続ける」リンクの遷移先（固定のリポジトリ URL）。
-/// 本 Demo は商品一覧・ストアページを持たないため、レビュー指摘
-/// （`href="../"` は `/blocks/` 直下へ戻るだけで文言の期待先と不一致）を
-/// 受け、`cart_two_column_summary`/`cart_single_column` 等の同種リンクと
-/// 同じ判断（固定のリポジトリ URL + `external: true`、`href="#"` は
-/// 使わない）に揃える。
-const REPO_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+/// 「買い物を続ける」リンクの遷移先（商品一覧を模した架空 URL）。
+/// 本 Demo は商品一覧・ストアページを持たないため、`order_history_table`
+/// と同じ判断（`https://example.com/` 配下の架空 URL + `external: true`、
+/// `href="#"` は linkcheck が fail-closed に検知するため使わない）に揃える。
+/// 当初は `cart_two_column_summary`/`cart_single_column` と同じ固定リポジトリ
+/// URL を指していたが、レビュー指摘（案内文言「買い物を続ける」と遷移先の
+/// GitHub リポジトリが不一致）を受け、文言の期待先に合わせた架空の商品一覧
+/// URL へ変更した。
+const CONTINUE_SHOPPING_URL: &str = "https://example.com/products";
 
 /// 商品行 1 件（サムネイル・商品名・オプション・価格）。
 fn product_line(name: &'static str, option: &'static str, price: &'static str) -> Node {
@@ -242,7 +244,7 @@ pub fn demo() -> Node {
                 ],
             ),
             link::root(
-                REPO_URL,
+                CONTINUE_SHOPPING_URL,
                 &LinkProps {
                     external: true,
                     variant: LinkVariant::Underline,
@@ -327,7 +329,7 @@ const LAYOUT_CSS: &str = "\
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, LAYOUT_CSS, REPO_URL};
+    use super::{demo, CONTINUE_SHOPPING_URL, LAYOUT_CSS};
     use fandhe_frontend_core::render;
 
     fn demo_html() -> String {
@@ -370,7 +372,7 @@ mod tests {
         assert!(!html.contains("type=\"submit\""));
         assert!(html.contains("../../assets/blocks-demo-product.svg"));
         assert!(html.contains("../../assets/blocks-demo-background.svg"));
-        assert!(html.contains(&format!("href=\"{REPO_URL}\"")));
+        assert!(html.contains(&format!("href=\"{CONTINUE_SHOPPING_URL}\"")));
     }
 
     #[test]
