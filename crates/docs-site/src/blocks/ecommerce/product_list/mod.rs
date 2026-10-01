@@ -10,6 +10,7 @@
 //! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
 mod product_list_bordered_grid;
+mod product_list_carousel;
 mod product_list_rich_cards;
 mod product_list_simple_grid;
 
@@ -20,5 +21,6 @@ pub(super) fn blocks() -> Vec<Block> {
         product_list_simple_grid::BLOCK,
         product_list_bordered_grid::BLOCK,
         product_list_rich_cards::BLOCK,
+        product_list_carousel::BLOCK,
     ]
 }

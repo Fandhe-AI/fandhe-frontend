@@ -2713,6 +2713,11 @@ source = "site/blocks/product-list-bordered-grid.md"
 path = "/blocks/product-list-bordered-grid/"
 
 [[section.group.page]]
+title = "product-list-carousel"
+source = "site/blocks/product-list-carousel.md"
+path = "/blocks/product-list-carousel/"
+
+[[section.group.page]]
 title = "product-list-rich-cards"
 source = "site/blocks/product-list-rich-cards.md"
 path = "/blocks/product-list-rich-cards/"
