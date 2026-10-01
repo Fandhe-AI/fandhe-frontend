@@ -9,10 +9,11 @@
 //! block ごとの追加経緯は git 履歴と PR を正とし、本コメントには書かない
 //! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
+mod category_carousel;
 mod category_grid_captioned;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![category_grid_captioned::BLOCK]
+    vec![category_carousel::BLOCK, category_grid_captioned::BLOCK]
 }
