@@ -258,28 +258,50 @@ fn size_options() -> Node {
 /// 在庫行・保証行で共有するチェック線アイコン（独自の単純な幾何形状。
 /// 実在アイコンセット・ブランドの意匠は持ち込まない）。装飾用途のため
 /// `aria-hidden` を付与する（[`IconProps::label`] を `None` のまま使う）。
+///
+/// `icon::icon` は呼び出し側が渡した `class` 属性を `drop_class_attr` で
+/// 無条件に除去するため、独自クラスでは [`LAYOUT_CSS`] の色規則が
+/// 当たらない（レビュー指摘対応）。`class` の代わりに `data-*` 属性を渡す
+/// （`drop_class_attr` の除去対象ではない）ことで属性セレクタから当て、
+/// `[data-scope="icon"][data-part="root"][data-blocks-*]` の形は
+/// `testimonial_quote_stats.rs`・`comparison_table.rs`・
+/// `auth_split_accent_panel.rs` 等の既存 icon 色付け block と同じ判断。
+/// `d="M4 12l5 5L20 6"` はオープンポリライン（チェックマーク）のため、
+/// `icon::icon` の既定 `fill="currentColor"` のままでは塗りつぶされて
+/// 三角形に見える（レビュー指摘対応）。`fill="none"` + `stroke="currentColor"`
+/// へ明示的に切り替える（`feed_upvote_cards.rs::vote_icon` と同じ判断）。
 fn check_icon() -> Node {
     icon::icon(
         &IconProps {
             size: Size::Sm,
             ..IconProps::default()
         },
-        vec![("class", "blocks-product-overview-featured-split-icon-stock")],
-        vec![el("path", vec![("d", "M4 12l5 5L20 6")], vec![])],
+        vec![("data-blocks-product-overview-featured-split-icon-stock", "")],
+        vec![el(
+            "path",
+            vec![
+                ("d", "M4 12l5 5L20 6"),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+                ("stroke-linecap", "round"),
+                ("stroke-linejoin", "round"),
+            ],
+            vec![],
+        )],
     )
 }
 
 /// 在庫行・保証行で共有する盾形アイコン（独自の単純な幾何形状）。
+/// `d` は `z` で閉じた単一パスのため、[`check_icon`] と異なり既定の
+/// `fill="currentColor"` のままでよい（塗りつぶし形状として意図通り）。
 fn shield_icon() -> Node {
     icon::icon(
         &IconProps {
             size: Size::Sm,
             ..IconProps::default()
         },
-        vec![(
-            "class",
-            "blocks-product-overview-featured-split-icon-warranty",
-        )],
+        vec![],
         vec![el(
             "path",
             vec![("d", "M12 3l7 3v6c0 5-3.5 8-7 9-3.5-1-7-4-7-9V6z")],
@@ -498,7 +520,7 @@ img[data-scope=\"image\"][data-blocks-product-overview-featured-split-image] {\n
 .blocks-product-overview-featured-split-option {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-product-overview-featured-split-option [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-product-overview-featured-split-stock,\n.blocks-product-overview-featured-split-warranty {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
-.blocks-product-overview-featured-split-icon-stock {\n  color: var(--fandhe-color-success);\n}\n\
+[data-scope=\"icon\"][data-part=\"root\"][data-blocks-product-overview-featured-split-icon-stock] {\n  color: var(--fandhe-color-success);\n}\n\
 [data-blocks-product-overview-featured-split-add] {\n  width: 100%;\n}\n\
 @media (min-width: 48rem) {\n  .blocks-product-overview-featured-split-layout {\n    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n    grid-template-areas: \"summary media\" \"details media\";\n    align-items: start;\n  }\n}\n";
 
