@@ -122,10 +122,11 @@ fn header(title: &'static str, lead: Option<&'static str>, sr_only: bool) -> Nod
             vec![text(lead)],
         ));
     }
-    div(
-        vec![("class", "blocks-incentives-icon-grid-header")],
-        children,
-    )
+    let mut wrapper_attrs = vec![("class", "blocks-incentives-icon-grid-header")];
+    if sr_only {
+        wrapper_attrs.push(("data-sr-only", ""));
+    }
+    div(wrapper_attrs, children)
 }
 
 /// 項目題名 + 説明（アイコン・カードの有無は呼び出し側が組み立てる）。

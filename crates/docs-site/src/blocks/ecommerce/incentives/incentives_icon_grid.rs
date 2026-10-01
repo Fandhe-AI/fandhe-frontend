@@ -25,9 +25,17 @@
 //! - **C**: 中央寄せ見出し + 中央寄せ（アイコン上・テキスト中央）3 件
 //! - **D**: アイコン左・文章右の横並び 3 件（`item::root` +
 //!   `item::media(ItemMediaVariant::Icon)` + `item::content`）
-//! - **E**: 淡色パネル（`--fandhe-color-bg-subtle`）内に中央見出し +
+//! - **E**: 淡色パネル（`--fandhe-color-bg-muted`）内に中央見出し +
 //!   装飾イラスト 4 点（[`fandhe_frontend_pre_styled_ui::image`]、
 //!   `alt=""` の装飾画像）
+//!
+//! パネル（E）・アイコン枠（B）の背景は `--fandhe-color-bg-subtle` では
+//! なく `--fandhe-color-bg-muted` を使う。Blocks デモ枠自身
+//! （`.blocks-demo`）が `--fandhe-color-bg-subtle` を背景に持つため、
+//! 同トークンのままだとパネル・アイコン枠がデモ背景に埋もれて境界が
+//! 見分けられない（イシュー #3050 PR #3505 レビュー指摘）。`bg-muted` は
+//! `bg-subtle` より 1 段濃い定義済みトークン（`theme.rs` の
+//! `DEFAULT_COLORS`）であり、デモ背景との対比を確保する。
 //!
 //! # 見出しレベル
 //!
@@ -46,6 +54,15 @@
 //! `heading::heading(H3, …, vec![visually_hidden::root(vec![], vec![text("…")])])`）。
 //! これにより見出し要素自体はアクセシビリティツリーに残りつつ、視覚的には
 //! 1px 四方へ縮小される。`h3` 自体が生む余白は `margin: 0` の CSS で潰す。
+//!
+//! `h3` を包む `.blocks-incentives-icon-grid-header` 自体は、中身が
+//! 1px に縮んでも親（`.blocks-incentives-icon-grid-instance`、
+//! `display: flex` + `gap`）の flex item であり続けるため、`gap` 分の
+//! 余白がそのまま残ってしまう（イシュー #3050 PR #3505 レビュー指摘）。
+//! sr-only のときはラッパー自身にも `data-sr-only` を付けて
+//! `position: absolute` にし、flex レイアウトから完全に外す
+//! （見た目は元から 1px なので位置の指定自体は無関係、flex item
+//! として数えられなくなることが目的）。
 //!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
@@ -189,10 +206,11 @@ fn header(title: &'static str, lead: Option<&'static str>, sr_only: bool) -> Nod
             vec![text(lead)],
         ));
     }
-    div(
-        vec![("class", "blocks-incentives-icon-grid-header")],
-        children,
-    )
+    let mut wrapper_attrs = vec![("class", "blocks-incentives-icon-grid-header")];
+    if sr_only {
+        wrapper_attrs.push(("data-sr-only", ""));
+    }
+    div(wrapper_attrs, children)
 }
 
 /// 項目題名 + 説明（アイコン・カードの有無は呼び出し側が組み立てる）。
@@ -496,8 +514,9 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-incentives-icon-grid-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n}\n\
 .blocks-incentives-icon-grid-instance {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  padding: var(--fandhe-space-6);\n  border-radius: var(--fandhe-radius-lg);\n  container-type: inline-size;\n  container-name: blocks-incentives-icon-grid;\n}\n\
-.blocks-incentives-icon-grid-instance[data-panel=\"subtle\"] {\n  background: var(--fandhe-color-bg-subtle);\n}\n\
+.blocks-incentives-icon-grid-instance[data-panel=\"subtle\"] {\n  background: var(--fandhe-color-bg-muted);\n}\n\
 .blocks-incentives-icon-grid-header {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  align-items: center;\n  text-align: center;\n  max-width: 40rem;\n  margin-inline: auto;\n}\n\
+.blocks-incentives-icon-grid-header[data-sr-only] {\n  position: absolute;\n}\n\
 h3[data-blocks-incentives-icon-grid-sr-heading] {\n  margin: 0;\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-incentives-icon-grid-lead] {\n  margin: 0;\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-incentives-icon-grid-note] {\n  margin: 0;\n  text-align: center;\n}\n\
@@ -505,7 +524,7 @@ h3[data-blocks-incentives-icon-grid-sr-heading] {\n  margin: 0;\n}\n\
 .blocks-incentives-icon-grid-instance[data-layout=\"rows\"] .blocks-incentives-icon-grid-grid {\n  grid-template-columns: minmax(0, 1fr);\n}\n\
 .blocks-incentives-icon-grid-item {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  min-width: 0;\n}\n\
 .blocks-incentives-icon-grid-item[data-align=\"center\"] {\n  align-items: center;\n  text-align: center;\n}\n\
-.blocks-incentives-icon-grid-badge {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  padding: var(--fandhe-space-3);\n  border-radius: var(--fandhe-radius-full);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
+.blocks-incentives-icon-grid-badge {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  padding: var(--fandhe-space-3);\n  border-radius: var(--fandhe-radius-full);\n  background: var(--fandhe-color-bg-muted);\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-incentives-icon-grid-desc] {\n  margin: 0;\n}\n\
 [data-blocks-incentives-icon-grid-card] {\n  height: 100%;\n}\n\
 [data-blocks-incentives-icon-grid-card-body] {\n  gap: var(--fandhe-space-3);\n}\n\
