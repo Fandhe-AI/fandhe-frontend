@@ -680,7 +680,12 @@ pub const BLOCK: Block = Block {
 ///
 /// `-body-side`/`-body-reverse` は `grid-template-areas` で画像グリッドと
 /// 購入パネルの左右配置・反転を切り替える（モジュール doc「3 版の並記」
-/// 節参照）。docs 本文幅（`--docs-max-content-width: 46rem`）の制約上
+/// 節参照）。`body` コンテナ（ギャラリー・購入パネルの共通親）が
+/// `blocks-product-overview-image-grid-stack` の flex スタックから独立する
+/// ため、`gap` は `body`（既定の縦積み・`-body-side` 共通の基準値）と
+/// `-body-side`（グリッド）・狭幅時の flex リセットの双方へ個別に明示する
+/// （PR #3522 Bugbot 指摘の是正。`stack` 側の `gap` は継承されない）。
+/// docs 本文幅（`--docs-max-content-width: 46rem`）の制約上
 /// `@container` の 2 カラム化しきい値は実質発火しないため、2 カラム化は
 /// 既定スタイルで行い、既存の `@container blocks-product-overview-image-grid
 /// (max-width: 40rem)` 内で縦積みへ戻す（新しいクエリは足さない）。
@@ -697,7 +702,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-product-overview-image-grid-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-product-overview-image-grid;\n}\n\
 .blocks-product-overview-image-grid-demo {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-product-overview-image-grid-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-.blocks-product-overview-image-grid-body-side {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  grid-template-areas: \"gallery panel\";\n  align-items: start;\n}\n\
+.blocks-product-overview-image-grid-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
+.blocks-product-overview-image-grid-body-side {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  grid-template-areas: \"gallery panel\";\n  align-items: start;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-product-overview-image-grid-body-side > .blocks-product-overview-image-grid-gallery {\n  grid-area: gallery;\n}\n\
 .blocks-product-overview-image-grid-body-side > .blocks-product-overview-image-grid-panel {\n  grid-area: panel;\n}\n\
 .blocks-product-overview-image-grid-body-reverse {\n  grid-template-areas: \"panel gallery\";\n}\n\
@@ -715,7 +721,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-product-overview-image-grid-gallery-uniform {\n    grid-template-columns: minmax(0, 1fr);\n  }\n  \
 [data-blocks-product-overview-image-grid-tile=\"hero\"] {\n    grid-column: auto;\n    grid-row: auto;\n  }\n  \
 [data-blocks-product-overview-image-grid-tile=\"wide\"] {\n    grid-column: auto;\n  }\n  \
-.blocks-product-overview-image-grid-body-side {\n    display: flex;\n    flex-direction: column;\n  }\n\
+.blocks-product-overview-image-grid-body-side {\n    display: flex;\n    flex-direction: column;\n    gap: var(--fandhe-space-6);\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -878,7 +884,7 @@ mod tests {
     #[test]
     fn layout_css_side_and_uniform_rules() {
         assert!(LAYOUT_CSS.contains(
-            ".blocks-product-overview-image-grid-body-side {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  grid-template-areas: \"gallery panel\";\n  align-items: start;\n}"
+            ".blocks-product-overview-image-grid-body-side {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  grid-template-areas: \"gallery panel\";\n  align-items: start;\n  gap: var(--fandhe-space-6);\n}"
         ));
         assert!(LAYOUT_CSS.contains(
             ".blocks-product-overview-image-grid-body-reverse {\n  grid-template-areas: \"panel gallery\";\n}"
@@ -890,7 +896,7 @@ mod tests {
             "@container blocks-product-overview-image-grid (max-width: 40rem) {\n  .blocks-product-overview-image-grid-gallery {\n    grid-template-columns: minmax(0, 1fr);\n  }\n  .blocks-product-overview-image-grid-gallery-uniform {\n    grid-template-columns: minmax(0, 1fr);\n  }"
         ));
         assert!(LAYOUT_CSS.contains(
-            ".blocks-product-overview-image-grid-body-side {\n    display: flex;\n    flex-direction: column;\n  }"
+            ".blocks-product-overview-image-grid-body-side {\n    display: flex;\n    flex-direction: column;\n    gap: var(--fandhe-space-6);\n  }"
         ));
     }
 
