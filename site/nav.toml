@@ -2417,6 +2417,11 @@ title = "settings-webhook-detail"
 source = "site/blocks/settings-webhook-detail.md"
 path = "/blocks/settings-webhook-detail/"
 
+[[section.group.page]]
+title = "settings-webhook-form"
+source = "site/blocks/settings-webhook-form.md"
+path = "/blocks/settings-webhook-form/"
+
 [[section.group]]
 title = "Action Panel"
 
