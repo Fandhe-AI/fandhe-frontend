@@ -672,6 +672,25 @@ fn panel_preview(label: &str, body: Node) -> Node {
     )
 }
 
+/// サイズガイド dialog のプレビュー併記（モジュール doc「代表構成」節
+/// 「『サイズガイド』を開いた場合のプレビュー」参照）。[`panel_preview`]
+/// とは見出し文言を分離する: 版 A のサイズガイドはタブ選択ではなく静的な
+/// `dialog` の開状態（モジュール doc「サイズガイドは静的な開状態・
+/// 非モーダル」節参照）であり、タブ用文言を流用すると実際の操作と見出しが
+/// 不一致になるため（Codex/Cursor Bugbot 指摘 是正）。
+fn dialog_preview(label: &str, body: Node) -> Node {
+    div(
+        vec![("class", "blocks-product-overview-gallery-split-preview")],
+        vec![
+            h3(
+                vec![],
+                vec![text(format!("「{label}」を開いた場合のプレビュー"))],
+            ),
+            body,
+        ],
+    )
+}
+
 /// 版 B: 静的タブ列 + 選択中「説明」パネル + 残り 3 タブのプレビュー併記
 /// （モジュール doc「実物の `tabs::tabs` を使わない」節参照）。
 fn details_tabs() -> Node {
@@ -710,7 +729,7 @@ fn details_tabs() -> Node {
                     },
                     vec![],
                     vec![text(
-                        "サイズ表（S〜XL の対応身長目安）を表示します。実際の表は代表構成（版 A）のサイズガイドを参照してください。",
+                        "サイズ表（S〜XL の頭囲目安）を表示します。実際の表は代表構成（版 A）のサイズガイドを参照してください。",
                     )],
                 ),
             ),
@@ -908,7 +927,7 @@ pub fn demo() -> Node {
         vec![
             caption("代表構成"),
             fandhe_frontend_core::section(vec![], vec![variant_a()]),
-            panel_preview("サイズガイド", size_guide_dialog()),
+            dialog_preview("サイズガイド", size_guide_dialog()),
             caption("縦サムネ列・タブ型詳細・評価なし"),
             fandhe_frontend_core::section(vec![], vec![variant_b()]),
             caption("単一画像・枚数表示・段落詳細・共有行"),

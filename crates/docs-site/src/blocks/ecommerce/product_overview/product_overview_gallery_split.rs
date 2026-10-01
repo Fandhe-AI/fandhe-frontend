@@ -815,6 +815,25 @@ fn panel_preview(label: &str, body: Node) -> Node {
     )
 }
 
+/// サイズガイド dialog のプレビュー併記（モジュール doc「代表構成」節
+/// 「『サイズガイド』を開いた場合のプレビュー」参照）。[`panel_preview`]
+/// とは見出し文言を分離する: 版 A のサイズガイドはタブ選択ではなく静的な
+/// `dialog` の開状態（モジュール doc「サイズガイドは静的な開状態・
+/// 非モーダル」節参照）であり、タブ用文言を流用すると実際の操作と見出しが
+/// 不一致になるため（Codex/Cursor Bugbot 指摘 是正）。
+fn dialog_preview(label: &str, body: Node) -> Node {
+    div(
+        vec![("class", "blocks-product-overview-gallery-split-preview")],
+        vec![
+            h3(
+                vec![],
+                vec![text(format!("「{label}」を開いた場合のプレビュー"))],
+            ),
+            body,
+        ],
+    )
+}
+
 /// 版 B: 静的タブ列 + 選択中「説明」パネル + 残り 3 タブのプレビュー併記
 /// （モジュール doc「実物の `tabs::tabs` を使わない」節参照）。
 fn details_tabs() -> Node {
@@ -853,7 +872,7 @@ fn details_tabs() -> Node {
                     },
                     vec![],
                     vec![text(
-                        "サイズ表（S〜XL の対応身長目安）を表示します。実際の表は代表構成（版 A）のサイズガイドを参照してください。",
+                        "サイズ表（S〜XL の頭囲目安）を表示します。実際の表は代表構成（版 A）のサイズガイドを参照してください。",
                     )],
                 ),
             ),
@@ -1051,7 +1070,7 @@ pub fn demo() -> Node {
         vec![
             caption("代表構成"),
             fandhe_frontend_core::section(vec![], vec![variant_a()]),
-            panel_preview("サイズガイド", size_guide_dialog()),
+            dialog_preview("サイズガイド", size_guide_dialog()),
             caption("縦サムネ列・タブ型詳細・評価なし"),
             fandhe_frontend_core::section(vec![], vec![variant_b()]),
             caption("単一画像・枚数表示・段落詳細・共有行"),
@@ -1145,6 +1164,17 @@ pub const BLOCK: Block = Block {
 /// （`--vertical` 修飾クラス）は `.thumbs` の `flex-direction` を
 /// `column` にするだけで、既存の `item`/`root` 上書きをそのまま使い回せる。
 ///
+/// # 縦サムネ列の `item-group` クリッパー `overflow: hidden` の中和
+///
+/// `carousel.rs` の既定 `item-group[data-orientation="vertical"]` 規則
+/// （詳細度 (0,3,0)、`height: 20rem` + `overflow: hidden` の静止クリッパー）
+/// は `.thumbs` 自身に付けた `overflow-y: auto`（詳細度 (0,1,0)）より強く
+/// カスケードで勝ち、縦サムネ列を固定高の単一枚スライドショー表示に
+/// してしまう（Cursor Bugbot 指摘 是正）。`.thumbs` クラスと `item-group`
+/// の属性セレクタを同一要素へ合成した詳細度 (0,4,0) の規則で
+/// `overflow-y`/`overflow-x` を上書きし、縦スクロール可能なサムネ列へ戻す
+/// （`height: 20rem` の固定枠自体は維持する）。
+///
 /// # サイズガイド dialog の中和
 ///
 /// `cart_dialog.rs`「固定オーバーレイのデモ枠内中和」節と同型の判断だが、
@@ -1173,6 +1203,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-product-overview-gallery-split-gallery--vertical .blocks-product-overview-gallery-split-thumbs {\n  flex-direction: column;\n}\n\
 .blocks-product-overview-gallery-split-thumbs {\n  display: flex;\n  flex-wrap: nowrap;\n  overflow-x: auto;\n  overflow-y: auto;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-product-overview-gallery-split-thumbs [data-scope=\"carousel\"][data-part=\"item\"] {\n  flex: 0 0 auto;\n  overflow: visible;\n}\n\
+.blocks-product-overview-gallery-split-thumbs[data-scope=\"carousel\"][data-part=\"item-group\"][data-orientation=\"vertical\"] {\n  overflow-y: auto;\n  overflow-x: hidden;\n}\n\
 .blocks-product-overview-gallery-split-gallery [data-scope=\"carousel\"][data-part=\"root\"] {\n  overflow: visible;\n}\n\
 img[data-scope=\"image\"][data-blocks-product-overview-gallery-split-thumb] {\n  width: 4rem;\n  height: 4rem;\n  flex-shrink: 0;\n}\n\
 img[data-scope=\"image\"][data-blocks-product-overview-gallery-split-main-image] {\n  width: 100%;\n}\n\
@@ -1286,6 +1317,17 @@ mod tests {
         ));
         assert!(LAYOUT_CSS.contains(
             ".blocks-product-overview-gallery-split-gallery [data-scope=\"carousel\"][data-part=\"root\"] {\n  overflow: visible;"
+        ));
+    }
+
+    /// Cursor Bugbot 指摘 是正の回帰: 縦サムネ列の `item-group` クリッパー
+    /// （`carousel.rs` 既定の `height: 20rem` + `overflow: hidden`、詳細度
+    /// (0,3,0)）に勝つ詳細度 (0,4,0) の上書きが存在し、縦スクロールを
+    /// 復元することを固定する。
+    #[test]
+    fn vertical_thumbs_item_group_overflow_is_overridden() {
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-product-overview-gallery-split-thumbs[data-scope=\"carousel\"][data-part=\"item-group\"][data-orientation=\"vertical\"] {\n  overflow-y: auto;\n  overflow-x: hidden;\n}"
         ));
     }
 
