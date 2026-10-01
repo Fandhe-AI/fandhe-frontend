@@ -2718,6 +2718,14 @@ source = "site/blocks/category-grid-overlay.md"
 path = "/blocks/category-grid-overlay/"
 
 [[section.group]]
+title = "Filter"
+
+[[section.group.page]]
+title = "filter-overlay-panel"
+source = "site/blocks/filter-overlay-panel.md"
+path = "/blocks/filter-overlay-panel/"
+
+[[section.group]]
 title = "Cart"
 
 [[section.group.page]]
