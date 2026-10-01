@@ -314,11 +314,17 @@ fn panel() -> Node {
 
 /// `filter-expandable-panel` の Demo 本体。呼び出しごとに同一の `Node` を
 /// 返す純関数。
+///
+/// ルート class（`-layout`）は [`Block::demo_class`]（`insert_generated_sections`
+/// が外側 `.blocks-demo` へ付与する）とは別名にする。同名にすると
+/// [`LAYOUT_CSS`] の `display: flex`・`container-type` 等のレイアウト規則が
+/// 外側の共通 Demo 枠にも二重適用されてしまうため（他 block と同型の分離、
+/// `docs/design/docs-site-blocks-section.md` 参照）。
 pub fn demo() -> Node {
     collapsible::root(
         OpenState::Open,
         false,
-        vec![("class", "blocks-filter-expandable-panel")],
+        vec![("class", "blocks-filter-expandable-panel-layout")],
         vec![bar(), panel()],
     )
 }

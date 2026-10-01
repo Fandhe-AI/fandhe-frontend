@@ -353,11 +353,17 @@ fn panel() -> Node {
 
 /// `filter-expandable-panel` の Demo 本体。呼び出しごとに同一の `Node` を
 /// 返す純関数。
+///
+/// ルート class（`-layout`）は [`Block::demo_class`]（`insert_generated_sections`
+/// が外側 `.blocks-demo` へ付与する）とは別名にする。同名にすると
+/// [`LAYOUT_CSS`] の `display: flex`・`container-type` 等のレイアウト規則が
+/// 外側の共通 Demo 枠にも二重適用されてしまうため（他 block と同型の分離、
+/// `docs/design/docs-site-blocks-section.md` 参照）。
 pub fn demo() -> Node {
     collapsible::root(
         OpenState::Open,
         false,
-        vec![("class", "blocks-filter-expandable-panel")],
+        vec![("class", "blocks-filter-expandable-panel-layout")],
         vec![bar(), panel()],
     )
 }
@@ -404,8 +410,11 @@ pub const BLOCK: Block = Block {
 /// 使用）。セレクタは `.blocks-filter-expandable-panel-*` /
 /// `[data-blocks-filter-expandable-panel-*]`、および styled 部品の
 /// `[data-scope][data-part]` セレクタとの複合セレクタのみを用いる。
+/// ルート class（`-layout`）は [`Block::demo_class`]
+/// （`blocks-filter-expandable-panel`）と異なる名前にする（他 block と
+/// 同型の分離、[`demo`] の doc コメント参照）。
 const LAYOUT_CSS: &str = "\
-.blocks-filter-expandable-panel {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  container-type: inline-size;\n  container-name: blocks-filter-expandable-panel;\n}\n\
+.blocks-filter-expandable-panel-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  container-type: inline-size;\n  container-name: blocks-filter-expandable-panel;\n}\n\
 .blocks-filter-expandable-panel-bar {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-filter-expandable-panel-bar-start {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-filter-expandable-panel-count {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n}\n\
@@ -544,6 +553,19 @@ mod tests {
                 .matches("@container blocks-filter-expandable-panel (min-width:")
                 .count(),
             2
+        );
+    }
+
+    /// ルート class（`-layout`）が `demo_class` と別名であること。同名だと
+    /// `insert_generated_sections` が外側 `.blocks-demo` へ付与する
+    /// `demo_class` と衝突し、[`LAYOUT_CSS`] のレイアウト規則が共通 Demo
+    /// 枠にも二重適用されてしまう（他 block と同型の回帰防止）。
+    #[test]
+    fn layout_root_class_differs_from_demo_class() {
+        assert!(LAYOUT_CSS.contains(".blocks-filter-expandable-panel-layout {"));
+        assert_ne!(
+            super::BLOCK.demo_class,
+            "blocks-filter-expandable-panel-layout"
         );
     }
 }
