@@ -101,6 +101,7 @@ use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
 use fandhe_frontend_pre_styled_ui::menu::{self, OpenState};
 use fandhe_frontend_pre_styled_ui::switch::{self, SwitchProps};
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps};
+use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
 /// 宛先 URL（架空、実在サービスを模さない）。
@@ -260,6 +261,11 @@ fn overview_card() -> Node {
 /// `clipboard::root` 呼び出し）、版 B は伏せ字の `code::code` + 無効化済み
 /// 「再生成」ボタンに差し替える（モジュール doc「版 A・B と集約元の対応」
 /// 節参照）。
+///
+/// 版 A の `clipboard::label` は見出し（h4 「署名シークレット」）と同じ
+/// 文言だと画面上に重複表示されるため、`visually_hidden::root` で視覚的に
+/// 隠しつつ `<label for>` の関連付けは保持する（支援技術には読み上げられ
+/// 続ける。版 B が見出しのみの表示と一貫する）。
 fn secret_card(v: Variant) -> Node {
     let body = match v {
         Variant::A => {
@@ -273,7 +279,7 @@ fn secret_card(v: Variant) -> Node {
                         false,
                         Some(input_id),
                         vec![],
-                        vec![text("署名シークレット")],
+                        vec![visually_hidden::root(vec![], vec![text("署名シークレット")])],
                     ),
                     clipboard::control(
                         false,
