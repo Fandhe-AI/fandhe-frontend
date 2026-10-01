@@ -8,8 +8,8 @@
 //!
 //! # 使用部品
 //!
-//! `heading` / `text` / `button` / `image` / `link` / `separator` の
-//! 6 部品を合成する（[`BLOCK`] の `parts` に一致させる契約）。
+//! `heading` / `text` / `image` / `link` / `separator` の 5 部品を合成する
+//! （[`BLOCK`] の `parts` に一致させる契約）。
 //!
 //! # オファー見出しを `heading` ではなく `text` で表す理由
 //!
@@ -42,24 +42,28 @@
 //!
 //! # `drop_class_attr` を踏まえた CSS フックの選び方
 //!
-//! `heading::heading` / `styled_text::text` / `button::button` /
-//! `image::image` / `link::root` / `separator::separator` はいずれも
-//! `drop_class_attr` により呼び出し側 `attrs` の `class` を黙って除去する
-//! 契約を持つため、本 block 固有のフックは `data-blocks-promo-offers-
-//! split-*` 属性で渡す。素の `div`/`section` には `class` がそのまま
-//! 効くため `.blocks-promo-offers-split-*` クラスセレクタを使う。
+//! `heading::heading` / `styled_text::text` / `image::image` /
+//! `link::root` / `separator::separator` はいずれも `drop_class_attr`
+//! により呼び出し側 `attrs` の `class` を黙って除去する契約を持つため、
+//! 本 block 固有のフックは `data-blocks-promo-offers-split-*` 属性で渡す。
+//! 素の `div`/`section` には `class` がそのまま効くため
+//! `.blocks-promo-offers-split-*` クラスセレクタを使う。
 //!
-//! # リンク先の方針
+//! # リンク先の方針・CTA をボタン風リンクにする理由
 //!
 //! 既存 block と同じく、外部の絶対 URL
 //! `https://github.com/Fandhe-AI/fandhe-frontend` をオファーリンク・CTA
-//! ボタンの行き先として使う。`href="#"` の死リンクは使わない。
+//! の行き先として使う。`href="#"` の死リンクは使わない。`button::button`
+//! は `<button type="button">` のみを出力し `href` を持たない
+//! （`button` モジュール rustdoc）ため、実際に遷移させる CTA は
+//! `footer_cta_columns::cta_section` と同じ解法で `link::root` を
+//! ボタン風の外見（[`LAYOUT_CSS`] の `[data-blocks-promo-offers-split-cta]`）
+//! で装飾して描く。
 //!
 //! # `<form>` を使わない・実データを持たない
 //!
 //! `crate::blocks` モジュール doc の不変条件どおり、本 Demo は `<form>` を
-//! 出力しない。CTA ボタンは `button::button` の既定 `type="button"` の
-//! まま用いる。状態を持たない静的な表示のみで、送信処理・データ取得は
+//! 出力しない。状態を持たない静的な表示のみで、送信処理・データ取得は
 //! 一切行わない。オファー文言・リード文はすべて架空のものであり、実企業名・
 //! 実サービス名・実クレデンシャル・PII を含まない。画像は
 //! `dummy_assets::PRODUCT_SRC`（ビルド時生成のモノトーンプレースホルダー
@@ -70,7 +74,6 @@ use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 // blocks-code:begin
 use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, section, text, Node};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
 use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::image::{self, ImageProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
@@ -187,8 +190,9 @@ fn split() -> Node {
                             "対象商品のご購入で、上段 3 つの特典をすべて自動的に適用します。",
                         )],
                     ),
-                    button::button(
-                        &ButtonProps::default(),
+                    link::root(
+                        REPO,
+                        &LinkProps::default(),
                         vec![("data-blocks-promo-offers-split-cta", "")],
                         vec![text("対象商品を見る")],
                     ),
@@ -229,10 +233,6 @@ pub const BLOCK: Block = Block {
             path: "/themes/text/",
         },
         Part {
-            label: "Button",
-            path: "/themes/button/",
-        },
-        Part {
             label: "Image",
             path: "/themes/image/",
         },
@@ -262,6 +262,9 @@ const LAYOUT_CSS: &str = "\
 .blocks-promo-offers-split-split {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-promo-offers-split-content {\n  display: grid;\n  gap: var(--fandhe-space-4);\n  align-content: start;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-promo-offers-split-image] {\n  width: 100%;\n  display: block;\n  border-radius: var(--fandhe-radius-lg);\n}\n\
+[data-blocks-promo-offers-split-cta] {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  padding: 0.75rem 1.5rem;\n  border-radius: var(--fandhe-radius-md, 0.375rem);\n  background: var(--fandhe-color-accent);\n  text-decoration: none;\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n  width: fit-content;\n}\n\
+[data-scope=\"link\"][data-part=\"root\"][data-blocks-promo-offers-split-cta] {\n  color: var(--fandhe-color-accent-fg);\n}\n\
+[data-blocks-promo-offers-split-cta]:hover {\n  opacity: 0.9;\n}\n\
 @media (min-width: 64rem) {\n  \
 .blocks-promo-offers-split-offers {\n    grid-template-columns: 1fr auto 1fr auto 1fr;\n    align-items: stretch;\n  }\n  \
 [data-scope=\"separator\"][data-blocks-promo-offers-split-divider=\"horizontal\"] {\n    display: none;\n  }\n  \
@@ -308,6 +311,11 @@ mod tests {
             );
         }
         assert!(html.contains(dummy_assets::PRODUCT_SRC));
+        assert_eq!(
+            html.matches(&format!("href=\"{REPO}\"")).count(),
+            4,
+            "should render exactly 4 links to REPO (3 offers + 1 CTA)"
+        );
         for hook in [
             "data-blocks-promo-offers-split-offer-title",
             "data-blocks-promo-offers-split-offer-desc",
@@ -339,6 +347,8 @@ mod tests {
             ".blocks-promo-offers-split-split {",
             ".blocks-promo-offers-split-content {",
             "[data-scope=\"image\"][data-part=\"root\"][data-blocks-promo-offers-split-image] {",
+            "[data-blocks-promo-offers-split-cta] {",
+            "[data-scope=\"link\"][data-part=\"root\"][data-blocks-promo-offers-split-cta] {",
             "@media (min-width: 64rem) {",
         ] {
             assert!(

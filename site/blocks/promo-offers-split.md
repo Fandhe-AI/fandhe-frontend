@@ -2,7 +2,7 @@
 
 上段にオファー 3 件を横に並べた帯（各オファーは短い見出しと説明をまとめた
 1 個のリンク）、下段に左テキスト・右画像の 2 列を置くブロックです。
-`heading` / `text` / `button` / `image` / `link` / `separator` の 6 部品を
+`heading` / `text` / `image` / `link` / `separator` の 5 部品を
 合成します。Blocks は既存部品の合成例であり、新しい UI 部品は追加しません。
 
 主参照は対応表 ID R1200 です。
@@ -19,7 +19,6 @@ SVG です。
 ```rust
 use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, section, text, Node};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
 use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::image::{self, ImageProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
@@ -136,8 +135,9 @@ fn split() -> Node {
                             "対象商品のご購入で、上段 3 つの特典をすべて自動的に適用します。",
                         )],
                     ),
-                    button::button(
-                        &ButtonProps::default(),
+                    link::root(
+                        REPO,
+                        &LinkProps::default(),
                         vec![("data-blocks-promo-offers-split-cta", "")],
                         vec![text("対象商品を見る")],
                     ),
@@ -184,5 +184,5 @@ pub fn demo() -> Node {
   リテラル値です。
 
 関連情報: [Heading](../themes/heading.md) / [Text](../themes/text.md) /
-[Button](../themes/button.md) / [Image](../themes/image.md) /
+[Image](../themes/image.md) /
 [Link](../themes/link.md) / [Separator](../themes/separator.md)
