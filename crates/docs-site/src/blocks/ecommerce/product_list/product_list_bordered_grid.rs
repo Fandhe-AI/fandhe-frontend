@@ -388,7 +388,11 @@ pub const BLOCK: Block = Block {
 /// Demo 枠の幅はビューポート幅と一致しないため、コンテナクエリで判定する
 /// （`product_overview_image_grid`/`cart_two_column_summary` と同型）。
 /// 既定 2 列、コンテナ幅 48rem 以上で 4 列へ切り替える。3 列段は商品 8 件に
-/// 対して端数が出るため設けない。
+/// 対して端数が出るため設けない。コンテナクエリは自分自身のサイズを基準に
+/// 自分自身を再スタイルできない（コンテナは子孫にのみ適用される）ため、
+/// `container-type`/`container-name` は祖先の `.blocks-product-list-
+/// bordered-grid` へ宣言し、`@container` では名前付きコンテナを介して
+/// 子孫の `.blocks-product-list-bordered-grid-grid` を判定対象にする。
 ///
 /// # `image::image` root への `width`/`display` 上書きは block 専用属性で限定する
 ///
@@ -399,10 +403,10 @@ pub const BLOCK: Block = Block {
 /// 本 block専用の `data-blocks-product-list-bordered-grid-image` 属性で
 /// セレクタを限定する。
 const LAYOUT_CSS: &str = "\
-.blocks-product-list-bordered-grid {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
+.blocks-product-list-bordered-grid {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n  container-type: inline-size;\n  container-name: blocks-product-list-bordered-grid;\n}\n\
 .blocks-product-list-bordered-grid-intro {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  flex-wrap: wrap;\n  gap: 1rem;\n}\n\
-.blocks-product-list-bordered-grid-grid {\n  container-type: inline-size;\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 0;\n  border-top: 1px solid var(--fandhe-color-border);\n  border-left: 1px solid var(--fandhe-color-border);\n}\n\
-@container (min-width: 48rem) {\n  .blocks-product-list-bordered-grid-grid {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n}\n\
+.blocks-product-list-bordered-grid-grid {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 0;\n  border-top: 1px solid var(--fandhe-color-border);\n  border-left: 1px solid var(--fandhe-color-border);\n}\n\
+@container blocks-product-list-bordered-grid (min-width: 48rem) {\n  .blocks-product-list-bordered-grid-grid {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n}\n\
 [data-scope=\"link-overlay\"][data-part=\"root\"][data-blocks-product-list-bordered-grid-item] {\n  display: grid;\n  justify-items: center;\n  text-align: center;\n  gap: var(--fandhe-space-2);\n  padding: var(--fandhe-space-4);\n  border-right: 1px solid var(--fandhe-color-border);\n  border-bottom: 1px solid var(--fandhe-color-border);\n  border-radius: 0;\n}\n\
 [data-scope=\"link-overlay\"][data-part=\"root\"][data-blocks-product-list-bordered-grid-item]:hover [data-blocks-product-list-bordered-grid-name] {\n  text-decoration: underline;\n}\n\
 .blocks-product-list-bordered-grid-rating-row {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: var(--fandhe-space-2);\n}\n\
@@ -499,7 +503,7 @@ mod tests {
             ".blocks-product-list-bordered-grid {",
             ".blocks-product-list-bordered-grid-intro {",
             ".blocks-product-list-bordered-grid-grid {",
-            "@container (min-width: 48rem) {",
+            "@container blocks-product-list-bordered-grid (min-width: 48rem) {",
             "[data-scope=\"link-overlay\"][data-part=\"root\"][data-blocks-product-list-bordered-grid-item] {",
             "[data-scope=\"image\"][data-part=\"root\"][data-blocks-product-list-bordered-grid-image] {",
         ] {
