@@ -8,10 +8,10 @@
 1 件のみで差分なし。出典の固有名・ファイル名は記載しません）。
 
 上部に見出し、続いて列見出し行（商品 / 数量 / 価格 / 合計）、同じ列割りの
-商品行を 3 件、区切り線、明細下に小計・合計と購入手続きボタン（右寄せ）を
-配置しています。狭い幅（`40rem` 以下）では列見出し行を隠し、各行を
-「商品画像 | 商品情報・数量・価格・合計」の 2 段組みへ組み替えます（数量・
-価格・合計は商品情報と同じ列の開始位置に揃えます）。この
+商品行を 3 件、区切り線、明細下に小計・送料・合計と税込注記・購入手続き
+ボタン（右寄せ）を配置しています。狭い幅（`40rem` 以下）では列見出し行を
+隠し、各行を「商品画像 | 商品情報・数量・価格・合計」の 2 段組みへ組み
+替えます（数量・価格・合計は商品情報と同じ列の開始位置に揃えます）。この
 とき各セルには列名ラベルを表示し、列見出しが隠れても値の意味が失われない
 ようにしています。列見出しが見えている広い幅でも、各セルの列名ラベルは
 視覚的にのみ隠して DOM 上に残すため、スクリーンリーダーは値の直前に列名
@@ -19,16 +19,18 @@
 `<table>`/`<th>`/`<td>` へは置き換えず、`div`/`span` 構造のまま WAI-ARIA
 `table`/`rowgroup`/`row`/`columnheader`/`cell` ロールを付与し、支援技術の
 テーブルナビゲーションで行数・現在位置・列見出しとの関連を把握できるように
-しています。
+しています。商品情報には在庫状況（「在庫あり」「残り 2 点」等）と行削除
+ボタンも並べて表示しています。
 
 本 Demo は静的な表示例であり、`<form>` 要素は一切持たず、データの取得・
 送信・状態管理を行いません。docs-site は無 JS のため選択に応じた再計算は
 できず、数量の `native-select` は `disabled` にして初期状態（1 個）の
 まま固定表示します（変更可能に見えて金額が追従しない不整合を避けるため）。
-購入手続きボタンは `type="button"` のまま送信先を持ちません。商品名・
-バリエーション・価格はすべて独自に書いた架空のものであり、実企業名・実商品・
-PII を含みません。行削除操作・送料/税/割引の追加サマリ行・在庫状況等の
-状態表示は後続イシューで追加予定です。
+行削除ボタンも同じ理由で `disabled` にしており、押しても行・小計は
+変化しません。購入手続きボタンは `type="button"` のまま送信先を持ちません。
+商品名・バリエーション・価格・在庫状況はすべて独自に書いた架空のもので
+あり、実企業名・実商品・PII を含みません。空カート状態・割引行は本
+block の対象外です。
 
 ## Rust コード
 
@@ -40,8 +42,9 @@ use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataLi
 use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::image::{self, ImageFit, ImageProps, ImageShape};
 use fandhe_frontend_pre_styled_ui::native_select::{self, FieldIds, FieldProps, NativeSelectProps};
+use fandhe_frontend_pre_styled_ui::recipe::Size;
 use fandhe_frontend_pre_styled_ui::separator::{self, SeparatorProps};
-use fandhe_frontend_pre_styled_ui::text::{self, TextProps, TextVariant, TextWeight};
+use fandhe_frontend_pre_styled_ui::text::{self, TextProps, TextSize, TextVariant, TextWeight};
 
 /// カート明細行 1 件分の架空データ。
 struct LineItem {
@@ -53,6 +56,10 @@ struct LineItem {
     variant: &'static str,
     unit_price: &'static str,
     total_price: &'static str,
+    /// 在庫状況の表示文言（[`stock_status`]。「在庫あり」/「残り N 点」等、
+    /// 在庫わずかの状態を 1 行以上に混在させて状態違いを示す。合計値に
+    /// 影響しないため在庫切れ行は作らない、#3029）。
+    stock: &'static str,
 }
 
 /// 明細 3 行（小計はこの 3 行の `total_price` の和と手で一致させている）。
@@ -63,6 +70,7 @@ const LINE_ITEMS: &[LineItem] = &[
         variant: "ネイビー / M",
         unit_price: "¥5,800",
         total_price: "¥5,800",
+        stock: "在庫あり",
     },
     LineItem {
         row: "2",
@@ -70,6 +78,7 @@ const LINE_ITEMS: &[LineItem] = &[
         variant: "ベージュ / L",
         unit_price: "¥6,200",
         total_price: "¥6,200",
+        stock: "在庫あり",
     },
     LineItem {
         row: "3",
@@ -77,6 +86,7 @@ const LINE_ITEMS: &[LineItem] = &[
         variant: "オフホワイト",
         unit_price: "¥3,400",
         total_price: "¥3,400",
+        stock: "残り 2 点",
     },
 ];
 
@@ -142,7 +152,45 @@ fn product_thumbnail() -> Node {
     )
 }
 
-/// 商品名・バリエーションの情報列。
+/// 在庫状況（`text::text` Muted/Sm）。`class` は剥離されるため
+/// （モジュール doc「`text` の `class` 剥離への対応」節参照）レイアウト
+/// フックには使わず、代わりに `data-blocks-cart-line-item-table-stock`
+/// 属性（`attrs` 経由、`class` と異なり剥離されない）を付けて、他部品と
+/// 同様にテスト・将来の CSS フックの対象として識別できるようにする。
+fn stock_status(stock: &'static str) -> Node {
+    text::text(
+        &TextProps {
+            variant: TextVariant::Muted,
+            size: TextSize::Sm,
+            ..TextProps::default()
+        },
+        vec![("data-blocks-cart-line-item-table-stock", "")],
+        vec![text(stock)],
+    )
+}
+
+/// 行削除ボタン（[`button::button`]）。モジュール doc「静的表示・`<form>`
+/// を使わない」節のとおり `disabled` にし、無 JS で押しても行・小計が
+/// 追従しない不整合を避ける。可視ラベル「削除」に加え、行ごとに異なる
+/// `aria-label` を持たせて同一ページ内の複数「削除」ボタンを区別する
+/// （数量 select の `aria-label` と同じ判断軸）。
+fn remove_button(item: &LineItem) -> Node {
+    let aria_label = format!("{} をカートから削除", item.name);
+    button::button(
+        &ButtonProps {
+            variant: ButtonVariant::Ghost,
+            size: Size::Sm,
+            disabled: true,
+            ..ButtonProps::default()
+        },
+        vec![("aria-label", aria_label.as_str())],
+        vec![text("削除")],
+    )
+}
+
+/// 商品名・バリエーション・在庫状況・削除ボタンの情報列。`role="table"`
+/// の 4 列・12 セル構造（[`role_table_wrapper`]）を変えないため、削除
+/// ボタンは独立セルにせず商品セル内のこの列へまとめて置く（#3029）。
 fn product_info(item: &LineItem) -> Node {
     div(
         vec![("class", "blocks-cart-line-item-table-info")],
@@ -163,6 +211,8 @@ fn product_info(item: &LineItem) -> Node {
                 vec![],
                 vec![text(item.variant)],
             ),
+            stock_status(item.stock),
+            remove_button(item),
         ],
     )
 }
@@ -320,8 +370,9 @@ fn role_table_wrapper() -> Node {
     )
 }
 
-/// 小計・合計 + 購入手続きボタン（右寄せ）。小計・合計は税送料を含まない
-/// 明細合計のみ（送料・税・割引行は #3029 で追加予定）。
+/// 小計・送料・合計 + 税込注記 + 購入手続きボタン（右寄せ）。小計
+/// （¥15,400）+ 送料（¥600）= 合計（¥16,000）で値を手で一致させている。
+/// 割引行は親仕様（#3027）にないため追加しない（#3029）。
 fn summary() -> Node {
     let subtotal_item = data_list::item(
         vec![],
@@ -330,11 +381,18 @@ fn summary() -> Node {
             data_list::item_value(vec![], vec![text("¥15,400")]),
         ],
     );
+    let shipping_item = data_list::item(
+        vec![],
+        vec![
+            data_list::item_label(vec![], vec![text("送料")]),
+            data_list::item_value(vec![], vec![text("¥600")]),
+        ],
+    );
     let total_item = data_list::item(
         vec![],
         vec![
             data_list::item_label(vec![], vec![text("合計")]),
-            data_list::item_value(vec![], vec![text("¥15,400")]),
+            data_list::item_value(vec![], vec![text("¥16,000")]),
         ],
     );
     let list = data_list::root(
@@ -343,7 +401,16 @@ fn summary() -> Node {
             ..DataListProps::default()
         },
         vec![],
-        vec![subtotal_item, total_item],
+        vec![subtotal_item, shipping_item, total_item],
+    );
+    let tax_note = text::text(
+        &TextProps {
+            variant: TextVariant::Muted,
+            size: TextSize::Sm,
+            ..TextProps::default()
+        },
+        vec![],
+        vec![text("価格はすべて税込です。")],
     );
     let checkout_button = button::button(
         &ButtonProps {
@@ -355,7 +422,7 @@ fn summary() -> Node {
     );
     div(
         vec![("class", "blocks-cart-line-item-table-summary")],
-        vec![list, checkout_button],
+        vec![list, tax_note, checkout_button],
     )
 }
 
@@ -378,12 +445,13 @@ pub fn demo() -> Node {
 ## 原案差分メモ
 
 - 主参照 R0325 のみを集約元としており、他ファイルとの差分はありません。
-- 行削除操作、送料・税・割引などの追加サマリ行、在庫状況等の状態表示は
-  本イシュー（#3028）のスコープ外であり、後続イシュー #3029 で追加予定
-  です。
-- 実データ取得・数量変更・購入手続きは行わず、静的な初期状態のみを示し
-  ます。商品名・バリエーション・価格・小計・合計はすべて独自の架空データ
-  であり、小計・合計は明細 3 行の和と手で一致させています。
+- 親 #3027 は規模 L のため #3028（骨格・主要領域・登録一式）/ #3029
+  （行削除・送料行・在庫状況等の残り領域と原稿仕上げ）へ 2 分割して実装
+  しました。空カート状態・割引行は親仕様にないため対象外です。
+- 実データ取得・数量変更・行削除・購入手続きは行わず、静的な初期状態の
+  みを示します。商品名・バリエーション・価格・在庫状況・小計・送料・
+  合計はすべて独自の架空データであり、小計（¥15,400）+ 送料（¥600）=
+  合計（¥16,000）と手で一致させています。
 - ブラウザでの実機確認（`40rem` 前後のコンテナ幅切替・ライト/ダーク両
   テーマ）はサンドボックス制約により未実施です。cargo test による出力
   検証のみで代替しました。
