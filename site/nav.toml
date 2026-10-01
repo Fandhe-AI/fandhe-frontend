@@ -2753,6 +2753,11 @@ title = "checkout-form-summary-split"
 source = "site/blocks/checkout-form-summary-split.md"
 path = "/blocks/checkout-form-summary-split/"
 
+[[section.group.page]]
+title = "checkout-step-sections"
+source = "site/blocks/checkout-step-sections.md"
+path = "/blocks/checkout-step-sections/"
+
 [[section.group]]
 title = "Order"
 

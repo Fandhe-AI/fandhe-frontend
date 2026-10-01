@@ -10,9 +10,13 @@
 //! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
 mod checkout_form_summary_split;
+mod checkout_step_sections;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![checkout_form_summary_split::BLOCK]
+    vec![
+        checkout_form_summary_split::BLOCK,
+        checkout_step_sections::BLOCK,
+    ]
 }
