@@ -15,7 +15,8 @@
 本 Demo は無 JS の静的表示のみであり、`<form>` を含みません。並び替え
 menu・行末の操作 menu はいずれも `disabled: true` で固定した閉じた
 `menu` です（操作しても開閉が追従できないため）。招待ボタンは送信先を
-持たない通常のボタン（`type="button"`）です。
+持たず、検索欄は絞り込み処理を持たないため、いずれも無効化（`disabled`）
+して表示します。
 
 コンテナ幅が 47.99rem 未満になると、メール列と追加日列が隠れます。
 氏名・ロール・操作の 3 列は常に到達可能なまま残ります。
@@ -142,20 +143,22 @@ fn email_for(name: &str) -> String {
 }
 
 /// 検索欄（`input-group` + `input type="search"`、`aria-label` のみで
-/// ラベル付け、モジュール doc「使用部品」節参照）。
+/// ラベル付け、モジュール doc「使用部品」節参照）。絞り込み処理を持たない
+/// 静的 Demo のため `disabled: true` 固定（モジュール doc「無 JS のため...
+/// disabled 固定」節参照）。
 fn search_field(version: &str) -> Node {
     let field_id = format!("blocks-settings-team-table-{version}-search");
     let field = FieldProps {
         id: &field_id,
         ids: FieldIds::default(),
-        disabled: false,
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
         has_helper_text: false,
     };
     let group_props = InputGroupProps {
-        disabled: false,
+        disabled: true,
         invalid: false,
     };
     input_group::root(

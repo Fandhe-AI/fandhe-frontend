@@ -33,15 +33,17 @@
 //! （`settings_api_keys_table.rs` と同型）。`氏名`/`ロール`/`操作` の 3 列は
 //! 常に到達可能なまま残す（操作到達性を優先する、同ファイルと同じ判断軸）。
 //!
-//! # 無 JS のため並び替え menu・操作 menu・招待ボタンは disabled 固定
+//! # 無 JS のため検索欄・並び替え menu・操作 menu・招待ボタンは disabled 固定
 //!
 //! 本 Demo は無 JS の docs サイトで静的な初期状態のみを示す。押しても
 //! 何も起きない要素を操作可能に見せないため、`menu::trigger` の
 //! `disabled: true`（第 2 引数）を固定し、`[data-disabled]` の既定
 //! `opacity: 0.5; cursor: not-allowed;` は中和しない（`list_people.rs`
-//! 「`menu`/ボタンを disabled に固定する理由」節と同じ判断。招待ボタンは
-//! 送信先を持たない静的ボタンのため `type="button"` の既定のまま有効
-//! 表示とし、無効化はしない）。
+//! 「`menu`/ボタンを disabled に固定する理由」節と同じ判断）。招待ボタンは
+//! 送信先を持たないため `disabled: true`（`settings_share_members.rs::
+//! invite_section` と同じ扱い）、検索欄は絞り込み処理を持たないため
+//! `FieldProps`/`InputGroupProps` の `disabled: true`（ネイティブ `disabled`
+//! と `data-disabled` を付与）とする。
 //!
 //! # `menu`/検索欄 `id` をページ内・版内で一意にする理由
 //!
@@ -196,20 +198,22 @@ fn email_for(name: &str) -> String {
 }
 
 /// 検索欄（`input-group` + `input type="search"`、`aria-label` のみで
-/// ラベル付け、モジュール doc「使用部品」節参照）。
+/// ラベル付け、モジュール doc「使用部品」節参照）。絞り込み処理を持たない
+/// 静的 Demo のため `disabled: true` 固定（モジュール doc「無 JS のため...
+/// disabled 固定」節参照）。
 fn search_field(version: &str) -> Node {
     let field_id = format!("blocks-settings-team-table-{version}-search");
     let field = FieldProps {
         id: &field_id,
         ids: FieldIds::default(),
-        disabled: false,
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
         has_helper_text: false,
     };
     let group_props = InputGroupProps {
-        disabled: false,
+        disabled: true,
         invalid: false,
     };
     input_group::root(
@@ -581,6 +585,32 @@ mod tests {
         assert!(media_body.contains("[data-blocks-settings-team-table-secondary]"));
         assert!(media_body.contains("display: none;"));
         assert!(!LAYOUT_CSS.contains("-person] {\n    display: none"));
+    }
+
+    #[test]
+    fn search_field_and_invite_button_are_disabled() {
+        let html = render(&search_field("a"));
+        assert!(html.contains("type=\"search\""));
+        assert!(
+            html.contains("disabled=\"\""),
+            "search input should be natively disabled"
+        );
+        assert!(
+            html.contains("data-disabled=\"\""),
+            "search field should carry data-disabled"
+        );
+        let toolbar_html = render(&toolbar("b", false));
+        let label = toolbar_html
+            .find("メンバーを招待")
+            .expect("invite button should exist");
+        let tag_start = toolbar_html[..label]
+            .rfind("<button")
+            .expect("invite label should be inside a button");
+        let invite_tag = &toolbar_html[tag_start..label];
+        assert!(
+            invite_tag.contains("disabled=\"\""),
+            "invite button should be disabled: {invite_tag}"
+        );
     }
 
     #[test]
