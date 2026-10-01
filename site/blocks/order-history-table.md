@@ -8,18 +8,19 @@
 注文ごとにサマリ帯（注文番号・注文日・合計金額・請求書リンク）を置き、
 その下へ商品・価格・状態・操作の 4 列を持つ商品明細表を積みます。注文
 2 件分を縦に並べています。狭い幅（コンテナ幅 40rem 未満）では価格・状態
-の 2 列を隠し、価格を商品セル内へ表示します。docs サイトは JS
-ハイドレーションを行わないため、実際にビューポートを変えてリサイズする
-実演はできません。代わりに同一構造を持つ 2 インスタンス（広幅 /
+の 2 列を隠し、価格と状態の両方を商品セル内へ表示します。docs サイトは
+JS ハイドレーションを行わないため、実際にビューポートを変えてリサイズ
+する実演はできません。代わりに同一構造を持つ 2 インスタンス（広幅 /
 `max-inline-size: 24rem` で強制的に狭幅化）を並記し、折り畳みの違いを
 静的に見せます。
 
-価格はセル本体と商品セル内の狭幅用テキストの 2 か所に出力しますが、
-コンテナクエリの条件で常にどちらか一方だけが `display: none` になる
-ため、スクリーンリーダーによる二重読み上げは起きません。「操作」列の
-見出しは視覚上は空で、スクリーンリーダー向けにのみ列名を供給します
-（`visually-hidden` の使用箇所の 1 つ。他に各テーブルの `caption` と、
-請求書・商品リンクの補足テキストでも使っています）。
+価格・状態はそれぞれセル本体と商品セル内の狭幅用テキストの 2 か所に
+出力しますが、コンテナクエリの条件で常にどちらか一方だけが
+`display: none` になるため、スクリーンリーダーによる二重読み上げは
+起きません。「操作」列の見出しは視覚上は空で、スクリーンリーダー向け
+にのみ列名を供給します（`visually-hidden` の使用箇所の 1 つ。他に各
+テーブルの `caption`、請求書・商品リンクの補足テキスト、商品セル内の
+狭幅用価格・状態テキストへの接頭辞でも使っています）。
 
 静的な表示例であり、`<form>` 要素を持ちません。商品名・価格・注文番号・
 日付はすべて架空の値で、実在の商品・企業・PII は含みません。商品画像は
@@ -68,7 +69,10 @@ fn item_row(
                     div(
                         vec![("class", "blocks-order-history-table-product")],
                         vec![
-                            image(&ImageProps::new(dummy_assets::PRODUCT_SRC, ""), vec![]),
+                            image(
+                                &ImageProps::new(dummy_assets::PRODUCT_SRC, ""),
+                                vec![("data-blocks-order-history-table-product", "")],
+                            ),
                             styled_text::text(&TextProps::default(), vec![], vec![text(name)]),
                         ],
                     ),
@@ -78,6 +82,14 @@ fn item_row(
                         vec![
                             visually_hidden::root(vec![], vec![text("価格 ")]),
                             text(price),
+                        ],
+                    ),
+                    styled_text::text(
+                        &TextProps::default(),
+                        vec![("data-blocks-order-history-table-inline-status", "")],
+                        vec![
+                            visually_hidden::root(vec![], vec![text("状態 ")]),
+                            text(status),
                         ],
                     ),
                 ],

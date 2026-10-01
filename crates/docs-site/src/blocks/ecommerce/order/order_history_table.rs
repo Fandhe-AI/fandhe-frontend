@@ -20,7 +20,10 @@
 //! 注文 1 件 = [`order_block`] が返す「サマリ帯 + 商品明細表」の組。
 //! 商品明細表は `商品`/`価格`/`状態`/`操作` の 4 列を持ち、注文 2 件分
 //! （3 行・2 行）を縦に並べる（[`orders`]）。狭い幅では価格・状態の 2 列を
-//! 隠し、価格を商品セル内へ表示する（[`LAYOUT_CSS`] の `@container` 規則）。
+//! 隠し、価格・状態の両方を商品セル内へ表示する（[`LAYOUT_CSS`] の
+//! `@container` 規則。価格のみを再表示し状態を再表示しないと、配送状態が
+//! ビジュアル・アクセシビリティツリー双方から消失するため、PR #3510 レビュー
+//! 指摘を踏まえ両方を商品セル内へ出す）。
 //!
 //! # 2 状態の並記（無 JS 制約下での折り畳みデモ）
 //!
@@ -31,23 +34,26 @@
 //! `max-inline-size: 24rem` で強制的に狭幅化）を並記し、`@container`
 //! （コンテナクエリ）で判定することで挙動の違いを静的に見せる。
 //!
-//! # 価格の二重出力と a11y
+//! # 価格・状態の二重出力と a11y
 //!
-//! 価格は「価格セル（広幅用）」と「商品セル内の狭幅用価格テキスト」の
-//! 2 か所に出力するが、[`LAYOUT_CSS`] の `@container` 条件で常にどちらか
-//! 一方だけが `display: none` になる。`display: none` はアクセシビリティ
-//! ツリーからも除外されるため、スクリーンリーダーによる二重読み上げは
-//! 起きない（`table_responsive_stacked` モジュール doc 「副次列の二重出力と
-//! a11y」節と同じ判断）。
+//! 価格は「価格セル（広幅用）」と「商品セル内の狭幅用価格テキスト」の、
+//! 状態も同様に「状態セル（広幅用）」と「商品セル内の狭幅用状態テキスト」
+//! の 2 か所にそれぞれ出力するが、[`LAYOUT_CSS`] の `@container` 条件で
+//! 常にどちらか一方だけが `display: none` になる。`display: none` は
+//! アクセシビリティツリーからも除外されるため、スクリーンリーダーによる
+//! 二重読み上げは起きない（`table_responsive_stacked` モジュール doc
+//! 「副次列の二重出力と a11y」節と同じ判断）。
 //!
 //! # `visually-hidden` の使用箇所
 //!
-//! 3 箇所で使う: (1) 「操作」列見出しは可視テキストを持たず列名のみを
+//! 4 箇所で使う: (1) 「操作」列見出しは可視テキストを持たず列名のみを
 //! スクリーンリーダーへ供給する（`table_responsive_stacked` と同型）、
 //! (2) 各 `<table>` に `caption` 経由でアクセシブルネーム
 //! 「注文 #… の商品明細」を与える、(3) 請求書リンク・商品リンクは注文番号・
 //! 商品名ごとに同一文言が複数回出現するため、リンク内に補足テキストを足し
-//! て一意な名前にする（WCAG 2.4.4）。
+//! て一意な名前にする（WCAG 2.4.4）、(4) 商品セル内の狭幅用価格・状態
+//! テキストへ「価格 」「状態 」の接頭辞を補い、単位のないテキストの羅列に
+//! ならないようにする。
 //!
 //! # `class` と `data-*` の使い分け
 //!
@@ -130,7 +136,10 @@ fn item_row(
                     div(
                         vec![("class", "blocks-order-history-table-product")],
                         vec![
-                            image(&ImageProps::new(dummy_assets::PRODUCT_SRC, ""), vec![]),
+                            image(
+                                &ImageProps::new(dummy_assets::PRODUCT_SRC, ""),
+                                vec![("data-blocks-order-history-table-product", "")],
+                            ),
                             styled_text::text(&TextProps::default(), vec![], vec![text(name)]),
                         ],
                     ),
@@ -140,6 +149,14 @@ fn item_row(
                         vec![
                             visually_hidden::root(vec![], vec![text("価格 ")]),
                             text(price),
+                        ],
+                    ),
+                    styled_text::text(
+                        &TextProps::default(),
+                        vec![("data-blocks-order-history-table-inline-status", "")],
+                        vec![
+                            visually_hidden::root(vec![], vec![text("状態 ")]),
+                            text(status),
                         ],
                     ),
                 ],
@@ -375,9 +392,11 @@ const LAYOUT_CSS: &str = "\
 .blocks-order-history-table-product {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-order-history-table-product] {\n  width: 4rem;\n  height: 4rem;\n  object-fit: cover;\n  border-radius: var(--fandhe-radius-md);\n  flex-shrink: 0;\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-order-history-table-inline-price] {\n  display: none;\n}\n\
+[data-scope=\"text\"][data-part=\"root\"][data-blocks-order-history-table-inline-status] {\n  display: none;\n}\n\
 @container blocks-order-history-table (max-width: 40rem) {\n  \
 [data-blocks-order-history-table-secondary] {\n    display: none;\n  }\n  \
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-order-history-table-inline-price] {\n    display: block;\n    color: var(--fandhe-color-fg-muted);\n    font-size: var(--fandhe-font-font-size-sm);\n  }\n  \
+[data-scope=\"text\"][data-part=\"root\"][data-blocks-order-history-table-inline-status] {\n    display: block;\n    color: var(--fandhe-color-fg-muted);\n    font-size: var(--fandhe-font-font-size-sm);\n  }\n  \
 .blocks-order-history-table-summary {\n    flex-direction: column;\n    align-items: flex-start;\n  }\n\
 }\n";
 
@@ -471,8 +490,45 @@ mod tests {
         let html = demo_html();
         // 状態 1 件あたり: 操作列見出し 2 件（注文 2 件分）+ caption 2 件
         // + 請求書リンク補足 2 件 + 商品リンク補足 5 件 + 狭幅用価格の
-        // 「価格 」接頭辞 5 件（商品行数ぶん）= 16 件。これが広幅・狭幅の
-        // 2 状態ぶんで計 32 件。
-        assert_eq!(html.matches("data-scope=\"visually-hidden\"").count(), 32);
+        // 「価格 」接頭辞 5 件 + 狭幅用状態の「状態 」接頭辞 5 件
+        // （いずれも商品行数ぶん）= 21 件。これが広幅・狭幅の 2 状態ぶんで
+        // 計 42 件。
+        assert_eq!(html.matches("data-scope=\"visually-hidden\"").count(), 42);
+    }
+
+    /// PR #3510 レビュー指摘の回帰: 狭幅（40rem 以下）では価格列・状態列の
+    /// 両方が隠れるが、商品セル内へ価格だけでなく状態も再表示されるため、
+    /// 配送状態がビジュアル・アクセシビリティツリー双方から消えない。
+    #[test]
+    fn inline_status_is_rendered_alongside_inline_price_for_narrow_width() {
+        let html = demo_html();
+        assert!(html.contains("data-blocks-order-history-table-inline-status"));
+        // 2 状態 * 5 行（3 + 2）= 10 件。
+        assert_eq!(
+            html.matches("data-blocks-order-history-table-inline-status")
+                .count(),
+            10
+        );
+    }
+
+    /// PR #3510 レビュー指摘の回帰: `image()` に `data-*` 属性を渡さないと
+    /// `LAYOUT_CSS` の `[data-scope="image"][data-part="root"]
+    /// [data-blocks-order-history-table-product]` セレクタが一切マッチせず、
+    /// 4rem 固定サイズ等が適用されない。
+    #[test]
+    fn product_image_carries_css_hook_attribute() {
+        let html = demo_html();
+        assert!(html.contains("data-blocks-order-history-table-product"));
+        let has_img_with_hook = html
+            .split("<img")
+            .skip(1)
+            .all(|segment| match segment.find('>') {
+                Some(end) => segment[..end].contains("data-blocks-order-history-table-product"),
+                None => false,
+            });
+        assert!(
+            has_img_with_hook,
+            "every <img> must carry the product CSS hook attribute"
+        );
     }
 }
