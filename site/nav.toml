@@ -2707,6 +2707,11 @@ title = "category-carousel"
 source = "site/blocks/category-carousel.md"
 path = "/blocks/category-carousel/"
 
+[[section.group.page]]
+title = "category-mosaic-featured"
+source = "site/blocks/category-mosaic-featured.md"
+path = "/blocks/category-mosaic-featured/"
+
 [[section.group]]
 title = "Cart"
 
