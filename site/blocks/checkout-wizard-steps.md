@@ -220,25 +220,27 @@ fn payment_step() -> Vec<Node> {
     ]
 }
 
-/// ステップ表示 1 件（`item` + `trigger`〔`indicator` + ラベル〕+
-/// 最終段以外の `separator`）。
-fn step_trigger(state: &Steps, index: usize) -> Node {
-    let mut children = vec![steps::trigger(
-        state,
-        index,
-        vec![],
-        vec![
-            steps::indicator(state, index, vec![], vec![text((index + 1).to_string())]),
-            span(
-                vec![("class", "blocks-checkout-wizard-steps-label")],
-                vec![text(STEP_LABELS[index])],
-            ),
-        ],
-    )];
+/// ステップ表示 1 件（`item` + `indicator` + ラベル + 最終段以外の
+/// `separator`）。`steps::trigger`（実 `<button>`）を使わない理由は
+/// モジュール doc「steps 上部ナビを `trigger` ボタンにしない理由」節
+/// 参照（`settings_webhook_wizard::step_item` と同型の判断）。
+fn step_item(state: &Steps, index: usize) -> Node {
+    let item_attrs = if index == state.step() {
+        vec![("aria-current", "step")]
+    } else {
+        vec![]
+    };
+    let mut children = vec![
+        steps::indicator(state, index, vec![], vec![text((index + 1).to_string())]),
+        span(
+            vec![("class", "blocks-checkout-wizard-steps-label")],
+            vec![text(STEP_LABELS[index])],
+        ),
+    ];
     if index + 1 < STEP_LABELS.len() {
         children.push(steps::separator(state, index, vec![], vec![]));
     }
-    steps::item(state, index, vec![], children)
+    steps::item(state, index, item_attrs, children)
 }
 
 /// `checkout-wizard-steps` の Demo 本体。呼び出しごとに同一の `Node` を
@@ -253,7 +255,7 @@ pub fn demo() -> Node {
         &state,
         vec![],
         (0..STEP_LABELS.len())
-            .map(|index| step_trigger(&state, index))
+            .map(|index| step_item(&state, index))
             .collect(),
     );
 

@@ -24,8 +24,17 @@
 //!
 //! `crate::blocks` モジュール doc「`<form>` を使わない」節・「セキュリティ
 //! 不変条件」節に従い、本 Demo は `<form>` を出力しない静的な合成例である。
-//! ボタンはすべて [`button::button`]/[`steps::trigger`] の既定
-//! `type="button"` のまま用い、送信先・送信処理を一切持たない。
+//! ボタンはすべて [`button::button`] の既定 `type="button"` のまま用い、
+//! 送信先・送信処理を一切持たない。
+//!
+//! # steps 上部ナビを `trigger` ボタンにしない理由
+//!
+//! `steps::trigger` は実 `<button>` であり、無 JS の docs サイトでは押しても
+//! 何も起きない dead control になる（`settings_webhook_wizard`/
+//! `onboarding_centered_steps` と同型の判断）。番号・ラベルは `item` 直下へ
+//! [`step_item`] で静的に組み立て、現在ステップの強調は pre-styled の
+//! `data-state="current"` スタイルと `aria-current="step"`（`item` へ直接
+//! 付与）に任せる。
 //!
 //! # 支払い段にカード番号入力欄を置かない理由
 //!
@@ -261,25 +270,27 @@ fn payment_step() -> Vec<Node> {
     ]
 }
 
-/// ステップ表示 1 件（`item` + `trigger`〔`indicator` + ラベル〕+
-/// 最終段以外の `separator`）。
-fn step_trigger(state: &Steps, index: usize) -> Node {
-    let mut children = vec![steps::trigger(
-        state,
-        index,
-        vec![],
-        vec![
-            steps::indicator(state, index, vec![], vec![text((index + 1).to_string())]),
-            span(
-                vec![("class", "blocks-checkout-wizard-steps-label")],
-                vec![text(STEP_LABELS[index])],
-            ),
-        ],
-    )];
+/// ステップ表示 1 件（`item` + `indicator` + ラベル + 最終段以外の
+/// `separator`）。`steps::trigger`（実 `<button>`）を使わない理由は
+/// モジュール doc「steps 上部ナビを `trigger` ボタンにしない理由」節
+/// 参照（`settings_webhook_wizard::step_item` と同型の判断）。
+fn step_item(state: &Steps, index: usize) -> Node {
+    let item_attrs = if index == state.step() {
+        vec![("aria-current", "step")]
+    } else {
+        vec![]
+    };
+    let mut children = vec![
+        steps::indicator(state, index, vec![], vec![text((index + 1).to_string())]),
+        span(
+            vec![("class", "blocks-checkout-wizard-steps-label")],
+            vec![text(STEP_LABELS[index])],
+        ),
+    ];
     if index + 1 < STEP_LABELS.len() {
         children.push(steps::separator(state, index, vec![], vec![]));
     }
-    steps::item(state, index, vec![], children)
+    steps::item(state, index, item_attrs, children)
 }
 
 /// `checkout-wizard-steps` の Demo 本体。呼び出しごとに同一の `Node` を
@@ -294,7 +305,7 @@ pub fn demo() -> Node {
         &state,
         vec![],
         (0..STEP_LABELS.len())
-            .map(|index| step_trigger(&state, index))
+            .map(|index| step_item(&state, index))
             .collect(),
     );
 
@@ -360,7 +371,7 @@ pub const BLOCK: Block = Block {
 /// ラベルを視覚的にのみ隠し、番号中心の簡略表示へ切り替える。
 const LAYOUT_CSS: &str = "\
 .blocks-checkout-wizard-steps-layout {\n  container-type: inline-size;\n  container-name: blocks-checkout-wizard-steps;\n  max-width: 36rem;\n  margin-inline: auto;\n}\n\
-.blocks-checkout-wizard-steps-layout [data-scope=\"steps\"][data-part=\"content\"] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  margin-block-start: var(--fandhe-space-4);\n}\n\
+.blocks-checkout-wizard-steps-layout [data-scope=\"steps\"][data-part=\"content\"]:not([data-state=\"closed\"]) {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  margin-block-start: var(--fandhe-space-4);\n}\n\
 .blocks-checkout-wizard-steps-actions {\n  display: flex;\n  justify-content: space-between;\n  gap: var(--fandhe-space-3);\n}\n\
 @container blocks-checkout-wizard-steps (max-width: 30rem) {\n  .blocks-checkout-wizard-steps-label {\n    position: absolute;\n    width: 1px;\n    height: 1px;\n    padding: 0;\n    margin: -1px;\n    overflow: hidden;\n    clip: rect(0, 0, 0, 0);\n    white-space: nowrap;\n    border-width: 0;\n  }\n}\n";
 
@@ -373,8 +384,10 @@ mod tests {
         render(&demo())
     }
 
-    /// 6 部品すべてが anatomy として出力され、steps の item/trigger/content
-    /// がそれぞれ 4 件ずつ存在することを固定する。
+    /// 6 部品すべてが anatomy として出力され、steps の item/content が
+    /// それぞれ 4 件ずつ存在することを固定する。`trigger`（実 `<button>`）は
+    /// モジュール doc「steps 上部ナビを `trigger` ボタンにしない理由」節
+    /// のとおり使わないため、`data-part="trigger"` は出力に現れない。
     #[test]
     fn demo_composes_expected_parts() {
         let html = demo_html();
@@ -393,11 +406,7 @@ mod tests {
                 .count(),
             4
         );
-        assert_eq!(
-            html.matches("data-scope=\"steps\" data-part=\"trigger\"")
-                .count(),
-            4
-        );
+        assert!(!html.contains("data-scope=\"steps\" data-part=\"trigger\""));
         assert_eq!(
             html.matches("data-scope=\"steps\" data-part=\"content\"")
                 .count(),
