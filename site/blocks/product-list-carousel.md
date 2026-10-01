@@ -170,6 +170,12 @@ fn header(title: &'static str, link_label: &'static str) -> Node {
 /// 名称・価格を無 padding の `div` にしていた旧実装は、両者がカードの
 /// 外枠（`CardVariant::Outline` のボーダー／`overflow: hidden` のクリップ
 /// 境界）へ接触する不具合があったため是正した（PR #3512 Bugbot 指摘）。
+/// 商品名・価格・色見本を `card::body` でラップしたことで、これらは
+/// `card::root` の flex gap の対象外（`card::root` の直接の子は画像 +
+/// `card::body` の 2 件のみ）になる。[`LAYOUT_CSS`] は `card::root` 側の
+/// gap を撤去し（画像下の余白は `card::body` の padding のみに一本化し
+/// 二重取りしない）、`card::body` 側へ gap を付け替えて商品名・価格
+/// （・色見本）の行間を確保する（PR #3512 Bugbot 指摘の是正）。
 /// `outline` が `true` のとき `CardVariant::Outline` を明示する（B 形、
 /// モジュール doc 「枠付きカード」節参照。既定も `Outline` のため見た目は
 /// A/C と同じだが意図を明示する）。`swatches` が `Some` のときのみ色見本
@@ -260,12 +266,25 @@ fn product_card(
 
 /// A/B 共通のカルーセル本体（viewport + 下段 control 行）。`outline` は
 /// B 形のみ `true`（商品カードを枠付きにする）。`extra_root_attr` は B 形
-/// のみが持つグリッド切り替え用フック。
+/// のみが持つグリッド切り替え用フックであり、`Some` のときは
+/// `>= 64rem` で [`LAYOUT_CSS`] が `item-group` を grid へ切り替えて
+/// 全商品を同時表示する（モジュール doc「3 形の差分」節）。
+///
+/// `grid_mode`（`extra_root_attr.is_some()`）のときは item/indicator を
+/// 全件 `current` 扱いにする（`carousel::item`/`indicator` の `current` は
+/// 「現在ビューポートに入っている」ことを表す `data-inview` 相当の意味
+/// （`crates/headless-ui/src/carousel.rs` の `item` doc 参照）であり、
+/// grid 表示では文字どおり全件が同時に視界へ入るため、index 0 のみを
+/// `data-current`/`data-inview`/`aria-current` 付きにするのは支援技術への
+/// 通知と実際の表示（全件表示・制御行非表示）が矛盾する（PR #3512 codex
+/// 指摘）。grid へ切り替わらない A 形は従来どおり index 0 のみを
+/// `current` とする（モジュール doc「静的表示の不変条件」節）。
 fn product_carousel(
     label: &'static str,
     outline: bool,
     extra_root_attr: Option<(&'static str, &'static str)>,
 ) -> Node {
+    let grid_mode = extra_root_attr.is_some();
     let items: Vec<Node> = PRODUCTS
         .iter()
         .enumerate()
@@ -274,7 +293,7 @@ fn product_carousel(
                 Orientation::Horizontal,
                 i,
                 PRODUCTS.len(),
-                i == 0,
+                i == 0 || grid_mode,
                 vec![("data-blocks-product-list-carousel-tile", "")],
                 vec![product_card(name, price, src, outline, None)],
             )
@@ -285,7 +304,7 @@ fn product_carousel(
             carousel::indicator(
                 Orientation::Horizontal,
                 i,
-                i == 0,
+                i == 0 || grid_mode,
                 vec![
                     ("disabled", ""),
                     ("data-blocks-product-list-carousel-indicator", ""),

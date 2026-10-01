@@ -56,14 +56,18 @@
 //!   `aria-label` を付け、ランドマーク名を与える（スクロール可能なことを
 //!   支援技術へ伝える唯一の手段、`category_carousel` と同型）。
 //!
-//! # 静的表示の不変条件（`category_carousel` と同じ）
+//! # 静的表示の不変条件
 //!
-//! A/B の各 carousel インスタンスでは、`item`/`indicator` とも index 0
-//! のみが `data-current`/`data-inview`/`aria-current` を持つ。「表示中」の
-//! 属性は画面幅で出し分けない（無 JS の静的 SSR のため）。`id=`/
-//! `aria-labelledby` は出力しない（[`carousel::root`] の `label` 引数が
-//! `aria-label` を直接出力するため、複数インスタンスを 1 ページに置いても
-//! id 重複が起きない）。
+//! A（`item`/`indicator` とも index 0 のみが
+//! `data-current`/`data-inview`/`aria-current` を持つ、`category_carousel`
+//! と同じ）と異なり、B は `>= 64rem` で全商品を同時表示するグリッドへ
+//! 切り替わるため、`item`/`indicator` とも全件を `data-current`/
+//! `data-inview`/`aria-current` 付きで出力する（PR #3512 codex 指摘。
+//! `product_carousel` の doc コメント参照）。「表示中」の属性は画面幅で
+//! 出し分けない（無 JS の静的 SSR のため）。`id=`/`aria-labelledby` は
+//! 出力しない（[`carousel::root`] の `label` 引数が `aria-label` を直接
+//! 出力するため、複数インスタンスを 1 ページに置いても id 重複が
+//! 起きない）。
 //!
 //! # 無 JS のため全操作要素を常時無効化する
 //!
@@ -240,6 +244,12 @@ fn header(title: &'static str, link_label: &'static str) -> Node {
 /// 名称・価格を無 padding の `div` にしていた旧実装は、両者がカードの
 /// 外枠（`CardVariant::Outline` のボーダー／`overflow: hidden` のクリップ
 /// 境界）へ接触する不具合があったため是正した（PR #3512 Bugbot 指摘）。
+/// 商品名・価格・色見本を `card::body` でラップしたことで、これらは
+/// `card::root` の flex gap の対象外（`card::root` の直接の子は画像 +
+/// `card::body` の 2 件のみ）になる。[`LAYOUT_CSS`] は `card::root` 側の
+/// gap を撤去し（画像下の余白は `card::body` の padding のみに一本化し
+/// 二重取りしない）、`card::body` 側へ gap を付け替えて商品名・価格
+/// （・色見本）の行間を確保する（PR #3512 Bugbot 指摘の是正）。
 /// `outline` が `true` のとき `CardVariant::Outline` を明示する（B 形、
 /// モジュール doc 「枠付きカード」節参照。既定も `Outline` のため見た目は
 /// A/C と同じだが意図を明示する）。`swatches` が `Some` のときのみ色見本
@@ -330,12 +340,25 @@ fn product_card(
 
 /// A/B 共通のカルーセル本体（viewport + 下段 control 行）。`outline` は
 /// B 形のみ `true`（商品カードを枠付きにする）。`extra_root_attr` は B 形
-/// のみが持つグリッド切り替え用フック。
+/// のみが持つグリッド切り替え用フックであり、`Some` のときは
+/// `>= 64rem` で [`LAYOUT_CSS`] が `item-group` を grid へ切り替えて
+/// 全商品を同時表示する（モジュール doc「3 形の差分」節）。
+///
+/// `grid_mode`（`extra_root_attr.is_some()`）のときは item/indicator を
+/// 全件 `current` 扱いにする（`carousel::item`/`indicator` の `current` は
+/// 「現在ビューポートに入っている」ことを表す `data-inview` 相当の意味
+/// （`crates/headless-ui/src/carousel.rs` の `item` doc 参照）であり、
+/// grid 表示では文字どおり全件が同時に視界へ入るため、index 0 のみを
+/// `data-current`/`data-inview`/`aria-current` 付きにするのは支援技術への
+/// 通知と実際の表示（全件表示・制御行非表示）が矛盾する（PR #3512 codex
+/// 指摘）。grid へ切り替わらない A 形は従来どおり index 0 のみを
+/// `current` とする（モジュール doc「静的表示の不変条件」節）。
 fn product_carousel(
     label: &'static str,
     outline: bool,
     extra_root_attr: Option<(&'static str, &'static str)>,
 ) -> Node {
+    let grid_mode = extra_root_attr.is_some();
     let items: Vec<Node> = PRODUCTS
         .iter()
         .enumerate()
@@ -344,7 +367,7 @@ fn product_carousel(
                 Orientation::Horizontal,
                 i,
                 PRODUCTS.len(),
-                i == 0,
+                i == 0 || grid_mode,
                 vec![("data-blocks-product-list-carousel-tile", "")],
                 vec![product_card(name, price, src, outline, None)],
             )
@@ -355,7 +378,7 @@ fn product_carousel(
             carousel::indicator(
                 Orientation::Horizontal,
                 i,
-                i == 0,
+                i == 0 || grid_mode,
                 vec![
                     ("disabled", ""),
                     ("data-blocks-product-list-carousel-indicator", ""),
@@ -551,8 +574,9 @@ const LAYOUT_CSS: &str = "\
 .blocks-product-list-carousel-header {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  justify-content: space-between;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-product-list-carousel-viewport {\n  min-width: 0;\n  overflow-x: auto;\n  overflow-y: hidden;\n  scroll-snap-type: x mandatory;\n}\n\
 [data-scope=\"carousel\"][data-part=\"item\"][data-blocks-product-list-carousel-tile] {\n  box-sizing: border-box;\n  padding-inline: var(--fandhe-space-2);\n  scroll-snap-align: start;\n}\n\
-[data-scope=\"card\"][data-part=\"root\"][data-blocks-product-list-carousel-card] {\n  overflow: hidden;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
+[data-scope=\"card\"][data-part=\"root\"][data-blocks-product-list-carousel-card] {\n  overflow: hidden;\n  display: flex;\n  flex-direction: column;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-product-list-carousel-image] {\n  display: block;\n  width: 100%;\n  border-radius: var(--fandhe-radius-md, 0.375rem);\n}\n\
+[data-scope=\"card\"][data-part=\"body\"][data-blocks-product-list-carousel-body] {\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"heading\"][data-blocks-product-list-carousel-name] {\n  font-size: 1rem;\n}\n\
 .blocks-product-list-carousel-price {\n  font-weight: 600;\n}\n\
 .blocks-product-list-carousel-swatch-row {\n  display: flex;\n  gap: var(--fandhe-space-2);\n}\n\
@@ -605,22 +629,25 @@ mod tests {
         assert_eq!(html.matches("aria-roledescription=\"carousel\"").count(), 2);
     }
 
-    /// 各インスタンスで index 0 のみが選択済み（静的表示の不変条件、
-    /// `category_carousel` と同じ判断）。内訳: `data-current` は item +
-    /// indicator の合計で 2 インスタンス × (1+1) = 4 件、
-    /// `aria-current="true"` は indicator のみ 2 インスタンス × 1 = 2 件。
+    /// A は index 0 のみ選択済み（静的表示の不変条件、`category_carousel`
+    /// と同じ判断）。B は全件同時表示のグリッドへ切り替わるため全件
+    /// `current` 扱い（モジュール doc「静的表示の不変条件」節、PR #3512
+    /// codex 指摘）。内訳: `data-current` は A（item 1 + indicator 1）+
+    /// B（item 6 + indicator 6）= 14 件、`aria-current="true"` は
+    /// indicator のみ A 1 + B 6 = 7 件。
     #[test]
     fn demo_selects_first_product_by_default() {
         let html = render(&demo());
-        assert_eq!(html.matches("data-current").count(), 4);
-        assert_eq!(html.matches("aria-current=\"true\"").count(), 2);
+        assert_eq!(html.matches("data-current").count(), 14);
+        assert_eq!(html.matches("aria-current=\"true\"").count(), 7);
     }
 
-    /// `data-inview` は item のみが出力するため 2 インスタンス × 1 = 2 件。
+    /// `data-inview` は item のみが出力する。A は index 0 の 1 件、B は
+    /// 全件表示のため 6 件の合計 7 件。
     #[test]
     fn demo_marks_only_first_product_inview() {
         let html = render(&demo());
-        assert_eq!(html.matches("data-inview").count(), 2);
+        assert_eq!(html.matches("data-inview").count(), 7);
     }
 
     /// 無 JS のため A/B の前後トリガー・indicator・B の CTA button が
