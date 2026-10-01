@@ -2776,6 +2776,11 @@ title = "checkout-step-sections"
 source = "site/blocks/checkout-step-sections.md"
 path = "/blocks/checkout-step-sections/"
 
+[[section.group.page]]
+title = "checkout-wizard-steps"
+source = "site/blocks/checkout-wizard-steps.md"
+path = "/blocks/checkout-wizard-steps/"
+
 [[section.group]]
 title = "Order"
 
