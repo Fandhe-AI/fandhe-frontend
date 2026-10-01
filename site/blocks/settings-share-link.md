@@ -2,16 +2,20 @@
 
 共有の有効化スイッチ・共有 URL のコピー欄・リンクコピー / プレビューの
 ボタン群を持つ共有リンク設定カードです。`card` / `switch` / `clipboard` /
-`button` / `button-group` / `radio-card` / `tabs` / `qr-code` / `select` /
-`separator` / `input` / `input-group` の 12 部品を合成します。Blocks は
+`button` / `button-group` / `radio-card` / `qr-code` / `select` /
+`separator` / `input` / `input-group` の 11 部品を合成します。Blocks は
 既存部品の合成例であり、新しい UI 部品は追加しません。
 
 主参照は対応表 ID R0318（代表構成）で、閲覧範囲の radio card（R0319）・
-埋め込み/リンクの tabs 切替（R0320）・ドメイン接尾辞 + QR コード（R0321）
+埋め込み/リンクの切替（R0320）・ドメイン接尾辞 + QR コード（R0321）
 の 3 差分版を集約しています。共有 URL は架空の `.example` ドメインで、
 実在ドメイン・秘密情報らしき文字列は含みません。
 
-本 Demo は無 JS の静的表示のみであり、`<form>` を含みません。
+本 Demo は無 JS の静的表示のみであり、`<form>` を含みません。埋め込み/
+リンク切替版は実物の `tabs::tabs`（クリックでの切替に JS 配線を前提と
+する部品）を使わず、素の `div` による静的なタブ列（選択中の状態を
+`data-state="active"` で示すのみ）とキャプション付きの 2 状態並記で
+表示します。
 
 ## Rust コード
 
@@ -33,15 +37,25 @@ use fandhe_frontend_pre_styled_ui::radio_card::{self, Orientation as RadioCardOr
 use fandhe_frontend_pre_styled_ui::select::{self, OpenState, SelectProps};
 use fandhe_frontend_pre_styled_ui::separator::{self, SeparatorProps};
 use fandhe_frontend_pre_styled_ui::switch::{self, SwitchProps};
-use fandhe_frontend_pre_styled_ui::tabs::{
-    self, ActivationMode, Orientation as TabsOrientation, TabItem, TabsProps, TabsVariant,
-};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
-/// 全版共通の共有 URL（架空 `.example` ドメイン、モジュール doc「ダミー値・
-/// ドメインは明白な架空パターン」節参照）。
+/// 版 A〜C 共通の共有 URL（架空 `.example` ドメイン、モジュール doc
+/// 「ダミー値・ドメインは明白な架空パターン」節参照）。
 const SHARE_URL: &str = "https://fandhe-frontend.example/share/o7pQ-report";
+
+/// 版 D（ドメイン接尾辞 + QR）専用のスラッグ。表示スラッグ入力・QR コードの
+/// 両方がこの値から導出され、食い違いを構造的に防ぐ（レビュー指摘是正）。
+const DOMAIN_SLUG: &str = "o7pq-report";
+
+/// 版 D 専用のドメイン接尾辞（RFC 2606 予約の `.example.com`）。
+const DOMAIN_SUFFIX: &str = ".example.com";
+
+/// 版 D の表示スラッグ・select・QR コードが共通して参照する共有 URL。
+/// `DOMAIN_SLUG`/`DOMAIN_SUFFIX` から構築し、3 箇所が独立した文字列
+/// リテラルを持つことによる食い違い（レビュー指摘: 表示
+/// `.example.com` と QR の旧リンク先が不一致だった）を防ぐ。
+const DOMAIN_SHARE_URL: &str = "https://o7pq-report.example.com/";
 
 /// 共有の有効化 switch（版 A/B/C 共通、常時 checked 固定の静的表示）。
 /// `id_prefix` はカードごとの id 一意性のため。
@@ -95,7 +109,13 @@ fn share_url_clipboard(id_prefix: &'static str) -> Node {
                     clipboard::input(SHARE_URL, false, vec![("id", &input_id)]),
                     clipboard::trigger(
                         false,
-                        vec![],
+                        // Demo 内の他ボタン（footer の action button-group・
+                        // 版 B/C/D の静的コピーボタン）はいずれも
+                        // `disabled` で押下不能を明示しているため、この
+                        // trigger だけが操作可能に見えるのは一貫性を欠く
+                        // （レビュー指摘是正）。native `disabled` により
+                        // クリックしても何も起きないことを明示する。
+                        vec![("disabled", "")],
                         vec![
                             clipboard::indicator(false, false, vec![], vec![text("コピー")]),
                             clipboard::indicator(true, false, vec![], vec![text("コピーしました")]),
@@ -295,8 +315,54 @@ fn version_audience() -> Node {
     )
 }
 
-/// C: 埋め込み/リンク切替版（R0320）。body 先頭に tabs を置く（`selected:
-/// "link"` 固定の 1 インスタンス、モジュール doc「静的固定」節）。
+/// 静的なタブ列（版 C 専用、モジュール doc「版 C: 無 JS での扱い」節参照）。
+/// 実物の `tabs::tabs` を使わず、選択中タブへ `data-state="active"` を
+/// 付与した素の `div` で構成する。操作できるように見せないため
+/// `role="tab"`/`<button>`/`tabindex` を出さず、装飾として
+/// `aria-hidden="true"` を付ける
+/// （`feature_tabs_panel::static_tab_list` と同型の判断）。
+fn static_tab_list(selected: &'static str, items: &[(&'static str, &'static str)]) -> Node {
+    div(
+        vec![("class", "blocks-settings-share-link-tablist")],
+        items
+            .iter()
+            .map(|(value, label)| {
+                let state = if *value == selected {
+                    "active"
+                } else {
+                    "inactive"
+                };
+                div(
+                    vec![
+                        ("class", "blocks-settings-share-link-tab"),
+                        ("data-state", state),
+                        ("aria-hidden", "true"),
+                    ],
+                    vec![text(*label)],
+                )
+            })
+            .collect(),
+    )
+}
+
+/// タブ 1 件分のプレビュー本文（キャプション + 内容）。両パネルを常時
+/// 可視のまま縦に並記する（`feature_tabs_panel::tab_preview` と同型）。
+fn tab_preview(caption: &'static str, content: Node) -> Node {
+    div(
+        vec![("class", "blocks-settings-share-link-preview")],
+        vec![
+            div(
+                vec![("class", "blocks-settings-share-link-preview-caption")],
+                vec![text(caption)],
+            ),
+            content,
+        ],
+    )
+}
+
+/// C: 埋め込み/リンク切替版（R0320）。body 先頭に静的なタブ列（`selected:
+/// "link"` 固定）を置き、両パネルをキャプション付きで常時可視のまま
+/// 縦に並記する（モジュール doc「版 C: 無 JS での扱い」節）。
 fn version_tabs() -> Node {
     let id_prefix = "blocks-settings-share-link-tabs";
     let link_display = static_url_display(id_prefix);
@@ -306,35 +372,16 @@ fn version_tabs() -> Node {
         // スニペットに山括弧を含めない」節参照）。
         vec![text(format!("[embed] {SHARE_URL}"))],
     );
-    let props = TabsProps {
-        id: id_prefix,
-        selected: "link",
-        orientation: TabsOrientation::Horizontal,
-        activation_mode: ActivationMode::Automatic,
-        loop_focus: true,
-        indicator: false,
-    };
-    let tabs_node = tabs::tabs(
-        TabsVariant::Enclosed,
-        Size::Md,
-        ColorPalette::Accent,
-        &props,
+    let tab_list = static_tab_list("link", &[("link", "リンク"), ("embed", "埋め込み")]);
+    share_card(
+        id_prefix,
         vec![
-            TabItem {
-                value: "link",
-                trigger: vec![text("リンク")],
-                content: vec![link_display],
-                disabled: false,
-            },
-            TabItem {
-                value: "embed",
-                trigger: vec![text("埋め込み")],
-                content: vec![embed_snippet],
-                disabled: false,
-            },
+            share_toggle(id_prefix),
+            tab_list,
+            tab_preview("リンク", link_display),
+            tab_preview("埋め込み", embed_snippet),
         ],
-    );
-    share_card(id_prefix, vec![share_toggle(id_prefix), tabs_node])
+    )
 }
 
 /// D: ドメイン接尾辞 + QR 版（R0321）。スラッグ入力 + ドメイン接尾辞
@@ -348,9 +395,11 @@ fn version_domain_qr() -> Node {
         disabled: false,
         invalid: false,
         required: false,
-        // QR コードは固定の `SHARE_URL` から生成する静的表示のため、スラッグを
+        // QR コードは `DOMAIN_SHARE_URL` から生成する静的表示のため、スラッグを
         // 編集可能にすると表示スラッグと QR コードのリンク先が食い違う
-        // （レビュー指摘、PR #3454）。読み取り専用にして不整合を防ぐ。
+        // （レビュー指摘、PR #3454）。読み取り専用にし、かつ入力値・select・
+        // QR を同一の `DOMAIN_SLUG`/`DOMAIN_SUFFIX`/`DOMAIN_SHARE_URL` 定数
+        // から取ることで構造的に不整合を防ぐ。
         readonly: true,
         has_helper_text: false,
     };
@@ -391,7 +440,7 @@ fn version_domain_qr() -> Node {
                                     false,
                                     &select_props,
                                     vec![],
-                                    vec![text(".example.com")],
+                                    vec![text(DOMAIN_SUFFIX)],
                                 ),
                                 select::indicator(OpenState::Closed, &select_props, vec![], vec![]),
                             ],
@@ -421,7 +470,7 @@ fn version_domain_qr() -> Node {
                                     false,
                                     None,
                                     vec![],
-                                    vec![text(".example.com")],
+                                    vec![text(DOMAIN_SUFFIX)],
                                 )],
                             )],
                         )],
@@ -430,7 +479,7 @@ fn version_domain_qr() -> Node {
             ),
         ],
     );
-    let matrix = encode(SHARE_URL, ErrorCorrectionLevel::M)
+    let matrix = encode(DOMAIN_SHARE_URL, ErrorCorrectionLevel::M)
         // 固定短文字列のみを符号化するため `TooLong` になり得ない
         // （`settings_api_key_created` 等と同じくダミー値は本 block 内の
         // 定数として決定的に管理される）。失敗時は空 QR へフォールバック
@@ -465,7 +514,7 @@ fn version_domain_qr() -> Node {
                             input::input(
                                 &InputProps::default(),
                                 &slug_field,
-                                vec![("type", "text"), ("value", "o7pQ-report")],
+                                vec![("type", "text"), ("value", DOMAIN_SLUG)],
                             ),
                         ],
                     ),
@@ -499,31 +548,37 @@ pub fn demo() -> Node {
 
 - **版 A（代表構成、basic、R0318）**: 共有有効化 `switch` → `separator` →
   共有 URL の `clipboard` → footer にリンクコピー/プレビューの
-  `button-group`。
+  `button-group`。`clipboard` のコピーボタンは実アプリへの配線を持たない
+  合成例のため `disabled` にしています。
 - **版 B（閲覧範囲、audience、R0319）**: A の body へ「閲覧できる範囲」の
   `radio-card` 3 択を追加します。
-- **版 C（埋め込み/リンク切替、tabs、R0320）**: body 先頭に `tabs`
-  （リンク/埋め込みの 2 タブ、`selected: "link"` 固定）を置きます。
-  「埋め込み」タブは `<iframe>` 風のスニペットを模した表示を検討しました
+- **版 C（埋め込み/リンク切替、tabs、R0320）**: body 先頭に静的なタブ列
+  （リンク/埋め込みの 2 状態、`selected: "link"` 固定）を置きます。実物の
+  `tabs::tabs` は使わず、素の `div` + `data-state` でタブの見た目のみを
+  再現し、両パネルをキャプション付きで常時可視のまま縦に並記します
+  （`feature_tabs_panel` で確立した無 JS の扱いと同じ判断）。
+  「埋め込み」パネルは `<iframe>` 風のスニペットを模した表示を検討しました
   が、既定エスケープで `<`/`>` が変換され可読性を損なうため、山括弧を
   含まない `[embed] https://…` 形式の文言にしています。
-- **版 D（ドメイン接尾辞 + QR、domain-qr、R0321）**: スラッグ入力 +
-  ドメイン接尾辞 `select`（閉じた状態固定）+ 共有 URL の `qr-code` を
-  置きます。
+- **版 D（ドメイン接尾辞 + QR、domain-qr、R0321）**: スラッグ入力（読み取り
+  専用）+ ドメイン接尾辞 `select`（閉じた状態固定）+ 共有 URL の
+  `qr-code` を置きます。表示スラッグ・ドメイン接尾辞・QR コードのリンク先
+  は共通の定数（`o7pq-report` + `.example.com`）から取り、独立した文字列
+  リテラルによる食い違いを防いでいます。
 - `clipboard` root は版 A の 1 個に限っています。`headless_clipboard`
   配線は「1 root : 1 状態機械契約」（マウントルート配下の全 `clipboard`
   パーツの表示が連動する簡略化）を持つため、Demo 内に `clipboard` root を
   複数置くと表示が連動してしまいます。版 B・版 C の共有 URL は `field` +
   `input`（readonly）+ `input-group` のコピーボタン（`disabled`）で代替
   しています（`settings-api-key-created` 版 B と同型）。
-- switch・radio-card・select・footer の button-group はいずれも
-  `disabled: true` のネイティブ操作禁止で、無 JS の docs サイトで操作可能
-  に見せません。
+- switch・radio-card・select・footer の button-group・clipboard のコピー
+  ボタンはいずれも `disabled: true`/native `disabled` のネイティブ操作
+  禁止で、無 JS の docs サイトで操作可能に見せません。
 
 関連情報: [Card](../themes/card.md) / [Switch](../themes/switch.md) /
 [Clipboard](../themes/clipboard.md) / [Button](../themes/button.md) /
 [Button Group](../themes/button-group.md) /
-[Radio Card](../themes/radio-card.md) / [Tabs](../themes/tabs.md) /
+[Radio Card](../themes/radio-card.md) /
 [QR Code](../themes/qr-code.md) / [Select](../themes/select.md) /
 [Separator](../themes/separator.md) / [Input](../themes/input.md) /
 [Input Group](../themes/input-group.md)

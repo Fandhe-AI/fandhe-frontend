@@ -10,13 +10,16 @@
 //! # 使用部品
 //!
 //! `card` / `switch` / `clipboard` / `button` / `button-group` /
-//! `radio-card` / `tabs` / `qr-code` / `select` / `separator` / `input` /
-//! `input-group` の 12 部品を合成する（[`BLOCK`] の `parts` に一致させる
+//! `radio-card` / `qr-code` / `select` / `separator` / `input` /
+//! `input-group` の 11 部品を合成する（[`BLOCK`] の `parts` に一致させる
 //! 契約、`crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が
 //! 検証する）。新しい UI 部品は追加しない。`input-group` は Issue 本文の
 //! 列挙（11 種）に無いが、`settings_api_key_created` と同じ既存 Themes
 //! 部品であり、下記「Demo 内の `clipboard` root は 1 個に限る」節の制約を
-//! 満たすために追加した（新規 UI 部品の新設ではない）。
+//! 満たすために追加した（新規 UI 部品の新設ではない）。版 C（埋め込み/
+//! リンク切替）は実物の `tabs::tabs` を使わず素の `div` による静的な
+//! タブ列で表示する（下記「版 C: 無 JS での扱い」節参照）ため、`tabs` は
+//! `parts` に含めない。
 //!
 //! # 4 版と集約元の対応（原稿「原案差分メモ」節と対になる索引）
 //!
@@ -25,10 +28,30 @@
 //!   button-group。
 //! - **B（閲覧範囲、audience）**: R0319。A の body へ「閲覧できる範囲」の
 //!   radio card 3 択を追加する。
-//! - **C（埋め込み/リンク切替、tabs）**: R0320。body 先頭に tabs（リンク/
-//!   埋め込みの 2 タブ）を置く。
+//! - **C（埋め込み/リンク切替、tabs）**: R0320。body 先頭に静的なタブ列
+//!   （リンク/埋め込みの 2 状態）を置く（下記「版 C: 無 JS での扱い」節
+//!   参照）。
 //! - **D（ドメイン接尾辞 + QR、domain-qr）**: R0321。スラッグ入力 + ドメイン
-//!   接尾辞 select（閉じた状態固定）+ 共有 URL の QR コードを置く。
+//!   接尾辞 select（閉じた状態固定）+ 共有 URL の QR コードを置く。表示
+//!   スラッグ・ドメイン接尾辞・QR コードのリンク先は [`DOMAIN_SHARE_URL`]
+//!   へ一致させる（版 A〜C の [`SHARE_URL`] とは別定数、レビュー指摘
+//!   是正）。
+//!
+//! # 版 C: 無 JS での扱い（実物の `tabs::tabs` は使わない）
+//!
+//! 版 C は `fandhe_frontend_pre_styled_ui::tabs::tabs` を使わない。実物の
+//! `tabs` は `role="tab"`/`aria-selected`/`hidden` パネルで構成され、
+//! クリックでパネルを切り替える `headless_tabs` の JS 配線を前提とする。
+//! docs サイトは JS ハイドレーションを行わないため、これらの属性を出すと
+//! 「操作できるように見えて実際には切り替わらない」見せかけの対話性に
+//! なる（`crates/docs-site/src/blocks/marketing/feature/feature_tabs_panel.rs`
+//! で確立した判断、#2772/#2773 と同じ）。そのため本版は素の `div`
+//! （`.blocks-settings-share-link-tab`・`data-state="active"/"inactive"`・
+//! 装飾のため `aria-hidden="true"`）でタブ列を描き、[`LAYOUT_CSS`] で
+//! `feature_tabs_panel` の下線型タブ CSS 相当を再現する。パネル本文は
+//! 「リンク」「埋め込み」の両状態を常時可視でキャプション付き縦積み
+//! （[`tab_preview`]）にし、`hidden` 属性・`role="tab"`/`role="tabpanel"`
+//! を一切出さない。
 //!
 //! # Demo 内の `clipboard` root は 1 個に限る（1 root : 1 状態機械契約）
 //!
@@ -56,8 +79,8 @@
 //!   `OpenState::Closed` 固定。`positioner`/`content` は `hidden` 属性付き
 //!   のまま出力し `aria-controls`/`aria-labelledby` の参照先を残す
 //!   （`card_form_footer::closed_select` と同型）。
-//! - `tabs`（版 C）: `selected: "link"` 固定の 1 インスタンス
-//!   （`pricing_tiers_comparison` と同型）。
+//! - 静的タブ列（版 C）: `selected: "link"` 固定の 1 インスタンス。実物の
+//!   `tabs::tabs` は使わない（上記「版 C: 無 JS での扱い」節参照）。
 //! - `clipboard`（版 A）: `copied: false`（idle）で初期化し、idle/copied
 //!   両 indicator を出力する（`hero_install_command`/
 //!   `settings_api_key_created` と同型）。
@@ -103,7 +126,8 @@
 //! （`blocks-settings-share-link-{basic,audience,tabs,domain}-*`）。
 //! `clipboard::label` の `for` ↔ `clipboard::input` の `id`、
 //! `radio_card::label` の id ↔ `root` の `labelled_by`、`select` の
-//! label/content id、`tabs::TabsProps.id` をカードごとに一意にする。
+//! label/content id をカードごとに一意にする（版 C の静的タブ列は装飾
+//! 〔`aria-hidden="true"`〕のため id 参照を持たない）。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -125,15 +149,25 @@ use fandhe_frontend_pre_styled_ui::radio_card::{self, Orientation as RadioCardOr
 use fandhe_frontend_pre_styled_ui::select::{self, OpenState, SelectProps};
 use fandhe_frontend_pre_styled_ui::separator::{self, SeparatorProps};
 use fandhe_frontend_pre_styled_ui::switch::{self, SwitchProps};
-use fandhe_frontend_pre_styled_ui::tabs::{
-    self, ActivationMode, Orientation as TabsOrientation, TabItem, TabsProps, TabsVariant,
-};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
-/// 全版共通の共有 URL（架空 `.example` ドメイン、モジュール doc「ダミー値・
-/// ドメインは明白な架空パターン」節参照）。
+/// 版 A〜C 共通の共有 URL（架空 `.example` ドメイン、モジュール doc
+/// 「ダミー値・ドメインは明白な架空パターン」節参照）。
 const SHARE_URL: &str = "https://fandhe-frontend.example/share/o7pQ-report";
+
+/// 版 D（ドメイン接尾辞 + QR）専用のスラッグ。表示スラッグ入力・QR コードの
+/// 両方がこの値から導出され、食い違いを構造的に防ぐ（レビュー指摘是正）。
+const DOMAIN_SLUG: &str = "o7pq-report";
+
+/// 版 D 専用のドメイン接尾辞（RFC 2606 予約の `.example.com`）。
+const DOMAIN_SUFFIX: &str = ".example.com";
+
+/// 版 D の表示スラッグ・select・QR コードが共通して参照する共有 URL。
+/// `DOMAIN_SLUG`/`DOMAIN_SUFFIX` から構築し、3 箇所が独立した文字列
+/// リテラルを持つことによる食い違い（レビュー指摘: 表示
+/// `.example.com` と QR の旧リンク先が不一致だった）を防ぐ。
+const DOMAIN_SHARE_URL: &str = "https://o7pq-report.example.com/";
 
 /// 共有の有効化 switch（版 A/B/C 共通、常時 checked 固定の静的表示）。
 /// `id_prefix` はカードごとの id 一意性のため。
@@ -187,7 +221,13 @@ fn share_url_clipboard(id_prefix: &'static str) -> Node {
                     clipboard::input(SHARE_URL, false, vec![("id", &input_id)]),
                     clipboard::trigger(
                         false,
-                        vec![],
+                        // Demo 内の他ボタン（footer の action button-group・
+                        // 版 B/C/D の静的コピーボタン）はいずれも
+                        // `disabled` で押下不能を明示しているため、この
+                        // trigger だけが操作可能に見えるのは一貫性を欠く
+                        // （レビュー指摘是正）。native `disabled` により
+                        // クリックしても何も起きないことを明示する。
+                        vec![("disabled", "")],
                         vec![
                             clipboard::indicator(false, false, vec![], vec![text("コピー")]),
                             clipboard::indicator(true, false, vec![], vec![text("コピーしました")]),
@@ -387,8 +427,54 @@ fn version_audience() -> Node {
     )
 }
 
-/// C: 埋め込み/リンク切替版（R0320）。body 先頭に tabs を置く（`selected:
-/// "link"` 固定の 1 インスタンス、モジュール doc「静的固定」節）。
+/// 静的なタブ列（版 C 専用、モジュール doc「版 C: 無 JS での扱い」節参照）。
+/// 実物の `tabs::tabs` を使わず、選択中タブへ `data-state="active"` を
+/// 付与した素の `div` で構成する。操作できるように見せないため
+/// `role="tab"`/`<button>`/`tabindex` を出さず、装飾として
+/// `aria-hidden="true"` を付ける
+/// （`feature_tabs_panel::static_tab_list` と同型の判断）。
+fn static_tab_list(selected: &'static str, items: &[(&'static str, &'static str)]) -> Node {
+    div(
+        vec![("class", "blocks-settings-share-link-tablist")],
+        items
+            .iter()
+            .map(|(value, label)| {
+                let state = if *value == selected {
+                    "active"
+                } else {
+                    "inactive"
+                };
+                div(
+                    vec![
+                        ("class", "blocks-settings-share-link-tab"),
+                        ("data-state", state),
+                        ("aria-hidden", "true"),
+                    ],
+                    vec![text(*label)],
+                )
+            })
+            .collect(),
+    )
+}
+
+/// タブ 1 件分のプレビュー本文（キャプション + 内容）。両パネルを常時
+/// 可視のまま縦に並記する（`feature_tabs_panel::tab_preview` と同型）。
+fn tab_preview(caption: &'static str, content: Node) -> Node {
+    div(
+        vec![("class", "blocks-settings-share-link-preview")],
+        vec![
+            div(
+                vec![("class", "blocks-settings-share-link-preview-caption")],
+                vec![text(caption)],
+            ),
+            content,
+        ],
+    )
+}
+
+/// C: 埋め込み/リンク切替版（R0320）。body 先頭に静的なタブ列（`selected:
+/// "link"` 固定）を置き、両パネルをキャプション付きで常時可視のまま
+/// 縦に並記する（モジュール doc「版 C: 無 JS での扱い」節）。
 fn version_tabs() -> Node {
     let id_prefix = "blocks-settings-share-link-tabs";
     let link_display = static_url_display(id_prefix);
@@ -398,35 +484,16 @@ fn version_tabs() -> Node {
         // スニペットに山括弧を含めない」節参照）。
         vec![text(format!("[embed] {SHARE_URL}"))],
     );
-    let props = TabsProps {
-        id: id_prefix,
-        selected: "link",
-        orientation: TabsOrientation::Horizontal,
-        activation_mode: ActivationMode::Automatic,
-        loop_focus: true,
-        indicator: false,
-    };
-    let tabs_node = tabs::tabs(
-        TabsVariant::Enclosed,
-        Size::Md,
-        ColorPalette::Accent,
-        &props,
+    let tab_list = static_tab_list("link", &[("link", "リンク"), ("embed", "埋め込み")]);
+    share_card(
+        id_prefix,
         vec![
-            TabItem {
-                value: "link",
-                trigger: vec![text("リンク")],
-                content: vec![link_display],
-                disabled: false,
-            },
-            TabItem {
-                value: "embed",
-                trigger: vec![text("埋め込み")],
-                content: vec![embed_snippet],
-                disabled: false,
-            },
+            share_toggle(id_prefix),
+            tab_list,
+            tab_preview("リンク", link_display),
+            tab_preview("埋め込み", embed_snippet),
         ],
-    );
-    share_card(id_prefix, vec![share_toggle(id_prefix), tabs_node])
+    )
 }
 
 /// D: ドメイン接尾辞 + QR 版（R0321）。スラッグ入力 + ドメイン接尾辞
@@ -440,9 +507,11 @@ fn version_domain_qr() -> Node {
         disabled: false,
         invalid: false,
         required: false,
-        // QR コードは固定の `SHARE_URL` から生成する静的表示のため、スラッグを
+        // QR コードは `DOMAIN_SHARE_URL` から生成する静的表示のため、スラッグを
         // 編集可能にすると表示スラッグと QR コードのリンク先が食い違う
-        // （レビュー指摘、PR #3454）。読み取り専用にして不整合を防ぐ。
+        // （レビュー指摘、PR #3454）。読み取り専用にし、かつ入力値・select・
+        // QR を同一の `DOMAIN_SLUG`/`DOMAIN_SUFFIX`/`DOMAIN_SHARE_URL` 定数
+        // から取ることで構造的に不整合を防ぐ。
         readonly: true,
         has_helper_text: false,
     };
@@ -483,7 +552,7 @@ fn version_domain_qr() -> Node {
                                     false,
                                     &select_props,
                                     vec![],
-                                    vec![text(".example.com")],
+                                    vec![text(DOMAIN_SUFFIX)],
                                 ),
                                 select::indicator(OpenState::Closed, &select_props, vec![], vec![]),
                             ],
@@ -513,7 +582,7 @@ fn version_domain_qr() -> Node {
                                     false,
                                     None,
                                     vec![],
-                                    vec![text(".example.com")],
+                                    vec![text(DOMAIN_SUFFIX)],
                                 )],
                             )],
                         )],
@@ -522,7 +591,7 @@ fn version_domain_qr() -> Node {
             ),
         ],
     );
-    let matrix = encode(SHARE_URL, ErrorCorrectionLevel::M)
+    let matrix = encode(DOMAIN_SHARE_URL, ErrorCorrectionLevel::M)
         // 固定短文字列のみを符号化するため `TooLong` になり得ない
         // （`settings_api_key_created` 等と同じくダミー値は本 block 内の
         // 定数として決定的に管理される）。失敗時は空 QR へフォールバック
@@ -557,7 +626,7 @@ fn version_domain_qr() -> Node {
                             input::input(
                                 &InputProps::default(),
                                 &slug_field,
-                                vec![("type", "text"), ("value", "o7pQ-report")],
+                                vec![("type", "text"), ("value", DOMAIN_SLUG)],
                             ),
                         ],
                     ),
@@ -621,10 +690,6 @@ pub const BLOCK: Block = Block {
             path: "/themes/radio-card/",
         },
         Part {
-            label: "Tabs",
-            path: "/themes/tabs/",
-        },
-        Part {
             label: "QR Code",
             path: "/themes/qr-code/",
         },
@@ -661,6 +726,11 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-share-link-domain-row {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-3);\n  align-items: flex-end;\n}\n\
 .blocks-settings-share-link-qr-row {\n  display: flex;\n  justify-content: center;\n}\n\
 .blocks-settings-share-link-embed-snippet {\n  font-family: var(--fandhe-font-font-mono);\n  font-size: var(--fandhe-font-font-size-sm);\n  word-break: break-all;\n}\n\
+.blocks-settings-share-link-tablist {\n  display: flex;\n  gap: var(--fandhe-space-1);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
+.blocks-settings-share-link-tab {\n  padding: var(--fandhe-space-1-5, 0.375rem) var(--fandhe-space-3);\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n  border-bottom: 2px solid transparent;\n}\n\
+.blocks-settings-share-link-tab[data-state=\"active\"] {\n  color: var(--fandhe-color-fg);\n  border-bottom-color: var(--fandhe-color-border-accent, var(--fandhe-color-fg));\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n}\n\
+.blocks-settings-share-link-preview {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1-5, 0.375rem);\n}\n\
+.blocks-settings-share-link-preview-caption {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-settings-share-link-toggle] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-settings-share-link-toggle][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-blocks-settings-share-link-clipboard] {\n  display: flex;\n  flex-direction: column;\n  width: 100%;\n}\n\
@@ -693,7 +763,6 @@ mod tests {
             "data-scope=\"button\"",
             "data-scope=\"button-group\"",
             "data-scope=\"radio-card\"",
-            "data-scope=\"tabs\"",
             "data-scope=\"qr-code\"",
             "data-scope=\"select\"",
             "data-scope=\"separator\"",
@@ -706,6 +775,49 @@ mod tests {
         assert!(!html.contains("type=\"submit\""));
         assert!(!html.contains("src=\"data:"));
         assert!(!html.contains("href=\"#\""));
+        // 版 C は実物の `tabs::tabs` を使わない静的タブ列（モジュール doc
+        // 「版 C: 無 JS での扱い」節）。
+        assert!(!html.contains("data-scope=\"tabs\""));
+        assert!(!html.contains("role=\"tab\""));
+        assert!(!html.contains("role=\"tabpanel\""));
+    }
+
+    #[test]
+    fn static_tab_list_marks_selected_state_without_fake_interactivity() {
+        let html = demo_html();
+        assert!(html.contains(
+            "class=\"blocks-settings-share-link-tab\" data-state=\"active\" aria-hidden=\"true\""
+        ));
+        assert!(html.contains(
+            "class=\"blocks-settings-share-link-tab\" data-state=\"inactive\" aria-hidden=\"true\""
+        ));
+        assert!(!html.contains("<button class=\"blocks-settings-share-link-tab"));
+        assert!(html.contains("class=\"blocks-settings-share-link-preview-caption\""));
+    }
+
+    #[test]
+    fn clipboard_trigger_is_disabled() {
+        let html = demo_html();
+        let pos = html
+            .find(r#"data-scope="clipboard" data-part="trigger""#)
+            .expect("clipboard trigger must be present");
+        let tag_start = html[..pos].rfind('<').expect("trigger tag start");
+        let tag_end = html[tag_start..]
+            .find('>')
+            .map(|i| tag_start + i)
+            .expect("trigger tag end");
+        assert!(html[tag_start..tag_end].contains("disabled"));
+    }
+
+    #[test]
+    fn domain_share_url_matches_slug_and_suffix() {
+        assert_eq!(
+            super::DOMAIN_SHARE_URL,
+            format!("https://{}{}/", super::DOMAIN_SLUG, super::DOMAIN_SUFFIX)
+        );
+        let html = demo_html();
+        assert!(html.contains(super::DOMAIN_SLUG));
+        assert!(html.contains(super::DOMAIN_SUFFIX));
     }
 
     #[test]
