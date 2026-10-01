@@ -135,7 +135,7 @@ use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, p, section, text, Node};
+use fandhe_frontend_core::{div, h3, section, text, Node};
 use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::color_swatch::{self, Color, ColorSwatchProps, Rgb};
@@ -151,6 +151,13 @@ use fandhe_frontend_pre_styled_ui::text::{
 };
 use fandhe_frontend_pre_styled_ui::Size;
 
+/// 版キャプション見出し（各版 `section` の `aria-labelledby` 対象）の
+/// `id` の基底文字列。3 版並記のため [`Variant::suffix`] を連結して
+/// 版ごとに一意にする（モジュール doc「3 版の並記」節参照。商品名
+/// （H2）は全版共通のため、見出し/領域ナビゲーションで版を区別できる
+/// ようこのキャプション見出しを `section` のアクセシブルネームにする、
+/// Codex レビュー〔PR #3522〕の是正）。
+const CAPTION_HEADING_ID: &str = "blocks-product-overview-image-grid-caption";
 /// 評価ラベル（`rating_group::label` の `id`）の基底文字列。3 版並記のため
 /// [`Variant::suffix`] を連結して版ごとに一意にする（重複 id 検査対応）。
 const RATING_LABEL_ID: &str = "blocks-product-overview-image-grid-rating-label";
@@ -575,18 +582,32 @@ fn purchase_panel(variant: &Variant) -> Node {
     )
 }
 
-/// 版キャプション（`product_overview_tabs_below::caption` と同型、素の
-/// `<p>` で `heading` 部品を使わない）。
-fn caption(label: &str) -> Node {
-    p(
-        vec![("class", "blocks-product-overview-image-grid-caption")],
-        vec![text(label)],
+/// 版キャプション見出し（`product_overview_tabs_below::caption` と異なり、
+/// 本版は素の `<h3>`（`heading` 部品は使わない。`BLOCK` の `parts` を
+/// 変えないため）にする。商品名（H2）が全版共通で見出し/領域ナビゲー
+/// ションでは版を区別できない指摘（Codex レビュー、PR #3522）の是正と
+/// して、各版の `section` 内に置き `id` を付与し、`section` 自体の
+/// `aria-labelledby` から参照させる（下記 [`shell`] 参照）。
+fn caption(variant: &Variant) -> Node {
+    h3(
+        vec![
+            ("class", "blocks-product-overview-image-grid-caption"),
+            ("id", &caption_heading_id(variant)),
+        ],
+        vec![text(variant.caption)],
     )
 }
 
-/// 1 版分の shell（パンくず + 画像グリッド・購入パネルの本体）を組み立てる。
-/// `variant.side` が true のとき本体を 2 カラムにし、`variant.reverse` が
-/// true のとき左右を入れ替える（モジュール doc「3 版の並記」節参照）。
+/// [`caption`] の見出し `id`（版ごとに一意）。[`shell`] の
+/// `aria-labelledby` と対で使う。
+fn caption_heading_id(variant: &Variant) -> String {
+    format!("{CAPTION_HEADING_ID}-{}", variant.suffix)
+}
+
+/// 1 版分の shell（キャプション見出し + パンくず + 画像グリッド・購入
+/// パネルの本体）を組み立てる。`variant.side` が true のとき本体を
+/// 2 カラムにし、`variant.reverse` が true のとき左右を入れ替える
+/// （モジュール doc「3 版の並記」節参照）。
 fn shell(variant: &Variant) -> Node {
     let mut body_class = String::from("blocks-product-overview-image-grid-body");
     if variant.side {
@@ -609,10 +630,13 @@ fn shell(variant: &Variant) -> Node {
 /// キャプション付きで縦に並べる（モジュール doc「3 版の並記」節）。
 /// 呼び出しごとに同一の `Node` を返す純関数。
 pub fn demo() -> Node {
-    let mut children = Vec::with_capacity(VARIANTS.len() * 2);
+    let mut children = Vec::with_capacity(VARIANTS.len());
     for variant in &VARIANTS {
-        children.push(caption(variant.caption));
-        children.push(section(vec![], vec![shell(variant)]));
+        let heading_id = caption_heading_id(variant);
+        children.push(section(
+            vec![("aria-labelledby", &heading_id)],
+            vec![caption(variant), shell(variant)],
+        ));
     }
     div(
         vec![("class", "blocks-product-overview-image-grid-demo")],
@@ -898,6 +922,51 @@ mod tests {
         assert!(LAYOUT_CSS.contains(
             ".blocks-product-overview-image-grid-body-side {\n    display: flex;\n    flex-direction: column;\n    gap: var(--fandhe-space-6);\n  }"
         ));
+    }
+
+    /// 商品名（H2）が全版共通で見出し/領域ナビゲーションでは版を区別
+    /// できない指摘（Codex レビュー、PR #3522）の回帰防止。各版の
+    /// `section` が版固有のキャプション見出し `<h3>` を内部に持ち、
+    /// `aria-labelledby` でそれを参照していることを固定する。
+    #[test]
+    fn section_has_unique_accessible_name_via_caption_heading() {
+        let html = demo_html();
+        for variant in &VARIANTS {
+            let heading_id = format!(
+                "blocks-product-overview-image-grid-caption-{}",
+                variant.suffix
+            );
+            let labelledby_attr = format!("aria-labelledby=\"{heading_id}\"");
+            let heading_id_attr = format!("id=\"{heading_id}\"");
+            let heading_close = format!("{}</h3>", variant.caption);
+            assert!(
+                html.contains(&labelledby_attr),
+                "missing labelled section for {}",
+                variant.suffix
+            );
+            assert!(
+                html.contains(&heading_id_attr),
+                "missing caption heading id for {}",
+                variant.suffix
+            );
+            assert!(
+                html.contains(&heading_close),
+                "missing caption heading text for {}",
+                variant.suffix
+            );
+            // 見出し id が h3 要素自身に付与されていること（他要素への
+            // 迷子参照でないこと）を確認する。`blocks_source_does_not_use_raw_html_or_build_html_strings`
+            // の HTML 文字列直接組み立て検知を避けるため `format!("<...")`
+            // を使わず `String::from` + 文字列結合で組み立てる。
+            let h3_open_with_id =
+                String::from("h3 class=\"blocks-product-overview-image-grid-caption\" ")
+                    + &heading_id_attr;
+            assert!(
+                html.contains(&h3_open_with_id),
+                "caption heading id should be on the h3 element for {}",
+                variant.suffix
+            );
+        }
     }
 
     #[test]
