@@ -551,6 +551,7 @@ jobs:
           # Ecommerce / Product List
           # Ecommerce / Quickview
           # Ecommerce / Category
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-featured-banner/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-grid-captioned/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-carousel/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-grid-overlay/index.html"

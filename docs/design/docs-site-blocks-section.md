@@ -1107,6 +1107,7 @@ pub enum LayoutCss {
 | store-nav-mega-menu | #3097/#3098（親 #3096） | `ecommerce/store_nav/store_nav_mega_menu.rs` |
 | cart-dialog | #3025 | `ecommerce/cart/cart_dialog.rs` |
 | settings-team-invite | #3016 | `application/settings/settings_team_invite.rs` |
+| category-featured-banner | #3036（親 #3024） | `ecommerce/category_listing/category_featured_banner.rs` |
 | category-carousel | #3035（親 #3024） | `ecommerce/category_listing/category_carousel.rs` |
 | category-grid-captioned | #3037（親 #3024） | `ecommerce/category_listing/category_grid_captioned.rs` |
 | category-grid-overlay | #3038（親 #3024） | `ecommerce/category_listing/category_grid_overlay.rs` |
