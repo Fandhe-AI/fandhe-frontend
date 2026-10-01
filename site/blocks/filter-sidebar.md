@@ -268,6 +268,7 @@ fn filter_panel(prefix: &str, products_id: &str, accordion: bool) -> Node {
         &ButtonProps {
             variant: ButtonVariant::Outline,
             size: Size::Sm,
+            disabled: true,
             ..ButtonProps::default()
         },
         vec![],
@@ -361,7 +362,12 @@ fn drawer_trigger(content_id: &str) -> Node {
     drawer::trigger(
         OpenState::Open,
         Some(content_id),
-        vec![("class", "blocks-filter-sidebar-drawer-trigger")],
+        vec![
+            ("class", "blocks-filter-sidebar-drawer-trigger"),
+            ("disabled", ""),
+            ("aria-disabled", "true"),
+            ("data-disabled", ""),
+        ],
         vec![text("フィルタ")],
     )
 }
@@ -420,7 +426,11 @@ fn filter_drawer(
                         filter_panel(&format!("{prefix}-drawer"), products_id, accordion),
                         drawer::close_trigger_with_variant(
                             CloseTriggerVariant::Text,
-                            vec![],
+                            vec![
+                                ("disabled", ""),
+                                ("aria-disabled", "true"),
+                                ("data-disabled", ""),
+                            ],
                             vec![text("閉じる")],
                         ),
                     ],
@@ -520,6 +530,9 @@ pub fn demo() -> Node {
 - ブラウザでの実機確認（`40rem` 前後のコンテナ幅切替・ライト/ダーク両
   テーマ）はサンドボックス制約により未実施です。`cargo test` による
   出力検証のみで代替しました。
+- 「条件をクリア」「フィルタ」「閉じる」は無 JS 静的デモでは押しても
+  何も起きないため、`disabled`/`aria-disabled="true"`/`data-disabled` を
+  付与して操作できないことを明示しています（PR #3504 レビュー指摘）。
 
 ## 関連情報
 

@@ -50,6 +50,18 @@
 //! - ドロワーは常に静的な開状態（[`drawer::OpenState::Open`]）で描画する
 //!   （`cart_drawer`/`game_ui_modal` と同じ判断）。`modal: false` にして
 //!   静的デモの外側の説明・コードを支援技術から隠さない。
+//! - 「条件をクリア」ボタン（[`filter_panel`]）・ドロワートリガー「フィルタ」
+//!   （[`drawer_trigger`]）・ドロワー内「閉じる」（[`filter_drawer`]）も
+//!   無 JS では押しても何も起きない（PR #3504 レビュー指摘、Codex）。
+//!   特に「閉じる」はドロワーが常時開状態で描画される（直前項）ため、
+//!   有効表示のままだと「開いたドロワーを閉じられる」と誤認させる。
+//!   いずれも `disabled`/`aria-disabled="true"`/`data-disabled` を付与し、
+//!   操作できないことを明示する（checkbox/collapsible/menu と同じ判断）。
+//!   `button::button` 経由の「条件をクリア」は `ButtonProps.disabled` の
+//!   既定の薄い表示をそのまま残す（操作不能であることを視覚的にも示す）。
+//!   ドロワーの trigger/close-trigger はブラウザ既定の disabled 表示に
+//!   委ね、`pre-styled-ui` 側に opacity 上書きがないため追加の CSS
+//!   打ち消しは不要（`LAYOUT_CSS` は変更しない）。
 //!
 //! # ドロワーを枠内に収める理由
 //!
@@ -340,6 +352,7 @@ fn filter_panel(prefix: &str, products_id: &str, accordion: bool) -> Node {
         &ButtonProps {
             variant: ButtonVariant::Outline,
             size: Size::Sm,
+            disabled: true,
             ..ButtonProps::default()
         },
         vec![],
@@ -433,7 +446,12 @@ fn drawer_trigger(content_id: &str) -> Node {
     drawer::trigger(
         OpenState::Open,
         Some(content_id),
-        vec![("class", "blocks-filter-sidebar-drawer-trigger")],
+        vec![
+            ("class", "blocks-filter-sidebar-drawer-trigger"),
+            ("disabled", ""),
+            ("aria-disabled", "true"),
+            ("data-disabled", ""),
+        ],
         vec![text("フィルタ")],
     )
 }
@@ -492,7 +510,11 @@ fn filter_drawer(
                         filter_panel(&format!("{prefix}-drawer"), products_id, accordion),
                         drawer::close_trigger_with_variant(
                             CloseTriggerVariant::Text,
-                            vec![],
+                            vec![
+                                ("disabled", ""),
+                                ("aria-disabled", "true"),
+                                ("data-disabled", ""),
+                            ],
                             vec![text("閉じる")],
                         ),
                     ],
@@ -762,6 +784,33 @@ mod tests {
         assert!(LAYOUT_CSS.contains(
             "[data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-filter-sidebar-checkbox][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
         ));
+    }
+
+    #[test]
+    fn inert_action_buttons_are_disabled() {
+        // レビュー指摘（PR #3504、Codex）: 「条件をクリア」「フィルタ」
+        // 「閉じる」は無 JS 静的デモでは押しても何も起きないため、
+        // disabled/aria-disabled/data-disabled を付与して操作できない
+        // ことを明示する（モジュール doc「ドロワーは常に静的な開状態」節）。
+        let html = demo_html();
+        // ドロワー trigger「フィルタ」・close-trigger「閉じる」は
+        // 手書き属性のためこの順（3 インスタンス × 2 ボタン = 6 件）。
+        assert_eq!(
+            html.matches(r#"disabled="" aria-disabled="true" data-disabled="""#)
+                .count(),
+            6,
+            "html={html}"
+        );
+        // 「条件をクリア」は `button::button` 経由（headless-ui 既定の
+        // disabled/data-disabled/aria-disabled 3 点セット）。1 インスタンス
+        // につきサイドバー用・ドロワー用の 2 枚の `filter_panel` を持つ
+        // ため 3 インスタンス × 2 枚 = 6 件。
+        assert_eq!(
+            html.matches(r#"disabled="" data-disabled="" aria-disabled="true">条件をクリア"#)
+                .count(),
+            6,
+            "html={html}"
+        );
     }
 
     #[test]
