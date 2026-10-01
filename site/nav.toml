@@ -2685,6 +2685,11 @@ path = "/blocks/media-object/"
 title = "Product Overview"
 
 [[section.group.page]]
+title = "product-overview-featured-split"
+source = "site/blocks/product-overview-featured-split.md"
+path = "/blocks/product-overview-featured-split/"
+
+[[section.group.page]]
 title = "product-overview-gallery-split"
 source = "site/blocks/product-overview-gallery-split.md"
 path = "/blocks/product-overview-gallery-split/"
@@ -2706,6 +2711,11 @@ title = "Product List"
 title = "product-list-bordered-grid"
 source = "site/blocks/product-list-bordered-grid.md"
 path = "/blocks/product-list-bordered-grid/"
+
+[[section.group.page]]
+title = "product-list-simple-grid"
+source = "site/blocks/product-list-simple-grid.md"
+path = "/blocks/product-list-simple-grid/"
 
 [[section.group.page]]
 title = "product-list-rich-cards"
