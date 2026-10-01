@@ -1107,6 +1107,7 @@ pub enum LayoutCss {
 | checkout-wizard-steps | #3045 | `ecommerce/checkout/checkout_wizard_steps.rs` |
 | cart-drawer | #3026（親 #3024） | `ecommerce/cart/cart_drawer.rs` |
 | cart-line-item-table | #3028/#3029（親 #3027） | `ecommerce/cart/cart_line_item_table.rs` |
+| order-history-table | #3058（親 #3024） | `ecommerce/order/order_history_table.rs` |
 | order-tracking-progress | #3060/#3061（親 #3059） | `ecommerce/order/order_tracking_progress.rs` |
 | order-confirmation-summary | #3054（親 #3024） | `ecommerce/order/order_confirmation_summary.rs` |
 | product-overview-gallery-split | #3068（親 #3067） | `ecommerce/product_overview/product_overview_gallery_split.rs` |
