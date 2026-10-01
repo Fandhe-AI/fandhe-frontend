@@ -205,11 +205,14 @@ fn secret_card(v: Variant) -> Node {
                 false,
                 vec![("data-blocks-settings-webhook-detail-clipboard", "")],
                 vec![
-                    clipboard::label(
-                        false,
-                        Some(input_id),
+                    visually_hidden::root(
                         vec![],
-                        vec![visually_hidden::root(vec![], vec![text("署名シークレット")])],
+                        vec![clipboard::label(
+                            false,
+                            Some(input_id),
+                            vec![],
+                            vec![text("署名シークレット")],
+                        )],
                     ),
                     clipboard::control(
                         false,
