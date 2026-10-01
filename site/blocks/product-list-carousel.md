@@ -270,21 +270,18 @@ fn product_card(
 /// `>= 64rem` で [`LAYOUT_CSS`] が `item-group` を grid へ切り替えて
 /// 全商品を同時表示する（モジュール doc「3 形の差分」節）。
 ///
-/// `grid_mode`（`extra_root_attr.is_some()`）のときは item/indicator を
-/// 全件 `current` 扱いにする（`carousel::item`/`indicator` の `current` は
-/// 「現在ビューポートに入っている」ことを表す `data-inview` 相当の意味
-/// （`crates/headless-ui/src/carousel.rs` の `item` doc 参照）であり、
-/// grid 表示では文字どおり全件が同時に視界へ入るため、index 0 のみを
-/// `data-current`/`data-inview`/`aria-current` 付きにするのは支援技術への
-/// 通知と実際の表示（全件表示・制御行非表示）が矛盾する（PR #3512 codex
-/// 指摘）。grid へ切り替わらない A 形は従来どおり index 0 のみを
-/// `current` とする（モジュール doc「静的表示の不変条件」節）。
+/// item/indicator とも A・B 共通で index 0 のみを `data-current`/
+/// `data-inview`/`aria-current` 付きにする（`category_carousel` と同じ、
+/// モジュール doc「静的表示の不変条件」節）。B は `>= 64rem` でグリッドへ
+/// 切り替わり全商品が同時に視界へ入るが、無 JS の静的 SSR では画面幅で
+/// 出し分けられないため、グリッドへ切り替わらない `< 64rem`（2 枚ずつの
+/// カルーセル）側の実際の表示枚数と矛盾しない表現を優先する（PR #3512
+/// codex 指摘）。
 fn product_carousel(
     label: &'static str,
     outline: bool,
     extra_root_attr: Option<(&'static str, &'static str)>,
 ) -> Node {
-    let grid_mode = extra_root_attr.is_some();
     let items: Vec<Node> = PRODUCTS
         .iter()
         .enumerate()
@@ -293,7 +290,7 @@ fn product_carousel(
                 Orientation::Horizontal,
                 i,
                 PRODUCTS.len(),
-                i == 0 || grid_mode,
+                i == 0,
                 vec![("data-blocks-product-list-carousel-tile", "")],
                 vec![product_card(name, price, src, outline, None)],
             )
@@ -304,7 +301,7 @@ fn product_carousel(
             carousel::indicator(
                 Orientation::Horizontal,
                 i,
-                i == 0 || grid_mode,
+                i == 0,
                 vec![
                     ("disabled", ""),
                     ("data-blocks-product-list-carousel-indicator", ""),
