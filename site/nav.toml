@@ -2748,6 +2748,11 @@ title = "filter-expandable-panel"
 source = "site/blocks/filter-expandable-panel.md"
 path = "/blocks/filter-expandable-panel/"
 
+[[section.group.page]]
+title = "filter-overlay-panel"
+source = "site/blocks/filter-overlay-panel.md"
+path = "/blocks/filter-overlay-panel/"
+
 [[section.group]]
 title = "Cart"
 
@@ -2796,6 +2801,11 @@ path = "/blocks/checkout-wizard-steps/"
 
 [[section.group]]
 title = "Order"
+
+[[section.group.page]]
+title = "order-confirmation-summary"
+source = "site/blocks/order-confirmation-summary.md"
+path = "/blocks/order-confirmation-summary/"
 
 [[section.group.page]]
 title = "order-tracking-progress"

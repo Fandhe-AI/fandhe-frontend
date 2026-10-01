@@ -9,10 +9,14 @@
 //! block ごとの追加経緯は git 履歴と PR を正とし、本コメントには書かない
 //! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
+mod order_confirmation_summary;
 mod order_tracking_progress;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![order_tracking_progress::BLOCK]
+    vec![
+        order_confirmation_summary::BLOCK,
+        order_tracking_progress::BLOCK,
+    ]
 }
