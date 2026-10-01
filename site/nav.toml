@@ -2700,6 +2700,14 @@ source = "site/blocks/product-overview-tabs-below.md"
 path = "/blocks/product-overview-tabs-below/"
 
 [[section.group]]
+title = "Product List"
+
+[[section.group.page]]
+title = "product-list-rich-cards"
+source = "site/blocks/product-list-rich-cards.md"
+path = "/blocks/product-list-rich-cards/"
+
+[[section.group]]
 title = "Category"
 
 [[section.group.page]]
