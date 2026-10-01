@@ -196,8 +196,14 @@ const STATS: &[StatDatum] = &[
         value: "21",
         unit: None,
         trend_up: false,
-        neutral_indicator: false,
-        help: "直近 30 日間の累計",
+        // 失敗件数の減少は改善だが down_indicator は危険色固定のため
+        // 「改善が悪化に見える」問題は平均応答時間と同型（上記
+        // `neutral_indicator` doc 参照）。help も「直近 30 日間の累計」
+        // （比較基準なし）から先月比の比較へ改め、下降表示の裏付けを示す
+        // （codex レビュー指摘 #3481 P2 ×2: 危険色表示の改善、比較データ
+        // 欠如）。
+        neutral_indicator: true,
+        help: "先月比で減少",
     },
 ];
 
@@ -340,18 +346,23 @@ const TIMELINE_ENTRIES: &[TimelineEntry] = &[
 /// P2: 以前は欠落していた）。可視見出しは `card::title` が既に担うため、
 /// `stat::label` は `visually_hidden::root` で視覚的に隠し、見出しの
 /// 二重表示を避ける（`settings_share_link.rs::share_url_clipboard` と
-/// 同型の判断）。
+/// 同型の判断）。`stat::value_unit` は `stat::value_text`（`<dd>`）の
+/// children として内包し、`<dl>` 直下へ露出させない（cursor レビュー
+/// 指摘 #3481 Medium: 以前は `value_text` と同じ `dl` 直下へ並べており、
+/// dt/dd 外の裸 `<span>` となって定義リスト構造が崩れ、数値と単位が
+/// 分離していた）。
 fn stat_card(datum: &StatDatum) -> Node {
-    let mut value_children = vec![
+    let mut value_text_children = vec![text(datum.value)];
+    if let Some(unit) = datum.unit {
+        value_text_children.push(stat::value_unit(vec![], vec![text(unit)]));
+    }
+    let value_children = vec![
         stat::label(
             vec![],
             vec![visually_hidden::root(vec![], vec![text(datum.label)])],
         ),
-        stat::value_text(vec![], vec![text(datum.value)]),
+        stat::value_text(vec![], value_text_children),
     ];
-    if let Some(unit) = datum.unit {
-        value_children.push(stat::value_unit(vec![], vec![text(unit)]));
-    }
 
     let indicator_attrs: Vec<(&str, &str)> = if datum.neutral_indicator {
         vec![("class", "blocks-settings-webhook-stats-indicator-neutral")]
@@ -799,10 +810,11 @@ mod tests {
         assert!(html.contains("https://example.com/webhooks/orders"));
     }
 
-    /// レビュー指摘是正（PR #3481）: 平均応答時間は改善（短縮）を示すが
-    /// `trend_up: false` のため `down_indicator`（危険色固定）が選ばれ、
-    /// 改善が悪化のように見えていた（codex P2）。中立色上書きクラスが
-    /// 出力されることを固定する。
+    /// レビュー指摘是正（PR #3481）: 平均応答時間・失敗件数はいずれも
+    /// 下降が改善を示すが `trend_up: false` のため `down_indicator`
+    /// （危険色固定）が選ばれ、改善が悪化のように見えていた（codex P2・
+    /// 失敗件数分も同型指摘）。両方とも中立色上書きクラスが出力される
+    /// ことを固定する。
     #[test]
     fn response_time_indicator_uses_neutral_color() {
         let html = demo_html();
@@ -810,6 +822,46 @@ mod tests {
             "data-scope=\"stat\" data-part=\"down-indicator\" aria-hidden=\"true\" \
              class=\"blocks-settings-webhook-stats-indicator-neutral\""
         ));
+    }
+
+    /// レビュー指摘是正（PR #3481 codex P2）: 失敗件数の下降・危険色表示に
+    /// 比較データの裏付けがなく根拠不明だった。中立色上書き（平均応答時間
+    /// と合わせて 2 件）と比較基準を明記した help テキストが出力される
+    /// ことを固定する。
+    #[test]
+    fn failure_count_indicator_uses_neutral_color_with_comparison_basis() {
+        let html = demo_html();
+        assert_eq!(
+            html.matches("class=\"blocks-settings-webhook-stats-indicator-neutral\"")
+                .count(),
+            2
+        );
+        assert!(html.contains("先月比で減少"));
+    }
+
+    /// レビュー指摘是正（PR #3481 cursor Medium）: `stat::value_unit` が
+    /// `stat::value_text`（`<dd>`）の外（`<dl>` 直下）に出力され、定義
+    /// リスト構造が崩れていた。単位を持つ統計（成功率・平均応答時間）の
+    /// `value-unit` が、対応する `value-text` の `</dd>` より手前（＝
+    /// `<dd>` の内側）に現れることを固定する。
+    #[test]
+    fn value_unit_is_nested_inside_value_text_dd() {
+        let html = demo_html();
+        let needle = "data-scope=\"stat\" data-part=\"value-text\"";
+        let dd_blocks_with_unit = html
+            .match_indices(needle)
+            .filter_map(|(start, _)| {
+                let tail = &html[start..];
+                let close = tail.find("</dd>")?;
+                let inner = &tail[..close];
+                inner
+                    .contains("data-scope=\"stat\" data-part=\"value-unit\"")
+                    .then_some(())
+            })
+            .count();
+        // STATS のうち unit を持つのは成功率・平均応答時間の 2 件
+        // （[`STATS`] 参照）。
+        assert_eq!(dd_blocks_with_unit, 2);
     }
 
     #[test]

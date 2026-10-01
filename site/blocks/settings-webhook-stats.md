@@ -128,8 +128,14 @@ const STATS: &[StatDatum] = &[
         value: "21",
         unit: None,
         trend_up: false,
-        neutral_indicator: false,
-        help: "直近 30 日間の累計",
+        // 失敗件数の減少は改善だが down_indicator は危険色固定のため
+        // 「改善が悪化に見える」問題は平均応答時間と同型（上記
+        // `neutral_indicator` doc 参照）。help も「直近 30 日間の累計」
+        // （比較基準なし）から先月比の比較へ改め、下降表示の裏付けを示す
+        // （codex レビュー指摘 #3481 P2 ×2: 危険色表示の改善、比較データ
+        // 欠如）。
+        neutral_indicator: true,
+        help: "先月比で減少",
     },
 ];
 
@@ -272,18 +278,23 @@ const TIMELINE_ENTRIES: &[TimelineEntry] = &[
 /// P2: 以前は欠落していた）。可視見出しは `card::title` が既に担うため、
 /// `stat::label` は `visually_hidden::root` で視覚的に隠し、見出しの
 /// 二重表示を避ける（`settings_share_link.rs::share_url_clipboard` と
-/// 同型の判断）。
+/// 同型の判断）。`stat::value_unit` は `stat::value_text`（`<dd>`）の
+/// children として内包し、`<dl>` 直下へ露出させない（cursor レビュー
+/// 指摘 #3481 Medium: 以前は `value_text` と同じ `dl` 直下へ並べており、
+/// dt/dd 外の裸 `<span>` となって定義リスト構造が崩れ、数値と単位が
+/// 分離していた）。
 fn stat_card(datum: &StatDatum) -> Node {
-    let mut value_children = vec![
+    let mut value_text_children = vec![text(datum.value)];
+    if let Some(unit) = datum.unit {
+        value_text_children.push(stat::value_unit(vec![], vec![text(unit)]));
+    }
+    let value_children = vec![
         stat::label(
             vec![],
             vec![visually_hidden::root(vec![], vec![text(datum.label)])],
         ),
-        stat::value_text(vec![], vec![text(datum.value)]),
+        stat::value_text(vec![], value_text_children),
     ];
-    if let Some(unit) = datum.unit {
-        value_children.push(stat::value_unit(vec![], vec![text(unit)]));
-    }
 
     let indicator_attrs: Vec<(&str, &str)> = if datum.neutral_indicator {
         vec![("class", "blocks-settings-webhook-stats-indicator-neutral")]
