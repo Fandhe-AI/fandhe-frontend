@@ -148,7 +148,7 @@ fn variant_overlay() -> Node {
 }
 
 /// 形 B（R0608 集約）: 画像 + テキストの左右分割。狭幅では縦積み、広幅
-/// （`48rem` 以上）では 2 列グリッドになる。
+/// （`40rem` 以上）では 2 列グリッドになる。
 fn variant_split() -> Node {
     div(
         vec![("class", "blocks-category-featured-banner-split")],
@@ -190,10 +190,10 @@ pub fn demo() -> Node {
 
 - **形 A（主参照、R0823）**: 全面画像の上に半透明パネルを重ねます。
   `position: absolute` ではなく `display: grid` + 同一 `grid-area: 1 / 1`
-  による重ね合わせを使い、狭い幅（コンテナ幅 48rem 未満）では通常フロー
+  による重ね合わせを使い、狭い幅（コンテナ幅 40rem 未満）では通常フロー
   のまま画像の下へパネルが回ります（広い幅でのみ `grid` 化）。
 - **形 B（集約元、R0608）**: 画像とコピー列を左右 2 分割にします。狭い
-  幅では画像が上に来る縦積み、広い幅（48rem 以上）では 2 列グリッドに
+  幅では画像が上に来る縦積み、広い幅（40rem 以上）では 2 列グリッドに
   なります。
 - 見出しはすべて `HeadingLevel::H3` を使用します（ページ側が `## Demo`
   として `h2` を出すため）。
@@ -210,9 +210,12 @@ pub fn demo() -> Node {
   `@container`（コンテナクエリ）を使っています。Demo のルートへ
   `container-type: inline-size` を宣言し、サイドバー付きレイアウト等の
   狭いコンテンツ領域に置いても、表示領域自身の実測幅を基準に狭幅・広幅
-  を判定します。ブレークポイントは `48rem` をリテラルで直書きしています
+  を判定します。ブレークポイントは `40rem` をリテラルで直書きしています
   （テーマの breakpoint トークンは `@container` 条件式の中では解決でき
-  ないため）。
+  ないため）。値は docs サイト上の Demo 枠（`.docs-content` の
+  `max-width: 46rem` から `.blocks-demo` 左右 padding `1.5rem` ずつを
+  引いた実測コンテナ幅、上限約 `43rem`）でも閾値へ到達し、2 列レイアウト
+  が docs サイト上で実際に有効化されるよう選んでいます。
 
 関連情報: [Heading](../themes/heading.md) / [Text](../themes/text.md) /
 [Image](../themes/image.md) / [Link](../themes/link.md)

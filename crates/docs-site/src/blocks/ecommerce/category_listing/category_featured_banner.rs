@@ -31,7 +31,7 @@
 //! # A: 絶対配置を使わず `grid-area` の重ね合わせで画像とパネルを重ねる
 //!
 //! 狭幅（通常フロー）では画像の下にパネルが来るだけでよいため、広幅
-//! （`48rem` 以上）でのみ root を `display: grid` にし、画像・パネルの
+//! （`40rem` 以上）でのみ root を `display: grid` にし、画像・パネルの
 //! 両方へ同じ `grid-area: 1 / 1` を与えて同一セルへ重ねる
 //! （`position: absolute` を使わないため、狭幅での「画像の下へ回す」
 //! 挙動が素の通常フローのままで成立する）。
@@ -91,15 +91,20 @@
 //! # ブレークポイントをリテラルで直書きする理由
 //!
 //! テーマの breakpoint トークンは `@container`/`@media` 条件式の中では
-//! 解決できない（CSS custom property は宣言側でのみ有効）ため、`48rem` を
-//! リテラルで直書きする（既存 block と同じ判断、`testimonial_background_image`
-//! と同じ値を採用）。
+//! 解決できない（CSS custom property は宣言側でのみ有効）ため、`40rem` を
+//! リテラルで直書きする（既存 block と同じ判断）。値は docs サイト上の
+//! Demo 枠（`.docs-content` の `max-width: 46rem` から `.blocks-demo` 左右
+//! padding `1.5rem` ずつを引いた実測コンテナ幅、上限約 `43rem`）でも
+//! 閾値へ到達し、2 列レイアウトが docs サイト上で実際に有効化されるよう
+//! 選んでいる（Bugbot 指摘 #3496: 旧 `48rem` では docs サイト上のどの
+//! ビューポートでも実測幅がこの上限 `43rem` を超えず到達せず、オーバー
+//! レイ・2 列レイアウトが一度も有効化されなかった）。
 //!
 //! # レイアウト切り替えに `@media` ではなく `@container` を使う理由
 //!
 //! `@media (min-width: …)` はビューポート幅を判定するため、本 block を
 //! サイドバー付きレイアウト等の幅の狭いコンテンツ領域へ埋め込むと、表示
-//! 領域が `48rem` 未満でも（ビューポート自体は広いため）形 A が重なり
+//! 領域が `40rem` 未満でも（ビューポート自体は広いため）形 A が重なり
 //! 配置へ戻らず 2 列配置のままになり、狭幅時の挙動が成立しない（codex
 //! 指摘 #3496）。[`crate::blocks::ecommerce::category_listing::
 //! category_grid_overlay`]/`store_nav_mega_menu` と同じ判断で、Demo の
@@ -262,7 +267,7 @@ fn variant_overlay() -> Node {
 }
 
 /// 形 B（R0608 集約）: 画像 + テキストの左右分割。狭幅では縦積み、広幅
-/// （`48rem` 以上）では 2 列グリッドになる。
+/// （`40rem` 以上）では 2 列グリッドになる。
 fn variant_split() -> Node {
     div(
         vec![("class", "blocks-category-featured-banner-split")],
@@ -355,7 +360,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-category-featured-banner-eyebrow-inverted] {\n  color: var(--fandhe-color-bg);\n}\n\
 .blocks-category-featured-banner-split {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-category-featured-banner-split-image] {\n  display: block;\n  width: 100%;\n  height: 14rem;\n}\n\
-@container blocks-category-featured-banner (min-width: 48rem) {\n  \
+@container blocks-category-featured-banner (min-width: 40rem) {\n  \
 .blocks-category-featured-banner-overlay {\n    display: grid;\n    min-height: 24rem;\n  }\n  \
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-category-featured-banner-overlay-image] {\n    grid-area: 1 / 1;\n    width: 100%;\n    height: 100%;\n  }\n  \
 .blocks-category-featured-banner-panel {\n    grid-area: 1 / 1;\n    align-self: end;\n    justify-self: start;\n    max-width: 28rem;\n    margin: var(--fandhe-space-6);\n  }\n  \
@@ -446,7 +451,7 @@ mod tests {
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
         assert!(LAYOUT_CSS.contains("container-name: blocks-category-featured-banner;"));
         assert!(
-            LAYOUT_CSS.contains("@container blocks-category-featured-banner (min-width: 48rem)")
+            LAYOUT_CSS.contains("@container blocks-category-featured-banner (min-width: 40rem)")
         );
         assert!(!LAYOUT_CSS.contains("@media"));
     }
