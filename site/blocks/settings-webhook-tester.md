@@ -4,8 +4,8 @@ Webhook のテスト送信画面を表した設定ブロックです。宛先エ
 イベント種類を選択欄で選び、送信されるペイロードをコード表示で確認し、
 送信ボタンを押す構成を縦に並べます。送信結果は成功・失敗の 2 状態を
 並記し、状態バッジと応答内容を確認できます。`native-select` / `field` /
-`code` / `button` / `badge` の 5 部品を合成します。Blocks は既存部品の
-合成例であり、新しい UI 部品は追加しません。
+`code` / `button` / `badge` / `heading` の 6 部品を合成します。Blocks は
+既存部品の合成例であり、新しい UI 部品は追加しません。
 
 主参照は対応表 ID R0387（代表構成）の 1 件のみで、集約元の差分はありません。
 狭いコンテナ幅でもブレークポイントによる横並び切り替えは行わず、常に
@@ -23,13 +23,14 @@ Webhook のテスト送信画面を表した設定ブロックです。宛先エ
 ## Rust コード
 
 ```rust
-use fandhe_frontend_core::{div, el, h3, h4, p, pre, text, Node};
+use fandhe_frontend_core::{div, el, h4, p, pre, text, Node};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::code::{self, CodeProps};
 use fandhe_frontend_pre_styled_ui::field::{
     self, FieldIds, FieldOrientation, FieldProps, FieldRootProps,
 };
+use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::ColorPalette;
 
@@ -168,7 +169,7 @@ fn result_item(kind: ResultKind) -> Node {
                 vec![("class", "blocks-settings-webhook-tester-code")],
                 vec![code::code(
                     &CodeProps::default(),
-                    vec![],
+                    vec![("data-blocks-settings-webhook-tester-code", "")],
                     vec![text(kind.body())],
                 )],
             ),
@@ -182,7 +183,15 @@ pub fn demo() -> Node {
     div(
         vec![("class", "blocks-settings-webhook-tester-layout")],
         vec![
-            h3(vec![], vec![text("テスト送信")]),
+            heading::heading(
+                HeadingLevel::H3,
+                &HeadingProps {
+                    size: HeadingSize::Sm,
+                    ..HeadingProps::default()
+                },
+                vec![],
+                vec![text("テスト送信")],
+            ),
             p(
                 vec![("class", "blocks-settings-webhook-tester-lead")],
                 vec![text(
@@ -224,7 +233,7 @@ pub fn demo() -> Node {
                 vec![("class", "blocks-settings-webhook-tester-code")],
                 vec![code::code(
                     &CodeProps::default(),
-                    vec![],
+                    vec![("data-blocks-settings-webhook-tester-code", "")],
                     vec![text(PAYLOAD_JSON)],
                 )],
             ),
@@ -239,7 +248,15 @@ pub fn demo() -> Node {
                     vec![text("テスト送信")],
                 )],
             ),
-            h3(vec![], vec![text("送信結果")]),
+            heading::heading(
+                HeadingLevel::H3,
+                &HeadingProps {
+                    size: HeadingSize::Sm,
+                    ..HeadingProps::default()
+                },
+                vec![],
+                vec![text("送信結果")],
+            ),
             div(
                 vec![("class", "blocks-settings-webhook-tester-results")],
                 vec![

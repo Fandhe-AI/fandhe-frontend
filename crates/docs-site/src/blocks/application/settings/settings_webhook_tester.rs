@@ -8,9 +8,11 @@
 //!
 //! # 使用部品
 //!
-//! `native-select` / `field` / `code` / `button` / `badge` の 5 部品を
-//! 合成する（[`BLOCK`] の `parts` に一致させる契約、`blocks_nav.rs`/
-//! `blocks_contract.rs` が検証する）。新しい UI 部品は追加しない。
+//! `native-select` / `field` / `code` / `button` / `badge` / `heading` の
+//! 6 部品を合成する（[`BLOCK`] の `parts` に一致させる契約、
+//! `blocks_nav.rs`/`blocks_contract.rs` が検証する）。`heading` は
+//! レビュー是正（下記「セクション見出しは TOC へ混入しない `heading` を
+//! 使う」節）で追加した。他に新しい UI 部品は追加しない。
 //!
 //! # 常に縦積み（ブレークポイントで横並びにしない）
 //!
@@ -46,7 +48,30 @@
 //! `native_select::native_select` は `drop_class_attr` で呼び出し側
 //! `class` を除去してから内部 variant クラスと合成するため、CSS フックは
 //! `data-blocks-settings-webhook-tester-*` 属性で渡す。素の `div`/`pre`/
-//! `p`/`h3`/`h4` は `class="blocks-settings-webhook-tester-*"` を使う。
+//! `p`/`h4` は `class="blocks-settings-webhook-tester-*"` を使う。
+//!
+//! # セクション見出しはページ右目次へ混入しない `heading` を使う
+//!
+//! 「テスト送信」「送信結果」の 2 見出しは素の `h3` だと
+//! `crate::layout::with_heading_anchors` の TOC 収集対象（h2/h3）に入り、
+//! ページ右目次・折りたたみ目次へ Demo 内見出しが混入する
+//! （Cursor Medium・Codex P2 指摘、`settings_integrations_list` と同型の
+//! 是正）。[`fandhe_frontend_pre_styled_ui::heading::heading`] は
+//! `data-scope="heading"` を持ち `with_heading_anchors` の除外対象になる
+//! ため、`HeadingLevel::H3` + `HeadingSize::Sm`（`settings_integrations_list`
+//! のセクション見出しと同じ視覚サイズ）で置き換える。`BLOCK.parts` へ
+//! `heading` を追加する。結果見出し（`result_item` 内の `h4`
+//! 「成功した場合」/「失敗した場合」）は `heading_level` が h2/h3 のみを
+//! 収集対象とするため元々 TOC 非混入であり、変更しない。
+//!
+//! # `pre` 内の複数行コードはインラインチップ recipe を上書きする
+//!
+//! [`fandhe_frontend_pre_styled_ui::code::code`] はインライン片用の recipe
+//! （padding 付きチップ・`display: inline`）を持つため、`pre` 内の複数行
+//! JSON にそのまま適用すると行ごとに分断されたチップとして表示される
+//! （Cursor Medium 指摘）。`settings_event_accordion` と同型の是正として、
+//! `data-blocks-settings-webhook-tester-code` フックを `LAYOUT_CSS` 側で
+//! `display: block` + 背景・余白・角丸の除去へ上書きする。
 //!
 //! # ダミー素材について
 //!
@@ -57,13 +82,14 @@
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
-use fandhe_frontend_core::{div, el, h3, h4, p, pre, text, Node};
+use fandhe_frontend_core::{div, el, h4, p, pre, text, Node};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::code::{self, CodeProps};
 use fandhe_frontend_pre_styled_ui::field::{
     self, FieldIds, FieldOrientation, FieldProps, FieldRootProps,
 };
+use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::ColorPalette;
 
@@ -202,7 +228,7 @@ fn result_item(kind: ResultKind) -> Node {
                 vec![("class", "blocks-settings-webhook-tester-code")],
                 vec![code::code(
                     &CodeProps::default(),
-                    vec![],
+                    vec![("data-blocks-settings-webhook-tester-code", "")],
                     vec![text(kind.body())],
                 )],
             ),
@@ -216,7 +242,15 @@ pub fn demo() -> Node {
     div(
         vec![("class", "blocks-settings-webhook-tester-layout")],
         vec![
-            h3(vec![], vec![text("テスト送信")]),
+            heading::heading(
+                HeadingLevel::H3,
+                &HeadingProps {
+                    size: HeadingSize::Sm,
+                    ..HeadingProps::default()
+                },
+                vec![],
+                vec![text("テスト送信")],
+            ),
             p(
                 vec![("class", "blocks-settings-webhook-tester-lead")],
                 vec![text(
@@ -258,7 +292,7 @@ pub fn demo() -> Node {
                 vec![("class", "blocks-settings-webhook-tester-code")],
                 vec![code::code(
                     &CodeProps::default(),
-                    vec![],
+                    vec![("data-blocks-settings-webhook-tester-code", "")],
                     vec![text(PAYLOAD_JSON)],
                 )],
             ),
@@ -273,7 +307,15 @@ pub fn demo() -> Node {
                     vec![text("テスト送信")],
                 )],
             ),
-            h3(vec![], vec![text("送信結果")]),
+            heading::heading(
+                HeadingLevel::H3,
+                &HeadingProps {
+                    size: HeadingSize::Sm,
+                    ..HeadingProps::default()
+                },
+                vec![],
+                vec![text("送信結果")],
+            ),
             div(
                 vec![("class", "blocks-settings-webhook-tester-results")],
                 vec![
@@ -315,6 +357,10 @@ pub const BLOCK: Block = Block {
             label: "Badge",
             path: "/themes/badge/",
         },
+        Part {
+            label: "Heading",
+            path: "/themes/heading/",
+        },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
     demo,
@@ -331,7 +377,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-webhook-tester-results {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-settings-webhook-tester-result {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n  padding: var(--fandhe-space-4);\n}\n\
 .blocks-settings-webhook-tester-result-heading {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  flex-wrap: wrap;\n}\n\
-.blocks-settings-webhook-tester-code {\n  margin: 0;\n  padding: var(--fandhe-space-3);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n  overflow-x: auto;\n}\n";
+.blocks-settings-webhook-tester-code {\n  margin: 0;\n  padding: var(--fandhe-space-3);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n  overflow-x: auto;\n}\n\
+.blocks-settings-webhook-tester-code [data-blocks-settings-webhook-tester-code] {\n  display: block;\n  background: none;\n  padding: 0;\n  border-radius: 0;\n  white-space: pre;\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -391,5 +438,45 @@ mod tests {
     #[test]
     fn layout_css_is_safe() {
         assert!(!LAYOUT_CSS.contains('<'));
+    }
+
+    /// Cursor（PRRT_kwDOTarxgc6nz0TY）・Codex（PRRT_kwDOTarxgc6n0NRX）指摘の
+    /// 回帰ガード: 素の `<h3>` はページ右目次（`.docs-toc`）の収集対象になる。
+    /// 「テスト送信」「送信結果」を `heading` 部品（`data-scope="heading"`）
+    /// へ置き換え、TOC 抽出関数を実際に通して非混入を固定する
+    /// （`settings_api_keys_table`/`settings_integrations_list` と同型）。
+    #[test]
+    fn section_headings_are_excluded_from_page_toc() {
+        let (_annotated, toc_entries) = crate::layout::with_heading_anchors(demo());
+        assert!(
+            toc_entries.is_empty(),
+            "demo の見出しはページ右目次に収集されてはならない: {toc_entries:?}"
+        );
+    }
+
+    #[test]
+    fn section_headings_use_heading_component() {
+        let html = demo_html();
+        assert_eq!(html.matches("data-scope=\"heading\"").count(), 2);
+    }
+
+    /// Cursor（PRRT_kwDOTarxgc6n0OB9）指摘の回帰ガード: `code::code` はインライン
+    /// チップ recipe（`display: inline` + padding）を持つため、`pre` 内の
+    /// 複数行 JSON へそのまま適用すると行ごとに分断されたチップとして表示
+    /// される。`LAYOUT_CSS` が `data-blocks-settings-webhook-tester-code`
+    /// フックを `display: block` へ上書きすることを固定する
+    /// （`settings_event_accordion` と同型）。
+    #[test]
+    fn layout_css_overrides_inline_code_chip_inside_pre() {
+        assert_eq!(
+            demo_html()
+                .matches("data-blocks-settings-webhook-tester-code")
+                .count(),
+            3,
+            "ペイロード・成功・失敗の 3 箇所の pre>code にフックが付くこと"
+        );
+        assert!(
+            LAYOUT_CSS.contains("[data-blocks-settings-webhook-tester-code] {\n  display: block;")
+        );
     }
 }
