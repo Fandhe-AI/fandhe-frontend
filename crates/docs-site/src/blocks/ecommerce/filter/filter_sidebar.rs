@@ -1,6 +1,6 @@
 //! `filter-sidebar` block（イシュー #3049。親 #3024「Blocks EC 系」配下）。
-//! Ecommerce / Filter カテゴリ最初の block（`filter/mod.rs` の雛形を本 block
-//! で卒業、イシュー #2734 §18）。
+//! Ecommerce / Filter カテゴリの block（登録は `filter/mod.rs`、構成は
+//! イシュー #2734 §18 参照）。
 //!
 //! # 使用部品
 //!

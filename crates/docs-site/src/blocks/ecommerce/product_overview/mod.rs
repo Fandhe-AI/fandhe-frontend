@@ -9,6 +9,7 @@
 //! block ごとの追加経緯は git 履歴と PR を正とし、本コメントには書かない
 //! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
+mod product_overview_featured_split;
 mod product_overview_gallery_split;
 mod product_overview_image_grid;
 mod product_overview_tabs_below;
@@ -17,6 +18,7 @@ use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
     vec![
+        product_overview_featured_split::BLOCK,
         product_overview_gallery_split::BLOCK,
         product_overview_image_grid::BLOCK,
         product_overview_tabs_below::BLOCK,

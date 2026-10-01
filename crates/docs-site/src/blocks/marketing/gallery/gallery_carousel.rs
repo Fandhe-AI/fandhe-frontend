@@ -6,9 +6,6 @@
 //! 識別子は記載しない（`docs/design/motion-reference-adoption-policy.md`
 //! §9 と同じライセンス上の転記制限）。
 //!
-//! **Marketing / Gallery カテゴリで最初の block**（`super`（`gallery/mod.rs`）
-//! 参照。カテゴリ雛形からの卒業も本 block が担う）。
-//!
 //! # 使用部品
 //!
 //! `badge` / `heading` / `text` / `carousel` / `image` / `button` の 6 部品

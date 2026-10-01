@@ -1,6 +1,5 @@
-//! `app-shell-sidebar` block（イシュー #2894。Application / App Shell
-//! カテゴリの最初の block、`crate::blocks` モジュール doc の契約を
-//! `login_01`/`dashboard_01`/`sidebar_07` 等に続いて実装する）。
+//! `app-shell-sidebar` block（イシュー #2894。`crate::blocks` モジュール doc の
+//! 契約を `login_01`/`dashboard_01`/`sidebar_07` 等に続いて実装する）。
 //!
 //! # 使用部品
 //!

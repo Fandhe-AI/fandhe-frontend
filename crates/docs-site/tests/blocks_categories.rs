@@ -158,6 +158,57 @@ fn category_mod_docs_do_not_record_per_block_history() {
     );
 }
 
+/// block 実装モジュール（`<section>/<category>/<snake>.rs`、`mod.rs` を除く）
+/// の `//!` 行に「最初の block」「卒業」といった追加経緯を書かないことを
+/// 固定する（イシュー #3513）。並列 block PR で事実とすぐ食い違うため、
+/// 追加経緯は git 履歴と PR を正とする。行折り返しをまたぐ記述も拾うため、
+/// `//!` 行の本文を空白除去して連結した文字列で判定する。
+#[test]
+fn block_module_docs_do_not_record_addition_history() {
+    let blocks_root = repo_root().join("crates/docs-site/src/blocks");
+    let read_dir = |dir: &std::path::Path| -> Vec<PathBuf> {
+        let mut entries: Vec<PathBuf> = std::fs::read_dir(dir)
+            .unwrap_or_else(|e| panic!("{dir:?} を読めない: {e}"))
+            .map(|entry| {
+                entry
+                    .unwrap_or_else(|e| panic!("{dir:?} のエントリを読めない: {e}"))
+                    .path()
+            })
+            .collect();
+        entries.sort();
+        entries
+    };
+    let mut checked = 0;
+
+    for section in read_dir(&blocks_root).into_iter().filter(|p| p.is_dir()) {
+        for category in read_dir(&section).into_iter().filter(|p| p.is_dir()) {
+            for module in read_dir(&category) {
+                let is_block_module = module.extension().is_some_and(|ext| ext == "rs")
+                    && module.file_name().is_some_and(|name| name != "mod.rs");
+                if !is_block_module {
+                    continue;
+                }
+                let source = std::fs::read_to_string(&module)
+                    .unwrap_or_else(|e| panic!("{module:?} を読めない: {e}"));
+                checked += 1;
+                let doc: String = source
+                    .lines()
+                    .filter_map(|line| line.trim_start().strip_prefix("//!"))
+                    .flat_map(|body| body.chars().filter(|c| !c.is_whitespace()))
+                    .collect();
+                for word in ["最初のblock", "最初のBlock", "卒業"] {
+                    assert!(
+                        !doc.contains(word),
+                        "{module:?} の `//!` に追加経緯（{word:?}）がある。block 実装モジュールの \
+                         doc には役割だけを書く（git 履歴と PR が正、イシュー #3513）"
+                    );
+                }
+            }
+        }
+    }
+    assert!(checked > 0, "block 実装モジュールが 1 件も見つからない");
+}
+
 #[test]
 fn issue_refs_extracts_hash_numbers_only() {
     assert_eq!(

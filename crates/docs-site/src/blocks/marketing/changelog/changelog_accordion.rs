@@ -5,9 +5,6 @@
 //! 内部コンポーネント識別子は記載しない（`docs/design/motion-reference-
 //! adoption-policy.md` §9 と同じライセンス上の転記制限）。
 //!
-//! **Marketing / Changelog カテゴリで最初の block**（イシュー #2734 の
-//! 雛形を本 block 追加で卒業させた、`super`（`changelog/mod.rs`）参照）。
-//!
 //! # 使用部品
 //!
 //! `heading` / `text` / `badge` / `accordion` / `list` / `image` の 6 部品を

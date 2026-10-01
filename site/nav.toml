@@ -2685,6 +2685,11 @@ path = "/blocks/media-object/"
 title = "Product Overview"
 
 [[section.group.page]]
+title = "product-overview-featured-split"
+source = "site/blocks/product-overview-featured-split.md"
+path = "/blocks/product-overview-featured-split/"
+
+[[section.group.page]]
 title = "product-overview-gallery-split"
 source = "site/blocks/product-overview-gallery-split.md"
 path = "/blocks/product-overview-gallery-split/"
@@ -2698,6 +2703,29 @@ path = "/blocks/product-overview-image-grid/"
 title = "product-overview-tabs-below"
 source = "site/blocks/product-overview-tabs-below.md"
 path = "/blocks/product-overview-tabs-below/"
+
+[[section.group]]
+title = "Product List"
+
+[[section.group.page]]
+title = "product-list-bordered-grid"
+source = "site/blocks/product-list-bordered-grid.md"
+path = "/blocks/product-list-bordered-grid/"
+
+[[section.group.page]]
+title = "product-list-carousel"
+source = "site/blocks/product-list-carousel.md"
+path = "/blocks/product-list-carousel/"
+
+[[section.group.page]]
+title = "product-list-rich-cards"
+source = "site/blocks/product-list-rich-cards.md"
+path = "/blocks/product-list-rich-cards/"
+
+[[section.group.page]]
+title = "product-list-simple-grid"
+source = "site/blocks/product-list-simple-grid.md"
+path = "/blocks/product-list-simple-grid/"
 
 [[section.group]]
 title = "Category"
@@ -2739,6 +2767,11 @@ path = "/blocks/filter-dropdown-bar/"
 title = "filter-expandable-panel"
 source = "site/blocks/filter-expandable-panel.md"
 path = "/blocks/filter-expandable-panel/"
+
+[[section.group.page]]
+title = "filter-overlay-panel"
+source = "site/blocks/filter-overlay-panel.md"
+path = "/blocks/filter-overlay-panel/"
 
 [[section.group.page]]
 title = "filter-sidebar"
@@ -2800,6 +2833,16 @@ source = "site/blocks/order-confirmation-summary.md"
 path = "/blocks/order-confirmation-summary/"
 
 [[section.group.page]]
+title = "order-history-panels"
+source = "site/blocks/order-history-panels.md"
+path = "/blocks/order-history-panels/"
+
+[[section.group.page]]
+title = "order-history-table"
+source = "site/blocks/order-history-table.md"
+path = "/blocks/order-history-table/"
+
+[[section.group.page]]
 title = "order-tracking-progress"
 source = "site/blocks/order-tracking-progress.md"
 path = "/blocks/order-tracking-progress/"
@@ -2819,6 +2862,11 @@ path = "/blocks/store-nav-mega-menu/"
 
 [[section.group]]
 title = "Incentives"
+
+[[section.group.page]]
+title = "incentives-icon-grid"
+source = "site/blocks/incentives-icon-grid.md"
+path = "/blocks/incentives-icon-grid/"
 
 [[section.group.page]]
 title = "incentives-inline-strip"

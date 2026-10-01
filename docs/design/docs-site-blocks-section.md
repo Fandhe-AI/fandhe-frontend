@@ -711,6 +711,14 @@ blocks/
 の `category_mod_docs_do_not_record_per_block_history` が、`//!` 行に雛形新設の
 #2734 以外のイシュー番号が現れないことを検査する。
 
+block 実装モジュールの doc にも追加経緯（最初の block・卒業など）を書かない
+（#3513）。block 実装モジュール（`<section>/<category>/<snake>.rs`）冒頭の
+`//!` には block の役割だけを書き、「カテゴリ最初の block」「本 PR で雛形から
+卒業させた」のような経緯は書かない。同じカテゴリへ並列に block が追加されると
+すぐ事実と合わなくなるためである。`blocks_categories.rs` の
+`block_module_docs_do_not_record_addition_history` が、`mod.rs` 以外の block
+実装モジュールの `//!` 行に「最初の block」「卒業」が現れないことを検査する。
+
 ### `Block` レジストリの関数化（`BLOCKS` 配列の廃止）
 
 66 個の可変長カテゴリを stable Rust の `const fn` だけで単一の
@@ -1099,11 +1107,17 @@ pub enum LayoutCss {
 | checkout-wizard-steps | #3045 | `ecommerce/checkout/checkout_wizard_steps.rs` |
 | cart-drawer | #3026（親 #3024） | `ecommerce/cart/cart_drawer.rs` |
 | cart-line-item-table | #3028/#3029（親 #3027） | `ecommerce/cart/cart_line_item_table.rs` |
+| order-history-panels | #3056/#3057（親 #3055） | `ecommerce/order/order_history_panels.rs` |
+| order-history-table | #3058（親 #3024） | `ecommerce/order/order_history_table.rs` |
 | order-tracking-progress | #3060/#3061（親 #3059） | `ecommerce/order/order_tracking_progress.rs` |
 | order-confirmation-summary | #3054（親 #3024） | `ecommerce/order/order_confirmation_summary.rs` |
-| product-overview-gallery-split | #3068（親 #3067） | `ecommerce/product_overview/product_overview_gallery_split.rs` |
+| product-overview-featured-split | #3066（親 #3024） | `ecommerce/product_overview/product_overview_featured_split.rs` |
+| product-overview-gallery-split | #3068/#3069（親 #3067） | `ecommerce/product_overview/product_overview_gallery_split.rs` |
 | product-overview-image-grid | #3071/#3072（親 #3070） | `ecommerce/product_overview/product_overview_image_grid.rs` |
 | product-overview-tabs-below | #3074（親 #3073） | `ecommerce/product_overview/product_overview_tabs_below.rs` |
+| product-list-simple-grid | #3065（親 #3024） | `ecommerce/product_list/product_list_simple_grid.rs` |
+| product-list-bordered-grid | #3062（親 #3024） | `ecommerce/product_list/product_list_bordered_grid.rs` |
+| product-list-rich-cards | #3064（親 #3024） | `ecommerce/product_list/product_list_rich_cards.rs` |
 | promo-collection-cards | #3078/#3079（親 #3077） | `ecommerce/promo/promo_collection_cards.rs` |
 | store-nav-centered-logo | #3094（親 #3093） | `ecommerce/store_nav/store_nav_centered_logo.rs` |
 | store-nav-mega-menu | #3097/#3098（親 #3096） | `ecommerce/store_nav/store_nav_mega_menu.rs` |
@@ -1114,11 +1128,14 @@ pub enum LayoutCss {
 | category-grid-captioned | #3037（親 #3024） | `ecommerce/category_listing/category_grid_captioned.rs` |
 | category-mosaic-featured | #3039 | `ecommerce/category_listing/category_mosaic_featured.rs` |
 | category-grid-overlay | #3038（親 #3024） | `ecommerce/category_listing/category_grid_overlay.rs` |
+| incentives-icon-grid | #3050 | `ecommerce/incentives/incentives_icon_grid.rs` |
 | filter-dropdown-bar | #3046（親 #3024） | `ecommerce/filter/filter_dropdown_bar.rs` |
 | filter-expandable-panel | #3047（親 #3024） | `ecommerce/filter/filter_expandable_panel.rs` |
+| filter-overlay-panel | #3048（親 #3024） | `ecommerce/filter/filter_overlay_panel.rs` |
 | filter-sidebar | #3049（親 #3024） | `ecommerce/filter/filter_sidebar.rs` |
 | incentives-inline-strip | #3051 | `ecommerce/incentives/incentives_inline_strip.rs` |
 | incentives-split-header | #3052（親 #3024） | `ecommerce/incentives/incentives_split_header.rs` |
+| product-list-carousel | #3063（親 #3024） | `ecommerce/product_list/product_list_carousel.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は

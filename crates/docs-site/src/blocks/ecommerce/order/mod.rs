@@ -10,6 +10,8 @@
 //! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
 mod order_confirmation_summary;
+mod order_history_panels;
+mod order_history_table;
 mod order_tracking_progress;
 
 use crate::blocks::Block;
@@ -17,6 +19,8 @@ use crate::blocks::Block;
 pub(super) fn blocks() -> Vec<Block> {
     vec![
         order_confirmation_summary::BLOCK,
+        order_history_panels::BLOCK,
+        order_history_table::BLOCK,
         order_tracking_progress::BLOCK,
     ]
 }
