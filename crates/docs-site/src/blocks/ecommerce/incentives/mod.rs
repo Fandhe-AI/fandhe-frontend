@@ -1,6 +1,6 @@
-//! Ecommerce / Incentives カテゴリの block 登録点。カテゴリ別のモジュール
-//! 構成と「カテゴリの卒業」手順は `docs/design/docs-site-blocks-section.md`
-//! §18 参照（イシュー #2734）。
+//! Ecommerce / Incentives カテゴリの block 登録点。カテゴリ別のモジュール構成と
+//! 「カテゴリの卒業」手順は `docs/design/docs-site-blocks-section.md` §18
+//! 参照（イシュー #2734）。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
 //! 新規 block を追加する際は本ファイルへ `mod` 宣言と `blocks()` への追記を
@@ -10,9 +10,10 @@
 //! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
 mod incentives_icon_grid;
+mod incentives_inline_strip;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![incentives_icon_grid::BLOCK]
+    vec![incentives_icon_grid::BLOCK, incentives_inline_strip::BLOCK]
 }
