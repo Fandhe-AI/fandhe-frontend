@@ -554,6 +554,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-featured-banner/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-grid-captioned/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-carousel/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-grid-overlay/index.html"
           # Ecommerce / Filter
           # Ecommerce / Cart
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cart-dialog/index.html"
