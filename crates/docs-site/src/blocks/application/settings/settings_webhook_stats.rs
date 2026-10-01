@@ -10,9 +10,10 @@
 //! # 使用部品
 //!
 //! `stat` / `card` / `table` / `timeline` / `progress` / `button` /
-//! `clipboard` / `badge` の 8 部品を合成する（[`BLOCK`] の `parts` に
-//! 一致させる契約、`crates/docs-site/tests/blocks_nav.rs`/
-//! `blocks_contract.rs` が検証する）。新しい UI 部品は追加しない。
+//! `clipboard` / `badge` / `visually-hidden` の 9 部品を合成する
+//! （[`BLOCK`] の `parts` に一致させる契約、
+//! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証する）。
+//! 新しい UI 部品は追加しない。
 //!
 //! # R0373/R0371 の畳み込み方（Demo は単一構成）
 //!
@@ -79,8 +80,10 @@
 //!
 //! # ダミー素材・秘密情報の扱いについて
 //!
-//! エンドポイント URL は `https://example.com/...` ドメイン固定。署名
-//! シークレットは実在トークン形式を模さない架空の伏せ字表示
+//! エンドポイント URL はヘッダー下部に `https://example.com/...` ドメイン
+//! 固定で表示する（codex レビュー指摘 #3481 P2: 以前は「架空データとして
+//! 扱う」と記載しつつ実際には描画していなかった）。署名シークレットは
+//! 実在トークン形式を模さない架空の伏せ字表示
 //! （`whsec_••••••••••••3f9a`）であり、全桁の実値は出力しない
 //! （`crates/docs-site/tests/blocks_contract.rs` 相当の秘匿方針）。統計値・
 //! 配信一覧・タイムラインの日時・件数はすべて本ファイル内の架空値で、
@@ -100,6 +103,7 @@ use fandhe_frontend_pre_styled_ui::recipe::{ColorPalette, Size};
 use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps};
 use fandhe_frontend_pre_styled_ui::timeline::{self, TimelineVariant};
+use fandhe_frontend_pre_styled_ui::visually_hidden;
 
 /// 配信結果の種別。バッジ・タイムライン両方で共有する（`settings_log_table.rs
 /// ::LogStatus` と同型のマッピング方針）。
@@ -148,6 +152,14 @@ struct StatDatum {
     value: &'static str,
     unit: Option<&'static str>,
     trend_up: bool,
+    /// `trend_up` と逆方向の矢印色（成功色/危険色、`stat` モジュール doc
+    /// 参照）へ固定で上書きするか。`trend_up` は実測値の増減方向（文字
+    /// 通りの上下）を表すため、「下降だが良い変化」（平均応答時間の短縮
+    /// 等）では `down_indicator` の危険色固定が改悪に見える
+    /// （codex レビュー指摘 #3481・`chart_stat_cards.rs` の同型指摘 #3347
+    /// 参照）。該当する統計だけ `true` にし、[`LAYOUT_CSS`] で矢印の色を
+    /// 中立色へ上書きする。
+    neutral_indicator: bool,
     help: &'static str,
 }
 
@@ -158,6 +170,7 @@ const STATS: &[StatDatum] = &[
         value: "1,284",
         unit: None,
         trend_up: true,
+        neutral_indicator: false,
         help: "過去 30 日間",
     },
     StatDatum {
@@ -165,6 +178,7 @@ const STATS: &[StatDatum] = &[
         value: "98.4",
         unit: Some("%"),
         trend_up: true,
+        neutral_indicator: false,
         help: "先月比で改善",
     },
     StatDatum {
@@ -172,6 +186,9 @@ const STATS: &[StatDatum] = &[
         value: "212",
         unit: Some("ms"),
         trend_up: false,
+        // 短縮（低下）は良い変化だが down_indicator は危険色固定のため
+        // 中立色へ上書きする（StatDatum::neutral_indicator 参照）。
+        neutral_indicator: true,
         help: "先月比で短縮",
     },
     StatDatum {
@@ -179,6 +196,7 @@ const STATS: &[StatDatum] = &[
         value: "21",
         unit: None,
         trend_up: false,
+        neutral_indicator: false,
         help: "直近 30 日間の累計",
     },
 ];
@@ -317,12 +335,29 @@ const TIMELINE_ENTRIES: &[TimelineEntry] = &[
 ];
 
 /// 1 枚の統計カード（`card` + `stat` の合成、`settings_billing_overview.rs
-/// ::stat_card` と同型）。
+/// ::stat_card` と同型）。`stat::root`（`<dl>`）の定義リスト構造を保つため
+/// `stat::label`（`<dt>`）を先頭へ必ず置く（codex レビュー指摘 #3481
+/// P2: 以前は欠落していた）。可視見出しは `card::title` が既に担うため、
+/// `stat::label` は `visually_hidden::root` で視覚的に隠し、見出しの
+/// 二重表示を避ける（`settings_share_link.rs::share_url_clipboard` と
+/// 同型の判断）。
 fn stat_card(datum: &StatDatum) -> Node {
-    let mut value_children = vec![stat::value_text(vec![], vec![text(datum.value)])];
+    let mut value_children = vec![
+        stat::label(
+            vec![],
+            vec![visually_hidden::root(vec![], vec![text(datum.label)])],
+        ),
+        stat::value_text(vec![], vec![text(datum.value)]),
+    ];
     if let Some(unit) = datum.unit {
         value_children.push(stat::value_unit(vec![], vec![text(unit)]));
     }
+
+    let indicator_attrs: Vec<(&str, &str)> = if datum.neutral_indicator {
+        vec![("class", "blocks-settings-webhook-stats-indicator-neutral")]
+    } else {
+        vec![]
+    };
 
     card::root(
         CardProps::default(),
@@ -342,9 +377,9 @@ fn stat_card(datum: &StatDatum) -> Node {
                     vec![],
                     vec![
                         if datum.trend_up {
-                            stat::up_indicator(vec![])
+                            stat::up_indicator(indicator_attrs)
                         } else {
-                            stat::down_indicator(vec![])
+                            stat::down_indicator(indicator_attrs)
                         },
                         text(datum.help),
                     ],
@@ -393,7 +428,10 @@ fn trend_bar(day: &TrendDay) -> Node {
 /// 参照）。`label` の `for` は実際の labelable control である
 /// `clipboard::input` の `id`（`SECRET_INPUT_ID`）を指す。表示値は実値を
 /// 持たない伏せ字のためコピー対象が存在せず、`trigger` は `disabled` で
-/// 操作不能にする。
+/// 操作不能にする。可視見出しはカード側の `card::title`（「署名シーク
+/// レット」）が既に担うため、`clipboard::label` は `visually_hidden::root`
+/// で視覚的に隠し、見出しの二重表示を避ける（Cursor Bugbot レビュー指摘
+/// #3481、`settings_share_link.rs::share_url_clipboard` と同型の判断）。
 fn secret_clipboard() -> Node {
     const SECRET_INPUT_ID: &str = "blocks-settings-webhook-stats-secret";
     const MASKED_SECRET: &str = "whsec_••••••••••••3f9a";
@@ -403,11 +441,14 @@ fn secret_clipboard() -> Node {
         false,
         vec![("data-blocks-settings-webhook-stats-secret", "")],
         vec![
-            clipboard::label(
-                false,
-                Some(SECRET_INPUT_ID),
+            visually_hidden::root(
                 vec![],
-                vec![text("署名シークレット")],
+                vec![clipboard::label(
+                    false,
+                    Some(SECRET_INPUT_ID),
+                    vec![],
+                    vec![text("署名シークレット")],
+                )],
             ),
             clipboard::control(
                 false,
@@ -522,7 +563,16 @@ pub fn demo() -> Node {
     let header = div(
         vec![("class", "blocks-settings-webhook-stats-header")],
         vec![
-            card::title(vec![], vec![text("注文イベント Webhook")]),
+            div(
+                vec![("class", "blocks-settings-webhook-stats-header-main")],
+                vec![
+                    card::title(vec![], vec![text("注文イベント Webhook")]),
+                    div(
+                        vec![("class", "blocks-settings-webhook-stats-endpoint")],
+                        vec![text("https://example.com/webhooks/orders")],
+                    ),
+                ],
+            ),
             badge::badge(
                 &BadgeProps {
                     variant: BadgeVariant::Subtle,
@@ -666,6 +716,10 @@ pub const BLOCK: Block = Block {
             label: "Badge",
             path: "/themes/badge/",
         },
+        Part {
+            label: "Visually Hidden",
+            path: "/themes/visually-hidden/",
+        },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
     demo,
@@ -676,6 +730,8 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-settings-webhook-stats-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  container-type: inline-size;\n  container-name: blocks-settings-webhook-stats;\n}\n\
 .blocks-settings-webhook-stats-header {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-3);\n}\n\
+.blocks-settings-webhook-stats-header-main {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
+.blocks-settings-webhook-stats-endpoint {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-settings-webhook-stats-header-actions {\n  display: flex;\n  gap: var(--fandhe-space-2);\n  margin-left: auto;\n}\n\
 .blocks-settings-webhook-stats-grid {\n  display: grid;\n  grid-template-columns: repeat(4, 1fr);\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-settings-webhook-stats-stat-label {\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-normal);\n}\n\
@@ -689,7 +745,9 @@ const LAYOUT_CSS: &str = "\
 @container blocks-settings-webhook-stats (max-width: 28rem) {\n  \
 .blocks-settings-webhook-stats-grid {\n    grid-template-columns: 1fr;\n  }\n\
 }\n\
-[data-blocks-settings-webhook-stats-secret] [data-scope=\"clipboard\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 0.5;\n  cursor: not-allowed;\n}\n";
+[data-blocks-settings-webhook-stats-secret] [data-scope=\"clipboard\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 0.5;\n  cursor: not-allowed;\n}\n\
+[data-scope=\"stat\"][data-part=\"up-indicator\"].blocks-settings-webhook-stats-indicator-neutral,\n\
+[data-scope=\"stat\"][data-part=\"down-indicator\"].blocks-settings-webhook-stats-indicator-neutral {\n  background: var(--fandhe-color-fg-muted);\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -712,9 +770,46 @@ mod tests {
             "data-scope=\"button\"",
             "data-scope=\"clipboard\"",
             "data-scope=\"badge\"",
+            "data-scope=\"visually-hidden\"",
         ] {
             assert!(html.contains(scope), "demo should contain {scope}");
         }
+    }
+
+    /// レビュー指摘是正（PR #3481）: `stat::root`（`<dl>`）が `stat::label`
+    /// （`<dt>`）を持たず、統計値（`<dd>`）のラベルが定義リスト構造上
+    /// 失われていた（codex P2）。4 枚とも `stat::label` を持つことを固定
+    /// する。
+    #[test]
+    fn stat_cards_have_dl_label() {
+        let html = demo_html();
+        assert_eq!(
+            html.matches("data-scope=\"stat\" data-part=\"label\"")
+                .count(),
+            4
+        );
+    }
+
+    /// レビュー指摘是正（PR #3481）: モジュール doc はエンドポイント URL を
+    /// 架空データとして扱うと記載するが、以前の `demo()` は URL を一切
+    /// 描画していなかった（codex P2）。ヘッダーに URL 表示を固定する。
+    #[test]
+    fn header_shows_endpoint_url() {
+        let html = demo_html();
+        assert!(html.contains("https://example.com/webhooks/orders"));
+    }
+
+    /// レビュー指摘是正（PR #3481）: 平均応答時間は改善（短縮）を示すが
+    /// `trend_up: false` のため `down_indicator`（危険色固定）が選ばれ、
+    /// 改善が悪化のように見えていた（codex P2）。中立色上書きクラスが
+    /// 出力されることを固定する。
+    #[test]
+    fn response_time_indicator_uses_neutral_color() {
+        let html = demo_html();
+        assert!(html.contains(
+            "data-scope=\"stat\" data-part=\"down-indicator\" aria-hidden=\"true\" \
+             class=\"blocks-settings-webhook-stats-indicator-neutral\""
+        ));
     }
 
     #[test]

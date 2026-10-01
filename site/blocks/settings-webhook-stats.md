@@ -5,8 +5,8 @@ Webhook エンドポイントの詳細画面を「統計付き」で表した設
 配信の推移バー・署名シークレットの伏せ字静的表示（コピー操作は押下不能）・
 直近の配信一覧テーブル・イベントタイムラインを積みます。`stat` / `card` /
 `table` / `timeline` /
-`progress` / `button` / `clipboard` / `badge` の 8 部品を合成します。Blocks
-は既存部品の合成例であり、新しい UI 部品は追加しません。
+`progress` / `button` / `clipboard` / `badge` / `visually hidden` の 9 部品
+を合成します。Blocks は既存部品の合成例であり、新しい UI 部品は追加しません。
 
 主参照は対応表 ID R0373（代表構成）、集約元は R0371（統計 3 枚 +
 タイムライン）です。失敗・再試行中の配信は状態バッジで強調し、狭い
@@ -35,6 +35,7 @@ use fandhe_frontend_pre_styled_ui::recipe::{ColorPalette, Size};
 use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps};
 use fandhe_frontend_pre_styled_ui::timeline::{self, TimelineVariant};
+use fandhe_frontend_pre_styled_ui::visually_hidden;
 
 /// 配信結果の種別。バッジ・タイムライン両方で共有する（`settings_log_table.rs
 /// ::LogStatus` と同型のマッピング方針）。
@@ -83,6 +84,14 @@ struct StatDatum {
     value: &'static str,
     unit: Option<&'static str>,
     trend_up: bool,
+    /// `trend_up` と逆方向の矢印色（成功色/危険色、`stat` モジュール doc
+    /// 参照）へ固定で上書きするか。`trend_up` は実測値の増減方向（文字
+    /// 通りの上下）を表すため、「下降だが良い変化」（平均応答時間の短縮
+    /// 等）では `down_indicator` の危険色固定が改悪に見える
+    /// （codex レビュー指摘 #3481・`chart_stat_cards.rs` の同型指摘 #3347
+    /// 参照）。該当する統計だけ `true` にし、[`LAYOUT_CSS`] で矢印の色を
+    /// 中立色へ上書きする。
+    neutral_indicator: bool,
     help: &'static str,
 }
 
@@ -93,6 +102,7 @@ const STATS: &[StatDatum] = &[
         value: "1,284",
         unit: None,
         trend_up: true,
+        neutral_indicator: false,
         help: "過去 30 日間",
     },
     StatDatum {
@@ -100,6 +110,7 @@ const STATS: &[StatDatum] = &[
         value: "98.4",
         unit: Some("%"),
         trend_up: true,
+        neutral_indicator: false,
         help: "先月比で改善",
     },
     StatDatum {
@@ -107,6 +118,9 @@ const STATS: &[StatDatum] = &[
         value: "212",
         unit: Some("ms"),
         trend_up: false,
+        // 短縮（低下）は良い変化だが down_indicator は危険色固定のため
+        // 中立色へ上書きする（StatDatum::neutral_indicator 参照）。
+        neutral_indicator: true,
         help: "先月比で短縮",
     },
     StatDatum {
@@ -114,6 +128,7 @@ const STATS: &[StatDatum] = &[
         value: "21",
         unit: None,
         trend_up: false,
+        neutral_indicator: false,
         help: "直近 30 日間の累計",
     },
 ];
@@ -252,12 +267,29 @@ const TIMELINE_ENTRIES: &[TimelineEntry] = &[
 ];
 
 /// 1 枚の統計カード（`card` + `stat` の合成、`settings_billing_overview.rs
-/// ::stat_card` と同型）。
+/// ::stat_card` と同型）。`stat::root`（`<dl>`）の定義リスト構造を保つため
+/// `stat::label`（`<dt>`）を先頭へ必ず置く（codex レビュー指摘 #3481
+/// P2: 以前は欠落していた）。可視見出しは `card::title` が既に担うため、
+/// `stat::label` は `visually_hidden::root` で視覚的に隠し、見出しの
+/// 二重表示を避ける（`settings_share_link.rs::share_url_clipboard` と
+/// 同型の判断）。
 fn stat_card(datum: &StatDatum) -> Node {
-    let mut value_children = vec![stat::value_text(vec![], vec![text(datum.value)])];
+    let mut value_children = vec![
+        stat::label(
+            vec![],
+            vec![visually_hidden::root(vec![], vec![text(datum.label)])],
+        ),
+        stat::value_text(vec![], vec![text(datum.value)]),
+    ];
     if let Some(unit) = datum.unit {
         value_children.push(stat::value_unit(vec![], vec![text(unit)]));
     }
+
+    let indicator_attrs: Vec<(&str, &str)> = if datum.neutral_indicator {
+        vec![("class", "blocks-settings-webhook-stats-indicator-neutral")]
+    } else {
+        vec![]
+    };
 
     card::root(
         CardProps::default(),
@@ -277,9 +309,9 @@ fn stat_card(datum: &StatDatum) -> Node {
                     vec![],
                     vec![
                         if datum.trend_up {
-                            stat::up_indicator(vec![])
+                            stat::up_indicator(indicator_attrs)
                         } else {
-                            stat::down_indicator(vec![])
+                            stat::down_indicator(indicator_attrs)
                         },
                         text(datum.help),
                     ],
@@ -328,7 +360,10 @@ fn trend_bar(day: &TrendDay) -> Node {
 /// 参照）。`label` の `for` は実際の labelable control である
 /// `clipboard::input` の `id`（`SECRET_INPUT_ID`）を指す。表示値は実値を
 /// 持たない伏せ字のためコピー対象が存在せず、`trigger` は `disabled` で
-/// 操作不能にする。
+/// 操作不能にする。可視見出しはカード側の `card::title`（「署名シーク
+/// レット」）が既に担うため、`clipboard::label` は `visually_hidden::root`
+/// で視覚的に隠し、見出しの二重表示を避ける（Cursor Bugbot レビュー指摘
+/// #3481、`settings_share_link.rs::share_url_clipboard` と同型の判断）。
 fn secret_clipboard() -> Node {
     const SECRET_INPUT_ID: &str = "blocks-settings-webhook-stats-secret";
     const MASKED_SECRET: &str = "whsec_••••••••••••3f9a";
@@ -338,11 +373,14 @@ fn secret_clipboard() -> Node {
         false,
         vec![("data-blocks-settings-webhook-stats-secret", "")],
         vec![
-            clipboard::label(
-                false,
-                Some(SECRET_INPUT_ID),
+            visually_hidden::root(
                 vec![],
-                vec![text("署名シークレット")],
+                vec![clipboard::label(
+                    false,
+                    Some(SECRET_INPUT_ID),
+                    vec![],
+                    vec![text("署名シークレット")],
+                )],
             ),
             clipboard::control(
                 false,
@@ -457,7 +495,16 @@ pub fn demo() -> Node {
     let header = div(
         vec![("class", "blocks-settings-webhook-stats-header")],
         vec![
-            card::title(vec![], vec![text("注文イベント Webhook")]),
+            div(
+                vec![("class", "blocks-settings-webhook-stats-header-main")],
+                vec![
+                    card::title(vec![], vec![text("注文イベント Webhook")]),
+                    div(
+                        vec![("class", "blocks-settings-webhook-stats-endpoint")],
+                        vec![text("https://example.com/webhooks/orders")],
+                    ),
+                ],
+            ),
             badge::badge(
                 &BadgeProps {
                     variant: BadgeVariant::Subtle,
