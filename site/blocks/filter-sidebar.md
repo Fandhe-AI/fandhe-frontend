@@ -27,7 +27,7 @@ docs サイトは無 JS のため、並び替え・開閉・ドロワーの開�
 ## Rust コード
 
 ```rust
-use fandhe_frontend_core::{aside, div, li, nav, p, section, text, ul, Node};
+use fandhe_frontend_core::{aside, div, li, nav, p, section, span, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::collapsible;
@@ -198,32 +198,40 @@ fn fieldset_group(id: &str, name: &str, label: &'static str, options: &[Option_]
     )
 }
 
-/// カテゴリナビ（各リンクは同インスタンスの商品領域 id への
-/// フラグメント、モジュール doc「`href` の方針」節）。
+/// カテゴリナビ（同インスタンスの商品領域 id へのフラグメント、
+/// モジュール doc「`href` の方針」節）。
+///
+/// 本 Demo は実際のカテゴリ別フィルタリングを持たず、商品領域は単一の
+/// 固定カードセットのため、全カテゴリを同一 href のリンクにすると
+/// 「カテゴリを選んでも同じ場所へ移動する」という誤解を招く
+/// （PR #3504 レビュー指摘）。先頭の「すべて」のみ実際のリンク
+/// （`aria-current="page"` で選択中を示す）とし、残りは行き先を持たない
+/// プレーンテキストとして示す。
 fn category_nav(products_id: &str) -> Node {
     let href = format!("#{products_id}");
+    let items: Vec<Node> = CATEGORIES
+        .iter()
+        .enumerate()
+        .map(|(i, label)| {
+            let child = if i == 0 {
+                link::root(
+                    href.as_str(),
+                    &LinkProps::default(),
+                    vec![("aria-current", "page")],
+                    vec![text(*label)],
+                )
+            } else {
+                span(vec![], vec![text(*label)])
+            };
+            li(vec![], vec![child])
+        })
+        .collect();
     nav(
         vec![
             ("aria-label", "カテゴリ"),
             ("class", "blocks-filter-sidebar-category-nav"),
         ],
-        vec![ul(
-            vec![],
-            CATEGORIES
-                .iter()
-                .map(|label| {
-                    li(
-                        vec![],
-                        vec![link::root(
-                            href.as_str(),
-                            &LinkProps::default(),
-                            vec![],
-                            vec![text(*label)],
-                        )],
-                    )
-                })
-                .collect(),
-        )],
+        vec![ul(vec![], items)],
     )
 }
 
@@ -238,10 +246,13 @@ fn filter_panel(prefix: &str, products_id: &str, accordion: bool) -> Node {
     let size_id = format!("{prefix}-size-content");
     let price_id = format!("{prefix}-price-content");
     let groups: Vec<Node> = if accordion {
+        // 無 JS では disabled な trigger を開閉できず、closed な群は
+        // `hidden` 属性で選択肢ごと到達不能になる（モジュール doc
+        // 「無 JS・到達性の方針」節）。3 群すべてを open 固定する。
         vec![
             accordion_group(&color_name, "カラー", &color_id, true, COLOR_OPTIONS),
-            accordion_group(&size_name, "サイズ", &size_id, false, SIZE_OPTIONS),
-            accordion_group(&price_name, "価格帯", &price_id, false, PRICE_OPTIONS),
+            accordion_group(&size_name, "サイズ", &size_id, true, SIZE_OPTIONS),
+            accordion_group(&price_name, "価格帯", &price_id, true, PRICE_OPTIONS),
         ]
     } else {
         vec![

@@ -11,7 +11,9 @@
 //! # 3 版の対応（イシュー本文の参照 ID）
 //!
 //! - **版 A（[`instance_accordion`]、主参照 R0818）**: カテゴリリンク +
-//!   `collapsible` の開閉式フィルタ群 3 つ（先頭のみ open）。
+//!   `collapsible` の開閉式フィルタ群 3 つ。無 JS では閉じた群を開けず
+//!   選択肢に到達できなくなるため、静的表示は全群 open で描画する
+//!   （「無 JS・到達性の方針」節参照）。
 //! - **版 B（[`instance_expanded`]、R0819）**: `collapsible` を使わず
 //!   `fieldset::root` + `legend` で 3 群を常時展開する。
 //! - **版 C（[`instance_narrow`]、R0621）**: 版 A と同じ構成だが、
@@ -25,7 +27,11 @@
 //!
 //! - `collapsible` の root/trigger/indicator/content は `disabled: true` で
 //!   固定する（`form_layout_property_panel` と同じ判断。押しても何も
-//!   起きない静的表示）。
+//!   起きない静的表示）。`disabled: true` のトリガーは開閉操作ができない
+//!   ため、版 A/C は 3 群すべてを [`collapsible::OpenState::Open`] で
+//!   固定する（`content` は closed のとき `hidden` 属性を付与する仕様
+//!   `crates/headless-ui/src/collapsible.rs` のため、どれか 1 群でも
+//!   closed にすると無 JS では当該群の選択肢へ到達できなくなる）。
 //! - `checkbox` はすべて `CheckboxProps { disabled: true, .. }` にし、
 //!   ネイティブの切り替えで見た目と `data-state` がずれるのを構造的に
 //!   防ぐ（`form_layout_stacked` と同じ判断）。disabled の既定の薄い表示
@@ -53,10 +59,15 @@
 //!
 //! # `href` の方針
 //!
-//! カテゴリリンクは、同じインスタンスの商品領域 id へのページ内フラグメント
-//! （`#blocks-filter-sidebar-a-products` 等）にする。「カテゴリを選ぶと
-//! 一覧へ移る」という意味と一致し、`linkcheck` が同一ページの id 集合と
-//! 突き合わせて検証できる（`content_article_toc` と同じ判断）。
+//! 商品領域は単一の固定カードセットでカテゴリ別の絞り込みを持たないため、
+//! 全カテゴリを同一 href のリンクにすると「カテゴリを選んでも同じ場所へ
+//! 移動する」という誤解を招く（PR #3504 レビュー指摘）。先頭の「すべて」
+//! のみ、同じインスタンスの商品領域 id へのページ内フラグメント
+//! （`#blocks-filter-sidebar-a-products` 等、`aria-current="page"` で選択中を
+//! 示す）を持つ実際のリンクとし（`linkcheck` が同一ページの id 集合と
+//! 突き合わせて検証できる、`content_article_toc` と同じ判断）、残りの
+//! カテゴリは行き先を持たないプレーンテキスト（`span`）で示す
+//! （[`category_nav`] 参照）。
 //!
 //! # `<form>` を使わない
 //!
@@ -72,7 +83,7 @@
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
-use fandhe_frontend_core::{aside, div, li, nav, p, section, text, ul, Node};
+use fandhe_frontend_core::{aside, div, li, nav, p, section, span, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::collapsible;
@@ -243,32 +254,40 @@ fn fieldset_group(id: &str, name: &str, label: &'static str, options: &[Option_]
     )
 }
 
-/// カテゴリナビ（各リンクは同インスタンスの商品領域 id への
-/// フラグメント、モジュール doc「`href` の方針」節）。
+/// カテゴリナビ（同インスタンスの商品領域 id へのフラグメント、
+/// モジュール doc「`href` の方針」節）。
+///
+/// 本 Demo は実際のカテゴリ別フィルタリングを持たず、商品領域は単一の
+/// 固定カードセットのため、全カテゴリを同一 href のリンクにすると
+/// 「カテゴリを選んでも同じ場所へ移動する」という誤解を招く
+/// （PR #3504 レビュー指摘）。先頭の「すべて」のみ実際のリンク
+/// （`aria-current="page"` で選択中を示す）とし、残りは行き先を持たない
+/// プレーンテキストとして示す。
 fn category_nav(products_id: &str) -> Node {
     let href = format!("#{products_id}");
+    let items: Vec<Node> = CATEGORIES
+        .iter()
+        .enumerate()
+        .map(|(i, label)| {
+            let child = if i == 0 {
+                link::root(
+                    href.as_str(),
+                    &LinkProps::default(),
+                    vec![("aria-current", "page")],
+                    vec![text(*label)],
+                )
+            } else {
+                span(vec![], vec![text(*label)])
+            };
+            li(vec![], vec![child])
+        })
+        .collect();
     nav(
         vec![
             ("aria-label", "カテゴリ"),
             ("class", "blocks-filter-sidebar-category-nav"),
         ],
-        vec![ul(
-            vec![],
-            CATEGORIES
-                .iter()
-                .map(|label| {
-                    li(
-                        vec![],
-                        vec![link::root(
-                            href.as_str(),
-                            &LinkProps::default(),
-                            vec![],
-                            vec![text(*label)],
-                        )],
-                    )
-                })
-                .collect(),
-        )],
+        vec![ul(vec![], items)],
     )
 }
 
@@ -283,10 +302,13 @@ fn filter_panel(prefix: &str, products_id: &str, accordion: bool) -> Node {
     let size_id = format!("{prefix}-size-content");
     let price_id = format!("{prefix}-price-content");
     let groups: Vec<Node> = if accordion {
+        // 無 JS では disabled な trigger を開閉できず、closed な群は
+        // `hidden` 属性で選択肢ごと到達不能になる（モジュール doc
+        // 「無 JS・到達性の方針」節）。3 群すべてを open 固定する。
         vec![
             accordion_group(&color_name, "カラー", &color_id, true, COLOR_OPTIONS),
-            accordion_group(&size_name, "サイズ", &size_id, false, SIZE_OPTIONS),
-            accordion_group(&price_name, "価格帯", &price_id, false, PRICE_OPTIONS),
+            accordion_group(&size_name, "サイズ", &size_id, true, SIZE_OPTIONS),
+            accordion_group(&price_name, "価格帯", &price_id, true, PRICE_OPTIONS),
         ]
     } else {
         vec![
@@ -638,20 +660,23 @@ mod tests {
     }
 
     #[test]
-    fn version_a_has_one_open_and_two_closed_collapsible_sections() {
+    fn version_a_has_all_collapsible_sections_open() {
         let html = demo_html();
-        // 版 A・版 C はそれぞれサイドバー + ドロワーの 2 パネルを持ち、
-        // 各パネルは open 1・closed 2（版 B は fieldset のため 0）。
+        // 版 A・版 C はそれぞれサイドバー + ドロワーの 2 パネル × 3 群を
+        // 持つ。disabled な trigger は開閉操作ができず、closed な群は
+        // `hidden` 属性で選択肢へ到達不能になるため（モジュール doc
+        // 「無 JS・到達性の方針」節）、3 群すべてを open 固定する
+        // （版 B は fieldset のため 0）。
         assert_eq!(
             html.matches(r#"data-scope="collapsible" data-part="content" data-state="open""#)
                 .count(),
-            4,
+            12,
             "html={html}"
         );
         assert_eq!(
             html.matches(r#"data-scope="collapsible" data-part="content" data-state="closed""#)
                 .count(),
-            8,
+            0,
             "html={html}"
         );
     }
