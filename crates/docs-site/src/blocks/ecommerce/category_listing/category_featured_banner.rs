@@ -90,10 +90,22 @@
 //!
 //! # ブレークポイントをリテラルで直書きする理由
 //!
-//! テーマの breakpoint トークンは `@media` 条件式の中では解決できない
-//! （CSS custom property は宣言側でのみ有効）ため、`48rem` をリテラルで
-//! 直書きする（既存 block と同じ判断、`testimonial_background_image` と
-//! 同じ値を採用）。
+//! テーマの breakpoint トークンは `@container`/`@media` 条件式の中では
+//! 解決できない（CSS custom property は宣言側でのみ有効）ため、`48rem` を
+//! リテラルで直書きする（既存 block と同じ判断、`testimonial_background_image`
+//! と同じ値を採用）。
+//!
+//! # レイアウト切り替えに `@media` ではなく `@container` を使う理由
+//!
+//! `@media (min-width: …)` はビューポート幅を判定するため、本 block を
+//! サイドバー付きレイアウト等の幅の狭いコンテンツ領域へ埋め込むと、表示
+//! 領域が `48rem` 未満でも（ビューポート自体は広いため）形 A が重なり
+//! 配置へ戻らず 2 列配置のままになり、狭幅時の挙動が成立しない（codex
+//! 指摘 #3496）。[`crate::blocks::ecommerce::category_listing::
+//! category_grid_overlay`]/`store_nav_mega_menu` と同じ判断で、Demo の
+//! ルート（`.blocks-category-featured-banner-layout`）へ
+//! `container-type: inline-size` を宣言し、実際の表示領域幅を基準に
+//! 判定する `@container` クエリへ置き換える。
 //!
 //! # `drop_class_attr` と CSS フックの選び方
 //!
@@ -330,7 +342,7 @@ pub const BLOCK: Block = Block {
 /// 色リテラル（`#fff`/`white`/`black` 等）は使わず、可読性の確保は
 /// すべて `--fandhe-color-*` トークンと `color-mix()` で行う。
 const LAYOUT_CSS: &str = "\
-.blocks-category-featured-banner-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
+.blocks-category-featured-banner-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  container-type: inline-size;\n  container-name: blocks-category-featured-banner;\n}\n\
 .blocks-category-featured-banner-copy {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  align-items: start;\n  min-width: 0;\n}\n\
 .blocks-category-featured-banner-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-4);\n  align-items: center;\n}\n\
 .blocks-category-featured-banner-overlay {\n  display: flex;\n  flex-direction: column;\n}\n\
@@ -343,7 +355,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-category-featured-banner-eyebrow-inverted] {\n  color: var(--fandhe-color-bg);\n}\n\
 .blocks-category-featured-banner-split {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-category-featured-banner-split-image] {\n  display: block;\n  width: 100%;\n  height: 14rem;\n}\n\
-@media (min-width: 48rem) {\n  \
+@container blocks-category-featured-banner (min-width: 48rem) {\n  \
 .blocks-category-featured-banner-overlay {\n    display: grid;\n    min-height: 24rem;\n  }\n  \
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-category-featured-banner-overlay-image] {\n    grid-area: 1 / 1;\n    width: 100%;\n    height: 100%;\n  }\n  \
 .blocks-category-featured-banner-panel {\n    grid-area: 1 / 1;\n    align-self: end;\n    justify-self: start;\n    max-width: 28rem;\n    margin: var(--fandhe-space-6);\n  }\n  \
@@ -418,12 +430,25 @@ mod tests {
     /// トークン参照のみであること）。
     #[test]
     fn layout_css_declares_breakpoint_and_overlay_grid_area() {
-        assert!(LAYOUT_CSS.contains("@media (min-width: 48rem)"));
         assert!(LAYOUT_CSS.contains("grid-area: 1 / 1"));
         assert!(LAYOUT_CSS.contains("color-mix("));
         assert!(!LAYOUT_CSS.contains('#'));
         assert!(!LAYOUT_CSS.contains("white"));
         assert!(!LAYOUT_CSS.contains("black"));
+    }
+
+    /// codex 指摘 #3496 の回帰: レイアウト切り替えはビューポート幅判定の
+    /// `@media` ではなく、Demo 枠自身の実測幅を基準にする `@container` を
+    /// 使うこと（狭いコンテンツ領域へ埋め込んでも狭幅時の重なり配置が
+    /// 成立するための固定）。
+    #[test]
+    fn layout_css_uses_container_query_not_viewport_media_query() {
+        assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
+        assert!(LAYOUT_CSS.contains("container-name: blocks-category-featured-banner;"));
+        assert!(
+            LAYOUT_CSS.contains("@container blocks-category-featured-banner (min-width: 48rem)")
+        );
+        assert!(!LAYOUT_CSS.contains("@media"));
     }
 
     /// Bugbot 指摘 #3496 の回帰: 反転パネル上の eyebrow フックが

@@ -206,8 +206,13 @@ pub fn demo() -> Node {
   `/releases`（「リリースを見る」）へそれぞれ固定し、可視テキストが
   遷移先と矛盾しないようにしています。`href="#"` の死リンクは使って
   いません。
-- ブレークポイントは `48rem` をリテラルで直書きしています（テーマの
-  breakpoint トークンは `@media` 条件式の中では解決できないため）。
+- レイアウト切り替えは `@media`（ビューポート幅判定）ではなく
+  `@container`（コンテナクエリ）を使っています。Demo のルートへ
+  `container-type: inline-size` を宣言し、サイドバー付きレイアウト等の
+  狭いコンテンツ領域に置いても、表示領域自身の実測幅を基準に狭幅・広幅
+  を判定します。ブレークポイントは `48rem` をリテラルで直書きしています
+  （テーマの breakpoint トークンは `@container` 条件式の中では解決でき
+  ないため）。
 
 関連情報: [Heading](../themes/heading.md) / [Text](../themes/text.md) /
 [Image](../themes/image.md) / [Link](../themes/link.md)
