@@ -1,10 +1,10 @@
 //! `order-history-panels` block（イシュー #3056/#3057、親 #3055。
-//! Ecommerce / Order カテゴリ）。注文ごとに枠付きパネルを縦に積む注文履歴の
-//! 骨格・主要領域を合成する。主参照 R1116（サマリ帯 + 商品行の代表構成、
-//! 狭幅でサマリ操作を三点メニューへ集約）を軸とする。`_/blocks-intake/` の
-//! 対応ファイルは本イシュー着手時点で本 worktree に存在しないため、原稿・
-//! 本コメントには対応表 ID のみを記す（`order_tracking_progress`〔イシュー
-//! #3060/#3061〕と同じ扱い）。
+//! Ecommerce / Order カテゴリ）。注文履歴を枠付きパネルで縦に積む合成例。
+//! 主参照 R1116（サマリ帯 + 商品行の代表構成、狭幅でサマリ操作を三点
+//! メニューへ集約）を軸に、R1118（配送状況の状態表示）・R1119（商品行の
+//! 再購入等の操作）を合成する。`_/blocks-intake/` の対応ファイルは本
+//! worktree に存在しないため、原稿・本コメントには対応表 ID のみを記す
+//! （`order_tracking_progress`〔イシュー #3060/#3061〕と同じ扱い）。
 //!
 //! # 使用部品
 //!
@@ -17,8 +17,9 @@
 //!
 //! 注文 1 件 = `card` 1 枚。パネル上部はサマリ帯（注文番号・注文日・合計の
 //! 3 項目 + 「注文を見る」「請求書を見る」ボタン・三点メニュー）、区切り線を
-//! 挟んでパネル下部は商品行（画像・名称・価格・説明 + 「商品を見る」
-//! リンク）の並びとする。本件では 2 注文（2〜3 商品ずつ）を縦に積む。
+//! 挟んでパネル下部は商品行（画像・名称・価格・説明・配送状況 + 操作群
+//! 「商品を見る」「再購入」「類似品を見る」）の並びとする。本件では 2 注文
+//! （2〜3 商品ずつ）を縦に積む。
 //!
 //! # 狭幅ではサマリ操作をメニュー化し注文日を隠す（`@container`）
 //!
@@ -39,9 +40,10 @@
 //!
 //! 本 Demo は無 JS の docs サイトで静的な初期状態のみを示す（JS
 //! ハイドレーションを行わない）。押しても何も起きない要素を操作可能に
-//! 見せないため、2 個のボタン（`ButtonProps { disabled: true, .. }`）と
-//! `menu::trigger` の `disabled: true`（第 2 引数）を固定する
-//! （`list_title_meta`/`order_tracking_progress` と同型の判断）。
+//! 見せないため、サマリ帯のボタン 2 個 × 注文 2 件 + `menu::trigger` ×
+//! 2 件 + 商品行の操作ボタン 2 個 × 商品 5 件、計 16 個の操作要素を
+//! すべて `disabled` で固定する（`list_title_meta`/`order_tracking_progress`
+//! と同型の判断）。
 //!
 //! # `menu` の id をページ内で一意にする理由
 //!
@@ -78,13 +80,24 @@
 //! （注文 1: ¥8,200 + ¥1,400 = ¥9,600、注文 2: ¥12,800 + ¥3,200 + ¥1,000 =
 //! ¥17,000）。
 //!
-//! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応、イシュー #3057）
+//! # 配送状況の 3 パターン（R1118）
 //!
-//! 配送状況の状態表示（R1118）・商品行の「再購入」「類似品を見る」ボタン
-//! （R1119）は本 block（#3056）では実装しない。後続イシュー #3057 で追加
-//! する（詳細は `site/blocks/order-history-panels.md` の差分メモ節参照）。
-//! 注文見出し（h3、R1119 の一部）はレビュー指摘対応（PR #3509）で本イシュー
-//! にて先行実装済み。
+//! [`Delivery`] は `Delivered`/`Shipping`/`Preparing` の 3 値のみを持つ
+//! 単純な enum で、アイコン選択とフック値（`data-blocks-order-history-
+//! panels-status`）の供給にのみ用いる。状態は [`delivery_status`] が
+//! `styled_text::text` で**テキストとして伝え**、色だけに頼らない
+//! （WCAG 1.4.1）。付随するアイコン（[`delivery_icon`]）は装飾用途の
+//! 自作線画（`aria-hidden`）であり、参照元の絵柄は持ち込まない。追加の
+//! トークン色は付与せず既存トーンに揃える。
+//!
+//! # 商品行の操作とアクセシブルネーム（R1119）
+//!
+//! 「商品を見る」リンクに加え、商品行ごとに「再購入」「類似品を見る」
+//! ボタン（いずれも `disabled`）を `.blocks-order-history-panels-item-
+//! actions` へまとめる。可視テキストが商品間で重複するため、`aria-label`
+//! へ商品名を含めて一意にし、可視テキスト自体も名前に含めることで
+//! WCAG 2.5.3（Label in Name）を満たす（例:
+//! 「ノイズキャンセリングイヤホンを再購入」）。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -104,12 +117,34 @@ use fandhe_frontend_pre_styled_ui::recipe::Size;
 use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 
+/// 配送状況の 3 パターン（R1118）。アイコン選択とフック値の供給にのみ使う
+/// （モジュール冒頭「配送状況の 3 パターン」節参照）。
+#[derive(Clone, Copy)]
+enum Delivery {
+    Delivered,
+    Shipping,
+    Preparing,
+}
+
+impl Delivery {
+    /// `data-blocks-order-history-panels-status` へ渡すフック値。
+    const fn hook_value(self) -> &'static str {
+        match self {
+            Delivery::Delivered => "delivered",
+            Delivery::Shipping => "shipping",
+            Delivery::Preparing => "preparing",
+        }
+    }
+}
+
 /// 商品 1 件分のダミーデータ。
 struct Item {
     name: &'static str,
     description: &'static str,
     price: &'static str,
     href: &'static str,
+    delivery: Delivery,
+    status: &'static str,
 }
 
 /// 注文 1 件分のダミーデータ。[`menu_id`]/[`trigger_id`] は
@@ -137,12 +172,16 @@ const ORDERS: [Order; 2] = [
                 description: "ブラック / Bluetooth 5.3",
                 price: "¥8,200",
                 href: "https://example.com/products/noise-cancelling-earbuds",
+                delivery: Delivery::Delivered,
+                status: "配達済み（2026-09-20）",
             },
             Item {
                 name: "USB-C 急速充電ケーブル 1m",
                 description: "グレー",
                 price: "¥1,400",
                 href: "https://example.com/products/usb-c-cable-1m",
+                delivery: Delivery::Delivered,
+                status: "配達済み（2026-09-20）",
             },
         ],
     },
@@ -158,18 +197,24 @@ const ORDERS: [Order; 2] = [
                 description: "茶軸 / 日本語配列",
                 price: "¥12,800",
                 href: "https://example.com/products/mechanical-keyboard",
+                delivery: Delivery::Shipping,
+                status: "配送中（お届け予定 2026-09-28）",
             },
             Item {
                 name: "静音マウス",
                 description: "ホワイト",
                 price: "¥3,200",
                 href: "https://example.com/products/silent-mouse",
+                delivery: Delivery::Shipping,
+                status: "配送中（お届け予定 2026-09-28）",
             },
             Item {
                 name: "リストレスト",
                 description: "低反発ウレタン",
                 price: "¥1,000",
                 href: "https://example.com/products/wrist-rest",
+                delivery: Delivery::Preparing,
+                status: "発送準備中",
             },
         ],
     },
@@ -331,10 +376,126 @@ fn summary(order: &Order) -> Node {
     )
 }
 
-/// 商品 1 行分（画像・名称・価格・説明 + 「商品を見る」リンク）。可視テキストは
-/// 5 件とも「商品を見る」で同じになるため、`aria-label` で商品名を含む
-/// アクセシブルネーム（例: 「ノイズキャンセリングイヤホンを見る」）を供給し、
-/// リンク一覧での行き先判別を可能にする（レビュー指摘対応、イシュー #3056）。
+/// 配送状況アイコン（装飾用途の自作線画、`aria-hidden`。モジュール冒頭
+/// 「配送状況の 3 パターン」節参照。参照元の絵柄は持ち込まない）。
+fn delivery_icon(delivery: Delivery) -> Node {
+    let path = match delivery {
+        // チェック（`more_actions_icon` ではなく `order_tracking_progress` の
+        // 完了マークと同形の折れ線）。
+        Delivery::Delivered => el(
+            "path",
+            vec![
+                ("d", "M5 12l4 4L19 7"),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+            ],
+            vec![],
+        ),
+        // 右向き矢印（配送中）。
+        Delivery::Shipping => el(
+            "path",
+            vec![
+                ("d", "M4 12h14m0 0l-5-5m5 5l-5 5"),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+            ],
+            vec![],
+        ),
+        // 時計（発送準備中）。
+        Delivery::Preparing => el(
+            "path",
+            vec![
+                ("d", "M12 7v5l3 3M12 2a10 10 0 100 20 10 10 0 000-20z"),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+            ],
+            vec![],
+        ),
+    };
+    icon(
+        &IconProps {
+            size: Size::Sm,
+            ..IconProps::default()
+        },
+        vec![],
+        vec![path],
+    )
+}
+
+/// 配送状況の表示行（アイコン + 文言。状態は文言で伝え、色だけに頼らない
+/// 〔WCAG 1.4.1〕。モジュール冒頭「配送状況の 3 パターン」節参照）。
+fn delivery_status(item: &Item) -> Node {
+    div(
+        vec![
+            ("class", "blocks-order-history-panels-status"),
+            (
+                "data-blocks-order-history-panels-status",
+                item.delivery.hook_value(),
+            ),
+        ],
+        vec![
+            delivery_icon(item.delivery),
+            styled_text::text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text(item.status)],
+            ),
+        ],
+    )
+}
+
+/// 商品行の操作群（「商品を見る」リンク + 「再購入」「類似品を見る」
+/// ボタン、いずれも `disabled`）。可視テキストが商品間で重複するため、
+/// `aria-label` へ商品名を含めて一意にし可視テキストも名前に含める
+/// （WCAG 2.5.3、モジュール冒頭「商品行の操作とアクセシブルネーム」節参照。
+/// レビュー指摘対応、イシュー #3056 のリンク分の判断を踏襲）。
+fn item_actions(item: &Item) -> Node {
+    let link_label = format!("{}を見る", item.name);
+    let reorder_label = format!("{}を再購入", item.name);
+    let similar_label = format!("{}の類似品を見る", item.name);
+    div(
+        vec![("class", "blocks-order-history-panels-item-actions")],
+        vec![
+            link::root(
+                item.href,
+                &LinkProps::default(),
+                vec![
+                    ("data-blocks-order-history-panels-item-link", ""),
+                    ("aria-label", link_label.as_str()),
+                ],
+                vec![text("商品を見る")],
+            ),
+            button(
+                &ButtonProps {
+                    variant: ButtonVariant::Outline,
+                    size: Size::Sm,
+                    disabled: true,
+                    ..ButtonProps::default()
+                },
+                vec![("aria-label", reorder_label.as_str())],
+                vec![text("再購入")],
+            ),
+            button(
+                &ButtonProps {
+                    variant: ButtonVariant::Outline,
+                    size: Size::Sm,
+                    disabled: true,
+                    ..ButtonProps::default()
+                },
+                vec![("aria-label", similar_label.as_str())],
+                vec![text("類似品を見る")],
+            ),
+        ],
+    )
+}
+
+/// 商品 1 行分（画像・名称・価格・説明・配送状況 + 操作群）。
 fn item_row(item: &Item) -> Node {
     div(
         vec![("class", "blocks-order-history-panels-item")],
@@ -378,20 +539,10 @@ fn item_row(item: &Item) -> Node {
                         vec![],
                         vec![text(item.description)],
                     ),
+                    delivery_status(item),
                 ],
             ),
-            {
-                let aria_label = format!("{}を見る", item.name);
-                link::root(
-                    item.href,
-                    &LinkProps::default(),
-                    vec![
-                        ("data-blocks-order-history-panels-item-link", ""),
-                        ("aria-label", aria_label.as_str()),
-                    ],
-                    vec![text("商品を見る")],
-                )
-            },
+            item_actions(item),
         ],
     )
 }
@@ -524,6 +675,14 @@ pub const BLOCK: Block = Block {
 /// （`(0,3,0)`）に分離して明示する。`grid-row`/`width` は hook 属性のみ
 /// （`(0,1,0)`）のままで recipe と競合しないため分離不要
 /// （レビュー指摘対応、PR #3509）。
+///
+/// 商品行の操作群（`.blocks-order-history-panels-item-actions`）は、
+/// 狭幅既定で row 2 を折り返し表示にし、`40rem` 以上では右寄せにする
+/// （イシュー #3057）。操作が「商品を見る」単体から 3 つへ増えたため、
+/// 旧 `[data-blocks-order-history-panels-item-link]` 単体の col3 配置
+/// （PR #3509）は廃止し、画像は常に `grid-row: 1 / 3` のまま変更しない。
+/// 状態表示（`.blocks-order-history-panels-status`）は商品本文の末尾に
+/// 横並びで追加する。
 const LAYOUT_CSS: &str = "\
 .blocks-order-history-panels-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-order-history-panels;\n}\n\
 .blocks-order-history-panels-summary-row {\n  display: flex;\n  flex-direction: row;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n}\n\
@@ -537,14 +696,13 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-order-history-panels-image][data-scope=\"image\"][data-part=\"root\"] {\n  height: 5rem;\n}\n\
 .blocks-order-history-panels-item-body {\n  grid-column: 2;\n  grid-row: 1;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-order-history-panels-item-heading {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  justify-content: space-between;\n  gap: var(--fandhe-space-2);\n}\n\
-[data-blocks-order-history-panels-item-link] {\n  grid-column: 2;\n  grid-row: 2;\n  justify-self: start;\n}\n\
+.blocks-order-history-panels-status {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n}\n\
+.blocks-order-history-panels-item-actions {\n  grid-column: 2;\n  grid-row: 2;\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 @container blocks-order-history-panels (min-width: 40rem) {\n  \
 [data-blocks-order-history-panels-action-button][data-scope=\"button\"][data-part=\"root\"] {\n    display: inline-flex;\n  }\n  \
 [data-blocks-order-history-panels-date][data-scope=\"data-list\"][data-part=\"item\"] {\n    display: flex;\n  }\n  \
 .blocks-order-history-panels-actions [data-scope=\"menu\"][data-part=\"root\"] {\n    display: none;\n  }\n  \
-.blocks-order-history-panels-item {\n    grid-template-columns: 5rem minmax(0, 1fr) auto;\n  }\n  \
-[data-blocks-order-history-panels-image] {\n    grid-row: 1;\n  }\n  \
-[data-blocks-order-history-panels-item-link] {\n    grid-column: 3;\n    grid-row: 1;\n    justify-self: end;\n  }\n\
+.blocks-order-history-panels-item-actions {\n    justify-content: flex-end;\n  }\n\
 }\n";
 
 #[cfg(test)]
@@ -578,7 +736,9 @@ mod tests {
                 .count(),
             2
         );
-        assert_eq!(html.matches("<button").count(), 6);
+        // サマリボタン 2 個 × 注文 2 件 + menu::trigger × 2 件 + 商品行の
+        // 操作ボタン（再購入・類似品を見る）2 個 × 商品 5 件 = 16。
+        assert_eq!(html.matches("<button").count(), 16);
         assert_eq!(
             html.matches("data-scope=\"menu\" data-part=\"root\"")
                 .count(),
@@ -611,10 +771,14 @@ mod tests {
         for chunk in html.split("aria-label=\"").skip(1) {
             if let Some(end) = chunk.find('"') {
                 let label = &chunk[..end];
-                // メニューの「その他の操作」aria-label は商品リンクとは別物
-                // なので除外する（`action_menu` が注文ごとに供給、本テストは
+                // メニューの「その他の操作」aria-label・「類似品を見る」
+                // （`item_action_buttons_have_distinct_names_containing_visible_text`
+                // が別途検証）は商品リンクとは別物なので除外する（本テストは
                 // 商品リンクの判別可否のみを検証する）。
-                if label.ends_with("を見る") && !label.starts_with("その他の操作") {
+                if label.ends_with("を見る")
+                    && !label.starts_with("その他の操作")
+                    && !label.contains("類似品")
+                {
                     labels.push(label);
                 }
             }
@@ -673,10 +837,79 @@ mod tests {
     #[test]
     fn action_controls_are_natively_disabled() {
         let html = demo_html();
-        // ボタン 2 個 × 注文 2 件 = 4、menu::trigger × 2 = 2、計 6 個の
-        // disabled 操作要素（モジュール冒頭「操作要素はすべて disabled で
-        // 固定する」節参照）。
-        assert_eq!(html.matches(" disabled=\"\"").count(), 6);
+        // サマリボタン 2 個 × 注文 2 件 + menu::trigger × 2 件 + 商品行の
+        // 操作ボタン 2 個 × 商品 5 件、計 16 個の disabled 操作要素
+        // （モジュール冒頭「操作要素はすべて disabled で固定する」節参照）。
+        assert_eq!(html.matches(" disabled=\"\"").count(), 16);
+    }
+
+    #[test]
+    fn delivery_status_shows_three_patterns() {
+        let html = demo_html();
+        assert_eq!(
+            html.matches("data-blocks-order-history-panels-status=\"delivered\"")
+                .count(),
+            2
+        );
+        assert_eq!(
+            html.matches("data-blocks-order-history-panels-status=\"shipping\"")
+                .count(),
+            2
+        );
+        assert_eq!(
+            html.matches("data-blocks-order-history-panels-status=\"preparing\"")
+                .count(),
+            1
+        );
+        assert!(html.contains("配達済み"));
+        assert!(html.contains("配送中"));
+        assert!(html.contains("発送準備中"));
+    }
+
+    #[test]
+    fn item_action_buttons_have_distinct_names_containing_visible_text() {
+        let html = demo_html();
+        let mut reorder_labels: Vec<&str> = Vec::new();
+        let mut similar_labels: Vec<&str> = Vec::new();
+        for chunk in html.split("aria-label=\"").skip(1) {
+            if let Some(end) = chunk.find('"') {
+                let label = &chunk[..end];
+                if label.ends_with("を再購入") {
+                    reorder_labels.push(label);
+                } else if label.ends_with("の類似品を見る") {
+                    similar_labels.push(label);
+                }
+            }
+        }
+        assert_eq!(
+            reorder_labels.len(),
+            5,
+            "再購入ボタンは 5 件: {reorder_labels:?}"
+        );
+        assert_eq!(
+            similar_labels.len(),
+            5,
+            "類似品ボタンは 5 件: {similar_labels:?}"
+        );
+        for (visible, labels) in [
+            ("再購入", &reorder_labels),
+            ("類似品を見る", &similar_labels),
+        ] {
+            for label in labels {
+                assert!(
+                    label.contains(visible),
+                    "{label} は可視テキスト「{visible}」を含むべき"
+                );
+            }
+            let mut sorted = (*labels).clone();
+            sorted.sort_unstable();
+            sorted.dedup();
+            assert_eq!(
+                labels.len(),
+                sorted.len(),
+                "アクセシブルネームが重複している: {labels:?}"
+            );
+        }
     }
 
     #[test]
@@ -690,6 +923,7 @@ mod tests {
         assert!(LAYOUT_CSS.contains(
             "[data-blocks-order-history-panels-action-button][data-scope=\"button\"][data-part=\"root\"] {\n    display: inline-flex;\n  }"
         ));
+        assert!(LAYOUT_CSS.contains(".blocks-order-history-panels-item-actions {"));
     }
 
     /// レビュー指摘対応（PR #3509）: サマリ一覧の `flex-direction: row` が

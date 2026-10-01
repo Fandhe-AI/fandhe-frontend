@@ -4,14 +4,16 @@
 帯 + 商品行の代表構成）を軸にしています。各パネル上部は注文見出し
 （`<h3>`）+ サマリ帯（注文番号・注文日・合計 + 「注文を見る」「請求書を
 見る」ボタン・三点メニュー）、下部は商品見出し（`<h4>`）を含む商品行
-（画像・名称・価格・説明 + 商品名入りのアクセシブルネームを持つ「商品を
-見る」リンク）です。`card` / `data-list` / `button` / `menu` / `image` /
-`text` / `heading` / `link` / `separator` / `icon` の 10 部品を合成します。
-Blocks は既存部品の合成例であり、新しい UI 部品は追加しません。
+（画像・名称・価格・説明・配送状況の状態表示 + 商品名入りのアクセシブル
+ネームを持つ「商品を見る」「再購入」「類似品を見る」の操作群）です。
+`card` / `data-list` / `button` / `menu` / `image` / `text` / `heading` /
+`link` / `separator` / `icon` の 10 部品を合成します。Blocks は既存部品の
+合成例であり、新しい UI 部品は追加しません。
 
 本 Demo は無 JS の静的表示のみであり、`<form>` を含みません。注文処理・
-決済・送信先は一切持たず、ボタン・三点メニューはいずれも `disabled` で
-固定しています（押しても何も起きない要素を操作可能に見せないため）。
+決済・送信先は一切持たず、サマリ帯・商品行のボタンと三点メニューはいずれも
+`disabled` で固定しています（押しても何も起きない要素を操作可能に見せない
+ため）。
 
 コンテナ幅 40rem 未満では「注文を見る」「請求書を見る」ボタンと注文日の
 行を隠し、同じラベルの項目を持つ三点メニューのみを見せます。40rem 以上
@@ -40,12 +42,34 @@ use fandhe_frontend_pre_styled_ui::recipe::Size;
 use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 
+/// 配送状況の 3 パターン（R1118）。アイコン選択とフック値の供給にのみ使う
+/// （モジュール冒頭「配送状況の 3 パターン」節参照）。
+#[derive(Clone, Copy)]
+enum Delivery {
+    Delivered,
+    Shipping,
+    Preparing,
+}
+
+impl Delivery {
+    /// `data-blocks-order-history-panels-status` へ渡すフック値。
+    const fn hook_value(self) -> &'static str {
+        match self {
+            Delivery::Delivered => "delivered",
+            Delivery::Shipping => "shipping",
+            Delivery::Preparing => "preparing",
+        }
+    }
+}
+
 /// 商品 1 件分のダミーデータ。
 struct Item {
     name: &'static str,
     description: &'static str,
     price: &'static str,
     href: &'static str,
+    delivery: Delivery,
+    status: &'static str,
 }
 
 /// 注文 1 件分のダミーデータ。[`menu_id`]/[`trigger_id`] は
@@ -73,12 +97,16 @@ const ORDERS: [Order; 2] = [
                 description: "ブラック / Bluetooth 5.3",
                 price: "¥8,200",
                 href: "https://example.com/products/noise-cancelling-earbuds",
+                delivery: Delivery::Delivered,
+                status: "配達済み（2026-09-20）",
             },
             Item {
                 name: "USB-C 急速充電ケーブル 1m",
                 description: "グレー",
                 price: "¥1,400",
                 href: "https://example.com/products/usb-c-cable-1m",
+                delivery: Delivery::Delivered,
+                status: "配達済み（2026-09-20）",
             },
         ],
     },
@@ -94,18 +122,24 @@ const ORDERS: [Order; 2] = [
                 description: "茶軸 / 日本語配列",
                 price: "¥12,800",
                 href: "https://example.com/products/mechanical-keyboard",
+                delivery: Delivery::Shipping,
+                status: "配送中（お届け予定 2026-09-28）",
             },
             Item {
                 name: "静音マウス",
                 description: "ホワイト",
                 price: "¥3,200",
                 href: "https://example.com/products/silent-mouse",
+                delivery: Delivery::Shipping,
+                status: "配送中（お届け予定 2026-09-28）",
             },
             Item {
                 name: "リストレスト",
                 description: "低反発ウレタン",
                 price: "¥1,000",
                 href: "https://example.com/products/wrist-rest",
+                delivery: Delivery::Preparing,
+                status: "発送準備中",
             },
         ],
     },
@@ -267,10 +301,126 @@ fn summary(order: &Order) -> Node {
     )
 }
 
-/// 商品 1 行分（画像・名称・価格・説明 + 「商品を見る」リンク）。可視テキストは
-/// 5 件とも「商品を見る」で同じになるため、`aria-label` で商品名を含む
-/// アクセシブルネーム（例: 「ノイズキャンセリングイヤホンを見る」）を供給し、
-/// リンク一覧での行き先判別を可能にする（レビュー指摘対応、イシュー #3056）。
+/// 配送状況アイコン（装飾用途の自作線画、`aria-hidden`。モジュール冒頭
+/// 「配送状況の 3 パターン」節参照。参照元の絵柄は持ち込まない）。
+fn delivery_icon(delivery: Delivery) -> Node {
+    let path = match delivery {
+        // チェック（`more_actions_icon` ではなく `order_tracking_progress` の
+        // 完了マークと同形の折れ線）。
+        Delivery::Delivered => el(
+            "path",
+            vec![
+                ("d", "M5 12l4 4L19 7"),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+            ],
+            vec![],
+        ),
+        // 右向き矢印（配送中）。
+        Delivery::Shipping => el(
+            "path",
+            vec![
+                ("d", "M4 12h14m0 0l-5-5m5 5l-5 5"),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+            ],
+            vec![],
+        ),
+        // 時計（発送準備中）。
+        Delivery::Preparing => el(
+            "path",
+            vec![
+                ("d", "M12 7v5l3 3M12 2a10 10 0 100 20 10 10 0 000-20z"),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+            ],
+            vec![],
+        ),
+    };
+    icon(
+        &IconProps {
+            size: Size::Sm,
+            ..IconProps::default()
+        },
+        vec![],
+        vec![path],
+    )
+}
+
+/// 配送状況の表示行（アイコン + 文言。状態は文言で伝え、色だけに頼らない
+/// 〔WCAG 1.4.1〕。モジュール冒頭「配送状況の 3 パターン」節参照）。
+fn delivery_status(item: &Item) -> Node {
+    div(
+        vec![
+            ("class", "blocks-order-history-panels-status"),
+            (
+                "data-blocks-order-history-panels-status",
+                item.delivery.hook_value(),
+            ),
+        ],
+        vec![
+            delivery_icon(item.delivery),
+            styled_text::text(
+                &TextProps {
+                    size: TextSize::Sm,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text(item.status)],
+            ),
+        ],
+    )
+}
+
+/// 商品行の操作群（「商品を見る」リンク + 「再購入」「類似品を見る」
+/// ボタン、いずれも `disabled`）。可視テキストが商品間で重複するため、
+/// `aria-label` へ商品名を含めて一意にし可視テキストも名前に含める
+/// （WCAG 2.5.3、モジュール冒頭「商品行の操作とアクセシブルネーム」節参照。
+/// レビュー指摘対応、イシュー #3056 のリンク分の判断を踏襲）。
+fn item_actions(item: &Item) -> Node {
+    let link_label = format!("{}を見る", item.name);
+    let reorder_label = format!("{}を再購入", item.name);
+    let similar_label = format!("{}の類似品を見る", item.name);
+    div(
+        vec![("class", "blocks-order-history-panels-item-actions")],
+        vec![
+            link::root(
+                item.href,
+                &LinkProps::default(),
+                vec![
+                    ("data-blocks-order-history-panels-item-link", ""),
+                    ("aria-label", link_label.as_str()),
+                ],
+                vec![text("商品を見る")],
+            ),
+            button(
+                &ButtonProps {
+                    variant: ButtonVariant::Outline,
+                    size: Size::Sm,
+                    disabled: true,
+                    ..ButtonProps::default()
+                },
+                vec![("aria-label", reorder_label.as_str())],
+                vec![text("再購入")],
+            ),
+            button(
+                &ButtonProps {
+                    variant: ButtonVariant::Outline,
+                    size: Size::Sm,
+                    disabled: true,
+                    ..ButtonProps::default()
+                },
+                vec![("aria-label", similar_label.as_str())],
+                vec![text("類似品を見る")],
+            ),
+        ],
+    )
+}
+
+/// 商品 1 行分（画像・名称・価格・説明・配送状況 + 操作群）。
 fn item_row(item: &Item) -> Node {
     div(
         vec![("class", "blocks-order-history-panels-item")],
@@ -314,20 +464,10 @@ fn item_row(item: &Item) -> Node {
                         vec![],
                         vec![text(item.description)],
                     ),
+                    delivery_status(item),
                 ],
             ),
-            {
-                let aria_label = format!("{}を見る", item.name);
-                link::root(
-                    item.href,
-                    &LinkProps::default(),
-                    vec![
-                        ("data-blocks-order-history-panels-item-link", ""),
-                        ("aria-label", aria_label.as_str()),
-                    ],
-                    vec![text("商品を見る")],
-                )
-            },
+            item_actions(item),
         ],
     )
 }
@@ -368,12 +508,13 @@ pub fn demo() -> Node {
 
 ## 差分メモ
 
-- **R1116（主参照、狭幅時のメニュー化）**: サマリ帯のボタン 2 個と注文日
-  表示を、コンテナ幅 40rem 未満で三点メニューへ集約する差分をそのまま
-  採用しています。
-- 配送状況の状態表示（R1118）・商品行の「再購入」「類似品を見る」ボタン
-  （R1119）は後続イシュー #3057 で追加予定です。注文見出し（h3、R1119）
-  自体はレビュー指摘対応で本イシューにて先行実装済みです。
+- **R1116（主参照）**: 枠付きパネル構成を採用し、コンテナ幅 40rem 未満で
+  サマリ帯のボタン 2 個と注文日表示を三点メニューへ集約します。
+- **R1118**: 配送状況の 3 パターン（配達済み・配送中・発送準備中）を商品行
+  へ並べています。アイコンは装飾用途（`aria-hidden`）で、状態は
+  テキストで示します（色だけに頼らない WCAG 1.4.1 対応）。
+- **R1119**: 注文見出し（h3）と、商品行の「再購入」「類似品を見る」
+  ボタンを採用しています。参照元の文言・配色・アイコンは持ち込んでいません。
 
 関連情報: [Card](../themes/card.md) / [Data List](../themes/data-list.md) /
 [Button](../themes/button.md) / [Menu](../themes/menu.md) /
