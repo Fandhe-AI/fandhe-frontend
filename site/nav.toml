@@ -2690,6 +2690,14 @@ source = "site/blocks/product-overview-tabs-below.md"
 path = "/blocks/product-overview-tabs-below/"
 
 [[section.group]]
+title = "Category"
+
+[[section.group.page]]
+title = "category-carousel"
+source = "site/blocks/category-carousel.md"
+path = "/blocks/category-carousel/"
+
+[[section.group]]
 title = "Cart"
 
 [[section.group.page]]
