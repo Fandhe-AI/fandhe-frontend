@@ -469,8 +469,26 @@ pub const BLOCK: Block = Block {
 /// そのため `.blocks-incentives-icon-grid-instance` へ
 /// `container-type: inline-size` を張り、実コンテナ幅で判定する
 /// `@container` へ置き換える（`product_overview_image_grid` と同型）。
-/// しきい値 52.5rem は `minmax(…, 12rem)` の 4 列 + `gap:
-/// var(--fandhe-space-6)`（1.5rem）3 本分（`4 * 12rem + 3 * 1.5rem`）。
+/// クエリ対象は `.blocks-incentives-icon-grid-instance` 自身ではなく、
+/// その**子**（`.blocks-incentives-icon-grid-grid`）である点に注意
+/// （コンテナクエリは対象要素自身が確立するコンテナを参照できない仕様
+/// であり、祖先セレクタに `container-type` を張った要素自身ではなく
+/// descendant を対象にする必要がある）。
+///
+/// しきい値は `@container` が実際に参照する**コンテナ自身（`.instance`）
+/// の content-box 幅**で計算する（ビューポート幅や `.docs-content` の
+/// `max-width` そのものではない）。`.instance` の祖先は
+/// `.docs-content`（`max-width: 46rem`） → `.blocks-demo`（`padding:
+/// 1.5rem` 両側 = 3rem） → `.instance` 自身（`padding:
+/// var(--fandhe-space-6)` = 1.5rem 両側 = 3rem）の 2 段の padding を
+/// 挟むため、`.instance` が到達し得る content-box 幅の上限は
+/// `46rem − 3rem − 3rem = 40rem` である。旧しきい値 52.5rem
+/// （`4 * 12rem + 3 * 1.5rem`、列幅 12rem 基準）はこの 40rem 上限を
+/// 超えており、デモ枠内では構造的に到達不能だった（4 列表示が常に
+/// 未発動のまま死んでいたバグ、イシュー #3050 PR #3505 レビュー指摘）。
+/// 到達可能な列幅へ縮小し、しきい値 36rem（`4 * 7.875rem + 3 *
+/// 1.5rem`）に変更する。40rem 上限に対し十分な余裕（4rem）を残すことで
+/// ブラウザごとの端数処理・スクロールバー幅のぶれでも確実に到達する。
 /// 対象は 4 件インスタンス（B/E）のみに限定するため `data-count="4"` を
 /// 付与し、3 件インスタンス（A/C）には付けない（3 件のまま
 /// `repeat(4, …)` を当てると 4 列目が空トラックのまま残り、3 枚の
@@ -493,7 +511,7 @@ h3[data-blocks-incentives-icon-grid-sr-heading] {\n  margin: 0;\n}\n\
 [data-blocks-incentives-icon-grid-card-body] {\n  gap: var(--fandhe-space-3);\n}\n\
 [data-blocks-incentives-icon-grid-item-row] {\n  align-items: flex-start;\n}\n\
 [data-blocks-incentives-icon-grid-illustration] {\n  max-width: 8rem;\n}\n\
-@container blocks-incentives-icon-grid (min-width: 52.5rem) {\n  \
+@container blocks-incentives-icon-grid (min-width: 36rem) {\n  \
 .blocks-incentives-icon-grid-instance[data-count=\"4\"] .blocks-incentives-icon-grid-grid {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n\
 }\n";
 
@@ -562,15 +580,27 @@ mod tests {
 
     /// [`LAYOUT_CSS`] が想定する auto-fit グリッド・コンテナクエリでの
     /// 4 列固定（4 件インスタンス限定）を持つこと（デモ実幅を無視する
-    /// ビューポート `@media` には戻さない固定）。
+    /// ビューポート `@media` には戻さない固定）。しきい値 36rem は
+    /// `.instance` が到達し得る content-box 幅の上限 40rem
+    /// （`.docs-content` の `max-width: 46rem` から `.blocks-demo`・
+    /// `.instance` 自身の padding 計 6rem を引いた値）以下であること
+    /// （モジュール doc 「しきい値は…」節参照、イシュー #3050 PR #3505
+    /// レビュー指摘の回帰防止）。
     #[test]
     fn layout_css_declares_auto_fit_grid_and_container_query_breakpoint() {
         assert!(LAYOUT_CSS.contains("auto-fit"));
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
-        assert!(LAYOUT_CSS.contains("@container blocks-incentives-icon-grid (min-width: 52.5rem)"));
+        assert!(LAYOUT_CSS.contains("@container blocks-incentives-icon-grid (min-width: 36rem)"));
         assert!(LAYOUT_CSS.contains("[data-count=\"4\"]"));
         assert!(LAYOUT_CSS.contains("repeat(4, minmax(0, 1fr))"));
         assert!(!LAYOUT_CSS.contains("@media"));
+        // 新しきい値は `.instance` が実際に到達し得る content-box 幅の
+        // 上限（46rem − blocks-demo padding 3rem − instance padding
+        // 3rem = 40rem）を超えないこと（超えると旧バグの再発＝常に
+        // 到達不能になる）。
+        const INSTANCE_CONTENT_WIDTH_CAP_REM: f64 = 40.0;
+        const THRESHOLD_REM: f64 = 36.0;
+        assert!(THRESHOLD_REM <= INSTANCE_CONTENT_WIDTH_CAP_REM);
     }
 
     /// ルート class（`demo_class` とは別名）が `demo()` の出力へ実際に
