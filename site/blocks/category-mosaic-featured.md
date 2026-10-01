@@ -91,8 +91,16 @@ fn header(title: &'static str, right: Option<Node>) -> Node {
 /// カテゴリタイル 1 件。`featured` が `true`（先頭タイル）のときだけ
 /// `data-…-featured` を付け、モザイク配置（§「モザイクグリッドの配置」）の
 /// フックにする。`per_tile_button` が `true`（B 形）のとき、行動ラベルの
-/// `span` の代わりに常時 `disabled` の `button` を添える。
-fn tile(name: &'static str, src: &'static str, featured: bool, per_tile_button: bool) -> Node {
+/// `span` の代わりに常時 `disabled` の `button` を添える。`heading_level`
+/// はタイル名見出しのレベル（モジュール doc「B 形タイル見出しのレベル」節
+/// 参照、A/C 形は `H4`・B 形は `H3`）。
+fn tile(
+    name: &'static str,
+    src: &'static str,
+    featured: bool,
+    per_tile_button: bool,
+    heading_level: HeadingLevel,
+) -> Node {
     let mut root_attrs = vec![("data-blocks-category-mosaic-featured-tile", "")];
     if featured {
         root_attrs.push(("data-blocks-category-mosaic-featured-featured", ""));
@@ -101,7 +109,7 @@ fn tile(name: &'static str, src: &'static str, featured: bool, per_tile_button: 
     let action: Node = if per_tile_button {
         button::button(
             &ButtonProps {
-                variant: ButtonVariant::Outline,
+                variant: ButtonVariant::Plain,
                 disabled: true,
                 ..ButtonProps::default()
             },
@@ -139,7 +147,7 @@ fn tile(name: &'static str, src: &'static str, featured: bool, per_tile_button: 
                 vec![("class", "blocks-category-mosaic-featured-content")],
                 vec![
                     heading(
-                        HeadingLevel::H4,
+                        heading_level,
                         &HeadingProps::default(),
                         vec![("data-blocks-category-mosaic-featured-name", "")],
                         vec![text(name)],
@@ -166,10 +174,19 @@ fn grid(tall: bool, per_tile_button: bool) -> Node {
     if tall {
         class.push_str(" blocks-category-mosaic-featured-grid--tall");
     }
+    // B 形（`per_tile_button`）はヘッダー行（`H3`）を持たないため、タイル
+    // 名見出しを `H3` に上げて見出しレベルスキップを避ける（モジュール doc
+    // 「B 形タイル見出しのレベル」節参照）。A/C 形は `H3` ヘッダーの下に
+    // 並ぶため `H4` のまま。
+    let heading_level = if per_tile_button {
+        HeadingLevel::H3
+    } else {
+        HeadingLevel::H4
+    };
     let tiles: Vec<Node> = CATEGORIES
         .iter()
         .enumerate()
-        .map(|(i, (name, src))| tile(name, src, i == 0, per_tile_button))
+        .map(|(i, (name, src))| tile(name, src, i == 0, per_tile_button, heading_level))
         .collect();
     div(vec![("class", &class)], tiles)
 }
@@ -211,7 +228,7 @@ fn variant_c() -> Node {
                 "カテゴリから選ぶ",
                 Some(button::button(
                     &ButtonProps {
-                        variant: ButtonVariant::Outline,
+                        variant: ButtonVariant::Plain,
                         disabled: true,
                         ..ButtonProps::default()
                     },
@@ -257,7 +274,18 @@ pub fn demo() -> Node {
   `link-overlay` の rustdoc「入れ子リンクの前面化は非採用」節と同じです。
 - R0037 のタイルごとのボタンは無 JS では動作しないため、
   `category-carousel`/`gallery-carousel` と同じ判断で常時 `disabled`
-  にしています。
+  にしています。R0037・R0605 のボタンは `ButtonVariant::Plain`（輪郭・
+  背景なし）にしており、タイル全体が既にクリック可能な領域の内側に
+  重なる以上、`Outline` のような縁取り付きの見た目が「別に押せる
+  ボタンがある」という誤認を招くためです（codex-review #3498 P2 指摘）。
+- B 形タイルボタン（画像・暗幕の上に重なる）は祖先の
+  `color: var(--fandhe-color-bg)` を `color: inherit` で引き継ぎ、暗幕上
+  でも読める文字色にしています（codex-review #3498 P1 指摘、
+  `promo-collection-cards` の `cta-secondary` と同じ解法）。
+- B 形はヘッダー行（`H3`）を持たないため、タイル名見出しを `H3` に
+  上げています（A/C 形は `H3` ヘッダーの下に並ぶため `H4` のまま）。
+  `H4` 固定のままだと周囲ページの見出し階層を飛び越える見出しレベル
+  スキップになるためです（Bugbot 指摘）。
 - R0605 の縦長の画像は、グリッドの行高（`grid-auto-rows`）を 14rem から
   20rem へ広げることで表現しています。
 - モザイク配置（先頭タイルが 2 行分）は `grid-row: span 2` と

@@ -47,11 +47,29 @@
 //! 動作しないため、`category_carousel`/`gallery_carousel` と同じ判断で
 //! 常時 `disabled` にする。
 //!
+//! R0037/R0605 の disabled ボタンは `ButtonVariant::Plain`（輪郭・背景なし
+//! の最小装飾）を使う。`category_carousel` の CTA（通常背景上の独立ボタン）
+//! とは異なり、本 block のボタンはタイル全体が `overlay` で既にクリック
+//! 可能な領域の内側に重なるため、`Outline` のような縁取り付きの見た目は
+//! 「別に押せるボタンがある」という誤認を招く（codex-review #3498 P2
+//! 指摘）。`Plain` にすることで装飾ラベルに近い見た目へ寄せつつ、実部品と
+//! しての anatomy（5 部品契約の `button`）は維持する。
+//!
 //! # `alt` を空文字列にする理由
 //!
 //! カテゴリ名はタイル内の `heading` 見出しと `overlay` の `aria-label`
 //! の両方でテキストとして存在するため、画像自体は装飾として扱い `alt` を
 //! 空文字列にする（`category_carousel::category_tile` と同じ判断）。
+//!
+//! # タイル上ボタンのコントラスト（`color: inherit`）
+//!
+//! B 形タイルボタン（`tile-button`）は画像・暗幕（スクリム）の上に重なる
+//! ため、`button::button` 既定の文字色のままだと暗幕上で視認性不足になる
+//! （codex-review #3498 P1 指摘）。タイル見出し・装飾ラベルと同じく祖先の
+//! `color: var(--fandhe-color-bg)` を `color: inherit` で引き継がせ、画像上
+//! でも読める明度にする（`promo_collection_cards` の `cta-secondary` と
+//! 同じ解法）。ヘッダー行のボタン（C 形）は通常背景上に置かれ暗幕に重なら
+//! ないため、この上書きの対象外。
 //!
 //! # フォーカスリングをタイル内側へ寄せる理由
 //!
@@ -67,6 +85,16 @@
 //! （`promo_collection_cards`/`blog_overlay_cards` と同じ手法）。ダーク
 //! テーマでは fg/bg が反転するため「明るい幕に暗い文字」になるが、これは
 //! 参照先 2 block と同じ既知の挙動であり本 block 固有の欠陥ではない。
+//!
+//! # B 形タイル見出しのレベル（`H3`、A/C 形は `H4`）
+//!
+//! A/C 形は [`header`] の `H3` セクション見出しの下にタイルが並ぶため、
+//! タイル名見出しは 1 段下の `H4` で正しくネストする。B 形は
+//! （モジュール doc「3 形の差分」節のとおり）ヘッダー行を持たないため、
+//! タイル名見出しがそのセクション内で最初の見出しになる。ここで `H4` の
+//! ままだと周囲ページの `H3`/`H2` 階層を飛び越える見出しレベルスキップに
+//! なる（Bugbot 指摘、codex-review #3498 関連）ため、B 形のみタイル名見出
+//! しを `H3` に上げる（[`tile`] の `heading_level` 引数）。
 //!
 //! # `<form>` を持たない・データ取得/送信を行わない
 //!
@@ -136,8 +164,16 @@ fn header(title: &'static str, right: Option<Node>) -> Node {
 /// カテゴリタイル 1 件。`featured` が `true`（先頭タイル）のときだけ
 /// `data-…-featured` を付け、モザイク配置（§「モザイクグリッドの配置」）の
 /// フックにする。`per_tile_button` が `true`（B 形）のとき、行動ラベルの
-/// `span` の代わりに常時 `disabled` の `button` を添える。
-fn tile(name: &'static str, src: &'static str, featured: bool, per_tile_button: bool) -> Node {
+/// `span` の代わりに常時 `disabled` の `button` を添える。`heading_level`
+/// はタイル名見出しのレベル（モジュール doc「B 形タイル見出しのレベル」節
+/// 参照、A/C 形は `H4`・B 形は `H3`）。
+fn tile(
+    name: &'static str,
+    src: &'static str,
+    featured: bool,
+    per_tile_button: bool,
+    heading_level: HeadingLevel,
+) -> Node {
     let mut root_attrs = vec![("data-blocks-category-mosaic-featured-tile", "")];
     if featured {
         root_attrs.push(("data-blocks-category-mosaic-featured-featured", ""));
@@ -146,7 +182,7 @@ fn tile(name: &'static str, src: &'static str, featured: bool, per_tile_button: 
     let action: Node = if per_tile_button {
         button::button(
             &ButtonProps {
-                variant: ButtonVariant::Outline,
+                variant: ButtonVariant::Plain,
                 disabled: true,
                 ..ButtonProps::default()
             },
@@ -184,7 +220,7 @@ fn tile(name: &'static str, src: &'static str, featured: bool, per_tile_button: 
                 vec![("class", "blocks-category-mosaic-featured-content")],
                 vec![
                     heading(
-                        HeadingLevel::H4,
+                        heading_level,
                         &HeadingProps::default(),
                         vec![("data-blocks-category-mosaic-featured-name", "")],
                         vec![text(name)],
@@ -211,10 +247,19 @@ fn grid(tall: bool, per_tile_button: bool) -> Node {
     if tall {
         class.push_str(" blocks-category-mosaic-featured-grid--tall");
     }
+    // B 形（`per_tile_button`）はヘッダー行（`H3`）を持たないため、タイル
+    // 名見出しを `H3` に上げて見出しレベルスキップを避ける（モジュール doc
+    // 「B 形タイル見出しのレベル」節参照）。A/C 形は `H3` ヘッダーの下に
+    // 並ぶため `H4` のまま。
+    let heading_level = if per_tile_button {
+        HeadingLevel::H3
+    } else {
+        HeadingLevel::H4
+    };
     let tiles: Vec<Node> = CATEGORIES
         .iter()
         .enumerate()
-        .map(|(i, (name, src))| tile(name, src, i == 0, per_tile_button))
+        .map(|(i, (name, src))| tile(name, src, i == 0, per_tile_button, heading_level))
         .collect();
     div(vec![("class", &class)], tiles)
 }
@@ -256,7 +301,7 @@ fn variant_c() -> Node {
                 "カテゴリから選ぶ",
                 Some(button::button(
                     &ButtonProps {
-                        variant: ButtonVariant::Outline,
+                        variant: ButtonVariant::Plain,
                         disabled: true,
                         ..ButtonProps::default()
                     },
@@ -342,7 +387,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"heading\"][data-blocks-category-mosaic-featured-name] {\n  color: inherit;\n}\n\
 .blocks-category-mosaic-featured-action {\n  color: inherit;\n}\n\
 [data-scope=\"link-overlay\"][data-part=\"overlay\"][data-blocks-category-mosaic-featured-overlay]:focus-visible {\n  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));\n}\n\
-[data-scope=\"button\"][data-part=\"root\"][data-blocks-category-mosaic-featured-tile-button] {\n  justify-self: start;\n}\n";
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-category-mosaic-featured-tile-button] {\n  justify-self: start;\n  color: inherit;\n}\n";
 
 #[cfg(test)]
 mod tests {
