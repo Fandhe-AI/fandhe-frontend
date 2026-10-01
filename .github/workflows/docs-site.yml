@@ -467,17 +467,22 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-api-keys-table/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-billing-usage/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-billing-overview/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-integration-detail/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-integrations-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-integrations-list/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-event-accordion/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-export-data/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-integrations-search/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-api-key-created/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-log-table/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-org-switcher/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-notification-matrix/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-item-cards/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-page-aside-nav/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-page-tabs/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-preferences/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-profile-form/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-share-members/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-switch-sections/index.html"
           # Application / Action Panel
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-stacked/index.html"
@@ -493,6 +498,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/empty-state-starter-list/index.html"
           # Application / Notification
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/notification-tray-tabs/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/notification-tray/index.html"
           # Application / Dialog
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/game-ui-modal/index.html"
           # Application / Drawer
@@ -529,17 +535,27 @@ jobs:
           # Application / Media Object
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/media-object/index.html"
           # Ecommerce / Product Overview
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/product-overview-gallery-split/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/product-overview-image-grid/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/product-overview-tabs-below/index.html"
           # Ecommerce / Product List
           # Ecommerce / Quickview
           # Ecommerce / Category
           # Ecommerce / Filter
           # Ecommerce / Cart
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cart-line-item-table/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cart-two-column-summary/index.html"
           # Ecommerce / Checkout
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/checkout-form-summary-split/index.html"
           # Ecommerce / Order
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/order-tracking-progress/index.html"
           # Ecommerce / Reviews
           # Ecommerce / Store Nav
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/store-nav-centered-logo/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/store-nav-mega-menu/index.html"
           # Ecommerce / Incentives
           # Ecommerce / Promo
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-collection-cards/index.html"
           # Docs / Docs Layout
           # Docs / Code Block
           # Docs / Example Preview

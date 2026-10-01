@@ -980,6 +980,7 @@ pub enum LayoutCss {
 | description-list-summary-card | #2907（親 #2892） | `application/description_list/description_list_summary_card.rs` |
 | description-list-two-column | #2908 | `application/description_list/description_list_two_column.rs` |
 | profile-detail-datalist | #2937（親 #2892） | `application/profile/profile_detail_datalist.rs` |
+| cart-two-column-summary | #3033（親 #3032） | `ecommerce/cart/cart_two_column_summary.rs` |
 | empty-state-invite-team | #2970（親 #2951） | `application/empty_state/empty_state_invite_team.rs` |
 | sidebar-grouped-nav | #2940（親 #2892） | `application/sidebar/sidebar_grouped_nav.rs` |
 | profile-header-follow | #2939（親 #2892） | `application/profile/profile_header_follow.rs` |
@@ -989,6 +990,7 @@ pub enum LayoutCss {
 | form-layout-property-panel | #2913・#2914（親 #2912） | `application/form_layout/form_layout_property_panel.rs` |
 | form-layout-stacked | #2915（親 #2892） | `application/form_layout/form_layout_stacked.rs` |
 | form-layout-two-column | #2916（親 #2892） | `application/form_layout/form_layout_two_column.rs` |
+| settings-export-data | #2987（親 #2951） | `application/settings/settings_export_data.rs` |
 | navbar-app-links | #2926（親 #2892） | `application/navbar/navbar_app_links.rs` |
 | navbar-two-row | #2928 | `application/navbar/navbar_two_row.rs` |
 | navbar-with-search | #2929（親 #2892） | `application/navbar/navbar_with_search.rs` |
@@ -1051,6 +1053,7 @@ pub enum LayoutCss {
 | settings-billing-overview | #2984 | `application/settings/settings_billing_overview.rs` |
 | settings-billing-usage | #2985 | `application/settings/settings_billing_usage.rs` |
 | settings-api-key-created | #2982（親 #2951） | `application/settings/settings_api_key_created.rs` |
+| settings-integration-detail | #2989・#2990（親 #2988） | `application/settings/settings_integration_detail.rs` |
 | settings-integrations-grid | #2991（親 #2951） | `application/settings/settings_integrations_grid.rs` |
 | settings-integrations-list | #2993/#2994（親 #2992） | `application/settings/settings_integrations_list.rs` |
 | settings-integrations-search | #2995（親 #2951） | `application/settings/settings_integrations_search.rs` |
@@ -1058,9 +1061,22 @@ pub enum LayoutCss {
 | settings-log-table | #2997 | `application/settings/settings_log_table.rs` |
 | settings-notification-matrix | #2998（親 #2951） | `application/settings/settings_notification_matrix.rs` |
 | settings-org-switcher | #2999（親 #2951） | `application/settings/settings_org_switcher.rs` |
+| settings-page-aside-nav | #3001/#3002（親 #3000） | `application/settings/settings_page_aside_nav.rs` |
+| settings-page-tabs | #3007/#3008（親 #3006） | `application/settings/settings_page_tabs.rs` |
 | settings-preferences | #3009（親 #2951） | `application/settings/settings_preferences.rs` |
 | settings-profile-form | #3010 | `application/settings/settings_profile_form.rs` |
+| notification-tray | #2976（親 #2951） | `application/notification/notification_tray.rs` |
+| settings-share-members | #3013・#3014（親 #3012） | `application/settings/settings_share_members.rs` |
 | settings-switch-sections | #3015（親 #2951） | `application/settings/settings_switch_sections.rs` |
+| checkout-form-summary-split | #3042（親 #3041） | `ecommerce/checkout/checkout_form_summary_split.rs` |
+| cart-line-item-table | #3028（親 #3027） | `ecommerce/cart/cart_line_item_table.rs` |
+| order-tracking-progress | #3060/#3061（親 #3059） | `ecommerce/order/order_tracking_progress.rs` |
+| product-overview-gallery-split | #3068（親 #3067） | `ecommerce/product_overview/product_overview_gallery_split.rs` |
+| product-overview-image-grid | #3071/#3072（親 #3070） | `ecommerce/product_overview/product_overview_image_grid.rs` |
+| product-overview-tabs-below | #3074（親 #3073） | `ecommerce/product_overview/product_overview_tabs_below.rs` |
+| promo-collection-cards | #3078/#3079（親 #3077） | `ecommerce/promo/promo_collection_cards.rs` |
+| store-nav-centered-logo | #3094（親 #3093） | `ecommerce/store_nav/store_nav_centered_logo.rs` |
+| store-nav-mega-menu | #3097/#3098（親 #3096） | `ecommerce/store_nav/store_nav_mega_menu.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は

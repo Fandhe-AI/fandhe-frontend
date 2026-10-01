@@ -167,6 +167,7 @@ fn name_row() -> Node {
                     variant: BadgeVariant::Subtle,
                     size: Size::Sm,
                     palette: ColorPalette::Success,
+                    shape: None,
                 },
                 vec![],
                 vec![text("認証済み")],

@@ -292,8 +292,8 @@ use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
     disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
-    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe,
-    StateCondition, VariantValue,
+    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, Shape, Size,
+    SlotRecipe, StateCondition, VariantValue,
 };
 
 // headless 自由関数 `root`・状態機械 `Select` はあえて再エクスポートしない
@@ -359,7 +359,18 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "var(--fandhe-radius-md)"),
+                // イシュー #3117: root の `Shape::Pill` variant が
+                // `--fandhe-select-trigger-radius` を上書きすることで
+                // trigger を pill 形状にする（`--fandhe-select-trigger-
+                // padding` と同型の root → trigger 伝搬イディオム）。
+                // フォールバック値は変更前の固定値と同一のため、shape
+                // 未指定時の描画結果はバイト同一値のまま（CSS 出力バイトは
+                // この 1 行のみ変わる、モジュール rustdoc「shape 軸
+                // （イシュー #3117）」節参照）。
+                decl(
+                    "border-radius",
+                    "var(--fandhe-select-trigger-radius, var(--fandhe-radius-md))",
+                ),
                 decl(
                     "padding",
                     "var(--fandhe-select-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-3))",
@@ -769,6 +780,18 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-select-content-max-height", "24rem"),
             ],
         )
+        // イシュー #3117: 共通 shape 軸。size variant 登録の後に置く（純追加、
+        // `Circle` は未登録）。trigger の `border-radius` 行が参照する
+        // `--fandhe-select-trigger-radius` を root スコープで上書きする
+        // （root → trigger の伝搬は size 軸と同型のイディオム）。
+        .variant(
+            Shape::Pill,
+            "root",
+            vec![decl(
+                "--fandhe-select-trigger-radius",
+                "var(--fandhe-radius-full)",
+            )],
+        )
         .default_variant(Size::Md)
         // イシュー #2391: `content` へ presence（enter/exit）のフェード +
         // scale トランジションを適用する。duration は select 内の他の
@@ -815,8 +838,46 @@ pub fn root<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    root_with(size, None, state, props, attrs, children)
+}
+
+/// [`root`] の shape 引数付き版（イシュー #3117）。`shape: None` で [`root`]
+/// と完全に同じ出力になる（`crate::layer::layer_with`/`frame_with`
+/// 〔#2131〕と同型の `_with` 先例。既存 [`root`] の位置引数シグネチャは
+/// 変えず後方互換を保つ）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::select::{self, OpenState, SelectProps};
+/// use fandhe_frontend_pre_styled_ui::{Shape, Size};
+///
+/// let node = select::root_with(
+///     Size::Md,
+///     Some(Shape::Pill),
+///     OpenState::Closed,
+///     &SelectProps::default(),
+///     vec![],
+///     vec![],
+/// );
+/// assert!(render(&node).contains("fd-select--shape-pill"));
+/// ```
+#[must_use]
+pub fn root_with<'a>(
+    size: Size,
+    shape: Option<Shape>,
+    state: OpenState,
+    props: &SelectProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
     let recipe = recipe();
-    let class = recipe.variant_classes(&[("size", size.value())]);
+    let mut selection: Vec<(&str, &str)> = vec![("size", size.value())];
+    if let Some(shape) = shape {
+        selection.push(("shape", shape.value()));
+    }
+    let class = recipe.variant_classes(&selection);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
     fandhe_frontend_headless_ui::select::root(state, props, merged, children)
@@ -913,6 +974,42 @@ mod tests {
         }
     }
 
+    // --- イシュー #3117: shape 軸 ---
+
+    #[test]
+    fn root_output_is_unchanged_when_shape_is_none() {
+        let via_root = render(&root(
+            Size::Md,
+            OpenState::Closed,
+            &SelectProps::default(),
+            vec![],
+            vec![],
+        ));
+        let via_root_with = render(&root_with(
+            Size::Md,
+            None,
+            OpenState::Closed,
+            &SelectProps::default(),
+            vec![],
+            vec![],
+        ));
+        assert_eq!(via_root, via_root_with);
+        assert!(!via_root.contains("fd-select--shape"));
+    }
+
+    #[test]
+    fn root_with_shape_pill_appends_shape_class() {
+        let html = render(&root_with(
+            Size::Md,
+            Some(Shape::Pill),
+            OpenState::Closed,
+            &SelectProps::default(),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains("fd-select--shape-pill"));
+    }
+
     #[test]
     fn default_variant_is_md_and_matches_pre_729_fallback() {
         // Md はフォールバック値と同一の現行外観を維持する（不変条件）。
@@ -996,7 +1093,13 @@ mod tests {
             .map(|idx| trigger_start + idx)
             .expect("trigger base rule must be closed");
         let trigger_block = &css[trigger_start..trigger_block_end];
-        assert!(trigger_block.contains("border-radius: var(--fandhe-radius-md);"));
+        // イシュー #3117: フォールバック値として `--fandhe-radius-md` を
+        // 保つ既存契約はそのまま、直接参照から
+        // `var(--fandhe-select-trigger-radius, ...)` 経由へ変わった
+        // （shape 軸が root スコープでこの CSS 変数を上書きする）。
+        assert!(trigger_block.contains(
+            "border-radius: var(--fandhe-select-trigger-radius, var(--fandhe-radius-md));"
+        ));
         assert!(!trigger_block.contains("border-radius: 0.375rem;"));
     }
 

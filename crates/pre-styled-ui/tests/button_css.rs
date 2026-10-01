@@ -186,6 +186,16 @@ const EXPECTED_CSS: &str = r#"[data-scope="button"][data-part="root"] {
   padding: 0;
 }
 
+[data-scope="button"][data-part="root"].fd-button--shape-pill {
+  border-radius: var(--fandhe-radius-full);
+}
+
+[data-scope="button"][data-part="root"].fd-button--shape-circle {
+  border-radius: var(--fandhe-radius-full);
+  aspect-ratio: 1 / 1;
+  padding: 0;
+}
+
 [data-scope="button"][data-part="root"].fd-button--icon-only.fd-button--size-xs {
   height: var(--fandhe-size-control-height-xs, 2rem);
 }
