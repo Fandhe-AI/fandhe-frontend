@@ -257,7 +257,11 @@ fn open_filter(
         vec![("data-blocks-filter-dropdown-bar-panel", "")],
         checkboxes,
     );
-    let positioner = popover::positioner(OpenState::Open, vec![], vec![content]);
+    let positioner = popover::positioner(
+        OpenState::Open,
+        vec![("data-blocks-filter-dropdown-bar-positioner", "")],
+        vec![content],
+    );
 
     popover::root(
         OpenState::Open,
@@ -333,7 +337,7 @@ fn centered_bar() -> Node {
             size: HeadingSize::Lg,
             weight: HeadingWeight::Bold,
         },
-        vec![("class", "blocks-filter-dropdown-bar-heading-centered")],
+        vec![],
         vec![text("すべての商品")],
     );
     let bar = div(
@@ -372,8 +376,27 @@ fn centered_bar() -> Node {
     )
 }
 
+/// `left`/`narrow` 共通の「サイズ」フィルタ選択肢（`value`, `label`,
+/// `checked`）。両 variant の選択状態を単一の正から導出し、畳みボタンの
+/// 件数バッジ（[`narrow_bar`]）が `left` の実チェック数（`open_filter` の
+/// checkbox 一覧）と食い違わないようにする（Codex P2 指摘の是正）。
+const SIZE_OPTIONS: &[(&str, &str, bool)] = &[
+    ("s", "S", true),
+    ("m", "M", true),
+    ("l", "L", false),
+    ("xl", "XL", false),
+];
+
+/// [`SIZE_OPTIONS`] のうちチェック済みの件数。
+fn size_options_checked_count() -> u8 {
+    SIZE_OPTIONS
+        .iter()
+        .filter(|(_, _, checked)| *checked)
+        .count() as u8
+}
+
 /// `left`（R0816）: 左寄せ見出し + 3 フィルタ、「サイズ」を開状態にし
-/// 件数バッジ「2」を添える。
+/// [`SIZE_OPTIONS`] のチェック数を件数バッジに添える。
 fn left_bar() -> Node {
     let variant = "left";
     let heading_node = heading(
@@ -398,13 +421,8 @@ fn left_bar() -> Node {
                         variant,
                         "size",
                         "サイズ",
-                        &[
-                            ("s", "S", true),
-                            ("m", "M", true),
-                            ("l", "L", false),
-                            ("xl", "XL", false),
-                        ],
-                        Some(2),
+                        SIZE_OPTIONS,
+                        Some(size_options_checked_count()),
                     ),
                 ],
             ),
@@ -421,7 +439,9 @@ fn left_bar() -> Node {
 
 /// `narrow`: `left` と同じ構成を `max-inline-size: 22rem` のシェルで
 /// 再現し、`@container` でフィルタ群を畳みボタンへ切り替える（モジュール
-/// doc「`@container` の閾値の根拠」節参照）。
+/// doc「`@container` の閾値の根拠」節参照）。畳みボタンの件数バッジは
+/// [`SIZE_OPTIONS`] のチェック数（`left` と同一の正）から導出し、実際の
+/// 選択状態と常に一致させる。
 fn narrow_bar() -> Node {
     let variant = "narrow";
     let heading_node = heading(
@@ -445,7 +465,7 @@ fn narrow_bar() -> Node {
                     closed_filter(variant, "size", "サイズ"),
                 ],
             ),
-            collapsed_filter_button(variant, 2),
+            collapsed_filter_button(variant, size_options_checked_count()),
         ],
     );
     div(
@@ -531,26 +551,36 @@ pub const BLOCK: Block = Block {
 /// に近いフィルタのトリガーからだと水平オーバーフローし得る。`right: 0;
 /// left: auto;` へ上書きしトリガー右揃えにする。`content` は
 /// `inline-size: 14rem` の固定幅で checkbox 一覧を縦並びにする。
+/// positioner の上書きセレクタは `[data-blocks-filter-dropdown-bar-positioner]`
+/// （[`open_filter`] が付与）を併記して本 block 固有の popover インスタンス
+/// へ限定する。block 固有属性なしの `[data-scope="popover"][data-part=
+/// "positioner"]` は `assets/blocks.css` へ全 block 共通で連結されるため、
+/// 他 block の popover 配置（既定の左揃え）まで右揃えへ書き換えてしまう
+/// （Codex P1 指摘の是正）。
 ///
-/// # `@container` の閾値
+/// # `@container` の閾値（`narrow` variant 限定）
 ///
 /// モジュール doc「3 variant を並べる理由と `@container` の閾値の根拠」節
-/// 参照。`30rem` 未満でフィルタ群を非表示にし畳みボタンを表示する。
+/// 参照。`30rem` 未満でフィルタ群を非表示にし畳みボタンを表示する。この
+/// 非表示規則は `[data-blocks-filter-dropdown-bar-frame="narrow"]` 配下へ
+/// 限定する。畳みボタン（[`collapsed_filter_button`]）を持たない
+/// `centered`/`left` variant まで適用すると、Demo 枠が 30rem 未満になった
+/// 際にフィルタ群が代替操作なしに消える（Codex P1 指摘の是正）。
 const LAYOUT_CSS: &str = "\
 .blocks-filter-dropdown-bar-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-filter-dropdown-bar-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-filter-dropdown-bar-shell] {\n  container-type: inline-size;\n  container-name: blocks-filter-dropdown-bar;\n  min-block-size: 20rem;\n  padding: var(--fandhe-space-4);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-filter-dropdown-bar-shell][data-blocks-filter-dropdown-bar-frame=\"narrow\"] {\n  max-inline-size: 22rem;\n}\n\
-.blocks-filter-dropdown-bar-heading-centered {\n  text-align: center;\n}\n\
+[data-blocks-filter-dropdown-bar-shell][data-blocks-filter-dropdown-bar-variant=\"centered\"] [data-scope=\"heading\"] {\n  text-align: center;\n}\n\
 [data-blocks-filter-dropdown-bar-bar] {\n  position: relative;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-3);\n  padding-block-end: var(--fandhe-space-3);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-filter-dropdown-bar-filters] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  flex-wrap: wrap;\n}\n\
 [data-scope=\"menu\"][data-part=\"trigger\"][data-blocks-filter-dropdown-bar-sort-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"popover\"][data-part=\"trigger\"][data-blocks-filter-dropdown-bar-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n}\n\
 [data-blocks-filter-dropdown-bar-collapsed-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n  display: none;\n}\n\
-[data-scope=\"popover\"][data-part=\"positioner\"] {\n  left: auto;\n  right: 0;\n}\n\
+[data-scope=\"popover\"][data-part=\"positioner\"][data-blocks-filter-dropdown-bar-positioner] {\n  left: auto;\n  right: 0;\n}\n\
 [data-scope=\"popover\"][data-part=\"content\"][data-blocks-filter-dropdown-bar-panel] {\n  inline-size: 14rem;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 @container blocks-filter-dropdown-bar (max-width: 29.99rem) {\n  \
-[data-blocks-filter-dropdown-bar-filters] {\n    display: none;\n  }\n  \
+[data-blocks-filter-dropdown-bar-shell][data-blocks-filter-dropdown-bar-frame=\"narrow\"] [data-blocks-filter-dropdown-bar-filters] {\n    display: none;\n  }\n  \
 [data-blocks-filter-dropdown-bar-collapsed-trigger][data-disabled] {\n    display: inline-flex;\n    align-items: center;\n    gap: var(--fandhe-space-1);\n  }\n\
 }\n";
 

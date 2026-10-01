@@ -181,7 +181,11 @@ fn open_filter(
         vec![("data-blocks-filter-dropdown-bar-panel", "")],
         checkboxes,
     );
-    let positioner = popover::positioner(OpenState::Open, vec![], vec![content]);
+    let positioner = popover::positioner(
+        OpenState::Open,
+        vec![("data-blocks-filter-dropdown-bar-positioner", "")],
+        vec![content],
+    );
 
     popover::root(
         OpenState::Open,
@@ -257,7 +261,7 @@ fn centered_bar() -> Node {
             size: HeadingSize::Lg,
             weight: HeadingWeight::Bold,
         },
-        vec![("class", "blocks-filter-dropdown-bar-heading-centered")],
+        vec![],
         vec![text("すべての商品")],
     );
     let bar = div(
@@ -296,8 +300,27 @@ fn centered_bar() -> Node {
     )
 }
 
+/// `left`/`narrow` 共通の「サイズ」フィルタ選択肢（`value`, `label`,
+/// `checked`）。両 variant の選択状態を単一の正から導出し、畳みボタンの
+/// 件数バッジ（[`narrow_bar`]）が `left` の実チェック数（`open_filter` の
+/// checkbox 一覧）と食い違わないようにする（Codex P2 指摘の是正）。
+const SIZE_OPTIONS: &[(&str, &str, bool)] = &[
+    ("s", "S", true),
+    ("m", "M", true),
+    ("l", "L", false),
+    ("xl", "XL", false),
+];
+
+/// [`SIZE_OPTIONS`] のうちチェック済みの件数。
+fn size_options_checked_count() -> u8 {
+    SIZE_OPTIONS
+        .iter()
+        .filter(|(_, _, checked)| *checked)
+        .count() as u8
+}
+
 /// `left`（R0816）: 左寄せ見出し + 3 フィルタ、「サイズ」を開状態にし
-/// 件数バッジ「2」を添える。
+/// [`SIZE_OPTIONS`] のチェック数を件数バッジに添える。
 fn left_bar() -> Node {
     let variant = "left";
     let heading_node = heading(
@@ -322,13 +345,8 @@ fn left_bar() -> Node {
                         variant,
                         "size",
                         "サイズ",
-                        &[
-                            ("s", "S", true),
-                            ("m", "M", true),
-                            ("l", "L", false),
-                            ("xl", "XL", false),
-                        ],
-                        Some(2),
+                        SIZE_OPTIONS,
+                        Some(size_options_checked_count()),
                     ),
                 ],
             ),
@@ -345,7 +363,9 @@ fn left_bar() -> Node {
 
 /// `narrow`: `left` と同じ構成を `max-inline-size: 22rem` のシェルで
 /// 再現し、`@container` でフィルタ群を畳みボタンへ切り替える（モジュール
-/// doc「`@container` の閾値の根拠」節参照）。
+/// doc「`@container` の閾値の根拠」節参照）。畳みボタンの件数バッジは
+/// [`SIZE_OPTIONS`] のチェック数（`left` と同一の正）から導出し、実際の
+/// 選択状態と常に一致させる。
 fn narrow_bar() -> Node {
     let variant = "narrow";
     let heading_node = heading(
@@ -369,7 +389,7 @@ fn narrow_bar() -> Node {
                     closed_filter(variant, "size", "サイズ"),
                 ],
             ),
-            collapsed_filter_button(variant, 2),
+            collapsed_filter_button(variant, size_options_checked_count()),
         ],
     );
     div(
