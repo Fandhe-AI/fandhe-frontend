@@ -1,6 +1,6 @@
-//! `cart-line-item-table` block（イシュー #3028。親 #3027 は規模 L のため
-//! #3028（骨格・主要領域・登録一式）/ #3029（残り領域・状態表示・原稿
-//! 仕上げ）へ 2 分割。本ファイルは #3028 範囲を担う）。
+//! `cart-line-item-table` block（イシュー #3028/#3029。親 #3027 は規模 L
+//! のため #3028（骨格・主要領域・登録一式）/ #3029（残り領域・状態表示・
+//! 原稿仕上げ）へ 2 分割し、本ファイルは両方を担う）。
 //! Ecommerce / Cart カテゴリ最初の block（列見出し付きの明細表を持つ
 //! カート画面）。
 //!
@@ -14,10 +14,10 @@
 //!
 //! `_/blocks-intake/` の対応ファイルは本イシュー着手時点で本 worktree に
 //! 存在しないため、対応表 ID のみを記す（`page_heading_avatar.rs` と同じ
-//! 扱い）。見出し → 列見出し行（商品 / 数量 / 価格 / 合計）→ 同じ列割りの
-//! 商品行 3 件 → 区切り線 → 小計・合計の data-list + 購入手続きボタン
-//! （右寄せ）。狭幅（`@container` 40rem 以下）では列見出し行を隠し、各行を
-//! 「画像 | 情報」の 2 段へ組み替える。
+//! 扱い、主参照 R0325）。見出し → 列見出し行（商品 / 数量 / 価格 / 合計）→
+//! 同じ列割りの商品行 3 件 → 区切り線 → 小計・送料・合計の data-list +
+//! 税込注記 + 購入手続きボタン（右寄せ）。狭幅（`@container` 40rem 以下）
+//! では列見出し行を隠し、各行を「画像 | 情報」の 2 段へ組み替える。
 //!
 //! # 数量セレクトのアクセシブルネーム（`field::label` を使わない理由）
 //!
@@ -41,14 +41,16 @@
 //! 用い、送信処理・送信先は一切持たない。docs-site は無 JS のため選択に
 //! 応じた再計算はできず、数量 `<select>` は `disabled` にして初期値のまま
 //! 固定する（変更可能に見えて金額が追従しない不整合を避ける。PR #3461 レビュー
-//! 指摘対応）。行削除・追加サマリ行・在庫状況等の状態表示は #3029 で追加。
+//! 指摘対応）。行削除ボタン（[`remove_button`]）も同じ理由で `disabled` に
+//! する。押せても行・小計が消えず金額と不整合になるためで、数量 select の
+//! 判断軸をそのまま適用した（#3029）。
 //!
 //! # ダミー素材について
 //!
 //! 商品画像は [`dummy_assets::PRODUCT_SRC`]（モノトーン抽象図形の SVG、
-//! `build.rs` がビルド時に書き出す）を使う。商品名・バリエーション・価格は
-//! 独自に書いた架空の文言であり、実在の商品・企業とは無関係。小計・合計は
-//! 各行合計の和と手で一致させている。
+//! `build.rs` がビルド時に書き出す）を使う。商品名・バリエーション・価格・
+//! 在庫状況は独自に書いた架空の文言であり、実在の商品・企業とは無関係。
+//! 小計は各行合計の和、合計は小計 + 送料と手で一致させている。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -60,8 +62,9 @@ use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataLi
 use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::image::{self, ImageFit, ImageProps, ImageShape};
 use fandhe_frontend_pre_styled_ui::native_select::{self, FieldIds, FieldProps, NativeSelectProps};
+use fandhe_frontend_pre_styled_ui::recipe::Size;
 use fandhe_frontend_pre_styled_ui::separator::{self, SeparatorProps};
-use fandhe_frontend_pre_styled_ui::text::{self, TextProps, TextVariant, TextWeight};
+use fandhe_frontend_pre_styled_ui::text::{self, TextProps, TextSize, TextVariant, TextWeight};
 
 /// カート明細行 1 件分の架空データ。
 struct LineItem {
@@ -73,6 +76,10 @@ struct LineItem {
     variant: &'static str,
     unit_price: &'static str,
     total_price: &'static str,
+    /// 在庫状況の表示文言（[`stock_status`]。「在庫あり」/「残り N 点」等、
+    /// 在庫わずかの状態を 1 行以上に混在させて状態違いを示す。合計値に
+    /// 影響しないため在庫切れ行は作らない、#3029）。
+    stock: &'static str,
 }
 
 /// 明細 3 行（小計はこの 3 行の `total_price` の和と手で一致させている）。
@@ -83,6 +90,7 @@ const LINE_ITEMS: &[LineItem] = &[
         variant: "ネイビー / M",
         unit_price: "¥5,800",
         total_price: "¥5,800",
+        stock: "在庫あり",
     },
     LineItem {
         row: "2",
@@ -90,6 +98,7 @@ const LINE_ITEMS: &[LineItem] = &[
         variant: "ベージュ / L",
         unit_price: "¥6,200",
         total_price: "¥6,200",
+        stock: "在庫あり",
     },
     LineItem {
         row: "3",
@@ -97,6 +106,7 @@ const LINE_ITEMS: &[LineItem] = &[
         variant: "オフホワイト",
         unit_price: "¥3,400",
         total_price: "¥3,400",
+        stock: "残り 2 点",
     },
 ];
 
@@ -162,7 +172,45 @@ fn product_thumbnail() -> Node {
     )
 }
 
-/// 商品名・バリエーションの情報列。
+/// 在庫状況（`text::text` Muted/Sm）。`class` は剥離されるため
+/// （モジュール doc「`text` の `class` 剥離への対応」節参照）レイアウト
+/// フックには使わず、代わりに `data-blocks-cart-line-item-table-stock`
+/// 属性（`attrs` 経由、`class` と異なり剥離されない）を付けて、他部品と
+/// 同様にテスト・将来の CSS フックの対象として識別できるようにする。
+fn stock_status(stock: &'static str) -> Node {
+    text::text(
+        &TextProps {
+            variant: TextVariant::Muted,
+            size: TextSize::Sm,
+            ..TextProps::default()
+        },
+        vec![("data-blocks-cart-line-item-table-stock", "")],
+        vec![text(stock)],
+    )
+}
+
+/// 行削除ボタン（[`button::button`]）。モジュール doc「静的表示・`<form>`
+/// を使わない」節のとおり `disabled` にし、無 JS で押しても行・小計が
+/// 追従しない不整合を避ける。可視ラベル「削除」に加え、行ごとに異なる
+/// `aria-label` を持たせて同一ページ内の複数「削除」ボタンを区別する
+/// （数量 select の `aria-label` と同じ判断軸）。
+fn remove_button(item: &LineItem) -> Node {
+    let aria_label = format!("{} をカートから削除", item.name);
+    button::button(
+        &ButtonProps {
+            variant: ButtonVariant::Ghost,
+            size: Size::Sm,
+            disabled: true,
+            ..ButtonProps::default()
+        },
+        vec![("aria-label", aria_label.as_str())],
+        vec![text("削除")],
+    )
+}
+
+/// 商品名・バリエーション・在庫状況・削除ボタンの情報列。`role="table"`
+/// の 4 列・12 セル構造（[`role_table_wrapper`]）を変えないため、削除
+/// ボタンは独立セルにせず商品セル内のこの列へまとめて置く（#3029）。
 fn product_info(item: &LineItem) -> Node {
     div(
         vec![("class", "blocks-cart-line-item-table-info")],
@@ -183,6 +231,8 @@ fn product_info(item: &LineItem) -> Node {
                 vec![],
                 vec![text(item.variant)],
             ),
+            stock_status(item.stock),
+            remove_button(item),
         ],
     )
 }
@@ -340,8 +390,9 @@ fn role_table_wrapper() -> Node {
     )
 }
 
-/// 小計・合計 + 購入手続きボタン（右寄せ）。小計・合計は税送料を含まない
-/// 明細合計のみ（送料・税・割引行は #3029 で追加予定）。
+/// 小計・送料・合計 + 税込注記 + 購入手続きボタン（右寄せ）。小計
+/// （¥15,400）+ 送料（¥600）= 合計（¥16,000）で値を手で一致させている。
+/// 割引行は親仕様（#3027）にないため追加しない（#3029）。
 fn summary() -> Node {
     let subtotal_item = data_list::item(
         vec![],
@@ -350,11 +401,18 @@ fn summary() -> Node {
             data_list::item_value(vec![], vec![text("¥15,400")]),
         ],
     );
+    let shipping_item = data_list::item(
+        vec![],
+        vec![
+            data_list::item_label(vec![], vec![text("送料")]),
+            data_list::item_value(vec![], vec![text("¥600")]),
+        ],
+    );
     let total_item = data_list::item(
         vec![],
         vec![
             data_list::item_label(vec![], vec![text("合計")]),
-            data_list::item_value(vec![], vec![text("¥15,400")]),
+            data_list::item_value(vec![], vec![text("¥16,000")]),
         ],
     );
     let list = data_list::root(
@@ -363,7 +421,16 @@ fn summary() -> Node {
             ..DataListProps::default()
         },
         vec![],
-        vec![subtotal_item, total_item],
+        vec![subtotal_item, shipping_item, total_item],
+    );
+    let tax_note = text::text(
+        &TextProps {
+            variant: TextVariant::Muted,
+            size: TextSize::Sm,
+            ..TextProps::default()
+        },
+        vec![],
+        vec![text("価格はすべて税込です。")],
     );
     let checkout_button = button::button(
         &ButtonProps {
@@ -375,7 +442,7 @@ fn summary() -> Node {
     );
     div(
         vec![("class", "blocks-cart-line-item-table-summary")],
-        vec![list, checkout_button],
+        vec![list, tax_note, checkout_button],
     )
 }
 
@@ -450,7 +517,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-cart-line-item-table-head {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n  border-bottom: 1px solid var(--fandhe-color-border);\n  padding-block: var(--fandhe-space-2);\n}\n\
 .blocks-cart-line-item-table-row {\n  border-bottom: 1px solid var(--fandhe-color-border);\n  padding-block: var(--fandhe-space-4);\n}\n\
 .blocks-cart-line-item-table-product {\n  display: flex;\n  gap: var(--fandhe-space-3);\n  align-items: center;\n  min-width: 0;\n}\n\
-.blocks-cart-line-item-table-info {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
+.blocks-cart-line-item-table-info {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
 img[data-scope=\"image\"][data-blocks-cart-line-item-table-thumb] {\n  width: 4rem;\n  height: 4rem;\n  flex-shrink: 0;\n}\n\
 .blocks-cart-line-item-table-cell-label {\n  position: absolute;\n  width: 1px;\n  height: 1px;\n  padding: 0;\n  margin: -1px;\n  overflow: hidden;\n  clip: rect(0, 0, 0, 0);\n  white-space: nowrap;\n  border-width: 0;\n}\n\
 .blocks-cart-line-item-table-summary {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-end;\n  gap: var(--fandhe-space-4);\n}\n\
@@ -522,10 +589,57 @@ mod tests {
         sorted.sort_unstable();
         sorted.dedup();
         assert_eq!(ids.len(), sorted.len(), "id が重複している: {ids:?}");
-        // 3 行分の select（数量ラベル）+ role="table" ラッパーの
-        // aria-label="カート明細" の計 4 件（role_table_structure_associates_rows_and_columns
-        // 参照）。
-        assert_eq!(html.matches("aria-label=\"").count(), 4);
+        // 3 行分の select（数量ラベル）+ 3 行分の削除ボタン（行ごとの
+        // aria-label）+ role="table" ラッパーの aria-label="カート明細" の
+        // 計 7 件（role_table_structure_associates_rows_and_columns 参照）。
+        assert_eq!(html.matches("aria-label=\"").count(), 7);
+    }
+
+    #[test]
+    fn remove_buttons_are_labelled_and_disabled() {
+        let html = demo_html();
+        for name in ["リネンシャツ", "コットンパンツ", "キャンバストートバッグ"]
+        {
+            assert!(
+                html.contains(&format!("aria-label=\"{name} をカートから削除\"")),
+                "html={html}"
+            );
+        }
+        assert_eq!(html.matches("をカートから削除").count(), 3);
+        // 全ボタンが type="button" であることは all_buttons_are_type_button
+        // が固定する。ここでは削除ボタンが disabled であることを、
+        // button::button の disabled 時のみ付く aria-disabled="true"
+        // （native_select は付与しない、`native_select.rs` 参照）で確認する。
+        assert_eq!(
+            html.matches("aria-disabled=\"true\"").count(),
+            3,
+            "html={html}"
+        );
+    }
+
+    #[test]
+    fn stock_status_rendered_per_row() {
+        let html = demo_html();
+        assert_eq!(
+            html.matches("data-blocks-cart-line-item-table-stock")
+                .count(),
+            3,
+            "html={html}"
+        );
+        assert!(html.contains("残り 2 点"));
+        assert_eq!(html.matches("在庫あり").count(), 2);
+    }
+
+    #[test]
+    fn summary_rows_and_tax_note() {
+        let html = demo_html();
+        assert!(html.contains("小計"));
+        assert!(html.contains("¥15,400"));
+        assert!(html.contains("送料"));
+        assert!(html.contains("¥600"));
+        assert!(html.contains("合計"));
+        assert!(html.contains("¥16,000"));
+        assert!(html.contains("価格はすべて税込です。"));
     }
 
     #[test]
