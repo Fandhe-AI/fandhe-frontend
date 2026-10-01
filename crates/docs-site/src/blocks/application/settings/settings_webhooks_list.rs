@@ -499,22 +499,36 @@ pub const BLOCK: Block = Block {
 
 /// `settings_webhooks_list` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
 /// doc「block 固有 CSS の置き場」節と同型）。
+///
+/// `divided`（`ul`）/`description`・`url-cell`・`card-name`・
+/// `variant-label`（いずれも `p`）は、素の
+/// `.blocks-settings-webhooks-list-*` 単一クラス（詳細度 (0,1,0)）のみで
+/// 宣言すると、サイト共通 typography（`site_theme.rs` の
+/// `.docs-content ul,ol`/`.docs-content li`/`.docs-content p`、いずれも
+/// 詳細度 (0,1,1)）に負けてビュレット・インデント・`margin`（docs 既定の
+/// `0 0 1.05rem`）が復活する（PR #3489 Bugbot 指摘）。
+/// `settings_integrations_list` の先例（PR #3441/#3447）と同じ判断で、
+/// 祖先 `.blocks-settings-webhooks-list-stack`/`-divided` を持つ子孫
+/// セレクタへ書き換えてクラス数を 2 に増やし（詳細度 (0,2,0)）、クラス数
+/// 比較で `.docs-content` 側を確実に上回る。`row` はさらに
+/// `margin-block: 0` を明示し、`.docs-content li` の `margin-block` を
+/// 打ち消して行間を `border-top` のみに委ねる。
 const LAYOUT_CSS: &str = "\
 .blocks-settings-webhooks-list-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n  container-type: inline-size;\n  container-name: blocks-settings-webhooks-list;\n}\n\
 .blocks-settings-webhooks-list-intro {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-3);\n}\n\
-.blocks-settings-webhooks-list-description {\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-settings-webhooks-list-stack .blocks-settings-webhooks-list-description {\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-settings-webhooks-list-table-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
-.blocks-settings-webhooks-list-url-cell {\n  margin: 0;\n  overflow-wrap: anywhere;\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-settings-webhooks-list-stack .blocks-settings-webhooks-list-url-cell {\n  margin: 0;\n  overflow-wrap: anywhere;\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-settings-webhooks-list-grid {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-settings-webhooks-list-card-head {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: var(--fandhe-space-2);\n}\n\
-.blocks-settings-webhooks-list-card-name {\n  margin: 0;\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
+.blocks-settings-webhooks-list-stack .blocks-settings-webhooks-list-card-name {\n  margin: 0;\n  font-weight: var(--fandhe-font-font-weight-medium);\n}\n\
 .blocks-settings-webhooks-list-card-foot {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-3);\n  margin-top: var(--fandhe-space-3);\n}\n\
-.blocks-settings-webhooks-list-divided {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n}\n\
-.blocks-settings-webhooks-list-row {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  padding-block: var(--fandhe-space-3);\n  border-top: 1px solid var(--fandhe-color-border);\n}\n\
-.blocks-settings-webhooks-list-row:first-child {\n  border-top: none;\n}\n\
+.blocks-settings-webhooks-list-stack .blocks-settings-webhooks-list-divided {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n}\n\
+.blocks-settings-webhooks-list-divided .blocks-settings-webhooks-list-row {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  padding-block: var(--fandhe-space-3);\n  border-top: 1px solid var(--fandhe-color-border);\n  margin-block: 0;\n}\n\
+.blocks-settings-webhooks-list-divided .blocks-settings-webhooks-list-row:first-child {\n  border-top: none;\n}\n\
 .blocks-settings-webhooks-list-row-main {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
 .blocks-settings-webhooks-list-row-actions {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  flex-shrink: 0;\n}\n\
-.blocks-settings-webhooks-list-variant-label {\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg-muted);\n  margin: 0;\n}\n\
+.blocks-settings-webhooks-list-stack .blocks-settings-webhooks-list-variant-label {\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg-muted);\n  margin: 0;\n}\n\
 @container blocks-settings-webhooks-list (max-width: 36rem) {\n  \
 .blocks-settings-webhooks-list-grid {\n    grid-template-columns: 1fr;\n  }\n  \
 .blocks-settings-webhooks-list-row {\n    flex-direction: column;\n    align-items: flex-start;\n  }\n\
