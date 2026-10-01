@@ -1,12 +1,13 @@
 # order-history-panels
 
 注文ごとに枠付きパネルを縦に積む注文履歴ブロックです。主参照 R1116（サマリ
-帯 + 商品行の代表構成）を軸にしています。各パネル上部はサマリ帯（注文番
-号・注文日・合計 + 「注文を見る」「請求書を見る」ボタン・三点メニュー）、
-下部は商品行（画像・名称・価格・説明 + 「商品を見る」リンク）です。
-`card` / `data-list` / `button` / `menu` / `image` / `text` / `heading` /
-`link` / `separator` / `icon` の 10 部品を合成します。Blocks は既存部品の
-合成例であり、新しい UI 部品は追加しません。
+帯 + 商品行の代表構成）を軸にしています。各パネル上部は注文見出し
+（`<h3>`）+ サマリ帯（注文番号・注文日・合計 + 「注文を見る」「請求書を
+見る」ボタン・三点メニュー）、下部は商品見出し（`<h4>`）を含む商品行
+（画像・名称・価格・説明 + 商品名入りのアクセシブルネームを持つ「商品を
+見る」リンク）です。`card` / `data-list` / `button` / `menu` / `image` /
+`text` / `heading` / `link` / `separator` / `icon` の 10 部品を合成します。
+Blocks は既存部品の合成例であり、新しい UI 部品は追加しません。
 
 コンテナ幅 40rem 未満では「注文を見る」「請求書を見る」ボタンと注文日の
 行を隠し、同じ操作を提供する三点メニューのみを見せます。40rem 以上では
@@ -192,58 +193,81 @@ fn action_menu(order: &Order) -> Node {
     )
 }
 
-/// パネル上部のサマリ帯（`card::header`。定義リスト + 操作群）。
+/// パネル上部のサマリ帯（`card::header`。注文見出し + 定義リスト + 操作群）。
+/// 注文見出し（`<h3>`）を商品見出し（`<h4>`、[`item_row`]）より前に置き、
+/// 見出し一覧（スクリーンリーダーの見出しナビゲーション）で商品がどの注文に
+/// 属するか判別できるようにする（レビュー指摘対応、イシュー #3056）。
+/// 定義リスト + 操作群は `card::header` 本体ではなく内側の
+/// `.blocks-order-history-panels-summary-row` へ横並びレイアウトを持たせる
+/// （`card::header` 自体に付けると recipe の `[data-scope="card"]
+/// [data-part="header"]` セレクタ〔attribute 2 個、本 block の単一 class
+/// より高い詳細度〕に `flex-direction: column` で負け、横並びにならない。
+/// レビュー指摘対応、イシュー #3056）。
 fn summary(order: &Order) -> Node {
     card::header(
         vec![("class", "blocks-order-history-panels-summary")],
         vec![
-            data_list::root(
-                DataListProps {
-                    orientation: DataListOrientation::Vertical,
-                    ..DataListProps::default()
-                },
-                vec![("data-blocks-order-history-panels-summary-list", "")],
-                vec![
-                    summary_row("注文番号", order.number, vec![]),
-                    summary_row(
-                        "注文日",
-                        order.date,
-                        vec![("data-blocks-order-history-panels-date", "")],
-                    ),
-                    summary_row("合計", order.total, vec![]),
-                ],
+            heading(
+                HeadingLevel::H3,
+                &HeadingProps::default(),
+                vec![("class", "blocks-order-history-panels-order-heading")],
+                vec![text(format!("注文 {}", order.number))],
             ),
             div(
-                vec![("class", "blocks-order-history-panels-actions")],
+                vec![("class", "blocks-order-history-panels-summary-row")],
                 vec![
-                    button(
-                        &ButtonProps {
-                            variant: ButtonVariant::Outline,
-                            size: Size::Sm,
-                            disabled: true,
-                            ..ButtonProps::default()
+                    data_list::root(
+                        DataListProps {
+                            orientation: DataListOrientation::Vertical,
+                            ..DataListProps::default()
                         },
-                        vec![("data-blocks-order-history-panels-action-button", "")],
-                        vec![text("注文を見る")],
+                        vec![("data-blocks-order-history-panels-summary-list", "")],
+                        vec![
+                            summary_row("注文番号", order.number, vec![]),
+                            summary_row(
+                                "注文日",
+                                order.date,
+                                vec![("data-blocks-order-history-panels-date", "")],
+                            ),
+                            summary_row("合計", order.total, vec![]),
+                        ],
                     ),
-                    button(
-                        &ButtonProps {
-                            variant: ButtonVariant::Outline,
-                            size: Size::Sm,
-                            disabled: true,
-                            ..ButtonProps::default()
-                        },
-                        vec![("data-blocks-order-history-panels-action-button", "")],
-                        vec![text("請求書を見る")],
+                    div(
+                        vec![("class", "blocks-order-history-panels-actions")],
+                        vec![
+                            button(
+                                &ButtonProps {
+                                    variant: ButtonVariant::Outline,
+                                    size: Size::Sm,
+                                    disabled: true,
+                                    ..ButtonProps::default()
+                                },
+                                vec![("data-blocks-order-history-panels-action-button", "")],
+                                vec![text("注文を見る")],
+                            ),
+                            button(
+                                &ButtonProps {
+                                    variant: ButtonVariant::Outline,
+                                    size: Size::Sm,
+                                    disabled: true,
+                                    ..ButtonProps::default()
+                                },
+                                vec![("data-blocks-order-history-panels-action-button", "")],
+                                vec![text("請求書を見る")],
+                            ),
+                            action_menu(order),
+                        ],
                     ),
-                    action_menu(order),
                 ],
             ),
         ],
     )
 }
 
-/// 商品 1 行分（画像・名称・価格・説明 + 「商品を見る」リンク）。
+/// 商品 1 行分（画像・名称・価格・説明 + 「商品を見る」リンク）。可視テキストは
+/// 5 件とも「商品を見る」で同じになるため、`aria-label` で商品名を含む
+/// アクセシブルネーム（例: 「ノイズキャンセリングイヤホンを見る」）を供給し、
+/// リンク一覧での行き先判別を可能にする（レビュー指摘対応、イシュー #3056）。
 fn item_row(item: &Item) -> Node {
     div(
         vec![("class", "blocks-order-history-panels-item")],
@@ -289,12 +313,18 @@ fn item_row(item: &Item) -> Node {
                     ),
                 ],
             ),
-            link::root(
-                item.href,
-                &LinkProps::default(),
-                vec![("data-blocks-order-history-panels-item-link", "")],
-                vec![text("商品を見る")],
-            ),
+            {
+                let aria_label = format!("{}を見る", item.name);
+                link::root(
+                    item.href,
+                    &LinkProps::default(),
+                    vec![
+                        ("data-blocks-order-history-panels-item-link", ""),
+                        ("aria-label", aria_label.as_str()),
+                    ],
+                    vec![text("商品を見る")],
+                )
+            },
         ],
     )
 }
@@ -338,8 +368,9 @@ pub fn demo() -> Node {
 - **R1116（主参照、狭幅時のメニュー化）**: サマリ帯のボタン 2 個と注文日
   表示を、コンテナ幅 40rem 未満で三点メニューへ集約する差分をそのまま
   採用しています。
-- 配送状況の状態表示（R1118）・注文見出しの形式と商品行の「再購入」
-  「類似品を見る」ボタン（R1119）は後続イシュー #3057 で追加予定です。
+- 配送状況の状態表示（R1118）・商品行の「再購入」「類似品を見る」ボタン
+  （R1119）は後続イシュー #3057 で追加予定です。注文見出し（h3、R1119）
+  自体はレビュー指摘対応で本イシューにて先行実装済みです。
 
 関連情報: [Card](../themes/card.md) / [Data List](../themes/data-list.md) /
 [Button](../themes/button.md) / [Menu](../themes/menu.md) /

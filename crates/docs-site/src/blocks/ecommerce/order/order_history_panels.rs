@@ -76,10 +76,11 @@
 //!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応、イシュー #3057）
 //!
-//! 配送状況の状態表示（R1118）・注文見出しの形式と商品行の「再購入」
-//! 「類似品を見る」ボタン（R1119）は本 block（#3056）では実装しない。後続
-//! イシュー #3057 で追加する（詳細は `site/blocks/order-history-panels.md` の
-//! 差分メモ節参照）。
+//! 配送状況の状態表示（R1118）・商品行の「再購入」「類似品を見る」ボタン
+//! （R1119）は本 block（#3056）では実装しない。後続イシュー #3057 で追加
+//! する（詳細は `site/blocks/order-history-panels.md` の差分メモ節参照）。
+//! 注文見出し（h3、R1119 の一部）はレビュー指摘対応（PR #3509）で本イシュー
+//! にて先行実装済み。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -253,58 +254,81 @@ fn action_menu(order: &Order) -> Node {
     )
 }
 
-/// パネル上部のサマリ帯（`card::header`。定義リスト + 操作群）。
+/// パネル上部のサマリ帯（`card::header`。注文見出し + 定義リスト + 操作群）。
+/// 注文見出し（`<h3>`）を商品見出し（`<h4>`、[`item_row`]）より前に置き、
+/// 見出し一覧（スクリーンリーダーの見出しナビゲーション）で商品がどの注文に
+/// 属するか判別できるようにする（レビュー指摘対応、イシュー #3056）。
+/// 定義リスト + 操作群は `card::header` 本体ではなく内側の
+/// `.blocks-order-history-panels-summary-row` へ横並びレイアウトを持たせる
+/// （`card::header` 自体に付けると recipe の `[data-scope="card"]
+/// [data-part="header"]` セレクタ〔attribute 2 個、本 block の単一 class
+/// より高い詳細度〕に `flex-direction: column` で負け、横並びにならない。
+/// レビュー指摘対応、イシュー #3056）。
 fn summary(order: &Order) -> Node {
     card::header(
         vec![("class", "blocks-order-history-panels-summary")],
         vec![
-            data_list::root(
-                DataListProps {
-                    orientation: DataListOrientation::Vertical,
-                    ..DataListProps::default()
-                },
-                vec![("data-blocks-order-history-panels-summary-list", "")],
-                vec![
-                    summary_row("注文番号", order.number, vec![]),
-                    summary_row(
-                        "注文日",
-                        order.date,
-                        vec![("data-blocks-order-history-panels-date", "")],
-                    ),
-                    summary_row("合計", order.total, vec![]),
-                ],
+            heading(
+                HeadingLevel::H3,
+                &HeadingProps::default(),
+                vec![("class", "blocks-order-history-panels-order-heading")],
+                vec![text(format!("注文 {}", order.number))],
             ),
             div(
-                vec![("class", "blocks-order-history-panels-actions")],
+                vec![("class", "blocks-order-history-panels-summary-row")],
                 vec![
-                    button(
-                        &ButtonProps {
-                            variant: ButtonVariant::Outline,
-                            size: Size::Sm,
-                            disabled: true,
-                            ..ButtonProps::default()
+                    data_list::root(
+                        DataListProps {
+                            orientation: DataListOrientation::Vertical,
+                            ..DataListProps::default()
                         },
-                        vec![("data-blocks-order-history-panels-action-button", "")],
-                        vec![text("注文を見る")],
+                        vec![("data-blocks-order-history-panels-summary-list", "")],
+                        vec![
+                            summary_row("注文番号", order.number, vec![]),
+                            summary_row(
+                                "注文日",
+                                order.date,
+                                vec![("data-blocks-order-history-panels-date", "")],
+                            ),
+                            summary_row("合計", order.total, vec![]),
+                        ],
                     ),
-                    button(
-                        &ButtonProps {
-                            variant: ButtonVariant::Outline,
-                            size: Size::Sm,
-                            disabled: true,
-                            ..ButtonProps::default()
-                        },
-                        vec![("data-blocks-order-history-panels-action-button", "")],
-                        vec![text("請求書を見る")],
+                    div(
+                        vec![("class", "blocks-order-history-panels-actions")],
+                        vec![
+                            button(
+                                &ButtonProps {
+                                    variant: ButtonVariant::Outline,
+                                    size: Size::Sm,
+                                    disabled: true,
+                                    ..ButtonProps::default()
+                                },
+                                vec![("data-blocks-order-history-panels-action-button", "")],
+                                vec![text("注文を見る")],
+                            ),
+                            button(
+                                &ButtonProps {
+                                    variant: ButtonVariant::Outline,
+                                    size: Size::Sm,
+                                    disabled: true,
+                                    ..ButtonProps::default()
+                                },
+                                vec![("data-blocks-order-history-panels-action-button", "")],
+                                vec![text("請求書を見る")],
+                            ),
+                            action_menu(order),
+                        ],
                     ),
-                    action_menu(order),
                 ],
             ),
         ],
     )
 }
 
-/// 商品 1 行分（画像・名称・価格・説明 + 「商品を見る」リンク）。
+/// 商品 1 行分（画像・名称・価格・説明 + 「商品を見る」リンク）。可視テキストは
+/// 5 件とも「商品を見る」で同じになるため、`aria-label` で商品名を含む
+/// アクセシブルネーム（例: 「ノイズキャンセリングイヤホンを見る」）を供給し、
+/// リンク一覧での行き先判別を可能にする（レビュー指摘対応、イシュー #3056）。
 fn item_row(item: &Item) -> Node {
     div(
         vec![("class", "blocks-order-history-panels-item")],
@@ -350,12 +374,18 @@ fn item_row(item: &Item) -> Node {
                     ),
                 ],
             ),
-            link::root(
-                item.href,
-                &LinkProps::default(),
-                vec![("data-blocks-order-history-panels-item-link", "")],
-                vec![text("商品を見る")],
-            ),
+            {
+                let aria_label = format!("{}を見る", item.name);
+                link::root(
+                    item.href,
+                    &LinkProps::default(),
+                    vec![
+                        ("data-blocks-order-history-panels-item-link", ""),
+                        ("aria-label", aria_label.as_str()),
+                    ],
+                    vec![text("商品を見る")],
+                )
+            },
         ],
     )
 }
@@ -453,9 +483,17 @@ pub const BLOCK: Block = Block {
 /// ボタン・注文日を隠して三点メニューのみを見せ、`40rem` 以上では逆に
 /// ボタン・注文日を見せてメニューを隠す（モジュール冒頭「狭幅では
 /// サマリ操作をメニュー化し注文日を隠す」節参照）。
+///
+/// `.blocks-order-history-panels-summary-row`（定義リスト + 操作群の横並び）は
+/// `card::header` 本体（`[data-scope="card"][data-part="header"]`、attribute
+/// セレクタ 2 個で詳細度 `(0,2,0)`）ではなく内側の子 `div` へ適用する
+/// （単一 class セレクタ `(0,1,0)` は header 本体に直接付けると recipe の
+/// `flex-direction: column` に負けて縦積みのまま戻ってしまうため、
+/// recipe が触れない子要素側へレイアウトを持たせて詳細度勝負を避ける。
+/// レビュー指摘対応、イシュー #3056）。
 const LAYOUT_CSS: &str = "\
 .blocks-order-history-panels-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-order-history-panels;\n}\n\
-.blocks-order-history-panels-summary {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n}\n\
+.blocks-order-history-panels-summary-row {\n  display: flex;\n  flex-direction: row;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-order-history-panels-summary-list][data-scope=\"data-list\"][data-part=\"root\"] {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-order-history-panels-actions {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  margin-inline-start: auto;\n}\n\
 [data-blocks-order-history-panels-action-button] {\n  display: none;\n}\n\
@@ -512,7 +550,50 @@ mod tests {
                 .count(),
             2
         );
+        // 注文見出し（`<h3>`）2 件（注文ごと）+ 商品見出し（`<h4>`）5 件
+        // （2 + 3 商品）。h3 が h4 より前に出て注文→商品の見出し階層になる
+        // ことは `order_heading_precedes_item_headings` が別途検証する。
+        assert_eq!(html.matches("<h3").count(), 2);
         assert_eq!(html.matches("<h4").count(), 5);
+    }
+
+    #[test]
+    fn order_heading_precedes_item_headings() {
+        let html = demo_html();
+        let h3_0 = html.find("<h3").expect("h3 should exist");
+        let h4_0 = html.find("<h4").expect("h4 should exist");
+        assert!(
+            h3_0 < h4_0,
+            "注文見出し（h3）は商品見出し（h4）より前に出るべき"
+        );
+        assert!(html.contains(">注文 FD-3102-220<"));
+        assert!(html.contains(">注文 FD-3102-231<"));
+    }
+
+    #[test]
+    fn item_links_have_distinct_accessible_names() {
+        let html = demo_html();
+        let mut labels: Vec<&str> = Vec::new();
+        for chunk in html.split("aria-label=\"").skip(1) {
+            if let Some(end) = chunk.find('"') {
+                let label = &chunk[..end];
+                // メニューの「その他の操作」aria-label は商品リンクとは別物
+                // なので除外する（`action_menu` が注文ごとに供給、本テストは
+                // 商品リンクの判別可否のみを検証する）。
+                if label.ends_with("を見る") && !label.starts_with("その他の操作") {
+                    labels.push(label);
+                }
+            }
+        }
+        assert_eq!(labels.len(), 5, "商品リンクは 5 件: {labels:?}");
+        let mut sorted = labels.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(
+            labels.len(),
+            sorted.len(),
+            "商品リンクのアクセシブルネームが重複している: {labels:?}"
+        );
     }
 
     #[test]
