@@ -33,8 +33,9 @@
 //!   の横スクロールで到達できるようにする（`category_carousel` と同じ
 //!   フォールバック設計）。
 //! - **B 狭幅カルーセル・広幅グリッド（R0628 + R0627）**: 枠付きカード
-//!   （`CardVariant::Outline`。既定 variant と同じ値だが意図を明示する
-//!   ため明示指定する、対応表 ID R0627 の統合、末尾「原案差分メモ」参照）
+//!   （`CardVariant::Outline`、対応表 ID R0627 の統合、末尾「原案差分メモ」
+//!   参照。A・C は `CardVariant::Elevated`〔影付き・枠なし〕を使い、B との
+//!   間に実際の見た目差分を出す、PR #3512 codex 指摘の是正）
 //!   を 6 件用いる。`< 64rem` は A と同じ横スクロール可能なカルーセルだが、
 //!   `>= 64rem` では [`LAYOUT_CSS`] が `item-group` を `display: grid`
 //!   （3 列）へ切り替え、`control` 行（前後トリガー・indicator-group）を
@@ -248,10 +249,12 @@ fn header(title: &'static str, link_label: &'static str) -> Node {
 /// gap を撤去し（画像下の余白は `card::body` の padding のみに一本化し
 /// 二重取りしない）、`card::body` 側へ gap を付け替えて商品名・価格
 /// （・色見本）の行間を確保する（PR #3512 Bugbot 指摘の是正）。
-/// `outline` が `true` のとき `CardVariant::Outline` を明示する（B 形、
-/// モジュール doc 「枠付きカード」節参照。既定も `Outline` のため見た目は
-/// A/C と同じだが意図を明示する）。`swatches` が `Some` のときのみ色見本
-/// 行を末尾へ足す（C 形専用）。
+/// `outline` が `true` のとき `CardVariant::Outline`（B 形、モジュール doc
+/// 「枠付きカード」節参照）、`false` のとき `CardVariant::Elevated`（A/C
+/// 形。`CardProps::default()` の既定 variant は `Outline` と同値のため、
+/// 明示指定しないと B と同じ枠付きカードになり R0627 が示す「B 形のみ
+/// 枠付き」という見た目差分を表現できない、PR #3512 codex 指摘の是正）に
+/// する。`swatches` が `Some` のときのみ色見本行を末尾へ足す（C 形専用）。
 fn product_card(
     name: &'static str,
     price: &'static str,
@@ -310,13 +313,13 @@ fn product_card(
         ));
     }
     card::root(
-        if outline {
-            CardProps {
-                variant: CardVariant::Outline,
-                ..CardProps::default()
-            }
-        } else {
-            CardProps::default()
+        CardProps {
+            variant: if outline {
+                CardVariant::Outline
+            } else {
+                CardVariant::Elevated
+            },
+            ..CardProps::default()
         },
         vec![("data-blocks-product-list-carousel-card", "")],
         vec![
@@ -686,6 +689,17 @@ mod tests {
                 .count(),
             15
         );
+    }
+
+    /// B 形（6 件）のみ `CardVariant::Outline`（枠付き）、A(6) + C(5) の
+    /// 11 件は `CardVariant::Elevated`（影付き・枠なし）であること。両者が
+    /// 同一 variant になると R0627 が示す「B 形のみ枠付き」の見た目差分を
+    /// 表現できない回帰を固定する（PR #3512 codex 指摘）。
+    #[test]
+    fn demo_distinguishes_bordered_card_variant_from_elevated() {
+        let html = render(&demo());
+        assert_eq!(html.matches("fd-card--variant-outline").count(), 6);
+        assert_eq!(html.matches("fd-card--variant-elevated").count(), 11);
     }
 
     /// 非対話・安全性の不変条件。

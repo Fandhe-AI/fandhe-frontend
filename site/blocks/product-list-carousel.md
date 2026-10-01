@@ -176,10 +176,12 @@ fn header(title: &'static str, link_label: &'static str) -> Node {
 /// gap を撤去し（画像下の余白は `card::body` の padding のみに一本化し
 /// 二重取りしない）、`card::body` 側へ gap を付け替えて商品名・価格
 /// （・色見本）の行間を確保する（PR #3512 Bugbot 指摘の是正）。
-/// `outline` が `true` のとき `CardVariant::Outline` を明示する（B 形、
-/// モジュール doc 「枠付きカード」節参照。既定も `Outline` のため見た目は
-/// A/C と同じだが意図を明示する）。`swatches` が `Some` のときのみ色見本
-/// 行を末尾へ足す（C 形専用）。
+/// `outline` が `true` のとき `CardVariant::Outline`（B 形、モジュール doc
+/// 「枠付きカード」節参照）、`false` のとき `CardVariant::Elevated`（A/C
+/// 形。`CardProps::default()` の既定 variant は `Outline` と同値のため、
+/// 明示指定しないと B と同じ枠付きカードになり R0627 が示す「B 形のみ
+/// 枠付き」という見た目差分を表現できない、PR #3512 codex 指摘の是正）に
+/// する。`swatches` が `Some` のときのみ色見本行を末尾へ足す（C 形専用）。
 fn product_card(
     name: &'static str,
     price: &'static str,
@@ -238,13 +240,13 @@ fn product_card(
         ));
     }
     card::root(
-        if outline {
-            CardProps {
-                variant: CardVariant::Outline,
-                ..CardProps::default()
-            }
-        } else {
-            CardProps::default()
+        CardProps {
+            variant: if outline {
+                CardVariant::Outline
+            } else {
+                CardVariant::Elevated
+            },
+            ..CardProps::default()
         },
         vec![("data-blocks-product-list-carousel-card", "")],
         vec![
