@@ -273,7 +273,9 @@ fn sort_menu(version: &str) -> Node {
 }
 
 /// ツールバー（検索欄〔`with_search` が `true` の版のみ〕+ 並び替え +
-/// 招待ボタン）。
+/// 招待ボタン）。招待ボタンは送信先・遷移先を持たない Demo のため
+/// `disabled: true`（`settings_share_members.rs::invite_section` と同じ
+/// 判断軸）。
 fn toolbar(version: &str, with_search: bool) -> Node {
     let mut leading: Vec<Node> = Vec::new();
     if with_search {
@@ -291,7 +293,10 @@ fn toolbar(version: &str, with_search: bool) -> Node {
                 vec![
                     sort_menu(version),
                     button::button(
-                        &ButtonProps::default(),
+                        &ButtonProps {
+                            disabled: true,
+                            ..ButtonProps::default()
+                        },
                         vec![],
                         vec![text("メンバーを招待")],
                     ),
