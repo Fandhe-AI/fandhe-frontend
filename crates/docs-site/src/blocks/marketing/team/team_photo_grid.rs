@@ -1,5 +1,5 @@
-//! `team-photo-grid` block（イシュー #2881。Marketing / Team カテゴリの
-//! 最初の block）。写真を主役にしたメンバーグリッドの合成例。対応表
+//! `team-photo-grid` block（イシュー #2881。Marketing / Team カテゴリ）。
+//! 写真を主役にしたメンバーグリッドの合成例。対応表
 //! ID R1350（主参照）・R0352/R0353/R0723/R1357（集約元）を構造の参照元と
 //! する（取得手段・ファイル名・内部コンポーネント識別子は記載しない、
 //! `docs/design/motion-reference-adoption-policy.md` §9 と同じライセンス

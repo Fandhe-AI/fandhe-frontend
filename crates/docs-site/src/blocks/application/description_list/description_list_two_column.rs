@@ -1,5 +1,5 @@
-//! `description-list-two-column` block（イシュー #2908、本カテゴリ最初の
-//! block。親トラッキング #2734/#2733）。
+//! `description-list-two-column` block（イシュー #2908。親トラッキング
+//! #2734/#2733）。
 //!
 //! # 使用部品
 //!
