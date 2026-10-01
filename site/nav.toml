@@ -2740,6 +2740,11 @@ title = "filter-expandable-panel"
 source = "site/blocks/filter-expandable-panel.md"
 path = "/blocks/filter-expandable-panel/"
 
+[[section.group.page]]
+title = "filter-overlay-panel"
+source = "site/blocks/filter-overlay-panel.md"
+path = "/blocks/filter-overlay-panel/"
+
 [[section.group]]
 title = "Cart"
 
