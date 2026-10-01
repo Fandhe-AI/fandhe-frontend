@@ -2407,6 +2407,11 @@ title = "settings-share-members"
 source = "site/blocks/settings-share-members.md"
 path = "/blocks/settings-share-members/"
 
+[[section.group.page]]
+title = "settings-team-invite"
+source = "site/blocks/settings-team-invite.md"
+path = "/blocks/settings-team-invite/"
+
 [[section.group]]
 title = "Action Panel"
 
