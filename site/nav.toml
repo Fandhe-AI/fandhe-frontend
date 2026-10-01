@@ -2432,6 +2432,11 @@ title = "settings-webhook-stats"
 source = "site/blocks/settings-webhook-stats.md"
 path = "/blocks/settings-webhook-stats/"
 
+[[section.group.page]]
+title = "settings-webhook-tester"
+source = "site/blocks/settings-webhook-tester.md"
+path = "/blocks/settings-webhook-tester/"
+
 [[section.group]]
 title = "Action Panel"
 
