@@ -251,6 +251,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-incentives-split-header-intro {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  justify-content: center;\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-incentives-split-header-lead] {\n  margin: 0;\n}\n\
 .blocks-incentives-split-header-media {\n  min-width: 0;\n}\n\
+[data-blocks-incentives-split-header-image] {\n  width: 100%;\n}\n\
 .blocks-incentives-split-header-items {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-incentives-split-header-item {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  min-width: 0;\n}\n\
 [data-scope=\"text\"][data-part=\"root\"][data-blocks-incentives-split-header-item-desc] {\n  margin: 0;\n}\n\
@@ -311,6 +312,17 @@ mod tests {
         assert!(LAYOUT_CSS.contains("@media (min-width: 48rem)"));
         assert!(LAYOUT_CSS.contains("repeat(2, minmax(0, 1fr))"));
         assert!(LAYOUT_CSS.contains("repeat(3, minmax(0, 1fr))"));
+    }
+
+    /// 画像が列幅まで拡大されること（PR #3507 レビュー指摘: `image` 部品の
+    /// 既定 CSS は `max-width: 100%` のみで `width` を持たないため、親に
+    /// `min-width: 0` があっても同梱 SVG（幅固定）はサムネイルサイズの
+    /// ままになり split レイアウトを満たさない）。
+    #[test]
+    fn layout_css_stretches_image_to_column_width() {
+        assert!(
+            LAYOUT_CSS.contains("[data-blocks-incentives-split-header-image] {\n  width: 100%;\n}")
+        );
     }
 
     /// ルート class（`demo_class` とは別名）が `demo()` の出力へ実際に
