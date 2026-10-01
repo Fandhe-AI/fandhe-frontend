@@ -129,9 +129,13 @@ fn category_mod_docs_do_not_record_per_block_history() {
             .join(section_dir_name(category.section()))
             .join(category_dir_name(*category))
             .join("mod.rs");
-        let Ok(source) = std::fs::read_to_string(&dir_mod_path) else {
+        // 空雛形のままのカテゴリ（ディレクトリ未化）だけを対象外とする。
+        // 実在する mod.rs の読み取り失敗は検査漏れになるため失敗させる。
+        if !dir_mod_path.is_file() {
             continue;
-        };
+        }
+        let source = std::fs::read_to_string(&dir_mod_path)
+            .unwrap_or_else(|e| panic!("{dir_mod_path:?} を読めない: {e}"));
         checked += 1;
         for (no, line) in source.lines().enumerate() {
             if !line.trim_start().starts_with("//!") {
