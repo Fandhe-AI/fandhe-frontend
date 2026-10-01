@@ -56,7 +56,12 @@
 //! （架空セット）を使う。追跡番号・住所・カード下 4 桁はすべて架空の
 //! プレースホルダーであり、実在の人物・企業・PII・実クレデンシャルは
 //! 含まない。参照元（R1121）の文言・配色・アイコンは持ち込まず、本 block
-//! 独自の文言にしている。
+//! 独自の文言にしている。左半分の背景 [`dummy_assets::BACKGROUND_SRC`]
+//! はドット柄の汎用プレースホルダー SVG（実際の梱包・商品の写真ではない）
+//! のため、`contact_image_info`/`category_featured_banner` と同じ判断で
+//! 空 `alt`（装飾扱い）にする（レビュー指摘: 実内容と異なる
+//! 「梱包された注文商品のイメージ」という alt は誤り）。商品サムネイル
+//! （[`dummy_assets::PRODUCT_SRC`]）は商品名と一致する alt を保つ。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -149,7 +154,7 @@ pub fn demo() -> Node {
             &ImageProps {
                 fit: ImageFit::Cover,
                 aspect_ratio: AspectRatio::Auto,
-                ..ImageProps::new(dummy_assets::BACKGROUND_SRC, "梱包された注文商品のイメージ")
+                ..ImageProps::new(dummy_assets::BACKGROUND_SRC, "")
             },
             vec![("data-blocks-order-confirmation-split-image-media", "")],
         )],
@@ -378,8 +383,13 @@ mod tests {
     }
 
     #[test]
-    fn images_have_non_empty_alt() {
+    fn product_thumbnails_have_non_empty_alt_and_background_is_decorative() {
         let html = demo_html();
-        assert!(!html.contains("alt=\"\""));
+        // 商品サムネイル 3 件は商品名と一致する alt を持つ。
+        assert!(html.contains("alt=\"リネンのトートバッグ\""));
+        assert!(html.contains("alt=\"セラミックマグカップ\""));
+        assert!(html.contains("alt=\"オーガニックコットンタオル\""));
+        // 左半分の背景はドット柄の汎用プレースホルダーのため装飾扱い（空 alt）。
+        assert_eq!(html.matches("alt=\"\"").count(), 1);
     }
 }

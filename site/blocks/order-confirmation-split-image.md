@@ -106,7 +106,7 @@ pub fn demo() -> Node {
             &ImageProps {
                 fit: ImageFit::Cover,
                 aspect_ratio: AspectRatio::Auto,
-                ..ImageProps::new(dummy_assets::BACKGROUND_SRC, "梱包された注文商品のイメージ")
+                ..ImageProps::new(dummy_assets::BACKGROUND_SRC, "")
             },
             vec![("data-blocks-order-confirmation-split-image-media", "")],
         )],
