@@ -1,9 +1,9 @@
 # promo-background-image
 
-背景画像全面のプロモーション。`heading` / `text` / `button` / `image` /
+背景画像全面のプロモーション。`heading` / `text` / `link` / `image` /
 `card` の 5 部品を合成し、背景画像に暗幕を重ねた上へ中央寄せの見出し・
-説明・反転色 CTA を置くブロックです。Blocks は既存部品の合成例であり、
-新しい UI 部品は追加しません。
+説明・反転色 CTA（実在のリンク先へ遷移する `link`）を置くブロックです。
+Blocks は既存部品の合成例であり、新しい UI 部品は追加しません。
 
 主参照は対応表 ID R1196（基準形）です。角丸カードへ収める形（R1198）と
 トップページ向けの大見出し・大きめの余白形（R1202）を並記形として
@@ -23,11 +23,17 @@ SVG です。
 ```rust
 use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, text, Node};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
 use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::image::{self, ImageProps};
+use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
+
+/// CTA のリンク先（モジュール冒頭「`id` を使わない・`<form>` を使わない・
+/// 実データを持たない」節参照）。本 Demo は実データ・バックエンドを持たない
+/// 静的合成例のため、`cta_split_image`/`promo_collection_cards` 等の既存
+/// block と同じく固定の外部絶対 URL を死リンク回避先として使い回す。
+const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 /// 各形の直前に置く短い形ラベル（`hero_background_media::variant_label`
 /// と同型）。
@@ -85,8 +91,9 @@ fn content(heading_size: HeadingSize) -> Node {
                 vec![("data-blocks-promo-background-image-lead", "")],
                 vec![text("対象の定番アイテムが期間限定でお得になります。")],
             ),
-            button::button(
-                &ButtonProps::default(),
+            link::root(
+                REPO,
+                &LinkProps::default(),
                 vec![("data-blocks-promo-background-image-cta", "")],
                 vec![text("セール会場を見る")],
             ),
@@ -157,7 +164,11 @@ pub fn demo() -> Node {
   空にした。
 - 参照元の文言・配色・装飾は持ち込まず、見出し・説明・CTA の文言は
   すべて独自の架空文言に差し替えた。
+- CTA は「見る」という遷移を示す文言のため `button::button`（遷移先を
+  持たない `<button>`）ではなく `link::root`（実在する外部絶対 URL へ
+  遷移する `<a>`）で描画する（`cta_split_image` の「導入事例を見る」と
+  同型の判断）。
 
 関連情報: [Heading](../themes/heading.md) / [Text](../themes/text.md) /
-[Button](../themes/button.md) / [Image](../themes/image.md) /
+[Link](../themes/link.md) / [Image](../themes/image.md) /
 [Card](../themes/card.md)

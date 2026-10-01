@@ -10,8 +10,12 @@
 //!
 //! # 使用部品
 //!
-//! `heading` / `text` / `button` / `image` / `card` の 5 部品を合成する
+//! `heading` / `text` / `link` / `image` / `card` の 5 部品を合成する
 //! （[`BLOCK`] の `parts` に一致させる契約）。新しい UI 部品は追加しない。
+//! CTA は `button::button`（遷移先を持たない `<button>`）ではなく
+//! `link::root`（`<a>`）を使う。「見る」という遷移を示す文言には実在する
+//! リンク先が要る（codex-review P1 指摘、イシュー #3076。`cta_split_image`
+//! の「導入事例を見る」と同型の判断）。
 //!
 //! # 3 形を 1 つの Demo に並記する
 //!
@@ -46,13 +50,16 @@
 //! # 反転色 CTA も詳細度対策が要る
 //!
 //! `[data-blocks-promo-background-image-cta]` 単体（属性セレクタ 1 個、
-//! 詳細度 0,1,0）では `button::button` の Solid variant 既定宣言
-//! （`[data-scope="button"][data-part="root"]`、詳細度 0,2,0）に確実に
-//! 負けるため、`[data-scope="button"][data-part="root"]` を前置して
+//! 詳細度 0,1,0）では `link::root` の base 宣言
+//! （`[data-scope="link"][data-part="root"]`、詳細度 0,2,0）に確実に
+//! 負けるため、`[data-scope="link"][data-part="root"]` を前置して
 //! 詳細度 0,3,0 に揃える（`cta_split_image` と同じ解法。CSS 出力順は
 //! showcase → blocks の順で `<link>` するため、同値セレクタは後勝ちで
-//! 確実に本 block 側が勝つ）。`:hover` にも同じ指定へ `color-mix()` を
-//! 加えて淡くし、recipe の hover 宣言に負けないようにする。
+//! 確実に本 block 側が勝つ）。背景暗幕の上でもボタン然として視認できる
+//! よう、`padding`/`border-radius`/`display: inline-block` を本 block 側で
+//! 追加付与する（`link::root` base は装飾なしのインラインテキストリンク
+//! のため）。`:hover` にも同じ指定へ `color-mix()` を加えて淡くし、recipe
+//! の hover 宣言に負けないようにする。
 //!
 //! # B 形（カード）は `card::root` を (0,3,0) で上書きする
 //!
@@ -72,7 +79,7 @@
 //!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
-//! `heading::heading`/`styled_text::text`/`button::button`/`card::root`/
+//! `heading::heading`/`styled_text::text`/`link::root`/`card::root`/
 //! `image::image` はいずれも `drop_class_attr` により呼び出し側 `attrs`
 //! の `class` を黙って除去する契約を持つため、本 block 固有のフックは
 //! `data-blocks-promo-background-image-*` 属性で渡す。素の `div` には
@@ -81,22 +88,30 @@
 //!
 //! # `id` を使わない・`<form>` を使わない・実データを持たない
 //!
-//! 3 形とも `id` 属性を使わず（重複 id 回避）、リンクも持たない。
-//! `crate::blocks` モジュール doc の不変条件どおり `<form>` を出力せず、
-//! CTA ボタンは既定の `type="button"` のまま用いる。文言はすべて架空の
-//! ものであり、実企業名・実サービス名・実クレデンシャル・PII・価格の
-//! 断定は含まない。
+//! 3 形とも `id` 属性を使わず（重複 id 回避）。`crate::blocks` モジュール
+//! doc の不変条件どおり `<form>` を出力しない。CTA は `link::root` が
+//! 固定の外部絶対 URL（[`REPO`]）へ遷移する実在のリンクであり、
+//! `href="#"` の死リンクは使わない（`cta_split_image`/`promo_collection_
+//! cards` 等、既存 block 多数と同じ方針。モジュール冒頭「使用部品」節
+//! 参照）。文言はすべて架空のものであり、実企業名・実サービス名・実
+//! クレデンシャル・PII・価格の断定は含まない。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
 use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, text, Node};
-use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
 use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::image::{self, ImageProps};
+use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
+
+/// CTA のリンク先（モジュール冒頭「`id` を使わない・`<form>` を使わない・
+/// 実データを持たない」節参照）。本 Demo は実データ・バックエンドを持たない
+/// 静的合成例のため、`cta_split_image`/`promo_collection_cards` 等の既存
+/// block と同じく固定の外部絶対 URL を死リンク回避先として使い回す。
+const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 /// 各形の直前に置く短い形ラベル（`hero_background_media::variant_label`
 /// と同型）。
@@ -154,8 +169,9 @@ fn content(heading_size: HeadingSize) -> Node {
                 vec![("data-blocks-promo-background-image-lead", "")],
                 vec![text("対象の定番アイテムが期間限定でお得になります。")],
             ),
-            button::button(
-                &ButtonProps::default(),
+            link::root(
+                REPO,
+                &LinkProps::default(),
                 vec![("data-blocks-promo-background-image-cta", "")],
                 vec![text("セール会場を見る")],
             ),
@@ -224,8 +240,8 @@ pub const BLOCK: Block = Block {
             path: "/themes/text/",
         },
         Part {
-            label: "Button",
-            path: "/themes/button/",
+            label: "Link",
+            path: "/themes/link/",
         },
         Part {
             label: "Image",
@@ -257,8 +273,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-promo-background-image-scrim {\n  position: absolute;\n  inset: 0;\n  background: color-mix(in srgb, var(--fandhe-color-fg) 64%, transparent);\n}\n\
 .blocks-promo-background-image-content {\n  display: grid;\n  justify-items: center;\n  text-align: center;\n  gap: var(--fandhe-space-4);\n  max-width: 40rem;\n  margin-inline: auto;\n}\n\
 [data-scope=\"heading\"][data-part=\"root\"][data-blocks-promo-background-image-title],\n[data-scope=\"text\"][data-part=\"root\"][data-blocks-promo-background-image-lead] {\n  color: inherit;\n}\n\
-[data-scope=\"button\"][data-part=\"root\"][data-blocks-promo-background-image-cta] {\n  background: var(--fandhe-color-bg);\n  color: var(--fandhe-color-fg);\n  border-color: var(--fandhe-color-bg);\n}\n\
-[data-scope=\"button\"][data-part=\"root\"][data-blocks-promo-background-image-cta]:hover {\n  background: color-mix(in srgb, var(--fandhe-color-bg) 85%, transparent);\n  color: var(--fandhe-color-fg);\n  border-color: var(--fandhe-color-bg);\n}\n";
+[data-scope=\"link\"][data-part=\"root\"][data-blocks-promo-background-image-cta] {\n  display: inline-block;\n  padding: var(--fandhe-space-3) var(--fandhe-space-6);\n  border-radius: var(--fandhe-radius-md);\n  background: var(--fandhe-color-bg);\n  color: var(--fandhe-color-fg);\n  text-decoration: none;\n}\n\
+[data-scope=\"link\"][data-part=\"root\"][data-blocks-promo-background-image-cta]:hover {\n  background: color-mix(in srgb, var(--fandhe-color-bg) 85%, transparent);\n  color: var(--fandhe-color-fg);\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -286,13 +302,17 @@ mod tests {
             html.matches("data-blocks-promo-background-image-cta=\"\"")
                 .count(),
             3,
-            "should render exactly 3 CTA buttons (one per variant)"
+            "should render exactly 3 CTA links (one per variant)"
         );
-        assert!(html.contains(r#"type="button""#));
+        assert_eq!(
+            html.matches(&format!("href=\"{REPO}\"")).count(),
+            3,
+            "each CTA should link to the real, existing REPO URL (not a dead href=\"#\")"
+        );
         assert!(html.contains(r#"data-scope="card""#));
         assert!(html.contains(r#"data-scope="heading""#));
         assert!(html.contains(r#"data-scope="text""#));
-        assert!(html.contains(r#"data-scope="button""#));
+        assert!(html.contains(r#"data-scope="link""#));
         assert!(html.contains(r#"data-scope="image""#));
         assert!(html.contains(dummy_assets::BACKGROUND_SRC));
         for hook in [
@@ -332,8 +352,8 @@ mod tests {
             ".blocks-promo-background-image-backdrop {",
             ".blocks-promo-background-image-scrim {",
             ".blocks-promo-background-image-content {",
-            "[data-scope=\"button\"][data-part=\"root\"][data-blocks-promo-background-image-cta] {",
-            "[data-scope=\"button\"][data-part=\"root\"][data-blocks-promo-background-image-cta]:hover {",
+            "[data-scope=\"link\"][data-part=\"root\"][data-blocks-promo-background-image-cta] {",
+            "[data-scope=\"link\"][data-part=\"root\"][data-blocks-promo-background-image-cta]:hover {",
         ] {
             assert!(
                 LAYOUT_CSS.contains(selector),
