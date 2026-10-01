@@ -311,7 +311,7 @@ fn trend_bar(day: &TrendDay) -> Node {
                 &progress,
                 &props,
                 Some(day.detail),
-                vec![],
+                vec![("aria-label", day.detail)],
                 vec![progress.track(vec![], vec![progress::range(&progress, vec![])])],
             ),
             div(
@@ -322,9 +322,12 @@ fn trend_bar(day: &TrendDay) -> Node {
     )
 }
 
-/// 署名シークレットのコピー可能表示（`copied=false` 固定、伏せ字混じりの
-/// 架空値。モジュール doc「無 JS のため `clipboard`/`progress` は静的固定」
-/// 節参照）。
+/// 署名シークレットの表示（`copied=false` 固定、伏せ字混じりの架空値。
+/// モジュール doc「無 JS のため `clipboard`/`progress` は静的固定」節
+/// 参照）。`label` の `for` は実際の labelable control である
+/// `clipboard::input` の `id`（`SECRET_INPUT_ID`）を指す。表示値は実値を
+/// 持たない伏せ字のためコピー対象が存在せず、`trigger` は `disabled` で
+/// 操作不能にする。
 fn secret_clipboard() -> Node {
     const SECRET_INPUT_ID: &str = "blocks-settings-webhook-stats-secret";
     const MASKED_SECRET: &str = "whsec_••••••••••••3f9a";
@@ -344,10 +347,10 @@ fn secret_clipboard() -> Node {
                 false,
                 vec![],
                 vec![
-                    clipboard::value_text(vec![("id", SECRET_INPUT_ID)], vec![text(MASKED_SECRET)]),
+                    clipboard::input(MASKED_SECRET, false, vec![("id", SECRET_INPUT_ID)]),
                     clipboard::trigger(
                         false,
-                        vec![],
+                        vec![("disabled", ""), ("data-disabled", "")],
                         vec![
                             clipboard::indicator(false, false, vec![], vec![text("Copy")]),
                             clipboard::indicator(true, false, vec![], vec![text("Copied!")]),
