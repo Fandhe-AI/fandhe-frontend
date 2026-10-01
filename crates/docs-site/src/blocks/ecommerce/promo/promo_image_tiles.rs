@@ -305,6 +305,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-promo-image-tiles-image] {\n  display: block;\n  width: 100%;\n}\n\
 [data-blocks-promo-image-tiles-tone=\"dark\"] {\n  background: var(--fandhe-color-fg);\n  color: var(--fandhe-color-bg);\n  padding: var(--fandhe-space-8);\n  border-radius: var(--fandhe-radius-lg);\n}\n\
 [data-blocks-promo-image-tiles-tone=\"dark\"] [data-scope=\"text\"],\n[data-blocks-promo-image-tiles-tone=\"dark\"] [data-scope=\"heading\"],\n[data-blocks-promo-image-tiles-tone=\"dark\"] [data-scope=\"link\"] {\n  color: inherit;\n}\n\
+[data-blocks-promo-image-tiles-tone=\"dark\"] [data-scope=\"link\"][data-part=\"root\"]:hover {\n  color: inherit;\n}\n\
 [data-blocks-promo-image-tiles-tone=\"dark\"] [data-blocks-promo-image-tiles-lead] {\n  opacity: 0.8;\n}\n\
 @media (min-width: 40rem) {\n  \
 .blocks-promo-image-tiles-collage {\n    display: flex;\n    gap: var(--fandhe-space-4);\n    overflow: hidden;\n    padding-inline: var(--fandhe-space-3);\n  }\n  \
@@ -383,5 +384,18 @@ mod tests {
         assert!(!LAYOUT_CSS.contains("white"));
         assert!(!LAYOUT_CSS.contains("animation"));
         assert!(!LAYOUT_CSS.contains("transition"));
+    }
+
+    /// Bugbot 指摘（PR #3528）回帰: dark 帯の `color: inherit` は属性
+    /// セレクタ 2 つのみだと link の `:hover` 規則（`[data-scope="link"]
+    /// [data-part="root"]:hover`、属性 2 つ + 疑似クラス 1 つ）に詳細度で
+    /// 負け、反転配色帯で CTA リンクが accent-emphasized 色へ戻って
+    /// コントラストを失っていた。`[data-part="root"]` を加えた専用
+    /// `:hover` 上書き（属性 3 つ + 疑似クラス 1 つ）で明示的に勝たせる。
+    #[test]
+    fn dark_tone_link_hover_override_outranks_component_hover() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-promo-image-tiles-tone=\"dark\"] [data-scope=\"link\"][data-part=\"root\"]:hover {\n  color: inherit;\n}"
+        ));
     }
 }
