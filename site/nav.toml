@@ -2708,6 +2708,11 @@ source = "site/blocks/category-carousel.md"
 path = "/blocks/category-carousel/"
 
 [[section.group.page]]
+title = "category-featured-banner"
+source = "site/blocks/category-featured-banner.md"
+path = "/blocks/category-featured-banner/"
+
+[[section.group.page]]
 title = "category-grid-captioned"
 source = "site/blocks/category-grid-captioned.md"
 path = "/blocks/category-grid-captioned/"
@@ -2716,6 +2721,11 @@ path = "/blocks/category-grid-captioned/"
 title = "category-grid-overlay"
 source = "site/blocks/category-grid-overlay.md"
 path = "/blocks/category-grid-overlay/"
+
+[[section.group.page]]
+title = "category-mosaic-featured"
+source = "site/blocks/category-mosaic-featured.md"
+path = "/blocks/category-mosaic-featured/"
 
 [[section.group]]
 title = "Filter"
