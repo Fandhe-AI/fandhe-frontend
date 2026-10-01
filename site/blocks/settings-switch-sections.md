@@ -353,7 +353,7 @@ fn card_instance() -> Node {
                     ],
                 ),
                 card::body(
-                    vec![],
+                    vec![("class", "blocks-settings-switch-sections-section")],
                     vec![
                         switch_row(
                             "card",

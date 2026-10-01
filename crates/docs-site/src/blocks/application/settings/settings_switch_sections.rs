@@ -43,7 +43,10 @@
 //! 同様に `class` を除去するため `data-*` を使う。素の `div`（ラッパー・
 //! セクション・行内テキスト）・`card::header`/`body`/`footer`
 //! （`class`/`data-*` いずれも透過する）には
-//! `class="blocks-settings-switch-sections-*"` を使う。
+//! `class="blocks-settings-switch-sections-*"` を使う。`card::body` も
+//! `attrs` を透過するため、`card` variant では行間隔を揃える目的で
+//! `class="blocks-settings-switch-sections-section"` を共用する
+//! （専用クラスを新設しない）。
 //!
 //! # 行の横並びは `FieldOrientation::Horizontal` に委譲する
 //!
@@ -408,7 +411,7 @@ fn card_instance() -> Node {
                     ],
                 ),
                 card::body(
-                    vec![],
+                    vec![("class", "blocks-settings-switch-sections-section")],
                     vec![
                         switch_row(
                             "card",
@@ -508,6 +511,7 @@ pub const BLOCK: Block = Block {
 /// disabled 中和・保存ボタンの右寄せのみを追加する。
 const LAYOUT_CSS: &str = "\
 .blocks-settings-switch-sections-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
+[data-blocks-settings-switch-sections-variant] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-settings-switch-sections-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-settings-switch-sections-row-text {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n}\n\
 .blocks-settings-switch-sections-description {\n  margin: 0;\n  color: var(--fandhe-color-fg-muted);\n}\n\
@@ -632,6 +636,14 @@ mod tests {
     fn layout_css_is_safe() {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(!LAYOUT_CSS.contains("</style"));
+    }
+
+    /// variant ラッパー（`[data-blocks-settings-switch-sections-variant]`）が
+    /// 縦方向の間隔規則を持つことを固定する（セクション同士・保存ボタンが
+    /// 密着する回帰の再発防止、Bugbot 指摘）。
+    #[test]
+    fn variant_wrapper_has_vertical_gap() {
+        assert!(LAYOUT_CSS.contains("[data-blocks-settings-switch-sections-variant] {"));
     }
 
     #[test]
