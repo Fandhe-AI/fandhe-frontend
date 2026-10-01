@@ -17,7 +17,8 @@
 //! [`settings_profile_form`]、イシュー #3001 で
 //! [`settings_page_aside_nav`]、イシュー #3013 で骨格を、イシュー #3014 で
 //! QR 版・状態差分を追加した
-//! [`settings_share_members`] を追加した）。手順は
+//! [`settings_share_members`]、イシュー #3019 で
+//! [`settings_webhook_form`] を追加した）。手順は
 //! `docs/design/docs-site-blocks-section.md` §18 参照。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
@@ -45,6 +46,7 @@ mod settings_page_tabs;
 mod settings_preferences;
 mod settings_profile_form;
 mod settings_share_members;
+mod settings_webhook_form;
 
 use crate::blocks::Block;
 
@@ -69,5 +71,6 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_preferences::BLOCK,
         settings_profile_form::BLOCK,
         settings_share_members::BLOCK,
+        settings_webhook_form::BLOCK,
     ]
 }
