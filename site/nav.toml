@@ -2423,6 +2423,11 @@ source = "site/blocks/settings-switch-sections.md"
 path = "/blocks/settings-switch-sections/"
 
 [[section.group.page]]
+title = "settings-team-invite"
+source = "site/blocks/settings-team-invite.md"
+path = "/blocks/settings-team-invite/"
+
+[[section.group.page]]
 title = "settings-webhook-detail"
 source = "site/blocks/settings-webhook-detail.md"
 path = "/blocks/settings-webhook-detail/"
