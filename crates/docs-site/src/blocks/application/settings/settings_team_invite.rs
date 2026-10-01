@@ -104,13 +104,13 @@ const MEMBERS: &[Member] = &[
     },
     Member {
         name: dummy_assets::PERSON_NAMES[2],
-        email: "sora.kitagawa@example.com",
+        email: "kwame.boateng@example.com",
         role: "閲覧者",
         pending: false,
     },
     Member {
         name: dummy_assets::PERSON_NAMES[3],
-        email: "mateo.alencar@example.com",
+        email: "mei.lindqvist@example.com",
         role: "編集者",
         pending: true,
     },
@@ -350,14 +350,14 @@ const LAYOUT_CSS: &str = "
     display: flex;
     flex-direction: column;
     gap: var(--fandhe-space-6);
+    container-type: inline-size;
+    container-name: blocks-settings-team-invite;
 }
 .blocks-settings-team-invite-form {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: end;
     gap: var(--fandhe-space-3);
-    container-type: inline-size;
-    container-name: blocks-settings-team-invite;
 }
 .blocks-settings-team-invite-members {
     list-style: none;
@@ -380,7 +380,7 @@ const LAYOUT_CSS: &str = "
     min-width: 0;
 }
 .blocks-settings-team-invite-email {
-    font-size: var(--fandhe-font-size-sm);
+    font-size: var(--fandhe-font-font-size-sm);
     color: var(--fandhe-color-fg-muted);
 }
 .blocks-settings-team-invite-trailing {

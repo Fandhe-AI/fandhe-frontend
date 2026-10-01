@@ -51,13 +51,13 @@ const MEMBERS: &[Member] = &[
     },
     Member {
         name: dummy_assets::PERSON_NAMES[2],
-        email: "sora.kitagawa@example.com",
+        email: "kwame.boateng@example.com",
         role: "閲覧者",
         pending: false,
     },
     Member {
         name: dummy_assets::PERSON_NAMES[3],
-        email: "mateo.alencar@example.com",
+        email: "mei.lindqvist@example.com",
         role: "編集者",
         pending: true,
     },
