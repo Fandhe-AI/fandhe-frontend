@@ -2708,6 +2708,11 @@ source = "site/blocks/category-carousel.md"
 path = "/blocks/category-carousel/"
 
 [[section.group.page]]
+title = "category-grid-captioned"
+source = "site/blocks/category-grid-captioned.md"
+path = "/blocks/category-grid-captioned/"
+
+[[section.group.page]]
 title = "category-mosaic-featured"
 source = "site/blocks/category-mosaic-featured.md"
 path = "/blocks/category-mosaic-featured/"
@@ -2729,6 +2734,11 @@ path = "/blocks/cart-drawer/"
 title = "cart-line-item-table"
 source = "site/blocks/cart-line-item-table.md"
 path = "/blocks/cart-line-item-table/"
+
+[[section.group.page]]
+title = "cart-single-column"
+source = "site/blocks/cart-single-column.md"
+path = "/blocks/cart-single-column/"
 
 [[section.group.page]]
 title = "cart-two-column-summary"
