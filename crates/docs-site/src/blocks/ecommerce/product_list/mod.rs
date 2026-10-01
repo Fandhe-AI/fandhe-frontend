@@ -10,9 +10,13 @@
 //! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
 mod product_list_bordered_grid;
+mod product_list_simple_grid;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![product_list_bordered_grid::BLOCK]
+    vec![
+        product_list_simple_grid::BLOCK,
+        product_list_bordered_grid::BLOCK,
+    ]
 }
