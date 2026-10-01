@@ -502,16 +502,33 @@ pub const BLOCK: Block = Block {
 /// [data-part="item"] { display: var(...) }` が同じ `(0,2,0)` を持つため、
 /// フック属性単体では負けて 40rem 未満でも隠れない（レビュー指摘対応、
 /// イシュー #3056）。
+///
+/// サマリの定義リスト（`[data-blocks-order-history-panels-summary-list]
+/// [data-scope="data-list"][data-part="root"]`）は `display` と並べて
+/// `flex-direction: row` も明示する。Data List recipe の `[data-scope=
+/// "data-list"][data-part="root"] { flex-direction: column }` は同じ
+/// `(0,2,0)` のため、`display` だけ上書きしても `flex-direction` は
+/// recipe 側が勝ち続け、3 フィールドが縦積みのまま戻ってしまう
+/// （レビュー指摘対応、PR #3509）。
+///
+/// 商品画像の `height: 5rem` は、フック属性単体（`(0,1,0)`）のままでは
+/// Image recipe の `[data-scope="image"][data-part="root"] { height: auto }`
+/// （`(0,2,0)`）に負けて `object-fit: cover` のクロップが効かないため、
+/// 上記 action-button / date と同じ `[data-scope][data-part]` 併記
+/// （`(0,3,0)`）に分離して明示する。`grid-row`/`width` は hook 属性のみ
+/// （`(0,1,0)`）のままで recipe と競合しないため分離不要
+/// （レビュー指摘対応、PR #3509）。
 const LAYOUT_CSS: &str = "\
 .blocks-order-history-panels-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-order-history-panels;\n}\n\
 .blocks-order-history-panels-summary-row {\n  display: flex;\n  flex-direction: row;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n}\n\
-[data-blocks-order-history-panels-summary-list][data-scope=\"data-list\"][data-part=\"root\"] {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-6);\n}\n\
+[data-blocks-order-history-panels-summary-list][data-scope=\"data-list\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: row;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-order-history-panels-actions {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  margin-inline-start: auto;\n}\n\
 [data-blocks-order-history-panels-action-button][data-scope=\"button\"][data-part=\"root\"] {\n  display: none;\n}\n\
 [data-blocks-order-history-panels-date][data-scope=\"data-list\"][data-part=\"item\"] {\n  display: none;\n}\n\
 .blocks-order-history-panels-items {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-order-history-panels-item {\n  display: grid;\n  grid-template-columns: 5rem minmax(0, 1fr);\n  gap: var(--fandhe-space-2) var(--fandhe-space-4);\n  align-items: start;\n}\n\
-[data-blocks-order-history-panels-image] {\n  grid-row: 1 / 3;\n  width: 100%;\n  height: 5rem;\n}\n\
+[data-blocks-order-history-panels-image] {\n  grid-row: 1 / 3;\n  width: 100%;\n}\n\
+[data-blocks-order-history-panels-image][data-scope=\"image\"][data-part=\"root\"] {\n  height: 5rem;\n}\n\
 .blocks-order-history-panels-item-body {\n  grid-column: 2;\n  grid-row: 1;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-order-history-panels-item-heading {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  justify-content: space-between;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-order-history-panels-item-link] {\n  grid-column: 2;\n  grid-row: 2;\n  justify-self: start;\n}\n\
@@ -666,6 +683,27 @@ mod tests {
         ));
         assert!(LAYOUT_CSS.contains(
             "[data-blocks-order-history-panels-action-button][data-scope=\"button\"][data-part=\"root\"] {\n    display: inline-flex;\n  }"
+        ));
+    }
+
+    /// レビュー指摘対応（PR #3509）: サマリ一覧の `flex-direction: row` が
+    /// Data List recipe の `column`（同じ詳細度 `(0,2,0)`）に負けず明示
+    /// されていることを固定する。
+    #[test]
+    fn summary_list_overrides_flex_direction_to_row() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-order-history-panels-summary-list][data-scope=\"data-list\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: row;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-6);\n}"
+        ));
+    }
+
+    /// レビュー指摘対応（PR #3509）: 商品画像の `height: 5rem` が
+    /// `[data-scope="image"][data-part="root"]` 併記で Image recipe の
+    /// `height: auto`（`(0,2,0)`）より高い詳細度（`(0,3,0)`）を持つことを
+    /// 固定する。
+    #[test]
+    fn item_image_height_outranks_image_recipe() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-order-history-panels-image][data-scope=\"image\"][data-part=\"root\"] {\n  height: 5rem;\n}"
         ));
     }
 
