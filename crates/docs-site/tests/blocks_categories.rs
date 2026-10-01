@@ -103,3 +103,62 @@ fn no_category_has_both_a_flat_scaffold_and_a_directory() {
         );
     }
 }
+
+/// `#` 直後に ASCII 数字が続く箇所（イシュー番号参照）をすべて抜き出す。
+fn issue_refs(line: &str) -> Vec<&str> {
+    line.match_indices('#')
+        .filter_map(|(i, _)| {
+            let rest = &line[i + 1..];
+            let len = rest.bytes().take_while(u8::is_ascii_digit).count();
+            (len > 0).then(|| &line[i..i + 1 + len])
+        })
+        .collect()
+}
+
+/// カテゴリ `mod.rs` のモジュール doc（`//!` 行）に block ごとの追加履歴を
+/// 書かないことを固定する（イシュー #3482）。並列 block PR が同じコメント
+/// 行を毎回書き換えて main 取り込み時に競合するため、追加経緯は git 履歴と
+/// PR を正とする。雛形新設の #2734 への言及のみ許容する。
+#[test]
+fn category_mod_docs_do_not_record_per_block_history() {
+    let blocks_root = repo_root().join("crates/docs-site/src/blocks");
+    let mut checked = 0;
+
+    for category in BlockCategory::ALL {
+        let dir_mod_path = blocks_root
+            .join(section_dir_name(category.section()))
+            .join(category_dir_name(*category))
+            .join("mod.rs");
+        let Ok(source) = std::fs::read_to_string(&dir_mod_path) else {
+            continue;
+        };
+        checked += 1;
+        for (no, line) in source.lines().enumerate() {
+            if !line.trim_start().starts_with("//!") {
+                continue;
+            }
+            for r in issue_refs(line) {
+                assert_eq!(
+                    r,
+                    "#2734",
+                    "{dir_mod_path:?}:{} の `//!` に {r} がある。block ごとの追加履歴は \
+                     カテゴリ mod.rs に書かない（git 履歴と PR が正、イシュー #3482）",
+                    no + 1
+                );
+            }
+        }
+    }
+    assert!(
+        checked > 0,
+        "ディレクトリ化済みカテゴリ mod.rs が 1 件も見つからない"
+    );
+}
+
+#[test]
+fn issue_refs_extracts_hash_numbers_only() {
+    assert_eq!(
+        issue_refs("（イシュー #2734、#12 と #）"),
+        vec!["#2734", "#12"]
+    );
+    assert!(issue_refs("§18 参照 `#[test]`").is_empty());
+}

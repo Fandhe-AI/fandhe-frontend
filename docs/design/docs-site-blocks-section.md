@@ -695,6 +695,22 @@ blocks/
 `mod.rs`（`marketing` 等）・トップレベル `crate::blocks` 側は
 `pub(super) fn blocks()` のシグネチャが不変のため変更不要。
 
+### カテゴリ `mod.rs` のモジュール doc に追加履歴を書かない（#3482）
+
+カテゴリ `mod.rs`（`<section>/<category>/mod.rs`）冒頭の `//!` には、役割・
+責務境界・本節への参照など block 追加で変わらない固定文だけを書く。
+「イシュー #NNNN で `xxx` を追加した」のような block ごとの追加履歴は書かない。
+
+- 追加経緯は git 履歴と PR が正であり、コメントで二重管理しない。
+- 並列に作られる block PR が同じコメント行を毎回書き換え、main 取り込み時の
+  競合点になるため（2026-10-01 の実ランで settings カテゴリの競合により
+  PR 作成が連続失敗した）。
+
+この規則により、block 追加 PR がカテゴリ `mod.rs` で触る行は `mod` 宣言と
+`blocks()` への登録行だけになる。`crates/docs-site/tests/blocks_categories.rs`
+の `category_mod_docs_do_not_record_per_block_history` が、`//!` 行に雛形新設の
+#2734 以外のイシュー番号が現れないことを検査する。
+
 ### `Block` レジストリの関数化（`BLOCKS` 配列の廃止）
 
 66 個の可変長カテゴリを stable Rust の `const fn` だけで単一の

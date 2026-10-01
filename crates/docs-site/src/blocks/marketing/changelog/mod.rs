@@ -1,12 +1,13 @@
-//! Marketing / Changelog カテゴリの block 登録点（イシュー #2734 で雛形
-//! 新設、イシュー #2818 で最初の block（[`changelog_accordion`]）を追加し
-//! 卒業。イシュー #2820 で 2 番目の block（[`changelog_timeline`]）を、
-//! イシュー #2819 で 3 番目の block（[`changelog_stacked_list`]）を追加。
+//! Marketing / Changelog カテゴリの block 登録点。カテゴリ別のモジュール構成と
+//! 「カテゴリの卒業」手順は `docs/design/docs-site-blocks-section.md` §18
+//! 参照（イシュー #2734）。
+//!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
-//! 新規 block を追加する際は本ファイルへ `mod` 宣言と `blocks()` への
-//! 追記を行うだけでよく、`super`（`marketing`）側・トップレベル
-//! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ
-//! 込めるための構造、イシュー #2734）。
+//! 新規 block を追加する際は本ファイルへ `mod` 宣言と `blocks()` への追記を
+//! 行うだけでよく、`super`（`marketing`）側・トップレベル `crate::blocks` 側の
+//! 変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込めるための構造）。
+//! block ごとの追加経緯は git 履歴と PR を正とし、本コメントには書かない
+//! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
 mod changelog_accordion;
 mod changelog_stacked_list;
