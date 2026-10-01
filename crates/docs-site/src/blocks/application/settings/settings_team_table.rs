@@ -9,12 +9,15 @@
 //! # 使用部品
 //!
 //! `table` / `avatar` / `badge` / `input-group` / `input` / `button` /
-//! `menu` の 7 部品を合成する（[`BLOCK`] の `parts` に一致させる契約）。
+//! `menu` / `heading` の 8 部品を合成する（[`BLOCK`] の `parts` に一致させる
+//! 契約）。
 //! 検索欄のアクセシブルラベルは `aria-label` 属性のみで付与し、`field`
 //! 部品（ラベル + `visually_hidden`）は持ち込まない（`input::input` が
 //! 内部で `data-scope="field" data-part="input"` を出力する既定の範囲に
-//! 留め、使用部品を 7 件に収める）。見出し要素（`h2`/`h3`）も置かない
-//! （`heading` 部品を追加部品にしないための判断）。
+//! 留める）。2 版は列見出しが同一のため、各版に `heading` 部品の版見出し
+//! （H3）を置き、表のアクセシブルネームも `aria-labelledby` でその見出しから
+//! 与える（PR #3484 レビュー指摘の是正、`settings_integrations_grid.rs` の
+//! 版見出しと同じ流儀）。
 //!
 //! # 2 版を縦に併記する（集約元 R0267/R0269 の対応）
 //!
@@ -84,6 +87,7 @@ use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarProps, ImageStatus};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
+use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::input_group::{self, InputGroupAlign, InputGroupProps};
 use fandhe_frontend_pre_styled_ui::menu::{self, OpenState};
@@ -419,7 +423,7 @@ fn member_row(version: &str, index: usize, member: &Member) -> Node {
 }
 
 /// メンバー一覧テーブル（ヘッダー + 行群）。
-fn members_table(version: &str, members: &[Member]) -> Node {
+fn members_table(version: &str, title_id: &str, members: &[Member]) -> Node {
     let rows: Vec<Node> = members
         .iter()
         .enumerate()
@@ -431,7 +435,7 @@ fn members_table(version: &str, members: &[Member]) -> Node {
             interactive: true,
             ..TableProps::default()
         },
-        vec![],
+        vec![("aria-labelledby", title_id)],
         vec![
             table::header(
                 vec![],
@@ -457,13 +461,25 @@ fn members_table(version: &str, members: &[Member]) -> Node {
     )
 }
 
-/// 版 1 件（ツールバー + テーブル）。`version` は `id` の一意化に使う。
-fn version_panel(version: &str, with_search: bool, members: &[Member]) -> Node {
+/// 版 1 件（版見出し H3 + ツールバー + テーブル）。`version` は `id` の
+/// 一意化に使う。2 版は列見出しが同一のため、版見出しを可視で置き、表の
+/// アクセシブルネームも `aria-labelledby` で同じ見出しから与えて、画面上でも
+/// 支援技術でも版を区別できるようにする（`settings_integrations_grid.rs`
+/// の版見出しと同じ流儀。`heading` は `data-scope` を持つためページ目次には
+/// 載らない）。
+fn version_panel(version: &str, title: &str, with_search: bool, members: &[Member]) -> Node {
+    let title_id = format!("blocks-settings-team-table-{version}-title");
     div(
         vec![("data-blocks-settings-team-table-version", version)],
         vec![
+            heading(
+                HeadingLevel::H3,
+                &HeadingProps::default(),
+                vec![("id", &title_id)],
+                vec![text(title)],
+            ),
             toolbar(version, with_search),
-            members_table(version, members),
+            members_table(version, &title_id, members),
         ],
     )
 }
@@ -476,8 +492,8 @@ pub fn demo() -> Node {
     div(
         vec![("class", "blocks-settings-team-table-stack")],
         vec![
-            version_panel("a", true, &MEMBERS_A),
-            version_panel("b", false, &MEMBERS_B),
+            version_panel("a", "版 A: 検索欄あり", true, &MEMBERS_A),
+            version_panel("b", "版 B: 検索欄なし基本版", false, &MEMBERS_B),
         ],
     )
 }
@@ -519,6 +535,10 @@ pub const BLOCK: Block = Block {
         Part {
             label: "Menu",
             path: "/themes/menu/",
+        },
+        Part {
+            label: "Heading",
+            path: "/themes/heading/",
         },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
@@ -562,6 +582,7 @@ mod tests {
             "data-scope=\"field\"",
             "data-scope=\"button\"",
             "data-scope=\"menu\"",
+            "data-scope=\"heading\"",
         ] {
             assert!(html.contains(scope), "demo should contain {scope}");
         }
@@ -614,6 +635,28 @@ mod tests {
     }
 
     #[test]
+    fn versions_have_visible_headings_and_labelled_tables() {
+        let html = demo_html();
+        for (version, title) in [("a", "版 A: 検索欄あり"), ("b", "版 B: 検索欄なし基本版")]
+        {
+            let id = format!("blocks-settings-team-table-{version}-title");
+            assert!(html.contains(&format!("id=\"{id}\"")), "heading id {id}");
+            assert!(
+                html.contains(&format!(">{title}</h3>")),
+                "visible H3 {title}"
+            );
+            let label_attr = format!("aria-labelledby=\"{id}\"");
+            assert_eq!(html.matches(&label_attr).count(), 1, "{label_attr}");
+            let pos = html.find(&label_attr).expect("label attr");
+            let tag_start = html[..pos].rfind('<').expect("tag start");
+            assert!(
+                html[tag_start..].starts_with("<table"),
+                "{id} should label the table element"
+            );
+        }
+    }
+
+    #[test]
     fn no_form_submit_or_dead_links() {
         let html = demo_html();
         assert!(!html.contains("<form"));
@@ -644,7 +687,7 @@ mod tests {
         let (_annotated, toc_entries) = crate::layout::with_heading_anchors(demo());
         assert!(
             toc_entries.is_empty(),
-            "demo は見出し要素を持たないため目次は空のはず: {toc_entries:?}"
+            "demo の版見出しは heading 部品（data-scope 付き）のため目次は空のはず: {toc_entries:?}"
         );
     }
 
