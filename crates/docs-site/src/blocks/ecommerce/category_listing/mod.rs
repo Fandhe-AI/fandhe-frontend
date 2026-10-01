@@ -11,9 +11,14 @@
 
 mod category_carousel;
 mod category_featured_banner;
+mod category_grid_captioned;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![category_featured_banner::BLOCK, category_carousel::BLOCK]
+    vec![
+        category_featured_banner::BLOCK,
+        category_carousel::BLOCK,
+        category_grid_captioned::BLOCK,
+    ]
 }
