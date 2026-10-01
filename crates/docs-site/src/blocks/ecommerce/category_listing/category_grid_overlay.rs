@@ -34,11 +34,13 @@
 //! # 重なり順（背景画像 → スクリム → 本文 → overlay）
 //!
 //! 各タイルは `link_overlay::root` の内側に (1) 背景画像（`image::image`、
-//! `position: absolute; inset: 0`）、(2) 下から上へのグラデーション
-//! （`div.blocks-category-grid-overlay-scrim`、`aria-hidden`）、(3) 名称 +
-//! 説明（`position: relative` の通常フロー、`link_overlay::root` の高さを
-//! 確立する唯一の子）、(4) `link_overlay::overlay`（`position: absolute;
-//! inset: 0`）の順で重ねる（`blog_overlay_cards` と同じ構成）。
+//! `position: relative` の通常フロー、`link_overlay::root` の高さを確立
+//! する唯一の子）、(2) 下から上へのグラデーション（`div.blocks-category-
+//! grid-overlay-scrim`、`position: absolute; inset: 0`、`aria-hidden`）、
+//! (3) 名称 + 説明（`div.blocks-category-grid-overlay-content`、
+//! `position: absolute; inset-inline: 0; bottom: 0`）、(4) `link_overlay::
+//! overlay`（`position: absolute; inset: 0`）の順で重ねる（`blog_overlay_
+//! cards` と同じ構成）。
 //!
 //! # 背景画像を `<img>` にする理由（CSS `url()` を使わない）
 //!
@@ -346,7 +348,7 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-category-grid-overlay {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n}\n\
 .blocks-category-grid-overlay-header {\n  display: flex;\n  justify-content: space-between;\n  align-items: baseline;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-4);\n}\n\
-.blocks-category-grid-overlay-variant {\n  container-type: inline-size;\n  container-name: blocks-category-grid-overlay;\n}\n\
+.blocks-category-grid-overlay-variant {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-category-grid-overlay;\n}\n\
 .blocks-category-grid-overlay-grid {\n  display: grid;\n  grid-template-columns: repeat(1, minmax(0, 1fr));\n  gap: var(--fandhe-space-4);\n}\n\
 @container blocks-category-grid-overlay (min-width: 20rem) {\n  .blocks-category-grid-overlay-grid {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n}\n\
 @container blocks-category-grid-overlay (min-width: 30rem) {\n  .blocks-category-grid-overlay-grid {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n}\n\
