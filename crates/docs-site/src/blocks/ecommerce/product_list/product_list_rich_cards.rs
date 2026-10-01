@@ -559,8 +559,8 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-product-list-rich-cards-badge] {\n  position: absolute;\n  inset-block-start: var(--fandhe-space-2);\n  inset-inline-start: var(--fandhe-space-2);\n}\n\
 [data-blocks-product-list-rich-cards-favorite] {\n  position: absolute;\n  inset-block-start: var(--fandhe-space-2);\n  inset-inline-end: var(--fandhe-space-2);\n}\n\
 .blocks-product-list-rich-cards-swatches {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
-.blocks-product-list-rich-cards-price {\n  margin: 0;\n  font-weight: var(--fandhe-font-weight-bold);\n  display: flex;\n  align-items: baseline;\n  gap: var(--fandhe-space-2);\n}\n\
-.blocks-product-list-rich-cards-price del {\n  font-weight: var(--fandhe-font-weight-normal);\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-size-sm);\n}\n\
+.blocks-product-list-rich-cards-price {\n  margin: 0;\n  font-weight: var(--fandhe-font-font-weight-bold);\n  display: flex;\n  align-items: baseline;\n  gap: var(--fandhe-space-2);\n}\n\
+.blocks-product-list-rich-cards-price del {\n  font-weight: var(--fandhe-font-font-weight-normal);\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 [data-blocks-product-list-rich-cards-add] {\n  width: 100%;\n}\n\
 ";
 
