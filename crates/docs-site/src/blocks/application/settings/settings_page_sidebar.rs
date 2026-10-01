@@ -1,19 +1,22 @@
-//! `settings-page-sidebar` block（イシュー #3004、親 #3003。Application /
-//! Settings カテゴリ）。アイコン幅へ折りたたみ可能な左サイドバー + 右上
-//! パンくずのヘッダー + タブと設定カード（スイッチ行）を持つ設定ページの
-//! **骨格と主要領域**を実装する（規模の大きい合成のため、前半である本
-//! イシューが骨格・主要領域を、後半 #3005 が残りの領域（サイドバー footer
-//! のユーザー行 + `menu`、追加カード、残りタブの内容、状態表示・原稿の
-//! 仕上げ）を担う分担、`docs/design/docs-site-blocks-section.md` §19 参照）。
+//! `settings-page-sidebar` block（イシュー #3004/#3005（親 #3003）。
+//! Application / Settings カテゴリ）。アイコン幅へ折りたたみ可能な左
+//! サイドバー + 右上パンくずのヘッダー + タブと設定カード（スイッチ行）を
+//! 持つ設定ページの完成形を実装する（規模の大きい合成のため前半 #3004 が
+//! 骨格・主要領域を、後半 #3005 がサイドバー footer のユーザー行 + `menu`・
+//! 追加の危険操作カード・状態表示（狭幅注記）・原稿を仕上げた、
+//! `docs/design/docs-site-blocks-section.md` §19 参照）。
 //!
 //! # 使用部品
 //!
 //! `sidebar` / `breadcrumb` / `separator` / `card` / `switch` / `button` /
-//! `icon` の 7 部品を合成する（[`BLOCK`] の `parts` に一致させる契約。
-//! `menu` は #3005 でサイドバー footer 追加時に加わる）。タブ列は無 JS で
-//! 切り替えられない実物の `tabs::tabs` を使わず block 固有 class の静的
-//! モックで模すため、`tabs` は `parts` に含めない（[`inset_body`] 参照、
-//! `feature_tabs_panel` と同型。codex レビュー指摘 P1 是正、PR #3450）。
+//! `icon` / `menu` の 8 部品を合成する（[`BLOCK`] の `parts` に一致させる
+//! 契約。`menu` は [`user_footer`] のユーザー行トリガー + メニューとして
+//! 使う）。タブ列は無 JS で切り替えられない実物の `tabs::tabs` を使わず
+//! block 固有 class の静的モックで模すため、親 issue が要求する「タブ」は
+//! この静的モックで満たす方針とし、`tabs` は `parts` に含めない
+//! （[`inset_body`] 参照、`feature_tabs_panel` と同型。codex レビュー指摘
+//! P1 是正、PR #3450）。「メンバー」「通知」タブは選択中でないため、本文を
+//! 描画しない静的モックのまま据え置く（前半 codex P1 是正と一貫させる）。
 //!
 //! # 無 JS のため展開・折りたたみの 2 状態を静的に並置する
 //!
@@ -91,15 +94,47 @@
 //! 集約元の対応表 ID は R0659。`_/blocks-intake/` の対応ファイルは本
 //! worktree に存在しないため、原稿・本コメントには対応表 ID のみを記す
 //! （`settings_integrations_list`・`settings_billing_overview` と同じ扱い）。
+//!
+//! # サイドバー footer のユーザー行（`menu`、#3005 で追加）
+//!
+//! [`user_footer`] が `sidebar::footer` の子に `sidebar::menu`・
+//! `sidebar::menu_item`・`menu::root` をこの順に入れ子にして組み立てる
+//! （`sidebar_07::user_menu` と同型）。`menu` は `OpenState::Closed` 固定、
+//! trigger は `disabled` の固定表示（モジュール doc「`<form>` を使わない」
+//! 節と同じ不変条件を維持する）。avatar は本 block の使用部品にないため
+//! 使わず、[`geo_icon`] と架空の氏名・メールの `span` で組む（部品数の
+//! 増加を `Menu` 1 件に抑える）。content の id はインスタンス別 suffix
+//! 付き（`blocks-settings-page-sidebar-user-menu-{suffix}` という形式）に
+//! し、demo 出力の id 重複・aria 参照切れを禁じる契約と同型の防止策を
+//! 守る。trigger ラベルは collapsed（icon）時に
+//! `data-blocks-settings-page-sidebar-user-label` フックで隠す
+//! （[`LAYOUT_CSS`] 参照）。
+//!
+//! # 追加の設定カード（危険な操作、#3005 で追加）
+//!
+//! [`danger_card`] が「危険な操作」カードを追加する（`settings_page_aside_
+//! nav::danger_body` と同型の説明文 + `ButtonVariant::Outline` /
+//! `ColorPalette::Danger` / `disabled: true` の削除ボタン）。新規部品は
+//! 増やさない。
+//!
+//! # 状態表示・狭幅注記（#3005 で追加）
+//!
+//! 狭幅（コンテナ幅 40rem 未満）ではサイドバーが両インスタンスとも消え、
+//! 「展開」「折りたたみ（アイコン）」のキャプションが実態と食い違う。
+//! [`demo`] の先頭に注記 `p`（`data-blocks-settings-page-sidebar-narrow-
+//! note`）を置き、既定は非表示、[`LAYOUT_CSS`] の `@container` 条件内で
+//! 表示へ切り替えると同時にキャプション 2 つを非表示にする（モジュール
+//! doc「狭幅ではサイドバーを隠す」節で導入した `@container` を再利用）。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
-use fandhe_frontend_core::{div, el, p, text, Node};
+use fandhe_frontend_core::{div, el, p, span, text, Node};
 use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
+use fandhe_frontend_pre_styled_ui::menu::{self, OpenState};
 use fandhe_frontend_pre_styled_ui::separator::{self, SeparatorProps, SeparatorVariant};
 use fandhe_frontend_pre_styled_ui::sidebar;
 use fandhe_frontend_pre_styled_ui::sidebar::{
@@ -221,6 +256,58 @@ fn settings_nav(suffix: &str) -> Node {
     )
 }
 
+/// サイドバー footer のユーザー行（閉じた `menu`、`sidebar_07::user_menu`
+/// と同型。avatar は使わず [`geo_icon`] + 架空の氏名・メールの `span` で
+/// 組む、モジュール doc「サイドバー footer のユーザー行」節参照）。
+fn user_footer(suffix: &str) -> Node {
+    let content_id = format!("blocks-settings-page-sidebar-user-menu-{suffix}");
+    let trigger = menu::trigger(
+        OpenState::Closed,
+        true,
+        Some(content_id.as_str()),
+        vec![
+            ("aria-label", "Open user menu"),
+            ("data-blocks-settings-page-sidebar-user-trigger", ""),
+        ],
+        vec![
+            geo_icon("M4 20c0-4.5 3.5-7 8-7s8 2.5 8 7 M12 12a4 4 0 100-8 4 4 0 000 8z"),
+            span(
+                vec![("data-blocks-settings-page-sidebar-user-label", "")],
+                vec![
+                    span(vec![], vec![text("Mika Tanaka")]),
+                    span(vec![], vec![text("mika@example.com")]),
+                ],
+            ),
+        ],
+    );
+    let content = menu::content(
+        OpenState::Closed,
+        Some(content_id.as_str()),
+        None,
+        vec![],
+        vec![
+            menu::item("account", false, false, vec![], vec![text("アカウント")]),
+            menu::item("billing", false, false, vec![], vec![text("請求")]),
+            menu::separator(vec![], vec![]),
+            menu::item("logout", false, false, vec![], vec![text("ログアウト")]),
+        ],
+    );
+    let positioner = menu::positioner(OpenState::Closed, vec![], vec![content]);
+    let root = menu::root(
+        Size::Sm,
+        OpenState::Closed,
+        vec![],
+        vec![trigger, positioner],
+    );
+    sidebar::footer(
+        vec![],
+        vec![sidebar::menu(
+            vec![],
+            vec![sidebar::menu_item(vec![], vec![root])],
+        )],
+    )
+}
+
 /// 左サイドバーの `root`（`provider` の直接の子として置く契約、
 /// `sidebar_07::app_sidebar` と同型）。
 fn settings_sidebar(state: &Sidebar, props: &SidebarProps, root_id: &str, suffix: &str) -> Node {
@@ -233,6 +320,7 @@ fn settings_sidebar(state: &Sidebar, props: &SidebarProps, root_id: &str, suffix
         vec![
             workspace_header(),
             sidebar::content(vec![], vec![settings_nav(suffix)]),
+            user_footer(suffix),
             sidebar::rail(
                 state,
                 "Toggle sidebar rail",
@@ -412,6 +500,44 @@ fn general_settings_card(suffix: &str) -> Node {
     )
 }
 
+/// 危険な操作カード（`settings_page_aside_nav::danger_body` と同型。
+/// 説明文 + `ButtonVariant::Outline` / `ColorPalette::Danger` の削除
+/// ボタン。保存・送信を行わないため `disabled` の固定表示にする、
+/// モジュール doc「追加の設定カード」節参照）。
+fn danger_card() -> Node {
+    card::root(
+        CardProps::default(),
+        vec![("data-blocks-settings-page-sidebar-danger", "")],
+        vec![
+            card::header(
+                vec![],
+                vec![
+                    card::title(vec![], vec![text("危険な操作")]),
+                    card::description(
+                        vec![],
+                        vec![text(
+                            "ワークスペースを削除すると、すべてのデータが完全に失われ元に戻せません。",
+                        )],
+                    ),
+                ],
+            ),
+            card::body(
+                vec![],
+                vec![button(
+                    &ButtonProps {
+                        variant: ButtonVariant::Outline,
+                        palette: ColorPalette::Danger,
+                        disabled: true,
+                        ..ButtonProps::default()
+                    },
+                    vec![("data-blocks-settings-page-sidebar-danger-delete", "")],
+                    vec![text("ワークスペースを削除")],
+                )],
+            ),
+        ],
+    )
+}
+
 /// 静的タブ列のラベル（先頭が選択中の「全般」）。
 const TAB_LABELS: [&str; 3] = ["全般", "メンバー", "通知"];
 
@@ -450,6 +576,7 @@ fn inset_body(suffix: &str) -> Node {
                 tabs,
             ),
             general_settings_card(suffix),
+            danger_card(),
         ],
     )
 }
@@ -490,6 +617,10 @@ pub fn demo() -> Node {
     div(
         vec![("data-blocks-settings-page-sidebar-stack", "")],
         vec![
+            p(
+                vec![("data-blocks-settings-page-sidebar-narrow-note", "")],
+                vec![text("狭い幅ではサイドバーを隠し、本文のみを表示します。")],
+            ),
             p(
                 vec![("data-blocks-settings-page-sidebar-caption", "")],
                 vec![text("展開")],
@@ -542,6 +673,10 @@ pub const BLOCK: Block = Block {
             label: "Icon",
             path: "/themes/icon/",
         },
+        Part {
+            label: "Menu",
+            path: "/themes/menu/",
+        },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
     demo,
@@ -564,11 +699,14 @@ pub const BLOCK: Block = Block {
 /// 指摘 P2 対応）。同じ幅で `inset_header` 内の縦 `separator` も
 /// `display: none` にする。`trigger` を隠したあとに残る区切り線は、もはや
 /// 何と何を区切っているのか意味を失うため（cursor レビュー指摘 Low 対応、
-/// PR #3450）。
+/// PR #3450）。同じ `@container` 条件内で、モジュール doc「状態表示・
+/// 狭幅注記」節の注記 `p` を表示へ切り替え、実態と食い違う展開/折りたたみ
+/// のキャプション 2 つを非表示にする（#3005 で追加）。
 const LAYOUT_CSS: &str = "\
 .blocks-demo.blocks-settings-page-sidebar {\n  padding: 0;\n}\n\
 [data-blocks-settings-page-sidebar-stack] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  container-type: inline-size;\n  container-name: blocks-settings-page-sidebar;\n}\n\
 [data-blocks-settings-page-sidebar-caption] {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+[data-blocks-settings-page-sidebar-narrow-note] {\n  display: none;\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-settings-page-sidebar-instance][data-scope=\"sidebar\"][data-part=\"provider\"] {\n  min-height: 28rem;\n  height: auto;\n}\n\
 [data-blocks-settings-page-sidebar-header] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 .blocks-settings-page-sidebar-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-4);\n}\n\
@@ -580,11 +718,16 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-page-sidebar-row-text {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-settings-page-sidebar-row-text p {\n  margin: 0;\n}\n\
 .blocks-settings-page-sidebar-row-description {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+[data-blocks-settings-page-sidebar-user-label] {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
+[data-blocks-settings-page-sidebar-danger] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 @container blocks-settings-page-sidebar (max-width: 40rem) {\n  \
 [data-blocks-settings-page-sidebar-instance] > [data-scope=\"sidebar\"][data-part=\"root\"] {\n    display: none;\n  }\n  \
 [data-blocks-settings-page-sidebar-header] [data-scope=\"sidebar\"][data-part=\"trigger\"] {\n    display: none;\n  }\n  \
-[data-blocks-settings-page-sidebar-header] [data-scope=\"separator\"][data-part=\"root\"] {\n    display: none;\n  }\n\
-}\n";
+[data-blocks-settings-page-sidebar-header] [data-scope=\"separator\"][data-part=\"root\"] {\n    display: none;\n  }\n  \
+[data-blocks-settings-page-sidebar-narrow-note] {\n    display: block;\n  }\n  \
+[data-blocks-settings-page-sidebar-caption] {\n    display: none;\n  }\n\
+}\n\
+[data-scope=\"sidebar\"][data-part=\"root\"][data-state=\"collapsed\"][data-collapsible=\"icon\"] [data-blocks-settings-page-sidebar-user-label] {\n  display: none;\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -606,6 +749,7 @@ mod tests {
             "data-scope=\"switch\"",
             "data-scope=\"button\"",
             "data-scope=\"icon\"",
+            "data-scope=\"menu\"",
         ] {
             assert!(html.contains(scope), "demo should contain {scope}");
         }
@@ -713,13 +857,15 @@ mod tests {
 
     /// codex レビュー指摘（P1, PR #3450）の回帰: 実物の `tabs::tabs` を使わず
     /// （未選択パネルへ `hidden` が付き到達不能になるため）、非対話の静的
-    /// タブ列 + 選択中パネルのみを描画する。
+    /// タブ列 + 選択中パネルのみを描画する。`hidden` 判定は `role="tabpanel"`
+    /// の有無に絞る（#3005 で footer `menu` を追加したため、閉じた `menu`
+    /// の正当な `hidden`〔`positioner`/`content`〕は許容する）。
     #[test]
     fn tabs_are_static_mock_without_hidden_panels() {
         let html = demo_html();
         assert!(!html.contains("data-scope=\"tabs\""));
         assert!(!html.contains("role=\"tab"));
-        assert!(!html.contains(" hidden"));
+        assert!(!html.contains("role=\"tabpanel\""));
         assert_eq!(
             html.matches("class=\"blocks-settings-page-sidebar-tablist\" aria-hidden=\"true\"")
                 .count(),
@@ -750,5 +896,84 @@ mod tests {
     fn row_selector_beats_docs_content_specificity() {
         assert!(LAYOUT_CSS
             .contains(".blocks-settings-page-sidebar-rows .blocks-settings-page-sidebar-row {"));
+    }
+
+    /// footer のユーザー行 `menu` trigger は、両インスタンスとも `disabled`
+    /// かつ `aria-expanded="false"`（`OpenState::Closed` 固定）で静的表示
+    /// すること（#3005 で追加）。
+    #[test]
+    fn user_menu_trigger_is_disabled_and_closed() {
+        let html = demo_html();
+        assert_eq!(
+            html.matches("data-blocks-settings-page-sidebar-user-trigger")
+                .count(),
+            2
+        );
+        let trigger_positions: Vec<_> = html
+            .match_indices("data-blocks-settings-page-sidebar-user-trigger")
+            .collect();
+        for (start, _) in trigger_positions {
+            // 属性は `<button ...>` の開始タグ内に出力されるため、マーカー
+            // 属性の前方（タグ開始位置）から検索窓を取る（`disabled`・
+            // `aria-expanded` はいずれもマーカー属性より先に出力される）。
+            let window_start = start.saturating_sub(200);
+            assert!(
+                html[window_start..start].contains("disabled"),
+                "user menu trigger should be disabled"
+            );
+            assert!(
+                html[window_start..start].contains("aria-expanded=\"false\""),
+                "user menu trigger should be closed"
+            );
+        }
+    }
+
+    /// 両インスタンスの `menu::content` の `id` が一意であること
+    /// （`demo_output_has_no_dangling_aria_references_or_duplicate_ids`
+    /// 契約と同型の回帰、#3005 で追加）。
+    #[test]
+    fn user_menu_content_ids_are_unique_per_instance() {
+        let html = demo_html();
+        assert_eq!(
+            html.matches("id=\"blocks-settings-page-sidebar-user-menu-expanded\"")
+                .count(),
+            1
+        );
+        assert_eq!(
+            html.matches("id=\"blocks-settings-page-sidebar-user-menu-collapsed\"")
+                .count(),
+            1
+        );
+    }
+
+    /// 危険な操作カードの削除ボタンが両インスタンスとも `disabled` の
+    /// 静的固定表示であること（#3005 で追加）。
+    #[test]
+    fn danger_card_delete_button_is_disabled() {
+        let html = demo_html();
+        let positions: Vec<_> = html
+            .match_indices("data-blocks-settings-page-sidebar-danger-delete")
+            .collect();
+        assert_eq!(positions.len(), 2);
+        for (start, _) in positions {
+            let window_start = start.saturating_sub(200);
+            assert!(
+                html[window_start..start].contains("disabled"),
+                "danger delete button should be disabled"
+            );
+        }
+    }
+
+    /// 狭幅注記・collapsed 時のユーザー行ラベル非表示の CSS 規則が
+    /// 存在すること（#3005 で追加）。
+    #[test]
+    fn layout_css_has_narrow_note_and_collapsed_label_rules() {
+        assert!(LAYOUT_CSS
+            .contains("[data-blocks-settings-page-sidebar-narrow-note] {\n    display: block;"));
+        assert!(LAYOUT_CSS
+            .contains("[data-blocks-settings-page-sidebar-caption] {\n    display: none;"));
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"sidebar\"][data-part=\"root\"][data-state=\"collapsed\"][data-collapsible=\"icon\"] [data-blocks-settings-page-sidebar-user-label] {\n  display: none;"
+        ));
     }
 }
