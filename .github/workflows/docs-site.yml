@@ -574,6 +574,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/checkout-wizard-steps/index.html"
           # Ecommerce / Order
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/order-confirmation-summary/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/order-history-panels/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/order-history-table/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/order-tracking-progress/index.html"
           # Ecommerce / Reviews
