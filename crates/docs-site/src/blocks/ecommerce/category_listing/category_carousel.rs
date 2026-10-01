@@ -29,13 +29,17 @@
 //! - **A 基準形（R0604）**: `carousel` を「prev-trigger | viewport |
 //!   next-trigger」の横一列で配置し、下段に `indicator_group`（6 個）を
 //!   添える。表示枚数は既定 `basis: 50%`（2 枚）、`>= 64rem` で
-//!   `basis: 33.3333%`（3 枚）へ切り替える。
+//!   `basis: 33.3333%`（3 枚）へ切り替える。前後トリガー・indicator は
+//!   無 JS のため常時 `disabled` であり操作できないため、viewport
+//!   自体を `overflow-x: auto`（スクロール可能）にして、先頭以外の
+//!   カテゴリへもネイティブの横スクロールで到達できるようにする
+//!   （C 形と同じ `scroll-snap-type: x mandatory` を併用）。
 //! - **B 狭幅カルーセル・広幅グリッド（R0606）**: `< 64rem` は A と同じ
-//!   2 枚表示のカルーセルだが、`>= 64rem` では [`LAYOUT_CSS`] が
-//!   `item-group` を `display: grid`（3 列）へ切り替え、前後トリガー・
-//!   `indicator-group` を `display: none` にする。グリッドの下に、
-//!   無 JS では動作しない `button::button`（`disabled: true`）の CTA を
-//!   添える（`gallery_carousel` 基準形の CTA と同じ判断）。
+//!   2 枚表示 + 横スクロール可能なカルーセルだが、`>= 64rem` では
+//!   [`LAYOUT_CSS`] が `item-group` を `display: grid`（3 列）へ切り替え、
+//!   前後トリガー・`indicator-group` を `display: none` にする。グリッド
+//!   下には、無 JS では動作しない `button::button`（`disabled: true`）の
+//!   CTA を添える（`gallery_carousel` 基準形の CTA と同じ判断）。
 //! - **C 横スクロール（R0825）**: `carousel` 部品は使わない。素の
 //!   `div`（`overflow-x: auto; scroll-snap-type: x mandatory`）へタイル
 //!   5 件を `flex: 0 0 <幅>` で並べ、前後ボタン・ドットは置かずスクロール
@@ -428,8 +432,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-category-carousel-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-category-carousel-header {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  justify-content: space-between;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-scope=\"carousel\"][data-part=\"control\"][data-blocks-category-carousel-control] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-4);\n}\n\
-.blocks-category-carousel-viewport {\n  min-width: 0;\n  flex: 1;\n  overflow: hidden;\n}\n\
-[data-scope=\"carousel\"][data-part=\"item\"][data-blocks-category-carousel-tile] {\n  box-sizing: border-box;\n  padding-inline: var(--fandhe-space-2);\n}\n\
+.blocks-category-carousel-viewport {\n  min-width: 0;\n  flex: 1;\n  overflow-x: auto;\n  overflow-y: hidden;\n  scroll-snap-type: x mandatory;\n}\n\
+[data-scope=\"carousel\"][data-part=\"item\"][data-blocks-category-carousel-tile] {\n  box-sizing: border-box;\n  padding-inline: var(--fandhe-space-2);\n  scroll-snap-align: start;\n}\n\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-category-carousel-card] {\n  overflow: hidden;\n  padding: 0;\n}\n\
 [data-blocks-category-carousel-link] {\n  display: flex;\n  flex-direction: column;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-category-carousel-image] {\n  display: block;\n  width: 100%;\n}\n\
@@ -437,8 +441,8 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"link-overlay\"][data-part=\"overlay\"][data-blocks-category-carousel-overlay]:focus-visible {\n  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));\n}\n\
 [data-scope=\"carousel\"][data-part=\"indicator-group\"][data-blocks-category-carousel-indicators] {\n  margin-top: var(--fandhe-space-4);\n}\n\
 [data-scope=\"carousel\"][data-part=\"indicator\"][data-blocks-category-carousel-indicator]:disabled {\n  opacity: 0.5;\n  cursor: not-allowed;\n}\n\
-@media (min-width: 64rem) {\n  [data-scope=\"carousel\"][data-part=\"root\"][data-blocks-category-carousel-root] {\n    --fandhe-carousel-item-basis: 33.3333%;\n  }\n}\n\
 [data-scope=\"carousel\"][data-part=\"root\"][data-blocks-category-carousel-root] {\n  --fandhe-carousel-item-basis: 50%;\n}\n\
+@media (min-width: 64rem) {\n  [data-scope=\"carousel\"][data-part=\"root\"][data-blocks-category-carousel-root] {\n    --fandhe-carousel-item-basis: 33.3333%;\n  }\n}\n\
 [data-blocks-category-carousel-cta] {\n  align-self: flex-start;\n  margin-top: var(--fandhe-space-2);\n}\n\
 @media (min-width: 64rem) {\n  [data-scope=\"carousel\"][data-part=\"root\"][data-blocks-category-carousel-grid-mode] [data-scope=\"carousel\"][data-part=\"item-group\"] {\n    display: grid;\n    grid-template-columns: repeat(3, 1fr);\n    transform: none;\n  }\n  [data-scope=\"carousel\"][data-part=\"root\"][data-blocks-category-carousel-grid-mode] [data-scope=\"carousel\"][data-part=\"prev-trigger\"],\n  [data-scope=\"carousel\"][data-part=\"root\"][data-blocks-category-carousel-grid-mode] [data-scope=\"carousel\"][data-part=\"next-trigger\"],\n  [data-scope=\"carousel\"][data-part=\"root\"][data-blocks-category-carousel-grid-mode] [data-scope=\"carousel\"][data-part=\"indicator-group\"] {\n    display: none;\n  }\n}\n\
 .blocks-category-carousel-scroll {\n  display: flex;\n  gap: var(--fandhe-space-4);\n  overflow-x: auto;\n  scroll-snap-type: x mandatory;\n  padding-block: var(--fandhe-space-1);\n}\n\
