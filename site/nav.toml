@@ -2790,6 +2790,11 @@ path = "/blocks/checkout-wizard-steps/"
 title = "Order"
 
 [[section.group.page]]
+title = "order-history-panels"
+source = "site/blocks/order-history-panels.md"
+path = "/blocks/order-history-panels/"
+
+[[section.group.page]]
 title = "order-tracking-progress"
 source = "site/blocks/order-tracking-progress.md"
 path = "/blocks/order-tracking-progress/"
