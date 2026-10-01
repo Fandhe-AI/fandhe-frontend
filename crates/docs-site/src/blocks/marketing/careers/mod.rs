@@ -1,12 +1,13 @@
-//! Marketing / Careers カテゴリの block 登録点（イシュー #2734。イシュー
-//! #2815 で最初の block（`careers_card_grid`）を追加し、`banner/mod.rs` と
-//! 同型のディレクトリ構成へ「卒業」した。イシュー #2817 で 2 番目の
-//! block（`careers_split_photo_list`）、イシュー #2816 で 3 番目の
-//! block（`careers_split_accordion`）を追加した。`docs/design/docs-site-blocks-section.md`
-//! §18 参照。新規 block を追加する際は本ファイルへ `mod` 宣言と
-//! `blocks()` への追記を行うだけでよく、`super`（`marketing`）側・
-//! トップレベル `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ
-//! 内へ閉じ込めるための構造、イシュー #2734）。
+//! Marketing / Careers カテゴリの block 登録点。カテゴリ別のモジュール構成と
+//! 「カテゴリの卒業」手順は `docs/design/docs-site-blocks-section.md` §18
+//! 参照（イシュー #2734）。
+//!
+//! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
+//! 新規 block を追加する際は本ファイルへ `mod` 宣言と `blocks()` への追記を
+//! 行うだけでよく、`super`（`marketing`）側・トップレベル `crate::blocks` 側の
+//! 変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込めるための構造）。
+//! block ごとの追加経緯は git 履歴と PR を正とし、本コメントには書かない
+//! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
 mod careers_card_grid;
 mod careers_split_accordion;

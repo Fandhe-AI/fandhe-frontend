@@ -1,35 +1,13 @@
-//! Application / Settings カテゴリの block 登録点（イシュー #2734 で雛形新設、
-//! イシュー #2984 で最初の block（[`settings_billing_overview`]）を追加し
-//! ディレクトリ化して卒業、イシュー #2985 で
-//! [`settings_billing_usage`]、イシュー #2986 で
-//! [`settings_event_accordion`]、イシュー #2982 で
-//! [`settings_api_key_created`]、イシュー #2987 で
-//! [`settings_export_data`]、イシュー #2991 で
-//! [`settings_integrations_grid`]、イシュー #2995 で
-//! [`settings_integrations_search`]、イシュー #2996 で
-//! [`settings_item_cards`]、イシュー #2997 で
-//! [`settings_log_table`]、イシュー #2998 で
-//! [`settings_notification_matrix`]、イシュー #2999 で
-//! [`settings_org_switcher`]、イシュー #3007 で
-//! [`settings_page_tabs`]（親 #3006、骨格・版 A は #3007、版 B・状態並記・
-//! 原稿の仕上げは #3008 で完了）、イシュー #3009 で
-//! [`settings_preferences`]、イシュー #3010 で
-//! [`settings_profile_form`]、イシュー #3001 で
-//! [`settings_page_aside_nav`]、イシュー #3013 で骨格を、イシュー #3014 で
-//! QR 版・状態差分を追加した
-//! [`settings_share_members`]、イシュー #3004 で
-//! [`settings_page_sidebar`]、イシュー #3011 で
-//! [`settings_share_link`]、イシュー #3018 で
-//! [`settings_webhook_detail`]、イシュー #3019 で
-//! [`settings_webhook_form`]、イシュー #3020 で
-//! [`settings_webhook_stats`] を追加した）。手順は
-//! `docs/design/docs-site-blocks-section.md` §18 参照。
+//! Application / Settings カテゴリの block 登録点。カテゴリ別のモジュール構成と
+//! 「カテゴリの卒業」手順は `docs/design/docs-site-blocks-section.md` §18
+//! 参照（イシュー #2734）。
 //!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
 //! 新規 block を追加する際は本ファイルへ `mod` 宣言と `blocks()` への追記を
-//! 行うだけでよく、`super`（`application`）側・トップレベル
-//! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
-//! ための構造、イシュー #2734）。
+//! 行うだけでよく、`super`（`application`）側・トップレベル `crate::blocks` 側の
+//! 変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込めるための構造）。
+//! block ごとの追加経緯は git 履歴と PR を正とし、本コメントには書かない
+//! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
 mod settings_api_key_created;
 mod settings_api_keys_table;
