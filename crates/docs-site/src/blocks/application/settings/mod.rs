@@ -35,6 +35,7 @@ mod settings_team_invite;
 mod settings_webhook_detail;
 mod settings_webhook_form;
 mod settings_webhook_stats;
+mod settings_webhook_tester;
 mod settings_webhook_wizard;
 
 use crate::blocks::Block;
@@ -67,6 +68,7 @@ pub(super) fn blocks() -> Vec<Block> {
         settings_webhook_detail::BLOCK,
         settings_webhook_form::BLOCK,
         settings_webhook_stats::BLOCK,
+        settings_webhook_tester::BLOCK,
         settings_webhook_wizard::BLOCK,
     ]
 }
