@@ -115,7 +115,13 @@ fn category_card(category: &Category, rounded: bool) -> Node {
         vec![core_text(category.name)],
     );
 
-    let mut children = vec![image::image(&image_props, vec![]), name];
+    let mut children = vec![
+        image::image(
+            &image_props,
+            vec![("data-blocks-category-grid-captioned-image", "")],
+        ),
+        name,
+    ];
     if rounded {
         children.push(styled_text::text(
             &TextProps {

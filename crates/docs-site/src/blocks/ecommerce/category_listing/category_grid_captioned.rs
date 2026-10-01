@@ -174,7 +174,13 @@ fn category_card(category: &Category, rounded: bool) -> Node {
         vec![core_text(category.name)],
     );
 
-    let mut children = vec![image::image(&image_props, vec![]), name];
+    let mut children = vec![
+        image::image(
+            &image_props,
+            vec![("data-blocks-category-grid-captioned-image", "")],
+        ),
+        name,
+    ];
     if rounded {
         children.push(styled_text::text(
             &TextProps {
@@ -353,6 +359,19 @@ pub const BLOCK: Block = Block {
 /// Breakpoint::Lg`]（1024px = 64rem）と一致するリテラル値を直書きする
 /// （`@media` 条件式の中ではテーマトークンを解決できないため、既存 block
 /// と同じ判断）。
+///
+/// # `image::image` root への `width`/`display` 上書きは block 専用属性で限定する
+///
+/// `blocks::stylesheet()` は全 block の [`LAYOUT_CSS`] を連結して単一の
+/// 共有 `assets/blocks.css` を生成する契約（`crate::blocks` モジュール doc
+/// 参照）のため、`[data-scope="image"][data-part="root"]` を単独セレクタ
+/// のまま `width: 100%; display: block;` を宣言すると、他 block の
+/// `image::image` 利用箇所（固定幅サムネイル等）にまで波及してしまう
+/// （PR #3495 codex-review / Cursor Bugbot 指摘）。`login_04.rs` 等と同型
+/// の対処として [`category_card`] が `image::image` へ本 block 専用の
+/// `data-blocks-category-grid-captioned-image` 属性を渡し、セレクタを
+/// `[data-scope="image"][data-part="root"][data-blocks-category-grid-
+/// captioned-image]`へ結合して本 block 内の画像のみに限定する。
 const LAYOUT_CSS: &str = "\
 .blocks-category-grid-captioned {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
 .blocks-category-grid-captioned-instance {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
@@ -363,7 +382,7 @@ const LAYOUT_CSS: &str = "\
 @media (min-width: 64rem) {\n  .blocks-category-grid-captioned-grid-wide {\n    grid-template-columns: repeat(6, minmax(0, 1fr));\n  }\n}\n\
 [data-scope=\"link-overlay\"][data-part=\"root\"][data-blocks-category-grid-captioned-item] {\n  display: grid;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-scope=\"link-overlay\"][data-part=\"root\"][data-blocks-category-grid-captioned-item]:hover [data-blocks-category-grid-captioned-name] {\n  text-decoration: underline;\n}\n\
-[data-scope=\"image\"][data-part=\"root\"] {\n  width: 100%;\n  display: block;\n}\n\
+[data-scope=\"image\"][data-part=\"root\"][data-blocks-category-grid-captioned-image] {\n  width: 100%;\n  display: block;\n}\n\
 ";
 
 #[cfg(test)]
@@ -450,6 +469,7 @@ mod tests {
             "@media (min-width: 40rem) {",
             "@media (min-width: 64rem) {",
             "[data-scope=\"link-overlay\"][data-part=\"root\"][data-blocks-category-grid-captioned-item] {",
+            "[data-scope=\"image\"][data-part=\"root\"][data-blocks-category-grid-captioned-image] {",
         ] {
             assert!(
                 LAYOUT_CSS.contains(selector),
