@@ -481,6 +481,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-page-aside-nav/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-page-tabs/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-preferences/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-share-link/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-profile-form/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-page-sidebar/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-share-members/index.html"
