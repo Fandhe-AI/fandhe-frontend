@@ -1,7 +1,6 @@
 //! `product-list-bordered-grid` block（イシュー #3062。親 #3024「Phase 5:
-//! Blocks EC」配下。Ecommerce / Product List カテゴリ最初の block であり、
-//! 本ファイル追加に伴い雛形 `product_list.rs` を `product_list/mod.rs` へ
-//! ディレクトリ化して卒業する、`docs/design/docs-site-blocks-section.md`
+//! Blocks EC」配下。Ecommerce / Product List カテゴリの block モジュール
+//! 構成は `product_list/mod.rs`、`docs/design/docs-site-blocks-section.md`
 //! §18 参照）。
 //!
 //! 罫線で仕切ったセル状の商品一覧グリッドを、既存の Themes 部品だけで

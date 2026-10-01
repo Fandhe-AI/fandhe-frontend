@@ -1,6 +1,6 @@
 //! `product-list-rich-cards` block（イシュー #3064。親トラッキング #3024。
-//! Ecommerce / Product List カテゴリ最初の block、対応表 ID R0208（主参照）
-//! ・R0209/R0210/R0211/R0212/R1167（集約元）を構造の参照元とする合成例。
+//! 対応表 ID R0208（主参照）・R0209/R0210/R0211/R0212/R1167（集約元）を
+//! 構造の参照元とする合成例。
 //! 取得手段・ファイル名・内部コンポーネント識別子は記載しない
 //! （`docs/design/motion-reference-adoption-policy.md` §9 と同じライセンス
 //! 上の転記制限）。
@@ -15,17 +15,21 @@
 //! # レイアウト（2 バリアント）
 //!
 //! - **バリアント A（枠付きリッチカード）**: 3 枚。基本 1 列、コンテナ幅
-//!   `>= 40rem` で 2 列、`>= 64rem` で 3 列。
+//!   `>= 24rem` で 2 列、`>= 40rem` で 3 列。
 //! - **バリアント B（密な配置・セール価格）**: 4 枚。基本 2 列、
-//!   コンテナ幅 `>= 64rem` で 4 列。
+//!   コンテナ幅 `>= 40rem` で 4 列。
 //!
 //! `display: none` は使わない（狭幅でも全操作要素へ到達可能なまま積む）。
 //!
 //! # 列数は `@container` で切り替える
 //!
-//! Demo 枠（`.docs-content`、最大 46rem）の幅はビューポート幅と一致しない
-//! ため、`@media (min-width: ...)` ではなくコンテナクエリで判定する
-//! （`product_list_bordered_grid`/`product_overview_image_grid` と同型）。
+//! Demo 枠（`.docs-content`、最大 46rem。`.blocks-demo` の左右 padding
+//! `1.5rem`×2 を差し引くと本コンテナの実効上限は約 43rem）の幅はビュー
+//! ポート幅と一致しないため、`@media (min-width: ...)` ではなくコンテナ
+//! クエリで判定する（`product_list_bordered_grid`/
+//! `product_overview_image_grid` と同型）。境界値は実効上限 43rem 以下
+//! （`24rem`/`40rem`）に収め、Demo 内で実際に切り替わる値を選ぶ
+//! （`64rem` は Demo 幅のいかなる状態でも到達不能なため採らない）。
 //! コンテナクエリは自分自身のサイズを基準に自分自身を再スタイルできない
 //! （コンテナは子孫にのみ適用される）ため、`container-type`/
 //! `container-name` は祖先の `.blocks-product-list-rich-cards-layout` へ
@@ -174,7 +178,7 @@ const VARIANT_A: [Product; 3] = [
         name: "キャンバストートバッグ",
         description: "厚手キャンバス地の大容量トート。",
         price: "¥4,200",
-        original_price: None,
+        original_price: Some("¥5,800"),
         rating: 4,
         review_count: 58,
         colors: &[(0xc9, 0xb8, 0x9a)],
@@ -541,15 +545,16 @@ pub const BLOCK: Block = Block {
 
 /// `product_list_rich_cards` 固有のレイアウト規則（`crate::blocks`
 /// モジュール doc「block 固有 CSS の置き場」節と同型）。モジュール doc
-/// 「列数は `@container` で切り替える」節のとおり、`40rem`/`64rem` の
-/// コンテナ幅境界で列数を切り替える。`display: none` は使わない。
+/// 「列数は `@container` で切り替える」節のとおり、`24rem`/`40rem` の
+/// コンテナ幅境界（Demo 枠の実効上限約 43rem 以下）で列数を切り替える。
+/// `display: none` は使わない。
 const LAYOUT_CSS: &str = "\
 .blocks-product-list-rich-cards-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-product-list-rich-cards;\n}\n\
 .blocks-product-list-rich-cards-grid-a {\n  display: grid;\n  gap: var(--fandhe-space-6) var(--fandhe-space-4);\n  grid-template-columns: minmax(0, 1fr);\n}\n\
-@container blocks-product-list-rich-cards (min-width: 40rem) {\n  .blocks-product-list-rich-cards-grid-a {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n}\n\
-@container blocks-product-list-rich-cards (min-width: 64rem) {\n  .blocks-product-list-rich-cards-grid-a {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n}\n\
+@container blocks-product-list-rich-cards (min-width: 24rem) {\n  .blocks-product-list-rich-cards-grid-a {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n}\n\
+@container blocks-product-list-rich-cards (min-width: 40rem) {\n  .blocks-product-list-rich-cards-grid-a {\n    grid-template-columns: repeat(3, minmax(0, 1fr));\n  }\n}\n\
 .blocks-product-list-rich-cards-grid-b {\n  display: grid;\n  gap: var(--fandhe-space-4) var(--fandhe-space-3);\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n}\n\
-@container blocks-product-list-rich-cards (min-width: 64rem) {\n  .blocks-product-list-rich-cards-grid-b {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n}\n\
+@container blocks-product-list-rich-cards (min-width: 40rem) {\n  .blocks-product-list-rich-cards-grid-b {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n}\n\
 [data-blocks-product-list-rich-cards-cover] {\n  position: relative;\n}\n\
 [data-blocks-product-list-rich-cards-badge] {\n  position: absolute;\n  inset-block-start: var(--fandhe-space-2);\n  inset-inline-start: var(--fandhe-space-2);\n}\n\
 [data-blocks-product-list-rich-cards-favorite] {\n  position: absolute;\n  inset-block-start: var(--fandhe-space-2);\n  inset-inline-end: var(--fandhe-space-2);\n}\n\
@@ -643,8 +648,8 @@ mod tests {
     fn layout_css_is_safe_and_has_breakpoints() {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains("container-type: inline-size"));
+        assert!(LAYOUT_CSS.contains("@container blocks-product-list-rich-cards (min-width: 24rem)"));
         assert!(LAYOUT_CSS.contains("@container blocks-product-list-rich-cards (min-width: 40rem)"));
-        assert!(LAYOUT_CSS.contains("@container blocks-product-list-rich-cards (min-width: 64rem)"));
         assert!(!LAYOUT_CSS.contains("display: none"));
     }
 
