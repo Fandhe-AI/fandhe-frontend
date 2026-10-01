@@ -539,11 +539,13 @@ pub const BLOCK: Block = Block {
 ///
 /// # シェルの高さ確保・popover recipe を上書きする詳細度
 ///
-/// モジュール doc「高さ予約」節参照。popover/menu recipe の disabled state
-/// （`[data-scope="..."][data-part="trigger"][data-disabled]`、詳細度
-/// `(0,3,0)`）を上書きするため、`data-scope`/`data-part` を含む複合
+/// モジュール doc「高さ予約」節参照。popover/menu/button recipe の disabled
+/// state（`[data-scope="..."][data-part="trigger"または"root"][data-disabled]`、
+/// 詳細度 `(0,3,0)`）を上書きするため、`data-scope`/`data-part` を含む複合
 /// セレクタへ block 固有属性を追加して常に 1 個以上上回る詳細度にする
-/// （`auth_dropdown_panel.rs` と同じ判断）。
+/// （`auth_dropdown_panel.rs` と同じ判断）。畳みボタン
+/// （[`collapsed_filter_button`]）は button recipe（`data-part="root"`）の
+/// ため、同じ理由で `[data-scope="button"][data-part="root"]` を併記する。
 ///
 /// # 開いた popover の配置
 ///
@@ -576,12 +578,12 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-filter-dropdown-bar-filters] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  flex-wrap: wrap;\n}\n\
 [data-scope=\"menu\"][data-part=\"trigger\"][data-blocks-filter-dropdown-bar-sort-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"popover\"][data-part=\"trigger\"][data-blocks-filter-dropdown-bar-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n}\n\
-[data-blocks-filter-dropdown-bar-collapsed-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n  display: none;\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-filter-dropdown-bar-collapsed-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n  display: none;\n}\n\
 [data-scope=\"popover\"][data-part=\"positioner\"][data-blocks-filter-dropdown-bar-positioner] {\n  left: auto;\n  right: 0;\n}\n\
 [data-scope=\"popover\"][data-part=\"content\"][data-blocks-filter-dropdown-bar-panel] {\n  inline-size: 14rem;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 @container blocks-filter-dropdown-bar (max-width: 29.99rem) {\n  \
 [data-blocks-filter-dropdown-bar-shell][data-blocks-filter-dropdown-bar-frame=\"narrow\"] [data-blocks-filter-dropdown-bar-filters] {\n    display: none;\n  }\n  \
-[data-blocks-filter-dropdown-bar-collapsed-trigger][data-disabled] {\n    display: inline-flex;\n    align-items: center;\n    gap: var(--fandhe-space-1);\n  }\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-filter-dropdown-bar-collapsed-trigger][data-disabled] {\n    display: inline-flex;\n    align-items: center;\n    gap: var(--fandhe-space-1);\n  }\n\
 }\n";
 
 #[cfg(test)]
