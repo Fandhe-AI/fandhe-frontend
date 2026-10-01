@@ -1116,6 +1116,7 @@ pub enum LayoutCss {
 | category-grid-overlay | #3038（親 #3024） | `ecommerce/category_listing/category_grid_overlay.rs` |
 | filter-dropdown-bar | #3046（親 #3024） | `ecommerce/filter/filter_dropdown_bar.rs` |
 | filter-expandable-panel | #3047（親 #3024） | `ecommerce/filter/filter_expandable_panel.rs` |
+| filter-overlay-panel | #3048（親 #3024） | `ecommerce/filter/filter_overlay_panel.rs` |
 | incentives-inline-strip | #3051 | `ecommerce/incentives/incentives_inline_strip.rs` |
 | incentives-split-header | #3052（親 #3024） | `ecommerce/incentives/incentives_split_header.rs` |
 
