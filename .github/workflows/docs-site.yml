@@ -483,6 +483,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-preferences/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-profile-form/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-share-members/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-webhook-detail/index.html"
           # Application / Action Panel
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-stacked/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/action-panel-with-input/index.html"
