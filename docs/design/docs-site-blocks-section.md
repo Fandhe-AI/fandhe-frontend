@@ -1100,6 +1100,7 @@ pub enum LayoutCss {
 | promo-collection-cards | #3078/#3079（親 #3077） | `ecommerce/promo/promo_collection_cards.rs` |
 | store-nav-centered-logo | #3094（親 #3093） | `ecommerce/store_nav/store_nav_centered_logo.rs` |
 | store-nav-mega-menu | #3097/#3098（親 #3096） | `ecommerce/store_nav/store_nav_mega_menu.rs` |
+| cart-dialog | #3025 | `ecommerce/cart/cart_dialog.rs` |
 | settings-team-invite | #3016 | `application/settings/settings_team_invite.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
