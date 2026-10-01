@@ -24,7 +24,9 @@ checkbox はすべてネイティブ `disabled` で固定しています。無 J
 （`data-state`）が追従しない不整合が生じるためです。
 
 画面幅が狭いときはドロワーの幅を広げ、ダイアログの余白を縮め、解除・適用ボタンを
-縦積み・全幅にし、商品一覧の列幅を縮めます。
+縦積み・全幅にし、商品一覧の列幅を縮めます（ダイアログ版は `dialog::footer` 自体も
+縦方向・幅いっぱいに伸ばし、ボタン列が縮み幅にならないようにしています）。
+各版のキャプションは、開いたパネルと背景が覆う枠の外側に置いています。
 
 ## Rust コード
 
@@ -311,16 +313,18 @@ fn drawer_instance() -> Node {
         vec![],
         vec![backdrop, positioner],
     );
+    // キャプションはオーバーレイ（`inset: 0`）が覆う枠の外に置く。
     div(
-        vec![
-            ("class", "blocks-filter-overlay-panel-variant"),
-            ("data-blocks-filter-overlay-panel-variant", "drawer"),
-        ],
+        vec![("class", "blocks-filter-overlay-panel-instance")],
         vec![
             p(vec![], vec![text("ドロワー版（画面端から開く）")]),
-            toolbar(ids),
-            product_grid(),
-            drawer_node,
+            div(
+                vec![
+                    ("class", "blocks-filter-overlay-panel-variant"),
+                    ("data-blocks-filter-overlay-panel-variant", "drawer"),
+                ],
+                vec![toolbar(ids), product_grid(), drawer_node],
+            ),
         ],
     )
 }
@@ -357,16 +361,18 @@ fn dialog_instance() -> Node {
         vec![("data-blocks-filter-overlay-panel-dialog-root", "")],
         vec![backdrop, positioner],
     );
+    // キャプションはオーバーレイ（`inset: 0`）が覆う枠の外に置く。
     div(
-        vec![
-            ("class", "blocks-filter-overlay-panel-variant"),
-            ("data-blocks-filter-overlay-panel-variant", "dialog"),
-        ],
+        vec![("class", "blocks-filter-overlay-panel-instance")],
         vec![
             p(vec![], vec![text("ダイアログ版（中央に開く）")]),
-            toolbar(ids),
-            product_grid(),
-            dialog_node,
+            div(
+                vec![
+                    ("class", "blocks-filter-overlay-panel-variant"),
+                    ("data-blocks-filter-overlay-panel-variant", "dialog"),
+                ],
+                vec![toolbar(ids), product_grid(), dialog_node],
+            ),
         ],
     )
 }

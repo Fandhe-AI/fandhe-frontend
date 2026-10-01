@@ -391,16 +391,18 @@ fn drawer_instance() -> Node {
         vec![],
         vec![backdrop, positioner],
     );
+    // キャプションはオーバーレイ（`inset: 0`）が覆う枠の外に置く。
     div(
-        vec![
-            ("class", "blocks-filter-overlay-panel-variant"),
-            ("data-blocks-filter-overlay-panel-variant", "drawer"),
-        ],
+        vec![("class", "blocks-filter-overlay-panel-instance")],
         vec![
             p(vec![], vec![text("ドロワー版（画面端から開く）")]),
-            toolbar(ids),
-            product_grid(),
-            drawer_node,
+            div(
+                vec![
+                    ("class", "blocks-filter-overlay-panel-variant"),
+                    ("data-blocks-filter-overlay-panel-variant", "drawer"),
+                ],
+                vec![toolbar(ids), product_grid(), drawer_node],
+            ),
         ],
     )
 }
@@ -437,16 +439,18 @@ fn dialog_instance() -> Node {
         vec![("data-blocks-filter-overlay-panel-dialog-root", "")],
         vec![backdrop, positioner],
     );
+    // キャプションはオーバーレイ（`inset: 0`）が覆う枠の外に置く。
     div(
-        vec![
-            ("class", "blocks-filter-overlay-panel-variant"),
-            ("data-blocks-filter-overlay-panel-variant", "dialog"),
-        ],
+        vec![("class", "blocks-filter-overlay-panel-instance")],
         vec![
             p(vec![], vec![text("ダイアログ版（中央に開く）")]),
-            toolbar(ids),
-            product_grid(),
-            dialog_node,
+            div(
+                vec![
+                    ("class", "blocks-filter-overlay-panel-variant"),
+                    ("data-blocks-filter-overlay-panel-variant", "dialog"),
+                ],
+                vec![toolbar(ids), product_grid(), dialog_node],
+            ),
         ],
     )
 }
@@ -511,6 +515,7 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-filter-overlay-panel.blocks-demo {\n  overflow: visible;\n}\n\
 .blocks-filter-overlay-panel-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
+.blocks-filter-overlay-panel-instance {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-filter-overlay-panel-variant {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  min-height: 32rem;\n  overflow: hidden;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  padding: var(--fandhe-space-4);\n}\n\
 .blocks-filter-overlay-panel-toolbar {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-filter-overlay-panel-grid {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));\n  gap: var(--fandhe-space-4);\n}\n\
@@ -527,7 +532,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-filter-overlay-panel-body] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  flex: 1 1 auto;\n  min-height: 0;\n  overflow-y: auto;\n}\n\
 [data-blocks-filter-overlay-panel-footer] {\n  display: flex;\n  justify-content: flex-end;\n  gap: var(--fandhe-space-3);\n}\n\
 [data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-filter-overlay-panel-checkbox][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-@media (max-width: 47.99rem) {\n  .blocks-filter-overlay-panel [data-scope=\"drawer\"][data-part=\"content\"] {\n    --fandhe-drawer-size: 85%;\n  }\n  .blocks-filter-overlay-panel [data-scope=\"dialog\"][data-part=\"positioner\"] {\n    padding: var(--fandhe-space-3);\n  }\n  [data-blocks-filter-overlay-panel-footer] {\n    flex-direction: column-reverse;\n  }\n  [data-blocks-filter-overlay-panel-footer] [data-scope=\"button\"] {\n    width: 100%;\n  }\n  .blocks-filter-overlay-panel-grid {\n    grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));\n  }\n}\n";
+@media (max-width: 47.99rem) {\n  .blocks-filter-overlay-panel [data-scope=\"drawer\"][data-part=\"content\"] {\n    --fandhe-drawer-size: 85%;\n  }\n  .blocks-filter-overlay-panel [data-scope=\"dialog\"][data-part=\"positioner\"] {\n    padding: var(--fandhe-space-3);\n  }\n  .blocks-filter-overlay-panel [data-scope=\"dialog\"][data-part=\"footer\"] {\n    flex-direction: column;\n    align-items: stretch;\n  }\n  [data-blocks-filter-overlay-panel-footer] {\n    flex-direction: column-reverse;\n  }\n  [data-blocks-filter-overlay-panel-footer] [data-scope=\"button\"] {\n    width: 100%;\n  }\n  .blocks-filter-overlay-panel-grid {\n    grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -610,6 +615,59 @@ mod tests {
             "[data-scope=\"checkbox\"][data-part=\"root\"][data-blocks-filter-overlay-panel-checkbox][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
         ));
         assert!(LAYOUT_CSS.contains("@media (max-width: 47.99rem)"));
+    }
+
+    /// 各版のキャプションがオーバーレイ（`inset: 0`）を持つ
+    /// `position: relative` の枠の外（兄弟要素）にあり、覆われないことを
+    /// 固定する。
+    #[test]
+    fn captions_are_outside_overlay_frame() {
+        let html = demo_html();
+        for (caption, kind) in [
+            ("ドロワー版（画面端から開く）", "drawer"),
+            ("ダイアログ版（中央に開く）", "dialog"),
+        ] {
+            let caption_at = html.find(caption).expect("caption present");
+            let frame_at = html
+                .find(&format!(
+                    "data-blocks-filter-overlay-panel-variant=\"{kind}\""
+                ))
+                .expect("frame present");
+            assert!(
+                caption_at < frame_at,
+                "{kind}: caption should precede frame"
+            );
+            let between = &html[caption_at..frame_at];
+            assert!(
+                between.contains("</p><div class=\"blocks-filter-overlay-panel-variant\""),
+                "{kind}: caption should be a sibling before the frame: {between}"
+            );
+        }
+        assert_eq!(
+            html.matches("class=\"blocks-filter-overlay-panel-instance\"")
+                .count(),
+            2
+        );
+        assert!(
+            LAYOUT_CSS.contains(".blocks-filter-overlay-panel-variant {\n  position: relative;")
+        );
+    }
+
+    /// 狭幅時にダイアログ版の footer が縦方向・stretch になり、解除・適用
+    /// ボタン列が縮み幅にならず全幅の縦積みになることを固定する。
+    #[test]
+    fn dialog_footer_stretches_actions_on_narrow_viewport() {
+        let html = demo_html();
+        assert!(html.contains("data-scope=\"dialog\" data-part=\"footer\""));
+        let media = &LAYOUT_CSS[LAYOUT_CSS
+            .find("@media (max-width: 47.99rem)")
+            .expect("media query present")..];
+        assert!(media.contains(
+            ".blocks-filter-overlay-panel [data-scope=\"dialog\"][data-part=\"footer\"] {\n    flex-direction: column;\n    align-items: stretch;\n  }"
+        ));
+        assert!(media.contains(
+            "[data-blocks-filter-overlay-panel-footer] [data-scope=\"button\"] {\n    width: 100%;\n  }"
+        ));
     }
 
     /// id の重複がないことを固定する（drawer/dialog 併記による id 衝突の
