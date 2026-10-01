@@ -10,6 +10,7 @@
 //! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
 mod cart_dialog;
+mod cart_drawer;
 mod cart_line_item_table;
 mod cart_single_column;
 mod cart_two_column_summary;
@@ -19,6 +20,7 @@ use crate::blocks::Block;
 pub(super) fn blocks() -> Vec<Block> {
     vec![
         cart_dialog::BLOCK,
+        cart_drawer::BLOCK,
         cart_line_item_table::BLOCK,
         cart_single_column::BLOCK,
         cart_two_column_summary::BLOCK,
