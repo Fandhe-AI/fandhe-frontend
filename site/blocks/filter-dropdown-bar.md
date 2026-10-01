@@ -382,7 +382,10 @@ fn narrow_bar() -> Node {
         vec![
             sort_menu(variant),
             div(
-                vec![("data-blocks-filter-dropdown-bar-filters", "")],
+                vec![
+                    ("data-blocks-filter-dropdown-bar-filters", ""),
+                    ("data-blocks-filter-dropdown-bar-frame", "narrow"),
+                ],
                 vec![
                     closed_filter(variant, "category", "カテゴリ"),
                     closed_filter(variant, "color", "色"),

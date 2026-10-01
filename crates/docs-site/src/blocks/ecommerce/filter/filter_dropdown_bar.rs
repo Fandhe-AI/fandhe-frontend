@@ -458,7 +458,10 @@ fn narrow_bar() -> Node {
         vec![
             sort_menu(variant),
             div(
-                vec![("data-blocks-filter-dropdown-bar-filters", "")],
+                vec![
+                    ("data-blocks-filter-dropdown-bar-filters", ""),
+                    ("data-blocks-filter-dropdown-bar-frame", "narrow"),
+                ],
                 vec![
                     closed_filter(variant, "category", "カテゴリ"),
                     closed_filter(variant, "color", "色"),
@@ -564,10 +567,18 @@ pub const BLOCK: Block = Block {
 ///
 /// モジュール doc「3 variant を並べる理由と `@container` の閾値の根拠」節
 /// 参照。`30rem` 未満でフィルタ群を非表示にし畳みボタンを表示する。この
-/// 非表示規則は `[data-blocks-filter-dropdown-bar-frame="narrow"]` 配下へ
-/// 限定する。畳みボタン（[`collapsed_filter_button`]）を持たない
-/// `centered`/`left` variant まで適用すると、Demo 枠が 30rem 未満になった
-/// 際にフィルタ群が代替操作なしに消える（Codex P1 指摘の是正）。
+/// 非表示規則は `[data-blocks-filter-dropdown-bar-frame="narrow"]` を
+/// 持つ variant へ限定する。畳みボタン（[`collapsed_filter_button`]）を
+/// 持たない `centered`/`left` variant まで適用すると、Demo 枠が 30rem
+/// 未満になった際にフィルタ群が代替操作なしに消える（Codex P1 指摘の
+/// 是正）。限定の付け方は、コンテナ自身（`[data-blocks-filter-dropdown-
+/// bar-shell]`）を祖先セレクタに含めず、`frame="narrow"` を
+/// `[data-blocks-filter-dropdown-bar-filters]`（畳み対象の子要素）自身へ
+/// 直接付与して判定する（コンテナクエリは対象要素の祖先コンテナを評価する
+/// 仕様のため、コンテナ自身を祖先セレクタの一部にする記法は紛らわしく、
+/// 子要素自身に属性を持たせたほうが「このコンテナがこの条件を満たす」と
+/// 「この子要素を対象にする」を分離でき明確、という判断。Codex P1
+/// 指摘の是正）。
 const LAYOUT_CSS: &str = "\
 .blocks-filter-dropdown-bar-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-filter-dropdown-bar-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  color: var(--fandhe-color-fg-muted);\n}\n\
@@ -582,7 +593,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"popover\"][data-part=\"positioner\"][data-blocks-filter-dropdown-bar-positioner] {\n  left: auto;\n  right: 0;\n}\n\
 [data-scope=\"popover\"][data-part=\"content\"][data-blocks-filter-dropdown-bar-panel] {\n  inline-size: 14rem;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 @container blocks-filter-dropdown-bar (max-width: 29.99rem) {\n  \
-[data-blocks-filter-dropdown-bar-shell][data-blocks-filter-dropdown-bar-frame=\"narrow\"] [data-blocks-filter-dropdown-bar-filters] {\n    display: none;\n  }\n  \
+[data-blocks-filter-dropdown-bar-filters][data-blocks-filter-dropdown-bar-frame=\"narrow\"] {\n    display: none;\n  }\n  \
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-filter-dropdown-bar-collapsed-trigger][data-disabled] {\n    display: inline-flex;\n    align-items: center;\n    gap: var(--fandhe-space-1);\n  }\n\
 }\n";
 
@@ -636,14 +647,16 @@ mod tests {
         );
     }
 
-    /// `narrow` インスタンスのみ frame 属性を持つこと。
+    /// `narrow` インスタンスのみ frame 属性を持つこと（shell 自身と、
+    /// コンテナクエリの対象である `filters` 子要素の 2 箇所、
+    /// `centered`/`left` には 0 件）。
     #[test]
     fn only_narrow_instance_has_the_frame_attribute() {
         let html = render(&demo());
         assert_eq!(
             html.matches("data-blocks-filter-dropdown-bar-frame=\"narrow\"")
                 .count(),
-            1
+            2
         );
     }
 
@@ -732,6 +745,22 @@ mod tests {
         assert!(LAYOUT_CSS.contains("@container blocks-filter-dropdown-bar (max-width: 29.99rem)"));
         assert!(LAYOUT_CSS.contains("opacity: 1;"));
         assert!(LAYOUT_CSS.contains("display: none;"));
+    }
+
+    /// `@container` 内のフィルタ群非表示セレクタが、コンテナ自身
+    /// （`[data-blocks-filter-dropdown-bar-shell]`）を祖先セレクタに
+    /// 含めず、畳み対象の子要素（`[data-blocks-filter-dropdown-bar-filters]`）
+    /// 自身の `frame="narrow"` 属性のみで判定すること（Codex P1 指摘の
+    /// 是正。祖先コンテナ自身をセレクタへ含める記法は、コンテナクエリが
+    /// 祖先コンテナを評価する仕様と紛らわしいため採らない）。
+    #[test]
+    fn narrow_hide_selector_targets_filters_child_directly() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-filter-dropdown-bar-filters][data-blocks-filter-dropdown-bar-frame=\"narrow\"] {\n    display: none;\n  }"
+        ));
+        assert!(!LAYOUT_CSS.contains(
+            "[data-blocks-filter-dropdown-bar-shell][data-blocks-filter-dropdown-bar-frame=\"narrow\"] [data-blocks-filter-dropdown-bar-filters]"
+        ));
     }
 
     /// ルート class（`demo_class` とは別名）が [`demo`] の出力へ実際に
