@@ -38,11 +38,11 @@
 //!
 //! `card::root` の内側に `link_overlay::root` を置き、画像 + カテゴリ名を
 //! 通常フローで積み、`link_overlay::overlay` でカード全体をクリック可能に
-//! する。`card::root` に `overflow: hidden` を付けないため（角丸は画像側の
-//! `border-radius` で付ける）、`link_overlay::overlay` 既定の
-//! `FocusRingOffset::Outside` がカード境界で切れることはなく、
-//! `blog_overlay_cards`/`promo_collection_cards` のような
-//! `outline-offset` 内側化の是正は不要。
+//! する。`card::root` は画像の角丸クリップのため `overflow: hidden` を
+//! 持つ（[`LAYOUT_CSS`] 参照）ため、`link_overlay::overlay` 既定の
+//! `FocusRingOffset::Outside` がカード境界で切れてしまう。
+//! `blog_overlay_cards`/`promo_collection_cards` と同じ是正
+//! （`outline-offset` を内側へ上書き）を行う。
 //!
 //! # グリッドの列数（1 → 48rem で 2 → 64rem で 4）
 //!
@@ -279,7 +279,8 @@ const LAYOUT_CSS: &str = "\
 @media (min-width: 64rem) {\n  .blocks-promo-sale-categories-grid {\n    grid-template-columns: repeat(4, minmax(0, 1fr));\n  }\n}\n\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-promo-sale-categories-card] {\n  overflow: hidden;\n  padding: 0;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-promo-sale-categories-image] {\n  width: 100%;\n  display: block;\n  border-radius: var(--fandhe-radius-lg) var(--fandhe-radius-lg) 0 0;\n}\n\
-.blocks-promo-sale-categories-card-body {\n  padding: var(--fandhe-space-4);\n}\n";
+.blocks-promo-sale-categories-card-body {\n  padding: var(--fandhe-space-4);\n}\n\
+[data-scope=\"link-overlay\"][data-part=\"overlay\"][data-blocks-promo-sale-categories-overlay]:focus-visible {\n  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -359,6 +360,7 @@ mod tests {
             "@media (min-width: 64rem) {",
             "[data-scope=\"card\"][data-part=\"root\"][data-blocks-promo-sale-categories-card] {",
             "[data-scope=\"image\"][data-part=\"root\"][data-blocks-promo-sale-categories-image] {",
+            "[data-scope=\"link-overlay\"][data-part=\"overlay\"][data-blocks-promo-sale-categories-overlay]:focus-visible {",
         ] {
             assert!(
                 LAYOUT_CSS.contains(selector),
@@ -367,6 +369,11 @@ mod tests {
         }
         assert!(LAYOUT_CSS.contains("repeat(2,"));
         assert!(LAYOUT_CSS.contains("repeat(4,"));
+        assert!(
+            LAYOUT_CSS.contains("outline-offset: calc(-1"),
+            "card overflow:hidden がカード内 link-overlay の focus-visible リングを\
+             切り取らないよう、promo_collection_cards と同じ内側補正を持つこと"
+        );
         assert!(!LAYOUT_CSS.contains('#'));
         assert!(!LAYOUT_CSS.contains("white"));
         assert!(!LAYOUT_CSS.contains("animation"));
