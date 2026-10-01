@@ -265,6 +265,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-promo-offers-split-cta] {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  padding: 0.75rem 1.5rem;\n  border-radius: var(--fandhe-radius-md, 0.375rem);\n  background: var(--fandhe-color-accent);\n  text-decoration: none;\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n  width: fit-content;\n}\n\
 [data-scope=\"link\"][data-part=\"root\"][data-blocks-promo-offers-split-cta] {\n  color: var(--fandhe-color-accent-fg);\n}\n\
 [data-blocks-promo-offers-split-cta]:hover {\n  opacity: 0.9;\n}\n\
+[data-scope=\"link\"][data-part=\"root\"][data-blocks-promo-offers-split-cta]:hover {\n  color: var(--fandhe-color-accent-fg);\n}\n\
 @media (min-width: 64rem) {\n  \
 .blocks-promo-offers-split-offers {\n    grid-template-columns: 1fr auto 1fr auto 1fr;\n    align-items: stretch;\n  }\n  \
 [data-scope=\"separator\"][data-blocks-promo-offers-split-divider=\"horizontal\"] {\n    display: none;\n  }\n  \
