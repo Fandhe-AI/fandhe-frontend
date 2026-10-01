@@ -2388,6 +2388,11 @@ source = "site/blocks/settings-page-aside-nav.md"
 path = "/blocks/settings-page-aside-nav/"
 
 [[section.group.page]]
+title = "settings-page-sidebar"
+source = "site/blocks/settings-page-sidebar.md"
+path = "/blocks/settings-page-sidebar/"
+
+[[section.group.page]]
 title = "settings-page-tabs"
 source = "site/blocks/settings-page-tabs.md"
 path = "/blocks/settings-page-tabs/"
@@ -2403,6 +2408,11 @@ source = "site/blocks/settings-profile-form.md"
 path = "/blocks/settings-profile-form/"
 
 [[section.group.page]]
+title = "settings-share-link"
+source = "site/blocks/settings-share-link.md"
+path = "/blocks/settings-share-link/"
+
+[[section.group.page]]
 title = "settings-share-members"
 source = "site/blocks/settings-share-members.md"
 path = "/blocks/settings-share-members/"
@@ -2411,6 +2421,21 @@ path = "/blocks/settings-share-members/"
 title = "settings-switch-sections"
 source = "site/blocks/settings-switch-sections.md"
 path = "/blocks/settings-switch-sections/"
+
+[[section.group.page]]
+title = "settings-webhook-detail"
+source = "site/blocks/settings-webhook-detail.md"
+path = "/blocks/settings-webhook-detail/"
+
+[[section.group.page]]
+title = "settings-webhook-form"
+source = "site/blocks/settings-webhook-form.md"
+path = "/blocks/settings-webhook-form/"
+
+[[section.group.page]]
+title = "settings-webhook-stats"
+source = "site/blocks/settings-webhook-stats.md"
+path = "/blocks/settings-webhook-stats/"
 
 [[section.group]]
 title = "Action Panel"

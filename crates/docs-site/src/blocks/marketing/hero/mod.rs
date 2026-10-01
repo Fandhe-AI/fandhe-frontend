@@ -1,18 +1,13 @@
-//! Marketing / Hero カテゴリの block 登録点（イシュー #2734）。
+//! Marketing / Hero カテゴリの block 登録点。カテゴリ別のモジュール構成と
+//! 「カテゴリの卒業」手順は `docs/design/docs-site-blocks-section.md` §18
+//! 参照（イシュー #2734）。
+//!
 //! 本カテゴリ配下の block 実装モジュールを宣言し、[`blocks`] で集約する。
 //! 新規 block を追加する際は本ファイルへ `mod` 宣言と `blocks()` への追記を
-//! 行うだけでよく、`super`（`marketing`）側・トップレベル
-//! `crate::blocks` 側の変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込める
-//! ための構造、イシュー #2734）。イシュー #2784 で `hero_image_tiles` を
-//! 追加し、本カテゴリは 6 件目となった。イシュー #2781/#2782 で
-//! `hero_background_media`/`hero_bottom_screenshot` を追加し、本カテゴリは
-//! 8 件目となった。イシュー #2787 で `hero_marquee_strip` を追加して
-//! 9 件目となった。イシュー #2785 で `hero_image_top` を追加し、本カテゴリは
-//! 10 件目となった。イシュー #2789 で `hero_search` を、イシュー #2791 で
-//! `hero_split_image` を、イシュー #2790 で `hero_social_proof` を追加し、
-//! 本カテゴリは 15 件目となった。イシュー #2786 で `hero_install_command` を
-//! 追加した後、イシュー #2792 で `hero_split_screenshot` を追加し
-//! 本カテゴリは 16 件目となった。
+//! 行うだけでよく、`super`（`marketing`）側・トップレベル `crate::blocks` 側の
+//! 変更は不要（並列 PR 間の衝突をカテゴリ内へ閉じ込めるための構造）。
+//! block ごとの追加経緯は git 履歴と PR を正とし、本コメントには書かない
+//! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
 mod hero_background_media;
 mod hero_bottom_screenshot;
