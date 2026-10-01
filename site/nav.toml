@@ -2795,6 +2795,11 @@ path = "/blocks/checkout-wizard-steps/"
 title = "Order"
 
 [[section.group.page]]
+title = "order-confirmation-summary"
+source = "site/blocks/order-confirmation-summary.md"
+path = "/blocks/order-confirmation-summary/"
+
+[[section.group.page]]
 title = "order-tracking-progress"
 source = "site/blocks/order-tracking-progress.md"
 path = "/blocks/order-tracking-progress/"
@@ -2819,6 +2824,11 @@ title = "Incentives"
 title = "incentives-inline-strip"
 source = "site/blocks/incentives-inline-strip.md"
 path = "/blocks/incentives-inline-strip/"
+
+[[section.group.page]]
+title = "incentives-split-header"
+source = "site/blocks/incentives-split-header.md"
+path = "/blocks/incentives-split-header/"
 
 [[section.group]]
 title = "Promo"

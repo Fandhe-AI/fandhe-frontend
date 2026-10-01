@@ -1100,6 +1100,7 @@ pub enum LayoutCss {
 | cart-drawer | #3026（親 #3024） | `ecommerce/cart/cart_drawer.rs` |
 | cart-line-item-table | #3028/#3029（親 #3027） | `ecommerce/cart/cart_line_item_table.rs` |
 | order-tracking-progress | #3060/#3061（親 #3059） | `ecommerce/order/order_tracking_progress.rs` |
+| order-confirmation-summary | #3054（親 #3024） | `ecommerce/order/order_confirmation_summary.rs` |
 | product-overview-gallery-split | #3068（親 #3067） | `ecommerce/product_overview/product_overview_gallery_split.rs` |
 | product-overview-image-grid | #3071/#3072（親 #3070） | `ecommerce/product_overview/product_overview_image_grid.rs` |
 | product-overview-tabs-below | #3074（親 #3073） | `ecommerce/product_overview/product_overview_tabs_below.rs` |
@@ -1117,6 +1118,7 @@ pub enum LayoutCss {
 | filter-expandable-panel | #3047（親 #3024） | `ecommerce/filter/filter_expandable_panel.rs` |
 | filter-overlay-panel | #3048（親 #3024） | `ecommerce/filter/filter_overlay_panel.rs` |
 | incentives-inline-strip | #3051 | `ecommerce/incentives/incentives_inline_strip.rs` |
+| incentives-split-header | #3052（親 #3024） | `ecommerce/incentives/incentives_split_header.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は

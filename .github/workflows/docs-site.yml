@@ -571,6 +571,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/checkout-step-sections/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/checkout-wizard-steps/index.html"
           # Ecommerce / Order
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/order-confirmation-summary/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/order-tracking-progress/index.html"
           # Ecommerce / Reviews
           # Ecommerce / Store Nav
@@ -578,6 +579,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/store-nav-mega-menu/index.html"
           # Ecommerce / Incentives
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/incentives-inline-strip/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/incentives-split-header/index.html"
           # Ecommerce / Promo
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-collection-cards/index.html"
           # Docs / Docs Layout
