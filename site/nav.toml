@@ -2808,6 +2808,11 @@ source = "site/blocks/order-confirmation-summary.md"
 path = "/blocks/order-confirmation-summary/"
 
 [[section.group.page]]
+title = "order-history-panels"
+source = "site/blocks/order-history-panels.md"
+path = "/blocks/order-history-panels/"
+
+[[section.group.page]]
 title = "order-history-table"
 source = "site/blocks/order-history-table.md"
 path = "/blocks/order-history-table/"
