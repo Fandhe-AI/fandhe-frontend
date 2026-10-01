@@ -2811,6 +2811,11 @@ path = "/blocks/store-nav-mega-menu/"
 title = "Incentives"
 
 [[section.group.page]]
+title = "incentives-inline-strip"
+source = "site/blocks/incentives-inline-strip.md"
+path = "/blocks/incentives-inline-strip/"
+
+[[section.group.page]]
 title = "incentives-split-header"
 source = "site/blocks/incentives-split-header.md"
 path = "/blocks/incentives-split-header/"
