@@ -618,7 +618,7 @@ pub const BLOCK: Block = Block {
 /// 方針」「ドロワーを枠内に収める理由」節の実装）。
 const LAYOUT_CSS: &str = "\
 .blocks-filter-sidebar-wrap {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
-.blocks-filter-sidebar-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-filter-sidebar .blocks-filter-sidebar-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-filter-sidebar-instance {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  container-type: inline-size;\n  container-name: blocks-filter-sidebar;\n}\n\
 .blocks-filter-sidebar-narrow-stage {\n  max-width: 24rem;\n}\n\
 .blocks-filter-sidebar-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n}\n\
