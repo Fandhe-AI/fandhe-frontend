@@ -94,6 +94,13 @@
 //! 順は常に画像 → パネルに保つ。読み上げ順の意味は変わらない
 //! （WCAG 1.3.2 の観点で可、視覚順の入れ替えは 2 カラム時のみ）。
 //!
+//! 見出し階層は `crate::blocks::insert_generated_sections` が出す
+//! H1 → H2「Demo」→（本 Demo）→ H2「使用部品」の中に、版キャプション
+//! （[`caption`]、`<h3>`）→ 商品名（[`purchase_panel`]、`HeadingLevel::H4`）
+//! の 2 段を持つ。キャプションを H2 にすると「Demo」H2 と同列になり構造が
+//! 崩れるため、キャプションは `<h3>` のまま商品名を H4 に下げている
+//! （PR #3522 Codex レビューの是正）。
+//!
 //! # レビュー件数はリンクにしない
 //!
 //! 当初はレビュー詳細ページへのリンクとして実装したが、レビュー詳細ページ
@@ -529,8 +536,14 @@ fn purchase_panel(variant: &Variant) -> Node {
         "在庫切れ"
     };
     let mut children = vec![
+        // 見出しレベルは H4（H2 ではない）: ページの見出し階層は
+        // H1 → H2「Demo」→ H3（版キャプション、[`caption`]）→ ここ。
+        // 商品名を H2 にするとページ全体の「Demo」H2 と並んでしまい、
+        // 階層が崩れる（Codex レビュー、PR #3522 の是正。モジュール doc
+        // 「3 版の並記」節参照）。`HeadingProps.size`（既定 `Xl`）は level と
+        // 独立なので見た目は変わらない。
         heading(
-            HeadingLevel::H2,
+            HeadingLevel::H4,
             &HeadingProps::default(),
             vec![],
             vec![text(PRODUCT_NAME)],
@@ -722,6 +735,16 @@ pub const BLOCK: Block = Block {
 /// 子孫セレクタ（詳細度 (0,4,0)）で中和する
 /// （`product_overview_gallery_split.rs`・`card_form_footer.rs` と同型、
 /// PR #3468 Bugbot 指摘の是正）。
+///
+/// `.blocks-product-overview-image-grid-options [data-scope="radio-card"]
+/// [data-part="root"]` へ `flex-wrap: wrap` を明示するのは、2 カラム配置
+/// （`-body-side`、パネル幅は約 20rem）だと横並び
+/// （`Orientation::Horizontal`）のサイズ選択肢 4 件・色選択肢 3 件が
+/// 折り返さずパネル外へはみ出すため（PR #3522 Codex 指摘の是正）。
+/// `radio_card::root` の recipe（`crates/pre-styled-ui/src/radio_card.rs`）
+/// は horizontal のとき `display: flex; flex-direction: row` のみで
+/// `flex-wrap` を指定しないため、block 側のセレクタ（詳細度 (0,3,0)）が
+/// 上書きする。部品本体や `Orientation` の切り替えはしない。
 const LAYOUT_CSS: &str = "\
 .blocks-product-overview-image-grid-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-product-overview-image-grid;\n}\n\
 .blocks-product-overview-image-grid-demo {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
@@ -740,6 +763,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-product-overview-image-grid-rating-row {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-product-overview-image-grid-options {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-product-overview-image-grid-options [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+.blocks-product-overview-image-grid-options [data-scope=\"radio-card\"][data-part=\"root\"] {\n  flex-wrap: wrap;\n}\n\
 @container blocks-product-overview-image-grid (max-width: 40rem) {\n  \
 .blocks-product-overview-image-grid-gallery {\n    grid-template-columns: minmax(0, 1fr);\n  }\n  \
 .blocks-product-overview-image-grid-gallery-uniform {\n    grid-template-columns: minmax(0, 1fr);\n  }\n  \
@@ -975,6 +999,26 @@ mod tests {
         // ないことを固定する（PR #3468 Bugbot 指摘の回帰防止）。
         assert!(LAYOUT_CSS.contains(
             ".blocks-product-overview-image-grid-options [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
+        ));
+    }
+
+    /// 商品名見出しが版キャプション（`<h3>`）の下位（`<h4>`）であること
+    /// （PR #3522 Codex レビューの回帰防止。見出し階層はモジュール doc
+    /// 「3 版の並記」節参照）。
+    #[test]
+    fn product_name_heading_is_below_caption() {
+        let html = demo_html();
+        assert_eq!(html.matches("<h2").count(), 0);
+        assert_eq!(html.matches("<h3").count(), VARIANTS.len());
+        assert_eq!(html.matches("<h4").count(), VARIANTS.len());
+    }
+
+    /// 2 カラム配置時に選択肢（radio-card）が折り返すこと（はみ出し禁止、
+    /// PR #3522 Codex レビューの回帰防止）。
+    #[test]
+    fn options_radio_cards_wrap() {
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-product-overview-image-grid-options [data-scope=\"radio-card\"][data-part=\"root\"] {\n  flex-wrap: wrap;\n}"
         ));
     }
 

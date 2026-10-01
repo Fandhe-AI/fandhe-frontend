@@ -413,8 +413,14 @@ fn purchase_panel(variant: &Variant) -> Node {
         "在庫切れ"
     };
     let mut children = vec![
+        // 見出しレベルは H4（H2 ではない）: ページの見出し階層は
+        // H1 → H2「Demo」→ H3（版キャプション、[`caption`]）→ ここ。
+        // 商品名を H2 にするとページ全体の「Demo」H2 と並んでしまい、
+        // 階層が崩れる（Codex レビュー、PR #3522 の是正。モジュール doc
+        // 「3 版の並記」節参照）。`HeadingProps.size`（既定 `Xl`）は level と
+        // 独立なので見た目は変わらない。
         heading(
-            HeadingLevel::H2,
+            HeadingLevel::H4,
             &HeadingProps::default(),
             vec![],
             vec![text(PRODUCT_NAME)],
@@ -558,6 +564,11 @@ pub fn demo() -> Node {
   未登録で実在しないため、実在しない遷移先を作らず可視テキスト
   （「レビュー 128 件」）のまま表示しています。Reviews block が追加され
   次第、各版の `link` へ差し替える想定です（本 PR のスコープ外）。
+- 2 カラム配置（side/reverse）ではパネル幅が約 20rem のため、色・サイズの
+  選択肢（横並び）は折り返して表示します（はみ出しません）。
+- 商品名の見出しは版キャプション（`<h3>`）より下位の `<h4>` です（ページ
+  全体の見出し階層が H1 → H2「Demo」→ H3「版キャプション」→ H4「商品名」
+  となるようにしています）。
 
 関連情報: [Breadcrumb](../themes/breadcrumb.md) / [Image](../themes/image.md) /
 [Heading](../themes/heading.md) / [Text](../themes/text.md) /
