@@ -693,6 +693,18 @@ pub const BLOCK: Block = Block {
 /// `overflow-x: auto` + `min-width: 56rem` の横スクロール方式とは異なる。
 /// 旧 `48rem` は `.docs-content` の `max-width: 46rem` 上限を常に上回り
 /// 恒真になっていた指摘への対応で `40rem` へ変更、Bugbot 指摘対応）。
+///
+/// footer のユーザー行 `menu::trigger` は開閉処理を持たないため
+/// `disabled`（モジュール doc「サイドバー footer のユーザー行」節参照）
+/// を固定で付けるが、[`crate::recipe::disabled_declarations`] の
+/// `opacity: 0.5` をそのまま適用すると、操作できない旨の表現としては
+/// 妥当でも、常時表示される氏名・メールという識別情報自体が薄く見えて
+/// しまう（Bugbot 指摘「Disabled user row looks faded」対応）。
+/// `changelog_accordion`・`product_overview_gallery_split` 等の既存 block
+/// と同型で `opacity: 1`・`cursor: default` へ中和する。詳細度は
+/// recipe 側の `[data-scope="menu"][data-part="trigger"][data-disabled]`
+/// （0,3,0）に対し、本 block 固有の `data-blocks-*` 属性を加えた
+/// 4 属性（0,4,0）にして読み込み順に依存せず確実に勝たせる。
 /// 同じ幅で `inset_header` 内の `sidebar::trigger` も `display: none` にし、
 /// 見えない `root` を開閉する操作不能なトリガーだけが `aria-expanded` 付きで
 /// 残る表示・ARIA 不整合を防ぐ（モジュール doc 同節参照、codex レビュー
@@ -719,6 +731,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-page-sidebar-row-text p {\n  margin: 0;\n}\n\
 .blocks-settings-page-sidebar-row-description {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-settings-page-sidebar-user-trigger] {\n  display: flex;\n  align-items: center;\n  gap: 0.5rem;\n  width: 100%;\n  text-align: start;\n}\n\
+[data-scope=\"sidebar\"][data-part=\"footer\"] [data-blocks-settings-page-sidebar-user-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-blocks-settings-page-sidebar-user-label] {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 [data-blocks-settings-page-sidebar-danger] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 @container blocks-settings-page-sidebar (max-width: 40rem) {\n  \
@@ -939,6 +952,17 @@ mod tests {
                 "user menu trigger should be closed"
             );
         }
+    }
+
+    /// footer のユーザー行 `menu::trigger` が `disabled` でも
+    /// `opacity: 1`・`cursor: default` へ中和されていること（モジュール doc
+    /// 「狭幅ではサイドバーを隠す」節の footer コメント参照。Bugbot 指摘
+    /// 「Disabled user row looks faded」対応の固定）。
+    #[test]
+    fn user_menu_trigger_disabled_opacity_is_neutralized() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"sidebar\"][data-part=\"footer\"] [data-blocks-settings-page-sidebar-user-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
+        ));
     }
 
     /// 両インスタンスの `menu::content` の `id` が一意であること
