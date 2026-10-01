@@ -2792,6 +2792,11 @@ source = "site/blocks/cart-line-item-table.md"
 path = "/blocks/cart-line-item-table/"
 
 [[section.group.page]]
+title = "cart-mini-panel"
+source = "site/blocks/cart-mini-panel.md"
+path = "/blocks/cart-mini-panel/"
+
+[[section.group.page]]
 title = "cart-single-column"
 source = "site/blocks/cart-single-column.md"
 path = "/blocks/cart-single-column/"
