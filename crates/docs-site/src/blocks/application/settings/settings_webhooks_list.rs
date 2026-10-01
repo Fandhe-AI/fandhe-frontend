@@ -164,7 +164,13 @@ fn status_badge(status: &'static str) -> Node {
 
 /// 有効スイッチ 1 個（readonly + disabled で静的固定。モジュール doc
 /// 「スイッチ・メニューは静的固定のみ」節参照）。
-fn enabled_switch(v: Variant, index: usize, enabled: bool) -> Node {
+///
+/// `endpoint_name` を label テキストに含める（`settings_integrations_list`
+/// と同じ判断）。label パーツは visually-hidden のため表示レイアウトへは
+/// 影響しないが、`<label>` が `hidden_input` と関連付くアクセシブルネームに
+/// なるため、全行が同一の「有効」になると支援技術でどの行のスイッチか
+/// 判別できない（PR #3489 Codex 指摘）。
+fn enabled_switch(v: Variant, index: usize, enabled: bool, endpoint_name: &str) -> Node {
     let name = format!(
         "blocks-settings-webhooks-list-enabled-{}-{index}",
         v.suffix()
@@ -181,7 +187,12 @@ fn enabled_switch(v: Variant, index: usize, enabled: bool) -> Node {
         &props,
         vec![("data-blocks-settings-webhooks-list-switch", "")],
         vec![
-            switch::label(enabled, &props, vec![], vec![text("有効")]),
+            switch::label(
+                enabled,
+                &props,
+                vec![],
+                vec![text(format!("{endpoint_name} を有効化"))],
+            ),
             switch::hidden_input(&name, "on", enabled, &props, vec![]),
             switch::control(
                 enabled,
@@ -306,7 +317,10 @@ fn table_variant() -> Node {
                         vec![text(*url)],
                     ),
                     table::cell(vec![], vec![status_badge(status)]),
-                    table::cell(vec![], vec![enabled_switch(Variant::Table, i, *enabled)]),
+                    table::cell(
+                        vec![],
+                        vec![enabled_switch(Variant::Table, i, *enabled, name)],
+                    ),
                     table::cell(vec![], vec![overflow_menu(Variant::Table, i, name)]),
                 ],
             )
@@ -370,7 +384,7 @@ fn cards_variant() -> Node {
                             vec![("class", "blocks-settings-webhooks-list-card-foot")],
                             vec![
                                 status_badge(status),
-                                enabled_switch(Variant::Cards, i, *enabled),
+                                enabled_switch(Variant::Cards, i, *enabled, name),
                             ],
                         ),
                     ],
@@ -411,7 +425,7 @@ fn divided_variant() -> Node {
                         vec![("class", "blocks-settings-webhooks-list-row-actions")],
                         vec![
                             status_badge(status),
-                            enabled_switch(Variant::Divided, i, *enabled),
+                            enabled_switch(Variant::Divided, i, *enabled, name),
                             overflow_menu(Variant::Divided, i, name),
                         ],
                     ),
@@ -531,12 +545,12 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-webhooks-list-stack .blocks-settings-webhooks-list-variant-label {\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg-muted);\n  margin: 0;\n}\n\
 @container blocks-settings-webhooks-list (max-width: 36rem) {\n  \
 .blocks-settings-webhooks-list-grid {\n    grid-template-columns: 1fr;\n  }\n  \
-.blocks-settings-webhooks-list-row {\n    flex-direction: column;\n    align-items: flex-start;\n  }\n\
+.blocks-settings-webhooks-list-divided .blocks-settings-webhooks-list-row {\n    flex-direction: column;\n    align-items: flex-start;\n  }\n\
 }\n";
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, LAYOUT_CSS};
+    use super::{demo, ENDPOINTS, LAYOUT_CSS};
     use fandhe_frontend_core::render;
     use std::collections::HashSet;
 
@@ -620,5 +634,43 @@ mod tests {
         assert!(!LAYOUT_CSS.contains('<'));
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
         assert!(LAYOUT_CSS.contains("@container blocks-settings-webhooks-list (max-width: 36rem)"));
+    }
+
+    /// PR #3489 Codex 指摘（各行スイッチが「有効」のみの同一アクセシブル
+    /// ネーム）の回帰テスト。`switch::label` の文言に endpoint 名が含まれ、
+    /// 3 版 x 4 行すべてで一意になることを固定する。
+    #[test]
+    fn switch_label_includes_endpoint_name() {
+        let html = demo_html();
+        for (name, ..) in ENDPOINTS {
+            assert!(
+                html.contains(&format!(">{name} を有効化<")),
+                "switch label should include endpoint name: {name}"
+            );
+        }
+        // 「有効」のみの旧文言（endpoint 名なし）の switch label が復活して
+        // いないことを確認する（テーブル版の列見出し「有効」は
+        // `<th>有効</th>` 相当でこの `data-part="label"` span とは別要素
+        // のため対象外）。
+        assert!(!html.contains(r#"data-part="label">有効<"#));
+    }
+
+    /// PR #3489 Codex/Bugbot 指摘（コンテナクエリ内 `.blocks-settings-webhooks-list-row`
+    /// が通常時の `.blocks-settings-webhooks-list-divided .blocks-settings-webhooks-list-row`
+    /// より詳細度で負け、36rem 以下でも区切り線版が縦積みにならない）の
+    /// 回帰テスト。コンテナクエリ内セレクタが祖先クラスを含み通常時と
+    /// 同等以上の詳細度（クラス数 2）を持つことを固定する。
+    #[test]
+    fn container_query_row_selector_matches_normal_specificity() {
+        let container_block = LAYOUT_CSS
+            .split("@container blocks-settings-webhooks-list (max-width: 36rem) {")
+            .nth(1)
+            .expect("container query block should exist");
+        assert!(
+            container_block.contains(
+                ".blocks-settings-webhooks-list-divided .blocks-settings-webhooks-list-row {"
+            ),
+            "narrow-width row selector must keep the divided-list ancestor class for specificity parity"
+        );
     }
 }

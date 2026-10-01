@@ -111,7 +111,13 @@ fn status_badge(status: &'static str) -> Node {
 
 /// 有効スイッチ 1 個（readonly + disabled で静的固定。モジュール doc
 /// 「スイッチ・メニューは静的固定のみ」節参照）。
-fn enabled_switch(v: Variant, index: usize, enabled: bool) -> Node {
+///
+/// `endpoint_name` を label テキストに含める（`settings_integrations_list`
+/// と同じ判断）。label パーツは visually-hidden のため表示レイアウトへは
+/// 影響しないが、`<label>` が `hidden_input` と関連付くアクセシブルネームに
+/// なるため、全行が同一の「有効」になると支援技術でどの行のスイッチか
+/// 判別できない（PR #3489 Codex 指摘）。
+fn enabled_switch(v: Variant, index: usize, enabled: bool, endpoint_name: &str) -> Node {
     let name = format!(
         "blocks-settings-webhooks-list-enabled-{}-{index}",
         v.suffix()
@@ -128,7 +134,12 @@ fn enabled_switch(v: Variant, index: usize, enabled: bool) -> Node {
         &props,
         vec![("data-blocks-settings-webhooks-list-switch", "")],
         vec![
-            switch::label(enabled, &props, vec![], vec![text("有効")]),
+            switch::label(
+                enabled,
+                &props,
+                vec![],
+                vec![text(format!("{endpoint_name} を有効化"))],
+            ),
             switch::hidden_input(&name, "on", enabled, &props, vec![]),
             switch::control(
                 enabled,
@@ -253,7 +264,10 @@ fn table_variant() -> Node {
                         vec![text(*url)],
                     ),
                     table::cell(vec![], vec![status_badge(status)]),
-                    table::cell(vec![], vec![enabled_switch(Variant::Table, i, *enabled)]),
+                    table::cell(
+                        vec![],
+                        vec![enabled_switch(Variant::Table, i, *enabled, name)],
+                    ),
                     table::cell(vec![], vec![overflow_menu(Variant::Table, i, name)]),
                 ],
             )
@@ -317,7 +331,7 @@ fn cards_variant() -> Node {
                             vec![("class", "blocks-settings-webhooks-list-card-foot")],
                             vec![
                                 status_badge(status),
-                                enabled_switch(Variant::Cards, i, *enabled),
+                                enabled_switch(Variant::Cards, i, *enabled, name),
                             ],
                         ),
                     ],
@@ -358,7 +372,7 @@ fn divided_variant() -> Node {
                         vec![("class", "blocks-settings-webhooks-list-row-actions")],
                         vec![
                             status_badge(status),
-                            enabled_switch(Variant::Divided, i, *enabled),
+                            enabled_switch(Variant::Divided, i, *enabled, name),
                             overflow_menu(Variant::Divided, i, name),
                         ],
                     ),
