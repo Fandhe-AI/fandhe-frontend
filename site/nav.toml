@@ -2388,6 +2388,11 @@ source = "site/blocks/settings-page-aside-nav.md"
 path = "/blocks/settings-page-aside-nav/"
 
 [[section.group.page]]
+title = "settings-page-sidebar"
+source = "site/blocks/settings-page-sidebar.md"
+path = "/blocks/settings-page-sidebar/"
+
+[[section.group.page]]
 title = "settings-page-tabs"
 source = "site/blocks/settings-page-tabs.md"
 path = "/blocks/settings-page-tabs/"
