@@ -718,6 +718,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-settings-page-sidebar-row-text {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-settings-page-sidebar-row-text p {\n  margin: 0;\n}\n\
 .blocks-settings-page-sidebar-row-description {\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+[data-blocks-settings-page-sidebar-user-trigger] {\n  display: flex;\n  align-items: center;\n  gap: 0.5rem;\n  width: 100%;\n  text-align: start;\n}\n\
 [data-blocks-settings-page-sidebar-user-label] {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 [data-blocks-settings-page-sidebar-danger] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 @container blocks-settings-page-sidebar (max-width: 40rem) {\n  \
@@ -890,6 +891,18 @@ mod tests {
             count += 1;
         }
         assert!(count > 0);
+    }
+
+    /// Bugbot 指摘（Medium, PR #3488）の回帰: footer の `menu::trigger`
+    /// （ユーザー行）自体に `display: flex` が当たっていないと、中の
+    /// アイコン + `user-label` span が block-level 縦積みになり、
+    /// `sidebar_07`/`sidebar_grouped_nav` と異なり横並びのフル幅ユーザー行
+    /// にならない。
+    #[test]
+    fn user_trigger_is_horizontal_full_width_row() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-settings-page-sidebar-user-trigger] {\n  display: flex;\n  align-items: center;\n  gap: 0.5rem;\n  width: 100%;\n  text-align: start;\n}"
+        ));
     }
 
     #[test]
