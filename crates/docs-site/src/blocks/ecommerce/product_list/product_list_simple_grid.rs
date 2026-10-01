@@ -327,6 +327,15 @@ fn product_card_b(product: &Product) -> Node {
 
 /// インスタンス C の商品カード 1 件（枠付き・hover/フォーカスで閲覧ラベル
 /// 表示・カテゴリ/説明付き）。
+///
+/// レビュー指摘対応（Cursor Bugbot Medium）: A/B は `card_node` 相当の要素に
+/// 直接 `blocks-product-list-simple-grid-card` クラス（`height: 100%` 付き）
+/// を持たせているが、C は `card::root`（`pre-styled-ui` のレシピ由来クラスを
+/// 持ち `drop_class_attr` で呼び出し側 `class` を上書きできない）で枠を
+/// 描くため同じ手は使えない。`LAYOUT_CSS` 側に
+/// `[data-blocks-product-list-simple-grid-item] > [data-scope="card"][data-part="root"]`
+/// の属性セレクタで `height: 100%` を直接フックし、グリッドセル全体を
+/// 埋めるようにする。
 fn product_card_c(product: &Product) -> Node {
     // 商品名は隣接する見出しが可視テキストとして既に提供するため、画像は
     // 装飾として alt を空にする（`product_list_bordered_grid` と同じ判断。
@@ -602,6 +611,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-product-list-simple-grid-label {\n  position: absolute;\n  inset: 0;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  background: rgba(0, 0, 0, 0.45);\n  color: #fff;\n  font-size: var(--fandhe-font-font-size-sm);\n  opacity: 0;\n}\n\
 [data-blocks-product-list-simple-grid-item]:hover .blocks-product-list-simple-grid-label,\n[data-blocks-product-list-simple-grid-item]:focus-within .blocks-product-list-simple-grid-label {\n  opacity: 1;\n}\n\
 [data-scope=\"link-overlay\"][data-part=\"root\"][data-blocks-product-list-simple-grid-item] {\n  display: flex;\n  flex-direction: column;\n  height: 100%;\n  border-radius: var(--fandhe-radius-lg);\n}\n\
+[data-blocks-product-list-simple-grid-item] > [data-scope=\"card\"][data-part=\"root\"] {\n  height: 100%;\n}\n\
 @container blocks-product-list-simple-grid (min-width: 28rem) {\n  \
 .blocks-product-list-simple-grid-grid-b,\n  .blocks-product-list-simple-grid-grid-c {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n\
 }\n\
@@ -739,6 +749,18 @@ mod tests {
     fn hidden_heading_does_not_reserve_a_grid_track() {
         assert!(LAYOUT_CSS.contains(
             ".blocks-product-list-simple-grid-instance-b > [data-scope=\"heading\"][data-part=\"root\"] {\n  display: contents;\n}"
+        ));
+    }
+
+    /// レビュー指摘対応（Cursor Bugbot Medium）: インスタンス C の枠付き
+    /// カード（`card::root`）が高さ 100% のフックを持たず、A/B と異なり
+    /// グリッドセル全体を埋めない指摘への回帰固定。`card::root` は
+    /// `drop_class_attr` で呼び出し側 `class` を上書きできないため、
+    /// `data-scope`/`data-part` 属性セレクタで `height: 100%` をフックする。
+    #[test]
+    fn framed_card_fills_grid_cell() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-product-list-simple-grid-item] > [data-scope=\"card\"][data-part=\"root\"] {\n  height: 100%;\n}"
         ));
     }
 }

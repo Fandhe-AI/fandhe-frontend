@@ -247,6 +247,15 @@ fn product_card_b(product: &Product) -> Node {
 
 /// インスタンス C の商品カード 1 件（枠付き・hover/フォーカスで閲覧ラベル
 /// 表示・カテゴリ/説明付き）。
+///
+/// レビュー指摘対応（Cursor Bugbot Medium）: A/B は `card_node` 相当の要素に
+/// 直接 `blocks-product-list-simple-grid-card` クラス（`height: 100%` 付き）
+/// を持たせているが、C は `card::root`（`pre-styled-ui` のレシピ由来クラスを
+/// 持ち `drop_class_attr` で呼び出し側 `class` を上書きできない）で枠を
+/// 描くため同じ手は使えない。`LAYOUT_CSS` 側に
+/// `[data-blocks-product-list-simple-grid-item] > [data-scope="card"][data-part="root"]`
+/// の属性セレクタで `height: 100%` を直接フックし、グリッドセル全体を
+/// 埋めるようにする。
 fn product_card_c(product: &Product) -> Node {
     // 商品名は隣接する見出しが可視テキストとして既に提供するため、画像は
     // 装飾として alt を空にする（`product_list_bordered_grid` と同じ判断。
