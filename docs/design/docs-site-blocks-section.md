@@ -1068,6 +1068,7 @@ pub enum LayoutCss {
 | settings-profile-form | #3010 | `application/settings/settings_profile_form.rs` |
 | notification-tray | #2976（親 #2951） | `application/notification/notification_tray.rs` |
 | settings-share-members | #3013・#3014（親 #3012） | `application/settings/settings_share_members.rs` |
+| settings-webhook-form | #3019（親 #2951） | `application/settings/settings_webhook_form.rs` |
 | checkout-form-summary-split | #3042（親 #3041） | `ecommerce/checkout/checkout_form_summary_split.rs` |
 | cart-line-item-table | #3028（親 #3027） | `ecommerce/cart/cart_line_item_table.rs` |
 | order-tracking-progress | #3060/#3061（親 #3059） | `ecommerce/order/order_tracking_progress.rs` |

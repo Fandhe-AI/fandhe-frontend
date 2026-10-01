@@ -2412,6 +2412,11 @@ title = "settings-share-members"
 source = "site/blocks/settings-share-members.md"
 path = "/blocks/settings-share-members/"
 
+[[section.group.page]]
+title = "settings-webhook-form"
+source = "site/blocks/settings-webhook-form.md"
+path = "/blocks/settings-webhook-form/"
+
 [[section.group]]
 title = "Action Panel"
 
