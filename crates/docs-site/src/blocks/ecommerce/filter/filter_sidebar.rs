@@ -55,7 +55,21 @@
 //! の掲示は Demo 枠内に収める必要がある。本 block スコープの属性セレクタで
 //! `position: absolute; inset: 0; z-index: auto` へ差し替え、インスタンス
 //! 自身を `position: relative` にして受け皿にする（`cart_drawer` と
-//! 同型の手法）。
+//! 同型の手法）。この差し替えは「ドロワーが閉じて見える」既定状態
+//! （`display: none`）向けであり、狭い幅の @container 規則内では次項の
+//! 理由によりさらに上書きする。
+//!
+//! # 狭い幅でドロワーをオーバーレイにしない理由（PR #3504 レビュー指摘）
+//!
+//! ドロワーは常時 `OpenState::Open`（前項）のため、狭い幅で上記の
+//! オーバーレイ配置のままだと商品領域を覆ったまま閉じる手段がなく
+//! （無 JS のため close-trigger は操作できない）、カテゴリ「すべて」
+//! リンクで商品領域へ移動しても見えなくなる。そのため狭い幅でのみ
+//! `positioner` を `position: static` の通常フロー要素に戻す
+//! （`backdrop` は常に非表示のまま。オーバーレイをやめた以上、暗幕を
+//! 点ける意味がない）。`filter_drawer` は [`instance`] 内で商品グリッド
+//! （`body`）の後ろに配置しているため、通常フローに戻すとドロワーの
+//! 内容が商品領域の下に続けて表示され、両者が重ならず両方へ到達できる。
 //!
 //! # `href` の方針
 //!
@@ -620,7 +634,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-filter-sidebar [data-scope=\"drawer\"][data-part=\"backdrop\"] {\n  position: absolute;\n  inset: 0;\n  z-index: auto;\n  display: none;\n}\n\
 .blocks-filter-sidebar [data-scope=\"drawer\"][data-part=\"positioner\"] {\n  position: absolute;\n  inset: 0;\n  z-index: auto;\n  display: none;\n}\n\
 .blocks-filter-sidebar [data-scope=\"drawer\"][data-part=\"title\"] {\n  margin: 0;\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
-@container blocks-filter-sidebar (max-width: 40rem) {\n  .blocks-filter-sidebar-aside {\n    display: none;\n  }\n  .blocks-filter-sidebar-drawer-trigger {\n    display: inline-flex;\n  }\n  .blocks-filter-sidebar-body {\n    grid-template-columns: 1fr;\n  }\n  .blocks-filter-sidebar [data-scope=\"drawer\"][data-part=\"backdrop\"] {\n    display: block;\n  }\n  .blocks-filter-sidebar [data-scope=\"drawer\"][data-part=\"positioner\"] {\n    display: block;\n  }\n}\n";
+@container blocks-filter-sidebar (max-width: 40rem) {\n  .blocks-filter-sidebar-aside {\n    display: none;\n  }\n  .blocks-filter-sidebar-drawer-trigger {\n    display: inline-flex;\n  }\n  .blocks-filter-sidebar-body {\n    grid-template-columns: 1fr;\n  }\n  .blocks-filter-sidebar [data-scope=\"drawer\"][data-part=\"positioner\"] {\n    position: static;\n    display: block;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -760,11 +774,16 @@ mod tests {
     }
 
     #[test]
-    fn drawer_backdrop_is_hidden_outside_narrow_container_query() {
-        // レビュー指摘（PR #3504）: backdrop は常に Open で描画されるため、
-        // positioner のみを非表示にすると広い幅で backdrop が
-        // インスタンス全体を覆いマウス操作を妨げる。既定で非表示にし、
-        // 狭い幅の @container 規則内でのみ表示へ戻す。
+    fn drawer_backdrop_is_always_hidden() {
+        // レビュー指摘（PR #3504 初回）: backdrop は常に Open で描画される
+        // ため、positioner のみを非表示にすると広い幅で backdrop が
+        // インスタンス全体を覆いマウス操作を妨げる。既定で非表示にする。
+        //
+        // レビュー指摘（PR #3504 再指摘）: 狭い幅で positioner を
+        // オーバーレイのまま表示へ戻すと、常時 Open なドロワーが商品領域を
+        // 塞いで無 JS では閉じられなくなる。狭い幅では positioner を
+        // 通常フローへ戻す（下記 narrow_container_query テスト）ため、
+        // オーバーレイ専用だった backdrop はどの幅でも表示に戻さない。
         assert!(LAYOUT_CSS.contains(
             "[data-scope=\"drawer\"][data-part=\"backdrop\"] {\n  position: absolute;\n  inset: 0;\n  z-index: auto;\n  display: none;\n}"
         ));
@@ -772,8 +791,24 @@ mod tests {
             .split("@container blocks-filter-sidebar (max-width: 40rem) {")
             .nth(1)
             .expect("narrow container query block");
+        assert!(!narrow_block.contains("data-part=\"backdrop\""));
+    }
+
+    #[test]
+    fn drawer_positioner_is_static_in_narrow_container_query() {
+        // レビュー指摘（PR #3504 再指摘）: 狭い幅で常時 Open なドロワーが
+        // `position: absolute; inset: 0` のオーバーレイのままだと商品領域を
+        // 塞ぎ、無 JS では閉じる手段がない。狭い幅でのみ `positioner` を
+        // `position: static` の通常フロー要素に戻し、`instance()` 内で
+        // 商品グリッドより後ろに配置されている `filter_drawer` の内容が
+        // 商品領域の下に続けて表示されるようにする（重ならず両方へ
+        // 到達できる）。
+        let narrow_block = LAYOUT_CSS
+            .split("@container blocks-filter-sidebar (max-width: 40rem) {")
+            .nth(1)
+            .expect("narrow container query block");
         assert!(narrow_block.contains(
-            "[data-scope=\"drawer\"][data-part=\"backdrop\"] {\n    display: block;\n  }"
+            "[data-scope=\"drawer\"][data-part=\"positioner\"] {\n    position: static;\n    display: block;\n  }"
         ));
     }
 
