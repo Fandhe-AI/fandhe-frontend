@@ -557,6 +557,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-mosaic-featured/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-grid-overlay/index.html"
           # Ecommerce / Filter
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/filter-dropdown-bar/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/filter-expandable-panel/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/filter-sidebar/index.html"
           # Ecommerce / Cart
@@ -568,6 +569,7 @@ jobs:
           # Ecommerce / Checkout
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/checkout-form-summary-split/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/checkout-step-sections/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/checkout-wizard-steps/index.html"
           # Ecommerce / Order
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/order-tracking-progress/index.html"
           # Ecommerce / Reviews
