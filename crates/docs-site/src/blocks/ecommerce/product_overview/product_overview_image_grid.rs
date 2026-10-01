@@ -1,13 +1,11 @@
-//! `product-overview-image-grid` block（イシュー #3071、親 #3070「商品詳細
-//! （複数画像グリッド + 購入パネル）」の前半。Ecommerce / Product Overview
-//! カテゴリ）。上段に商品画像グリッド（段差配置）、下段に
-//! 購入パネル（商品名・価格・評価・色/サイズ選択・カート追加ボタン・
-//! 説明）を持つ商品詳細画面の骨格と主要領域を実装する。主参照は対応表 ID
-//! R1178（集約元 R1175: 段差配置 + 右に購入パネル / R0612: 2 列グリッド・
-//! 左右反転）。残り領域（状態表示の並記・R1175/R0612 の差分並記・原稿の
-//! 仕上げ）は後半 #3072 で追加する（本ファイル末尾のモジュール doc
-//! 「後半 #3072 で追加する領域」節参照）。`_/blocks-intake/` の対応ファイル
-//! は本イシュー着手時点で本 worktree に存在しないため、原稿・本コメントには
+//! `product-overview-image-grid` block（イシュー #3071/#3072、親 #3070
+//! 「商品詳細（複数画像グリッド + 購入パネル）」。Ecommerce / Product
+//! Overview カテゴリ）。上段に商品画像グリッド、下段または横に購入パネル
+//! （商品名・価格・評価・色/サイズ選択・カート追加ボタン・説明）を持つ
+//! 商品詳細画面を、集約元 2 件の差分・選択状態違いを並記して実装する。
+//! 主参照は対応表 ID R1178（集約元 R1175: 段差配置 + 右に購入パネル /
+//! R0612: 2 列グリッド・左右反転）。`_/blocks-intake/` の対応ファイルは
+//! 本イシュー着手時点で本 worktree に存在しないため、原稿・本コメントには
 //! 対応表 ID のみを記し、レイアウトは親 issue #3070 の仕様文に従って独自に
 //! 組む（`cart-two-column-summary` #3033 と同じ扱い）。
 //!
@@ -18,8 +16,8 @@
 //! （[`BLOCK`] の `parts` に一致させる契約、
 //! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証する）。
 //! 新しい UI 部品は追加しない。レビュー件数は実在するレビュー領域を
-//! 持たない（後半 #3072 まで）ため `link` は使わず、`text` の可視テキスト
-//! として表示する（下記「レビュー件数はリンクにしない」節参照）。
+//! 持たない（下記「レビュー件数はリンクにしない」節参照）ため `link` は
+//! 使わず、`text` の可視テキストとして表示する。
 //!
 //! # `class` と `data-*` の使い分け
 //!
@@ -31,8 +29,9 @@
 //! `drop_class_attr` で呼び出し側 `class` を除去してから内部 variant
 //! クラスと合成するため、これらへの CSS フックは `data-*` 属性で渡す
 //! （`data-blocks-product-overview-image-grid-*`、`cart_two_column_summary`
-//! と同型の判断）。レイアウト用ラッパー（グリッド・パネル・行）は素の
-//! `<div>` のため `class="blocks-product-overview-image-grid-*"` を使う。
+//! と同型の判断）。レイアウト用ラッパー（グリッド・パネル・行・版の並記）は
+//! 素の `<div>` のため `class="blocks-product-overview-image-grid-*"` を
+//! 使う。
 //!
 //! # 狭幅では画像 1 列積み・パネルがその下へ回る（`@container`）
 //!
@@ -40,19 +39,20 @@
 //! （コンテナクエリ）で判定する（`cart_two_column_summary` と同型の
 //! パターン）。[`LAYOUT_CSS`] のラッパー
 //! `.blocks-product-overview-image-grid-stack` へ `container-type:
-//! inline-size` を宣言し、コンテナ幅が `40rem` 未満のとき画像グリッドを
-//! 1 カラムへ切り替え（1 枚目の段差 `grid-column`/`grid-row` の span・
-//! 最後の 1 枚の全幅 `grid-column` もいずれも `auto` へ戻す）、購入パネル
-//! はその下（DOM 順のまま）に積む。
+//! inline-size` を宣言し、コンテナ幅が `40rem` 未満のとき次をすべて戻す:
+//! 画像グリッドを 1 カラムへ（1 枚目の段差 `grid-column`/`grid-row` の
+//! span・最後の 1 枚の全幅 `grid-column` もいずれも `auto` へ）、2 列
+//! 均等グリッド（`-gallery-uniform`）も 1 カラムへ、2 カラム配置
+//! （`-body-side`）も縦積みへ。しきい値は全版で `40rem` の 1 つに統一し、
+//! 版ごとに別のクエリは増やさない。
 //!
 //! # 色/サイズ選択は `disabled` の静的表示（無 JS）
 //!
 //! docs サイトは JS ハイドレーションを行わないため、選択操作を実行時に
 //! 反映できない。`card_form_footer` の支払方法 radio card と同じ判断で、
 //! 色・サイズ選択はどちらも [`fandhe_frontend_pre_styled_ui::radio_card`]
-//! を `disabled: true` + `aria-disabled="true"` で描き、初期選択（色:
-//! チャコール、サイズ: M）のみを固定表示する（選択状態違いの並記は
-//! #3072）。
+//! を `disabled: true` + `aria-disabled="true"` で描き、版ごとに異なる
+//! 初期選択（下記「3 版の並記」節の表）のみを固定表示する。
 //!
 //! # `<form>` を使わない
 //!
@@ -61,10 +61,38 @@
 //! ボタンは [`fandhe_frontend_pre_styled_ui::button::button`] の既定
 //! `type="button"` のまま用いる。
 //!
-//! # 評価のアクセシブルネーム
+//! # 評価のアクセシブルネーム・radio グループ名の版ごとの一意化
 //!
-//! [`fandhe_frontend_pre_styled_ui::rating_group::label`] の `id` を固定
-//! 文字列にする（Demo は 1 ページ 1 block のため重複しない）。
+//! [`fandhe_frontend_pre_styled_ui::rating_group::label`] の `id`、
+//! [`fandhe_frontend_pre_styled_ui::radio_card::label`] の `id`、パンくずの
+//! `aria-label` はいずれも [`Variant::suffix`] を連結した版固有の値にする
+//! （`crates/docs-site/tests/blocks_contract.rs` の重複 id・宙ぶらりん
+//! aria 参照検査、および `ai_chat_code_preview` で Bugbot が同名 landmark
+//! を指摘した前例への対応）。**radio の hidden input の `name`
+//! （[`fandhe_frontend_pre_styled_ui::radio_card::item_hidden_input`]）も
+//! 同様に版ごとに一意にする**: `<form>` のない文書では同じ `name` の
+//! radio が 1 つのグループとして扱われ、3 版それぞれの `checked` のうち
+//! 最後の 1 件しか残らない（前の版の初期選択表示が消える）ため、
+//! `blocks-product-overview-image-grid-color-{suffix}` のように
+//! 名前空間を付ける（`product_overview_gallery_split` の `COLOR_NAME` と
+//! 同じ判断）。
+//!
+//! # 3 版の並記（集約元差分・状態違い、イシュー #3072）
+//!
+//! [`demo`] は [`VARIANTS`] の 3 版をキャプション付きで縦に並べる
+//! （`product_overview_tabs_below`・`ai_chat_code_preview` と同型の
+//! 判断）。各版の差分は [`Variant`] 1 つで表し、`shell`/`caption` の 2 関数
+//! だけで組み立てる（enum・builder は作らない）。
+//!
+//! | 版 | キャプション（要旨） | レイアウト | 画像グリッド | 状態 |
+//! |---|---|---|---|---|
+//! | `stacked` | 代表構成 | 縦積み（画像グリッド上段・パネル下段） | 段差配置（hero/wide） | 在庫あり・チャコール/M |
+//! | `side` | R1175: 段差配置 + 右パネル | 2 カラム（画像が左・パネルが右） | 段差配置（hero/wide） | 在庫あり・シルバー/L |
+//! | `reverse` | R0612: 2 列グリッド・左右反転・在庫切れ | 2 カラム反転（パネルが左・画像が右） | 2 列均等グリッド | 在庫切れ・ネイビー/S |
+//!
+//! 左右反転（`reverse`）は CSS の `grid-template-areas` のみで行い、DOM
+//! 順は常に画像 → パネルに保つ。読み上げ順の意味は変わらない
+//! （WCAG 1.3.2 の観点で可、視覚順の入れ替えは 2 カラム時のみ）。
 //!
 //! # レビュー件数はリンクにしない
 //!
@@ -73,8 +101,11 @@
 //! 実在せず、リンク先が単なる自己参照（`href="./"`）になり遷移として機能
 //! しない指摘（PR #3468 レビュー）を受けて、実在しないリンク先を作らず
 //! [`fandhe_frontend_pre_styled_ui::text`] の可視テキストとして表示する
-//! よう改めた。実在の Reviews block が追加され次第、その相対パスへの
-//! `link` へ差し替える（#3072）。
+//! よう改めた。親 issue #3070 の使用部品リストには `link` も挙げられて
+//! いるが、上記の理由で意図的に不採用とする（[`BLOCK`] の `parts` は
+//! 8 部品のまま変えない）。実在の Reviews block が追加され次第、その
+//! 相対パスへの `link` へ版ごと差し替える（本 PR のスコープ外、追跡は
+//! `out-of-scope-tracking.md` の手順に従う）。
 //!
 //! # 下段の全幅画像は行サイズ計算から独立させる
 //!
@@ -85,31 +116,26 @@
 //! `aspect_ratio` の全幅画像（3 列分の幅）が要求する高さへ他の行も
 //! 揃ってしまい、意図した 2×2 の段差配置が崩れる（PR #3468 レビュー P1
 //! 指摘）。`auto` にした 3 行目は `fr` の使用可能領域分配（flex fraction）
-//! に加わらないため、1・2 行目のサイズ計算から切り離される。
+//! に加わらないため、1・2 行目のサイズ計算から切り離される。この配置は
+//! `uniform_gallery` 版（2 列均等グリッド）には適用しない
+//! （[`LAYOUT_CSS`] の `.blocks-product-overview-image-grid-gallery-uniform`
+//! が base の `grid-auto-rows` を上書きする）。
 //!
 //! # ダミー素材について
 //!
-//! 商品名・価格・レビュー件数・色/サイズ・説明はすべて本ファイル内の架空
-//! データ（実在のブランド・商品・PII を含まない）。商品画像はビルド時生成
-//! の同梱 SVG（[`dummy_assets::PRODUCT_SRC`]）を 4 枚使う（外部 URL・
-//! `data:` URI は使わない）。4 枚とも同一画像のため、内容と一致する
-//! `alt`（商品名）を持てるのは代表画像（1 枚目）のみとし、残りは代表
-//! 画像の重複描画として空 `alt`（装飾扱い）にする（PR #3468 レビュー P2
-//! 指摘の是正、詳細は [`gallery_tile`] のコメント参照）。
-//!
-//! # 後半 #3072 で追加する領域（本 PR のスコープ外）
-//!
-//! 集約元 R1175（右に購入パネル配置）・R0612（2 列グリッド・左右反転）の
-//! 並記、色/サイズの選択状態違い（在庫切れ・別配色等）、原稿の仕上げは、
-//! 本 PR の骨格・主要領域が固まった後に別イシュー #3072 で追加する。
-//! 放置ではなく `site/blocks/product-overview-image-grid.md` の
-//! 「原案差分メモ」節に明記して追跡する。
+//! 商品名・価格・レビュー件数・色/サイズ・説明・在庫注記はすべて本ファイル
+//! 内の架空データ（実在のブランド・商品・PII を含まない）。商品画像は
+//! ビルド時生成の同梱 SVG（[`dummy_assets::PRODUCT_SRC`]）を各版 4 枚使う
+//! （外部 URL・`data:` URI は使わない）。4 枚とも同一画像のため、内容と
+//! 一致する `alt`（商品名）を持てるのは各版の代表画像（1 枚目）のみとし、
+//! 残りは代表画像の重複描画として空 `alt`（装飾扱い）にする（PR #3468
+//! レビュー P2 指摘の是正、詳細は [`gallery_tile`] のコメント参照）。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, text, Node};
+use fandhe_frontend_core::{div, p, section, text, Node};
 use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::color_swatch::{self, Color, ColorSwatchProps, Rgb};
@@ -125,48 +151,102 @@ use fandhe_frontend_pre_styled_ui::text::{
 };
 use fandhe_frontend_pre_styled_ui::Size;
 
-/// 評価ラベル（`rating_group::label` の `id`）。Demo は 1 ページ 1 block
-/// のため重複しない。
+/// 評価ラベル（`rating_group::label` の `id`）の基底文字列。3 版並記のため
+/// [`Variant::suffix`] を連結して版ごとに一意にする（重複 id 検査対応）。
 const RATING_LABEL_ID: &str = "blocks-product-overview-image-grid-rating-label";
-/// 色選択グループの見出し `id`（`radio_card::root` の `labelled_by`）。
+/// 色選択グループの見出し `id`（`radio_card::root` の `labelled_by`）の
+/// 基底文字列。版ごとに一意にする。
 const COLOR_LABEL_ID: &str = "blocks-product-overview-image-grid-color-label";
-/// サイズ選択グループの見出し `id`（`radio_card::root` の `labelled_by`）。
+/// サイズ選択グループの見出し `id`（`radio_card::root` の `labelled_by`）の
+/// 基底文字列。版ごとに一意にする。
 const SIZE_LABEL_ID: &str = "blocks-product-overview-image-grid-size-label";
 
-/// 架空の商品名。実在のブランド・商品を含まない。
+/// 架空の商品名。実在のブランド・商品を含まない。全版共通。
 const PRODUCT_NAME: &str = "プレミアム ワイヤレスヘッドホン";
-/// 架空の価格表示（円建て固定）。
+/// 架空の価格表示（円建て固定）。全版共通。
 const PRICE_DISPLAY: &str = "¥32,800";
-/// 架空の説明文（2〜3 文）。
+/// 架空の説明文（2〜3 文）。全版共通。
 const DESCRIPTION: &[&str] = &[
     "長時間の使用でも疲れにくい軽量設計と、周囲の音を抑えるノイズ\
 キャンセリング機能を両立したワイヤレスヘッドホンです。",
     "満充電で最大 30 時間再生でき、外出先でも安心してお使いいただけます。",
 ];
+/// 在庫切れ時の架空の注記文。実在の在庫状況を示すものではない。
+const OUT_OF_STOCK_NOTE: &str = "現在在庫がありません。入荷までしばらくお待ちください。";
 
-/// 架空の色選択肢（値, 表示名, RGB）。1 件目（チャコール）を初期選択に
-/// 固定する。実在のブランド固有色は使わない。
+/// 架空の色選択肢（値, 表示名, RGB）。[`Variant::color`] が初期選択を
+/// 版ごとに指定する。実在のブランド固有色は使わない。
 const COLOR_OPTIONS: &[(&str, &str, (u8, u8, u8))] = &[
     ("charcoal", "チャコール", (0x2b, 0x2b, 0x2b)),
     ("silver", "シルバー", (0xc4, 0xc4, 0xc4)),
     ("navy", "ネイビー", (0x1f, 0x3a, 0x5f)),
 ];
 
-/// 架空のサイズ選択肢。2 件目（M）を初期選択に固定する。
+/// 架空のサイズ選択肢。[`Variant::size`] が初期選択を版ごとに指定する。
 const SIZE_OPTIONS: &[&str] = &["S", "M", "L", "XL"];
 
-/// 画像グリッドの 1 枚（`index` は 0 始まり、`total` は総枚数）。3 列
-/// グリッドに対する明示配置を [`LAYOUT_CSS`] の段差配置（2×2 + 下段 1 枚
-/// 全幅）のフックにする: 1 枚目（`index == 0`）は
-/// `data-blocks-product-overview-image-grid-tile="hero"`（2 列×2 行）、
-/// 最後の 1 枚（`index == total - 1`）は
-/// `data-blocks-product-overview-image-grid-tile="wide"`（3 列全幅の下段）。
-/// 中間の画像は `grid-auto-flow` の暗黙配置に任せ、hero が占有した後の
-/// 残り 2 セル（1・2 行目の 3 列目）へ収まる。この 3 分類により、3 列
-/// グリッド上で「1 枚目が 2×2」「最後の 1 枚が意図せず単独の行になる」
-/// 不整合（PR #3468 レビュー P1 指摘）を、全画像の配置を明示することで
-/// 解消する。
-fn gallery_tile(index: usize, total: usize) -> Node {
+/// 1 版分の設定（集約元差分・選択状態違いを表す。`product_overview_tabs_below::Variant`
+/// と同型の判断軸。モジュール doc「3 版の並記」節参照）。
+struct Variant {
+    /// 版の識別子。id・radio `name`・aria-label の一意化に使う suffix。
+    suffix: &'static str,
+    /// Demo 上の版キャプション文言。
+    caption: &'static str,
+    /// true のとき画像グリッドとパネルを 2 カラムに配置する（R1175）。
+    side: bool,
+    /// true のとき `side` の 2 カラムを左右反転する（R0612）。`side` が
+    /// false のときは無視される。
+    reverse: bool,
+    /// true のとき段差配置（hero/wide）ではなく 2 列均等グリッドにする
+    /// （R0612 の画像グリッド形状）。
+    uniform_gallery: bool,
+    /// 初期選択の色（[`COLOR_OPTIONS`] の value と一致させる）。
+    color: &'static str,
+    /// 初期選択のサイズ（[`SIZE_OPTIONS`] の値と一致させる）。
+    size: &'static str,
+    /// false のとき在庫切れ表示にする（ボタン文言・在庫注記）。
+    in_stock: bool,
+}
+
+/// Demo が並記する 3 版（モジュール doc「3 版の並記」節の表と対応）。
+const VARIANTS: [Variant; 3] = [
+    Variant {
+        suffix: "stacked",
+        caption: "代表構成（画像グリッド上段・購入パネル下段）",
+        side: false,
+        reverse: false,
+        uniform_gallery: false,
+        color: "charcoal",
+        size: "M",
+        in_stock: true,
+    },
+    Variant {
+        suffix: "side",
+        caption: "段差配置の画像 + 右に購入パネル（集約元 R1175）",
+        side: true,
+        reverse: false,
+        uniform_gallery: false,
+        color: "silver",
+        size: "L",
+        in_stock: true,
+    },
+    Variant {
+        suffix: "reverse",
+        caption: "2 列均等グリッド・左右反転・在庫切れ（集約元 R0612）",
+        side: true,
+        reverse: true,
+        uniform_gallery: true,
+        color: "navy",
+        size: "S",
+        in_stock: false,
+    },
+];
+
+/// 画像グリッドの 1 枚（`index` は 0 始まり）。`tile` に `Some("hero"|"wide")`
+/// を渡すと [`LAYOUT_CSS`] の段差配置（2×2 + 下段 1 枚全幅）のフックとなる
+/// `data-blocks-product-overview-image-grid-tile` 属性を付与する。`None`
+/// （2 列均等グリッド版）では暗黙配置に任せる。
+fn gallery_tile(index: usize, tile: Option<&'static str>) -> Node {
     // 4 枚すべて同一の `dummy_assets::PRODUCT_SRC`（同一プレースホルダー画像）
     // を参照しているため、「画像 1」〜「画像 4」のように異なる商品写真で
     // あるかのような alt を付けるとスクリーンリーダーで同一画像が異なる
@@ -181,39 +261,54 @@ fn gallery_tile(index: usize, total: usize) -> Node {
     let mut props = ImageProps::new(dummy_assets::PRODUCT_SRC, &alt);
     props.aspect_ratio = AspectRatio::Square;
     props.shape = ImageShape::Rounded;
-    let attrs = if index == 0 {
-        vec![("data-blocks-product-overview-image-grid-tile", "hero")]
-    } else if index == total - 1 {
-        vec![("data-blocks-product-overview-image-grid-tile", "wide")]
-    } else {
-        vec![]
+    let attrs = match tile {
+        Some(tag) => vec![("data-blocks-product-overview-image-grid-tile", tag)],
+        None => vec![],
     };
     image(&props, attrs)
 }
 
-/// 上段の画像グリッド（4 枚、1 枚目を 2×2 で大きく・最後の 1 枚を 3 列
-/// 全幅の下段に明示配置 = 段差配置。主参照 R1178、集約元 R1175 の段差
-/// 配置の要素のみを骨格に取り込む）。
-fn gallery() -> Node {
+/// 上段の画像グリッド（4 枚）。`variant.uniform_gallery` が false の版は
+/// 1 枚目を 2×2 で大きく・最後の 1 枚を 3 列全幅の下段に明示配置する
+/// 段差配置（主参照 R1178、集約元 R1175 の要素）。true の版（R0612）は
+/// 全画像を暗黙配置に任せる 2 列均等グリッドにし、`-gallery-uniform`
+/// 修飾クラスで [`LAYOUT_CSS`] のグリッド定義を上書きする。
+fn gallery(variant: &Variant) -> Node {
     const TOTAL: usize = 4;
-    let tiles = (0..TOTAL).map(|i| gallery_tile(i, TOTAL)).collect();
-    div(
-        vec![("class", "blocks-product-overview-image-grid-gallery")],
-        tiles,
-    )
+    let tiles: Vec<Node> = (0..TOTAL)
+        .map(|index| {
+            let tile = if variant.uniform_gallery {
+                None
+            } else if index == 0 {
+                Some("hero")
+            } else if index == TOTAL - 1 {
+                Some("wide")
+            } else {
+                None
+            };
+            gallery_tile(index, tile)
+        })
+        .collect();
+    let class = if variant.uniform_gallery {
+        "blocks-product-overview-image-grid-gallery blocks-product-overview-image-grid-gallery-uniform"
+    } else {
+        "blocks-product-overview-image-grid-gallery"
+    };
+    div(vec![("class", class)], tiles)
 }
 
 /// パンくず（Home → Blocks → 現在の商品名。`app_shell_stacked` と同型の
 /// 相対パス構成: ページは `/blocks/product-overview-image-grid/` に生成
-/// されるため `../../` はサイトルート、`../` は `/blocks/` を指す。2 階層目
-/// のラベルは実際の遷移先 `/blocks/` に合わせて「Blocks」とする
-/// （「Shop」ラベルで `/blocks/` 索引へ遷移していたラベルと遷移先の不一致
-/// 〔PR #3468 レビュー P2 指摘〕の是正）。
-fn breadcrumb_nav() -> Node {
+/// されるため `../../` はサイトルート、`../` は `/blocks/` を指す）。
+/// `aria-label` は版ごとに一意にする（モジュール doc「評価のアクセシブル
+/// ネーム・radio グループ名の版ごとの一意化」節参照、パンくずは各版が
+/// 1 画面として完結するよう版ごとに置く）。
+fn breadcrumb_nav(variant: &Variant) -> Node {
+    let aria_label = format!("Breadcrumb ({})", variant.suffix);
     breadcrumb::root(
         Size::Sm,
         BreadcrumbVariant::default(),
-        Some("Breadcrumb"),
+        Some(&aria_label),
         vec![],
         vec![breadcrumb::list(
             vec![],
@@ -239,21 +334,17 @@ fn breadcrumb_nav() -> Node {
 
 /// 評価（readonly の 5 段 `rating_group`）+ レビュー件数（可視テキスト）の
 /// 行。評価そのものは初期状態固定の静的表示、レビュー件数は実在する遷移先
-/// を持たないためリンクにしない（上記モジュール doc「レビュー件数は
+/// を持たないためリンクにしない（モジュール doc「レビュー件数は
 /// リンクにしない」節参照）。
-fn rating_row() -> Node {
+fn rating_row(variant: &Variant) -> Node {
+    let label_id = format!("{RATING_LABEL_ID}-{}", variant.suffix);
     let props = RatingGroupProps {
         disabled: false,
         readonly: true,
         required: false,
     };
     let state = RatingGroup::new(5, Some(4), true);
-    let label = rating_group::label(
-        &props,
-        Some(RATING_LABEL_ID),
-        vec![],
-        vec![text("評価 4.0")],
-    );
+    let label = rating_group::label(&props, Some(&label_id), vec![], vec![text("評価 4.0")]);
     let items: Vec<Node> = (1..=state.count())
         .map(|i| {
             rating_group::item(
@@ -270,7 +361,7 @@ fn rating_row() -> Node {
             )
         })
         .collect();
-    let control = rating_group::control(&props, Some(RATING_LABEL_ID), vec![], items);
+    let control = rating_group::control(&props, Some(&label_id), vec![], items);
     let rating = rating_group::root(
         Size::Sm,
         ColorPalette::Accent,
@@ -284,7 +375,8 @@ fn rating_row() -> Node {
     // 機能しない指摘（PR #3468 レビュー P2）を受け、実在しないリンク先を
     // 作らず可視テキストとして表示する（`crate::blocks` 冒頭 doc
     // 「モジュール doc」不変条件の `href="#"` dead link 禁止とも整合）。
-    // 実在の Reviews block が追加され次第、`link` へ差し替える（#3072）。
+    // 実在の Reviews block が追加され次第、`link` へ差し替える
+    // （本 PR のスコープ外）。
     let review_count =
         styled_text::text(&TextProps::default(), vec![], vec![text("レビュー 128 件")]);
     div(
@@ -295,8 +387,15 @@ fn rating_row() -> Node {
 
 /// 色選択肢 1 件（`radio_card::item` + `color_swatch` + ラベルテキスト）。
 /// `card_form_footer` の支払方法 radio card と同じく、常に `disabled:
-/// true` で静的表示にする。
-fn color_item(checked: bool, value: &'static str, label: &'static str, rgb: (u8, u8, u8)) -> Node {
+/// true` で静的表示にする。`name` は版ごとに一意な hidden input グループ名
+/// （モジュール doc「radio グループ名の版ごとの一意化」節参照）。
+fn color_item(
+    checked: bool,
+    value: &'static str,
+    label: &'static str,
+    rgb: (u8, u8, u8),
+    name: &str,
+) -> Node {
     let (r, g, b) = rgb;
     let swatch_props = ColorSwatchProps {
         value: Color::from_rgb(Rgb::new(r, g, b)),
@@ -308,7 +407,7 @@ fn color_item(checked: bool, value: &'static str, label: &'static str, rgb: (u8,
         value,
         vec![],
         vec![
-            radio_card::item_hidden_input(checked, true, Some("color"), value, vec![]),
+            radio_card::item_hidden_input(checked, true, Some(name), value, vec![]),
             radio_card::item_control(
                 checked,
                 true,
@@ -328,26 +427,32 @@ fn color_item(checked: bool, value: &'static str, label: &'static str, rgb: (u8,
     )
 }
 
-/// 色選択欄（見出し + radio card 3 択、初期選択: チャコール）。
-fn color_options() -> Node {
+/// 色選択欄（見出し + radio card 3 択）。初期選択は [`Variant::color`]。
+fn color_options(variant: &Variant) -> Node {
+    let label_id = format!("{COLOR_LABEL_ID}-{}", variant.suffix);
+    let name = format!(
+        "blocks-product-overview-image-grid-color-{}",
+        variant.suffix
+    );
     div(
         vec![("class", "blocks-product-overview-image-grid-options")],
         vec![
-            radio_card::label(Some(COLOR_LABEL_ID), vec![], vec![text("カラー")]),
+            radio_card::label(Some(&label_id), vec![], vec![text("カラー")]),
             radio_card::root(
                 Size::Sm,
                 ColorPalette::Accent,
                 true,
                 Some(Orientation::Horizontal),
-                Some(COLOR_LABEL_ID),
+                Some(&label_id),
                 vec![
                     ("aria-disabled", "true"),
                     ("data-blocks-product-overview-image-grid-color", ""),
                 ],
                 COLOR_OPTIONS
                     .iter()
-                    .enumerate()
-                    .map(|(i, (value, label, rgb))| color_item(i == 0, value, label, *rgb))
+                    .map(|(value, label, rgb)| {
+                        color_item(*value == variant.color, value, label, *rgb, &name)
+                    })
                     .collect(),
             ),
         ],
@@ -355,14 +460,15 @@ fn color_options() -> Node {
 }
 
 /// サイズ選択肢 1 件（`radio_card::item`。色スウォッチは持たない）。
-fn size_item(checked: bool, value: &'static str) -> Node {
+/// `name` は版ごとに一意な hidden input グループ名。
+fn size_item(checked: bool, value: &'static str, name: &str) -> Node {
     radio_card::item(
         checked,
         true,
         value,
         vec![],
         vec![
-            radio_card::item_hidden_input(checked, true, Some("size"), value, vec![]),
+            radio_card::item_hidden_input(checked, true, Some(name), value, vec![]),
             radio_card::item_control(
                 checked,
                 true,
@@ -379,83 +485,138 @@ fn size_item(checked: bool, value: &'static str) -> Node {
     )
 }
 
-/// サイズ選択欄（見出し + radio card 4 択、初期選択: M）。
-fn size_options() -> Node {
+/// サイズ選択欄（見出し + radio card 4 択）。初期選択は [`Variant::size`]。
+fn size_options(variant: &Variant) -> Node {
+    let label_id = format!("{SIZE_LABEL_ID}-{}", variant.suffix);
+    let name = format!("blocks-product-overview-image-grid-size-{}", variant.suffix);
     div(
         vec![("class", "blocks-product-overview-image-grid-options")],
         vec![
-            radio_card::label(Some(SIZE_LABEL_ID), vec![], vec![text("サイズ")]),
+            radio_card::label(Some(&label_id), vec![], vec![text("サイズ")]),
             radio_card::root(
                 Size::Sm,
                 ColorPalette::Accent,
                 true,
                 Some(Orientation::Horizontal),
-                Some(SIZE_LABEL_ID),
+                Some(&label_id),
                 vec![
                     ("aria-disabled", "true"),
                     ("data-blocks-product-overview-image-grid-size", ""),
                 ],
                 SIZE_OPTIONS
                     .iter()
-                    .map(|value| size_item(*value == "M", value))
+                    .map(|value| size_item(*value == variant.size, value, &name))
                     .collect(),
             ),
         ],
     )
 }
 
-/// 下段の購入パネル（商品名・価格・評価・色/サイズ選択・カート追加
-/// ボタン・説明。主参照 R1178）。
-fn purchase_panel() -> Node {
+/// 下段（または横）の購入パネル（商品名・価格・評価・色/サイズ選択・
+/// カート追加ボタン・説明。主参照 R1178）。`variant.in_stock` が false の
+/// ときはボタン文言を「在庫切れ」にし、価格の下へ在庫注記を挿む。
+fn purchase_panel(variant: &Variant) -> Node {
+    let cta_label = if variant.in_stock {
+        "カートに追加"
+    } else {
+        "在庫切れ"
+    };
+    let mut children = vec![
+        heading(
+            HeadingLevel::H2,
+            &HeadingProps::default(),
+            vec![],
+            vec![text(PRODUCT_NAME)],
+        ),
+        styled_text::text(
+            &TextProps {
+                size: TextSize::Lg,
+                weight: TextWeight::Bold,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text(PRICE_DISPLAY)],
+        ),
+    ];
+    if !variant.in_stock {
+        children.push(styled_text::text(
+            &TextProps {
+                variant: TextVariant::Muted,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text(OUT_OF_STOCK_NOTE)],
+        ));
+    }
+    children.push(rating_row(variant));
+    children.push(color_options(variant));
+    children.push(size_options(variant));
+    children.push(button(
+        &ButtonProps {
+            size: Size::Lg,
+            palette: ColorPalette::Accent,
+            disabled: true,
+            ..ButtonProps::default()
+        },
+        vec![("data-blocks-product-overview-image-grid-cta", "")],
+        vec![text(cta_label)],
+    ));
+    children.push(styled_text::text(
+        &TextProps {
+            variant: TextVariant::Muted,
+            ..TextProps::default()
+        },
+        vec![],
+        vec![text(DESCRIPTION.join(""))],
+    ));
     div(
         vec![("class", "blocks-product-overview-image-grid-panel")],
-        vec![
-            heading(
-                HeadingLevel::H2,
-                &HeadingProps::default(),
-                vec![],
-                vec![text(PRODUCT_NAME)],
-            ),
-            styled_text::text(
-                &TextProps {
-                    size: TextSize::Lg,
-                    weight: TextWeight::Bold,
-                    ..TextProps::default()
-                },
-                vec![],
-                vec![text(PRICE_DISPLAY)],
-            ),
-            rating_row(),
-            color_options(),
-            size_options(),
-            button(
-                &ButtonProps {
-                    size: Size::Lg,
-                    palette: ColorPalette::Accent,
-                    disabled: true,
-                    ..ButtonProps::default()
-                },
-                vec![("data-blocks-product-overview-image-grid-cta", "")],
-                vec![text("カートに追加")],
-            ),
-            styled_text::text(
-                &TextProps {
-                    variant: TextVariant::Muted,
-                    ..TextProps::default()
-                },
-                vec![],
-                vec![text(DESCRIPTION.join(""))],
-            ),
-        ],
+        children,
     )
 }
 
-/// `product-overview-image-grid` の Demo 本体。呼び出しごとに同一の
-/// `Node` を返す純関数。
-pub fn demo() -> Node {
+/// 版キャプション（`product_overview_tabs_below::caption` と同型、素の
+/// `<p>` で `heading` 部品を使わない）。
+fn caption(label: &str) -> Node {
+    p(
+        vec![("class", "blocks-product-overview-image-grid-caption")],
+        vec![text(label)],
+    )
+}
+
+/// 1 版分の shell（パンくず + 画像グリッド・購入パネルの本体）を組み立てる。
+/// `variant.side` が true のとき本体を 2 カラムにし、`variant.reverse` が
+/// true のとき左右を入れ替える（モジュール doc「3 版の並記」節参照）。
+fn shell(variant: &Variant) -> Node {
+    let mut body_class = String::from("blocks-product-overview-image-grid-body");
+    if variant.side {
+        body_class.push_str(" blocks-product-overview-image-grid-body-side");
+    }
+    if variant.reverse {
+        body_class.push_str(" blocks-product-overview-image-grid-body-reverse");
+    }
+    let body = div(
+        vec![("class", body_class.as_str())],
+        vec![gallery(variant), purchase_panel(variant)],
+    );
     div(
         vec![("class", "blocks-product-overview-image-grid-stack")],
-        vec![breadcrumb_nav(), gallery(), purchase_panel()],
+        vec![breadcrumb_nav(variant), body],
+    )
+}
+
+/// `product-overview-image-grid` の Demo 本体。[`VARIANTS`] の 3 版を
+/// キャプション付きで縦に並べる（モジュール doc「3 版の並記」節）。
+/// 呼び出しごとに同一の `Node` を返す純関数。
+pub fn demo() -> Node {
+    let mut children = Vec::with_capacity(VARIANTS.len() * 2);
+    for variant in &VARIANTS {
+        children.push(caption(variant.caption));
+        children.push(section(vec![], vec![shell(variant)]));
+    }
+    div(
+        vec![("class", "blocks-product-overview-image-grid-demo")],
+        children,
     )
 }
 // blocks-code:end
@@ -517,6 +678,13 @@ pub const BLOCK: Block = Block {
 /// しないため、両セレクタへ `width: 100%` を明示する（PR #3468 レビュー
 /// P1 是正）。
 ///
+/// `-body-side`/`-body-reverse` は `grid-template-areas` で画像グリッドと
+/// 購入パネルの左右配置・反転を切り替える（モジュール doc「3 版の並記」
+/// 節参照）。docs 本文幅（`--docs-max-content-width: 46rem`）の制約上
+/// `@container` の 2 カラム化しきい値は実質発火しないため、2 カラム化は
+/// 既定スタイルで行い、既存の `@container blocks-product-overview-image-grid
+/// (max-width: 40rem)` 内で縦積みへ戻す（新しいクエリは足さない）。
+///
 /// 色・サイズ選択の radio card は無 JS で選択を実配線できないため
 /// ネイティブ disabled で固定しているだけで、選択肢自体は「利用不可」では
 /// ない。styled radio-card の既定 `disabled_declarations()`（`opacity: 0.5`
@@ -527,7 +695,15 @@ pub const BLOCK: Block = Block {
 /// PR #3468 Bugbot 指摘の是正）。
 const LAYOUT_CSS: &str = "\
 .blocks-product-overview-image-grid-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-product-overview-image-grid;\n}\n\
+.blocks-product-overview-image-grid-demo {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
+.blocks-product-overview-image-grid-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-product-overview-image-grid-body-side {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  grid-template-areas: \"gallery panel\";\n  align-items: start;\n}\n\
+.blocks-product-overview-image-grid-body-side > .blocks-product-overview-image-grid-gallery {\n  grid-area: gallery;\n}\n\
+.blocks-product-overview-image-grid-body-side > .blocks-product-overview-image-grid-panel {\n  grid-area: panel;\n}\n\
+.blocks-product-overview-image-grid-body-reverse {\n  grid-template-areas: \"panel gallery\";\n}\n\
 .blocks-product-overview-image-grid-gallery {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n  grid-auto-rows: minmax(0, 1fr) minmax(0, 1fr) auto;\n  gap: var(--fandhe-space-3);\n}\n\
+.blocks-product-overview-image-grid-gallery-uniform {\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  grid-auto-rows: auto;\n}\n\
+.blocks-product-overview-image-grid-gallery-uniform [data-scope=\"image\"] {\n  width: 100%;\n}\n\
 [data-blocks-product-overview-image-grid-tile=\"hero\"] {\n  grid-column: span 2;\n  grid-row: span 2;\n  width: 100%;\n}\n\
 [data-blocks-product-overview-image-grid-tile=\"wide\"] {\n  grid-column: 1 / -1;\n  width: 100%;\n}\n\
 .blocks-product-overview-image-grid-panel {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  max-width: 40rem;\n}\n\
@@ -536,13 +712,15 @@ const LAYOUT_CSS: &str = "\
 .blocks-product-overview-image-grid-options [data-scope=\"radio-card\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 @container blocks-product-overview-image-grid (max-width: 40rem) {\n  \
 .blocks-product-overview-image-grid-gallery {\n    grid-template-columns: minmax(0, 1fr);\n  }\n  \
+.blocks-product-overview-image-grid-gallery-uniform {\n    grid-template-columns: minmax(0, 1fr);\n  }\n  \
 [data-blocks-product-overview-image-grid-tile=\"hero\"] {\n    grid-column: auto;\n    grid-row: auto;\n  }\n  \
-[data-blocks-product-overview-image-grid-tile=\"wide\"] {\n    grid-column: auto;\n  }\n\
+[data-blocks-product-overview-image-grid-tile=\"wide\"] {\n    grid-column: auto;\n  }\n  \
+.blocks-product-overview-image-grid-body-side {\n    display: flex;\n    flex-direction: column;\n  }\n\
 }\n";
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, COLOR_OPTIONS, LAYOUT_CSS, PRODUCT_NAME, SIZE_OPTIONS};
+    use super::{demo, COLOR_OPTIONS, LAYOUT_CSS, PRODUCT_NAME, SIZE_OPTIONS, VARIANTS};
     use fandhe_frontend_core::render;
 
     fn demo_html() -> String {
@@ -564,36 +742,37 @@ mod tests {
         ] {
             assert!(html.contains(scope), "demo should contain {scope}");
         }
-        assert_eq!(html.matches("<img").count(), 4);
-        // 段差配置: 1 枚目のみ hero、最後の 1 枚のみ wide（PR #3468
-        // レビュー P1 是正: 全画像の配置を明示し暗黙配置での取り残しを防ぐ）。
+        // 3 版 × 4 枚 = 12 枚。段差配置の版（stacked/side）は各 1 件ずつ
+        // hero/wide を持ち、2 列均等版（reverse）はどちらも持たない。
+        assert_eq!(html.matches("<img").count(), 12);
         assert_eq!(
             html.matches("data-blocks-product-overview-image-grid-tile=\"hero\"")
                 .count(),
-            1
+            2
         );
         assert_eq!(
             html.matches("data-blocks-product-overview-image-grid-tile=\"wide\"")
                 .count(),
-            1
+            2
         );
-        // 4 枚とも同一画像のため、内容と一致する alt を持てるのは代表
-        // 画像（1 枚目）のみ。異なる商品写真であるかのような alt
+        // 4 枚とも同一画像のため、内容と一致する alt を持てるのは各版の
+        // 代表画像（1 枚目）のみ。異なる商品写真であるかのような alt
         // （「画像 1」〜「画像 4」等）を付けない（PR #3468 レビュー P2 是正）。
-        assert_eq!(html.matches(&format!("alt=\"{PRODUCT_NAME}\"")).count(), 1);
-        assert_eq!(html.matches("alt=\"\"").count(), 3);
+        assert_eq!(html.matches(&format!("alt=\"{PRODUCT_NAME}\"")).count(), 3);
+        assert_eq!(html.matches("alt=\"\"").count(), 9);
         assert!(html.contains("レビュー 128 件"));
         assert!(
             !html.contains("data-scope=\"link\""),
             "review count should be plain text, not a link (PR #3468 review P2)"
         );
-        let expected_radios = COLOR_OPTIONS.len() + SIZE_OPTIONS.len();
+        let expected_radios = 3 * (COLOR_OPTIONS.len() + SIZE_OPTIONS.len());
         assert_eq!(html.matches("type=\"radio\"").count(), expected_radios);
         // `data-checked=""`（rating item 等）は部分文字列として
         // `checked=""` を含むため、先頭スペース付きで hidden input の
-        // `checked=""` 属性のみを数える。
-        assert_eq!(html.matches(" checked=\"\"").count(), 2);
-        assert_eq!(html.matches("<button").count(), 1);
+        // `checked=""` 属性のみを数える（版ごとに色・サイズ各 1 件 = 2、
+        // 3 版で合計 6 件）。
+        assert_eq!(html.matches(" checked=\"\"").count(), 6);
+        assert_eq!(html.matches("<button").count(), 3);
     }
 
     #[test]
@@ -613,6 +792,63 @@ mod tests {
         let html = demo_html();
         assert!(html.contains("disabled"));
         assert!(html.contains("カートに追加"));
+    }
+
+    /// 無 JS の文書で同名 radio グループが版をまたいで衝突しないこと
+    /// （モジュール doc「radio グループ名の版ごとの一意化」節の回帰防止）。
+    /// 旧 `name="color"`/`name="size"` が出力されず、版ごとの `name` で
+    /// ちょうど 1 件の初期選択（` checked=""`）が残ることを固定する。
+    #[test]
+    fn radio_names_are_unique_per_variant() {
+        let html = demo_html();
+        assert!(!html.contains("name=\"color\""));
+        assert!(!html.contains("name=\"size\""));
+        for variant in &VARIANTS {
+            let color_name = format!(
+                "name=\"blocks-product-overview-image-grid-color-{}\"",
+                variant.suffix
+            );
+            let size_name = format!(
+                "name=\"blocks-product-overview-image-grid-size-{}\"",
+                variant.suffix
+            );
+            assert_eq!(html.matches(&color_name).count(), 3);
+            assert_eq!(html.matches(&size_name).count(), 4);
+        }
+    }
+
+    /// 3 版のキャプション・在庫状態違い・レイアウト修飾クラスがすべて
+    /// 出力に現れること（モジュール doc「3 版の並記」節の表の固定）。
+    #[test]
+    fn variants_render_captions_and_states() {
+        let html = demo_html();
+        for variant in &VARIANTS {
+            assert!(
+                html.contains(variant.caption),
+                "missing caption: {}",
+                variant.caption
+            );
+        }
+        assert_eq!(html.matches("カートに追加").count(), 2);
+        // キャプション文言（「...在庫切れ（集約元 R0612）」）とボタン文言
+        // （「在庫切れ」）の 2 件。
+        assert_eq!(html.matches("在庫切れ").count(), 2);
+        assert!(html.contains(super::OUT_OF_STOCK_NOTE));
+        assert_eq!(
+            html.matches("blocks-product-overview-image-grid-body-side")
+                .count(),
+            2
+        );
+        assert_eq!(
+            html.matches("blocks-product-overview-image-grid-body-reverse")
+                .count(),
+            1
+        );
+        assert_eq!(
+            html.matches("blocks-product-overview-image-grid-gallery-uniform")
+                .count(),
+            1
+        );
     }
 
     #[test]
@@ -635,6 +871,27 @@ mod tests {
             LAYOUT_CSS.contains("@container blocks-product-overview-image-grid (max-width: 40rem)")
         );
         assert!(LAYOUT_CSS.contains("[data-blocks-product-overview-image-grid-tile=\"wide\"]"));
+    }
+
+    /// side/reverse の 2 カラム配置・uniform の 2 列グリッド・狭幅での
+    /// 縦積み復帰ルールが揃っていること（モジュール doc「3 版の並記」節）。
+    #[test]
+    fn layout_css_side_and_uniform_rules() {
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-product-overview-image-grid-body-side {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  grid-template-areas: \"gallery panel\";\n  align-items: start;\n}"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-product-overview-image-grid-body-reverse {\n  grid-template-areas: \"panel gallery\";\n}"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-product-overview-image-grid-gallery-uniform {\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  grid-auto-rows: auto;\n}"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "@container blocks-product-overview-image-grid (max-width: 40rem) {\n  .blocks-product-overview-image-grid-gallery {\n    grid-template-columns: minmax(0, 1fr);\n  }\n  .blocks-product-overview-image-grid-gallery-uniform {\n    grid-template-columns: minmax(0, 1fr);\n  }"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-product-overview-image-grid-body-side {\n    display: flex;\n    flex-direction: column;\n  }"
+        ));
     }
 
     #[test]
