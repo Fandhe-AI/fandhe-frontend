@@ -489,6 +489,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-team-invite/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-webhook-detail/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-webhook-stats/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-webhook-tester/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-webhook-form/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-webhook-wizard/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/settings-webhooks-list/index.html"
