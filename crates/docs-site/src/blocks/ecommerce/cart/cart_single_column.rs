@@ -174,6 +174,7 @@ fn item_row(
     price: &str,
     qty: u8,
 ) -> Node {
+    let remove_aria_label = format!("{name} を削除");
     div(
         vec![("class", "blocks-cart-single-column-item")],
         vec![
@@ -224,7 +225,7 @@ fn item_row(
                             size: Size::Sm,
                             ..ButtonProps::default()
                         },
-                        vec![],
+                        vec![("aria-label", remove_aria_label.as_str())],
                         vec![text("削除")],
                     ),
                 ],
@@ -304,8 +305,11 @@ fn checkout_actions() -> Node {
     )
 }
 
-/// 注記（送料・税の扱い、両形で共通利用）。
-fn shipping_note() -> Node {
+/// 注記（送料・税の扱い）。形 A は小計のみの表示のため未確定である旨、
+/// 形 B は送料・税を計上済みの確定合計を表示しているため、表示額が
+/// 確定額であることを示す文言にする（形ごとに文言を分ける理由は P2
+/// 指摘: 形 B の注記が計上済み金額と矛盾しないようにするため）。
+fn shipping_note(text_content: &'static str) -> Node {
     styled_text::text(
         &TextProps {
             size: TextSize::Sm,
@@ -313,7 +317,7 @@ fn shipping_note() -> Node {
             ..TextProps::default()
         },
         vec![],
-        vec![text("送料と税は購入手続き時に計算されます。")],
+        vec![text(text_content)],
     )
 }
 
@@ -337,7 +341,7 @@ fn cart_with_summary_a() -> Vec<Node> {
                 ),
                 item_list("a"),
                 summary_list(SUMMARY_ROWS_A),
-                shipping_note(),
+                shipping_note("送料と税は購入手続き時に計算されます。"),
                 checkout_actions(),
             ],
         ),
@@ -369,7 +373,7 @@ fn cart_with_summary_b() -> Vec<Node> {
                     vec![("class", "blocks-cart-single-column-summary-panel")],
                     vec![summary_list(SUMMARY_ROWS_B)],
                 ),
-                shipping_note(),
+                shipping_note("送料と税を含む確定金額です。"),
                 checkout_actions(),
             ],
         ),
@@ -514,16 +518,36 @@ mod tests {
         }
     }
 
+    /// P1 指摘回帰: 削除ボタンのアクセシブルネームが商品名ごとに区別される
+    /// ことを固定する（修正前はどの商品行も `aria-label="削除"` で同一だった）。
+    #[test]
+    fn remove_buttons_have_per_item_aria_label() {
+        let html = demo_html();
+        for (name, ..) in CART_ITEMS {
+            let needle = format!("aria-label=\"{name} を削除\"");
+            assert_eq!(
+                html.matches(needle.as_str()).count(),
+                2,
+                "expected exactly two {needle} (形 A + 形 B)"
+            );
+        }
+    }
+
     #[test]
     fn summary_variants_differ() {
         let html = demo_html();
         assert!(html.contains("小計のみの集計（R1248）"));
         assert!(html.contains("淡色面に 4 行の集計（R1249）"));
         assert!(html.contains("blocks-cart-single-column-summary-panel"));
+        // P2 指摘回帰: 形 B は送料・税を計上済みの確定合計を表示するため、
+        // 「購入手続き時に計算されます」という未確定を示す注記文言を持たない。
+        assert!(html.contains("送料と税は購入手続き時に計算されます。"));
+        assert!(html.contains("送料と税を含む確定金額です。"));
         // 「小計」は集計ラベル × 2（形 A + 形 B）に加え、形 A の variant
         // label 文言「小計のみの集計（R1248）」内の部分一致が 1 件乗るため
-        // 計 3。「送料」は集計ラベル × 1（形 B のみ）に加え、両形の注記
-        // 「送料と税は…」内の部分一致が 2 件乗るため計 3。
+        // 計 3。「送料」は集計ラベル × 1（形 B のみ）に加え、形 A の注記
+        // 「送料と税は購入手続き時に計算されます。」・形 B の注記「送料と税
+        // を含む確定金額です。」内の部分一致が 1 件ずつ乗るため計 3。
         assert_eq!(html.matches("小計").count(), 3);
         assert_eq!(html.matches("送料").count(), 3);
         assert_eq!(html.matches("税（10%）").count(), 1);

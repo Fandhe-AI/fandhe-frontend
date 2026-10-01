@@ -118,6 +118,7 @@ fn item_row(
     price: &str,
     qty: u8,
 ) -> Node {
+    let remove_aria_label = format!("{name} を削除");
     div(
         vec![("class", "blocks-cart-single-column-item")],
         vec![
@@ -168,7 +169,7 @@ fn item_row(
                             size: Size::Sm,
                             ..ButtonProps::default()
                         },
-                        vec![],
+                        vec![("aria-label", remove_aria_label.as_str())],
                         vec![text("削除")],
                     ),
                 ],
@@ -248,8 +249,11 @@ fn checkout_actions() -> Node {
     )
 }
 
-/// 注記（送料・税の扱い、両形で共通利用）。
-fn shipping_note() -> Node {
+/// 注記（送料・税の扱い）。形 A は小計のみの表示のため未確定である旨、
+/// 形 B は送料・税を計上済みの確定合計を表示しているため、表示額が
+/// 確定額であることを示す文言にする（形ごとに文言を分ける理由は P2
+/// 指摘: 形 B の注記が計上済み金額と矛盾しないようにするため）。
+fn shipping_note(text_content: &'static str) -> Node {
     styled_text::text(
         &TextProps {
             size: TextSize::Sm,
@@ -257,7 +261,7 @@ fn shipping_note() -> Node {
             ..TextProps::default()
         },
         vec![],
-        vec![text("送料と税は購入手続き時に計算されます。")],
+        vec![text(text_content)],
     )
 }
 
@@ -281,7 +285,7 @@ fn cart_with_summary_a() -> Vec<Node> {
                 ),
                 item_list("a"),
                 summary_list(SUMMARY_ROWS_A),
-                shipping_note(),
+                shipping_note("送料と税は購入手続き時に計算されます。"),
                 checkout_actions(),
             ],
         ),
@@ -313,7 +317,7 @@ fn cart_with_summary_b() -> Vec<Node> {
                     vec![("class", "blocks-cart-single-column-summary-panel")],
                     vec![summary_list(SUMMARY_ROWS_B)],
                 ),
-                shipping_note(),
+                shipping_note("送料と税を含む確定金額です。"),
                 checkout_actions(),
             ],
         ),
