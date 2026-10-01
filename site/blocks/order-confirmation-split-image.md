@@ -28,7 +28,11 @@ use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 
 /// ラベル・値の 1 行（`data_list::item` + `item-label` + `item-value`）。
-fn row(label: &'static str, value: &'static str) -> Node {
+/// `value` は `impl Into<String>` で受け取り、`dummy_assets::PERSON_NAMES`
+/// 等と組み立てた動的な値（`format!` の結果）もそのまま渡せるようにする
+/// （レビュー指摘: 氏名を文字列直書きにすると共通ダミーデータ更新時に
+/// 表示とモジュール説明がずれるため）。
+fn row(label: &'static str, value: impl Into<String>) -> Node {
     row_with_attrs(label, value, vec![])
 }
 
@@ -39,7 +43,7 @@ fn row(label: &'static str, value: &'static str) -> Node {
 /// グループ直下にない無効な入れ子になる、というレビュー指摘の是正）。
 fn row_with_attrs(
     label: &'static str,
-    value: &'static str,
+    value: impl Into<String>,
     attrs: Vec<(&'static str, &'static str)>,
 ) -> Node {
     data_list::item(
@@ -171,7 +175,13 @@ pub fn demo() -> Node {
                 },
                 vec![("data-blocks-order-confirmation-split-image-info", "")],
                 vec![
-                    row("配送先", "Haruto Fujimaki / 東京都渋谷区桜丘町1-2-3"),
+                    row(
+                        "配送先",
+                        format!(
+                            "{} / 東京都渋谷区桜丘町1-2-3",
+                            dummy_assets::PERSON_NAMES[0]
+                        ),
+                    ),
                     row("支払い方法", "クレジットカード（末尾 0000）"),
                 ],
             ),
