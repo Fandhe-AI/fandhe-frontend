@@ -2792,6 +2792,11 @@ source = "site/blocks/cart-line-item-table.md"
 path = "/blocks/cart-line-item-table/"
 
 [[section.group.page]]
+title = "cart-mini-panel"
+source = "site/blocks/cart-mini-panel.md"
+path = "/blocks/cart-mini-panel/"
+
+[[section.group.page]]
 title = "cart-single-column"
 source = "site/blocks/cart-single-column.md"
 path = "/blocks/cart-single-column/"
@@ -2885,6 +2890,11 @@ title = "Promo"
 title = "promo-collection-cards"
 source = "site/blocks/promo-collection-cards.md"
 path = "/blocks/promo-collection-cards/"
+
+[[section.group.page]]
+title = "promo-countdown"
+source = "site/blocks/promo-countdown.md"
+path = "/blocks/promo-countdown/"
 
 # --- 以下は block 追加時の挿入先アンカー（イシュー #2734、#2735 でカテゴリ
 # 見出し導入に伴い運用を更新）。カテゴリ単位で行ブロックを分ける点は不変

@@ -1107,6 +1107,7 @@ pub enum LayoutCss {
 | checkout-wizard-steps | #3045 | `ecommerce/checkout/checkout_wizard_steps.rs` |
 | cart-drawer | #3026（親 #3024） | `ecommerce/cart/cart_drawer.rs` |
 | cart-line-item-table | #3028/#3029（親 #3027） | `ecommerce/cart/cart_line_item_table.rs` |
+| cart-mini-panel | #3030（親 #3024） | `ecommerce/cart/cart_mini_panel.rs` |
 | order-history-panels | #3056/#3057（親 #3055） | `ecommerce/order/order_history_panels.rs` |
 | order-history-table | #3058（親 #3024） | `ecommerce/order/order_history_table.rs` |
 | order-tracking-progress | #3060/#3061（親 #3059） | `ecommerce/order/order_tracking_progress.rs` |
@@ -1119,6 +1120,7 @@ pub enum LayoutCss {
 | product-list-bordered-grid | #3062（親 #3024） | `ecommerce/product_list/product_list_bordered_grid.rs` |
 | product-list-rich-cards | #3064（親 #3024） | `ecommerce/product_list/product_list_rich_cards.rs` |
 | promo-collection-cards | #3078/#3079（親 #3077） | `ecommerce/promo/promo_collection_cards.rs` |
+| promo-countdown | #3080（親 #3024） | `ecommerce/promo/promo_countdown.rs` |
 | store-nav-centered-logo | #3094（親 #3093） | `ecommerce/store_nav/store_nav_centered_logo.rs` |
 | store-nav-mega-menu | #3097/#3098（親 #3096） | `ecommerce/store_nav/store_nav_mega_menu.rs` |
 | cart-dialog | #3025 | `ecommerce/cart/cart_dialog.rs` |
