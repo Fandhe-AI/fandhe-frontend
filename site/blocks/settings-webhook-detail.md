@@ -36,9 +36,9 @@ use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 /// 宛先 URL（架空、実在サービスを模さない）。
 const ENDPOINT_URL: &str = "https://hooks.example.com/ingest/8f2c91ab";
 
-/// 署名シークレット（架空。`whsec_` 接頭辞の明白な架空パターンで実
-/// クレデンシャル形式と衝突しない）。
-const SECRET: &str = "whsec_7f2a9c1e4b6d8035a1c7e9f2b4d6803f";
+/// 署名シークレット（架空。`fd_demo_whsec_` 接頭辞の明白な架空パターンで
+/// Stripe/Svix 実運用プレフィックス `whsec_` 単独とは衝突しない）。
+const SECRET: &str = "fd_demo_whsec_7f2a9c1e4b6d8035a1c7e9f2b4d6803f";
 
 /// 直近の配信 1 行（イベント名・結果・応答時間・配信日時の表示文字列）。
 const DELIVERIES: &[(&str, &str, &str, &str)] = &[
@@ -240,7 +240,7 @@ fn secret_card(v: Variant) -> Node {
                     &CodeProps::default(),
                     vec![],
                     vec![text(
-                        "whsec_\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}",
+                        "fd_demo_whsec_\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}",
                     )],
                 ),
                 button::button(
