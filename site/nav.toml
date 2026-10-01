@@ -2872,6 +2872,11 @@ path = "/blocks/incentives-split-header/"
 title = "Promo"
 
 [[section.group.page]]
+title = "promo-background-image"
+source = "site/blocks/promo-background-image.md"
+path = "/blocks/promo-background-image/"
+
+[[section.group.page]]
 title = "promo-collection-cards"
 source = "site/blocks/promo-collection-cards.md"
 path = "/blocks/promo-collection-cards/"
