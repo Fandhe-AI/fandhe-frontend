@@ -76,7 +76,9 @@ use fandhe_frontend_core::{aside, div, li, nav, p, section, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::collapsible;
-use fandhe_frontend_pre_styled_ui::drawer::{self, ContentIds, DrawerPlacement, OpenState};
+use fandhe_frontend_pre_styled_ui::drawer::{
+    self, CloseTriggerVariant, ContentIds, DrawerPlacement, OpenState,
+};
 use fandhe_frontend_pre_styled_ui::fieldset::{self, FieldsetProps, FieldsetRootProps};
 use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
@@ -449,7 +451,11 @@ fn filter_drawer(
                     vec![
                         drawer::title(Some(title_id), vec![], vec![text("フィルタ")]),
                         filter_panel(&format!("{prefix}-drawer"), products_id, accordion),
-                        drawer::close_trigger(vec![], vec![text("閉じる")]),
+                        drawer::close_trigger_with_variant(
+                            CloseTriggerVariant::Text,
+                            vec![],
+                            vec![text("閉じる")],
+                        ),
                     ],
                 )],
             ),
@@ -589,10 +595,10 @@ const LAYOUT_CSS: &str = "\
 .blocks-filter-sidebar-card {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-filter-sidebar [data-scope=\"skeleton\"][data-blocks-filter-sidebar-card-image] {\n  width: 100%;\n  height: 6rem;\n}\n\
 .blocks-filter-sidebar-drawer-trigger {\n  display: none;\n}\n\
-.blocks-filter-sidebar [data-scope=\"drawer\"][data-part=\"backdrop\"] {\n  position: absolute;\n  inset: 0;\n  z-index: auto;\n}\n\
+.blocks-filter-sidebar [data-scope=\"drawer\"][data-part=\"backdrop\"] {\n  position: absolute;\n  inset: 0;\n  z-index: auto;\n  display: none;\n}\n\
 .blocks-filter-sidebar [data-scope=\"drawer\"][data-part=\"positioner\"] {\n  position: absolute;\n  inset: 0;\n  z-index: auto;\n  display: none;\n}\n\
 .blocks-filter-sidebar [data-scope=\"drawer\"][data-part=\"title\"] {\n  margin: 0;\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
-@container blocks-filter-sidebar (max-width: 40rem) {\n  .blocks-filter-sidebar-aside {\n    display: none;\n  }\n  .blocks-filter-sidebar-drawer-trigger {\n    display: inline-flex;\n  }\n  .blocks-filter-sidebar [data-scope=\"drawer\"][data-part=\"positioner\"] {\n    display: block;\n  }\n}\n";
+@container blocks-filter-sidebar (max-width: 40rem) {\n  .blocks-filter-sidebar-aside {\n    display: none;\n  }\n  .blocks-filter-sidebar-drawer-trigger {\n    display: inline-flex;\n  }\n  .blocks-filter-sidebar-body {\n    grid-template-columns: 1fr;\n  }\n  .blocks-filter-sidebar [data-scope=\"drawer\"][data-part=\"backdrop\"] {\n    display: block;\n  }\n  .blocks-filter-sidebar [data-scope=\"drawer\"][data-part=\"positioner\"] {\n    display: block;\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -726,6 +732,49 @@ mod tests {
     #[test]
     fn demo_is_deterministic() {
         assert_eq!(demo_html(), demo_html());
+    }
+
+    #[test]
+    fn drawer_backdrop_is_hidden_outside_narrow_container_query() {
+        // レビュー指摘（PR #3504）: backdrop は常に Open で描画されるため、
+        // positioner のみを非表示にすると広い幅で backdrop が
+        // インスタンス全体を覆いマウス操作を妨げる。既定で非表示にし、
+        // 狭い幅の @container 規則内でのみ表示へ戻す。
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"drawer\"][data-part=\"backdrop\"] {\n  position: absolute;\n  inset: 0;\n  z-index: auto;\n  display: none;\n}"
+        ));
+        let narrow_block = LAYOUT_CSS
+            .split("@container blocks-filter-sidebar (max-width: 40rem) {")
+            .nth(1)
+            .expect("narrow container query block");
+        assert!(narrow_block.contains(
+            "[data-scope=\"drawer\"][data-part=\"backdrop\"] {\n    display: block;\n  }"
+        ));
+    }
+
+    #[test]
+    fn narrow_container_query_collapses_body_grid_to_single_column() {
+        // レビュー指摘（PR #3504）: `.blocks-filter-sidebar-aside` を隠しても
+        // `.blocks-filter-sidebar-body` の grid-template-columns が
+        // `14rem 1fr` のままだと狭い幅で商品グリッドが全幅にならず隙間が
+        // 残る。
+        let narrow_block = LAYOUT_CSS
+            .split("@container blocks-filter-sidebar (max-width: 40rem) {")
+            .nth(1)
+            .expect("narrow container query block");
+        assert!(narrow_block
+            .contains(".blocks-filter-sidebar-body {\n    grid-template-columns: 1fr;\n  }"));
+    }
+
+    #[test]
+    fn drawer_close_trigger_uses_text_variant_with_visible_label() {
+        // レビュー指摘（PR #3504）: `close_trigger`（アイコン専用契約）に
+        // 複数文字の日本語テキストを渡すと、既定の 2rem 固定ボックス +
+        // overflow: hidden でラベルが切り詰められる。平文ボタンの
+        // `close_trigger_with_variant(CloseTriggerVariant::Text, ..)` を使う。
+        let html = demo_html();
+        assert!(html.contains("data-variant=\"text\""));
+        assert!(html.contains(">閉じる<"));
     }
 
     #[test]

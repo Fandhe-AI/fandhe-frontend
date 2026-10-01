@@ -31,7 +31,9 @@ use fandhe_frontend_core::{aside, div, li, nav, p, section, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::collapsible;
-use fandhe_frontend_pre_styled_ui::drawer::{self, ContentIds, DrawerPlacement, OpenState};
+use fandhe_frontend_pre_styled_ui::drawer::{
+    self, CloseTriggerVariant, ContentIds, DrawerPlacement, OpenState,
+};
 use fandhe_frontend_pre_styled_ui::fieldset::{self, FieldsetProps, FieldsetRootProps};
 use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
@@ -404,7 +406,11 @@ fn filter_drawer(
                     vec![
                         drawer::title(Some(title_id), vec![], vec![text("フィルタ")]),
                         filter_panel(&format!("{prefix}-drawer"), products_id, accordion),
-                        drawer::close_trigger(vec![], vec![text("閉じる")]),
+                        drawer::close_trigger_with_variant(
+                            CloseTriggerVariant::Text,
+                            vec![],
+                            vec![text("閉じる")],
+                        ),
                     ],
                 )],
             ),
