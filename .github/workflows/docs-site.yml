@@ -551,6 +551,7 @@ jobs:
           # Ecommerce / Product List
           # Ecommerce / Quickview
           # Ecommerce / Category
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-carousel/index.html"
           # Ecommerce / Filter
           # Ecommerce / Cart
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/cart-dialog/index.html"
