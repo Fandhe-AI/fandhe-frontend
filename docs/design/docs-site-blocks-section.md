@@ -1117,6 +1117,7 @@ pub enum LayoutCss {
 | product-overview-tabs-below | #3074（親 #3073） | `ecommerce/product_overview/product_overview_tabs_below.rs` |
 | product-list-simple-grid | #3065（親 #3024） | `ecommerce/product_list/product_list_simple_grid.rs` |
 | product-list-bordered-grid | #3062（親 #3024） | `ecommerce/product_list/product_list_bordered_grid.rs` |
+| product-list-rich-cards | #3064（親 #3024） | `ecommerce/product_list/product_list_rich_cards.rs` |
 | promo-collection-cards | #3078/#3079（親 #3077） | `ecommerce/promo/promo_collection_cards.rs` |
 | store-nav-centered-logo | #3094（親 #3093） | `ecommerce/store_nav/store_nav_centered_logo.rs` |
 | store-nav-mega-menu | #3097/#3098（親 #3096） | `ecommerce/store_nav/store_nav_mega_menu.rs` |

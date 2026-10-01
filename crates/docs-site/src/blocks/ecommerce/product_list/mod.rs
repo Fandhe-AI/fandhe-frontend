@@ -11,6 +11,7 @@
 
 mod product_list_bordered_grid;
 mod product_list_carousel;
+mod product_list_rich_cards;
 mod product_list_simple_grid;
 
 use crate::blocks::Block;
@@ -19,6 +20,7 @@ pub(super) fn blocks() -> Vec<Block> {
     vec![
         product_list_simple_grid::BLOCK,
         product_list_bordered_grid::BLOCK,
+        product_list_rich_cards::BLOCK,
         product_list_carousel::BLOCK,
     ]
 }
