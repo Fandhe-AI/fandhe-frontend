@@ -2703,6 +2703,11 @@ path = "/blocks/product-overview-tabs-below/"
 title = "Product List"
 
 [[section.group.page]]
+title = "product-list-bordered-grid"
+source = "site/blocks/product-list-bordered-grid.md"
+path = "/blocks/product-list-bordered-grid/"
+
+[[section.group.page]]
 title = "product-list-rich-cards"
 source = "site/blocks/product-list-rich-cards.md"
 path = "/blocks/product-list-rich-cards/"
