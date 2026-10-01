@@ -2703,6 +2703,11 @@ path = "/blocks/product-overview-tabs-below/"
 title = "Category"
 
 [[section.group.page]]
+title = "category-carousel"
+source = "site/blocks/category-carousel.md"
+path = "/blocks/category-carousel/"
+
+[[section.group.page]]
 title = "category-grid-overlay"
 source = "site/blocks/category-grid-overlay.md"
 path = "/blocks/category-grid-overlay/"
@@ -2714,6 +2719,11 @@ title = "Cart"
 title = "cart-dialog"
 source = "site/blocks/cart-dialog.md"
 path = "/blocks/cart-dialog/"
+
+[[section.group.page]]
+title = "cart-drawer"
+source = "site/blocks/cart-drawer.md"
+path = "/blocks/cart-drawer/"
 
 [[section.group.page]]
 title = "cart-line-item-table"
