@@ -1091,6 +1091,7 @@ pub enum LayoutCss {
 | settings-webhook-stats | #3020（親 #2951） | `application/settings/settings_webhook_stats.rs` |
 | settings-webhook-wizard | #3022（親 #2951） | `application/settings/settings_webhook_wizard.rs` |
 | checkout-form-summary-split | #3042（親 #3041） | `ecommerce/checkout/checkout_form_summary_split.rs` |
+| cart-drawer | #3026（親 #3024） | `ecommerce/cart/cart_drawer.rs` |
 | cart-line-item-table | #3028（親 #3027） | `ecommerce/cart/cart_line_item_table.rs` |
 | order-tracking-progress | #3060/#3061（親 #3059） | `ecommerce/order/order_tracking_progress.rs` |
 | product-overview-gallery-split | #3068（親 #3067） | `ecommerce/product_overview/product_overview_gallery_split.rs` |
