@@ -53,6 +53,16 @@
 //! `position: relative; overflow: hidden` にして受け皿にする
 //! （`contact_dialog_form` と同型の手法）。
 //!
+//! # サイト共通の `h2` 見出しスタイルをドロワー見出しでリセットする
+//!
+//! [`drawer::title`] は `h2` を描画するため、`.docs-content h2`
+//! （`site_theme.rs`）の `border-top`/`padding-top`/`letter-spacing` を
+//! 素のまま継承するとカートヘッダーに本文見出しの装飾が漏れ出る
+//! （`settings_item_cards`・`store_nav_centered_logo` 等と同型の Bugbot
+//! 指摘）。[`LAYOUT_CSS`] は `.blocks-cart-drawer
+//! [data-scope="drawer"][data-part="title"]` へ既存パターンと同じ
+//! `border-top: none; padding-top: 0; letter-spacing: normal;` を当てる。
+//!
 //! # 3 段固定レイアウトを block 側 div で組む理由
 //!
 //! `drawer` の anatomy には header/body/footer パートが存在しない
@@ -400,7 +410,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-cart-drawer [data-scope=\"drawer\"][data-part=\"positioner\"] {\n  position: absolute;\n  inset: 0;\n  z-index: auto;\n}\n\
 .blocks-cart-drawer [data-scope=\"drawer\"][data-part=\"content\"][data-placement] {\n  display: flex;\n  flex-direction: column;\n  height: 100%;\n  padding: 0;\n  overflow: hidden;\n}\n\
 .blocks-cart-drawer-header {\n  flex: none;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-4) var(--fandhe-space-6);\n}\n\
-.blocks-cart-drawer [data-scope=\"drawer\"][data-part=\"title\"] {\n  margin: 0;\n  padding-inline-end: 0;\n}\n\
+.blocks-cart-drawer [data-scope=\"drawer\"][data-part=\"title\"] {\n  margin: 0;\n  padding-inline-end: 0;\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .blocks-cart-drawer-body {\n  flex: 1 1 auto;\n  min-height: 0;\n  overflow-y: auto;\n  padding: var(--fandhe-space-4) var(--fandhe-space-6);\n}\n\
 .blocks-cart-drawer-items {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-cart-drawer-item {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  padding-block-end: var(--fandhe-space-4);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
@@ -489,6 +499,9 @@ mod tests {
         assert!(LAYOUT_CSS.contains("position: absolute;\n  inset: 0;\n  z-index: auto;"));
         assert!(LAYOUT_CSS.contains("@container blocks-cart-drawer (max-width: 40rem)"));
         assert!(LAYOUT_CSS.contains("width: 100%;"));
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"drawer\"][data-part=\"title\"] {\n  margin: 0;\n  padding-inline-end: 0;\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}"
+        ));
     }
 
     #[test]
