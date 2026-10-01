@@ -39,10 +39,15 @@
 //!
 //! `switch::root` は `SwitchProps { readonly: true, disabled: true, .. }`
 //! で固定し、ネイティブトグル操作自体を止める（`settings_webhook_detail`
-//! と同じ判断）。アクセシブルネームは [`enabled_switch`] が
-//! `switch::label` へ見える文言「有効」を置くことで付ける（行名との
-//! 関連付けは `<label>` 要素〔`switch::root`〕のネスト構造が担うため、
-//! `aria-label` 方式は採らない）。三点メニューは
+//! と同じ判断）。`switch::label` は短い固定文言「有効」の可視テキストに
+//! 留め（長い endpoint 名を label 文言へ連結すると、テーブルの「有効」
+//! 列やカード/区切り線版の各行で並びレイアウトを圧迫するため、PR #3489
+//! Cursor Bugbot 指摘）、アクセシブルネームの一意化は
+//! `switch::hidden_input`（`role="switch"` の実体）へ `aria-labelledby`
+//! で行名要素（`table::row_header`/`card-name` の `id`、[`enabled_switch`]
+//! 引数 `name_id`）と `switch::label` 自身の `id` を連結参照させることで
+//! 得る（PR #3489 Codex 指摘の是正は可視文言を増やさずに維持）。三点
+//! メニューは
 //! `menu::trigger`/`content`/`positioner`/`root` を `OpenState::Closed`
 //! 固定で組み、無 JS のため常に閉状態のみを描く（`settings_webhook_detail`
 //! の `overflow_menu` と同型）。
@@ -165,16 +170,29 @@ fn status_badge(status: &'static str) -> Node {
 /// 有効スイッチ 1 個（readonly + disabled で静的固定。モジュール doc
 /// 「スイッチ・メニューは静的固定のみ」節参照）。
 ///
-/// `endpoint_name` を label テキストに含める（`settings_integrations_list`
-/// と同じ判断）。label パーツは visually-hidden のため表示レイアウトへは
-/// 影響しないが、`<label>` が `hidden_input` と関連付くアクセシブルネームに
-/// なるため、全行が同一の「有効」になると支援技術でどの行のスイッチか
-/// 判別できない（PR #3489 Codex 指摘）。
-fn enabled_switch(v: Variant, index: usize, enabled: bool, endpoint_name: &str) -> Node {
+/// `switch::label` 自体は（`crates/pre-styled-ui/src/switch.rs` が
+/// `font-size`/`color` 等を宣言する）可視テキストであり
+/// visually-hidden ではない。各行で endpoint 名を `switch::label` の
+/// 文言へ直接含める実装（PR #3489 時点）は、アクセシブルネームこそ
+/// 一意になるものの、テーブルの「有効」列やカード/区切り線版の各行で
+/// 長い文言が並びレイアウトを圧迫していた（PR #3489 Cursor Bugbot
+/// 指摘）。本実装は `switch::label` を短い固定文言「有効」のまま可視
+/// 表示に残し、`switch::hidden_input`（`role="switch"` を持つ実体）へ
+/// `aria-labelledby` で `name_id`（呼び出し側の行名要素、`row_header`/
+/// `card-name` の `id`）と `switch::label` 自身の `id` を連結参照させる
+/// ことで、可視文言を増やさずに行名を含む一意なアクセシブルネーム
+/// （例:「注文連携 Webhook 有効」）を得る（PR #3489 Codex 指摘の是正は
+/// 維持）。
+fn enabled_switch(v: Variant, index: usize, enabled: bool, name_id: &str) -> Node {
     let name = format!(
         "blocks-settings-webhooks-list-enabled-{}-{index}",
         v.suffix()
     );
+    let label_id = format!(
+        "blocks-settings-webhooks-list-enabled-label-{}-{index}",
+        v.suffix()
+    );
+    let aria_labelledby = format!("{name_id} {label_id}");
     let props = SwitchProps {
         readonly: true,
         disabled: true,
@@ -187,13 +205,14 @@ fn enabled_switch(v: Variant, index: usize, enabled: bool, endpoint_name: &str) 
         &props,
         vec![("data-blocks-settings-webhooks-list-switch", "")],
         vec![
-            switch::label(
+            switch::label(enabled, &props, vec![("id", &label_id)], vec![text("有効")]),
+            switch::hidden_input(
+                &name,
+                "on",
                 enabled,
                 &props,
-                vec![],
-                vec![text(format!("{endpoint_name} を有効化"))],
+                vec![("aria-labelledby", &aria_labelledby)],
             ),
-            switch::hidden_input(&name, "on", enabled, &props, vec![]),
             switch::control(
                 enabled,
                 &props,
@@ -308,10 +327,14 @@ fn table_variant() -> Node {
         .iter()
         .enumerate()
         .map(|(i, (name, url, status, enabled))| {
+            let name_id = format!(
+                "blocks-settings-webhooks-list-name-{}-{i}",
+                Variant::Table.suffix()
+            );
             table::row(
                 vec![],
                 vec![
-                    table::row_header(vec![], vec![text(*name)]),
+                    table::row_header(vec![("id", &name_id)], vec![text(*name)]),
                     table::cell(
                         vec![("class", "blocks-settings-webhooks-list-url-cell")],
                         vec![text(*url)],
@@ -319,7 +342,7 @@ fn table_variant() -> Node {
                     table::cell(vec![], vec![status_badge(status)]),
                     table::cell(
                         vec![],
-                        vec![enabled_switch(Variant::Table, i, *enabled, name)],
+                        vec![enabled_switch(Variant::Table, i, *enabled, &name_id)],
                     ),
                     table::cell(vec![], vec![overflow_menu(Variant::Table, i, name)]),
                 ],
@@ -358,6 +381,10 @@ fn cards_variant() -> Node {
         .iter()
         .enumerate()
         .map(|(i, (name, url, status, enabled))| {
+            let name_id = format!(
+                "blocks-settings-webhooks-list-name-{}-{i}",
+                Variant::Cards.suffix()
+            );
             card::root(
                 CardProps::default(),
                 vec![("data-blocks-settings-webhooks-list-card", "")],
@@ -369,7 +396,10 @@ fn cards_variant() -> Node {
                             vec![
                                 el(
                                     "p",
-                                    vec![("class", "blocks-settings-webhooks-list-card-name")],
+                                    vec![
+                                        ("class", "blocks-settings-webhooks-list-card-name"),
+                                        ("id", &name_id),
+                                    ],
                                     vec![text(*name)],
                                 ),
                                 overflow_menu(Variant::Cards, i, name),
@@ -384,7 +414,7 @@ fn cards_variant() -> Node {
                             vec![("class", "blocks-settings-webhooks-list-card-foot")],
                             vec![
                                 status_badge(status),
-                                enabled_switch(Variant::Cards, i, *enabled, name),
+                                enabled_switch(Variant::Cards, i, *enabled, &name_id),
                             ],
                         ),
                     ],
@@ -402,6 +432,10 @@ fn divided_variant() -> Node {
         .iter()
         .enumerate()
         .map(|(i, (name, url, status, enabled))| {
+            let name_id = format!(
+                "blocks-settings-webhooks-list-name-{}-{i}",
+                Variant::Divided.suffix()
+            );
             el(
                 "li",
                 vec![("class", "blocks-settings-webhooks-list-row")],
@@ -411,7 +445,10 @@ fn divided_variant() -> Node {
                         vec![
                             el(
                                 "p",
-                                vec![("class", "blocks-settings-webhooks-list-card-name")],
+                                vec![
+                                    ("class", "blocks-settings-webhooks-list-card-name"),
+                                    ("id", &name_id),
+                                ],
                                 vec![text(*name)],
                             ),
                             el(
@@ -425,7 +462,7 @@ fn divided_variant() -> Node {
                         vec![("class", "blocks-settings-webhooks-list-row-actions")],
                         vec![
                             status_badge(status),
-                            enabled_switch(Variant::Divided, i, *enabled, name),
+                            enabled_switch(Variant::Divided, i, *enabled, &name_id),
                             overflow_menu(Variant::Divided, i, name),
                         ],
                     ),
@@ -550,7 +587,7 @@ const LAYOUT_CSS: &str = "\
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, ENDPOINTS, LAYOUT_CSS};
+    use super::{demo, LAYOUT_CSS};
     use fandhe_frontend_core::render;
     use std::collections::HashSet;
 
@@ -637,22 +674,44 @@ mod tests {
     }
 
     /// PR #3489 Codex 指摘（各行スイッチが「有効」のみの同一アクセシブル
-    /// ネーム）の回帰テスト。`switch::label` の文言に endpoint 名が含まれ、
-    /// 3 版 x 4 行すべてで一意になることを固定する。
+    /// ネーム）の回帰テスト。PR #3489 Cursor Bugbot 指摘（`switch::label`
+    /// へ endpoint 名を可視テキストで連結するとテーブルの「有効」列や
+    /// カード/区切り線版の各行で並びレイアウトを圧迫する）を踏まえ、
+    /// 可視の `switch::label` 文言は短い固定文言「有効」のまま、
+    /// `switch::hidden_input` の `aria-labelledby` が行名要素（`id`）と
+    /// `switch::label` 自身（`id`）を連結参照することで、3 版 x 4 行
+    /// すべてで一意なアクセシブルネームを得ることを固定する。
     #[test]
-    fn switch_label_includes_endpoint_name() {
+    fn switch_accessible_name_includes_endpoint_name_without_visible_duplication() {
         let html = demo_html();
-        for (name, ..) in ENDPOINTS {
-            assert!(
-                html.contains(&format!(">{name} を有効化<")),
-                "switch label should include endpoint name: {name}"
-            );
+        let mut seen = HashSet::new();
+        for suffix in ["a", "b", "c"] {
+            for i in 0..4 {
+                let name_id = format!("blocks-settings-webhooks-list-name-{suffix}-{i}");
+                let label_id = format!("blocks-settings-webhooks-list-enabled-label-{suffix}-{i}");
+                let aria_labelledby = format!("{name_id} {label_id}");
+                // switch::label の可視テキストは常に短い「有効」のまま
+                // （endpoint 名を可視文言へ連結しない）。`id="<label_id>"`
+                // 直後の内容を見ることで、テーブル版の列見出し「有効」
+                // （`column_header`、別要素で `id` を持たない）と区別する。
+                assert!(
+                    html.contains(&format!("id=\"{label_id}\">有効<")),
+                    "switch label should stay the short literal \"有効\": {label_id}"
+                );
+                assert!(
+                    html.contains(&format!("aria-labelledby=\"{aria_labelledby}\"")),
+                    "switch hidden_input should reference the row name via aria-labelledby: {aria_labelledby}"
+                );
+                assert!(
+                    seen.insert(aria_labelledby),
+                    "aria-labelledby should be unique per row (suffix={suffix}, i={i})"
+                );
+                assert!(
+                    html.contains(&format!("id=\"{name_id}\"")),
+                    "aria-labelledby should reference an id that actually exists: {name_id}"
+                );
+            }
         }
-        // 「有効」のみの旧文言（endpoint 名なし）の switch label が復活して
-        // いないことを確認する（テーブル版の列見出し「有効」は
-        // `<th>有効</th>` 相当でこの `data-part="label"` span とは別要素
-        // のため対象外）。
-        assert!(!html.contains(r#"data-part="label">有効<"#));
     }
 
     /// PR #3489 Codex/Bugbot 指摘（コンテナクエリ内 `.blocks-settings-webhooks-list-row`

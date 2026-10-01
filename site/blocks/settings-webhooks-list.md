@@ -112,16 +112,29 @@ fn status_badge(status: &'static str) -> Node {
 /// 有効スイッチ 1 個（readonly + disabled で静的固定。モジュール doc
 /// 「スイッチ・メニューは静的固定のみ」節参照）。
 ///
-/// `endpoint_name` を label テキストに含める（`settings_integrations_list`
-/// と同じ判断）。label パーツは visually-hidden のため表示レイアウトへは
-/// 影響しないが、`<label>` が `hidden_input` と関連付くアクセシブルネームに
-/// なるため、全行が同一の「有効」になると支援技術でどの行のスイッチか
-/// 判別できない（PR #3489 Codex 指摘）。
-fn enabled_switch(v: Variant, index: usize, enabled: bool, endpoint_name: &str) -> Node {
+/// `switch::label` 自体は（`crates/pre-styled-ui/src/switch.rs` が
+/// `font-size`/`color` 等を宣言する）可視テキストであり
+/// visually-hidden ではない。各行で endpoint 名を `switch::label` の
+/// 文言へ直接含める実装（PR #3489 時点）は、アクセシブルネームこそ
+/// 一意になるものの、テーブルの「有効」列やカード/区切り線版の各行で
+/// 長い文言が並びレイアウトを圧迫していた（PR #3489 Cursor Bugbot
+/// 指摘）。本実装は `switch::label` を短い固定文言「有効」のまま可視
+/// 表示に残し、`switch::hidden_input`（`role="switch"` を持つ実体）へ
+/// `aria-labelledby` で `name_id`（呼び出し側の行名要素、`row_header`/
+/// `card-name` の `id`）と `switch::label` 自身の `id` を連結参照させる
+/// ことで、可視文言を増やさずに行名を含む一意なアクセシブルネーム
+/// （例:「注文連携 Webhook 有効」）を得る（PR #3489 Codex 指摘の是正は
+/// 維持）。
+fn enabled_switch(v: Variant, index: usize, enabled: bool, name_id: &str) -> Node {
     let name = format!(
         "blocks-settings-webhooks-list-enabled-{}-{index}",
         v.suffix()
     );
+    let label_id = format!(
+        "blocks-settings-webhooks-list-enabled-label-{}-{index}",
+        v.suffix()
+    );
+    let aria_labelledby = format!("{name_id} {label_id}");
     let props = SwitchProps {
         readonly: true,
         disabled: true,
@@ -134,13 +147,14 @@ fn enabled_switch(v: Variant, index: usize, enabled: bool, endpoint_name: &str) 
         &props,
         vec![("data-blocks-settings-webhooks-list-switch", "")],
         vec![
-            switch::label(
+            switch::label(enabled, &props, vec![("id", &label_id)], vec![text("有効")]),
+            switch::hidden_input(
+                &name,
+                "on",
                 enabled,
                 &props,
-                vec![],
-                vec![text(format!("{endpoint_name} を有効化"))],
+                vec![("aria-labelledby", &aria_labelledby)],
             ),
-            switch::hidden_input(&name, "on", enabled, &props, vec![]),
             switch::control(
                 enabled,
                 &props,
@@ -255,10 +269,14 @@ fn table_variant() -> Node {
         .iter()
         .enumerate()
         .map(|(i, (name, url, status, enabled))| {
+            let name_id = format!(
+                "blocks-settings-webhooks-list-name-{}-{i}",
+                Variant::Table.suffix()
+            );
             table::row(
                 vec![],
                 vec![
-                    table::row_header(vec![], vec![text(*name)]),
+                    table::row_header(vec![("id", &name_id)], vec![text(*name)]),
                     table::cell(
                         vec![("class", "blocks-settings-webhooks-list-url-cell")],
                         vec![text(*url)],
@@ -266,7 +284,7 @@ fn table_variant() -> Node {
                     table::cell(vec![], vec![status_badge(status)]),
                     table::cell(
                         vec![],
-                        vec![enabled_switch(Variant::Table, i, *enabled, name)],
+                        vec![enabled_switch(Variant::Table, i, *enabled, &name_id)],
                     ),
                     table::cell(vec![], vec![overflow_menu(Variant::Table, i, name)]),
                 ],
@@ -305,6 +323,10 @@ fn cards_variant() -> Node {
         .iter()
         .enumerate()
         .map(|(i, (name, url, status, enabled))| {
+            let name_id = format!(
+                "blocks-settings-webhooks-list-name-{}-{i}",
+                Variant::Cards.suffix()
+            );
             card::root(
                 CardProps::default(),
                 vec![("data-blocks-settings-webhooks-list-card", "")],
@@ -316,7 +338,10 @@ fn cards_variant() -> Node {
                             vec![
                                 el(
                                     "p",
-                                    vec![("class", "blocks-settings-webhooks-list-card-name")],
+                                    vec![
+                                        ("class", "blocks-settings-webhooks-list-card-name"),
+                                        ("id", &name_id),
+                                    ],
                                     vec![text(*name)],
                                 ),
                                 overflow_menu(Variant::Cards, i, name),
@@ -331,7 +356,7 @@ fn cards_variant() -> Node {
                             vec![("class", "blocks-settings-webhooks-list-card-foot")],
                             vec![
                                 status_badge(status),
-                                enabled_switch(Variant::Cards, i, *enabled, name),
+                                enabled_switch(Variant::Cards, i, *enabled, &name_id),
                             ],
                         ),
                     ],
@@ -349,6 +374,10 @@ fn divided_variant() -> Node {
         .iter()
         .enumerate()
         .map(|(i, (name, url, status, enabled))| {
+            let name_id = format!(
+                "blocks-settings-webhooks-list-name-{}-{i}",
+                Variant::Divided.suffix()
+            );
             el(
                 "li",
                 vec![("class", "blocks-settings-webhooks-list-row")],
@@ -358,7 +387,10 @@ fn divided_variant() -> Node {
                         vec![
                             el(
                                 "p",
-                                vec![("class", "blocks-settings-webhooks-list-card-name")],
+                                vec![
+                                    ("class", "blocks-settings-webhooks-list-card-name"),
+                                    ("id", &name_id),
+                                ],
                                 vec![text(*name)],
                             ),
                             el(
@@ -372,7 +404,7 @@ fn divided_variant() -> Node {
                         vec![("class", "blocks-settings-webhooks-list-row-actions")],
                         vec![
                             status_badge(status),
-                            enabled_switch(Variant::Divided, i, *enabled, name),
+                            enabled_switch(Variant::Divided, i, *enabled, &name_id),
                             overflow_menu(Variant::Divided, i, name),
                         ],
                     ),
