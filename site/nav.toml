@@ -2708,6 +2708,11 @@ source = "site/blocks/cart-dialog.md"
 path = "/blocks/cart-dialog/"
 
 [[section.group.page]]
+title = "cart-drawer"
+source = "site/blocks/cart-drawer.md"
+path = "/blocks/cart-drawer/"
+
+[[section.group.page]]
 title = "cart-line-item-table"
 source = "site/blocks/cart-line-item-table.md"
 path = "/blocks/cart-line-item-table/"
