@@ -20,6 +20,9 @@
 //!   コンテナ幅 `>= 40rem` で 4 列。
 //!
 //! `display: none` は使わない（狭幅でも全操作要素へ到達可能なまま積む）。
+//! 色見本行・価格行は `flex-wrap: wrap` で折り返し、バリアント B の 2 列
+//! 時のような狭いカードでもカード外へはみ出さない。`card::body` の行間は
+//! block 固有セレクタ配下で `gap` を与える（`LAYOUT_CSS` 参照）。
 //!
 //! # 列数は `@container` で切り替える
 //!
@@ -558,8 +561,9 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-product-list-rich-cards-cover] {\n  position: relative;\n}\n\
 [data-blocks-product-list-rich-cards-badge] {\n  position: absolute;\n  inset-block-start: var(--fandhe-space-2);\n  inset-inline-start: var(--fandhe-space-2);\n}\n\
 [data-blocks-product-list-rich-cards-favorite] {\n  position: absolute;\n  inset-block-start: var(--fandhe-space-2);\n  inset-inline-end: var(--fandhe-space-2);\n}\n\
-.blocks-product-list-rich-cards-swatches {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
-.blocks-product-list-rich-cards-price {\n  margin: 0;\n  font-weight: var(--fandhe-font-font-weight-bold);\n  display: flex;\n  align-items: baseline;\n  gap: var(--fandhe-space-2);\n}\n\
+[data-blocks-product-list-rich-cards-card] > [data-scope=\"card\"][data-part=\"body\"] {\n  gap: var(--fandhe-space-2);\n}\n\
+.blocks-product-list-rich-cards-swatches {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  min-width: 0;\n}\n\
+.blocks-product-list-rich-cards-price {\n  margin: 0;\n  font-weight: var(--fandhe-font-font-weight-bold);\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-product-list-rich-cards-price del {\n  font-weight: var(--fandhe-font-font-weight-normal);\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-sm);\n}\n\
 [data-blocks-product-list-rich-cards-add] {\n  width: 100%;\n}\n\
 ";
@@ -651,6 +655,19 @@ mod tests {
         assert!(LAYOUT_CSS.contains("@container blocks-product-list-rich-cards (min-width: 24rem)"));
         assert!(LAYOUT_CSS.contains("@container blocks-product-list-rich-cards (min-width: 40rem)"));
         assert!(!LAYOUT_CSS.contains("display: none"));
+    }
+
+    #[test]
+    fn card_body_has_gap_and_rows_wrap() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-product-list-rich-cards-card] > [data-scope=\"card\"][data-part=\"body\"] {\n  gap: var(--fandhe-space-2);"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-product-list-rich-cards-swatches {\n  display: flex;\n  flex-wrap: wrap;"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-product-list-rich-cards-price {\n  margin: 0;\n  font-weight: var(--fandhe-font-font-weight-bold);\n  display: flex;\n  flex-wrap: wrap;"
+        ));
     }
 
     #[test]
