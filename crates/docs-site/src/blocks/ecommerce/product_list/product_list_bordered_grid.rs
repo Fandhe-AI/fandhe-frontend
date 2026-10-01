@@ -1,5 +1,4 @@
-//! `product-list-bordered-grid` block（親 #3024「Phase 5: Blocks EC」配下、
-//! `docs/design/docs-site-blocks-section.md` §18 参照）。
+//! `product-list-bordered-grid` block。
 //!
 //! 罫線で仕切ったセル状の商品一覧グリッドを、既存の Themes 部品だけで
 //! 合成した実例。取得元の文言・配色・装飾は持ち込まず、文言・データは

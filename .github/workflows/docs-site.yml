@@ -552,6 +552,7 @@ jobs:
           # Ecommerce / Product List
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/product-list-simple-grid/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/product-list-bordered-grid/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/product-list-carousel/index.html"
           # Ecommerce / Quickview
           # Ecommerce / Category
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-featured-banner/index.html"
