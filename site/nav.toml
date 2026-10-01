@@ -2408,6 +2408,11 @@ source = "site/blocks/settings-profile-form.md"
 path = "/blocks/settings-profile-form/"
 
 [[section.group.page]]
+title = "settings-share-link"
+source = "site/blocks/settings-share-link.md"
+path = "/blocks/settings-share-link/"
+
+[[section.group.page]]
 title = "settings-share-members"
 source = "site/blocks/settings-share-members.md"
 path = "/blocks/settings-share-members/"
