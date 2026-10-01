@@ -54,7 +54,7 @@
 //!
 //! 宛名・住所・メール・追跡番号・カード番号はすべて架空
 //! （`crate::blocks::dummy_assets` の人名を流用しつつ、住所・追跡番号・
-//! カード末尾 4 桁・商品価格は本 block 独自の架空値）。メールアドレスは
+//! カード末尾 4 桁・商品名・商品価格は本 block 独自の架空値）。メールアドレスは
 //! `example.com` ドメイン。カード番号は末尾 4 桁の伏字表現のみとし、実在
 //! パターンは使わない。商品画像はビルド時生成の同梱 SVG
 //! （[`dummy_assets::PRODUCT_SRC`]）を使う（外部 URL・`data:` URI は使わない）。
@@ -270,13 +270,13 @@ pub fn demo() -> Node {
                 vec![("class", "blocks-order-confirmation-summary-items")],
                 vec![
                     item_row(
-                        dummy_assets::COMPANY_NAMES[0],
+                        "リネントートバッグ",
                         "リネン素材のトートバッグ。マチ広で普段使いしやすいサイズ感。",
                         "1",
                         "¥12,800",
                     ),
                     item_row(
-                        dummy_assets::COMPANY_NAMES[1],
+                        "陶器マグカップ",
                         "陶器のマグカップ。電子レンジ・食洗機対応。",
                         "2",
                         "¥2,400",
@@ -383,7 +383,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-order-confirmation-summary-intro {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-order-confirmation-summary-items {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-order-confirmation-summary-item {\n  display: grid;\n  grid-template-columns: 6rem 1fr;\n  gap: var(--fandhe-space-4);\n}\n\
-[data-blocks-order-confirmation-summary-image] {\n  width: 100%;\n  height: 6rem;\n}\n\
+[data-scope=\"image\"][data-part=\"root\"][data-blocks-order-confirmation-summary-image] {\n  width: 100%;\n  height: 6rem;\n}\n\
 .blocks-order-confirmation-summary-item-info {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-order-confirmation-summary-meta {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-order-confirmation-summary-info {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-6);\n}\n\

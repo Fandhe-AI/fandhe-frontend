@@ -215,13 +215,13 @@ pub fn demo() -> Node {
                 vec![("class", "blocks-order-confirmation-summary-items")],
                 vec![
                     item_row(
-                        dummy_assets::COMPANY_NAMES[0],
+                        "リネントートバッグ",
                         "リネン素材のトートバッグ。マチ広で普段使いしやすいサイズ感。",
                         "1",
                         "¥12,800",
                     ),
                     item_row(
-                        dummy_assets::COMPANY_NAMES[1],
+                        "陶器マグカップ",
                         "陶器のマグカップ。電子レンジ・食洗機対応。",
                         "2",
                         "¥2,400",
