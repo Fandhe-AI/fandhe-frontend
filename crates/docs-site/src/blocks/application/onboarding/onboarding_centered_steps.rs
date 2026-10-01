@@ -11,10 +11,6 @@
 //! （`page_heading_avatar.rs`〔イシュー #2931〕・`list_title_meta.rs`〔イシュー
 //! #2925〕と同じ扱い）。
 //!
-//! Application / Onboarding カテゴリ最初の block（`onboarding.rs` の空雛形を
-//! `onboarding/mod.rs` へディレクトリ化した「カテゴリの卒業」、
-//! `docs/design/docs-site-blocks-section.md` §18 参照）。
-//!
 //! # 使用部品
 //!
 //! `steps` / `field` / `input` / `native-select` / `checkbox-card` /

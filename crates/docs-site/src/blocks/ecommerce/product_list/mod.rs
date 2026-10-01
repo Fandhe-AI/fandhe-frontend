@@ -1,4 +1,4 @@
-//! Ecommerce / Order カテゴリの block 登録点。カテゴリ別のモジュール構成と
+//! Ecommerce / Product List カテゴリの block 登録点。カテゴリ別のモジュール構成と
 //! 「カテゴリの卒業」手順は `docs/design/docs-site-blocks-section.md` §18
 //! 参照（イシュー #2734）。
 //!
@@ -9,18 +9,10 @@
 //! block ごとの追加経緯は git 履歴と PR を正とし、本コメントには書かない
 //! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
-mod order_confirmation_summary;
-mod order_history_panels;
-mod order_history_table;
-mod order_tracking_progress;
+mod product_list_bordered_grid;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![
-        order_confirmation_summary::BLOCK,
-        order_history_panels::BLOCK,
-        order_history_table::BLOCK,
-        order_tracking_progress::BLOCK,
-    ]
+    vec![product_list_bordered_grid::BLOCK]
 }

@@ -2700,6 +2700,14 @@ source = "site/blocks/product-overview-tabs-below.md"
 path = "/blocks/product-overview-tabs-below/"
 
 [[section.group]]
+title = "Product List"
+
+[[section.group.page]]
+title = "product-list-bordered-grid"
+source = "site/blocks/product-list-bordered-grid.md"
+path = "/blocks/product-list-bordered-grid/"
+
+[[section.group]]
 title = "Category"
 
 [[section.group.page]]
@@ -2803,6 +2811,11 @@ path = "/blocks/order-confirmation-summary/"
 title = "order-history-panels"
 source = "site/blocks/order-history-panels.md"
 path = "/blocks/order-history-panels/"
+
+[[section.group.page]]
+title = "order-history-table"
+source = "site/blocks/order-history-table.md"
+path = "/blocks/order-history-table/"
 
 [[section.group.page]]
 title = "order-tracking-progress"

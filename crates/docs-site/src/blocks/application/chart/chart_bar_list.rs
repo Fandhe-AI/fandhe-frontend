@@ -1,5 +1,5 @@
-//! `chart-bar-list` block（イシュー #2903。Application/Chart カテゴリ、
-//! 最初の block）。主参照 R0052（項目名 + 値の横棒ランキング 2 枚並び、
+//! `chart-bar-list` block（イシュー #2903。Application/Chart カテゴリ）。
+//! 主参照 R0052（項目名 + 値の横棒ランキング 2 枚並び、
 //! 値は右端揃え）を集約する。参照元は R0052 の 1 件のみで、集約元との
 //! 差分を並べる対象はない（`card-form-footer` の「2 例を並べる理由」に
 //! 相当する記述は本 block には存在しない）。

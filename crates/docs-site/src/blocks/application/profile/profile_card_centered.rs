@@ -1,7 +1,6 @@
 //! `profile-card-centered` block（イシュー #2936。親トラッキング #2892
-//! 「Blocks 目的別パーツ拡充」配下。Application / Profile カテゴリ 4 件目の
-//! block、カテゴリ卒業の手順は `docs/design/docs-site-blocks-section.md`
-//! §18 参照）。中央寄せのプロフィールカードの合成例。対応表 ID R0217
+//! 「Blocks 目的別パーツ拡充」配下）。中央寄せのプロフィールカードの合成例。
+//! 対応表 ID R0217
 //! （主参照・代表構成）・R0224（集約元・全幅ボタン + リンク縦並びの最小
 //! 版）を構造の参照元とする。`_/blocks-intake/` の対応ファイルは本イシュー
 //! 着手時点で本 worktree に存在しないため、原稿・本コメントには対応表 ID

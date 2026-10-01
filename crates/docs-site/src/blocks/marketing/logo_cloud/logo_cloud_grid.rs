@@ -1,6 +1,5 @@
 //! `logo-cloud-grid` block（イシュー #2793。親トラッキング #2731「Blocks
-//! 目的別パーツ拡充ツリー」配下、Marketing/Logo Cloud カテゴリの最初の
-//! block）。
+//! 目的別パーツ拡充ツリー」配下、Marketing/Logo Cloud カテゴリ）。
 //!
 //! # 出典に関する注記
 //!

@@ -1,6 +1,6 @@
 //! `error-page-background-image` block（イシュー #2836。親トラッキング
 //! #2807「Blocks 目的別パーツ拡充ツリー Phase 2、マーケティング B」配下、
-//! `crate::blocks::marketing::error_page` カテゴリ最初の block）。
+//! `crate::blocks::marketing::error_page` カテゴリ）。
 //!
 //! # 出典に関する注記
 //!
