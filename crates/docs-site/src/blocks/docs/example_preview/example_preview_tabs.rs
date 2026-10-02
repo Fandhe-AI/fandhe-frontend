@@ -71,7 +71,15 @@
 //! - **コード**: 素の `pre` の中に [`code::code`] を置き、プレビューを
 //!   組み立てる短い Rust コード片（[`SNIPPET`]）を表示する。内容はプレビュー
 //!   関数と一致させ `disabled: true` も含める（コピーした片だけで成り立つ
-//!   自己完結の例、`code_block_header` のレビュー是正と同じ判断）。コード
+//!   自己完結の例、`code_block_header` のレビュー是正と同じ判断）。
+//!   [`code::code`] は本来インラインコード片用の recipe（既定 `Subtle`
+//!   variant で背景色・padding・角丸を持つ「pill」の見た目）のため、複数行
+//!   スニペットをそのまま包むとコードブロックではなく巨大なピルに見える。
+//!   `code_block_header` と同じ是正として、`[data-blocks-example-preview-
+//!   tabs-code]` フックへ `display: block`/`background: transparent`/
+//!   `border: 0`/`padding: 0`/`color: inherit` を [`LAYOUT_CSS`] 側から
+//!   直接宣言し、Subtle variant のインライン装飾を打ち消す（PR #3552
+//!   Bugbot Medium「Code panel keeps inline styles」対応）。コード
 //!   パネル自体（`[data-scope="tabs"][data-part="content"]`）に
 //!   `overflow-x: auto` を宣言して長い行を枠内で横スクロールする。
 //!   headless 層が既にパネルへ `tabindex="0"` を付与しているため、この
@@ -338,6 +346,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-example-preview-tabs-frame] [data-scope=\"tabs\"][data-part=\"content\"] {\n  grid-column: 1 / -1;\n  grid-row: 2;\n  padding: 1rem;\n  overflow-x: auto;\n}\n\
 .blocks-example-preview-tabs-preview {\n  display: flex;\n  gap: 0.75rem;\n}\n\
 [data-blocks-example-preview-tabs-code-panel] {\n  margin: 0;\n  font-family: var(--fandhe-font-font-mono);\n}\n\
+[data-scope=\"code\"][data-part=\"root\"][data-blocks-example-preview-tabs-code] {\n  display: block;\n  white-space: pre;\n  background: transparent;\n  border: 0;\n  padding: 0;\n  color: inherit;\n}\n\
 [data-blocks-example-preview-tabs-frame] [data-scope=\"tabs\"][data-part=\"content\"]:focus-visible {\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));\n}\n\
 [data-blocks-example-preview-tabs-frame] [data-scope=\"tabs\"][data-part=\"trigger\"]:focus-visible,\n[data-blocks-example-preview-tabs-actions] [data-scope=\"clipboard\"][data-part=\"trigger\"]:focus-visible,\n[data-blocks-example-preview-tabs-actions] button:focus-visible {\n  outline-offset: -2px;\n}\n";
 
@@ -475,6 +484,18 @@ mod tests {
     fn layout_css_styles_disabled_clipboard_trigger() {
         assert!(LAYOUT_CSS.contains(
             "[data-scope=\"clipboard\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 0.5;\n  cursor: not-allowed;\n}"
+        ));
+    }
+
+    /// コードタブの `[data-blocks-example-preview-tabs-code]` フックが
+    /// `code::code`（既定 Subtle variant）のインライン装飾（背景色・
+    /// padding・角丸）を打ち消し、複数行スニペットがピルではなくコード
+    /// ブロックとして表示されること（PR #3552 Bugbot Medium「Code panel
+    /// keeps inline styles」対応）。
+    #[test]
+    fn layout_css_resets_code_inline_chrome() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"code\"][data-part=\"root\"][data-blocks-example-preview-tabs-code] {\n  display: block;\n  white-space: pre;\n  background: transparent;\n  border: 0;\n  padding: 0;\n  color: inherit;\n}"
         ));
     }
 }
