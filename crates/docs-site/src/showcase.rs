@@ -6670,14 +6670,65 @@ fn input_group_section() -> Node {
         ],
     );
 
+    // select: `$` addon + input（金額）+ NativeSelect（通貨）を並べる
+    // インライン選択構成（イシュー #3123、Blocks 取り込み対応表 R1035/R1036
+    // 参照）。NativeSelect は `addon` ではなく `root` の直接の子として配置
+    // する（`stylesheet()` のリセットは `root > field::select` を対象に
+    // するため、`addon` 配下に入れるとリセットが効かない）。
+    let select_group_props = InputGroupProps {
+        disabled: false,
+        invalid: false,
+    };
+    let select_field = plain_field("showcase-input-group-select");
+    // NativeSelect（通貨）は input（金額）とは別の control id を持つ必要が
+    // ある（同一 FieldProps を共有すると両コントロールが同じ id を出力し、
+    // label の for 対応が崩れる）。見た目上のラベル「Price」は金額 input
+    // に対応させ、通貨 select は aria-label で支援技術向けに意味を補う。
+    let select_currency_field = plain_field("showcase-input-group-select-currency");
+    let select_instance = field::root(
+        &FieldRootProps::default(),
+        &select_field,
+        vec![],
+        vec![
+            field::label(&select_field, vec![], vec![text("Price")]),
+            input_group::root(
+                &select_group_props,
+                vec![],
+                vec![
+                    input_group::addon(
+                        InputGroupAlign::InlineStart,
+                        &select_group_props,
+                        vec![],
+                        vec![input_group::text(vec![], vec![text("$")])],
+                    ),
+                    input::input(
+                        &InputProps::default(),
+                        &select_field,
+                        vec![("placeholder", "0.00")],
+                    ),
+                    native_select::native_select(
+                        &NativeSelectProps::default(),
+                        &select_currency_field,
+                        vec![("aria-label", "Currency")],
+                        vec![
+                            el("option", vec![("value", "usd")], vec![text("USD")]),
+                            el("option", vec![("value", "eur")], vec![text("EUR")]),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+    );
+
     section(
         "Input Group",
-        "入力欄の前後にテキスト/アイコン/ボタンの addon を配置する複合部品。root がコンテナの枠線・フォーカスリングを所有し、内側の Input/Textarea は枠線なしへリセットされます。",
+        "入力欄の前後にテキスト/アイコン/ボタンの addon を配置する複合部品。root がコンテナの枠線・フォーカスリングを所有し、内側の Input/Textarea/NativeSelect/Select は枠線なしへリセットされます（NativeSelect/Select は内容幅のままインライン配置、イシュー #3123）。",
         vec![row(vec![
             default_instance,
             invalid_instance,
             disabled_instance,
             block_instance,
+            select_instance,
         ])],
     )
 }

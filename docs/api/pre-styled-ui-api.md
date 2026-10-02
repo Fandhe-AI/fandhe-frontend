@@ -826,8 +826,11 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
 anatomy（`root`/`addon`/`text`/`button` の 4 パーツ）へ、shadcn/ui の
 Input Group 相当の見た目（コンテナ側 1 本の枠線・角丸・`:focus-within`
 フォーカスリングと、内側 [Input](../../site/themes/input.md)/
-[Textarea](../../site/themes/textarea.md) の枠線なしリセット）を重ねる
-薄い委譲層である。
+[Textarea](../../site/themes/textarea.md)/
+[NativeSelect](../../site/themes/native-select.md)/
+[Select](../../site/themes/select.md) の枠線なしリセット）を重ねる
+薄い委譲層である（NativeSelect/Select は `root` の直接の子として配置
+した場合のみリセットが効く、イシュー #3123）。
 
 - **公開 API**: `root`/`addon`/`text`/`button` の 4 関数はいずれも見た目
   クラスを付与せず（下記「軸なし」参照）、呼び出し側 `class` を
@@ -843,7 +846,12 @@ Input Group 相当の見た目（コンテナ側 1 本の枠線・角丸・`:foc
   `stylesheet()` は `root > field::input`/`root > field::textarea` の
   枠線・角丸・背景リセットと `:focus-visible` の outline 無効化を
   `serialize_rule` で追記する（`crate::toggle_group`/`crate::number_input`
-  と同型のパターン）。
+  と同型のパターン）。イシュー #3123 で `root > field::select`
+  （native_select）・`root > select::root`（styled select、枠線リセット
+  自体は子孫の `trigger` パーツへ適用）の追加リセットを同型のパターンで
+  末尾へ純追加した。native_select/select は input/textarea と異なり
+  `flex: 1 1 0%` を与えず内容幅のまま（`flex: 0 1 auto`）インライン配置
+  する。
 - **意図的非採用**: shadcn の `:has(control:focus-visible)` によるリング
   限定（`SlotRecipe`/raw CSS のいずれも `:has()` の先例を持たないため
   `root` 単純な `:focus-within` で代替）、`InputGroupButton` の
