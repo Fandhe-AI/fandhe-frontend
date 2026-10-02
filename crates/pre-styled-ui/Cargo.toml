@@ -3642,6 +3642,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # 新規 custom property（`--fandhe-tab-nav-*`）のフォールバック値はいずれも
 # 既存の直書きリテラルと同一のため、既存 `root`/`link` の出力・golden CSS
 # の既存ブロックはバイト不変。非破壊的な追加として minor バンプする。
+# origin/main 側の到達値（0.220.0）より本ブランチの到達値（0.219.0）が
+# 下回っていたため、origin 側の統合結果（0.220.0）に本変更分を上乗せし
+# 0.221.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+# イシュー #3126: `tab_nav` へ `TabNavVariant::Bar`（カード状バー、区切り線 +
+# 下端インジケータ）を純追加した。新規 custom property
+# （`--fandhe-tab-nav-link-flex`/`-divider`/`-focus-ring-offset` 等）の
+# フォールバック値はいずれも既存の直書きリテラルと同一のため、既存
+# `root`/`link` の出力・golden CSS の既存ブロックはバイト不変。非破壊的な
+# 追加として minor バンプする。
 #
 # イシュー #3127: card（body/footer）・dialog（footer）へ淡色背景の
 # opt-in 状態（`data-subtle`）を純追加した。呼び出し側付与の値なし存在
@@ -3700,7 +3709,19 @@ name = "fandhe-frontend-pre-styled-ui"
 # したため、同一版数への偶発的衝突をそのまま採用せずマージ結果として
 # さらに +1 して 0.226.0 とする（`.claude/rules/coding-rust.md` #638 条項の
 # 同衝突運用）。
-version = "0.226.0"
+#
+# PR #3563 codex-review P2 指摘対応: `group_with` の `FirstOnTop` 一意な
+# 重なり順保証が実際には `MAX_STACK_ORDER - 1`（11）件までであることを
+# rustdoc・実装コメントへ正確化した（ロジック・golden 出力は不変のため
+# ドキュメントのみの訂正）。
+#
+# マージコミット注記（origin/main #3564 との再統合）: 本ブランチ（#3130）は
+# 上記の経緯で独立に 0.226.0 へ到達していたが、origin/main 側（tab_nav の
+# カード状バー variant、#3564）も独立に同一の 0.226.0 へ到達しており
+# 偶発的に衝突したため、同一版数への偶発的衝突をそのまま採用せずマージ
+# 結果としてさらに +1 して 0.227.0 とする（`.claude/rules/coding-rust.md`
+# #638 条項の同衝突運用）。
+version = "0.227.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
