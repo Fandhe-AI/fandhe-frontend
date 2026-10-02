@@ -632,6 +632,22 @@ pub fn stylesheet() -> String {
         ),
     );
 
+    // イシュー #3136 レビュー是正: 上記 `selected_item` 規則（`z-index: 1`）が
+    // 子ループで出力済みの `item:focus-visible`（`z-index: 2`、同一詳細度）を
+    // ソース順で上書きし、選択中ページのフォーカス時に前面表示が失われる
+    // 不具合があった。選択中 かつ フォーカス中の複合セレクタを
+    // `selected_item` より後段へ追記し、`z-index: 2` で確実に勝たせる。
+    let selected_item_focus_visible = format!(
+        r#"{attached_root} > [data-scope="pagination"][data-part="item"][data-selected]:focus-visible"#
+    );
+    append_rule(
+        &mut out,
+        serialize_rule(
+            &selected_item_focus_visible,
+            &[decl("position", "relative"), decl("z-index", "2")],
+        ),
+    );
+
     let ellipsis_cell =
         format!(r#"{attached_root} > [data-scope="pagination"][data-part="ellipsis"]"#);
     append_rule(
@@ -641,6 +657,12 @@ pub fn stylesheet() -> String {
             &[
                 decl("box-sizing", "border-box"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
+                // イシュー #3136 レビュー是正: 他パーツ（item/prev-trigger/
+                // next-trigger）と同じ基本角丸を持たせる。先頭・末尾の
+                // ellipsis は `not_first`/`not_last` 規則（上記ループ、
+                // `ATTACHED_CHILD_PARTS` に ellipsis を含む）が内側角のみ
+                // `0` へ上書きするため、連結帯の外側角は丸いまま保たれる。
+                decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("background", "var(--fandhe-color-bg)"),
             ],
         ),
@@ -1164,5 +1186,58 @@ mod tests {
         let css = stylesheet();
         assert!(!css.contains("</style"));
         assert!(!css.contains('<'));
+    }
+
+    // イシュー #3136 レビュー是正: 選択中ページ（`item[data-selected]`、
+    // `z-index: 1`）がフォーカスされたとき `item:focus-visible` の
+    // `z-index: 2` に埋もれず前面表示を保つことを固定する回帰テスト。
+    #[test]
+    fn stylesheet_keeps_selected_item_above_siblings_on_focus_visible() {
+        let css = stylesheet();
+        let attached_root =
+            r#"[data-scope="pagination"][data-part="root"].fd-pagination--variant-attached"#;
+        let selected_focus_visible_rule = format!(
+            r#"{attached_root} > [data-scope="pagination"][data-part="item"][data-selected]:focus-visible {{"#
+        );
+        assert!(
+            css.contains(&selected_focus_visible_rule),
+            "missing {selected_focus_visible_rule}: {css}"
+        );
+
+        let selected_rule_pos = css
+            .find(r#"[data-scope="pagination"][data-part="item"][data-selected] {"#)
+            .expect("selected_item rule must exist");
+        let selected_focus_visible_pos = css
+            .find(&selected_focus_visible_rule)
+            .expect("selected_item_focus_visible rule must exist");
+        assert!(
+            selected_focus_visible_pos > selected_rule_pos,
+            "selected+focus-visible override must come after the plain selected rule \
+             so it wins under equal CSS specificity"
+        );
+    }
+
+    // イシュー #3136 レビュー是正: Attached 構成で先頭・末尾の ellipsis が
+    // 他パーツと同じ基本角丸を持ち、連結帯の外側角が四角くならないことを
+    // 固定する回帰テスト。
+    #[test]
+    fn stylesheet_gives_ellipsis_cell_base_border_radius() {
+        let css = stylesheet();
+        let attached_root =
+            r#"[data-scope="pagination"][data-part="root"].fd-pagination--variant-attached"#;
+        let ellipsis_cell =
+            format!(r#"{attached_root} > [data-scope="pagination"][data-part="ellipsis"] {{"#);
+        let rule_start = css
+            .find(&ellipsis_cell)
+            .unwrap_or_else(|| panic!("missing {ellipsis_cell}: {css}"));
+        let rule_end = css[rule_start..]
+            .find('}')
+            .map(|offset| rule_start + offset)
+            .expect("rule must be closed");
+        assert!(
+            css[rule_start..rule_end].contains("border-radius: var(--fandhe-radius-md)"),
+            "ellipsis cell rule missing base border-radius: {}",
+            &css[rule_start..rule_end]
+        );
     }
 }

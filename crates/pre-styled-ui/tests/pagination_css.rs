@@ -528,9 +528,15 @@ const PAGINATION_GOLDEN_CSS: &str = r#"[data-scope="pagination"][data-part="root
   z-index: 1;
 }
 
+[data-scope="pagination"][data-part="root"].fd-pagination--variant-attached > [data-scope="pagination"][data-part="item"][data-selected]:focus-visible {
+  position: relative;
+  z-index: 2;
+}
+
 [data-scope="pagination"][data-part="root"].fd-pagination--variant-attached > [data-scope="pagination"][data-part="ellipsis"] {
   box-sizing: border-box;
   border: 1px solid var(--fandhe-color-border);
+  border-radius: var(--fandhe-radius-md);
   background: var(--fandhe-color-bg);
 }
 "#;
