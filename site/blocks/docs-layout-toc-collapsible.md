@@ -15,7 +15,8 @@ Themes/Primitives 部品を組み合わせた実例集であることに注意�
 本 Demo は静的な表示例であり、`<form>` 要素は一切持たず、トリガーは
 操作できない状態（`disabled`）に固定しています。本文末尾の
 「ページの先頭へ」ボタンも `type="button"` のまま送信先を持たず、
-クリックしても何も起こりません。文言はすべて独自に書いた架空のもの
+トリガーと同じく `disabled` に固定しているため、クリック・キーボード
+操作のいずれにも反応しません。文言はすべて独自に書いた架空のもの
 であり、実企業名・実クレデンシャル・PII を含みません。
 
 ## Rust コード
@@ -147,13 +148,20 @@ fn content(suffix: &str, content_id: &str, state: OpenState) -> Node {
         vec![ul(vec![], items)],
     );
 
+    // 「ページの先頭へ」は実際の送信先・スクロール処理を持たない静的な
+    // 見本のため、トリガーと同じく `disabled: true` で固定し、押しても
+    // キーボード操作でも反応しないことをネイティブ `disabled` 属性で
+    // 構造的に保証する（[`trigger`] と同型の確定パターン）。既定の
+    // `opacity: 0.5`/`cursor: not-allowed` は見本として読みにくくなるため
+    // [`LAYOUT_CSS`] で打ち消す。
     let back_to_top = button::button(
         &ButtonProps {
             variant: ButtonVariant::Ghost,
             size: Size::Sm,
+            disabled: true,
             ..ButtonProps::default()
         },
-        vec![],
+        vec![("data-blocks-docs-layout-toc-collapsible-back-to-top", "")],
         vec![arrow_up_icon(), text("ページの先頭へ")],
     );
 
@@ -226,9 +234,11 @@ pub fn demo() -> Node {
 
 - 主参照（対応表 ID R0366）のみを集約元とし、トリガーに「現在の節名」+
   「開閉を示す矢印アイコン」を並べる構成をそのまま踏襲しています。
-- トリガーは無 JS のため `disabled` に固定し、押しても状態は変わりま
-  せん。既定の半透明表示（`opacity: 0.5`）は見本として読みにくいため
-  CSS で打ち消しています。
+- トリガー・「ページの先頭へ」ボタンはいずれも無 JS のため `disabled`
+  に固定し、押しても状態は変わりません。既定の半透明表示
+  （`opacity: 0.5`）は見本として読みにくいため CSS で打ち消しています
+  （打ち消しセレクタは `data-scope`/`data-part` を含め、各 recipe の
+  disabled 規則と同等以上の詳細度にしています）。
 - 目次リンクの現在地強調には `link` の `current`（`aria-current="page"`）
   ではなく、`attrs` で直接渡した `aria-current="location"` を使って
   います。`current` はページ単位の現在地を表すため、ページ内の節には

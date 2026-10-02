@@ -23,14 +23,20 @@
 //! 単一の真実源として導出する。リンク先の本文（[`article_body`]）は
 //! 例 A にのみ置き、例 B の節リンクは同じ `href` を共有する。
 //!
-//! # トリガーは `disabled: true` で固定する
+//! # トリガー・「ページの先頭へ」ボタンは `disabled: true` で固定する
 //!
 //! 無 JS では押しても状態が変わらないため、操作不能な状態へ固定する
-//! （`filter_expandable_panel`/`app_shell_sidebar` と同じ判断）。既定の
+//! （`filter_expandable_panel`/`app_shell_sidebar` と同じ判断）。トリガー
+//! 直下にある「ページの先頭へ」ボタンも同じ理由で `disabled: true` にする
+//! （有効描画のまま送信先を持たないと、無 JS では押下・キーボード操作の
+//! いずれにも反応しない死んだ操作に見えてしまうため）。既定の
 //! `opacity: 0.5` と `cursor: not-allowed`（`disabled_declarations`）は
-//! 見本として読みにくくなるため [`LAYOUT_CSS`] で打ち消す。一方
-//! `content` は `disabled: false` にする。`true` にするとリンク一覧全体が
-//! 半透明になってしまう（`app_shell_sidebar` の教訓）。
+//! 見本として読みにくくなるため [`LAYOUT_CSS`] で打ち消す（`collapsible`
+//! recipe・`button` recipe いずれも `[data-scope][data-part][data-disabled]`
+//! の 3 属性セレクタで登録されるため、打ち消し側は `data-scope`/`data-part`
+//! を含めて同等以上の詳細度にする）。一方 `content` は `disabled: false`
+//! にする。`true` にするとリンク一覧全体が半透明になってしまう
+//! （`app_shell_sidebar` の教訓）。
 //!
 //! トリガーの子は 2 つに限る（ラベル `span` + indicator）。styled
 //! `collapsible` recipe の `trigger` が `justify-content: space-between`
@@ -72,9 +78,12 @@
 //!
 //! `crate::blocks` モジュール doc の不変条件どおり、本 Demo はフォーム・
 //! 送信処理・状態機械を持たない静的な合成例である。トリガー・本文末尾の
-//! 「ページの先頭へ」ボタンはいずれも既定 `type="button"` のまま送信先を
-//! 持たず、押しても何も起きない静的な見本である（`filter_expandable_panel`
-//! の「すべて解除」と同じ扱い）。文言はすべて独自の架空の日本語ダミー
+//! 「ページの先頭へ」ボタンはいずれも `type="button"` のまま送信先を
+//! 持たず、かつ `disabled: true` で固定するため、押下・キーボード操作の
+//! いずれにも反応しない（`filter_expandable_panel` の menu trigger 等と
+//! 同じ扱い。「すべて解除」ボタンのみ有効のまま残す判断とは異なり、本
+//! block はトリガー直下に並ぶ「ページの先頭へ」を disabled で揃えて
+//! 操作可能に見えないようにする）。文言はすべて独自の架空の日本語ダミー
 //! （実企業名・実クレデンシャル・PII を含まない）。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
@@ -206,13 +215,20 @@ fn content(suffix: &str, content_id: &str, state: OpenState) -> Node {
         vec![ul(vec![], items)],
     );
 
+    // 「ページの先頭へ」は実際の送信先・スクロール処理を持たない静的な
+    // 見本のため、トリガーと同じく `disabled: true` で固定し、押しても
+    // キーボード操作でも反応しないことをネイティブ `disabled` 属性で
+    // 構造的に保証する（[`trigger`] と同型の確定パターン）。既定の
+    // `opacity: 0.5`/`cursor: not-allowed` は見本として読みにくくなるため
+    // [`LAYOUT_CSS`] で打ち消す。
     let back_to_top = button::button(
         &ButtonProps {
             variant: ButtonVariant::Ghost,
             size: Size::Sm,
+            disabled: true,
             ..ButtonProps::default()
         },
-        vec![],
+        vec![("data-blocks-docs-layout-toc-collapsible-back-to-top", "")],
         vec![arrow_up_icon(), text("ページの先頭へ")],
     );
 
@@ -320,7 +336,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-docs-layout-toc-collapsible-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-docs-layout-toc-collapsible-instance {\n  max-inline-size: 30rem;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n}\n\
 [data-blocks-docs-layout-toc-collapsible-trigger] {\n  width: 100%;\n}\n\
-[data-blocks-docs-layout-toc-collapsible-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-docs-layout-toc-collapsible-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-docs-layout-toc-collapsible-back-to-top][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-blocks-docs-layout-toc-collapsible-trigger-label] {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-1);\n}\n\
 [data-blocks-docs-layout-toc-collapsible-trigger-eyebrow] {\n  font-size: var(--fandhe-font-font-size-xs);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-docs-layout-toc-collapsible-content] ul {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n  margin: 0 0 var(--fandhe-space-4);\n  padding: 0;\n  list-style: none;\n}\n\
@@ -429,6 +446,58 @@ mod tests {
     #[test]
     fn layout_css_has_no_angle_bracket() {
         assert!(!LAYOUT_CSS.contains('<'));
+    }
+
+    /// 「ページの先頭へ」ボタンが両インスタンスとも `disabled`/
+    /// `data-disabled`/`aria-disabled="true"` の三点セットで無効化されて
+    /// いること（codex レビュー指摘: 有効描画のまま送信先を持たないと
+    /// 死んだ操作に見える、の回帰防止）。
+    #[test]
+    fn back_to_top_button_is_disabled_in_both_instances() {
+        let html = render(&demo());
+        let marker = "data-blocks-docs-layout-toc-collapsible-back-to-top";
+        assert_eq!(
+            html.matches(marker).count(),
+            2,
+            "both instances should render the back-to-top button"
+        );
+        let mut search_from = 0;
+        let mut checked = 0;
+        while let Some(rel) = html[search_from..].find(marker) {
+            let marker_pos = search_from + rel;
+            let tag_start = html[..marker_pos]
+                .rfind("<button")
+                .expect("button open tag");
+            let tag_end = html[tag_start..].find('>').unwrap() + tag_start;
+            let tag = &html[tag_start..tag_end];
+            assert!(
+                tag.contains("disabled"),
+                "back-to-top button should have the disabled attribute: {tag}"
+            );
+            assert!(
+                tag.contains("aria-disabled=\"true\""),
+                "back-to-top button should have aria-disabled=\"true\": {tag}"
+            );
+            checked += 1;
+            search_from = tag_end;
+        }
+        assert_eq!(checked, 2);
+    }
+
+    /// [`LAYOUT_CSS`] の disabled 打ち消しセレクタが `data-scope`/
+    /// `data-part` を含み、recipe 側（3 属性セレクタ）と同等以上の詳細度
+    /// を持つこと（Bugbot 指摘: 2 属性セレクタでは recipe に負けて
+    /// opacity/cursor が打ち消されない、の回帰防止）。
+    #[test]
+    fn layout_css_disabled_overrides_have_scope_and_part_for_specificity() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"collapsible\"][data-part=\"trigger\"]\
+             [data-blocks-docs-layout-toc-collapsible-trigger][data-disabled]"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"button\"][data-part=\"root\"]\
+             [data-blocks-docs-layout-toc-collapsible-back-to-top][data-disabled]"
+        ));
     }
 
     /// ルート class（`demo_class` とは別名）が `demo()` の出力へ実際に
