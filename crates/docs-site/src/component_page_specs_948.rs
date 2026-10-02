@@ -58,6 +58,7 @@
 use fandhe_frontend_core::{div, el, text, Node};
 
 use fandhe_frontend_pre_styled_ui::area_chart::{self, AreaChartProps};
+use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::calendar::{self, PlainDate};
 use fandhe_frontend_pre_styled_ui::charts::bar_chart::{
@@ -100,6 +101,7 @@ use fandhe_frontend_pre_styled_ui::radial_chart::{
     radial_chart, RadialCenterText, RadialChartProps,
 };
 use fandhe_frontend_pre_styled_ui::sparkline::{self, SparklineProps};
+use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
 use fandhe_frontend_pre_styled_ui::text::{
     text as styled_text, TextProps, TextSize, TextVariant, TextWeight,
 };
@@ -2749,6 +2751,171 @@ fn calendar_month_view_example() -> Node {
     )])
 }
 
+/// 時刻スロット（週・日の時間軸ビュー共通、09:00〜17:00 の 1 時間刻み固定）。
+/// イシュー #3133: `calendar`（headless-ui/pre-styled-ui）は月グリッド専用で
+/// 週・日単位の時間軸ビュー（行=時刻スロット、列=日付）の anatomy を持たない
+/// （Blocks 取り込み対応表 ID R0792/R0793 で「既存部品では表現不可」と判定）。
+/// 本体（`crates/pre-styled-ui/src/calendar.rs`）は拡張せず、既存 `table`
+/// （+ `badge`）部品の合成のみで再現する（静的掲示のみ、クリック・ドラッグ・
+/// 予定作成等の挙動は持たない。UI コンポーネント層の責務境界、
+/// `docs/policy/intentional-non-adoption.md` §3.25 参照）。
+const TIME_GRID_HOURS: &[u8] = &[9, 10, 11, 12, 13, 14, 15, 16, 17];
+
+/// 時刻スロットの表示ラベル（例: `9` → `"09:00"`）。
+fn time_grid_hour_label(hour: u8) -> String {
+    format!("{hour:02}:00")
+}
+
+/// 週・日ビュー共通の時間軸グリッドを組み立てる（イシュー #3133）。
+///
+/// `table::scroll_area` + `table::root`（`Outline`・`Sm`）の上に、列見出し行
+/// （`days`。今日の列は `aria-current="date"` を付与し日付ラベルを
+/// `badge`〔Solid〕で強調）と、時刻ごとの行（`table::row_header` が時刻、
+/// `table::cell` が予定セル）を積む。`events` は `(列 index, 開始スロット
+/// index, スロット数, ラベル)` のタプルで、スロット数 2 以上の予定は
+/// 開始セルへ `rowspan` 属性を立てて下方へ跨がせる。HTML は同一列内で
+/// 跨がれたスロットに `<td>` を重複出力してはならない仕様のため、
+/// カバーされた (列, 行) の組はあらかじめ `covered` へ記録してセル生成を
+/// 丸ごとスキップする。
+fn calendar_time_grid(
+    caption_text: &str,
+    days: &[(&str, bool)],
+    events: &[(usize, usize, usize, &str)],
+) -> Node {
+    let mut covered: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
+    for &(col, start, span, _) in events {
+        for offset in 1..span {
+            covered.insert((col, start + offset));
+        }
+    }
+
+    let mut header_cells = vec![table::column_header(vec![], vec![])];
+    header_cells.extend(days.iter().map(|(label, is_today)| {
+        let attrs: Vec<(&str, &str)> = if *is_today {
+            vec![("aria-current", "date")]
+        } else {
+            vec![]
+        };
+        let content = if *is_today {
+            badge(
+                &BadgeProps {
+                    variant: BadgeVariant::Solid,
+                    size: Size::Sm,
+                    ..Default::default()
+                },
+                vec![],
+                vec![text(*label)],
+            )
+        } else {
+            text(*label)
+        };
+        table::column_header(attrs, vec![content])
+    }));
+    let header_row = table::row(vec![], header_cells);
+
+    let body_rows: Vec<Node> = TIME_GRID_HOURS
+        .iter()
+        .enumerate()
+        .map(|(row_idx, &hour)| {
+            let mut cells = vec![table::row_header(
+                vec![],
+                vec![text(time_grid_hour_label(hour))],
+            )];
+            for col in 0..days.len() {
+                if covered.contains(&(col, row_idx)) {
+                    continue;
+                }
+                match events
+                    .iter()
+                    .find(|&&(c, start, _, _)| c == col && start == row_idx)
+                {
+                    Some(&(_, _, span, label)) => {
+                        let rowspan = span.to_string();
+                        let attrs: Vec<(&str, &str)> = if span > 1 {
+                            vec![("rowspan", rowspan.as_str())]
+                        } else {
+                            vec![]
+                        };
+                        cells.push(table::cell(
+                            attrs,
+                            vec![badge(
+                                &BadgeProps {
+                                    variant: BadgeVariant::Subtle,
+                                    size: Size::Sm,
+                                    palette: ColorPalette::Accent,
+                                    ..Default::default()
+                                },
+                                vec![],
+                                vec![text(label)],
+                            )],
+                        ));
+                    }
+                    None => cells.push(table::cell(vec![], vec![])),
+                }
+            }
+            table::row(vec![], cells)
+        })
+        .collect();
+
+    table::scroll_area(
+        vec![],
+        vec![table::root(
+            TableProps {
+                variant: TableVariant::Outline,
+                size: Size::Sm,
+                ..Default::default()
+            },
+            vec![],
+            vec![
+                table::caption(vec![], vec![text(caption_text)]),
+                table::header(vec![], vec![header_row]),
+                table::body(vec![], body_rows),
+            ],
+        )],
+    )
+}
+
+/// 週ビュー（時間軸グリッド）の Example（イシュー #3133、対応表 ID R0792）。
+/// 2026-07-20（Mon）〜07-26（Sun）の 7 列固定、今日は 07-22（Wed）。
+fn calendar_week_view_example() -> Node {
+    let days: [(&str, bool); 7] = [
+        ("Mon 07/20", false),
+        ("Tue 07/21", false),
+        ("Wed 07/22", true),
+        ("Thu 07/23", false),
+        ("Fri 07/24", false),
+        ("Sat 07/25", false),
+        ("Sun 07/26", false),
+    ];
+    let events: [(usize, usize, usize, &str); 4] = [
+        (0, 0, 1, "Standup"),
+        (2, 1, 2, "Design Review"),
+        (4, 3, 1, "Client Call"),
+        (6, 6, 1, "Backlog Grooming"),
+    ];
+    row(vec![calendar_time_grid(
+        "Week of July 20, 2026",
+        &days,
+        &events,
+    )])
+}
+
+/// 日ビュー（時間軸グリッド）の Example（イシュー #3133、対応表 ID R0793）。
+/// 2026-07-22（Wed、今日）の 1 列固定。
+fn calendar_day_view_example() -> Node {
+    let days: [(&str, bool); 1] = [("Wed 07/22", true)];
+    let events: [(usize, usize, usize, &str); 3] = [
+        (0, 0, 1, "Standup"),
+        (0, 2, 2, "Design Review"),
+        (0, 6, 1, "1:1 with Manager"),
+    ];
+    row(vec![calendar_time_grid(
+        "Wednesday, July 22, 2026",
+        &days,
+        &events,
+    )])
+}
+
 const CALENDAR_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "role=\"grid\" の月グリッド静的掲示（headless-ui の Calendar に recipe CSS を適用）",
@@ -2756,6 +2923,7 @@ const CALENDAR_SPEC: ComponentPageSpec = ComponentPageSpec {
         "キーボードナビゲーション・クリック挙動は wasm 層のスコープ（本ページは SSR 静的表示）",
         "Today / Clear のようなプリセット操作行は button 部品との合成で再現する（静的掲示、実挙動はアプリ側）",
         "root_with 経由で variant（outline / plain）・cell-size（compact / large）を opt-in 提供（枠線なしの小型カレンダー・大セル月表示、イシュー #3132）",
+        "週・日の時間軸ビュー（行=時刻スロット、列=日付）は table（+ badge）の合成で再現する（本体非拡張、静的掲示）",
     ],
     arguments: &[
         ArgRow {
@@ -2809,6 +2977,16 @@ const CALENDAR_SPEC: ComponentPageSpec = ComponentPageSpec {
             title: "大セル月表示（Large cell-size）",
             description: "root_with(Size::Sm, CalendarVariant::Outline, CalendarCellSize::Large, …) で全幅 7 列等幅のセルを作り、各セル左上の日付の下へ予定（badge）を並べる月間スケジュール表示です。",
             render: calendar_month_view_example,
+        },
+        ExampleEntry {
+            title: "週ビュー（時間軸グリッド）",
+            description: "2026-07-20（Mon）〜07-26（Sun）の 7 列を table（+ badge）の合成で時間軸グリッドとして表示します。本体（calendar）は無変更、table / badge の合成のみで再現し静的表示（予定の作成・ドラッグ等は実装しません）。",
+            render: calendar_week_view_example,
+        },
+        ExampleEntry {
+            title: "日ビュー（時間軸グリッド）",
+            description: "2026-07-22（Wed、今日）の 1 列を table（+ badge）の合成で時間軸グリッドとして表示します。本体（calendar）は無変更、table / badge の合成のみで再現し静的表示（予定の作成・ドラッグ等は実装しません）。",
+            render: calendar_day_view_example,
         },
     ],
     keyboard: &[
