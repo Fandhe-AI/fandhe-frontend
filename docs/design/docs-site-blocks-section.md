@@ -1107,6 +1107,7 @@ pub enum LayoutCss {
 | checkout-wizard-steps | #3045 | `ecommerce/checkout/checkout_wizard_steps.rs` |
 | cart-drawer | #3026（親 #3024） | `ecommerce/cart/cart_drawer.rs` |
 | cart-line-item-table | #3028/#3029（親 #3027） | `ecommerce/cart/cart_line_item_table.rs` |
+| cart-mini-panel | #3030（親 #3024） | `ecommerce/cart/cart_mini_panel.rs` |
 | order-history-panels | #3056/#3057（親 #3055） | `ecommerce/order/order_history_panels.rs` |
 | order-history-table | #3058（親 #3024） | `ecommerce/order/order_history_table.rs` |
 | order-tracking-progress | #3060/#3061（親 #3059） | `ecommerce/order/order_tracking_progress.rs` |
@@ -1119,6 +1120,10 @@ pub enum LayoutCss {
 | product-list-bordered-grid | #3062（親 #3024） | `ecommerce/product_list/product_list_bordered_grid.rs` |
 | product-list-rich-cards | #3064（親 #3024） | `ecommerce/product_list/product_list_rich_cards.rs` |
 | promo-collection-cards | #3078/#3079（親 #3077） | `ecommerce/promo/promo_collection_cards.rs` |
+| promo-countdown | #3080（親 #3024） | `ecommerce/promo/promo_countdown.rs` |
+| promo-image-tiles | #3081 | `ecommerce/promo/promo_image_tiles.rs` |
+| promo-offers-split | #3082 | `ecommerce/promo/promo_offers_split.rs` |
+| promo-with-testimonials | #3086 | `ecommerce/promo/promo_with_testimonials.rs` |
 | store-nav-centered-logo | #3094（親 #3093） | `ecommerce/store_nav/store_nav_centered_logo.rs` |
 | store-nav-mega-menu | #3097/#3098（親 #3096） | `ecommerce/store_nav/store_nav_mega_menu.rs` |
 | cart-dialog | #3025 | `ecommerce/cart/cart_dialog.rs` |
@@ -1136,6 +1141,10 @@ pub enum LayoutCss {
 | incentives-inline-strip | #3051 | `ecommerce/incentives/incentives_inline_strip.rs` |
 | incentives-split-header | #3052（親 #3024） | `ecommerce/incentives/incentives_split_header.rs` |
 | product-list-carousel | #3063（親 #3024） | `ecommerce/product_list/product_list_carousel.rs` |
+| promo-sale-products | #3084（親 #3024） | `ecommerce/promo/promo_sale_products.rs` |
+| promo-sale-categories | #3083（親 #3024） | `ecommerce/promo/promo_sale_categories.rs` |
+| order-confirmation-split-image | #3053（親 #3024） | `ecommerce/order/order_confirmation_split_image.rs` |
+| quickview-image-split | #3087（親 #3024） | `ecommerce/quickview/quickview_image_split.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は

@@ -2728,6 +2728,14 @@ source = "site/blocks/product-list-simple-grid.md"
 path = "/blocks/product-list-simple-grid/"
 
 [[section.group]]
+title = "Quickview"
+
+[[section.group.page]]
+title = "quickview-image-split"
+source = "site/blocks/quickview-image-split.md"
+path = "/blocks/quickview-image-split/"
+
+[[section.group]]
 title = "Category"
 
 [[section.group.page]]
@@ -2797,6 +2805,11 @@ source = "site/blocks/cart-line-item-table.md"
 path = "/blocks/cart-line-item-table/"
 
 [[section.group.page]]
+title = "cart-mini-panel"
+source = "site/blocks/cart-mini-panel.md"
+path = "/blocks/cart-mini-panel/"
+
+[[section.group.page]]
 title = "cart-single-column"
 source = "site/blocks/cart-single-column.md"
 path = "/blocks/cart-single-column/"
@@ -2826,6 +2839,11 @@ path = "/blocks/checkout-wizard-steps/"
 
 [[section.group]]
 title = "Order"
+
+[[section.group.page]]
+title = "order-confirmation-split-image"
+source = "site/blocks/order-confirmation-split-image.md"
+path = "/blocks/order-confirmation-split-image/"
 
 [[section.group.page]]
 title = "order-confirmation-summary"
@@ -2885,6 +2903,36 @@ title = "Promo"
 title = "promo-collection-cards"
 source = "site/blocks/promo-collection-cards.md"
 path = "/blocks/promo-collection-cards/"
+
+[[section.group.page]]
+title = "promo-countdown"
+source = "site/blocks/promo-countdown.md"
+path = "/blocks/promo-countdown/"
+
+[[section.group.page]]
+title = "promo-image-tiles"
+source = "site/blocks/promo-image-tiles.md"
+path = "/blocks/promo-image-tiles/"
+
+[[section.group.page]]
+title = "promo-offers-split"
+source = "site/blocks/promo-offers-split.md"
+path = "/blocks/promo-offers-split/"
+
+[[section.group.page]]
+title = "promo-sale-categories"
+source = "site/blocks/promo-sale-categories.md"
+path = "/blocks/promo-sale-categories/"
+
+[[section.group.page]]
+title = "promo-sale-products"
+source = "site/blocks/promo-sale-products.md"
+path = "/blocks/promo-sale-products/"
+
+[[section.group.page]]
+title = "promo-with-testimonials"
+source = "site/blocks/promo-with-testimonials.md"
+path = "/blocks/promo-with-testimonials/"
 
 # --- 以下は block 追加時の挿入先アンカー（イシュー #2734、#2735 でカテゴリ
 # 見出し導入に伴い運用を更新）。カテゴリ単位で行ブロックを分ける点は不変
