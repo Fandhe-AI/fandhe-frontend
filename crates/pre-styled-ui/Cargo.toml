@@ -4180,6 +4180,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 既存 golden CSS の出力バイトが変わる観測可能な変更のため 0.240.0 へ
 # マイナーバンプする。
 #
+# PR #3582 codex-review P2 / Cursor Bugbot 指摘対応: 上記の `nowrap` と同じ
+# 規則に併記した `overflow-wrap: anywhere` が効かず説明文が切れる問題を
+# 受け、`footer > *` 規則を `display: inline-flex`・`min-width: 0`・
+# `max-width: 100%`・`overflow-wrap: anywhere` へ置き換え、
+# `white-space: nowrap` は新設の `footer > * kbd` 規則だけへ移した。golden
+# CSS の出力バイトが再び変わるが、上記 0.240.0 のマイナーバンプに含める。
+#
 # マージコミット注記（PR #3582、origin/main 再取り込み、イシュー #3143）:
 # origin/main は PR #3583（toast の #3142 対応）取り込みで 0.239.0 へ到達
 # した。本ブランチの 0.240.0 は main の版より 1 つ上のマイナー版のため、
