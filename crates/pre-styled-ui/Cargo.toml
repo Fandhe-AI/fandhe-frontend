@@ -3686,7 +3686,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 双方とも 0.222.0 から見て独立な実体変更を含むため、同一版数への偶発的
 # 衝突と同じ運用でより高い到達値からさらに +1 して 0.225.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
-version = "0.225.0"
+#
+# イシュー #3132: calendar に枠線なし variant（`CalendarVariant::Plain`）と
+# 大セル月表示（`CalendarCellSize::Large`）を追加した。新規公開 API
+# （`CalendarVariant`/`CalendarCellSize`/`root_with`）のみで既存関数
+# シグネチャ・golden CSS の既存ブロックは不変（純追加）のため非破壊的な
+# 追加として minor バンプする。
+version = "0.226.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

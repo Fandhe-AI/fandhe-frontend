@@ -2584,12 +2584,178 @@ fn calendar_presets_example() -> Node {
     )])
 }
 
+/// 枠線なし（`CalendarVariant::Plain`）の月グリッド例（イシュー #3132）。
+/// グリッド構築自体は [`calendar_example`] と同一（2026-07・今日/選択日
+/// 固定）で、`calendar::root` の代わりに `calendar::root_with` へ
+/// `CalendarVariant::Plain`/`CalendarCellSize::Compact` を渡すだけが差分。
+fn calendar_plain_example() -> Node {
+    use fandhe_frontend_pre_styled_ui::calendar::{CalendarCellSize, CalendarVariant};
+
+    let today = PlainDate::new(2026, 7, 22).unwrap();
+    let selected = PlainDate::new(2026, 7, 15).unwrap();
+    let weekday_labels = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+    let header_row = calendar::table_row(
+        vec![],
+        weekday_labels
+            .iter()
+            .map(|l| calendar::table_head_cell(vec![], vec![text(*l)]))
+            .collect(),
+    );
+    let first_of_month = PlainDate::new(2026, 7, 1).unwrap();
+    let grid_start = first_of_month.add_days(-2).unwrap();
+    let body_rows: Vec<Node> = (0..5)
+        .map(|week| {
+            let cells: Vec<Node> = (0..7)
+                .map(|day| {
+                    let date = grid_start.add_days(week * 7 + day).unwrap();
+                    let is_selected = date == selected;
+                    let is_today = date == today;
+                    let is_outside = date.month() != 7 || date.year() != 2026;
+                    calendar::table_cell(
+                        is_selected,
+                        vec![],
+                        vec![calendar::day_trigger(
+                            date,
+                            is_selected,
+                            is_today,
+                            is_outside,
+                            false,
+                            None,
+                            vec![],
+                            vec![text(date.day().to_string())],
+                        )],
+                    )
+                })
+                .collect();
+            calendar::table_row(vec![], cells)
+        })
+        .collect();
+    row(vec![calendar::root_with(
+        Size::Md,
+        CalendarVariant::Plain,
+        CalendarCellSize::Compact,
+        vec![],
+        vec![
+            calendar::heading(
+                Some("spec-3132-calendar-plain-heading"),
+                vec![],
+                vec![text("July 2026")],
+            ),
+            calendar::prev_trigger(false, vec![], vec![text("‹")]),
+            calendar::next_trigger(false, vec![], vec![text("›")]),
+            calendar::table(
+                Some("spec-3132-calendar-plain-heading"),
+                vec![],
+                vec![
+                    calendar::table_header(vec![], vec![header_row]),
+                    calendar::table_body(vec![], body_rows),
+                ],
+            ),
+        ],
+    )])
+}
+
+/// 大セル月表示（`CalendarCellSize::Large`）の例（イシュー #3132）。
+/// 月間スケジュール画面を想定し、一部の日セルへ `day_trigger` の後ろに
+/// `badge`（pre-styled-ui）で予定を 1〜2 件並べる。予定テキストは
+/// `text()` の既定エスケープを経由する固定文字列であり、`raw_html` は
+/// 使わない（本モジュール全体の不変条件、`component_specs_3132.rs` が
+/// 固定する）。予定データの整形・永続化はアプリケーション側の責務であり
+/// UI 層のスコープ外（`docs/policy/intentional-non-adoption.md` §3.25）。
+fn calendar_month_view_example() -> Node {
+    use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps, BadgeVariant};
+    use fandhe_frontend_pre_styled_ui::calendar::{CalendarCellSize, CalendarVariant};
+    use fandhe_frontend_pre_styled_ui::ColorPalette;
+
+    let today = PlainDate::new(2026, 7, 22).unwrap();
+    let selected = PlainDate::new(2026, 7, 15).unwrap();
+    let weekday_labels = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+    let header_row = calendar::table_row(
+        vec![],
+        weekday_labels
+            .iter()
+            .map(|l| calendar::table_head_cell(vec![], vec![text(*l)]))
+            .collect(),
+    );
+    // 日付 → 予定ラベル一覧（デモ用の固定データ）。
+    let events: &[(u8, &[&str])] = &[
+        (10, &["Design review"]),
+        (15, &["1on1", "Release cut"]),
+        (22, &["Sprint planning"]),
+    ];
+    let badge_props = BadgeProps {
+        variant: BadgeVariant::Subtle,
+        size: Size::Sm,
+        palette: ColorPalette::Accent,
+        shape: None,
+    };
+    let first_of_month = PlainDate::new(2026, 7, 1).unwrap();
+    let grid_start = first_of_month.add_days(-2).unwrap();
+    let body_rows: Vec<Node> = (0..5)
+        .map(|week| {
+            let cells: Vec<Node> = (0..7)
+                .map(|day| {
+                    let date = grid_start.add_days(week * 7 + day).unwrap();
+                    let is_selected = date == selected;
+                    let is_today = date == today;
+                    let is_outside = date.month() != 7 || date.year() != 2026;
+                    let mut cell_children = vec![calendar::day_trigger(
+                        date,
+                        is_selected,
+                        is_today,
+                        is_outside,
+                        false,
+                        None,
+                        vec![],
+                        vec![text(date.day().to_string())],
+                    )];
+                    if !is_outside {
+                        if let Some((_, labels)) = events.iter().find(|(d, _)| *d == date.day()) {
+                            cell_children.extend(
+                                labels
+                                    .iter()
+                                    .map(|label| badge(&badge_props, vec![], vec![text(*label)])),
+                            );
+                        }
+                    }
+                    calendar::table_cell(is_selected, vec![], cell_children)
+                })
+                .collect();
+            calendar::table_row(vec![], cells)
+        })
+        .collect();
+    row(vec![calendar::root_with(
+        Size::Sm,
+        CalendarVariant::Outline,
+        CalendarCellSize::Large,
+        vec![],
+        vec![
+            calendar::heading(
+                Some("spec-3132-calendar-month-view-heading"),
+                vec![],
+                vec![text("July 2026")],
+            ),
+            calendar::prev_trigger(false, vec![], vec![text("‹")]),
+            calendar::next_trigger(false, vec![], vec![text("›")]),
+            calendar::table(
+                Some("spec-3132-calendar-month-view-heading"),
+                vec![],
+                vec![
+                    calendar::table_header(vec![], vec![header_row]),
+                    calendar::table_body(vec![], body_rows),
+                ],
+            ),
+        ],
+    )])
+}
+
 const CALENDAR_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "role=\"grid\" の月グリッド静的掲示（headless-ui の Calendar に recipe CSS を適用）",
         "今日・選択日・表示月外セルの見た目を data-* 属性連動で区別する",
         "キーボードナビゲーション・クリック挙動は wasm 層のスコープ（本ページは SSR 静的表示）",
         "Today / Clear のようなプリセット操作行は button 部品との合成で再現する（静的掲示、実挙動はアプリ側）",
+        "root_with 経由で variant（outline / plain）・cell-size（compact / large）を opt-in 提供（枠線なしの小型カレンダー・大セル月表示、イシュー #3132）",
     ],
     arguments: &[
         ArgRow {
@@ -2610,6 +2776,18 @@ const CALENDAR_SPEC: ComponentPageSpec = ComponentPageSpec {
             default: "",
             description: "root 配下の子ノード（通常 Heading/Table を含む）。",
         },
+        ArgRow {
+            name: "variant",
+            kind: "CalendarVariant",
+            default: "Outline",
+            description: "root_with 専用。見た目 variant（Outline: 枠線あり既定 / Plain: 枠線なし）。",
+        },
+        ArgRow {
+            name: "cell_size",
+            kind: "CalendarCellSize",
+            default: "Compact",
+            description: "root_with 専用。セル寸法軸（Compact: 正方形日セル既定 / Large: 全幅 7 列等幅の大セル月表示）。",
+        },
     ],
     examples: &[
         ExampleEntry {
@@ -2621,6 +2799,16 @@ const CALENDAR_SPEC: ComponentPageSpec = ComponentPageSpec {
             title: "Today / Clear プリセットボタン行",
             description: "月グリッドの下に button 部品（Outline・Sm）で Today / Clear のプリセット操作行を並べます。既存の calendar / button パーツの合成のみで再現でき、実際の「今日へ移動」「選択解除」の挙動はアプリケーション側（wasm 層）で配線します（本ページは静的表示）。",
             render: calendar_presets_example,
+        },
+        ExampleEntry {
+            title: "枠線なし（Plain variant）",
+            description: "root_with(Size::Md, CalendarVariant::Plain, CalendarCellSize::Compact, …) で root の外枠を消した小型カレンダーです。",
+            render: calendar_plain_example,
+        },
+        ExampleEntry {
+            title: "大セル月表示（Large cell-size）",
+            description: "root_with(Size::Sm, CalendarVariant::Outline, CalendarCellSize::Large, …) で全幅 7 列等幅のセルを作り、各セル左上の日付の下へ予定（badge）を並べる月間スケジュール表示です。",
+            render: calendar_month_view_example,
         },
     ],
     keyboard: &[
