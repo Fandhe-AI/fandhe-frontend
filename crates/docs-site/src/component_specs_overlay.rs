@@ -586,11 +586,22 @@ fn ex_button_group_split_button() -> Node {
         vec![],
         vec![text("デプロイする")],
     );
+    // menu::trigger の既定背景（`var(--fandhe-color-bg)`、menu.rs 参照）は
+    // 塗りではないため、主操作ボタン（`ButtonVariant::Solid`、既定 palette
+    // `Accent`）と同じ塗りに揃えるインライン style で上書きする（codex P2
+    // 指摘、PR #3561。menu トリガー専用の塗り variant を新設するほどの
+    // 再利用性はなく、この合成例限定の視覚合わせのため `style` 属性で足りる）。
     let menu_trigger = menu::trigger(
         OpenState::Closed,
         false,
         Some("button-group-split-menu-content"),
-        vec![("aria-label", "その他のデプロイ操作")],
+        vec![
+            ("aria-label", "その他のデプロイ操作"),
+            (
+                "style",
+                "background: var(--fandhe-color-accent); color: var(--fandhe-color-accent-fg); border: none;",
+            ),
+        ],
         vec![text("\u{25be}")],
     );
     let menu_content = menu::content(

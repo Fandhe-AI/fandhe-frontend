@@ -947,15 +947,24 @@ fn recipe() -> SlotRecipe {
         // + `max-height`（イシュー #2019）を既に持つが、
         // `presence_transition` が宣言するのは `opacity`/`transform`/
         // `transition-*` のみで交差しないため衝突しない。
-        // イシュー #3124: size × Start の compound variant。`item` の左
-        // padding をインジケータ分広げ、インジケータの絶対配置に使う
-        // `left` フォールバック値を宣言する（size ごとの横 padding と同じ
+        // イシュー #3124: size × Start の compound variant。`item`/
+        // `item-indicator` は `root_with` が class を付与しない非スタイル
+        // パーツ（`fandhe_frontend_headless_ui::select::{item, item_indicator}`
+        // をそのまま再 export、モジュール冒頭「選択的 re-export」節参照）
+        // のため、`item` スコープへクラスセレクタで直接当てる compound
+        // variant は構造的に一致しない（Bugbot High / codex P1 指摘、PR
+        // #3561）。size variant（上記 `.variant(Size::*, "root", ..)`）と
+        // 同じ「root スコープで CSS custom property を宣言し、子孫の
+        // item/item-indicator がそれを `var()` で参照して継承する」
+        // パターンに統一し、slot を `"root"` にする。`item` の左 padding を
+        // インジケータ分広げ、インジケータの絶対配置に使う `left`
+        // フォールバック値を宣言する（size ごとの横 padding と同じ
         // スケール: Xs=space-1 / Sm=space-2 / Md=space-3 / Lg=space-4 /
         // Xl=space-5）。2 class（size + item-indicator-placement）の
         // 詳細度により、単独 size variant の同名変数より後勝ちで上書きする。
         .compound_variant(
             vec![when(Size::Xs), when(ItemIndicatorPlacement::Start)],
-            "item",
+            "root",
             vec![
                 decl(
                     "--fandhe-select-item-padding",
@@ -966,7 +975,7 @@ fn recipe() -> SlotRecipe {
         )
         .compound_variant(
             vec![when(Size::Sm), when(ItemIndicatorPlacement::Start)],
-            "item",
+            "root",
             vec![
                 decl(
                     "--fandhe-select-item-padding",
@@ -977,7 +986,7 @@ fn recipe() -> SlotRecipe {
         )
         .compound_variant(
             vec![when(Size::Md), when(ItemIndicatorPlacement::Start)],
-            "item",
+            "root",
             vec![
                 decl(
                     "--fandhe-select-item-padding",
@@ -988,7 +997,7 @@ fn recipe() -> SlotRecipe {
         )
         .compound_variant(
             vec![when(Size::Lg), when(ItemIndicatorPlacement::Start)],
-            "item",
+            "root",
             vec![
                 decl(
                     "--fandhe-select-item-padding",
@@ -999,7 +1008,7 @@ fn recipe() -> SlotRecipe {
         )
         .compound_variant(
             vec![when(Size::Xl), when(ItemIndicatorPlacement::Start)],
-            "item",
+            "root",
             vec![
                 decl(
                     "--fandhe-select-item-padding",
@@ -1112,6 +1121,10 @@ pub fn root<'a>(
 /// assert!(html.contains("fd-select--variant-subtle"));
 /// assert!(html.contains("fd-select--item-indicator-placement-start"));
 /// ```
+// イシュー #3124: `item_indicator_placement` 引数の追加で 7→8 引数となった
+// （`crates/toggle_group.rs::root` 等の複合部品コンストラクタと同型の
+// 許容、位置引数を素直に積む薄い組み立て関数のため分割は行わない）。
+#[allow(clippy::too_many_arguments)]
 #[must_use]
 pub fn root_with<'a>(
     size: Size,
@@ -1303,11 +1316,14 @@ mod tests {
         ));
         assert!(css.contains("--fandhe-select-item-position: relative;"));
         assert!(css.contains("--fandhe-select-item-indicator-position: absolute;"));
-        // compound variant（size × start、5 件）。
+        // compound variant（size × start、5 件）。root スコープへ CSS
+        // custom property を宣言し、item/item-indicator は子孫として
+        // `var()` 経由でこれを継承する（PR #3561 是正、本関数直前の
+        // compound_variant 呼び出しのコメント参照）。
         for size_class in ["xs", "sm", "md", "lg", "xl"] {
             assert!(
                 css.contains(&format!(
-                    "[data-scope=\"select\"][data-part=\"item\"].fd-select--size-{size_class}.fd-select--item-indicator-placement-start {{"
+                    "[data-scope=\"select\"][data-part=\"root\"].fd-select--size-{size_class}.fd-select--item-indicator-placement-start {{"
                 )),
                 "missing compound variant block for size={size_class}, css={css}"
             );

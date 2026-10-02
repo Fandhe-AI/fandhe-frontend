@@ -277,27 +277,27 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   --fandhe-select-item-indicator-position: absolute;
 }
 
-[data-scope="select"][data-part="item"].fd-select--size-xs.fd-select--item-indicator-placement-start {
+[data-scope="select"][data-part="root"].fd-select--size-xs.fd-select--item-indicator-placement-start {
   --fandhe-select-item-padding: var(--fandhe-space-0-5) var(--fandhe-space-1) var(--fandhe-space-0-5) calc(var(--fandhe-space-1) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-1));
   --fandhe-select-item-indicator-left: var(--fandhe-space-1);
 }
 
-[data-scope="select"][data-part="item"].fd-select--size-sm.fd-select--item-indicator-placement-start {
+[data-scope="select"][data-part="root"].fd-select--size-sm.fd-select--item-indicator-placement-start {
   --fandhe-select-item-padding: var(--fandhe-space-1) var(--fandhe-space-2) var(--fandhe-space-1) calc(var(--fandhe-space-2) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-1));
   --fandhe-select-item-indicator-left: var(--fandhe-space-2);
 }
 
-[data-scope="select"][data-part="item"].fd-select--size-md.fd-select--item-indicator-placement-start {
+[data-scope="select"][data-part="root"].fd-select--size-md.fd-select--item-indicator-placement-start {
   --fandhe-select-item-padding: var(--fandhe-space-2) var(--fandhe-space-3) var(--fandhe-space-2) calc(var(--fandhe-space-3) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-2));
   --fandhe-select-item-indicator-left: var(--fandhe-space-3);
 }
 
-[data-scope="select"][data-part="item"].fd-select--size-lg.fd-select--item-indicator-placement-start {
+[data-scope="select"][data-part="root"].fd-select--size-lg.fd-select--item-indicator-placement-start {
   --fandhe-select-item-padding: var(--fandhe-space-3) var(--fandhe-space-4) var(--fandhe-space-3) calc(var(--fandhe-space-4) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-3));
   --fandhe-select-item-indicator-left: var(--fandhe-space-4);
 }
 
-[data-scope="select"][data-part="item"].fd-select--size-xl.fd-select--item-indicator-placement-start {
+[data-scope="select"][data-part="root"].fd-select--size-xl.fd-select--item-indicator-placement-start {
   --fandhe-select-item-padding: var(--fandhe-space-4) var(--fandhe-space-5) var(--fandhe-space-4) calc(var(--fandhe-space-5) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-4));
   --fandhe-select-item-indicator-left: var(--fandhe-space-5);
 }

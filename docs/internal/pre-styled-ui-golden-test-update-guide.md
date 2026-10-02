@@ -130,7 +130,16 @@ trigger 行を同期し、新規 `Shape::Pill` variant ブロックは
 `var(--fandhe-select-trigger-border-color, var(--fandhe-color-border))`
 参照へ変更〔3 定数とも同期、描画結果は同値〕。新規
 `fd-select--variant-subtle` variant ブロックは `fd-select--shape-pill`
-ブロック直後へ純追加した）** /
+ブロック直後へ純追加した。イシュー #3124 で選択インジケータ位置軸
+（`ItemIndicatorPlacement`）を追加した際、size × Start の compound
+variant 5 件を当初 `item` slot のクラスセレクタで宣言していたが、`item`/
+`item-indicator` は `root_with` が class を付与しない非スタイルパーツ
+（headless 再 export）のため一致せず、位置指定が効かない不具合だった
+（Bugbot High / codex P1 指摘、PR #3561）。`size` variant と同じ「`root`
+スコープで CSS custom property を宣言し子孫が `var()` で継承する」
+パターンへ是正し、5 件とも `[data-scope="select"][data-part="root"]`
+セレクタへ変更した〔セレクタのスコープのみの変更、宣言内容・観測可能な
+最終スタイルは当初意図どおり〕）** /
 separator / **sidebar（イシュー #2073 で golden 新設。
 `stylesheet()` 全文）** / skeleton / skip_nav / **spinner（イシュー #1567 で
 golden 新設）** / splitter / stat / steps / switch /
