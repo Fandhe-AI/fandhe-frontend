@@ -82,11 +82,11 @@
 //!   （[`crate::recipe::focus_ring_declarations`]、#1424 規約）を追加した。
 //!   `badge` が出す既存 4 variant は `<span>`（`href` 属性を持たない）を
 //!   出力するため、これらの state は一度も発火せず既存表示は不変。
-//! - **角丸**: shadcn の pill 形状（`rounded-full`）へは**合わせない**
-//!   （参照競合の判定: 角丸は chakra-ui / Radix Themes の値
-//!   〔`--fandhe-radius-sm`〕を採る。理由: 純追加原則により既存 golden を
-//!   バイト同一に保つ。shadcn の pill は shape 軸の新設を要し #1678 の
-//!   軸語彙に無い）。
+//! - **角丸**: 既定（`shape: None`）は chakra-ui / Radix Themes の値
+//!   〔`--fandhe-radius-sm`〕のまま変えない（純追加原則により既存 golden を
+//!   バイト同一に保つ）。shadcn の pill 形状（`rounded-full`）は
+//!   `BadgeProps { shape: Some(Shape::Pill), .. }` で opt-in できる
+//!   （共通 shape 軸、イシュー #3117/#3119）。
 //! - **意図的に合わせない点（他）**: `<a>` 時の hover 変化は追加しない
 //!   （`SlotRecipe` は要素種別条件と `Hover` の複合条件を持たず、`Hover`
 //!   state を root へ置くと表示専用の `<span>` にも当たり
@@ -563,6 +563,23 @@ mod tests {
                 ..BadgeProps::default()
             };
             let html = render(&badge(&props, vec![], vec![]));
+            assert!(html.contains(class), "shape={shape:?} -> {html}");
+        }
+    }
+
+    /// イシュー #3119: `link()` 経路（`<a>` 出力）でも `shape` が
+    /// `badge()` と同じクラスへ写像されることを固定する。
+    #[test]
+    fn shape_enumeration_maps_to_expected_classes_on_link() {
+        for (shape, class) in [
+            (Shape::Pill, "fd-badge--shape-pill"),
+            (Shape::Circle, "fd-badge--shape-circle"),
+        ] {
+            let props = BadgeProps {
+                shape: Some(shape),
+                ..BadgeProps::default()
+            };
+            let html = render(&link("", &props, false, vec![], vec![]));
             assert!(html.contains(class), "shape={shape:?} -> {html}");
         }
     }
