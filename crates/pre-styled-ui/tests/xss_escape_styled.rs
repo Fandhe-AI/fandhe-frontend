@@ -103,7 +103,7 @@ use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::splitter;
-use fandhe_frontend_pre_styled_ui::stat;
+use fandhe_frontend_pre_styled_ui::stat::{self, StatDeltaTone};
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 use fandhe_frontend_pre_styled_ui::steps;
 use fandhe_frontend_pre_styled_ui::strong::strong;
@@ -215,6 +215,13 @@ fn styled_text_children_are_escaped_for_all_payloads() {
 
         let html = render(&stat::value_text(vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "stat::value_text children コンテキスト");
+
+        let html = render(&stat::delta(
+            StatDeltaTone::Danger,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "stat::delta children コンテキスト");
 
         let html = render(&timeline::title(vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "timeline::title children コンテキスト");
@@ -335,6 +342,13 @@ fn caller_attrs_are_escaped_for_all_payloads() {
             vec![],
         ));
         assert_payload_is_escaped(payload, &html, "stat::root 呼び出し側 attrs コンテキスト");
+
+        let html = render(&stat::delta(
+            StatDeltaTone::Neutral,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "stat::delta 呼び出し側 attrs コンテキスト");
 
         let html = render(&timeline::root(
             TimelineVariant::default(),

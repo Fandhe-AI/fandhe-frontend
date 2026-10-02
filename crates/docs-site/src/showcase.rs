@@ -211,7 +211,7 @@ use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::sparkline::{self, SparklineProps};
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, spinner_decorative, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::splitter;
-use fandhe_frontend_pre_styled_ui::stat;
+use fandhe_frontend_pre_styled_ui::stat::{self, StatDeltaTone};
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 use fandhe_frontend_pre_styled_ui::steps;
 use fandhe_frontend_pre_styled_ui::strong::strong;
@@ -13794,10 +13794,57 @@ fn stat_section() -> Node {
             ],
         ),
     ]);
+    // delta パート（イシュー #3138）: 矢印なし・tone 軸の意味色のみで
+    // 増減率を示す。ラベルと同じ行の行末へ寄せ（margin-inline-start:
+    // auto）、値は下段の全幅に置く R1312 型レイアウト。
+    let delta_demo = row(vec![
+        stat::root(
+            Size::Md,
+            vec![],
+            vec![
+                stat::label(
+                    vec![],
+                    vec![
+                        text("Error rate"),
+                        stat::delta(StatDeltaTone::Danger, vec![], vec![text("+4.75%")]),
+                    ],
+                ),
+                stat::value_text(vec![], vec![text("1.2%")]),
+            ],
+        ),
+        stat::root(
+            Size::Md,
+            vec![],
+            vec![
+                stat::label(
+                    vec![],
+                    vec![
+                        text("Goal attainment"),
+                        stat::delta(StatDeltaTone::Success, vec![], vec![text("+54.02%")]),
+                    ],
+                ),
+                stat::value_text(vec![], vec![text("92%")]),
+            ],
+        ),
+        stat::root(
+            Size::Md,
+            vec![],
+            vec![
+                stat::label(
+                    vec![],
+                    vec![
+                        text("Active sessions"),
+                        stat::delta(StatDeltaTone::Neutral, vec![], vec![text("+0.3%")]),
+                    ],
+                ),
+                stat::value_text(vec![], vec![text("8,492")]),
+            ],
+        ),
+    ]);
     section(
         "Stat",
-        "数値指標 1 件をラベル・値・補助テキスト・増減方向インジケーターの組で表示する静的部品です。size（xs〜xl、既定 md。chakra-ui の sm/md/lg は本実装の Sm/Md/Lg に対応）で value-text のフォントサイズを切り替えます。",
-        vec![demo, size_demo],
+        "数値指標 1 件をラベル・値・補助テキスト・増減方向インジケーターの組で表示する静的部品です。size（xs〜xl、既定 md。chakra-ui の sm/md/lg は本実装の Sm/Md/Lg に対応）で value-text のフォントサイズを切り替えます。delta パート（イシュー #3138）は矢印を伴わず tone（neutral/success/danger）の意味色だけで増減の良し悪しを示します。",
+        vec![demo, size_demo, delta_demo],
     )
 }
 

@@ -159,7 +159,9 @@ root variant 1 件（3 本の CSS 変数）、states 節末尾へ `item-indicato
 `item::before` 疑似要素はいずれも不要になり削除した）** /
 separator / **sidebar（イシュー #2073 で golden 新設。
 `stylesheet()` 全文）** / skeleton / skip_nav / **spinner（イシュー #1567 で
-golden 新設）** / splitter / stat / steps / switch /
+golden 新設）** / splitter / **stat（イシュー #3138 で `down-indicator`
+base の直後へ `delta` base を中間挿入、`size` variant ブロック群の末尾へ
+tone（neutral/success/danger）3 ブロックを純追加）** / steps / switch /
 **tab_nav（イシュー #3125 で `TabNavVariant::Pill`（root variant）と
 `color-palette` 軸（root variant、6 値）・現在リンクの面を切り替える state
 ブロック 2 個・2 つ目の hover state・forced-colors 補強の計 5 種のブロックを

@@ -3874,7 +3874,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 項目幅・テキスト長が異なるとインジケータが flex item として縮小し整列が
 # 崩れるため）。既存 golden ブロックの出力バイトが変わる観測可能な CSS
 # 変更のため minor バンプする。
-version = "0.232.0"
+#
+# イシュー #3138: stat に矢印なし・意味色付きの増減率表示（`delta` パート・
+# `StatDeltaTone` tone 軸）を追加した。`SLOTS` へ `delta` を末尾追加し、
+# tone 軸に `default_variant` を登録しないため既存 `root` の class 出力・
+# 既存 golden ブロックの出力バイトは不変（純追加のみ）。公開 API 純追加の
+# ため minor バンプする。
+version = "0.233.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

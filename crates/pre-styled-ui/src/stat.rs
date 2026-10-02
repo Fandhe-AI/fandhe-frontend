@@ -122,6 +122,47 @@
 //!   `gap: 1.5`（0.375rem 相当）だが本テーマにその段のトークンが存在しない
 //!   ため、最近傍の `var(--fandhe-space-1)` で代替する。
 //!
+//! # delta パートと tone 軸（イシュー #3138）
+//!
+//! up/down-indicator（矢印付き・色が方向に固定）では表現できない「矢印なし・
+//! 意味だけを色で示す増減率」を [`delta`] パートで追加する。chakra-ui の
+//! `colorPalette` 軸相当だが、本モジュールは Card と同じく中立部品判断を
+//! 継続し root へ `color-palette` 軸は追加しない。代わりに `delta` パート
+//! 単独に [`StatDeltaTone`]（`tone` 軸）を付与する。[`mod@crate::text`] への
+//! colorPalette 軸追加案は見送った（モジュール doc「`text.rs` が
+//! colorPalette 軸を持たない理由」と同じ判断軸、かつ stat の anatomy 上の
+//! 意味＝増減値を失うため）。
+//!
+//! `tone` 軸は `root` の `size` 軸とは独立しており、`default_variant` を
+//! 一切登録しない（[`Shape`](crate::recipe::Shape) と同型の判断）。このため
+//! `tone` を指定しない・登録しない呼び出しが存在しても `root` の class 出力
+//! には一切影響しない（`composed_stat_snapshot` 固定テストが担保）。
+//! `data-tone` 属性方式は採らず class 方式のみとする（`data-*` 語彙拡張
+//! コストを避けるため、モジュール doc「`data-type="up"/"down"` の非導入」と
+//! 同じ判断）。
+//!
+//! 配置は `delta` の base に `margin-inline-start: auto` を持たせることで
+//! 実現する。`label`（`display: flex`）・`value-text`（`display: flex`）の
+//! 子として置くと行末へ寄り、「ラベル左・増減率右」「値左・増減率右」の
+//! 両方のレイアウトを表現できる。`help-text`（`display: inline-flex`）の
+//! 子では幅が中身に合うため auto margin は効かず、隣接表示になる。
+//!
+//! 色は意味（良し悪し）を表し方向（上昇/下降）には連動させない契約とする
+//! （`trend` ではなく `tone` と命名した理由。R1312 型は「増加しているが
+//! 悪化」を赤で示す必要があり、方向と色が一致しない）。`danger` は
+//! `--fandhe-color-danger-fg-subtle`、`success` は
+//! `--fandhe-color-success-fg-subtle`、`neutral` は `--fandhe-color-fg`
+//! を参照する（`-fg-subtle` の `bg` 上 4.5:1 コントラストは
+//! `theme.rs` の `CALLOUT_OUTLINE_VARIANT_PAIRS` テストが既に保証する。
+//! `danger-fg`/`success-fg` は solid 面上の白文字のため使わない、up/down-
+//! indicator の色選定と同じ理由）。
+//!
+//! **色だけに意味を頼らない契約（WCAG 1.4.1）**: [`delta`] は可視テキスト
+//! （符号付き数値等）を children として渡す契約とし、`aria-hidden` は
+//! 付けない（中身が情報そのものであるため、装飾用途の up/down-indicator と
+//! 異なる）。「悪化」等の意味を音声読み上げで補う必要がある場合、呼び出し側
+//! が別途 visually-hidden なテキストを添える判断をする。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - `StatGroup`（複数 Stat の横並びレイアウト補助）は未提供。
@@ -132,6 +173,10 @@
 //! - `letter-spacing` トークンの新設は横断課題（[`crate::heading`](mod@crate::heading)/
 //!   [`crate::angle_slider`] を含む）であり、3 部品目以降の要求が揃った
 //!   時点で別イシューとして提案する。
+//! - 既存 Blocks（`stats_cards`/`stats_row` 等）を `delta` パートへ置き換える
+//!   こと（イシュー #3138）。
+//! - `delta` に badge 風の背景面を持たせる表現（イシュー #3138。既存の
+//!   `badge` 合成で表現済みのため不要）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -152,7 +197,37 @@ const SLOTS: &[&str] = &[
     "help-text",
     "up-indicator",
     "down-indicator",
+    "delta",
 ];
+
+/// `delta` パート専用の意味色軸（イシュー #3138。モジュール doc「delta
+/// パートと tone 軸」参照）。方向（up/down）ではなく意味（良し悪し）を表す
+/// ため `trend` ではなく `tone` と命名する。`success` は up-indicator の
+/// 固定色と対になるよう用意したが、既定 variant は登録しない（呼び出し側が
+/// 常に明示選択する契約、[`crate::recipe::Shape`] と同型の安全側判断）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StatDeltaTone {
+    /// 中立（方向を問わず良し悪しの意味を持たない増減）。
+    Neutral,
+    /// 良い意味の増減（例: 目標達成率の上昇）。
+    Success,
+    /// 悪い意味の増減（例: 増加しているが悪化を表す値、R1312 型）。
+    Danger,
+}
+
+impl VariantValue for StatDeltaTone {
+    fn axis(self) -> &'static str {
+        "tone"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            StatDeltaTone::Neutral => "neutral",
+            StatDeltaTone::Success => "success",
+            StatDeltaTone::Danger => "danger",
+        }
+    }
+}
 
 /// Stat の recipe（scope `"stat"`、[`SLOTS`] の 7 パーツ）。
 ///
@@ -255,6 +330,23 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-danger-emphasized)"),
             ],
         )
+        // delta パート（イシュー #3138）: 矢印なし・tone 軸で意味色のみ
+        // 与える増減率テキスト。`margin-inline-start: auto` で親
+        // （label/value-text、いずれも display:flex）内の行末へ寄せる
+        // （モジュール doc「delta パートと tone 軸」参照）。色は variant
+        // 側（tone 軸）のみに登録し、base には持たせない。
+        .base(
+            "delta",
+            vec![
+                decl("margin-inline-start", "auto"),
+                decl("flex-shrink", "0"),
+                decl("font-size", "var(--fandhe-font-font-size-xs)"),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                // 親 value-text の semibold/tight letter-spacing を打ち消す
+                // （value-unit と同じ理由）。
+                decl("letter-spacing", "normal"),
+            ],
+        )
         // イシュー #1568: chakra recipe（sm=xl/md=2xl/lg=3xl）に合わせ、
         // Xs=lg→Sm=xl→Md=2xl→Lg=3xl→Xl=4xl の等差 1 段進行にした（旧 Xs=xs
         // は label の sm より値が小さくなる逆転だったため是正、イシュー
@@ -298,6 +390,24 @@ fn recipe() -> SlotRecipe {
                     )],
                 ),
             ],
+        )
+        // tone 軸（イシュー #3138）: delta パート専用、`default_variant` は
+        // 登録しない（モジュール doc「delta パートと tone 軸」参照。root の
+        // class 出力への波及を防ぐ）。
+        .variant(
+            StatDeltaTone::Neutral,
+            "delta",
+            vec![decl("color", "var(--fandhe-color-fg)")],
+        )
+        .variant(
+            StatDeltaTone::Success,
+            "delta",
+            vec![decl("color", "var(--fandhe-color-success-fg-subtle)")],
+        )
+        .variant(
+            StatDeltaTone::Danger,
+            "delta",
+            vec![decl("color", "var(--fandhe-color-danger-fg-subtle)")],
         )
 }
 
@@ -372,6 +482,34 @@ pub fn down_indicator<'a>(attrs: Vec<(&'a str, &'a str)>) -> Node {
     let mut merged: Vec<(&str, &str)> = vec![aria_hidden(true)];
     merged.extend(attrs);
     ANATOMY.part("down-indicator", "span", merged, vec![])
+}
+
+/// delta パート（`<span>`）を組み立てる（イシュー #3138）。矢印を伴わない
+/// 増減率テキストを `tone`（[`StatDeltaTone`]）に応じた意味色で表示する。
+/// [`label`]（`<dt>`）・[`value_text`]（`<dd>`）の子として置くと
+/// `margin-inline-start: auto` により行末へ寄る（モジュール doc「delta
+/// パートと tone 軸」参照、[`help_text`] の子では効かない）。
+///
+/// children には可視テキスト（符号付き数値等）を渡す契約とし
+/// `aria-hidden` は付けない（WCAG 1.4.1、色だけに意味を頼らない。
+/// up/down-indicator と異なり中身自体が情報であるため）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::{render, text};
+/// use fandhe_frontend_pre_styled_ui::stat::{self, StatDeltaTone};
+///
+/// let node = stat::delta(StatDeltaTone::Danger, vec![], vec![text("+4.75%")]);
+/// assert!(render(&node).contains("fd-stat--tone-danger"));
+/// ```
+#[must_use]
+pub fn delta<'a>(tone: StatDeltaTone, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let recipe = recipe();
+    let class = recipe.variant_class(tone);
+    let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
+    merged.extend(drop_class_attr(attrs));
+    ANATOMY.part("delta", "span", merged, children)
 }
 
 #[cfg(test)]
@@ -629,5 +767,85 @@ mod tests {
     fn css_output_contains_no_raw_hex_color_literals() {
         let out = css();
         assert!(!out.contains('#'));
+    }
+
+    /// イシュー #3138: delta パートが tone ごとに想定クラスを出力することを
+    /// 固定する。
+    #[test]
+    fn delta_outputs_expected_tone_class() {
+        for (tone, class) in [
+            (StatDeltaTone::Neutral, "fd-stat--tone-neutral"),
+            (StatDeltaTone::Success, "fd-stat--tone-success"),
+            (StatDeltaTone::Danger, "fd-stat--tone-danger"),
+        ] {
+            let html = render(&delta(tone, vec![], vec![text("+4.75%")]));
+            assert!(html.contains(class), "tone={tone:?} -> {html}");
+            assert!(html.starts_with(r#"<span data-scope="stat" data-part="delta""#));
+        }
+    }
+
+    /// 呼び出し側の `class` が除去され `class="` が 1 回だけ現れることを
+    /// 固定する（root 以外のパーツで class を持つ delta も同じ契約に従う）。
+    #[test]
+    fn delta_caller_class_attr_is_dropped_not_duplicated() {
+        let html = render(&delta(
+            StatDeltaTone::Neutral,
+            vec![("class", "attacker-controlled")],
+            vec![],
+        ));
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(!html.contains("attacker-controlled"));
+    }
+
+    /// delta の children に対する XSS 回帰テスト。
+    #[test]
+    fn delta_xss_payload_in_children_is_escaped() {
+        let html = render(&delta(
+            StatDeltaTone::Danger,
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+    }
+
+    /// delta は装飾用途の up/down-indicator と異なり `aria-hidden` を
+    /// 付けないことを固定する（モジュール doc「delta パートと tone 軸」
+    /// 参照、WCAG 1.4.1）。
+    #[test]
+    fn delta_does_not_have_aria_hidden() {
+        let html = render(&delta(StatDeltaTone::Neutral, vec![], vec![text("+1%")]));
+        assert!(!html.contains("aria-hidden"));
+    }
+
+    /// イシュー #3138 回帰防止: tone 軸に `default_variant` を登録しないため、
+    /// `delta` を一切呼ばない既存の `root`/`composed_stat_snapshot` 構成では
+    /// `root` の class が `size` 軸のみのままであることを固定する。
+    #[test]
+    fn root_class_is_unaffected_by_delta_tone_axis() {
+        let html = render(&root(Size::Md, vec![], vec![]));
+        assert!(html.contains(r#"class="fd-stat--size-md""#));
+    }
+
+    /// delta の base に `margin-inline-start: auto` があることを固定する
+    /// （label/value-text の子に置いたときに行末へ寄る配置の根拠）。
+    #[test]
+    fn delta_base_has_margin_inline_start_auto() {
+        let out = css();
+        let block_start = out.find(r#"[data-part="delta"] {"#).unwrap();
+        let block = &out[block_start..];
+        let block_end = block.find('}').unwrap();
+        assert!(block[..block_end].contains("margin-inline-start: auto;"));
+    }
+
+    /// delta の CSS が tone ごとの danger トークンを参照することを固定する
+    /// （モジュール doc「delta パートと tone 軸」参照）。
+    #[test]
+    fn css_output_uses_semantic_tokens_for_delta_tones() {
+        let out = css();
+        assert!(out.contains(r#"[data-part="delta"].fd-stat--tone-danger"#));
+        assert!(out.contains("var(--fandhe-color-danger-fg-subtle)"));
+        assert!(out.contains("var(--fandhe-color-success-fg-subtle)"));
+        assert!(out.contains("var(--fandhe-color-fg)"));
     }
 }
