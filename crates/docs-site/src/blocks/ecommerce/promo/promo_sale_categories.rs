@@ -219,7 +219,7 @@ fn category_card(name: &'static str) -> Node {
 pub fn demo() -> Node {
     let cards: Vec<Node> = CATEGORIES.iter().map(|name| category_card(name)).collect();
     div(
-        vec![("class", "blocks-promo-sale-categories")],
+        vec![("class", "blocks-promo-sale-categories-layout")],
         vec![
             header(),
             div(vec![("class", "blocks-promo-sale-categories-grid")], cards),
@@ -271,7 +271,7 @@ pub const BLOCK: Block = Block {
 /// 列数の切り替えは Issue 指定のビューポート基準（md=48rem/lg=64rem）を
 /// リテラル直書きする（モジュール冒頭「グリッドの列数」節）。
 const LAYOUT_CSS: &str = "\
-.blocks-promo-sale-categories {\n  display: grid;\n  gap: var(--fandhe-space-6);\n}\n\
+.blocks-promo-sale-categories-layout {\n  display: grid;\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-promo-sale-categories-header {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-promo-sale-categories-countdown {\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  padding: var(--fandhe-space-2) var(--fandhe-space-4);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: 9999px;\n  background: var(--fandhe-color-bg-subtle);\n  --fandhe-timer-value-font-size: var(--fandhe-font-font-size-md);\n}\n\
 .blocks-promo-sale-categories-grid {\n  display: grid;\n  grid-template-columns: repeat(1, minmax(0, 1fr));\n  grid-auto-rows: 1fr;\n  gap: var(--fandhe-space-4);\n}\n\
@@ -352,7 +352,7 @@ mod tests {
     #[test]
     fn layout_css_declares_all_selectors_and_breakpoints() {
         for selector in [
-            ".blocks-promo-sale-categories {",
+            ".blocks-promo-sale-categories-layout {",
             ".blocks-promo-sale-categories-header {",
             ".blocks-promo-sale-categories-countdown {",
             ".blocks-promo-sale-categories-grid {",
@@ -379,5 +379,14 @@ mod tests {
         assert!(!LAYOUT_CSS.contains("animation"));
         assert!(!LAYOUT_CSS.contains("transition"));
         assert!(!LAYOUT_CSS.contains("</style"));
+    }
+    /// ルート class が [`demo`] の出力へ実際に現れ、かつ `BLOCK.demo_class`
+    /// とは異なること（同一名だと Demo ラッパー側にも同じ class が付き、
+    /// [`LAYOUT_CSS`] のルート規則が二重に効く）。
+    #[test]
+    fn layout_root_class_differs_from_demo_class() {
+        let html = render(&demo());
+        assert!(html.contains("blocks-promo-sale-categories-layout"));
+        assert_ne!("blocks-promo-sale-categories-layout", BLOCK.demo_class);
     }
 }

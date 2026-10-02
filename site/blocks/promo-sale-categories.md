@@ -164,7 +164,7 @@ fn category_card(name: &'static str) -> Node {
 pub fn demo() -> Node {
     let cards: Vec<Node> = CATEGORIES.iter().map(|name| category_card(name)).collect();
     div(
-        vec![("class", "blocks-promo-sale-categories")],
+        vec![("class", "blocks-promo-sale-categories-layout")],
         vec![
             header(),
             div(vec![("class", "blocks-promo-sale-categories-grid")], cards),
