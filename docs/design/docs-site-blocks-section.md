@@ -1139,6 +1139,7 @@ pub enum LayoutCss {
 | incentives-inline-strip | #3051 | `ecommerce/incentives/incentives_inline_strip.rs` |
 | incentives-split-header | #3052（親 #3024） | `ecommerce/incentives/incentives_split_header.rs` |
 | product-list-carousel | #3063（親 #3024） | `ecommerce/product_list/product_list_carousel.rs` |
+| order-confirmation-split-image | #3053（親 #3024） | `ecommerce/order/order_confirmation_split_image.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
