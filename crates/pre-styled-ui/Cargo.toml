@@ -3647,7 +3647,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # ため、origin/main の到達値へさらに +1 して 0.220.1 とする（同一版数・
 # 逆転双方への偶発的衝突をそのまま採用しない。`.claude/rules/coding-rust.md`
 # #638 条項の同衝突運用）。
-version = "0.220.1"
+#
+# マージコミット注記（origin/main #3117/#3125 との再々統合、PR #3558）:
+# origin/main 側は独立に #3117（select 共通 shape 軸、イシュー #3557）・
+# #3125（tab_nav の `TabNavVariant::Pill`・`color-palette` 軸）を統合した
+# 結果として 0.221.0 へ到達していた。本マージでは origin/main の到達値
+# （0.221.0）が本ブランチの到達値（0.220.1）を上回るため、origin/main の
+# 到達値へさらに +1 して 0.222.0 とする（`.claude/rules/coding-rust.md`
+# #638 条項の同衝突運用）。
+version = "0.222.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
