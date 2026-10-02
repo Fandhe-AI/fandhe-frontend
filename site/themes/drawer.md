@@ -13,6 +13,16 @@
 flex column 化され、`body` が残り高さを埋めてスクロールします（付けない場合は
 `body` を使っても従来どおり `content` 全体がスクロールします）。
 
+`header` も同様に headless anatomy を変更しない pre-styled-only のパートで、
+パネル上端まで広がる見出し帯のレイアウトのみを担います。`header`/
+`description`/`close_trigger` へ `data-tone="accent"` を付けると、3 パートが
+連動してアクセント色の塗りに切り替わります（個別の opt-in 属性のため、塗りを
+適用したい各パートへ呼び出し側がそれぞれ付与してください）。`close_trigger`
+は `content` へ `data-close-outside`、`close_trigger` 自身へ
+`data-close-outside="<start|end|top|bottom>"`（`DrawerPlacement` の値と一致
+させてください）を付けると、パネルの外側（暗幕側）へ配置できます。長い本文は
+`data-has-body` + `body` と組み合わせてスクロールさせる前提です。
+
 > [!IMPORTANT]
 > Demo はトリガー起点のオーバーレイ部品を「開いた状態」で固定掲示しています。
 > 本来の配置（画面全体を覆う・トリガー直下に重なる）ではページ内の他セクションと
