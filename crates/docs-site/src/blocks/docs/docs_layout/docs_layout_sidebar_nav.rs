@@ -58,7 +58,12 @@
 //! `[data-blocks-docs-layout-sidebar-nav-frame="narrow"]
 //! [data-scope="drawer"][data-part="content"]` へ `max-width: 100%` を
 //! 追加し、フレーム幅を上限として収める（`--fandhe-drawer-size` 自体は
-//! 変更せず、上限のみ掛ける）。
+//! 変更せず、上限のみ掛ける）。高さ方向は `drawer::content` を flex column
+//! にし、`drawer::title` の下に残る高さだけをサイドバー本体
+//! （`[data-blocks-docs-layout-sidebar-nav-panel]`）へ `flex: 1 1 auto;
+//! min-height: 0; overflow-y: auto;` で割り当てる。本体へ `height: 100%` を
+//! 与えると title 分だけフレーム（`min-height: 24rem` + `overflow: hidden`）
+//! からはみ出し、下段のナビグループが切れる。
 //!
 //! # `drawer::title` のサイト共通 `h2` 装飾を中和する
 //!
@@ -641,8 +646,8 @@ const LAYOUT_CSS: &str = "\
 .blocks-docs-layout-sidebar-nav-narrow-topbar {\n  display: flex;\n  align-items: center;\n  gap: 0.5rem;\n  padding: 0.75rem;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-docs-layout-sidebar-nav-frame=\"narrow\"] [data-scope=\"drawer\"][data-part=\"backdrop\"] {\n  position: absolute;\n  inset: 0;\n  z-index: 1;\n}\n\
 [data-blocks-docs-layout-sidebar-nav-frame=\"narrow\"] [data-scope=\"drawer\"][data-part=\"positioner\"] {\n  position: absolute;\n  inset: 0;\n  z-index: 2;\n  display: flex;\n}\n\
-[data-blocks-docs-layout-sidebar-nav-frame=\"narrow\"] [data-scope=\"drawer\"][data-part=\"content\"] {\n  height: 100%;\n  max-width: 100%;\n  box-shadow: var(--fandhe-shadow-lg);\n}\n\
-[data-blocks-docs-layout-sidebar-nav-narrow-content] [data-blocks-docs-layout-sidebar-nav-panel] {\n  width: 100%;\n  height: 100%;\n  border: none;\n  border-radius: 0;\n}\n\
+[data-blocks-docs-layout-sidebar-nav-frame=\"narrow\"] [data-scope=\"drawer\"][data-part=\"content\"] {\n  display: flex;\n  flex-direction: column;\n  height: 100%;\n  max-width: 100%;\n  box-shadow: var(--fandhe-shadow-lg);\n}\n\
+[data-blocks-docs-layout-sidebar-nav-narrow-content] [data-blocks-docs-layout-sidebar-nav-panel] {\n  flex: 1 1 auto;\n  min-height: 0;\n  width: 100%;\n  overflow-y: auto;\n  border: none;\n  border-radius: 0;\n}\n\
 [data-blocks-docs-layout-sidebar-nav-narrow-content] [data-scope=\"drawer\"][data-part=\"title\"] {\n  margin: 0;\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n";
 
 #[cfg(test)]
@@ -805,6 +810,28 @@ mod tests {
         assert!(LAYOUT_CSS.contains(
             ".blocks-docs-layout-sidebar-nav-layout [data-blocks-docs-layout-sidebar-nav-group-heading] {"
         ));
+    }
+
+    /// `narrow` のサイドバー本体は drawer title の残り高さに収め、`height:
+    /// 100%` でフレームからはみ出させない（モジュール冒頭「`narrow`
+    /// インスタンスの `drawer` 配置」節）。
+    #[test]
+    fn narrow_panel_fills_remaining_drawer_height_without_overflow() {
+        let start = LAYOUT_CSS
+            .find("[data-blocks-docs-layout-sidebar-nav-narrow-content] [data-blocks-docs-layout-sidebar-nav-panel] {")
+            .unwrap();
+        let block = &LAYOUT_CSS[start..start + LAYOUT_CSS[start..].find('}').unwrap()];
+        assert!(block.contains("flex: 1 1 auto;"));
+        assert!(block.contains("min-height: 0;"));
+        assert!(block.contains("overflow-y: auto;"));
+        assert!(!block.contains("height: 100%;"));
+        let content_start = LAYOUT_CSS
+            .find("[data-blocks-docs-layout-sidebar-nav-frame=\"narrow\"] [data-scope=\"drawer\"][data-part=\"content\"] {")
+            .unwrap();
+        let content_block = &LAYOUT_CSS
+            [content_start..content_start + LAYOUT_CSS[content_start..].find('}').unwrap()];
+        assert!(content_block.contains("display: flex;"));
+        assert!(content_block.contains("flex-direction: column;"));
     }
 
     /// レシピ上書きはフック属性とレシピ属性を同じ要素上で連結した
