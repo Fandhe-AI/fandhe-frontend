@@ -9,9 +9,11 @@
 //!
 //! イシュー #3142（右端アクション列レイアウト）で `content`/`actions` の
 //! pre-styled-only base ブロックを `close-trigger` base の直後へ、右端
-//! アクション列（`data-actions-column`）の state 規則 4 件を `focus-visible`
+//! アクション列（`data-actions-column`）の state 規則を `focus-visible`
 //! state の直後・`@media (hover: hover)` ブロックの直前へ中間挿入した
-//! （`SLOTS` 末尾への純追加、既存ブロックは不変）。
+//! （`SLOTS` 末尾への純追加、既存ブロックは不変）。PR #3583（Bugbot 指摘
+//! 対応）で `actions` 列自体の縮小上限（`max-width: 40%`）と
+//! `action-trigger` のテキスト折り返し規則を追加し、計 5 件になった。
 
 use fandhe_frontend_pre_styled_ui::toast;
 
@@ -239,16 +241,26 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
   padding: 0;
 }
 
+[data-scope="toast"][data-part="actions"][data-actions-column] {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 40%;
+}
+
 [data-scope="toast"][data-part="action-trigger"][data-actions-column] {
   flex: 1 1 0;
   align-self: stretch;
   height: auto;
   min-height: var(--fandhe-space-8);
+  min-width: 0;
   margin-block-start: 0;
   padding: 0 var(--fandhe-space-4);
   border: none;
   border-block-start: 1px solid var(--fandhe-palette-muted, var(--fandhe-color-border));
   border-radius: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
 }
 
 [data-scope="toast"][data-part="action-trigger"][data-actions-column]:first-child {

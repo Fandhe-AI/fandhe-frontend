@@ -761,8 +761,26 @@ fn recipe() -> SlotRecipe {
                 decl("padding", "0"),
             ],
         )
+        // Bugbot 指摘対応（PR #3583）: `actions` 列は base で
+        // `flex-shrink: 0`（上記）のため、列方向のレイアウト
+        // （`data-actions-column`）では列自体が `content` を押し出して
+        // 通知幅（24rem）からはみ出し得た。列を縮小可能にしつつ上限を
+        // 設け、長いアクション文言でも通知幅を超えないようにする。
+        .state(
+            "actions",
+            StateCondition::Attr(ACTIONS_COLUMN_ATTR),
+            vec![
+                decl("flex-shrink", "1"),
+                decl("min-width", "0"),
+                decl("max-width", "40%"),
+            ],
+        )
         // 列内のセルになる action-trigger（`flex: 1 1 0` で複数ボタンを
-        // 等分する、R1113「縦 2 分割」）。
+        // 等分する、R1113「縦 2 分割」）。`min-width: 0` は上記 `actions`
+        // の縮小を実際にボタンへ反映させるため（flex item は既定で
+        // 内容幅未満に縮まない）。`white-space`/`overflow-wrap` は長い
+        // アクション文言・文字拡大時に折り返し、列幅を超えて溢れるのを
+        // 防ぐ（Bugbot 指摘対応）。
         .state(
             "action-trigger",
             StateCondition::Attr(ACTIONS_COLUMN_ATTR),
@@ -771,6 +789,7 @@ fn recipe() -> SlotRecipe {
                 decl("align-self", "stretch"),
                 decl("height", "auto"),
                 decl("min-height", "var(--fandhe-space-8)"),
+                decl("min-width", "0"),
                 decl("margin-block-start", "0"),
                 decl("padding", "0 var(--fandhe-space-4)"),
                 decl("border", "none"),
@@ -779,6 +798,9 @@ fn recipe() -> SlotRecipe {
                     "1px solid var(--fandhe-palette-muted, var(--fandhe-color-border))",
                 ),
                 decl("border-radius", "0"),
+                decl("white-space", "normal"),
+                decl("overflow-wrap", "anywhere"),
+                decl("text-align", "center"),
             ],
         )
         // 先頭セルの上罫線を消す（2 分割時、上のセルと列自体の境界が二重に
@@ -1322,10 +1344,13 @@ mod tests {
         assert!(css.contains(r#"[data-scope="toast"][data-part="actions"] {"#));
         assert!(css.contains(r#"[data-scope="toast"][data-part="root"][data-actions-column] {"#));
         assert!(css.contains("flex-direction: row;"));
+        assert!(css.contains(r#"[data-scope="toast"][data-part="actions"][data-actions-column] {"#));
+        assert!(css.contains("max-width: 40%;"));
         assert!(css.contains(
             r#"[data-scope="toast"][data-part="action-trigger"][data-actions-column] {"#
         ));
         assert!(css.contains("flex: 1 1 0;"));
+        assert!(css.contains("overflow-wrap: anywhere;"));
         assert!(css.contains(
             r#"[data-scope="toast"][data-part="action-trigger"][data-actions-column]:first-child {"#
         ));
