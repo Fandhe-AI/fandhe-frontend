@@ -399,11 +399,15 @@ button/badge/input/select が共有する共通 shape 軸（`recipe::Shape`、
     既存イディオム）。`Circle` は未登録
 - **公開 API**: `ButtonProps`/`BadgeProps`/`InputProps` へ `pub shape:
   Option<Shape>` を純追加。select は既存 `root` のシグネチャを変えず
-  `root_with(size, shape, item_indicator_placement, state, props, attrs,
-  children)` を新設し、`root` は `shape: None` +
-  `ItemIndicatorPlacement::End` で `root_with` へ委譲する
-  （`item_indicator_placement` はイシュー #3124 で追加した選択インジケータ
-  位置軸、詳細は `docs/api/pre-styled-ui-api.md` 参照）
+  `root_with(size, shape, variant, item_indicator_placement, state, props,
+  attrs, children)` を新設し、`root` は `shape: None` +
+  `SelectVariant::Outline` + `ItemIndicatorPlacement::End` で `root_with`
+  へ委譲する（`variant: SelectVariant` 引数はイシュー #3121 で追加。
+  `SelectVariant`〔`Outline`〔既定〕/`Subtle`〕は `Subtle` のとき trigger
+  を淡色背景・枠線なしにする軸で、`default_variant` を登録しないため
+  `Outline` は class を一切出さない。`item_indicator_placement` はイシュー
+  #3124 で追加した選択インジケータ位置軸。詳細は
+  `docs/api/pre-styled-ui-api.md`「`select` は共通 shape 軸」節を参照）
 
 ## 4. 対象ファイル
 

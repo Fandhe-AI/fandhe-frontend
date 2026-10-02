@@ -3618,19 +3618,26 @@ name = "fandhe-frontend-pre-styled-ui"
 # は既存ブロックのまま）のドキュメント/テストのみの変更のため patch
 # バンプする。
 #
+# イシュー #3121: select へ variant 軸（trigger の淡色背景 `Subtle`）を
+# 追加する公開 API 変更（`root_with` へ引数追加）のため、origin/main の
+# 到達値（0.218.1）からさらに +1 して 0.219.0 とする（0.x の破壊的変更は
+# マイナーバンプの規約）。
+#
 # イシュー #3122: `InputVariant::SubtleFlushed`（淡色背景＋下線のみ、R1043）
 # を純追加した。`Subtle` の背景宣言と `Flushed` の下線宣言を合成するのみで
 # 新規トークンはなく、既存 3 variant・既存出力はバイト不変のため非破壊的な
-# 追加として minor バンプする。origin/main 側の到達値（0.218.1）より
-# 本ブランチの到達値（0.219.0）が上回るため 0.219.0 を維持する
-# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+# 追加として minor バンプする。origin/main 側は独立に 0.219.0 へ到達して
+# いたため、本マージでは #3121/#3122 双方の実体変更を統合した結果として
+# 0.220.0 へマイナーバンプした（同一版数への偶発的衝突をそのまま採用
+# しない。`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 #
 # イシュー #3124: select に選択インジケータ位置軸
 # `select::ItemIndicatorPlacement`（start/end、既定 end）を追加し、
 # `select::root_with` へ新規引数を 1 つ追加した（公開シグネチャ変更）。
 # `End` のとき class を一切出さず既存出力はバイト不変だが、シグネチャ
-# 変更自体が 0.x の破壊的変更のため minor バンプする。
-version = "0.220.0"
+# 変更自体が 0.x の破壊的変更のため、本マージでは 0.220.0 からさらに
+# マイナーバンプして 0.221.0 とする。
+version = "0.221.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
