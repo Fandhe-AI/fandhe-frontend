@@ -16,12 +16,18 @@
 //!
 //! # レイアウト（告知面 + 商品グリッドの 2 カラム）
 //!
-//! ルートを `container-type: inline-size` の coontainer にし、既定は
-//! `grid-template-columns: minmax(0,1fr) minmax(0,1.5fr)` で左に告知面、
-//! 右に 2×2 の商品グリッドを置く。`@container`（`40rem` 未満）でルートを
-//! 1 列に畳み、DOM 順（告知 → グリッド）のまま縦積みにする
-//! （`promo_collection_cards` の sm ブレークポイントと同じ判断軸だが、
-//! 本 block はメディアクエリではなくコンテナクエリで切り替える）。
+//! ルート（`.blocks-promo-sale-products-layout`）を `container-type:
+//! inline-size` の container にし、その直下の子 `.blocks-promo-sale-products-columns`
+//! が既定で `grid-template-columns: minmax(0,1fr) minmax(0,1.5fr)` を持ち、
+//! 左に告知面、右に 2×2 の商品グリッドを置く。CSS Container Queries は
+//! コンテナ自身のサイズクエリでコンテナ自身のプロパティを変更できない
+//! 仕様のため、`container-name` を持つ要素と `grid-template-columns` を
+//! 切り替える要素は別の要素にする必要がある（`cart_two_column_summary` の
+//! `stack`/`columns` 分離と同型）。`@container`（`40rem` 未満）で
+//! `.blocks-promo-sale-products-columns` を 1 列に畳み、DOM 順
+//! （告知 → グリッド）のまま縦積みにする（`promo_collection_cards` の sm
+//! ブレークポイントと同じ判断軸だが、本 block はメディアクエリではなく
+//! コンテナクエリで切り替える）。
 //!
 //! # 割引前価格の取り消し線に平文の「通常」を添える理由（a11y）
 //!
@@ -171,10 +177,13 @@ pub fn demo() -> Node {
         .collect();
     div(
         vec![("class", "blocks-promo-sale-products-layout")],
-        vec![
-            announcement(),
-            div(vec![("class", "blocks-promo-sale-products-grid")], cards),
-        ],
+        vec![div(
+            vec![("class", "blocks-promo-sale-products-columns")],
+            vec![
+                announcement(),
+                div(vec![("class", "blocks-promo-sale-products-grid")], cards),
+            ],
+        )],
     )
 }
 // blocks-code:end
@@ -220,7 +229,8 @@ pub const BLOCK: Block = Block {
 /// doc「block 固有 CSS の置き場」節、他 block と同型）。`--fandhe-*`
 /// トークンのみを使い、生の色リテラルは置かない。
 const LAYOUT_CSS: &str = "\
-.blocks-promo-sale-products-layout {\n  container-type: inline-size;\n  container-name: blocks-promo-sale-products;\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);\n  gap: var(--fandhe-space-8);\n  align-items: start;\n}\n\
+.blocks-promo-sale-products-layout {\n  container-type: inline-size;\n  container-name: blocks-promo-sale-products;\n}\n\
+.blocks-promo-sale-products-columns {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);\n  gap: var(--fandhe-space-8);\n  align-items: start;\n}\n\
 .blocks-promo-sale-products-announcement {\n  display: grid;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-promo-sale-products-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-promo-sale-products-grid {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-4);\n}\n\
@@ -229,7 +239,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-promo-sale-products-card] {\n  overflow: hidden;\n  padding: 0;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-promo-sale-products-card-image] {\n  width: 100%;\n  display: block;\n}\n\
 [data-blocks-promo-sale-products-card-sale-price] {\n  color: var(--fandhe-color-fg);\n}\n\
-@container blocks-promo-sale-products (max-width: 40rem) {\n  .blocks-promo-sale-products-layout {\n    grid-template-columns: minmax(0, 1fr);\n  }\n}\n";
+@container blocks-promo-sale-products (max-width: 40rem) {\n  .blocks-promo-sale-products-columns {\n    grid-template-columns: minmax(0, 1fr);\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -310,6 +320,7 @@ mod tests {
     fn layout_css_declares_container_query_and_grid_and_uses_tokens_not_literals() {
         for selector in [
             ".blocks-promo-sale-products-layout {",
+            ".blocks-promo-sale-products-columns {",
             ".blocks-promo-sale-products-announcement {",
             ".blocks-promo-sale-products-actions {",
             ".blocks-promo-sale-products-grid {",

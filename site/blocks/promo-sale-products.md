@@ -140,10 +140,13 @@ pub fn demo() -> Node {
         .collect();
     div(
         vec![("class", "blocks-promo-sale-products-layout")],
-        vec![
-            announcement(),
-            div(vec![("class", "blocks-promo-sale-products-grid")], cards),
-        ],
+        vec![div(
+            vec![("class", "blocks-promo-sale-products-columns")],
+            vec![
+                announcement(),
+                div(vec![("class", "blocks-promo-sale-products-grid")], cards),
+            ],
+        )],
     )
 }
 ```
