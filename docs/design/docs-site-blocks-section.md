@@ -1148,6 +1148,7 @@ pub enum LayoutCss {
 | order-confirmation-split-image | #3053（親 #3024） | `ecommerce/order/order_confirmation_split_image.rs` |
 | quickview-image-split | #3087（親 #3024） | `ecommerce/quickview/quickview_image_split.rs` |
 | category-split-panels | #3040（親 #3024） | `ecommerce/category_listing/category_split_panels.rs` |
+| promo-signup-offer | #3085（親 #3024） | `ecommerce/promo/promo_signup_offer.rs` |
 | reviews-write-form | #3091 | `ecommerce/reviews/reviews_write_form.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
