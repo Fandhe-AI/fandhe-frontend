@@ -25,8 +25,14 @@
 //!
 //! 代わりに [`navigation_menu::content`] を `navigation_menu::root` の直下、
 //! `scroll_area::root` の兄弟として置き、[`LAYOUT_CSS`] が本 block のスコープ
-//! 内でのみ `position: static` へ上書きして通常フローへ戻す。
-//! [`fandhe_frontend_pre_styled_ui::navigation_menu`] の recipe は `content`
+//! 内でのみ `position: static` へ上書きして通常フローへ戻す。`root` 自体は
+//! pre-styled-ui recipe の既定で行 flex（`display: flex`、
+//! `crates/pre-styled-ui/src/navigation_menu.rs` の `recipe()` 参照）のため、
+//! `position: static` だけでは `content` が `scroll_area::root` の隣に
+//! 横並びのまま残ってしまう（指摘 #3540 の是正）。`LAYOUT_CSS` は
+//! `.blocks-store-nav-category-row-nav` へ `flex-direction: column` を追加で
+//! 与え、`scroll_area::root`（カテゴリ行）→ `content`（パネル）の順に縦積み
+//! させる。[`fandhe_frontend_pre_styled_ui::navigation_menu`] の recipe は `content`
 //! 自身の `data-state`/`hidden` だけを見て祖先の構造を前提にしないため
 //! （`crates/pre-styled-ui/src/navigation_menu.rs` 参照）、この配置は recipe
 //! の契約を破らない。トリガーとパネルの関連付けは `aria-controls`/
@@ -61,6 +67,10 @@
 //! パネルを開いた状態にし、`id`/`aria-controls`/`aria-labelledby` は
 //! `-wide-`/`-narrow-` 接尾辞で分けて一意にする（横断テスト
 //! `demo_output_has_no_dangling_aria_references_or_duplicate_ids` 対応）。
+//! `nav`（`navigation_menu::root` の `aria-label`）・`region`
+//! （`viewport` の `aria-label`）も同じ理由で「広い幅」「狭い幅」を
+//! 埋め込み、2 インスタンスでランドマーク名が重複しないようにする
+//! （[`category_nav`] の `instance_label` 引数、指摘 #3540 対応）。
 //!
 //! # CSS フックの選び方（`drop_class_attr` の契約）
 //!
@@ -340,7 +350,10 @@ fn panel(props: &NavigationMenuProps, trigger_id: &'static str, content_id: &'st
 }
 
 /// 2 行目（横スクロール可能なカテゴリのトリガー行 + 開いたパネル）。
-fn category_nav(trigger_id: &'static str, content_id: &'static str) -> Node {
+/// `instance_label`（「広い幅」「狭い幅」）を `nav`/`region` のランドマーク名へ
+/// 織り込み、広い幅・狭い幅の 2 インスタンスでアクセシブルネームが重複しない
+/// ようにする（モジュール冒頭 rustdoc「横スクロール」節、指摘 #3540 対応）。
+fn category_nav(trigger_id: &'static str, content_id: &'static str, instance_label: &str) -> Node {
     let props = NavigationMenuProps::default();
     let mut items = vec![open_item(&props, trigger_id, content_id)];
     items.extend(
@@ -350,13 +363,16 @@ fn category_nav(trigger_id: &'static str, content_id: &'static str) -> Node {
     );
     navigation_menu::root(
         &props,
-        "カテゴリ",
+        &format!("カテゴリ（{instance_label}）"),
         vec![("class", "blocks-store-nav-category-row-nav")],
         vec![
             scroll_area::root(
                 vec![("class", "blocks-store-nav-category-row-scroll")],
                 vec![scroll_area::viewport(
-                    vec![("role", "region"), ("aria-label", "カテゴリ一覧")],
+                    vec![
+                        ("role", "region"),
+                        ("aria-label", &format!("カテゴリ一覧（{instance_label}）")),
+                    ],
                     vec![scroll_area::content(
                         vec![],
                         vec![navigation_menu::list(&props, vec![], items)],
@@ -370,10 +386,13 @@ fn category_nav(trigger_id: &'static str, content_id: &'static str) -> Node {
 
 /// 1 インスタンス分（1 行目 + 2 行目、`id` は呼び出し側が指定する接尾辞で
 /// 一意にする）。
-fn instance(trigger_id: &'static str, content_id: &'static str) -> Node {
+fn instance(trigger_id: &'static str, content_id: &'static str, instance_label: &str) -> Node {
     div(
         vec![("class", "blocks-store-nav-category-row-shell")],
-        vec![top_bar(), category_nav(trigger_id, content_id)],
+        vec![
+            top_bar(),
+            category_nav(trigger_id, content_id, instance_label),
+        ],
     )
 }
 
@@ -393,11 +412,11 @@ pub fn demo() -> Node {
         vec![("class", "blocks-store-nav-category-row-states")],
         vec![
             state_label("広い幅"),
-            instance(WIDE_TRIGGER_ID, WIDE_CONTENT_ID),
+            instance(WIDE_TRIGGER_ID, WIDE_CONTENT_ID, "広い幅"),
             state_label("狭い幅（カテゴリ行を横スクロール）"),
             div(
                 vec![("class", "blocks-store-nav-category-row-narrow-frame")],
-                vec![instance(NARROW_TRIGGER_ID, NARROW_CONTENT_ID)],
+                vec![instance(NARROW_TRIGGER_ID, NARROW_CONTENT_ID, "狭い幅")],
             ),
         ],
     )
@@ -455,6 +474,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-store-nav-category-row-shell {\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n  background: var(--fandhe-color-bg);\n  overflow: hidden;\n}\n\
 .blocks-store-nav-category-row-narrow-frame {\n  max-inline-size: 22rem;\n  margin-inline: auto;\n}\n\
 .blocks-store-nav-category-row-top-bar {\n  display: flex;\n  flex-wrap: nowrap;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
+.blocks-store-nav-category-row-nav {\n  display: flex;\n  flex-direction: column;\n  align-items: stretch;\n}\n\
 [data-blocks-store-nav-category-row-brand] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: 600;\n  white-space: nowrap;\n}\n\
 .blocks-store-nav-category-row-actions {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  white-space: nowrap;\n}\n\
 .blocks-store-nav-category-row-shell [data-scope=\"navigation-menu\"][data-part=\"list\"] {\n  display: flex;\n  flex-wrap: nowrap;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  inline-size: max-content;\n  padding: var(--fandhe-space-2) var(--fandhe-space-4);\n}\n\

@@ -286,7 +286,10 @@ fn panel(props: &NavigationMenuProps, trigger_id: &'static str, content_id: &'st
 }
 
 /// 2 行目（横スクロール可能なカテゴリのトリガー行 + 開いたパネル）。
-fn category_nav(trigger_id: &'static str, content_id: &'static str) -> Node {
+/// `instance_label`（「広い幅」「狭い幅」）を `nav`/`region` のランドマーク名へ
+/// 織り込み、広い幅・狭い幅の 2 インスタンスでアクセシブルネームが重複しない
+/// ようにする（モジュール冒頭 rustdoc「横スクロール」節、指摘 #3540 対応）。
+fn category_nav(trigger_id: &'static str, content_id: &'static str, instance_label: &str) -> Node {
     let props = NavigationMenuProps::default();
     let mut items = vec![open_item(&props, trigger_id, content_id)];
     items.extend(
@@ -296,13 +299,16 @@ fn category_nav(trigger_id: &'static str, content_id: &'static str) -> Node {
     );
     navigation_menu::root(
         &props,
-        "カテゴリ",
+        &format!("カテゴリ（{instance_label}）"),
         vec![("class", "blocks-store-nav-category-row-nav")],
         vec![
             scroll_area::root(
                 vec![("class", "blocks-store-nav-category-row-scroll")],
                 vec![scroll_area::viewport(
-                    vec![("role", "region"), ("aria-label", "カテゴリ一覧")],
+                    vec![
+                        ("role", "region"),
+                        ("aria-label", &format!("カテゴリ一覧（{instance_label}）")),
+                    ],
                     vec![scroll_area::content(
                         vec![],
                         vec![navigation_menu::list(&props, vec![], items)],
@@ -316,10 +322,13 @@ fn category_nav(trigger_id: &'static str, content_id: &'static str) -> Node {
 
 /// 1 インスタンス分（1 行目 + 2 行目、`id` は呼び出し側が指定する接尾辞で
 /// 一意にする）。
-fn instance(trigger_id: &'static str, content_id: &'static str) -> Node {
+fn instance(trigger_id: &'static str, content_id: &'static str, instance_label: &str) -> Node {
     div(
         vec![("class", "blocks-store-nav-category-row-shell")],
-        vec![top_bar(), category_nav(trigger_id, content_id)],
+        vec![
+            top_bar(),
+            category_nav(trigger_id, content_id, instance_label),
+        ],
     )
 }
 
@@ -339,11 +348,11 @@ pub fn demo() -> Node {
         vec![("class", "blocks-store-nav-category-row-states")],
         vec![
             state_label("広い幅"),
-            instance(WIDE_TRIGGER_ID, WIDE_CONTENT_ID),
+            instance(WIDE_TRIGGER_ID, WIDE_CONTENT_ID, "広い幅"),
             state_label("狭い幅（カテゴリ行を横スクロール）"),
             div(
                 vec![("class", "blocks-store-nav-category-row-narrow-frame")],
-                vec![instance(NARROW_TRIGGER_ID, NARROW_CONTENT_ID)],
+                vec![instance(NARROW_TRIGGER_ID, NARROW_CONTENT_ID, "狭い幅")],
             ),
         ],
     )
