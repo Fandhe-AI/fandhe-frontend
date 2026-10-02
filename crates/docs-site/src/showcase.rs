@@ -6663,6 +6663,11 @@ fn input_group_section() -> Node {
         invalid: false,
     };
     let select_field = plain_field("showcase-input-group-select");
+    // NativeSelect（通貨）は input（金額）とは別の control id を持つ必要が
+    // ある（同一 FieldProps を共有すると両コントロールが同じ id を出力し、
+    // label の for 対応が崩れる）。見た目上のラベル「Price」は金額 input
+    // に対応させ、通貨 select は aria-label で支援技術向けに意味を補う。
+    let select_currency_field = plain_field("showcase-input-group-select-currency");
     let select_instance = field::root(
         &FieldRootProps::default(),
         &select_field,
@@ -6686,8 +6691,8 @@ fn input_group_section() -> Node {
                     ),
                     native_select::native_select(
                         &NativeSelectProps::default(),
-                        &select_field,
-                        vec![],
+                        &select_currency_field,
+                        vec![("aria-label", "Currency")],
                         vec![
                             el("option", vec![("value", "usd")], vec![text("USD")]),
                             el("option", vec![("value", "eur")], vec![text("EUR")]),
