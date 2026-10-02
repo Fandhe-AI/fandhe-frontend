@@ -3626,19 +3626,22 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #3122: `InputVariant::SubtleFlushed`（淡色背景＋下線のみ、R1043）
 # を純追加した。`Subtle` の背景宣言と `Flushed` の下線宣言を合成するのみで
 # 新規トークンはなく、既存 3 variant・既存出力はバイト不変のため非破壊的な
-# 追加として minor バンプする。origin/main 側は独立に 0.219.0 へ到達して
-# いたため、本マージでは #3121/#3122 双方の実体変更を統合した結果として
-# 0.220.0 へさらにマイナーバンプする（同一版数への偶発的衝突をそのまま
-# 採用しない。`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+# 追加として minor バンプする。origin/main 側の到達値（0.218.1）より
+# 本ブランチの到達値（0.219.0）が上回るため 0.219.0 を維持する
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# イシュー #3123: input_group の `stylesheet()` へ native_select（`data-scope=
+# "field" data-part="select"`）/ styled select（`data-scope="select"`、
+# `trigger` パーツ）を内包するための追加リセット CSS 規則 5 件を末尾へ純追加
+# した（既存 `root > field::input`/`root > field::textarea` 2 セレクタ分の
+# 出力バイトは不変）。公開 API シグネチャは変えず CSS 出力のみを拡張する
+# 観測可能な変更のため patch バンプする。
 #
 # イシュー #3125: `tab_nav` へ `TabNavVariant::Pill`（`tabs` の `Enclosed`
 # と同一外観）と `color-palette` 軸（`root_with`、opt-in）を純追加した。
 # 新規 custom property（`--fandhe-tab-nav-*`）のフォールバック値はいずれも
 # 既存の直書きリテラルと同一のため、既存 `root`/`link` の出力・golden CSS
 # の既存ブロックはバイト不変。非破壊的な追加として minor バンプする。
-# origin/main 側の到達値（0.220.0）より本ブランチの到達値（0.219.0）が
-# 下回っていたため、origin 側の統合結果（0.220.0）に本変更分を上乗せし
-# 0.221.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 #
 # イシュー #3127: card（body/footer）・dialog（footer）へ淡色背景の
 # opt-in 状態（`data-subtle`）を純追加した。呼び出し側付与の値なし存在
@@ -3689,7 +3692,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # していたため、同一衝突回避のため双方の実体変更を統合した結果として
 # 0.225.0 へさらにマイナーバンプする（`.claude/rules/coding-rust.md` #638
 # 条項の同衝突運用）。
-version = "0.225.0"
+#
+# マージコミット注記（origin/main #3125/#3128/#3560 系との再統合、PR #3558
+# 経由で到達した 0.225.0 との衝突）: 本ブランチ（#3130）は上記の経緯で
+# 独立に 0.225.0 へ到達していたが、origin/main 側（#3125/#3128/#3560 を
+# 統合した PR #3558）も独立に同一の 0.225.0 へ到達しており偶発的に衝突
+# したため、同一版数への偶発的衝突をそのまま採用せずマージ結果として
+# さらに +1 して 0.226.0 とする（`.claude/rules/coding-rust.md` #638 条項の
+# 同衝突運用）。
+version = "0.226.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
