@@ -129,6 +129,24 @@ const CARD_GOLDEN_CSS: &str = r#"[data-scope="card"][data-part="root"] {
 [data-scope="card"][data-part="footer"][data-bordered] {
   border-top: 1px solid var(--fandhe-color-border);
 }
+
+[data-scope="card"][data-part="body"][data-subtle] {
+  background: var(--fandhe-color-bg-subtle);
+}
+
+[data-scope="card"][data-part="footer"][data-subtle] {
+  background: var(--fandhe-color-bg-subtle);
+}
+
+[data-scope="card"][data-part="body"]:last-child {
+  border-end-start-radius: calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px);
+  border-end-end-radius: calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px);
+}
+
+[data-scope="card"][data-part="footer"]:last-child {
+  border-end-start-radius: calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px);
+  border-end-end-radius: calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px);
+}
 "#;
 
 #[test]
@@ -231,4 +249,15 @@ fn card_css_declares_action_and_bordered_state_selectors() {
     assert!(css.contains(r#"[data-scope="card"][data-part="header"][data-has-action]"#));
     assert!(css.contains(r#"[data-scope="card"][data-part="header"][data-bordered]"#));
     assert!(css.contains(r#"[data-scope="card"][data-part="footer"][data-bordered]"#));
+}
+
+/// イシュー #3127: `data-subtle`（body/footer の淡色背景 opt-in）のセレクタが
+/// 出力されることを固定する。
+#[test]
+fn card_css_declares_subtle_state_selectors() {
+    let css = card::css();
+    assert!(css.contains(r#"[data-scope="card"][data-part="body"][data-subtle]"#));
+    assert!(css.contains(r#"[data-scope="card"][data-part="footer"][data-subtle]"#));
+    assert!(css.contains(r#"[data-scope="card"][data-part="body"]:last-child"#));
+    assert!(css.contains(r#"[data-scope="card"][data-part="footer"]:last-child"#));
 }

@@ -225,6 +225,16 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   color: var(--fandhe-color-fg);
 }
 
+[data-scope="dialog"][data-part="footer"][data-subtle] {
+  background: var(--fandhe-color-bg-subtle);
+  margin-inline: calc(-1 * var(--fandhe-dialog-content-padding, var(--fandhe-space-6)));
+  margin-block-end: calc(-1 * var(--fandhe-dialog-content-padding, var(--fandhe-space-6)));
+  padding-block: var(--fandhe-space-3);
+  padding-inline: var(--fandhe-dialog-content-padding, var(--fandhe-space-6));
+  border-end-start-radius: var(--fandhe-radius-lg);
+  border-end-end-radius: var(--fandhe-radius-lg);
+}
+
 @starting-style {
   [data-scope="dialog"][data-part="content"] {
     opacity: 0;
@@ -262,4 +272,12 @@ fn stylesheet_never_contains_style_breakout_sequences() {
     let css = dialog::stylesheet();
     assert!(!css.contains("</style"));
     assert!(!css.contains('<'));
+}
+
+/// イシュー #3127: footer の `data-subtle`（淡色背景 opt-in）のセレクタが
+/// 出力されることを固定する。
+#[test]
+fn dialog_css_declares_footer_subtle_state_selector() {
+    let css = dialog::stylesheet();
+    assert!(css.contains(r#"[data-scope="dialog"][data-part="footer"][data-subtle]"#));
 }

@@ -870,6 +870,7 @@ pub const DIALOG: ComponentPageSpec = ComponentPageSpec {
         "フォーカストラップ・Escape キーでの閉鎖・外側クリックでの閉鎖は JS ランタイム側の責務であり、本レイヤーは SSR/属性出力のみを担う。",
         "alert-dialog（確認ダイアログ）構成: 独立部品や新しい variant 軸ではなく、role=\"alertdialog\"（DialogRole::Alertdialog）+ footer（アクション列レイアウト）+ button（Solid/Danger と Outline の組み合わせ）で表現する（イシュー #1690。role=\"alertdialog\" の dialog は wasm-full 層が外側クリックでの閉鎖を既定で無効化する）。footer 自体は送信・閉鎖等のアプリケーションロジックを持たないレイアウト専用パートである。",
         "スクロール可能コンテンツ: body パート（shadcn/ui〔Base UI スタイル〕突合、イシュー #2030）は title/description（見出し）と footer（アクション列）を content 内で固定したまま、本文だけを縦スクロールさせるレイアウト専用パートである（`overflow-y: auto` / `max-height: 50vh`）。呼び出し側の任意判断によるオプトインパートであり、使わない既存の呼び出しには影響しない。",
+        "footer へ `data-subtle` を渡すと淡色背景の帯が content の左右・下端まで伸びる opt-in 状態（既定は帯なし、イシュー #3127）。",
     ],
     arguments: &[
         ArgRow {
@@ -895,6 +896,11 @@ pub const DIALOG: ComponentPageSpec = ComponentPageSpec {
             title: "Share link (custom close button)",
             description: "shadcn/ui（Base UI スタイル）の「Custom Close Button」デモ（イシュー #2030、親 #2025）に対応する構成です。content 右上のアイコン専用 close-trigger は使わず、footer 内の close_trigger_with_variant(CloseTriggerVariant::Text, ...)（イシュー #2193）で平文の \"Close\" ボタンを併設します。text variant は data-variant=\"text\" を出力し、既存の (dialog, close-trigger) -> \"close\" 配線を共有するため、見た目だけでなく実際にクリックでダイアログを閉じられます。",
             render: ex_share_link_custom_close_button,
+        },
+        ExampleEntry {
+            title: "Subtle footer",
+            description: "footer に data-subtle を付け、content の左右・下端まで伸びる淡色背景の帯を出す例です（イシュー #3127）。",
+            render: ex_subtle_footer_dialog,
         },
     ],
     keyboard: &[],
@@ -1079,6 +1085,84 @@ fn ex_share_link_custom_close_button() -> Node {
                                         vec![],
                                         vec![text("Close")],
                                     )],
+                                ),
+                            ],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
+/// [`DIALOG`] の Examples 節「Subtle footer」レンダラ（イシュー #3127）。
+///
+/// footer へ `("data-subtle", "")` を渡すと淡色背景の帯が content の左右・
+/// 下端まで伸びる opt-in 状態になる（`crates/pre-styled-ui/src/dialog.rs`
+/// モジュール冒頭 rustdoc「pre-styled-only `footer` パート」節参照）。
+/// Demo・[`ex_alert_dialog`]・[`ex_share_link_custom_close_button`] と
+/// 同一ページに描画されるため、id は衝突しない `showcase-subtle-dialog-*`
+/// を使う。
+fn ex_subtle_footer_dialog() -> Node {
+    div(
+        vec![],
+        vec![
+            dialog::trigger(
+                OpenState::Open,
+                Some("showcase-subtle-dialog-content"),
+                vec![],
+                vec![text("Open dialog")],
+            ),
+            dialog::root(
+                Size::Md,
+                OpenState::Open,
+                vec![],
+                vec![
+                    dialog::backdrop(OpenState::Open, vec![], vec![]),
+                    dialog::positioner(
+                        OpenState::Open,
+                        vec![],
+                        vec![dialog::content(
+                            OpenState::Open,
+                            DialogRole::Dialog,
+                            true,
+                            ContentIds {
+                                id: Some("showcase-subtle-dialog-content"),
+                                labelledby: Some("showcase-subtle-dialog-title"),
+                                describedby: Some("showcase-subtle-dialog-desc"),
+                            },
+                            vec![],
+                            vec![
+                                dialog::title(
+                                    Some("showcase-subtle-dialog-title"),
+                                    vec![],
+                                    vec![text("Update available")],
+                                ),
+                                dialog::description(
+                                    Some("showcase-subtle-dialog-desc"),
+                                    vec![],
+                                    vec![text("新しいバージョンをインストールしますか？")],
+                                ),
+                                dialog::footer(
+                                    vec![("data-subtle", "")],
+                                    vec![
+                                        button(
+                                            &ButtonProps {
+                                                variant: ButtonVariant::Outline,
+                                                ..ButtonProps::default()
+                                            },
+                                            vec![],
+                                            vec![text("Cancel")],
+                                        ),
+                                        button(
+                                            &ButtonProps {
+                                                variant: ButtonVariant::Solid,
+                                                ..ButtonProps::default()
+                                            },
+                                            vec![],
+                                            vec![text("Confirm")],
+                                        ),
+                                    ],
                                 ),
                             ],
                         )],

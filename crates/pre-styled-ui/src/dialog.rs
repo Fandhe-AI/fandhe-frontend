@@ -342,6 +342,11 @@
 //!   `display: flex` を宣言しないため、margin collapse の対象になる点に
 //!   注意）。
 //!
+//! 上記 base の 5 宣言とは別に、呼び出し側が `("data-subtle", "")` を
+//! 渡すと淡色背景の帯（`--fandhe-color-bg-subtle`）を content の左右・
+//! 下端まで伸ばす opt-in 状態を持つ（イシュー #3127、card.rs の
+//! `data-subtle` と同じ語彙規約。詳細は [`footer`] 関数の rustdoc 参照）。
+//!
 //! # pre-styled-only `body` パート（スクロール可能コンテンツ、shadcn/ui 突合
 //! イシュー #2030、親 #2025）
 //!
@@ -788,6 +793,38 @@ fn recipe() -> SlotRecipe {
                 decl("color", "var(--fandhe-color-fg)"),
             ],
         )
+        // イシュー #3127: `footer` の `data-subtle` opt-in 状態（呼び出し側
+        // 付与の値なし存在属性、card.rs `data-bordered`/`data-subtle` と
+        // 同じ語彙規約）。淡色帯を content の左右・下端まで伸ばすため、
+        // content の padding（`--fandhe-dialog-content-padding`）を負マージンで
+        // 打ち消してから自前の padding を持たせる（footer 単独モジュール
+        // rustdoc「pre-styled-only `footer` パート」節参照）。size variant が
+        // root へ登録する `--fandhe-dialog-content-padding` を継承するため
+        // Xs〜Xl に自動追従する。base の `margin-block-start` はそのまま
+        // 残り、footer が content 直下でフロー上最後の要素であることを前提
+        // とする（close-trigger は absolute 配置のためフローに影響しない）。
+        .state(
+            "footer",
+            StateCondition::Attr("data-subtle"),
+            vec![
+                decl("background", "var(--fandhe-color-bg-subtle)"),
+                decl(
+                    "margin-inline",
+                    "calc(-1 * var(--fandhe-dialog-content-padding, var(--fandhe-space-6)))",
+                ),
+                decl(
+                    "margin-block-end",
+                    "calc(-1 * var(--fandhe-dialog-content-padding, var(--fandhe-space-6)))",
+                ),
+                decl("padding-block", "var(--fandhe-space-3)"),
+                decl(
+                    "padding-inline",
+                    "var(--fandhe-dialog-content-padding, var(--fandhe-space-6))",
+                ),
+                decl("border-end-start-radius", "var(--fandhe-radius-lg)"),
+                decl("border-end-end-radius", "var(--fandhe-radius-lg)"),
+            ],
+        )
         // イシュー #729: `size` variant（root スコープの CSS custom property。
         // Md はフォールバック値と同一の現行外観を維持する）。
         // イシュー #1681: Xs/Xl は Sm→Md→Lg の等差進行（padding 2 段刻み・
@@ -906,6 +943,10 @@ pub fn root<'a>(
 /// （[`crate::card::footer`] と同型）ため、呼び出し側 `attrs` に含まれる
 /// `data-scope`/`data-part` の偽装は headless 層が fail-closed に除去する。
 ///
+/// `attrs` へ `("data-subtle", "")` を渡すと淡色背景の帯を敷く opt-in
+/// 状態になる（イシュー #3127、モジュール rustdoc「pre-styled-only
+/// `footer` パート」節参照）。
+///
 /// # Examples
 ///
 /// ```
@@ -914,6 +955,10 @@ pub fn root<'a>(
 ///
 /// let node = dialog::footer(vec![], vec![]);
 /// assert!(render(&node).contains(r#"data-scope="dialog" data-part="footer""#));
+///
+/// // イシュー #3127: `data-subtle` opt-in で淡色背景の帯を敷く。
+/// let node = dialog::footer(vec![("data-subtle", "")], vec![]);
+/// assert!(render(&node).contains(r#"data-subtle="""#));
 /// ```
 #[must_use]
 pub fn footer<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
@@ -1109,6 +1154,43 @@ mod tests {
             .expect("close-trigger base rule must be present");
         assert!(description_pos < footer_pos);
         assert!(footer_pos < close_trigger_pos);
+    }
+
+    /// イシュー #3127: `data-subtle` を footer へ渡すとそのまま出力に
+    /// 残ることを固定する（recipe 側の state 規則はこの属性を前提に CSS
+    /// を出し分けるのみで、属性自体の付与は呼び出し側の責務）。
+    #[test]
+    fn footer_with_data_subtle_attr_renders_attribute() {
+        let html = render(&footer(vec![("data-subtle", "")], vec![]));
+        assert!(html.contains(r#"data-subtle="""#));
+    }
+
+    /// イシュー #3127: footer base の 5 宣言は不変のまま、`[data-subtle]`
+    /// state 規則が負マージン・淡色背景を宣言することを固定する。
+    #[test]
+    fn footer_subtle_state_selector_declares_negative_margin_and_subtle_background() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="dialog"][data-part="footer"][data-subtle] {"#));
+        let state_start = css
+            .find(r#"[data-scope="dialog"][data-part="footer"][data-subtle] {"#)
+            .expect("footer [data-subtle] state rule must be present");
+        let state_end = css[state_start..].find('}').unwrap() + state_start;
+        let state_rule = &css[state_start..state_end];
+        assert!(state_rule.contains("background: var(--fandhe-color-bg-subtle);"));
+        assert!(state_rule.contains(
+            "margin-inline: calc(-1 * var(--fandhe-dialog-content-padding, var(--fandhe-space-6)));"
+        ));
+        assert!(state_rule.contains(
+            "margin-block-end: calc(-1 * var(--fandhe-dialog-content-padding, var(--fandhe-space-6)));"
+        ));
+
+        // base の 5 宣言は不変。
+        let base_start = css
+            .find(r#"[data-scope="dialog"][data-part="footer"] {"#)
+            .expect("footer base rule must be present");
+        let base_end = css[base_start..].find('}').unwrap() + base_start;
+        let base_rule = &css[base_start..base_end];
+        assert_eq!(base_rule.lines().filter(|l| l.contains(':')).count(), 5);
     }
 
     // --- イシュー #2030: pre-styled-only `body` パート（スクロール可能

@@ -3624,7 +3624,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 追加として minor バンプする。origin/main 側の到達値（0.218.1）より
 # 本ブランチの到達値（0.219.0）が上回るため 0.219.0 を維持する
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
-version = "0.219.0"
+#
+# イシュー #3127: card（body/footer）・dialog（footer）へ淡色背景の
+# opt-in 状態（`data-subtle`）を純追加した。呼び出し側付与の値なし存在
+# 属性で既存 base/variant/既存 state 規則の出力はバイト不変（golden は
+# 末尾純追加）のため非破壊的な追加として minor バンプする。
+version = "0.220.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
