@@ -3989,6 +3989,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # ラベル）を純追加した新規公開 API のみの変更（既存 golden ブロックは不変・
 # 非破壊の追加）のため minor バンプする。
 #
+# イシュー #3141: switch に短いトラック形状（`SwitchTrack`/`root_with`）と
+# thumb アイコン slot（`thumb_icon`）を追加した。新規公開 API のみで既存
+# 関数シグネチャ・golden CSS の既存ブロックは不変のため非破壊的な追加と
+# して minor バンプする。
 # マージコミット注記（PR #3570 への origin/main 再取り込み、push 前 base
 # 最新化ゲート再適用）: 本ブランチ（#3134）は上記の経緯で独立に 0.233.0 へ
 # 到達していたが、origin/main 側（PR #3136 の経緯を含む到達値）も独立に
@@ -4075,20 +4079,19 @@ name = "fandhe-frontend-pre-styled-ui"
 # マージコミット注記（本 PR #3575、origin/main 再々取り込み）: 本ブランチは
 # 上記の経緯で 0.235.0 へ到達していたが、origin/main 側（#3579 の
 # マージ）も独立に同一の 0.235.0 へ到達していたため、さらに +1 して
-# 0.236.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+# 0.236.0 とした（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 #
-# マージコミット注記（PR #3570 への origin/main 再取り込み、4 回目）: 本ブランチは
-# 上記の経緯で 0.236.0 へ到達していたが、origin/main 側（separator の #3137 対応、
-# PR #3575）も独立に同一の 0.236.0 へ到達していた（偶発的衝突）ため、そのまま
-# 採用せずさらに +1 して 0.237.0 とする（`.claude/rules/coding-rust.md` #638 条項
-# の同衝突運用）。
+# マージコミット注記（本 PR #3580、origin/main 再取り込み、イシュー #3141）:
+# 本ブランチは switch の #3141 対応で独立に 0.236.0 へ到達していたが、
+# origin/main 側（separator の #3137 対応を含む到達値、本ブランチの base
+# merge 時点）も独立に同一の 0.236.0 へ到達していた（偶発的衝突）ため、
+# そのまま採用せずさらに +1 して 0.237.0 とする（`.claude/rules/coding-rust.md`
+# #638 条項の同衝突運用）。
 #
-# マージコミット注記（本 PR #3578、origin/main 再取り込み #3、イシュー
-# #3139）: 本ブランチは上記の経緯で 0.236.1 へ到達していた（Dot variant
-# 不具合修正の patch バンプ込み）が、origin/main 側（separator の #3137・
-# 衝突解消 #3575 を含む到達値）は独立に 0.236.0 へ到達していた。本ブランチ
-# の到達値（0.236.1）が既に origin/main 側を上回っているため、追加のバンプ
-# は行わず 0.236.1 を維持する。
+# マージコミット注記（本 PR #3580、origin/main 再取り込み #2、イシュー #3139）:
+# origin/main 側は steps の #3139 対応（PR #3578）で独立に 0.236.1 へ到達していたが、
+# 本ブランチ（switch の #3141 対応）は既に 0.237.0 へ到達しており origin/main 側を
+# 上回っているため、追加のバンプは行わず 0.237.0 を維持する。
 #
 # イシュー #3142（PR #3583 codex-review 対応）: toast に opt-in の右端
 # アクション列レイアウト（`ACTIONS_COLUMN_ATTR`・pre-styled-only
@@ -4156,12 +4159,30 @@ name = "fandhe-frontend-pre-styled-ui"
 # そのまま採用せずさらに +1 して 0.238.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 #
+# イシュー #3141（PR #3580 codex-review 指摘対応、P1）: thumb_icon が
+# SwitchProps を受け取らず data-disabled/data-invalid/data-required/
+# data-readonly を欠いていた不整合を修正し、既存の `control`/`thumb` 等と
+# 同じ全パーツ一律反映契約に揃えた。`thumb_icon` の公開シグネチャへ
+# `props: &SwitchProps` 引数を追加する観測可能な破壊的変更のため、0.x の
+# 破壊的変更はマイナーバンプとする規約に従いマイナーバンプする（本ブラン
+# チはこの変更により独立に 0.238.0 へ到達していた）。
+#
+# マージコミット注記（本 PR #3580、origin/main 再取り込み #3、イシュー #3141）:
+# 本ブランチは上記 thumb_icon 修正で独立に 0.238.0 へ到達していたが、
+# origin/main 側（field の #3134 対応 PR #3570 を含む到達値）も独立に同一の
+# 0.238.0 へ到達していた（偶発的衝突）ため、そのまま採用せずさらに +1 して
+# 0.239.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 # マージコミット注記（本 PR #3583、origin/main 三度目の取り込み）: 本ブラ
 # ンチが上記で独立に到達した 0.238.0 と、origin/main（button_group の
 # #3135 対応 PR #3569 を含む到達値）も独立に同一版数 0.238.0 へ到達して
 # いた（偶発的衝突）ため、そのまま採用せずさらに +1 して 0.239.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
-version = "0.239.0"
+#
+# マージコミット注記（本 PR #3580、origin/main 再取り込み #4、イシュー #3141）:
+# 本ブランチが上記で到達した 0.239.0 と、origin/main（PR #3583 を含む到達値）も
+# 独立に同一版数 0.239.0 へ到達していた（偶発的衝突）ため、そのまま採用せず
+# さらに +1 して 0.240.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+version = "0.240.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

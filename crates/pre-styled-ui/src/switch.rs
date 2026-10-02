@@ -234,6 +234,29 @@
 //!   intentional-non-adoption.md` §3.25 の責務境界・「純追加」方針を踏まえ、
 //!   新規コンポーネント新設は別イシューの判断とすべき規模）。plain な
 //!   `<div>` + 既存 `switch` パーツの合成で Examples 側から再現する。
+//!
+//! # 短いトラック形状・thumb アイコン slot（イシュー #3141）
+//!
+//! Blocks 取り込みの対応表（R1375/R1376）で「既存 `switch` では表現できない」
+//! と判定された 2 点を opt-in の純追加で補った。
+//!
+//! - **[`SwitchTrack`]（R1375）**: つまみより細く短いトラック形状。`root`
+//!   の `--fandhe-switch-track-width`/`-track-height`/`-thumb-offset` を
+//!   `--fandhe-switch-thumb-size`（size variant 由来）からの `calc()` で
+//!   再定義し、`control` の実効幅に対してつまみを上下左右へはみ出させる。
+//!   [`Shape`](crate::recipe::Shape) と同じ理由で `default_variant` を登録
+//!   しないため、`SwitchTrack::Short` を指定しない既存呼び出し元（[`root`]）
+//!   の class 出力・golden CSS はバイト不変。
+//! - **[`thumb_icon`]（R1376）**: `thumb` の中央に重ねる on/off アイコン
+//!   slot。`data-state`（switch 自体の状態）と `data-show`（このアイコンが
+//!   どちらの状態で表示されるか）の組み合わせで opacity を切り替える。
+//!   装飾のため `aria-hidden="true"` を固定し、状態の意味論は既存の
+//!   `hidden-input`（`role="switch"`）が担ったまま変えない。
+//!
+//! いずれも既存 anatomy パーツのシグネチャ・出力バイトを変更しない純追加
+//! のため `crates/pre-styled-ui/Cargo.toml` は minor バンプする。RTL での
+//! `thumb` 移動方向は既存の `translateX` 実装と同じく非対応のまま
+//! （本イシューのスコープ外）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -252,12 +275,30 @@ use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::switch::{
     control, hidden_input, label, thumb, SwitchAction, SwitchProps,
 };
+use fandhe_frontend_headless_ui::{anatomy, Anatomy};
+
+/// `data-scope="switch"` を固定した本モジュール独自パート（`thumb-icon`）用の
+/// anatomy（イシュー #3141）。headless-ui 側の `switch::ANATOMY`
+/// （`crates/headless-ui/src/switch.rs`）とは別インスタンスだが `scope`
+/// 文字列は同一値であり、出力される `data-scope` 属性値は一致する
+/// （[`crate::avatar::ANATOMY`] と同型）。
+const ANATOMY: Anatomy = anatomy("switch");
 
 /// headless `switch` anatomy の `data-part` 一覧（`crates/headless-ui/src/switch.rs`
 /// の `ANATOMY.part(...)` 呼び出しと同期させる契約。ずれると [`stylesheet`] が
 /// 一部パーツの CSS を出力しない fail-closed 側の不具合として現れるため、
-/// 変更時は両ファイルを合わせて確認する）。
-const SLOTS: &[&str] = &["root", "control", "thumb", "label", "hidden-input"];
+/// 変更時は両ファイルを合わせて確認する）。イシュー #3141 で pre-styled-only
+/// 1 パート（`thumb-icon`。headless-ui の anatomy には存在せず、本モジュール
+/// だけが出力する）を末尾へ追加し、計 6 件になった（[`crate::avatar`] の
+/// `group`/`badge` と同型）。
+const SLOTS: &[&str] = &[
+    "root",
+    "control",
+    "thumb",
+    "label",
+    "hidden-input",
+    "thumb-icon",
+];
 
 /// この styled Switch の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
@@ -568,7 +609,178 @@ fn recipe() -> SlotRecipe {
     ] {
         recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
+
+    // イシュー #3141 (R1375): 短いトラック形状。`control`/`thumb` の実寸法は
+    // size variant が設定する `--fandhe-switch-thumb-size` 系 custom
+    // property のみに依存するため、root scope への 1 宣言のみで `control`/
+    // `thumb` へ継承させる（size variant と同じ「root の custom property
+    // 経由」の表現手段、[`SlotRecipe`] は子孫セレクタ機構を持たないため）。
+    // トラック幅 = つまみサイズ T の 1.8 倍・高さ = 0.8 倍、`control` の
+    // 既存 `padding: 0 0.15rem` を相殺するオフセットを `thumb` の
+    // `margin-left` へ加えると、checked 時の移動量（1.8T - T + 0.2T = T）が
+    // 既存 `--fandhe-switch-thumb-travel`（全 size 段で T と同値）と一致し、
+    // 上書き不要になる。palette variant（この for 文）より後に登録する
+    // ことで、同じ詳細度で size variant（`default_variant` より前に登録
+    // 済み）のトラック寸法宣言を上書きできる。`Short` を指定しない既存
+    // 呼び出し元は `variant_classes` が本 axis を選択しないため class・
+    // golden CSS ともバイト不変（モジュール冒頭 rustdoc 参照）。
+    recipe = recipe
+        .variant(
+            SwitchTrack::Short,
+            "root",
+            vec![
+                decl(
+                    "--fandhe-switch-track-width",
+                    "calc(var(--fandhe-switch-thumb-size, 1.1rem) * 1.8)",
+                ),
+                decl(
+                    "--fandhe-switch-track-height",
+                    "calc(var(--fandhe-switch-thumb-size, 1.1rem) * 0.8)",
+                ),
+                decl(
+                    "--fandhe-switch-thumb-offset",
+                    "calc(-0.15rem - var(--fandhe-switch-thumb-size, 1.1rem) * 0.1)",
+                ),
+            ],
+        )
+        // `base` は同一 slot への複数回登録が許され出力順で連結されるため、
+        // 既存 2 件の `thumb` base ブロックを書き換えずに純追加する（上記
+        // transition 追加と同型のパターン）。`margin-left` の既定値は
+        // `0`（フォールバック）のため、`SwitchTrack::Short` 非経由では
+        // 見た目は不変。`position: relative` は下記 `thumb-icon` の絶対
+        // 配置の基準にもなる。
+        .base(
+            "thumb",
+            vec![
+                decl("position", "relative"),
+                decl("margin-left", "var(--fandhe-switch-thumb-offset, 0)"),
+            ],
+        )
+        // イシュー #3141 (R1376): thumb アイコン slot。`data-state`（switch
+        // 自体の checked/unchecked）と `data-show`（このアイコンが表示対象
+        // とする状態、[`thumb_icon`] 参照）の両方が一致したときのみ
+        // 不透明にする（不一致の 2 パターンを明示的に `opacity: 0` にし、
+        // 一致せず宣言も無い既定状態は CSS 既定値 `opacity: 1` のまま
+        // 隠さない。checked かつ show=checked のときだけ on アイコンを
+        // palette 色にする）。
+        .base(
+            "thumb-icon",
+            vec![
+                decl("position", "absolute"),
+                decl("inset", "0"),
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                decl(
+                    "color",
+                    "var(--fandhe-switch-thumb-icon-color, var(--fandhe-color-fg-muted))",
+                ),
+                decl("pointer-events", "none"),
+            ],
+        )
+        .base(
+            "thumb-icon",
+            transition_declarations("opacity", MotionDuration::Fast),
+        )
+        .state(
+            "thumb-icon",
+            StateCondition::AttrEqAll(&[("data-state", "checked"), ("data-show", "unchecked")]),
+            vec![decl("opacity", "0")],
+        )
+        .state(
+            "thumb-icon",
+            StateCondition::AttrEqAll(&[("data-state", "unchecked"), ("data-show", "checked")]),
+            vec![decl("opacity", "0")],
+        )
+        .state(
+            "thumb-icon",
+            StateCondition::AttrEqAll(&[("data-state", "checked"), ("data-show", "checked")]),
+            vec![decl(
+                "color",
+                "var(--fandhe-palette, var(--fandhe-color-accent))",
+            )],
+        );
+
     recipe
+}
+
+/// 短いトラック形状 variant（イシュー #3141、R1375）。つまみより細く短い
+/// トラックで、つまみがトラックの上下左右からはみ出す形状を表現する。
+/// `size`/[`ColorPalette`] と異なり `default_variant` を各部品側で登録
+/// しない契約（[`crate::recipe::Shape`] の先例と同型）のため、`Short` を
+/// 指定しない既存呼び出し元の class 出力・golden CSS はバイト不変のまま
+/// 保たれる。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SwitchTrack {
+    /// 既定のトラック形状（`control` の size variant がそのまま寸法を決める）。
+    Default,
+    /// 短いトラック形状（`recipe` 内コメント参照、R1375）。
+    Short,
+}
+
+impl VariantValue for SwitchTrack {
+    fn axis(self) -> &'static str {
+        "track"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            SwitchTrack::Default => "default",
+            SwitchTrack::Short => "short",
+        }
+    }
+}
+
+/// [`thumb_icon`] が表示対象とする状態（イシュー #3141、R1376）。呼び出し
+/// 側は `checked`/`unchecked` 用の 2 個の [`thumb_icon`] を `thumb` の子
+/// として両方配置し、switch 自体の状態（`checked` 引数）と組み合わせて
+/// どちらか一方だけが見えるよう CSS（`recipe` 内コメント参照）が切り替える。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThumbIconShow {
+    /// checked 状態でのみ表示する（on 用）アイコン。
+    Checked,
+    /// unchecked 状態でのみ表示する（off 用）アイコン。
+    Unchecked,
+}
+
+impl ThumbIconShow {
+    fn value(self) -> &'static str {
+        match self {
+            ThumbIconShow::Checked => "checked",
+            ThumbIconShow::Unchecked => "unchecked",
+        }
+    }
+}
+
+/// [`thumb_icon`] が全パーツへ一律付与する属性キー一覧（呼び出し側 `attrs`
+/// からの偽装を fail-closed で除去する対象。`crate::checkbox_card` の
+/// `STATE_RESERVED`/`drop_reserved` と同型）。
+///
+/// イシュー #3141 codex-review 指摘（P1）対応: `data-disabled`/
+/// `data-invalid`/`data-required`/`data-readonly` も [`SwitchProps`] から
+/// 全パーツへ一律反映する既存契約（`control`/`thumb` 等、headless
+/// `state_attrs` 参照）に合わせ、`thumb_icon` のみ欠落していた 4 属性を
+/// 予約キーへ追加する。
+const THUMB_ICON_RESERVED: &[&str] = &[
+    "data-state",
+    "data-show",
+    "aria-hidden",
+    "data-disabled",
+    "data-invalid",
+    "data-required",
+    "data-readonly",
+];
+
+/// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
+/// 除外する（`crate::checkbox_card::drop_reserved` と同型）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
 }
 
 /// この styled Switch が生成する静的 CSS 全量を返す（決定的。
@@ -609,12 +821,120 @@ pub fn root<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    root_with(
+        size,
+        palette,
+        SwitchTrack::Default,
+        checked,
+        props,
+        attrs,
+        children,
+    )
+}
+
+/// styled root パーツを組み立てる（[`root`] の `track` 軸付き版、イシュー
+/// #3141）。[`root`] は `track: SwitchTrack::Default` で本関数へ委譲する
+/// だけの薄いラッパーであり、`SwitchTrack::Default` を渡した場合の出力は
+/// [`root`] とバイト一致する（`track` 軸は `variant_classes` が選択時のみ
+/// class を emit するため、`Default` では axis 自体が選択列に現れない）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::switch::{self, SwitchAction as _, SwitchProps, SwitchTrack};
+/// use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
+///
+/// let node = switch::root_with(
+///     Size::Md,
+///     ColorPalette::Accent,
+///     SwitchTrack::Short,
+///     false,
+///     &SwitchProps::default(),
+///     vec![],
+///     vec![],
+/// );
+/// assert!(render(&node).contains("fd-switch--track-short"));
+/// ```
+#[must_use]
+pub fn root_with<'a>(
+    size: Size,
+    palette: ColorPalette,
+    track: SwitchTrack,
+    checked: bool,
+    props: &SwitchProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
     let recipe = recipe();
-    let class =
-        recipe.variant_classes(&[("size", size.value()), ("color-palette", palette.value())]);
+    let mut selection: Vec<(&str, &str)> =
+        vec![("size", size.value()), ("color-palette", palette.value())];
+    if track == SwitchTrack::Short {
+        selection.push(("track", track.value()));
+    }
+    let class = recipe.variant_classes(&selection);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
     fandhe_frontend_headless_ui::switch::root(checked, props, merged, children)
+}
+
+/// つまみ中央に重ねる on/off アイコン slot（イシュー #3141、R1376）。
+/// [`thumb`] の子として `checked`/`unchecked` 用を 1 個ずつ配置する想定
+/// （`recipe` 内コメント参照）。装飾のため `aria-hidden="true"` を固定し、
+/// 呼び出し側 `attrs` からの `data-state`/`data-show`/`aria-hidden`/
+/// `data-disabled`/`data-invalid`/`data-required`/`data-readonly` 偽装は
+/// 除去する（`data-scope`/`data-part` の偽装は [`Anatomy::part`] が除去）。
+///
+/// `props`（[`SwitchProps`]）は `control`/`thumb` 等の既存パーツと同じく
+/// `data-disabled`/`data-invalid`/`data-required`/`data-readonly` を全パーツ
+/// 一律反映する契約（headless `state_attrs` 参照）に揃えるために受け取る
+/// （イシュー #3141 codex-review 指摘〔P1〕対応: 新設時に本属性が欠落して
+/// いた）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::switch::{self, SwitchProps, ThumbIconShow};
+///
+/// let node = switch::thumb_icon(
+///     false,
+///     ThumbIconShow::Unchecked,
+///     &SwitchProps::default(),
+///     vec![],
+///     vec![],
+/// );
+/// let html = render(&node);
+/// assert!(html.contains(r#"data-scope="switch" data-part="thumb-icon""#));
+/// assert!(html.contains(r#"aria-hidden="true""#));
+/// ```
+#[must_use]
+pub fn thumb_icon<'a>(
+    checked: bool,
+    show: ThumbIconShow,
+    props: &SwitchProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        ("data-state", if checked { "checked" } else { "unchecked" }),
+        ("data-show", show.value()),
+        ("aria-hidden", "true"),
+    ];
+    merged.extend(fandhe_frontend_headless_ui::data_attrs::data_disabled(
+        props.disabled,
+    ));
+    merged.extend(fandhe_frontend_headless_ui::data_attrs::data_invalid(
+        props.invalid,
+    ));
+    merged.extend(fandhe_frontend_headless_ui::data_attrs::data_required(
+        props.required,
+    ));
+    merged.extend(fandhe_frontend_headless_ui::data_attrs::data_readonly(
+        props.readonly,
+    ));
+    merged.extend(drop_reserved(attrs, THUMB_ICON_RESERVED));
+    ANATOMY.part("thumb-icon", "span", merged, children)
 }
 
 #[cfg(test)]
@@ -1022,5 +1342,162 @@ mod tests {
 
         let restored = Switch::from_hydration_attrs(&s.hydration_attrs()).unwrap();
         assert_eq!(restored, s);
+    }
+
+    // --- イシュー #3141: SwitchTrack::Short / thumb_icon ---
+
+    #[test]
+    fn root_with_default_track_matches_root_byte_for_byte_and_has_no_track_class() {
+        let via_root = render(&root(
+            Size::Md,
+            ColorPalette::Accent,
+            false,
+            &SwitchProps::default(),
+            vec![],
+            vec![],
+        ));
+        let via_root_with = render(&root_with(
+            Size::Md,
+            ColorPalette::Accent,
+            SwitchTrack::Default,
+            false,
+            &SwitchProps::default(),
+            vec![],
+            vec![],
+        ));
+        assert_eq!(via_root, via_root_with);
+        assert!(!via_root.contains("fd-switch--track-"));
+    }
+
+    #[test]
+    fn root_with_short_track_adds_single_track_class() {
+        let html = render(&root_with(
+            Size::Md,
+            ColorPalette::Accent,
+            SwitchTrack::Short,
+            false,
+            &SwitchProps::default(),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains("fd-switch--track-short"));
+        assert_eq!(html.matches("class=\"").count(), 1);
+    }
+
+    #[test]
+    fn thumb_icon_outputs_scope_part_state_show_and_aria_hidden() {
+        let html = render(&thumb_icon(
+            true,
+            ThumbIconShow::Checked,
+            &SwitchProps::default(),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="switch""#));
+        assert!(html.contains(r#"data-part="thumb-icon""#));
+        assert!(html.contains(r#"data-state="checked""#));
+        assert!(html.contains(r#"data-show="checked""#));
+        assert!(html.contains(r#"aria-hidden="true""#));
+    }
+
+    #[test]
+    fn thumb_icon_reflects_switch_props_state_attrs() {
+        // イシュー #3141 codex-review 指摘（P1）回帰: control/thumb 等の
+        // 既存パーツと同じく SwitchProps の 4 状態が thumb-icon へも
+        // 一律反映されることを固定する。
+        let props = SwitchProps {
+            disabled: true,
+            invalid: true,
+            required: true,
+            readonly: true,
+        };
+        let html = render(&thumb_icon(
+            true,
+            ThumbIconShow::Checked,
+            &props,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"data-required="""#));
+        assert!(html.contains(r#"data-readonly="""#));
+    }
+
+    #[test]
+    fn thumb_icon_drops_reserved_attribute_spoofing_case_insensitively() {
+        let html = render(&thumb_icon(
+            false,
+            ThumbIconShow::Unchecked,
+            &SwitchProps::default(),
+            vec![
+                ("DATA-STATE", "attacker"),
+                ("data-show", "attacker"),
+                ("Aria-Hidden", "false"),
+                ("data-scope", "attacker"),
+                ("data-part", "attacker"),
+                ("data-disabled", "attacker"),
+                ("data-invalid", "attacker"),
+                ("data-required", "attacker"),
+                ("data-readonly", "attacker"),
+            ],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="switch""#));
+        assert!(html.contains(r#"data-part="thumb-icon""#));
+        assert!(html.contains(r#"data-state="unchecked""#));
+        assert!(html.contains(r#"data-show="unchecked""#));
+        assert!(html.contains(r#"aria-hidden="true""#));
+        assert!(!html.contains("attacker"));
+        assert!(!html.contains(r#"aria-hidden="false""#));
+    }
+
+    #[test]
+    fn thumb_icon_attrs_and_children_are_escaped() {
+        let html = render(&thumb_icon(
+            false,
+            ThumbIconShow::Unchecked,
+            &SwitchProps::default(),
+            vec![("data-x", "\" onmouseover=\"alert(1)")],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        assert!(!html.contains("onmouseover=\"alert(1)\""));
+        assert!(html.contains("&quot;"));
+        assert!(!html.contains("<script>alert(1)</script>"));
+        assert!(html.contains("&lt;script&gt;"));
+    }
+
+    #[test]
+    fn stylesheet_registers_track_short_variant_and_thumb_icon_opacity_states() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="switch"][data-part="root"].fd-switch--track-short {
+  --fandhe-switch-track-width: calc(var(--fandhe-switch-thumb-size, 1.1rem) * 1.8);
+  --fandhe-switch-track-height: calc(var(--fandhe-switch-thumb-size, 1.1rem) * 0.8);
+  --fandhe-switch-thumb-offset: calc(-0.15rem - var(--fandhe-switch-thumb-size, 1.1rem) * 0.1);
+}"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="switch"][data-part="thumb-icon"][data-state="checked"][data-show="unchecked"] {
+  opacity: 0;
+}"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="switch"][data-part="thumb-icon"][data-state="unchecked"][data-show="checked"] {
+  opacity: 0;
+}"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="switch"][data-part="thumb-icon"][data-state="checked"][data-show="checked"] {
+  color: var(--fandhe-palette, var(--fandhe-color-accent));
+}"#
+        ));
+    }
+
+    #[test]
+    fn stylesheet_still_never_contains_style_breakout_sequences_after_thumb_icon_addition() {
+        let css = stylesheet();
+        assert!(!css.contains("</style"));
+        assert!(!css.contains('<'));
     }
 }

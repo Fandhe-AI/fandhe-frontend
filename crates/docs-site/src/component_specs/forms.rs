@@ -2700,6 +2700,8 @@ const SWITCH: ComponentPageSpec = ComponentPageSpec {
         "ネイティブ `checked` 状態がブラウザにより `aria-checked` へ自動マップされるため、本モジュールは `aria-checked` を明示付与しない（二重読み上げ防止）。",
         "`readonly`/`invalid`/`required` の各フラグを `SwitchProps` で受け取り、`data-*` 属性・ネイティブ属性へ全パーツ一律反映する（イシュー #1622）。",
         "`data-invalid` は `control` パーツへ danger 色の `box-shadow` リングとして反映される（イシュー #2021、shadcn/ui との突合で追加）。",
+        "`root_with` で `track: SwitchTrack::Short` を渡すと、つまみより細く短いトラック形状になり、つまみが上下左右へはみ出す（イシュー #3141）。`SwitchTrack::Default`（`root` が使う既定値）では class・CSS とも出力されない opt-in 軸。",
+        "`thumb_icon` で `thumb` 中央に on/off アイコンを重ねられる（イシュー #3141）。`checked`/`show` の組み合わせに応じて opacity を切り替え、checked 状態で表示される on 側アイコンのみ colorPalette と連動した色になる（unchecked 側は常に中立色のまま。オフ状態を装飾色で強調しない意図的な非対称）。装飾のため `aria-hidden=\"true\"` を固定する。",
     ],
     arguments: &[
         ArgRow {
@@ -2713,6 +2715,12 @@ const SWITCH: ComponentPageSpec = ComponentPageSpec {
             kind: "ColorPalette",
             default: "ColorPalette::Accent",
             description: "colorPalette 軸。",
+        },
+        ArgRow {
+            name: "track",
+            kind: "SwitchTrack",
+            default: "SwitchTrack::Default",
+            description: "トラック形状 variant（`root_with` のみが受け取る。`root` は常に `Default` を渡す、イシュー #3141）。",
         },
         ArgRow {
             name: "checked",
@@ -2749,6 +2757,16 @@ const SWITCH: ComponentPageSpec = ComponentPageSpec {
             title: "枠付きボックス内での利用",
             description: "shadcn/ui の Examples が示す「枠付きカード内に label/description + switch を配置する」構成を、既存 anatomy パーツと plain な `<div>` の合成で再現した例です（専用の複合コンポーネントは新設しない、`fandhe_frontend_pre_styled_ui::switch` rustdoc「本イシューのスコープ外」節参照）。",
             render: switch_bordered_box_example,
+        },
+        ExampleEntry {
+            title: "短いトラック形状",
+            description: "`root_with` へ `SwitchTrack::Short` を渡した例です。つまみより細く短いトラックで、つまみが上下左右へはみ出す形状になります（イシュー #3141、R1375）。",
+            render: switch_short_track_example,
+        },
+        ExampleEntry {
+            title: "thumb アイコン",
+            description: "`thumb` の子として `thumb_icon` を 2 個（checked/unchecked 用）配置した例です。状態に応じてどちらか一方だけが見え、checked 側が表示されているときのみ colorPalette に連動した色になります（unchecked 側は中立色のまま、イシュー #3141、R1376）。",
+            render: switch_thumb_icon_example,
         },
     ],
     keyboard: &[],
@@ -2936,6 +2954,117 @@ fn switch_bordered_box_example() -> Node {
                 &props,
                 vec![],
                 vec![switch::thumb(checked, &props, vec![], vec![])],
+            ),
+        ],
+    )
+}
+
+// イシュー #3141 (R1375): `SwitchTrack::Short` の実演。`root_with` の
+// `track` 引数以外は `switch_with_description_example` と同じ anatomy
+// パーツ構成（`root` が内包する `label`/`hidden_input`/`control`/`thumb`）。
+// `root` は `<label>` 要素のため、子の `switch::label` がアクセシブル
+// ネームを与える（codex 指摘 P1、PR #3580）。
+fn switch_short_track_example() -> Node {
+    let checked = true;
+    let props = SwitchProps::default();
+    switch::root_with(
+        Size::Md,
+        ColorPalette::Accent,
+        switch::SwitchTrack::Short,
+        checked,
+        &props,
+        vec![],
+        vec![
+            switch::label(checked, &props, vec![], vec![text("Compact track")]),
+            switch::hidden_input("switch-short-track-example", "on", checked, &props, vec![]),
+            switch::control(
+                checked,
+                &props,
+                vec![],
+                vec![switch::thumb(checked, &props, vec![], vec![])],
+            ),
+        ],
+    )
+}
+
+// イシュー #3141 (R1376): `thumb_icon` の実演。チェック
+// （`M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z`、
+// `component_specs_nav_data.rs`/`showcase.rs` と同一の Material Design
+// check グリフ）・バツ（`crate::button::CLOSE_ICON_PATH` と同一の
+// Material Design close グリフ）の 2 アイコンを `thumb` の子として両方
+// 配置し、`checked`/`show` の組み合わせで表示が切り替わる挙動を示す
+// （SVG パスは plain な `<path>` ノードであり、既定エスケープ経由で
+// 出力される。HTML 文字列を直接組み立てない）。`icon()`（`crate::icon`）
+// は `fill="currentColor"` 固定でアウトライン用の `stroke` を持たないため、
+// Lucide 系の線画（ストローク前提）パスではなく、このモジュール他所と
+// 同じ閉じた塗り形状のグリフを使う（Cursor Bugbot 指摘、PR #3580）。
+fn switch_thumb_icon_example() -> Node {
+    let checked = true;
+    let props = SwitchProps::default();
+    switch::root(
+        Size::Md,
+        ColorPalette::Accent,
+        checked,
+        &props,
+        vec![],
+        vec![
+            switch::label(checked, &props, vec![], vec![text("Show thumb icon")]),
+            switch::hidden_input("switch-thumb-icon-example", "on", checked, &props, vec![]),
+            switch::control(
+                checked,
+                &props,
+                vec![],
+                vec![switch::thumb(
+                    checked,
+                    &props,
+                    vec![],
+                    vec![
+                        switch::thumb_icon(
+                            checked,
+                            switch::ThumbIconShow::Unchecked,
+                            &props,
+                            vec![],
+                            vec![icon(
+                                &IconProps {
+                                    size: Size::Xs,
+                                    ..IconProps::default()
+                                },
+                                vec![],
+                                vec![el(
+                                    "path",
+                                    vec![(
+                                        "d",
+                                        "M18.3 5.71 12 12.01 5.7 5.71 4.29 7.12 10.59 13.42 \
+                                         4.29 19.72 5.7 21.13 12 14.83 18.3 21.13 19.71 19.72 \
+                                         13.41 13.42 19.71 7.12Z",
+                                    )],
+                                    vec![],
+                                )],
+                            )],
+                        ),
+                        switch::thumb_icon(
+                            checked,
+                            switch::ThumbIconShow::Checked,
+                            &props,
+                            vec![],
+                            vec![icon(
+                                &IconProps {
+                                    size: Size::Xs,
+                                    ..IconProps::default()
+                                },
+                                vec![],
+                                vec![el(
+                                    "path",
+                                    vec![(
+                                        "d",
+                                        "M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
+                                    )],
+                                    vec![],
+                                )],
+                            )],
+                        ),
+                    ],
+                )],
             ),
         ],
     )
