@@ -1,7 +1,7 @@
 # docs-layout-toc-progress
 
-ページ内目次（番号付き進捗トラック）。`link`/`text` の 2 部品のみで
-合成する例で、主参照は対応表 ID R0367（集約元は同 1 件）。
+ページ内目次（番号付き進捗トラック）。`link`/`text`/`heading` の 3 部品
+のみで合成する例で、主参照は対応表 ID R0367（集約元は同 1 件）。
 
 先頭 10 項目に番号を付けて縦に並べ、左の縦トラックで現在節までの読み
 進み位置を塗ります。目次自体は可視の見出しを持たず、`aria-label` で
@@ -14,11 +14,10 @@
 
 ```rust
 use fandhe_frontend_core::{div, li, nav, ol, span, text, Node};
+use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::recipe::ColorPalette;
-use fandhe_frontend_pre_styled_ui::text::{
-    self as styled_text, TextProps, TextVariant, TextWeight,
-};
+use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
 
 /// 本文の 1 節（目次項目と 1 対 1 対応する）。
 struct Section {
@@ -185,10 +184,11 @@ fn body() -> Node {
             div(
                 vec![],
                 vec![
-                    styled_text::text(
-                        &TextProps {
-                            weight: TextWeight::Semibold,
-                            ..TextProps::default()
+                    heading::heading(
+                        HeadingLevel::H3,
+                        &HeadingProps {
+                            size: HeadingSize::Sm,
+                            ..HeadingProps::default()
                         },
                         vec![("id", section.id)],
                         vec![text(section.title)],
@@ -215,10 +215,21 @@ fn body() -> Node {
 
 /// `docs-layout-toc-progress` の Demo 本体（本文列 + 目次列。呼び出しごとに
 /// 同一の `Node` を返す純関数）。
+///
+/// コンテナクエリの祖先コンテナ（`.blocks-docs-layout-toc-progress-frame`）
+/// と、そのクエリで列数を切り替える要素（`.blocks-docs-layout-toc-progress-layout`）
+/// を別要素に分離する。CSS Containment の仕様上、要素は自身が確立する
+/// サイズコンテナに対しては `@container` で選択されない（同じ要素へ
+/// `container-type`/`container-name` と `@container` 規則を重ねて書くと
+/// 常に不一致のまま 1 列固定になる）ため、2 階層構造が必須
+/// （`LAYOUT_CSS` 参照）。
 pub fn demo() -> Node {
     div(
-        vec![("class", "blocks-docs-layout-toc-progress-layout")],
-        vec![body(), toc()],
+        vec![("class", "blocks-docs-layout-toc-progress-frame")],
+        vec![div(
+            vec![("class", "blocks-docs-layout-toc-progress-layout")],
+            vec![body(), toc()],
+        )],
     )
 }
 ```

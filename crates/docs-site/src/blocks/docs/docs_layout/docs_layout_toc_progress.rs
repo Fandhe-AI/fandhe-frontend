@@ -7,9 +7,9 @@
 //!
 //! # 使用部品
 //!
-//! `link` / `text` の 2 部品のみを合成する（[`BLOCK`] の `parts` に一致
-//! させる契約）。新しい UI 部品は追加しない。目次の構造自体（`nav`/`ol`/
-//! `li`/`span`）は `fandhe_frontend_core` のノード木 API で直接組み立てる。
+//! `link` / `text` / `heading` の 3 部品のみを合成する（[`BLOCK`] の
+//! `parts` に一致させる契約）。目次の構造自体（`nav`/`ol`/`li`/`span`）は
+//! `fandhe_frontend_core` のノード木 API で直接組み立てる。
 //!
 //! # 対応表 ID
 //!
@@ -20,10 +20,12 @@
 //! `linkcheck::check_links` は `#fragment` リンクを同一ページの id 集合と
 //! 突合し、fail-closed で落とす（兄弟 `docs-layout-toc` と同じ制約）。この
 //! ため Demo には目次の遷移先となる本文プレースホルダー列を置き、各節の
-//! 先頭要素（`text` 部品の見出し）に `id` を付ける。本文見出しを生の
-//! `h2`/`h3` にすると `layout::with_heading_anchors` が docs サイト右目次
-//! へ誤って収集してしまうため、`data-scope="text"` を持つ `text` 部品で
-//! 代替する（収集対象外になる）。
+//! 先頭要素（`heading` 部品の `h3`）に `id` を付ける。`heading` 部品の
+//! root は `data-scope="heading"` を持ち、`layout::with_heading_anchors`
+//! は `data-scope` 属性を持つ要素の部分木を走査対象外にするため、見出し
+//! として意味論的に正しい `h3` を使いながら docs サイト右目次への誤収集
+//! は起きない（`crates/docs-site/src/layout.rs` の headless-ui anatomy
+//! 除外規則を転用）。
 //!
 //! # 先頭 10 項目への打ち切り
 //!
@@ -57,11 +59,10 @@ use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
 use fandhe_frontend_core::{div, li, nav, ol, span, text, Node};
+use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::recipe::ColorPalette;
-use fandhe_frontend_pre_styled_ui::text::{
-    self as styled_text, TextProps, TextVariant, TextWeight,
-};
+use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
 
 /// 本文の 1 節（目次項目と 1 対 1 対応する）。
 struct Section {
@@ -228,10 +229,11 @@ fn body() -> Node {
             div(
                 vec![],
                 vec![
-                    styled_text::text(
-                        &TextProps {
-                            weight: TextWeight::Semibold,
-                            ..TextProps::default()
+                    heading::heading(
+                        HeadingLevel::H3,
+                        &HeadingProps {
+                            size: HeadingSize::Sm,
+                            ..HeadingProps::default()
                         },
                         vec![("id", section.id)],
                         vec![text(section.title)],
@@ -258,10 +260,21 @@ fn body() -> Node {
 
 /// `docs-layout-toc-progress` の Demo 本体（本文列 + 目次列。呼び出しごとに
 /// 同一の `Node` を返す純関数）。
+///
+/// コンテナクエリの祖先コンテナ（`.blocks-docs-layout-toc-progress-frame`）
+/// と、そのクエリで列数を切り替える要素（`.blocks-docs-layout-toc-progress-layout`）
+/// を別要素に分離する。CSS Containment の仕様上、要素は自身が確立する
+/// サイズコンテナに対しては `@container` で選択されない（同じ要素へ
+/// `container-type`/`container-name` と `@container` 規則を重ねて書くと
+/// 常に不一致のまま 1 列固定になる）ため、2 階層構造が必須
+/// （`LAYOUT_CSS` 参照）。
 pub fn demo() -> Node {
     div(
-        vec![("class", "blocks-docs-layout-toc-progress-layout")],
-        vec![body(), toc()],
+        vec![("class", "blocks-docs-layout-toc-progress-frame")],
+        vec![div(
+            vec![("class", "blocks-docs-layout-toc-progress-layout")],
+            vec![body(), toc()],
+        )],
     )
 }
 // blocks-code:end
@@ -283,6 +296,10 @@ pub const BLOCK: Block = Block {
             label: "Text",
             path: "/themes/text/",
         },
+        Part {
+            label: "Heading",
+            path: "/themes/heading/",
+        },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
     demo,
@@ -299,8 +316,16 @@ pub const BLOCK: Block = Block {
 /// 誤って掴むため）。`position: sticky` も使わない（`.blocks-demo` が
 /// スクロールコンテナになるため。実アプリでの sticky 想定は原稿の差分メモ
 /// に書く）。
+///
+/// `container-type`/`container-name` は `.blocks-docs-layout-toc-progress-frame`
+/// （`demo()` のルート）に宣言し、`@container` で列数を切り替える対象
+/// （`.blocks-docs-layout-toc-progress-layout`）はその子要素にする。
+/// 両方を同一要素へ重ねると、その要素は自身の確立するコンテナに対して
+/// 常に非選択（コンテナクエリは子孫を評価する仕様）になり、2 列化が
+/// 永久に発火しない（CI `codex / review` P1・Cursor Bugbot 指摘）。
 const LAYOUT_CSS: &str = "\
-.blocks-docs-layout-toc-progress-layout {\n  container-type: inline-size;\n  container-name: blocks-docs-layout-toc-progress;\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-6);\n}\n\
+.blocks-docs-layout-toc-progress-frame {\n  container-type: inline-size;\n  container-name: blocks-docs-layout-toc-progress;\n}\n\
+.blocks-docs-layout-toc-progress-layout {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-docs-layout-toc-progress-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  min-width: 0;\n}\n\
 [data-blocks-docs-layout-toc-progress-list] {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n}\n\
 [data-blocks-docs-layout-toc-progress-item] {\n  position: relative;\n  display: grid;\n  grid-template-columns: 1.75rem minmax(0, 1fr);\n  align-items: start;\n  column-gap: var(--fandhe-space-2);\n  padding-block-end: var(--fandhe-space-4);\n}\n\
@@ -312,7 +337,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-docs-layout-toc-progress-item-state=\"done\"] [data-blocks-docs-layout-toc-progress-marker] {\n  border-color: var(--fandhe-color-accent);\n}\n\
 [data-blocks-docs-layout-toc-progress-item-state=\"current\"] [data-blocks-docs-layout-toc-progress-marker] {\n  border-color: var(--fandhe-color-accent);\n  background: var(--fandhe-color-accent);\n  color: var(--fandhe-color-accent-fg);\n}\n\
 [data-blocks-docs-layout-toc-progress-nav] [data-scope=\"link\"][data-part=\"root\"] {\n  padding-block-start: 0.125rem;\n}\n\
-[data-blocks-docs-layout-toc-progress-nav] [data-scope=\"link\"][data-part=\"root\"][aria-current=\"location\"] {\n  font-weight: var(--fandhe-font-weight-semibold);\n}\n\
+[data-blocks-docs-layout-toc-progress-nav] [data-scope=\"link\"][data-part=\"root\"][aria-current=\"location\"] {\n  font-weight: var(--fandhe-font-font-weight-semibold);\n}\n\
 @container blocks-docs-layout-toc-progress (min-width: 40rem) {\n  .blocks-docs-layout-toc-progress-layout {\n    grid-template-columns: minmax(0, 1fr) 14rem;\n  }\n}\n";
 
 #[cfg(test)]
@@ -320,12 +345,38 @@ mod tests {
     use super::{demo, CURRENT_INDEX, LAYOUT_CSS, SECTIONS, TOC_LIMIT};
     use fandhe_frontend_core::render;
 
-    /// Demo が使用部品（link/text）の anatomy をすべて実際に出力していること。
+    /// Demo が使用部品（link/text/heading）の anatomy をすべて実際に
+    /// 出力していること。
     #[test]
     fn demo_composes_expected_parts() {
         let html = render(&demo());
         assert!(html.contains("data-scope=\"link\""));
         assert!(html.contains("data-scope=\"text\""));
+        assert!(html.contains("data-scope=\"heading\""));
+    }
+
+    /// 各節見出しは意味論的な `<h3>`（`heading` 部品）として出力される
+    /// （P2: 旧実装は `<p>` のため支援技術の見出しナビゲーションから
+    /// 認識されなかった）。`heading` の root は `data-scope="heading"` を
+    /// 持つため docs サイト右目次へは収集されない（モジュール doc参照）。
+    #[test]
+    fn section_titles_are_real_headings() {
+        let html = render(&demo());
+        assert_eq!(
+            html.matches("<h3 data-scope=\"heading\" data-part=\"root\"")
+                .count(),
+            SECTIONS.len(),
+            "every section title should render as a real h3 heading"
+        );
+        for section in SECTIONS {
+            let id = format!("id=\"{}\"", section.id);
+            assert_eq!(
+                html.matches(&id).count(),
+                1,
+                "section {} should have exactly one id-bearing element",
+                section.id
+            );
+        }
     }
 
     /// 目次は先頭 10 項目ちょうど。11・12 項目目の href は目次に現れない。
@@ -392,13 +443,17 @@ mod tests {
         assert_eq!(html.matches("aria-current=\"page\"").count(), 0);
     }
 
-    /// 目次は可視見出しを持たず、aria-label のみでアクセシブルネームを持つ。
+    /// 目次（`nav` 以降）は可視見出しを持たず、aria-label のみで
+    /// アクセシブルネームを持つ（本文側の `h3` 節見出しは対象外、
+    /// `section_titles_are_real_headings` で別途検証する）。
     #[test]
     fn toc_has_no_visible_heading() {
         let html = render(&demo());
         assert!(html.contains("aria-label=\"このページの目次\""));
+        let nav_start = html.find("<nav").expect("toc nav should exist");
+        let nav_html = &html[nav_start..];
         for level in ["<h1", "<h2", "<h3", "<h4", "<h5", "<h6"] {
-            assert!(!html.contains(level), "demo should not emit {level}");
+            assert!(!nav_html.contains(level), "toc nav should not emit {level}");
         }
     }
 
@@ -435,6 +490,46 @@ mod tests {
             .expect("container query should exist");
         assert!(default_pos < container_pos);
         assert!(LAYOUT_CSS.contains("[data-blocks-docs-layout-toc-progress-nav] [data-scope=\"link\"][data-part=\"root\"][aria-current=\"location\"]"));
+        assert!(LAYOUT_CSS.contains("var(--fandhe-font-font-weight-semibold)"));
+        assert!(
+            !LAYOUT_CSS.contains("var(--fandhe-font-weight-semibold)"),
+            "current-link weight must use the real token (fandhe-font-font-weight-*), not the typo'd fandhe-font-weight-*"
+        );
+    }
+
+    /// コンテナクエリの祖先コンテナ（`container-type`/`container-name`）は
+    /// `.blocks-docs-layout-toc-progress-frame` に宣言され、
+    /// `.blocks-docs-layout-toc-progress-layout` 自身には重ねられない
+    /// （同一要素への重ね書きはコンテナクエリの仕様上常に非選択になり
+    /// 2 列化が発火しない。CI `codex / review` P1・Cursor Bugbot 指摘の
+    /// 回帰テスト）。`@container` の列数切り替え規則は `.layout` を選択
+    /// する（`.frame` の子孫）。
+    #[test]
+    fn container_type_is_declared_on_frame_not_on_layout() {
+        let frame_rule_pos = LAYOUT_CSS
+            .find(".blocks-docs-layout-toc-progress-frame {")
+            .expect("frame rule should exist");
+        let frame_rule_end = LAYOUT_CSS[frame_rule_pos..]
+            .find('}')
+            .map(|offset| frame_rule_pos + offset)
+            .expect("frame rule should be closed");
+        let frame_rule = &LAYOUT_CSS[frame_rule_pos..frame_rule_end];
+        assert!(frame_rule.contains("container-type: inline-size"));
+        assert!(frame_rule.contains("container-name: blocks-docs-layout-toc-progress"));
+
+        let layout_rule_pos = LAYOUT_CSS
+            .find(".blocks-docs-layout-toc-progress-layout {")
+            .expect("layout rule should exist");
+        let layout_rule_end = LAYOUT_CSS[layout_rule_pos..]
+            .find('}')
+            .map(|offset| layout_rule_pos + offset)
+            .expect("layout rule should be closed");
+        let layout_rule = &LAYOUT_CSS[layout_rule_pos..layout_rule_end];
+        assert!(!layout_rule.contains("container-type"));
+        assert!(!layout_rule.contains("container-name"));
+
+        let html = render(&demo());
+        assert!(html.contains("class=\"blocks-docs-layout-toc-progress-frame\""));
     }
 
     /// ルート class（`demo_class` とは別名）が `demo()` の出力へ実際に
