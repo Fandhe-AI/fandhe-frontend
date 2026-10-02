@@ -2879,6 +2879,11 @@ source = "site/blocks/reviews-card-grid.md"
 path = "/blocks/reviews-card-grid/"
 
 [[section.group.page]]
+title = "reviews-stacked-list"
+source = "site/blocks/reviews-stacked-list.md"
+path = "/blocks/reviews-stacked-list/"
+
+[[section.group.page]]
 title = "reviews-summary-split"
 source = "site/blocks/reviews-summary-split.md"
 path = "/blocks/reviews-summary-split/"
@@ -2890,6 +2895,11 @@ path = "/blocks/reviews-write-form/"
 
 [[section.group]]
 title = "Store Nav"
+
+[[section.group.page]]
+title = "store-nav-category-row"
+source = "site/blocks/store-nav-category-row.md"
+path = "/blocks/store-nav-category-row/"
 
 [[section.group.page]]
 title = "store-nav-centered-logo"
@@ -2969,6 +2979,11 @@ path = "/blocks/promo-with-testimonials/"
 
 [[section.group]]
 title = "API Reference"
+
+[[section.group.page]]
+title = "api-reference-param-accordion"
+source = "site/blocks/api-reference-param-accordion.md"
+path = "/blocks/api-reference-param-accordion/"
 
 [[section.group.page]]
 title = "api-reference-props-table"
