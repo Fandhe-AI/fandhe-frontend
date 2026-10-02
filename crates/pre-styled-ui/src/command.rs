@@ -81,6 +81,22 @@
 //! `kbd` + 説明テキストを `span` 等 1 つの子要素へ包んでから渡すことで、
 //! 折り返しの単位をヒント 1 件に揃える（Examples の実装例参照）。
 //!
+//! **`footer` の直接の子へ `white-space: nowrap` を raw CSS で強制する
+//! （#3143 Codex P2 再指摘対応）**: 呼び出し側がヒントを `span` 等 1 つの
+//! 子要素へ包んだだけでは、その `span` 自身が既定 `display: inline` の
+//! ままであり、`kbd` と説明テキストの間の通常の空白文字は依然として
+//! 折り返し可能点のままである（`flex-wrap: wrap` の折り返し単位が子要素
+//! になるのは子要素の**外側**の折り返しのみで、子要素**内部**の折り返し
+//! 可否とは独立）。このため狭幅では `span` 内部でも `kbd`/説明文が別行に
+//! 分かれ得てしまい、呼び出し側の規約だけでは対応関係を保証できない。
+//! [`stylesheet`] は `[data-scope="command"][data-part="footer"] > *`
+//! （呼び出し側が渡すヒント要素のタグに依存しない子結合子セレクタ）へ
+//! `white-space: nowrap` を raw CSS で追記し、子要素のタグ・`class` 指定に
+//! 依存せず内部折り返しを禁止する（`crate::button_group` の raw CSS 追記と
+//! 同型の手段、`SlotRecipe` は named slot 単位のセレクタしか生成できない
+//! ため、専用サブパートを設けない方針のままこの契約を機械的に満たすには
+//! raw CSS 追記が必要）。
+//!
 //! # `empty` の表示切替 CSS（headless の SSR 決定性契約との対応）
 //!
 //! headless [`fandhe_frontend_headless_ui::command::empty`] は `present` が
@@ -436,8 +452,9 @@ fn recipe() -> SlotRecipe {
 
 /// この styled Command が生成する静的 CSS 全量を返す（決定的。
 /// [`crate::item::stylesheet`] と同じ契約）。dialog 内 root の二重枠を
-/// 解除する raw CSS 追記を含む（モジュール doc「raw CSS 追記の理由」節
-/// 参照）。
+/// 解除する raw CSS 追記と、`footer` 直接の子（呼び出し側が組む 1 ヒント
+/// 分の `span` 等）の内部折り返しを禁止する raw CSS 追記を含む（モジュール
+/// doc「raw CSS 追記の理由」節参照）。
 #[must_use]
 pub fn stylesheet() -> String {
     let mut out = recipe().css();
@@ -452,6 +469,14 @@ pub fn stylesheet() -> String {
             decl("box-shadow", "none"),
         ],
     ) {
+        if !out.is_empty() {
+            out.push('\n');
+        }
+        out.push_str(&rule);
+    }
+
+    const FOOTER_CHILD: &str = r#"[data-scope="command"][data-part="footer"] > *"#;
+    if let Some(rule) = serialize_rule(FOOTER_CHILD, &[decl("white-space", "nowrap")]) {
         if !out.is_empty() {
             out.push('\n');
         }

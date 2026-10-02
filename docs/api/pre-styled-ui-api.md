@@ -1030,11 +1030,18 @@ Input Group 相当の見た目（コンテナ側 1 本の枠線・角丸・`:foc
   `crate::drawer::footer` と異なり呼び出し側 `class` も `drop_class_attr`
   で除去する。`root` の直接の子として `list`/`empty` の後ろに置く想定で、
   `children` へ `crate::kbd::kbd` とテキストを組んでキー操作ヒントを表す
-  （`shortcut` と同じ合成方式）。キー操作そのものの配線は持たない。
+  （`shortcut` と同じ合成方式）。キー操作そのものの配線は持たない。呼び
+  出し側はヒント 1 件（`kbd` + 説明テキスト）を `span` 等 1 つの子要素へ
+  まとめてから渡す（`footer` 自体の `flex-wrap: wrap` は子要素単位でしか
+  折り返さないため）。
 - **raw CSS 追記**: `SlotRecipe` は子結合子セレクタを表現できないため、
   `stylesheet()` は dialog 内 root の二重枠を解除する
   `[data-scope="command"][data-part="dialog"] > [data-scope="command"][data-part="root"]`
-  規則を `serialize_rule` で追記する。
+  規則と、`footer` 直接の子（呼び出し側が組む 1 ヒント分の `span` 等）の
+  内部折り返しを禁止する `[data-scope="command"][data-part="footer"] > *`
+  （`white-space: nowrap`）規則を `serialize_rule` で追記する。後者は
+  `span` 等へ包むだけでは `span` 自身が `display: inline` のままで内部
+  折り返しを防げないための対策（#3143 Codex P2 再指摘対応）。
 - **バリデーション責務外**: 絞り込み配線・Enter 実行・Cmd/Ctrl+K の
   グローバルショートカット・フォーカストラップは `fandhe-frontend-wasm-full`
   の責務として実装しない（`docs/policy/intentional-non-adoption.md` §3.25

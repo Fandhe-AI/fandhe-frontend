@@ -163,6 +163,10 @@ const COMMAND_GOLDEN_CSS: &str = "[data-scope=\"command\"][data-part=\"root\"] {
   border-radius: 0;
   box-shadow: none;
 }
+
+[data-scope=\"command\"][data-part=\"footer\"] > * {
+  white-space: nowrap;
+}
 ";
 
 #[test]
@@ -217,6 +221,19 @@ fn css_appends_dialog_root_double_border_removal_rule() {
     let css = command::stylesheet();
     assert!(css.contains(
         "[data-scope=\"command\"][data-part=\"dialog\"] > [data-scope=\"command\"][data-part=\"root\"] {\n  border: 0;\n  border-radius: 0;\n  box-shadow: none;\n}"
+    ));
+}
+
+/// `footer` 直接の子（呼び出し側が組む 1 ヒント分の `span` 等）の内部
+/// 折り返しを禁止する raw CSS 追記（子結合子セレクタ）が存在することを
+/// 固定する（`src/command.rs` モジュール doc「raw CSS 追記の理由」節参照。
+/// #3143 Codex P2 再指摘対応: `span` へ包むだけでは `span` 自身が
+/// `display: inline` のままで内部の折り返しを防げないため）。
+#[test]
+fn css_appends_footer_child_nowrap_rule() {
+    let css = command::stylesheet();
+    assert!(css.contains(
+        "[data-scope=\"command\"][data-part=\"footer\"] > * {\n  white-space: nowrap;\n}"
     ));
 }
 

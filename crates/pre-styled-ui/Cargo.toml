@@ -4106,7 +4106,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 入れ子合成例 #3581 を含む到達値）も独立に同一版数 0.238.0 へ到達していた
 # （偶発的衝突）ため、そのまま採用せずさらに +1 して 0.239.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
-version = "0.239.0"
+#
+# PR #3582（イシュー #3143）codex-review P2 再指摘対応: `footer` の呼び
+# 出し側が渡すヒント `span` が `display: inline` のままで内部の折り返しを
+# 防げない問題に対し、`stylesheet()` へ `[data-scope="command"]
+# [data-part="footer"] > *` の raw CSS（`white-space: nowrap`）を追記した。
+# 既存 golden CSS の出力バイトが変わる観測可能な変更のため 0.240.0 へ
+# マイナーバンプする。
+version = "0.240.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
