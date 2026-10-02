@@ -3611,6 +3611,7 @@ name = "fandhe-frontend-pre-styled-ui"
 # pill・circle 両方を登録した状態にした。origin/main の到達値（0.217.0）
 # からさらに +1 して 0.218.0 とする（`.claude/rules/coding-rust.md`
 # #638 条項の同衝突運用）。
+#
 # イシュー #3119: badge の rustdoc（#2045 突合「角丸」項）を #3117 の
 # `shape` 軸 opt-in 記述へ是正し、`link()` 経路でも `shape` クラスが
 # 出ることを固定するテストを追加した。公開 API・CSS 出力は不変（golden
@@ -3621,7 +3622,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # 追加する公開 API 変更（`root_with` へ引数追加）のため、origin/main の
 # 到達値（0.218.1）からさらに +1 して 0.219.0 とする（0.x の破壊的変更は
 # マイナーバンプの規約）。
-version = "0.219.0"
+#
+# イシュー #3122: `InputVariant::SubtleFlushed`（淡色背景＋下線のみ、R1043）
+# を純追加した。`Subtle` の背景宣言と `Flushed` の下線宣言を合成するのみで
+# 新規トークンはなく、既存 3 variant・既存出力はバイト不変のため非破壊的な
+# 追加として minor バンプする。origin/main 側は独立に 0.219.0 へ到達して
+# いたため、本マージでは #3121/#3122 双方の実体変更を統合した結果として
+# 0.220.0 へさらにマイナーバンプする（同一版数への偶発的衝突をそのまま
+# 採用しない。`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+version = "0.220.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

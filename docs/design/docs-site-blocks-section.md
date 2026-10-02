@@ -1157,10 +1157,12 @@ pub enum LayoutCss {
 | api-reference-param-accordion | #3100 | `docs/api_reference/api_reference_param_accordion.rs` |
 | api-reference-props-table | #3103（親 #3099） | `docs/api_reference/api_reference_props_table.rs` |
 | code-block-header | #3104（親 #3099） | `docs/code_block/code_block_header.rs` |
+| example-preview-tabs | #3113（親 #3099） | `docs/example_preview/example_preview_tabs.rs` |
 | docs-layout-page-header | #3106 | `docs/docs_layout/docs_layout_page_header.rs` |
 | docs-layout-prev-next | #3107 | `docs/docs_layout/docs_layout_prev_next.rs` |
 | docs-layout-sidebar-api | #3108（親 #3099） | `docs/docs_layout/docs_layout_sidebar_api.rs` |
 | docs-layout-toc-collapsible | #3111 | `docs/docs_layout/docs_layout_toc_collapsible.rs` |
+| docs-layout-toc-progress | #3112（親 #3099） | `docs/docs_layout/docs_layout_toc_progress.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は

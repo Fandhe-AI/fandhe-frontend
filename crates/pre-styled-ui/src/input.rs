@@ -100,6 +100,13 @@
 //! compound variant（5 段）で `width` を選択中 size の確定 `height` と
 //! 同値に固定し、ネイティブ `<input>` の固有幅に起因する楕円化を防ぐ
 //! （codex レビュー是正、button `icon_button`/`close_button` と同型の解法）。
+//!
+//! # `SubtleFlushed` variant（イシュー #3122）
+//!
+//! Blocks 取り込み対応表 R1043（淡色背景＋下線のみの入力欄）向けに
+//! `InputVariant::SubtleFlushed` を純追加した。`Subtle` の背景宣言と
+//! `Flushed` の下線宣言をそのまま合成するのみで、新規トークンは作らない
+//! （既存 3 値・既存出力はバイト不変）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -132,6 +139,8 @@ pub enum InputVariant {
     Subtle,
     /// 下線のみ。
     Flushed,
+    /// 淡色背景＋下線のみ（`Subtle` と `Flushed` の合成、イシュー #3122）。
+    SubtleFlushed,
 }
 
 impl VariantValue for InputVariant {
@@ -144,6 +153,7 @@ impl VariantValue for InputVariant {
             Self::Outline => "outline",
             Self::Subtle => "subtle",
             Self::Flushed => "flushed",
+            Self::SubtleFlushed => "subtle-flushed",
         }
     }
 }
@@ -314,6 +324,23 @@ fn recipe() -> SlotRecipe {
                 decl("border", "0"),
                 decl("border-bottom", "1px solid var(--fandhe-color-border)"),
                 decl("border-radius", "0"),
+            ],
+        )
+        // SubtleFlushed（イシュー #3122、R1043）: Subtle の背景宣言と
+        // Flushed の下線宣言をそのまま合成する純追加 variant。角丸は上 2 隅
+        // のみ base と同じ `--fandhe-radius-md` を残し、下線側は 0 にする
+        // （背景塗りがあるため全角 0 は硬く見え、全角丸は下線端が欠ける）。
+        .variant(
+            InputVariant::SubtleFlushed,
+            "input",
+            vec![
+                decl("background", "var(--fandhe-color-bg-subtle)"),
+                decl("border", "0"),
+                decl("border-bottom", "1px solid var(--fandhe-color-border)"),
+                decl(
+                    "border-radius",
+                    "var(--fandhe-radius-md) var(--fandhe-radius-md) 0 0",
+                ),
             ],
         )
         // shape（イシュー #3117 の共通軸を input へ適用、イシュー #3120）。
@@ -537,6 +564,10 @@ mod tests {
             (InputVariant::Outline, "fd-field--variant-outline"),
             (InputVariant::Subtle, "fd-field--variant-subtle"),
             (InputVariant::Flushed, "fd-field--variant-flushed"),
+            (
+                InputVariant::SubtleFlushed,
+                "fd-field--variant-subtle-flushed",
+            ),
         ] {
             let field = default_field("f");
             let props = InputProps {
