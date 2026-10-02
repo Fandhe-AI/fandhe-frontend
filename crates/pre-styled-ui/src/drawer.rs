@@ -402,8 +402,13 @@
 //! する。暗幕上での視認性のため、4 state 共通で
 //! `background: var(--fandhe-color-bg); color: var(--fandhe-color-fg)`
 //! を宣言する（fg × bg はテスト済みのペアで light/dark どちらの暗幕でも
-//! コントラストを保てる。hover は既存の `--fandhe-hover-bg: bg-muted` が
-//! そのまま使える）。
+//! コントラストを保てる）。hover 背景も `--fandhe-hover-bg: bg-muted` へ
+//! 明示的に戻す。`data-tone="accent"` と併用した場合、accent state の
+//! `--fandhe-hover-bg: accent-emphasized` だけが残ると hover 時に
+//! `fg × accent-emphasized` という未検証の組になるため、外側配置では
+//! 文字色・背景・hover 背景を常に対（中立 fg / bg / bg-muted）で
+//! 切り替える（PR #3565 レビュー指摘）。宣言順は accent state の後なので
+//! 同詳細度 (0,3,0) 内で外側配置側が勝つ。
 //!
 //! `close_trigger_with_variant(CloseTriggerVariant::Text, ..)`
 //! （`position: static`）との併用は対象外とする（外側配置はアイコン
@@ -950,6 +955,7 @@ fn recipe() -> SlotRecipe {
                 decl("inset-inline-end", "calc(100% + var(--fandhe-space-2))"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
+                decl("--fandhe-hover-bg", "var(--fandhe-color-bg-muted)"),
             ],
         )
         .state(
@@ -960,6 +966,7 @@ fn recipe() -> SlotRecipe {
                 decl("inset-inline-start", "calc(100% + var(--fandhe-space-2))"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
+                decl("--fandhe-hover-bg", "var(--fandhe-color-bg-muted)"),
             ],
         )
         .state(
@@ -969,6 +976,7 @@ fn recipe() -> SlotRecipe {
                 decl("inset-block-start", "calc(100% + var(--fandhe-space-2))"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
+                decl("--fandhe-hover-bg", "var(--fandhe-color-bg-muted)"),
             ],
         )
         .state(
@@ -979,6 +987,7 @@ fn recipe() -> SlotRecipe {
                 decl("inset-block-end", "calc(100% + var(--fandhe-space-2))"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
+                decl("--fandhe-hover-bg", "var(--fandhe-color-bg-muted)"),
             ],
         )
         // イシュー #758: `size` variant（root スコープの CSS custom
@@ -1728,6 +1737,16 @@ mod tests {
             );
             assert!(rule.contains("background: var(--fandhe-color-bg);"));
             assert!(rule.contains("color: var(--fandhe-color-fg);"));
+            // PR #3565 レビュー指摘: accent と併用時に hover 背景だけ
+            // accent-emphasized が残らないよう、hover 背景も対で中立へ戻す。
+            assert!(rule.contains("--fandhe-hover-bg: var(--fandhe-color-bg-muted);"));
+            assert!(
+                start
+                    > css
+                        .find(r#"[data-part="close-trigger"][data-tone="accent"] {"#)
+                        .unwrap(),
+                "close-outside state must follow the accent state so it wins at equal specificity"
+            );
         }
     }
 

@@ -264,6 +264,7 @@ const DRAWER_GOLDEN_CSS: &str = r#"[data-scope="drawer"][data-part="trigger"] {
   inset-inline-end: calc(100% + var(--fandhe-space-2));
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
 }
 
 [data-scope="drawer"][data-part="close-trigger"][data-close-outside="start"] {
@@ -271,12 +272,14 @@ const DRAWER_GOLDEN_CSS: &str = r#"[data-scope="drawer"][data-part="trigger"] {
   inset-inline-start: calc(100% + var(--fandhe-space-2));
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
 }
 
 [data-scope="drawer"][data-part="close-trigger"][data-close-outside="top"] {
   inset-block-start: calc(100% + var(--fandhe-space-2));
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
 }
 
 [data-scope="drawer"][data-part="close-trigger"][data-close-outside="bottom"] {
@@ -284,6 +287,7 @@ const DRAWER_GOLDEN_CSS: &str = r#"[data-scope="drawer"][data-part="trigger"] {
   inset-block-end: calc(100% + var(--fandhe-space-2));
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
 }
 
 @starting-style {
