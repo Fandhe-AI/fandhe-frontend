@@ -940,10 +940,20 @@ pub fn group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 ///   最終順位は DOM 順＝挿入順で決まる）。`:nth-child(n)` によるグループ
 ///   内再採番・`flex-direction: row-reverse` + DOM 逆順によるグループ内
 ///   並べ替えのいずれも、上記のとおり [`SlotRecipe`] の制約・WCAG 1.3.2
-///   の理由で不採用のため、本モジュールは意図的に採らない。呼び出し側は
-///   「先頭ほど前面」の厳密な保証を [`MAX_STACK_ORDER`] 件までに限定して
-///   利用し、`MAX_STACK_ORDER` を超える構成では末尾側の重なり順が確定的でないことを
-///   前提にすること。
+///   の理由で不採用のため、本モジュールは意図的に採らない。
+///
+///   一意な重なり順が保証されるのは **`n <= MAX_STACK_ORDER`（12 件以下）
+///   のときに限る**。`n` が `MAX_STACK_ORDER` を超えると、`z-index` の
+///   固定値は `1..=MAX_STACK_ORDER` の `MAX_STACK_ORDER` 通りしかないため、
+///   先頭から数えて `MAX_STACK_ORDER - 1`（11）件までだけが
+///   `pos{MAX_STACK_ORDER}`..`pos2` の一意な値を得る。先頭 11 件目に
+///   「入り切らなかった」残り（元の 12 件目以降すべて）は `pos1` の
+///   同一値に合流し、合流グループ内の相対順は上記のとおり未規定になる
+///   （13 件目以降だけでなく **12 件目自身もこの合流グループに含まれる**
+///   点が、13 件以上の group で「先頭ほど前面」が見かけ上崩れる理由）。
+///   呼び出し側は「先頭ほど前面」の厳密な保証を 12 件以下の構成に
+///   限定して利用し、13 件以上では末尾側（12 件目以降）の重なり順が
+///   確定的でないことを前提にすること。
 ///   inline `style="z-index: ..."` は
 ///   `style-src-attr` を許可しない厳格 CSP 環境で無効化される（イシュー
 ///   #3130 フォローアップ、codex-review #3563 P1 指摘）ため採らず、
@@ -1009,11 +1019,16 @@ pub fn group_with<'a>(
     // （`i` が小さい＝最前面であるべき複数の子）が揃って `pos{MAX_STACK_ORDER}`
     // へクランプされ、先頭が最前面という契約が崩れる（PR #3563 codex-review
     // P1 指摘）。先頭 `MAX_STACK_ORDER` 件（`i < effective_front`）には
-    // `effective_front - i` で `MAX_STACK_ORDER..=1` の一意な値を昇順に割り当て、
-    // それを超える末尾側（既に見た目上最背面に埋もれている子）だけを `pos1`
-    // （最背面側の固定値）へ合流させる。`n <= MAX_STACK_ORDER` のときは
-    // `effective_front == n` となり、従来どおり `n - i` と同じ値になる
-    // （golden 出力・既存呼び出しは不変）。
+    // `effective_front - i` で `MAX_STACK_ORDER..=1` の値を割り当てる。
+    // `n <= MAX_STACK_ORDER` のときは `effective_front == n` となり、
+    // 従来どおり `n - i` と同じ値になる（golden 出力・既存呼び出しは不変）。
+    // `n > MAX_STACK_ORDER` のとき、`z-index` の固定値は `1..=MAX_STACK_ORDER`
+    // の `MAX_STACK_ORDER` 通りしかないため、先頭側の最後の 1 件
+    // （`i == effective_front - 1`、`position == 1`）は末尾側（`i >=
+    // effective_front`、同じく `position == 1`）と同一値へ必然的に合流する
+    // （[`group_with`] rustdoc「既知の限界」節参照。一意な重なり順が
+    // 保証されるのは実質 `MAX_STACK_ORDER - 1` 件までであり、本処理系に
+    // 「先頭 `MAX_STACK_ORDER` 件が一意」という誤った前提を持ち込まない）。
     let effective_front = n.min(MAX_STACK_ORDER as usize);
     let children: Vec<Node> = children
         .into_iter()
@@ -1671,10 +1686,12 @@ mod tests {
         // PR #3563 codex-review P1 指摘の回帰テスト: `n - i` を無条件クランプ
         // すると先頭側（最前面であるべき複数の子）が揃って `pos{MAX_STACK_ORDER}`
         // に丸められ「先頭が最前面」契約が崩れる。本テストは
-        // `MAX_STACK_ORDER + 3` 件の構成で、先頭 `MAX_STACK_ORDER` 件
-        // （`pos2`..`pos{MAX_STACK_ORDER}`）がそれぞれ厳密に 1 回だけ出現し
-        // （同一 z-index への衝突なし）、クランプは末尾側（既に見た目上
-        // 最背面に埋もれている子）の `pos1` へのみ合流することを固定する。
+        // `MAX_STACK_ORDER + 3` 件の構成で、先頭 `MAX_STACK_ORDER - 1` 件
+        // （`pos2`..`pos{MAX_STACK_ORDER}` の 11 種）がそれぞれ厳密に 1 回だけ
+        // 出現し（同一 z-index への衝突なし）、残り（先頭側の最後の 1 件 +
+        // 超過分、codex-review #3563 P2 指摘の既知の限界）は末尾側 `pos1` へ
+        // 合流することを固定する（[`group_with`] rustdoc「既知の限界」節参照。
+        // 一意な重なり順の保証は実質 `MAX_STACK_ORDER - 1` 件までである）。
         let n = MAX_STACK_ORDER as usize + 3;
         let many: Vec<Node> = (0..n)
             .map(|_| root(&AvatarProps::default(), vec![], vec![]))
