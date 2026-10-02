@@ -81,35 +81,29 @@
 //! `kbd` + 説明テキストを `span` 等 1 つの子要素へ包んでから渡すことで、
 //! 折り返しの単位をヒント 1 件に揃える（Examples の実装例参照）。
 //!
-//! **`footer` の直接の子へ `white-space: nowrap` を raw CSS で強制する
-//! （#3143 Codex P2 再指摘対応）**: 呼び出し側がヒントを `span` 等 1 つの
-//! 子要素へ包んだだけでは、その `span` 自身が既定 `display: inline` の
-//! ままであり、`kbd` と説明テキストの間の通常の空白文字は依然として
-//! 折り返し可能点のままである（`flex-wrap: wrap` の折り返し単位が子要素
-//! になるのは子要素の**外側**の折り返しのみで、子要素**内部**の折り返し
-//! 可否とは独立）。このため狭幅では `span` 内部でも `kbd`/説明文が別行に
-//! 分かれ得てしまい、呼び出し側の規約だけでは対応関係を保証できない。
-//! [`stylesheet`] は `[data-scope="command"][data-part="footer"] > *`
-//! （呼び出し側が渡すヒント要素のタグに依存しない子結合子セレクタ）へ
-//! `white-space: nowrap` を raw CSS で追記し、子要素のタグ・`class` 指定に
-//! 依存せず内部折り返しを禁止する（`crate::button_group` の raw CSS 追記と
-//! 同型の手段、`SlotRecipe` は named slot 単位のセレクタしか生成できない
-//! ため、専用サブパートを設けない方針のままこの契約を機械的に満たすには
-//! raw CSS 追記が必要）。
+//! **`footer` の直接の子を `inline-flex` のまとまりにし、`kbd` だけを
+//! `white-space: nowrap` にする（#3143 Codex P2 再指摘・PR #3582 Codex P2 /
+//! Cursor Bugbot 指摘対応）**: 呼び出し側がヒントを `span` 等 1 つの子要素へ
+//! 包んだだけでは、その `span` は既定 `display: inline` のままで、`kbd` と
+//! 説明テキストの間の空白で内部折り返しが起こり得る。一方、子要素全体へ
+//! `white-space: nowrap` を掛けると、`overflow-wrap` は CSS Text の仕様上
+//! `white-space` が折り返しを許す場合にしか効かないため併記しても無効であり、
+//! ヒントがコンテナ幅を超える狭幅・文字拡大時に `root` の `overflow: hidden`
+//! （上記「`dialog` のスクロール」節と同じ border-radius クリップ目的）で
+//! 説明文が切れる。[`stylesheet`] は次の 2 規則を raw CSS で追記し、
+//! 「ヒント 1 件のまとまり」と「コンテナ幅での折り返し」を両立させる
+//! （`SlotRecipe` は named slot 単位のセレクタしか生成できず、専用サブ
+//! パートを設けない方針のまま子要素へ規則を当てるには raw CSS 追記が必要。
+//! `crate::button_group` と同型の手段）。
 //!
-//! **同じ規則へ `overflow-wrap: anywhere` も併記する（PR #3582 Codex P2
-//! 指摘対応）**: `white-space: nowrap` はヒント 1 件の min-content 幅を
-//! テキスト全幅に固定するため、ヒントがビューポート幅より長い狭幅・文字
-//! 拡大時に `footer`（延いては `root`）の横幅を超えて溢れる。`root` は
-//! `overflow: hidden`（上記「`dialog` のスクロール」節と同じ
-//! border-radius クリップ目的）を持つため、対策なしではヒント文字列が
-//! 水平方向に見えなくなる。CSS Text の仕様上 `overflow-wrap: anywhere`/
-//! `break-word` は「他に改行点が無い箇所でだけ最終手段として折り返す」
-//! 性質を持ち、`white-space: nowrap` が通常改行点（空白文字）を潰した
-//! 後でも、それを上書きしてオーバーフロー回避のための強制改行を適用する
-//! （`white-space: nowrap` 自体は変更しないため、`kbd` と説明文が通常幅
-//! では同一行にまとまる効果は保たれる。両者が同時発火するのは、ヒント
-//! 1 件がコンテナ幅を超える極端な狭幅・ズームのときのみ）。
+//! - `[data-scope="command"][data-part="footer"] > *`: `display: inline-flex`
+//!   で `kbd` と説明文を 1 つの flex コンテナに入れ（内部は既定
+//!   `flex-wrap: nowrap` のため `kbd` と説明文は別行に分かれない）、
+//!   `min-width: 0`/`max-width: 100%` で `footer` 幅を超えないようにし、
+//!   `overflow-wrap: anywhere`（継承）で長い説明文を幅内で折り返させる。
+//! - `[data-scope="command"][data-part="footer"] > * kbd`: キー表記だけを
+//!   `white-space: nowrap` にして途中で割れないようにする（説明文は通常の
+//!   `white-space` のまま折り返せる）。
 //!
 //! # `empty` の表示切替 CSS（headless の SSR 決定性契約との対応）
 //!
@@ -467,8 +461,9 @@ fn recipe() -> SlotRecipe {
 /// この styled Command が生成する静的 CSS 全量を返す（決定的。
 /// [`crate::item::stylesheet`] と同じ契約）。dialog 内 root の二重枠を
 /// 解除する raw CSS 追記と、`footer` 直接の子（呼び出し側が組む 1 ヒント
-/// 分の `span` 等）の内部折り返しを禁止する raw CSS 追記を含む（モジュール
-/// doc「raw CSS 追記の理由」節参照）。
+/// 分の `span` 等）を `inline-flex` のまとまりにし、その中の `kbd` だけを
+/// `white-space: nowrap` にする raw CSS 追記を含む（モジュール doc
+/// 「pre-styled-only `footer` パート」節参照）。
 #[must_use]
 pub fn stylesheet() -> String {
     let mut out = recipe().css();
@@ -490,17 +485,28 @@ pub fn stylesheet() -> String {
     }
 
     const FOOTER_CHILD: &str = r#"[data-scope="command"][data-part="footer"] > *"#;
-    if let Some(rule) = serialize_rule(
-        FOOTER_CHILD,
-        &[
-            decl("white-space", "nowrap"),
-            decl("overflow-wrap", "anywhere"),
-        ],
-    ) {
-        if !out.is_empty() {
-            out.push('\n');
+    const FOOTER_CHILD_KBD: &str = r#"[data-scope="command"][data-part="footer"] > * kbd"#;
+    let footer_rules = [
+        (
+            FOOTER_CHILD,
+            vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-1)"),
+                decl("min-width", "0"),
+                decl("max-width", "100%"),
+                decl("overflow-wrap", "anywhere"),
+            ],
+        ),
+        (FOOTER_CHILD_KBD, vec![decl("white-space", "nowrap")]),
+    ];
+    for (selector, decls) in &footer_rules {
+        if let Some(rule) = serialize_rule(selector, decls) {
+            if !out.is_empty() {
+                out.push('\n');
+            }
+            out.push_str(&rule);
         }
-        out.push_str(&rule);
     }
 
     out

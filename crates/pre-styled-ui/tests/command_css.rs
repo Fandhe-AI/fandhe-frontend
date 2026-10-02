@@ -165,8 +165,16 @@ const COMMAND_GOLDEN_CSS: &str = "[data-scope=\"command\"][data-part=\"root\"] {
 }
 
 [data-scope=\"command\"][data-part=\"footer\"] > * {
-  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fandhe-space-1);
+  min-width: 0;
+  max-width: 100%;
   overflow-wrap: anywhere;
+}
+
+[data-scope=\"command\"][data-part=\"footer\"] > * kbd {
+  white-space: nowrap;
 }
 ";
 
@@ -225,20 +233,44 @@ fn css_appends_dialog_root_double_border_removal_rule() {
     ));
 }
 
-/// `footer` 直接の子（呼び出し側が組む 1 ヒント分の `span` 等）の内部
-/// 折り返しを禁止する raw CSS 追記（子結合子セレクタ）が存在することを
-/// 固定する（`src/command.rs` モジュール doc「raw CSS 追記の理由」節参照。
-/// #3143 Codex P2 再指摘対応: `span` へ包むだけでは `span` 自身が
-/// `display: inline` のままで内部の折り返しを防げないため）。
-/// `overflow-wrap: anywhere` 併記（PR #3582 Codex P2 指摘対応、
-/// `src/command.rs` モジュール doc「同じ規則へ `overflow-wrap: anywhere`
-/// も併記する」節参照）が同じ規則内に存在することも固定する。
+/// `footer` 直接の子（呼び出し側が組む 1 ヒント分の `span` 等）を
+/// `inline-flex` のまとまりにし、その中の `kbd` だけを `white-space: nowrap`
+/// にする raw CSS 追記を固定する（`src/command.rs` モジュール doc
+/// 「pre-styled-only `footer` パート」節参照。PR #3582 Codex P2 / Cursor
+/// Bugbot 指摘対応）。
 #[test]
-fn css_appends_footer_child_nowrap_rule() {
+fn css_appends_footer_child_hint_group_rules() {
     let css = command::stylesheet();
     assert!(css.contains(
-        "[data-scope=\"command\"][data-part=\"footer\"] > * {\n  white-space: nowrap;\n  overflow-wrap: anywhere;\n}"
+        "[data-scope=\"command\"][data-part=\"footer\"] > * {\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n  max-width: 100%;\n  overflow-wrap: anywhere;\n}"
     ));
+    assert!(css.contains(
+        "[data-scope=\"command\"][data-part=\"footer\"] > * kbd {\n  white-space: nowrap;\n}"
+    ));
+}
+
+/// 回帰防止: `overflow-wrap` は `white-space` が折り返しを許すときにしか
+/// 効かないため、同じ規則へ `white-space: nowrap` と `overflow-wrap` を
+/// 併記すると折り返しが起きず、`root` の `overflow: hidden` で説明文が
+/// 切れる（PR #3582 Codex P2 / Cursor Bugbot 指摘）。`nowrap` は `kbd`
+/// 規則だけに置き、`footer` 直接の子の規則には置かないことを固定する。
+#[test]
+fn css_footer_child_rule_does_not_combine_nowrap_with_overflow_wrap() {
+    let css = command::stylesheet();
+    let child_rule_start = css
+        .find("[data-scope=\"command\"][data-part=\"footer\"] > * {")
+        .expect("footer child rule must be present");
+    let child_rule = &css[child_rule_start..];
+    let child_rule = &child_rule[..child_rule.find('}').expect("rule must close")];
+    assert!(!child_rule.contains("white-space"));
+    for rule in css.split('}') {
+        if rule.contains("white-space: nowrap") {
+            assert!(
+                !rule.contains("overflow-wrap"),
+                "nowrap and overflow-wrap must not share a rule: {rule}"
+            );
+        }
+    }
 }
 
 /// `input` の `outline: none` を補う `root` の `:focus-within` canonical
