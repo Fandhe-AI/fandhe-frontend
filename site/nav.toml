@@ -2990,6 +2990,11 @@ title = "docs-layout-prev-next"
 source = "site/blocks/docs-layout-prev-next.md"
 path = "/blocks/docs-layout-prev-next/"
 
+[[section.group.page]]
+title = "docs-layout-toc-collapsible"
+source = "site/blocks/docs-layout-toc-collapsible.md"
+path = "/blocks/docs-layout-toc-collapsible/"
+
 [[section.group]]
 title = "Code Block"
 
