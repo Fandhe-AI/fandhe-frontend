@@ -52,6 +52,14 @@
 //! var(--fandhe-color-danger); outline-offset: 2px;` へ是正した
 //! （フォーカスリング規約 #1424 と同じ理由で `outline` はシステム色へ
 //! 強制置換され forced-colors でも必ず描画される）。
+//!
+//! イシュー #3141: 短いトラック形状（`SwitchTrack::Short`、R1375）と thumb
+//! アイコン slot（`thumb_icon`、R1376）を追加した（`crates/pre-styled-ui/
+//! src/switch.rs` のモジュール doc「短いトラック形状・thumb アイコン slot」
+//! 節参照）。golden CSS 全文の差分は次の純追加のみ: `thumb` 2 個目 base
+//! ブロック（`position: relative`/`margin-left`）・`thumb-icon` slot の
+//! base 2 ブロック（寸法・色、transition）・`fd-switch--track-short`
+//! variant ブロック・`thumb-icon` の opacity/color state 3 ブロック。
 
 use fandhe_frontend_pre_styled_ui::switch;
 
@@ -94,6 +102,11 @@ const SWITCH_GOLDEN_CSS: &str = r#"[data-scope="switch"][data-part="root"] {
   transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
+[data-scope="switch"][data-part="thumb"] {
+  position: relative;
+  margin-left: var(--fandhe-switch-thumb-offset, 0);
+}
+
 [data-scope="switch"][data-part="label"] {
   font-size: var(--fandhe-switch-label-font-size, var(--fandhe-font-font-size-sm));
   font-weight: var(--fandhe-font-font-weight-medium);
@@ -112,6 +125,22 @@ const SWITCH_GOLDEN_CSS: &str = r#"[data-scope="switch"][data-part="root"] {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+[data-scope="switch"][data-part="thumb-icon"] {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fandhe-switch-thumb-icon-color, var(--fandhe-color-fg-muted));
+  pointer-events: none;
+}
+
+[data-scope="switch"][data-part="thumb-icon"] {
+  transition-property: opacity;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="switch"][data-part="root"].fd-switch--size-xs {
@@ -213,6 +242,12 @@ const SWITCH_GOLDEN_CSS: &str = r#"[data-scope="switch"][data-part="root"] {
   --fandhe-palette-fg-subtle: var(--fandhe-color-neutral-fg-subtle);
 }
 
+[data-scope="switch"][data-part="root"].fd-switch--track-short {
+  --fandhe-switch-track-width: calc(var(--fandhe-switch-thumb-size, 1.1rem) * 1.8);
+  --fandhe-switch-track-height: calc(var(--fandhe-switch-thumb-size, 1.1rem) * 0.8);
+  --fandhe-switch-thumb-offset: calc(-0.15rem - var(--fandhe-switch-thumb-size, 1.1rem) * 0.1);
+}
+
 [data-scope="switch"][data-part="root"][data-disabled] {
   opacity: 0.5;
   cursor: not-allowed;
@@ -235,6 +270,18 @@ const SWITCH_GOLDEN_CSS: &str = r#"[data-scope="switch"][data-part="root"] {
 
 [data-scope="switch"][data-part="thumb"][data-state="checked"] {
   transform: translateX(var(--fandhe-switch-thumb-travel, 1.1rem));
+}
+
+[data-scope="switch"][data-part="thumb-icon"][data-state="checked"][data-show="unchecked"] {
+  opacity: 0;
+}
+
+[data-scope="switch"][data-part="thumb-icon"][data-state="unchecked"][data-show="checked"] {
+  opacity: 0;
+}
+
+[data-scope="switch"][data-part="thumb-icon"][data-state="checked"][data-show="checked"] {
+  color: var(--fandhe-palette, var(--fandhe-color-accent));
 }
 
 @media (hover: hover) {

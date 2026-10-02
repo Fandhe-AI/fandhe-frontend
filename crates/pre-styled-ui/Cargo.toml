@@ -3883,7 +3883,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 上記の経緯で独立に 0.231.0 へ到達していたが、origin/main 側（select の
 # #3573 対応を含む到達値）は独立に 0.232.0 へ到達していたため、そのまま
 # 採用せずさらに +1 して 0.233.0 とする。
-version = "0.233.0"
+#
+# イシュー #3141: switch に短いトラック形状（`SwitchTrack`/`root_with`）と
+# thumb アイコン slot（`thumb_icon`）を追加した。新規公開 API のみで既存
+# 関数シグネチャ・golden CSS の既存ブロックは不変のため非破壊的な追加と
+# して minor バンプする。
+version = "0.234.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
