@@ -43,7 +43,25 @@
 //! コピー操作）とコード表示をそれぞれ `grid-template-areas` の
 //! `title`/`tabs`/`copy`/`code` 領域へ割り当て、狭い幅
 //! （`@container (max-width: 30rem)`）ではタブ列をヘッダーの 2 行目へ
-//! 折り返す。
+//! 折り返す。コンテナクエリは対象要素自身ではなく祖先のコンテインメント
+//! コンテキストを参照する仕様のため、`container-type: inline-size` は
+//! `@container` の対象である [`frame`]（`.blocks-code-block-language-tabs-frame`）
+//! 自身ではなく、その親 `.blocks-code-block-language-tabs-layout`（[`demo`]
+//! の最外周 `div`）へ置く。3 インスタンスはいずれも layout 幅いっぱいに
+//! 広がるため、幅の基準を frame から layout へ変えても折り返し挙動は
+//! 変わらない。
+//!
+//! # フォーカスリングと `overflow: hidden`
+//!
+//! [`frame`] は角丸のグリッド枠を `overflow: hidden` でクリップする
+//! （[`LAYOUT_CSS`] 参照）。既定の `outline-offset`（pre-styled-ui の
+//! フォーカスリング規約、正方向オフセット）のままだと、frame の縁に接する
+//! tabs trigger・clipboard trigger の `:focus-visible` アウトラインが縁の
+//! 外側へはみ出し、この `overflow: hidden` にクリップされてキーボード
+//! フォーカス時に見えなくなる。[`LAYOUT_CSS`] は両 trigger の
+//! `:focus-visible` のみ `outline-offset: -2px`（内側）へ上書きし、
+//! アウトラインを frame の内側に収めてクリップを避ける（他部品・他ページの
+//! 既定 `outline-offset` には影響しない、本 block 限定の上書き）。
 //!
 //! # `<form>` を持たない
 //!
@@ -263,9 +281,10 @@ pub const BLOCK: Block = Block {
 /// 担い、本 CSS は `display: contents`（グリッド展開用）以外の非表示宣言を
 /// 持たない。
 const LAYOUT_CSS: &str = "\
-.blocks-code-block-language-tabs-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
+.blocks-code-block-language-tabs-layout {\n  container-type: inline-size;\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-code-block-language-tabs-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-.blocks-code-block-language-tabs-frame {\n  container-type: inline-size;\n  display: grid;\n  grid-template-columns: auto 1fr auto;\n  grid-template-areas: \"title tabs copy\" \"code code code\";\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  overflow: hidden;\n}\n\
+.blocks-code-block-language-tabs-frame {\n  display: grid;\n  grid-template-columns: auto 1fr auto;\n  grid-template-areas: \"title tabs copy\" \"code code code\";\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  overflow: hidden;\n}\n\
+.blocks-code-block-language-tabs-frame [data-scope=\"tabs\"][data-part=\"trigger\"]:focus-visible,\n.blocks-code-block-language-tabs-frame [data-scope=\"clipboard\"][data-part=\"trigger\"]:focus-visible {\n  outline-offset: -2px;\n}\n\
 .blocks-code-block-language-tabs-frame[data-blocks-code-block-language-tabs-variant=\"a\"] {\n  grid-template-areas: \"tabs tabs copy\" \"code code code\";\n}\n\
 .blocks-code-block-language-tabs-title {\n  grid-area: title;\n  display: flex;\n  align-items: center;\n  min-width: 0;\n  padding-inline-start: var(--fandhe-space-4);\n}\n\
 .blocks-code-block-language-tabs-title [data-scope=\"text\"] {\n  margin: 0;\n  text-transform: uppercase;\n  letter-spacing: 0.05em;\n}\n\
@@ -392,6 +411,32 @@ mod tests {
         // `display: contents`（グリッド展開用）以外に `display: none` を
         // 持たない（非表示は部品側の `hidden` 属性が担う契約）。
         assert!(!LAYOUT_CSS.contains("display: none"));
+    }
+
+    /// コンテナクエリは対象要素自身ではなく祖先のコンテインメント
+    /// コンテキストを参照する仕様のため、`container-type` は `@container`
+    /// の対象（`.blocks-code-block-language-tabs-frame`）ではなく祖先の
+    /// `.blocks-code-block-language-tabs-layout` に置かれていることを固定
+    /// する（frame 自身に置くと祖先コンテインメントが存在せず、幅が
+    /// 30rem 以下でも折り返しが発動しない）。
+    #[test]
+    fn container_type_is_declared_on_ancestor_not_query_target() {
+        assert!(LAYOUT_CSS
+            .contains(".blocks-code-block-language-tabs-layout {\n  container-type: inline-size;"));
+        assert!(!LAYOUT_CSS
+            .contains(".blocks-code-block-language-tabs-frame {\n  container-type: inline-size;"));
+    }
+
+    /// frame の `overflow: hidden`（角丸クリップ用）がキーボードフォーカス
+    /// リングを巻き込まないよう、tabs/clipboard の両 trigger の
+    /// `:focus-visible` を負のオフセット（内側）へ上書きしていることを
+    /// 固定する（正のオフセットのままだとアウトラインが frame の縁の外側
+    /// へはみ出しクリップされる）。
+    #[test]
+    fn focus_rings_are_inset_to_avoid_overflow_clipping() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"tabs\"][data-part=\"trigger\"]:focus-visible,\n.blocks-code-block-language-tabs-frame [data-scope=\"clipboard\"][data-part=\"trigger\"]:focus-visible {\n  outline-offset: -2px;"
+        ));
     }
 
     /// [`super::frame`] の `[data-scope="code"]` 上書きセレクタが recipe の
