@@ -270,8 +270,8 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
   border-start-end-radius: calc(var(--fandhe-radius-md) - 1px);
 }
 
-[data-scope="toast"][data-part="action-trigger"]:last-child {
-  border-end-end-radius: var(--fandhe-radius-md);
+[data-scope="toast"][data-part="action-trigger"][data-actions-column]:last-child {
+  border-end-end-radius: calc(var(--fandhe-radius-md) - 1px);
 }
 
 @media (hover: hover) {

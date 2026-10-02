@@ -199,8 +199,10 @@ property 間接参照）・`StateCondition::LastChild` state 1 個
 `focus-visible` state ブロック群の直後・`@media (hover: hover)` ブロックの
 直前へ右端アクション列レイアウト（`data-actions-column`）の state 規則
 4 件（`root` の Attr・`action-trigger` の Attr・`AttrFirstChild`・
-`LastChild`、登録順固定）を中間挿入。いずれも opt-in 属性付与時のみ発火
-する新規セレクタのため既存ブロックはバイト不変）** /
+`AttrLastChild`、登録順固定）を中間挿入。いずれも opt-in 属性付与時のみ発火
+する新規セレクタのため既存ブロックはバイト不変。PR #3583 Bugbot 指摘で
+末尾セルを `LastChild` 単独から `AttrLastChild` へ変え、値を先頭セルと同じ
+`calc(var(--fandhe-radius-md) - 1px)` に揃えた）** /
 **toggle（イシュー #2023 で golden 新設）** /
 **toggle_group（イシュー #2024 で golden 新設）** / toggle_tip / tour /
 visually_hidden

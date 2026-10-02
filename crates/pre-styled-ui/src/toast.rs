@@ -816,15 +816,18 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
-        // 最後のセルに `root` の角丸を継承させる（[`StateCondition`] は Attr
-        // と `:last-child` の AND 条件を持たないため、`crate::card`
-        // （#3127 PR #3560）と同じ代替で `LastChild` 単独を使う。既定の
-        // action-trigger はもともと全角が `radius-md` のため、列レイアウト
-        // 未使用時も同値の宣言で見た目は変わらない）。
+        // 最後のセルの下端を `root` の内側角丸（root border 1px を差し引いた
+        // 値）へ合わせる。先頭セルの上端と同じ式にすることで、セルが 1 つ
+        // （先頭かつ末尾）で高さいっぱいのときも hover 背景が root の角丸から
+        // はみ出さない（PR #3583 Bugbot 指摘対応）。列レイアウト未使用の
+        // 既定 action-trigger は巻き込まない。
         .state(
             "action-trigger",
-            StateCondition::LastChild,
-            vec![decl("border-end-end-radius", "var(--fandhe-radius-md)")],
+            StateCondition::AttrLastChild(ACTIONS_COLUMN_ATTR),
+            vec![decl(
+                "border-end-end-radius",
+                "calc(var(--fandhe-radius-md) - 1px)",
+            )],
         )
 }
 
@@ -1353,8 +1356,50 @@ mod tests {
         assert!(css.contains(
             r#"[data-scope="toast"][data-part="action-trigger"][data-actions-column]:first-child {"#
         ));
-        assert!(css.contains(r#"[data-scope="toast"][data-part="action-trigger"]:last-child {"#));
-        assert!(css.contains("border-end-end-radius: var(--fandhe-radius-md);"));
+        assert!(css.contains(
+            r#"[data-scope="toast"][data-part="action-trigger"][data-actions-column]:last-child {"#
+        ));
+    }
+
+    /// 列の先頭セル上端と末尾セル下端が同じ内側角丸の式を使うことを固定する
+    /// （セルが 1 つのとき上下が揃わず hover 背景が root の角丸からはみ出す
+    /// 回帰の防止、PR #3583 Bugbot 指摘）。
+    #[test]
+    fn actions_column_first_and_last_cells_share_inner_radius() {
+        let css = stylesheet();
+        let block = |sel: &str| -> String {
+            let start = css.find(&format!("{sel} {{")).expect("selector present");
+            let end = start + css[start..].find('}').expect("block end");
+            css[start..end].to_string()
+        };
+        let value = |block: &str, prop: &str| -> String {
+            let line = block
+                .lines()
+                .find(|l| l.trim_start().starts_with(&format!("{prop}:")))
+                .expect("property present");
+            line.split_once(':')
+                .unwrap()
+                .1
+                .trim()
+                .trim_end_matches(';')
+                .to_string()
+        };
+        let first = block(
+            r#"[data-scope="toast"][data-part="action-trigger"][data-actions-column]:first-child"#,
+        );
+        let last = block(
+            r#"[data-scope="toast"][data-part="action-trigger"][data-actions-column]:last-child"#,
+        );
+        assert_eq!(
+            value(&first, "border-start-end-radius"),
+            value(&last, "border-end-end-radius")
+        );
+        assert_eq!(
+            value(&last, "border-end-end-radius"),
+            "calc(var(--fandhe-radius-md) - 1px)"
+        );
+        // 列レイアウト未使用の既定 action-trigger には末尾補正を出さない。
+        assert!(!css.contains(r#"[data-scope="toast"][data-part="action-trigger"]:last-child {"#));
     }
 
     #[test]

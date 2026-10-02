@@ -1382,6 +1382,17 @@ pub enum StateCondition {
     /// 再利用ではなく新設が必要だった）。`:first-child` は唯一の子にも
     /// 一致するため「先頭または唯一の子」の両方を 1 条件で捕捉する。
     AttrFirstChild(&'static str),
+    /// 存在属性 1 個 と `:last-child` 擬似クラスの AND 条件
+    /// `[<name>]:last-child`（[`AttrFirstChild`](StateCondition::AttrFirstChild)
+    /// の下端版。イシュー #3142 PR #3583 Bugbot 指摘「列の最後のセルの角丸が
+    /// root の内側に収まらない」対応）。
+    ///
+    /// [`crate::toast`] のアクション列は最後のセルの下端だけを root の
+    /// 内側角丸へ合わせる必要があり、[`LastChild`](StateCondition::LastChild)
+    /// 単独では列レイアウト未使用の既定 action-trigger まで巻き込むため、
+    /// 属性との AND を専用 variant で表す。`:last-child` は唯一の子にも
+    /// 一致する。
+    AttrLastChild(&'static str),
     /// 複数の値付き属性の AND 条件
     /// `[<name1>="<value1>"][<name2>="<value2>"]...`（イシュー #841 PR #870
     /// Bugbot レビュー Medium severity 指摘「Positioner skips align
@@ -1733,6 +1744,7 @@ fn state_condition_is_valid(condition: &StateCondition) -> bool {
         StateCondition::NthChildEven => true,
         StateCondition::LastChild => true,
         StateCondition::AttrFirstChild(name) => is_valid_identifier(name),
+        StateCondition::AttrLastChild(name) => is_valid_identifier(name),
         StateCondition::AttrEqAll(pairs) => {
             !pairs.is_empty()
                 && pairs
@@ -1777,6 +1789,9 @@ fn state_condition_selector(condition: &StateCondition) -> Option<String> {
         StateCondition::LastChild => suffix.push_str(":last-child"),
         StateCondition::AttrFirstChild(name) => {
             suffix.push_str(&format!("[{name}]:first-child"));
+        }
+        StateCondition::AttrLastChild(name) => {
+            suffix.push_str(&format!("[{name}]:last-child"));
         }
         StateCondition::AttrEqAll(pairs) => {
             for (name, value) in *pairs {
