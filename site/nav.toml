@@ -3040,6 +3040,11 @@ source = "site/blocks/api-reference-param-accordion.md"
 path = "/blocks/api-reference-param-accordion/"
 
 [[section.group.page]]
+title = "api-reference-param-list"
+source = "site/blocks/api-reference-param-list.md"
+path = "/blocks/api-reference-param-list/"
+
+[[section.group.page]]
 title = "api-reference-playground"
 source = "site/blocks/api-reference-playground.md"
 path = "/blocks/api-reference-playground/"
