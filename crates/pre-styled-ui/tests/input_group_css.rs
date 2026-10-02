@@ -167,14 +167,14 @@ const INPUT_GROUP_GOLDEN_CSS: &str = "[data-scope=\"input-group\"][data-part=\"r
   min-width: 0;
 }
 
-[data-scope=\"input-group\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"root\"] [data-scope=\"select\"][data-part=\"trigger\"] {
+[data-scope=\"input-group\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
   border: 0;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
 }
 
-[data-scope=\"input-group\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"root\"] [data-scope=\"select\"][data-part=\"trigger\"]:focus-visible {
+[data-scope=\"input-group\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"]:focus-visible {
   outline: none;
 }
 ";
@@ -282,9 +282,32 @@ fn css_appends_native_select_and_select_reset_rules() {
         "[data-scope=\"input-group\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"root\"] {"
     ));
     assert!(css.contains(
-        "[data-scope=\"input-group\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"root\"] [data-scope=\"select\"][data-part=\"trigger\"] {"
+        "[data-scope=\"input-group\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {"
     ));
     assert!(css.contains(
-        "[data-scope=\"input-group\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"root\"] [data-scope=\"select\"][data-part=\"trigger\"]:focus-visible {\n  outline: none;\n}"
+        "[data-scope=\"input-group\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"]:focus-visible {\n  outline: none;\n}"
     ));
+}
+
+/// Input Group 直下の Select `content` 内へさらに別の Select がネスト
+/// された場合に備え、リセットセレクタが子結合子（`>`）のみで直下
+/// `root > control > trigger` に限定され、子孫結合子（半角スペース）を
+/// 含まないことを固定する（PR #3558 Codex レビュー指摘の回帰防止。
+/// 子孫結合子だとネストした内側 Select の `trigger` にまで枠線・背景・
+/// フォーカス輪郭のリセットが波及してしまう）。
+#[test]
+fn css_select_trigger_reset_selector_uses_only_child_combinators_to_avoid_leaking_into_nested_selects(
+) {
+    let css = input_group::stylesheet();
+    let trigger_reset_line = css
+        .lines()
+        .find(|line| {
+            line.contains("[data-scope=\"select\"][data-part=\"trigger\"] {")
+                && line.contains("[data-scope=\"select\"][data-part=\"root\"]")
+        })
+        .expect("select trigger reset rule が見つかりません");
+    assert!(
+        !trigger_reset_line.contains("\"] ["),
+        "セレクタに子孫結合子（半角スペース）が含まれています: {trigger_reset_line}"
+    );
 }

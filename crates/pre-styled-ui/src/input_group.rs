@@ -116,15 +116,19 @@
 //!
 //! 上記 2 セレクタに加え、[`crate::native_select`](mod@crate::native_select)
 //! （`root > field::select`）と [`crate::select`](mod@crate::select)
-//! （`root > select::root` の子孫 `select::trigger`）を対象にした追加リセット
-//! を持つ。Blocks 取り込み対応表 R1035/R1036 が要求する「入力欄の前後へ
-//! 通貨・国選択をインライン配置し外枠を 1 本にする」レイアウトのためで、
-//! input/textarea と異なり `flex: 1 1 0%` は与えない（内容幅のまま
+//! （`root > select::root > select::control > select::trigger`）を対象にした
+//! 追加リセットを持つ。Blocks 取り込み対応表 R1035/R1036 が要求する「入力欄の
+//! 前後へ通貨・国選択をインライン配置し外枠を 1 本にする」レイアウトのため
+//! で、input/textarea と異なり `flex: 1 1 0%` は与えない（内容幅のまま
 //! インライン配置する。input と対等に幅を分け合うと select だけで 1 行を
 //! 占有しかねないため）。native_select 側は `flex: 0 1 auto; width: auto`
 //! で base の `width: 100%` を打ち消す。select 側は `root` に
-//! `flex: 0 1 auto` を与えたうえで、枠線・背景のリセットは `trigger`
-//! （`control` を挟むため子孫結合子で指定）に対して行う。
+//! `flex: 0 1 auto` を与えたうえで、枠線・背景のリセットは直下の
+//! `control > trigger` へ子結合子（`>`）のみで限定して行う（子孫結合子
+//! （半角スペース）で `trigger` を広く拾うと、Input Group 直下 Select の
+//! `content` 内へさらに別の Select がネストされた場合、その内側 Select の
+//! `trigger` にまでリセットが波及してしまうため。PR #3558 Codex レビュー
+//! 指摘の回帰防止）。
 //!
 //! 受容する既知の上限（将来 opt-in を検討する余地はあるが現時点は対象外）:
 //! - select だけを addon と並べる構成では内容幅のまま root 右側に余白が残る
@@ -372,16 +376,20 @@ pub fn stylesheet() -> String {
     );
 
     // styled select（`data-scope="select"`）は `root` にインライン幅の
-    // flex を与え、枠線・背景は `control` を挟んだ子孫の `trigger` へ
-    // リセットを当てる（同節参照）。
+    // flex を与え、枠線・背景は直下の `control > trigger` へ限定してリセッ
+    // トを当てる（同節参照）。子結合子（`>`）のみで繋ぐのは、子孫結合子
+    // （` `）だと Input Group 直下 Select の `content`（ポータル先ではなく
+    // インライン描画時）内にネストした別の Select の `trigger` にまで
+    // リセットが波及してしまうため（イシュー #3123 PR #3558 レビュー指摘）。
     const SELECT_ROOT: &str = r#"[data-scope="select"][data-part="root"]"#;
+    const SELECT_CONTROL: &str = r#"[data-scope="select"][data-part="control"]"#;
     const SELECT_TRIGGER: &str = r#"[data-scope="select"][data-part="trigger"]"#;
     push_rule(
         &format!("{ROOT} > {SELECT_ROOT}"),
         &[decl("flex", "0 1 auto"), decl("min-width", "0")],
     );
     push_rule(
-        &format!("{ROOT} > {SELECT_ROOT} {SELECT_TRIGGER}"),
+        &format!("{ROOT} > {SELECT_ROOT} > {SELECT_CONTROL} > {SELECT_TRIGGER}"),
         &[
             decl("border", "0"),
             decl("border-radius", "0"),
@@ -390,7 +398,7 @@ pub fn stylesheet() -> String {
         ],
     );
     push_rule(
-        &format!("{ROOT} > {SELECT_ROOT} {SELECT_TRIGGER}:focus-visible"),
+        &format!("{ROOT} > {SELECT_ROOT} > {SELECT_CONTROL} > {SELECT_TRIGGER}:focus-visible"),
         &[decl("outline", "none")],
     );
 
@@ -558,7 +566,7 @@ mod tests {
             r#"[data-scope="input-group"][data-part="root"] > [data-scope="select"][data-part="root"]"#
         ));
         assert!(out.contains(
-            r#"[data-scope="input-group"][data-part="root"] > [data-scope="select"][data-part="root"] [data-scope="select"][data-part="trigger"]"#
+            r#"[data-scope="input-group"][data-part="root"] > [data-scope="select"][data-part="root"] > [data-scope="select"][data-part="control"] > [data-scope="select"][data-part="trigger"]"#
         ));
         assert!(out.matches("outline: none;").count() >= 3);
     }
