@@ -1159,6 +1159,7 @@ pub enum LayoutCss {
 | code-block-header | #3104（親 #3099） | `docs/code_block/code_block_header.rs` |
 | docs-layout-page-header | #3106 | `docs/docs_layout/docs_layout_page_header.rs` |
 | docs-layout-prev-next | #3107 | `docs/docs_layout/docs_layout_prev_next.rs` |
+| docs-layout-sidebar-api | #3108（親 #3099） | `docs/docs_layout/docs_layout_sidebar_api.rs` |
 | docs-layout-toc-collapsible | #3111 | `docs/docs_layout/docs_layout_toc_collapsible.rs` |
 | docs-layout-toc-progress | #3112（親 #3099） | `docs/docs_layout/docs_layout_toc_progress.rs` |
 
