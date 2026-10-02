@@ -57,10 +57,13 @@ use fandhe_frontend_pre_styled_ui::{
         self, Sidebar, SidebarCollapsible, SidebarMenuButtonProps, SidebarProps, SidebarState,
         SidebarVariant,
     },
-    skeleton, spinner, splitter, stat, status, steps,
+    skeleton, spinner, splitter,
+    stat::{self, StatDeltaTone},
+    status, steps,
     tab_nav::{self, TabNavVariant},
     table::{self, TableProps},
-    tag, timeline, tree_view, AlertProps, ColorPalette, OpenState, Orientation, Size,
+    tag, timeline, tree_view, visually_hidden, AlertProps, ColorPalette, OpenState, Orientation,
+    Size,
 };
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
@@ -1989,27 +1992,72 @@ fn ex_stat() -> Node {
     )
 }
 
+/// delta パート（イシュー #3138）の例。矢印なし・tone の意味色のみで
+/// 増減率を示す R1312 型レイアウト（ラベル行末 + 値は下段全幅）。
+fn ex_stat_delta() -> Node {
+    stat::root(
+        Size::Md,
+        vec![],
+        vec![
+            stat::label(
+                vec![],
+                vec![
+                    text("Error rate"),
+                    // tone が Danger の増減は色だけに意味を頼らない契約
+                    // （stat.rs「delta パートと tone 軸」節、WCAG 1.4.1）に従い、
+                    // 「悪化」を visually-hidden テキストで補う。
+                    stat::delta(
+                        StatDeltaTone::Danger,
+                        vec![],
+                        vec![
+                            text("+4.75%"),
+                            visually_hidden::root(vec![], vec![text("（悪化）")]),
+                        ],
+                    ),
+                ],
+            ),
+            stat::value_text(vec![], vec![text("1.2%")]),
+        ],
+    )
+}
+
 pub(crate) const STAT: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "label/value-text/value-unit/help-text/up-indicator/down-indicator の 6 パーツで指標表示を構造化する（crates/pre-styled-ui/src/stat.rs:314-362）",
-        "up-indicator/down-indicator は装飾用途のため aria-hidden=\"true\" を固定付与する（stat.rs:17, 348-362）",
-        "呼び出し側が aria-hidden を渡してもフレームワーク値の後に連結される（stat.rs:442-449）",
+        "label/value-text/value-unit/help-text/up-indicator/down-indicator/delta の 7 パーツで指標表示を構造化する（crates/pre-styled-ui/src/stat.rs）",
+        "up-indicator/down-indicator は装飾用途のため aria-hidden=\"true\" を固定付与する（stat.rs「プレーンな HTML を尊重するタグ選択」節）",
+        "呼び出し側が aria-hidden を渡してもフレームワーク値の後に連結される",
+        "delta（イシュー #3138）は矢印を伴わず tone（neutral/success/danger）の意味色だけで増減の良し悪しを示す。方向固定の up/down-indicator と異なり「増加しているが悪化」も表現できる（stat.rs「delta パートと tone 軸」節）",
     ],
-    arguments: &[ArgRow {
-        name: "size",
-        kind: "Size",
-        default: "Md",
-        description: "root（dl）のサイズ（xs〜xl、既定 md。chakra-ui の sm/md/lg は本実装の Sm/Md/Lg に対応、stat.rs:158-256）。",
-    }],
-    examples: &[ExampleEntry {
-        title: "Revenue",
-        description: "value-unit と up-indicator を組み合わせた指標表示の例です。",
-        render: ex_stat,
-    }],
+    arguments: &[
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Md",
+            description: "root（dl）のサイズ（xs〜xl、既定 md。chakra-ui の sm/md/lg は本実装の Sm/Md/Lg に対応）。",
+        },
+        ArgRow {
+            name: "tone",
+            kind: "StatDeltaTone",
+            default: "（既定なし・必須）",
+            description: "delta パートへ付与する意味色軸（neutral/success/danger）。root の class には影響しない（default_variant 未登録）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Revenue",
+            description: "value-unit と up-indicator を組み合わせた指標表示の例です。",
+            render: ex_stat,
+        },
+        ExampleEntry {
+            title: "Trend delta",
+            description: "delta パート（tone=danger）でラベル行末に矢印なしの増減率を表示する例です（イシュー #3138）。",
+            render: ex_stat_delta,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "aria-hidden=\"true\"（up-indicator/down-indicator のみ）",
-        description: "装飾用途の増減インジケータに固定付与される（stat.rs:17, 348-362）。root/label/value-text 自体は固有の ARIA を出力しない。",
+        description: "装飾用途の増減インジケータに固定付与される。root/label/value-text/delta 自体は固有の ARIA を出力しない（delta は可視テキストで情報を伝えるため aria-hidden を付けない）。",
     }],
     demo: None,
 };
