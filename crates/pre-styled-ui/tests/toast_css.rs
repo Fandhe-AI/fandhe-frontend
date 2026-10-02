@@ -11,9 +11,15 @@
 //! pre-styled-only base ブロックを `close-trigger` base の直後へ、右端
 //! アクション列（`data-actions-column`）の state 規則を `focus-visible`
 //! state の直後・`@media (hover: hover)` ブロックの直前へ中間挿入した
-//! （`SLOTS` 末尾への純追加、既存ブロックは不変）。PR #3583（Bugbot 指摘
-//! 対応）で `actions` 列自体の縮小上限（`max-width: 40%`）と
-//! `action-trigger` のテキスト折り返し規則を追加し、計 5 件になった。
+//! （`SLOTS` 末尾への純追加、既存ブロックは不変）。PR #3583（codex-review
+//! P1・Bugbot 指摘対応）で `actions` 列自体の縮小上限（`max-width: 40%`）を
+//! 追加した: 公開 API の呼び出し規約（`root`/`action_trigger` へ
+//! `data-actions-column` を付ける。`actions` パート自身へは付けない）上
+//! `actions` パートは常にこの列レイアウトでのみ使われるため、縮小上限は
+//! `data-actions-column` 条件なしの `actions` base 自身へ持たせた（条件付き
+//! state 規則にすると実際の呼び出し規約では絶対に発火しないため）。
+//! `action-trigger` のテキスト折り返し規則は `data-actions-column` state の
+//! まま追加している。
 
 use fandhe_frontend_pre_styled_ui::toast;
 
@@ -115,7 +121,9 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
 [data-scope="toast"][data-part="actions"] {
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 40%;
   border-inline-start: 1px solid var(--fandhe-palette-muted, var(--fandhe-color-border));
 }
 
@@ -239,12 +247,6 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
   gap: 0;
   align-items: stretch;
   padding: 0;
-}
-
-[data-scope="toast"][data-part="actions"][data-actions-column] {
-  flex-shrink: 1;
-  min-width: 0;
-  max-width: 40%;
 }
 
 [data-scope="toast"][data-part="action-trigger"][data-actions-column] {

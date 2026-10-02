@@ -564,12 +564,26 @@ fn recipe() -> SlotRecipe {
         // `--fandhe-palette-muted` をフォールバック付きで参照し、status
         // variant 未付与（neutral root）でも `--fandhe-color-border` へ
         // 確実にフォールバックする。
+        //
+        // `flex-shrink: 1`/`min-width: 0`/`max-width: 40%` は PR #3583
+        // codex-review P1・Bugbot 指摘対応:
+        // `actions` パートは本モジュールが公開する唯一の呼び出し規約
+        // （`root`/`action_trigger` へ [`ACTIONS_COLUMN_ATTR`] を付ける。
+        // `actions` パート自身へは付けない、`actions()` 公開 API の rustdoc・
+        // `crates/docs-site/src/component_specs_overlay.rs` の実例参照）上、
+        // 常にこの列レイアウトでのみ使われる（`data-actions-column` 状態分岐
+        // には乗らない）。このため列を縮小可能にしつつ上限を設ける指定は
+        // `data-actions-column` 条件なしの base へ直接持たせる（条件を
+        // `actions` パート自身の属性に掛けると、実際の呼び出し規約では
+        // 絶対に発火しない）。
         .base(
             "actions",
             vec![
                 decl("display", "flex"),
                 decl("flex-direction", "column"),
-                decl("flex-shrink", "0"),
+                decl("flex-shrink", "1"),
+                decl("min-width", "0"),
+                decl("max-width", "40%"),
                 decl(
                     "border-inline-start",
                     "1px solid var(--fandhe-palette-muted, var(--fandhe-color-border))",
@@ -759,20 +773,6 @@ fn recipe() -> SlotRecipe {
                 decl("gap", "0"),
                 decl("align-items", "stretch"),
                 decl("padding", "0"),
-            ],
-        )
-        // Bugbot 指摘対応（PR #3583）: `actions` 列は base で
-        // `flex-shrink: 0`（上記）のため、列方向のレイアウト
-        // （`data-actions-column`）では列自体が `content` を押し出して
-        // 通知幅（24rem）からはみ出し得た。列を縮小可能にしつつ上限を
-        // 設け、長いアクション文言でも通知幅を超えないようにする。
-        .state(
-            "actions",
-            StateCondition::Attr(ACTIONS_COLUMN_ATTR),
-            vec![
-                decl("flex-shrink", "1"),
-                decl("min-width", "0"),
-                decl("max-width", "40%"),
             ],
         )
         // 列内のセルになる action-trigger（`flex: 1 1 0` で複数ボタンを
@@ -1344,7 +1344,6 @@ mod tests {
         assert!(css.contains(r#"[data-scope="toast"][data-part="actions"] {"#));
         assert!(css.contains(r#"[data-scope="toast"][data-part="root"][data-actions-column] {"#));
         assert!(css.contains("flex-direction: row;"));
-        assert!(css.contains(r#"[data-scope="toast"][data-part="actions"][data-actions-column] {"#));
         assert!(css.contains("max-width: 40%;"));
         assert!(css.contains(
             r#"[data-scope="toast"][data-part="action-trigger"][data-actions-column] {"#
