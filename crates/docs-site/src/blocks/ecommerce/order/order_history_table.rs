@@ -377,8 +377,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `order_history_table` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。
+/// `order_history_table` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 ///
 /// 閾値 `40rem` は `table_responsive_stacked`/`order_tracking_progress` と
 /// 同系統の「4〜5 列テーブルが自然に収まる下限」として選んだ。

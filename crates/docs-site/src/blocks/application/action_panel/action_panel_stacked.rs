@@ -217,8 +217,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `action_panel_stacked` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。
+/// `action_panel_stacked` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 ///
 /// ルート grid class（`-layout`）は [`Block::demo_class`]
 /// （`blocks-action-panel-stacked`）と意図的に別名にする（`card_meta_cta`

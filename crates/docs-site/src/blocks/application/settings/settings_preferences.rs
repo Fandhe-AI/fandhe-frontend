@@ -450,8 +450,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `settings_preferences` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。
+/// `settings_preferences` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-settings-preferences-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n  container-type: inline-size;\n  container-name: blocks-settings-preferences;\n}\n\
 .blocks-settings-preferences-section {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\

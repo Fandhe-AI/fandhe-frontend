@@ -737,8 +737,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `settings_share_link` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。狭幅では footer の
+/// `settings_share_link` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。狭幅では footer の
 /// button-group を縦積み・全幅にし、`40rem` 以上で横並びへ切り替える
 /// （テーマ breakpoint トークンは `@media` 内で解決できないためリテラル、
 /// `card_form_footer`/`settings_billing_overview` と同じ判断）。

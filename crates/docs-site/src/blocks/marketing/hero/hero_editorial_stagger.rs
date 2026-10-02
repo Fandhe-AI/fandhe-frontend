@@ -147,8 +147,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `hero_editorial_stagger` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節、他 block と同型で
+/// `hero_editorial_stagger` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、他 block と同型で
 /// `pub(super)` として `super::stylesheet` から連結される）。
 const LAYOUT_CSS: &str = "\
 .blocks-hero-editorial-stagger-inner {\n  max-width: 48rem;\n  margin-inline: auto;\n  text-align: center;\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 1rem;\n  padding-block: 2rem;\n}\n\

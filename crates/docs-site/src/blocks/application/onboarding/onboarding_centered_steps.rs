@@ -914,8 +914,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `onboarding_centered_steps` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。セレクタは
+/// `onboarding_centered_steps` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。セレクタは
 /// `.blocks-onboarding-centered-steps-*` と
 /// `[data-blocks-onboarding-centered-steps-*]`、および本 block スコープ配下の
 /// `checkbox`/`checkbox-card`/`radio-card`/`file-upload` disabled 中和セレクタ

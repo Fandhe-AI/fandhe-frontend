@@ -495,8 +495,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `checkout_step_sections` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節と同型）。
+/// `checkout_step_sections` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-checkout-step-sections-layout {\n  container-type: inline-size;\n  container-name: blocks-checkout-step-sections;\n}\n\
 .blocks-checkout-step-sections-columns {\n  display: grid;\n  grid-template-columns: 1fr;\n  gap: var(--fandhe-space-8);\n}\n\

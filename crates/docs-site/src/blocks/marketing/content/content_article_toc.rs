@@ -464,8 +464,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `content_article_toc` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節。モジュール doc「`64rem` の根拠」参照）。
+/// `content_article_toc` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。モジュール doc「`64rem` の根拠」参照）。
 const LAYOUT_CSS: &str = "\
 .blocks-content-article-toc-stack {\n  display: flex;\n  flex-direction: column;\n  gap: 2rem;\n}\n\
 .blocks-content-article-toc-stack + .blocks-content-article-toc-stack {\n  padding-top: 2rem;\n  border-top: 1px solid var(--fandhe-color-border);\n}\n\

@@ -664,8 +664,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `table_sortable_bulk` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。`--fandhe-*` トークンを参照する
+/// `table_sortable_bulk` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。`--fandhe-*` トークンを参照する
 /// 宣言に加え、選択列の実幅・中央寄せを一括操作ツールバーの
 /// `inset-inline-start` 前提へ合わせる `[data-blocks-table-sortable-bulk-
 /// select-cell]` セレクタと、見出し行の外形高さをツールバーへ一致させる

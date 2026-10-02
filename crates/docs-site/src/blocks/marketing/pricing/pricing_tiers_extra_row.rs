@@ -690,8 +690,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `pricing_tiers_extra_row` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節）。色・間隔はすべて既存
+/// `pricing_tiers_extra_row` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。色・間隔はすべて既存
 /// トークン（`--fandhe-*`）のみを使う。mobile-first（`min-width: 64rem`）で
 /// 3 列へ切り替える（モジュール doc「レイアウトとブレークポイント」節
 /// 参照）。

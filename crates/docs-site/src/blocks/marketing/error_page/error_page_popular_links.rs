@@ -486,8 +486,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `error_page_popular_links` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節、他 block と同型で
+/// `error_page_popular_links` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、他 block と同型で
 /// `pub(super)` ではなく本ファイル内 `const` として [`super::blocks`] から
 /// `BLOCK.layout_css` 経由で連結される）。
 ///

@@ -518,8 +518,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `ai_chat_playground` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。
+/// `ai_chat_playground` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-ai-chat-playground-layout {\n  container-type: inline-size;\n  container-name: blocks-ai-chat-playground;\n}\n\
 .blocks-ai-chat-playground-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) 18rem;\n  gap: var(--fandhe-space-8);\n}\n\
