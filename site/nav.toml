@@ -2897,6 +2897,11 @@ path = "/blocks/reviews-write-form/"
 title = "Store Nav"
 
 [[section.group.page]]
+title = "store-nav-category-row"
+source = "site/blocks/store-nav-category-row.md"
+path = "/blocks/store-nav-category-row/"
+
+[[section.group.page]]
 title = "store-nav-centered-logo"
 source = "site/blocks/store-nav-centered-logo.md"
 path = "/blocks/store-nav-centered-logo/"
