@@ -464,8 +464,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `banner_full_width_bar` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節。他 block と同型で `pub(super)` として
+/// `banner_full_width_bar` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。他 block と同型で `pub(super)` として
 /// `super::stylesheet` から連結される）。
 ///
 /// callout root 自体の recipe base（`display`/`padding` 等、詳細度

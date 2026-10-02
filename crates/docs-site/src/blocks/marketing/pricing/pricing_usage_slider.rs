@@ -166,8 +166,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `pricing_usage_slider` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節。他 block と同型で `pub(super)` として
+/// `pricing_usage_slider` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。他 block と同型で `pub(super)` として
 /// `super::stylesheet` から連結される）。
 const LAYOUT_CSS: &str = "\
 [data-blocks-pricing-usage-slider-layout] {\n  display: flex;\n  flex-direction: column;\n  gap: 2rem;\n  align-items: stretch;\n  max-width: 28rem;\n}\n\

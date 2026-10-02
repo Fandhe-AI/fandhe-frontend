@@ -259,8 +259,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `signup_05` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc
-/// 「block 固有 CSS の置き場」節。`login_01`/`sidebar_03`/`sidebar_07`/
+/// `signup_05` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。`login_01`/`sidebar_03`/`sidebar_07`/
 /// `dashboard_01` と同型で `pub(super)` として `super::stylesheet` から
 /// 連結される）。
 ///

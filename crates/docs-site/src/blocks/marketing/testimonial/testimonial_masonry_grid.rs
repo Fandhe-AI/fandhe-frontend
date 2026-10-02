@@ -388,8 +388,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `testimonial_masonry_grid` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節）。色・間隔はすべて既存
+/// `testimonial_masonry_grid` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。色・間隔はすべて既存
 /// トークン（`--fandhe-*`）のみを使う。mobile-first（`min-width: 40rem`/
 /// `64rem`/`80rem`）で列数（`column-count`）を切り替える CSS multi-column
 /// レイアウト（R0361 準拠、モジュール doc「レイアウトとブレークポイント」

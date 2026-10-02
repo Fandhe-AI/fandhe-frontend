@@ -430,8 +430,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `feature_four_column_grid` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節）。セレクタは
+/// `feature_four_column_grid` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。セレクタは
 /// `.blocks-feature-four-column-grid-*` と `[data-blocks-feature-four-
 /// column-grid-*]` のみを用い、他 block や部品の素のセレクタへ影響させ
 /// ない（`feature_image_cards` と同じ名前空間分離）。

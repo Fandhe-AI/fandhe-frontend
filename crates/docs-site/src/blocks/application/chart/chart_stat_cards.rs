@@ -369,8 +369,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `chart_stat_cards` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc
-/// 「block 固有 CSS の置き場」節と同型）。
+/// `chart_stat_cards` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-chart-stat-cards-layout {\n  display: grid;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-chart-stat-cards-grid {\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));\n  gap: var(--fandhe-space-4);\n  align-items: stretch;\n}\n\

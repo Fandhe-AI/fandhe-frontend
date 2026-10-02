@@ -537,8 +537,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `comparison_cards` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。
+/// `comparison_cards` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。
 ///
 /// mobile-first（`min-width`）でカード列の列数を増やす（モジュール doc
 /// 「レイアウトとブレークポイント」節参照）。色はすべて既存トークン

@@ -411,8 +411,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `description_list_horizontal` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。
+/// `description_list_horizontal` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 ///
 /// # `--fandhe-data-list-gap: 0` の上書きセレクタは `data-scope`/`data-part` を
 /// 併記する（codex-review 是正、イシュー #2906）

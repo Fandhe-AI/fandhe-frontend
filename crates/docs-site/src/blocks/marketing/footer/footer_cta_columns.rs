@@ -342,8 +342,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `footer_cta_columns` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節。他 block と同型で `pub(super)` として
+/// `footer_cta_columns` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。他 block と同型で `pub(super)` として
 /// `super::stylesheet` から連結される）。狭い幅（既定）はリンクを 2 列、
 /// `48rem` 以上でロゴ 1 列 + リンク 4 列（モジュール doc「狭い幅では
 /// リンクを 2 列」節参照）。

@@ -219,8 +219,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `logo_cloud_marquee` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。セレクタは
+/// `logo_cloud_marquee` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。セレクタは
 /// `.blocks-logo-cloud-marquee-*` と、それで絞り込んだ
 /// `[data-scope="marquee"]`/`[data-scope="image"]` のみを用いる。
 /// `@keyframes`・`animation`・`prefers-reduced-motion` は一切含まない

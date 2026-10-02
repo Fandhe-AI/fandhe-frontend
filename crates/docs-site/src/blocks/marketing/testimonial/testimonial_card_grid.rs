@@ -389,8 +389,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `testimonial_card_grid` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節参照）。既定（狭幅）は 1 列縦積み、
+/// `testimonial_card_grid` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節参照）。既定（狭幅）は 1 列縦積み、
 /// `48rem` 以上で 3 列にする（モジュール doc「ブレークポイント」節）。
 ///
 /// caption の横並び上書きは

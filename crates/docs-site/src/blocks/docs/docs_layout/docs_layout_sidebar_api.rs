@@ -618,8 +618,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `docs_layout_sidebar_api` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。`--fandhe-*` トークンのみを使い、
+/// `docs_layout_sidebar_api` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。`--fandhe-*` トークンのみを使い、
 /// 未定義テーマに備えてフォールバック値を併記する。セレクタは
 /// `.blocks-docs-layout-sidebar-api-*` / `[data-blocks-docs-layout-sidebar-api-*]`、
 /// および styled 部品の `[data-scope][data-part]` セレクタとの複合セレクタ

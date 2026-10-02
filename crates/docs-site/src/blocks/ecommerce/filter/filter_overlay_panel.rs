@@ -508,8 +508,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `filter_overlay_panel` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節、`contact_dialog_form`/`form_layout_stacked`
+/// `filter_overlay_panel` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、`contact_dialog_form`/`form_layout_stacked`
 /// と同型）。drawer/dialog の固定オーバーレイをデモ枠内へ収める中和規則と、
 /// checkbox disabled の中和規則を持つ。
 const LAYOUT_CSS: &str = "\

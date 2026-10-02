@@ -414,8 +414,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `settings_item_cards` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。
+/// `settings_item_cards` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 ///
 /// ルート class（`-layout`）は [`Block::demo_class`]
 /// （`blocks-settings-item-cards`）と意図的に別名にする（`card_meta_cta`

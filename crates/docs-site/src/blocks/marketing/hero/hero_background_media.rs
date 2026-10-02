@@ -304,8 +304,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `hero_background_media` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節、他 block と同型）。
+/// `hero_background_media` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、他 block と同型）。
 ///
 /// 生の色リテラル（`#fff`/`white` 等）は使わず、可読性の確保はすべて
 /// `--fandhe-color-*` トークンと `color-mix()` で行う（モジュール冒頭

@@ -335,8 +335,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `comparison_feature_rows` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節）。モバイルファーストで
+/// `comparison_feature_rows` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。モバイルファーストで
 /// 既定（狭い幅）は縦積み、`>= 48rem`（md）で 2 列（機能名は全幅・自社と
 /// 他社が横並び）、`>= 64rem`（lg）で 3 列（機能名・自社・他社を横一列）
 /// へ切り替える。ブレークポイントは `fandhe_frontend_pre_styled_ui` の

@@ -477,8 +477,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `feature_split_image` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。セレクタは
+/// `feature_split_image` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。セレクタは
 /// `.blocks-feature-split-image-*` と `[data-blocks-feature-split-image-*]`
 /// のみを用い、他 block や部品の素のセレクタへ影響させない
 /// （`feature-alternating-rows` と同じ名前空間分離）。

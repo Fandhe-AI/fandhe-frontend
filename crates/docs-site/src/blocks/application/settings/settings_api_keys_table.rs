@@ -701,8 +701,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `settings_api_keys_table` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節、`contact_dialog_form.rs` と同型）。
+/// `settings_api_keys_table` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、`contact_dialog_form.rs` と同型）。
 ///
 /// ダイアログの固定オーバーレイ中和（`backdrop`/`positioner`）は 2 件の
 /// ダイアログで属性値を共有する `[data-blocks-settings-api-keys-table-

@@ -585,8 +585,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `api_reference_playground` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節、他 block と同型で `pub(super)` ではなく
+/// `api_reference_playground` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、他 block と同型で `pub(super)` ではなく
 /// `super::stylesheet` から [`Block::layout_css`] 経由で連結される）。
 const LAYOUT_CSS: &str = "\
 .blocks-api-reference-playground-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n}\n\
