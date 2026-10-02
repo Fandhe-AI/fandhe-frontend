@@ -70,9 +70,11 @@
 //! 評価内訳の割合・平均評価・件数はすべて独自に書いた架空の内容であり、
 //! 実在の企業名・人物・PII・有料アセット名を含まない。サムネイル画像は
 //! ビルド時生成の同梱 SVG（[`dummy_assets::PRODUCT_SRC`]）を使う（外部
-//! URL・`data:` URI は使わない）。8 枚とも同一画像のため、`alt` は
-//! 「購入者が投稿した写真 N」のように連番で一意にする（実在の商品写真では
-//! ないため具体的な内容の記述はしない）。
+//! URL・`data:` URI は使わない）。8 枚とも同一画像のため、代表画像（1 枚目）
+//! のみ「購入者が投稿した写真」の `alt` を持ち、残り 7 枚は同一画像の
+//! 重複描画（装飾目的）として空 `alt` にする（`product_overview_image_grid`
+//! の `gallery_tile` と同型の判断。連番で alt を分けると画像内容と不一致に
+//! なるため採らない）。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -234,9 +236,20 @@ fn breakdown_row(stars: u8, percent: f64) -> Node {
 /// サムネイル画像グリッド（8 枚、版 B 限定。モジュール doc「ダミー素材
 /// について」節参照）。
 fn thumbnail_grid() -> Node {
+    // 8 枚すべて同一の `dummy_assets::PRODUCT_SRC`（同一プレースホルダー画像）
+    // を参照しているため、「写真 1」〜「写真 8」のように異なる購入者写真で
+    // あるかのような alt を付けるとスクリーンリーダーで同一画像が異なる
+    // 写真として読み上げられてしまう（`product_overview_image_grid` の
+    // `gallery_tile` と同型の判断、PR #3538 レビュー P2 指摘）。実際の
+    // 内容と一致する alt を持てるのは代表画像（1 枚目）のみとし、残り
+    // 7 枚は代表画像の重複描画（装飾目的）として空 alt にする。
     let tiles: Vec<Node> = (1..=8)
         .map(|i| {
-            let alt = format!("購入者が投稿した写真 {i}");
+            let alt = if i == 1 {
+                "購入者が投稿した写真".to_string()
+            } else {
+                String::new()
+            };
             image::image(
                 &ImageProps {
                     shape: ImageShape::Rounded,
