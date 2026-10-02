@@ -1184,6 +1184,7 @@ pub const DRAWER: ComponentPageSpec = ComponentPageSpec {
         "Root / Trigger / Backdrop / Positioner / Content / Title / Description / CloseTrigger の 8 anatomy パーツ（dialog と同一構成）。",
         "DrawerPlacement（Start/End/Top/Bottom、既定 End）で画面のどの端から出現するかを data-placement として root/positioner/content へ出力する。",
         "size variant で寸法を切り替える。",
+        "pre-styled-only の body / footer パート（イシュー #3128、headless anatomy 変更なしの opt-in 純追加）。content の attrs へ data-has-body を付けると content が flex column 化し、body がその残り高さを埋めてスクロールする（data-has-body なしで body だけを使った場合は従来どおり content 全体がスクロールする無害な縮退）。",
     ],
     arguments: &[
         ArgRow {
@@ -1207,7 +1208,7 @@ pub const DRAWER: ComponentPageSpec = ComponentPageSpec {
     ],
     examples: &[ExampleEntry {
         title: "Footer action row (bottom placement)",
-        description: "shadcn/ui の Sheet/Drawer が持つフッター相当のアクション配置を、既存 API のみで再現した合成パターンです（イシュー #2031）。headless anatomy に専用 footer パートが存在しないため（description 直後の通常行として掲示する制約は drawer.rs rustdoc の「本イシューのスコープ外」節を継承）、description の直後に Cancel/Save の 2 ボタンを並べています。placement=\"bottom\" を掲示し、DrawerPlacement の 4 方向のうち Demo（end）とは異なる方向を示します。",
+        description: "shadcn/ui の Sheet/Drawer が持つ「本文だけスクロール・見出しとフッターは固定」構成を、pre-styled-only の body / footer パート（イシュー #3128）で再現した例です。content の attrs へ data-has-body を付けて flex column 化し、description の下に body（複数段落の本文）、その下に footer（Cancel/Save の 2 ボタン）を配置しています。placement=\"bottom\" を掲示し、DrawerPlacement の 4 方向のうち Demo（end）とは異なる方向を示します。",
         render: ex_drawer_footer_bottom,
     }],
     keyboard: &[],
@@ -1237,15 +1238,14 @@ pub const DRAWER: ComponentPageSpec = ComponentPageSpec {
 };
 
 /// [`DRAWER`] の Examples 節「Footer action row (bottom placement)」レンダラ
-/// （イシュー #2031、shadcn/ui `Sheet`/`Drawer` との突合）。
+/// （イシュー #2031、shadcn/ui `Sheet`/`Drawer` との突合。イシュー #3128 で
+/// pre-styled-only `body`/`footer` パートの正式な使用例へ更新）。
 ///
-/// headless drawer の anatomy は dialog と同一の 8 パーツのみで footer
-/// パートを持たない（`crates/pre-styled-ui/src/drawer.rs` rustdoc「本
-/// イシューのスコープ外」節、イシュー #1695 で確定済みの制約）ため、
-/// description 直後の通常行として Cancel/Save を並べる合成パターンを示す
-/// （`showcase::drawer_section` の Demo と同型。ID は Demo と衝突しない
-/// `showcase-drawer-footer-example-*` を使う）。placement は Demo（end）と
-/// 異なる bottom を掲示し、DrawerPlacement の網羅性を示す。
+/// `crate::drawer::body`/`crate::drawer::footer`（イシュー #3128）を使い、
+/// content の attrs へ `data-has-body` を付けて opt-in の flex column 化を
+/// 有効にする（`showcase::drawer_section` の Demo と同型。ID は Demo と
+/// 衝突しない `showcase-drawer-footer-example-*` を使う）。placement は
+/// Demo（end）と異なる bottom を掲示し、DrawerPlacement の網羅性を示す。
 fn ex_drawer_footer_bottom() -> Node {
     div(
         vec![],
@@ -1276,7 +1276,9 @@ fn ex_drawer_footer_bottom() -> Node {
                                 labelledby: Some("showcase-drawer-footer-example-title"),
                                 describedby: Some("showcase-drawer-footer-example-desc"),
                             },
-                            vec![],
+                            // イシュー #3128: content を opt-in で flex
+                            // column 化し、body へ残り高さを埋めさせる。
+                            vec![("data-has-body", "")],
                             vec![
                                 drawer::title(
                                     Some("showcase-drawer-footer-example-title"),
@@ -1288,13 +1290,17 @@ fn ex_drawer_footer_bottom() -> Node {
                                     vec![],
                                     vec![text("画面下端からスライドインするパネルの例です。")],
                                 ),
-                                // headless anatomy に専用 footer パートが存在
-                                // しないため、description 直後に通常の行として
-                                // 掲示する。`.showcase-row` は掲示用レイアウト
-                                // のみを担い、製品 CSS には footer 規則を持ち
-                                // 込まない（showcase.rs の他 drawer 例と同型）。
-                                div(
-                                    vec![("class", "showcase-row")],
+                                // イシュー #3128: pre-styled-only `body`
+                                // パート。
+                                drawer::body(
+                                    vec![],
+                                    vec![p(vec![], vec![text("フィルタ項目はここに並びます。")])],
+                                ),
+                                // イシュー #3128: pre-styled-only `footer`
+                                // パート（従来の `.showcase-row` 掲示用
+                                // レイアウトから正式な製品パートへ置換）。
+                                drawer::footer(
+                                    vec![],
                                     vec![
                                         button(
                                             &ButtonProps {

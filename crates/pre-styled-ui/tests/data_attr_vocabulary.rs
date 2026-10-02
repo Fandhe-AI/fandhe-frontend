@@ -941,6 +941,33 @@ fn dialog_footer_and_alert_composition_emit_no_self_produced_data_attrs() {
     assert!(html.contains(r#"data-state="closed""#));
 }
 
+/// `drawer.rs`（イシュー #3128）の pre-styled-only `body`/`footer` パートも
+/// `dialog_footer_and_alert_composition_emit_no_self_produced_data_attrs`
+/// と同型のため、anatomy 属性（data-scope/data-part）以外の `data-*` を
+/// 一切出力しないことを固定する。
+#[test]
+fn drawer_body_and_footer_emit_no_self_produced_data_attrs() {
+    use fandhe_frontend_pre_styled_ui::drawer;
+
+    let html = render(&drawer::footer(vec![], vec![text("Save")]));
+    assert!(html.contains(r#"data-scope="drawer""#));
+    assert!(html.contains(r#"data-part="footer""#));
+    let data_attr_count = html.matches("data-").count();
+    assert_eq!(
+        data_attr_count, 2,
+        "drawer::footer は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
+    );
+
+    let html = render(&drawer::body(vec![], vec![text("Long content")]));
+    assert!(html.contains(r#"data-scope="drawer""#));
+    assert!(html.contains(r#"data-part="body""#));
+    let data_attr_count = html.matches("data-").count();
+    assert_eq!(
+        data_attr_count, 2,
+        "drawer::body は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
+    );
+}
+
 /// `close_trigger_with_variant`（イシュー #2193）の `data-variant`
 /// （`icon`/`text`）は headless 層（`fandhe_frontend_headless_ui::dialog`/
 /// `drawer`）が出力する語彙であり、pre-styled 層（`crate::dialog`/
