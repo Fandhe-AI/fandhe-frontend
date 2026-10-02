@@ -85,6 +85,24 @@
 //! 除去するため、CSS フックは `data-blocks-example-preview-toolbar-*` で
 //! 渡す。素の `div`/`pre` には `.blocks-example-preview-toolbar-*`
 //! クラスセレクタを使う（`code_block_header`/`notification_tray` と同型）。
+//! pre-styled パーツの見た目を上書きする規則は、block 固有のフック属性と
+//! レシピ属性（`[data-scope][data-part]`）を同じ要素上で連結し、レシピより
+//! 詳細度を上げる（`docs_layout_sidebar_api` と同じ流儀）。
+//!
+//! # 下段コードパネルの `code` 装飾リセット
+//!
+//! `code::code` は既定（`Subtle`）でインラインコード用のピル背景・
+//! padding・角丸を持つ。複数行スニペットを包む本 block では、
+//! `data-blocks-example-preview-toolbar-code` を付けた `code` に限って
+//! それらをリセットし、`pre` の地に溶け込むブロック表示にする
+//! （`example_preview_tabs`/`code_block_header` と同型）。
+//!
+//! # 枠の `overflow: hidden` とフォーカスリング
+//!
+//! 枠は角丸の内側へ子を収めるため `overflow: hidden` を持つ。端に接する
+//! タブ・コードパネル・コピー操作の外側へ描くフォーカスリングが切れない
+//! よう、それらの `:focus-visible` は `outline-offset: -2px`（内側描画）に
+//! 揃える（`example_preview_tabs` と同型）。
 //!
 //! # `<form>` を使わない
 //!
@@ -188,7 +206,7 @@ fn toolbar_tabs() -> Node {
                 vec![("class", "blocks-example-preview-toolbar-pre")],
                 vec![code::code(
                     &CodeProps::default(),
-                    vec![],
+                    vec![("data-blocks-example-preview-toolbar-code", "")],
                     vec![text(SNIPPET_RUST)],
                 )],
             )],
@@ -201,7 +219,7 @@ fn toolbar_tabs() -> Node {
                 vec![("class", "blocks-example-preview-toolbar-pre")],
                 vec![code::code(
                     &CodeProps::default(),
-                    vec![],
+                    vec![("data-blocks-example-preview-toolbar-code", "")],
                     vec![text(SNIPPET_CSS)],
                 )],
             )],
@@ -239,7 +257,7 @@ fn style_select() -> Node {
                 Size::Sm,
                 OpenState::Closed,
                 &props,
-                vec![("data-blocks-example-preview-toolbar-select-root", "")],
+                vec![],
                 vec![
                     select::control(
                         OpenState::Closed,
@@ -251,7 +269,7 @@ fn style_select() -> Node {
                             false,
                             Some(SELECT_CONTENT_ID),
                             Some(SELECT_LABEL_ID),
-                            vec![],
+                            vec![("data-blocks-example-preview-toolbar-select-trigger", "")],
                             vec![
                                 select::value_text(false, &props, vec![], vec![text("既定")]),
                                 select::indicator(OpenState::Closed, &props, vec![], vec![]),
@@ -382,7 +400,9 @@ pub const BLOCK: Block = Block {
 /// `Block::demo_class`、popover の `h2` 補正規則と同じ祖先セレクタ）で
 /// 限定する。button/select の disabled 中和規則は呼び出し側 attrs 経由で
 /// 付与できるため、`data-blocks-example-preview-toolbar-run`/
-/// `-select-root` を複合セレクタへ併記して限定する（`filter_dropdown_bar`
+/// `-select-trigger` を複合セレクタへ併記して限定する。select は
+/// `disabled_declarations()`（`opacity`/`cursor`）を root ではなく trigger
+/// へ付けるため、中和規則も trigger を対象にする（`filter_dropdown_bar`
 /// の `collapsed_filter_button` と同型の判断）。祖先・属性いずれの限定も
 /// 持たない生の `[data-scope="tabs"/"button"/"select"]` 複合セレクタを
 /// 本 CSS に残すと、他 block の Tabs（`display: contents`/`order`）や
@@ -399,9 +419,11 @@ const LAYOUT_CSS: &str = "\
 .blocks-example-preview-toolbar [data-scope=\"tabs\"][data-part=\"content\"] {\n  order: 3;\n  flex-basis: 100%;\n  overflow-x: auto;\n}\n\
 [data-blocks-example-preview-toolbar-actions] {\n  order: 2;\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  margin-inline-start: auto;\n  padding-inline: var(--fandhe-space-3);\n  background: var(--fandhe-color-bg-subtle);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-example-preview-toolbar-run][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-[data-scope=\"select\"][data-part=\"root\"][data-blocks-example-preview-toolbar-select-root][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"select\"][data-part=\"trigger\"][data-blocks-example-preview-toolbar-select-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-example-preview-toolbar-select {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
-.blocks-example-preview-toolbar-pre {\n  margin: 0;\n  padding: var(--fandhe-space-4);\n  font-family: var(--fandhe-font-font-mono);\n}\n";
+.blocks-example-preview-toolbar-pre {\n  margin: 0;\n  padding: var(--fandhe-space-4);\n  font-family: var(--fandhe-font-font-mono);\n}\n\
+[data-scope=\"code\"][data-part=\"root\"][data-blocks-example-preview-toolbar-code] {\n  display: block;\n  white-space: pre;\n  background: transparent;\n  border: 0;\n  border-radius: 0;\n  padding: 0;\n  color: inherit;\n}\n\
+.blocks-example-preview-toolbar [data-scope=\"tabs\"][data-part=\"trigger\"]:focus-visible,\n.blocks-example-preview-toolbar [data-scope=\"tabs\"][data-part=\"content\"]:focus-visible,\n[data-blocks-example-preview-toolbar-actions] [data-scope=\"clipboard\"][data-part=\"trigger\"]:focus-visible {\n  outline-offset: -2px;\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -450,6 +472,71 @@ mod tests {
         let html = demo_html();
         assert!(html.contains(r#"data-scope="select" data-part="root""#));
         assert!(html.contains(r#"data-scope="select" data-part="positioner" data-state="closed""#));
+    }
+
+    /// select の disabled 中和規則が、レシピが `opacity`/`cursor` を付ける
+    /// trigger を対象にし、フック属性が trigger 上に出ること。
+    #[test]
+    fn select_disabled_neutralizer_targets_trigger() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"select\"][data-part=\"trigger\"][data-blocks-example-preview-toolbar-select-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
+        ));
+        assert!(!LAYOUT_CSS.contains("[data-scope=\"select\"][data-part=\"root\"]"));
+        let html = demo_html();
+        let at = html
+            .find("data-blocks-example-preview-toolbar-select-trigger")
+            .unwrap();
+        let tag_start = html[..at].rfind('<').unwrap();
+        let tag = &html[tag_start..at];
+        assert!(tag.contains(r#"data-scope="select" data-part="trigger""#));
+        assert!(tag.contains("data-disabled"));
+    }
+
+    /// 下段の `code` 2 件にフック属性が付き、インライン装飾（背景・
+    /// padding・角丸・枠）をレシピ属性連結の規則でリセットすること。
+    #[test]
+    fn panel_code_resets_inline_decoration() {
+        let html = demo_html();
+        assert_eq!(
+            html.matches(r#"data-scope="code" data-part="root""#)
+                .count(),
+            html.matches("data-blocks-example-preview-toolbar-code")
+                .count()
+        );
+        assert_eq!(
+            html.matches("data-blocks-example-preview-toolbar-code")
+                .count(),
+            2
+        );
+        let start = LAYOUT_CSS
+            .find("[data-scope=\"code\"][data-part=\"root\"][data-blocks-example-preview-toolbar-code] {")
+            .unwrap();
+        let rule = &LAYOUT_CSS[start..start + LAYOUT_CSS[start..].find('}').unwrap()];
+        for decl in [
+            "display: block;",
+            "background: transparent;",
+            "border: 0;",
+            "border-radius: 0;",
+            "padding: 0;",
+        ] {
+            assert!(rule.contains(decl), "{decl}");
+        }
+    }
+
+    /// `overflow: hidden` の枠に接するタブ・パネル・コピー操作の
+    /// フォーカスリングを内側（`outline-offset: -2px`）に描くこと。
+    #[test]
+    fn focus_rings_are_drawn_inset_inside_clipping_frame() {
+        assert!(LAYOUT_CSS.contains("overflow: hidden"));
+        let end = LAYOUT_CSS.find("{\n  outline-offset: -2px;\n}").unwrap();
+        let selectors = &LAYOUT_CSS[LAYOUT_CSS[..end].rfind('}').unwrap()..end];
+        for sel in [
+            ".blocks-example-preview-toolbar [data-scope=\"tabs\"][data-part=\"trigger\"]:focus-visible",
+            ".blocks-example-preview-toolbar [data-scope=\"tabs\"][data-part=\"content\"]:focus-visible",
+            "[data-blocks-example-preview-toolbar-actions] [data-scope=\"clipboard\"][data-part=\"trigger\"]:focus-visible",
+        ] {
+            assert!(selectors.contains(sel), "{sel}");
+        }
     }
 
     /// [`LAYOUT_CSS`] が `flex-wrap: wrap` と `display: contents` を持ち、

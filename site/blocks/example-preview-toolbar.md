@@ -18,7 +18,9 @@ Themes/Primitives 部品を組み合わせた実例集であることに注意�
 実行」ボタンは遷移先・クリック処理を持たないため押下不能、コピーは
 未コピー（idle）状態の固定表示です（実際の切り替え・コピー動作には
 `fandhe-frontend-wasm-full` の JS 配線が必要で、docs サイトは JS
-ハイドレーションを行いません）。文言はすべて独自に書いた架空のものであり、
+ハイドレーションを行いません）。下段のコードは `code` のインライン用装飾
+（背景・余白・角丸）を外したブロック表示にし、枠に接するタブ・コード・
+コピー操作のフォーカスリングは枠の内側に描きます。文言はすべて独自に書いた架空のものであり、
 実企業名・実クレデンシャル・PII を含みません。
 
 ## Rust コード
@@ -112,7 +114,7 @@ fn toolbar_tabs() -> Node {
                 vec![("class", "blocks-example-preview-toolbar-pre")],
                 vec![code::code(
                     &CodeProps::default(),
-                    vec![],
+                    vec![("data-blocks-example-preview-toolbar-code", "")],
                     vec![text(SNIPPET_RUST)],
                 )],
             )],
@@ -125,7 +127,7 @@ fn toolbar_tabs() -> Node {
                 vec![("class", "blocks-example-preview-toolbar-pre")],
                 vec![code::code(
                     &CodeProps::default(),
-                    vec![],
+                    vec![("data-blocks-example-preview-toolbar-code", "")],
                     vec![text(SNIPPET_CSS)],
                 )],
             )],
@@ -163,7 +165,7 @@ fn style_select() -> Node {
                 Size::Sm,
                 OpenState::Closed,
                 &props,
-                vec![("data-blocks-example-preview-toolbar-select-root", "")],
+                vec![],
                 vec![
                     select::control(
                         OpenState::Closed,
@@ -175,7 +177,7 @@ fn style_select() -> Node {
                             false,
                             Some(SELECT_CONTENT_ID),
                             Some(SELECT_LABEL_ID),
-                            vec![],
+                            vec![("data-blocks-example-preview-toolbar-select-trigger", "")],
                             vec![
                                 select::value_text(false, &props, vec![], vec![text("既定")]),
                                 select::indicator(OpenState::Closed, &props, vec![], vec![]),
