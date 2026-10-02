@@ -591,6 +591,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/incentives-split-header/index.html"
           # Ecommerce / Promo
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-collection-cards/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-countdown/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-sale-products/index.html"
           # Docs / Docs Layout
           # Docs / Code Block
