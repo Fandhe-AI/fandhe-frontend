@@ -3868,7 +3868,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # （avatar の #3563 以降を含む到達値）も独立に同一の 0.230.0 へ到達していた
 # （偶発的衝突）ため、そのまま採用せずさらに +1 して 0.231.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
-version = "0.231.0"
+#
+# PR #3573 レビュー対応（イシュー #3124）: codex P1 指摘を受け、select の
+# `item-indicator` に `flex-shrink: 0` を追加した（item に gap がある構成で
+# 項目幅・テキスト長が異なるとインジケータが flex item として縮小し整列が
+# 崩れるため）。既存 golden ブロックの出力バイトが変わる観測可能な CSS
+# 変更のため minor バンプする。
+version = "0.232.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
