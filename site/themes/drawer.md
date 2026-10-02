@@ -8,6 +8,10 @@
 で `dialog` と対称の平文ボタン見た目を持たせることもできますが、
 `fandhe-frontend-wasm-full` が drawer scope の click 配線を未対応のため、
 アクション行に置いても現状クリックでは閉じません（別イシューで追跡）。
+`body`/`footer` は headless anatomy を変更しない pre-styled-only のレイアウト
+専用パートです。`content` の attrs へ `data-has-body` を付けると opt-in で
+flex column 化され、`body` が残り高さを埋めてスクロールします（付けない場合は
+`body` を使っても従来どおり `content` 全体がスクロールします）。
 
 > [!IMPORTANT]
 > Demo はトリガー起点のオーバーレイ部品を「開いた状態」で固定掲示しています。

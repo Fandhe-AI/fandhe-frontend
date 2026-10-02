@@ -7,9 +7,10 @@
 //! `docs/design/docs-site-blocks-section.md` §18 参照）。
 
 mod example_preview_tabs;
+mod example_preview_toolbar;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![example_preview_tabs::BLOCK]
+    vec![example_preview_tabs::BLOCK, example_preview_toolbar::BLOCK]
 }
