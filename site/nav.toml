@@ -2986,6 +2986,11 @@ source = "site/blocks/docs-layout-page-header.md"
 path = "/blocks/docs-layout-page-header/"
 
 [[section.group.page]]
+title = "docs-layout-prev-next"
+source = "site/blocks/docs-layout-prev-next.md"
+path = "/blocks/docs-layout-prev-next/"
+
+[[section.group.page]]
 title = "docs-layout-toc-progress"
 source = "site/blocks/docs-layout-toc-progress.md"
 path = "/blocks/docs-layout-toc-progress/"
