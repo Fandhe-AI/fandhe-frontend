@@ -17,6 +17,13 @@
 //! `list` 以外の直下要素が横並びになるレイアウト回帰）で pre-styled-ui
 //! 専用のグルーピングパーツ `body` を新設したことに伴い、`body` slot の
 //! CSS を追加した。
+//!
+//! イシュー #3139 でバー型（`fd-steps--variant-bar`）・パネル型
+//! （`fd-steps--variant-panel`）・ドット型（`fd-steps--variant-dot`）
+//! variant の CSS ブロック（既存 variant セクション末尾への追加）と、
+//! `item` の `data-state="complete"`/`"current"` 向け
+//! `--fandhe-steps-bar-color` state ブロック（既存 states セクション末尾
+//! への追加）を純追加した。既存ブロックは一切変更していない。
 
 use fandhe_frontend_pre_styled_ui::steps;
 
@@ -255,6 +262,66 @@ const STEPS_GOLDEN_CSS: &str = r#"[data-scope="steps"][data-part="root"] {
   --fandhe-palette-fg-subtle: var(--fandhe-color-neutral-fg-subtle);
 }
 
+[data-scope="steps"][data-part="list"].fd-steps--variant-bar {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--fandhe-space-4);
+  align-items: start;
+}
+
+[data-scope="steps"][data-part="item"].fd-steps--variant-bar {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--fandhe-space-1);
+  padding-top: var(--fandhe-space-3);
+  border-top: calc(var(--fandhe-steps-thickness, 2px) * 2) solid var(--fandhe-steps-bar-color, var(--fandhe-color-border));
+}
+
+[data-scope="steps"][data-part="list"].fd-steps--variant-panel {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 0;
+  align-items: stretch;
+  border: 1px solid var(--fandhe-color-border);
+  border-radius: var(--fandhe-radius-md);
+}
+
+[data-scope="steps"][data-part="item"].fd-steps--variant-panel {
+  padding: var(--fandhe-space-4);
+}
+
+[data-scope="steps"][data-part="separator"].fd-steps--variant-panel {
+  flex: none;
+  width: 1.25rem;
+  min-width: 0;
+  height: auto;
+  align-self: stretch;
+  border-radius: 0;
+  margin-block: calc(var(--fandhe-space-4) * -1);
+  margin-inline-start: auto;
+  margin-inline-end: calc(var(--fandhe-space-4) * -1);
+  clip-path: polygon(0 0, 2px 0, 100% 50%, 2px 100%, 0 100%, calc(100% - 2px) 50%);
+}
+
+[data-scope="steps"][data-part="root"].fd-steps--variant-dot {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--fandhe-space-4);
+}
+
+[data-scope="steps"][data-part="item"].fd-steps--variant-dot {
+  flex: none;
+}
+
+[data-scope="steps"][data-part="indicator"].fd-steps--variant-dot {
+  width: 0.625rem;
+  height: 0.625rem;
+  background: var(--fandhe-color-border);
+  border: none;
+}
+
 [data-scope="steps"][data-part="root"][data-orientation="vertical"] {
   flex-direction: row;
   align-items: flex-start;
@@ -351,6 +418,14 @@ const STEPS_GOLDEN_CSS: &str = r#"[data-scope="steps"][data-part="root"] {
 [data-scope="steps"][data-part="next-trigger"]:focus-visible {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+[data-scope="steps"][data-part="item"][data-state="complete"] {
+  --fandhe-steps-bar-color: var(--fandhe-palette, var(--fandhe-color-accent));
+}
+
+[data-scope="steps"][data-part="item"][data-state="current"] {
+  --fandhe-steps-bar-color: var(--fandhe-palette, var(--fandhe-color-accent));
 }
 
 @media (hover: hover) {
