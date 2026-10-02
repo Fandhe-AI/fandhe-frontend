@@ -2861,6 +2861,14 @@ source = "site/blocks/order-tracking-progress.md"
 path = "/blocks/order-tracking-progress/"
 
 [[section.group]]
+title = "Reviews"
+
+[[section.group.page]]
+title = "reviews-stacked-list"
+source = "site/blocks/reviews-stacked-list.md"
+path = "/blocks/reviews-stacked-list/"
+
+[[section.group]]
 title = "Store Nav"
 
 [[section.group.page]]
