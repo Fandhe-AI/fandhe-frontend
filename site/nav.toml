@@ -2978,6 +2978,14 @@ source = "site/blocks/promo-with-testimonials.md"
 path = "/blocks/promo-with-testimonials/"
 
 [[section.group]]
+title = "Docs Layout"
+
+[[section.group.page]]
+title = "docs-layout-page-header"
+source = "site/blocks/docs-layout-page-header.md"
+path = "/blocks/docs-layout-page-header/"
+
+[[section.group]]
 title = "API Reference"
 
 [[section.group.page]]
