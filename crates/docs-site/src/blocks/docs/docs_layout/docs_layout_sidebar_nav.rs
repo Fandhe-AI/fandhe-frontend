@@ -71,10 +71,10 @@
 //! 同じ `border-top: none; padding-top: 0; letter-spacing: normal;`
 //! （+ `margin: 0`）を当てる。
 
-use crate::blocks::dummy_assets;
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
+use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, el, p, span, text, Node};
 use fandhe_frontend_pre_styled_ui::accordion::{
     self, item as accordion_item, item_content as accordion_item_content,

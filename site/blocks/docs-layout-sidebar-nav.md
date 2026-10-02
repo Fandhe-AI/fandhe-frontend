@@ -22,6 +22,7 @@ R0084・R0086・R0087・R0088。出典の固有名・ファイル名は記載し
 ## Rust コード
 
 ```rust
+use crate::blocks::dummy_assets;
 use fandhe_frontend_core::{div, el, p, span, text, Node};
 use fandhe_frontend_pre_styled_ui::accordion::{
     self, item as accordion_item, item_content as accordion_item_content,
