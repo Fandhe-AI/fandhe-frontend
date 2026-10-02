@@ -1,6 +1,7 @@
 //! styled Avatar（イシュー #1554、参考サイト基準へのスタイル調整。イシュー
-//! #2044 で shadcn/ui 突合による `group`/`badge` パート追加を反映）の
-//! 決定的 CSS 出力ゴールデンテスト。
+//! #2044 で shadcn/ui 突合による `group`/`badge` パート追加、イシュー #3130
+//! で badge 配置（`placement`）・group 重なり順（`stacking`）の 2 variant
+//! を純追加で反映）の決定的 CSS 出力ゴールデンテスト。
 //!
 //! `crates/pre-styled-ui/tests/toolbar_css.rs` の golden fixture テスト
 //! の前例に倣い、`stylesheet()` が返す CSS 全文をバイト単位で固定する
@@ -256,6 +257,15 @@ const AVATAR_GOLDEN_CSS: &str = r#"[data-scope="avatar"][data-part="root"] {
   --fandhe-palette-subtle: var(--fandhe-color-neutral-subtle);
   --fandhe-palette-muted: var(--fandhe-color-neutral-muted);
   --fandhe-palette-fg-subtle: var(--fandhe-color-neutral-fg-subtle);
+}
+
+[data-scope="avatar"][data-part="badge"].fd-avatar--placement-top-end {
+  top: 0;
+  bottom: auto;
+}
+
+[data-scope="avatar"][data-part="group"].fd-avatar--stacking-first-on-top {
+  isolation: isolate;
 }
 
 [data-scope="avatar"][data-part="image"][data-state="hidden"] {

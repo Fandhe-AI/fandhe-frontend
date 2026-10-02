@@ -18,4 +18,13 @@ only パートとして補完しました。`group` は `stacked: true` にし�
 フォールバック（イニシャル等）表示の両方、variant・colorPalette の組み合わせ、
 および `group`/`badge` の合成パターンを掲示しています。
 
+イシュー #3130 で 3 点を opt-in で追加しました。`badge` は
+`AvatarBadgeProps::placement`（`AvatarBadgePlacement`、既定 `BottomEnd`）で
+右下/右上を切り替えられます。`group` の重なり順は `group_with` +
+`AvatarGroupProps`（`AvatarGroupStacking`、既定 `LastOnTop`=DOM 順）で、
+`FirstOnTop` にすると先頭の Avatar が最前面になります（既存の `group` は
+シグネチャ・出力とも変更していません）。共通 `Size` enum（最大 56px）を
+超える大サイズは新規 API を追加せず、`root` 呼び出し側の `attrs` へ
+inline `style` を渡して上書きします。
+
 関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md) / [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)

@@ -3630,7 +3630,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # いたため、本マージでは #3121/#3122 双方の実体変更を統合した結果として
 # 0.220.0 へさらにマイナーバンプする（同一版数への偶発的衝突をそのまま
 # 採用しない。`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
-version = "0.220.0"
+#
+# イシュー #3130: avatar に badge 配置（`AvatarBadgePlacement`）・group
+# 重なり順（`AvatarGroupStacking`/`AvatarGroupProps`/`group_with`）を opt-in
+# で純追加した。`AvatarBadgeProps` へ `pub placement` フィールドを追加した
+# ことは、構造体リテラルで構築している利用側（`..Default::default()` を
+# 使わない呼び出し）には破壊的変更になるため、0.x の破壊的変更はマイナー
+# バンプの規約に従い minor バンプする。
+version = "0.221.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

@@ -154,6 +154,30 @@
 //!   （`badge`/`group` は headless anatomy 由来の `data-scope`/`data-part`
 //!   以外の `data-*` を出力しない）。参照競合の判定（重なり量・リング幅・
 //!   badge 既定色・badge サイズ写像）は該当実装イシューの PR 本文へ記録する。
+//!
+//! # イシュー #3130（badge 配置・group 重なり順・大サイズ）
+//!
+//! Blocks 取り込みの突合で「既存部品で表現不可」と判定された 3 点を opt-in
+//! の追加で補った（既存の出力・既定値は一切変えない純追加）。
+//!
+//! - **badge 配置**: [`AvatarBadgePlacement`]（既定 `BottomEnd`、[`TopEnd`]
+//!   を [`AvatarBadgeProps::placement`] へ渡すと右上へ移る）。状態ドットを
+//!   上端に置く avatar（Tailwind UI の「stacked top to bottom」等）に対応する。
+//! - **group 重なり順**: [`AvatarGroupStacking`]（既定 `LastOnTop`=DOM 順）と
+//!   [`AvatarGroupProps`]/[`group_with`]（既存の [`group`] は変更しない）。
+//!   `FirstOnTop` は先頭の [`root`] を最前面にする（chakra-ui v3
+//!   `AvatarGroup` の `stacking` prop に相当する命名）。`:nth-child(n)` 等の
+//!   CSS だけでは要素ごとに異なる `z-index` を付けられない（[`SlotRecipe`]
+//!   は子孫セレクタを生成できない、イシュー #708）ため、inline `z-index` の
+//!   決定的な注入で実現する（実装詳細は [`group_with`] rustdoc 参照）。
+//! - **大サイズ（56px 超）**: 共通 [`crate::recipe::Size`] enum は 5 段方針
+//!   （chakra/Radix Themes 既存段の範囲）のため拡張しない。[`root`] は
+//!   呼び出し側 `attrs` の `style` をそのまま通すため、
+//!   `root(&props, vec![("style", "width: 4rem; height: 4rem; font-size: var(--fandhe-font-font-size-xl)")], ...)`
+//!   のように inline で上書きできる（inline 指定はクラス規則より優先される）。
+//!   厳格な CSP（`style-src-attr` に `'unsafe-inline'` が無い環境）では
+//!   利用者側のスタイルシートで外側の要素から上書きすること。ライブラリ
+//!   コード自体の変更はない
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -289,6 +313,68 @@ impl VariantValue for AvatarBadgeOverlay {
     }
 }
 
+/// [`badge`] の配置（イシュー #3130）。既定は従来どおりの右下
+/// （`BottomEnd`）で、`TopEnd` を選ぶと状態ドットが右上へ移る
+/// （Tailwind UI の「stacked top to bottom」等、先頭に最前面表示を要する
+/// レイアウトで badge が右上に来る構成に対応するため。本モジュール冒頭
+/// rustdoc「イシュー #3130」節参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AvatarBadgePlacement {
+    /// 右下（既定、イシュー #2044 からの既存挙動）。
+    #[default]
+    BottomEnd,
+    /// 右上。
+    TopEnd,
+}
+
+impl VariantValue for AvatarBadgePlacement {
+    fn axis(self) -> &'static str {
+        "placement"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::BottomEnd => "bottom-end",
+            Self::TopEnd => "top-end",
+        }
+    }
+}
+
+/// [`group_with`] の重なり順（イシュー #3130）。既定は従来どおり DOM 順
+/// （`LastOnTop`、後ろの要素ほど手前）で、`FirstOnTop` を選ぶと先頭の
+/// [`root`] が最前面に来る（shadcn/ui・chakra-ui v3 `AvatarGroup` の
+/// `stacking` prop 相当。本モジュール冒頭 rustdoc「イシュー #3130」節
+/// 参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AvatarGroupStacking {
+    /// DOM 順のまま（既定、イシュー #2044 からの既存挙動）。
+    #[default]
+    LastOnTop,
+    /// 先頭の子が最前面（inline `z-index` を注入する。[`group_with`]
+    /// 参照）。
+    FirstOnTop,
+}
+
+impl VariantValue for AvatarGroupStacking {
+    fn axis(self) -> &'static str {
+        "stacking"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::LastOnTop => "last-on-top",
+            Self::FirstOnTop => "first-on-top",
+        }
+    }
+}
+
+/// [`group_with`] の設定（イシュー #3130）。
+#[derive(Debug, Clone, Copy, Default)]
+pub struct AvatarGroupProps {
+    /// 重なり順（既定 `LastOnTop`）。
+    pub stacking: AvatarGroupStacking,
+}
+
 /// [`root`] の設定（イシュー #1554 で `size`/`shape` の 2 引数から
 /// `variant`/`palette` を加えた 4 軸へ拡張し、可読性のため位置引数から
 /// Props 構造体へ移行した。[`crate::kbd::KbdProps`] と同型）。イシュー
@@ -337,6 +423,8 @@ pub struct AvatarBadgeProps {
     pub size: Size,
     /// colorPalette 軸（既定 `Accent`。shadcn `bg-primary` に合わせる）。
     pub palette: ColorPalette,
+    /// 配置（既定 `BottomEnd`、イシュー #3130）。
+    pub placement: AvatarBadgePlacement,
 }
 
 impl Default for AvatarBadgeProps {
@@ -344,6 +432,7 @@ impl Default for AvatarBadgeProps {
         AvatarBadgeProps {
             size: Size::Md,
             palette: ColorPalette::Accent,
+            placement: AvatarBadgePlacement::BottomEnd,
         }
     }
 }
@@ -630,7 +719,30 @@ fn recipe() -> SlotRecipe {
         // （本モジュール冒頭 rustdoc「イシュー #2044 の shadcn/ui 突合」節）。
         recipe = recipe.variant(palette, "badge", palette_scale_declarations(palette));
     }
+
+    // イシュー #3130: badge 配置・group 重なり順（純追加。上記の badge
+    // palette 登録より後に置くことで golden CSS 内の挿入位置を
+    // 「badge ... color-palette-neutral」ブロックの直後・
+    // 「image [data-state="hidden"]」ブロックの直前に固定する）。
     recipe
+        // badge 配置（`default_variant` は登録しない。登録すると root の
+        // `variant_classes` が `fd-avatar--placement-bottom-end` を補完し、
+        // 既定の root class 出力〔golden 前提〕が変わってしまう）。
+        .variant(
+            AvatarBadgePlacement::TopEnd,
+            "badge",
+            vec![decl("top", "0"), decl("bottom", "auto")],
+        )
+        // group 重なり順（`default_variant` を登録しない理由は上記と同じ）。
+        // `isolation: isolate` は [`group_with`] が `FirstOnTop` のときに
+        // 注入する子の inline `z-index` をこの group 配下の stacking
+        // context に閉じ込める（ページ側の固定ヘッダー等と干渉させない
+        // ため）。
+        .variant(
+            AvatarGroupStacking::FirstOnTop,
+            "group",
+            vec![decl("isolation", "isolate")],
+        )
 }
 
 /// この styled Avatar が生成する静的 CSS 全量を返す（決定的。
@@ -711,6 +823,105 @@ pub fn group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     ANATOMY.part("group", "div", attrs, children)
 }
 
+/// pre-styled-only `group` パートの拡張版（イシュー #3130）。[`group`] の
+/// 既定挙動（DOM 順のまま、`stacking: LastOnTop`）はシグネチャ・出力とも
+/// 変えず、`props.stacking` が `FirstOnTop` のときだけ追加の重なり順制御を
+/// 行う（本モジュール冒頭 rustdoc「イシュー #3130」節参照）。
+///
+/// `FirstOnTop` のとき:
+/// - `group` 自身に `fd-avatar--stacking-first-on-top` クラス（`isolation:
+///   isolate` で stacking context を作り、子の `z-index` をこの group 配下へ
+///   閉じ込める）を付与する（呼び出し側 `attrs` の `class` は
+///   [`drop_class_attr`] で除去してから合成する）
+/// - 直下の [`Node::Element`] 子（`root(stacked: true)` 呼び出し想定）に
+///   先頭ほど大きい inline `z-index`（子の数を `n`、0 始まりの位置を `i`
+///   として `n - i`）を注入する。`:nth-child(n)` のような CSS 側の重なり順
+///   指定は [`crate::recipe::SlotRecipe`] が子孫セレクタを生成できない
+///   （イシュー #708）ため採れず、`flex-direction: row-reverse` + DOM 逆順
+///   も読み上げ順が崩れる（WCAG 1.3.2）ため採らない。`Node::Text` 等
+///   要素以外の子は無視する（z-index を持ちようがないため）
+///
+/// `LastOnTop`（既定）のときは [`group`] へそのまま委譲し、出力を完全に
+/// 一致させる（純追加原則。golden CSS・既存呼び出しの出力は不変）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarGroupProps, AvatarGroupStacking, AvatarProps};
+///
+/// let props = AvatarGroupProps {
+///     stacking: AvatarGroupStacking::FirstOnTop,
+/// };
+/// let node = avatar::group_with(
+///     &props,
+///     vec![],
+///     vec![
+///         avatar::root(&AvatarProps { stacked: true, ..AvatarProps::default() }, vec![], vec![]),
+///         avatar::root(&AvatarProps { stacked: true, ..AvatarProps::default() }, vec![], vec![]),
+///     ],
+/// );
+/// let html = render(&node);
+/// assert!(html.contains("fd-avatar--stacking-first-on-top"));
+/// assert!(html.contains("z-index: 2"));
+/// assert!(html.contains("z-index: 1"));
+/// ```
+#[must_use]
+pub fn group_with<'a>(
+    props: &AvatarGroupProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    if props.stacking != AvatarGroupStacking::FirstOnTop {
+        return group(attrs, children);
+    }
+    let recipe = recipe();
+    let stacking_class = recipe.variant_class(AvatarGroupStacking::FirstOnTop);
+    let mut merged: Vec<(&str, &str)> = vec![("class", stacking_class.as_str())];
+    merged.extend(drop_class_attr(attrs));
+    let n = children.len();
+    let children: Vec<Node> = children
+        .into_iter()
+        .enumerate()
+        .map(|(i, child)| with_z_index_style(child, n - i))
+        .collect();
+    ANATOMY.part("group", "div", merged, children)
+}
+
+/// `node` が [`Node::Element`] の場合、`style` 属性へ `z-index: <value>`
+/// を書き込む（既存 `style` 属性があれば `; ` で連結して既存宣言を保持する。
+/// [`crate::toast_motion`] の `with_stagger_index_style` と同型）。
+/// [`Node::Element`] 以外（`Node::Text` 等）はそのまま返す。
+///
+/// `value` は `usize` から決定的に作った 10 進表記のみであり、呼び出し側
+/// からの任意文字列は混入しない（本モジュール冒頭 rustdoc「セキュリティ
+/// 不変条件」節）。
+fn with_z_index_style(node: Node, value: usize) -> Node {
+    let Node::Element {
+        tag,
+        mut attrs,
+        children,
+    } = node
+    else {
+        return node;
+    };
+    let addition = format!("z-index: {value}");
+    if let Some((_, existing)) = attrs.iter_mut().find(|(k, _)| k == "style") {
+        if !existing.ends_with(';') {
+            existing.push(';');
+        }
+        existing.push(' ');
+        existing.push_str(&addition);
+    } else {
+        attrs.push(("style".to_string(), addition));
+    }
+    Node::Element {
+        tag,
+        attrs,
+        children,
+    }
+}
+
 /// pre-styled-only `badge` パート（`<span>`、イシュー #2044）を組み立てる。
 /// [`root`]（`with_badge: true`）の右下に絶対配置される状態ドット
 /// （shadcn `AvatarBadge` 相当）で、headless-ui の anatomy には存在しない。
@@ -723,6 +934,9 @@ pub fn group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 /// が誤って付与されるため）。[`SlotRecipe::variant_class`] を `size`/
 /// `palette` の 2 回だけ呼んで連結し、`class` をこの 2 クラスのみに限定
 /// する（本モジュール冒頭 rustdoc「イシュー #2044 の shadcn/ui 突合」節）。
+/// `placement`（イシュー #3130）が既定 `BottomEnd` でないときだけ 3 つ目の
+/// クラスを足す（既定呼び出しの `class` 出力は変更前と完全一致したまま
+/// 保たれる）。
 ///
 /// 子要素（アイコン等）は任意。badge 自体は装飾であるため、アクセシブル
 /// ネームが必要な場合は呼び出し側が [`root`] の `aria-label` 等で供給する
@@ -732,10 +946,21 @@ pub fn group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 ///
 /// ```
 /// use fandhe_frontend_core::render;
-/// use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarBadgeProps};
+/// use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarBadgeProps, AvatarBadgePlacement};
 ///
 /// let node = avatar::badge(&AvatarBadgeProps::default(), vec![], vec![]);
 /// assert!(render(&node).contains(r#"data-scope="avatar" data-part="badge""#));
+///
+/// // top-end へ配置を変える（stacked top to bottom の group と組み合わせる想定）。
+/// let top_end = avatar::badge(
+///     &AvatarBadgeProps {
+///         placement: AvatarBadgePlacement::TopEnd,
+///         ..AvatarBadgeProps::default()
+///     },
+///     vec![],
+///     vec![],
+/// );
+/// assert!(render(&top_end).contains("fd-avatar--placement-top-end"));
 /// ```
 #[must_use]
 pub fn badge<'a>(
@@ -746,7 +971,11 @@ pub fn badge<'a>(
     let recipe = recipe();
     let size_class = recipe.variant_class(props.size);
     let palette_class = recipe.variant_class(props.palette);
-    let class = format!("{size_class} {palette_class}");
+    let mut class = format!("{size_class} {palette_class}");
+    if props.placement != AvatarBadgePlacement::BottomEnd {
+        class.push(' ');
+        class.push_str(&recipe.variant_class(props.placement));
+    }
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
     ANATOMY.part("badge", "span", merged, children)
@@ -755,7 +984,7 @@ pub fn badge<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fandhe_frontend_core::{render, text};
+    use fandhe_frontend_core::{el, render, text};
     use fandhe_frontend_interactive::{dispatch, render_for_hydration, Hydrate};
 
     // --- anatomy ---
@@ -1154,5 +1383,123 @@ mod tests {
         ));
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+    }
+
+    // --- イシュー #3130: badge 配置 / group 重なり順 ---
+
+    #[test]
+    fn badge_default_placement_class_is_unchanged() {
+        // badge 既定の class 出力（golden CSS 前提）が `placement` フィールド
+        // 追加で変わらないことの回帰。
+        let html = render(&badge(&AvatarBadgeProps::default(), vec![], vec![]));
+        assert!(!html.contains("fd-avatar--placement"));
+    }
+
+    #[test]
+    fn badge_top_end_placement_adds_class() {
+        let props = AvatarBadgeProps {
+            placement: AvatarBadgePlacement::TopEnd,
+            ..AvatarBadgeProps::default()
+        };
+        let html = render(&badge(&props, vec![], vec![]));
+        assert!(html.contains("fd-avatar--placement-top-end"));
+    }
+
+    #[test]
+    fn group_with_last_on_top_matches_group_byte_for_byte() {
+        let via_group = render(&group(vec![], vec![text("a")]));
+        let via_group_with = render(&group_with(
+            &AvatarGroupProps::default(),
+            vec![],
+            vec![text("a")],
+        ));
+        assert_eq!(via_group, via_group_with);
+    }
+
+    #[test]
+    fn group_with_first_on_top_adds_stacking_class_and_descending_z_index() {
+        let props = AvatarGroupProps {
+            stacking: AvatarGroupStacking::FirstOnTop,
+        };
+        let html = render(&group_with(
+            &props,
+            vec![],
+            vec![
+                root(&AvatarProps::default(), vec![], vec![]),
+                root(&AvatarProps::default(), vec![], vec![]),
+                root(&AvatarProps::default(), vec![], vec![]),
+            ],
+        ));
+        assert!(html.contains("fd-avatar--stacking-first-on-top"));
+        assert!(html.contains("z-index: 3"));
+        assert!(html.contains("z-index: 2"));
+        assert!(html.contains("z-index: 1"));
+    }
+
+    #[test]
+    fn group_with_first_on_top_appends_to_existing_style() {
+        let props = AvatarGroupProps {
+            stacking: AvatarGroupStacking::FirstOnTop,
+        };
+        let html = render(&group_with(
+            &props,
+            vec![],
+            vec![el("div", vec![("style", "color: red")], vec![])],
+        ));
+        assert_eq!(html.matches("style=\"").count(), 1);
+        assert!(html.contains("color: red; z-index: 1"));
+    }
+
+    #[test]
+    fn group_with_first_on_top_ignores_non_element_children() {
+        let props = AvatarGroupProps {
+            stacking: AvatarGroupStacking::FirstOnTop,
+        };
+        let html = render(&group_with(&props, vec![], vec![text("plain text")]));
+        assert!(!html.contains("z-index"));
+        assert!(html.contains("plain text"));
+    }
+
+    #[test]
+    fn group_with_drops_caller_supplied_class_and_scope_spoofing() {
+        let props = AvatarGroupProps {
+            stacking: AvatarGroupStacking::FirstOnTop,
+        };
+        let html = render(&group_with(
+            &props,
+            vec![
+                ("class", "attacker-controlled"),
+                ("data-scope", "attacker"),
+                ("data-part", "attacker"),
+            ],
+            vec![],
+        ));
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(!html.contains("attacker-controlled"));
+        assert!(!html.contains("attacker\""));
+        assert!(html.contains(r#"data-scope="avatar""#));
+        assert!(html.contains(r#"data-part="group""#));
+    }
+
+    #[test]
+    fn group_with_first_on_top_children_script_payload_is_escaped() {
+        let props = AvatarGroupProps {
+            stacking: AvatarGroupStacking::FirstOnTop,
+        };
+        let html = render(&group_with(
+            &props,
+            vec![],
+            vec![el("div", vec![], vec![text("<script>alert(1)</script>")])],
+        ));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+    }
+
+    #[test]
+    fn stylesheet_declares_placement_and_stacking_rules_without_color_literals() {
+        let css = stylesheet();
+        assert!(css.contains("fd-avatar--placement-top-end"));
+        assert!(css.contains("fd-avatar--stacking-first-on-top"));
+        assert!(!css.contains('#'));
     }
 }
