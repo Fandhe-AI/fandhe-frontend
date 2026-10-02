@@ -66,7 +66,16 @@ use fandhe_frontend_pre_styled_ui::recipe::ColorPalette;
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
 use fandhe_frontend_pre_styled_ui::Size;
 
-/// パンくず（「Blocks」→ 中間項目 → 現在ページ）。
+/// パンくず（「Blocks」→ 中間項目（非リンク）→ 現在ページ）。
+///
+/// 中間項目（`middle_label`、「ガイド」「API Reference」等）は本 Demo が
+/// 合成する 3 インスタンス構成上、対応する一覧ページへの実リンクを持た
+/// ない。先頭「Blocks」と同じ `../` を割り当てて `link` にすると、別階層
+/// を指すはずの中間項目が実際には「Blocks」と同一の遷移先になり、クリッ
+/// クすると現在ページへ巡回するだけの不整合なパンくずになる
+/// （codex-review PR #3546 指摘）。遷移先を持たない中間項目は `link` では
+/// なく非対話の `span` で表示し、実在ページが決まった時点で `link` へ
+/// 差し替える。
 fn breadcrumb_row(middle_label: &'static str, current_label: &'static str) -> Node {
     breadcrumb::root(
         Size::Md,
@@ -83,7 +92,10 @@ fn breadcrumb_row(middle_label: &'static str, current_label: &'static str) -> No
                 breadcrumb::separator(vec![], vec![text("/")]),
                 breadcrumb::item(
                     vec![],
-                    vec![breadcrumb::link("../", vec![], vec![text(middle_label)])],
+                    vec![span(
+                        vec![("data-blocks-docs-layout-page-header-breadcrumb-middle", "")],
+                        vec![text(middle_label)],
+                    )],
                 ),
                 breadcrumb::separator(vec![], vec![text("/")]),
                 breadcrumb::item(
