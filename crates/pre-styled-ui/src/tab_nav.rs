@@ -133,10 +133,11 @@
 //! 現在ページを下端インジケータ（色付きバー）で示す見た目の要望が現れた
 //! ため、[`TabNavVariant::Bar`] を opt-in の第 3 variant として純追加した。
 //!
-//! - 区切り線（`link` の `border-right`）・等幅（`flex`）・角丸の無効化
-//!   （`link` の `border-radius`）はいずれも custom property 間接参照で
-//!   実現し、フォールバック値を既存の直書きリテラルと同一にすることで
-//!   Line/Pill の computed style を不変に保つ（Pill variant と同じ手法）。
+//! - 区切り線（`link` の `border-inline-end`、論理プロパティ。後述の RTL
+//!   対応参照）・等幅（`flex`）・角丸の無効化（`link` の `border-radius`）
+//!   はいずれも custom property 間接参照で実現し、フォールバック値を
+//!   既存の直書きリテラルと同一にすることで Line/Pill の computed style
+//!   を不変に保つ（Pill variant と同じ手法）。
 //! - 下端インジケータは新規実装を追加せず、既存 Line の仕組み（`link` の
 //!   `border-bottom: 2px solid transparent` + 現在ページの
 //!   `border-bottom-color`）をそのまま流用する。Bar は
@@ -151,11 +152,27 @@
 //!   間接参照を追加した（既存の `FocusRingColor::Token` ブロックは書き
 //!   換えない。前節「フォーカスリングは palette 連動にしない」と同じ
 //!   「既存 golden ブロックは変更しない」判断に従う）。
+//! - **区切り線は論理プロパティで RTL 安全にする**: 物理プロパティ
+//!   （`border-right`）だと `direction: rtl` で flex-direction の視覚順が
+//!   反転しても境界の物理位置は反転しないため、区切り線の位置と「末尾
+//!   リンクのみ消す」対応がずれる。`border-inline-end` は「行内終端」を
+//!   指し、視覚順の反転に追随するため、DOM 順の `:last-child` のままで
+//!   LTR/RTL 双方とも正しい位置に出る。
+//! - **狭い幅・長いラベルでの末尾リンク不可視化を防ぐ**: `root` の
+//!   `overflow: hidden` と flex item の既定 `min-width: auto`（コンテンツ
+//!   の min-content 幅が縮小の下限になる）の組み合わせだと、幅が足りない
+//!   ときに末尾リンクが枠外へ押し出され不可視・操作不能になり得る。
+//!   `link` に `min-width: 0`・`overflow: hidden`・`text-overflow:
+//!   ellipsis`・`white-space: nowrap` を同じ custom property 間接参照で
+//!   追加し、収まらない分は折り返しではなく省略記号で切り詰める（折り
+//!   返しだと行数分だけ `root` の高さが崩れるため）。フォールバック値は
+//!   各プロパティの初期値と同一のため Line/Pill は不変。
 //! - **意図的に入れないもの**: 先頭/末尾リンク個別の角丸（`overflow:
 //!   hidden` で代替）・Bar 専用の forced-colors 補強（Line と同じく
 //!   `border-bottom` 色 + `font-weight` で現在ページを示すため Line 以上の
 //!   後退はない）・インジケータ用の内側 span 等の新規 anatomy（`root`/
-//!   `link` の 2 パーツのまま）。
+//!   `link` の 2 パーツのまま）・横スクロールによる折り返し回避（省略
+//!   記号による切り詰めで代替、上記参照）。
 //!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
@@ -318,13 +335,44 @@ fn recipe() -> SlotRecipe {
         // イシュー #3126: Bar variant（[`TabNavVariant::Bar`]）が `link` の
         // 等幅・区切り線を差し替えるための custom property 間接参照。
         // フォールバック値は既存の直書きリテラル（`flex` の初期値
-        // `0 1 auto`・上記 base の `border: 0` と同値の `border-right: 0`）
-        // と同一のため、Line/Pill の computed style はバイト単位で不変。
+        // `0 1 auto`・上記 base の `border: 0` と同値の `border-inline-end:
+        // 0`）と同一のため、Line/Pill の computed style はバイト単位で
+        // 不変。区切り線は論理プロパティ（`border-inline-end`）で実装する。
+        // 物理プロパティ（`border-right`）だと `direction: rtl` で
+        // flex-direction の視覚順が反転しても境界側は反転しないため、
+        // 区切り線の位置と「末尾リンクのみ消す」対応がずれる（レビュー
+        // 指摘対応）。論理プロパティなら「行内終端」は視覚順の反転に
+        // 追随するため、DOM 順の `:last-child` のままで LTR/RTL 双方とも
+        // 正しい位置に出る。
         .base(
             "link",
             vec![
                 decl("flex", "var(--fandhe-tab-nav-link-flex, 0 1 auto)"),
-                decl("border-right", "var(--fandhe-tab-nav-link-divider, 0)"),
+                decl(
+                    "border-inline-end",
+                    "var(--fandhe-tab-nav-link-divider, 0)",
+                ),
+                // イシュー #3126 レビュー対応: Bar variant は `root` に
+                // `overflow: hidden` を当てるため、狭い幅・長いラベルでは
+                // flex item の既定 `min-width: auto`（flex-shrink の下限が
+                // コンテンツの min-content 幅になる）により末尾リンクが
+                // 枠外へ押し出されて不可視・操作不能になり得る。
+                // `min-width`/`overflow`/`text-overflow`/`white-space` を
+                // 同じ custom property 間接参照で追加し、Bar では「1 行に
+                // 収まらない分は省略記号で切り詰める」（折り返しの代わりに
+                // 幅を保って操作可能なまま維持する）。フォールバック値は
+                // いずれも各プロパティの初期値と同一のため、Line/Pill の
+                // computed style は不変。
+                decl("min-width", "var(--fandhe-tab-nav-link-min-width, auto)"),
+                decl("overflow", "var(--fandhe-tab-nav-link-overflow, visible)"),
+                decl(
+                    "text-overflow",
+                    "var(--fandhe-tab-nav-link-text-overflow, clip)",
+                ),
+                decl(
+                    "white-space",
+                    "var(--fandhe-tab-nav-link-white-space, normal)",
+                ),
             ],
         )
         .state(
@@ -358,11 +406,13 @@ fn recipe() -> SlotRecipe {
             decls
         })
         // イシュー #3126: Bar variant で末尾リンクの区切り線を消す
-        // （Line/Pill では元々 `border-right: 0` のため不変）。
+        // （Line/Pill では元々 `border-inline-end: 0` のため不変）。論理
+        // プロパティのため DOM 順の `:last-child` のまま LTR/RTL 双方で
+        // 正しい「行内終端」の要素を指す（レビュー指摘対応、上記参照）。
         .state(
             "link",
             StateCondition::LastChild,
-            vec![decl("border-right", "0")],
+            vec![decl("border-inline-end", "0")],
         )
         // イシュー #3126: Bar variant は `root` に `overflow: hidden` を
         // 当てるため、既定の外側フォーカスリング（`FocusRingOffset::
@@ -521,6 +571,16 @@ fn recipe() -> SlotRecipe {
                     "--fandhe-tab-nav-focus-ring-offset",
                     "calc(-1 * var(--fandhe-focus-ring-offset, 2px))",
                 ),
+                // イシュー #3126 レビュー対応: 狭い幅・長いラベルで末尾
+                // リンクが枠外へ押し出され不可視・操作不能になるのを防ぐ
+                // （上記 `link` base の custom property 間接参照を参照）。
+                // 折り返し（`white-space: normal`）ではなく省略記号での
+                // 切り詰めを選んだのは、折り返しだと等高に揃えた `root`
+                // の高さが行数分だけ崩れるため。
+                decl("--fandhe-tab-nav-link-min-width", "0"),
+                decl("--fandhe-tab-nav-link-overflow", "hidden"),
+                decl("--fandhe-tab-nav-link-text-overflow", "ellipsis"),
+                decl("--fandhe-tab-nav-link-white-space", "nowrap"),
             ],
         )
         // イシュー #3125: 現在リンクの面（Pill のときのみ意味を持つ）。Line

@@ -311,7 +311,11 @@ const TAB_NAV_GOLDEN_CSS: &str = r#"[data-scope="tab-nav"][data-part="root"] {
 
 [data-scope="tab-nav"][data-part="link"] {
   flex: var(--fandhe-tab-nav-link-flex, 0 1 auto);
-  border-right: var(--fandhe-tab-nav-link-divider, 0);
+  border-inline-end: var(--fandhe-tab-nav-link-divider, 0);
+  min-width: var(--fandhe-tab-nav-link-min-width, auto);
+  overflow: var(--fandhe-tab-nav-link-overflow, visible);
+  text-overflow: var(--fandhe-tab-nav-link-text-overflow, clip);
+  white-space: var(--fandhe-tab-nav-link-white-space, normal);
 }
 
 [data-scope="tab-nav"][data-part="root"].fd-tab-nav--size-xs {
@@ -364,6 +368,10 @@ const TAB_NAV_GOLDEN_CSS: &str = r#"[data-scope="tab-nav"][data-part="root"] {
   --fandhe-tab-nav-link-divider: 1px solid var(--fandhe-color-border);
   --fandhe-tab-nav-link-radius: 0;
   --fandhe-tab-nav-focus-ring-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
+  --fandhe-tab-nav-link-min-width: 0;
+  --fandhe-tab-nav-link-overflow: hidden;
+  --fandhe-tab-nav-link-text-overflow: ellipsis;
+  --fandhe-tab-nav-link-white-space: nowrap;
 }
 
 [data-scope="tab-nav"][data-part="root"].fd-tab-nav--color-palette-accent {
@@ -450,7 +458,7 @@ const TAB_NAV_GOLDEN_CSS: &str = r#"[data-scope="tab-nav"][data-part="root"] {
 }
 
 [data-scope="tab-nav"][data-part="link"]:last-child {
-  border-right: 0;
+  border-inline-end: 0;
 }
 
 [data-scope="tab-nav"][data-part="link"]:focus-visible {
