@@ -43,6 +43,16 @@
 //! スクロール追従（scroll spy）による動的更新は、無 JS の docs サイトでは
 //! 行わない（配線層の責務、本 Demo のスコープ外）。
 //!
+//! 縦トラック（`::before`）の塗り幅は「現在項目のマーカー中心まで」を
+//! 不変条件とする。各 `li::before` はその項目のマーカーから次項目の
+//! マーカーまでの区間を表すため、`done` 項目の線（＝現在マーカーより
+//! 手前の区間）のみを `--fandhe-color-accent` で塗り、`current` 項目の
+//! 線（＝現在マーカーから次項目への区間、まだ到達していない）は既定の
+//! `--fandhe-color-border`（未進行色）のままにする。`current` 側を
+//! グラデーションで塗ると現在マーカーを越えて進捗が表示されてしまう
+//! （CI `codex / review` P2 指摘、回帰防止テスト
+//! [`tests::current_item_line_does_not_overshoot_marker`]）。
+//!
 //! # 可視の目次見出しを持たない
 //!
 //! 目次自体は「このページの内容」等の可視見出しを持たず、`nav` の
@@ -331,7 +341,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-docs-layout-toc-progress-item] {\n  position: relative;\n  display: grid;\n  grid-template-columns: 1.75rem minmax(0, 1fr);\n  align-items: start;\n  column-gap: var(--fandhe-space-2);\n  padding-block-end: var(--fandhe-space-4);\n}\n\
 [data-blocks-docs-layout-toc-progress-item]::before {\n  content: \"\";\n  position: absolute;\n  top: 0.875rem;\n  bottom: -0.125rem;\n  left: 0.75rem;\n  width: 2px;\n  background: var(--fandhe-color-border);\n}\n\
 [data-blocks-docs-layout-toc-progress-item-state=\"done\"]::before {\n  background: var(--fandhe-color-accent);\n}\n\
-[data-blocks-docs-layout-toc-progress-item-state=\"current\"]::before {\n  background: linear-gradient(to bottom, var(--fandhe-color-accent) 50%, var(--fandhe-color-border) 50%);\n}\n\
+[data-blocks-docs-layout-toc-progress-item-state=\"current\"]::before {\n  background: var(--fandhe-color-border);\n}\n\
 [data-blocks-docs-layout-toc-progress-item]:last-child::before {\n  display: none;\n}\n\
 [data-blocks-docs-layout-toc-progress-marker] {\n  position: relative;\n  z-index: 1;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  width: 1.5rem;\n  height: 1.5rem;\n  border-radius: var(--fandhe-radius-full);\n  background: var(--fandhe-color-bg);\n  border: 2px solid var(--fandhe-color-border);\n  font-size: var(--fandhe-font-font-size-xs);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-docs-layout-toc-progress-item-state=\"done\"] [data-blocks-docs-layout-toc-progress-marker] {\n  border-color: var(--fandhe-color-accent);\n}\n\
@@ -530,6 +540,29 @@ mod tests {
 
         let html = render(&demo());
         assert!(html.contains("class=\"blocks-docs-layout-toc-progress-frame\""));
+    }
+
+    /// current 項目の `::before`（現在マーカーから次項目への未到達区間）
+    /// はグラデーションを使わず未進行色のみで塗る（CI `codex / review`
+    /// P2: 旧実装は上半分をアクセント色にしており、進捗が現在マーカーを
+    /// 越えて見えた。進捗は done 項目の線が既に表現しているため、current
+    /// 項目の線は常に未進行であるべき）。
+    #[test]
+    fn current_item_line_does_not_overshoot_marker() {
+        assert!(!LAYOUT_CSS.contains("linear-gradient"));
+        let selector = "[data-blocks-docs-layout-toc-progress-item-state=\"current\"]::before {";
+        let rule_pos = LAYOUT_CSS
+            .find(selector)
+            .expect("current item ::before rule should exist");
+        let rule_end = LAYOUT_CSS[rule_pos..]
+            .find('}')
+            .map(|offset| rule_pos + offset)
+            .expect("current item ::before rule should be closed");
+        let rule = &LAYOUT_CSS[rule_pos..rule_end];
+        assert!(
+            rule.contains("background: var(--fandhe-color-border);"),
+            "current item line must stay at the unprogressed color, not advance past the marker"
+        );
     }
 
     /// ルート class（`demo_class` とは別名）が `demo()` の出力へ実際に
