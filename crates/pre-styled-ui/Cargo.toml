@@ -3805,6 +3805,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # 独立に同一の 0.228.0 へ到達しており偶発的に衝突したため、マージ結果として
 # さらに +1 して 0.229.0 とする（`.claude/rules/coding-rust.md` #638 条項の
 # 同衝突運用）。
+#
+# PR #3563 codex-review P1/P2 指摘対応: `group_with`（`FirstOnTop`）の
+# 重なり順の採番・クラス付与を avatar root 要素（`data-scope="avatar"`
+# `data-part="root"`）だけに限定した（テキスト等で採番がずれて pos1 へ
+# 合流する不具合の修正。0.229.0 のまま本 PR に含める）。
 version = "0.229.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"

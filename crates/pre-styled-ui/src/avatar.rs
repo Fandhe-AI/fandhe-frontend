@@ -974,8 +974,12 @@ pub fn group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 ///   `:nth-child(n)` のような CSS 側の重なり順指定は
 ///   [`crate::recipe::SlotRecipe`] が子孫セレクタを生成できない（イシュー
 ///   #708）ため採れず、`flex-direction: row-reverse` + DOM 逆順も読み上げ順が
-///   崩れる（WCAG 1.3.2）ため採らない。`Node::Text` 等要素以外の子は無視する
-///   （重なり順クラスを持ちようがないため）
+///   崩れる（WCAG 1.3.2）ため採らない。採番・付与の対象は [`root`] の出力
+///   （`data-scope="avatar"` かつ `data-part="root"` の要素）に限り、`n`/`i`
+///   もそれだけを数える。`Node::Text` や通常の `div` 等それ以外の子は
+///   クラスを付けずそのまま出力する（重なり順クラスの CSS 規則が root の
+///   属性セレクタにしか一致せず、付けても効かないため。PR #3563
+///   codex-review P1/P2 指摘）
 ///
 /// `LastOnTop`（既定）のときは [`group`] へそのまま委譲し、出力を完全に
 /// 一致させる（純追加原則。golden CSS・既存呼び出しの出力は不変）。
@@ -1028,7 +1032,11 @@ pub fn group_with<'a>(
     };
     let mut merged: Vec<(&str, &str)> = vec![("class", combined_class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    let n = children.len();
+    // 採番対象は重なり順クラスの CSS 規則（`[data-scope="avatar"][data-part="root"]`）
+    // が実際に効く avatar root 要素だけに限る。`Node::Text` や通常の `div`
+    // まで `n`/`i` に数えると、後続の root が採番を食われて同じ `pos1` へ
+    // 合流し「先頭ほど前面」が崩れる（PR #3563 codex-review P1/P2 指摘）。
+    let n = children.iter().filter(|c| is_avatar_root(c)).count();
     // `n` が `MAX_STACK_ORDER` を超える構成では、単純な `n - i` だと先頭側
     // （`i` が小さい＝最前面であるべき複数の子）が揃って `pos{MAX_STACK_ORDER}`
     // へクランプされ、先頭が最前面という契約が崩れる（PR #3563 codex-review
@@ -1044,19 +1052,39 @@ pub fn group_with<'a>(
     // 保証されるのは実質 `MAX_STACK_ORDER - 1` 件までであり、本処理系に
     // 「先頭 `MAX_STACK_ORDER` 件が一意」という誤った前提を持ち込まない）。
     let effective_front = n.min(MAX_STACK_ORDER as usize);
+    let mut i = 0;
     let children: Vec<Node> = children
         .into_iter()
-        .enumerate()
-        .map(|(i, child)| {
+        .map(|child| {
+            if !is_avatar_root(&child) {
+                return child;
+            }
             let position = if i < effective_front {
                 effective_front - i
             } else {
                 1
             };
+            i += 1;
             with_stack_order_class(&recipe, child, position)
         })
         .collect();
     ANATOMY.part("group", "div", merged, children)
+}
+
+/// `node` が [`root`] の出力（`data-scope="avatar"` かつ `data-part="root"`
+/// を持つ要素）かを判定する。[`group_with`] の重なり順クラスの CSS 規則は
+/// この組の属性セレクタにしか一致しないため、採番・付与の対象をこれに揃える
+/// （PR #3563 codex-review P1/P2 指摘）。
+fn is_avatar_root(node: &Node) -> bool {
+    let Node::Element { attrs, .. } = node else {
+        return false;
+    };
+    let has = |name: &str, value: &str| {
+        attrs
+            .iter()
+            .any(|(k, v)| k.eq_ignore_ascii_case(name) && v == value)
+    };
+    has("data-scope", "avatar") && has("data-part", "root")
 }
 
 /// `node` が [`Node::Element`] の場合、`recipe` が持つ [`AvatarStackOrder`]
@@ -1633,7 +1661,15 @@ mod tests {
         let html = render(&group_with(
             &props,
             vec![],
-            vec![el("div", vec![("class", "existing")], vec![])],
+            vec![el(
+                "div",
+                vec![
+                    ("data-scope", "avatar"),
+                    ("data-part", "root"),
+                    ("class", "existing"),
+                ],
+                vec![],
+            )],
         ));
         assert_eq!(html.matches("class=\"").count(), 2);
         assert!(html.contains("existing fd-avatar--stack-order-pos1"));
@@ -1651,7 +1687,15 @@ mod tests {
         let html = render(&group_with(
             &props,
             vec![],
-            vec![el("div", vec![("Class", "existing")], vec![])],
+            vec![el(
+                "div",
+                vec![
+                    ("data-scope", "avatar"),
+                    ("data-part", "root"),
+                    ("Class", "existing"),
+                ],
+                vec![],
+            )],
         ));
         // class 系属性名の大文字小文字を無視して数えた総数が、group ラッパー
         // （`fd-avatar--stacking-first-on-top`）+ 子 1 個分の 2 個に収まる
@@ -1675,6 +1719,44 @@ mod tests {
         let html = render(&group_with(&props, vec![], vec![text("plain text")]));
         assert!(!html.contains("fd-avatar--stack-order"));
         assert!(html.contains("plain text"));
+    }
+
+    #[test]
+    fn group_with_first_on_top_numbers_only_avatar_root_children() {
+        // PR #3563 codex-review P1 指摘の回帰テスト: テキスト 12 個の後に
+        // Avatar 2 個を置いても、採番は root だけを数えるため先頭の Avatar が
+        // pos2、後ろが pos1 になる（両者が pos1 へ合流しない）。
+        let props = AvatarGroupProps {
+            stacking: AvatarGroupStacking::FirstOnTop,
+        };
+        let mut children: Vec<Node> = (0..12).map(|_| text("t")).collect();
+        children.push(root(&AvatarProps::default(), vec![], vec![]));
+        children.push(root(&AvatarProps::default(), vec![], vec![]));
+        let html = render(&group_with(&props, vec![], children));
+        let pos2 = html.find("fd-avatar--stack-order-pos2\"").unwrap();
+        let pos1 = html.find("fd-avatar--stack-order-pos1\"").unwrap();
+        assert!(pos2 < pos1);
+        assert_eq!(html.matches("fd-avatar--stack-order-pos").count(), 2);
+    }
+
+    #[test]
+    fn group_with_first_on_top_skips_non_root_elements() {
+        // PR #3563 codex-review P2 指摘の回帰テスト: CSS 規則が効かない
+        // 通常の `div` には重なり順クラスを付けず、採番にも数えない。
+        let props = AvatarGroupProps {
+            stacking: AvatarGroupStacking::FirstOnTop,
+        };
+        let html = render(&group_with(
+            &props,
+            vec![],
+            vec![
+                el("div", vec![("class", "plain")], vec![]),
+                root(&AvatarProps::default(), vec![], vec![]),
+            ],
+        ));
+        assert!(html.contains("class=\"plain\""));
+        assert_eq!(html.matches("fd-avatar--stack-order-pos").count(), 1);
+        assert!(html.contains("fd-avatar--stack-order-pos1\""));
     }
 
     #[test]
