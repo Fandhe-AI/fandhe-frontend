@@ -42,6 +42,17 @@
 //! 避ける）。`trigger` 自体も `disabled: true` にし、クリック・Enter/Space
 //! が no-op であることを示す。
 //!
+//! # `search-input` の検索欄も disabled 固定にする（Codex 指摘、PR #3548）
+//!
+//! 当初案は `search-input` variant の `input::input` のみ `disabled` を
+//! 付けていなかった。しかし docs サイトは JS ハイドレーションを行わないため
+//! 検索は実際には機能せず、`disabled: false` の表示は「操作可能だが実は
+//! 何も起きない」状態を利用者に誤って伝える（`search-ai` の 2 ボタンに
+//! 対する「静的表示・全 disabled 固定」節と同じ判断軸）。このため
+//! `search-input` の `input`/`input_group` も `disabled: true` で固定し、
+//! [`LAYOUT_CSS`] の `[data-disabled]` 複合セレクタで中和する（`search-ai`
+//! の 2 ボタンと同じ処理）。
+//!
 //! # 固定フッター（`position: fixed` は使わない）
 //!
 //! 外枠（[`LAYOUT_CSS`] の `[data-blocks-docs-layout-sidebar-api-shell]`）を
@@ -62,10 +73,23 @@
 //! # id と ARIA の一意性
 //!
 //! collapsible content の id は `blocks-docs-layout-sidebar-api-group-
-//! {key}-{variant}`、`nav_list::root` の `aria-label` は「API リファレンス
-//! （{variant}）」、scroll viewport の `aria-label` も variant を含める形に
-//! し、2 variant 間で重複しないようにする（`demo_output_has_no_dangling_
-//! aria_references_or_duplicate_ids` 契約）。
+//! {key}-{variant}`、scroll viewport の `aria-label`（「API エンドポイント
+//! 一覧（{variant}）」）は variant を含める形にし、2 variant 間で重複しない
+//! ようにする（`demo_output_has_no_dangling_aria_references_or_duplicate_ids`
+//! 契約）。
+//!
+//! # カテゴリ一覧を `nav` ランドマークで包まない（Codex 指摘、PR #3548）
+//!
+//! 当初案はカテゴリ一覧全体を `nav_list::root`（`nav` + `aria-label`）で
+//! 包んでいたが、[`endpoint_item`] は前節のとおり `href` を持たない静的な
+//! 表示要素であり、`nav` ランドマークは「リンクを辿って移動できる領域」を
+//! 期待する支援技術の利用者の期待と食い違う（`nav_list` モジュール doc
+//! 「文書ナビ向け Link リスト」の用途外使用）。そのため [`sidebar`] は
+//! カテゴリ一覧を素の `div`（ランドマークなし）で包み、ランドマークは
+//! 外側の `scroll_area::viewport` が既に持つ `role="region"` + `aria-label`
+//! （「API エンドポイント一覧（{variant}）」）のみに一本化する。カテゴリ
+//! ごとの `nav_list::list`/`nav_list::item`（`ul`/`li`、ランドマークを
+//! 持たない中立な構造ロール）は引き続き使う。
 //!
 //! # エンドポイント行はリンクにしない（非ブロック指摘対応、PR #3548）
 //!
@@ -343,18 +367,20 @@ fn collapsible_category(category: &Category) -> Node {
 
 /// 上端: `search-input` variant の検索欄（`input_group` + `input`、
 /// アクセシブルネームは `aria-label` を直接渡す、モジュール doc参照）。
+/// 無 JS では機能しないため `disabled: true` で固定する（モジュール doc
+/// 「`search-input` の検索欄も disabled 固定にする」節）。
 fn search_input_top() -> Node {
     let field = FieldProps {
         id: "blocks-docs-layout-sidebar-api-query-search-input",
         ids: FieldIds::default(),
-        disabled: false,
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
         has_helper_text: false,
     };
     let group_props = InputGroupProps {
-        disabled: false,
+        disabled: true,
         invalid: false,
     };
     div(
@@ -366,7 +392,7 @@ fn search_input_top() -> Node {
                 input_group::addon(
                     InputGroupAlign::InlineStart,
                     &group_props,
-                    vec![],
+                    vec![("data-blocks-docs-layout-sidebar-api-search-addon", "")],
                     vec![search_icon()],
                 ),
                 input::input(
@@ -377,6 +403,7 @@ fn search_input_top() -> Node {
                         ("autocomplete", "off"),
                         ("placeholder", "検索"),
                         ("aria-label", "API リファレンスを検索"),
+                        ("data-blocks-docs-layout-sidebar-api-search-input", ""),
                     ],
                 ),
             ],
@@ -451,7 +478,6 @@ fn footer_links() -> Node {
 /// 1 variant 分のサイドバー本体（上端・中央スクロール・下端固定の 3 段、
 /// モジュール doc「固定フッター」節）。
 fn sidebar(variant: &'static str, top: Node, use_collapsible: bool) -> Node {
-    let label = format!("API リファレンス（{variant}）");
     let viewport_label = format!("API エンドポイント一覧（{variant}）");
 
     let category_nodes: Vec<Node> = CATEGORIES
@@ -480,7 +506,10 @@ fn sidebar(variant: &'static str, top: Node, use_collapsible: bool) -> Node {
                         vec![("role", "region"), ("aria-label", viewport_label.as_str())],
                         vec![scroll_area::content(
                             vec![],
-                            vec![nav_list::root(label.as_str(), vec![], category_nodes)],
+                            vec![div(
+                                vec![("data-blocks-docs-layout-sidebar-api-categories", "")],
+                                category_nodes,
+                            )],
                         )],
                     )],
                 )],
@@ -579,7 +608,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-docs-layout-sidebar-api-scroll] {\n  flex: 1;\n  min-block-size: 0;\n  padding: var(--fandhe-space-2) 0;\n}\n\
 [data-blocks-docs-layout-sidebar-api-scroll] [data-scope=\"scroll-area\"][data-part=\"root\"] {\n  block-size: 100%;\n}\n\
 [data-blocks-docs-layout-sidebar-api-scroll] [data-scope=\"scroll-area\"][data-part=\"content\"] {\n  padding: 0 var(--fandhe-space-4);\n}\n\
-[data-blocks-docs-layout-sidebar-api-scroll] [data-scope=\"nav-list\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
+[data-blocks-docs-layout-sidebar-api-categories] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-docs-layout-sidebar-api-link] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-docs-layout-sidebar-api-method] {\n  margin-inline-start: auto;\n  font-family: var(--fandhe-font-font-family-mono, monospace);\n}\n\
 [data-blocks-docs-layout-sidebar-api-group-heading] {\n  margin: 0;\n  font-size: inherit;\n  font-weight: inherit;\n}\n\
@@ -588,7 +617,8 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-docs-layout-sidebar-api-group-chevron] {\n  margin-inline-start: auto;\n  display: inline-block;\n}\n\
 [data-blocks-docs-layout-sidebar-api-group][data-scope=\"collapsible\"][data-part=\"root\"][data-disabled] [data-blocks-docs-layout-sidebar-api-group-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-blocks-docs-layout-sidebar-api-footer] {\n  flex: none;\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-3);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  border-block-start: 1px solid var(--fandhe-color-border);\n  background: var(--fandhe-color-bg-subtle);\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n}\n\
-[data-scope=\"button\"][data-part=\"root\"][data-blocks-docs-layout-sidebar-api-search-trigger][data-disabled],\n[data-scope=\"button\"][data-part=\"root\"][data-blocks-docs-layout-sidebar-api-ai-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n";
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-docs-layout-sidebar-api-search-trigger][data-disabled],\n[data-scope=\"button\"][data-part=\"root\"][data-blocks-docs-layout-sidebar-api-ai-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"field\"][data-part=\"input\"][data-blocks-docs-layout-sidebar-api-search-input][data-disabled],\n[data-scope=\"input-group\"][data-part=\"addon\"][data-blocks-docs-layout-sidebar-api-search-addon][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -725,6 +755,38 @@ mod tests {
             assert!(html.contains(hook));
         }
         assert!(html.contains(r#"aria-label="AI に質問する""#));
+    }
+
+    /// `search-input` variant の検索欄が disabled 固定であること
+    /// （Codex 指摘対応、PR #3548。無 JS では機能しない検索欄を操作可能に
+    /// 見せない）。
+    #[test]
+    fn search_input_field_is_disabled() {
+        let html = render(&demo());
+        assert!(html.contains("data-blocks-docs-layout-sidebar-api-search-input"));
+        assert!(html.contains("data-blocks-docs-layout-sidebar-api-search-addon"));
+        // disabled 固定の `input`/`addon` が存在し、中和用セレクタが
+        // 両方を一致させること（`data-disabled` 存在属性）。
+        assert_eq!(
+            html.matches("data-blocks-docs-layout-sidebar-api-search-input")
+                .count(),
+            1
+        );
+    }
+
+    /// カテゴリ一覧がリンクを持たない静的表示であるため `nav` ランドマーク
+    /// を使わないこと（Codex 指摘対応、PR #3548。`nav_list::root` の用途外
+    /// 使用をやめ、ランドマークは `scroll_area::viewport` の
+    /// `role="region"` のみに一本化する）。
+    #[test]
+    fn category_list_does_not_use_nav_landmark() {
+        let html = render(&demo());
+        assert!(!html.contains("<nav"));
+        assert_eq!(
+            html.matches("data-blocks-docs-layout-sidebar-api-categories")
+                .count(),
+            2
+        );
     }
 
     /// [`LAYOUT_CSS`] が `<` を含まず、disabled 中和・固定フッターの

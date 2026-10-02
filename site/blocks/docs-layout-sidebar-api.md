@@ -14,7 +14,9 @@
 
 本 Demo は静的な表示例であり、検索欄・検索トリガー・AI 質問ボタンは
 いずれも送信・取得を一切行わない飾りの要素です（`<form>` 要素は持たず、
-検索トリガー・AI 質問ボタンは `disabled` で操作自体を無効化しています）。
+検索欄・検索トリガー・AI 質問ボタンのいずれも `disabled` で操作自体を
+無効化しています）。カテゴリ一覧はリンクを持たない静的な一覧のため、
+`nav` ランドマークは使わずスクロール領域の `role="region"` のみを持ちます。
 エンドポイントの名前・メソッドはすべて独自に書いた架空のものであり、
 実在する API・実企業名・実クレデンシャル・PII を含みません。エンドポイント
 行自体は 1 件 1 ページの実在する個別ドキュメントページを持たないため
@@ -277,18 +279,20 @@ fn collapsible_category(category: &Category) -> Node {
 
 /// 上端: `search-input` variant の検索欄（`input_group` + `input`、
 /// アクセシブルネームは `aria-label` を直接渡す、モジュール doc参照）。
+/// 無 JS では機能しないため `disabled: true` で固定する（モジュール doc
+/// 「`search-input` の検索欄も disabled 固定にする」節）。
 fn search_input_top() -> Node {
     let field = FieldProps {
         id: "blocks-docs-layout-sidebar-api-query-search-input",
         ids: FieldIds::default(),
-        disabled: false,
+        disabled: true,
         invalid: false,
         required: false,
         readonly: false,
         has_helper_text: false,
     };
     let group_props = InputGroupProps {
-        disabled: false,
+        disabled: true,
         invalid: false,
     };
     div(
@@ -300,7 +304,7 @@ fn search_input_top() -> Node {
                 input_group::addon(
                     InputGroupAlign::InlineStart,
                     &group_props,
-                    vec![],
+                    vec![("data-blocks-docs-layout-sidebar-api-search-addon", "")],
                     vec![search_icon()],
                 ),
                 input::input(
@@ -311,6 +315,7 @@ fn search_input_top() -> Node {
                         ("autocomplete", "off"),
                         ("placeholder", "検索"),
                         ("aria-label", "API リファレンスを検索"),
+                        ("data-blocks-docs-layout-sidebar-api-search-input", ""),
                     ],
                 ),
             ],
@@ -385,7 +390,6 @@ fn footer_links() -> Node {
 /// 1 variant 分のサイドバー本体（上端・中央スクロール・下端固定の 3 段、
 /// モジュール doc「固定フッター」節）。
 fn sidebar(variant: &'static str, top: Node, use_collapsible: bool) -> Node {
-    let label = format!("API リファレンス（{variant}）");
     let viewport_label = format!("API エンドポイント一覧（{variant}）");
 
     let category_nodes: Vec<Node> = CATEGORIES
@@ -414,7 +418,10 @@ fn sidebar(variant: &'static str, top: Node, use_collapsible: bool) -> Node {
                         vec![("role", "region"), ("aria-label", viewport_label.as_str())],
                         vec![scroll_area::content(
                             vec![],
-                            vec![nav_list::root(label.as_str(), vec![], category_nodes)],
+                            vec![div(
+                                vec![("data-blocks-docs-layout-sidebar-api-categories", "")],
+                                category_nodes,
+                            )],
                         )],
                     )],
                 )],
@@ -453,7 +460,11 @@ pub fn demo() -> Node {
 - 主参照（対応表 ID R0089）の「実入力の検索欄 + メソッドバッジ付き
   エンドポイント一覧」をそのまま採用しました。検索欄は `input-group` +
   `input` の通常の入力欄で、アクセシブルネームは `aria-label` を直接渡す
-  形にしています。
+  形にしています。無 JS の docs サイトでは検索が実際には機能しないため、
+  `search-ai` の 2 ボタンと同じく `disabled` で操作自体を無効化しています。
+- カテゴリ一覧はリンクを持たないエンドポイント行の静的な表示であるため、
+  `nav` ランドマーク（`nav_list::root`）では包まず素の `div` にしています。
+  ランドマークはスクロール領域の `role="region"` のみに一本化しています。
 - 対応表 ID R0090（検索トリガー + AI 質問ボタン・開閉式 API グループ）は
   2 つ目の variant として並記しています。無 JS の docs サイトでは検索
   トリガー・AI 質問ボタンを押しても何も起きないため、いずれも `disabled`
