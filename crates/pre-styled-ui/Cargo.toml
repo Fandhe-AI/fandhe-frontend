@@ -3907,7 +3907,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # select の #3573 対応を含む到達値）も独立に同一版数 0.233.0 へ到達していた
 # （偶発的衝突）ため、そのまま採用せずさらに +1 して 0.234.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
-version = "0.234.0"
+#
+# PR #3569 codex レビュー指摘対応（イシュー #3135）: button_group の
+# `data-attached` opt-in で、間隔のある隣接グループ（`data-attached` なし
+# の通常の内側 root）に接する attached root の角丸・境界線・margin リセ
+# ットを、外側リストでの位置（先頭/末尾）だけで解除していた不具合を修正
+# した。実際に隣接する兄弟も `data-attached` を持つ場合のみ解除するよう
+# セレクタを `:not(:first-child)`/`:not(:last-child)` から隣接兄弟結合子
+# （`+`/`:has(+ ...)`）ベースへ変更し、既存 golden ブロックの出力バイトが
+# 変わる観測可能な CSS 変更のため minor バンプする。
+version = "0.235.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

@@ -117,10 +117,13 @@
 //! 呼び出し側が内側 [`root`] の `attrs` へ値なし属性 `data-attached`
 //! （chakra-ui の `attached` prop に合わせた命名、先例は #3127 の
 //! `data-subtle`）を付与すると、既定の margin 間隔を打ち消し、内側
-//! グループの接続辺（外側リストで先頭/末尾のいずれでもない側）の角丸・
-//! 境界線幅を外側 root と共有する 1 つの連結表示にする。付与しない
-//! 既定の挙動（margin 間隔のまま）は不変（opt-in のみ、既存出力は変えな
-//! い）。縦の外側グループでは内側グループ自身も `align-self: stretch`
+//! グループの接続辺（**実際に隣接する兄弟も `data-attached` を持つ側
+//! のみ**。間隔を維持する通常の内側 root に隣接する側は、外側リストの
+//! 先頭/末尾いずれでもなくても角丸・margin を保つ、PR #3569 codex レ
+//! ビュー指摘対応）の角丸・境界線幅を外側 root と共有する 1 つの連結
+//! 表示にする。付与しない既定の挙動（margin 間隔のまま）は不変（opt-in
+//! のみ、既存出力は変えない）。縦の外側グループでは内側グループ自身も
+//! `align-self: stretch`
 //! で外側の幅まで伸びる（下段の横並び入力欄は既存の `flex: 1 1 auto`
 //! で幅を分け合う）。既知の上限: 横の外側グループの中に縦の attached
 //! グループを置き、兄弟の方が高いとき、内側の子は高さ方向へ伸びず下端に
@@ -484,18 +487,39 @@ pub fn stylesheet() -> String {
 
     // 入れ子 + `data-attached` opt-in（イシュー #3135）: 呼び出し側が内側
     // root へ値なし属性 `data-attached` を付与したときのみ、上記「ネスト」
-    // 節の margin 間隔を打ち消し、内側 root の接続辺（外側リストの
-    // 先頭/末尾いずれでもない側）の角丸・境界線を外側 root と共有する
-    // 連結表示にする（既定の margin 間隔は不変、opt-in のみ）。golden の
-    // 既存部分を変えないよう本モジュール末尾への純追加とする。
+    // 節の margin 間隔を打ち消し、内側 root の接続辺の角丸・境界線を外側
+    // root と共有する連結表示にする（既定の margin 間隔は不変、opt-in
+    // のみ）。golden の既存部分を変えないよう本モジュール末尾への純追加
+    // とする。
+    //
+    // PR #3569 codex レビュー指摘対応（イシュー #3135）: 接続辺の判定は
+    // 外側リストでの位置（先頭/末尾）だけでなく、**実際に隣接する兄弟も
+    // `data-attached` か**を条件にする。間隔を維持する通常の内側 root
+    // （`data-attached` なし）に隣接する場合は、位置上は先頭/末尾でなく
+    // ても角丸・境界線・margin リセットのいずれも適用しない（間隔のまま
+    // 角丸を保つ）。隣接兄弟の判定は `detached_nested_root` と対になる
+    // 隣接兄弟結合子で表現する: 先頭側（前の兄弟が attached か）は
+    // forward 結合子 `{ATTACHED_ROOT} + {ATTACHED_ROOT}` で直接表現し、
+    // 末尾側（次の兄弟が attached か）は `:has(+ {ATTACHED_ROOT})` を使う
+    // （上記「非 attached 内側 root セレクタ」節と同じ、`:has()` 以外に
+    // 「直後に特定の兄弟が続くか」を自分自身の条件へ含める手段がない）。
     for orientation in ["horizontal", "vertical"] {
         let orientation_root = format!(r#"{ROOT}[data-orientation="{orientation}"]"#);
 
+        // attached root 同士が実際に隣接する箇所のみを選ぶセレクタ片。
+        // 先頭側（前が attached）は forward 結合子で自分自身を直接選べる
+        // ため `:has()` は使わない。末尾側（次が attached）は次兄弟しか
+        // 選べない `+` の制約上 `:has()` が必須。
+        let next_is_attached = format!("{ATTACHED_ROOT} + {ATTACHED_ROOT}");
+        let has_next_attached = format!("{ATTACHED_ROOT}:has(+ {ATTACHED_ROOT})");
+
         // 1. 間隔の打ち消し（通常ネストの margin 規則、特異度 (0,6,0)
-        //    より `[data-attached]` 分の属性セレクタが上乗りする (0,7,0)
-        //    で確実に上書きする）。
-        let margin_reset_selector =
-            format!("{orientation_root} > {ATTACHED_ROOT}:not(:first-child)");
+        //    より `[data-attached]` 2 個分の属性セレクタが上乗りする
+        //    (0,9,0) で確実に上書きする）。前の兄弟が attached でない
+        //    ときは適用しない（間隔を維持する通常の内側 root に隣接する
+        //    場合、この attached root 自身の先頭側 margin は通常のネス
+        //    ト間隔のまま残す）。
+        let margin_reset_selector = format!("{orientation_root} > {next_is_attached}");
         let margin_reset = if orientation == "horizontal" {
             decl("margin-inline-start", "0")
         } else {
@@ -523,14 +547,15 @@ pub fn stylesheet() -> String {
 
         // 3. 接続辺の角丸・境界線の解除。宣言の組は上記 §「角丸連結・
         //    境界線二重描画解消」ループと同一のものを、`AR`（内側の
-        //    attached root）の位置に対して適用する。位置擬似クラスは
-        //    直接の子（`AR`）側に付け、子孫へは `>` で降りる（規約は
-        //    `connectable_target` doc「位置擬似クラスは直接の子へ付与
-        //    する」節と同じ）。first/last でない内側の子要素にも
-        //    無差別に宣言が当たるが、内側連結の既存規則で既に 0 の
-        //    組み合わせは再宣言になるだけで無害であり、外側へ露出する
-        //    角（内側グループの最初/最後の子が持つ角）だけが実際に
-        //    効果を持つ。
+        //    attached root）の位置に対して適用する。子孫へは `>` で降り
+        //    る（規約は `connectable_target` doc「位置擬似クラスは直接
+        //    の子へ付与する」節と同じだが、ここでの判定条件自体は上記
+        //    `next_is_attached`/`has_next_attached`（隣接兄弟も attached
+        //    か）であり、素の位置擬似クラスではない）。隣接兄弟が実際に
+        //    attached である組だけへ無差別に宣言が当たるが、内側連結の
+        //    既存規則で既に 0 の組み合わせは再宣言になるだけで無害であ
+        //    り、外側へ露出する角（内側グループの最初/最後の子が持つ
+        //    角）だけが実際に効果を持つ。
         for child in CONNECTABLE_CHILDREN {
             let (direct, suffix) = connectable_target(child);
 
@@ -560,16 +585,13 @@ pub fn stylesheet() -> String {
                 )
             };
 
-            let not_first = format!(
-                "{orientation_root} > {ATTACHED_ROOT}:not(:first-child) > {direct}{suffix}"
-            );
+            let not_first = format!("{orientation_root} > {next_is_attached} > {direct}{suffix}");
             append_rule(
                 &mut out,
                 serialize_rule(&not_first, &[start_radius[0], start_radius[1], start_width]),
             );
 
-            let not_last =
-                format!("{orientation_root} > {ATTACHED_ROOT}:not(:last-child) > {direct}{suffix}");
+            let not_last = format!("{orientation_root} > {has_next_attached} > {direct}{suffix}");
             append_rule(
                 &mut out,
                 serialize_rule(&not_last, &[end_radius[0], end_radius[1]]),
@@ -777,12 +799,14 @@ mod tests {
     #[test]
     fn stylesheet_contains_attached_margin_reset_rules() {
         let out = stylesheet();
+        // PR #3569 codex レビュー指摘対応: margin リセットは「前の兄弟も
+        // attached」の場合のみ適用する（`:not(:first-child)` 単独ではない）。
         assert!(out.contains(
-            r#"[data-orientation="horizontal"] > [data-scope="button-group"][data-part="root"][data-attached]:not(:first-child)"#
+            r#"[data-orientation="horizontal"] > [data-scope="button-group"][data-part="root"][data-attached] + [data-scope="button-group"][data-part="root"][data-attached]"#
         ));
         assert!(out.contains("margin-inline-start: 0;"));
         assert!(out.contains(
-            r#"[data-orientation="vertical"] > [data-scope="button-group"][data-part="root"][data-attached]:not(:first-child)"#
+            r#"[data-orientation="vertical"] > [data-scope="button-group"][data-part="root"][data-attached] + [data-scope="button-group"][data-part="root"][data-attached]"#
         ));
         assert!(out.contains("margin-block-start: 0;"));
     }
@@ -799,18 +823,37 @@ mod tests {
     #[test]
     fn stylesheet_contains_attached_connectable_radius_and_border_rules() {
         let out = stylesheet();
-        // first/last でない内側 root（attached）の直接の子（button）へ
-        // 角丸・境界線の解除が及ぶ。
+        // PR #3569 codex レビュー指摘対応: 前/次の兄弟が実際に attached
+        // であることを条件にする（位置擬似クラス単独ではない）内側 root
+        // （attached）の直接の子（button）へ角丸・境界線の解除が及ぶ。
         assert!(out.contains(
-            r#"[data-orientation="horizontal"] > [data-scope="button-group"][data-part="root"][data-attached]:not(:first-child) > [data-scope="button"][data-part="root"]"#
+            r#"[data-orientation="horizontal"] > [data-scope="button-group"][data-part="root"][data-attached] + [data-scope="button-group"][data-part="root"][data-attached] > [data-scope="button"][data-part="root"]"#
         ));
         assert!(out.contains(
-            r#"[data-orientation="vertical"] > [data-scope="button-group"][data-part="root"][data-attached]:not(:last-child) > [data-scope="field"][data-part="input"]"#
+            r#"[data-orientation="vertical"] > [data-scope="button-group"][data-part="root"][data-attached]:has(+ [data-scope="button-group"][data-part="root"][data-attached]) > [data-scope="field"][data-part="input"]"#
         ));
-        // menu/select は子孫（trigger）へ `>` で降り、位置擬似クラスは
+        // menu/select は子孫（trigger）へ `>` で降り、隣接判定は
         // attached root 側に付く（never-match 回避の既存規約と同型）。
         assert!(out.contains(
-            r#"[data-scope="button-group"][data-part="root"][data-attached]:not(:first-child) > [data-scope="menu"][data-part="root"] > [data-scope="menu"][data-part="trigger"]"#
+            r#"[data-scope="button-group"][data-part="root"][data-attached] + [data-scope="button-group"][data-part="root"][data-attached] > [data-scope="menu"][data-part="root"] > [data-scope="menu"][data-part="trigger"]"#
+        ));
+    }
+
+    #[test]
+    fn stylesheet_omits_attached_radius_reset_when_adjacent_to_detached_sibling() {
+        // PR #3569 codex レビュー指摘対応（イシュー #3135）の回帰テスト:
+        // 間隔を維持する通常の内側 root（`data-attached` なし）に隣接する
+        // attached root は、外側リストの先頭/末尾いずれでもなくても角丸
+        // を保つ必要がある。「隣接兄弟が非 attached のときに角丸除去
+        // セレクタが生成されない」ことを、`:not(:first-child)`/
+        // `:not(:last-child)` 単独（隣接兄弟を問わない旧実装）の選択子が
+        // もう生成されていないことで固定する。
+        let out = stylesheet();
+        assert!(!out.contains(
+            r#"[data-orientation="horizontal"] > [data-scope="button-group"][data-part="root"][data-attached]:not(:first-child) > "#
+        ));
+        assert!(!out.contains(
+            r#"[data-orientation="horizontal"] > [data-scope="button-group"][data-part="root"][data-attached]:not(:last-child) > "#
         ));
     }
 
