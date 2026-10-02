@@ -1121,6 +1121,7 @@ pub enum LayoutCss {
 | product-list-rich-cards | #3064（親 #3024） | `ecommerce/product_list/product_list_rich_cards.rs` |
 | promo-collection-cards | #3078/#3079（親 #3077） | `ecommerce/promo/promo_collection_cards.rs` |
 | promo-countdown | #3080（親 #3024） | `ecommerce/promo/promo_countdown.rs` |
+| promo-image-tiles | #3081 | `ecommerce/promo/promo_image_tiles.rs` |
 | promo-offers-split | #3082 | `ecommerce/promo/promo_offers_split.rs` |
 | promo-with-testimonials | #3086 | `ecommerce/promo/promo_with_testimonials.rs` |
 | store-nav-centered-logo | #3094（親 #3093） | `ecommerce/store_nav/store_nav_centered_logo.rs` |
@@ -1141,6 +1142,7 @@ pub enum LayoutCss {
 | product-list-carousel | #3063（親 #3024） | `ecommerce/product_list/product_list_carousel.rs` |
 | promo-sale-categories | #3083（親 #3024） | `ecommerce/promo/promo_sale_categories.rs` |
 | order-confirmation-split-image | #3053（親 #3024） | `ecommerce/order/order_confirmation_split_image.rs` |
+| quickview-image-split | #3087（親 #3024） | `ecommerce/quickview/quickview_image_split.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
