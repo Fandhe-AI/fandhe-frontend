@@ -914,8 +914,12 @@ pub fn group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 /// `FirstOnTop` のとき:
 /// - `group` 自身に `fd-avatar--stacking-first-on-top` クラス（`isolation:
 ///   isolate` で stacking context を作り、子の `z-index` をこの group 配下へ
-///   閉じ込める）を付与する（呼び出し側 `attrs` の `class` は
-///   [`drop_class_attr`] で除去してから合成する）
+///   閉じ込める）を付与する。[`group`]（`LastOnTop`）が呼び出し側 `attrs` の
+///   `class`（レイアウト・装飾用）をそのまま透過させるのと対称になるよう、
+///   呼び出し側 `class` は [`drop_class_attr`] で一旦除去したうえで
+///   `"<呼び出し側 class> fd-avatar--stacking-first-on-top"` の形で連結し直す
+///   （PR #3563 codex-review P1 指摘。以前は呼び出し側 `class` を破棄しており
+///   `group`/`group_with(LastOnTop)` との非対称があった）
 /// - 直下の [`Node::Element`] 子（`root(stacked: true)` 呼び出し想定）に
 ///   先頭ほど大きい重なり順クラス（[`AvatarStackOrder`]）を付与する。
 ///   子の数を `n`、`MAX_STACK_ORDER` を上限とする先頭件数を
@@ -973,7 +977,20 @@ pub fn group_with<'a>(
     }
     let recipe = recipe();
     let stacking_class = recipe.variant_class(AvatarGroupStacking::FirstOnTop);
-    let mut merged: Vec<(&str, &str)> = vec![("class", stacking_class.as_str())];
+    // 呼び出し側 `class`（レイアウト・装飾用、例: グリッド配置クラス）を
+    // `group`/`group_with(LastOnTop)` と対称に保持する。`drop_class_attr` は
+    // 重複 `class` 属性を防ぐための除去のみを担い、値の破棄はしない
+    // （PR #3563 codex-review P1 指摘）。
+    let caller_class = attrs
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case("class"))
+        .map(|(_, v)| *v)
+        .filter(|v| !v.is_empty());
+    let combined_class = match caller_class {
+        Some(existing) => format!("{existing} {stacking_class}"),
+        None => stacking_class.clone(),
+    };
+    let mut merged: Vec<(&str, &str)> = vec![("class", combined_class.as_str())];
     merged.extend(drop_class_attr(attrs));
     let n = children.len();
     // `n` が `MAX_STACK_ORDER` を超える構成では、単純な `n - i` だと先頭側
@@ -1632,21 +1649,24 @@ mod tests {
     }
 
     #[test]
-    fn group_with_drops_caller_supplied_class_and_scope_spoofing() {
+    fn group_with_merges_caller_class_and_drops_scope_spoofing() {
         let props = AvatarGroupProps {
             stacking: AvatarGroupStacking::FirstOnTop,
         };
         let html = render(&group_with(
             &props,
             vec![
-                ("class", "attacker-controlled"),
+                ("class", "caller-layout"),
                 ("data-scope", "attacker"),
                 ("data-part", "attacker"),
             ],
             vec![],
         ));
+        // `class` は 1 属性へ合成されるが値は破棄されない（group/
+        // group_with(LastOnTop) との対称性、PR #3563 codex-review P1 指摘）。
         assert_eq!(html.matches("class=\"").count(), 1);
-        assert!(!html.contains("attacker-controlled"));
+        assert!(html.contains("caller-layout fd-avatar--stacking-first-on-top"));
+        // `data-scope`/`data-part` の偽装は引き続き headless 層が除去する。
         assert!(!html.contains("attacker\""));
         assert!(html.contains(r#"data-scope="avatar""#));
         assert!(html.contains(r#"data-part="group""#));
