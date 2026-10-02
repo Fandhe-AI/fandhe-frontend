@@ -1480,6 +1480,35 @@ fn ex_progress_circle_indeterminate() -> Node {
     )
 }
 
+// イシュー #3140: R1193（Blocks 取り込み対応表）で「既存部品では表現できない」
+// と判定された、進捗バー下のマイルストーンの目盛りラベル列を示す Example。
+// marker_group/marker は pre-styled-only パート（headless-ui の anatomy には
+// 存在しない、crates/pre-styled-ui/src/progress.rs rustdoc「イシュー #3140」
+// 節参照）であり、配置は値に比例した絶対配置ではなく CSS Grid の等間隔列。
+fn ex_progress_milestones() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
+    use fandhe_frontend_pre_styled_ui::progress::ProgressProps;
+    let p = Progress::new(0.0, 100.0, Some(37.5), Orientation::Horizontal);
+    progress::root(
+        &p,
+        &ProgressProps::default(),
+        Some("Step 2 of 4: Migrating database"),
+        vec![],
+        vec![
+            p.track(vec![], vec![progress::range(&p, vec![])]),
+            progress::marker_group(
+                vec![],
+                vec![
+                    progress::marker(&p, 0.0, vec![], vec![fandhe_frontend_core::text("準備")]),
+                    progress::marker(&p, 33.0, vec![], vec![fandhe_frontend_core::text("処理")]),
+                    progress::marker(&p, 67.0, vec![], vec![fandhe_frontend_core::text("仕上げ")]),
+                    progress::marker(&p, 100.0, vec![], vec![fandhe_frontend_core::text("完了")]),
+                ],
+            ),
+        ],
+    )
+}
+
 pub(crate) const PROGRESS: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "track/range（linear）と circle/circle-track/circle-range（circular）はいずれも headless の inherent メソッドをそのまま呼ばせる契約（crates/pre-styled-ui/src/progress.rs テスト caller_headless_track_and_circle_parts_render_without_wrapper）",
@@ -1487,6 +1516,7 @@ pub(crate) const PROGRESS: ComponentPageSpec = ComponentPageSpec {
         "ProgressProps（size/variant/color-palette の 3 軸）を root へ付与する。styled range() が --fandhe-progress-percent を determinate 時のみ付与する",
         "circle-range の [data-state=\"indeterminate\"] へ固定長の弧（--fandhe-progress-circumference = 2πr、stroke-dasharray で円周の 1/4）を与え、circle の回転と組み合わせて complete（完全リング）と視覚的に区別する。新規 @keyframes は追加せず reduced-motion 下でも弧が残る（crates/pre-styled-ui/src/progress.rs rustdoc「イシュー #1688: circle-range indeterminate の固定弧」節・テスト circle_range_indeterminate_state_declares_fixed_arc_dasharray）",
         "ProgressVariant::Plain（枠線なしの中立トラック）は shadcn/ui 既定表現を突合して補完した variant（イシュー #2049）。既存 Outline/Subtle の CSS 出力・既定 variant はバイト不変（crates/pre-styled-ui/src/progress.rs rustdoc「イシュー #2049: shadcn/ui との突合」節）",
+        "marker_group/marker（pre-styled-only パート）でマイルストーンの目盛りラベルを opt-in で追加できる。data-state（under-value/at-value/over-value）は value と現在値の比較で自前算出し、呼び出し側 attrs の data-state 偽装は除去する（イシュー #3140、crates/pre-styled-ui/src/progress.rs rustdoc「イシュー #3140」節）",
     ],
     arguments: &[
         ArgRow {
@@ -1522,6 +1552,11 @@ pub(crate) const PROGRESS: ComponentPageSpec = ComponentPageSpec {
             title: "Label + Value (Plain variant)",
             description: "shadcn/ui 既定表現（枠線なしの中立トラック）に相当する ProgressVariant::Plain の例です。label + value 併記で shadcn の \"Label and Value\" 例をノード木 API で再現しています（イシュー #2049）。",
             render: ex_progress_plain,
+        },
+        ExampleEntry {
+            title: "Milestone labels",
+            description: "value=37.5 の determinate linear progress の下へ、marker_group/marker でマイルストーンの目盛りラベル（準備 → 処理 → 仕上げ → 完了）を opt-in で追加した例です。到達済みラベル（準備・処理）は強調色、先頭は左揃え・末尾は右揃えになります（イシュー #3140）。",
+            render: ex_progress_milestones,
         },
     ],
     keyboard: &[],

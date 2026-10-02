@@ -208,6 +208,35 @@
 //!   [`Progress::root`]/[`Progress::range`] へそのまま委譲するため、既定
 //!   エスケープ（REQ-1）は headless 側の保証をそのまま継承する（本モジュール
 //!   は HTML 文字列を直接組み立てない）。
+//!
+//! # イシュー #3140: マイルストーンの目盛りラベル（pre-styled-only `marker-group`/`marker`）
+//!
+//! Blocks 取り込みの対応表（R1193）で「既存部品では表現できない」と判定された
+//! 不足分。進捗バーの下に「準備 → 処理 → 仕上げ → 完了」のようなマイルストーン
+//! ラベル列を並べる手段がなかったため、[`crate::drawer`] の `body`/`footer`・
+//! [`crate::slider`] の `marker_group`/`marker` と同型の「pre-styled-only
+//! パート」として `marker-group`/`marker` を純追加した。headless-ui 側の
+//! `progress::ANATOMY`（`crates/headless-ui/src/progress.rs`）は変更しない。
+//!
+//! [`marker`] の `data-state` は [`fandhe_frontend_headless_ui::slider::marker`]
+//! と同じ ark-ui Marker 語彙（`"under-value"`/`"at-value"`/`"over-value"`）を
+//! 自前で固定出力する（headless `progress` 側に marker anatomy がないため
+//! 本モジュールが直接算出する）。[`Progress::value`] が `None`（indeterminate）
+//! のとき、または比較対象の `value` 引数が非有限のときは、進捗を捏造しない
+//! fail-closed の扱いとして `"over-value"`（未到達）に倒す。
+//!
+//! 配置は値に比例した絶対配置ではなく、CSS Grid による N 等分の等間隔列と
+//! する（`value` は到達判定にのみ使う）。先頭ラベルは左揃え・末尾ラベルは
+//! 右揃え・中間は中央揃え（[`StateCondition::AttrFirstChild`]/
+//! [`StateCondition::LastChild`] で表現。marker は必ず `data-state` を持つ
+//! ため `[data-state]:first-child` が常に一致する）。
+//!
+//! 意図的に参考実装へ合わせない点:
+//! - vertical progress 向けのラベル配置は提供しない（indeterminate/vertical
+//!   と同じく要望が出た時点で再評価する）。
+//! - 狭幅でラベルを隠すレスポンシブ（メディアクエリ）は追加しない。
+//! - `wasm-full` の hydration による `marker` の `data-state` 動的更新は
+//!   行わない（本モジュールは SSR 静的出力のみを担う）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -217,15 +246,28 @@ use crate::recipe::{
 };
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::progress::Progress;
+use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 // `Progress` 型はあえて再エクスポートしない（本モジュール冒頭 rustdoc
 // 「`Progress` 型を再エクスポートしない理由」節参照）。呼び出し側の利便のため
 // アクション・向き型のみ選択的に再エクスポートする。
 pub use fandhe_frontend_headless_ui::{Orientation, ProgressAction};
 
+/// `data-scope="progress"` を固定した本モジュール独自パート（`marker-group`/
+/// `marker`）用の anatomy（イシュー #3140、[`crate::drawer`] の `ANATOMY` 定数と
+/// 同型）。headless-ui 側の `progress::ANATOMY`（`crates/headless-ui/src/
+/// progress.rs`）とは別のインスタンスだが `scope` 文字列は同一値であり、
+/// 出力される `data-scope` 属性値は一致する。
+const ANATOMY: Anatomy = anatomy("progress");
+
 /// headless `progress` anatomy の `data-part` 一覧（`crates/headless-ui/src/progress.rs`
 /// の `ANATOMY.part(...)` 呼び出しと同期させる契約。ずれると [`stylesheet`] が
 /// 一部パーツの CSS を出力しない fail-closed 側の不具合として現れるため、
 /// 変更時は両ファイルを合わせて確認する）。
+///
+/// イシュー #3140 で `marker-group`/`marker`（pre-styled-only レイアウト
+/// パート。headless-ui の anatomy には存在しない、モジュール冒頭 rustdoc
+/// 「イシュー #3140」節参照）を末尾へ追加した。以後 `SLOTS` は
+/// 「headless 8 パート + pre-styled-only 2 パート」の計 10 件になる。
 const SLOTS: &[&str] = &[
     "root",
     "label",
@@ -235,6 +277,8 @@ const SLOTS: &[&str] = &[
     "circle",
     "circle-track",
     "circle-range",
+    "marker-group",
+    "marker",
 ];
 
 /// indeterminate 時の回転アニメーションの `@keyframes` 名リテラル。`decl()`
@@ -456,6 +500,26 @@ fn recipe() -> SlotRecipe {
             ));
             declarations
         })
+        // イシュー #3140: マイルストーンの目盛りラベル列（pre-styled-only
+        // `marker-group`/`marker`、モジュール冒頭 rustdoc 参照）。値に比例
+        // した絶対配置ではなく CSS Grid の等間隔列で並べる。
+        .base(
+            "marker-group",
+            vec![
+                decl("display", "grid"),
+                decl("grid-auto-flow", "column"),
+                decl("grid-auto-columns", "minmax(0, 1fr)"),
+                decl("flex-basis", "100%"),
+                decl("width", "100%"),
+            ],
+        )
+        .base(
+            "marker",
+            vec![
+                decl("color", "var(--fandhe-color-fg-muted)"),
+                decl("text-align", "center"),
+            ],
+        )
         // イシュー #1681: Xs/Xl は size 1rem 刻み・thickness 0.05rem 刻みの
         // Sm→Md→Lg 等差進行を外挿。イシュー #1564: 各段へ chakra
         // xs/sm/md/lg/xl のトラック高相当の `--fandhe-progress-track-height`
@@ -646,6 +710,39 @@ fn recipe() -> SlotRecipe {
                     ),
                 ),
             ],
+        )
+        // イシュー #3140: marker の端揃え（先頭=左揃え・末尾=右揃え、中間は
+        // base の center のまま）。marker は必ず `data-state` を持つため
+        // `[data-state]:first-child` が常に一致する。
+        .state(
+            "marker",
+            StateCondition::AttrFirstChild("data-state"),
+            vec![decl("text-align", "start")],
+        )
+        .state(
+            "marker",
+            StateCondition::LastChild,
+            vec![decl("text-align", "end")],
+        )
+        // イシュー #3140: 到達済みマイルストーン（under-value/at-value）の
+        // 強調色。`<palette>-fg-subtle` は `bg` 上で 4.5:1 を満たす
+        // （`palette_scale_declarations` が root へ登録、本 recipe 末尾の
+        // colorPalette ループ参照）。
+        .state(
+            "marker",
+            StateCondition::AttrEq("data-state", "under-value"),
+            vec![decl(
+                "color",
+                "var(--fandhe-palette-fg-subtle, var(--fandhe-color-accent-fg-subtle))",
+            )],
+        )
+        .state(
+            "marker",
+            StateCondition::AttrEq("data-state", "at-value"),
+            vec![decl(
+                "color",
+                "var(--fandhe-palette-fg-subtle, var(--fandhe-color-accent-fg-subtle))",
+            )],
         );
 
     // イシュー #1564: colorPalette 軸（root slot）。range/circle-range が
@@ -755,6 +852,102 @@ pub fn range<'a>(progress: &Progress, attrs: Vec<(&'a str, &'a str)>) -> Node {
         }
         None => progress.range(drop_style_attr(attrs), vec![]),
     }
+}
+
+/// [`marker`] が全マーカーへ一律付与するキー一覧（呼び出し側 `attrs` からの
+/// `data-state` 偽装を fail-closed で除外する対象。大文字小文字を無視する）。
+fn drop_marker_data_state<'a>(attrs: Vec<(&'a str, &'a str)>) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !k.eq_ignore_ascii_case("data-state"))
+        .collect()
+}
+
+/// pre-styled-only `marker-group` パート（`<div>`、イシュー #3140）を組み立てる。
+/// [`marker`] を並べるコンテナであり、headless-ui の anatomy には存在しない
+/// （モジュール冒頭 rustdoc「イシュー #3140」節参照）。
+///
+/// [`fandhe_frontend_headless_ui::anatomy::Anatomy::part`] を直接呼び出すため、
+/// 呼び出し側 `attrs` に含まれる `data-scope`/`data-part` の偽装は headless 層
+/// が fail-closed に除去する。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::progress;
+///
+/// let node = progress::marker_group(vec![], vec![]);
+/// assert!(render(&node).contains(r#"data-scope="progress" data-part="marker-group""#));
+/// ```
+#[must_use]
+pub fn marker_group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("marker-group", "div", attrs, children)
+}
+
+/// pre-styled-only `marker` パート（`<div>`、イシュー #3140）を組み立てる。
+/// マイルストーン 1 件のラベルを表す。`value` は呼び出し側が渡すマイルストーン
+/// の位置、`progress` は現在値の単一情報源であり、両者の比較で `data-state`
+/// を ark-ui Marker 語彙（`"under-value"`/`"at-value"`/`"over-value"`）へ
+/// 固定する（[`fandhe_frontend_headless_ui::slider::marker`] と同型の語彙。
+/// モジュール冒頭 rustdoc「イシュー #3140」節参照）。`value` は
+/// [`Progress::min`]/[`Progress::max`] へ clamp してから比較するため、
+/// 範囲外の値を渡しても panic しない。
+///
+/// `value` は配置に使わない（配置は [`stylesheet`] の CSS Grid が等間隔に
+/// 担う）。到達判定にのみ使う。
+///
+/// 呼び出し側 `attrs` の `data-state`（大文字小文字を無視）は除去してから
+/// 合成する（`data-state` の偽装防止。`data-scope`/`data-part` の偽装は
+/// headless 層が fail-closed に除去する）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_headless_ui::progress::Progress;
+/// use fandhe_frontend_headless_ui::Orientation;
+/// use fandhe_frontend_pre_styled_ui::progress;
+///
+/// let p = Progress::new(0.0, 100.0, Some(50.0), Orientation::Horizontal);
+/// let node = progress::marker(&p, 25.0, vec![], vec![]);
+/// assert!(render(&node).contains(r#"data-state="under-value""#));
+/// ```
+#[must_use]
+pub fn marker<'a>(
+    progress: &Progress,
+    value: f64,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let min = progress.min();
+    let max = progress.max();
+    let clamped_value = if value.is_finite() {
+        value.clamp(min, max)
+    } else {
+        // 非有限値は進捗を捏造しない fail-closed の扱いとして未到達
+        // （over-value）に倒す（下の data_state 算出と同じ結論へ合流
+        // させるため、clamp 済みの正常値としては扱わない特別扱いはせず、
+        // 単に比較で負ける側＝ min 未満にはならない値へ寄せる）。
+        min
+    };
+    let data_state: &'static str = match progress.value() {
+        Some(current) if value.is_finite() => {
+            if clamped_value < current {
+                "under-value"
+            } else if clamped_value > current {
+                "over-value"
+            } else {
+                "at-value"
+            }
+        }
+        // indeterminate（`None`）・非有限 value はいずれも進捗を捏造しない
+        // fail-closed の扱いとして未到達（over-value）に倒す。
+        _ => "over-value",
+    };
+    let mut merged: Vec<(&str, &str)> = vec![("data-state", data_state)];
+    merged.extend(drop_marker_data_state(attrs));
+    ANATOMY.part("marker", "div", merged, children)
 }
 
 #[cfg(test)]
@@ -1082,5 +1275,97 @@ mod tests {
             vec![],
         ));
         assert!(!html.contains("onmouseover=\"alert(1)"));
+    }
+
+    // イシュー #3140: marker の 3 値判定（モジュール冒頭 rustdoc参照）。
+    #[test]
+    fn marker_data_state_reflects_value_vs_current_comparison() {
+        let p = Progress::new(0.0, 100.0, Some(50.0), Orientation::Horizontal);
+        let html_under = render(&marker(&p, 25.0, vec![], vec![]));
+        assert!(
+            html_under.contains(r#"data-state="under-value""#),
+            "{html_under}"
+        );
+        let html_at = render(&marker(&p, 50.0, vec![], vec![]));
+        assert!(html_at.contains(r#"data-state="at-value""#), "{html_at}");
+        let html_over = render(&marker(&p, 75.0, vec![], vec![]));
+        assert!(
+            html_over.contains(r#"data-state="over-value""#),
+            "{html_over}"
+        );
+    }
+
+    #[test]
+    fn marker_data_state_is_over_value_for_indeterminate_progress() {
+        let p = indeterminate();
+        let html = render(&marker(&p, 25.0, vec![], vec![]));
+        assert!(html.contains(r#"data-state="over-value""#), "{html}");
+    }
+
+    #[test]
+    fn marker_data_state_is_over_value_for_non_finite_value_without_panicking() {
+        let p = determinate();
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let html = render(&marker(&p, value, vec![], vec![]));
+            assert!(html.contains(r#"data-state="over-value""#), "{html}");
+        }
+    }
+
+    #[test]
+    fn marker_clamps_out_of_range_value_before_comparison() {
+        // value が max を大きく超えても clamp 後の比較で panic せず、
+        // clamp 後の値が current（max 未満）と等しくなることはないため
+        // at-value にはならない（1e9 は max=100 へ clamp され
+        // 50 より大きいので over-value）。
+        let p = Progress::new(0.0, 100.0, Some(50.0), Orientation::Horizontal);
+        let html = render(&marker(&p, 1e9, vec![], vec![]));
+        assert!(html.contains(r#"data-state="over-value""#), "{html}");
+
+        // max ちょうどへ到達した marker は at-value。
+        let p_complete = Progress::new(0.0, 100.0, Some(100.0), Orientation::Horizontal);
+        let html_complete = render(&marker(&p_complete, 1e9, vec![], vec![]));
+        assert!(
+            html_complete.contains(r#"data-state="at-value""#),
+            "{html_complete}"
+        );
+    }
+
+    #[test]
+    fn marker_drops_caller_data_state_spoofing_case_insensitively() {
+        let p = determinate();
+        let html = render(&marker(
+            &p,
+            25.0,
+            vec![("data-state", "complete"), ("DATA-STATE", "complete")],
+            vec![],
+        ));
+        assert!(!html.contains(r#"data-state="complete""#), "{html}");
+        assert_eq!(html.matches("data-state=").count(), 1);
+    }
+
+    #[test]
+    fn marker_group_renders_scope_and_part_without_extra_data_attrs() {
+        let html = render(&marker_group(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="progress""#), "{html}");
+        assert!(html.contains(r#"data-part="marker-group""#), "{html}");
+        // marker-group は scope/part 以外の data-* を自前出力しない。
+        assert_eq!(html.matches("data-").count(), 2);
+    }
+
+    #[test]
+    fn stylesheet_declares_marker_base_and_state_blocks() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="progress"][data-part="marker-group"] {"#));
+        assert!(css.contains(r#"[data-scope="progress"][data-part="marker"] {"#));
+        assert!(css
+            .contains(r#"[data-scope="progress"][data-part="marker"][data-state]:first-child {"#));
+        assert!(css.contains(r#"[data-scope="progress"][data-part="marker"]:last-child {"#));
+        assert!(css.contains(
+            r#"[data-scope="progress"][data-part="marker"][data-state="under-value"] {"#
+        ));
+        assert!(
+            css.contains(r#"[data-scope="progress"][data-part="marker"][data-state="at-value"] {"#)
+        );
+        assert!(css.contains("--fandhe-palette-fg-subtle"));
     }
 }
