@@ -6,4 +6,6 @@
 
 イシュー #2049 で shadcn/ui と突合し、既存の Outline（中立トラック + 淡い内側枠線）・Subtle（palette 淡色トラック）では表現できなかった「枠線なしの中立トラック」を `ProgressVariant::Plain`（shadcn/ui 既定表現に相当）として補完しました。既存 2 variant の CSS 出力・既定 variant はバイト不変です。
 
+`marker_group`/`marker` でマイルストーンの目盛りラベルを opt-in で追加できます（イシュー #3140）。
+
 関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md) / [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)

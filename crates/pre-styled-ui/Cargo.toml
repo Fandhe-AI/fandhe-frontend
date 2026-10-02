@@ -3962,6 +3962,9 @@ name = "fandhe-frontend-pre-styled-ui"
 # 上記の経緯で独立に 0.231.0 へ到達していたが、origin/main 側（select の
 # #3573 対応を含む到達値）は独立に 0.232.0 へ到達していたため、そのまま
 # 採用せずさらに +1 して 0.233.0 とする。
+# イシュー #3140: progress へ marker-group/marker（マイルストーンの目盛り
+# ラベル）を純追加した新規公開 API のみの変更（既存 golden ブロックは不変・
+# 非破壊の追加）のため minor バンプする。
 #
 # マージコミット注記（PR #3570 への origin/main 再取り込み、push 前 base
 # 最新化ゲート再適用）: 本ブランチ（#3134）は上記の経緯で独立に 0.233.0 へ
@@ -3987,7 +3990,20 @@ name = "fandhe-frontend-pre-styled-ui"
 # PR #3577）も独立に同一の 0.234.0 へ到達していた（偶発的衝突）ため、
 # そのまま採用せずさらに +1 して 0.235.0 とする（`.claude/rules/coding-rust.md`
 # #638 条項の同衝突運用）。
-version = "0.235.0"
+#
+# マージコミット注記（本 PR #3579、origin/main 再取り込み、イシュー #3140）:
+# 本ブランチは progress の #3140 対応で独立に 0.234.0 へ到達していたが、
+# origin/main 側（stat の #3138 対応を含む到達値、本ブランチの base merge
+# 時点）も独立に同一の 0.234.0 へ到達していた（偶発的衝突）ため、そのまま
+# 採用せずさらに +1 して 0.235.0 とする（`.claude/rules/coding-rust.md`
+# #638 条項の同衝突運用）。
+#
+# マージコミット注記（PR #3570 への origin/main 再取り込み、3 回目）: 本ブランチは
+# 上記の経緯で 0.235.0 へ到達していたが、origin/main 側（progress の #3140 対応、
+# PR #3579）も独立に同一の 0.235.0 へ到達していた（偶発的衝突）ため、そのまま
+# 採用せずさらに +1 して 0.236.0 とする（`.claude/rules/coding-rust.md` #638 条項
+# の同衝突運用）。
+version = "0.236.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
