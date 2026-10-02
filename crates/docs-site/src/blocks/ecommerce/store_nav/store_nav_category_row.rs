@@ -495,7 +495,8 @@ const LAYOUT_CSS: &str = "\
 #[cfg(test)]
 mod tests {
     use super::{
-        demo, BLOCK, NARROW_CONTENT_ID, NARROW_TRIGGER_ID, WIDE_CONTENT_ID, WIDE_TRIGGER_ID,
+        demo, BLOCK, LAYOUT_CSS, NARROW_CONTENT_ID, NARROW_TRIGGER_ID, WIDE_CONTENT_ID,
+        WIDE_TRIGGER_ID,
     };
     use fandhe_frontend_core::render;
 
@@ -590,5 +591,18 @@ mod tests {
         let html = render(&demo());
         assert!(html.contains("class=\"blocks-store-nav-category-row-states\""));
         assert_ne!(BLOCK.demo_class, "blocks-store-nav-category-row-states");
+    }
+
+    /// nav ルートの縦積み上書きが recipe の
+    /// `[data-scope="navigation-menu"][data-part="root"]`（0,2,0）より高い
+    /// 詳細度（祖先クラス + 同型の属性セレクタ）で書かれ、クラス単体
+    /// セレクタへ退行していないこと（指摘 #3540、Bugbot Medium）。
+    #[test]
+    fn nav_root_stretch_outranks_recipe_specificity() {
+        let rule = ".blocks-store-nav-category-row-shell [data-scope=\"navigation-menu\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: column;\n  align-items: stretch;\n}";
+        assert!(LAYOUT_CSS.contains(rule));
+        assert!(!LAYOUT_CSS.contains(".blocks-store-nav-category-row-nav {"));
+        let html = render(&demo());
+        assert!(html.contains("class=\"blocks-store-nav-category-row-shell\""));
     }
 }
