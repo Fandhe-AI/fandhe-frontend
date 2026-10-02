@@ -617,13 +617,13 @@ const COMBOBOX: ComponentPageSpec = ComponentPageSpec {
 
 const COMMAND: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "root/input/list/empty/group/group-heading/item/shortcut/separator/dialog の 10 slot 構成。`size`/`variant`/`color-palette` いずれの軸も持たない（`crates/pre-styled-ui/src/command.rs` モジュール doc「軸を持たない理由」節参照）。",
+        "root/input/list/empty/group/group-heading/item/shortcut/separator/dialog の headless 10 slot に、pre-styled-only の `footer`（下記参照）を加えた計 11 パーツ構成。`size`/`variant`/`color-palette` いずれの軸も持たない（`crates/pre-styled-ui/src/command.rs` モジュール doc「軸を持たない理由」節参照）。",
         "`empty` は既定 `display: none`、`[data-empty]`（headless が絞り込み結果 0 件のときのみ付与）が付いたときだけ `display: block` へ切り替わる。",
         "`item` の選択行は `[data-selected]` の背景色で表す（`data-highlighted` は使わない）。hover は選択行を除外する規則（`HoverExceptAttr`）を持ち、選択色が hover で洗い流されない。",
         "`shortcut` は `margin-inline-start: auto` で右寄せする。API は増やさず、`children` へ [Kbd](../kbd/) を渡すことでキー表示を合成する。",
         "`dialog` は `--fandhe-command-dialog-max-width`（既定 32rem）で幅を決め、closed 時は headless が付与する `hidden` を確実に非表示化する（`[hidden] { display: none; }`）。単一パーツのため独立した `backdrop` は持たない。",
         "絞り込み配線（入力 → `\"input\"` dispatch → DOM 反映）・Enter 実行・Cmd/Ctrl+K のグローバルショートカット・フォーカストラップはアプリケーション/`fandhe-frontend-wasm-full` の責務として実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。",
-        "pre-styled-only `footer` パート（イシュー #3143）: headless-ui の anatomy には存在しないレイアウト専用パートで、キー操作ヒントを `list`/`empty` の後ろに区切り線付きで並べる。`shortcut` と同様 API を増やさず、`children` へ [Kbd](../kbd/) と `text` を組んで渡す。",
+        "pre-styled-only `footer` パート（イシュー #3143）: headless-ui の anatomy には存在しないレイアウト専用パートで、キー操作ヒントを `list`/`empty` の後ろに区切り線付きで並べる。`shortcut` と同様 API を増やさず、`children` へ [Kbd](../kbd/) と `text` を組んで渡す。`footer` は `flex-wrap: wrap` で折り返すため、ヒント 1 件（`kbd` + 説明テキスト）は `span` 等 1 つの子要素へまとめてから渡す（狭幅で `kbd` と説明文が別行に分かれるのを防ぐ）。",
     ],
     arguments: &[
         ArgRow {
@@ -816,7 +816,10 @@ fn ex_command_dialog() -> Node {
 /// （イシュー #3143）。`footer` パートへ [`kbd::kbd`] とテキストを組んだ
 /// ヒント 3 件を並べる（キー操作そのものの配線は持たない、
 /// `crates/pre-styled-ui/src/command.rs` モジュール doc「pre-styled-only
-/// `footer` パート」節参照）。
+/// `footer` パート」節参照）。各ヒントは `kbd` + 説明テキストを 1 つの
+/// `span` 子要素へまとめてから `footer` へ渡す（`footer` 自体の
+/// `flex-wrap: wrap` は子要素単位でしか折り返さないため、`kbd` と説明文を
+/// 別々の子要素のまま渡すと狭幅で対応関係が崩れる。Codex P2 指摘対応）。
 fn ex_command_footer() -> Node {
     let item_calendar = command::item(
         true,
@@ -840,17 +843,31 @@ fn ex_command_footer() -> Node {
         Some("example-command-footer-item-calendar"),
         vec![("aria-label", "Search commands")],
     );
-    let footer = command::footer(
+    let hint_move = el(
+        "span",
         vec![],
         vec![
             kbd::kbd(&KbdProps::default(), vec![], vec![text("↑↓")]),
-            text(" で移動　"),
+            text(" で移動"),
+        ],
+    );
+    let hint_select = el(
+        "span",
+        vec![],
+        vec![
             kbd::kbd(&KbdProps::default(), vec![], vec![text("↵")]),
-            text(" で選択　"),
+            text(" で選択"),
+        ],
+    );
+    let hint_close = el(
+        "span",
+        vec![],
+        vec![
             kbd::kbd(&KbdProps::default(), vec![], vec![text("esc")]),
             text(" で閉じる"),
         ],
     );
+    let footer = command::footer(vec![], vec![hint_move, hint_select, hint_close]);
     command::root(OpenState::Open, false, vec![], vec![input, list, footer])
 }
 
