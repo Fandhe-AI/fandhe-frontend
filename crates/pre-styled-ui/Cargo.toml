@@ -3740,6 +3740,54 @@ name = "fandhe-frontend-pre-styled-ui"
 # して 0.227.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突
 # 運用。同一版数への偶発的衝突をそのまま採用しない）。
 #
+# イシュー #3130: avatar に badge 配置（`AvatarBadgePlacement`）・group
+# 重なり順（`AvatarGroupStacking`/`AvatarGroupProps`/`group_with`）を opt-in
+# で純追加した。`AvatarBadgeProps` へ `pub placement` フィールドを追加した
+# ことは、構造体リテラルで構築している利用側（`..Default::default()` を
+# 使わない呼び出し）には破壊的変更になるため、0.x の破壊的変更はマイナー
+# バンプの規約に従い minor バンプする。本ブランチの到達値（0.221.0）が
+# origin/main 側の到達値（0.221.0）と偶然一致したため、同一版数への
+# 偶発的衝突をそのまま採用せず 0.222.0 へさらにマイナーバンプする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# マージコミット注記（origin/main #3127/#3560 系との統合）: 本ブランチは
+# 独立に 0.222.0 へ到達していたが、origin/main 側（card/dialog の淡色背景
+# opt-in、#3127 および #3560 Codex レビュー対応）も独立に 0.224.0 へ到達
+# していたため、同一衝突回避のため双方の実体変更を統合した結果として
+# 0.225.0 へさらにマイナーバンプする（`.claude/rules/coding-rust.md` #638
+# 条項の同衝突運用）。
+#
+# マージコミット注記（origin/main #3125/#3128/#3560 系との再統合、PR #3558
+# 経由で到達した 0.225.0 との衝突）: 本ブランチ（#3130）は上記の経緯で
+# 独立に 0.225.0 へ到達していたが、origin/main 側（#3125/#3128/#3560 を
+# 統合した PR #3558）も独立に同一の 0.225.0 へ到達しており偶発的に衝突
+# したため、同一版数への偶発的衝突をそのまま採用せずマージ結果として
+# さらに +1 して 0.226.0 とする（`.claude/rules/coding-rust.md` #638 条項の
+# 同衝突運用）。
+#
+# PR #3563 codex-review P2 指摘対応: `group_with` の `FirstOnTop` 一意な
+# 重なり順保証が実際には `MAX_STACK_ORDER - 1`（11）件までであることを
+# rustdoc・実装コメントへ正確化した（ロジック・golden 出力は不変のため
+# ドキュメントのみの訂正）。
+#
+# マージコミット注記（origin/main #3564 との再統合）: 本ブランチ（#3130）は
+# 上記の経緯で独立に 0.226.0 へ到達していたが、origin/main 側（tab_nav の
+# カード状バー variant、#3564）も独立に同一の 0.226.0 へ到達しており
+# 偶発的に衝突したため、同一版数への偶発的衝突をそのまま採用せずマージ
+# 結果としてさらに +1 して 0.227.0 とする（`.claude/rules/coding-rust.md`
+# #638 条項の同衝突運用）。
+#
+# PR #3563 codex-review P2 指摘（13 件以上の FirstOnTop で末尾側の重なり順が
+# 逆転する）への対応: 件数上限なしで順序を保つ方式は静的クラスでは表せない
+# ため、上限を公開定数 `avatar::GROUP_FIRST_ON_TOP_MAX_CHILDREN` として
+# API 上に明示した（純追加。出力・golden CSS は不変）。
+#
+# マージコミット注記（origin/main #3566 との再統合）: 本ブランチ（#3130）は
+# 上記の経緯で独立に 0.227.0 へ到達していたが、origin/main 側（alert の
+# AccentBorder variant、#3566）も独立に同一の 0.227.0 へ到達しており
+# 偶発的に衝突したため、マージ結果としてさらに +1 して 0.228.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
 # マージコミット注記（origin/main #3564 との再統合、PR #3565）: 本ブランチは
 # 上記の経緯で独立に 0.226.0 へ到達していたが、origin/main 側（tab_nav Bar、
 # #3564）も独立に同一の 0.226.0 へ到達しており偶発的に衝突したため、
@@ -3751,7 +3799,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # AccentBorder、#3566）も独立に同一の 0.227.0 へ到達しており偶発的に衝突した
 # ため、マージ結果としてさらに +1 して 0.228.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
-version = "0.228.0"
+#
+# マージコミット注記（origin/main PR #3565 との再統合）: 本ブランチ（#3130）は
+# 上記の経緯で独立に 0.228.0 へ到達していたが、origin/main 側（PR #3565）も
+# 独立に同一の 0.228.0 へ到達しており偶発的に衝突したため、マージ結果として
+# さらに +1 して 0.229.0 とする（`.claude/rules/coding-rust.md` #638 条項の
+# 同衝突運用）。
+#
+# PR #3563 codex-review P1/P2 指摘対応: `group_with`（`FirstOnTop`）の
+# 重なり順の採番・クラス付与を avatar root 要素（`data-scope="avatar"`
+# `data-part="root"`）だけに限定した（テキスト等で採番がずれて pos1 へ
+# 合流する不具合の修正。0.229.0 のまま本 PR に含める）。
+version = "0.229.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

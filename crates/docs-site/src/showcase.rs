@@ -5644,6 +5644,7 @@ fn avatar_section() -> Node {
                     &AvatarBadgeProps {
                         size: badge_size,
                         palette,
+                        ..AvatarBadgeProps::default()
                     },
                     vec![],
                     vec![],
