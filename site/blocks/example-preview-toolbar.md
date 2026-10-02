@@ -173,7 +173,7 @@ fn style_select() -> Node {
                 Size::Sm,
                 OpenState::Closed,
                 &props,
-                vec![],
+                vec![("data-blocks-example-preview-toolbar-select-root", "")],
                 vec![
                     select::control(
                         OpenState::Closed,
@@ -224,7 +224,7 @@ fn toolbar_actions() -> Node {
                     disabled: true,
                     ..ButtonProps::default()
                 },
-                vec![],
+                vec![("data-blocks-example-preview-toolbar-run", "")],
                 vec![text("外部で実行")],
             ),
             clipboard::root(

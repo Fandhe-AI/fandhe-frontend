@@ -236,7 +236,7 @@ fn style_select() -> Node {
                 Size::Sm,
                 OpenState::Closed,
                 &props,
-                vec![],
+                vec![("data-blocks-example-preview-toolbar-select-root", "")],
                 vec![
                     select::control(
                         OpenState::Closed,
@@ -287,7 +287,7 @@ fn toolbar_actions() -> Node {
                     disabled: true,
                     ..ButtonProps::default()
                 },
-                vec![],
+                vec![("data-blocks-example-preview-toolbar-run", "")],
                 vec![text("外部で実行")],
             ),
             clipboard::root(
@@ -368,18 +368,35 @@ pub const BLOCK: Block = Block {
 /// `example_preview_toolbar` 固有のレイアウト規則（`crate::blocks::
 /// LAYOUT_CSS` doc「block 固有 CSS の置き場」節と同型）。`--fandhe-*`
 /// トークンのみ使用し、生値は幅・rem 指定のみに限る。
+///
+/// # 全 block 共通 CSS への連結に対する `[data-scope="..."]` セレクタのスコープ限定
+///
+/// 本 CSS は `crate::blocks::STYLESHEET_REL_PATH`（`assets/blocks.css`）へ
+/// 全 block 共通で連結される（モジュール doc「CSS の置き場」節）。
+/// `tabs::tabs` は headless 層に呼び出し側 attrs を受け取る引数を持たず
+/// root/list/content へ block 固有属性を注入できないため、tabs 系 3 セレクタ
+/// は `.blocks-example-preview-toolbar`（Demo ラッパへ付与される
+/// `Block::demo_class`、popover の `h2` 補正規則と同じ祖先セレクタ）で
+/// 限定する。button/select の disabled 中和規則は呼び出し側 attrs 経由で
+/// 付与できるため、`data-blocks-example-preview-toolbar-run`/
+/// `-select-root` を複合セレクタへ併記して限定する（`filter_dropdown_bar`
+/// の `collapsed_filter_button` と同型の判断）。祖先・属性いずれの限定も
+/// 持たない生の `[data-scope="tabs"/"button"/"select"]` 複合セレクタを
+/// 本 CSS に残すと、他 block の Tabs（`display: contents`/`order`）や
+/// disabled Button/Select（`opacity`/`cursor`）の見た目まで書き換えてしまう
+/// （Cursor Bugbot/codex-review P1 指摘の是正）。
 const LAYOUT_CSS: &str = "\
 .blocks-example-preview-toolbar-frame {\n  display: flex;\n  flex-wrap: wrap;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  overflow: hidden;\n  min-width: 0;\n}\n\
 .blocks-example-preview-toolbar-preview {\n  flex-basis: 100%;\n  padding: var(--fandhe-space-4);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 [data-scope=\"popover\"][data-part=\"positioner\"][data-blocks-example-preview-toolbar-positioner] {\n  position: static;\n}\n\
 [data-scope=\"popover\"][data-part=\"trigger\"][data-blocks-example-preview-toolbar-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-example-preview-toolbar [data-scope=\"popover\"] h2 {\n  margin: 0;\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
-[data-scope=\"tabs\"][data-part=\"root\"] {\n  display: contents;\n}\n\
-[data-scope=\"tabs\"][data-part=\"list\"] {\n  order: 1;\n  flex: 1 1 auto;\n  min-width: 0;\n  background: var(--fandhe-color-bg-subtle);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
-[data-scope=\"tabs\"][data-part=\"content\"] {\n  order: 3;\n  flex-basis: 100%;\n}\n\
+.blocks-example-preview-toolbar [data-scope=\"tabs\"][data-part=\"root\"] {\n  display: contents;\n}\n\
+.blocks-example-preview-toolbar [data-scope=\"tabs\"][data-part=\"list\"] {\n  order: 1;\n  flex: 1 1 auto;\n  min-width: 0;\n  background: var(--fandhe-color-bg-subtle);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
+.blocks-example-preview-toolbar [data-scope=\"tabs\"][data-part=\"content\"] {\n  order: 3;\n  flex-basis: 100%;\n}\n\
 [data-blocks-example-preview-toolbar-actions] {\n  order: 2;\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  margin-inline-start: auto;\n  padding-inline: var(--fandhe-space-3);\n  background: var(--fandhe-color-bg-subtle);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
-[data-scope=\"button\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-[data-scope=\"select\"][data-part=\"root\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"button\"][data-part=\"root\"][data-blocks-example-preview-toolbar-run][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"select\"][data-part=\"root\"][data-blocks-example-preview-toolbar-select-root][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-example-preview-toolbar-select {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-example-preview-toolbar-pre {\n  margin: 0;\n  padding: var(--fandhe-space-4);\n  overflow-x: auto;\n  font-family: var(--fandhe-font-font-mono);\n}\n\
 .blocks-example-preview-toolbar-pre:focus-visible {\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));\n}\n";
