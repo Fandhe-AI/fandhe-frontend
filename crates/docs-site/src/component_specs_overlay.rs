@@ -93,7 +93,7 @@ use fandhe_frontend_pre_styled_ui::{
     accordion::{self, AccordionProps},
     avatar::{self, AvatarProps, ImageStatus},
     button::{button, ButtonProps, ButtonVariant},
-    collapsible,
+    button_group, collapsible,
     dialog::{self, ContentIds, DialogRole},
     drawer::{self, DrawerPlacement},
     field::{self, FieldIds, FieldOrientation, FieldProps, FieldRootProps},
@@ -104,7 +104,7 @@ use fandhe_frontend_pre_styled_ui::{
     text::{text as styled_text, TextProps, TextSize, TextWeight},
     toast::{self, ToastPlacement, ToastStatus},
     toast_motion::STACK_ATTR,
-    tooltip, ColorPalette, OpenState, Size,
+    tooltip, ColorPalette, OpenState, Orientation, Size,
 };
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
@@ -551,7 +551,11 @@ pub const BUTTON_GROUP: ComponentPageSpec = ComponentPageSpec {
             description: "root に付与する aria-label（空文字列のときは省略）。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "分割ボタン（塗りトリガー + 補助メニュー、イシュー #3124 R1239）",
+        description: "`button_group::root` が「menu trigger を角丸連結対象に含める」契約（上記 Features 参照）を使い、塗り（`ButtonVariant::Solid`）の主操作ボタンと、同じ塗りのアイコンのみメニュートリガーを 1 つの連結表示にまとめる合成例です。新しい部品・CSS は追加しません（メニューは静的な閉状態で固定、`OpenState::Open` 等の開閉状態機械はクライアント配線層の責務）。",
+        render: ex_button_group_split_button,
+    }],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -565,6 +569,101 @@ pub const BUTTON_GROUP: ComponentPageSpec = ComponentPageSpec {
     ],
     demo: None,
 };
+
+/// イシュー #3124（R1239「塗りトリガーの分割ボタン」）: `/themes/button-group/`
+/// の Examples 節に載る合成例。主操作ボタン（塗り）+ アイコンのみの
+/// メニュートリガー（同じ塗り）を `button_group::root` へ並べ、
+/// `[data-scope="button-group"][data-part="root"] > menu[data-part="trigger"]:not(:first-child)`
+/// 相当の連結 CSS（Features 節参照）で 1 つの分割ボタンに見せる。新規部品は
+/// 追加しない。メニューは無 JS のため `OpenState::Closed` の静的表示に
+/// 固定する（`page_heading_actions.rs::overflow_menu` と同型の理由）。
+fn ex_button_group_split_button() -> Node {
+    let primary = button(
+        &ButtonProps {
+            variant: ButtonVariant::Solid,
+            ..ButtonProps::default()
+        },
+        vec![],
+        vec![text("デプロイする")],
+    );
+    // menu::trigger の既定背景（`var(--fandhe-color-bg)`、menu.rs 参照）は
+    // 塗りではないため、主操作ボタン（`ButtonVariant::Solid`、既定 palette
+    // `Accent`）と同じ塗りに揃える必要がある。インライン `style` 属性の
+    // `background` は（`:hover` を含む）いかなるセレクタ規則よりも常に
+    // 優先されてしまい、menu.rs の hover 規則（`[data-scope="menu"]
+    // [data-part="trigger"]:not([data-disabled]):hover { background:
+    // var(--fandhe-hover-bg); }`）を恒久的に覆い隠して hover 表示が効かなく
+    // なる（codex P2 指摘、PR #3561）。menu トリガー専用の塗り variant を
+    // 新設するほどの再利用性はないため、この合成例限定で一意な `id` を
+    // 付与し、スコープ付き `<style>`（下記 `menu_trigger_style`）で
+    // 既定/`:hover` 双方を ID セレクタ（属性セレクタ合成より詳細度が高く
+    // `@media (hover: hover)` にも依存しない）として定義する。
+    const SPLIT_MENU_TRIGGER_ID: &str = "button-group-split-menu-trigger";
+    let menu_trigger = menu::trigger(
+        OpenState::Closed,
+        false,
+        Some("button-group-split-menu-content"),
+        vec![
+            ("aria-label", "その他のデプロイ操作"),
+            ("id", SPLIT_MENU_TRIGGER_ID),
+        ],
+        vec![text("\u{25be}")],
+    );
+    // 上記 `id` のみを対象にした最小スコープ CSS。ID セレクタのため
+    // `:hover` 規則も含めて menu.rs の既定 state 規則より確実に優先される。
+    // `<style>` 子テキストは REQ-1 既定エスケープ（`text()`）を経由するが、
+    // ここでは `>`/`<`/`&` を一切含まないセレクタ・宣言のみのため実体参照化
+    // による破損は起きない（`crates/cli/embedded-examples/wireframe-ui/
+    // src/main.rs` モジュール doc「CSS の出力方式」節と同型の注意点）。
+    let menu_trigger_style = el(
+        "style",
+        vec![],
+        vec![text(format!(
+            "#{SPLIT_MENU_TRIGGER_ID} {{ background: var(--fandhe-color-accent); color: var(--fandhe-color-accent-fg); border: none; }} #{SPLIT_MENU_TRIGGER_ID}:hover {{ background: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized)); }}"
+        ))],
+    );
+    let menu_content = menu::content(
+        OpenState::Closed,
+        Some("button-group-split-menu-content"),
+        None,
+        vec![],
+        vec![
+            menu::item(
+                "redeploy",
+                false,
+                false,
+                vec![],
+                vec![text("再デプロイする")],
+            ),
+            menu::item(
+                "rollback",
+                false,
+                false,
+                vec![],
+                vec![text("ロールバックする")],
+            ),
+        ],
+    );
+    let menu_positioner = menu::positioner(OpenState::Closed, vec![], vec![menu_content]);
+    let split_menu = menu::root(
+        Size::Md,
+        OpenState::Closed,
+        vec![],
+        vec![menu_trigger, menu_positioner],
+    );
+    div(
+        vec![],
+        vec![
+            menu_trigger_style,
+            button_group::root(
+                Orientation::Horizontal,
+                "デプロイ操作",
+                vec![],
+                vec![primary, split_menu],
+            ),
+        ],
+    )
+}
 
 /// `/themes/toolbar/`（Interactive カテゴリ）。
 ///

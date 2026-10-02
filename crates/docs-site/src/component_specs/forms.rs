@@ -74,7 +74,7 @@ use fandhe_frontend_pre_styled_ui::pin_input;
 use fandhe_frontend_pre_styled_ui::radio_group;
 use fandhe_frontend_pre_styled_ui::radio_group::RadioGroupProps;
 use fandhe_frontend_pre_styled_ui::select;
-use fandhe_frontend_pre_styled_ui::select::{SelectProps, SelectVariant};
+use fandhe_frontend_pre_styled_ui::select::{ItemIndicatorPlacement, SelectProps, SelectVariant};
 use fandhe_frontend_pre_styled_ui::signature_pad;
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::switch;
@@ -2224,6 +2224,7 @@ fn select_example_root(shape: Option<Shape>, variant: SelectVariant, id_prefix: 
         Size::Md,
         shape,
         variant,
+        ItemIndicatorPlacement::End,
         OpenState::Closed,
         &props,
         vec![],
@@ -2410,6 +2411,7 @@ const SELECT: ComponentPageSpec = ComponentPageSpec {
         "separator / scroll-up-button / scroll-down-button の着装（イシュー #2186）: headless-ui の 3 新設パーツを再エクスポートし、`position: sticky` で content 上下端に固定するボタン・`height`/`background` の区切り線を recipe へ登録する。可視性判定・押下時の実スクロールは wasm-full 後続イシューの範囲。",
         "共通 shape 軸（イシュー #3117）: `root_with` が `Option<Shape>` を受け取り、`Shape::Pill` を渡すと trigger が完全な丸型角丸になる。`Shape::Circle` は trigger が value-text + indicator を横並びにする構造で真円にする用途がないため未登録。",
         "variant 軸（イシュー #3121）: `root_with` が `SelectVariant`（`Outline`〔既定〕/`Subtle`）を受け取る。`Subtle` は trigger を淡色背景・枠線なしにする（`native_select::NativeSelectVariant::Subtle`・chakra-ui `Select` の `variant: subtle` に揃える）。`Outline`（既定）のときは class を一切出さず [`select::root`] と出力が変わらない。",
+        "選択インジケータ位置（イシュー #3124）: `select::root_with` の `item_indicator_placement`（`ItemIndicatorPlacement`、既定 `End`）で、チェックマークを項目右端（既定）・左端（`Start`）のいずれかへ opt-in 切り替えできる。`Start` 選択時は非選択項目のテキスト開始位置も揃うよう `item::before` でインジケータ幅の空きを確保する（`item` の padding は上書きしない）。既定 `End` は class を一切出さず既存出力はバイト不変。",
     ],
     arguments: &[
         ArgRow {
@@ -2448,6 +2450,12 @@ const SELECT: ComponentPageSpec = ComponentPageSpec {
             default: "SelectVariant::Outline",
             description: "見た目 variant（イシュー #3121）。`root_with` 経由の opt-in 引数。`Subtle` で trigger を淡色背景・枠線なしにする。",
         },
+        ArgRow {
+            name: "item_indicator_placement",
+            kind: "ItemIndicatorPlacement",
+            default: "ItemIndicatorPlacement::End",
+            description: "選択インジケータ（チェックマーク）の配置軸（`select::root_with` のみが受け取る、イシュー #3124）。`root` は常に `End` を渡す。",
+        },
     ],
     examples: &[
         ExampleEntry {
@@ -2459,6 +2467,11 @@ const SELECT: ComponentPageSpec = ComponentPageSpec {
             title: "淡色背景の pill（Subtle variant）",
             description: "`Shape::Pill` と `SelectVariant::Subtle` を併用し、淡色背景・枠線なしの pill 形状 trigger にする例です（イシュー #3121）。chakra-ui `Select` の `variant: subtle` に揃えた見た目です。",
             render: select_pill_subtle_example,
+        },
+        ExampleEntry {
+            title: "選択インジケータを左端に置く（`ItemIndicatorPlacement::Start`）",
+            description: "`select::root_with(.., ItemIndicatorPlacement::Start, ..)` でチェックマークを項目左端へ寄せ、非選択項目のテキスト開始位置と揃える例です（Blocks 取り込み対応表 R1235 相当のレイアウト）。1 項目目（fandhe-frontend）が選択済みでチェックが見え、2 項目目（Other framework）は非選択です。",
+            render: select_item_indicator_placement_start_example,
         },
     ],
     keyboard: &[],
@@ -2486,6 +2499,107 @@ const SELECT: ComponentPageSpec = ComponentPageSpec {
     ],
     demo: None,
 };
+
+/// イシュー #3124: `/themes/select/` の Examples 節「選択インジケータを
+/// 左端に置く」に載る合成例。`select::root_with` の
+/// `item_indicator_placement` へ `ItemIndicatorPlacement::Start` を渡すと
+/// `fd-select--item-indicator-placement-start` class が付与され、選択済み
+/// 項目のチェックマークが左端へ寄る（Blocks 取り込み対応表 R1235 相当）。
+/// `showcase.rs::select_section` と同じく静的掲示（`OpenState::Open` で
+/// content を可視化）とし、選択済み 1 項目・非選択 1 項目の最小構成で
+/// テキスト開始位置が揃うことを示す。
+fn select_item_indicator_placement_start_example() -> Node {
+    let props = SelectProps::default();
+    select::root_with(
+        Size::Md,
+        None,
+        SelectVariant::Outline,
+        ItemIndicatorPlacement::Start,
+        OpenState::Open,
+        &props,
+        vec![],
+        vec![
+            select::label(
+                &props,
+                Some("select-indicator-start-label"),
+                vec![],
+                vec![text("Framework")],
+            ),
+            select::control(
+                OpenState::Open,
+                &props,
+                vec![],
+                vec![select::trigger(
+                    OpenState::Open,
+                    &props,
+                    false,
+                    Some("select-indicator-start-content"),
+                    Some("select-indicator-start-label"),
+                    vec![],
+                    vec![
+                        select::value_text(false, &props, vec![], vec![text("fandhe-frontend")]),
+                        select::indicator(OpenState::Open, &props, vec![], vec![text("▾")]),
+                    ],
+                )],
+            ),
+            select::positioner(
+                OpenState::Open,
+                vec![],
+                vec![select::content(
+                    OpenState::Open,
+                    Some("select-indicator-start-content"),
+                    Some("select-indicator-start-label"),
+                    None,
+                    vec![],
+                    vec![
+                        select::item(
+                            OpenState::Open,
+                            &props,
+                            false,
+                            false,
+                            "fandhe-frontend",
+                            None,
+                            vec![],
+                            vec![
+                                select::item_text(
+                                    OpenState::Open,
+                                    &props,
+                                    false,
+                                    false,
+                                    None,
+                                    vec![],
+                                    vec![text("fandhe-frontend")],
+                                ),
+                                select::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
+                            ],
+                        ),
+                        select::item(
+                            OpenState::Closed,
+                            &props,
+                            false,
+                            false,
+                            "other",
+                            None,
+                            vec![],
+                            vec![
+                                select::item_text(
+                                    OpenState::Closed,
+                                    &props,
+                                    false,
+                                    false,
+                                    None,
+                                    vec![],
+                                    vec![text("Other framework")],
+                                ),
+                                select::item_indicator(OpenState::Closed, vec![], vec![text("✓")]),
+                            ],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    )
+}
 
 const SIGNATURE_PAD: ComponentPageSpec = ComponentPageSpec {
     features: &[
