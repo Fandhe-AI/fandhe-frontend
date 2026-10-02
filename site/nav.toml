@@ -3007,6 +3007,11 @@ source = "site/blocks/api-reference-param-accordion.md"
 path = "/blocks/api-reference-param-accordion/"
 
 [[section.group.page]]
+title = "api-reference-playground"
+source = "site/blocks/api-reference-playground.md"
+path = "/blocks/api-reference-playground/"
+
+[[section.group.page]]
 title = "api-reference-props-table"
 source = "site/blocks/api-reference-props-table.md"
 path = "/blocks/api-reference-props-table/"
