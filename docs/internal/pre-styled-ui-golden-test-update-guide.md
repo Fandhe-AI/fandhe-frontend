@@ -70,6 +70,10 @@ diff が読みやすい）部品を安易に (b) へ切り替えないでくだ�
 `@supports not (height: calc-size(auto, size))` ブロックを末尾側へ純追加、
 `bubble_pre_2282_blocks_remain_verbatim` を追加）** /
 **button_group（イシュー #2060 で golden 新設。`stylesheet()` 全文）** /
+**calendar（イシュー #3132 で `root` variant（`variant`/`cell-size` 軸）
+2 ブロックを size variant 5 段の直後へ中間挿入し、末尾へ
+`CalendarCellSize::Large` の子孫セレクタ 2 規則（`table`/`table-cell`）を
+純追加。`stylesheet_is_pure_addition_over_pre_3132_golden` を追加）** /
 callout / carousel / **collapsible（イシュー #1682 で golden 新設。イシュー
 #2192 で `content` の 2 個目 base ブロックを中間挿入、`[hidden]` state と
 `@starting-style` ブロックを末尾側へ純追加、
@@ -222,10 +226,13 @@ CSS 全文の golden、方式 (a)）と異なり、§2.1 の方式 (b)（契約�
 `xss_escape.rs` / `xss_escape_styled.rs` によるレンダリング・エスケープ検証
 のみが存在します。新設の要否は Phase 1 の各部品 issue の判断に委ねます。
 
-- `stylesheet()` を持つ 13 部品: action_bar / angle_slider /
-  breadcrumb / calendar / clipboard / combobox / date_picker /
+- `stylesheet()` を持つ 12 部品: action_bar / angle_slider /
+  breadcrumb / clipboard / combobox / date_picker /
   json_tree_view / link / nav_list /
   segment_group / signature_pad / slider
+  （`calendar` は golden（バイト一致）テストを既に持っており本リストの
+  対象外であったため除外。本節が「golden 不在」と誤記していた点はイシュー
+  #3132 の付随対応として是正した）
   （`toolbar` はイシュー #1547、`avatar` はイシュー #1554、`tree_view` は
   イシュー #1578、`link_overlay` はイシュー #1580、`scroll_area` は
   イシュー #1584、`toggle` はイシュー #2023、`toggle_group` はイシュー
