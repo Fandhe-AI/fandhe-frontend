@@ -873,7 +873,7 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
         "`error-text`/`required-indicator` は非該当状態で `hidden` 存在属性を付与する headless 側の fail-closed 描画に従い、`[hidden] { display: none; }` のみを重ねる（独自の表示切替ロジックは持たない）。",
         "hover / focus ring / transition はいずれも意図的に非採用（実フォーカスはコントロール側にあり、状態遷移に伴う視覚変化がないため）。",
         "`group` は複数 `Field`（`root`）を縦積みする外側コンテナ、`separator` は線のみ／テキスト付きの区切り線（`separator-line`/`separator-content` の 2 内部パーツから成る）、`content`/`title` は `<label for>` を結び付けられない場面（複数コントロールの見出し等）で `label` の代替として使う見出し + 補助テキストの列（イシュー #2185、shadcn/ui `FieldGroup`/`FieldSeparator`/`FieldContent`/`FieldTitle` 相当）。",
-        "`root_with_label_placement` で `orientation` とは独立なラベル配置 variant（`FieldLabelPlacement`: `Outside`（既定）/`Inset`/`Overlap`）を選べる（イシュー #3134）。`Inset` は `root` 自身に枠線・背景を持たせ内側上部にラベルを置き、`Overlap` はラベルを枠線の上へ重ねる。`Inset` は `:focus-within` で `root` へフォーカスリングを付与する（`input` 自身の `outline` を消す代わりのため、モジュール doc「意図的非採用（focus ring の例外）」節参照）。いずれも `orientation = Vertical` での使用のみを前提とする。",
+        "`root_with_label_placement` で `orientation` とは独立なラベル配置 variant（`FieldLabelPlacement`: `Outside`（既定）/`Inset`/`Overlap`）を選べる（イシュー #3134）。`Inset` は `root` 自身に枠線・背景を持たせ内側上部にラベルを置き、`Overlap` はラベルを枠線の上へ重ねる。どちらも枠線を `root` が描くため、invalid の枠線色・disabled の半透明化・`:focus-within` のフォーカスリングを `root` 側で表示し、`input` 自身の `outline`/`opacity` は打ち消す（モジュール doc「状態表示の対応表」節参照）。いずれも `orientation = Vertical` での使用のみを前提とする。",
     ],
     arguments: &[
         ArgRow {

@@ -33,7 +33,9 @@ headless-ui `field` scope を共有して提供します。`data-invalid` / `dat
 `overlap`（ラベルを枠線の上へ重ねる）を選べます（既定 `outside` は従来の
 `root` と同じ出力）。`inset` は縦に隣接させると枠線を共有して連結します
 （gap のない素の wrapper に並べる前提）。`overlap` は `--fandhe-field-label-bg`
-でラベル背景を地の色に合わせられます。いずれも `orientation = vertical`
+でラベル背景を地の色に合わせられます。どちらも枠線は `root` が描くため、
+`data-invalid`（枠線色）・`data-disabled`（半透明化）・フォーカスリングも
+`root` 側で表示されます。いずれも `orientation = vertical`
 での使用を前提とし、`horizontal`/`responsive` との併用は対象外です。
 
 `data-invalid` が立っているとき、Label のテキスト色もエラー色（`--fandhe-color-danger`）へ

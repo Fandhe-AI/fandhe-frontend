@@ -256,13 +256,36 @@
 //! - inset の内側に `helper-text`/`error-text` を置くと枠の中に表示される
 //!   （ARIA は id 結び付けのため、枠の外に出したい場合は root の外に置く）。
 //!
+//! ## 状態表示の対応表
+//!
+//! `Inset`/`Overlap` はどちらも枠線を `root` が描くため、`crate::input` が
+//! `input` 自身へ与える状態表示（invalid の `border-color`・disabled の
+//! `opacity`/`cursor`・focus のリング）をそのままにすると、枠のない
+//! `input` の矩形に沿って表示されて `root` の枠と二重になる。そこで両
+//! variant で同一の規則集合（`boxed_root_state_css`）を `root` 側へ持ち、
+//! `input` 側の同種宣言を子孫セレクタで打ち消す。
+//!
+//! | 状態 | `root`（Inset/Overlap 共通） | `input` 側の打ち消し |
+//! |------|------------------------------|----------------------|
+//! | `data-invalid` | `border-color: danger`（枠線全体） | なし（`input` は枠線を持たないため不要） |
+//! | `data-disabled` | `opacity: 0.5` + `cursor: not-allowed` | `opacity: 1`（0.5 × 0.5 の二重減衰を防ぐ） |
+//! | `data-readonly` | 視覚宣言なし（`crate::input` の意図的非採用に揃える） | なし |
+//! | `:focus-within` | 枠線の内側にリング（`FocusRingOffset::Inset`） | `:focus-visible { outline: none }` |
+//!
+//! 状態の重なりは別プロパティなので干渉しない: invalid + focus は
+//! エラー色の枠線 + リング（`crate::input` の挙動と同じ）、disabled は
+//! フォーカス不可のため focus と重ならない。`Inset` の縦連結では共有する
+//! 辺が先行要素の `border-bottom` になるため、後続要素だけが invalid の
+//! ときは `:has(+ ...[data-invalid])` で先行側の下辺をエラー色にする
+//! （focus/disabled は枠線色を変えないため、写すべき状態は invalid のみ）。
+//!
 //! ## 意図的非採用（focus ring の例外）
 //!
 //! モジュール doc 冒頭「意図的非採用」節は「実フォーカスはコントロール
-//! 側にあるため `root` は focus ring を持たない」としているが、`Inset` は
-//! この例外である: inset は `input` 自身の `outline` を消すため、代わりに
-//! `root` の `:focus-within` へフォーカスリングを付け、キーボードでの
-//! フォーカス表示が失われないようにする。
+//! 側にあるため `root` は focus ring を持たない」としているが、`Inset`/
+//! `Overlap` はこの例外である: いずれも `input` 自身の `outline` を消す
+//! ため、代わりに `root` の `:focus-within` へフォーカスリングを付け、
+//! キーボードでのフォーカス表示が失われないようにする。
 //!
 //! # セキュリティ不変条件
 //!
@@ -646,6 +669,10 @@ pub fn css() -> String {
     // :focus-within」のため、上記 2 ブロックと同型の直接追記で表す。
     // セレクタの class 部分は `recipe().variant_class(...)` から作るため、
     // HTML 側のクラス名と CSS 側のセレクタが構造的にずれない。
+    //
+    // 枠線を `root` が描く点は Inset/Overlap で共通のため、状態表示
+    // （invalid/disabled/focus）は `boxed_root_state_css` に一本化し、両
+    // variant が同じ規則集合を持つ（モジュール doc「状態表示の対応表」節）。
     let recipe = recipe();
     let inset_class = recipe.variant_class(FieldLabelPlacement::Inset);
     let overlap_class = recipe.variant_class(FieldLabelPlacement::Overlap);
@@ -659,19 +686,6 @@ pub fn css() -> String {
          border-radius: var(--fandhe-radius-md);\n  \
          background: var(--fandhe-color-bg);\n}}\n",
     ));
-    {
-        let mut focus_within =
-            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Inset);
-        focus_within.push(decl("z-index", "1"));
-        if let Some(block) =
-            crate::css::serialize_rule(&format!("{root_inset}:focus-within"), &focus_within)
-        {
-            out.push_str(&block);
-        }
-    }
-    out.push_str(&format!(
-        "{root_inset}[data-invalid] {{\n  border-color: var(--fandhe-color-danger);\n}}\n",
-    ));
     out.push_str(&format!(
         "{root_inset} > [data-scope=\"field\"][data-part=\"label\"] {{\n  \
          font-size: var(--fandhe-font-font-size-xs);\n}}\n",
@@ -681,32 +695,29 @@ pub fn css() -> String {
          height: auto;\n  padding: 0;\n  border: 0;\n  border-radius: 0;\n  \
          background: transparent;\n}}\n",
     ));
-    out.push_str(&format!(
-        "{root_inset} > [data-scope=\"field\"][data-part=\"input\"]:focus-visible {{\n  \
-         outline: none;\n}}\n",
-    ));
+    out.push_str(&boxed_root_state_css(&root_inset));
     // inset の縦連結（gap のない素の wrapper に並べる前提、モジュール doc
     // 「対象外」節参照）。先行・後続の双方が `border: 1px solid` を持つため
-    // `margin-top: -1px` だけで重ねると、共有する辺に 2 本の border が
-    // 同時に描画され二重線になる（codex-review 指摘、PR #3570）。後続要素の
-    // `border-top` を消し、共有する辺の描画を先行要素の `border-bottom` の
-    // みへ一本化する（この場合は重なりがないため `margin-top` も 0 に戻す）。
+    // 負マージンで重ねると共有する辺に 2 本の border が同時に描画される
+    // （codex-review 指摘、PR #3570）。後続要素の `border-top` を消し、
+    // 共有する辺の描画を先行要素の `border-bottom` のみへ一本化する。
     out.push_str(&format!(
         "{root_inset} + {root_inset} {{\n  \
-         margin-top: 0;\n  border-top: 0;\n  border-start-start-radius: 0;\n  border-start-end-radius: 0;\n}}\n",
+         border-top: 0;\n  border-start-start-radius: 0;\n  border-start-end-radius: 0;\n}}\n",
     ));
     out.push_str(&format!(
         "{root_inset}:has(+ {root_inset}) {{\n  \
          border-end-start-radius: 0;\n  border-end-end-radius: 0;\n}}\n",
     ));
-    // 後続フィールドが `data-invalid` のとき、共有する辺（先行要素の
-    // `border-bottom`。後続は上で `border-top: 0` のため）をエラー色へ
-    // 切り替える（codex-review 指摘、PR #3570）。先行要素自身が invalid の
-    // ときは上の `{root_inset}[data-invalid]` が既に境界線全体をエラー色に
-    // しているため、ここでは「後続のみ invalid」なケースを拾えば足りる。
-    // セレクタ `{root_inset}:has(+ {root_inset}[data-invalid])` は
-    // `:has()` 引数側の属性セレクタ 1 件分だけ平時の `[data-invalid]` 規則
-    // より詳細度が高く、宣言順に関わらず確実に上書きする。
+    // 共有する辺は先行要素の `border-bottom` なので、後続要素だけが
+    // `data-invalid` のときはそのままでは通常色のまま残る（codex-review
+    // 指摘、PR #3570）。CSS は前方参照できないため `:has(+ ...)` で後続の
+    // 状態を先行側へ写し、エラー枠の上辺を成立させる（`:has()` は上の
+    // 角丸規則で既に前提にしている）。`:has()` 引数側の属性セレクタ 1 件分
+    // だけ `{root_inset}[data-invalid]` より詳細度が高く、先行要素自身が
+    // invalid でも同じエラー色なので宣言順に依存しない。focus/disabled は
+    // 枠線色を変えない（focus はリング、disabled は opacity）ため、
+    // 共有する辺について写すべき状態は invalid のみ。
     out.push_str(&format!(
         "{root_inset}:has(+ {root_inset}[data-invalid]) {{\n  \
          border-bottom-color: var(--fandhe-color-danger);\n}}\n",
@@ -714,49 +725,71 @@ pub fn css() -> String {
     // overlap: root の base は position: relative を既に持つ（本モジュール
     // `recipe()` の `root` base 宣言参照）が、モジュール doc が謳う「root の
     // 枠線の上へ重ねる」を成立させるには root 自身が枠線を持つ必要がある
-    // （codex-review 指摘、PR #3570。従来は root に枠線がなく、ラベルが
-    // Field 全体の上端に浮くだけで何の線にも重ならなかった）。
+    // （codex-review 指摘、PR #3570）。input 自身も既定（Outline variant）で
+    // `border: 1px solid` を持つ（`input.rs` 参照）ため、root 側を単一の
+    // 枠として統一し input 側の枠線は消す（codex-review/Bugbot 指摘）。
     out.push_str(&format!(
         "{root_overlap} {{\n  \
          border: 1px solid var(--fandhe-color-border);\n  \
          border-radius: var(--fandhe-radius-md);\n}}\n",
     ));
     out.push_str(&format!(
-        "{root_overlap}[data-invalid] {{\n  border-color: var(--fandhe-color-danger);\n}}\n",
-    ));
-    // input 自身も既定（Outline variant）で `border: 1px solid` を持つ
-    // （`input.rs` 参照）ため、root 側の枠線と合わせて二重枠線になる
-    // （codex-review/Bugbot 指摘、PR #3570）。root 側を単一の枠として
-    // 統一し、input 側の枠線は消す。
-    out.push_str(&format!(
         "{root_overlap} > [data-scope=\"field\"][data-part=\"input\"] {{\n  \
          border: 0;\n}}\n",
     ));
-    // input 自身の `:focus-visible` outline（`input.rs` 既定）が root の
-    // 枠線より内側へ input 矩形沿いのリングとして残り、キーボードフォーカス
-    // 時に二重のフォーカス表示になる（codex-review 指摘、PR #3570）。
-    // Inset と同様、input 側の outline を消し root 側の `:focus-within` で
-    // 枠線全体を縁取るリングへ一体化する。
-    {
-        let mut focus_within =
-            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Inset);
-        focus_within.push(decl("z-index", "1"));
-        if let Some(block) =
-            crate::css::serialize_rule(&format!("{root_overlap}:focus-within"), &focus_within)
-        {
-            out.push_str(&block);
-        }
-    }
-    out.push_str(&format!(
-        "{root_overlap} > [data-scope=\"field\"][data-part=\"input\"]:focus-visible {{\n  \
-         outline: none;\n}}\n",
-    ));
+    out.push_str(&boxed_root_state_css(&root_overlap));
     out.push_str(&format!(
         "{root_overlap} > [data-scope=\"field\"][data-part=\"label\"] {{\n  \
          position: absolute;\n  top: 0;\n  inset-inline-start: var(--fandhe-space-2);\n  \
          z-index: 1;\n  transform: translateY(-50%);\n  padding-inline: var(--fandhe-space-1);\n  \
          font-size: var(--fandhe-font-font-size-xs);\n  \
          background-color: var(--fandhe-field-label-bg, var(--fandhe-color-bg));\n}}\n",
+    ));
+    out
+}
+
+/// `root` 自身が枠線を描く配置（`Inset`/`Overlap`）に共通する状態表示の
+/// 規則を組み立てる（内部ヘルパ、[`css`] のみが呼ぶ。イシュー #3134、
+/// モジュール doc「状態表示の対応表」節参照）。`root_selector` は
+/// `[data-scope="field"][data-part="root"].<variant class>` 形式の完全な
+/// セレクタで、戻り値はそのセレクタを前置した規則群。
+///
+/// `crate::input::css` が `input` 自身へ与える invalid（`border-color`）・
+/// disabled（[`disabled_declarations`]）・focus（[`focus_ring_declarations`]）
+/// の 3 状態を、枠線を描く側である `root` へそのまま写す。`input` 側の
+/// 同種宣言は枠線がない状態では二重表示（焦点リングが枠より内側に出る、
+/// opacity が 0.5 × 0.5 に重なる）になるため、子孫セレクタで打ち消す。
+/// `data-readonly` は `input.rs` と同じく視覚宣言を持たない（意図的非採用、
+/// `crate::input` モジュール doc 参照）。
+fn boxed_root_state_css(root_selector: &str) -> String {
+    let mut out = String::new();
+    out.push_str(&format!(
+        "{root_selector}[data-invalid] {{\n  border-color: var(--fandhe-color-danger);\n}}\n",
+    ));
+    if let Some(block) = crate::css::serialize_rule(
+        &format!("{root_selector}[data-disabled]"),
+        &disabled_declarations(),
+    ) {
+        out.push_str(&block);
+    }
+    // `input.rs` の `[data-disabled]` 規則（opacity: 0.5）が root の opacity と
+    // 掛け合わさり 0.25 まで薄くなるのを防ぐ（減衰は root 側の 1 回のみ）。
+    out.push_str(&format!(
+        "{root_selector}[data-disabled] > [data-scope=\"field\"][data-part=\"input\"] {{\n  \
+         opacity: 1;\n}}\n",
+    ));
+    // リングは枠線の内側に描く（`FocusRingOffset::Inset`）。`Inset` 連結時の
+    // 後続要素は `border-top: 0` で先行要素と重ならないため、重ね順の調整
+    // （z-index）は不要。
+    if let Some(block) = crate::css::serialize_rule(
+        &format!("{root_selector}:focus-within"),
+        &focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Inset),
+    ) {
+        out.push_str(&block);
+    }
+    out.push_str(&format!(
+        "{root_selector} > [data-scope=\"field\"][data-part=\"input\"]:focus-visible {{\n  \
+         outline: none;\n}}\n",
     ));
     out
 }
@@ -1107,6 +1140,31 @@ mod tests {
             "[data-scope=\"field\"][data-part=\"root\"].fd-field--label-placement-overlap {\n  \
              border: 1px solid var(--fandhe-color-border);\n"
         ));
+    }
+
+    #[test]
+    fn css_inset_and_overlap_share_boxed_root_state_rules() {
+        // モジュール doc「状態表示の対応表」節: 両 variant の状態規則は
+        // `boxed_root_state_css` 由来で同一であることを固定する。
+        let out = css();
+        let inset = "[data-scope=\"field\"][data-part=\"root\"].fd-field--label-placement-inset";
+        let overlap =
+            "[data-scope=\"field\"][data-part=\"root\"].fd-field--label-placement-overlap";
+        let normalize = |s: &str| s.replace(inset, "ROOT").replace(overlap, "ROOT");
+        assert_eq!(
+            normalize(&boxed_root_state_css(inset)),
+            normalize(&boxed_root_state_css(overlap))
+        );
+        for root in [inset, overlap] {
+            assert!(out.contains(&boxed_root_state_css(root)));
+            assert!(!out.contains(&format!("{root}[data-readonly]")));
+            assert!(out.contains(&format!("{root}[data-disabled] {{\n  opacity: 0.5;")));
+            assert!(out.contains(&format!(
+                "{root}[data-disabled] > [data-scope=\"field\"][data-part=\"input\"] {{\n  opacity: 1;\n}}\n"
+            )));
+        }
+        // 連結時に重なりがないため z-index は不要（dead 宣言を持たない）。
+        assert!(!out.contains(":focus-within {\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));\n  z-index"));
     }
 
     #[test]

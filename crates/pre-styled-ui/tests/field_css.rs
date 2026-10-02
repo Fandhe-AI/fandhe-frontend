@@ -205,14 +205,6 @@ const FIELD_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="root"] {
   border-radius: var(--fandhe-radius-md);
   background: var(--fandhe-color-bg);
 }
-[data-scope="field"][data-part="root"].fd-field--label-placement-inset:focus-within {
-  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
-  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
-  z-index: 1;
-}
-[data-scope="field"][data-part="root"].fd-field--label-placement-inset[data-invalid] {
-  border-color: var(--fandhe-color-danger);
-}
 [data-scope="field"][data-part="root"].fd-field--label-placement-inset > [data-scope="field"][data-part="label"] {
   font-size: var(--fandhe-font-font-size-xs);
 }
@@ -223,11 +215,24 @@ const FIELD_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="root"] {
   border-radius: 0;
   background: transparent;
 }
+[data-scope="field"][data-part="root"].fd-field--label-placement-inset[data-invalid] {
+  border-color: var(--fandhe-color-danger);
+}
+[data-scope="field"][data-part="root"].fd-field--label-placement-inset[data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+[data-scope="field"][data-part="root"].fd-field--label-placement-inset[data-disabled] > [data-scope="field"][data-part="input"] {
+  opacity: 1;
+}
+[data-scope="field"][data-part="root"].fd-field--label-placement-inset:focus-within {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
+}
 [data-scope="field"][data-part="root"].fd-field--label-placement-inset > [data-scope="field"][data-part="input"]:focus-visible {
   outline: none;
 }
 [data-scope="field"][data-part="root"].fd-field--label-placement-inset + [data-scope="field"][data-part="root"].fd-field--label-placement-inset {
-  margin-top: 0;
   border-top: 0;
   border-start-start-radius: 0;
   border-start-end-radius: 0;
@@ -243,16 +248,22 @@ const FIELD_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="root"] {
   border: 1px solid var(--fandhe-color-border);
   border-radius: var(--fandhe-radius-md);
 }
+[data-scope="field"][data-part="root"].fd-field--label-placement-overlap > [data-scope="field"][data-part="input"] {
+  border: 0;
+}
 [data-scope="field"][data-part="root"].fd-field--label-placement-overlap[data-invalid] {
   border-color: var(--fandhe-color-danger);
 }
-[data-scope="field"][data-part="root"].fd-field--label-placement-overlap > [data-scope="field"][data-part="input"] {
-  border: 0;
+[data-scope="field"][data-part="root"].fd-field--label-placement-overlap[data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+[data-scope="field"][data-part="root"].fd-field--label-placement-overlap[data-disabled] > [data-scope="field"][data-part="input"] {
+  opacity: 1;
 }
 [data-scope="field"][data-part="root"].fd-field--label-placement-overlap:focus-within {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
   outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
-  z-index: 1;
 }
 [data-scope="field"][data-part="root"].fd-field--label-placement-overlap > [data-scope="field"][data-part="input"]:focus-visible {
   outline: none;
@@ -682,4 +693,107 @@ fn root_with_label_placement_inset_and_overlap_apply_single_class() {
     ));
     assert!(overlap_html.contains("fd-field--label-placement-overlap"));
     assert!(!overlap_html.contains("fd-field--label-placement-inset"));
+}
+
+/// 状態表示の対応表（`field.rs` モジュール doc「状態表示の対応表」節、
+/// PR #3570 レビュー指摘是正）: 枠線を `root` が描く `Inset`/`Overlap` の
+/// 両 variant が、invalid / disabled / readonly / focus の 4 状態で同一の
+/// 規則集合を持つことを固定する。
+#[test]
+fn css_boxed_label_placements_share_state_rules() {
+    let css = field::css();
+    for variant in ["inset", "overlap"] {
+        let root = format!(
+            r#"[data-scope="field"][data-part="root"].fd-field--label-placement-{variant}"#
+        );
+        let input = r#"[data-scope="field"][data-part="input"]"#;
+        // invalid: 枠線全体をエラー色にする（`crate::input` の `data-invalid` と同じ色）。
+        assert!(
+            css.contains(&format!(
+                "{root}[data-invalid] {{\n  border-color: var(--fandhe-color-danger);\n}}\n"
+            )),
+            "{variant}: invalid"
+        );
+        // disabled: root 側で 1 回だけ減衰し、input 側の opacity は打ち消す。
+        assert!(
+            css.contains(&format!(
+                "{root}[data-disabled] {{\n  opacity: 0.5;\n  cursor: not-allowed;\n}}\n"
+            )),
+            "{variant}: disabled"
+        );
+        assert!(
+            css.contains(&format!(
+                "{root}[data-disabled] > {input} {{\n  opacity: 1;\n}}\n"
+            )),
+            "{variant}: disabled input opacity reset"
+        );
+        // readonly: `crate::input` と同じく視覚宣言を持たない。
+        assert!(
+            !css.contains(&format!("{root}[data-readonly]")),
+            "{variant}: readonly"
+        );
+        // focus: input の outline を消し、root の :focus-within へ枠線内側のリングを一体化する。
+        assert!(
+            css.contains(&format!(
+                "{root}:focus-within {{\n  \
+                 outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  \
+                 outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));\n}}\n"
+            )),
+            "{variant}: focus-within ring"
+        );
+        assert!(
+            css.contains(&format!(
+                "{root} > {input}:focus-visible {{\n  outline: none;\n}}\n"
+            )),
+            "{variant}: input outline reset"
+        );
+        // input 側の枠線は消す（root が唯一の枠）。
+        assert!(
+            css.contains(&format!("{root} > {input} {{\n")),
+            "{variant}: input reset block"
+        );
+    }
+}
+
+/// `Inset` の縦連結で共有する辺（先行要素の `border-bottom`）が、後続要素
+/// だけが invalid のときもエラー色になることを固定する（PR #3570 レビュー
+/// 指摘是正）。後続は `border-top: 0` で枠線を 1 本に保つ。
+#[test]
+fn css_inset_adjacent_shared_border_follows_following_invalid_state() {
+    let css = field::css();
+    let root = r#"[data-scope="field"][data-part="root"].fd-field--label-placement-inset"#;
+    assert!(css.contains(&format!(
+        "{root} + {root} {{\n  border-top: 0;\n  border-start-start-radius: 0;\n  border-start-end-radius: 0;\n}}\n"
+    )));
+    assert!(css.contains(&format!(
+        "{root}:has(+ {root}[data-invalid]) {{\n  border-bottom-color: var(--fandhe-color-danger);\n}}\n"
+    )));
+}
+
+/// `Inset`/`Overlap` の `root` が headless の状態フラグ（`data-invalid`/
+/// `data-disabled`/`data-readonly`）をそのまま持ち、上記 CSS の状態セレクタ
+/// と実レンダリング出力が結び付くことを確認する。
+#[test]
+fn boxed_label_placement_roots_carry_state_flags() {
+    for placement in [FieldLabelPlacement::Inset, FieldLabelPlacement::Overlap] {
+        let f = FieldProps {
+            id: "f",
+            ids: FieldIds::default(),
+            disabled: true,
+            invalid: true,
+            required: false,
+            readonly: true,
+            has_helper_text: false,
+        };
+        let html = render(&field::root_with_label_placement(
+            &FieldRootProps::default(),
+            placement,
+            &f,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"data-readonly="""#));
+    }
 }

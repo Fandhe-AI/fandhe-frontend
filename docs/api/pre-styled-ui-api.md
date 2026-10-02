@@ -829,9 +829,9 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
   従属するレイアウト部品の root は size 軸を持たないという規約、フォーム
   入力系は palette 非提供という §4f と同じ判断）。
 - **意図的非採用**: hover（`root`/`label` は非インタラクティブ）・focus
-  ring（実フォーカスはコントロール側。`FieldLabelPlacement::Inset` は
-  `input` 自身の outline を消すため、代わりに `root` の `:focus-within`
-  へ focus ring を付与する例外を 1 件持つ、下記参照）・transition（状態
+  ring（実フォーカスはコントロール側。`FieldLabelPlacement::Inset`/
+  `Overlap` は `input` 自身の outline を消すため、代わりに `root` の
+  `:focus-within` へ focus ring を付与する例外を持つ、下記参照）・transition（状態
   遷移する視覚がない）・`data-readonly`/`data-invalid` によるラベル色
   変更（chakra-ui v3 も持たない）。
 - **`FieldLabelPlacement`（ラベル配置、イシュー #3134）**: `orientation` と
@@ -842,6 +842,11 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
   wrapper に並べることが前提）。`Overlap` はラベルを `root` の枠線の上へ
   絶対配置で重ね、`--fandhe-field-label-bg`（既定
   `var(--fandhe-color-bg)`）でラベル背景を地の色へ合わせられる。
+  枠線を `root` が描く両 variant は状態表示（invalid の `border-color`・
+  disabled の `opacity`/`cursor`・focus のリング）も `root` 側へ写し、
+  `input` 側の同種宣言（outline・opacity）を打ち消して二重表示を避ける
+  （`readonly` は `input` と同じく視覚宣言なし。4 状態 × 2 variant の
+  対応表は `field.rs` モジュール doc「状態表示の対応表」節）。
   いずれも `orientation = Vertical` での使用のみを前提とし、
   `Horizontal`/`Responsive` との併用・`forms_motion` の floating label
   との併用は対象外。既定（`Outside`）はクラスを出力せず `root()` の
