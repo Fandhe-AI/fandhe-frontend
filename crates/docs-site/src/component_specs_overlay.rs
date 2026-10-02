@@ -588,21 +588,39 @@ fn ex_button_group_split_button() -> Node {
     );
     // menu::trigger の既定背景（`var(--fandhe-color-bg)`、menu.rs 参照）は
     // 塗りではないため、主操作ボタン（`ButtonVariant::Solid`、既定 palette
-    // `Accent`）と同じ塗りに揃えるインライン style で上書きする（codex P2
-    // 指摘、PR #3561。menu トリガー専用の塗り variant を新設するほどの
-    // 再利用性はなく、この合成例限定の視覚合わせのため `style` 属性で足りる）。
+    // `Accent`）と同じ塗りに揃える必要がある。インライン `style` 属性の
+    // `background` は（`:hover` を含む）いかなるセレクタ規則よりも常に
+    // 優先されてしまい、menu.rs の hover 規則（`[data-scope="menu"]
+    // [data-part="trigger"]:not([data-disabled]):hover { background:
+    // var(--fandhe-hover-bg); }`）を恒久的に覆い隠して hover 表示が効かなく
+    // なる（codex P2 指摘、PR #3561）。menu トリガー専用の塗り variant を
+    // 新設するほどの再利用性はないため、この合成例限定で一意な `id` を
+    // 付与し、スコープ付き `<style>`（下記 `menu_trigger_style`）で
+    // 既定/`:hover` 双方を ID セレクタ（属性セレクタ合成より詳細度が高く
+    // `@media (hover: hover)` にも依存しない）として定義する。
+    const SPLIT_MENU_TRIGGER_ID: &str = "button-group-split-menu-trigger";
     let menu_trigger = menu::trigger(
         OpenState::Closed,
         false,
         Some("button-group-split-menu-content"),
         vec![
             ("aria-label", "その他のデプロイ操作"),
-            (
-                "style",
-                "background: var(--fandhe-color-accent); color: var(--fandhe-color-accent-fg); border: none;",
-            ),
+            ("id", SPLIT_MENU_TRIGGER_ID),
         ],
         vec![text("\u{25be}")],
+    );
+    // 上記 `id` のみを対象にした最小スコープ CSS。ID セレクタのため
+    // `:hover` 規則も含めて menu.rs の既定 state 規則より確実に優先される。
+    // `<style>` 子テキストは REQ-1 既定エスケープ（`text()`）を経由するが、
+    // ここでは `>`/`<`/`&` を一切含まないセレクタ・宣言のみのため実体参照化
+    // による破損は起きない（`crates/cli/embedded-examples/wireframe-ui/
+    // src/main.rs` モジュール doc「CSS の出力方式」節と同型の注意点）。
+    let menu_trigger_style = el(
+        "style",
+        vec![],
+        vec![text(format!(
+            "#{SPLIT_MENU_TRIGGER_ID} {{ background: var(--fandhe-color-accent); color: var(--fandhe-color-accent-fg); border: none; }} #{SPLIT_MENU_TRIGGER_ID}:hover {{ background: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized)); }}"
+        ))],
     );
     let menu_content = menu::content(
         OpenState::Closed,
@@ -633,11 +651,17 @@ fn ex_button_group_split_button() -> Node {
         vec![],
         vec![menu_trigger, menu_positioner],
     );
-    button_group::root(
-        Orientation::Horizontal,
-        "デプロイ操作",
+    div(
         vec![],
-        vec![primary, split_menu],
+        vec![
+            menu_trigger_style,
+            button_group::root(
+                Orientation::Horizontal,
+                "デプロイ操作",
+                vec![],
+                vec![primary, split_menu],
+            ),
+        ],
     )
 }
 
