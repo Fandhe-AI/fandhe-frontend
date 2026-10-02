@@ -123,7 +123,14 @@ scroll-down-button の base 3 ブロックを `hidden-select` ブロック直後
 〔唯一の既存行変更、描画結果は同値〕。3 定数（`SELECT_GOLDEN_CSS`/
 `SELECT_GOLDEN_CSS_BEFORE_2391`/`GOLDEN_PREFIX_THROUGH_HIDDEN_SELECT`）の
 trigger 行を同期し、新規 `Shape::Pill` variant ブロックは
-`SELECT_GOLDEN_CSS` の size-xl ブロック直後へ追加した）** /
+`SELECT_GOLDEN_CSS` の size-xl ブロック直後へ追加した。イシュー #3121
+で見た目 variant 軸（`SelectVariant::Subtle`）を追加し、trigger base の
+`background`/`border` の 2 行を固定値から
+`var(--fandhe-select-trigger-bg, var(--fandhe-color-bg))`/
+`var(--fandhe-select-trigger-border-color, var(--fandhe-color-border))`
+参照へ変更〔3 定数とも同期、描画結果は同値〕。新規
+`fd-select--variant-subtle` variant ブロックは `fd-select--shape-pill`
+ブロック直後へ純追加した）** /
 separator / **sidebar（イシュー #2073 で golden 新設。
 `stylesheet()` 全文）** / skeleton / skip_nav / **spinner（イシュー #1567 で
 golden 新設）** / splitter / stat / steps / switch /

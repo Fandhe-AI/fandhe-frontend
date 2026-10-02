@@ -225,12 +225,21 @@ re-export（規約 A）へ移行したため本数から外れた。現況は `p
 | `toggle_tip` | `OpenState` / `DisclosureAction` | `state`（`tooltip` と同型の glob re-export） |
 | `collapsible` | `OpenState` / `DisclosureAction` | `state`（`toggle_tip` と同型の glob re-export、イシュー #1682） |
 
-`select` は共通 shape 軸（`recipe::Shape`）を `root_with(size, shape:
-Option<Shape>, state, props, attrs, children)` で提供する（既存
+`select` は共通 shape 軸（`recipe::Shape`）と見た目 variant 軸
+（`SelectVariant`）を `root_with(size, shape: Option<Shape>, variant:
+SelectVariant, state, props, attrs, children)` で提供する（既存
 `root(size, state, props, attrs, children)` はシグネチャ不変のまま
-`shape: None` で `root_with` へ委譲、イシュー #3117）。`Pill` は root の
-CSS 変数 `--fandhe-select-trigger-radius` を上書きし、trigger の
-`border-radius` へ伝搬する。`Circle` は未登録。
+`shape: None` + `SelectVariant::Outline` で `root_with` へ委譲、shape は
+イシュー #3117、variant はイシュー #3121）。`Pill` は root の CSS 変数
+`--fandhe-select-trigger-radius` を上書きし、trigger の `border-radius`
+へ伝搬する。`Circle` は未登録（select の trigger は value-text +
+indicator を横並びにする構造で真円にする用途がないため）。
+`SelectVariant`（`Outline`〔既定〕/`Subtle`）は `native_select::
+NativeSelectVariant` と同型の軸で、`Subtle` は root の CSS 変数
+`--fandhe-select-trigger-bg`/`--fandhe-select-trigger-border-color` を
+上書きし trigger を淡色背景・枠線なしにする。`Outline`（既定）は
+`default_variant` を登録していないため class を一切出さず、`root()` の
+既存出力はバイト単位で不変。
 
 `ActivationMode`/`TabItem`/`TabsProps`（tabs）・`DialogRole`/`ContentIds`
 （dialog）・`SelectAction`（select）は各 headless モジュール内定義のため
@@ -683,7 +692,8 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
   （headless から再エクスポートした `FieldProps`/`FieldIds`）を別引数として
   受け取る（ark-ui/chakra-ui が見た目 props とフォーム状態 props を分離
   する構成に合わせる）。
-- **`variant` 軸**: `Outline`（既定）/`Subtle`/`Flushed` の 3 値
+- **`variant` 軸**: `Outline`（既定）/`Subtle`/`Flushed`/`SubtleFlushed`
+  （淡色背景＋下線のみ、`input` のみ、イシュー #3122）の 4 値
   （`native_select` のみ `Flushed` の代わりに枠なしの `Plain`）。
 - **`color-palette` 軸を提供しない**: §4d「複合部品の variant 統一方針」
   の基準 3（`color-palette` は選択・チェック状態を示す部品へ提供する）に

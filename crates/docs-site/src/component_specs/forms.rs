@@ -71,12 +71,14 @@ use fandhe_frontend_pre_styled_ui::native_select;
 use fandhe_frontend_pre_styled_ui::pin_input;
 use fandhe_frontend_pre_styled_ui::radio_group;
 use fandhe_frontend_pre_styled_ui::radio_group::RadioGroupProps;
+use fandhe_frontend_pre_styled_ui::select;
+use fandhe_frontend_pre_styled_ui::select::{SelectProps, SelectVariant};
 use fandhe_frontend_pre_styled_ui::signature_pad;
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::switch;
 use fandhe_frontend_pre_styled_ui::switch::SwitchProps;
 use fandhe_frontend_pre_styled_ui::{BadgeProps, KbdProps};
-use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Orientation, Size};
+use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Orientation, Shape, Size};
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
 
@@ -2057,6 +2059,115 @@ fn radio_group_with_description_example() -> Node {
     )
 }
 
+/// [`SELECT`] の Examples 節「pill 形状（shape 軸）」（イシュー #3121）が
+/// 呼ぶレンダラ。`select::root_with` に `Some(Shape::Pill)` を渡す以外は
+/// `crate::blocks::application::settings::settings_share_link` の
+/// `domain_select` 合成（`select::root`/`trigger`/`value_text`/`indicator`/
+/// `positioner`/`content`/`item`/`item_text` の組み方）と同型であり、新しい
+/// HTML 文字列組み立てを追加しない（`.claude/rules/security.md` A03）。
+fn select_shape_pill_example() -> Node {
+    select_example_root(Some(Shape::Pill), SelectVariant::Outline, "shape-pill")
+}
+
+/// [`SELECT`] の Examples 節「淡色背景の pill（Subtle variant）」（イシュー
+/// #3121）が呼ぶレンダラ。R1371（pill 形状 + 淡色背景の select トリガー）を
+/// 想定した組み合わせ例であり、`Shape::Pill` と `SelectVariant::Subtle` を
+/// 併用する。
+fn select_pill_subtle_example() -> Node {
+    select_example_root(Some(Shape::Pill), SelectVariant::Subtle, "pill-subtle")
+}
+
+/// [`select_shape_pill_example`]/[`select_pill_subtle_example`] が共有する
+/// select 合成。id prefix は呼び出し側ごとに変え、同一ページ内で id が
+/// 衝突しないようにする。
+fn select_example_root(shape: Option<Shape>, variant: SelectVariant, id_prefix: &str) -> Node {
+    let props = SelectProps::default();
+    let label_id = format!("select-{id_prefix}-label");
+    let content_id = format!("select-{id_prefix}-content");
+    select::root_with(
+        Size::Md,
+        shape,
+        variant,
+        OpenState::Closed,
+        &props,
+        vec![],
+        vec![
+            select::label(
+                &props,
+                Some(&label_id),
+                vec![],
+                vec![text("フレームワーク")],
+            ),
+            select::control(
+                OpenState::Closed,
+                &props,
+                vec![],
+                vec![select::trigger(
+                    OpenState::Closed,
+                    &props,
+                    false,
+                    Some(&content_id),
+                    Some(&label_id),
+                    vec![],
+                    vec![
+                        select::value_text(false, &props, vec![], vec![text("React")]),
+                        select::indicator(OpenState::Closed, &props, vec![], vec![]),
+                    ],
+                )],
+            ),
+            select::positioner(
+                OpenState::Closed,
+                vec![],
+                vec![select::content(
+                    OpenState::Closed,
+                    Some(&content_id),
+                    Some(&label_id),
+                    None,
+                    vec![],
+                    vec![
+                        select::item(
+                            OpenState::Open,
+                            &props,
+                            false,
+                            false,
+                            "react",
+                            None,
+                            vec![],
+                            vec![select::item_text(
+                                OpenState::Open,
+                                &props,
+                                false,
+                                false,
+                                None,
+                                vec![],
+                                vec![text("React")],
+                            )],
+                        ),
+                        select::item(
+                            OpenState::Closed,
+                            &props,
+                            false,
+                            false,
+                            "svelte",
+                            None,
+                            vec![],
+                            vec![select::item_text(
+                                OpenState::Closed,
+                                &props,
+                                false,
+                                false,
+                                None,
+                                vec![],
+                                vec![text("Svelte")],
+                            )],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    )
+}
+
 const RATING_GROUP: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "`size`/`colorPalette` variant クラスを `root` へ付与し、headless-ui の `rating_group::root` へ委譲する。",
@@ -2161,6 +2272,8 @@ const SELECT: ComponentPageSpec = ComponentPageSpec {
         "`trigger` パーツが `aria-haspopup=\"listbox\"` を固定付与し、`content`/`label` との関連付けを `aria-controls`/`aria-labelledby` で行う。",
         "`content` パーツの `aria-activedescendant` は選択中アイテムの `id` を参照する（select-only combobox パターン）。",
         "separator / scroll-up-button / scroll-down-button の着装（イシュー #2186）: headless-ui の 3 新設パーツを再エクスポートし、`position: sticky` で content 上下端に固定するボタン・`height`/`background` の区切り線を recipe へ登録する。可視性判定・押下時の実スクロールは wasm-full 後続イシューの範囲。",
+        "共通 shape 軸（イシュー #3117）: `root_with` が `Option<Shape>` を受け取り、`Shape::Pill` を渡すと trigger が完全な丸型角丸になる。`Shape::Circle` は trigger が value-text + indicator を横並びにする構造で真円にする用途がないため未登録。",
+        "variant 軸（イシュー #3121）: `root_with` が `SelectVariant`（`Outline`〔既定〕/`Subtle`）を受け取る。`Subtle` は trigger を淡色背景・枠線なしにする（`native_select::NativeSelectVariant::Subtle`・chakra-ui `Select` の `variant: subtle` に揃える）。`Outline`（既定）のときは class を一切出さず [`select::root`] と出力が変わらない。",
     ],
     arguments: &[
         ArgRow {
@@ -2187,8 +2300,31 @@ const SELECT: ComponentPageSpec = ComponentPageSpec {
             default: "",
             description: "root 配下の子ノード（通常 trigger/content を含む）。",
         },
+        ArgRow {
+            name: "shape",
+            kind: "Option<Shape>",
+            default: "None",
+            description: "共通 shape 軸（イシュー #3117）。`root_with` 経由の opt-in 引数。`Some(Shape::Pill)` で trigger を丸型角丸にする。`Circle` は未登録。",
+        },
+        ArgRow {
+            name: "variant",
+            kind: "SelectVariant",
+            default: "SelectVariant::Outline",
+            description: "見た目 variant（イシュー #3121）。`root_with` 経由の opt-in 引数。`Subtle` で trigger を淡色背景・枠線なしにする。",
+        },
     ],
-    examples: &[],
+    examples: &[
+        ExampleEntry {
+            title: "pill 形状（shape 軸）",
+            description: "`select::root_with` に `Some(Shape::Pill)` を渡し、trigger を完全な丸型角丸にする例です（イシュー #3117）。`Circle` は select の trigger が value-text + indicator を横並びにする構造のため未登録です。",
+            render: select_shape_pill_example,
+        },
+        ExampleEntry {
+            title: "淡色背景の pill（Subtle variant）",
+            description: "`Shape::Pill` と `SelectVariant::Subtle` を併用し、淡色背景・枠線なしの pill 形状 trigger にする例です（イシュー #3121）。chakra-ui `Select` の `variant: subtle` に揃えた見た目です。",
+            render: select_pill_subtle_example,
+        },
+    ],
     keyboard: &[],
     aria: &[
         AriaRow {

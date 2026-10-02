@@ -60,6 +60,24 @@
 //! `--fandhe-arrow-*` の消費は Select には追加しない。
 
 //!
+//! # variant 軸（イシュー #3121、親 #3116）
+//!
+//! `native_select::NativeSelectVariant`・chakra-ui `Select` の
+//! `variant: outline | subtle` に揃え、`SelectVariant { Outline, Subtle }`
+//! を追加する。`trigger` の `background`/`border` を固定値から CSS 変数
+//! 参照（`--fandhe-select-trigger-bg`/`--fandhe-select-trigger-border-color`、
+//! フォールバックは変更前の固定値と同一）へ変え、`Subtle` が root スコープ
+//! でこれらを `var(--fandhe-color-bg-subtle)`/`transparent` へ上書きする
+//! （`--fandhe-select-trigger-radius` と同型の root → trigger 伝搬）。
+//! **`default_variant` は登録しない**: `Outline` のとき `selection` へ
+//! `("variant", ..)` を積まず、[`crate::recipe::SlotRecipe::variant_classes`]
+//! は `default_variant` 未登録の axis を補完しないため class を一切出さ
+//! ない。これにより `Shape::None` と同じく既存出力をバイト単位で変えない。
+//! `Circle` は select の trigger が value-text + indicator を横並びにする
+//! 構造で真円にする用途がなく、#3117/native_select 共通テキストボタンの
+//! 判断を踏襲し未登録のままとする。
+
+//!
 //! # hidden-select の視覚的非表示化・positioner のオーバーレイ配置（PR #575 Bugbot 指摘対応）
 //!
 //! `hidden-select` は form 送信用のネイティブ `<select>` を保持する専用パーツで、
@@ -312,6 +330,31 @@ pub use fandhe_frontend_headless_ui::select::{
 // 明示再エクスポート（イシュー #685）。
 pub use fandhe_frontend_headless_ui::state::OpenState;
 
+/// Select の見た目 variant（イシュー #3121。`native_select::NativeSelectVariant`・
+/// chakra-ui `Select` の `variant: outline | subtle` に揃える。モジュール
+/// rustdoc「variant 軸（イシュー #3121）」節参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SelectVariant {
+    /// 枠線あり（既定）。
+    #[default]
+    Outline,
+    /// 淡色背景・枠線なし。
+    Subtle,
+}
+
+impl VariantValue for SelectVariant {
+    fn axis(self) -> &'static str {
+        "variant"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::Outline => "outline",
+            Self::Subtle => "subtle",
+        }
+    }
+}
+
 /// headless `select` anatomy の `data-part` 一覧（`crates/headless-ui/src/select.rs`
 /// の `ANATOMY.part(...)` 呼び出しと同期させる契約）。
 const SLOTS: &[&str] = &[
@@ -356,9 +399,23 @@ fn recipe() -> SlotRecipe {
                 decl("align-items", "center"),
                 decl("justify-content", "space-between"),
                 decl("gap", "var(--fandhe-space-2)"),
-                decl("background", "var(--fandhe-color-bg)"),
+                // イシュー #3121: root の `SelectVariant::Subtle` variant が
+                // `--fandhe-select-trigger-bg`/`--fandhe-select-trigger-
+                // border-color` を上書きすることで trigger を淡色背景化
+                // する（`--fandhe-select-trigger-radius` と同型の root →
+                // trigger 伝搬イディオム）。フォールバック値は変更前の
+                // 固定値と同一のため、variant 未指定時の描画結果はバイト
+                // 同一値のまま（モジュール rustdoc「variant 軸（イシュー
+                // #3121）」節参照）。
+                decl(
+                    "background",
+                    "var(--fandhe-select-trigger-bg, var(--fandhe-color-bg))",
+                ),
                 decl("color", "var(--fandhe-color-fg)"),
-                decl("border", "1px solid var(--fandhe-color-border)"),
+                decl(
+                    "border",
+                    "1px solid var(--fandhe-select-trigger-border-color, var(--fandhe-color-border))",
+                ),
                 // イシュー #3117: root の `Shape::Pill` variant が
                 // `--fandhe-select-trigger-radius` を上書きすることで
                 // trigger を pill 形状にする（`--fandhe-select-trigger-
@@ -792,6 +849,20 @@ fn recipe() -> SlotRecipe {
                 "var(--fandhe-radius-full)",
             )],
         )
+        // イシュー #3121: variant 軸。`default_variant` は登録しない
+        // （`Outline` のとき class を一切出さず既存出力を不変に保つ、
+        // モジュール rustdoc「variant 軸（イシュー #3121）」節参照）。
+        .variant(
+            SelectVariant::Subtle,
+            "root",
+            vec![
+                decl(
+                    "--fandhe-select-trigger-bg",
+                    "var(--fandhe-color-bg-subtle)",
+                ),
+                decl("--fandhe-select-trigger-border-color", "transparent"),
+            ],
+        )
         .default_variant(Size::Md)
         // イシュー #2391: `content` へ presence（enter/exit）のフェード +
         // scale トランジションを適用する。duration は select 内の他の
@@ -838,35 +909,48 @@ pub fn root<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    root_with(size, None, state, props, attrs, children)
+    root_with(
+        size,
+        None,
+        SelectVariant::Outline,
+        state,
+        props,
+        attrs,
+        children,
+    )
 }
 
-/// [`root`] の shape 引数付き版（イシュー #3117）。`shape: None` で [`root`]
-/// と完全に同じ出力になる（`crate::layer::layer_with`/`frame_with`
-/// 〔#2131〕と同型の `_with` 先例。既存 [`root`] の位置引数シグネチャは
-/// 変えず後方互換を保つ）。
+/// [`root`] の shape / variant 引数付き版（イシュー #3117、variant はイシュー
+/// #3121 で追加）。`shape: None` + `SelectVariant::Outline` で [`root`] と
+/// 完全に同じ出力になる（`crate::layer::layer_with`/`frame_with`〔#2131〕と
+/// 同型の `_with` 先例。既存 [`root`] の位置引数シグネチャは変えず後方互換を
+/// 保つ）。
 ///
 /// # Examples
 ///
 /// ```
 /// use fandhe_frontend_core::render;
-/// use fandhe_frontend_pre_styled_ui::select::{self, OpenState, SelectProps};
+/// use fandhe_frontend_pre_styled_ui::select::{self, OpenState, SelectProps, SelectVariant};
 /// use fandhe_frontend_pre_styled_ui::{Shape, Size};
 ///
 /// let node = select::root_with(
 ///     Size::Md,
 ///     Some(Shape::Pill),
+///     SelectVariant::Subtle,
 ///     OpenState::Closed,
 ///     &SelectProps::default(),
 ///     vec![],
 ///     vec![],
 /// );
-/// assert!(render(&node).contains("fd-select--shape-pill"));
+/// let html = render(&node);
+/// assert!(html.contains("fd-select--shape-pill"));
+/// assert!(html.contains("fd-select--variant-subtle"));
 /// ```
 #[must_use]
 pub fn root_with<'a>(
     size: Size,
     shape: Option<Shape>,
+    variant: SelectVariant,
     state: OpenState,
     props: &SelectProps,
     attrs: Vec<(&'a str, &'a str)>,
@@ -876,6 +960,9 @@ pub fn root_with<'a>(
     let mut selection: Vec<(&str, &str)> = vec![("size", size.value())];
     if let Some(shape) = shape {
         selection.push(("shape", shape.value()));
+    }
+    if variant != SelectVariant::Outline {
+        selection.push(("variant", variant.value()));
     }
     let class = recipe.variant_classes(&selection);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
@@ -988,6 +1075,7 @@ mod tests {
         let via_root_with = render(&root_with(
             Size::Md,
             None,
+            SelectVariant::Outline,
             OpenState::Closed,
             &SelectProps::default(),
             vec![],
@@ -995,6 +1083,7 @@ mod tests {
         ));
         assert_eq!(via_root, via_root_with);
         assert!(!via_root.contains("fd-select--shape"));
+        assert!(!via_root.contains("fd-select--variant"));
     }
 
     #[test]
@@ -1002,12 +1091,90 @@ mod tests {
         let html = render(&root_with(
             Size::Md,
             Some(Shape::Pill),
+            SelectVariant::Outline,
             OpenState::Closed,
             &SelectProps::default(),
             vec![],
             vec![],
         ));
         assert!(html.contains("fd-select--shape-pill"));
+    }
+
+    // --- イシュー #3121: variant 軸 ---
+
+    #[test]
+    fn root_with_outline_variant_emits_no_variant_class() {
+        // `default_variant` を登録していないため、`Outline`（既定）のとき
+        // `variant` axis 自体が不在として扱われ class が一切出ない
+        // （モジュール rustdoc「variant 軸（イシュー #3121）」節参照）。
+        let html = render(&root_with(
+            Size::Md,
+            None,
+            SelectVariant::Outline,
+            OpenState::Closed,
+            &SelectProps::default(),
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("fd-select--variant"));
+    }
+
+    #[test]
+    fn root_with_subtle_variant_appends_variant_class() {
+        let html = render(&root_with(
+            Size::Md,
+            None,
+            SelectVariant::Subtle,
+            OpenState::Closed,
+            &SelectProps::default(),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains("fd-select--variant-subtle"));
+    }
+
+    #[test]
+    fn root_with_pill_and_subtle_combine_both_classes() {
+        let html = render(&root_with(
+            Size::Md,
+            Some(Shape::Pill),
+            SelectVariant::Subtle,
+            OpenState::Closed,
+            &SelectProps::default(),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains("fd-select--shape-pill"));
+        assert!(html.contains("fd-select--variant-subtle"));
+    }
+
+    #[test]
+    fn subtle_variant_declares_trigger_bg_and_border_color_vars_on_root() {
+        let css = stylesheet();
+        let root_block = extract_block(
+            &css,
+            r#"[data-scope="select"][data-part="root"].fd-select--variant-subtle {"#,
+        );
+        assert!(root_block.contains("--fandhe-select-trigger-bg: var(--fandhe-color-bg-subtle);"));
+        assert!(root_block.contains("--fandhe-select-trigger-border-color: transparent;"));
+    }
+
+    #[test]
+    fn trigger_background_and_border_reference_variant_vars_with_fallback() {
+        let css = stylesheet();
+        let trigger_start = css
+            .find(r#"[data-scope="select"][data-part="trigger"] {"#)
+            .expect("trigger base rule must exist");
+        let trigger_block_end = css[trigger_start..]
+            .find("}\n")
+            .map(|idx| trigger_start + idx)
+            .expect("trigger base rule must be closed");
+        let trigger_block = &css[trigger_start..trigger_block_end];
+        assert!(trigger_block
+            .contains("background: var(--fandhe-select-trigger-bg, var(--fandhe-color-bg));"));
+        assert!(trigger_block.contains(
+            "border: 1px solid var(--fandhe-select-trigger-border-color, var(--fandhe-color-border));"
+        ));
     }
 
     #[test]
