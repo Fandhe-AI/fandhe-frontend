@@ -76,7 +76,7 @@
 //! で shadcn/ui の With Keyboard Shortcut Example に相当する、`content` の
 //! children へテキストと [`kbd`] を並べる既存 API のみの合成デモ
 //! （`ex_tooltip_with_kbd`）を追加した。[`BUTTON_GROUP`] はイシュー #3135
-//! で、縦グループの中に入力欄と横グループ（2 ボタン）を並べる、既存 API
+//! で、縦グループの中に入力欄と横グループ（2 入力欄）を並べる、既存 API
 //! のみの入れ子合成デモ（`ex_button_group_nested_mixed`）を追加した。
 //! 他部品のバリエーション軸（`Size`/`ColorPalette`/`ToastStatus` 等）への
 //! Examples 追加はレビュー負荷を抑えるためのフォローアップ課題として
