@@ -390,6 +390,17 @@ struct AvatarStackOrder(u8);
 /// （本モジュール冒頭 rustdoc「イシュー #3130」節参照）。
 const MAX_STACK_ORDER: u8 = 12;
 
+/// [`group_with`]（`FirstOnTop`）が「先頭ほど前面」を全件で保証できる子の
+/// 上限件数（12。PR #3563 codex-review P2 指摘で公開 API として明示）。
+///
+/// 重なり順は固定 `z-index` クラス（`pos1`〜`pos12`）で表すため、隣接する
+/// 子の全組で前後関係を保つには子の数だけ異なる値が要る。この件数を超える
+/// group では、先頭 `GROUP_FIRST_ON_TOP_MAX_CHILDREN - 1`（11）件だけが
+/// 一意な降順値を得て、12 件目以降は `pos1` へ合流し DOM 順（後ろほど前面）
+/// で描画される。13 件以上を並べる場合は、表示件数をこの値以下に絞って
+/// 残りを「+N」表記にする等、呼び出し側で件数を制限すること。
+pub const GROUP_FIRST_ON_TOP_MAX_CHILDREN: usize = MAX_STACK_ORDER as usize;
+
 impl AvatarStackOrder {
     /// `position`（1 始まり、大きいほど前面）を `1..=MAX_STACK_ORDER` へ
     /// クランプして構築する。
@@ -953,7 +964,10 @@ pub fn group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 ///   点が、13 件以上の group で「先頭ほど前面」が見かけ上崩れる理由）。
 ///   呼び出し側は「先頭ほど前面」の厳密な保証を 12 件以下の構成に
 ///   限定して利用し、13 件以上では末尾側（12 件目以降）の重なり順が
-///   確定的でないことを前提にすること。
+///   確定的でないことを前提にすること。この上限は公開定数
+///   [`GROUP_FIRST_ON_TOP_MAX_CHILDREN`] として API 上に明示している
+///   （件数上限なしで順序を保つには子の数だけ異なる `z-index` が必要で、
+///   静的クラスでは表せないため。codex-review #3563 P2 指摘への対応）。
 ///   inline `style="z-index: ..."` は
 ///   `style-src-attr` を許可しない厳格 CSP 環境で無効化される（イシュー
 ///   #3130 フォローアップ、codex-review #3563 P1 指摘）ため採らず、
@@ -1711,6 +1725,36 @@ mod tests {
         // 末尾側（元の `i=11`〔pos1 本来の先頭末席〕+ 超過分 3 件）が
         // `pos1` へ合流し、合計 4 回出現する。
         assert_eq!(html.matches("fd-avatar--stack-order-pos1\"").count(), 4);
+    }
+
+    #[test]
+    fn first_on_top_order_is_fully_unique_up_to_public_limit() {
+        // PR #3563 codex-review P2 指摘の回帰テスト: 公開上限
+        // `GROUP_FIRST_ON_TOP_MAX_CHILDREN` 件ちょうどでは全子が一意な降順値
+        // （先頭 pos12 … 末尾 pos1）を得て「先頭ほど前面」が全件で成立し、
+        // 上限 +1 件では 12 件目以降の 2 件が pos1 へ合流する（文書化した
+        // 上限超過時の挙動）ことを固定する。
+        let order = |n: usize| -> Vec<usize> {
+            let many: Vec<Node> = (0..n)
+                .map(|_| root(&AvatarProps::default(), vec![], vec![]))
+                .collect();
+            let props = AvatarGroupProps {
+                stacking: AvatarGroupStacking::FirstOnTop,
+            };
+            let html = render(&group_with(&props, vec![], many));
+            html.split("fd-avatar--stack-order-pos")
+                .skip(1)
+                .map(|rest| {
+                    let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+                    digits.parse().unwrap()
+                })
+                .collect()
+        };
+        let max = GROUP_FIRST_ON_TOP_MAX_CHILDREN;
+        assert_eq!(order(max), (1..=max).rev().collect::<Vec<_>>());
+        let mut over: Vec<usize> = (2..=max).rev().collect();
+        over.extend([1, 1]);
+        assert_eq!(order(max + 1), over);
     }
 
     #[test]

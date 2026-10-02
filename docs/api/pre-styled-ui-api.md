@@ -491,6 +491,10 @@ let _style_node = sheet.style_element();
   先頭側の一意な重なり順を保つ（`n <= 12` のときは従来どおり `n - i` と
   同じ値になる）。`:nth-child(n)` 等の子孫セレクタは `SlotRecipe` が
   生成できない（イシュー #708）ため、CSS だけでは実現できない。
+  「先頭ほど前面」を全件で保証できる上限は公開定数
+  `GROUP_FIRST_ON_TOP_MAX_CHILDREN`（12）で示す。13 件以上では 12 件目
+  以降が `pos1` へ合流し DOM 順（後ろほど前面）で描画されるため、呼び出し側
+  で表示件数をこの値以下に絞る（PR #3563 codex-review P2 指摘）。
 - **`AvatarGroupStacking`**（イシュー #3130 で新設）: `LastOnTop`（既定、
   DOM 順のまま）/`FirstOnTop`（先頭が最前面）の 2 値。
 - **`AvatarGroupProps`**（イシュー #3130 で新設）: `stacking` 1 フィールド
