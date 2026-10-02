@@ -1037,11 +1037,15 @@ Input Group 相当の見た目（コンテナ側 1 本の枠線・角丸・`:foc
 - **raw CSS 追記**: `SlotRecipe` は子結合子セレクタを表現できないため、
   `stylesheet()` は dialog 内 root の二重枠を解除する
   `[data-scope="command"][data-part="dialog"] > [data-scope="command"][data-part="root"]`
-  規則と、`footer` 直接の子（呼び出し側が組む 1 ヒント分の `span` 等）の
-  内部折り返しを禁止する `[data-scope="command"][data-part="footer"] > *`
-  （`white-space: nowrap`）規則を `serialize_rule` で追記する。後者は
-  `span` 等へ包むだけでは `span` 自身が `display: inline` のままで内部
-  折り返しを防げないための対策（#3143 Codex P2 再指摘対応）。
+  規則と、`footer` 直接の子（呼び出し側が組む 1 ヒント分の `span` 等）を
+  `inline-flex` のまとまり（`min-width: 0`・`max-width: 100%`・
+  `overflow-wrap: anywhere`）にする `[data-scope="command"][data-part="footer"] > *`
+  規則、その中の `kbd` だけを `white-space: nowrap` にする
+  `[data-scope="command"][data-part="footer"] > * kbd` 規則を
+  `serialize_rule` で追記する。`kbd` と説明文は同じ行にまとまったまま、
+  ヒントがコンテナ幅を超えると説明文が折り返す（`overflow-wrap` は
+  `white-space: nowrap` と同じ規則では効かないため分離する。#3143 Codex
+  P2 再指摘・PR #3582 Codex P2 / Cursor Bugbot 指摘対応）。
 - **バリデーション責務外**: 絞り込み配線・Enter 実行・Cmd/Ctrl+K の
   グローバルショートカット・フォーカストラップは `fandhe-frontend-wasm-full`
   の責務として実装しない（`docs/policy/intentional-non-adoption.md` §3.25

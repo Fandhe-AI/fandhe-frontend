@@ -199,11 +199,15 @@
 //!
 //! [`crate::item`] と同型のパターンで、[`stylesheet`] は `recipe().css()`
 //! の出力へ [`crate::css::serialize_rule`] を使った素の子結合子（`>`）
-//! セレクタを 1 本追記する。対象は dialog 内に配置された root の二重枠
+//! セレクタを追記する。対象は dialog 内に配置された root の二重枠
 //! （`dialog` 自身の枠 + `root` の枠が二重に見えてしまう）を解除する
 //! `[data-scope="command"][data-part="dialog"] > [data-scope="command"][data-part="root"]`
-//! の 1 セレクタのみ（`serialize_rule` は selector 文字列を検証しないため
-//! 静的リテラルのみを使う）。
+//! と、`footer` のヒントのまとまりを作る
+//! `[data-scope="command"][data-part="footer"] > *`・
+//! `[data-scope="command"][data-part="footer"] > * kbd`（上記
+//! 「pre-styled-only `footer` パート」節参照）の 3 セレクタのみ
+//! （`serialize_rule` は selector 文字列を検証しないため静的リテラルのみを
+//! 使う）。
 //!
 //! # セキュリティ不変条件
 //!
