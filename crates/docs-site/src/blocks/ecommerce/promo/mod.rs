@@ -12,6 +12,7 @@
 mod promo_collection_cards;
 mod promo_countdown;
 mod promo_offers_split;
+mod promo_with_testimonials;
 
 use crate::blocks::Block;
 
@@ -20,5 +21,6 @@ pub(super) fn blocks() -> Vec<Block> {
         promo_collection_cards::BLOCK,
         promo_countdown::BLOCK,
         promo_offers_split::BLOCK,
+        promo_with_testimonials::BLOCK,
     ]
 }
