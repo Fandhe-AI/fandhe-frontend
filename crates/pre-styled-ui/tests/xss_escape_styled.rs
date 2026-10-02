@@ -6340,6 +6340,19 @@ fn command_parts_are_escaped_for_all_payloads() {
         let html = render(&command::separator(vec![("data-testid", payload)], vec![]));
         assert_payload_is_escaped(payload, &html, "command::separator attrs context");
 
+        let html = render(&command::footer(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "command::footer attrs context");
+        assert_payload_is_escaped(payload, &html, "command::footer children context");
+
+        let html = render(&command::footer(vec![("class", payload)], vec![]));
+        assert!(
+            !html.contains(payload),
+            "command::footer class payload leaked: payload={payload:?}, html={html}"
+        );
+
         let html = render(&command::root(
             OpenState::Open,
             false,

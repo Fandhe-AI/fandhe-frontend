@@ -3895,7 +3895,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # #3573 対応を含む到達値、本ブランチの base merge 時点）も独立に同一の
 # 0.233.0 へ到達していた（偶発的衝突）ため、そのまま採用せずさらに +1 して
 # 0.234.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
-version = "0.234.0"
+#
+# イシュー #3143: command に pre-styled-only `footer` パート（キー操作
+# ヒント帯、`SLOTS` へ `footer` を純追加・headless-ui の anatomy は不変）を
+# 追加した。新規公開 API（`command::footer`）のみで既存関数シグネチャ・
+# 既存 golden CSS ブロックは不変（separator と dialog の間へ footer の
+# base ブロックを 1 つ挿入するのみ）のため非破壊的な追加として minor
+# バンプする。
+version = "0.235.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

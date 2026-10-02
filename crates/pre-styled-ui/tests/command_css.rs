@@ -2,9 +2,10 @@
 //! テスト。
 //!
 //! `crates/pre-styled-ui/tests/item_css.rs` と同型の golden fixture
-//! テスト。`command` recipe は `root`/`input`/`list`/`empty`/`group`/
-//! `group-heading`/`item`/`shortcut`/`separator`/`dialog` の 10 slot を
-//! 宣言し、`size`/`variant`/`color-palette` いずれの軸も持たない（`src/command.rs`
+//! テスト。`command` recipe は headless 10 slot（`root`/`input`/`list`/
+//! `empty`/`group`/`group-heading`/`item`/`shortcut`/`separator`/`dialog`）
+//! と pre-styled-only `footer`（イシュー #3143）の計 11 slot を宣言し、
+//! `size`/`variant`/`color-palette` いずれの軸も持たない（`src/command.rs`
 //! モジュール doc「軸を持たない理由」節参照）。
 
 use fandhe_frontend_pre_styled_ui::command;
@@ -90,6 +91,17 @@ const COMMAND_GOLDEN_CSS: &str = "[data-scope=\"command\"][data-part=\"root\"] {
   height: 1px;
   margin: var(--fandhe-space-1) 0;
   background: var(--fandhe-color-border);
+}
+
+[data-scope=\"command\"][data-part=\"footer\"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fandhe-space-3);
+  padding: var(--fandhe-space-2) var(--fandhe-space-3);
+  border-top: 1px solid var(--fandhe-color-border);
+  font-size: var(--fandhe-font-font-size-xs);
+  color: var(--fandhe-color-fg-muted);
 }
 
 [data-scope=\"command\"][data-part=\"dialog\"] {
@@ -269,4 +281,28 @@ fn css_never_generates_class_based_variant_classes() {
     let css = command::stylesheet();
     assert!(!css.contains("fd-command--"));
     assert!(!css.contains("class="));
+}
+
+/// pre-styled-only `footer` パート（イシュー #3143）の base 宣言が存在し、
+/// `separator` < `footer` < `dialog` の順（DOM 配置順に揃える、
+/// `src/command.rs` モジュール doc「pre-styled-only `footer` パート」節
+/// 参照）で出力されることを固定する。
+#[test]
+fn css_footer_base_rule_exists() {
+    let css = command::stylesheet();
+    assert!(css.contains(
+        "[data-scope=\"command\"][data-part=\"footer\"] {\n  display: flex;\n  flex-wrap: wrap;"
+    ));
+
+    let separator_pos = css
+        .find("[data-scope=\"command\"][data-part=\"separator\"] {")
+        .expect("separator base rule must be present");
+    let footer_pos = css
+        .find("[data-scope=\"command\"][data-part=\"footer\"] {")
+        .expect("footer base rule must be present");
+    let dialog_pos = css
+        .find("[data-scope=\"command\"][data-part=\"dialog\"] {")
+        .expect("dialog base rule must be present");
+    assert!(separator_pos < footer_pos);
+    assert!(footer_pos < dialog_pos);
 }

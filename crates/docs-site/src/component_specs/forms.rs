@@ -623,6 +623,7 @@ const COMMAND: ComponentPageSpec = ComponentPageSpec {
         "`shortcut` は `margin-inline-start: auto` で右寄せする。API は増やさず、`children` へ [Kbd](../kbd/) を渡すことでキー表示を合成する。",
         "`dialog` は `--fandhe-command-dialog-max-width`（既定 32rem）で幅を決め、closed 時は headless が付与する `hidden` を確実に非表示化する（`[hidden] { display: none; }`）。単一パーツのため独立した `backdrop` は持たない。",
         "絞り込み配線（入力 → `\"input\"` dispatch → DOM 反映）・Enter 実行・Cmd/Ctrl+K のグローバルショートカット・フォーカストラップはアプリケーション/`fandhe-frontend-wasm-full` の責務として実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。",
+        "pre-styled-only `footer` パート（イシュー #3143）: headless-ui の anatomy には存在しないレイアウト専用パートで、キー操作ヒントを `list`/`empty` の後ろに区切り線付きで並べる。`shortcut` と同様 API を増やさず、`children` へ [Kbd](../kbd/) と `text` を組んで渡す。",
     ],
     arguments: &[
         ArgRow {
@@ -696,6 +697,11 @@ const COMMAND: ComponentPageSpec = ComponentPageSpec {
             title: "dialog 型",
             description: "`dialog` パーツで command palette 全体を包んだ構成です（掲示用にフロー内配置へ中和しています）。",
             render: ex_command_dialog,
+        },
+        ExampleEntry {
+            title: "キー操作ヒント付き footer",
+            description: "`footer` パート（イシュー #3143）でリスト下端にキー操作ヒントを並べる例です。[Kbd](../kbd/) とテキストを組み合わせて `root` の末尾へ配置します。",
+            render: ex_command_footer,
         },
     ],
     keyboard: &[],
@@ -804,6 +810,48 @@ fn ex_command_dialog() -> Node {
     );
     let root = command::root(OpenState::Open, false, vec![], vec![input, list]);
     command::dialog(OpenState::Open, "Command Menu", vec![], vec![root])
+}
+
+/// [`COMMAND`] の Examples 節「キー操作ヒント付き footer」レンダラ
+/// （イシュー #3143）。`footer` パートへ [`kbd::kbd`] とテキストを組んだ
+/// ヒント 3 件を並べる（キー操作そのものの配線は持たない、
+/// `crates/pre-styled-ui/src/command.rs` モジュール doc「pre-styled-only
+/// `footer` パート」節参照）。
+fn ex_command_footer() -> Node {
+    let item_calendar = command::item(
+        true,
+        false,
+        "calendar",
+        Some("example-command-footer-item-calendar"),
+        vec![],
+        vec![text("Calendar")],
+    );
+    let list = command::list(
+        "example-command-footer-list",
+        "Suggestions",
+        false,
+        vec![],
+        vec![item_calendar],
+    );
+    let input = command::input(
+        OpenState::Open,
+        "ca",
+        "example-command-footer-list",
+        Some("example-command-footer-item-calendar"),
+        vec![("aria-label", "Search commands")],
+    );
+    let footer = command::footer(
+        vec![],
+        vec![
+            kbd::kbd(&KbdProps::default(), vec![], vec![text("↑↓")]),
+            text(" で移動　"),
+            kbd::kbd(&KbdProps::default(), vec![], vec![text("↵")]),
+            text(" で選択　"),
+            kbd::kbd(&KbdProps::default(), vec![], vec![text("esc")]),
+            text(" で閉じる"),
+        ],
+    );
+    command::root(OpenState::Open, false, vec![], vec![input, list, footer])
 }
 
 const EDITABLE: ComponentPageSpec = ComponentPageSpec {

@@ -1417,6 +1417,14 @@ fn command_parts_data_attrs_are_headless_sourced_not_self_emitted() {
     let separator_html = render(&command::separator(vec![], vec![]));
     assert!(separator_html.contains(r#"role="separator""#));
 
+    // pre-styled-only `footer`（イシュー #3143）は headless anatomy には
+    // 存在せず、`Anatomy::part` が出力する `data-scope`/`data-part` の
+    // 2 個のみで、独自の `data-*` を自前出力しない。
+    let footer_html = render(&command::footer(vec![], vec![]));
+    assert_eq!(footer_html.matches("data-").count(), 2);
+    assert!(footer_html.contains(r#"data-scope="command""#));
+    assert!(footer_html.contains(r#"data-part="footer""#));
+
     // `command::stylesheet()` は `[data-empty]`/`[data-selected]`/
     // `[data-disabled]`/`[hidden]` を CSS セレクタとして参照するだけで
     // 自前で `data-*` を組み立てない。

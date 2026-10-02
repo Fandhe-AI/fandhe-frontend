@@ -6,12 +6,14 @@
 //! `group-heading`/`item`/`shortcut`/`separator`/`dialog`）へ、入力欄・
 //! リスト・group 見出し・選択行の背景・shortcut の右寄せ・dialog 型の幅と
 //! いう shadcn/ui `Command` の意匠を重ねる薄い委譲層である
-//! （[`crate::item`]/[`crate::input_group`] と同型の位置付け）。
+//! （[`crate::item`]/[`crate::input_group`] と同型の位置付け）。pre-styled-only
+//! の `footer` パート（イシュー #3143）を加えた計 11 パーツ構成（下記
+//! 「pre-styled-only `footer` パート」節参照）。
 //!
 //! # 選択的 re-export（`pub use ...::*` を使わない理由）
 //!
-//! [`crate::item`]/[`crate::combobox`] と同型。10 パーツすべてを同名再定義
-//! し（呼び出し側 `class` の除去は本モジュールの責務のため）、
+//! [`crate::item`]/[`crate::combobox`] と同型。headless 10 パーツすべてを
+//! 同名再定義し（呼び出し側 `class` の除去は本モジュールの責務のため）、
 //! [`filter_items`]（純粋関数）と [`OpenState`]（`root`/`dialog`/`input` の
 //! `state` 引数を本クレート単独で呼べるようにする、イシュー #685 の契約）
 //! のみを選択的に再エクスポートする。状態機械
@@ -44,9 +46,31 @@
 //! `size`/`variant`/`color-palette` いずれの軸も提供しない
 //! （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §4 (d)
 //! 「子の寸法に従属するレイアウト部品」に該当。headless にも shadcn/ui にも
-//! 軸が無く、[`crate::input_group`] と同じ判断を踏襲する）。このため 10
+//! 軸が無く、[`crate::input_group`] と同じ判断を踏襲する）。このため 11
 //! パーツとも見た目クラスを一切付与しない（呼び出し側 `class` は
 //! `drop_class_attr` で除去のみ行う）。
+//!
+//! # pre-styled-only `footer` パート（イシュー #3143）
+//!
+//! キー操作ヒント（例: `↑↓ で移動` / `↵ で選択` / `esc で閉じる`）を
+//! リスト下端に区切り線付きで並べるレイアウト専用パートであり、
+//! headless-ui の anatomy には存在しない（[`crate::drawer`] の
+//! `body`/`footer`/`header` と同型の判断、`docs/policy/intentional-non-adoption.md`
+//! §3.25 規則 2「装飾・レイアウトの関心は pre-styled-ui の責務」）。
+//! [`fandhe_frontend_headless_ui::anatomy::Anatomy::part`] を直接呼び出す
+//! ため、呼び出し側 `attrs` に含まれる `data-scope`/`data-part` の偽装は
+//! headless 層が fail-closed に除去する。ただし本モジュールの「見た目
+//! クラスを一切付与せず `class` 属性自体が出力から消える」契約
+//! （上記「軸を持たない理由」節）は [`footer`] にも適用するため、
+//! [`crate::drawer::footer`] と異なり呼び出し側 `class` は
+//! `drop_class_attr` で除去してから `Anatomy::part` へ渡す。
+//!
+//! 子要素は呼び出し側が [`crate::kbd::kbd`] と `text` を組んで渡す
+//! （[`shortcut`] が `kbd` を合成するのと同じ方式。ヒント 1 件を表す
+//! 専用サブパートは設けない）。配置は `root` の直接の子として
+//! `list`/`empty` の後ろに置く想定で、`root` が flex column かつ
+//! `overflow: hidden` のため自然に下端に並ぶ。アプリケーションロジック
+//! （キー操作そのものの配線）は持たない（上記「責務境界」節参照）。
 //!
 //! # `empty` の表示切替 CSS（headless の SSR 決定性契約との対応）
 //!
@@ -154,7 +178,8 @@
 //!   `fandhe_frontend_core::render` の既定エスケープ（REQ-1）を必ず
 //!   経由する。`raw_html()` は使用しない。
 //! - 呼び出し側 `class` は `drop_class_attr` で除去してから headless
-//!   関数へ委譲する（10 パーツすべて）。
+//!   関数（headless 10 パーツ）または [`fandhe_frontend_headless_ui::anatomy::Anatomy::part`]
+//!   （pre-styled-only の [`footer`]）へ委譲する（11 パーツすべて）。
 //! - [`stylesheet`] が組み立てる CSS 宣言・selector 断片はすべて
 //!   コンパイル時静的リテラルであり、[`crate::css::decl`]/
 //!   [`crate::css::serialize_rule`] の検証を通る値のみを使う。
@@ -178,6 +203,7 @@ use crate::recipe::{
     focus_ring_declarations, FocusRingColor, FocusRingOffset, SlotRecipe, StateCondition,
 };
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
+use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
 // headless 型のうち本モジュールが必要とするのは純粋関数 [`filter_items`]
 // と `state` 引数の型 [`OpenState`] のみ（`crate::combobox`/`crate::select`
@@ -186,8 +212,13 @@ use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::command::filter_items;
 pub use fandhe_frontend_headless_ui::state::OpenState;
 
+/// pre-styled-only `footer` パート（[`footer`]）を headless anatomy
+/// 変更なしで組み立てるための anatomy（イシュー #3143、[`crate::drawer`]
+/// の `ANATOMY` 定数と同型）。
+const ANATOMY: Anatomy = anatomy("command");
+
 /// slot 一覧（headless [`fandhe_frontend_headless_ui::command`] の anatomy
-/// と 1:1、10 パーツ）。
+/// 10 パーツ + pre-styled-only `footer` の計 11 パーツ）。
 const SLOTS: &[&str] = &[
     "root",
     "input",
@@ -198,6 +229,7 @@ const SLOTS: &[&str] = &[
     "item",
     "shortcut",
     "separator",
+    "footer",
     "dialog",
 ];
 
@@ -293,6 +325,17 @@ fn recipe() -> SlotRecipe {
         decl("background", "var(--fandhe-color-border)"),
     ];
 
+    let footer_base = vec![
+        decl("display", "flex"),
+        decl("flex-wrap", "wrap"),
+        decl("align-items", "center"),
+        decl("gap", "var(--fandhe-space-3)"),
+        decl("padding", "var(--fandhe-space-2) var(--fandhe-space-3)"),
+        decl("border-top", "1px solid var(--fandhe-color-border)"),
+        decl("font-size", "var(--fandhe-font-font-size-xs)"),
+        decl("color", "var(--fandhe-color-fg-muted)"),
+    ];
+
     let dialog_base = vec![
         decl("position", "fixed"),
         decl("top", "50%"),
@@ -323,6 +366,7 @@ fn recipe() -> SlotRecipe {
         .base("item", item_base)
         .base("shortcut", shortcut_base)
         .base("separator", separator_base)
+        .base("footer", footer_base)
         .base("dialog", dialog_base)
         .state(
             // `input` の `outline: none`（フォーカス位置の視認手段が
@@ -527,6 +571,31 @@ pub fn separator<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Nod
     fandhe_frontend_headless_ui::command::separator(drop_class_attr(attrs), children)
 }
 
+/// pre-styled-only `footer` パート（`<div>`、イシュー #3143）を組み立てる。
+/// キー操作ヒントを横並びに配置するレイアウト専用パートであり、
+/// headless-ui の anatomy には存在しない（モジュール doc「pre-styled-only
+/// `footer` パート」節参照）。`root` の直接の子として `list`/`empty` の
+/// 後ろに置く想定で、呼び出し側は `children` へ [`crate::kbd::kbd`] と
+/// `text` を組んで渡す。
+///
+/// [`fandhe_frontend_headless_ui::anatomy::Anatomy::part`] を直接呼び出す
+/// ため、呼び出し側 `attrs` に含まれる `data-scope`/`data-part` の偽装は
+/// headless 層が fail-closed に除去する。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::command;
+///
+/// let node = command::footer(vec![], vec![]);
+/// assert!(render(&node).contains(r#"data-scope="command" data-part="footer""#));
+/// ```
+#[must_use]
+pub fn footer<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("footer", "div", drop_class_attr(attrs), children)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -625,6 +694,26 @@ mod tests {
 
         let separator_html = render(&separator(vec![], vec![]));
         assert!(separator_html.contains(r#"data-scope="command" data-part="separator""#));
+
+        let footer_html = render(&footer(vec![], vec![]));
+        assert!(footer_html.contains(r#"data-scope="command" data-part="footer""#));
+    }
+
+    #[test]
+    fn footer_renders_as_div_with_command_scope_and_footer_part() {
+        let html = render(&footer(vec![], vec![core_text("↵ で選択")]));
+        assert!(html.starts_with(r#"<div data-scope="command" data-part="footer""#));
+    }
+
+    #[test]
+    fn footer_drops_caller_supplied_scope_and_part_spoofing() {
+        let html = render(&footer(
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="command""#));
+        assert!(html.contains(r#"data-part="footer""#));
+        assert!(!html.contains("attacker"));
     }
 
     #[test]
@@ -665,10 +754,11 @@ mod tests {
                     )],
                 ),
                 empty(false, vec![("class", "evil")], vec![]),
+                footer(vec![("class", "evil")], vec![]),
             ],
         );
-        // `dialog` も見た目クラスを付与しない 10 パーツ目のため、
-        // ここで root を包んで固定する（他 9 パーツと同じ契約を漏らさず
+        // `dialog` も見た目クラスを付与しない 11 パーツ目のため、
+        // ここで root を包んで固定する（他 10 パーツと同じ契約を漏らさず
         // 検証する）。
         let html = render(&dialog(
             OpenState::Open,
