@@ -2990,6 +2990,11 @@ title = "docs-layout-prev-next"
 source = "site/blocks/docs-layout-prev-next.md"
 path = "/blocks/docs-layout-prev-next/"
 
+[[section.group.page]]
+title = "docs-layout-toc-collapsible"
+source = "site/blocks/docs-layout-toc-collapsible.md"
+path = "/blocks/docs-layout-toc-collapsible/"
+
 [[section.group]]
 title = "Code Block"
 
@@ -3013,6 +3018,11 @@ title = "API Reference"
 title = "api-reference-param-accordion"
 source = "site/blocks/api-reference-param-accordion.md"
 path = "/blocks/api-reference-param-accordion/"
+
+[[section.group.page]]
+title = "api-reference-playground"
+source = "site/blocks/api-reference-playground.md"
+path = "/blocks/api-reference-playground/"
 
 [[section.group.page]]
 title = "api-reference-props-table"
