@@ -385,25 +385,43 @@ fn rows_with_separators(rows: Vec<Node>) -> Vec<Node> {
 
 /// 視覚的に隠した `h3` 見出し（`three-column`/`author-split` 用、モジュール
 /// doc「見出しの可視・非可視の使い分け」節参照）。
+///
+/// `heading()`（pre-styled-ui）は呼び出し側 `class` を `drop_class_attr` で
+/// 無言で除去するため、`.blocks-reviews-stacked-list-layout`（`gap` 付き
+/// flex コンテナ）の直接の子にすると視覚的に隠していてもレイアウト上の
+/// flex スロットと gap を消費してしまう。`position: absolute` を当てる
+/// class はラッパー `div` へ付け、flex フローそのものから除外する。
 fn hidden_heading(label: &str) -> Node {
-    heading(
-        HeadingLevel::H3,
-        &HeadingProps::default(),
-        vec![],
-        vec![visually_hidden::root(vec![], vec![text(label)])],
+    div(
+        vec![("class", "blocks-reviews-stacked-list-hidden-heading")],
+        vec![heading(
+            HeadingLevel::H3,
+            &HeadingProps::default(),
+            vec![],
+            vec![visually_hidden::root(vec![], vec![text(label)])],
+        )],
     )
 }
 
 /// 可視の中央寄せ `h3` 見出し（`search-header` 用）。
+///
+/// `heading()` は呼び出し側 `class` を `drop_class_attr` で除去するため、
+/// `class="blocks-reviews-stacked-list-heading"`（`text-align: center`）を
+/// `heading()` 自体へ渡しても適用されない（`cta_centered.rs` と同じく、
+/// 中央寄せの `class` は `heading()` を包むラッパー `div` へ付け、
+/// `text-align` の継承で内側の見出しテキストへ反映させる）。
 fn visible_heading(label: &str) -> Node {
-    heading(
-        HeadingLevel::H3,
-        &HeadingProps {
-            size: HeadingSize::Xl,
-            ..HeadingProps::default()
-        },
+    div(
         vec![("class", "blocks-reviews-stacked-list-heading")],
-        vec![text(label)],
+        vec![heading(
+            HeadingLevel::H3,
+            &HeadingProps {
+                size: HeadingSize::Xl,
+                ..HeadingProps::default()
+            },
+            vec![],
+            vec![text(label)],
+        )],
     )
 }
 
