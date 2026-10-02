@@ -683,7 +683,8 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
   （headless から再エクスポートした `FieldProps`/`FieldIds`）を別引数として
   受け取る（ark-ui/chakra-ui が見た目 props とフォーム状態 props を分離
   する構成に合わせる）。
-- **`variant` 軸**: `Outline`（既定）/`Subtle`/`Flushed` の 3 値
+- **`variant` 軸**: `Outline`（既定）/`Subtle`/`Flushed`/`SubtleFlushed`
+  （淡色背景＋下線のみ、`input` のみ、イシュー #3122）の 4 値
   （`native_select` のみ `Flushed` の代わりに枠なしの `Plain`）。
 - **`color-palette` 軸を提供しない**: §4d「複合部品の variant 統一方針」
   の基準 3（`color-palette` は選択・チェック状態を示す部品へ提供する）に
