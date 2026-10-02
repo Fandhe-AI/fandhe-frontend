@@ -2,7 +2,10 @@
 //! イシュー #2193 で `close-trigger` の text variant
 //! （`[data-variant="text"]`）state 規則を追加した。イシュー #2387 で
 //! content/backdrop へ presence（enter/exit）を適用し、旧 `data-state`
-//! 連動の静的切替（4 ブロック）を削除した。
+//! 連動の静的切替（4 ブロック）を削除した。イシュー #3128 で
+//! pre-styled-only `body`/`footer` パート（base 2 ブロック）と
+//! `content[data-has-body]`/`content[data-has-body][hidden]`（opt-in flex
+//! column 化 state 2 ブロック）を純追加した。
 //!
 //! `crates/pre-styled-ui/tests/dialog_css.rs` の golden fixture テストの
 //! 前例に倣い、`stylesheet()` が返す CSS 全文をバイト単位で固定する。出力順
@@ -79,6 +82,21 @@ const DRAWER_GOLDEN_CSS: &str = r#"[data-scope="drawer"][data-part="trigger"] {
   margin: 0 0 var(--fandhe-space-4) 0;
 }
 
+[data-scope="drawer"][data-part="body"] {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+[data-scope="drawer"][data-part="footer"] {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--fandhe-space-3);
+  margin-block-start: var(--fandhe-space-4);
+}
+
 [data-scope="drawer"][data-part="close-trigger"] {
   position: absolute;
   inset-block-start: var(--fandhe-space-2);
@@ -120,6 +138,15 @@ const DRAWER_GOLDEN_CSS: &str = r#"[data-scope="drawer"][data-part="trigger"] {
 
 [data-scope="drawer"][data-part="root"].fd-drawer--size-xl {
   --fandhe-drawer-size: 36rem;
+}
+
+[data-scope="drawer"][data-part="content"][data-has-body] {
+  display: flex;
+  flex-direction: column;
+}
+
+[data-scope="drawer"][data-part="content"][data-has-body][hidden] {
+  display: none;
 }
 
 [data-scope="drawer"][data-part="positioner"][data-placement="start"] {
