@@ -71,20 +71,45 @@
 //! 同じ `border-top: none; padding-top: 0; letter-spacing: normal;`
 //! （+ `margin: 0`）を当てる。
 //!
-//! # キャプション・`filled` インスタンス見出しのサイト本文タイポグラフィ中和
+//! # ナビグループは `h3 > button` で統一する（`docs_layout_sidebar_api` と同型）
 //!
-//! `.blocks-docs-layout-sidebar-nav-caption`（`<p>`）・
-//! `.blocks-docs-layout-sidebar-nav-group-trigger-heading`（`<h3>`）は
-//! いずれもクラス単体セレクタ（specificity `(0,1,0)`）だが、サイト本文
-//! タイポグラフィの `.docs-content p`/`.docs-content h3`（`site_theme.rs`、
-//! specificity `(0,1,1)`）に負けてキャプションが本文サイズへ、`filled`
-//! インスタンスのグループ見出しが `margin`/`font-size`/`letter-spacing` を
-//! 継承してしまう（Cursor Bugbot 指摘。`drawer::title` の中和は上記節の
-//! 属性セレクタで既に対処済みだが、この 2 箇所はクラスのみだった）。
+//! `line`/`narrow`（`collapsible`）・`filled`（`accordion`）のいずれも、
+//! グループ見出しは素の `h3`（`data-blocks-docs-layout-sidebar-nav-group-heading`）
+//! で開閉ボタン（`collapsible::trigger`/`accordion::item_trigger`）を包む
+//! `h3 > button` 構造にそろえる。`<button>` の内側に見出しを置かない
+//! （button の内容モデルは phrasing content のみ）。`nav_list::heading` は
+//! `h2` 固定（headless 層の anatomy）で、block ページの「Demo」節見出し
+//! （`h2`）と同じアウトライン階層へ 3 インスタンス分の「Guides」「API」が
+//! 並んでしまうため使わない（`docs_layout_sidebar_api` が同じ理由で
+//! `h3` に統一した判断に合わせる）。
+//!
+//! # 現在地は視覚のみで示し `aria-current` を出力しない
+//!
+//! 本 Demo は `/blocks/docs-layout-sidebar-nav/` 上に掲示される架空の
+//! サイドバーであり、リンク先（`../../guides/` 等）は実在する docs ページ
+//! だが「現在表示中のページ」ではない。`nav_list::link` の `current` には
+//! 常に `false` を渡し、`aria-current`（`page`/`location` いずれも）を
+//! 出力しない。視覚的な強調は
+//! `data-blocks-docs-layout-sidebar-nav-current` 属性（[`LAYOUT_CSS`]）
+//! のみに反映する（`settings_page_aside_nav::aside_nav` と同型の判断）。
+//!
+//! # レシピ既定スタイルの上書き（`docs_layout_sidebar_api` と同じ方式）
+//!
+//! `collapsible`/`accordion` レシピの base 規則
+//! （`[data-scope="…"][data-part="…"]`、詳細度 `(0,2,0)`）と state 規則
+//! （同 + `[data-state="open"]` 等、詳細度 `(0,3,0)`）を上書きするため、
+//! [`LAYOUT_CSS`] は block 固有のフック属性とレシピ属性を同じ要素上で
+//! 連結した `[data-scope="collapsible"][data-part="trigger"][data-blocks-…]`
+//! 形（詳細度 `(0,3,0)` 以上）で書く。フック属性単体（詳細度 `(0,1,0)`）
+//! ではレシピに負けて効かない。
+//!
+//! # キャプション・グループ見出しのサイト本文タイポグラフィ中和
+//!
+//! `.docs-content p`/`.docs-content h3`（`site_theme.rs`、詳細度 `(0,1,1)`）
+//! がキャプション（`<p>`）・グループ見出し（`<h3>`）へ漏れ出さないよう、
 //! [`LAYOUT_CSS`] は `.blocks-docs-layout-sidebar-nav-layout` を前置した
-//! 2 クラス合成セレクタ（specificity `(0,2,0)`）へ変更し、
-//! `settings_integration_detail` 等と同型の「descendant 2 クラスで上回る」
-//! パターンで上書きする。
+//! 子孫セレクタ（詳細度 `(0,2,0)`）で上書きする
+//! （`settings_integration_detail` 等と同型）。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -294,14 +319,9 @@ const API_ITEMS: NavItems = &[
 ];
 
 /// `nav_list::list` + `nav_list::item`/`link` の組み立て。`nav_list::link`
-/// の `current` 引数には常に `false` を渡し `aria-current="page"` を
-/// 付けない（`settings_page_aside_nav::aside_nav` と同型の判断。本 Demo は
-/// `/blocks/docs-layout-sidebar-nav/` 上に掲示される架空のサイドバーで
-/// あり、リンク先（`../../guides/` 等）は実在する docs ページだが
-/// 「現在表示中のページ」ではないため、`aria-current="page"` を付けると
-/// 支援技術に偽の現在地を伝えてしまう。視覚的な強調は
-/// `data-blocks-docs-layout-sidebar-nav-current` 属性（[`LAYOUT_CSS`]）
-/// のみに反映する）。
+/// の `current` 引数には常に `false` を渡し、視覚的な強調のみ
+/// `data-blocks-docs-layout-sidebar-nav-current` 属性で示す（モジュール
+/// 冒頭「現在地は視覚のみで示し `aria-current` を出力しない」節参照）。
 fn nav_items(items: NavItems) -> Node {
     let children: Vec<Node> = items
         .iter()
@@ -320,19 +340,18 @@ fn nav_items(items: NavItems) -> Node {
     nav_list::list(vec![], children)
 }
 
-/// `collapsible` で開閉するナビグループ（`line` インスタンス、アクティブ
-/// 項目は [`LAYOUT_CSS`] の線（border-inline-start）で示す）。
-///
-/// `nav_list::heading`（固定 `<h2>`）でラップしない: `<button>` の内側に
-/// `<h2>` を置くと content model 違反になる（旧実装の codex/Bugbot 指摘）
-/// ため見出しを外側に置く修正を一度行ったが、外側に置いても `line`/
-/// `filled`/`narrow` の 3 インスタンス分「Guides」「API」が重複する固定
-/// `<h2>` としてページのアウトラインに現れ続ける問題は残る
-/// （cursor(Low) 指摘。`content_article_toc`/`footer_sticky_reveal` が
-/// 同じ理由で `nav_list::heading` を使わない判断と同型）。本関数は
-/// `collapsible::trigger`（`<button>`）をラップせずそのまま
-/// `collapsible::root` の子にする（`nav_list::root`/`list`/`item`/`link`
-/// は引き続き使うため「Nav List」部品の使用自体は変わらない）。
+/// グループ見出し（`h3`）で開閉ボタンを包む（モジュール冒頭
+/// 「ナビグループは `h3 > button` で統一する」節参照）。
+fn group_heading(trigger: Node) -> Node {
+    el(
+        "h3",
+        vec![("data-blocks-docs-layout-sidebar-nav-group-heading", "")],
+        vec![trigger],
+    )
+}
+
+/// `collapsible` で開閉するナビグループ（`line`/`narrow` インスタンス、
+/// アクティブ項目は [`LAYOUT_CSS`] の線（border-inline-start）で示す）。
 fn nav_group_collapsible(
     suffix: &str,
     key: &str,
@@ -345,7 +364,7 @@ fn nav_group_collapsible(
         open,
         false,
         Some(content_id.as_str()),
-        vec![("class", "blocks-docs-layout-sidebar-nav-group-trigger")],
+        vec![("data-blocks-docs-layout-sidebar-nav-group-trigger", "")],
         vec![
             span(vec![], vec![text(title)]),
             collapsible::indicator(open, false, vec![], vec![text("\u{25be}")]),
@@ -355,7 +374,7 @@ fn nav_group_collapsible(
         open,
         false,
         Some(content_id.as_str()),
-        vec![],
+        vec![("data-blocks-docs-layout-sidebar-nav-group-content", "")],
         vec![nav_items(items)],
     );
     let label = format!("{title}（{suffix}）");
@@ -366,7 +385,7 @@ fn nav_group_collapsible(
             open,
             false,
             vec![],
-            vec![trigger, content],
+            vec![group_heading(trigger), content],
         )],
     )
 }
@@ -389,39 +408,26 @@ fn nav_group_accordion(
         &props,
         vec![],
         vec![
-            el(
-                "h3",
-                vec![(
-                    "class",
-                    "blocks-docs-layout-sidebar-nav-group-trigger-heading",
-                )],
-                vec![accordion_item_trigger(
-                    open,
-                    false,
-                    &props,
-                    key,
-                    Some(trigger_id.as_str()),
-                    Some(content_id.as_str()),
-                    vec![("class", "blocks-docs-layout-sidebar-nav-group-trigger")],
-                    vec![
-                        span(vec![], vec![text(title)]),
-                        accordion_item_indicator(
-                            open,
-                            false,
-                            &props,
-                            vec![],
-                            vec![text("\u{25be}")],
-                        ),
-                    ],
-                )],
-            ),
+            group_heading(accordion_item_trigger(
+                open,
+                false,
+                &props,
+                key,
+                Some(trigger_id.as_str()),
+                Some(content_id.as_str()),
+                vec![("data-blocks-docs-layout-sidebar-nav-group-trigger", "")],
+                vec![
+                    span(vec![], vec![text(title)]),
+                    accordion_item_indicator(open, false, &props, vec![], vec![text("\u{25be}")]),
+                ],
+            )),
             accordion_item_content(
                 open,
                 false,
                 &props,
                 Some(content_id.as_str()),
                 Some(trigger_id.as_str()),
-                vec![],
+                vec![("data-blocks-docs-layout-sidebar-nav-group-content", "")],
                 vec![nav_items(items)],
             ),
         ],
@@ -621,8 +627,11 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-docs-layout-sidebar-nav-search] {\n  justify-content: space-between;\n  width: 100%;\n}\n\
 [data-blocks-docs-layout-sidebar-nav-switcher] {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  width: 100%;\n  padding: 0.5rem;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n  background: transparent;\n  color: inherit;\n  font: inherit;\n  cursor: pointer;\n}\n\
 .blocks-docs-layout-sidebar-nav-external {\n  display: flex;\n  align-items: center;\n  gap: 0.5rem;\n  padding: 0.25rem 0;\n}\n\
-.blocks-docs-layout-sidebar-nav-group-trigger {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  width: 100%;\n  background: transparent;\n  border: none;\n  cursor: pointer;\n  padding: 0.25rem 0;\n  color: inherit;\n  font: inherit;\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n}\n\
-.blocks-docs-layout-sidebar-nav-layout .blocks-docs-layout-sidebar-nav-group-trigger-heading {\n  margin: 0;\n}\n\
+.blocks-docs-layout-sidebar-nav-layout [data-blocks-docs-layout-sidebar-nav-group-heading] {\n  margin: 0;\n  font-size: inherit;\n  font-weight: inherit;\n  letter-spacing: normal;\n}\n\
+[data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-docs-layout-sidebar-nav-group-trigger],\n[data-scope=\"accordion\"][data-part=\"item-trigger\"][data-blocks-docs-layout-sidebar-nav-group-trigger] {\n  display: flex;\n  width: 100%;\n  padding: 0.25rem 0;\n  border-radius: 0;\n  background: transparent;\n  color: inherit;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n}\n\
+[data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-docs-layout-sidebar-nav-group-trigger][data-state=\"open\"],\n[data-scope=\"accordion\"][data-part=\"item-trigger\"][data-blocks-docs-layout-sidebar-nav-group-trigger][data-state=\"open\"] {\n  color: var(--fandhe-color-accent);\n}\n\
+[data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-docs-layout-sidebar-nav-group-content] {\n  margin-top: 0;\n  padding: 0;\n  border: 0;\n  border-radius: 0;\n}\n\
+[data-scope=\"accordion\"][data-part=\"item-content\"][data-blocks-docs-layout-sidebar-nav-group-content] {\n  padding: 0;\n}\n\
 [data-blocks-docs-layout-sidebar-nav-group] [data-scope=\"nav-list\"][data-part=\"list\"] {\n  display: flex;\n  flex-direction: column;\n  gap: 0.25rem;\n  margin: 0.25rem 0 0;\n  padding-inline-start: 0.5rem;\n}\n\
 [data-blocks-docs-layout-sidebar-nav-panel=\"line\"] [data-scope=\"nav-list\"][data-part=\"link\"] {\n  display: block;\n  padding: 0.25rem 0.5rem;\n  border-inline-start: 2px solid transparent;\n  text-decoration: none;\n  color: inherit;\n}\n\
 [data-blocks-docs-layout-sidebar-nav-panel=\"line\"] [data-scope=\"nav-list\"][data-part=\"link\"][data-blocks-docs-layout-sidebar-nav-current] {\n  border-inline-start-color: var(--fandhe-color-accent);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n}\n\
@@ -714,14 +723,14 @@ mod tests {
         );
     }
 
+    /// 実在する別ページへのリンクに現在地を宣言しない（モジュール冒頭
+    /// 「現在地は視覚のみで示し `aria-current` を出力しない」節）。
+    /// `page`/`location` を問わず `aria-current` 属性そのものを出力せず、
+    /// 視覚強調のフック属性はインスタンスごとに 1 件（計 3 件）とする。
     #[test]
-    fn demo_never_uses_aria_current_page() {
-        // リンク先（`../../guides/` 等）は実在する docs ページだが「現在
-        // 表示中のページ」ではないため `aria-current="page"` を付けない
-        // （`settings_page_aside_nav` と同型の判断、モジュール冒頭
-        // `nav_items` rustdoc 参照。codex P2 指摘対応）。
+    fn demo_never_emits_aria_current() {
         let html = html();
-        assert!(!html.contains("aria-current=\"page\""));
+        assert!(!html.contains("aria-current"));
         assert_eq!(
             html.matches("data-blocks-docs-layout-sidebar-nav-current")
                 .count(),
@@ -730,16 +739,38 @@ mod tests {
         );
     }
 
+    /// 全ナビグループが `h3 > button` 構造であり、`<button>` の内側に見出しを
+    /// 置かず、`nav_list::heading`（`h2` 固定）も使わない（モジュール冒頭
+    /// 「ナビグループは `h3 > button` で統一する」節）。
     #[test]
-    fn each_nav_has_exactly_one_aria_current_page() {
+    fn every_group_heading_is_h3_wrapping_trigger_button() {
         let html = html();
-        // 各 `nav`（nav-list の root）内で aria-current="page" がちょうど 1 件。
-        let navs: Vec<&str> = html.split("<nav").skip(1).collect();
-        for nav in navs {
-            let count = nav.matches("aria-current=\"page\"").count();
+        let heading_open = "<h3 data-blocks-docs-layout-sidebar-nav-group-heading=\"\">";
+        assert_eq!(
+            html.matches(heading_open).count(),
+            6,
+            "2 groups x 3 instances should each have an h3 group heading"
+        );
+        for (idx, _) in html.match_indices(heading_open) {
+            let after = &html[idx + heading_open.len()..];
             assert!(
-                count <= 1,
-                "each nav should have at most one aria-current=\"page\", found {count}"
+                after.starts_with("<button"),
+                "group heading must directly wrap the trigger button"
+            );
+        }
+        let trigger_count = html
+            .matches("data-blocks-docs-layout-sidebar-nav-group-trigger")
+            .count();
+        assert_eq!(trigger_count, 6);
+        assert!(!html.contains("data-scope=\"nav-list\" data-part=\"heading\""));
+        // `<button ...>` の直後の子が見出しでないこと（button の内容モデル）。
+        for (idx, _) in html.match_indices("<button") {
+            let rest = &html[idx..];
+            let close = rest.find('>').unwrap();
+            let inner = &rest[close + 1..];
+            assert!(
+                !inner.starts_with("<h"),
+                "button must not contain a heading element"
             );
         }
     }
@@ -763,18 +794,38 @@ mod tests {
     }
 
     /// `.docs-content p`/`.docs-content h3`（`site_theme.rs`、specificity
-    /// `(0,1,1)`）がキャプション・`filled` グループ見出しへ漏れ出さないこと
-    /// を固定する（Cursor Bugbot 指摘、モジュール冒頭「キャプション・
-    /// `filled` インスタンス見出しのサイト本文タイポグラフィ中和」節参照）。
-    /// `.blocks-docs-layout-sidebar-nav-layout` を前置した 2 クラス合成
-    /// セレクタ（specificity `(0,2,0)`）であることを固定する。
+    /// `(0,1,1)`）がキャプション・グループ見出しへ漏れ出さないことを固定する
+    /// （モジュール冒頭「キャプション・グループ見出しのサイト本文
+    /// タイポグラフィ中和」節）。
     #[test]
     fn caption_and_group_heading_outrank_docs_content_typography() {
         assert!(LAYOUT_CSS.contains(
             ".blocks-docs-layout-sidebar-nav-layout .blocks-docs-layout-sidebar-nav-caption {"
         ));
         assert!(LAYOUT_CSS.contains(
-            ".blocks-docs-layout-sidebar-nav-layout .blocks-docs-layout-sidebar-nav-group-trigger-heading {"
+            ".blocks-docs-layout-sidebar-nav-layout [data-blocks-docs-layout-sidebar-nav-group-heading] {"
         ));
+    }
+
+    /// レシピ上書きはフック属性とレシピ属性を同じ要素上で連結した
+    /// セレクタで書く（モジュール冒頭「レシピ既定スタイルの上書き」節）。
+    /// フック属性単体のセレクタ（レシピに負ける）を持たないことも固定する。
+    #[test]
+    fn recipe_overrides_chain_hook_attribute_with_recipe_attributes() {
+        for needle in [
+            "[data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-docs-layout-sidebar-nav-group-trigger]",
+            "[data-scope=\"accordion\"][data-part=\"item-trigger\"][data-blocks-docs-layout-sidebar-nav-group-trigger]",
+            "[data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-docs-layout-sidebar-nav-group-content]",
+            "[data-scope=\"accordion\"][data-part=\"item-content\"][data-blocks-docs-layout-sidebar-nav-group-content]",
+        ] {
+            assert!(LAYOUT_CSS.contains(needle), "missing {needle}");
+        }
+        for line in LAYOUT_CSS.lines() {
+            let selector = line.trim_end_matches(" {").trim_end_matches(',');
+            if selector.starts_with("[data-blocks-docs-layout-sidebar-nav-group-") {
+                panic!("hook-only selector loses to the recipe: {selector}");
+            }
+        }
+        assert!(!LAYOUT_CSS.contains(".blocks-docs-layout-sidebar-nav-group-trigger"));
     }
 }

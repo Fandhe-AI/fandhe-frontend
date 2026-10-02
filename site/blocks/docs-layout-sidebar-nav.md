@@ -19,6 +19,11 @@ R0084・R0086・R0087・R0088。出典の固有名・ファイル名は記載し
 掲示するのみです。文言はすべて独自に書いた架空のものであり、実企業名・
 実クレデンシャル・PII を含みません。
 
+ナビグループの見出しは 3 インスタンスとも素の `h3` で開閉ボタンを包む
+`h3 > button` 構造に統一し、ボタンの内側に見出しを置きません。現在地の
+項目は線または塗りで視覚的に示すのみで、リンク先は本ページではない実在の
+docs ページのため `aria-current` は出力しません。
+
 ## Rust コード
 
 ```rust
@@ -227,14 +232,9 @@ const API_ITEMS: NavItems = &[
 ];
 
 /// `nav_list::list` + `nav_list::item`/`link` の組み立て。`nav_list::link`
-/// の `current` 引数には常に `false` を渡し `aria-current="page"` を
-/// 付けない（`settings_page_aside_nav::aside_nav` と同型の判断。本 Demo は
-/// `/blocks/docs-layout-sidebar-nav/` 上に掲示される架空のサイドバーで
-/// あり、リンク先（`../../guides/` 等）は実在する docs ページだが
-/// 「現在表示中のページ」ではないため、`aria-current="page"` を付けると
-/// 支援技術に偽の現在地を伝えてしまう。視覚的な強調は
-/// `data-blocks-docs-layout-sidebar-nav-current` 属性（[`LAYOUT_CSS`]）
-/// のみに反映する）。
+/// の `current` 引数には常に `false` を渡し、視覚的な強調のみ
+/// `data-blocks-docs-layout-sidebar-nav-current` 属性で示す（モジュール
+/// 冒頭「現在地は視覚のみで示し `aria-current` を出力しない」節参照）。
 fn nav_items(items: NavItems) -> Node {
     let children: Vec<Node> = items
         .iter()
@@ -253,19 +253,18 @@ fn nav_items(items: NavItems) -> Node {
     nav_list::list(vec![], children)
 }
 
-/// `collapsible` で開閉するナビグループ（`line` インスタンス、アクティブ
-/// 項目は [`LAYOUT_CSS`] の線（border-inline-start）で示す）。
-///
-/// `nav_list::heading`（固定 `<h2>`）でラップしない: `<button>` の内側に
-/// `<h2>` を置くと content model 違反になる（旧実装の codex/Bugbot 指摘）
-/// ため見出しを外側に置く修正を一度行ったが、外側に置いても `line`/
-/// `filled`/`narrow` の 3 インスタンス分「Guides」「API」が重複する固定
-/// `<h2>` としてページのアウトラインに現れ続ける問題は残る
-/// （cursor(Low) 指摘。`content_article_toc`/`footer_sticky_reveal` が
-/// 同じ理由で `nav_list::heading` を使わない判断と同型）。本関数は
-/// `collapsible::trigger`（`<button>`）をラップせずそのまま
-/// `collapsible::root` の子にする（`nav_list::root`/`list`/`item`/`link`
-/// は引き続き使うため「Nav List」部品の使用自体は変わらない）。
+/// グループ見出し（`h3`）で開閉ボタンを包む（モジュール冒頭
+/// 「ナビグループは `h3 > button` で統一する」節参照）。
+fn group_heading(trigger: Node) -> Node {
+    el(
+        "h3",
+        vec![("data-blocks-docs-layout-sidebar-nav-group-heading", "")],
+        vec![trigger],
+    )
+}
+
+/// `collapsible` で開閉するナビグループ（`line`/`narrow` インスタンス、
+/// アクティブ項目は [`LAYOUT_CSS`] の線（border-inline-start）で示す）。
 fn nav_group_collapsible(
     suffix: &str,
     key: &str,
@@ -278,7 +277,7 @@ fn nav_group_collapsible(
         open,
         false,
         Some(content_id.as_str()),
-        vec![("class", "blocks-docs-layout-sidebar-nav-group-trigger")],
+        vec![("data-blocks-docs-layout-sidebar-nav-group-trigger", "")],
         vec![
             span(vec![], vec![text(title)]),
             collapsible::indicator(open, false, vec![], vec![text("\u{25be}")]),
@@ -288,7 +287,7 @@ fn nav_group_collapsible(
         open,
         false,
         Some(content_id.as_str()),
-        vec![],
+        vec![("data-blocks-docs-layout-sidebar-nav-group-content", "")],
         vec![nav_items(items)],
     );
     let label = format!("{title}（{suffix}）");
@@ -299,7 +298,7 @@ fn nav_group_collapsible(
             open,
             false,
             vec![],
-            vec![trigger, content],
+            vec![group_heading(trigger), content],
         )],
     )
 }
@@ -322,39 +321,26 @@ fn nav_group_accordion(
         &props,
         vec![],
         vec![
-            el(
-                "h3",
-                vec![(
-                    "class",
-                    "blocks-docs-layout-sidebar-nav-group-trigger-heading",
-                )],
-                vec![accordion_item_trigger(
-                    open,
-                    false,
-                    &props,
-                    key,
-                    Some(trigger_id.as_str()),
-                    Some(content_id.as_str()),
-                    vec![("class", "blocks-docs-layout-sidebar-nav-group-trigger")],
-                    vec![
-                        span(vec![], vec![text(title)]),
-                        accordion_item_indicator(
-                            open,
-                            false,
-                            &props,
-                            vec![],
-                            vec![text("\u{25be}")],
-                        ),
-                    ],
-                )],
-            ),
+            group_heading(accordion_item_trigger(
+                open,
+                false,
+                &props,
+                key,
+                Some(trigger_id.as_str()),
+                Some(content_id.as_str()),
+                vec![("data-blocks-docs-layout-sidebar-nav-group-trigger", "")],
+                vec![
+                    span(vec![], vec![text(title)]),
+                    accordion_item_indicator(open, false, &props, vec![], vec![text("\u{25be}")]),
+                ],
+            )),
             accordion_item_content(
                 open,
                 false,
                 &props,
                 Some(content_id.as_str()),
                 Some(trigger_id.as_str()),
-                vec![],
+                vec![("data-blocks-docs-layout-sidebar-nav-group-content", "")],
                 vec![nav_items(items)],
             ),
         ],
