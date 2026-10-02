@@ -1154,6 +1154,7 @@ pub enum LayoutCss {
 | promo-signup-offer | #3085（親 #3024） | `ecommerce/promo/promo_signup_offer.rs` |
 | reviews-write-form | #3091 | `ecommerce/reviews/reviews_write_form.rs` |
 | api-reference-param-accordion | #3100 | `docs/api_reference/api_reference_param_accordion.rs` |
+| api-reference-props-table | #3103（親 #3099） | `docs/api_reference/api_reference_props_table.rs` |
 | code-block-header | #3104（親 #3099） | `docs/code_block/code_block_header.rs` |
 | example-preview-tabs | #3113（親 #3099） | `docs/example_preview/example_preview_tabs.rs` |
 | docs-layout-page-header | #3106 | `docs/docs_layout/docs_layout_page_header.rs` |
