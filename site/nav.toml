@@ -2879,6 +2879,11 @@ source = "site/blocks/reviews-card-grid.md"
 path = "/blocks/reviews-card-grid/"
 
 [[section.group.page]]
+title = "reviews-summary-split"
+source = "site/blocks/reviews-summary-split.md"
+path = "/blocks/reviews-summary-split/"
+
+[[section.group.page]]
 title = "reviews-write-form"
 source = "site/blocks/reviews-write-form.md"
 path = "/blocks/reviews-write-form/"
