@@ -479,10 +479,18 @@ let _style_node = sheet.style_element();
   のときは `group(attrs, children)` へそのまま委譲し出力が完全一致する。
   `FirstOnTop` のときは `fd-avatar--stacking-first-on-top` クラス
   （`isolation: isolate`）を付与し、直下の `Node::Element` 子へ先頭ほど
-  大きい inline `z-index`（子の数 `n`、0 始まり位置 `i` として `n - i`）を
-  注入して先頭の `root` を最前面にする。`:nth-child(n)` 等の子孫セレクタは
-  `SlotRecipe` が生成できない（イシュー #708）ため、CSS だけでは実現
-  できない。
+  大きい `z-index` を持つ固定クラス（`fd-avatar--stack-order-pos<1..12>`、
+  `AvatarStackOrder`）を付与して先頭の `root` を最前面にする。厳格 CSP
+  （`style-src-attr` 非許可）下でも無効化されないよう inline
+  `style="z-index: ..."` は採らない（PR #3563 codex-review P1 指摘）。
+  `z-index` の固定クラスは `1`〜`MAX_STACK_ORDER`（12）の 12 段までしか
+  持てないため、子の数 `n` が 12 を超える構成では、`n - i`（0 始まり位置
+  `i`）をそのまま使わず「先頭 12 件（`i < min(n, 12)`）に `min(n, 12) - i`
+  で一意な降順値を割り当て、それを超える末尾側（既に見た目上最背面に
+  埋もれている子）だけを最背面側の固定値 `pos1` へ合流させる」方式で
+  先頭側の一意な重なり順を保つ（`n <= 12` のときは従来どおり `n - i` と
+  同じ値になる）。`:nth-child(n)` 等の子孫セレクタは `SlotRecipe` が
+  生成できない（イシュー #708）ため、CSS だけでは実現できない。
 - **`AvatarGroupStacking`**（イシュー #3130 で新設）: `LastOnTop`（既定、
   DOM 順のまま）/`FirstOnTop`（先頭が最前面）の 2 値。
 - **`AvatarGroupProps`**（イシュー #3130 で新設）: `stacking` 1 フィールド

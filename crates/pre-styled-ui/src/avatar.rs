@@ -917,9 +917,18 @@ pub fn group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 ///   閉じ込める）を付与する（呼び出し側 `attrs` の `class` は
 ///   [`drop_class_attr`] で除去してから合成する）
 /// - 直下の [`Node::Element`] 子（`root(stacked: true)` 呼び出し想定）に
-///   先頭ほど大きい重なり順クラス（[`AvatarStackOrder`]、子の数を `n`、
-///   0 始まりの位置を `i` として `n - i`。`MAX_STACK_ORDER` を超える位置は
-///   クランプする）を付与する。inline `style="z-index: ..."` は
+///   先頭ほど大きい重なり順クラス（[`AvatarStackOrder`]）を付与する。
+///   子の数を `n`、`MAX_STACK_ORDER` を上限とする先頭件数を
+///   `effective_front = min(n, MAX_STACK_ORDER)`、0 始まりの位置を `i` として、
+///   `i < effective_front` の先頭側は `effective_front - i`（`MAX_STACK_ORDER`
+///   以下で降順・一意）を、`i >= effective_front` の末尾側は固定値 `1` を
+///   割り当てる。`n` が `MAX_STACK_ORDER` を超える構成で先頭側を揃って
+///   `pos{MAX_STACK_ORDER}` へクランプすると「先頭が最前面」という公開
+///   契約が崩れるため（PR #3563 codex-review P1 指摘）、クランプは必ず
+///   末尾側（既に見た目上最背面に埋もれている子）へ寄せる。`n <=
+///   MAX_STACK_ORDER` のときは `effective_front == n` となり、従来どおり
+///   `n - i` と同じ値になる（golden 出力・既存呼び出しは不変）。
+///   inline `style="z-index: ..."` は
 ///   `style-src-attr` を許可しない厳格 CSP 環境で無効化される（イシュー
 ///   #3130 フォローアップ、codex-review #3563 P1 指摘）ため採らず、
 ///   `:nth-child(n)` のような CSS 側の重なり順指定は
@@ -967,10 +976,27 @@ pub fn group_with<'a>(
     let mut merged: Vec<(&str, &str)> = vec![("class", stacking_class.as_str())];
     merged.extend(drop_class_attr(attrs));
     let n = children.len();
+    // `n` が `MAX_STACK_ORDER` を超える構成では、単純な `n - i` だと先頭側
+    // （`i` が小さい＝最前面であるべき複数の子）が揃って `pos{MAX_STACK_ORDER}`
+    // へクランプされ、先頭が最前面という契約が崩れる（PR #3563 codex-review
+    // P1 指摘）。先頭 `MAX_STACK_ORDER` 件（`i < effective_front`）には
+    // `effective_front - i` で `MAX_STACK_ORDER..=1` の一意な値を昇順に割り当て、
+    // それを超える末尾側（既に見た目上最背面に埋もれている子）だけを `pos1`
+    // （最背面側の固定値）へ合流させる。`n <= MAX_STACK_ORDER` のときは
+    // `effective_front == n` となり、従来どおり `n - i` と同じ値になる
+    // （golden 出力・既存呼び出しは不変）。
+    let effective_front = n.min(MAX_STACK_ORDER as usize);
     let children: Vec<Node> = children
         .into_iter()
         .enumerate()
-        .map(|(i, child)| with_stack_order_class(&recipe, child, n - i))
+        .map(|(i, child)| {
+            let position = if i < effective_front {
+                effective_front - i
+            } else {
+                1
+            };
+            with_stack_order_class(&recipe, child, position)
+        })
         .collect();
     ANATOMY.part("group", "div", merged, children)
 }
@@ -1573,6 +1599,36 @@ mod tests {
             "fd-avatar--stack-order-pos{}",
             MAX_STACK_ORDER as usize + 1
         )));
+    }
+
+    #[test]
+    fn stack_order_keeps_front_elements_distinct_when_exceeding_max() {
+        // PR #3563 codex-review P1 指摘の回帰テスト: `n - i` を無条件クランプ
+        // すると先頭側（最前面であるべき複数の子）が揃って `pos{MAX_STACK_ORDER}`
+        // に丸められ「先頭が最前面」契約が崩れる。本テストは
+        // `MAX_STACK_ORDER + 3` 件の構成で、先頭 `MAX_STACK_ORDER` 件
+        // （`pos2`..`pos{MAX_STACK_ORDER}`）がそれぞれ厳密に 1 回だけ出現し
+        // （同一 z-index への衝突なし）、クランプは末尾側（既に見た目上
+        // 最背面に埋もれている子）の `pos1` へのみ合流することを固定する。
+        let n = MAX_STACK_ORDER as usize + 3;
+        let many: Vec<Node> = (0..n)
+            .map(|_| root(&AvatarProps::default(), vec![], vec![]))
+            .collect();
+        let props = AvatarGroupProps {
+            stacking: AvatarGroupStacking::FirstOnTop,
+        };
+        let html = render(&group_with(&props, vec![], many));
+        for position in 2..=(MAX_STACK_ORDER as usize) {
+            let token = format!("fd-avatar--stack-order-pos{position}\"");
+            assert_eq!(
+                html.matches(&token).count(),
+                1,
+                "pos{position} は先頭側で一意であるべき（衝突回避の回帰）"
+            );
+        }
+        // 末尾側（元の `i=11`〔pos1 本来の先頭末席〕+ 超過分 3 件）が
+        // `pos1` へ合流し、合計 4 回出現する。
+        assert_eq!(html.matches("fd-avatar--stack-order-pos1\"").count(), 4);
     }
 
     #[test]
