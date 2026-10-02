@@ -2994,6 +2994,14 @@ source = "site/blocks/code-block-header.md"
 path = "/blocks/code-block-header/"
 
 [[section.group]]
+title = "Example Preview"
+
+[[section.group.page]]
+title = "example-preview-tabs"
+source = "site/blocks/example-preview-tabs.md"
+path = "/blocks/example-preview-tabs/"
+
+[[section.group]]
 title = "API Reference"
 
 [[section.group.page]]
@@ -3076,7 +3084,6 @@ path = "/blocks/api-reference-param-accordion/"
 # Ecommerce / Incentives
 # Ecommerce / Promo
 # Docs / Docs Layout
-# Docs / Example Preview
 # Docs / Api Reference
 
 # Wireframes セクション（イシュー #2607 / 設計 docs/design/wireframe-ui-architecture.md §12）。
