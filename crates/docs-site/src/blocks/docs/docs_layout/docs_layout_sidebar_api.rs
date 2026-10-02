@@ -62,6 +62,33 @@
 //! はビューポート基準の配置であり本 Demo の意図〔枠内下端への固定〕とは
 //! 異なるため使わない）。
 //!
+//! # `search-ai` の collapsible 既定スタイルの上書き（Bugbot 指摘、PR #3548）
+//!
+//! `search-ai` の全グループは [`OpenState::Open`] 固定（「静的表示・全
+//! disabled 固定」節参照）のため、`collapsible` レシピが持つ 2 つの既定
+//! スタイルが常時適用され、サイドバー見出しとしての体裁を崩す:
+//!
+//! 1. **trigger の open 色が勝つ**: `fandhe_frontend_pre_styled_ui::collapsible`
+//!    は `[data-scope="collapsible"][data-part="trigger"][data-state="open"]`
+//!    （詳細度 3）で `color: var(--fandhe-color-accent)` を宣言しており、
+//!    [`LAYOUT_CSS`] 側の `[data-blocks-docs-layout-sidebar-api-group-trigger]`
+//!    （詳細度 1）の `color: var(--fandhe-color-fg-muted)` はこれに負ける。
+//!    常時 Open の `search-ai` ではカテゴリ見出しだけ accent 色になり、
+//!    `search-input` 側の [`category_heading`]（muted 色固定）と見出し色が
+//!    揃わない。このため詳細度 4 の複合セレクタで上書きし直す。
+//! 2. **content の disclosure カード風スタイルが漏れる**: [`LAYOUT_CSS`] は
+//!    trigger の見た目のみサイドバー見出し風に上書きし、`collapsible`
+//!    content の既定スタイル（枠線・パディング・角丸・`[data-disabled]`
+//!    時のミュート文字色）は上書きしていなかった。開いたグループが
+//!    サイドバー区画ではなく積み重なった disclosure カードに見えてしまう
+//!    ため、`content` の枠線・パディング・角丸をゼロ化し、`[data-disabled]`
+//!    の文字色上書きも打ち消す。
+//!
+//! いずれも `[data-blocks-docs-layout-sidebar-api-group]` を祖先に持つ
+//! 複合セレクタで詳細度を確保する（モジュール doc 既存の
+//! `[data-blocks-docs-layout-sidebar-api-group][data-scope="collapsible"]...`
+//! パターンと同型）。
+//!
 //! # 検索欄のアクセシブルネーム
 //!
 //! `input::input` の `extra_attrs` へ直接 `aria-label` を渡す（headless
@@ -616,6 +643,9 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-docs-layout-sidebar-api-group-trigger] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  inline-size: 100%;\n  text-align: start;\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-docs-layout-sidebar-api-group-chevron] {\n  margin-inline-start: auto;\n  display: inline-block;\n}\n\
 [data-blocks-docs-layout-sidebar-api-group][data-scope=\"collapsible\"][data-part=\"root\"][data-disabled] [data-blocks-docs-layout-sidebar-api-group-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-blocks-docs-layout-sidebar-api-group] [data-scope=\"collapsible\"][data-part=\"trigger\"][data-state=\"open\"][data-blocks-docs-layout-sidebar-api-group-trigger] {\n  color: var(--fandhe-color-fg-muted);\n}\n\
+[data-blocks-docs-layout-sidebar-api-group] [data-scope=\"collapsible\"][data-part=\"content\"] {\n  margin-top: 0;\n  padding: 0;\n  border: 0;\n  border-radius: 0;\n}\n\
+[data-blocks-docs-layout-sidebar-api-group] [data-scope=\"collapsible\"][data-part=\"content\"][data-disabled] {\n  color: inherit;\n}\n\
 [data-blocks-docs-layout-sidebar-api-footer] {\n  flex: none;\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-3);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  border-block-start: 1px solid var(--fandhe-color-border);\n  background: var(--fandhe-color-bg-subtle);\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-docs-layout-sidebar-api-search-trigger][data-disabled],\n[data-scope=\"button\"][data-part=\"root\"][data-blocks-docs-layout-sidebar-api-ai-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"field\"][data-part=\"input\"][data-blocks-docs-layout-sidebar-api-search-input][data-disabled],\n[data-scope=\"input-group\"][data-part=\"addon\"][data-blocks-docs-layout-sidebar-api-search-addon][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n";
