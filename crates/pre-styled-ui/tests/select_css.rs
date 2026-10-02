@@ -59,9 +59,11 @@
 //! （イシュー #3121）」節参照。
 //!
 //! イシュー #3124 で `select::ItemIndicatorPlacement`（start/end、既定
-//! end）を追加し、variants 節末尾へ root variant 1 件・compound variant
-//! 5 件（size × start）を、states 節末尾へ `item`/`item-indicator` の
-//! `[data-state="open"]` 規則 2 件を純追加した。既存 base ブロックは不変
+//! end）を追加し、variants 節末尾へ root variant 1 件を、states 節末尾へ
+//! `item`/`item-indicator` の `[data-state="open"]` 規則 2 件を、
+//! pseudo-elements 節へ `item::before`（インジケータ幅の gutter、既定
+//! `display: none`）1 件を純追加した。`item` の `padding` は上書きしない
+//! （既存フック `--fandhe-select-item-padding` を尊重、PR #3561）。既存 base ブロックは不変
 //! （`golden_prefix_through_hidden_select_is_unchanged`・
 //! `select_pre_2391_blocks_remain_verbatim` が引き続き固定する）。詳細は
 //! `crates/pre-styled-ui/src/select.rs` モジュール rustdoc「選択インジケータ
@@ -177,10 +179,6 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
-[data-scope="select"][data-part="item"] {
-  padding-inline-start: var(--fandhe-select-item-padding-inline-start, var(--fandhe-select-item-padding-inline, var(--fandhe-space-3)));
-}
-
 [data-scope="select"][data-part="item-indicator"] {
   margin-left: auto;
 }
@@ -267,26 +265,6 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   --fandhe-select-content-max-height: 24rem;
 }
 
-[data-scope="select"][data-part="root"].fd-select--size-xs {
-  --fandhe-select-item-padding-inline: var(--fandhe-space-1);
-}
-
-[data-scope="select"][data-part="root"].fd-select--size-sm {
-  --fandhe-select-item-padding-inline: var(--fandhe-space-2);
-}
-
-[data-scope="select"][data-part="root"].fd-select--size-md {
-  --fandhe-select-item-padding-inline: var(--fandhe-space-3);
-}
-
-[data-scope="select"][data-part="root"].fd-select--size-lg {
-  --fandhe-select-item-padding-inline: var(--fandhe-space-4);
-}
-
-[data-scope="select"][data-part="root"].fd-select--size-xl {
-  --fandhe-select-item-padding-inline: var(--fandhe-space-5);
-}
-
 [data-scope="select"][data-part="root"].fd-select--shape-pill {
   --fandhe-select-trigger-radius: var(--fandhe-radius-full);
 }
@@ -299,31 +277,8 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
 [data-scope="select"][data-part="root"].fd-select--item-indicator-placement-start {
   --fandhe-select-item-position: relative;
   --fandhe-select-item-indicator-position: absolute;
-}
-
-[data-scope="select"][data-part="root"].fd-select--size-xs.fd-select--item-indicator-placement-start {
-  --fandhe-select-item-padding-inline-start: calc(var(--fandhe-space-1) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-1));
-  --fandhe-select-item-indicator-inset-inline-start: var(--fandhe-space-1);
-}
-
-[data-scope="select"][data-part="root"].fd-select--size-sm.fd-select--item-indicator-placement-start {
-  --fandhe-select-item-padding-inline-start: calc(var(--fandhe-space-2) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-1));
-  --fandhe-select-item-indicator-inset-inline-start: var(--fandhe-space-2);
-}
-
-[data-scope="select"][data-part="root"].fd-select--size-md.fd-select--item-indicator-placement-start {
-  --fandhe-select-item-padding-inline-start: calc(var(--fandhe-space-3) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-2));
-  --fandhe-select-item-indicator-inset-inline-start: var(--fandhe-space-3);
-}
-
-[data-scope="select"][data-part="root"].fd-select--size-lg.fd-select--item-indicator-placement-start {
-  --fandhe-select-item-padding-inline-start: calc(var(--fandhe-space-4) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-3));
-  --fandhe-select-item-indicator-inset-inline-start: var(--fandhe-space-4);
-}
-
-[data-scope="select"][data-part="root"].fd-select--size-xl.fd-select--item-indicator-placement-start {
-  --fandhe-select-item-padding-inline-start: calc(var(--fandhe-space-5) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-4));
-  --fandhe-select-item-indicator-inset-inline-start: var(--fandhe-space-5);
+  --fandhe-select-item-indicator-gutter-display: block;
+  --fandhe-select-item-indicator-margin-left: 0;
 }
 
 [data-scope="select"][data-part="trigger"][data-state="open"] {
@@ -393,12 +348,19 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
 
 [data-scope="select"][data-part="item-indicator"][data-state="open"] {
   position: var(--fandhe-select-item-indicator-position, static);
-  inset-inline-start: var(--fandhe-select-item-indicator-inset-inline-start, auto);
+  margin-left: var(--fandhe-select-item-indicator-margin-left, auto);
 }
 
 [data-scope="select"][data-part="content"][hidden] {
   opacity: 0;
   transform: scale(0.95);
+}
+
+[data-scope="select"][data-part="item"]::before {
+  content: "";
+  display: var(--fandhe-select-item-indicator-gutter-display, none);
+  flex: none;
+  inline-size: var(--fandhe-select-item-indicator-size, 1em);
 }
 
 @starting-style {
@@ -890,10 +852,6 @@ fn golden_prefix_through_hidden_select_is_unchanged() {
   transition-property: background, color;
   transition-duration: var(--fandhe-motion-duration-fast);
   transition-timing-function: var(--fandhe-motion-easing-standard);
-}
-
-[data-scope="select"][data-part="item"] {
-  padding-inline-start: var(--fandhe-select-item-padding-inline-start, var(--fandhe-select-item-padding-inline, var(--fandhe-space-3)));
 }
 
 [data-scope="select"][data-part="item-indicator"] {

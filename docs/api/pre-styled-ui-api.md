@@ -243,12 +243,16 @@ NativeSelectVariant` と同型の軸で、`Subtle` は root の CSS 変数
 上書きし trigger を淡色背景・枠線なしにする。`Outline`（既定）は
 `default_variant` を登録していないため class を一切出さず、`root()` の
 既存出力はバイト単位で不変。`ItemIndicatorPlacement::Start`（既定は
-`End`）は root の CSS 変数 2 本
-（`--fandhe-select-item-position`/`--fandhe-select-item-indicator-position`）
-を `relative`/`absolute` へ切り替え、size × `Start` の compound variant が
-`item` の左 padding を広げつつ `--fandhe-select-item-indicator-left` を
-宣言する。実際の配置は `item`/`item-indicator` の
-`[data-state="open"]` state 規則が担う（選択済み項目のみ）。`End`
+`End`）は root の CSS 変数 4 本
+（`--fandhe-select-item-position`/`--fandhe-select-item-indicator-position`/
+`--fandhe-select-item-indicator-gutter-display`/
+`--fandhe-select-item-indicator-margin-left`）を切り替え、全項目の
+`item::before` がインジケータ幅（`--fandhe-select-item-indicator-size`、
+既定 `1em`）の空きを inline-start 側へ確保する。選択済み項目の
+インジケータは `[data-state="open"]` state 規則で絶対配置され、静的位置
+（content-box の inline-start 端）で空きと重なる。`item` の `padding` は
+上書きしないため、既存フック `--fandhe-select-item-padding` による余白
+調整はそのまま効く。`End`
 （既定）は class を一切出さず既存出力はバイト不変。
 
 `ActivationMode`/`TabItem`/`TabsProps`（tabs）・`DialogRole`/`ContentIds`

@@ -141,7 +141,12 @@ variant 5 件を当初 `item` slot のクラスセレクタで宣言していた
 スコープで CSS custom property を宣言し子孫が `var()` で継承する」
 パターンへ是正し、5 件とも `[data-scope="select"][data-part="root"]`
 セレクタへ変更した〔セレクタのスコープのみの変更、宣言内容・観測可能な
-最終スタイルは当初意図どおり〕）** /
+最終スタイルは当初意図どおり〕。その後、`item` の `padding-inline-start`
+上書きが既存フック `--fandhe-select-item-padding` を無視する不具合（Bugbot
+Medium 指摘、PR #3561）を受け、compound variant 5 件・size 別
+`--fandhe-select-item-padding-inline` 5 件・`item` の
+`padding-inline-start` ブロックを撤去し、`item::before` の gutter
+〔既定 `display: none`〕+ インジケータの静的位置配置へ置き換えた）** /
 separator / **sidebar（イシュー #2073 で golden 新設。
 `stylesheet()` 全文）** / skeleton / skip_nav / **spinner（イシュー #1567 で
 golden 新設）** / splitter / stat / steps / switch /

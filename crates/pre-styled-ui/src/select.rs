@@ -317,28 +317,27 @@
 //! - **既定は `End`**: `End` のとき variant class を一切出さない
 //!   （`default_variant` も登録しない）。既存呼び出し元の出力・golden は
 //!   バイト不変（`Shape::Pill` 未指定時と同じ安全側契約）。
-//! - **`Start` の実現方法**: `root` variant で 2 本の CSS 変数
+//! - **`Start` の実現方法**: `root` variant で 4 本の CSS 変数
 //!   （`--fandhe-select-item-position`/`--fandhe-select-item-indicator-
-//!   position`）を `relative`/`absolute` へ切り替え、size × `Start` の
-//!   compound variant で `--fandhe-select-item-padding-inline-start`
-//!   （インジケータ分広げた論理方向の padding）と
-//!   `--fandhe-select-item-indicator-inset-inline-start` を宣言する。
-//!   物理方向（`left`/4 値 padding）は `direction: rtl` で左右が反転せず
-//!   チェックマーク位置が崩れるため使わない（Bugbot Medium 指摘、PR
-//!   #3561）。`item` は `padding-inline-start`（既定は
-//!   `--fandhe-select-item-padding-inline` にフォールバックし、`item`
-//!   base の既存 `padding` 物理 2 値 shorthand と常に同値のため End 既定
-//!   出力は不変）、`item-indicator` は `inset-inline-start` を適用する
-//!   `[data-state="open"]` **state 規則**（インジケータが見えるのは選択中
-//!   の項目のみのため）が実際の配置を担い、base ブロックは変更しない
-//!   （既存 golden の前半固定テスト `golden_prefix_through_hidden_select_
+//!   position`/`--fandhe-select-item-indicator-gutter-display`/
+//!   `--fandhe-select-item-indicator-margin-left`）を切り替える。全項目の
+//!   `item::before` がインジケータ幅の空き（gutter）を inline-start 側へ
+//!   確保し、選択中項目の `item-indicator` は絶対配置 + `margin-left: 0`
+//!   で静的位置（content-box の inline-start 端）に置かれて gutter と
+//!   重なる。`item` の `padding` は一切上書きしないため、既存フック
+//!   `--fandhe-select-item-padding` による余白調整は `Start` でもそのまま
+//!   効く（Bugbot Medium 指摘、PR #3561）。物理方向の `left` は使わず
+//!   静的位置に任せるため `direction: rtl` でも正しい側に置かれる。
+//!   `item`/`item-indicator` 側は `[data-state="open"]` **state 規則**と
+//!   pseudo-element 規則の純追加のみで base ブロックは変更しない（既存
+//!   golden の前半固定テスト `golden_prefix_through_hidden_select_
 //!   is_unchanged`・`select_pre_2391_blocks_remain_verbatim` を壊さない
-//!   ための設計判断）。
+//!   ための設計判断）。`End` では `item::before` が `display: none` の
+//!   ため flex item にならず `gap` も生じず、計算値は不変。
 //! - **縦位置は無調整**: `item` は `display: flex` + `align-items: center`
 //!   のため、絶対配置した `item-indicator` の静的位置はその flex コンテナの
 //!   中央に揃う（CSS Flexbox の仕様上の挙動）。`top`/`transform` は宣言し
-//!   ない。`inset-inline-start` 指定により既存の `margin-left: auto` は
-//!   0 へ解決されるため、End 用の宣言を打ち消す追加宣言も不要。
+//!   ない。
 //! - **`--fandhe-select-item-indicator-size`**: インジケータ幅調整用の
 //!   フォールバック専用変数（既定 `1em`）。本モジュールは宣言せず参照の
 //!   みを提供する（アイコン幅が `1em` を超える場合の呼び出し側調整用）。
@@ -347,8 +346,8 @@ use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
     disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
-    transition_declarations, when, FocusRingColor, FocusRingOffset, MotionDuration, Shape, Size,
-    SlotRecipe, StateCondition, VariantValue,
+    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, PseudoElement, Shape,
+    Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // headless 自由関数 `root`・状態機械 `Select` はあえて再エクスポートしない
@@ -595,26 +594,6 @@ fn recipe() -> SlotRecipe {
         .base(
             "item",
             transition_declarations("background, color", MotionDuration::Fast),
-        )
-        // イシュー #3124: `padding-inline-start` 論理プロパティでインジ
-        // ケータ分の padding を上書きする純追加ブロック。未設定時
-        // （`--fandhe-select-item-padding-inline-start` 不在）は
-        // `--fandhe-select-item-padding-inline`（各 size variant が
-        // `--fandhe-select-item-padding` と同値で宣言する対称値、下記
-        // size variant 節参照）へフォールバックし、直前の `padding`
-        // shorthand（上記 base ブロック）と計算結果が一致するため、
-        // `ItemIndicatorPlacement::Start` 未指定時の出力は不変（LTR/RTL
-        // いずれも inline-start = inline-end の対称値のまま）。`Start` の
-        // size × placement compound variant（下記）が
-        // `--fandhe-select-item-padding-inline-start` を上書きすると、
-        // 後勝ちの `padding-inline-start` が `direction` に応じて正しい
-        // 物理側（LTR は左・RTL は右）だけを広げる。
-        .base(
-            "item",
-            vec![decl(
-                "padding-inline-start",
-                "var(--fandhe-select-item-padding-inline-start, var(--fandhe-select-item-padding-inline, var(--fandhe-space-3)))",
-            )],
         )
         // チェックマーク（item-indicator）を item 末尾へ寄せる。`display` は
         // ここでは宣言しない（headless の非選択時 `hidden` 存在属性による
@@ -923,39 +902,6 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-select-content-max-height", "24rem"),
             ],
         )
-        // イシュー #3124: `item` の `padding-inline-start`（論理プロパ
-        // ティ）が参照するフォールバック（`--fandhe-select-item-padding`
-        // の水平成分と同値の対称値）。上記 size variant（`#729`）の既存
-        // ブロックを書き換えず、`.variant()` の同一値への複数回登録は
-        // 連結される別ブロックとして出力される性質（`.base()` の「複数
-        // 回登録の純追加」と同型）を利用した純追加のため、
-        // `select_pre_2391_blocks_remain_verbatim` の golden ブロックは
-        // バイト不変。`Start` 未指定時の出力に影響しない。
-        .variant(
-            Size::Xs,
-            "root",
-            vec![decl("--fandhe-select-item-padding-inline", "var(--fandhe-space-1)")],
-        )
-        .variant(
-            Size::Sm,
-            "root",
-            vec![decl("--fandhe-select-item-padding-inline", "var(--fandhe-space-2)")],
-        )
-        .variant(
-            Size::Md,
-            "root",
-            vec![decl("--fandhe-select-item-padding-inline", "var(--fandhe-space-3)")],
-        )
-        .variant(
-            Size::Lg,
-            "root",
-            vec![decl("--fandhe-select-item-padding-inline", "var(--fandhe-space-4)")],
-        )
-        .variant(
-            Size::Xl,
-            "root",
-            vec![decl("--fandhe-select-item-padding-inline", "var(--fandhe-space-5)")],
-        )
         // イシュー #3117: 共通 shape 軸。size variant 登録の後に置く（純追加、
         // `Circle` は未登録）。trigger の `border-radius` 行が参照する
         // `--fandhe-select-trigger-radius` を root スコープで上書きする
@@ -994,6 +940,8 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("--fandhe-select-item-position", "relative"),
                 decl("--fandhe-select-item-indicator-position", "absolute"),
+                decl("--fandhe-select-item-indicator-gutter-display", "block"),
+                decl("--fandhe-select-item-indicator-margin-left", "0"),
             ],
         )
         .default_variant(Size::Md)
@@ -1006,94 +954,6 @@ fn recipe() -> SlotRecipe {
         // + `max-height`（イシュー #2019）を既に持つが、
         // `presence_transition` が宣言するのは `opacity`/`transform`/
         // `transition-*` のみで交差しないため衝突しない。
-        // イシュー #3124: size × Start の compound variant。`item`/
-        // `item-indicator` は `root_with` が class を付与しない非スタイル
-        // パーツ（`fandhe_frontend_headless_ui::select::{item, item_indicator}`
-        // をそのまま再 export、モジュール冒頭「選択的 re-export」節参照）
-        // のため、`item` スコープへクラスセレクタで直接当てる compound
-        // variant は構造的に一致しない（Bugbot High / codex P1 指摘、PR
-        // #3561）。size variant（上記 `.variant(Size::*, "root", ..)`）と
-        // 同じ「root スコープで CSS custom property を宣言し、子孫の
-        // item/item-indicator がそれを `var()` で参照して継承する」
-        // パターンに統一し、slot を `"root"` にする。`item` の inline-start
-        // 側 padding をインジケータ分広げ、インジケータの絶対配置に使う
-        // `inset-inline-start` フォールバック値を宣言する（物理方向
-        // `left`/4 値 padding は `direction: rtl` で反転せずチェックマーク
-        // 位置が崩れるため使わない、Bugbot Medium 指摘、PR #3561。
-        // size ごとの横 padding と同じスケール: Xs=space-1 / Sm=space-2 /
-        // Md=space-3 / Lg=space-4 / Xl=space-5）。2 class（size +
-        // item-indicator-placement）の詳細度により、単独 size variant の
-        // 同名変数より後勝ちで上書きする。
-        .compound_variant(
-            vec![when(Size::Xs), when(ItemIndicatorPlacement::Start)],
-            "root",
-            vec![
-                decl(
-                    "--fandhe-select-item-padding-inline-start",
-                    "calc(var(--fandhe-space-1) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-1))",
-                ),
-                decl(
-                    "--fandhe-select-item-indicator-inset-inline-start",
-                    "var(--fandhe-space-1)",
-                ),
-            ],
-        )
-        .compound_variant(
-            vec![when(Size::Sm), when(ItemIndicatorPlacement::Start)],
-            "root",
-            vec![
-                decl(
-                    "--fandhe-select-item-padding-inline-start",
-                    "calc(var(--fandhe-space-2) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-1))",
-                ),
-                decl(
-                    "--fandhe-select-item-indicator-inset-inline-start",
-                    "var(--fandhe-space-2)",
-                ),
-            ],
-        )
-        .compound_variant(
-            vec![when(Size::Md), when(ItemIndicatorPlacement::Start)],
-            "root",
-            vec![
-                decl(
-                    "--fandhe-select-item-padding-inline-start",
-                    "calc(var(--fandhe-space-3) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-2))",
-                ),
-                decl(
-                    "--fandhe-select-item-indicator-inset-inline-start",
-                    "var(--fandhe-space-3)",
-                ),
-            ],
-        )
-        .compound_variant(
-            vec![when(Size::Lg), when(ItemIndicatorPlacement::Start)],
-            "root",
-            vec![
-                decl(
-                    "--fandhe-select-item-padding-inline-start",
-                    "calc(var(--fandhe-space-4) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-3))",
-                ),
-                decl(
-                    "--fandhe-select-item-indicator-inset-inline-start",
-                    "var(--fandhe-space-4)",
-                ),
-            ],
-        )
-        .compound_variant(
-            vec![when(Size::Xl), when(ItemIndicatorPlacement::Start)],
-            "root",
-            vec![
-                decl(
-                    "--fandhe-select-item-padding-inline-start",
-                    "calc(var(--fandhe-space-5) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-4))",
-                ),
-                decl(
-                    "--fandhe-select-item-indicator-inset-inline-start",
-                    "var(--fandhe-space-5)",
-                ),
-            ],
-        )
         // イシュー #3124: `item`/`item-indicator` の `[data-state="open"]`
         // state 規則。インジケータが可視なのは選択中の項目のみのため、この
         // 条件に限定すれば十分（モジュール rustdoc 参照）。フォールバック
@@ -1118,8 +978,31 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-select-item-indicator-position, static)",
                 ),
                 decl(
-                    "inset-inline-start",
-                    "var(--fandhe-select-item-indicator-inset-inline-start, auto)",
+                    "margin-left",
+                    "var(--fandhe-select-item-indicator-margin-left, auto)",
+                ),
+            ],
+        )
+        // イシュー #3124: `Start` 時にインジケータ幅の空き（gutter）を全
+        // 項目の inline-start 側へ確保する `item::before`。`padding` を
+        // 上書きしないため、利用者が既存フック `--fandhe-select-item-padding`
+        // で調整した余白は `Start`/`End` を問わずそのまま効く（Bugbot Medium
+        // 指摘、PR #3561）。既定（`End`）は `display: none` で flex item に
+        // ならず `gap` も生じないため、`End` の計算値は不変。`Start` では
+        // 絶対配置したインジケータが静的位置（content-box の inline-start
+        // 端、`align-items: center` で縦中央）に置かれ、この gutter と重なる。
+        .pseudo_element(
+            "item",
+            PseudoElement::Before,
+            vec![
+                decl(
+                    "display",
+                    "var(--fandhe-select-item-indicator-gutter-display, none)",
+                ),
+                decl("flex", "none"),
+                decl(
+                    "inline-size",
+                    "var(--fandhe-select-item-indicator-size, 1em)",
                 ),
             ],
         )
@@ -1390,26 +1273,22 @@ mod tests {
     #[test]
     fn stylesheet_contains_item_indicator_placement_start_blocks() {
         let css = stylesheet();
-        // root variant（2 本の CSS 変数切り替え）。
+        // root variant（4 本の CSS 変数切り替え）。
         assert!(css.contains(
             r#"[data-scope="select"][data-part="root"].fd-select--item-indicator-placement-start {"#
         ));
         assert!(css.contains("--fandhe-select-item-position: relative;"));
         assert!(css.contains("--fandhe-select-item-indicator-position: absolute;"));
-        // compound variant（size × start、5 件）。root スコープへ CSS
-        // custom property を宣言し、item/item-indicator は子孫として
-        // `var()` 経由でこれを継承する（PR #3561 是正、本関数直前の
-        // compound_variant 呼び出しのコメント参照）。
-        for size_class in ["xs", "sm", "md", "lg", "xl"] {
-            assert!(
-                css.contains(&format!(
-                    "[data-scope=\"select\"][data-part=\"root\"].fd-select--size-{size_class}.fd-select--item-indicator-placement-start {{"
-                )),
-                "missing compound variant block for size={size_class}, css={css}"
-            );
-        }
-        assert!(css
-            .contains("--fandhe-select-item-indicator-inset-inline-start: var(--fandhe-space-3);"));
+        assert!(css.contains("--fandhe-select-item-indicator-gutter-display: block;"));
+        assert!(css.contains("--fandhe-select-item-indicator-margin-left: 0;"));
+        // gutter（`item::before`、既定 `display: none`）。
+        let gutter_block =
+            extract_block(&css, r#"[data-scope="select"][data-part="item"]::before {"#);
+        assert!(gutter_block
+            .contains("display: var(--fandhe-select-item-indicator-gutter-display, none);"));
+        assert!(
+            gutter_block.contains("inline-size: var(--fandhe-select-item-indicator-size, 1em);")
+        );
         // state 規則（`[data-state=\"open\"]`、item/item-indicator 各 1 件）。
         assert!(css.contains(
             "[data-scope=\"select\"][data-part=\"item\"][data-state=\"open\"] {\n  position: var(--fandhe-select-item-position, static);\n}\n"
@@ -1420,9 +1299,30 @@ mod tests {
         );
         assert!(item_indicator_open_block
             .contains("position: var(--fandhe-select-item-indicator-position, static);"));
-        assert!(item_indicator_open_block.contains(
-            "inset-inline-start: var(--fandhe-select-item-indicator-inset-inline-start, auto);"
-        ));
+        assert!(item_indicator_open_block
+            .contains("margin-left: var(--fandhe-select-item-indicator-margin-left, auto);"));
+    }
+
+    #[test]
+    fn item_padding_is_only_controlled_by_existing_hook() {
+        // 回帰（Bugbot Medium、PR #3561）: `item` の余白を決める宣言は既存
+        // フック `--fandhe-select-item-padding` を参照する `padding` のみで
+        // あり、`padding-inline-start` 等の個別辺の上書きを出さない（利用者
+        // がフックで調整した余白が `Start`/`End` を問わず効くことの保証）。
+        let css = stylesheet();
+        assert!(!css.contains("padding-inline"), "css={css}");
+        assert!(!css.contains("padding-left"), "css={css}");
+        assert!(!css.contains("padding-right"), "css={css}");
+        let item_paddings: Vec<&str> = css
+            .split("}\n")
+            .filter(|block| block.contains(r#"[data-part="item"]"#))
+            .flat_map(|block| block.lines())
+            .filter(|line| line.trim_start().starts_with("padding"))
+            .collect();
+        assert_eq!(
+            item_paddings,
+            vec!["  padding: var(--fandhe-select-item-padding, var(--fandhe-space-2) var(--fandhe-space-3));"]
+        );
     }
 
     #[test]
