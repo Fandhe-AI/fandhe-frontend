@@ -483,6 +483,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-quickview-image-split-price {\n  font-size: var(--fandhe-font-size-xl);\n  font-weight: var(--fandhe-font-weight-bold, 700);\n  margin: 0;\n}\n\
 .blocks-quickview-image-split-option {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\
 .blocks-quickview-image-split [data-scope=\"radio-card\"][data-part=\"item\"] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-blocks-quickview-image-split-add] {\n  width: 100%;\n}\n\
 @container blocks-quickview-image-split (max-width: 40rem) {\n  \
 .blocks-quickview-image-split-grid {\n    grid-template-columns: minmax(0, 1fr);\n  }\n  \
 .blocks-quickview-image-split [data-scope=\"dialog\"][data-part=\"positioner\"] {\n    padding: var(--fandhe-space-2);\n  }\n\
