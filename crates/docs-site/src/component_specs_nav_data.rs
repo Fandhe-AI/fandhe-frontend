@@ -3403,35 +3403,33 @@ fn ex_steps_panel() -> Node {
             &state,
             vec![],
             (0..3)
-                .flat_map(|i| {
-                    let item = steps::item_with(
-                        StepsVariant::Panel,
+                .map(|i| {
+                    // separator は item の子として置く（`ex_steps()` と同じ
+                    // 規約。`list` は `<ol>` を描画するため、直下の兄弟に
+                    // `separator`〔`<div>`〕を混ぜると `<ol>` の子は `<li>`
+                    // のみという HTML の制約に反し、かつ grid 自動配置の
+                    // トラックを separator 分だけ余計に消費して等幅 3 分割
+                    // が崩れる。Cursor Bugbot Medium 指摘・codex P1 指摘
+                    // 対応）。
+                    let mut item_children = vec![steps::trigger(
                         &state,
                         i,
                         vec![],
-                        vec![steps::trigger(
+                        vec![
+                            steps::indicator(&state, i, vec![], vec![text((i + 1).to_string())]),
+                            text(format!("Step {}", i + 1)),
+                        ],
+                    )];
+                    if i < 2 {
+                        item_children.push(steps::separator_with(
+                            StepsVariant::Panel,
                             &state,
                             i,
                             vec![],
-                            vec![
-                                steps::indicator(
-                                    &state,
-                                    i,
-                                    vec![],
-                                    vec![text((i + 1).to_string())],
-                                ),
-                                text(format!("Step {}", i + 1)),
-                            ],
-                        )],
-                    );
-                    if i < 2 {
-                        vec![
-                            item,
-                            steps::separator_with(StepsVariant::Panel, &state, i, vec![], vec![]),
-                        ]
-                    } else {
-                        vec![item]
+                            vec![],
+                        ));
                     }
+                    steps::item_with(StepsVariant::Panel, &state, i, vec![], item_children)
                 })
                 .collect(),
         )],
@@ -3490,7 +3488,13 @@ fn ex_steps_dot() -> Node {
             el(
                 "span",
                 vec![],
-                vec![text(format!("{}/{}", state.step() + 1, state.count()))],
+                vec![text(format!(
+                    "{}/{}",
+                    // `step == count`（全 step 完了、`is_completed()`）のとき
+                    // `step + 1` は総数を超えるため `count` で頭打ちにする。
+                    state.step().min(state.count() - 1) + 1,
+                    state.count()
+                ))],
             ),
         ],
     )

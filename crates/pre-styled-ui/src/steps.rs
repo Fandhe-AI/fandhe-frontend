@@ -287,7 +287,13 @@
 //!   `base` 側のフォールバック `--fandhe-color-border` を使う）経由で
 //!   state 連動させる。
 //! - **`Panel`**: `list` を枠付き等幅グリッドへ切り替え、`separator` を
-//!   `clip-path` によるシェブロン（矢印型の区切り）へ変形する。
+//!   `clip-path` によるシェブロン（矢印型の区切り）へ変形する。`separator`
+//!   は他 variant 同様 `item` の子として置くこと（`list` 直下へ `item` と
+//!   並列に置かない）。`list` は `<ol>` を描画するため、直下の兄弟に
+//!   `separator`（`<div>`）を混ぜると `<ol>` の子は `<li>` のみという
+//!   HTML の制約に反するうえ、`list` の grid 自動配置トラックを
+//!   separator 分だけ余計に消費して等幅 3 分割が崩れる（イシュー #3578
+//!   codex P1・Cursor Bugbot Medium 指摘対応）。
 //! - **`Dot`**: `root` を行方向に切り替え、小さなドット（`indicator`）列と
 //!   「n/m」進捗テキストを横に並べる。「n/m」テキスト自体は
 //!   `Steps::step()`/`Steps::count()` を使い呼び出し側が組み立てる（専用
