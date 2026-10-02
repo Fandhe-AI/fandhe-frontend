@@ -3616,7 +3616,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 出ることを固定するテストを追加した。公開 API・CSS 出力は不変（golden
 # は既存ブロックのまま）のドキュメント/テストのみの変更のため patch
 # バンプする。
-version = "0.218.1"
+#
+# イシュー #3123: input_group の `stylesheet()` へ native_select（`data-scope=
+# "field" data-part="select"`）/ styled select（`data-scope="select"`、
+# `trigger` パーツ）を内包するための追加リセット CSS 規則 5 件を末尾へ純追加
+# した（既存 `root > field::input`/`root > field::textarea` 2 セレクタ分の
+# 出力バイトは不変）。公開 API シグネチャは変えず CSS 出力のみを拡張する
+# 観測可能な変更のため patch バンプする。
+version = "0.218.2"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

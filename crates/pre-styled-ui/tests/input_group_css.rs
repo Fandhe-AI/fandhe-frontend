@@ -147,6 +147,36 @@ const INPUT_GROUP_GOLDEN_CSS: &str = "[data-scope=\"input-group\"][data-part=\"r
 [data-scope=\"input-group\"][data-part=\"root\"] > [data-scope=\"field\"][data-part=\"textarea\"]:focus-visible {
   outline: none;
 }
+
+[data-scope=\"input-group\"][data-part=\"root\"] > [data-scope=\"field\"][data-part=\"select\"] {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+[data-scope=\"input-group\"][data-part=\"root\"] > [data-scope=\"field\"][data-part=\"select\"]:focus-visible {
+  outline: none;
+}
+
+[data-scope=\"input-group\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"root\"] {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+[data-scope=\"input-group\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"root\"] [data-scope=\"select\"][data-part=\"trigger\"] {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+[data-scope=\"input-group\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"root\"] [data-scope=\"select\"][data-part=\"trigger\"]:focus-visible {
+  outline: none;
+}
 ";
 
 #[test]
@@ -233,4 +263,28 @@ fn css_declares_all_four_data_align_state_rules() {
             "[data-scope=\"input-group\"][data-part=\"addon\"][data-align=\"{align}\"] {{"
         )));
     }
+}
+
+/// native_select / select を内包するための追加リセット（イシュー #3123）が
+/// 存在することを固定する。`src/input_group.rs` モジュール doc「native_select
+/// / select を内包する追加リセット」節参照。
+#[test]
+fn css_appends_native_select_and_select_reset_rules() {
+    let css = input_group::stylesheet();
+    assert!(css.contains(
+        "[data-scope=\"input-group\"][data-part=\"root\"] > [data-scope=\"field\"][data-part=\"select\"] {"
+    ));
+    assert!(css.contains("width: auto;"));
+    assert!(css.contains(
+        "[data-scope=\"input-group\"][data-part=\"root\"] > [data-scope=\"field\"][data-part=\"select\"]:focus-visible {\n  outline: none;\n}"
+    ));
+    assert!(css.contains(
+        "[data-scope=\"input-group\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"root\"] {"
+    ));
+    assert!(css.contains(
+        "[data-scope=\"input-group\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"root\"] [data-scope=\"select\"][data-part=\"trigger\"] {"
+    ));
+    assert!(css.contains(
+        "[data-scope=\"input-group\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"root\"] [data-scope=\"select\"][data-part=\"trigger\"]:focus-visible {\n  outline: none;\n}"
+    ));
 }
