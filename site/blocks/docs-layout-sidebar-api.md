@@ -8,7 +8,7 @@
 ファイル名は記載しません）。
 
 上端に検索欄、中央のスクロール領域にカテゴリ見出しと HTTP メソッド
-バッジ付きのエンドポイントリンク、下端に外部リンク 3 件の固定フッターを
+バッジ付きのエンドポイント行、下端に外部リンク 3 件の固定フッターを
 置く 3 段構成です。docs サイトは JS を使わない静的なサイトであるため、
 開閉式のカテゴリは常に開いた状態で表示します。
 
@@ -16,7 +16,10 @@
 いずれも送信・取得を一切行わない飾りの要素です（`<form>` 要素は持たず、
 検索トリガー・AI 質問ボタンは `disabled` で操作自体を無効化しています）。
 エンドポイントの名前・メソッドはすべて独自に書いた架空のものであり、
-実在する API・実企業名・実クレデンシャル・PII を含みません。
+実在する API・実企業名・実クレデンシャル・PII を含みません。エンドポイント
+行自体は 1 件 1 ページの実在する個別ドキュメントページを持たないため
+`href` を持たない静的な表示要素とし、現在ページの強調（`aria-current`）も
+付与していません。
 
 ## Rust コード
 
@@ -34,20 +37,16 @@ use fandhe_frontend_pre_styled_ui::nav_list;
 use fandhe_frontend_pre_styled_ui::scroll_area;
 use fandhe_frontend_pre_styled_ui::ColorPalette;
 
-/// 実在の自リポジトリ URL（`href` の方針、モジュール doc 参照）。
+/// 実在の自リポジトリ URL（フッターリンクの方針、モジュール doc 参照）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 /// 実在の仕様リポジトリ URL。
 const SPEC_REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend-spec";
-/// エンドポイントリンクが指す、自リポジトリの docs/api ツリー（架空の
-/// API パスではなく実在 URL を使う、モジュール doc「`href` は自組織の
-/// 実在 URL のみ」節）。
-const DOCS_API_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend/tree/main/docs/api";
 
-/// 架空の API エンドポイント 1 件（HTTP メソッド・表示名・href の fragment）。
+/// 架空の API エンドポイント 1 件（HTTP メソッド・表示名）。`href` は
+/// 持たない（モジュール doc「エンドポイント行はリンクにしない」節）。
 struct Endpoint {
     method: &'static str,
     name: &'static str,
-    slug: &'static str,
 }
 
 /// 架空のカテゴリ 1 件（見出し + エンドポイント一覧）。
@@ -66,12 +65,10 @@ const CATEGORIES: &[Category] = &[
             Endpoint {
                 method: "GET",
                 name: "概要",
-                slug: "overview",
             },
             Endpoint {
                 method: "GET",
                 name: "クイックスタート",
-                slug: "quickstart",
             },
         ],
     },
@@ -82,12 +79,10 @@ const CATEGORIES: &[Category] = &[
             Endpoint {
                 method: "POST",
                 name: "トークン発行",
-                slug: "auth-token-issue",
             },
             Endpoint {
                 method: "DELETE",
                 name: "トークン失効",
-                slug: "auth-token-revoke",
             },
         ],
     },
@@ -98,22 +93,18 @@ const CATEGORIES: &[Category] = &[
             Endpoint {
                 method: "GET",
                 name: "プロジェクト一覧",
-                slug: "projects-list",
             },
             Endpoint {
                 method: "POST",
                 name: "プロジェクト作成",
-                slug: "projects-create",
             },
             Endpoint {
                 method: "PATCH",
                 name: "プロジェクト更新",
-                slug: "projects-update",
             },
             Endpoint {
                 method: "DELETE",
                 name: "プロジェクト削除",
-                slug: "projects-delete",
             },
         ],
     },
@@ -124,12 +115,10 @@ const CATEGORIES: &[Category] = &[
             Endpoint {
                 method: "GET",
                 name: "メンバー一覧",
-                slug: "members-list",
             },
             Endpoint {
                 method: "POST",
                 name: "メンバー招待",
-                slug: "members-invite",
             },
         ],
     },
@@ -200,15 +189,13 @@ fn method_badge(method: &'static str) -> Node {
     )
 }
 
-/// エンドポイント 1 件分の `nav_list::item`（リンク名 + 右端メソッド
-/// バッジ）。`current` は一覧内で高々 1 件のみ `true` にする。
-fn endpoint_item(endpoint: &Endpoint, current: bool) -> Node {
-    let href = format!("{DOCS_API_URL}#{}", endpoint.slug);
+/// エンドポイント 1 件分の `nav_list::item`（表示名 + 右端メソッド
+/// バッジ）。実在しないページへの `href` を持たない静的な表示要素
+/// （モジュール doc「エンドポイント行はリンクにしない」節）。
+fn endpoint_item(endpoint: &Endpoint) -> Node {
     nav_list::item(
         vec![],
-        vec![nav_list::link(
-            href.as_str(),
-            current,
+        vec![span(
             vec![("data-blocks-docs-layout-sidebar-api-link", "")],
             vec![
                 span(vec![], vec![text(endpoint.name)]),
@@ -218,19 +205,24 @@ fn endpoint_item(endpoint: &Endpoint, current: bool) -> Node {
     )
 }
 
+/// カテゴリ見出し（`h3`）。`search-input`/`search-ai` 両 variant で
+/// 同一の見出しレベルに統一する（モジュール doc「見出しレベルの統一」節）。
+fn category_heading(label: &'static str) -> Node {
+    el(
+        "h3",
+        vec![("data-blocks-docs-layout-sidebar-api-category-heading", "")],
+        vec![text(label)],
+    )
+}
+
 /// `search-input` variant 用: カテゴリごとに常時展開の見出し + リストを
-/// 並べる（`nav_list::heading`/`nav_list::list` をそのまま使う）。
-fn static_category(category: &Category, current_key: &'static str) -> Node {
-    let items: Vec<Node> = category
-        .endpoints
-        .iter()
-        .enumerate()
-        .map(|(index, endpoint)| endpoint_item(endpoint, category.key == current_key && index == 0))
-        .collect();
+/// 並べる（[`category_heading`]/`nav_list::list`）。
+fn static_category(category: &Category) -> Node {
+    let items: Vec<Node> = category.endpoints.iter().map(endpoint_item).collect();
     div(
         vec![],
         vec![
-            nav_list::heading(vec![], vec![text(category.label)]),
+            category_heading(category.label),
             nav_list::list(vec![], items),
         ],
     )
@@ -239,7 +231,7 @@ fn static_category(category: &Category, current_key: &'static str) -> Node {
 /// `search-ai` variant 用: カテゴリごとに開閉式グループで包む（全件
 /// [`OpenState::Open`] + `disabled: true` 固定、モジュール doc「静的表示」
 /// 節）。
-fn collapsible_category(category: &Category, current_key: &'static str) -> Node {
+fn collapsible_category(category: &Category) -> Node {
     let state = OpenState::Open;
     let content_id = format!(
         "blocks-docs-layout-sidebar-api-group-{}-search-ai",
@@ -260,12 +252,7 @@ fn collapsible_category(category: &Category, current_key: &'static str) -> Node 
             ),
         ],
     );
-    let items: Vec<Node> = category
-        .endpoints
-        .iter()
-        .enumerate()
-        .map(|(index, endpoint)| endpoint_item(endpoint, category.key == current_key && index == 0))
-        .collect();
+    let items: Vec<Node> = category.endpoints.iter().map(endpoint_item).collect();
     let content = collapsible::content(
         state,
         true,
@@ -400,15 +387,14 @@ fn footer_links() -> Node {
 fn sidebar(variant: &'static str, top: Node, use_collapsible: bool) -> Node {
     let label = format!("API リファレンス（{variant}）");
     let viewport_label = format!("API エンドポイント一覧（{variant}）");
-    let current_key = "projects";
 
     let category_nodes: Vec<Node> = CATEGORIES
         .iter()
         .map(|category| {
             if use_collapsible {
-                collapsible_category(category, current_key)
+                collapsible_category(category)
             } else {
-                static_category(category, current_key)
+                static_category(category)
             }
         })
         .collect();
@@ -475,6 +461,14 @@ pub fn demo() -> Node {
 - R0090 の開閉式グループは、無 JS では開閉が機能せず閉じた内容が到達不能
   になるため、全グループを開いた状態で固定表示しています（トリガー自体も
   `disabled` にし、クリック・Enter/Space が no-op であることを示します）。
+- エンドポイント行は実在しない個別ページへのリンクにせず、`href` を
+  持たない静的な表示要素にしています。実際には存在しないアンカー付き
+  URL へリンクすると遷移先が無いままになるためです。現在ページの強調
+  （`aria-current`）も、この静的 Demo には実際の「現在ページ」という
+  状態がないため付与していません。
+- カテゴリ見出しは `search-input`/`search-ai` の両 variant で `h3` に
+  統一しています（同一ページ上で見出し階層が variant ごとに変わらない
+  ようにするため）。
 - 下端の固定フッターは `position: fixed` ではなく、外枠を固定高の
   flex column にして中央のスクロール領域だけを伸縮させる方法で実現して
   います。

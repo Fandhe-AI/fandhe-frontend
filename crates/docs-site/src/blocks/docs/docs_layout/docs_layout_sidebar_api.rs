@@ -17,8 +17,18 @@
 //!
 //! | variant | 上端 | 中央 | 対応 ID |
 //! |---|---|---|---|
-//! | `search-input` | `input_group` 内に検索アイコン + `input`（`type="search"`） | カテゴリごとに `nav_list::heading` + `nav_list::list` を常時展開で並べる | R0089（代表） |
-//! | `search-ai` | 検索トリガー `button` + AI 質問 `button::icon_button`（いずれも `disabled: true`） | カテゴリごとに `collapsible` で包み、trigger に `nav_list::heading` 相当の見出しを置く | R0090 |
+//! | `search-input` | `input_group` 内に検索アイコン + `input`（`type="search"`） | カテゴリごとに `h3` 見出し（[`category_heading`]） + `nav_list::list` を常時展開で並べる | R0089（代表） |
+//! | `search-ai` | 検索トリガー `button` + AI 質問 `button::icon_button`（いずれも `disabled: true`） | カテゴリごとに `collapsible` で包み、trigger を `h3` 見出しで包む | R0090 |
+//!
+//! # 見出しレベルの統一（Bugbot 指摘、PR #3548）
+//!
+//! 両 variant とも同一ページ上に並記されるため、カテゴリ見出しの階層
+//! （heading outline）は variant 間で揃える必要がある。`nav_list::heading`
+//! は `h2` 固定（headless 層の anatomy、レベル可変化は非対応）のため、
+//! `search-ai` の `collapsible` trigger 見出し（素の `h3`）と混在させると
+//! ページ内で h2 → h3 → h2 → h3 の非単調な見出し階層になる。このため
+//! `search-input` 側も [`nav_list::heading`] は使わず
+//! [`category_heading`]（素の `h3`）に統一する。
 //!
 //! # 静的表示・全 disabled 固定（無 JS）
 //!
@@ -57,14 +67,19 @@
 //! し、2 variant 間で重複しないようにする（`demo_output_has_no_dangling_
 //! aria_references_or_duplicate_ids` 契約）。
 //!
-//! # `href` は自組織の実在 URL のみ
+//! # エンドポイント行はリンクにしない（非ブロック指摘対応、PR #3548）
 //!
-//! エンドポイントリンク・フッターリンクはいずれも実在する自リポジトリ・
-//! 仕様リポジトリの URL（[`REPO`]/[`SPEC_REPO`]）を指す。架空のエンドポイント
-//! パスを `href` にはしない（`#` だけの値・`data:` を使わない契約、
-//! `block_pages_never_contain_a_form_element_or_data_uri` が検証する）。
-//! エンドポイント名・パラメータ等はすべて独自に書いた架空の API（実在
-//! サービス名を含まない）である。
+//! エンドポイント名は架空の API（実在サービス名を含まない）であり、
+//! 1 件 1 ページの実在する個別ドキュメントページを持たない。当初案は
+//! 各行を自リポジトリ `docs/api` ディレクトリ URL への `#<slug>` フラグ
+//! メント付きリンクにしていたが、ディレクトリ表示側にそのアンカーへ
+//! 対応する要素がなく、リンク先が実際には存在しない見出しへ遷移できない
+//! 状態だった（codex-review P1 指摘）。そのため本 Demo のエンドポイント行は
+//! `href` を持たない静的な表示要素（[`endpoint_item`]）とする。
+//! フッターリンクのみ実在する自リポジトリ・仕様リポジトリの URL
+//! （[`REPO`]/[`SPEC_REPO`]）を指すリンクを持つ（`#` だけの値・`data:` を
+//! 使わない契約は `block_pages_never_contain_a_form_element_or_data_uri`
+//! が検証する）。
 //!
 //! # `<form>` を使わない・データの取得/送信を行わない
 //!
@@ -88,20 +103,16 @@ use fandhe_frontend_pre_styled_ui::nav_list;
 use fandhe_frontend_pre_styled_ui::scroll_area;
 use fandhe_frontend_pre_styled_ui::ColorPalette;
 
-/// 実在の自リポジトリ URL（`href` の方針、モジュール doc 参照）。
+/// 実在の自リポジトリ URL（フッターリンクの方針、モジュール doc 参照）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 /// 実在の仕様リポジトリ URL。
 const SPEC_REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend-spec";
-/// エンドポイントリンクが指す、自リポジトリの docs/api ツリー（架空の
-/// API パスではなく実在 URL を使う、モジュール doc「`href` は自組織の
-/// 実在 URL のみ」節）。
-const DOCS_API_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend/tree/main/docs/api";
 
-/// 架空の API エンドポイント 1 件（HTTP メソッド・表示名・href の fragment）。
+/// 架空の API エンドポイント 1 件（HTTP メソッド・表示名）。`href` は
+/// 持たない（モジュール doc「エンドポイント行はリンクにしない」節）。
 struct Endpoint {
     method: &'static str,
     name: &'static str,
-    slug: &'static str,
 }
 
 /// 架空のカテゴリ 1 件（見出し + エンドポイント一覧）。
@@ -120,12 +131,10 @@ const CATEGORIES: &[Category] = &[
             Endpoint {
                 method: "GET",
                 name: "概要",
-                slug: "overview",
             },
             Endpoint {
                 method: "GET",
                 name: "クイックスタート",
-                slug: "quickstart",
             },
         ],
     },
@@ -136,12 +145,10 @@ const CATEGORIES: &[Category] = &[
             Endpoint {
                 method: "POST",
                 name: "トークン発行",
-                slug: "auth-token-issue",
             },
             Endpoint {
                 method: "DELETE",
                 name: "トークン失効",
-                slug: "auth-token-revoke",
             },
         ],
     },
@@ -152,22 +159,18 @@ const CATEGORIES: &[Category] = &[
             Endpoint {
                 method: "GET",
                 name: "プロジェクト一覧",
-                slug: "projects-list",
             },
             Endpoint {
                 method: "POST",
                 name: "プロジェクト作成",
-                slug: "projects-create",
             },
             Endpoint {
                 method: "PATCH",
                 name: "プロジェクト更新",
-                slug: "projects-update",
             },
             Endpoint {
                 method: "DELETE",
                 name: "プロジェクト削除",
-                slug: "projects-delete",
             },
         ],
     },
@@ -178,12 +181,10 @@ const CATEGORIES: &[Category] = &[
             Endpoint {
                 method: "GET",
                 name: "メンバー一覧",
-                slug: "members-list",
             },
             Endpoint {
                 method: "POST",
                 name: "メンバー招待",
-                slug: "members-invite",
             },
         ],
     },
@@ -254,15 +255,13 @@ fn method_badge(method: &'static str) -> Node {
     )
 }
 
-/// エンドポイント 1 件分の `nav_list::item`（リンク名 + 右端メソッド
-/// バッジ）。`current` は一覧内で高々 1 件のみ `true` にする。
-fn endpoint_item(endpoint: &Endpoint, current: bool) -> Node {
-    let href = format!("{DOCS_API_URL}#{}", endpoint.slug);
+/// エンドポイント 1 件分の `nav_list::item`（表示名 + 右端メソッド
+/// バッジ）。実在しないページへの `href` を持たない静的な表示要素
+/// （モジュール doc「エンドポイント行はリンクにしない」節）。
+fn endpoint_item(endpoint: &Endpoint) -> Node {
     nav_list::item(
         vec![],
-        vec![nav_list::link(
-            href.as_str(),
-            current,
+        vec![span(
             vec![("data-blocks-docs-layout-sidebar-api-link", "")],
             vec![
                 span(vec![], vec![text(endpoint.name)]),
@@ -272,19 +271,24 @@ fn endpoint_item(endpoint: &Endpoint, current: bool) -> Node {
     )
 }
 
+/// カテゴリ見出し（`h3`）。`search-input`/`search-ai` 両 variant で
+/// 同一の見出しレベルに統一する（モジュール doc「見出しレベルの統一」節）。
+fn category_heading(label: &'static str) -> Node {
+    el(
+        "h3",
+        vec![("data-blocks-docs-layout-sidebar-api-category-heading", "")],
+        vec![text(label)],
+    )
+}
+
 /// `search-input` variant 用: カテゴリごとに常時展開の見出し + リストを
-/// 並べる（`nav_list::heading`/`nav_list::list` をそのまま使う）。
-fn static_category(category: &Category, current_key: &'static str) -> Node {
-    let items: Vec<Node> = category
-        .endpoints
-        .iter()
-        .enumerate()
-        .map(|(index, endpoint)| endpoint_item(endpoint, category.key == current_key && index == 0))
-        .collect();
+/// 並べる（[`category_heading`]/`nav_list::list`）。
+fn static_category(category: &Category) -> Node {
+    let items: Vec<Node> = category.endpoints.iter().map(endpoint_item).collect();
     div(
         vec![],
         vec![
-            nav_list::heading(vec![], vec![text(category.label)]),
+            category_heading(category.label),
             nav_list::list(vec![], items),
         ],
     )
@@ -293,7 +297,7 @@ fn static_category(category: &Category, current_key: &'static str) -> Node {
 /// `search-ai` variant 用: カテゴリごとに開閉式グループで包む（全件
 /// [`OpenState::Open`] + `disabled: true` 固定、モジュール doc「静的表示」
 /// 節）。
-fn collapsible_category(category: &Category, current_key: &'static str) -> Node {
+fn collapsible_category(category: &Category) -> Node {
     let state = OpenState::Open;
     let content_id = format!(
         "blocks-docs-layout-sidebar-api-group-{}-search-ai",
@@ -314,12 +318,7 @@ fn collapsible_category(category: &Category, current_key: &'static str) -> Node 
             ),
         ],
     );
-    let items: Vec<Node> = category
-        .endpoints
-        .iter()
-        .enumerate()
-        .map(|(index, endpoint)| endpoint_item(endpoint, category.key == current_key && index == 0))
-        .collect();
+    let items: Vec<Node> = category.endpoints.iter().map(endpoint_item).collect();
     let content = collapsible::content(
         state,
         true,
@@ -454,15 +453,14 @@ fn footer_links() -> Node {
 fn sidebar(variant: &'static str, top: Node, use_collapsible: bool) -> Node {
     let label = format!("API リファレンス（{variant}）");
     let viewport_label = format!("API エンドポイント一覧（{variant}）");
-    let current_key = "projects";
 
     let category_nodes: Vec<Node> = CATEGORIES
         .iter()
         .map(|category| {
             if use_collapsible {
-                collapsible_category(category, current_key)
+                collapsible_category(category)
             } else {
-                static_category(category, current_key)
+                static_category(category)
             }
         })
         .collect();
@@ -584,6 +582,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-docs-layout-sidebar-api-link] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-docs-layout-sidebar-api-method] {\n  margin-inline-start: auto;\n  font-family: var(--fandhe-font-font-family-mono, monospace);\n}\n\
 [data-blocks-docs-layout-sidebar-api-group-heading] {\n  margin: 0;\n  font-size: inherit;\n  font-weight: inherit;\n}\n\
+[data-blocks-docs-layout-sidebar-api-category-heading] {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-docs-layout-sidebar-api-group-trigger] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  inline-size: 100%;\n  text-align: start;\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-docs-layout-sidebar-api-group-chevron] {\n  margin-inline-start: auto;\n  display: inline-block;\n}\n\
 [data-blocks-docs-layout-sidebar-api-group][data-scope=\"collapsible\"][data-part=\"root\"][data-disabled] [data-blocks-docs-layout-sidebar-api-group-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
@@ -685,11 +684,33 @@ mod tests {
         );
     }
 
-    /// `aria-current="page"` が variant ごとに 1 件あること。
+    /// エンドポイント行は実在しないページへのリンクを持たない静的表示
+    /// 要素であること（codex-review P1 指摘対応）。`aria-current="page"`
+    /// も付与しない（codex-review P2 指摘対応、現在ページという概念を
+    /// 静的 Demo に持ち込まない）。
     #[test]
-    fn current_link_appears_once_per_variant() {
+    fn endpoint_items_are_static_without_current_marking() {
         let html = render(&demo());
-        assert_eq!(html.matches(r#"aria-current="page""#).count(), 2);
+        assert!(!html.contains("aria-current"));
+        assert!(!html.contains("data-current"));
+    }
+
+    /// `search-input`/`search-ai` 両 variant のカテゴリ見出しが `h3` に
+    /// 統一されていること（Bugbot 指摘対応、見出し階層の非単調な混在を
+    /// 防ぐ）。
+    #[test]
+    fn category_headings_are_unified_at_h3() {
+        let html = render(&demo());
+        let expected = CATEGORIES.len() * 2; // 2 variant 分。
+        assert_eq!(
+            html.matches("data-blocks-docs-layout-sidebar-api-category-heading")
+                .count()
+                + html
+                    .matches("data-blocks-docs-layout-sidebar-api-group-heading")
+                    .count(),
+            expected
+        );
+        assert!(!html.contains("<h2"));
     }
 
     /// 検索トリガー・AI 質問ボタンが disabled 固定であること。
