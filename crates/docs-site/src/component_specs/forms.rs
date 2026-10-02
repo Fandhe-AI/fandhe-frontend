@@ -2961,7 +2961,9 @@ fn switch_bordered_box_example() -> Node {
 
 // イシュー #3141 (R1375): `SwitchTrack::Short` の実演。`root_with` の
 // `track` 引数以外は `switch_with_description_example` と同じ anatomy
-// パーツ構成（`root` が内包する `hidden_input`/`control`/`thumb`）。
+// パーツ構成（`root` が内包する `label`/`hidden_input`/`control`/`thumb`）。
+// `root` は `<label>` 要素のため、子の `switch::label` がアクセシブル
+// ネームを与える（codex 指摘 P1、PR #3580）。
 fn switch_short_track_example() -> Node {
     let checked = true;
     let props = SwitchProps::default();
@@ -2973,6 +2975,7 @@ fn switch_short_track_example() -> Node {
         &props,
         vec![],
         vec![
+            switch::label(checked, &props, vec![], vec![text("Compact track")]),
             switch::hidden_input("switch-short-track-example", "on", checked, &props, vec![]),
             switch::control(
                 checked,
@@ -3005,6 +3008,7 @@ fn switch_thumb_icon_example() -> Node {
         &props,
         vec![],
         vec![
+            switch::label(checked, &props, vec![], vec![text("Show thumb icon")]),
             switch::hidden_input("switch-thumb-icon-example", "on", checked, &props, vec![]),
             switch::control(
                 checked,
