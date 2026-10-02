@@ -14,6 +14,7 @@ mod category_featured_banner;
 mod category_grid_captioned;
 mod category_grid_overlay;
 mod category_mosaic_featured;
+mod category_split_panels;
 
 use crate::blocks::Block;
 
@@ -24,5 +25,6 @@ pub(super) fn blocks() -> Vec<Block> {
         category_grid_captioned::BLOCK,
         category_grid_overlay::BLOCK,
         category_mosaic_featured::BLOCK,
+        category_split_panels::BLOCK,
     ]
 }
