@@ -578,7 +578,8 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-docs-layout-sidebar-api-search-group] {\n  flex: 1;\n}\n\
 [data-blocks-docs-layout-sidebar-api-scroll] {\n  flex: 1;\n  min-block-size: 0;\n  padding: var(--fandhe-space-2) 0;\n}\n\
 [data-blocks-docs-layout-sidebar-api-scroll] [data-scope=\"scroll-area\"][data-part=\"root\"] {\n  block-size: 100%;\n}\n\
-[data-blocks-docs-layout-sidebar-api-scroll] [data-scope=\"scroll-area\"][data-part=\"content\"] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  padding: 0 var(--fandhe-space-4);\n}\n\
+[data-blocks-docs-layout-sidebar-api-scroll] [data-scope=\"scroll-area\"][data-part=\"content\"] {\n  padding: 0 var(--fandhe-space-4);\n}\n\
+[data-blocks-docs-layout-sidebar-api-scroll] [data-scope=\"nav-list\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-docs-layout-sidebar-api-link] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 [data-blocks-docs-layout-sidebar-api-method] {\n  margin-inline-start: auto;\n  font-family: var(--fandhe-font-font-family-mono, monospace);\n}\n\
 [data-blocks-docs-layout-sidebar-api-group-heading] {\n  margin: 0;\n  font-size: inherit;\n  font-weight: inherit;\n}\n\
