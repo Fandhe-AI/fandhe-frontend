@@ -611,6 +611,7 @@ jobs:
           # Docs / Docs Layout
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/docs-layout-page-header/index.html"
           # Docs / Code Block
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/code-block-header/index.html"
           # Docs / Example Preview
           # Docs / Api Reference
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/api-reference-param-accordion/index.html"
