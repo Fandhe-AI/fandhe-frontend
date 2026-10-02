@@ -1125,6 +1125,7 @@ pub enum LayoutCss {
 | promo-offers-split | #3082 | `ecommerce/promo/promo_offers_split.rs` |
 | promo-with-testimonials | #3086 | `ecommerce/promo/promo_with_testimonials.rs` |
 | reviews-card-grid | #3088（親 #3024） | `ecommerce/reviews/reviews_card_grid.rs` |
+| reviews-summary-split | #3090（親 #3024） | `ecommerce/reviews/reviews_summary_split.rs` |
 | store-nav-centered-logo | #3094（親 #3093） | `ecommerce/store_nav/store_nav_centered_logo.rs` |
 | store-nav-mega-menu | #3097/#3098（親 #3096） | `ecommerce/store_nav/store_nav_mega_menu.rs` |
 | cart-dialog | #3025 | `ecommerce/cart/cart_dialog.rs` |
@@ -1150,6 +1151,7 @@ pub enum LayoutCss {
 | category-split-panels | #3040（親 #3024） | `ecommerce/category_listing/category_split_panels.rs` |
 | promo-signup-offer | #3085（親 #3024） | `ecommerce/promo/promo_signup_offer.rs` |
 | reviews-write-form | #3091 | `ecommerce/reviews/reviews_write_form.rs` |
+| api-reference-param-accordion | #3100 | `docs/api_reference/api_reference_param_accordion.rs` |
 | code-block-header | #3104（親 #3099） | `docs/code_block/code_block_header.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した

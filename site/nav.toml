@@ -2879,6 +2879,11 @@ source = "site/blocks/reviews-card-grid.md"
 path = "/blocks/reviews-card-grid/"
 
 [[section.group.page]]
+title = "reviews-summary-split"
+source = "site/blocks/reviews-summary-split.md"
+path = "/blocks/reviews-summary-split/"
+
+[[section.group.page]]
 title = "reviews-write-form"
 source = "site/blocks/reviews-write-form.md"
 path = "/blocks/reviews-write-form/"
@@ -2969,6 +2974,14 @@ title = "Code Block"
 title = "code-block-header"
 source = "site/blocks/code-block-header.md"
 path = "/blocks/code-block-header/"
+
+[[section.group]]
+title = "API Reference"
+
+[[section.group.page]]
+title = "api-reference-param-accordion"
+source = "site/blocks/api-reference-param-accordion.md"
+path = "/blocks/api-reference-param-accordion/"
 
 # --- 以下は block 追加時の挿入先アンカー（イシュー #2734、#2735 でカテゴリ
 # 見出し導入に伴い運用を更新）。カテゴリ単位で行ブロックを分ける点は不変
