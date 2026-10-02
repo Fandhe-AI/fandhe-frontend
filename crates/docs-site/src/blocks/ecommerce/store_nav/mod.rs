@@ -9,11 +9,16 @@
 //! block ごとの追加経緯は git 履歴と PR を正とし、本コメントには書かない
 //! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
+mod store_nav_category_row;
 mod store_nav_centered_logo;
 mod store_nav_mega_menu;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![store_nav_centered_logo::BLOCK, store_nav_mega_menu::BLOCK]
+    vec![
+        store_nav_category_row::BLOCK,
+        store_nav_centered_logo::BLOCK,
+        store_nav_mega_menu::BLOCK,
+    ]
 }
