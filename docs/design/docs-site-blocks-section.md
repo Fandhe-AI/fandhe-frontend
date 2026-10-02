@@ -1162,6 +1162,7 @@ pub enum LayoutCss {
 | docs-layout-prev-next | #3107 | `docs/docs_layout/docs_layout_prev_next.rs` |
 | docs-layout-sidebar-api | #3108（親 #3099） | `docs/docs_layout/docs_layout_sidebar_api.rs` |
 | docs-layout-toc-collapsible | #3111 | `docs/docs_layout/docs_layout_toc_collapsible.rs` |
+| docs-layout-toc-progress | #3112（親 #3099） | `docs/docs_layout/docs_layout_toc_progress.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
