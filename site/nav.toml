@@ -3018,6 +3018,11 @@ title = "code-block-header"
 source = "site/blocks/code-block-header.md"
 path = "/blocks/code-block-header/"
 
+[[section.group.page]]
+title = "code-block-language-tabs"
+source = "site/blocks/code-block-language-tabs.md"
+path = "/blocks/code-block-language-tabs/"
+
 [[section.group]]
 title = "Example Preview"
 
