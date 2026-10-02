@@ -57,6 +57,18 @@
 //! `fd-select--variant-subtle` ブロックを純追加した。詳細は
 //! `crates/pre-styled-ui/src/select.rs` モジュール rustdoc「variant 軸
 //! （イシュー #3121）」節参照。
+//!
+//! イシュー #3124 で `select::ItemIndicatorPlacement`（start/end、既定
+//! end）を追加し、variants 節末尾へ root variant 1 件を、states 節末尾へ
+//! `item` の `[data-selected]`・`item-indicator` の `[data-state="open"]`
+//! 規則 2 件を、
+//! pseudo-elements 節へ `item::before`（インジケータ幅の gutter、既定
+//! `display: none`）1 件を純追加した。`item` の `padding` は上書きしない
+//! （既存フック `--fandhe-select-item-padding` を尊重、PR #3561）。既存 base ブロックは不変
+//! （`golden_prefix_through_hidden_select_is_unchanged`・
+//! `select_pre_2391_blocks_remain_verbatim` が引き続き固定する）。詳細は
+//! `crates/pre-styled-ui/src/select.rs` モジュール rustdoc「選択インジケータ
+//! 位置（イシュー #3124）」節参照。
 
 use fandhe_frontend_pre_styled_ui::select;
 
@@ -263,6 +275,13 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   --fandhe-select-trigger-border-color: transparent;
 }
 
+[data-scope="select"][data-part="root"].fd-select--item-indicator-placement-start {
+  --fandhe-select-item-position: relative;
+  --fandhe-select-item-indicator-position: absolute;
+  --fandhe-select-item-indicator-gutter-display: block;
+  --fandhe-select-item-indicator-margin-left: 0;
+}
+
 [data-scope="select"][data-part="trigger"][data-state="open"] {
   border-color: var(--fandhe-color-accent);
 }
@@ -324,9 +343,25 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   transform: translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0);
 }
 
+[data-scope="select"][data-part="item"][data-selected] {
+  position: var(--fandhe-select-item-position, static);
+}
+
+[data-scope="select"][data-part="item-indicator"][data-state="open"] {
+  position: var(--fandhe-select-item-indicator-position, static);
+  margin-left: var(--fandhe-select-item-indicator-margin-left, auto);
+}
+
 [data-scope="select"][data-part="content"][hidden] {
   opacity: 0;
   transform: scale(0.95);
+}
+
+[data-scope="select"][data-part="item"]::before {
+  content: "";
+  display: var(--fandhe-select-item-indicator-gutter-display, none);
+  flex: none;
+  inline-size: var(--fandhe-select-item-indicator-size, 1em);
 }
 
 @starting-style {
