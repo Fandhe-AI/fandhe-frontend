@@ -3765,7 +3765,12 @@ fn drawer_section() -> Node {
                                 labelledby: Some("showcase-drawer-title"),
                                 describedby: Some("showcase-drawer-desc"),
                             },
-                            vec![],
+                            // イシュー #3128: `data-has-body` を付けて
+                            // content を opt-in で flex column 化し、
+                            // 直後の `body` へ残り高さを埋めさせる（見出し・
+                            // footer を固定したまま body だけをスクロール
+                            // させる構成の実演）。
+                            vec![("data-has-body", "")],
                             vec![
                                 drawer::title(
                                     Some("showcase-drawer-title"),
@@ -3777,15 +3782,25 @@ fn drawer_section() -> Node {
                                     vec![],
                                     vec![text("画面端からスライドインする補助パネルです。")],
                                 ),
-                                // イシュー #1695: footer 相当のアクション配置例
-                                // （dialog #1693 と同型。headless anatomy に
-                                // 専用 footer パートが存在しないため、
-                                // description 直後に通常の行として掲示する。
-                                // `.showcase-row` は掲示用レイアウトのみを
-                                // 担い、製品 CSS には footer 規則を持ち込ま
-                                // ない）。
-                                div(
-                                    vec![("class", "showcase-row")],
+                                // イシュー #3128: pre-styled-only `body` パート。
+                                // 複数段落の長文を掲示し、content ではなく
+                                // body 単独がスクロールする構成を実演する。
+                                drawer::body(
+                                    vec![],
+                                    vec![
+                                        p(vec![], vec![text(
+                                            "body パートは content を data-has-body で flex column 化した上で、残り高さを埋めてスクロールします。",
+                                        )]),
+                                        p(vec![], vec![text(
+                                            "title / description / footer は body の外側の兄弟として固定され、長いコンテンツでも位置が動きません。",
+                                        )]),
+                                    ],
+                                ),
+                                // イシュー #3128: pre-styled-only `footer`
+                                // パート（従来の `.showcase-row` 掲示用
+                                // レイアウトから正式な製品パートへ置換）。
+                                drawer::footer(
+                                    vec![],
                                     vec![
                                         button(
                                             &ButtonProps {
@@ -3869,7 +3884,7 @@ fn drawer_section() -> Node {
     );
     section(
         "Drawer",
-        "headless-ui の Drawer（WAI-ARIA dialog パターンの変種、dialog の状態機械を再利用）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。placement=\"end\" を掲示しています。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています。close-trigger は content 右上のゴーストボタン（× アイコン + aria-label）として掲示し、description の下にアクション行（footer 相当、掲示用レイアウトのみ）を配置しています。2 つ目のインスタンス（closed）は `hidden` 属性・`data-state=\"closed\"` により本文上は非表示です。1 つ目のインスタンス（open）は presence transition が適用されており、対応ブラウザではページ読み込み時にフェード＋スケールインが実際に発火します。",
+        "headless-ui の Drawer（WAI-ARIA dialog パターンの変種、dialog の状態機械を再利用）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。placement=\"end\" を掲示しています。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています。close-trigger は content 右上のゴーストボタン（× アイコン + aria-label）として掲示し、content に `data-has-body` を付けて description の下に `body` パート（イシュー #3128、pre-styled-only のスクロール可能コンテンツパート）で複数段落の本文を、その下に `footer` パート（イシュー #3128、pre-styled-only のレイアウト専用パート）でアクション列を配置しています。2 つ目のインスタンス（closed）は `hidden` 属性・`data-state=\"closed\"` により本文上は非表示です。1 つ目のインスタンス（open）は presence transition が適用されており、対応ブラウザではページ読み込み時にフェード＋スケールインが実際に発火します。",
         vec![node, closed_node],
     )
 }
