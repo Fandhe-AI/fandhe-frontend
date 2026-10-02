@@ -96,8 +96,6 @@ fn preview() -> Node {
 /// タブ（CSS）は `disabled: true` にする（モジュール doc「コード種別
 /// タブ・スタイル選択を固定状態で置く理由」節参照）。
 fn toolbar_tabs() -> Node {
-    let rust_pre_label = "表示設定プレビューの Rust コード";
-    let css_pre_label = "表示設定プレビューの CSS コード";
     let props = TabsProps {
         id: TABS_ID,
         selected: "rust",
@@ -111,11 +109,7 @@ fn toolbar_tabs() -> Node {
             value: "rust",
             trigger: vec![text("Rust")],
             content: vec![pre(
-                vec![
-                    ("class", "blocks-example-preview-toolbar-pre"),
-                    ("tabindex", "0"),
-                    ("aria-label", rust_pre_label),
-                ],
+                vec![("class", "blocks-example-preview-toolbar-pre")],
                 vec![code::code(
                     &CodeProps::default(),
                     vec![],
@@ -128,11 +122,7 @@ fn toolbar_tabs() -> Node {
             value: "css",
             trigger: vec![text("CSS")],
             content: vec![pre(
-                vec![
-                    ("class", "blocks-example-preview-toolbar-pre"),
-                    ("tabindex", "0"),
-                    ("aria-label", css_pre_label),
-                ],
+                vec![("class", "blocks-example-preview-toolbar-pre")],
                 vec![code::code(
                     &CodeProps::default(),
                     vec![],
