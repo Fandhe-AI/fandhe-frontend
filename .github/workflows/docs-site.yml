@@ -591,6 +591,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/reviews-summary-split/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/reviews-write-form/index.html"
           # Ecommerce / Store Nav
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/store-nav-category-row/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/store-nav-centered-logo/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/store-nav-mega-menu/index.html"
           # Ecommerce / Incentives
