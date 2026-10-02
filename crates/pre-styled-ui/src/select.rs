@@ -328,7 +328,8 @@
 //!   `--fandhe-select-item-padding` による余白調整は `Start` でもそのまま
 //!   効く（Bugbot Medium 指摘、PR #3561）。物理方向の `left` は使わず
 //!   静的位置に任せるため `direction: rtl` でも正しい側に置かれる。
-//!   `item`/`item-indicator` 側は `[data-state="open"]` **state 規則**と
+//!   `item`（`[data-selected]`）/`item-indicator`（`[data-state="open"]`）
+//!   側は **state 規則**と
 //!   pseudo-element 規則の純追加のみで base ブロックは変更しない（既存
 //!   golden の前半固定テスト `golden_prefix_through_hidden_select_
 //!   is_unchanged`・`select_pre_2391_blocks_remain_verbatim` を壊さない
@@ -933,7 +934,7 @@ fn recipe() -> SlotRecipe {
         // `Start` のみ登録し `End` は class を出さない、モジュール rustdoc
         // 参照）。root スコープで 2 本の CSS 変数を `relative`/`absolute`
         // へ切り替え、実際の配置は `item`/`item-indicator` の
-        // `[data-state="open"]` state 規則（下記）が担う。
+        // state 規則（`[data-selected]`/`[data-state="open"]`、下記）が担う。
         .variant(
             ItemIndicatorPlacement::Start,
             "root",
@@ -954,16 +955,23 @@ fn recipe() -> SlotRecipe {
         // + `max-height`（イシュー #2019）を既に持つが、
         // `presence_transition` が宣言するのは `opacity`/`transform`/
         // `transition-*` のみで交差しないため衝突しない。
-        // イシュー #3124: `item`/`item-indicator` の `[data-state="open"]`
+        // イシュー #3124: `item`/`item-indicator` の選択中項目限定の
         // state 規則。インジケータが可視なのは選択中の項目のみのため、この
         // 条件に限定すれば十分（モジュール rustdoc 参照）。フォールバック
         // 値は CSS の初期値（`static`/`auto`）のため、`Start` 未指定時の
         // 計算値は変わらない。base ブロックへ混入させない（SLOTS 順に
         // 出力される base と異なり、state は既存の前半 golden を不変に
-        // 保ったまま純追加できる）。
+        // 保ったまま純追加できる）。`item` 側は `[data-selected]` を条件に
+        // する: クライアント配線（`fandhe-frontend-wasm-full` の
+        // `headless_select`）は選択変更時に item の `data-selected` と
+        // インジケータの `data-state` は同期するが item の `data-state` は
+        // SSR 値のまま残すため、`[data-state="open"]` では選択変更後に
+        // インジケータの包含ブロックが root へ外れる（Bugbot High 指摘、
+        // PR #3561）。`data-selected` は SSR（headless `item`）とクライアント
+        // の双方が選択中項目へ付与する存在属性。
         .state(
             "item",
-            StateCondition::AttrEq("data-state", "open"),
+            StateCondition::Attr("data-selected"),
             vec![decl(
                 "position",
                 "var(--fandhe-select-item-position, static)",
@@ -1289,9 +1297,10 @@ mod tests {
         assert!(
             gutter_block.contains("inline-size: var(--fandhe-select-item-indicator-size, 1em);")
         );
-        // state 規則（`[data-state=\"open\"]`、item/item-indicator 各 1 件）。
+        // state 規則（item は `[data-selected]`、item-indicator は
+        // `[data-state=\"open\"]`、各 1 件）。
         assert!(css.contains(
-            "[data-scope=\"select\"][data-part=\"item\"][data-state=\"open\"] {\n  position: var(--fandhe-select-item-position, static);\n}\n"
+            "[data-scope=\"select\"][data-part=\"item\"][data-selected] {\n  position: var(--fandhe-select-item-position, static);\n}\n"
         ));
         let item_indicator_open_block = extract_block(
             &css,

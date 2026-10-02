@@ -249,7 +249,8 @@ NativeSelectVariant` と同型の軸で、`Subtle` は root の CSS 変数
 `--fandhe-select-item-indicator-margin-left`）を切り替え、全項目の
 `item::before` がインジケータ幅（`--fandhe-select-item-indicator-size`、
 既定 `1em`）の空きを inline-start 側へ確保する。選択済み項目の
-インジケータは `[data-state="open"]` state 規則で絶対配置され、静的位置
+インジケータは state 規則（item は `[data-selected]`、インジケータは
+`[data-state="open"]`）で絶対配置され、静的位置
 （content-box の inline-start 端）で空きと重なる。`item` の `padding` は
 上書きしないため、既存フック `--fandhe-select-item-padding` による余白
 調整はそのまま効く。`End`

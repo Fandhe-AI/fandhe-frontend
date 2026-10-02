@@ -60,7 +60,8 @@
 //!
 //! イシュー #3124 で `select::ItemIndicatorPlacement`（start/end、既定
 //! end）を追加し、variants 節末尾へ root variant 1 件を、states 節末尾へ
-//! `item`/`item-indicator` の `[data-state="open"]` 規則 2 件を、
+//! `item` の `[data-selected]`・`item-indicator` の `[data-state="open"]`
+//! 規則 2 件を、
 //! pseudo-elements 節へ `item::before`（インジケータ幅の gutter、既定
 //! `display: none`）1 件を純追加した。`item` の `padding` は上書きしない
 //! （既存フック `--fandhe-select-item-padding` を尊重、PR #3561）。既存 base ブロックは不変
@@ -342,7 +343,7 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   transform: translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0);
 }
 
-[data-scope="select"][data-part="item"][data-state="open"] {
+[data-scope="select"][data-part="item"][data-selected] {
   position: var(--fandhe-select-item-position, static);
 }
 
