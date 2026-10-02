@@ -2991,6 +2991,14 @@ source = "site/blocks/docs-layout-toc-collapsible.md"
 path = "/blocks/docs-layout-toc-collapsible/"
 
 [[section.group]]
+title = "Code Block"
+
+[[section.group.page]]
+title = "code-block-header"
+source = "site/blocks/code-block-header.md"
+path = "/blocks/code-block-header/"
+
+[[section.group]]
 title = "API Reference"
 
 [[section.group.page]]
@@ -3073,7 +3081,6 @@ path = "/blocks/api-reference-param-accordion/"
 # Ecommerce / Incentives
 # Ecommerce / Promo
 # Docs / Docs Layout
-# Docs / Code Block
 # Docs / Example Preview
 # Docs / Api Reference
 
