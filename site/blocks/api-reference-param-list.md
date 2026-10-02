@@ -113,13 +113,17 @@ fn allowed_values_row(allowed: &[&'static str]) -> Option<Node> {
 
 /// パラメータ 1 件分（名前・バッジ行 + 説明 + 任意の許可値行）。
 fn param_item(param: &Param) -> Node {
+    // `aria-label` に `param.name` を含める。全項目で固定文言にすると
+    // スクリーンリーダーのリンク一覧上でどのパラメータへのリンクか
+    // 区別できないため（イシュー #3101 レビュー指摘）。
+    let anchor_label = format!("{} 項目へのリンク", param.name);
     let mut meta_children: Vec<Node> = vec![
         code::code(&CodeProps::default(), vec![], vec![text(param.name)]),
         link::root(
             param.href,
             &LinkProps::default(),
             vec![
-                ("aria-label", "この項目へのリンク"),
+                ("aria-label", anchor_label.as_str()),
                 ("data-blocks-api-reference-param-list-anchor", ""),
             ],
             vec![text("#")],

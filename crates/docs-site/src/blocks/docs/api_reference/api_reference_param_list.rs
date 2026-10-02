@@ -154,13 +154,17 @@ fn allowed_values_row(allowed: &[&'static str]) -> Option<Node> {
 
 /// パラメータ 1 件分（名前・バッジ行 + 説明 + 任意の許可値行）。
 fn param_item(param: &Param) -> Node {
+    // `aria-label` に `param.name` を含める。全項目で固定文言にすると
+    // スクリーンリーダーのリンク一覧上でどのパラメータへのリンクか
+    // 区別できないため（イシュー #3101 レビュー指摘）。
+    let anchor_label = format!("{} 項目へのリンク", param.name);
     let mut meta_children: Vec<Node> = vec![
         code::code(&CodeProps::default(), vec![], vec![text(param.name)]),
         link::root(
             param.href,
             &LinkProps::default(),
             vec![
-                ("aria-label", "この項目へのリンク"),
+                ("aria-label", anchor_label.as_str()),
                 ("data-blocks-api-reference-param-list-anchor", ""),
             ],
             vec![text("#")],
@@ -353,7 +357,10 @@ mod tests {
         }
     }
 
-    /// アンカーの件数・`aria-label` の件数がいずれも項目数と一致すること。
+    /// アンカーの件数・`aria-label` の件数がいずれも項目数と一致し、かつ
+    /// `aria-label` が `param.name` を含む項目ごとに異なる文言である
+    /// こと（イシュー #3101 レビュー指摘: 固定文言だとスクリーン
+    /// リーダーのリンク一覧上でどのパラメータへのリンクか区別できない）。
     #[test]
     fn anchor_and_aria_label_count_matches_param_count() {
         let html = render(&demo());
@@ -363,11 +370,14 @@ mod tests {
             PARAMS.len(),
             "html={html}"
         );
-        assert_eq!(
-            html.matches("aria-label=\"この項目へのリンク\"").count(),
-            PARAMS.len(),
-            "html={html}"
-        );
+        for param in &PARAMS {
+            let needle = format!("aria-label=\"{} 項目へのリンク\"", param.name);
+            assert_eq!(
+                html.matches(&needle).count(),
+                1,
+                "expected exactly one {needle} in demo output, found html={html}"
+            );
+        }
     }
 
     /// 必須バッジ 2 件・許可値バッジ 5 件（2 + 3）・separator 3 件
