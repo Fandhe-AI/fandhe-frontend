@@ -168,8 +168,11 @@
 //!   `FirstOnTop` は先頭の [`root`] を最前面にする（chakra-ui v3
 //!   `AvatarGroup` の `stacking` prop に相当する命名）。`:nth-child(n)` 等の
 //!   CSS だけでは要素ごとに異なる `z-index` を付けられない（[`SlotRecipe`]
-//!   は子孫セレクタを生成できない、イシュー #708）ため、inline `z-index` の
-//!   決定的な注入で実現する（実装詳細は [`group_with`] rustdoc 参照）。
+//!   は子孫セレクタを生成できない、イシュー #708）ため、固定位置ごとの
+//!   `z-index` を持つ静的クラス（[`AvatarStackOrder`]）の決定的な付与で
+//!   実現する（厳格 CSP〔`style-src-attr` 非許可〕下でも無効化されない
+//!   よう、inline `style="z-index: ..."` は採らない。codex-review #3563
+//!   P1 指摘、実装詳細は [`group_with`] rustdoc 参照）。
 //! - **大サイズ（56px 超）**: 共通 [`crate::recipe::Size`] enum は 5 段方針
 //!   （chakra/Radix Themes 既存段の範囲）のため拡張しない。[`root`] は
 //!   呼び出し側 `attrs` の `style` をそのまま通すため、
@@ -350,8 +353,8 @@ pub enum AvatarGroupStacking {
     /// DOM 順のまま（既定、イシュー #2044 からの既存挙動）。
     #[default]
     LastOnTop,
-    /// 先頭の子が最前面（inline `z-index` を注入する。[`group_with`]
-    /// 参照）。
+    /// 先頭の子が最前面（固定の重なり順クラス [`AvatarStackOrder`] を
+    /// 付与する。[`group_with`] 参照）。
     FirstOnTop,
 }
 
@@ -365,6 +368,68 @@ impl VariantValue for AvatarGroupStacking {
             Self::LastOnTop => "last-on-top",
             Self::FirstOnTop => "first-on-top",
         }
+    }
+}
+
+/// [`group_with`]（`FirstOnTop`）が子へ付与する重なり順クラスの variant 軸
+/// （イシュー #3130 フォローアップ、codex-review #3563 P1 指摘）。
+///
+/// 旧実装は子へ inline `style="z-index: ..."` を注入していたが、
+/// `style-src-attr` を許可しない厳格 CSP 環境ではこの inline style が
+/// 無効化され、後続 Avatar が常に前面に残ってしまう（`z-index` は
+/// CSS が無効でも要素自体は描画されるため不具合に気付きにくい）。
+/// 本 variant 軸は `1`（最後尾）〜[`MAX_STACK_ORDER`]（最前面側の上限）の
+/// 固定位置ごとに `z-index` を宣言した静的クラスとして [`stylesheet`] へ
+/// 出力され、[`with_stack_order_class`] がそれを子へ付与する。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct AvatarStackOrder(u8);
+
+/// [`AvatarStackOrder`] が固定クラスとして持つ重なり順の上限（1 始まり）。
+/// group 内の Avatar 枚数がこれを超える構成は稀であり、超えた分は
+/// 装飾上のつぶれ（上位側が並んで最前面）として許容する実用上の妥協
+/// （本モジュール冒頭 rustdoc「イシュー #3130」節参照）。
+const MAX_STACK_ORDER: u8 = 12;
+
+impl AvatarStackOrder {
+    /// `position`（1 始まり、大きいほど前面）を `1..=MAX_STACK_ORDER` へ
+    /// クランプして構築する。
+    fn clamped(position: usize) -> Self {
+        let bounded = position.clamp(1, MAX_STACK_ORDER as usize);
+        Self(bounded as u8)
+    }
+}
+
+impl VariantValue for AvatarStackOrder {
+    fn axis(self) -> &'static str {
+        "stack-order"
+    }
+
+    fn value(self) -> &'static str {
+        z_index_literal(self.0).1
+    }
+}
+
+/// `position`（`1..=MAX_STACK_ORDER` に収まっている前提）に対応する
+/// `(z-index の 10 進表記, variant 値名)` を返す。両方とも `decl`/
+/// [`VariantValue::value`] が要求する `&'static str` のみで構築する
+/// （`crates/pre-styled-ui/src/css.rs` の「動的文字列を受け付けない」
+/// 不変条件に合わせ、`format!`/`to_string` によるリーク回避の決定的な
+/// 列挙表）。範囲外の値は `1`/`"pos1"` へフォールバックする（fail-closed）。
+const fn z_index_literal(position: u8) -> (&'static str, &'static str) {
+    match position {
+        1 => ("1", "pos1"),
+        2 => ("2", "pos2"),
+        3 => ("3", "pos3"),
+        4 => ("4", "pos4"),
+        5 => ("5", "pos5"),
+        6 => ("6", "pos6"),
+        7 => ("7", "pos7"),
+        8 => ("8", "pos8"),
+        9 => ("9", "pos9"),
+        10 => ("10", "pos10"),
+        11 => ("11", "pos11"),
+        12 => ("12", "pos12"),
+        _ => ("1", "pos1"),
     }
 }
 
@@ -724,7 +789,7 @@ fn recipe() -> SlotRecipe {
     // palette 登録より後に置くことで golden CSS 内の挿入位置を
     // 「badge ... color-palette-neutral」ブロックの直後・
     // 「image [data-state="hidden"]」ブロックの直前に固定する）。
-    recipe
+    recipe = recipe
         // badge 配置（`default_variant` は登録しない。登録すると root の
         // `variant_classes` が `fd-avatar--placement-bottom-end` を補完し、
         // 既定の root class 出力〔golden 前提〕が変わってしまう）。
@@ -735,14 +800,32 @@ fn recipe() -> SlotRecipe {
         )
         // group 重なり順（`default_variant` を登録しない理由は上記と同じ）。
         // `isolation: isolate` は [`group_with`] が `FirstOnTop` のときに
-        // 注入する子の inline `z-index` をこの group 配下の stacking
-        // context に閉じ込める（ページ側の固定ヘッダー等と干渉させない
-        // ため）。
+        // 付与する子の重なり順クラス（[`AvatarStackOrder`]）の `z-index` を
+        // この group 配下の stacking context に閉じ込める（ページ側の固定
+        // ヘッダー等と干渉させないため）。
         .variant(
             AvatarGroupStacking::FirstOnTop,
             "group",
             vec![decl("isolation", "isolate")],
-        )
+        );
+
+    // イシュー #3130 フォローアップ（codex-review #3563 P1 指摘）:
+    // `FirstOnTop` の重なり順を固定クラスで表現する。旧実装は子へ inline
+    // `style="z-index: ..."` を注入していたが、`style-src-attr` を許可しない
+    // 厳格 CSP 環境ではこの inline style が無効化され、後続 Avatar が
+    // 常に前面に残ってしまう（`z-index` 未適用は `position` 未適用と違い
+    // 見た目の破綻が分かりにくく気付かれにくい）。[`AvatarStackOrder`]
+    // （`1..=MAX_STACK_ORDER` の固定 1-indexed 位置）ごとに `z-index` を
+    // 固定した静的クラスを登録し、[`with_stack_order_class`] がそれを
+    // 子の既存 `class` 属性へ追記する。
+    for position in 1..=MAX_STACK_ORDER {
+        recipe = recipe.variant(
+            AvatarStackOrder::clamped(position as usize),
+            "root",
+            vec![decl("z-index", z_index_literal(position).0)],
+        );
+    }
+    recipe
 }
 
 /// この styled Avatar が生成する静的 CSS 全量を返す（決定的。
@@ -834,12 +917,16 @@ pub fn group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 ///   閉じ込める）を付与する（呼び出し側 `attrs` の `class` は
 ///   [`drop_class_attr`] で除去してから合成する）
 /// - 直下の [`Node::Element`] 子（`root(stacked: true)` 呼び出し想定）に
-///   先頭ほど大きい inline `z-index`（子の数を `n`、0 始まりの位置を `i`
-///   として `n - i`）を注入する。`:nth-child(n)` のような CSS 側の重なり順
-///   指定は [`crate::recipe::SlotRecipe`] が子孫セレクタを生成できない
-///   （イシュー #708）ため採れず、`flex-direction: row-reverse` + DOM 逆順
-///   も読み上げ順が崩れる（WCAG 1.3.2）ため採らない。`Node::Text` 等
-///   要素以外の子は無視する（z-index を持ちようがないため）
+///   先頭ほど大きい重なり順クラス（[`AvatarStackOrder`]、子の数を `n`、
+///   0 始まりの位置を `i` として `n - i`。`MAX_STACK_ORDER` を超える位置は
+///   クランプする）を付与する。inline `style="z-index: ..."` は
+///   `style-src-attr` を許可しない厳格 CSP 環境で無効化される（イシュー
+///   #3130 フォローアップ、codex-review #3563 P1 指摘）ため採らず、
+///   `:nth-child(n)` のような CSS 側の重なり順指定は
+///   [`crate::recipe::SlotRecipe`] が子孫セレクタを生成できない（イシュー
+///   #708）ため採れず、`flex-direction: row-reverse` + DOM 逆順も読み上げ順が
+///   崩れる（WCAG 1.3.2）ため採らない。`Node::Text` 等要素以外の子は無視する
+///   （重なり順クラスを持ちようがないため）
 ///
 /// `LastOnTop`（既定）のときは [`group`] へそのまま委譲し、出力を完全に
 /// 一致させる（純追加原則。golden CSS・既存呼び出しの出力は不変）。
@@ -863,8 +950,8 @@ pub fn group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 /// );
 /// let html = render(&node);
 /// assert!(html.contains("fd-avatar--stacking-first-on-top"));
-/// assert!(html.contains("z-index: 2"));
-/// assert!(html.contains("z-index: 1"));
+/// assert!(html.contains("fd-avatar--stack-order-pos2"));
+/// assert!(html.contains("fd-avatar--stack-order-pos1"));
 /// ```
 #[must_use]
 pub fn group_with<'a>(
@@ -883,20 +970,22 @@ pub fn group_with<'a>(
     let children: Vec<Node> = children
         .into_iter()
         .enumerate()
-        .map(|(i, child)| with_z_index_style(child, n - i))
+        .map(|(i, child)| with_stack_order_class(&recipe, child, n - i))
         .collect();
     ANATOMY.part("group", "div", merged, children)
 }
 
-/// `node` が [`Node::Element`] の場合、`style` 属性へ `z-index: <value>`
-/// を書き込む（既存 `style` 属性があれば `; ` で連結して既存宣言を保持する。
-/// [`crate::toast_motion`] の `with_stagger_index_style` と同型）。
+/// `node` が [`Node::Element`] の場合、`recipe` が持つ [`AvatarStackOrder`]
+/// 固定クラスを既存 `class` 属性へ追記する（`class` 属性がなければ新設）。
+/// CSP の `style-src-attr` 制限を受ける inline `style="z-index: ..."`
+/// （旧実装）ではなく、[`stylesheet`] が静的に持つクラスのみで重なり順を
+/// 表現する（イシュー #3130 フォローアップ、codex-review #3563 P1 指摘）。
 /// [`Node::Element`] 以外（`Node::Text` 等）はそのまま返す。
 ///
-/// `value` は `usize` から決定的に作った 10 進表記のみであり、呼び出し側
-/// からの任意文字列は混入しない（本モジュール冒頭 rustdoc「セキュリティ
-/// 不変条件」節）。
-fn with_z_index_style(node: Node, value: usize) -> Node {
+/// `position` は `usize` から [`AvatarStackOrder::clamped`] で決定的に
+/// 作った固定クラス名のみであり、呼び出し側からの任意文字列は混入しない
+/// （本モジュール冒頭 rustdoc「セキュリティ不変条件」節）。
+fn with_stack_order_class(recipe: &SlotRecipe, node: Node, position: usize) -> Node {
     let Node::Element {
         tag,
         mut attrs,
@@ -905,15 +994,19 @@ fn with_z_index_style(node: Node, value: usize) -> Node {
     else {
         return node;
     };
-    let addition = format!("z-index: {value}");
-    if let Some((_, existing)) = attrs.iter_mut().find(|(k, _)| k == "style") {
-        if !existing.ends_with(';') {
-            existing.push(';');
-        }
+    let class = recipe.variant_class(AvatarStackOrder::clamped(position));
+    if class.is_empty() {
+        return Node::Element {
+            tag,
+            attrs,
+            children,
+        };
+    }
+    if let Some((_, existing)) = attrs.iter_mut().find(|(k, _)| k == "class") {
         existing.push(' ');
-        existing.push_str(&addition);
+        existing.push_str(&class);
     } else {
-        attrs.push(("style".to_string(), addition));
+        attrs.push(("class".to_string(), class));
     }
     Node::Element {
         tag,
@@ -1417,7 +1510,7 @@ mod tests {
     }
 
     #[test]
-    fn group_with_first_on_top_adds_stacking_class_and_descending_z_index() {
+    fn group_with_first_on_top_adds_stacking_class_and_descending_stack_order_class() {
         let props = AvatarGroupProps {
             stacking: AvatarGroupStacking::FirstOnTop,
         };
@@ -1431,23 +1524,27 @@ mod tests {
             ],
         ));
         assert!(html.contains("fd-avatar--stacking-first-on-top"));
-        assert!(html.contains("z-index: 3"));
-        assert!(html.contains("z-index: 2"));
-        assert!(html.contains("z-index: 1"));
+        assert!(html.contains("fd-avatar--stack-order-pos3"));
+        assert!(html.contains("fd-avatar--stack-order-pos2"));
+        assert!(html.contains("fd-avatar--stack-order-pos1"));
+        // 厳格 CSP（`style-src-attr` 非許可）環境でも無効化されないことの
+        // 回帰保証（codex-review #3563 P1 指摘）: 重なり順は inline
+        // `style="z-index: ..."` を経由しない。
+        assert!(!html.contains("style=\"z-index"));
     }
 
     #[test]
-    fn group_with_first_on_top_appends_to_existing_style() {
+    fn group_with_first_on_top_appends_to_existing_class() {
         let props = AvatarGroupProps {
             stacking: AvatarGroupStacking::FirstOnTop,
         };
         let html = render(&group_with(
             &props,
             vec![],
-            vec![el("div", vec![("style", "color: red")], vec![])],
+            vec![el("div", vec![("class", "existing")], vec![])],
         ));
-        assert_eq!(html.matches("style=\"").count(), 1);
-        assert!(html.contains("color: red; z-index: 1"));
+        assert_eq!(html.matches("class=\"").count(), 2);
+        assert!(html.contains("existing fd-avatar--stack-order-pos1"));
     }
 
     #[test]
@@ -1456,8 +1553,26 @@ mod tests {
             stacking: AvatarGroupStacking::FirstOnTop,
         };
         let html = render(&group_with(&props, vec![], vec![text("plain text")]));
-        assert!(!html.contains("z-index"));
+        assert!(!html.contains("fd-avatar--stack-order"));
         assert!(html.contains("plain text"));
+    }
+
+    #[test]
+    fn stack_order_clamps_positions_beyond_max() {
+        let many: Vec<Node> = (0..(MAX_STACK_ORDER as usize + 3))
+            .map(|_| root(&AvatarProps::default(), vec![], vec![]))
+            .collect();
+        let props = AvatarGroupProps {
+            stacking: AvatarGroupStacking::FirstOnTop,
+        };
+        let html = render(&group_with(&props, vec![], many));
+        // 上限を超える位置はクランプされ、`pos{MAX_STACK_ORDER}` 止まりに
+        // なる（それより大きい `pos` クラスは出現しない）。
+        assert!(html.contains(&format!("fd-avatar--stack-order-pos{MAX_STACK_ORDER}")));
+        assert!(!html.contains(&format!(
+            "fd-avatar--stack-order-pos{}",
+            MAX_STACK_ORDER as usize + 1
+        )));
     }
 
     #[test]
@@ -1500,6 +1615,8 @@ mod tests {
         let css = stylesheet();
         assert!(css.contains("fd-avatar--placement-top-end"));
         assert!(css.contains("fd-avatar--stacking-first-on-top"));
+        assert!(css.contains("fd-avatar--stack-order-pos1"));
+        assert!(css.contains(&format!("fd-avatar--stack-order-pos{MAX_STACK_ORDER}")));
         assert!(!css.contains('#'));
     }
 }

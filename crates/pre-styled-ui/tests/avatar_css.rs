@@ -1,7 +1,10 @@
 //! styled Avatar（イシュー #1554、参考サイト基準へのスタイル調整。イシュー
 //! #2044 で shadcn/ui 突合による `group`/`badge` パート追加、イシュー #3130
 //! で badge 配置（`placement`）・group 重なり順（`stacking`）の 2 variant
-//! を純追加で反映）の決定的 CSS 出力ゴールデンテスト。
+//! を純追加で反映。イシュー #3130 フォローアップ〔codex-review #3563 P1
+//! 指摘〕で厳格 CSP〔`style-src-attr` 非許可〕対応の重なり順固定クラス
+//! `fd-avatar--stack-order-pos1`〜`pos12` を追加）の決定的 CSS 出力
+//! ゴールデンテスト。
 //!
 //! `crates/pre-styled-ui/tests/toolbar_css.rs` の golden fixture テスト
 //! の前例に倣い、`stylesheet()` が返す CSS 全文をバイト単位で固定する
@@ -266,6 +269,54 @@ const AVATAR_GOLDEN_CSS: &str = r#"[data-scope="avatar"][data-part="root"] {
 
 [data-scope="avatar"][data-part="group"].fd-avatar--stacking-first-on-top {
   isolation: isolate;
+}
+
+[data-scope="avatar"][data-part="root"].fd-avatar--stack-order-pos1 {
+  z-index: 1;
+}
+
+[data-scope="avatar"][data-part="root"].fd-avatar--stack-order-pos2 {
+  z-index: 2;
+}
+
+[data-scope="avatar"][data-part="root"].fd-avatar--stack-order-pos3 {
+  z-index: 3;
+}
+
+[data-scope="avatar"][data-part="root"].fd-avatar--stack-order-pos4 {
+  z-index: 4;
+}
+
+[data-scope="avatar"][data-part="root"].fd-avatar--stack-order-pos5 {
+  z-index: 5;
+}
+
+[data-scope="avatar"][data-part="root"].fd-avatar--stack-order-pos6 {
+  z-index: 6;
+}
+
+[data-scope="avatar"][data-part="root"].fd-avatar--stack-order-pos7 {
+  z-index: 7;
+}
+
+[data-scope="avatar"][data-part="root"].fd-avatar--stack-order-pos8 {
+  z-index: 8;
+}
+
+[data-scope="avatar"][data-part="root"].fd-avatar--stack-order-pos9 {
+  z-index: 9;
+}
+
+[data-scope="avatar"][data-part="root"].fd-avatar--stack-order-pos10 {
+  z-index: 10;
+}
+
+[data-scope="avatar"][data-part="root"].fd-avatar--stack-order-pos11 {
+  z-index: 11;
+}
+
+[data-scope="avatar"][data-part="root"].fd-avatar--stack-order-pos12 {
+  z-index: 12;
 }
 
 [data-scope="avatar"][data-part="image"][data-state="hidden"] {
