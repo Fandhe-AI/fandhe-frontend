@@ -49,6 +49,14 @@
 //! base 3 ブロックを `hidden-select` ブロック直後（`SLOTS` 末尾追加、純追加
 //! 原則）へ新設した。詳細は `crates/pre-styled-ui/src/select.rs` モジュール
 //! rustdoc「Separator / ScrollButton の着装（イシュー #2186）」節参照。
+//!
+//! イシュー #3121（親 #3116）で variant 軸を追加した。`trigger` base の
+//! `background`/`border` 宣言を固定値から `--fandhe-select-trigger-bg`/
+//! `--fandhe-select-trigger-border-color` 参照（フォールバックは変更前の
+//! 固定値と同一）へ変え、`fd-select--shape-pill` ブロック直後へ
+//! `fd-select--variant-subtle` ブロックを純追加した。詳細は
+//! `crates/pre-styled-ui/src/select.rs` モジュール rustdoc「variant 軸
+//! （イシュー #3121）」節参照。
 
 use fandhe_frontend_pre_styled_ui::select;
 
@@ -72,9 +80,9 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   align-items: center;
   justify-content: space-between;
   gap: var(--fandhe-space-2);
-  background: var(--fandhe-color-bg);
+  background: var(--fandhe-select-trigger-bg, var(--fandhe-color-bg));
   color: var(--fandhe-color-fg);
-  border: 1px solid var(--fandhe-color-border);
+  border: 1px solid var(--fandhe-select-trigger-border-color, var(--fandhe-color-border));
   border-radius: var(--fandhe-select-trigger-radius, var(--fandhe-radius-md));
   padding: var(--fandhe-select-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-3));
   cursor: pointer;
@@ -250,6 +258,11 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   --fandhe-select-trigger-radius: var(--fandhe-radius-full);
 }
 
+[data-scope="select"][data-part="root"].fd-select--variant-subtle {
+  --fandhe-select-trigger-bg: var(--fandhe-color-bg-subtle);
+  --fandhe-select-trigger-border-color: transparent;
+}
+
 [data-scope="select"][data-part="trigger"][data-state="open"] {
   border-color: var(--fandhe-color-accent);
 }
@@ -358,9 +371,9 @@ const SELECT_GOLDEN_CSS_BEFORE_2391: &str = r#"[data-scope="select"][data-part="
   align-items: center;
   justify-content: space-between;
   gap: var(--fandhe-space-2);
-  background: var(--fandhe-color-bg);
+  background: var(--fandhe-select-trigger-bg, var(--fandhe-color-bg));
   color: var(--fandhe-color-fg);
-  border: 1px solid var(--fandhe-color-border);
+  border: 1px solid var(--fandhe-select-trigger-border-color, var(--fandhe-color-border));
   border-radius: var(--fandhe-select-trigger-radius, var(--fandhe-radius-md));
   padding: var(--fandhe-select-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-3));
   cursor: pointer;
@@ -526,6 +539,11 @@ const SELECT_GOLDEN_CSS_BEFORE_2391: &str = r#"[data-scope="select"][data-part="
 
 [data-scope="select"][data-part="root"].fd-select--shape-pill {
   --fandhe-select-trigger-radius: var(--fandhe-radius-full);
+}
+
+[data-scope="select"][data-part="root"].fd-select--variant-subtle {
+  --fandhe-select-trigger-bg: var(--fandhe-color-bg-subtle);
+  --fandhe-select-trigger-border-color: transparent;
 }
 
 [data-scope="select"][data-part="trigger"][data-state="open"] {
@@ -714,9 +732,9 @@ fn golden_prefix_through_hidden_select_is_unchanged() {
   align-items: center;
   justify-content: space-between;
   gap: var(--fandhe-space-2);
-  background: var(--fandhe-color-bg);
+  background: var(--fandhe-select-trigger-bg, var(--fandhe-color-bg));
   color: var(--fandhe-color-fg);
-  border: 1px solid var(--fandhe-color-border);
+  border: 1px solid var(--fandhe-select-trigger-border-color, var(--fandhe-color-border));
   border-radius: var(--fandhe-select-trigger-radius, var(--fandhe-radius-md));
   padding: var(--fandhe-select-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-3));
   cursor: pointer;

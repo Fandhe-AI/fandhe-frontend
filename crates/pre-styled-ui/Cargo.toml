@@ -3611,7 +3611,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # pill・circle 両方を登録した状態にした。origin/main の到達値（0.217.0）
 # からさらに +1 して 0.218.0 とする（`.claude/rules/coding-rust.md`
 # #638 条項の同衝突運用）。
-version = "0.218.0"
+# イシュー #3121: select へ variant 軸（trigger の淡色背景 `Subtle`）を
+# 追加する公開 API 変更（`root_with` へ引数追加）のため、origin/main の
+# 到達値（0.218.0）からさらに +1 して 0.219.0 とする。
+version = "0.219.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
