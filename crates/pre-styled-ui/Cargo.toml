@@ -3989,6 +3989,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # ラベル）を純追加した新規公開 API のみの変更（既存 golden ブロックは不変・
 # 非破壊の追加）のため minor バンプする。
 #
+# イシュー #3141: switch に短いトラック形状（`SwitchTrack`/`root_with`）と
+# thumb アイコン slot（`thumb_icon`）を追加した。新規公開 API のみで既存
+# 関数シグネチャ・golden CSS の既存ブロックは不変のため非破壊的な追加と
+# して minor バンプする。
 # マージコミット注記（PR #3570 への origin/main 再取り込み、push 前 base
 # 最新化ゲート再適用）: 本ブランチ（#3134）は上記の経緯で独立に 0.233.0 へ
 # 到達していたが、origin/main 側（PR #3136 の経緯を含む到達値）も独立に
@@ -4076,7 +4080,7 @@ name = "fandhe-frontend-pre-styled-ui"
 # マージコミット注記（本 PR #3575、origin/main 再々取り込み）: 本ブランチは
 # 上記の経緯で 0.235.0 へ到達していたが、origin/main 側（#3579 の
 # マージ）も独立に同一の 0.235.0 へ到達していたため、さらに +1 して
-# 0.236.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+# 0.236.0 とした（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 #
 # codex-review 是正（本 PR #3582、イシュー #3143 の footer パート追加分の
 # バンプ漏れ修正）: command::footer を追加した時点（#3143 の節参照）で
@@ -4086,6 +4090,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # （#3137/#3575 系）で base の到達値へ追随し続けた結果 0.236.0 まで上がって
 # いるが、これは origin/main 側の separator 変更分の反映であり footer 追加
 # 自体の増分ではない。footer 追加分として改めて +1 して 0.237.0 とする。
+#
+# マージコミット注記（本 PR #3580、origin/main 再取り込み、イシュー #3141）:
+# 本ブランチは switch の #3141 対応で独立に 0.236.0 へ到達していたが、
+# origin/main 側（separator の #3137 対応を含む到達値、本ブランチの base
+# merge 時点）も独立に同一の 0.236.0 へ到達していた（偶発的衝突）ため、
+# そのまま採用せずさらに +1 して 0.237.0 とする（`.claude/rules/coding-rust.md`
+# #638 条項の同衝突運用）。
 #
 # マージコミット注記（本 PR #3582、origin/main 再取り込み、イシュー #3139）:
 # origin/main 側（steps の Dot variant 不具合修正を含む到達値、本ブランチの
@@ -4100,6 +4111,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # 時点）も独立に同一の 0.237.0 へ到達していた（偶発的衝突）ため、そのまま
 # 採用せずさらに +1 して 0.238.0 とする（`.claude/rules/coding-rust.md`
 # #638 条項の同衝突運用）。
+#
+# マージコミット注記（本 PR #3580、origin/main 再取り込み #2、イシュー #3139）:
+# origin/main 側は steps の #3139 対応（PR #3578）で独立に 0.236.1 へ到達していたが、
+# 本ブランチ（switch の #3141 対応）は既に 0.237.0 へ到達しており origin/main 側を
+# 上回っているため、追加のバンプは行わず 0.237.0 を維持する。
 #
 # イシュー #3142（PR #3583 codex-review 対応）: toast に opt-in の右端
 # アクション列レイアウト（`ACTIONS_COLUMN_ATTR`・pre-styled-only
@@ -4167,31 +4183,52 @@ name = "fandhe-frontend-pre-styled-ui"
 # そのまま採用せずさらに +1 して 0.238.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 #
+# イシュー #3141（PR #3580 codex-review 指摘対応、P1）: thumb_icon が
+# SwitchProps を受け取らず data-disabled/data-invalid/data-required/
+# data-readonly を欠いていた不整合を修正し、既存の `control`/`thumb` 等と
+# 同じ全パーツ一律反映契約に揃えた。`thumb_icon` の公開シグネチャへ
+# `props: &SwitchProps` 引数を追加する観測可能な破壊的変更のため、0.x の
+# 破壊的変更はマイナーバンプとする規約に従いマイナーバンプする（本ブラン
+# チはこの変更により独立に 0.238.0 へ到達していた）。
+#
+# マージコミット注記（本 PR #3580、origin/main 再取り込み #3、イシュー #3141）:
+# 本ブランチは上記 thumb_icon 修正で独立に 0.238.0 へ到達していたが、
+# origin/main 側（field の #3134 対応 PR #3570 を含む到達値）も独立に同一の
+# 0.238.0 へ到達していた（偶発的衝突）ため、そのまま採用せずさらに +1 して
+# 0.239.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 # マージコミット注記（本 PR #3583、origin/main 三度目の取り込み）: 本ブラ
 # ンチが上記で独立に到達した 0.238.0 と、origin/main（button_group の
 # #3135 対応 PR #3569 を含む到達値）も独立に同一版数 0.238.0 へ到達して
 # いた（偶発的衝突）ため、そのまま採用せずさらに +1 して 0.239.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 #
-# PR #3582（イシュー #3143）codex-review P2 再指摘対応: `footer` の呼び
-# 出し側が渡すヒント `span` が `display: inline` のままで内部の折り返しを
-# 防げない問題に対し、`stylesheet()` へ `[data-scope="command"]
-# [data-part="footer"] > *` の raw CSS（`white-space: nowrap`）を追記した。
-# 既存 golden CSS の出力バイトが変わる観測可能な変更のため 0.240.0 へ
-# マイナーバンプする。
+# マージコミット注記（本 PR #3580、origin/main 再取り込み #4、イシュー #3141）:
+# 本ブランチが上記で到達した 0.239.0 と、origin/main（PR #3583 を含む到達値）も
+# 独立に同一版数 0.239.0 へ到達していた（偶発的衝突）ため、そのまま採用せず
+# さらに +1 して 0.240.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 #
-# PR #3582 codex-review P2 / Cursor Bugbot 指摘対応: 上記の `nowrap` と同じ
-# 規則に併記した `overflow-wrap: anywhere` が効かず説明文が切れる問題を
-# 受け、`footer > *` 規則を `display: inline-flex`・`min-width: 0`・
-# `max-width: 100%`・`overflow-wrap: anywhere` へ置き換え、
-# `white-space: nowrap` は新設の `footer > * kbd` 規則だけへ移した。golden
-# CSS の出力バイトが再び変わるが、上記 0.240.0 のマイナーバンプに含める。
+# PR #3582（イシュー #3143）codex-review P2 再指摘・Cursor Bugbot 指摘対応:
+# `footer` の呼び出し側が渡すヒント `span` が `display: inline` のままで
+# `kbd` と説明文が別行に分かれ得る問題と、長いヒントが `root` の
+# `overflow: hidden` で切れる問題に対し、`stylesheet()` へ 2 つの raw CSS
+# を追記した。直接の子 `[data-scope="command"][data-part="footer"] > *` は
+# `display: inline-flex`・`min-width: 0`・`max-width: 100%`・
+# `overflow-wrap: anywhere`（`white-space` は指定しない）、子孫
+# `[data-scope="command"][data-part="footer"] > * kbd` だけが
+# `white-space: nowrap` を持つ。既存 golden CSS の出力バイトが変わる
+# 観測可能な変更のためマイナーバンプする。
 #
 # マージコミット注記（PR #3582、origin/main 再取り込み、イシュー #3143）:
 # origin/main は PR #3583（toast の #3142 対応）取り込みで 0.239.0 へ到達
 # した。本ブランチの 0.240.0 は main の版より 1 つ上のマイナー版のため、
 # そのまま採用する（`.claude/rules/coding-rust.md` #638 条項）。
-version = "0.240.0"
+#
+# マージコミット注記（PR #3582、origin/main 再々取り込み、イシュー #3143）:
+# 本ブランチの 0.240.0 と、origin/main（PR #3580、switch の #3141 対応を
+# 含む到達値）も独立に同一版数 0.240.0 へ到達していた（偶発的衝突）ため、
+# そのまま採用せずさらに +1 して 0.241.0 とする（`.claude/rules/coding-rust.md`
+# #638 条項の同衝突運用）。
+version = "0.241.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
