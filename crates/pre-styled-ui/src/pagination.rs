@@ -84,11 +84,46 @@
 //!
 //! ## 意図的非対応
 //!
-//! - variant 軸（solid/outline 等）は追加しない。`palette` 軸で既に色の
+//! - 色系 variant（solid/outline 等）は追加しない。`palette` 軸で既に色の
 //!   切り替えが可能であり、同型部品（[`crate::toggle_group`]）との一貫性
-//!   を優先する。
+//!   を優先する。variant 軸自体はレイアウト（下記 attached variant）に
+//!   限定する（イシュー #3136 で方針を明確化）。
 //! - 影（box-shadow）は追加しない。枠線 + hover 背景色のみで状態表現する
 //!   既存方針を維持する（[`crate::toggle`] と同じ判断）。
+//!
+//! # attached variant（連結表示、イシュー #3136）
+//!
+//! Blocks 取り込みの対応表（ID R1136）で「既存部品で表現不可」と判定された
+//! 「ページボタンを隙間なく横一列に連結する見た目」を
+//! [`PaginationVariant::Attached`] として opt-in 追加した。
+//!
+//! ## 案 A（本モジュールの variant）を採用した理由
+//!
+//! 代替案（`crate::button_group` の連結対象へ pagination の各パーツを追加
+//! する案）は、`button_group` が pagination の `data-scope` を知る部品横断の
+//! 結合を増やし、`<nav>` 内に `role="group"` の中間 div を挟む構造変化も
+//! 伴う。本案は [`root_with`] 1 箇所で完結し、`<nav>` 直下に item が並ぶ
+//! 構造を変えない（[`crate::tab_nav::root_with`] と同型の opt-in
+//! パターン）。
+//!
+//! ## 連結 CSS の方式（負マージン + z-index、`button_group` とは別方式）
+//!
+//! `button_group` は「先頭以外の開始側 border 幅を 0 にする」方式を採る。
+//! 本 variant は代わりに「隣接マージンを -1px で重ねる + 現在ページ
+//! （`data-selected`）を `z-index` で前面に出す」方式を選ぶ。理由は、
+//! 現在ページの枠線も palette 色で両側とも見せたいため（border 幅 0 方式
+//! だと隣の灰色枠しか見えない）。全パーツが枠線を持つ構成のため
+//! `border: none` の variant との兼ね合いを考慮する必要もない。
+//!
+//! [`SlotRecipe`] の variant は root 自身にしかクラスを宣言できないため、
+//! 子パーツ（item/ellipsis/prev-trigger/next-trigger）への連結規則は
+//! [`crate::button_group::stylesheet`] と同じく [`stylesheet`] が
+//! [`crate::css::serialize_rule`] で子結合子セレクタを直接末尾へ追記する。
+//! 論理プロパティ（`margin-inline-start`/`border-start-start-radius` 等）を
+//! 使うため RTL でも自然に反転する。位置擬似クラス（`:not(:first-child)`/
+//! `:not(:last-child)`）は子結合子セレクタの直接の子側に付ける
+//! （`button_group` の rustdoc にある既知の罠と同じ注意点）。
+//! ellipsis は attached 時のみ枠付きセルにし、連結帯の途切れを防ぐ。
 //!
 //! # `prev-trigger`/`next-trigger` のスタイル是正（イシュー #1533、親 #1531 の 2/2 分割）
 //!
@@ -175,13 +210,54 @@
 //!   #677/#704 の追随コミットと同型）。
 
 use crate::class_attr::drop_class_attr;
-use crate::css::decl;
+use crate::css::{decl, serialize_rule};
 use crate::recipe::{
     disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_bg_solid_with_fallback,
     hover_surface_declarations, palette_scale_declarations, transition_declarations, ColorPalette,
     FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition,
     VariantValue,
 };
+
+/// `root` の連結表示 variant（イシュー #3136）。`Separated`（既定、従来の
+/// 唯一の見た目）はクラスを付与せず、`Attached` のみ opt-in で `gap: 0` +
+/// 子結合子の連結規則（[`stylesheet`] が追記）を適用する（モジュール冒頭
+/// rustdoc「attached variant」節参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PaginationVariant {
+    /// 項目間に間隔を持つ従来の見た目（既定）。
+    #[default]
+    Separated,
+    /// 項目を隙間なく横一列に連結する見た目（イシュー #3136）。
+    Attached,
+}
+
+impl VariantValue for PaginationVariant {
+    fn axis(self) -> &'static str {
+        "variant"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            PaginationVariant::Separated => "separated",
+            PaginationVariant::Attached => "attached",
+        }
+    }
+}
+
+/// attached variant（root の variant クラス）が付いたときの子結合子
+/// セレクタの対象パーツ（`SLOTS` のうち `root` を除く 4 パーツ）。
+const ATTACHED_CHILD_PARTS: &[&str] = &["item", "ellipsis", "prev-trigger", "next-trigger"];
+
+/// `out` へ 1 規則を追記する（空でなければ改行区切り、
+/// [`crate::button_group::stylesheet`] の同名ヘルパと同型）。
+fn append_rule(out: &mut String, rule: Option<String>) {
+    if let Some(rule) = rule {
+        if !out.is_empty() {
+            out.push('\n');
+        }
+        out.push_str(&rule);
+    }
+}
 
 // headless 自由関数 `root` はあえて再エクスポートしない（本モジュール冒頭
 // の rustdoc「選択的 re-export」節参照、`root` は本モジュールで styled 版
@@ -487,14 +563,112 @@ fn recipe() -> SlotRecipe {
     ] {
         recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
+
+    // イシュー #3136: attached variant（root の `gap` のみ root 自身へ
+    // 宣言できる。子パーツへの連結規則は [`stylesheet`] が子結合子
+    // セレクタで追記する、モジュール冒頭 rustdoc 参照）。
+    recipe = recipe.variant(PaginationVariant::Attached, "root", vec![decl("gap", "0")]);
+
     recipe
 }
 
 /// この styled Pagination が生成する静的 CSS 全量を返す（決定的。
-/// [`crate::toggle_group::stylesheet`] と同じ契約）。
+/// [`crate::toggle_group::stylesheet`] と同じ契約）。attached variant
+/// （[`PaginationVariant::Attached`]）向けに子パーツの連結規則を
+/// [`crate::css::serialize_rule`] で追記する（モジュール冒頭 rustdoc
+/// 「連結 CSS の方式」節参照）。
 #[must_use]
 pub fn stylesheet() -> String {
-    recipe().css()
+    let mut out = recipe().css();
+
+    let attached_root =
+        r#"[data-scope="pagination"][data-part="root"].fd-pagination--variant-attached"#;
+
+    for part in ATTACHED_CHILD_PARTS {
+        let child = format!(r#"[data-scope="pagination"][data-part="{part}"]"#);
+
+        let not_first = format!("{attached_root} > {child}:not(:first-child)");
+        append_rule(
+            &mut out,
+            serialize_rule(
+                &not_first,
+                &[
+                    decl("margin-inline-start", "-1px"),
+                    decl("border-start-start-radius", "0"),
+                    decl("border-end-start-radius", "0"),
+                ],
+            ),
+        );
+
+        let not_last = format!("{attached_root} > {child}:not(:last-child)");
+        append_rule(
+            &mut out,
+            serialize_rule(
+                &not_last,
+                &[
+                    decl("border-start-end-radius", "0"),
+                    decl("border-end-end-radius", "0"),
+                ],
+            ),
+        );
+
+        let focus_visible = format!("{attached_root} > {child}:focus-visible");
+        append_rule(
+            &mut out,
+            serialize_rule(
+                &focus_visible,
+                &[decl("position", "relative"), decl("z-index", "2")],
+            ),
+        );
+    }
+
+    let selected_item =
+        format!(r#"{attached_root} > [data-scope="pagination"][data-part="item"][data-selected]"#);
+    append_rule(
+        &mut out,
+        serialize_rule(
+            &selected_item,
+            &[decl("position", "relative"), decl("z-index", "1")],
+        ),
+    );
+
+    // イシュー #3136 レビュー是正: 上記 `selected_item` 規則（`z-index: 1`）が
+    // 子ループで出力済みの `item:focus-visible`（`z-index: 2`、同一詳細度）を
+    // ソース順で上書きし、選択中ページのフォーカス時に前面表示が失われる
+    // 不具合があった。選択中 かつ フォーカス中の複合セレクタを
+    // `selected_item` より後段へ追記し、`z-index: 2` で確実に勝たせる。
+    let selected_item_focus_visible = format!(
+        r#"{attached_root} > [data-scope="pagination"][data-part="item"][data-selected]:focus-visible"#
+    );
+    append_rule(
+        &mut out,
+        serialize_rule(
+            &selected_item_focus_visible,
+            &[decl("position", "relative"), decl("z-index", "2")],
+        ),
+    );
+
+    let ellipsis_cell =
+        format!(r#"{attached_root} > [data-scope="pagination"][data-part="ellipsis"]"#);
+    append_rule(
+        &mut out,
+        serialize_rule(
+            &ellipsis_cell,
+            &[
+                decl("box-sizing", "border-box"),
+                decl("border", "1px solid var(--fandhe-color-border)"),
+                // イシュー #3136 レビュー是正: 他パーツ（item/prev-trigger/
+                // next-trigger）と同じ基本角丸を持たせる。先頭・末尾の
+                // ellipsis は `not_first`/`not_last` 規則（上記ループ、
+                // `ATTACHED_CHILD_PARTS` に ellipsis を含む）が内側角のみ
+                // `0` へ上書きするため、連結帯の外側角は丸いまま保たれる。
+                decl("border-radius", "var(--fandhe-radius-md)"),
+                decl("background", "var(--fandhe-color-bg)"),
+            ],
+        ),
+    );
+
+    out
 }
 
 /// styled root パーツを組み立てる。`size`/`palette` に応じたクラスを付与
@@ -520,9 +694,55 @@ pub fn root<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    root_with(
+        size,
+        PaginationVariant::Separated,
+        palette,
+        aria_label,
+        attrs,
+        children,
+    )
+}
+
+/// styled root パーツを組み立てる（[`root`] の opt-in 拡張版、イシュー
+/// #3136）。`variant == `[`PaginationVariant::Separated`]` のときは [`root`]
+/// とバイト単位で同一の出力になる（`recipe()` が `Separated` へ
+/// `default_variant` を登録しないため `variant-` クラスが付かない、
+/// [`crate::tab_nav::root_with`] と同型の契約）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::pagination::{self, PaginationVariant};
+/// use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
+///
+/// let node = pagination::root_with(
+///     Size::Md,
+///     PaginationVariant::Attached,
+///     ColorPalette::Accent,
+///     "pagination",
+///     vec![],
+///     vec![],
+/// );
+/// assert!(render(&node).contains("fd-pagination--variant-attached"));
+/// ```
+#[must_use]
+pub fn root_with<'a>(
+    size: Size,
+    variant: PaginationVariant,
+    palette: ColorPalette,
+    aria_label: &'a str,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
     let recipe = recipe();
-    let class =
-        recipe.variant_classes(&[("size", size.value()), ("color-palette", palette.value())]);
+    let mut selection: Vec<(&str, &str)> = vec![("size", size.value())];
+    if variant != PaginationVariant::Separated {
+        selection.push(("variant", variant.value()));
+    }
+    selection.push(("color-palette", palette.value()));
+    let class = recipe.variant_classes(&selection);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
     fandhe_frontend_headless_ui::pagination::root(aria_label, merged, children)
@@ -853,5 +1073,171 @@ mod tests {
 
         let restored = Pagination::from_hydration_attrs(&p.hydration_attrs()).unwrap();
         assert_eq!(restored, p);
+    }
+
+    // --- attached variant（イシュー #3136） ---
+
+    #[test]
+    fn root_and_root_with_separated_match_byte_for_byte() {
+        let a = render(&root(
+            Size::Md,
+            ColorPalette::Accent,
+            "pagination",
+            vec![],
+            vec![],
+        ));
+        let b = render(&root_with(
+            Size::Md,
+            PaginationVariant::Separated,
+            ColorPalette::Accent,
+            "pagination",
+            vec![],
+            vec![],
+        ));
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn root_never_outputs_variant_class() {
+        let html = render(&root(
+            Size::Md,
+            ColorPalette::Accent,
+            "pagination",
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("fd-pagination--variant-"));
+    }
+
+    #[test]
+    fn root_with_attached_outputs_variant_class_and_keeps_other_classes() {
+        let html = render(&root_with(
+            Size::Md,
+            PaginationVariant::Attached,
+            ColorPalette::Accent,
+            "pagination",
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains("fd-pagination--variant-attached"));
+        assert!(html.contains("fd-pagination--size-md"));
+        assert!(html.contains("fd-pagination--color-palette-accent"));
+    }
+
+    #[test]
+    fn root_with_class_attr_spoofing_is_dropped_for_attached_variant() {
+        let html = render(&root_with(
+            Size::Md,
+            PaginationVariant::Attached,
+            ColorPalette::Accent,
+            "pagination",
+            vec![
+                ("class", "attacker-controlled"),
+                ("data-scope", "attacker"),
+                ("data-part", "attacker"),
+            ],
+            vec![],
+        ));
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(!html.contains("attacker-controlled"));
+        assert!(html.contains(r#"data-scope="pagination""#));
+        assert!(html.contains(r#"data-part="root""#));
+    }
+
+    #[test]
+    fn root_with_attached_label_is_escaped() {
+        const PAYLOAD: &str = "\" onmouseover=\"alert(1)";
+        let html = render(&root_with(
+            Size::Md,
+            PaginationVariant::Attached,
+            ColorPalette::Accent,
+            PAYLOAD,
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("onmouseover=\"alert(1)"));
+        assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn stylesheet_contains_attached_connective_rules() {
+        let css = stylesheet();
+        let attached_root =
+            r#"[data-scope="pagination"][data-part="root"].fd-pagination--variant-attached"#;
+        for part in ["item", "ellipsis", "prev-trigger", "next-trigger"] {
+            let not_first = format!(
+                "{attached_root} > [data-scope=\"pagination\"][data-part=\"{part}\"]:not(:first-child) {{"
+            );
+            assert!(css.contains(&not_first), "missing {not_first}: {css}");
+        }
+        assert!(css.contains("margin-inline-start: -1px"));
+        assert!(css.contains(
+            r#"[data-scope="pagination"][data-part="item"][data-selected] {"#
+        ) || css.contains(
+            &format!(
+                r#"{attached_root} > [data-scope="pagination"][data-part="item"][data-selected] {{"#
+            )
+        ));
+        assert!(css.contains("gap: 0"));
+    }
+
+    #[test]
+    fn stylesheet_never_contains_style_breakout_sequences_with_attached_rules() {
+        let css = stylesheet();
+        assert!(!css.contains("</style"));
+        assert!(!css.contains('<'));
+    }
+
+    // イシュー #3136 レビュー是正: 選択中ページ（`item[data-selected]`、
+    // `z-index: 1`）がフォーカスされたとき `item:focus-visible` の
+    // `z-index: 2` に埋もれず前面表示を保つことを固定する回帰テスト。
+    #[test]
+    fn stylesheet_keeps_selected_item_above_siblings_on_focus_visible() {
+        let css = stylesheet();
+        let attached_root =
+            r#"[data-scope="pagination"][data-part="root"].fd-pagination--variant-attached"#;
+        let selected_focus_visible_rule = format!(
+            r#"{attached_root} > [data-scope="pagination"][data-part="item"][data-selected]:focus-visible {{"#
+        );
+        assert!(
+            css.contains(&selected_focus_visible_rule),
+            "missing {selected_focus_visible_rule}: {css}"
+        );
+
+        let selected_rule_pos = css
+            .find(r#"[data-scope="pagination"][data-part="item"][data-selected] {"#)
+            .expect("selected_item rule must exist");
+        let selected_focus_visible_pos = css
+            .find(&selected_focus_visible_rule)
+            .expect("selected_item_focus_visible rule must exist");
+        assert!(
+            selected_focus_visible_pos > selected_rule_pos,
+            "selected+focus-visible override must come after the plain selected rule \
+             so it wins under equal CSS specificity"
+        );
+    }
+
+    // イシュー #3136 レビュー是正: Attached 構成で先頭・末尾の ellipsis が
+    // 他パーツと同じ基本角丸を持ち、連結帯の外側角が四角くならないことを
+    // 固定する回帰テスト。
+    #[test]
+    fn stylesheet_gives_ellipsis_cell_base_border_radius() {
+        let css = stylesheet();
+        let attached_root =
+            r#"[data-scope="pagination"][data-part="root"].fd-pagination--variant-attached"#;
+        let ellipsis_cell =
+            format!(r#"{attached_root} > [data-scope="pagination"][data-part="ellipsis"] {{"#);
+        let rule_start = css
+            .find(&ellipsis_cell)
+            .unwrap_or_else(|| panic!("missing {ellipsis_cell}: {css}"));
+        let rule_end = css[rule_start..]
+            .find('}')
+            .map(|offset| rule_start + offset)
+            .expect("rule must be closed");
+        assert!(
+            css[rule_start..rule_end].contains("border-radius: var(--fandhe-radius-md)"),
+            "ellipsis cell rule missing base border-radius: {}",
+            &css[rule_start..rule_end]
+        );
     }
 }
