@@ -2763,6 +2763,11 @@ title = "category-mosaic-featured"
 source = "site/blocks/category-mosaic-featured.md"
 path = "/blocks/category-mosaic-featured/"
 
+[[section.group.page]]
+title = "category-split-panels"
+source = "site/blocks/category-split-panels.md"
+path = "/blocks/category-split-panels/"
+
 [[section.group]]
 title = "Filter"
 
