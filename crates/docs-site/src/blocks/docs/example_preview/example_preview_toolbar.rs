@@ -61,9 +61,22 @@
 //!
 //! 「外部で実行」ボタンは遷移先・クリック処理を持たない合成例のため
 //! `disabled: true` で押下不能を明示する（`href`/`target` は持たせず、
-//! 死にリンク・reverse tabnabbing を避ける）。コピーは idle 固定
-//! （`data-copied` を持たない）の [`fandhe_frontend_pre_styled_ui::clipboard`]
-//! を使う。
+//! 死にリンク・reverse tabnabbing を避ける）。コピーは
+//! [`fandhe_frontend_pre_styled_ui::clipboard`] の `root`/`control`/
+//! `trigger`/`indicator` を正規の構成で組み合わせているため、
+//! `fandhe-frontend-wasm-full` の `headless_clipboard` 配線
+//! （`crates/wasm-full/src/headless_clipboard.rs`）が実アプリの
+//! `mount`/`hydrate` 時に `navigator.clipboard.writeText` を自動配線する
+//! （`hero_install_command` モジュール doc「コピー配線の範囲」節と同型の
+//! 構成）。無 JS の docs サイト自体では他の全部品と同じく静的表示に
+//! 留まり（idle 固定、`data-copied` を持たない）、Trigger はクリック
+//! しても無反応になるが、これは `headless-ui`/`clipboard` が SSR
+//! マークアップのみを提供しクライアントランタイム側がコピー実行を担う
+//! という `site/primitives/clipboard.md` 既定の site 全体の制約であり、
+//! 本 block 固有の欠陥ではない（`clipboard::trigger` は `copied` 状態の
+//! みを引数に持ち `disabled` を表現できないため、「外部で実行」ボタンと
+//! 異なり無効化はしない）。実アプリへ組み込めばコピー操作は実際に
+//! 機能する。
 //!
 //! # `class` と `data-*` の使い分け
 //!
