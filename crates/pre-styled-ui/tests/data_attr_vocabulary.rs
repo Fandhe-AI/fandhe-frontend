@@ -1156,6 +1156,55 @@ fn progress_parts_data_attrs_are_headless_sourced_not_self_emitted() {
     assert!(css.contains(r#"[data-orientation="vertical"]"#));
 }
 
+/// `progress.rs` の pre-styled-only `marker`（イシュー #3140）は、直上の
+/// `progress_parts_data_attrs_are_headless_sourced_not_self_emitted` が固定
+/// する「headless 由来のみ」の例外である: headless `progress` に marker
+/// anatomy が存在しないため、本モジュールが `data-state` を 3 値固定で
+/// **自前出力する**（[`fandhe_frontend_headless_ui::slider::marker`] と同じ
+/// ark-ui Marker 語彙を共有、モジュール冒頭 rustdoc 参照）。この自前出力が
+/// (1) 固定 3 値のみであること・(2) 呼び出し側 `data-state`（大文字小文字を
+/// 無視）の偽装を除去すること・(3) `marker_group` は scope/part 以外の
+/// data-* を出力しないことを固定する。
+#[test]
+fn progress_marker_self_emits_fixed_data_state_and_drops_spoofing() {
+    let p = Progress::new(0.0, 100.0, Some(50.0), Orientation::Horizontal);
+
+    let under = render(&progress::marker(&p, 25.0, vec![], vec![]));
+    assert!(under.contains(r#"data-state="under-value""#), "{under}");
+    let at = render(&progress::marker(&p, 50.0, vec![], vec![]));
+    assert!(at.contains(r#"data-state="at-value""#), "{at}");
+    let over = render(&progress::marker(&p, 75.0, vec![], vec![]));
+    assert!(over.contains(r#"data-state="over-value""#), "{over}");
+
+    // indeterminate・非有限値はいずれも進捗を捏造しない fail-closed の扱い
+    // として over-value に倒す。
+    let indeterminate = Progress::new(0.0, 100.0, None, Orientation::Horizontal);
+    let indeterminate_html = render(&progress::marker(&indeterminate, 25.0, vec![], vec![]));
+    assert!(
+        indeterminate_html.contains(r#"data-state="over-value""#),
+        "{indeterminate_html}"
+    );
+    let non_finite_html = render(&progress::marker(&p, f64::NAN, vec![], vec![]));
+    assert!(
+        non_finite_html.contains(r#"data-state="over-value""#),
+        "{non_finite_html}"
+    );
+
+    // 呼び出し側の `data-state`（大文字小文字を無視）は偽装として除去する。
+    let spoofed = render(&progress::marker(
+        &p,
+        25.0,
+        vec![("data-state", "complete"), ("DATA-STATE", "complete")],
+        vec![],
+    ));
+    assert!(!spoofed.contains(r#"data-state="complete""#), "{spoofed}");
+    assert_eq!(spoofed.matches("data-state=").count(), 1);
+
+    // marker_group は scope/part 以外の data-* を一切出力しない。
+    let marker_group_html = render(&progress::marker_group(vec![], vec![]));
+    assert_eq!(marker_group_html.matches("data-").count(), 2);
+}
+
 /// `avatar.rs`（イシュー #2044、shadcn/ui 突合）の pre-styled-only
 /// `group`/`badge` パートは独自の `data-*` を一切出力しない（`docs/design/
 /// pre-styled-ui-data-attr-vocabulary.md` §3.1 規約 A・役割 B、
