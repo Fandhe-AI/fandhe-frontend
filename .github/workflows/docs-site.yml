@@ -562,6 +562,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-carousel/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-mosaic-featured/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-grid-overlay/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-split-panels/index.html"
           # Ecommerce / Filter
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/filter-dropdown-bar/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/filter-expandable-panel/index.html"
@@ -595,6 +596,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/incentives-inline-strip/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/incentives-split-header/index.html"
           # Ecommerce / Promo
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-background-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-collection-cards/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-offers-split/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-countdown/index.html"

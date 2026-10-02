@@ -9,6 +9,7 @@
 //! block ごとの追加経緯は git 履歴と PR を正とし、本コメントには書かない
 //! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
+mod promo_background_image;
 mod promo_collection_cards;
 mod promo_countdown;
 mod promo_image_tiles;
@@ -21,6 +22,7 @@ use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
     vec![
+        promo_background_image::BLOCK,
         promo_collection_cards::BLOCK,
         promo_countdown::BLOCK,
         promo_image_tiles::BLOCK,
