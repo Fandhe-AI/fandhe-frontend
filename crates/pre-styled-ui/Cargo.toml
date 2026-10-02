@@ -3707,11 +3707,20 @@ name = "fandhe-frontend-pre-styled-ui"
 # ため、マージ結果としてさらに +1 して 0.225.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 #
-# マージコミット注記（origin/main #3558 系との再統合、イシュー #3126）:
-# 本ブランチは上記の経緯で独立に 0.225.0 へ到達していたが、origin/main
+# イシュー #3131: alert に AccentBorder variant を純追加。公開 API（enum
+# variant）の純追加のため minor バンプする。
+#
+# マージコミット注記（origin/main #3560 との再統合、PR #3566）: 本ブランチ
+# （#3131）は独立に 0.225.0 へ到達していたが、origin/main 側（#3560 までの
+# 統合結果）も独立に同一の 0.225.0 へ到達しており偶発的に衝突したため、
+# マージ結果としてさらに +1 して 0.226.0 とする（`.claude/rules/coding-rust.md`
+# #638 条項の同衝突運用。同一版数への偶発的衝突をそのまま採用しない）。
+#
+# マージコミット注記（origin/main #3558 系との再統合、PR #3566 の base 取り込み）:
+# 本ブランチは上記の経緯で独立に 0.226.0 へ到達していたが、origin/main
 # 側（#3123/#3125/#3128/#3560 を統合した結果、PR #3558）も独立に同一の
-# 0.225.0 へ到達しており偶発的に衝突したため、マージ結果としてさらに +1
-# して 0.226.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突
+# 0.226.0 へ到達しており偶発的に衝突したため、マージ結果としてさらに +1
+# して 0.227.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突
 # 運用。同一版数への偶発的衝突をそのまま採用しない）。
 #
 # イシュー #3130: avatar に badge 配置（`AvatarBadgePlacement`）・group
@@ -3754,9 +3763,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # PR #3563 codex-review P2 指摘（13 件以上の FirstOnTop で末尾側の重なり順が
 # 逆転する）への対応: 件数上限なしで順序を保つ方式は静的クラスでは表せない
 # ため、上限を公開定数 `avatar::GROUP_FIRST_ON_TOP_MAX_CHILDREN` として
-# API 上に明示した（純追加。出力・golden CSS は不変）。0.227.0 は main
-# （0.226.0）より上位のため追加バンプは行わない。
-version = "0.227.0"
+# API 上に明示した（純追加。出力・golden CSS は不変）。
+#
+# マージコミット注記（origin/main #3566 との再統合）: 本ブランチ（#3130）は
+# 上記の経緯で独立に 0.227.0 へ到達していたが、origin/main 側（alert の
+# AccentBorder variant、#3566）も独立に同一の 0.227.0 へ到達しており
+# 偶発的に衝突したため、マージ結果としてさらに +1 して 0.228.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+version = "0.228.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

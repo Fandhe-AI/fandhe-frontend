@@ -2768,8 +2768,9 @@ fn highlight_section() -> Node {
 }
 
 /// Alert 節: status（info / success / warning / error / neutral）・variant
-/// （subtle / surface / solid / outline）・size（xs〜xl）ごとの表示
-/// （イシュー #1553 で variant/size 軸を追加）。
+/// （subtle / surface / solid / outline / accent-border）・size（xs〜xl）
+/// ごとの表示（イシュー #1553 で variant/size 軸を追加、accent-border は
+/// イシュー #3131）。
 fn alert_section() -> Node {
     let statuses = [
         (
@@ -2820,6 +2821,7 @@ fn alert_section() -> Node {
         (AlertVariant::Surface, "Surface"),
         (AlertVariant::Solid, "Solid"),
         (AlertVariant::Outline, "Outline"),
+        (AlertVariant::AccentBorder, "AccentBorder"),
     ];
     let variant_row = stack(
         variants

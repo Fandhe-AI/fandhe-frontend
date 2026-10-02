@@ -193,10 +193,36 @@ fn ex_alert_with_action() -> Node {
     )
 }
 
+/// `crates/pre-styled-ui/src/alert.rs`（`AccentBorder` variant、イシュー
+/// #3131。淡色背景 + inline-start 側の太いアクセント罫線・角丸なし）。
+fn ex_alert_accent_border() -> Node {
+    alert::root(
+        &AlertProps {
+            status: alert::AlertStatus::Warning,
+            variant: alert::AlertVariant::AccentBorder,
+            ..AlertProps::default()
+        },
+        vec![],
+        vec![
+            alert::indicator(vec![], vec![]),
+            alert::content(
+                vec![],
+                vec![
+                    alert::title(vec![], vec![text("Accent border")]),
+                    alert::description(
+                        vec![],
+                        vec![text("inline-start 側に太いアクセント罫線が付きます")],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
 pub(crate) const ALERT: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "AlertStatus（Info/Success/Warning/Error/Neutral、crates/pre-styled-ui/src/alert.rs）で 5 種の状態色を切り替える（イシュー #1553）",
-        "AlertVariant（Subtle/Surface/Solid/Outline、既定 Subtle）で見た目のトーンを切り替える（イシュー #1553）",
+        "AlertVariant（Subtle/Surface/Solid/Outline/AccentBorder、既定 Subtle）で見た目のトーンを切り替える（イシュー #1553、AccentBorder はイシュー #3131）",
         "size（Xs〜Xl、既定 Md）でパディング・フォントサイズ・indicator サイズを切り替える（イシュー #1553）",
         "root に WAI-ARIA live region の role=\"alert\" を状態に関わらず固定付与する（alert.rs）",
         "indicator/content/title/description/action の 5 パーツで見出し・本文・アクションを構造化できる（action は pre-styled-only レイアウトパート、イシュー #2043）",
@@ -212,7 +238,7 @@ pub(crate) const ALERT: ComponentPageSpec = ComponentPageSpec {
             name: "variant",
             kind: "AlertVariant",
             default: "Subtle",
-            description: "見た目のトーン（Subtle/Surface/Solid/Outline、イシュー #1553）。",
+            description: "見た目のトーン（Subtle/Surface/Solid/Outline/AccentBorder、イシュー #1553・#3131）。",
         },
         ArgRow {
             name: "size",
@@ -251,6 +277,11 @@ pub(crate) const ALERT: ComponentPageSpec = ComponentPageSpec {
             title: "With action",
             description: "shadcn/ui の AlertAction 相当を、pre-styled-only レイアウトパート action（root 末尾の button 併記）で表現した例です（イシュー #2043）。",
             render: ex_alert_with_action,
+        },
+        ExampleEntry {
+            title: "Accent border",
+            description: "淡色背景 + inline-start 側の太いアクセント罫線・角丸なしの AccentBorder variant です（イシュー #3131）。",
+            render: ex_alert_accent_border,
         },
     ],
     keyboard: &[],
