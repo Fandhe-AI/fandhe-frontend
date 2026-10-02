@@ -160,8 +160,16 @@
 //! **色だけに意味を頼らない契約（WCAG 1.4.1）**: [`delta`] は可視テキスト
 //! （符号付き数値等）を children として渡す契約とし、`aria-hidden` は
 //! 付けない（中身が情報そのものであるため、装飾用途の up/down-indicator と
-//! 異なる）。「悪化」等の意味を音声読み上げで補う必要がある場合、呼び出し側
-//! が別途 visually-hidden なテキストを添える判断をする。
+//! 異なる）。ただし符号付き数値の children だけでは「増加/減少」しか
+//! 伝わらず、`tone` が表す「良し悪し」（`trend` ではなく `tone` と命名した
+//! 理由そのもの）は色でしか伝わらない。このため**呼び出し側は `tone` が
+//! `Danger`/`Success` の場合、`delta` の children に「悪化」「改善」等の
+//! 可視テキストを含めるか、[`crate::visually_hidden::root`] で同義のテキストを
+//! 添えることを必須とする**（`Neutral` は色自体が意味を持たないため対象外）。
+//! この契約は型システムでは強制されない（`delta` のシグネチャは任意の
+//! `children: Vec<Node>` を受け取る）ため、`fandhe-frontend-docs-site` の
+//! showcase・component spec 等、本クレート外の呼び出し例も必ず上記いずれかの
+//! 形で満たすこと。
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!

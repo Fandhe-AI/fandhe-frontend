@@ -13806,7 +13806,17 @@ fn stat_section() -> Node {
                     vec![],
                     vec![
                         text("Error rate"),
-                        stat::delta(StatDeltaTone::Danger, vec![], vec![text("+4.75%")]),
+                        // tone が Danger/Success の増減は色だけに意味を頼らない
+                        // 契約（stat.rs「delta パートと tone 軸」節、WCAG 1.4.1）
+                        // に従い、「悪化」「改善」を visually-hidden テキストで補う。
+                        stat::delta(
+                            StatDeltaTone::Danger,
+                            vec![],
+                            vec![
+                                text("+4.75%"),
+                                visually_hidden::root(vec![], vec![text("（悪化）")]),
+                            ],
+                        ),
                     ],
                 ),
                 stat::value_text(vec![], vec![text("1.2%")]),
@@ -13820,7 +13830,14 @@ fn stat_section() -> Node {
                     vec![],
                     vec![
                         text("Goal attainment"),
-                        stat::delta(StatDeltaTone::Success, vec![], vec![text("+54.02%")]),
+                        stat::delta(
+                            StatDeltaTone::Success,
+                            vec![],
+                            vec![
+                                text("+54.02%"),
+                                visually_hidden::root(vec![], vec![text("（改善）")]),
+                            ],
+                        ),
                     ],
                 ),
                 stat::value_text(vec![], vec![text("92%")]),

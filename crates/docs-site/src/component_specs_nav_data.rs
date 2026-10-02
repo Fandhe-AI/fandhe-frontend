@@ -62,7 +62,8 @@ use fandhe_frontend_pre_styled_ui::{
     status, steps,
     tab_nav::{self, TabNavVariant},
     table::{self, TableProps},
-    tag, timeline, tree_view, AlertProps, ColorPalette, OpenState, Orientation, Size,
+    tag, timeline, tree_view, visually_hidden, AlertProps, ColorPalette, OpenState, Orientation,
+    Size,
 };
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
@@ -1967,7 +1968,17 @@ fn ex_stat_delta() -> Node {
                 vec![],
                 vec![
                     text("Error rate"),
-                    stat::delta(StatDeltaTone::Danger, vec![], vec![text("+4.75%")]),
+                    // tone が Danger の増減は色だけに意味を頼らない契約
+                    // （stat.rs「delta パートと tone 軸」節、WCAG 1.4.1）に従い、
+                    // 「悪化」を visually-hidden テキストで補う。
+                    stat::delta(
+                        StatDeltaTone::Danger,
+                        vec![],
+                        vec![
+                            text("+4.75%"),
+                            visually_hidden::root(vec![], vec![text("（悪化）")]),
+                        ],
+                    ),
                 ],
             ),
             stat::value_text(vec![], vec![text("1.2%")]),
