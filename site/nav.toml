@@ -2897,6 +2897,11 @@ path = "/blocks/reviews-write-form/"
 title = "Store Nav"
 
 [[section.group.page]]
+title = "store-nav-category-row"
+source = "site/blocks/store-nav-category-row.md"
+path = "/blocks/store-nav-category-row/"
+
+[[section.group.page]]
 title = "store-nav-centered-logo"
 source = "site/blocks/store-nav-centered-logo.md"
 path = "/blocks/store-nav-centered-logo/"
@@ -2974,6 +2979,11 @@ path = "/blocks/promo-with-testimonials/"
 
 [[section.group]]
 title = "Docs Layout"
+
+[[section.group.page]]
+title = "docs-layout-page-header"
+source = "site/blocks/docs-layout-page-header.md"
+path = "/blocks/docs-layout-page-header/"
 
 [[section.group.page]]
 title = "docs-layout-sidebar-nav"

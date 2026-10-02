@@ -1126,6 +1126,7 @@ pub enum LayoutCss {
 | promo-with-testimonials | #3086 | `ecommerce/promo/promo_with_testimonials.rs` |
 | reviews-card-grid | #3088（親 #3024） | `ecommerce/reviews/reviews_card_grid.rs` |
 | reviews-summary-split | #3090（親 #3024） | `ecommerce/reviews/reviews_summary_split.rs` |
+| store-nav-category-row | #3092 | `ecommerce/store_nav/store_nav_category_row.rs` |
 | store-nav-centered-logo | #3094（親 #3093） | `ecommerce/store_nav/store_nav_centered_logo.rs` |
 | store-nav-mega-menu | #3097/#3098（親 #3096） | `ecommerce/store_nav/store_nav_mega_menu.rs` |
 | cart-dialog | #3025 | `ecommerce/cart/cart_dialog.rs` |
@@ -1153,6 +1154,7 @@ pub enum LayoutCss {
 | promo-signup-offer | #3085（親 #3024） | `ecommerce/promo/promo_signup_offer.rs` |
 | reviews-write-form | #3091 | `ecommerce/reviews/reviews_write_form.rs` |
 | api-reference-param-accordion | #3100 | `docs/api_reference/api_reference_param_accordion.rs` |
+| docs-layout-page-header | #3106 | `docs/docs_layout/docs_layout_page_header.rs` |
 | docs-layout-sidebar-nav | #3109（親 #3099） | `docs/docs_layout/docs_layout_sidebar_nav.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
