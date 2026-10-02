@@ -587,9 +587,11 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/order-tracking-progress/index.html"
           # Ecommerce / Reviews
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/reviews-card-grid/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/reviews-stacked-list/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/reviews-summary-split/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/reviews-write-form/index.html"
           # Ecommerce / Store Nav
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/store-nav-category-row/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/store-nav-centered-logo/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/store-nav-mega-menu/index.html"
           # Ecommerce / Incentives
@@ -610,6 +612,7 @@ jobs:
           # Docs / Code Block
           # Docs / Example Preview
           # Docs / Api Reference
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/api-reference-param-accordion/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/api-reference-playground/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/blocks.css"
           # イシュー #2737: Blocks 共通のデモ用ダミー素材ヘルパ（画像 5 種）。
