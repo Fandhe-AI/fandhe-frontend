@@ -2962,6 +2962,14 @@ title = "promo-with-testimonials"
 source = "site/blocks/promo-with-testimonials.md"
 path = "/blocks/promo-with-testimonials/"
 
+[[section.group]]
+title = "Code Block"
+
+[[section.group.page]]
+title = "code-block-header"
+source = "site/blocks/code-block-header.md"
+path = "/blocks/code-block-header/"
+
 # --- 以下は block 追加時の挿入先アンカー（イシュー #2734、#2735 でカテゴリ
 # 見出し導入に伴い運用を更新）。カテゴリ単位で行ブロックを分ける点は不変
 # だが、新規 block は該当カテゴリの既存 `[[section.group]]` があればその
@@ -3037,7 +3045,6 @@ path = "/blocks/promo-with-testimonials/"
 # Ecommerce / Incentives
 # Ecommerce / Promo
 # Docs / Docs Layout
-# Docs / Code Block
 # Docs / Example Preview
 # Docs / Api Reference
 
