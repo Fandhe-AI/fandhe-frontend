@@ -15,6 +15,7 @@ mod promo_image_tiles;
 mod promo_offers_split;
 mod promo_sale_categories;
 mod promo_sale_products;
+mod promo_signup_offer;
 mod promo_with_testimonials;
 
 use crate::blocks::Block;
@@ -27,6 +28,7 @@ pub(super) fn blocks() -> Vec<Block> {
         promo_offers_split::BLOCK,
         promo_sale_categories::BLOCK,
         promo_sale_products::BLOCK,
+        promo_signup_offer::BLOCK,
         promo_with_testimonials::BLOCK,
     ]
 }
