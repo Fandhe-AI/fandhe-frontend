@@ -6,6 +6,6 @@
 
 `root` へ size（`xs`/`sm`/`md`/`lg`/`xl`、既定 `md`）を指定できます。hover・キーボードフォーカスリングも備えます。
 
-`root_with` を使うと、pill variant（`TabNavVariant::Pill`、[Tabs](tabs.md) の Enclosed と同一外観）と `color-palette` 軸を opt-in で指定できます（既定の `root` は Line・palette なしのまま不変）。
+`root_with` を使うと、pill variant（`TabNavVariant::Pill`、[Tabs](tabs.md) の Enclosed と同一外観）・bar variant（`TabNavVariant::Bar`、枠線・角丸・影のカード状コンテナ + 区切り線 + 下端インジケータ）・`color-palette` 軸を opt-in で指定できます（既定の `root` は Line・palette なしのまま不変）。
 
 関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md)
