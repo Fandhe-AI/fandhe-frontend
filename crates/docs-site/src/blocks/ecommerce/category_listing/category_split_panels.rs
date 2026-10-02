@@ -38,22 +38,15 @@
 //! ではなく `@container`（コンテナクエリ）を使う。Demo ルートへ
 //! `container-type: inline-size` を宣言し、表示領域自身の実測幅を基準に
 //! 広い幅（`40rem` 以上、docs サイト上の Demo 枠実測上限 `43rem` でも
-//! 到達する値）で 2 列、それ未満では縦積みへ切り替える。
-//!
-//! # `drop_class_attr` と CSS フックの選び方
-//!
-//! `heading::heading`/`text::text`/`image::image`/`link::root` はいずれも
-//! `drop_class_attr` により呼び出し側 `attrs` の `class` を黙って除去する
-//! 契約を持つため、Demo 固有のスタイルフックは
-//! `data-blocks-category-split-panels-*` 属性で渡す（`image` のみ、
-//! 既定宣言〔`max-width: 100%; height: auto`〕を上書きするため
-//! `[data-scope="image"][data-part="root"][data-blocks-category-split-
-//! panels-image]` の詳細度 (0,3,0) セレクタにする）。素の `div` には
-//! `class` がそのまま効くため、レイアウト用の入れ子は
-//! `.blocks-category-split-panels-*` クラスセレクタを使う。レイアウト
-//! root の class（`blocks-category-split-panels-layout`）は
-//! [`Block::demo_class`]（`blocks-category-split-panels`）と意図的に
-//! 別名にする（既存 block と同じ Bugbot 教訓の回避）。
+//! 到達する値）で 2 列、それ未満では縦積みへ切り替える。CSS container
+//! query はコンテナ自身ではなく子孫のみを判定対象にできるため、
+//! `container-type`/`container-name` を宣言する
+//! `.blocks-category-split-panels-layout`（Demo ルート）自身へ
+//! `@container` で `grid-template-columns` を適用しても効かない
+//! （`category_featured_banner`/`category_grid_overlay` と同じ理由で、
+//! 列数を変える対象には必ず別要素を使う）。そのため列数を実際に変える
+//! 要素は `layout` の子である `.blocks-category-split-panels-split`
+//! （[`demo`] が挟む内側ラッパー）に分離する。
 //!
 //! # link の `href` を固定の外部絶対 URL にする・可視テキストとの整合
 //!
@@ -161,7 +154,10 @@ fn panel(p: &Panel) -> Node {
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-category-split-panels-layout")],
-        PANELS.iter().map(panel).collect(),
+        vec![div(
+            vec![("class", "blocks-category-split-panels-split")],
+            PANELS.iter().map(panel).collect(),
+        )],
     )
 }
 // blocks-code:end
@@ -207,12 +203,13 @@ pub const BLOCK: Block = Block {
 /// 色リテラル（`#fff`/`white`/`black` 等）は使わず、可読性の確保は
 /// すべて `--fandhe-color-*` トークンと `color-mix()` で行う。
 const LAYOUT_CSS: &str = "\
-.blocks-category-split-panels-layout {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-category-split-panels;\n}\n\
+.blocks-category-split-panels-layout {\n  container-type: inline-size;\n  container-name: blocks-category-split-panels;\n}\n\
+.blocks-category-split-panels-split {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-6);\n}\n\
 .blocks-category-split-panels-panel {\n  display: grid;\n  min-height: 20rem;\n  border-radius: var(--fandhe-radius-lg);\n  overflow: hidden;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-category-split-panels-image] {\n  grid-area: 1 / 1;\n  display: block;\n  width: 100%;\n  height: 100%;\n  max-width: none;\n}\n\
 .blocks-category-split-panels-surface {\n  grid-area: 1 / 1;\n  align-self: end;\n  margin: var(--fandhe-space-4);\n  padding: var(--fandhe-space-6);\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n  align-items: start;\n  background: color-mix(in srgb, var(--fandhe-color-bg) 88%, transparent);\n  color: var(--fandhe-color-fg);\n  border-radius: var(--fandhe-radius-md);\n}\n\
 @container blocks-category-split-panels (min-width: 40rem) {\n  \
-.blocks-category-split-panels-layout {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n  \
+.blocks-category-split-panels-split {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n  \
 .blocks-category-split-panels-panel {\n    min-height: 24rem;\n  }\n\
 }\n";
 
@@ -271,6 +268,25 @@ mod tests {
         assert!(!LAYOUT_CSS.contains('#'));
         assert!(!LAYOUT_CSS.contains("white"));
         assert!(!LAYOUT_CSS.contains("black"));
+    }
+
+    /// CSS container query は宣言した要素自身ではなく子孫のみを判定対象に
+    /// できるため、`container-type`/`container-name` を持つ
+    /// `.blocks-category-split-panels-layout` 自身の `grid-template-columns`
+    /// を `@container` で変えても効かない（レビュー指摘の回帰固定）。
+    /// 列数を変える `.blocks-category-split-panels-split` は別要素であり、
+    /// `layout` はコンテナ宣言のみを持つこと（`grid-template-columns` を
+    /// 持たない）を固定する。
+    #[test]
+    fn container_is_declared_on_an_ancestor_distinct_from_the_column_switching_element() {
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-category-split-panels-layout {\n  container-type: inline-size;\n  container-name: blocks-category-split-panels;\n}\n"
+        ));
+        assert!(!LAYOUT_CSS.contains(".blocks-category-split-panels-layout {\n  display: grid;"));
+        assert!(LAYOUT_CSS.contains(".blocks-category-split-panels-split {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }"));
+
+        let html = render(&demo());
+        assert!(html.contains("class=\"blocks-category-split-panels-split\""));
     }
 
     /// ルート grid class（`demo_class` とは別名）が `demo()` の出力へ実際に

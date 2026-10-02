@@ -103,7 +103,10 @@ fn panel(p: &Panel) -> Node {
 pub fn demo() -> Node {
     div(
         vec![("class", "blocks-category-split-panels-layout")],
-        PANELS.iter().map(panel).collect(),
+        vec![div(
+            vec![("class", "blocks-category-split-panels-split")],
+            PANELS.iter().map(panel).collect(),
+        )],
     )
 }
 ```
@@ -126,7 +129,11 @@ pub fn demo() -> Node {
   `@container`（コンテナクエリ）を使っています。Demo のルートへ
   `container-type: inline-size` を宣言し、表示領域自身の実測幅を基準に
   `40rem` 以上で 2 列、それ未満では縦積みへ切り替えます。`40rem` は docs
-  サイト上の Demo 枠（実測上限約 `43rem`）でも閾値へ到達する値です。
+  サイト上の Demo 枠（実測上限約 `43rem`）でも閾値へ到達する値です。CSS
+  container query はコンテナ宣言要素自身ではなく子孫のみを判定対象に
+  できるため、列数を変える要素（`.blocks-category-split-panels-split`）は
+  `container-type`/`container-name` を持つ Demo ルートとは別の内側ラッパーに
+  分離しています。
 - 文言はすべて独自に書いた架空のカテゴリデータです。
 
 関連情報: [Heading](../themes/heading.md) / [Text](../themes/text.md) /
