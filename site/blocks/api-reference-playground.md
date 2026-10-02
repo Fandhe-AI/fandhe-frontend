@@ -58,7 +58,7 @@ const RESPONSE_LINES: [&str; 20] = [
     "}",
 ];
 
-/// B（リクエスト）の本文行。表示とコピー値の唯一の供給元。
+/// B（リクエスト）の本文行。
 const REQUEST_LINES: [&str; 4] = [
     "curl -X POST https://api.example.com/v1/projects \\",
     "  -H \"Authorization: Bearer <YOUR_API_TOKEN>\" \\",
@@ -66,7 +66,7 @@ const REQUEST_LINES: [&str; 4] = [
     "  -d '{\"name\":\"storefront-api\"}'",
 ];
 
-/// C（リクエスト + エラー）の本文行。表示とコピー値の唯一の供給元。
+/// C（リクエスト + エラー）の本文行。
 const ERROR_LINES: [&str; 5] = [
     "{",
     "  \"name\": \"\",",
@@ -281,6 +281,19 @@ fn copy_button(lines: &[&str], input_id: &'static str) -> Node {
     )
 }
 
+/// 版 B・C のコピー表示（`clipboard` scope の外側、押下不能。モジュール
+/// doc「Demo 内の `clipboard` root は 1 個に限る」節）。
+fn copy_button_disabled() -> Node {
+    button::button(
+        &ButtonProps {
+            disabled: true,
+            ..ButtonProps::default()
+        },
+        vec![("data-blocks-api-reference-playground-copy", "")],
+        vec![text("Copy")],
+    )
+}
+
 /// 行番号付きコード本文（モジュール doc「行番号・強調行（CSS カウンタ）」
 /// 節）。`highlighted` は 0 始まりの強調行インデックス集合。
 fn code_body(
@@ -380,10 +393,7 @@ fn panel_request_install() -> Node {
                     method_badge("POST", ColorPalette::Accent),
                     endpoint("/v1/projects"),
                     language_select(LANG_LABEL_ID, LANG_CONTENT_ID, "cURL", &OPTIONS),
-                    copy_button(
-                        &REQUEST_LINES,
-                        "blocks-api-reference-playground-request-copy",
-                    ),
+                    copy_button_disabled(),
                 ],
             ),
             code_body(
@@ -430,7 +440,7 @@ fn panel_request_error() -> Node {
                         vec![text("Request")],
                     ),
                     meta_badges("400", ColorPalette::Danger, "86 ms", "0.3 KB"),
-                    copy_button(&ERROR_LINES, "blocks-api-reference-playground-error-copy"),
+                    copy_button_disabled(),
                 ],
             ),
             code_body(
@@ -514,11 +524,18 @@ pub fn demo() -> Node {
 - 版 D は R0061（未送信状態・送信ボタンのみ）に対応します。
 - 行番号は CSS カウンタ（`counter-increment`/`::before`）で付与して
   います。選択・コピー時に行番号の文字列が本文へ混ざりません。
-- 本文の各行は、最終行以外の行末に実際の改行文字を持ちます。選択して
-  コピーしても行が連結されません。
-- コピー値は表示中の本文と同じ行データを改行で連結して作るため、本文
-  全体と完全に一致します。`clipboard` の入力欄は本文と重複して見えない
-  よう視覚的に隠しています（ラベルと同じ `visually_hidden` を使用）。
+- 本文の各行は、最終行以外の行末に実際の改行文字を持ちます。改行は
+  この改行文字と `white-space: pre` だけで行い、行を `display: block`
+  にしないため、表示に空行が入らず、選択してコピーしても行が連結
+  されません。行番号は各行先頭の `::before`（`inline-block`）に出します。
+- `clipboard` は 1 つの root でのコピー成功が同じマウント範囲の全
+  `clipboard` の表示へ連動するため、Demo 内の `clipboard` は版 A の
+  1 個だけにしています。版 B・C のコピーは押せない（`disabled`）
+  ボタンとして表示します。
+- 版 A のコピー値は表示中の本文と同じ行データを改行で連結して作るため、
+  本文全体と完全に一致します。`clipboard` の入力欄は本文と重複して
+  見えないよう視覚的に隠しています（ラベルと同じ `visually_hidden` を
+  使用）。
 - 版 B のヘッダーでは言語選択とコピーを右寄せの 1 つのまとまりとして
   並べます（コピー側の自動余白を打ち消します）。
 - 本文のスクロール領域は 12 行相当（`calc(1.5em * 12)`）で高さを

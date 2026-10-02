@@ -50,21 +50,33 @@
 //!
 //! 本文の各行は `span[data-blocks-api-reference-playground-line]` として
 //! `code::code` の子に並べ、最終行以外の各行末に実際の改行テキスト（`\n`）を
-//! 置く（CSS の `display: block` だけに改行を頼ると、選択コピーで行が連結
-//! されるため）。行番号は CSS カウンタ（`counter-increment`/
-//! `::before { content: counter(line) }`）で付与する。選択・コピー時に
-//! 行番号の文字列が本文テキストへ混ざらず、`render` 出力にも増えない
-//! （[`LAYOUT_CSS`] 側の実装）。
+//! 置く。改行の手段はこの `\n` と親 `code` の `white-space: pre` の 1 つに
+//! 統一し、行 span は `display: block` にしない（block 化と `\n` を重ねると
+//! 行間に空行が入り、block 化だけに頼ると選択コピーで行が連結されるため）。
+//! 行番号は CSS カウンタ（`counter-increment`/`::before { content:
+//! counter(line) }`）で付与し、`::before` を固定幅の `inline-block` として
+//! 各行の先頭に並べる。生成コンテンツのため選択・コピー時に行番号の文字列が
+//! 本文テキストへ混ざらず、`render` 出力にも増えない（[`LAYOUT_CSS`] 側の
+//! 実装）。強調行は `data-highlighted` 属性 + 背景色 +
+//! `border-inline-start` の両方で示し、色だけに頼らない。スクロール領域
+//! （`pre`）はキーボードで届くよう `tabindex="0"` と `role="region"`・
+//! `aria-label` を付与する。
+//!
+//! # Demo 内の `clipboard` root は 1 個に限る
+//!
+//! `fandhe-frontend-wasm-full` の `headless_clipboard` 配線は「1 root : 1
+//! 状態機械」で、1 つの root でのコピー成功がマウント範囲内の全
+//! `clipboard` パーツの copied 表示へ及ぶ（`settings_api_key_created` の
+//! 同名節と同じ判断）。そこで `clipboard` root は版 A の 1 個だけとし、
+//! 版 B・C のコピーは `clipboard` scope の外側に `disabled: true` の
+//! `button::button` を置いて押下不能を明示する。
 //!
 //! # コピー値は表示本文と同じ行データから作る
 //!
-//! コピー値（`clipboard::root` の `data-value`）は表示本文と同じ行配列
-//! （[`RESPONSE_LINES`] 等）を `\n` で連結して作り、表示中のコードと完全に
+//! 版 A のコピー値（`clipboard::root` の `data-value`）は表示本文と同じ行
+//! 配列（[`RESPONSE_LINES`]）を `\n` で連結して作り、表示中のコードと完全に
 //! 一致させる。`clipboard::input` は本文と重複する第 2 の表示にならないよう
-//! `visually_hidden::root` で視覚的に隠す（`clipboard::label` と同じ手段）。強調行は `data-highlighted` 属性 +
-//! 背景色 + `border-inline-start` の両方で示し、色だけに頼らない。
-//! スクロール領域（`pre`）はキーボードで届くよう `tabindex="0"` と
-//! `role="region"`・`aria-label` を付与する。
+//! `visually_hidden::root` で視覚的に隠す（`clipboard::label` と同じ手段）。
 //!
 //! # `<form>` を使わない
 //!
@@ -114,7 +126,7 @@ const RESPONSE_LINES: [&str; 20] = [
     "}",
 ];
 
-/// B（リクエスト）の本文行。表示とコピー値の唯一の供給元。
+/// B（リクエスト）の本文行。
 const REQUEST_LINES: [&str; 4] = [
     "curl -X POST https://api.example.com/v1/projects \\",
     "  -H \"Authorization: Bearer <YOUR_API_TOKEN>\" \\",
@@ -122,7 +134,7 @@ const REQUEST_LINES: [&str; 4] = [
     "  -d '{\"name\":\"storefront-api\"}'",
 ];
 
-/// C（リクエスト + エラー）の本文行。表示とコピー値の唯一の供給元。
+/// C（リクエスト + エラー）の本文行。
 const ERROR_LINES: [&str; 5] = [
     "{",
     "  \"name\": \"\",",
@@ -337,6 +349,19 @@ fn copy_button(lines: &[&str], input_id: &'static str) -> Node {
     )
 }
 
+/// 版 B・C のコピー表示（`clipboard` scope の外側、押下不能。モジュール
+/// doc「Demo 内の `clipboard` root は 1 個に限る」節）。
+fn copy_button_disabled() -> Node {
+    button::button(
+        &ButtonProps {
+            disabled: true,
+            ..ButtonProps::default()
+        },
+        vec![("data-blocks-api-reference-playground-copy", "")],
+        vec![text("Copy")],
+    )
+}
+
 /// 行番号付きコード本文（モジュール doc「行番号・強調行（CSS カウンタ）」
 /// 節）。`highlighted` は 0 始まりの強調行インデックス集合。
 fn code_body(
@@ -436,10 +461,7 @@ fn panel_request_install() -> Node {
                     method_badge("POST", ColorPalette::Accent),
                     endpoint("/v1/projects"),
                     language_select(LANG_LABEL_ID, LANG_CONTENT_ID, "cURL", &OPTIONS),
-                    copy_button(
-                        &REQUEST_LINES,
-                        "blocks-api-reference-playground-request-copy",
-                    ),
+                    copy_button_disabled(),
                 ],
             ),
             code_body(
@@ -486,7 +508,7 @@ fn panel_request_error() -> Node {
                         vec![text("Request")],
                     ),
                     meta_badges("400", ColorPalette::Danger, "86 ms", "0.3 KB"),
-                    copy_button(&ERROR_LINES, "blocks-api-reference-playground-error-copy"),
+                    copy_button_disabled(),
                 ],
             ),
             code_body(
@@ -617,9 +639,9 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-api-reference-playground-select] + [data-blocks-api-reference-playground-copy] {\n  margin-inline-start: 0;\n}\n\
 [data-blocks-api-reference-playground-body] {\n  margin: 0;\n  overflow: auto;\n  max-height: calc(1.5em * 12);\n  line-height: 1.5;\n  counter-reset: line;\n  font-family: var(--fandhe-font-font-mono);\n  font-size: var(--fandhe-font-font-size-sm);\n  padding: var(--fandhe-space-3);\n  background: var(--fandhe-color-bg-subtle);\n  border-radius: var(--fandhe-radius-md);\n}\n\
 [data-scope=\"code\"][data-part=\"root\"][data-blocks-api-reference-playground-body-code] {\n  display: block;\n  white-space: pre;\n  background: transparent;\n  color: inherit;\n  border: 0;\n  padding: 0;\n}\n\
-[data-blocks-api-reference-playground-line] {\n  display: block;\n  position: relative;\n  counter-increment: line;\n  padding-inline-start: 2.5em;\n}\n\
-[data-blocks-api-reference-playground-line]::before {\n  content: counter(line);\n  position: absolute;\n  inset-inline-start: 0;\n  width: 2em;\n  text-align: right;\n  color: var(--fandhe-color-fg-muted);\n}\n\
-[data-blocks-api-reference-playground-line][data-highlighted] {\n  background: var(--fandhe-color-accent-subtle);\n  border-inline-start: 2px solid var(--fandhe-color-accent-fg-subtle);\n  margin-inline-start: -2px;\n  padding-inline-start: calc(2.5em - 2px);\n}\n\
+[data-blocks-api-reference-playground-line] {\n  counter-increment: line;\n}\n\
+[data-blocks-api-reference-playground-line]::before {\n  content: counter(line);\n  display: inline-block;\n  width: 2em;\n  margin-inline-end: 0.5em;\n  text-align: right;\n  color: var(--fandhe-color-fg-muted);\n  user-select: none;\n}\n\
+[data-blocks-api-reference-playground-line][data-highlighted] {\n  background: var(--fandhe-color-accent-subtle);\n  border-inline-start: 2px solid var(--fandhe-color-accent-fg-subtle);\n}\n\
 [data-blocks-api-reference-playground-error] {\n  margin: 0;\n  color: var(--fandhe-color-danger-fg-subtle);\n}\n\
 [data-blocks-api-reference-playground-unsent] {\n  min-height: 8rem;\n  display: grid;\n  place-items: center;\n}\n\
 [data-blocks-api-reference-playground-footer] {\n  display: flex;\n  justify-content: flex-end;\n}\n";
@@ -676,20 +698,35 @@ mod tests {
         assert!(html.matches("data-highlighted").count() >= 1);
     }
 
-    /// 各コピー値（`data-value`）が表示本文と同じ行配列の `\n` 連結と完全に
-    /// 一致し、本文の行間（最終行以外の行末）に実際の改行テキストが入ること
-    /// （モジュール doc「行番号・強調行」「コピー値は表示本文と同じ行データ
-    /// から作る」節）。
+    /// 改行の手段が 1 つ（行末の `\n` + 親 `code` の `white-space: pre`）に
+    /// 統一され、行 span を `display: block` にしないこと（block 化と `\n` の
+    /// 重複による空行の防止。モジュール doc「行番号・強調行」節）。
     #[test]
-    fn copy_values_match_displayed_code_bodies() {
+    fn line_breaks_use_only_newline_text_without_block_lines() {
+        let rule_start = LAYOUT_CSS
+            .find("[data-blocks-api-reference-playground-line] {")
+            .expect("line rule");
+        let rule = &LAYOUT_CSS[rule_start..];
+        let rule = &rule[..rule.find('}').expect("rule end")];
+        assert!(
+            !rule.contains("display"),
+            "line span must stay inline: {rule}"
+        );
+        assert!(!LAYOUT_CSS.contains("position: absolute"));
+        assert!(LAYOUT_CSS.contains("white-space: pre"));
+        // 行 span の外側（行間）に余分な改行テキストを置かない。
+        let html = render(&demo());
+        assert!(!html.contains("</span>\n<span data-blocks-api-reference-playground-line"));
+    }
+
+    /// 各本文の行 span の中身を順に連結すると行配列の `\n` 連結に一致し
+    /// （範囲選択コピーで行が連結されない）、版 A のコピー値（`data-value`）は
+    /// それと完全一致すること。
+    #[test]
+    fn displayed_bodies_keep_newlines_and_copy_value_matches() {
         let html = render(&demo());
         for lines in [&RESPONSE_LINES[..], &REQUEST_LINES[..], &ERROR_LINES[..]] {
             let joined = lines.join("\n");
-            assert!(
-                html.contains(&format!("data-value=\"{}\"", escape_html(&joined))),
-                "copy value must equal the full displayed body: {joined}"
-            );
-            // 表示本文: 行 span の中身を順に連結するとコピー値に一致する。
             let mut displayed = String::new();
             for (i, line) in lines.iter().enumerate() {
                 let newline = if i + 1 < lines.len() { "\n" } else { "" };
@@ -700,27 +737,31 @@ mod tests {
             }
             assert_eq!(displayed, joined);
         }
-        // 旧実装の部分コピー値が残っていないこと。
-        assert!(!html.contains("data-value=\"curl -X POST https://api.example.com/v1/projects\""));
+        let response = escape_html(&RESPONSE_LINES.join("\n"));
+        assert!(html.contains(&format!("data-value=\"{response}\"")));
     }
 
-    /// `clipboard::input` が `visually_hidden::root` で視覚的に隠され、本文と
-    /// 重複する第 2 の表示にならないこと。
+    /// Demo 内の `clipboard` root は 1 個だけで、その input は
+    /// `visually_hidden::root` で視覚的に隠されること。版 B・C のコピーは
+    /// `disabled` のボタンであること。
     #[test]
-    fn clipboard_inputs_are_visually_hidden() {
+    fn demo_has_single_clipboard_root_with_hidden_input() {
         let html = render(&demo());
-        for id in [
-            "blocks-api-reference-playground-response-copy",
-            "blocks-api-reference-playground-request-copy",
-            "blocks-api-reference-playground-error-copy",
-        ] {
-            let at = html.find(&format!("id=\"{id}\"")).expect("input id");
-            let open = html[..at].rfind("<input").expect("input tag");
-            assert!(
-                html[..open].ends_with("<span data-scope=\"visually-hidden\" data-part=\"root\">"),
-                "clipboard input {id} must be wrapped by visually_hidden::root"
-            );
-        }
+        assert_eq!(
+            html.matches("data-scope=\"clipboard\" data-part=\"root\"")
+                .count(),
+            1
+        );
+        let at = html
+            .find("id=\"blocks-api-reference-playground-response-copy\"")
+            .expect("input id");
+        let open = html[..at].rfind("<input").expect("input tag");
+        assert!(html[..open].ends_with("<span data-scope=\"visually-hidden\" data-part=\"root\">"));
+        assert_eq!(
+            html.matches("data-blocks-api-reference-playground-copy")
+                .count(),
+            3
+        );
     }
 
     /// select と copy が並ぶヘッダーで copy 側の自動余白を打ち消し、右寄せの
