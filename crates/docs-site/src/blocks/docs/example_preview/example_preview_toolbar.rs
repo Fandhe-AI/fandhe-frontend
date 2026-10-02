@@ -142,10 +142,11 @@ const TABS_ID: &str = "blocks-example-preview-toolbar-tabs";
 const SELECT_LABEL_ID: &str = "blocks-example-preview-toolbar-select-label";
 const SELECT_CONTENT_ID: &str = "blocks-example-preview-toolbar-select-content";
 
-/// Rust タブのパネルに表示するコード片。プレビューの popover を組み立てる
-/// 自己完結のコード片（コピーした片だけで成立する、`code_block_header`
-/// と同じ方針）。
-const SNIPPET_RUST: &str = "use fandhe_frontend_core::text;\nuse fandhe_frontend_pre_styled_ui::popover::{self, OpenState};\n\nfn preview() -> fandhe_frontend_core::Node {\n    let trigger = popover::trigger(\n        OpenState::Closed,\n        false,\n        Some(\"demo-content\"),\n        vec![],\n        vec![text(\"表示設定\")],\n    );\n    let content = popover::content(\n        OpenState::Closed,\n        Some(\"demo-content\"),\n        None,\n        None,\n        vec![],\n        vec![text(\"ここに設定項目を置きます\")],\n    );\n    let positioner = popover::positioner(OpenState::Closed, vec![], vec![content]);\n    popover::root(OpenState::Closed, vec![], vec![trigger, positioner])\n}\n";
+/// Rust タブのパネルに表示するコード片。[`preview`] と同じ popover 構成
+/// （開いた状態・押下不能トリガー・タイトル + 本文）を、block 固有の
+/// `id` 定数・CSS フック属性を除いて組み立てる自己完結のコード片
+/// （コピーした片だけで成立する、`code_block_header` と同じ方針）。
+const SNIPPET_RUST: &str = "use fandhe_frontend_core::{div, text, Node};\nuse fandhe_frontend_pre_styled_ui::popover::{self, OpenState};\n\nfn preview() -> Node {\n    let trigger = popover::trigger(\n        OpenState::Open,\n        true,\n        Some(\"demo-content\"),\n        vec![],\n        vec![text(\"表示設定\")],\n    );\n    let content = popover::content(\n        OpenState::Open,\n        Some(\"demo-content\"),\n        Some(\"demo-title\"),\n        None,\n        vec![],\n        vec![\n            popover::title(Some(\"demo-title\"), vec![], vec![text(\"表示設定\")]),\n            text(\"ウィジェットの見た目を切り替えます。\"),\n        ],\n    );\n    let positioner = popover::positioner(OpenState::Open, vec![], vec![content]);\n    div(\n        vec![],\n        vec![popover::root(OpenState::Open, vec![], vec![trigger, positioner])],\n    )\n}\n";
 
 /// CSS タブのパネルに表示するコード片。
 const SNIPPET_CSS: &str = "[data-scope=\"popover\"][data-part=\"content\"] {\n  min-width: 16rem;\n  padding: var(--fandhe-space-4);\n}\n";
@@ -427,7 +428,7 @@ const LAYOUT_CSS: &str = "\
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, LAYOUT_CSS};
+    use super::{demo, preview, LAYOUT_CSS, SNIPPET_RUST};
     use fandhe_frontend_core::render;
 
     fn demo_html() -> String {
@@ -536,6 +537,28 @@ mod tests {
             "[data-blocks-example-preview-toolbar-actions] [data-scope=\"clipboard\"][data-part=\"trigger\"]:focus-visible",
         ] {
             assert!(selectors.contains(sel), "{sel}");
+        }
+    }
+
+    /// コードパネルの Rust スニペットが [`preview`] と同じ popover 構成
+    /// （Open 固定・押下不能トリガー・タイトル + 本文）を組み立てること
+    /// （プレビューとスニペットの乖離の再発防止）。
+    #[test]
+    fn rust_snippet_matches_preview_composition() {
+        let preview_html = render(&preview());
+        assert!(preview_html.contains("ウィジェットの見た目を切り替えます。"));
+        assert!(!SNIPPET_RUST.contains("OpenState::Closed"));
+        assert_eq!(SNIPPET_RUST.matches("OpenState::Open").count(), 4);
+        for call in [
+            "popover::trigger(\n        OpenState::Open,\n        true,",
+            "popover::content(",
+            "popover::title(",
+            "popover::positioner(",
+            "popover::root(",
+            "text(\"表示設定\")",
+            "text(\"ウィジェットの見た目を切り替えます。\")",
+        ] {
+            assert!(SNIPPET_RUST.contains(call), "{call}");
         }
     }
 
