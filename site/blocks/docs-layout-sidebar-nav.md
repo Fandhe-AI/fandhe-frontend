@@ -49,6 +49,30 @@ fn geo_icon(path_d: &'static str) -> Node {
     )
 }
 
+/// ストローク専用の幾何アイコン（`store_nav_mega_menu::stroke_icon` と
+/// 同型）。ハンバーガーメニューの `path` は面積を持たないストローク線
+/// データのため、常に `fill="currentColor"` で塗る [`geo_icon`] へ渡すと
+/// 不可視になる（Bugbot 指摘対応）。`fill="none"` + `stroke="currentColor"`
+/// を明示し、`icon` 側の既定塗りを打ち消す。
+fn stroke_icon(path_d: &'static str) -> Node {
+    icon(
+        &IconProps::default(),
+        vec![],
+        vec![el(
+            "path",
+            vec![
+                ("d", path_d),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+                ("stroke-linecap", "round"),
+                ("stroke-linejoin", "round"),
+            ],
+            vec![],
+        )],
+    )
+}
+
 /// ロゴ + カラーモード切替の header 行。`switch` は
 /// `pricing_seats_split.rs` と同じく `readonly`/`disabled` を固定した
 /// 静的表示（無 JS のため切替不可）。
@@ -201,14 +225,27 @@ const API_ITEMS: NavItems = &[
     ("Server API", "../../api/server-api/", false),
 ];
 
-/// `nav_list::list` + `nav_list::item`/`link` の組み立て。
+/// `nav_list::list` + `nav_list::item`/`link` の組み立て。`nav_list::link`
+/// の `current` 引数には常に `false` を渡し `aria-current="page"` を
+/// 付けない（`settings_page_aside_nav::aside_nav` と同型の判断。本 Demo は
+/// `/blocks/docs-layout-sidebar-nav/` 上に掲示される架空のサイドバーで
+/// あり、リンク先（`../../guides/` 等）は実在する docs ページだが
+/// 「現在表示中のページ」ではないため、`aria-current="page"` を付けると
+/// 支援技術に偽の現在地を伝えてしまう。視覚的な強調は
+/// `data-blocks-docs-layout-sidebar-nav-current` 属性（[`LAYOUT_CSS`]）
+/// のみに反映する）。
 fn nav_items(items: NavItems) -> Node {
     let children: Vec<Node> = items
         .iter()
         .map(|(label, href, active)| {
+            let link_attrs = if *active {
+                vec![("data-blocks-docs-layout-sidebar-nav-current", "")]
+            } else {
+                vec![]
+            };
             nav_list::item(
                 vec![],
-                vec![nav_list::link(href, *active, vec![], vec![text(*label)])],
+                vec![nav_list::link(href, false, link_attrs, vec![text(*label)])],
             )
         })
         .collect();
@@ -216,7 +253,11 @@ fn nav_items(items: NavItems) -> Node {
 }
 
 /// `collapsible` で開閉するナビグループ（`line` インスタンス、アクティブ
-/// 項目は [`LAYOUT_CSS`] の線（border-inline-start）で示す）。
+/// 項目は [`LAYOUT_CSS`] の線（border-inline-start）で示す）。`accordion`
+/// 側（[`nav_group_accordion`]）と同型に、`nav_list::heading`（`<h2>`）で
+/// `collapsible::trigger`（`<button>`）を包む（`<button>` の内側に `<h2>`
+/// を置くと content model 違反・見出しアウトライン破壊になるため、見出し
+/// を外側に置く。codex/Bugbot 指摘対応）。
 fn nav_group_collapsible(
     suffix: &str,
     key: &str,
@@ -231,10 +272,11 @@ fn nav_group_collapsible(
         Some(content_id.as_str()),
         vec![("class", "blocks-docs-layout-sidebar-nav-group-trigger")],
         vec![
-            nav_list::heading(vec![], vec![text(title)]),
+            span(vec![], vec![text(title)]),
             collapsible::indicator(open, false, vec![], vec![text("\u{25be}")]),
         ],
     );
+    let heading = nav_list::heading(vec![], vec![trigger]);
     let content = collapsible::content(
         open,
         false,
@@ -250,7 +292,7 @@ fn nav_group_collapsible(
             open,
             false,
             vec![],
-            vec![trigger, content],
+            vec![heading, content],
         )],
     )
 }
@@ -366,7 +408,7 @@ fn narrow_frame() -> Node {
             ("aria-controls", content_id),
             ("data-blocks-docs-layout-sidebar-nav-menu-button", ""),
         ],
-        vec![geo_icon("M3 6h18M3 12h18M3 18h18")],
+        vec![stroke_icon("M3 6h18M3 12h18M3 18h18")],
     );
     let top_bar = div(
         vec![("class", "blocks-docs-layout-sidebar-nav-narrow-topbar")],
