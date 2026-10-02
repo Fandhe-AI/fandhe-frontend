@@ -149,7 +149,7 @@ fn category_card(name: &'static str) -> Node {
                 overlay(
                     REPO,
                     vec![
-                        ("aria-label", &format!("{name} のセール商品を見る")),
+                        ("aria-label", name),
                         ("data-blocks-promo-sale-categories-overlay", ""),
                     ],
                     vec![],
