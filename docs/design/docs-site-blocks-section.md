@@ -1153,12 +1153,14 @@ pub enum LayoutCss {
 | reviews-stacked-list | #3089（親 #3024） | `ecommerce/reviews/reviews_stacked_list.rs` |
 | promo-signup-offer | #3085（親 #3024） | `ecommerce/promo/promo_signup_offer.rs` |
 | reviews-write-form | #3091 | `ecommerce/reviews/reviews_write_form.rs` |
+| api-reference-playground | #3102（親 #3099） | `docs/api_reference/api_reference_playground.rs` |
 | api-reference-param-accordion | #3100 | `docs/api_reference/api_reference_param_accordion.rs` |
 | api-reference-props-table | #3103（親 #3099） | `docs/api_reference/api_reference_props_table.rs` |
 | code-block-header | #3104（親 #3099） | `docs/code_block/code_block_header.rs` |
 | docs-layout-page-header | #3106 | `docs/docs_layout/docs_layout_page_header.rs` |
 | docs-layout-prev-next | #3107 | `docs/docs_layout/docs_layout_prev_next.rs` |
 | docs-layout-sidebar-nav | #3109（親 #3099） | `docs/docs_layout/docs_layout_sidebar_nav.rs` |
+| docs-layout-toc-collapsible | #3111 | `docs/docs_layout/docs_layout_toc_collapsible.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
