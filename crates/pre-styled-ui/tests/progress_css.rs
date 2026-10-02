@@ -11,10 +11,20 @@
 //! #1688 で circle-range の indeterminate 状態に固定弧（`stroke-dasharray`）
 //! を追加し、塗り色の完全リングが回転するだけで `complete` と区別できない
 //! 問題を是正した（circle-track は引き続き indeterminate 専用規則を持たない）。
+//! イシュー #3140 で pre-styled-only `marker-group`/`marker`（マイルストーン
+//! の目盛りラベル列）を純追加した。
+//!
+//! `PROGRESS_GOLDEN_CSS_BEFORE_3140` は本イシュー直前（marker-group/marker
+//! 追加前、旧 `PROGRESS_GOLDEN_CSS` と同一）の golden を保持し、
+//! `pagination_css.rs` の `..._pre_3136_golden` と同型の「純追加の固定」
+//! テストを持つ。
 
 use fandhe_frontend_pre_styled_ui::progress;
 
-const PROGRESS_GOLDEN_CSS: &str = r#"[data-scope="progress"][data-part="root"] {
+/// イシュー #3140 直前（marker-group/marker 追加前）の golden 出力。本イシュー
+/// が「純追加のみ」であることを固定するための比較対象であり、
+/// `progress::stylesheet()` の戻り値としては使わない。
+const PROGRESS_GOLDEN_CSS_BEFORE_3140: &str = r#"[data-scope="progress"][data-part="root"] {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -242,9 +252,315 @@ const PROGRESS_GOLDEN_CSS: &str = r#"[data-scope="progress"][data-part="root"] {
 }
 "#;
 
+/// イシュー #3140 現行の golden 出力（marker-group/marker を純追加済み）。
+const PROGRESS_GOLDEN_CSS: &str = r#"[data-scope="progress"][data-part="root"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fandhe-space-1) var(--fandhe-space-2);
+  font-size: var(--fandhe-font-font-size-sm);
+}
+
+[data-scope="progress"][data-part="label"] {
+  color: var(--fandhe-color-fg);
+  font-weight: var(--fandhe-font-font-weight-medium);
+}
+
+[data-scope="progress"][data-part="value-text"] {
+  color: var(--fandhe-color-fg-muted);
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+}
+
+[data-scope="progress"][data-part="track"] {
+  position: relative;
+  overflow: hidden;
+  flex-basis: 100%;
+  width: 100%;
+  height: var(--fandhe-progress-track-height, 0.625rem);
+  border-radius: var(--fandhe-radius-full, 999px);
+  background: var(--fandhe-progress-track-bg, var(--fandhe-color-bg-muted));
+  box-shadow: var(--fandhe-progress-track-shadow, inset 0 0 0 1px var(--fandhe-color-border-muted));
+}
+
+[data-scope="progress"][data-part="range"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: var(--fandhe-progress-percent, 0%);
+  border-radius: inherit;
+  background: var(--fandhe-palette, var(--fandhe-color-accent));
+  transition-property: width, height;
+  transition-duration: var(--fandhe-motion-duration-normal);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="progress"][data-part="circle"] {
+  --size: var(--fandhe-progress-size, 3rem);
+  --thickness: var(--fandhe-progress-thickness, 0.25rem);
+  transform-origin: center;
+}
+
+[data-scope="progress"][data-part="circle-track"] {
+  stroke: var(--fandhe-color-border);
+}
+
+[data-scope="progress"][data-part="circle-range"] {
+  stroke: var(--fandhe-palette, var(--fandhe-color-accent));
+  stroke-linecap: round;
+  transition-property: stroke-dashoffset;
+  transition-duration: var(--fandhe-motion-duration-normal);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="progress"][data-part="marker-group"] {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  flex-basis: 100%;
+  width: 100%;
+}
+
+[data-scope="progress"][data-part="marker"] {
+  color: var(--fandhe-color-fg-muted);
+  text-align: center;
+}
+
+[data-scope="progress"][data-part="root"].fd-progress--size-xs {
+  --fandhe-progress-size: 1rem;
+  --fandhe-progress-thickness: 0.15rem;
+  --fandhe-progress-track-height: 0.375rem;
+}
+
+[data-scope="progress"][data-part="root"].fd-progress--size-sm {
+  --fandhe-progress-size: 2rem;
+  --fandhe-progress-thickness: 0.2rem;
+  --fandhe-progress-track-height: 0.5rem;
+}
+
+[data-scope="progress"][data-part="root"].fd-progress--size-md {
+  --fandhe-progress-size: 3rem;
+  --fandhe-progress-thickness: 0.25rem;
+  --fandhe-progress-track-height: 0.625rem;
+}
+
+[data-scope="progress"][data-part="root"].fd-progress--size-lg {
+  --fandhe-progress-size: 4rem;
+  --fandhe-progress-thickness: 0.3rem;
+  --fandhe-progress-track-height: 0.75rem;
+}
+
+[data-scope="progress"][data-part="root"].fd-progress--size-xl {
+  --fandhe-progress-size: 5rem;
+  --fandhe-progress-thickness: 0.35rem;
+  --fandhe-progress-track-height: 1rem;
+}
+
+[data-scope="progress"][data-part="root"].fd-progress--variant-outline {
+  --fandhe-progress-track-bg: var(--fandhe-color-bg-muted);
+  --fandhe-progress-track-shadow: inset 0 0 0 1px var(--fandhe-color-border-muted);
+}
+
+[data-scope="progress"][data-part="root"].fd-progress--variant-subtle {
+  --fandhe-progress-track-bg: var(--fandhe-palette-subtle);
+  --fandhe-progress-track-shadow: none;
+}
+
+[data-scope="progress"][data-part="root"].fd-progress--variant-plain {
+  --fandhe-progress-track-bg: var(--fandhe-color-bg-muted);
+  --fandhe-progress-track-shadow: none;
+}
+
+[data-scope="progress"][data-part="root"].fd-progress--color-palette-accent {
+  --fandhe-palette: var(--fandhe-color-accent);
+  --fandhe-palette-emphasized: var(--fandhe-color-accent-emphasized);
+  --fandhe-palette-fg: var(--fandhe-color-accent-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-accent-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-accent-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-accent-fg-subtle);
+}
+
+[data-scope="progress"][data-part="root"].fd-progress--color-palette-info {
+  --fandhe-palette: var(--fandhe-color-info);
+  --fandhe-palette-emphasized: var(--fandhe-color-info-emphasized);
+  --fandhe-palette-fg: var(--fandhe-color-info-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-info-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-info-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-info-fg-subtle);
+}
+
+[data-scope="progress"][data-part="root"].fd-progress--color-palette-success {
+  --fandhe-palette: var(--fandhe-color-success);
+  --fandhe-palette-emphasized: var(--fandhe-color-success-emphasized);
+  --fandhe-palette-fg: var(--fandhe-color-success-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-success-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-success-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-success-fg-subtle);
+}
+
+[data-scope="progress"][data-part="root"].fd-progress--color-palette-warning {
+  --fandhe-palette: var(--fandhe-color-warning);
+  --fandhe-palette-emphasized: var(--fandhe-color-warning-emphasized);
+  --fandhe-palette-fg: var(--fandhe-color-warning-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-warning-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-warning-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-warning-fg-subtle);
+}
+
+[data-scope="progress"][data-part="root"].fd-progress--color-palette-danger {
+  --fandhe-palette: var(--fandhe-color-danger);
+  --fandhe-palette-emphasized: var(--fandhe-color-danger-emphasized);
+  --fandhe-palette-fg: var(--fandhe-color-danger-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-danger-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-danger-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-danger-fg-subtle);
+}
+
+[data-scope="progress"][data-part="root"].fd-progress--color-palette-neutral {
+  --fandhe-palette: var(--fandhe-color-neutral);
+  --fandhe-palette-emphasized: var(--fandhe-color-neutral-emphasized);
+  --fandhe-palette-fg: var(--fandhe-color-neutral-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-neutral-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-neutral-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-neutral-fg-subtle);
+}
+
+[data-scope="progress"][data-part="circle"][data-state="indeterminate"] {
+  animation: fd-progress-circle-spin 1s linear infinite;
+}
+
+[data-scope="progress"][data-part="circle-range"][data-state="indeterminate"] {
+  --fandhe-progress-circumference: calc(2 * 3.14159265 * var(--radius));
+  stroke-dasharray: calc(var(--fandhe-progress-circumference) * 0.25) var(--fandhe-progress-circumference);
+}
+
+[data-scope="progress"][data-part="range"][data-state="indeterminate"] {
+  width: 40%;
+  animation: fd-progress-range-slide 1.5s var(--fandhe-motion-easing-standard) infinite;
+}
+
+[data-scope="progress"][data-part="track"][data-orientation="vertical"] {
+  width: var(--fandhe-progress-track-height, 0.625rem);
+  height: var(--fandhe-progress-track-length, 12rem);
+  flex-basis: auto;
+}
+
+[data-scope="progress"][data-part="range"][data-orientation="vertical"] {
+  top: auto;
+  bottom: 0;
+  width: 100%;
+  height: var(--fandhe-progress-percent, 0%);
+}
+
+[data-scope="progress"][data-part="range"][data-state="indeterminate"][data-orientation="vertical"] {
+  width: 100%;
+  height: 40%;
+  animation: fd-progress-range-slide-vertical 1.5s var(--fandhe-motion-easing-standard) infinite;
+}
+
+[data-scope="progress"][data-part="marker"][data-state]:first-child {
+  text-align: start;
+}
+
+[data-scope="progress"][data-part="marker"]:last-child {
+  text-align: end;
+}
+
+[data-scope="progress"][data-part="marker"][data-state="under-value"] {
+  color: var(--fandhe-palette-fg-subtle, var(--fandhe-color-accent-fg-subtle));
+}
+
+[data-scope="progress"][data-part="marker"][data-state="at-value"] {
+  color: var(--fandhe-palette-fg-subtle, var(--fandhe-color-accent-fg-subtle));
+}
+
+@keyframes fd-progress-circle-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes fd-progress-range-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+@keyframes fd-progress-range-slide-vertical {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(-250%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-scope="progress"][data-part="circle"][data-state="indeterminate"] {
+    animation: none;
+  }
+
+  [data-scope="progress"][data-part="range"][data-state="indeterminate"] {
+    animation: none;
+  }
+}
+"#;
+
 #[test]
 fn stylesheet_matches_golden_css_byte_for_byte() {
     assert_eq!(progress::stylesheet(), PROGRESS_GOLDEN_CSS);
+}
+
+/// イシュー #3140: 「純追加の固定」テスト（`pagination_css.rs` の
+/// `..._pre_3136_golden` と同型）。本イシュー直前の golden
+/// （`PROGRESS_GOLDEN_CSS_BEFORE_3140`）が `\n\n` 区切りで持つ各ブロックが、
+/// 現行の `progress::stylesheet()` の中に元の相対順序どおり全て含まれる
+/// ことを固定する。既存ブロックの削除・改変・順序入れ替えのいずれかが
+/// 起きた場合にこのテストが検知する（新規ブロックの追加だけは許容する）。
+#[test]
+fn stylesheet_is_pure_addition_over_pre_3140_golden() {
+    let before_blocks: Vec<&str> = PROGRESS_GOLDEN_CSS_BEFORE_3140
+        .trim_end_matches('\n')
+        .split("\n\n")
+        .collect();
+    let current = progress::stylesheet();
+
+    let mut search_from = 0usize;
+    for block in before_blocks {
+        let needle = if block.starts_with("@media") {
+            block.strip_suffix("\n}").unwrap_or(block)
+        } else {
+            block
+        };
+        let found = current[search_from..].find(needle);
+        assert!(
+            found.is_some(),
+            "pre-#3140 のブロックが現行 stylesheet に見つからない、または順序が崩れている: {needle:?}"
+        );
+        search_from += found.unwrap() + needle.len();
+    }
+}
+
+#[test]
+fn marker_selectors_are_declared() {
+    // イシュー #3140: marker-group/marker の base・state ブロックが
+    // 一通り存在することを固定する（golden byte 比較とは独立した観点の
+    // 回帰）。
+    let css = progress::stylesheet();
+    assert!(css.contains(r#"[data-scope="progress"][data-part="marker-group"] {"#));
+    assert!(css.contains(r#"[data-scope="progress"][data-part="marker"] {"#));
+    assert!(
+        css.contains(r#"[data-scope="progress"][data-part="marker"][data-state]:first-child {"#)
+    );
+    assert!(css.contains(r#"[data-scope="progress"][data-part="marker"]:last-child {"#));
+    assert!(
+        css.contains(r#"[data-scope="progress"][data-part="marker"][data-state="under-value"] {"#)
+    );
+    assert!(css.contains(r#"[data-scope="progress"][data-part="marker"][data-state="at-value"] {"#));
 }
 
 #[test]
