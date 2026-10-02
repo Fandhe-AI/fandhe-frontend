@@ -474,6 +474,10 @@ fn anatomy_parts_exactly_match_declared_parts_for_fully_demonstrated_components(
             ],
         ),
         (
+            // イシュー #3128: pre-styled-only `body`/`footer` パートを
+            // Demo/Example の双方へ反映したことで、headless 由来 8 パーツ
+            // + pre-styled-only 2 パートの計 10 件が機械導出されるように
+            // なったことを固定する（dialog の #1690/#2030 と同型）。
             "/themes/drawer/",
             &[
                 "root",
@@ -483,6 +487,8 @@ fn anatomy_parts_exactly_match_declared_parts_for_fully_demonstrated_components(
                 "content",
                 "title",
                 "description",
+                "body",
+                "footer",
                 "close-trigger",
             ],
         ),

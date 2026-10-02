@@ -3649,6 +3649,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # 独立に同一版数 0.221.0 へ到達していた（偶発的衝突）ため、そのまま採用
 # せずさらに +1 して 0.222.0 とする（`.claude/rules/coding-rust.md` #638
 # 条項の同衝突運用）。
+#
+# イシュー #3128: drawer に pre-styled-only `body`/`footer` パート
+# （headless anatomy 変更なしの opt-in 純追加、`dialog::body`/`dialog::footer`
+# と同型）を追加した。新規公開 API（`drawer::body`/`drawer::footer`）のみで
+# 既存関数シグネチャ・golden CSS の既存ブロックは不変のため非破壊的な追加
+# として minor バンプする。origin/main 側は本ブランチ（#3124）とのマージ
+# より前に、tab_nav（#3125）との衝突を解消済みの 0.221.0 からさらに
+# この変更で 0.222.0 へ独立に到達していた。本マージでは双方が独立に
+# 到達した版数（0.222.0）が偶然一致したため、追加のバンプは行わない
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用。版数が既に
+# 一致している場合にまで機械的に +1 すると実体を伴わないバンプを
+# 積み重ねることになるため）。
 version = "0.222.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"

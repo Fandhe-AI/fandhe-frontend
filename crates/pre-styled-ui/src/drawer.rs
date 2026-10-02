@@ -304,6 +304,47 @@
 //! （`SLOTS` への純追加・`tests/drawer_css.rs` 相当の golden 更新・
 //! `data_attr_vocabulary.rs`/`xss_escape_styled.rs` の拡張・showcase
 //! 反映・minor/patch バンプ判断）を雛形にする。
+//!
+//! # pre-styled-only `body` / `footer` パート（イシュー #3128、上記 #2220
+//! 節の実装。[`crate::dialog`] のイシュー #2030/#1690 と同型）
+//!
+//! 上記 #2220 節が記録した 2 点を解消する。[`body`]/[`footer`] は
+//! [`crate::dialog::body`]/[`crate::dialog::footer`] と同じく本モジュールが
+//! 独自に追加する**レイアウト専用**パートであり、headless-ui 側の anatomy は
+//! 変更しない（headless `drawer` の 8 パーツ構成は不変）。`SLOTS` は
+//! headless 8 パート + pre-styled-only 2 パート（`body`/`footer`）の計 10 件
+//! になる。
+//!
+//! **dialog の `body` 解法をそのまま移植できない理由**: dialog の `body` は
+//! 固定値 `max-height: 50vh` を使うが、drawer は [`DrawerPlacement`] で
+//! 占有軸が変わり、`start`/`end` では `content` がビューポート全高相当に
+//! なるためこの固定値は不適（#2220 節で記録済みの懸念）。そこで `content`
+//! を flex column 化し、残り高さを `body` に埋めさせる設計を採る。
+//!
+//! **`content` を既定で flex 化しない理由（opt-in 設計）**: 既定で flex 化
+//! すると既存出力・既存の子要素レイアウトが変わり、opt-in 純追加の要件に
+//! 反する。[`crate::recipe::SlotRecipe`] は子孫セレクタ・`:has()` を持たない
+//! （イシュー #708）ため、[`crate::card`] の `data-has-action`
+//! （イシュー #2046）と同型に、呼び出し側が `content` の `attrs` へ
+//! `("data-has-body", "")` を渡したときだけ `content` を
+//! `display: flex; flex-direction: column` へ切り替える opt-in state とする
+//! （headless の `drawer::content` は `attrs` を素通しするため headless 側の
+//! 変更は不要）。`data-has-body` を付けずに `body` だけを使った場合、
+//! `flex`/`min-height` は効かず従来どおり `content` 全体がスクロールする
+//! （無害な縮退）。
+//!
+//! **closed 時の `[hidden]` 上書き**: opt-in の `display: flex`
+//! （詳細度 `(0,3,0)`）は UA 既定の `[hidden] { display: none }` に勝つため、
+//! `[data-has-body][hidden]` に対する `display: none` の明示規則
+//! （詳細度 `(0,4,0)`）を追加し、closed 時にも fail-closed で非表示にする
+//! （PR #575 Bugbot High 指摘・dialog `positioner[hidden]` 是正と同型）。
+//!
+//! `footer` の CSS は [`crate::dialog::footer`] と同一の 5 宣言（アクション・
+//! 送信・閉鎖などのアプリケーションロジックは持たない、`docs/policy/
+//! intentional-non-adoption.md` §3.25 規則 1 の遵守）。`body` は `flex: 1 1
+//! auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain`
+//! （dialog の `max-height: 50vh` 固定値の代わりに、flex column 化した
+//! `content` の残り高さを埋める設計）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -326,11 +367,29 @@ use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 // のみに依存して呼び出せることを保証するための明示再エクスポート
 // （イシュー #685、[`crate::dialog`] と同型）。
 pub use fandhe_frontend_headless_ui::state::{DisclosureAction, OpenState};
+// イシュー #3128: pre-styled-only `body`/`footer` パート（[`body`]/[`footer`]
+// 関数）が headless の `Anatomy::part` を直接呼び出すために必要
+// （[`crate::dialog::footer`]/[`crate::dialog::body`] と同型のパターン）。
+use fandhe_frontend_headless_ui::{anatomy, Anatomy};
+
+/// `data-scope="drawer"` を固定した本モジュール独自パート（`body`/`footer`）
+/// 用の anatomy（イシュー #3128、[`crate::dialog`] の `ANATOMY` 定数と同型）。
+/// headless-ui 側の `drawer::ANATOMY`（`crates/headless-ui/src/drawer.rs`）
+/// とは別のインスタンスだが `scope` 文字列は同一値であり、出力される
+/// `data-scope` 属性値は一致する。
+const ANATOMY: Anatomy = anatomy("drawer");
 
 /// headless `drawer` anatomy の `data-part` 一覧（`crates/headless-ui/src/drawer.rs`
 /// の `ANATOMY.part(...)` 呼び出しと同期させる契約。ずれると [`stylesheet`] が
 /// 一部パーツの CSS を出力しない fail-closed 側の不具合として現れるため、
 /// 変更時は両ファイルを合わせて確認する）。
+///
+/// イシュー #3128 で `body`/`footer`（pre-styled-only レイアウトパート。
+/// headless-ui の anatomy には存在しない、本モジュールだけが出力する部分。
+/// モジュール冒頭 rustdoc「pre-styled-only `body` / `footer` パート」節
+/// 参照）を `description` と `close-trigger` の間（見出し・スクロール本文・
+/// アクション列という DOM 上の想定順序）へ追加した。以後 `SLOTS` は
+/// 「headless 8 パート + pre-styled-only 2 パート」の計 10 件になる。
 const SLOTS: &[&str] = &[
     "root",
     "trigger",
@@ -339,6 +398,8 @@ const SLOTS: &[&str] = &[
     "content",
     "title",
     "description",
+    "body",
+    "footer",
     "close-trigger",
 ];
 
@@ -437,6 +498,54 @@ fn recipe() -> SlotRecipe {
                 // 追加する（dialog #1693 と同型）。
                 decl("margin", "0 0 var(--fandhe-space-4) 0"),
             ],
+        )
+        // イシュー #3128: pre-styled-only `body` パート（スクロール可能
+        // コンテンツ。モジュール冒頭 rustdoc「pre-styled-only `body` /
+        // `footer` パート」節参照）。dialog の `max-height: 50vh` 固定値とは
+        // 異なり、`content` を opt-in で flex column 化した上での残り高さを
+        // 埋める設計（`flex: 1 1 auto; min-height: 0` が肝）。
+        .base(
+            "body",
+            vec![
+                decl("flex", "1 1 auto"),
+                decl("min-height", "0"),
+                decl("overflow-y", "auto"),
+                // スクロール終端でのページ全体スクロール伝播（bounce）を
+                // 抑止し、`body` 内で完結させる（dialog `body` と同型）。
+                decl("overscroll-behavior", "contain"),
+            ],
+        )
+        // イシュー #3128: pre-styled-only `footer` パート（[`crate::dialog::
+        // footer`] と同一の 5 宣言）。レイアウトのみを担い、アプリケーション
+        // ロジック・イベント配線は一切持たない。
+        .base(
+            "footer",
+            vec![
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "flex-end"),
+                decl("gap", "var(--fandhe-space-3)"),
+                decl("margin-block-start", "var(--fandhe-space-4)"),
+            ],
+        )
+        // イシュー #3128: `data-has-body` を付けた `content` だけを flex
+        // column 化する opt-in state（[`crate::card`] の `data-has-action`
+        // と同型。モジュール冒頭 rustdoc「`content` を既定で flex 化しない
+        // 理由」節参照）。既存の `content` base・呼び出しには一切影響しない。
+        .state(
+            "content",
+            StateCondition::Attr("data-has-body"),
+            vec![decl("display", "flex"), decl("flex-direction", "column")],
+        )
+        // PR #575 Bugbot 指摘対応・dialog `positioner[hidden]` 是正と同型
+        // （High）: 上記 opt-in `display: flex`（詳細度 (0,3,0)）は UA 既定の
+        // `[hidden] { display: none }` を上書きしてしまうため、closed 時に
+        // headless 層が付与する `hidden` 属性を確実に非表示化として機能
+        // させる、より詳細度の高い (0,4,0) の明示規則を追加する。
+        .state(
+            "content",
+            StateCondition::AttrAll(&["data-has-body", "hidden"]),
+            vec![decl("display", "none")],
         )
         .base(
             "trigger",
@@ -751,6 +860,58 @@ pub fn root<'a>(
     fandhe_frontend_headless_ui::drawer::root(state, placement, merged, children)
 }
 
+/// pre-styled-only `body` パート（`<div>`、イシュー #3128）を組み立てる。
+/// 長いコンテンツを縦スクロールさせるレイアウト専用パートであり、
+/// headless-ui の anatomy には存在しない（本モジュール冒頭 rustdoc
+/// 「pre-styled-only `body` / `footer` パート」節参照）。`content` の
+/// `attrs` へ `("data-has-body", "")` を渡したときのみ `content` が flex
+/// column 化され、`body` がその残り高さを埋めてスクロールする。
+/// `data-has-body` を付けない場合、`body` を使っても `flex`/`min-height` は
+/// 効かず `content` 全体がスクロールする（無害な縮退）。
+///
+/// [`fandhe_frontend_headless_ui::anatomy::Anatomy::part`] を直接呼び出す
+/// （[`footer`] と同型）ため、呼び出し側 `attrs` に含まれる
+/// `data-scope`/`data-part` の偽装は headless 層が fail-closed に除去する。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::drawer;
+///
+/// let node = drawer::body(vec![], vec![]);
+/// assert!(render(&node).contains(r#"data-scope="drawer" data-part="body""#));
+/// ```
+#[must_use]
+pub fn body<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("body", "div", attrs, children)
+}
+
+/// pre-styled-only `footer` パート（`<div>`、イシュー #3128）を組み立てる。
+/// アクション列（確認 / キャンセルのボタン群等）を横並びに配置する
+/// レイアウト専用パートであり、headless-ui の anatomy には存在しない
+/// （本モジュール冒頭 rustdoc「pre-styled-only `body` / `footer` パート」
+/// 節参照）。アプリケーションロジック（送信・閉鎖などのイベント配線）は
+/// 持たない。
+///
+/// [`fandhe_frontend_headless_ui::anatomy::Anatomy::part`] を直接呼び出す
+/// （[`body`] と同型）ため、呼び出し側 `attrs` に含まれる
+/// `data-scope`/`data-part` の偽装は headless 層が fail-closed に除去する。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::drawer;
+///
+/// let node = drawer::footer(vec![], vec![]);
+/// assert!(render(&node).contains(r#"data-scope="drawer" data-part="footer""#));
+/// ```
+#[must_use]
+pub fn footer<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("footer", "div", attrs, children)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1049,6 +1210,139 @@ mod tests {
         let backdrop_hidden_rule = &css[backdrop_hidden_start..backdrop_hidden_end];
         assert!(backdrop_hidden_rule.contains("opacity: 0;"));
         assert!(!backdrop_hidden_rule.contains("transform"));
+    }
+
+    // --- イシュー #3128: pre-styled-only `body`/`footer` パート ---
+
+    #[test]
+    fn footer_renders_as_div_with_drawer_scope_and_footer_part() {
+        let html = render(&footer(vec![], vec![fandhe_frontend_core::text("Save")]));
+        assert!(html.starts_with(r#"<div data-scope="drawer" data-part="footer""#));
+    }
+
+    #[test]
+    fn footer_drops_caller_supplied_scope_and_part_spoofing() {
+        let html = render(&footer(
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="drawer""#));
+        assert!(html.contains(r#"data-part="footer""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn footer_selector_declares_flex_end_action_row_layout() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="drawer"][data-part="footer"] {"#));
+        let footer_start = css
+            .find(r#"[data-scope="drawer"][data-part="footer"] {"#)
+            .expect("footer base rule must be present");
+        let footer_end = css[footer_start..].find('}').unwrap() + footer_start;
+        let footer_rule = &css[footer_start..footer_end];
+        assert!(footer_rule.contains("display: flex;"));
+        assert!(footer_rule.contains("align-items: center;"));
+        assert!(footer_rule.contains("justify-content: flex-end;"));
+        assert!(footer_rule.contains("gap: var(--fandhe-space-3);"));
+        assert!(footer_rule.contains("margin-block-start: var(--fandhe-space-4);"));
+    }
+
+    #[test]
+    fn body_renders_as_div_with_drawer_scope_and_body_part() {
+        let html = render(&body(
+            vec![],
+            vec![fandhe_frontend_core::text("Long content")],
+        ));
+        assert!(html.starts_with(r#"<div data-scope="drawer" data-part="body""#));
+    }
+
+    #[test]
+    fn body_drops_caller_supplied_scope_and_part_spoofing() {
+        let html = render(&body(
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="drawer""#));
+        assert!(html.contains(r#"data-part="body""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn body_selector_declares_flex_fill_scrollable_layout() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="drawer"][data-part="body"] {"#));
+        let body_start = css
+            .find(r#"[data-scope="drawer"][data-part="body"] {"#)
+            .expect("body base rule must be present");
+        let body_end = css[body_start..].find('}').unwrap() + body_start;
+        let body_rule = &css[body_start..body_end];
+        assert!(body_rule.contains("flex: 1 1 auto;"));
+        assert!(body_rule.contains("min-height: 0;"));
+        assert!(body_rule.contains("overflow-y: auto;"));
+        assert!(body_rule.contains("overscroll-behavior: contain;"));
+    }
+
+    #[test]
+    fn slots_order_places_body_and_footer_between_description_and_close_trigger() {
+        let css = stylesheet();
+        let description_pos = css
+            .find(r#"[data-scope="drawer"][data-part="description"] {"#)
+            .expect("description base rule must be present");
+        let body_pos = css
+            .find(r#"[data-scope="drawer"][data-part="body"] {"#)
+            .expect("body base rule must be present");
+        let footer_pos = css
+            .find(r#"[data-scope="drawer"][data-part="footer"] {"#)
+            .expect("footer base rule must be present");
+        let close_trigger_pos = css
+            .find(r#"[data-scope="drawer"][data-part="close-trigger"] {"#)
+            .expect("close-trigger base rule must be present");
+        assert!(description_pos < body_pos);
+        assert!(body_pos < footer_pos);
+        assert!(footer_pos < close_trigger_pos);
+    }
+
+    #[test]
+    fn content_has_body_state_enables_flex_column_and_is_hidden_when_closed() {
+        let css = stylesheet();
+        let selector = r#"[data-scope="drawer"][data-part="content"][data-has-body] {"#;
+        let start = css
+            .find(selector)
+            .expect("content[data-has-body] rule must be present");
+        let end = css[start..].find('}').unwrap() + start;
+        let rule = &css[start..end];
+        assert!(rule.contains("display: flex;"));
+        assert!(rule.contains("flex-direction: column;"));
+
+        // PR #575 Bugbot 指摘対応・dialog positioner[hidden] と同型: opt-in
+        // の display: flex は UA 既定の [hidden] を上書きするため、closed 時
+        // の非表示化を明示規則で固定する。
+        let hidden_selector =
+            r#"[data-scope="drawer"][data-part="content"][data-has-body][hidden] {"#;
+        let hidden_start = css
+            .find(hidden_selector)
+            .expect("content[data-has-body][hidden] rule must be present");
+        let hidden_end = css[hidden_start..].find('}').unwrap() + hidden_start;
+        assert!(css[hidden_start..hidden_end].contains("display: none;"));
+    }
+
+    #[test]
+    fn content_without_data_has_body_is_unaffected_by_opt_in_state() {
+        // opt-in のため、`data-has-body` を付けない既存の呼び出しには影響
+        // しない（既存 content base の出力バイトは本イシューで変更しない）。
+        let html = render(&content(
+            OpenState::Closed,
+            DrawerPlacement::End,
+            true,
+            ContentIds {
+                id: None,
+                labelledby: None,
+                describedby: None,
+            },
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("data-has-body"));
     }
 
     #[test]

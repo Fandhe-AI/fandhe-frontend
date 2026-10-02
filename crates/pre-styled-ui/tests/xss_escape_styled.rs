@@ -7242,3 +7242,69 @@ fn data_table_parts_are_escaped_for_all_payloads() {
     assert!(!css.contains("</style"));
     assert!(!css.contains("<script"));
 }
+
+/// (31) `drawer::footer` 経路（イシュー #3128）: pre-styled-only `footer`
+/// パート（`Anatomy::part` 直接呼び出し、`dialog::footer` と同型）の
+/// children・呼び出し側 `attrs` の両方で既定エスケープ（REQ-1）が貫通する
+/// ことを固定する。あわせて `data-scope`/`data-part` の偽装が headless 層
+/// （`Anatomy::part`）により除去され、生値が出力に残らないことも固定する。
+#[test]
+fn drawer_footer_children_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // children 経路。
+        let html = render(&drawer::footer(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "drawer::footer children コンテキスト");
+
+        // 呼び出し側 attrs（data-testid）経路。
+        let html = render(&drawer::footer(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "drawer::footer 呼び出し側 attrs コンテキスト",
+        );
+
+        // data-scope/data-part 偽装は headless `Anatomy::part` が除去する。
+        let html = render(&drawer::footer(
+            vec![("data-scope", payload), ("data-part", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "drawer::footer の data-scope/data-part 偽装ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"data-scope="drawer""#));
+        assert!(html.contains(r#"data-part="footer""#));
+    }
+}
+
+/// (32) `drawer::body` 経路（イシュー #3128）: pre-styled-only `body` パート
+/// （`Anatomy::part` 直接呼び出し、`drawer::footer` と同型）の children・
+/// 呼び出し側 `attrs` の両方で既定エスケープ（REQ-1）が貫通することを固定
+/// する。あわせて `data-scope`/`data-part` の偽装が headless 層
+/// （`Anatomy::part`）により除去され、生値が出力に残らないことも固定する。
+#[test]
+fn drawer_body_children_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // children 経路。
+        let html = render(&drawer::body(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "drawer::body children コンテキスト");
+
+        // 呼び出し側 attrs（data-testid）経路。
+        let html = render(&drawer::body(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "drawer::body 呼び出し側 attrs コンテキスト");
+
+        // data-scope/data-part 偽装は headless `Anatomy::part` が除去する。
+        let html = render(&drawer::body(
+            vec![("data-scope", payload), ("data-part", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "drawer::body の data-scope/data-part 偽装ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"data-scope="drawer""#));
+        assert!(html.contains(r#"data-part="body""#));
+    }
+}
