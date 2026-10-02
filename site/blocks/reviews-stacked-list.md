@@ -330,7 +330,7 @@ fn summary_and_search() -> Node {
                             ..TextProps::default()
                         },
                         vec![],
-                        vec![text("4.6 / 5（128 件のレビュー）")],
+                        vec![text("4 / 5（128 件のレビュー）")],
                     ),
                 ],
             ),
