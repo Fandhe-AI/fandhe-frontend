@@ -318,8 +318,8 @@ pub const BLOCK: Block = Block {
 /// は使わない。版 A/B の `next_trigger`・版 C の `next` タイトル行はいずれも
 /// 子要素を「テキスト → 右向き矢印アイコン」の順で渡しており、`row-reverse`
 /// を重ねると表示順が反転し矢印がテキストの左側に出てしまうため）。版 C の
-/// 次側は概要文をタイトル行の下に縦積みにする（`next-title-row` がタイトル
-/// + アイコンの行のみをまとめ、`next-summary` 側を `column` にして概要文を
+/// 次側は概要文をタイトル行の下に縦積みにする（`next-title-row` がタイトル +
+/// アイコンの行のみをまとめ、`next-summary` 側を `column` にして概要文を
 /// 兄弟として下へ積む）。狭幅ではこれを解除し、`nav`（`pagination` root）を
 /// 縦積みへ切り替える。
 const LAYOUT_CSS: &str = "\
@@ -331,7 +331,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-docs-layout-prev-next-meta {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 [data-blocks-docs-layout-prev-next-band][data-scope=\"card\"][data-part=\"root\"] [data-scope=\"pagination\"][data-part=\"root\"] {\n  justify-content: space-between;\n  align-items: stretch;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-docs-layout-prev-next-band] [data-scope=\"link\"][data-part=\"root\"] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  max-width: 18rem;\n}\n\
-[data-blocks-docs-layout-prev-next-next-summary] {\n  flex-direction: column;\n  align-items: flex-end;\n  text-align: end;\n  margin-inline-start: auto;\n}\n\
+[data-blocks-docs-layout-prev-next-band] [data-scope=\"link\"][data-part=\"root\"][data-blocks-docs-layout-prev-next-next-summary] {\n  flex-direction: column;\n  align-items: flex-end;\n  text-align: end;\n  margin-inline-start: auto;\n}\n\
 .blocks-docs-layout-prev-next-next-title-row {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 @container blocks-docs-layout-prev-next (max-width: 32rem) {\n  \
 [data-scope=\"pagination\"][data-part=\"root\"] {\n    flex-direction: column;\n  }\n  \
