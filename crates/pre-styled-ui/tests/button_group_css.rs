@@ -223,6 +223,129 @@ const BUTTON_GROUP_GOLDEN_CSS: &str = "[data-scope=\"button-group\"][data-part=\
   position: relative;
   z-index: 1;
 }
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child) {
+  margin-inline-start: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child) > [data-scope=\"button\"][data-part=\"root\"] {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-inline-start-width: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:last-child) > [data-scope=\"button\"][data-part=\"root\"] {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child) > [data-scope=\"field\"][data-part=\"input\"] {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-inline-start-width: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:last-child) > [data-scope=\"field\"][data-part=\"input\"] {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child) > [data-scope=\"button-group\"][data-part=\"text\"] {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-inline-start-width: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:last-child) > [data-scope=\"button-group\"][data-part=\"text\"] {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child) > [data-scope=\"menu\"][data-part=\"root\"] > [data-scope=\"menu\"][data-part=\"trigger\"] {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-inline-start-width: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:last-child) > [data-scope=\"menu\"][data-part=\"root\"] > [data-scope=\"menu\"][data-part=\"trigger\"] {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child) > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-inline-start-width: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:last-child) > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child) {
+  margin-block-start: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached] {
+  align-self: stretch;
+  width: auto;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child) > [data-scope=\"button\"][data-part=\"root\"] {
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+  border-block-start-width: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:last-child) > [data-scope=\"button\"][data-part=\"root\"] {
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child) > [data-scope=\"field\"][data-part=\"input\"] {
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+  border-block-start-width: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:last-child) > [data-scope=\"field\"][data-part=\"input\"] {
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child) > [data-scope=\"button-group\"][data-part=\"text\"] {
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+  border-block-start-width: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:last-child) > [data-scope=\"button-group\"][data-part=\"text\"] {
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child) > [data-scope=\"menu\"][data-part=\"root\"] > [data-scope=\"menu\"][data-part=\"trigger\"] {
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+  border-block-start-width: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:last-child) > [data-scope=\"menu\"][data-part=\"root\"] > [data-scope=\"menu\"][data-part=\"trigger\"] {
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child) > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+  border-block-start-width: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:last-child) > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}
 ";
 
 #[test]

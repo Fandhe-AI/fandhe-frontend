@@ -657,7 +657,7 @@ anatomy は #2059）
 - 公開 API: `root(orientation, label, attrs, children)` / `separator(group_orientation, attrs, children)` / `text(attrs, children)` / `stylesheet()`。`Orientation` は `fandhe_frontend_headless_ui::data_attrs::Orientation` の選択的再エクスポート（規約 A）。
 - size/variant/color-palette いずれの軸も提供しない（上記 §4d 表参照、`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §4 (d) 「子の寸法に従属するレイアウト部品」）。
 - 先頭・末尾以外の隣接要素の角丸・開始側境界線幅を [`crate::css::serialize_rule`] による raw CSS 追記で無効化する（`SlotRecipe` は子結合子を表現できないため）。対象は button / field-input / button-group-text / menu-trigger / select-trigger の 5 種を明示列挙し、`> *:not(:first-child)` のような汎用セレクタは特異度の衝突が呼び出し側の CSS 連結順に依存してしまうため採らない。
-- ネスト（グループの中にグループ）は `:has()` の先例がないため角丸連結対象へ含めず、代わりに先頭以外の内側グループへ margin のみ付与する代替表現とする（意図的非採用、`docs/policy/intentional-non-adoption.md` の評価軸に従う）。
+- ネスト（グループの中にグループ）は `:has()` の先例がないため角丸連結対象へ含めず、代わりに先頭以外の内側グループへ margin のみ付与する代替表現とする（意図的非採用、`docs/policy/intentional-non-adoption.md` の評価軸に従う）。既定はこの margin 間隔のままだが、内側 `root` へ呼び出し側が値なし属性 `data-attached` を付与すると opt-in で間隔を打ち消し、接続辺の角丸・境界線を外側 root と共有する連結表示にする（イシュー #3135、縦横混在の入力欄連結に使う）。
 - バリデーション・送信処理等のアプリケーションロジックは内包しない（`.claude/rules/coding-rust.md` §3.25）。
 - docs サイト: [button-group](../../site/themes/button-group.md)（Themes）/ [button-group](../../site/primitives/button-group.md)（Primitives）。
 

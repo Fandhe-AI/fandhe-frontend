@@ -69,7 +69,9 @@ diff が読みやすい）部品を安易に (b) へ切り替えないでくだ�
 `[hidden]` state・`@starting-style`・
 `@supports not (height: calc-size(auto, size))` ブロックを末尾側へ純追加、
 `bubble_pre_2282_blocks_remain_verbatim` を追加）** /
-**button_group（イシュー #2060 で golden 新設。`stylesheet()` 全文）** /
+**button_group（イシュー #2060 で golden 新設。`stylesheet()` 全文。イシュー
+#3135 で `data-attached` opt-in 規則（入れ子の内側 root の間隔打ち消し・
+縦外側での幅揃え・接続辺の角丸/境界線解除）を末尾へ純追加）** /
 callout / carousel / **collapsible（イシュー #1682 で golden 新設。イシュー
 #2192 で `content` の 2 個目 base ブロックを中間挿入、`[hidden]` state と
 `@starting-style` ブロックを末尾側へ純追加、

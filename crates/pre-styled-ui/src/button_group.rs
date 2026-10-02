@@ -112,6 +112,20 @@
 //! グループ間隔を表現する。内側 `root` 自身は上記の角丸連結対象へは
 //! **含めない**（内側グループは自分の角丸を保つ）。
 //!
+//! ## `data-attached` opt-in（イシュー #3135、入力欄の縦横混在連結）
+//!
+//! 呼び出し側が内側 [`root`] の `attrs` へ値なし属性 `data-attached`
+//! （chakra-ui の `attached` prop に合わせた命名、先例は #3127 の
+//! `data-subtle`）を付与すると、既定の margin 間隔を打ち消し、内側
+//! グループの接続辺（外側リストで先頭/末尾のいずれでもない側）の角丸・
+//! 境界線幅を外側 root と共有する 1 つの連結表示にする。付与しない
+//! 既定の挙動（margin 間隔のまま）は不変（opt-in のみ、既存出力は変えな
+//! い）。縦の外側グループでは内側グループ自身も `align-self: stretch`
+//! で外側の幅まで伸びる（下段の横並び入力欄は既存の `flex: 1 1 auto`
+//! で幅を分け合う）。既知の上限: 横の外側グループの中に縦の attached
+//! グループを置き、兄弟の方が高いとき、内側の子は高さ方向へ伸びず下端に
+//! 隙間が出る（未実装、イシュー #3135 スコープ外）。
+//!
 //! # セキュリティ不変条件
 //!
 //! - 全出力は headless [`fandhe_frontend_headless_ui::button_group`] →
@@ -221,6 +235,11 @@ const CONNECTABLE_CHILDREN: &[&str] = &[
 ];
 
 const ROOT: &str = r#"[data-scope="button-group"][data-part="root"]"#;
+
+/// 入れ子 + `data-attached` opt-in（イシュー #3135）対象の内側 root
+/// セレクタ。呼び出し側が値なし属性 `data-attached` を明示付与した
+/// ときのみ一致する（モジュール doc「ネスト」節参照）。
+const ATTACHED_ROOT: &str = r#"[data-scope="button-group"][data-part="root"][data-attached]"#;
 
 /// [`CONNECTABLE_CHILDREN`] の各セレクタから、(1) `:not(:first-child)`/
 /// `:not(:last-child)` を付与すべき**直接の子**セレクタと、(2) そこから
@@ -440,6 +459,101 @@ pub fn stylesheet() -> String {
         );
     }
 
+    // 入れ子 + `data-attached` opt-in（イシュー #3135）: 呼び出し側が内側
+    // root へ値なし属性 `data-attached` を付与したときのみ、上記「ネスト」
+    // 節の margin 間隔を打ち消し、内側 root の接続辺（外側リストの
+    // 先頭/末尾いずれでもない側）の角丸・境界線を外側 root と共有する
+    // 連結表示にする（既定の margin 間隔は不変、opt-in のみ）。golden の
+    // 既存部分を変えないよう本モジュール末尾への純追加とする。
+    for orientation in ["horizontal", "vertical"] {
+        let orientation_root = format!(r#"{ROOT}[data-orientation="{orientation}"]"#);
+
+        // 1. 間隔の打ち消し（通常ネストの margin 規則、特異度 (0,6,0)
+        //    より `[data-attached]` 分の属性セレクタが上乗りする (0,7,0)
+        //    で確実に上書きする）。
+        let margin_reset_selector =
+            format!("{orientation_root} > {ATTACHED_ROOT}:not(:first-child)");
+        let margin_reset = if orientation == "horizontal" {
+            decl("margin-inline-start", "0")
+        } else {
+            decl("margin-block-start", "0")
+        };
+        append_rule(
+            &mut out,
+            serialize_rule(&margin_reset_selector, &[margin_reset]),
+        );
+
+        // 2. 縦外側での幅揃え（vertical のみ）。base の
+        //    `width: fit-content` を外し外側の幅いっぱいに伸ばす。内側の
+        //    横並び入力欄は既存の「横並び時のみ」flex 規則
+        //    （`flex: 1 1 auto; min-width: 0`）で幅を分け合う。
+        if orientation == "vertical" {
+            let stretch_selector = format!("{orientation_root} > {ATTACHED_ROOT}");
+            append_rule(
+                &mut out,
+                serialize_rule(
+                    &stretch_selector,
+                    &[decl("align-self", "stretch"), decl("width", "auto")],
+                ),
+            );
+        }
+
+        // 3. 接続辺の角丸・境界線の解除。宣言の組は上記 §「角丸連結・
+        //    境界線二重描画解消」ループと同一のものを、`AR`（内側の
+        //    attached root）の位置に対して適用する。位置擬似クラスは
+        //    直接の子（`AR`）側に付け、子孫へは `>` で降りる（規約は
+        //    `connectable_target` doc「位置擬似クラスは直接の子へ付与
+        //    する」節と同じ）。first/last でない内側の子要素にも
+        //    無差別に宣言が当たるが、内側連結の既存規則で既に 0 の
+        //    組み合わせは再宣言になるだけで無害であり、外側へ露出する
+        //    角（内側グループの最初/最後の子が持つ角）だけが実際に
+        //    効果を持つ。
+        for child in CONNECTABLE_CHILDREN {
+            let (direct, suffix) = connectable_target(child);
+
+            let (start_radius, start_width, end_radius) = if orientation == "horizontal" {
+                (
+                    [
+                        decl("border-start-start-radius", "0"),
+                        decl("border-end-start-radius", "0"),
+                    ],
+                    decl("border-inline-start-width", "0"),
+                    [
+                        decl("border-start-end-radius", "0"),
+                        decl("border-end-end-radius", "0"),
+                    ],
+                )
+            } else {
+                (
+                    [
+                        decl("border-start-start-radius", "0"),
+                        decl("border-start-end-radius", "0"),
+                    ],
+                    decl("border-block-start-width", "0"),
+                    [
+                        decl("border-end-start-radius", "0"),
+                        decl("border-end-end-radius", "0"),
+                    ],
+                )
+            };
+
+            let not_first = format!(
+                "{orientation_root} > {ATTACHED_ROOT}:not(:first-child) > {direct}{suffix}"
+            );
+            append_rule(
+                &mut out,
+                serialize_rule(&not_first, &[start_radius[0], start_radius[1], start_width]),
+            );
+
+            let not_last =
+                format!("{orientation_root} > {ATTACHED_ROOT}:not(:last-child) > {direct}{suffix}");
+            append_rule(
+                &mut out,
+                serialize_rule(&not_last, &[end_radius[0], end_radius[1]]),
+            );
+        }
+    }
+
     out
 }
 
@@ -595,6 +709,46 @@ mod tests {
             r#"[data-orientation="vertical"] > [data-scope="button-group"][data-part="root"]:not(:first-child)"#
         ));
         assert!(out.contains("margin-block-start: var(--fandhe-space-2);"));
+    }
+
+    #[test]
+    fn stylesheet_contains_attached_margin_reset_rules() {
+        let out = stylesheet();
+        assert!(out.contains(
+            r#"[data-orientation="horizontal"] > [data-scope="button-group"][data-part="root"][data-attached]:not(:first-child)"#
+        ));
+        assert!(out.contains("margin-inline-start: 0;"));
+        assert!(out.contains(
+            r#"[data-orientation="vertical"] > [data-scope="button-group"][data-part="root"][data-attached]:not(:first-child)"#
+        ));
+        assert!(out.contains("margin-block-start: 0;"));
+    }
+
+    #[test]
+    fn stylesheet_contains_attached_vertical_stretch_rule() {
+        let out = stylesheet();
+        assert!(out.contains(
+            r#"[data-orientation="vertical"] > [data-scope="button-group"][data-part="root"][data-attached] {"#
+        ));
+        assert!(out.contains("align-self: stretch;"));
+    }
+
+    #[test]
+    fn stylesheet_contains_attached_connectable_radius_and_border_rules() {
+        let out = stylesheet();
+        // first/last でない内側 root（attached）の直接の子（button）へ
+        // 角丸・境界線の解除が及ぶ。
+        assert!(out.contains(
+            r#"[data-orientation="horizontal"] > [data-scope="button-group"][data-part="root"][data-attached]:not(:first-child) > [data-scope="button"][data-part="root"]"#
+        ));
+        assert!(out.contains(
+            r#"[data-orientation="vertical"] > [data-scope="button-group"][data-part="root"][data-attached]:not(:last-child) > [data-scope="field"][data-part="input"]"#
+        ));
+        // menu/select は子孫（trigger）へ `>` で降り、位置擬似クラスは
+        // attached root 側に付く（never-match 回避の既存規約と同型）。
+        assert!(out.contains(
+            r#"[data-scope="button-group"][data-part="root"][data-attached]:not(:first-child) > [data-scope="menu"][data-part="root"] > [data-scope="menu"][data-part="trigger"]"#
+        ));
     }
 
     #[test]
