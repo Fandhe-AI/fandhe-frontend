@@ -80,7 +80,7 @@ use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
 // blocks-code:begin
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, h3, text, Node};
+use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarProps, ImageStatus};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
@@ -421,9 +421,12 @@ fn split_panel(suffix: &str, show_thumbnails: bool, review_count: usize, as_card
     )
 }
 
-/// caption（並記された各版の見出し）。
+/// caption（並記された各版の見出し）。`docs-content` 配下のページ見出し
+/// タイポグラフィを継承させないため、`h3` ではなく `p` + 専用クラスで
+/// 控えめなスタイルを明示する（`product_overview_gallery_split` 等と
+/// 同型の判断。PR #3538 レビュー指摘対応）。
 fn caption(label: &str) -> Node {
-    h3(
+    p(
         vec![("class", "blocks-reviews-summary-split-caption")],
         vec![text(label)],
     )
@@ -500,6 +503,7 @@ pub const BLOCK: Block = Block {
 /// （モジュール doc「狭い幅では 2 カラムを縦積みにする」節参照）。
 const LAYOUT_CSS: &str = "\
 .blocks-reviews-summary-split-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n  container-type: inline-size;\n  container-name: blocks-reviews-summary-split;\n}\n\
+.blocks-reviews-summary-split-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-reviews-summary-split-split {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-reviews-summary-split-summary {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-reviews-summary-split-rating-number {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\

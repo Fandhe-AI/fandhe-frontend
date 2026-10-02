@@ -20,7 +20,7 @@
 
 ```rust
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, h3, text, Node};
+use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarProps, ImageStatus};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
@@ -361,9 +361,12 @@ fn split_panel(suffix: &str, show_thumbnails: bool, review_count: usize, as_card
     )
 }
 
-/// caption（並記された各版の見出し）。
+/// caption（並記された各版の見出し）。`docs-content` 配下のページ見出し
+/// タイポグラフィを継承させないため、`h3` ではなく `p` + 専用クラスで
+/// 控えめなスタイルを明示する（`product_overview_gallery_split` 等と
+/// 同型の判断。PR #3538 レビュー指摘対応）。
 fn caption(label: &str) -> Node {
-    h3(
+    p(
         vec![("class", "blocks-reviews-summary-split-caption")],
         vec![text(label)],
     )
