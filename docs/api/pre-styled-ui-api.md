@@ -225,21 +225,36 @@ re-export（規約 A）へ移行したため本数から外れた。現況は `p
 | `toggle_tip` | `OpenState` / `DisclosureAction` | `state`（`tooltip` と同型の glob re-export） |
 | `collapsible` | `OpenState` / `DisclosureAction` | `state`（`toggle_tip` と同型の glob re-export、イシュー #1682） |
 
-`select` は共通 shape 軸（`recipe::Shape`）と見た目 variant 軸
-（`SelectVariant`）を `root_with(size, shape: Option<Shape>, variant:
-SelectVariant, state, props, attrs, children)` で提供する（既存
+`select` は共通 shape 軸（`recipe::Shape`）・見た目 variant 軸
+（`SelectVariant`）・選択インジケータ位置軸
+（`select::ItemIndicatorPlacement`）を `root_with(size, shape:
+Option<Shape>, variant: SelectVariant, item_indicator_placement:
+ItemIndicatorPlacement, state, props, attrs, children)` で提供する（既存
 `root(size, state, props, attrs, children)` はシグネチャ不変のまま
-`shape: None` + `SelectVariant::Outline` で `root_with` へ委譲、shape は
-イシュー #3117、variant はイシュー #3121）。`Pill` は root の CSS 変数
-`--fandhe-select-trigger-radius` を上書きし、trigger の `border-radius`
-へ伝搬する。`Circle` は未登録（select の trigger は value-text +
-indicator を横並びにする構造で真円にする用途がないため）。
+`shape: None` + `SelectVariant::Outline` + `ItemIndicatorPlacement::End`
+で `root_with` へ委譲、shape はイシュー #3117、variant はイシュー
+#3121、item_indicator_placement はイシュー #3124）。`Pill` は root の CSS
+変数 `--fandhe-select-trigger-radius` を上書きし、trigger の
+`border-radius` へ伝搬する。`Circle` は未登録（select の trigger は
+value-text + indicator を横並びにする構造で真円にする用途がないため）。
 `SelectVariant`（`Outline`〔既定〕/`Subtle`）は `native_select::
 NativeSelectVariant` と同型の軸で、`Subtle` は root の CSS 変数
 `--fandhe-select-trigger-bg`/`--fandhe-select-trigger-border-color` を
 上書きし trigger を淡色背景・枠線なしにする。`Outline`（既定）は
 `default_variant` を登録していないため class を一切出さず、`root()` の
-既存出力はバイト単位で不変。
+既存出力はバイト単位で不変。`ItemIndicatorPlacement::Start`（既定は
+`End`）は root の CSS 変数 4 本
+（`--fandhe-select-item-position`/`--fandhe-select-item-indicator-position`/
+`--fandhe-select-item-indicator-gutter-display`/
+`--fandhe-select-item-indicator-margin-left`）を切り替え、全項目の
+`item::before` がインジケータ幅（`--fandhe-select-item-indicator-size`、
+既定 `1em`）の空きを inline-start 側へ確保する。選択済み項目の
+インジケータは state 規則（item は `[data-selected]`、インジケータは
+`[data-state="open"]`）で絶対配置され、静的位置
+（content-box の inline-start 端）で空きと重なる。`item` の `padding` は
+上書きしないため、既存フック `--fandhe-select-item-padding` による余白
+調整はそのまま効く。`End`
+（既定）は class を一切出さず既存出力はバイト不変。
 
 `ActivationMode`/`TabItem`/`TabsProps`（tabs）・`DialogRole`/`ContentIds`
 （dialog）・`SelectAction`（select）は各 headless モジュール内定義のため
@@ -467,9 +482,44 @@ let _style_node = sheet.style_element();
   `fd-avatar--color-palette-<value>`）のみを付与する（`variant_classes`
   を経由しないため `fd-avatar--shape-`/`fd-avatar--variant-` の既定値
   補完は付与されない）。
-- **`AvatarBadgeProps`**（イシュー #2044 で新設）: `size`/`palette` の
-  2 フィールドを持つ `badge` の設定構造体。`Default` は `Md`/`Accent`
-  （shadcn `bg-primary` に合わせる）。
+- **`AvatarBadgeProps`**（イシュー #2044 で新設）: `size`/`palette`/
+  `placement`（イシュー #3130 で追加）の 3 フィールドを持つ `badge` の
+  設定構造体。`Default` は `Md`/`Accent`/`BottomEnd`。
+- **`AvatarBadgePlacement`**（イシュー #3130 で新設）: `BottomEnd`（既定、
+  従来の右下）/`TopEnd`（右上）の 2 値。`badge()` は `BottomEnd` 以外の
+  ときだけ `fd-avatar--placement-<value>` クラスを追加する（既定呼び出し
+  の `class` 出力は変更前と完全一致）。
+- **`group_with(&AvatarGroupProps, attrs, children) -> Node`**（イシュー
+  #3130 で新設）: `group` の拡張版。`props.stacking` が `LastOnTop`（既定）
+  のときは `group(attrs, children)` へそのまま委譲し出力が完全一致する。
+  `FirstOnTop` のときは `fd-avatar--stacking-first-on-top` クラス
+  （`isolation: isolate`）を付与し、直下の `Node::Element` 子へ先頭ほど
+  大きい `z-index` を持つ固定クラス（`fd-avatar--stack-order-pos<1..12>`、
+  `AvatarStackOrder`）を付与して先頭の `root` を最前面にする。厳格 CSP
+  （`style-src-attr` 非許可）下でも無効化されないよう inline
+  `style="z-index: ..."` は採らない（PR #3563 codex-review P1 指摘）。
+  `z-index` の固定クラスは `1`〜`MAX_STACK_ORDER`（12）の 12 段までしか
+  持てないため、子の数 `n` が 12 を超える構成では、`n - i`（0 始まり位置
+  `i`）をそのまま使わず「先頭 12 件（`i < min(n, 12)`）に `min(n, 12) - i`
+  で一意な降順値を割り当て、それを超える末尾側（既に見た目上最背面に
+  埋もれている子）だけを最背面側の固定値 `pos1` へ合流させる」方式で
+  先頭側の一意な重なり順を保つ（`n <= 12` のときは従来どおり `n - i` と
+  同じ値になる）。`:nth-child(n)` 等の子孫セレクタは `SlotRecipe` が
+  生成できない（イシュー #708）ため、CSS だけでは実現できない。
+  「先頭ほど前面」を全件で保証できる上限は公開定数
+  `GROUP_FIRST_ON_TOP_MAX_CHILDREN`（12）で示す。13 件以上では 12 件目
+  以降が `pos1` へ合流し DOM 順（後ろほど前面）で描画されるため、呼び出し側
+  で表示件数をこの値以下に絞る（PR #3563 codex-review P2 指摘）。
+- **`AvatarGroupStacking`**（イシュー #3130 で新設）: `LastOnTop`（既定、
+  DOM 順のまま）/`FirstOnTop`（先頭が最前面）の 2 値。
+- **`AvatarGroupProps`**（イシュー #3130 で新設）: `stacking` 1 フィールド
+  を持つ `group_with` の設定構造体。`Default` は `LastOnTop`。
+- **大サイズ（56px 超）は新規 API なし**: 共通 `Size` enum は 5 段方針の
+  ため拡張しない（イシュー #3130）。`root` の呼び出し側 `attrs` へ
+  inline `style`（例: `width: 4rem; height: 4rem; font-size:
+  var(--fandhe-font-font-size-xl)`）を渡すとクラス規則より優先して
+  上書きできる。厳格な CSP（`style-src-attr` に `'unsafe-inline'` が無い
+  環境）では利用者側のスタイルシートで外側の要素から上書きすること。
 - **`stylesheet() -> String`**: この styled Avatar の静的 CSS 全量を返す
   （決定的）。`image`/`fallback` の base 規則は `display` を宣言せず、
   headless 層が付与する `hidden` 存在属性（UA 既定 `[hidden] { display:

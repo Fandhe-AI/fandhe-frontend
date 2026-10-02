@@ -537,7 +537,7 @@ pub const BUTTON_GROUP: ComponentPageSpec = ComponentPageSpec {
         "先頭・末尾以外の隣接要素の角丸・開始側境界線幅を pre-styled-ui 側の raw CSS 追記（`[data-scope=\"button-group\"][data-part=\"root\"] > <child>:not(:first-child)` 等）で無効化し、1 つの連結表示に見せる。対象は button / input / text / menu trigger / select trigger の 5 種。",
         "`data-orientation` による横並び（既定）/ 縦積みの切り替え（root に固定出力、`aria-orientation` は role=\"group\" へ許可されないため付与しない）。",
         "separator はグループ自身の向きと直交する `aria-orientation`/`data-orientation` を出力する（横並びグループの区切り線は縦線になる、`crate::toolbar::separator` と同じ判断）。",
-        "ネスト（グループの中にグループ）を許容する。`:has()` の先例がないため、内側 root は角丸連結対象へ含めず、代わりに先頭以外の内側グループへ margin のみ付与する（shadcn の `:has(>[data-slot=button-group])` gap 相当の代替表現）。",
+        "ネスト（グループの中にグループ）を許容する。`:has()` の先例がないため、内側 root は角丸連結対象へ含めず、代わりに先頭以外の内側グループへ margin のみ付与する（shadcn の `:has(>[data-slot=button-group])` gap 相当の代替表現）。既定はこの margin 間隔のままだが、内側 root へ呼び出し側が値なし属性 `data-attached` を付与すると、間隔を打ち消し接続辺の角丸・境界線を解除する opt-in CSS が適用され、外側グループと枠線を共有する 1 つの連結表示になる（イシュー #3135）。",
         "size / variant / color-palette いずれの軸も提供しない（子の寸法に従属するレイアウト部品、`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §4 (d)）。バリデーション・送信処理等のアプリケーションロジックは内包しない（`.claude/rules/coding-rust.md` §3.25）。",
     ],
     arguments: &[
@@ -554,11 +554,18 @@ pub const BUTTON_GROUP: ComponentPageSpec = ComponentPageSpec {
             description: "root に付与する aria-label（空文字列のときは省略）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "入れ子で入力欄を縦横混在連結する",
-        description: "縦（`Orientation::Vertical`）の外側グループの中に、入力欄（上段）と横（`Orientation::Horizontal`）の内側グループ（下段、2 ボタン）を並べる合成例です（イシュー #3135）。外側グループは縦積みのため入力欄の下辺の角丸・境界線が無効化され、内側グループは「ネスト」節のとおり自身の角丸を保ったまま margin-block-start のみで間隔を得ます。新しいオプションは追加していません（既存 API の組み合わせのみで表現できることの実演）。",
-        render: ex_button_group_nested_mixed,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "分割ボタン（塗りトリガー + 補助メニュー、イシュー #3124 R1239）",
+            description: "`button_group::root` が「menu trigger を角丸連結対象に含める」契約（上記 Features 参照）を使い、塗り（`ButtonVariant::Solid`）の主操作ボタンと、同じ塗りのアイコンのみメニュートリガーを 1 つの連結表示にまとめる合成例です。新しい部品・CSS は追加しません（メニューは静的な閉状態で固定、`OpenState::Open` 等の開閉状態機械はクライアント配線層の責務）。",
+            render: ex_button_group_split_button,
+        },
+        ExampleEntry {
+            title: "入れ子 + data-attached で入力欄を縦横混在連結する",
+            description: "縦（`Orientation::Vertical`）の外側グループの中に、入力欄（上段）と横（`Orientation::Horizontal`）の内側グループ（下段、2 入力欄）を並べる合成例です（イシュー #3135）。内側グループの root へ呼び出し側が `data-attached` を付与すると、pre-styled-ui 側の opt-in CSS（上記 Features 参照）が間隔を打ち消し接続辺の角丸・境界線を解除するため、外側グループと枠線を共有する 1 つの連結表示になります（`data-attached` を付与しない既定の入れ子表現は margin による間隔のまま変わりません）。",
+            render: ex_button_group_nested_mixed,
+        },
+    ],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -573,16 +580,133 @@ pub const BUTTON_GROUP: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// [`BUTTON_GROUP`] の Examples 節「入れ子で入力欄を縦横混在連結する」
-/// レンダラ（イシュー #3135）。外側（縦）の直接の子に入力欄を 1 つ、
-/// 続けて内側（横）グループを 1 つ並べる。角丸連結・境界線二重描画の
-/// 解消は `fandhe_frontend_pre_styled_ui::button_group::stylesheet` が
-/// 既存のまま適用し、本関数は呼び出し側の組み合わせのみを担う。
-/// 入力欄の `placeholder` はアクセシブルな名前の代わりにならないため、
-/// `aria-label` を明示付与して読み上げ対象にする（codex レビュー指摘対応）。
+/// イシュー #3124（R1239「塗りトリガーの分割ボタン」）: `/themes/button-group/`
+/// の Examples 節に載る合成例。主操作ボタン（塗り）+ アイコンのみの
+/// メニュートリガー（同じ塗り）を `button_group::root` へ並べ、
+/// `[data-scope="button-group"][data-part="root"] > menu[data-part="trigger"]:not(:first-child)`
+/// 相当の連結 CSS（Features 節参照）で 1 つの分割ボタンに見せる。新規部品は
+/// 追加しない。メニューは無 JS のため `OpenState::Closed` の静的表示に
+/// 固定する（`page_heading_actions.rs::overflow_menu` と同型の理由）。
+fn ex_button_group_split_button() -> Node {
+    let primary = button(
+        &ButtonProps {
+            variant: ButtonVariant::Solid,
+            ..ButtonProps::default()
+        },
+        vec![],
+        vec![text("デプロイする")],
+    );
+    // menu::trigger の既定背景（`var(--fandhe-color-bg)`、menu.rs 参照）は
+    // 塗りではないため、主操作ボタン（`ButtonVariant::Solid`、既定 palette
+    // `Accent`）と同じ塗りに揃える必要がある。インライン `style` 属性の
+    // `background` は（`:hover` を含む）いかなるセレクタ規則よりも常に
+    // 優先されてしまい、menu.rs の hover 規則（`[data-scope="menu"]
+    // [data-part="trigger"]:not([data-disabled]):hover { background:
+    // var(--fandhe-hover-bg); }`）を恒久的に覆い隠して hover 表示が効かなく
+    // なる（codex P2 指摘、PR #3561）。menu トリガー専用の塗り variant を
+    // 新設するほどの再利用性はないため、この合成例限定で一意な `id` を
+    // 付与し、スコープ付き `<style>`（下記 `menu_trigger_style`）で
+    // 既定/`:hover` 双方を ID セレクタ（属性セレクタ合成より詳細度が高く
+    // `@media (hover: hover)` にも依存しない）として定義する。
+    const SPLIT_MENU_TRIGGER_ID: &str = "button-group-split-menu-trigger";
+    let menu_trigger = menu::trigger(
+        OpenState::Closed,
+        false,
+        Some("button-group-split-menu-content"),
+        vec![
+            ("aria-label", "その他のデプロイ操作"),
+            ("id", SPLIT_MENU_TRIGGER_ID),
+        ],
+        vec![text("\u{25be}")],
+    );
+    // 上記 `id` のみを対象にした最小スコープ CSS。ID セレクタのため
+    // `:hover` 規則も含めて menu.rs の既定 state 規則より確実に優先される。
+    // `<style>` 子テキストは REQ-1 既定エスケープ（`text()`）を経由するが、
+    // ここでは `>`/`<`/`&` を一切含まないセレクタ・宣言のみのため実体参照化
+    // による破損は起きない（`crates/cli/embedded-examples/wireframe-ui/
+    // src/main.rs` モジュール doc「CSS の出力方式」節と同型の注意点）。
+    let menu_trigger_style = el(
+        "style",
+        vec![],
+        vec![text(format!(
+            "#{SPLIT_MENU_TRIGGER_ID} {{ background: var(--fandhe-color-accent); color: var(--fandhe-color-accent-fg); border: none; }} #{SPLIT_MENU_TRIGGER_ID}:hover {{ background: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized)); }}"
+        ))],
+    );
+    let menu_content = menu::content(
+        OpenState::Closed,
+        Some("button-group-split-menu-content"),
+        None,
+        vec![],
+        vec![
+            menu::item(
+                "redeploy",
+                false,
+                false,
+                vec![],
+                vec![text("再デプロイする")],
+            ),
+            menu::item(
+                "rollback",
+                false,
+                false,
+                vec![],
+                vec![text("ロールバックする")],
+            ),
+        ],
+    );
+    let menu_positioner = menu::positioner(OpenState::Closed, vec![], vec![menu_content]);
+    let split_menu = menu::root(
+        Size::Md,
+        OpenState::Closed,
+        vec![],
+        vec![menu_trigger, menu_positioner],
+    );
+    div(
+        vec![],
+        vec![
+            menu_trigger_style,
+            button_group::root(
+                Orientation::Horizontal,
+                "デプロイ操作",
+                vec![],
+                vec![primary, split_menu],
+            ),
+        ],
+    )
+}
+
+/// [`BUTTON_GROUP`] の Examples 節「入れ子 + `data-attached` で入力欄を
+/// 縦横混在連結する」レンダラ（イシュー #3135）。外側（縦）の直接の子に
+/// 入力欄を 1 つ、続けて内側（横）グループを 1 つ並べる。内側 root へは
+/// `data-attached` を付与し、pre-styled-ui 側の opt-in CSS
+/// （`fandhe_frontend_pre_styled_ui::button_group::stylesheet` 末尾の
+/// attached 規則。本関数の呼び出し元から見える契約は `data-attached` の
+/// 付与のみで、CSS 自体は既存のまま適用される）で枠線共有連結を得る。
+/// 本関数は呼び出し側の組み合わせのみを担う。入力欄の `placeholder` は
+/// アクセシブルな名前の代わりにならないため、3 つの入力欄すべてに
+/// `aria-label` を明示付与して読み上げ対象にする（PR #3569 codex レビュー
+/// 指摘対応を踏襲）。
 fn ex_button_group_nested_mixed() -> Node {
-    let field_props = FieldProps {
-        id: "button-group-nested-search",
+    let card_number_props = FieldProps {
+        id: "button-group-attached-card-number",
+        ids: FieldIds::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    let expiry_props = FieldProps {
+        id: "button-group-attached-expiry",
+        ids: FieldIds::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    let cvc_props = FieldProps {
+        id: "button-group-attached-cvc",
         ids: FieldIds::default(),
         disabled: false,
         invalid: false,
@@ -593,21 +717,32 @@ fn ex_button_group_nested_mixed() -> Node {
 
     button_group::root(
         Orientation::Vertical,
-        "",
+        "Payment card",
         vec![],
         vec![
             input::input(
                 &InputProps::default(),
-                &field_props,
-                vec![("placeholder", "Search"), ("aria-label", "Search")],
+                &card_number_props,
+                vec![
+                    ("placeholder", "4242 4242 4242 4242"),
+                    ("aria-label", "Card number"),
+                ],
             ),
             button_group::root(
                 Orientation::Horizontal,
                 "",
-                vec![],
+                vec![("data-attached", "")],
                 vec![
-                    button(&ButtonProps::default(), vec![], vec![text("Prev")]),
-                    button(&ButtonProps::default(), vec![], vec![text("Next")]),
+                    input::input(
+                        &InputProps::default(),
+                        &expiry_props,
+                        vec![("placeholder", "MM / YY"), ("aria-label", "Expiry date")],
+                    ),
+                    input::input(
+                        &InputProps::default(),
+                        &cvc_props,
+                        vec![("placeholder", "CVC"), ("aria-label", "Security code")],
+                    ),
                 ],
             ),
         ],
