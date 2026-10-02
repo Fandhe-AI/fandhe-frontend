@@ -141,7 +141,9 @@ fn version_two_buttons() -> Node {
 }
 
 /// C: 淡色帯 + 次側に概要文（R0082）。帯の中へ `pagination::root` +
-/// `link::root` を前後 2 件置く（`link` 部品の使用例）。
+/// `link::root` を前後 2 件置く（`link` 部品の使用例）。次側はタイトル +
+/// 矢印アイコンの行と概要文を縦積みにする（`blocks-docs-layout-prev-next-
+/// next-title-row` でタイトル行だけをまとめ、概要文はその下に置く）。
 fn version_band() -> Node {
     card::root(
         CardProps {
@@ -168,7 +170,10 @@ fn version_band() -> Node {
                         &LinkProps::default(),
                         vec![("data-blocks-docs-layout-prev-next-next-summary", "")],
                         vec![
-                            meta_stack("次へ", "ガイド一覧"),
+                            div(
+                                vec![("class", "blocks-docs-layout-prev-next-next-title-row")],
+                                vec![meta_stack("次へ", "ガイド一覧"), right_arrow_icon()],
+                            ),
                             styled_text::text(
                                 &TextProps {
                                     size: TextSize::Sm,
@@ -180,7 +185,6 @@ fn version_band() -> Node {
                                     "部品の props と anatomy の書き方をまとめたガイドです。",
                                 )],
                             ),
-                            right_arrow_icon(),
                         ],
                     ),
                 ],

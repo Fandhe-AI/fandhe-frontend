@@ -208,7 +208,9 @@ fn version_two_buttons() -> Node {
 }
 
 /// C: 淡色帯 + 次側に概要文（R0082）。帯の中へ `pagination::root` +
-/// `link::root` を前後 2 件置く（`link` 部品の使用例）。
+/// `link::root` を前後 2 件置く（`link` 部品の使用例）。次側はタイトル +
+/// 矢印アイコンの行と概要文を縦積みにする（`blocks-docs-layout-prev-next-
+/// next-title-row` でタイトル行だけをまとめ、概要文はその下に置く）。
 fn version_band() -> Node {
     card::root(
         CardProps {
@@ -235,7 +237,10 @@ fn version_band() -> Node {
                         &LinkProps::default(),
                         vec![("data-blocks-docs-layout-prev-next-next-summary", "")],
                         vec![
-                            meta_stack("次へ", "ガイド一覧"),
+                            div(
+                                vec![("class", "blocks-docs-layout-prev-next-next-title-row")],
+                                vec![meta_stack("次へ", "ガイド一覧"), right_arrow_icon()],
+                            ),
                             styled_text::text(
                                 &TextProps {
                                     size: TextSize::Sm,
@@ -247,7 +252,6 @@ fn version_band() -> Node {
                                     "部品の props と anatomy の書き方をまとめたガイドです。",
                                 )],
                             ),
-                            right_arrow_icon(),
                         ],
                     ),
                 ],
@@ -309,18 +313,26 @@ pub const BLOCK: Block = Block {
 ///
 /// トリガー（`prev-trigger`/`next-trigger`）の固定 `height` を `height: auto`
 /// へ上書きし、方向ラベル・アイコンを横並びにできるようにする。次側は
-/// `margin-inline-start: auto` で右端へ寄せる。狭幅ではこれを解除し、
-/// `nav`（`pagination` root）を縦積みへ切り替える。
+/// `margin-inline-start: auto` で右端へ寄せる（`flex-direction` は版 A/B・C
+/// いずれも子要素の記述順どおりの `row`（既定値）のままとし、`row-reverse`
+/// は使わない。版 A/B の `next_trigger`・版 C の `next` タイトル行はいずれも
+/// 子要素を「テキスト → 右向き矢印アイコン」の順で渡しており、`row-reverse`
+/// を重ねると表示順が反転し矢印がテキストの左側に出てしまうため）。版 C の
+/// 次側は概要文をタイトル行の下に縦積みにする（`next-title-row` がタイトル
+/// + アイコンの行のみをまとめ、`next-summary` 側を `column` にして概要文を
+/// 兄弟として下へ積む）。狭幅ではこれを解除し、`nav`（`pagination` root）を
+/// 縦積みへ切り替える。
 const LAYOUT_CSS: &str = "\
 .blocks-docs-layout-prev-next-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-docs-layout-prev-next;\n}\n\
 [data-blocks-docs-layout-prev-next-nav][data-scope=\"pagination\"][data-part=\"root\"] {\n  justify-content: space-between;\n  align-items: stretch;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-docs-layout-prev-next-nav] > [data-scope=\"pagination\"][data-part=\"prev-trigger\"],\n\
 [data-blocks-docs-layout-prev-next-nav] > [data-scope=\"pagination\"][data-part=\"next-trigger\"] {\n  height: auto;\n  min-width: 0;\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  gap: var(--fandhe-space-2);\n}\n\
-[data-blocks-docs-layout-prev-next-nav] > [data-scope=\"pagination\"][data-part=\"next-trigger\"] {\n  margin-inline-start: auto;\n  text-align: end;\n  flex-direction: row-reverse;\n}\n\
+[data-blocks-docs-layout-prev-next-nav] > [data-scope=\"pagination\"][data-part=\"next-trigger\"] {\n  margin-inline-start: auto;\n  text-align: end;\n}\n\
 .blocks-docs-layout-prev-next-meta {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 [data-blocks-docs-layout-prev-next-band][data-scope=\"card\"][data-part=\"root\"] [data-scope=\"pagination\"][data-part=\"root\"] {\n  justify-content: space-between;\n  align-items: stretch;\n  gap: var(--fandhe-space-4);\n}\n\
 [data-blocks-docs-layout-prev-next-band] [data-scope=\"link\"][data-part=\"root\"] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  max-width: 18rem;\n}\n\
-[data-blocks-docs-layout-prev-next-next-summary] {\n  flex-direction: row-reverse;\n  text-align: end;\n  margin-inline-start: auto;\n}\n\
+[data-blocks-docs-layout-prev-next-next-summary] {\n  flex-direction: column;\n  align-items: flex-end;\n  text-align: end;\n  margin-inline-start: auto;\n}\n\
+.blocks-docs-layout-prev-next-next-title-row {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
 @container blocks-docs-layout-prev-next (max-width: 32rem) {\n  \
 [data-scope=\"pagination\"][data-part=\"root\"] {\n    flex-direction: column;\n  }\n  \
 [data-blocks-docs-layout-prev-next-nav] > [data-scope=\"pagination\"][data-part=\"next-trigger\"],\n  \
