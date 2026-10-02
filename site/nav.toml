@@ -3010,6 +3010,11 @@ title = "docs-layout-toc-progress"
 source = "site/blocks/docs-layout-toc-progress.md"
 path = "/blocks/docs-layout-toc-progress/"
 
+[[section.group.page]]
+title = "docs-layout-toc"
+source = "site/blocks/docs-layout-toc.md"
+path = "/blocks/docs-layout-toc/"
+
 [[section.group]]
 title = "Code Block"
 
