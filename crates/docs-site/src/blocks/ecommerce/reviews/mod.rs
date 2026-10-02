@@ -9,9 +9,10 @@
 //! （`docs/design/docs-site-blocks-section.md` §18 参照）。
 
 mod reviews_card_grid;
+mod reviews_summary_split;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![reviews_card_grid::BLOCK]
+    vec![reviews_card_grid::BLOCK, reviews_summary_split::BLOCK]
 }
