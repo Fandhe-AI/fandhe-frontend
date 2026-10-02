@@ -233,13 +233,16 @@ fn version_band() -> Node {
                         vec![left_arrow_icon(), meta_stack("前へ", "はじめに")],
                     ),
                     link::root(
-                        "../../guides/",
+                        "../../guides/component-authoring/",
                         &LinkProps::default(),
                         vec![("data-blocks-docs-layout-prev-next-next-summary", "")],
                         vec![
                             div(
                                 vec![("class", "blocks-docs-layout-prev-next-next-title-row")],
-                                vec![meta_stack("次へ", "ガイド一覧"), right_arrow_icon()],
+                                vec![
+                                    meta_stack("次へ", "コンポーネント記述ガイド"),
+                                    right_arrow_icon(),
+                                ],
                             ),
                             styled_text::text(
                                 &TextProps {
