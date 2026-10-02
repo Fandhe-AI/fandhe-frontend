@@ -51,10 +51,13 @@
 //! `code` の子として並べ、CSS の `counter-increment`/`::before { content:
 //! counter(...) }` で視覚的に振る。行番号テキスト自体を DOM へ埋め込まない
 //! ため、行番号を選択範囲に含めてもコピーされない（`user-select: none`
-//! も付与する）。各行 span は `display: block` で視覚的に改行されるが、
-//! span 間には改行テキスト（`\n`）自体も挟む（最終行の後ろを除く）。
-//! `display: block` のみでは選択範囲コピー時に元コードの改行が復元され
-//! ないため（Codex レビュー指摘、イシュー #3104 PR #3545）。
+//! も付与する）。span 間には改行テキスト（`\n`）自体を挟み（最終行の
+//! 後ろを除く）、親 `<code>` の `white-space: pre` がこれを視覚上の改行
+//! として描画する。行 span 自体には `display: block` を付けない。付けると
+//! `display: block` 由来の改行と `\n` テキストノード由来の改行が二重に
+//! 発生し、行間が間延びして見える（Codex レビュー・Cursor Bugbot 指摘、
+//! イシュー #3104 PR #3545）。`\n` テキストノードのみを改行源にすることで、
+//! 視覚上の行間を単一にしたまま選択範囲コピー時の改行も保持する。
 //!
 //! # `<form>` を使わない
 //!
@@ -231,10 +234,12 @@ fn header_instance(
         ));
     }
 
-    // 各行 span は視覚上 `display: block` で改行されるが、span 間に改行
-    // テキスト自体を挟まないと選択範囲コピー時に行区切りが失われる
-    // （Codex レビュー指摘、イシュー #3104 PR #3545）。最終行の後ろには
-    // 入れず、元のスニペット末尾の改行有無をコピー結果で変えない。
+    // 各行 span は `display: block` を持たず、span 間に挟む改行テキスト
+    // （`\n`）のみが視覚上の改行源になる（`white-space: pre` が解釈）。
+    // `display: block` も併用すると改行が二重になり行間が間延びする
+    // （Codex レビュー・Cursor Bugbot 指摘、イシュー #3104 PR #3545）。
+    // 最終行の後ろには入れず、元のスニペット末尾の改行有無をコピー結果で
+    // 変えない。
     let body_children: Vec<Node> = if numbered {
         let lines: Vec<&str> = snippet.lines().collect();
         let line_count = lines.len();
@@ -350,7 +355,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-code-block-header-pre {\n  margin: 0;\n  padding: 1rem;\n  overflow-x: auto;\n  font-family: var(--fandhe-font-font-mono);\n}\n\
 .blocks-code-block-header-pre:focus-visible {\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));\n}\n\
 [data-scope=\"code\"][data-part=\"root\"][data-blocks-code-block-header-code] {\n  display: block;\n  white-space: pre;\n  background: transparent;\n  border: 0;\n  padding: 0;\n  color: inherit;\n  counter-reset: blocks-code-block-header-line;\n}\n\
-[data-blocks-code-block-header-line] {\n  display: block;\n  counter-increment: blocks-code-block-header-line;\n}\n\
+[data-blocks-code-block-header-line] {\n  counter-increment: blocks-code-block-header-line;\n}\n\
 [data-blocks-code-block-header-line]::before {\n  content: counter(blocks-code-block-header-line);\n  display: inline-block;\n  min-width: 2ch;\n  margin-inline-end: 1rem;\n  text-align: end;\n  color: var(--fandhe-color-fg-muted);\n  user-select: none;\n}\n";
 
 #[cfg(test)]
