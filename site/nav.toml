@@ -2973,6 +2973,14 @@ source = "site/blocks/promo-with-testimonials.md"
 path = "/blocks/promo-with-testimonials/"
 
 [[section.group]]
+title = "Docs Layout"
+
+[[section.group.page]]
+title = "docs-layout-prev-next"
+source = "site/blocks/docs-layout-prev-next.md"
+path = "/blocks/docs-layout-prev-next/"
+
+[[section.group]]
 title = "API Reference"
 
 [[section.group.page]]
