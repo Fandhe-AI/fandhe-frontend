@@ -4101,10 +4101,76 @@ name = "fandhe-frontend-pre-styled-ui"
 # 採用せずさらに +1 して 0.238.0 とする（`.claude/rules/coding-rust.md`
 # #638 条項の同衝突運用）。
 #
+# イシュー #3142（PR #3583 codex-review 対応）: toast に opt-in の右端
+# アクション列レイアウト（`ACTIONS_COLUMN_ATTR`・pre-styled-only
+# `content`/`actions` パート）を追加した。`SLOTS` へ `content`/`actions`
+# を末尾追加し、`root`/`action-trigger` の state 条件追加も opt-in 属性
+# 付与時のみ発火するため既存 golden ブロックの出力バイトは不変（純追加の
+# み）。公開 API 純追加のため minor バンプする。
+#
+# マージコミット注記（本 PR #3583、origin/main 再取り込み、イシュー
+# #3142）: 本ブランチは上記のとおり独立に 0.235.0 へ到達していたが、
+# origin/main 側（steps の #3139 Dot variant 修正・separator の #3137 等を
+# 含む到達値、本ブランチの base merge 時点）は独立に 0.236.1 へ到達して
+# いた。偶発的な同一版数衝突ではなく origin/main 側が本ブランチを上回って
+# いるため、そのまま +1 する運用（`.claude/rules/coding-rust.md` #638
+# 条項）ではなく、origin/main の到達値（0.236.1）を基点として本 PR 分の
+# minor バンプを適用し 0.237.0 とする。
+#
+# マージコミット注記（本 PR #3583、origin/main 再々取り込み）: 上記の経緯で
+# 本ブランチは 0.237.0 へ到達していたが、origin/main 側も PR #3570 の取り込み
+# （steps の #3139 対応、Dot variant 修正の patch 込みで 0.236.1 から据え置き）
+# により独立に同一の 0.237.0 へ到達していた。偶発的な同一版数衝突のため、
+# そのまま採用せずさらに +1 して 0.238.0 とする（`.claude/rules/coding-rust.md`
+# #638 条項の同衝突運用）。
+#
 # マージコミット注記（PR #3143、origin/main 再取り込み、イシュー #3581 系）:
 # 本ブランチは上記で独立に到達した 0.238.0 と、origin/main（button_group の
 # 入れ子合成例 #3581 を含む到達値）も独立に同一版数 0.238.0 へ到達していた
 # （偶発的衝突）ため、そのまま採用せずさらに +1 して 0.239.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# PR #3569 codex レビュー指摘対応（イシュー #3135）: button_group の
+# `data-attached` opt-in で、間隔のある隣接グループ（`data-attached` なし
+# の通常の内側 root）に接する attached root の角丸・境界線・margin リセ
+# ットを、外側リストでの位置（先頭/末尾）だけで解除していた不具合を修正
+# した。実際に隣接する兄弟も `data-attached` を持つ場合のみ解除するよう
+# セレクタを `:not(:first-child)`/`:not(:last-child)` から隣接兄弟結合子
+# （`+`/`:has(+ ...)`）ベースへ変更し、既存 golden ブロックの出力バイトが
+# 変わる観測可能な CSS 変更のため minor バンプする。
+#
+# マージコミット注記（本 PR #3569、origin/main 五度目の取り込み）: 本ブラ
+# ンチが上記で独立に到達した 0.235.0 と、origin/main（progress の #3140・
+# stat の #3138 対応を含む到達値）も独立に同一版数 0.235.0 へ到達していた
+# （偶発的衝突）ため、そのまま採用せずさらに +1 して 0.236.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# PR #3569 レビュー対応（イシュー #3135、codex / Cursor Bugbot）: attached
+# 内側 root の接続辺の判定を「隣接兄弟も `data-attached`」から「隣接兄弟が
+# 間隔を保つ通常の内側 root でない」へ変更し、通常の子（入力欄・ボタン）
+# とも連結するようにした。既存 golden ブロックの出力バイトが変わる観測
+# 可能な CSS 変更だが、上記 0.236.0 の minor バンプに含める。
+#
+# マージコミット注記（本 PR #3569、origin/main 六度目の取り込み）: 本ブラ
+# ンチが上記で独立に到達した 0.236.0 と、origin/main（separator の #3137
+# 対応を含む到達値）も独立に同一版数 0.236.0 へ到達していた（偶発的衝突）
+# ため、そのまま採用せずさらに +1 して 0.237.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# マージコミット注記（本 PR #3569、origin/main 七度目の取り込み）: origin/main
+# （steps の #3578 到達値）は 0.236.1 であり、本ブランチが上記で到達した
+# 0.237.0 は main の版より 1 つ上のマイナー版のため、そのまま採用する。
+#
+# マージコミット注記（本 PR #3569、origin/main 八度目の取り込み）: 本ブラ
+# ンチが上記で到達した 0.237.0 と、origin/main（field の #3134 対応 PR #3570
+# を含む到達値）も独立に同一版数 0.237.0 へ到達していた（偶発的衝突）ため、
+# そのまま採用せずさらに +1 して 0.238.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# マージコミット注記（本 PR #3583、origin/main 三度目の取り込み）: 本ブラ
+# ンチが上記で独立に到達した 0.238.0 と、origin/main（button_group の
+# #3135 対応 PR #3569 を含む到達値）も独立に同一版数 0.238.0 へ到達して
+# いた（偶発的衝突）ため、そのまま採用せずさらに +1 して 0.239.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 #
 # PR #3582（イシュー #3143）codex-review P2 再指摘対応: `footer` の呼び
@@ -4113,6 +4179,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # [data-part="footer"] > *` の raw CSS（`white-space: nowrap`）を追記した。
 # 既存 golden CSS の出力バイトが変わる観測可能な変更のため 0.240.0 へ
 # マイナーバンプする。
+#
+# マージコミット注記（PR #3582、origin/main 再取り込み、イシュー #3143）:
+# origin/main は PR #3583（toast の #3142 対応）取り込みで 0.239.0 へ到達
+# した。本ブランチの 0.240.0 は main の版より 1 つ上のマイナー版のため、
+# そのまま採用する（`.claude/rules/coding-rust.md` #638 条項）。
 version = "0.240.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"

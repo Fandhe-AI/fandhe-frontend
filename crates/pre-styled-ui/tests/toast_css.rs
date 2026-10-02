@@ -6,6 +6,20 @@
 //! enter 遷移 `@keyframes` を含む）をバイト単位で固定する。出力順
 //! （base → variants → states → keyframes）が崩れた場合や意図しない宣言の
 //! 追加・欠落があった場合に、この golden テストが即座に検知する。
+//!
+//! イシュー #3142（右端アクション列レイアウト）で `content`/`actions` の
+//! pre-styled-only base ブロックを `close-trigger` base の直後へ、右端
+//! アクション列（`data-actions-column`）の state 規則を `focus-visible`
+//! state の直後・`@media (hover: hover)` ブロックの直前へ中間挿入した
+//! （`SLOTS` 末尾への純追加、既存ブロックは不変）。PR #3583（codex-review
+//! P1・Bugbot 指摘対応）で `actions` 列自体の縮小上限（`max-width: 40%`）を
+//! 追加した: 公開 API の呼び出し規約（`root`/`action_trigger` へ
+//! `data-actions-column` を付ける。`actions` パート自身へは付けない）上
+//! `actions` パートは常にこの列レイアウトでのみ使われるため、縮小上限は
+//! `data-actions-column` 条件なしの `actions` base 自身へ持たせた（条件付き
+//! state 規則にすると実際の呼び出し規約では絶対に発火しないため）。
+//! `action-trigger` のテキスト折り返し規則は `data-actions-column` state の
+//! まま追加している。
 
 use fandhe_frontend_pre_styled_ui::toast;
 
@@ -93,6 +107,24 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
   transition-property: background;
   transition-duration: var(--fandhe-motion-duration-fast);
   transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="toast"][data-part="content"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fandhe-space-1);
+  flex: 1;
+  min-width: 0;
+  padding: var(--fandhe-space-4);
+}
+
+[data-scope="toast"][data-part="actions"] {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 40%;
+  border-inline-start: 1px solid var(--fandhe-palette-muted, var(--fandhe-color-border));
 }
 
 [data-scope="toast"][data-part="group"].fd-toast--placement-top-start {
@@ -208,6 +240,38 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
 [data-scope="toast"][data-part="close-trigger"]:focus-visible {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+[data-scope="toast"][data-part="root"][data-actions-column] {
+  flex-direction: row;
+  gap: 0;
+  align-items: stretch;
+  padding: 0;
+}
+
+[data-scope="toast"][data-part="action-trigger"][data-actions-column] {
+  flex: 1 1 0;
+  align-self: stretch;
+  height: auto;
+  min-height: var(--fandhe-space-8);
+  min-width: 0;
+  margin-block-start: 0;
+  padding: 0 var(--fandhe-space-4);
+  border: none;
+  border-block-start: 1px solid var(--fandhe-palette-muted, var(--fandhe-color-border));
+  border-radius: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+[data-scope="toast"][data-part="action-trigger"][data-actions-column]:first-child {
+  border-block-start: none;
+  border-start-end-radius: calc(var(--fandhe-radius-md) - 1px);
+}
+
+[data-scope="toast"][data-part="action-trigger"][data-actions-column]:last-child {
+  border-end-end-radius: calc(var(--fandhe-radius-md) - 1px);
 }
 
 @media (hover: hover) {
