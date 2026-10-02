@@ -3949,6 +3949,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # stat の #3138 対応を含む到達値）も独立に同一版数 0.235.0 へ到達していた
 # （偶発的衝突）ため、そのまま採用せずさらに +1 して 0.236.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# PR #3569 レビュー対応（イシュー #3135、codex / Cursor Bugbot）: attached
+# 内側 root の接続辺の判定を「隣接兄弟も `data-attached`」から「隣接兄弟が
+# 間隔を保つ通常の内側 root でない」へ変更し、通常の子（入力欄・ボタン）
+# とも連結するようにした。既存 golden ブロックの出力バイトが変わる観測
+# 可能な CSS 変更だが、上記 0.236.0 の minor バンプに含める。
 version = "0.236.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
