@@ -478,6 +478,13 @@ fn anatomy_parts_exactly_match_declared_parts_for_fully_demonstrated_components(
             // Demo/Example の双方へ反映したことで、headless 由来 8 パーツ
             // + pre-styled-only 2 パートの計 10 件が機械導出されるように
             // なったことを固定する（dialog の #1690/#2030 と同型）。
+            //
+            // イシュー #3129: Anatomy 節は Demo（`showcase::drawer_section`）
+            // のみを走査して機械導出する契約であり（`collect_anatomy_parts`
+            // は `demo` ノードのみを受け取る）、Examples 節
+            // （`ex_drawer_accent_outside_close`）が使う pre-styled-only
+            // `header` パートはこの導出対象に含まれない。本イシューは Demo
+            // を変更しないため、期待パート集合は 10 件のまま不変。
             "/themes/drawer/",
             &[
                 "root",
