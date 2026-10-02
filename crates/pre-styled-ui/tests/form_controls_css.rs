@@ -75,6 +75,13 @@ const INPUT_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="input"] {
   border-radius: 0;
 }
 
+[data-scope="field"][data-part="input"].fd-field--variant-subtle-flushed {
+  background: var(--fandhe-color-bg-subtle);
+  border: 0;
+  border-bottom: 1px solid var(--fandhe-color-border);
+  border-radius: var(--fandhe-radius-md) var(--fandhe-radius-md) 0 0;
+}
+
 [data-scope="field"][data-part="input"].fd-field--shape-pill {
   border-radius: var(--fandhe-radius-full);
 }

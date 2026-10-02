@@ -6434,10 +6434,46 @@ fn input_section() -> Node {
         ),
     ]);
 
+    // variant 軸（イシュー #3122 で SubtleFlushed を追加、4 値）。
+    let variant_row = row([
+        (
+            InputVariant::Outline,
+            "Outline",
+            "showcase-input-variant-outline",
+        ),
+        (
+            InputVariant::Subtle,
+            "Subtle",
+            "showcase-input-variant-subtle",
+        ),
+        (
+            InputVariant::Flushed,
+            "Flushed",
+            "showcase-input-variant-flushed",
+        ),
+        (
+            InputVariant::SubtleFlushed,
+            "SubtleFlushed",
+            "showcase-input-variant-subtle-flushed",
+        ),
+    ]
+    .into_iter()
+    .map(|(variant, label, id)| {
+        input::input(
+            &InputProps {
+                variant,
+                ..InputProps::default()
+            },
+            &plain_field(id),
+            vec![("placeholder", label)],
+        )
+    })
+    .collect());
+
     section(
         "Input",
         "ブラウザネイティブ挙動をそのまま尊重する静的テキスト入力部品。invalid/disabled 状態は headless field:: へ委譲した data-* 属性・aria-invalid で表現します。",
-        vec![input_row],
+        vec![input_row, variant_row],
     )
 }
 
