@@ -431,8 +431,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `cart_mini_panel` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc
-/// 「block 固有 CSS の置き場」節と同型）。
+/// `cart_mini_panel` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-cart-mini-panel-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-cart-mini-panel-instance {\n  max-width: 24rem;\n  margin-left: auto;\n}\n\

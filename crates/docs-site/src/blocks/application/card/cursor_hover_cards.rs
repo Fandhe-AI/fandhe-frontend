@@ -121,8 +121,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `cursor_hover_cards` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節。`login_01` 等と同型で `pub(super)`
+/// `cursor_hover_cards` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。`login_01` 等と同型で `pub(super)`
 /// として `super::stylesheet` から連結される）。
 const LAYOUT_CSS: &str = "\
 .blocks-cursor-hover-cards {\n  padding: 3rem 1.5rem;\n}\n\

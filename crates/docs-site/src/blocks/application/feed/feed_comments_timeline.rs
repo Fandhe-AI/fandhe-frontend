@@ -628,8 +628,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `feed_comments_timeline` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。
+/// `feed_comments_timeline` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。
 ///
 /// # indicator 列をアバター幅に広げる（完全版のコメント item 限定）
 ///

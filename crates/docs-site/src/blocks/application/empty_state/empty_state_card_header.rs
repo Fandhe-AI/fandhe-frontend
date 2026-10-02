@@ -375,8 +375,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `empty_state_card_header` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節、`contact_dialog_form`/`login_01` と同型）。
+/// `empty_state_card_header` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、`contact_dialog_form`/`login_01` と同型）。
 ///
 /// # 2 インスタンスの縦積みとカードの全幅表示
 ///

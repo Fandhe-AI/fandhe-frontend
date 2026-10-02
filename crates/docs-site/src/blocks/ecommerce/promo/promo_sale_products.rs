@@ -225,8 +225,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `promo_sale_products` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節、他 block と同型）。`--fandhe-*`
+/// `promo_sale_products` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、他 block と同型）。`--fandhe-*`
 /// トークンのみを使い、生の色リテラルは置かない。
 const LAYOUT_CSS: &str = "\
 .blocks-promo-sale-products-layout {\n  container-type: inline-size;\n  container-name: blocks-promo-sale-products;\n}\n\

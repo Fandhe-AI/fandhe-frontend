@@ -228,7 +228,7 @@ pub const BLOCK: Block = Block {
 };
 
 /// `page_heading_welcome_stats` 固有のレイアウト規則
-/// （`crate::blocks::LAYOUT_CSS` doc「block 固有 CSS の置き場」節と同型で、
+/// （`crate::blocks` モジュール doc「CSS の置き場」節と同型で、
 /// 本ファイル内 private 定数として `super::stylesheet` 経由の `push_css` で
 /// 連結される）。
 ///

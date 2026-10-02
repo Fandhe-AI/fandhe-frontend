@@ -545,8 +545,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `settings_team_table` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節、`settings_api_keys_table.rs` と同型）。
+/// `settings_team_table` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、`settings_api_keys_table.rs` と同型）。
 ///
 /// レイアウトルートのコンテナ幅が狭幅（47.99rem 未満）では `メール`/
 /// `追加日` 列（`data-blocks-settings-team-table-secondary`）のみを隠し、

@@ -724,8 +724,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `feature_vertical_tabs` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。セレクタは
+/// `feature_vertical_tabs` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。セレクタは
 /// `.blocks-feature-vertical-tabs-*` と `[data-blocks-feature-vertical-tabs-*]`
 /// のみで完結する。実物のコンポーネントである `image`（`[data-scope="image"]
 /// [data-part="root"][data-blocks-feature-vertical-tabs-image*]`）を除き、

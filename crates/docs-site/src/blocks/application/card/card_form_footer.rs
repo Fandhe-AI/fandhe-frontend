@@ -502,8 +502,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `card_form_footer` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc
-/// 「block 固有 CSS の置き場」節と同型）。
+/// `card_form_footer` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-card-form-footer-layout {\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));\n  gap: var(--fandhe-space-6);\n  align-items: start;\n}\n\
 .blocks-card-form-footer-fields {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n}\n\

@@ -572,8 +572,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `pricing_seats_split` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。色・間隔はすべて既存トークン
+/// `pricing_seats_split` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。色・間隔はすべて既存トークン
 /// （`--fandhe-*`）のみを使う。mobile-first（`min-width: 64rem`）で
 /// 2 カラムへ切り替える（モジュール doc「レイアウトとブレークポイント」
 /// 節参照）。

@@ -536,8 +536,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `filter_dropdown_bar` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。`--fandhe-*` トークンのみ使用し、
+/// `filter_dropdown_bar` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。`--fandhe-*` トークンのみ使用し、
 /// 生値は幅・rem 指定のみに限る。
 ///
 /// # シェルの高さ確保・popover recipe を上書きする詳細度

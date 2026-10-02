@@ -376,8 +376,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `order_confirmation_summary` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。
+/// `order_confirmation_summary` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-order-confirmation-summary-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  container-type: inline-size;\n  container-name: blocks-order-confirmation-summary;\n}\n\
 .blocks-order-confirmation-summary-intro {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\

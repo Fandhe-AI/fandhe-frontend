@@ -523,8 +523,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `grid_list_contact_cards` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。既定（狭幅）は 1 列、`28rem`
+/// `grid_list_contact_cards` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。既定（狭幅）は 1 列、`28rem`
 /// 以上で 2 列、`34rem` 以上で 3 列、`vertical` インスタンスのみ `40rem`
 /// 以上でさらに 4 列へ増やす（モジュール doc「`@container` で列数を
 /// 切り替える理由」節）。

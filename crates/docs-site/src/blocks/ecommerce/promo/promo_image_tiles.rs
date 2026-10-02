@@ -294,8 +294,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `promo_image_tiles` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。セレクタは `.blocks-promo-image-
+/// `promo_image_tiles` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。セレクタは `.blocks-promo-image-
 /// tiles-*`/`[data-blocks-promo-image-tiles-*]` と、それらで絞り込んだ
 /// `[data-scope="image"/"heading"/"text"/"link"]` のみを用いる。
 const LAYOUT_CSS: &str = "\

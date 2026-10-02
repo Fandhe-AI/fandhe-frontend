@@ -430,8 +430,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `cart_drawer` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc
-/// 「block 固有 CSS の置き場」節と同型）。モジュール doc「fixed オーバー
+/// `cart_drawer` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。モジュール doc「fixed オーバー
 /// レイの中和」「3 段固定レイアウト」「狭幅でのコンテナクエリ」節の実装。
 const LAYOUT_CSS: &str = "\
 .blocks-cart-drawer-wrap {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-2);\n}\n\

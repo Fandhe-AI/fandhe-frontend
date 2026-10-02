@@ -412,8 +412,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `help_center_article_list` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節と同型）。
+/// `help_center_article_list` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 ///
 /// 行リンクの規則は `[data-scope="link"][data-part="root"]`（詳細度
 /// 0,2,0）に勝つよう `[data-blocks-help-center-article-list-row]` を
