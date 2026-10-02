@@ -243,6 +243,9 @@ const FIELD_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="root"] {
 [data-scope="field"][data-part="root"].fd-field--label-placement-overlap[data-invalid] {
   border-color: var(--fandhe-color-danger);
 }
+[data-scope="field"][data-part="root"].fd-field--label-placement-overlap > [data-scope="field"][data-part="input"] {
+  border: 0;
+}
 [data-scope="field"][data-part="root"].fd-field--label-placement-overlap > [data-scope="field"][data-part="label"] {
   position: absolute;
   top: 0;

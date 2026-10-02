@@ -712,6 +712,14 @@ pub fn css() -> String {
     out.push_str(&format!(
         "{root_overlap}[data-invalid] {{\n  border-color: var(--fandhe-color-danger);\n}}\n",
     ));
+    // input 自身も既定（Outline variant）で `border: 1px solid` を持つ
+    // （`input.rs` 参照）ため、root 側の枠線と合わせて二重枠線になる
+    // （codex-review/Bugbot 指摘、PR #3570）。root 側を単一の枠として
+    // 統一し、input 側の枠線は消す。
+    out.push_str(&format!(
+        "{root_overlap} > [data-scope=\"field\"][data-part=\"input\"] {{\n  \
+         border: 0;\n}}\n",
+    ));
     out.push_str(&format!(
         "{root_overlap} > [data-scope=\"field\"][data-part=\"label\"] {{\n  \
          position: absolute;\n  top: 0;\n  inset-inline-start: var(--fandhe-space-2);\n  \

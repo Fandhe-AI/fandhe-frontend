@@ -138,6 +138,48 @@
 //!   `recipe()` 内の登録順を `today → outside-month → selected` へ変更し、
 //!   `selected` の accent 文字色が必ず後勝ちするようにした（詳細は
 //!   `recipe()` 内の該当コメント参照）。
+//!
+//! # 枠線なし variant と大セル月表示（イシュー #3132）
+//!
+//! `root` の枠線固定（`border: 1px solid var(--fandhe-color-border)`）と
+//! 正方形セルのみの構成では、月間スケジュール画面（セル内に予定一覧を
+//! 載せる大セル表示）や枠線なしの小型カレンダーを表現できなかった。
+//! [`crate::tab_nav::root_with`]（イシュー #3125）と同型の規約で、見た目 variant
+//! （[`CalendarVariant`]）とセル大型化軸（[`CalendarCellSize`]）を
+//! opt-in で追加する [`root_with`] を新設し、[`root`] は
+//! `root_with(size, CalendarVariant::Outline, CalendarCellSize::Compact, …)`
+//! へ委譲する。両軸とも `default_variant` を登録しないため、既定値
+//! （`Outline`/`Compact`）選択時は [`root`] の出力とバイト単位で同一になる
+//! （[`crate::tab_nav::TabNavVariant`] と同じ契約）。
+//!
+//! - **純追加契約**: 既存 `recipe()` の base/states/size variant は一切
+//!   変更しない。新規ブロックは (1) size variant 5 段の直後に root
+//!   variant class（Plain の `border-width: 0`）、(2) `stylesheet()` が
+//!   返す CSS 全量の末尾（子孫セレクタ `CELL_SIZE_LARGE_CSS`。`table`/
+//!   `table-cell` の列幅固定と、`table-cell` 直下の子の縦積み）の 2 か所に
+//!   入る。
+//! - **子孫セレクタを生 CSS 文字列で追記する理由**: `SlotRecipe` の
+//!   recipe API はスロット単位のフラットなセレクタしか生成できず、
+//!   「ある variant class が付いた root の子孫」という子孫結合子を表現
+//!   できない。[`crate::tabs::stylesheet`]/[`crate::list::stylesheet`] の
+//!   前例（`recipe().css()` の後段へ `const` の生 CSS リテラルを追記する
+//!   パターン）に倣い、`CELL_SIZE_LARGE_CSS` を `stylesheet()` で追記する。
+//! - **詳細度の根拠**: `CELL_SIZE_LARGE_CSS` の `table-cell` 規則
+//!   （`[data-scope="calendar"][data-part="root"].fd-calendar--cell-size-large
+//!   [data-scope="calendar"][data-part="table-cell"]`）は属性セレクタ 4 つ
+//!   分の詳細度 (0,4,0) を持ち、base の `table-cell` 規則（属性セレクタ 2
+//!   つ、(0,2,0)）に確実に勝つため `border-width: 0` を上書きできる。
+//! - **ponytail: 入れ子カレンダー非対応**: 子孫結合子は Large root の内側
+//!   にさらに別の calendar root を入れ子にした場合もそのまま波及する。
+//!   実用上の入れ子は想定しないため対処しない。入れ子が必要になったら
+//!   直接の子結合子（`>`）化、または recipe API 側の子孫セレクタ対応拡張
+//!   を検討する。
+//! - **スコープ外（意図的）**: Calendar カテゴリの Blocks ページ追加・
+//!   予定項目（イベント chip）専用パーツの新設（既存の `badge`/`text` 等
+//!   の合成で表現可能、かつアプリケーションデータの整形は UI 層の責務外
+//!   ＝ `docs/policy/intentional-non-adoption.md` §3.25）・headless-ui の
+//!   anatomy 変更・`date_picker` への水平展開はいずれも本 issue のスコープ
+//!   外とする。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -176,6 +218,91 @@ const SLOTS: &[&str] = &[
     "table-cell",
     "day-trigger",
 ];
+
+/// `root` の見た目 variant（イシュー #3132）。`outline`（既定、従来の枠線
+/// 付き）と `plain`（枠線なし）の 2 値。[`root_with`] で非既定値を渡した
+/// ときのみ class が付く（`recipe()` に `default_variant` を登録しない
+/// 契約、モジュール冒頭 rustdoc 参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CalendarVariant {
+    /// 従来どおりの枠線付き root（既定）。
+    #[default]
+    Outline,
+    /// 枠線なしの root（`border-width: 0`）。
+    Plain,
+}
+
+impl VariantValue for CalendarVariant {
+    fn axis(self) -> &'static str {
+        "variant"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            CalendarVariant::Outline => "outline",
+            CalendarVariant::Plain => "plain",
+        }
+    }
+}
+
+/// `root` のセル寸法軸（イシュー #3132）。`compact`（既定、従来の正方形
+/// 日セル）と `large`（月間スケジュール向けの大セル月表示）の 2 値。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CalendarCellSize {
+    /// 従来どおりの正方形日セル（既定）。
+    #[default]
+    Compact,
+    /// 全幅 7 列等幅・セル左上に日付を置く大セル月表示。
+    Large,
+}
+
+impl VariantValue for CalendarCellSize {
+    fn axis(self) -> &'static str {
+        "cell-size"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            CalendarCellSize::Compact => "compact",
+            CalendarCellSize::Large => "large",
+        }
+    }
+}
+
+/// `CalendarCellSize::Large` 指定時に効く子孫規則（イシュー #3132）。
+/// `SlotRecipe` のスロット単位セレクタ生成 API では「variant class が
+/// 付いた root の子孫」という子孫結合子を表現できないため、
+/// [`crate::tabs::stylesheet`]/[`crate::list::stylesheet`] と同じパターン
+/// （`recipe().css()` の後段へ生 CSS リテラルを追記）で与える
+/// （モジュール冒頭 rustdoc「子孫セレクタを生 CSS 文字列で追記する理由」
+/// 節参照）。セレクタの属性セレクタ 4 つ分の詳細度 (0,4,0) が base の
+/// `table-cell` 規則 (0,2,0) に勝つため `border-width: 0` を上書きできる。
+///
+/// `table-cell`（`td`）自体の `display` は変更しない（既定の
+/// `table-cell` のまま）。codex レビュー指摘（PR #3568、イシュー #3132）の
+/// 是正: 旧実装は `td` を `display: flex` にしていたため、`table-cell`
+/// スコープの外では `table-layout: fixed` と組み合わせた 7 列等幅グリッド
+/// の列対応が、`td` が table display mode を失うことで崩れていた
+/// （曜日ヘッダー `table-head-cell` は table-cell のまま）。
+///
+/// 「日付の下へ予定が並ぶ」月間スケジュール表示の縦積みは、`td` ではなく
+/// その**直下の `day-trigger`** だけをインラインからブロックへ切り替える
+/// ことで実現する（Bugbot 指摘「Large calendar misses full width」是正に
+/// 伴う codex P2 指摘の是正、PR #3568）。旧実装は全称子セレクタ（`> *`）で
+/// `day-trigger` 以外の子（`badge` 等、呼び出し側が任意に合成する予定
+/// チップ）まで `display: block` にしていたため、`badge` 本来の
+/// `inline-flex` 幅が失われてセル幅いっぱいに広がっていた。`day-trigger`
+/// 限定にすることで `badge` 等ほかの子の `display` には一切触れない。
+/// 複数の予定チップを縦に並べたい呼び出し側は、チップをブロック要素
+/// （`div` 等）で包んで積む（`crates/docs-site` の月表示 Example 参照）。
+/// 間隔は隣接兄弟結合子（`> * + *`）の `margin-top` で付ける（こちらは
+/// `day-trigger` 限定にする必要がない。`margin` は `display` と異なり
+/// `badge` の `inline-flex` レイアウトを壊さないため）。
+///
+/// ponytail: 入れ子カレンダー（Large root の内側にさらに calendar root を
+/// 入れ子にする構成）は想定しない。必要になったら子結合子（`>`）化を検討
+/// する。
+const CELL_SIZE_LARGE_CSS: &str = "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table\"] {\n  table-layout: fixed;\n}\n\n[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] {\n  height: var(--fandhe-calendar-cell-height, var(--fandhe-space-24));\n  vertical-align: top;\n  text-align: start;\n  padding: var(--fandhe-space-1);\n  border: 1px solid var(--fandhe-color-border);\n}\n\n[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] > [data-scope=\"calendar\"][data-part=\"day-trigger\"] {\n  display: block;\n}\n\n[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] > * + * {\n  margin-top: var(--fandhe-space-1);\n}\n";
 
 /// この styled Calendar の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
@@ -463,22 +590,108 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .default_variant(Size::Md)
+        // `variant`/`cell-size` 軸（イシュー #3132）。いずれも `default_variant`
+        // を登録しない opt-in 軸（[`root_with`] で非既定値を渡したときのみ
+        // class が付く。[`crate::tab_nav::TabNavVariant`] と同じ契約）。
+        .variant(
+            CalendarVariant::Plain,
+            "root",
+            vec![decl("border-width", "0")],
+        )
+        .variant(
+            CalendarCellSize::Large,
+            "root",
+            vec![
+                decl("display", "grid"),
+                // Bugbot 指摘「Large calendar misses full width」の是正
+                // （PR #3568、イシュー #3132）: Large root を flex/grid の
+                // 子として配置する呼び出し側（docs-site の
+                // `.showcase-row` 等）では `inline-grid` 由来の内容幅へ
+                // 縮んでしまい、`table-layout: fixed` の 7 列等幅が親幅
+                // いっぱいに広がらない。`width: 100%` で親幅まで広げ、
+                // `box-sizing: border-box` で `padding`/`border` を幅に
+                // 含めて計算することで、親の flex/grid レイアウトを壊さず
+                // 全幅化する。
+                decl("width", "100%"),
+                decl("box-sizing", "border-box"),
+            ],
+        )
 }
 
 /// この styled Calendar が生成する静的 CSS 全量を返す（決定的。
-/// [`crate::select::stylesheet`] と同じ契約）。
+/// [`crate::select::stylesheet`] と同じ契約）。`CalendarCellSize::Large` の
+/// 子孫規則（[`CELL_SIZE_LARGE_CSS`]）を末尾へ追記する（モジュール冒頭
+/// rustdoc「純追加契約」節参照）。
 #[must_use]
 pub fn stylesheet() -> String {
-    recipe().css()
+    let mut out = recipe().css();
+    if !out.is_empty() {
+        out.push('\n');
+    }
+    out.push('\n');
+    out.push_str(CELL_SIZE_LARGE_CSS);
+    out
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
 /// パーツ（`drop_class_attr` により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::calendar::root`] へ委譲する。
+/// `root_with(size, CalendarVariant::Outline, CalendarCellSize::Compact, …)`
+/// への委譲であり、出力はバイト単位で同一（イシュー #3132）。
 #[must_use]
 pub fn root<'a>(size: Size, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    root_with(
+        size,
+        CalendarVariant::Outline,
+        CalendarCellSize::Compact,
+        attrs,
+        children,
+    )
+}
+
+/// `root` パーツを組み立てる（[`root`] の opt-in 拡張版、イシュー #3132）。
+/// `variant`/`cell_size` は純追加の軸で、`variant ==
+/// `[`CalendarVariant::Outline`]` かつ `cell_size ==
+/// `[`CalendarCellSize::Compact`]` のときは [`root`] とバイト単位で同一の
+/// 出力になる（`recipe()` が両軸へ `default_variant` を登録しない契約の
+/// ため）。引数の並びは「軸が先、`attrs`/`children` が後」
+/// （[`crate::tab_nav::root_with`] と同型の規約）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::calendar::{self, CalendarCellSize, CalendarVariant};
+/// use fandhe_frontend_pre_styled_ui::Size;
+///
+/// let node = calendar::root_with(
+///     Size::Md,
+///     CalendarVariant::Plain,
+///     CalendarCellSize::Large,
+///     vec![],
+///     vec![],
+/// );
+/// let html = render(&node);
+/// assert!(html.contains("fd-calendar--variant-plain"));
+/// assert!(html.contains("fd-calendar--cell-size-large"));
+/// ```
+#[must_use]
+pub fn root_with<'a>(
+    size: Size,
+    variant: CalendarVariant,
+    cell_size: CalendarCellSize,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
     let recipe = recipe();
-    let class = recipe.variant_classes(&[("size", size.value())]);
+    let mut selection: Vec<(&str, &str)> = vec![("size", size.value())];
+    if variant == CalendarVariant::Plain {
+        selection.push(("variant", variant.value()));
+    }
+    if cell_size == CalendarCellSize::Large {
+        selection.push(("cell-size", cell_size.value()));
+    }
+    let class = recipe.variant_classes(&selection);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
     fandhe_frontend_headless_ui::calendar::root(merged, children)
@@ -630,5 +843,135 @@ mod tests {
             selected_idx > outside_idx,
             "selected rule must be emitted after outside-month rule so it wins on equal specificity: selected_idx={selected_idx} outside_idx={outside_idx}"
         );
+    }
+
+    // 以下、イシュー #3132（枠線なし variant と大セル月表示）で追加した検証。
+
+    #[test]
+    fn root_with_outline_compact_matches_root_byte_for_byte() {
+        let via_root = render(&root(Size::Md, vec![], vec![]));
+        let via_root_with = render(&root_with(
+            Size::Md,
+            CalendarVariant::Outline,
+            CalendarCellSize::Compact,
+            vec![],
+            vec![],
+        ));
+        assert_eq!(via_root, via_root_with);
+    }
+
+    #[test]
+    fn root_with_plain_and_large_output_both_classes() {
+        let html = render(&root_with(
+            Size::Md,
+            CalendarVariant::Plain,
+            CalendarCellSize::Large,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains("fd-calendar--size-md"));
+        assert!(html.contains("fd-calendar--variant-plain"));
+        assert!(html.contains("fd-calendar--cell-size-large"));
+    }
+
+    #[test]
+    fn root_with_outline_and_compact_omit_variant_and_cell_size_classes() {
+        let html = render(&root_with(
+            Size::Md,
+            CalendarVariant::Outline,
+            CalendarCellSize::Compact,
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("fd-calendar--variant-"));
+        assert!(!html.contains("fd-calendar--cell-size-"));
+    }
+
+    #[test]
+    fn root_with_drops_caller_class() {
+        let html = render(&root_with(
+            Size::Md,
+            CalendarVariant::Plain,
+            CalendarCellSize::Large,
+            vec![("class", "attacker")],
+            vec![],
+        ));
+        assert!(!html.contains("attacker"));
+        assert_eq!(html.matches("class=\"").count(), 1);
+    }
+
+    #[test]
+    fn plain_variant_removes_root_border() {
+        let css = stylesheet();
+        assert!(css.contains(
+            "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--variant-plain {\n  border-width: 0;\n}"
+        ));
+    }
+
+    #[test]
+    fn large_cell_size_descendant_rules_target_table_and_table_cell() {
+        let css = stylesheet();
+        assert!(css.contains(
+            "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table\"] {\n  table-layout: fixed;\n}"
+        ));
+        assert!(css.contains(
+            "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] {"
+        ));
+        assert!(css.contains("vertical-align: top;"));
+        assert!(css.contains("text-align: start;"));
+        assert!(css.contains("border: 1px solid var(--fandhe-color-border);"));
+    }
+
+    /// レビュー指摘の固定（codex P1、PR #3568/イシュー #3132）: `table-cell`
+    /// （`td`）自体は `display: flex` にせず table-cell のまま残し、
+    /// `table-layout: fixed` と組み合わせた 7 列等幅グリッドの列対応を
+    /// 保つ。縦積みは `table-cell` 直下の子（`day-trigger` とその後に続く
+    /// `badge` 等）を全称子セレクタ（`> *`）でブロック化し、隣接兄弟結合子
+    /// （`> * + *`）の `margin-top` で間隔を付けることで実現する。
+    #[test]
+    fn large_cell_size_stacks_day_trigger_and_following_children_vertically() {
+        let css = stylesheet();
+        let table_cell_rule = "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] {";
+        assert!(css.contains(table_cell_rule));
+        // `td` 自身は table-cell の display を保つ（flex 化しない）。
+        let rule_start = css
+            .find(table_cell_rule)
+            .expect("table-cell rule must exist");
+        let rule_end = css[rule_start..]
+            .find('}')
+            .map(|offset| rule_start + offset)
+            .expect("table-cell rule must be closed");
+        assert!(!css[rule_start..rule_end].contains("display:"));
+        // codex P2 是正（day-trigger 限定）: `badge` 等ほかの子の display
+        // には触れず `day-trigger` だけをブロック化する。
+        assert!(css.contains(
+            "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] > [data-scope=\"calendar\"][data-part=\"day-trigger\"] {\n  display: block;\n}"
+        ));
+        assert!(!css.contains(
+            "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] > * {\n  display: block;\n}"
+        ));
+        assert!(css.contains(
+            "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] > * + * {\n  margin-top: var(--fandhe-space-1);\n}"
+        ));
+    }
+
+    /// Bugbot 指摘「Large calendar misses full width」の固定（PR #3568、
+    /// イシュー #3132）: Large root は `width: 100%` と
+    /// `box-sizing: border-box` を持ち、flex/grid の子として配置されても
+    /// 内容幅へ縮まず親幅いっぱいに広がる。
+    #[test]
+    fn large_cell_size_root_is_full_width() {
+        let css = stylesheet();
+        let rule_start = css
+            .find("[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large {")
+            .expect("cell-size-large root variant rule must exist");
+        let rule_end = css[rule_start..]
+            .find('}')
+            .map(|offset| rule_start + offset)
+            .expect("root variant rule must be closed");
+        let rule_body = &css[rule_start..rule_end];
+        assert!(rule_body.contains("display: grid;"));
+        assert!(rule_body.contains("width: 100%;"));
+        assert!(rule_body.contains("box-sizing: border-box;"));
     }
 }
