@@ -2828,6 +2828,11 @@ path = "/blocks/checkout-wizard-steps/"
 title = "Order"
 
 [[section.group.page]]
+title = "order-confirmation-split-image"
+source = "site/blocks/order-confirmation-split-image.md"
+path = "/blocks/order-confirmation-split-image/"
+
+[[section.group.page]]
 title = "order-confirmation-summary"
 source = "site/blocks/order-confirmation-summary.md"
 path = "/blocks/order-confirmation-summary/"
@@ -2900,6 +2905,11 @@ path = "/blocks/promo-offers-split/"
 title = "promo-sale-products"
 source = "site/blocks/promo-sale-products.md"
 path = "/blocks/promo-sale-products/"
+
+[[section.group.page]]
+title = "promo-with-testimonials"
+source = "site/blocks/promo-with-testimonials.md"
+path = "/blocks/promo-with-testimonials/"
 
 # --- 以下は block 追加時の挿入先アンカー（イシュー #2734、#2735 でカテゴリ
 # 見出し導入に伴い運用を更新）。カテゴリ単位で行ブロックを分ける点は不変

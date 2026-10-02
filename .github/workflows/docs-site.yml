@@ -578,6 +578,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/checkout-wizard-steps/index.html"
           # Ecommerce / Order
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/order-confirmation-summary/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/order-confirmation-split-image/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/order-history-panels/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/order-history-table/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/order-tracking-progress/index.html"
@@ -594,6 +595,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-offers-split/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-countdown/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-sale-products/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-with-testimonials/index.html"
           # Docs / Docs Layout
           # Docs / Code Block
           # Docs / Example Preview
