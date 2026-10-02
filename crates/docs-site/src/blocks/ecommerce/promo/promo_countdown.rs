@@ -324,8 +324,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `promo_countdown` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc
-/// 「block 固有 CSS の置き場」節、他 block と同型）。
+/// `promo_countdown` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、他 block と同型）。
 ///
 /// 生の色リテラルは使わず、可読性の確保はすべて `--fandhe-color-*`
 /// トークンと `color-mix()` で行う（モジュール冒頭「暗幕は `color-mix` +

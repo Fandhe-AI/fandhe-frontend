@@ -429,8 +429,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `contact_info_columns` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節、`careers_card_grid` と同型で
+/// `contact_info_columns` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、`careers_card_grid` と同型で
 /// `pub(super)` ではなく本ファイル内 private 定数として
 /// `super::stylesheet` 経由の `push_css` で連結される）。
 ///

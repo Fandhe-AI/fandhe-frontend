@@ -154,8 +154,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `chart_bar_list` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc
-/// 「block 固有 CSS の置き場」節と同型）。
+/// `chart_bar_list` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-chart-bar-list-layout {\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));\n  gap: var(--fandhe-space-6);\n  align-items: start;\n}\n";
 

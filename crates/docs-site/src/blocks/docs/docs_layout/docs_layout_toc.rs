@@ -416,8 +416,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `docs_layout_toc` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。
+/// `docs_layout_toc` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 ///
 /// セレクタは `.blocks-docs-layout-toc-*` と `[data-blocks-docs-layout-toc-*]`
 /// のみを用いる。

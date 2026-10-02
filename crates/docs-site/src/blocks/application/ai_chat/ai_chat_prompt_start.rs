@@ -400,8 +400,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `ai_chat_prompt_start` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。候補ボタンの列数はデモ枠
+/// `ai_chat_prompt_start` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。候補ボタンの列数はデモ枠
 /// （`.blocks-demo` 本文カラム内）の実測幅に追随させる必要があるため
 /// ビューポート幅ベースの `@media` ではなくパネル自身を名前付き
 /// コンテナ（`container-type: inline-size`）とした `@container` クエリで

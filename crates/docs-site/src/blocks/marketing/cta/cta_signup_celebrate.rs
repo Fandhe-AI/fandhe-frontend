@@ -229,8 +229,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `cta_signup_celebrate` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節。`sidebar_07`/`pricing_tiers_morph` と
+/// `cta_signup_celebrate` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。`sidebar_07`/`pricing_tiers_morph` と
 /// 同型で `pub(super)` として `super::stylesheet` から連結される）。
 const LAYOUT_CSS: &str = "\
 [data-blocks-cta-signup-celebrate-stack] {\n  display: flex;\n  flex-direction: column;\n  gap: 0.75rem;\n  max-width: 24rem;\n  margin: 0 auto;\n}\n\

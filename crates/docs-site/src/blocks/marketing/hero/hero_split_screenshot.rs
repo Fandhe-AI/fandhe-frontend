@@ -290,8 +290,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `hero_split_screenshot` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節）。セレクタは
+/// `hero_split_screenshot` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。セレクタは
 /// `.blocks-hero-split-screenshot-*` と
 /// `[data-blocks-hero-split-screenshot-*]` のみを用い、他 block や部品の
 /// 素のセレクタへ影響させない（`feature_split_screenshot` と同じ名前空間

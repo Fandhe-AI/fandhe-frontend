@@ -491,8 +491,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `blog_grid_image` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc
-/// 「block 固有 CSS の置き場」節。他 block と同型で [`super::blocks`]
+/// `blog_grid_image` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。他 block と同型で [`super::blocks`]
 /// 経由で [`crate::blocks::stylesheet`] へ連結される）。
 ///
 /// レビュー指摘対応（PR #3156）: `[data-blocks-blog-grid-image-article]`

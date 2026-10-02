@@ -131,8 +131,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `hero_terminal` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc
-/// 「block 固有 CSS の置き場」節、他 block と同型で `pub(super)` として
+/// `hero_terminal` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、他 block と同型で `pub(super)` として
 /// `super::stylesheet` から連結される）。
 const LAYOUT_CSS: &str = "\
 [data-blocks-hero-terminal-panel] {\n  background: var(--fandhe-color-fg, #0f172a);\n  color: var(--fandhe-color-bg, #e2e8f0);\n  border-radius: var(--fandhe-radius-lg, 0.75rem);\n  padding: 1rem 1.25rem 1.5rem;\n  font-family: var(--fandhe-font-font-mono, monospace);\n}\n\

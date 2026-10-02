@@ -389,8 +389,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `profile_detail_datalist` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。
+/// `profile_detail_datalist` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 ///
 /// `--fandhe-data-list-gap: 0` の上書きセレクタは `data-scope`/`data-part`
 /// を併記する（`description_list_horizontal` と同型の判断。size

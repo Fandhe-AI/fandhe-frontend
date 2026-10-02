@@ -385,8 +385,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `careers_split_accordion` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節。他 block と同型で `pub(super)` ではなく
+/// `careers_split_accordion` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。他 block と同型で `pub(super)` ではなく
 /// [`Block::layout_css`] 経由で `crate::blocks::stylesheet` から連結される）。
 const LAYOUT_CSS: &str = "\
 .blocks-careers-split-accordion-layout {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: var(--fandhe-space-8);\n}\n\

@@ -173,8 +173,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `game_ui_modal` 固有のレイアウト規則を組み立てる（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節と同じ役割）。`super::stylesheet`
+/// `game_ui_modal` 固有のレイアウト規則を組み立てる（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同じ役割）。`super::stylesheet`
 /// から `&game_ui_modal::layout_css()` として呼ばれ連結される。
 ///
 /// # デモ枠内での掲示（`showcase.rs` の中和と同型、`bento_staggered` 先例）

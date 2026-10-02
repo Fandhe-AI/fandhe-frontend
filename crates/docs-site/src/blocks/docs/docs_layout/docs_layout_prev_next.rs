@@ -311,8 +311,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `docs_layout_prev_next` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。
+/// `docs_layout_prev_next` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 ///
 /// トリガー（`prev-trigger`/`next-trigger`）の固定 `height` を `height: auto`
 /// へ上書きし、方向ラベル・アイコンを横並びにできるようにする。次側は

@@ -783,8 +783,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `store_nav_mega_menu` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。
+/// `store_nav_mega_menu` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。
 ///
 /// セレクタは `.blocks-store-nav-mega-menu-*`、
 /// `[data-blocks-store-nav-mega-menu-*]`、および

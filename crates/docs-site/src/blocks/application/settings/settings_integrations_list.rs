@@ -721,8 +721,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `settings_integrations_list` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。
+/// `settings_integrations_list` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 ///
 /// `list`（`ul`）/`row`（`li`）の 2 セレクタは、素の
 /// `.blocks-settings-integrations-list-*` 単一クラス（詳細度 (0,1,0)）のみで

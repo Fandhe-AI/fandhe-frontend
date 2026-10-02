@@ -372,8 +372,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `footer_inline_nav` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節。他 block と同型で `pub(super)` として
+/// `footer_inline_nav` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。他 block と同型で `pub(super)` として
 /// `super::stylesheet` から連結される）。
 const LAYOUT_CSS: &str = "\
 .blocks-footer-inline-nav-layout {\n  display: flex;\n  flex-direction: column;\n  gap: 1rem;\n}\n\

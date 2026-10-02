@@ -287,8 +287,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `table_responsive_stacked` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。
+/// `table_responsive_stacked` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 ///
 /// 閾値 `40rem` は 5 列テーブルが自然に収まる下限として選んだ
 /// （`profile_detail_datalist` の `36rem` と同系統の値）。
