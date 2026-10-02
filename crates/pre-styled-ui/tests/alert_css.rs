@@ -8,7 +8,9 @@
 //! 出力全体をバイト単位で固定する（`alert.rs` モジュール冒頭 rustdoc
 //! 「参考サイト基準への調整」節参照）。イシュー #2043 で pre-styled-only
 //! `action` パート（1 ブロックのみ、`title` の base ブロック直後）を追加した
-//! （`alert.rs` モジュール冒頭 rustdoc「イシュー #2043」節参照）。
+//! （`alert.rs` モジュール冒頭 rustdoc「イシュー #2043」節参照）。イシュー
+//! #3131 で `AccentBorder` variant ブロックを `outline` ブロックの直後に
+//! 純追加した。
 
 use fandhe_frontend_pre_styled_ui::alert;
 
@@ -122,6 +124,13 @@ const ALERT_GOLDEN_CSS: &str = r#"[data-scope="alert"][data-part="root"] {
   border-color: var(--fandhe-palette-muted);
 }
 
+[data-scope="alert"][data-part="root"].fd-alert--variant-accent-border {
+  background: var(--fandhe-palette-subtle);
+  color: var(--fandhe-palette-fg-subtle);
+  border-inline-start: 4px solid var(--fandhe-palette);
+  border-radius: 0;
+}
+
 [data-scope="alert"][data-part="root"].fd-alert--size-xs {
   --fandhe-alert-padding: var(--fandhe-space-2);
   --fandhe-alert-gap: var(--fandhe-space-2);
@@ -190,6 +199,7 @@ fn css_declares_all_status_variant_size_selectors() {
         "fd-alert--variant-surface",
         "fd-alert--variant-solid",
         "fd-alert--variant-outline",
+        "fd-alert--variant-accent-border",
         "fd-alert--size-xs",
         "fd-alert--size-sm",
         "fd-alert--size-md",
