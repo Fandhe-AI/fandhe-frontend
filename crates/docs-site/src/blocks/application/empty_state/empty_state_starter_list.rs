@@ -364,8 +364,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `empty_state_starter_list` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節）。生の色リテラル
+/// `empty_state_starter_list` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。生の色リテラル
 /// （`#fff`/`white` 等）は使わず、可読性の確保はすべて
 /// `--fandhe-color-*`/`--fandhe-space-*` トークンで行う。
 ///

@@ -736,8 +736,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `settings_webhook_stats` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。
+/// `settings_webhook_stats` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-settings-webhook-stats-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  container-type: inline-size;\n  container-name: blocks-settings-webhook-stats;\n}\n\
 .blocks-settings-webhook-stats-header {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-3);\n}\n\

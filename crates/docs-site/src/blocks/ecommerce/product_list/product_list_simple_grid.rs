@@ -586,8 +586,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `product_list_simple_grid` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節。他 block と同型で [`super::blocks`]
+/// `product_list_simple_grid` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。他 block と同型で [`super::blocks`]
 /// 経由で [`crate::blocks::stylesheet`] へ連結される）。
 ///
 /// `[data-scope="link-overlay"][data-part="root"]

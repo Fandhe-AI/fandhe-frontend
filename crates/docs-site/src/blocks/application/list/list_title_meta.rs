@@ -646,8 +646,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `list_title_meta` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc
-/// 「block 固有 CSS の置き場」節と同型）。
+/// `list_title_meta` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 ///
 /// # 行の骨格をどこに置くか
 ///

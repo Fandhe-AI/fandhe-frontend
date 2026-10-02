@@ -279,8 +279,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `auth_otp_verify` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc
-/// 「block 固有 CSS の置き場」節。`signup_05` と同型で `pub(super)` として
+/// `auth_otp_verify` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。`signup_05` と同型で `pub(super)` として
 /// `super::stylesheet` から連結される）。
 ///
 /// `[data-scope="pin-input"][data-part="control"]` の `justify-content`

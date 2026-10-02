@@ -784,8 +784,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `pricing_comparison_table` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。色・余白はすべて既存トークン
+/// `pricing_comparison_table` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。色・余白はすべて既存トークン
 /// （`--fandhe-color-*`・`--fandhe-space-*`）のみを使う。狭幅（48rem 未満）で
 /// 表から狭幅表示（表示 A + 表示 B ×2）へ切り替える（表示切替は
 /// `.blocks-pricing-comparison-table-narrow` ラッパー単位で行い、カード・

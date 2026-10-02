@@ -512,8 +512,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `notification_tray_tabs` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。
+/// `notification_tray_tabs` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-notification-tray-tabs-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n  container-type: inline-size;\n  container-name: blocks-notification-tray-tabs;\n}\n\
 .blocks-notification-tray-tabs [data-scope=\"popover\"][data-part=\"positioner\"] {\n  position: static;\n}\n\

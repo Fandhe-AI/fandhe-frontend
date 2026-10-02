@@ -374,7 +374,7 @@ pub const BLOCK: Block = Block {
 };
 
 /// `api_reference_param_accordion` 固有のレイアウト規則
-/// （`crate::blocks::LAYOUT_CSS` doc「block 固有 CSS の置き場」節）。
+/// （`crate::blocks` モジュール doc「CSS の置き場」節）。
 ///
 /// セレクタは `.blocks-api-reference-param-accordion-*` と
 /// `[data-blocks-api-reference-param-accordion-*]`、および styled

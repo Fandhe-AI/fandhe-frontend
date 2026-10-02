@@ -177,8 +177,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `hero_image_top` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc
-/// 「block 固有 CSS の置き場」節と同型で本ファイル内 private 定数として
+/// `hero_image_top` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型で本ファイル内 private 定数として
 /// `super::stylesheet` 経由の `push_css` で連結される）。
 ///
 /// セレクタは `.blocks-hero-image-top-*` と `[data-blocks-hero-image-top-*]`

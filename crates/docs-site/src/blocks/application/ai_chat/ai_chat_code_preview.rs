@@ -560,8 +560,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `ai_chat_code_preview` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。`-switch` の `display: none`
+/// `ai_chat_code_preview` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。`-switch` の `display: none`
 /// のみが唯一の非表示規則であり、chat/preview パネル自体を隠す規則は
 /// 持たない（モジュール doc「狭幅では『見出し表示 + 縦積み』で表現し、
 /// 要素を隠さない」節参照）。

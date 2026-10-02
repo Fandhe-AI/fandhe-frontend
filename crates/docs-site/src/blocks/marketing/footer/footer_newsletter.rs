@@ -271,8 +271,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `footer_newsletter` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節。他 block と同型で `pub(super)` として
+/// `footer_newsletter` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。他 block と同型で `pub(super)` として
 /// `super::stylesheet` から連結される）。
 ///
 /// `[data-blocks-footer-newsletter-panel]` の presence 同型宣言は

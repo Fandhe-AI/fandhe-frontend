@@ -400,8 +400,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `empty_state_invite_team` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。
+/// `empty_state_invite_team` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-empty-state-invite-team-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n  container-type: inline-size;\n  container-name: blocks-empty-state-invite-team;\n}\n\
 .blocks-empty-state-invite-team-instance {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\

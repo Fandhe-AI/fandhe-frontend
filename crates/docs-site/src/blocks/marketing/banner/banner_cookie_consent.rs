@@ -302,8 +302,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `banner_cookie_consent` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節。他 block と同型で `pub(super)` ではなく
+/// `banner_cookie_consent` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。他 block と同型で `pub(super)` ではなく
 /// 本ファイル非公開の定数として [`BLOCK::layout_css`] 経由で
 /// `super::stylesheet` から連結される）。
 ///

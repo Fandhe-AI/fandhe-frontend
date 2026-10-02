@@ -548,8 +548,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `settings_webhooks_list` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。
+/// `settings_webhooks_list` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 ///
 /// `divided`（`ul`）/`description`・`url-cell`・`card-name`・
 /// `variant-label`（いずれも `p`）は、素の

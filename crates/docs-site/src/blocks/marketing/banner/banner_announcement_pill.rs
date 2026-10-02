@@ -246,8 +246,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `banner_announcement_pill` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節、他 block と同型で
+/// `banner_announcement_pill` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、他 block と同型で
 /// ファイル内 private として `super::stylesheet`（`crate::blocks::
 /// stylesheet`）から連結される）。
 ///

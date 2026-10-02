@@ -181,8 +181,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `testimonials_stack` 固有のレイアウト規則を組み立てる（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節と同じ役割を担うが、他 block
+/// `testimonials_stack` 固有のレイアウト規則を組み立てる（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同じ役割を担うが、他 block
 /// の `pub(super) const LAYOUT_CSS: &str` とは異なり `pub(super) fn` である
 /// （下記「`--fandhe-motion-stagger-index` を `format!` で埋め込む理由」
 /// 節参照）。`super::stylesheet` から `&testimonials_stack::layout_css()`

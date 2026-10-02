@@ -409,8 +409,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `hero_email_signup` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節。他 block と同型で `super::stylesheet`
+/// `hero_email_signup` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。他 block と同型で `super::stylesheet`
 /// から連結される）。既定（`lg` 未満）は 1 列で入力とボタンを全幅に畳み、
 /// `>= 64rem` で 2 列グリッドへ切り替え、入力グループは横並びの通常表示へ
 /// 戻す。

@@ -342,8 +342,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `settings_event_accordion` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節と同型）。
+/// `settings_event_accordion` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 ///
 /// `[data-part="item-trigger"][data-disabled]` の中和（disabled を薄く
 /// 見せない）は `faq_tabbed_accordion`/`changelog_accordion` と同型の

@@ -251,8 +251,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `list_sticky_groups` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。使うトークンは既存 block で使用実績
+/// `list_sticky_groups` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。使うトークンは既存 block で使用実績
 /// のあるものに限る（space-*/color-border/bg/bg-subtle/fg-muted/radius-lg/
 /// z-index-docked/font-weight-medium）。
 const LAYOUT_CSS: &str = "\

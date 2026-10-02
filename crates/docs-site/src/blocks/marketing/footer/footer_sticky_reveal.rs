@@ -233,8 +233,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `footer_sticky_reveal` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節。他 block と同型で `pub(super)` として
+/// `footer_sticky_reveal` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。他 block と同型で `pub(super)` として
 /// `super::stylesheet` から連結される）。
 ///
 /// `fd-motion-fade-in` キーフレーム自体は `motion::KEYFRAMES_CSS` を経由し

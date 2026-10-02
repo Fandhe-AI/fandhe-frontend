@@ -558,8 +558,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `bento_asymmetric_rows` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節。他 block と同型で `super::stylesheet`
+/// `bento_asymmetric_rows` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。他 block と同型で `super::stylesheet`
 /// から連結される）。48rem/64rem の根拠はモジュール doc「レスポンシブを
 /// モバイルファーストで書く理由」節参照（本ファイル末尾の `#[cfg(test)]`
 /// が `Breakpoint::Md`/`Lg` とのドリフトを検知する）。
