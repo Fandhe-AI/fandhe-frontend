@@ -342,15 +342,20 @@ pub const BLOCK: Block = Block {
 /// 選択（`center` だと両者の高さの違いにより罫線がずれる）。tab list の
 /// `overflow-x: auto`（spec 上 `overflow-y` も自動的に `auto` 化される）
 /// による選択中タブの下線（indicator の `border-bottom`）クリップ対策
-/// として、`overflow-y: hidden` を明示しつつ `padding-bottom: 2px` +
-/// `margin-bottom: -2px` でスクロール領域に下線の描画余地を確保し、外側
-/// レイアウトへの影響を打ち消す。
+/// として、`overflow-y: hidden` を明示しつつ `padding-bottom: 2px` で
+/// スクロール領域に下線の描画余地を確保する。`margin-bottom` による相殺は
+/// 行わない（align-items: end はマージンボックス基準で揃えるため、list
+/// 側だけ負マージンを足すと罫線が actions 側より 2px 下にずれ、かつ下線
+/// （padding 拡張前の位置に留まる）と罫線の間に隙間が生じていた、PR #3552
+/// Codex/Bugbot 指摘）。actions 側にも同じ `padding-bottom: 2px` を足して
+/// 両アイテムのボーダーボックス高さを揃えることで、align-items: end の
+/// 基準（マージンボックス下端）のまま罫線の高さが一致する。
 const LAYOUT_CSS: &str = "\
 .blocks-example-preview-tabs-layout {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-example-preview-tabs-frame] {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  align-items: end;\n  overflow: hidden;\n  min-width: 0;\n  padding: 0.25rem;\n}\n\
 [data-blocks-example-preview-tabs-frame] > [data-scope=\"tabs\"][data-part=\"root\"] {\n  display: contents;\n}\n\
-[data-blocks-example-preview-tabs-frame] [data-scope=\"tabs\"][data-part=\"list\"] {\n  grid-column: 1;\n  grid-row: 1;\n  min-width: 0;\n  overflow-x: auto;\n  overflow-y: hidden;\n  flex-wrap: nowrap;\n  padding-bottom: 2px;\n  margin-bottom: -2px;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
-[data-blocks-example-preview-tabs-actions] {\n  grid-column: 2;\n  grid-row: 1;\n  display: flex;\n  flex: none;\n  align-items: center;\n  gap: 0.5rem;\n  white-space: nowrap;\n  padding-inline-end: 1rem;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
+[data-blocks-example-preview-tabs-frame] [data-scope=\"tabs\"][data-part=\"list\"] {\n  grid-column: 1;\n  grid-row: 1;\n  min-width: 0;\n  overflow-x: auto;\n  overflow-y: hidden;\n  flex-wrap: nowrap;\n  padding-bottom: 2px;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
+[data-blocks-example-preview-tabs-actions] {\n  grid-column: 2;\n  grid-row: 1;\n  display: flex;\n  flex: none;\n  align-items: center;\n  gap: 0.5rem;\n  white-space: nowrap;\n  padding-inline-end: 1rem;\n  padding-bottom: 2px;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-example-preview-tabs-actions] [data-scope=\"clipboard\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 0.5;\n  cursor: not-allowed;\n}\n\
 [data-blocks-example-preview-tabs-frame] [data-scope=\"tabs\"][data-part=\"content\"] {\n  grid-column: 1 / -1;\n  grid-row: 2;\n  padding: 1rem;\n  overflow-x: auto;\n}\n\
 .blocks-example-preview-tabs-preview {\n  display: flex;\n  gap: 0.75rem;\n}\n\
