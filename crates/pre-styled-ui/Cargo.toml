@@ -3648,7 +3648,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # していたが、origin/main 側（tab_nav、上記 #3125）も独立に同一の 0.221.0
 # へ到達しており偶発的に衝突したため、マージ結果としてさらに +1 して
 # 0.222.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
-version = "0.222.0"
+#
+# イシュー #3129: drawer にアクセント header（pre-styled-only `header` パート
+# + `data-tone="accent"` state 3 件）と外側 close-trigger 配置
+# （`content[data-close-outside]` + `close-trigger[data-close-outside="..."]`
+# state 5 件）を追加した。新規公開 API（`drawer::header`）のみで既存関数
+# シグネチャ・golden CSS の既存ブロックは不変のため非破壊的な追加として
+# minor バンプする。
+version = "0.223.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

@@ -1101,6 +1101,7 @@ pub const DRAWER: ComponentPageSpec = ComponentPageSpec {
         "DrawerPlacement（Start/End/Top/Bottom、既定 End）で画面のどの端から出現するかを data-placement として root/positioner/content へ出力する。",
         "size variant で寸法を切り替える。",
         "pre-styled-only の body / footer パート（イシュー #3128、headless anatomy 変更なしの opt-in 純追加）。content の attrs へ data-has-body を付けると content が flex column 化し、body がその残り高さを埋めてスクロールする（data-has-body なしで body だけを使った場合は従来どおり content 全体がスクロールする無害な縮退）。",
+        "pre-styled-only の header パート + アクセント状態 / 外側 close-trigger 配置（イシュー #3129、headless anatomy 変更なしの opt-in 純追加）。header/description/close_trigger へ data-tone=\"accent\" を付けるとパネル上端の全幅帯がアクセント色で塗られる。content へ data-close-outside、close_trigger へ data-close-outside=\"<placement 値>\" を付けると close ボタンがパネルの外側（暗幕側）へ配置される。",
     ],
     arguments: &[
         ArgRow {
@@ -1122,11 +1123,18 @@ pub const DRAWER: ComponentPageSpec = ComponentPageSpec {
             description: "画面のどの端から出現するか（Start/End/Top/Bottom）。data-placement として出力される。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Footer action row (bottom placement)",
-        description: "shadcn/ui の Sheet/Drawer が持つ「本文だけスクロール・見出しとフッターは固定」構成を、pre-styled-only の body / footer パート（イシュー #3128）で再現した例です。content の attrs へ data-has-body を付けて flex column 化し、description の下に body（複数段落の本文）、その下に footer（Cancel/Save の 2 ボタン）を配置しています。placement=\"bottom\" を掲示し、DrawerPlacement の 4 方向のうち Demo（end）とは異なる方向を示します。",
-        render: ex_drawer_footer_bottom,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Footer action row (bottom placement)",
+            description: "shadcn/ui の Sheet/Drawer が持つ「本文だけスクロール・見出しとフッターは固定」構成を、pre-styled-only の body / footer パート（イシュー #3128）で再現した例です。content の attrs へ data-has-body を付けて flex column 化し、description の下に body（複数段落の本文）、その下に footer（Cancel/Save の 2 ボタン）を配置しています。placement=\"bottom\" を掲示し、DrawerPlacement の 4 方向のうち Demo（end）とは異なる方向を示します。",
+            render: ex_drawer_footer_bottom,
+        },
+        ExampleEntry {
+            title: "Accent header with outside close (end placement)",
+            description: "パネル上端の全幅帯をアクセント色で塗る header パートと、close ボタンをパネルの外側（暗幕側）へ配置する opt-in 2 機能（イシュー #3129）を組み合わせた例です。header/description/close_trigger へ data-tone=\"accent\" を、content/close_trigger へ data-close-outside（close_trigger 側は配置方向 \"end\"）を付与しています。body/footer（イシュー #3128）とも併用できることを示すため、本文のスクロール・アクション行も併記しています。",
+            render: ex_drawer_accent_outside_close,
+        },
+    ],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -1231,6 +1239,112 @@ fn ex_drawer_footer_bottom() -> Node {
                                 ),
                                 drawer::close_trigger(
                                     vec![("aria-label", "Close")],
+                                    vec![text("×")],
+                                ),
+                            ],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
+/// [`DRAWER`] の Examples 節「Accent header with outside close (end
+/// placement)」レンダラ（イシュー #3129）。
+///
+/// `crate::drawer::header`（新規 opt-in パート）へ `data-tone="accent"` を、
+/// `description`/`close_trigger` にも同じ属性を付けてパネル上端の全幅帯を
+/// アクセント色で塗る。`content` へ `data-close-outside`、`close_trigger`
+/// へ `data-close-outside="end"`（placement=End と一致させる契約、モジュール
+/// doc `crate::drawer`「外側 close-trigger」節参照）を付けて close ボタンを
+/// パネル外側（暗幕側）へ配置する。`data-has-body` + body/footer
+/// （イシュー #3128）とも併用できることを示すため、本文スクロール・
+/// アクション行も併記する（ID は他 Example と衝突しない
+/// `showcase-drawer-accent-example-*` を使う）。
+fn ex_drawer_accent_outside_close() -> Node {
+    div(
+        vec![],
+        vec![
+            drawer::trigger(
+                OpenState::Open,
+                Some("showcase-drawer-accent-example-content"),
+                vec![],
+                vec![text("Open accent drawer")],
+            ),
+            drawer::root(
+                Size::Md,
+                OpenState::Open,
+                DrawerPlacement::End,
+                vec![],
+                vec![
+                    drawer::backdrop(OpenState::Open, vec![], vec![]),
+                    drawer::positioner(
+                        OpenState::Open,
+                        DrawerPlacement::End,
+                        vec![],
+                        vec![drawer::content(
+                            OpenState::Open,
+                            DrawerPlacement::End,
+                            true,
+                            ContentIds {
+                                id: Some("showcase-drawer-accent-example-content"),
+                                labelledby: Some("showcase-drawer-accent-example-title"),
+                                describedby: Some("showcase-drawer-accent-example-desc"),
+                            },
+                            // イシュー #3129: 外側 close-trigger のため
+                            // overflow を visible にし、イシュー #3128 の
+                            // flex column 化も併用する。
+                            vec![("data-has-body", ""), ("data-close-outside", "")],
+                            vec![
+                                // イシュー #3129: アクセント header。
+                                drawer::header(
+                                    vec![("data-tone", "accent")],
+                                    vec![
+                                        drawer::title(
+                                            Some("showcase-drawer-accent-example-title"),
+                                            vec![],
+                                            vec![text("Upgrade plan")],
+                                        ),
+                                        drawer::description(
+                                            Some("showcase-drawer-accent-example-desc"),
+                                            vec![("data-tone", "accent")],
+                                            vec![text(
+                                                "パネル上端がアクセント色で塗られた例です。",
+                                            )],
+                                        ),
+                                    ],
+                                ),
+                                drawer::body(
+                                    vec![],
+                                    vec![p(vec![], vec![text("プラン内容はここに並びます。")])],
+                                ),
+                                drawer::footer(
+                                    vec![],
+                                    vec![
+                                        button(
+                                            &ButtonProps {
+                                                variant: ButtonVariant::Outline,
+                                                ..ButtonProps::default()
+                                            },
+                                            vec![],
+                                            vec![text("Cancel")],
+                                        ),
+                                        button(
+                                            &ButtonProps::default(),
+                                            vec![],
+                                            vec![text("Upgrade")],
+                                        ),
+                                    ],
+                                ),
+                                // イシュー #3129: 外側（パネル end 側の外、
+                                // 暗幕側）へ配置する close-trigger。
+                                drawer::close_trigger(
+                                    vec![
+                                        ("aria-label", "Close"),
+                                        ("data-tone", "accent"),
+                                        ("data-close-outside", "end"),
+                                    ],
                                     vec![text("×")],
                                 ),
                             ],
