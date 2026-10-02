@@ -3887,6 +3887,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # ラベル）を純追加した新規公開 API のみの変更（既存 golden ブロックは不変・
 # 非破壊の追加）のため minor バンプする。
 #
+# イシュー #3139: steps にバー型（`StepsVariant::Bar`）・パネル型
+# （`Panel`）・ドット型（`Dot`）の見た目 variant を追加した。既存 5 関数
+# （`root`/`list`/`item`/`indicator`/`separator`）・既存 golden CSS ブロック
+# は無変更（`*_with` 系新規公開 API・CSS ブロック純追加のみ）だが、観測可能
+# な公開 API 拡張のため minor バンプする。
+#
+# マージコミット注記（本 PR #3139、origin/main 取り込み）: 本ブランチは
+# 上記の経緯で独立に 0.233.0 へ到達していたが、origin/main 側（#3136 取り込み
+# 後の到達値）も独立に同一の 0.233.0 へ到達していた（偶発的衝突）ため、
+# そのまま採用せずさらに +1 して 0.234.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
 # イシュー #3138: stat に矢印なし・意味色付きの増減率表示（`delta` パート・
 # `StatDeltaTone` tone 軸）を追加した。`SLOTS` へ `delta` を末尾追加し、
 # tone 軸に `default_variant` を登録しないため既存 `root` の class 出力・
@@ -3912,6 +3924,26 @@ name = "fandhe-frontend-pre-styled-ui"
 # merge 時点）も独立に同一の 0.234.0 へ到達していた（偶発的衝突）ため、
 # そのまま採用せずさらに +1 して 0.235.0 とする（`.claude/rules/coding-rust.md`
 # #638 条項の同衝突運用）。
+#
+# マージコミット注記（本 PR #3578、origin/main 再取り込み、イシュー #3139）:
+# 本ブランチ（#3139）と origin/main（#3577 取り込み後の到達値）は双方とも
+# 独立に 0.234.0 へ到達していた（偶発的衝突）ため、そのまま採用せずさらに
+# +1 して 0.235.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突
+# 運用）。
+#
+# マージコミット注記（本 PR #3578、origin/main 再取り込み #2）: 上記のとおり
+# 本ブランチは独立に 0.235.0 へ到達していたが、origin/main 側（progress の
+# #3140 取り込み後の到達値、本ブランチの base merge 時点）も独立に同一の
+# 0.235.0 へ到達していた（偶発的衝突）ため、そのまま採用せずさらに +1 して
+# 0.236.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# イシュー #3139（PR #3578 codex-review 対応）: steps の Dot variant の
+# indicator variant 宣言が base の `border: 2px solid` を上書きせず、
+# current/complete で background と border-color が異なるトークンになり
+# 塗りドットではなくリング状に描画される不具合を修正した（`border: none`
+# を追加）。既存 golden ブロックの出力バイトが変わる非破壊的な修正のため
+# patch バンプする。
+#
 #
 # マージコミット注記（本 PR #3137、origin/main 再取り込み）: イシュー
 # #3137 で separator::group にラベル位置指定（`group_with`/
@@ -3940,6 +3972,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # （#3137/#3575 系）で base の到達値へ追随し続けた結果 0.236.0 まで上がって
 # いるが、これは origin/main 側の separator 変更分の反映であり footer 追加
 # 自体の増分ではない。footer 追加分として改めて +1 して 0.237.0 とする。
+#
+# マージコミット注記（本 PR #3582、origin/main 再取り込み、イシュー #3139）:
+# origin/main 側（steps の Dot variant 不具合修正を含む到達値、本ブランチの
+# base merge 時点）は独立に 0.236.1 へ到達していたが、本ブランチの到達値
+# （0.237.0）が既にこれを上回っているため、追加のバンプは行わず 0.237.0 を
+# 維持する（`.claude/rules/coding-rust.md` #638 条項の同衝突運用。到達値の
+# 高い側をそのまま採用する扱い）。
 version = "0.237.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
