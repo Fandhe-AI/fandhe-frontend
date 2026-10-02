@@ -2892,6 +2892,11 @@ source = "site/blocks/promo-countdown.md"
 path = "/blocks/promo-countdown/"
 
 [[section.group.page]]
+title = "promo-offers-split"
+source = "site/blocks/promo-offers-split.md"
+path = "/blocks/promo-offers-split/"
+
+[[section.group.page]]
 title = "promo-sale-categories"
 source = "site/blocks/promo-sale-categories.md"
 path = "/blocks/promo-sale-categories/"
