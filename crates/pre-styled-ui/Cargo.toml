@@ -3868,7 +3868,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # （avatar の #3563 以降を含む到達値）も独立に同一の 0.230.0 へ到達していた
 # （偶発的衝突）ため、そのまま採用せずさらに +1 して 0.231.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
-version = "0.231.0"
+#
+# イシュー #3136: pagination に連結表示 variant（`PaginationVariant`/
+# `root_with`）を追加した。新規公開 API のみで既存関数シグネチャ・golden
+# CSS の既存ブロックは不変のため非破壊的な追加として minor バンプする。
+version = "0.232.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
