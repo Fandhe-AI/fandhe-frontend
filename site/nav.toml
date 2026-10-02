@@ -2869,6 +2869,11 @@ path = "/blocks/order-tracking-progress/"
 title = "Reviews"
 
 [[section.group.page]]
+title = "reviews-card-grid"
+source = "site/blocks/reviews-card-grid.md"
+path = "/blocks/reviews-card-grid/"
+
+[[section.group.page]]
 title = "reviews-stacked-list"
 source = "site/blocks/reviews-stacked-list.md"
 path = "/blocks/reviews-stacked-list/"
