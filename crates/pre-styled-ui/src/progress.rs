@@ -1366,6 +1366,48 @@ mod tests {
         assert!(
             css.contains(r#"[data-scope="progress"][data-part="marker"][data-state="at-value"] {"#)
         );
+    }
+
+    /// イシュー #3140 PR #3579 codex レビュー P2 指摘「marker が 1 件のみの
+    /// 場合に `:first-child`/`:last-child` の両方へ一致し、後続の LastChild
+    /// 規則が上書きして先頭揃えの契約を満たさない」への回帰ガード。
+    ///
+    /// CSS のカスケードは宣言順ではなく詳細度（specificity）で決まるため、
+    /// 単一 marker が両セレクタへ一致する場合の勝者は「どちらを後に書いたか」
+    /// ではなく「どちらの詳細度が高いか」で決まる。本モジュールは
+    /// `AttrFirstChild("data-state")` が `[data-state]`（常に存在する属性、
+    /// モジュール冒頭 rustdoc 参照）を追加で要求する設計により、first-child
+    /// 側のセレクタに last-child 側より多い属性/疑似クラス数（詳細度の
+    /// b 成分）を意図的に持たせている。本テストはこの詳細度の優劣を
+    /// セレクタ文字列から機械的に数えて固定し、将来どちらかのセレクタへ
+    /// 条件を追加・削除する変更が優劣を逆転させたら検知する
+    /// （「先頭ラベルは左揃え」契約の実体保証）。
+    #[test]
+    fn marker_first_child_selector_outranks_last_child_selector_in_css_specificity() {
+        let css = stylesheet();
+        let first_child_selector =
+            r#"[data-scope="progress"][data-part="marker"][data-state]:first-child"#;
+        let last_child_selector = r#"[data-scope="progress"][data-part="marker"]:last-child"#;
+        assert!(css.contains(first_child_selector), "{css}");
+        assert!(css.contains(last_child_selector), "{css}");
+
+        // CSS specificity の b 成分（class/属性/疑似クラスの合計）を
+        // セレクタ文字列中の `[`（属性セレクタ開始）と `:`（疑似クラス）の
+        // 出現数で数える（本モジュールのセレクタは型/全称/id セレクタを
+        // 持たないため a・c 成分は常に 0）。
+        fn specificity_b(selector: &str) -> usize {
+            selector.matches('[').count() + selector.matches(':').count()
+        }
+
+        let first_child_specificity = specificity_b(first_child_selector);
+        let last_child_specificity = specificity_b(last_child_selector);
+        assert!(
+            first_child_specificity > last_child_specificity,
+            "first-child selector の詳細度 ({first_child_specificity}) が \
+             last-child selector の詳細度 ({last_child_specificity}) 以下に \
+             なっている。単一 marker が両方へ一致した際に LastChild 側の \
+             text-align: end が勝ってしまい、先頭揃えの契約が壊れる。"
+        );
         assert!(css.contains("--fandhe-palette-fg-subtle"));
     }
 }
