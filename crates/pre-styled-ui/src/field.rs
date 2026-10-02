@@ -242,9 +242,9 @@
 //!   の `root` 同士は枠線を共有して連結する（gap のない素の wrapper に
 //!   並べることが前提。`group` のような `gap` を持つコンテナの中では
 //!   連結しない）。
-//! - **`Overlap`**: ラベルを `root` の枠線の上へ絶対配置で重ねる。
-//!   `--fandhe-field-label-bg`（既定 `var(--fandhe-color-bg)`）でラベル
-//!   背景を地の色に合わせて上書きできる。
+//! - **`Overlap`**: `root` 自身に枠線を持たせ、ラベルをその枠線の上へ
+//!   絶対配置で重ねる。`--fandhe-field-label-bg`（既定
+//!   `var(--fandhe-color-bg)`）でラベル背景を地の色に合わせて上書きできる。
 //!
 //! ## 対象外（範囲外として明示）
 //!
@@ -686,17 +686,32 @@ pub fn css() -> String {
          outline: none;\n}}\n",
     ));
     // inset の縦連結（gap のない素の wrapper に並べる前提、モジュール doc
-    // 「対象外」節参照）。
+    // 「対象外」節参照）。先行・後続の双方が `border: 1px solid` を持つため
+    // `margin-top: -1px` だけで重ねると、共有する辺に 2 本の border が
+    // 同時に描画され二重線になる（codex-review 指摘、PR #3570）。後続要素の
+    // `border-top` を消し、共有する辺の描画を先行要素の `border-bottom` の
+    // みへ一本化する（この場合は重なりがないため `margin-top` も 0 に戻す）。
     out.push_str(&format!(
         "{root_inset} + {root_inset} {{\n  \
-         margin-top: -1px;\n  border-start-start-radius: 0;\n  border-start-end-radius: 0;\n}}\n",
+         margin-top: 0;\n  border-top: 0;\n  border-start-start-radius: 0;\n  border-start-end-radius: 0;\n}}\n",
     ));
     out.push_str(&format!(
         "{root_inset}:has(+ {root_inset}) {{\n  \
          border-end-start-radius: 0;\n  border-end-end-radius: 0;\n}}\n",
     ));
     // overlap: root の base は position: relative を既に持つ（本モジュール
-    // `recipe()` の `root` base 宣言参照）ため、ラベル側のみ追加する。
+    // `recipe()` の `root` base 宣言参照）が、モジュール doc が謳う「root の
+    // 枠線の上へ重ねる」を成立させるには root 自身が枠線を持つ必要がある
+    // （codex-review 指摘、PR #3570。従来は root に枠線がなく、ラベルが
+    // Field 全体の上端に浮くだけで何の線にも重ならなかった）。
+    out.push_str(&format!(
+        "{root_overlap} {{\n  \
+         border: 1px solid var(--fandhe-color-border);\n  \
+         border-radius: var(--fandhe-radius-md);\n}}\n",
+    ));
+    out.push_str(&format!(
+        "{root_overlap}[data-invalid] {{\n  border-color: var(--fandhe-color-danger);\n}}\n",
+    ));
     out.push_str(&format!(
         "{root_overlap} > [data-scope=\"field\"][data-part=\"label\"] {{\n  \
          position: absolute;\n  top: 0;\n  inset-inline-start: var(--fandhe-space-2);\n  \
@@ -1024,6 +1039,10 @@ mod tests {
         assert!(out.contains(
             ":has(+ [data-scope=\"field\"][data-part=\"root\"].fd-field--label-placement-inset)"
         ));
+        // イシュー #3134 codex-review 指摘（PR #3570）是正: 共有する辺の
+        // border 描画を先行要素側へ一本化するため、後続要素は
+        // `border-top: 0` を持ち二重線にならないことを固定する。
+        assert!(out.contains("border-top: 0;"));
     }
 
     #[test]
@@ -1031,6 +1050,12 @@ mod tests {
         let out = css();
         assert!(out.contains("fd-field--label-placement-overlap"));
         assert!(out.contains("--fandhe-field-label-bg"));
+        // イシュー #3134 codex-review 指摘（PR #3570）是正: ラベルが
+        // 重なる対象の枠線を root 自身に持たせる。
+        assert!(out.contains(
+            "[data-scope=\"field\"][data-part=\"root\"].fd-field--label-placement-overlap {\n  \
+             border: 1px solid var(--fandhe-color-border);\n"
+        ));
     }
 
     #[test]

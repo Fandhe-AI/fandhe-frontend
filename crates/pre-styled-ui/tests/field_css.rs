@@ -227,13 +227,21 @@ const FIELD_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="root"] {
   outline: none;
 }
 [data-scope="field"][data-part="root"].fd-field--label-placement-inset + [data-scope="field"][data-part="root"].fd-field--label-placement-inset {
-  margin-top: -1px;
+  margin-top: 0;
+  border-top: 0;
   border-start-start-radius: 0;
   border-start-end-radius: 0;
 }
 [data-scope="field"][data-part="root"].fd-field--label-placement-inset:has(+ [data-scope="field"][data-part="root"].fd-field--label-placement-inset) {
   border-end-start-radius: 0;
   border-end-end-radius: 0;
+}
+[data-scope="field"][data-part="root"].fd-field--label-placement-overlap {
+  border: 1px solid var(--fandhe-color-border);
+  border-radius: var(--fandhe-radius-md);
+}
+[data-scope="field"][data-part="root"].fd-field--label-placement-overlap[data-invalid] {
+  border-color: var(--fandhe-color-danger);
 }
 [data-scope="field"][data-part="root"].fd-field--label-placement-overlap > [data-scope="field"][data-part="label"] {
   position: absolute;
