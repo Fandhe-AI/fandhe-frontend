@@ -117,7 +117,11 @@ rotate` 消費へ変更〔値変更〕、`positioner[data-side="top"/"left"/"rig
 1 個を palette 群直後へ中間挿入し、子結合子の連結規則（item/ellipsis/
 prev-trigger/next-trigger 向け）を末尾へ純追加。
 `stylesheet_is_pure_addition_over_pre_3136_golden` を追加）** / password_input /
-pin_input / progress / qr_code / **questionnaire（イシュー #2119 で
+pin_input /
+**progress（イシュー #3140 で marker-group/marker の base ブロックを
+circle-range の直後へ中間挿入し、state ブロックを末尾へ純追加。
+`stylesheet_is_pure_addition_over_pre_3140_golden` を追加）** /
+qr_code / **questionnaire（イシュー #2119 で
 golden 新設。`stylesheet()` 全文〔raw CSS 子孫規則を含む〕）** /
 **radial_chart（イシュー #2079 で
 golden 新設。`charts::pie` の環状セクタジオメトリを再利用する同心リング
@@ -165,7 +169,9 @@ root variant 1 件（3 本の CSS 変数）、states 節末尾へ `item-indicato
 `item::before` 疑似要素はいずれも不要になり削除した）** /
 separator / **sidebar（イシュー #2073 で golden 新設。
 `stylesheet()` 全文）** / skeleton / skip_nav / **spinner（イシュー #1567 で
-golden 新設）** / splitter / stat / steps / switch /
+golden 新設）** / splitter / **stat（イシュー #3138 で `down-indicator`
+base の直後へ `delta` base を中間挿入、`size` variant ブロック群の末尾へ
+tone（neutral/success/danger）3 ブロックを純追加）** / steps / switch /
 **tab_nav（イシュー #3125 で `TabNavVariant::Pill`（root variant）と
 `color-palette` 軸（root variant、6 値）・現在リンクの面を切り替える state
 ブロック 2 個・2 つ目の hover state・forced-colors 補強の計 5 種のブロックを
