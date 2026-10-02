@@ -77,6 +77,10 @@ const BUTTON_GROUP_GOLDEN_CSS: &str = "[data-scope=\"button-group\"][data-part=\
   border-end-end-radius: 0;
 }
 
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button\"][data-part=\"root\"] {
+  margin-inline-start: var(--fandhe-space-2);
+}
+
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"field\"][data-part=\"input\"]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"field\"][data-part=\"input\"]) {
   border-start-start-radius: 0;
   border-end-start-radius: 0;
@@ -86,6 +90,10 @@ const BUTTON_GROUP_GOLDEN_CSS: &str = "[data-scope=\"button-group\"][data-part=\
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"field\"][data-part=\"input\"]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) {
   border-start-end-radius: 0;
   border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"field\"][data-part=\"input\"] {
+  margin-inline-start: var(--fandhe-space-2);
 }
 
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"text\"]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button-group\"][data-part=\"text\"]) {
@@ -99,6 +107,10 @@ const BUTTON_GROUP_GOLDEN_CSS: &str = "[data-scope=\"button-group\"][data-part=\
   border-end-end-radius: 0;
 }
 
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button-group\"][data-part=\"text\"] {
+  margin-inline-start: var(--fandhe-space-2);
+}
+
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"menu\"][data-part=\"root\"]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"menu\"][data-part=\"root\"]) > [data-scope=\"menu\"][data-part=\"trigger\"] {
   border-start-start-radius: 0;
   border-end-start-radius: 0;
@@ -110,6 +122,10 @@ const BUTTON_GROUP_GOLDEN_CSS: &str = "[data-scope=\"button-group\"][data-part=\
   border-end-end-radius: 0;
 }
 
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"menu\"][data-part=\"root\"] {
+  margin-inline-start: var(--fandhe-space-2);
+}
+
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"select\"][data-part=\"root\"]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"select\"][data-part=\"root\"]) > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
   border-start-start-radius: 0;
   border-end-start-radius: 0;
@@ -119,6 +135,10 @@ const BUTTON_GROUP_GOLDEN_CSS: &str = "[data-scope=\"button-group\"][data-part=\
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"select\"][data-part=\"root\"]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
   border-start-end-radius: 0;
   border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"select\"][data-part=\"root\"] {
+  margin-inline-start: var(--fandhe-space-2);
 }
 
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"field\"][data-part=\"input\"] {
@@ -141,6 +161,10 @@ const BUTTON_GROUP_GOLDEN_CSS: &str = "[data-scope=\"button-group\"][data-part=\
   border-end-end-radius: 0;
 }
 
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button\"][data-part=\"root\"] {
+  margin-block-start: var(--fandhe-space-2);
+}
+
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"field\"][data-part=\"input\"]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"field\"][data-part=\"input\"]) {
   border-start-start-radius: 0;
   border-start-end-radius: 0;
@@ -150,6 +174,10 @@ const BUTTON_GROUP_GOLDEN_CSS: &str = "[data-scope=\"button-group\"][data-part=\
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"field\"][data-part=\"input\"]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) {
   border-end-start-radius: 0;
   border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"field\"][data-part=\"input\"] {
+  margin-block-start: var(--fandhe-space-2);
 }
 
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"text\"]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button-group\"][data-part=\"text\"]) {
@@ -163,6 +191,10 @@ const BUTTON_GROUP_GOLDEN_CSS: &str = "[data-scope=\"button-group\"][data-part=\
   border-end-end-radius: 0;
 }
 
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button-group\"][data-part=\"text\"] {
+  margin-block-start: var(--fandhe-space-2);
+}
+
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"menu\"][data-part=\"root\"]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"menu\"][data-part=\"root\"]) > [data-scope=\"menu\"][data-part=\"trigger\"] {
   border-start-start-radius: 0;
   border-start-end-radius: 0;
@@ -174,6 +206,10 @@ const BUTTON_GROUP_GOLDEN_CSS: &str = "[data-scope=\"button-group\"][data-part=\
   border-end-end-radius: 0;
 }
 
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"menu\"][data-part=\"root\"] {
+  margin-block-start: var(--fandhe-space-2);
+}
+
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"select\"][data-part=\"root\"]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"select\"][data-part=\"root\"]) > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
   border-start-start-radius: 0;
   border-start-end-radius: 0;
@@ -183,6 +219,10 @@ const BUTTON_GROUP_GOLDEN_CSS: &str = "[data-scope=\"button-group\"][data-part=\
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"select\"][data-part=\"root\"]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
   border-end-start-radius: 0;
   border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"select\"][data-part=\"root\"] {
+  margin-block-start: var(--fandhe-space-2);
 }
 
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"menu\"][data-part=\"root\"] > [data-scope=\"menu\"][data-part=\"trigger\"] {

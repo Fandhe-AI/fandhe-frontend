@@ -139,7 +139,9 @@
 //! | A | 接続 | 接続 | 間隔 |
 //! | D | 間隔 | 間隔 | 間隔 |
 //!
-//! N と A は同じ規則で判定する（`:not(:first-child):not(D + 自分)` が
+//! 「間隔」の余白は D 自身の先頭側 margin（N→D / A→D / D→D）と、D の直後
+//! の通常の子に付ける margin（D→N、`D + N`）で表現する（D→A は A 自身の
+//! ネスト margin が残る）。N と A は同じ規則で判定する（`:not(:first-child):not(D + 自分)` が
 //! 先頭辺、`:not(:last-child):not(:has(+ D))` が末尾辺）。「隣が A か」
 //! を条件にすると N–A が切れ（Cursor Bugbot 指摘）、位置だけを条件に
 //! すると A–D が接続されてしまう（codex 指摘）ため、両者を満たす条件は
@@ -299,6 +301,17 @@ fn connectable_target(child: &'static str) -> (&'static str, &'static str) {
 }
 
 /// `out` へ 1 規則を追記する（空でなければ改行区切り）。
+/// ネスト間隔（`--fandhe-space-2`）の margin 宣言。向きに応じて先頭側の
+/// 論理プロパティを選ぶ。内側 root 自身（`:not(:first-child)`）と、間隔を
+/// 保つ内側 root の直後の通常の子（`D + N`）の両方で同じ値を使う。
+fn nested_gap(orientation: &str) -> crate::css::Declaration {
+    if orientation == "horizontal" {
+        decl("margin-inline-start", "var(--fandhe-space-2)")
+    } else {
+        decl("margin-block-start", "var(--fandhe-space-2)")
+    }
+}
+
 fn append_rule(out: &mut String, rule: Option<String>) {
     if let Some(rule) = rule {
         if !out.is_empty() {
@@ -397,6 +410,16 @@ pub fn stylesheet() -> String {
                 &mut out,
                 serialize_rule(&not_last, &[end_radius[0], end_radius[1]]),
             );
+
+            // D→N の間隔。D に面した辺は角丸を保つが、ネストの margin 規則
+            // は内側 root 自身の先頭側にしか付かないため、D の直後の通常の
+            // 子へも同じ間隔を付ける（codex 指摘、PR #3569。D→D / D→A は
+            // 後続の内側 root 自身の margin 規則で間隔が付く）。
+            let after_detached = format!("{orientation_root} > {DETACHED_ROOT} + {direct}");
+            append_rule(
+                &mut out,
+                serialize_rule(&after_detached, &[nested_gap(orientation)]),
+            );
         }
 
         if orientation == "horizontal" {
@@ -466,12 +489,10 @@ pub fn stylesheet() -> String {
         let nested_selector = format!(
             r#"{orientation_root} > [data-scope="button-group"][data-part="root"]:not(:first-child)"#
         );
-        let margin = if orientation == "horizontal" {
-            decl("margin-inline-start", "var(--fandhe-space-2)")
-        } else {
-            decl("margin-block-start", "var(--fandhe-space-2)")
-        };
-        append_rule(&mut out, serialize_rule(&nested_selector, &[margin]));
+        append_rule(
+            &mut out,
+            serialize_rule(&nested_selector, &[nested_gap(orientation)]),
+        );
     }
 
     // `text` はネイティブ `<div>` でありフォーカス不能なため
@@ -839,6 +860,14 @@ mod tests {
         // 対象へ含めない）。
         assert!(!out.contains(&format!("{d}:not(:first-child):not(")));
         assert!(!out.contains(&format!("{d}:not(:last-child)")));
+        // 行 D→N: 角丸を保つだけでなく間隔も付く（D 自身の margin は先頭側
+        // にしか付かないため、D の直後の N へ同じ間隔を付与する）。
+        assert!(out.contains(&format!(
+            "[data-orientation=\"horizontal\"] > {d} + {n} {{\n  margin-inline-start: var(--fandhe-space-2);"
+        )));
+        assert!(out.contains(&format!(
+            "[data-orientation=\"vertical\"] > {d} + {n} {{\n  margin-block-start: var(--fandhe-space-2);"
+        )));
 
         // 退行防止: 「隣が A か」を条件にする形（N–A が切れる、Cursor
         // Bugbot 指摘）と、位置だけを条件にする形（A–D が接続される、
