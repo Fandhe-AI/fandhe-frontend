@@ -57,7 +57,7 @@
 //!   空のまま省略する。フォーカスリング等スタイル層のみの挙動は
 //!   Accessibility 節の対象外）
 //!
-//! # `Examples` 節を持たない理由（[`DIALOG`]/[`ACCORDION`]/[`COLLAPSIBLE`]/[`MENU`]/[`TOOLTIP`] を除く）
+//! # `Examples` 節を持たない理由（[`DIALOG`]/[`ACCORDION`]/[`COLLAPSIBLE`]/[`MENU`]/[`TOOLTIP`]/[`BUTTON_GROUP`] を除く）
 //!
 //! `docs/design/docs-site-component-pages.md` §7 は `Examples` を任意の節と
 //! 定めており、当初 PR（#946）では 13 定数すべて `examples: &[]` としていた
@@ -75,9 +75,12 @@
 //! `ex_menu_inset_and_danger`）として追加した。[`TOOLTIP`] はイシュー #2041
 //! で shadcn/ui の With Keyboard Shortcut Example に相当する、`content` の
 //! children へテキストと [`kbd`] を並べる既存 API のみの合成デモ
-//! （`ex_tooltip_with_kbd`）を追加した。他部品のバリエーション軸
-//! （`Size`/`ColorPalette`/`ToastStatus` 等）への Examples 追加はレビュー
-//! 負荷を抑えるためのフォローアップ課題として引き続き PR 本文に残す。
+//! （`ex_tooltip_with_kbd`）を追加した。[`BUTTON_GROUP`] はイシュー #3135
+//! で、縦グループの中に入力欄と横グループ（2 ボタン）を並べる、既存 API
+//! のみの入れ子合成デモ（`ex_button_group_nested_mixed`）を追加した。
+//! 他部品のバリエーション軸（`Size`/`ColorPalette`/`ToastStatus` 等）への
+//! Examples 追加はレビュー負荷を抑えるためのフォローアップ課題として
+//! 引き続き PR 本文に残す。
 //!
 //! # セキュリティ不変条件（REQ-1）
 //!
@@ -93,7 +96,7 @@ use fandhe_frontend_pre_styled_ui::{
     accordion::{self, AccordionProps},
     avatar::{self, AvatarProps, ImageStatus},
     button::{button, ButtonProps, ButtonVariant},
-    collapsible,
+    button_group, collapsible,
     dialog::{self, ContentIds, DialogRole},
     drawer::{self, DrawerPlacement},
     field::{self, FieldIds, FieldOrientation, FieldProps, FieldRootProps},
@@ -104,7 +107,7 @@ use fandhe_frontend_pre_styled_ui::{
     text::{text as styled_text, TextProps, TextSize, TextWeight},
     toast::{self, ToastPlacement, ToastStatus},
     toast_motion::STACK_ATTR,
-    tooltip, ColorPalette, OpenState, Size,
+    tooltip, ColorPalette, OpenState, Orientation, Size,
 };
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
@@ -551,7 +554,11 @@ pub const BUTTON_GROUP: ComponentPageSpec = ComponentPageSpec {
             description: "root に付与する aria-label（空文字列のときは省略）。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "入れ子で入力欄を縦横混在連結する",
+        description: "縦（`Orientation::Vertical`）の外側グループの中に、入力欄（上段）と横（`Orientation::Horizontal`）の内側グループ（下段、2 ボタン）を並べる合成例です（イシュー #3135）。外側グループは縦積みのため入力欄の下辺の角丸・境界線が無効化され、内側グループは「ネスト」節のとおり自身の角丸を保ったまま margin-block-start のみで間隔を得ます。新しいオプションは追加していません（既存 API の組み合わせのみで表現できることの実演）。",
+        render: ex_button_group_nested_mixed,
+    }],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -565,6 +572,45 @@ pub const BUTTON_GROUP: ComponentPageSpec = ComponentPageSpec {
     ],
     demo: None,
 };
+
+/// [`BUTTON_GROUP`] の Examples 節「入れ子で入力欄を縦横混在連結する」
+/// レンダラ（イシュー #3135）。外側（縦）の直接の子に入力欄を 1 つ、
+/// 続けて内側（横）グループを 1 つ並べる。角丸連結・境界線二重描画の
+/// 解消は `fandhe_frontend_pre_styled_ui::button_group::stylesheet` が
+/// 既存のまま適用し、本関数は呼び出し側の組み合わせのみを担う。
+fn ex_button_group_nested_mixed() -> Node {
+    let field_props = FieldProps {
+        id: "button-group-nested-search",
+        ids: FieldIds::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+
+    button_group::root(
+        Orientation::Vertical,
+        "",
+        vec![],
+        vec![
+            input::input(
+                &InputProps::default(),
+                &field_props,
+                vec![("placeholder", "Search")],
+            ),
+            button_group::root(
+                Orientation::Horizontal,
+                "",
+                vec![],
+                vec![
+                    button(&ButtonProps::default(), vec![], vec![text("Prev")]),
+                    button(&ButtonProps::default(), vec![], vec![text("Next")]),
+                ],
+            ),
+        ],
+    )
+}
 
 /// `/themes/toolbar/`（Interactive カテゴリ）。
 ///
