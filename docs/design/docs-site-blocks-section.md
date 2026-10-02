@@ -1155,6 +1155,7 @@ pub enum LayoutCss {
 | reviews-write-form | #3091 | `ecommerce/reviews/reviews_write_form.rs` |
 | api-reference-param-accordion | #3100 | `docs/api_reference/api_reference_param_accordion.rs` |
 | api-reference-props-table | #3103（親 #3099） | `docs/api_reference/api_reference_props_table.rs` |
+| code-block-header | #3104（親 #3099） | `docs/code_block/code_block_header.rs` |
 | docs-layout-page-header | #3106 | `docs/docs_layout/docs_layout_page_header.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
