@@ -507,8 +507,19 @@ pub fn down_indicator<'a>(attrs: Vec<(&'a str, &'a str)>) -> Node {
 /// ```
 /// use fandhe_frontend_core::{render, text};
 /// use fandhe_frontend_pre_styled_ui::stat::{self, StatDeltaTone};
+/// use fandhe_frontend_pre_styled_ui::visually_hidden;
 ///
-/// let node = stat::delta(StatDeltaTone::Danger, vec![], vec![text("+4.75%")]);
+/// // tone が Danger/Success の場合、色だけに意味を頼らない契約（上記
+/// // 「色だけに意味を頼らない契約」節）に従い、可視テキストまたは
+/// // visually-hidden テキストで「悪化」「改善」等を必ず補う。
+/// let node = stat::delta(
+///     StatDeltaTone::Danger,
+///     vec![],
+///     vec![
+///         text("+4.75%"),
+///         visually_hidden::root(vec![], vec![text("（悪化）")]),
+///     ],
+/// );
 /// assert!(render(&node).contains("fd-stat--tone-danger"));
 /// ```
 #[must_use]
