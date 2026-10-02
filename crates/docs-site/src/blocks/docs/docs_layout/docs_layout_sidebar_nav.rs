@@ -47,6 +47,29 @@
 //! `button::icon_button` とし（`app_shell_sidebar.rs` の「ハンバーガーは
 //! 常時展開の trigger」と同じ判断）、`aria-expanded="true"` を固定で
 //! 付与する静的表示に留める。
+//!
+//! # 狭幅フレーム（`18rem`）に対する `drawer::content` 幅の中和
+//!
+//! `drawer::content`（start placement）の既定 CSS は `width:
+//! var(--fandhe-drawer-size, 20rem)` の固定幅を持つが、`narrow` インスタンス
+//! の `[data-blocks-docs-layout-sidebar-nav-frame="narrow"]` は `18rem`・
+//! `overflow: hidden` のため、そのままでは content の右端約 `2rem` が
+//! 表示枠からはみ出して切れる（CI/codex(P1) 指摘）。[`LAYOUT_CSS`] の
+//! `[data-blocks-docs-layout-sidebar-nav-frame="narrow"]
+//! [data-scope="drawer"][data-part="content"]` へ `max-width: 100%` を
+//! 追加し、フレーム幅を上限として収める（`--fandhe-drawer-size` 自体は
+//! 変更せず、上限のみ掛ける）。
+//!
+//! # `drawer::title` のサイト共通 `h2` 装飾を中和する
+//!
+//! [`drawer::title`] は `h2` を描画するため、`.docs-content h2`
+//! （`site_theme.rs`）の `border-top`/`padding-top`/`letter-spacing` を
+//! 素のまま継承すると「Navigation」見出しに本文節区切りの罫線が漏れ出る
+//! （`cart_drawer`/`settings_page_aside_nav` 等と同型の cursor(Medium)
+//! 指摘）。[`LAYOUT_CSS`] は `[data-blocks-docs-layout-sidebar-nav-narrow-
+//! content] [data-scope="drawer"][data-part="title"]` へ既存パターンと
+//! 同じ `border-top: none; padding-top: 0; letter-spacing: normal;`
+//! （+ `margin: 0`）を当てる。
 
 use crate::blocks::dummy_assets;
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
@@ -283,11 +306,18 @@ fn nav_items(items: NavItems) -> Node {
 }
 
 /// `collapsible` で開閉するナビグループ（`line` インスタンス、アクティブ
-/// 項目は [`LAYOUT_CSS`] の線（border-inline-start）で示す）。`accordion`
-/// 側（[`nav_group_accordion`]）と同型に、`nav_list::heading`（`<h2>`）で
-/// `collapsible::trigger`（`<button>`）を包む（`<button>` の内側に `<h2>`
-/// を置くと content model 違反・見出しアウトライン破壊になるため、見出し
-/// を外側に置く。codex/Bugbot 指摘対応）。
+/// 項目は [`LAYOUT_CSS`] の線（border-inline-start）で示す）。
+///
+/// `nav_list::heading`（固定 `<h2>`）でラップしない: `<button>` の内側に
+/// `<h2>` を置くと content model 違反になる（旧実装の codex/Bugbot 指摘）
+/// ため見出しを外側に置く修正を一度行ったが、外側に置いても `line`/
+/// `filled`/`narrow` の 3 インスタンス分「Guides」「API」が重複する固定
+/// `<h2>` としてページのアウトラインに現れ続ける問題は残る
+/// （cursor(Low) 指摘。`content_article_toc`/`footer_sticky_reveal` が
+/// 同じ理由で `nav_list::heading` を使わない判断と同型）。本関数は
+/// `collapsible::trigger`（`<button>`）をラップせずそのまま
+/// `collapsible::root` の子にする（`nav_list::root`/`list`/`item`/`link`
+/// は引き続き使うため「Nav List」部品の使用自体は変わらない）。
 fn nav_group_collapsible(
     suffix: &str,
     key: &str,
@@ -306,7 +336,6 @@ fn nav_group_collapsible(
             collapsible::indicator(open, false, vec![], vec![text("\u{25be}")]),
         ],
     );
-    let heading = nav_list::heading(vec![], vec![trigger]);
     let content = collapsible::content(
         open,
         false,
@@ -322,7 +351,7 @@ fn nav_group_collapsible(
             open,
             false,
             vec![],
-            vec![heading, content],
+            vec![trigger, content],
         )],
     )
 }
@@ -588,8 +617,9 @@ const LAYOUT_CSS: &str = "\
 .blocks-docs-layout-sidebar-nav-narrow-topbar {\n  display: flex;\n  align-items: center;\n  gap: 0.5rem;\n  padding: 0.75rem;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-docs-layout-sidebar-nav-frame=\"narrow\"] [data-scope=\"drawer\"][data-part=\"backdrop\"] {\n  position: absolute;\n  inset: 0;\n  z-index: 1;\n}\n\
 [data-blocks-docs-layout-sidebar-nav-frame=\"narrow\"] [data-scope=\"drawer\"][data-part=\"positioner\"] {\n  position: absolute;\n  inset: 0;\n  z-index: 2;\n  display: flex;\n}\n\
-[data-blocks-docs-layout-sidebar-nav-frame=\"narrow\"] [data-scope=\"drawer\"][data-part=\"content\"] {\n  height: 100%;\n  box-shadow: var(--fandhe-shadow-lg);\n}\n\
-[data-blocks-docs-layout-sidebar-nav-narrow-content] [data-blocks-docs-layout-sidebar-nav-panel] {\n  width: 100%;\n  height: 100%;\n  border: none;\n  border-radius: 0;\n}\n";
+[data-blocks-docs-layout-sidebar-nav-frame=\"narrow\"] [data-scope=\"drawer\"][data-part=\"content\"] {\n  height: 100%;\n  max-width: 100%;\n  box-shadow: var(--fandhe-shadow-lg);\n}\n\
+[data-blocks-docs-layout-sidebar-nav-narrow-content] [data-blocks-docs-layout-sidebar-nav-panel] {\n  width: 100%;\n  height: 100%;\n  border: none;\n  border-radius: 0;\n}\n\
+[data-blocks-docs-layout-sidebar-nav-narrow-content] [data-scope=\"drawer\"][data-part=\"title\"] {\n  margin: 0;\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n";
 
 #[cfg(test)]
 mod tests {

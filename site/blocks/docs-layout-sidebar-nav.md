@@ -253,11 +253,18 @@ fn nav_items(items: NavItems) -> Node {
 }
 
 /// `collapsible` で開閉するナビグループ（`line` インスタンス、アクティブ
-/// 項目は [`LAYOUT_CSS`] の線（border-inline-start）で示す）。`accordion`
-/// 側（[`nav_group_accordion`]）と同型に、`nav_list::heading`（`<h2>`）で
-/// `collapsible::trigger`（`<button>`）を包む（`<button>` の内側に `<h2>`
-/// を置くと content model 違反・見出しアウトライン破壊になるため、見出し
-/// を外側に置く。codex/Bugbot 指摘対応）。
+/// 項目は [`LAYOUT_CSS`] の線（border-inline-start）で示す）。
+///
+/// `nav_list::heading`（固定 `<h2>`）でラップしない: `<button>` の内側に
+/// `<h2>` を置くと content model 違反になる（旧実装の codex/Bugbot 指摘）
+/// ため見出しを外側に置く修正を一度行ったが、外側に置いても `line`/
+/// `filled`/`narrow` の 3 インスタンス分「Guides」「API」が重複する固定
+/// `<h2>` としてページのアウトラインに現れ続ける問題は残る
+/// （cursor(Low) 指摘。`content_article_toc`/`footer_sticky_reveal` が
+/// 同じ理由で `nav_list::heading` を使わない判断と同型）。本関数は
+/// `collapsible::trigger`（`<button>`）をラップせずそのまま
+/// `collapsible::root` の子にする（`nav_list::root`/`list`/`item`/`link`
+/// は引き続き使うため「Nav List」部品の使用自体は変わらない）。
 fn nav_group_collapsible(
     suffix: &str,
     key: &str,
@@ -276,7 +283,6 @@ fn nav_group_collapsible(
             collapsible::indicator(open, false, vec![], vec![text("\u{25be}")]),
         ],
     );
-    let heading = nav_list::heading(vec![], vec![trigger]);
     let content = collapsible::content(
         open,
         false,
@@ -292,7 +298,7 @@ fn nav_group_collapsible(
             open,
             false,
             vec![],
-            vec![heading, content],
+            vec![trigger, content],
         )],
     )
 }
