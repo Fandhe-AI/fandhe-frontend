@@ -387,8 +387,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `example_preview_toolbar` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節と同型）。`--fandhe-*`
+/// `example_preview_toolbar` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。`--fandhe-*`
 /// トークンのみ使用し、生値は幅・rem 指定のみに限る。
 ///
 /// # 全 block 共通 CSS への連結に対する `[data-scope="..."]` セレクタのスコープ限定

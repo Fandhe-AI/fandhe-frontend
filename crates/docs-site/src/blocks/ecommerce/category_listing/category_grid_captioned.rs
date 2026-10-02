@@ -348,8 +348,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `category_grid_captioned` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節、他 block と同型）。
+/// `category_grid_captioned` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、他 block と同型）。
 ///
 /// ブレークポイントは [`fandhe_frontend_pre_styled_ui::recipe::Breakpoint::
 /// Sm`]（640px = 40rem）・[`fandhe_frontend_pre_styled_ui::recipe::

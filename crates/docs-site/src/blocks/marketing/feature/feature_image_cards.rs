@@ -365,8 +365,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `feature_image_cards` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。セレクタは
+/// `feature_image_cards` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。セレクタは
 /// `.blocks-feature-image-cards-*` と `[data-blocks-feature-image-cards-*]`
 /// のみを用い、他 block や部品の素のセレクタへ影響させない
 /// （`feature_alternating_rows`/`blog_grid_image` と同じ名前空間分離）。

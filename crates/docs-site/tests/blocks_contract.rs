@@ -34,6 +34,22 @@ fn repo_root() -> PathBuf {
     shared_site::repo_root()
 }
 
+/// `dir` 配下の `.rs` ファイルを再帰収集する。block のソース走査系テスト
+/// （HTML 直接組み立て禁止ガード・旧節名参照禁止ガード）が共用する。
+fn collect_rs_files(dir: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_rs_files(&path, out);
+        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+            out.push(path);
+        }
+    }
+}
+
 /// 実サイトビルドの生成物ディレクトリを返す（読み取り専用）。
 ///
 /// 従来は本ファイル内でテストごとに `build_site` を再実行していた
@@ -879,19 +895,6 @@ fn blocks_stylesheet_declares_demo_frame_overflow() {
 /// 不変条件が自動的に効く）。
 #[test]
 fn blocks_source_does_not_use_raw_html_or_build_html_strings() {
-    fn collect_rs_files(dir: &Path, out: &mut Vec<PathBuf>) {
-        let Ok(entries) = std::fs::read_dir(dir) else {
-            return;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                collect_rs_files(&path, out);
-            } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
-                out.push(path);
-            }
-        }
-    }
     fn code_lines_without_comments(path: &Path) -> String {
         let src = std::fs::read_to_string(path)
             .unwrap_or_else(|e| panic!("{} should be readable: {e}", path.display()));
@@ -918,6 +921,37 @@ fn blocks_source_does_not_use_raw_html_or_build_html_strings() {
         assert!(
             !code_only.contains("format!(\"<"),
             "{} must not build HTML strings directly (use the node-tree API)",
+            path.display()
+        );
+    }
+}
+
+/// 旧節名「block 固有 CSS の置き場」は #2734（PR #3146）で
+/// `crate::blocks` モジュール doc「CSS の置き場」節へ移設・改称済み。
+/// 新規 block が既存 block の rustdoc 文言を写すため、移設後も旧節名への
+/// 参照が増え続けていた（PR #3182 のレビューで発覚、イシュー #3230）。
+/// 改行位置がファイルごとに違っても検知できるよう、空白と `/` を
+/// 除去してから照合する。
+#[test]
+fn blocks_source_does_not_reference_stale_layout_css_section_name() {
+    let dir = repo_root().join("crates/docs-site/src/blocks");
+    let mut files = Vec::new();
+    collect_rs_files(&dir, &mut files);
+    assert!(
+        !files.is_empty(),
+        "crates/docs-site/src/blocks/ should contain at least one .rs file to guard"
+    );
+    for path in &files {
+        let src = std::fs::read_to_string(path)
+            .unwrap_or_else(|e| panic!("{} should be readable: {e}", path.display()));
+        let flat: String = src
+            .chars()
+            .filter(|c| !c.is_whitespace() && *c != '/')
+            .collect();
+        assert!(
+            !flat.contains("block固有CSSの置き場"),
+            "{} references the removed section name \"block 固有 CSS の置き場\"; \
+             refer to the `crate::blocks` module doc \"CSS の置き場\" section instead",
             path.display()
         );
     }

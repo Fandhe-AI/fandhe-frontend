@@ -440,8 +440,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `settings_webhook_wizard` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。セレクタは
+/// `settings_webhook_wizard` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。セレクタは
 /// `.blocks-settings-webhook-wizard-*` と checkbox disabled 中和セレクタの
 /// みを用いる。
 const LAYOUT_CSS: &str = "\

@@ -417,8 +417,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `feature_split_screenshot` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節）。セレクタは
+/// `feature_split_screenshot` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。セレクタは
 /// `.blocks-feature-split-screenshot-*` と
 /// `[data-blocks-feature-split-screenshot-*]` のみを用い、他 block や部品の
 /// 素のセレクタへ影響させない（`feature_large_screenshot` と同じ名前空間

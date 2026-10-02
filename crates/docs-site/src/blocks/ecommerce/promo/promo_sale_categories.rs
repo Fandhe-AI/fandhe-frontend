@@ -265,8 +265,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `promo_sale_categories` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節、他 block と同型）。
+/// `promo_sale_categories` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、他 block と同型）。
 ///
 /// 列数の切り替えは Issue 指定のビューポート基準（md=48rem/lg=64rem）を
 /// リテラル直書きする（モジュール冒頭「グリッドの列数」節）。

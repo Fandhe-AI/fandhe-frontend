@@ -661,8 +661,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `cart_two_column_summary` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。
+/// `cart_two_column_summary` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-cart-two-column-summary-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n  container-type: inline-size;\n  container-name: blocks-cart-two-column-summary;\n}\n\
 .blocks-cart-two-column-summary-columns {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);\n  gap: var(--fandhe-space-8);\n  align-items: start;\n  margin-block-start: var(--fandhe-space-4);\n}\n\

@@ -331,8 +331,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `example_preview_tabs` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節、他 block と同型で `pub(super)` として
+/// `example_preview_tabs` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、他 block と同型で `pub(super)` として
 /// `super::stylesheet` から連結される）。タブ列と右端の操作を 1 行に収める
 /// グリッド配置（モジュール doc「ヘッダー行のレイアウト」節参照）と、
 /// コードパネルの横スクロール・フォーカスリングをここで実装する。

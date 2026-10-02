@@ -284,8 +284,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `code_block_language_tabs` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。選択されていない content の
+/// `code_block_language_tabs` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。選択されていない content の
 /// 非表示は部品側（`tabs::tabs` の `hidden`/`data-state="inactive"`）が
 /// 担い、本 CSS は `display: contents`（グリッド展開用）以外の非表示宣言を
 /// 持たない。

@@ -500,8 +500,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `pricing_tier_cards` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節参照）。既定（狭幅）はすべて 1 列で
+/// `pricing_tier_cards` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節参照）。既定（狭幅）はすべて 1 列で
 /// 縦積みし、`40rem`（`four` のみ 2 列）・`48rem`（`featured`/`joined`/
 /// `divided` は 3 列、`duo-inverted` は 2 列に中央寄せ）・`64rem`
 /// （`four` のみ 4 列）の 3 段階で列数を増やす（モジュール doc

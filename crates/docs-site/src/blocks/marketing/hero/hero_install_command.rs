@@ -491,8 +491,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `hero_install_command` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節、他 block と同型で `pub(super)` として
+/// `hero_install_command` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、他 block と同型で `pub(super)` として
 /// `super::stylesheet` から連結される）。`md` 未満（`< 48rem`）で CTA を
 /// 全幅縦積みにする要件をここで実装する。
 const LAYOUT_CSS: &str = "\

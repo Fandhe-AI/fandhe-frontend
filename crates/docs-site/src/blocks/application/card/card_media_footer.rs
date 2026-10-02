@@ -482,8 +482,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `card_media_footer` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc
-/// 「block 固有 CSS の置き場」節。`blog_grid_image` 等と同型で
+/// `card_media_footer` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。`blog_grid_image` 等と同型で
 /// `super::blocks` 経由で `crate::blocks::stylesheet` へ連結される）。
 const LAYOUT_CSS: &str = "\
 .blocks-card-media-footer {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\

@@ -776,7 +776,7 @@ pub const BLOCK: Block = Block {
 };
 
 /// `pricing_tiers_comparison` 固有のレイアウト規則
-/// （`crate::blocks::LAYOUT_CSS` doc「block 固有 CSS の置き場」節）。既定
+/// （`crate::blocks` モジュール doc「CSS の置き場」節）。既定
 /// （狭幅）はカード 1 列縦積み・比較表を隠して一覧を表示、`>= 48rem`
 /// （[`fandhe_frontend_pre_styled_ui::recipe::Breakpoint::Md`]）でカード
 /// 3 列・比較表を表示して一覧を隠す。

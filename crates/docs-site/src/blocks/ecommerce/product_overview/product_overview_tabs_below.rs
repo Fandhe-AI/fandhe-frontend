@@ -662,8 +662,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `product_overview_tabs_below` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節と同型）。
+/// `product_overview_tabs_below` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 ///
 /// ルート class（`-layout`）は [`Block::demo_class`] と意図的に別名にする
 /// （`faq_tabbed_accordion`/`card_meta_cta` と同じ Bugbot 教訓の回避）。
