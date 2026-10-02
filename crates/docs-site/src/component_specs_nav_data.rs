@@ -55,7 +55,8 @@ use fandhe_frontend_pre_styled_ui::{
         self, Sidebar, SidebarCollapsible, SidebarMenuButtonProps, SidebarProps, SidebarState,
         SidebarVariant,
     },
-    skeleton, spinner, splitter, stat, status, steps, tab_nav,
+    skeleton, spinner, splitter, stat, status, steps,
+    tab_nav::{self, TabNavVariant},
     table::{self, TableProps},
     tag, timeline, tree_view, AlertProps, ColorPalette, OpenState, Orientation, Size,
 };
@@ -2622,11 +2623,46 @@ fn ex_tab_nav() -> Node {
     )
 }
 
+/// `root_with(size, TabNavVariant::Pill, None, …)`（イシュー #3125）。
+/// `tab_nav.rs` の pill variant 節参照。
+fn ex_tab_nav_pill() -> Node {
+    tab_nav::root_with(
+        Size::Md,
+        TabNavVariant::Pill,
+        None,
+        "Pill section navigation",
+        vec![],
+        vec![
+            tab_nav::link("../tabs/", true, vec![], vec![text("Tabs")]),
+            tab_nav::link("../nav-list/", false, vec![], vec![text("Nav List")]),
+            tab_nav::link("../menubar/", false, vec![], vec![text("Menubar")]),
+        ],
+    )
+}
+
+/// `root_with(size, TabNavVariant::Pill, Some(palette), …)`（イシュー
+/// #3125）。pill variant と `color-palette` 軸を組み合わせた例。
+fn ex_tab_nav_pill_palette() -> Node {
+    tab_nav::root_with(
+        Size::Md,
+        TabNavVariant::Pill,
+        Some(ColorPalette::Accent),
+        "Pill accent section navigation",
+        vec![],
+        vec![
+            tab_nav::link("../tabs/", true, vec![], vec![text("Tabs")]),
+            tab_nav::link("../nav-list/", false, vec![], vec![text("Nav List")]),
+            tab_nav::link("../menubar/", false, vec![], vec![text("Menubar")]),
+        ],
+    )
+}
+
 pub(crate) const TAB_NAV: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "role=\"tablist\"/role=\"tab\" を出力しない。素の nav/a の暗黙 ARIA ロール（navigation/link）のみを使うナビゲーションリンク集合（crates/pre-styled-ui/src/tab_nav.rs:1-20）",
         "現在ページは aria-current=\"page\" + data-current で示す（tab_nav.rs:198-209）",
-        "見た目は自前の宣言列から生成する（イシュー #1541 で crate::tabs との共有を解消）。size 軸（xs〜xl、既定 md）を持ち、color-palette 軸は非提供（tab_nav.rs 参照）",
+        "見た目は自前の宣言列から生成する（イシュー #1541 で crate::tabs との共有を解消）。size 軸（xs〜xl、既定 md）を持つ（tab_nav.rs 参照）",
+        "root_with 経由で pill variant（TabNavVariant、tabs の Enclosed と同一外観）・color-palette 軸を opt-in 提供（イシュー #3125、tab_nav.rs 参照）",
     ],
     arguments: &[
         ArgRow {
@@ -2634,6 +2670,18 @@ pub(crate) const TAB_NAV: ComponentPageSpec = ComponentPageSpec {
             kind: "Size",
             default: "Md",
             description: "サイズ（イシュー #1541 で追加、tab_nav.rs 参照）。",
+        },
+        ArgRow {
+            name: "variant",
+            kind: "TabNavVariant",
+            default: "Line",
+            description: "root_with のみが受け取る見た目 variant（イシュー #3125、tab_nav.rs 参照）。",
+        },
+        ArgRow {
+            name: "palette",
+            kind: "Option<ColorPalette>",
+            default: "None",
+            description: "root_with のみが受け取る color-palette 軸（イシュー #3125、tab_nav.rs 参照）。",
         },
         ArgRow {
             name: "label",
@@ -2654,11 +2702,23 @@ pub(crate) const TAB_NAV: ComponentPageSpec = ComponentPageSpec {
             description: "true のとき aria-current=\"page\" + data-current を付与する（tab_nav.rs:198-209）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Three links",
-        description: "Tabs / Nav List / Menubar の 3 リンクのうち Tabs を現在ページとした例です。",
-        render: ex_tab_nav,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Three links",
+            description: "Tabs / Nav List / Menubar の 3 リンクのうち Tabs を現在ページとした例です。",
+            render: ex_tab_nav,
+        },
+        ExampleEntry {
+            title: "Pill variant",
+            description: "root_with で TabNavVariant::Pill を指定した例です（イシュー #3125、tabs の Enclosed と同一外観）。",
+            render: ex_tab_nav_pill,
+        },
+        ExampleEntry {
+            title: "Pill + palette",
+            description: "Pill variant と color-palette 軸（Accent）を組み合わせた例です（イシュー #3125）。",
+            render: ex_tab_nav_pill_palette,
+        },
+    ],
     keyboard: &[KeyRow {
         key: "Tab / Shift+Tab",
         description: "通常のリンクとしてフォーカス移動する。矢印キーによる roving tabindex は持たない（crate::tabs との決定的な差）。",
