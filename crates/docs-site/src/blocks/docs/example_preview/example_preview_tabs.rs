@@ -87,7 +87,15 @@
 //!   `data-copied` は出さない。docs サイトは JS ハイドレーションを行わず
 //!   `navigator.clipboard` の配線を持たないため、[`clipboard::trigger`]
 //!   自体に `disabled`/`data-disabled`/`aria-disabled="true"` を直接付与し
-//!   押せない状態にする（「id」節の下、ヘッダー節末尾の指摘対応）。
+//!   押せない状態にする（「id」節の下、ヘッダー節末尾の指摘対応）。headless
+//!   層の `trigger` は `data-disabled` を CSS 側で消費しない設計（§「意図的
+//!   非採用」の disabled 視覚）なので、`[data-blocks-example-preview-tabs-
+//!   actions]` スコープで `[data-scope="clipboard"][data-part="trigger"]
+//!   [data-disabled]` に `opacity: 0.5`/`cursor: not-allowed` を
+//!   [`LAYOUT_CSS`] 側から直接宣言し、`button::button` が使う
+//!   `disabled_declarations`（`crates/pre-styled-ui/src/recipe.rs`）と同じ
+//!   値で見た目も押せない状態に揃える（PR #3552 Bugbot Medium「Copy
+//!   trigger lacks disabled styling」対応）。
 //!   [`button::button`]（Ghost/Sm/`disabled: true`）で「外部で開く」を
 //!   置く。`href`/`target` は一切出さず、リンク先の無い合成例のため
 //!   disabled のボタンにする（死にリンク・reverse tabnabbing を避ける、
@@ -326,6 +334,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-example-preview-tabs-frame] > [data-scope=\"tabs\"][data-part=\"root\"] {\n  display: contents;\n}\n\
 [data-blocks-example-preview-tabs-frame] [data-scope=\"tabs\"][data-part=\"list\"] {\n  grid-column: 1;\n  grid-row: 1;\n  min-width: 0;\n  overflow-x: auto;\n  flex-wrap: nowrap;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-example-preview-tabs-actions] {\n  grid-column: 2;\n  grid-row: 1;\n  display: flex;\n  flex: none;\n  align-items: center;\n  gap: 0.5rem;\n  white-space: nowrap;\n  padding-inline-end: 1rem;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
+[data-blocks-example-preview-tabs-actions] [data-scope=\"clipboard\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 0.5;\n  cursor: not-allowed;\n}\n\
 [data-blocks-example-preview-tabs-frame] [data-scope=\"tabs\"][data-part=\"content\"] {\n  grid-column: 1 / -1;\n  grid-row: 2;\n  padding: 1rem;\n  overflow-x: auto;\n}\n\
 .blocks-example-preview-tabs-preview {\n  display: flex;\n  gap: 0.75rem;\n}\n\
 [data-blocks-example-preview-tabs-code-panel] {\n  margin: 0;\n  font-family: var(--fandhe-font-font-mono);\n}\n\
@@ -455,5 +464,17 @@ mod tests {
         // 対応）。
         assert!(LAYOUT_CSS.matches("outline-offset: -2px;").count() >= 1);
         assert!(!LAYOUT_CSS.contains('<'));
+    }
+
+    /// disabled にした clipboard トリガーが `[data-disabled]` で
+    /// `opacity`/`cursor` を是正されていること（PR #3552 Bugbot Medium
+    /// 「Copy trigger lacks disabled styling」対応。headless 層が
+    /// `data-disabled` を CSS 側で消費しない設計のため、block 固有 CSS
+    /// 側で直接宣言する）。
+    #[test]
+    fn layout_css_styles_disabled_clipboard_trigger() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"clipboard\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 0.5;\n  cursor: not-allowed;\n}"
+        ));
     }
 }
