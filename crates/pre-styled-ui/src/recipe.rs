@@ -1366,6 +1366,22 @@ pub enum StateCondition {
     /// 参照）、DOM 構造がそのまま表す `:last-child` を使い、最後の item
     /// にのみ伸長・最小高さの指定を打ち消す。
     LastChild,
+    /// 存在属性 1 個 と `:first-child` 擬似クラスの AND 条件
+    /// `[<name>]:first-child`（イシュー #3127 PR #3560 Codex レビュー P1
+    /// 指摘「先頭の body に淡色背景を付けると Card の上端からはみ出す」
+    /// 対応）。
+    ///
+    /// [`crate::card`] の `data-subtle` opt-in（[`StateCondition::Attr`]）は
+    /// 背景を敷いた body/footer が root の先頭または唯一の子になる構成で
+    /// 内側上端の角丸が必要になるが、[`StateCondition`] はそれまで
+    /// Attr と疑似クラスの AND を表現する手段を持たなかった
+    /// （[`LastChild`](StateCondition::LastChild) rustdoc・`card.rs`
+    /// モジュール rustdoc §「既知の制約」が明記していた欠落）。本 variant
+    /// はその専用 AND 条件として追加した（`AttrAll`/`AttrEqAll` と異なり
+    /// 属性同士ではなく属性×疑似クラスの組み合わせのため、既存 variant の
+    /// 再利用ではなく新設が必要だった）。`:first-child` は唯一の子にも
+    /// 一致するため「先頭または唯一の子」の両方を 1 条件で捕捉する。
+    AttrFirstChild(&'static str),
     /// 複数の値付き属性の AND 条件
     /// `[<name1>="<value1>"][<name2>="<value2>"]...`（イシュー #841 PR #870
     /// Bugbot レビュー Medium severity 指摘「Positioner skips align
@@ -1716,6 +1732,7 @@ fn state_condition_is_valid(condition: &StateCondition) -> bool {
         StateCondition::FocusWithin => true,
         StateCondition::NthChildEven => true,
         StateCondition::LastChild => true,
+        StateCondition::AttrFirstChild(name) => is_valid_identifier(name),
         StateCondition::AttrEqAll(pairs) => {
             !pairs.is_empty()
                 && pairs
@@ -1758,6 +1775,9 @@ fn state_condition_selector(condition: &StateCondition) -> Option<String> {
         StateCondition::FocusWithin => suffix.push_str(":focus-within"),
         StateCondition::NthChildEven => suffix.push_str(":nth-child(even)"),
         StateCondition::LastChild => suffix.push_str(":last-child"),
+        StateCondition::AttrFirstChild(name) => {
+            suffix.push_str(&format!("[{name}]:first-child"));
+        }
         StateCondition::AttrEqAll(pairs) => {
             for (name, value) in *pairs {
                 suffix.push_str(&format!("[{name}=\"{value}\"]"));

@@ -138,6 +138,16 @@ const CARD_GOLDEN_CSS: &str = r#"[data-scope="card"][data-part="root"] {
   background: var(--fandhe-color-bg-subtle);
 }
 
+[data-scope="card"][data-part="body"][data-subtle]:first-child {
+  border-start-start-radius: calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px);
+  border-start-end-radius: calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px);
+}
+
+[data-scope="card"][data-part="footer"][data-subtle]:first-child {
+  border-start-start-radius: calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px);
+  border-start-end-radius: calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px);
+}
+
 [data-scope="card"][data-part="body"]:last-child {
   border-end-start-radius: calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px);
   border-end-end-radius: calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px);

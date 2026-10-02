@@ -3649,7 +3649,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # 衝突をそのまま採用せず双方の実体変更を統合した結果として 0.222.0 へ
 # さらにマイナーバンプする（`.claude/rules/coding-rust.md` #638 条項の
 # 同衝突運用）。
-version = "0.222.0"
+#
+# PR #3560 Codex レビュー P1/P2 指摘対応: 先頭の body/footer に `data-subtle`
+# を付けた構成で淡色背景が root 上端の角丸からはみ出す問題を修正した。
+# `StateCondition::AttrFirstChild`（Attr と `:first-child` の AND 条件）を
+# `crates/pre-styled-ui/src/recipe.rs` へ新設し、body/footer の
+# `[data-subtle]:first-child` へ内側上端の角丸を純追加した（既存 golden の
+# 既存ブロックはバイト不変、末尾純追加）。非破壊的な追加として minor
+# バンプする。
+version = "0.223.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
