@@ -3874,7 +3874,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 項目幅・テキスト長が異なるとインジケータが flex item として縮小し整列が
 # 崩れるため）。既存 golden ブロックの出力バイトが変わる観測可能な CSS
 # 変更のため minor バンプする。
-version = "0.232.0"
+#
+# イシュー #3139: steps にバー型（`StepsVariant::Bar`）・パネル型
+# （`Panel`）・ドット型（`Dot`）の見た目 variant を追加した。既存 5 関数
+# （`root`/`list`/`item`/`indicator`/`separator`）・既存 golden CSS ブロック
+# は無変更（`*_with` 系新規公開 API・CSS ブロック純追加のみ）だが、観測可能
+# な公開 API 拡張のため minor バンプする。
+version = "0.233.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
