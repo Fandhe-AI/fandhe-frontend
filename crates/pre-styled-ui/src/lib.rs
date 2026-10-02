@@ -525,9 +525,11 @@
 //!   を一切出力せず `aria-current="page"` で現在地を示すナビゲーションリンク
 //!   集合であり、[`crate::radio_card`]・[`crate::checkbox_card`] と同型に
 //!   headless-ui へ mod を追加せず本層で anatomy を新規定義する。`size` 軸を
-//!   持ち、`root_with` 経由で pill variant（`TabNavVariant`）・`color-palette`
-//!   軸を opt-in で指定できる（#3125、既定の `root` は Line・palette なしの
-//!   まま不変）。詳細は [`tab_nav`](mod@tab_nav) rustdoc 参照。
+//!   持ち、`root_with` 経由で pill/bar variant（`TabNavVariant`）・
+//!   `color-palette` 軸を opt-in で指定できる（#3125 で pill variant・
+//!   palette 軸、#3126 でカード状バーの bar variant を追加。既定の `root`
+//!   は Line・palette なしのまま不変）。詳細は [`tab_nav`](mod@tab_nav)
+//!   rustdoc 参照。
 //! - headless ラッパー（イシュー #997、`docs/design/component-coverage-map.md`
 //!   実装対象、Radix Themes Checkbox Group 相当）: [`checkbox_group`](mod@checkbox_group)
 //!   （CheckboxGroup、Root/Label/Item/ItemControl/ItemIndicator/ItemText の

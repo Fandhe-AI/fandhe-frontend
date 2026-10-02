@@ -139,6 +139,13 @@ golden 新設）** / splitter / stat / steps / switch /
 ブロック 2 個・2 つ目の hover state・forced-colors 補強の計 5 種のブロックを
 純追加。既存ブロックは末尾へ回り込みの影響を受けるのみでバイト不変、
 `TAB_NAV_GOLDEN_CSS_BEFORE_3125` + 部分一致による純追加固定アサーションも
+追加。イシュー #3126 で `TabNavVariant::Bar`（root variant）を追加し、
+`link` base ブロック 1 個（`flex`/`border-right` の custom property 間接
+参照）・`StateCondition::LastChild` state 1 個（`border-right: 0`）・
+2 つ目の `FocusVisible` state 1 個（内側フォーカスリング用 `outline-offset`
+上書き）の計 4 種のブロックを純追加。フォールバック値はいずれも既存の
+直書きリテラルと同一のため Line/Pill の computed style は不変、
+`TAB_NAV_GOLDEN_CSS_BEFORE_3126` + 部分一致による純追加固定アサーションも
 追加）** / tags_input / timeline / timer / toast /
 **toggle（イシュー #2023 で golden 新設）** /
 **toggle_group（イシュー #2024 で golden 新設）** / toggle_tip / tour /
