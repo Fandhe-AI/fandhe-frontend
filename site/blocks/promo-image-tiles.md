@@ -49,7 +49,7 @@ fn copy_base() -> Node {
                 },
                 vec![("data-blocks-promo-image-tiles-lead", "")],
                 vec![text(
-                    "入荷したばかりのアイテムを一覧できる特集ページをご用意しました。",
+                    "入荷したばかりのアイテムをタイルでまとめてご紹介します。",
                 )],
             ),
             link::root(
@@ -59,7 +59,7 @@ fn copy_base() -> Node {
                     ..LinkProps::default()
                 },
                 vec![("data-blocks-promo-image-tiles-cta", "")],
-                vec![text("特集を見る")],
+                vec![text("GitHub で見る")],
             ),
         ],
     )
@@ -97,7 +97,7 @@ fn copy_dark() -> Node {
                     ..LinkProps::default()
                 },
                 vec![("data-blocks-promo-image-tiles-link", "")],
-                vec![text("もっと見る →")],
+                vec![text("GitHub で見る")],
             ),
         ],
     )

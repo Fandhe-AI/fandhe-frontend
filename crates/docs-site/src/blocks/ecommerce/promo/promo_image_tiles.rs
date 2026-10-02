@@ -63,7 +63,10 @@
 //! `footer_link_columns` 等の前例と同じく、外部の絶対 URL
 //! `https://github.com/Fandhe-AI/fandhe-frontend` を固定のリンク先として
 //! 使う（`external: true` で `rel="noopener noreferrer"` を付与）。
-//! `href="#"` の死リンクは使わない。
+//! `href="#"` の死リンクは使わない。CTA 文言は `category_featured_banner`
+//! と同じ判断軸で「GitHub で見る」とし、実際の遷移先と一致させる
+//! （「特集を見る」「もっと見る」のように存在しない特集ページへ案内する
+//! 文言は使わない。レビュー指摘、PR #3528 codex 指摘）。
 //!
 //! # `drop_class_attr` を踏まえた CSS フックの選び方
 //!
@@ -127,7 +130,7 @@ fn copy_base() -> Node {
                 },
                 vec![("data-blocks-promo-image-tiles-lead", "")],
                 vec![text(
-                    "入荷したばかりのアイテムを一覧できる特集ページをご用意しました。",
+                    "入荷したばかりのアイテムをタイルでまとめてご紹介します。",
                 )],
             ),
             link::root(
@@ -137,7 +140,7 @@ fn copy_base() -> Node {
                     ..LinkProps::default()
                 },
                 vec![("data-blocks-promo-image-tiles-cta", "")],
-                vec![text("特集を見る")],
+                vec![text("GitHub で見る")],
             ),
         ],
     )
@@ -175,7 +178,7 @@ fn copy_dark() -> Node {
                     ..LinkProps::default()
                 },
                 vec![("data-blocks-promo-image-tiles-link", "")],
-                vec![text("もっと見る →")],
+                vec![text("GitHub で見る")],
             ),
         ],
     )
