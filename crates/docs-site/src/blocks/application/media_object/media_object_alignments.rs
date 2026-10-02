@@ -323,8 +323,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `media_object_alignments` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。`item` recipe の既定
+/// `media_object_alignments` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。`item` recipe の既定
 /// （`flex-wrap: wrap`・`align-items: center`・media `space-10` 角）に対し
 /// 詳細度 (0,3,0) 以上で上書きする。`display: none` は使わない
 /// （狭幅パターンも縦積みで内容を保つ）。

@@ -398,8 +398,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `hero_search` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc
-/// 「block 固有 CSS の置き場」節。他 block と同型で `super::stylesheet`
+/// `hero_search` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。他 block と同型で `super::stylesheet`
 /// から連結される）。
 const LAYOUT_CSS: &str = "\
 .blocks-hero-search-layout {\n  display: flex;\n  flex-direction: column;\n}\n\

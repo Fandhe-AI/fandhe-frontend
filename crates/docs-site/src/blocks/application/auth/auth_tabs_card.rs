@@ -484,8 +484,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `auth_tabs_card` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc
-/// 「block 固有 CSS の置き場」節）。
+/// `auth_tabs_card` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。
 ///
 /// # 形 B: Card recipe の `padding`/`display: flex` を上書きする詳細度
 ///

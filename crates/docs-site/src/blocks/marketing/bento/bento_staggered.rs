@@ -266,8 +266,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `bento_staggered` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc
-/// 「block 固有 CSS の置き場」節。他 block と同型で `pub(super)` として
+/// `bento_staggered` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。他 block と同型で `pub(super)` として
 /// `super::stylesheet` から連結される）。
 ///
 /// ドリフト防止（モジュール doc「scroll-driven stagger の実体」節が参照する

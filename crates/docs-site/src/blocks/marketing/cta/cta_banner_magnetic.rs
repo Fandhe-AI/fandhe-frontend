@@ -112,8 +112,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `cta_banner_magnetic` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節。`login_01` 等と同型で `pub(super)`
+/// `cta_banner_magnetic` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。`login_01` 等と同型で `pub(super)`
 /// として `super::stylesheet` から連結される）。
 ///
 /// `[data-blocks-cta-banner-magnetic-cta]` の `transform: translate(...)` は

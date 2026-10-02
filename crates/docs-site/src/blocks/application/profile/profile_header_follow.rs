@@ -275,8 +275,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `profile_header_follow` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。
+/// `profile_header_follow` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。
 ///
 /// # 狭幅は縦積み・`min-width: 40rem` から横並び
 ///

@@ -646,7 +646,7 @@ pub const BLOCK: Block = Block {
 };
 
 /// `contact_split_form_info` 固有のレイアウト規則
-/// （`crate::blocks::LAYOUT_CSS` doc「block 固有 CSS の置き場」節、
+/// （`crate::blocks` モジュール doc「CSS の置き場」節、
 /// `contact_info_columns` と同型）。
 ///
 /// セレクタは `.blocks-contact-split-form-info-*` と

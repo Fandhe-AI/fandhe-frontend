@@ -104,8 +104,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `text_split_reveal` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節、他 block と同型で `pub(super)` として
+/// `text_split_reveal` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、他 block と同型で `pub(super)` として
 /// `super::stylesheet` から連結される。reveal 自体のアニメーションは
 /// [`fandhe_frontend_pre_styled_ui::text_reveal::TEXT_REVEAL_CSS`] が
 /// 持つため、本定数は配置のみを担う）。

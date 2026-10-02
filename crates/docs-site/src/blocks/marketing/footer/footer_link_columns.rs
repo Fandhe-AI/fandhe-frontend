@@ -494,8 +494,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `footer_link_columns` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。ブレークポイントのリテラル
+/// `footer_link_columns` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。ブレークポイントのリテラル
 /// `48rem`/`64rem` は `recipe::Breakpoint::Md`/`Lg` と一致させる（テーマの
 /// breakpoint トークンは `@media` 条件の中では解決できないため）。
 const LAYOUT_CSS: &str = "\

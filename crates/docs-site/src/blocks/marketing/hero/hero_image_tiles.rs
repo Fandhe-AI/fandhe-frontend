@@ -208,8 +208,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `hero_image_tiles` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。セレクタは `.blocks-hero-image-
+/// `hero_image_tiles` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。セレクタは `.blocks-hero-image-
 /// tiles-*` / `[data-blocks-hero-image-tiles-*]` と、それらで絞り込んだ
 /// `[data-scope="image"]` のみを用いる。
 const LAYOUT_CSS: &str = "\

@@ -241,8 +241,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `feature_expand` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc
-/// 「block 固有 CSS の置き場」節。他 block と同型で `pub(super)` として
+/// `feature_expand` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。他 block と同型で `pub(super)` として
 /// `super::stylesheet` から連結される）。
 const LAYOUT_CSS: &str = "\
 .blocks-feature-expand-grid {\n  display: grid;\n  grid-template-columns: repeat(3, 1fr);\n  gap: 1rem;\n}\n\

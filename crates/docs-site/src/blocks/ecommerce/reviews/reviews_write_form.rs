@@ -310,7 +310,7 @@ pub const BLOCK: Block = Block {
 };
 
 /// `reviews_write_form` 固有のレイアウト規則（`crate::blocks` モジュール
-/// doc「block 固有 CSS の置き場」節と同型）。狭幅でも 1 列のまま
+/// doc「CSS の置き場」節と同型）。狭幅でも 1 列のまま
 /// （メディアクエリ・コンテナクエリを持たない）。評価ラベルの見た目を
 /// `field::label` と揃えるため、`rating-group` の label へ `--fandhe-*`
 /// トークンで同じ書体規則を適用する。`data-blocks-reviews-write-form-field`

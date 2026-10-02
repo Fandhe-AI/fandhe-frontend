@@ -453,8 +453,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `content_article` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節。[`BLOCK`] の `layout_css`
+/// `content_article` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。[`BLOCK`] の `layout_css`
 /// （[`crate::blocks::LayoutCss::Static`]）として自己申告し、
 /// [`crate::blocks::stylesheet`] が [`crate::blocks::all_blocks`] を
 /// 走査して連結する）。

@@ -273,8 +273,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `table_summary_rows` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。
+/// `table_summary_rows` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-table-summary-rows-layout {\n  max-width: 40rem;\n  width: 100%;\n}\n\
 .blocks-table-summary-rows-layout [data-scope=\"table\"][data-part=\"row-header\"][data-align=\"end\"] {\n  text-align: end;\n}\n\

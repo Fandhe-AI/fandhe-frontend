@@ -397,8 +397,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `command_palette_preview` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節、`contact_dialog_form` と同型）。
+/// `command_palette_preview` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、`contact_dialog_form` と同型）。
 ///
 /// # 固定オーバーレイの中和
 ///

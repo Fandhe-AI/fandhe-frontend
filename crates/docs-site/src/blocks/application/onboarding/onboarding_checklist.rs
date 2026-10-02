@@ -325,8 +325,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `onboarding_checklist` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。
+/// `onboarding_checklist` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 ///
 /// - vertical な `steps::root` の既定（list 左・content 右の横並び、
 ///   `steps.rs` モジュール doc「`body`」節参照）を、詳細度 0,4,0 の

@@ -503,8 +503,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `cart_line_item_table` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。`container-type: inline-size`
+/// `cart_line_item_table` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。`container-type: inline-size`
 /// を持つ独自コンテナ名で `@container` を切り替える。狭幅では列見出し行を
 /// 隠し、各行を「画像 | 情報」の 2 段へ組み替え、セル内ラベルを表示して
 /// 列の意味を保つ。商品セルは全幅に広げつつ `subgrid` で行の 2 列を継承し、

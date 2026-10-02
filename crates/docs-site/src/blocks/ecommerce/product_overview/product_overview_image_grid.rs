@@ -706,7 +706,7 @@ pub const BLOCK: Block = Block {
 };
 
 /// `product_overview_image_grid` 固有のレイアウト規則
-/// （`crate::blocks::LAYOUT_CSS` doc「block 固有 CSS の置き場」節と同型）。
+/// （`crate::blocks` モジュール doc「CSS の置き場」節と同型）。
 /// `data-blocks-product-overview-image-grid-tile` は `image` 部品が生成する
 /// `<img>` 自体に付与されるため、グリッド配置の対象要素と幅制約の対象
 /// 要素が同一である。`image` 部品の既定 CSS（`max-width: 100%; height: auto`）

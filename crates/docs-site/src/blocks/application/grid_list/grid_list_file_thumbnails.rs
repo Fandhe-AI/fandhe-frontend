@@ -231,8 +231,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `grid_list_file_thumbnails` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。セレクタは
+/// `grid_list_file_thumbnails` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。セレクタは
 /// `.blocks-grid-list-file-thumbnails-*` と
 /// `[data-blocks-grid-list-file-thumbnails-*]` のみを用いる。
 const LAYOUT_CSS: &str = "\

@@ -268,8 +268,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `empty_state_setup_steps` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節。セレクタは
+/// `empty_state_setup_steps` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。セレクタは
 /// `.blocks-empty-state-setup-steps-*` と
 /// `[data-blocks-empty-state-setup-steps-*]`、および本 block スコープ
 /// （`.blocks-empty-state-setup-steps` 祖先）配下の `steps` recipe 属性

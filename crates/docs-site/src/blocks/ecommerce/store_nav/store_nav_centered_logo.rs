@@ -699,8 +699,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `store_nav_centered_logo` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。セレクタは
+/// `store_nav_centered_logo` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。セレクタは
 /// `.blocks-store-nav-centered-logo-*`、`[data-blocks-store-nav-centered-logo-*]`、
 /// および `.blocks-store-nav-centered-logo-layout` を祖先に持つ
 /// `[data-scope="navigation-menu"]` 系セレクタへの子孫結合子付き上書き

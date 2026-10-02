@@ -680,7 +680,7 @@ pub const BLOCK: Block = Block {
 };
 
 /// `onboarding_split_image` 固有のレイアウト規則
-/// （`crate::blocks::LAYOUT_CSS` doc「block 固有 CSS の置き場」節）。
+/// （`crate::blocks` モジュール doc「CSS の置き場」節）。
 ///
 /// セレクタは `.blocks-onboarding-split-image-*` と
 /// `[data-blocks-onboarding-split-image-*]` のみを用い、他 block や部品の

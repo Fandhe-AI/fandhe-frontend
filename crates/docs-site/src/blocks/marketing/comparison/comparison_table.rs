@@ -593,8 +593,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `comparison_table` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。
+/// `comparison_table` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。
 ///
 /// 色はすべて既存トークン（`--fandhe-color-accent`/`-accent-subtle`/
 /// `-border`/`-fg-muted`）のみを使う。自社列の強調は

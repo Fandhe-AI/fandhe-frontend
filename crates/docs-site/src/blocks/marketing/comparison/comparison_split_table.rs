@@ -487,8 +487,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `comparison_split_table` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節）。モバイルファーストで
+/// `comparison_split_table` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。モバイルファーストで
 /// 既定（狭い幅）は縦積み（見出しブロック → 比較表）、`>= 64rem`（lg）で
 /// 2 カラム grid（左: 見出しブロック / 右: 比較表）へ切り替える。狭い幅の
 /// 比較表は `table::scroll_area` + `min-width` で横スクロールさせる

@@ -1311,8 +1311,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `form_layout_property_panel` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。狭い縦長パネルを固定し、節内は
+/// `form_layout_property_panel` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。狭い縦長パネルを固定し、節内は
 /// 2 列グリッドで小さい入力を詰めて配置する。
 const LAYOUT_CSS: &str = "\
 .blocks-form-layout-property-panel-layout {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: flex-start;\n  gap: var(--fandhe-space-4);\n}\n\

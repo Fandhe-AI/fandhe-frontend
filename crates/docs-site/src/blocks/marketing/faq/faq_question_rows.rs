@@ -233,8 +233,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `faq_question_rows` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。セレクタは
+/// `faq_question_rows` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。セレクタは
 /// `.blocks-faq-question-rows-*` と `[data-blocks-faq-question-rows-*]`
 /// のみを用い、他 block や部品の素のセレクタへ影響させない。
 const LAYOUT_CSS: &str = "\

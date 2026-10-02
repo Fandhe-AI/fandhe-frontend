@@ -347,8 +347,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `grid_list_logo_cards` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。セレクタはすべて
+/// `grid_list_logo_cards` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。セレクタはすべて
 /// `.blocks-grid-list-logo-cards-*` か `[data-blocks-grid-list-logo-cards-*]`
 /// の名前空間に収める。
 const LAYOUT_CSS: &str = "\

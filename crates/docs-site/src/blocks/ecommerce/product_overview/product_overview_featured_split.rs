@@ -481,7 +481,7 @@ pub const BLOCK: Block = Block {
 };
 
 /// `product_overview_featured_split` 固有のレイアウト規則
-/// （`crate::blocks` モジュール doc「block 固有 CSS の置き場」節と同型）。
+/// （`crate::blocks` モジュール doc「CSS の置き場」節と同型）。
 /// 既定（狭い幅）は `grid-template-areas` による縦積み（summary → media →
 /// details）、`48rem` 以上で 2 カラム（左列に summary/details、右列に
 /// media）へ切り替える。`display: none` は使わない。

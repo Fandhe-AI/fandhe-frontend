@@ -424,8 +424,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `page_heading_avatar` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。狭幅では `header` が
+/// `page_heading_avatar` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。狭幅では `header` が
 /// `flex-wrap` で折り返すのみで、操作ボタンを非表示にはしない（モジュール
 /// doc「狭幅では操作列を折り返す（非表示にはしない）」節参照）。
 const LAYOUT_CSS: &str = "\
