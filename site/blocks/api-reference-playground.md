@@ -1,22 +1,21 @@
 # api-reference-playground
 
 API のリクエスト/レスポンスパネルの合成例です。新規 UI 部品は作らず
-`badge` / `code` / `clipboard` / `select` / `button` / `text` /
-`empty-state` の 7 部品を合成します。レスポンス・リクエスト・エラー・
-未送信の 4 版を 1 つの Demo 内へ静的に並記して示します。docs サイトは
-JS を使わないため、言語選択・コピー・送信・Try it の各操作はいずれも
-初期状態のまま固定表示され、実際には動作しません。`<form>` は持たず、
-ボタンはすべて `type="button"` です。API の経路・トークン・値はすべて
-架空のものです。
+`badge` / `code` / `select` / `button` / `text` / `empty-state` の 6 部品を
+合成します。レスポンス・リクエスト・エラー・未送信の 4 版を 1 つの
+Demo 内へ静的に並記して示します。docs サイトは JS を使わないため、
+言語選択は閉じたまま固定し、コピー・送信・Try it の各ボタンは押せない
+（`disabled`）状態で表示します。`<form>` は持たず、ボタンはすべて
+`type="button"` です。API の経路・トークン・値はすべて架空のものです。
 
 - **A（代表・レスポンス）**: 見出し「Response」+ 3 バッジ（状態コード・
-  所要時間・サイズ）+ コピー。本文は JSON を行番号付きで表示し、
+  所要時間・サイズ）+ 押せないコピー。本文は JSON を行番号付きで表示し、
   12 行相当の高さを超える部分はスクロールします。2 行を強調表示します。
 - **B（リクエスト・インストール例）**: メソッドバッジ + 経路 + 言語選択
-  （閉じたまま固定）+ コピー。フッター右寄せに押せない「Try it」ボタンを
-  置きます。
+  （閉じたまま固定）+ 押せないコピー。フッター右寄せに押せない「Try it」
+  ボタンを置きます。
 - **C（リクエスト + エラー）**: 見出し「Request」+ 3 バッジ（4xx・所要
-  時間・サイズ）+ コピー。本文の下にエラー文を表示します。
+  時間・サイズ）+ 押せないコピー。本文の下にエラー文を表示します。
 - **D（未送信）**: ヘッダーはメソッドバッジ + 経路のみ。本文の代わりに
   中央へ押せない「Send request」ボタンを 1 つだけ置きます。
 
@@ -26,15 +25,14 @@ JS を使わないため、言語選択・コピー・送信・Try it の各操�
 use fandhe_frontend_core::{div, el, span, text, Node};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
-use fandhe_frontend_pre_styled_ui::clipboard;
 use fandhe_frontend_pre_styled_ui::code::{self, CodeProps};
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps, EmptyStateVariant};
 use fandhe_frontend_pre_styled_ui::select::{self, OpenState, SelectProps};
-use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
+use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
-/// A（レスポンス）の本文行。表示とコピー値の唯一の供給元。
+/// A（レスポンス）の本文行。表示本文の唯一の供給元。
 const RESPONSE_LINES: [&str; 20] = [
     "{",
     "  \"id\": \"proj_8f2a1c\",",
@@ -237,53 +235,11 @@ fn language_select(
     )
 }
 
-/// コピー操作（idle 初期状態）。モジュール doc「無 JS の静的表示である
-/// こと」節: docs サイト自体は無 JS のため静的表示に留まるが、実アプリへ
-/// 組み込めば `headless_clipboard` 配線によりコピー操作は機能する
-/// （`hero_install_command` と同型の判断）。`lines` は表示本文と同じ行配列で、
-/// `\n` で連結した値をコピー値にする（モジュール doc「コピー値は表示本文と
-/// 同じ行データから作る」節）。
-fn copy_button(lines: &[&str], input_id: &'static str) -> Node {
-    let value = lines.join("\n");
-    clipboard::root(
-        &value,
-        false,
-        vec![("data-blocks-api-reference-playground-copy", "")],
-        vec![
-            visually_hidden::root(
-                vec![],
-                vec![clipboard::label(
-                    false,
-                    Some(input_id),
-                    vec![],
-                    vec![text("値をコピー")],
-                )],
-            ),
-            clipboard::control(
-                false,
-                vec![],
-                vec![
-                    visually_hidden::root(
-                        vec![],
-                        vec![clipboard::input(&value, false, vec![("id", input_id)])],
-                    ),
-                    clipboard::trigger(
-                        false,
-                        vec![],
-                        vec![
-                            clipboard::indicator(false, false, vec![], vec![text("Copy")]),
-                            clipboard::indicator(true, false, vec![], vec![text("Copied")]),
-                        ],
-                    ),
-                ],
-            ),
-        ],
-    )
-}
-
-/// 版 B・C のコピー表示（`clipboard` scope の外側、押下不能。モジュール
-/// doc「Demo 内の `clipboard` root は 1 個に限る」節）。
-fn copy_button_disabled() -> Node {
+/// コピー操作の静的表示（A・B・C 共通、押下不能）。モジュール doc「Demo 内に
+/// `clipboard` root を置かない」節: 無 JS の docs サイトでは動かないため
+/// `clipboard` scope の外側に `disabled: true` の `button::button` を置く。
+/// 実アプリでは `clipboard::root` へ置き換える。
+fn copy_button() -> Node {
     button::button(
         &ButtonProps {
             disabled: true,
@@ -353,10 +309,7 @@ fn panel_response() -> Node {
                         vec![text("Response")],
                     ),
                     meta_badges("200", ColorPalette::Success, "142 ms", "1.8 KB"),
-                    copy_button(
-                        &RESPONSE_LINES,
-                        "blocks-api-reference-playground-response-copy",
-                    ),
+                    copy_button(),
                 ],
             ),
             code_body(
@@ -393,7 +346,7 @@ fn panel_request_install() -> Node {
                     method_badge("POST", ColorPalette::Accent),
                     endpoint("/v1/projects"),
                     language_select(LANG_LABEL_ID, LANG_CONTENT_ID, "cURL", &OPTIONS),
-                    copy_button_disabled(),
+                    copy_button(),
                 ],
             ),
             code_body(
@@ -440,7 +393,7 @@ fn panel_request_error() -> Node {
                         vec![text("Request")],
                     ),
                     meta_badges("400", ColorPalette::Danger, "86 ms", "0.3 KB"),
-                    copy_button_disabled(),
+                    copy_button(),
                 ],
             ),
             code_body(
@@ -449,11 +402,10 @@ fn panel_request_error() -> Node {
                 &ERROR_LINES,
                 &[1, 2],
             ),
+            // 既定の `Plain` は `color` を宣言しないため、`LAYOUT_CSS` の danger 色が
+            // そのまま効く（モジュール doc「版 C のエラー文」節）。
             styled_text::text(
-                &TextProps {
-                    variant: TextVariant::Muted,
-                    ..TextProps::default()
-                },
+                &TextProps::default(),
                 vec![("data-blocks-api-reference-playground-error", "")],
                 vec![text(
                     "Error: \"region\" must be one of the supported regions.",
@@ -528,14 +480,18 @@ pub fn demo() -> Node {
   この改行文字と `white-space: pre` だけで行い、行を `display: block`
   にしないため、表示に空行が入らず、選択してコピーしても行が連結
   されません。行番号は各行先頭の `::before`（`inline-block`）に出します。
-- `clipboard` は 1 つの root でのコピー成功が同じマウント範囲の全
-  `clipboard` の表示へ連動するため、Demo 内の `clipboard` は版 A の
-  1 個だけにしています。版 B・C のコピーは押せない（`disabled`）
-  ボタンとして表示します。
-- 版 A のコピー値は表示中の本文と同じ行データを改行で連結して作るため、
-  本文全体と完全に一致します。`clipboard` の入力欄は本文と重複して
-  見えないよう視覚的に隠しています（ラベルと同じ `visually_hidden` を
-  使用）。
+- 全行が同じ幅の行頭ボーダー（通常行は透明）を持つため、強調行でも
+  行番号と本文の横位置がずれません。
+- 原案の使用部品にあった `clipboard` は使いません。docs サイトは JS を
+  使わないため、`clipboard` を置くと押せる見た目のまま反応しないコピー
+  ボタンと、Tab 順に残る不可視の入力欄が Demo に残るためです。A・B・C の
+  コピーはいずれも `clipboard` の外側に置いた押せない（`disabled`）
+  `button` で、コピー値（`data-value`）も出力しません。実アプリでは
+  `copy_button` を `clipboard` へ置き換え、表示本文と同じ行配列を改行で
+  連結した値をコピー値にします（`settings-api-key-created` /
+  `hero-install-command` と同じ構成）。
+- 版 C のエラー文は `text` の既定（`Plain`）で描画し、block 側の CSS で
+  danger 色を当てています（`Muted` だと部品側の色指定が優先されるため）。
 - 版 B のヘッダーでは言語選択とコピーを右寄せの 1 つのまとまりとして
   並べます（コピー側の自動余白を打ち消します）。
 - 本文のスクロール領域は 12 行相当（`calc(1.5em * 12)`）で高さを
@@ -547,7 +503,6 @@ pub fn demo() -> Node {
 
 - [Badge](../themes/badge.md)
 - [Code](../themes/code.md)
-- [Clipboard](../themes/clipboard.md)
 - [Select](../themes/select.md)
 - [Button](../themes/button.md)
 - [Text](../themes/text.md)

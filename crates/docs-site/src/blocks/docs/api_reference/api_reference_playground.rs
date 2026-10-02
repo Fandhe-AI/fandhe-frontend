@@ -3,11 +3,13 @@
 //!
 //! # 使用部品
 //!
-//! `badge` / `code` / `clipboard` / `select` / `button` / `text` /
-//! `empty-state` の 7 部品を合成する（[`BLOCK`] の `parts` に一致させる
-//! 契約、`crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が
-//! 検証する）。`visually_hidden` は補助的な合成手段のため `parts` には
-//! 列挙しない（他 block と同じ判断、`hero_install_command` 等の先例）。
+//! `badge` / `code` / `select` / `button` / `text` / `empty-state` の 6 部品を
+//! 合成する（[`BLOCK`] の `parts` に一致させる契約、
+//! `crates/docs-site/tests/blocks_nav.rs`/`blocks_contract.rs` が検証する）。
+//! `visually_hidden` は補助的な合成手段のため `parts` には列挙しない
+//! （他 block と同じ判断、`hero_install_command` 等の先例）。イシュー #3102
+//! の使用部品案にあった `clipboard` は本 Demo では使わない（下記「Demo 内に
+//! `clipboard` root を置かない」節）。
 //!
 //! # 4 版の併記
 //!
@@ -32,9 +34,10 @@
 //! 既存制約）。このため言語選択・コピー・送信・Try it の各操作は実際には
 //! 動かない初期状態の固定表示に留める。[`fandhe_frontend_pre_styled_ui::
 //! select::SelectProps`] へ `disabled: true` を渡し `OpenState::Closed`
-//! で固定する（`card_form_footer::closed_select` と同型）。送信・Try it
-//! ボタンは [`fandhe_frontend_pre_styled_ui::button::ButtonProps`] へ
-//! `disabled: true` を渡し、押せそうに見せない。
+//! で固定する（`card_form_footer::closed_select` と同型）。コピー・送信・
+//! Try it の各ボタンは [`fandhe_frontend_pre_styled_ui::button::ButtonProps`]
+//! へ `disabled: true` を渡し、押せそうに見せない（押せる見た目で押しても
+//! 反応しないボタンを Demo に残さない）。
 //!
 //! # `drop_class_attr` の契約（CSS フックの選び方）
 //!
@@ -58,25 +61,34 @@
 //! 各行の先頭に並べる。生成コンテンツのため選択・コピー時に行番号の文字列が
 //! 本文テキストへ混ざらず、`render` 出力にも増えない（[`LAYOUT_CSS`] 側の
 //! 実装）。強調行は `data-highlighted` 属性 + 背景色 +
-//! `border-inline-start` の両方で示し、色だけに頼らない。スクロール領域
+//! `border-inline-start` の色の両方で示し、色だけに頼らない。行頭ボーダーは
+//! 全行に同じ幅（2px）で確保し、通常行は透明・強調行だけ色を付ける
+//! （強調行の有無で行番号・本文の横位置がずれないため）。スクロール領域
 //! （`pre`）はキーボードで届くよう `tabindex="0"` と `role="region"`・
 //! `aria-label` を付与する。
 //!
-//! # Demo 内の `clipboard` root は 1 個に限る
+//! # 版 C のエラー文は `TextVariant::Plain` のまま block CSS で色を付ける
 //!
-//! `fandhe-frontend-wasm-full` の `headless_clipboard` 配線は「1 root : 1
-//! 状態機械」で、1 つの root でのコピー成功がマウント範囲内の全
-//! `clipboard` パーツの copied 表示へ及ぶ（`settings_api_key_created` の
-//! 同名節と同じ判断）。そこで `clipboard` root は版 A の 1 個だけとし、
-//! 版 B・C のコピーは `clipboard` scope の外側に `disabled: true` の
-//! `button::button` を置いて押下不能を明示する。
+//! `text::text` の `Muted` 変種は recipe 側で `color` を宣言するため、
+//! block 固有の属性セレクタ 1 個より詳細度が高く、danger 色が負ける。
+//! そこで既定の `Plain`（`color` 宣言なし）を使い、[`LAYOUT_CSS`] の
+//! `[data-blocks-api-reference-playground-error]` だけが `color` を決める。
 //!
-//! # コピー値は表示本文と同じ行データから作る
+//! # Demo 内に `clipboard` root を置かない
 //!
-//! 版 A のコピー値（`clipboard::root` の `data-value`）は表示本文と同じ行
-//! 配列（[`RESPONSE_LINES`]）を `\n` で連結して作り、表示中のコードと完全に
-//! 一致させる。`clipboard::input` は本文と重複する第 2 の表示にならないよう
-//! `visually_hidden::root` で視覚的に隠す（`clipboard::label` と同じ手段）。
+//! 本 Demo の主役は本文（コード）であり、コピーはヘッダーの付随操作である。
+//! 無 JS の docs サイトで `clipboard::root` を置くと、(1) `clipboard::trigger`
+//! は `disabled` を持たないため押せる見た目のまま反応しない「Copy」が残り、
+//! (2) 本文と重複する `clipboard::input` を `visually_hidden` で隠しても
+//! readonly input が Tab 順に残って見えない要素へフォーカスが止まる。
+//! どちらも静的表示の見本として筋が通らないため、A・B・C の 3 つのコピーは
+//! すべて `clipboard` scope の外側に `disabled: true` の `button::button` を
+//! 置き（送信・Try it と同じ扱い）、`clipboard` root・input・`data-value` を
+//! 出力しない。実アプリで本 block を使うときは [`copy_button`] を
+//! `clipboard::root`（`settings_api_key_created`/`hero_install_command` の
+//! 構成。コピー値は表示本文と同じ行配列を `\n` で連結する）へ置き換える。
+//! 表示本文の唯一の供給元は [`RESPONSE_LINES`]/[`REQUEST_LINES`]/
+//! [`ERROR_LINES`] の行配列である。
 //!
 //! # `<form>` を使わない
 //!
@@ -94,15 +106,14 @@ use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 use fandhe_frontend_core::{div, el, span, text, Node};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps};
-use fandhe_frontend_pre_styled_ui::clipboard;
 use fandhe_frontend_pre_styled_ui::code::{self, CodeProps};
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps, EmptyStateVariant};
 use fandhe_frontend_pre_styled_ui::select::{self, OpenState, SelectProps};
-use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
+use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
-/// A（レスポンス）の本文行。表示とコピー値の唯一の供給元。
+/// A（レスポンス）の本文行。表示本文の唯一の供給元。
 const RESPONSE_LINES: [&str; 20] = [
     "{",
     "  \"id\": \"proj_8f2a1c\",",
@@ -305,53 +316,11 @@ fn language_select(
     )
 }
 
-/// コピー操作（idle 初期状態）。モジュール doc「無 JS の静的表示である
-/// こと」節: docs サイト自体は無 JS のため静的表示に留まるが、実アプリへ
-/// 組み込めば `headless_clipboard` 配線によりコピー操作は機能する
-/// （`hero_install_command` と同型の判断）。`lines` は表示本文と同じ行配列で、
-/// `\n` で連結した値をコピー値にする（モジュール doc「コピー値は表示本文と
-/// 同じ行データから作る」節）。
-fn copy_button(lines: &[&str], input_id: &'static str) -> Node {
-    let value = lines.join("\n");
-    clipboard::root(
-        &value,
-        false,
-        vec![("data-blocks-api-reference-playground-copy", "")],
-        vec![
-            visually_hidden::root(
-                vec![],
-                vec![clipboard::label(
-                    false,
-                    Some(input_id),
-                    vec![],
-                    vec![text("値をコピー")],
-                )],
-            ),
-            clipboard::control(
-                false,
-                vec![],
-                vec![
-                    visually_hidden::root(
-                        vec![],
-                        vec![clipboard::input(&value, false, vec![("id", input_id)])],
-                    ),
-                    clipboard::trigger(
-                        false,
-                        vec![],
-                        vec![
-                            clipboard::indicator(false, false, vec![], vec![text("Copy")]),
-                            clipboard::indicator(true, false, vec![], vec![text("Copied")]),
-                        ],
-                    ),
-                ],
-            ),
-        ],
-    )
-}
-
-/// 版 B・C のコピー表示（`clipboard` scope の外側、押下不能。モジュール
-/// doc「Demo 内の `clipboard` root は 1 個に限る」節）。
-fn copy_button_disabled() -> Node {
+/// コピー操作の静的表示（A・B・C 共通、押下不能）。モジュール doc「Demo 内に
+/// `clipboard` root を置かない」節: 無 JS の docs サイトでは動かないため
+/// `clipboard` scope の外側に `disabled: true` の `button::button` を置く。
+/// 実アプリでは `clipboard::root` へ置き換える。
+fn copy_button() -> Node {
     button::button(
         &ButtonProps {
             disabled: true,
@@ -421,10 +390,7 @@ fn panel_response() -> Node {
                         vec![text("Response")],
                     ),
                     meta_badges("200", ColorPalette::Success, "142 ms", "1.8 KB"),
-                    copy_button(
-                        &RESPONSE_LINES,
-                        "blocks-api-reference-playground-response-copy",
-                    ),
+                    copy_button(),
                 ],
             ),
             code_body(
@@ -461,7 +427,7 @@ fn panel_request_install() -> Node {
                     method_badge("POST", ColorPalette::Accent),
                     endpoint("/v1/projects"),
                     language_select(LANG_LABEL_ID, LANG_CONTENT_ID, "cURL", &OPTIONS),
-                    copy_button_disabled(),
+                    copy_button(),
                 ],
             ),
             code_body(
@@ -508,7 +474,7 @@ fn panel_request_error() -> Node {
                         vec![text("Request")],
                     ),
                     meta_badges("400", ColorPalette::Danger, "86 ms", "0.3 KB"),
-                    copy_button_disabled(),
+                    copy_button(),
                 ],
             ),
             code_body(
@@ -517,11 +483,10 @@ fn panel_request_error() -> Node {
                 &ERROR_LINES,
                 &[1, 2],
             ),
+            // 既定の `Plain` は `color` を宣言しないため、`LAYOUT_CSS` の danger 色が
+            // そのまま効く（モジュール doc「版 C のエラー文」節）。
             styled_text::text(
-                &TextProps {
-                    variant: TextVariant::Muted,
-                    ..TextProps::default()
-                },
+                &TextProps::default(),
                 vec![("data-blocks-api-reference-playground-error", "")],
                 vec![text(
                     "Error: \"region\" must be one of the supported regions.",
@@ -601,10 +566,6 @@ pub const BLOCK: Block = Block {
             path: "/themes/code/",
         },
         Part {
-            label: "Clipboard",
-            path: "/themes/clipboard/",
-        },
-        Part {
             label: "Select",
             path: "/themes/select/",
         },
@@ -639,9 +600,9 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-api-reference-playground-select] + [data-blocks-api-reference-playground-copy] {\n  margin-inline-start: 0;\n}\n\
 [data-blocks-api-reference-playground-body] {\n  margin: 0;\n  overflow: auto;\n  max-height: calc(1.5em * 12);\n  line-height: 1.5;\n  counter-reset: line;\n  font-family: var(--fandhe-font-font-mono);\n  font-size: var(--fandhe-font-font-size-sm);\n  padding: var(--fandhe-space-3);\n  background: var(--fandhe-color-bg-subtle);\n  border-radius: var(--fandhe-radius-md);\n}\n\
 [data-scope=\"code\"][data-part=\"root\"][data-blocks-api-reference-playground-body-code] {\n  display: block;\n  white-space: pre;\n  background: transparent;\n  color: inherit;\n  border: 0;\n  padding: 0;\n}\n\
-[data-blocks-api-reference-playground-line] {\n  counter-increment: line;\n}\n\
+[data-blocks-api-reference-playground-line] {\n  counter-increment: line;\n  border-inline-start: 2px solid transparent;\n}\n\
 [data-blocks-api-reference-playground-line]::before {\n  content: counter(line);\n  display: inline-block;\n  width: 2em;\n  margin-inline-end: 0.5em;\n  text-align: right;\n  color: var(--fandhe-color-fg-muted);\n  user-select: none;\n}\n\
-[data-blocks-api-reference-playground-line][data-highlighted] {\n  background: var(--fandhe-color-accent-subtle);\n  border-inline-start: 2px solid var(--fandhe-color-accent-fg-subtle);\n}\n\
+[data-blocks-api-reference-playground-line][data-highlighted] {\n  background: var(--fandhe-color-accent-subtle);\n  border-inline-start-color: var(--fandhe-color-accent-fg-subtle);\n}\n\
 [data-blocks-api-reference-playground-error] {\n  margin: 0;\n  color: var(--fandhe-color-danger-fg-subtle);\n}\n\
 [data-blocks-api-reference-playground-unsent] {\n  min-height: 8rem;\n  display: grid;\n  place-items: center;\n}\n\
 [data-blocks-api-reference-playground-footer] {\n  display: flex;\n  justify-content: flex-end;\n}\n";
@@ -672,8 +633,8 @@ mod tests {
         assert!(!html.contains("data-copied"));
         assert!(!html.contains("href=\"#\""));
         assert!(!html.contains("src=\"data:"));
-        // Try it / Send request ボタンと select はいずれも disabled。
-        assert!(html.matches("disabled").count() >= 3);
+        // Copy x3 / Try it / Send request のボタンと select はいずれも disabled。
+        assert!(html.matches("disabled").count() >= 6);
     }
 
     /// 4 版すべてが固有の `data-blocks-api-reference-playground-variant`
@@ -719,11 +680,10 @@ mod tests {
         assert!(!html.contains("</span>\n<span data-blocks-api-reference-playground-line"));
     }
 
-    /// 各本文の行 span の中身を順に連結すると行配列の `\n` 連結に一致し
-    /// （範囲選択コピーで行が連結されない）、版 A のコピー値（`data-value`）は
-    /// それと完全一致すること。
+    /// 各本文の行 span の中身を順に連結すると行配列の `\n` 連結に一致する
+    /// こと（範囲選択コピーで行が連結されない）。
     #[test]
-    fn displayed_bodies_keep_newlines_and_copy_value_matches() {
+    fn displayed_bodies_keep_newlines() {
         let html = render(&demo());
         for lines in [&RESPONSE_LINES[..], &REQUEST_LINES[..], &ERROR_LINES[..]] {
             let joined = lines.join("\n");
@@ -737,31 +697,80 @@ mod tests {
             }
             assert_eq!(displayed, joined);
         }
-        let response = escape_html(&RESPONSE_LINES.join("\n"));
-        assert!(html.contains(&format!("data-value=\"{response}\"")));
     }
 
-    /// Demo 内の `clipboard` root は 1 個だけで、その input は
-    /// `visually_hidden::root` で視覚的に隠されること。版 B・C のコピーは
-    /// `disabled` のボタンであること。
+    /// Demo が `clipboard` root・input・コピー値を一切出力せず、A・B・C の
+    /// コピーがすべて `disabled` の `button::button` であること（モジュール
+    /// doc「Demo 内に `clipboard` root を置かない」節。押せる見た目で反応しない
+    /// ボタンと、Tab 順に残る不可視 input の両方を排除する）。
     #[test]
-    fn demo_has_single_clipboard_root_with_hidden_input() {
+    fn demo_has_no_clipboard_root_and_copy_buttons_are_disabled() {
         let html = render(&demo());
+        assert!(!html.contains("data-scope=\"clipboard\""));
+        // `data-value` は select の item も持つため、clipboard root 由来の
+        // コピー値（`data-part="root" data-value=`）が無いことだけを見る。
+        assert!(!html.contains("data-part=\"root\" data-value="));
+        assert!(!html.contains("<input"));
+        let marker = "data-blocks-api-reference-playground-copy";
+        assert_eq!(html.matches(marker).count(), 3);
+        for (i, _) in html.match_indices(marker) {
+            let open = html[..i].rfind('<').expect("copy tag start");
+            let close = i + html[i..].find('>').expect("copy tag end");
+            let tag = &html[open..close];
+            assert!(tag.starts_with("<button"), "copy must be a button: {tag}");
+            assert!(tag.contains(" disabled"), "copy must be disabled: {tag}");
+        }
+        // 全要素のうち Tab 到達可能なのは disabled でない要素だけで、
+        // `tabindex` を持つのはスクロール領域（`pre`）に限る。
         assert_eq!(
-            html.matches("data-scope=\"clipboard\" data-part=\"root\"")
-                .count(),
-            1
+            html.matches("tabindex=").count(),
+            html.matches("<pre").count()
         );
+    }
+
+    /// 全行が同じ幅（2px）の行頭ボーダーを持ち、強調行はその色だけを変える
+    /// こと（強調行の有無で行番号・本文の横位置がずれない。モジュール doc
+    /// 「行番号・強調行」節）。
+    #[test]
+    fn layout_css_keeps_line_gutter_width_constant_across_highlight() {
+        let rule_start = LAYOUT_CSS
+            .find("[data-blocks-api-reference-playground-line] {")
+            .expect("line rule");
+        let rule = &LAYOUT_CSS[rule_start..];
+        let rule = &rule[..rule.find('}').expect("rule end")];
+        assert!(rule.contains("border-inline-start: 2px solid transparent"));
+        let hl_start = LAYOUT_CSS
+            .find("[data-blocks-api-reference-playground-line][data-highlighted] {")
+            .expect("highlight rule");
+        let hl = &LAYOUT_CSS[hl_start..];
+        let hl = &hl[..hl.find('}').expect("rule end")];
+        assert!(hl.contains("border-inline-start-color:"));
+        assert!(
+            !hl.contains("border-inline-start:"),
+            "highlight must not change border width: {hl}"
+        );
+    }
+
+    /// 版 C のエラー文が `TextVariant::Muted` を使わず（recipe の `color` が
+    /// block CSS に詳細度で勝つのを避ける）、block CSS が danger 色を宣言する
+    /// こと（モジュール doc「版 C のエラー文」節）。
+    #[test]
+    fn error_text_is_plain_variant_colored_by_block_css() {
+        let html = render(&demo());
         let at = html
-            .find("id=\"blocks-api-reference-playground-response-copy\"")
-            .expect("input id");
-        let open = html[..at].rfind("<input").expect("input tag");
-        assert!(html[..open].ends_with("<span data-scope=\"visually-hidden\" data-part=\"root\">"));
-        assert_eq!(
-            html.matches("data-blocks-api-reference-playground-copy")
-                .count(),
-            3
+            .find("data-blocks-api-reference-playground-error")
+            .expect("error text");
+        let open = html[..at].rfind('<').expect("tag start");
+        let close = at + html[at..].find('>').expect("tag end");
+        let tag = &html[open..close];
+        assert!(
+            tag.contains("data-scope=\"text\""),
+            "error must be a text part: {tag}"
         );
+        assert!(!tag.contains("muted"), "error must not be Muted: {tag}");
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-api-reference-playground-error] {\n  margin: 0;\n  color: var(--fandhe-color-danger-fg-subtle);\n}"
+        ));
     }
 
     /// select と copy が並ぶヘッダーで copy 側の自動余白を打ち消し、右寄せの
