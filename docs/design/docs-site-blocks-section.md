@@ -1157,6 +1157,7 @@ pub enum LayoutCss {
 | api-reference-param-accordion | #3100 | `docs/api_reference/api_reference_param_accordion.rs` |
 | api-reference-props-table | #3103（親 #3099） | `docs/api_reference/api_reference_props_table.rs` |
 | code-block-header | #3104（親 #3099） | `docs/code_block/code_block_header.rs` |
+| example-preview-tabs | #3113（親 #3099） | `docs/example_preview/example_preview_tabs.rs` |
 | docs-layout-page-header | #3106 | `docs/docs_layout/docs_layout_page_header.rs` |
 | docs-layout-prev-next | #3107 | `docs/docs_layout/docs_layout_prev_next.rs` |
 | docs-layout-sidebar-api | #3108（親 #3099） | `docs/docs_layout/docs_layout_sidebar_api.rs` |
