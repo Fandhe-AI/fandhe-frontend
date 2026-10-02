@@ -10,9 +10,13 @@
 //! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
 mod docs_layout_page_header;
+mod docs_layout_toc_progress;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![docs_layout_page_header::BLOCK]
+    vec![
+        docs_layout_page_header::BLOCK,
+        docs_layout_toc_progress::BLOCK,
+    ]
 }
