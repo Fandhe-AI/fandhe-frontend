@@ -109,7 +109,7 @@ use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps, H
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::nav_list;
 use fandhe_frontend_pre_styled_ui::recipe::ColorPalette;
-use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextVariant};
+use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 
 /// 目次項目 1 件（節 1 つ）。`children` で第 3 階層まで表現できるが、本
 /// Demo は第 2 階層までを使う。`id`/`href` は単一の真実源（モジュール doc
@@ -323,6 +323,7 @@ fn toc(variant: &'static str, nav_label: &str, entries: &[TocEntry], current_id:
         vec![
             styled_text::text(
                 &TextProps {
+                    size: TextSize::Sm,
                     variant: TextVariant::Muted,
                     ..TextProps::default()
                 },
