@@ -178,13 +178,14 @@ const BUTTON: ComponentPageSpec = ComponentPageSpec {
         "`:focus-visible` で palette 連動のフォーカスリングを表示する（イシュー #1449、#1424 準拠）。",
         "`button`/`icon_button`/`close_button` の 3 公開関数が共通の組み立てロジックを共有する（イシュー #830）。",
         "`icon_size_for` がボタン size からアイコン size を決定的に写像する（`Xs`/`Sm` → `Sm`、`Md`/`Lg`/`Xl` → `Md`、chakra-ui `_icon` 準拠）。`close_button` はこれを内蔵し、`icon_button` は呼び出し側が同関数で選ぶことを推奨する（イシュー #1674）。",
+        "共通 shape 軸（イシュー #3117/#3118）。`shape`（既定 `None`、opt-in）で `Shape::Pill`（両端を最大まで丸める）と `Shape::Circle`（`icon_button`/`close_button` と組み合わせたときのみ真円になる）を選べる。いずれも `--fandhe-radius-full` を参照し、既定の `None` は従来どおり角丸のまま class を追加出力しない。",
     ],
     arguments: &[
         ArgRow {
             name: "props",
             kind: "&ButtonProps",
             default: "",
-            description: "`variant`（既定 `Solid`）・`size`（既定 `Md`）・`palette`（既定 `Accent`）・`disabled`・`loading` を束ねる構造体。",
+            description: "`variant`（既定 `Solid`）・`size`（既定 `Md`）・`palette`（既定 `Accent`）・`disabled`・`loading`・`shape`（既定 `None`）を束ねる構造体。",
         },
         ArgRow {
             name: "attrs",
@@ -209,6 +210,16 @@ const BUTTON: ComponentPageSpec = ComponentPageSpec {
             title: "Button with badge",
             description: "既存の `badge`（イシュー #1063 等）と icon-only の `icon_button`（イシュー #830）を相対配置し、通知件数を重ねる用例です。位置調整（`position: relative`/`absolute`）は本コンポーネント層の責務外のため、呼び出し側の `style` で行っています。",
             render: ex_button_with_badge,
+        },
+        ExampleEntry {
+            title: "pill 形状（shape 軸）",
+            description: "`ButtonProps { shape: Some(Shape::Pill), .. }` で両端を最大まで丸める例です（イシュー #3117/#3118）。2 つ目は `Surface` variant + `ColorPalette::Neutral` の組み合わせで、白に近い面・淡いグレー枠・濃い文字という secondary 相当の見た目に近似しています（新しい variant は追加していません）。",
+            render: ex_button_pill_shape,
+        },
+        ExampleEntry {
+            title: "circle 形状（icon_button）",
+            description: "`icon_button` に `shape: Some(Shape::Circle)` を指定し、icon-only と組み合わせて真円にする例です。真円になるのは icon-only と組み合わせたときだけで、テキストボタンに `Circle` を指定しても確定サイズの正方形が無いため真円にはなりません。",
+            render: ex_button_circle_shape,
         },
     ],
     keyboard: &[],
@@ -275,6 +286,72 @@ fn ex_button_with_badge() -> Node {
                 vec![text("3")],
             ),
         ],
+    )
+}
+
+/// [`BUTTON`] の Examples 節「pill 形状（shape 軸）」レンダラ（イシュー
+/// #3117/#3118）。`Shape::Pill` の見た目（`border-radius:
+/// var(--fandhe-radius-full)`）を 2 variant で示す。2 つ目（Surface +
+/// Neutral）は新 variant を追加せず、既存軸の組み合わせで secondary 相当の
+/// 見た目（白に近い面・淡いグレー枠・濃い文字）に近似する例。
+fn ex_button_pill_shape() -> Node {
+    use fandhe_frontend_pre_styled_ui::recipe::Shape;
+
+    div(
+        vec![(
+            "style",
+            "display: inline-flex; gap: 0.5rem; flex-wrap: wrap;",
+        )],
+        vec![
+            fandhe_frontend_pre_styled_ui::button::button(
+                &ButtonProps {
+                    shape: Some(Shape::Pill),
+                    ..ButtonProps::default()
+                },
+                vec![],
+                vec![text("Pill button")],
+            ),
+            fandhe_frontend_pre_styled_ui::button::button(
+                &ButtonProps {
+                    variant: ButtonVariant::Surface,
+                    palette: ColorPalette::Neutral,
+                    shape: Some(Shape::Pill),
+                    ..ButtonProps::default()
+                },
+                vec![],
+                vec![text("Secondary-ish pill")],
+            ),
+        ],
+    )
+}
+
+/// [`BUTTON`] の Examples 節「circle 形状（icon_button）」レンダラ（イシュー
+/// #3117/#3118）。`shape: Some(Shape::Circle)` を icon-only の `icon_button`
+/// と組み合わせたときのみ真円になることを示す（テキストボタンでは真円に
+/// ならない契約、`ButtonProps::shape` rustdoc 参照）。
+fn ex_button_circle_shape() -> Node {
+    use fandhe_frontend_pre_styled_ui::recipe::Shape;
+
+    icon_button(
+        &ButtonProps {
+            variant: ButtonVariant::Outline,
+            shape: Some(Shape::Circle),
+            ..ButtonProps::default()
+        },
+        "Add",
+        vec![],
+        vec![icon(
+            &IconProps {
+                label: None,
+                ..IconProps::default()
+            },
+            vec![],
+            vec![el(
+                "path",
+                vec![("d", "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z")],
+                vec![],
+            )],
+        )],
     )
 }
 
