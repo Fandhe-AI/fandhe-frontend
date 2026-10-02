@@ -3879,6 +3879,23 @@ name = "fandhe-frontend-pre-styled-ui"
 # 崩れるため）。既存 golden ブロックの出力バイトが変わる観測可能な CSS
 # 変更のため minor バンプする。
 #
+# マージコミット注記（本 PR #3136、origin/main 取り込み）: 本ブランチは
+# 上記の経緯で独立に 0.231.0 へ到達していたが、origin/main 側（select の
+# #3573 対応を含む到達値）は独立に 0.232.0 へ到達していたため、そのまま
+# 採用せずさらに +1 して 0.233.0 とする。
+#
+# イシュー #3138: stat に矢印なし・意味色付きの増減率表示（`delta` パート・
+# `StatDeltaTone` tone 軸）を追加した。`SLOTS` へ `delta` を末尾追加し、
+# tone 軸に `default_variant` を登録しないため既存 `root` の class 出力・
+# 既存 golden ブロックの出力バイトは不変（純追加のみ）。公開 API 純追加の
+# ため minor バンプする。
+#
+# マージコミット注記（本 PR #3577、origin/main 再取り込み）: 本ブランチは
+# 上記の経緯で独立に 0.233.0 へ到達していたが、origin/main 側（select の
+# #3573 対応を含む到達値、本ブランチの base merge 時点）も独立に同一の
+# 0.233.0 へ到達していた（偶発的衝突）ため、そのまま採用せずさらに +1 して
+# 0.234.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
 # マージコミット注記（本 PR #3137、origin/main 再取り込み）: イシュー
 # #3137 で separator::group にラベル位置指定（`group_with`/
 # `SeparatorLabelPosition::Start`）を追加した。既存 `group`/`separator` の
@@ -3886,8 +3903,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # な純追加のため minor バンプする。origin/main 側が別 PR（#3576 等）の
 # マージで独立に 0.233.0 へ到達済みのため、本 PR 分の +1 が吸収され base
 # と同値になっていた（codex-review 是正、PR #3575）。そのためさらに +1
-# して 0.234.0 とする。
-version = "0.234.0"
+# して 0.234.0 とした。
+#
+# マージコミット注記（本 PR #3575、origin/main 再取り込み）: 本ブランチは
+# 上記の経緯で 0.234.0 へ到達していたが、origin/main 側（#3577 等の
+# マージ）も独立に同一の 0.234.0 へ到達していたため、さらに +1 して
+# 0.235.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+version = "0.235.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
