@@ -30,9 +30,13 @@
 //! `crates/pre-styled-ui/src/navigation_menu.rs` の `recipe()` 参照）のため、
 //! `position: static` だけでは `content` が `scroll_area::root` の隣に
 //! 横並びのまま残ってしまう（指摘 #3540 の是正）。`LAYOUT_CSS` は
-//! `.blocks-store-nav-category-row-nav` へ `flex-direction: column` を追加で
-//! 与え、`scroll_area::root`（カテゴリ行）→ `content`（パネル）の順に縦積み
-//! させる。[`fandhe_frontend_pre_styled_ui::navigation_menu`] の recipe は `content`
+//! `.blocks-store-nav-category-row-shell [data-scope="navigation-menu"]
+//! [data-part="root"]` へ `flex-direction: column`（`align-items: stretch` も
+//! 併記）を追加で与え、`scroll_area::root`（カテゴリ行）→ `content`（パネル）
+//! の順に縦積みさせる。クラス単体セレクタ（`.blocks-store-nav-category-row-nav`）
+//! は recipe の `[data-scope="navigation-menu"][data-part="root"]`（2 属性）に
+//! 詳細度で負け `align-items: center` のまま残っていたため（指摘 #3540 再指摘、
+//! Bugbot Medium）、祖先クラス + 同型の属性セレクタで詳細度を揃えて上書きする。[`fandhe_frontend_pre_styled_ui::navigation_menu`] の recipe は `content`
 //! 自身の `data-state`/`hidden` だけを見て祖先の構造を前提にしないため
 //! （`crates/pre-styled-ui/src/navigation_menu.rs` 参照）、この配置は recipe
 //! の契約を破らない。トリガーとパネルの関連付けは `aria-controls`/
@@ -474,7 +478,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-store-nav-category-row-shell {\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n  background: var(--fandhe-color-bg);\n  overflow: hidden;\n}\n\
 .blocks-store-nav-category-row-narrow-frame {\n  max-inline-size: 22rem;\n  margin-inline: auto;\n}\n\
 .blocks-store-nav-category-row-top-bar {\n  display: flex;\n  flex-wrap: nowrap;\n  align-items: center;\n  justify-content: space-between;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
-.blocks-store-nav-category-row-nav {\n  display: flex;\n  flex-direction: column;\n  align-items: stretch;\n}\n\
+.blocks-store-nav-category-row-shell [data-scope=\"navigation-menu\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: column;\n  align-items: stretch;\n}\n\
 [data-blocks-store-nav-category-row-brand] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  font-weight: 600;\n  white-space: nowrap;\n}\n\
 .blocks-store-nav-category-row-actions {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  white-space: nowrap;\n}\n\
 .blocks-store-nav-category-row-shell [data-scope=\"navigation-menu\"][data-part=\"list\"] {\n  display: flex;\n  flex-wrap: nowrap;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  inline-size: max-content;\n  padding: var(--fandhe-space-2) var(--fandhe-space-4);\n}\n\
