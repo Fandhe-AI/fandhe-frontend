@@ -7308,3 +7308,39 @@ fn drawer_body_children_and_attrs_are_escaped_for_all_payloads() {
         assert!(html.contains(r#"data-part="body""#));
     }
 }
+
+/// (33) `drawer::header` 経路（イシュー #3129）: pre-styled-only `header`
+/// パート（`Anatomy::part` 直接呼び出し、`drawer::footer`/`drawer::body` と
+/// 同型）の children・呼び出し側 `attrs`（`data-tone` を含む）の両方で既定
+/// エスケープ（REQ-1）が貫通することを固定する。あわせて `data-scope`/
+/// `data-part` の偽装が headless 層（`Anatomy::part`）により除去され、生値が
+/// 出力に残らないことも固定する。
+#[test]
+fn drawer_header_children_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // children 経路。
+        let html = render(&drawer::header(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "drawer::header children コンテキスト");
+
+        // 呼び出し側 attrs（data-tone）経路。
+        let html = render(&drawer::header(vec![("data-tone", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "drawer::header 呼び出し側 attrs（data-tone）コンテキスト",
+        );
+
+        // data-scope/data-part 偽装は headless `Anatomy::part` が除去する。
+        let html = render(&drawer::header(
+            vec![("data-scope", payload), ("data-part", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "drawer::header の data-scope/data-part 偽装ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"data-scope="drawer""#));
+        assert!(html.contains(r#"data-part="header""#));
+    }
+}

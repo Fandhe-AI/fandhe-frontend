@@ -345,6 +345,80 @@
 //! auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain`
 //! （dialog の `max-height: 50vh` 固定値の代わりに、flex column 化した
 //! `content` の残り高さを埋める設計）。
+//!
+//! # pre-styled-only `header` パート + アクセント状態 / 外側 close-trigger 配置
+//! （イシュー #3129、前提イシュー #3128）
+//!
+//! Blocks 取り込みの対応表で「既存部品では表現できない」と判定された 2 件
+//! （パネル上端のアクセント色帯 / close-trigger のパネル外側配置）を、既存
+//! anatomy（headless-ui 側は無変更）への opt-in 追加で表現できるようにする。
+//!
+//! ## アクセント header（[`header`] + `data-tone="accent"`）
+//!
+//! [`header`] は [`body`]/[`footer`] と同じく `ANATOMY.part` を直接呼ぶ
+//! pre-styled-only パートで、`SLOTS` では `content` と `title` の間に位置する
+//! （DOM 上の想定順: 見出し帯 → スクロール本文 → アクション列）。`base`
+//! 規則は帯レイアウトのみを担う: `content` のパディング量
+//! `P = var(--fandhe-drawer-content-padding, var(--fandhe-space-6))` を
+//! 負マージン（`margin-block-start`/`margin-inline: calc(-1 * P)`）で打ち消し
+//! てパネル端まで広げ、`padding-block-start`/`padding-inline: P` で内側の
+//! 余白を復元する（`content` の padding 式と連動するため、呼び出し側が
+//! `--fandhe-drawer-content-padding` を上書きしても追従する）。負マージンで
+//! 広げた帯は `content` の padding box 内に収まるため、`content` の
+//! `overflow-y: auto`（単体利用時）にも `data-has-body` の flex column 化
+//! 下でも切り取られない（flex item の負マージンとして同様に動作する）。
+//!
+//! 塗り（アクセント色）は base に含めず、`data-tone="accent"` の opt-in
+//! state 3 つ（`header`/`description`/`close-trigger`）で表す。中立の
+//! header（帯レイアウトのみ）を使う余地を残すため、また塗りを base に含めて
+//! しまうと後で中立化する際に既存 golden を書き換える必要が生じるため。
+//! `close-trigger[data-tone="accent"]` は hover 背景を
+//! `--fandhe-color-accent-emphasized` へ切り替える（既定の bg-muted の
+//! ままだと、hover 時に accent-fg のグリフが背景に埋もれるため）。使用する
+//! 色の組み合わせ（accent-fg × accent、accent-fg × accent-emphasized）は
+//! `theme.rs` の contrast テストで light/dark とも検証済みのペア。
+//!
+//! close-trigger は従来どおり `content` 右上に絶対配置されるため、通常フロー
+//! の `header` より描画順で上に重なる。`title` 側の既存ガター
+//! （[`crate`] モジュール doc 前節「`title`/`description` の行送り」参照）も
+//! そのまま効く。
+//!
+//! ## 外側 close-trigger（`data-close-outside`）
+//!
+//! close-trigger は `role="dialog"`（`aria-modal`）の内側に置いたまま変更
+//! しない（positioner 直下へ出すと modal の外に出て、支援技術・フォーカス
+//! 管理の対象から外れるため採らない）。`content[data-close-outside]`
+//! （[`StateCondition::Attr`]）で `overflow: visible` にして視覚上パネルの
+//! 外へはみ出せるようにする。詳細度 (0,3,0) は base の `overflow-y: auto`
+//! （(0,2,0)）に勝つ。長い本文は [`body`] + `data-has-body` でスクロール
+//! させることが前提であり、`overflow: visible` 単独では本文スクロールは
+//! 失われる。
+//!
+//! `close-trigger[data-close-outside="<placement>"]`（[`StateCondition::AttrEq`]、
+//! 値は `start`/`end`/`top`/`bottom` の 4 つ）は呼び出し側が
+//! [`DrawerPlacement`] の値をそのまま渡す契約とする（close-trigger には
+//! `data-placement` が出力されず、[`crate::recipe::SlotRecipe`] は複合条件を
+//! 表現できないため）。すべて論理プロパティで書くため RTL でも自然に反転
+//! する。暗幕上での視認性のため、4 state 共通で
+//! `background: var(--fandhe-color-bg); color: var(--fandhe-color-fg)`
+//! を宣言する（fg × bg はテスト済みのペアで light/dark どちらの暗幕でも
+//! コントラストを保てる）。hover 背景も `--fandhe-hover-bg: bg-muted` へ
+//! 明示的に戻す。`data-tone="accent"` と併用した場合、accent state の
+//! `--fandhe-hover-bg: accent-emphasized` だけが残ると hover 時に
+//! `fg × accent-emphasized` という未検証の組になるため、外側配置では
+//! 文字色・背景・hover 背景を常に対（中立 fg / bg / bg-muted）で
+//! 切り替える（PR #3565 レビュー指摘）。宣言順は accent state の後なので
+//! 同詳細度 (0,3,0) 内で外側配置側が勝つ。
+//!
+//! `close_trigger_with_variant(CloseTriggerVariant::Text, ..)`
+//! （`position: static`）との併用は対象外とする（外側配置はアイコン
+//! variant 専用、`position: absolute` 前提の `inset-*` 操作のため）。
+//!
+//! ## 不採用（YAGNI）
+//!
+//! placement から `data-close-outside`/`data-placement` の属性を自動で
+//! 組み立てる専用ヘルパ関数は追加しない（必要になった時点で追加する）。
+//! headless-ui の anatomy 変更・`wasm-full` の drawer 配線も行わない。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -388,14 +462,18 @@ const ANATOMY: Anatomy = anatomy("drawer");
 /// headless-ui の anatomy には存在しない、本モジュールだけが出力する部分。
 /// モジュール冒頭 rustdoc「pre-styled-only `body` / `footer` パート」節
 /// 参照）を `description` と `close-trigger` の間（見出し・スクロール本文・
-/// アクション列という DOM 上の想定順序）へ追加した。以後 `SLOTS` は
-/// 「headless 8 パート + pre-styled-only 2 パート」の計 10 件になる。
+/// アクション列という DOM 上の想定順序）へ追加した。イシュー #3129 で
+/// `header`（アクセント色帯、モジュール冒頭 rustdoc「pre-styled-only
+/// `header` パート」節参照）を `content` と `title` の間へ追加した。以後
+/// `SLOTS` は「headless 8 パート + pre-styled-only 3 パート」の計 11 件に
+/// なる。
 const SLOTS: &[&str] = &[
     "root",
     "trigger",
     "backdrop",
     "positioner",
     "content",
+    "header",
     "title",
     "description",
     "body",
@@ -463,6 +541,34 @@ fn recipe() -> SlotRecipe {
                 // padding を寸法に含めることで overflow を防ぐ。
                 decl("box-sizing", "border-box"),
                 decl("overflow-y", "auto"),
+            ],
+        )
+        // イシュー #3129: pre-styled-only `header` パート（全幅アクセント帯の
+        // レイアウトのみ。塗りは `data-tone="accent"` の opt-in state で別途
+        // 追加する。モジュール冒頭 rustdoc「pre-styled-only `header` パート」
+        // 節参照）。`content` のパディング式 P と連動する負マージンで
+        // パネル端まで広げる。
+        .base(
+            "header",
+            vec![
+                decl(
+                    "margin-block-start",
+                    "calc(-1 * var(--fandhe-drawer-content-padding, var(--fandhe-space-6)))",
+                ),
+                decl(
+                    "margin-inline",
+                    "calc(-1 * var(--fandhe-drawer-content-padding, var(--fandhe-space-6)))",
+                ),
+                decl("margin-block-end", "var(--fandhe-space-4)"),
+                decl(
+                    "padding-block-start",
+                    "var(--fandhe-drawer-content-padding, var(--fandhe-space-6))",
+                ),
+                decl(
+                    "padding-inline",
+                    "var(--fandhe-drawer-content-padding, var(--fandhe-space-6))",
+                ),
+                decl("padding-block-end", "var(--fandhe-space-2)"),
             ],
         )
         .base(
@@ -786,6 +892,104 @@ fn recipe() -> SlotRecipe {
                 decl("color", "var(--fandhe-color-fg)"),
             ],
         )
+        // イシュー #3129: アクセント header の塗り（opt-in state 3 件。
+        // モジュール冒頭 rustdoc「アクセント header」節参照）。`title` は
+        // color を宣言しないため header から継承して accent-fg になる。
+        .state(
+            "header",
+            StateCondition::AttrEq("data-tone", "accent"),
+            vec![
+                decl("background", "var(--fandhe-color-accent)"),
+                decl("color", "var(--fandhe-color-accent-fg)"),
+            ],
+        )
+        .state(
+            "description",
+            StateCondition::AttrEq("data-tone", "accent"),
+            vec![decl("color", "var(--fandhe-color-accent-fg)")],
+        )
+        .state(
+            "close-trigger",
+            StateCondition::AttrEq("data-tone", "accent"),
+            vec![
+                decl("color", "var(--fandhe-color-accent-fg)"),
+                decl("--fandhe-hover-bg", "var(--fandhe-color-accent-emphasized)"),
+            ],
+        )
+        // イシュー #3129: 外側 close-trigger 配置（モジュール冒頭 rustdoc
+        // 「外側 close-trigger」節参照）。`content[data-close-outside]` は
+        // `overflow: visible` のみを宣言し、本文スクロールは `data-has-body`
+        // + [`body`] に委ねる。
+        //
+        // 座標の基準（containing block）は **`content`（`position: relative`、
+        // 上記 base）であり、`positioner`（画面全体）ではない**。`header` 等の
+        // 中間パートは `position` を持たない。したがって `inset-<辺>:
+        // calc(100% + gap)` は「ボタンの <辺> をパネルの <辺> から 100%（＝
+        // パネル幅/高さ）+ gap だけ内側へ寄せる」＝ボタン全体がパネルの
+        // **反対側の辺の外**（暗幕側）へ出る、という意味になる。
+        //
+        // - `end`   : パネルは画面 inline-end に接する。`inset-inline-end:
+        //             calc(100% + gap)` → ボタン右端 = パネル左端 − gap
+        //             → パネルの左（暗幕側）。
+        // - `start` : `inset-inline-start: calc(100% + gap)` → ボタン左端 =
+        //             パネル右端 + gap → パネルの右（暗幕側）。
+        // - `top`   : `inset-block-start: calc(100% + gap)` → ボタン上端 =
+        //             パネル下端 + gap → パネルの下（暗幕側）。
+        // - `bottom`: `inset-block-end: calc(100% + gap)` → ボタン下端 =
+        //             パネル上端 − gap → パネルの上（暗幕側）。
+        //
+        // 「`end` のパネルなら `inset-inline-start` を使うべき」と読むのは
+        // containing block を画面と誤認した場合の帰結であり、本 CSS は
+        // 各 placement で**パネルが接する画面端と同名の inset** を指定する
+        // のが正しい（`close_trigger_data_close_outside_offsets_toward_backdrop`
+        // テストで固定）。
+        .state(
+            "content",
+            StateCondition::Attr("data-close-outside"),
+            vec![decl("overflow", "visible")],
+        )
+        .state(
+            "close-trigger",
+            StateCondition::AttrEq("data-close-outside", "end"),
+            vec![
+                decl("inset-inline-end", "calc(100% + var(--fandhe-space-2))"),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("color", "var(--fandhe-color-fg)"),
+                decl("--fandhe-hover-bg", "var(--fandhe-color-bg-muted)"),
+            ],
+        )
+        .state(
+            "close-trigger",
+            StateCondition::AttrEq("data-close-outside", "start"),
+            vec![
+                decl("inset-inline-end", "auto"),
+                decl("inset-inline-start", "calc(100% + var(--fandhe-space-2))"),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("color", "var(--fandhe-color-fg)"),
+                decl("--fandhe-hover-bg", "var(--fandhe-color-bg-muted)"),
+            ],
+        )
+        .state(
+            "close-trigger",
+            StateCondition::AttrEq("data-close-outside", "top"),
+            vec![
+                decl("inset-block-start", "calc(100% + var(--fandhe-space-2))"),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("color", "var(--fandhe-color-fg)"),
+                decl("--fandhe-hover-bg", "var(--fandhe-color-bg-muted)"),
+            ],
+        )
+        .state(
+            "close-trigger",
+            StateCondition::AttrEq("data-close-outside", "bottom"),
+            vec![
+                decl("inset-block-start", "auto"),
+                decl("inset-block-end", "calc(100% + var(--fandhe-space-2))"),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("color", "var(--fandhe-color-fg)"),
+                decl("--fandhe-hover-bg", "var(--fandhe-color-bg-muted)"),
+            ],
+        )
         // イシュー #758: `size` variant（root スコープの CSS custom
         // property。Md はフォールバック値と同一の現行外観を維持する）。
         // イシュー #1681: Xs/Xl は Sm(16)→Md(20)→Lg(28) の非等差進行を、
@@ -910,6 +1114,35 @@ pub fn body<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 #[must_use]
 pub fn footer<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     ANATOMY.part("footer", "div", attrs, children)
+}
+
+/// pre-styled-only `header` パート（`<div>`、イシュー #3129）を組み立てる。
+/// `content` 端まで広がる全幅帯のレイアウトのみを担い、headless-ui の
+/// anatomy には存在しない（本モジュール冒頭 rustdoc「pre-styled-only
+/// `header` パート」節参照）。呼び出し側 `attrs` へ
+/// `("data-tone", "accent")` を渡すと、`header`/`description`/
+/// `close_trigger` の 3 パートが連動してアクセント色の塗りへ切り替わる
+/// （`description`/`close_trigger` 側には呼び出し側が個別に同じ属性を渡す
+/// 必要がある。[`crate::recipe::SlotRecipe`] は子孫セレクタ・複合条件を
+/// 持たないため、パート間の連動は呼び出し側の属性指定で表す契約、
+/// [`crate::card`] の `data-has-action` と同型）。
+///
+/// [`fandhe_frontend_headless_ui::anatomy::Anatomy::part`] を直接呼び出す
+/// （[`body`]/[`footer`] と同型）ため、呼び出し側 `attrs` に含まれる
+/// `data-scope`/`data-part` の偽装は headless 層が fail-closed に除去する。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::drawer;
+///
+/// let node = drawer::header(vec![("data-tone", "accent")], vec![]);
+/// assert!(render(&node).contains(r#"data-scope="drawer" data-part="header""#));
+/// ```
+#[must_use]
+pub fn header<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("header", "div", attrs, children)
 }
 
 #[cfg(test)]
@@ -1371,5 +1604,245 @@ mod tests {
         // クライアント側の改ざん耐性のある復元経路が Drawer 経由でも機能する。
         let restored = Drawer::from_hydration_attrs(&d.hydration_attrs()).unwrap();
         assert_eq!(restored.state(), OpenState::Open);
+    }
+
+    #[test]
+    fn header_emits_scope_and_part_and_drops_caller_supplied_spoofing() {
+        let html = render(&header(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="drawer""#));
+        assert!(html.contains(r#"data-part="header""#));
+
+        let html = render(&header(
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="drawer""#));
+        assert!(html.contains(r#"data-part="header""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn header_base_declares_negative_margin_and_padding_band_layout() {
+        let css = stylesheet();
+        let start = css
+            .find(r#"[data-scope="drawer"][data-part="header"] {"#)
+            .expect("header base rule must be present");
+        let end = css[start..].find('}').unwrap() + start;
+        let rule = &css[start..end];
+        assert!(rule.contains(
+            "margin-block-start: calc(-1 * var(--fandhe-drawer-content-padding, var(--fandhe-space-6)));"
+        ));
+        assert!(rule.contains(
+            "margin-inline: calc(-1 * var(--fandhe-drawer-content-padding, var(--fandhe-space-6)));"
+        ));
+        assert!(rule.contains(
+            "padding-block-start: var(--fandhe-drawer-content-padding, var(--fandhe-space-6));"
+        ));
+        assert!(rule.contains(
+            "padding-inline: var(--fandhe-drawer-content-padding, var(--fandhe-space-6));"
+        ));
+    }
+
+    #[test]
+    fn slots_order_places_header_between_content_and_title() {
+        let css = stylesheet();
+        let content_pos = css
+            .find(r#"[data-scope="drawer"][data-part="content"] {"#)
+            .expect("content base rule must be present");
+        let header_pos = css
+            .find(r#"[data-scope="drawer"][data-part="header"] {"#)
+            .expect("header base rule must be present");
+        let title_pos = css
+            .find(r#"[data-scope="drawer"][data-part="title"] {"#)
+            .expect("title base rule must be present");
+        assert!(content_pos < header_pos);
+        assert!(header_pos < title_pos);
+    }
+
+    #[test]
+    fn accent_tone_state_declares_accent_fg_on_header_description_and_close_trigger() {
+        let css = stylesheet();
+
+        let header_selector = r#"[data-scope="drawer"][data-part="header"][data-tone="accent"] {"#;
+        let start = css
+            .find(header_selector)
+            .expect("header[data-tone=accent] rule must be present");
+        let end = css[start..].find('}').unwrap() + start;
+        let rule = &css[start..end];
+        assert!(rule.contains("background: var(--fandhe-color-accent);"));
+        assert!(rule.contains("color: var(--fandhe-color-accent-fg);"));
+
+        let description_selector =
+            r#"[data-scope="drawer"][data-part="description"][data-tone="accent"] {"#;
+        let start = css
+            .find(description_selector)
+            .expect("description[data-tone=accent] rule must be present");
+        let end = css[start..].find('}').unwrap() + start;
+        assert!(css[start..end].contains("color: var(--fandhe-color-accent-fg);"));
+
+        let close_trigger_selector =
+            r#"[data-scope="drawer"][data-part="close-trigger"][data-tone="accent"] {"#;
+        let start = css
+            .find(close_trigger_selector)
+            .expect("close-trigger[data-tone=accent] rule must be present");
+        let end = css[start..].find('}').unwrap() + start;
+        let rule = &css[start..end];
+        assert!(rule.contains("color: var(--fandhe-color-accent-fg);"));
+        assert!(rule.contains("--fandhe-hover-bg: var(--fandhe-color-accent-emphasized);"));
+    }
+
+    #[test]
+    fn content_data_close_outside_declares_overflow_visible() {
+        let css = stylesheet();
+        let selector = r#"[data-scope="drawer"][data-part="content"][data-close-outside] {"#;
+        let start = css
+            .find(selector)
+            .expect("content[data-close-outside] rule must be present");
+        let end = css[start..].find('}').unwrap() + start;
+        assert!(css[start..end].contains("overflow: visible;"));
+    }
+
+    #[test]
+    fn close_trigger_data_close_outside_declares_four_directions_with_surface() {
+        let css = stylesheet();
+        for (direction, expected_inset) in [
+            (
+                "end",
+                "inset-inline-end: calc(100% + var(--fandhe-space-2));",
+            ),
+            (
+                "start",
+                "inset-inline-start: calc(100% + var(--fandhe-space-2));",
+            ),
+            (
+                "top",
+                "inset-block-start: calc(100% + var(--fandhe-space-2));",
+            ),
+            (
+                "bottom",
+                "inset-block-end: calc(100% + var(--fandhe-space-2));",
+            ),
+        ] {
+            let selector = format!(
+                r#"[data-scope="drawer"][data-part="close-trigger"][data-close-outside="{direction}"] {{"#
+            );
+            let start = css.find(&selector).unwrap_or_else(|| {
+                panic!("close-trigger[data-close-outside={direction}] rule must be present")
+            });
+            let end = css[start..].find('}').unwrap() + start;
+            let rule = &css[start..end];
+            assert!(
+                rule.contains(expected_inset),
+                "direction={direction} rule={rule}"
+            );
+            assert!(rule.contains("background: var(--fandhe-color-bg);"));
+            assert!(rule.contains("color: var(--fandhe-color-fg);"));
+            // PR #3565 レビュー指摘: accent と併用時に hover 背景だけ
+            // accent-emphasized が残らないよう、hover 背景も対で中立へ戻す。
+            assert!(rule.contains("--fandhe-hover-bg: var(--fandhe-color-bg-muted);"));
+            assert!(
+                start
+                    > css
+                        .find(r#"[data-part="close-trigger"][data-tone="accent"] {"#)
+                        .unwrap(),
+                "close-outside state must follow the accent state so it wins at equal specificity"
+            );
+        }
+    }
+
+    #[test]
+    fn close_trigger_data_close_outside_offsets_toward_backdrop() {
+        // イシュー #3129 / PR #3565 レビュー指摘の回帰固定: 外側 close-trigger
+        // の containing block は `content`（`position: relative`）であり、
+        // `inset-<辺>: calc(100% + gap)` は <辺> と同じ側の画面端に接する
+        // パネルに対して、ボタンを反対側（暗幕側）へ押し出す。各 placement
+        // は「パネルが接する画面端と同名の inset」に `calc(100% + gap)` を、
+        // 反対側の同軸 inset は `auto`（base 由来 or 明示）を持つ組で固定する。
+        let css = stylesheet();
+
+        // 前提 1: containing block が content であること（positioner ではない）。
+        let content_start = css
+            .find(r#"[data-scope="drawer"][data-part="content"] {"#)
+            .expect("content base rule must be present");
+        let content_end = css[content_start..].find('}').unwrap() + content_start;
+        assert!(css[content_start..content_end].contains("position: relative;"));
+        // 前提 2: close-trigger と content の間にある header は position を持たない。
+        let header_start = css
+            .find(r#"[data-scope="drawer"][data-part="header"] {"#)
+            .expect("header base rule must be present");
+        let header_end = css[header_start..].find('}').unwrap() + header_start;
+        assert!(!css[header_start..header_end].contains("position:"));
+
+        // base: inline-end/block-start のみ指定（他 2 辺は UA 既定 auto）。
+        let base_start = css
+            .find(r#"[data-scope="drawer"][data-part="close-trigger"] {"#)
+            .expect("close-trigger base rule must be present");
+        let base_end = css[base_start..].find('}').unwrap() + base_start;
+        let base = &css[base_start..base_end];
+        assert!(base.contains("inset-inline-end: var(--fandhe-space-2);"));
+        assert!(base.contains("inset-block-start: var(--fandhe-space-2);"));
+        assert!(!base.contains("inset-inline-start:"));
+        assert!(!base.contains("inset-block-end:"));
+
+        let gap = "calc(100% + var(--fandhe-space-2))";
+        // (placement, パネルが接する画面端と同名の inset, 反対側で auto 化が必要な inset)
+        for (direction, pushed_inset, reset_inset) in [
+            ("end", "inset-inline-end", None),
+            ("start", "inset-inline-start", Some("inset-inline-end")),
+            ("top", "inset-block-start", None),
+            ("bottom", "inset-block-end", Some("inset-block-start")),
+        ] {
+            let selector = format!(
+                r#"[data-scope="drawer"][data-part="close-trigger"][data-close-outside="{direction}"] {{"#
+            );
+            let start = css.find(&selector).unwrap_or_else(|| {
+                panic!("close-trigger[data-close-outside={direction}] rule must be present")
+            });
+            let end = css[start..].find('}').unwrap() + start;
+            let rule = &css[start..end];
+            assert!(
+                rule.contains(&format!("{pushed_inset}: {gap};")),
+                "direction={direction}: {pushed_inset} must push the button past the panel's far edge; rule={rule}"
+            );
+            // 反対方向の inset に calc(100% + …) を書くと画面外へ出る（誤指摘の形）。
+            let axis_opposite = match pushed_inset {
+                "inset-inline-end" => "inset-inline-start",
+                "inset-inline-start" => "inset-inline-end",
+                "inset-block-start" => "inset-block-end",
+                _ => "inset-block-start",
+            };
+            assert!(
+                !rule.contains(&format!("{axis_opposite}: {gap};")),
+                "direction={direction}: {axis_opposite} must not carry the outward offset; rule={rule}"
+            );
+            if let Some(reset) = reset_inset {
+                assert!(
+                    rule.contains(&format!("{reset}: auto;")),
+                    "direction={direction}: base {reset} must be reset to auto; rule={rule}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn existing_calls_without_new_opt_in_attrs_are_unaffected() {
+        // opt-in のため、`data-tone`/`data-close-outside` を付けない既存の
+        // 呼び出しには一切影響しない。
+        let html = render(&description(None, vec![], vec![]));
+        assert!(!html.contains("data-tone"));
+
+        let html = render(&content(
+            OpenState::Closed,
+            DrawerPlacement::End,
+            true,
+            ContentIds {
+                id: None,
+                labelledby: None,
+                describedby: None,
+            },
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("data-close-outside"));
     }
 }
