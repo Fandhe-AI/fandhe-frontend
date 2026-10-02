@@ -311,6 +311,25 @@ pub fn stylesheet() -> String {
     for orientation in ["horizontal", "vertical"] {
         let orientation_root = format!(r#"{ROOT}[data-orientation="{orientation}"]"#);
 
+        // 非 attached（margin 間隔のまま）の内側 button-group root セレク
+        // タ（PR #3569 codex レビュー指摘対応、イシュー #3135）。隣接する
+        // 内側 root がこれに該当するときは、`:not(:first-child)`/
+        // `:not(:last-child)` の角丸除去を適用しない（下記ループ内で
+        // `:not()` 除外として埋め込む）。`data-attached` 付きの内側 root
+        // （枠線共有の意図）は対象外のまま、従来どおり角丸を除去する。
+        //
+        // - 末尾側（`:not(:last-child)` 側）の除外は `:has(+ セレクタ)`
+        //   （次兄弟の存在判定、Selectors Level 4）を使う。CSS の兄弟
+        //   結合子は後続要素だけを対象にできる（`A + B` は B のみ選択
+        //   可能）ため、「直後に特定の兄弟が続くか」を自分自身の条件に
+        //   含めるには `:has()` 以外の手段がない。
+        // - 先頭側（`:not(:first-child)` 側）の除外は forward 結合子
+        //   （`セレクタ + direct`）で直接表現できるため `:has()` は使わ
+        //   ない（セレクタリストの左側が自分の直前の兄弟を指し、右側が
+        //   自分自身と一致する要素を選ぶ、通常の隣接兄弟結合子の用法）。
+        let detached_nested_root =
+            r#"[data-scope="button-group"][data-part="root"]:not([data-attached])"#;
+
         for child in CONNECTABLE_CHILDREN {
             let (direct, suffix) = connectable_target(child);
 
@@ -345,13 +364,17 @@ pub fn stylesheet() -> String {
             // 参照。擬似クラスを子孫セレクタの末尾へ付けると、trigger が
             // 常にその親の唯一の子であるため :first-child/:last-child が
             // 常に真になり規則が never-match になる）。
-            let not_first = format!("{orientation_root} > {direct}:not(:first-child){suffix}");
+            let not_first = format!(
+                "{orientation_root} > {direct}:not(:first-child):not({detached_nested_root} + {direct}){suffix}"
+            );
             append_rule(
                 &mut out,
                 serialize_rule(&not_first, &[start_radius[0], start_radius[1], start_width]),
             );
 
-            let not_last = format!("{orientation_root} > {direct}:not(:last-child){suffix}");
+            let not_last = format!(
+                "{orientation_root} > {direct}:not(:last-child):not(:has(+ {detached_nested_root})){suffix}"
+            );
             append_rule(
                 &mut out,
                 serialize_rule(&not_last, &[end_radius[0], end_radius[1]]),
@@ -674,18 +697,58 @@ mod tests {
         assert!(out.contains("border-block-start-width: 0;"));
         // 位置擬似クラスは直接の子（`root`）へ付与し、そこから子孫
         // （`trigger`）へ降りる（`connectable_target` doc「位置擬似
-        // クラスは直接の子へ付与する」節参照）。
+        // クラスは直接の子へ付与する」節参照）。`:not(:first-child)` の
+        // 直後には、非 attached 内側 root が直前の兄弟のときに除外する
+        // `:not({detached} + {direct})` 節（下記「入れ子（非 attached）の
+        // margin 間隔に対する角丸復元」テスト参照）が入る。
         assert!(out.contains(
-            r#"[data-scope="menu"][data-part="root"]:not(:first-child) > [data-scope="menu"][data-part="trigger"]"#
+            r#"[data-scope="menu"][data-part="root"]:not(:first-child):not([data-scope="button-group"][data-part="root"]:not([data-attached]) + [data-scope="menu"][data-part="root"]) > [data-scope="menu"][data-part="trigger"]"#
         ));
         assert!(out.contains(
-            r#"[data-scope="select"][data-part="root"]:not(:first-child) > [data-scope="select"][data-part="control"] > [data-scope="select"][data-part="trigger"]"#
+            r#"[data-scope="select"][data-part="root"]:not(:first-child):not([data-scope="button-group"][data-part="root"]:not([data-attached]) + [data-scope="select"][data-part="root"]) > [data-scope="select"][data-part="control"] > [data-scope="select"][data-part="trigger"]"#
         ));
         // 回帰防止: 擬似クラスを子孫（trigger）の末尾へ付けた形（trigger は
         // 常にその親の唯一の子のため never-match の dead CSS になる）は
         // 出力されないことを固定する。
         assert!(!out.contains(r#"[data-scope="menu"][data-part="trigger"]:not(:first-child)"#));
         assert!(!out.contains(r#"[data-scope="select"][data-part="trigger"]:not(:first-child)"#));
+    }
+
+    /// 入れ子（非 attached）の margin 間隔に対する角丸復元（PR #3569 codex
+    /// レビュー指摘対応、イシュー #3135）: `data-attached` を付与しない
+    /// （margin 間隔のままの）内側 button-group root と隣接する connectable
+    /// child（button/input/text/menu/select）は、角丸・境界線幅の除去
+    /// 対象から除外される。間隔を空けて表示される要素が意図せず「連結
+    /// 表示」に見える不具合（レビュー指摘）を防ぐ。
+    #[test]
+    fn stylesheet_preserves_radius_for_child_adjacent_to_detached_nested_group() {
+        let out = stylesheet();
+        let detached = r#"[data-scope="button-group"][data-part="root"]:not([data-attached])"#;
+
+        // 末尾側: 直後が非 attached の内側 root のときは除去しない
+        // （:has() による後方兄弟の存在判定、forward combinator では
+        // 表現できないため）。
+        assert!(out.contains(&format!(
+            r#"[data-scope="field"][data-part="input"]:not(:last-child):not(:has(+ {detached}))"#
+        )));
+        assert!(out.contains(&format!(
+            r#"[data-scope="button"][data-part="root"]:not(:last-child):not(:has(+ {detached}))"#
+        )));
+
+        // 先頭側: 直前が非 attached の内側 root のときは除去しない
+        // （forward combinator `{detached} + {direct}` で直接表現できる）。
+        assert!(out.contains(&format!(
+            r#":not(:first-child):not({detached} + [data-scope="field"][data-part="input"])"#
+        )));
+        assert!(out.contains(&format!(
+            r#":not(:first-child):not({detached} + [data-scope="button"][data-part="root"])"#
+        )));
+
+        // data-attached 付きの内側 root は除外対象に含まれない（従来どおり
+        // 角丸を除去する、既存の「連結表示」契約は不変）。
+        assert!(!out.contains(
+            r#":not(:has(+ [data-scope="button-group"][data-part="root"][data-attached]))"#
+        ));
     }
 
     #[test]
