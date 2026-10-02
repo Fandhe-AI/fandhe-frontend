@@ -2883,6 +2883,11 @@ title = "reviews-stacked-list"
 source = "site/blocks/reviews-stacked-list.md"
 path = "/blocks/reviews-stacked-list/"
 
+[[section.group.page]]
+title = "reviews-write-form"
+source = "site/blocks/reviews-write-form.md"
+path = "/blocks/reviews-write-form/"
+
 [[section.group]]
 title = "Store Nav"
 

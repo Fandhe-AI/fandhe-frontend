@@ -1149,6 +1149,7 @@ pub enum LayoutCss {
 | quickview-image-split | #3087（親 #3024） | `ecommerce/quickview/quickview_image_split.rs` |
 | category-split-panels | #3040（親 #3024） | `ecommerce/category_listing/category_split_panels.rs` |
 | reviews-stacked-list | #3089（親 #3024） | `ecommerce/reviews/reviews_stacked_list.rs` |
+| reviews-write-form | #3091 | `ecommerce/reviews/reviews_write_form.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
 （§17 記載の「66 種」は当時の値）。`.rs` パスは `crates/docs-site/src/blocks/` を省略した相対表記。上記の表は
