@@ -70,11 +70,13 @@
 //! 評価内訳の割合・平均評価・件数はすべて独自に書いた架空の内容であり、
 //! 実在の企業名・人物・PII・有料アセット名を含まない。サムネイル画像は
 //! ビルド時生成の同梱 SVG（[`dummy_assets::PRODUCT_SRC`]）を使う（外部
-//! URL・`data:` URI は使わない）。8 枚とも同一画像のため、代表画像（1 枚目）
-//! のみ「購入者が投稿した写真」の `alt` を持ち、残り 7 枚は同一画像の
-//! 重複描画（装飾目的）として空 `alt` にする（`product_overview_image_grid`
-//! の `gallery_tile` と同型の判断。連番で alt を分けると画像内容と不一致に
-//! なるため採らない）。
+//! URL・`data:` URI は使わない）。8 枚とも同一の抽象図形プレースホルダー
+//! であり実際の購入者写真ではないため、「購入者が投稿した写真」のような
+//! 実態と異なる `alt` は付けない（PR #3538 レビュー P2 指摘の是正）。
+//! 8 枚とも同一画像の重複描画（装飾目的）として空 `alt` にする
+//! （`product_overview_image_grid` の `gallery_tile` と異なり、こちらは
+//! 代表画像についても実態と一致する固有の説明文を持てないため、全枚数を
+//! 装飾 `alt=""` にする判断）。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -236,24 +238,18 @@ fn breakdown_row(stars: u8, percent: f64) -> Node {
 /// サムネイル画像グリッド（8 枚、版 B 限定。モジュール doc「ダミー素材
 /// について」節参照）。
 fn thumbnail_grid() -> Node {
-    // 8 枚すべて同一の `dummy_assets::PRODUCT_SRC`（同一プレースホルダー画像）
-    // を参照しているため、「写真 1」〜「写真 8」のように異なる購入者写真で
-    // あるかのような alt を付けるとスクリーンリーダーで同一画像が異なる
-    // 写真として読み上げられてしまう（`product_overview_image_grid` の
-    // `gallery_tile` と同型の判断、PR #3538 レビュー P2 指摘）。実際の
-    // 内容と一致する alt を持てるのは代表画像（1 枚目）のみとし、残り
-    // 7 枚は代表画像の重複描画（装飾目的）として空 alt にする。
-    let tiles: Vec<Node> = (1..=8)
-        .map(|i| {
-            let alt = if i == 1 {
-                "購入者が投稿した写真".to_string()
-            } else {
-                String::new()
-            };
+    // 8 枚すべて同一の `dummy_assets::PRODUCT_SRC`（抽象図形のプレースホルダー
+    // 画像で実際の購入者写真ではない）を参照している。「購入者が投稿した
+    // 写真」のような実態と異なる alt を付けるとスクリーンリーダー利用者に
+    // 誤情報を伝えるため（PR #3538 レビュー P2 指摘）、代表画像についても
+    // 固有の説明文を持たせず、8 枚全てを重複描画（装飾目的）として空 alt
+    // にする。
+    let tiles: Vec<Node> = (0..8)
+        .map(|_| {
             image::image(
                 &ImageProps {
                     shape: ImageShape::Rounded,
-                    ..ImageProps::new(dummy_assets::PRODUCT_SRC, &alt)
+                    ..ImageProps::new(dummy_assets::PRODUCT_SRC, "")
                 },
                 vec![("data-blocks-reviews-summary-split-thumbnail", "")],
             )
@@ -503,7 +499,7 @@ pub const BLOCK: Block = Block {
 /// （モジュール doc「狭い幅では 2 カラムを縦積みにする」節参照）。
 const LAYOUT_CSS: &str = "\
 .blocks-reviews-summary-split-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-10);\n  container-type: inline-size;\n  container-name: blocks-reviews-summary-split;\n}\n\
-.blocks-reviews-summary-split-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-reviews-summary-split-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 .blocks-reviews-summary-split-split {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);\n  gap: var(--fandhe-space-8);\n}\n\
 .blocks-reviews-summary-split-summary {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-reviews-summary-split-rating-number {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
