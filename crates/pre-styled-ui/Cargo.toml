@@ -3922,7 +3922,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # #3140 取り込み後の到達値、本ブランチの base merge 時点）も独立に同一の
 # 0.235.0 へ到達していた（偶発的衝突）ため、そのまま採用せずさらに +1 して
 # 0.236.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
-version = "0.236.0"
+#
+# イシュー #3139（PR #3578 codex-review 対応）: steps の Dot variant の
+# indicator variant 宣言が base の `border: 2px solid` を上書きせず、
+# current/complete で background と border-color が異なるトークンになり
+# 塗りドットではなくリング状に描画される不具合を修正した（`border: none`
+# を追加）。既存 golden ブロックの出力バイトが変わる非破壊的な修正のため
+# patch バンプする。
+version = "0.236.1"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

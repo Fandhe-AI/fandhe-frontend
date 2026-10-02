@@ -319,6 +319,7 @@ const STEPS_GOLDEN_CSS: &str = r#"[data-scope="steps"][data-part="root"] {
   width: 0.625rem;
   height: 0.625rem;
   background: var(--fandhe-color-border);
+  border: none;
 }
 
 [data-scope="steps"][data-part="root"][data-orientation="vertical"] {

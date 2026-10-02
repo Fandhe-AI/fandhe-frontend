@@ -1076,6 +1076,11 @@ fn recipe() -> SlotRecipe {
                 decl("width", "0.625rem"),
                 decl("height", "0.625rem"),
                 decl("background", "var(--fandhe-color-border)"),
+                // codex-review 対応（PR #3578）: base indicator の
+                // `border: 2px solid` を Dot では無効化する。未上書きだと
+                // current/complete で background と border-color が異なる
+                // トークンになり、塗りドットではなくリング状に描画される。
+                decl("border", "none"),
             ],
         );
 
