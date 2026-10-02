@@ -231,8 +231,8 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   margin-block-end: calc(-1 * var(--fandhe-dialog-content-padding, var(--fandhe-space-6)));
   padding-block: var(--fandhe-space-3);
   padding-inline: var(--fandhe-dialog-content-padding, var(--fandhe-space-6));
-  border-end-start-radius: var(--fandhe-radius-lg);
-  border-end-end-radius: var(--fandhe-radius-lg);
+  border-end-start-radius: var(--fandhe-radius-lg, 0.5rem);
+  border-end-end-radius: var(--fandhe-radius-lg, 0.5rem);
 }
 
 @starting-style {

@@ -821,8 +821,8 @@ fn recipe() -> SlotRecipe {
                     "padding-inline",
                     "var(--fandhe-dialog-content-padding, var(--fandhe-space-6))",
                 ),
-                decl("border-end-start-radius", "var(--fandhe-radius-lg)"),
-                decl("border-end-end-radius", "var(--fandhe-radius-lg)"),
+                decl("border-end-start-radius", "var(--fandhe-radius-lg, 0.5rem)"),
+                decl("border-end-end-radius", "var(--fandhe-radius-lg, 0.5rem)"),
             ],
         )
         // イシュー #729: `size` variant（root スコープの CSS custom property。
