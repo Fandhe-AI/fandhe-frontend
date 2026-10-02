@@ -51,7 +51,10 @@
 //! `code` の子として並べ、CSS の `counter-increment`/`::before { content:
 //! counter(...) }` で視覚的に振る。行番号テキスト自体を DOM へ埋め込まない
 //! ため、行番号を選択範囲に含めてもコピーされない（`user-select: none`
-//! も付与する）。
+//! も付与する）。各行 span は `display: block` で視覚的に改行されるが、
+//! span 間には改行テキスト（`\n`）自体も挟む（最終行の後ろを除く）。
+//! `display: block` のみでは選択範囲コピー時に元コードの改行が復元され
+//! ないため（Codex レビュー指摘、イシュー #3104 PR #3545）。
 //!
 //! # `<form>` を使わない
 //!
@@ -96,9 +99,10 @@ use fandhe_frontend_pre_styled_ui::Size;
 /// スクロールする」節）。
 const SNIPPET_A: &str = "use fandhe_frontend_core::{div, text};\n\nfn demo() -> fandhe_frontend_core::Node {\n    div(vec![], vec![text(\"こんにちは\")])\n}\n\n// この行はとても長いコメントで、枠の幅を越えて横スクロールが発生することを示すためにわざと伸ばしてあります\n";
 
-/// B（R0055）で表示するコード片。
-const SNIPPET_B: &str =
-    "use fandhe_frontend_core::render;\n\nfn main() {\n    println!(\"{}\", render(&demo()));\n}\n";
+/// B（R0055）で表示するコード片。`render(&demo())` が呼ぶ `demo` 自体を
+/// 片内に定義し、コピーしたコード片単体で実行できる自己完結の例にする
+/// （Codex レビュー指摘、イシュー #3104 PR #3545）。
+const SNIPPET_B: &str = "use fandhe_frontend_core::{div, render, text};\n\nfn demo() -> fandhe_frontend_core::Node {\n    div(vec![], vec![text(\"こんにちは\")])\n}\n\nfn main() {\n    println!(\"{}\", render(&demo()));\n}\n";
 
 /// C（R0057）で表示するコード片。行番号を 1 行ずつ振るため
 /// `.lines()` で分割する。
@@ -227,19 +231,32 @@ fn header_instance(
         ));
     }
 
+    // 各行 span は視覚上 `display: block` で改行されるが、span 間に改行
+    // テキスト自体を挟まないと選択範囲コピー時に行区切りが失われる
+    // （Codex レビュー指摘、イシュー #3104 PR #3545）。最終行の後ろには
+    // 入れず、元のスニペット末尾の改行有無をコピー結果で変えない。
     let body_children: Vec<Node> = if numbered {
-        snippet
-            .lines()
-            .map(|line| {
-                span(
+        let lines: Vec<&str> = snippet.lines().collect();
+        let line_count = lines.len();
+        lines
+            .into_iter()
+            .enumerate()
+            .flat_map(|(i, line)| {
+                let mut nodes = vec![span(
                     vec![("data-blocks-code-block-header-line", "")],
                     vec![text(line)],
-                )
+                )];
+                if i + 1 < line_count {
+                    nodes.push(text("\n"));
+                }
+                nodes
             })
             .collect()
     } else {
         vec![text(snippet)]
     };
+
+    let pre_label = format!("{title} のコード");
 
     div(
         vec![("id", root_id), ("class", "blocks-code-block-header-frame")],
@@ -258,7 +275,15 @@ fn header_instance(
                 ],
             ),
             pre(
-                vec![("class", "blocks-code-block-header-pre"), ("tabindex", "0")],
+                vec![
+                    ("class", "blocks-code-block-header-pre"),
+                    ("tabindex", "0"),
+                    // `tabindex="0"` でキーボード操作可能にした横スクロール
+                    // 領域には、スクリーンリーダーが読み上げられるアクセ
+                    // シブルネームを明示する（Cursor Bugbot 指摘、イシュー
+                    // #3104 PR #3545）。
+                    ("aria-label", pre_label.as_str()),
+                ],
                 vec![code::code(
                     &CodeProps::default(),
                     vec![("data-blocks-code-block-header-code", "")],
@@ -323,6 +348,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-code-block-header-bar-start] {\n  display: flex;\n  align-items: center;\n  gap: 0.5rem;\n  min-width: 0;\n}\n\
 [data-blocks-code-block-header-bar-end] {\n  display: flex;\n  align-items: center;\n  gap: 0.5rem;\n}\n\
 .blocks-code-block-header-pre {\n  margin: 0;\n  padding: 1rem;\n  overflow-x: auto;\n  font-family: var(--fandhe-font-font-mono);\n}\n\
+.blocks-code-block-header-pre:focus-visible {\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));\n}\n\
 [data-scope=\"code\"][data-part=\"root\"][data-blocks-code-block-header-code] {\n  display: block;\n  white-space: pre;\n  background: transparent;\n  border: 0;\n  padding: 0;\n  color: inherit;\n  counter-reset: blocks-code-block-header-line;\n}\n\
 [data-blocks-code-block-header-line] {\n  display: block;\n  counter-increment: blocks-code-block-header-line;\n}\n\
 [data-blocks-code-block-header-line]::before {\n  content: counter(blocks-code-block-header-line);\n  display: inline-block;\n  min-width: 2ch;\n  margin-inline-end: 1rem;\n  text-align: end;\n  color: var(--fandhe-color-fg-muted);\n  user-select: none;\n}\n";
@@ -354,13 +380,19 @@ mod tests {
         assert!(html.contains(r#"id="blocks-code-block-header-c""#));
     }
 
-    /// 3 インスタンスすべてに `<pre` + `tabindex="0"` が付いていること
-    /// （モジュール doc「長い行は枠内で横スクロールする」節）。
+    /// 3 インスタンスすべてに `<pre` + `tabindex="0"` + `aria-label` が
+    /// 付いていること（モジュール doc「長い行は枠内で横スクロールする」節、
+    /// `aria-label` は Cursor Bugbot 指摘対応・イシュー #3104 PR #3545）。
     #[test]
     fn demo_has_three_scrollable_pre_blocks() {
         let html = render(&demo());
         assert_eq!(html.matches("<pre").count(), 3);
         assert_eq!(html.matches(r#"tabindex="0""#).count(), 3);
+        // `aria-label=` の総数は `clipboard::trigger` 自体が持つ分も含む
+        // ため数えず、`pre` 用の文言が 3 インスタンス分揃うことのみ固定する。
+        assert!(html.contains(r#"aria-label="demo.rs のコード""#));
+        assert!(html.contains(r#"aria-label="main.rs のコード""#));
+        assert!(html.contains(r#"aria-label="check.rs のコード""#));
     }
 
     /// C の行 `span` の数がスニペットの行数と一致すること（行番号は CSS
@@ -374,6 +406,30 @@ mod tests {
             html.matches("data-blocks-code-block-header-line").count(),
             expected
         );
+    }
+
+    /// C の行 span 間に改行テキストが入り、行 span の数 - 1 件の改行が
+    /// `code` 本文内に存在すること（選択範囲コピーで改行が失われない固定、
+    /// Codex レビュー指摘・イシュー #3104 PR #3545）。
+    #[test]
+    fn instance_c_line_spans_are_separated_by_newline_text() {
+        let html = render(&demo());
+        let line_count = super::SNIPPET_C.lines().count();
+        // 各行 span の閉じタグ直後に改行 1 文字が続くこと（最終行を除く）。
+        assert_eq!(
+            html.matches("</span>\n").count(),
+            line_count - 1,
+            "行 span の後に改行テキストが挿入されていること"
+        );
+    }
+
+    /// B のコード片（`SNIPPET_B`）が呼び出す `demo` 関数自体を片内に
+    /// 定義し、コピーしたコード片単体でコンパイル・実行できる自己完結の
+    /// 例であること（Codex レビュー指摘、イシュー #3104 PR #3545）。
+    #[test]
+    fn snippet_b_defines_the_demo_function_it_calls() {
+        assert!(super::SNIPPET_B.contains("fn demo("));
+        assert!(super::SNIPPET_B.contains("render(&demo())"));
     }
 
     /// B の補助ボタン 2 個に `disabled` が付いていること（モジュール doc
@@ -396,6 +452,14 @@ mod tests {
         assert!(LAYOUT_CSS.contains("overflow-x: auto"));
         assert!(LAYOUT_CSS.contains("counter-increment"));
         assert!(LAYOUT_CSS.contains("counter("));
+        // `.blocks-code-block-header-frame` の `overflow: hidden` でフォー
+        // カスリングが隠れないよう、`outline-offset` を負値（inset）にして
+        // `pre` 自身のボックス内へ収める（Cursor Bugbot 指摘、イシュー
+        // #3104 PR #3545）。
+        assert!(LAYOUT_CSS.contains(".blocks-code-block-header-pre:focus-visible {"));
+        assert!(
+            LAYOUT_CSS.contains("outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));")
+        );
         assert!(!LAYOUT_CSS.contains('<'));
     }
 }

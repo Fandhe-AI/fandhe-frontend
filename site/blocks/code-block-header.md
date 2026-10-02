@@ -38,9 +38,10 @@ use fandhe_frontend_pre_styled_ui::Size;
 /// スクロールする」節）。
 const SNIPPET_A: &str = "use fandhe_frontend_core::{div, text};\n\nfn demo() -> fandhe_frontend_core::Node {\n    div(vec![], vec![text(\"こんにちは\")])\n}\n\n// この行はとても長いコメントで、枠の幅を越えて横スクロールが発生することを示すためにわざと伸ばしてあります\n";
 
-/// B（R0055）で表示するコード片。
-const SNIPPET_B: &str =
-    "use fandhe_frontend_core::render;\n\nfn main() {\n    println!(\"{}\", render(&demo()));\n}\n";
+/// B（R0055）で表示するコード片。`render(&demo())` が呼ぶ `demo` 自体を
+/// 片内に定義し、コピーしたコード片単体で実行できる自己完結の例にする
+/// （Codex レビュー指摘、イシュー #3104 PR #3545）。
+const SNIPPET_B: &str = "use fandhe_frontend_core::{div, render, text};\n\nfn demo() -> fandhe_frontend_core::Node {\n    div(vec![], vec![text(\"こんにちは\")])\n}\n\nfn main() {\n    println!(\"{}\", render(&demo()));\n}\n";
 
 /// C（R0057）で表示するコード片。行番号を 1 行ずつ振るため
 /// `.lines()` で分割する。
@@ -169,19 +170,32 @@ fn header_instance(
         ));
     }
 
+    // 各行 span は視覚上 `display: block` で改行されるが、span 間に改行
+    // テキスト自体を挟まないと選択範囲コピー時に行区切りが失われる
+    // （Codex レビュー指摘、イシュー #3104 PR #3545）。最終行の後ろには
+    // 入れず、元のスニペット末尾の改行有無をコピー結果で変えない。
     let body_children: Vec<Node> = if numbered {
-        snippet
-            .lines()
-            .map(|line| {
-                span(
+        let lines: Vec<&str> = snippet.lines().collect();
+        let line_count = lines.len();
+        lines
+            .into_iter()
+            .enumerate()
+            .flat_map(|(i, line)| {
+                let mut nodes = vec![span(
                     vec![("data-blocks-code-block-header-line", "")],
                     vec![text(line)],
-                )
+                )];
+                if i + 1 < line_count {
+                    nodes.push(text("\n"));
+                }
+                nodes
             })
             .collect()
     } else {
         vec![text(snippet)]
     };
+
+    let pre_label = format!("{title} のコード");
 
     div(
         vec![("id", root_id), ("class", "blocks-code-block-header-frame")],
@@ -200,7 +214,15 @@ fn header_instance(
                 ],
             ),
             pre(
-                vec![("class", "blocks-code-block-header-pre"), ("tabindex", "0")],
+                vec![
+                    ("class", "blocks-code-block-header-pre"),
+                    ("tabindex", "0"),
+                    // `tabindex="0"` でキーボード操作可能にした横スクロール
+                    // 領域には、スクリーンリーダーが読み上げられるアクセ
+                    // シブルネームを明示する（Cursor Bugbot 指摘、イシュー
+                    // #3104 PR #3545）。
+                    ("aria-label", pre_label.as_str()),
+                ],
                 vec![code::code(
                     &CodeProps::default(),
                     vec![("data-blocks-code-block-header-code", "")],
