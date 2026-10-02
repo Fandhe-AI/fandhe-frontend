@@ -625,7 +625,7 @@ const COMMAND: ComponentPageSpec = ComponentPageSpec {
         "`shortcut` は `margin-inline-start: auto` で右寄せする。API は増やさず、`children` へ [Kbd](../kbd/) を渡すことでキー表示を合成する。",
         "`dialog` は `--fandhe-command-dialog-max-width`（既定 32rem）で幅を決め、closed 時は headless が付与する `hidden` を確実に非表示化する（`[hidden] { display: none; }`）。単一パーツのため独立した `backdrop` は持たない。",
         "絞り込み配線（入力 → `\"input\"` dispatch → DOM 反映）・Enter 実行・Cmd/Ctrl+K のグローバルショートカット・フォーカストラップはアプリケーション/`fandhe-frontend-wasm-full` の責務として実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。",
-        "pre-styled-only `footer` パート（イシュー #3143）: headless-ui の anatomy には存在しないレイアウト専用パートで、キー操作ヒントを `list`/`empty` の後ろに区切り線付きで並べる。`shortcut` と同様 API を増やさず、`children` へ [Kbd](../kbd/) と `text` を組んで渡す。`footer` は `flex-wrap: wrap` で折り返すため、ヒント 1 件（`kbd` + 説明テキスト）は `span` 等 1 つの子要素へまとめてから渡す。加えて `stylesheet()` は `footer` 直接の子へ `white-space: nowrap` を raw CSS で強制しており（`span` へ包むだけでは `span` 自身が `display: inline` のままで内部の折り返しを防げないため）、狭幅でも `kbd` と説明文が別行に分かれない。",
+        "pre-styled-only `footer` パート（イシュー #3143）: headless-ui の anatomy には存在しないレイアウト専用パートで、キー操作ヒントを `list`/`empty` の後ろに区切り線付きで並べる。`shortcut` と同様 API を増やさず、`children` へ [Kbd](../kbd/) と `text` を組んで渡す。`footer` は `flex-wrap: wrap` で折り返すため、ヒント 1 件（`kbd` + 説明テキスト）は `span` 等 1 つの子要素へまとめてから渡す。加えて `stylesheet()` は `footer` 直接の子へ `white-space: nowrap` を raw CSS で強制しており（`span` へ包むだけでは `span` 自身が `display: inline` のままで内部の折り返しを防げないため）、狭幅でも `kbd` と説明文が別行に分かれない。同じ規則へ `overflow-wrap: anywhere` も併記し、ヒント 1 件がコンテナ幅を超える極端な狭幅・文字拡大時のみ最終手段として強制改行し、`root` の `overflow: hidden` による水平クリップで説明文が読めなくなることを防ぐ。",
     ],
     arguments: &[
         ArgRow {

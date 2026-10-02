@@ -97,6 +97,20 @@
 //! ため、専用サブパートを設けない方針のままこの契約を機械的に満たすには
 //! raw CSS 追記が必要）。
 //!
+//! **同じ規則へ `overflow-wrap: anywhere` も併記する（PR #3582 Codex P2
+//! 指摘対応）**: `white-space: nowrap` はヒント 1 件の min-content 幅を
+//! テキスト全幅に固定するため、ヒントがビューポート幅より長い狭幅・文字
+//! 拡大時に `footer`（延いては `root`）の横幅を超えて溢れる。`root` は
+//! `overflow: hidden`（上記「`dialog` のスクロール」節と同じ
+//! border-radius クリップ目的）を持つため、対策なしではヒント文字列が
+//! 水平方向に見えなくなる。CSS Text の仕様上 `overflow-wrap: anywhere`/
+//! `break-word` は「他に改行点が無い箇所でだけ最終手段として折り返す」
+//! 性質を持ち、`white-space: nowrap` が通常改行点（空白文字）を潰した
+//! 後でも、それを上書きしてオーバーフロー回避のための強制改行を適用する
+//! （`white-space: nowrap` 自体は変更しないため、`kbd` と説明文が通常幅
+//! では同一行にまとまる効果は保たれる。両者が同時発火するのは、ヒント
+//! 1 件がコンテナ幅を超える極端な狭幅・ズームのときのみ）。
+//!
 //! # `empty` の表示切替 CSS（headless の SSR 決定性契約との対応）
 //!
 //! headless [`fandhe_frontend_headless_ui::command::empty`] は `present` が
@@ -476,7 +490,13 @@ pub fn stylesheet() -> String {
     }
 
     const FOOTER_CHILD: &str = r#"[data-scope="command"][data-part="footer"] > *"#;
-    if let Some(rule) = serialize_rule(FOOTER_CHILD, &[decl("white-space", "nowrap")]) {
+    if let Some(rule) = serialize_rule(
+        FOOTER_CHILD,
+        &[
+            decl("white-space", "nowrap"),
+            decl("overflow-wrap", "anywhere"),
+        ],
+    ) {
         if !out.is_empty() {
             out.push('\n');
         }

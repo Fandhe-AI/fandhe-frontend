@@ -166,6 +166,7 @@ const COMMAND_GOLDEN_CSS: &str = "[data-scope=\"command\"][data-part=\"root\"] {
 
 [data-scope=\"command\"][data-part=\"footer\"] > * {
   white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 ";
 
@@ -229,11 +230,14 @@ fn css_appends_dialog_root_double_border_removal_rule() {
 /// 固定する（`src/command.rs` モジュール doc「raw CSS 追記の理由」節参照。
 /// #3143 Codex P2 再指摘対応: `span` へ包むだけでは `span` 自身が
 /// `display: inline` のままで内部の折り返しを防げないため）。
+/// `overflow-wrap: anywhere` 併記（PR #3582 Codex P2 指摘対応、
+/// `src/command.rs` モジュール doc「同じ規則へ `overflow-wrap: anywhere`
+/// も併記する」節参照）が同じ規則内に存在することも固定する。
 #[test]
 fn css_appends_footer_child_nowrap_rule() {
     let css = command::stylesheet();
     assert!(css.contains(
-        "[data-scope=\"command\"][data-part=\"footer\"] > * {\n  white-space: nowrap;\n}"
+        "[data-scope=\"command\"][data-part=\"footer\"] > * {\n  white-space: nowrap;\n  overflow-wrap: anywhere;\n}"
     ));
 }
 
