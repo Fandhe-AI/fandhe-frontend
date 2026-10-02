@@ -608,8 +608,15 @@ fn recipe() -> SlotRecipe {
         // チェックマーク（item-indicator）を item 末尾へ寄せる。`display` は
         // ここでは宣言しない（headless の非選択時 `hidden` 存在属性による
         // 表示制御と衝突するため、モジュール rustdoc「スタイル調整（#1502）」
-        // 節参照）。
-        .base("item-indicator", vec![decl("margin-left", "auto")])
+        // 節参照）。`item` の `gap` 設定下で項目幅・テキスト長が異なると
+        // インジケータ（選択時チェックマーク／非選択時の placement-start
+        // 空き枠、イシュー #3124）が flex item として縮小し、テキスト開始
+        // 位置の整列が崩れるため `flex-shrink: 0` で縮小を禁止する（旧
+        // `item::before` 実装の `flex: none` と同じ根拠）。
+        .base(
+            "item-indicator",
+            vec![decl("margin-left", "auto"), decl("flex-shrink", "0")],
+        )
         .base(
             "item-group-label",
             vec![
@@ -1316,14 +1323,15 @@ mod tests {
 
     #[test]
     fn item_indicator_base_block_is_unchanged_by_item_indicator_placement_axis() {
-        // 既存 base ブロック（#1502）は `margin-left: auto;` のみのまま残る
-        // （state 側で配置するため base は不変、モジュール rustdoc 参照）。
+        // 既存 base ブロック（#1502 の `margin-left: auto;` + #3124 レビュー
+        // 指摘対応の `flex-shrink: 0;`）は item-indicator-placement 軸の
+        // 追加（state 側で配置）によって変化しない（モジュール rustdoc 参照）。
         let css = stylesheet();
         let block = extract_block(
             &css,
             "[data-scope=\"select\"][data-part=\"item-indicator\"] {",
         );
-        assert_eq!(block.trim(), "margin-left: auto;");
+        assert_eq!(block.trim(), "margin-left: auto;\n  flex-shrink: 0;");
     }
 
     #[test]

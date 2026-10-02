@@ -183,6 +183,7 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
 
 [data-scope="select"][data-part="item-indicator"] {
   margin-left: auto;
+  flex-shrink: 0;
 }
 
 [data-scope="select"][data-part="hidden-select"] {
@@ -482,6 +483,7 @@ const SELECT_GOLDEN_CSS_BEFORE_2391: &str = r#"[data-scope="select"][data-part="
 
 [data-scope="select"][data-part="item-indicator"] {
   margin-left: auto;
+  flex-shrink: 0;
 }
 
 [data-scope="select"][data-part="hidden-select"] {
@@ -851,6 +853,7 @@ fn golden_prefix_through_hidden_select_is_unchanged() {
 
 [data-scope="select"][data-part="item-indicator"] {
   margin-left: auto;
+  flex-shrink: 0;
 }
 
 [data-scope="select"][data-part="hidden-select"] {
