@@ -172,8 +172,6 @@ fn preview() -> Node {
 /// タブ（CSS）は `disabled: true` にする（モジュール doc「コード種別
 /// タブ・スタイル選択を固定状態で置く理由」節参照）。
 fn toolbar_tabs() -> Node {
-    let rust_pre_label = "表示設定プレビューの Rust コード";
-    let css_pre_label = "表示設定プレビューの CSS コード";
     let props = TabsProps {
         id: TABS_ID,
         selected: "rust",
@@ -187,11 +185,7 @@ fn toolbar_tabs() -> Node {
             value: "rust",
             trigger: vec![text("Rust")],
             content: vec![pre(
-                vec![
-                    ("class", "blocks-example-preview-toolbar-pre"),
-                    ("tabindex", "0"),
-                    ("aria-label", rust_pre_label),
-                ],
+                vec![("class", "blocks-example-preview-toolbar-pre")],
                 vec![code::code(
                     &CodeProps::default(),
                     vec![],
@@ -204,11 +198,7 @@ fn toolbar_tabs() -> Node {
             value: "css",
             trigger: vec![text("CSS")],
             content: vec![pre(
-                vec![
-                    ("class", "blocks-example-preview-toolbar-pre"),
-                    ("tabindex", "0"),
-                    ("aria-label", css_pre_label),
-                ],
+                vec![("class", "blocks-example-preview-toolbar-pre")],
                 vec![code::code(
                     &CodeProps::default(),
                     vec![],
@@ -406,13 +396,12 @@ const LAYOUT_CSS: &str = "\
 .blocks-example-preview-toolbar [data-scope=\"popover\"] h2 {\n  margin: 0;\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .blocks-example-preview-toolbar [data-scope=\"tabs\"][data-part=\"root\"] {\n  display: contents;\n}\n\
 .blocks-example-preview-toolbar [data-scope=\"tabs\"][data-part=\"list\"] {\n  order: 1;\n  flex: 1 1 auto;\n  min-width: 0;\n  background: var(--fandhe-color-bg-subtle);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
-.blocks-example-preview-toolbar [data-scope=\"tabs\"][data-part=\"content\"] {\n  order: 3;\n  flex-basis: 100%;\n}\n\
+.blocks-example-preview-toolbar [data-scope=\"tabs\"][data-part=\"content\"] {\n  order: 3;\n  flex-basis: 100%;\n  overflow-x: auto;\n}\n\
 [data-blocks-example-preview-toolbar-actions] {\n  order: 2;\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  margin-inline-start: auto;\n  padding-inline: var(--fandhe-space-3);\n  background: var(--fandhe-color-bg-subtle);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-example-preview-toolbar-run][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"select\"][data-part=\"root\"][data-blocks-example-preview-toolbar-select-root][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 .blocks-example-preview-toolbar-select {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
-.blocks-example-preview-toolbar-pre {\n  margin: 0;\n  padding: var(--fandhe-space-4);\n  overflow-x: auto;\n  font-family: var(--fandhe-font-font-mono);\n}\n\
-.blocks-example-preview-toolbar-pre:focus-visible {\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));\n}\n";
+.blocks-example-preview-toolbar-pre {\n  margin: 0;\n  padding: var(--fandhe-space-4);\n  font-family: var(--fandhe-font-font-mono);\n}\n";
 
 #[cfg(test)]
 mod tests {
