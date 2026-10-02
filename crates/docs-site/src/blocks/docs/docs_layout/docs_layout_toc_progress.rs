@@ -63,6 +63,14 @@
 //! `bottom: -0.875rem` で `top` と対称にし、両端をマーカー中心へ
 //! つなぐ。
 //!
+//! 水平位置（`left`）もマーカー中心（グリッド列 `1.75rem` の中央
+//! ＝左端から `0.875rem`）に一致させる。線幅 `2px` の中心に対する
+//! `left` は「マーカー中心 − 線幅の半分」で求まり、`0.875rem −
+//! 0.0625rem = 0.8125rem` が正しい値である。`left: 0.75rem` のままだと
+//! 線の中心が `0.8125rem` となり、マーカー中心から `1px` 左へずれて
+//! 見えていた（CI `codex / review` P3 指摘、回帰防止テスト
+//! [`tests::line_is_horizontally_centered_on_marker`]）。
+//!
 //! # 可視の目次見出しを持たない
 //!
 //! 目次自体は「このページの内容」等の可視見出しを持たず、`nav` の
@@ -349,7 +357,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-docs-layout-toc-progress-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  min-width: 0;\n}\n\
 [data-blocks-docs-layout-toc-progress-list] {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n}\n\
 [data-blocks-docs-layout-toc-progress-item] {\n  position: relative;\n  display: grid;\n  grid-template-columns: 1.75rem minmax(0, 1fr);\n  align-items: start;\n  column-gap: var(--fandhe-space-2);\n  padding-block-end: var(--fandhe-space-4);\n}\n\
-[data-blocks-docs-layout-toc-progress-item]::before {\n  content: \"\";\n  position: absolute;\n  top: 0.875rem;\n  bottom: -0.875rem;\n  left: 0.75rem;\n  width: 2px;\n  background: var(--fandhe-color-border);\n}\n\
+[data-blocks-docs-layout-toc-progress-item]::before {\n  content: \"\";\n  position: absolute;\n  top: 0.875rem;\n  bottom: -0.875rem;\n  left: 0.8125rem;\n  width: 2px;\n  background: var(--fandhe-color-border);\n}\n\
 [data-blocks-docs-layout-toc-progress-item-state=\"done\"]::before {\n  background: var(--fandhe-color-accent);\n}\n\
 [data-blocks-docs-layout-toc-progress-item-state=\"current\"]::before {\n  background: var(--fandhe-color-border);\n}\n\
 [data-blocks-docs-layout-toc-progress-item]:last-child::before {\n  display: none;\n}\n\
@@ -598,6 +606,27 @@ mod tests {
         assert!(
             rule.contains("bottom: -0.875rem;"),
             "line end must reach the next item's marker center, symmetric with `top`"
+        );
+    }
+
+    /// `li::before` の水平位置（`left`）がマーカー中心（グリッド列
+    /// `1.75rem` の中央＝左端から `0.875rem`）に一致すること（CI
+    /// `codex / review` P3: `left: 0.75rem` だと線の中心が
+    /// `0.8125rem` となり `1px` ずれる）。
+    #[test]
+    fn line_is_horizontally_centered_on_marker() {
+        let selector = "[data-blocks-docs-layout-toc-progress-item]::before {";
+        let rule_pos = LAYOUT_CSS
+            .find(selector)
+            .expect("item ::before rule should exist");
+        let rule_end = LAYOUT_CSS[rule_pos..]
+            .find('}')
+            .map(|offset| rule_pos + offset)
+            .expect("item ::before rule should be closed");
+        let rule = &LAYOUT_CSS[rule_pos..rule_end];
+        assert!(
+            rule.contains("left: 0.8125rem;"),
+            "line center (left + half of 2px width) must align with the marker center (0.875rem)"
         );
     }
 
