@@ -2728,6 +2728,14 @@ source = "site/blocks/product-list-simple-grid.md"
 path = "/blocks/product-list-simple-grid/"
 
 [[section.group]]
+title = "Quickview"
+
+[[section.group.page]]
+title = "quickview-image-split"
+source = "site/blocks/quickview-image-split.md"
+path = "/blocks/quickview-image-split/"
+
+[[section.group]]
 title = "Category"
 
 [[section.group.page]]
