@@ -8,7 +8,7 @@ R0197。出典の固有名・ファイル名は記載しません）。
 
 枠の上端に列見出し行（「名前」「型」）を置き、その下にパラメータ 1 件
 ごとの開閉式の行を並べます。開いた行には説明と既定値を表示します。静的
-表示では先頭行だけを開いた状態にしています。枠・見出し行・各行の角丸は
+表示では全行を開いた状態にしています。枠・見出し行・各行の角丸は
 外枠（アコーディオンの root）1 つでまとめています。
 
 本 Demo は静的な表示例であり、全行を `disabled` により開閉操作自体を
@@ -163,15 +163,12 @@ fn param_detail(param: &Param) -> Node {
     )
 }
 
-/// パラメータ 1 件分の accordion item。先頭（`index == 0`）のみ
-/// [`OpenState::Open`]、他は [`OpenState::Closed`]。全行 `disabled: true`
-/// 固定（モジュール doc「静的表示」節）。
+/// パラメータ 1 件分の accordion item。全行 [`OpenState::Open`] +
+/// `disabled: true` 固定（モジュール doc「静的表示」節）。無 JS で開閉が
+/// 機能しないため、全行 open にして説明・既定値を読める状態にする
+/// （`faq_accordion_centered` と同じ判断、イシュー #3100 PR #3542 指摘）。
 fn param_item(index: usize, param: &Param) -> Node {
-    let state = if index == 0 {
-        OpenState::Open
-    } else {
-        OpenState::Closed
-    };
+    let state = OpenState::Open;
     let props = AccordionProps {
         disabled: true,
         ..AccordionProps::default()
@@ -258,7 +255,9 @@ pub fn demo() -> Node {
                     ..TextProps::default()
                 },
                 vec![],
-                vec![text("行をクリックすると説明と既定値が開きます。")],
+                vec![text(
+                    "各パラメータの説明と既定値を開いた状態で表示しています。",
+                )],
             ),
             params_root(),
         ],
@@ -269,9 +268,10 @@ pub fn demo() -> Node {
 ## 原案差分メモ
 
 - 参照元（対応表 ID R0197）の「開閉式の行」はそのまま採用しつつ、静的
-  表示では先頭 1 行だけを open にしました（`faq-accordion-centered` 等の
-  「全件 open」方針とは異なり、参照元の「先頭 1 件のみ展開」想定に揃えて
-  います）。
+  表示では全行を open にしました。原案は「先頭 1 行だけ open」でしたが、
+  無 JS の静的 Demo で全行を `disabled` にすると閉じた行の説明・既定値に
+  利用者が到達できなくなるため（PR #3542 指摘）、`faq-accordion-centered`
+  等と同じ「全件 open」方針へ変更しています。
 - 閉じた行も含め全行を `disabled` にしています。無 JS の docs サイトでは
   閉じた行のトリガーがクリック・Enter/Space に反応しないフォーカス可能な
   `<button>` として残ると、本文（説明・既定値）が事実上到達不能になるため

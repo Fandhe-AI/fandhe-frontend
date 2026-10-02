@@ -12,19 +12,21 @@
 //! 1. 枠の上端に列見出し行（「名前」「型」）を置く
 //! 2. その下にパラメータ 1 件ごとの開閉式の行を並べる。開いた行には
 //!    説明と既定値を出す
-//! 3. 静的表示では先頭行だけを開く
+//! 3. 静的表示では全行を開く
 //! 4. 枠・見出し行・各行の角丸は外枠 1 つでまとめる
 //!
-//! # 静的表示（無 JS、先頭行のみ open・全行 disabled）
+//! # 静的表示（無 JS、全行 open・全行 disabled）
 //!
-//! [`super::super::super::marketing::faq::faq_accordion_centered`] 等が
-//! 「全件 open」を選ぶのに対し、本 block は参照元（R0197）の「先頭 1 件
-//! のみ open」を採用する（差分は `site/blocks/api-reference-param-
-//! accordion.md` の「原案差分メモ」節に記す）。全行を
+//! 原案（R0197）は「先頭 1 件のみ open」だったが、無 JS の静的 Demo で
+//! 全行を `disabled: true` にすると閉じた行（`item_content` が
+//! `hidden`）の説明・既定値に利用者が一切到達できなくなるため（PR #3542
+//! 指摘）、[`super::super::super::marketing::faq::faq_accordion_centered`]
+//! と同じ「全件 open」へ変更した（差分は `site/blocks/api-reference-
+//! param-accordion.md` の「原案差分メモ」節に記す）。全行を
 //! `AccordionProps { disabled: true, .. }` + ネイティブ `disabled` +
 //! `aria-disabled="true"` で固定する理由は同ファイルと同じ: 無 JS の docs
-//! サイトで `item_trigger` が操作可能なまま閉じた行を残すと、クリック・
-//! Enter/Space が no-op になり本文が事実上到達不能になるため
+//! サイトで `item_trigger` が操作可能なまま残すと、クリック・
+//! Enter/Space が no-op になるため
 //! （`docs/policy/intentional-non-adoption.md` の UI 部品責務境界）。
 //! `disabled_declarations()`（既定 `opacity: 0.5`）は [`LAYOUT_CSS`] で
 //! 中和する。
@@ -236,15 +238,12 @@ fn param_detail(param: &Param) -> Node {
     )
 }
 
-/// パラメータ 1 件分の accordion item。先頭（`index == 0`）のみ
-/// [`OpenState::Open`]、他は [`OpenState::Closed`]。全行 `disabled: true`
-/// 固定（モジュール doc「静的表示」節）。
+/// パラメータ 1 件分の accordion item。全行 [`OpenState::Open`] +
+/// `disabled: true` 固定（モジュール doc「静的表示」節）。無 JS で開閉が
+/// 機能しないため、全行 open にして説明・既定値を読める状態にする
+/// （`faq_accordion_centered` と同じ判断、イシュー #3100 PR #3542 指摘）。
 fn param_item(index: usize, param: &Param) -> Node {
-    let state = if index == 0 {
-        OpenState::Open
-    } else {
-        OpenState::Closed
-    };
+    let state = OpenState::Open;
     let props = AccordionProps {
         disabled: true,
         ..AccordionProps::default()
@@ -331,7 +330,9 @@ pub fn demo() -> Node {
                     ..TextProps::default()
                 },
                 vec![],
-                vec![text("行をクリックすると説明と既定値が開きます。")],
+                vec![text(
+                    "各パラメータの説明と既定値を開いた状態で表示しています。",
+                )],
             ),
             params_root(),
         ],
@@ -418,21 +419,22 @@ mod tests {
         assert!(!html.contains("src=\"data:"));
     }
 
-    /// 先頭行のみ open・残り全行 closed・全行 disabled であることを固定
-    /// する（モジュール doc「静的表示」節）。
+    /// 全行 open・全行 disabled であることを固定する（モジュール doc
+    /// 「静的表示」節。閉じた行を残すと説明・既定値に利用者が到達できなく
+    /// なるため、PR #3542 指摘で先頭行のみ open から変更した）。
     #[test]
-    fn demo_renders_only_first_row_open_and_all_disabled() {
+    fn demo_renders_all_rows_open_and_all_disabled() {
         let html = render(&demo());
         assert_eq!(
             html.matches(r#"data-part="item" data-state="open""#)
                 .count(),
-            1,
+            PARAMS.len(),
             "html={html}"
         );
         assert_eq!(
             html.matches(r#"data-part="item" data-state="closed""#)
                 .count(),
-            PARAMS.len() - 1,
+            0,
             "html={html}"
         );
         assert_eq!(
