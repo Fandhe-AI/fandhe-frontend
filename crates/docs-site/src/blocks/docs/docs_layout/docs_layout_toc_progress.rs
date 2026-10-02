@@ -53,6 +53,16 @@
 //! （CI `codex / review` P2 指摘、回帰防止テスト
 //! [`tests::current_item_line_does_not_overshoot_marker`]）。
 //!
+//! `::before` の `top`/`bottom` はマーカー中心（マーカー本体
+//! `1.5rem` + 上下 `border: 2px` の content-box 加算で実寸
+//! `1.75rem`、中心は上端から `0.875rem`）に一致させる。`top: 0.875rem`
+//! は自項目のマーカー中心に合うが、`bottom: -0.125rem` は次項目の
+//! マーカー中心（次 `li` の上端から同じく `0.875rem`）まで届かず、
+//! 項目間で線が途切れて見えていた（CI `codex / review` P2 指摘、
+//! 回帰防止テスト [`tests::line_reaches_next_marker_center`]）。
+//! `bottom: -0.875rem` で `top` と対称にし、両端をマーカー中心へ
+//! つなぐ。
+//!
 //! # 可視の目次見出しを持たない
 //!
 //! 目次自体は「このページの内容」等の可視見出しを持たず、`nav` の
@@ -339,7 +349,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-docs-layout-toc-progress-body {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-4);\n  min-width: 0;\n}\n\
 [data-blocks-docs-layout-toc-progress-list] {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n}\n\
 [data-blocks-docs-layout-toc-progress-item] {\n  position: relative;\n  display: grid;\n  grid-template-columns: 1.75rem minmax(0, 1fr);\n  align-items: start;\n  column-gap: var(--fandhe-space-2);\n  padding-block-end: var(--fandhe-space-4);\n}\n\
-[data-blocks-docs-layout-toc-progress-item]::before {\n  content: \"\";\n  position: absolute;\n  top: 0.875rem;\n  bottom: -0.125rem;\n  left: 0.75rem;\n  width: 2px;\n  background: var(--fandhe-color-border);\n}\n\
+[data-blocks-docs-layout-toc-progress-item]::before {\n  content: \"\";\n  position: absolute;\n  top: 0.875rem;\n  bottom: -0.875rem;\n  left: 0.75rem;\n  width: 2px;\n  background: var(--fandhe-color-border);\n}\n\
 [data-blocks-docs-layout-toc-progress-item-state=\"done\"]::before {\n  background: var(--fandhe-color-accent);\n}\n\
 [data-blocks-docs-layout-toc-progress-item-state=\"current\"]::before {\n  background: var(--fandhe-color-border);\n}\n\
 [data-blocks-docs-layout-toc-progress-item]:last-child::before {\n  display: none;\n}\n\
@@ -562,6 +572,32 @@ mod tests {
         assert!(
             rule.contains("background: var(--fandhe-color-border);"),
             "current item line must stay at the unprogressed color, not advance past the marker"
+        );
+    }
+
+    /// `li::before` の `top`/`bottom` は自項目・次項目のマーカー中心
+    /// （マーカー実寸 `1.75rem`＝本体 `1.5rem` + 上下 border 2px、中心は
+    /// 上端から `0.875rem`）に対称に一致する（CI `codex / review` P2:
+    /// `bottom` が `-0.125rem` のままで次項目のマーカー中心まで届かず、
+    /// 項目間で線が途切れて見えた）。
+    #[test]
+    fn line_reaches_next_marker_center() {
+        let selector = "[data-blocks-docs-layout-toc-progress-item]::before {";
+        let rule_pos = LAYOUT_CSS
+            .find(selector)
+            .expect("item ::before rule should exist");
+        let rule_end = LAYOUT_CSS[rule_pos..]
+            .find('}')
+            .map(|offset| rule_pos + offset)
+            .expect("item ::before rule should be closed");
+        let rule = &LAYOUT_CSS[rule_pos..rule_end];
+        assert!(
+            rule.contains("top: 0.875rem;"),
+            "line start must sit at the current item's marker center"
+        );
+        assert!(
+            rule.contains("bottom: -0.875rem;"),
+            "line end must reach the next item's marker center, symmetric with `top`"
         );
     }
 
