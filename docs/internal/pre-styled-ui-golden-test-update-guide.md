@@ -141,6 +141,19 @@ golden 新設）** / splitter / stat / steps / switch /
 ブロック 2 個・2 つ目の hover state・forced-colors 補強の計 5 種のブロックを
 純追加。既存ブロックは末尾へ回り込みの影響を受けるのみでバイト不変、
 `TAB_NAV_GOLDEN_CSS_BEFORE_3125` + 部分一致による純追加固定アサーションも
+追加。イシュー #3126 で `TabNavVariant::Bar`（root variant）を追加し、
+`link` base ブロック 1 個（`flex`/`border-inline-end`〔論理プロパティ、
+RTL 安全〕/`min-width`/`overflow`/`text-overflow`/`white-space` の custom
+property 間接参照）・`StateCondition::LastChild` state 1 個
+（`border-inline-end: 0`）・2 つ目の `FocusVisible` state 1 個（内側
+フォーカスリング用 `outline-offset` 上書き）の計 4 種のブロックを純追加。
+区切り線は当初 `border-right`（物理プロパティ）で実装したが、レビュー
+指摘（RTL で区切り線位置がずれる P2）を受けて `border-inline-end` へ
+是正し、同時に狭い幅・長いラベルでの末尾リンク不可視化防止用の
+`min-width`/`overflow`/`text-overflow`/`white-space` 4 宣言を同一ブロックへ
+追加した。フォールバック値はいずれも既存の直書きリテラル・各プロパティの
+初期値と同一のため Line/Pill の computed style は不変、
+`TAB_NAV_GOLDEN_CSS_BEFORE_3126` + 部分一致による純追加固定アサーションも
 追加）** / tags_input / timeline / timer / toast /
 **toggle（イシュー #2023 で golden 新設）** /
 **toggle_group（イシュー #2024 で golden 新設）** / toggle_tip / tour /

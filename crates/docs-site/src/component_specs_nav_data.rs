@@ -2617,12 +2617,29 @@ fn ex_tab_nav_pill_palette() -> Node {
     )
 }
 
+/// `root_with(size, TabNavVariant::Bar, None, …)`（イシュー #3126）。
+/// `tab_nav.rs` の bar variant 節参照。
+fn ex_tab_nav_bar() -> Node {
+    tab_nav::root_with(
+        Size::Md,
+        TabNavVariant::Bar,
+        None,
+        "Bar section navigation",
+        vec![],
+        vec![
+            tab_nav::link("../tabs/", true, vec![], vec![text("Tabs")]),
+            tab_nav::link("../nav-list/", false, vec![], vec![text("Nav List")]),
+            tab_nav::link("../menubar/", false, vec![], vec![text("Menubar")]),
+        ],
+    )
+}
+
 pub(crate) const TAB_NAV: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "role=\"tablist\"/role=\"tab\" を出力しない。素の nav/a の暗黙 ARIA ロール（navigation/link）のみを使うナビゲーションリンク集合（crates/pre-styled-ui/src/tab_nav.rs:1-20）",
         "現在ページは aria-current=\"page\" + data-current で示す（tab_nav.rs:198-209）",
         "見た目は自前の宣言列から生成する（イシュー #1541 で crate::tabs との共有を解消）。size 軸（xs〜xl、既定 md）を持つ（tab_nav.rs 参照）",
-        "root_with 経由で pill variant（TabNavVariant、tabs の Enclosed と同一外観）・color-palette 軸を opt-in 提供（イシュー #3125、tab_nav.rs 参照）",
+        "root_with 経由で pill/bar variant（TabNavVariant、pill は tabs の Enclosed と同一外観、bar は枠線・角丸・影のカード状コンテナ + 区切り線 + 下端インジケータ）・color-palette 軸を opt-in 提供（イシュー #3125/#3126、tab_nav.rs 参照）",
     ],
     arguments: &[
         ArgRow {
@@ -2635,7 +2652,7 @@ pub(crate) const TAB_NAV: ComponentPageSpec = ComponentPageSpec {
             name: "variant",
             kind: "TabNavVariant",
             default: "Line",
-            description: "root_with のみが受け取る見た目 variant（イシュー #3125、tab_nav.rs 参照）。",
+            description: "root_with のみが受け取る見た目 variant（Line/Pill/Bar、イシュー #3125/#3126、tab_nav.rs 参照）。",
         },
         ArgRow {
             name: "palette",
@@ -2677,6 +2694,11 @@ pub(crate) const TAB_NAV: ComponentPageSpec = ComponentPageSpec {
             title: "Pill + palette",
             description: "Pill variant と color-palette 軸（Accent）を組み合わせた例です（イシュー #3125）。",
             render: ex_tab_nav_pill_palette,
+        },
+        ExampleEntry {
+            title: "Bar variant",
+            description: "root_with で TabNavVariant::Bar を指定した例です（イシュー #3126、枠線・角丸・影のカード状コンテナ + 区切り線 + 下端インジケータ）。",
+            render: ex_tab_nav_bar,
         },
     ],
     keyboard: &[KeyRow {
