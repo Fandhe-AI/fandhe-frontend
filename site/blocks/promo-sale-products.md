@@ -23,11 +23,12 @@ SVG です。
 
 ```rust
 use crate::blocks::dummy_assets;
-use fandhe_frontend_core::{div, el, strong, text, Node};
+use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::button::{self, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
 use fandhe_frontend_pre_styled_ui::heading::{self, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::image::{self, AspectRatio, ImageProps};
+use fandhe_frontend_pre_styled_ui::strong;
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize};
 
 /// 割引商品 4 点分の商品名（架空、実在のブランド・商品とは無関係）。
@@ -118,7 +119,7 @@ fn product_card(name: &'static str, regular: &'static str, sale: &'static str) -
                         vec![
                             text("通常 "),
                             el("s", vec![], vec![text(regular)]),
-                            strong(
+                            strong::strong(
                                 vec![("data-blocks-promo-sale-products-card-sale-price", "")],
                                 vec![text(sale)],
                             ),
