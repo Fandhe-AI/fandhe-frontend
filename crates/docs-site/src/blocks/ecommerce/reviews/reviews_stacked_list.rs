@@ -372,7 +372,7 @@ fn summary_and_search() -> Node {
             div(
                 vec![("class", "blocks-reviews-stacked-list-summary-score")],
                 vec![
-                    rating_block("blocks-reviews-stacked-list-rating-summary", 5),
+                    rating_block("blocks-reviews-stacked-list-rating-summary", 4),
                     styled_text::text(
                         &TextProps {
                             variant: TextVariant::Muted,
@@ -435,14 +435,11 @@ fn rows_with_separators(rows: Vec<Node>) -> Vec<Node> {
 /// 視覚的に隠した `h3` 見出し（`three-column`/`author-split` 用、モジュール
 /// doc「見出しの可視・非可視の使い分け」節参照）。
 fn hidden_heading(label: &str) -> Node {
-    visually_hidden::root(
+    heading(
+        HeadingLevel::H3,
+        &HeadingProps::default(),
         vec![],
-        vec![heading(
-            HeadingLevel::H3,
-            &HeadingProps::default(),
-            vec![],
-            vec![text(label)],
-        )],
+        vec![visually_hidden::root(vec![], vec![text(label)])],
     )
 }
 
@@ -611,7 +608,7 @@ const LAYOUT_CSS: &str = "\
 .blocks-reviews-stacked-list-heading {\n  text-align: center;\n}\n\
 .blocks-reviews-stacked-list-summary {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-3);\n  text-align: center;\n}\n\
 .blocks-reviews-stacked-list-summary-score {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n}\n\
-[data-scope=\"input-group\"][data-part=\"root\"] {\n  max-inline-size: 20rem;\n}\n\
+.blocks-reviews-stacked-list-summary [data-scope=\"input-group\"][data-part=\"root\"] {\n  max-inline-size: 20rem;\n}\n\
 .blocks-reviews-stacked-list-row {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-reviews-stacked-list-meta {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-1);\n}\n\
 .blocks-reviews-stacked-list-meta-name {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n}\n\
