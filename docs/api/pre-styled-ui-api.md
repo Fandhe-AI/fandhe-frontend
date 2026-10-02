@@ -785,7 +785,11 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
 
 - **公開 API**: `root(&FieldRootProps, &FieldProps<'_>, attrs, children)`
   （見た目 variant クラスを重ねて headless `field::root` へ委譲）、
-  `FieldOrientation`（`orientation` 軸、`Vertical` 既定 /`Horizontal`/
+  `root_with_label_placement(&FieldRootProps, FieldLabelPlacement,
+  &FieldProps<'_>, attrs, children)`（イシュー #3134、下記参照。`root` は
+  内部で `root_with_label_placement(.., FieldLabelPlacement::Outside, ..)`
+  へ委譲する）、`FieldLabelPlacement`（`label-placement` 軸、`Outside` 既定/
+  `Inset`/`Overlap`）、`FieldOrientation`（`orientation` 軸、`Vertical` 既定 /`Horizontal`/
   `Responsive`、イシュー #2199 で `Responsive` を追加）、
   `FieldRootProps`。`label`/`helper_text`/`error_text`/`required_indicator`/
   `group`/`content`/`title`/`separator`/`FieldIds`/`FieldProps` は headless
@@ -825,9 +829,31 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
   従属するレイアウト部品の root は size 軸を持たないという規約、フォーム
   入力系は palette 非提供という §4f と同じ判断）。
 - **意図的非採用**: hover（`root`/`label` は非インタラクティブ）・focus
-  ring（実フォーカスはコントロール側）・transition（状態遷移する視覚が
-  ない）・`data-readonly`/`data-invalid` によるラベル色変更（chakra-ui v3
-  も持たない）。
+  ring（実フォーカスはコントロール側。`FieldLabelPlacement::Inset`/
+  `Overlap` は `input` 自身の outline を消すため、代わりに `root` の
+  `:focus-within` へ focus ring を付与する例外を持つ、下記参照）・transition（状態
+  遷移する視覚がない）・`data-readonly`/`data-invalid` によるラベル色
+  変更（chakra-ui v3 も持たない）。
+- **`FieldLabelPlacement`（ラベル配置、イシュー #3134）**: `orientation` と
+  独立な opt-in variant。`Inset` は `root` 自身を枠線・背景を持つ box と
+  し、内側の `label`/`input` をリセットする（`input` のみ対象、
+  `textarea`/`select` は対象外）。`inset_stack`（`data-part="inset-stack"`
+  の wrapper）の直下に縦に並べた `Inset` の `root` 同士だけが
+  `+`/`:has(+ ...)` セレクタで枠線を共有して連結する（`+` は親の gap を
+  区別できないため、暗黙の隣接ではなく wrapper を契約とし、`group` 内では
+  連結しない）。`Overlap` はラベルを `root` の枠線の上へ
+  絶対配置で重ね、`--fandhe-field-label-bg`（既定
+  `var(--fandhe-color-bg)`）でラベル背景を地の色へ合わせられる。
+  枠線を `root` が描く両 variant は枠線に結び付く状態表示（invalid の
+  `border-color`・focus のリング）を `root` 側へ写し、`input` 側の outline
+  を打ち消して二重表示を避ける（disabled は子パーツの既存減衰のみで root
+  へは重ねない。`readonly` は `input` と同じく視覚宣言なし。4 状態 × 2
+  variant の対応表は `field.rs` モジュール doc「状態表示の対応表」節）。
+  いずれも `orientation = Vertical` での使用のみを前提とし、
+  `Horizontal`/`Responsive` との併用・`forms_motion` の floating label
+  との併用は対象外。既定（`Outside`）はクラスを出力せず `root()` の
+  既存出力をバイト単位で不変に保つ。判断根拠・CSS 宣言の詳細は
+  `field.rs` モジュール doc「ラベル配置（イシュー #3134）」節参照。
 - **バリデーション責務外**: `docs/policy/intentional-non-adoption.md`
   §3.25 規則 1 のとおり、本モジュールは headless が出す
   `data-invalid`/`data-disabled`/`data-required` を CSS セレクタとして
