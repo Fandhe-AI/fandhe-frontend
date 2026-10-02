@@ -5,7 +5,7 @@
 //! # 出典に関する注記
 //!
 //! 主参照は対応表 ID R0346（基準形）。集約元は R0345（カテゴリ選択の
-//! radio group）・R0347（左右反転 + 同意文）・R0348（フォーム列の中央寄せ）
+//! radio group）・R0347（左右反転 + 注記）・R0348（フォーム列の中央寄せ）
 //! の 3 件。取得手段・ファイル名・出典名・内部識別子は記載しない（既存
 //! block と同じライセンス上の転記制限、対応表 ID のみを記す）。取り込むのは
 //! 領域の配置と部品構成という構造のみで、文言・配色・装飾は独自に書く。
@@ -26,7 +26,7 @@
 //! |----|---------|------|
 //! | A 基準形 | R0346 | 画像列（左）+ ロゴ・見出し・説明・メール登録（右） |
 //! | B カテゴリ選択 | R0345 | A に fieldset + radio-group（興味のあるカテゴリ）を追加 |
-//! | C 左右反転 + 同意文 | R0347 | 画像列を右へ（`48rem` 以上で `order` を入れ替え）。ボタンの下に同意文 |
+//! | C 左右反転 + 注記 | R0347 | 画像列を右へ（`48rem` 以上で `order` を入れ替え）。ボタンの下に注記 |
 //! | D 中央寄せ | R0348 | フォーム列の内容を中央寄せ |
 //!
 //! # `<form>` を持たない・データ取得/送信を行わない
@@ -53,11 +53,14 @@
 //! が同種の問題を `RadioGroupProps { disabled: true, .. }` で解決した判断を
 //! 踏襲する。`disabled: true` に伴い `item` slot が
 //! [`fandhe_frontend_pre_styled_ui::recipe::disabled_declarations`]
-//! （既定 `opacity: 0.5` + `cursor: not-allowed`）を受けるため、
-//! `contact_split_form_image` と同型に [`LAYOUT_CSS`] で中和し、他 block と
-//! 見た目をそろえる（`[data-blocks-promo-signup-offer-interest-fieldset]
+//! （既定 `opacity: 0.5` + `cursor: not-allowed`）を受けるが、`opacity: 0.5`
+//! のみ [`LAYOUT_CSS`] で中和し他 block と見た目をそろえつつ
+//! （`[data-blocks-promo-signup-offer-interest-fieldset]
 //! [data-scope="radio-group"][data-part="item"][data-disabled]` で
-//! `opacity: 1`/`cursor: default` へ上書き）。
+//! `opacity: 1` へ上書き）、`cursor: not-allowed` は残す。`opacity` のみを
+//! 中和し `cursor` を据え置くのは、静的な初期状態のみを描く選択肢である
+//! ことを示す無効状態の視覚的手掛かりを失わないため（操作可能に見える
+//! 状態まで戻さない）。
 //!
 //! # `drop_class_attr` を踏まえた CSS フックの選び方
 //!
@@ -93,19 +96,20 @@
 //! 画像表示（縦長の画像列）へ切り替える。C は `48rem` 以上でのみ画像側へ
 //! `order: 2` を与えて左右を入れ替える（狭幅では常に画像が上に来る）。
 //!
-//! # 同意文のリンク文言
+//! # 注記リンクは同意を求めない・遷移先と一致する文言にする
 //!
-//! [`consent_text`] のリンク先は [`REPO`]（本リポジトリの固定外部 URL）で
-//! あり、実在の利用規約ページではない。遷移先と矛盾する「利用規約」の
-//! ようなリンク文言は使わず、遷移先（プロジェクトのリポジトリ）と一致する
-//! 「ご利用にあたっての注意事項」という語を使う。
+//! [`consent_text`] のリンク先は [`REPO`]（本リポジトリの固定外部 URL）。
+//! 実在の利用規約ページが存在しないデモである以上、「同意したものとみなす」
+//! という登録条件の確認を要求する文言は使わない（確認できないまま同意した
+//! 体裁になるため）。代わりに、このリンクが実際に指す先（本リポジトリの
+//! GitHub ページ）をそのまま説明する注記文言にし、文言と遷移先を一致させる。
 //!
-//! # 同意文はボタンの下に置く
+//! # 注記はボタンの下に置く
 //!
 //! モジュール doc「4 形を 1 つの Demo に並記する」節の対応表どおり、形 C の
-//! 同意文は登録ボタンの**下**に表示する契約のため、[`offer_card`] は
+//! 注記は登録ボタンの**下**に表示する契約のため、[`offer_card`] は
 //! ボタン直前に差し込む `extra`（形 B の fieldset 用）とは別に、ボタン
-//! 直後に差し込む `trailing`（形 C の同意文用）を受け取る。
+//! 直後に差し込む `trailing`（形 C の注記用）を受け取る。
 //!
 //! # 見出しレベル
 //!
@@ -137,11 +141,11 @@ use fandhe_frontend_pre_styled_ui::radio_group::{self, RadioGroupProps};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
-/// リンク先の固定外部 URL（同意文リンク、モジュール doc「見出しレベル」節に
+/// リンク先の固定外部 URL（注記リンク、モジュール doc「見出しレベル」節に
 /// 準じ死リンク `href="#"` は使わない既存方針）。実体は本リポジトリであり
-/// 実在の利用規約ページではないため、リンク文言は「利用規約」のような
-/// 法的文書を指す語ではなく、遷移先と矛盾しない一般的な語にする
-/// （モジュール doc「同意文のリンク文言」節参照）。
+/// 実在の利用規約ページではないため、リンク文言・周辺の注記文は遷移先
+/// （本リポジトリ）を正直に説明する語にする（モジュール doc「注記リンクは
+/// 同意を求めない・遷移先と一致する文言にする」節参照）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 /// 興味カテゴリ fieldset の `id`。legend の id は headless
@@ -222,7 +226,9 @@ fn interest_fieldset() -> Node {
     )
 }
 
-/// 形 C（R0347）が末尾に添える同意文（text + link）。
+/// 形 C（R0347）が末尾に添える注記（text + link）。登録への同意を求める
+/// 文言は使わず、リンク先（[`REPO`]）をそのまま説明する（モジュール doc
+/// 「注記リンクは同意を求めない・遷移先と一致する文言にする」節）。
 fn consent_text() -> Node {
     styled_text::text(
         &TextProps {
@@ -232,7 +238,7 @@ fn consent_text() -> Node {
         },
         vec![("data-blocks-promo-signup-offer-consent", "")],
         vec![
-            text("登録すると"),
+            text("このカードはレイアウト例です。リンクは本フレームワークの"),
             link::root(
                 REPO,
                 &LinkProps {
@@ -240,9 +246,9 @@ fn consent_text() -> Node {
                     ..LinkProps::default()
                 },
                 vec![],
-                vec![text("ご利用にあたっての注意事項")],
+                vec![text("GitHub リポジトリ")],
             ),
-            text("に同意したものとみなされます。"),
+            text("を指します。"),
         ],
     )
 }
@@ -252,8 +258,8 @@ fn consent_text() -> Node {
 /// （`"default"`/`"reverse"`/`"centered"`）で、[`LAYOUT_CSS`] が CSS フックに
 /// 使う。`email_id` は variant ごとに一意なリテラルを呼び出し側から渡す
 /// （モジュール doc「id / ARIA の方針」節）。`extra` はボタンの**上**（興味
-/// カテゴリ fieldset 用）、`trailing` はボタンの**下**（同意文用）に差し込む
-/// （モジュール doc「同意文はボタンの下に置く」節）。
+/// カテゴリ fieldset 用）、`trailing` はボタンの**下**（注記用）に差し込む
+/// （モジュール doc「注記はボタンの下に置く」節）。
 fn offer_card(
     layout: &'static str,
     email_id: &'static str,
@@ -368,7 +374,7 @@ pub fn demo() -> Node {
                 vec![interest_fieldset()],
                 vec![],
             ),
-            variant_label("左右反転 + 同意文"),
+            variant_label("左右反転 + 注記"),
             offer_card(
                 "reverse",
                 "blocks-promo-signup-offer-email-c",
@@ -452,7 +458,7 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-promo-signup-offer-image] {\n  display: block;\n  width: 100%;\n  height: 100%;\n}\n\
 [data-scope=\"card\"][data-part=\"body\"][data-blocks-promo-signup-offer-body] {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-4);\n  padding: var(--fandhe-space-6);\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-promo-signup-offer-logo] {\n  width: 2.5rem;\n  height: 2.5rem;\n}\n\
-[data-blocks-promo-signup-offer-interest-fieldset] [data-scope=\"radio-group\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-blocks-promo-signup-offer-interest-fieldset] [data-scope=\"radio-group\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: not-allowed;\n}\n\
 [data-blocks-promo-signup-offer-layout=\"centered\"] [data-scope=\"card\"][data-part=\"body\"][data-blocks-promo-signup-offer-body] {\n  align-items: center;\n  text-align: center;\n}\n\
 @media (min-width: 48rem) {\n  \
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-promo-signup-offer-card] {\n    display: grid;\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n  \
@@ -502,7 +508,7 @@ mod tests {
     }
 
     /// 4 形が互いに区別可能であること（layout 属性値・radio 選択肢件数・
-    /// 同意文リンク件数）を固定する。
+    /// 注記リンク件数）を固定する。
     #[test]
     fn variants_are_distinguishable() {
         let html = render(&demo());
@@ -527,8 +533,8 @@ mod tests {
         );
     }
 
-    /// 形 C の同意文は登録ボタンの**下**に表示する契約（モジュール doc
-    /// 「同意文はボタンの下に置く」節）を固定する。ボタン・同意文の
+    /// 形 C の注記は登録ボタンの**下**に表示する契約（モジュール doc
+    /// 「注記はボタンの下に置く」節）を固定する。ボタン・注記の
     /// マーカーがこの順に出現することを位置比較で検証する。
     #[test]
     fn consent_text_appears_after_submit_button() {
@@ -546,14 +552,15 @@ mod tests {
     }
 
     /// 興味カテゴリ radio group をネイティブ disabled にすることで受ける
-    /// `disabled_declarations()`（`opacity: 0.5`/`cursor: not-allowed`）を
-    /// [`LAYOUT_CSS`] が中和し、他 block と同じ見た目（`opacity: 1`/
-    /// `cursor: default`）になることを固定する（モジュール doc「興味
-    /// カテゴリ radio group をネイティブ disabled にする理由」節）。
+    /// `disabled_declarations()`（`opacity: 0.5`/`cursor: not-allowed`）の
+    /// うち、[`LAYOUT_CSS`] が `opacity` のみを他 block と揃えて中和し
+    /// `cursor: not-allowed` は無効状態の視覚的手掛かりとして残すことを
+    /// 固定する（モジュール doc「興味カテゴリ radio group をネイティブ
+    /// disabled にする理由」節）。
     #[test]
-    fn disabled_interest_radio_items_are_visually_neutralized() {
+    fn disabled_interest_radio_items_keep_not_allowed_cursor_hint() {
         assert!(LAYOUT_CSS.contains(
-            "[data-blocks-promo-signup-offer-interest-fieldset] [data-scope=\"radio-group\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}"
+            "[data-blocks-promo-signup-offer-interest-fieldset] [data-scope=\"radio-group\"][data-part=\"item\"][data-disabled] {\n  opacity: 1;\n  cursor: not-allowed;\n}"
         ));
     }
 
