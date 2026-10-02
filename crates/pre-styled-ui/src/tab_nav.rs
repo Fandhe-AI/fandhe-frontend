@@ -126,6 +126,54 @@
 //!   `FocusRingColor::Token` ブロックを書き換えると既存 golden ブロックの
 //!   変更になり「純追加」の契約を破るため、本イシューでは据え置く。
 //!
+//! # bar variant（イシュー #3126）
+//!
+//! blocks 取り込み対応表で、枠線・角丸・影を持つ白いカード状のコンテナに
+//! リンクを等幅・中央寄せで並べ、隣接リンク間を縦の区切り線で仕切り、
+//! 現在ページを下端インジケータ（色付きバー）で示す見た目の要望が現れた
+//! ため、[`TabNavVariant::Bar`] を opt-in の第 3 variant として純追加した。
+//!
+//! - 区切り線（`link` の `border-inline-end`、論理プロパティ。後述の RTL
+//!   対応参照）・等幅（`flex`）・角丸の無効化（`link` の `border-radius`）
+//!   はいずれも custom property 間接参照で実現し、フォールバック値を
+//!   既存の直書きリテラルと同一にすることで Line/Pill の computed style
+//!   を不変に保つ（Pill variant と同じ手法）。
+//! - 下端インジケータは新規実装を追加せず、既存 Line の仕組み（`link` の
+//!   `border-bottom: 2px solid transparent` + 現在ページの
+//!   `border-bottom-color`）をそのまま流用する。Bar は
+//!   `--fandhe-tab-nav-link-border-bottom` を上書きしないため、2px の
+//!   下端バーが自動的に残る。`color-palette` 軸（イシュー #3125）との
+//!   組み合わせもこの経路でそのまま効く（追加実装なし）。
+//! - `root` に `overflow: hidden` を当てるため、既定のフォーカスリング
+//!   （`FocusRingOffset::Outside`）だと先頭・末尾リンクの外側リングが
+//!   枠で切れる。これを避けるため、`root` 側が
+//!   `--fandhe-tab-nav-focus-ring-offset` を内側オフセット
+//!   （`FocusRingOffset::Inset` と同じ式）へ上書きする custom property
+//!   間接参照を追加した（既存の `FocusRingColor::Token` ブロックは書き
+//!   換えない。前節「フォーカスリングは palette 連動にしない」と同じ
+//!   「既存 golden ブロックは変更しない」判断に従う）。
+//! - **区切り線は論理プロパティで RTL 安全にする**: 物理プロパティ
+//!   （`border-right`）だと `direction: rtl` で flex-direction の視覚順が
+//!   反転しても境界の物理位置は反転しないため、区切り線の位置と「末尾
+//!   リンクのみ消す」対応がずれる。`border-inline-end` は「行内終端」を
+//!   指し、視覚順の反転に追随するため、DOM 順の `:last-child` のままで
+//!   LTR/RTL 双方とも正しい位置に出る。
+//! - **狭い幅・長いラベルでの末尾リンク不可視化を防ぐ**: `root` の
+//!   `overflow: hidden` と flex item の既定 `min-width: auto`（コンテンツ
+//!   の min-content 幅が縮小の下限になる）の組み合わせだと、幅が足りない
+//!   ときに末尾リンクが枠外へ押し出され不可視・操作不能になり得る。
+//!   `link` に `min-width: 0`・`overflow: hidden`・`text-overflow:
+//!   ellipsis`・`white-space: nowrap` を同じ custom property 間接参照で
+//!   追加し、収まらない分は折り返しではなく省略記号で切り詰める（折り
+//!   返しだと行数分だけ `root` の高さが崩れるため）。フォールバック値は
+//!   各プロパティの初期値と同一のため Line/Pill は不変。
+//! - **意図的に入れないもの**: 先頭/末尾リンク個別の角丸（`overflow:
+//!   hidden` で代替）・Bar 専用の forced-colors 補強（Line と同じく
+//!   `border-bottom` 色 + `font-weight` で現在ページを示すため Line 以上の
+//!   後退はない）・インジケータ用の内側 span 等の新規 anatomy（`root`/
+//!   `link` の 2 パーツのまま）・横スクロールによる折り返し回避（省略
+//!   記号による切り詰めで代替、上記参照）。
+//!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - `fandhe-frontend-wasm-full` によるクライアント側の現在地追跡（SPA
@@ -165,8 +213,8 @@ const ROOT_RESERVED: &[&str] = &["aria-label"];
 /// [`link`] が固定付与する属性キー一覧（同上）。
 const LINK_RESERVED: &[&str] = &["href", "aria-current", "data-current"];
 
-/// `root` の見た目 variant（イシュー #3125）。[`crate::tabs::TabsVariant`] と
-/// 同型の「見た目だけを切り替える」軸であり、本モジュールのナビゲーション
+/// `root` の見た目 variant（イシュー #3125/#3126）。[`crate::tabs::TabsVariant`]
+/// と同型の「見た目だけを切り替える」軸であり、本モジュールのナビゲーション
 /// 意味論（`role` 非出力）には影響しない。既定は [`TabNavVariant::Line`]
 /// （従来どおり下線のみ）。[`TabNavVariant::Pill`] は [`crate::tabs::TabsVariant::Enclosed`]
 /// と同じ見た目（淡色の角丸コンテナ + 現在リンクを白背景・微小な影で
@@ -180,6 +228,12 @@ pub enum TabNavVariant {
     /// 淡色の角丸コンテナ + 現在リンクを面で強調する見た目
     /// （イシュー #3125、`tabs` の `Enclosed` と同一外観）。
     Pill,
+    /// カード状バー（区切り線 + 下端インジケータ、イシュー #3126）。枠線・
+    /// 角丸・影を持つ白いコンテナにリンクを等幅・中央寄せで並べ、隣接
+    /// リンク間を縦の区切り線で仕切る。現在ページの強調は Line と同じ
+    /// 下端 2px バーをそのまま流用する（モジュール冒頭 rustdoc「bar
+    /// variant」節参照）。
+    Bar,
 }
 
 impl VariantValue for TabNavVariant {
@@ -191,6 +245,7 @@ impl VariantValue for TabNavVariant {
         match self {
             TabNavVariant::Line => "line",
             TabNavVariant::Pill => "pill",
+            TabNavVariant::Bar => "bar",
         }
     }
 }
@@ -277,6 +332,49 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
+        // イシュー #3126: Bar variant（[`TabNavVariant::Bar`]）が `link` の
+        // 等幅・区切り線を差し替えるための custom property 間接参照。
+        // フォールバック値は既存の直書きリテラル（`flex` の初期値
+        // `0 1 auto`・上記 base の `border: 0` と同値の `border-inline-end:
+        // 0`）と同一のため、Line/Pill の computed style はバイト単位で
+        // 不変。区切り線は論理プロパティ（`border-inline-end`）で実装する。
+        // 物理プロパティ（`border-right`）だと `direction: rtl` で
+        // flex-direction の視覚順が反転しても境界側は反転しないため、
+        // 区切り線の位置と「末尾リンクのみ消す」対応がずれる（レビュー
+        // 指摘対応）。論理プロパティなら「行内終端」は視覚順の反転に
+        // 追随するため、DOM 順の `:last-child` のままで LTR/RTL 双方とも
+        // 正しい位置に出る。
+        .base(
+            "link",
+            vec![
+                decl("flex", "var(--fandhe-tab-nav-link-flex, 0 1 auto)"),
+                decl(
+                    "border-inline-end",
+                    "var(--fandhe-tab-nav-link-divider, 0)",
+                ),
+                // イシュー #3126 レビュー対応: Bar variant は `root` に
+                // `overflow: hidden` を当てるため、狭い幅・長いラベルでは
+                // flex item の既定 `min-width: auto`（flex-shrink の下限が
+                // コンテンツの min-content 幅になる）により末尾リンクが
+                // 枠外へ押し出されて不可視・操作不能になり得る。
+                // `min-width`/`overflow`/`text-overflow`/`white-space` を
+                // 同じ custom property 間接参照で追加し、Bar では「1 行に
+                // 収まらない分は省略記号で切り詰める」（折り返しの代わりに
+                // 幅を保って操作可能なまま維持する）。フォールバック値は
+                // いずれも各プロパティの初期値と同一のため、Line/Pill の
+                // computed style は不変。
+                decl("min-width", "var(--fandhe-tab-nav-link-min-width, auto)"),
+                decl("overflow", "var(--fandhe-tab-nav-link-overflow, visible)"),
+                decl(
+                    "text-overflow",
+                    "var(--fandhe-tab-nav-link-text-overflow, clip)",
+                ),
+                decl(
+                    "white-space",
+                    "var(--fandhe-tab-nav-link-white-space, normal)",
+                ),
+            ],
+        )
         .state(
             "link",
             StateCondition::AttrEq("aria-current", "page"),
@@ -307,6 +405,32 @@ fn recipe() -> SlotRecipe {
             decls.push(decl("color", "var(--fandhe-color-fg)"));
             decls
         })
+        // イシュー #3126: Bar variant で末尾リンクの区切り線を消す
+        // （Line/Pill では元々 `border-inline-end: 0` のため不変）。論理
+        // プロパティのため DOM 順の `:last-child` のまま LTR/RTL 双方で
+        // 正しい「行内終端」の要素を指す（レビュー指摘対応、上記参照）。
+        .state(
+            "link",
+            StateCondition::LastChild,
+            vec![decl("border-inline-end", "0")],
+        )
+        // イシュー #3126: Bar variant は `root` に `overflow: hidden` を
+        // 当てるため、既定の外側フォーカスリング（`FocusRingOffset::
+        // Outside`、直上の FocusVisible state）だと先頭・末尾リンクの
+        // 外側リングが枠で切れる。この custom property 間接参照は Bar の
+        // `root` variant（後述）でのみ値を持ち、Line/Pill は未定義の
+        // フォールバック（既存の `--fandhe-focus-ring-offset` 既定値）へ
+        // 落ちるため computed style は不変。既存の `FocusRingColor::Token`
+        // ブロック自体は書き換えない（モジュール冒頭 rustdoc「bar
+        // variant」節参照）。
+        .state(
+            "link",
+            StateCondition::FocusVisible,
+            vec![decl(
+                "outline-offset",
+                "var(--fandhe-tab-nav-focus-ring-offset, var(--fandhe-focus-ring-offset, 2px))",
+            )],
+        )
         // イシュー #1541: size 軸（Xs〜Xl、既定 Md）。padding は
         // `crate::tabs` の size 進行と同一、font-size の段対応は
         // `crate::pagination` と同一（Radix Themes TabNav size 2=14px(sm)/
@@ -414,6 +538,49 @@ fn recipe() -> SlotRecipe {
                     "--fandhe-tab-nav-current-shadow",
                     "var(--fandhe-tab-nav-pill-current-shadow, var(--fandhe-shadow-sm))",
                 ),
+            ],
+        )
+        // イシュー #3126: Bar variant（root）。枠線・角丸・影を持つ白い
+        // コンテナにし、`link` 側は custom property 経由で等幅・区切り線・
+        // 角丸無効化・内側フォーカスリングを受け取る。下端インジケータは
+        // 既存 Line の仕組み（`--fandhe-tab-nav-link-border-bottom` を
+        // 上書きしない）をそのまま流用するため、ここでは触れない
+        // （モジュール冒頭 rustdoc「bar variant」節参照）。
+        .variant(
+            TabNavVariant::Bar,
+            "root",
+            vec![
+                decl("gap", "0"),
+                decl("border", "1px solid var(--fandhe-color-border)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("box-shadow", "var(--fandhe-shadow-sm)"),
+                // イシュー #3126: 先頭・末尾リンクの hover 面・角丸を
+                // コンテナの角丸でクリップする（`:first-child` 条件の
+                // 新設は不要、モジュール冒頭 rustdoc「意図的に入れない
+                // もの」参照）。
+                decl("overflow", "hidden"),
+                decl("text-align", "center"),
+                decl("--fandhe-tab-nav-link-flex", "1 1 0%"),
+                decl(
+                    "--fandhe-tab-nav-link-divider",
+                    "1px solid var(--fandhe-color-border)",
+                ),
+                decl("--fandhe-tab-nav-link-radius", "0"),
+                decl(
+                    "--fandhe-tab-nav-focus-ring-offset",
+                    "calc(-1 * var(--fandhe-focus-ring-offset, 2px))",
+                ),
+                // イシュー #3126 レビュー対応: 狭い幅・長いラベルで末尾
+                // リンクが枠外へ押し出され不可視・操作不能になるのを防ぐ
+                // （上記 `link` base の custom property 間接参照を参照）。
+                // 折り返し（`white-space: normal`）ではなく省略記号での
+                // 切り詰めを選んだのは、折り返しだと等高に揃えた `root`
+                // の高さが行数分だけ崩れるため。
+                decl("--fandhe-tab-nav-link-min-width", "0"),
+                decl("--fandhe-tab-nav-link-overflow", "hidden"),
+                decl("--fandhe-tab-nav-link-text-overflow", "ellipsis"),
+                decl("--fandhe-tab-nav-link-white-space", "nowrap"),
             ],
         )
         // イシュー #3125: 現在リンクの面（Pill のときのみ意味を持つ）。Line
@@ -566,7 +733,7 @@ pub fn root_with<'a>(
     children: Vec<Node>,
 ) -> Node {
     let mut selection: Vec<(&str, &str)> = vec![("size", size.value())];
-    if variant == TabNavVariant::Pill {
+    if variant != TabNavVariant::Line {
         selection.push(("variant", variant.value()));
     }
     if let Some(p) = palette {
@@ -956,6 +1123,80 @@ mod tests {
         assert!(!html.contains("attacker-controlled"));
         assert!(!html.contains(">attacker<"));
         assert!(html.contains(r#"aria-label="Section navigation""#));
+    }
+
+    // --- イシュー #3126: bar variant（純追加） ---
+
+    #[test]
+    fn root_with_bar_outputs_variant_class_and_no_role() {
+        let html = render(&root_with(
+            Size::Md,
+            TabNavVariant::Bar,
+            None,
+            "Section navigation",
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains("fd-tab-nav--variant-bar"));
+        assert!(!html.contains("role="));
+    }
+
+    #[test]
+    fn stylesheet_contains_bar_variant_and_link_custom_properties() {
+        let css = stylesheet();
+        assert!(css.contains(".fd-tab-nav--variant-bar"));
+        assert!(css.contains("--fandhe-tab-nav-link-divider"));
+        assert!(css.contains(":last-child"));
+        assert!(css.contains("--fandhe-tab-nav-focus-ring-offset"));
+    }
+
+    #[test]
+    fn root_with_line_none_still_matches_root_byte_for_byte_after_bar_addition() {
+        let via_root = render(&root(Size::Md, "Section navigation", vec![], vec![]));
+        let via_root_with = render(&root_with(
+            Size::Md,
+            TabNavVariant::Line,
+            None,
+            "Section navigation",
+            vec![],
+            vec![],
+        ));
+        assert_eq!(via_root, via_root_with);
+    }
+
+    #[test]
+    fn link_label_is_escaped_in_bar_variant() {
+        let html = render(&link(
+            "/docs",
+            false,
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+        // bar は root 側の軸なので link() 自体の出力は variant に関わらず不変。
+        let _ = render(&root_with(
+            Size::Md,
+            TabNavVariant::Bar,
+            None,
+            "Section navigation",
+            vec![],
+            vec![],
+        ));
+    }
+
+    #[test]
+    fn root_with_class_spoofing_is_dropped_for_bar_variant() {
+        let html = render(&root_with(
+            Size::Md,
+            TabNavVariant::Bar,
+            Some(ColorPalette::Accent),
+            "Section navigation",
+            vec![("class", "attacker-controlled")],
+            vec![],
+        ));
+        assert!(!html.contains("attacker-controlled"));
+        assert!(html.contains("fd-tab-nav--variant-bar"));
     }
 
     #[test]
