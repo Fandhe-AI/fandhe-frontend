@@ -3669,7 +3669,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # と同型）を追加した。新規公開 API（`drawer::body`/`drawer::footer`）のみで
 # 既存関数シグネチャ・golden CSS の既存ブロックは不変のため非破壊的な追加
 # として minor バンプする。
-version = "0.224.0"
+#
+# イシュー #3131: alert に AccentBorder variant を純追加。公開 API（enum
+# variant）の純追加のため minor バンプする。
+version = "0.225.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

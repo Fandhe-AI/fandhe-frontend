@@ -19,6 +19,8 @@
 //!   （公開 API は `ColorPalette` を露出しない、イシュー #606 の境界を維持）。
 //! - **バリアント**: `variant` 軸（[`AlertVariant`]、既定 `Subtle`）を新設した。
 //!   badge の `Solid`/`Subtle`/`Outline` + callout の `Surface` を踏襲する。
+//!   イシュー #3131 で `AccentBorder`（淡色背景 + inline-start 側の太い
+//!   アクセント罫線・角丸なし）を追加した。
 //! - **サイズ**: `size` 軸（[`crate::recipe::Size`]、既定 `Md`）を新設した。
 //!   root の size variant が `--fandhe-alert-*` custom property を切り替え、
 //!   各パーツはそれを `var(--fandhe-alert-*, <Md 相当>)` で参照する
@@ -171,6 +173,12 @@ pub enum AlertVariant {
     Solid,
     /// 輪郭のみ。
     Outline,
+    /// 淡色背景 + inline-start 側の太いアクセント罫線・角丸なし
+    /// （イシュー #3131）。`border-inline-start` を使う論理プロパティのため
+    /// `dir="rtl"` の祖先下では罫線が右側に出る（[`crate::blockquote`] の
+    /// Plain variant と同型）。角丸は `0` へ上書きし、他 variant と異なり
+    /// 矩形のバナーになる。
+    AccentBorder,
 }
 
 impl VariantValue for AlertVariant {
@@ -184,6 +192,7 @@ impl VariantValue for AlertVariant {
             Self::Surface => "surface",
             Self::Solid => "solid",
             Self::Outline => "outline",
+            Self::AccentBorder => "accent-border",
         }
     }
 }
@@ -362,6 +371,16 @@ fn recipe() -> SlotRecipe {
                 decl("background", "transparent"),
                 decl("color", "var(--fandhe-palette-fg-subtle)"),
                 decl("border-color", "var(--fandhe-palette-muted)"),
+            ],
+        )
+        .variant(
+            AlertVariant::AccentBorder,
+            "root",
+            vec![
+                decl("background", "var(--fandhe-palette-subtle)"),
+                decl("color", "var(--fandhe-palette-fg-subtle)"),
+                decl("border-inline-start", "4px solid var(--fandhe-palette)"),
+                decl("border-radius", "0"),
             ],
         )
         .default_variant(AlertVariant::Subtle)
@@ -571,6 +590,10 @@ mod tests {
             (AlertVariant::Surface, "fd-alert--variant-surface"),
             (AlertVariant::Solid, "fd-alert--variant-solid"),
             (AlertVariant::Outline, "fd-alert--variant-outline"),
+            (
+                AlertVariant::AccentBorder,
+                "fd-alert--variant-accent-border",
+            ),
         ] {
             let props = AlertProps {
                 variant,
@@ -742,5 +765,15 @@ mod tests {
         assert!(out.contains("--fandhe-alert-padding: var(--fandhe-space-2);"));
         assert!(out.contains("--fandhe-alert-padding: var(--fandhe-space-4);"));
         assert!(out.contains("--fandhe-alert-indicator-size: var(--fandhe-font-font-size-3xl);"));
+    }
+
+    /// イシュー #3131: `AccentBorder` variant の inline-start 罫線・角丸解除
+    /// 宣言が CSS 出力に含まれることを固定する（RTL では右側になる論理
+    /// プロパティ契約、モジュール doc 参照）。
+    #[test]
+    fn css_output_declares_accent_border_variant_declarations() {
+        let out = css();
+        assert!(out.contains("border-inline-start: 4px solid var(--fandhe-palette);"));
+        assert!(out.contains(".fd-alert--variant-accent-border"));
     }
 }
