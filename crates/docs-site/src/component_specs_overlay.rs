@@ -578,6 +578,8 @@ pub const BUTTON_GROUP: ComponentPageSpec = ComponentPageSpec {
 /// 続けて内側（横）グループを 1 つ並べる。角丸連結・境界線二重描画の
 /// 解消は `fandhe_frontend_pre_styled_ui::button_group::stylesheet` が
 /// 既存のまま適用し、本関数は呼び出し側の組み合わせのみを担う。
+/// 入力欄の `placeholder` はアクセシブルな名前の代わりにならないため、
+/// `aria-label` を明示付与して読み上げ対象にする（codex レビュー指摘対応）。
 fn ex_button_group_nested_mixed() -> Node {
     let field_props = FieldProps {
         id: "button-group-nested-search",
@@ -597,7 +599,7 @@ fn ex_button_group_nested_mixed() -> Node {
             input::input(
                 &InputProps::default(),
                 &field_props,
-                vec![("placeholder", "Search")],
+                vec![("placeholder", "Search"), ("aria-label", "Search")],
             ),
             button_group::root(
                 Orientation::Horizontal,
