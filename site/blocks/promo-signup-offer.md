@@ -32,7 +32,10 @@ use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSi
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
 /// リンク先の固定外部 URL（同意文リンク、モジュール doc「見出しレベル」節に
-/// 準じ死リンク `href="#"` は使わない既存方針）。
+/// 準じ死リンク `href="#"` は使わない既存方針）。実体は本リポジトリであり
+/// 実在の利用規約ページではないため、リンク文言は「利用規約」のような
+/// 法的文書を指す語ではなく、遷移先と矛盾しない一般的な語にする
+/// （モジュール doc「同意文のリンク文言」節参照）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 /// 興味カテゴリ fieldset の `id`。legend の id は headless
@@ -131,7 +134,7 @@ fn consent_text() -> Node {
                     ..LinkProps::default()
                 },
                 vec![],
-                vec![text("利用規約")],
+                vec![text("ご利用にあたっての注意事項")],
             ),
             text("に同意したものとみなされます。"),
         ],
@@ -142,9 +145,15 @@ fn consent_text() -> Node {
 /// `data-blocks-promo-signup-offer-layout` へ渡す属性値
 /// （`"default"`/`"reverse"`/`"centered"`）で、[`LAYOUT_CSS`] が CSS フックに
 /// 使う。`email_id` は variant ごとに一意なリテラルを呼び出し側から渡す
-/// （モジュール doc「id / ARIA の方針」節）。`extra` は興味カテゴリ fieldset
-/// や同意文の差し込みに使う。
-fn offer_card(layout: &'static str, email_id: &'static str, extra: Vec<Node>) -> Node {
+/// （モジュール doc「id / ARIA の方針」節）。`extra` はボタンの**上**（興味
+/// カテゴリ fieldset 用）、`trailing` はボタンの**下**（同意文用）に差し込む
+/// （モジュール doc「同意文はボタンの下に置く」節）。
+fn offer_card(
+    layout: &'static str,
+    email_id: &'static str,
+    extra: Vec<Node>,
+    trailing: Vec<Node>,
+) -> Node {
     let email = FieldProps {
         id: email_id,
         ids: FieldIds::default(),
@@ -205,6 +214,7 @@ fn offer_card(layout: &'static str, email_id: &'static str, extra: Vec<Node>) ->
         vec![("data-blocks-promo-signup-offer-submit", "")],
         vec![text("今すぐ登録する")],
     ));
+    body_children.extend(trailing);
 
     let media = div(
         vec![("class", "blocks-promo-signup-offer-media")],
@@ -239,21 +249,33 @@ pub fn demo() -> Node {
         vec![("class", "blocks-promo-signup-offer-layout")],
         vec![
             variant_label("基準形"),
-            offer_card("default", "blocks-promo-signup-offer-email-a", vec![]),
+            offer_card(
+                "default",
+                "blocks-promo-signup-offer-email-a",
+                vec![],
+                vec![],
+            ),
             variant_label("カテゴリ選択"),
             offer_card(
                 "default",
                 "blocks-promo-signup-offer-email-b",
                 vec![interest_fieldset()],
+                vec![],
             ),
             variant_label("左右反転 + 同意文"),
             offer_card(
                 "reverse",
                 "blocks-promo-signup-offer-email-c",
+                vec![],
                 vec![consent_text()],
             ),
             variant_label("中央寄せ"),
-            offer_card("centered", "blocks-promo-signup-offer-email-d", vec![]),
+            offer_card(
+                "centered",
+                "blocks-promo-signup-offer-email-d",
+                vec![],
+                vec![],
+            ),
         ],
     )
 }
