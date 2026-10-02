@@ -2,9 +2,10 @@
 //! テスト。
 //!
 //! `crates/pre-styled-ui/tests/item_css.rs` と同型の golden fixture
-//! テスト。`command` recipe は `root`/`input`/`list`/`empty`/`group`/
-//! `group-heading`/`item`/`shortcut`/`separator`/`dialog` の 10 slot を
-//! 宣言し、`size`/`variant`/`color-palette` いずれの軸も持たない（`src/command.rs`
+//! テスト。`command` recipe は headless 10 slot（`root`/`input`/`list`/
+//! `empty`/`group`/`group-heading`/`item`/`shortcut`/`separator`/`dialog`）
+//! と pre-styled-only `footer`（イシュー #3143）の計 11 slot を宣言し、
+//! `size`/`variant`/`color-palette` いずれの軸も持たない（`src/command.rs`
 //! モジュール doc「軸を持たない理由」節参照）。
 
 use fandhe_frontend_pre_styled_ui::command;
@@ -92,6 +93,17 @@ const COMMAND_GOLDEN_CSS: &str = "[data-scope=\"command\"][data-part=\"root\"] {
   background: var(--fandhe-color-border);
 }
 
+[data-scope=\"command\"][data-part=\"footer\"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fandhe-space-3);
+  padding: var(--fandhe-space-2) var(--fandhe-space-3);
+  border-top: 1px solid var(--fandhe-color-border);
+  font-size: var(--fandhe-font-font-size-xs);
+  color: var(--fandhe-color-fg-muted);
+}
+
 [data-scope=\"command\"][data-part=\"dialog\"] {
   position: fixed;
   top: 50%;
@@ -151,6 +163,19 @@ const COMMAND_GOLDEN_CSS: &str = "[data-scope=\"command\"][data-part=\"root\"] {
   border-radius: 0;
   box-shadow: none;
 }
+
+[data-scope=\"command\"][data-part=\"footer\"] > * {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fandhe-space-1);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+[data-scope=\"command\"][data-part=\"footer\"] > * kbd {
+  white-space: nowrap;
+}
 ";
 
 #[test]
@@ -206,6 +231,46 @@ fn css_appends_dialog_root_double_border_removal_rule() {
     assert!(css.contains(
         "[data-scope=\"command\"][data-part=\"dialog\"] > [data-scope=\"command\"][data-part=\"root\"] {\n  border: 0;\n  border-radius: 0;\n  box-shadow: none;\n}"
     ));
+}
+
+/// `footer` 直接の子（呼び出し側が組む 1 ヒント分の `span` 等）を
+/// `inline-flex` のまとまりにし、その中の `kbd` だけを `white-space: nowrap`
+/// にする raw CSS 追記を固定する（`src/command.rs` モジュール doc
+/// 「pre-styled-only `footer` パート」節参照。PR #3582 Codex P2 / Cursor
+/// Bugbot 指摘対応）。
+#[test]
+fn css_appends_footer_child_hint_group_rules() {
+    let css = command::stylesheet();
+    assert!(css.contains(
+        "[data-scope=\"command\"][data-part=\"footer\"] > * {\n  display: inline-flex;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n  min-width: 0;\n  max-width: 100%;\n  overflow-wrap: anywhere;\n}"
+    ));
+    assert!(css.contains(
+        "[data-scope=\"command\"][data-part=\"footer\"] > * kbd {\n  white-space: nowrap;\n}"
+    ));
+}
+
+/// 回帰防止: `overflow-wrap` は `white-space` が折り返しを許すときにしか
+/// 効かないため、同じ規則へ `white-space: nowrap` と `overflow-wrap` を
+/// 併記すると折り返しが起きず、`root` の `overflow: hidden` で説明文が
+/// 切れる（PR #3582 Codex P2 / Cursor Bugbot 指摘）。`nowrap` は `kbd`
+/// 規則だけに置き、`footer` 直接の子の規則には置かないことを固定する。
+#[test]
+fn css_footer_child_rule_does_not_combine_nowrap_with_overflow_wrap() {
+    let css = command::stylesheet();
+    let child_rule_start = css
+        .find("[data-scope=\"command\"][data-part=\"footer\"] > * {")
+        .expect("footer child rule must be present");
+    let child_rule = &css[child_rule_start..];
+    let child_rule = &child_rule[..child_rule.find('}').expect("rule must close")];
+    assert!(!child_rule.contains("white-space"));
+    for rule in css.split('}') {
+        if rule.contains("white-space: nowrap") {
+            assert!(
+                !rule.contains("overflow-wrap"),
+                "nowrap and overflow-wrap must not share a rule: {rule}"
+            );
+        }
+    }
 }
 
 /// `input` の `outline: none` を補う `root` の `:focus-within` canonical
@@ -269,4 +334,28 @@ fn css_never_generates_class_based_variant_classes() {
     let css = command::stylesheet();
     assert!(!css.contains("fd-command--"));
     assert!(!css.contains("class="));
+}
+
+/// pre-styled-only `footer` パート（イシュー #3143）の base 宣言が存在し、
+/// `separator` < `footer` < `dialog` の順（DOM 配置順に揃える、
+/// `src/command.rs` モジュール doc「pre-styled-only `footer` パート」節
+/// 参照）で出力されることを固定する。
+#[test]
+fn css_footer_base_rule_exists() {
+    let css = command::stylesheet();
+    assert!(css.contains(
+        "[data-scope=\"command\"][data-part=\"footer\"] {\n  display: flex;\n  flex-wrap: wrap;"
+    ));
+
+    let separator_pos = css
+        .find("[data-scope=\"command\"][data-part=\"separator\"] {")
+        .expect("separator base rule must be present");
+    let footer_pos = css
+        .find("[data-scope=\"command\"][data-part=\"footer\"] {")
+        .expect("footer base rule must be present");
+    let dialog_pos = css
+        .find("[data-scope=\"command\"][data-part=\"dialog\"] {")
+        .expect("dialog base rule must be present");
+    assert!(separator_pos < footer_pos);
+    assert!(footer_pos < dialog_pos);
 }

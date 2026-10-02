@@ -619,12 +619,13 @@ const COMBOBOX: ComponentPageSpec = ComponentPageSpec {
 
 const COMMAND: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "root/input/list/empty/group/group-heading/item/shortcut/separator/dialog の 10 slot 構成。`size`/`variant`/`color-palette` いずれの軸も持たない（`crates/pre-styled-ui/src/command.rs` モジュール doc「軸を持たない理由」節参照）。",
+        "root/input/list/empty/group/group-heading/item/shortcut/separator/dialog の headless 10 slot に、pre-styled-only の `footer`（下記参照）を加えた計 11 パーツ構成。`size`/`variant`/`color-palette` いずれの軸も持たない（`crates/pre-styled-ui/src/command.rs` モジュール doc「軸を持たない理由」節参照）。",
         "`empty` は既定 `display: none`、`[data-empty]`（headless が絞り込み結果 0 件のときのみ付与）が付いたときだけ `display: block` へ切り替わる。",
         "`item` の選択行は `[data-selected]` の背景色で表す（`data-highlighted` は使わない）。hover は選択行を除外する規則（`HoverExceptAttr`）を持ち、選択色が hover で洗い流されない。",
         "`shortcut` は `margin-inline-start: auto` で右寄せする。API は増やさず、`children` へ [Kbd](../kbd/) を渡すことでキー表示を合成する。",
         "`dialog` は `--fandhe-command-dialog-max-width`（既定 32rem）で幅を決め、closed 時は headless が付与する `hidden` を確実に非表示化する（`[hidden] { display: none; }`）。単一パーツのため独立した `backdrop` は持たない。",
         "絞り込み配線（入力 → `\"input\"` dispatch → DOM 反映）・Enter 実行・Cmd/Ctrl+K のグローバルショートカット・フォーカストラップはアプリケーション/`fandhe-frontend-wasm-full` の責務として実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。",
+        "pre-styled-only `footer` パート（イシュー #3143）: headless-ui の anatomy には存在しないレイアウト専用パートで、キー操作ヒントを `list`/`empty` の後ろに区切り線付きで並べる。`shortcut` と同様 API を増やさず、`children` へ [Kbd](../kbd/) と `text` を組んで渡す。`footer` は `flex-wrap: wrap` で折り返すため、ヒント 1 件（`kbd` + 説明テキスト）は `span` 等 1 つの子要素へまとめてから渡す。加えて `stylesheet()` は `footer` 直接の子を raw CSS で `display: inline-flex` のまとまりにし、その中の `kbd` だけを `white-space: nowrap` にする（`span` へ包むだけでは `span` 自身が `display: inline` のままで内部の折り返しを防げないため）。`kbd` と説明文は別行に分かれず、ヒント 1 件がコンテナ幅を超える狭幅・文字拡大時は説明文が `overflow-wrap: anywhere` で折り返すため、`root` の `overflow: hidden` で説明文が切れない。",
     ],
     arguments: &[
         ArgRow {
@@ -698,6 +699,11 @@ const COMMAND: ComponentPageSpec = ComponentPageSpec {
             title: "dialog 型",
             description: "`dialog` パーツで command palette 全体を包んだ構成です（掲示用にフロー内配置へ中和しています）。",
             render: ex_command_dialog,
+        },
+        ExampleEntry {
+            title: "キー操作ヒント付き footer",
+            description: "`footer` パート（イシュー #3143）でリスト下端にキー操作ヒントを並べる例です。[Kbd](../kbd/) とテキストを組み合わせて `root` の末尾へ配置します。",
+            render: ex_command_footer,
         },
     ],
     keyboard: &[],
@@ -806,6 +812,71 @@ fn ex_command_dialog() -> Node {
     );
     let root = command::root(OpenState::Open, false, vec![], vec![input, list]);
     command::dialog(OpenState::Open, "Command Menu", vec![], vec![root])
+}
+
+/// [`COMMAND`] の Examples 節「キー操作ヒント付き footer」レンダラ
+/// （イシュー #3143）。`footer` パートへ [`kbd::kbd`] とテキストを組んだ
+/// ヒント 3 件を並べる（キー操作そのものの配線は持たない、
+/// `crates/pre-styled-ui/src/command.rs` モジュール doc「pre-styled-only
+/// `footer` パート」節参照）。各ヒントは `kbd` + 説明テキストを 1 つの
+/// `span` 子要素へまとめてから `footer` へ渡す（`footer` 自体の
+/// `flex-wrap: wrap` は子要素単位でしか折り返さないため、`kbd` と説明文を
+/// 別々の子要素のまま渡すと狭幅で対応関係が崩れる。Codex P2 指摘対応）。
+/// `span` 自身の内部折り返し（`display: inline` のままだと `kbd` と説明
+/// テキストの間の空白が折り返し可能点として残る）は `command::stylesheet`
+/// が `footer` 直接の子へ追記する `display: inline-flex` の raw CSS が防ぎ、
+/// `kbd` だけを `white-space: nowrap` にして説明文は幅内で折り返させる
+/// （Codex P2 再指摘・PR #3582 Codex P2 / Cursor Bugbot 指摘対応、
+/// `command.rs` モジュール doc「pre-styled-only `footer` パート」節参照）。
+fn ex_command_footer() -> Node {
+    let item_calendar = command::item(
+        true,
+        false,
+        "calendar",
+        Some("example-command-footer-item-calendar"),
+        vec![],
+        vec![text("Calendar")],
+    );
+    let list = command::list(
+        "example-command-footer-list",
+        "Suggestions",
+        false,
+        vec![],
+        vec![item_calendar],
+    );
+    let input = command::input(
+        OpenState::Open,
+        "ca",
+        "example-command-footer-list",
+        Some("example-command-footer-item-calendar"),
+        vec![("aria-label", "Search commands")],
+    );
+    let hint_move = el(
+        "span",
+        vec![],
+        vec![
+            kbd::kbd(&KbdProps::default(), vec![], vec![text("↑↓")]),
+            text(" で移動"),
+        ],
+    );
+    let hint_select = el(
+        "span",
+        vec![],
+        vec![
+            kbd::kbd(&KbdProps::default(), vec![], vec![text("↵")]),
+            text(" で選択"),
+        ],
+    );
+    let hint_close = el(
+        "span",
+        vec![],
+        vec![
+            kbd::kbd(&KbdProps::default(), vec![], vec![text("esc")]),
+            text(" で閉じる"),
+        ],
+    );
+    let footer = command::footer(vec![], vec![hint_move, hint_select, hint_close]);
+    command::root(OpenState::Open, false, vec![], vec![input, list, footer])
 }
 
 const EDITABLE: ComponentPageSpec = ComponentPageSpec {

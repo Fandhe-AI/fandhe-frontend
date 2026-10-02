@@ -78,7 +78,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | 静的フォーム部品 | `fieldset`（§4f-2 参照。`<fieldset>`/`<legend>` グループコンテナ、`size` 軸のみ） | [fieldset](../../site/themes/fieldset.md) |
 | 静的フォーム部品 | `input_group`（§4f-3 参照。入力欄の前後 addon、軸なし） | [input-group](../../site/themes/input-group.md) |
 | headless ラッパー | `item`（§4f-4 参照。media + title/description + actions からなる汎用リスト行。`variant`/`size` は headless の `data-variant`/`data-size` を AttrEq 参照するのみで class ベース軸を持たない） | [item](../../site/themes/item.md) |
-| headless ラッパー | `command`（§4f-5 参照。cmdk 由来のコマンドパレット。10 パーツ構成、軸なし） | [command](../../site/themes/command.md) |
+| headless ラッパー | `command`（§4f-5 参照。cmdk 由来のコマンドパレット。headless 10 パーツ + pre-styled-only `footer` の計 11 パーツ構成、軸なし） | [command](../../site/themes/command.md) |
 | headless ラッパー | `message`（§4f-6 参照。会話 1 発言。6 パーツ構成、軸なし。data-role/data-align/data-loading/data-error を AttrEq/Attr 参照するのみ） | [message](../../site/themes/message.md) |
 | headless ラッパー | `bubble`（§4f-7 参照。チャット吹き出し 1 個。6 パーツ構成、軸なし。data-variant/data-align/data-group-position/data-selected/data-state を AttrEq/Attr/AttrEqAll 参照するのみ） | [bubble](../../site/themes/bubble.md) |
 | headless ラッパー | `attachment`（§4f-8 参照。添付ファイル 1 件。8 パーツ構成、軸なし。data-variant/data-state/data-disabled を AttrEq/Attr 参照するのみ） | [attachment](../../site/themes/attachment.md) |
@@ -990,11 +990,12 @@ Input Group 相当の見た目（コンテナ側 1 本の枠線・角丸・`:foc
 （`root`/`input`/`list`/`empty`/`group`/`group-heading`/`item`/`shortcut`/
 `separator`/`dialog` の 10 パーツ）へ、入力欄・リスト・group 見出し・選択
 行の背景・shortcut の右寄せ・dialog 型の幅という shadcn/ui `Command`
-相当の意匠を重ねる薄い委譲層である。
+相当の意匠を重ねる薄い委譲層である。pre-styled-only の `footer` パート
+（イシュー #3143）を加えた計 11 パーツ構成。
 
-- **公開 API**: 10 関数はいずれも見た目クラスを付与せず、呼び出し側
-  `class` を `drop_class_attr` で除去してから headless 同名関数へそのまま
-  委譲する（同名再定義、`crate::item` と同型のパターン）。
+- **公開 API**: headless 10 関数はいずれも見た目クラスを付与せず、呼び出し
+  側 `class` を `drop_class_attr` で除去してから headless 同名関数へその
+  まま委譲する（同名再定義、`crate::item` と同型のパターン）。
   `filter_items`（純粋関数、`combobox::filter_options` へ全委譲）と
   `OpenState`（headless からの再エクスポート）のみを選択的に公開する。
   headless の状態機械 `Command`/`CommandAction` は再エクスポートしない
@@ -1021,10 +1022,30 @@ Input Group 相当の見た目（コンテナ側 1 本の枠線・角丸・`:foc
   追加しない。
 - **`shortcut` 内への `kbd` 合成**: API を増やさず、`shortcut` の
   `children` へ `crate::kbd::kbd` を渡す使い方で `kbd` を合成する。
+- **pre-styled-only `footer` パート（イシュー #3143）**: headless-ui の
+  anatomy には存在しないレイアウト専用パート。`fandhe_frontend_headless_ui::anatomy::Anatomy::part`
+  を直接呼び出して組み立てる（`crate::drawer` の `body`/`footer`/`header`
+  と同型、headless anatomy は不変）。本モジュールの「見た目クラスを一切
+  付与せず `class` 属性自体が出力から消える」契約を踏襲するため、
+  `crate::drawer::footer` と異なり呼び出し側 `class` も `drop_class_attr`
+  で除去する。`root` の直接の子として `list`/`empty` の後ろに置く想定で、
+  `children` へ `crate::kbd::kbd` とテキストを組んでキー操作ヒントを表す
+  （`shortcut` と同じ合成方式）。キー操作そのものの配線は持たない。呼び
+  出し側はヒント 1 件（`kbd` + 説明テキスト）を `span` 等 1 つの子要素へ
+  まとめてから渡す（`footer` 自体の `flex-wrap: wrap` は子要素単位でしか
+  折り返さないため）。
 - **raw CSS 追記**: `SlotRecipe` は子結合子セレクタを表現できないため、
   `stylesheet()` は dialog 内 root の二重枠を解除する
   `[data-scope="command"][data-part="dialog"] > [data-scope="command"][data-part="root"]`
-  規則を `serialize_rule` で追記する。
+  規則と、`footer` 直接の子（呼び出し側が組む 1 ヒント分の `span` 等）を
+  `inline-flex` のまとまり（`min-width: 0`・`max-width: 100%`・
+  `overflow-wrap: anywhere`）にする `[data-scope="command"][data-part="footer"] > *`
+  規則、その中の `kbd` だけを `white-space: nowrap` にする
+  `[data-scope="command"][data-part="footer"] > * kbd` 規則を
+  `serialize_rule` で追記する。`kbd` と説明文は同じ行にまとまったまま、
+  ヒントがコンテナ幅を超えると説明文が折り返す（`overflow-wrap` は
+  `white-space: nowrap` と同じ規則では効かないため分離する。#3143 Codex
+  P2 再指摘・PR #3582 Codex P2 / Cursor Bugbot 指摘対応）。
 - **バリデーション責務外**: 絞り込み配線・Enter 実行・Cmd/Ctrl+K の
   グローバルショートカット・フォーカストラップは `fandhe-frontend-wasm-full`
   の責務として実装しない（`docs/policy/intentional-non-adoption.md` §3.25
