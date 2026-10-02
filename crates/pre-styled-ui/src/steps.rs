@@ -269,6 +269,47 @@
 //! column; gap: var(--fandhe-space-4)` を持ち、orientation に関わらず
 //! 安全に使える（横向きでは `root` 自体が既に列方向のため、`body` を
 //! 使わず個々のパーツを直接 `root` の子として並べても崩れない）。
+//!
+//! # イシュー #3139: バー型・パネル型・ドット型 variant（[`StepsVariant`]）
+//!
+//! Blocks 取り込み対応表（`docs/design/shadcn-reference-adoption-policy.md`
+//! 系統）で既存の円形 indicator 表現では満たせないと判定された 3 形態を
+//! [`StepsVariant`] の純追加軸として提供する（既定 `Circle` は無変更。
+//! [`crate::empty_state`] の `EmptyStateIndicatorVariant` と同じ「slot 自身へ
+//! クラスを付ける」方式を踏襲し、子孫セレクタを要する表現は選ばない、
+//! イシュー #708 の決定と整合）。
+//!
+//! - **`Bar`**: indicator/separator を描画せず、各 item の上端に太い横線を
+//!   引いて進捗を表す（呼び出し側は `indicator_with`/`separator_with` の
+//!   呼び出しを省く構成で使う）。線色は `item` 自身に定義する custom
+//!   property `--fandhe-steps-bar-color`（`data-state="complete"`/
+//!   `"current"` でのみ palette 色を設定、`incomplete` は未設定のまま
+//!   `base` 側のフォールバック `--fandhe-color-border` を使う）経由で
+//!   state 連動させる。
+//! - **`Panel`**: `list` を枠付き等幅グリッドへ切り替え、`separator` を
+//!   `clip-path` によるシェブロン（矢印型の区切り）へ変形する。`separator`
+//!   は他 variant 同様 `item` の子として置くこと（`list` 直下へ `item` と
+//!   並列に置かない）。`list` は `<ol>` を描画するため、直下の兄弟に
+//!   `separator`（`<div>`）を混ぜると `<ol>` の子は `<li>` のみという
+//!   HTML の制約に反するうえ、`list` の grid 自動配置トラックを
+//!   separator 分だけ余計に消費して等幅 3 分割が崩れる（イシュー #3578
+//!   codex P1・Cursor Bugbot Medium 指摘対応）。
+//! - **`Dot`**: `root` を行方向に切り替え、小さなドット（`indicator`）列と
+//!   「n/m」進捗テキストを横に並べる。「n/m」テキスト自体は
+//!   `Steps::step()`/`Steps::count()` を使い呼び出し側が組み立てる（専用
+//!   パーツを新設しない判断の根拠は本イシューのスコープ外節参照）。
+//!
+//! 呼び出し規約: 同じ `variant` を [`root_with`]/[`list_with`]/
+//! [`item_with`]/[`indicator_with`]/[`separator_with`] のすべてへ渡すこと。
+//! slot と variant の組み合わせに対応する CSS 規則が無い場合（例:
+//! `indicator_with(Bar, ...)`）はクラスが付くだけで宣言が無く無害。
+//!
+//! ## 本イシューのスコープ外
+//!
+//! - 「n/m」専用パーツ（`counter` 等）: `Steps::step()`/`count()` で呼び出し
+//!   側が組み立てられるため追加しない。
+//! - `Bar`/`Panel` の縦向き（`Orientation::Vertical`）対応。
+//! - forced-colors 下での矢印・ドットの補強。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -304,6 +345,38 @@ const BODY_ANATOMY: Anatomy = anatomy("steps");
 /// fail-closed 側の不具合として現れるため、変更時は両ファイルを合わせて
 /// 確認する）。`body` はその同期対象外（headless 側に対応する
 /// `ANATOMY.part("body", ...)` は存在しない、意図的な非対称）。
+/// steps 全体の見た目 variant（イシュー #3139、モジュール冒頭 rustdoc
+/// 「イシュー #3139」節参照）。既定 `Circle` は従来の円形 indicator + 区切り
+/// 線の見た目と完全に一致する（[`root_with`] 等 `*_with` 系関数が
+/// `Circle` のとき既存の `root`/`list`/... へ委譲しバイト一致を保証する）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StepsVariant {
+    /// 既定。円形 indicator + 区切り線（従来の見た目）。
+    #[default]
+    Circle,
+    /// indicator を持たず item 上端の太線で進捗を表す。
+    Bar,
+    /// 枠付き等幅パネル + シェブロン区切り。
+    Panel,
+    /// ドット列 + 「n/m」進捗テキスト。
+    Dot,
+}
+
+impl VariantValue for StepsVariant {
+    fn axis(self) -> &'static str {
+        "variant"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            StepsVariant::Circle => "circle",
+            StepsVariant::Bar => "bar",
+            StepsVariant::Panel => "panel",
+            StepsVariant::Dot => "dot",
+        }
+    }
+}
+
 const SLOTS: &[&str] = &[
     "root",
     "list",
@@ -896,6 +969,121 @@ fn recipe() -> SlotRecipe {
     ] {
         recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
+
+    // イシュー #3139: バー型・パネル型・ドット型 variant（モジュール冒頭
+    // rustdoc 「イシュー #3139」節参照）。既存 base/variant/state 規則は
+    // 一切変更せず純追加のみ行う（既定 Circle の出力はバイト不変）。
+    recipe = recipe
+        // Bar: list を等幅グリッドへ（`item:last-child { flex: none }` の
+        // 縮退を無効化するため）、item 上端に太線を描く。
+        .variant(
+            StepsVariant::Bar,
+            "list",
+            vec![
+                decl("display", "grid"),
+                decl("grid-auto-flow", "column"),
+                decl("grid-auto-columns", "minmax(0, 1fr)"),
+                decl("gap", "var(--fandhe-space-4)"),
+                decl("align-items", "start"),
+            ],
+        )
+        .variant(
+            StepsVariant::Bar,
+            "item",
+            vec![
+                decl("flex-direction", "column"),
+                decl("align-items", "flex-start"),
+                decl("gap", "var(--fandhe-space-1)"),
+                decl("padding-top", "var(--fandhe-space-3)"),
+                decl(
+                    "border-top",
+                    "calc(var(--fandhe-steps-thickness, 2px) * 2) solid var(--fandhe-steps-bar-color, var(--fandhe-color-border))",
+                ),
+            ],
+        )
+        // `--fandhe-steps-bar-color` は Bar 以外では参照されないため、
+        // complete/current で設定しても他 variant の見た目へは波及しない。
+        .state(
+            "item",
+            StateCondition::AttrEq("data-state", "complete"),
+            vec![decl(
+                "--fandhe-steps-bar-color",
+                "var(--fandhe-palette, var(--fandhe-color-accent))",
+            )],
+        )
+        .state(
+            "item",
+            StateCondition::AttrEq("data-state", "current"),
+            vec![decl(
+                "--fandhe-steps-bar-color",
+                "var(--fandhe-palette, var(--fandhe-color-accent))",
+            )],
+        )
+        // Panel: 枠付き一枚パネルに等幅で並べ、シェブロン区切りを挟む。
+        .variant(
+            StepsVariant::Panel,
+            "list",
+            vec![
+                decl("display", "grid"),
+                decl("grid-auto-flow", "column"),
+                decl("grid-auto-columns", "minmax(0, 1fr)"),
+                decl("gap", "0"),
+                decl("align-items", "stretch"),
+                decl("border", "1px solid var(--fandhe-color-border)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
+            ],
+        )
+        .variant(
+            StepsVariant::Panel,
+            "item",
+            vec![decl("padding", "var(--fandhe-space-4)")],
+        )
+        .variant(
+            StepsVariant::Panel,
+            "separator",
+            vec![
+                decl("flex", "none"),
+                decl("width", "1.25rem"),
+                decl("min-width", "0"),
+                decl("height", "auto"),
+                decl("align-self", "stretch"),
+                decl("border-radius", "0"),
+                decl("margin-block", "calc(var(--fandhe-space-4) * -1)"),
+                decl("margin-inline-start", "auto"),
+                decl("margin-inline-end", "calc(var(--fandhe-space-4) * -1)"),
+                decl(
+                    "clip-path",
+                    "polygon(0 0, 2px 0, 100% 50%, 2px 100%, 0 100%, calc(100% - 2px) 50%)",
+                ),
+            ],
+        )
+        // Dot: root を行方向へ、小さなドット列 + 呼び出し側組み立ての
+        // 「n/m」テキストを横に並べる。
+        .variant(
+            StepsVariant::Dot,
+            "root",
+            vec![
+                decl("flex-direction", "row"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-4)"),
+            ],
+        )
+        .variant(StepsVariant::Dot, "item", vec![decl("flex", "none")])
+        .variant(
+            StepsVariant::Dot,
+            "indicator",
+            vec![
+                decl("width", "0.625rem"),
+                decl("height", "0.625rem"),
+                decl("background", "var(--fandhe-color-border)"),
+                // codex-review 対応（PR #3578）: base indicator の
+                // `border: 2px solid` を Dot では無効化する。未上書きだと
+                // current/complete で background と border-color が異なる
+                // トークンになり、塗りドットではなくリング状に描画される。
+                decl("border", "none"),
+            ],
+        );
+
     recipe
 }
 
@@ -957,10 +1145,80 @@ pub fn root<'a>(
     state.root(merged, children)
 }
 
+/// styled root パーツを `variant`（[`StepsVariant`]）付きで組み立てる
+/// （イシュー #3139、モジュール冒頭 rustdoc 「イシュー #3139」節参照）。
+///
+/// `variant` が既定 [`StepsVariant::Circle`] のときは [`root`] へそのまま
+/// 委譲し出力をバイト一致させる（純追加の契約、[`crate::empty_state::indicator_with`]
+/// と同型）。それ以外では `size`/`color-palette` に加え `variant` 軸の
+/// クラスを 1 つだけ追加する。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_headless_ui::steps::Steps;
+/// use fandhe_frontend_pre_styled_ui::steps::{self, StepsVariant};
+/// use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
+///
+/// let s = Steps::default();
+/// let node = steps::root_with(
+///     StepsVariant::Bar,
+///     Size::Md,
+///     ColorPalette::Accent,
+///     &s,
+///     vec![],
+///     vec![],
+/// );
+/// assert!(render(&node).contains("fd-steps--variant-bar"));
+/// ```
+#[must_use]
+pub fn root_with<'a>(
+    variant: StepsVariant,
+    size: Size,
+    palette: ColorPalette,
+    state: &Steps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    if variant == StepsVariant::Circle {
+        return root(size, palette, state, attrs, children);
+    }
+    let recipe = recipe();
+    let selection: Vec<(&str, &str)> = vec![
+        ("size", size.value()),
+        ("color-palette", palette.value()),
+        (variant.axis(), variant.value()),
+    ];
+    let class = recipe.variant_classes(&selection);
+    let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
+    merged.extend(drop_class_attr(attrs));
+    state.root(merged, children)
+}
+
 /// styled list パーツ。実体は [`Steps::list`] へそのまま委譲する。
 #[must_use]
 pub fn list<'a>(state: &Steps, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     state.list(attrs, children)
+}
+
+/// styled list パーツを `variant` 付きで組み立てる（イシュー #3139）。
+/// `Circle` のときは [`list`] へ委譲しバイト一致させる。
+#[must_use]
+pub fn list_with<'a>(
+    variant: StepsVariant,
+    state: &Steps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    if variant == StepsVariant::Circle {
+        return list(state, attrs, children);
+    }
+    let recipe = recipe();
+    let class = recipe.variant_class(variant);
+    let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
+    merged.extend(drop_class_attr(attrs));
+    state.list(merged, children)
 }
 
 /// styled item パーツ。実体は [`Steps::item`] へそのまま委譲する。
@@ -972,6 +1230,26 @@ pub fn item<'a>(
     children: Vec<Node>,
 ) -> Node {
     state.item(index, attrs, children)
+}
+
+/// styled item パーツを `variant` 付きで組み立てる（イシュー #3139）。
+/// `Circle` のときは [`item`] へ委譲しバイト一致させる。
+#[must_use]
+pub fn item_with<'a>(
+    variant: StepsVariant,
+    state: &Steps,
+    index: usize,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    if variant == StepsVariant::Circle {
+        return item(state, index, attrs, children);
+    }
+    let recipe = recipe();
+    let class = recipe.variant_class(variant);
+    let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
+    merged.extend(drop_class_attr(attrs));
+    state.item(index, merged, children)
 }
 
 /// styled trigger パーツ。実体は [`Steps::trigger`] へそのまま委譲する。
@@ -996,6 +1274,26 @@ pub fn indicator<'a>(
     state.indicator(index, attrs, children)
 }
 
+/// styled indicator パーツを `variant` 付きで組み立てる（イシュー #3139）。
+/// `Circle` のときは [`indicator`] へ委譲しバイト一致させる。
+#[must_use]
+pub fn indicator_with<'a>(
+    variant: StepsVariant,
+    state: &Steps,
+    index: usize,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    if variant == StepsVariant::Circle {
+        return indicator(state, index, attrs, children);
+    }
+    let recipe = recipe();
+    let class = recipe.variant_class(variant);
+    let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
+    merged.extend(drop_class_attr(attrs));
+    state.indicator(index, merged, children)
+}
+
 /// styled separator パーツ。実体は [`Steps::separator`] へそのまま委譲する。
 #[must_use]
 pub fn separator<'a>(
@@ -1005,6 +1303,26 @@ pub fn separator<'a>(
     children: Vec<Node>,
 ) -> Node {
     state.separator(index, attrs, children)
+}
+
+/// styled separator パーツを `variant` 付きで組み立てる（イシュー #3139）。
+/// `Circle` のときは [`separator`] へ委譲しバイト一致させる。
+#[must_use]
+pub fn separator_with<'a>(
+    variant: StepsVariant,
+    state: &Steps,
+    index: usize,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    if variant == StepsVariant::Circle {
+        return separator(state, index, attrs, children);
+    }
+    let recipe = recipe();
+    let class = recipe.variant_class(variant);
+    let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
+    merged.extend(drop_class_attr(attrs));
+    state.separator(index, merged, children)
 }
 
 /// styled content パーツ。実体は [`Steps::content`] へそのまま委譲する。
@@ -1462,5 +1780,95 @@ mod tests {
 
         let restored = Steps::from_hydration_attrs(&s.hydration_attrs()).unwrap();
         assert_eq!(restored, s);
+    }
+
+    // イシュー #3139: StepsVariant::Circle の `*_with` が既存関数とバイト
+    // 一致することを 5 パーツ全件固定する（純追加の契約）。
+    #[test]
+    fn with_variants_circle_equals_plain_functions_for_all_parts() {
+        let s = Steps::default();
+        assert_eq!(
+            render(&root_with(
+                StepsVariant::Circle,
+                Size::Md,
+                ColorPalette::Accent,
+                &s,
+                vec![],
+                vec![]
+            )),
+            render(&root(Size::Md, ColorPalette::Accent, &s, vec![], vec![]))
+        );
+        assert_eq!(
+            render(&list_with(StepsVariant::Circle, &s, vec![], vec![])),
+            render(&list(&s, vec![], vec![]))
+        );
+        assert_eq!(
+            render(&item_with(StepsVariant::Circle, &s, 0, vec![], vec![])),
+            render(&item(&s, 0, vec![], vec![]))
+        );
+        assert_eq!(
+            render(&indicator_with(StepsVariant::Circle, &s, 0, vec![], vec![])),
+            render(&indicator(&s, 0, vec![], vec![]))
+        );
+        assert_eq!(
+            render(&separator_with(StepsVariant::Circle, &s, 0, vec![], vec![])),
+            render(&separator(&s, 0, vec![], vec![]))
+        );
+    }
+
+    #[test]
+    fn root_plain_output_never_contains_variant_class() {
+        let s = Steps::default();
+        let html = render(&root(Size::Md, ColorPalette::Accent, &s, vec![], vec![]));
+        assert!(!html.contains("fd-steps--variant-"));
+    }
+
+    #[test]
+    fn with_variants_bar_panel_dot_add_single_class_and_drop_caller_class() {
+        let s = Steps::default();
+        for variant in [StepsVariant::Bar, StepsVariant::Panel, StepsVariant::Dot] {
+            let html = render(&item_with(
+                variant,
+                &s,
+                0,
+                vec![("class", "caller-class")],
+                vec![],
+            ));
+            assert_eq!(html.matches("class=\"").count(), 1);
+            assert!(!html.contains("caller-class"));
+            assert!(html.contains(&format!("fd-steps--variant-{}", variant.value())));
+        }
+    }
+
+    #[test]
+    fn stylesheet_contains_bar_panel_dot_variant_selectors_and_bar_color_state() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="steps"][data-part="list"].fd-steps--variant-bar"#));
+        assert!(css.contains(r#"[data-scope="steps"][data-part="item"].fd-steps--variant-bar"#));
+        assert!(css.contains(r#"[data-scope="steps"][data-part="list"].fd-steps--variant-panel"#));
+        assert!(
+            css.contains(r#"[data-scope="steps"][data-part="separator"].fd-steps--variant-panel"#)
+        );
+        assert!(css.contains(r#"[data-scope="steps"][data-part="root"].fd-steps--variant-dot"#));
+        assert!(
+            css.contains(r#"[data-scope="steps"][data-part="indicator"].fd-steps--variant-dot"#)
+        );
+        assert!(css.contains(r#"[data-scope="steps"][data-part="item"][data-state="complete"] {"#));
+        assert!(css.contains("--fandhe-steps-bar-color: var(--fandhe-palette"));
+    }
+
+    #[test]
+    fn with_variants_attrs_and_children_are_escaped() {
+        let s = Steps::default();
+        let html = render(&item_with(
+            StepsVariant::Bar,
+            &s,
+            0,
+            vec![("data-x", "\"><script>alert(1)</script>")],
+            vec![text("<script>alert(2)</script>")],
+        ));
+        assert!(!html.contains("<script>alert(1)</script>"));
+        assert!(!html.contains("<script>alert(2)</script>"));
+        assert!(html.contains("&lt;script&gt;"));
     }
 }

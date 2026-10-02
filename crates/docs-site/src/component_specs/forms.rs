@@ -58,7 +58,9 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::angle_slider::{
 };
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::image_cropper::ImageCropper;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
-use fandhe_frontend_pre_styled_ui::field::{self, FieldOrientation, FieldProps, FieldRootProps};
+use fandhe_frontend_pre_styled_ui::field::{
+    self, FieldLabelPlacement, FieldOrientation, FieldProps, FieldRootProps,
+};
 use fandhe_frontend_pre_styled_ui::fieldset::{
     self, FieldsetProps, FieldsetRootProps, LegendVariant,
 };
@@ -72,7 +74,7 @@ use fandhe_frontend_pre_styled_ui::pin_input;
 use fandhe_frontend_pre_styled_ui::radio_group;
 use fandhe_frontend_pre_styled_ui::radio_group::RadioGroupProps;
 use fandhe_frontend_pre_styled_ui::select;
-use fandhe_frontend_pre_styled_ui::select::{SelectProps, SelectVariant};
+use fandhe_frontend_pre_styled_ui::select::{ItemIndicatorPlacement, SelectProps, SelectVariant};
 use fandhe_frontend_pre_styled_ui::signature_pad;
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::switch;
@@ -617,12 +619,13 @@ const COMBOBOX: ComponentPageSpec = ComponentPageSpec {
 
 const COMMAND: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "root/input/list/empty/group/group-heading/item/shortcut/separator/dialog の 10 slot 構成。`size`/`variant`/`color-palette` いずれの軸も持たない（`crates/pre-styled-ui/src/command.rs` モジュール doc「軸を持たない理由」節参照）。",
+        "root/input/list/empty/group/group-heading/item/shortcut/separator/dialog の headless 10 slot に、pre-styled-only の `footer`（下記参照）を加えた計 11 パーツ構成。`size`/`variant`/`color-palette` いずれの軸も持たない（`crates/pre-styled-ui/src/command.rs` モジュール doc「軸を持たない理由」節参照）。",
         "`empty` は既定 `display: none`、`[data-empty]`（headless が絞り込み結果 0 件のときのみ付与）が付いたときだけ `display: block` へ切り替わる。",
         "`item` の選択行は `[data-selected]` の背景色で表す（`data-highlighted` は使わない）。hover は選択行を除外する規則（`HoverExceptAttr`）を持ち、選択色が hover で洗い流されない。",
         "`shortcut` は `margin-inline-start: auto` で右寄せする。API は増やさず、`children` へ [Kbd](../kbd/) を渡すことでキー表示を合成する。",
         "`dialog` は `--fandhe-command-dialog-max-width`（既定 32rem）で幅を決め、closed 時は headless が付与する `hidden` を確実に非表示化する（`[hidden] { display: none; }`）。単一パーツのため独立した `backdrop` は持たない。",
         "絞り込み配線（入力 → `\"input\"` dispatch → DOM 反映）・Enter 実行・Cmd/Ctrl+K のグローバルショートカット・フォーカストラップはアプリケーション/`fandhe-frontend-wasm-full` の責務として実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。",
+        "pre-styled-only `footer` パート（イシュー #3143）: headless-ui の anatomy には存在しないレイアウト専用パートで、キー操作ヒントを `list`/`empty` の後ろに区切り線付きで並べる。`shortcut` と同様 API を増やさず、`children` へ [Kbd](../kbd/) と `text` を組んで渡す。`footer` は `flex-wrap: wrap` で折り返すため、ヒント 1 件（`kbd` + 説明テキスト）は `span` 等 1 つの子要素へまとめてから渡す。加えて `stylesheet()` は `footer` 直接の子を raw CSS で `display: inline-flex` のまとまりにし、その中の `kbd` だけを `white-space: nowrap` にする（`span` へ包むだけでは `span` 自身が `display: inline` のままで内部の折り返しを防げないため）。`kbd` と説明文は別行に分かれず、ヒント 1 件がコンテナ幅を超える狭幅・文字拡大時は説明文が `overflow-wrap: anywhere` で折り返すため、`root` の `overflow: hidden` で説明文が切れない。",
     ],
     arguments: &[
         ArgRow {
@@ -696,6 +699,11 @@ const COMMAND: ComponentPageSpec = ComponentPageSpec {
             title: "dialog 型",
             description: "`dialog` パーツで command palette 全体を包んだ構成です（掲示用にフロー内配置へ中和しています）。",
             render: ex_command_dialog,
+        },
+        ExampleEntry {
+            title: "キー操作ヒント付き footer",
+            description: "`footer` パート（イシュー #3143）でリスト下端にキー操作ヒントを並べる例です。[Kbd](../kbd/) とテキストを組み合わせて `root` の末尾へ配置します。",
+            render: ex_command_footer,
         },
     ],
     keyboard: &[],
@@ -806,6 +814,71 @@ fn ex_command_dialog() -> Node {
     command::dialog(OpenState::Open, "Command Menu", vec![], vec![root])
 }
 
+/// [`COMMAND`] の Examples 節「キー操作ヒント付き footer」レンダラ
+/// （イシュー #3143）。`footer` パートへ [`kbd::kbd`] とテキストを組んだ
+/// ヒント 3 件を並べる（キー操作そのものの配線は持たない、
+/// `crates/pre-styled-ui/src/command.rs` モジュール doc「pre-styled-only
+/// `footer` パート」節参照）。各ヒントは `kbd` + 説明テキストを 1 つの
+/// `span` 子要素へまとめてから `footer` へ渡す（`footer` 自体の
+/// `flex-wrap: wrap` は子要素単位でしか折り返さないため、`kbd` と説明文を
+/// 別々の子要素のまま渡すと狭幅で対応関係が崩れる。Codex P2 指摘対応）。
+/// `span` 自身の内部折り返し（`display: inline` のままだと `kbd` と説明
+/// テキストの間の空白が折り返し可能点として残る）は `command::stylesheet`
+/// が `footer` 直接の子へ追記する `display: inline-flex` の raw CSS が防ぎ、
+/// `kbd` だけを `white-space: nowrap` にして説明文は幅内で折り返させる
+/// （Codex P2 再指摘・PR #3582 Codex P2 / Cursor Bugbot 指摘対応、
+/// `command.rs` モジュール doc「pre-styled-only `footer` パート」節参照）。
+fn ex_command_footer() -> Node {
+    let item_calendar = command::item(
+        true,
+        false,
+        "calendar",
+        Some("example-command-footer-item-calendar"),
+        vec![],
+        vec![text("Calendar")],
+    );
+    let list = command::list(
+        "example-command-footer-list",
+        "Suggestions",
+        false,
+        vec![],
+        vec![item_calendar],
+    );
+    let input = command::input(
+        OpenState::Open,
+        "ca",
+        "example-command-footer-list",
+        Some("example-command-footer-item-calendar"),
+        vec![("aria-label", "Search commands")],
+    );
+    let hint_move = el(
+        "span",
+        vec![],
+        vec![
+            kbd::kbd(&KbdProps::default(), vec![], vec![text("↑↓")]),
+            text(" で移動"),
+        ],
+    );
+    let hint_select = el(
+        "span",
+        vec![],
+        vec![
+            kbd::kbd(&KbdProps::default(), vec![], vec![text("↵")]),
+            text(" で選択"),
+        ],
+    );
+    let hint_close = el(
+        "span",
+        vec![],
+        vec![
+            kbd::kbd(&KbdProps::default(), vec![], vec![text("esc")]),
+            text(" で閉じる"),
+        ],
+    );
+    let footer = command::footer(vec![], vec![hint_move, hint_select, hint_close]);
+    command::root(OpenState::Open, false, vec![], vec![input, list, footer])
+}
+
 const EDITABLE: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "`size` variant クラスを `root` へ付与し、headless-ui の `editable::root` へ委譲する。",
@@ -871,6 +944,7 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
         "`error-text`/`required-indicator` は非該当状態で `hidden` 存在属性を付与する headless 側の fail-closed 描画に従い、`[hidden] { display: none; }` のみを重ねる（独自の表示切替ロジックは持たない）。",
         "hover / focus ring / transition はいずれも意図的に非採用（実フォーカスはコントロール側にあり、状態遷移に伴う視覚変化がないため）。",
         "`group` は複数 `Field`（`root`）を縦積みする外側コンテナ、`separator` は線のみ／テキスト付きの区切り線（`separator-line`/`separator-content` の 2 内部パーツから成る）、`content`/`title` は `<label for>` を結び付けられない場面（複数コントロールの見出し等）で `label` の代替として使う見出し + 補助テキストの列（イシュー #2185、shadcn/ui `FieldGroup`/`FieldSeparator`/`FieldContent`/`FieldTitle` 相当）。",
+        "`root_with_label_placement` で `orientation` とは独立なラベル配置 variant（`FieldLabelPlacement`: `Outside`（既定）/`Inset`/`Overlap`）を選べる（イシュー #3134）。`Inset` は `root` 自身に枠線・背景を持たせ内側上部にラベルを置き、`Overlap` はラベルを枠線の上へ重ねる。どちらも枠線を `root` が描くため、invalid の枠線色と `:focus-within` のフォーカスリングを `root` 側で表示し、`input` 自身の `outline` は打ち消す（disabled の半透明化は各パーツ側のみ）（モジュール doc「状態表示の対応表」節参照）。いずれも `orientation = Vertical` での使用のみを前提とする。",
     ],
     arguments: &[
         ArgRow {
@@ -915,6 +989,12 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
             default: "",
             description: "見出し（`title`）+ 補助テキストの列を束ねる `content`（イシュー #2185）。`title` は `<label for>` を自動導出しないため、呼び出し側が `attrs` で `id` を渡しコントロールへ `aria-labelledby` で結び付ける。",
         },
+        ArgRow {
+            name: "root_with_label_placement",
+            kind: "fn(props, placement: FieldLabelPlacement, field, attrs, children) -> Node",
+            default: "",
+            description: "`root` にラベル配置 variant を重ねて組み立てる（イシュー #3134）。`placement` が `FieldLabelPlacement::Outside`（既定）のときは `root` と完全に同じ出力になる。",
+        },
     ],
     examples: &[
         ExampleEntry {
@@ -931,6 +1011,21 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
             title: "Responsive orientation（@container）",
             description: "`orientation=\"responsive\"` の 2 つの `Field` を `group`（container）の内側に配置した合成例です（イシュー #2199、`docs/design/reference-screenshots/shadcn-field-3.png`）。`group` の inline サイズが 448px 以上のときのみラベルと入力欄が横並びに切り替わり、未満のときは縦積みのままです。",
             render: ex_field_responsive_orientation,
+        },
+        ExampleEntry {
+            title: "Inset label",
+            description: "`FieldLabelPlacement::Inset` でラベルを枠の内側・上部に配置する例です（イシュー #3134）。`root` 自身が枠線・背景を持ち、`input` は枠内に溶け込むようリセットされます。",
+            render: ex_field_inset_label,
+        },
+        ExampleEntry {
+            title: "Inset labels with shared borders",
+            description: "`Inset` の 2 つの `Field` を `field::inset_stack` の直下へ縦に並べ、枠線を共有して連結する例です（イシュー #3134）。中間の境界線が 1 本になり、角丸は上下の端にのみ付きます。連結規則は `inset_stack` の中でだけ発動し、`group` など gap 付きコンテナへ直接並べても連結しません。",
+            render: ex_field_inset_labels_connected,
+        },
+        ExampleEntry {
+            title: "Overlapping label",
+            description: "`FieldLabelPlacement::Overlap` でラベルを `root` の枠線の上へ重ねる例です（イシュー #3134）。`--fandhe-field-label-bg` でラベル背景を地の色に合わせられます。",
+            render: ex_field_overlapping_label,
         },
     ],
     keyboard: &[],
@@ -1160,6 +1255,118 @@ fn ex_field_responsive_orientation() -> Node {
                         vec![("type", "text"), ("placeholder", "ada")],
                     ),
                 ],
+            ),
+        ],
+    )
+}
+
+/// [`FIELD`] の Examples 節「Inset label」レンダラ（イシュー #3134）。
+fn ex_field_inset_label() -> Node {
+    let props = FieldProps {
+        id: "ex-field-inset-name",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    field::root_with_label_placement(
+        &FieldRootProps::default(),
+        FieldLabelPlacement::Inset,
+        &props,
+        vec![],
+        vec![
+            field::label(&props, vec![], vec![text("Name")]),
+            fandhe_frontend_pre_styled_ui::input::input(
+                &fandhe_frontend_pre_styled_ui::input::InputProps::default(),
+                &props,
+                vec![("type", "text"), ("placeholder", "Ada Lovelace")],
+            ),
+        ],
+    )
+}
+
+/// [`FIELD`] の Examples 節「Inset labels with shared borders」レンダラ
+/// （イシュー #3134）。`field::inset_stack` の直下へ `Inset` の 2 つの
+/// `root` を並べ、枠線共有の縦連結（`css()` の `inset-stack > ... +`/
+/// `:has(+ ...)` 規則）を実演する。
+fn ex_field_inset_labels_connected() -> Node {
+    let first_name_props = FieldProps {
+        id: "ex-field-inset-connected-first-name",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    let last_name_props = FieldProps {
+        id: "ex-field-inset-connected-last-name",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    field::inset_stack(
+        vec![],
+        vec![
+            field::root_with_label_placement(
+                &FieldRootProps::default(),
+                FieldLabelPlacement::Inset,
+                &first_name_props,
+                vec![],
+                vec![
+                    field::label(&first_name_props, vec![], vec![text("First name")]),
+                    fandhe_frontend_pre_styled_ui::input::input(
+                        &fandhe_frontend_pre_styled_ui::input::InputProps::default(),
+                        &first_name_props,
+                        vec![("type", "text"), ("placeholder", "Ada")],
+                    ),
+                ],
+            ),
+            field::root_with_label_placement(
+                &FieldRootProps::default(),
+                FieldLabelPlacement::Inset,
+                &last_name_props,
+                vec![],
+                vec![
+                    field::label(&last_name_props, vec![], vec![text("Last name")]),
+                    fandhe_frontend_pre_styled_ui::input::input(
+                        &fandhe_frontend_pre_styled_ui::input::InputProps::default(),
+                        &last_name_props,
+                        vec![("type", "text"), ("placeholder", "Lovelace")],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
+/// [`FIELD`] の Examples 節「Overlapping label」レンダラ（イシュー #3134）。
+fn ex_field_overlapping_label() -> Node {
+    let props = FieldProps {
+        id: "ex-field-overlap-email",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    field::root_with_label_placement(
+        &FieldRootProps::default(),
+        FieldLabelPlacement::Overlap,
+        &props,
+        vec![],
+        vec![
+            field::label(&props, vec![], vec![text("Email")]),
+            fandhe_frontend_pre_styled_ui::input::input(
+                &fandhe_frontend_pre_styled_ui::input::InputProps::default(),
+                &props,
+                vec![("type", "email"), ("placeholder", "ada@example.com")],
             ),
         ],
     )
@@ -2088,6 +2295,7 @@ fn select_example_root(shape: Option<Shape>, variant: SelectVariant, id_prefix: 
         Size::Md,
         shape,
         variant,
+        ItemIndicatorPlacement::End,
         OpenState::Closed,
         &props,
         vec![],
@@ -2274,6 +2482,7 @@ const SELECT: ComponentPageSpec = ComponentPageSpec {
         "separator / scroll-up-button / scroll-down-button の着装（イシュー #2186）: headless-ui の 3 新設パーツを再エクスポートし、`position: sticky` で content 上下端に固定するボタン・`height`/`background` の区切り線を recipe へ登録する。可視性判定・押下時の実スクロールは wasm-full 後続イシューの範囲。",
         "共通 shape 軸（イシュー #3117）: `root_with` が `Option<Shape>` を受け取り、`Shape::Pill` を渡すと trigger が完全な丸型角丸になる。`Shape::Circle` は trigger が value-text + indicator を横並びにする構造で真円にする用途がないため未登録。",
         "variant 軸（イシュー #3121）: `root_with` が `SelectVariant`（`Outline`〔既定〕/`Subtle`）を受け取る。`Subtle` は trigger を淡色背景・枠線なしにする（`native_select::NativeSelectVariant::Subtle`・chakra-ui `Select` の `variant: subtle` に揃える）。`Outline`（既定）のときは class を一切出さず [`select::root`] と出力が変わらない。",
+        "選択インジケータ位置（イシュー #3124）: `select::root_with` の `item_indicator_placement`（`ItemIndicatorPlacement`、既定 `End`）で、チェックマークを項目右端（既定）・左端（`Start`）のいずれかへ opt-in 切り替えできる。`Start` 選択時は非選択項目の `item_indicator`（headless が `hidden` 属性で隠す既存ノード）を `order: -1` + 不可視の空き枠として転用し、非選択項目のテキスト開始位置も揃える（絶対配置・疑似要素は不使用。`item` の padding は上書きしない）。既定 `End` は class を一切出さず既存出力はバイト不変。",
     ],
     arguments: &[
         ArgRow {
@@ -2312,6 +2521,12 @@ const SELECT: ComponentPageSpec = ComponentPageSpec {
             default: "SelectVariant::Outline",
             description: "見た目 variant（イシュー #3121）。`root_with` 経由の opt-in 引数。`Subtle` で trigger を淡色背景・枠線なしにする。",
         },
+        ArgRow {
+            name: "item_indicator_placement",
+            kind: "ItemIndicatorPlacement",
+            default: "ItemIndicatorPlacement::End",
+            description: "選択インジケータ（チェックマーク）の配置軸（`select::root_with` のみが受け取る、イシュー #3124）。`root` は常に `End` を渡す。",
+        },
     ],
     examples: &[
         ExampleEntry {
@@ -2323,6 +2538,11 @@ const SELECT: ComponentPageSpec = ComponentPageSpec {
             title: "淡色背景の pill（Subtle variant）",
             description: "`Shape::Pill` と `SelectVariant::Subtle` を併用し、淡色背景・枠線なしの pill 形状 trigger にする例です（イシュー #3121）。chakra-ui `Select` の `variant: subtle` に揃えた見た目です。",
             render: select_pill_subtle_example,
+        },
+        ExampleEntry {
+            title: "選択インジケータを左端に置く（`ItemIndicatorPlacement::Start`）",
+            description: "`select::root_with(.., ItemIndicatorPlacement::Start, ..)` でチェックマークを項目左端へ寄せ、非選択項目のテキスト開始位置と揃える例です（Blocks 取り込み対応表 R1235 相当のレイアウト）。1 項目目（fandhe-frontend）が選択済みでチェックが見え、2 項目目（Other framework）は非選択です。",
+            render: select_item_indicator_placement_start_example,
         },
     ],
     keyboard: &[],
@@ -2350,6 +2570,107 @@ const SELECT: ComponentPageSpec = ComponentPageSpec {
     ],
     demo: None,
 };
+
+/// イシュー #3124: `/themes/select/` の Examples 節「選択インジケータを
+/// 左端に置く」に載る合成例。`select::root_with` の
+/// `item_indicator_placement` へ `ItemIndicatorPlacement::Start` を渡すと
+/// `fd-select--item-indicator-placement-start` class が付与され、選択済み
+/// 項目のチェックマークが左端へ寄る（Blocks 取り込み対応表 R1235 相当）。
+/// `showcase.rs::select_section` と同じく静的掲示（`OpenState::Open` で
+/// content を可視化）とし、選択済み 1 項目・非選択 1 項目の最小構成で
+/// テキスト開始位置が揃うことを示す。
+fn select_item_indicator_placement_start_example() -> Node {
+    let props = SelectProps::default();
+    select::root_with(
+        Size::Md,
+        None,
+        SelectVariant::Outline,
+        ItemIndicatorPlacement::Start,
+        OpenState::Open,
+        &props,
+        vec![],
+        vec![
+            select::label(
+                &props,
+                Some("select-indicator-start-label"),
+                vec![],
+                vec![text("Framework")],
+            ),
+            select::control(
+                OpenState::Open,
+                &props,
+                vec![],
+                vec![select::trigger(
+                    OpenState::Open,
+                    &props,
+                    false,
+                    Some("select-indicator-start-content"),
+                    Some("select-indicator-start-label"),
+                    vec![],
+                    vec![
+                        select::value_text(false, &props, vec![], vec![text("fandhe-frontend")]),
+                        select::indicator(OpenState::Open, &props, vec![], vec![text("▾")]),
+                    ],
+                )],
+            ),
+            select::positioner(
+                OpenState::Open,
+                vec![],
+                vec![select::content(
+                    OpenState::Open,
+                    Some("select-indicator-start-content"),
+                    Some("select-indicator-start-label"),
+                    None,
+                    vec![],
+                    vec![
+                        select::item(
+                            OpenState::Open,
+                            &props,
+                            false,
+                            false,
+                            "fandhe-frontend",
+                            None,
+                            vec![],
+                            vec![
+                                select::item_text(
+                                    OpenState::Open,
+                                    &props,
+                                    false,
+                                    false,
+                                    None,
+                                    vec![],
+                                    vec![text("fandhe-frontend")],
+                                ),
+                                select::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
+                            ],
+                        ),
+                        select::item(
+                            OpenState::Closed,
+                            &props,
+                            false,
+                            false,
+                            "other",
+                            None,
+                            vec![],
+                            vec![
+                                select::item_text(
+                                    OpenState::Closed,
+                                    &props,
+                                    false,
+                                    false,
+                                    None,
+                                    vec![],
+                                    vec![text("Other framework")],
+                                ),
+                                select::item_indicator(OpenState::Closed, vec![], vec![text("✓")]),
+                            ],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    )
+}
 
 const SIGNATURE_PAD: ComponentPageSpec = ComponentPageSpec {
     features: &[
@@ -2450,6 +2771,8 @@ const SWITCH: ComponentPageSpec = ComponentPageSpec {
         "ネイティブ `checked` 状態がブラウザにより `aria-checked` へ自動マップされるため、本モジュールは `aria-checked` を明示付与しない（二重読み上げ防止）。",
         "`readonly`/`invalid`/`required` の各フラグを `SwitchProps` で受け取り、`data-*` 属性・ネイティブ属性へ全パーツ一律反映する（イシュー #1622）。",
         "`data-invalid` は `control` パーツへ danger 色の `box-shadow` リングとして反映される（イシュー #2021、shadcn/ui との突合で追加）。",
+        "`root_with` で `track: SwitchTrack::Short` を渡すと、つまみより細く短いトラック形状になり、つまみが上下左右へはみ出す（イシュー #3141）。`SwitchTrack::Default`（`root` が使う既定値）では class・CSS とも出力されない opt-in 軸。",
+        "`thumb_icon` で `thumb` 中央に on/off アイコンを重ねられる（イシュー #3141）。`checked`/`show` の組み合わせに応じて opacity を切り替え、checked 状態で表示される on 側アイコンのみ colorPalette と連動した色になる（unchecked 側は常に中立色のまま。オフ状態を装飾色で強調しない意図的な非対称）。装飾のため `aria-hidden=\"true\"` を固定する。",
     ],
     arguments: &[
         ArgRow {
@@ -2463,6 +2786,12 @@ const SWITCH: ComponentPageSpec = ComponentPageSpec {
             kind: "ColorPalette",
             default: "ColorPalette::Accent",
             description: "colorPalette 軸。",
+        },
+        ArgRow {
+            name: "track",
+            kind: "SwitchTrack",
+            default: "SwitchTrack::Default",
+            description: "トラック形状 variant（`root_with` のみが受け取る。`root` は常に `Default` を渡す、イシュー #3141）。",
         },
         ArgRow {
             name: "checked",
@@ -2499,6 +2828,16 @@ const SWITCH: ComponentPageSpec = ComponentPageSpec {
             title: "枠付きボックス内での利用",
             description: "shadcn/ui の Examples が示す「枠付きカード内に label/description + switch を配置する」構成を、既存 anatomy パーツと plain な `<div>` の合成で再現した例です（専用の複合コンポーネントは新設しない、`fandhe_frontend_pre_styled_ui::switch` rustdoc「本イシューのスコープ外」節参照）。",
             render: switch_bordered_box_example,
+        },
+        ExampleEntry {
+            title: "短いトラック形状",
+            description: "`root_with` へ `SwitchTrack::Short` を渡した例です。つまみより細く短いトラックで、つまみが上下左右へはみ出す形状になります（イシュー #3141、R1375）。",
+            render: switch_short_track_example,
+        },
+        ExampleEntry {
+            title: "thumb アイコン",
+            description: "`thumb` の子として `thumb_icon` を 2 個（checked/unchecked 用）配置した例です。状態に応じてどちらか一方だけが見え、checked 側が表示されているときのみ colorPalette に連動した色になります（unchecked 側は中立色のまま、イシュー #3141、R1376）。",
+            render: switch_thumb_icon_example,
         },
     ],
     keyboard: &[],
@@ -2686,6 +3025,117 @@ fn switch_bordered_box_example() -> Node {
                 &props,
                 vec![],
                 vec![switch::thumb(checked, &props, vec![], vec![])],
+            ),
+        ],
+    )
+}
+
+// イシュー #3141 (R1375): `SwitchTrack::Short` の実演。`root_with` の
+// `track` 引数以外は `switch_with_description_example` と同じ anatomy
+// パーツ構成（`root` が内包する `label`/`hidden_input`/`control`/`thumb`）。
+// `root` は `<label>` 要素のため、子の `switch::label` がアクセシブル
+// ネームを与える（codex 指摘 P1、PR #3580）。
+fn switch_short_track_example() -> Node {
+    let checked = true;
+    let props = SwitchProps::default();
+    switch::root_with(
+        Size::Md,
+        ColorPalette::Accent,
+        switch::SwitchTrack::Short,
+        checked,
+        &props,
+        vec![],
+        vec![
+            switch::label(checked, &props, vec![], vec![text("Compact track")]),
+            switch::hidden_input("switch-short-track-example", "on", checked, &props, vec![]),
+            switch::control(
+                checked,
+                &props,
+                vec![],
+                vec![switch::thumb(checked, &props, vec![], vec![])],
+            ),
+        ],
+    )
+}
+
+// イシュー #3141 (R1376): `thumb_icon` の実演。チェック
+// （`M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z`、
+// `component_specs_nav_data.rs`/`showcase.rs` と同一の Material Design
+// check グリフ）・バツ（`crate::button::CLOSE_ICON_PATH` と同一の
+// Material Design close グリフ）の 2 アイコンを `thumb` の子として両方
+// 配置し、`checked`/`show` の組み合わせで表示が切り替わる挙動を示す
+// （SVG パスは plain な `<path>` ノードであり、既定エスケープ経由で
+// 出力される。HTML 文字列を直接組み立てない）。`icon()`（`crate::icon`）
+// は `fill="currentColor"` 固定でアウトライン用の `stroke` を持たないため、
+// Lucide 系の線画（ストローク前提）パスではなく、このモジュール他所と
+// 同じ閉じた塗り形状のグリフを使う（Cursor Bugbot 指摘、PR #3580）。
+fn switch_thumb_icon_example() -> Node {
+    let checked = true;
+    let props = SwitchProps::default();
+    switch::root(
+        Size::Md,
+        ColorPalette::Accent,
+        checked,
+        &props,
+        vec![],
+        vec![
+            switch::label(checked, &props, vec![], vec![text("Show thumb icon")]),
+            switch::hidden_input("switch-thumb-icon-example", "on", checked, &props, vec![]),
+            switch::control(
+                checked,
+                &props,
+                vec![],
+                vec![switch::thumb(
+                    checked,
+                    &props,
+                    vec![],
+                    vec![
+                        switch::thumb_icon(
+                            checked,
+                            switch::ThumbIconShow::Unchecked,
+                            &props,
+                            vec![],
+                            vec![icon(
+                                &IconProps {
+                                    size: Size::Xs,
+                                    ..IconProps::default()
+                                },
+                                vec![],
+                                vec![el(
+                                    "path",
+                                    vec![(
+                                        "d",
+                                        "M18.3 5.71 12 12.01 5.7 5.71 4.29 7.12 10.59 13.42 \
+                                         4.29 19.72 5.7 21.13 12 14.83 18.3 21.13 19.71 19.72 \
+                                         13.41 13.42 19.71 7.12Z",
+                                    )],
+                                    vec![],
+                                )],
+                            )],
+                        ),
+                        switch::thumb_icon(
+                            checked,
+                            switch::ThumbIconShow::Checked,
+                            &props,
+                            vec![],
+                            vec![icon(
+                                &IconProps {
+                                    size: Size::Xs,
+                                    ..IconProps::default()
+                                },
+                                vec![],
+                                vec![el(
+                                    "path",
+                                    vec![(
+                                        "d",
+                                        "M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
+                                    )],
+                                    vec![],
+                                )],
+                            )],
+                        ),
+                    ],
+                )],
             ),
         ],
     )

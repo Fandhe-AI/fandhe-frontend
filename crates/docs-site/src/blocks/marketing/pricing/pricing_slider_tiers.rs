@@ -484,8 +484,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `pricing_slider_tiers` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節。他 block と同型で `pub(super)` として
+/// `pricing_slider_tiers` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。他 block と同型で `pub(super)` として
 /// `super::stylesheet` から連結される）。既定（狭幅）は縦積み、
 /// `>= 48rem`（[`fandhe_frontend_pre_styled_ui::recipe::Breakpoint::Md`]）
 /// でカード 3 列へ切り替える。狭幅では slider も全幅にする

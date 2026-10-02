@@ -69,7 +69,17 @@ diff が読みやすい）部品を安易に (b) へ切り替えないでくだ�
 `[hidden]` state・`@starting-style`・
 `@supports not (height: calc-size(auto, size))` ブロックを末尾側へ純追加、
 `bubble_pre_2282_blocks_remain_verbatim` を追加）** /
-**button_group（イシュー #2060 で golden 新設。`stylesheet()` 全文）** /
+**button_group（イシュー #2060 で golden 新設。`stylesheet()` 全文。イシュー
+#3135 で `data-attached` opt-in 規則（入れ子の内側 root の間隔打ち消し・
+縦外側での幅揃え・接続辺の角丸/境界線解除）を末尾へ純追加。PR #3569 で
+既存の `:not(:first-child)`/`:not(:last-child)` ブロックへ「隣が間隔を保つ
+内側 root なら除外」の `:not(D + 自分)`/`:not(:has(+ D))` 節を中間挿入し、
+attached 規則のセレクタも同形へ変更〔既存ブロックのバイト変更〕、各
+`:not(:last-child)` ブロックの直後へ `D + 子` の間隔ブロックを中間挿入）** /
+**calendar（イシュー #3132 で `root` variant（`variant`/`cell-size` 軸）
+2 ブロックを size variant 5 段の直後へ中間挿入し、末尾へ
+`CalendarCellSize::Large` の子孫セレクタ 2 規則（`table`/`table-cell`）を
+純追加。`stylesheet_is_pure_addition_over_pre_3132_golden` を追加）** /
 callout / carousel / **collapsible（イシュー #1682 で golden 新設。イシュー
 #2192 で `content` の 2 個目 base ブロックを中間挿入、`[hidden]` state と
 `@starting-style` ブロックを末尾側へ純追加、
@@ -106,8 +116,16 @@ rotate` 消費へ変更〔値変更〕、`positioner[data-side="top"/"left"/"rig
 〔raw CSS 子結合子規則を含む〕）** /
 **data_table（イシュー #2127 で golden 新設。`stylesheet()` 全文
 〔raw CSS `::after` 規則を含む〕）** /
-**navigation_menu（方式 b）** / number_input / pagination / password_input /
-pin_input / progress / qr_code / **questionnaire（イシュー #2119 で
+**navigation_menu（方式 b）** / number_input /
+**pagination（イシュー #3136 で `Attached` variant の root variant ブロック
+1 個を palette 群直後へ中間挿入し、子結合子の連結規則（item/ellipsis/
+prev-trigger/next-trigger 向け）を末尾へ純追加。
+`stylesheet_is_pure_addition_over_pre_3136_golden` を追加）** / password_input /
+pin_input /
+**progress（イシュー #3140 で marker-group/marker の base ブロックを
+circle-range の直後へ中間挿入し、state ブロックを末尾へ純追加。
+`stylesheet_is_pure_addition_over_pre_3140_golden` を追加）** /
+qr_code / **questionnaire（イシュー #2119 で
 golden 新設。`stylesheet()` 全文〔raw CSS 子孫規則を含む〕）** /
 **radial_chart（イシュー #2079 で
 golden 新設。`charts::pie` の環状セクタジオメトリを再利用する同心リング
@@ -132,10 +150,32 @@ trigger 行を同期し、新規 `Shape::Pill` variant ブロックは
 `var(--fandhe-select-trigger-border-color, var(--fandhe-color-border))`
 参照へ変更〔3 定数とも同期、描画結果は同値〕。新規
 `fd-select--variant-subtle` variant ブロックは `fd-select--shape-pill`
-ブロック直後へ純追加した）** /
+ブロック直後へ純追加した。イシュー #3124 で選択インジケータ位置軸
+（`ItemIndicatorPlacement`）を追加した際、size × Start の compound
+variant 5 件を当初 `item` slot のクラスセレクタで宣言していたが、`item`/
+`item-indicator` は `root_with` が class を付与しない非スタイルパーツ
+（headless 再 export）のため一致せず、位置指定が効かない不具合だった
+（Bugbot High / codex P1 指摘、PR #3561）。`size` variant と同じ「`root`
+スコープで CSS custom property を宣言し子孫が `var()` で継承する」
+パターンへ是正し、5 件とも `[data-scope="select"][data-part="root"]`
+セレクタへ変更した〔セレクタのスコープのみの変更、宣言内容・観測可能な
+最終スタイルは当初意図どおり〕。その後、`item` の `padding-inline-start`
+上書きが既存フック `--fandhe-select-item-padding` を無視する不具合（Bugbot
+Medium 指摘、PR #3561）を受け、compound variant 5 件・size 別
+`--fandhe-select-item-padding-inline` 5 件・`item` の
+`padding-inline-start` ブロックを撤去し、`item::before` の gutter
+〔既定 `display: none`〕+ インジケータの静的位置配置へ置き換えた。
+最終的にこの絶対配置 + 疑似要素方式も撤去し、`order` + 空き枠方式
+（headless が非選択時のみ `hidden` を付ける既存 `item-indicator` ノード
+自体を空き枠に転用する）へ置き換えた。挿入位置は variants 節末尾へ
+root variant 1 件（3 本の CSS 変数）、states 節末尾へ `item-indicator`
+の `[data-state]`・`[hidden]` 規則 2 件のみで、`item` 側の state 規則・
+`item::before` 疑似要素はいずれも不要になり削除した）** /
 separator / **sidebar（イシュー #2073 で golden 新設。
 `stylesheet()` 全文）** / skeleton / skip_nav / **spinner（イシュー #1567 で
-golden 新設）** / splitter / stat / steps / switch /
+golden 新設）** / splitter / **stat（イシュー #3138 で `down-indicator`
+base の直後へ `delta` base を中間挿入、`size` variant ブロック群の末尾へ
+tone（neutral/success/danger）3 ブロックを純追加）** / steps / switch /
 **tab_nav（イシュー #3125 で `TabNavVariant::Pill`（root variant）と
 `color-palette` 軸（root variant、6 値）・現在リンクの面を切り替える state
 ブロック 2 個・2 つ目の hover state・forced-colors 補強の計 5 種のブロックを
@@ -154,7 +194,15 @@ property 間接参照）・`StateCondition::LastChild` state 1 個
 追加した。フォールバック値はいずれも既存の直書きリテラル・各プロパティの
 初期値と同一のため Line/Pill の computed style は不変、
 `TAB_NAV_GOLDEN_CSS_BEFORE_3126` + 部分一致による純追加固定アサーションも
-追加）** / tags_input / timeline / timer / toast /
+追加）** / tags_input / timeline / timer / **toast（イシュー #3142 で
+`close-trigger` base の直後へ `content`/`actions` base 2 件を、
+`focus-visible` state ブロック群の直後・`@media (hover: hover)` ブロックの
+直前へ右端アクション列レイアウト（`data-actions-column`）の state 規則
+4 件（`root` の Attr・`action-trigger` の Attr・`AttrFirstChild`・
+`AttrLastChild`、登録順固定）を中間挿入。いずれも opt-in 属性付与時のみ発火
+する新規セレクタのため既存ブロックはバイト不変。PR #3583 Bugbot 指摘で
+末尾セルを `LastChild` 単独から `AttrLastChild` へ変え、値を先頭セルと同じ
+`calc(var(--fandhe-radius-md) - 1px)` に揃えた）** /
 **toggle（イシュー #2023 で golden 新設）** /
 **toggle_group（イシュー #2024 で golden 新設）** / toggle_tip / tour /
 visually_hidden
@@ -208,10 +256,13 @@ CSS 全文の golden、方式 (a)）と異なり、§2.1 の方式 (b)（契約�
 `xss_escape.rs` / `xss_escape_styled.rs` によるレンダリング・エスケープ検証
 のみが存在します。新設の要否は Phase 1 の各部品 issue の判断に委ねます。
 
-- `stylesheet()` を持つ 13 部品: action_bar / angle_slider /
-  breadcrumb / calendar / clipboard / combobox / date_picker /
+- `stylesheet()` を持つ 12 部品: action_bar / angle_slider /
+  breadcrumb / clipboard / combobox / date_picker /
   json_tree_view / link / nav_list /
   segment_group / signature_pad / slider
+  （`calendar` は golden（バイト一致）テストを既に持っており本リストの
+  対象外であったため除外。本節が「golden 不在」と誤記していた点はイシュー
+  #3132 の付随対応として是正した）
   （`toolbar` はイシュー #1547、`avatar` はイシュー #1554、`tree_view` は
   イシュー #1578、`link_overlay` はイシュー #1580、`scroll_area` は
   イシュー #1584、`toggle` はイシュー #2023、`toggle_group` はイシュー
@@ -282,7 +333,11 @@ grep -l '\b<snake>::' crates/pre-styled-ui/tests/*.rs | xargs -n1 basename
   `container-name` の 2 個目ブロックが中間挿入され、`title[data-invalid]`
   の後・`error-text > ul` の前へ `@container fd-field-group (min-width:
   448px) { .fd-field--orientation-responsive { ... } }` ブロックが追記
-  される）。
+  される。イシュー #3134 では `FieldLabelPlacement`〔inset/overlap〕の
+  規則を単一 `FIELD_GOLDEN_CSS` 内の末尾追記として golden 化し、
+  `css_label_placement_blocks_appear_after_text_wrap_balance`/
+  `css_existing_base_blocks_unchanged_after_label_placement` が追記位置と
+  既存ブロック不変を回帰テストで固定する）。
 - `.fd-<scope>--<axis>-<value>` は variant 軸のクラス名です。
 - 属性セレクタ（`[data-*]`）や `:hover` 等の後置セレクタは
   `SlotRecipe::state`（states）由来です。

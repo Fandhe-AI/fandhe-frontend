@@ -305,7 +305,7 @@ pub const BLOCK: Block = Block {
 };
 
 /// `order_confirmation_split_image` 固有のレイアウト規則
-/// （`crate::blocks::LAYOUT_CSS` doc「block 固有 CSS の置き場」節と同型）。
+/// （`crate::blocks` モジュール doc「CSS の置き場」節と同型）。
 ///
 /// 合計行の強調・配送先/支払い情報の 2 列 grid は `data-scope`/`data-part`
 /// を併記して size バリアントの詳細度（0,3,0）に勝つ

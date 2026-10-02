@@ -198,8 +198,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `footer_newsletter_band` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。ルート class（`fnb-l`）は
+/// `footer_newsletter_band` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。ルート class（`fnb-l`）は
 /// [`Block::demo_class`]（`fnb`）と意図的に別名にする（既存 block と
 /// 同じ Bugbot 教訓の回避）。CSS フックは他 block と同じ
 /// `blocks-<kebab>-*` 相当の具体性を持たせた `fnb-*` 接頭辞

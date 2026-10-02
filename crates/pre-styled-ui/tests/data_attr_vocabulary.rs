@@ -987,6 +987,34 @@ fn drawer_header_emits_no_self_produced_data_attrs() {
     );
 }
 
+/// `toast::content`/`toast::actions`（イシュー #3142）も `drawer::header` と
+/// 同型の pre-styled-only パートのため、anatomy 属性（data-scope/data-part）
+/// 以外の `data-*` を自ら出力しないことを固定する。`ACTIONS_COLUMN_ATTR`
+/// （`data-actions-column`）はあくまで呼び出し側が任意で渡す opt-in 属性で
+/// あり、`content`/`actions` 自身が自動付与する語彙ではない。
+#[test]
+fn toast_content_and_actions_emit_no_self_produced_data_attrs() {
+    use fandhe_frontend_pre_styled_ui::toast;
+
+    let html = render(&toast::content(vec![], vec![text("Saved")]));
+    assert!(html.contains(r#"data-scope="toast""#));
+    assert!(html.contains(r#"data-part="content""#));
+    let data_attr_count = html.matches("data-").count();
+    assert_eq!(
+        data_attr_count, 2,
+        "toast::content は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
+    );
+
+    let html = render(&toast::actions(vec![], vec![]));
+    assert!(html.contains(r#"data-scope="toast""#));
+    assert!(html.contains(r#"data-part="actions""#));
+    let data_attr_count = html.matches("data-").count();
+    assert_eq!(
+        data_attr_count, 2,
+        "toast::actions は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
+    );
+}
+
 /// `close_trigger_with_variant`（イシュー #2193）の `data-variant`
 /// （`icon`/`text`）は headless 層（`fandhe_frontend_headless_ui::dialog`/
 /// `drawer`）が出力する語彙であり、pre-styled 層（`crate::dialog`/
@@ -1154,6 +1182,55 @@ fn progress_parts_data_attrs_are_headless_sourced_not_self_emitted() {
     let css = progress::stylesheet();
     assert!(css.contains(r#"[data-state="indeterminate"]"#));
     assert!(css.contains(r#"[data-orientation="vertical"]"#));
+}
+
+/// `progress.rs` の pre-styled-only `marker`（イシュー #3140）は、直上の
+/// `progress_parts_data_attrs_are_headless_sourced_not_self_emitted` が固定
+/// する「headless 由来のみ」の例外である: headless `progress` に marker
+/// anatomy が存在しないため、本モジュールが `data-state` を 3 値固定で
+/// **自前出力する**（[`fandhe_frontend_headless_ui::slider::marker`] と同じ
+/// ark-ui Marker 語彙を共有、モジュール冒頭 rustdoc 参照）。この自前出力が
+/// (1) 固定 3 値のみであること・(2) 呼び出し側 `data-state`（大文字小文字を
+/// 無視）の偽装を除去すること・(3) `marker_group` は scope/part 以外の
+/// data-* を出力しないことを固定する。
+#[test]
+fn progress_marker_self_emits_fixed_data_state_and_drops_spoofing() {
+    let p = Progress::new(0.0, 100.0, Some(50.0), Orientation::Horizontal);
+
+    let under = render(&progress::marker(&p, 25.0, vec![], vec![]));
+    assert!(under.contains(r#"data-state="under-value""#), "{under}");
+    let at = render(&progress::marker(&p, 50.0, vec![], vec![]));
+    assert!(at.contains(r#"data-state="at-value""#), "{at}");
+    let over = render(&progress::marker(&p, 75.0, vec![], vec![]));
+    assert!(over.contains(r#"data-state="over-value""#), "{over}");
+
+    // indeterminate・非有限値はいずれも進捗を捏造しない fail-closed の扱い
+    // として over-value に倒す。
+    let indeterminate = Progress::new(0.0, 100.0, None, Orientation::Horizontal);
+    let indeterminate_html = render(&progress::marker(&indeterminate, 25.0, vec![], vec![]));
+    assert!(
+        indeterminate_html.contains(r#"data-state="over-value""#),
+        "{indeterminate_html}"
+    );
+    let non_finite_html = render(&progress::marker(&p, f64::NAN, vec![], vec![]));
+    assert!(
+        non_finite_html.contains(r#"data-state="over-value""#),
+        "{non_finite_html}"
+    );
+
+    // 呼び出し側の `data-state`（大文字小文字を無視）は偽装として除去する。
+    let spoofed = render(&progress::marker(
+        &p,
+        25.0,
+        vec![("data-state", "complete"), ("DATA-STATE", "complete")],
+        vec![],
+    ));
+    assert!(!spoofed.contains(r#"data-state="complete""#), "{spoofed}");
+    assert_eq!(spoofed.matches("data-state=").count(), 1);
+
+    // marker_group は scope/part 以外の data-* を一切出力しない。
+    let marker_group_html = render(&progress::marker_group(vec![], vec![]));
+    assert_eq!(marker_group_html.matches("data-").count(), 2);
 }
 
 /// `avatar.rs`（イシュー #2044、shadcn/ui 突合）の pre-styled-only
@@ -1416,6 +1493,14 @@ fn command_parts_data_attrs_are_headless_sourced_not_self_emitted() {
 
     let separator_html = render(&command::separator(vec![], vec![]));
     assert!(separator_html.contains(r#"role="separator""#));
+
+    // pre-styled-only `footer`（イシュー #3143）は headless anatomy には
+    // 存在せず、`Anatomy::part` が出力する `data-scope`/`data-part` の
+    // 2 個のみで、独自の `data-*` を自前出力しない。
+    let footer_html = render(&command::footer(vec![], vec![]));
+    assert_eq!(footer_html.matches("data-").count(), 2);
+    assert!(footer_html.contains(r#"data-scope="command""#));
+    assert!(footer_html.contains(r#"data-part="footer""#));
 
     // `command::stylesheet()` は `[data-empty]`/`[data-selected]`/
     // `[data-disabled]`/`[hidden]` を CSS セレクタとして参照するだけで

@@ -264,8 +264,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `stats_split` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc
-/// 「block 固有 CSS の置き場」節と同型で `pub(super)` ではなく本ファイル内
+/// `stats_split` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型で `pub(super)` ではなく本ファイル内
 /// private 定数として `super::stylesheet` 経由の `push_css` で連結される）。
 ///
 /// セレクタは `.blocks-stats-split-*` と `[data-blocks-stats-split-*]` の

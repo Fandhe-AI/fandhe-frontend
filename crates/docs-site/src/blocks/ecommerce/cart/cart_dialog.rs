@@ -412,8 +412,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `cart_dialog` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc
-/// 「block 固有 CSS の置き場」節と同型、`contact_dialog_form.rs` の
+/// `cart_dialog` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型、`contact_dialog_form.rs` の
 /// 固定オーバーレイ中和パターンを踏襲）。
 const LAYOUT_CSS: &str = "\
 .blocks-cart-dialog.blocks-demo {\n  overflow: visible;\n}\n\

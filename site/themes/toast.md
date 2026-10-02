@@ -31,4 +31,13 @@
 `crates/pre-styled-ui/src/toast.rs` のモジュール doc「イシュー #2040」節を
 参照してください。
 
+縦積み配置は既定のまま維持する一方、右端にアクション列を置きたい場合は
+`ACTIONS_COLUMN_ATTR`（`data-actions-column`）を `root` と列内の各
+`action_trigger` へ付ける opt-in のレイアウトを選べます。本文は
+pre-styled-only の `content` パート、アクション列は同じく pre-styled-only
+の `actions` パートで包みます。`actions` 内の `action_trigger` が 1 個なら
+全高のボタン 1 個の列に、2 個なら縦に等分された列になります（イシュー
+#3142、Examples 節参照）。`close_trigger` と同じ終端ガターを使うため、
+列レイアウトと `close_trigger` の併用は意図的にサポートしていません。
+
 関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md) / [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)

@@ -977,8 +977,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `feature_tabs_panel` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。素の `div` へのフックは
+/// `feature_tabs_panel` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。素の `div` へのフックは
 /// `.blocks-feature-tabs-panel-*` クラスセレクタで行う。タブ列
 /// （`.blocks-feature-tabs-panel-tablist`/`-tab`）は pre-styled-ui の tabs
 /// recipe が使う `[data-scope="tabs"][data-part="..."]` セレクタとは

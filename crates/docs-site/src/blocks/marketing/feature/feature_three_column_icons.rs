@@ -469,8 +469,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `feature_three_column_icons` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節）。セレクタは
+/// `feature_three_column_icons` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。セレクタは
 /// `.blocks-feature-three-column-icons-*` と `[data-blocks-feature-three-
 /// column-icons-*]` のみを用い、他 block や部品の素のセレクタへ影響させ
 /// ない（`feature_four_column_grid` と同じ名前空間分離）。ブレークポイント

@@ -305,6 +305,52 @@
 //!   実質視覚化されない（tooltip/hover_card と同じ既知の制約、
 //!   `docs/design/collapsible-height-animation.md` §12.3 の再評価トリガーに
 //!   委ねる）。
+//!
+//! # 選択インジケータ位置（イシュー #3124）
+//!
+//! `item-indicator`（チェックマーク）は #1502 以降 `margin-left: auto` で
+//! 項目右端に固定されていたが、「チェックを項目左端に置き、非選択項目の
+//! テキストと開始位置を揃える」レイアウト（Radix Themes 系の左インジケータ
+//! パターン、Blocks 取り込み対応表 R1235 参照）が既存部品で表現できな
+//! かった。[`ItemIndicatorPlacement`] で opt-in の配置軸を追加する。
+//!
+//! - **既定は `End`**: `End` のとき variant class を一切出さない
+//!   （`default_variant` も登録しない）。既存呼び出し元の出力・golden は
+//!   バイト不変（`Shape::Pill` 未指定時と同じ安全側契約）。
+//! - **`Start` の実現方法（`order` + 空き枠方式）**: `root` variant で
+//!   3 本の CSS 変数（`--fandhe-select-item-indicator-order`/
+//!   `--fandhe-select-item-indicator-margin-left`/
+//!   `--fandhe-select-item-indicator-placeholder-display`）を切り替える。
+//!   `item-indicator` は `headless-ui` 側で選択状態にかかわらず常に DOM へ
+//!   出力され、非選択時のみ存在属性 `hidden` が付く契約（
+//!   `fandhe_frontend_headless_ui::select::item_indicator` 参照）。この
+//!   既存ノードをそのまま「空き枠」に転用する: `item` は
+//!   `display: flex` のため `item-indicator` も flex item であり、
+//!   `order: -1` で先頭へ、`margin-left: 0` で寄せ解除する state 規則を
+//!   `[data-state]`（選択状態にかかわらず item-indicator が常に持つ属性）
+//!   へ適用し、非選択時は `[hidden]` 規則で `display`（UA 既定の
+//!   `none` を上書き）+ `visibility: hidden` を宣言して不可視のまま同じ
+//!   幅を確保する。絶対配置も疑似要素も使わないため、`item` の
+//!   `padding` 等の既存宣言には一切触れずそのまま活きる。
+//! - **子要素の順序に依存しない**: `order` は flex コンテナ内の視覚的な
+//!   並び順のみを制御する仕様（CSS Flexbox §5.4）であり、`item_indicator`
+//!   を `item_text` の前後どちらに置いても `order: -1` で先頭に来る。
+//!   絶対配置を使わないため、静的位置が子の並び順に左右される問題（PR
+//!   #3561 で出た codex P1 指摘）は構造上発生しない。
+//! - **RTL でも正しい側に来る**: `order` は物理方向ではなく書字方向に
+//!   従って解決される（flex の inline axis）ため、`direction: rtl` でも
+//!   正しい側（inline-start）に配置される。
+//! - **`hidden` の `display` 宣言は常に `visibility: hidden` と同じ
+//!   ブロックに置く**: 非選択項目のチェックマークが見えてしまう事故
+//!   （#1502 の「`display` を宣言しない」契約の趣旨）を防ぐための不変
+//!   条件で、単体テストで固定する。`aria-hidden="true"` は選択状態に
+//!   かかわらず固定で付いており（
+//!   `fandhe_frontend_headless_ui::select::item_indicator` 参照）、
+//!   `visibility: hidden` も a11y ツリーから外れるため、支援技術への
+//!   露出は変わらない。
+//! - **既知の制約**: 呼び出し側が非選択項目で `item_indicator` を省略
+//!   すると空き枠ができず揃わない。選択中・非選択とも同じ内容の
+//!   `item_indicator` を置くことを前提にする。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -377,6 +423,35 @@ const SLOTS: &[&str] = &[
     "scroll-up-button",
     "scroll-down-button",
 ];
+
+/// 選択インジケータ（`item-indicator`）の配置軸（イシュー #3124）。
+///
+/// `End`（既定）は項目右端固定の既存レイアウトのまま variant class を
+/// 一切出さない。`Start` は項目左端へ寄せ、非選択項目のテキスト開始位置と
+/// 揃える（モジュール rustdoc「選択インジケータ位置（イシュー #3124）」
+/// 節参照）。[`Shape`] と同じく `Default` は実装しない（既定は
+/// [`root_with`] の呼び出し側が明示的に `End` を渡す契約、[`root`] が
+/// その委譲を担う）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ItemIndicatorPlacement {
+    /// 項目右端（既定、現行レイアウト）。
+    End,
+    /// 項目左端。非選択項目のテキスト開始位置と揃う。
+    Start,
+}
+
+impl VariantValue for ItemIndicatorPlacement {
+    fn axis(self) -> &'static str {
+        "item-indicator-placement"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            ItemIndicatorPlacement::End => "end",
+            ItemIndicatorPlacement::Start => "start",
+        }
+    }
+}
 
 /// この styled Select の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
@@ -533,8 +608,15 @@ fn recipe() -> SlotRecipe {
         // チェックマーク（item-indicator）を item 末尾へ寄せる。`display` は
         // ここでは宣言しない（headless の非選択時 `hidden` 存在属性による
         // 表示制御と衝突するため、モジュール rustdoc「スタイル調整（#1502）」
-        // 節参照）。
-        .base("item-indicator", vec![decl("margin-left", "auto")])
+        // 節参照）。`item` の `gap` 設定下で項目幅・テキスト長が異なると
+        // インジケータ（選択時チェックマーク／非選択時の placement-start
+        // 空き枠、イシュー #3124）が flex item として縮小し、テキスト開始
+        // 位置の整列が崩れるため `flex-shrink: 0` で縮小を禁止する（旧
+        // `item::before` 実装の `flex: none` と同じ根拠）。
+        .base(
+            "item-indicator",
+            vec![decl("margin-left", "auto"), decl("flex-shrink", "0")],
+        )
         .base(
             "item-group-label",
             vec![
@@ -863,6 +945,24 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-select-trigger-border-color", "transparent"),
             ],
         )
+        // イシュー #3124: 選択インジケータ位置軸。`variant` 軸の後に置く
+        // （純追加。`Default` を実装しない [`ItemIndicatorPlacement`] は
+        // `Start` のみ登録し `End` は class を出さない、モジュール rustdoc
+        // 参照）。root スコープで 3 本の CSS 変数を切り替え、実際の配置は
+        // `item-indicator` の state 規則（`[data-state]`/`[hidden]`、下記）
+        // が担う（`order` + 空き枠方式、モジュール rustdoc参照）。
+        .variant(
+            ItemIndicatorPlacement::Start,
+            "root",
+            vec![
+                decl("--fandhe-select-item-indicator-order", "-1"),
+                decl("--fandhe-select-item-indicator-margin-left", "0"),
+                decl(
+                    "--fandhe-select-item-indicator-placeholder-display",
+                    "block",
+                ),
+            ],
+        )
         .default_variant(Size::Md)
         // イシュー #2391: `content` へ presence（enter/exit）のフェード +
         // scale トランジションを適用する。duration は select 内の他の
@@ -873,6 +973,42 @@ fn recipe() -> SlotRecipe {
         // + `max-height`（イシュー #2019）を既に持つが、
         // `presence_transition` が宣言するのは `opacity`/`transform`/
         // `transition-*` のみで交差しないため衝突しない。
+        // イシュー #3124: `item-indicator` は選択状態にかかわらず常に
+        // `data-state` を持つ（headless `item_indicator` 参照）ため、この
+        // 条件を使えば非選択項目（空き枠）にも同じ `order`/`margin-left`
+        // が及ぶ。フォールバック値は CSS の初期値（`0`/`auto`）のため、
+        // `Start` 未指定時の計算値は変わらない。base ブロックへ混入させ
+        // ない（SLOTS 順に出力される base と異なり、state は既存の前半
+        // golden を不変に保ったまま純追加できる）。
+        .state(
+            "item-indicator",
+            StateCondition::Attr("data-state"),
+            vec![
+                decl("order", "var(--fandhe-select-item-indicator-order, 0)"),
+                decl(
+                    "margin-left",
+                    "var(--fandhe-select-item-indicator-margin-left, auto)",
+                ),
+            ],
+        )
+        // イシュー #3124: 非選択項目の `item-indicator`（headless が
+        // `hidden` 存在属性を付与、上記 state 規則と同じ条件文脈）を
+        // `Start` のときだけ不可視の空き枠として表示させる。`display` は
+        // 必ず `visibility: hidden` と同じブロックに置く（モジュール
+        // rustdoc「既知の制約」節の前段落参照。非選択項目のチェックが
+        // 見えてしまう事故を防ぐ）。既定（`End`）はフォールバック `none`
+        // のため UA 既定の非表示のまま計算値は変わらない。
+        .state(
+            "item-indicator",
+            StateCondition::Attr("hidden"),
+            vec![
+                decl(
+                    "display",
+                    "var(--fandhe-select-item-indicator-placeholder-display, none)",
+                ),
+                decl("visibility", "hidden"),
+            ],
+        )
         .presence_transition("content", MotionDuration::Fast)
 }
 
@@ -913,6 +1049,7 @@ pub fn root<'a>(
         size,
         None,
         SelectVariant::Outline,
+        ItemIndicatorPlacement::End,
         state,
         props,
         attrs,
@@ -920,8 +1057,10 @@ pub fn root<'a>(
     )
 }
 
-/// [`root`] の shape / variant 引数付き版（イシュー #3117、variant はイシュー
-/// #3121 で追加）。`shape: None` + `SelectVariant::Outline` で [`root`] と
+/// [`root`] の shape / variant / 選択インジケータ位置引数付き版（イシュー
+/// #3117、variant はイシュー #3121、item_indicator_placement はイシュー
+/// #3124 で追加）。`shape: None` + `SelectVariant::Outline` +
+/// `item_indicator_placement: ItemIndicatorPlacement::End` で [`root`] と
 /// 完全に同じ出力になる（`crate::layer::layer_with`/`frame_with`〔#2131〕と
 /// 同型の `_with` 先例。既存 [`root`] の位置引数シグネチャは変えず後方互換を
 /// 保つ）。
@@ -930,13 +1069,14 @@ pub fn root<'a>(
 ///
 /// ```
 /// use fandhe_frontend_core::render;
-/// use fandhe_frontend_pre_styled_ui::select::{self, OpenState, SelectProps, SelectVariant};
+/// use fandhe_frontend_pre_styled_ui::select::{self, ItemIndicatorPlacement, OpenState, SelectProps, SelectVariant};
 /// use fandhe_frontend_pre_styled_ui::{Shape, Size};
 ///
 /// let node = select::root_with(
 ///     Size::Md,
 ///     Some(Shape::Pill),
 ///     SelectVariant::Subtle,
+///     ItemIndicatorPlacement::Start,
 ///     OpenState::Closed,
 ///     &SelectProps::default(),
 ///     vec![],
@@ -945,12 +1085,18 @@ pub fn root<'a>(
 /// let html = render(&node);
 /// assert!(html.contains("fd-select--shape-pill"));
 /// assert!(html.contains("fd-select--variant-subtle"));
+/// assert!(html.contains("fd-select--item-indicator-placement-start"));
 /// ```
+// イシュー #3124: `item_indicator_placement` 引数の追加で 7→8 引数となった
+// （`crates/toggle_group.rs::root` 等の複合部品コンストラクタと同型の
+// 許容、位置引数を素直に積む薄い組み立て関数のため分割は行わない）。
+#[allow(clippy::too_many_arguments)]
 #[must_use]
 pub fn root_with<'a>(
     size: Size,
     shape: Option<Shape>,
     variant: SelectVariant,
+    item_indicator_placement: ItemIndicatorPlacement,
     state: OpenState,
     props: &SelectProps,
     attrs: Vec<(&'a str, &'a str)>,
@@ -963,6 +1109,12 @@ pub fn root_with<'a>(
     }
     if variant != SelectVariant::Outline {
         selection.push(("variant", variant.value()));
+    }
+    if item_indicator_placement == ItemIndicatorPlacement::Start {
+        selection.push((
+            "item-indicator-placement",
+            ItemIndicatorPlacement::Start.value(),
+        ));
     }
     let class = recipe.variant_classes(&selection);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
@@ -1076,6 +1228,7 @@ mod tests {
             Size::Md,
             None,
             SelectVariant::Outline,
+            ItemIndicatorPlacement::End,
             OpenState::Closed,
             &SelectProps::default(),
             vec![],
@@ -1084,6 +1237,7 @@ mod tests {
         assert_eq!(via_root, via_root_with);
         assert!(!via_root.contains("fd-select--shape"));
         assert!(!via_root.contains("fd-select--variant"));
+        assert!(!via_root.contains("fd-select--item-indicator-placement"));
     }
 
     #[test]
@@ -1092,12 +1246,107 @@ mod tests {
             Size::Md,
             Some(Shape::Pill),
             SelectVariant::Outline,
+            ItemIndicatorPlacement::End,
             OpenState::Closed,
             &SelectProps::default(),
             vec![],
             vec![],
         ));
         assert!(html.contains("fd-select--shape-pill"));
+        assert!(!html.contains("fd-select--item-indicator-placement"));
+    }
+
+    // --- イシュー #3124: item-indicator-placement 軸 ---
+
+    #[test]
+    fn root_with_item_indicator_placement_start_appends_class() {
+        let html = render(&root_with(
+            Size::Md,
+            None,
+            SelectVariant::Outline,
+            ItemIndicatorPlacement::Start,
+            OpenState::Closed,
+            &SelectProps::default(),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains("fd-select--item-indicator-placement-start"));
+    }
+
+    #[test]
+    fn stylesheet_contains_item_indicator_placement_start_blocks() {
+        let css = stylesheet();
+        // root variant（3 本の CSS 変数切り替え）。
+        assert!(css.contains(
+            r#"[data-scope="select"][data-part="root"].fd-select--item-indicator-placement-start {"#
+        ));
+        assert!(css.contains("--fandhe-select-item-indicator-order: -1;"));
+        assert!(css.contains("--fandhe-select-item-indicator-margin-left: 0;"));
+        assert!(css.contains("--fandhe-select-item-indicator-placeholder-display: block;"));
+        // state 規則（item-indicator は `[data-state]`・`[hidden]` の 2 件）。
+        let order_block = extract_block(
+            &css,
+            r#"[data-scope="select"][data-part="item-indicator"][data-state] {"#,
+        );
+        assert!(order_block.contains("order: var(--fandhe-select-item-indicator-order, 0);"));
+        assert!(order_block
+            .contains("margin-left: var(--fandhe-select-item-indicator-margin-left, auto);"));
+        let hidden_block = extract_block(
+            &css,
+            r#"[data-scope="select"][data-part="item-indicator"][hidden] {"#,
+        );
+        assert!(hidden_block
+            .contains("display: var(--fandhe-select-item-indicator-placeholder-display, none);"));
+        assert!(hidden_block.contains("visibility: hidden;"));
+    }
+
+    #[test]
+    fn item_padding_is_untouched_by_item_indicator_placement_axis() {
+        // `order` + 空き枠方式は絶対配置も疑似要素も使わないため、`item` の
+        // 余白を決める既存宣言（`--fandhe-select-item-padding` 参照の
+        // `padding` のみ）は一切変更されない（モジュール rustdoc 参照）。
+        let css = stylesheet();
+        assert!(!css.contains("padding-inline"), "css={css}");
+        assert!(!css.contains("padding-left"), "css={css}");
+        assert!(!css.contains("padding-right"), "css={css}");
+        let item_paddings: Vec<&str> = css
+            .split("}\n")
+            .filter(|block| block.contains(r#"[data-part="item"]"#))
+            .flat_map(|block| block.lines())
+            .filter(|line| line.trim_start().starts_with("padding"))
+            .collect();
+        assert_eq!(
+            item_paddings,
+            vec!["  padding: var(--fandhe-select-item-padding, var(--fandhe-space-2) var(--fandhe-space-3));"]
+        );
+    }
+
+    #[test]
+    fn item_indicator_base_block_is_unchanged_by_item_indicator_placement_axis() {
+        // 既存 base ブロック（#1502 の `margin-left: auto;` + #3124 レビュー
+        // 指摘対応の `flex-shrink: 0;`）は item-indicator-placement 軸の
+        // 追加（state 側で配置）によって変化しない（モジュール rustdoc 参照）。
+        let css = stylesheet();
+        let block = extract_block(
+            &css,
+            "[data-scope=\"select\"][data-part=\"item-indicator\"] {",
+        );
+        assert_eq!(block.trim(), "margin-left: auto;\n  flex-shrink: 0;");
+    }
+
+    #[test]
+    fn item_indicator_hidden_display_and_visibility_share_the_same_block() {
+        // 不変条件（モジュール rustdoc「既知の制約」節参照）: 非選択項目の
+        // `item-indicator` へ `display` を宣言するブロックは必ず
+        // `visibility: hidden` も同時に持つ。これが崩れると `Start` の
+        // 空き枠が可視のチェックマークとして露出してしまう。
+        let css = stylesheet();
+        let hidden_block = extract_block(
+            &css,
+            r#"[data-scope="select"][data-part="item-indicator"][hidden] {"#,
+        );
+        assert!(hidden_block.contains("display:"));
+        assert!(hidden_block.contains("visibility: hidden;"));
     }
 
     // --- イシュー #3121: variant 軸 ---
@@ -1111,6 +1360,7 @@ mod tests {
             Size::Md,
             None,
             SelectVariant::Outline,
+            ItemIndicatorPlacement::End,
             OpenState::Closed,
             &SelectProps::default(),
             vec![],
@@ -1125,6 +1375,7 @@ mod tests {
             Size::Md,
             None,
             SelectVariant::Subtle,
+            ItemIndicatorPlacement::End,
             OpenState::Closed,
             &SelectProps::default(),
             vec![],
@@ -1139,6 +1390,7 @@ mod tests {
             Size::Md,
             Some(Shape::Pill),
             SelectVariant::Subtle,
+            ItemIndicatorPlacement::End,
             OpenState::Closed,
             &SelectProps::default(),
             vec![],

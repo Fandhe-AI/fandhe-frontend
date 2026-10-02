@@ -66,59 +66,79 @@ const BUTTON_GROUP_GOLDEN_CSS: &str = "[data-scope=\"button-group\"][data-part=\
   align-self: stretch;
 }
 
-[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button\"][data-part=\"root\"]:not(:first-child) {
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button\"][data-part=\"root\"]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button\"][data-part=\"root\"]) {
   border-start-start-radius: 0;
   border-end-start-radius: 0;
   border-inline-start-width: 0;
 }
 
-[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button\"][data-part=\"root\"]:not(:last-child) {
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button\"][data-part=\"root\"]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) {
   border-start-end-radius: 0;
   border-end-end-radius: 0;
 }
 
-[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"field\"][data-part=\"input\"]:not(:first-child) {
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button\"][data-part=\"root\"] {
+  margin-inline-start: var(--fandhe-space-2);
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"field\"][data-part=\"input\"]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"field\"][data-part=\"input\"]) {
   border-start-start-radius: 0;
   border-end-start-radius: 0;
   border-inline-start-width: 0;
 }
 
-[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"field\"][data-part=\"input\"]:not(:last-child) {
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"field\"][data-part=\"input\"]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) {
   border-start-end-radius: 0;
   border-end-end-radius: 0;
 }
 
-[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"text\"]:not(:first-child) {
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"field\"][data-part=\"input\"] {
+  margin-inline-start: var(--fandhe-space-2);
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"text\"]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button-group\"][data-part=\"text\"]) {
   border-start-start-radius: 0;
   border-end-start-radius: 0;
   border-inline-start-width: 0;
 }
 
-[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"text\"]:not(:last-child) {
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"text\"]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) {
   border-start-end-radius: 0;
   border-end-end-radius: 0;
 }
 
-[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"menu\"][data-part=\"root\"]:not(:first-child) > [data-scope=\"menu\"][data-part=\"trigger\"] {
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button-group\"][data-part=\"text\"] {
+  margin-inline-start: var(--fandhe-space-2);
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"menu\"][data-part=\"root\"]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"menu\"][data-part=\"root\"]) > [data-scope=\"menu\"][data-part=\"trigger\"] {
   border-start-start-radius: 0;
   border-end-start-radius: 0;
   border-inline-start-width: 0;
 }
 
-[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"menu\"][data-part=\"root\"]:not(:last-child) > [data-scope=\"menu\"][data-part=\"trigger\"] {
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"menu\"][data-part=\"root\"]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) > [data-scope=\"menu\"][data-part=\"trigger\"] {
   border-start-end-radius: 0;
   border-end-end-radius: 0;
 }
 
-[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"select\"][data-part=\"root\"]:not(:first-child) > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"menu\"][data-part=\"root\"] {
+  margin-inline-start: var(--fandhe-space-2);
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"select\"][data-part=\"root\"]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"select\"][data-part=\"root\"]) > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
   border-start-start-radius: 0;
   border-end-start-radius: 0;
   border-inline-start-width: 0;
 }
 
-[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"select\"][data-part=\"root\"]:not(:last-child) > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"select\"][data-part=\"root\"]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
   border-start-end-radius: 0;
   border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"select\"][data-part=\"root\"] {
+  margin-inline-start: var(--fandhe-space-2);
 }
 
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"field\"][data-part=\"input\"] {
@@ -130,59 +150,79 @@ const BUTTON_GROUP_GOLDEN_CSS: &str = "[data-scope=\"button-group\"][data-part=\
   margin-inline-start: var(--fandhe-space-2);
 }
 
-[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button\"][data-part=\"root\"]:not(:first-child) {
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button\"][data-part=\"root\"]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button\"][data-part=\"root\"]) {
   border-start-start-radius: 0;
   border-start-end-radius: 0;
   border-block-start-width: 0;
 }
 
-[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button\"][data-part=\"root\"]:not(:last-child) {
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button\"][data-part=\"root\"]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) {
   border-end-start-radius: 0;
   border-end-end-radius: 0;
 }
 
-[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"field\"][data-part=\"input\"]:not(:first-child) {
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button\"][data-part=\"root\"] {
+  margin-block-start: var(--fandhe-space-2);
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"field\"][data-part=\"input\"]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"field\"][data-part=\"input\"]) {
   border-start-start-radius: 0;
   border-start-end-radius: 0;
   border-block-start-width: 0;
 }
 
-[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"field\"][data-part=\"input\"]:not(:last-child) {
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"field\"][data-part=\"input\"]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) {
   border-end-start-radius: 0;
   border-end-end-radius: 0;
 }
 
-[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"text\"]:not(:first-child) {
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"field\"][data-part=\"input\"] {
+  margin-block-start: var(--fandhe-space-2);
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"text\"]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button-group\"][data-part=\"text\"]) {
   border-start-start-radius: 0;
   border-start-end-radius: 0;
   border-block-start-width: 0;
 }
 
-[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"text\"]:not(:last-child) {
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"text\"]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) {
   border-end-start-radius: 0;
   border-end-end-radius: 0;
 }
 
-[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"menu\"][data-part=\"root\"]:not(:first-child) > [data-scope=\"menu\"][data-part=\"trigger\"] {
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button-group\"][data-part=\"text\"] {
+  margin-block-start: var(--fandhe-space-2);
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"menu\"][data-part=\"root\"]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"menu\"][data-part=\"root\"]) > [data-scope=\"menu\"][data-part=\"trigger\"] {
   border-start-start-radius: 0;
   border-start-end-radius: 0;
   border-block-start-width: 0;
 }
 
-[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"menu\"][data-part=\"root\"]:not(:last-child) > [data-scope=\"menu\"][data-part=\"trigger\"] {
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"menu\"][data-part=\"root\"]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) > [data-scope=\"menu\"][data-part=\"trigger\"] {
   border-end-start-radius: 0;
   border-end-end-radius: 0;
 }
 
-[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"select\"][data-part=\"root\"]:not(:first-child) > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"menu\"][data-part=\"root\"] {
+  margin-block-start: var(--fandhe-space-2);
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"select\"][data-part=\"root\"]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"select\"][data-part=\"root\"]) > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
   border-start-start-radius: 0;
   border-start-end-radius: 0;
   border-block-start-width: 0;
 }
 
-[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"select\"][data-part=\"root\"]:not(:last-child) > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"select\"][data-part=\"root\"]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
   border-end-start-radius: 0;
   border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"select\"][data-part=\"root\"] {
+  margin-block-start: var(--fandhe-space-2);
 }
 
 [data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"menu\"][data-part=\"root\"] > [data-scope=\"menu\"][data-part=\"trigger\"] {
@@ -222,6 +262,129 @@ const BUTTON_GROUP_GOLDEN_CSS: &str = "[data-scope=\"button-group\"][data-part=\
 [data-scope=\"button-group\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"]:focus-visible {
   position: relative;
   z-index: 1;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button-group\"][data-part=\"root\"][data-attached]) {
+  margin-inline-start: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button-group\"][data-part=\"root\"][data-attached]) > [data-scope=\"button\"][data-part=\"root\"] {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-inline-start-width: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) > [data-scope=\"button\"][data-part=\"root\"] {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button-group\"][data-part=\"root\"][data-attached]) > [data-scope=\"field\"][data-part=\"input\"] {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-inline-start-width: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) > [data-scope=\"field\"][data-part=\"input\"] {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button-group\"][data-part=\"root\"][data-attached]) > [data-scope=\"button-group\"][data-part=\"text\"] {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-inline-start-width: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) > [data-scope=\"button-group\"][data-part=\"text\"] {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button-group\"][data-part=\"root\"][data-attached]) > [data-scope=\"menu\"][data-part=\"root\"] > [data-scope=\"menu\"][data-part=\"trigger\"] {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-inline-start-width: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) > [data-scope=\"menu\"][data-part=\"root\"] > [data-scope=\"menu\"][data-part=\"trigger\"] {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button-group\"][data-part=\"root\"][data-attached]) > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-inline-start-width: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button-group\"][data-part=\"root\"][data-attached]) {
+  margin-block-start: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached] {
+  align-self: stretch;
+  width: auto;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button-group\"][data-part=\"root\"][data-attached]) > [data-scope=\"button\"][data-part=\"root\"] {
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+  border-block-start-width: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) > [data-scope=\"button\"][data-part=\"root\"] {
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button-group\"][data-part=\"root\"][data-attached]) > [data-scope=\"field\"][data-part=\"input\"] {
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+  border-block-start-width: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) > [data-scope=\"field\"][data-part=\"input\"] {
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button-group\"][data-part=\"root\"][data-attached]) > [data-scope=\"button-group\"][data-part=\"text\"] {
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+  border-block-start-width: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) > [data-scope=\"button-group\"][data-part=\"text\"] {
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button-group\"][data-part=\"root\"][data-attached]) > [data-scope=\"menu\"][data-part=\"root\"] > [data-scope=\"menu\"][data-part=\"trigger\"] {
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+  border-block-start-width: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) > [data-scope=\"menu\"][data-part=\"root\"] > [data-scope=\"menu\"][data-part=\"trigger\"] {
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:first-child):not([data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]) + [data-scope=\"button-group\"][data-part=\"root\"][data-attached]) > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+  border-block-start-width: 0;
+}
+
+[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"vertical\"] > [data-scope=\"button-group\"][data-part=\"root\"][data-attached]:not(:last-child):not(:has(+ [data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached]))) > [data-scope=\"select\"][data-part=\"root\"] > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"] {
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
 }
 ";
 
@@ -296,6 +459,12 @@ fn css_declares_connectable_child_radius_and_border_rules_for_both_orientations(
             " > [data-scope=\"select\"][data-part=\"control\"] > [data-scope=\"select\"][data-part=\"trigger\"]",
         ),
     ];
+    // 非 attached（margin 間隔のまま）の内側 button-group root に隣接する
+    // ときは角丸除去を適用しない除外節（PR #3569 codex レビュー指摘対応、
+    // イシュー #3135）。`src/button_group.rs` の生成ロジックと同じ組み
+    // 立てで期待値を作る。
+    let detached = "[data-scope=\"button-group\"][data-part=\"root\"]:not([data-attached])";
+
     for orientation in ["horizontal", "vertical"] {
         let width_prop = if orientation == "horizontal" {
             "border-inline-start-width"
@@ -304,14 +473,14 @@ fn css_declares_connectable_child_radius_and_border_rules_for_both_orientations(
         };
         for (direct, suffix) in targets {
             let not_first = format!(
-                "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"{orientation}\"] > {direct}:not(:first-child){suffix}"
+                "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"{orientation}\"] > {direct}:not(:first-child):not({detached} + {direct}){suffix}"
             );
             assert!(
                 css.contains(&not_first),
                 "missing not(:first-child) rule for {direct}{suffix} ({orientation})"
             );
             let not_last = format!(
-                "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"{orientation}\"] > {direct}:not(:last-child){suffix}"
+                "[data-scope=\"button-group\"][data-part=\"root\"][data-orientation=\"{orientation}\"] > {direct}:not(:last-child):not(:has(+ {detached})){suffix}"
             );
             assert!(
                 css.contains(&not_last),

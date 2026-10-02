@@ -3010,6 +3010,11 @@ title = "docs-layout-toc-progress"
 source = "site/blocks/docs-layout-toc-progress.md"
 path = "/blocks/docs-layout-toc-progress/"
 
+[[section.group.page]]
+title = "docs-layout-toc"
+source = "site/blocks/docs-layout-toc.md"
+path = "/blocks/docs-layout-toc/"
+
 [[section.group]]
 title = "Code Block"
 
@@ -3017,6 +3022,11 @@ title = "Code Block"
 title = "code-block-header"
 source = "site/blocks/code-block-header.md"
 path = "/blocks/code-block-header/"
+
+[[section.group.page]]
+title = "code-block-language-tabs"
+source = "site/blocks/code-block-language-tabs.md"
+path = "/blocks/code-block-language-tabs/"
 
 [[section.group]]
 title = "Example Preview"

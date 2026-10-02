@@ -615,8 +615,10 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/docs-layout-sidebar-api/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/docs-layout-toc-collapsible/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/docs-layout-toc-progress/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/docs-layout-toc/index.html"
           # Docs / Code Block
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/code-block-header/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/code-block-language-tabs/index.html"
           # Docs / Example Preview
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/example-preview-tabs/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/example-preview-toolbar/index.html"

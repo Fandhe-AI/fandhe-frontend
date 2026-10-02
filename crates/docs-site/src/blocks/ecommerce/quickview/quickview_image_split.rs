@@ -466,8 +466,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `quickview_image_split` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型、`cart_dialog.rs` の固定
+/// `quickview_image_split` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型、`cart_dialog.rs` の固定
 /// オーバーレイ中和パターンを踏襲）。
 const LAYOUT_CSS: &str = "\
 .blocks-quickview-image-split.blocks-demo {\n  overflow: visible;\n}\n\

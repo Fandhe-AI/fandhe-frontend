@@ -66,6 +66,14 @@ const STAT_GOLDEN_CSS: &str = r#"[data-scope="stat"][data-part="root"] {
   background: var(--fandhe-color-danger-emphasized);
 }
 
+[data-scope="stat"][data-part="delta"] {
+  margin-inline-start: auto;
+  flex-shrink: 0;
+  font-size: var(--fandhe-font-font-size-xs);
+  font-weight: var(--fandhe-font-font-weight-medium);
+  letter-spacing: normal;
+}
+
 [data-scope="stat"][data-part="root"].fd-stat--size-xs {
   --fandhe-stat-value-font-size: var(--fandhe-font-font-size-lg);
 }
@@ -84,6 +92,18 @@ const STAT_GOLDEN_CSS: &str = r#"[data-scope="stat"][data-part="root"] {
 
 [data-scope="stat"][data-part="root"].fd-stat--size-xl {
   --fandhe-stat-value-font-size: var(--fandhe-font-font-size-4xl);
+}
+
+[data-scope="stat"][data-part="delta"].fd-stat--tone-neutral {
+  color: var(--fandhe-color-fg);
+}
+
+[data-scope="stat"][data-part="delta"].fd-stat--tone-success {
+  color: var(--fandhe-color-success-fg-subtle);
+}
+
+[data-scope="stat"][data-part="delta"].fd-stat--tone-danger {
+  color: var(--fandhe-color-danger-fg-subtle);
 }
 "#;
 
@@ -118,6 +138,7 @@ fn selectors_match_actual_rendered_data_part_attributes() {
         "help-text",
         "up-indicator",
         "down-indicator",
+        "delta",
     ] {
         assert!(
             css.contains(&format!(r#"[data-scope="stat"][data-part="{part}"]"#)),

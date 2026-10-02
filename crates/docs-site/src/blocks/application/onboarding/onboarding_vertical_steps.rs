@@ -317,8 +317,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `onboarding_vertical_steps` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節と同型）。
+/// `onboarding_vertical_steps` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-onboarding-vertical-steps-stack {\n  container-type: inline-size;\n  container-name: blocks-onboarding-vertical-steps;\n}\n\
 [data-blocks-onboarding-vertical-steps-root][data-scope=\"steps\"][data-part=\"root\"] {\n  gap: var(--fandhe-space-8);\n  align-items: flex-start;\n}\n\

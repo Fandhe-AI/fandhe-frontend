@@ -57,6 +57,19 @@
 //! `fd-select--variant-subtle` ブロックを純追加した。詳細は
 //! `crates/pre-styled-ui/src/select.rs` モジュール rustdoc「variant 軸
 //! （イシュー #3121）」節参照。
+//!
+//! イシュー #3124 で `select::ItemIndicatorPlacement`（start/end、既定
+//! end）を追加し、`order` + 空き枠方式で実現した。variants 節末尾へ
+//! root variant 1 件（3 本の CSS 変数）を、states 節末尾へ
+//! `item-indicator` の `[data-state]`（`order`/`margin-left`）・`[hidden]`
+//! （`display`/`visibility: hidden`、非選択項目を不可視の空き枠として
+//! 表示）の 2 件を純追加した。絶対配置・疑似要素は使わないため `item` の
+//! `padding` 等の既存宣言には一切触れない（既存フック
+//! `--fandhe-select-item-padding` はそのまま効く）。既存 base ブロックは
+//! 不変（`golden_prefix_through_hidden_select_is_unchanged`・
+//! `select_pre_2391_blocks_remain_verbatim` が引き続き固定する）。詳細は
+//! `crates/pre-styled-ui/src/select.rs` モジュール rustdoc「選択インジケータ
+//! 位置（イシュー #3124）」節参照。
 
 use fandhe_frontend_pre_styled_ui::select;
 
@@ -170,6 +183,7 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
 
 [data-scope="select"][data-part="item-indicator"] {
   margin-left: auto;
+  flex-shrink: 0;
 }
 
 [data-scope="select"][data-part="hidden-select"] {
@@ -263,6 +277,12 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   --fandhe-select-trigger-border-color: transparent;
 }
 
+[data-scope="select"][data-part="root"].fd-select--item-indicator-placement-start {
+  --fandhe-select-item-indicator-order: -1;
+  --fandhe-select-item-indicator-margin-left: 0;
+  --fandhe-select-item-indicator-placeholder-display: block;
+}
+
 [data-scope="select"][data-part="trigger"][data-state="open"] {
   border-color: var(--fandhe-color-accent);
 }
@@ -322,6 +342,16 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   left: 0;
   margin-top: 0;
   transform: translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0);
+}
+
+[data-scope="select"][data-part="item-indicator"][data-state] {
+  order: var(--fandhe-select-item-indicator-order, 0);
+  margin-left: var(--fandhe-select-item-indicator-margin-left, auto);
+}
+
+[data-scope="select"][data-part="item-indicator"][hidden] {
+  display: var(--fandhe-select-item-indicator-placeholder-display, none);
+  visibility: hidden;
 }
 
 [data-scope="select"][data-part="content"][hidden] {
@@ -453,6 +483,7 @@ const SELECT_GOLDEN_CSS_BEFORE_2391: &str = r#"[data-scope="select"][data-part="
 
 [data-scope="select"][data-part="item-indicator"] {
   margin-left: auto;
+  flex-shrink: 0;
 }
 
 [data-scope="select"][data-part="hidden-select"] {
@@ -822,6 +853,7 @@ fn golden_prefix_through_hidden_select_is_unchanged() {
 
 [data-scope="select"][data-part="item-indicator"] {
   margin-left: auto;
+  flex-shrink: 0;
 }
 
 [data-scope="select"][data-part="hidden-select"] {

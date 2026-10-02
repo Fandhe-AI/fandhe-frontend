@@ -544,8 +544,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `feature_accordion_image` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節。他 block と同型で
+/// `feature_accordion_image` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。他 block と同型で
 /// `pub(super)` ではなく本ファイル内 private 定数として `super::stylesheet`
 /// 経由の `push_css` で連結される）。
 ///

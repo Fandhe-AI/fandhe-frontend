@@ -256,8 +256,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `hero_social_proof` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節、他 block と同型で `pub(super)` として
+/// `hero_social_proof` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、他 block と同型で `pub(super)` として
 /// `super::stylesheet` から連結される）。`sm`（640px）未満は既定
 /// mobile-first（column）、`min-width: 40rem` で row に切り替える
 /// （`Breakpoint::Sm` と揃えたリテラル直書き。block 固有 CSS は

@@ -268,8 +268,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `api_reference_props_table` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。
+/// `api_reference_props_table` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。
 ///
 /// 色はすべて既存トークン（`--fandhe-color-fg-muted` 等）のみを使う。
 /// セルの上揃えは `[data-scope="table"]` を前置した複合セレクタで書く

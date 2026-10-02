@@ -63,7 +63,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | 単純 styled 部品 | `skeleton`（ローディングプレースホルダー。形状軸 `variant`（`text`/`circle`/`rect`）+ アニメーション軸 `animation`（`pulse`(既定)/`shine`/`none`、イシュー #1566）、常時 `aria-hidden="true"`、`color-palette`/`size` 軸は非提供、`prefers-reduced-motion: reduce` でアニメーション停止） | [skeleton](../../site/themes/skeleton.md) |
 | 単純 styled 部品 | `image`（写真等の静的コンテンツを表示する `<img>`。`ImageFit`（`object-fit`）/`AspectRatio`（`Auto`/`Square`/`Landscape`/`Portrait`/`Video`）/`ImageShape`（角丸、`Square`/`Rounded`/`Circle`）の 3 軸 variant、`alt` 必須引数。base は `height: auto` を持つ（イシュー #1562）。headless-ui `avatar` の `ImageStatus` 状態機械とは独立。中立的な表示部品のため `color-palette` 軸は非提供） | [image](../../site/themes/image.md) |
 | 単純 styled 部品 | `icon`（インライン SVG の寸法を統一する `<svg>` ラッパー。`size` variant のみ（`Xs`〜`Xl` の 5 段、既定 `Md`。イシュー #1561 で chakra-ui 同名段の実寸へ是正）、`color: currentColor` 継承のため `color-palette` 軸は非提供。SVG 本体（`path` 等）は呼び出し側がノード木 API で構築し、外部リソース（`href`/`xlink:href`）は本モジュール自身が参照しない） | [icon](../../site/themes/icon.md) |
-| 単純 styled 部品 | `separator`（区切り線、`<hr>`。`orientation`（horizontal/vertical）・`variant`（solid/dashed/dotted、イシュー #1585 で dotted 追加）の 2 軸、常時 `role="separator"`/`aria-orientation`/`data-orientation` を出力、罫線の太さは `--fandhe-separator-thickness`（既定 1px、イシュー #1585）の上書きで変更、`color-palette`/`size` 軸は非提供。`group`/`label`（pre-styled-only、イシュー #2053、shadcn/ui 突合で補完したラベル付き区切り線パート）） | [separator](../../site/themes/separator.md) |
+| 単純 styled 部品 | `separator`（区切り線、`<hr>`。`orientation`（horizontal/vertical）・`variant`（solid/dashed/dotted、イシュー #1585 で dotted 追加）の 2 軸、常時 `role="separator"`/`aria-orientation`/`data-orientation` を出力、罫線の太さは `--fandhe-separator-thickness`（既定 1px、イシュー #1585）の上書きで変更、`color-palette`/`size` 軸は非提供。`group`/`label`（pre-styled-only、イシュー #2053、shadcn/ui 突合で補完したラベル付き区切り線パート）。`group_with`（`SeparatorLabelPosition`: `center`〔既定〕/`start`、イシュー #3137）でラベル位置を opt-in で切り替え可能） | [separator](../../site/themes/separator.md) |
 | 単純 styled 部品 | `highlight`（テキスト中の一致語句を `<mark>` で強調する `<span>` + `<mark>`。`query`（複数可）・`ignore_case`（ASCII 限定）・`match_all` の 3 プロパティ。一致判定は正規表現不使用の決定的な部分文字列検索のみ（ReDoS 非該当）。`color-palette`/`size` 軸は非提供） | [highlight](../../site/themes/highlight.md) |
 | 単純 styled 部品 | `visually_hidden`（視覚的には隠すが支援技術には読ませ続けるテキストコンテナ。variant 軸を持たず clip 手法の CSS のみ。`aria-hidden` を一切出力しない） | [visually-hidden](../../site/themes/visually-hidden.md) |
 | 単純 styled 部品 | `skip_nav`（WCAG 2.1 SC 2.4.1 Bypass Blocks 対応の「本文へスキップ」リンク。`link`/`content` の 2 slot recipe。`link` は `visually_hidden` の clip 手法を base に持ち `:focus-visible` でのみ視覚的に復元する。docs-site の全ページレイアウトへ実適用済み） | [skip-nav](../../site/themes/skip-nav.md) |
@@ -78,7 +78,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | 静的フォーム部品 | `fieldset`（§4f-2 参照。`<fieldset>`/`<legend>` グループコンテナ、`size` 軸のみ） | [fieldset](../../site/themes/fieldset.md) |
 | 静的フォーム部品 | `input_group`（§4f-3 参照。入力欄の前後 addon、軸なし） | [input-group](../../site/themes/input-group.md) |
 | headless ラッパー | `item`（§4f-4 参照。media + title/description + actions からなる汎用リスト行。`variant`/`size` は headless の `data-variant`/`data-size` を AttrEq 参照するのみで class ベース軸を持たない） | [item](../../site/themes/item.md) |
-| headless ラッパー | `command`（§4f-5 参照。cmdk 由来のコマンドパレット。10 パーツ構成、軸なし） | [command](../../site/themes/command.md) |
+| headless ラッパー | `command`（§4f-5 参照。cmdk 由来のコマンドパレット。headless 10 パーツ + pre-styled-only `footer` の計 11 パーツ構成、軸なし） | [command](../../site/themes/command.md) |
 | headless ラッパー | `message`（§4f-6 参照。会話 1 発言。6 パーツ構成、軸なし。data-role/data-align/data-loading/data-error を AttrEq/Attr 参照するのみ） | [message](../../site/themes/message.md) |
 | headless ラッパー | `bubble`（§4f-7 参照。チャット吹き出し 1 個。6 パーツ構成、軸なし。data-variant/data-align/data-group-position/data-selected/data-state を AttrEq/Attr/AttrEqAll 参照するのみ） | [bubble](../../site/themes/bubble.md) |
 | headless ラッパー | `attachment`（§4f-8 参照。添付ファイル 1 件。8 パーツ構成、軸なし。data-variant/data-state/data-disabled を AttrEq/Attr 参照するのみ） | [attachment](../../site/themes/attachment.md) |
@@ -101,8 +101,8 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `combobox`（`select` と同型の `size` variant のみ・`color-palette` 軸は非提供。状態機械は `state::Disclosure` + `state::SingleSelect` + `state::TextInput` の合成。フォーカスは `input` が保持するため `:focus-visible` を `input` へ、`:focus-within` を `control` へ登録する） | [combobox](../../site/themes/combobox.md) |
 | headless ラッパー | `tree_view`（イシュー #1578 で `root` へのみクラスを付与する `size` variant（xs〜xl、既定 md。行密度・文字サイズを切り替える）を新設。`color-palette` 軸は非提供（`popover`/`tooltip` と同型の判断）。branch のインデントは CSS custom property（`--fandhe-tree-view-indent`）で表現し、DOM ネストにより深さ分が自然に累積する（`size` では上書きしない）） | [tree-view](../../site/themes/tree-view.md) |
 | headless ラッパー（`tree_view` の派生） | `json_tree_view`（構造部は `tree_view` の既存 recipe をそのまま再利用するため `tree_view` の `size` variant を継承する。JSON 固有の `key`/`colon`/`value`（`data-scope="json-tree-view"`）3 パーツのうち `key`/`value` の型別配色のみを追加する。`colon` はイシュー #1661 で headless 側に新設されたが本モジュールでは意図的に未スタイル。`value` の `data-kind` へ型別配色（`string`/`number`/`boolean`/`null` の 4 種、`object`/`array` は既定色のまま）を適用。本モジュール固有の `size`/`color-palette` 軸は非提供） | [json-tree-view](../../site/themes/json-tree-view.md) |
-| headless ラッパー | `pagination`（`size`/`color-palette` 両軸提供） | [pagination](../../site/themes/pagination.md) |
-| headless ラッパー | `steps`（`size`/`color-palette` 両軸。`fandhe_frontend_headless_ui::steps` が自由関数を持たず全パーツが `Steps` の inherent メソッドのため、本モジュールの全パーツ関数が `state: &Steps` を受け取る点が他コンポーネントと異なる。PR #1814 codex-review 対応で追加した `body`（`data-scope="steps" data-part="body"`）のみ headless に対応物を持たない pre-styled-ui 専用のグルーピングパーツで、`state: &Steps` を取らずプレーンな `<div>` を直接構築する。縦向き（`Orientation::Vertical`）で `root` が `flex-direction: row` へ切り替わる際、`list` 以外を `body` でまとめて `root` 直下を `list`/`body` の 2 要素に保つ契約〔`steps::root` rustdoc 参照〕） | [steps](../../site/themes/steps.md) |
+| headless ラッパー | `pagination`（`size`/`color-palette` 両軸提供。`root_with` 経由で連結表示 `variant`（`PaginationVariant`、既定 `Separated`、イシュー #3136）を opt-in 提供） | [pagination](../../site/themes/pagination.md) |
+| headless ラッパー | `steps`（`size`/`color-palette` 両軸。`fandhe_frontend_headless_ui::steps` が自由関数を持たず全パーツが `Steps` の inherent メソッドのため、本モジュールの全パーツ関数が `state: &Steps` を受け取る点が他コンポーネントと異なる。PR #1814 codex-review 対応で追加した `body`（`data-scope="steps" data-part="body"`）のみ headless に対応物を持たない pre-styled-ui 専用のグルーピングパーツで、`state: &Steps` を取らずプレーンな `<div>` を直接構築する。縦向き（`Orientation::Vertical`）で `root` が `flex-direction: row` へ切り替わる際、`list` 以外を `body` でまとめて `root` 直下を `list`/`body` の 2 要素に保つ契約〔`steps::root` rustdoc 参照〕。イシュー #3139 で `StepsVariant`（`Circle` 既定/`Bar`/`Panel`/`Dot`）を純追加し、`root_with`/`list_with`/`item_with`/`indicator_with`/`separator_with` が `Circle` 以外のとき該当 slot へ単独クラスを付与する。`Circle` は既存関数とバイト一致） | [steps](../../site/themes/steps.md) |
 | headless ラッパー | `breadcrumb`（状態機械なし。`size`/`BreadcrumbVariant`（`link` の下線表示切り替え）の 2 軸 variant を root のみへ付与し、`link` への伝搬は root スコープ CSS custom property の継承で行う） | [breadcrumb](../../site/themes/breadcrumb.md) |
 | headless ラッパー | `carousel`（`size` variant のみ・`color-palette` 軸は非提供（選択・チェック状態を示す部品ではないため）。`item-group` の transform は `--fandhe-carousel-index` CSS カスタムプロパティ 1 点のみで伝搬し、`data-orientation="vertical"` で `translateX`/`translateY` を切り替える。autoplay は初期実装スコープ外） | [carousel](../../site/themes/carousel.md) |
 | headless ラッパー | `drawer`（dialog の変種。状態機械は headless の `dialog::Dialog` をそのまま再利用し新規状態機械は作らない。`size`（drawer の占有幅/高さ）variant のみを root へ付与し `color-palette` 軸は非提供。placement（`start`/`end`/`top`/`bottom`）は variant ではなく headless 層が出力する `data-placement` に連動する CSS で表現する。dialog と対称の `close-trigger` text variant（イシュー #2193）も持つが、`fandhe-frontend-wasm-full` が drawer scope を未配線のため現状 inert。イシュー #3128 で `dialog::body`/`dialog::footer` と同型の pre-styled-only `body`/`footer` パートを追加した。headless anatomy は変更せず、`content` の attrs へ `data-has-body` を渡したときのみ opt-in で flex column 化し `body` が残り高さを埋めてスクロールする。イシュー #3129 で pre-styled-only `header` パート（全幅アクセント帯のレイアウト）と、`header`/`description`/`close_trigger` への `data-tone="accent"` state・`content`/`close_trigger` への `data-close-outside`（外側 close-trigger 配置）を追加した。いずれも headless anatomy 無変更の opt-in 属性で、既存呼び出しには影響しない） | [drawer](../../site/themes/drawer.md) |
@@ -114,11 +114,11 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `navigation_menu`（イシュー #993。`size`/`color-palette` 軸は非提供。トリガー起点で開閉するナビゲーションパネル。`item` に `position: relative`、`content` に `position: absolute; top: 100%; left: 0;` を宣言する一般的なナビゲーションドロップダウン構成。`list` の `align-items` は `center` ではなく `flex-start` を既定にし、`content` 展開時に他項目が縦ずれする回帰を構造的に防ぐ。開いている trigger の視覚強調は `data-state="open"`、アクティブリンクの強調は `data-current` で行う。**イシュー #2187**: `root` へ `position: relative` を追加し、ルートレベル `indicator` の絶対配置基準点とする。`indicator` は `--fandhe-navigation-menu-indicator-x`/`-width`（horizontal）・`-y`/`-height`（vertical）の CSS 変数契約を既定 `0px` フォールバック付きで宣言し、実座標が書き込まれない間は不可視（`pointer-events: none`）。実座標の書き込みは `fandhe-frontend-wasm-full` の責務） | [navigation-menu](../../site/themes/navigation-menu.md) |
 | pre-styled-ui 単独定義（headless-ui 変更なし、`checkbox_card`/`radio_card` §4g と同型の判断） | `tab_nav`（イシュー #996。新規 anatomy `data-scope="tab-nav"` を定義し `role="tablist"`/`role="tab"` を一切出力しない。見た目は自前の宣言列から生成する（イシュー #1541 で `tabs.rs` の `pub(crate)` ヘルパ共有を解消）。現在ページは `aria-current="page"` で示す。`size` 軸を持ち、`root_with` 経由で pill/bar variant（`TabNavVariant`、イシュー #3125/#3126）・`color-palette` 軸を opt-in 提供） | [tab-nav](../../site/themes/tab-nav.md) |
 | headless ラッパー | `checkbox_group`（イシュー #997。単一選択版 `radio_group` と対称の構造。`item-hidden-input` slot を持たず、利用時は `checkbox::stylesheet()` も併せて読み込む必要がある。`size`/`color-palette` 両軸提供） | [checkbox-group](../../site/themes/checkbox-group.md) |
-| headless ラッパー | `toast`（`placement`（`group` slot）/`status`（`root` slot、`ColorPalette` 6 役割束ね〔`palette_scale_declarations`〕による淡色面配色。イシュー #1544）の 2 軸 variant を持つが、各軸が別 slot へ付与されるため `variant_class`（単一軸専用 API）をスロットごとに個別に呼ぶ。`Toaster` 状態機械は再エクスポートしない。#1545: action-trigger/close-trigger の hover/focus/disabled・`root` の mount 時 enter 遷移（`@keyframes fd-toast-enter`）・`group`/`root` のスタック配置固定幅化を追加。`close-trigger` はアイコン専用契約への破壊的変更（0.64.0）。タイマー自動 dismiss・`ActionTrigger` の動作配線は wasm-full 後続のスコープ外。イシュー #2543: `toast_motion`（`motion` feature 配下）で stack 表示（積層・hover/focus-within 展開）を opt-in 追加。`STACK_ATTR`/`stack_group_keyed`/`Theme::to_css_with_toast_motion`） | [toast](../../site/themes/toast.md) |
+| headless ラッパー | `toast`（`placement`（`group` slot）/`status`（`root` slot、`ColorPalette` 6 役割束ね〔`palette_scale_declarations`〕による淡色面配色。イシュー #1544）の 2 軸 variant を持つが、各軸が別 slot へ付与されるため `variant_class`（単一軸専用 API）をスロットごとに個別に呼ぶ。`Toaster` 状態機械は再エクスポートしない。#1545: action-trigger/close-trigger の hover/focus/disabled・`root` の mount 時 enter 遷移（`@keyframes fd-toast-enter`）・`group`/`root` のスタック配置固定幅化を追加。`close-trigger` はアイコン専用契約への破壊的変更（0.64.0）。タイマー自動 dismiss・`ActionTrigger` の動作配線は wasm-full 後続のスコープ外。イシュー #2543: `toast_motion`（`motion` feature 配下）で stack 表示（積層・hover/focus-within 展開）を opt-in 追加。`STACK_ATTR`/`stack_group_keyed`/`Theme::to_css_with_toast_motion`。イシュー #3142: pre-styled-only `content`/`actions` パート + `ACTIONS_COLUMN_ATTR` で右端アクション列（全高 1 ボタン、または縦 2 分割）を opt-in 追加） | [toast](../../site/themes/toast.md) |
 | headless ラッパー | `hover_card`（`popover`/`tooltip` と同型の判断で variant は非提供。構造上最も近い先行例は `tooltip`。`content` の開閉連動・`--fandhe-reference-width` 非消費・focus-visible リングを継承する） | [hover-card](../../site/themes/hover-card.md) |
 | headless ラッパー | `toggle_tip`（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。「見た目は Tooltip・挙動は Popover」の変種であり、`content` の視覚系は `tooltip` と同一値。状態機械は `state::Disclosure`） | [toggle-tip](../../site/themes/toggle-tip.md) |
 | headless ラッパー | `collapsible`（glob 再エクスポート。参照 3 サイト（chakra-ui/Ark UI/Radix Primitives）のいずれも `size`/`variant`/`color-palette` を持たないため variant 軸は非提供。開閉時の高さトランジションは `@starting-style`/`transition-behavior: allow-discrete` + `fandhe-frontend-wasm-full` の実測高さ CSS 変数で JS 有効時のみ適用（イシュー #2192、案 C）。イシュー #1682/#1683） | [collapsible](../../site/themes/collapsible.md) |
-| headless ラッパー | `progress`（イシュー #1564。headless の値状態機械 `Progress` が持つ Track/Range（linear）と Circle/CircleTrack/CircleRange（SVG、circular）の両方へ CSS を追加提供。`Progress` 型はあえて再エクスポートせず、`ProgressProps`（`size`/`variant`/`color-palette` の 3 軸）を付与する styled `root` と、determinate 時のみ `--fandhe-progress-percent` を付与する styled `range` の 2 つを新設する。track/circle 系は headless の inherent メソッドをそのまま呼ばせる（クラス不要）。indeterminate 時のアニメーション（linear は横スライド・circular は回転）は `[data-part="..."][data-state="indeterminate"]` セレクタ + `@keyframes` で提供し、`prefers-reduced-motion: reduce` で停止する。イシュー #1688: circular indeterminate は circle 全体の回転に加え、circle-range へ固定長の弧〔`stroke-dasharray`〕を与えて塗り色の完全リングと `complete` 状態を視覚的に区別できるようにする。イシュー #2049: shadcn/ui と突合し `ProgressVariant::Plain`（枠線なし中立トラック）を純追加） | [progress](../../site/themes/progress.md) |
+| headless ラッパー | `progress`（イシュー #1564。headless の値状態機械 `Progress` が持つ Track/Range（linear）と Circle/CircleTrack/CircleRange（SVG、circular）の両方へ CSS を追加提供。`Progress` 型はあえて再エクスポートせず、`ProgressProps`（`size`/`variant`/`color-palette` の 3 軸）を付与する styled `root` と、determinate 時のみ `--fandhe-progress-percent` を付与する styled `range` の 2 つを新設する。track/circle 系は headless の inherent メソッドをそのまま呼ばせる（クラス不要）。indeterminate 時のアニメーション（linear は横スライド・circular は回転）は `[data-part="..."][data-state="indeterminate"]` セレクタ + `@keyframes` で提供し、`prefers-reduced-motion: reduce` で停止する。イシュー #1688: circular indeterminate は circle 全体の回転に加え、circle-range へ固定長の弧〔`stroke-dasharray`〕を与えて塗り色の完全リングと `complete` 状態を視覚的に区別できるようにする。イシュー #2049: shadcn/ui と突合し `ProgressVariant::Plain`（枠線なし中立トラック）を純追加。イシュー #3140: headless-ui の anatomy には存在しない pre-styled-only パート `marker_group`/`marker`（マイルストーンの目盛りラベル）を純追加。`marker` は `value` と現在値の比較で `data-state`（`under-value`/`at-value`/`over-value`）を自前算出し、配置は値に比例した絶対配置ではなく CSS Grid の等間隔列が担う） | [progress](../../site/themes/progress.md) |
 | 単純 styled 部品（静的） | `tag` / `kbd` / `code`（`tag` は `variant`（Solid/Subtle（既定）/Outline/Surface の 4 値、イシュー #1573 で Surface を追加）/`size`/`color-palette` の 3 軸 variant を持つ root/label/close-trigger の 3 パーツ。`badge` と同型の判断。close-trigger は状態機械を持たず `data-action` 属性の出力のみを担う。`code` は variant 軸を持たない単一 slot。`kbd` は `variant`（raised（既定）/subtle/outline の 3 値、イシュー #1436）/`size`/`color-palette` の 3 軸 variant を持つ `root` slot に加え、`group`〔shadcn/ui `KbdGroup` 相当、イシュー #2048〕の pre-styled-only 2 slot 構成） | [tag](../../site/themes/tag.md) / [kbd](../../site/themes/kbd.md) / [code](../../site/themes/code.md) |
 | 状態機械を要しない静的部品 | `status` / `empty_state`（§4h 参照。`status` は `size`/`color-palette` の 2 軸、`empty_state` は `card` と同型の中立コンテナで `color-palette` 軸は非提供） | [status](../../site/themes/status.md) / [empty-state](../../site/themes/empty-state.md) |
 | headless ラッパー | `clipboard`（`hover_card`/`toggle_tip` と同型の判断で variant は非提供。Indicator の可視性切り替えは `avatar` の image/fallback と同型の `data-state` 多層防御パターン。`navigator.clipboard.writeText` 実配線は `fandhe-frontend-wasm-full::headless_clipboard` が提供） | [clipboard](../../site/themes/clipboard.md) |
@@ -126,7 +126,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `qr_code`（headless の外部依存ゼロ QR Model 2 エンコーダ（`crates/headless-ui/src/qr_code.rs`）へ CSS のみ追加提供。`size` variant のみ・`color-palette` 軸は非提供（前景/背景色は固定トークンに閉じ、低コントラスト組み合わせを誘発しないための意図的判断）。`Frame`/`Pattern`/`Overlay` は headless 自由関数をそのまま選択的に再エクスポートする。`overlay` は `root` の `--fandhe-qr-code-overlay-size`（`--fandhe-qr-code-size` の 1/3、chakra-ui 準拠）custom property により中央固定表示される、イシュー #1565） | [qr-code](../../site/themes/qr-code.md) |
 | headless ラッパー（Button recipe 流用） | `download_trigger`（`a[download]` 属性による静的ダウンロードトリガー。独自 CSS 宣言を持たず `crate::button::recipe_with_scope("download-trigger")` へ委譲し、`variant`/`size`/`color-palette` の宣言・既定値を Button と共有する。`disabled`/`loading` は `a` 要素の意味論に存在しないため非提供） | [download-trigger](../../site/themes/download-trigger.md) |
 | 状態機械を持たない静的表示部品 | `table` / `data_list`（`card` と同型。headless-ui 側に対応する anatomy を持たず本クレートで新規 anatomy `table`/`data-list` を定義する。`table` は 10 パーツ（`root`/`header`/`body`/`footer`/`row`/`column-header`/`cell`/`row-header`〔`<th scope="row">`、イシュー #2825〕/`caption`/`scroll-area`）で、`variant`（`Line`/`Outline`）/`size`（`Size` 5 段、既定 `Md`）/`striped`/`sticky_header`/`interactive` の 5 軸 variant を持ち、striped は新設の `StateCondition::NthChildEven` で表現、`sticky_header`（イシュー #1571）は `column-header` を `position: sticky` にする。`interactive`（イシュー #2052、shadcn/ui 突合）は `row` に `bg-muted` の hover 背景を付ける opt-in variant。呼び出し側が付与する共有語彙 `data-selected`（行選択、`accent-subtle`/`accent-fg-subtle`）・`data-align`（`start`/`center`/`end`、headless `positioning.rs` と共有）の消費側規則も持つ。`scroll_area`（イシュー #1572、chakra `Table.ScrollArea` 相当）は状態を持たない専用パーツで `root` を包むスクロール枠を提供する。`data_list` は `orientation`（`Vertical`/`Horizontal`）/`variant`（`Subtle`/`Bold`）/`size`（`Size` 5 段、既定 `Md`）の 3 軸を持つ、イシュー #1559） | [table](../../site/themes/table.md) / [data-list](../../site/themes/data-list.md) |
-| 静的部品（新規 anatomy） | `stat` / `timeline`（ark-ui に対応する headless anatomy が存在しないため pre-styled-ui 層で新規 anatomy `data-scope="stat"`/`"timeline"` を定義。`stat` は `<dl>`/`<dt>`/`<dd>` を使い `size` variant のみ・`color-palette` 軸は非提供、増減 indicator は `rating_group` と同型の `clip-path` インライン三角形（イシュー #1568 で chakra-ui v3 基準（xs=lg〜xl=4xl の等差進行・letter-spacing/line-height・indicator 余白）へ調整済み）。`timeline` は `<ol>`/`<li>` を使い `variant`（`TimelineVariant`: solid/subtle/outline/plain）/`size`/`color-palette` の 3 軸を root のみへ付与し `indicator`/`separator` へは CSS custom property の継承で伝搬） | [stat](../../site/themes/stat.md) / [timeline](../../site/themes/timeline.md) |
+| 静的部品（新規 anatomy） | `stat` / `timeline`（ark-ui に対応する headless anatomy が存在しないため pre-styled-ui 層で新規 anatomy `data-scope="stat"`/`"timeline"` を定義。`stat` は `<dl>`/`<dt>`/`<dd>` を使い `size` variant のみ・`color-palette` 軸は非提供、増減 indicator は `rating_group` と同型の `clip-path` インライン三角形（イシュー #1568 で chakra-ui v3 基準（xs=lg〜xl=4xl の等差進行・letter-spacing/line-height・indicator 余白）へ調整済み）。`stat` はイシュー #3138 で `delta` パート（矢印なし・`tone`（`StatDeltaTone`: neutral/success/danger）軸で意味色のみを示す増減率表示）を純追加した。`tone` 軸は `delta` パートのみへ付与し `default_variant` を登録しないため `root` の class 出力には影響しない。`timeline` は `<ol>`/`<li>` を使い `variant`（`TimelineVariant`: solid/subtle/outline/plain）/`size`/`color-palette` の 3 軸を root のみへ付与し `indicator`/`separator` へは CSS custom property の継承で伝搬） | [stat](../../site/themes/stat.md) / [timeline](../../site/themes/timeline.md) |
 | headless ラッパー | `floating_panel`（`fandhe_frontend_headless_ui::floating_panel` の Root/Trigger/Positioner/Content/Header/Title/Control/StageTrigger/CloseTrigger/Body 10 anatomy パーツと `FloatingPanel` 状態機械をそのまま再エクスポートし CSS のみ追加提供する薄いラッパー。variant（`size`/`color-palette`）は非提供。`content` の開閉 `data-state` に加え `body` の `data-stage="minimized"`（折り畳み）・`positioner` の `data-stage="maximized"`（ビューポート全面表示）を CSS で切り替える。`positioner` は `position: fixed` を基点に headless 側の `--fandhe-x`/`--fandhe-y` を `transform: translate3d(...)` で反映し、z-index は dialog モーダル層（1000/1001）未満・menu/popover の dropdown 層（10）超の専用 tier（`900`）を割り当てる） | [floating-panel](../../site/themes/floating-panel.md) |
 | headless ラッパー | `scroll_area`（状態機械なし。variant は非提供（イシュー #1584 で再確認）。`viewport` へ `overflow: auto` + `scrollbar-width`/`scrollbar-color`（標準プロパティ）を付与し、`stylesheet()` が `recipe().css()` に続けて `::-webkit-scrollbar` 系規則を固定文字列として追記する。`scrollbar`/`thumb`/`corner` は JS によるスクロール位置追従がスコープ外のため初期実装では `display: none` にしてネイティブスクロールバーの装飾で代替する。thumb 色は custom property `--fandhe-scroll-area-thumb-bg`（既定 `fg-subtle` → `border-emphasized` → `border` のフォールバック連鎖、hover/focus 時は `--fandhe-scroll-area-thumb-hover-bg` = `fg` → 同じ `fg-subtle` → `border-emphasized` → `border` の連鎖へ強調）で一元化されており、利用側が `root` へ再定義するだけで chakra `variant="hover"` 相当の見た目を variant 軸を新設せず再現できる。フォーカスリングは `focus_ring_declarations`（`Token`/`Inset`）による canonical 表現、イシュー #1584。イシュー #2054（shadcn/ui 突合）で `viewport` の opt-in 属性 2 個を補完: `data-orientation="horizontal"`（横スクロール、headless `data_attrs::data_orientation` と共有する既存語彙、`content` を `display: flex; width: max-content;` にする子結合子規則）・`data-fade`（端フェード、`mask-image` の `linear-gradient`。`animation-timeline: scroll()` 対応ブラウザでは `@supports` 配下でスクロール量連動、非対応時は両端固定フェード。custom property `--fandhe-scroll-area-fade-size`（既定 `min(12%, 2.5rem)`）/`--fandhe-scroll-area-fade-reveal`（既定 `2rem`）/`--fandhe-scroll-area-fade-start`/`--fandhe-scroll-area-fade-end` を持つ）) | [scroll-area](../../site/themes/scroll-area.md) |
 | headless ラッパー | `splitter`（`size` variant のみを root へ持ち `resize-trigger` の厚みと `panel` の余白（`--fandhe-splitter-panel-padding`）へ継承、`color-palette` はセパレータの強調色にのみ使う。動的値は `panel` の `--fandhe-splitter-size`（flex-basis 経由）の 1 点のみ。`resize-trigger` はネイティブ `<div tabindex>` が実フォーカスを受けるため `FocusVisible` state condition で足りる。`root` は 1px 外枠・角丸・背景を持つ） | [splitter](../../site/themes/splitter.md) |
@@ -135,7 +135,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | 単純 styled 部品（静的） | `color_swatch`（headless-ui に対応する anatomy を新設しない（headless 列は「—」のまま）。色値は `fandhe_frontend_headless_ui::color::Color` 型のみを受け取り（本モジュールが再エクスポート）、任意文字列を受け取る API は持たない。`size`（`Xs`〜`Xl` の 5 段、既定 `Md`。イシュー #1558 で chakra-ui 同名段の実寸へ是正）/`shape`（`Square`/`Circle`/`Rounded`、既定）の 2 軸 variant。`color-palette` 軸は非提供（表示する色そのものが `value` で決まるため）。透過色は `background-image` の 2 レイヤー（前面に色レイヤー、背面に固定チェッカーボード模様）で表現する。内側 1px の輪郭リング（`box-shadow: inset`、`--fandhe-color-border-muted` トークン参照）を持ち、淡色・低アルファ色でも外形が判別できる（イシュー #1558）。base は `inline-flex` 中央寄せ） | [color-swatch](../../site/themes/color-swatch.md) |
 | headless ラッパー（canvas 非依存） | `color_picker`（`fandhe_frontend_headless_ui::color_picker::ColorPicker`（HSV + アルファ + `Disclosure`）はあえて再エクスポートしない（headless-ui から直接 import する）。動的値は custom property の注入 5 箇所のみ: `area_background` の `--fandhe-color-picker-hue-color`・`area_thumb` の `--fandhe-color-picker-x`/`-y`・`channel_slider_track`（`Channel::Alpha` のみ）の `--fandhe-color-picker-alpha-color`・`channel_slider_thumb` の `--fandhe-color-picker-thumb-percent`・`trigger` の `--fandhe-color-picker-preview`。`size`/`color-palette` variant・`saturation-slider`/`value-slider` 専用スタイル（2 次元 `area` が代替）は非提供（最小サブセット、スコープ外は `crates/pre-styled-ui/src/color_picker.rs` rustdoc 参照）） | [color-picker](../../site/themes/color-picker.md) |
 | headless ラッパー | `file_upload`（`size` variant のみ・`color-palette` 軸は非提供（フォーム入力部品）。実操作対象の `dropzone` へ `:focus-visible` を登録（ネイティブ `<input type="file">` は視覚的に非表示にするため）。`hidden-input` slot は CSS 非登録。`FileUpload` 状態機械はあえて再エクスポートしない。styled `root` は `(size, &FileUploadProps, dragging, attrs, children)` へシグネチャ変更し、headless 側の破壊的変更（`FileUploadProps`/`ItemType` 新設、参照突合イシュー #1609）へ追随した） | [file-upload](../../site/themes/file-upload.md) |
-| headless ラッパー | `calendar`（`size` variant のみ、`color-palette` 軸は非提供。`day-trigger` の `data-selected`/`data-today`/`data-outside-month`/`data-disabled` を CSS で切り替える。`Calendar` 状態機械はあえて再エクスポートしない。`day_trigger` の `date` 引数向けに `PlainDate`/`Weekday`（`fandhe_frontend_headless_ui::date`）も再エクスポートする） | [calendar](../../site/themes/calendar.md) |
+| headless ラッパー | `calendar`（`root_with` 経由で variant（outline / plain）・cell-size（compact / large）を opt-in 提供（#3132）。`color-palette` 軸は非提供。`day-trigger` の `data-selected`/`data-today`/`data-outside-month`/`data-disabled` を CSS で切り替える。`Calendar` 状態機械はあえて再エクスポートしない。`day_trigger` の `date` 引数向けに `PlainDate`/`Weekday`（`fandhe_frontend_headless_ui::date`）も再エクスポートする） | [calendar](../../site/themes/calendar.md) |
 | headless ラッパー | `date_picker`（popover 基盤（`state::Disclosure`）を再利用する `crate::calendar` と同型の判断。`size` variant のみ。`content` 内部に `crate::calendar` の styled パーツを合成する想定。`DatePicker` 状態機械はあえて再エクスポートしない。イシュー #1627 以降、styled `root` は `&DatePickerProps` を追加引数として headless `root` へ透過する） | [date-picker](../../site/themes/date-picker.md) |
 | headless ラッパー | `timer`（`clipboard` と同型の判断で variant は非提供。`item-value` に `font-variant-numeric: tabular-nums` を付与し桁の増減時のレイアウトシフトを防ぐ。`root` の `data-state`（`completed` / `paused`）に応じて `--fandhe-timer-value-color` 経由で `item-value` の色を切り替え、`action-trigger` は outline 風ボタン（hover / focus-visible リング / disabled / transition）を持つ。実 tick 駆動（`setInterval`）は `fandhe-frontend-wasm-full::headless_timer` が提供する） | [timer](../../site/themes/timer.md) |
 | 静的部品（新規 anatomy、charts 基盤上層） | `charts::scatter_chart` / `charts::radar_chart`（`charts`（`ChartData`/`LinearScale`/SVG ヘルパー）の上に実装。headless-ui は変更なし、pre-styled 層で新規 anatomy `data-scope="scatter-chart"`/`"radar-chart"` を定義。`scatter_chart` は `ChartData` では表現できない `(x, y)` 数値ペアの集合を独自の `ScatterData`/`ScatterSeries` で表現し、x/y 双方の `LinearScale` で 2 軸写像する。`radar_chart` は `ChartData`（カテゴリ = 軸、系列 = ポリゴン）をそのまま使い、軸 index `i`・軸数 `n` から頂点角度 `θ_i = -π/2 + i・2π/n`（12 時方向開始・時計回り）を算出する private ヘルパへ角度→座標変換を一元化する。軸数 3 未満は `ChartError::TooFewAxes`、負値は `ChartError::NegativeValue`、プロット領域が小さすぎる場合は `ChartError::PlotAreaTooSmall` として構築時に拒否する（fail-closed）。`size`/`color-palette` variant は非提供（色は系列インデックスからの `series_color_var` インライン `fill` 属性で決まる静的部品）。イシュー #2085 で `radar_chart` へ grid/fill/dots/axis-label/radius-axis の静的バリアントを純追加した（下記「RadarChart の shadcn/ui 突合バリアント」節参照）） | [scatter-chart](../../site/themes/scatter-chart.md) / [radar-chart](../../site/themes/radar-chart.md) |
@@ -225,21 +225,37 @@ re-export（規約 A）へ移行したため本数から外れた。現況は `p
 | `toggle_tip` | `OpenState` / `DisclosureAction` | `state`（`tooltip` と同型の glob re-export） |
 | `collapsible` | `OpenState` / `DisclosureAction` | `state`（`toggle_tip` と同型の glob re-export、イシュー #1682） |
 
-`select` は共通 shape 軸（`recipe::Shape`）と見た目 variant 軸
-（`SelectVariant`）を `root_with(size, shape: Option<Shape>, variant:
-SelectVariant, state, props, attrs, children)` で提供する（既存
+`select` は共通 shape 軸（`recipe::Shape`）・見た目 variant 軸
+（`SelectVariant`）・選択インジケータ位置軸
+（`select::ItemIndicatorPlacement`）を `root_with(size, shape:
+Option<Shape>, variant: SelectVariant, item_indicator_placement:
+ItemIndicatorPlacement, state, props, attrs, children)` で提供する（既存
 `root(size, state, props, attrs, children)` はシグネチャ不変のまま
-`shape: None` + `SelectVariant::Outline` で `root_with` へ委譲、shape は
-イシュー #3117、variant はイシュー #3121）。`Pill` は root の CSS 変数
-`--fandhe-select-trigger-radius` を上書きし、trigger の `border-radius`
-へ伝搬する。`Circle` は未登録（select の trigger は value-text +
-indicator を横並びにする構造で真円にする用途がないため）。
+`shape: None` + `SelectVariant::Outline` + `ItemIndicatorPlacement::End`
+で `root_with` へ委譲、shape はイシュー #3117、variant はイシュー
+#3121、item_indicator_placement はイシュー #3124）。`Pill` は root の CSS
+変数 `--fandhe-select-trigger-radius` を上書きし、trigger の
+`border-radius` へ伝搬する。`Circle` は未登録（select の trigger は
+value-text + indicator を横並びにする構造で真円にする用途がないため）。
 `SelectVariant`（`Outline`〔既定〕/`Subtle`）は `native_select::
 NativeSelectVariant` と同型の軸で、`Subtle` は root の CSS 変数
 `--fandhe-select-trigger-bg`/`--fandhe-select-trigger-border-color` を
 上書きし trigger を淡色背景・枠線なしにする。`Outline`（既定）は
 `default_variant` を登録していないため class を一切出さず、`root()` の
-既存出力はバイト単位で不変。
+既存出力はバイト単位で不変。`ItemIndicatorPlacement::Start`（既定は
+`End`）は root の CSS 変数 3 本
+（`--fandhe-select-item-indicator-order`/
+`--fandhe-select-item-indicator-margin-left`/
+`--fandhe-select-item-indicator-placeholder-display`）を切り替える
+（`order` + 空き枠方式）。`item-indicator` は選択状態にかかわらず常に
+DOM へ出力され非選択時のみ `hidden` 属性が付く既存ノードをそのまま
+空き枠に転用する: state 規則（`[data-state]`）で `order: -1`・
+`margin-left: 0` を全項目のインジケータへ適用し、`[hidden]` 規則で
+非選択項目のインジケータを `visibility: hidden` のまま同じ幅を占有さ
+せる。絶対配置・疑似要素は使わないため `item` の `padding` 等の既存
+宣言には一切触れず、既存フック `--fandhe-select-item-padding` による
+余白調整はそのまま効く。`End`（既定）は class を一切出さず既存出力は
+バイト不変。
 
 `ActivationMode`/`TabItem`/`TabsProps`（tabs）・`DialogRole`/`ContentIds`
 （dialog）・`SelectAction`（select）は各 headless モジュール内定義のため
@@ -642,7 +658,7 @@ anatomy は #2059）
 - 公開 API: `root(orientation, label, attrs, children)` / `separator(group_orientation, attrs, children)` / `text(attrs, children)` / `stylesheet()`。`Orientation` は `fandhe_frontend_headless_ui::data_attrs::Orientation` の選択的再エクスポート（規約 A）。
 - size/variant/color-palette いずれの軸も提供しない（上記 §4d 表参照、`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §4 (d) 「子の寸法に従属するレイアウト部品」）。
 - 先頭・末尾以外の隣接要素の角丸・開始側境界線幅を [`crate::css::serialize_rule`] による raw CSS 追記で無効化する（`SlotRecipe` は子結合子を表現できないため）。対象は button / field-input / button-group-text / menu-trigger / select-trigger の 5 種を明示列挙し、`> *:not(:first-child)` のような汎用セレクタは特異度の衝突が呼び出し側の CSS 連結順に依存してしまうため採らない。
-- ネスト（グループの中にグループ）は `:has()` の先例がないため角丸連結対象へ含めず、代わりに先頭以外の内側グループへ margin のみ付与する代替表現とする（意図的非採用、`docs/policy/intentional-non-adoption.md` の評価軸に従う）。
+- ネスト（グループの中にグループ）は親側 `:has()` による gap 付与を採らず（#2226）、角丸連結対象へ含めず先頭以外の内側グループへ margin のみ付与する代替表現とする（意図的非採用、`docs/policy/intentional-non-adoption.md` の評価軸に従う）。既定はこの margin 間隔のままだが、内側 `root` へ呼び出し側が値なし属性 `data-attached` を付与すると opt-in で間隔を打ち消し、接続辺の角丸・境界線を外側 root と共有する連結表示にする（イシュー #3135、縦横混在の入力欄連結に使う）。接続辺の判定規則（PR #3569）: 外側 root の直接の子を通常の子 N・attached 内側 root A・間隔を保つ通常の内側 root D の 3 種に分け、隣接 2 兄弟の辺は**どちらも D でないときに限り接続**する（N–N / N–A / A–A は接続、D に面した辺は角丸を保ち、D 自身の先頭側 margin と D 直後の通常の子への margin で間隔を付ける）。末尾辺は後続兄弟を参照するため `:not(:has(+ D))`（Selectors Level 4）で判定する。表と根拠は `crates/pre-styled-ui/src/button_group.rs` モジュール doc「接続辺の判定規則」節を正とする。
 - バリデーション・送信処理等のアプリケーションロジックは内包しない（`.claude/rules/coding-rust.md` §3.25）。
 - docs サイト: [button-group](../../site/themes/button-group.md)（Themes）/ [button-group](../../site/primitives/button-group.md)（Primitives）。
 
@@ -769,7 +785,11 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
 
 - **公開 API**: `root(&FieldRootProps, &FieldProps<'_>, attrs, children)`
   （見た目 variant クラスを重ねて headless `field::root` へ委譲）、
-  `FieldOrientation`（`orientation` 軸、`Vertical` 既定 /`Horizontal`/
+  `root_with_label_placement(&FieldRootProps, FieldLabelPlacement,
+  &FieldProps<'_>, attrs, children)`（イシュー #3134、下記参照。`root` は
+  内部で `root_with_label_placement(.., FieldLabelPlacement::Outside, ..)`
+  へ委譲する）、`FieldLabelPlacement`（`label-placement` 軸、`Outside` 既定/
+  `Inset`/`Overlap`）、`FieldOrientation`（`orientation` 軸、`Vertical` 既定 /`Horizontal`/
   `Responsive`、イシュー #2199 で `Responsive` を追加）、
   `FieldRootProps`。`label`/`helper_text`/`error_text`/`required_indicator`/
   `group`/`content`/`title`/`separator`/`FieldIds`/`FieldProps` は headless
@@ -809,9 +829,31 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
   従属するレイアウト部品の root は size 軸を持たないという規約、フォーム
   入力系は palette 非提供という §4f と同じ判断）。
 - **意図的非採用**: hover（`root`/`label` は非インタラクティブ）・focus
-  ring（実フォーカスはコントロール側）・transition（状態遷移する視覚が
-  ない）・`data-readonly`/`data-invalid` によるラベル色変更（chakra-ui v3
-  も持たない）。
+  ring（実フォーカスはコントロール側。`FieldLabelPlacement::Inset`/
+  `Overlap` は `input` 自身の outline を消すため、代わりに `root` の
+  `:focus-within` へ focus ring を付与する例外を持つ、下記参照）・transition（状態
+  遷移する視覚がない）・`data-readonly`/`data-invalid` によるラベル色
+  変更（chakra-ui v3 も持たない）。
+- **`FieldLabelPlacement`（ラベル配置、イシュー #3134）**: `orientation` と
+  独立な opt-in variant。`Inset` は `root` 自身を枠線・背景を持つ box と
+  し、内側の `label`/`input` をリセットする（`input` のみ対象、
+  `textarea`/`select` は対象外）。`inset_stack`（`data-part="inset-stack"`
+  の wrapper）の直下に縦に並べた `Inset` の `root` 同士だけが
+  `+`/`:has(+ ...)` セレクタで枠線を共有して連結する（`+` は親の gap を
+  区別できないため、暗黙の隣接ではなく wrapper を契約とし、`group` 内では
+  連結しない）。`Overlap` はラベルを `root` の枠線の上へ
+  絶対配置で重ね、`--fandhe-field-label-bg`（既定
+  `var(--fandhe-color-bg)`）でラベル背景を地の色へ合わせられる。
+  枠線を `root` が描く両 variant は枠線に結び付く状態表示（invalid の
+  `border-color`・focus のリング）を `root` 側へ写し、`input` 側の outline
+  を打ち消して二重表示を避ける（disabled は子パーツの既存減衰のみで root
+  へは重ねない。`readonly` は `input` と同じく視覚宣言なし。4 状態 × 2
+  variant の対応表は `field.rs` モジュール doc「状態表示の対応表」節）。
+  いずれも `orientation = Vertical` での使用のみを前提とし、
+  `Horizontal`/`Responsive` との併用・`forms_motion` の floating label
+  との併用は対象外。既定（`Outside`）はクラスを出力せず `root()` の
+  既存出力をバイト単位で不変に保つ。判断根拠・CSS 宣言の詳細は
+  `field.rs` モジュール doc「ラベル配置（イシュー #3134）」節参照。
 - **バリデーション責務外**: `docs/policy/intentional-non-adoption.md`
   §3.25 規則 1 のとおり、本モジュールは headless が出す
   `data-invalid`/`data-disabled`/`data-required` を CSS セレクタとして
@@ -948,11 +990,12 @@ Input Group 相当の見た目（コンテナ側 1 本の枠線・角丸・`:foc
 （`root`/`input`/`list`/`empty`/`group`/`group-heading`/`item`/`shortcut`/
 `separator`/`dialog` の 10 パーツ）へ、入力欄・リスト・group 見出し・選択
 行の背景・shortcut の右寄せ・dialog 型の幅という shadcn/ui `Command`
-相当の意匠を重ねる薄い委譲層である。
+相当の意匠を重ねる薄い委譲層である。pre-styled-only の `footer` パート
+（イシュー #3143）を加えた計 11 パーツ構成。
 
-- **公開 API**: 10 関数はいずれも見た目クラスを付与せず、呼び出し側
-  `class` を `drop_class_attr` で除去してから headless 同名関数へそのまま
-  委譲する（同名再定義、`crate::item` と同型のパターン）。
+- **公開 API**: headless 10 関数はいずれも見た目クラスを付与せず、呼び出し
+  側 `class` を `drop_class_attr` で除去してから headless 同名関数へその
+  まま委譲する（同名再定義、`crate::item` と同型のパターン）。
   `filter_items`（純粋関数、`combobox::filter_options` へ全委譲）と
   `OpenState`（headless からの再エクスポート）のみを選択的に公開する。
   headless の状態機械 `Command`/`CommandAction` は再エクスポートしない
@@ -979,10 +1022,30 @@ Input Group 相当の見た目（コンテナ側 1 本の枠線・角丸・`:foc
   追加しない。
 - **`shortcut` 内への `kbd` 合成**: API を増やさず、`shortcut` の
   `children` へ `crate::kbd::kbd` を渡す使い方で `kbd` を合成する。
+- **pre-styled-only `footer` パート（イシュー #3143）**: headless-ui の
+  anatomy には存在しないレイアウト専用パート。`fandhe_frontend_headless_ui::anatomy::Anatomy::part`
+  を直接呼び出して組み立てる（`crate::drawer` の `body`/`footer`/`header`
+  と同型、headless anatomy は不変）。本モジュールの「見た目クラスを一切
+  付与せず `class` 属性自体が出力から消える」契約を踏襲するため、
+  `crate::drawer::footer` と異なり呼び出し側 `class` も `drop_class_attr`
+  で除去する。`root` の直接の子として `list`/`empty` の後ろに置く想定で、
+  `children` へ `crate::kbd::kbd` とテキストを組んでキー操作ヒントを表す
+  （`shortcut` と同じ合成方式）。キー操作そのものの配線は持たない。呼び
+  出し側はヒント 1 件（`kbd` + 説明テキスト）を `span` 等 1 つの子要素へ
+  まとめてから渡す（`footer` 自体の `flex-wrap: wrap` は子要素単位でしか
+  折り返さないため）。
 - **raw CSS 追記**: `SlotRecipe` は子結合子セレクタを表現できないため、
   `stylesheet()` は dialog 内 root の二重枠を解除する
   `[data-scope="command"][data-part="dialog"] > [data-scope="command"][data-part="root"]`
-  規則を `serialize_rule` で追記する。
+  規則と、`footer` 直接の子（呼び出し側が組む 1 ヒント分の `span` 等）を
+  `inline-flex` のまとまり（`min-width: 0`・`max-width: 100%`・
+  `overflow-wrap: anywhere`）にする `[data-scope="command"][data-part="footer"] > *`
+  規則、その中の `kbd` だけを `white-space: nowrap` にする
+  `[data-scope="command"][data-part="footer"] > * kbd` 規則を
+  `serialize_rule` で追記する。`kbd` と説明文は同じ行にまとまったまま、
+  ヒントがコンテナ幅を超えると説明文が折り返す（`overflow-wrap` は
+  `white-space: nowrap` と同じ規則では効かないため分離する。#3143 Codex
+  P2 再指摘・PR #3582 Codex P2 / Cursor Bugbot 指摘対応）。
 - **バリデーション責務外**: 絞り込み配線・Enter 実行・Cmd/Ctrl+K の
   グローバルショートカット・フォーカストラップは `fandhe-frontend-wasm-full`
   の責務として実装しない（`docs/policy/intentional-non-adoption.md` §3.25

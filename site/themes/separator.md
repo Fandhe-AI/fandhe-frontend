@@ -6,4 +6,6 @@
 
 イシュー #2053 で shadcn/ui と突合し、線 – テキスト – 線のラベル付き区切り線（`group`/`label`、chakra-ui の HStack + Text 合成相当）を pre-styled-only パートとして追加しました。
 
+イシュー #3137 で `group_with`/`SeparatorLabelPosition` を追加し、ラベル位置を `center`（既定、`group` と同一出力）/`start` から選べるようにしました。`start` は「左ラベル – 線」「左タイトル – 線 – ボタン」のような先頭寄せレイアウトを 1 class で表現します。
+
 関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md)

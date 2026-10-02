@@ -50,15 +50,20 @@ use fandhe_frontend_pre_styled_ui::{
     marquee,
     message::{self, MessageAlign, MessageRole, MessageRootProps},
     message_scroller::{self, MessageScrollerRootProps, MessageScrollerStuck},
-    native_select, pagination, progress, scroll_area, separator,
+    native_select,
+    pagination::{self, PaginationVariant},
+    progress, scroll_area, separator,
     sidebar::{
         self, Sidebar, SidebarCollapsible, SidebarMenuButtonProps, SidebarProps, SidebarState,
         SidebarVariant,
     },
-    skeleton, spinner, splitter, stat, status, steps,
+    skeleton, spinner, splitter,
+    stat::{self, StatDeltaTone},
+    status, steps,
     tab_nav::{self, TabNavVariant},
     table::{self, TableProps},
-    tag, timeline, tree_view, AlertProps, ColorPalette, OpenState, Orientation, Size,
+    tag, timeline, tree_view, visually_hidden, AlertProps, ColorPalette, OpenState, Orientation,
+    Size,
 };
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
@@ -1478,6 +1483,35 @@ fn ex_progress_circle_indeterminate() -> Node {
     )
 }
 
+// イシュー #3140: R1193（Blocks 取り込み対応表）で「既存部品では表現できない」
+// と判定された、進捗バー下のマイルストーンの目盛りラベル列を示す Example。
+// marker_group/marker は pre-styled-only パート（headless-ui の anatomy には
+// 存在しない、crates/pre-styled-ui/src/progress.rs rustdoc「イシュー #3140」
+// 節参照）であり、配置は値に比例した絶対配置ではなく CSS Grid の等間隔列。
+fn ex_progress_milestones() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
+    use fandhe_frontend_pre_styled_ui::progress::ProgressProps;
+    let p = Progress::new(0.0, 100.0, Some(37.5), Orientation::Horizontal);
+    progress::root(
+        &p,
+        &ProgressProps::default(),
+        Some("Step 2 of 4: Migrating database"),
+        vec![],
+        vec![
+            p.track(vec![], vec![progress::range(&p, vec![])]),
+            progress::marker_group(
+                vec![],
+                vec![
+                    progress::marker(&p, 0.0, vec![], vec![fandhe_frontend_core::text("準備")]),
+                    progress::marker(&p, 33.0, vec![], vec![fandhe_frontend_core::text("処理")]),
+                    progress::marker(&p, 67.0, vec![], vec![fandhe_frontend_core::text("仕上げ")]),
+                    progress::marker(&p, 100.0, vec![], vec![fandhe_frontend_core::text("完了")]),
+                ],
+            ),
+        ],
+    )
+}
+
 pub(crate) const PROGRESS: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "track/range（linear）と circle/circle-track/circle-range（circular）はいずれも headless の inherent メソッドをそのまま呼ばせる契約（crates/pre-styled-ui/src/progress.rs テスト caller_headless_track_and_circle_parts_render_without_wrapper）",
@@ -1485,6 +1519,7 @@ pub(crate) const PROGRESS: ComponentPageSpec = ComponentPageSpec {
         "ProgressProps（size/variant/color-palette の 3 軸）を root へ付与する。styled range() が --fandhe-progress-percent を determinate 時のみ付与する",
         "circle-range の [data-state=\"indeterminate\"] へ固定長の弧（--fandhe-progress-circumference = 2πr、stroke-dasharray で円周の 1/4）を与え、circle の回転と組み合わせて complete（完全リング）と視覚的に区別する。新規 @keyframes は追加せず reduced-motion 下でも弧が残る（crates/pre-styled-ui/src/progress.rs rustdoc「イシュー #1688: circle-range indeterminate の固定弧」節・テスト circle_range_indeterminate_state_declares_fixed_arc_dasharray）",
         "ProgressVariant::Plain（枠線なしの中立トラック）は shadcn/ui 既定表現を突合して補完した variant（イシュー #2049）。既存 Outline/Subtle の CSS 出力・既定 variant はバイト不変（crates/pre-styled-ui/src/progress.rs rustdoc「イシュー #2049: shadcn/ui との突合」節）",
+        "marker_group/marker（pre-styled-only パート）でマイルストーンの目盛りラベルを opt-in で追加できる。data-state（under-value/at-value/over-value）は value と現在値の比較で自前算出し、呼び出し側 attrs の data-state 偽装は除去する（イシュー #3140、crates/pre-styled-ui/src/progress.rs rustdoc「イシュー #3140」節）",
     ],
     arguments: &[
         ArgRow {
@@ -1520,6 +1555,11 @@ pub(crate) const PROGRESS: ComponentPageSpec = ComponentPageSpec {
             title: "Label + Value (Plain variant)",
             description: "shadcn/ui 既定表現（枠線なしの中立トラック）に相当する ProgressVariant::Plain の例です。label + value 併記で shadcn の \"Label and Value\" 例をノード木 API で再現しています（イシュー #2049）。",
             render: ex_progress_plain,
+        },
+        ExampleEntry {
+            title: "Milestone labels",
+            description: "value=37.5 の determinate linear progress の下へ、marker_group/marker でマイルストーンの目盛りラベル（準備 → 処理 → 仕上げ → 完了）を opt-in で追加した例です。到達済みラベル（準備・処理）は強調色、先頭は左揃え・末尾は右揃えになります（イシュー #3140）。",
+            render: ex_progress_milestones,
         },
     ],
     keyboard: &[],
@@ -1952,27 +1992,72 @@ fn ex_stat() -> Node {
     )
 }
 
+/// delta パート（イシュー #3138）の例。矢印なし・tone の意味色のみで
+/// 増減率を示す R1312 型レイアウト（ラベル行末 + 値は下段全幅）。
+fn ex_stat_delta() -> Node {
+    stat::root(
+        Size::Md,
+        vec![],
+        vec![
+            stat::label(
+                vec![],
+                vec![
+                    text("Error rate"),
+                    // tone が Danger の増減は色だけに意味を頼らない契約
+                    // （stat.rs「delta パートと tone 軸」節、WCAG 1.4.1）に従い、
+                    // 「悪化」を visually-hidden テキストで補う。
+                    stat::delta(
+                        StatDeltaTone::Danger,
+                        vec![],
+                        vec![
+                            text("+4.75%"),
+                            visually_hidden::root(vec![], vec![text("（悪化）")]),
+                        ],
+                    ),
+                ],
+            ),
+            stat::value_text(vec![], vec![text("1.2%")]),
+        ],
+    )
+}
+
 pub(crate) const STAT: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "label/value-text/value-unit/help-text/up-indicator/down-indicator の 6 パーツで指標表示を構造化する（crates/pre-styled-ui/src/stat.rs:314-362）",
-        "up-indicator/down-indicator は装飾用途のため aria-hidden=\"true\" を固定付与する（stat.rs:17, 348-362）",
-        "呼び出し側が aria-hidden を渡してもフレームワーク値の後に連結される（stat.rs:442-449）",
+        "label/value-text/value-unit/help-text/up-indicator/down-indicator/delta の 7 パーツで指標表示を構造化する（crates/pre-styled-ui/src/stat.rs）",
+        "up-indicator/down-indicator は装飾用途のため aria-hidden=\"true\" を固定付与する（stat.rs「プレーンな HTML を尊重するタグ選択」節）",
+        "呼び出し側が aria-hidden を渡してもフレームワーク値の後に連結される",
+        "delta（イシュー #3138）は矢印を伴わず tone（neutral/success/danger）の意味色だけで増減の良し悪しを示す。方向固定の up/down-indicator と異なり「増加しているが悪化」も表現できる（stat.rs「delta パートと tone 軸」節）",
     ],
-    arguments: &[ArgRow {
-        name: "size",
-        kind: "Size",
-        default: "Md",
-        description: "root（dl）のサイズ（xs〜xl、既定 md。chakra-ui の sm/md/lg は本実装の Sm/Md/Lg に対応、stat.rs:158-256）。",
-    }],
-    examples: &[ExampleEntry {
-        title: "Revenue",
-        description: "value-unit と up-indicator を組み合わせた指標表示の例です。",
-        render: ex_stat,
-    }],
+    arguments: &[
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Md",
+            description: "root（dl）のサイズ（xs〜xl、既定 md。chakra-ui の sm/md/lg は本実装の Sm/Md/Lg に対応）。",
+        },
+        ArgRow {
+            name: "tone",
+            kind: "StatDeltaTone",
+            default: "（既定なし・必須）",
+            description: "delta パートへ付与する意味色軸（neutral/success/danger）。root の class には影響しない（default_variant 未登録）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Revenue",
+            description: "value-unit と up-indicator を組み合わせた指標表示の例です。",
+            render: ex_stat,
+        },
+        ExampleEntry {
+            title: "Trend delta",
+            description: "delta パート（tone=danger）でラベル行末に矢印なしの増減率を表示する例です（イシュー #3138）。",
+            render: ex_stat_delta,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "aria-hidden=\"true\"（up-indicator/down-indicator のみ）",
-        description: "装飾用途の増減インジケータに固定付与される（stat.rs:17, 348-362）。root/label/value-text 自体は固有の ARIA を出力しない。",
+        description: "装飾用途の増減インジケータに固定付与される。root/label/value-text/delta 自体は固有の ARIA を出力しない（delta は可視テキストで情報を伝えるため aria-hidden を付けない）。",
     }],
     demo: None,
 };
@@ -3023,11 +3108,66 @@ fn ex_pagination_rows_per_page() -> Node {
     )
 }
 
+/// [`PAGINATION`] の Examples 節「Attached」レンダラ（イシュー #3136）。
+/// `root_with(size, PaginationVariant::Attached, palette, …)` でページ
+/// ボタンを隙間なく横一列に連結する見た目を実演する（Blocks 取り込み
+/// 対応表 ID R1136「既存部品で表現不可」判定の是正、`pagination.rs`
+/// モジュール rustdoc「attached variant」節参照）。
+fn ex_pagination_attached() -> Node {
+    pagination::root_with(
+        Size::Md,
+        PaginationVariant::Attached,
+        ColorPalette::Accent,
+        "attached pagination",
+        vec![],
+        vec![
+            pagination::prev_trigger(
+                pagination::ItemMode::Button,
+                false,
+                vec![],
+                vec![text("\u{2039}")],
+            ),
+            pagination::item(
+                pagination::ItemMode::Button,
+                1,
+                false,
+                false,
+                vec![],
+                vec![text("1")],
+            ),
+            pagination::item(
+                pagination::ItemMode::Button,
+                2,
+                true,
+                false,
+                vec![],
+                vec![text("2")],
+            ),
+            pagination::ellipsis(vec![], vec![text("\u{2026}")]),
+            pagination::item(
+                pagination::ItemMode::Button,
+                10,
+                false,
+                false,
+                vec![],
+                vec![text("10")],
+            ),
+            pagination::next_trigger(
+                pagination::ItemMode::Button,
+                false,
+                vec![],
+                vec![text("\u{203a}")],
+            ),
+        ],
+    )
+}
+
 pub(crate) const PAGINATION: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "item は data-selected マーカー + aria-current=\"page\" で現在ページを表す（crates/pre-styled-ui/src/pagination.rs:35-38）",
         "item 自体には class を付与しない（root のみへクラスが付く複合部品の variant 統一方針、pagination.rs テスト reexported_item_is_not_given_variant_classes）",
         "root は <nav> 要素として出力される（pagination.rs テスト root_outputs_scope_and_part）",
+        "root_with 経由で attached variant（PaginationVariant、ページボタンを隙間なく横一列に連結する見た目）を opt-in 提供（イシュー #3136、pagination.rs 参照）",
     ],
     arguments: &[
         ArgRow {
@@ -3041,6 +3181,12 @@ pub(crate) const PAGINATION: ComponentPageSpec = ComponentPageSpec {
             kind: "&str",
             default: "(必須)",
             description: "root（nav）の aria-label（pagination.rs:447-460, 528-534）。",
+        },
+        ArgRow {
+            name: "variant",
+            kind: "PaginationVariant",
+            default: "Separated",
+            description: "root_with のみが受け取る連結表示 variant（Separated/Attached、イシュー #3136、pagination.rs 参照）。",
         },
     ],
     examples: &[
@@ -3058,6 +3204,11 @@ pub(crate) const PAGINATION: ComponentPageSpec = ComponentPageSpec {
             title: "Rows per page + Select",
             description: "shadcn/ui のデータテーブル用フッター（Rows per page ラベル付き Select + Prev/Next のみ、ページ番号なし）を既存部品の組み合わせで再現する例です（イシュー #2036）。",
             render: ex_pagination_rows_per_page,
+        },
+        ExampleEntry {
+            title: "Attached",
+            description: "root_with で PaginationVariant::Attached を指定した例です（イシュー #3136、ページボタンを隙間なく横一列に連結する見た目）。",
+            render: ex_pagination_attached,
         },
     ],
     keyboard: &[],
@@ -3280,18 +3431,193 @@ fn ex_steps() -> Node {
     )
 }
 
+/// `/themes/steps/` の Examples 節其の 2（イシュー #3139）: バー型
+/// （`StepsVariant::Bar`）。indicator/separator は描画せず、item 上端の
+/// 太線で進捗を表す。
+fn ex_steps_bar() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
+    use fandhe_frontend_pre_styled_ui::steps::StepsVariant;
+    let state = Steps::new(3, 1, Orientation::Horizontal);
+    steps::root_with(
+        StepsVariant::Bar,
+        Size::Md,
+        ColorPalette::Accent,
+        &state,
+        vec![],
+        vec![steps::list_with(
+            StepsVariant::Bar,
+            &state,
+            vec![],
+            (0..3)
+                .map(|i| {
+                    steps::item_with(
+                        StepsVariant::Bar,
+                        &state,
+                        i,
+                        vec![],
+                        vec![steps::trigger(
+                            &state,
+                            i,
+                            vec![],
+                            vec![text(format!("Step {}", i + 1))],
+                        )],
+                    )
+                })
+                .collect(),
+        )],
+    )
+}
+
+/// `/themes/steps/` の Examples 節其の 3（イシュー #3139）: パネル型
+/// （`StepsVariant::Panel`）。枠付き等幅パネルにステップを並べ、シェブロン
+/// （`separator_with`）で区切る。
+fn ex_steps_panel() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
+    use fandhe_frontend_pre_styled_ui::steps::StepsVariant;
+    let state = Steps::new(3, 1, Orientation::Horizontal);
+    steps::root_with(
+        StepsVariant::Panel,
+        Size::Md,
+        ColorPalette::Accent,
+        &state,
+        vec![],
+        vec![steps::list_with(
+            StepsVariant::Panel,
+            &state,
+            vec![],
+            (0..3)
+                .map(|i| {
+                    // separator は item の子として置く（`ex_steps()` と同じ
+                    // 規約。`list` は `<ol>` を描画するため、直下の兄弟に
+                    // `separator`〔`<div>`〕を混ぜると `<ol>` の子は `<li>`
+                    // のみという HTML の制約に反し、かつ grid 自動配置の
+                    // トラックを separator 分だけ余計に消費して等幅 3 分割
+                    // が崩れる。Cursor Bugbot Medium 指摘・codex P1 指摘
+                    // 対応）。
+                    let mut item_children = vec![steps::trigger(
+                        &state,
+                        i,
+                        vec![],
+                        vec![
+                            steps::indicator(&state, i, vec![], vec![text((i + 1).to_string())]),
+                            text(format!("Step {}", i + 1)),
+                        ],
+                    )];
+                    if i < 2 {
+                        item_children.push(steps::separator_with(
+                            StepsVariant::Panel,
+                            &state,
+                            i,
+                            vec![],
+                            vec![],
+                        ));
+                    }
+                    steps::item_with(StepsVariant::Panel, &state, i, vec![], item_children)
+                })
+                .collect(),
+        )],
+    )
+}
+
+/// `/themes/steps/` の Examples 節其の 4（イシュー #3139）: ドット型
+/// （`StepsVariant::Dot`）。ドット（`indicator_with`）の列と「n/m」進捗
+/// テキストを横に並べる。trigger にラベルを置かないため
+/// `visually_hidden::root` でアクセシブルネームを付与する（モジュール冒頭
+/// rustdoc 「イシュー #3139」節参照）。
+fn ex_steps_dot() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
+    use fandhe_frontend_pre_styled_ui::{steps::StepsVariant, visually_hidden};
+    let state = Steps::new(3, 1, Orientation::Horizontal);
+    steps::root_with(
+        StepsVariant::Dot,
+        Size::Md,
+        ColorPalette::Accent,
+        &state,
+        vec![],
+        vec![
+            steps::list_with(
+                StepsVariant::Dot,
+                &state,
+                vec![],
+                (0..3)
+                    .map(|i| {
+                        steps::item_with(
+                            StepsVariant::Dot,
+                            &state,
+                            i,
+                            vec![],
+                            vec![steps::trigger(
+                                &state,
+                                i,
+                                vec![],
+                                vec![
+                                    steps::indicator_with(
+                                        StepsVariant::Dot,
+                                        &state,
+                                        i,
+                                        vec![],
+                                        vec![],
+                                    ),
+                                    visually_hidden::root(
+                                        vec![],
+                                        vec![text(format!("Step {}", i + 1))],
+                                    ),
+                                ],
+                            )],
+                        )
+                    })
+                    .collect(),
+            ),
+            el(
+                "span",
+                vec![],
+                vec![text(format!(
+                    "{}/{}",
+                    // `step == count`（全 step 完了、`is_completed()`）のとき
+                    // `step + 1` は総数を超えるため `count` で頭打ちにする。
+                    state.step().min(state.count() - 1) + 1,
+                    state.count()
+                ))],
+            ),
+        ],
+    )
+}
+
 pub(crate) const STEPS: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "trigger は現在ステップに aria-current=\"step\" を固定付与する（crates/pre-styled-ui/src/steps.rs テスト list_item_trigger_indicator_separator_delegate_to_headless、行 1256）",
         "separator は role=\"separator\" を持つ（steps.rs テスト同上、行 1258）",
         "indicator の data-state（current/complete）で見た目を切り替える（steps.rs:1134-1142）",
+        "StepsVariant（Circle 既定/Bar/Panel/Dot）の root_with/list_with/item_with/indicator_with/separator_with で見た目を切り替える（イシュー #3139、steps.rs）",
     ],
-    arguments: &[],
-    examples: &[ExampleEntry {
-        title: "3 steps, step 2 current",
-        description: "3 ステップ中 2 番目が current の状態を固定表示する例です。",
-        render: ex_steps,
+    arguments: &[ArgRow {
+        name: "variant",
+        kind: "StepsVariant",
+        default: "Circle",
+        description: "`*_with` 系関数が受け取る見た目軸。Circle は既存 `root`/`list`/... とバイト一致、Bar/Panel/Dot は該当 slot へ単独クラスを追加する（イシュー #3139）。",
     }],
+    examples: &[
+        ExampleEntry {
+            title: "3 steps, step 2 current",
+            description: "3 ステップ中 2 番目が current の状態を固定表示する例です。",
+            render: ex_steps,
+        },
+        ExampleEntry {
+            title: "Bar variant",
+            description: "indicator を持たず item 上端の太線で進捗を表すバー型の例です。",
+            render: ex_steps_bar,
+        },
+        ExampleEntry {
+            title: "Panel variant",
+            description: "枠付き等幅パネルにステップを並べ、シェブロンで区切るパネル型の例です。",
+            render: ex_steps_panel,
+        },
+        ExampleEntry {
+            title: "Dot variant",
+            description: "ドット列と「n/m」進捗テキストを横に並べるドット型の例です。",
+            render: ex_steps_dot,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "aria-current=\"step\"（trigger） / role=\"separator\"（separator）",
@@ -3529,6 +3855,43 @@ fn ex_separator_labeled() -> Node {
     )
 }
 
+/// `/themes/separator/` の Examples 節其の 3（イシュー #3137）: ラベル位置
+/// `start`（先頭寄せ）で「左ラベル – 線」を合成する例。子は
+/// `[label, separator]` の 2 列（`group_with` rustdoc の契約参照）。
+fn ex_separator_label_start() -> Node {
+    separator::group_with(
+        separator::SeparatorLabelPosition::Start,
+        vec![("style", "width: 16rem;")],
+        vec![
+            separator::label(vec![], vec![text("Section")]),
+            separator::separator(&separator::SeparatorProps::default(), vec![]),
+        ],
+    )
+}
+
+/// `/themes/separator/` の Examples 節其の 4（イシュー #3137）: ラベル位置
+/// `start` で「左タイトル – 線 – 右ボタン」を合成する例。子は
+/// `[label, separator, 末尾ノード]` の 3 個で、末尾ノードは
+/// `grid-auto-flow: column` により暗黙列（同じ行）へ流れ込む。
+fn ex_separator_title_button() -> Node {
+    separator::group_with(
+        separator::SeparatorLabelPosition::Start,
+        vec![("style", "width: 20rem; align-items: center;")],
+        vec![
+            separator::label(vec![], vec![text("Members")]),
+            separator::separator(&separator::SeparatorProps::default(), vec![]),
+            button(
+                &ButtonProps {
+                    variant: ButtonVariant::Outline,
+                    ..ButtonProps::default()
+                },
+                vec![],
+                vec![text("Add")],
+            ),
+        ],
+    )
+}
+
 pub(crate) const SEPARATOR: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "orientation が role=\"separator\"（固定） + aria-orientation + data-orientation + variant クラスの 3 箇所へ連動する（crates/pre-styled-ui/src/separator.rs:10, 17）",
@@ -3536,6 +3899,7 @@ pub(crate) const SEPARATOR: ComponentPageSpec = ComponentPageSpec {
         "罫線の太さは --fandhe-separator-thickness（既定 1px の custom property、イシュー #1585）の上書きで変更する。size 軸は Phase 0 規約（docs/design/pre-styled-ui-focus-ring-and-size-conventions.md §4 (d)）により非提供（separator.rs:24-31）",
         "role/aria-orientation/data-orientation は呼び出し側の偽装を除去し常にフレームワーク値へ一本化する（separator.rs:270-277、skeleton の aria-hidden 除去と同型）",
         "group/label（イシュー #2053、shadcn/ui 突合で補完）: pre-styled-only のラベル付き区切り線パート。線 – テキスト – 線を display: grid（1fr auto 1fr）で合成する（chakra-ui の HStack + Text 合成相当、horizontal 専用契約）",
+        "group_with/SeparatorLabelPosition（イシュー #3137）: ラベル位置を center（既定、group と同一出力）/start から opt-in で選べる。start は 1 class（grid-template-columns: auto 1fr + grid-auto-flow: column）のみで、ラベルの後ろに続くノードを同じ行へ流し込む",
     ],
     arguments: &[
         ArgRow {
@@ -3561,6 +3925,16 @@ pub(crate) const SEPARATOR: ComponentPageSpec = ComponentPageSpec {
             title: "Labeled",
             description: "group/label によるラベル付き区切り線の例です（イシュー #2053）。",
             render: ex_separator_labeled,
+        },
+        ExampleEntry {
+            title: "Label start",
+            description: "group_with(SeparatorLabelPosition::Start) による左寄せラベルの例です（イシュー #3137）。",
+            render: ex_separator_label_start,
+        },
+        ExampleEntry {
+            title: "Title with action",
+            description: "group_with(SeparatorLabelPosition::Start) で左タイトル・線・右ボタンを 1 行に並べる例です（イシュー #3137）。",
+            render: ex_separator_title_button,
         },
     ],
     keyboard: &[],

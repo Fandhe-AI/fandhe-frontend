@@ -326,8 +326,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `stats_row` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS` doc「block
-/// 固有 CSS の置き場」節）。セレクタは `.blocks-stats-row-*` と、それで
+/// `stats_row` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。セレクタは `.blocks-stats-row-*` と、それで
 /// 絞り込んだ `[data-scope="stat"]`/`[data-scope="separator"]`/
 /// `[data-scope="image"]` のみを用いる。`@keyframes`・`animation` は
 /// 一切含まない（本 block は静的な合成例、モジュール doc参照）。

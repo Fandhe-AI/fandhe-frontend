@@ -671,7 +671,7 @@ pub const BLOCK: Block = Block {
 };
 
 /// `settings_integration_detail` 固有のレイアウト規則
-/// （`crate::blocks::LAYOUT_CSS` doc「block 固有 CSS の置き場」節と同型）。
+/// （`crate::blocks` モジュール doc「CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-settings-integration-detail-stack {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-12);\n  container-type: inline-size;\n  container-name: blocks-settings-integration-detail;\n}\n\
 .blocks-settings-integration-detail-version {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-8);\n}\n\

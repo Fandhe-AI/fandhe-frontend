@@ -561,7 +561,7 @@ pub const BLOCK: Block = Block {
 };
 
 /// `auth_split_photo_testimonial` 固有のレイアウト規則
-/// （`crate::blocks::LAYOUT_CSS` doc「block 固有 CSS の置き場」節）。
+/// （`crate::blocks` モジュール doc「CSS の置き場」節）。
 ///
 /// セレクタは `.blocks-auth-split-photo-testimonial-*` と
 /// `[data-blocks-auth-split-photo-testimonial-*]` のみを用い、他 block や

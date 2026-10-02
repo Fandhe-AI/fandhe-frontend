@@ -28,6 +28,16 @@ headless-ui `field` scope を共有して提供します。`data-invalid` / `dat
 として参照して見た目を切り替えるだけで、値の妥当性判定・送信処理といったバリデーション
 自体はこの部品では実装しません。
 
+`root_with_label_placement` を使うと、`orientation` とは独立なラベル配置
+（イシュー #3134）として `inset`（枠の内側・上部にラベルを置く）と
+`overlap`（ラベルを枠線の上へ重ねる）を選べます（既定 `outside` は従来の
+`root` と同じ出力）。`inset` は `inset_stack` wrapper の直下に縦に並べると
+枠線を共有して連結します（wrapper の外、`group` の中などでは連結しません）。`overlap` は `--fandhe-field-label-bg`
+でラベル背景を地の色に合わせられます。どちらも枠線は `root` が描くため、
+`data-invalid`（枠線色）とフォーカスリングは `root` 側で表示されます
+（`data-disabled` の半透明化は従来どおり各パーツ側のみ）。いずれも `orientation = vertical`
+での使用を前提とし、`horizontal`/`responsive` との併用は対象外です。
+
 `data-invalid` が立っているとき、Label のテキスト色もエラー色（`--fandhe-color-danger`）へ
 切り替わります。エラー内容は ErrorText のテキストで別途伝わるため、色のみに依存した
 表示にはなりません。

@@ -106,6 +106,22 @@
 //!   上、`group > root` へ `flex: 1` を書けないため `grid-template-columns:
 //!   1fr auto 1fr` で両側の列を root の `width: 100%` に委ねる設計）。
 //!
+//! # ラベル位置指定（イシュー #3137）
+//!
+//! 上記の `group`（既定の中央寄せ）に加えて、[`group_with`] /
+//! [`SeparatorLabelPosition`] でラベル位置を `start`（先頭寄せ）へ切り替える
+//! opt-in を追加した。Blocks 取り込みの対応表で「左寄せラベル + 線」
+//! 「左タイトル + 線」「左タイトル + 線 + 右ボタン」の 3 レイアウトが
+//! 既存の中央寄せ 1 列挙では表現できないと判定されたため（`docs/design/
+//! component-coverage-map.md` separator 行）。`Start` は `grid-template-
+//! columns: auto 1fr` + `grid-auto-flow: column` の 1 class のみで、
+//! 子を `[label, separator]`（2 列）・`[label, separator, 末尾ノード]`
+//! （3 個目は暗黙列へ流れ込む）のいずれでも 1 行に並べられる。既定値
+//! （`Center`）は recipe へ登録しない（`default_variant` を追加すると
+//! 既存出力へ class が混入し golden が壊れるため）ことで [`group`] の
+//! 出力をバイト不変に保つ（`End`・vertical のラベル付き合成は対象外。
+//! 必要になった時点で [`SeparatorLabelPosition`] に variant を追加する）。
+//!
 //! `orientation` の型は headless 層の
 //! [`fandhe_frontend_headless_ui::data_attrs::Orientation`] をそのまま
 //! 再利用する（[`crate::tabs`] が
@@ -167,6 +183,30 @@ impl VariantValue for SeparatorVariant {
             Self::Solid => "solid",
             Self::Dashed => "dashed",
             Self::Dotted => "dotted",
+        }
+    }
+}
+
+/// [`group_with`] のラベル位置（イシュー #3137、モジュール冒頭 rustdoc
+/// 「ラベル位置指定」節参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SeparatorLabelPosition {
+    /// 中央寄せ（既定、[`group`] と同じ出力）。
+    #[default]
+    Center,
+    /// 先頭寄せ（`grid-auto-flow: column` で末尾ノードを同じ行へ流し込む）。
+    Start,
+}
+
+impl VariantValue for SeparatorLabelPosition {
+    fn axis(self) -> &'static str {
+        "label-position"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::Center => "center",
+            Self::Start => "start",
         }
     }
 }
@@ -290,6 +330,19 @@ fn recipe() -> SlotRecipe {
             vec![decl("border-style", "dotted")],
         )
         .default_variant(SeparatorVariant::Solid)
+        // イシュー #3137: ラベル位置 `start`。`default_variant` は意図的に
+        // 登録しない（モジュール冒頭 rustdoc「ラベル位置指定」節参照）。
+        // 登録すると [`group`]（未指定時 `Center` を補完）の class 出力に
+        // `fd-separator--label-position-center` が混入し、既存 golden・
+        // 既存呼び出し元のマークアップがバイト単位で変わってしまう。
+        .variant(
+            SeparatorLabelPosition::Start,
+            "group",
+            vec![
+                decl("grid-template-columns", "auto 1fr"),
+                decl("grid-auto-flow", "column"),
+            ],
+        )
 }
 
 /// Separator の静的 CSS 全文。recipe が生成する規則群のみで完結する
@@ -380,7 +433,60 @@ pub fn separator<'a>(props: &SeparatorProps, attrs: Vec<(&'a str, &'a str)>) -> 
 /// ```
 #[must_use]
 pub fn group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("group", "div", attrs, children)
+    group_with(SeparatorLabelPosition::Center, attrs, children)
+}
+
+/// [`group`] のラベル位置を明示指定できる版（イシュー #3137、モジュール
+/// 冒頭 rustdoc「ラベル位置指定」節参照）。`position` が [`SeparatorLabelPosition::Center`]
+/// のときは recipe 由来の class を持たないため、呼び出し側 `attrs` を
+/// 無加工で通過させる既存 [`group`] の出力・契約とバイト単位で一致する
+/// （[`crate::avatar::group_with`] の `stacking` 非既定時のみ合成する
+/// 判断と同型）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::{render, text};
+/// use fandhe_frontend_pre_styled_ui::separator::{
+///     group_with, label, separator, SeparatorLabelPosition, SeparatorProps,
+/// };
+///
+/// let node = group_with(
+///     SeparatorLabelPosition::Start,
+///     vec![],
+///     vec![
+///         label(vec![], vec![text("Section")]),
+///         separator(&SeparatorProps::default(), vec![]),
+///     ],
+/// );
+/// assert!(render(&node).contains("fd-separator--label-position-start"));
+/// ```
+#[must_use]
+pub fn group_with<'a>(
+    position: SeparatorLabelPosition,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    if position != SeparatorLabelPosition::Start {
+        return ANATOMY.part("group", "div", attrs, children);
+    }
+    let recipe = recipe();
+    let position_class = recipe.variant_class(SeparatorLabelPosition::Start);
+    // 呼び出し側 `class`（レイアウト・装飾用）を [`group`] と対称に保持
+    // する。`drop_class_attr` は重複 `class` 属性を防ぐための除去のみを
+    // 担い、値の破棄はしない（`crate::avatar::group_with` と同型の判断）。
+    let caller_class = attrs
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case("class"))
+        .map(|(_, v)| *v)
+        .filter(|v| !v.is_empty());
+    let combined_class = match caller_class {
+        Some(existing) => format!("{existing} {position_class}"),
+        None => position_class,
+    };
+    let mut merged: Vec<(&str, &str)> = vec![("class", combined_class.as_str())];
+    merged.extend(drop_class_attr(attrs));
+    ANATOMY.part("group", "div", merged, children)
 }
 
 /// pre-styled-only `label` パート（`<span>`、イシュー #2053）を組み立てる。
@@ -599,5 +705,73 @@ mod tests {
         assert!(out.contains("grid-template-columns: 1fr auto 1fr;"));
         assert!(out.contains(r#"[data-scope="separator"][data-part="label"] {"#));
         assert!(out.contains("white-space: nowrap;"));
+    }
+
+    // --- イシュー #3137: group_with/SeparatorLabelPosition（ラベル位置指定）---
+
+    #[test]
+    fn group_with_center_matches_group_output_byte_for_byte() {
+        let via_group = render(&group(vec![("id", "x")], vec![text("OR")]));
+        let via_group_with = render(&group_with(
+            SeparatorLabelPosition::Center,
+            vec![("id", "x")],
+            vec![text("OR")],
+        ));
+        assert_eq!(via_group, via_group_with);
+        assert!(!via_group.contains("class="));
+    }
+
+    #[test]
+    fn group_with_start_has_label_position_class() {
+        let html = render(&group_with(SeparatorLabelPosition::Start, vec![], vec![]));
+        assert!(html.contains(r#"class="fd-separator--label-position-start""#));
+    }
+
+    #[test]
+    fn group_with_start_merges_caller_class_case_insensitively() {
+        let html = render(&group_with(
+            SeparatorLabelPosition::Start,
+            vec![("Class", "my-layout")],
+            vec![],
+        ));
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("my-layout fd-separator--label-position-start"));
+    }
+
+    #[test]
+    fn group_with_start_drops_spoofed_anatomy_attrs() {
+        let html = render(&group_with(
+            SeparatorLabelPosition::Start,
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="separator""#));
+        assert!(html.contains(r#"data-part="group""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn group_with_start_xss_payload_is_escaped() {
+        let html = render(&group_with(
+            SeparatorLabelPosition::Start,
+            vec![("data-testid", "\"><script>alert(1)</script>")],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        assert!(!html.contains("<script>"));
+        assert_eq!(
+            html.matches("&lt;script&gt;alert(1)&lt;/script&gt;")
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn css_output_declares_label_position_start_rule() {
+        let out = css();
+        assert!(out.contains(
+            r#"[data-scope="separator"][data-part="group"].fd-separator--label-position-start {"#
+        ));
+        assert!(out.contains("grid-template-columns: auto 1fr;"));
+        assert!(out.contains("grid-auto-flow: column;"));
     }
 }

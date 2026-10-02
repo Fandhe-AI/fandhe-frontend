@@ -438,8 +438,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `hero_bottom_screenshot` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節）。セレクタは
+/// `hero_bottom_screenshot` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。セレクタは
 /// `.blocks-hero-bottom-screenshot-*` と
 /// `[data-blocks-hero-bottom-screenshot-*]` のみを用いる。
 const LAYOUT_CSS: &str = "\

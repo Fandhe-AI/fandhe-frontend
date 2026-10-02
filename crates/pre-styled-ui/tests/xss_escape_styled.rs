@@ -103,7 +103,7 @@ use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::splitter;
-use fandhe_frontend_pre_styled_ui::stat;
+use fandhe_frontend_pre_styled_ui::stat::{self, StatDeltaTone};
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 use fandhe_frontend_pre_styled_ui::steps;
 use fandhe_frontend_pre_styled_ui::strong::strong;
@@ -215,6 +215,13 @@ fn styled_text_children_are_escaped_for_all_payloads() {
 
         let html = render(&stat::value_text(vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "stat::value_text children コンテキスト");
+
+        let html = render(&stat::delta(
+            StatDeltaTone::Danger,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "stat::delta children コンテキスト");
 
         let html = render(&timeline::title(vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "timeline::title children コンテキスト");
@@ -335,6 +342,13 @@ fn caller_attrs_are_escaped_for_all_payloads() {
             vec![],
         ));
         assert_payload_is_escaped(payload, &html, "stat::root 呼び出し側 attrs コンテキスト");
+
+        let html = render(&stat::delta(
+            StatDeltaTone::Neutral,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "stat::delta 呼び出し側 attrs コンテキスト");
 
         let html = render(&timeline::root(
             TimelineVariant::default(),
@@ -3706,6 +3720,46 @@ fn progress_styled_root_and_headless_circle_parts_are_escaped_for_all_payloads()
     }
 }
 
+/// イシュー #3140: progress の pre-styled-only `marker_group`/`marker`
+/// （マイルストーンの目盛りラベル列）の children・呼び出し側 attrs が
+/// payload 網羅で既定エスケープを経由することを固定する
+/// （`progress_styled_root_and_headless_circle_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn progress_marker_group_and_marker_payloads_are_escaped() {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::Orientation;
+    use fandhe_frontend_pre_styled_ui::progress;
+
+    let p = Progress::new(0.0, 100.0, Some(50.0), Orientation::Horizontal);
+
+    for payload in payloads::all() {
+        // marker_group: 呼び出し側 attrs・children。
+        let html = render(&progress::marker_group(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "progress::marker_group attrs/children コンテキスト",
+        );
+
+        // marker: 呼び出し側 attrs・children。
+        let html = render(&progress::marker(
+            &p,
+            25.0,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "progress::marker attrs/children コンテキスト",
+        );
+    }
+}
+
 /// イシュー #770: Image/Icon の属性値経路（`src`/`alt`/`viewBox`/
 /// `aria-label`/呼び出し側 `attrs`/`class`/SVG children 属性）が payload
 /// 網羅で既定エスケープを経由することを固定する。
@@ -6326,6 +6380,19 @@ fn command_parts_are_escaped_for_all_payloads() {
         let html = render(&command::separator(vec![("data-testid", payload)], vec![]));
         assert_payload_is_escaped(payload, &html, "command::separator attrs context");
 
+        let html = render(&command::footer(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "command::footer attrs context");
+        assert_payload_is_escaped(payload, &html, "command::footer children context");
+
+        let html = render(&command::footer(vec![("class", payload)], vec![]));
+        assert!(
+            !html.contains(payload),
+            "command::footer class payload leaked: payload={payload:?}, html={html}"
+        );
+
         let html = render(&command::root(
             OpenState::Open,
             false,
@@ -7342,5 +7409,66 @@ fn drawer_header_children_and_attrs_are_escaped_for_all_payloads() {
         );
         assert!(html.contains(r#"data-scope="drawer""#));
         assert!(html.contains(r#"data-part="header""#));
+    }
+}
+
+/// (34) `toast::content`/`toast::actions` 経路（イシュー #3142）:
+/// pre-styled-only `content`/`actions` パート（`Anatomy::part` 直接呼び出し、
+/// `drawer::header` と同型）の children・呼び出し側 `attrs` の両方で既定
+/// エスケープ（REQ-1）が貫通することを固定する。あわせて `data-scope`/
+/// `data-part` の偽装が headless 層（`Anatomy::part`）により除去され、生値が
+/// 出力に残らないことも固定する。
+#[test]
+fn toast_content_and_actions_children_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // content: children 経路。
+        let html = render(&toast::content(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "toast::content children コンテキスト");
+
+        // content: 呼び出し側 attrs 経路。
+        let html = render(&toast::content(vec![("data-x", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "toast::content 呼び出し側 attrs コンテキスト",
+        );
+
+        // content: data-scope/data-part 偽装は headless `Anatomy::part` が除去する。
+        let html = render(&toast::content(
+            vec![("data-scope", payload), ("data-part", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "toast::content の data-scope/data-part 偽装ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"data-scope="toast""#));
+        assert!(html.contains(r#"data-part="content""#));
+
+        // actions: children 経路。
+        let html = render(&toast::actions(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "toast::actions children コンテキスト");
+
+        // actions: 呼び出し側 attrs 経路。
+        let html = render(&toast::actions(vec![("data-x", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "toast::actions 呼び出し側 attrs コンテキスト",
+        );
+
+        // actions: data-scope/data-part 偽装は headless `Anatomy::part` が除去する。
+        let html = render(&toast::actions(
+            vec![("data-scope", payload), ("data-part", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "toast::actions の data-scope/data-part 偽装ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"data-scope="toast""#));
+        assert!(html.contains(r#"data-part="actions""#));
     }
 }

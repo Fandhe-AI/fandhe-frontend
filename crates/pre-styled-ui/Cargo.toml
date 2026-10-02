@@ -3626,9 +3626,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #3122: `InputVariant::SubtleFlushed`（淡色背景＋下線のみ、R1043）
 # を純追加した。`Subtle` の背景宣言と `Flushed` の下線宣言を合成するのみで
 # 新規トークンはなく、既存 3 variant・既存出力はバイト不変のため非破壊的な
-# 追加として minor バンプする。origin/main 側の到達値（0.218.1）より
-# 本ブランチの到達値（0.219.0）が上回るため 0.219.0 を維持する
-# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+# 追加として minor バンプする。origin/main 側は独立に 0.219.0 へ到達して
+# いたため、本マージでは #3121/#3122 双方の実体変更を統合した結果として
+# 0.220.0 へマイナーバンプした（同一版数への偶発的衝突をそのまま採用
+# しない。`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 #
 # イシュー #3123: input_group の `stylesheet()` へ native_select（`data-scope=
 # "field" data-part="select"`）/ styled select（`data-scope="select"`、
@@ -3637,14 +3638,19 @@ name = "fandhe-frontend-pre-styled-ui"
 # 出力バイトは不変）。公開 API シグネチャは変えず CSS 出力のみを拡張する
 # 観測可能な変更のため patch バンプする。
 #
+# イシュー #3124: select に選択インジケータ位置軸
+# `select::ItemIndicatorPlacement`（start/end、既定 end）を追加し、
+# `select::root_with` へ新規引数を 1 つ追加した（公開シグネチャ変更）。
+# `End` のとき class を一切出さず既存出力はバイト不変だが、シグネチャ
+# 変更自体が 0.x の破壊的変更のため、本ブランチは 0.220.0 からさらに
+# マイナーバンプして 0.221.0 へ到達していた。
+#
 # イシュー #3125: `tab_nav` へ `TabNavVariant::Pill`（`tabs` の `Enclosed`
 # と同一外観）と `color-palette` 軸（`root_with`、opt-in）を純追加した。
 # 新規 custom property（`--fandhe-tab-nav-*`）のフォールバック値はいずれも
 # 既存の直書きリテラルと同一のため、既存 `root`/`link` の出力・golden CSS
 # の既存ブロックはバイト不変。非破壊的な追加として minor バンプする。
-# origin/main 側の到達値（0.220.0）より本ブランチの到達値（0.219.0）が
-# 下回っていたため、origin 側の統合結果（0.220.0）に本変更分を上乗せし
-# 0.221.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+# origin/main は独立に 0.220.0 からこの変更で 0.221.0 へ到達し、さらに
 # イシュー #3126: `tab_nav` へ `TabNavVariant::Bar`（カード状バー、区切り線 +
 # 下端インジケータ）を純追加した。新規 custom property
 # （`--fandhe-tab-nav-link-flex`/`-divider`/`-focus-ring-offset` 等）の
@@ -3652,12 +3658,27 @@ name = "fandhe-frontend-pre-styled-ui"
 # `root`/`link` の出力・golden CSS の既存ブロックはバイト不変。非破壊的な
 # 追加として minor バンプする。
 #
+# イシュー #3126 レビュー対応: PR #3564 のレビュー指摘（codex: 狭い幅で
+# Bar の末尾リンクがクリップされ操作不能になり得る / Cursor Bugbot:
+# 区切り線の物理プロパティ `border-right` が `direction: rtl` で位置ずれ
+# する）を受け、`link` の区切り線を論理プロパティ（`border-inline-end`）
+# へ是正し、`min-width`/`overflow`/`text-overflow`/`white-space` の
+# custom property 間接参照を追加した。新規プロパティのフォールバック値は
+# いずれも各プロパティの初期値と同一、区切り線の論理プロパティ化も
+# LTR 描画結果は不変のため、Line/Pill の computed style は不変。
+# 非破壊的な追加として minor バンプする。
+#
+# マージコミット注記（#3124 ブランチと origin/main #3125/#3126 の統合）:
+# 両者が独立に同一版数 0.221.0 へ到達していた（偶発的衝突）ため、そのまま
+# 採用せずさらに +1 して 0.222.0 とする（`.claude/rules/coding-rust.md`
+# #638 条項の同衝突運用）。
+#
 # イシュー #3127: card（body/footer）・dialog（footer）へ淡色背景の
 # opt-in 状態（`data-subtle`）を純追加した。呼び出し側付与の値なし存在
 # 属性で既存 base/variant/既存 state 規則の出力はバイト不変（golden は
 # 末尾純追加）のため非破壊的な追加として minor バンプする。本ブランチは
 # merge base（0.220.0）から独立に 0.221.0 へ到達していたが、origin/main
-# 側（#3125）も独立に 0.221.0 へ到達していたため、同一版数への偶発的
+# 側（#3125/#3126）も独立に 0.221.0 へ到達していたため、同一版数への偶発的
 # 衝突をそのまま採用せず双方の実体変更を統合した結果として 0.222.0 へ
 # さらにマイナーバンプする（`.claude/rules/coding-rust.md` #638 条項の
 # 同衝突運用）。
@@ -3716,6 +3737,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # opt-in、#3560）も独立に同一の 0.224.0 へ到達しており偶発的に衝突した
 # ため、マージ結果としてさらに +1 して 0.225.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# イシュー #3132: calendar に枠線なし variant（`CalendarVariant::Plain`）と
+# 大セル月表示（`CalendarCellSize::Large`）を追加した。新規公開 API
+# （`CalendarVariant`/`CalendarCellSize`/`root_with`）のみで既存関数
+# シグネチャ・golden CSS の既存ブロックは不変（純追加）のため非破壊的な
+# 追加として minor バンプする。
 #
 # マージコミット注記（origin/main #3558/#3560 との再統合、PR #3565）: 本
 # ブランチは上記の経緯で独立に 0.225.0 へ到達していたが、origin/main 側
@@ -3800,17 +3827,408 @@ name = "fandhe-frontend-pre-styled-ui"
 # ため、マージ結果としてさらに +1 して 0.228.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 #
-# マージコミット注記（origin/main PR #3565 との再統合）: 本ブランチ（#3130）は
-# 上記の経緯で独立に 0.228.0 へ到達していたが、origin/main 側（PR #3565）も
-# 独立に同一の 0.228.0 へ到達しており偶発的に衝突したため、マージ結果として
-# さらに +1 して 0.229.0 とする（`.claude/rules/coding-rust.md` #638 条項の
+# イシュー #3134: field にラベル配置 variant（inset/overlap、
+# `FieldLabelPlacement`/`root_with_label_placement`）を追加した。既存
+# `root()`/`css()` の出力はバイト単位で不変（`root()` は内部で
+# `root_with_label_placement(.., Outside, ..)` へ委譲、CSS は末尾への
+# 純追加）のため、破壊的変更ではない公開 API 純追加として minor バンプ
+# する。
+#
+# マージコミット注記（origin/main 取り込み、PR #3570）: 本ブランチ（#3134）
+# は独立に 0.227.0 から 0.228.0 へ到達していたが、origin/main 側（上記
+# #3564/#3566 を統合した結果）も独立に同一の 0.228.0 へ到達しており偶発的
+# に衝突したため、マージ結果としてさらに +1 して 0.229.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用。同一版数への
+# 偶発的衝突をそのまま採用しない）。
+#
+# マージコミット注記（origin/main #3563 avatar との再統合）: 本ブランチ
+# （#3134）は上記の経緯で独立に 0.229.0 へ到達していたが、origin/main 側
+# （avatar の badge 配置・group 重なり順・大サイズ、#3563。PR #3565 との
+# 衝突を解消する過程で origin/main 側も独立に 0.229.0 へ到達していた）も
+# 同一の 0.229.0 へ到達しており偶発的に衝突したため、マージ結果として
+# さらに +1 して 0.230.0 とする（`.claude/rules/coding-rust.md` #638 条項の
 # 同衝突運用）。
 #
 # PR #3563 codex-review P1/P2 指摘対応: `group_with`（`FirstOnTop`）の
 # 重なり順の採番・クラス付与を avatar root 要素（`data-scope="avatar"`
 # `data-part="root"`）だけに限定した（テキスト等で採番がずれて pos1 へ
-# 合流する不具合の修正。0.229.0 のまま本 PR に含める）。
-version = "0.229.0"
+# 合流する不具合の修正。0.230.0 のまま本 PR に含める）。
+#
+# マージコミット注記（origin/main #3558 との再統合、PR #3561）: 本ブランチ
+# （#3124）は上記の経緯で独立に 0.225.0 へ到達していたが、origin/main 側
+# （input_group の #3123・tab_nav Bar の #3126・drawer の #3128・card/dialog
+# の #3560 を統合した PR #3558）も独立に同一の 0.225.0 へ到達していた
+# （偶発的衝突）ため、そのまま採用せずさらに +1 して 0.226.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# マージコミット注記（本 PR #3561、origin/main 再取り込み）: 本マージ時点
+# で本ブランチ（#3124 到達値）と origin/main（#3126 の PR #3564 レビュー
+# 対応を含む到達値）が独立に同一版数 0.226.0 へ到達していた（偶発的衝突）
+# ため、そのまま採用せずさらに +1 して 0.227.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用。同一版数への
+# 偶発的衝突をそのまま採用しない）。
+#
+# マージコミット注記（本 PR #3561、origin/main 再々取り込み）: 本ブランチ
+# （#3124 到達値）と origin/main（#3131 の PR #3566 を含む到達値）が独立に
+# 同一版数 0.227.0 へ到達していた（偶発的衝突）ため、そのまま採用せず
+# さらに +1 して 0.228.0 とする（`.claude/rules/coding-rust.md` #638 条項の
+# 同衝突運用）。
+#
+# マージコミット注記（本 PR #3561、origin/main 4 度目の取り込み）: 本ブランチ
+# （#3124 到達値）と origin/main（#3129 の PR #3565 を含む到達値）が独立に
+# 同一版数 0.228.0 へ到達していた（偶発的衝突）ため、そのまま採用せず
+# さらに +1 して 0.229.0 とする（`.claude/rules/coding-rust.md` #638 条項の
+# 同衝突運用）。
+#
+# マージコミット注記（本 PR #3561、origin/main 5 度目の取り込み）: 本ブランチ
+# （#3124 到達値）と origin/main（#3130 の PR #3563 を含む到達値）が独立に
+# 同一版数 0.229.0 へ到達していた（偶発的衝突）ため、そのまま採用せず
+# さらに +1 して 0.230.0 とする（`.claude/rules/coding-rust.md` #638 条項の
+# 同衝突運用）。
+#
+# マージコミット注記（origin/main #3561 との再統合）: 本ブランチ（#3134）
+# は上記の経緯で独立に 0.230.0 へ到達していたが、origin/main 側（select
+# の選択インジケータ位置指定、#3561）も独立に同一の 0.230.0 へ到達して
+# おり偶発的に衝突したため、マージ結果としてさらに +1 して 0.231.0 と
+# する（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# マージコミット注記（PR #3568 への origin/main 取り込み、イシュー #3132）:
+# 本ブランチ（#3132）は独立に 0.227.0 へ到達していたが、origin/main 側
+# （#3131 を含む統合結果）も独立に同一の 0.227.0 へ到達しており偶発的に
+# 衝突したため、マージ結果としてさらに +1 して 0.228.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用。同一版数への
+# 偶発的衝突をそのまま採用しない）。
+#
+# マージコミット注記（PR #3568 への origin/main 再取り込み、CI 失敗是正）:
+# 上記の経緯で本ブランチ・origin/main 双方が独立に同一の 0.228.0 へ到達し
+# ており偶発的に衝突したため、マージ結果としてさらに +1 して 0.229.0 と
+# する（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# PR #3568 レビュー指摘是正（codex P1、イシュー #3132）: `CELL_SIZE_LARGE_CSS`
+# が `table-cell`（`td`）自体を `display: flex` にしていたため、
+# `table-layout: fixed` と組み合わせた 7 列等幅グリッドの列対応が崩れる
+# 不具合を修正した。`td` の display は変更せず、直下の子を全称子セレクタ
+# （`> *`）でブロック化して縦積みする方式へ変更（観測可能な CSS 出力の
+# 変更のため minor バンプ）。
+#
+# マージコミット注記（本 PR #3561、origin/main 5 度目の取り込み）: 本ブランチ
+# （#3124 到達値）と origin/main（#3130 の PR #3563 を含む到達値）が独立に
+# 同一版数 0.229.0 へ到達していた（偶発的衝突）ため、そのまま採用せず
+# さらに +1 して 0.230.0 とする（`.claude/rules/coding-rust.md` #638 条項の
+# 同衝突運用）。
+#
+# イシュー #3135: button_group の入れ子に `data-attached` opt-in（接続辺の
+# 角丸・境界線解除・間隔打ち消し・縦外側での幅揃え）を追加した。既存の
+# margin 間隔表現・既存出力バイトは不変で、golden CSS 末尾への純追加
+# （非破壊的な追加）のため patch バンプする。
+#
+# PR #3568 レビュー指摘是正（codex P2・Bugbot、イシュー #3132）: 上記の
+# `> *` が `badge`（予定チップ）の `inline-flex` も `display: block` へ
+# 上書きし、セル幅いっぱいに広がっていた（codex P2）。`day-trigger` 限定の
+# 子孫セレクタへ絞り、`badge` 等ほかの子の display には触れないよう修正。
+# あわせて Large root variant に `width: 100%`/`box-sizing: border-box` を
+# 追加し、flex/grid の子として配置されても内容幅へ縮まず親幅いっぱいに
+# 広がるよう修正した（Bugbot「Large calendar misses full width」。観測可能
+# な CSS 出力の変更のため minor バンプ、version はそのまま 0.230.0 を維持
+# ＝未公開のため同一反復として扱う）。
+#
+# マージコミット注記（origin/main #3563 との再統合）: origin/main 側
+# （avatar の badge 配置・group 重なり順、#3563）は独立に 0.229.0 へ到達して
+# いたが、本ブランチは既にそれより新しい 0.230.0 へ到達済みのため、偶発的な
+# 同一版数衝突ではなく version はそのまま 0.230.0 を維持する
+# （`.claude/rules/coding-rust.md` #638 条項は同一版数への偶発衝突時のみの
+# 運用であり、本件は該当しない）。
+#
+# マージコミット注記（本 PR #3568、origin/main 再々取り込み、イシュー #3132）:
+# 本ブランチは上記の経緯で独立に 0.230.0 へ到達していたが、origin/main 側
+# （avatar の #3563 以降を含む到達値）も独立に同一の 0.230.0 へ到達していた
+# （偶発的衝突）ため、そのまま採用せずさらに +1 して 0.231.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# マージコミット注記（本 PR #3569、origin/main 再取り込み）: 本ブランチ
+# （イシュー #3135 到達値）と origin/main（calendar の #3568 到達値を含む）が
+# 独立に同一版数 0.231.0 へ到達していた（偶発的衝突）ため、そのまま採用せず
+# さらに +1 して 0.232.0 とする（`.claude/rules/coding-rust.md` #638 条項の
+# 同衝突運用）。
+#
+# マージコミット注記（本 PR #3569、origin/main 再々取り込み）: 本ブランチ
+# が上記で独立に到達した 0.232.0 と、origin/main（select の #3573 レビュー
+# 対応を含む到達値）も独立に同一版数 0.232.0 へ到達していた（偶発的衝突）
+# ため、そのまま採用せずさらに +1 して 0.233.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# マージコミット注記（PR #3570 への origin/main 再取り込み）: 本ブランチ
+# （#3134）は上記の経緯で独立に 0.231.0 へ到達していたが、origin/main 側
+# （PR #3568 の経緯を含む到達値）も独立に同一の 0.231.0 へ到達しており
+# 偶発的に衝突したため、マージ結果としてさらに +1 して 0.232.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用。同一版数への
+# 偶発的衝突をそのまま採用しない）。
+#
+# イシュー #3136: pagination に連結表示 variant（`PaginationVariant`/
+# `root_with`）を追加した。新規公開 API のみで既存関数シグネチャ・golden
+# CSS の既存ブロックは不変のため非破壊的な追加として minor バンプする。
+#
+# PR #3573 レビュー対応（イシュー #3124）: codex P1 指摘を受け、select の
+# `item-indicator` に `flex-shrink: 0` を追加した（item に gap がある構成で
+# 項目幅・テキスト長が異なるとインジケータが flex item として縮小し整列が
+# 崩れるため）。既存 golden ブロックの出力バイトが変わる観測可能な CSS
+# 変更のため minor バンプする。
+#
+# マージコミット注記（PR #3570 への origin/main 再取り込み、push 前 base
+# 最新化ゲート是正）: 本ブランチは上記の経緯で独立に 0.232.0 へ到達して
+# いたが、origin/main 側（PR #3573 の経緯を含む到達値）も独立に同一の
+# 0.232.0 へ到達しており偶発的に衝突したため、マージ結果としてさらに +1
+# して 0.233.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突
+# 運用。同一版数への偶発的衝突をそのまま採用しない）。
+#
+# マージコミット注記（本 PR #3136、origin/main 取り込み）: 本ブランチは
+# 上記の経緯で独立に 0.231.0 へ到達していたが、origin/main 側（select の
+# #3573 対応を含む到達値）は独立に 0.232.0 へ到達していたため、そのまま
+# 採用せずさらに +1 して 0.233.0 とする。
+# イシュー #3140: progress へ marker-group/marker（マイルストーンの目盛り
+# ラベル）を純追加した新規公開 API のみの変更（既存 golden ブロックは不変・
+# 非破壊の追加）のため minor バンプする。
+#
+# イシュー #3141: switch に短いトラック形状（`SwitchTrack`/`root_with`）と
+# thumb アイコン slot（`thumb_icon`）を追加した。新規公開 API のみで既存
+# 関数シグネチャ・golden CSS の既存ブロックは不変のため非破壊的な追加と
+# して minor バンプする。
+# マージコミット注記（PR #3570 への origin/main 再取り込み、push 前 base
+# 最新化ゲート再適用）: 本ブランチ（#3134）は上記の経緯で独立に 0.233.0 へ
+# 到達していたが、origin/main 側（PR #3136 の経緯を含む到達値）も独立に
+# 同一の 0.233.0 へ到達しており偶発的に衝突したため、マージ結果として
+# さらに +1 して 0.234.0 とする（`.claude/rules/coding-rust.md` #638 条項
+# の同衝突運用。同一版数への偶発的衝突をそのまま採用しない）。
+#
+# イシュー #3139: steps にバー型（`StepsVariant::Bar`）・パネル型
+# （`Panel`）・ドット型（`Dot`）の見た目 variant を追加した。既存 5 関数
+# （`root`/`list`/`item`/`indicator`/`separator`）・既存 golden CSS ブロック
+# は無変更（`*_with` 系新規公開 API・CSS ブロック純追加のみ）だが、観測可能
+# な公開 API 拡張のため minor バンプする。
+#
+# マージコミット注記（本 PR #3139、origin/main 取り込み）: 本ブランチは
+# 上記の経緯で独立に 0.233.0 へ到達していたが、origin/main 側（#3136 取り込み
+# 後の到達値）も独立に同一の 0.233.0 へ到達していた（偶発的衝突）ため、
+# そのまま採用せずさらに +1 して 0.234.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# イシュー #3138: stat に矢印なし・意味色付きの増減率表示（`delta` パート・
+# `StatDeltaTone` tone 軸）を追加した。`SLOTS` へ `delta` を末尾追加し、
+# tone 軸に `default_variant` を登録しないため既存 `root` の class 出力・
+# 既存 golden ブロックの出力バイトは不変（純追加のみ）。公開 API 純追加の
+# ため minor バンプする。
+#
+# マージコミット注記（本 PR #3577、origin/main 再取り込み）: 本ブランチは
+# 上記の経緯で独立に 0.233.0 へ到達していたが、origin/main 側（select の
+# #3573 対応を含む到達値、本ブランチの base merge 時点）も独立に同一の
+# 0.233.0 へ到達していた（偶発的衝突）ため、そのまま採用せずさらに +1 して
+# 0.234.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# イシュー #3143: command に pre-styled-only `footer` パート（キー操作
+# ヒント帯、`SLOTS` へ `footer` を純追加・headless-ui の anatomy は不変）を
+# 追加した。新規公開 API（`command::footer`）のみで既存関数シグネチャ・
+# 既存 golden CSS ブロックは不変（separator と dialog の間へ footer の
+# base ブロックを 1 つ挿入するのみ）のため非破壊的な追加として minor
+# バンプする。
+#
+# マージコミット注記（本 PR #3579、origin/main 再取り込み、イシュー #3140）:
+# 本ブランチは command の #3143 対応で独立に 0.234.0 へ到達していたが、
+# origin/main 側（progress の #3140 対応を含む到達値、本ブランチの base
+# merge 時点）も独立に同一の 0.234.0 へ到達していた（偶発的衝突）ため、
+# そのまま採用せずさらに +1 して 0.235.0 とする（`.claude/rules/coding-rust.md`
+# #638 条項の同衝突運用）。
+#
+# マージコミット注記（本 PR #3578、origin/main 再取り込み、イシュー #3139）:
+# 本ブランチ（#3139）と origin/main（#3577 取り込み後の到達値）は双方とも
+# 独立に 0.234.0 へ到達していた（偶発的衝突）ため、そのまま採用せずさらに
+# +1 して 0.235.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突
+# 運用）。
+#
+# マージコミット注記（本 PR #3578、origin/main 再取り込み #2）: 上記のとおり
+# 本ブランチは独立に 0.235.0 へ到達していたが、origin/main 側（progress の
+# #3140 取り込み後の到達値、本ブランチの base merge 時点）も独立に同一の
+# 0.235.0 へ到達していた（偶発的衝突）ため、そのまま採用せずさらに +1 して
+# 0.236.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# イシュー #3139（PR #3578 codex-review 対応）: steps の Dot variant の
+# indicator variant 宣言が base の `border: 2px solid` を上書きせず、
+# current/complete で background と border-color が異なるトークンになり
+# 塗りドットではなくリング状に描画される不具合を修正した（`border: none`
+# を追加）。既存 golden ブロックの出力バイトが変わる非破壊的な修正のため
+# patch バンプする。
+#
+# マージコミット注記（PR #3570 への origin/main 再取り込み、3 回目）: 本ブランチは
+# 上記の経緯で 0.235.0 へ到達していたが、origin/main 側（progress の #3140 対応、
+# PR #3579）も独立に同一の 0.235.0 へ到達していた（偶発的衝突）ため、そのまま
+# 採用せずさらに +1 して 0.236.0 とする（`.claude/rules/coding-rust.md` #638 条項
+# の同衝突運用）。
+#
+# マージコミット注記（本 PR #3137、origin/main 再取り込み）: イシュー
+# #3137 で separator::group にラベル位置指定（`group_with`/
+# `SeparatorLabelPosition::Start`）を追加した。既存 `group`/`separator` の
+# シグネチャ・出力はバイト単位で不変（`default_variant` を登録しないため）
+# な純追加のため minor バンプする。origin/main 側が別 PR（#3576 等）の
+# マージで独立に 0.233.0 へ到達済みのため、本 PR 分の +1 が吸収され base
+# と同値になっていた（codex-review 是正、PR #3575）。そのためさらに +1
+# して 0.234.0 とした。
+#
+# マージコミット注記（本 PR #3575、origin/main 再取り込み）: 本ブランチは
+# 上記の経緯で 0.234.0 へ到達していたが、origin/main 側（#3577 等の
+# マージ）も独立に同一の 0.234.0 へ到達していたため、さらに +1 して
+# 0.235.0 とした（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# マージコミット注記（本 PR #3575、origin/main 再々取り込み）: 本ブランチは
+# 上記の経緯で 0.235.0 へ到達していたが、origin/main 側（#3579 の
+# マージ）も独立に同一の 0.235.0 へ到達していたため、さらに +1 して
+# 0.236.0 とした（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# codex-review 是正（本 PR #3582、イシュー #3143 の footer パート追加分の
+# バンプ漏れ修正）: command::footer を追加した時点（#3143 の節参照）で
+# 本ブランチは base の到達値 0.235.0 のまま非破壊的追加分の +1 を行って
+# いなかった（マージコミット注記の record だけが先行し、実際の version
+# フィールドは base 追随のみで止まっていた）。その後の origin/main 再取り込み
+# （#3137/#3575 系）で base の到達値へ追随し続けた結果 0.236.0 まで上がって
+# いるが、これは origin/main 側の separator 変更分の反映であり footer 追加
+# 自体の増分ではない。footer 追加分として改めて +1 して 0.237.0 とする。
+#
+# マージコミット注記（本 PR #3580、origin/main 再取り込み、イシュー #3141）:
+# 本ブランチは switch の #3141 対応で独立に 0.236.0 へ到達していたが、
+# origin/main 側（separator の #3137 対応を含む到達値、本ブランチの base
+# merge 時点）も独立に同一の 0.236.0 へ到達していた（偶発的衝突）ため、
+# そのまま採用せずさらに +1 して 0.237.0 とする（`.claude/rules/coding-rust.md`
+# #638 条項の同衝突運用）。
+#
+# マージコミット注記（本 PR #3582、origin/main 再取り込み、イシュー #3139）:
+# origin/main 側（steps の Dot variant 不具合修正を含む到達値、本ブランチの
+# base merge 時点）は独立に 0.236.1 へ到達していたが、本ブランチの到達値
+# （0.237.0）が既にこれを上回っているため、追加のバンプは行わず 0.237.0 を
+# 維持する（`.claude/rules/coding-rust.md` #638 条項の同衝突運用。到達値の
+# 高い側をそのまま採用する扱い）。
+#
+# マージコミット注記（PR #3143、origin/main 再取り込み、イシュー #3568 系）:
+# 本ブランチは上記の経緯で 0.237.0 へ到達していたが、origin/main 側（field
+# のラベル配置 variant 対応、PR #3570 を含む到達値、本ブランチの base merge
+# 時点）も独立に同一の 0.237.0 へ到達していた（偶発的衝突）ため、そのまま
+# 採用せずさらに +1 して 0.238.0 とする（`.claude/rules/coding-rust.md`
+# #638 条項の同衝突運用）。
+#
+# マージコミット注記（本 PR #3580、origin/main 再取り込み #2、イシュー #3139）:
+# origin/main 側は steps の #3139 対応（PR #3578）で独立に 0.236.1 へ到達していたが、
+# 本ブランチ（switch の #3141 対応）は既に 0.237.0 へ到達しており origin/main 側を
+# 上回っているため、追加のバンプは行わず 0.237.0 を維持する。
+#
+# イシュー #3142（PR #3583 codex-review 対応）: toast に opt-in の右端
+# アクション列レイアウト（`ACTIONS_COLUMN_ATTR`・pre-styled-only
+# `content`/`actions` パート）を追加した。`SLOTS` へ `content`/`actions`
+# を末尾追加し、`root`/`action-trigger` の state 条件追加も opt-in 属性
+# 付与時のみ発火するため既存 golden ブロックの出力バイトは不変（純追加の
+# み）。公開 API 純追加のため minor バンプする。
+#
+# マージコミット注記（本 PR #3583、origin/main 再取り込み、イシュー
+# #3142）: 本ブランチは上記のとおり独立に 0.235.0 へ到達していたが、
+# origin/main 側（steps の #3139 Dot variant 修正・separator の #3137 等を
+# 含む到達値、本ブランチの base merge 時点）は独立に 0.236.1 へ到達して
+# いた。偶発的な同一版数衝突ではなく origin/main 側が本ブランチを上回って
+# いるため、そのまま +1 する運用（`.claude/rules/coding-rust.md` #638
+# 条項）ではなく、origin/main の到達値（0.236.1）を基点として本 PR 分の
+# minor バンプを適用し 0.237.0 とする。
+#
+# マージコミット注記（本 PR #3583、origin/main 再々取り込み）: 上記の経緯で
+# 本ブランチは 0.237.0 へ到達していたが、origin/main 側も PR #3570 の取り込み
+# （steps の #3139 対応、Dot variant 修正の patch 込みで 0.236.1 から据え置き）
+# により独立に同一の 0.237.0 へ到達していた。偶発的な同一版数衝突のため、
+# そのまま採用せずさらに +1 して 0.238.0 とする（`.claude/rules/coding-rust.md`
+# #638 条項の同衝突運用）。
+#
+# マージコミット注記（PR #3143、origin/main 再取り込み、イシュー #3581 系）:
+# 本ブランチは上記で独立に到達した 0.238.0 と、origin/main（button_group の
+# 入れ子合成例 #3581 を含む到達値）も独立に同一版数 0.238.0 へ到達していた
+# （偶発的衝突）ため、そのまま採用せずさらに +1 して 0.239.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# PR #3569 codex レビュー指摘対応（イシュー #3135）: button_group の
+# `data-attached` opt-in で、間隔のある隣接グループ（`data-attached` なし
+# の通常の内側 root）に接する attached root の角丸・境界線・margin リセ
+# ットを、外側リストでの位置（先頭/末尾）だけで解除していた不具合を修正
+# した。実際に隣接する兄弟も `data-attached` を持つ場合のみ解除するよう
+# セレクタを `:not(:first-child)`/`:not(:last-child)` から隣接兄弟結合子
+# （`+`/`:has(+ ...)`）ベースへ変更し、既存 golden ブロックの出力バイトが
+# 変わる観測可能な CSS 変更のため minor バンプする。
+#
+# マージコミット注記（本 PR #3569、origin/main 五度目の取り込み）: 本ブラ
+# ンチが上記で独立に到達した 0.235.0 と、origin/main（progress の #3140・
+# stat の #3138 対応を含む到達値）も独立に同一版数 0.235.0 へ到達していた
+# （偶発的衝突）ため、そのまま採用せずさらに +1 して 0.236.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# PR #3569 レビュー対応（イシュー #3135、codex / Cursor Bugbot）: attached
+# 内側 root の接続辺の判定を「隣接兄弟も `data-attached`」から「隣接兄弟が
+# 間隔を保つ通常の内側 root でない」へ変更し、通常の子（入力欄・ボタン）
+# とも連結するようにした。既存 golden ブロックの出力バイトが変わる観測
+# 可能な CSS 変更だが、上記 0.236.0 の minor バンプに含める。
+#
+# マージコミット注記（本 PR #3569、origin/main 六度目の取り込み）: 本ブラ
+# ンチが上記で独立に到達した 0.236.0 と、origin/main（separator の #3137
+# 対応を含む到達値）も独立に同一版数 0.236.0 へ到達していた（偶発的衝突）
+# ため、そのまま採用せずさらに +1 して 0.237.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# マージコミット注記（本 PR #3569、origin/main 七度目の取り込み）: origin/main
+# （steps の #3578 到達値）は 0.236.1 であり、本ブランチが上記で到達した
+# 0.237.0 は main の版より 1 つ上のマイナー版のため、そのまま採用する。
+#
+# マージコミット注記（本 PR #3569、origin/main 八度目の取り込み）: 本ブラ
+# ンチが上記で到達した 0.237.0 と、origin/main（field の #3134 対応 PR #3570
+# を含む到達値）も独立に同一版数 0.237.0 へ到達していた（偶発的衝突）ため、
+# そのまま採用せずさらに +1 して 0.238.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# イシュー #3141（PR #3580 codex-review 指摘対応、P1）: thumb_icon が
+# SwitchProps を受け取らず data-disabled/data-invalid/data-required/
+# data-readonly を欠いていた不整合を修正し、既存の `control`/`thumb` 等と
+# 同じ全パーツ一律反映契約に揃えた。`thumb_icon` の公開シグネチャへ
+# `props: &SwitchProps` 引数を追加する観測可能な破壊的変更のため、0.x の
+# 破壊的変更はマイナーバンプとする規約に従いマイナーバンプする（本ブラン
+# チはこの変更により独立に 0.238.0 へ到達していた）。
+#
+# マージコミット注記（本 PR #3580、origin/main 再取り込み #3、イシュー #3141）:
+# 本ブランチは上記 thumb_icon 修正で独立に 0.238.0 へ到達していたが、
+# origin/main 側（field の #3134 対応 PR #3570 を含む到達値）も独立に同一の
+# 0.238.0 へ到達していた（偶発的衝突）ため、そのまま採用せずさらに +1 して
+# 0.239.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+# マージコミット注記（本 PR #3583、origin/main 三度目の取り込み）: 本ブラ
+# ンチが上記で独立に到達した 0.238.0 と、origin/main（button_group の
+# #3135 対応 PR #3569 を含む到達値）も独立に同一版数 0.238.0 へ到達して
+# いた（偶発的衝突）ため、そのまま採用せずさらに +1 して 0.239.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# マージコミット注記（本 PR #3580、origin/main 再取り込み #4、イシュー #3141）:
+# 本ブランチが上記で到達した 0.239.0 と、origin/main（PR #3583 を含む到達値）も
+# 独立に同一版数 0.239.0 へ到達していた（偶発的衝突）ため、そのまま採用せず
+# さらに +1 して 0.240.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# PR #3582（イシュー #3143）codex-review P2 再指摘・Cursor Bugbot 指摘対応:
+# `footer` の呼び出し側が渡すヒント `span` が `display: inline` のままで
+# `kbd` と説明文が別行に分かれ得る問題と、長いヒントが `root` の
+# `overflow: hidden` で切れる問題に対し、`stylesheet()` へ 2 つの raw CSS
+# を追記した。直接の子 `[data-scope="command"][data-part="footer"] > *` は
+# `display: inline-flex`・`min-width: 0`・`max-width: 100%`・
+# `overflow-wrap: anywhere`（`white-space` は指定しない）、子孫
+# `[data-scope="command"][data-part="footer"] > * kbd` だけが
+# `white-space: nowrap` を持つ。既存 golden CSS の出力バイトが変わる
+# 観測可能な変更のためマイナーバンプする。
+#
+# マージコミット注記（PR #3582、origin/main 再取り込み、イシュー #3143）:
+# origin/main は PR #3583（toast の #3142 対応）取り込みで 0.239.0 へ到達
+# した。本ブランチの 0.240.0 は main の版より 1 つ上のマイナー版のため、
+# そのまま採用する（`.claude/rules/coding-rust.md` #638 条項）。
+#
+# マージコミット注記（PR #3582、origin/main 再々取り込み、イシュー #3143）:
+# 本ブランチの 0.240.0 と、origin/main（PR #3580、switch の #3141 対応を
+# 含む到達値）も独立に同一版数 0.240.0 へ到達していた（偶発的衝突）ため、
+# そのまま採用せずさらに +1 して 0.241.0 とする（`.claude/rules/coding-rust.md`
+# #638 条項の同衝突運用）。
+version = "0.241.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

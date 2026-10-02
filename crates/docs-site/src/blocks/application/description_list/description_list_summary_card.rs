@@ -333,8 +333,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `description_list_summary_card` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節と同型）。
+/// `description_list_summary_card` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 const LAYOUT_CSS: &str = "\
 .blocks-description-list-summary-card-layout {\n  max-width: 24rem;\n  width: 100%;\n}\n\
 [data-scope=\"data-list\"][data-part=\"item\"][data-blocks-description-list-summary-card-summary] {\n  padding-bottom: var(--fandhe-space-4);\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
