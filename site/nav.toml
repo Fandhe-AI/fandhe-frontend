@@ -3001,6 +3001,11 @@ title = "api-reference-param-accordion"
 source = "site/blocks/api-reference-param-accordion.md"
 path = "/blocks/api-reference-param-accordion/"
 
+[[section.group.page]]
+title = "api-reference-props-table"
+source = "site/blocks/api-reference-props-table.md"
+path = "/blocks/api-reference-props-table/"
+
 # --- 以下は block 追加時の挿入先アンカー（イシュー #2734、#2735 でカテゴリ
 # 見出し導入に伴い運用を更新）。カテゴリ単位で行ブロックを分ける点は不変
 # だが、新規 block は該当カテゴリの既存 `[[section.group]]` があればその

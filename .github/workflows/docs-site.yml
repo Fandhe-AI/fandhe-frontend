@@ -615,6 +615,7 @@ jobs:
           # Docs / Example Preview
           # Docs / Api Reference
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/api-reference-param-accordion/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/api-reference-props-table/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/blocks.css"
           # イシュー #2737: Blocks 共通のデモ用ダミー素材ヘルパ（画像 5 種）。
           # `has_blocks_page` と同条件で無条件に書き出される
