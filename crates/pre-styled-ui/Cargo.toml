@@ -3713,7 +3713,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.225.0 へ到達しており偶発的に衝突したため、マージ結果としてさらに +1
 # して 0.226.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突
 # 運用。同一版数への偶発的衝突をそのまま採用しない）。
-version = "0.226.0"
+#
+# イシュー #3134: field にラベル配置 variant（inset/overlap、
+# `FieldLabelPlacement`/`root_with_label_placement`）を追加した。既存
+# `root()`/`css()` の出力はバイト単位で不変（`root()` は内部で
+# `root_with_label_placement(.., Outside, ..)` へ委譲、CSS は末尾への
+# 純追加）のため、破壊的変更ではない公開 API 純追加として minor バンプ
+# する。
+version = "0.227.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

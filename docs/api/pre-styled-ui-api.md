@@ -734,7 +734,11 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
 
 - **公開 API**: `root(&FieldRootProps, &FieldProps<'_>, attrs, children)`
   （見た目 variant クラスを重ねて headless `field::root` へ委譲）、
-  `FieldOrientation`（`orientation` 軸、`Vertical` 既定 /`Horizontal`/
+  `root_with_label_placement(&FieldRootProps, FieldLabelPlacement,
+  &FieldProps<'_>, attrs, children)`（イシュー #3134、下記参照。`root` は
+  内部で `root_with_label_placement(.., FieldLabelPlacement::Outside, ..)`
+  へ委譲する）、`FieldLabelPlacement`（`label-placement` 軸、`Outside` 既定/
+  `Inset`/`Overlap`）、`FieldOrientation`（`orientation` 軸、`Vertical` 既定 /`Horizontal`/
   `Responsive`、イシュー #2199 で `Responsive` を追加）、
   `FieldRootProps`。`label`/`helper_text`/`error_text`/`required_indicator`/
   `group`/`content`/`title`/`separator`/`FieldIds`/`FieldProps` は headless
@@ -774,9 +778,24 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
   従属するレイアウト部品の root は size 軸を持たないという規約、フォーム
   入力系は palette 非提供という §4f と同じ判断）。
 - **意図的非採用**: hover（`root`/`label` は非インタラクティブ）・focus
-  ring（実フォーカスはコントロール側）・transition（状態遷移する視覚が
-  ない）・`data-readonly`/`data-invalid` によるラベル色変更（chakra-ui v3
-  も持たない）。
+  ring（実フォーカスはコントロール側。`FieldLabelPlacement::Inset` は
+  `input` 自身の outline を消すため、代わりに `root` の `:focus-within`
+  へ focus ring を付与する例外を 1 件持つ、下記参照）・transition（状態
+  遷移する視覚がない）・`data-readonly`/`data-invalid` によるラベル色
+  変更（chakra-ui v3 も持たない）。
+- **`FieldLabelPlacement`（ラベル配置、イシュー #3134）**: `orientation` と
+  独立な opt-in variant。`Inset` は `root` 自身を枠線・背景を持つ box と
+  し、内側の `label`/`input` をリセットする（`input` のみ対象、
+  `textarea`/`select` は対象外）。縦に隣接する `Inset` の `root` 同士は
+  `+`/`:has(+ ...)` セレクタで枠線を共有して連結する（gap のない素の
+  wrapper に並べることが前提）。`Overlap` はラベルを `root` の枠線の上へ
+  絶対配置で重ね、`--fandhe-field-label-bg`（既定
+  `var(--fandhe-color-bg)`）でラベル背景を地の色へ合わせられる。
+  いずれも `orientation = Vertical` での使用のみを前提とし、
+  `Horizontal`/`Responsive` との併用・`forms_motion` の floating label
+  との併用は対象外。既定（`Outside`）はクラスを出力せず `root()` の
+  既存出力をバイト単位で不変に保つ。判断根拠・CSS 宣言の詳細は
+  `field.rs` モジュール doc「ラベル配置（イシュー #3134）」節参照。
 - **バリデーション責務外**: `docs/policy/intentional-non-adoption.md`
   §3.25 規則 1 のとおり、本モジュールは headless が出す
   `data-invalid`/`data-disabled`/`data-required` を CSS セレクタとして
