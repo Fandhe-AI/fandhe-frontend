@@ -10,9 +10,14 @@
 
 mod reviews_card_grid;
 mod reviews_summary_split;
+mod reviews_write_form;
 
 use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
-    vec![reviews_card_grid::BLOCK, reviews_summary_split::BLOCK]
+    vec![
+        reviews_card_grid::BLOCK,
+        reviews_summary_split::BLOCK,
+        reviews_write_form::BLOCK,
+    ]
 }

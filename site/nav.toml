@@ -2883,6 +2883,11 @@ title = "reviews-summary-split"
 source = "site/blocks/reviews-summary-split.md"
 path = "/blocks/reviews-summary-split/"
 
+[[section.group.page]]
+title = "reviews-write-form"
+source = "site/blocks/reviews-write-form.md"
+path = "/blocks/reviews-write-form/"
+
 [[section.group]]
 title = "Store Nav"
 
