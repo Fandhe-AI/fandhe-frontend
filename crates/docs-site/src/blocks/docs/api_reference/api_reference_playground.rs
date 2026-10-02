@@ -146,12 +146,11 @@ const REQUEST_LINES: [&str; 4] = [
 ];
 
 /// C（リクエスト + エラー）の本文行。
-const ERROR_LINES: [&str; 5] = [
+const ERROR_LINES: [&str; 4] = [
     "{",
     "  \"name\": \"\",",
     "  \"region\": \"mars-central-1\"",
     "}",
-    "",
 ];
 
 /// メソッドバッジ（`GET`/`POST` 等。文字そのものを表示し、色だけに頼らない）。
@@ -649,6 +648,15 @@ mod tests {
                 )),
                 "missing variant marker: {variant}"
             );
+        }
+    }
+
+    /// 各本文の行配列に空行エントリが無いこと（末尾の `""` は表示上の
+    /// 余分な行番号付き空行になるため置かない）。
+    #[test]
+    fn body_line_arrays_have_no_empty_entries() {
+        for lines in [&RESPONSE_LINES[..], &REQUEST_LINES[..], &ERROR_LINES[..]] {
+            assert!(lines.iter().all(|l| !l.is_empty()));
         }
     }
 

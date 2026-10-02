@@ -65,12 +65,11 @@ const REQUEST_LINES: [&str; 4] = [
 ];
 
 /// C（リクエスト + エラー）の本文行。
-const ERROR_LINES: [&str; 5] = [
+const ERROR_LINES: [&str; 4] = [
     "{",
     "  \"name\": \"\",",
     "  \"region\": \"mars-central-1\"",
     "}",
-    "",
 ];
 
 /// メソッドバッジ（`GET`/`POST` 等。文字そのものを表示し、色だけに頼らない）。
