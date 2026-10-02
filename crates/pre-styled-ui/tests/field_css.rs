@@ -23,11 +23,15 @@
 //! `@container` 内 responsive 用）純追加された（同じく
 //! `FIELD_GOLDEN_BLOCKS_BEFORE_2185` の対象外。全文一致に加え、末尾追加で
 //! あることと base `helper-text` ブロックが変化していないことを個別の
+//! 回帰テストで固定する）。イシュー #3134 で `css()` 末尾（`helper-text` の
+//! `text-wrap: balance` ブロック群の後）へラベル配置 variant（`inset`/
+//! `overlap`）の静的 CSS が純追加された（golden 全文一致に加え、末尾への
+//! 純追加であること・既存 base ブロックが変化していないことを個別の
 //! 回帰テストで固定する）。
 
 use fandhe_frontend_core::render;
 use fandhe_frontend_pre_styled_ui::field::{
-    self, FieldIds, FieldOrientation, FieldProps, FieldRootProps,
+    self, FieldIds, FieldLabelPlacement, FieldOrientation, FieldProps, FieldRootProps,
 };
 
 const FIELD_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="root"] {
@@ -194,6 +198,76 @@ const FIELD_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="root"] {
     text-wrap: balance;
   }
 }
+[data-scope="field"][data-part="root"].fd-field--label-placement-inset {
+  gap: 0;
+  padding: var(--fandhe-space-2-5, 0.625rem) var(--fandhe-space-3) var(--fandhe-space-1-5, 0.375rem);
+  border: 1px solid var(--fandhe-color-border);
+  border-radius: var(--fandhe-radius-md);
+  background: var(--fandhe-color-bg);
+}
+[data-scope="field"][data-part="root"].fd-field--label-placement-inset > [data-scope="field"][data-part="label"] {
+  font-size: var(--fandhe-font-font-size-xs);
+}
+[data-scope="field"][data-part="root"].fd-field--label-placement-inset > [data-scope="field"][data-part="input"] {
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+[data-scope="field"][data-part="root"].fd-field--label-placement-inset[data-invalid] {
+  border-color: var(--fandhe-color-danger);
+}
+[data-scope="field"][data-part="root"].fd-field--label-placement-inset:focus-within {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
+}
+[data-scope="field"][data-part="root"].fd-field--label-placement-inset > [data-scope="field"][data-part="input"]:focus-visible {
+  outline: none;
+}
+[data-scope="field"][data-part="inset-stack"] {
+  display: flex;
+  flex-direction: column;
+}
+[data-scope="field"][data-part="inset-stack"] > [data-scope="field"][data-part="root"].fd-field--label-placement-inset + [data-scope="field"][data-part="root"].fd-field--label-placement-inset {
+  border-top: 0;
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+}
+[data-scope="field"][data-part="inset-stack"] > [data-scope="field"][data-part="root"].fd-field--label-placement-inset:has(+ [data-scope="field"][data-part="root"].fd-field--label-placement-inset) {
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}
+[data-scope="field"][data-part="inset-stack"] > [data-scope="field"][data-part="root"].fd-field--label-placement-inset:has(+ [data-scope="field"][data-part="root"].fd-field--label-placement-inset[data-invalid]) {
+  border-bottom-color: var(--fandhe-color-danger);
+}
+[data-scope="field"][data-part="root"].fd-field--label-placement-overlap {
+  border: 1px solid var(--fandhe-color-border);
+  border-radius: var(--fandhe-radius-md);
+}
+[data-scope="field"][data-part="root"].fd-field--label-placement-overlap > [data-scope="field"][data-part="input"] {
+  border: 0;
+}
+[data-scope="field"][data-part="root"].fd-field--label-placement-overlap[data-invalid] {
+  border-color: var(--fandhe-color-danger);
+}
+[data-scope="field"][data-part="root"].fd-field--label-placement-overlap:focus-within {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
+}
+[data-scope="field"][data-part="root"].fd-field--label-placement-overlap > [data-scope="field"][data-part="input"]:focus-visible {
+  outline: none;
+}
+[data-scope="field"][data-part="root"].fd-field--label-placement-overlap > [data-scope="field"][data-part="label"] {
+  position: absolute;
+  top: 0;
+  inset-inline-start: var(--fandhe-space-2);
+  z-index: 1;
+  transform: translateY(-50%);
+  padding-inline: var(--fandhe-space-1);
+  font-size: var(--fandhe-font-font-size-xs);
+  background-color: var(--fandhe-field-label-bg, var(--fandhe-color-bg));
+}
 "#;
 
 /// イシュー #2185 以前から存在するブロック群（`root`/`label`/`helper-text`/
@@ -327,12 +401,18 @@ fn css_hides_error_text_and_required_indicator_when_hidden_attr_present() {
     assert!(css.contains(r#"[data-scope="field"][data-part="required-indicator"][hidden] {"#));
 }
 
-/// `field` recipe が `input`/`textarea`/`select` slot への CSS を一切
-/// 持たないこと（`crate::input` 等との二重定義防止）を固定する。
+/// `field` recipe が `input`/`textarea`/`select` slot への base CSS を
+/// 持たないこと（`crate::input` 等との二重定義防止）を固定する。イシュー
+/// #3134 の `Inset` ラベル配置は `.fd-field--label-placement-inset >
+/// [data-part="input"]` という子孫セレクタでの上書きを 1 件だけ持つ
+/// （base の再登録ではない、`field.rs` モジュール doc「スコープ」節の
+/// 例外参照）ため、行頭に素の base セレクタが来る行が無いことで判定する。
 #[test]
 fn css_does_not_declare_control_slots() {
     let css = field::css();
-    assert!(!css.contains(r#"[data-part="input"]"#));
+    assert!(!css
+        .lines()
+        .any(|line| line.starts_with(r#"[data-scope="field"][data-part="input"] {"#)));
     assert!(!css.contains(r#"[data-part="textarea"]"#));
     assert!(!css.contains(r#"[data-part="select"]"#));
 }
@@ -487,4 +567,251 @@ fn reexported_extended_2185_parts_connect_to_headless_field_markup() {
     assert!(separator_html.contains(r#"data-scope="field" data-part="separator""#));
     assert!(separator_html.contains(r#"data-scope="field" data-part="separator-line""#));
     assert!(separator_html.contains(r#"data-scope="field" data-part="separator-content""#));
+}
+
+// イシュー #3134: ラベル配置 variant（inset/overlap）の golden + 回帰テスト。
+
+/// (a) 新しいブロックが `text-wrap: balance` ブロックより後に出現すること
+/// （末尾への純追加であることの固定）。
+#[test]
+fn css_label_placement_blocks_appear_after_text_wrap_balance() {
+    let css = field::css();
+    let balance_pos = css
+        .rfind("text-wrap: balance;")
+        .expect("text-wrap: balance rule must exist");
+    let inset_pos = css
+        .find("fd-field--label-placement-inset")
+        .expect("inset rule must exist");
+    let overlap_pos = css
+        .find("fd-field--label-placement-overlap")
+        .expect("overlap rule must exist");
+    assert!(inset_pos > balance_pos);
+    assert!(overlap_pos > balance_pos);
+}
+
+/// (b) 既存の base `root`/`label`/`input`（field recipe が宣言する範囲）
+/// ブロックが変わっていないこと。
+#[test]
+fn css_existing_base_blocks_unchanged_after_label_placement() {
+    let css = field::css();
+    for block in FIELD_GOLDEN_BLOCKS_BEFORE_2185 {
+        assert!(css.contains(block), "既存ブロックが変化している: {block}");
+    }
+}
+
+/// (c) inset の input リセットのセレクタに `> [data-scope="field"]
+/// [data-part="input"]` と `:focus-within` が含まれること。
+#[test]
+fn css_inset_input_reset_and_focus_within_selectors_exist() {
+    let css = field::css();
+    assert!(css.contains(
+        r#"[data-scope="field"][data-part="root"].fd-field--label-placement-inset > [data-scope="field"][data-part="input"] {"#
+    ));
+    assert!(css.contains(
+        r#"[data-scope="field"][data-part="root"].fd-field--label-placement-inset:focus-within {"#
+    ));
+}
+
+/// (d) 連結用の `+` と `:has(+` のセレクタが含まれること。
+#[test]
+fn css_inset_sibling_connection_selectors_exist() {
+    let css = field::css();
+    assert!(css.contains(
+        r#"fd-field--label-placement-inset + [data-scope="field"][data-part="root"].fd-field--label-placement-inset {"#
+    ));
+    assert!(css.contains(
+        ":has(+ [data-scope=\"field\"][data-part=\"root\"].fd-field--label-placement-inset)"
+    ));
+}
+
+/// (e) overlap のセレクタと `--fandhe-field-label-bg` が含まれること。
+#[test]
+fn css_overlap_selector_and_label_bg_var_exist() {
+    let css = field::css();
+    assert!(css.contains(
+        r#"[data-scope="field"][data-part="root"].fd-field--label-placement-overlap > [data-scope="field"][data-part="label"] {"#
+    ));
+    assert!(css.contains("--fandhe-field-label-bg"));
+}
+
+/// (f) 既定の `root` の HTML に `label-placement` が含まれないこと。
+#[test]
+fn default_root_html_does_not_contain_label_placement() {
+    let f = default_field("f");
+    let html = render(&field::root(&FieldRootProps::default(), &f, vec![], vec![]));
+    assert!(!html.contains("label-placement"));
+}
+
+/// `root()` と `root_with_label_placement(.., Outside, ..)` がバイト一致
+/// することを固定する（既定出力の不変条件）。
+#[test]
+fn root_and_root_with_label_placement_outside_match() {
+    let f = default_field("f");
+    let a = render(&field::root(&FieldRootProps::default(), &f, vec![], vec![]));
+    let b = render(&field::root_with_label_placement(
+        &FieldRootProps::default(),
+        FieldLabelPlacement::Outside,
+        &f,
+        vec![],
+        vec![],
+    ));
+    assert_eq!(a, b);
+}
+
+/// `Inset`/`Overlap` を選んだときに対応するクラスが 1 つだけ付き、
+/// `orientation` のクラスも残ることを実レンダリングで確認する。
+#[test]
+fn root_with_label_placement_inset_and_overlap_apply_single_class() {
+    let f = default_field("f");
+    let inset_html = render(&field::root_with_label_placement(
+        &FieldRootProps::default(),
+        FieldLabelPlacement::Inset,
+        &f,
+        vec![],
+        vec![],
+    ));
+    assert!(inset_html.contains("fd-field--label-placement-inset"));
+    assert!(inset_html.contains("fd-field--orientation-vertical"));
+    assert!(!inset_html.contains("fd-field--label-placement-overlap"));
+
+    let overlap_html = render(&field::root_with_label_placement(
+        &FieldRootProps::default(),
+        FieldLabelPlacement::Overlap,
+        &f,
+        vec![],
+        vec![],
+    ));
+    assert!(overlap_html.contains("fd-field--label-placement-overlap"));
+    assert!(!overlap_html.contains("fd-field--label-placement-inset"));
+}
+
+/// 状態表示の対応表（`field.rs` モジュール doc「状態表示の対応表」節、
+/// PR #3570 レビュー指摘是正）: 枠線を `root` が描く `Inset`/`Overlap` の
+/// 両 variant が、invalid / disabled / readonly / focus の 4 状態で同一の
+/// 規則集合を持つことを固定する。
+#[test]
+fn css_boxed_label_placements_share_state_rules() {
+    let css = field::css();
+    for variant in ["inset", "overlap"] {
+        let root = format!(
+            r#"[data-scope="field"][data-part="root"].fd-field--label-placement-{variant}"#
+        );
+        let input = r#"[data-scope="field"][data-part="input"]"#;
+        // invalid: 枠線全体をエラー色にする（`crate::input` の `data-invalid` と同じ色）。
+        assert!(
+            css.contains(&format!(
+                "{root}[data-invalid] {{\n  border-color: var(--fandhe-color-danger);\n}}\n"
+            )),
+            "{variant}: invalid"
+        );
+        // disabled: 子パーツ（label/helper-text/input）の既存 `[data-disabled]` 減衰
+        // のみで表し、root 側へ opacity を重ねない（二重減衰の防止）。
+        assert!(
+            !css.contains(&format!("{root}[data-disabled]")),
+            "{variant}: disabled must not be declared on root"
+        );
+        assert!(css.contains(r#"[data-scope="field"][data-part="label"][data-disabled] {"#));
+        // readonly: `crate::input` と同じく視覚宣言を持たない。
+        assert!(
+            !css.contains(&format!("{root}[data-readonly]")),
+            "{variant}: readonly"
+        );
+        // focus: input の outline を消し、root の :focus-within へ枠線内側のリングを一体化する。
+        assert!(
+            css.contains(&format!(
+                "{root}:focus-within {{\n  \
+                 outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  \
+                 outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));\n}}\n"
+            )),
+            "{variant}: focus-within ring"
+        );
+        assert!(
+            css.contains(&format!(
+                "{root} > {input}:focus-visible {{\n  outline: none;\n}}\n"
+            )),
+            "{variant}: input outline reset"
+        );
+        // input 側の枠線は消す（root が唯一の枠）。
+        assert!(
+            css.contains(&format!("{root} > {input} {{\n")),
+            "{variant}: input reset block"
+        );
+    }
+}
+
+/// `Inset` の縦連結（`inset_stack` 直下に限る）で共有する辺（先行要素の
+/// `border-bottom`）が、後続要素だけが invalid のときもエラー色になること
+/// を固定する（PR #3570 レビュー指摘是正）。後続は `border-top: 0` で枠線を
+/// 1 本に保つ。連結規則はすべて `inset-stack` の子結合子を前置条件に持ち、
+/// `group` など gap 付きコンテナ内の隣接では発動しない。
+#[test]
+fn css_inset_connection_rules_are_scoped_to_stack_and_follow_following_invalid() {
+    let css = field::css();
+    let stack = r#"[data-scope="field"][data-part="inset-stack"]"#;
+    let root = r#"[data-scope="field"][data-part="root"].fd-field--label-placement-inset"#;
+    assert!(css.contains(&format!(
+        "{stack} {{\n  display: flex;\n  flex-direction: column;\n}}\n"
+    )));
+    assert!(css.contains(&format!(
+        "{stack} > {root} + {root} {{\n  border-top: 0;\n  border-start-start-radius: 0;\n  border-start-end-radius: 0;\n}}\n"
+    )));
+    assert!(css.contains(&format!(
+        "{stack} > {root}:has(+ {root}) {{\n  border-end-start-radius: 0;\n  border-end-end-radius: 0;\n}}\n"
+    )));
+    assert!(css.contains(&format!(
+        "{stack} > {root}:has(+ {root}[data-invalid]) {{\n  border-bottom-color: var(--fandhe-color-danger);\n}}\n"
+    )));
+    for line in css
+        .lines()
+        .filter(|l| l.contains(&format!("{root} + ")) || l.contains(&format!("{root}:has(")))
+    {
+        assert!(line.starts_with(&format!("{stack} > ")), "unscoped: {line}");
+    }
+}
+
+/// `inset_stack` が wrapper の `data-scope`/`data-part` を出力し、CSS 側の
+/// 前置条件セレクタと結び付くことを実レンダリングで確認する。
+#[test]
+fn inset_stack_markup_matches_css_scope_selector() {
+    let f = default_field("f");
+    let html = render(&field::inset_stack(
+        vec![],
+        vec![field::root_with_label_placement(
+            &FieldRootProps::default(),
+            FieldLabelPlacement::Inset,
+            &f,
+            vec![],
+            vec![],
+        )],
+    ));
+    assert!(html.starts_with(r#"<div data-scope="field" data-part="inset-stack">"#));
+    assert!(html.contains("fd-field--label-placement-inset"));
+}
+
+/// `Inset`/`Overlap` の `root` が headless の状態フラグ（`data-invalid`/
+/// `data-disabled`/`data-readonly`）をそのまま持ち、上記 CSS の状態セレクタ
+/// と実レンダリング出力が結び付くことを確認する。
+#[test]
+fn boxed_label_placement_roots_carry_state_flags() {
+    for placement in [FieldLabelPlacement::Inset, FieldLabelPlacement::Overlap] {
+        let f = FieldProps {
+            id: "f",
+            ids: FieldIds::default(),
+            disabled: true,
+            invalid: true,
+            required: false,
+            readonly: true,
+            has_helper_text: false,
+        };
+        let html = render(&field::root_with_label_placement(
+            &FieldRootProps::default(),
+            placement,
+            &f,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"data-readonly="""#));
+    }
 }
