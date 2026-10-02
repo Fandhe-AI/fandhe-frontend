@@ -1,7 +1,8 @@
 # docs-layout-toc-collapsible
 
 `fandhe-frontend-pre-styled-ui` の `collapsible` / `link` / `button` /
-`icon` 部品を合成した、狭い画面向けの開閉式ページ内目次の実例です。
+`icon` / `heading` 部品を合成した、狭い画面向けの開閉式ページ内目次の
+実例です。
 Blocks セクションは新規部品を追加するものではなく、既存の
 Themes/Primitives 部品を組み合わせた実例集であることに注意してください
 （主参照は対応表 ID R0366。出典の固有名・ファイル名は記載しません）。
@@ -253,4 +254,5 @@ pub fn demo() -> Node {
   いません（無 JS の静的表示のため）。
 
 関連情報: [Collapsible](../themes/collapsible.md) / [Link](../themes/link.md) /
-[Button](../themes/button.md) / [Icon](../themes/icon.md)
+[Button](../themes/button.md) / [Icon](../themes/icon.md) /
+[Heading](../themes/heading.md)

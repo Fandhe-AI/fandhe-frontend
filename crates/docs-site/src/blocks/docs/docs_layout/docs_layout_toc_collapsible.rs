@@ -7,8 +7,9 @@
 //!
 //! # 使用部品
 //!
-//! `collapsible` / `link` / `button` / `icon` の 4 部品のみを合成する
-//! （[`BLOCK`] の `parts` に一致させる契約）。新しい UI 部品は追加しない。
+//! `collapsible` / `link` / `button` / `icon` / `heading`（本文見出し
+//! [`article_body`] が使用）の 5 部品を合成する（[`BLOCK`] の `parts`
+//! に一致させる契約）。新しい UI 部品は追加しない。
 //!
 //! # 2 インスタンスで開閉状態を併記する（無 JS のため静的表示）
 //!
@@ -321,6 +322,10 @@ pub const BLOCK: Block = Block {
         Part {
             label: "Icon",
             path: "/themes/icon/",
+        },
+        Part {
+            label: "Heading",
+            path: "/themes/heading/",
         },
     ],
     layout_css: LayoutCss::Static(LAYOUT_CSS),
