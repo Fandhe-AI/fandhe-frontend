@@ -932,6 +932,18 @@ pub fn group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 ///   末尾側（既に見た目上最背面に埋もれている子）へ寄せる。`n <=
 ///   MAX_STACK_ORDER` のときは `effective_front == n` となり、従来どおり
 ///   `n - i` と同じ値になる（golden 出力・既存呼び出しは不変）。
+///
+///   **既知の限界（`n > MAX_STACK_ORDER` の末尾側、codex-review #3563 P2
+///   指摘）**: 末尾側は固定 `z-index` 値 `1` へ全件合流するため、この
+///   合流グループ内では「先頭ほど前面」が厳密には成立しない（同一
+///   `z-index` では後続 DOM 要素が前面描画されるため、グループ内の
+///   最終順位は DOM 順＝挿入順で決まる）。`:nth-child(n)` によるグループ
+///   内再採番・`flex-direction: row-reverse` + DOM 逆順によるグループ内
+///   並べ替えのいずれも、上記のとおり [`SlotRecipe`] の制約・WCAG 1.3.2
+///   の理由で不採用のため、本モジュールは意図的に採らない。呼び出し側は
+///   「先頭ほど前面」の厳密な保証を [`MAX_STACK_ORDER`] 件までに限定して
+///   利用し、`MAX_STACK_ORDER` を超える構成では末尾側の重なり順が確定的でないことを
+///   前提にすること。
 ///   inline `style="z-index: ..."` は
 ///   `style-src-attr` を許可しない厳格 CSP 環境で無効化される（イシュー
 ///   #3130 フォローアップ、codex-review #3563 P1 指摘）ため採らず、
@@ -1028,6 +1040,11 @@ pub fn group_with<'a>(
 /// `position` は `usize` から [`AvatarStackOrder::clamped`] で決定的に
 /// 作った固定クラス名のみであり、呼び出し側からの任意文字列は混入しない
 /// （本モジュール冒頭 rustdoc「セキュリティ不変条件」節）。
+///
+/// 既存 `class` 属性の検出は（`crate::class_attr::drop_class_attr` と同様）
+/// 大文字小文字を無視する。`"Class"`/`"CLASS"` 等の呼び出し側属性を見落とすと
+/// 別の `class` 属性として二重挿入され、HTML として不正になる
+/// （codex-review #3563 P2 指摘）。
 fn with_stack_order_class(recipe: &SlotRecipe, node: Node, position: usize) -> Node {
     let Node::Element {
         tag,
@@ -1045,7 +1062,10 @@ fn with_stack_order_class(recipe: &SlotRecipe, node: Node, position: usize) -> N
             children,
         };
     }
-    if let Some((_, existing)) = attrs.iter_mut().find(|(k, _)| k == "class") {
+    if let Some((_, existing)) = attrs
+        .iter_mut()
+        .find(|(k, _)| k.eq_ignore_ascii_case("class"))
+    {
         existing.push(' ');
         existing.push_str(&class);
     } else {
@@ -1587,6 +1607,34 @@ mod tests {
             vec![el("div", vec![("class", "existing")], vec![])],
         ));
         assert_eq!(html.matches("class=\"").count(), 2);
+        assert!(html.contains("existing fd-avatar--stack-order-pos1"));
+    }
+
+    #[test]
+    fn group_with_first_on_top_merges_into_mixed_case_child_class_attr() {
+        // 子要素の `class` 属性名が `"Class"` 等の大文字始まりでも、
+        // `drop_class_attr` と同様に大文字小文字を無視して既存属性へ合流
+        // させる。見落とすと別の `class` 属性が二重挿入され不正な HTML に
+        // なる（codex-review #3563 P2 指摘）。
+        let props = AvatarGroupProps {
+            stacking: AvatarGroupStacking::FirstOnTop,
+        };
+        let html = render(&group_with(
+            &props,
+            vec![],
+            vec![el("div", vec![("Class", "existing")], vec![])],
+        ));
+        // class 系属性名の大文字小文字を無視して数えた総数が、group ラッパー
+        // （`fd-avatar--stacking-first-on-top`）+ 子 1 個分の 2 個に収まる
+        // こと（`group_with_first_on_top_appends_to_existing_class` の小文字
+        // 版と同じ期待値）。修正前は大文字小文字区別の判定により既存
+        // `Class` 属性を見落とし、別の `class` 属性が子へ追加挿入されて
+        // 3 個になっていた。
+        assert_eq!(
+            html.to_lowercase().matches("class=\"").count(),
+            2,
+            "子要素へ class 属性が重複挿入されていないこと"
+        );
         assert!(html.contains("existing fd-avatar--stack-order-pos1"));
     }
 
