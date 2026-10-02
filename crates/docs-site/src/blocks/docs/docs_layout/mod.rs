@@ -11,6 +11,7 @@
 
 mod docs_layout_page_header;
 mod docs_layout_prev_next;
+mod docs_layout_sidebar_api;
 mod docs_layout_sidebar_nav;
 mod docs_layout_toc_collapsible;
 
@@ -20,6 +21,7 @@ pub(super) fn blocks() -> Vec<Block> {
     vec![
         docs_layout_page_header::BLOCK,
         docs_layout_prev_next::BLOCK,
+        docs_layout_sidebar_api::BLOCK,
         docs_layout_sidebar_nav::BLOCK,
         docs_layout_toc_collapsible::BLOCK,
     ]

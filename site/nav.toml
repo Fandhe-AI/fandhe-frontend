@@ -2991,6 +2991,11 @@ source = "site/blocks/docs-layout-prev-next.md"
 path = "/blocks/docs-layout-prev-next/"
 
 [[section.group.page]]
+title = "docs-layout-sidebar-api"
+source = "site/blocks/docs-layout-sidebar-api.md"
+path = "/blocks/docs-layout-sidebar-api/"
+
+[[section.group.page]]
 title = "docs-layout-sidebar-nav"
 source = "site/blocks/docs-layout-sidebar-nav.md"
 path = "/blocks/docs-layout-sidebar-nav/"
