@@ -2986,6 +2986,14 @@ source = "site/blocks/code-block-header.md"
 path = "/blocks/code-block-header/"
 
 [[section.group]]
+title = "Docs Layout"
+
+[[section.group.page]]
+title = "docs-layout-page-header"
+source = "site/blocks/docs-layout-page-header.md"
+path = "/blocks/docs-layout-page-header/"
+
+[[section.group]]
 title = "API Reference"
 
 [[section.group.page]]

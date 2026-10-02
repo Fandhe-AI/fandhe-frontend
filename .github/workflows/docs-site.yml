@@ -609,6 +609,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-signup-offer/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-with-testimonials/index.html"
           # Docs / Docs Layout
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/docs-layout-page-header/index.html"
           # Docs / Code Block
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/code-block-header/index.html"
           # Docs / Example Preview
