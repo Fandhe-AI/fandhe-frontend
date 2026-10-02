@@ -3611,7 +3611,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # pill・circle 両方を登録した状態にした。origin/main の到達値（0.217.0）
 # からさらに +1 して 0.218.0 とする（`.claude/rules/coding-rust.md`
 # #638 条項の同衝突運用）。
-version = "0.218.0"
+# イシュー #3119: badge の rustdoc（#2045 突合「角丸」項）を #3117 の
+# `shape` 軸 opt-in 記述へ是正し、`link()` 経路でも `shape` クラスが
+# 出ることを固定するテストを追加した。公開 API・CSS 出力は不変（golden
+# は既存ブロックのまま）のドキュメント/テストのみの変更のため patch
+# バンプする。
+version = "0.218.1"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
