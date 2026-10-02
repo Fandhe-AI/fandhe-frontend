@@ -108,8 +108,12 @@ const SNIPPET_A: &str = "use fandhe_frontend_core::{div, text};\n\nfn demo() -> 
 const SNIPPET_B: &str = "use fandhe_frontend_core::{div, render, text};\n\nfn demo() -> fandhe_frontend_core::Node {\n    div(vec![], vec![text(\"こんにちは\")])\n}\n\nfn main() {\n    println!(\"{}\", render(&demo()));\n}\n";
 
 /// C（R0057）で表示するコード片。行番号を 1 行ずつ振るため
-/// `.lines()` で分割する。
-const SNIPPET_C: &str = "use fandhe_frontend_cli as _;\n\nfn check() -> bool {\n    // ビルドが通れば true\n    true\n}\n";
+/// `.lines()` で分割する。`fandhe_frontend_cli`（`[[bin]]` のみでライブラリ
+/// ターゲットを持たない）の `use ... as _;` では import が解決できず、
+/// コピーしたコード片単体でコンパイルできなかったため、実在するライブラリ
+/// クレート `fandhe_frontend_core` を使った自己完結の例へ置き換える
+/// （Codex レビュー指摘、イシュー #3104 PR #3545）。
+const SNIPPET_C: &str = "use fandhe_frontend_core::{render, text};\n\nfn check() -> bool {\n    // render() が空文字列を返さなければ true\n    !render(&text(\"ok\")).is_empty()\n}\n";
 
 /// A（R0054・主参照）: ファイル名タイトル + コピー操作だけの最小構成。
 fn instance_a() -> Node {
@@ -238,11 +242,14 @@ fn header_instance(
     // （`\n`）のみが視覚上の改行源になる（`white-space: pre` が解釈）。
     // `display: block` も併用すると改行が二重になり行間が間延びする
     // （Codex レビュー・Cursor Bugbot 指摘、イシュー #3104 PR #3545）。
-    // 最終行の後ろには入れず、元のスニペット末尾の改行有無をコピー結果で
-    // 変えない。
+    // `.lines()` は末尾の改行を 1 行として数えないため、元のスニペットが
+    // 改行で終わる場合は最終行の後ろにも改行テキストを 1 つ補い、選択範囲
+    // コピー結果が `clipboard::root` へ渡す元のスニペット（末尾改行あり）
+    // と一致するようにする（Codex レビュー指摘、イシュー #3104 PR #3545）。
     let body_children: Vec<Node> = if numbered {
         let lines: Vec<&str> = snippet.lines().collect();
         let line_count = lines.len();
+        let ends_with_newline = snippet.ends_with('\n');
         lines
             .into_iter()
             .enumerate()
@@ -251,7 +258,7 @@ fn header_instance(
                     vec![("data-blocks-code-block-header-line", "")],
                     vec![text(line)],
                 )];
-                if i + 1 < line_count {
+                if i + 1 < line_count || ends_with_newline {
                     nodes.push(text("\n"));
                 }
                 nodes
@@ -413,18 +420,20 @@ mod tests {
         );
     }
 
-    /// C の行 span 間に改行テキストが入り、行 span の数 - 1 件の改行が
-    /// `code` 本文内に存在すること（選択範囲コピーで改行が失われない固定、
+    /// C の行 span 間に改行テキストが入ること（選択範囲コピーで改行が
+    /// 失われない固定、Codex レビュー指摘・イシュー #3104 PR #3545）。
+    /// `SNIPPET_C` は末尾が改行で終わるため、最終行の後ろにも改行テキスト
+    /// が入り、`</span>\n` の総数は行数と一致する（末尾改行保持の固定、
     /// Codex レビュー指摘・イシュー #3104 PR #3545）。
     #[test]
     fn instance_c_line_spans_are_separated_by_newline_text() {
         let html = render(&demo());
         let line_count = super::SNIPPET_C.lines().count();
-        // 各行 span の閉じタグ直後に改行 1 文字が続くこと（最終行を除く）。
+        assert!(super::SNIPPET_C.ends_with('\n'));
         assert_eq!(
             html.matches("</span>\n").count(),
-            line_count - 1,
-            "行 span の後に改行テキストが挿入されていること"
+            line_count,
+            "行 span の後（最終行を含む）に改行テキストが挿入されていること"
         );
     }
 
