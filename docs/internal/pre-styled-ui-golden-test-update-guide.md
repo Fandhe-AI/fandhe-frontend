@@ -58,7 +58,9 @@ diff が読みやすい）部品を安易に (b) へ切り替えないでくだ�
 中間挿入、`[hidden]` state と `@starting-style` ブロックを末尾側へ純追加、
 `accordion_pre_2192_blocks_remain_verbatim` を追加）** /
 **alert（イシュー #1553 で golden 新設。イシュー #2043 で
-`action` パートの `[data-part="action"]` ブロックを 1 個追加）** /
+`action` パートの `[data-part="action"]` ブロックを 1 個追加。イシュー
+#3131 で `AccentBorder` variant ブロックを `outline` ブロックの直後に
+1 個中間挿入）** /
 **attachment（イシュー #2112 で golden 新設。`stylesheet()` 全文）** /
 **badge（イシュー #1555 で golden 新設）** /
 **bar_segment（イシュー #1592 で golden 新設。`charts::bar_segment`）** /
