@@ -5,7 +5,13 @@
 //! 連動の静的切替（4 ブロック）を削除した。イシュー #3128 で
 //! pre-styled-only `body`/`footer` パート（base 2 ブロック）と
 //! `content[data-has-body]`/`content[data-has-body][hidden]`（opt-in flex
-//! column 化 state 2 ブロック）を純追加した。
+//! column 化 state 2 ブロック）を純追加した。イシュー #3129 で
+//! pre-styled-only `header` パート（base 1 ブロック、アクセント色帯の
+//! レイアウト）と、アクセント塗り（`header`/`description`/`close-trigger`
+//! への `data-tone="accent"` state 3 ブロック）・外側 close-trigger 配置
+//! （`content[data-close-outside]` state 1 ブロック + `close-trigger
+//! [data-close-outside="<start|end|top|bottom>"]` state 4 ブロック）を
+//! 純追加した。
 //!
 //! `crates/pre-styled-ui/tests/dialog_css.rs` の golden fixture テストの
 //! 前例に倣い、`stylesheet()` が返す CSS 全文をバイト単位で固定する。出力順
@@ -66,6 +72,15 @@ const DRAWER_GOLDEN_CSS: &str = r#"[data-scope="drawer"][data-part="trigger"] {
   transition-duration: var(--fandhe-motion-duration-slow);
   transition-timing-function: var(--fandhe-motion-easing-standard);
   transition-behavior: allow-discrete;
+}
+
+[data-scope="drawer"][data-part="header"] {
+  margin-block-start: calc(-1 * var(--fandhe-drawer-content-padding, var(--fandhe-space-6)));
+  margin-inline: calc(-1 * var(--fandhe-drawer-content-padding, var(--fandhe-space-6)));
+  margin-block-end: var(--fandhe-space-4);
+  padding-block-start: var(--fandhe-drawer-content-padding, var(--fandhe-space-6));
+  padding-inline: var(--fandhe-drawer-content-padding, var(--fandhe-space-6));
+  padding-block-end: var(--fandhe-space-2);
 }
 
 [data-scope="drawer"][data-part="title"] {
@@ -225,6 +240,54 @@ const DRAWER_GOLDEN_CSS: &str = r#"[data-scope="drawer"][data-part="trigger"] {
   border-radius: var(--fandhe-radius-md);
   padding: var(--fandhe-space-2) var(--fandhe-space-3);
   color: var(--fandhe-color-fg);
+}
+
+[data-scope="drawer"][data-part="header"][data-tone="accent"] {
+  background: var(--fandhe-color-accent);
+  color: var(--fandhe-color-accent-fg);
+}
+
+[data-scope="drawer"][data-part="description"][data-tone="accent"] {
+  color: var(--fandhe-color-accent-fg);
+}
+
+[data-scope="drawer"][data-part="close-trigger"][data-tone="accent"] {
+  color: var(--fandhe-color-accent-fg);
+  --fandhe-hover-bg: var(--fandhe-color-accent-emphasized);
+}
+
+[data-scope="drawer"][data-part="content"][data-close-outside] {
+  overflow: visible;
+}
+
+[data-scope="drawer"][data-part="close-trigger"][data-close-outside="end"] {
+  inset-inline-end: calc(100% + var(--fandhe-space-2));
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="drawer"][data-part="close-trigger"][data-close-outside="start"] {
+  inset-inline-end: auto;
+  inset-inline-start: calc(100% + var(--fandhe-space-2));
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="drawer"][data-part="close-trigger"][data-close-outside="top"] {
+  inset-block-start: calc(100% + var(--fandhe-space-2));
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="drawer"][data-part="close-trigger"][data-close-outside="bottom"] {
+  inset-block-start: auto;
+  inset-block-end: calc(100% + var(--fandhe-space-2));
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
 }
 
 @starting-style {
