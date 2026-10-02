@@ -259,22 +259,23 @@
 //! ## 状態表示の対応表
 //!
 //! `Inset`/`Overlap` はどちらも枠線を `root` が描くため、`crate::input` が
-//! `input` 自身へ与える状態表示（invalid の `border-color`・disabled の
-//! `opacity`/`cursor`・focus のリング）をそのままにすると、枠のない
-//! `input` の矩形に沿って表示されて `root` の枠と二重になる。そこで両
+//! `input` 自身へ与える状態表示のうち枠線に結び付くもの（invalid の
+//! `border-color`・focus のリング）をそのままにすると、枠のない `input` の
+//! 矩形に沿って表示されて `root` の枠と二重になる。そこで両
 //! variant で同一の規則集合（`boxed_root_state_css`）を `root` 側へ持ち、
 //! `input` 側の同種宣言を子孫セレクタで打ち消す。
 //!
 //! | 状態 | `root`（Inset/Overlap 共通） | `input` 側の打ち消し |
 //! |------|------------------------------|----------------------|
 //! | `data-invalid` | `border-color: danger`（枠線全体） | なし（`input` は枠線を持たないため不要） |
-//! | `data-disabled` | `opacity: 0.5` + `cursor: not-allowed` | `opacity: 1`（0.5 × 0.5 の二重減衰を防ぐ） |
+//! | `data-disabled` | 宣言なし（子の `label`/`helper-text`/`input` が各自 0.5 へ減衰済み。root にも当てると 0.25 の二重減衰になる） | なし |
 //! | `data-readonly` | 視覚宣言なし（`crate::input` の意図的非採用に揃える） | なし |
 //! | `:focus-within` | 枠線の内側にリング（`FocusRingOffset::Inset`） | `:focus-visible { outline: none }` |
 //!
 //! 状態の重なりは別プロパティなので干渉しない: invalid + focus は
 //! エラー色の枠線 + リング（`crate::input` の挙動と同じ）、disabled は
-//! フォーカス不可のため focus と重ならない。`Inset` の縦連結では共有する
+//! フォーカス不可のため focus と重ならず、invalid + disabled はエラー色の
+//! 枠線のまま子パーツだけが減衰する。`Inset` の縦連結では共有する
 //! 辺が先行要素の `border-bottom` になるため、後続要素だけが invalid の
 //! ときは `:has(+ ...[data-invalid])` で先行側の下辺をエラー色にする
 //! （focus/disabled は枠線色を変えないため、写すべき状態は invalid のみ）。
@@ -755,10 +756,10 @@ pub fn css() -> String {
 /// セレクタで、戻り値はそのセレクタを前置した規則群。
 ///
 /// `crate::input::css` が `input` 自身へ与える invalid（`border-color`）・
-/// disabled（[`disabled_declarations`]）・focus（[`focus_ring_declarations`]）
-/// の 3 状態を、枠線を描く側である `root` へそのまま写す。`input` 側の
-/// 同種宣言は枠線がない状態では二重表示（焦点リングが枠より内側に出る、
-/// opacity が 0.5 × 0.5 に重なる）になるため、子孫セレクタで打ち消す。
+/// focus（[`focus_ring_declarations`]）の 2 状態を、枠線を描く側である
+/// `root` へそのまま写す。`input` 側の focus outline は枠線がない状態では
+/// 枠より内側のリングとして二重表示になるため、子孫セレクタで打ち消す。
+/// disabled は各子パーツの既存 `[data-disabled]` 減衰に委ね root へは置かず、
 /// `data-readonly` は `input.rs` と同じく視覚宣言を持たない（意図的非採用、
 /// `crate::input` モジュール doc 参照）。
 fn boxed_root_state_css(root_selector: &str) -> String {
@@ -766,18 +767,10 @@ fn boxed_root_state_css(root_selector: &str) -> String {
     out.push_str(&format!(
         "{root_selector}[data-invalid] {{\n  border-color: var(--fandhe-color-danger);\n}}\n",
     ));
-    if let Some(block) = crate::css::serialize_rule(
-        &format!("{root_selector}[data-disabled]"),
-        &disabled_declarations(),
-    ) {
-        out.push_str(&block);
-    }
-    // `input.rs` の `[data-disabled]` 規則（opacity: 0.5）が root の opacity と
-    // 掛け合わさり 0.25 まで薄くなるのを防ぐ（減衰は root 側の 1 回のみ）。
-    out.push_str(&format!(
-        "{root_selector}[data-disabled] > [data-scope=\"field\"][data-part=\"input\"] {{\n  \
-         opacity: 1;\n}}\n",
-    ));
+    // disabled: root 側には宣言を置かない。`label`/`helper-text`/`title`
+    // （本モジュール `recipe()`）と `input`（`crate::input`）が各自
+    // `[data-disabled]` で 0.5 へ減衰済みのため、root にも opacity を当てると
+    // 0.25 まで二重に薄くなる（Bugbot 指摘、PR #3570）。減衰は子側の 1 回のみ。
     // リングは枠線の内側に描く（`FocusRingOffset::Inset`）。`Inset` 連結時の
     // 後続要素は `border-top: 0` で先行要素と重ならないため、重ね順の調整
     // （z-index）は不要。
@@ -1158,10 +1151,8 @@ mod tests {
         for root in [inset, overlap] {
             assert!(out.contains(&boxed_root_state_css(root)));
             assert!(!out.contains(&format!("{root}[data-readonly]")));
-            assert!(out.contains(&format!("{root}[data-disabled] {{\n  opacity: 0.5;")));
-            assert!(out.contains(&format!(
-                "{root}[data-disabled] > [data-scope=\"field\"][data-part=\"input\"] {{\n  opacity: 1;\n}}\n"
-            )));
+            // disabled は子パーツの既存減衰のみ（root 側に opacity を重ねない）。
+            assert!(!out.contains(&format!("{root}[data-disabled]")));
         }
         // 連結時に重なりがないため z-index は不要（dead 宣言を持たない）。
         assert!(!out.contains(":focus-within {\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));\n  z-index"));

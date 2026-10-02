@@ -218,13 +218,6 @@ const FIELD_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="root"] {
 [data-scope="field"][data-part="root"].fd-field--label-placement-inset[data-invalid] {
   border-color: var(--fandhe-color-danger);
 }
-[data-scope="field"][data-part="root"].fd-field--label-placement-inset[data-disabled] {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-[data-scope="field"][data-part="root"].fd-field--label-placement-inset[data-disabled] > [data-scope="field"][data-part="input"] {
-  opacity: 1;
-}
 [data-scope="field"][data-part="root"].fd-field--label-placement-inset:focus-within {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
   outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
@@ -253,13 +246,6 @@ const FIELD_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="root"] {
 }
 [data-scope="field"][data-part="root"].fd-field--label-placement-overlap[data-invalid] {
   border-color: var(--fandhe-color-danger);
-}
-[data-scope="field"][data-part="root"].fd-field--label-placement-overlap[data-disabled] {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-[data-scope="field"][data-part="root"].fd-field--label-placement-overlap[data-disabled] > [data-scope="field"][data-part="input"] {
-  opacity: 1;
 }
 [data-scope="field"][data-part="root"].fd-field--label-placement-overlap:focus-within {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
@@ -714,19 +700,13 @@ fn css_boxed_label_placements_share_state_rules() {
             )),
             "{variant}: invalid"
         );
-        // disabled: root 側で 1 回だけ減衰し、input 側の opacity は打ち消す。
+        // disabled: 子パーツ（label/helper-text/input）の既存 `[data-disabled]` 減衰
+        // のみで表し、root 側へ opacity を重ねない（二重減衰の防止）。
         assert!(
-            css.contains(&format!(
-                "{root}[data-disabled] {{\n  opacity: 0.5;\n  cursor: not-allowed;\n}}\n"
-            )),
-            "{variant}: disabled"
+            !css.contains(&format!("{root}[data-disabled]")),
+            "{variant}: disabled must not be declared on root"
         );
-        assert!(
-            css.contains(&format!(
-                "{root}[data-disabled] > {input} {{\n  opacity: 1;\n}}\n"
-            )),
-            "{variant}: disabled input opacity reset"
-        );
+        assert!(css.contains(r#"[data-scope="field"][data-part="label"][data-disabled] {"#));
         // readonly: `crate::input` と同じく視覚宣言を持たない。
         assert!(
             !css.contains(&format!("{root}[data-readonly]")),
