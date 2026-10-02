@@ -3018,6 +3018,7 @@ fn switch_thumb_icon_example() -> Node {
                         switch::thumb_icon(
                             checked,
                             switch::ThumbIconShow::Unchecked,
+                            &props,
                             vec![],
                             vec![icon(
                                 &IconProps {
@@ -3040,6 +3041,7 @@ fn switch_thumb_icon_example() -> Node {
                         switch::thumb_icon(
                             checked,
                             switch::ThumbIconShow::Checked,
+                            &props,
                             vec![],
                             vec![icon(
                                 &IconProps {

@@ -4064,11 +4064,19 @@ name = "fandhe-frontend-pre-styled-ui"
 # merge 時点）も独立に同一の 0.236.0 へ到達していた（偶発的衝突）ため、
 # そのまま採用せずさらに +1 して 0.237.0 とする（`.claude/rules/coding-rust.md`
 # #638 条項の同衝突運用）。
-version = "0.237.0"
+#
 # マージコミット注記（本 PR #3580、origin/main 再取り込み #2、イシュー #3139）:
 # origin/main 側は steps の #3139 対応（PR #3578）で独立に 0.236.1 へ到達していたが、
 # 本ブランチ（switch の #3141 対応）は既に 0.237.0 へ到達しており origin/main 側を
 # 上回っているため、追加のバンプは行わず 0.237.0 を維持する。
+#
+# イシュー #3141（PR #3580 codex-review 指摘対応、P1）: thumb_icon が
+# SwitchProps を受け取らず data-disabled/data-invalid/data-required/
+# data-readonly を欠いていた不整合を修正し、既存の `control`/`thumb` 等と
+# 同じ全パーツ一律反映契約に揃えた。`thumb_icon` の公開シグネチャへ
+# `props: &SwitchProps` 引数を追加する観測可能な破壊的変更のため、0.x の
+# 破壊的変更はマイナーバンプとする規約に従いマイナーバンプする。
+version = "0.238.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

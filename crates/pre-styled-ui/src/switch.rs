@@ -755,7 +755,21 @@ impl ThumbIconShow {
 /// [`thumb_icon`] が全パーツへ一律付与する属性キー一覧（呼び出し側 `attrs`
 /// からの偽装を fail-closed で除去する対象。`crate::checkbox_card` の
 /// `STATE_RESERVED`/`drop_reserved` と同型）。
-const THUMB_ICON_RESERVED: &[&str] = &["data-state", "data-show", "aria-hidden"];
+///
+/// イシュー #3141 codex-review 指摘（P1）対応: `data-disabled`/
+/// `data-invalid`/`data-required`/`data-readonly` も [`SwitchProps`] から
+/// 全パーツへ一律反映する既存契約（`control`/`thumb` 等、headless
+/// `state_attrs` 参照）に合わせ、`thumb_icon` のみ欠落していた 4 属性を
+/// 予約キーへ追加する。
+const THUMB_ICON_RESERVED: &[&str] = &[
+    "data-state",
+    "data-show",
+    "aria-hidden",
+    "data-disabled",
+    "data-invalid",
+    "data-required",
+    "data-readonly",
+];
 
 /// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
 /// 除外する（`crate::checkbox_card::drop_reserved` と同型）。
@@ -867,16 +881,29 @@ pub fn root_with<'a>(
 /// つまみ中央に重ねる on/off アイコン slot（イシュー #3141、R1376）。
 /// [`thumb`] の子として `checked`/`unchecked` 用を 1 個ずつ配置する想定
 /// （`recipe` 内コメント参照）。装飾のため `aria-hidden="true"` を固定し、
-/// 呼び出し側 `attrs` からの `data-state`/`data-show`/`aria-hidden` 偽装は
+/// 呼び出し側 `attrs` からの `data-state`/`data-show`/`aria-hidden`/
+/// `data-disabled`/`data-invalid`/`data-required`/`data-readonly` 偽装は
 /// 除去する（`data-scope`/`data-part` の偽装は [`Anatomy::part`] が除去）。
+///
+/// `props`（[`SwitchProps`]）は `control`/`thumb` 等の既存パーツと同じく
+/// `data-disabled`/`data-invalid`/`data-required`/`data-readonly` を全パーツ
+/// 一律反映する契約（headless `state_attrs` 参照）に揃えるために受け取る
+/// （イシュー #3141 codex-review 指摘〔P1〕対応: 新設時に本属性が欠落して
+/// いた）。
 ///
 /// # Examples
 ///
 /// ```
 /// use fandhe_frontend_core::render;
-/// use fandhe_frontend_pre_styled_ui::switch::{self, ThumbIconShow};
+/// use fandhe_frontend_pre_styled_ui::switch::{self, SwitchProps, ThumbIconShow};
 ///
-/// let node = switch::thumb_icon(false, ThumbIconShow::Unchecked, vec![], vec![]);
+/// let node = switch::thumb_icon(
+///     false,
+///     ThumbIconShow::Unchecked,
+///     &SwitchProps::default(),
+///     vec![],
+///     vec![],
+/// );
 /// let html = render(&node);
 /// assert!(html.contains(r#"data-scope="switch" data-part="thumb-icon""#));
 /// assert!(html.contains(r#"aria-hidden="true""#));
@@ -885,6 +912,7 @@ pub fn root_with<'a>(
 pub fn thumb_icon<'a>(
     checked: bool,
     show: ThumbIconShow,
+    props: &SwitchProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
@@ -893,6 +921,18 @@ pub fn thumb_icon<'a>(
         ("data-show", show.value()),
         ("aria-hidden", "true"),
     ];
+    merged.extend(fandhe_frontend_headless_ui::data_attrs::data_disabled(
+        props.disabled,
+    ));
+    merged.extend(fandhe_frontend_headless_ui::data_attrs::data_invalid(
+        props.invalid,
+    ));
+    merged.extend(fandhe_frontend_headless_ui::data_attrs::data_required(
+        props.required,
+    ));
+    merged.extend(fandhe_frontend_headless_ui::data_attrs::data_readonly(
+        props.readonly,
+    ));
     merged.extend(drop_reserved(attrs, THUMB_ICON_RESERVED));
     ANATOMY.part("thumb-icon", "span", merged, children)
 }
@@ -1346,7 +1386,13 @@ mod tests {
 
     #[test]
     fn thumb_icon_outputs_scope_part_state_show_and_aria_hidden() {
-        let html = render(&thumb_icon(true, ThumbIconShow::Checked, vec![], vec![]));
+        let html = render(&thumb_icon(
+            true,
+            ThumbIconShow::Checked,
+            &SwitchProps::default(),
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-scope="switch""#));
         assert!(html.contains(r#"data-part="thumb-icon""#));
         assert!(html.contains(r#"data-state="checked""#));
@@ -1355,16 +1401,45 @@ mod tests {
     }
 
     #[test]
+    fn thumb_icon_reflects_switch_props_state_attrs() {
+        // イシュー #3141 codex-review 指摘（P1）回帰: control/thumb 等の
+        // 既存パーツと同じく SwitchProps の 4 状態が thumb-icon へも
+        // 一律反映されることを固定する。
+        let props = SwitchProps {
+            disabled: true,
+            invalid: true,
+            required: true,
+            readonly: true,
+        };
+        let html = render(&thumb_icon(
+            true,
+            ThumbIconShow::Checked,
+            &props,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"data-required="""#));
+        assert!(html.contains(r#"data-readonly="""#));
+    }
+
+    #[test]
     fn thumb_icon_drops_reserved_attribute_spoofing_case_insensitively() {
         let html = render(&thumb_icon(
             false,
             ThumbIconShow::Unchecked,
+            &SwitchProps::default(),
             vec![
                 ("DATA-STATE", "attacker"),
                 ("data-show", "attacker"),
                 ("Aria-Hidden", "false"),
                 ("data-scope", "attacker"),
                 ("data-part", "attacker"),
+                ("data-disabled", "attacker"),
+                ("data-invalid", "attacker"),
+                ("data-required", "attacker"),
+                ("data-readonly", "attacker"),
             ],
             vec![],
         ));
@@ -1382,6 +1457,7 @@ mod tests {
         let html = render(&thumb_icon(
             false,
             ThumbIconShow::Unchecked,
+            &SwitchProps::default(),
             vec![("data-x", "\" onmouseover=\"alert(1)")],
             vec![text("<script>alert(1)</script>")],
         ));
