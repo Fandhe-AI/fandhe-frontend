@@ -24,7 +24,7 @@
 //! 仕様のため、`container-name` を持つ要素と `grid-template-columns` を
 //! 切り替える要素は別の要素にする必要がある（`cart_two_column_summary` の
 //! `stack`/`columns` 分離と同型）。`@container`（`40rem` 未満）で
-//! `.blocks-promo-sale-products-columns` を 1 列に畳み、DOM 順
+//! `.blocks-promo-sale-products-columns` と商品グリッドを 1 列に畳み、DOM 順
 //! （告知 → グリッド）のまま縦積みにする（`promo_collection_cards` の sm
 //! ブレークポイントと同じ判断軸だが、本 block はメディアクエリではなく
 //! コンテナクエリで切り替える）。
@@ -137,7 +137,7 @@ fn product_card(name: &'static str, regular: &'static str, sale: &'static str) -
                 vec![image::image(
                     &ImageProps {
                         aspect_ratio: AspectRatio::Square,
-                        ..ImageProps::new(dummy_assets::PRODUCT_SRC, name)
+                        ..ImageProps::new(dummy_assets::PRODUCT_SRC, "")
                     },
                     vec![("data-blocks-promo-sale-products-card-image", "")],
                 )],
@@ -235,11 +235,11 @@ const LAYOUT_CSS: &str = "\
 .blocks-promo-sale-products-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-3);\n}\n\
 .blocks-promo-sale-products-grid {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: var(--fandhe-space-4);\n}\n\
 .blocks-promo-sale-products-card-body {\n  display: grid;\n  gap: var(--fandhe-space-2);\n  padding: var(--fandhe-space-4);\n}\n\
-.blocks-promo-sale-products-price-row {\n  display: flex;\n  align-items: baseline;\n  gap: var(--fandhe-space-2);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-promo-sale-products-price-row {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  gap: var(--fandhe-space-2);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-scope=\"card\"][data-part=\"root\"][data-blocks-promo-sale-products-card] {\n  overflow: hidden;\n  padding: 0;\n}\n\
 [data-scope=\"image\"][data-part=\"root\"][data-blocks-promo-sale-products-card-image] {\n  width: 100%;\n  display: block;\n}\n\
 [data-blocks-promo-sale-products-card-sale-price] {\n  color: var(--fandhe-color-fg);\n}\n\
-@container blocks-promo-sale-products (max-width: 40rem) {\n  .blocks-promo-sale-products-columns {\n    grid-template-columns: minmax(0, 1fr);\n  }\n}\n";
+@container blocks-promo-sale-products (max-width: 40rem) {\n  .blocks-promo-sale-products-columns,\n  .blocks-promo-sale-products-grid {\n    grid-template-columns: minmax(0, 1fr);\n  }\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -294,10 +294,12 @@ mod tests {
                 "demo should render the {hook} attribute"
             );
         }
+        // 商品名は直後のカードタイトルで読まれるため、画像は装飾扱い（空 alt）にして二重読み上げを避ける。
+        assert_eq!(html.matches("alt=\"\"").count(), PRODUCTS.len());
         for name in PRODUCTS {
             assert!(
-                html.contains(&format!("alt=\"{name}\"")),
-                "demo should set alt text to {name}"
+                !html.contains(&format!("alt=\"{name}\"")),
+                "demo should not repeat {name} in alt text"
             );
         }
         for price in REGULAR_PRICES.iter().chain(SALE_PRICES.iter()) {
@@ -335,6 +337,11 @@ mod tests {
         }
         assert!(LAYOUT_CSS.contains("container-type: inline-size;"));
         assert!(LAYOUT_CSS.contains("repeat(2,"));
+        assert!(LAYOUT_CSS.contains("flex-wrap: wrap;\n  align-items: baseline;"));
+        // 狭いコンテナでは告知面との縦積みと同時に商品グリッドも 1 列へ畳む。
+        assert!(LAYOUT_CSS.contains(
+            "  .blocks-promo-sale-products-columns,\n  .blocks-promo-sale-products-grid {\n    grid-template-columns: minmax(0, 1fr);"
+        ));
         assert!(LAYOUT_CSS.contains("--fandhe-space-"));
         assert!(LAYOUT_CSS.contains("--fandhe-color-fg"));
         assert!(!LAYOUT_CSS.contains('<'));

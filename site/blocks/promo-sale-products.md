@@ -9,7 +9,8 @@
 主参照は対応表 ID R0039 です。
 
 広い幅では告知面を左、商品グリッドを右に 2 カラムで配置し、`40rem`
-未満のコンテナ幅では告知面を上、グリッドを下に縦積みします。
+未満のコンテナ幅では告知面を上、グリッドを下に縦積みし、商品グリッドも
+1 列に畳みます。
 
 商品名・価格はすべて架空のデータであり、実在の企業・ブランド・PII・
 実クレデンシャルは含みません。画像はビルド時生成の同梱プレースホルダー
@@ -100,7 +101,7 @@ fn product_card(name: &'static str, regular: &'static str, sale: &'static str) -
                 vec![image::image(
                     &ImageProps {
                         aspect_ratio: AspectRatio::Square,
-                        ..ImageProps::new(dummy_assets::PRODUCT_SRC, name)
+                        ..ImageProps::new(dummy_assets::PRODUCT_SRC, "")
                     },
                     vec![("data-blocks-promo-sale-products-card-image", "")],
                 )],
@@ -163,7 +164,8 @@ pub fn demo() -> Node {
 - **CTA**: ボタンはリンクではなく `type="button"` の静的表示です。送信・
   遷移処理は持ちません
 - **縦積み**: `40rem` 未満のコンテナ幅で告知面を上、グリッドを下に
-  縦積みします（`container-type: inline-size` によるコンテナクエリ）
+  縦積みし、商品グリッドも 1 列に畳みます（`container-type: inline-size`
+  によるコンテナクエリ）
 
 関連情報: [Heading](../themes/heading.md) / [Text](../themes/text.md) /
 [Button](../themes/button.md) / [Image](../themes/image.md) /
