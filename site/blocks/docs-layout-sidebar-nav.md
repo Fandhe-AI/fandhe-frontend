@@ -21,8 +21,9 @@ R0084・R0086・R0087・R0088。出典の固有名・ファイル名は記載し
 
 ナビグループの見出しは 3 インスタンスとも素の `h3` で開閉ボタンを包む
 `h3 > button` 構造に統一し、ボタンの内側に見出しを置きません。現在地の
-項目は線または塗りで視覚的に示すのみで、リンク先は本ページではない実在の
-docs ページのため `aria-current` は出力しません。
+項目は各インスタンスに 1 件だけ、本ページ自身を指す `href="./"` として
+`aria-current="page"` を付け、線または塗りの視覚強調もこの属性に連動させて
+います。実在する別の docs ページへのリンクには `aria-current` を付けません。
 
 ## Rust コード
 
@@ -213,11 +214,13 @@ fn external_link_row() -> Node {
     )
 }
 
-/// ナビグループ 1 件分の項目一覧（`(label, href, active)`）。
+/// ナビグループ 1 件分の項目一覧（`(label, href, current)`）。`current` は
+/// 自ページ `href="./"` の 1 件のみ `true`。
 type NavItems = &'static [(&'static str, &'static str, bool)];
 
 const GUIDES_ITEMS: NavItems = &[
-    ("はじめに", "../../guides/", true),
+    ("はじめに", "../../guides/", false),
+    ("ドキュメント用サイドバー", "./", true),
     (
         "コンポーネント作成",
         "../../guides/component-authoring/",
@@ -231,22 +234,17 @@ const API_ITEMS: NavItems = &[
     ("Server API", "../../api/server-api/", false),
 ];
 
-/// `nav_list::list` + `nav_list::item`/`link` の組み立て。`nav_list::link`
-/// の `current` 引数には常に `false` を渡し、視覚的な強調のみ
-/// `data-blocks-docs-layout-sidebar-nav-current` 属性で示す（モジュール
-/// 冒頭「現在地は視覚のみで示し `aria-current` を出力しない」節参照）。
+/// `nav_list::list` + `nav_list::item`/`link` の組み立て。現在地の項目
+/// （`current == true`、自ページ `href="./"`）だけ `nav_list::link` の
+/// `current` を `true` にし `aria-current="page"` を出力する（モジュール
+/// 冒頭「現在地の項目は自ページを指し `aria-current="page"` を付ける」節）。
 fn nav_items(items: NavItems) -> Node {
     let children: Vec<Node> = items
         .iter()
-        .map(|(label, href, active)| {
-            let link_attrs = if *active {
-                vec![("data-blocks-docs-layout-sidebar-nav-current", "")]
-            } else {
-                vec![]
-            };
+        .map(|(label, href, current)| {
             nav_list::item(
                 vec![],
-                vec![nav_list::link(href, false, link_attrs, vec![text(*label)])],
+                vec![nav_list::link(href, *current, vec![], vec![text(*label)])],
             )
         })
         .collect();

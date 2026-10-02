@@ -88,15 +88,17 @@
 //! 並んでしまうため使わない（`docs_layout_sidebar_api` が同じ理由で
 //! `h3` に統一した判断に合わせる）。
 //!
-//! # 現在地は視覚のみで示し `aria-current` を出力しない
+//! # 現在地の項目は自ページ（`href="./"`）を指し `aria-current="page"` を付ける
 //!
-//! 本 Demo は `/blocks/docs-layout-sidebar-nav/` 上に掲示される架空の
-//! サイドバーであり、リンク先（`../../guides/` 等）は実在する docs ページ
-//! だが「現在表示中のページ」ではない。`nav_list::link` の `current` には
-//! 常に `false` を渡し、`aria-current`（`page`/`location` いずれも）を
-//! 出力しない。視覚的な強調は
-//! `data-blocks-docs-layout-sidebar-nav-current` 属性（[`LAYOUT_CSS`]）
-//! のみに反映する（`settings_page_aside_nav::aside_nav` と同型の判断）。
+//! 本 Demo は `/blocks/docs-layout-sidebar-nav/` 上に掲示される。実在する
+//! 別ページ（`../../guides/` 等）へのリンクに `aria-current="page"` を
+//! 付けると支援技術へ偽の現在地を伝え、逆に線／塗りの視覚強調だけで
+//! `aria-current` を省くと視覚と読み上げで現在地の情報量が食い違う。
+//! このため各インスタンスの現在地項目は 1 件だけ、本ページ自身を指す
+//! `href="./"` とし、`nav_list::link` の `current: true` が出力する
+//! `aria-current="page"` を視覚強調のセレクタにもそのまま使う
+//! （`settings_page_tabs` のナビ「設定」項目と同型の判断。block 固有の
+//! 現在地フック属性は持たない）。他の項目は `current: false`。
 //!
 //! # レシピ既定スタイルの上書き（`docs_layout_sidebar_api` と同じ方式）
 //!
@@ -305,11 +307,13 @@ fn external_link_row() -> Node {
     )
 }
 
-/// ナビグループ 1 件分の項目一覧（`(label, href, active)`）。
+/// ナビグループ 1 件分の項目一覧（`(label, href, current)`）。`current` は
+/// 自ページ `href="./"` の 1 件のみ `true`。
 type NavItems = &'static [(&'static str, &'static str, bool)];
 
 const GUIDES_ITEMS: NavItems = &[
-    ("はじめに", "../../guides/", true),
+    ("はじめに", "../../guides/", false),
+    ("ドキュメント用サイドバー", "./", true),
     (
         "コンポーネント作成",
         "../../guides/component-authoring/",
@@ -323,22 +327,17 @@ const API_ITEMS: NavItems = &[
     ("Server API", "../../api/server-api/", false),
 ];
 
-/// `nav_list::list` + `nav_list::item`/`link` の組み立て。`nav_list::link`
-/// の `current` 引数には常に `false` を渡し、視覚的な強調のみ
-/// `data-blocks-docs-layout-sidebar-nav-current` 属性で示す（モジュール
-/// 冒頭「現在地は視覚のみで示し `aria-current` を出力しない」節参照）。
+/// `nav_list::list` + `nav_list::item`/`link` の組み立て。現在地の項目
+/// （`current == true`、自ページ `href="./"`）だけ `nav_list::link` の
+/// `current` を `true` にし `aria-current="page"` を出力する（モジュール
+/// 冒頭「現在地の項目は自ページを指し `aria-current="page"` を付ける」節）。
 fn nav_items(items: NavItems) -> Node {
     let children: Vec<Node> = items
         .iter()
-        .map(|(label, href, active)| {
-            let link_attrs = if *active {
-                vec![("data-blocks-docs-layout-sidebar-nav-current", "")]
-            } else {
-                vec![]
-            };
+        .map(|(label, href, current)| {
             nav_list::item(
                 vec![],
-                vec![nav_list::link(href, false, link_attrs, vec![text(*label)])],
+                vec![nav_list::link(href, *current, vec![], vec![text(*label)])],
             )
         })
         .collect();
@@ -639,9 +638,9 @@ const LAYOUT_CSS: &str = "\
 [data-scope=\"accordion\"][data-part=\"item-content\"][data-blocks-docs-layout-sidebar-nav-group-content] {\n  padding: 0;\n}\n\
 [data-blocks-docs-layout-sidebar-nav-group] [data-scope=\"nav-list\"][data-part=\"list\"] {\n  display: flex;\n  flex-direction: column;\n  gap: 0.25rem;\n  margin: 0.25rem 0 0;\n  padding-inline-start: 0.5rem;\n}\n\
 [data-blocks-docs-layout-sidebar-nav-panel=\"line\"] [data-scope=\"nav-list\"][data-part=\"link\"] {\n  display: block;\n  padding: 0.25rem 0.5rem;\n  border-inline-start: 2px solid transparent;\n  text-decoration: none;\n  color: inherit;\n}\n\
-[data-blocks-docs-layout-sidebar-nav-panel=\"line\"] [data-scope=\"nav-list\"][data-part=\"link\"][data-blocks-docs-layout-sidebar-nav-current] {\n  border-inline-start-color: var(--fandhe-color-accent);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n}\n\
+[data-blocks-docs-layout-sidebar-nav-panel=\"line\"] [data-scope=\"nav-list\"][data-part=\"link\"][aria-current=\"page\"] {\n  border-inline-start-color: var(--fandhe-color-accent);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n}\n\
 [data-blocks-docs-layout-sidebar-nav-panel=\"filled\"] [data-scope=\"nav-list\"][data-part=\"link\"] {\n  display: block;\n  padding: 0.25rem 0.5rem;\n  border-radius: var(--fandhe-radius-md);\n  text-decoration: none;\n  color: inherit;\n}\n\
-[data-blocks-docs-layout-sidebar-nav-panel=\"filled\"] [data-scope=\"nav-list\"][data-part=\"link\"][data-blocks-docs-layout-sidebar-nav-current] {\n  background: var(--fandhe-color-bg-muted);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n}\n\
+[data-blocks-docs-layout-sidebar-nav-panel=\"filled\"] [data-scope=\"nav-list\"][data-part=\"link\"][aria-current=\"page\"] {\n  background: var(--fandhe-color-bg-muted);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n}\n\
 [data-blocks-docs-layout-sidebar-nav-frame=\"narrow\"] {\n  position: relative;\n  width: 18rem;\n  min-height: 24rem;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  overflow: hidden;\n}\n\
 .blocks-docs-layout-sidebar-nav-narrow-topbar {\n  display: flex;\n  align-items: center;\n  gap: 0.5rem;\n  padding: 0.75rem;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-docs-layout-sidebar-nav-frame=\"narrow\"] [data-scope=\"drawer\"][data-part=\"backdrop\"] {\n  position: absolute;\n  inset: 0;\n  z-index: 1;\n}\n\
@@ -728,20 +727,44 @@ mod tests {
         );
     }
 
-    /// 実在する別ページへのリンクに現在地を宣言しない（モジュール冒頭
-    /// 「現在地は視覚のみで示し `aria-current` を出力しない」節）。
-    /// `page`/`location` を問わず `aria-current` 属性そのものを出力せず、
-    /// 視覚強調のフック属性はインスタンスごとに 1 件（計 3 件）とする。
+    /// 現在地の項目は各インスタンスに 1 件（計 3 件）で、いずれも自ページ
+    /// `href="./"` を指し `aria-current="page"` を持つ。実在する別ページへの
+    /// リンクには `aria-current` を付けず、視覚強調も `aria-current` に
+    /// 連動させる（モジュール冒頭「現在地の項目は自ページを指し
+    /// `aria-current="page"` を付ける」節）。
     #[test]
-    fn demo_never_emits_aria_current() {
+    fn current_item_links_to_this_page_with_aria_current() {
         let html = html();
-        assert!(!html.contains("aria-current"));
-        assert_eq!(
-            html.matches("data-blocks-docs-layout-sidebar-nav-current")
-                .count(),
-            3,
-            "exactly one visually-highlighted current item per instance (line/filled/narrow)"
-        );
+        // `aria-current="page"` を持つ `<a>` はすべて `href="./"`（自ページ）。
+        let current_anchors: Vec<&str> = html
+            .split("<a ")
+            .skip(1)
+            .map(|rest| rest.split('>').next().unwrap())
+            .filter(|tag| tag.contains("aria-current=\"page\""))
+            .collect();
+        assert_eq!(current_anchors.len(), 3, "one current item per instance");
+        for tag in &current_anchors {
+            assert!(
+                tag.contains("href=\"./\""),
+                "current item must link to this page: {tag}"
+            );
+        }
+        assert_eq!(html.matches("aria-current").count(), 3);
+        assert_eq!(html.matches("href=\"./\"").count(), 3);
+        for nav in html.split("<nav").skip(1) {
+            let nav = nav.split("</nav>").next().unwrap();
+            assert!(
+                nav.matches("aria-current=\"page\"").count() <= 1,
+                "each nav must declare at most one current page"
+            );
+        }
+        assert!(!html.contains("data-blocks-docs-layout-sidebar-nav-current"));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-docs-layout-sidebar-nav-panel=\"line\"] [data-scope=\"nav-list\"][data-part=\"link\"][aria-current=\"page\"] {"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-docs-layout-sidebar-nav-panel=\"filled\"] [data-scope=\"nav-list\"][data-part=\"link\"][aria-current=\"page\"] {"
+        ));
     }
 
     /// 全ナビグループが `h3 > button` 構造であり、`<button>` の内側に見出しを
