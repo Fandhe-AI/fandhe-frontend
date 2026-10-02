@@ -3529,6 +3529,43 @@ fn ex_separator_labeled() -> Node {
     )
 }
 
+/// `/themes/separator/` の Examples 節其の 3（イシュー #3137）: ラベル位置
+/// `start`（先頭寄せ）で「左ラベル – 線」を合成する例。子は
+/// `[label, separator]` の 2 列（`group_with` rustdoc の契約参照）。
+fn ex_separator_label_start() -> Node {
+    separator::group_with(
+        separator::SeparatorLabelPosition::Start,
+        vec![("style", "width: 16rem;")],
+        vec![
+            separator::label(vec![], vec![text("Section")]),
+            separator::separator(&separator::SeparatorProps::default(), vec![]),
+        ],
+    )
+}
+
+/// `/themes/separator/` の Examples 節其の 4（イシュー #3137）: ラベル位置
+/// `start` で「左タイトル – 線 – 右ボタン」を合成する例。子は
+/// `[label, separator, 末尾ノード]` の 3 個で、末尾ノードは
+/// `grid-auto-flow: column` により暗黙列（同じ行）へ流れ込む。
+fn ex_separator_title_button() -> Node {
+    separator::group_with(
+        separator::SeparatorLabelPosition::Start,
+        vec![("style", "width: 20rem; align-items: center;")],
+        vec![
+            separator::label(vec![], vec![text("Members")]),
+            separator::separator(&separator::SeparatorProps::default(), vec![]),
+            button(
+                &ButtonProps {
+                    variant: ButtonVariant::Outline,
+                    ..ButtonProps::default()
+                },
+                vec![],
+                vec![text("Add")],
+            ),
+        ],
+    )
+}
+
 pub(crate) const SEPARATOR: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "orientation が role=\"separator\"（固定） + aria-orientation + data-orientation + variant クラスの 3 箇所へ連動する（crates/pre-styled-ui/src/separator.rs:10, 17）",
@@ -3536,6 +3573,7 @@ pub(crate) const SEPARATOR: ComponentPageSpec = ComponentPageSpec {
         "罫線の太さは --fandhe-separator-thickness（既定 1px の custom property、イシュー #1585）の上書きで変更する。size 軸は Phase 0 規約（docs/design/pre-styled-ui-focus-ring-and-size-conventions.md §4 (d)）により非提供（separator.rs:24-31）",
         "role/aria-orientation/data-orientation は呼び出し側の偽装を除去し常にフレームワーク値へ一本化する（separator.rs:270-277、skeleton の aria-hidden 除去と同型）",
         "group/label（イシュー #2053、shadcn/ui 突合で補完）: pre-styled-only のラベル付き区切り線パート。線 – テキスト – 線を display: grid（1fr auto 1fr）で合成する（chakra-ui の HStack + Text 合成相当、horizontal 専用契約）",
+        "group_with/SeparatorLabelPosition（イシュー #3137）: ラベル位置を center（既定、group と同一出力）/start から opt-in で選べる。start は 1 class（grid-template-columns: auto 1fr + grid-auto-flow: column）のみで、ラベルの後ろに続くノードを同じ行へ流し込む",
     ],
     arguments: &[
         ArgRow {
@@ -3561,6 +3599,16 @@ pub(crate) const SEPARATOR: ComponentPageSpec = ComponentPageSpec {
             title: "Labeled",
             description: "group/label によるラベル付き区切り線の例です（イシュー #2053）。",
             render: ex_separator_labeled,
+        },
+        ExampleEntry {
+            title: "Label start",
+            description: "group_with(SeparatorLabelPosition::Start) による左寄せラベルの例です（イシュー #3137）。",
+            render: ex_separator_label_start,
+        },
+        ExampleEntry {
+            title: "Title with action",
+            description: "group_with(SeparatorLabelPosition::Start) で左タイトル・線・右ボタンを 1 行に並べる例です（イシュー #3137）。",
+            render: ex_separator_title_button,
         },
     ],
     keyboard: &[],
