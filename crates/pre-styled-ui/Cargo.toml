@@ -3869,11 +3869,19 @@ name = "fandhe-frontend-pre-styled-ui"
 # （偶発的衝突）ため、そのまま採用せずさらに +1 して 0.231.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 #
-# イシュー #3137: separator::group にラベル位置指定（`group_with`/
+# PR #3573 レビュー対応（イシュー #3124）: codex P1 指摘を受け、select の
+# `item-indicator` に `flex-shrink: 0` を追加した（item に gap がある構成で
+# 項目幅・テキスト長が異なるとインジケータが flex item として縮小し整列が
+# 崩れるため）。既存 golden ブロックの出力バイトが変わる観測可能な CSS
+# 変更のため minor バンプする。
+#
+# マージコミット注記（本 PR #3137、origin/main 再取り込み）: イシュー
+# #3137 で separator::group にラベル位置指定（`group_with`/
 # `SeparatorLabelPosition::Start`）を追加した。既存 `group`/`separator` の
 # シグネチャ・出力はバイト単位で不変（`default_variant` を登録しないため）
-# な純追加のため minor バンプする。
-version = "0.232.0"
+# な純追加のため minor バンプする。origin/main 側が独立に到達していた
+# 0.232.0 を土台とし、本変更分でさらに +1 して 0.233.0 とする。
+version = "0.233.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

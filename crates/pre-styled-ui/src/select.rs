@@ -317,43 +317,47 @@
 //! - **既定は `End`**: `End` のとき variant class を一切出さない
 //!   （`default_variant` も登録しない）。既存呼び出し元の出力・golden は
 //!   バイト不変（`Shape::Pill` 未指定時と同じ安全側契約）。
-//! - **`Start` の実現方法**: `root` variant で 4 本の CSS 変数
-//!   （`--fandhe-select-item-position`/`--fandhe-select-item-indicator-
-//!   position`/`--fandhe-select-item-indicator-gutter-display`/
-//!   `--fandhe-select-item-indicator-margin-left`）を切り替える。全項目の
-//!   `item::before` がインジケータ幅の空き（gutter）を inline-start 側へ
-//!   確保し、選択中項目の `item-indicator` は絶対配置 + `margin-left: 0`
-//!   で静的位置（content-box の inline-start 端）に置かれて gutter と
-//!   重なる。`item` の `padding` は一切上書きしないため、既存フック
-//!   `--fandhe-select-item-padding` による余白調整は `Start` でもそのまま
-//!   効く（Bugbot Medium 指摘、PR #3561）。物理方向の `left` は使わず
-//!   静的位置に任せるため `direction: rtl` でも正しい側に置かれる。
-//!   `item`（`[data-selected]`）/`item-indicator`（`[data-state="open"]`）
-//!   側は **state 規則**と
-//!   pseudo-element 規則の純追加のみで base ブロックは変更しない（既存
-//!   golden の前半固定テスト `golden_prefix_through_hidden_select_
-//!   is_unchanged`・`select_pre_2391_blocks_remain_verbatim` を壊さない
-//!   ための設計判断）。`End` では `item::before` が `display: none` の
-//!   ため flex item にならず `gap` も生じず、計算値は不変。
-//! - **子要素の順序に依存しない**: 絶対配置した flex コンテナの子の静的
-//!   位置は「その子が唯一の flex item であるかのように」決まる（CSS
-//!   Flexbox §4.1）ため、`item_indicator` を `item_text` の前後どちらに
-//!   置いても inline-start 端（gutter 上）に配置される（headless Chrome
-//!   で両順序・LTR/RTL を実測確認、PR #3561）。
-//! - **縦位置は無調整**: `item` は `display: flex` + `align-items: center`
-//!   のため、絶対配置した `item-indicator` の静的位置はその flex コンテナの
-//!   中央に揃う（CSS Flexbox の仕様上の挙動）。`top`/`transform` は宣言し
-//!   ない。
-//! - **`--fandhe-select-item-indicator-size`**: インジケータ幅調整用の
-//!   フォールバック専用変数（既定 `1em`）。本モジュールは宣言せず参照の
-//!   みを提供する（アイコン幅が `1em` を超える場合の呼び出し側調整用）。
+//! - **`Start` の実現方法（`order` + 空き枠方式）**: `root` variant で
+//!   3 本の CSS 変数（`--fandhe-select-item-indicator-order`/
+//!   `--fandhe-select-item-indicator-margin-left`/
+//!   `--fandhe-select-item-indicator-placeholder-display`）を切り替える。
+//!   `item-indicator` は `headless-ui` 側で選択状態にかかわらず常に DOM へ
+//!   出力され、非選択時のみ存在属性 `hidden` が付く契約（
+//!   `fandhe_frontend_headless_ui::select::item_indicator` 参照）。この
+//!   既存ノードをそのまま「空き枠」に転用する: `item` は
+//!   `display: flex` のため `item-indicator` も flex item であり、
+//!   `order: -1` で先頭へ、`margin-left: 0` で寄せ解除する state 規則を
+//!   `[data-state]`（選択状態にかかわらず item-indicator が常に持つ属性）
+//!   へ適用し、非選択時は `[hidden]` 規則で `display`（UA 既定の
+//!   `none` を上書き）+ `visibility: hidden` を宣言して不可視のまま同じ
+//!   幅を確保する。絶対配置も疑似要素も使わないため、`item` の
+//!   `padding` 等の既存宣言には一切触れずそのまま活きる。
+//! - **子要素の順序に依存しない**: `order` は flex コンテナ内の視覚的な
+//!   並び順のみを制御する仕様（CSS Flexbox §5.4）であり、`item_indicator`
+//!   を `item_text` の前後どちらに置いても `order: -1` で先頭に来る。
+//!   絶対配置を使わないため、静的位置が子の並び順に左右される問題（PR
+//!   #3561 で出た codex P1 指摘）は構造上発生しない。
+//! - **RTL でも正しい側に来る**: `order` は物理方向ではなく書字方向に
+//!   従って解決される（flex の inline axis）ため、`direction: rtl` でも
+//!   正しい側（inline-start）に配置される。
+//! - **`hidden` の `display` 宣言は常に `visibility: hidden` と同じ
+//!   ブロックに置く**: 非選択項目のチェックマークが見えてしまう事故
+//!   （#1502 の「`display` を宣言しない」契約の趣旨）を防ぐための不変
+//!   条件で、単体テストで固定する。`aria-hidden="true"` は選択状態に
+//!   かかわらず固定で付いており（
+//!   `fandhe_frontend_headless_ui::select::item_indicator` 参照）、
+//!   `visibility: hidden` も a11y ツリーから外れるため、支援技術への
+//!   露出は変わらない。
+//! - **既知の制約**: 呼び出し側が非選択項目で `item_indicator` を省略
+//!   すると空き枠ができず揃わない。選択中・非選択とも同じ内容の
+//!   `item_indicator` を置くことを前提にする。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
     disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
-    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, PseudoElement, Shape,
-    Size, SlotRecipe, StateCondition, VariantValue,
+    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, Shape, Size,
+    SlotRecipe, StateCondition, VariantValue,
 };
 
 // headless 自由関数 `root`・状態機械 `Select` はあえて再エクスポートしない
@@ -604,8 +608,15 @@ fn recipe() -> SlotRecipe {
         // チェックマーク（item-indicator）を item 末尾へ寄せる。`display` は
         // ここでは宣言しない（headless の非選択時 `hidden` 存在属性による
         // 表示制御と衝突するため、モジュール rustdoc「スタイル調整（#1502）」
-        // 節参照）。
-        .base("item-indicator", vec![decl("margin-left", "auto")])
+        // 節参照）。`item` の `gap` 設定下で項目幅・テキスト長が異なると
+        // インジケータ（選択時チェックマーク／非選択時の placement-start
+        // 空き枠、イシュー #3124）が flex item として縮小し、テキスト開始
+        // 位置の整列が崩れるため `flex-shrink: 0` で縮小を禁止する（旧
+        // `item::before` 実装の `flex: none` と同じ根拠）。
+        .base(
+            "item-indicator",
+            vec![decl("margin-left", "auto"), decl("flex-shrink", "0")],
+        )
         .base(
             "item-group-label",
             vec![
@@ -937,17 +948,19 @@ fn recipe() -> SlotRecipe {
         // イシュー #3124: 選択インジケータ位置軸。`variant` 軸の後に置く
         // （純追加。`Default` を実装しない [`ItemIndicatorPlacement`] は
         // `Start` のみ登録し `End` は class を出さない、モジュール rustdoc
-        // 参照）。root スコープで 2 本の CSS 変数を `relative`/`absolute`
-        // へ切り替え、実際の配置は `item`/`item-indicator` の
-        // state 規則（`[data-selected]`/`[data-state="open"]`、下記）が担う。
+        // 参照）。root スコープで 3 本の CSS 変数を切り替え、実際の配置は
+        // `item-indicator` の state 規則（`[data-state]`/`[hidden]`、下記）
+        // が担う（`order` + 空き枠方式、モジュール rustdoc参照）。
         .variant(
             ItemIndicatorPlacement::Start,
             "root",
             vec![
-                decl("--fandhe-select-item-position", "relative"),
-                decl("--fandhe-select-item-indicator-position", "absolute"),
-                decl("--fandhe-select-item-indicator-gutter-display", "block"),
+                decl("--fandhe-select-item-indicator-order", "-1"),
                 decl("--fandhe-select-item-indicator-margin-left", "0"),
+                decl(
+                    "--fandhe-select-item-indicator-placeholder-display",
+                    "block",
+                ),
             ],
         )
         .default_variant(Size::Md)
@@ -960,63 +973,40 @@ fn recipe() -> SlotRecipe {
         // + `max-height`（イシュー #2019）を既に持つが、
         // `presence_transition` が宣言するのは `opacity`/`transform`/
         // `transition-*` のみで交差しないため衝突しない。
-        // イシュー #3124: `item`/`item-indicator` の選択中項目限定の
-        // state 規則。インジケータが可視なのは選択中の項目のみのため、この
-        // 条件に限定すれば十分（モジュール rustdoc 参照）。フォールバック
-        // 値は CSS の初期値（`static`/`auto`）のため、`Start` 未指定時の
-        // 計算値は変わらない。base ブロックへ混入させない（SLOTS 順に
-        // 出力される base と異なり、state は既存の前半 golden を不変に
-        // 保ったまま純追加できる）。`item` 側は `[data-selected]` を条件に
-        // する: クライアント配線（`fandhe-frontend-wasm-full` の
-        // `headless_select`）は選択変更時に item の `data-selected` と
-        // インジケータの `data-state` は同期するが item の `data-state` は
-        // SSR 値のまま残すため、`[data-state="open"]` では選択変更後に
-        // インジケータの包含ブロックが root へ外れる（Bugbot High 指摘、
-        // PR #3561）。`data-selected` は SSR（headless `item`）とクライアント
-        // の双方が選択中項目へ付与する存在属性。
-        .state(
-            "item",
-            StateCondition::Attr("data-selected"),
-            vec![decl(
-                "position",
-                "var(--fandhe-select-item-position, static)",
-            )],
-        )
+        // イシュー #3124: `item-indicator` は選択状態にかかわらず常に
+        // `data-state` を持つ（headless `item_indicator` 参照）ため、この
+        // 条件を使えば非選択項目（空き枠）にも同じ `order`/`margin-left`
+        // が及ぶ。フォールバック値は CSS の初期値（`0`/`auto`）のため、
+        // `Start` 未指定時の計算値は変わらない。base ブロックへ混入させ
+        // ない（SLOTS 順に出力される base と異なり、state は既存の前半
+        // golden を不変に保ったまま純追加できる）。
         .state(
             "item-indicator",
-            StateCondition::AttrEq("data-state", "open"),
+            StateCondition::Attr("data-state"),
             vec![
-                decl(
-                    "position",
-                    "var(--fandhe-select-item-indicator-position, static)",
-                ),
+                decl("order", "var(--fandhe-select-item-indicator-order, 0)"),
                 decl(
                     "margin-left",
                     "var(--fandhe-select-item-indicator-margin-left, auto)",
                 ),
             ],
         )
-        // イシュー #3124: `Start` 時にインジケータ幅の空き（gutter）を全
-        // 項目の inline-start 側へ確保する `item::before`。`padding` を
-        // 上書きしないため、利用者が既存フック `--fandhe-select-item-padding`
-        // で調整した余白は `Start`/`End` を問わずそのまま効く（Bugbot Medium
-        // 指摘、PR #3561）。既定（`End`）は `display: none` で flex item に
-        // ならず `gap` も生じないため、`End` の計算値は不変。`Start` では
-        // 絶対配置したインジケータが静的位置（content-box の inline-start
-        // 端、`align-items: center` で縦中央）に置かれ、この gutter と重なる。
-        .pseudo_element(
-            "item",
-            PseudoElement::Before,
+        // イシュー #3124: 非選択項目の `item-indicator`（headless が
+        // `hidden` 存在属性を付与、上記 state 規則と同じ条件文脈）を
+        // `Start` のときだけ不可視の空き枠として表示させる。`display` は
+        // 必ず `visibility: hidden` と同じブロックに置く（モジュール
+        // rustdoc「既知の制約」節の前段落参照。非選択項目のチェックが
+        // 見えてしまう事故を防ぐ）。既定（`End`）はフォールバック `none`
+        // のため UA 既定の非表示のまま計算値は変わらない。
+        .state(
+            "item-indicator",
+            StateCondition::Attr("hidden"),
             vec![
                 decl(
                     "display",
-                    "var(--fandhe-select-item-indicator-gutter-display, none)",
+                    "var(--fandhe-select-item-indicator-placeholder-display, none)",
                 ),
-                decl("flex", "none"),
-                decl(
-                    "inline-size",
-                    "var(--fandhe-select-item-indicator-size, 1em)",
-                ),
+                decl("visibility", "hidden"),
             ],
         )
         .presence_transition("content", MotionDuration::Fast)
@@ -1286,43 +1276,35 @@ mod tests {
     #[test]
     fn stylesheet_contains_item_indicator_placement_start_blocks() {
         let css = stylesheet();
-        // root variant（4 本の CSS 変数切り替え）。
+        // root variant（3 本の CSS 変数切り替え）。
         assert!(css.contains(
             r#"[data-scope="select"][data-part="root"].fd-select--item-indicator-placement-start {"#
         ));
-        assert!(css.contains("--fandhe-select-item-position: relative;"));
-        assert!(css.contains("--fandhe-select-item-indicator-position: absolute;"));
-        assert!(css.contains("--fandhe-select-item-indicator-gutter-display: block;"));
+        assert!(css.contains("--fandhe-select-item-indicator-order: -1;"));
         assert!(css.contains("--fandhe-select-item-indicator-margin-left: 0;"));
-        // gutter（`item::before`、既定 `display: none`）。
-        let gutter_block =
-            extract_block(&css, r#"[data-scope="select"][data-part="item"]::before {"#);
-        assert!(gutter_block
-            .contains("display: var(--fandhe-select-item-indicator-gutter-display, none);"));
-        assert!(
-            gutter_block.contains("inline-size: var(--fandhe-select-item-indicator-size, 1em);")
-        );
-        // state 規則（item は `[data-selected]`、item-indicator は
-        // `[data-state=\"open\"]`、各 1 件）。
-        assert!(css.contains(
-            "[data-scope=\"select\"][data-part=\"item\"][data-selected] {\n  position: var(--fandhe-select-item-position, static);\n}\n"
-        ));
-        let item_indicator_open_block = extract_block(
+        assert!(css.contains("--fandhe-select-item-indicator-placeholder-display: block;"));
+        // state 規則（item-indicator は `[data-state]`・`[hidden]` の 2 件）。
+        let order_block = extract_block(
             &css,
-            r#"[data-scope="select"][data-part="item-indicator"][data-state="open"] {"#,
+            r#"[data-scope="select"][data-part="item-indicator"][data-state] {"#,
         );
-        assert!(item_indicator_open_block
-            .contains("position: var(--fandhe-select-item-indicator-position, static);"));
-        assert!(item_indicator_open_block
+        assert!(order_block.contains("order: var(--fandhe-select-item-indicator-order, 0);"));
+        assert!(order_block
             .contains("margin-left: var(--fandhe-select-item-indicator-margin-left, auto);"));
+        let hidden_block = extract_block(
+            &css,
+            r#"[data-scope="select"][data-part="item-indicator"][hidden] {"#,
+        );
+        assert!(hidden_block
+            .contains("display: var(--fandhe-select-item-indicator-placeholder-display, none);"));
+        assert!(hidden_block.contains("visibility: hidden;"));
     }
 
     #[test]
-    fn item_padding_is_only_controlled_by_existing_hook() {
-        // 回帰（Bugbot Medium、PR #3561）: `item` の余白を決める宣言は既存
-        // フック `--fandhe-select-item-padding` を参照する `padding` のみで
-        // あり、`padding-inline-start` 等の個別辺の上書きを出さない（利用者
-        // がフックで調整した余白が `Start`/`End` を問わず効くことの保証）。
+    fn item_padding_is_untouched_by_item_indicator_placement_axis() {
+        // `order` + 空き枠方式は絶対配置も疑似要素も使わないため、`item` の
+        // 余白を決める既存宣言（`--fandhe-select-item-padding` 参照の
+        // `padding` のみ）は一切変更されない（モジュール rustdoc 参照）。
         let css = stylesheet();
         assert!(!css.contains("padding-inline"), "css={css}");
         assert!(!css.contains("padding-left"), "css={css}");
@@ -1341,14 +1323,30 @@ mod tests {
 
     #[test]
     fn item_indicator_base_block_is_unchanged_by_item_indicator_placement_axis() {
-        // 既存 base ブロック（#1502）は `margin-left: auto;` のみのまま残る
-        // （state 側で配置するため base は不変、モジュール rustdoc 参照）。
+        // 既存 base ブロック（#1502 の `margin-left: auto;` + #3124 レビュー
+        // 指摘対応の `flex-shrink: 0;`）は item-indicator-placement 軸の
+        // 追加（state 側で配置）によって変化しない（モジュール rustdoc 参照）。
         let css = stylesheet();
         let block = extract_block(
             &css,
             "[data-scope=\"select\"][data-part=\"item-indicator\"] {",
         );
-        assert_eq!(block.trim(), "margin-left: auto;");
+        assert_eq!(block.trim(), "margin-left: auto;\n  flex-shrink: 0;");
+    }
+
+    #[test]
+    fn item_indicator_hidden_display_and_visibility_share_the_same_block() {
+        // 不変条件（モジュール rustdoc「既知の制約」節参照）: 非選択項目の
+        // `item-indicator` へ `display` を宣言するブロックは必ず
+        // `visibility: hidden` も同時に持つ。これが崩れると `Start` の
+        // 空き枠が可視のチェックマークとして露出してしまう。
+        let css = stylesheet();
+        let hidden_block = extract_block(
+            &css,
+            r#"[data-scope="select"][data-part="item-indicator"][hidden] {"#,
+        );
+        assert!(hidden_block.contains("display:"));
+        assert!(hidden_block.contains("visibility: hidden;"));
     }
 
     // --- イシュー #3121: variant 軸 ---
