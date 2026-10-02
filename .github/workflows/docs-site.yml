@@ -555,6 +555,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/product-list-rich-cards/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/product-list-carousel/index.html"
           # Ecommerce / Quickview
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/quickview-image-split/index.html"
           # Ecommerce / Category
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-featured-banner/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/category-grid-captioned/index.html"
