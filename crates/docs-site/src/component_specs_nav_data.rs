@@ -855,6 +855,46 @@ fn ex_card_bordered_footer() -> Node {
     )
 }
 
+/// イシュー #3127: `data-subtle` opt-in 状態（footer の淡色背景帯）の例。
+fn ex_card_subtle_footer() -> Node {
+    card::root(
+        card::CardProps::default(),
+        vec![],
+        vec![
+            card::header(vec![], vec![card::title(vec![], vec![text("Sign in")])]),
+            card::body(vec![], vec![text("Email / Password フォームです。")]),
+            card::footer(
+                vec![("data-subtle", "")],
+                vec![button(
+                    &ButtonProps {
+                        variant: ButtonVariant::Solid,
+                        size: Size::Sm,
+                        ..ButtonProps::default()
+                    },
+                    vec![],
+                    vec![text("Continue")],
+                )],
+            ),
+        ],
+    )
+}
+
+/// イシュー #3127: `data-subtle` opt-in 状態（body の淡色背景帯）の例。
+/// body が最後の子になる構成（header のみを前に置く）。
+fn ex_card_subtle_body() -> Node {
+    card::root(
+        card::CardProps::default(),
+        vec![],
+        vec![
+            card::header(vec![], vec![card::title(vec![], vec![text("Summary")])]),
+            card::body(
+                vec![("data-subtle", "")],
+                vec![text("淡色帯の body です。")],
+            ),
+        ],
+    )
+}
+
 pub(crate) const CARD: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "CardVariant（Elevated/Outline/Subtle、crates/pre-styled-ui/src/card.rs:80-106 付近）で見た目を切り替える",
@@ -863,6 +903,7 @@ pub(crate) const CARD: ComponentPageSpec = ComponentPageSpec {
         "header へ `data-has-action` を渡すと grid 化され、action が右上 2 行にまたがって配置される（shadcn/ui `CardAction` 相当、イシュー #2046）",
         "cover へ image::image を子として渡すと cover image 枠になる（上端 2 角のみ root の角丸に沿ってクリップする、イシュー #2046）",
         "header/footer へ `data-bordered` を渡すと 1px の区切り線が付く opt-in 状態（既定は #1557 のとおり区切り線なし、イシュー #2046）",
+        "body/footer へ `data-subtle` を渡すと淡色背景の帯が付く opt-in 状態（既定は帯なし、イシュー #3127）",
         "純粋なレイアウトコンテナのため role/aria-* は付与しない（card.rs 冒頭）",
     ],
     arguments: &[
@@ -899,6 +940,16 @@ pub(crate) const CARD: ComponentPageSpec = ComponentPageSpec {
             title: "Card with bordered footer",
             description: "footer に data-bordered を付け 1px の区切り線を出す例です。",
             render: ex_card_bordered_footer,
+        },
+        ExampleEntry {
+            title: "Card with subtle footer",
+            description: "footer に data-subtle を付け淡色背景の帯を出す例です。",
+            render: ex_card_subtle_footer,
+        },
+        ExampleEntry {
+            title: "Card with subtle body",
+            description: "body（最後の子）に data-subtle を付け淡色背景の帯を出す例です。",
+            render: ex_card_subtle_body,
         },
     ],
     keyboard: &[],
