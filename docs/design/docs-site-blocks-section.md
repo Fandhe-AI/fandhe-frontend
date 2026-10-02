@@ -1140,6 +1140,7 @@ pub enum LayoutCss {
 | incentives-inline-strip | #3051 | `ecommerce/incentives/incentives_inline_strip.rs` |
 | incentives-split-header | #3052（親 #3024） | `ecommerce/incentives/incentives_split_header.rs` |
 | product-list-carousel | #3063（親 #3024） | `ecommerce/product_list/product_list_carousel.rs` |
+| promo-sale-products | #3084（親 #3024） | `ecommerce/promo/promo_sale_products.rs` |
 | promo-sale-categories | #3083（親 #3024） | `ecommerce/promo/promo_sale_categories.rs` |
 | order-confirmation-split-image | #3053（親 #3024） | `ecommerce/order/order_confirmation_split_image.rs` |
 | quickview-image-split | #3087（親 #3024） | `ecommerce/quickview/quickview_image_split.rs` |
