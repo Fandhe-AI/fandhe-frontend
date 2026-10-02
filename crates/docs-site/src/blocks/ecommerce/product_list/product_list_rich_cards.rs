@@ -547,7 +547,7 @@ pub const BLOCK: Block = Block {
 };
 
 /// `product_list_rich_cards` 固有のレイアウト規則（`crate::blocks`
-/// モジュール doc「block 固有 CSS の置き場」節と同型）。モジュール doc
+/// モジュール doc「CSS の置き場」節と同型）。モジュール doc
 /// 「列数は `@container` で切り替える」節のとおり、`24rem`/`40rem` の
 /// コンテナ幅境界（Demo 枠の実効上限約 43rem 以下）で列数を切り替える。
 /// `display: none` は使わない。

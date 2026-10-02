@@ -347,8 +347,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `code_block_header` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節、他 block と同型で `pub(super)` として
+/// `code_block_header` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、他 block と同型で `pub(super)` として
 /// `super::stylesheet` から連結される）。長い行を枠内へ閉じ込める
 /// 横スクロールと、行番号用 CSS カウンターをここで実装する
 /// （モジュール doc「長い行は枠内で横スクロールする」「行番号は CSS

@@ -3929,6 +3929,32 @@ name = "fandhe-frontend-pre-styled-ui"
 # 塗りドットではなくリング状に描画される不具合を修正した（`border: none`
 # を追加）。既存 golden ブロックの出力バイトが変わる非破壊的な修正のため
 # patch バンプする。
+#
+# マージコミット注記（本 PR #3137、origin/main 再取り込み）: イシュー
+# #3137 で separator::group にラベル位置指定（`group_with`/
+# `SeparatorLabelPosition::Start`）を追加した。既存 `group`/`separator` の
+# シグネチャ・出力はバイト単位で不変（`default_variant` を登録しないため）
+# な純追加のため minor バンプする。origin/main 側が別 PR（#3576 等）の
+# マージで独立に 0.233.0 へ到達済みのため、本 PR 分の +1 が吸収され base
+# と同値になっていた（codex-review 是正、PR #3575）。そのためさらに +1
+# して 0.234.0 とした。
+#
+# マージコミット注記（本 PR #3575、origin/main 再取り込み）: 本ブランチは
+# 上記の経緯で 0.234.0 へ到達していたが、origin/main 側（#3577 等の
+# マージ）も独立に同一の 0.234.0 へ到達していたため、さらに +1 して
+# 0.235.0 とした（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# マージコミット注記（本 PR #3575、origin/main 再々取り込み）: 本ブランチは
+# 上記の経緯で 0.235.0 へ到達していたが、origin/main 側（#3579 の
+# マージ）も独立に同一の 0.235.0 へ到達していたため、さらに +1 して
+# 0.236.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# マージコミット注記（本 PR #3578、origin/main 再取り込み #3、イシュー
+# #3139）: 本ブランチは上記の経緯で 0.236.1 へ到達していた（Dot variant
+# 不具合修正の patch バンプ込み）が、origin/main 側（separator の #3137・
+# 衝突解消 #3575 を含む到達値）は独立に 0.236.0 へ到達していた。本ブランチ
+# の到達値（0.236.1）が既に origin/main 側を上回っているため、追加のバンプ
+# は行わず 0.236.1 を維持する。
 version = "0.236.1"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"

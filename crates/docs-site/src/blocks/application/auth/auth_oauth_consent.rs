@@ -360,8 +360,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `auth_oauth_consent` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。
+/// `auth_oauth_consent` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。
 ///
 /// # `[data-blocks-auth-oauth-consent-actions]` の詳細度を Card recipe
 /// 以上にする

@@ -1148,7 +1148,7 @@ pub const BLOCK: Block = Block {
 };
 
 /// `product_overview_gallery_split` 固有のレイアウト規則（`crate::blocks`
-/// モジュール doc「block 固有 CSS の置き場」節と同型）。`48rem` 以上で
+/// モジュール doc「CSS の置き場」節と同型）。`48rem` 以上で
 /// 2 カラム、未満は縦積み（モジュール doc「レイアウト（骨格）」節参照）。
 /// `display: none` は使わない。
 ///

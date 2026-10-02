@@ -265,8 +265,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `contact_dialog_form` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節、`game_ui_modal`/`login_01` と同型）。
+/// `contact_dialog_form` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、`game_ui_modal`/`login_01` と同型）。
 ///
 /// # デモ枠内での掲示
 ///

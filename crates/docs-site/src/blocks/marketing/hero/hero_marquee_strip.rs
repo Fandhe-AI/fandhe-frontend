@@ -178,8 +178,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `hero_marquee_strip` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節、他 block と同型で `pub(super)` として
+/// `hero_marquee_strip` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節、他 block と同型で `pub(super)` として
 /// `super::stylesheet` から連結される）。`--fandhe-marquee-*` custom
 /// property の上書きのみで [`marquee`] の a11y/reduced-motion 契約には
 /// 触れない（モジュール doc「a11y・reduced-motion は `marquee` 部品側の

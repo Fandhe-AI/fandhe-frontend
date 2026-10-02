@@ -202,8 +202,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `action_panel_with_input` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。狭幅では行コンテナが
+/// `action_panel_with_input` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。狭幅では行コンテナが
 /// `flex-wrap` で折り返すのみで、ボタンを非表示にはしない（モジュール doc
 /// 「狭幅ではボタンが入力欄の下へ折り返す（非表示にはしない）」節参照）。
 const LAYOUT_CSS: &str = "\

@@ -307,8 +307,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `logo_cloud_grid` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。セレクタは `.blocks-logo-cloud-
+/// `logo_cloud_grid` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。セレクタは `.blocks-logo-cloud-
 /// grid-*` と `[data-blocks-logo-cloud-grid-*]`、およびそれらで絞り込んだ
 /// `[data-scope="..."]` のみを用いる。
 const LAYOUT_CSS: &str = "\

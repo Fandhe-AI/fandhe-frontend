@@ -133,8 +133,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `hero_parallax_layers` 固有のレイアウト規則を組み立てる（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節。`testimonials_stack` と
+/// `hero_parallax_layers` 固有のレイアウト規則を組み立てる（`crate::blocks`
+/// モジュール doc「CSS の置き場」節。`testimonials_stack` と
 /// 同じ `pub(super) fn` 形式を使う——[`fandhe_frontend_pre_styled_ui::
 /// recipe::SlotRecipe`] の `.css()` 呼び出し結果を固定レイアウト CSS と
 /// 連結して返す必要があるため `const` にできない）。

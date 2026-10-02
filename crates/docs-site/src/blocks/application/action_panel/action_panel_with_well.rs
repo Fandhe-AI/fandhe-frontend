@@ -206,8 +206,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `action_panel_with_well` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。狭幅では `flex-wrap` で
+/// `action_panel_with_well` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。狭幅では `flex-wrap` で
 /// 折り返すのみで、編集ボタンを非表示にはしない（モジュール doc「狭幅では
 /// 折り返すのみで非表示にしない」節参照）。
 ///

@@ -471,8 +471,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `incentives_icon_grid` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。セレクタは
+/// `incentives_icon_grid` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。セレクタは
 /// `.blocks-incentives-icon-grid-*` と
 /// `[data-blocks-incentives-icon-grid-*]` のみを用い、他 block や部品の
 /// 素のセレクタへ影響させない（`feature_three_column_icons` と同じ名前

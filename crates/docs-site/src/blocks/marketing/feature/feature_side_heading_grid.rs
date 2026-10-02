@@ -362,8 +362,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `feature_side_heading_grid` 固有のレイアウト規則（`crate::blocks::
-/// LAYOUT_CSS` doc「block 固有 CSS の置き場」節）。セレクタは
+/// `feature_side_heading_grid` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。セレクタは
 /// `.blocks-feature-side-heading-grid-*` と
 /// `[data-blocks-feature-side-heading-grid-*]` のみを用い、他 block や
 /// 部品の素のセレクタへ影響させない（`content-split-image` と同じ

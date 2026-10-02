@@ -635,8 +635,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `order_history_panels` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節と同型）。既定（40rem 未満）ではサマリの
+/// `order_history_panels` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節と同型）。既定（40rem 未満）ではサマリの
 /// ボタン・注文日を隠して三点メニューのみを見せ、`40rem` 以上では逆に
 /// ボタン・注文日を見せてメニューを隠す（モジュール冒頭「狭幅では
 /// サマリ操作をメニュー化し注文日を隠す」節参照）。

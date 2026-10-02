@@ -452,8 +452,8 @@ pub const BLOCK: Block = Block {
     demo,
 };
 
-/// `changelog_timeline` 固有のレイアウト規則（`crate::blocks::LAYOUT_CSS`
-/// doc「block 固有 CSS の置き場」節）。
+/// `changelog_timeline` 固有のレイアウト規則（`crate::blocks`
+/// モジュール doc「CSS の置き場」節）。
 ///
 /// # 3 列化（boxed インスタンス限定）
 ///
