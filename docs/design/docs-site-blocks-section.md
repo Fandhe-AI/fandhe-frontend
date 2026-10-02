@@ -1121,6 +1121,7 @@ pub enum LayoutCss {
 | product-list-rich-cards | #3064（親 #3024） | `ecommerce/product_list/product_list_rich_cards.rs` |
 | promo-collection-cards | #3078/#3079（親 #3077） | `ecommerce/promo/promo_collection_cards.rs` |
 | promo-countdown | #3080（親 #3024） | `ecommerce/promo/promo_countdown.rs` |
+| promo-image-tiles | #3081 | `ecommerce/promo/promo_image_tiles.rs` |
 | promo-offers-split | #3082 | `ecommerce/promo/promo_offers_split.rs` |
 | promo-with-testimonials | #3086 | `ecommerce/promo/promo_with_testimonials.rs` |
 | store-nav-centered-logo | #3094（親 #3093） | `ecommerce/store_nav/store_nav_centered_logo.rs` |

@@ -11,6 +11,7 @@
 
 mod promo_collection_cards;
 mod promo_countdown;
+mod promo_image_tiles;
 mod promo_offers_split;
 mod promo_with_testimonials;
 
@@ -20,6 +21,7 @@ pub(super) fn blocks() -> Vec<Block> {
     vec![
         promo_collection_cards::BLOCK,
         promo_countdown::BLOCK,
+        promo_image_tiles::BLOCK,
         promo_offers_split::BLOCK,
         promo_with_testimonials::BLOCK,
     ]
