@@ -112,6 +112,33 @@
 //! [`crate::fieldset`] 参照）。invalid の枠線表現は `root` 側 1 本に統一
 //! される。
 //!
+//! # native_select / select を内包する追加リセット（イシュー #3123）
+//!
+//! 上記 2 セレクタに加え、[`crate::native_select`](mod@crate::native_select)
+//! （`root > field::select`）と [`crate::select`](mod@crate::select)
+//! （`root > select::root > select::control > select::trigger`）を対象にした
+//! 追加リセットを持つ。Blocks 取り込み対応表 R1035/R1036 が要求する「入力欄の
+//! 前後へ通貨・国選択をインライン配置し外枠を 1 本にする」レイアウトのため
+//! で、input/textarea と異なり `flex: 1 1 0%` は与えない（内容幅のまま
+//! インライン配置する。input と対等に幅を分け合うと select だけで 1 行を
+//! 占有しかねないため）。native_select 側は `flex: 0 1 auto; width: auto`
+//! で base の `width: 100%` を打ち消す。select 側は `root` に
+//! `flex: 0 1 auto` を与えたうえで、枠線・背景のリセットは直下の
+//! `control > trigger` へ子結合子（`>`）のみで限定して行う（子孫結合子
+//! （半角スペース）で `trigger` を広く拾うと、Input Group 直下 Select の
+//! `content` 内へさらに別の Select がネストされた場合、その内側 Select の
+//! `trigger` にまでリセットが波及してしまうため。PR #3558 Codex レビュー
+//! 指摘の回帰防止）。
+//!
+//! 受容する既知の上限（将来 opt-in を検討する余地はあるが現時点は対象外）:
+//! - select だけを addon と並べる構成では内容幅のまま root 右側に余白が残る
+//! - group 内の select `trigger` は特異度で hover 背景変化を失う
+//!   （input/button と同じく group 内では hover 背景を持たない扱いとして
+//!   受容する）
+//! - `positioner`（dropdown 展開中）へのフォーカスでも `root` の
+//!   `:focus-within` リングが点灯し続けるが、同リングは addon 内 `button`
+//!   でも同様に受容済みであり同型の扱いとする
+//!
 //! # セキュリティ不変条件
 //!
 //! - 全出力は headless [`fandhe_frontend_headless_ui::input_group`] →
@@ -288,8 +315,10 @@ fn recipe() -> SlotRecipe {
 
 /// この styled Input Group が生成する静的 CSS 全量を返す（決定的。
 /// [`crate::fieldset::css`] と同じ契約）。子孫（[`crate::input`](mod@crate::input)/
-/// [`crate::textarea`](mod@crate::textarea)）を対象にした raw CSS 追記を含む（モジュール doc
-/// 「raw CSS 追記の理由」節参照）。
+/// [`crate::textarea`](mod@crate::textarea)/[`crate::native_select`](mod@crate::native_select)/
+/// [`crate::select`](mod@crate::select)）を対象にした raw CSS 追記を含む
+/// （モジュール doc「raw CSS 追記の理由」節・「native_select / select を
+/// 内包する追加リセット」節参照）。
 #[must_use]
 pub fn stylesheet() -> String {
     let mut out = recipe().css();
@@ -298,10 +327,18 @@ pub fn stylesheet() -> String {
     const INPUT: &str = r#"[data-scope="field"][data-part="input"]"#;
     const TEXTAREA: &str = r#"[data-scope="field"][data-part="textarea"]"#;
 
+    let mut push_rule = |selector: &str, decls: &[crate::css::Declaration]| {
+        if let Some(rule) = serialize_rule(selector, decls) {
+            if !out.is_empty() {
+                out.push('\n');
+            }
+            out.push_str(&rule);
+        }
+    };
+
     for control in [INPUT, TEXTAREA] {
-        let selector = format!("{ROOT} > {control}");
-        if let Some(rule) = serialize_rule(
-            &selector,
+        push_rule(
+            &format!("{ROOT} > {control}"),
             &[
                 decl("flex", "1 1 0%"),
                 decl("min-width", "0"),
@@ -310,21 +347,60 @@ pub fn stylesheet() -> String {
                 decl("background", "transparent"),
                 decl("box-shadow", "none"),
             ],
-        ) {
-            if !out.is_empty() {
-                out.push('\n');
-            }
-            out.push_str(&rule);
-        }
-
-        let focus_selector = format!("{ROOT} > {control}:focus-visible");
-        if let Some(rule) = serialize_rule(&focus_selector, &[decl("outline", "none")]) {
-            if !out.is_empty() {
-                out.push('\n');
-            }
-            out.push_str(&rule);
-        }
+        );
+        push_rule(
+            &format!("{ROOT} > {control}:focus-visible"),
+            &[decl("outline", "none")],
+        );
     }
+
+    // native_select（`data-scope="field" data-part="select"`）は input と
+    // 異なりインライン幅（内容幅）のまま並べる。モジュール doc「native_select
+    // / select を内包する追加リセット」節参照。
+    const NATIVE_SELECT: &str = r#"[data-scope="field"][data-part="select"]"#;
+    push_rule(
+        &format!("{ROOT} > {NATIVE_SELECT}"),
+        &[
+            decl("flex", "0 1 auto"),
+            decl("width", "auto"),
+            decl("min-width", "0"),
+            decl("border", "0"),
+            decl("border-radius", "0"),
+            decl("background", "transparent"),
+            decl("box-shadow", "none"),
+        ],
+    );
+    push_rule(
+        &format!("{ROOT} > {NATIVE_SELECT}:focus-visible"),
+        &[decl("outline", "none")],
+    );
+
+    // styled select（`data-scope="select"`）は `root` にインライン幅の
+    // flex を与え、枠線・背景は直下の `control > trigger` へ限定してリセッ
+    // トを当てる（同節参照）。子結合子（`>`）のみで繋ぐのは、子孫結合子
+    // （` `）だと Input Group 直下 Select の `content`（ポータル先ではなく
+    // インライン描画時）内にネストした別の Select の `trigger` にまで
+    // リセットが波及してしまうため（イシュー #3123 PR #3558 レビュー指摘）。
+    const SELECT_ROOT: &str = r#"[data-scope="select"][data-part="root"]"#;
+    const SELECT_CONTROL: &str = r#"[data-scope="select"][data-part="control"]"#;
+    const SELECT_TRIGGER: &str = r#"[data-scope="select"][data-part="trigger"]"#;
+    push_rule(
+        &format!("{ROOT} > {SELECT_ROOT}"),
+        &[decl("flex", "0 1 auto"), decl("min-width", "0")],
+    );
+    push_rule(
+        &format!("{ROOT} > {SELECT_ROOT} > {SELECT_CONTROL} > {SELECT_TRIGGER}"),
+        &[
+            decl("border", "0"),
+            decl("border-radius", "0"),
+            decl("background", "transparent"),
+            decl("box-shadow", "none"),
+        ],
+    );
+    push_rule(
+        &format!("{ROOT} > {SELECT_ROOT} > {SELECT_CONTROL} > {SELECT_TRIGGER}:focus-visible"),
+        &[decl("outline", "none")],
+    );
 
     out
 }
@@ -474,5 +550,24 @@ mod tests {
         ));
         assert!(out.contains(":focus-visible"));
         assert!(out.contains("outline: none;"));
+    }
+
+    /// native_select（`data-scope="field" data-part="select"`）/ styled
+    /// select（`data-scope="select"`）を内包するための追加リセット
+    /// （イシュー #3123）が新セレクタとして追記され、`:focus-visible` の
+    /// outline 無効化も効くことを固定する。
+    #[test]
+    fn stylesheet_appends_native_select_and_select_reset_rules() {
+        let out = stylesheet();
+        assert!(out.contains(
+            r#"[data-scope="input-group"][data-part="root"] > [data-scope="field"][data-part="select"]"#
+        ));
+        assert!(out.contains(
+            r#"[data-scope="input-group"][data-part="root"] > [data-scope="select"][data-part="root"]"#
+        ));
+        assert!(out.contains(
+            r#"[data-scope="input-group"][data-part="root"] > [data-scope="select"][data-part="root"] > [data-scope="select"][data-part="control"] > [data-scope="select"][data-part="trigger"]"#
+        ));
+        assert!(out.matches("outline: none;").count() >= 3);
     }
 }
