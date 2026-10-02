@@ -3645,7 +3645,22 @@ name = "fandhe-frontend-pre-styled-ui"
 # フォールバック値はいずれも既存の直書きリテラルと同一のため、既存
 # `root`/`link` の出力・golden CSS の既存ブロックはバイト不変。非破壊的な
 # 追加として minor バンプする。
-version = "0.222.0"
+#
+# イシュー #3128: drawer に pre-styled-only `body`/`footer` パート
+# （headless anatomy 変更なしの opt-in 純追加、`dialog::body`/`dialog::footer`
+# と同型）を追加した。新規公開 API（`drawer::body`/`drawer::footer`）のみで
+# 既存関数シグネチャ・golden CSS の既存ブロックは不変のため非破壊的な追加
+# として minor バンプする。本ブランチは独立に 0.220.0 から 0.221.0 へ到達
+# していたが、origin/main 側（tab_nav、上記 #3125）も独立に同一の 0.221.0
+# へ到達しており偶発的に衝突したため、マージ結果としてさらに +1 して
+# 0.222.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# マージコミット注記（イシュー #3126 ブランチへの origin/main 取り込み）:
+# 本ブランチ（#3126、tab_nav Bar）は独立に 0.222.0 へ到達していたが、
+# origin/main 側（#3128、drawer body/footer）も独立に同一の 0.222.0 へ
+# 到達しており偶発的に衝突したため、マージ結果としてさらに +1 して
+# 0.223.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+version = "0.223.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

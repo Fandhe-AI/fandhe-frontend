@@ -3026,6 +3026,11 @@ title = "example-preview-tabs"
 source = "site/blocks/example-preview-tabs.md"
 path = "/blocks/example-preview-tabs/"
 
+[[section.group.page]]
+title = "example-preview-toolbar"
+source = "site/blocks/example-preview-toolbar.md"
+path = "/blocks/example-preview-toolbar/"
+
 [[section.group]]
 title = "API Reference"
 
