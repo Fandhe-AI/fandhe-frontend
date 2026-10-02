@@ -2713,11 +2713,18 @@ fn calendar_month_view_example() -> Node {
                     )];
                     if !is_outside {
                         if let Some((_, labels)) = events.iter().find(|(d, _)| *d == date.day()) {
-                            cell_children.extend(
-                                labels
-                                    .iter()
-                                    .map(|label| badge(&badge_props, vec![], vec![text(*label)])),
-                            );
+                            // calendar の大セル月表示（CalendarCellSize::Large）は
+                            // `day-trigger` のみをブロック化し、`badge` 等ほかの子の
+                            // display には触れない（イシュー #3132、codex P2 是正）。
+                            // 複数の予定チップを日付の下へ 1 件 1 行で積むのは
+                            // 呼び出し側の責務で、ここでは各 badge を `div` で包んで
+                            // ブロック化する。
+                            cell_children.extend(labels.iter().map(|label| {
+                                div(
+                                    vec![],
+                                    vec![badge(&badge_props, vec![], vec![text(*label)])],
+                                )
+                            }));
                         }
                     }
                     calendar::table_cell(is_selected, vec![], cell_children)

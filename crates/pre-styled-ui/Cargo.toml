@@ -3825,6 +3825,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # （`> *`）でブロック化して縦積みする方式へ変更（観測可能な CSS 出力の
 # 変更のため minor バンプ）。
 #
+# PR #3568 レビュー指摘是正（codex P2・Bugbot、イシュー #3132）: 上記の
+# `> *` が `badge`（予定チップ）の `inline-flex` も `display: block` へ
+# 上書きし、セル幅いっぱいに広がっていた（codex P2）。`day-trigger` 限定の
+# 子孫セレクタへ絞り、`badge` 等ほかの子の display には触れないよう修正。
+# あわせて Large root variant に `width: 100%`/`box-sizing: border-box` を
+# 追加し、flex/grid の子として配置されても内容幅へ縮まず親幅いっぱいに
+# 広がるよう修正した（Bugbot「Large calendar misses full width」。観測可能
+# な CSS 出力の変更のため minor バンプ、version はそのまま 0.230.0 を維持
+# ＝未公開のため同一反復として扱う）。
+#
 # マージコミット注記（origin/main #3563 との再統合）: origin/main 側
 # （avatar の badge 配置・group 重なり順、#3563）は独立に 0.229.0 へ到達して
 # いたが、本ブランチは既にそれより新しい 0.230.0 へ到達済みのため、偶発的な

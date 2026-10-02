@@ -286,18 +286,23 @@ impl VariantValue for CalendarCellSize {
 /// （曜日ヘッダー `table-head-cell` は table-cell のまま）。
 ///
 /// 「日付の下へ予定が並ぶ」月間スケジュール表示の縦積みは、`td` ではなく
-/// その**直下の子**（`day-trigger` と、その後に続く任意の `badge` 等）を
-/// 全称子セレクタ（`> *`）でブロック化して実現する。ブロックレベル要素は
-/// 通常のブロック整形コンテキストで上から順に積まれるため、`td` の
-/// table-cell 性を保ったまま flex と同等の縦積みが得られる。間隔は
-/// flex の `gap` の代わりに隣接兄弟結合子（`> * + *`）の `margin-top` で
-/// 付ける。`day-trigger` は `width`/`height` 固定（正方形の日付ボタン）の
-/// ままで、`display: block` でも幅は変わらない。
+/// その**直下の `day-trigger`** だけをインラインからブロックへ切り替える
+/// ことで実現する（Bugbot 指摘「Large calendar misses full width」是正に
+/// 伴う codex P2 指摘の是正、PR #3568）。旧実装は全称子セレクタ（`> *`）で
+/// `day-trigger` 以外の子（`badge` 等、呼び出し側が任意に合成する予定
+/// チップ）まで `display: block` にしていたため、`badge` 本来の
+/// `inline-flex` 幅が失われてセル幅いっぱいに広がっていた。`day-trigger`
+/// 限定にすることで `badge` 等ほかの子の `display` には一切触れない。
+/// 複数の予定チップを縦に並べたい呼び出し側は、チップをブロック要素
+/// （`div` 等）で包んで積む（`crates/docs-site` の月表示 Example 参照）。
+/// 間隔は隣接兄弟結合子（`> * + *`）の `margin-top` で付ける（こちらは
+/// `day-trigger` 限定にする必要がない。`margin` は `display` と異なり
+/// `badge` の `inline-flex` レイアウトを壊さないため）。
 ///
 /// ponytail: 入れ子カレンダー（Large root の内側にさらに calendar root を
 /// 入れ子にする構成）は想定しない。必要になったら子結合子（`>`）化を検討
 /// する。
-const CELL_SIZE_LARGE_CSS: &str = "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table\"] {\n  table-layout: fixed;\n}\n\n[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] {\n  height: var(--fandhe-calendar-cell-height, var(--fandhe-space-24));\n  vertical-align: top;\n  text-align: start;\n  padding: var(--fandhe-space-1);\n  border: 1px solid var(--fandhe-color-border);\n}\n\n[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] > * {\n  display: block;\n}\n\n[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] > * + * {\n  margin-top: var(--fandhe-space-1);\n}\n";
+const CELL_SIZE_LARGE_CSS: &str = "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table\"] {\n  table-layout: fixed;\n}\n\n[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] {\n  height: var(--fandhe-calendar-cell-height, var(--fandhe-space-24));\n  vertical-align: top;\n  text-align: start;\n  padding: var(--fandhe-space-1);\n  border: 1px solid var(--fandhe-color-border);\n}\n\n[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] > [data-scope=\"calendar\"][data-part=\"day-trigger\"] {\n  display: block;\n}\n\n[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] > * + * {\n  margin-top: var(--fandhe-space-1);\n}\n";
 
 /// この styled Calendar の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
@@ -596,7 +601,20 @@ fn recipe() -> SlotRecipe {
         .variant(
             CalendarCellSize::Large,
             "root",
-            vec![decl("display", "grid")],
+            vec![
+                decl("display", "grid"),
+                // Bugbot 指摘「Large calendar misses full width」の是正
+                // （PR #3568、イシュー #3132）: Large root を flex/grid の
+                // 子として配置する呼び出し側（docs-site の
+                // `.showcase-row` 等）では `inline-grid` 由来の内容幅へ
+                // 縮んでしまい、`table-layout: fixed` の 7 列等幅が親幅
+                // いっぱいに広がらない。`width: 100%` で親幅まで広げ、
+                // `box-sizing: border-box` で `padding`/`border` を幅に
+                // 含めて計算することで、親の flex/grid レイアウトを壊さず
+                // 全幅化する。
+                decl("width", "100%"),
+                decl("box-sizing", "border-box"),
+            ],
         )
 }
 
@@ -924,11 +942,36 @@ mod tests {
             .map(|offset| rule_start + offset)
             .expect("table-cell rule must be closed");
         assert!(!css[rule_start..rule_end].contains("display:"));
+        // codex P2 是正（day-trigger 限定）: `badge` 等ほかの子の display
+        // には触れず `day-trigger` だけをブロック化する。
         assert!(css.contains(
+            "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] > [data-scope=\"calendar\"][data-part=\"day-trigger\"] {\n  display: block;\n}"
+        ));
+        assert!(!css.contains(
             "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] > * {\n  display: block;\n}"
         ));
         assert!(css.contains(
             "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] > * + * {\n  margin-top: var(--fandhe-space-1);\n}"
         ));
+    }
+
+    /// Bugbot 指摘「Large calendar misses full width」の固定（PR #3568、
+    /// イシュー #3132）: Large root は `width: 100%` と
+    /// `box-sizing: border-box` を持ち、flex/grid の子として配置されても
+    /// 内容幅へ縮まず親幅いっぱいに広がる。
+    #[test]
+    fn large_cell_size_root_is_full_width() {
+        let css = stylesheet();
+        let rule_start = css
+            .find("[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large {")
+            .expect("cell-size-large root variant rule must exist");
+        let rule_end = css[rule_start..]
+            .find('}')
+            .map(|offset| rule_start + offset)
+            .expect("root variant rule must be closed");
+        let rule_body = &css[rule_start..rule_end];
+        assert!(rule_body.contains("display: grid;"));
+        assert!(rule_body.contains("width: 100%;"));
+        assert!(rule_body.contains("box-sizing: border-box;"));
     }
 }

@@ -362,6 +362,8 @@ const EXPECTED_CSS: &str = r#"[data-scope="calendar"][data-part="root"] {
 
 [data-scope="calendar"][data-part="root"].fd-calendar--cell-size-large {
   display: grid;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 [data-scope="calendar"][data-part="day-trigger"][data-today] {
@@ -437,7 +439,7 @@ const EXPECTED_CSS: &str = r#"[data-scope="calendar"][data-part="root"] {
   border: 1px solid var(--fandhe-color-border);
 }
 
-[data-scope="calendar"][data-part="root"].fd-calendar--cell-size-large [data-scope="calendar"][data-part="table-cell"] > * {
+[data-scope="calendar"][data-part="root"].fd-calendar--cell-size-large [data-scope="calendar"][data-part="table-cell"] > [data-scope="calendar"][data-part="day-trigger"] {
   display: block;
 }
 
