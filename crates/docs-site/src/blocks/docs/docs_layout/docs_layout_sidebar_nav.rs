@@ -70,6 +70,21 @@
 //! content] [data-scope="drawer"][data-part="title"]` へ既存パターンと
 //! 同じ `border-top: none; padding-top: 0; letter-spacing: normal;`
 //! （+ `margin: 0`）を当てる。
+//!
+//! # キャプション・`filled` インスタンス見出しのサイト本文タイポグラフィ中和
+//!
+//! `.blocks-docs-layout-sidebar-nav-caption`（`<p>`）・
+//! `.blocks-docs-layout-sidebar-nav-group-trigger-heading`（`<h3>`）は
+//! いずれもクラス単体セレクタ（specificity `(0,1,0)`）だが、サイト本文
+//! タイポグラフィの `.docs-content p`/`.docs-content h3`（`site_theme.rs`、
+//! specificity `(0,1,1)`）に負けてキャプションが本文サイズへ、`filled`
+//! インスタンスのグループ見出しが `margin`/`font-size`/`letter-spacing` を
+//! 継承してしまう（Cursor Bugbot 指摘。`drawer::title` の中和は上記節の
+//! 属性セレクタで既に対処済みだが、この 2 箇所はクラスのみだった）。
+//! [`LAYOUT_CSS`] は `.blocks-docs-layout-sidebar-nav-layout` を前置した
+//! 2 クラス合成セレクタ（specificity `(0,2,0)`）へ変更し、
+//! `settings_integration_detail` 等と同型の「descendant 2 クラスで上回る」
+//! パターンで上書きする。
 
 use crate::blocks::{Block, BlockCategory, LayoutCss, Part};
 
@@ -599,7 +614,7 @@ pub const BLOCK: Block = Block {
 const LAYOUT_CSS: &str = "\
 .blocks-docs-layout-sidebar-nav.blocks-demo {\n  overflow-x: auto;\n}\n\
 .blocks-docs-layout-sidebar-nav-layout {\n  display: flex;\n  flex-direction: column;\n  gap: 1rem;\n}\n\
-.blocks-docs-layout-sidebar-nav-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.blocks-docs-layout-sidebar-nav-layout .blocks-docs-layout-sidebar-nav-caption {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n  color: var(--fandhe-color-fg-muted);\n}\n\
 [data-blocks-docs-layout-sidebar-nav-panel] {\n  display: flex;\n  flex-direction: column;\n  gap: 0.75rem;\n  width: 18rem;\n  padding: 1rem;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg);\n}\n\
 .blocks-docs-layout-sidebar-nav-logo-row {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 0.5rem;\n}\n\
 .blocks-docs-layout-sidebar-nav-logo {\n  display: flex;\n  align-items: center;\n  gap: 0.5rem;\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n}\n\
@@ -607,7 +622,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-docs-layout-sidebar-nav-switcher] {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  width: 100%;\n  padding: 0.5rem;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n  background: transparent;\n  color: inherit;\n  font: inherit;\n  cursor: pointer;\n}\n\
 .blocks-docs-layout-sidebar-nav-external {\n  display: flex;\n  align-items: center;\n  gap: 0.5rem;\n  padding: 0.25rem 0;\n}\n\
 .blocks-docs-layout-sidebar-nav-group-trigger {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  width: 100%;\n  background: transparent;\n  border: none;\n  cursor: pointer;\n  padding: 0.25rem 0;\n  color: inherit;\n  font: inherit;\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n}\n\
-.blocks-docs-layout-sidebar-nav-group-trigger-heading {\n  margin: 0;\n}\n\
+.blocks-docs-layout-sidebar-nav-layout .blocks-docs-layout-sidebar-nav-group-trigger-heading {\n  margin: 0;\n}\n\
 [data-blocks-docs-layout-sidebar-nav-group] [data-scope=\"nav-list\"][data-part=\"list\"] {\n  display: flex;\n  flex-direction: column;\n  gap: 0.25rem;\n  margin: 0.25rem 0 0;\n  padding-inline-start: 0.5rem;\n}\n\
 [data-blocks-docs-layout-sidebar-nav-panel=\"line\"] [data-scope=\"nav-list\"][data-part=\"link\"] {\n  display: block;\n  padding: 0.25rem 0.5rem;\n  border-inline-start: 2px solid transparent;\n  text-decoration: none;\n  color: inherit;\n}\n\
 [data-blocks-docs-layout-sidebar-nav-panel=\"line\"] [data-scope=\"nav-list\"][data-part=\"link\"][data-blocks-docs-layout-sidebar-nav-current] {\n  border-inline-start-color: var(--fandhe-color-accent);\n  font-weight: var(--fandhe-font-font-weight-medium, 500);\n}\n\
@@ -745,5 +760,21 @@ mod tests {
         }
         let id_set: std::collections::BTreeSet<&str> = ids.iter().copied().collect();
         assert_eq!(ids.len(), id_set.len(), "ids should be unique: {ids:?}");
+    }
+
+    /// `.docs-content p`/`.docs-content h3`（`site_theme.rs`、specificity
+    /// `(0,1,1)`）がキャプション・`filled` グループ見出しへ漏れ出さないこと
+    /// を固定する（Cursor Bugbot 指摘、モジュール冒頭「キャプション・
+    /// `filled` インスタンス見出しのサイト本文タイポグラフィ中和」節参照）。
+    /// `.blocks-docs-layout-sidebar-nav-layout` を前置した 2 クラス合成
+    /// セレクタ（specificity `(0,2,0)`）であることを固定する。
+    #[test]
+    fn caption_and_group_heading_outrank_docs_content_typography() {
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-docs-layout-sidebar-nav-layout .blocks-docs-layout-sidebar-nav-caption {"
+        ));
+        assert!(LAYOUT_CSS.contains(
+            ".blocks-docs-layout-sidebar-nav-layout .blocks-docs-layout-sidebar-nav-group-trigger-heading {"
+        ));
     }
 }
