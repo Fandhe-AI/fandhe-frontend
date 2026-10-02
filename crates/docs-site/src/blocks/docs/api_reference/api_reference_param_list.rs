@@ -290,7 +290,7 @@ pub const BLOCK: Block = Block {
 };
 
 /// `api_reference_param_list` 固有のレイアウト規則
-/// （`crate::blocks::LAYOUT_CSS` doc「block 固有 CSS の置き場」節）。
+/// （`crate::blocks` モジュール doc「CSS の置き場」節）。
 ///
 /// セレクタは `[data-blocks-api-reference-param-list-*]` のみを用い、値は
 /// `--fandhe-*` トークンのみを使う。アンカーの可視化は `opacity`（既定
