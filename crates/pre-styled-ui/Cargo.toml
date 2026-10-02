@@ -3883,9 +3883,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # #3137 で separator::group にラベル位置指定（`group_with`/
 # `SeparatorLabelPosition::Start`）を追加した。既存 `group`/`separator` の
 # シグネチャ・出力はバイト単位で不変（`default_variant` を登録しないため）
-# な純追加のため minor バンプする。origin/main 側が独立に到達していた
-# 0.232.0 を土台とし、本変更分でさらに +1 して 0.233.0 とする。
-version = "0.233.0"
+# な純追加のため minor バンプする。origin/main 側が別 PR（#3576 等）の
+# マージで独立に 0.233.0 へ到達済みのため、本 PR 分の +1 が吸収され base
+# と同値になっていた（codex-review 是正、PR #3575）。そのためさらに +1
+# して 0.234.0 とする。
+version = "0.234.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
