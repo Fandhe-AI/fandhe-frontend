@@ -4090,10 +4090,28 @@ name = "fandhe-frontend-pre-styled-ui"
 # の到達値（0.236.1）が既に origin/main 側を上回っているため、追加のバンプ
 # は行わず 0.236.1 を維持する。
 #
-# マージコミット注記（PR #3570 への origin/main 再取り込み、5 回目）: 本ブランチは
-# 上記の経緯で 0.237.0 へ到達しており、origin/main 側（steps の #3139 対応、PR
-# #3578、Dot variant 修正の patch 込みで 0.236.1）を既に上回っているため、追加の
-# バンプは行わず 0.237.0 を維持する（`.claude/rules/coding-rust.md` #638 条項）。
+# イシュー #3142（PR #3583 codex-review 対応）: toast に opt-in の右端
+# アクション列レイアウト（`ACTIONS_COLUMN_ATTR`・pre-styled-only
+# `content`/`actions` パート）を追加した。`SLOTS` へ `content`/`actions`
+# を末尾追加し、`root`/`action-trigger` の state 条件追加も opt-in 属性
+# 付与時のみ発火するため既存 golden ブロックの出力バイトは不変（純追加の
+# み）。公開 API 純追加のため minor バンプする。
+#
+# マージコミット注記（本 PR #3583、origin/main 再取り込み、イシュー
+# #3142）: 本ブランチは上記のとおり独立に 0.235.0 へ到達していたが、
+# origin/main 側（steps の #3139 Dot variant 修正・separator の #3137 等を
+# 含む到達値、本ブランチの base merge 時点）は独立に 0.236.1 へ到達して
+# いた。偶発的な同一版数衝突ではなく origin/main 側が本ブランチを上回って
+# いるため、そのまま +1 する運用（`.claude/rules/coding-rust.md` #638
+# 条項）ではなく、origin/main の到達値（0.236.1）を基点として本 PR 分の
+# minor バンプを適用し 0.237.0 とする。
+#
+# マージコミット注記（本 PR #3583、origin/main 再々取り込み）: 上記の経緯で
+# 本ブランチは 0.237.0 へ到達していたが、origin/main 側も PR #3570 の取り込み
+# （steps の #3139 対応、Dot variant 修正の patch 込みで 0.236.1 から据え置き）
+# により独立に同一の 0.237.0 へ到達していた。偶発的な同一版数衝突のため、
+# そのまま採用せずさらに +1 して 0.238.0 とする（`.claude/rules/coding-rust.md`
+# #638 条項の同衝突運用）。
 #
 # マージコミット注記（本 PR #3569、origin/main 四度目の取り込み）: 本ブラ
 # ンチが上記で独立に到達した 0.233.0 と、origin/main（pagination の #3136・
@@ -4137,7 +4155,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # を含む到達値）も独立に同一版数 0.237.0 へ到達していた（偶発的衝突）ため、
 # そのまま採用せずさらに +1 して 0.238.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
-version = "0.238.0"
+#
+# マージコミット注記（本 PR #3583、origin/main 三度目の取り込み）: 本ブラ
+# ンチが上記で独立に到達した 0.238.0 と、origin/main（button_group の
+# #3135 対応 PR #3569 を含む到達値）も独立に同一版数 0.238.0 へ到達して
+# いた（偶発的衝突）ため、そのまま採用せずさらに +1 して 0.239.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+version = "0.239.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

@@ -213,6 +213,34 @@
 //! 状態アイコン表現の横断規約（`crate::alert` 等の status 系部品への
 //! アイコンスロット導入可否）と `action-trigger` の行内配置オプション導入
 //! 可否は、単一部品で先行決定せず別課題として追跡する。
+//!
+//! # イシュー #3142（右端のアクション列レイアウト、opt-in 純追加）
+//!
+//! 上記 #2040 節が「`action-trigger` の行内配置オプション導入可否は別課題」
+//! として残していた事項のうち、Blocks 取り込みで判明した次の 2 レイアウト
+//! （本文の右側に区切り線付きの全高アクション列を置く形、およびその列を
+//! 上下 2 分割する形）を opt-in の純追加として実装する。既定の出力・既定値・
+//! 既存関数のシグネチャは変えない。
+//!
+//! - **実現方法**: [`crate::drawer`] の `header`（pre-styled-only レイアウト
+//!   パート）・[`crate::alert`] の `action`（pre-styled-only パート）の前例に
+//!   倣い、pre-styled-only の 2 パート（[`content`]/[`actions`]）と、呼び出し側が
+//!   `root` および列内の各 `action_trigger` へ付ける値なしの opt-in 属性
+//!   （[`ACTIONS_COLUMN_ATTR`]）の組み合わせで表現する。[`SlotRecipe`] は
+//!   子孫セレクタを持たない（#708 で不採用が確定）ため、見た目を変えたい
+//!   パート自身（`root`・`action-trigger`）に属性を付ける設計とした。
+//! - **単一ボタンの全高列（R1112）**: [`actions`] 内に `action_trigger` を
+//!   1 個だけ置く。
+//! - **縦 2 分割列（R1113）**: [`actions`] 内に `action_trigger` を 2 個置き、
+//!   `flex: 1 1 0` で等分する。
+//! - **意図的にやらないこと**: `close-trigger` との併用（列レイアウトは
+//!   `root` の終端ガターを 0 にするため `close-trigger` の絶対配置と重なる。
+//!   列のボタンが閉じる操作を兼ねる前提とし、併用しない）・セル文字色の
+//!   アクセント化・3 個以上の分割の最適化（等分されるだけ）・placement から
+//!   属性を自動付与するヘルパ（YAGNI）・既存 Blocks の書き換え。
+//! - **参照ファイル未照合**: `_/blocks-intake/` 配下の対応表（R1112/R1113）は
+//!   本 worktree・メイン worktree のいずれにも存在せず照合できなかった。
+//!   イシュー本文の記述に限って要件を解釈した。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -231,11 +259,37 @@ pub use fandhe_frontend_headless_ui::toast::{
     action_trigger, close_trigger, description, title, ToastAction, ToastEntry, ToastPlacement,
     ToastStatus,
 };
+// イシュー #3142: pre-styled-only `content`/`actions` パート（[`content`]/
+// [`actions`] 関数）が headless の `Anatomy::part` を直接呼び出すために必要
+// （[`crate::drawer::header`]/[`crate::drawer::footer`] と同型のパターン）。
+use fandhe_frontend_headless_ui::{anatomy, Anatomy};
+
+/// `data-scope="toast"` を固定した本モジュール独自パート（`content`/
+/// `actions`）用の anatomy（イシュー #3142、[`crate::drawer`] の `ANATOMY`
+/// 定数と同型）。headless-ui 側の `toast::ANATOMY`（`crates/headless-ui/src/toast.rs`）
+/// とは別のインスタンスだが `scope` 文字列は同一値であり、出力される
+/// `data-scope` 属性値は一致する。
+const ANATOMY: Anatomy = anatomy("toast");
+
+/// 右端アクション列レイアウトの opt-in 属性名（イシュー #3142）。
+///
+/// `root` と、[`actions`] 内の各 `action_trigger` の両方へ呼び出し側が
+/// `(ACTIONS_COLUMN_ATTR, "")` として渡す（値なしの存在属性。
+/// `toast_motion::STACK_ATTR` と同じ扱い）。`root` へ付けると縦積みパネルから
+/// 列レイアウトへ切り替わり、`action-trigger` へ付けるとセル化する
+/// （本モジュール冒頭 rustdoc「イシュー #3142」節参照）。
+pub const ACTIONS_COLUMN_ATTR: &str = "data-actions-column";
 
 /// headless `toast` anatomy の `data-part` 一覧（`crates/headless-ui/src/toast.rs`
 /// の `ANATOMY.part(...)` 呼び出しと同期させる契約。ずれると [`stylesheet`] が
 /// 一部パーツの CSS を出力しない fail-closed 側の不具合として現れるため、
 /// 変更時は両ファイルを合わせて確認する）。
+///
+/// イシュー #3142 で `content`/`actions`（pre-styled-only レイアウトパート。
+/// headless-ui の anatomy には存在しない、本モジュールだけが出力する部分。
+/// 本モジュール冒頭 rustdoc「イシュー #3142」節参照）を末尾へ追加した。この
+/// 2 パートは pre-styled-only のため上記「同期させる契約」の対象外（headless
+/// 側 `ANATOMY.part(...)` 呼び出しに対応物を持たない）。
 const SLOTS: &[&str] = &[
     "group",
     "root",
@@ -243,6 +297,8 @@ const SLOTS: &[&str] = &[
     "description",
     "action-trigger",
     "close-trigger",
+    "content",
+    "actions",
 ];
 
 impl VariantValue for ToastPlacement {
@@ -485,6 +541,55 @@ fn recipe() -> SlotRecipe {
             ]
             .concat(),
         )
+        // イシュー #3142: pre-styled-only `content` パート（本モジュール冒頭
+        // rustdoc「イシュー #3142」節参照）。title/description を包む本文側
+        // の領域。`flex: 1`/`min-width: 0` は `root` が列レイアウト
+        // （`data-actions-column`）へ切り替わった際に `actions` 列と並んで
+        // 伸縮することを想定した指定で、縦積み（既定）時は無害（flex item
+        // ではない通常ブロックとして振る舞う）。
+        .base(
+            "content",
+            vec![
+                decl("display", "flex"),
+                decl("flex-direction", "column"),
+                decl("gap", "var(--fandhe-space-1)"),
+                decl("flex", "1"),
+                decl("min-width", "0"),
+                decl("padding", "var(--fandhe-space-4)"),
+            ],
+        )
+        // イシュー #3142: pre-styled-only `actions` パート（本モジュール冒頭
+        // rustdoc「イシュー #3142」節参照）。右端（RTL では左端）のアクション
+        // 列。枠線は action-trigger の枠線と同じ書式で
+        // `--fandhe-palette-muted` をフォールバック付きで参照し、status
+        // variant 未付与（neutral root）でも `--fandhe-color-border` へ
+        // 確実にフォールバックする。
+        //
+        // `flex-shrink: 1`/`min-width: 0`/`max-width: 40%` は PR #3583
+        // codex-review P1・Bugbot 指摘対応:
+        // `actions` パートは本モジュールが公開する唯一の呼び出し規約
+        // （`root`/`action_trigger` へ [`ACTIONS_COLUMN_ATTR`] を付ける。
+        // `actions` パート自身へは付けない、`actions()` 公開 API の rustdoc・
+        // `crates/docs-site/src/component_specs_overlay.rs` の実例参照）上、
+        // 常にこの列レイアウトでのみ使われる（`data-actions-column` 状態分岐
+        // には乗らない）。このため列を縮小可能にしつつ上限を設ける指定は
+        // `data-actions-column` 条件なしの base へ直接持たせる（条件を
+        // `actions` パート自身の属性に掛けると、実際の呼び出し規約では
+        // 絶対に発火しない）。
+        .base(
+            "actions",
+            vec![
+                decl("display", "flex"),
+                decl("flex-direction", "column"),
+                decl("flex-shrink", "1"),
+                decl("min-width", "0"),
+                decl("max-width", "40%"),
+                decl(
+                    "border-inline-start",
+                    "1px solid var(--fandhe-palette-muted, var(--fandhe-color-border))",
+                ),
+            ],
+        )
         .variant(
             ToastPlacement::TopStart,
             "group",
@@ -654,6 +759,76 @@ fn recipe() -> SlotRecipe {
             StateCondition::Hover,
             hover_surface_declarations(),
         )
+        // イシュー #3142: 右端アクション列レイアウト（opt-in、本モジュール
+        // 冒頭 rustdoc「イシュー #3142」節参照）。`root` 側は列方向を縦積み
+        // から横並びへ切り替え、本文の余白は `content` 側（上記 base）が担う
+        // ため `padding: 0` で打ち消す（特異度 (0,3,0) が `root` base の
+        // (0,2,0) を上回るため `padding-inline-end` ガターも併せて打ち消さ
+        // れる）。
+        .state(
+            "root",
+            StateCondition::Attr(ACTIONS_COLUMN_ATTR),
+            vec![
+                decl("flex-direction", "row"),
+                decl("gap", "0"),
+                decl("align-items", "stretch"),
+                decl("padding", "0"),
+            ],
+        )
+        // 列内のセルになる action-trigger（`flex: 1 1 0` で複数ボタンを
+        // 等分する、R1113「縦 2 分割」）。`min-width: 0` は上記 `actions`
+        // の縮小を実際にボタンへ反映させるため（flex item は既定で
+        // 内容幅未満に縮まない）。`white-space`/`overflow-wrap` は長い
+        // アクション文言・文字拡大時に折り返し、列幅を超えて溢れるのを
+        // 防ぐ（Bugbot 指摘対応）。
+        .state(
+            "action-trigger",
+            StateCondition::Attr(ACTIONS_COLUMN_ATTR),
+            vec![
+                decl("flex", "1 1 0"),
+                decl("align-self", "stretch"),
+                decl("height", "auto"),
+                decl("min-height", "var(--fandhe-space-8)"),
+                decl("min-width", "0"),
+                decl("margin-block-start", "0"),
+                decl("padding", "0 var(--fandhe-space-4)"),
+                decl("border", "none"),
+                decl(
+                    "border-block-start",
+                    "1px solid var(--fandhe-palette-muted, var(--fandhe-color-border))",
+                ),
+                decl("border-radius", "0"),
+                decl("white-space", "normal"),
+                decl("overflow-wrap", "anywhere"),
+                decl("text-align", "center"),
+            ],
+        )
+        // 先頭セルの上罫線を消す（2 分割時、上のセルと列自体の境界が二重に
+        // ならないようにする）。
+        .state(
+            "action-trigger",
+            StateCondition::AttrFirstChild(ACTIONS_COLUMN_ATTR),
+            vec![
+                decl("border-block-start", "none"),
+                decl(
+                    "border-start-end-radius",
+                    "calc(var(--fandhe-radius-md) - 1px)",
+                ),
+            ],
+        )
+        // 最後のセルの下端を `root` の内側角丸（root border 1px を差し引いた
+        // 値）へ合わせる。先頭セルの上端と同じ式にすることで、セルが 1 つ
+        // （先頭かつ末尾）で高さいっぱいのときも hover 背景が root の角丸から
+        // はみ出さない（PR #3583 Bugbot 指摘対応）。列レイアウト未使用の
+        // 既定 action-trigger は巻き込まない。
+        .state(
+            "action-trigger",
+            StateCondition::AttrLastChild(ACTIONS_COLUMN_ATTR),
+            vec![decl(
+                "border-end-end-radius",
+                "calc(var(--fandhe-radius-md) - 1px)",
+            )],
+        )
 }
 
 /// この styled Toast が生成する静的 CSS 全量を返す（決定的。
@@ -723,6 +898,52 @@ pub fn root<'a>(status: ToastStatus, attrs: Vec<(&'a str, &'a str)>, children: V
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
     fandhe_frontend_headless_ui::toast::root(status, merged, children)
+}
+
+/// pre-styled-only `content` パート（`<div>`、イシュー #3142）を組み立てる。
+/// title/description を包む本文側の領域で、headless-ui の anatomy には
+/// 存在しない（本モジュール冒頭 rustdoc「イシュー #3142」節参照）。
+///
+/// [`fandhe_frontend_headless_ui::anatomy::Anatomy::part`] を直接呼び出す
+/// ため、呼び出し側 `attrs` に含まれる `data-scope`/`data-part` の偽装は
+/// headless 層が fail-closed に除去する。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::toast;
+///
+/// let node = toast::content(vec![], vec![]);
+/// assert!(render(&node).contains(r#"data-scope="toast" data-part="content""#));
+/// ```
+#[must_use]
+pub fn content<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("content", "div", attrs, children)
+}
+
+/// pre-styled-only `actions` パート（`<div>`、イシュー #3142）を組み立てる。
+/// 右端（RTL では左端）のアクション列で、headless-ui の anatomy には
+/// 存在しない（本モジュール冒頭 rustdoc「イシュー #3142」節参照）。
+/// [`ACTIONS_COLUMN_ATTR`] を `root` とこのパート内の各 `action_trigger` へ
+/// 付けると列レイアウトへ切り替わる。
+///
+/// [`fandhe_frontend_headless_ui::anatomy::Anatomy::part`] を直接呼び出す
+/// ため、呼び出し側 `attrs` に含まれる `data-scope`/`data-part` の偽装は
+/// headless 層が fail-closed に除去する。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::toast;
+///
+/// let node = toast::actions(vec![], vec![]);
+/// assert!(render(&node).contains(r#"data-scope="toast" data-part="actions""#));
+/// ```
+#[must_use]
+pub fn actions<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("actions", "div", attrs, children)
 }
 
 #[cfg(test)]
@@ -1055,5 +1276,176 @@ mod tests {
 
         let restored = Toaster::from_hydration_attrs(&t.hydration_attrs()).unwrap();
         assert_eq!(restored, t);
+    }
+
+    // --- イシュー #3142: 右端アクション列レイアウト ---
+
+    #[test]
+    fn content_and_actions_emit_expected_data_part() {
+        let html = render(&content(vec![], vec![text("Saved")]));
+        assert!(html.contains(r#"data-scope="toast" data-part="content""#));
+        assert!(html.contains("Saved"));
+
+        let html = render(&actions(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="toast" data-part="actions""#));
+    }
+
+    #[test]
+    fn actions_column_attr_composes_r1112_single_action_snapshot() {
+        // R1112: 全高 1 ボタン列。
+        let node = root(
+            ToastStatus::Info,
+            vec![(ACTIONS_COLUMN_ATTR, "")],
+            vec![
+                content(vec![], vec![title(vec![], vec![text("Message sent")])]),
+                actions(
+                    vec![],
+                    vec![action_trigger(
+                        vec![(ACTIONS_COLUMN_ATTR, "")],
+                        vec![text("Undo")],
+                    )],
+                ),
+            ],
+        );
+        let html = render(&node);
+        assert!(html.contains(r#"data-part="root""#));
+        assert!(html.contains(ACTIONS_COLUMN_ATTR));
+        assert!(html.contains(r#"data-part="content""#));
+        assert!(html.contains(r#"data-part="actions""#));
+        assert!(html.contains("Undo"));
+    }
+
+    #[test]
+    fn actions_column_attr_composes_r1113_split_action_snapshot() {
+        // R1113: 縦 2 分割列（ボタン 2 個）。
+        let node = root(
+            ToastStatus::Info,
+            vec![(ACTIONS_COLUMN_ATTR, "")],
+            vec![
+                content(
+                    vec![],
+                    vec![title(vec![], vec![text("New message request")])],
+                ),
+                actions(
+                    vec![],
+                    vec![
+                        action_trigger(vec![(ACTIONS_COLUMN_ATTR, "")], vec![text("Reply")]),
+                        action_trigger(vec![(ACTIONS_COLUMN_ATTR, "")], vec![text("Don't allow")]),
+                    ],
+                ),
+            ],
+        );
+        let html = render(&node);
+        assert_eq!(html.matches("Reply").count(), 1);
+        assert!(html.contains("Don&#x27;t allow") || html.contains("Don't allow"));
+    }
+
+    #[test]
+    fn stylesheet_declares_actions_column_layout_rules() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="toast"][data-part="content"] {"#));
+        assert!(css.contains(r#"[data-scope="toast"][data-part="actions"] {"#));
+        assert!(css.contains(r#"[data-scope="toast"][data-part="root"][data-actions-column] {"#));
+        assert!(css.contains("flex-direction: row;"));
+        assert!(css.contains("max-width: 40%;"));
+        assert!(css.contains(
+            r#"[data-scope="toast"][data-part="action-trigger"][data-actions-column] {"#
+        ));
+        assert!(css.contains("flex: 1 1 0;"));
+        assert!(css.contains("overflow-wrap: anywhere;"));
+        assert!(css.contains(
+            r#"[data-scope="toast"][data-part="action-trigger"][data-actions-column]:first-child {"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="toast"][data-part="action-trigger"][data-actions-column]:last-child {"#
+        ));
+    }
+
+    /// 列の先頭セル上端と末尾セル下端が同じ内側角丸の式を使うことを固定する
+    /// （セルが 1 つのとき上下が揃わず hover 背景が root の角丸からはみ出す
+    /// 回帰の防止、PR #3583 Bugbot 指摘）。
+    #[test]
+    fn actions_column_first_and_last_cells_share_inner_radius() {
+        let css = stylesheet();
+        let block = |sel: &str| -> String {
+            let start = css.find(&format!("{sel} {{")).expect("selector present");
+            let end = start + css[start..].find('}').expect("block end");
+            css[start..end].to_string()
+        };
+        let value = |block: &str, prop: &str| -> String {
+            let line = block
+                .lines()
+                .find(|l| l.trim_start().starts_with(&format!("{prop}:")))
+                .expect("property present");
+            line.split_once(':')
+                .unwrap()
+                .1
+                .trim()
+                .trim_end_matches(';')
+                .to_string()
+        };
+        let first = block(
+            r#"[data-scope="toast"][data-part="action-trigger"][data-actions-column]:first-child"#,
+        );
+        let last = block(
+            r#"[data-scope="toast"][data-part="action-trigger"][data-actions-column]:last-child"#,
+        );
+        assert_eq!(
+            value(&first, "border-start-end-radius"),
+            value(&last, "border-end-end-radius")
+        );
+        assert_eq!(
+            value(&last, "border-end-end-radius"),
+            "calc(var(--fandhe-radius-md) - 1px)"
+        );
+        // 列レイアウト未使用の既定 action-trigger には末尾補正を出さない。
+        assert!(!css.contains(r#"[data-scope="toast"][data-part="action-trigger"]:last-child {"#));
+    }
+
+    #[test]
+    fn content_children_and_attrs_are_escaped() {
+        let html = render(&content(vec![], vec![text("<script>alert(1)</script>")]));
+        assert!(!html.contains("<script>alert(1)</script>"));
+        assert!(html.contains("&lt;script&gt;"));
+
+        let html = render(&content(
+            vec![("data-x", "\" onmouseover=\"alert(1)")],
+            vec![],
+        ));
+        assert!(!html.contains("onmouseover=\"alert(1)\""));
+        assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn actions_children_and_attrs_are_escaped() {
+        let html = render(&actions(vec![], vec![text("<script>alert(1)</script>")]));
+        assert!(!html.contains("<script>alert(1)</script>"));
+        assert!(html.contains("&lt;script&gt;"));
+
+        let html = render(&actions(
+            vec![("data-x", "\" onmouseover=\"alert(1)")],
+            vec![],
+        ));
+        assert!(!html.contains("onmouseover=\"alert(1)\""));
+        assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn content_and_actions_data_scope_part_spoofing_is_dropped() {
+        let html = render(&content(
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="toast""#));
+        assert!(html.contains(r#"data-part="content""#));
+        assert!(!html.contains("attacker"));
+
+        let html = render(&actions(
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="toast""#));
+        assert!(html.contains(r#"data-part="actions""#));
+        assert!(!html.contains("attacker"));
     }
 }

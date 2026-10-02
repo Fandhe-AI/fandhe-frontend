@@ -2291,6 +2291,7 @@ pub const TOAST: ComponentPageSpec = ComponentPageSpec {
         "aria-live は ToastStatus から決定的に導出する（Error のみ assertive、他は polite）。aria-atomic=\"true\" を併用し通知全体を単位として読み上げさせる。",
         "placement（6 語彙、既定 BottomEnd）/ status（Info/Success/Warning/Error、既定 Info）の 2 軸 variant。",
         "stack 表示（積層・hover/focus-within 展開、motion feature の opt-in、イシュー #2543）。group へ data-fandhe-toast-stack を付けると後ろの通知ほど縮小・オフセットして重なり、hover/focus-within で通常の縦並びへ展開する。",
+        "右端アクション列レイアウト（opt-in、イシュー #3142）。root とアクション列内の各 action-trigger へ data-actions-column を付けると、縦積みの既定配置から pre-styled-only の content/actions パートによる本文・全高アクション列の横並びへ切り替わる（ボタン 1 個の全高列、またはボタン複数個の縦分割列）。",
     ],
     arguments: &[
         ArgRow {
@@ -2322,6 +2323,16 @@ pub const TOAST: ComponentPageSpec = ComponentPageSpec {
             title: "積層表示（stack、motion feature opt-in）",
             description: "group へ toast_motion::STACK_ATTR を付けると、後ろの通知ほど縮小・オフセットして積層表示になり、hover/focus-within で展開します（イシュー #2543）。DOM 順は新しい通知が先頭（前面）です。",
             render: ex_toast_stack,
+        },
+        ExampleEntry {
+            title: "右端アクション列（全高 1 ボタン）",
+            description: "root と action-trigger へ toast::ACTIONS_COLUMN_ATTR を付け、content/actions パートで本文とアクション列を分ける合成パターンです。アクション 1 個のときは全高のボタン 1 個の列になります（イシュー #3142）。",
+            render: ex_toast_actions_column,
+        },
+        ExampleEntry {
+            title: "右端アクション列（縦 2 分割）",
+            description: "同じ data-actions-column 構成で action-trigger を 2 個並べると、列が上下に等分され、それぞれが独立したボタンになります（イシュー #3142）。",
+            render: ex_toast_actions_split,
         },
     ],
     keyboard: &[],
@@ -2386,6 +2397,73 @@ fn ex_toast_stack() -> Node {
                 vec![toast::description(vec![], vec![text("3 件目の通知です。")])],
             ),
         ],
+    )
+}
+
+/// [`TOAST.examples`] の 3 件目のレンダラ（イシュー #3142）: 右端アクション
+/// 列レイアウト（R1112、全高 1 ボタン）の静的実演。`toast::content`/
+/// `toast::actions`（pre-styled-only パート）と `toast::ACTIONS_COLUMN_ATTR`
+/// のみで構成し、新しい anatomy・CSS は追加しない。
+fn ex_toast_actions_column() -> Node {
+    toast::group(
+        ToastPlacement::BottomEnd,
+        "Notifications",
+        vec![],
+        vec![toast::root(
+            ToastStatus::Info,
+            vec![(toast::ACTIONS_COLUMN_ATTR, "")],
+            vec![
+                toast::content(
+                    vec![],
+                    vec![toast::title(
+                        vec![],
+                        vec![text("メッセージを送信しました。")],
+                    )],
+                ),
+                toast::actions(
+                    vec![],
+                    vec![toast::action_trigger(
+                        vec![(toast::ACTIONS_COLUMN_ATTR, "")],
+                        vec![text("取り消す")],
+                    )],
+                ),
+            ],
+        )],
+    )
+}
+
+/// [`TOAST.examples`] の 4 件目のレンダラ（イシュー #3142）: 右端アクション
+/// 列レイアウト（R1113、縦 2 分割）の静的実演。アクション列内の
+/// `action_trigger` を 2 個にするだけで等分される（上記
+/// [`ex_toast_actions_column`] との差分は action-trigger の個数のみ）。
+fn ex_toast_actions_split() -> Node {
+    toast::group(
+        ToastPlacement::BottomEnd,
+        "Notifications",
+        vec![],
+        vec![toast::root(
+            ToastStatus::Info,
+            vec![(toast::ACTIONS_COLUMN_ATTR, "")],
+            vec![
+                toast::content(
+                    vec![],
+                    vec![toast::title(vec![], vec![text("新しいメッセージ要求")])],
+                ),
+                toast::actions(
+                    vec![],
+                    vec![
+                        toast::action_trigger(
+                            vec![(toast::ACTIONS_COLUMN_ATTR, "")],
+                            vec![text("返信")],
+                        ),
+                        toast::action_trigger(
+                            vec![(toast::ACTIONS_COLUMN_ATTR, "")],
+                            vec![text("許可しない")],
+                        ),
+                    ],
+                ),
+            ],
+        )],
     )
 }
 
