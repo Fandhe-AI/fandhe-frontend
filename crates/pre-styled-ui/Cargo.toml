@@ -3611,7 +3611,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # pill・circle 両方を登録した状態にした。origin/main の到達値（0.217.0）
 # からさらに +1 して 0.218.0 とする（`.claude/rules/coding-rust.md`
 # #638 条項の同衝突運用）。
-version = "0.218.0"
+#
+# イシュー #3122: `InputVariant::SubtleFlushed`（淡色背景＋下線のみ、R1043）
+# を純追加した。`Subtle` の背景宣言と `Flushed` の下線宣言を合成するのみで
+# 新規トークンはなく、既存 3 variant・既存出力はバイト不変のため非破壊的な
+# 追加として minor バンプする。
+version = "0.219.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
