@@ -1154,6 +1154,7 @@ pub enum LayoutCss {
 | promo-signup-offer | #3085（親 #3024） | `ecommerce/promo/promo_signup_offer.rs` |
 | reviews-write-form | #3091 | `ecommerce/reviews/reviews_write_form.rs` |
 | api-reference-param-accordion | #3100 | `docs/api_reference/api_reference_param_accordion.rs` |
+| docs-layout-page-header | #3106 | `docs/docs_layout/docs_layout_page_header.rs` |
 | docs-layout-prev-next | #3107 | `docs/docs_layout/docs_layout_prev_next.rs` |
 
 （#3228 で application 区分に 67 件目のカテゴリ `MediaObject` を新設した
