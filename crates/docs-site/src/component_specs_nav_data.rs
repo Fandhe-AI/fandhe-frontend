@@ -50,7 +50,9 @@ use fandhe_frontend_pre_styled_ui::{
     marquee,
     message::{self, MessageAlign, MessageRole, MessageRootProps},
     message_scroller::{self, MessageScrollerRootProps, MessageScrollerStuck},
-    native_select, pagination, progress, scroll_area, separator,
+    native_select,
+    pagination::{self, PaginationVariant},
+    progress, scroll_area, separator,
     sidebar::{
         self, Sidebar, SidebarCollapsible, SidebarMenuButtonProps, SidebarProps, SidebarState,
         SidebarVariant,
@@ -3060,11 +3062,66 @@ fn ex_pagination_rows_per_page() -> Node {
     )
 }
 
+/// [`PAGINATION`] の Examples 節「Attached」レンダラ（イシュー #3136）。
+/// `root_with(size, PaginationVariant::Attached, palette, …)` でページ
+/// ボタンを隙間なく横一列に連結する見た目を実演する（Blocks 取り込み
+/// 対応表 ID R1136「既存部品で表現不可」判定の是正、`pagination.rs`
+/// モジュール rustdoc「attached variant」節参照）。
+fn ex_pagination_attached() -> Node {
+    pagination::root_with(
+        Size::Md,
+        PaginationVariant::Attached,
+        ColorPalette::Accent,
+        "attached pagination",
+        vec![],
+        vec![
+            pagination::prev_trigger(
+                pagination::ItemMode::Button,
+                false,
+                vec![],
+                vec![text("\u{2039}")],
+            ),
+            pagination::item(
+                pagination::ItemMode::Button,
+                1,
+                false,
+                false,
+                vec![],
+                vec![text("1")],
+            ),
+            pagination::item(
+                pagination::ItemMode::Button,
+                2,
+                true,
+                false,
+                vec![],
+                vec![text("2")],
+            ),
+            pagination::ellipsis(vec![], vec![text("\u{2026}")]),
+            pagination::item(
+                pagination::ItemMode::Button,
+                10,
+                false,
+                false,
+                vec![],
+                vec![text("10")],
+            ),
+            pagination::next_trigger(
+                pagination::ItemMode::Button,
+                false,
+                vec![],
+                vec![text("\u{203a}")],
+            ),
+        ],
+    )
+}
+
 pub(crate) const PAGINATION: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "item は data-selected マーカー + aria-current=\"page\" で現在ページを表す（crates/pre-styled-ui/src/pagination.rs:35-38）",
         "item 自体には class を付与しない（root のみへクラスが付く複合部品の variant 統一方針、pagination.rs テスト reexported_item_is_not_given_variant_classes）",
         "root は <nav> 要素として出力される（pagination.rs テスト root_outputs_scope_and_part）",
+        "root_with 経由で attached variant（PaginationVariant、ページボタンを隙間なく横一列に連結する見た目）を opt-in 提供（イシュー #3136、pagination.rs 参照）",
     ],
     arguments: &[
         ArgRow {
@@ -3078,6 +3135,12 @@ pub(crate) const PAGINATION: ComponentPageSpec = ComponentPageSpec {
             kind: "&str",
             default: "(必須)",
             description: "root（nav）の aria-label（pagination.rs:447-460, 528-534）。",
+        },
+        ArgRow {
+            name: "variant",
+            kind: "PaginationVariant",
+            default: "Separated",
+            description: "root_with のみが受け取る連結表示 variant（Separated/Attached、イシュー #3136、pagination.rs 参照）。",
         },
     ],
     examples: &[
@@ -3095,6 +3158,11 @@ pub(crate) const PAGINATION: ComponentPageSpec = ComponentPageSpec {
             title: "Rows per page + Select",
             description: "shadcn/ui のデータテーブル用フッター（Rows per page ラベル付き Select + Prev/Next のみ、ページ番号なし）を既存部品の組み合わせで再現する例です（イシュー #2036）。",
             render: ex_pagination_rows_per_page,
+        },
+        ExampleEntry {
+            title: "Attached",
+            description: "root_with で PaginationVariant::Attached を指定した例です（イシュー #3136、ページボタンを隙間なく横一列に連結する見た目）。",
+            render: ex_pagination_attached,
         },
     ],
     keyboard: &[],
