@@ -915,6 +915,29 @@ fn recipe() -> SlotRecipe {
         // 「外側 close-trigger」節参照）。`content[data-close-outside]` は
         // `overflow: visible` のみを宣言し、本文スクロールは `data-has-body`
         // + [`body`] に委ねる。
+        //
+        // 座標の基準（containing block）は **`content`（`position: relative`、
+        // 上記 base）であり、`positioner`（画面全体）ではない**。`header` 等の
+        // 中間パートは `position` を持たない。したがって `inset-<辺>:
+        // calc(100% + gap)` は「ボタンの <辺> をパネルの <辺> から 100%（＝
+        // パネル幅/高さ）+ gap だけ内側へ寄せる」＝ボタン全体がパネルの
+        // **反対側の辺の外**（暗幕側）へ出る、という意味になる。
+        //
+        // - `end`   : パネルは画面 inline-end に接する。`inset-inline-end:
+        //             calc(100% + gap)` → ボタン右端 = パネル左端 − gap
+        //             → パネルの左（暗幕側）。
+        // - `start` : `inset-inline-start: calc(100% + gap)` → ボタン左端 =
+        //             パネル右端 + gap → パネルの右（暗幕側）。
+        // - `top`   : `inset-block-start: calc(100% + gap)` → ボタン上端 =
+        //             パネル下端 + gap → パネルの下（暗幕側）。
+        // - `bottom`: `inset-block-end: calc(100% + gap)` → ボタン下端 =
+        //             パネル上端 − gap → パネルの上（暗幕側）。
+        //
+        // 「`end` のパネルなら `inset-inline-start` を使うべき」と読むのは
+        // containing block を画面と誤認した場合の帰結であり、本 CSS は
+        // 各 placement で**パネルが接する画面端と同名の inset** を指定する
+        // のが正しい（`close_trigger_data_close_outside_offsets_toward_backdrop`
+        // テストで固定）。
         .state(
             "content",
             StateCondition::Attr("data-close-outside"),
@@ -1705,6 +1728,80 @@ mod tests {
             );
             assert!(rule.contains("background: var(--fandhe-color-bg);"));
             assert!(rule.contains("color: var(--fandhe-color-fg);"));
+        }
+    }
+
+    #[test]
+    fn close_trigger_data_close_outside_offsets_toward_backdrop() {
+        // イシュー #3129 / PR #3565 レビュー指摘の回帰固定: 外側 close-trigger
+        // の containing block は `content`（`position: relative`）であり、
+        // `inset-<辺>: calc(100% + gap)` は <辺> と同じ側の画面端に接する
+        // パネルに対して、ボタンを反対側（暗幕側）へ押し出す。各 placement
+        // は「パネルが接する画面端と同名の inset」に `calc(100% + gap)` を、
+        // 反対側の同軸 inset は `auto`（base 由来 or 明示）を持つ組で固定する。
+        let css = stylesheet();
+
+        // 前提 1: containing block が content であること（positioner ではない）。
+        let content_start = css
+            .find(r#"[data-scope="drawer"][data-part="content"] {"#)
+            .expect("content base rule must be present");
+        let content_end = css[content_start..].find('}').unwrap() + content_start;
+        assert!(css[content_start..content_end].contains("position: relative;"));
+        // 前提 2: close-trigger と content の間にある header は position を持たない。
+        let header_start = css
+            .find(r#"[data-scope="drawer"][data-part="header"] {"#)
+            .expect("header base rule must be present");
+        let header_end = css[header_start..].find('}').unwrap() + header_start;
+        assert!(!css[header_start..header_end].contains("position:"));
+
+        // base: inline-end/block-start のみ指定（他 2 辺は UA 既定 auto）。
+        let base_start = css
+            .find(r#"[data-scope="drawer"][data-part="close-trigger"] {"#)
+            .expect("close-trigger base rule must be present");
+        let base_end = css[base_start..].find('}').unwrap() + base_start;
+        let base = &css[base_start..base_end];
+        assert!(base.contains("inset-inline-end: var(--fandhe-space-2);"));
+        assert!(base.contains("inset-block-start: var(--fandhe-space-2);"));
+        assert!(!base.contains("inset-inline-start:"));
+        assert!(!base.contains("inset-block-end:"));
+
+        let gap = "calc(100% + var(--fandhe-space-2))";
+        // (placement, パネルが接する画面端と同名の inset, 反対側で auto 化が必要な inset)
+        for (direction, pushed_inset, reset_inset) in [
+            ("end", "inset-inline-end", None),
+            ("start", "inset-inline-start", Some("inset-inline-end")),
+            ("top", "inset-block-start", None),
+            ("bottom", "inset-block-end", Some("inset-block-start")),
+        ] {
+            let selector = format!(
+                r#"[data-scope="drawer"][data-part="close-trigger"][data-close-outside="{direction}"] {{"#
+            );
+            let start = css.find(&selector).unwrap_or_else(|| {
+                panic!("close-trigger[data-close-outside={direction}] rule must be present")
+            });
+            let end = css[start..].find('}').unwrap() + start;
+            let rule = &css[start..end];
+            assert!(
+                rule.contains(&format!("{pushed_inset}: {gap};")),
+                "direction={direction}: {pushed_inset} must push the button past the panel's far edge; rule={rule}"
+            );
+            // 反対方向の inset に calc(100% + …) を書くと画面外へ出る（誤指摘の形）。
+            let axis_opposite = match pushed_inset {
+                "inset-inline-end" => "inset-inline-start",
+                "inset-inline-start" => "inset-inline-end",
+                "inset-block-start" => "inset-block-end",
+                _ => "inset-block-start",
+            };
+            assert!(
+                !rule.contains(&format!("{axis_opposite}: {gap};")),
+                "direction={direction}: {axis_opposite} must not carry the outward offset; rule={rule}"
+            );
+            if let Some(reset) = reset_inset {
+                assert!(
+                    rule.contains(&format!("{reset}: auto;")),
+                    "direction={direction}: base {reset} must be reset to auto; rule={rule}"
+                );
+            }
         }
     }
 
