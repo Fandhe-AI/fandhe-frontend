@@ -2981,6 +2981,11 @@ path = "/blocks/promo-with-testimonials/"
 title = "Docs Layout"
 
 [[section.group.page]]
+title = "docs-layout-page-header"
+source = "site/blocks/docs-layout-page-header.md"
+path = "/blocks/docs-layout-page-header/"
+
+[[section.group.page]]
 title = "docs-layout-sidebar-api"
 source = "site/blocks/docs-layout-sidebar-api.md"
 path = "/blocks/docs-layout-sidebar-api/"
