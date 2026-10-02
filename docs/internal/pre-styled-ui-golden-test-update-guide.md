@@ -319,7 +319,11 @@ grep -l '\b<snake>::' crates/pre-styled-ui/tests/*.rs | xargs -n1 basename
   `container-name` の 2 個目ブロックが中間挿入され、`title[data-invalid]`
   の後・`error-text > ul` の前へ `@container fd-field-group (min-width:
   448px) { .fd-field--orientation-responsive { ... } }` ブロックが追記
-  される）。
+  される。イシュー #3134 では `FieldLabelPlacement`〔inset/overlap〕の
+  規則を単一 `FIELD_GOLDEN_CSS` 内の末尾追記として golden 化し、
+  `css_label_placement_blocks_appear_after_text_wrap_balance`/
+  `css_existing_base_blocks_unchanged_after_label_placement` が追記位置と
+  既存ブロック不変を回帰テストで固定する）。
 - `.fd-<scope>--<axis>-<value>` は variant 軸のクラス名です。
 - 属性セレクタ（`[data-*]`）や `:hover` 等の後置セレクタは
   `SlotRecipe::state`（states）由来です。

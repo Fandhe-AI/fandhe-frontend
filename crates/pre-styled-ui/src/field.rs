@@ -15,6 +15,12 @@
 //! `textarea`/`select` slot へ base 宣言を追加登録すると、集約 stylesheet
 //! （`crate::stylesheet::all_styled_component_css`）中に同一セレクタの
 //! base ブロックが二重出現しカスケードを汚すため、意図的に宣言しない。
+//! （例外: イシュー #3134 の `Inset` ラベル配置は、`SlotRecipe` の base/
+//! variant ではなく `.fd-field--label-placement-inset > [data-part="input"]`
+//! という `root` 側クラスを条件にした**子孫セレクタでの上書き**を 1 件だけ
+//! 持つ。これは `input` slot の base を再登録するものではなく、既存の
+//! `crate::input::css` が出力する base/variant 宣言を opt-in 時のみ
+//! 特異度で上書きする追記であり、二重出現にはならない。）
 //!
 //! docs サイトへの `/themes/field/` ページ登録（showcase Demo・
 //! `SPEC_TABLES` 原稿・`site/nav.toml`）は #1685 で実施済み。本モジュールは
@@ -222,6 +228,69 @@
 //! （`@container fd-field-group (min-width: 448px)` の内側に同一宣言の
 //! `.fd-field--orientation-responsive` 版を静的追記する）。
 //!
+//! # ラベル配置（イシュー #3134）
+//!
+//! Blocks 取り込みの対応表で「既存部品では表現できない」と判定された
+//! 2 レイアウトを、`orientation` とは独立な opt-in variant
+//! [`FieldLabelPlacement`] として追加する。既定（[`FieldLabelPlacement::
+//! Outside`]）は従来どおり `root()` の出力と完全に一致し（golden は末尾への
+//! 純追加のみ）、[`root_with_label_placement`] を明示的に呼んだ場合のみ
+//! クラスが 1 つ付与される。
+//!
+//! - **`Inset`**: ラベルを枠の内側・上部に置く。`root` 自身が枠線・背景を
+//!   持つ box になり、`label`/`input` を内包する。[`inset_stack`]
+//!   （`data-part="inset-stack"` の wrapper）の直下に縦に並べたときだけ、
+//!   隣接する `root` 同士が枠線を共有して連結する。連結規則は wrapper を
+//!   条件にするため、`group` のような `gap` を持つコンテナへ直接並べても
+//!   発動しない（隣接兄弟セレクタ `+` は親の `gap` を区別できないため、
+//!   暗黙の隣接ではなく明示の wrapper を契約とする。codex-review 指摘、
+//!   PR #3570）。
+//! - **`Overlap`**: `root` 自身に枠線を持たせ、ラベルをその枠線の上へ
+//!   絶対配置で重ねる。`--fandhe-field-label-bg`（既定
+//!   `var(--fandhe-color-bg)`）でラベル背景を地の色に合わせて上書きできる。
+//!
+//! ## 対象外（範囲外として明示）
+//!
+//! - inset がリセットする対象は `input` のみ。`textarea`/`select` は対象外
+//!   （必要になれば同型の宣言を同じ条件で追加できる）。
+//! - `orientation = Horizontal`/`Responsive` との併用、`forms_motion` の
+//!   floating label との併用はいずれも対象外とし、`Vertical` での使用の
+//!   みを前提とする。
+//! - inset の内側に `helper-text`/`error-text` を置くと枠の中に表示される
+//!   （ARIA は id 結び付けのため、枠の外に出したい場合は root の外に置く）。
+//!
+//! ## 状態表示の対応表
+//!
+//! `Inset`/`Overlap` はどちらも枠線を `root` が描くため、`crate::input` が
+//! `input` 自身へ与える状態表示のうち枠線に結び付くもの（invalid の
+//! `border-color`・focus のリング）をそのままにすると、枠のない `input` の
+//! 矩形に沿って表示されて `root` の枠と二重になる。そこで両
+//! variant で同一の規則集合（`boxed_root_state_css`）を `root` 側へ持ち、
+//! `input` 側の同種宣言を子孫セレクタで打ち消す。
+//!
+//! | 状態 | `root`（Inset/Overlap 共通） | `input` 側の打ち消し |
+//! |------|------------------------------|----------------------|
+//! | `data-invalid` | `border-color: danger`（枠線全体） | なし（`input` は枠線を持たないため不要） |
+//! | `data-disabled` | 宣言なし（子の `label`/`helper-text`/`input` が各自 0.5 へ減衰済み。root にも当てると 0.25 の二重減衰になる） | なし |
+//! | `data-readonly` | 視覚宣言なし（`crate::input` の意図的非採用に揃える） | なし |
+//! | `:focus-within` | 枠線の内側にリング（`FocusRingOffset::Inset`） | `:focus-visible { outline: none }` |
+//!
+//! 状態の重なりは別プロパティなので干渉しない: invalid + focus は
+//! エラー色の枠線 + リング（`crate::input` の挙動と同じ）、disabled は
+//! フォーカス不可のため focus と重ならず、invalid + disabled はエラー色の
+//! 枠線のまま子パーツだけが減衰する。[`inset_stack`] 内の縦連結では共有する
+//! 辺が先行要素の `border-bottom` になるため、後続要素だけが invalid の
+//! ときは `:has(+ ...[data-invalid])` で先行側の下辺をエラー色にする
+//! （focus/disabled は枠線色を変えないため、写すべき状態は invalid のみ）。
+//!
+//! ## 意図的非採用（focus ring の例外）
+//!
+//! モジュール doc 冒頭「意図的非採用」節は「実フォーカスはコントロール
+//! 側にあるため `root` は focus ring を持たない」としているが、`Inset`/
+//! `Overlap` はこの例外である: いずれも `input` 自身の `outline` を消す
+//! ため、代わりに `root` の `:focus-within` へフォーカスリングを付け、
+//! キーボードでのフォーカス表示が失われないようにする。
+//!
 //! # セキュリティ不変条件
 //!
 //! - 全出力は `fandhe_frontend_core::el`/`fandhe_frontend_core::text`
@@ -236,9 +305,10 @@ use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::css::Declaration;
 use crate::recipe::{
-    disabled_declarations, ContainerBreakpoint, SlotRecipe, StateCondition, VariantValue,
+    disabled_declarations, focus_ring_declarations, ContainerBreakpoint, FocusRingColor,
+    FocusRingOffset, SlotRecipe, StateCondition, VariantValue,
 };
-use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
+use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, Node};
 
 // headless `field` の型のうち、見た目を重ねる必要がなくそのまま透過できる
 // もの（`FieldIds`/`FieldProps`）と、コード実体を持たないため styled 側の
@@ -321,6 +391,37 @@ fn horizontal_root_declarations() -> Vec<Declaration> {
 pub struct FieldRootProps {
     /// 配置軸（既定 `Vertical`）。
     pub orientation: FieldOrientation,
+}
+
+/// `root` のラベル配置 variant（イシュー #3134、モジュール doc「ラベル配置」
+/// 節参照）。`orientation` とは独立な軸であり、[`root_with_label_placement`]
+/// でのみ指定できる（[`FieldRootProps`] へフィールドを増やすと、呼び出し側
+/// の構造体リテラル多数がコンパイルエラーになるため新関数として追加した）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum FieldLabelPlacement {
+    /// 従来どおりラベルを `root` の外形に影響させない配置（既定）。
+    /// クラスを出力せず既定の HTML 出力をバイト単位で不変に保つ。
+    #[default]
+    Outside,
+    /// ラベルを枠の内側・上部に置く（Tailwind UI "Inset label" 相当）。
+    Inset,
+    /// ラベルを `root` の枠線の上へ重ねる（Tailwind UI "Overlapping label"
+    /// 相当）。
+    Overlap,
+}
+
+impl VariantValue for FieldLabelPlacement {
+    fn axis(self) -> &'static str {
+        "label-placement"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::Outside => "outside",
+            Self::Inset => "inset",
+            Self::Overlap => "overlap",
+        }
+    }
 }
 
 /// この styled Field の既定 CSS を組み立てる（内部ヘルパ、[`css`] のみが呼ぶ）。
@@ -566,6 +667,153 @@ pub fn css() -> String {
          [data-scope=\"field\"][data-part=\"helper-text\"] {\n    \
          text-wrap: balance;\n  }\n}\n",
     );
+    // ラベル配置（イシュー #3134、モジュール doc「ラベル配置」節参照）。
+    // `SlotRecipe` は同一 slot 内条件しか表現できず、ここで必要なのは
+    // 「root の variant を条件とした子（label/input）への宣言」と「root の
+    // :focus-within」のため、上記 2 ブロックと同型の直接追記で表す。
+    // セレクタの class 部分は `recipe().variant_class(...)` から作るため、
+    // HTML 側のクラス名と CSS 側のセレクタが構造的にずれない。
+    //
+    // 枠線を `root` が描く点は Inset/Overlap で共通のため、状態表示
+    // （invalid/disabled/focus）は `boxed_root_state_css` に一本化し、両
+    // variant が同じ規則集合を持つ（モジュール doc「状態表示の対応表」節）。
+    let recipe = recipe();
+    let inset_class = recipe.variant_class(FieldLabelPlacement::Inset);
+    let overlap_class = recipe.variant_class(FieldLabelPlacement::Overlap);
+    let root_inset = format!("[data-scope=\"field\"][data-part=\"root\"].{inset_class}");
+    let root_overlap = format!("[data-scope=\"field\"][data-part=\"root\"].{overlap_class}");
+    out.push_str(&format!(
+        "{root_inset} {{\n  \
+         gap: 0;\n  \
+         padding: var(--fandhe-space-2-5, 0.625rem) var(--fandhe-space-3) var(--fandhe-space-1-5, 0.375rem);\n  \
+         border: 1px solid var(--fandhe-color-border);\n  \
+         border-radius: var(--fandhe-radius-md);\n  \
+         background: var(--fandhe-color-bg);\n}}\n",
+    ));
+    out.push_str(&format!(
+        "{root_inset} > [data-scope=\"field\"][data-part=\"label\"] {{\n  \
+         font-size: var(--fandhe-font-font-size-xs);\n}}\n",
+    ));
+    out.push_str(&format!(
+        "{root_inset} > [data-scope=\"field\"][data-part=\"input\"] {{\n  \
+         height: auto;\n  padding: 0;\n  border: 0;\n  border-radius: 0;\n  \
+         background: transparent;\n}}\n",
+    ));
+    out.push_str(&boxed_root_state_css(&root_inset));
+    // inset の縦連結は `inset_stack` の直下に限る（モジュール doc「ラベル
+    // 配置」節）。隣接兄弟セレクタ `+` は親の `gap` を区別できず、`group`
+    // 内の離れた root にも誤って発動する（codex-review 指摘、PR #3570）ため、
+    // `data-part="inset-stack"` の子結合子を全規則の前置条件にする。先行・
+    // 後続の双方が `border: 1px solid` を持つため負マージンで重ねると共有
+    // する辺に 2 本の border が同時に描画される（同指摘）ので、後続要素の
+    // `border-top` を消し、共有する辺の描画を先行要素の `border-bottom` の
+    // みへ一本化する。
+    let stack = format!("{INSET_STACK_SELECTOR} > ");
+    out.push_str(&format!(
+        "{INSET_STACK_SELECTOR} {{\n  display: flex;\n  flex-direction: column;\n}}\n",
+    ));
+    out.push_str(&format!(
+        "{stack}{root_inset} + {root_inset} {{\n  \
+         border-top: 0;\n  border-start-start-radius: 0;\n  border-start-end-radius: 0;\n}}\n",
+    ));
+    out.push_str(&format!(
+        "{stack}{root_inset}:has(+ {root_inset}) {{\n  \
+         border-end-start-radius: 0;\n  border-end-end-radius: 0;\n}}\n",
+    ));
+    // 共有する辺は先行要素の `border-bottom` なので、後続要素だけが
+    // `data-invalid` のときはそのままでは通常色のまま残る（codex-review
+    // 指摘、PR #3570）。CSS は前方参照できないため `:has(+ ...)` で後続の
+    // 状態を先行側へ写し、エラー枠の上辺を成立させる（`:has()` は上の
+    // 角丸規則で既に前提にしている）。`:has()` 引数側の属性セレクタ 1 件分
+    // だけ `{root_inset}[data-invalid]` より詳細度が高く、先行要素自身が
+    // invalid でも同じエラー色なので宣言順に依存しない。focus/disabled は
+    // 枠線色を変えない（focus はリング、disabled は opacity）ため、
+    // 共有する辺について写すべき状態は invalid のみ。
+    out.push_str(&format!(
+        "{stack}{root_inset}:has(+ {root_inset}[data-invalid]) {{\n  \
+         border-bottom-color: var(--fandhe-color-danger);\n}}\n",
+    ));
+    // overlap: root の base は position: relative を既に持つ（本モジュール
+    // `recipe()` の `root` base 宣言参照）が、モジュール doc が謳う「root の
+    // 枠線の上へ重ねる」を成立させるには root 自身が枠線を持つ必要がある
+    // （codex-review 指摘、PR #3570）。input 自身も既定（Outline variant）で
+    // `border: 1px solid` を持つ（`input.rs` 参照）ため、root 側を単一の
+    // 枠として統一し input 側の枠線は消す（codex-review/Bugbot 指摘）。
+    out.push_str(&format!(
+        "{root_overlap} {{\n  \
+         border: 1px solid var(--fandhe-color-border);\n  \
+         border-radius: var(--fandhe-radius-md);\n}}\n",
+    ));
+    out.push_str(&format!(
+        "{root_overlap} > [data-scope=\"field\"][data-part=\"input\"] {{\n  \
+         border: 0;\n}}\n",
+    ));
+    out.push_str(&boxed_root_state_css(&root_overlap));
+    out.push_str(&format!(
+        "{root_overlap} > [data-scope=\"field\"][data-part=\"label\"] {{\n  \
+         position: absolute;\n  top: 0;\n  inset-inline-start: var(--fandhe-space-2);\n  \
+         z-index: 1;\n  transform: translateY(-50%);\n  padding-inline: var(--fandhe-space-1);\n  \
+         font-size: var(--fandhe-font-font-size-xs);\n  \
+         background-color: var(--fandhe-field-label-bg, var(--fandhe-color-bg));\n}}\n",
+    ));
+    out
+}
+
+/// [`inset_stack`] wrapper の CSS セレクタ（イシュー #3134）。`Inset` の
+/// 枠線連結規則はすべてこのセレクタの子結合子を前置条件に持つ。
+const INSET_STACK_SELECTOR: &str = "[data-scope=\"field\"][data-part=\"inset-stack\"]";
+
+/// `Inset` ラベル配置の `root` を縦に連結する wrapper（`div`、イシュー
+/// #3134、モジュール doc「ラベル配置」節参照）。直下に並べた
+/// [`FieldLabelPlacement::Inset`] の `root` 同士だけが枠線を共有して
+/// 連結し、この wrapper の外（`group` 等）では連結規則は発動しない。
+/// headless 側に対応パーツはなく（レイアウト専用で意味論を持たない）、
+/// `data-scope="field"`/`data-part="inset-stack"` を本モジュールが直接
+/// 出力する。`attrs` は後置で合成し、`class` 属性も呼び出し側の指定を
+/// そのまま通す（本 wrapper は recipe のクラスを持たないため）。
+#[must_use]
+pub fn inset_stack<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> =
+        vec![("data-scope", "field"), ("data-part", "inset-stack")];
+    merged.extend(attrs);
+    el("div", merged, children)
+}
+
+/// `root` 自身が枠線を描く配置（`Inset`/`Overlap`）に共通する状態表示の
+/// 規則を組み立てる（内部ヘルパ、[`css`] のみが呼ぶ。イシュー #3134、
+/// モジュール doc「状態表示の対応表」節参照）。`root_selector` は
+/// `[data-scope="field"][data-part="root"].<variant class>` 形式の完全な
+/// セレクタで、戻り値はそのセレクタを前置した規則群。
+///
+/// `crate::input::css` が `input` 自身へ与える invalid（`border-color`）・
+/// focus（[`focus_ring_declarations`]）の 2 状態を、枠線を描く側である
+/// `root` へそのまま写す。`input` 側の focus outline は枠線がない状態では
+/// 枠より内側のリングとして二重表示になるため、子孫セレクタで打ち消す。
+/// disabled は各子パーツの既存 `[data-disabled]` 減衰に委ね root へは置かず、
+/// `data-readonly` は `input.rs` と同じく視覚宣言を持たない（意図的非採用、
+/// `crate::input` モジュール doc 参照）。
+fn boxed_root_state_css(root_selector: &str) -> String {
+    let mut out = String::new();
+    out.push_str(&format!(
+        "{root_selector}[data-invalid] {{\n  border-color: var(--fandhe-color-danger);\n}}\n",
+    ));
+    // disabled: root 側には宣言を置かない。`label`/`helper-text`/`title`
+    // （本モジュール `recipe()`）と `input`（`crate::input`）が各自
+    // `[data-disabled]` で 0.5 へ減衰済みのため、root にも opacity を当てると
+    // 0.25 まで二重に薄くなる（Bugbot 指摘、PR #3570）。減衰は子側の 1 回のみ。
+    // リングは枠線の内側に描く（`FocusRingOffset::Inset`）。`Inset` 連結時の
+    // 後続要素は `border-top: 0` で先行要素と重ならないため、重ね順の調整
+    // （z-index）は不要。
+    if let Some(block) = crate::css::serialize_rule(
+        &format!("{root_selector}:focus-within"),
+        &focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Inset),
+    ) {
+        out.push_str(&block);
+    }
+    out.push_str(&format!(
+        "{root_selector} > [data-scope=\"field\"][data-part=\"input\"]:focus-visible {{\n  \
+         outline: none;\n}}\n",
+    ));
     out
 }
 
@@ -600,8 +848,57 @@ pub fn root<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    root_with_label_placement(props, FieldLabelPlacement::Outside, field, attrs, children)
+}
+
+/// [`root`] にラベル配置 variant（イシュー #3134、モジュール doc「ラベル
+/// 配置」節参照）を重ねて組み立てる。`placement` が [`FieldLabelPlacement::
+/// Outside`]（既定）のときは [`root`] と完全に同じ出力になる（`orientation`
+/// クラスのみ、`label-placement` クラスは付与しない）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::field::{
+///     self, FieldIds, FieldLabelPlacement, FieldProps, FieldRootProps,
+/// };
+///
+/// let f = FieldProps {
+///     id: "email",
+///     ids: FieldIds::default(),
+///     disabled: false,
+///     invalid: false,
+///     required: false,
+///     readonly: false,
+///     has_helper_text: false,
+/// };
+/// let node = field::root_with_label_placement(
+///     &FieldRootProps::default(),
+///     FieldLabelPlacement::Inset,
+///     &f,
+///     vec![],
+///     vec![],
+/// );
+/// assert!(render(&node).contains("fd-field--label-placement-inset"));
+/// ```
+#[must_use]
+pub fn root_with_label_placement<'a>(
+    props: &FieldRootProps,
+    placement: FieldLabelPlacement,
+    field: &FieldProps<'_>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
     let recipe = recipe();
-    let class = recipe.variant_classes(&[("orientation", props.orientation.value())]);
+    let mut class = recipe.variant_classes(&[("orientation", props.orientation.value())]);
+    if placement != FieldLabelPlacement::Outside {
+        let placement_class = recipe.variant_class(placement);
+        if !placement_class.is_empty() {
+            class.push(' ');
+            class.push_str(&placement_class);
+        }
+    }
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
     fandhe_frontend_headless_ui::field::root(field, merged, children)
@@ -729,8 +1026,19 @@ mod tests {
 
     #[test]
     fn css_does_not_declare_control_slots() {
+        // イシュー #3134: `Inset` ラベル配置が `.fd-field--label-placement-
+        // inset > [data-part="input"]` の子孫セレクタ上書きを 1 件だけ持つ
+        // （module doc「スコープ」節の例外参照）。これは `input`/`textarea`/
+        // `select` の **base 宣言の再登録ではない**ことを、素の
+        // `[data-scope="field"][data-part="input"] {`（base セレクタそのもの）
+        // が現れないことで固定する。`textarea`/`select` は例外を持たない
+        // ため従来どおり完全不在を固定する。行頭（セレクタの開始位置）に
+        // 素の base セレクタが来る行が無いことを確認する（`>` などの結合子
+        // を前置した子孫セレクタは行頭に一致しないため判別できる）。
         let out = css();
-        assert!(!out.contains(r#"[data-part="input"]"#));
+        assert!(!out
+            .lines()
+            .any(|line| line.starts_with(r#"[data-scope="field"][data-part="input"] {"#)));
         assert!(!out.contains(r#"[data-part="textarea"]"#));
         assert!(!out.contains(r#"[data-part="select"]"#));
     }
@@ -742,5 +1050,221 @@ mod tests {
         let _ = render(&helper_text(&f, vec![], vec![text("hint")]));
         let _ = render(&error_text(&f, vec![], vec![text("error")]));
         let _ = render(&required_indicator(&f, vec![], vec![text("*")]));
+    }
+
+    // イシュー #3134: ラベル配置 variant（inset/overlap）のユニットテスト。
+
+    #[test]
+    fn root_and_root_with_label_placement_outside_are_byte_identical() {
+        let f = default_field("f");
+        let a = render(&root(&FieldRootProps::default(), &f, vec![], vec![]));
+        let b = render(&root_with_label_placement(
+            &FieldRootProps::default(),
+            FieldLabelPlacement::Outside,
+            &f,
+            vec![],
+            vec![],
+        ));
+        assert_eq!(a, b);
+        assert!(!a.contains("label-placement"));
+    }
+
+    #[test]
+    fn inset_placement_adds_single_class_and_keeps_orientation_class() {
+        let f = default_field("f");
+        let html = render(&root_with_label_placement(
+            &FieldRootProps::default(),
+            FieldLabelPlacement::Inset,
+            &f,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains("fd-field--label-placement-inset"));
+        assert!(!html.contains("fd-field--label-placement-overlap"));
+        assert!(html.contains("fd-field--orientation-vertical"));
+        assert_eq!(html.matches("class=\"").count(), 1);
+    }
+
+    #[test]
+    fn overlap_placement_adds_single_class() {
+        let f = default_field("f");
+        let html = render(&root_with_label_placement(
+            &FieldRootProps::default(),
+            FieldLabelPlacement::Overlap,
+            &f,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains("fd-field--label-placement-overlap"));
+        assert!(!html.contains("fd-field--label-placement-inset"));
+    }
+
+    #[test]
+    fn label_placement_caller_class_is_dropped() {
+        let f = default_field("f");
+        let html = render(&root_with_label_placement(
+            &FieldRootProps::default(),
+            FieldLabelPlacement::Inset,
+            &f,
+            vec![("class", "evil")],
+            vec![],
+        ));
+        assert!(!html.contains("evil"));
+    }
+
+    #[test]
+    fn css_contains_inset_rules() {
+        let out = css();
+        assert!(out.contains("fd-field--label-placement-inset"));
+        assert!(out.contains(
+            "[data-scope=\"field\"][data-part=\"root\"].fd-field--label-placement-inset:focus-within"
+        ));
+        assert!(out.contains(
+            ".fd-field--label-placement-inset > [data-scope=\"field\"][data-part=\"input\"]"
+        ));
+        assert!(out.contains(":focus-visible"));
+    }
+
+    #[test]
+    fn inset_stack_renders_scope_part_and_passes_attrs() {
+        let html = render(&inset_stack(vec![("id", "s")], vec![text("x")]));
+        assert_eq!(
+            html,
+            r#"<div data-scope="field" data-part="inset-stack" id="s">x</div>"#
+        );
+    }
+
+    #[test]
+    fn css_inset_connection_rules_are_scoped_to_inset_stack() {
+        // codex-review 指摘（PR #3570）: `+` は親の gap を区別できないため、
+        // 連結規則はすべて `inset-stack` の子結合子を前置条件に持ち、
+        // wrapper なしの隣接だけで発動する規則を 1 件も持たない。
+        let out = css();
+        let root = "[data-scope=\"field\"][data-part=\"root\"].fd-field--label-placement-inset";
+        for line in out
+            .lines()
+            .filter(|l| l.contains(&format!("{root} + ")) || l.contains(&format!("{root}:has(")))
+        {
+            assert!(
+                line.starts_with(&format!("{INSET_STACK_SELECTOR} > ")),
+                "unscoped connection rule: {line}"
+            );
+        }
+        assert!(out.contains(&format!(
+            "{INSET_STACK_SELECTOR} {{\n  display: flex;\n  flex-direction: column;\n}}\n"
+        )));
+    }
+
+    #[test]
+    fn css_contains_inset_sibling_connection_rules() {
+        let out = css();
+        assert!(out.contains(
+            "fd-field--label-placement-inset + [data-scope=\"field\"][data-part=\"root\"].fd-field--label-placement-inset"
+        ));
+        assert!(out.contains(
+            ":has(+ [data-scope=\"field\"][data-part=\"root\"].fd-field--label-placement-inset)"
+        ));
+        // イシュー #3134 codex-review 指摘（PR #3570）是正: 共有する辺の
+        // border 描画を先行要素側へ一本化するため、後続要素は
+        // `border-top: 0` を持ち二重線にならないことを固定する。
+        assert!(out.contains("border-top: 0;"));
+    }
+
+    #[test]
+    fn css_contains_inset_invalid_sibling_shared_border_rule() {
+        // PR #3570 レビュー指摘是正: 後続フィールドのみ `data-invalid` の
+        // ときも、共有する辺（先行要素の `border-bottom`）がエラー色へ
+        // 切り替わることを固定する。
+        let out = css();
+        assert!(out.contains(
+            "fd-field--label-placement-inset:has(+ [data-scope=\"field\"][data-part=\"root\"].fd-field--label-placement-inset[data-invalid]) {\n  \
+             border-bottom-color: var(--fandhe-color-danger);\n}\n"
+        ));
+    }
+
+    #[test]
+    fn css_contains_overlap_rules_and_label_bg_var() {
+        let out = css();
+        assert!(out.contains("fd-field--label-placement-overlap"));
+        assert!(out.contains("--fandhe-field-label-bg"));
+        // イシュー #3134 codex-review 指摘（PR #3570）是正: ラベルが
+        // 重なる対象の枠線を root 自身に持たせる。
+        assert!(out.contains(
+            "[data-scope=\"field\"][data-part=\"root\"].fd-field--label-placement-overlap {\n  \
+             border: 1px solid var(--fandhe-color-border);\n"
+        ));
+    }
+
+    #[test]
+    fn css_inset_and_overlap_share_boxed_root_state_rules() {
+        // モジュール doc「状態表示の対応表」節: 両 variant の状態規則は
+        // `boxed_root_state_css` 由来で同一であることを固定する。
+        let out = css();
+        let inset = "[data-scope=\"field\"][data-part=\"root\"].fd-field--label-placement-inset";
+        let overlap =
+            "[data-scope=\"field\"][data-part=\"root\"].fd-field--label-placement-overlap";
+        let normalize = |s: &str| s.replace(inset, "ROOT").replace(overlap, "ROOT");
+        assert_eq!(
+            normalize(&boxed_root_state_css(inset)),
+            normalize(&boxed_root_state_css(overlap))
+        );
+        for root in [inset, overlap] {
+            assert!(out.contains(&boxed_root_state_css(root)));
+            assert!(!out.contains(&format!("{root}[data-readonly]")));
+            // disabled は子パーツの既存減衰のみ（root 側に opacity を重ねない）。
+            assert!(!out.contains(&format!("{root}[data-disabled]")));
+        }
+        // 連結時に重なりがないため z-index は不要（dead 宣言を持たない）。
+        assert!(!out.contains(":focus-within {\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));\n  z-index"));
+    }
+
+    #[test]
+    fn css_contains_overlap_focus_within_ring_and_input_outline_reset() {
+        // PR #3570 レビュー指摘是正: input 自身の `:focus-visible` outline を
+        // 消し、root 側の `:focus-within` が枠線全体を縁取るリングへ一体化
+        // することを固定する（Inset と同型）。
+        let out = css();
+        assert!(out.contains(
+            "[data-scope=\"field\"][data-part=\"root\"].fd-field--label-placement-overlap:focus-within"
+        ));
+        assert!(out.contains(
+            ".fd-field--label-placement-overlap > [data-scope=\"field\"][data-part=\"input\"]:focus-visible {\n  \
+             outline: none;\n}\n"
+        ));
+    }
+
+    #[test]
+    fn css_label_placement_block_comes_after_text_wrap_balance_block() {
+        let out = css();
+        let balance_pos = out
+            .find("text-wrap: balance")
+            .expect("helper-text の text-wrap: balance 規則が存在すること");
+        let inset_pos = out
+            .find("fd-field--label-placement-inset")
+            .expect("inset 規則が存在すること");
+        assert!(
+            inset_pos > balance_pos,
+            "label-placement の追記は css() 末尾への純追加であること"
+        );
+    }
+
+    #[test]
+    fn css_base_root_label_input_blocks_are_unchanged() {
+        // 既存 base ブロック（root/label）が label-placement 追加によって
+        // 変化していないことを固定する（受け入れ条件 3: 既定出力は不変）。
+        let out = css();
+        assert!(out.contains(
+            "[data-scope=\"field\"][data-part=\"root\"] {\n  display: flex;\n  flex-direction: column;\n"
+        ));
+        assert!(out.contains(
+            "[data-scope=\"field\"][data-part=\"label\"] {\n  display: flex;\n  align-items: center;\n"
+        ));
+    }
+
+    #[test]
+    fn default_root_html_does_not_contain_label_placement_class() {
+        let f = default_field("f");
+        let html = render(&root(&FieldRootProps::default(), &f, vec![], vec![]));
+        assert!(!html.contains("label-placement"));
     }
 }

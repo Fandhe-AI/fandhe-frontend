@@ -58,7 +58,9 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::angle_slider::{
 };
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::image_cropper::ImageCropper;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
-use fandhe_frontend_pre_styled_ui::field::{self, FieldOrientation, FieldProps, FieldRootProps};
+use fandhe_frontend_pre_styled_ui::field::{
+    self, FieldLabelPlacement, FieldOrientation, FieldProps, FieldRootProps,
+};
 use fandhe_frontend_pre_styled_ui::fieldset::{
     self, FieldsetProps, FieldsetRootProps, LegendVariant,
 };
@@ -871,6 +873,7 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
         "`error-text`/`required-indicator` は非該当状態で `hidden` 存在属性を付与する headless 側の fail-closed 描画に従い、`[hidden] { display: none; }` のみを重ねる（独自の表示切替ロジックは持たない）。",
         "hover / focus ring / transition はいずれも意図的に非採用（実フォーカスはコントロール側にあり、状態遷移に伴う視覚変化がないため）。",
         "`group` は複数 `Field`（`root`）を縦積みする外側コンテナ、`separator` は線のみ／テキスト付きの区切り線（`separator-line`/`separator-content` の 2 内部パーツから成る）、`content`/`title` は `<label for>` を結び付けられない場面（複数コントロールの見出し等）で `label` の代替として使う見出し + 補助テキストの列（イシュー #2185、shadcn/ui `FieldGroup`/`FieldSeparator`/`FieldContent`/`FieldTitle` 相当）。",
+        "`root_with_label_placement` で `orientation` とは独立なラベル配置 variant（`FieldLabelPlacement`: `Outside`（既定）/`Inset`/`Overlap`）を選べる（イシュー #3134）。`Inset` は `root` 自身に枠線・背景を持たせ内側上部にラベルを置き、`Overlap` はラベルを枠線の上へ重ねる。どちらも枠線を `root` が描くため、invalid の枠線色と `:focus-within` のフォーカスリングを `root` 側で表示し、`input` 自身の `outline` は打ち消す（disabled の半透明化は各パーツ側のみ）（モジュール doc「状態表示の対応表」節参照）。いずれも `orientation = Vertical` での使用のみを前提とする。",
     ],
     arguments: &[
         ArgRow {
@@ -915,6 +918,12 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
             default: "",
             description: "見出し（`title`）+ 補助テキストの列を束ねる `content`（イシュー #2185）。`title` は `<label for>` を自動導出しないため、呼び出し側が `attrs` で `id` を渡しコントロールへ `aria-labelledby` で結び付ける。",
         },
+        ArgRow {
+            name: "root_with_label_placement",
+            kind: "fn(props, placement: FieldLabelPlacement, field, attrs, children) -> Node",
+            default: "",
+            description: "`root` にラベル配置 variant を重ねて組み立てる（イシュー #3134）。`placement` が `FieldLabelPlacement::Outside`（既定）のときは `root` と完全に同じ出力になる。",
+        },
     ],
     examples: &[
         ExampleEntry {
@@ -931,6 +940,21 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
             title: "Responsive orientation（@container）",
             description: "`orientation=\"responsive\"` の 2 つの `Field` を `group`（container）の内側に配置した合成例です（イシュー #2199、`docs/design/reference-screenshots/shadcn-field-3.png`）。`group` の inline サイズが 448px 以上のときのみラベルと入力欄が横並びに切り替わり、未満のときは縦積みのままです。",
             render: ex_field_responsive_orientation,
+        },
+        ExampleEntry {
+            title: "Inset label",
+            description: "`FieldLabelPlacement::Inset` でラベルを枠の内側・上部に配置する例です（イシュー #3134）。`root` 自身が枠線・背景を持ち、`input` は枠内に溶け込むようリセットされます。",
+            render: ex_field_inset_label,
+        },
+        ExampleEntry {
+            title: "Inset labels with shared borders",
+            description: "`Inset` の 2 つの `Field` を `field::inset_stack` の直下へ縦に並べ、枠線を共有して連結する例です（イシュー #3134）。中間の境界線が 1 本になり、角丸は上下の端にのみ付きます。連結規則は `inset_stack` の中でだけ発動し、`group` など gap 付きコンテナへ直接並べても連結しません。",
+            render: ex_field_inset_labels_connected,
+        },
+        ExampleEntry {
+            title: "Overlapping label",
+            description: "`FieldLabelPlacement::Overlap` でラベルを `root` の枠線の上へ重ねる例です（イシュー #3134）。`--fandhe-field-label-bg` でラベル背景を地の色に合わせられます。",
+            render: ex_field_overlapping_label,
         },
     ],
     keyboard: &[],
@@ -1160,6 +1184,118 @@ fn ex_field_responsive_orientation() -> Node {
                         vec![("type", "text"), ("placeholder", "ada")],
                     ),
                 ],
+            ),
+        ],
+    )
+}
+
+/// [`FIELD`] の Examples 節「Inset label」レンダラ（イシュー #3134）。
+fn ex_field_inset_label() -> Node {
+    let props = FieldProps {
+        id: "ex-field-inset-name",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    field::root_with_label_placement(
+        &FieldRootProps::default(),
+        FieldLabelPlacement::Inset,
+        &props,
+        vec![],
+        vec![
+            field::label(&props, vec![], vec![text("Name")]),
+            fandhe_frontend_pre_styled_ui::input::input(
+                &fandhe_frontend_pre_styled_ui::input::InputProps::default(),
+                &props,
+                vec![("type", "text"), ("placeholder", "Ada Lovelace")],
+            ),
+        ],
+    )
+}
+
+/// [`FIELD`] の Examples 節「Inset labels with shared borders」レンダラ
+/// （イシュー #3134）。`field::inset_stack` の直下へ `Inset` の 2 つの
+/// `root` を並べ、枠線共有の縦連結（`css()` の `inset-stack > ... +`/
+/// `:has(+ ...)` 規則）を実演する。
+fn ex_field_inset_labels_connected() -> Node {
+    let first_name_props = FieldProps {
+        id: "ex-field-inset-connected-first-name",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    let last_name_props = FieldProps {
+        id: "ex-field-inset-connected-last-name",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    field::inset_stack(
+        vec![],
+        vec![
+            field::root_with_label_placement(
+                &FieldRootProps::default(),
+                FieldLabelPlacement::Inset,
+                &first_name_props,
+                vec![],
+                vec![
+                    field::label(&first_name_props, vec![], vec![text("First name")]),
+                    fandhe_frontend_pre_styled_ui::input::input(
+                        &fandhe_frontend_pre_styled_ui::input::InputProps::default(),
+                        &first_name_props,
+                        vec![("type", "text"), ("placeholder", "Ada")],
+                    ),
+                ],
+            ),
+            field::root_with_label_placement(
+                &FieldRootProps::default(),
+                FieldLabelPlacement::Inset,
+                &last_name_props,
+                vec![],
+                vec![
+                    field::label(&last_name_props, vec![], vec![text("Last name")]),
+                    fandhe_frontend_pre_styled_ui::input::input(
+                        &fandhe_frontend_pre_styled_ui::input::InputProps::default(),
+                        &last_name_props,
+                        vec![("type", "text"), ("placeholder", "Lovelace")],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
+/// [`FIELD`] の Examples 節「Overlapping label」レンダラ（イシュー #3134）。
+fn ex_field_overlapping_label() -> Node {
+    let props = FieldProps {
+        id: "ex-field-overlap-email",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    field::root_with_label_placement(
+        &FieldRootProps::default(),
+        FieldLabelPlacement::Overlap,
+        &props,
+        vec![],
+        vec![
+            field::label(&props, vec![], vec![text("Email")]),
+            fandhe_frontend_pre_styled_ui::input::input(
+                &fandhe_frontend_pre_styled_ui::input::InputProps::default(),
+                &props,
+                vec![("type", "email"), ("placeholder", "ada@example.com")],
             ),
         ],
     )
