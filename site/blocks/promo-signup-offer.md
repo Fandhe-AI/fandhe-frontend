@@ -31,11 +31,11 @@ use fandhe_frontend_pre_styled_ui::radio_group::{self, RadioGroupProps};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
-/// リンク先の固定外部 URL（同意文リンク、モジュール doc「見出しレベル」節に
+/// リンク先の固定外部 URL（注記リンク、モジュール doc「見出しレベル」節に
 /// 準じ死リンク `href="#"` は使わない既存方針）。実体は本リポジトリであり
-/// 実在の利用規約ページではないため、リンク文言は「利用規約」のような
-/// 法的文書を指す語ではなく、遷移先と矛盾しない一般的な語にする
-/// （モジュール doc「同意文のリンク文言」節参照）。
+/// 実在の利用規約ページではないため、リンク文言・周辺の注記文は遷移先
+/// （本リポジトリ）を正直に説明する語にする（モジュール doc「注記リンクは
+/// 同意を求めない・遷移先と一致する文言にする」節参照）。
 const REPO: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 /// 興味カテゴリ fieldset の `id`。legend の id は headless
@@ -116,7 +116,9 @@ fn interest_fieldset() -> Node {
     )
 }
 
-/// 形 C（R0347）が末尾に添える同意文（text + link）。
+/// 形 C（R0347）が末尾に添える注記（text + link）。登録への同意を求める
+/// 文言は使わず、リンク先（[`REPO`]）をそのまま説明する（モジュール doc
+/// 「注記リンクは同意を求めない・遷移先と一致する文言にする」節）。
 fn consent_text() -> Node {
     styled_text::text(
         &TextProps {
@@ -126,7 +128,7 @@ fn consent_text() -> Node {
         },
         vec![("data-blocks-promo-signup-offer-consent", "")],
         vec![
-            text("登録すると"),
+            text("このカードはレイアウト例です。リンクは本フレームワークの"),
             link::root(
                 REPO,
                 &LinkProps {
@@ -134,9 +136,9 @@ fn consent_text() -> Node {
                     ..LinkProps::default()
                 },
                 vec![],
-                vec![text("ご利用にあたっての注意事項")],
+                vec![text("GitHub リポジトリ")],
             ),
-            text("に同意したものとみなされます。"),
+            text("を指します。"),
         ],
     )
 }
@@ -146,8 +148,8 @@ fn consent_text() -> Node {
 /// （`"default"`/`"reverse"`/`"centered"`）で、[`LAYOUT_CSS`] が CSS フックに
 /// 使う。`email_id` は variant ごとに一意なリテラルを呼び出し側から渡す
 /// （モジュール doc「id / ARIA の方針」節）。`extra` はボタンの**上**（興味
-/// カテゴリ fieldset 用）、`trailing` はボタンの**下**（同意文用）に差し込む
-/// （モジュール doc「同意文はボタンの下に置く」節）。
+/// カテゴリ fieldset 用）、`trailing` はボタンの**下**（注記用）に差し込む
+/// （モジュール doc「注記はボタンの下に置く」節）。
 fn offer_card(
     layout: &'static str,
     email_id: &'static str,
@@ -262,7 +264,7 @@ pub fn demo() -> Node {
                 vec![interest_fieldset()],
                 vec![],
             ),
-            variant_label("左右反転 + 同意文"),
+            variant_label("左右反転 + 注記"),
             offer_card(
                 "reverse",
                 "blocks-promo-signup-offer-email-c",
