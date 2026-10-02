@@ -49,10 +49,19 @@
 //! # 行番号・強調行（CSS カウンタ）
 //!
 //! 本文の各行は `span[data-blocks-api-reference-playground-line]` として
-//! `code::code` の子に並べ、行番号は CSS カウンタ（`counter-increment`/
+//! `code::code` の子に並べ、最終行以外の各行末に実際の改行テキスト（`\n`）を
+//! 置く（CSS の `display: block` だけに改行を頼ると、選択コピーで行が連結
+//! されるため）。行番号は CSS カウンタ（`counter-increment`/
 //! `::before { content: counter(line) }`）で付与する。選択・コピー時に
 //! 行番号の文字列が本文テキストへ混ざらず、`render` 出力にも増えない
-//! （[`LAYOUT_CSS`] 側の実装）。強調行は `data-highlighted` 属性 +
+//! （[`LAYOUT_CSS`] 側の実装）。
+//!
+//! # コピー値は表示本文と同じ行データから作る
+//!
+//! コピー値（`clipboard::root` の `data-value`）は表示本文と同じ行配列
+//! （[`RESPONSE_LINES`] 等）を `\n` で連結して作り、表示中のコードと完全に
+//! 一致させる。`clipboard::input` は本文と重複する第 2 の表示にならないよう
+//! `visually_hidden::root` で視覚的に隠す（`clipboard::label` と同じ手段）。強調行は `data-highlighted` 属性 +
 //! 背景色 + `border-inline-start` の両方で示し、色だけに頼らない。
 //! スクロール領域（`pre`）はキーボードで届くよう `tabindex="0"` と
 //! `role="region"`・`aria-label` を付与する。
@@ -80,6 +89,47 @@ use fandhe_frontend_pre_styled_ui::select::{self, OpenState, SelectProps};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
+
+/// A（レスポンス）の本文行。表示とコピー値の唯一の供給元。
+const RESPONSE_LINES: [&str; 20] = [
+    "{",
+    "  \"id\": \"proj_8f2a1c\",",
+    "  \"name\": \"storefront-api\",",
+    "  \"status\": \"active\",",
+    "  \"region\": \"us-east-1\",",
+    "  \"owner\": {",
+    "    \"id\": \"usr_41b6\",",
+    "    \"email\": \"owner@api.example.com\"",
+    "  },",
+    "  \"endpoints\": [",
+    "    \"/v1/projects\",",
+    "    \"/v1/projects/{id}\"",
+    "  ],",
+    "  \"rate_limit\": {",
+    "    \"limit\": 1000,",
+    "    \"remaining\": 998",
+    "  },",
+    "  \"created_at\": \"2026-01-04T09:12:00Z\",",
+    "  \"updated_at\": \"2026-03-11T15:40:22Z\"",
+    "}",
+];
+
+/// B（リクエスト）の本文行。表示とコピー値の唯一の供給元。
+const REQUEST_LINES: [&str; 4] = [
+    "curl -X POST https://api.example.com/v1/projects \\",
+    "  -H \"Authorization: Bearer <YOUR_API_TOKEN>\" \\",
+    "  -H \"Content-Type: application/json\" \\",
+    "  -d '{\"name\":\"storefront-api\"}'",
+];
+
+/// C（リクエスト + エラー）の本文行。表示とコピー値の唯一の供給元。
+const ERROR_LINES: [&str; 5] = [
+    "{",
+    "  \"name\": \"\",",
+    "  \"region\": \"mars-central-1\"",
+    "}",
+    "",
+];
 
 /// メソッドバッジ（`GET`/`POST` 等。文字そのものを表示し、色だけに頼らない）。
 fn method_badge(method: &'static str, palette: ColorPalette) -> Node {
@@ -246,10 +296,13 @@ fn language_select(
 /// コピー操作（idle 初期状態）。モジュール doc「無 JS の静的表示である
 /// こと」節: docs サイト自体は無 JS のため静的表示に留まるが、実アプリへ
 /// 組み込めば `headless_clipboard` 配線によりコピー操作は機能する
-/// （`hero_install_command` と同型の判断）。
-fn copy_button(value: &'static str, input_id: &'static str) -> Node {
+/// （`hero_install_command` と同型の判断）。`lines` は表示本文と同じ行配列で、
+/// `\n` で連結した値をコピー値にする（モジュール doc「コピー値は表示本文と
+/// 同じ行データから作る」節）。
+fn copy_button(lines: &[&str], input_id: &'static str) -> Node {
+    let value = lines.join("\n");
     clipboard::root(
-        value,
+        &value,
         false,
         vec![("data-blocks-api-reference-playground-copy", "")],
         vec![
@@ -266,7 +319,10 @@ fn copy_button(value: &'static str, input_id: &'static str) -> Node {
                 false,
                 vec![],
                 vec![
-                    clipboard::input(value, false, vec![("id", input_id)]),
+                    visually_hidden::root(
+                        vec![],
+                        vec![clipboard::input(&value, false, vec![("id", input_id)])],
+                    ),
                     clipboard::trigger(
                         false,
                         vec![],
@@ -297,7 +353,11 @@ fn code_body(
             if highlighted.contains(&i) {
                 attrs.push(("data-highlighted", ""));
             }
-            span(attrs, vec![text(*line)])
+            let mut children = vec![text(*line)];
+            if i + 1 < lines.len() {
+                children.push(text("\n"));
+            }
+            span(attrs, children)
         })
         .collect();
     el(
@@ -318,28 +378,6 @@ fn code_body(
 
 /// A（代表・レスポンス、R0063 対応）。
 fn panel_response() -> Node {
-    const LINES: [&str; 20] = [
-        "{",
-        "  \"id\": \"proj_8f2a1c\",",
-        "  \"name\": \"storefront-api\",",
-        "  \"status\": \"active\",",
-        "  \"region\": \"us-east-1\",",
-        "  \"owner\": {",
-        "    \"id\": \"usr_41b6\",",
-        "    \"email\": \"owner@api.example.com\"",
-        "  },",
-        "  \"endpoints\": [",
-        "    \"/v1/projects\",",
-        "    \"/v1/projects/{id}\"",
-        "  ],",
-        "  \"rate_limit\": {",
-        "    \"limit\": 1000,",
-        "    \"remaining\": 998",
-        "  },",
-        "  \"created_at\": \"2026-01-04T09:12:00Z\",",
-        "  \"updated_at\": \"2026-03-11T15:40:22Z\"",
-        "}",
-    ];
     div(
         vec![
             ("data-blocks-api-reference-playground-panel", ""),
@@ -359,7 +397,7 @@ fn panel_response() -> Node {
                     ),
                     meta_badges("200", ColorPalette::Success, "142 ms", "1.8 KB"),
                     copy_button(
-                        "{\"id\":\"proj_8f2a1c\",\"status\":\"active\"}",
+                        &RESPONSE_LINES,
                         "blocks-api-reference-playground-response-copy",
                     ),
                 ],
@@ -367,7 +405,7 @@ fn panel_response() -> Node {
             code_body(
                 "data-blocks-api-reference-playground-body",
                 "Response body",
-                &LINES,
+                &RESPONSE_LINES,
                 &[2, 3],
             ),
         ],
@@ -382,12 +420,6 @@ fn panel_request_install() -> Node {
         ("curl", "cURL", true),
         ("rust", "Rust", false),
         ("js", "JavaScript", false),
-    ];
-    const LINES: [&str; 4] = [
-        "curl -X POST https://api.example.com/v1/projects \\",
-        "  -H \"Authorization: Bearer <YOUR_API_TOKEN>\" \\",
-        "  -H \"Content-Type: application/json\" \\",
-        "  -d '{\"name\":\"storefront-api\"}'",
     ];
     div(
         vec![
@@ -405,7 +437,7 @@ fn panel_request_install() -> Node {
                     endpoint("/v1/projects"),
                     language_select(LANG_LABEL_ID, LANG_CONTENT_ID, "cURL", &OPTIONS),
                     copy_button(
-                        "curl -X POST https://api.example.com/v1/projects",
+                        &REQUEST_LINES,
                         "blocks-api-reference-playground-request-copy",
                     ),
                 ],
@@ -413,7 +445,7 @@ fn panel_request_install() -> Node {
             code_body(
                 "data-blocks-api-reference-playground-body",
                 "Request body",
-                &LINES,
+                &REQUEST_LINES,
                 &[],
             ),
             div(
@@ -433,13 +465,6 @@ fn panel_request_install() -> Node {
 
 /// C（リクエスト + エラー、R0062 対応）。
 fn panel_request_error() -> Node {
-    const LINES: [&str; 5] = [
-        "{",
-        "  \"name\": \"\",",
-        "  \"region\": \"mars-central-1\"",
-        "}",
-        "",
-    ];
     div(
         vec![
             ("data-blocks-api-reference-playground-panel", ""),
@@ -461,16 +486,13 @@ fn panel_request_error() -> Node {
                         vec![text("Request")],
                     ),
                     meta_badges("400", ColorPalette::Danger, "86 ms", "0.3 KB"),
-                    copy_button(
-                        "{\"name\":\"\",\"region\":\"mars-central-1\"}",
-                        "blocks-api-reference-playground-error-copy",
-                    ),
+                    copy_button(&ERROR_LINES, "blocks-api-reference-playground-error-copy"),
                 ],
             ),
             code_body(
                 "data-blocks-api-reference-playground-body",
                 "Request body",
-                &LINES,
+                &ERROR_LINES,
                 &[1, 2],
             ),
             styled_text::text(
@@ -592,6 +614,7 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-api-reference-playground-copy] {\n  margin-inline-start: auto;\n}\n\
 [data-blocks-api-reference-playground-meta] + [data-blocks-api-reference-playground-copy] {\n  margin-inline-start: 0;\n}\n\
 [data-blocks-api-reference-playground-select] {\n  margin-inline-start: auto;\n}\n\
+[data-blocks-api-reference-playground-select] + [data-blocks-api-reference-playground-copy] {\n  margin-inline-start: 0;\n}\n\
 [data-blocks-api-reference-playground-body] {\n  margin: 0;\n  overflow: auto;\n  max-height: calc(1.5em * 12);\n  line-height: 1.5;\n  counter-reset: line;\n  font-family: var(--fandhe-font-font-mono);\n  font-size: var(--fandhe-font-font-size-sm);\n  padding: var(--fandhe-space-3);\n  background: var(--fandhe-color-bg-subtle);\n  border-radius: var(--fandhe-radius-md);\n}\n\
 [data-scope=\"code\"][data-part=\"root\"][data-blocks-api-reference-playground-body-code] {\n  display: block;\n  white-space: pre;\n  background: transparent;\n  color: inherit;\n  border: 0;\n  padding: 0;\n}\n\
 [data-blocks-api-reference-playground-line] {\n  display: block;\n  position: relative;\n  counter-increment: line;\n  padding-inline-start: 2.5em;\n}\n\
@@ -603,8 +626,8 @@ const LAYOUT_CSS: &str = "\
 
 #[cfg(test)]
 mod tests {
-    use super::{demo, LAYOUT_CSS};
-    use fandhe_frontend_core::render;
+    use super::{demo, ERROR_LINES, LAYOUT_CSS, REQUEST_LINES, RESPONSE_LINES};
+    use fandhe_frontend_core::{escape_html, render};
 
     /// [`LAYOUT_CSS`] が行番号・高さ制限・強調行セレクタを含み、`<` を
     /// 含まないこと（REQ-1）。
@@ -651,5 +674,61 @@ mod tests {
     fn demo_has_highlighted_lines() {
         let html = render(&demo());
         assert!(html.matches("data-highlighted").count() >= 1);
+    }
+
+    /// 各コピー値（`data-value`）が表示本文と同じ行配列の `\n` 連結と完全に
+    /// 一致し、本文の行間（最終行以外の行末）に実際の改行テキストが入ること
+    /// （モジュール doc「行番号・強調行」「コピー値は表示本文と同じ行データ
+    /// から作る」節）。
+    #[test]
+    fn copy_values_match_displayed_code_bodies() {
+        let html = render(&demo());
+        for lines in [&RESPONSE_LINES[..], &REQUEST_LINES[..], &ERROR_LINES[..]] {
+            let joined = lines.join("\n");
+            assert!(
+                html.contains(&format!("data-value=\"{}\"", escape_html(&joined))),
+                "copy value must equal the full displayed body: {joined}"
+            );
+            // 表示本文: 行 span の中身を順に連結するとコピー値に一致する。
+            let mut displayed = String::new();
+            for (i, line) in lines.iter().enumerate() {
+                let newline = if i + 1 < lines.len() { "\n" } else { "" };
+                let inner = format!("{}{newline}</span>", escape_html(line));
+                assert!(html.contains(&inner), "line {i} must end with {newline:?}");
+                displayed.push_str(line);
+                displayed.push_str(newline);
+            }
+            assert_eq!(displayed, joined);
+        }
+        // 旧実装の部分コピー値が残っていないこと。
+        assert!(!html.contains("data-value=\"curl -X POST https://api.example.com/v1/projects\""));
+    }
+
+    /// `clipboard::input` が `visually_hidden::root` で視覚的に隠され、本文と
+    /// 重複する第 2 の表示にならないこと。
+    #[test]
+    fn clipboard_inputs_are_visually_hidden() {
+        let html = render(&demo());
+        for id in [
+            "blocks-api-reference-playground-response-copy",
+            "blocks-api-reference-playground-request-copy",
+            "blocks-api-reference-playground-error-copy",
+        ] {
+            let at = html.find(&format!("id=\"{id}\"")).expect("input id");
+            let open = html[..at].rfind("<input").expect("input tag");
+            assert!(
+                html[..open].ends_with("<span data-scope=\"visually-hidden\" data-part=\"root\">"),
+                "clipboard input {id} must be wrapped by visually_hidden::root"
+            );
+        }
+    }
+
+    /// select と copy が並ぶヘッダーで copy 側の自動余白を打ち消し、右寄せの
+    /// まとまりにすること。
+    #[test]
+    fn layout_css_resets_copy_margin_after_select() {
+        assert!(LAYOUT_CSS.contains(
+            "[data-blocks-api-reference-playground-select] + [data-blocks-api-reference-playground-copy] {\n  margin-inline-start: 0;\n}"
+        ));
     }
 }

@@ -34,6 +34,47 @@ use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSi
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
+/// A（レスポンス）の本文行。表示とコピー値の唯一の供給元。
+const RESPONSE_LINES: [&str; 20] = [
+    "{",
+    "  \"id\": \"proj_8f2a1c\",",
+    "  \"name\": \"storefront-api\",",
+    "  \"status\": \"active\",",
+    "  \"region\": \"us-east-1\",",
+    "  \"owner\": {",
+    "    \"id\": \"usr_41b6\",",
+    "    \"email\": \"owner@api.example.com\"",
+    "  },",
+    "  \"endpoints\": [",
+    "    \"/v1/projects\",",
+    "    \"/v1/projects/{id}\"",
+    "  ],",
+    "  \"rate_limit\": {",
+    "    \"limit\": 1000,",
+    "    \"remaining\": 998",
+    "  },",
+    "  \"created_at\": \"2026-01-04T09:12:00Z\",",
+    "  \"updated_at\": \"2026-03-11T15:40:22Z\"",
+    "}",
+];
+
+/// B（リクエスト）の本文行。表示とコピー値の唯一の供給元。
+const REQUEST_LINES: [&str; 4] = [
+    "curl -X POST https://api.example.com/v1/projects \\",
+    "  -H \"Authorization: Bearer <YOUR_API_TOKEN>\" \\",
+    "  -H \"Content-Type: application/json\" \\",
+    "  -d '{\"name\":\"storefront-api\"}'",
+];
+
+/// C（リクエスト + エラー）の本文行。表示とコピー値の唯一の供給元。
+const ERROR_LINES: [&str; 5] = [
+    "{",
+    "  \"name\": \"\",",
+    "  \"region\": \"mars-central-1\"",
+    "}",
+    "",
+];
+
 /// メソッドバッジ（`GET`/`POST` 等。文字そのものを表示し、色だけに頼らない）。
 fn method_badge(method: &'static str, palette: ColorPalette) -> Node {
     badge::badge(
@@ -199,10 +240,13 @@ fn language_select(
 /// コピー操作（idle 初期状態）。モジュール doc「無 JS の静的表示である
 /// こと」節: docs サイト自体は無 JS のため静的表示に留まるが、実アプリへ
 /// 組み込めば `headless_clipboard` 配線によりコピー操作は機能する
-/// （`hero_install_command` と同型の判断）。
-fn copy_button(value: &'static str, input_id: &'static str) -> Node {
+/// （`hero_install_command` と同型の判断）。`lines` は表示本文と同じ行配列で、
+/// `\n` で連結した値をコピー値にする（モジュール doc「コピー値は表示本文と
+/// 同じ行データから作る」節）。
+fn copy_button(lines: &[&str], input_id: &'static str) -> Node {
+    let value = lines.join("\n");
     clipboard::root(
-        value,
+        &value,
         false,
         vec![("data-blocks-api-reference-playground-copy", "")],
         vec![
@@ -219,7 +263,10 @@ fn copy_button(value: &'static str, input_id: &'static str) -> Node {
                 false,
                 vec![],
                 vec![
-                    clipboard::input(value, false, vec![("id", input_id)]),
+                    visually_hidden::root(
+                        vec![],
+                        vec![clipboard::input(&value, false, vec![("id", input_id)])],
+                    ),
                     clipboard::trigger(
                         false,
                         vec![],
@@ -250,7 +297,11 @@ fn code_body(
             if highlighted.contains(&i) {
                 attrs.push(("data-highlighted", ""));
             }
-            span(attrs, vec![text(*line)])
+            let mut children = vec![text(*line)];
+            if i + 1 < lines.len() {
+                children.push(text("\n"));
+            }
+            span(attrs, children)
         })
         .collect();
     el(
@@ -271,28 +322,6 @@ fn code_body(
 
 /// A（代表・レスポンス、R0063 対応）。
 fn panel_response() -> Node {
-    const LINES: [&str; 20] = [
-        "{",
-        "  \"id\": \"proj_8f2a1c\",",
-        "  \"name\": \"storefront-api\",",
-        "  \"status\": \"active\",",
-        "  \"region\": \"us-east-1\",",
-        "  \"owner\": {",
-        "    \"id\": \"usr_41b6\",",
-        "    \"email\": \"owner@api.example.com\"",
-        "  },",
-        "  \"endpoints\": [",
-        "    \"/v1/projects\",",
-        "    \"/v1/projects/{id}\"",
-        "  ],",
-        "  \"rate_limit\": {",
-        "    \"limit\": 1000,",
-        "    \"remaining\": 998",
-        "  },",
-        "  \"created_at\": \"2026-01-04T09:12:00Z\",",
-        "  \"updated_at\": \"2026-03-11T15:40:22Z\"",
-        "}",
-    ];
     div(
         vec![
             ("data-blocks-api-reference-playground-panel", ""),
@@ -312,7 +341,7 @@ fn panel_response() -> Node {
                     ),
                     meta_badges("200", ColorPalette::Success, "142 ms", "1.8 KB"),
                     copy_button(
-                        "{\"id\":\"proj_8f2a1c\",\"status\":\"active\"}",
+                        &RESPONSE_LINES,
                         "blocks-api-reference-playground-response-copy",
                     ),
                 ],
@@ -320,7 +349,7 @@ fn panel_response() -> Node {
             code_body(
                 "data-blocks-api-reference-playground-body",
                 "Response body",
-                &LINES,
+                &RESPONSE_LINES,
                 &[2, 3],
             ),
         ],
@@ -335,12 +364,6 @@ fn panel_request_install() -> Node {
         ("curl", "cURL", true),
         ("rust", "Rust", false),
         ("js", "JavaScript", false),
-    ];
-    const LINES: [&str; 4] = [
-        "curl -X POST https://api.example.com/v1/projects \\",
-        "  -H \"Authorization: Bearer <YOUR_API_TOKEN>\" \\",
-        "  -H \"Content-Type: application/json\" \\",
-        "  -d '{\"name\":\"storefront-api\"}'",
     ];
     div(
         vec![
@@ -358,7 +381,7 @@ fn panel_request_install() -> Node {
                     endpoint("/v1/projects"),
                     language_select(LANG_LABEL_ID, LANG_CONTENT_ID, "cURL", &OPTIONS),
                     copy_button(
-                        "curl -X POST https://api.example.com/v1/projects",
+                        &REQUEST_LINES,
                         "blocks-api-reference-playground-request-copy",
                     ),
                 ],
@@ -366,7 +389,7 @@ fn panel_request_install() -> Node {
             code_body(
                 "data-blocks-api-reference-playground-body",
                 "Request body",
-                &LINES,
+                &REQUEST_LINES,
                 &[],
             ),
             div(
@@ -386,13 +409,6 @@ fn panel_request_install() -> Node {
 
 /// C（リクエスト + エラー、R0062 対応）。
 fn panel_request_error() -> Node {
-    const LINES: [&str; 5] = [
-        "{",
-        "  \"name\": \"\",",
-        "  \"region\": \"mars-central-1\"",
-        "}",
-        "",
-    ];
     div(
         vec![
             ("data-blocks-api-reference-playground-panel", ""),
@@ -414,16 +430,13 @@ fn panel_request_error() -> Node {
                         vec![text("Request")],
                     ),
                     meta_badges("400", ColorPalette::Danger, "86 ms", "0.3 KB"),
-                    copy_button(
-                        "{\"name\":\"\",\"region\":\"mars-central-1\"}",
-                        "blocks-api-reference-playground-error-copy",
-                    ),
+                    copy_button(&ERROR_LINES, "blocks-api-reference-playground-error-copy"),
                 ],
             ),
             code_body(
                 "data-blocks-api-reference-playground-body",
                 "Request body",
-                &LINES,
+                &ERROR_LINES,
                 &[1, 2],
             ),
             styled_text::text(
@@ -501,6 +514,13 @@ pub fn demo() -> Node {
 - 版 D は R0061（未送信状態・送信ボタンのみ）に対応します。
 - 行番号は CSS カウンタ（`counter-increment`/`::before`）で付与して
   います。選択・コピー時に行番号の文字列が本文へ混ざりません。
+- 本文の各行は、最終行以外の行末に実際の改行文字を持ちます。選択して
+  コピーしても行が連結されません。
+- コピー値は表示中の本文と同じ行データを改行で連結して作るため、本文
+  全体と完全に一致します。`clipboard` の入力欄は本文と重複して見えない
+  よう視覚的に隠しています（ラベルと同じ `visually_hidden` を使用）。
+- 版 B のヘッダーでは言語選択とコピーを右寄せの 1 つのまとまりとして
+  並べます（コピー側の自動余白を打ち消します）。
 - 本文のスクロール領域は 12 行相当（`calc(1.5em * 12)`）で高さを
   抑えています。
 - 言語選択（`select`）はすべてのインスタンスで `disabled: true` +
