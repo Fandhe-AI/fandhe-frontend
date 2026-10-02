@@ -114,25 +114,52 @@
 //!   ため。
 //!
 //! **`data-*` 語彙節**（`docs/design/pre-styled-ui-data-attr-vocabulary.md`
-//! 「役割 B 亜種」）: `data-has-action`/`data-bordered` はいずれも値なし
-//! 存在属性であり、付与者は常に呼び出し側（`header`/`footer` の `attrs`）、
-//! CSS 消費者は本モジュール `recipe()` の state 規則のみである。本部品自身
-//! はこれらの属性を出力しない。
+//! 「役割 B 亜種」）: `data-has-action`/`data-bordered`/`data-subtle`
+//! （イシュー #3127 で追加）はいずれも値なし存在属性であり、付与者は常に
+//! 呼び出し側（`header`/`body`/`footer` の `attrs`）、CSS 消費者は本モジュール
+//! `recipe()` の state 規則のみである。本部品自身はこれらの属性を出力しない。
 //!
 //! **意図的に合わせない点（追加分）**:
 //!
 //! - **size sm 相当・`text-sm`・`ring-1 ring-foreground/10`・`shadow-xs`**:
 //!   本部品は既存 5 段の size 軸（[`Size::Xs`]〜[`Size::Xl`]）で
 //!   shadcn の `size="default"`/`size="sm"` を包含済みと判断し、変更しない。
-//! - **root の `overflow: hidden`・edge-to-edge content（負マージン）・
-//!   footer の `bg-muted/50`**: 上記「参照競合の判定」の理由により対象外、
-//!   または呼び出し側の装飾判断（部品の責務外）と位置づける。
+//! - **root の `overflow: hidden`・edge-to-edge content（負マージン）**:
+//!   上記「参照競合の判定」の理由により対象外、または呼び出し側の装飾判断
+//!   （部品の責務外）と位置づける。**footer の `bg-muted/50`** は
+//!   イシュー #3127 で `data-subtle` opt-in として純追加した（下記節参照）。
 //! - **`data-slot`/`data-size` 等 shadcn 固有 `data-*` 語彙**: 語彙規約
 //!   （`docs/design/pre-styled-ui-data-attr-vocabulary.md`）に反するため
 //!   持ち込まない（class 方式を継続）。
 //! - **cover 下端の角丸**（shadcn `img:last-child:rounded-b-xl`）:
 //!   `StateCondition::LastChild` は「cover が唯一の子」ケースで上下両方が
 //!   丸まる副作用があるため採らない。上端専用とする。
+//!
+//! # `data-subtle` opt-in 状態（イシュー #3127）
+//!
+//! `body`/`footer` へ呼び出し側が `("data-subtle", "")` を渡すと淡色背景
+//! （`--fandhe-color-bg-subtle`）の帯を敷く opt-in 状態。既定は帯なしを
+//! 維持し（参照 3 サイトのいずれも対応物を持たないため既定は不採用）、
+//! `data-bordered` と同じ「呼び出し側付与の値なし存在属性」契約を踏襲する。
+//!
+//! - **角丸の扱い**: root は `overflow: hidden` を持たない（上記「意図的に
+//!   合わせない点」参照）ため、`data-subtle` で背景を敷いた body/footer が
+//!   最後の子になると下端の角が root の角丸からはみ出す。対策として
+//!   `StateCondition::LastChild` による inner radius（root border 1px を
+//!   差し引いた値、[`cover`] パーツの上端クリップと同型）を body/footer の
+//!   `:last-child` へ常に出す（`data-subtle` の有無を問わない。背景も枠線も
+//!   持たない通常時は角丸が見た目に影響しないため既存出力は変わらない）。
+//!   `SlotRecipe` は Attr と LastChild を AND する条件を持たない
+//!   （[`StateCondition`] 参照）ため、この代替で表現する。
+//!   body/footer が root の先頭または唯一の子になる構成（header も cover
+//!   もない）では上端も同様にはみ出すため、
+//!   [`StateCondition::AttrFirstChild`]（`[data-subtle]:first-child`、
+//!   PR #3560 Codex レビュー P1/P2 指摘対応）による内側上端の角丸も
+//!   `data-subtle` 付与時に限り出す（`:first-child` は唯一の子にも
+//!   一致するため両ケースを 1 条件で捕捉する）。
+//! - **既知の制約**: [`CardVariant::Subtle`] の root はもともと
+//!   `bg-subtle` のため、`data-subtle` の帯は見分けられない。
+//!   `Outline`/`Elevated` との併用を推奨する。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -477,6 +504,92 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("data-bordered"),
             vec![decl("border-top", "1px solid var(--fandhe-color-border)")],
         )
+        // イシュー #3127: `data-subtle` opt-in 状態（呼び出し側付与の値なし
+        // 存在属性、`data-bordered` と同じ語彙規約）。body/footer へ渡すと
+        // 淡色帯（`--fandhe-color-bg-subtle`）を敷く。card.rs モジュール
+        // rustdoc「`data-subtle` opt-in 状態」節参照。
+        .state(
+            "body",
+            StateCondition::Attr("data-subtle"),
+            vec![decl("background", "var(--fandhe-color-bg-subtle)")],
+        )
+        .state(
+            "footer",
+            StateCondition::Attr("data-subtle"),
+            vec![decl("background", "var(--fandhe-color-bg-subtle)")],
+        )
+        // イシュー #3127 PR #3560 Codex レビュー P1/P2 指摘対応: body/footer
+        // が `data-subtle` を付けたまま root の先頭または唯一の子になる
+        // 構成（header も cover もない）では、上記 `:last-child` と対称に
+        // 上端も root の角丸からはみ出す。`[data-subtle]:first-child` の
+        // ときのみ内側上端の角丸を出す（`data-subtle` なしの通常時は
+        // 従来どおり無関係のため既存出力は変わらない）。
+        .state(
+            "body",
+            StateCondition::AttrFirstChild("data-subtle"),
+            vec![
+                decl(
+                    "border-start-start-radius",
+                    "calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px)",
+                ),
+                decl(
+                    "border-start-end-radius",
+                    "calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px)",
+                ),
+            ],
+        )
+        .state(
+            "footer",
+            StateCondition::AttrFirstChild("data-subtle"),
+            vec![
+                decl(
+                    "border-start-start-radius",
+                    "calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px)",
+                ),
+                decl(
+                    "border-start-end-radius",
+                    "calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px)",
+                ),
+            ],
+        )
+        // root は `overflow: hidden` を持たない（#2046 で不採用、cover の
+        // クリップ回帰を避けるため）ため、body/footer が最後の子かつ
+        // 背景を持つ（`data-subtle`）場合、下端の角が root の角丸から
+        // はみ出す。`data-subtle` の有無に関係なく `:last-child` の角丸を
+        // 常に出す（背景・枠線がない通常時は見た目に影響しないため既存
+        // 外観は変わらない）。`StateCondition` は Attr と LastChild の AND
+        // 条件を持たない（§「意図的にやらないこと」参照）ため、body が
+        // 先頭の子で `data-subtle` を付けた場合の上端は、上記
+        // `AttrFirstChild` 規則（PR #3560 Codex レビュー P1/P2 指摘対応）が
+        // 別途担う。
+        .state(
+            "body",
+            StateCondition::LastChild,
+            vec![
+                decl(
+                    "border-end-start-radius",
+                    "calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px)",
+                ),
+                decl(
+                    "border-end-end-radius",
+                    "calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px)",
+                ),
+            ],
+        )
+        .state(
+            "footer",
+            StateCondition::LastChild,
+            vec![
+                decl(
+                    "border-end-start-radius",
+                    "calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px)",
+                ),
+                decl(
+                    "border-end-end-radius",
+                    "calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px)",
+                ),
+            ],
+        )
 }
 
 /// Card の静的 CSS 全文。
@@ -531,13 +644,27 @@ pub fn header<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     ANATOMY.part("header", "div", attrs, children)
 }
 
-/// body パーツ（`<div>`）を組み立てる。
+/// body パーツ（`<div>`）を組み立てる。呼び出し側が `attrs` へ
+/// `("data-subtle", "")` を渡すと淡色背景の帯を敷く opt-in 状態になる
+/// （イシュー #3127、モジュール rustdoc「`data-subtle` opt-in 状態」節参照）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::card;
+///
+/// let node = card::body(vec![("data-subtle", "")], vec![]);
+/// assert!(render(&node).contains(r#"data-subtle="""#));
+/// ```
 #[must_use]
 pub fn body<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     ANATOMY.part("body", "div", attrs, children)
 }
 
-/// footer パーツ（`<div>`）を組み立てる。
+/// footer パーツ（`<div>`）を組み立てる。呼び出し側が `attrs` へ
+/// `("data-subtle", "")` を渡すと淡色背景の帯を敷く opt-in 状態になる
+/// （イシュー #3127、モジュール rustdoc「`data-subtle` opt-in 状態」節参照）。
 #[must_use]
 pub fn footer<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     ANATOMY.part("footer", "div", attrs, children)
@@ -704,6 +831,18 @@ mod tests {
         assert!(html.contains(r#"data-bordered="""#));
     }
 
+    /// イシュー #3127: `data-subtle` を body/footer へ渡すとそのまま
+    /// 出力に残ることを固定する（recipe 側の state 規則はこの属性を
+    /// 前提に CSS を出し分けるのみで、属性自体の付与は呼び出し側の責務）。
+    #[test]
+    fn body_and_footer_with_data_subtle_attr_render_attribute() {
+        let html = render(&body(vec![("data-subtle", "")], vec![]));
+        assert!(html.contains(r#"data-subtle="""#));
+
+        let html = render(&footer(vec![("data-subtle", "")], vec![]));
+        assert!(html.contains(r#"data-subtle="""#));
+    }
+
     /// イシュー #2046: `cover` に画像を子として渡す合成パターン
     /// （shadcn/ui cover image 相当）が既存 `image::image` 経由で組める
     /// ことを固定する。
@@ -800,6 +939,33 @@ mod tests {
     /// 呼び出しを壊さないため）を固定する。`CardVariant` を直接渡す旧 API
     /// 互換の呼び出しと `CardProps { variant, size }` を明示的に渡す呼び出し
     /// （`size` を `Size::Md` 既定に揃えた場合）が同一出力になることを示す。
+    /// イシュー #3127: `data-subtle` opt-in 状態のセレクタが body/footer の
+    /// 両方に出力されることを固定する。
+    #[test]
+    fn css_output_declares_subtle_state_selectors() {
+        let out = css();
+        assert!(out.contains(r#"[data-scope="card"][data-part="body"][data-subtle]"#));
+        assert!(out.contains(r#"[data-scope="card"][data-part="footer"][data-subtle]"#));
+        assert!(out.contains("background: var(--fandhe-color-bg-subtle);"));
+    }
+
+    /// PR #3560 Codex レビュー P1/P2 指摘対応: body/footer が
+    /// `[data-subtle]:first-child`（root の先頭または唯一の子）になる
+    /// 構成で、内側上端の角丸（`border-start-start-radius`/
+    /// `border-start-end-radius`）が出力されることを固定する。
+    #[test]
+    fn css_output_declares_subtle_first_child_top_radius() {
+        let out = css();
+        assert!(out.contains(r#"[data-scope="card"][data-part="body"][data-subtle]:first-child"#));
+        assert!(out.contains(r#"[data-scope="card"][data-part="footer"][data-subtle]:first-child"#));
+        let rule = out
+            .find(r#"[data-scope="card"][data-part="body"][data-subtle]:first-child"#)
+            .map(|idx| &out[idx..])
+            .expect("body [data-subtle]:first-child rule must be present");
+        assert!(rule.contains("border-start-start-radius: calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px);"));
+        assert!(rule.contains("border-start-end-radius: calc(var(--fandhe-card-radius, var(--fandhe-radius-lg)) - 1px);"));
+    }
+
     #[test]
     fn root_accepts_card_variant_directly_and_matches_explicit_card_props() {
         let via_variant = render(&root(CardVariant::Elevated, vec![], vec![]));

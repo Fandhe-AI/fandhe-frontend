@@ -3640,15 +3640,36 @@ name = "fandhe-frontend-pre-styled-ui"
 # 下回っていたため、origin 側の統合結果（0.220.0）に本変更分を上乗せし
 # 0.221.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 #
+# イシュー #3127: card（body/footer）・dialog（footer）へ淡色背景の
+# opt-in 状態（`data-subtle`）を純追加した。呼び出し側付与の値なし存在
+# 属性で既存 base/variant/既存 state 規則の出力はバイト不変（golden は
+# 末尾純追加）のため非破壊的な追加として minor バンプする。本ブランチは
+# merge base（0.220.0）から独立に 0.221.0 へ到達していたが、origin/main
+# 側（#3125）も独立に 0.221.0 へ到達していたため、同一版数への偶発的
+# 衝突をそのまま採用せず双方の実体変更を統合した結果として 0.222.0 へ
+# さらにマイナーバンプする（`.claude/rules/coding-rust.md` #638 条項の
+# 同衝突運用）。
+#
+# PR #3560 Codex レビュー P1/P2 指摘対応: 先頭の body/footer に `data-subtle`
+# を付けた構成で淡色背景が root 上端の角丸からはみ出す問題を修正した。
+# `StateCondition::AttrFirstChild`（Attr と `:first-child` の AND 条件）を
+# `crates/pre-styled-ui/src/recipe.rs` へ新設し、body/footer の
+# `[data-subtle]:first-child` へ内側上端の角丸を純追加した（既存 golden の
+# 既存ブロックはバイト不変、末尾純追加）。非破壊的な追加として minor
+# バンプする。
+#
+# マージコミット注記（origin/main #3128 との統合）: 本ブランチは独立に
+# 0.223.0 へ到達していたが、origin/main 側（drawer の #3128）も独立に
+# 0.222.0 へ到達していたため、同一衝突回避のため双方の実体変更を統合した
+# 結果として 0.224.0 へさらにマイナーバンプする（`.claude/rules/coding-rust.md`
+# #638 条項の同衝突運用）。
+#
 # イシュー #3128: drawer に pre-styled-only `body`/`footer` パート
 # （headless anatomy 変更なしの opt-in 純追加、`dialog::body`/`dialog::footer`
 # と同型）を追加した。新規公開 API（`drawer::body`/`drawer::footer`）のみで
 # 既存関数シグネチャ・golden CSS の既存ブロックは不変のため非破壊的な追加
-# として minor バンプする。本ブランチは独立に 0.220.0 から 0.221.0 へ到達
-# していたが、origin/main 側（tab_nav、上記 #3125）も独立に同一の 0.221.0
-# へ到達しており偶発的に衝突したため、マージ結果としてさらに +1 して
-# 0.222.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
-version = "0.222.0"
+# として minor バンプする。
+version = "0.224.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
