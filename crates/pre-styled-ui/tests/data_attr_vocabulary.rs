@@ -987,6 +987,34 @@ fn drawer_header_emits_no_self_produced_data_attrs() {
     );
 }
 
+/// `toast::content`/`toast::actions`（イシュー #3142）も `drawer::header` と
+/// 同型の pre-styled-only パートのため、anatomy 属性（data-scope/data-part）
+/// 以外の `data-*` を自ら出力しないことを固定する。`ACTIONS_COLUMN_ATTR`
+/// （`data-actions-column`）はあくまで呼び出し側が任意で渡す opt-in 属性で
+/// あり、`content`/`actions` 自身が自動付与する語彙ではない。
+#[test]
+fn toast_content_and_actions_emit_no_self_produced_data_attrs() {
+    use fandhe_frontend_pre_styled_ui::toast;
+
+    let html = render(&toast::content(vec![], vec![text("Saved")]));
+    assert!(html.contains(r#"data-scope="toast""#));
+    assert!(html.contains(r#"data-part="content""#));
+    let data_attr_count = html.matches("data-").count();
+    assert_eq!(
+        data_attr_count, 2,
+        "toast::content は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
+    );
+
+    let html = render(&toast::actions(vec![], vec![]));
+    assert!(html.contains(r#"data-scope="toast""#));
+    assert!(html.contains(r#"data-part="actions""#));
+    let data_attr_count = html.matches("data-").count();
+    assert_eq!(
+        data_attr_count, 2,
+        "toast::actions は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
+    );
+}
+
 /// `close_trigger_with_variant`（イシュー #2193）の `data-variant`
 /// （`icon`/`text`）は headless 層（`fandhe_frontend_headless_ui::dialog`/
 /// `drawer`）が出力する語彙であり、pre-styled 層（`crate::dialog`/

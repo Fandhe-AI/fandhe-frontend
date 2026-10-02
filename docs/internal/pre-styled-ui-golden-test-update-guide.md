@@ -184,7 +184,13 @@ property 間接参照）・`StateCondition::LastChild` state 1 個
 追加した。フォールバック値はいずれも既存の直書きリテラル・各プロパティの
 初期値と同一のため Line/Pill の computed style は不変、
 `TAB_NAV_GOLDEN_CSS_BEFORE_3126` + 部分一致による純追加固定アサーションも
-追加）** / tags_input / timeline / timer / toast /
+追加）** / tags_input / timeline / timer / **toast（イシュー #3142 で
+`close-trigger` base の直後へ `content`/`actions` base 2 件を、
+`focus-visible` state ブロック群の直後・`@media (hover: hover)` ブロックの
+直前へ右端アクション列レイアウト（`data-actions-column`）の state 規則
+4 件（`root` の Attr・`action-trigger` の Attr・`AttrFirstChild`・
+`LastChild`、登録順固定）を中間挿入。いずれも opt-in 属性付与時のみ発火
+する新規セレクタのため既存ブロックはバイト不変）** /
 **toggle（イシュー #2023 で golden 新設）** /
 **toggle_group（イシュー #2024 で golden 新設）** / toggle_tip / tour /
 visually_hidden

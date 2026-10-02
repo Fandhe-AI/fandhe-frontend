@@ -3895,7 +3895,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # #3573 対応を含む到達値、本ブランチの base merge 時点）も独立に同一の
 # 0.233.0 へ到達していた（偶発的衝突）ため、そのまま採用せずさらに +1 して
 # 0.234.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
-version = "0.234.0"
+#
+# イシュー #3142: toast に opt-in の右端アクション列レイアウト
+# （`ACTIONS_COLUMN_ATTR`・pre-styled-only `content`/`actions` パート）を
+# 追加した。`SLOTS` へ `content`/`actions` を末尾追加し、`root`/
+# `action-trigger` の state 条件追加も opt-in 属性付与時のみ発火するため
+# 既存 golden ブロックの出力バイトは不変（純追加のみ）。公開 API 純追加の
+# ため minor バンプする。
+version = "0.235.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
