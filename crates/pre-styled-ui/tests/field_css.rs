@@ -236,6 +236,9 @@ const FIELD_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="root"] {
   border-end-start-radius: 0;
   border-end-end-radius: 0;
 }
+[data-scope="field"][data-part="root"].fd-field--label-placement-inset:has(+ [data-scope="field"][data-part="root"].fd-field--label-placement-inset[data-invalid]) {
+  border-bottom-color: var(--fandhe-color-danger);
+}
 [data-scope="field"][data-part="root"].fd-field--label-placement-overlap {
   border: 1px solid var(--fandhe-color-border);
   border-radius: var(--fandhe-radius-md);
@@ -245,6 +248,14 @@ const FIELD_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="root"] {
 }
 [data-scope="field"][data-part="root"].fd-field--label-placement-overlap > [data-scope="field"][data-part="input"] {
   border: 0;
+}
+[data-scope="field"][data-part="root"].fd-field--label-placement-overlap:focus-within {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
+  z-index: 1;
+}
+[data-scope="field"][data-part="root"].fd-field--label-placement-overlap > [data-scope="field"][data-part="input"]:focus-visible {
+  outline: none;
 }
 [data-scope="field"][data-part="root"].fd-field--label-placement-overlap > [data-scope="field"][data-part="label"] {
   position: absolute;

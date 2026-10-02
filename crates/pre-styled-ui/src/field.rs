@@ -699,6 +699,18 @@ pub fn css() -> String {
         "{root_inset}:has(+ {root_inset}) {{\n  \
          border-end-start-radius: 0;\n  border-end-end-radius: 0;\n}}\n",
     ));
+    // 後続フィールドが `data-invalid` のとき、共有する辺（先行要素の
+    // `border-bottom`。後続は上で `border-top: 0` のため）をエラー色へ
+    // 切り替える（codex-review 指摘、PR #3570）。先行要素自身が invalid の
+    // ときは上の `{root_inset}[data-invalid]` が既に境界線全体をエラー色に
+    // しているため、ここでは「後続のみ invalid」なケースを拾えば足りる。
+    // セレクタ `{root_inset}:has(+ {root_inset}[data-invalid])` は
+    // `:has()` 引数側の属性セレクタ 1 件分だけ平時の `[data-invalid]` 規則
+    // より詳細度が高く、宣言順に関わらず確実に上書きする。
+    out.push_str(&format!(
+        "{root_inset}:has(+ {root_inset}[data-invalid]) {{\n  \
+         border-bottom-color: var(--fandhe-color-danger);\n}}\n",
+    ));
     // overlap: root の base は position: relative を既に持つ（本モジュール
     // `recipe()` の `root` base 宣言参照）が、モジュール doc が謳う「root の
     // 枠線の上へ重ねる」を成立させるには root 自身が枠線を持つ必要がある
@@ -719,6 +731,25 @@ pub fn css() -> String {
     out.push_str(&format!(
         "{root_overlap} > [data-scope=\"field\"][data-part=\"input\"] {{\n  \
          border: 0;\n}}\n",
+    ));
+    // input 自身の `:focus-visible` outline（`input.rs` 既定）が root の
+    // 枠線より内側へ input 矩形沿いのリングとして残り、キーボードフォーカス
+    // 時に二重のフォーカス表示になる（codex-review 指摘、PR #3570）。
+    // Inset と同様、input 側の outline を消し root 側の `:focus-within` で
+    // 枠線全体を縁取るリングへ一体化する。
+    {
+        let mut focus_within =
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Inset);
+        focus_within.push(decl("z-index", "1"));
+        if let Some(block) =
+            crate::css::serialize_rule(&format!("{root_overlap}:focus-within"), &focus_within)
+        {
+            out.push_str(&block);
+        }
+    }
+    out.push_str(&format!(
+        "{root_overlap} > [data-scope=\"field\"][data-part=\"input\"]:focus-visible {{\n  \
+         outline: none;\n}}\n",
     ));
     out.push_str(&format!(
         "{root_overlap} > [data-scope=\"field\"][data-part=\"label\"] {{\n  \
@@ -1054,6 +1085,18 @@ mod tests {
     }
 
     #[test]
+    fn css_contains_inset_invalid_sibling_shared_border_rule() {
+        // PR #3570 レビュー指摘是正: 後続フィールドのみ `data-invalid` の
+        // ときも、共有する辺（先行要素の `border-bottom`）がエラー色へ
+        // 切り替わることを固定する。
+        let out = css();
+        assert!(out.contains(
+            "fd-field--label-placement-inset:has(+ [data-scope=\"field\"][data-part=\"root\"].fd-field--label-placement-inset[data-invalid]) {\n  \
+             border-bottom-color: var(--fandhe-color-danger);\n}\n"
+        ));
+    }
+
+    #[test]
     fn css_contains_overlap_rules_and_label_bg_var() {
         let out = css();
         assert!(out.contains("fd-field--label-placement-overlap"));
@@ -1063,6 +1106,21 @@ mod tests {
         assert!(out.contains(
             "[data-scope=\"field\"][data-part=\"root\"].fd-field--label-placement-overlap {\n  \
              border: 1px solid var(--fandhe-color-border);\n"
+        ));
+    }
+
+    #[test]
+    fn css_contains_overlap_focus_within_ring_and_input_outline_reset() {
+        // PR #3570 レビュー指摘是正: input 自身の `:focus-visible` outline を
+        // 消し、root 側の `:focus-within` が枠線全体を縁取るリングへ一体化
+        // することを固定する（Inset と同型）。
+        let out = css();
+        assert!(out.contains(
+            "[data-scope=\"field\"][data-part=\"root\"].fd-field--label-placement-overlap:focus-within"
+        ));
+        assert!(out.contains(
+            ".fd-field--label-placement-overlap > [data-scope=\"field\"][data-part=\"input\"]:focus-visible {\n  \
+             outline: none;\n}\n"
         ));
     }
 
