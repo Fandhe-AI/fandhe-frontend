@@ -69,7 +69,13 @@ diff が読みやすい）部品を安易に (b) へ切り替えないでくだ�
 `[hidden]` state・`@starting-style`・
 `@supports not (height: calc-size(auto, size))` ブロックを末尾側へ純追加、
 `bubble_pre_2282_blocks_remain_verbatim` を追加）** /
-**button_group（イシュー #2060 で golden 新設。`stylesheet()` 全文）** /
+**button_group（イシュー #2060 で golden 新設。`stylesheet()` 全文。イシュー
+#3135 で `data-attached` opt-in 規則（入れ子の内側 root の間隔打ち消し・
+縦外側での幅揃え・接続辺の角丸/境界線解除）を末尾へ純追加。PR #3569 で
+既存の `:not(:first-child)`/`:not(:last-child)` ブロックへ「隣が間隔を保つ
+内側 root なら除外」の `:not(D + 自分)`/`:not(:has(+ D))` 節を中間挿入し、
+attached 規則のセレクタも同形へ変更〔既存ブロックのバイト変更〕、各
+`:not(:last-child)` ブロックの直後へ `D + 子` の間隔ブロックを中間挿入）** /
 **calendar（イシュー #3132 で `root` variant（`variant`/`cell-size` 軸）
 2 ブロックを size variant 5 段の直後へ中間挿入し、末尾へ
 `CalendarCellSize::Large` の子孫セレクタ 2 規則（`table`/`table-cell`）を
