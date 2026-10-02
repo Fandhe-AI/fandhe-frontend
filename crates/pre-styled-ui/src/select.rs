@@ -320,19 +320,25 @@
 //! - **`Start` の実現方法**: `root` variant で 2 本の CSS 変数
 //!   （`--fandhe-select-item-position`/`--fandhe-select-item-indicator-
 //!   position`）を `relative`/`absolute` へ切り替え、size × `Start` の
-//!   compound variant で `item` の左 padding をインジケータ分広げつつ
-//!   `--fandhe-select-item-indicator-left` を宣言する。実際に
-//!   `position: absolute` + `left` を適用するのは `item`/`item-indicator`
-//!   の **state 規則**（`[data-state="open"]`、インジケータが見えるのは
-//!   選択中の項目のみのため）であり、base ブロックは変更しない（既存
-//!   golden の前半固定テスト `golden_prefix_through_hidden_select_is_
-//!   unchanged`・`select_pre_2391_blocks_remain_verbatim` を壊さないための
-//!   設計判断）。
+//!   compound variant で `--fandhe-select-item-padding-inline-start`
+//!   （インジケータ分広げた論理方向の padding）と
+//!   `--fandhe-select-item-indicator-inset-inline-start` を宣言する。
+//!   物理方向（`left`/4 値 padding）は `direction: rtl` で左右が反転せず
+//!   チェックマーク位置が崩れるため使わない（Bugbot Medium 指摘、PR
+//!   #3561）。`item` は `padding-inline-start`（既定は
+//!   `--fandhe-select-item-padding-inline` にフォールバックし、`item`
+//!   base の既存 `padding` 物理 2 値 shorthand と常に同値のため End 既定
+//!   出力は不変）、`item-indicator` は `inset-inline-start` を適用する
+//!   `[data-state="open"]` **state 規則**（インジケータが見えるのは選択中
+//!   の項目のみのため）が実際の配置を担い、base ブロックは変更しない
+//!   （既存 golden の前半固定テスト `golden_prefix_through_hidden_select_
+//!   is_unchanged`・`select_pre_2391_blocks_remain_verbatim` を壊さない
+//!   ための設計判断）。
 //! - **縦位置は無調整**: `item` は `display: flex` + `align-items: center`
 //!   のため、絶対配置した `item-indicator` の静的位置はその flex コンテナの
 //!   中央に揃う（CSS Flexbox の仕様上の挙動）。`top`/`transform` は宣言し
-//!   ない。`left` 指定により既存の `margin-left: auto` は 0 へ解決される
-//!   ため、End 用の宣言を打ち消す追加宣言も不要。
+//!   ない。`inset-inline-start` 指定により既存の `margin-left: auto` は
+//!   0 へ解決されるため、End 用の宣言を打ち消す追加宣言も不要。
 //! - **`--fandhe-select-item-indicator-size`**: インジケータ幅調整用の
 //!   フォールバック専用変数（既定 `1em`）。本モジュールは宣言せず参照の
 //!   みを提供する（アイコン幅が `1em` を超える場合の呼び出し側調整用）。
@@ -589,6 +595,26 @@ fn recipe() -> SlotRecipe {
         .base(
             "item",
             transition_declarations("background, color", MotionDuration::Fast),
+        )
+        // イシュー #3124: `padding-inline-start` 論理プロパティでインジ
+        // ケータ分の padding を上書きする純追加ブロック。未設定時
+        // （`--fandhe-select-item-padding-inline-start` 不在）は
+        // `--fandhe-select-item-padding-inline`（各 size variant が
+        // `--fandhe-select-item-padding` と同値で宣言する対称値、下記
+        // size variant 節参照）へフォールバックし、直前の `padding`
+        // shorthand（上記 base ブロック）と計算結果が一致するため、
+        // `ItemIndicatorPlacement::Start` 未指定時の出力は不変（LTR/RTL
+        // いずれも inline-start = inline-end の対称値のまま）。`Start` の
+        // size × placement compound variant（下記）が
+        // `--fandhe-select-item-padding-inline-start` を上書きすると、
+        // 後勝ちの `padding-inline-start` が `direction` に応じて正しい
+        // 物理側（LTR は左・RTL は右）だけを広げる。
+        .base(
+            "item",
+            vec![decl(
+                "padding-inline-start",
+                "var(--fandhe-select-item-padding-inline-start, var(--fandhe-select-item-padding-inline, var(--fandhe-space-3)))",
+            )],
         )
         // チェックマーク（item-indicator）を item 末尾へ寄せる。`display` は
         // ここでは宣言しない（headless の非選択時 `hidden` 存在属性による
@@ -897,6 +923,39 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-select-content-max-height", "24rem"),
             ],
         )
+        // イシュー #3124: `item` の `padding-inline-start`（論理プロパ
+        // ティ）が参照するフォールバック（`--fandhe-select-item-padding`
+        // の水平成分と同値の対称値）。上記 size variant（`#729`）の既存
+        // ブロックを書き換えず、`.variant()` の同一値への複数回登録は
+        // 連結される別ブロックとして出力される性質（`.base()` の「複数
+        // 回登録の純追加」と同型）を利用した純追加のため、
+        // `select_pre_2391_blocks_remain_verbatim` の golden ブロックは
+        // バイト不変。`Start` 未指定時の出力に影響しない。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![decl("--fandhe-select-item-padding-inline", "var(--fandhe-space-1)")],
+        )
+        .variant(
+            Size::Sm,
+            "root",
+            vec![decl("--fandhe-select-item-padding-inline", "var(--fandhe-space-2)")],
+        )
+        .variant(
+            Size::Md,
+            "root",
+            vec![decl("--fandhe-select-item-padding-inline", "var(--fandhe-space-3)")],
+        )
+        .variant(
+            Size::Lg,
+            "root",
+            vec![decl("--fandhe-select-item-padding-inline", "var(--fandhe-space-4)")],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![decl("--fandhe-select-item-padding-inline", "var(--fandhe-space-5)")],
+        )
         // イシュー #3117: 共通 shape 軸。size variant 登録の後に置く（純追加、
         // `Circle` は未登録）。trigger の `border-radius` 行が参照する
         // `--fandhe-select-trigger-radius` を root スコープで上書きする
@@ -956,21 +1015,27 @@ fn recipe() -> SlotRecipe {
         // #3561）。size variant（上記 `.variant(Size::*, "root", ..)`）と
         // 同じ「root スコープで CSS custom property を宣言し、子孫の
         // item/item-indicator がそれを `var()` で参照して継承する」
-        // パターンに統一し、slot を `"root"` にする。`item` の左 padding を
-        // インジケータ分広げ、インジケータの絶対配置に使う `left`
-        // フォールバック値を宣言する（size ごとの横 padding と同じ
-        // スケール: Xs=space-1 / Sm=space-2 / Md=space-3 / Lg=space-4 /
-        // Xl=space-5）。2 class（size + item-indicator-placement）の
-        // 詳細度により、単独 size variant の同名変数より後勝ちで上書きする。
+        // パターンに統一し、slot を `"root"` にする。`item` の inline-start
+        // 側 padding をインジケータ分広げ、インジケータの絶対配置に使う
+        // `inset-inline-start` フォールバック値を宣言する（物理方向
+        // `left`/4 値 padding は `direction: rtl` で反転せずチェックマーク
+        // 位置が崩れるため使わない、Bugbot Medium 指摘、PR #3561。
+        // size ごとの横 padding と同じスケール: Xs=space-1 / Sm=space-2 /
+        // Md=space-3 / Lg=space-4 / Xl=space-5）。2 class（size +
+        // item-indicator-placement）の詳細度により、単独 size variant の
+        // 同名変数より後勝ちで上書きする。
         .compound_variant(
             vec![when(Size::Xs), when(ItemIndicatorPlacement::Start)],
             "root",
             vec![
                 decl(
-                    "--fandhe-select-item-padding",
-                    "var(--fandhe-space-0-5) var(--fandhe-space-1) var(--fandhe-space-0-5) calc(var(--fandhe-space-1) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-1))",
+                    "--fandhe-select-item-padding-inline-start",
+                    "calc(var(--fandhe-space-1) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-1))",
                 ),
-                decl("--fandhe-select-item-indicator-left", "var(--fandhe-space-1)"),
+                decl(
+                    "--fandhe-select-item-indicator-inset-inline-start",
+                    "var(--fandhe-space-1)",
+                ),
             ],
         )
         .compound_variant(
@@ -978,10 +1043,13 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl(
-                    "--fandhe-select-item-padding",
-                    "var(--fandhe-space-1) var(--fandhe-space-2) var(--fandhe-space-1) calc(var(--fandhe-space-2) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-1))",
+                    "--fandhe-select-item-padding-inline-start",
+                    "calc(var(--fandhe-space-2) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-1))",
                 ),
-                decl("--fandhe-select-item-indicator-left", "var(--fandhe-space-2)"),
+                decl(
+                    "--fandhe-select-item-indicator-inset-inline-start",
+                    "var(--fandhe-space-2)",
+                ),
             ],
         )
         .compound_variant(
@@ -989,10 +1057,13 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl(
-                    "--fandhe-select-item-padding",
-                    "var(--fandhe-space-2) var(--fandhe-space-3) var(--fandhe-space-2) calc(var(--fandhe-space-3) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-2))",
+                    "--fandhe-select-item-padding-inline-start",
+                    "calc(var(--fandhe-space-3) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-2))",
                 ),
-                decl("--fandhe-select-item-indicator-left", "var(--fandhe-space-3)"),
+                decl(
+                    "--fandhe-select-item-indicator-inset-inline-start",
+                    "var(--fandhe-space-3)",
+                ),
             ],
         )
         .compound_variant(
@@ -1000,10 +1071,13 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl(
-                    "--fandhe-select-item-padding",
-                    "var(--fandhe-space-3) var(--fandhe-space-4) var(--fandhe-space-3) calc(var(--fandhe-space-4) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-3))",
+                    "--fandhe-select-item-padding-inline-start",
+                    "calc(var(--fandhe-space-4) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-3))",
                 ),
-                decl("--fandhe-select-item-indicator-left", "var(--fandhe-space-4)"),
+                decl(
+                    "--fandhe-select-item-indicator-inset-inline-start",
+                    "var(--fandhe-space-4)",
+                ),
             ],
         )
         .compound_variant(
@@ -1011,10 +1085,13 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl(
-                    "--fandhe-select-item-padding",
-                    "var(--fandhe-space-4) var(--fandhe-space-5) var(--fandhe-space-4) calc(var(--fandhe-space-5) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-4))",
+                    "--fandhe-select-item-padding-inline-start",
+                    "calc(var(--fandhe-space-5) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-4))",
                 ),
-                decl("--fandhe-select-item-indicator-left", "var(--fandhe-space-5)"),
+                decl(
+                    "--fandhe-select-item-indicator-inset-inline-start",
+                    "var(--fandhe-space-5)",
+                ),
             ],
         )
         // イシュー #3124: `item`/`item-indicator` の `[data-state="open"]`
@@ -1040,7 +1117,10 @@ fn recipe() -> SlotRecipe {
                     "position",
                     "var(--fandhe-select-item-indicator-position, static)",
                 ),
-                decl("left", "var(--fandhe-select-item-indicator-left, auto)"),
+                decl(
+                    "inset-inline-start",
+                    "var(--fandhe-select-item-indicator-inset-inline-start, auto)",
+                ),
             ],
         )
         .presence_transition("content", MotionDuration::Fast)
@@ -1328,7 +1408,8 @@ mod tests {
                 "missing compound variant block for size={size_class}, css={css}"
             );
         }
-        assert!(css.contains("--fandhe-select-item-indicator-left: var(--fandhe-space-3);"));
+        assert!(css
+            .contains("--fandhe-select-item-indicator-inset-inline-start: var(--fandhe-space-3);"));
         // state 規則（`[data-state=\"open\"]`、item/item-indicator 各 1 件）。
         assert!(css.contains(
             "[data-scope=\"select\"][data-part=\"item\"][data-state=\"open\"] {\n  position: var(--fandhe-select-item-position, static);\n}\n"
@@ -1339,8 +1420,9 @@ mod tests {
         );
         assert!(item_indicator_open_block
             .contains("position: var(--fandhe-select-item-indicator-position, static);"));
-        assert!(item_indicator_open_block
-            .contains("left: var(--fandhe-select-item-indicator-left, auto);"));
+        assert!(item_indicator_open_block.contains(
+            "inset-inline-start: var(--fandhe-select-item-indicator-inset-inline-start, auto);"
+        ));
     }
 
     #[test]

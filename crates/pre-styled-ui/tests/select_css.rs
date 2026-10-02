@@ -177,6 +177,10 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
+[data-scope="select"][data-part="item"] {
+  padding-inline-start: var(--fandhe-select-item-padding-inline-start, var(--fandhe-select-item-padding-inline, var(--fandhe-space-3)));
+}
+
 [data-scope="select"][data-part="item-indicator"] {
   margin-left: auto;
 }
@@ -263,6 +267,26 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   --fandhe-select-content-max-height: 24rem;
 }
 
+[data-scope="select"][data-part="root"].fd-select--size-xs {
+  --fandhe-select-item-padding-inline: var(--fandhe-space-1);
+}
+
+[data-scope="select"][data-part="root"].fd-select--size-sm {
+  --fandhe-select-item-padding-inline: var(--fandhe-space-2);
+}
+
+[data-scope="select"][data-part="root"].fd-select--size-md {
+  --fandhe-select-item-padding-inline: var(--fandhe-space-3);
+}
+
+[data-scope="select"][data-part="root"].fd-select--size-lg {
+  --fandhe-select-item-padding-inline: var(--fandhe-space-4);
+}
+
+[data-scope="select"][data-part="root"].fd-select--size-xl {
+  --fandhe-select-item-padding-inline: var(--fandhe-space-5);
+}
+
 [data-scope="select"][data-part="root"].fd-select--shape-pill {
   --fandhe-select-trigger-radius: var(--fandhe-radius-full);
 }
@@ -278,28 +302,28 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
 }
 
 [data-scope="select"][data-part="root"].fd-select--size-xs.fd-select--item-indicator-placement-start {
-  --fandhe-select-item-padding: var(--fandhe-space-0-5) var(--fandhe-space-1) var(--fandhe-space-0-5) calc(var(--fandhe-space-1) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-1));
-  --fandhe-select-item-indicator-left: var(--fandhe-space-1);
+  --fandhe-select-item-padding-inline-start: calc(var(--fandhe-space-1) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-1));
+  --fandhe-select-item-indicator-inset-inline-start: var(--fandhe-space-1);
 }
 
 [data-scope="select"][data-part="root"].fd-select--size-sm.fd-select--item-indicator-placement-start {
-  --fandhe-select-item-padding: var(--fandhe-space-1) var(--fandhe-space-2) var(--fandhe-space-1) calc(var(--fandhe-space-2) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-1));
-  --fandhe-select-item-indicator-left: var(--fandhe-space-2);
+  --fandhe-select-item-padding-inline-start: calc(var(--fandhe-space-2) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-1));
+  --fandhe-select-item-indicator-inset-inline-start: var(--fandhe-space-2);
 }
 
 [data-scope="select"][data-part="root"].fd-select--size-md.fd-select--item-indicator-placement-start {
-  --fandhe-select-item-padding: var(--fandhe-space-2) var(--fandhe-space-3) var(--fandhe-space-2) calc(var(--fandhe-space-3) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-2));
-  --fandhe-select-item-indicator-left: var(--fandhe-space-3);
+  --fandhe-select-item-padding-inline-start: calc(var(--fandhe-space-3) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-2));
+  --fandhe-select-item-indicator-inset-inline-start: var(--fandhe-space-3);
 }
 
 [data-scope="select"][data-part="root"].fd-select--size-lg.fd-select--item-indicator-placement-start {
-  --fandhe-select-item-padding: var(--fandhe-space-3) var(--fandhe-space-4) var(--fandhe-space-3) calc(var(--fandhe-space-4) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-3));
-  --fandhe-select-item-indicator-left: var(--fandhe-space-4);
+  --fandhe-select-item-padding-inline-start: calc(var(--fandhe-space-4) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-3));
+  --fandhe-select-item-indicator-inset-inline-start: var(--fandhe-space-4);
 }
 
 [data-scope="select"][data-part="root"].fd-select--size-xl.fd-select--item-indicator-placement-start {
-  --fandhe-select-item-padding: var(--fandhe-space-4) var(--fandhe-space-5) var(--fandhe-space-4) calc(var(--fandhe-space-5) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-4));
-  --fandhe-select-item-indicator-left: var(--fandhe-space-5);
+  --fandhe-select-item-padding-inline-start: calc(var(--fandhe-space-5) + var(--fandhe-select-item-indicator-size, 1em) + var(--fandhe-space-4));
+  --fandhe-select-item-indicator-inset-inline-start: var(--fandhe-space-5);
 }
 
 [data-scope="select"][data-part="trigger"][data-state="open"] {
@@ -369,7 +393,7 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
 
 [data-scope="select"][data-part="item-indicator"][data-state="open"] {
   position: var(--fandhe-select-item-indicator-position, static);
-  left: var(--fandhe-select-item-indicator-left, auto);
+  inset-inline-start: var(--fandhe-select-item-indicator-inset-inline-start, auto);
 }
 
 [data-scope="select"][data-part="content"][hidden] {
@@ -866,6 +890,10 @@ fn golden_prefix_through_hidden_select_is_unchanged() {
   transition-property: background, color;
   transition-duration: var(--fandhe-motion-duration-fast);
   transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="select"][data-part="item"] {
+  padding-inline-start: var(--fandhe-select-item-padding-inline-start, var(--fandhe-select-item-padding-inline, var(--fandhe-space-3)));
 }
 
 [data-scope="select"][data-part="item-indicator"] {
