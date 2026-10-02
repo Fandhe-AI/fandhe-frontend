@@ -603,6 +603,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-sale-products/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-image-tiles/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-sale-categories/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-signup-offer/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-with-testimonials/index.html"
           # Docs / Docs Layout
           # Docs / Code Block
