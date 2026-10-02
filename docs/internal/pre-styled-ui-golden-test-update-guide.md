@@ -127,7 +127,12 @@ trigger 行を同期し、新規 `Shape::Pill` variant ブロックは
 separator / **sidebar（イシュー #2073 で golden 新設。
 `stylesheet()` 全文）** / skeleton / skip_nav / **spinner（イシュー #1567 で
 golden 新設）** / splitter / stat / steps / switch /
-tab_nav / tags_input / timeline / timer / toast /
+**tab_nav（イシュー #3125 で `TabNavVariant::Pill`（root variant）と
+`color-palette` 軸（root variant、6 値）・現在リンクの面を切り替える state
+ブロック 2 個・2 つ目の hover state・forced-colors 補強の計 5 種のブロックを
+純追加。既存ブロックは末尾へ回り込みの影響を受けるのみでバイト不変、
+`TAB_NAV_GOLDEN_CSS_BEFORE_3125` + 部分一致による純追加固定アサーションも
+追加）** / tags_input / timeline / timer / toast /
 **toggle（イシュー #2023 で golden 新設）** /
 **toggle_group（イシュー #2024 で golden 新設）** / toggle_tip / tour /
 visually_hidden
