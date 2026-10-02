@@ -13,6 +13,11 @@
 //! 出力するため、新規 2 ブロックは既存 `root` の base ブロック直後・
 //! `orientation` variant ブロックの前に挿入される（末尾ではない）。既存
 //! 6 ブロックはバイト単位で不変。
+//!
+//! イシュー #3137（`group_with`/`SeparatorLabelPosition::Start`）で
+//! `label-position` 軸の variant ブロックを末尾へ純追加。recipe への
+//! 登録順が variants ブロック群の末尾（`SeparatorVariant::Dotted` の後）
+//! のため、golden 末尾へ 1 ブロック追加するのみで既存ブロックは不変。
 
 use fandhe_frontend_pre_styled_ui::separator;
 
@@ -57,6 +62,11 @@ const SEPARATOR_GOLDEN_CSS: &str = r#"[data-scope="separator"][data-part="root"]
 
 [data-scope="separator"][data-part="root"].fd-separator--variant-dotted {
   border-style: dotted;
+}
+
+[data-scope="separator"][data-part="group"].fd-separator--label-position-start {
+  grid-template-columns: auto 1fr;
+  grid-auto-flow: column;
 }
 "#;
 
