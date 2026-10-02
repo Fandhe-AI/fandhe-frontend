@@ -13,7 +13,7 @@
   は一切持ちません
 - 狭い画面でも常に 1 列のまま表示されます（メディアクエリ・コンテナ
   クエリによる列数切り替えは行いません）
-- 評価は編集可能な `rating-group`（既定値 4）の静的表示です。実際の
+- 評価は readonly の `rating-group`（既定値 4）の静的表示です。実際の
   クリック・キーボード操作による値変更は、利用者側のハイドレーション
   （`fandhe-frontend-wasm-full`）で実装してください
 - 名前・メールアドレス・タイトル・本文の文言はすべて架空のものです。
@@ -84,7 +84,7 @@ fn text_field(
     )
 }
 
-/// 評価フィールド（編集可能 `rating-group`、既定値 4 固定の静的表示。
+/// 評価フィールド（readonly `rating-group`、既定値 4 固定の静的表示。
 /// モジュール doc「評価は `rating-group`」節参照）。`field::root` ではなく
 /// 専用の `div` ラッパーで他フィールドと縦並びの見た目を揃える
 /// （モジュール doc「評価に `field::root` を使わない理由」節参照）。
@@ -92,10 +92,10 @@ fn rating_field() -> Node {
     let label_id = field_id("rating-label");
     let props = RatingGroupProps {
         disabled: false,
-        readonly: false,
+        readonly: true,
         required: true,
     };
-    let state = RatingGroup::new(5, Some(4), false);
+    let state = RatingGroup::new(5, Some(4), true);
     let label = rating_group::label(&props, Some(label_id.as_str()), vec![], vec![text("評価")]);
     let items: Vec<Node> = (1..=state.count())
         .map(|i| {
@@ -105,7 +105,7 @@ fn rating_field() -> Node {
                     checked: state.is_checked(i),
                     highlighted: state.is_highlighted(i),
                     disabled: false,
-                    readonly: false,
+                    readonly: true,
                 },
                 &format!("{i} star{}", if i == 1 { "" } else { "s" }),
                 vec![],

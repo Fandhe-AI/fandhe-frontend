@@ -25,19 +25,23 @@
 //! 送信処理は利用者自身の Rust/JS コードで実装する
 //! （`docs/policy/intentional-non-adoption.md` §3.25）。
 //!
-//! # 評価は `rating-group`（編集可能、既定値 4 の静的表示）で表現する
+//! # 評価は `rating-group`（readonly、既定値 4 の静的表示）で表現する
 //!
-//! `reviews_card_grid.rs::rating_row` が readonly の表示専用評価なのに
-//! 対し、本 block は「投稿フォーム」という性質上、編集可能な
-//! （`readonly: false`）`rating-group` を使う。ただし無 JS の静的合成例
-//! という block 全体の設計方針により、実際のクリック・キーボード操作に
-//! よる値変更は配線しない（`item` は `tabindex` を出力しない仕様、
-//! `crates/headless-ui/src/rating_group.rs` 参照）。既定値は
-//! `RatingGroup::new(5, Some(4), false)` で固定し、`required: true` を
-//! 付与して投稿フォームとしての意味（評価必須）を保つ。`disabled` は
+//! 「投稿フォーム」という性質上、本来は評価値を編集できる
+//! `rating-group` が自然だが、本 block は `<form>`/送信処理を持たない
+//! 無 JS の静的合成例であり、`item` は `tabindex` を出力しない仕様で
+//! 実際のクリック・キーボード操作による値変更も配線しない
+//! （`crates/headless-ui/src/rating_group.rs` 参照）。`readonly: false` の
+//! まま `required: true` を付与すると、支援技術へ「操作可能な必須項目」
+//! という実態と異なる状態を伝えてしまう（Codex レビュー指摘、イシュー
+//! #3091 PR）。そのため `reviews_card_grid.rs::rating_row` と同じ
+//! `readonly: true` を使い、`aria-readonly`/`data-readonly` で「値はある
+//! が今は変更できない」という実態どおりの状態を伝えつつ、
+//! `required: true` は維持して投稿フォームとしての意味（評価必須）を保つ
+//! （readonly と required は独立した軸、`RatingGroupProps` doc 参照）。
+//! 既定値は `RatingGroup::new(5, Some(4), true)` で固定する。`disabled` は
 //! 付与しない（`consent_checkbox` 系 block のように誤操作でネイティブ
-//! 状態が変わる要素を持たないため。`item` の `span` は labelable でも
-//! `tabindex` 保持でもなく、クリックしても状態は変化しない）。
+//! 状態が変わる要素を持たないため）。
 //!
 //! # 評価に `field::root` を使わない理由
 //!
@@ -147,7 +151,7 @@ fn text_field(
     )
 }
 
-/// 評価フィールド（編集可能 `rating-group`、既定値 4 固定の静的表示。
+/// 評価フィールド（readonly `rating-group`、既定値 4 固定の静的表示。
 /// モジュール doc「評価は `rating-group`」節参照）。`field::root` ではなく
 /// 専用の `div` ラッパーで他フィールドと縦並びの見た目を揃える
 /// （モジュール doc「評価に `field::root` を使わない理由」節参照）。
@@ -155,10 +159,10 @@ fn rating_field() -> Node {
     let label_id = field_id("rating-label");
     let props = RatingGroupProps {
         disabled: false,
-        readonly: false,
+        readonly: true,
         required: true,
     };
-    let state = RatingGroup::new(5, Some(4), false);
+    let state = RatingGroup::new(5, Some(4), true);
     let label = rating_group::label(&props, Some(label_id.as_str()), vec![], vec![text("評価")]);
     let items: Vec<Node> = (1..=state.count())
         .map(|i| {
@@ -168,7 +172,7 @@ fn rating_field() -> Node {
                     checked: state.is_checked(i),
                     highlighted: state.is_highlighted(i),
                     disabled: false,
-                    readonly: false,
+                    readonly: true,
                 },
                 &format!("{i} star{}", if i == 1 { "" } else { "s" }),
                 vec![],
@@ -309,11 +313,15 @@ pub const BLOCK: Block = Block {
 /// doc「block 固有 CSS の置き場」節と同型）。狭幅でも 1 列のまま
 /// （メディアクエリ・コンテナクエリを持たない）。評価ラベルの見た目を
 /// `field::label` と揃えるため、`rating-group` の label へ `--fandhe-*`
-/// トークンで同じ書体規則を適用する（base 規則〔詳細度 0,2,0〕に勝つよう
-/// 詳細度を上げる）。
+/// トークンで同じ書体規則を適用する。`data-blocks-reviews-write-form-field`
+/// は `rating_field()` のラッパー `div`（label 自体ではなくその親）にのみ
+/// 付与されるため、セレクタは子孫結合子で地続きにする
+/// （`[data-blocks-reviews-write-form-field] [data-scope="rating-group"]...`。
+/// 同一要素への同時付与を要求する書き方は実在要素に一度もマッチしない、
+/// Cursor Bugbot 指摘の是正）。
 const LAYOUT_CSS: &str = "\
 .blocks-reviews-write-form-layout {\n  display: flex;\n  flex-direction: column;\n  gap: var(--fandhe-space-6);\n  max-width: 36rem;\n  margin-inline: auto;\n}\n\
-[data-scope=\"rating-group\"][data-part=\"label\"][data-blocks-reviews-write-form-field] {\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg);\n  margin-bottom: var(--fandhe-space-2);\n}\n\
+[data-blocks-reviews-write-form-field] [data-scope=\"rating-group\"][data-part=\"label\"] {\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg);\n  margin-bottom: var(--fandhe-space-2);\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-reviews-write-form-submit] {\n  width: 100%;\n}\n\
 ";
 
@@ -378,7 +386,7 @@ mod tests {
     }
 
     #[test]
-    fn rating_defaults_to_four_and_is_editable() {
+    fn rating_defaults_to_four_and_is_readonly() {
         let html = demo_html();
         assert_eq!(html.matches(r#"aria-checked="true""#).count(), 1);
         assert!(html.contains(r#"data-value="4" role="radio" aria-checked="true""#));
@@ -386,8 +394,12 @@ mod tests {
         assert!(html.contains(r#"aria-required="true""#));
         assert!(html.contains(r#"value="4""#));
         assert!(html.contains(r#"name="rating""#));
-        // 編集可能（readonly ではない）ことを data-readonly 不在で固定する。
-        assert!(!html.contains("data-readonly"));
+        // readonly（操作配線のない静的表示）であることを aria-readonly/
+        // data-readonly の存在で固定する（Codex 指摘の是正: readonly:false
+        // + required:true は「操作可能な必須項目」という実態と異なる状態を
+        // 支援技術へ伝えてしまうため、実態どおり readonly へ揃えた）。
+        assert!(html.contains(r#"aria-readonly="true""#));
+        assert!(html.contains("data-readonly"));
     }
 
     #[test]
