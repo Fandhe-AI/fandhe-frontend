@@ -2565,7 +2565,7 @@ const SWITCH: ComponentPageSpec = ComponentPageSpec {
         "`readonly`/`invalid`/`required` の各フラグを `SwitchProps` で受け取り、`data-*` 属性・ネイティブ属性へ全パーツ一律反映する（イシュー #1622）。",
         "`data-invalid` は `control` パーツへ danger 色の `box-shadow` リングとして反映される（イシュー #2021、shadcn/ui との突合で追加）。",
         "`root_with` で `track: SwitchTrack::Short` を渡すと、つまみより細く短いトラック形状になり、つまみが上下左右へはみ出す（イシュー #3141）。`SwitchTrack::Default`（`root` が使う既定値）では class・CSS とも出力されない opt-in 軸。",
-        "`thumb_icon` で `thumb` 中央に on/off アイコンを重ねられる（イシュー #3141）。`checked`/`show` の組み合わせに応じて opacity を切り替え、表示される側は colorPalette と連動した色になる。装飾のため `aria-hidden=\"true\"` を固定する。",
+        "`thumb_icon` で `thumb` 中央に on/off アイコンを重ねられる（イシュー #3141）。`checked`/`show` の組み合わせに応じて opacity を切り替え、checked 状態で表示される on 側アイコンのみ colorPalette と連動した色になる（unchecked 側は常に中立色のまま。オフ状態を装飾色で強調しない意図的な非対称）。装飾のため `aria-hidden=\"true\"` を固定する。",
     ],
     arguments: &[
         ArgRow {
@@ -2629,7 +2629,7 @@ const SWITCH: ComponentPageSpec = ComponentPageSpec {
         },
         ExampleEntry {
             title: "thumb アイコン",
-            description: "`thumb` の子として `thumb_icon` を 2 個（checked/unchecked 用）配置した例です。状態に応じてどちらか一方だけが見え、表示中の側は colorPalette に連動した色になります（イシュー #3141、R1376）。",
+            description: "`thumb` の子として `thumb_icon` を 2 個（checked/unchecked 用）配置した例です。状態に応じてどちらか一方だけが見え、checked 側が表示されているときのみ colorPalette に連動した色になります（unchecked 側は中立色のまま、イシュー #3141、R1376）。",
             render: switch_thumb_icon_example,
         },
     ],
@@ -2848,11 +2848,17 @@ fn switch_short_track_example() -> Node {
     )
 }
 
-// イシュー #3141 (R1376): `thumb_icon` の実演。チェック（`M20 6 9 17l-5-5`）
-// ・バツ（`M18 6 6 18M6 6l12 12`）の 2 アイコンを `thumb` の子として両方
+// イシュー #3141 (R1376): `thumb_icon` の実演。チェック
+// （`M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z`、
+// `component_specs_nav_data.rs`/`showcase.rs` と同一の Material Design
+// check グリフ）・バツ（`crate::button::CLOSE_ICON_PATH` と同一の
+// Material Design close グリフ）の 2 アイコンを `thumb` の子として両方
 // 配置し、`checked`/`show` の組み合わせで表示が切り替わる挙動を示す
 // （SVG パスは plain な `<path>` ノードであり、既定エスケープ経由で
-// 出力される。HTML 文字列を直接組み立てない）。
+// 出力される。HTML 文字列を直接組み立てない）。`icon()`（`crate::icon`）
+// は `fill="currentColor"` 固定でアウトライン用の `stroke` を持たないため、
+// Lucide 系の線画（ストローク前提）パスではなく、このモジュール他所と
+// 同じ閉じた塗り形状のグリフを使う（Cursor Bugbot 指摘、PR #3580）。
 fn switch_thumb_icon_example() -> Node {
     let checked = true;
     let props = SwitchProps::default();
@@ -2883,7 +2889,16 @@ fn switch_thumb_icon_example() -> Node {
                                     ..IconProps::default()
                                 },
                                 vec![],
-                                vec![el("path", vec![("d", "M18 6 6 18M6 6l12 12")], vec![])],
+                                vec![el(
+                                    "path",
+                                    vec![(
+                                        "d",
+                                        "M18.3 5.71 12 12.01 5.7 5.71 4.29 7.12 10.59 13.42 \
+                                         4.29 19.72 5.7 21.13 12 14.83 18.3 21.13 19.71 19.72 \
+                                         13.41 13.42 19.71 7.12Z",
+                                    )],
+                                    vec![],
+                                )],
                             )],
                         ),
                         switch::thumb_icon(
@@ -2896,7 +2911,14 @@ fn switch_thumb_icon_example() -> Node {
                                     ..IconProps::default()
                                 },
                                 vec![],
-                                vec![el("path", vec![("d", "M20 6 9 17l-5-5")], vec![])],
+                                vec![el(
+                                    "path",
+                                    vec![(
+                                        "d",
+                                        "M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
+                                    )],
+                                    vec![],
+                                )],
                             )],
                         ),
                     ],
