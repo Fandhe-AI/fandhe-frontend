@@ -370,6 +370,86 @@ fn ex_avatar_badge() -> Node {
     )
 }
 
+/// `crates/pre-styled-ui/src/avatar.rs`（イシュー #3130）: badge を右上
+/// （`AvatarBadgePlacement::TopEnd`）へ移した例。既定（右下）との対比用。
+fn ex_avatar_badge_top_end() -> Node {
+    avatar::root(
+        &avatar::AvatarProps {
+            with_badge: true,
+            ..avatar::AvatarProps::default()
+        },
+        vec![],
+        vec![
+            avatar::fallback(avatar::ImageStatus::Error, vec![], vec![text("FT")]),
+            avatar::badge(
+                &avatar::AvatarBadgeProps {
+                    placement: avatar::AvatarBadgePlacement::TopEnd,
+                    ..avatar::AvatarBadgeProps::default()
+                },
+                vec![],
+                vec![],
+            ),
+        ],
+    )
+}
+
+/// `crates/pre-styled-ui/src/avatar.rs`（イシュー #3130）: `group_with` +
+/// `AvatarGroupStacking::FirstOnTop` で先頭の root を最前面にした例
+/// （Tailwind UI の「stacked top to bottom」相当の重なり順）。
+fn ex_avatar_group_first_on_top() -> Node {
+    avatar::group_with(
+        &avatar::AvatarGroupProps {
+            stacking: avatar::AvatarGroupStacking::FirstOnTop,
+        },
+        vec![],
+        vec![
+            avatar::root(
+                &avatar::AvatarProps {
+                    stacked: true,
+                    ..avatar::AvatarProps::default()
+                },
+                vec![],
+                vec![avatar::fallback(
+                    avatar::ImageStatus::Error,
+                    vec![],
+                    vec![text("FT")],
+                )],
+            ),
+            avatar::root(
+                &avatar::AvatarProps {
+                    stacked: true,
+                    ..avatar::AvatarProps::default()
+                },
+                vec![],
+                vec![avatar::fallback(
+                    avatar::ImageStatus::Error,
+                    vec![],
+                    vec![text("NM")],
+                )],
+            ),
+        ],
+    )
+}
+
+/// `crates/pre-styled-ui/src/avatar.rs`（イシュー #3130）: 共通 `Size`
+/// enum（最大 56px・`Xl`）を超える大サイズの上書き例。`root` の呼び出し側
+/// `attrs` へ inline `style` を渡し、クラス規則より優先させる（新規公開 API
+/// の追加はない。avatar.rs モジュール冒頭 rustdoc「イシュー #3130」節参照）。
+fn ex_avatar_large() -> Node {
+    avatar::root(
+        &avatar::AvatarProps::default(),
+        vec![(
+            "style",
+            "width: 4rem; height: 4rem; font-size: var(--fandhe-font-font-size-xl)",
+        )],
+        vec![avatar::fallback(
+            avatar::ImageStatus::Error,
+            vec![],
+            vec![text("FT")],
+        )],
+    )
+}
+
 pub(crate) const AVATAR: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "AvatarShape（Circle/Rounded/Square、crates/pre-styled-ui/src/avatar.rs）で外形を切り替える",
@@ -379,6 +459,9 @@ pub(crate) const AVATAR: ComponentPageSpec = ComponentPageSpec {
         "image パーツは alt テキストを必須引数として要求する（avatar.rs 内 image 再エクスポート）",
         "group（イシュー #2044）で複数 root を重なり表示し、+N の残数表示は root(stacked) + fallback の組み合わせで表現する",
         "badge（イシュー #2044）で root 右下に状態ドットを絶対配置し、with_badge: true の root のみ overflow を解除する",
+        "AvatarBadgePlacement（BottomEnd/TopEnd、イシュー #3130）で badge の配置を右下/右上へ切り替える",
+        "group_with + AvatarGroupStacking（LastOnTop/FirstOnTop、イシュー #3130）で group 内の重なり順（先頭を最前面にするか）を切り替える",
+        "共通 Size enum（最大 56px）を超える大サイズは root の呼び出し側 attrs へ inline style を渡して上書きする（イシュー #3130、新規公開 API なし）",
     ],
     arguments: &[
         ArgRow {
@@ -432,8 +515,32 @@ pub(crate) const AVATAR: ComponentPageSpec = ComponentPageSpec {
         ArgRow {
             name: "AvatarBadgeProps",
             kind: "struct",
-            default: "size: Md, palette: Accent",
-            description: "badge() の設定（avatar.rs、イシュー #2044。size は Xs〜Xl の 5 段、palette は ColorPalette 6 値）。",
+            default: "size: Md, palette: Accent, placement: BottomEnd",
+            description: "badge() の設定（avatar.rs、イシュー #2044。size は Xs〜Xl の 5 段、palette は ColorPalette 6 値。placement はイシュー #3130 で追加）。",
+        },
+        ArgRow {
+            name: "placement",
+            kind: "AvatarBadgePlacement",
+            default: "BottomEnd",
+            description: "badge の配置（avatar.rs の AvatarBadgeProps、#[default] は BottomEnd。イシュー #3130 で追加、TopEnd で右上へ移る）。",
+        },
+        ArgRow {
+            name: "group_with()",
+            kind: "fn",
+            default: "-",
+            description: "pre-styled-only group パートの拡張版（avatar.rs、イシュー #3130）。AvatarGroupProps を取り、stacking: LastOnTop（既定）のときは group() と出力が完全一致する。",
+        },
+        ArgRow {
+            name: "AvatarGroupProps",
+            kind: "struct",
+            default: "stacking: LastOnTop",
+            description: "group_with() の設定（avatar.rs、イシュー #3130）。",
+        },
+        ArgRow {
+            name: "stacking",
+            kind: "AvatarGroupStacking",
+            default: "LastOnTop",
+            description: "group 内の重なり順（avatar.rs の AvatarGroupProps、#[default] は LastOnTop=DOM 順。イシュー #3130 で追加、FirstOnTop で先頭の root が最前面になる）。",
         },
     ],
     examples: &[
@@ -451,6 +558,21 @@ pub(crate) const AVATAR: ComponentPageSpec = ComponentPageSpec {
             title: "状態 badge",
             description: "with_badge: true の root の右下に badge（既定 Accent）を重ねた例です（イシュー #2044）。",
             render: ex_avatar_badge,
+        },
+        ExampleEntry {
+            title: "badge を右上へ",
+            description: "AvatarBadgePlacement::TopEnd で badge を右上へ移した例です（イシュー #3130）。",
+            render: ex_avatar_badge_top_end,
+        },
+        ExampleEntry {
+            title: "先頭を最前面に重ねる",
+            description: "group_with + AvatarGroupStacking::FirstOnTop で先頭の root を最前面にした例です（イシュー #3130）。",
+            render: ex_avatar_group_first_on_top,
+        },
+        ExampleEntry {
+            title: "大サイズ（56px 超）",
+            description: "共通 Size enum を超える大サイズを inline style の上書きで表現した例です（イシュー #3130、新規公開 API なし）。",
+            render: ex_avatar_large,
         },
     ],
     keyboard: &[],
