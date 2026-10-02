@@ -163,7 +163,10 @@
 //!     `orientation`（horizontal/vertical）・`variant`（solid/dashed/dotted）
 //!     の 2 軸を持ち、`role="separator"`・`aria-orientation`・
 //!     `data-orientation` を常時出力する。罫線の太さは
-//!     `--fandhe-separator-thickness`（既定 `1px`）の上書きで変更する）。
+//!     `--fandhe-separator-thickness`（既定 `1px`）の上書きで変更する。
+//!     [`separator::group_with`] + [`separator::SeparatorLabelPosition`]
+//!     （イシュー #3137）でラベル位置を `center`（既定）/`start` から
+//!     opt-in で選べる）。
 //!   - [`visually_hidden`](mod@visually_hidden)（#776）: [`visually_hidden::root`]（単一
 //!     recipe、`<span>`。variant 軸を持たず clip 手法の CSS のみを持つ。
 //!     `aria-hidden` を一切出力しない）。
@@ -915,7 +918,7 @@ pub use marquee::{marquee, MarqueeDirection, MarqueeProps};
 pub use native_select::{native_select, NativeSelectProps, NativeSelectVariant};
 pub use quote::quote;
 pub use recipe::{when, ColorPalette, Shape, Size, SlotRecipe, VariantCondition, VariantValue};
-pub use separator::{separator, SeparatorProps, SeparatorVariant};
+pub use separator::{separator, SeparatorLabelPosition, SeparatorProps, SeparatorVariant};
 pub use skeleton::{skeleton, SkeletonAnimation, SkeletonProps, SkeletonVariant};
 pub use spinner::{spinner, SpinnerProps};
 pub use status::StatusProps;
