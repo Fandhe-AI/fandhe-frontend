@@ -3720,6 +3720,46 @@ fn progress_styled_root_and_headless_circle_parts_are_escaped_for_all_payloads()
     }
 }
 
+/// イシュー #3140: progress の pre-styled-only `marker_group`/`marker`
+/// （マイルストーンの目盛りラベル列）の children・呼び出し側 attrs が
+/// payload 網羅で既定エスケープを経由することを固定する
+/// （`progress_styled_root_and_headless_circle_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn progress_marker_group_and_marker_payloads_are_escaped() {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::Orientation;
+    use fandhe_frontend_pre_styled_ui::progress;
+
+    let p = Progress::new(0.0, 100.0, Some(50.0), Orientation::Horizontal);
+
+    for payload in payloads::all() {
+        // marker_group: 呼び出し側 attrs・children。
+        let html = render(&progress::marker_group(
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "progress::marker_group attrs/children コンテキスト",
+        );
+
+        // marker: 呼び出し側 attrs・children。
+        let html = render(&progress::marker(
+            &p,
+            25.0,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "progress::marker attrs/children コンテキスト",
+        );
+    }
+}
+
 /// イシュー #770: Image/Icon の属性値経路（`src`/`alt`/`viewBox`/
 /// `aria-label`/呼び出し側 `attrs`/`class`/SVG children 属性）が payload
 /// 網羅で既定エスケープを経由することを固定する。
