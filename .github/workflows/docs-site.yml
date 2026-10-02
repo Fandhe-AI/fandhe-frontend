@@ -611,12 +611,14 @@ jobs:
           # Docs / Docs Layout
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/docs-layout-prev-next/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/docs-layout-page-header/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/docs-layout-toc-collapsible/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/docs-layout-toc-progress/index.html"
           # Docs / Code Block
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/code-block-header/index.html"
           # Docs / Example Preview
           # Docs / Api Reference
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/api-reference-param-accordion/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/api-reference-playground/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/api-reference-props-table/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/blocks.css"
           # イシュー #2737: Blocks 共通のデモ用ダミー素材ヘルパ（画像 5 種）。

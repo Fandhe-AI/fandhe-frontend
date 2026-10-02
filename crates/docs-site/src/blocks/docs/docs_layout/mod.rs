@@ -11,6 +11,7 @@
 
 mod docs_layout_page_header;
 mod docs_layout_prev_next;
+mod docs_layout_toc_collapsible;
 mod docs_layout_toc_progress;
 
 use crate::blocks::Block;
@@ -19,6 +20,7 @@ pub(super) fn blocks() -> Vec<Block> {
     vec![
         docs_layout_page_header::BLOCK,
         docs_layout_prev_next::BLOCK,
+        docs_layout_toc_collapsible::BLOCK,
         docs_layout_toc_progress::BLOCK,
     ]
 }
