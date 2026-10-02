@@ -336,11 +336,20 @@ pub const BLOCK: Block = Block {
 /// `super::stylesheet` から連結される）。タブ列と右端の操作を 1 行に収める
 /// グリッド配置（モジュール doc「ヘッダー行のレイアウト」節参照）と、
 /// コードパネルの横スクロール・フォーカスリングをここで実装する。
+///
+/// ヘッダー行グリッドの `align-items: end` は、tab list・actions の 2
+/// アイテムの罫線（`border-bottom`）をグリッド行の下端へ揃えるための
+/// 選択（`center` だと両者の高さの違いにより罫線がずれる）。tab list の
+/// `overflow-x: auto`（spec 上 `overflow-y` も自動的に `auto` 化される）
+/// による選択中タブの下線（indicator の `border-bottom`）クリップ対策
+/// として、`overflow-y: hidden` を明示しつつ `padding-bottom: 2px` +
+/// `margin-bottom: -2px` でスクロール領域に下線の描画余地を確保し、外側
+/// レイアウトへの影響を打ち消す。
 const LAYOUT_CSS: &str = "\
 .blocks-example-preview-tabs-layout {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
-[data-scope=\"card\"][data-part=\"root\"][data-blocks-example-preview-tabs-frame] {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  align-items: center;\n  overflow: hidden;\n  min-width: 0;\n  padding: 0.25rem;\n}\n\
+[data-scope=\"card\"][data-part=\"root\"][data-blocks-example-preview-tabs-frame] {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  align-items: end;\n  overflow: hidden;\n  min-width: 0;\n  padding: 0.25rem;\n}\n\
 [data-blocks-example-preview-tabs-frame] > [data-scope=\"tabs\"][data-part=\"root\"] {\n  display: contents;\n}\n\
-[data-blocks-example-preview-tabs-frame] [data-scope=\"tabs\"][data-part=\"list\"] {\n  grid-column: 1;\n  grid-row: 1;\n  min-width: 0;\n  overflow-x: auto;\n  flex-wrap: nowrap;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
+[data-blocks-example-preview-tabs-frame] [data-scope=\"tabs\"][data-part=\"list\"] {\n  grid-column: 1;\n  grid-row: 1;\n  min-width: 0;\n  overflow-x: auto;\n  overflow-y: hidden;\n  flex-wrap: nowrap;\n  padding-bottom: 2px;\n  margin-bottom: -2px;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-example-preview-tabs-actions] {\n  grid-column: 2;\n  grid-row: 1;\n  display: flex;\n  flex: none;\n  align-items: center;\n  gap: 0.5rem;\n  white-space: nowrap;\n  padding-inline-end: 1rem;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-example-preview-tabs-actions] [data-scope=\"clipboard\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 0.5;\n  cursor: not-allowed;\n}\n\
 [data-blocks-example-preview-tabs-frame] [data-scope=\"tabs\"][data-part=\"content\"] {\n  grid-column: 1 / -1;\n  grid-row: 2;\n  padding: 1rem;\n  overflow-x: auto;\n}\n\
