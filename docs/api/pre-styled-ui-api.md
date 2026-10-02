@@ -243,18 +243,19 @@ NativeSelectVariant` と同型の軸で、`Subtle` は root の CSS 変数
 上書きし trigger を淡色背景・枠線なしにする。`Outline`（既定）は
 `default_variant` を登録していないため class を一切出さず、`root()` の
 既存出力はバイト単位で不変。`ItemIndicatorPlacement::Start`（既定は
-`End`）は root の CSS 変数 4 本
-（`--fandhe-select-item-position`/`--fandhe-select-item-indicator-position`/
-`--fandhe-select-item-indicator-gutter-display`/
-`--fandhe-select-item-indicator-margin-left`）を切り替え、全項目の
-`item::before` がインジケータ幅（`--fandhe-select-item-indicator-size`、
-既定 `1em`）の空きを inline-start 側へ確保する。選択済み項目の
-インジケータは state 規則（item は `[data-selected]`、インジケータは
-`[data-state="open"]`）で絶対配置され、静的位置
-（content-box の inline-start 端）で空きと重なる。`item` の `padding` は
-上書きしないため、既存フック `--fandhe-select-item-padding` による余白
-調整はそのまま効く。`End`
-（既定）は class を一切出さず既存出力はバイト不変。
+`End`）は root の CSS 変数 3 本
+（`--fandhe-select-item-indicator-order`/
+`--fandhe-select-item-indicator-margin-left`/
+`--fandhe-select-item-indicator-placeholder-display`）を切り替える
+（`order` + 空き枠方式）。`item-indicator` は選択状態にかかわらず常に
+DOM へ出力され非選択時のみ `hidden` 属性が付く既存ノードをそのまま
+空き枠に転用する: state 規則（`[data-state]`）で `order: -1`・
+`margin-left: 0` を全項目のインジケータへ適用し、`[hidden]` 規則で
+非選択項目のインジケータを `visibility: hidden` のまま同じ幅を占有さ
+せる。絶対配置・疑似要素は使わないため `item` の `padding` 等の既存
+宣言には一切触れず、既存フック `--fandhe-select-item-padding` による
+余白調整はそのまま効く。`End`（既定）は class を一切出さず既存出力は
+バイト不変。
 
 `ActivationMode`/`TabItem`/`TabsProps`（tabs）・`DialogRole`/`ContentIds`
 （dialog）・`SelectAction`（select）は各 headless モジュール内定義のため

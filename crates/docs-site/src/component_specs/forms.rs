@@ -2411,7 +2411,7 @@ const SELECT: ComponentPageSpec = ComponentPageSpec {
         "separator / scroll-up-button / scroll-down-button の着装（イシュー #2186）: headless-ui の 3 新設パーツを再エクスポートし、`position: sticky` で content 上下端に固定するボタン・`height`/`background` の区切り線を recipe へ登録する。可視性判定・押下時の実スクロールは wasm-full 後続イシューの範囲。",
         "共通 shape 軸（イシュー #3117）: `root_with` が `Option<Shape>` を受け取り、`Shape::Pill` を渡すと trigger が完全な丸型角丸になる。`Shape::Circle` は trigger が value-text + indicator を横並びにする構造で真円にする用途がないため未登録。",
         "variant 軸（イシュー #3121）: `root_with` が `SelectVariant`（`Outline`〔既定〕/`Subtle`）を受け取る。`Subtle` は trigger を淡色背景・枠線なしにする（`native_select::NativeSelectVariant::Subtle`・chakra-ui `Select` の `variant: subtle` に揃える）。`Outline`（既定）のときは class を一切出さず [`select::root`] と出力が変わらない。",
-        "選択インジケータ位置（イシュー #3124）: `select::root_with` の `item_indicator_placement`（`ItemIndicatorPlacement`、既定 `End`）で、チェックマークを項目右端（既定）・左端（`Start`）のいずれかへ opt-in 切り替えできる。`Start` 選択時は非選択項目のテキスト開始位置も揃うよう `item::before` でインジケータ幅の空きを確保する（`item` の padding は上書きしない）。既定 `End` は class を一切出さず既存出力はバイト不変。",
+        "選択インジケータ位置（イシュー #3124）: `select::root_with` の `item_indicator_placement`（`ItemIndicatorPlacement`、既定 `End`）で、チェックマークを項目右端（既定）・左端（`Start`）のいずれかへ opt-in 切り替えできる。`Start` 選択時は非選択項目の `item_indicator`（headless が `hidden` 属性で隠す既存ノード）を `order: -1` + 不可視の空き枠として転用し、非選択項目のテキスト開始位置も揃える（絶対配置・疑似要素は不使用。`item` の padding は上書きしない）。既定 `End` は class を一切出さず既存出力はバイト不変。",
     ],
     arguments: &[
         ArgRow {
