@@ -335,6 +335,11 @@
 //!   is_unchanged`・`select_pre_2391_blocks_remain_verbatim` を壊さない
 //!   ための設計判断）。`End` では `item::before` が `display: none` の
 //!   ため flex item にならず `gap` も生じず、計算値は不変。
+//! - **子要素の順序に依存しない**: 絶対配置した flex コンテナの子の静的
+//!   位置は「その子が唯一の flex item であるかのように」決まる（CSS
+//!   Flexbox §4.1）ため、`item_indicator` を `item_text` の前後どちらに
+//!   置いても inline-start 端（gutter 上）に配置される（headless Chrome
+//!   で両順序・LTR/RTL を実測確認、PR #3561）。
 //! - **縦位置は無調整**: `item` は `display: flex` + `align-items: center`
 //!   のため、絶対配置した `item-indicator` の静的位置はその flex コンテナの
 //!   中央に揃う（CSS Flexbox の仕様上の挙動）。`top`/`transform` は宣言し
