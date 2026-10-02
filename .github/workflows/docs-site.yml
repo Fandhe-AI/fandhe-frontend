@@ -610,6 +610,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/promo-with-testimonials/index.html"
           # Docs / Docs Layout
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/docs-layout-page-header/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/docs-layout-toc-collapsible/index.html"
           # Docs / Code Block
           # Docs / Example Preview
           # Docs / Api Reference

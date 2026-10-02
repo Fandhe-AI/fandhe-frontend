@@ -2985,6 +2985,11 @@ title = "docs-layout-page-header"
 source = "site/blocks/docs-layout-page-header.md"
 path = "/blocks/docs-layout-page-header/"
 
+[[section.group.page]]
+title = "docs-layout-toc-collapsible"
+source = "site/blocks/docs-layout-toc-collapsible.md"
+path = "/blocks/docs-layout-toc-collapsible/"
+
 [[section.group]]
 title = "API Reference"
 
