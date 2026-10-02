@@ -483,6 +483,34 @@ fn ex_badge_link() -> Node {
     )
 }
 
+/// イシュー #3117/#3119: shadcn 突合で見送った pill 形状を shape 軸の
+/// opt-in（`BadgeProps.shape`）として再現する。`forms.rs::ex_input_pill_shape`
+/// と同じ `recipe::Shape` 参照の書き方に倣う。
+fn ex_badge_pill() -> Node {
+    badge::badge(
+        &badge::BadgeProps {
+            shape: Some(fandhe_frontend_pre_styled_ui::recipe::Shape::Pill),
+            ..badge::BadgeProps::default()
+        },
+        vec![],
+        vec![text("Active")],
+    )
+}
+
+/// イシュー #3117/#3119: カウントバッジ向けの真円表示を shape 軸の
+/// opt-in（`Shape::Circle`）として再現する。
+fn ex_badge_circle() -> Node {
+    badge::badge(
+        &badge::BadgeProps {
+            palette: ColorPalette::Danger,
+            shape: Some(fandhe_frontend_pre_styled_ui::recipe::Shape::Circle),
+            ..badge::BadgeProps::default()
+        },
+        vec![],
+        vec![text("8")],
+    )
+}
+
 pub(crate) const BADGE: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "BadgeVariant（Solid/Subtle/Outline/Surface/Plain、crates/pre-styled-ui/src/badge.rs。イシュー #1555 で Surface、#2045 で shadcn/ui `ghost` 相当の Plain を追加）で塗り方を切り替える",
@@ -490,6 +518,7 @@ pub(crate) const BADGE: ComponentPageSpec = ComponentPageSpec {
         "Subtle/Outline/Surface は 6 役割 palette の淡色トークンを消費する（badge.rs、イシュー #1555）",
         "role/aria-* は付与しない最小サブセット（badge.rs モジュール冒頭）",
         "badge::link（イシュー #2045）で `<a>` として組み立てられる。shadcn/ui `link` variant / render prop 相当で、`[href]`/`:focus-visible` state が badge.rs recipe に発火する",
+        "共通 shape 軸（`recipe::Shape`、BadgeProps.shape: Option<Shape>、既定 None）で opt-in の角丸形状を選べる。`Pill`（両端半円）/`Circle`（真円、カウント表示向け）とも新規トークンなしで既存 `--fandhe-radius-full` を参照する（イシュー #3117/#3119）",
     ],
     arguments: &[
         ArgRow {
@@ -510,6 +539,12 @@ pub(crate) const BADGE: ComponentPageSpec = ComponentPageSpec {
             default: "Accent",
             description: "colorPalette 軸（badge.rs の BadgeProps）。",
         },
+        ArgRow {
+            name: "shape",
+            kind: "Option<Shape>",
+            default: "None",
+            description: "共通 shape 軸（badge.rs の BadgeProps）。`None` は既存の角丸（`--fandhe-radius-sm`）のまま変えない。opt-in で `Some(Shape::Pill)`/`Some(Shape::Circle)` を指定できる（イシュー #3117/#3119）。",
+        },
     ],
     examples: &[
         ExampleEntry {
@@ -526,6 +561,16 @@ pub(crate) const BADGE: ComponentPageSpec = ComponentPageSpec {
             title: "As link",
             description: "badge::link で `<a>` として組み立てた Badge です（イシュー #2045）。",
             render: ex_badge_link,
+        },
+        ExampleEntry {
+            title: "Pill",
+            description: "shape: Some(Shape::Pill) でステータス表示向けの pill 形状にした Badge です（イシュー #3117/#3119）。",
+            render: ex_badge_pill,
+        },
+        ExampleEntry {
+            title: "Circle（カウント）",
+            description: "shape: Some(Shape::Circle) でカウント表示向けの真円にした Badge です。1〜2 桁の数字でも `min-width`/`aspect-ratio` により真円を保ちます。数字だけでは意味が伝わらないため、周辺テキストや呼び出し側の aria-label で補足してください（イシュー #3117/#3119）。",
+            render: ex_badge_circle,
         },
     ],
     keyboard: &[],

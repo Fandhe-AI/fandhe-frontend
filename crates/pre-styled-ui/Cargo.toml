@@ -3612,10 +3612,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # からさらに +1 して 0.218.0 とする（`.claude/rules/coding-rust.md`
 # #638 条項の同衝突運用）。
 #
+# イシュー #3119: badge の rustdoc（#2045 突合「角丸」項）を #3117 の
+# `shape` 軸 opt-in 記述へ是正し、`link()` 経路でも `shape` クラスが
+# 出ることを固定するテストを追加した。公開 API・CSS 出力は不変（golden
+# は既存ブロックのまま）のドキュメント/テストのみの変更のため patch
+# バンプする。
+#
 # イシュー #3122: `InputVariant::SubtleFlushed`（淡色背景＋下線のみ、R1043）
 # を純追加した。`Subtle` の背景宣言と `Flushed` の下線宣言を合成するのみで
 # 新規トークンはなく、既存 3 variant・既存出力はバイト不変のため非破壊的な
-# 追加として minor バンプする。
+# 追加として minor バンプする。origin/main 側の到達値（0.218.1）より
+# 本ブランチの到達値（0.219.0）が上回るため 0.219.0 を維持する
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 version = "0.219.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
