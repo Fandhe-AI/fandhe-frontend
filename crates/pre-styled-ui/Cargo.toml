@@ -3738,6 +3738,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # ため、マージ結果としてさらに +1 して 0.225.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 #
+# イシュー #3132: calendar に枠線なし variant（`CalendarVariant::Plain`）と
+# 大セル月表示（`CalendarCellSize::Large`）を追加した。新規公開 API
+# （`CalendarVariant`/`CalendarCellSize`/`root_with`）のみで既存関数
+# シグネチャ・golden CSS の既存ブロックは不変（純追加）のため非破壊的な
+# 追加として minor バンプする。
+#
 # マージコミット注記（origin/main #3558/#3560 との再統合、PR #3565）: 本
 # ブランチは上記の経緯で独立に 0.225.0 へ到達していたが、origin/main 側
 # （#3123/#3560 を統合した結果）も独立に同一の 0.225.0 へ到達しており偶発的
@@ -3821,42 +3827,24 @@ name = "fandhe-frontend-pre-styled-ui"
 # ため、マージ結果としてさらに +1 して 0.228.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 #
-# マージコミット注記（origin/main PR #3565 との再統合）: 本ブランチ（#3130）は
-# 上記の経緯で独立に 0.228.0 へ到達していたが、origin/main 側（PR #3565）も
-# 独立に同一の 0.228.0 へ到達しており偶発的に衝突したため、マージ結果として
-# さらに +1 して 0.229.0 とする（`.claude/rules/coding-rust.md` #638 条項の
-# 同衝突運用）。
-#
-# PR #3563 codex-review P1/P2 指摘対応: `group_with`（`FirstOnTop`）の
-# 重なり順の採番・クラス付与を avatar root 要素（`data-scope="avatar"`
-# `data-part="root"`）だけに限定した（テキスト等で採番がずれて pos1 へ
-# 合流する不具合の修正。0.229.0 のまま本 PR に含める）。
-#
-# マージコミット注記（origin/main #3558 との再統合、PR #3561）: 本ブランチ
-# （#3124）は上記の経緯で独立に 0.225.0 へ到達していたが、origin/main 側
-# （input_group の #3123・tab_nav Bar の #3126・drawer の #3128・card/dialog
-# の #3560 を統合した PR #3558）も独立に同一の 0.225.0 へ到達していた
-# （偶発的衝突）ため、そのまま採用せずさらに +1 して 0.226.0 とする
-# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
-#
-# マージコミット注記（本 PR #3561、origin/main 再取り込み）: 本マージ時点
-# で本ブランチ（#3124 到達値）と origin/main（#3126 の PR #3564 レビュー
-# 対応を含む到達値）が独立に同一版数 0.226.0 へ到達していた（偶発的衝突）
-# ため、そのまま採用せずさらに +1 して 0.227.0 とする
+# マージコミット注記（PR #3568 への origin/main 取り込み、イシュー #3132）:
+# 本ブランチ（#3132）は独立に 0.227.0 へ到達していたが、origin/main 側
+# （#3131 を含む統合結果）も独立に同一の 0.227.0 へ到達しており偶発的に
+# 衝突したため、マージ結果としてさらに +1 して 0.228.0 とする
 # （`.claude/rules/coding-rust.md` #638 条項の同衝突運用。同一版数への
 # 偶発的衝突をそのまま採用しない）。
 #
-# マージコミット注記（本 PR #3561、origin/main 再々取り込み）: 本ブランチ
-# （#3124 到達値）と origin/main（#3131 の PR #3566 を含む到達値）が独立に
-# 同一版数 0.227.0 へ到達していた（偶発的衝突）ため、そのまま採用せず
-# さらに +1 して 0.228.0 とする（`.claude/rules/coding-rust.md` #638 条項の
-# 同衝突運用）。
+# マージコミット注記（PR #3568 への origin/main 再取り込み、CI 失敗是正）:
+# 上記の経緯で本ブランチ・origin/main 双方が独立に同一の 0.228.0 へ到達し
+# ており偶発的に衝突したため、マージ結果としてさらに +1 して 0.229.0 と
+# する（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 #
-# マージコミット注記（本 PR #3561、origin/main 4 度目の取り込み）: 本ブランチ
-# （#3124 到達値）と origin/main（#3129 の PR #3565 を含む到達値）が独立に
-# 同一版数 0.228.0 へ到達していた（偶発的衝突）ため、そのまま採用せず
-# さらに +1 して 0.229.0 とする（`.claude/rules/coding-rust.md` #638 条項の
-# 同衝突運用）。
+# PR #3568 レビュー指摘是正（codex P1、イシュー #3132）: `CELL_SIZE_LARGE_CSS`
+# が `table-cell`（`td`）自体を `display: flex` にしていたため、
+# `table-layout: fixed` と組み合わせた 7 列等幅グリッドの列対応が崩れる
+# 不具合を修正した。`td` の display は変更せず、直下の子を全称子セレクタ
+# （`> *`）でブロック化して縦積みする方式へ変更（観測可能な CSS 出力の
+# 変更のため minor バンプ）。
 #
 # マージコミット注記（本 PR #3561、origin/main 5 度目の取り込み）: 本ブランチ
 # （#3124 到達値）と origin/main（#3130 の PR #3563 を含む到達値）が独立に
@@ -3868,7 +3856,36 @@ name = "fandhe-frontend-pre-styled-ui"
 # 角丸・境界線解除・間隔打ち消し・縦外側での幅揃え）を追加した。既存の
 # margin 間隔表現・既存出力バイトは不変で、golden CSS 末尾への純追加
 # （非破壊的な追加）のため patch バンプする。
-version = "0.231.0"
+#
+# PR #3568 レビュー指摘是正（codex P2・Bugbot、イシュー #3132）: 上記の
+# `> *` が `badge`（予定チップ）の `inline-flex` も `display: block` へ
+# 上書きし、セル幅いっぱいに広がっていた（codex P2）。`day-trigger` 限定の
+# 子孫セレクタへ絞り、`badge` 等ほかの子の display には触れないよう修正。
+# あわせて Large root variant に `width: 100%`/`box-sizing: border-box` を
+# 追加し、flex/grid の子として配置されても内容幅へ縮まず親幅いっぱいに
+# 広がるよう修正した（Bugbot「Large calendar misses full width」。観測可能
+# な CSS 出力の変更のため minor バンプ、version はそのまま 0.230.0 を維持
+# ＝未公開のため同一反復として扱う）。
+#
+# マージコミット注記（origin/main #3563 との再統合）: origin/main 側
+# （avatar の badge 配置・group 重なり順、#3563）は独立に 0.229.0 へ到達して
+# いたが、本ブランチは既にそれより新しい 0.230.0 へ到達済みのため、偶発的な
+# 同一版数衝突ではなく version はそのまま 0.230.0 を維持する
+# （`.claude/rules/coding-rust.md` #638 条項は同一版数への偶発衝突時のみの
+# 運用であり、本件は該当しない）。
+#
+# マージコミット注記（本 PR #3568、origin/main 再々取り込み、イシュー #3132）:
+# 本ブランチは上記の経緯で独立に 0.230.0 へ到達していたが、origin/main 側
+# （avatar の #3563 以降を含む到達値）も独立に同一の 0.230.0 へ到達していた
+# （偶発的衝突）ため、そのまま採用せずさらに +1 して 0.231.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# マージコミット注記（本 PR #3569、origin/main 再取り込み）: 本ブランチ
+# （イシュー #3135 到達値）と origin/main（calendar の #3568 到達値を含む）が
+# 独立に同一版数 0.231.0 へ到達していた（偶発的衝突）ため、そのまま採用せず
+# さらに +1 して 0.232.0 とする（`.claude/rules/coding-rust.md` #638 条項の
+# 同衝突運用）。
+version = "0.232.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
