@@ -12,6 +12,7 @@
 mod cart_dialog;
 mod cart_drawer;
 mod cart_line_item_table;
+mod cart_mini_panel;
 mod cart_single_column;
 mod cart_two_column_summary;
 
@@ -22,6 +23,7 @@ pub(super) fn blocks() -> Vec<Block> {
         cart_dialog::BLOCK,
         cart_drawer::BLOCK,
         cart_line_item_table::BLOCK,
+        cart_mini_panel::BLOCK,
         cart_single_column::BLOCK,
         cart_two_column_summary::BLOCK,
     ]

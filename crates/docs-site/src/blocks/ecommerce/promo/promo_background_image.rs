@@ -1,5 +1,5 @@
 //! `promo-background-image` block（イシュー #3076。親トラッキング #3024。
-//! Ecommerce / Promo カテゴリ 2 件目）。
+//! Ecommerce / Promo カテゴリの 1 部品）。
 //!
 //! # 出典に関する注記
 //!
