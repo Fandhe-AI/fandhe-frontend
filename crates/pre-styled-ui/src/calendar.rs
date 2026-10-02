@@ -277,10 +277,19 @@ impl VariantValue for CalendarCellSize {
 /// 節参照）。セレクタの属性セレクタ 4 つ分の詳細度 (0,4,0) が base の
 /// `table-cell` 規則 (0,2,0) に勝つため `border-width: 0` を上書きできる。
 ///
+/// `table-cell` を `display: flex; flex-direction: column` にすることで、
+/// `day-trigger`（インラインレベルの日付ボタン）とその後に並ぶ `badge`
+/// （予定ラベル、`fandhe-frontend-docs-site` の月表示 Example が合成する）が
+/// 縦に積まれ「日付の下へ予定が並ぶ」月間スケジュール表示になる（イシュー
+/// #3132、レビュー指摘）。flex item は自身の `display` 値に関わらずブロック
+/// 整形されるため、`day-trigger` 側を `display: block` 等へ変更する必要は
+/// ない。`day-trigger` は `width`/`height` 固定（正方形の日付ボタン）のまま
+/// 左上に残し、`align-self: flex-start` で縦方向に伸長させない。
+///
 /// ponytail: 入れ子カレンダー（Large root の内側にさらに calendar root を
 /// 入れ子にする構成）は想定しない。必要になったら子結合子（`>`）化を検討
 /// する。
-const CELL_SIZE_LARGE_CSS: &str = "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table\"] {\n  table-layout: fixed;\n}\n\n[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] {\n  height: var(--fandhe-calendar-cell-height, var(--fandhe-space-24));\n  vertical-align: top;\n  text-align: start;\n  padding: var(--fandhe-space-1);\n  border: 1px solid var(--fandhe-color-border);\n}\n";
+const CELL_SIZE_LARGE_CSS: &str = "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table\"] {\n  table-layout: fixed;\n}\n\n[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] {\n  height: var(--fandhe-calendar-cell-height, var(--fandhe-space-24));\n  vertical-align: top;\n  text-align: start;\n  padding: var(--fandhe-space-1);\n  border: 1px solid var(--fandhe-color-border);\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-1);\n}\n\n[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"day-trigger\"] {\n  align-self: flex-start;\n  flex-shrink: 0;\n}\n";
 
 /// この styled Calendar の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
@@ -885,5 +894,24 @@ mod tests {
         assert!(css.contains("vertical-align: top;"));
         assert!(css.contains("text-align: start;"));
         assert!(css.contains("border: 1px solid var(--fandhe-color-border);"));
+    }
+
+    /// レビュー指摘の固定（イシュー #3132）: `table-cell` を縦積みの flex
+    /// column にし、`day-trigger` を `flex-shrink: 0` で縮めないことで、
+    /// 日付ボタンの後に続く `badge`（予定ラベル）が日付の下へ並ぶ。この
+    /// 2 規則がないと、`day-trigger` がインラインレベルのまま残り `badge`
+    /// （`inline-flex`）が同じ行に並んでしまう（月間スケジュール表示の
+    /// レイアウト意図が崩れる回帰）。
+    #[test]
+    fn large_cell_size_stacks_day_trigger_and_following_children_vertically() {
+        let css = stylesheet();
+        assert!(css.contains(
+            "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] {"
+        ));
+        assert!(css.contains("display: flex;"));
+        assert!(css.contains("flex-direction: column;"));
+        assert!(css.contains(
+            "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"day-trigger\"] {\n  align-self: flex-start;\n  flex-shrink: 0;\n}"
+        ));
     }
 }

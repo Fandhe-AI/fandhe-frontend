@@ -435,6 +435,15 @@ const EXPECTED_CSS: &str = r#"[data-scope="calendar"][data-part="root"] {
   text-align: start;
   padding: var(--fandhe-space-1);
   border: 1px solid var(--fandhe-color-border);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--fandhe-space-1);
+}
+
+[data-scope="calendar"][data-part="root"].fd-calendar--cell-size-large [data-scope="calendar"][data-part="day-trigger"] {
+  align-self: flex-start;
+  flex-shrink: 0;
 }
 "#;
 
