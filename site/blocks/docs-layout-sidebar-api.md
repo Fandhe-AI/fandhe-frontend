@@ -259,7 +259,7 @@ fn collapsible_category(category: &Category) -> Node {
         state,
         true,
         Some(content_id.as_str()),
-        vec![],
+        vec![("data-blocks-docs-layout-sidebar-api-group-content", "")],
         vec![nav_list::list(vec![], items)],
     );
     collapsible::root(
@@ -480,6 +480,13 @@ pub fn demo() -> Node {
 - カテゴリ見出しは `search-input`/`search-ai` の両 variant で `h3` に
   統一しています（同一ページ上で見出し階層が variant ごとに変わらない
   ようにするため）。
+- `search-ai` の開閉式グループは `collapsible` の既定スタイル（開いた
+  トリガーの強調色、内容側の枠線・パディング・角丸）をサイドバー見出し風に
+  上書きしています。上書きは同一要素上で `[data-scope="collapsible"]
+  [data-part="…"]` と block 固有の属性を連結したセレクタで行い、
+  `[data-state="open"]`/`[data-disabled]` の状態規則にも負けない詳細度に
+  しています（両 variant のカテゴリ見出しが同じミュート色・同じ書体規模で
+  揃うようにするためです）。
 - 下端の固定フッターは `position: fixed` ではなく、外枠を固定高の
   flex column にして中央のスクロール領域だけを伸縮させる方法で実現して
   います。

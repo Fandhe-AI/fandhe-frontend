@@ -64,30 +64,29 @@
 //!
 //! # `search-ai` の collapsible 既定スタイルの上書き（Bugbot 指摘、PR #3548）
 //!
-//! `search-ai` の全グループは [`OpenState::Open`] 固定（「静的表示・全
-//! disabled 固定」節参照）のため、`collapsible` レシピが持つ 2 つの既定
-//! スタイルが常時適用され、サイドバー見出しとしての体裁を崩す:
+//! `search-ai` の全グループは [`OpenState::Open`] + `disabled: true` 固定
+//! （「静的表示・全 disabled 固定」節参照）のため、`collapsible` レシピの
+//! base 規則（`[data-scope="collapsible"][data-part="…"]`、詳細度 2）と
+//! open/disabled の state 規則（同 + `[data-state="open"]`/`[data-disabled]`、
+//! 詳細度 3）が常時適用される。block 側のフック属性だけを書いた
+//! `[data-blocks-docs-layout-sidebar-api-group-trigger]`（詳細度 1）は
+//! これらすべてに負けるため、trigger の `color`/`display`/`padding` も
+//! content の枠線・パディング・角丸・`[data-disabled]` 時のミュート文字色
+//! も上書きできず、カテゴリ見出しだけ accent 色になり、開いたグループが
+//! 積み重なった disclosure カードに見えていた。
 //!
-//! 1. **trigger の open 色が勝つ**: `fandhe_frontend_pre_styled_ui::collapsible`
-//!    は `[data-scope="collapsible"][data-part="trigger"][data-state="open"]`
-//!    （詳細度 3）で `color: var(--fandhe-color-accent)` を宣言しており、
-//!    [`LAYOUT_CSS`] 側の `[data-blocks-docs-layout-sidebar-api-group-trigger]`
-//!    （詳細度 1）の `color: var(--fandhe-color-fg-muted)` はこれに負ける。
-//!    常時 Open の `search-ai` ではカテゴリ見出しだけ accent 色になり、
-//!    `search-input` 側の [`category_heading`]（muted 色固定）と見出し色が
-//!    揃わない。このため詳細度 4 の複合セレクタで上書きし直す。
-//! 2. **content の disclosure カード風スタイルが漏れる**: [`LAYOUT_CSS`] は
-//!    trigger の見た目のみサイドバー見出し風に上書きし、`collapsible`
-//!    content の既定スタイル（枠線・パディング・角丸・`[data-disabled]`
-//!    時のミュート文字色）は上書きしていなかった。開いたグループが
-//!    サイドバー区画ではなく積み重なった disclosure カードに見えてしまう
-//!    ため、`content` の枠線・パディング・角丸をゼロ化し、`[data-disabled]`
-//!    の文字色上書きも打ち消す。
+//! このため [`LAYOUT_CSS`] の collapsible 各パーツ（trigger / indicator /
+//! content）への上書きは、**同一要素上で** レシピ属性と block フック属性を
+//! 連結する形に統一する（`filter_expandable_panel`・
+//! `docs_layout_toc_collapsible`・`notification_tray` と同じ流儀）:
 //!
-//! いずれも `[data-blocks-docs-layout-sidebar-api-group]` を祖先に持つ
-//! 複合セレクタで詳細度を確保する（モジュール doc 既存の
-//! `[data-blocks-docs-layout-sidebar-api-group][data-scope="collapsible"]...`
-//! パターンと同型）。
+//! - base 上書き: `[data-scope="collapsible"][data-part="<part>"][data-blocks-docs-layout-sidebar-api-group-<part>]`（詳細度 3 > レシピ base の 2）
+//! - state 上書き: 上記 + `[data-state="open"]` / `[data-disabled]`（詳細度 4 > レシピ state の 3）
+//!
+//! フック属性のみの単独セレクタで collapsible パーツを狙う規則は置かない
+//! （置くとレシピに負けて no-op になる）。この不変条件は
+//! `collapsible_overrides_chain_recipe_attributes_on_the_same_element`
+//! テストが [`LAYOUT_CSS`] のセレクタ全件に対して固定する。
 //!
 //! # 検索欄のアクセシブルネーム
 //!
@@ -374,7 +373,7 @@ fn collapsible_category(category: &Category) -> Node {
         state,
         true,
         Some(content_id.as_str()),
-        vec![],
+        vec![("data-blocks-docs-layout-sidebar-api-group-content", "")],
         vec![nav_list::list(vec![], items)],
     );
     collapsible::root(
@@ -640,12 +639,12 @@ const LAYOUT_CSS: &str = "\
 [data-blocks-docs-layout-sidebar-api-method] {\n  margin-inline-start: auto;\n  font-family: var(--fandhe-font-font-family-mono, monospace);\n}\n\
 [data-blocks-docs-layout-sidebar-api-group-heading] {\n  margin: 0;\n  font-size: inherit;\n  font-weight: inherit;\n}\n\
 [data-blocks-docs-layout-sidebar-api-category-heading] {\n  margin: 0;\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-[data-blocks-docs-layout-sidebar-api-group-trigger] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n  inline-size: 100%;\n  text-align: start;\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg-muted);\n}\n\
-[data-blocks-docs-layout-sidebar-api-group-chevron] {\n  margin-inline-start: auto;\n  display: inline-block;\n}\n\
-[data-blocks-docs-layout-sidebar-api-group][data-scope=\"collapsible\"][data-part=\"root\"][data-disabled] [data-blocks-docs-layout-sidebar-api-group-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
-[data-blocks-docs-layout-sidebar-api-group] [data-scope=\"collapsible\"][data-part=\"trigger\"][data-state=\"open\"][data-blocks-docs-layout-sidebar-api-group-trigger] {\n  color: var(--fandhe-color-fg-muted);\n}\n\
-[data-blocks-docs-layout-sidebar-api-group] [data-scope=\"collapsible\"][data-part=\"content\"] {\n  margin-top: 0;\n  padding: 0;\n  border: 0;\n  border-radius: 0;\n}\n\
-[data-blocks-docs-layout-sidebar-api-group] [data-scope=\"collapsible\"][data-part=\"content\"][data-disabled] {\n  color: inherit;\n}\n\
+[data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-docs-layout-sidebar-api-group-trigger] {\n  display: flex;\n  align-items: center;\n  justify-content: flex-start;\n  gap: var(--fandhe-space-2);\n  inline-size: 100%;\n  padding: 0;\n  border-radius: 0;\n  text-align: start;\n  font-size: var(--fandhe-font-font-size-sm);\n  font-weight: var(--fandhe-font-font-weight-medium);\n  color: var(--fandhe-color-fg-muted);\n}\n\
+[data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-docs-layout-sidebar-api-group-trigger][data-state=\"open\"] {\n  color: var(--fandhe-color-fg-muted);\n}\n\
+[data-scope=\"collapsible\"][data-part=\"trigger\"][data-blocks-docs-layout-sidebar-api-group-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
+[data-scope=\"collapsible\"][data-part=\"indicator\"][data-blocks-docs-layout-sidebar-api-group-chevron] {\n  margin-inline-start: auto;\n}\n\
+[data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-docs-layout-sidebar-api-group-content] {\n  margin-top: 0;\n  padding: 0;\n  border: 0;\n  border-radius: 0;\n  color: inherit;\n}\n\
+[data-scope=\"collapsible\"][data-part=\"content\"][data-blocks-docs-layout-sidebar-api-group-content][data-disabled] {\n  color: inherit;\n}\n\
 [data-blocks-docs-layout-sidebar-api-footer] {\n  flex: none;\n  display: flex;\n  flex-wrap: wrap;\n  gap: var(--fandhe-space-3);\n  padding: var(--fandhe-space-3) var(--fandhe-space-4);\n  border-block-start: 1px solid var(--fandhe-color-border);\n  background: var(--fandhe-color-bg-subtle);\n  font-size: var(--fandhe-font-font-size-sm, 0.875rem);\n}\n\
 [data-scope=\"button\"][data-part=\"root\"][data-blocks-docs-layout-sidebar-api-search-trigger][data-disabled],\n[data-scope=\"button\"][data-part=\"root\"][data-blocks-docs-layout-sidebar-api-ai-trigger][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n\
 [data-scope=\"field\"][data-part=\"input\"][data-blocks-docs-layout-sidebar-api-search-input][data-disabled],\n[data-scope=\"input-group\"][data-part=\"addon\"][data-blocks-docs-layout-sidebar-api-search-addon][data-disabled] {\n  opacity: 1;\n  cursor: default;\n}\n";
@@ -827,6 +826,137 @@ mod tests {
         assert!(LAYOUT_CSS.contains("block-size: 32rem;"));
         assert!(LAYOUT_CSS.contains("flex: 1;\n  min-block-size: 0;"));
         assert!(LAYOUT_CSS.contains("opacity: 1;"));
+    }
+
+    /// [`LAYOUT_CSS`] の各規則を `(セレクタ, 宣言ブロック)` へ分解する
+    /// （テスト専用の簡易パーサ。ネストした `@` 規則は使っていない）。
+    fn rules() -> Vec<(String, String)> {
+        LAYOUT_CSS
+            .split('}')
+            .filter_map(|rule| {
+                let (selector, body) = rule.split_once('{')?;
+                Some((selector.trim().to_owned(), body.trim().to_owned()))
+            })
+            .collect()
+    }
+
+    /// collapsible パーツを狙う規則はすべて、同一要素上でレシピ属性
+    /// `[data-scope="collapsible"][data-part="<part>"]` と block フック属性を
+    /// 連結していること（Bugbot 指摘対応、PR #3548。フック属性だけの
+    /// セレクタはレシピ base〔詳細度 2〕に負けて no-op になるため禁止）。
+    #[test]
+    fn collapsible_overrides_chain_recipe_attributes_on_the_same_element() {
+        let parts = [
+            (
+                "trigger",
+                "data-blocks-docs-layout-sidebar-api-group-trigger",
+            ),
+            (
+                "indicator",
+                "data-blocks-docs-layout-sidebar-api-group-chevron",
+            ),
+            (
+                "content",
+                "data-blocks-docs-layout-sidebar-api-group-content",
+            ),
+        ];
+        let mut seen = 0;
+        for (selector, _) in rules() {
+            for (part, hook) in parts {
+                if !selector.contains(hook) {
+                    continue;
+                }
+                seen += 1;
+                let prefix = format!("[data-scope=\"collapsible\"][data-part=\"{part}\"][{hook}]");
+                assert!(
+                    selector.starts_with(&prefix),
+                    "selector `{selector}` must chain the recipe attributes before `{hook}`"
+                );
+                // 連結は同一要素上に限る（子孫結合子で祖先に退避しない）。
+                assert!(
+                    !selector.contains(' ') && !selector.contains('>'),
+                    "selector `{selector}` must not use combinators"
+                );
+            }
+        }
+        assert!(
+            seen >= parts.len(),
+            "every collapsible part should be overridden"
+        );
+    }
+
+    /// trigger の open 状態上書きがレシピの accent 色（詳細度 3）より高い
+    /// 詳細度でミュート色を宣言し、`search-input` 側の
+    /// [`category_heading`] と見出し色が揃うこと（Bugbot 指摘対応）。
+    #[test]
+    fn open_trigger_color_override_outranks_recipe_accent() {
+        let selector = "[data-scope=\"collapsible\"][data-part=\"trigger\"]\
+             [data-blocks-docs-layout-sidebar-api-group-trigger][data-state=\"open\"]";
+        let (_, body) = rules()
+            .into_iter()
+            .find(|(s, _)| s == selector)
+            .expect("open-state trigger override should exist");
+        assert!(body.contains("color: var(--fandhe-color-fg-muted);"));
+        // 見出し本体（`category_heading`）と同じミュート色・同じ書体規模。
+        let (_, heading) = rules()
+            .into_iter()
+            .find(|(s, _)| s == "[data-blocks-docs-layout-sidebar-api-category-heading]")
+            .expect("category heading rule should exist");
+        for decl in [
+            "color: var(--fandhe-color-fg-muted);",
+            "font-size: var(--fandhe-font-font-size-sm);",
+            "font-weight: var(--fandhe-font-font-weight-medium);",
+        ] {
+            assert!(heading.contains(decl));
+            let (_, trigger) = rules()
+                .into_iter()
+                .find(|(s, _)| {
+                    s == "[data-scope=\"collapsible\"][data-part=\"trigger\"]\
+                          [data-blocks-docs-layout-sidebar-api-group-trigger]"
+                })
+                .expect("base trigger override should exist");
+            assert!(
+                trigger.contains(decl),
+                "trigger override should declare `{decl}`"
+            );
+        }
+    }
+
+    /// content の disclosure カード風の既定（枠線・パディング・角丸・
+    /// `[data-disabled]` 時のミュート文字色）がサイドバーへ漏れないこと
+    /// （Bugbot 指摘対応）。content 要素にはフック属性が実際に付く。
+    #[test]
+    fn content_override_neutralizes_recipe_card_chrome() {
+        let base = "[data-scope=\"collapsible\"][data-part=\"content\"]\
+                    [data-blocks-docs-layout-sidebar-api-group-content]";
+        let (_, body) = rules()
+            .into_iter()
+            .find(|(s, _)| s == base)
+            .expect("content override should exist");
+        for decl in [
+            "margin-top: 0;",
+            "padding: 0;",
+            "border: 0;",
+            "border-radius: 0;",
+            "color: inherit;",
+        ] {
+            assert!(
+                body.contains(decl),
+                "content override should declare `{decl}`"
+            );
+        }
+        let (_, disabled) = rules()
+            .into_iter()
+            .find(|(s, _)| *s == format!("{base}[data-disabled]"))
+            .expect("disabled content override should exist");
+        assert!(disabled.contains("color: inherit;"));
+
+        let html = render(&demo());
+        assert_eq!(
+            html.matches("data-blocks-docs-layout-sidebar-api-group-content")
+                .count(),
+            CATEGORIES.len()
+        );
     }
 
     /// ルート class（`demo_class` とは別名）が [`demo`] の出力へ実際に
