@@ -123,7 +123,21 @@ fn instance(root_id: &'static str, selected: &'static str) -> Node {
                     vec![],
                     vec![clipboard::trigger(
                         false,
-                        vec![],
+                        vec![
+                            // docs サイトは JS ハイドレーションを行わないため
+                            // `navigator.clipboard` 配線が無く、押しても
+                            // コピーは実行されない（モジュール doc「操作」節）。
+                            // headless 層の `trigger` は `disabled` 引数を
+                            // 持たない（`clipboard.rs` rustdoc「意図的非採用:
+                            // disabled 視覚」参照）ため、`button::button` と
+                            // 同じ 3 点セット（`disabled`/`data-disabled`/
+                            // `aria-disabled`）を呼び出し側 attrs から直接
+                            // 付与し、動作しないボタンを押せる状態にしない
+                            // （`code_block_header` と同型の是正）。
+                            ("disabled", ""),
+                            ("data-disabled", ""),
+                            ("aria-disabled", "true"),
+                        ],
                         vec![
                             clipboard::indicator(false, false, vec![], vec![text("コピー")]),
                             clipboard::indicator(true, false, vec![], vec![text("コピー済み")]),

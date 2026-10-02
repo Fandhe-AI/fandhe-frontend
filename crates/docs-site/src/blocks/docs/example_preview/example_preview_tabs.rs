@@ -45,16 +45,20 @@
 //! [`fandhe_frontend_pre_styled_ui::tabs::tabs`] は headless 層が root へ
 //! 呼び出し側 attrs を渡す引数を持たないため（`tabs` rustdoc 参照）、
 //! タブ列と同じ行の右端へ操作を差し込む場所が無い。そこでカード root
-//! （[`card::root`]、padding 無し）をグリッドの入れ物にし、tabs root を
-//! `display: contents` にして、タブ列（1 列目・1 行目）・操作 div
-//! （[`LAYOUT_CSS`] の `data-blocks-example-preview-tabs-actions`、2 列目・
-//! 1 行目）・パネル（`grid-column: 1 / -1` で 2 行目）をカードのグリッドへ
-//! 直接並べる（`hidden` の付いたパネルは `display: none` でグリッドの枠を
-//! 取らない）。tabs root は role を持たない素の `div` のため、
-//! `display: contents` によるアクセシビリティ上の副作用は無い。tabs root
-//! は属性を受け取れないため、カード側の `data-blocks-example-preview-tabs-
-//! frame` 属性から子結合子（`>`）で選択する（recipe の
-//! `[data-scope][data-part]` セレクタより詳細度を上げる）。
+//! （[`card::root`]。フォーカスリング分の余白として `padding: 0.25rem`
+//! のみ持つ）をグリッドの入れ物にし、tabs root を `display: contents`
+//! にして、タブ列（1 列目・1 行目）・操作 div（[`LAYOUT_CSS`] の
+//! `data-blocks-example-preview-tabs-actions`、2 列目・1 行目）・パネル
+//! （`grid-column: 1 / -1` で 2 行目）をカードのグリッドへ直接並べる
+//! （`hidden` の付いたパネルは `display: none` でグリッドの枠を取らない）。
+//! tabs root は role を持たない素の `div` のため、`display: contents`
+//! によるアクセシビリティ上の副作用は無い。tabs root は属性を受け取れない
+//! ため、カード側の `data-blocks-example-preview-tabs-frame` 属性から
+//! 子結合子（`>`）で選択する。カードのグリッド宣言自体は `card` recipe の
+//! `[data-scope="card"][data-part="root"]`（詳細度 2）が出す
+//! `display: flex` に上書きされないよう、同じ要素が持つ
+//! `data-scope="card"`/`data-part="root"`/`data-blocks-example-preview-
+//! tabs-frame` の 3 属性を束ねたセレクタ（詳細度 3）で宣言する。
 //!
 //! DOM の順序は「タブ列 → 操作 div」で、フォーカス順は「タブ → パネル →
 //! 操作」になる。コピーは内容に付随する操作のため、この順序で問題ない。
@@ -68,18 +72,26 @@
 //!   組み立てる短い Rust コード片（[`SNIPPET`]）を表示する。内容はプレビュー
 //!   関数と一致させ `disabled: true` も含める（コピーした片だけで成り立つ
 //!   自己完結の例、`code_block_header` のレビュー是正と同じ判断）。コード
-//!   パネル自体（`data-blocks-example-preview-tabs-code-panel`）を
-//!   `overflow-x: auto` にして長い行を枠内で横スクロールする（パネルは
-//!   headless 層が既に `tabindex="0"` と `aria-labelledby` を持つため、
-//!   `pre` 側には追加の `tabindex` を付けず二重のタブ停止を避ける）。
-//!   カード root の `overflow: hidden` でフォーカスリングが切れないよう、
-//!   パネルの `:focus-visible` は inset の outline（負の `outline-offset`）
-//!   にする（`code_block_header` と同じ是正）。
+//!   パネル自体（`[data-scope="tabs"][data-part="content"]`）に
+//!   `overflow-x: auto` を宣言して長い行を枠内で横スクロールする。
+//!   headless 層が既にパネルへ `tabindex="0"` を付与しているため、この
+//!   横スクロールはキーボードから直接到達できる（内側の `pre`
+//!   〔`data-blocks-example-preview-tabs-code-panel`〕側に `tabindex` を
+//!   重ねて二重のタブ停止を作らない）。カード root の `overflow: hidden`
+//!   でフォーカスリングが切れないよう、パネルの `:focus-visible` は
+//!   inset の outline（負の `outline-offset`）にする（`code_block_header`
+//!   と同じ是正）。同じ理由でタブトリガー・コピー操作の各トリガーも
+//!   `:focus-visible` を `outline-offset: -2px` の inset へ揃える
+//!   （[`LAYOUT_CSS`] 末尾のルール）。
 //! - **操作**: [`clipboard::root`] は未コピー（idle）状態で固定し
-//!   `data-copied` は出さない。[`button::button`]（Ghost/Sm/
-//!   `disabled: true`）で「外部で開く」を置く。`href`/`target` は一切出さず、
-//!   リンク先の無い合成例のため disabled のボタンにする（死にリンク・
-//!   reverse tabnabbing を避ける、`code_block_header` B と同じ判断）。
+//!   `data-copied` は出さない。docs サイトは JS ハイドレーションを行わず
+//!   `navigator.clipboard` の配線を持たないため、[`clipboard::trigger`]
+//!   自体に `disabled`/`data-disabled`/`aria-disabled="true"` を直接付与し
+//!   押せない状態にする（「id」節の下、ヘッダー節末尾の指摘対応）。
+//!   [`button::button`]（Ghost/Sm/`disabled: true`）で「外部で開く」を
+//!   置く。`href`/`target` は一切出さず、リンク先の無い合成例のため
+//!   disabled のボタンにする（死にリンク・reverse tabnabbing を避ける、
+//!   `code_block_header` B と同じ判断）。
 //!
 //! # id（1 root : 1 状態機械契約への対応）
 //!
@@ -211,7 +223,21 @@ fn instance(root_id: &'static str, selected: &'static str) -> Node {
                     vec![],
                     vec![clipboard::trigger(
                         false,
-                        vec![],
+                        vec![
+                            // docs サイトは JS ハイドレーションを行わないため
+                            // `navigator.clipboard` 配線が無く、押しても
+                            // コピーは実行されない（モジュール doc「操作」節）。
+                            // headless 層の `trigger` は `disabled` 引数を
+                            // 持たない（`clipboard.rs` rustdoc「意図的非採用:
+                            // disabled 視覚」参照）ため、`button::button` と
+                            // 同じ 3 点セット（`disabled`/`data-disabled`/
+                            // `aria-disabled`）を呼び出し側 attrs から直接
+                            // 付与し、動作しないボタンを押せる状態にしない
+                            // （`code_block_header` と同型の是正）。
+                            ("disabled", ""),
+                            ("data-disabled", ""),
+                            ("aria-disabled", "true"),
+                        ],
                         vec![
                             clipboard::indicator(false, false, vec![], vec![text("コピー")]),
                             clipboard::indicator(true, false, vec![], vec![text("コピー済み")]),
@@ -296,14 +322,15 @@ pub const BLOCK: Block = Block {
 /// コードパネルの横スクロール・フォーカスリングをここで実装する。
 const LAYOUT_CSS: &str = "\
 .blocks-example-preview-tabs-layout {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
-[data-blocks-example-preview-tabs-frame] {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  align-items: center;\n  overflow: hidden;\n  min-width: 0;\n}\n\
+[data-scope=\"card\"][data-part=\"root\"][data-blocks-example-preview-tabs-frame] {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  align-items: center;\n  overflow: hidden;\n  min-width: 0;\n  padding: 0.25rem;\n}\n\
 [data-blocks-example-preview-tabs-frame] > [data-scope=\"tabs\"][data-part=\"root\"] {\n  display: contents;\n}\n\
 [data-blocks-example-preview-tabs-frame] [data-scope=\"tabs\"][data-part=\"list\"] {\n  grid-column: 1;\n  grid-row: 1;\n  min-width: 0;\n  overflow-x: auto;\n  flex-wrap: nowrap;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
 [data-blocks-example-preview-tabs-actions] {\n  grid-column: 2;\n  grid-row: 1;\n  display: flex;\n  flex: none;\n  align-items: center;\n  gap: 0.5rem;\n  white-space: nowrap;\n  padding-inline-end: 1rem;\n  border-bottom: 1px solid var(--fandhe-color-border);\n}\n\
-[data-blocks-example-preview-tabs-frame] [data-scope=\"tabs\"][data-part=\"content\"] {\n  grid-column: 1 / -1;\n  grid-row: 2;\n  padding: 1rem;\n}\n\
+[data-blocks-example-preview-tabs-frame] [data-scope=\"tabs\"][data-part=\"content\"] {\n  grid-column: 1 / -1;\n  grid-row: 2;\n  padding: 1rem;\n  overflow-x: auto;\n}\n\
 .blocks-example-preview-tabs-preview {\n  display: flex;\n  gap: 0.75rem;\n}\n\
-[data-blocks-example-preview-tabs-code-panel] {\n  margin: 0;\n  overflow-x: auto;\n  font-family: var(--fandhe-font-font-mono);\n}\n\
-[data-blocks-example-preview-tabs-frame] [data-scope=\"tabs\"][data-part=\"content\"]:focus-visible {\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));\n}\n";
+[data-blocks-example-preview-tabs-code-panel] {\n  margin: 0;\n  font-family: var(--fandhe-font-font-mono);\n}\n\
+[data-blocks-example-preview-tabs-frame] [data-scope=\"tabs\"][data-part=\"content\"]:focus-visible {\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));\n}\n\
+[data-blocks-example-preview-tabs-frame] [data-scope=\"tabs\"][data-part=\"trigger\"]:focus-visible,\n[data-blocks-example-preview-tabs-actions] [data-scope=\"clipboard\"][data-part=\"trigger\"]:focus-visible,\n[data-blocks-example-preview-tabs-actions] button:focus-visible {\n  outline-offset: -2px;\n}\n";
 
 #[cfg(test)]
 mod tests {
@@ -378,6 +405,26 @@ mod tests {
         assert_eq!(html.matches("外部で開く").count(), 2);
     }
 
+    /// コピーの clipboard トリガーが disabled であること（A/B 合わせて 2 個、
+    /// モジュール doc「パネルの中身」節「操作」項。JS ハイドレーションなしで
+    /// 機能しない操作を押せる状態にしない、PR #3552 codex P1 対応）。
+    #[test]
+    fn clipboard_triggers_are_disabled() {
+        let html = demo_html();
+        let disabled_clipboard_trigger_count = html
+            .split("data-scope=\"clipboard\" data-part=\"trigger\"")
+            .skip(1)
+            .filter(|segment| {
+                let end = segment.find("</button>").unwrap_or(segment.len());
+                let segment = &segment[..end];
+                segment.contains("disabled=\"\"")
+                    && segment.contains("data-disabled")
+                    && segment.contains("aria-disabled=\"true\"")
+            })
+            .count();
+        assert_eq!(disabled_clipboard_trigger_count, 2);
+    }
+
     /// [`SNIPPET`] がプレビューの両ボタン文言を含む自己完結の例であること
     /// （コピーした片だけで成り立つ、`code_block_header` と同型の固定）。
     #[test]
@@ -396,6 +443,17 @@ mod tests {
         assert!(
             LAYOUT_CSS.contains("outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));")
         );
+        // frame のグリッド宣言は `card` recipe の `[data-scope="card"]
+        // [data-part="root"]`（詳細度 2）が出す `display: flex` に負けない
+        // よう、3 属性束ねで詳細度 3 にする（PR #3552 Bugbot High 対応）。
+        assert!(LAYOUT_CSS.contains(
+            "[data-scope=\"card\"][data-part=\"root\"][data-blocks-example-preview-tabs-frame] {\n  display: grid;"
+        ));
+        // タブトリガー・clipboard トリガーの `:focus-visible` も inset に
+        // 揃え、カード root の `overflow: hidden` でリングが切れないように
+        // する（PR #3552 Bugbot Medium「Overflow clips header focus rings」
+        // 対応）。
+        assert!(LAYOUT_CSS.matches("outline-offset: -2px;").count() >= 1);
         assert!(!LAYOUT_CSS.contains('<'));
     }
 }
