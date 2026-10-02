@@ -3887,6 +3887,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # ラベル）を純追加した新規公開 API のみの変更（既存 golden ブロックは不変・
 # 非破壊の追加）のため minor バンプする。
 #
+# イシュー #3139: steps にバー型（`StepsVariant::Bar`）・パネル型
+# （`Panel`）・ドット型（`Dot`）の見た目 variant を追加した。既存 5 関数
+# （`root`/`list`/`item`/`indicator`/`separator`）・既存 golden CSS ブロック
+# は無変更（`*_with` 系新規公開 API・CSS ブロック純追加のみ）だが、観測可能
+# な公開 API 拡張のため minor バンプする。
+#
+# マージコミット注記（本 PR #3139、origin/main 取り込み）: 本ブランチは
+# 上記の経緯で独立に 0.233.0 へ到達していたが、origin/main 側（#3136 取り込み
+# 後の到達値）も独立に同一の 0.233.0 へ到達していた（偶発的衝突）ため、
+# そのまま採用せずさらに +1 して 0.234.0 とする
+# （`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
 # イシュー #3138: stat に矢印なし・意味色付きの増減率表示（`delta` パート・
 # `StatDeltaTone` tone 軸）を追加した。`SLOTS` へ `delta` を末尾追加し、
 # tone 軸に `default_variant` を登録しないため既存 `root` の class 出力・
@@ -3899,20 +3911,67 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.233.0 へ到達していた（偶発的衝突）ため、そのまま採用せずさらに +1 して
 # 0.234.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
 #
-# イシュー #3142: toast に opt-in の右端アクション列レイアウト
-# （`ACTIONS_COLUMN_ATTR`・pre-styled-only `content`/`actions` パート）を
-# 追加した。`SLOTS` へ `content`/`actions` を末尾追加し、`root`/
-# `action-trigger` の state 条件追加も opt-in 属性付与時のみ発火するため
-# 既存 golden ブロックの出力バイトは不変（純追加のみ）。公開 API 純追加の
-# ため minor バンプする。
+# マージコミット注記（本 PR #3578、origin/main 再取り込み、イシュー #3139）:
+# 本ブランチ（#3139）と origin/main（#3577 取り込み後の到達値）は双方とも
+# 独立に 0.234.0 へ到達していた（偶発的衝突）ため、そのまま採用せずさらに
+# +1 して 0.235.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突
+# 運用）。
 #
-# マージコミット注記（本 PR #3579、origin/main 再取り込み、イシュー #3140）:
-# 本ブランチは #3142 対応で独立に 0.234.0 へ到達していたが、
-# origin/main 側（stat の #3138 対応を含む到達値、本ブランチの base merge
-# 時点）も独立に同一の 0.234.0 へ到達していた（偶発的衝突）ため、そのまま
-# 採用せずさらに +1 して 0.235.0 とする（`.claude/rules/coding-rust.md`
-# #638 条項の同衝突運用）。
-version = "0.235.0"
+# マージコミット注記（本 PR #3578、origin/main 再取り込み #2）: 上記のとおり
+# 本ブランチは独立に 0.235.0 へ到達していたが、origin/main 側（progress の
+# #3140 取り込み後の到達値、本ブランチの base merge 時点）も独立に同一の
+# 0.235.0 へ到達していた（偶発的衝突）ため、そのまま採用せずさらに +1 して
+# 0.236.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# イシュー #3139（PR #3578 codex-review 対応）: steps の Dot variant の
+# indicator variant 宣言が base の `border: 2px solid` を上書きせず、
+# current/complete で background と border-color が異なるトークンになり
+# 塗りドットではなくリング状に描画される不具合を修正した（`border: none`
+# を追加）。既存 golden ブロックの出力バイトが変わる非破壊的な修正のため
+# patch バンプする。
+#
+# マージコミット注記（本 PR #3137、origin/main 再取り込み）: イシュー
+# #3137 で separator::group にラベル位置指定（`group_with`/
+# `SeparatorLabelPosition::Start`）を追加した。既存 `group`/`separator` の
+# シグネチャ・出力はバイト単位で不変（`default_variant` を登録しないため）
+# な純追加のため minor バンプする。origin/main 側が別 PR（#3576 等）の
+# マージで独立に 0.233.0 へ到達済みのため、本 PR 分の +1 が吸収され base
+# と同値になっていた（codex-review 是正、PR #3575）。そのためさらに +1
+# して 0.234.0 とした。
+#
+# マージコミット注記（本 PR #3575、origin/main 再取り込み）: 本ブランチは
+# 上記の経緯で 0.234.0 へ到達していたが、origin/main 側（#3577 等の
+# マージ）も独立に同一の 0.234.0 へ到達していたため、さらに +1 して
+# 0.235.0 とした（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# マージコミット注記（本 PR #3575、origin/main 再々取り込み）: 本ブランチは
+# 上記の経緯で 0.235.0 へ到達していたが、origin/main 側（#3579 の
+# マージ）も独立に同一の 0.235.0 へ到達していたため、さらに +1 して
+# 0.236.0 とする（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
+#
+# マージコミット注記（本 PR #3578、origin/main 再取り込み #3、イシュー
+# #3139）: 本ブランチは上記の経緯で 0.236.1 へ到達していた（Dot variant
+# 不具合修正の patch バンプ込み）が、origin/main 側（separator の #3137・
+# 衝突解消 #3575 を含む到達値）は独立に 0.236.0 へ到達していた。本ブランチ
+# の到達値（0.236.1）が既に origin/main 側を上回っているため、追加のバンプ
+# は行わず 0.236.1 を維持する。
+#
+# イシュー #3142（PR #3583 codex-review 対応）: toast に opt-in の右端
+# アクション列レイアウト（`ACTIONS_COLUMN_ATTR`・pre-styled-only
+# `content`/`actions` パート）を追加した。`SLOTS` へ `content`/`actions`
+# を末尾追加し、`root`/`action-trigger` の state 条件追加も opt-in 属性
+# 付与時のみ発火するため既存 golden ブロックの出力バイトは不変（純追加の
+# み）。公開 API 純追加のため minor バンプする。
+#
+# マージコミット注記（本 PR #3583、origin/main 再取り込み、イシュー
+# #3142）: 本ブランチは上記のとおり独立に 0.235.0 へ到達していたが、
+# origin/main 側（steps の #3139 Dot variant 修正・separator の #3137 等を
+# 含む到達値、本ブランチの base merge 時点）は独立に 0.236.1 へ到達して
+# いた。偶発的な同一版数衝突ではなく origin/main 側が本ブランチを上回って
+# いるため、そのまま +1 する運用（`.claude/rules/coding-rust.md` #638
+# 条項）ではなく、origin/main の到達値（0.236.1）を基点として本 PR 分の
+# minor バンプを適用し 0.237.0 とする。
+version = "0.237.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

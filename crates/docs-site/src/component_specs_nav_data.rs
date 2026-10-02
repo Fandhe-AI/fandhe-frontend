@@ -3431,18 +3431,193 @@ fn ex_steps() -> Node {
     )
 }
 
+/// `/themes/steps/` の Examples 節其の 2（イシュー #3139）: バー型
+/// （`StepsVariant::Bar`）。indicator/separator は描画せず、item 上端の
+/// 太線で進捗を表す。
+fn ex_steps_bar() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
+    use fandhe_frontend_pre_styled_ui::steps::StepsVariant;
+    let state = Steps::new(3, 1, Orientation::Horizontal);
+    steps::root_with(
+        StepsVariant::Bar,
+        Size::Md,
+        ColorPalette::Accent,
+        &state,
+        vec![],
+        vec![steps::list_with(
+            StepsVariant::Bar,
+            &state,
+            vec![],
+            (0..3)
+                .map(|i| {
+                    steps::item_with(
+                        StepsVariant::Bar,
+                        &state,
+                        i,
+                        vec![],
+                        vec![steps::trigger(
+                            &state,
+                            i,
+                            vec![],
+                            vec![text(format!("Step {}", i + 1))],
+                        )],
+                    )
+                })
+                .collect(),
+        )],
+    )
+}
+
+/// `/themes/steps/` の Examples 節其の 3（イシュー #3139）: パネル型
+/// （`StepsVariant::Panel`）。枠付き等幅パネルにステップを並べ、シェブロン
+/// （`separator_with`）で区切る。
+fn ex_steps_panel() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
+    use fandhe_frontend_pre_styled_ui::steps::StepsVariant;
+    let state = Steps::new(3, 1, Orientation::Horizontal);
+    steps::root_with(
+        StepsVariant::Panel,
+        Size::Md,
+        ColorPalette::Accent,
+        &state,
+        vec![],
+        vec![steps::list_with(
+            StepsVariant::Panel,
+            &state,
+            vec![],
+            (0..3)
+                .map(|i| {
+                    // separator は item の子として置く（`ex_steps()` と同じ
+                    // 規約。`list` は `<ol>` を描画するため、直下の兄弟に
+                    // `separator`〔`<div>`〕を混ぜると `<ol>` の子は `<li>`
+                    // のみという HTML の制約に反し、かつ grid 自動配置の
+                    // トラックを separator 分だけ余計に消費して等幅 3 分割
+                    // が崩れる。Cursor Bugbot Medium 指摘・codex P1 指摘
+                    // 対応）。
+                    let mut item_children = vec![steps::trigger(
+                        &state,
+                        i,
+                        vec![],
+                        vec![
+                            steps::indicator(&state, i, vec![], vec![text((i + 1).to_string())]),
+                            text(format!("Step {}", i + 1)),
+                        ],
+                    )];
+                    if i < 2 {
+                        item_children.push(steps::separator_with(
+                            StepsVariant::Panel,
+                            &state,
+                            i,
+                            vec![],
+                            vec![],
+                        ));
+                    }
+                    steps::item_with(StepsVariant::Panel, &state, i, vec![], item_children)
+                })
+                .collect(),
+        )],
+    )
+}
+
+/// `/themes/steps/` の Examples 節其の 4（イシュー #3139）: ドット型
+/// （`StepsVariant::Dot`）。ドット（`indicator_with`）の列と「n/m」進捗
+/// テキストを横に並べる。trigger にラベルを置かないため
+/// `visually_hidden::root` でアクセシブルネームを付与する（モジュール冒頭
+/// rustdoc 「イシュー #3139」節参照）。
+fn ex_steps_dot() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
+    use fandhe_frontend_pre_styled_ui::{steps::StepsVariant, visually_hidden};
+    let state = Steps::new(3, 1, Orientation::Horizontal);
+    steps::root_with(
+        StepsVariant::Dot,
+        Size::Md,
+        ColorPalette::Accent,
+        &state,
+        vec![],
+        vec![
+            steps::list_with(
+                StepsVariant::Dot,
+                &state,
+                vec![],
+                (0..3)
+                    .map(|i| {
+                        steps::item_with(
+                            StepsVariant::Dot,
+                            &state,
+                            i,
+                            vec![],
+                            vec![steps::trigger(
+                                &state,
+                                i,
+                                vec![],
+                                vec![
+                                    steps::indicator_with(
+                                        StepsVariant::Dot,
+                                        &state,
+                                        i,
+                                        vec![],
+                                        vec![],
+                                    ),
+                                    visually_hidden::root(
+                                        vec![],
+                                        vec![text(format!("Step {}", i + 1))],
+                                    ),
+                                ],
+                            )],
+                        )
+                    })
+                    .collect(),
+            ),
+            el(
+                "span",
+                vec![],
+                vec![text(format!(
+                    "{}/{}",
+                    // `step == count`（全 step 完了、`is_completed()`）のとき
+                    // `step + 1` は総数を超えるため `count` で頭打ちにする。
+                    state.step().min(state.count() - 1) + 1,
+                    state.count()
+                ))],
+            ),
+        ],
+    )
+}
+
 pub(crate) const STEPS: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "trigger は現在ステップに aria-current=\"step\" を固定付与する（crates/pre-styled-ui/src/steps.rs テスト list_item_trigger_indicator_separator_delegate_to_headless、行 1256）",
         "separator は role=\"separator\" を持つ（steps.rs テスト同上、行 1258）",
         "indicator の data-state（current/complete）で見た目を切り替える（steps.rs:1134-1142）",
+        "StepsVariant（Circle 既定/Bar/Panel/Dot）の root_with/list_with/item_with/indicator_with/separator_with で見た目を切り替える（イシュー #3139、steps.rs）",
     ],
-    arguments: &[],
-    examples: &[ExampleEntry {
-        title: "3 steps, step 2 current",
-        description: "3 ステップ中 2 番目が current の状態を固定表示する例です。",
-        render: ex_steps,
+    arguments: &[ArgRow {
+        name: "variant",
+        kind: "StepsVariant",
+        default: "Circle",
+        description: "`*_with` 系関数が受け取る見た目軸。Circle は既存 `root`/`list`/... とバイト一致、Bar/Panel/Dot は該当 slot へ単独クラスを追加する（イシュー #3139）。",
     }],
+    examples: &[
+        ExampleEntry {
+            title: "3 steps, step 2 current",
+            description: "3 ステップ中 2 番目が current の状態を固定表示する例です。",
+            render: ex_steps,
+        },
+        ExampleEntry {
+            title: "Bar variant",
+            description: "indicator を持たず item 上端の太線で進捗を表すバー型の例です。",
+            render: ex_steps_bar,
+        },
+        ExampleEntry {
+            title: "Panel variant",
+            description: "枠付き等幅パネルにステップを並べ、シェブロンで区切るパネル型の例です。",
+            render: ex_steps_panel,
+        },
+        ExampleEntry {
+            title: "Dot variant",
+            description: "ドット列と「n/m」進捗テキストを横に並べるドット型の例です。",
+            render: ex_steps_dot,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "aria-current=\"step\"（trigger） / role=\"separator\"（separator）",
@@ -3680,6 +3855,43 @@ fn ex_separator_labeled() -> Node {
     )
 }
 
+/// `/themes/separator/` の Examples 節其の 3（イシュー #3137）: ラベル位置
+/// `start`（先頭寄せ）で「左ラベル – 線」を合成する例。子は
+/// `[label, separator]` の 2 列（`group_with` rustdoc の契約参照）。
+fn ex_separator_label_start() -> Node {
+    separator::group_with(
+        separator::SeparatorLabelPosition::Start,
+        vec![("style", "width: 16rem;")],
+        vec![
+            separator::label(vec![], vec![text("Section")]),
+            separator::separator(&separator::SeparatorProps::default(), vec![]),
+        ],
+    )
+}
+
+/// `/themes/separator/` の Examples 節其の 4（イシュー #3137）: ラベル位置
+/// `start` で「左タイトル – 線 – 右ボタン」を合成する例。子は
+/// `[label, separator, 末尾ノード]` の 3 個で、末尾ノードは
+/// `grid-auto-flow: column` により暗黙列（同じ行）へ流れ込む。
+fn ex_separator_title_button() -> Node {
+    separator::group_with(
+        separator::SeparatorLabelPosition::Start,
+        vec![("style", "width: 20rem; align-items: center;")],
+        vec![
+            separator::label(vec![], vec![text("Members")]),
+            separator::separator(&separator::SeparatorProps::default(), vec![]),
+            button(
+                &ButtonProps {
+                    variant: ButtonVariant::Outline,
+                    ..ButtonProps::default()
+                },
+                vec![],
+                vec![text("Add")],
+            ),
+        ],
+    )
+}
+
 pub(crate) const SEPARATOR: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "orientation が role=\"separator\"（固定） + aria-orientation + data-orientation + variant クラスの 3 箇所へ連動する（crates/pre-styled-ui/src/separator.rs:10, 17）",
@@ -3687,6 +3899,7 @@ pub(crate) const SEPARATOR: ComponentPageSpec = ComponentPageSpec {
         "罫線の太さは --fandhe-separator-thickness（既定 1px の custom property、イシュー #1585）の上書きで変更する。size 軸は Phase 0 規約（docs/design/pre-styled-ui-focus-ring-and-size-conventions.md §4 (d)）により非提供（separator.rs:24-31）",
         "role/aria-orientation/data-orientation は呼び出し側の偽装を除去し常にフレームワーク値へ一本化する（separator.rs:270-277、skeleton の aria-hidden 除去と同型）",
         "group/label（イシュー #2053、shadcn/ui 突合で補完）: pre-styled-only のラベル付き区切り線パート。線 – テキスト – 線を display: grid（1fr auto 1fr）で合成する（chakra-ui の HStack + Text 合成相当、horizontal 専用契約）",
+        "group_with/SeparatorLabelPosition（イシュー #3137）: ラベル位置を center（既定、group と同一出力）/start から opt-in で選べる。start は 1 class（grid-template-columns: auto 1fr + grid-auto-flow: column）のみで、ラベルの後ろに続くノードを同じ行へ流し込む",
     ],
     arguments: &[
         ArgRow {
@@ -3712,6 +3925,16 @@ pub(crate) const SEPARATOR: ComponentPageSpec = ComponentPageSpec {
             title: "Labeled",
             description: "group/label によるラベル付き区切り線の例です（イシュー #2053）。",
             render: ex_separator_labeled,
+        },
+        ExampleEntry {
+            title: "Label start",
+            description: "group_with(SeparatorLabelPosition::Start) による左寄せラベルの例です（イシュー #3137）。",
+            render: ex_separator_label_start,
+        },
+        ExampleEntry {
+            title: "Title with action",
+            description: "group_with(SeparatorLabelPosition::Start) で左タイトル・線・右ボタンを 1 行に並べる例です（イシュー #3137）。",
+            render: ex_separator_title_button,
         },
     ],
     keyboard: &[],
