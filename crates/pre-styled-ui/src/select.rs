@@ -305,13 +305,55 @@
 //!   実質視覚化されない（tooltip/hover_card と同じ既知の制約、
 //!   `docs/design/collapsible-height-animation.md` §12.3 の再評価トリガーに
 //!   委ねる）。
+//!
+//! # 選択インジケータ位置（イシュー #3124）
+//!
+//! `item-indicator`（チェックマーク）は #1502 以降 `margin-left: auto` で
+//! 項目右端に固定されていたが、「チェックを項目左端に置き、非選択項目の
+//! テキストと開始位置を揃える」レイアウト（Radix Themes 系の左インジケータ
+//! パターン、Blocks 取り込み対応表 R1235 参照）が既存部品で表現できな
+//! かった。[`ItemIndicatorPlacement`] で opt-in の配置軸を追加する。
+//!
+//! - **既定は `End`**: `End` のとき variant class を一切出さない
+//!   （`default_variant` も登録しない）。既存呼び出し元の出力・golden は
+//!   バイト不変（`Shape::Pill` 未指定時と同じ安全側契約）。
+//! - **`Start` の実現方法**: `root` variant で 4 本の CSS 変数
+//!   （`--fandhe-select-item-position`/`--fandhe-select-item-indicator-
+//!   position`/`--fandhe-select-item-indicator-gutter-display`/
+//!   `--fandhe-select-item-indicator-margin-left`）を切り替える。全項目の
+//!   `item::before` がインジケータ幅の空き（gutter）を inline-start 側へ
+//!   確保し、選択中項目の `item-indicator` は絶対配置 + `margin-left: 0`
+//!   で静的位置（content-box の inline-start 端）に置かれて gutter と
+//!   重なる。`item` の `padding` は一切上書きしないため、既存フック
+//!   `--fandhe-select-item-padding` による余白調整は `Start` でもそのまま
+//!   効く（Bugbot Medium 指摘、PR #3561）。物理方向の `left` は使わず
+//!   静的位置に任せるため `direction: rtl` でも正しい側に置かれる。
+//!   `item`（`[data-selected]`）/`item-indicator`（`[data-state="open"]`）
+//!   側は **state 規則**と
+//!   pseudo-element 規則の純追加のみで base ブロックは変更しない（既存
+//!   golden の前半固定テスト `golden_prefix_through_hidden_select_
+//!   is_unchanged`・`select_pre_2391_blocks_remain_verbatim` を壊さない
+//!   ための設計判断）。`End` では `item::before` が `display: none` の
+//!   ため flex item にならず `gap` も生じず、計算値は不変。
+//! - **子要素の順序に依存しない**: 絶対配置した flex コンテナの子の静的
+//!   位置は「その子が唯一の flex item であるかのように」決まる（CSS
+//!   Flexbox §4.1）ため、`item_indicator` を `item_text` の前後どちらに
+//!   置いても inline-start 端（gutter 上）に配置される（headless Chrome
+//!   で両順序・LTR/RTL を実測確認、PR #3561）。
+//! - **縦位置は無調整**: `item` は `display: flex` + `align-items: center`
+//!   のため、絶対配置した `item-indicator` の静的位置はその flex コンテナの
+//!   中央に揃う（CSS Flexbox の仕様上の挙動）。`top`/`transform` は宣言し
+//!   ない。
+//! - **`--fandhe-select-item-indicator-size`**: インジケータ幅調整用の
+//!   フォールバック専用変数（既定 `1em`）。本モジュールは宣言せず参照の
+//!   みを提供する（アイコン幅が `1em` を超える場合の呼び出し側調整用）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
     disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
-    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, Shape, Size,
-    SlotRecipe, StateCondition, VariantValue,
+    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, PseudoElement, Shape,
+    Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // headless 自由関数 `root`・状態機械 `Select` はあえて再エクスポートしない
@@ -377,6 +419,35 @@ const SLOTS: &[&str] = &[
     "scroll-up-button",
     "scroll-down-button",
 ];
+
+/// 選択インジケータ（`item-indicator`）の配置軸（イシュー #3124）。
+///
+/// `End`（既定）は項目右端固定の既存レイアウトのまま variant class を
+/// 一切出さない。`Start` は項目左端へ寄せ、非選択項目のテキスト開始位置と
+/// 揃える（モジュール rustdoc「選択インジケータ位置（イシュー #3124）」
+/// 節参照）。[`Shape`] と同じく `Default` は実装しない（既定は
+/// [`root_with`] の呼び出し側が明示的に `End` を渡す契約、[`root`] が
+/// その委譲を担う）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ItemIndicatorPlacement {
+    /// 項目右端（既定、現行レイアウト）。
+    End,
+    /// 項目左端。非選択項目のテキスト開始位置と揃う。
+    Start,
+}
+
+impl VariantValue for ItemIndicatorPlacement {
+    fn axis(self) -> &'static str {
+        "item-indicator-placement"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            ItemIndicatorPlacement::End => "end",
+            ItemIndicatorPlacement::Start => "start",
+        }
+    }
+}
 
 /// この styled Select の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
@@ -863,6 +934,22 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-select-trigger-border-color", "transparent"),
             ],
         )
+        // イシュー #3124: 選択インジケータ位置軸。`variant` 軸の後に置く
+        // （純追加。`Default` を実装しない [`ItemIndicatorPlacement`] は
+        // `Start` のみ登録し `End` は class を出さない、モジュール rustdoc
+        // 参照）。root スコープで 2 本の CSS 変数を `relative`/`absolute`
+        // へ切り替え、実際の配置は `item`/`item-indicator` の
+        // state 規則（`[data-selected]`/`[data-state="open"]`、下記）が担う。
+        .variant(
+            ItemIndicatorPlacement::Start,
+            "root",
+            vec![
+                decl("--fandhe-select-item-position", "relative"),
+                decl("--fandhe-select-item-indicator-position", "absolute"),
+                decl("--fandhe-select-item-indicator-gutter-display", "block"),
+                decl("--fandhe-select-item-indicator-margin-left", "0"),
+            ],
+        )
         .default_variant(Size::Md)
         // イシュー #2391: `content` へ presence（enter/exit）のフェード +
         // scale トランジションを適用する。duration は select 内の他の
@@ -873,6 +960,65 @@ fn recipe() -> SlotRecipe {
         // + `max-height`（イシュー #2019）を既に持つが、
         // `presence_transition` が宣言するのは `opacity`/`transform`/
         // `transition-*` のみで交差しないため衝突しない。
+        // イシュー #3124: `item`/`item-indicator` の選択中項目限定の
+        // state 規則。インジケータが可視なのは選択中の項目のみのため、この
+        // 条件に限定すれば十分（モジュール rustdoc 参照）。フォールバック
+        // 値は CSS の初期値（`static`/`auto`）のため、`Start` 未指定時の
+        // 計算値は変わらない。base ブロックへ混入させない（SLOTS 順に
+        // 出力される base と異なり、state は既存の前半 golden を不変に
+        // 保ったまま純追加できる）。`item` 側は `[data-selected]` を条件に
+        // する: クライアント配線（`fandhe-frontend-wasm-full` の
+        // `headless_select`）は選択変更時に item の `data-selected` と
+        // インジケータの `data-state` は同期するが item の `data-state` は
+        // SSR 値のまま残すため、`[data-state="open"]` では選択変更後に
+        // インジケータの包含ブロックが root へ外れる（Bugbot High 指摘、
+        // PR #3561）。`data-selected` は SSR（headless `item`）とクライアント
+        // の双方が選択中項目へ付与する存在属性。
+        .state(
+            "item",
+            StateCondition::Attr("data-selected"),
+            vec![decl(
+                "position",
+                "var(--fandhe-select-item-position, static)",
+            )],
+        )
+        .state(
+            "item-indicator",
+            StateCondition::AttrEq("data-state", "open"),
+            vec![
+                decl(
+                    "position",
+                    "var(--fandhe-select-item-indicator-position, static)",
+                ),
+                decl(
+                    "margin-left",
+                    "var(--fandhe-select-item-indicator-margin-left, auto)",
+                ),
+            ],
+        )
+        // イシュー #3124: `Start` 時にインジケータ幅の空き（gutter）を全
+        // 項目の inline-start 側へ確保する `item::before`。`padding` を
+        // 上書きしないため、利用者が既存フック `--fandhe-select-item-padding`
+        // で調整した余白は `Start`/`End` を問わずそのまま効く（Bugbot Medium
+        // 指摘、PR #3561）。既定（`End`）は `display: none` で flex item に
+        // ならず `gap` も生じないため、`End` の計算値は不変。`Start` では
+        // 絶対配置したインジケータが静的位置（content-box の inline-start
+        // 端、`align-items: center` で縦中央）に置かれ、この gutter と重なる。
+        .pseudo_element(
+            "item",
+            PseudoElement::Before,
+            vec![
+                decl(
+                    "display",
+                    "var(--fandhe-select-item-indicator-gutter-display, none)",
+                ),
+                decl("flex", "none"),
+                decl(
+                    "inline-size",
+                    "var(--fandhe-select-item-indicator-size, 1em)",
+                ),
+            ],
+        )
         .presence_transition("content", MotionDuration::Fast)
 }
 
@@ -913,6 +1059,7 @@ pub fn root<'a>(
         size,
         None,
         SelectVariant::Outline,
+        ItemIndicatorPlacement::End,
         state,
         props,
         attrs,
@@ -920,8 +1067,10 @@ pub fn root<'a>(
     )
 }
 
-/// [`root`] の shape / variant 引数付き版（イシュー #3117、variant はイシュー
-/// #3121 で追加）。`shape: None` + `SelectVariant::Outline` で [`root`] と
+/// [`root`] の shape / variant / 選択インジケータ位置引数付き版（イシュー
+/// #3117、variant はイシュー #3121、item_indicator_placement はイシュー
+/// #3124 で追加）。`shape: None` + `SelectVariant::Outline` +
+/// `item_indicator_placement: ItemIndicatorPlacement::End` で [`root`] と
 /// 完全に同じ出力になる（`crate::layer::layer_with`/`frame_with`〔#2131〕と
 /// 同型の `_with` 先例。既存 [`root`] の位置引数シグネチャは変えず後方互換を
 /// 保つ）。
@@ -930,13 +1079,14 @@ pub fn root<'a>(
 ///
 /// ```
 /// use fandhe_frontend_core::render;
-/// use fandhe_frontend_pre_styled_ui::select::{self, OpenState, SelectProps, SelectVariant};
+/// use fandhe_frontend_pre_styled_ui::select::{self, ItemIndicatorPlacement, OpenState, SelectProps, SelectVariant};
 /// use fandhe_frontend_pre_styled_ui::{Shape, Size};
 ///
 /// let node = select::root_with(
 ///     Size::Md,
 ///     Some(Shape::Pill),
 ///     SelectVariant::Subtle,
+///     ItemIndicatorPlacement::Start,
 ///     OpenState::Closed,
 ///     &SelectProps::default(),
 ///     vec![],
@@ -945,12 +1095,18 @@ pub fn root<'a>(
 /// let html = render(&node);
 /// assert!(html.contains("fd-select--shape-pill"));
 /// assert!(html.contains("fd-select--variant-subtle"));
+/// assert!(html.contains("fd-select--item-indicator-placement-start"));
 /// ```
+// イシュー #3124: `item_indicator_placement` 引数の追加で 7→8 引数となった
+// （`crates/toggle_group.rs::root` 等の複合部品コンストラクタと同型の
+// 許容、位置引数を素直に積む薄い組み立て関数のため分割は行わない）。
+#[allow(clippy::too_many_arguments)]
 #[must_use]
 pub fn root_with<'a>(
     size: Size,
     shape: Option<Shape>,
     variant: SelectVariant,
+    item_indicator_placement: ItemIndicatorPlacement,
     state: OpenState,
     props: &SelectProps,
     attrs: Vec<(&'a str, &'a str)>,
@@ -963,6 +1119,12 @@ pub fn root_with<'a>(
     }
     if variant != SelectVariant::Outline {
         selection.push(("variant", variant.value()));
+    }
+    if item_indicator_placement == ItemIndicatorPlacement::Start {
+        selection.push((
+            "item-indicator-placement",
+            ItemIndicatorPlacement::Start.value(),
+        ));
     }
     let class = recipe.variant_classes(&selection);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
@@ -1076,6 +1238,7 @@ mod tests {
             Size::Md,
             None,
             SelectVariant::Outline,
+            ItemIndicatorPlacement::End,
             OpenState::Closed,
             &SelectProps::default(),
             vec![],
@@ -1084,6 +1247,7 @@ mod tests {
         assert_eq!(via_root, via_root_with);
         assert!(!via_root.contains("fd-select--shape"));
         assert!(!via_root.contains("fd-select--variant"));
+        assert!(!via_root.contains("fd-select--item-indicator-placement"));
     }
 
     #[test]
@@ -1092,12 +1256,99 @@ mod tests {
             Size::Md,
             Some(Shape::Pill),
             SelectVariant::Outline,
+            ItemIndicatorPlacement::End,
             OpenState::Closed,
             &SelectProps::default(),
             vec![],
             vec![],
         ));
         assert!(html.contains("fd-select--shape-pill"));
+        assert!(!html.contains("fd-select--item-indicator-placement"));
+    }
+
+    // --- イシュー #3124: item-indicator-placement 軸 ---
+
+    #[test]
+    fn root_with_item_indicator_placement_start_appends_class() {
+        let html = render(&root_with(
+            Size::Md,
+            None,
+            SelectVariant::Outline,
+            ItemIndicatorPlacement::Start,
+            OpenState::Closed,
+            &SelectProps::default(),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains("fd-select--item-indicator-placement-start"));
+    }
+
+    #[test]
+    fn stylesheet_contains_item_indicator_placement_start_blocks() {
+        let css = stylesheet();
+        // root variant（4 本の CSS 変数切り替え）。
+        assert!(css.contains(
+            r#"[data-scope="select"][data-part="root"].fd-select--item-indicator-placement-start {"#
+        ));
+        assert!(css.contains("--fandhe-select-item-position: relative;"));
+        assert!(css.contains("--fandhe-select-item-indicator-position: absolute;"));
+        assert!(css.contains("--fandhe-select-item-indicator-gutter-display: block;"));
+        assert!(css.contains("--fandhe-select-item-indicator-margin-left: 0;"));
+        // gutter（`item::before`、既定 `display: none`）。
+        let gutter_block =
+            extract_block(&css, r#"[data-scope="select"][data-part="item"]::before {"#);
+        assert!(gutter_block
+            .contains("display: var(--fandhe-select-item-indicator-gutter-display, none);"));
+        assert!(
+            gutter_block.contains("inline-size: var(--fandhe-select-item-indicator-size, 1em);")
+        );
+        // state 規則（item は `[data-selected]`、item-indicator は
+        // `[data-state=\"open\"]`、各 1 件）。
+        assert!(css.contains(
+            "[data-scope=\"select\"][data-part=\"item\"][data-selected] {\n  position: var(--fandhe-select-item-position, static);\n}\n"
+        ));
+        let item_indicator_open_block = extract_block(
+            &css,
+            r#"[data-scope="select"][data-part="item-indicator"][data-state="open"] {"#,
+        );
+        assert!(item_indicator_open_block
+            .contains("position: var(--fandhe-select-item-indicator-position, static);"));
+        assert!(item_indicator_open_block
+            .contains("margin-left: var(--fandhe-select-item-indicator-margin-left, auto);"));
+    }
+
+    #[test]
+    fn item_padding_is_only_controlled_by_existing_hook() {
+        // 回帰（Bugbot Medium、PR #3561）: `item` の余白を決める宣言は既存
+        // フック `--fandhe-select-item-padding` を参照する `padding` のみで
+        // あり、`padding-inline-start` 等の個別辺の上書きを出さない（利用者
+        // がフックで調整した余白が `Start`/`End` を問わず効くことの保証）。
+        let css = stylesheet();
+        assert!(!css.contains("padding-inline"), "css={css}");
+        assert!(!css.contains("padding-left"), "css={css}");
+        assert!(!css.contains("padding-right"), "css={css}");
+        let item_paddings: Vec<&str> = css
+            .split("}\n")
+            .filter(|block| block.contains(r#"[data-part="item"]"#))
+            .flat_map(|block| block.lines())
+            .filter(|line| line.trim_start().starts_with("padding"))
+            .collect();
+        assert_eq!(
+            item_paddings,
+            vec!["  padding: var(--fandhe-select-item-padding, var(--fandhe-space-2) var(--fandhe-space-3));"]
+        );
+    }
+
+    #[test]
+    fn item_indicator_base_block_is_unchanged_by_item_indicator_placement_axis() {
+        // 既存 base ブロック（#1502）は `margin-left: auto;` のみのまま残る
+        // （state 側で配置するため base は不変、モジュール rustdoc 参照）。
+        let css = stylesheet();
+        let block = extract_block(
+            &css,
+            "[data-scope=\"select\"][data-part=\"item-indicator\"] {",
+        );
+        assert_eq!(block.trim(), "margin-left: auto;");
     }
 
     // --- イシュー #3121: variant 軸 ---
@@ -1111,6 +1362,7 @@ mod tests {
             Size::Md,
             None,
             SelectVariant::Outline,
+            ItemIndicatorPlacement::End,
             OpenState::Closed,
             &SelectProps::default(),
             vec![],
@@ -1125,6 +1377,7 @@ mod tests {
             Size::Md,
             None,
             SelectVariant::Subtle,
+            ItemIndicatorPlacement::End,
             OpenState::Closed,
             &SelectProps::default(),
             vec![],
@@ -1139,6 +1392,7 @@ mod tests {
             Size::Md,
             Some(Shape::Pill),
             SelectVariant::Subtle,
+            ItemIndicatorPlacement::End,
             OpenState::Closed,
             &SelectProps::default(),
             vec![],
