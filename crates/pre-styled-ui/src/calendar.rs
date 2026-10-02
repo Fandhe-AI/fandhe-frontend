@@ -154,9 +154,10 @@
 //!
 //! - **純追加契約**: 既存 `recipe()` の base/states/size variant は一切
 //!   変更しない。新規ブロックは (1) size variant 5 段の直後に root
-//!   variant 2 ブロック（Plain の `border-width: 0`、Large の
-//!   `display: grid`）、(2) `stylesheet()` が返す CSS 全量の末尾
-//!   （子孫セレクタ `CELL_SIZE_LARGE_CSS`）の 2 か所に入る。
+//!   variant class（Plain の `border-width: 0`）、(2) `stylesheet()` が
+//!   返す CSS 全量の末尾（子孫セレクタ `CELL_SIZE_LARGE_CSS`。`table`/
+//!   `table-cell` の列幅固定と、`table-cell` 直下の子の縦積み）の 2 か所に
+//!   入る。
 //! - **子孫セレクタを生 CSS 文字列で追記する理由**: `SlotRecipe` の
 //!   recipe API はスロット単位のフラットなセレクタしか生成できず、
 //!   「ある variant class が付いた root の子孫」という子孫結合子を表現
@@ -277,19 +278,26 @@ impl VariantValue for CalendarCellSize {
 /// 節参照）。セレクタの属性セレクタ 4 つ分の詳細度 (0,4,0) が base の
 /// `table-cell` 規則 (0,2,0) に勝つため `border-width: 0` を上書きできる。
 ///
-/// `table-cell` を `display: flex; flex-direction: column` にすることで、
-/// `day-trigger`（インラインレベルの日付ボタン）とその後に並ぶ `badge`
-/// （予定ラベル、`fandhe-frontend-docs-site` の月表示 Example が合成する）が
-/// 縦に積まれ「日付の下へ予定が並ぶ」月間スケジュール表示になる（イシュー
-/// #3132、レビュー指摘）。flex item は自身の `display` 値に関わらずブロック
-/// 整形されるため、`day-trigger` 側を `display: block` 等へ変更する必要は
-/// ない。`day-trigger` は `width`/`height` 固定（正方形の日付ボタン）のまま
-/// 左上に残し、`align-self: flex-start` で縦方向に伸長させない。
+/// `table-cell`（`td`）自体の `display` は変更しない（既定の
+/// `table-cell` のまま）。codex レビュー指摘（PR #3568、イシュー #3132）の
+/// 是正: 旧実装は `td` を `display: flex` にしていたため、`table-cell`
+/// スコープの外では `table-layout: fixed` と組み合わせた 7 列等幅グリッド
+/// の列対応が、`td` が table display mode を失うことで崩れていた
+/// （曜日ヘッダー `table-head-cell` は table-cell のまま）。
+///
+/// 「日付の下へ予定が並ぶ」月間スケジュール表示の縦積みは、`td` ではなく
+/// その**直下の子**（`day-trigger` と、その後に続く任意の `badge` 等）を
+/// 全称子セレクタ（`> *`）でブロック化して実現する。ブロックレベル要素は
+/// 通常のブロック整形コンテキストで上から順に積まれるため、`td` の
+/// table-cell 性を保ったまま flex と同等の縦積みが得られる。間隔は
+/// flex の `gap` の代わりに隣接兄弟結合子（`> * + *`）の `margin-top` で
+/// 付ける。`day-trigger` は `width`/`height` 固定（正方形の日付ボタン）の
+/// ままで、`display: block` でも幅は変わらない。
 ///
 /// ponytail: 入れ子カレンダー（Large root の内側にさらに calendar root を
 /// 入れ子にする構成）は想定しない。必要になったら子結合子（`>`）化を検討
 /// する。
-const CELL_SIZE_LARGE_CSS: &str = "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table\"] {\n  table-layout: fixed;\n}\n\n[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] {\n  height: var(--fandhe-calendar-cell-height, var(--fandhe-space-24));\n  vertical-align: top;\n  text-align: start;\n  padding: var(--fandhe-space-1);\n  border: 1px solid var(--fandhe-color-border);\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: var(--fandhe-space-1);\n}\n\n[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"day-trigger\"] {\n  align-self: flex-start;\n  flex-shrink: 0;\n}\n";
+const CELL_SIZE_LARGE_CSS: &str = "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table\"] {\n  table-layout: fixed;\n}\n\n[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] {\n  height: var(--fandhe-calendar-cell-height, var(--fandhe-space-24));\n  vertical-align: top;\n  text-align: start;\n  padding: var(--fandhe-space-1);\n  border: 1px solid var(--fandhe-color-border);\n}\n\n[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] > * {\n  display: block;\n}\n\n[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] > * + * {\n  margin-top: var(--fandhe-space-1);\n}\n";
 
 /// この styled Calendar の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
@@ -896,22 +904,31 @@ mod tests {
         assert!(css.contains("border: 1px solid var(--fandhe-color-border);"));
     }
 
-    /// レビュー指摘の固定（イシュー #3132）: `table-cell` を縦積みの flex
-    /// column にし、`day-trigger` を `flex-shrink: 0` で縮めないことで、
-    /// 日付ボタンの後に続く `badge`（予定ラベル）が日付の下へ並ぶ。この
-    /// 2 規則がないと、`day-trigger` がインラインレベルのまま残り `badge`
-    /// （`inline-flex`）が同じ行に並んでしまう（月間スケジュール表示の
-    /// レイアウト意図が崩れる回帰）。
+    /// レビュー指摘の固定（codex P1、PR #3568/イシュー #3132）: `table-cell`
+    /// （`td`）自体は `display: flex` にせず table-cell のまま残し、
+    /// `table-layout: fixed` と組み合わせた 7 列等幅グリッドの列対応を
+    /// 保つ。縦積みは `table-cell` 直下の子（`day-trigger` とその後に続く
+    /// `badge` 等）を全称子セレクタ（`> *`）でブロック化し、隣接兄弟結合子
+    /// （`> * + *`）の `margin-top` で間隔を付けることで実現する。
     #[test]
     fn large_cell_size_stacks_day_trigger_and_following_children_vertically() {
         let css = stylesheet();
+        let table_cell_rule = "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] {";
+        assert!(css.contains(table_cell_rule));
+        // `td` 自身は table-cell の display を保つ（flex 化しない）。
+        let rule_start = css
+            .find(table_cell_rule)
+            .expect("table-cell rule must exist");
+        let rule_end = css[rule_start..]
+            .find('}')
+            .map(|offset| rule_start + offset)
+            .expect("table-cell rule must be closed");
+        assert!(!css[rule_start..rule_end].contains("display:"));
         assert!(css.contains(
-            "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] {"
+            "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] > * {\n  display: block;\n}"
         ));
-        assert!(css.contains("display: flex;"));
-        assert!(css.contains("flex-direction: column;"));
         assert!(css.contains(
-            "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"day-trigger\"] {\n  align-self: flex-start;\n  flex-shrink: 0;\n}"
+            "[data-scope=\"calendar\"][data-part=\"root\"].fd-calendar--cell-size-large [data-scope=\"calendar\"][data-part=\"table-cell\"] > * + * {\n  margin-top: var(--fandhe-space-1);\n}"
         ));
     }
 }

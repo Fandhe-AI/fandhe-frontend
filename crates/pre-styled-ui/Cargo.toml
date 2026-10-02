@@ -3769,7 +3769,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 上記の経緯で本ブランチ・origin/main 双方が独立に同一の 0.228.0 へ到達し
 # ており偶発的に衝突したため、マージ結果としてさらに +1 して 0.229.0 と
 # する（`.claude/rules/coding-rust.md` #638 条項の同衝突運用）。
-version = "0.229.0"
+#
+# PR #3568 レビュー指摘是正（codex P1、イシュー #3132）: `CELL_SIZE_LARGE_CSS`
+# が `table-cell`（`td`）自体を `display: flex` にしていたため、
+# `table-layout: fixed` と組み合わせた 7 列等幅グリッドの列対応が崩れる
+# 不具合を修正した。`td` の display は変更せず、直下の子を全称子セレクタ
+# （`> *`）でブロック化して縦積みする方式へ変更（観測可能な CSS 出力の
+# 変更のため minor バンプ）。
+version = "0.230.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
