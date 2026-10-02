@@ -3872,7 +3872,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #3136: pagination に連結表示 variant（`PaginationVariant`/
 # `root_with`）を追加した。新規公開 API のみで既存関数シグネチャ・golden
 # CSS の既存ブロックは不変のため非破壊的な追加として minor バンプする。
-version = "0.232.0"
+#
+# PR #3573 レビュー対応（イシュー #3124）: codex P1 指摘を受け、select の
+# `item-indicator` に `flex-shrink: 0` を追加した（item に gap がある構成で
+# 項目幅・テキスト長が異なるとインジケータが flex item として縮小し整列が
+# 崩れるため）。既存 golden ブロックの出力バイトが変わる観測可能な CSS
+# 変更のため minor バンプする。
+#
+# マージコミット注記（本 PR #3136、origin/main 取り込み）: 本ブランチは
+# 上記の経緯で独立に 0.231.0 へ到達していたが、origin/main 側（select の
+# #3573 対応を含む到達値）は独立に 0.232.0 へ到達していたため、そのまま
+# 採用せずさらに +1 して 0.233.0 とする。
+version = "0.233.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"

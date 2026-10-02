@@ -154,7 +154,13 @@ variant 5 件を当初 `item` slot のクラスセレクタで宣言していた
 Medium 指摘、PR #3561）を受け、compound variant 5 件・size 別
 `--fandhe-select-item-padding-inline` 5 件・`item` の
 `padding-inline-start` ブロックを撤去し、`item::before` の gutter
-〔既定 `display: none`〕+ インジケータの静的位置配置へ置き換えた）** /
+〔既定 `display: none`〕+ インジケータの静的位置配置へ置き換えた。
+最終的にこの絶対配置 + 疑似要素方式も撤去し、`order` + 空き枠方式
+（headless が非選択時のみ `hidden` を付ける既存 `item-indicator` ノード
+自体を空き枠に転用する）へ置き換えた。挿入位置は variants 節末尾へ
+root variant 1 件（3 本の CSS 変数）、states 節末尾へ `item-indicator`
+の `[data-state]`・`[hidden]` 規則 2 件のみで、`item` 側の state 規則・
+`item::before` 疑似要素はいずれも不要になり削除した）** /
 separator / **sidebar（イシュー #2073 で golden 新設。
 `stylesheet()` 全文）** / skeleton / skip_nav / **spinner（イシュー #1567 で
 golden 新設）** / splitter / stat / steps / switch /
