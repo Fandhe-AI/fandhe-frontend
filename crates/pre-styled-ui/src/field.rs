@@ -238,10 +238,13 @@
 //! クラスが 1 つ付与される。
 //!
 //! - **`Inset`**: ラベルを枠の内側・上部に置く。`root` 自身が枠線・背景を
-//!   持つ box になり、`label`/`input` を内包する。縦に隣接する `Inset`
-//!   の `root` 同士は枠線を共有して連結する（gap のない素の wrapper に
-//!   並べることが前提。`group` のような `gap` を持つコンテナの中では
-//!   連結しない）。
+//!   持つ box になり、`label`/`input` を内包する。[`inset_stack`]
+//!   （`data-part="inset-stack"` の wrapper）の直下に縦に並べたときだけ、
+//!   隣接する `root` 同士が枠線を共有して連結する。連結規則は wrapper を
+//!   条件にするため、`group` のような `gap` を持つコンテナへ直接並べても
+//!   発動しない（隣接兄弟セレクタ `+` は親の `gap` を区別できないため、
+//!   暗黙の隣接ではなく明示の wrapper を契約とする。codex-review 指摘、
+//!   PR #3570）。
 //! - **`Overlap`**: `root` 自身に枠線を持たせ、ラベルをその枠線の上へ
 //!   絶対配置で重ねる。`--fandhe-field-label-bg`（既定
 //!   `var(--fandhe-color-bg)`）でラベル背景を地の色に合わせて上書きできる。
@@ -275,7 +278,7 @@
 //! 状態の重なりは別プロパティなので干渉しない: invalid + focus は
 //! エラー色の枠線 + リング（`crate::input` の挙動と同じ）、disabled は
 //! フォーカス不可のため focus と重ならず、invalid + disabled はエラー色の
-//! 枠線のまま子パーツだけが減衰する。`Inset` の縦連結では共有する
+//! 枠線のまま子パーツだけが減衰する。[`inset_stack`] 内の縦連結では共有する
 //! 辺が先行要素の `border-bottom` になるため、後続要素だけが invalid の
 //! ときは `:has(+ ...[data-invalid])` で先行側の下辺をエラー色にする
 //! （focus/disabled は枠線色を変えないため、写すべき状態は invalid のみ）。
@@ -305,7 +308,7 @@ use crate::recipe::{
     disabled_declarations, focus_ring_declarations, ContainerBreakpoint, FocusRingColor,
     FocusRingOffset, SlotRecipe, StateCondition, VariantValue,
 };
-use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
+use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, Node};
 
 // headless `field` の型のうち、見た目を重ねる必要がなくそのまま透過できる
 // もの（`FieldIds`/`FieldProps`）と、コード実体を持たないため styled 側の
@@ -697,17 +700,24 @@ pub fn css() -> String {
          background: transparent;\n}}\n",
     ));
     out.push_str(&boxed_root_state_css(&root_inset));
-    // inset の縦連結（gap のない素の wrapper に並べる前提、モジュール doc
-    // 「対象外」節参照）。先行・後続の双方が `border: 1px solid` を持つため
-    // 負マージンで重ねると共有する辺に 2 本の border が同時に描画される
-    // （codex-review 指摘、PR #3570）。後続要素の `border-top` を消し、
-    // 共有する辺の描画を先行要素の `border-bottom` のみへ一本化する。
+    // inset の縦連結は `inset_stack` の直下に限る（モジュール doc「ラベル
+    // 配置」節）。隣接兄弟セレクタ `+` は親の `gap` を区別できず、`group`
+    // 内の離れた root にも誤って発動する（codex-review 指摘、PR #3570）ため、
+    // `data-part="inset-stack"` の子結合子を全規則の前置条件にする。先行・
+    // 後続の双方が `border: 1px solid` を持つため負マージンで重ねると共有
+    // する辺に 2 本の border が同時に描画される（同指摘）ので、後続要素の
+    // `border-top` を消し、共有する辺の描画を先行要素の `border-bottom` の
+    // みへ一本化する。
+    let stack = format!("{INSET_STACK_SELECTOR} > ");
     out.push_str(&format!(
-        "{root_inset} + {root_inset} {{\n  \
+        "{INSET_STACK_SELECTOR} {{\n  display: flex;\n  flex-direction: column;\n}}\n",
+    ));
+    out.push_str(&format!(
+        "{stack}{root_inset} + {root_inset} {{\n  \
          border-top: 0;\n  border-start-start-radius: 0;\n  border-start-end-radius: 0;\n}}\n",
     ));
     out.push_str(&format!(
-        "{root_inset}:has(+ {root_inset}) {{\n  \
+        "{stack}{root_inset}:has(+ {root_inset}) {{\n  \
          border-end-start-radius: 0;\n  border-end-end-radius: 0;\n}}\n",
     ));
     // 共有する辺は先行要素の `border-bottom` なので、後続要素だけが
@@ -720,7 +730,7 @@ pub fn css() -> String {
     // 枠線色を変えない（focus はリング、disabled は opacity）ため、
     // 共有する辺について写すべき状態は invalid のみ。
     out.push_str(&format!(
-        "{root_inset}:has(+ {root_inset}[data-invalid]) {{\n  \
+        "{stack}{root_inset}:has(+ {root_inset}[data-invalid]) {{\n  \
          border-bottom-color: var(--fandhe-color-danger);\n}}\n",
     ));
     // overlap: root の base は position: relative を既に持つ（本モジュール
@@ -747,6 +757,26 @@ pub fn css() -> String {
          background-color: var(--fandhe-field-label-bg, var(--fandhe-color-bg));\n}}\n",
     ));
     out
+}
+
+/// [`inset_stack`] wrapper の CSS セレクタ（イシュー #3134）。`Inset` の
+/// 枠線連結規則はすべてこのセレクタの子結合子を前置条件に持つ。
+const INSET_STACK_SELECTOR: &str = "[data-scope=\"field\"][data-part=\"inset-stack\"]";
+
+/// `Inset` ラベル配置の `root` を縦に連結する wrapper（`div`、イシュー
+/// #3134、モジュール doc「ラベル配置」節参照）。直下に並べた
+/// [`FieldLabelPlacement::Inset`] の `root` 同士だけが枠線を共有して
+/// 連結し、この wrapper の外（`group` 等）では連結規則は発動しない。
+/// headless 側に対応パーツはなく（レイアウト専用で意味論を持たない）、
+/// `data-scope="field"`/`data-part="inset-stack"` を本モジュールが直接
+/// 出力する。`attrs` は後置で合成し、`class` 属性も呼び出し側の指定を
+/// そのまま通す（本 wrapper は recipe のクラスを持たないため）。
+#[must_use]
+pub fn inset_stack<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> =
+        vec![("data-scope", "field"), ("data-part", "inset-stack")];
+    merged.extend(attrs);
+    el("div", merged, children)
 }
 
 /// `root` 自身が枠線を描く配置（`Inset`/`Overlap`）に共通する状態表示の
@@ -1093,6 +1123,36 @@ mod tests {
             ".fd-field--label-placement-inset > [data-scope=\"field\"][data-part=\"input\"]"
         ));
         assert!(out.contains(":focus-visible"));
+    }
+
+    #[test]
+    fn inset_stack_renders_scope_part_and_passes_attrs() {
+        let html = render(&inset_stack(vec![("id", "s")], vec![text("x")]));
+        assert_eq!(
+            html,
+            r#"<div data-scope="field" data-part="inset-stack" id="s">x</div>"#
+        );
+    }
+
+    #[test]
+    fn css_inset_connection_rules_are_scoped_to_inset_stack() {
+        // codex-review 指摘（PR #3570）: `+` は親の gap を区別できないため、
+        // 連結規則はすべて `inset-stack` の子結合子を前置条件に持ち、
+        // wrapper なしの隣接だけで発動する規則を 1 件も持たない。
+        let out = css();
+        let root = "[data-scope=\"field\"][data-part=\"root\"].fd-field--label-placement-inset";
+        for line in out
+            .lines()
+            .filter(|l| l.contains(&format!("{root} + ")) || l.contains(&format!("{root}:has(")))
+        {
+            assert!(
+                line.starts_with(&format!("{INSET_STACK_SELECTOR} > ")),
+                "unscoped connection rule: {line}"
+            );
+        }
+        assert!(out.contains(&format!(
+            "{INSET_STACK_SELECTOR} {{\n  display: flex;\n  flex-direction: column;\n}}\n"
+        )));
     }
 
     #[test]

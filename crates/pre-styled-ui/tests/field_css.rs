@@ -225,16 +225,20 @@ const FIELD_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="root"] {
 [data-scope="field"][data-part="root"].fd-field--label-placement-inset > [data-scope="field"][data-part="input"]:focus-visible {
   outline: none;
 }
-[data-scope="field"][data-part="root"].fd-field--label-placement-inset + [data-scope="field"][data-part="root"].fd-field--label-placement-inset {
+[data-scope="field"][data-part="inset-stack"] {
+  display: flex;
+  flex-direction: column;
+}
+[data-scope="field"][data-part="inset-stack"] > [data-scope="field"][data-part="root"].fd-field--label-placement-inset + [data-scope="field"][data-part="root"].fd-field--label-placement-inset {
   border-top: 0;
   border-start-start-radius: 0;
   border-start-end-radius: 0;
 }
-[data-scope="field"][data-part="root"].fd-field--label-placement-inset:has(+ [data-scope="field"][data-part="root"].fd-field--label-placement-inset) {
+[data-scope="field"][data-part="inset-stack"] > [data-scope="field"][data-part="root"].fd-field--label-placement-inset:has(+ [data-scope="field"][data-part="root"].fd-field--label-placement-inset) {
   border-end-start-radius: 0;
   border-end-end-radius: 0;
 }
-[data-scope="field"][data-part="root"].fd-field--label-placement-inset:has(+ [data-scope="field"][data-part="root"].fd-field--label-placement-inset[data-invalid]) {
+[data-scope="field"][data-part="inset-stack"] > [data-scope="field"][data-part="root"].fd-field--label-placement-inset:has(+ [data-scope="field"][data-part="root"].fd-field--label-placement-inset[data-invalid]) {
   border-bottom-color: var(--fandhe-color-danger);
 }
 [data-scope="field"][data-part="root"].fd-field--label-placement-overlap {
@@ -735,19 +739,53 @@ fn css_boxed_label_placements_share_state_rules() {
     }
 }
 
-/// `Inset` の縦連結で共有する辺（先行要素の `border-bottom`）が、後続要素
-/// だけが invalid のときもエラー色になることを固定する（PR #3570 レビュー
-/// 指摘是正）。後続は `border-top: 0` で枠線を 1 本に保つ。
+/// `Inset` の縦連結（`inset_stack` 直下に限る）で共有する辺（先行要素の
+/// `border-bottom`）が、後続要素だけが invalid のときもエラー色になること
+/// を固定する（PR #3570 レビュー指摘是正）。後続は `border-top: 0` で枠線を
+/// 1 本に保つ。連結規則はすべて `inset-stack` の子結合子を前置条件に持ち、
+/// `group` など gap 付きコンテナ内の隣接では発動しない。
 #[test]
-fn css_inset_adjacent_shared_border_follows_following_invalid_state() {
+fn css_inset_connection_rules_are_scoped_to_stack_and_follow_following_invalid() {
     let css = field::css();
+    let stack = r#"[data-scope="field"][data-part="inset-stack"]"#;
     let root = r#"[data-scope="field"][data-part="root"].fd-field--label-placement-inset"#;
     assert!(css.contains(&format!(
-        "{root} + {root} {{\n  border-top: 0;\n  border-start-start-radius: 0;\n  border-start-end-radius: 0;\n}}\n"
+        "{stack} {{\n  display: flex;\n  flex-direction: column;\n}}\n"
     )));
     assert!(css.contains(&format!(
-        "{root}:has(+ {root}[data-invalid]) {{\n  border-bottom-color: var(--fandhe-color-danger);\n}}\n"
+        "{stack} > {root} + {root} {{\n  border-top: 0;\n  border-start-start-radius: 0;\n  border-start-end-radius: 0;\n}}\n"
     )));
+    assert!(css.contains(&format!(
+        "{stack} > {root}:has(+ {root}) {{\n  border-end-start-radius: 0;\n  border-end-end-radius: 0;\n}}\n"
+    )));
+    assert!(css.contains(&format!(
+        "{stack} > {root}:has(+ {root}[data-invalid]) {{\n  border-bottom-color: var(--fandhe-color-danger);\n}}\n"
+    )));
+    for line in css
+        .lines()
+        .filter(|l| l.contains(&format!("{root} + ")) || l.contains(&format!("{root}:has(")))
+    {
+        assert!(line.starts_with(&format!("{stack} > ")), "unscoped: {line}");
+    }
+}
+
+/// `inset_stack` が wrapper の `data-scope`/`data-part` を出力し、CSS 側の
+/// 前置条件セレクタと結び付くことを実レンダリングで確認する。
+#[test]
+fn inset_stack_markup_matches_css_scope_selector() {
+    let f = default_field("f");
+    let html = render(&field::inset_stack(
+        vec![],
+        vec![field::root_with_label_placement(
+            &FieldRootProps::default(),
+            FieldLabelPlacement::Inset,
+            &f,
+            vec![],
+            vec![],
+        )],
+    ));
+    assert!(html.starts_with(r#"<div data-scope="field" data-part="inset-stack">"#));
+    assert!(html.contains("fd-field--label-placement-inset"));
 }
 
 /// `Inset`/`Overlap` の `root` が headless の状態フラグ（`data-invalid`/

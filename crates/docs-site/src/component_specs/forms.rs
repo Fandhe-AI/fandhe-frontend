@@ -948,7 +948,7 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
         },
         ExampleEntry {
             title: "Inset labels with shared borders",
-            description: "`Inset` の 2 つの `Field` を gap のない `div` の直下へ縦に並べ、枠線を共有して連結する例です（イシュー #3134）。中間の境界線が 1 本になり、角丸は上下の端にのみ付きます。",
+            description: "`Inset` の 2 つの `Field` を `field::inset_stack` の直下へ縦に並べ、枠線を共有して連結する例です（イシュー #3134）。中間の境界線が 1 本になり、角丸は上下の端にのみ付きます。連結規則は `inset_stack` の中でだけ発動し、`group` など gap 付きコンテナへ直接並べても連結しません。",
             render: ex_field_inset_labels_connected,
         },
         ExampleEntry {
@@ -1217,8 +1217,9 @@ fn ex_field_inset_label() -> Node {
 }
 
 /// [`FIELD`] の Examples 節「Inset labels with shared borders」レンダラ
-/// （イシュー #3134）。gap のない `div` の直下へ `Inset` の 2 つの `root`
-/// を並べ、枠線共有の縦連結（`css()` の `+`/`:has(+ ...)` 規則）を実演する。
+/// （イシュー #3134）。`field::inset_stack` の直下へ `Inset` の 2 つの
+/// `root` を並べ、枠線共有の縦連結（`css()` の `inset-stack > ... +`/
+/// `:has(+ ...)` 規則）を実演する。
 fn ex_field_inset_labels_connected() -> Node {
     let first_name_props = FieldProps {
         id: "ex-field-inset-connected-first-name",
@@ -1238,8 +1239,7 @@ fn ex_field_inset_labels_connected() -> Node {
         readonly: false,
         has_helper_text: false,
     };
-    el(
-        "div",
+    field::inset_stack(
         vec![],
         vec![
             field::root_with_label_placement(

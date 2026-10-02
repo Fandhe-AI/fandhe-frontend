@@ -837,9 +837,11 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
 - **`FieldLabelPlacement`（ラベル配置、イシュー #3134）**: `orientation` と
   独立な opt-in variant。`Inset` は `root` 自身を枠線・背景を持つ box と
   し、内側の `label`/`input` をリセットする（`input` のみ対象、
-  `textarea`/`select` は対象外）。縦に隣接する `Inset` の `root` 同士は
-  `+`/`:has(+ ...)` セレクタで枠線を共有して連結する（gap のない素の
-  wrapper に並べることが前提）。`Overlap` はラベルを `root` の枠線の上へ
+  `textarea`/`select` は対象外）。`inset_stack`（`data-part="inset-stack"`
+  の wrapper）の直下に縦に並べた `Inset` の `root` 同士だけが
+  `+`/`:has(+ ...)` セレクタで枠線を共有して連結する（`+` は親の gap を
+  区別できないため、暗黙の隣接ではなく wrapper を契約とし、`group` 内では
+  連結しない）。`Overlap` はラベルを `root` の枠線の上へ
   絶対配置で重ね、`--fandhe-field-label-bg`（既定
   `var(--fandhe-color-bg)`）でラベル背景を地の色へ合わせられる。
   枠線を `root` が描く両 variant は枠線に結び付く状態表示（invalid の
