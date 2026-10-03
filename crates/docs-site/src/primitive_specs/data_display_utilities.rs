@@ -343,9 +343,11 @@ fn ex_avatar_error_fallback() -> Node {
     avatar::root(
         vec![],
         vec![
+            // SSR では表示切替が status のみで決まるため、Error 例でも src は
+            // 同一オリジンの実在アセットにする（外部リクエスト・404 を出さない）。
             avatar::image(
                 status,
-                "https://example.com/broken-avatar.png",
+                crate::showcase::IMAGE_DEMO_SRC,
                 "Ada Lovelace",
                 vec![],
             ),
@@ -400,12 +402,7 @@ fn ex_avatar_custom_css() -> Node {
     let error_avatar = avatar::root(
         vec![],
         vec![
-            avatar::image(
-                error,
-                "https://example.com/missing-avatar.png",
-                "Priya Das",
-                vec![],
-            ),
+            avatar::image(error, crate::showcase::IMAGE_DEMO_SRC, "Priya Das", vec![]),
             avatar::fallback(error, vec![], vec![text("PD")]),
         ],
     );
