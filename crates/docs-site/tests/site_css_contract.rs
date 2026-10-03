@@ -442,6 +442,20 @@ fn docs_page_skip_nav_parts_are_covered_by_generated_skip_nav_css() {
 /// で別枠管理する。
 const STRUCTURE_CLASS_CONTRACT: &[(&str, &str)] = &[
     (
+        "docs-pager-link",
+        "前後ページャのアンカー a（link_overlay の overlay、イシュー #3608）",
+    ),
+    (
+        "docs-pager-meta",
+        "前後ページャのラベル群 span（方向ラベル・ページ名・セクション名の縦積み）",
+    ),
+    ("docs-pager-label", "前後ページャの方向ラベル span（前へ/次へ）"),
+    ("docs-pager-title", "前後ページャの遷移先ページ名 span"),
+    (
+        "docs-pager-section",
+        "前後ページャの遷移先セクション名 span",
+    ),
+    (
         "docs-header",
         "header.docs-header（<body> 直下、SkipNav リンクの次）",
     ),
@@ -519,6 +533,16 @@ const NO_TOC_ONLY_CLASSES: &[&str] = &["docs-container--no-toc"];
 /// スコープでは `docs-` への統一は行わず、現状を明示的に固定するに留める
 /// （out-of-scope-tracking の対象。計画本文 §9 参照）。
 const NON_DOCS_PREFIXED_CLASSES: &[&str] = &["sidebar", "prev-next", "prev", "next"];
+
+/// 前後ページャのカード（pre-styled `card` / `icon`）が出す recipe class
+/// （イシュー #3608）。`docs-` 接頭辞を持たないが、`site.css` に積まれる
+/// `SITE_RECIPES` が供給する。完全一致比較の期待集合へ
+/// [`NON_DOCS_PREFIXED_CLASSES`] と合併して使う（追加のみ・緩和ではない）。
+const PREV_NEXT_RECIPE_CLASSES: &[&str] = &[
+    "fd-card--size-md",
+    "fd-card--variant-outline",
+    "fd-icon--size-sm",
+];
 
 /// [`sidebar`] のカテゴリ階層描画（イシュー #940）が `[[section.group]]`
 /// を持つセクションでのみ出力する class。[`fixture_nav`]（グループ無し）は
@@ -1009,6 +1033,7 @@ fn rendered_html_has_no_class_outside_the_contract() {
         .collect();
     let expected_non_docs: HashSet<String> = NON_DOCS_PREFIXED_CLASSES
         .iter()
+        .chain(PREV_NEXT_RECIPE_CLASSES)
         .map(|s| s.to_string())
         .collect();
 
@@ -1929,4 +1954,27 @@ fn code_copy_pre_padding_selector_outranks_typography_pre_padding() {
     // ボタンがコード先頭行へ重なるため、より高い詳細度のセレクタで固定する。
     let css = site_css();
     assert!(css.contains(".docs-content .docs-code-block pre {"));
+}
+
+/// 前後ページャが出す recipe class（`PREV_NEXT_RECIPE_CLASSES`）は
+/// `site.css` にセレクタとして存在し、その scope が `SITE_RECIPES` に
+/// 含まれる（供給経路が断たれていない）ことを固定する（イシュー #3608）。
+#[test]
+fn prev_next_recipe_classes_are_supplied_by_site_recipes() {
+    let css = site_css();
+    for class in PREV_NEXT_RECIPE_CLASSES {
+        assert!(
+            css.contains(&format!(".{class}")),
+            "{class} が site.css にセレクタとして存在しない"
+        );
+        let scope = class
+            .trim_start_matches("fd-")
+            .split("--")
+            .next()
+            .unwrap_or_default();
+        assert!(
+            site_theme::SITE_RECIPES.iter().any(|r| r.scope == scope),
+            "{class} の scope {scope} が SITE_RECIPES に無い"
+        );
+    }
 }

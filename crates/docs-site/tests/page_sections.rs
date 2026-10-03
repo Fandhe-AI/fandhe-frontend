@@ -114,17 +114,26 @@ fn pre_hook_blocks(nav: &Nav, page: &fandhe_frontend_docs_site::nav::Page) -> Ve
 }
 
 #[test]
-fn production_registry_has_only_the_landing_hero() {
-    assert!(PAGE_STYLESHEETS.is_empty());
+fn production_registry_matches_the_expected_table() {
     let got: Vec<_> = PAGE_SECTIONS
         .iter()
         .map(|s| (s.path, s.placement, s.layout))
         .collect();
     assert_eq!(
         got,
-        [("/", Placement::Prepend, PageLayout::Landing)],
+        [
+            ("/api/", Placement::BeforeFirstH2, PageLayout::Docs),
+            ("/examples/", Placement::BeforeFirstH2, PageLayout::Docs),
+            ("/guides/", Placement::Append, PageLayout::Docs),
+            ("/", Placement::Prepend, PageLayout::Landing),
+        ],
         "本番登録表の期待表（登録を増やすときは本表へ明示的に追加する）"
     );
+    for s in PAGE_SECTIONS {
+        for rel in s.stylesheets {
+            assert!(PAGE_STYLESHEETS.iter().any(|p| p.rel_path == *rel), "{rel}");
+        }
+    }
     assert_eq!(validate(&REGISTRY, &real_nav()), Ok(()));
 }
 

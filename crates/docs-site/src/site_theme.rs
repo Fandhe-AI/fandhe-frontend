@@ -28,8 +28,9 @@
 //! する。前後ページャ（`nav.prev-next`、headless `link_overlay`）は
 //! `link_overlay::stylesheet()` を採用しない（`overlay` が唯一の子要素の
 //! カードに `position: absolute` を適用すると高さが 0 に潰れるため。
-//! `crate::nav::prev_next_nav` rustdoc 参照）。トークンベースのカード風
-//! CSS を `STRUCTURAL_CSS` 側で手書きのまま維持する。
+//! `crate::nav::prev_next_nav` rustdoc 参照）。カード型ページャ（イシュー
+//! #3608）の枠・padding・アイコン寸法は、recipe を読まない Primitives
+//! ページでも成立するよう `STRUCTURAL_CSS` 側で完全指定する。
 //!
 //! # クラス名契約（`crates/docs-site/src/layout.rs` / `nav.rs` / `markdown.rs` の
 //! 実出力が正。ここに書かれたセレクタはすべて実際に生成される class 値であり、
@@ -1235,7 +1236,7 @@ body {\n\
   display: none;\n\
 }\n\
 \n\
-/* ---- 前後ページナビ（本文末尾、カード風） ---- */\n\
+/* ---- 前後ページナビ（本文末尾、カード型） ---- */\n\
 \n\
 nav.prev-next {\n\
   display: flex;\n\
@@ -1248,47 +1249,98 @@ nav.prev-next {\n\
 \n\
 nav.prev-next .prev,\n\
 nav.prev-next .next {\n\
-  flex: 1 1 0;\n\
+  flex: 0 0 auto;\n\
   display: flex;\n\
-}\n\
-\n\
-nav.prev-next [data-part=\"overlay\"] {\n\
-  flex: 1 1 0;\n\
-  display: block;\n\
-  padding: 0.85rem 1rem;\n\
-  border: 1px solid var(--fandhe-color-border);\n\
-  border-radius: 0.65rem;\n\
-  color: var(--fandhe-color-fg);\n\
-  text-decoration: none;\n\
-  font-size: 0.9rem;\n\
-  font-weight: var(--fandhe-font-font-weight-medium);\n\
-  background: var(--fandhe-color-bg-subtle);\n\
+  min-width: 0;\n\
 }\n\
 \n\
 /*\n\
- * hover 時はサイドバー現在ページと同じアクセント配色（枠線・文字色・\n\
- * `--fandhe-color-docs-accent-bg` 背景）で統一し、左ナビ・前後ページャの\n\
- * アクセント表現をトークンベースで揃える（イシュー #910）。`link_overlay::\n\
- * stylesheet()` は取り込まない（`overlay` が唯一の子要素のカードで\n\
- * `position: absolute` を適用すると高さが 0 に潰れるため、`site_theme.rs`\n\
- * 側の手書きカード CSS を維持する。`crate::nav::prev_next_nav` rustdoc 参照）。\n\
+ * カード型ページャ（イシュー #3608）。アンカー `a.docs-pager-link` は装飾を\n\
+ * 持たない全面リンクで、見た目は内側の pre-styled `card`（Outline）が担う。\n\
+ * Primitives ページは recipe CSS を含まない `site-primitives.css` を読むため、\n\
+ * 枠・角丸・padding・アイコン寸法はここで完全指定する（recipe に勝つよう\n\
+ * `.docs-pager-link` を前置）。`link_overlay::stylesheet()` は取り込まない\n\
+ * （`crate::nav::prev_next_nav` rustdoc 参照）。\n\
  */\n\
-nav.prev-next [data-part=\"overlay\"]:hover {\n\
+nav.prev-next [data-part=\"overlay\"] {\n\
+  flex: 1 1 auto;\n\
+  display: flex;\n\
+  min-width: 0;\n\
+  color: var(--fandhe-color-fg);\n\
+  text-decoration: none;\n\
+  border-radius: 0.65rem;\n\
+}\n\
+\n\
+.docs-pager-link [data-scope=\"card\"][data-part=\"root\"] {\n\
+  flex: 1 1 auto;\n\
+  width: 100%;\n\
+  box-sizing: border-box;\n\
+  border: 1px solid var(--fandhe-color-border);\n\
+  border-radius: 0.65rem;\n\
+  background: var(--fandhe-color-bg-subtle);\n\
+  color: inherit;\n\
+}\n\
+\n\
+.docs-pager-link [data-scope=\"card\"][data-part=\"body\"] {\n\
+  display: flex;\n\
+  flex-direction: row;\n\
+  align-items: center;\n\
+  gap: 0.75rem;\n\
+  padding: 0.85rem 1rem;\n\
+}\n\
+\n\
+.docs-pager-link [data-scope=\"icon\"] {\n\
+  width: 1rem;\n\
+  height: 1rem;\n\
+  flex-shrink: 0;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+}\n\
+\n\
+.docs-pager-meta {\n\
+  display: flex;\n\
+  flex-direction: column;\n\
+  flex: 1 1 auto;\n\
+  gap: 0.15rem;\n\
+  min-width: 0;\n\
+}\n\
+\n\
+.docs-pager-label,\n\
+.docs-pager-section {\n\
+  font-size: 0.75rem;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+  overflow-wrap: anywhere;\n\
+}\n\
+\n\
+.docs-pager-title {\n\
+  font-size: 0.95rem;\n\
+  font-weight: var(--fandhe-font-font-weight-medium);\n\
+  overflow-wrap: anywhere;\n\
+}\n\
+\n\
+nav.prev-next .next .docs-pager-meta {\n\
+  text-align: right;\n\
+}\n\
+\n\
+/*\n\
+ * hover はサイドバー現在ページと同じアクセント配色（枠線・文字色・\n\
+ * `--fandhe-color-docs-accent-bg` 背景、イシュー #910）。\n\
+ */\n\
+.docs-pager-link:hover [data-scope=\"card\"][data-part=\"root\"] {\n\
   border-color: var(--fandhe-color-accent);\n\
-  color: var(--fandhe-color-accent);\n\
   background: var(--fandhe-color-docs-accent-bg);\n\
 }\n\
 \n\
-nav.prev-next .prev [data-part=\"overlay\"] {\n\
-  text-align: left;\n\
+.docs-pager-link:hover .docs-pager-title {\n\
+  color: var(--fandhe-color-accent);\n\
 }\n\
 \n\
-/*\n\
- * 基底（768px 未満、縦積み）では `.prev` と同じ左揃え。`min-width: 768px` で\n\
- * 横並びに切り替わった際に右揃えへ変える（下記 `@media` ブロック参照）。\n\
- */\n\
-nav.prev-next .next [data-part=\"overlay\"] {\n\
-  text-align: left;\n\
+.docs-pager-link:focus-visible {\n\
+  outline: 2px solid var(--fandhe-color-accent);\n\
+  outline-offset: 2px;\n\
+}\n\
+\n\
+.docs-pager-link:focus-visible [data-scope=\"card\"][data-part=\"root\"] {\n\
+  border-color: var(--fandhe-color-accent);\n\
 }\n\
 \n\
 /*\n\
@@ -1361,8 +1413,13 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
     flex-direction: row;\n\
   }\n\
 \n\
-  nav.prev-next .next [data-part=\"overlay\"] {\n\
-    text-align: right;\n\
+  nav.prev-next .prev,\n\
+  nav.prev-next .next {\n\
+    flex: 0 1 calc((100% - 0.75rem) / 2);\n\
+  }\n\
+\n\
+  nav.prev-next .next {\n\
+    margin-left: auto;\n\
   }\n\
 }\n\
 \n\
@@ -2729,6 +2786,17 @@ mod tests {
         ] {
             assert!(css.contains(selector), "missing selector: {selector}");
         }
+    }
+
+    #[test]
+    fn pager_card_css_is_self_contained_and_focus_visible() {
+        let css = stylesheet().unwrap().as_css().to_string();
+        assert!(css.contains("nav.prev-next .next {\nmargin-left: auto;"));
+        assert!(css.contains(".docs-pager-link:focus-visible {\noutline: 2px solid"));
+        let primitives = stylesheet_without_recipes().unwrap().as_css().to_string();
+        assert!(primitives.contains(".docs-pager-link [data-scope=\"card\"][data-part=\"root\"] {"));
+        assert!(primitives
+            .contains(".docs-pager-link [data-scope=\"icon\"] {\nwidth: 1rem;\nheight: 1rem;"));
     }
 
     #[test]
