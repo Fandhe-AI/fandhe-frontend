@@ -25,8 +25,9 @@
 //! - 入口カード（イシュー #3614）は `link_overlay` を使わない。設計文書 §4.1 が
 //!   `link_overlay` を `SITE_RECIPES` から除外しているため、`a` の `::after` を
 //!   カード全面へ伸ばす CSS だけで全面クリックを実現する（`<a>` 内に `<button>`
-//!   を置かない）。カード内の heading / text / stat は `data-scope` を持つので
-//!   検索インデックスから外れる。節の h2 と導入文は素の要素にして検索対象を残す。
+//!   を置かない）。カード内の heading / text は `data-scope` を持つが、
+//!   `li.docs-landing-card` は `search_index` が全文を連結する特例（索引カードと同様）
+//!   なので検索対象に残る。stat は検索対象外。節の h2 と導入文は素の要素にして検索対象を残す。
 //! - 部品数の指標は `site/nav.toml` を `include_str!` して [`layer_counts`] で数える
 //!   （[`crate::page_sections::PageSection`] の `render` は `Nav` を受け取らないため）。
 //!   件数 = 層セクション配下の全ページ − 索引ページ。ページ追加へビルド時に追従する。
@@ -361,14 +362,15 @@ fn stats_section(counts: &[LayerCount]) -> Node {
 }
 
 fn stat_item(label: &str, value: &str, unit: &str, help: Option<&str>) -> Node {
-    let mut children = vec![
-        stat::label(vec![], vec![text(label)]),
-        stat::value_text(vec![], vec![text(value)]),
-        stat::value_unit(vec![], vec![text(unit)]),
-    ];
+    // dl 直下に置けるのは dt / dd のみなので、単位と補足は dd（value_text）の内側へ入れる。
+    let mut value_children = vec![text(value), stat::value_unit(vec![], vec![text(unit)])];
     if let Some(h) = help {
-        children.push(stat::help_text(vec![], vec![text(h)]));
+        value_children.push(stat::help_text(vec![], vec![text(h)]));
     }
+    let children = vec![
+        stat::label(vec![], vec![text(label)]),
+        stat::value_text(vec![], value_children),
+    ];
     li(
         vec![("class", "docs-landing-stat")],
         vec![stat::root(Size::Md, vec![], children)],
@@ -757,6 +759,15 @@ mod tests {
     fn section_headings_live_outside_data_scope() {
         let h = entry_html();
         assert!(h.contains("<h2 class=\"docs-landing-section-title\">"));
+    }
+
+    #[test]
+    fn stat_unit_lives_inside_value_dd() {
+        let h = render_node(&stat_item("ラベル", "60", "件", Some("補足")));
+        let dd_end = h.find("</dd>").expect("dd");
+        assert!(h[..dd_end].contains("件"), "{h}");
+        assert!(h[..dd_end].contains("補足"), "{h}");
+        assert!(h.ends_with("</dd></dl></li>"), "{h}");
     }
 
     #[test]
