@@ -496,6 +496,13 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
 .showcase-row {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 0.75rem;\n  align-items: center;\n  margin: 1rem 0;\n}\n\
 .showcase-stack {\n  display: flex;\n  flex-direction: column;\n  gap: 0.75rem;\n  margin: 1rem 0;\n  max-width: 36rem;\n}\n\
+.pre-styled-showcase .showcase-preview {\n  box-sizing: border-box;\n  min-width: 0;\n  max-width: 100%;\n  overflow-x: auto;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg-subtle);\n  padding: var(--fandhe-space-6);\n  margin: 0 0 1.5rem;\n}\n\
+.pre-styled-showcase .showcase-axis {\n  display: grid;\n  grid-template-columns: minmax(0, 8rem) minmax(0, 1fr);\n  gap: 0.5rem 1rem;\n  align-items: center;\n}\n\
+.pre-styled-showcase .showcase-axis + .showcase-axis {\n  margin-top: 0.5rem;\n}\n\
+.pre-styled-showcase .showcase-axis > .showcase-row, .pre-styled-showcase .showcase-axis > .showcase-stack {\n  margin: 0;\n  min-width: 0;\n}\n\
+.pre-styled-showcase .showcase-axis-label {\n  font-size: 0.8125rem;\n  font-weight: 600;\n  color: var(--fandhe-color-fg-muted);\n}\n\
+.pre-styled-showcase section.showcase-anatomy pre {\n  box-sizing: border-box;\n  max-width: 100%;\n  overflow-x: auto;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg-subtle);\n  padding: var(--fandhe-space-6);\n  line-height: 1.7;\n}\n\
+@media (max-width: 767.98px) {\n  .pre-styled-showcase .showcase-axis {\n    grid-template-columns: minmax(0, 1fr);\n  }\n  .pre-styled-showcase .showcase-preview, .pre-styled-showcase section.showcase-anatomy pre {\n    padding: var(--fandhe-space-4);\n  }\n}\n\
 .showcase-form-field-group {\n  display: flex;\n  flex-direction: column;\n  gap: 0.25rem;\n  width: 100%;\n}\n\
 .pre-styled-showcase [data-scope=\"accordion\"] h3 {\n  margin: 0;\n  font-size: 1rem;\n  font-weight: 400;\n  line-height: 1.5;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"backdrop\"],\n.pre-styled-showcase [data-scope=\"drawer\"][data-part=\"backdrop\"] {\n  display: none;\n}\n\
@@ -1308,6 +1315,34 @@ fn row(children: Vec<Node>) -> Node {
     div(vec![("class", "showcase-row")], children)
 }
 
+/// 軸ラベル付きのデモ行（#3619）。`div.showcase-axis > [span.showcase-axis-label,
+/// div.showcase-row]` を返す。ラベルは `h2`/`h3` にせず右目次を汚さない。class 名に
+/// `showcase-row` を部分文字列として持たせない（dialog の契約テストが部分一致で判定する）
+/// ため外枠は `showcase-axis` とし、内側は従来どおり `showcase-row` を残す。
+fn axis_row(label: &str, children: Vec<Node>) -> Node {
+    axis_wrap(label, row(children))
+}
+
+/// [`axis_row`] の縦積み版（`showcase-stack` を内側に持つ）。
+fn axis_stack(label: &str, children: Vec<Node>) -> Node {
+    axis_wrap(label, stack(children))
+}
+
+/// 軸ラベルと行本体を `div.showcase-axis` へ束ねる共通処理。
+fn axis_wrap(label: &str, body: Node) -> Node {
+    div(
+        vec![("class", "showcase-axis")],
+        vec![
+            el(
+                "span",
+                vec![("class", "showcase-axis-label")],
+                vec![text(label)],
+            ),
+            body,
+        ],
+    )
+}
+
 /// 縦積みのデモ列（Alert / Card 等の幅を取る部品向け）。
 fn stack(children: Vec<Node>) -> Node {
     div(vec![("class", "showcase-stack")], children)
@@ -1325,19 +1360,22 @@ fn button_section() -> Node {
         // イシュー #2009: shadcn/ui `link` variant 相当（hover 時のみ下線）。
         (ButtonVariant::Link, "Link"),
     ];
-    let variant_row = row(variants
-        .iter()
-        .map(|(variant, label)| {
-            button(
-                &ButtonProps {
-                    variant: *variant,
-                    ..ButtonProps::default()
-                },
-                vec![],
-                vec![text(*label)],
-            )
-        })
-        .collect());
+    let variant_row = axis_row(
+        "Variant",
+        variants
+            .iter()
+            .map(|(variant, label)| {
+                button(
+                    &ButtonProps {
+                        variant: *variant,
+                        ..ButtonProps::default()
+                    },
+                    vec![],
+                    vec![text(*label)],
+                )
+            })
+            .collect(),
+    );
 
     // イシュー #1449: size variant を 5 段（Xs〜Xl）へ拡張したことに伴い、
     // Demo でも Xs/Xl を含む全段を掲示する（従来は Sm/Md/Lg の 3 段のみ）。
@@ -1348,58 +1386,67 @@ fn button_section() -> Node {
         (Size::Lg, "Large"),
         (Size::Xl, "Extra Large"),
     ];
-    let size_row = row(sizes
-        .iter()
-        .map(|(size, label)| {
+    let size_row = axis_row(
+        "Size",
+        sizes
+            .iter()
+            .map(|(size, label)| {
+                button(
+                    &ButtonProps {
+                        size: *size,
+                        ..ButtonProps::default()
+                    },
+                    vec![],
+                    vec![text(*label)],
+                )
+            })
+            .collect(),
+    );
+
+    let palette_row = axis_row(
+        "Palette",
+        palettes()
+            .iter()
+            .map(|(palette, label)| {
+                button(
+                    &ButtonProps {
+                        palette: *palette,
+                        ..ButtonProps::default()
+                    },
+                    vec![],
+                    vec![text(*label)],
+                )
+            })
+            .collect(),
+    );
+
+    let state_row = axis_row(
+        "State",
+        vec![
             button(
                 &ButtonProps {
-                    size: *size,
+                    disabled: true,
                     ..ButtonProps::default()
                 },
                 vec![],
-                vec![text(*label)],
-            )
-        })
-        .collect());
-
-    let palette_row = row(palettes()
-        .iter()
-        .map(|(palette, label)| {
+                vec![text("Disabled")],
+            ),
             button(
                 &ButtonProps {
-                    palette: *palette,
+                    loading: true,
                     ..ButtonProps::default()
                 },
                 vec![],
-                vec![text(*label)],
-            )
-        })
-        .collect());
-
-    let state_row = row(vec![
-        button(
-            &ButtonProps {
-                disabled: true,
-                ..ButtonProps::default()
-            },
-            vec![],
-            vec![text("Disabled")],
-        ),
-        button(
-            &ButtonProps {
-                loading: true,
-                ..ButtonProps::default()
-            },
-            vec![],
-            vec![text("Loading")],
-        ),
-    ]);
+                vec![text("Loading")],
+            ),
+        ],
+    );
 
     // IconButton / CloseButton（イシュー #830）: 独立部品ではなく本 recipe の
     // icon-only 修飾 variant として実装した（`crates/pre-styled-ui/src/button.rs`
     // モジュール doc 参照）。IconButton は `aria-label` を必須引数として明示し、
     // CloseButton は既定 `aria-label="Close"` + 内蔵の × アイコンを持つ。
-    let icon_close_row = row(vec![
+    let icon_close_row = axis_row("Icon", vec![
         icon_button(
             &ButtonProps::default(),
             "Search",
@@ -1433,7 +1480,7 @@ fn button_section() -> Node {
     // イシュー #1674: IconButton のアイコン寸法がボタン size から
     // `icon_size_for` で決定的に写像される（chakra-ui `_icon` 準拠:
     // xs/sm → Sm、md/lg/xl → Md）ことを Xs〜Xl 全段で可視化する。
-    let icon_button_size_row = row(sizes
+    let icon_button_size_row = axis_row("Icon size", sizes
         .iter()
         .map(|(size, label)| {
             icon_button(
@@ -1499,21 +1546,24 @@ fn download_trigger_section() -> Node {
         // 共有により `Link` variant はここへも自動波及するため）。
         (ButtonVariant::Link, "Link"),
     ];
-    let variant_row = row(variants
-        .iter()
-        .map(|(variant, label)| {
-            download_trigger::root(
-                &DownloadTriggerProps {
-                    variant: *variant,
-                    ..DownloadTriggerProps::default()
-                },
-                "",
-                Some("sample-report.pdf"),
-                vec![],
-                vec![text(*label)],
-            )
-        })
-        .collect());
+    let variant_row = axis_row(
+        "Variant",
+        variants
+            .iter()
+            .map(|(variant, label)| {
+                download_trigger::root(
+                    &DownloadTriggerProps {
+                        variant: *variant,
+                        ..DownloadTriggerProps::default()
+                    },
+                    "",
+                    Some("sample-report.pdf"),
+                    vec![],
+                    vec![text(*label)],
+                )
+            })
+            .collect(),
+    );
 
     // イシュー #1474: Button 側（#1449）の size variant 5 段化に対称して
     // Xs/Xl を含む全段を掲示する（従来は Sm/Md/Lg の 3 段のみで非対称
@@ -1526,37 +1576,43 @@ fn download_trigger_section() -> Node {
         (Size::Lg, "Large"),
         (Size::Xl, "Extra Large"),
     ];
-    let size_row = row(sizes
-        .iter()
-        .map(|(size, label)| {
-            download_trigger::root(
-                &DownloadTriggerProps {
-                    size: *size,
-                    ..DownloadTriggerProps::default()
-                },
-                "",
-                Some("sample-report.pdf"),
-                vec![],
-                vec![text(*label)],
-            )
-        })
-        .collect());
+    let size_row = axis_row(
+        "Size",
+        sizes
+            .iter()
+            .map(|(size, label)| {
+                download_trigger::root(
+                    &DownloadTriggerProps {
+                        size: *size,
+                        ..DownloadTriggerProps::default()
+                    },
+                    "",
+                    Some("sample-report.pdf"),
+                    vec![],
+                    vec![text(*label)],
+                )
+            })
+            .collect(),
+    );
 
-    let palette_row = row(palettes()
-        .iter()
-        .map(|(palette, label)| {
-            download_trigger::root(
-                &DownloadTriggerProps {
-                    palette: *palette,
-                    ..DownloadTriggerProps::default()
-                },
-                "",
-                Some("sample-report.pdf"),
-                vec![],
-                vec![text(*label)],
-            )
-        })
-        .collect());
+    let palette_row = axis_row(
+        "Palette",
+        palettes()
+            .iter()
+            .map(|(palette, label)| {
+                download_trigger::root(
+                    &DownloadTriggerProps {
+                        palette: *palette,
+                        ..DownloadTriggerProps::default()
+                    },
+                    "",
+                    Some("sample-report.pdf"),
+                    vec![],
+                    vec![text(*label)],
+                )
+            })
+            .collect(),
+    );
 
     section(
         "DownloadTrigger",
@@ -1575,37 +1631,43 @@ fn badge_section() -> Node {
         // イシュー #2045: shadcn/ui `ghost` 相当。
         (BadgeVariant::Plain, "Plain"),
     ];
-    let variant_row = row(variants
-        .iter()
-        .map(|(variant, label)| {
-            badge::badge(
-                &BadgeProps {
-                    variant: *variant,
-                    ..BadgeProps::default()
-                },
-                vec![],
-                vec![text(*label)],
-            )
-        })
-        .collect());
+    let variant_row = axis_row(
+        "Variant",
+        variants
+            .iter()
+            .map(|(variant, label)| {
+                badge::badge(
+                    &BadgeProps {
+                        variant: *variant,
+                        ..BadgeProps::default()
+                    },
+                    vec![],
+                    vec![text(*label)],
+                )
+            })
+            .collect(),
+    );
     // イシュー #1681: 共有 `palettes()`（5 値）はまだ Neutral を含めない
     // （#1680 適用完了まで宣言なしデモの公開を避ける）。この節限定で
     // Neutral エントリを末尾へ連結する。
-    let palette_row = row(palettes()
-        .iter()
-        .copied()
-        .chain([(ColorPalette::Neutral, "Neutral")])
-        .map(|(palette, label)| {
-            badge::badge(
-                &BadgeProps {
-                    palette,
-                    ..BadgeProps::default()
-                },
-                vec![],
-                vec![text(label)],
-            )
-        })
-        .collect());
+    let palette_row = axis_row(
+        "Palette",
+        palettes()
+            .iter()
+            .copied()
+            .chain([(ColorPalette::Neutral, "Neutral")])
+            .map(|(palette, label)| {
+                badge::badge(
+                    &BadgeProps {
+                        palette,
+                        ..BadgeProps::default()
+                    },
+                    vec![],
+                    vec![text(label)],
+                )
+            })
+            .collect(),
+    );
     // イシュー #1555: size 5 段を目視確認できるようにする（spinner_section
     // と同型）。
     let sizes = [
@@ -1615,19 +1677,22 @@ fn badge_section() -> Node {
         (Size::Lg, "Lg"),
         (Size::Xl, "Xl"),
     ];
-    let size_row = row(sizes
-        .iter()
-        .map(|(size, label)| {
-            badge::badge(
-                &BadgeProps {
-                    size: *size,
-                    ..BadgeProps::default()
-                },
-                vec![],
-                vec![text(*label)],
-            )
-        })
-        .collect());
+    let size_row = axis_row(
+        "Size",
+        sizes
+            .iter()
+            .map(|(size, label)| {
+                badge::badge(
+                    &BadgeProps {
+                        size: *size,
+                        ..BadgeProps::default()
+                    },
+                    vec![],
+                    vec![text(*label)],
+                )
+            })
+            .collect(),
+    );
     // イシュー #2045: shadcn/ui の With Icon 例に相当。子ノードとして
     // `icon::icon` を並べるだけで再現できる（badge base の
     // `display: inline-flex` + `gap` が既に対応済み、`data-icon` 属性の
@@ -1707,31 +1772,37 @@ fn spinner_section() -> Node {
         (Size::Lg, "Loading (large)"),
         (Size::Xl, "Loading (xl)"),
     ];
-    let size_row = row(sizes
-        .iter()
-        .map(|(size, label)| {
-            spinner(&SpinnerProps {
-                size: *size,
-                label,
-                ..SpinnerProps::default()
+    let size_row = axis_row(
+        "Size",
+        sizes
+            .iter()
+            .map(|(size, label)| {
+                spinner(&SpinnerProps {
+                    size: *size,
+                    label,
+                    ..SpinnerProps::default()
+                })
             })
-        })
-        .collect());
+            .collect(),
+    );
     // イシュー #1567: chakra-ui docs の色グリッド相当。トラック透明既定・
     // 上右 2 辺の弧が palette ごとに区別できることを目視確認できるように
     // する（badge_section の palette_row と同型に Neutral を末尾連結）。
-    let palette_row = row(palettes()
-        .iter()
-        .copied()
-        .chain([(ColorPalette::Neutral, "Neutral")])
-        .map(|(palette, label)| {
-            spinner(&SpinnerProps {
-                palette,
-                label,
-                ..SpinnerProps::default()
+    let palette_row = axis_row(
+        "Palette",
+        palettes()
+            .iter()
+            .copied()
+            .chain([(ColorPalette::Neutral, "Neutral")])
+            .map(|(palette, label)| {
+                spinner(&SpinnerProps {
+                    palette,
+                    label,
+                    ..SpinnerProps::default()
+                })
             })
-        })
-        .collect());
+            .collect(),
+    );
     // イシュー #2051: shadcn/ui との突合で追加した合成例（Button 末尾配置 /
     // Badge）。spinner_decorative（役割・公開化経緯は spinner.rs 参照）を
     // 装飾用途として周囲テキストと組み合わせる。
@@ -1776,22 +1847,25 @@ fn skeleton_section() -> Node {
         (SkeletonVariant::Circle, ""),
         (SkeletonVariant::Rect, "width: 12rem;"),
     ];
-    let variant_row = row(variants
-        .iter()
-        .map(|(variant, style)| {
-            skeleton(
-                &SkeletonProps {
-                    variant: *variant,
-                    ..Default::default()
-                },
-                if style.is_empty() {
-                    vec![]
-                } else {
-                    vec![("style", *style)]
-                },
-            )
-        })
-        .collect());
+    let variant_row = axis_row(
+        "Variant",
+        variants
+            .iter()
+            .map(|(variant, style)| {
+                skeleton(
+                    &SkeletonProps {
+                        variant: *variant,
+                        ..Default::default()
+                    },
+                    if style.is_empty() {
+                        vec![]
+                    } else {
+                        vec![("style", *style)]
+                    },
+                )
+            })
+            .collect(),
+    );
     // イシュー #1566: 第 2 軸 `animation`（pulse/shine/none）を text
     // variant 上で並べ、参照サイト（chakra-ui）の 3 種アニメーションの
     // 見た目差を確認できるようにする。
@@ -2582,29 +2656,32 @@ fn sticky_progress_demo() -> Node {
 /// `1px`）の上書きで変更できることを 2px/3px の実演行で示す
 /// （`crates/pre-styled-ui/src/separator.rs` rustdoc 参照）。
 fn separator_section() -> Node {
-    let horizontal_row = row(vec![
-        separator(
-            &SeparatorProps {
-                orientation: Orientation::Horizontal,
-                variant: SeparatorVariant::Solid,
-            },
-            vec![("style", "width: 12rem;")],
-        ),
-        separator(
-            &SeparatorProps {
-                orientation: Orientation::Horizontal,
-                variant: SeparatorVariant::Dashed,
-            },
-            vec![("style", "width: 12rem;")],
-        ),
-        separator(
-            &SeparatorProps {
-                orientation: Orientation::Horizontal,
-                variant: SeparatorVariant::Dotted,
-            },
-            vec![("style", "width: 12rem;")],
-        ),
-    ]);
+    let horizontal_row = axis_row(
+        "Horizontal",
+        vec![
+            separator(
+                &SeparatorProps {
+                    orientation: Orientation::Horizontal,
+                    variant: SeparatorVariant::Solid,
+                },
+                vec![("style", "width: 12rem;")],
+            ),
+            separator(
+                &SeparatorProps {
+                    orientation: Orientation::Horizontal,
+                    variant: SeparatorVariant::Dashed,
+                },
+                vec![("style", "width: 12rem;")],
+            ),
+            separator(
+                &SeparatorProps {
+                    orientation: Orientation::Horizontal,
+                    variant: SeparatorVariant::Dotted,
+                },
+                vec![("style", "width: 12rem;")],
+            ),
+        ],
+    );
     let thickness_row = row(vec![
         separator(
             &SeparatorProps {
@@ -2621,29 +2698,32 @@ fn separator_section() -> Node {
             vec![("style", "width: 12rem; --fandhe-separator-thickness: 3px;")],
         ),
     ]);
-    let vertical_row = row(vec![
-        separator(
-            &SeparatorProps {
-                orientation: Orientation::Vertical,
-                variant: SeparatorVariant::Solid,
-            },
-            vec![("style", "height: 3rem;")],
-        ),
-        separator(
-            &SeparatorProps {
-                orientation: Orientation::Vertical,
-                variant: SeparatorVariant::Dashed,
-            },
-            vec![("style", "height: 3rem;")],
-        ),
-        separator(
-            &SeparatorProps {
-                orientation: Orientation::Vertical,
-                variant: SeparatorVariant::Dotted,
-            },
-            vec![("style", "height: 3rem;")],
-        ),
-    ]);
+    let vertical_row = axis_row(
+        "Vertical",
+        vec![
+            separator(
+                &SeparatorProps {
+                    orientation: Orientation::Vertical,
+                    variant: SeparatorVariant::Solid,
+                },
+                vec![("style", "height: 3rem;")],
+            ),
+            separator(
+                &SeparatorProps {
+                    orientation: Orientation::Vertical,
+                    variant: SeparatorVariant::Dashed,
+                },
+                vec![("style", "height: 3rem;")],
+            ),
+            separator(
+                &SeparatorProps {
+                    orientation: Orientation::Vertical,
+                    variant: SeparatorVariant::Dotted,
+                },
+                vec![("style", "height: 3rem;")],
+            ),
+        ],
+    );
     // イシュー #2053（shadcn/ui 突合）: ラベル付き区切り線（線 – テキスト –
     // 線、chakra-ui の HStack + Text 合成相当）の実演。`group`/`label` の
     // Anatomy 表・`data-*` 表はこの Demo から機械導出されるため、ここに
@@ -2732,38 +2812,44 @@ fn highlight_section() -> Node {
         (HighlightVariant::Text, "text"),
         (HighlightVariant::Plain, "plain"),
     ];
-    let variant_row = row(variants
-        .iter()
-        .map(|(variant, label)| {
-            highlight(
-                &HighlightProps {
-                    query: &[*label],
-                    variant: *variant,
-                    ..HighlightProps::default()
-                },
-                vec![],
-                label,
-            )
-        })
-        .collect());
+    let variant_row = axis_row(
+        "Variant",
+        variants
+            .iter()
+            .map(|(variant, label)| {
+                highlight(
+                    &HighlightProps {
+                        query: &[*label],
+                        variant: *variant,
+                        ..HighlightProps::default()
+                    },
+                    vec![],
+                    label,
+                )
+            })
+            .collect(),
+    );
     // 共有 `palettes()`（5 値、Neutral なし）に本部品の既定 palette
     // （Accent、mark::section と同様）以外を末尾連結する（badge/code と同型）。
-    let palette_row = row(palettes()
-        .iter()
-        .copied()
-        .chain([(ColorPalette::Neutral, "Neutral")])
-        .map(|(palette, label)| {
-            highlight(
-                &HighlightProps {
-                    query: &[label],
-                    palette,
-                    ..HighlightProps::default()
-                },
-                vec![],
-                label,
-            )
-        })
-        .collect());
+    let palette_row = axis_row(
+        "Palette",
+        palettes()
+            .iter()
+            .copied()
+            .chain([(ColorPalette::Neutral, "Neutral")])
+            .map(|(palette, label)| {
+                highlight(
+                    &HighlightProps {
+                        query: &[label],
+                        palette,
+                        ..HighlightProps::default()
+                    },
+                    vec![],
+                    label,
+                )
+            })
+            .collect(),
+    );
     section(
         "Highlight",
         "テキスト中の一致語句を <mark> で強調します。正規表現ではなく決定的な部分文字列検索のみで一致判定します。query（複数可）・match_all（全一致 or 最初の 1 件）・ignore_case（ASCII 限定）・variant（subtle/solid/text/plain）・colorPalette の各プロパティを持ちます。",
@@ -5202,30 +5288,33 @@ fn switch_section() -> Node {
     // イシュー #1509: size 5 段（xs〜xl）で track/thumb 寸法・root 余白
     // （gap）・label font-size が単調に連動することを視覚確認できる行
     // （`crate::checkbox` #1455 の size_row と同型）。
-    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
-        .iter()
-        .map(|size| {
-            let name = format!("showcase-switch-size-{}", size.value());
-            let props = switch::SwitchProps::default();
-            switch::root(
-                *size,
-                ColorPalette::Accent,
-                true,
-                &props,
-                vec![],
-                vec![
-                    switch::hidden_input(&name, "on", true, &props, vec![]),
-                    switch::control(
-                        true,
-                        &props,
-                        vec![],
-                        vec![switch::thumb(true, &props, vec![], vec![])],
-                    ),
-                    switch::label(true, &props, vec![], vec![text(size.value())]),
-                ],
-            )
-        })
-        .collect());
+    let size_row = axis_row(
+        "Size",
+        [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+            .iter()
+            .map(|size| {
+                let name = format!("showcase-switch-size-{}", size.value());
+                let props = switch::SwitchProps::default();
+                switch::root(
+                    *size,
+                    ColorPalette::Accent,
+                    true,
+                    &props,
+                    vec![],
+                    vec![
+                        switch::hidden_input(&name, "on", true, &props, vec![]),
+                        switch::control(
+                            true,
+                            &props,
+                            vec![],
+                            vec![switch::thumb(true, &props, vec![], vec![])],
+                        ),
+                        switch::label(true, &props, vec![], vec![text(size.value())]),
+                    ],
+                )
+            })
+            .collect(),
+    );
     section(
         "Switch",
         "data-state=\"checked\"/\"unchecked\" で見た目が切り替わるオン/オフ スイッチ。visually-hidden な input[type=\"checkbox\"][role=\"switch\"] がフォーム送信・キーボード操作の意味論を担います。",
@@ -5333,48 +5422,51 @@ fn radio_group_section() -> Node {
     // font-size が単調に連動し、label（見出し）が item-text（項目）より
     // 太いことを視覚確認できる行（`checkbox_group` #1461 の `size_row` と
     // 同型）。
-    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
-        .iter()
-        .map(|size| {
-            let size_label_id = format!("showcase-radio-size-{}-label", size.value());
-            let mut size_children = vec![radio_group::label(
-                &item_props(false),
-                Some(&size_label_id),
-                vec![],
-                vec![text(size.value())],
-            )];
-            size_children.extend(items.iter().map(|(value, label, checked, disabled)| {
-                let name = format!("showcase-radio-size-{}", size.value());
-                let props = item_props(*disabled);
-                radio_group::item(
-                    *checked,
-                    &props,
-                    value,
+    let size_row = axis_row(
+        "Size",
+        [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+            .iter()
+            .map(|size| {
+                let size_label_id = format!("showcase-radio-size-{}-label", size.value());
+                let mut size_children = vec![radio_group::label(
+                    &item_props(false),
+                    Some(&size_label_id),
                     vec![],
-                    vec![
-                        radio_group::item_hidden_input(
-                            *checked,
-                            &props,
-                            Some(&name),
-                            value,
-                            vec![],
-                        ),
-                        radio_group::item_control(*checked, &props, vec![]),
-                        radio_group::item_text(*checked, &props, vec![], vec![text(*label)]),
-                    ],
+                    vec![text(size.value())],
+                )];
+                size_children.extend(items.iter().map(|(value, label, checked, disabled)| {
+                    let name = format!("showcase-radio-size-{}", size.value());
+                    let props = item_props(*disabled);
+                    radio_group::item(
+                        *checked,
+                        &props,
+                        value,
+                        vec![],
+                        vec![
+                            radio_group::item_hidden_input(
+                                *checked,
+                                &props,
+                                Some(&name),
+                                value,
+                                vec![],
+                            ),
+                            radio_group::item_control(*checked, &props, vec![]),
+                            radio_group::item_text(*checked, &props, vec![], vec![text(*label)]),
+                        ],
+                    )
+                }));
+                radio_group::root(
+                    *size,
+                    ColorPalette::Accent,
+                    false,
+                    Some(Orientation::Vertical),
+                    Some(&size_label_id),
+                    vec![],
+                    size_children,
                 )
-            }));
-            radio_group::root(
-                *size,
-                ColorPalette::Accent,
-                false,
-                Some(Orientation::Vertical),
-                Some(&size_label_id),
-                vec![],
-                size_children,
-            )
-        })
-        .collect());
+            })
+            .collect(),
+    );
 
     // イシュー #2018: shadcn/ui 突合で `data-invalid`（`item-control` の
     // border-color）自体は #1616 で実装済みと確認したが、docs サイトの Demo
@@ -5456,119 +5548,131 @@ const AVATAR_INLINE_SVG_SRC: &str =
 /// しない方針）。`image` パーツ自体は `ImageStatus` に応じて headless 層が
 /// `hidden` 存在属性を出力するため、Error 状態でも anatomy には含まれる。
 fn avatar_section() -> Node {
-    let size_row = row(vec![
-        (Size::Xs, "FT"),
-        (Size::Sm, "FT"),
-        (Size::Md, "FT"),
-        (Size::Lg, "FT"),
-        (Size::Xl, "FT"),
-    ]
-    .into_iter()
-    .map(|(size, initials)| {
-        let props = AvatarProps {
-            size,
-            ..AvatarProps::default()
-        };
-        avatar::root(
-            &props,
-            vec![],
-            vec![
-                avatar::image(
-                    ImageStatus::Error,
-                    AVATAR_EMPTY_IMAGE_SRC,
-                    "Fandhe Team",
-                    vec![],
-                ),
-                avatar::fallback(ImageStatus::Error, vec![], vec![text(initials)]),
-            ],
-        )
-    })
-    .collect());
+    let size_row = axis_row(
+        "Size",
+        vec![
+            (Size::Xs, "FT"),
+            (Size::Sm, "FT"),
+            (Size::Md, "FT"),
+            (Size::Lg, "FT"),
+            (Size::Xl, "FT"),
+        ]
+        .into_iter()
+        .map(|(size, initials)| {
+            let props = AvatarProps {
+                size,
+                ..AvatarProps::default()
+            };
+            avatar::root(
+                &props,
+                vec![],
+                vec![
+                    avatar::image(
+                        ImageStatus::Error,
+                        AVATAR_EMPTY_IMAGE_SRC,
+                        "Fandhe Team",
+                        vec![],
+                    ),
+                    avatar::fallback(ImageStatus::Error, vec![], vec![text(initials)]),
+                ],
+            )
+        })
+        .collect(),
+    );
 
-    let shape_row = row(vec![
-        AvatarShape::Circle,
-        AvatarShape::Rounded,
-        AvatarShape::Square,
-    ]
-    .into_iter()
-    .map(|shape| {
-        let props = AvatarProps {
-            shape,
-            ..AvatarProps::default()
-        };
-        avatar::root(
-            &props,
-            vec![],
-            vec![
-                avatar::image(
-                    ImageStatus::Loaded,
-                    AVATAR_INLINE_SVG_SRC,
-                    "Fandhe Team",
-                    vec![],
-                ),
-                avatar::fallback(ImageStatus::Loaded, vec![], vec![text("FT")]),
-            ],
-        )
-    })
-    .collect());
+    let shape_row = axis_row(
+        "Shape",
+        vec![
+            AvatarShape::Circle,
+            AvatarShape::Rounded,
+            AvatarShape::Square,
+        ]
+        .into_iter()
+        .map(|shape| {
+            let props = AvatarProps {
+                shape,
+                ..AvatarProps::default()
+            };
+            avatar::root(
+                &props,
+                vec![],
+                vec![
+                    avatar::image(
+                        ImageStatus::Loaded,
+                        AVATAR_INLINE_SVG_SRC,
+                        "Fandhe Team",
+                        vec![],
+                    ),
+                    avatar::fallback(ImageStatus::Loaded, vec![], vec![text("FT")]),
+                ],
+            )
+        })
+        .collect(),
+    );
 
-    let variant_row = row(vec![
-        AvatarVariant::Subtle,
-        AvatarVariant::Solid,
-        AvatarVariant::Outline,
-    ]
-    .into_iter()
-    .map(|variant| {
-        let props = AvatarProps {
-            variant,
-            ..AvatarProps::default()
-        };
-        avatar::root(
-            &props,
-            vec![],
-            vec![
-                avatar::image(
-                    ImageStatus::Error,
-                    AVATAR_EMPTY_IMAGE_SRC,
-                    "Fandhe Team",
-                    vec![],
-                ),
-                avatar::fallback(ImageStatus::Error, vec![], vec![text("FT")]),
-            ],
-        )
-    })
-    .collect());
+    let variant_row = axis_row(
+        "Variant",
+        vec![
+            AvatarVariant::Subtle,
+            AvatarVariant::Solid,
+            AvatarVariant::Outline,
+        ]
+        .into_iter()
+        .map(|variant| {
+            let props = AvatarProps {
+                variant,
+                ..AvatarProps::default()
+            };
+            avatar::root(
+                &props,
+                vec![],
+                vec![
+                    avatar::image(
+                        ImageStatus::Error,
+                        AVATAR_EMPTY_IMAGE_SRC,
+                        "Fandhe Team",
+                        vec![],
+                    ),
+                    avatar::fallback(ImageStatus::Error, vec![], vec![text("FT")]),
+                ],
+            )
+        })
+        .collect(),
+    );
 
-    let palette_row = row(vec![
-        ColorPalette::Accent,
-        ColorPalette::Info,
-        ColorPalette::Success,
-        ColorPalette::Warning,
-        ColorPalette::Danger,
-        ColorPalette::Neutral,
-    ]
-    .into_iter()
-    .map(|palette| {
-        let props = AvatarProps {
-            variant: AvatarVariant::Solid,
-            palette,
-            ..AvatarProps::default()
-        };
-        avatar::root(
-            &props,
-            vec![],
-            vec![
-                avatar::image(
-                    ImageStatus::Error,
-                    AVATAR_EMPTY_IMAGE_SRC,
-                    "Fandhe Team",
-                    vec![],
-                ),
-                avatar::fallback(ImageStatus::Error, vec![], vec![text("FT")]),
-            ],
-        )
-    })
-    .collect());
+    let palette_row = axis_row(
+        "Palette",
+        vec![
+            ColorPalette::Accent,
+            ColorPalette::Info,
+            ColorPalette::Success,
+            ColorPalette::Warning,
+            ColorPalette::Danger,
+            ColorPalette::Neutral,
+        ]
+        .into_iter()
+        .map(|palette| {
+            let props = AvatarProps {
+                variant: AvatarVariant::Solid,
+                palette,
+                ..AvatarProps::default()
+            };
+            avatar::root(
+                &props,
+                vec![],
+                vec![
+                    avatar::image(
+                        ImageStatus::Error,
+                        AVATAR_EMPTY_IMAGE_SRC,
+                        "Fandhe Team",
+                        vec![],
+                    ),
+                    avatar::fallback(ImageStatus::Error, vec![], vec![text("FT")]),
+                ],
+            )
+        })
+        .collect(),
+    );
 
     // イシュー #2044（shadcn/ui 突合）: 重なり表示 + `+N`（group + stacked
     // root + fallback の合成）。
@@ -5757,31 +5861,34 @@ fn checkbox_section() -> Node {
         .collect());
     // イシュー #1455: size 5 段（xs〜xl）で control 寸法・root 余白（gap）・
     // label font-size が単調に連動することを視覚確認できる行。
-    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
-        .iter()
-        .map(|size| {
-            let props = CheckboxProps {
-                checked: CheckedState::Checked,
-                ..CheckboxProps::default()
-            };
-            let name = format!("showcase-checkbox-size-{}", size.value());
-            checkbox::root(
-                *size,
-                ColorPalette::Accent,
-                &props,
-                vec![],
-                vec![
-                    checkbox::hidden_input(&props, &name, "on", vec![]),
-                    checkbox::control(
-                        &props,
-                        vec![],
-                        vec![checkbox::indicator(&props, vec![], vec![])],
-                    ),
-                    checkbox::label(&props, vec![], vec![text(size.value())]),
-                ],
-            )
-        })
-        .collect());
+    let size_row = axis_row(
+        "Size",
+        [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+            .iter()
+            .map(|size| {
+                let props = CheckboxProps {
+                    checked: CheckedState::Checked,
+                    ..CheckboxProps::default()
+                };
+                let name = format!("showcase-checkbox-size-{}", size.value());
+                checkbox::root(
+                    *size,
+                    ColorPalette::Accent,
+                    &props,
+                    vec![],
+                    vec![
+                        checkbox::hidden_input(&props, &name, "on", vec![]),
+                        checkbox::control(
+                            &props,
+                            vec![],
+                            vec![checkbox::indicator(&props, vec![], vec![])],
+                        ),
+                        checkbox::label(&props, vec![], vec![text(size.value())]),
+                    ],
+                )
+            })
+            .collect(),
+    );
     section(
         "Checkbox",
         "data-state=\"checked\"/\"unchecked\"/\"indeterminate\" の 3 態を持つチェックボックス。visually-hidden な input[type=\"checkbox\"] がフォーム送信・キーボード操作の意味論を担い、チェックマークは CSS の border 合成で描画します（画像アセット不使用）。",
@@ -6463,40 +6570,43 @@ fn input_section() -> Node {
     ]);
 
     // variant 軸（イシュー #3122 で SubtleFlushed を追加、4 値）。
-    let variant_row = row([
-        (
-            InputVariant::Outline,
-            "Outline",
-            "showcase-input-variant-outline",
-        ),
-        (
-            InputVariant::Subtle,
-            "Subtle",
-            "showcase-input-variant-subtle",
-        ),
-        (
-            InputVariant::Flushed,
-            "Flushed",
-            "showcase-input-variant-flushed",
-        ),
-        (
-            InputVariant::SubtleFlushed,
-            "SubtleFlushed",
-            "showcase-input-variant-subtle-flushed",
-        ),
-    ]
-    .into_iter()
-    .map(|(variant, label, id)| {
-        input::input(
-            &InputProps {
-                variant,
-                ..InputProps::default()
-            },
-            &plain_field(id),
-            vec![("placeholder", label)],
-        )
-    })
-    .collect());
+    let variant_row = axis_row(
+        "Variant",
+        [
+            (
+                InputVariant::Outline,
+                "Outline",
+                "showcase-input-variant-outline",
+            ),
+            (
+                InputVariant::Subtle,
+                "Subtle",
+                "showcase-input-variant-subtle",
+            ),
+            (
+                InputVariant::Flushed,
+                "Flushed",
+                "showcase-input-variant-flushed",
+            ),
+            (
+                InputVariant::SubtleFlushed,
+                "SubtleFlushed",
+                "showcase-input-variant-subtle-flushed",
+            ),
+        ]
+        .into_iter()
+        .map(|(variant, label, id)| {
+            input::input(
+                &InputProps {
+                    variant,
+                    ..InputProps::default()
+                },
+                &plain_field(id),
+                vec![("placeholder", label)],
+            )
+        })
+        .collect(),
+    );
 
     section(
         "Input",
@@ -8294,10 +8404,13 @@ fn rating_group_section() -> Node {
         (Size::Lg, "showcase-rating-size-lg"),
         (Size::Xl, "showcase-rating-size-xl"),
     ];
-    let size_row = row(sizes
-        .iter()
-        .map(|(size, id_prefix)| build(id_prefix, *size, Some(3), false, false))
-        .collect());
+    let size_row = axis_row(
+        "Size",
+        sizes
+            .iter()
+            .map(|(size, id_prefix)| build(id_prefix, *size, Some(3), false, false))
+            .collect(),
+    );
 
     section(
         "RatingGroup",
@@ -8548,7 +8661,7 @@ fn slider_section() -> Node {
     );
 
     let demo_row = row(vec![mid, at_max, disabled, readonly, invalid]);
-    let vertical_row = row(vec![vertical]);
+    let vertical_row = axis_row("Vertical", vec![vertical]);
     section(
         "Slider",
         "min/max/step でクランプされる連続値スライダー。塗りつぶし・つまみの位置は --fandhe-slider-percent の 1 点で伝搬します。vertical では塗りつぶし・つまみ・marker がいずれも下端起点で伝搬します。",
@@ -8788,19 +8901,22 @@ fn segment_group_section() -> Node {
     // イシュー #1499: size 5 段（xs〜xl）で padding・font-size が単調に
     // 連動することを視覚確認できる行（`radio_group` #1495 の `size_row` と
     // 同型）。
-    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
-        .iter()
-        .enumerate()
-        .map(|(index, size)| {
-            segment_group_demo(
-                &format!("showcase-segment-size-{}", size.value()),
-                *size,
-                false,
-                index % 3,
-                None,
-            )
-        })
-        .collect());
+    let size_row = axis_row(
+        "Size",
+        [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+            .iter()
+            .enumerate()
+            .map(|(index, size)| {
+                segment_group_demo(
+                    &format!("showcase-segment-size-{}", size.value()),
+                    *size,
+                    false,
+                    index % 3,
+                    None,
+                )
+            })
+            .collect(),
+    );
     let disabled_demo = segment_group_demo("showcase-segment-disabled", Size::Md, true, 0, None);
     // イシュー #1499: vertical orientation（indicator の translateY 幾何と
     // column レイアウト）を可視化するデモ。
@@ -8831,46 +8947,52 @@ fn toggle_section() -> Node {
         (true, false, "On"),
         (true, true, "Disabled"),
     ];
-    let state_row = row(states
-        .iter()
-        .map(|(pressed, disabled, label)| {
-            toggle::root(
-                Size::Md,
-                toggle::ToggleVariant::Outline,
-                ColorPalette::Accent,
-                *pressed,
-                *disabled,
-                vec![],
-                vec![
-                    toggle::indicator(*pressed, *disabled, vec![], checkmark()),
-                    text(*label),
-                ],
-            )
-        })
-        .collect());
+    let state_row = axis_row(
+        "State",
+        states
+            .iter()
+            .map(|(pressed, disabled, label)| {
+                toggle::root(
+                    Size::Md,
+                    toggle::ToggleVariant::Outline,
+                    ColorPalette::Accent,
+                    *pressed,
+                    *disabled,
+                    vec![],
+                    vec![
+                        toggle::indicator(*pressed, *disabled, vec![], checkmark()),
+                        text(*label),
+                    ],
+                )
+            })
+            .collect(),
+    );
 
     let sizes = [
         (Size::Sm, "Small"),
         (Size::Md, "Medium"),
         (Size::Lg, "Large"),
     ];
-    let size_row = row(sizes
-        .iter()
-        .map(|(size, label)| {
-            toggle::root(
-                *size,
-                toggle::ToggleVariant::Outline,
-                ColorPalette::Accent,
-                true,
-                false,
-                vec![],
-                vec![
-                    toggle::indicator(true, false, vec![], checkmark()),
-                    text(*label),
-                ],
-            )
-        })
-        .collect());
+    let size_row = axis_row(
+        "Size",
+        sizes
+            .iter()
+            .map(|(size, label)| {
+                toggle::root(
+                    *size,
+                    toggle::ToggleVariant::Outline,
+                    ColorPalette::Accent,
+                    true,
+                    false,
+                    vec![],
+                    vec![
+                        toggle::indicator(true, false, vec![], checkmark()),
+                        text(*label),
+                    ],
+                )
+            })
+            .collect(),
+    );
 
     // イシュー #2023: shadcn/ui 突合で新設した `variant` 軸（Outline/Ghost）
     // の Demo 行。Off/On の両状態で見た目差（枠線の有無）が分かるよう
@@ -8881,41 +9003,47 @@ fn toggle_section() -> Node {
         (toggle::ToggleVariant::Ghost, false, "Ghost / Off"),
         (toggle::ToggleVariant::Ghost, true, "Ghost / On"),
     ];
-    let variant_row = row(variants
-        .iter()
-        .map(|(variant, pressed, label)| {
-            toggle::root(
-                Size::Md,
-                *variant,
-                ColorPalette::Accent,
-                *pressed,
-                false,
-                vec![],
-                vec![
-                    toggle::indicator(*pressed, false, vec![], checkmark()),
-                    text(*label),
-                ],
-            )
-        })
-        .collect());
+    let variant_row = axis_row(
+        "Variant",
+        variants
+            .iter()
+            .map(|(variant, pressed, label)| {
+                toggle::root(
+                    Size::Md,
+                    *variant,
+                    ColorPalette::Accent,
+                    *pressed,
+                    false,
+                    vec![],
+                    vec![
+                        toggle::indicator(*pressed, false, vec![], checkmark()),
+                        text(*label),
+                    ],
+                )
+            })
+            .collect(),
+    );
 
-    let palette_row = row(palettes()
-        .iter()
-        .map(|(palette, label)| {
-            toggle::root(
-                Size::Md,
-                toggle::ToggleVariant::Outline,
-                *palette,
-                true,
-                false,
-                vec![],
-                vec![
-                    toggle::indicator(true, false, vec![], checkmark()),
-                    text(*label),
-                ],
-            )
-        })
-        .collect());
+    let palette_row = axis_row(
+        "Palette",
+        palettes()
+            .iter()
+            .map(|(palette, label)| {
+                toggle::root(
+                    Size::Md,
+                    toggle::ToggleVariant::Outline,
+                    *palette,
+                    true,
+                    false,
+                    vec![],
+                    vec![
+                        toggle::indicator(true, false, vec![], checkmark()),
+                        text(*label),
+                    ],
+                )
+            })
+            .collect(),
+    );
 
     section(
         "Toggle",
@@ -10025,48 +10153,55 @@ fn checkbox_card_section() -> Node {
     // イシュー #1458: size 5 段（xs〜xl）で padding・control 寸法・
     // description font-size・root 余白（gap）が単調に連動することを
     // 視覚確認できる行（`crate::checkbox` #1455 の size_row と同型）。
-    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
-        .iter()
-        .map(|size| {
-            let props = CheckboxProps {
-                checked: CheckedState::Checked,
-                ..CheckboxProps::default()
-            };
-            let name = format!("showcase-checkbox-card-size-{}", size.value());
-            checkbox_card::root(
-                *size,
-                ColorPalette::Accent,
-                &props,
-                vec![],
-                vec![
-                    checkbox_card::hidden_input(&props, &name, "on", vec![]),
-                    checkbox_card::control(
-                        &props,
-                        vec![],
-                        vec![
-                            checkbox_card::content(
-                                &props,
-                                vec![],
-                                vec![
-                                    checkbox_card::label(&props, vec![], vec![text(size.value())]),
-                                    checkbox_card::description(
-                                        &props,
-                                        vec![],
-                                        vec![text("size demo")],
-                                    ),
-                                ],
-                            ),
-                            checkbox_card::indicator(
-                                &props,
-                                vec![],
-                                vec![checkbox_card::indicator_check(&props, vec![], vec![])],
-                            ),
-                        ],
-                    ),
-                ],
-            )
-        })
-        .collect());
+    let size_row = axis_row(
+        "Size",
+        [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+            .iter()
+            .map(|size| {
+                let props = CheckboxProps {
+                    checked: CheckedState::Checked,
+                    ..CheckboxProps::default()
+                };
+                let name = format!("showcase-checkbox-card-size-{}", size.value());
+                checkbox_card::root(
+                    *size,
+                    ColorPalette::Accent,
+                    &props,
+                    vec![],
+                    vec![
+                        checkbox_card::hidden_input(&props, &name, "on", vec![]),
+                        checkbox_card::control(
+                            &props,
+                            vec![],
+                            vec![
+                                checkbox_card::content(
+                                    &props,
+                                    vec![],
+                                    vec![
+                                        checkbox_card::label(
+                                            &props,
+                                            vec![],
+                                            vec![text(size.value())],
+                                        ),
+                                        checkbox_card::description(
+                                            &props,
+                                            vec![],
+                                            vec![text("size demo")],
+                                        ),
+                                    ],
+                                ),
+                                checkbox_card::indicator(
+                                    &props,
+                                    vec![],
+                                    vec![checkbox_card::indicator_check(&props, vec![], vec![])],
+                                ),
+                            ],
+                        ),
+                    ],
+                )
+            })
+            .collect(),
+    );
     section(
         "CheckboxCard",
         "chakra-ui checkbox-card 相当のカード型選択 UI。状態機械は Checkbox（headless）をそのまま再利用し、data-scope=\"checkbox-card\" の新規 anatomy でカード外観を重ねます。",
@@ -10264,68 +10399,71 @@ fn checkbox_group_section() -> Node {
     // font-size が単調に連動し、label（見出し）が item-text（項目）より
     // 太いことを視覚確認できる行（`checkbox_section`/`checkbox_card_section`
     // の `size_row` と同型）。
-    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
-        .iter()
-        .map(|size| {
-            let size_label_id = format!("showcase-checkbox-group-size-{}-label", size.value());
-            let mut size_children = vec![checkbox_group::label(
-                Some(&size_label_id),
-                vec![],
-                vec![text(size.value())],
-            )];
-            size_children.extend(items.iter().map(|(value, label, checked, disabled)| {
-                let props = CheckboxProps {
-                    checked: if *checked {
-                        CheckedState::Checked
-                    } else {
-                        CheckedState::Unchecked
-                    },
-                    disabled: *disabled,
-                    ..CheckboxProps::default()
-                };
-                let item_props = checkbox_group::CheckboxGroupProps {
-                    disabled: *disabled,
-                    ..checkbox_group::CheckboxGroupProps::default()
-                };
-                let name = format!("showcase-checkbox-group-size-{}", size.value());
-                checkbox_group::item(
-                    *checked,
-                    &item_props,
-                    value,
+    let size_row = axis_row(
+        "Size",
+        [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+            .iter()
+            .map(|size| {
+                let size_label_id = format!("showcase-checkbox-group-size-{}-label", size.value());
+                let mut size_children = vec![checkbox_group::label(
+                    Some(&size_label_id),
                     vec![],
-                    vec![
-                        checkbox::hidden_input(&props, &name, value, vec![]),
-                        checkbox_group::item_control(
-                            *checked,
-                            &item_props,
-                            vec![],
-                            vec![checkbox_group::item_indicator(
+                    vec![text(size.value())],
+                )];
+                size_children.extend(items.iter().map(|(value, label, checked, disabled)| {
+                    let props = CheckboxProps {
+                        checked: if *checked {
+                            CheckedState::Checked
+                        } else {
+                            CheckedState::Unchecked
+                        },
+                        disabled: *disabled,
+                        ..CheckboxProps::default()
+                    };
+                    let item_props = checkbox_group::CheckboxGroupProps {
+                        disabled: *disabled,
+                        ..checkbox_group::CheckboxGroupProps::default()
+                    };
+                    let name = format!("showcase-checkbox-group-size-{}", size.value());
+                    checkbox_group::item(
+                        *checked,
+                        &item_props,
+                        value,
+                        vec![],
+                        vec![
+                            checkbox::hidden_input(&props, &name, value, vec![]),
+                            checkbox_group::item_control(
                                 *checked,
                                 &item_props,
                                 vec![],
+                                vec![checkbox_group::item_indicator(
+                                    *checked,
+                                    &item_props,
+                                    vec![],
+                                    vec![],
+                                )],
+                            ),
+                            checkbox_group::item_text(
+                                *checked,
+                                &item_props,
                                 vec![],
-                            )],
-                        ),
-                        checkbox_group::item_text(
-                            *checked,
-                            &item_props,
-                            vec![],
-                            vec![text(*label)],
-                        ),
-                    ],
+                                vec![text(*label)],
+                            ),
+                        ],
+                    )
+                }));
+                checkbox_group::root(
+                    *size,
+                    ColorPalette::Accent,
+                    false,
+                    Some(Orientation::Vertical),
+                    Some(&size_label_id),
+                    vec![],
+                    size_children,
                 )
-            }));
-            checkbox_group::root(
-                *size,
-                ColorPalette::Accent,
-                false,
-                Some(Orientation::Vertical),
-                Some(&size_label_id),
-                vec![],
-                size_children,
-            )
-        })
-        .collect());
+            })
+            .collect(),
+    );
     section(
         "CheckboxGroup",
         "複数選択の選択肢グループ。ネイティブ input[type=\"checkbox\"]（fandhe_frontend_pre_styled_ui::checkbox::hidden_input の再利用）による同時選択・キーボード操作を data-scope=\"checkbox-group\" の anatomy へ重ねます。",
@@ -10459,53 +10597,56 @@ fn radio_card_section() -> Node {
     // イシュー #1492: size 5 段（xs〜xl）で padding・control 寸法・
     // description font-size・item-control 余白（gap）が単調に連動することを
     // 視覚確認できる行（checkbox-card #1458 の `size_row` と同型）。
-    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
-        .iter()
-        .map(|size| {
-            let value = format!("showcase-radio-card-size-{}", size.value());
-            let name = format!("showcase-radio-card-size-group-{}", size.value());
-            // `--fandhe-radio-card-padding` 等のサイズ依存 CSS 変数は
-            // `radio_card::root` にのみ定義されるため（`checkbox_card`
-            // #1458 の size_row と同型）、各カードを個別の root で包んで
-            // Size を反映させる（root なしの item 単体では既定値へ
-            // フォールバックし、xs〜xl のスケールデモが機能しない）。
-            radio_card::root(
-                *size,
-                ColorPalette::Accent,
-                false,
-                None,
-                None,
-                vec![],
-                vec![radio_card::item(
-                    true,
+    let size_row = axis_row(
+        "Size",
+        [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+            .iter()
+            .map(|size| {
+                let value = format!("showcase-radio-card-size-{}", size.value());
+                let name = format!("showcase-radio-card-size-group-{}", size.value());
+                // `--fandhe-radio-card-padding` 等のサイズ依存 CSS 変数は
+                // `radio_card::root` にのみ定義されるため（`checkbox_card`
+                // #1458 の size_row と同型）、各カードを個別の root で包んで
+                // Size を反映させる（root なしの item 単体では既定値へ
+                // フォールバックし、xs〜xl のスケールデモが機能しない）。
+                radio_card::root(
+                    *size,
+                    ColorPalette::Accent,
                     false,
-                    &value,
+                    None,
+                    None,
                     vec![],
-                    vec![
-                        radio_card::item_hidden_input(true, false, Some(&name), &value, vec![]),
-                        radio_card::item_control(
-                            true,
-                            false,
-                            vec![],
-                            vec![
-                                radio_card::item_content(
-                                    vec![],
-                                    vec![
-                                        radio_card::item_text(vec![], vec![text(size.value())]),
-                                        radio_card::item_description(
-                                            vec![],
-                                            vec![text("size demo")],
-                                        ),
-                                    ],
-                                ),
-                                radio_card::item_indicator(true, false, false, vec![]),
-                            ],
-                        ),
-                    ],
-                )],
-            )
-        })
-        .collect());
+                    vec![radio_card::item(
+                        true,
+                        false,
+                        &value,
+                        vec![],
+                        vec![
+                            radio_card::item_hidden_input(true, false, Some(&name), &value, vec![]),
+                            radio_card::item_control(
+                                true,
+                                false,
+                                vec![],
+                                vec![
+                                    radio_card::item_content(
+                                        vec![],
+                                        vec![
+                                            radio_card::item_text(vec![], vec![text(size.value())]),
+                                            radio_card::item_description(
+                                                vec![],
+                                                vec![text("size demo")],
+                                            ),
+                                        ],
+                                    ),
+                                    radio_card::item_indicator(true, false, false, vec![]),
+                                ],
+                            ),
+                        ],
+                    )],
+                )
+            })
+            .collect(),
+    );
     section(
         "RadioCard",
         "chakra-ui radio-card 相当のカード型選択 UI。状態機械は RadioGroup（headless）をそのまま再利用し、data-scope=\"radio-card\" の新規 anatomy でカード外観を重ねます。",
@@ -12117,38 +12258,44 @@ fn status_section() -> Node {
         (Size::Lg, "Large"),
         (Size::Xl, "Extra Large"),
     ];
-    let size_row = row(sizes
-        .iter()
-        .map(|(size, label)| {
-            status::root(
-                &StatusProps {
-                    size: *size,
-                    ..StatusProps::default()
-                },
-                vec![],
-                vec![status::indicator(vec![]), text(*label)],
-            )
-        })
-        .collect());
+    let size_row = axis_row(
+        "Size",
+        sizes
+            .iter()
+            .map(|(size, label)| {
+                status::root(
+                    &StatusProps {
+                        size: *size,
+                        ..StatusProps::default()
+                    },
+                    vec![],
+                    vec![status::indicator(vec![]), text(*label)],
+                )
+            })
+            .collect(),
+    );
 
     // イシュー #1681: 共有 `palettes()`（5 値）はまだ Neutral を含めない
     // （#1680 適用完了まで宣言なしデモの公開を避ける）。この節限定で
     // Neutral エントリを末尾へ連結する。
-    let palette_row = row(palettes()
-        .iter()
-        .copied()
-        .chain([(ColorPalette::Neutral, "Neutral")])
-        .map(|(palette, label)| {
-            status::root(
-                &StatusProps {
-                    palette,
-                    ..StatusProps::default()
-                },
-                vec![],
-                vec![status::indicator(vec![]), text(label)],
-            )
-        })
-        .collect());
+    let palette_row = axis_row(
+        "Palette",
+        palettes()
+            .iter()
+            .copied()
+            .chain([(ColorPalette::Neutral, "Neutral")])
+            .map(|(palette, label)| {
+                status::root(
+                    &StatusProps {
+                        palette,
+                        ..StatusProps::default()
+                    },
+                    vec![],
+                    vec![status::indicator(vec![]), text(label)],
+                )
+            })
+            .collect(),
+    );
     section(
         "Status",
         "ドット（indicator）+ ラベルで状態を示す静的表示。size でドット径と文字サイズが連動し、colorPalette で色を切り替えます。",
@@ -12571,35 +12718,38 @@ fn progress_section() -> Node {
             .collect(),
     );
 
-    let variant_row = row(vec![
-        linear_demo(
-            &determinate,
-            &ProgressProps {
-                variant: ProgressVariant::Outline,
-                ..ProgressProps::default()
-            },
-            "Outline",
-            "40%",
-        ),
-        linear_demo(
-            &determinate,
-            &ProgressProps {
-                variant: ProgressVariant::Subtle,
-                ..ProgressProps::default()
-            },
-            "Subtle",
-            "40%",
-        ),
-        linear_demo(
-            &determinate,
-            &ProgressProps {
-                variant: ProgressVariant::Plain,
-                ..ProgressProps::default()
-            },
-            "Plain",
-            "40%",
-        ),
-    ]);
+    let variant_row = axis_row(
+        "Variant",
+        vec![
+            linear_demo(
+                &determinate,
+                &ProgressProps {
+                    variant: ProgressVariant::Outline,
+                    ..ProgressProps::default()
+                },
+                "Outline",
+                "40%",
+            ),
+            linear_demo(
+                &determinate,
+                &ProgressProps {
+                    variant: ProgressVariant::Subtle,
+                    ..ProgressProps::default()
+                },
+                "Subtle",
+                "40%",
+            ),
+            linear_demo(
+                &determinate,
+                &ProgressProps {
+                    variant: ProgressVariant::Plain,
+                    ..ProgressProps::default()
+                },
+                "Plain",
+                "40%",
+            ),
+        ],
+    );
 
     let palette_row = stack(
         [
@@ -12638,13 +12788,16 @@ fn progress_section() -> Node {
     )]);
 
     let vertical = Progress::new(0.0, 100.0, Some(65.0), Orientation::Vertical);
-    let vertical_row = row(vec![progress::root(
-        &vertical,
-        &ProgressProps::default(),
-        Some("65%"),
-        vec![("style", "height: 12rem;")],
-        vec![vertical.track(vec![], vec![progress::range(&vertical, vec![])])],
-    )]);
+    let vertical_row = axis_row(
+        "Vertical",
+        vec![progress::root(
+            &vertical,
+            &ProgressProps::default(),
+            Some("65%"),
+            vec![("style", "height: 12rem;")],
+            vec![vertical.track(vec![], vec![progress::range(&vertical, vec![])])],
+        )],
+    );
 
     // イシュー #1689: determinate（部分弧）・complete（完全リング）・
     // indeterminate（#1688 の固定弧 + 回転）を横並びで対比できる状態比較行。
@@ -12766,13 +12919,16 @@ fn qr_code_section() -> Node {
         )
     };
 
-    let size_row = row(vec![
-        demo(Size::Xs),
-        demo(Size::Sm),
-        demo(Size::Md),
-        demo(Size::Lg),
-        demo(Size::Xl),
-    ]);
+    let size_row = axis_row(
+        "Size",
+        vec![
+            demo(Size::Xs),
+            demo(Size::Sm),
+            demo(Size::Md),
+            demo(Size::Lg),
+            demo(Size::Xl),
+        ],
+    );
 
     let with_overlay = qr_code::root(
         Size::Lg,
@@ -12893,19 +13049,22 @@ fn image_section() -> Node {
         (ImageShape::Rounded, "Rounded"),
         (ImageShape::Circle, "Circle"),
     ];
-    let shape_row = row(shapes
-        .iter()
-        .map(|(shape, label)| {
-            image(
-                &ImageProps {
-                    shape: *shape,
-                    aspect_ratio: AspectRatio::Square,
-                    ..ImageProps::new(IMAGE_DEMO_SRC, label)
-                },
-                vec![("style", "width: 6rem;")],
-            )
-        })
-        .collect());
+    let shape_row = axis_row(
+        "Shape",
+        shapes
+            .iter()
+            .map(|(shape, label)| {
+                image(
+                    &ImageProps {
+                        shape: *shape,
+                        aspect_ratio: AspectRatio::Square,
+                        ..ImageProps::new(IMAGE_DEMO_SRC, label)
+                    },
+                    vec![("style", "width: 6rem;")],
+                )
+            })
+            .collect(),
+    );
 
     let fits = [
         (ImageFit::Cover, "Cover"),
@@ -12974,20 +13133,23 @@ fn icon_section() -> Node {
         )
     };
 
-    let size_row = row(vec![Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
-        .into_iter()
-        .map(|size| {
-            icon(
-                &IconProps {
-                    size,
-                    label: Some("Star"),
-                    ..IconProps::default()
-                },
-                vec![],
-                vec![star_path()],
-            )
-        })
-        .collect());
+    let size_row = axis_row(
+        "Size",
+        vec![Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+            .into_iter()
+            .map(|size| {
+                icon(
+                    &IconProps {
+                        size,
+                        label: Some("Star"),
+                        ..IconProps::default()
+                    },
+                    vec![],
+                    vec![star_path()],
+                )
+            })
+            .collect(),
+    );
 
     // イシュー #1561: color: currentColor 継承の視認確認用デモ。style
     // 値は theme.rs 実在のトークン参照（var(...)）のみで、生の色リテラル・
@@ -13073,89 +13235,104 @@ fn table_section() -> Node {
         )
     }
 
-    let variant_demo = stack(vec![
-        sample_table(TableProps {
-            variant: TableVariant::Line,
-            ..TableProps::default()
-        }),
-        sample_table(TableProps {
-            variant: TableVariant::Outline,
-            ..TableProps::default()
-        }),
-    ]);
+    let variant_demo = axis_stack(
+        "Variant",
+        vec![
+            sample_table(TableProps {
+                variant: TableVariant::Line,
+                ..TableProps::default()
+            }),
+            sample_table(TableProps {
+                variant: TableVariant::Outline,
+                ..TableProps::default()
+            }),
+        ],
+    );
     // イシュー #1572: size の全 5 段（Xs〜Xl）を実演する（padding が
     // `--fandhe-space-*` トークン化されたことを Demo でも確認できるように
     // する、`table.rs` モジュール doc「variant について」節参照）。
-    let size_demo = stack(vec![
-        sample_table(TableProps {
-            size: Size::Xs,
+    let size_demo = axis_stack(
+        "Size",
+        vec![
+            sample_table(TableProps {
+                size: Size::Xs,
+                ..TableProps::default()
+            }),
+            sample_table(TableProps {
+                size: Size::Sm,
+                ..TableProps::default()
+            }),
+            sample_table(TableProps {
+                size: Size::Md,
+                ..TableProps::default()
+            }),
+            sample_table(TableProps {
+                size: Size::Lg,
+                ..TableProps::default()
+            }),
+            sample_table(TableProps {
+                size: Size::Xl,
+                ..TableProps::default()
+            }),
+        ],
+    );
+    let striped_demo = axis_stack(
+        "Striped",
+        vec![sample_table(TableProps {
+            striped: true,
             ..TableProps::default()
-        }),
-        sample_table(TableProps {
-            size: Size::Sm,
-            ..TableProps::default()
-        }),
-        sample_table(TableProps {
-            size: Size::Md,
-            ..TableProps::default()
-        }),
-        sample_table(TableProps {
-            size: Size::Lg,
-            ..TableProps::default()
-        }),
-        sample_table(TableProps {
-            size: Size::Xl,
-            ..TableProps::default()
-        }),
-    ]);
-    let striped_demo = stack(vec![sample_table(TableProps {
-        striped: true,
-        ..TableProps::default()
-    })]);
+        })],
+    );
     // イシュー #1572: `scroll_area` + `sticky_header: true` を組み合わせた
     // Demo。行数を増やしてスクロール枠内で見出し行が上端固定されることを
     // 視覚的に確認できるようにする（`table.rs` モジュール doc「sticky
     // ヘッダーの実装」節・「`scroll-area` パーツ」節参照）。Anatomy 表・
     // `data-*` 属性表はこの Demo から機械導出されるため、`scroll-area` を
     // 必ず含める。
-    let scroll_area_demo = stack(vec![table::scroll_area(
-        vec![("style", "--fandhe-table-scroll-max-height: 12rem")],
-        vec![table::root(
-            TableProps {
-                sticky_header: true,
-                ..TableProps::default()
-            },
-            vec![],
-            vec![
-                table::header(
-                    vec![],
-                    vec![table::row(
+    let scroll_area_demo = axis_stack(
+        "Scroll area",
+        vec![table::scroll_area(
+            vec![("style", "--fandhe-table-scroll-max-height: 12rem")],
+            vec![table::root(
+                TableProps {
+                    sticky_header: true,
+                    ..TableProps::default()
+                },
+                vec![],
+                vec![
+                    table::header(
                         vec![],
-                        vec![
-                            table::column_header(vec![], vec![text("Name")]),
-                            table::column_header(vec![], vec![text("Email")]),
-                            table::column_header(vec![], vec![text("Role")]),
-                        ],
-                    )],
-                ),
-                table::body(
-                    vec![],
-                    (1..=10)
-                        .map(|n| {
-                            table::row(
-                                vec![],
-                                vec![
-                                    table::cell(vec![], vec![text(format!("User {n}"))]),
-                                    table::cell(vec![], vec![text(format!("user{n}@example.com"))]),
-                                    table::cell(vec![], vec![text("Member")]),
-                                ],
-                            )
-                        })
-                        .collect(),
-                ),
-            ],
+                        vec![table::row(
+                            vec![],
+                            vec![
+                                table::column_header(vec![], vec![text("Name")]),
+                                table::column_header(vec![], vec![text("Email")]),
+                                table::column_header(vec![], vec![text("Role")]),
+                            ],
+                        )],
+                    ),
+                    table::body(
+                        vec![],
+                        (1..=10)
+                            .map(|n| {
+                                table::row(
+                                    vec![],
+                                    vec![
+                                        table::cell(vec![], vec![text(format!("User {n}"))]),
+                                        table::cell(
+                                            vec![],
+                                            vec![text(format!("user{n}@example.com"))],
+                                        ),
+                                        table::cell(vec![], vec![text("Member")]),
+                                    ],
+                                )
+                            })
+                            .collect(),
+                    ),
+                ],
+            )],
         )],
-    )]);
+    );
 
     // イシュー #2052: table を shadcn/ui と突合し、行 hover（interactive）・
     // 選択行（data-selected）・セル整列（data-align）・Actions 列・
@@ -13165,10 +13342,13 @@ fn table_section() -> Node {
     // `data-selected`/`data-align`/`aria-sort` を実際に載せる。
 
     // (1) Interactive: interactive: true で行 hover を確認する。
-    let interactive_demo = stack(vec![sample_table(TableProps {
-        interactive: true,
-        ..TableProps::default()
-    })]);
+    let interactive_demo = axis_stack(
+        "Interactive",
+        vec![sample_table(TableProps {
+            interactive: true,
+            ..TableProps::default()
+        })],
+    );
 
     // (2) Selectable rows: 先頭列にチェックボックスを置き、選択行に
     // data-selected を付与する（合成のみ。選択の保持・送信は行わない、
@@ -13197,181 +13377,199 @@ fn table_section() -> Node {
             ],
         )
     }
-    let selectable_rows_demo = stack(vec![table::root(
-        TableProps {
-            interactive: true,
-            ..TableProps::default()
-        },
-        vec![],
-        vec![
-            table::header(
-                vec![],
-                vec![table::row(
+    let selectable_rows_demo = axis_stack(
+        "Selectable rows",
+        vec![table::root(
+            TableProps {
+                interactive: true,
+                ..TableProps::default()
+            },
+            vec![],
+            vec![
+                table::header(
                     vec![],
-                    vec![
-                        table::column_header(
-                            vec![],
-                            vec![row_select_checkbox("select-all", false)],
-                        ),
-                        table::column_header(vec![], vec![text("Name")]),
-                        table::column_header(vec![], vec![text("Email")]),
-                    ],
-                )],
-            ),
-            table::body(
-                vec![],
-                vec![
-                    table::row(
-                        vec![("data-selected", "")],
-                        vec![
-                            table::cell(vec![], vec![row_select_checkbox("select-alice", true)]),
-                            table::cell(vec![], vec![text("Alice")]),
-                            table::cell(vec![], vec![text("alice@example.com")]),
-                        ],
-                    ),
-                    table::row(
+                    vec![table::row(
                         vec![],
                         vec![
-                            table::cell(vec![], vec![row_select_checkbox("select-bob", false)]),
-                            table::cell(vec![], vec![text("Bob")]),
-                            table::cell(vec![], vec![text("bob@example.com")]),
+                            table::column_header(
+                                vec![],
+                                vec![row_select_checkbox("select-all", false)],
+                            ),
+                            table::column_header(vec![], vec![text("Name")]),
+                            table::column_header(vec![], vec![text("Email")]),
                         ],
-                    ),
-                ],
-            ),
-        ],
-    )]);
+                    )],
+                ),
+                table::body(
+                    vec![],
+                    vec![
+                        table::row(
+                            vec![("data-selected", "")],
+                            vec![
+                                table::cell(
+                                    vec![],
+                                    vec![row_select_checkbox("select-alice", true)],
+                                ),
+                                table::cell(vec![], vec![text("Alice")]),
+                                table::cell(vec![], vec![text("alice@example.com")]),
+                            ],
+                        ),
+                        table::row(
+                            vec![],
+                            vec![
+                                table::cell(vec![], vec![row_select_checkbox("select-bob", false)]),
+                                table::cell(vec![], vec![text("Bob")]),
+                                table::cell(vec![], vec![text("bob@example.com")]),
+                            ],
+                        ),
+                    ],
+                ),
+            ],
+        )],
+    );
 
     // (3) Invoices（shadcn-table-1 再現）: caption + header + body + footer、
     // Amount 列を data-align="end" で右寄せする。
-    let invoices_demo = stack(vec![table::root(
-        TableProps::default(),
-        vec![],
-        vec![
-            table::caption(vec![], vec![text("A list of your recent invoices.")]),
-            table::header(
-                vec![],
-                vec![table::row(
+    let invoices_demo = axis_stack(
+        "Invoices",
+        vec![table::root(
+            TableProps::default(),
+            vec![],
+            vec![
+                table::caption(vec![], vec![text("A list of your recent invoices.")]),
+                table::header(
                     vec![],
-                    vec![
-                        table::column_header(vec![], vec![text("Invoice")]),
-                        table::column_header(vec![], vec![text("Status")]),
-                        table::column_header(vec![("data-align", "end")], vec![text("Amount")]),
-                    ],
-                )],
-            ),
-            table::body(
-                vec![],
-                vec![
-                    table::row(
+                    vec![table::row(
                         vec![],
                         vec![
-                            table::cell(vec![], vec![text("INV001")]),
-                            table::cell(vec![], vec![text("Paid")]),
-                            table::cell(vec![("data-align", "end")], vec![text("$250.00")]),
+                            table::column_header(vec![], vec![text("Invoice")]),
+                            table::column_header(vec![], vec![text("Status")]),
+                            table::column_header(vec![("data-align", "end")], vec![text("Amount")]),
                         ],
-                    ),
-                    table::row(
-                        vec![],
-                        vec![
-                            table::cell(vec![], vec![text("INV002")]),
-                            table::cell(vec![], vec![text("Pending")]),
-                            table::cell(vec![("data-align", "end")], vec![text("$150.00")]),
-                        ],
-                    ),
-                ],
-            ),
-            table::footer(
-                vec![],
-                vec![table::row(
+                    )],
+                ),
+                table::body(
                     vec![],
                     vec![
-                        table::cell(vec![], vec![text("Total")]),
-                        table::cell(vec![], vec![]),
-                        table::cell(vec![("data-align", "end")], vec![text("$400.00")]),
+                        table::row(
+                            vec![],
+                            vec![
+                                table::cell(vec![], vec![text("INV001")]),
+                                table::cell(vec![], vec![text("Paid")]),
+                                table::cell(vec![("data-align", "end")], vec![text("$250.00")]),
+                            ],
+                        ),
+                        table::row(
+                            vec![],
+                            vec![
+                                table::cell(vec![], vec![text("INV002")]),
+                                table::cell(vec![], vec![text("Pending")]),
+                                table::cell(vec![("data-align", "end")], vec![text("$150.00")]),
+                            ],
+                        ),
                     ],
-                )],
-            ),
-        ],
-    )]);
+                ),
+                table::footer(
+                    vec![],
+                    vec![table::row(
+                        vec![],
+                        vec![
+                            table::cell(vec![], vec![text("Total")]),
+                            table::cell(vec![], vec![]),
+                            table::cell(vec![("data-align", "end")], vec![text("$400.00")]),
+                        ],
+                    )],
+                ),
+            ],
+        )],
+    );
 
     // (4) Actions 列（shadcn-table-3 再現）: Plain button を data-align="end"
     // のセルに配置する。
-    let actions_demo = stack(vec![table::root(
-        TableProps::default(),
-        vec![],
-        vec![
-            table::header(
-                vec![],
-                vec![table::row(
+    let actions_demo = axis_stack(
+        "Actions",
+        vec![table::root(
+            TableProps::default(),
+            vec![],
+            vec![
+                table::header(
                     vec![],
-                    vec![
-                        table::column_header(vec![], vec![text("Name")]),
-                        table::column_header(vec![("data-align", "end")], vec![text("Actions")]),
-                    ],
-                )],
-            ),
-            table::body(
-                vec![],
-                vec![table::row(
+                    vec![table::row(
+                        vec![],
+                        vec![
+                            table::column_header(vec![], vec![text("Name")]),
+                            table::column_header(
+                                vec![("data-align", "end")],
+                                vec![text("Actions")],
+                            ),
+                        ],
+                    )],
+                ),
+                table::body(
                     vec![],
-                    vec![
-                        table::cell(vec![], vec![text("Alice")]),
-                        table::cell(
-                            vec![("data-align", "end")],
-                            vec![button(
-                                &ButtonProps {
-                                    variant: ButtonVariant::Plain,
-                                    size: Size::Sm,
-                                    ..ButtonProps::default()
-                                },
-                                vec![("aria-label", "Edit Alice")],
-                                vec![text("Edit")],
-                            )],
-                        ),
-                    ],
-                )],
-            ),
-        ],
-    )]);
+                    vec![table::row(
+                        vec![],
+                        vec![
+                            table::cell(vec![], vec![text("Alice")]),
+                            table::cell(
+                                vec![("data-align", "end")],
+                                vec![button(
+                                    &ButtonProps {
+                                        variant: ButtonVariant::Plain,
+                                        size: Size::Sm,
+                                        ..ButtonProps::default()
+                                    },
+                                    vec![("aria-label", "Edit Alice")],
+                                    vec![text("Edit")],
+                                )],
+                            ),
+                        ],
+                    )],
+                ),
+            ],
+        )],
+    );
 
     // (5) Sortable header: ソート処理自体は headless data-table（#2124）の
     // 責務のため、column_header は aria-sort を通過させるのみで構造だけを
     // 実演する。
-    let sortable_header_demo = stack(vec![table::root(
-        TableProps::default(),
-        vec![],
-        vec![
-            table::header(
-                vec![],
-                vec![table::row(
+    let sortable_header_demo = axis_stack(
+        "Sortable header",
+        vec![table::root(
+            TableProps::default(),
+            vec![],
+            vec![
+                table::header(
                     vec![],
-                    vec![table::column_header(
-                        vec![("aria-sort", "ascending")],
-                        vec![
-                            text("Name "),
-                            button(
-                                &ButtonProps {
-                                    variant: ButtonVariant::Plain,
-                                    size: Size::Sm,
-                                    ..ButtonProps::default()
-                                },
-                                vec![("aria-label", "Sort by name")],
-                                vec![text("▲")],
-                            ),
-                        ],
+                    vec![table::row(
+                        vec![],
+                        vec![table::column_header(
+                            vec![("aria-sort", "ascending")],
+                            vec![
+                                text("Name "),
+                                button(
+                                    &ButtonProps {
+                                        variant: ButtonVariant::Plain,
+                                        size: Size::Sm,
+                                        ..ButtonProps::default()
+                                    },
+                                    vec![("aria-label", "Sort by name")],
+                                    vec![text("▲")],
+                                ),
+                            ],
+                        )],
                     )],
-                )],
-            ),
-            table::body(
-                vec![],
-                vec![table::row(
+                ),
+                table::body(
                     vec![],
-                    vec![table::cell(vec![], vec![text("Alice")])],
-                )],
-            ),
-        ],
-    )]);
+                    vec![table::row(
+                        vec![],
+                        vec![table::cell(vec![], vec![text("Alice")])],
+                    )],
+                ),
+            ],
+        )],
+    );
 
     section(
         "Table",
@@ -14988,16 +15186,16 @@ fn bar_chart_section() -> Node {
         "BarChart",
         "ChartData（複数系列）+ LinearScale + SVG ノード木生成ヘルパーのみで組み立てる、外部依存ゼロのグループ棒グラフです。orientation で縦/横を切り替えます。イシュー #2082 で shadcn/ui Charts（bar）と突合し、角丸・値ラベル・積み上げ・強調表示・正負色分け・軸/グリッドの静的バリアントを追加しました。マウス追従ツールチップ・凡例トグル等の実行時インタラクションは別イシュー（#2086/#2132）のスコープです。",
         vec![
-            row(vec![vertical]),
-            row(vec![horizontal]),
-            row(vec![rounded_with_axes]),
-            row(vec![labeled]),
-            row(vec![inside_labeled]),
-            row(vec![mixed]),
-            stack(vec![row(vec![stacked_normal]), stacked_legend]),
-            row(vec![stacked_expand]),
-            row(vec![active]),
-            row(vec![negative]),
+            axis_row("Vertical", vec![vertical]),
+            axis_row("Horizontal", vec![horizontal]),
+            axis_row("Axes", vec![rounded_with_axes]),
+            axis_row("Labeled", vec![labeled]),
+            axis_row("Inside label", vec![inside_labeled]),
+            axis_row("Mixed", vec![mixed]),
+            axis_stack("Stacked", vec![row(vec![stacked_normal]), stacked_legend]),
+            axis_row("Stacked 100%", vec![stacked_expand]),
+            axis_row("Active", vec![active]),
+            axis_row("Negative", vec![negative]),
         ],
     )
 }
@@ -15032,19 +15230,22 @@ fn line_chart_section() -> Node {
     let node = line_chart::line_chart(&LineChartProps::new(&data, "monthly visits"), vec![])
         .expect("showcase 固定データは常に有効");
 
-    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
-        .into_iter()
-        .map(|size| {
-            line_chart::line_chart(
-                &LineChartProps {
-                    size,
-                    ..LineChartProps::new(&data, "monthly visits")
-                },
-                vec![],
-            )
-            .expect("showcase 固定データは常に有効")
-        })
-        .collect());
+    let size_row = axis_row(
+        "Size",
+        [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+            .into_iter()
+            .map(|size| {
+                line_chart::line_chart(
+                    &LineChartProps {
+                        size,
+                        ..LineChartProps::new(&data, "monthly visits")
+                    },
+                    vec![],
+                )
+                .expect("showcase 固定データは常に有効")
+            })
+            .collect(),
+    );
 
     // イシュー #2083: shadcn/ui `chart-line-default`/`-linear`/`-step`
     // （curve）の静的バリアント。曲線補間の見た目確認用に単一系列データを
@@ -15059,24 +15260,27 @@ fn line_chart_section() -> Node {
         vec![Series::new("visits", vec![10.0, 35.0, 15.0, 28.0])],
     )
     .expect("showcase 固定データは常に有効");
-    let curve_row = row(vec![
-        line_chart::line_chart(
-            &LineChartProps {
-                curve: Curve::Natural,
-                ..LineChartProps::new(&natural_data, "natural curve")
-            },
-            vec![],
-        )
-        .expect("showcase 固定データは常に有効"),
-        line_chart::line_chart(
-            &LineChartProps {
-                curve: Curve::Step,
-                ..LineChartProps::new(&natural_data, "step curve")
-            },
-            vec![],
-        )
-        .expect("showcase 固定データは常に有効"),
-    ]);
+    let curve_row = axis_row(
+        "Curve",
+        vec![
+            line_chart::line_chart(
+                &LineChartProps {
+                    curve: Curve::Natural,
+                    ..LineChartProps::new(&natural_data, "natural curve")
+                },
+                vec![],
+            )
+            .expect("showcase 固定データは常に有効"),
+            line_chart::line_chart(
+                &LineChartProps {
+                    curve: Curve::Step,
+                    ..LineChartProps::new(&natural_data, "step curve")
+                },
+                vec![],
+            )
+            .expect("showcase 固定データは常に有効"),
+        ],
+    );
 
     // イシュー #2083: shadcn/ui `chart-line-dots`/`-dots-custom`/
     // `-dots-colors`。
@@ -15181,19 +15385,22 @@ fn area_chart_section() -> Node {
     let node = area_chart::area_chart(&AreaChartProps::new(&data, "monthly visits"), vec![])
         .expect("showcase 固定データは常に有効");
 
-    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
-        .into_iter()
-        .map(|size| {
-            area_chart::area_chart(
-                &AreaChartProps {
-                    size,
-                    ..AreaChartProps::new(&data, "monthly visits")
-                },
-                vec![],
-            )
-            .expect("showcase 固定データは常に有効")
-        })
-        .collect());
+    let size_row = axis_row(
+        "Size",
+        [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+            .into_iter()
+            .map(|size| {
+                area_chart::area_chart(
+                    &AreaChartProps {
+                        size,
+                        ..AreaChartProps::new(&data, "monthly visits")
+                    },
+                    vec![],
+                )
+                .expect("showcase 固定データは常に有効")
+            })
+            .collect(),
+    );
 
     // イシュー #2081: shadcn/ui `chart-area-linear`/`-step`（curve）の
     // 静的バリアント。Natural（`chart-area-default` 相当）は曲線補間の
@@ -15208,24 +15415,27 @@ fn area_chart_section() -> Node {
         vec![Series::new("visits", vec![10.0, 35.0, 15.0, 28.0])],
     )
     .expect("showcase 固定データは常に有効");
-    let curve_row = row(vec![
-        area_chart::area_chart(
-            &AreaChartProps {
-                curve: area_chart::AreaCurve::Natural,
-                ..AreaChartProps::new(&natural_data, "natural curve")
-            },
-            vec![],
-        )
-        .expect("showcase 固定データは常に有効"),
-        area_chart::area_chart(
-            &AreaChartProps {
-                curve: area_chart::AreaCurve::Step,
-                ..AreaChartProps::new(&natural_data, "step curve")
-            },
-            vec![],
-        )
-        .expect("showcase 固定データは常に有効"),
-    ]);
+    let curve_row = axis_row(
+        "Curve",
+        vec![
+            area_chart::area_chart(
+                &AreaChartProps {
+                    curve: area_chart::AreaCurve::Natural,
+                    ..AreaChartProps::new(&natural_data, "natural curve")
+                },
+                vec![],
+            )
+            .expect("showcase 固定データは常に有効"),
+            area_chart::area_chart(
+                &AreaChartProps {
+                    curve: area_chart::AreaCurve::Step,
+                    ..AreaChartProps::new(&natural_data, "step curve")
+                },
+                vec![],
+            )
+            .expect("showcase 固定データは常に有効"),
+        ],
+    );
 
     // イシュー #2081: shadcn/ui `chart-area-stacked`/`-stacked-expand`。
     let stacked_row = row(vec![
@@ -15287,19 +15497,22 @@ fn sparkline_section() -> Node {
     let node = sparkline::sparkline(&SparklineProps::new(&values, "weekly trend"), vec![])
         .expect("showcase 固定データは常に有効");
 
-    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
-        .into_iter()
-        .map(|size| {
-            sparkline::sparkline(
-                &SparklineProps {
-                    size,
-                    ..SparklineProps::new(&values, "weekly trend")
-                },
-                vec![],
-            )
-            .expect("showcase 固定データは常に有効")
-        })
-        .collect());
+    let size_row = axis_row(
+        "Size",
+        [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+            .into_iter()
+            .map(|size| {
+                sparkline::sparkline(
+                    &SparklineProps {
+                        size,
+                        ..SparklineProps::new(&values, "weekly trend")
+                    },
+                    vec![],
+                )
+                .expect("showcase 固定データは常に有効")
+            })
+            .collect(),
+    );
 
     section(
         "Sparkline",
@@ -15321,20 +15534,23 @@ fn pie_chart_section() -> Node {
     )
     .expect("ショーケース固定データは常に有効な ChartData を構築できる");
 
-    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
-        .into_iter()
-        .map(|size| {
-            pie_chart(
-                &PieChartProps {
-                    size,
-                    ..PieChartProps::default()
-                },
-                &data,
-                vec![],
-            )
-            .expect("ショーケース固定データは常に描画に成功する")
-        })
-        .collect());
+    let size_row = axis_row(
+        "Size",
+        [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+            .into_iter()
+            .map(|size| {
+                pie_chart(
+                    &PieChartProps {
+                        size,
+                        ..PieChartProps::default()
+                    },
+                    &data,
+                    vec![],
+                )
+                .expect("ショーケース固定データは常に描画に成功する")
+            })
+            .collect(),
+    );
 
     let with_labels = pie_chart(
         &PieChartProps {
@@ -15433,20 +15649,23 @@ fn donut_chart_section() -> Node {
     )
     .expect("ショーケース固定データは常に有効な ChartData を構築できる");
 
-    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
-        .into_iter()
-        .map(|size| {
-            donut_chart(
-                &DonutChartProps {
-                    size,
-                    ..DonutChartProps::default()
-                },
-                &data,
-                vec![],
-            )
-            .expect("ショーケース固定データは常に描画に成功する")
-        })
-        .collect());
+    let size_row = axis_row(
+        "Size",
+        [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+            .into_iter()
+            .map(|size| {
+                donut_chart(
+                    &DonutChartProps {
+                        size,
+                        ..DonutChartProps::default()
+                    },
+                    &data,
+                    vec![],
+                )
+                .expect("ショーケース固定データは常に描画に成功する")
+            })
+            .collect(),
+    );
 
     let thin_ring = donut_chart(
         &DonutChartProps {
@@ -15467,7 +15686,7 @@ fn donut_chart_section() -> Node {
         vec![],
     )
     .expect("ショーケース固定データは常に描画に成功する");
-    let variant_row = row(vec![thin_ring, separator_none]);
+    let variant_row = axis_row("Variant", vec![thin_ring, separator_none]);
 
     let active = donut_chart(
         &DonutChartProps {
@@ -15796,7 +16015,7 @@ fn radial_chart_section() -> Node {
     )
     .expect("ショーケース固定データは常に描画に成功する");
 
-    let variant_row = row(vec![simple, label, grid, text, shape, stacked]);
+    let variant_row = axis_row("Variant", vec![simple, label, grid, text, shape, stacked]);
 
     section(
         "RadialChart",
@@ -15815,50 +16034,59 @@ fn tag_section() -> Node {
         (TagVariant::Outline, "Outline"),
         (TagVariant::Surface, "Surface"),
     ];
-    let variant_row = row(variants
-        .iter()
-        .map(|(variant, label)| {
-            tag::root(
-                &TagProps {
-                    variant: *variant,
-                    ..TagProps::default()
-                },
-                vec![],
-                vec![text(*label)],
-            )
-        })
-        .collect());
-    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
-        .iter()
-        .map(|size| {
-            tag::root(
-                &TagProps {
-                    size: *size,
-                    ..TagProps::default()
-                },
-                vec![],
-                vec![text("Tag")],
-            )
-        })
-        .collect());
+    let variant_row = axis_row(
+        "Variant",
+        variants
+            .iter()
+            .map(|(variant, label)| {
+                tag::root(
+                    &TagProps {
+                        variant: *variant,
+                        ..TagProps::default()
+                    },
+                    vec![],
+                    vec![text(*label)],
+                )
+            })
+            .collect(),
+    );
+    let size_row = axis_row(
+        "Size",
+        [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+            .iter()
+            .map(|size| {
+                tag::root(
+                    &TagProps {
+                        size: *size,
+                        ..TagProps::default()
+                    },
+                    vec![],
+                    vec![text("Tag")],
+                )
+            })
+            .collect(),
+    );
     // イシュー #1681: 共有 `palettes()`（5 値）はまだ Neutral を含めない
     // （Forms 側〔#1680〕の適用完了まで宣言なしデモが公開されるのを避ける
     // ため）。この節限定で Neutral エントリを末尾へ連結する。
-    let palette_row = row(palettes()
-        .iter()
-        .copied()
-        .chain([(ColorPalette::Neutral, "Neutral")])
-        .map(|(palette, label)| {
-            tag::root(
-                &TagProps {
-                    palette,
-                    ..TagProps::default()
-                },
-                vec![],
-                vec![text(label)],
-            )
-        })
-        .collect());
+    let palette_row = axis_row(
+        "Palette",
+        palettes()
+            .iter()
+            .copied()
+            .chain([(ColorPalette::Neutral, "Neutral")])
+            .map(|(palette, label)| {
+                tag::root(
+                    &TagProps {
+                        palette,
+                        ..TagProps::default()
+                    },
+                    vec![],
+                    vec![text(label)],
+                )
+            })
+            .collect(),
+    );
     // イシュー #1573: close-trigger の hover/フォーカスリングを variant
     // 4 種で並べて目視確認できるようにする（キーボードフォーカスは
     // Tab キーで close-trigger まで移動して確認する）。
@@ -15902,49 +16130,58 @@ fn kbd_section() -> Node {
         (KbdVariant::Subtle, "Subtle"),
         (KbdVariant::Outline, "Outline"),
     ];
-    let variant_row = row(variants
-        .iter()
-        .map(|(variant, label)| {
-            kbd(
-                &KbdProps {
-                    variant: *variant,
-                    ..KbdProps::default()
-                },
-                vec![],
-                vec![text(*label)],
-            )
-        })
-        .collect());
-    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
-        .iter()
-        .map(|size| {
-            kbd(
-                &KbdProps {
-                    size: *size,
-                    ..KbdProps::default()
-                },
-                vec![],
-                vec![text("Esc")],
-            )
-        })
-        .collect());
+    let variant_row = axis_row(
+        "Variant",
+        variants
+            .iter()
+            .map(|(variant, label)| {
+                kbd(
+                    &KbdProps {
+                        variant: *variant,
+                        ..KbdProps::default()
+                    },
+                    vec![],
+                    vec![text(*label)],
+                )
+            })
+            .collect(),
+    );
+    let size_row = axis_row(
+        "Size",
+        [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+            .iter()
+            .map(|size| {
+                kbd(
+                    &KbdProps {
+                        size: *size,
+                        ..KbdProps::default()
+                    },
+                    vec![],
+                    vec![text("Esc")],
+                )
+            })
+            .collect(),
+    );
     // 共有 `palettes()`（5 値、Neutral なし）に本部品の既定 palette
     // （Neutral）を末尾連結する（code::section と同様の理由）。
-    let palette_row = row(palettes()
-        .iter()
-        .copied()
-        .chain([(ColorPalette::Neutral, "Neutral")])
-        .map(|(palette, label)| {
-            kbd(
-                &KbdProps {
-                    palette,
-                    ..KbdProps::default()
-                },
-                vec![],
-                vec![text(label)],
-            )
-        })
-        .collect());
+    let palette_row = axis_row(
+        "Palette",
+        palettes()
+            .iter()
+            .copied()
+            .chain([(ColorPalette::Neutral, "Neutral")])
+            .map(|(palette, label)| {
+                kbd(
+                    &KbdProps {
+                        palette,
+                        ..KbdProps::default()
+                    },
+                    vec![],
+                    vec![text(label)],
+                )
+            })
+            .collect(),
+    );
     // イシュー #2048（shadcn/ui 突合）: `group`（shadcn `KbdGroup` 相当）に
     // よる複数キーの組み合わせ表示デモ。既存 `shortcut_row`（`text(" + ")`
     // 連結）は互換維持のため残す。
@@ -15982,49 +16219,58 @@ fn code_section() -> Node {
         (CodeVariant::Subtle, "Subtle"),
         (CodeVariant::Outline, "Outline"),
     ];
-    let variant_row = row(variants
-        .iter()
-        .map(|(variant, label)| {
-            code(
-                &CodeProps {
-                    variant: *variant,
-                    ..CodeProps::default()
-                },
-                vec![],
-                vec![text(*label)],
-            )
-        })
-        .collect());
-    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
-        .iter()
-        .map(|size| {
-            code(
-                &CodeProps {
-                    size: *size,
-                    ..CodeProps::default()
-                },
-                vec![],
-                vec![text("code")],
-            )
-        })
-        .collect());
+    let variant_row = axis_row(
+        "Variant",
+        variants
+            .iter()
+            .map(|(variant, label)| {
+                code(
+                    &CodeProps {
+                        variant: *variant,
+                        ..CodeProps::default()
+                    },
+                    vec![],
+                    vec![text(*label)],
+                )
+            })
+            .collect(),
+    );
+    let size_row = axis_row(
+        "Size",
+        [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+            .iter()
+            .map(|size| {
+                code(
+                    &CodeProps {
+                        size: *size,
+                        ..CodeProps::default()
+                    },
+                    vec![],
+                    vec![text("code")],
+                )
+            })
+            .collect(),
+    );
     // 共有 `palettes()`（5 値、Neutral なし）に本部品の既定 palette
     // （Neutral）を末尾連結する（tag::section と同様の理由）。
-    let palette_row = row(palettes()
-        .iter()
-        .copied()
-        .chain([(ColorPalette::Neutral, "Neutral")])
-        .map(|(palette, label)| {
-            code(
-                &CodeProps {
-                    palette,
-                    ..CodeProps::default()
-                },
-                vec![],
-                vec![text(label)],
-            )
-        })
-        .collect());
+    let palette_row = axis_row(
+        "Palette",
+        palettes()
+            .iter()
+            .copied()
+            .chain([(ColorPalette::Neutral, "Neutral")])
+            .map(|(palette, label)| {
+                code(
+                    &CodeProps {
+                        palette,
+                        ..CodeProps::default()
+                    },
+                    vec![],
+                    vec![text(label)],
+                )
+            })
+            .collect(),
+    );
     section(
         "Code",
         "インラインコード片の表示。variant / size / colorPalette を組み合わせます。chakra-ui の CodeBlock 相当は対象外です。",
@@ -16036,38 +16282,44 @@ fn code_section() -> Node {
 /// チェッカーボード表示確認。
 fn color_swatch_section() -> Node {
     let blue = Color::from_rgb(Rgb::new(0x3b, 0x82, 0xf6));
-    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+    let size_row = axis_row(
+        "Size",
+        [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+            .iter()
+            .map(|size| {
+                color_swatch::color_swatch(
+                    &ColorSwatchProps {
+                        value: blue,
+                        size: *size,
+                        ..ColorSwatchProps::default()
+                    },
+                    vec![],
+                    vec![],
+                )
+            })
+            .collect(),
+    );
+    let shape_row = axis_row(
+        "Shape",
+        [
+            SwatchShape::Square,
+            SwatchShape::Circle,
+            SwatchShape::Rounded,
+        ]
         .iter()
-        .map(|size| {
+        .map(|shape| {
             color_swatch::color_swatch(
                 &ColorSwatchProps {
                     value: blue,
-                    size: *size,
+                    shape: *shape,
                     ..ColorSwatchProps::default()
                 },
                 vec![],
                 vec![],
             )
         })
-        .collect());
-    let shape_row = row([
-        SwatchShape::Square,
-        SwatchShape::Circle,
-        SwatchShape::Rounded,
-    ]
-    .iter()
-    .map(|shape| {
-        color_swatch::color_swatch(
-            &ColorSwatchProps {
-                value: blue,
-                shape: *shape,
-                ..ColorSwatchProps::default()
-            },
-            vec![],
-            vec![],
-        )
-    })
-    .collect());
+        .collect(),
+    );
     // イシュー #1558: chakra-ui 参照スクショ 3（半透明 4 色）相当に拡充し、
     // 淡色・低アルファ色でも #1558 で追加した inset リングの輪郭が
     // 判別できることを確認できるようにする。
