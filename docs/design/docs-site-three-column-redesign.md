@@ -245,6 +245,9 @@ HTML の [`<details>`/`<summary>`](https://developer.mozilla.org/docs/Web/HTML/E
   タブ順から外れ、チェックボックスを Space で開くと表示される。あわせて
   `< 768px` のヘッダーは、検索入力を `flex-basis: 100%` で必ず単独の全幅行へ置き（DOM 順・Tab 順を保つため `order` は使わず、GitHub・テーマトグルは検索の次段へ回る）、ヘッダーは
   sticky にせず通常フローに戻す（見出しの `scroll-margin-top` は `1rem`）。
+- 追記（#3674）: 上記の `input.docs-sidebar-toggle`（旧 Menu トグル）は廃止済み。
+  現行は `docs-nav-drawer-toggle` と header 末尾の全セクション向けナビ drawer に
+  置き換わっている。上記は #3602 時点の経緯の記録であり現行構造ではない。
 
 ### 3.3 右カラム目次（→ #909）
 
