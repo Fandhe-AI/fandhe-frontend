@@ -1984,19 +1984,16 @@ pub const SITE_RECIPES: &[SiteRecipe] = &[
     },
 ];
 
-/// Primitives デモ枠（`primitives-demo-frame`）の内側を除外する `@scope` で
-/// recipe CSS を包む（イシュー #3599 のレビュー指摘）。
+/// Primitives ページ専用の recipe 抜きサイト CSS の出力先（`out_dir` 起点の相対パス）。
 ///
-/// 役割: `site.css` は Primitives ページにも読み込まれるが、そこの headless-ui
-/// デモは「スタイルを持たない層」の契約（`primitive_showcase` モジュール doc）
-/// により styled recipe の装飾を受けてはならない。recipe は `[data-scope=...]`
-/// 属性セレクタで headless と同じ markup を対象にするため、セレクタ側では
-/// 区別できない。`@scope (:root) to (.primitives-demo-frame)` は詳細度を加えず
-/// （スコープルートは `:where(:scope)` 相当）、枠内の子孫だけを適用範囲から
-/// 外す。入力 CSS の行構成は変えず、前後に包みの行を足すのみ。
-fn scope_recipe_css(css: &str) -> String {
-    format!("@scope (:root) to (.primitives-demo-frame) {{\n{css}\n}}\n")
-}
+/// 役割: Primitives ページの headless-ui デモは「スタイルを持たない層」の契約
+/// （`primitive_showcase` モジュール doc）により styled recipe の装飾を受けては
+/// ならない。recipe は `[data-scope=...]` 属性セレクタで headless と同じ markup を
+/// 対象にするためセレクタ側では区別できない。`@scope` で除外すると非対応
+/// ブラウザで一般ページの recipe まで失われるため、recipe を `@scope` で包まず
+/// 全ブラウザで有効な素の CSS として [`STYLESHEET_REL_PATH`] へ積み、Primitives
+/// ページだけが recipe を含まない本ファイルを読む（`crate::layout` が選択）。
+pub const PRIMITIVES_STYLESHEET_REL_PATH: &str = "assets/site-primitives.css";
 
 /// サイト骨格が参照する CSS 全量を組み立てる。
 ///
@@ -2021,12 +2018,28 @@ fn scope_recipe_css(css: &str) -> String {
 /// ため通常は到達しないが、黙って欠けた CSS を公開しない fail-closed 方針で
 /// 伝播させる。
 pub fn stylesheet() -> Result<StyleSheet, SiteThemeError> {
+    assemble(true)
+}
+
+/// [`stylesheet`] から [`SITE_RECIPES`] を除いた CSS（Primitives ページ専用、
+/// [`PRIMITIVES_STYLESHEET_REL_PATH`]）。recipe 以外の内容・順序は同一。
+///
+/// # Errors
+///
+/// [`stylesheet`] と同じ。
+pub fn stylesheet_without_recipes() -> Result<StyleSheet, SiteThemeError> {
+    assemble(false)
+}
+
+fn assemble(with_recipes: bool) -> Result<StyleSheet, SiteThemeError> {
     let theme = docs_theme()?;
     let mut sheet = StyleSheet::new();
     sheet.push_theme(&theme);
     sheet.push_css(&fandhe_frontend_pre_styled_ui::nav_list::stylesheet())?;
-    for recipe in SITE_RECIPES {
-        sheet.push_css(&scope_recipe_css(&(recipe.css)()))?;
+    if with_recipes {
+        for recipe in SITE_RECIPES {
+            sheet.push_css(&(recipe.css)())?;
+        }
     }
     sheet.push_css(STRUCTURAL_CSS)?;
     sheet.push_css(&typography_css()?)?;

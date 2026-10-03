@@ -1561,25 +1561,35 @@ fn site_css_never_supplies_forbidden_scopes_or_bulk_showcase_css() {
     );
 }
 
-/// Primitives ページは `site.css` を読み込むが、headless-ui デモ（`primitives-demo-frame`
-/// 内）は styled recipe の装飾を受けてはならない（「スタイルを持たない層」契約）。
-/// 全 recipe が `@scope (:root) to (.primitives-demo-frame)` で包まれていることを固定する。
+/// recipe は `@scope` に依存せず素の CSS として `site.css` へ積まれる（`@scope`
+/// 非対応ブラウザでも一般ページの装飾が失われない）。Primitives ページ専用の
+/// `site-primitives.css` は recipe を一切含まず、その他の内容は `site.css` と同じ。
 #[test]
-fn site_recipes_are_scoped_out_of_primitives_demo_frame() {
+fn site_recipes_are_unwrapped_and_primitives_css_omits_them() {
     let css = site_css();
-    let open = "@scope (:root) to (.primitives-demo-frame) {\n";
+    assert!(
+        !css.contains("@scope"),
+        "recipe を @scope だけで供給してはならない"
+    );
+    let base = site_theme::stylesheet_without_recipes()
+        .expect("site theme stylesheet without recipes should assemble")
+        .as_css()
+        .to_string();
+    let mut stripped = css.clone();
     for r in site_theme::SITE_RECIPES {
-        let wrapped = format!("{open}{}\n}}\n", (r.css)());
+        let body = (r.css)();
+        assert!(css.contains(&body), "recipe {} が site.css に無い", r.name);
         assert!(
-            css.contains(&wrapped),
-            "recipe {} が Primitives デモ枠を除外する @scope で包まれていない",
+            !base.contains(&body),
+            "recipe {} が Primitives 専用 CSS に混入している",
             r.name
         );
+        stripped = stripped.replacen(&body, "", 1);
     }
     assert_eq!(
-        css.matches(open).count(),
-        site_theme::SITE_RECIPES.len(),
-        "@scope 包みの件数が recipe 件数と一致しない"
+        stripped.split_whitespace().collect::<String>(),
+        base.split_whitespace().collect::<String>(),
+        "site-primitives.css は site.css から recipe を除いたものと一致しなければならない"
     );
 }
 

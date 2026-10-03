@@ -183,6 +183,7 @@ use crate::wireframes;
 /// `site/assets/` 直下との名前衝突は basename の一致だけで判定できる。
 pub(crate) const RESERVED_ASSET_NAMES: &[&str] = &[
     "site.css",
+    "site-primitives.css",
     "skip-nav.css",
     "pre-styled-ui.css",
     "primitives-showcase.css",
@@ -750,6 +751,17 @@ pub fn build_site_with(
         site_theme::STYLESHEET_REL_PATH,
     ));
     let site_theme_sheet = site_theme::stylesheet()?;
+    // Primitives ページ専用の recipe 抜き site CSS（`layout` がそのページだけ
+    // こちらを link する）。該当ページが実在するときだけ書き出し・href 登録する。
+    let site_primitives_sheet = if has_primitives_page {
+        asset_hrefs.push(layout::asset_href(
+            &nav.site.base_path,
+            site_theme::PRIMITIVES_STYLESHEET_REL_PATH,
+        ));
+        Some(site_theme::stylesheet_without_recipes()?)
+    } else {
+        None
+    };
 
     let mut link_check_broken = linkcheck::check_links(&pages, &nav.site.base_path, &asset_hrefs);
     broken.append(&mut link_check_broken);
@@ -834,6 +846,12 @@ pub fn build_site_with(
         format!("/{}", site_theme::STYLESHEET_REL_PATH),
         site_theme_sheet.as_css().to_string(),
     ));
+    if let Some(sheet) = site_primitives_sheet {
+        generated_assets.push((
+            format!("/{}", site_theme::PRIMITIVES_STYLESHEET_REL_PATH),
+            sheet.as_css().to_string(),
+        ));
+    }
     generated_assets.push((
         format!("/{}", script::SCRIPT_REL_PATH),
         script::site_js().to_string(),

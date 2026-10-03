@@ -297,9 +297,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // マニフェスト + `site/nav.toml` の `[[section]]` 数分のセクション
     // ファイルへ分割され、15 → 15 + セクション数になった（件数は nav.toml
     // から導出し、セクション追加時に本テストの手修正を要しない）。
+    // Primitives ページ専用の recipe 抜き `site-primitives.css`（イシュー
+    // #3599 のレビュー指摘）が加わり 15 → 16 になった。
     assert_eq!(
         report.assets.len(),
-        15 + nav.sections.len(),
+        16 + nav.sections.len(),
         "{:?}",
         report.assets
     );
