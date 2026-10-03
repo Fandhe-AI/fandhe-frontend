@@ -12,10 +12,11 @@
 //! （[`PAGE_SECTIONS`]）から生成関数を引く汎用フックを提供する。
 //!
 //! [`crate::build::build_site_with`] が `render_markdown` → blocks → wireframes
-//! の挿入の**直後**に [`insert_generated_sections_with`] を呼ぶ。登録表は
-//! 基盤導入時点では空で、Phase 3（トップのランディング化）・Phase 4（索引の
-//! カードグリッド化）が各ページの登録を追加する。空の間は全ページの出力が
-//! 変更前と 1 バイトも変わらない（`tests/page_sections.rs` が固定する）。
+//! の挿入の**直後**に [`insert_generated_sections_with`] を呼ぶ。本番登録表は
+//! トップのヒーロー（#3612、[`crate::landing`]）のみで、Phase 4（索引の
+//! カードグリッド化）が各ページの登録を追加する。空の登録表
+//! （[`EMPTY_REGISTRY`]）では全ページの出力が変更前と 1 バイトも変わらない
+//! （`tests/page_sections.rs` が固定する）。
 //!
 //! # 挿入位置の規約（[`Placement`]）
 //!
@@ -67,7 +68,8 @@ use fandhe_frontend_pre_styled_ui::{StyleSheet, StylesheetError};
 use crate::blocks;
 use crate::build::RESERVED_ASSET_NAMES;
 use crate::component_page;
-use crate::layout::RESERVED_LAYOUT_IDS;
+use crate::landing;
+use crate::layout::{PageLayout, RESERVED_LAYOUT_IDS};
 use crate::nav::Nav;
 use crate::section_index;
 use crate::wireframes;
@@ -103,6 +105,9 @@ pub struct PageSection {
     pub render: fn(base_path: &str) -> Vec<Node>,
     /// 配線する追加 CSS（[`Registry::stylesheets`] の `rel_path` を参照）。
     pub stylesheets: &'static [&'static str],
+    /// ページ骨格の種別（イシュー #3612）。トップのランディングだけが
+    /// [`PageLayout::Landing`]、他は [`PageLayout::Docs`]。
+    pub layout: PageLayout,
 }
 
 /// 登録表一式。本番は [`REGISTRY`]、テストは合成エントリで構築する。
@@ -114,27 +119,38 @@ pub struct Registry {
     pub stylesheets: &'static [PageStylesheet],
 }
 
-/// 本番の生成節登録表（Phase 3/4 が追加する）。並びは `path` の昇順で、
-/// 1 件 1 ブロックで追記する（並行イシューとの衝突を最小にするため）。
+/// 本番の生成節登録表。トップのヒーロー（イシュー #3612）と、セクショントップの
+/// カードグリッド索引（イシュー #3616）。後続の #3613〜#3615 は `/` の登録を
+/// 増やさず [`landing::render`] の返す節列へ追記する（[`validate`] の
+/// `DuplicatePath` 制約）。並びは `path` の昇順。
 pub const PAGE_SECTIONS: &[PageSection] = &[
-    // イシュー #3616: セクショントップのカードグリッド索引
     PageSection {
         path: "/api/",
         placement: Placement::BeforeFirstH2,
         render: section_index::render_api,
         stylesheets: &[section_index::STYLESHEET_REL_PATH],
+        layout: PageLayout::Docs,
     },
     PageSection {
         path: "/examples/",
         placement: Placement::BeforeFirstH2,
         render: section_index::render_examples,
         stylesheets: &[section_index::STYLESHEET_REL_PATH],
+        layout: PageLayout::Docs,
     },
     PageSection {
         path: "/guides/",
         placement: Placement::Append,
         render: section_index::render_guides,
         stylesheets: &[section_index::STYLESHEET_REL_PATH],
+        layout: PageLayout::Docs,
+    },
+    PageSection {
+        path: landing::PATH,
+        placement: Placement::Prepend,
+        render: landing::render,
+        stylesheets: &[],
+        layout: PageLayout::Landing,
     },
 ];
 
@@ -144,18 +160,18 @@ pub const PAGE_STYLESHEETS: &[PageStylesheet] = &[PageStylesheet {
     build: section_index::stylesheet,
 }];
 
-/// 空の登録表。合成 nav の fixture ビルドで [`crate::build::build_site_with`] へ
-/// 渡す（本番登録表は実 `site/nav.toml` のページを前提とし、`validate` の
-/// `UnknownPage` 検査を緩めずに fixture を通すため。イシュー #3616）。
-pub const EMPTY_REGISTRY: Registry = Registry {
-    sections: &[],
-    stylesheets: &[],
-};
-
 /// 本番の登録表。[`crate::build::build_site`] が使う。
 pub const REGISTRY: Registry = Registry {
     sections: PAGE_SECTIONS,
     stylesheets: PAGE_STYLESHEETS,
+};
+
+/// 生成節を一切持たない登録表。フィクスチャ（一時ディレクトリで組む合成サイト）
+/// のビルドが、本サイト専用のヒーロー・ランディング骨格・CTA リンクを
+/// 引き込まないために使う（`build_site_with(.., &EMPTY_REGISTRY)`）。
+pub const EMPTY_REGISTRY: Registry = Registry {
+    sections: &[],
+    stylesheets: &[],
 };
 
 /// [`validate`] の失敗理由。`Display` は登録パス・`rel_path`・id のみを含む。
@@ -225,6 +241,12 @@ impl std::error::Error for PageSectionError {}
 #[must_use]
 pub fn section_for_path_in<'a>(registry: &'a Registry, path: &str) -> Option<&'a PageSection> {
     registry.sections.iter().find(|s| s.path == path)
+}
+
+/// `path` のページ骨格種別を返す。未登録ページは [`PageLayout::Docs`]。
+#[must_use]
+pub fn layout_for_path_in(registry: &Registry, path: &str) -> PageLayout {
+    section_for_path_in(registry, path).map_or(PageLayout::Docs, |s| s.layout)
 }
 
 /// `path` の生成節が配線する追加 CSS を、`rel_path` の重複なしで返す。
@@ -424,6 +446,7 @@ mod tests {
             placement,
             render: marker,
             stylesheets: &[],
+            layout: PageLayout::Docs,
         }]));
         reg(s, &[])
     }
@@ -440,9 +463,11 @@ mod tests {
         .expect("read site nav");
         let real = crate::nav::parse_nav(&real).expect("parse site nav");
         assert_eq!(validate(&REGISTRY, &real), Ok(()));
-        for s in PAGE_SECTIONS {
-            assert!(real.all_pages().any(|p| p.path == s.path), "{}", s.path);
-        }
+        let paths: Vec<_> = PAGE_SECTIONS.iter().map(|s| s.path).collect();
+        assert_eq!(paths, ["/api/", "/examples/", "/guides/", "/"]);
+        assert_eq!(layout_for_path_in(&REGISTRY, "/"), PageLayout::Landing);
+        assert_eq!(layout_for_path_in(&REGISTRY, "/guides/"), PageLayout::Docs);
+        assert_eq!(layout_for_path_in(&EMPTY_REGISTRY, "/"), PageLayout::Docs);
     }
 
     #[test]
@@ -496,6 +521,7 @@ mod tests {
             placement: Placement::Append,
             render,
             stylesheets,
+            layout: PageLayout::Docs,
         }
     }
 

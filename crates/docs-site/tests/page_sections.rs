@@ -11,11 +11,13 @@ use std::path::{Path, PathBuf};
 use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_docs_site::blocks;
 use fandhe_frontend_docs_site::build::{build_site_with, BuildError};
+use fandhe_frontend_docs_site::layout::PageLayout;
 use fandhe_frontend_docs_site::markdown::render_markdown;
 use fandhe_frontend_docs_site::nav::{parse_nav, Nav};
 use fandhe_frontend_docs_site::page_sections::{
     insert_generated_sections_with, stylesheets_for_path_in, validate, PageSection,
-    PageSectionError, PageStylesheet, Placement, Registry, PAGE_SECTIONS, PAGE_STYLESHEETS,
+    PageSectionError, PageStylesheet, Placement, Registry, EMPTY_REGISTRY, PAGE_SECTIONS,
+    PAGE_STYLESHEETS, REGISTRY,
 };
 use fandhe_frontend_docs_site::wireframes;
 use fandhe_frontend_pre_styled_ui::{StyleSheet, StylesheetError};
@@ -73,6 +75,7 @@ fn registry_for(path: &'static str, placement: Placement) -> Registry {
         placement,
         render: marker,
         stylesheets: &[SHEET],
+        layout: PageLayout::Docs,
     }]));
     Registry {
         sections,
@@ -80,10 +83,7 @@ fn registry_for(path: &'static str, placement: Placement) -> Registry {
     }
 }
 
-const EMPTY: Registry = Registry {
-    sections: &[],
-    stylesheets: &[],
-};
+const EMPTY: Registry = EMPTY_REGISTRY;
 
 fn read_tree(root: &Path) -> BTreeMap<String, Vec<u8>> {
     fn walk(dir: &Path, root: &Path, out: &mut BTreeMap<String, Vec<u8>>) {
@@ -114,16 +114,27 @@ fn pre_hook_blocks(nav: &Nav, page: &fandhe_frontend_docs_site::nav::Page) -> Ve
 }
 
 #[test]
-fn production_registry_paths_exist_in_real_nav() {
-    let nav = real_nav();
-    for s in PAGE_SECTIONS {
-        assert!(nav.all_pages().any(|p| p.path == s.path), "{}", s.path);
-    }
+fn production_registry_matches_the_expected_table() {
+    let got: Vec<_> = PAGE_SECTIONS
+        .iter()
+        .map(|s| (s.path, s.placement, s.layout))
+        .collect();
+    assert_eq!(
+        got,
+        [
+            ("/api/", Placement::BeforeFirstH2, PageLayout::Docs),
+            ("/examples/", Placement::BeforeFirstH2, PageLayout::Docs),
+            ("/guides/", Placement::Append, PageLayout::Docs),
+            ("/", Placement::Prepend, PageLayout::Landing),
+        ],
+        "本番登録表の期待表（登録を増やすときは本表へ明示的に追加する）"
+    );
     for s in PAGE_SECTIONS {
         for rel in s.stylesheets {
             assert!(PAGE_STYLESHEETS.iter().any(|p| p.rel_path == *rel), "{rel}");
         }
     }
+    assert_eq!(validate(&REGISTRY, &real_nav()), Ok(()));
 }
 
 /// AC1: 空の登録表では全ページのノード列が変わらず、追加 CSS も配線されない。

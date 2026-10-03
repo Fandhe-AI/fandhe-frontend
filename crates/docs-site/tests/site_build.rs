@@ -19,20 +19,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use fandhe_frontend_docs_site::blocks;
-use fandhe_frontend_docs_site::build::BuildError;
-
-/// fixture 上のビルド用。本番登録表は実 `site/nav.toml` のページを前提にするため、
-/// 合成 nav では空の登録表を使う（イシュー #3616）。
-fn build_fixture(
-    repo_root: &Path,
-    out_dir: &Path,
-) -> Result<fandhe_frontend_docs_site::build::BuildReport, BuildError> {
-    fandhe_frontend_docs_site::build::build_site_with(
-        repo_root,
-        out_dir,
-        &fandhe_frontend_docs_site::page_sections::EMPTY_REGISTRY,
-    )
-}
+use fandhe_frontend_docs_site::build::{build_site_with, BuildError};
+use fandhe_frontend_docs_site::page_sections::EMPTY_REGISTRY;
 
 #[path = "support/shared_site.rs"]
 mod shared_site;
@@ -86,8 +74,8 @@ fn fixture_root(name: &str) -> PathBuf {
 #[test]
 fn build_site_generates_all_pages_and_assets_for_ok_fixture() {
     let out = TempDir::new("ok");
-    let report =
-        build_fixture(&fixture_root("site-ok"), &out.0).expect("site-ok fixture should build");
+    let report = build_site_with(&fixture_root("site-ok"), &out.0, &EMPTY_REGISTRY)
+        .expect("site-ok fixture should build");
 
     assert_eq!(report.written.len(), 2);
     // site.css（`site_theme` のビルド時生成、イシュー #905） + admonition.css
@@ -117,7 +105,8 @@ fn build_site_generates_all_pages_and_assets_for_ok_fixture() {
 #[test]
 fn build_site_wires_admonition_css_only_to_pages_using_it() {
     let out = TempDir::new("admonition-wiring");
-    build_fixture(&fixture_root("site-ok"), &out.0).expect("site-ok fixture should build");
+    build_site_with(&fixture_root("site-ok"), &out.0, &EMPTY_REGISTRY)
+        .expect("site-ok fixture should build");
 
     let index_html = std::fs::read_to_string(out.0.join("index.html")).unwrap();
     assert!(index_html.contains(r#"href="/fixture-base/assets/admonition.css""#));
@@ -138,7 +127,8 @@ fn build_site_wires_admonition_css_only_to_pages_using_it() {
 #[test]
 fn build_site_rewrites_md_links_to_site_paths_for_ok_fixture() {
     let out = TempDir::new("md-rewrite");
-    build_fixture(&fixture_root("site-ok"), &out.0).expect("site-ok fixture should build");
+    build_site_with(&fixture_root("site-ok"), &out.0, &EMPTY_REGISTRY)
+        .expect("site-ok fixture should build");
 
     let index_html = std::fs::read_to_string(out.0.join("index.html")).unwrap();
     assert!(index_html.contains(r#"href="/fixture-base/guide/quickstart/""#));
@@ -157,7 +147,7 @@ fn build_site_fails_closed_and_writes_nothing_for_broken_link_fixture() {
     // その配下の未作成サブディレクトリを渡す（fail-closed で一切書き出さない
     // ことを「サブディレクトリが作成されないこと」で検証するため）。
     let out_dir = temp.0.join("dist");
-    let err = build_fixture(&fixture_root("site-broken-link"), &out_dir)
+    let err = build_site_with(&fixture_root("site-broken-link"), &out_dir, &EMPTY_REGISTRY)
         .expect_err("site-broken-link fixture should fail the build");
 
     match err {
@@ -462,7 +452,6 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
             r#"class="docs-sidebar""#,
             r#"class="docs-main""#,
             r#"class="docs-content""#,
-            r#"class="docs-toc-aside""#,
             r#"data-scope="skip-nav""#,
             r#"data-part="link""#,
             r#"data-part="content""#,
@@ -477,6 +466,41 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
             assert!(
                 html.contains(needle),
                 "{relative} should contain {needle:?} (3 カラム骨格・SkipNav・View Transitions・CSS/JS 配線の共通契約)"
+            );
+        }
+
+        // トップだけはランディング骨格（イシュー #3612）。右目次・折りたたみ目次を
+        // 出さず、サイドバーは DOM に残す（狭幅の唯一のナビ手段）。他ページは
+        // 従来どおり右目次を持つ。
+        if *relative == "index.html" {
+            for needle in [
+                r#"class="docs-container docs-landing""#,
+                r#"class="docs-hero""#,
+                r#"class="docs-hero-title""#,
+                r#"class="docs-code-copy""#,
+                r#"href="/fandhe-frontend/getting-started/quickstart/""#,
+                r#"data-docs-hero-cta="primary""#,
+                r#"data-docs-hero-cta="secondary""#,
+            ] {
+                assert!(
+                    html.contains(needle),
+                    "index.html should contain {needle:?}"
+                );
+            }
+            for absent in [r#"class="docs-toc-aside""#, r#"class="docs-toc-inline""#] {
+                assert!(
+                    !html.contains(absent),
+                    "index.html must not contain {absent:?}"
+                );
+            }
+        } else {
+            assert!(
+                html.contains(r#"class="docs-toc-aside""#),
+                "{relative} should contain the right TOC column"
+            );
+            assert!(
+                !html.contains("docs-landing"),
+                "{relative} must not be landing"
             );
         }
 
@@ -705,6 +729,8 @@ fn binary_exits_nonzero_with_link_check_report_for_broken_fixture() {
         ("Guides", "/guides/", "g"),
         ("API Reference", "/api/", "a"),
         ("Examples", "/examples/", "e"),
+        ("Home", "/", "h"),
+        ("Start", "/getting-started/quickstart/", "q"),
     ] {
         nav.push_str(&format!(
             "\n[[section]]\ntitle = \"{title}\"\nindex_path = \"{path}\"\n\n[[section.page]]\ntitle = \"{title}\"\nsource = \"site/{file}.md\"\npath = \"{path}\"\n"

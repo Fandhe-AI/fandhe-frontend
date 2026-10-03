@@ -124,6 +124,7 @@ pub(crate) mod component_specs_nav_data;
 pub mod component_specs_overlay;
 pub mod favicon;
 pub mod highlight;
+pub mod landing;
 pub mod layout;
 pub mod linkcheck;
 pub mod markdown;

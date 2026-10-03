@@ -86,7 +86,9 @@
 use std::collections::HashSet;
 
 use fandhe_frontend_core::{div, h2, h3, li, p, render, text, ul, Node};
-use fandhe_frontend_docs_site::layout::{docs_page, docs_page_with_assets};
+use fandhe_frontend_docs_site::layout::{
+    docs_page, docs_page_with_assets, docs_page_with_layout, PageLayout,
+};
 use fandhe_frontend_docs_site::nav::{header_nav, parse_nav, prev_next_nav, sidebar, Nav};
 use fandhe_frontend_docs_site::site_theme;
 
@@ -1483,6 +1485,114 @@ fn code_copy_classes_match_module_constants_and_have_css_selectors() {
     for class in CODE_COPY_CLASSES {
         assert!(css_tokens.contains(*class), "{class} が site.css に無い");
     }
+}
+
+/// ランディング骨格・ヒーローの class（イシュー #3612、`crate::landing`）。
+/// トップだけに出現し通常フィクスチャには現れないため、`CODE_COPY_CLASSES` と
+/// 同じく層 1 本体とは別の契約で固定する。
+const LANDING_CLASSES: &[&str] = &[
+    "docs-landing",
+    "docs-hero",
+    "docs-hero-meta",
+    "docs-hero-title",
+    "docs-hero-lead",
+    "docs-hero-install",
+    "docs-hero-actions",
+];
+
+/// `/quickstart/` を現在ページとするランディング骨格のフィクスチャ HTML。
+fn landing_page_html() -> String {
+    use fandhe_frontend_docs_site::landing;
+    let nav = fixture_nav();
+    let body = div(vec![], landing::render(""));
+    let node = docs_page_with_layout(
+        "タイトル",
+        "",
+        sidebar(&nav, "/quickstart/"),
+        body,
+        &[],
+        Some(header_nav(&nav, "/quickstart/")),
+        PageLayout::Landing,
+    );
+    render(&node)
+}
+
+#[test]
+fn landing_classes_match_module_constant_and_have_css_selectors() {
+    use fandhe_frontend_docs_site::landing;
+    assert_eq!(LANDING_CLASSES, landing::CLASSES);
+    let css_tokens = extract_css_class_selectors(&site_css());
+    for class in LANDING_CLASSES {
+        assert!(css_tokens.contains(*class), "{class} が site.css に無い");
+    }
+}
+
+#[test]
+fn landing_classes_never_appear_in_fixture_html() {
+    for toc in [true, false] {
+        let tokens = extract_class_tokens(&full_page_html(toc));
+        for class in LANDING_CLASSES {
+            assert!(!tokens.contains(*class), "{class} がフィクスチャに出現した");
+        }
+    }
+}
+
+#[test]
+fn landing_html_emits_every_landing_class_and_nothing_outside_the_contracts() {
+    let html = landing_page_html();
+    let tokens = extract_class_tokens(&html);
+    for class in LANDING_CLASSES {
+        assert!(
+            tokens.contains(*class),
+            "{class} がランディングに出現しない"
+        );
+    }
+    let allowed: HashSet<&str> = STRUCTURE_CLASS_CONTRACT
+        .iter()
+        .map(|(name, _)| *name)
+        .chain(TOC_ONLY_CLASSES.iter().copied())
+        .chain(NO_TOC_ONLY_CLASSES.iter().copied())
+        .chain(NAV_GROUP_ONLY_CLASSES.iter().copied())
+        .chain(SEARCH_JS_ONLY_CLASSES.iter().copied())
+        .chain(CODE_COPY_CLASSES.iter().copied())
+        .chain(LANDING_CLASSES.iter().copied())
+        .collect();
+    let stray: Vec<_> = tokens
+        .iter()
+        .filter(|t| t.starts_with("docs-") && !allowed.contains(t.as_str()))
+        .collect();
+    assert!(stray.is_empty(), "契約外の docs-* class: {stray:?}");
+    // 骨格の差分: 右目次・折りたたみ目次・no-toc 修飾は出さない。
+    for absent in [
+        "docs-toc-aside",
+        "docs-toc-inline",
+        "docs-container--no-toc",
+    ] {
+        assert!(
+            !tokens.contains(absent),
+            "{absent} がランディングに出現した"
+        );
+    }
+}
+
+#[test]
+fn landing_css_hides_sidebar_only_from_768px_and_overrides_grid_after_structural_css() {
+    let css = site_css();
+    let landing_at = css
+        .find(".docs-container.docs-landing {\ndisplay: block;")
+        .expect("landing grid reset rule missing");
+    let structural_at = css
+        .rfind(".docs-container.docs-container--no-toc")
+        .expect("structural no-toc rule missing");
+    assert!(
+        landing_at > structural_at,
+        "ランディングの grid 解除は標準骨格より後に出力されること"
+    );
+    let media_at = css[landing_at..]
+        .find("@media (min-width: 768px) {\n.docs-landing .docs-sidebar {\ndisplay: none;")
+        .expect("768px 以上でのみサイドバーを隠すこと");
+    // 768px 未満（基底）ではサイドバーを隠さない（Menu トグルが唯一のナビ手段）。
+    assert!(!css[landing_at..landing_at + media_at].contains(".docs-landing .docs-sidebar"));
 }
 
 /// 768px 未満では検索を全幅の 2 段目へ置き、検索入力が 70px まで縮んで
