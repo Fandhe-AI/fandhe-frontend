@@ -492,6 +492,15 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
                 r#"href="/fandhe-frontend/guides/deployment/""#,
                 r#"href="/fandhe-frontend/guides/embedding-guide/""#,
                 r#"href="/fandhe-frontend/examples/""#,
+                r#"class="docs-landing-cards""#,
+                r#"class="docs-landing-stats""#,
+                r#"href="/fandhe-frontend/guides/""#,
+                r#"href="/fandhe-frontend/api/""#,
+                r#"href="/fandhe-frontend/primitives/""#,
+                r#"href="/fandhe-frontend/themes/""#,
+                r#"href="/fandhe-frontend/blocks/""#,
+                r#"href="/fandhe-frontend/wireframes/""#,
+                r#"data-scope="stat""#,
             ] {
                 assert!(
                     html.contains(needle),
