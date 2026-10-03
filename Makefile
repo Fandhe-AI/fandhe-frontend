@@ -72,15 +72,19 @@ docs: ## docs サイトを dist/ へビルドする
 # CSS・JS・検索インデックスを参照するため file:// では解決しない。ビルド出力を
 # `_/site-preview/fandhe-frontend/` へ置き、親を HTTP 配信して base_path を保つ
 # （Playwright MCP のデザインレビュー用。手順は docs/guides/browser-testing.md §9a）。
-# 配信は 127.0.0.1 のみ。PORT は数字のみ許可しシェル注入を防ぐ。
+# 配信は 127.0.0.1 のみ。PORT は環境変数経由（"$$PORT"）で参照し、make の
+# 展開値をシェルコードとして再解釈させない（コマンド置換等によるシェル注入防止）。
+# 検証は数字のみ・1〜65535 の範囲に限る。
 PORT ?= 8765
+export PORT
 docs-preview: ## docs サイトをビルドし 127.0.0.1 でローカル配信する（PORT 既定 8765、Playwright レビュー用）
 	@command -v python3 >/dev/null 2>&1 || { echo "error: python3 is required for docs-preview (http.server)" >&2; exit 1; }
-	@case "$(PORT)" in ''|*[!0-9]*) echo "error: PORT must be numeric" >&2; exit 1;; esac
+	@case "$$PORT" in ''|*[!0-9]*) echo "error: PORT must be numeric" >&2; exit 1;; esac; \
+	if [ "$$PORT" -lt 1 ] || [ "$$PORT" -gt 65535 ]; then echo "error: PORT must be in 1-65535" >&2; exit 1; fi
 	rm -rf _/site-preview/fandhe-frontend
 	cargo run -p fandhe-frontend-docs-site --locked -- --out _/site-preview/fandhe-frontend/
-	@echo "serving http://127.0.0.1:$(PORT)/fandhe-frontend/ (Ctrl-C to stop)"
-	python3 -m http.server $(PORT) --bind 127.0.0.1 --directory _/site-preview
+	@echo "serving http://127.0.0.1:$$PORT/fandhe-frontend/ (Ctrl-C to stop)"
+	python3 -m http.server "$$PORT" --bind 127.0.0.1 --directory _/site-preview
 
 docker-dev-build: ## 開発用 Docker イメージをビルドする
 	docker compose -f docker/dev/compose.yml build
