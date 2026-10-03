@@ -608,7 +608,7 @@ fn extract_text_into(node: &Node, out: &mut String) {
 /// （Unicode 含む。日本語見出しを許容するため）以外の連続を単一 `-` に
 /// 置換し、先頭・末尾の `-` を除去する。結果が空文字列になる場合（記号の
 /// みの見出し等）は `"section"` にフォールバックする。
-fn slugify(text: &str) -> String {
+pub fn slugify(text: &str) -> String {
     let lower = text.to_lowercase();
     let mut slug = String::with_capacity(lower.len());
     let mut last_was_dash = false;

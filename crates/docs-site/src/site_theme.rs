@@ -945,6 +945,11 @@ body {\n\
    * の DualModeToken、`Theme::default` の `DEFAULT_SHADOWS`）を参照する。\n\
    * 生 rgba を書くとダーク背景で輪郭が視認できない（イシュー #912 是正）。 */\n\
   box-shadow: var(--fandhe-shadow-md);\n\
+  /* 見出し一覧が長い Blocks（65 グループ）等でもビューポート内で操作できるよう\n\
+   * 高さを制限してスクロールさせる（#3670）。 */\n\
+  max-height: calc(100vh - var(--fandhe-space-docs-header-height) - 1rem);\n\
+  overflow-y: auto;\n\
+  overscroll-behavior: contain;\n\
 }\n\
 \n\
 .docs-header nav.docs-header-nav .docs-header-group:hover > .docs-header-dropdown,\n\
@@ -987,6 +992,12 @@ body {\n\
 .docs-header nav.docs-header-nav .docs-header-dropdown a[aria-current=\"page\"] {\n\
   background: var(--fandhe-color-docs-accent-bg);\n\
   color: var(--fandhe-color-accent);\n\
+  font-weight: 600;\n\
+}\n\
+\n\
+/* グループ見出しの現在地表示（所属は \"true\"、完全一致の \"page\" と軸を分ける、#3670） */\n\
+.docs-header nav.docs-header-nav .docs-header-dropdown a[aria-current=\"true\"] {\n\
+  color: var(--fandhe-color-fg);\n\
   font-weight: 600;\n\
 }\n\
 \n\
@@ -1771,6 +1782,7 @@ nav.prev-next .next .docs-pager-meta {\n\
  * ヘッダー高さ分オフセットし、ページ内リンクが全ページで機能する状態にする\n\
  * （イシュー #909、受け入れ条件 3）。\n\
  */\n\
+.docs-content li.docs-category-card,\n\
 .docs-content h2,\n\
 .docs-content h3 {\n\
   scroll-margin-top: calc(var(--fandhe-space-docs-header-height) + 1rem);\n\
@@ -1826,6 +1838,13 @@ nav.prev-next .next .docs-pager-meta {\n\
     padding: 0.3rem 0.5rem;\n\
   }\n\
 \n\
+  /* ドロップダウンは 2 段ヘッダーの下端から開くため、基底の 1 段ヘッダー前提の\n\
+   * max-height ではビューポート下端を超えて末尾へ届かない。2 段分の最小高さを\n\
+   * 引いた値へ上書きする（#3670）。 */\n\
+  .docs-header nav.docs-header-nav .docs-header-dropdown {\n\
+    max-height: calc(100vh - var(--fandhe-space-docs-header-height-stacked) - 1rem);\n\
+  }\n\
+\n\
   /* ヘッダーが sticky でないため、sticky カラムはビューポート上端へ\n\
    * 張り付ける。右目次は 1200px 以上でのみ表示されるため、この帯域には\n\
    * 含まれない。 */\n\
@@ -1834,6 +1853,7 @@ nav.prev-next .next .docs-pager-meta {\n\
     max-height: 100vh;\n\
   }\n\
 \n\
+  .docs-content li.docs-category-card,\n\
   .docs-content h2,\n\
   .docs-content h3 {\n\
     scroll-margin-top: 1rem;\n\
@@ -1956,6 +1976,7 @@ nav.prev-next .next .docs-pager-meta {\n\
     margin-top: 4rem;\n\
   }\n\
 \n\
+  .docs-content li.docs-category-card,\n\
   .docs-content h2,\n\
   .docs-content h3 {\n\
     scroll-margin-top: 1rem;\n\
@@ -3300,6 +3321,22 @@ mod tests {
         assert!(!css.contains(".docs-toc, .docs-toc-inline"));
         assert!(!css.contains(".docs-toc-inline, .docs-toc {"));
         assert!(css.contains(".docs-toc-inline {"));
+    }
+
+    /// ヘッダー popup が長い見出し一覧でも操作できる（max-height + スクロール）こと、
+    /// グループ見出しの所属表示（`aria-current="true"`）と索引カードのアンカー
+    /// 着地位置（scroll-margin-top）が CSS にあることを固定する（#3670）。
+    #[test]
+    fn stylesheet_supports_header_popup_headings() {
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        assert!(css
+            .contains("max-height: calc(100vh - var(--fandhe-space-docs-header-height) - 1rem);"));
+        assert!(css.contains("overflow-y: auto;"));
+        assert!(css.contains(
+            ".docs-header nav.docs-header-nav .docs-header-dropdown a[aria-current=\"true\"] {"
+        ));
+        assert!(css.contains(".docs-content li.docs-category-card,\n.docs-content h2,"));
     }
 
     #[test]

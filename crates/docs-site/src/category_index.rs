@@ -48,7 +48,8 @@
 //! ノード木 API のみで組み、題名・カテゴリ名・件数は既定エスケープを通る
 //! （`raw_html()` 不使用、REQ-1）。href は [`crate::layout::asset_href`] による
 //! サイト内の絶対パスだけで、入力はコンパイル時定数のレジストリ（外部入力を
-//! 含まない）。JS・`on*=` 属性・`id` は出さない。
+//! 含まない）。JS・`on*=` 属性は出さない。`id` はカテゴリカードの `li` にだけ
+//! `nav::group_anchor_id(group.title)` を付ける（ヘッダー popup のリンク先、#3670）。
 
 use fandhe_frontend_core::{a, div, h2, li, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::badge::{self, BadgeProps, BadgeVariant};
@@ -110,6 +111,7 @@ fn card_node(base_path: &str, group: &Group<'_>) -> Node {
         vec![],
         vec![text(group.title)],
     );
+    let anchor_id = crate::nav::group_anchor_id(group.title);
     let links: Vec<Node> = group
         .items
         .iter()
@@ -122,7 +124,7 @@ fn card_node(base_path: &str, group: &Group<'_>) -> Node {
         })
         .collect();
     li(
-        vec![("class", "docs-category-card")],
+        vec![("class", "docs-category-card"), ("id", anchor_id.as_str())],
         vec![card::root(
             CardProps::default(),
             vec![],
@@ -352,7 +354,10 @@ mod tests {
         assert!(out.contains("&lt;script&gt;t&lt;/script&gt;"));
         assert_eq!(out.matches("2 件").count(), 2);
         assert!(out.contains("href=\"/b/x/\""));
-        assert!(!out.contains(" id=\"") && !out.contains("javascript:"));
+        // id はカテゴリ名の slug（`group_anchor_id`）のみ（#3670）。
+        assert_eq!(out.matches(" id=\"").count(), 1);
+        assert!(out.contains(" id=\"b-c\""));
+        assert!(!out.contains("javascript:"));
     }
 
     #[test]
