@@ -298,9 +298,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // マニフェスト + `site/nav.toml` の `[[section]]` 数分のセクション
     // ファイルへ分割され、15 → 15 + セクション数になった。イシュー #3604 で favicon（`assets/favicon.svg`）が全ビルド無条件で加わり 16 + セクション数になった（件数は nav.toml
     // から導出し、セクション追加時に本テストの手修正を要しない）。
+    // Primitives ページ専用の recipe 抜き `site-primitives.css`（イシュー
+    // #3599 のレビュー指摘）が加わり 1 件増えた（favicon との合算で 17 + セクション数）。
     assert_eq!(
         report.assets.len(),
-        16 + nav.sections.len(),
+        17 + nav.sections.len(),
         "{:?}",
         report.assets
     );

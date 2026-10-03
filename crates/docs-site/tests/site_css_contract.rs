@@ -1485,6 +1485,65 @@ fn code_copy_classes_match_module_constants_and_have_css_selectors() {
     }
 }
 
+// ---------------------------------------------------------------------
+// 層 4: pre-styled-ui recipe 供給確認（イシュー #3599、設計文書
+// `docs/design/docs-site-styled-blocks-redesign.md` §4）。
+//
+// `site_theme::SITE_RECIPES` は一般ページが `site.css` だけで styled 部品を
+// 描画するための供給一覧。ここでは (T1) 期待表との完全一致と全文供給、
+// (T2/T3) `pre-styled-ui.css` との同値重複と出現順の一致、(T4) 積んでは
+// ならない部品の不在、(T5) docs 側上書きの詳細度規約、(T6) 代表 markup の
+// セレクタ網羅を固定する。既存の層 1〜3 は変更しない（追加のみ）。
+// ---------------------------------------------------------------------
+
+/// 供給 recipe の期待表（名前・data-scope）。`SITE_RECIPES` が黙って増減
+/// したら T1 が落ちる。順序は `showcase::stylesheet()` の出現順。
+const EXPECTED_SITE_RECIPE_SCOPES: &[(&str, &str)] = &[
+    ("button", "button"),
+    ("badge", "badge"),
+    ("card", "card"),
+    ("separator", "separator"),
+    ("field", "field"),
+    ("input", "field"),
+    ("input_group", "input-group"),
+    ("breadcrumb", "breadcrumb"),
+    ("kbd", "kbd"),
+    ("code", "code"),
+    ("icon", "icon"),
+    ("empty_state", "empty-state"),
+    ("heading", "heading"),
+    ("text", "text"),
+    ("list", "list"),
+    ("table", "table"),
+    ("stat", "stat"),
+    ("tab_nav", "tab-nav"),
+    ("link", "link"),
+];
+
+#[test]
+fn site_recipes_match_expected_table_and_are_fully_supplied() {
+    let actual: Vec<(&str, &str)> = site_theme::SITE_RECIPES
+        .iter()
+        .map(|r| (r.name, r.scope))
+        .collect();
+    assert_eq!(actual, EXPECTED_SITE_RECIPE_SCOPES);
+
+    let css = site_css();
+    for r in site_theme::SITE_RECIPES {
+        let body = (r.css)();
+        assert!(
+            css.contains(&body),
+            "site.css に recipe {} の CSS 全文が含まれていない",
+            r.name
+        );
+        assert!(
+            css.contains(&format!(r#"[data-scope="{}"]"#, r.scope)),
+            "site.css に [data-scope=\"{}\"] セレクタが無い",
+            r.scope
+        );
+    }
+}
+
 #[test]
 fn code_copy_classes_never_appear_in_fixture_html() {
     for toc in [true, false] {
@@ -1496,10 +1555,152 @@ fn code_copy_classes_never_appear_in_fixture_html() {
 }
 
 #[test]
+fn site_recipes_are_byte_identical_substrings_of_showcase_css_in_same_order() {
+    let showcase = fandhe_frontend_docs_site::showcase::stylesheet()
+        .expect("showcase stylesheet should assemble")
+        .as_css()
+        .to_string();
+    let mut last = 0usize;
+    for r in site_theme::SITE_RECIPES {
+        let body = (r.css)();
+        let pos = showcase
+            .find(&body)
+            .unwrap_or_else(|| panic!("recipe {} が pre-styled-ui.css に同値で存在しない", r.name));
+        assert!(
+            pos >= last,
+            "recipe {} の出現順が pre-styled-ui.css と食い違う（カスケード順の不一致）",
+            r.name
+        );
+        last = pos;
+    }
+}
+
+#[test]
+fn site_css_never_supplies_forbidden_scopes_or_bulk_showcase_css() {
+    let css = site_css();
+    for scope in ["menu", "navigation-menu", "sidebar", "link-overlay"] {
+        assert!(
+            !css.contains(&format!(r#"[data-scope="{scope}"]"#)),
+            "site.css に積んではならない scope {scope} が含まれている"
+        );
+    }
+    let showcase = fandhe_frontend_docs_site::showcase::stylesheet()
+        .expect("showcase stylesheet should assemble")
+        .as_css()
+        .to_string();
+    assert!(
+        !css.contains(&showcase),
+        "site.css へ pre-styled-ui.css 全量を一括で積んではならない"
+    );
+}
+
+/// recipe は `@scope` に依存せず素の CSS として `site.css` へ積まれる（`@scope`
+/// 非対応ブラウザでも一般ページの装飾が失われない）。Primitives ページ専用の
+/// `site-primitives.css` は recipe を一切含まず、その他の内容は `site.css` と同じ。
+#[test]
+fn site_recipes_are_unwrapped_and_primitives_css_omits_them() {
+    let css = site_css();
+    assert!(
+        !css.contains("@scope"),
+        "recipe を @scope だけで供給してはならない"
+    );
+    let base = site_theme::stylesheet_without_recipes()
+        .expect("site theme stylesheet without recipes should assemble")
+        .as_css()
+        .to_string();
+    let mut stripped = css.clone();
+    for r in site_theme::SITE_RECIPES {
+        let body = (r.css)();
+        assert!(css.contains(&body), "recipe {} が site.css に無い", r.name);
+        assert!(
+            !base.contains(&body),
+            "recipe {} が Primitives 専用 CSS に混入している",
+            r.name
+        );
+        stripped = stripped.replacen(&body, "", 1);
+    }
+    assert_eq!(
+        stripped.split_whitespace().collect::<String>(),
+        base.split_whitespace().collect::<String>(),
+        "site-primitives.css は site.css から recipe を除いたものと一致しなければならない"
+    );
+}
+
+/// `site.css` から recipe 全文とコメントを除いた残り（docs 側の規則）の
+/// セレクタ行（`{` で終わる行）を返す。
+fn docs_side_selector_lines() -> Vec<String> {
+    let mut css = strip_css_comments(&site_css());
+    for r in site_theme::SITE_RECIPES {
+        css = css.replace(&(r.css)(), "");
+    }
+    css.lines()
+        .filter(|l| l.trim_end().ends_with('{') && !l.trim_start().starts_with('@'))
+        .map(|l| l.to_string())
+        .collect()
+}
+
+#[test]
+fn docs_side_overrides_of_recipe_selectors_are_scoped_under_docs_wrapper() {
+    for line in docs_side_selector_lines() {
+        for r in site_theme::SITE_RECIPES {
+            let touches = line.contains(&format!(r#"[data-scope="{}"]"#, r.scope))
+                || line.contains(&format!(".fd-{}", r.scope));
+            if touches {
+                assert!(
+                    line.contains(".docs-"),
+                    "recipe セレクタを上書きする docs 側規則は `.docs-*` ラッパーで詳細度を上げること: {line}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn generated_site_css_hides_code_copy_while_hidden_attribute_is_present() {
     let css = site_css();
     let idx = css
         .find(".docs-code-copy[hidden]")
         .expect("missing .docs-code-copy[hidden] rule");
     assert!(css[idx..].contains("display: none"));
+}
+
+#[test]
+fn representative_recipe_markup_is_covered_by_generated_site_css() {
+    use fandhe_frontend_pre_styled_ui::{badge, button, card, kbd, separator};
+    let css = site_css();
+    let html = render(&div(
+        vec![],
+        vec![
+            card::root(
+                card::CardProps::default(),
+                vec![],
+                vec![card::header(
+                    vec![],
+                    vec![card::title(vec![], vec![text("t")])],
+                )],
+            ),
+            button::button(&button::ButtonProps::default(), vec![], vec![text("b")]),
+            badge::badge(&badge::BadgeProps::default(), vec![], vec![text("x")]),
+            kbd::kbd(&kbd::KbdProps::default(), vec![], vec![text("k")]),
+            separator::separator(&separator::SeparatorProps::default(), vec![]),
+        ],
+    ));
+    let tokens = extract_class_tokens(&html);
+    assert!(!tokens.is_empty());
+    let selectors = extract_css_class_selectors(&css);
+    for t in tokens.iter().filter(|t| t.starts_with("fd-")) {
+        assert!(selectors.contains(t), "site.css に .{t} セレクタが無い");
+    }
+    for scope in ["card", "button", "badge", "kbd", "separator"] {
+        assert!(html.contains(&format!(r#"data-scope="{scope}""#)));
+        assert!(css.contains(&format!(r#"[data-scope="{scope}"]"#)));
+    }
+}
+
+#[test]
+fn code_copy_pre_padding_selector_outranks_typography_pre_padding() {
+    // `.docs-content pre { padding }`（詳細度 0,1,1）に上書きされるとコピー
+    // ボタンがコード先頭行へ重なるため、より高い詳細度のセレクタで固定する。
+    let css = site_css();
+    assert!(css.contains(".docs-content .docs-code-block pre {"));
 }
