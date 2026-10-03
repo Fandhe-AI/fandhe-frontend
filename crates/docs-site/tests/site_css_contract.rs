@@ -2411,3 +2411,22 @@ fn search_dialog_display_is_only_declared_on_open_state() {
     assert!(results.contains("position: static;"), "{results}");
     assert!(!results.contains("z-index"), "{results}");
 }
+
+/// `@view-transition` の opt-in は site.css・site-primitives.css の両方にちょうど
+/// 1 回含まれる（インライン `<style>` 廃止に伴う外部化、#3677）。
+#[test]
+fn both_site_stylesheets_carry_view_transition_opt_in_once() {
+    for sheet in [
+        fandhe_frontend_docs_site::site_theme::stylesheet().expect("site.css"),
+        fandhe_frontend_docs_site::site_theme::stylesheet_without_recipes()
+            .expect("site-primitives.css"),
+    ] {
+        assert_eq!(
+            sheet
+                .as_css()
+                .matches("@view-transition { navigation: auto; }")
+                .count(),
+            1
+        );
+    }
+}
