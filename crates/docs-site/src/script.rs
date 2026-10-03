@@ -133,12 +133,14 @@ pub const INLINE_THEME_BOOTSTRAP: &str = "try{var t=localStorage.getItem(`fandhe
 ///    （サイドバーの `aria-current="page"` とは値を分け、意味の衝突を
 ///    避ける）。
 ///
-/// 9. （イシュー #958、独立した 3 つ目の IIFE）`.docs-search-input`・
-///    `.docs-search`・`#docs-search-results` のいずれか欠ければ即 return
-///    する（他 2 つの IIFE 同様、要素が消えても例外を投げない）。
-///    `window.fetch` 非対応・`data-search-index` 属性が空の場合も同様に
-///    即 return する。
-/// 10. インデックスは初回 `focus` イベントでのみ `fetch()` する
+/// 9. （イシュー #958/#3672、独立した 3 つ目の IIFE）`.docs-search-input`・
+///    `.docs-search`・`#docs-search-results`・`#docs-search-dialog`・検索ボタン
+///    （`.docs-search-trigger button`）のいずれか欠ければ即 return する。
+///    `dialog.showModal` 非対応・`window.fetch` 非対応・`data-search-index`
+///    属性が空の場合も `hidden` のまま即 return する（無 JS と同じ fail-closed）。
+///    配線完了時にボタンへ `aria-haspopup="dialog"` と `aria-expanded` を付与し、
+///    開閉のたびに `aria-expanded` を `dialog.open` へ同期する（SSR は固定値を出さない）。
+/// 10. インデックスはダイアログを開いた時点（`openDialog()`）でのみ `fetch()` する
 ///     （single-flight。状態は `idle`/`loading`/`ready`/`failed` の 4 値で
 ///     管理し、再フェッチしない。`failed` の場合のみ再フォーカス時に再試行を
 ///     許す）。取得はマニフェスト（`crate::search_index::REL_PATH`、
@@ -164,11 +166,15 @@ pub const INLINE_THEME_BOOTSTRAP: &str = "try{var t=localStorage.getItem(`fandhe
 ///     `page.href + "#" + encodeURIComponent(section.id)`）は `/` で始まり
 ///     `//` で始まらない場合のみ採用し、満たさない項目は描画自体をしない
 ///     （OWASP A01/A03、`javascript:` 等のスキーム URL を構造的に排除する）。
-/// 12. キーボード操作: `document` 上の `/`（フォーム要素・`contentEditable`
-///     以外にフォーカスがある場合のみ）で検索欄へフォーカス、`input` 上の
-///     `ArrowDown`/`ArrowUp` で選択移動（端で停止、循環しない）、`Enter` で
-///     選択項目のアンカーを `click()`（`location.href` への代入はしない）、
-///     `Escape` で結果を閉じて入力をクリアする。選択位置は
+/// 12. 開閉操作: 検索ボタンの `click`、または `document` 上の `/`（ダイアログが
+///     開いている・Ctrl/Meta/Alt 併用・フォーム要素・`contentEditable` 上では何も
+///     しない）で `showModal()` し、入力へフォーカスする。Escape（`input` の
+///     keydown で `dialog.close()`）・背景クリック（押下位置と click 対象がともに
+///     dialog のときだけ）・結果リンクのクリックで閉じる。`close` イベントが
+///     結果掃除・入力クリア・`aria-expanded` 同期・ボタンへのフォーカス復帰の
+///     合流点。`input` 上の `ArrowDown`/`ArrowUp` で選択移動（端で停止、
+///     循環しない）、`Enter` で選択項目のアンカーを `click()` する
+///     （`location.href` への代入はしない）。選択位置は
 ///     `aria-activedescendant`（未選択時は除去）で表す。
 ///
 /// 文字列リテラルはすべてバッククォート（テンプレートリテラル。補間は
@@ -439,6 +445,17 @@ pub const SITE_JS: &str = "\
   if (!list) {
     return;
   }
+  var dialog = document.getElementById(`docs-search-dialog`);
+  if (!dialog) {
+    return;
+  }
+  var trigger = box.querySelector(`.docs-search-trigger button`);
+  if (!trigger) {
+    return;
+  }
+  if (typeof dialog.showModal !== `function`) {
+    return;
+  }
   if (!window.fetch) {
     return;
   }
@@ -451,6 +468,7 @@ pub const SITE_JS: &str = "\
   var indexData = null;
   var selectedIndex = -1;
   var currentResults = [];
+  var downOnBackdrop = false;
 
   function setExpanded(expanded) {
     input.setAttribute(`aria-expanded`, expanded ? `true` : `false`);
@@ -721,14 +739,67 @@ pub const SITE_JS: &str = "\
     });
   }
 
+  function syncExpanded() {
+    trigger.setAttribute(`aria-expanded`, dialog.open ? `true` : `false`);
+  }
+
+  // 開く操作はボタンと `/` の 2 経路。索引は focus イベント頼みにせず
+  // ここで明示的に読み込む（失敗時のみ再試行を許す）。
+  function openDialog() {
+    if (dialog.open) {
+      return;
+    }
+    dialog.showModal();
+    syncExpanded();
+    if (state === `idle`) {
+      ensureIndexLoaded();
+    } else if (state === `failed`) {
+      ensureIndexLoaded();
+    }
+    input.focus();
+  }
+
   function init() {
-    input.addEventListener(`focus`, function () {
-      if (state === `idle`) {
-        ensureIndexLoaded();
-        return;
+    trigger.setAttribute(`aria-haspopup`, `dialog`);
+    trigger.setAttribute(`aria-expanded`, `false`);
+
+    trigger.addEventListener(`click`, openDialog);
+
+    // Escape・背景クリック・結果選択・プログラム閉鎖の合流点。掃除とフォーカス復帰を
+    // ここへ集約する。
+    dialog.addEventListener(`close`, function () {
+      closeResults();
+      clearResults();
+      input.value = ``;
+      syncExpanded();
+      trigger.focus({ preventScroll: true });
+    });
+
+    // 入力内ドラッグの終点が背景でも閉じないよう、押下位置も背景のときだけ閉じる。
+    dialog.addEventListener(`mousedown`, function (event) {
+      downOnBackdrop = event.target === dialog;
+    });
+    dialog.addEventListener(`click`, function (event) {
+      if (event.target === dialog) {
+        if (downOnBackdrop) {
+          dialog.close();
+        }
       }
-      if (state === `failed`) {
-        ensureIndexLoaded();
+      downOnBackdrop = false;
+    });
+
+    // 同一ページ内 #hash 遷移ではページが破棄されず、モーダルが残るため閉じる。
+    list.addEventListener(`click`, function (event) {
+      var node = event.target;
+      while (node) {
+        if (node === list) {
+          return;
+        }
+        if (node.tagName === `A`) {
+          dialog.close();
+          return;
+        }
+        node = node.parentNode;
       }
     });
 
@@ -762,14 +833,19 @@ pub const SITE_JS: &str = "\
         return;
       }
       if (event.key === `Escape`) {
-        closeResults();
-        clearResults();
-        input.value = ``;
+        event.preventDefault();
+        dialog.close();
       }
     });
 
     document.addEventListener(`keydown`, function (event) {
       if (event.key !== `/`) {
+        return;
+      }
+      if (dialog.open) {
+        return;
+      }
+      if (event.ctrlKey || event.metaKey || event.altKey) {
         return;
       }
       var target = event.target;
@@ -789,7 +865,7 @@ pub const SITE_JS: &str = "\
         }
       }
       event.preventDefault();
-      input.focus();
+      openDialog();
     });
 
     // 配線がすべて完了した後にのみ可視化する（テーマトグルと同じ契約、
@@ -1147,9 +1223,58 @@ mod tests {
             "textContent",
             "encodeURIComponent",
             "aria-activedescendant",
+            "showModal",
+            "docs-search-dialog",
+            "aria-haspopup",
+            "aria-expanded",
+            "`close`",
         ] {
             assert!(SITE_JS.contains(needle), "SITE_JS should wire {needle}");
         }
+    }
+
+    /// 検索ダイアログ（イシュー #3672）の開閉・フォーカス管理の必須配線を固定する。
+    #[test]
+    fn site_js_search_dialog_open_close_contract() {
+        let start = SITE_JS
+            .find(".docs-search-input")
+            .expect("search IIFE should exist");
+        let search = &SITE_JS[start..];
+        // 4 つ目の IIFE（コピーボタン）の配線を含めない。
+        let search = &search[..search
+            .find("// フェンスコードのコピーボタン")
+            .unwrap_or(search.len())];
+        // `/` は入力へ直接フォーカスせずダイアログを開く。
+        assert!(search.contains("openDialog();"));
+        assert!(!search.contains("input.focus();\n    });"));
+        // Escape は dialog.close() に集約し、掃除とフォーカス復帰は close ハンドラ側。
+        assert!(search.contains("dialog.close();"));
+        assert!(search.contains("trigger.focus("));
+        // 背景クリックは押下位置と click の対象がともに dialog のときだけ閉じる。
+        assert!(search.contains("downOnBackdrop = event.target === dialog;"));
+        assert!(search.contains("event.target === dialog"));
+        // showModal 非対応は hidden のまま即 return（fail-closed）。
+        let guard = search
+            .find("typeof dialog.showModal !== `function`")
+            .expect("showModal capability guard");
+        assert!(
+            search[guard..].starts_with("typeof dialog.showModal !== `function`) {\n    return;")
+        );
+        // 開いている間と修飾キー併用では `/` を横取りしない。
+        assert!(search.contains("dialog.open"));
+        assert!(search.contains("event.ctrlKey"));
+        // 結果リンクのクリックでダイアログを閉じる（同一ページ #hash 遷移対策）。
+        assert!(search.contains("list.addEventListener(`click`"));
+        // aria-haspopup / aria-expanded は JS が付与する。
+        assert!(search.contains("trigger.setAttribute(`aria-haspopup`, `dialog`)"));
+        // 全 addEventListener の後に可視化する。
+        let reveal = search
+            .find("box.removeAttribute(`hidden`)")
+            .expect("reveal");
+        // init() 内の配線（DOMContentLoaded 待ちの外側 addEventListener は対象外）が
+        // すべて reveal より前にある。
+        let init_end = search.find("if (document.readyState").expect("init end");
+        assert!(!search[reveal..init_end].contains("addEventListener"));
     }
 
     /// スキーマバージョンの二重管理ドリフト検知: [`crate::search_index::SCHEMA_VERSION`]

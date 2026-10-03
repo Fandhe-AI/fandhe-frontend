@@ -36,7 +36,7 @@ use std::collections::HashSet;
 
 use fandhe_frontend_core::{h2, p, render, text};
 use fandhe_frontend_docs_site::layout::{
-    docs_page, with_heading_anchors, RESERVED_LAYOUT_IDS, SEARCH_INPUT_ID,
+    docs_page, with_heading_anchors, RESERVED_LAYOUT_IDS, SEARCH_DIALOG_ID, SEARCH_INPUT_ID,
 };
 use fandhe_frontend_pre_styled_ui::skip_nav::DEFAULT_ID as SKIP_NAV_ID;
 
@@ -169,4 +169,14 @@ fn extract_id_attrs_does_not_misdetect_attributes_ending_in_id() {
     let html = r#"<input aria-invalid="true" id="real-id">"#;
     let ids = extract_id_attrs(html);
     assert_eq!(ids, HashSet::from(["real-id".to_string()]));
+}
+
+/// イシュー #3672: 検索ダイアログの `id` も予約され、同名 slug の見出しは退避される。
+#[test]
+fn heading_colliding_with_search_dialog_id_is_reassigned() {
+    assert!(RESERVED_LAYOUT_IDS.contains(&SEARCH_DIALOG_ID));
+    let body =
+        fandhe_frontend_core::div(vec![], vec![h2(vec![], vec![text("Docs search dialog")])]);
+    let (_, entries) = with_heading_anchors(body);
+    assert_eq!(entries[0].id, format!("{SEARCH_DIALOG_ID}-2"));
 }

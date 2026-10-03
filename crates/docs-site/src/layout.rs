@@ -55,7 +55,8 @@
 //! （`div.docs-search`）を無条件出力する（イシュー #958）。`input.docs-search-input`
 //! の `data-search-index` 属性が [`search_index::REL_PATH`] を [`asset_href`]
 //! 経由で参照し、`crate::script::SITE_JS` の第 3 IIFE が初回フォーカス時に
-//! `fetch()` する唯一の実装点となる（インデックス JSON 自体は本モジュールが
+//! `fetch()` する唯一の実装点となる（#3672 以降はダイアログを開いた時点で明示的に読む。
+//! 入力欄と結果一覧は `dialog#docs-search-dialog` の中、ヘッダーには検索ボタンのみ）（インデックス JSON 自体は本モジュールが
 //! HTML へインライン化しない、`crate::search_index` モジュール doc の
 //! セキュリティ不変条件参照）。検索ブロック・結果一覧は既定 `hidden` とし、
 //! `SITE_JS` が配線完了後にのみ可視化する（`.docs-theme-toggle` と同型の
@@ -131,15 +132,24 @@ fn brand_version() -> Option<Node> {
     ))
 }
 
-/// 検索ブロック（イシュー #958/#3606）。既定 `hidden`、`<form>` で包まない
-/// （JS 無効時に Enter で送信させないため、モジュール doc 参照）。
+/// 検索ブロック（イシュー #958/#3606/#3672）。ヘッダーには検索ボタンだけを置き、
+/// 入力欄と結果一覧は `<dialog>`（`showModal()` で開くモーダル）の中へ置く。
 ///
-/// 見た目の枠は pre-styled-ui の `input_group`（前側に虫眼鏡、後ろ側に `kbd` の
-/// 「/」）が担う。入力欄は素の `input.docs-search-input` のまま
-/// （pre-styled の `input` は呼び出し側 class を捨てるため使わない。class・id・
-/// role・aria 属性・`data-search-index` は `crate::script::SITE_JS` の契約）。
-/// `label` と結果一覧 `ul` は group の外側の兄弟に置く（group は `flex-wrap` の
-/// ため、中に入れると折り返して行が増える）。
+/// `div.docs-search` は検索機能全体の可視化ゲートで、既定 `hidden`。JS 無効時・
+/// `site.js` 読み込み失敗時・`showModal` 非対応時は、ボタンもダイアログも出ない
+/// （無 JS では開けない UI を見せない）。`<form>` で包まない（Enter 送信させない）。
+///
+/// ボタンの `aria-haspopup="dialog"` / `aria-expanded` は SSR では出力しない。
+/// 開閉状態は `crate::script::SITE_JS` が配線完了時に付与して同期する
+/// （固定値を SSR に焼くと JS 無効時に嘘の状態を公開するため）。これは
+/// `crate::nav::header_nav` の「ナビに role/aria-expanded/aria-haspopup を付けない」
+/// 規約とは別で、検索ボタンは文書リンク集ではなくダイアログを開く操作である。
+///
+/// 入力の枠は pre-styled-ui の `input_group`（前側に虫眼鏡）が担う。入力欄は素の
+/// `input.docs-search-input` のまま（pre-styled の `input` は呼び出し側 class を
+/// 捨てるため使わない。class・id・role・aria 属性・`data-search-index` は
+/// `crate::script::SITE_JS` の契約）。ダイアログは top layer に昇格しても DOM 上は
+/// `.docs-header` 配下に残るため、`@scope (.docs-header)` の recipe が効く。
 fn search_block(search_index_href: &str) -> Node {
     let group_props = ps_input_group::InputGroupProps {
         disabled: false,
@@ -148,75 +158,121 @@ fn search_block(search_index_href: &str) -> Node {
     div(
         vec![("class", "docs-search"), ("hidden", "")],
         vec![
-            // 視覚上は clip 手法で隠すラベル（`.docs-search-label`）。下の `input`
-            // が `aria-label` を持つためアクセシブル名には使われず、`for`/`id`
-            // 対応の器として機能する（fandhe-backend の docs サイトと同型）。
+            // ラッパー span + 内側 ps_button の型は `theme_toggle` と同じ
+            // （`button()` は呼び出し側 class を捨てるため）。
             el(
-                "label",
-                vec![("class", "docs-search-label"), ("for", SEARCH_INPUT_ID)],
-                vec![text("Search")],
-            ),
-            ps_input_group::root(
-                &group_props,
-                vec![],
-                vec![
-                    ps_input_group::addon(
-                        ps_input_group::InputGroupAlign::InlineStart,
-                        &group_props,
-                        vec![],
-                        vec![ps_icon::icon(
+                "span",
+                vec![("class", "docs-search-trigger")],
+                vec![ps_button::button(
+                    &ps_button::ButtonProps {
+                        variant: ps_button::ButtonVariant::Outline,
+                        size: Size::Sm,
+                        ..ps_button::ButtonProps::default()
+                    },
+                    vec![
+                        ("aria-label", "ドキュメントを検索"),
+                        ("aria-keyshortcuts", "/"),
+                        ("aria-controls", SEARCH_DIALOG_ID),
+                    ],
+                    vec![
+                        ps_icon::icon(
                             &ps_icon::IconProps {
                                 size: Size::Sm,
                                 ..ps_icon::IconProps::default()
                             },
                             vec![],
                             vec![icon_path(SEARCH_ICON_PATH)],
-                        )],
-                    ),
-                    el(
-                        "input",
-                        vec![
-                            ("type", "search"),
-                            ("id", SEARCH_INPUT_ID),
-                            ("class", "docs-search-input"),
-                            ("placeholder", "ドキュメントを検索"),
-                            ("aria-label", "ドキュメント内検索"),
-                            ("role", "combobox"),
-                            ("aria-expanded", "false"),
-                            ("aria-controls", SEARCH_RESULTS_ID),
-                            ("aria-autocomplete", "list"),
-                            ("aria-keyshortcuts", "/"),
-                            ("autocomplete", "off"),
-                            ("data-search-index", search_index_href),
-                        ],
-                        vec![],
-                    ),
-                    // ショートカットの目印。操作は `SITE_JS` の `/` キー処理が担い、
-                    // 支援技術へは input の `aria-keyshortcuts` で伝えるため装飾扱い。
-                    ps_input_group::addon(
-                        ps_input_group::InputGroupAlign::InlineEnd,
-                        &group_props,
-                        vec![("aria-hidden", "true")],
-                        vec![ps_kbd::kbd(
-                            &ps_kbd::KbdProps {
-                                size: Size::Sm,
-                                ..ps_kbd::KbdProps::default()
-                            },
-                            vec![],
-                            vec![text("/")],
-                        )],
-                    ),
-                ],
+                        ),
+                        el(
+                            "span",
+                            vec![("class", "docs-search-trigger-label")],
+                            vec![text("検索")],
+                        ),
+                        // ショートカットの目印。操作は `SITE_JS` の `/` キー処理、
+                        // 支援技術へはボタンの `aria-keyshortcuts` で伝える。
+                        el(
+                            "span",
+                            vec![
+                                ("aria-hidden", "true"),
+                                ("class", "docs-search-trigger-key"),
+                            ],
+                            vec![ps_kbd::kbd(
+                                &ps_kbd::KbdProps {
+                                    size: Size::Sm,
+                                    ..ps_kbd::KbdProps::default()
+                                },
+                                vec![],
+                                vec![text("/")],
+                            )],
+                        ),
+                    ],
+                )],
             ),
-            ul(
+            el(
+                "dialog",
                 vec![
-                    ("id", SEARCH_RESULTS_ID),
-                    ("class", "docs-search-results"),
-                    ("role", "listbox"),
-                    ("aria-label", "Search results"),
-                    ("hidden", ""),
+                    ("id", SEARCH_DIALOG_ID),
+                    ("class", "docs-search-dialog"),
+                    ("aria-label", "ドキュメント内検索"),
                 ],
-                vec![],
+                vec![div(
+                    vec![("class", "docs-search-dialog-panel")],
+                    vec![
+                        // 視覚上は clip 手法で隠すラベル（`.docs-search-label`）。
+                        // `input` が `aria-label` を持つため名前には使われない。
+                        el(
+                            "label",
+                            vec![("class", "docs-search-label"), ("for", SEARCH_INPUT_ID)],
+                            vec![text("Search")],
+                        ),
+                        ps_input_group::root(
+                            &group_props,
+                            vec![],
+                            vec![
+                                ps_input_group::addon(
+                                    ps_input_group::InputGroupAlign::InlineStart,
+                                    &group_props,
+                                    vec![],
+                                    vec![ps_icon::icon(
+                                        &ps_icon::IconProps {
+                                            size: Size::Sm,
+                                            ..ps_icon::IconProps::default()
+                                        },
+                                        vec![],
+                                        vec![icon_path(SEARCH_ICON_PATH)],
+                                    )],
+                                ),
+                                el(
+                                    "input",
+                                    vec![
+                                        ("type", "search"),
+                                        ("id", SEARCH_INPUT_ID),
+                                        ("class", "docs-search-input"),
+                                        ("placeholder", "ドキュメントを検索"),
+                                        ("aria-label", "ドキュメント内検索"),
+                                        ("role", "combobox"),
+                                        ("aria-expanded", "false"),
+                                        ("aria-controls", SEARCH_RESULTS_ID),
+                                        ("aria-autocomplete", "list"),
+                                        ("autocomplete", "off"),
+                                        ("data-search-index", search_index_href),
+                                    ],
+                                    vec![],
+                                ),
+                            ],
+                        ),
+                        ul(
+                            vec![
+                                ("id", SEARCH_RESULTS_ID),
+                                ("class", "docs-search-results"),
+                                ("role", "listbox"),
+                                ("aria-label", "Search results"),
+                                ("hidden", ""),
+                            ],
+                            vec![],
+                        ),
+                    ],
+                )],
             ),
         ],
     )
@@ -336,6 +392,10 @@ pub const SEARCH_INPUT_ID: &str = "docs-search-input";
 /// 単一実装点（WAI-ARIA combobox パターン、イシュー #958）。
 pub const SEARCH_RESULTS_ID: &str = "docs-search-results";
 
+/// 検索ダイアログ（`dialog.docs-search-dialog`、イシュー #3672）に付与する `id`。
+/// 検索ボタンの `aria-controls` と `SITE_JS` が参照する単一実装点。
+pub const SEARCH_DIALOG_ID: &str = "docs-search-dialog";
+
 /// サイドバー折りたたみチェックボックスハック（`input[type=checkbox]`）に
 /// 付与する `id`。直後の `label.docs-sidebar-toggle-label` の `for` 属性が
 /// 参照する単一実装点。
@@ -365,6 +425,7 @@ pub const RESERVED_LAYOUT_IDS: &[&str] = &[
     TOC_HEADING_ID,
     SEARCH_INPUT_ID,
     SEARCH_RESULTS_ID,
+    SEARCH_DIALOG_ID,
     SIDEBAR_TOGGLE_ID,
     ps_skip_nav::DEFAULT_ID,
 ];
