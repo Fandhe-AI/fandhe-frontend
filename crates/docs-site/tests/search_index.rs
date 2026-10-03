@@ -1014,3 +1014,19 @@ fn real_site_search_index_manifest_matches_nav_sections_and_each_file_holds_its_
         );
     }
 }
+
+/// イシュー #3600: 和文のソフト改行は索引テキストにも空白を入れない。
+#[test]
+fn page_entry_text_has_no_space_at_japanese_soft_break() {
+    use fandhe_frontend_core::{el, Node};
+    let nodes =
+        fandhe_frontend_docs_site::markdown::render_markdown("AI 時代の\nセキュリティリスク");
+    let body: Node = el("div", vec![], nodes);
+    let entry = search_index::page_entry("/x/", "t", &body, false);
+    assert!(
+        entry.text.contains("AI 時代のセキュリティリスク"),
+        "{}",
+        entry.text
+    );
+    assert!(!entry.text.contains("時代の セキュリティ"));
+}
