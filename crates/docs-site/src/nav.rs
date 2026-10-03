@@ -76,8 +76,11 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::nav_list::root a
 use fandhe_frontend_pre_styled_ui::nav_list::{heading, item, link as nav_link, list};
 // 前後ページャ（イシュー #756）: 同じ理由で LinkOverlay も headless
 // `root`（class 温存のため）+ styled 層再エクスポートの `overlay` を使う。
+use fandhe_frontend_pre_styled_ui::card::{self, CardProps, CardVariant};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::link_overlay::root as link_overlay_root;
+use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::link_overlay::overlay as link_overlay_overlay;
+use fandhe_frontend_pre_styled_ui::recipe::Size;
 
 /// `nav.toml` 入力の上限サイズ（`crates/cli/src/toml.rs` の DoS 抑止方針と
 /// 同値。再帰を使わない行単位パースのためネスト深度問題は生じないが、
@@ -1189,51 +1192,118 @@ pub fn prev_next<'a>(nav: &'a Nav, current_path: &str) -> (Option<&'a Page>, Opt
     (prev, next)
 }
 
-/// 前後ページリンクの [`Node`]（`<nav class="prev-next">` 配下に
-/// 存在する側のみの LinkOverlay カード。`<div class="prev">`/`<div
-/// class="next">`（headless `link_overlay::root`）が外枠、内側の
-/// `[data-part="overlay"]`（headless `link_overlay::overlay`）が実際の
-/// アンカーであり、カード全面がクリック可能な状態を保つ）を生成する。
+/// 前後ページャのカードが指す方向。DOM 順（矢印アイコンの位置）と
+/// 方向ラベルの文言を決める。
+#[derive(Clone, Copy)]
+enum PagerSide {
+    Prev,
+    Next,
+}
+
+/// 前後ページャ用のシェブロン矢印（線画、装飾のため `aria-hidden`）。
+/// `docs_layout_prev_next` block を手本にするが、block の私有関数は
+/// 呼ばずに docs-site 側へ置く（本番から `blocks::*` を呼ばない契約）。
+fn chevron_icon(path_d: &'static str) -> Node {
+    icon(
+        &IconProps {
+            size: Size::Sm,
+            ..IconProps::default()
+        },
+        vec![],
+        vec![el(
+            "path",
+            vec![
+                ("d", path_d),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+                ("stroke-linecap", "round"),
+                ("stroke-linejoin", "round"),
+            ],
+            vec![],
+        )],
+    )
+}
+
+/// 1 側分のカード（方向ラベル・ページ名・セクション名・矢印）を組む。
 ///
-/// `fandhe-frontend-headless-ui` の `link_overlay`（イシュー #756）へ移行
-/// した理由は `docs/design/docs-site-styled-ui-adoption.md` §3.2（「pre-styled-ui
-/// の `card` はアンカー全面クリック化に非対応」という見送り判断）を解消
-/// するため。本モジュールの用途では `overlay` がカードの唯一の子であり、
-/// 通常のフローで全面を占めるため、`link_overlay` の一般的な
-/// `position: absolute` 拡張パターン（`crates/pre-styled-ui/src/link_overlay.rs`
-/// 参照）は使わず、`crate::site_theme::stylesheet()` 側で `overlay` 自体に
-/// 従来のカード CSS（枠線・padding・角丸）をそのまま当てる。この判断は
-/// イシュー #910 でも再確認済み（`link_overlay::stylesheet()` は `overlay`
-/// に `position: absolute; inset: 0;` を登録するため、唯一の子要素である
-/// 本用途に適用するとカードの高さが 0 に潰れる。`fandhe_frontend_pre_styled_ui::nav_list::stylesheet()`
-/// は取り込むが `link_overlay::stylesheet()` は取り込まない非対称な採用に
-/// なる理由）。
+/// 文言はすべて `text()` ノード経由（既定エスケープ）。ラベル群は
+/// `<a>` 内に収めるため `p` ではなく `span` で組む（phrasing 維持。
+/// Primitives ページは recipe CSS を読まず docs 側 CSS のみで成立させる）。
+fn pager_card(nav: &Nav, page: &Page, side: PagerSide) -> Node {
+    let (label, side_class) = match side {
+        PagerSide::Prev => ("前へ", "prev"),
+        PagerSide::Next => ("次へ", "next"),
+    };
+    let mut meta_children = vec![
+        el(
+            "span",
+            vec![("class", "docs-pager-label")],
+            vec![text(label)],
+        ),
+        el(
+            "span",
+            vec![("class", "docs-pager-title")],
+            vec![text(page.title.clone())],
+        ),
+    ];
+    if let Some(section) = nav.section_for_path(&page.path) {
+        meta_children.push(el(
+            "span",
+            vec![("class", "docs-pager-section")],
+            vec![text(section.title.clone())],
+        ));
+    }
+    let meta = el("span", vec![("class", "docs-pager-meta")], meta_children);
+    let body_children = match side {
+        PagerSide::Prev => vec![chevron_icon("M15 4l-8 8 8 8"), meta],
+        PagerSide::Next => vec![meta, chevron_icon("M9 4l8 8-8 8")],
+    };
+    let card_node = card::root(
+        CardProps {
+            variant: CardVariant::Outline,
+            ..CardProps::default()
+        },
+        vec![],
+        vec![card::body(vec![], body_children)],
+    );
+    let link_href = href(nav, &page.path);
+    link_overlay_root(
+        vec![("class", side_class)],
+        vec![link_overlay_overlay(
+            &link_href,
+            vec![("class", "docs-pager-link")],
+            vec![card_node],
+        )],
+    )
+}
+
+/// 前後ページリンクの [`Node`]（`<nav class="prev-next">` 配下に存在する
+/// 側のみのカード型ページャ、イシュー #3608）を生成する。
+///
+/// 構造は外枠 `div.prev|next`（headless `link_overlay::root`）の内側に、
+/// 唯一のアンカー `a.docs-pager-link`（`link_overlay::overlay`、全面クリック・
+/// フォーカス対象）があり、その中に pre-styled `card`（Outline）と矢印 `icon`
+/// + ラベル群が入る。アンカーを入れ子にしない不変条件を保つ。
+///
+/// `link_overlay::stylesheet()` は `overlay` を `position: absolute` にして
+/// 高さ 0 に潰すため site.css へ積まない（イシュー #910）。Primitives ページ
+/// は recipe CSS を含まない `site-primitives.css` を読むため、カード装飾と
+/// アイコン寸法は `crate::site_theme` の docs 側 CSS だけで成立させる。
 pub fn prev_next_nav(nav: &Nav, current_path: &str) -> Node {
     let (prev, next) = prev_next(nav, current_path);
     let mut children: Vec<Node> = Vec::new();
     if let Some(page) = prev {
-        let link_href = href(nav, &page.path);
-        children.push(link_overlay_root(
-            vec![("class", "prev")],
-            vec![link_overlay_overlay(
-                &link_href,
-                vec![],
-                vec![text(page.title.clone())],
-            )],
-        ));
+        children.push(pager_card(nav, page, PagerSide::Prev));
     }
     if let Some(page) = next {
-        let link_href = href(nav, &page.path);
-        children.push(link_overlay_root(
-            vec![("class", "next")],
-            vec![link_overlay_overlay(
-                &link_href,
-                vec![],
-                vec![text(page.title.clone())],
-            )],
-        ));
+        children.push(pager_card(nav, page, PagerSide::Next));
     }
-    el("nav", vec![("class", "prev-next")], children)
+    el(
+        "nav",
+        vec![("class", "prev-next"), ("aria-label", "前後のページ")],
+        children,
+    )
 }
 
 #[cfg(test)]
@@ -1829,6 +1899,52 @@ path = "/p1/"
         let html_last = render(&prev_next_nav(&nav, "/reference/api/"));
         assert!(html_last.contains(r#"class="prev""#));
         assert!(!html_last.contains(r#"class="next""#));
+    }
+
+    #[test]
+    fn prev_next_nav_cards_show_direction_title_and_section() {
+        let nav = parse_nav(SAMPLE).unwrap();
+        let html = render(&prev_next_nav(&nav, "/guide/getting-started/"));
+        assert!(html.contains(r#"aria-label="前後のページ""#));
+        assert!(html.contains("前へ") && html.contains("次へ"));
+        assert!(html.contains("Introduction") && html.contains("API"));
+        assert!(html.contains(">Guide<") && html.contains(">Reference<"));
+        assert!(html.find("前へ").unwrap() < html.find("次へ").unwrap());
+    }
+
+    #[test]
+    fn prev_next_nav_has_one_anchor_per_side_and_no_nested_anchor() {
+        let nav = parse_nav(SAMPLE).unwrap();
+        let count = |p: &str| render(&prev_next_nav(&nav, p)).matches("<a ").count();
+        assert_eq!(count("/guide/intro/"), 1);
+        assert_eq!(count("/guide/getting-started/"), 2);
+        assert_eq!(count("/reference/api/"), 1);
+    }
+
+    #[test]
+    fn prev_next_nav_icons_are_decorative_and_positioned_by_side() {
+        let nav = parse_nav(SAMPLE).unwrap();
+        let html = render(&prev_next_nav(&nav, "/guide/getting-started/"));
+        assert_eq!(html.matches(r#"data-scope="icon""#).count(), 2);
+        assert_eq!(html.matches(r#"aria-hidden="true""#).count(), 2);
+        let prev_svg = html.find("<svg").unwrap();
+        let prev_meta = html.find("docs-pager-meta").unwrap();
+        assert!(prev_svg < prev_meta, "prev は矢印が先頭");
+        let next_meta = html.rfind("docs-pager-meta").unwrap();
+        let next_svg = html.rfind("<svg").unwrap();
+        assert!(next_meta < next_svg, "next は矢印が末尾");
+    }
+
+    #[test]
+    fn prev_next_nav_escapes_page_and_section_titles() {
+        let toml = SAMPLE
+            .replace("Introduction", "<img src=x onerror=alert(1)>")
+            .replace(r#"title = "Guide""#, r#"title = "<b>G</b>""#);
+        let nav = parse_nav(&toml).unwrap();
+        let html = render(&prev_next_nav(&nav, "/guide/getting-started/"));
+        assert!(!html.contains("<img"));
+        assert!(!html.contains("<b>"));
+        assert!(html.contains("&lt;img"));
     }
 
     // ---- ヘッダードロップダウンメニュー（イシュー #908） ----
