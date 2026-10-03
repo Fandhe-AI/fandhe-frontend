@@ -195,7 +195,7 @@ HTML の [`<details>`/`<summary>`](https://developer.mozilla.org/docs/Web/HTML/E
   いる間は `max-height: 0` + `visibility: hidden` で完全に隠す（従来の
   `2.75rem` は「Menu」の下の行を半端に切り取っていた）。閉じている間はリンクが
   タブ順から外れ、チェックボックスを Space で開くと表示される。あわせて
-  `< 768px` のヘッダーは、検索入力を全幅の 2 段目へ置く 2 段構成とし、ヘッダーは
+  `< 768px` のヘッダーは、検索入力を `flex-basis: 100%` で必ず単独の全幅行へ置き（DOM 順・Tab 順を保つため `order` は使わず、GitHub・テーマトグルは検索の次段へ回る）、ヘッダーは
   sticky にせず通常フローに戻す（見出しの `scroll-margin-top` は `1rem`）。
 
 ### 3.3 右カラム目次（→ #909）

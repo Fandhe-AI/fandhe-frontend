@@ -1482,7 +1482,7 @@ fn narrow_header_moves_search_to_full_width_second_row() {
         ".docs-header-inner {\nflex-wrap: wrap;",
         "column-gap:",
         ".docs-header-actions {\ndisplay: contents;",
-        ".docs-search {\nflex: 1 1 10rem;",
+        ".docs-search {\nflex: 1 0 100%;",
         ".docs-search-input {\nwidth: 100%;",
         ".docs-search-results {\nleft: 0;\nright: 0;\nmin-width: 0;",
         "scroll-margin-top: 1rem;",

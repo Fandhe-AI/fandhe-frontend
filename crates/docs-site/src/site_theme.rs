@@ -1384,8 +1384,9 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
  * ---- `768px 未満`: 検索を全幅の 2 段目へ置く 2 段ヘッダー（イシュー #3602） ----\n\
  *\n\
  * brand・検索・GitHub・テーマトグルを DOM 順のまま 1 つの flex 行へ並べ、\n\
- * 検索は `flex: 1 1 10rem` で伸縮し、収まらないときだけ折り返して全幅近くの\n\
- * 次段へ落ちる（`order` は使わず視覚順と Tab 順を一致させる）。DOM は\n\
+ * 検索は `flex: 1 0 100%`（`flex-basis: 100%`）で必ず単独の全幅行を占め、\n\
+ * brand と同じ行には残らない（GitHub・テーマトグルは次段へ回る。`order` は\n\
+ * 使わず視覚順と Tab 順を一致させる）。DOM は\n\
  * 変えず `.docs-header-actions` を `display: contents` にして子を\n\
  * `.docs-header-inner` の flex item へ繰り上げる。JS 無効時は\n\
  * `.docs-search[hidden]` が非表示のため 2 段目は存在せず、`min-height` は\n\
@@ -1419,7 +1420,7 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
   }\n\
 \n\
   .docs-search {\n\
-    flex: 1 1 10rem;\n\
+    flex: 1 0 100%;\n\
   }\n\
 \n\
   .docs-search-input {\n\
