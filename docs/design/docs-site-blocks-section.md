@@ -1357,3 +1357,13 @@ Primitives の慣習をそのまま踏襲せず、グループ内のページは
 - ヘッダードロップダウン（`src/nav.rs::header_nav`）の Blocks 項目数が
   索引 1 件のみに縮小するのは、Primitives/Themes と同型の既知の副作用
   であり、本イシューでは対処しない。
+
+## 22. #3588 ツリーでの位置づけ（Blocks を手本とした本番合成）
+
+- Blocks は引き続き利用者向けの合成例である。本番ページ（骨格・トップ・索引）は `blocks::*` の `demo()` を呼ばず、block の合成を手本に docs-site 内でサイト専用の合成を組む。理由は、demo の文言・リンクがダミーで固定されているため。
+- 手本 block と本番ページの対応表の正は `docs/design/docs-site-styled-blocks-redesign.md` §3。
+- #3588 ツリーで Blocks 側に入った変更は次の 3 点だけである。
+  - 索引の生成をフックへ移した（§17 の #3618 追記を参照）。
+  - `.blocks-demo` の CSS 値をトークン化して共通の枠へそろえた（DOM・class は不変、#3619）。
+  - `tests/blocks_contract.rs` の 2 テストの数える範囲を `</header>` 以降へ絞った（期待値は不変、検証内容は弱めていない、#3606）。
+- 既存 block・`site/blocks/*.md`・`tests/blocks_code_drift.rs`・`all_blocks()` は不変である。

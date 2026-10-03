@@ -3,7 +3,9 @@
 **本文書のステータス**: 確定（イシュー #904）。**Phase 2〜4 実装完了
 （#905〜#913）。本文書が現行 docs サイト骨格の統治文書（live）である**
 （`docs/design/docs-site-styled-ui-adoption.md` からの適用範囲統治の
-引き継ぎを含む。§9・§10 参照）。
+引き継ぎを含む。§9・§10 参照）。**#3588 ツリー（Phase 0〜5）で骨格に
+純追加を行った。詳細は `docs/design/docs-site-styled-blocks-redesign.md`
+を参照し、反映先は §3.1・§3.6・§4・§9.4・§10 である。**
 
 ## 1. 背景・目的
 
@@ -137,6 +139,52 @@ CSS 供給方式・契約テスト作り替え方針・ドロップダウンの�
 `docs-toc`・`docs-toc-level-*` の class 名は 1 つも変更しない（実装差分を
 「レイアウト移設 + 新設 class 追加」のみに限定し、既存参照箇所の全面
 書き換えを避けるため）。
+
+**追加（#3588 ツリー、純追加のみ）**: 上の新骨格へ、既存 class 名と DOM 順序を
+変えずに次の要素を足した。各要素の出所は `docs-site-styled-blocks-redesign.md`
+（§3.2・§11 ほか）を参照。
+
+```
+<body>
+  a[data-scope="skip-nav"][data-part="link"]            … 最初のフォーカス可能要素（不変）
+  header.docs-header
+    div.docs-header-inner
+      a.docs-brand > span.docs-brand-mark[aria-hidden]  … ロゴ（favicon と同図案、#3606）
+      span.docs-brand-version                           … バージョン badge（brand リンクの外の兄弟、#3606）
+      nav.docs-header-nav
+      div.docs-header-actions
+        div.docs-search[hidden]                         … input_group（検索、#3606）
+        span.docs-github-link                           … external リンク
+        span.docs-theme-toggle[hidden] > button > span.docs-theme-toggle-label
+  div.docs-container[.docs-container--no-toc][.docs-landing]
+    aside.docs-sidebar                                  … Landing でも DOM に残す
+    main.docs-main
+      nav.docs-toc-inline > details                     … 折りたたみ目次（#1080。スキップ先より前、Landing では出さない）
+      div[data-scope="skip-nav"][data-part="content"]   … スキップ先（本文の直前、不変）
+      article.docs-content
+        header.docs-page-heading                        … nav.docs-page-breadcrumb + h1（#3607）
+        …Markdown 本文…
+          div.docs-code-block                           … フェンスを包む（#3605 / #3620）
+            div.docs-code-header[span.docs-code-lang? + button.docs-code-copy[hidden]]
+            pre
+            span.docs-code-copy-status
+        nav.prev-next
+          div.prev | div.next > a.docs-pager-link > card   … カード型（#3608）
+    aside.docs-toc-aside                                … Landing では出さない
+  footer.docs-footer                                    … <body> の最後の子（#3609）
+```
+
+- `docs-container--no-toc` は見出しの無いページ向けの既存修飾 class。`docs-landing` は
+  `layout::PageLayout::Landing`（トップ、#3612）の修飾 class で、右目次と折りたたみ目次を
+  出さない。DOM 順序の不変条件（SkipNav が最初、スキップ先が本文の直前）は両方の
+  レイアウトで維持している。
+- `footer.docs-footer` は `div.docs-container` の直後（`<body>` の最後の子）に置く。
+  `main` / `article` の子孫に入れると暗黙の `contentinfo` ロールを失い、目次と検索
+  インデックスにも混入するため。
+- 新設 class: `docs-brand-mark` / `docs-brand-version` / `docs-theme-toggle-label` /
+  `docs-page-heading` / `docs-page-breadcrumb` / `docs-code-block` / `docs-code-header` /
+  `docs-code-lang` / `docs-code-copy` / `docs-code-copy-status` / `docs-pager-link` /
+  `docs-footer` / `docs-landing` ほか。既存 class 名は 1 つも変更していない。
 
 ### 3.2 breakpoint 設計
 
@@ -356,6 +404,12 @@ chromium 制約により本 PR では未取得）は
   （§4 で確定する生成 CSS 化に伴っても、Markdown レンダラの出力契約
   自体は不変）。
 
+  **追記（#3588 ツリー）**: 出力契約は不変のまま、描画後に
+  `code_copy::wrap_code_blocks` が Markdown 由来のフェンスを
+  `div.docs-code-block` で包む（`parse_fence` の出力は変えない）。また、
+  #3600 で和文のソフト改行に半角スペースが入る不具合を `markdown.rs` で
+  修正した。
+
 ## 4. CSS 供給方式（→ #905）
 
 **adoption 文書 §3.4「再評価（イシュー #904）」の結論を受け、
@@ -414,6 +468,25 @@ chromium 制約により本 PR では未取得）は
   fail-closed 検証済み。
 - `site/assets/` は静的アセットディレクトリとして廃止済み（現在の
   `site/` 配下は Markdown 原稿と `nav.toml` のみ）。
+
+### 実装結果（#3588 ツリー、純追加）
+
+- `site.css` の積み順（`site_theme::stylesheet()`）: Theme トークン →
+  `nav_list::stylesheet()` → `SITE_RECIPES`（使う 19 件のみ。全 recipe の一括積みはしない）→
+  `STRUCTURAL_CSS` → `landing::CSS` → 本文タイポグラフィ → ハイライト → `API_TABLE_CSS`。
+  「全ページで単一の `site.css` を共有する」原則は維持する。
+- 例外 1: Primitives ページだけが読む `assets/site-primitives.css`
+  （`stylesheet_without_recipes()`）。headless-ui のデモが styled recipe の装飾を受けない
+  ための例外で、`SITE_RECIPES` を除いた同順序の内容になる。ヘッダーの部品が要る recipe
+  だけは `@scope (.docs-header)` で閉じ込めて積む（#3599・#3606）。
+- 例外 2: `page_sections::PAGE_STYLESHEETS` で登録するページ単位の追加 CSS
+  （`section-index.css` / `component-index.css` / `category-index.css`）。使われた
+  ページにだけ `<link>` を配線する。限定列挙であり、増やす場合は同表へ登録する。
+- 生成物として `assets/favicon.svg`（#3604）と、サイトルート直下の `404.html`
+  （#3623。`generate_assets` で書き出し、`nav.toml` と検索インデックスの対象外）が加わった。
+  `RESERVED_ASSET_NAMES`（`build.rs`）は `favicon.svg`・`site-primitives.css` を含む。
+  `404.html` はサイトルート直下の書き出しで `assets/` の basename 衝突判定の対象外。
+  ページ単位 CSS の 3 件は現状 `RESERVED_ASSET_NAMES` に載せていない。
 
 ## 5. `site_css_contract.rs` の契約作り替え方針（→ #906）
 
@@ -626,6 +699,26 @@ fail-closed 検証である（`site_css()` 関数が `std::fs::read_to_string`
   （Chromium 起動不可）により本イシューでも対象外とする（§6・#912
   レポート参照）。
 
+### 9.4 #3588 ツリーでの追加（Issue / PR / 主なファイル）
+
+| Issue | PR | 内容（主なファイル） |
+|---|---|---|
+| #3597 | #3626 | `make docs-preview`（`Makefile`、`docs/guides/browser-testing.md` §9a） |
+| #3598 | #3630 | 汎用生成節フック（`page_sections.rs`） |
+| #3599 | #3631 | recipe の供給（`site_theme::SITE_RECIPES`、`site-primitives.css`） |
+| #3605 / #3620 | #3635 / #3637 | コードのコピー（`code_copy.rs`、`script::SITE_JS`） |
+| #3606 | #3642 | ヘッダー操作部（`layout.rs`、`site_version.rs`） |
+| #3607 | #3636 | パンくず付きページ見出し（`page_header.rs`） |
+| #3608 | #3638 | カード型ページャ（`nav.rs::prev_next_nav`） |
+| #3609 | #3644 | サイトフッター（`site_footer.rs`） |
+| #3610 / #3611 | #3645 / #3649 | 右目次・折りたたみ目次・サイドバー（`layout.rs`、`nav.rs`、`site_theme.rs`） |
+| #3612〜#3615 | #3641 / #3646 / #3647 / #3653 | トップ（`landing.rs`、`snippets/landing_ssr.rs`） |
+| #3616〜#3618 | #3640 / #3648 / #3652 | セクション索引（`section_index.rs` / `component_index.rs` / `themes_catalog.rs` / `category_index.rs`） |
+| #3619 / #3621 / #3622 | #3639 / #3643 / #3650 | Demo 枠・API 表・注記（`showcase.rs`、`site_theme::API_TABLE_CSS`、`admonition.rs`） |
+| #3623 | #3651 | 404 ページ（`not_found.rs`） |
+| #3604 | #3634 | favicon（`favicon.rs`） |
+| #3600 / #3601 / #3602 / #3603 | #3628 / #3629 / #3632 / #3633 | 表示不具合の修正 |
+
 ## 10. 刷新後の再評価トリガー
 
 `docs/design/docs-site-styled-ui-adoption.md` §5 から適用範囲統治を
@@ -648,6 +741,7 @@ Issue・PR に明記する）に準拠すること。
      当たるが、3 カラム DOM 骨格・既存 class 名・生成 CSS 一本の供給方式は
      不変で、契約表は追加のみとする判定を
      `docs/design/docs-site-styled-blocks-redesign.md` §9.1 に記録した。
+     #3625 で §3.1・§4 へ反映済み。
 4. `crates/docs-site/tests/site_css_contract.rs` /
    `crates/docs-site/tests/site_typography_contract.rs` の contract 表
    （`STRUCTURE_CLASS_CONTRACT` 等）を弱体化・削除する提案が出たとき
@@ -663,13 +757,16 @@ Issue・PR に明記する）に準拠すること。
    契約を変更する提案が出たとき（`header_nav` の全セクション列挙は §3.4 の
    スコープ限定に対する**他セクション到達性の担保**そのものであり、
    両者は対で成立している。片方だけの変更は到達性を壊す）。
-7. **2 層セクション構成**: 第 3 の層セクションを追加する提案、セクション名
-   （Primitives / Themes）を改称する提案、または `/primitives/` ↔ `/themes/`
-   の掲載先境界（headless-ui mod = `/primitives/`、pre-styled-ui mod =
-   `/themes/`）を変更する提案が出たとき（境界の正は
-   `docs/design/docs-site-primitives-themes-split.md` §2/§3/§6。検出は
-   `crates/docs-site/tests/primitives_catalog.rs` の fail-closed 台帳テストと
-   `crates/docs-site/tests/site_nav.rs` のページ数期待値）。
+7. **4 層セクション構成**: 第 5 の層セクションを追加する提案、セクション名
+   （Primitives / Themes / Blocks / Wireframes）を改称する提案、または
+   `/primitives/` ↔ `/themes/` の掲載先境界（headless-ui mod = `/primitives/`、
+   pre-styled-ui mod = `/themes/`）や Blocks / Wireframes の掲載境界を変更する
+   提案が出たとき（Primitives / Themes の境界の正は
+   `docs/design/docs-site-primitives-themes-split.md` §2/§3/§6、Blocks の正は
+   `docs/design/docs-site-blocks-section.md`。検出は
+   `crates/docs-site/tests/primitives_catalog.rs` の fail-closed 台帳テスト、
+   `crates/docs-site/tests/site_nav.rs` のページ数期待値、
+   `crates/docs-site/tests/blocks_nav.rs` / `wireframes_nav.rs` の三方突合）。
 
 ## 11. 関連文書
 
@@ -682,6 +779,11 @@ Issue・PR に明記する）に準拠すること。
 - `docs/policy/intentional-non-adoption.md`: AI 開発・保守前提の評価軸
   （明示性・決定性・機械検証可能性・コンテキスト消費）と非採用記録の
   運用ルール本体。
+- `crates/docs-site/src/` の新設モジュール（#3588 ツリー）: `page_sections.rs` /
+  `landing.rs` / `page_header.rs` / `site_footer.rs` / `code_copy.rs` /
+  `not_found.rs` / `section_index.rs` / `component_index.rs` / `category_index.rs` /
+  `themes_catalog.rs` / `site_version.rs` / `favicon.rs`、およびトップのコード例
+  `crates/docs-site/snippets/landing_ssr.rs`。
 - `crates/docs-site/src/layout.rs`: `docs_page_with_assets` の実装（§2.1
   で整理した #904 時点の 2 カラム骨格から §3.1 の 3 カラム骨格へ移行済み）。
 - `crates/docs-site/tests/site_css_contract.rs`: class 契約検証テスト
