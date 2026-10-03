@@ -1606,7 +1606,7 @@ nav.prev-next .next .docs-pager-meta {\n\
  * body 直下で `.docs-container` の外側の兄弟なので、sticky のサイドバー・右目次\n\
  * （包含ブロックは `.docs-container`）とは構造上重ならない。Primitives ページは\n\
  * heading / link / separator / text の recipe を持たない `site-primitives.css` を読むため、\n\
- * recipe と同じ値の代替規則を `.docs-footer` 前置（詳細度 0,2,0 以上）で再現する。\n\
+ * recipe と同じ値の代替規則を `.docs-footer.docs-footer` 前置（詳細度 0,2,1 以上）で再現する。\n\
  */\n\
 .docs-footer {\n\
   margin-block-start: var(--fandhe-space-8, 2rem);\n\
@@ -1646,14 +1646,14 @@ nav.prev-next .next .docs-pager-meta {\n\
   padding: 0;\n\
 }\n\
 \n\
-.docs-footer h2 {\n\
+.docs-footer.docs-footer h2 {\n\
   margin: 0 0 var(--fandhe-space-2, 0.5rem);\n\
   font-size: 0.875rem;\n\
   font-weight: 600;\n\
   line-height: 1.3;\n\
 }\n\
 \n\
-.docs-footer a {\n\
+.docs-footer.docs-footer a {\n\
   display: inline-block;\n\
   padding-block: 0.125rem;\n\
   color: var(--fandhe-color-fg-muted);\n\
@@ -1661,19 +1661,19 @@ nav.prev-next .next .docs-pager-meta {\n\
   overflow-wrap: anywhere;\n\
 }\n\
 \n\
-.docs-footer a:hover {\n\
+.docs-footer.docs-footer a:hover {\n\
   color: var(--fandhe-color-fg);\n\
   text-decoration: underline;\n\
 }\n\
 \n\
-.docs-footer hr {\n\
+.docs-footer.docs-footer hr {\n\
   height: 0;\n\
   margin: var(--fandhe-space-6, 1.5rem) 0 var(--fandhe-space-4, 1rem);\n\
   border: 0;\n\
   border-top: 1px solid var(--fandhe-color-border);\n\
 }\n\
 \n\
-.docs-footer p {\n\
+.docs-footer.docs-footer p {\n\
   margin: 0;\n\
   font-size: 0.875rem;\n\
   line-height: 1.5;\n\

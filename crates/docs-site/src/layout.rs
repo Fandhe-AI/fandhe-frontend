@@ -585,6 +585,9 @@ pub enum PageLayout {
 /// `docs-container docs-landing` にする。`aside.docs-sidebar` は DOM に残す:
 /// 768px 未満ではヘッダーナビが非表示で、サイドバーの Menu トグルが唯一の
 /// ナビゲーション手段のため。広幅での非表示は CSS（`crate::landing::CSS`）が担う。
+// 公開 API 互換のため引数を構造体化せず、骨格の各スロットを個別引数で受ける（呼び出し元は
+// `docs_page_with_assets` 等の薄いラッパーに限られる）。
+#[allow(clippy::too_many_arguments)]
 pub fn docs_page_with_layout(
     title: &str,
     base_path: &str,

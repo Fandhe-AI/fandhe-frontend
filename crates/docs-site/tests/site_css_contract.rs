@@ -1879,7 +1879,7 @@ fn site_footer_fallback_rules_exist_in_both_stylesheets() {
             assert!(block.contains(expected), "{expected} が無い: {block}");
         }
         assert!(
-            css.contains(".docs-footer a {"),
+            css.contains(".docs-footer.docs-footer a {"),
             "フッターのリンク規則が無い"
         );
     }
