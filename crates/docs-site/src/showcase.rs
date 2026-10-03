@@ -486,6 +486,11 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   自然な高さへ縮める（`provider` 側のルールと対をなす、`.pre-styled-
 ///   showcase` 限定セレクタのため他ページの Floating 実使用には影響
 ///   しない）。
+/// - 狭幅の横はみ出し対策（イシュー #3602）: donut-chart / pie-chart
+///   （`size-xl` が 448px 固定）は root と svg を `max-width: 100%` で
+///   縮め、steps（横向き）と navigation-menu（open 時の list）は root を
+///   横スクロール枠にし、toast は 768px 未満に限り root 幅を `auto` +
+///   `max-width: 100%` へ切り替える（1440px の 24rem は不変）。
 const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
 .showcase-row {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 0.75rem;\n  align-items: center;\n  margin: 1rem 0;\n}\n\
@@ -518,6 +523,10 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"link\"]:hover {\n  text-decoration: none;\n}\n\
 .pre-styled-showcase [data-scope=\"sidebar\"][data-part=\"provider\"] {\n  min-height: 20rem;\n  height: auto;\n}\n\
 .pre-styled-showcase [data-scope=\"sidebar\"][data-part=\"root\"][data-variant=\"floating\"] {\n  height: auto;\n}\n\
+.pre-styled-showcase [data-scope=\"donut-chart\"][data-part=\"root\"],\n.pre-styled-showcase [data-scope=\"pie-chart\"][data-part=\"root\"] {\n  max-width: 100%;\n}\n\
+.pre-styled-showcase [data-scope=\"donut-chart\"] [data-part=\"chart\"],\n.pre-styled-showcase [data-scope=\"pie-chart\"] [data-part=\"chart\"] {\n  max-width: 100%;\n  height: auto;\n}\n\
+.pre-styled-showcase [data-scope=\"steps\"][data-part=\"root\"],\n.pre-styled-showcase [data-scope=\"navigation-menu\"][data-part=\"root\"] {\n  max-width: 100%;\n  overflow-x: auto;\n}\n\
+@media (max-width: 767.98px) {\n  .pre-styled-showcase [data-scope=\"toast\"][data-part=\"root\"] {\n    width: auto;\n    max-width: 100%;\n    box-sizing: border-box;\n  }\n}\n\
 .showcase-scroll-reveal-list {\n  display: flex;\n  flex-direction: column;\n  gap: 8rem;\n  margin: 1.5rem 0;\n  max-width: 24rem;\n}\n\
 .showcase-scroll-reveal-item {\n  padding: 0.75rem 1rem;\n  border-radius: var(--fandhe-radius-md);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
 .showcase-stagger-list {\n  display: flex;\n  flex-direction: column;\n  gap: 0.5rem;\n  margin: 1.5rem 0;\n  max-width: 24rem;\n}\n\

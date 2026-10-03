@@ -1462,3 +1462,60 @@ fn header_actions_can_shrink_on_narrow_viewports() {
     let actions = rule_body(&css, "\n.docs-header-actions {");
     assert!(actions.contains("min-width: 0;"));
 }
+
+/// 768px 未満では検索を全幅の 2 段目へ置き、検索入力が 70px まで縮んで
+/// placeholder が欠ける不具合を防ぐ（イシュー #3602）。`display: contents` で
+/// DOM を変えずに子を繰り上げる。JS 無効時に空の 2 段目を残さないよう
+/// `min-height` は 1 段分のトークンにとどめる。
+#[test]
+fn narrow_header_moves_search_to_full_width_second_row() {
+    let css = site_css();
+    let marker = "@media (max-width: 767.98px) {";
+    let start = css
+        .find(marker)
+        .unwrap_or_else(|| panic!("narrow header media block missing: {marker}"));
+    let block = &css[start..];
+    let block = &block[..block.find("\n}\n}\n").expect("media block should close")];
+
+    for expected in [
+        ".docs-header {\nposition: static;\nheight: auto;\nmin-height: var(--fandhe-space-docs-header-height);",
+        ".docs-header-inner {\nflex-wrap: wrap;",
+        "column-gap:",
+        ".docs-header-actions {\ndisplay: contents;",
+        ".docs-search {\norder: 1;\nflex-basis: 100%;",
+        ".docs-search-input {\nwidth: 100%;",
+        ".docs-search-results {\nleft: 0;\nright: 0;\nmin-width: 0;",
+        "scroll-margin-top: 1rem;",
+    ] {
+        assert!(
+            block.contains(expected),
+            "narrow header block lacks `{expected}`:\n{block}"
+        );
+    }
+    assert!(!block.contains("position: absolute"));
+    assert!(!block.contains("header-height-stacked"));
+}
+
+/// 本文の長い ASCII 列は折り返し、表内の絶対配置の視覚非表示要素は
+/// 表のスクロール枠の内側で切り取られる（イシュー #3602）。
+#[test]
+fn docs_content_contains_long_runs_and_absolute_table_descendants() {
+    let css = site_css();
+    assert!(rule_body(&css, "\n.docs-content {").contains("overflow-wrap: break-word;"));
+    let table = rule_body(&css, "\n.docs-content table {");
+    assert!(table.contains("position: relative;"));
+    assert!(table.contains("display: block;"));
+    assert!(table.contains("overflow-x: auto;"));
+}
+
+/// 折りたたみ時のサイドバーは中途半端に切り取らず完全に隠し、タブ順からも
+/// 外す。768px 以上では常に表示へ戻す（イシュー #3602）。
+#[test]
+fn collapsed_sidebar_hides_nav_until_toggled() {
+    let css = site_css();
+    let base = rule_body(&css, "\n.docs-sidebar nav.sidebar {\nmax-height: 0;");
+    assert!(base.contains("visibility: hidden;"));
+    let checked = rule_body(&css, "\n.docs-sidebar-toggle:checked ~ nav.sidebar {");
+    assert!(checked.contains("visibility: visible;"));
+    assert!(css.contains("max-height: none;\noverflow: visible;\nvisibility: visible;"));
+}
