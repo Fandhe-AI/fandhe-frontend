@@ -44,6 +44,8 @@ pre-styled-ui の styled 部品・テーマトークンを適用するかが検�
 
 ### 3.1 サイドバーナビ（`nav.rs::sidebar`）【解消済み（イシュー #756）】
 
+**更新（イシュー #3611）**: 見た目を整えた（`details` の開閉の三角は CSS 疑似要素、グループ単位の件数 badge、選択中項目の文字色）。DOM 契約は変えていない。詳細は `docs/design/docs-site-styled-blocks-redesign.md` §11.2。以下は #756 時点の記録。
+
 （当初の判断、イシュー #694 時点）pre-styled-ui には文書ナビゲーション
 （アプリ内固定サイドバーのリンク一覧）に相当する部品が存在しない。最も
 近い `menu` 部品は WAI-ARIA `menu` ロール（キーボード操作を伴う操作
@@ -70,6 +72,8 @@ pre-styled-ui の styled 部品・テーマトークンを適用するかが検�
 rustdoc・イシュー #756 実装計画を参照）。
 
 ### 3.2 前後ページャ（`nav.rs::prev_next_nav`、`nav.prev-next` のカード風リンク）【解消済み（イシュー #756）】
+
+**更新（イシュー #3608）**: 現行はカード型である。`link_overlay` の root / overlay の中に pre-styled-ui の `card`（Outline）と矢印 svg を置く。`link_overlay` の recipe CSS は `site.css` へ積まない（カード装飾とアイコン寸法は docs 側 CSS で自己完結する）。出力順と `nav.prev-next` / `prev` / `next` の class 契約は維持している。以下は #756 時点の記録。
 
 （当初の判断、イシュー #694 時点）pre-styled-ui の `card` 部品は
 `data-scope` anatomy を持つ `div` ベースのコンテンツカードであり、アンカー
@@ -233,6 +237,8 @@ pre-styled-ui の styled 部品・生成 CSS（`stylesheet()`）の適用範囲�
 へ引き継ぐ（同文書 §1 参照。以降の live な再評価トリガーも §5 では
 なく同文書側で扱う）。
 
+**追記（#3588 ツリー）**: styled recipe 19 件が `site.css` へ供給され（使う分のみ。全 recipe の一括積みはしない）、骨格そのもの（ヘッダー操作部・ページ見出し・ページャ・フッター・404・トップ）が pre-styled-ui 部品で組まれた。適用範囲の正は `docs/design/docs-site-styled-blocks-redesign.md` §3 であり、live な再評価トリガーは引き続き `docs-site-three-column-redesign.md` §10 が担う。本文書の §5 にはトリガーを追加しない。
+
 ## 5. 再評価トリガー（消化済み・履歴）
 
 以下 4 件はすべて消化済みである。**本文書は履歴文書となり、刷新後の
@@ -266,7 +272,7 @@ live な再評価トリガーは `docs/design/docs-site-three-column-redesign.md
 ## 6. 関連文書
 
 - `docs/design/docs-site-styled-blocks-redesign.md`: #3588 ツリー（Blocks を
-  手本とした部品合成によるサイト刷新）の設計方針（イシュー #3596）。
+  手本とした部品合成によるサイト刷新）の設計方針（イシュー #3596）。適用範囲の表（§3）と実装結果（§3.4・§12）を含む。
 - `docs/design/docs-site-three-column-redesign.md`: イシュー #904 で
   作成した 3 カラム新レイアウトの設計文書。3.4 の導入転換を受けた
   CSS 供給方式・class 契約・breakpoint・契約テスト作り替え方針・
