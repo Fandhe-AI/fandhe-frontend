@@ -40,7 +40,7 @@ name = "fandhe-frontend-cli"
 # 同一）。`embedded-examples/vercel-ssg/` を再同期した。公開 API は不変だが
 # `include_str!` で埋め込まれる `fw` バイナリの内容が変わるため patch
 # バンプする。
-version = "0.5.1"
+version = "0.5.2"
 edition = "2021"
 description = "fandhe-frontend-cli: AI 自己保守フック向け `fw` コマンド（TASK-13.1、structure.toml のスキーマ・パース・生成）。外部依存ゼロ。"
 license = "MIT OR Apache-2.0"
