@@ -1875,11 +1875,19 @@ fn nav_drawer_is_hidden_until_toggled_and_scrolls_inside() {
     let css = site_css();
     let base = rule_body(&css, "\n.docs-header nav.docs-nav-drawer {");
     assert!(base.contains("display: none;"));
-    assert!(base.contains("overflow-y: auto;"));
-    assert!(base.contains("overscroll-behavior: contain;"));
-    let vh = base.find("max-height: calc(100vh - ").expect("vh fallback");
-    let dvh = base.find("max-height: calc(100dvh - ").expect("dvh");
+    // 折り返しで実高さが変わるヘッダー配下（1200px 未満）では固定値の max-height を持たない。
+    assert!(!base.contains("max-height"));
+    let sticky_start = css
+        .find("@media (hover: none) and (min-width: 1200px) {")
+        .expect("1200px 以上の hover:none ブロック");
+    let sticky = &css[sticky_start..];
+    let vh = sticky
+        .find("max-height: calc(100vh - ")
+        .expect("vh fallback");
+    let dvh = sticky.find("max-height: calc(100dvh - ").expect("dvh");
     assert!(vh < dvh, "dvh must follow the vh fallback");
+    assert!(sticky.contains("overflow-y: auto;"));
+    assert!(sticky.contains("overscroll-behavior: contain;"));
     let checked = rule_body(
         &css,
         "\n.docs-header .docs-nav-drawer-toggle:checked ~ nav.docs-nav-drawer {",

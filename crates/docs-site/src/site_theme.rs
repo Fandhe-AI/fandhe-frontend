@@ -1242,9 +1242,11 @@ body {\n\
  * 出す `input.docs-nav-drawer-toggle` → `label` → `nav.docs-nav-drawer`。開閉状態の\n\
  * 唯一の情報源は checkbox の `:checked`（JS 不要。`:focus-within` は使わない）。\n\
  * 旧サイドバーの Menu トグル（#3602/#3611）はこれに置き換えた。drawer は\n\
- * ヘッダー直下へ重なるパネルで、内容が収まらないときは drawer 内だけが縦スクロール\n\
- * し（`overscroll-behavior: contain` で背景へ連鎖させない）、`dvh` 未対応の\n\
- * ブラウザは直前の `vh` 宣言へフォールバックする。表示するのは 768px 未満と、\n\
+ * ヘッダー直下へ重なるパネル。1200px 未満のヘッダーは sticky ではなく折り返しで\n\
+ * 実高さが変わるため、drawer に viewport 基準の max-height は掛けず、長い内容は\n\
+ * ページ自体のスクロールで末尾まで辿れる（固定値で差し引くと下端が画面外に出る）。\n\
+ * 1200px 以上の `(hover: none)` はヘッダーが sticky・1 段固定なので、専用 `@media`\n\
+ * で drawer 内スクロール（`dvh` は `vh` へフォールバック）にする。表示するのは 768px 未満と、\n\
  * 768px 以上の `(hover: none)` 端末（下記の専用 `@media`）。\n\
  * `.docs-header-inner` は drawer の配置基準（`position: relative`）になる。\n\
  */\n\
@@ -1323,10 +1325,6 @@ body {\n\
   left: 0;\n\
   right: 0;\n\
   z-index: 20;\n\
-  max-height: calc(100vh - var(--fandhe-space-docs-header-height-stacked));\n\
-  max-height: calc(100dvh - var(--fandhe-space-docs-header-height-stacked));\n\
-  overflow-y: auto;\n\
-  overscroll-behavior: contain;\n\
   padding: 0.25rem 1.5rem 1rem;\n\
   background: var(--fandhe-color-bg);\n\
   border-bottom: 1px solid var(--fandhe-color-border);\n\
@@ -2241,6 +2239,8 @@ nav.prev-next .next .docs-pager-meta {\n\
   .docs-header nav.docs-nav-drawer {\n\
     max-height: calc(100vh - var(--fandhe-space-docs-header-height));\n\
     max-height: calc(100dvh - var(--fandhe-space-docs-header-height));\n\
+    overflow-y: auto;\n\
+    overscroll-behavior: contain;\n\
   }\n\
 }\n\
 \n\
