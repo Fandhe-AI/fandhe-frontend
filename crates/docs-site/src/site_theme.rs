@@ -674,13 +674,14 @@ body {\n\
   margin-top: 1.5rem;\n\
 }\n\
 \n\
-.docs-not-found-links ul {\n\
+/* 後段出力の `.docs-content ul`/`li`（typography_css）に負けないよう詳細度を上げる。 */\n\
+.docs-content .docs-not-found-links ul {\n\
   margin: 0;\n\
   padding: 0;\n\
   list-style: none;\n\
 }\n\
 \n\
-.docs-not-found-links li {\n\
+.docs-content .docs-not-found-links li {\n\
   padding-block: 0.5rem;\n\
   border-bottom: 1px solid var(--fandhe-color-border);\n\
 }\n\
