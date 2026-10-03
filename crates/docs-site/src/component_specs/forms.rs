@@ -3422,7 +3422,7 @@ fn demo_section(heading: &str, description: &str, demo: Node) -> Node {
             vec![],
             vec![
                 el("h2", vec![], vec![text(heading)]),
-                p(vec![], vec![text(description)]),
+                p(vec![], crate::markdown::inline_code_nodes(description)),
                 demo,
             ],
         )],
