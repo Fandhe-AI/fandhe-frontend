@@ -1050,3 +1050,73 @@ fn primitives_pages_render_via_primitive_showcase_not_showcase() {
     assert!(themes_html.contains(r#"data-scope="accordion""#));
     assert!(primitives_html.contains(r#"data-scope="accordion""#));
 }
+/// Demo 節（`<h2>Demo</h2>` から次の `<h2>` 直前まで）の HTML を切り出す。
+fn demo_body_of(html: &str) -> String {
+    let marker = "<h2>Demo</h2>";
+    let start = html.find(marker).expect("Demo heading") + marker.len();
+    let rest = &html[start..];
+    rest[..rest.find("<h2>").unwrap_or(rest.len())].to_string()
+}
+
+/// #3619: Themes の全部品ページの Demo はプレビュー枠をちょうど 1 個持ち、
+/// 説明文の `<p>` が枠より前（枠の外）に置かれる。
+#[test]
+fn themes_pages_wrap_demo_in_exactly_one_preview_frame_with_description_outside() {
+    for path in showcase::component_page_paths() {
+        let content = fandhe_frontend_docs_site::component_page::generated_content(path).unwrap();
+        let body = demo_body_of(&render(&content));
+        assert_eq!(
+            body.matches("class=\"showcase-preview\"").count(),
+            1,
+            "page {path} must have exactly one preview frame"
+        );
+        let frame = body.find("class=\"showcase-preview\"").unwrap();
+        if let Some(p) = body.find("<p>") {
+            assert!(p < frame, "page {path} description must precede the frame");
+        }
+    }
+}
+
+/// #3619: 軸ラベルは見出しではなく span で、代表ページに現れる。
+#[test]
+fn representative_pages_show_axis_labels_in_demo() {
+    for (path, labels) in [
+        (
+            "/themes/button/",
+            vec!["Variant", "Size", "Palette", "State"],
+        ),
+        ("/themes/table/", vec!["Variant", "Size"]),
+        ("/themes/bar-chart/", vec!["Vertical", "Horizontal"]),
+    ] {
+        let content = fandhe_frontend_docs_site::component_page::generated_content(path).unwrap();
+        let body = demo_body_of(&render(&content));
+        for label in labels {
+            assert!(
+                body.contains(&format!(
+                    "<span class=\"showcase-axis-label\">{label}</span>"
+                )),
+                "page {path} must label axis {label}"
+            );
+        }
+        assert!(!body.contains("<h3"), "axis labels must not be headings");
+    }
+}
+
+/// #3619: Anatomy 節の section は層別 class を持ち、h2 と `pre > code` は隣接のまま。
+#[test]
+fn anatomy_sections_carry_layer_class_and_keep_heading_adjacent() {
+    let mut checked = 0;
+    for path in showcase::component_page_paths() {
+        let content = fandhe_frontend_docs_site::component_page::generated_content(path).unwrap();
+        let html = render(&content);
+        if html.contains("<h2>Anatomy</h2>") {
+            assert!(
+                html.contains("<section class=\"showcase-anatomy\"><h2>Anatomy</h2><pre><code>"),
+                "page {path} anatomy section must carry the layer class"
+            );
+            assert!(!anatomy_part_names(&html).is_empty(), "page {path}");
+            checked += 1;
+        }
+    }
+    assert!(checked > 0);
+}
