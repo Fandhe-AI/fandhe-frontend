@@ -3041,8 +3041,14 @@ fn banner_announcement_pill_composes_expected_parts() {
     let out = build_real_site();
     let html = std::fs::read_to_string(out.join("blocks/banner-announcement-pill/index.html"))
         .expect("blocks/banner-announcement-pill/index.html should be generated");
-    // ヘッダー操作部（GitHub の pre-styled-ui link）を数えないよう block 領域に絞る（#3606）。
+    // ヘッダー操作部（GitHub の pre-styled-ui link、#3606）とサイトフッター（#3609）にも link root
+    // があるため、block 領域（ヘッダー除去後かつフッターより前）だけを数える。
     let html = without_site_header(&html);
+    let html = html
+        .split("<footer class=\"docs-footer\"")
+        .next()
+        .expect("split always yields a first part")
+        .to_string();
 
     let link_root_count = html
         .matches(r#"data-scope="link" data-part="root""#)

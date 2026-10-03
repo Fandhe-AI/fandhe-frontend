@@ -69,6 +69,11 @@ comm -23 /tmp/mods93.txt /tmp/showcase_sections.txt   # -> mod はあるが show
 
 ## 3. ページ単位の定義
 
+> **追記（イシュー #3617）**: Themes 部品のコード側の台帳は
+> `crates/docs-site/src/themes_catalog.rs`（path・title・カテゴリ・1 行説明）。
+> 索引ページ（`/themes/`）のカードグリッドの生成元で、`site/nav.toml` との
+> 一致は `tests/component_index_nav.rs` が固定する。
+
 > **改訂（2026-07-26、イシュー #1017/#1018、適用 #1031）**: URL 接頭辞は
 > `/components/` から `/themes/` へ、原稿ディレクトリは `site/components/`
 > から `site/themes/` へ移行済み（本節の表は移行後の値）。旧 URL は
