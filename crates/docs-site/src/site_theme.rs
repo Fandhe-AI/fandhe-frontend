@@ -1235,6 +1235,7 @@ nav.prev-next [data-part=\"overlay\"] {\n\
 \n\
 .docs-pager-link [data-scope=\"card\"][data-part=\"body\"] {\n\
   display: flex;\n\
+  flex-direction: row;\n\
   align-items: center;\n\
   gap: 0.75rem;\n\
   padding: 0.85rem 1rem;\n\
