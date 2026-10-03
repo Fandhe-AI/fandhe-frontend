@@ -108,48 +108,57 @@ pub fn wrap_code_blocks_outside_scopes(nodes: Vec<Node>) -> Vec<Node> {
     nodes.into_iter().map(|n| wrap_node(n, false)).collect()
 }
 
+/// `pre` 1 個をヘッダー（言語ラベル + コピーボタン）付きラッパー（`div.docs-code-block`）で包む。
+///
+/// [`wrap_code_blocks`] の各 `pre` と、Markdown を経由せず Rust 側で組む
+/// ヒーローのインストールコマンド（`crate::landing`、イシュー #3612）が同じ
+/// 骨格を共有するための単一実装点。`pre` の中身は所有権ごと移すのみ。
+#[must_use]
+pub fn copy_block(pre: Node) -> Node {
+    let mut header = Vec::new();
+    if let Node::Element { children, .. } = &pre {
+        if let Some(label) = fence_label(children) {
+            header.push(span(vec![("class", CODE_LANG_CLASS)], vec![text(label)]));
+        }
+    }
+    header.push(button(
+        vec![
+            ("type", "button"),
+            ("class", COPY_BUTTON_CLASS),
+            ("hidden", ""),
+            ("aria-label", "Copy code"),
+            (COPY_STATE_ATTR, "idle"),
+        ],
+        vec![],
+    ));
+    div(
+        vec![("class", CODE_BLOCK_CLASS)],
+        vec![
+            div(vec![("class", CODE_HEADER_CLASS)], header),
+            pre,
+            span(
+                vec![
+                    ("class", COPY_STATUS_CLASS),
+                    ("role", "status"),
+                    ("aria-live", "polite"),
+                ],
+                vec![],
+            ),
+        ],
+    )
+}
+
 fn wrap_node(node: Node, enter_scopes: bool) -> Node {
     match node {
         Node::Element {
             tag: "pre",
             attrs,
             children,
-        } => {
-            let label = fence_label(&children);
-            let mut header = Vec::new();
-            if let Some(label) = label {
-                header.push(span(vec![("class", CODE_LANG_CLASS)], vec![text(label)]));
-            }
-            header.push(button(
-                vec![
-                    ("type", "button"),
-                    ("class", COPY_BUTTON_CLASS),
-                    ("hidden", ""),
-                    ("aria-label", "Copy code"),
-                    (COPY_STATE_ATTR, "idle"),
-                ],
-                vec![],
-            ));
-            div(
-                vec![("class", CODE_BLOCK_CLASS)],
-                vec![
-                    div(vec![("class", CODE_HEADER_CLASS)], header),
-                    Node::Element {
-                        tag: "pre",
-                        attrs,
-                        children,
-                    },
-                    span(
-                        vec![
-                            ("class", COPY_STATUS_CLASS),
-                            ("role", "status"),
-                            ("aria-live", "polite"),
-                        ],
-                        vec![],
-                    ),
-                ],
-            )
-        }
+        } => copy_block(Node::Element {
+            tag: "pre",
+            attrs,
+            children,
+        }),
         Node::Element {
             tag,
             attrs,

@@ -92,6 +92,17 @@ pub const THEMES_SHOWCASE_CLASS: &str = "pre-styled-showcase";
 /// 固定する（設計 §5 / §9 A05）。
 pub const PRIMITIVES_SHOWCASE_CLASS: &str = "primitives-showcase";
 
+/// Themes の Demo 実演部をまとめるプレビュー枠 class（#3619）。`docs-*` ではなく
+/// `showcase-*` 接頭辞にするのは `STRUCTURE_CLASS_CONTRACT` の対象外とし、
+/// `showcase::SHOWCASE_LAYOUT_CSS` にセレクタを置くため。
+pub const THEMES_PREVIEW_CLASS: &str = "showcase-preview";
+
+/// Themes の Anatomy 節 `section` の class（#3619）。
+pub const THEMES_ANATOMY_CLASS: &str = "showcase-anatomy";
+
+/// Primitives の Anatomy 節 `section` の class（#3619）。
+pub const PRIMITIVES_ANATOMY_CLASS: &str = "primitives-demo-anatomy";
+
 /// 部品ページが属する層。`fandhe-frontend-pre-styled-ui`（スタイル済み・
 /// `/themes/`）と `fandhe-frontend-headless-ui`（unstyled・`/primitives/`）の
 /// 2 層を区別し、[`render_component_page`] の分岐（CSS 変数表・ラッパ class・
@@ -116,6 +127,15 @@ impl Layer {
             Layer::Primitives
         } else {
             Layer::Themes
+        }
+    }
+
+    /// Anatomy 節 `section` へ付ける層別 class（`pre` の見た目をプレビュー枠へ
+    /// そろえる CSS フック。h2 と `pre > code` の隣接は変えない）。
+    fn anatomy_class(self) -> &'static str {
+        match self {
+            Layer::Themes => THEMES_ANATOMY_CLASS,
+            Layer::Primitives => PRIMITIVES_ANATOMY_CLASS,
         }
     }
 
@@ -458,11 +478,11 @@ pub fn render_component_page(
         .unwrap_or_default();
 
     let mut sections = Vec::new();
-    sections.push(demo_section(demo));
+    sections.push(demo_section(demo, layer));
     if let Some(s) = features_section(spec) {
         sections.push(s);
     }
-    if let Some(s) = anatomy_section(&anatomy_parts) {
+    if let Some(s) = anatomy_section(&anatomy_parts, layer) {
         sections.push(s);
     }
     if let Some(s) = api_reference_section(scope.as_deref(), spec, &data_attrs, layer) {
@@ -480,13 +500,69 @@ pub fn render_component_page(
 
 /// `Demo` 節: [`showcase`] の生出力から先頭の部品名 `h2`（重複見出し。
 /// §3.3 参照）を 1 個だけ除去して `Demo` 見出し配下へ格納する。
-fn demo_section(demo: Node) -> Node {
+///
+/// Themes 層のみ、先頭 `section` の説明文（先頭から続く `p`）を枠の外へ残し、
+/// 残りの実演部を `div.showcase-preview` で包む（#3619）。想定外の形は無加工。
+/// 枠は `data-scope` を持たないため Anatomy 導出・検索インデックスに影響しない。
+fn demo_section(demo: Node, layer: Layer) -> Node {
     let stripped = strip_demo_heading(demo);
+    let stripped = match layer {
+        Layer::Themes => wrap_preview_frame(stripped),
+        Layer::Primitives => stripped,
+    };
     el(
         "section",
         vec![],
         vec![h2(vec![], vec![text("Demo")]), stripped],
     )
+}
+
+/// `div > section` の `section` 子要素を「先頭の連続 `p`（説明文）」と
+/// 「残り（実演部）」に分け、後者を `div.showcase-preview` で包む。
+/// 形が違えば無加工で返す全域関数（再帰なし）。
+fn wrap_preview_frame(node: Node) -> Node {
+    let Node::Element {
+        tag,
+        attrs,
+        mut children,
+    } = node
+    else {
+        return node;
+    };
+    if tag != "div" || children.is_empty() {
+        return Node::Element {
+            tag,
+            attrs,
+            children,
+        };
+    }
+    let first = children.remove(0);
+    let first = match first {
+        Node::Element {
+            tag: stag,
+            attrs: sattrs,
+            children: mut schildren,
+        } if stag == "section" => {
+            let lead = schildren
+                .iter()
+                .take_while(|c| matches!(c, Node::Element { tag, .. } if *tag == "p"))
+                .count();
+            let rest = schildren.split_off(lead);
+            schildren.push(div(vec![("class", THEMES_PREVIEW_CLASS)], rest));
+            Node::Element {
+                tag: stag,
+                attrs: sattrs,
+                children: schildren,
+            }
+        }
+        other => other,
+    };
+    children.insert(0, first);
+    Node::Element {
+        tag,
+        attrs,
+        children,
+    }
 }
 
 /// `showcase::generated_content` が返す `div.pre-styled-showcase > section >
@@ -574,7 +650,7 @@ fn features_section(spec: &ComponentPageSpec) -> Option<Node> {
 /// 表現（入れ子深さ = 半角スペース 2 個/段）で `pre > code` に列挙する
 /// （設計 §7 のコードブロック形式。`raw_html` を使わずリテラルテキストで
 /// 出力するため `text()` に委ねる）。
-fn anatomy_section(parts: &[AnatomyPart]) -> Option<Node> {
+fn anatomy_section(parts: &[AnatomyPart], layer: Layer) -> Option<Node> {
     if parts.is_empty() {
         return None;
     }
@@ -588,7 +664,7 @@ fn anatomy_section(parts: &[AnatomyPart]) -> Option<Node> {
     }
     Some(el(
         "section",
-        vec![],
+        vec![("class", layer.anatomy_class())],
         vec![
             h2(vec![], vec![text("Anatomy")]),
             pre(vec![], vec![code(vec![], vec![text(body)])]),
