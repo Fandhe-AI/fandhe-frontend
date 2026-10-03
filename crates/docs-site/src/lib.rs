@@ -86,6 +86,10 @@
 //!   経路には乗せない（詳細は [`wireframes`] モジュール doc 参照）。専用 CSS
 //!   （`assets/wireframes.css`）は `crates/docs-site/tests/wireframes_contract.rs`
 //!   等が固定する
+//! - [`page_sections`][]: 任意ページへ Rust 生成節を差し込む汎用フック
+//!   （イシュー #3598）。ページパスを鍵とする登録表（基盤導入時点では空）から
+//!   生成関数を引く第 5 の Rust 生成コンテンツ供給元で、[`build`] が
+//!   `render_markdown` の直後（blocks / wireframes の後）に適用する
 //!
 //! `fandhe-frontend-core` / `fandhe-frontend-app` / `fandhe-frontend-server` /
 //! `fandhe-frontend-pre-styled-ui` / `fandhe-frontend-wireframe-ui` のみに
@@ -120,6 +124,7 @@ pub mod layout;
 pub mod linkcheck;
 pub mod markdown;
 pub mod nav;
+pub mod page_sections;
 pub mod primitive_showcase;
 pub mod primitive_specs;
 pub mod primitives_catalog;
