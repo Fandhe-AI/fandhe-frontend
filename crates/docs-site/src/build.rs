@@ -169,6 +169,7 @@ use crate::redirect::{self, RedirectError};
 use crate::script;
 use crate::search_index::{self, SearchIndexError};
 use crate::showcase;
+use crate::site_footer;
 use crate::site_theme::{self, SiteThemeError};
 use crate::skip_nav;
 use crate::wireframes;
@@ -491,6 +492,9 @@ pub fn build_site_with(
     // `nav.all_pages()`（唯一の正規走査経路）でページ生成する。グループ
     // 配下ページ（イシュー #939）も直下ページと同一のビルド経路を通り、
     // サイレントに取りこぼされないことを構造的に保証する。
+    // 全ページ共通のサイトフッター（イシュー #3609）。現在ページに依存しないため
+    // ループ前に 1 回だけ組み立て、各ページへ clone して渡す。
+    let footer_node = site_footer::site_footer(&nav);
     for page in nav.all_pages() {
         let source_path = repo_root.join(&page.source);
         let markdown_input =
@@ -653,6 +657,7 @@ pub fn build_site_with(
             body,
             &extra_stylesheets,
             Some(nav::header_nav(&nav, &page.path)),
+            Some(footer_node.clone()),
             page_sections::layout_for_path_in(registry, &page.path),
         );
 
