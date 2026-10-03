@@ -2182,3 +2182,30 @@ fn prev_next_recipe_classes_are_supplied_by_site_recipes() {
         );
     }
 }
+
+/// 404 ページの class（イシュー #3623、`crate::not_found`）。通常フィクスチャには
+/// 現れないため `CODE_COPY_CLASSES` と同じ別契約で固定する。
+const NOT_FOUND_CLASSES: &[&str] = &["docs-not-found", "docs-not-found-links"];
+
+#[test]
+fn not_found_classes_match_module_constants_and_have_css_selectors() {
+    use fandhe_frontend_docs_site::not_found;
+    assert_eq!(
+        NOT_FOUND_CLASSES,
+        [not_found::NOT_FOUND_CLASS, not_found::NOT_FOUND_LINKS_CLASS]
+    );
+    let css_tokens = extract_css_class_selectors(&site_css());
+    for class in NOT_FOUND_CLASSES {
+        assert!(css_tokens.contains(*class), "{class} が site.css に無い");
+    }
+}
+
+#[test]
+fn not_found_classes_never_appear_in_fixture_html() {
+    for toc in [true, false] {
+        let tokens = extract_class_tokens(&full_page_html(toc));
+        for class in NOT_FOUND_CLASSES {
+            assert!(!tokens.contains(*class), "{class} がフィクスチャに出現した");
+        }
+    }
+}
