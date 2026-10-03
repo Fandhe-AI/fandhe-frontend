@@ -725,6 +725,27 @@ fn binary_exits_zero_and_reports_written_counts_for_ok_fixture() {
     nav.push_str(
         "\n[[section.page]]\ntitle = \"Start\"\nsource = \"site/getting-started/quickstart.md\"\npath = \"/getting-started/quickstart/\"\n",
     );
+    // 特徴グリッドのカード 5 枚の遷移先（`landing::FEATURES` の href_rel）も足す。
+    for (i, rel) in [
+        "api/component-api",
+        "api/interactive-api",
+        "guides/deployment",
+        "guides/embedding-guide",
+        "examples",
+    ]
+    .iter()
+    .enumerate()
+    {
+        let source = format!("site/feature-{i}.md");
+        std::fs::write(
+            root.0.join(&source),
+            "## Feature\n\nlanding feature target\n",
+        )
+        .expect("write feature target");
+        nav.push_str(&format!(
+            "\n[[section.page]]\ntitle = \"Feature {i}\"\nsource = \"{source}\"\npath = \"/{rel}/\"\n"
+        ));
+    }
     std::fs::write(root.0.join("site/nav.toml"), nav).expect("write nav");
     let output = Command::new(docs_site_bin())
         .arg("--root")
@@ -742,7 +763,7 @@ fn binary_exits_zero_and_reports_written_counts_for_ok_fixture() {
     );
     assert!(out.0.join("index.html").exists());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("wrote 3 page(s)"));
+    assert!(stdout.contains("wrote 8 page(s)"));
 }
 
 #[test]
