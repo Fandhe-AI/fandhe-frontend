@@ -207,6 +207,15 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 ## 11. 未決事項
 
 - （確定済み）トップの landing 用分岐は §6 の第一案（`layout.rs` に landing 用ラッパー分岐）を採用する。#3598 のフックは `docs-landing` class・CSS を持ち込まず（登録ページが無い状態で class を足すと `site_css_contract.rs` の双方向突合に違反するため）、実装は #3612 がフックの `Prepend` の上に載せる。H1 とリード文の扱いも #3612 が決める。
+- （確定済み、#3612）トップのヒーローとランディング骨格の実装判断。実装は `crates/docs-site/src/landing.rs`。
+  - 骨格の鍵: `layout::PageLayout { Docs, Landing }` を新設し、`page_sections::PageSection::layout` が登録表からページ単位で宣言する。`page.path == "/"` の直書き判定は、フィクスチャサイトにも `/` があり汎用エンジンの挙動が変わるため採らない。
+  - サイドバー: `aside.docs-sidebar` は DOM に残し、768px 以上でだけ CSS で隠す。768px 未満はヘッダーナビが非表示で、サイドバーの Menu トグルが唯一のナビ手段のため。右目次・折りたたみ目次は出さない。DOM 順序（SkipNav・`article.docs-content`）は標準骨格と同一。
+  - h1 とリード文: pre-styled-ui の `heading` / `text` は使わず、素の `h1` / `p` に `docs-hero-*` class を付ける。両部品は `data-scope` を持ち、配下は検索インデックスと TOC から除外されるため（§3 対応表の部品リストからの意図的な逸脱）。リード文は旧 `site/index.md` 冒頭段落を移し、原稿側からは削除した（二重に持たない）。
+  - CTA: `<a>` を出す `link::root` を使い、見た目は `data-docs-hero-cta` 属性で `.docs-hero-actions` 配下から当てる。`clipboard` 部品は wasm 配線前提で使わず、コピーは #3605 の機構へ `code_copy::copy_block` 経由で載せる。
+  - badge のバージョン: `crates/cli/Cargo.toml` の `[package]` から `include_str!` で取り出し、CLI のバンプへ自動追随させる。
+  - CSS: `landing::CSS` を `STRUCTURAL_CSS` の直後に `site.css` へ積む（ヒーローが使う recipe が `site.css` にしか無いため別ファイルにしない）。契約は `site_css_contract.rs` の `LANDING_CLASSES`。
+  - テスト: 本番登録表の `/` はサイト専用の内容のため、合成フィクスチャのビルドは `build_site_with(.., &EMPTY_REGISTRY)` を使う（アサーションは緩めない）。バイナリ経由のテストは CTA の遷移先ページを足した作業コピーをビルドする。
+  - 後続（#3613〜#3615）: `/` の登録は 1 件しか持てない（`DuplicatePath`）ため、`landing::render` の返す節列へ節を追記して拡張する。
 - 指標（`stats-row`）に載せる数値の算出元は #3614 で確定する。
 - （確定済み・#3607）ページ見出しは `crates/docs-site/src/page_header.rs` が `build.rs` のページループで、生成節の挿入後に本文先頭へ置く。
   - Markdown 由来の h1 は pre-styled-ui の `heading` へ置き換えず、パンくずの後ろへ移設する（`header.docs-page-heading`）。`heading` は `data-scope` を持つため、検索インデックスから h1 の文言が落ちるのと、「文書の h1 = `data-scope` の外の `<h1>`」という判定が崩れるのを避ける。Themes・Blocks のデモ内の h1 は `data-scope="heading"` 付きで、文書の見出し構造には数えない。
