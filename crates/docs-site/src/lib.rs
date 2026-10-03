@@ -137,6 +137,7 @@ pub mod primitives_catalog;
 pub mod redirect;
 pub mod script;
 pub mod search_index;
+pub mod section_index;
 pub mod showcase;
 pub mod site_footer;
 pub mod site_theme;
