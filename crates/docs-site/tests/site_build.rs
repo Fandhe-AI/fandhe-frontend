@@ -303,10 +303,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // から導出し、セクション追加時に本テストの手修正を要しない）。
     // Primitives ページ専用の recipe 抜き `site-primitives.css`（イシュー
     // #3599 のレビュー指摘）が加わり 1 件増えた（favicon との合算で 17 + セクション数）。イシュー #3616 で索引カード専用
-    // `section-index.css` が加わり 18 + セクション数になった。
+    // `section-index.css` が加わり 18 + セクション数になった。イシュー #3617 で
+    // Themes・Primitives 索引専用 `component-index.css` が加わり 19 + セクション数になった。
     assert_eq!(
         report.assets.len(),
-        18 + nav.sections.len(),
+        19 + nav.sections.len(),
         "{:?}",
         report.assets
     );
@@ -702,8 +703,8 @@ fn docs_site_bin() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_docs-site"))
 }
 
-/// バイナリは本番の生成節登録表（`/guides/`・`/api/`・`/examples/`、#3616）を
-/// 使うため、登録ページを nav に持たない fixture はビルドできない（fail-closed）。
+/// バイナリは本番の生成節登録表（`/guides/`・`/api/`・`/examples/`、#3616、
+/// `/primitives/`・`/themes/`、#3617）を使うため、登録ページを nav に持たない fixture はビルドできない（fail-closed）。
 /// 成功経路は実リポジトリで検証する。
 #[test]
 fn binary_exits_zero_and_reports_written_counts_for_real_site() {
@@ -727,7 +728,7 @@ fn binary_exits_zero_and_reports_written_counts_for_real_site() {
     assert!(stdout.contains("wrote "));
 }
 
-/// 本番登録表が要求する 3 ページを持つ一時サイトで、リンク切れを検知する。
+/// 本番登録表が要求するページを持つ一時サイトで、リンク切れを検知する。
 #[test]
 fn binary_exits_nonzero_with_link_check_report_for_broken_fixture() {
     let temp = TempDir::new("bin-broken");
@@ -738,6 +739,8 @@ fn binary_exits_nonzero_with_link_check_report_for_broken_fixture() {
         ("Guides", "/guides/", "g"),
         ("API Reference", "/api/", "a"),
         ("Examples", "/examples/", "e"),
+        ("Primitives", "/primitives/", "p"),
+        ("Themes", "/themes/", "t"),
         ("Home", "/", "h"),
         ("Start", "/getting-started/quickstart/", "q"),
     ] {

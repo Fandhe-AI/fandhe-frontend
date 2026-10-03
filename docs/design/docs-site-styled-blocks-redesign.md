@@ -85,6 +85,13 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 
 `grid-list-*` は `grid-list-action-tiles`（icon / heading / text のみ）を第一手本とし、`grid-list-compact-tiles`（avatar・menu・画像を含む）は構造のみ参照とする。副次所見として、ローカル配信では `/favicon.ico` が 404 だった（#3604 の対象）。
 
+### 3.1 確定事項（#3610: 右目次と折りたたみ目次）
+
+- 主に CSS で変更する（`toc_nav` / `toc_items` の出力、`class="docs-toc"` の唯一性と anchor 構造は不変。`toc_inline` の summary にのみ装飾 svg を追加する）。
+- 右目次は `ul` の 1px 縦線（rail）に、現在地 `a[aria-current="location"]::before` の 2px アクセント縦棒を重ねる。進捗の段階表現は採用しない。階層インデントは `li` ではなく `a` の padding で表す。
+- 折りたたみ目次の開閉アイコンは素の `svg.docs-toc-inline-icon`（`icon::icon` は使わない。recipe 抜きの `site-primitives.css` で `fd-icon--size-md` が未定義になるため）。`details[open]` で CSS 回転し、`prefers-reduced-motion` では transition を外す。
+- 色トークンは新設せず、スクロールスパイ以外の JS は追加しない。
+
 ### 3.2 ヘッダー操作部の確定事項（#3606）
 
 手本は `navbar-docs-site`（構造のみ参照）。`docs-*` class の契約（HTML への出現・`site.css` のセレクタ・`SITE_JS` のセレクタ・`no_js_contract` のリテラル）は削除も緩和もしない。pre-styled-ui の root 部品は呼び出し側の `class` を捨てるため、`docs-*` class は自前の要素（ラッパーまたは素の要素）に残し、pre-styled-ui 部品はその内側へ置く。
@@ -137,9 +144,18 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 確定事項（#3605）:
 
 - 骨格は `crates/docs-site/src/code_copy.rs` の `wrap_code_blocks` が作る。`build.rs` の `render_markdown` 直後（blocks / wireframes の挿入より前）に適用するため、対象は Markdown 由来のフェンスに限られ、Blocks の demo と Anatomy の `pre` は包まない。`markdown::parse_fence` の出力は変えない。
-- 構造は `div.docs-code-block > pre + button.docs-code-copy[hidden] + span.docs-code-copy-status[role=status][aria-live=polite]`。状態は `data-copy-state` の `idle` / `copied` / `failed` の 3 値。
+- 構造（#3605 時点の履歴。現行は下記「確定事項（#3620）」の構造）は `div.docs-code-block > pre + button.docs-code-copy[hidden] + span.docs-code-copy-status[role=status][aria-live=polite]`。状態は `data-copy-state` の `idle` / `copied` / `failed` の 3 値。
 - ボタンの可視ラベル（Copy / Copied / Failed）は SSG では出さず、JS が `textContent` で入れる（検索インデックスへ共通語を混入させないため）。
 - Phase 3（ヒーロー、#3612）・Phase 5（コードブロックヘッダー、#3620）は、この `div.docs-code-block` ラッパーと JS の契約（ラッパー内の `pre`・ボタン・ステータス）を再利用する。
+
+確定事項（#3620）:
+
+- 構造は `div.docs-code-block > div.docs-code-header[span.docs-code-lang? + button.docs-code-copy] + pre + span.docs-code-copy-status` へ変わった。ボタンはヘッダー内へ移り、`site.js` は `closest('.docs-code-block')` で解決するため変更なし。
+- ラベルは `code` の `language-<token>` class を `code_copy::language_label` の静的対応表（rust / toml / bash / sh / shell / html / css / js / javascript / json / jsonc / text）で引く。無指定・未知の言語はラベル要素を出さない（入力由来の文字列は HTML へ出さない）。ハイライト対応言語とは独立。
+- ヘッダー帯は常に flow へ置く。ラベルなし・ボタン `hidden` の間も帯を残し、JS が `hidden` を外しても `pre` が押し下がらないようにする（`:has()` で隠す方式は読み込み時のレイアウトずれを生むため採らない）。
+- ヘッダー帯の語は `search_index` が部分木ごと除外する（Rust 等の共通語の混入防止）。
+- 部品ページ Examples の `pre` は `wrap_code_blocks_outside_scopes` で包む（`data-scope` の部分木と Anatomy は包まない）。Primitives の CSS スニペットは `code_copy::css_snippet_block` で `language-css` を付ける。
+- 対象外: ファイル名表示（info string の拡張が `parse_fence` の出力契約へ波及する）、ハイライト対応言語の追加。
 
 ## 5.1 セクション索引のカードグリッド（#3616）
 
@@ -151,6 +167,17 @@ Guides・API Reference・Examples の 3 セクショントップは、汎用生�
 - Placement は `/guides/` が `Append`（h2 節を全撤去）、`/api/` と `/examples/` が `BeforeFirstH2`。API はクレート別 6 グループ（グループ見出し h2 は TOC・検索に載せ、カードは h3）。
 - `/examples/` の本文（`docs/guides/examples.md`）の比較表・読む順はリンク箇条書きの二重管理ではなく実質的な内容のため変更しない。
 - 本番登録表が実 nav 前提になるため、fixture ビルドは `page_sections::EMPTY_REGISTRY` + `build_site_with` で行う（`validate` の `UnknownPage` 検査は緩めない）。バイナリ経由のテストは実リポジトリ、または登録 3 ページを持つ一時サイトで行う。
+
+## 5.2 Themes・Primitives 索引のカテゴリ別カードグリッド（#3617）
+
+`/themes/`・`/primitives/` の索引は、汎用生成節フック（#3598）で差し込むカテゴリ別カードグリッドにする。確定事項は次のとおり。
+
+- 台帳は層ごとに持つ。Primitives は既存の `primitives_catalog::PrimitiveEntry` へ `description` を追加し、Themes は Rust 台帳が無かったため `crates/docs-site/src/themes_catalog.rs`（`ThemeEntry` / `ThemeCategory`）を新設した。Themes の台帳と `site/nav.toml` の Themes グループ（題名・順序・path・title）の完全一致、および `site/themes/*.md` との集合一致は `tests/component_index_nav.rs` が固定する。これで手書きリンク集で起きていたドリフト（5 部品の欠落）を機械検知できる。説明文は 1 行・80 文字以内・バッククォートと内部番号なしで、Primitives は構造・ARIA、Themes は見た目の観点で書く。
+- 生成は `crates/docs-site/src/component_index.rs`。`section_index.rs` は #3618 との衝突を避けるため変更せず、CSS も別ファイル `assets/component-index.css`・class 接頭辞 `docs-catalog-*` で自己完結させ、2 ページにだけ `<link>` する。
+- 構造はカテゴリごとに `div.docs-catalog-category > (div.docs-catalog-category-head > h2 + 件数 badge) + ul.docs-catalog-grid > li.docs-catalog-card`。件数 badge は h2 の兄弟に置く（h2 内に入れると TOC の題名と slug が「Typography12」のように汚れる）。件数は台帳から算出する。カードは名前・1 行説明・層 badge（Themes は Subtle/Accent、Primitives は Outline/Neutral）で、画像サムネイルは使わない。
+- 最小トラック幅は 13rem。本文幅が 46rem のため、#3616 の 15rem では 1440px でも 2 列にしかならず、13rem で 375px = 1 列・768px = 2 列・1440px = 3 列になる。`.docs-content` 自体は広げない。
+- カード内の説明文は検索インデックスに載せない。li の class を `docs-index-card` にせず `search_index` の特例を効かせないためで、部品ページが個別に索引化済みであること、123 枚分が 1 ページ 4000 バイトの切り詰めで凡例を押し出すことを避けるのが理由。
+- 原稿で置き換える範囲は「リンク集だけを生成へ移し、リード・NOTE・凡例（掲示の読み方）・関連 API は原稿に残す」。Placement はどちらも `BeforeFirstH2`（グリッドは凡例または関連 API の直前）。
 
 ## 6. トップページのレイアウト方針
 
@@ -252,6 +279,14 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
   - 説明文（`text`）は front matter が未対応のため見送る。
   - Primitives ページは breadcrumb recipe を含まない `site-primitives.css` を読むため、`STRUCTURAL_CSS` に同値の代替規則を置く（`.docs-content` 前置で詳細度を確保）。
   - `< 1200px` では本文冒頭の折りたたみ目次がパンくずより上に出る（DOM 順序の契約を変えないため許容）。
+- （確定済み・#3609）サイトフッターは `crates/docs-site/src/site_footer.rs` が組み立て、`layout::docs_page_with_assets` の `footer` 引数で `<body>` の最後の子（`div.docs-container` の直後）へ置く。
+  - 本文 `Node` へ足さない理由: `<footer>` は `main` / `article` 等の子孫だと暗黙の `contentinfo` を失い、TOC・検索インデックスにも混入するため。sticky のサイドバー・右目次の包含ブロックは `.docs-container` なので、外側の兄弟であるフッターとは構造上重ならない。Blocks デモ内の `<footer>` は `main` の内側で `contentinfo` にならず、ページあたり 1 つに保たれる。`role` は明示しない。
+  - 列は `nav.sections` の宣言順に 1 セクション 1 列。先頭は索引ページ、続けてセクション直下ページを宣言順に並べ、1 列 5 件（`FOOTER_LINKS_PER_SECTION`）で打ち切る。グループ配下は含めない。`nav.toml` に代表ページ指定は設けない。
+  - 下段に著作権表記・ライセンス（MIT OR Apache-2.0、`LICENSE-*` へのリンク）・GitHub・crates.io を置く。外部リンクはすべて `external: true`。
+  - `icon` は使わない。実在ブランドのロゴを模した SVG を持ち込まないため。
+  - リダイレクト案内ページは `docs_page_with_assets` を通らないため対象外。
+  - CSS は `STRUCTURAL_CSS` 末尾に追加し、Primitives ページ向けに recipe と同値の代替規則を `.docs-footer` 前置で置く。新しい色トークンは追加していない。
+  - `no_js_contract` の静的アンカー表に `docs-footer` を追加した。
 
 ## 11.1 確定事項（#3619 部品ページの Demo）
 
@@ -261,6 +296,13 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 - 軸ラベルは `showcase::axis_row` / `axis_stack` で付ける（`span`、見出しにしない）。variant / size / palette / state / shape / orientation / curve 等の軸束縛と、button・table・bar-chart の各行が対象。ラベルは `data-scope` の外にあるため短い英語の語に限り、検索インデックスへ入る点は許容する。
 - Anatomy は `h2` と `pre > code` の隣接・字下げ本文の形式を変えず（テストのパーサが依存）、`section` の class と CSS だけで枠と同じ体裁にする。
 - Blocks（`.blocks-demo`）は DOM・class を変えず、CSS の値のみトークン化して共通の枠にそろえる。
+
+## 11.2 確定事項（#3621 部品ページの API 表）
+
+- API 表（Arguments / Data Attributes / CSS Variables）は pre-styled-ui の `table` / `code` / `badge` recipe を使わず、core の `table` / `th` / `td` と属性なしの `code` で組む（§3 の手本からの意図的な逸脱）。`data-scope` 配下が検索インデックスから除外されること、Primitives が recipe 抜きの CSS を読むことが理由で、#3619 の Demo 枠と同じ判断である。
+- CSS フックは `docs-*` class ではなく `table[data-docs-api-table]`（値は `arguments` / `data-attributes` / `css-variables`）と、空値プレースホルダの `span[data-docs-api-placeholder]` にする。`STRUCTURE_CLASS_CONTRACT` に触れないため。
+- 表記: 名前は行見出し（`th scope="row"`）、型・既定値・Part・属性名・観測値は `code`。既定値が空・`-` なら「—」、観測値が空文字なら「（値なし）」を出す（列は消さない）。非 ASCII を含む既定値（`(必須)` 等）は散文として `code` にしない。
+- 狭幅（767.98px 以下）は DOM を変えず CSS だけで縦積みにする。各セルの `data-label`（コンパイル時定数）を `::before` で見出しとして出し、`thead` は隠す。768px 以上は従来の表のまま、はみ出しは表内の横スクロールで逃がす。CSS は `site_theme::API_TABLE_CSS`（Themes / Primitives 両方に含まれる）。
 
 ## 12. 関連文書
 

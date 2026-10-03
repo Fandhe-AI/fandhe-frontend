@@ -297,6 +297,7 @@ fn header_nav_html_class_tokens_are_covered_by_site_css() {
         fixture_body(),
         &[],
         Some(header_nav(&nav, "/quickstart/")),
+        None,
     );
     let html = render(&node);
     assert_all_classes_covered(
@@ -535,6 +536,8 @@ const TOC_ONLY_CLASSES: &[&str] = &[
     // 右目次と完全に一致する（`crate::layout::toc_inline` rustdoc 参照）。
     "docs-toc-inline",
     "docs-toc-inline-summary",
+    // イシュー #3610: 折りたたみ目次の開閉シェブロン（装飾 svg）。
+    "docs-toc-inline-icon",
 ];
 
 /// 見出しが 1 つも無いページのみ出現する修飾 class
@@ -630,6 +633,7 @@ fn full_page_html(with_headings: bool) -> String {
         body,
         &[],
         Some(header_nav_node),
+        None,
     );
     render(&node)
 }
@@ -702,6 +706,7 @@ fn full_page_html_with_groups() -> String {
         body,
         &[],
         Some(header_nav_node),
+        None,
     );
     render(&node)
 }
@@ -721,7 +726,12 @@ fn classes_outside_contract(html: &str) -> Vec<String> {
         .collect();
     let mut violations: Vec<String> = extract_class_tokens(html)
         .into_iter()
-        .filter(|token| token.starts_with("docs-") && !contract.contains(token.as_str()))
+        .filter(|token| {
+            token.starts_with("docs-")
+                && !contract.contains(token.as_str())
+                // Examples の `pre` はコピー系ヘッダーで包まれる（#3620）
+                && !CODE_COPY_CLASSES.contains(&token.as_str())
+        })
         .collect();
     violations.sort();
     violations
@@ -1507,7 +1517,13 @@ fn header_actions_can_shrink_on_narrow_viewports() {
 /// コピーボタン関連 class（イシュー #3605、`crate::code_copy`）。Markdown の
 /// フェンスがあるページにだけ出現し、フルページのフィクスチャには現れない
 /// ため、`SEARCH_JS_ONLY_CLASSES` と同様に層 1 本体とは別の契約で固定する。
-const CODE_COPY_CLASSES: &[&str] = &["docs-code-block", "docs-code-copy", "docs-code-copy-status"];
+const CODE_COPY_CLASSES: &[&str] = &[
+    "docs-code-block",
+    "docs-code-header",
+    "docs-code-lang",
+    "docs-code-copy",
+    "docs-code-copy-status",
+];
 
 #[test]
 fn code_copy_classes_match_module_constants_and_have_css_selectors() {
@@ -1516,6 +1532,8 @@ fn code_copy_classes_match_module_constants_and_have_css_selectors() {
         CODE_COPY_CLASSES,
         [
             code_copy::CODE_BLOCK_CLASS,
+            code_copy::CODE_HEADER_CLASS,
+            code_copy::CODE_LANG_CLASS,
             code_copy::COPY_BUTTON_CLASS,
             code_copy::COPY_STATUS_CLASS
         ]
@@ -1560,6 +1578,7 @@ fn landing_page_html() -> String {
         body,
         &[],
         Some(header_nav(&nav, "/quickstart/")),
+        None,
         PageLayout::Landing,
     );
     render(&node)
@@ -1819,6 +1838,91 @@ fn page_breadcrumb_fallback_rules_exist_in_both_stylesheets() {
     }
 }
 
+/// サイトフッター関連 class（イシュー #3609、`crate::site_footer`）。`build_site` が
+/// `docs_page_with_assets` の `footer` 引数で差し込むためフルページのフィクスチャ
+/// （`footer: None`）には現れず、`PAGE_HEADING_CLASSES` と同様に層 1 本体とは別枠で固定する。
+const SITE_FOOTER_CLASSES: &[&str] = &[
+    "docs-footer",
+    "docs-footer-inner",
+    "docs-footer-nav",
+    "docs-footer-columns",
+    "docs-footer-group",
+    "docs-footer-list",
+    "docs-footer-bottom",
+    "docs-footer-external",
+];
+
+#[test]
+fn site_footer_classes_match_module_constants_and_have_css_selectors() {
+    use fandhe_frontend_docs_site::site_footer as sf;
+    assert_eq!(
+        SITE_FOOTER_CLASSES,
+        [
+            sf::FOOTER_CLASS,
+            sf::FOOTER_INNER_CLASS,
+            sf::FOOTER_NAV_CLASS,
+            sf::FOOTER_COLUMNS_CLASS,
+            sf::FOOTER_GROUP_CLASS,
+            sf::FOOTER_LIST_CLASS,
+            sf::FOOTER_BOTTOM_CLASS,
+            sf::FOOTER_EXTERNAL_CLASS,
+        ]
+    );
+    let css_tokens = extract_css_class_selectors(&site_css());
+    for class in SITE_FOOTER_CLASSES {
+        assert!(css_tokens.contains(*class), "{class} が site.css に無い");
+    }
+    for html in [full_page_html(true), full_page_html(false)] {
+        let tokens = extract_class_tokens(&html);
+        for class in SITE_FOOTER_CLASSES {
+            assert!(!tokens.contains(*class), "{class} がフィクスチャに出現した");
+        }
+    }
+}
+
+/// フッター単体の出力に現れる class（`docs-*` と recipe の `fd-*`）がすべて
+/// `site.css` のセレクタに存在すること（層 2 型。CSS 未供給の class を出さない）。
+#[test]
+fn site_footer_output_classes_are_all_styled_in_site_css() {
+    let html = render(&fandhe_frontend_docs_site::site_footer::site_footer(
+        &fixture_nav(),
+    ));
+    let css_tokens = extract_css_class_selectors(&site_css());
+    for token in extract_class_tokens(&html) {
+        if token.starts_with("docs-") || token.starts_with("fd-") {
+            assert!(
+                css_tokens.contains(token.as_str()),
+                "{token} が site.css に無い"
+            );
+        }
+    }
+}
+
+/// Primitives ページは recipe を持たない `site-primitives.css` を読むため、
+/// フッターの代替規則が両方の CSS にあることを固定する。
+#[test]
+fn site_footer_fallback_rules_exist_in_both_stylesheets() {
+    let with = site_css();
+    let without = site_theme::stylesheet_without_recipes()
+        .expect("site theme stylesheet without recipes should assemble")
+        .as_css()
+        .to_string();
+    for css in [&with, &without] {
+        let start = css
+            .find(".docs-footer .docs-footer-list,")
+            .expect("フッターのリスト代替規則が無い");
+        let block = &css[start..];
+        let block = &block[..block.find('}').unwrap()];
+        for expected in ["list-style: none;", "padding: 0;"] {
+            assert!(block.contains(expected), "{expected} が無い: {block}");
+        }
+        assert!(
+            css.contains(".docs-footer.docs-footer a {"),
+            "フッターのリンク規則が無い"
+        );
+    }
+}
+
 #[test]
 fn site_recipes_are_byte_identical_substrings_of_showcase_css_in_same_order() {
     let showcase = fandhe_frontend_docs_site::showcase::stylesheet()
@@ -1982,11 +2086,16 @@ fn representative_recipe_markup_is_covered_by_generated_site_css() {
 }
 
 #[test]
-fn code_copy_pre_padding_selector_outranks_typography_pre_padding() {
-    // `.docs-content pre { padding }`（詳細度 0,1,1）に上書きされるとコピー
-    // ボタンがコード先頭行へ重なるため、より高い詳細度のセレクタで固定する。
+fn code_block_wrapper_owns_border_and_header_rules_outrank_typography_pre() {
+    // `.docs-content pre { margin/border }`（詳細度 0,1,1）より高い詳細度で、
+    // 枠をラッパーへ移し `pre` の枠を外す（#3620）。
     let css = site_css();
+    assert!(css.contains(".docs-content .docs-code-block {"));
     assert!(css.contains(".docs-content .docs-code-block pre {"));
+    assert!(css.contains(".docs-code-header {"));
+    assert!(css.contains(".docs-code-lang {"));
+    // 帯を :has() で隠すと hidden 解除時にレイアウトがずれるため、隠す規則は持たない。
+    assert!(!css.contains(".docs-code-header:not(:has("));
 }
 /// イシュー #3606: pre-styled-ui の呼び出し側 class 破棄を `.docs-*` 前置の
 /// 詳細度で補う規則（link の配色・input_group 内の素の input のリセット）が

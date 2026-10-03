@@ -294,6 +294,7 @@ fn sidebar_and_header_and_prev_next_navigation_uses_static_anchor_hrefs() {
             ("docs-sidebar", "sidebar"),
             ("docs-header-nav", "header nav"),
             ("prev-next", "prev/next"),
+            ("docs-footer", "footer"),
         ] {
             if let Some(start) = html.find(&format!("class=\"{block_class}")) {
                 // ブロック開始位置から後方の粗い範囲（4000 バイト）を見て、
@@ -445,6 +446,21 @@ fn code_copy_buttons_default_to_hidden() {
         assert_eq!(
             buttons, wrappers,
             "{file:?}: one button per code block wrapper"
+        );
+        // #3620: ボタンは必ずヘッダー帯の中にあり、ヘッダーは 1 ラッパーに 1 個。
+        assert_eq!(
+            html.matches(r#"class="docs-code-header""#).count(),
+            wrappers,
+            "{file:?}: one header per code block wrapper"
+        );
+        assert_eq!(
+            html.matches(r#"<div class="docs-code-header"><span class="docs-code-lang">"#)
+                .count()
+                + html
+                    .matches(r#"<div class="docs-code-header"><button"#)
+                    .count(),
+            wrappers,
+            "{file:?}: copy button must live inside the header"
         );
         if buttons > 0 {
             pages_with_fences += 1;
