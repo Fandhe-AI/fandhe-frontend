@@ -138,6 +138,8 @@ jobs:
         # crates/docs-site/tests/site_typography_contract.rs 等の契約テストが担う。
         # assets/favicon.svg（イシュー #3604、src/favicon.rs のビルド生成物）も
         # 同型の最終確認を行う（無いと /favicon.ico 404 が再発する）。
+        # 404.html（イシュー #3623、src/not_found.rs の生成物、GitHub Pages が
+        # 未知の URL に返すページ）も同様に存在を確認する。
         # assets/site.js（イシュー #951、crates/docs-site/src/script.rs による
         # ビルド生成物）も同型の最終確認を行う。assets/search-index.json
         # （イシュー #957、crates/docs-site/src/search_index.rs による
@@ -218,6 +220,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.css"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.js"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/favicon.svg"
+          test -f "${RUNNER_TEMP}/docs-site-dist/404.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/search-index.json"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/search-index/blocks.json"
           test -f "${RUNNER_TEMP}/docs-site-dist/themes/button/index.html"
