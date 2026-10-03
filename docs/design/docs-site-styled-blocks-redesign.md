@@ -48,7 +48,7 @@
 | トップ: ヒーロー | `hero-install-command` / `hero-terminal` | badge / heading / text / field / button / code / kbd | `text_reveal`（hero-terminal の演出）: 無 JS 契約下で動作が不定。静的な code 表示にする | インストールコマンドのコピーは #3605 の機構で担う（既定 hidden） | #3612 | `hero-install-command-1440-light.png` / `hero-terminal-1440-light.png` |
 | トップ: 特徴 | `feature-three-column-icons` | card / icon / heading / text / link | 手本の外部リンク 7 件: 内部リンクへ置換 | 3 列、狭幅で 1 列 | #3613 | `feature-three-column-icons-1440-light.png` |
 | トップ: 入口と指標 | `cta-feature-links` / `stats-row` | card / stat / heading / button / separator | 手本の画像 4 件（`stats-row`）: 外部画像・ダミー素材は持ち込まない | 指標はビルド時に算出可能な値（部品数等）のみ。捏造値は置かない。`link_overlay` は §4.1 のとおり使わず、`a` の `::after` 伸張でカード全面クリックを実現する | #3614 | `cta-feature-links-1440-light.png` / `stats-row-1440-light.png` |
-| トップ: コード例と CTA | `code-block-header` / `cta-centered` | button / code / badge / card / heading / text | 手本の複数ボタン（9 件）: CTA は 1〜2 件に絞る | コード例は `site/` の実在サンプルから引く | #3615 | `code-block-header-1440-light.png` / `cta-centered-1440-light.png` |
+| トップ: コード例と CTA | `code-block-header` / `cta-centered` | button / code / badge / card / heading / text | 手本の複数ボタン（9 件）: CTA は 1〜2 件に絞る | コード例は `crates/docs-site/snippets/landing_ssr.rs` を表示とコンパイル検証の両方に使う（badge は使わず言語ラベルで代替） | #3615 | `code-block-header-1440-light.png` / `cta-centered-1440-light.png` |
 | セクション索引 | `feature-image-cards` / `grid-list-action-tiles` / `grid-list-compact-tiles` | card / badge / heading / text / link（全面リンク） | 画像（7 件）・avatar・menu（compact-tiles が含む）: 持ち込まない | 画像の代わりに icon と badge。カテゴリ見出し単位のグリッド | #3616〜#3618 | `feature-image-cards-1440-light.png` / `grid-list-action-tiles-1440-light.png` / `grid-list-compact-tiles-1440-light.png` |
 | 部品ページの Demo | `example-preview-toolbar` | card / code | tabs・select・状態を持つ button: JS 範囲外 | プレビュー枠の外形（card 相当を素の `div` で再現。理由は §11.1）とコード表示の見出し帯だけを取り込む | #3619 | `example-preview-toolbar-1440-light.png` |
 | コードブロック | `code-block-header` | badge / button / code | button の既定表示: 既定 `hidden`、配線後に表示 | 言語ラベル + コピー。クリップボード不可なら `hidden` のまま | #3620 | `code-block-header-1440-light.png` |
@@ -330,6 +330,12 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 - CSS フックは `docs-*` class ではなく `table[data-docs-api-table]`（値は `arguments` / `data-attributes` / `css-variables`）と、空値プレースホルダの `span[data-docs-api-placeholder]` にする。`STRUCTURE_CLASS_CONTRACT` に触れないため。
 - 表記: 名前は行見出し（`th scope="row"`）、型・既定値・Part・属性名・観測値は `code`。既定値が空・`-` なら「—」、観測値が空文字なら「（値なし）」を出す（列は消さない）。非 ASCII を含む既定値（`(必須)` 等）は散文として `code` にしない。
 - 狭幅（767.98px 以下）は DOM を変えず CSS だけで縦積みにする。各セルの `data-label`（コンパイル時定数）を `::before` で見出しとして出し、`thead` は隠す。768px 以上は従来の表のまま、はみ出しは表内の横スクロールで逃がす。CSS は `site_theme::API_TABLE_CSS`（Themes / Primitives 両方に含まれる）。
+
+## 11.4 確定事項（#3615 コード例と締めの CTA）
+
+- コード例は `crates/docs-site/snippets/landing_ssr.rs` を唯一の正とし、`landing.rs` が `include_str!` で表示、`tests/landing_snippet.rs` が `#[path]` で実コンパイル・実行する。表示と検証が同一ファイルなので構造上ドリフトせず、core / app の API 変更は `cargo test --workspace` で検知される。
+- 不採用: `examples/ssr-routing` の `include_str!`（最小でなく、マーカー追加が `examples/` と `embedded-examples` の改変を要する）、`docs/guides` のフェンス抽出（doctest されずコンパイル担保が無い）、`respond_with`（`Loader` が 2 つ要り最小にならない）。引用元の意図は「完全なサンプル」として `/examples/ssr-routing/` へリンクして満たす。
+- CTA は `<a>` 2 件（クイックスタート primary / ガイド一覧 secondary）。節は `render()` の末尾に追記する（`DuplicatePath` 回避）。#3614 より先にマージされた場合は後続側が追記位置の単純衝突を解く。
 
 ## 12. 関連文書
 
