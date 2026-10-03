@@ -1129,3 +1129,83 @@ fn mismatched_triple_and_double_star_closer_does_not_nest_em_and_strong() {
     // 条件である。
     assert_eq!(render_all("***bold**"), "<p>*<strong>bold</strong></p>");
 }
+
+// ---------------------------------------------------------------------
+// 和文のソフト改行（イシュー #3600）
+// ---------------------------------------------------------------------
+
+#[test]
+fn japanese_soft_break_has_no_space() {
+    assert_eq!(
+        render_all("AI 時代の\nセキュリティ"),
+        "<p>AI 時代のセキュリティ</p>"
+    );
+}
+
+#[test]
+fn japanese_ascii_boundary_keeps_space() {
+    assert_eq!(
+        render_all("迂回は\n`raw_html()` のみ"),
+        "<p>迂回は <code>raw_html()</code> のみ</p>"
+    );
+}
+
+#[test]
+fn punct_ascii_boundary_has_no_space() {
+    assert_eq!(render_all("です。\n`foo`"), "<p>です。<code>foo</code></p>");
+}
+
+#[test]
+fn japanese_list_quote_admonition_soft_breaks() {
+    assert_eq!(
+        render_all("- 項目の\n  続き"),
+        "<ul><li>項目の続き</li></ul>"
+    );
+    assert_eq!(
+        render_all("> 引用の\n> 続き"),
+        "<blockquote><p>引用の続き</p></blockquote>"
+    );
+    let out = render_all("> [!NOTE]\n> 注意の\n> 続き");
+    assert!(out.contains("注意の続き"), "{out}");
+}
+
+#[test]
+fn japanese_soft_break_around_emphasis_and_link() {
+    assert_eq!(
+        render_all("**強調**\nです"),
+        "<p><strong>強調</strong>です</p>"
+    );
+    assert_eq!(
+        render_all("[設計\n文書](./a.md)"),
+        "<p><a href=\"./a.md\">設計文書</a></p>"
+    );
+}
+
+#[test]
+fn soft_break_inside_inline_code_keeps_space() {
+    assert_eq!(render_all("`日本\n語`"), "<p><code>日本 語</code></p>");
+    assert_eq!(render_all("`foo\nbar`"), "<p><code>foo bar</code></p>");
+}
+
+#[test]
+fn japanese_fence_newlines_are_preserved() {
+    assert_eq!(
+        render_all("```\n日本\n語\n```"),
+        "<pre><code>日本\n語</code></pre>"
+    );
+}
+
+#[test]
+fn japanese_soft_break_does_not_unescape_script() {
+    let out = render_all("本文の\n<script>alert(1)</script>");
+    assert!(!out.contains("<script"));
+    assert!(out.contains("&lt;script&gt;"));
+}
+
+#[test]
+fn newline_sentinel_in_link_url_becomes_space() {
+    // 和字同士の改行は空白なしのセンチネルになるが、URL へは空白として渡す
+    // （改行を残すとブラウザが除去して偽装スキームが成立しうるため）。
+    let out = render_all("[x](あ\nい)");
+    assert_eq!(out, "<p><a href=\"あ い\">x</a></p>");
+}
