@@ -591,7 +591,9 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
    （→ セクション粒度インデックス・スコアリング見直し）。
 4. `docs/internal/` を索引対象にする要求が出た場合（既定は含めない）。
 5. CSP（Content-Security-Policy）ヘッダ導入等で `fetch` 方針の見直し
-   が必要になった場合（GitHub Pages の制約により本文書では扱わない）。
+   が必要になった場合（GitHub Pages の制約により本文書では扱わない。方針は
+   `docs-site-csp-policy.md` を参照。`connect-src 'self'` で現行の同一オリジン
+   `fetch` は維持される）。
 
 ## 9. 関連文書
 
