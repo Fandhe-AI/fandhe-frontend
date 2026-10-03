@@ -223,7 +223,7 @@ pub fn inline_code_nodes(s: &str) -> Vec<Node> {
     while i < chars.len() {
         if chars[i] == '`' {
             if let Some((mut parsed, next)) = try_inline_code(&chars, i) {
-                flush_literal(&mut literal, &mut nodes);
+                flush_literal_keep(&mut literal, &mut nodes);
                 nodes.append(&mut parsed);
                 i = next;
                 continue;
@@ -232,7 +232,7 @@ pub fn inline_code_nodes(s: &str) -> Vec<Node> {
         literal.push(chars[i]);
         i += 1;
     }
-    flush_literal(&mut literal, &mut nodes);
+    flush_literal_keep(&mut literal, &mut nodes);
     nodes
 }
 
@@ -245,6 +245,18 @@ fn flush_literal(literal: &mut String, nodes: &mut Vec<Node>) {
     if literal.contains('\n') {
         literal.retain(|c| c != '\n');
     }
+    if !literal.is_empty() {
+        nodes.push(text(literal.as_str()));
+    }
+    literal.clear();
+}
+
+/// [`flush_literal`] の改行保持版。限定変換 [`inline_code_nodes`] 専用。
+///
+/// 限定変換の入力は Markdown 解析を経ない通常文字列で、`'\n'` はソフト改行
+/// センチネルではなく入力本来の文字である。除去すると語が連結される
+/// （例: `first\nsecond` が `firstsecond` になる）ため、そのまま保持する。
+fn flush_literal_keep(literal: &mut String, nodes: &mut Vec<Node>) {
     if !literal.is_empty() {
         nodes.push(text(literal.as_str()));
     }
@@ -1462,6 +1474,17 @@ mod tests {
         assert_eq!(icn_html(""), "<span></span>");
         assert_eq!(inline_code_nodes("").len(), 0);
         assert_eq!(inline_code_nodes("plain").len(), 1);
+    }
+
+    /// 通常テキスト中の改行は限定変換で除去されず保持される（ソフト改行
+    /// センチネル除去は Markdown 解析経路専用）。
+    #[test]
+    fn inline_code_nodes_preserves_plain_newlines() {
+        assert_eq!(icn_html("first\nsecond"), "<span>first\nsecond</span>");
+        assert_eq!(
+            icn_html("a\nb `c` d\ne"),
+            "<span>a\nb <code>c</code> d\ne</span>"
+        );
     }
 
     /// 強調・リンクは解釈しない限定変換であること。
