@@ -523,6 +523,8 @@ const TOC_ONLY_CLASSES: &[&str] = &[
     // 右目次と完全に一致する（`crate::layout::toc_inline` rustdoc 参照）。
     "docs-toc-inline",
     "docs-toc-inline-summary",
+    // イシュー #3610: 折りたたみ目次の開閉シェブロン（装飾 svg）。
+    "docs-toc-inline-icon",
 ];
 
 /// 見出しが 1 つも無いページのみ出現する修飾 class

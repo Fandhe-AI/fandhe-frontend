@@ -78,6 +78,7 @@
 //!             第 1 子、SkipNav ターゲットより前
 //!           details（既定は閉）
 //!             summary.docs-toc-inline-summary … "On this page"（`nav.docs-toc` と文言共有）
+//!               svg.docs-toc-inline-icon … 開閉シェブロン（装飾、イシュー #3610）
 //!             ul
 //!               li.docs-toc-level-2 > a  … href は右目次と同一の `#<id>`
 //!               li.docs-toc-level-3 > a
@@ -1125,6 +1126,8 @@ body {\n\
   display: flex;\n\
   flex-direction: column;\n\
   gap: 0.2rem;\n\
+  /* 縦線（rail）。現在地バー（下記 `::before`）がこの線に重なる。 */\n\
+  border-left: 1px solid var(--fandhe-color-border);\n\
 }\n\
 \n\
 .docs-toc a {\n\
@@ -1136,8 +1139,8 @@ body {\n\
    * の切り詰め（ellipsis/line-clamp）は行わない（情報欠落を招くため）。\n\
    */\n\
   overflow-wrap: anywhere;\n\
-  padding: 0.12rem 0 0.12rem 0.5rem;\n\
-  border-left: 2px solid transparent;\n\
+  padding: 0.12rem 0 0.12rem 0.75rem;\n\
+  position: relative;\n\
 }\n\
 \n\
 .docs-toc a:hover {\n\
@@ -1155,17 +1158,31 @@ body {\n\
 .docs-toc a[aria-current=\"location\"] {\n\
   color: var(--fandhe-color-accent);\n\
   font-weight: var(--fandhe-font-font-weight-medium);\n\
-  border-left-color: var(--fandhe-color-accent);\n\
+}\n\
+\n\
+/* 現在地インジケータ（イシュー #3610）。rail と重なる 2px の縦棒。 */\n\
+.docs-toc a[aria-current=\"location\"]::before {\n\
+  content: \"\";\n\
+  position: absolute;\n\
+  left: -1px;\n\
+  top: 0;\n\
+  bottom: 0;\n\
+  width: 2px;\n\
+  background: var(--fandhe-color-accent);\n\
 }\n\
 \n\
 .docs-toc-level-2 {\n\
   padding-left: 0;\n\
 }\n\
 \n\
+/* 階層インデントは `a` の padding で表す（`li` に付けると現在地バーが\n\
+ * rail からずれる）。`li` 側は 0 のまま。 */\n\
 .docs-toc-level-3 {\n\
-  /* 1rem から縮小（イシュー #950）。長い `h3` タイトルの折り返し時に\n\
-   * 実効幅を確保し、過大インデントで読みにくくなるのを防ぐ。 */\n\
-  padding-left: 0.5rem;\n\
+  padding-left: 0;\n\
+}\n\
+\n\
+.docs-toc .docs-toc-level-3 > a {\n\
+  padding-left: 1.5rem;\n\
 }\n\
 \n\
 /* ---- 本文冒頭の折りたたみ目次（`nav.docs-toc-inline`。イシュー #1080） ---- */\n\
@@ -1183,14 +1200,52 @@ body {\n\
   margin: 0 auto 1.5rem;\n\
 }\n\
 \n\
+.docs-toc-inline details {\n\
+  border: 1px solid var(--fandhe-color-border);\n\
+  border-radius: 0.4rem;\n\
+  overflow: hidden;\n\
+}\n\
+\n\
 .docs-toc-inline-summary {\n\
+  display: flex;\n\
+  align-items: center;\n\
+  justify-content: space-between;\n\
+  gap: 0.5rem;\n\
+  list-style: none;\n\
   cursor: pointer;\n\
   font-size: 0.8rem;\n\
   font-weight: var(--fandhe-font-font-weight-semibold);\n\
   padding: 0.5rem 0.7rem;\n\
-  border: 1px solid var(--fandhe-color-border);\n\
-  border-radius: 0.4rem;\n\
   color: var(--fandhe-color-fg-muted);\n\
+}\n\
+\n\
+.docs-toc-inline-summary::marker {\n\
+  display: none;\n\
+}\n\
+\n\
+.docs-toc-inline-summary::-webkit-details-marker {\n\
+  display: none;\n\
+}\n\
+\n\
+.docs-toc-inline details[open] > .docs-toc-inline-summary {\n\
+  border-bottom: 1px solid var(--fandhe-color-border);\n\
+}\n\
+\n\
+.docs-toc-inline-icon {\n\
+  width: 1rem;\n\
+  height: 1rem;\n\
+  flex: none;\n\
+  transition: transform 150ms ease;\n\
+}\n\
+\n\
+.docs-toc-inline details[open] .docs-toc-inline-icon {\n\
+  transform: rotate(180deg);\n\
+}\n\
+\n\
+@media (prefers-reduced-motion: reduce) {\n\
+  .docs-toc-inline-icon {\n\
+    transition: none;\n\
+  }\n\
 }\n\
 \n\
 .docs-toc-inline-summary:hover {\n\
@@ -1200,14 +1255,13 @@ body {\n\
 \n\
 .docs-toc-inline-summary:focus-visible {\n\
   outline: 2px solid var(--fandhe-color-accent);\n\
-  outline-offset: 2px;\n\
+  outline-offset: -2px;\n\
 }\n\
 \n\
 .docs-toc-inline ul {\n\
   list-style: none;\n\
-  margin: 0.5rem 0 0;\n\
-  padding: 0.3rem 0.7rem 0.3rem 1rem;\n\
-  border-left: 1px solid var(--fandhe-color-border);\n\
+  margin: 0;\n\
+  padding: 0.5rem 0.7rem;\n\
   display: flex;\n\
   flex-direction: column;\n\
   gap: 0.25rem;\n\
@@ -1219,6 +1273,10 @@ body {\n\
   text-decoration: none;\n\
   overflow-wrap: anywhere;\n\
   padding: 0.1rem 0;\n\
+}\n\
+\n\
+.docs-toc-inline .docs-toc-level-3 > a {\n\
+  padding-left: 1rem;\n\
 }\n\
 \n\
 .docs-toc-inline a:hover {\n\
@@ -2344,6 +2402,7 @@ mod tests {
             ".docs-toc-aside",
             ".docs-toc-inline",
             ".docs-toc-inline-summary",
+            ".docs-toc-inline-icon",
             "nav.prev-next",
             ".docs-nav-group",
             ".docs-nav-group-summary",
@@ -2706,6 +2765,20 @@ mod tests {
             .nth(1)
             .expect("min-width: 1200px block should exist");
         assert!(block_1200.contains(".docs-toc-inline {\ndisplay: none;\n}"));
+    }
+
+    #[test]
+    fn stylesheet_toc_visuals_cover_rail_indicator_and_disclosure_icon() {
+        // イシュー #3610: 右目次の rail + 現在地バー、折りたたみ目次の
+        // マーカー除去と開状態のシェブロン回転が STRUCTURAL_CSS に存在する。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        assert!(css.contains(".docs-toc a[aria-current=\"location\"]::before {"));
+        assert!(css.contains("border-left: 1px solid var(--fandhe-color-border);"));
+        assert!(css.contains(".docs-toc-inline-summary::-webkit-details-marker {"));
+        assert!(css.contains(
+            ".docs-toc-inline details[open] .docs-toc-inline-icon {\ntransform: rotate(180deg);"
+        ));
     }
 
     #[test]

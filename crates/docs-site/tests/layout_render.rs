@@ -325,6 +325,13 @@ fn inline_toc_is_a_details_disclosure_with_anchor_links() {
     assert!(inline_block.contains("<details>"));
     assert!(!inline_block.contains("<details open"));
     assert!(inline_block.contains(r#"class="docs-toc-inline-summary""#));
+    // イシュー #3610: summary 内に装飾 svg アイコン（支援技術へは隠す）。
+    let summary_start = inline_block.find("<summary").expect("summary");
+    let summary_end = inline_block.find("</summary>").expect("summary end");
+    let summary = &inline_block[summary_start..summary_end];
+    assert!(summary.contains(r#"class="docs-toc-inline-icon""#));
+    assert!(summary.contains(r#"aria-hidden="true""#));
+    assert!(summary.contains(r#"focusable="false""#));
 
     let id_marker = r#"<h2 id=""#;
     let start = html.find(id_marker).expect("h2 with injected id");
