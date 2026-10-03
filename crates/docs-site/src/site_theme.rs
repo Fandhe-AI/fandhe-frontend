@@ -561,7 +561,8 @@ body {\n\
  * `.docs-header-actions` の第 1 子（`crate::layout` 参照）。既定 `hidden` の\n\
  * 退避経路は `.docs-theme-toggle[hidden]` と同型（配線完了後にのみ\n\
  * `crate::script::SITE_JS` が `hidden` を除去する）。`display: none` にせず\n\
- * `min-width: 0` + `max-width` で縮小に任せるため、狭幅帯域でも要素自体は\n\
+ * `min-width: 0` で縮小を許し、768px 未満では 2 段目の全幅へ配置する\n\
+ * （末尾の `max-width: 767.98px` ブロック）。狭幅帯域でも要素自体は\n\
  * 消さない（`hidden` 属性のみが非表示の唯一の情報源）。\n\
  */\n\
 .docs-search {\n\
@@ -830,23 +831,26 @@ body {\n\
 \n\
 /*\n\
  * 折りたたみ対象は `nav.sidebar`（`aside.docs-sidebar` ではなく）。基底\n\
- * （768px 未満）は `max-height` で 1 行程度に折りたたむ（JS 不要、`layout.rs`\n\
+ * （768px 未満）は `max-height: 0` + `visibility: hidden` で畳む（JS 不要、`layout.rs`\n\
  * モジュール doc 参照）。開閉状態の唯一の情報源はチェックボックスの\n\
  * `:checked` とする（focus-within 系疑似クラスを OR で加えない）。フォーカスが\n\
  * ナビ内に残ったままチェックを外しても閉じられなくなる回帰があったため\n\
  * （Bugbot 指摘 #916 是正）。チェックボックス自体は sr-only パターンで\n\
  * 視覚的に隠すのみで DOM から除去しないため（`.docs-sidebar-toggle`\n\
- * 参照）、クリップされたリンクへも Tab で到達でき、チェックボックス自体を\n\
- * Space キーで開閉できる（a11y 上の後退なし）。\n\
+ * 参照）、チェックボックス自体を Space キーで開閉できる。閉じている間は\n\
+ * `visibility: hidden` でリンクがタブ順から外れ、見えない要素へフォーカスが\n\
+ * 当たらない（イシュー #3602。従来は 1 行分だけ中途半端に切り取っていた）。\n\
  */\n\
 .docs-sidebar nav.sidebar {\n\
-  max-height: 2.75rem;\n\
+  max-height: 0;\n\
   overflow: hidden;\n\
+  visibility: hidden;\n\
 }\n\
 \n\
 .docs-sidebar-toggle:checked ~ nav.sidebar {\n\
   max-height: none;\n\
   overflow: visible;\n\
+  visibility: visible;\n\
 }\n\
 \n\
 /*\n\
@@ -1030,6 +1034,11 @@ body {\n\
   display: block;\n\
   max-width: var(--fandhe-space-docs-max-content-width);\n\
   margin: 0 auto;\n\
+  /* 空白を含まない長い ASCII 列（識別子・パス・バッククォート付き文字列）が\n\
+   * 狭幅で行ボックスを越えて文書幅を押し広げるのを防ぐ（イシュー #3602）。\n\
+   * `anywhere` ではなく `break-word` なのは min-content 幅を変えないため\n\
+   * で、表セルが最小幅まで潰れず表は従来どおり横スクロール枠に収まる。 */\n\
+  overflow-wrap: break-word;\n\
 }\n\
 \n\
 /* ---- 右目次カラム内のページ内目次（イシュー #909） ---- */\n\
@@ -1268,6 +1277,7 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
   .docs-sidebar nav.sidebar {\n\
     max-height: none;\n\
     overflow: visible;\n\
+    visibility: visible;\n\
   }\n\
 \n\
   /* この帯域ではサイドバーが常時全展開のためチェックボックス自体を DOM\n\
@@ -1419,6 +1429,65 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
   .docs-toc-aside {\n\
     top: 0;\n\
     max-height: 100vh;\n\
+  }\n\
+\n\
+  .docs-content h2,\n\
+  .docs-content h3 {\n\
+    scroll-margin-top: 1rem;\n\
+  }\n\
+}\n\
+\n\
+/*\n\
+ * ---- `768px 未満`: 検索を全幅の 2 段目へ置く 2 段ヘッダー（イシュー #3602） ----\n\
+ *\n\
+ * brand・検索・GitHub・テーマトグルを DOM 順のまま 1 つの flex 行へ並べ、\n\
+ * 検索は `flex: 1 0 100%`（`flex-basis: 100%`）で必ず単独の全幅行を占め、\n\
+ * brand と同じ行には残らない（GitHub・テーマトグルは次段へ回る。`order` は\n\
+ * 使わず視覚順と Tab 順を一致させる）。DOM は\n\
+ * 変えず `.docs-header-actions` を `display: contents` にして子を\n\
+ * `.docs-header-inner` の flex item へ繰り上げる。JS 無効時は\n\
+ * `.docs-search[hidden]` が非表示のため 2 段目は存在せず、`min-height` は\n\
+ * 1 段分にとどめる（空の 2 段目を残さない）。実高さは折り返しで変わるため\n\
+ * 768〜1279px 帯と同様に static へ戻し、見出しアンカーのオフセットを\n\
+ * ヘッダー高さに依存させない。\n\
+ */\n\
+@media (max-width: 767.98px) {\n\
+  .docs-header {\n\
+    position: static;\n\
+    height: auto;\n\
+    min-height: var(--fandhe-space-docs-header-height);\n\
+  }\n\
+\n\
+  .docs-header-inner {\n\
+    flex-wrap: wrap;\n\
+    align-content: center;\n\
+    column-gap: 0.9rem;\n\
+    row-gap: 0.35rem;\n\
+    height: auto;\n\
+    padding-top: 0.5rem;\n\
+    padding-bottom: 0.5rem;\n\
+  }\n\
+\n\
+  .docs-header-actions {\n\
+    display: contents;\n\
+  }\n\
+\n\
+  .docs-github-link {\n\
+    margin-left: auto;\n\
+  }\n\
+\n\
+  .docs-search {\n\
+    flex: 1 0 100%;\n\
+  }\n\
+\n\
+  .docs-search-input {\n\
+    width: 100%;\n\
+  }\n\
+\n\
+  .docs-search-results {\n\
+    left: 0;\n\
+    right: 0;\n\
+    min-width: 0;\n\
   }\n\
 \n\
   .docs-content h2,\n\
@@ -1768,6 +1837,10 @@ fn typography_css() -> Result<String, SiteThemeError> {
         &[
             decl("display", "block"),
             decl("overflow-x", "auto"),
+            // sr-only の絶対配置要素（`th > span[data-scope="visually-hidden"]`）の
+            // containing block を表自身にし、スクロール枠の内側で切り取らせる
+            // （でないと文書幅を押し広げる、イシュー #3602）。
+            decl("position", "relative"),
             decl("margin", "0 0 1.05rem"),
             decl("max-width", "100%"),
             decl("font-size", "0.925em"),
@@ -2846,8 +2919,10 @@ mod tests {
         assert!(before_768.contains(".docs-container {\ndisplay: block;\n"));
         assert!(before_768.contains(".docs-toc-aside {\ndisplay: none;\n}"));
         assert!(before_768.contains(".docs-sidebar-toggle-label {\ndisplay: block;\n"));
-        assert!(before_768
-            .contains(".docs-sidebar nav.sidebar {\nmax-height: 2.75rem;\noverflow: hidden;\n}"));
+        // イシュー #3602: 折りたたみ時は中途半端に切り取らず完全に隠す。
+        assert!(before_768.contains(
+            ".docs-sidebar nav.sidebar {\nmax-height: 0;\noverflow: hidden;\nvisibility: hidden;\n}"
+        ));
         assert!(before_768.contains(".docs-header-nav {\ndisplay: none;\n}"));
         assert!(before_768.contains("nav.prev-next {\ndisplay: flex;\n/* 基底（768px 未満）は縦積み。`min-width: 768px` で横並びに切り替える。 */\nflex-direction: column;"));
     }
