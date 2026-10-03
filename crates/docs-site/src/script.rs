@@ -123,11 +123,15 @@ pub const INLINE_THEME_BOOTSTRAP: &str = "try{var t=localStorage.getItem(`fandhe
 ///    `document.getElementById` で対応見出しを引く（`querySelector('#'+id)`
 ///    は使わない。著者由来の id をセレクタとして組み立てるとセレクタ
 ///    インジェクション経路になり得るため、OWASP A03 対策として避ける）。
-/// 8. `IntersectionObserver` で可視見出し集合を維持し、可視集合が空で
-///    なければ文書順で最初の可視見出し、空ならヘッダー下端を過ぎ去った
-///    見出しのうち文書順で最後のものを現在地とし、対応リンクにのみ
-///    `aria-current="location"` を付与する（サイドバーの
-///    `aria-current="page"` とは値を分け、意味の衝突を避ける）。
+/// 8. `IntersectionObserver` で可視見出し集合を維持し、現在地は
+///    `update()` が次の順で決める。(1) スクロール可能なページの末尾なら
+///    文書順で最後の見出し、(2) 各見出しの `scroll-margin-top`（実測）+
+///    余裕を読み位置線とし、それを過ぎた見出しのうち文書順で最後のもの
+///    （`lastPassedTarget`）、(3) いずれも無ければ可視集合の文書順で最初の
+///    見出し。`scroll` / `resize` は rAF で間引いて同じ `update()` を
+///    再評価する。対応リンクにのみ `aria-current="location"` を付与する
+///    （サイドバーの `aria-current="page"` とは値を分け、意味の衝突を
+///    避ける）。
 ///
 /// 9. （イシュー #958、独立した 3 つ目の IIFE）`.docs-search-input`・
 ///    `.docs-search`・`#docs-search-results` のいずれか欠ければ即 return
@@ -291,13 +295,28 @@ pub const SITE_JS: &str = "\
     links[index].setAttribute(`aria-current`, `location`);
   }
 
-  // 見出しを「読んでいる」と見なす位置。ヘッダー下端 + `scroll-margin-top`
-  // （ヘッダー高 + 1rem）に近い値で、`#見出し` 直リンクで止まった見出しも
-  // 通過済みと判定できるよう HEADER_OFFSET_PX より余裕を持たせる。
-  // 親 h2 の直後に短い h3 が続くと、両者が同時に判定帯へ入り文書順先頭の
-  // h2 が current に留まっていたため、帯内の先頭ではなくこの線を過ぎた
-  // 最後の見出しを優先する（イシュー #3658）。
+  // 見出しを「読んでいる」と見なす位置。`#見出し` 直リンク・目次ジャンプで
+  // 止まった見出しは top が各見出しの `scroll-margin-top` に一致する。
+  // この値は幅により異なる（広幅はヘッダー高 + 1rem、狭幅は 1rem）ため、
+  // 固定値だと狭幅で直後の子 h3 まで通過済みと扱われ、ジャンプ先の親 h2
+  // でなく h3 が current になる。そこで見出しごとに実測した
+  // `scroll-margin-top` + 余裕を線とし、取得できない場合のみ
+  // READING_LINE_PX へフォールバックする。親 h2 の直後に短い h3 が続くと
+  // 両者が同時に判定帯へ入り文書順先頭の h2 が current に留まっていた
+  // ため、帯内の先頭ではなくこの線を過ぎた最後の見出しを優先する
+  // （イシュー #3658）。
   var READING_LINE_PX = HEADER_OFFSET_PX + 32;
+  var READING_SLACK_PX = 4;
+
+  function readingLineFor(target) {
+    var margin = Number.parseFloat(
+      window.getComputedStyle(target).scrollMarginTop,
+    );
+    if (Number.isNaN(margin)) {
+      return READING_LINE_PX;
+    }
+    return margin + READING_SLACK_PX;
+  }
 
   // ページ末尾到達の判定余裕（サブピクセル誤差吸収）。
   var BOTTOM_SLACK_PX = 2;
@@ -326,7 +345,7 @@ pub const SITE_JS: &str = "\
     while (Math.sign(hi - lo) !== -1) {
       var mid = Math.floor((lo + hi) / 2);
       var rect = targets[mid].getBoundingClientRect();
-      if (Math.sign(rect.top - READING_LINE_PX) !== 1) {
+      if (Math.sign(rect.top - readingLineFor(targets[mid])) !== 1) {
         found = mid;
         lo = mid + 1;
       } else {
