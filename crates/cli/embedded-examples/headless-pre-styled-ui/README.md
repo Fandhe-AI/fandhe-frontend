@@ -50,6 +50,9 @@ UI 部品実演追加の要否精査）で本サンプルへ Navigation Menu / M
 #2020）は本サンプルが slider 部品を未使用のため呼び出し追随は発生して
 いません。
 
+イシュー #3657 で `fandhe-frontend-pre-styled-ui` を v0.241.0 へ追随しました。
+`src/main.rs` の変更は不要でした。
+
 ## pre-styled-ui 統合について
 
 サンプル作成時点（イシュー #552、2026-07-22）では pre-styled-ui がクレート
