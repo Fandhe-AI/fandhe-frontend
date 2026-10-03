@@ -41,7 +41,9 @@
 //!   header.docs-header            … ヘッダバー（サイトタイトルへのリンク）
 //!     div.docs-header-actions     … 右側のアクション群（イシュー #951、
 //!       header_nav の有無に関わらず常に出力）
-//!       div.docs-search            … 検索ブロック（既定 `hidden`、イシュー #958）
+//!       div.docs-search            … 検索ブロック（既定 `hidden`、イシュー #958。#3672 で
+//!         span.docs-search-trigger（検索ボタン）と dialog.docs-search-dialog >
+//!         div.docs-search-dialog-panel へ再構成。以下の label・input・ul は dialog 内）
 //!         label.docs-search-label（`for="docs-search-input"`、視覚上のみ
 //!           clip で隠す。fandhe-backend とのデザイン統一のため追加）
 //!         div[data-scope="input-group"]（pre-styled-ui `input_group`、#3606）
@@ -232,9 +234,10 @@ fn docs_theme() -> Result<Theme, ThemeError> {
     theme.push_space("docs-sidebar-width", "16rem")?;
     theme.push_space("docs-max-content-width", "46rem")?;
     theme.push_space("docs-header-height", "3.25rem")?;
-    // `768px 以上 1280px 未満` でヘッダーを 2 段（1 段目: ブランド + アクション、
+    // `768px 以上 1200px 未満` でヘッダーを 2 段（1 段目: ブランド + アクション、
     // 2 段目: ヘッダーナビ）にするときの高さ。全セクションのトリガーを
-    // 1 段に並べるには約 1240px 必要で、この帯域では収まらないため
+    // 1 段に並べるには、アクションを詰めても約 1140px 必要で、実測余裕を含めた
+    // 境界 1200px 未満では収まらないため
     // （STRUCTURAL_CSS 末尾の 2 段ヘッダー `@media` ブロック参照）。
     // 内容が折り返すとさらに伸びるため最小高さとして使う。
     theme.push_space("docs-header-height-stacked", "5.75rem")?;
@@ -687,14 +690,12 @@ body {\n\
 }\n\
 \n\
 /*\n\
- * ---- 検索 UI（素の JS、イシュー #958） ----\n\
+ * ---- 検索 UI（検索ボタン + 検索ダイアログ、イシュー #958/#3672） ----\n\
  *\n\
- * `.docs-header-actions` の第 1 子（`crate::layout` 参照）。既定 `hidden` の\n\
- * 退避経路は `.docs-theme-toggle[hidden]` と同型（配線完了後にのみ\n\
- * `crate::script::SITE_JS` が `hidden` を除去する）。`display: none` にせず\n\
- * `min-width: 0` で縮小を許し、768px 未満では 2 段目の全幅へ配置する\n\
- * （末尾の `max-width: 767.98px` ブロック）。狭幅帯域でも要素自体は\n\
- * 消さない（`hidden` 属性のみが非表示の唯一の情報源）。\n\
+ * `.docs-header-actions` の第 1 子（`crate::layout` 参照）。`.docs-search` は\n\
+ * ボタンとダイアログを含む可視化ゲートで、既定 `hidden` の退避経路は\n\
+ * `.docs-theme-toggle[hidden]` と同型（配線完了後にのみ\n\
+ * `crate::script::SITE_JS` が `hidden` を除去する）。\n\
  */\n\
 .docs-search {\n\
   position: relative;\n\
@@ -737,7 +738,7 @@ body {\n\
  */\n\
 .docs-search-input {\n\
   flex: 1 1 0%;\n\
-  width: 12rem;\n\
+  width: 100%;\n\
   min-width: 0;\n\
   font: inherit;\n\
   font-size: var(--fandhe-font-font-size-sm);\n\
@@ -771,25 +772,77 @@ body {\n\
 }\n\
 \n\
 /*\n\
- * 検索結果パネル。`.docs-header`（z-index 10）・`.docs-header-dropdown`\n\
- * （z-index 20）より上に出すため z-index 30 を使う（`.docs-header`/\n\
- * `.docs-header-inner` はいずれも `overflow` を宣言していないため絶対配置\n\
- * パネルはクリップされない）。\n\
+ * 検索ボタン（ラッパー span + 内側 pre-styled-ui button、`theme_toggle` と同型）。\n\
+ * アイコン + ラベル + kbd を 1 行に収める。Primitives ページ（recipe 抜き CSS）でも\n\
+ * 崩れないよう、配置だけをここで持つ。\n\
  */\n\
+.docs-search-trigger {\n\
+  display: inline-flex;\n\
+  align-items: center;\n\
+}\n\
+\n\
+.docs-search-trigger button {\n\
+  display: inline-flex;\n\
+  white-space: nowrap;\n\
+  align-items: center;\n\
+  gap: 0.4rem;\n\
+}\n\
+\n\
+.docs-search-trigger-label {\n\
+  font-size: 0.85rem;\n\
+  font-weight: 500;\n\
+}\n\
+\n\
+.docs-search-trigger-key {\n\
+  display: inline-flex;\n\
+  align-items: center;\n\
+}\n\
+\n\
+/*\n\
+ * 検索ダイアログ。閉状態の非表示は UA の `dialog:not([open])` に任せるため、\n\
+ * `display` を伴うレイアウト指定は必ず `[open]` にだけ付ける（素の\n\
+ * `.docs-search-dialog` に `display` を書くと閉じていても表示される）。\n\
+ * 背景クリック判定のため dialog 自体は `padding: 0` とし、内側の\n\
+ * `.docs-search-dialog-panel` が全面を覆う。\n\
+ */\n\
+.docs-search-dialog {\n\
+  width: min(40rem, calc(100vw - 2rem));\n\
+  max-width: none;\n\
+  margin: 12vh auto auto;\n\
+  padding: 0;\n\
+  border: 1px solid var(--fandhe-color-border);\n\
+  border-radius: var(--fandhe-radius-md);\n\
+  background: var(--fandhe-color-bg);\n\
+  color: var(--fandhe-color-fg);\n\
+  box-shadow: var(--fandhe-shadow-md);\n\
+}\n\
+\n\
+.docs-search-dialog[open] {\n\
+  display: block;\n\
+}\n\
+\n\
+.docs-search-dialog::backdrop {\n\
+  background: var(--fandhe-color-bg-overlay);\n\
+}\n\
+\n\
+.docs-search-dialog-panel {\n\
+  display: flex;\n\
+  flex-direction: column;\n\
+  gap: 0.5rem;\n\
+  padding: 0.75rem;\n\
+}\n\
+\n\
+/* 結果一覧はダイアログ内の通常フロー（旧ポップアップの絶対配置は廃止）。 */\n\
 .docs-search-results {\n\
-  position: absolute;\n\
-  top: 100%;\n\
-  right: 0;\n\
-  z-index: 30;\n\
-  margin: 0.25rem 0 0;\n\
+  position: static;\n\
+  margin: 0;\n\
   padding: 0.25rem;\n\
   list-style: none;\n\
-  min-width: 18rem;\n\
-  max-height: 60vh;\n\
+  min-width: 0;\n\
+  max-height: min(24rem, 55vh);\n\
   overflow-y: auto;\n\
   background: var(--fandhe-color-bg);\n\
-  border: 1px solid var(--fandhe-color-border);\n\
-  border-radius: var(--fandhe-radius-sm);\n\
+  border: 0;\n\
 }\n\
 \n\
 .docs-search-results[hidden] {\n\
@@ -1677,6 +1730,17 @@ nav.prev-next .next .docs-pager-meta {\n\
       var(--fandhe-space-docs-toc-width);\n\
   }\n\
 \n\
+  /* 1 段ヘッダー（イシュー #3673）: ナビは内容幅を基準に、足りなければ縮む\n\
+   * 側に回し、アクション群は縮めない。トリガーは nowrap のため、収まらない\n\
+   * 幅は隠さず切らず、この 1200px 境界で 2 段へ倒す（下の 2 段ブロック）。 */\n\
+  .docs-header-nav {\n\
+    flex: 0 1 auto;\n\
+  }\n\
+\n\
+  .docs-header-actions {\n\
+    flex: none;\n\
+  }\n\
+\n\
   .docs-container.docs-container--no-toc {\n\
     grid-template-columns: var(--fandhe-space-docs-sidebar-width) minmax(0, 1fr);\n\
   }\n\
@@ -1713,10 +1777,13 @@ nav.prev-next .next .docs-pager-meta {\n\
 }\n\
 \n\
 /*\n\
- * ---- `768px 以上 1280px 未満`: 2 段ヘッダー ----\n\
+ * ---- `768px 以上 1200px 未満`: 2 段ヘッダー（イシュー #3673） ----\n\
  *\n\
- * ブランド・全セクションのトリガー・アクション群を 1 段に並べるには約\n\
- * 1240px 必要で、この帯域では収まらない。ナビを 2 段目（`order: 1` +\n\
+ * ブランド・全セクションのトリガー・アクション群を 1 段に並べるには、\n\
+ * アクション群をアイコンのみへ詰めても実測で約 1140px 必要で、境界 1200px\n\
+ * 未満では収まらない（フォント差の余裕を含め 1200px を境界とする。\n\
+ * 3 カラムになる 1200px と一致するため、旧 1200〜1280px の重なり帯域は消えた）。\n\
+ * ナビを 2 段目（`order: 1` +\n\
  * `flex-basis: 100%`）へ折り返し、ヘッダー高さを最小\n\
  * `--fandhe-space-docs-header-height-stacked` から内容に合わせて伸ばす。\n\
  * ヘッダーの実高さは折り返し行数で変わり CSS だけでは取得できないため、\n\
@@ -1724,7 +1791,7 @@ nav.prev-next .next .docs-pager-meta {\n\
  * 見出しアンカーのオフセットをヘッダー高さに依存しない値にする。\n\
  * 上記の通常規則より後ろに置くことで同じ詳細度のまま上書きする。\n\
  */\n\
-@media (min-width: 768px) and (max-width: 1279.98px) {\n\
+@media (min-width: 768px) and (max-width: 1199.98px) {\n\
   /* 高さは固定せず最小値とする。フォント差などで 2 段目のトリガーが\n\
    * 1 行に収まらないときはメニュー自体を折り返し、ヘッダーがその分だけ\n\
    * 伸びて下の要素を押し下げる（ナビが画面右端やヘッダー外へ出ない）。 */\n\
@@ -1760,10 +1827,9 @@ nav.prev-next .next .docs-pager-meta {\n\
   }\n\
 \n\
   /* ヘッダーが sticky でないため、sticky カラムはビューポート上端へ\n\
-   * 張り付ける。`.docs-toc-aside` は 1200px 以上でのみ表示（上記 1200px\n\
-   * ブロック）だが、1200〜1280px の重なり帯域のため併記する。 */\n\
-  .docs-sidebar,\n\
-  .docs-toc-aside {\n\
+   * 張り付ける。右目次は 1200px 以上でのみ表示されるため、この帯域には\n\
+   * 含まれない。 */\n\
+  .docs-sidebar {\n\
     top: 0;\n\
     max-height: 100vh;\n\
   }\n\
@@ -1775,27 +1841,59 @@ nav.prev-next .next .docs-pager-meta {\n\
 }\n\
 \n\
 /*\n\
- * ---- `1280px 以上`: ナビと検索欄の間隔確保（イシュー #3659） ----\n\
+ * ---- `1200px 以上 1440px 未満`: アクション群を詰めた 1 段ヘッダー（イシュー #3673） ----\n\
+ *\n\
+ * 実測ではラベル付きの操作部（検索 + GitHub + テーマ）が約 290px あり、1280px で\n\
+ * 末尾のセクションが操作部の下へ潜った。この帯域では GitHub・テーマの可視ラベルと\n\
+ * 検索ボタンの文言・kbd を clip でアイコンのみにし（アクセシブル名は GitHub の\n\
+ * 文字列、`aria-label` が保つ）、トリガーの左右余白とメニューの gap を詰める。\n\
+ * clip 規則は 767.98px 以下のブロックと同一の宣言を持つ。\n\
+ * `(max-width)` を先に書くのは、`@media (min-width: 1200px)` で始まる文字列を\n\
+ * 3 カラム用ブロックだけに予約するため（既存テストが先頭一致で分割する）。\n\
  */\n\
-@media (min-width: 1280px) {\n\
-  .docs-header-actions {\n\
-    padding-left: 1.5rem;\n\
+@media (max-width: 1439.98px) and (min-width: 1200px) {\n\
+  .docs-header-trigger {\n\
+    padding: 0.3rem 0.5rem;\n\
   }\n\
 \n\
-  .docs-search-input {\n\
-    width: 10.5rem;\n\
+  .docs-header nav.docs-header-nav .docs-header-menu {\n\
+    gap: 0.15rem;\n\
+  }\n\
+\n\
+  .docs-header-actions {\n\
+    gap: 0.5rem;\n\
+  }\n\
+\n\
+  .docs-github-label,\n\
+  .docs-theme-toggle-label,\n\
+  .docs-search-trigger-label,\n\
+  .docs-search-trigger-key {\n\
+    position: absolute;\n\
+    width: 1px;\n\
+    height: 1px;\n\
+    overflow: hidden;\n\
+    clip: rect(0 0 0 0);\n\
+    white-space: nowrap;\n\
   }\n\
 }\n\
 \n\
 /*\n\
- * ---- `768px 未満`: 検索を全幅の 2 段目へ置く 2 段ヘッダー（イシュー #3602） ----\n\
+ * ---- `1440px 以上`: ナビと操作部の間隔確保（イシュー #3659/#3673） ----\n\
+ */\n\
+@media (min-width: 1440px) {\n\
+  .docs-header-actions {\n\
+    padding-left: 1.5rem;\n\
+  }\n\
+}\n\
+\n\
+/*\n\
+ * ---- `768px 未満`: 検索ボタンをアイコンのみにした 1 段ヘッダー（イシュー #3602/#3672） ----\n\
  *\n\
- * brand・検索・GitHub・テーマトグルを DOM 順のまま 1 つの flex 行へ並べ、\n\
- * 検索は `flex: 1 1 calc(100% - 7rem)` で 2 段目の大半を占め、\n\
- * brand と同じ行には残らない。イシュー #3659: 2 段目は検索（flex-grow）に\n\
- * GitHub・テーマトグルを同居させ 3 段化を避ける。`order` は使わず視覚順と\n\
- * Tab 順を DOM 順に一致させる（検索の basis `100% - 7rem` は brand 行に収まらず\n\
- * 2 段目へ折り返す一方、アイコン 2 個分の 7rem を残す）。\n\
+ * brand・検索ボタン・GitHub・テーマトグルを DOM 順のまま 1 つの flex 行へ並べる。\n\
+ * #3672 で検索入力欄がダイアログへ移り、検索はアイコンのみのボタンになったため\n\
+ * 旧 2 段目（全幅の検索入力）は不要になり、ブランドと同じ 1 段に収まる\n\
+ * （収まらない極端な幅では `flex-wrap: wrap` が折り返す）。`order` は使わず\n\
+ * 視覚順と Tab 順を DOM 順に一致させる。\n\
  * GitHub リンクの可視ラベル（`.docs-github-label`）とテーマトグルの可視ラベルは\n\
  * clip で隠す（リンクは文字列がアクセシブル名として残り、トグルは aria-label で\n\
  * 名前を保つ）。アイコンのみになるため 2 段目の GitHub・トグル分 7rem に収まり\n\
@@ -1804,7 +1902,7 @@ nav.prev-next .next .docs-pager-meta {\n\
  * `.docs-header-inner` の flex item へ繰り上げる。JS 無効時は\n\
  * `.docs-search[hidden]` が非表示のため 2 段目は存在せず、`min-height` は\n\
  * 1 段分にとどめる（空の 2 段目を残さない）。実高さは折り返しで変わるため\n\
- * 768〜1279px 帯と同様に static へ戻し、見出しアンカーのオフセットを\n\
+ * 768〜1199px 帯と同様に static へ戻し、見出しアンカーのオフセットを\n\
  * ヘッダー高さに依存させない。\n\
  */\n\
 @media (max-width: 767.98px) {\n\
@@ -1832,13 +1930,20 @@ nav.prev-next .next .docs-pager-meta {\n\
     margin-left: auto;\n\
   }\n\
 \n\
-  .docs-search {\n\
-    flex: 1 1 calc(100% - 7rem);\n\
-    min-width: 0;\n\
+  /* 検索はアイコンのみのボタンになり、ブランドと同じ 1 段に収まる。\n\
+   * 右寄せは表示中の検索が担い、GitHub の auto は検索が無い（無 JS）ときだけ使う。 */\n\
+  .docs-search:not([hidden]) {\n\
+    margin-left: auto;\n\
+  }\n\
+\n\
+  .docs-search:not([hidden]) + .docs-github-link {\n\
+    margin-left: 0;\n\
   }\n\
 \n\
   .docs-github-label,\n\
-  .docs-theme-toggle-label {\n\
+  .docs-theme-toggle-label,\n\
+  .docs-search-trigger-label,\n\
+  .docs-search-trigger-key {\n\
     position: absolute;\n\
     width: 1px;\n\
     height: 1px;\n\
@@ -1847,18 +1952,8 @@ nav.prev-next .next .docs-pager-meta {\n\
     white-space: nowrap;\n\
   }\n\
 \n\
-  .docs-search-input {\n\
-    width: 100%;\n\
-  }\n\
-\n\
-  .docs-search [data-scope=\"input-group\"][data-part=\"root\"] {\n\
-    width: 100%;\n\
-  }\n\
-\n\
-  .docs-search-results {\n\
-    left: 0;\n\
-    right: 0;\n\
-    min-width: 0;\n\
+  .docs-search-dialog {\n\
+    margin-top: 4rem;\n\
   }\n\
 \n\
   .docs-content h2,\n\
@@ -2791,6 +2886,10 @@ mod tests {
             ".docs-search",
             ".docs-search-label",
             ".docs-search-input",
+            ".docs-search-trigger",
+            ".docs-search-trigger-label",
+            ".docs-search-dialog",
+            ".docs-search-dialog-panel",
             ".docs-search-results",
             ".docs-search-result",
             ".docs-search-result-title",

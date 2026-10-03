@@ -499,6 +499,26 @@ const STRUCTURE_CLASS_CONTRACT: &[(&str, &str)] = &[
         "検索ブロック div（既定 hidden、docs-header-actions 第 1 子、イシュー #958）",
     ),
     (
+        "docs-search-trigger",
+        "検索ボタンのラッパー span（内側に pre-styled-ui の button、イシュー #3672）",
+    ),
+    (
+        "docs-search-trigger-label",
+        "検索ボタンの可視ラベル span（狭幅では clip で隠す、イシュー #3672）",
+    ),
+    (
+        "docs-search-trigger-key",
+        "検索ボタンのショートカット kbd を包む装飾 span（aria-hidden、イシュー #3672）",
+    ),
+    (
+        "docs-search-dialog",
+        "検索ダイアログ dialog#docs-search-dialog（showModal で開く、イシュー #3672）",
+    ),
+    (
+        "docs-search-dialog-panel",
+        "検索ダイアログ内の全面パネル div（背景クリック判定のため dialog は padding 0、イシュー #3672）",
+    ),
+    (
         "docs-search-label",
         "検索入力のラベル label（視覚上のみ clip で隠す。fandhe-backend とのデザイン統一のため追加）",
     ),
@@ -1473,7 +1493,7 @@ fn header_menu_overrides_nav_list_column_direction() {
     assert!(rule_body(&css, "\n.docs-brand {").contains("white-space: nowrap;"));
 }
 
-/// 768px 以上 1280px 未満では全トリガーが 1 段に収まらないため、ナビを
+/// 768px 以上 1200px 未満（イシュー #3673 で 1280px から変更）では全トリガーが 1 段に収まらないため、ナビを
 /// 2 段目へ折り返し、ヘッダーを内容に合わせて伸ばす。実高さは CSS で
 /// 取得できないため、この帯域ではヘッダーを sticky にせず、サイドバー・
 /// 右目次・見出しアンカーのオフセットをヘッダー高さから切り離す。どれかが
@@ -1481,7 +1501,7 @@ fn header_menu_overrides_nav_list_column_direction() {
 #[test]
 fn mid_width_header_stacks_nav_on_second_row_inside_header() {
     let css = site_css();
-    let marker = "@media (min-width: 768px) and (max-width: 1279.98px) {";
+    let marker = "@media (min-width: 768px) and (max-width: 1199.98px) {";
     let start = css
         .find(marker)
         .unwrap_or_else(|| panic!("mid-width header media block missing: {marker}"));
@@ -1495,7 +1515,7 @@ fn mid_width_header_stacks_nav_on_second_row_inside_header() {
         // トリガーが 1 行に収まらない場合もメニューを折り返して画面右端を越えない。
         ".docs-header nav.docs-header-nav .docs-header-menu {\nflex-wrap: wrap;",
         ".docs-header-nav {\norder: 1;\nflex-basis: 100%;",
-        ".docs-sidebar,\n.docs-toc-aside {\ntop: 0;\nmax-height: 100vh;",
+        ".docs-sidebar {\ntop: 0;\nmax-height: 100vh;",
         ".docs-content h2,\n.docs-content h3 {\nscroll-margin-top: 1rem;",
     ] {
         assert!(
@@ -1510,6 +1530,42 @@ fn mid_width_header_stacks_nav_on_second_row_inside_header() {
     assert!(!block.contains("scroll-margin-top: calc(var(--fandhe-space-docs-header-height"));
     // 2 段ヘッダー高さのトークンが定義されている（未定義の var() は高さ 0 扱いになる）。
     assert!(css.contains("--fandhe-space-docs-header-height-stacked: 5.75rem;"));
+}
+
+/// 1200px 以上は 1 段ヘッダー。ナビは縮む側、アクション群は縮めない側とし、
+/// 1200px 以上 1440px 未満ではアクション群を clip でアイコンのみにして
+/// 末尾のセクションが操作部の下へ潜らないようにする（イシュー #3673）。
+/// アクセシブル名は GitHub の文字列と `aria-label` が保つため clip 対象は可視ラベルのみ。
+#[test]
+fn one_row_header_compacts_actions_between_1200_and_1440() {
+    let css = site_css();
+    let block_1200 = css.split("@media (min-width: 1200px) {").nth(1).unwrap();
+    assert!(block_1200.contains(".docs-header-nav {\nflex: 0 1 auto;"));
+    assert!(block_1200.contains(".docs-header-actions {\nflex: none;"));
+
+    let marker = "@media (max-width: 1439.98px) and (min-width: 1200px) {";
+    let start = css
+        .find(marker)
+        .unwrap_or_else(|| panic!("compact header media block missing: {marker}"));
+    let block = &css[start..];
+    let block = &block[..block.find("\n}\n}\n").expect("compact block should close")];
+    for sel in [
+        ".docs-github-label,",
+        ".docs-theme-toggle-label,",
+        ".docs-search-trigger-label,",
+        ".docs-search-trigger-key {",
+    ] {
+        assert!(
+            block.contains(sel),
+            "compact block lacks clip target `{sel}`"
+        );
+    }
+    assert!(block.contains("clip: rect(0 0 0 0);"));
+    // 隠すのではなく詰める: nav を display:none / overflow:hidden で切らない。
+    assert!(!block.contains("display: none"));
+    assert!(
+        css.contains("@media (min-width: 1440px) {\n.docs-header-actions {\npadding-left: 1.5rem;")
+    );
 }
 
 /// 狭いスマホ幅でヘッダーアクション群が縮められず横スクロールを生まない。
@@ -1708,12 +1764,12 @@ fn landing_css_hides_sidebar_only_from_768px_and_overrides_grid_after_structural
     assert!(!css[landing_at..landing_at + media_at].contains(".docs-landing .docs-sidebar"));
 }
 
-/// 768px 未満では検索を全幅の 2 段目へ置き、検索入力が 70px まで縮んで
-/// placeholder が欠ける不具合を防ぐ（イシュー #3602）。`display: contents` で
-/// DOM を変えずに子を繰り上げる。JS 無効時に空の 2 段目を残さないよう
+/// 768px 未満では検索をアイコンのみのボタンにして 1 段に収める（イシュー
+/// #3602/#3672。入力欄はダイアログへ移ったため 70px まで縮む問題自体が消えた）。
+/// `display: contents` で DOM を変えずに子を繰り上げる。JS 無効時に空の 2 段目を残さないよう
 /// `min-height` は 1 段分のトークンにとどめる。
 #[test]
-fn narrow_header_moves_search_to_full_width_second_row() {
+fn narrow_header_collapses_search_to_icon_button_in_one_row() {
     let css = site_css();
     let marker = "@media (max-width: 767.98px) {";
     let start = css
@@ -1727,9 +1783,9 @@ fn narrow_header_moves_search_to_full_width_second_row() {
         ".docs-header-inner {\nflex-wrap: wrap;",
         "column-gap:",
         ".docs-header-actions {\ndisplay: contents;",
-        ".docs-search {\nflex: 1 1 calc(100% - 7rem);\nmin-width: 0;",
-        ".docs-search-input {\nwidth: 100%;",
-        ".docs-search-results {\nleft: 0;\nright: 0;\nmin-width: 0;",
+        ".docs-search:not([hidden]) {\nmargin-left: auto;",
+        ".docs-search:not([hidden]) + .docs-github-link {\nmargin-left: 0;",
+        ".docs-search-dialog {\nmargin-top: 4rem;",
         "scroll-margin-top: 1rem;",
     ] {
         assert!(
@@ -1741,7 +1797,12 @@ fn narrow_header_moves_search_to_full_width_second_row() {
     // イシュー #3659: order で視覚順と Tab 順を乖離させない。
     assert_eq!(block.matches("\norder:").count(), 0);
     // テーマトグルの可視ラベルは clip で隠し、名前は aria-label が保つ。
-    assert!(block.contains(".docs-github-label,\n.docs-theme-toggle-label {\nposition: absolute;"));
+    assert!(block.contains(
+        ".docs-github-label,\n.docs-theme-toggle-label,\n.docs-search-trigger-label,\n.docs-search-trigger-key {\nposition: absolute;"
+    ));
+    // 旧 2 段目の全幅検索・ポップアップ結果一覧の配置は残さない。
+    assert!(!block.contains("calc(100% - 7rem)"));
+    assert!(!block.contains(".docs-search-results"));
 }
 
 /// 本文の長い ASCII 列は折り返し、表内の絶対配置の視覚非表示要素は
@@ -2232,4 +2293,20 @@ fn not_found_classes_never_appear_in_fixture_html() {
             assert!(!tokens.contains(*class), "{class} がフィクスチャに出現した");
         }
     }
+}
+
+/// イシュー #3672: 検索ダイアログの閉状態を誤表示しないため、`display` は
+/// `[open]` にだけ付ける。素の `.docs-search-dialog` ブロックは `display` を
+/// 持たず、`::backdrop` が存在し、結果一覧は絶対配置でない。
+#[test]
+fn search_dialog_display_is_only_declared_on_open_state() {
+    let css = site_css();
+    let base = rule_body(&css, "\n.docs-search-dialog {");
+    assert!(!base.contains("display:"), "{base}");
+    let open = rule_body(&css, "\n.docs-search-dialog[open] {");
+    assert!(open.contains("display: block;"), "{open}");
+    assert!(css.contains(".docs-search-dialog::backdrop {"));
+    let results = rule_body(&css, "\n.docs-search-results {");
+    assert!(results.contains("position: static;"), "{results}");
+    assert!(!results.contains("z-index"), "{results}");
 }

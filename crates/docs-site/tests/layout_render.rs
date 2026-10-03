@@ -1283,24 +1283,54 @@ fn header_github_link_has_single_target_and_rel() {
     );
 }
 
-/// イシュー #3606: 検索の素の input は `input_group` の内側、label と結果一覧は
-/// group の外側にあり、`aria-keyshortcuts="/"` を持つ。
+/// イシュー #3606/#3672: 検索の素の input は dialog 内の `input_group` の内側、
+/// label と結果一覧は group の外側にある。ショートカット `/` はボタン側
+/// （`aria-keyshortcuts` と kbd）が担い、dialog はボタンの後ろに置かれる。
 #[test]
-fn header_search_input_is_inside_input_group_with_slash_hint() {
+fn header_search_input_is_inside_dialog_input_group_with_slash_hint_on_trigger() {
     let body = p(vec![], vec![text("本文です。")]);
     let html = render(&docs_page("タイトル", "", sample_sidebar(), body));
     let header = header_html(&html);
 
+    let trigger = header
+        .find(r#"class="docs-search-trigger""#)
+        .expect("trigger");
+    let kbd = header.find(r#"data-scope="kbd""#).expect("kbd");
+    let dialog = header.find("<dialog").expect("dialog");
     let label = header.find(r#"class="docs-search-label""#).expect("label");
     let root = header
         .find(r#"data-scope="input-group" data-part="root""#)
         .expect("input_group root");
     let input = header.find(r#"class="docs-search-input""#).expect("input");
-    let kbd = header.find(r#"data-scope="kbd""#).expect("kbd");
     let results = header.find(r#"id="docs-search-results""#).expect("results");
-    assert!(label < root && root < input && input < kbd && kbd < results);
+    assert!(trigger < kbd && kbd < dialog && dialog < label);
+    assert!(label < root && root < input && input < results);
     assert!(header.contains(r#"aria-keyshortcuts="/""#));
     assert!(header.contains(r#"data-scope="icon""#));
+}
+
+/// イシュー #3672: ダイアログは `open` なしで SSR され、ボタンは
+/// `aria-haspopup`/`aria-expanded` を静的に持たない（JS が付与する）。
+#[test]
+fn header_search_dialog_is_closed_and_trigger_has_no_static_popup_state() {
+    let body = p(vec![], vec![text("本文です。")]);
+    let html = render(&docs_page("タイトル", "", sample_sidebar(), body));
+    let header = header_html(&html);
+    let start = header.find("<dialog").expect("dialog");
+    let tag_end = header[start..].find('>').expect("dialog tag end") + start;
+    let dialog_tag = &header[start..tag_end];
+    assert!(!dialog_tag.contains("open"), "{dialog_tag}");
+    assert!(
+        dialog_tag.contains(r#"id="docs-search-dialog""#),
+        "{dialog_tag}"
+    );
+    assert!(!header.contains("aria-haspopup"), "{header}");
+    let trigger_start = header
+        .find(r#"class="docs-search-trigger""#)
+        .expect("trigger");
+    let before_dialog = &header[trigger_start..start];
+    assert!(!before_dialog.contains("aria-expanded"), "{before_dialog}");
+    assert!(before_dialog.contains(r#"aria-controls="docs-search-dialog""#));
 }
 
 /// イシュー #3609: `footer` が `Some` のとき `<body>` の最後の子（`div.docs-container`
