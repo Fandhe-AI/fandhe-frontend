@@ -1300,26 +1300,43 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
  *\n\
  * ブランド・全セクションのトリガー・アクション群を 1 段に並べるには約\n\
  * 1240px 必要で、この帯域では収まらない。ナビを 2 段目（`order: 1` +\n\
- * `flex-basis: 100%`）へ折り返し、ヘッダー高さを\n\
+ * `flex-basis: 100%`）へ折り返し、ヘッダー高さを最小\n\
  * `--fandhe-space-docs-header-height-stacked` へ伸ばす。sticky のサイドバーと\n\
  * 右目次・見出しアンカーのオフセットも同じトークンへ揃え、ヘッダーの下へ潜らせない。\n\
  * 上記の通常規則より後ろに置くことで同じ詳細度のまま上書きする。\n\
  */\n\
 @media (min-width: 768px) and (max-width: 1279.98px) {\n\
+  /* 高さは固定せず最小値とする。フォント差などで 2 段目のトリガーが\n\
+   * 1 行に収まらないときはメニュー自体を折り返し、ヘッダーがその分だけ\n\
+   * 伸びて下の要素を押し下げる（ナビが画面右端やヘッダー外へ出ない）。 */\n\
   .docs-header {\n\
-    height: var(--fandhe-space-docs-header-height-stacked);\n\
+    height: auto;\n\
+    min-height: var(--fandhe-space-docs-header-height-stacked);\n\
   }\n\
 \n\
   .docs-header-inner {\n\
     flex-wrap: wrap;\n\
     align-content: center;\n\
     row-gap: 0.35rem;\n\
+    height: auto;\n\
+    padding-top: 0.5rem;\n\
+    padding-bottom: 0.5rem;\n\
   }\n\
 \n\
   .docs-header-nav {\n\
     order: 1;\n\
     flex-basis: 100%;\n\
     margin-left: 0;\n\
+  }\n\
+\n\
+  .docs-header nav.docs-header-nav .docs-header-menu {\n\
+    flex-wrap: wrap;\n\
+  }\n\
+\n\
+  /* 768px 付近でも 8 セクションが 1 行に収まるよう左右余白を詰める\n\
+   * （既定 0.65rem のままだと 768px で数 px 足りず折り返す）。 */\n\
+  .docs-header-trigger {\n\
+    padding: 0.3rem 0.5rem;\n\
   }\n\
 \n\
   /* `.docs-toc-aside` は 1200px 以上でのみ表示（上記 1200px ブロック）。\n\

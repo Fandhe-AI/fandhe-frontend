@@ -1431,8 +1431,10 @@ fn mid_width_header_stacks_nav_on_second_row_inside_header() {
     let block = &block[..block.find("\n}\n}\n").expect("media block should close")];
 
     for expected in [
-        ".docs-header {\nheight: var(--fandhe-space-docs-header-height-stacked);",
-        "flex-wrap: wrap;",
+        ".docs-header {\nheight: auto;\nmin-height: var(--fandhe-space-docs-header-height-stacked);",
+        ".docs-header-inner {\nflex-wrap: wrap;",
+        // トリガーが 1 行に収まらない場合もメニューを折り返して画面右端を越えない。
+        ".docs-header nav.docs-header-nav .docs-header-menu {\nflex-wrap: wrap;",
         ".docs-header-nav {\norder: 1;\nflex-basis: 100%;",
         ".docs-sidebar,\n.docs-toc-aside {\ntop: var(--fandhe-space-docs-header-height-stacked);\nmax-height: calc(100vh - var(--fandhe-space-docs-header-height-stacked));",
         "scroll-margin-top: calc(var(--fandhe-space-docs-header-height-stacked) + 1rem);",
