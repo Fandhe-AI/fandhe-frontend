@@ -216,6 +216,11 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
   - CSS: `landing::CSS` を `STRUCTURAL_CSS` の直後に `site.css` へ積む（ヒーローが使う recipe が `site.css` にしか無いため別ファイルにしない）。契約は `site_css_contract.rs` の `LANDING_CLASSES`。
   - テスト: 本番登録表の `/` はサイト専用の内容のため、合成フィクスチャのビルドは `build_site_with(.., &EMPTY_REGISTRY)` を使う（アサーションは緩めない）。バイナリ経由のテストは CTA の遷移先ページを足した作業コピーをビルドする。
   - 後続（#3613〜#3615）: `/` の登録は 1 件しか持てない（`DuplicatePath`）ため、`landing::render` の返す節列へ節を追記して拡張する。
+- （確定済み、#3613）トップの特徴グリッド。実装は `landing::features`、文言の唯一の正は `landing::FEATURES`（旧 `site/index.md` の `## 特徴` は削除し、二重に持たない。再発は `landing` の単体テストが検知する）。
+  - リンク先（内部の nav 実在ページのみ）: 既定エスケープ → `/api/component-api/`、`unsafe` の排除 → `/api/interactive-api/`、依存最小 → `/guides/deployment/`、プレーン HTML/JS/CSS の尊重 → `/guides/embedding-guide/`、SSR/SPA/SSG/ビュー遷移 → `/examples/`。
+  - `link_overlay` の recipe は `site.css` に積まない規則のため使わず、`[data-scope="link"]::after` の絶対配置でカード全面をクリック可能にする（`card::root` が `position: relative`）。フォーカスリングも同じ `::after` へ当てる（`:focus-within` セレクタは `site_theme` の契約テストが制限している）。
+  - `card` は `data-scope` を持つため、カード内の見出しと説明文は検索インデックスから外れる。5 項目の要旨は索引されるヒーローのリード文に含まれるため許容する。節見出し h2 は `data-scope` の外に置く。
+  - 段組みは基底 1 列、768px 以上で 2 列、1024px 以上で 3 列。
 - 指標（`stats-row`）に載せる数値の算出元は #3614 で確定する。
 - （確定済み・#3607）ページ見出しは `crates/docs-site/src/page_header.rs` が `build.rs` のページループで、生成節の挿入後に本文先頭へ置く。
   - Markdown 由来の h1 は pre-styled-ui の `heading` へ置き換えず、パンくずの後ろへ移設する（`header.docs-page-heading`）。`heading` は `data-scope` を持つため、検索インデックスから h1 の文言が落ちるのと、「文書の h1 = `data-scope` の外の `<h1>`」という判定が崩れるのを避ける。Themes・Blocks のデモ内の h1 は `data-scope="heading"` 付きで、文書の見出し構造には数えない。

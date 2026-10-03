@@ -1498,6 +1498,10 @@ const LANDING_CLASSES: &[&str] = &[
     "docs-hero-lead",
     "docs-hero-install",
     "docs-hero-actions",
+    "docs-features",
+    "docs-features-title",
+    "docs-features-grid",
+    "docs-feature",
 ];
 
 /// `/quickstart/` を現在ページとするランディング骨格のフィクスチャ HTML。
@@ -1525,6 +1529,21 @@ fn landing_classes_match_module_constant_and_have_css_selectors() {
     for class in LANDING_CLASSES {
         assert!(css_tokens.contains(*class), "{class} が site.css に無い");
     }
+}
+
+#[test]
+fn landing_feature_grid_is_one_two_three_columns_by_breakpoint() {
+    let css = site_css();
+    let base = css.find(".docs-features-grid {").expect("grid base rule");
+    assert!(css[base..].contains("grid-template-columns: minmax(0, 1fr);"));
+    let md = css
+        .find("@media (min-width: 768px) {\n  .docs-features-grid")
+        .expect("768px rule");
+    assert!(css[md..].contains("repeat(2, minmax(0, 1fr))"));
+    let lg = css
+        .find("@media (min-width: 1024px) {\n  .docs-features-grid")
+        .expect("1024px rule");
+    assert!(css[lg..].contains("repeat(3, minmax(0, 1fr))"));
 }
 
 #[test]
