@@ -85,6 +85,13 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 
 `grid-list-*` は `grid-list-action-tiles`（icon / heading / text のみ）を第一手本とし、`grid-list-compact-tiles`（avatar・menu・画像を含む）は構造のみ参照とする。副次所見として、ローカル配信では `/favicon.ico` が 404 だった（#3604 の対象）。
 
+### 3.1 確定事項（#3610: 右目次と折りたたみ目次）
+
+- 主に CSS で変更する（`toc_nav` / `toc_items` の出力、`class="docs-toc"` の唯一性と anchor 構造は不変。`toc_inline` の summary にのみ装飾 svg を追加する）。
+- 右目次は `ul` の 1px 縦線（rail）に、現在地 `a[aria-current="location"]::before` の 2px アクセント縦棒を重ねる。進捗の段階表現は採用しない。階層インデントは `li` ではなく `a` の padding で表す。
+- 折りたたみ目次の開閉アイコンは素の `svg.docs-toc-inline-icon`（`icon::icon` は使わない。recipe 抜きの `site-primitives.css` で `fd-icon--size-md` が未定義になるため）。`details[open]` で CSS 回転し、`prefers-reduced-motion` では transition を外す。
+- 色トークンは新設せず、スクロールスパイ以外の JS は追加しない。
+
 ### 3.2 ヘッダー操作部の確定事項（#3606）
 
 手本は `navbar-docs-site`（構造のみ参照）。`docs-*` class の契約（HTML への出現・`site.css` のセレクタ・`SITE_JS` のセレクタ・`no_js_contract` のリテラル）は削除も緩和もしない。pre-styled-ui の root 部品は呼び出し側の `class` を捨てるため、`docs-*` class は自前の要素（ラッパーまたは素の要素）に残し、pre-styled-ui 部品はその内側へ置く。

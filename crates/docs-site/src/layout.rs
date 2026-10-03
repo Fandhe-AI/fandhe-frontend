@@ -660,12 +660,17 @@ fn toc_items(entries: &[TocEntry]) -> Option<Vec<Node>> {
 ///   開閉はネイティブ `<details>` の挙動であり JS を要さない
 ///   （`crate::nav::group_node` の `details.docs-nav-group` と同型の
 ///   ディスクロージャパターン、イシュー #940 の先例に揃える）。
+/// - **開閉アイコンは素の `svg`（`icon::icon` を使わない）**: 見出しのある
+///   全ページ（recipe 抜きの `site-primitives.css` を読む Primitives
+///   ページを含む）が本目次を出す。`fd-icon--size-md` は recipe 側にしか
+///   無く未定義になりブラウザ既定サイズで描画されるため、サイズは
+///   `.docs-toc-inline-icon` で与える（イシュー #3610）。
 pub fn toc_inline(entries: &[TocEntry]) -> Option<Node> {
     let items = toc_items(entries)?;
     let summary = el(
         "summary",
         vec![("class", "docs-toc-inline-summary")],
-        vec![text(TOC_HEADING_TEXT.to_string())],
+        vec![text(TOC_HEADING_TEXT.to_string()), toc_inline_icon()],
     );
     let details = el("details", vec![], vec![summary, ul(vec![], items)]);
     Some(nav(
@@ -675,6 +680,32 @@ pub fn toc_inline(entries: &[TocEntry]) -> Option<Node> {
         ],
         vec![details],
     ))
+}
+
+/// 折りたたみ目次の開閉を示す下向きシェブロン（装飾のため `aria-hidden`）。
+/// 開状態の回転は CSS（`details[open]`）が担い、JS を要さない。
+fn toc_inline_icon() -> Node {
+    el(
+        "svg",
+        vec![
+            ("class", "docs-toc-inline-icon"),
+            ("aria-hidden", "true"),
+            ("focusable", "false"),
+            ("viewBox", "0 0 24 24"),
+            ("fill", "none"),
+        ],
+        vec![el(
+            "path",
+            vec![
+                ("d", "M6 9l6 6l6 -6"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+                ("stroke-linecap", "round"),
+                ("stroke-linejoin", "round"),
+            ],
+            vec![],
+        )],
+    )
 }
 
 /// `base_path` を考慮したアセット参照パスを生成する（受け入れ条件 3 の
