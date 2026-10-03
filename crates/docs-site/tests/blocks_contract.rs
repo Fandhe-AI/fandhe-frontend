@@ -50,6 +50,23 @@ fn collect_rs_files(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+/// ページ末尾の前後ページャ（`nav.prev-next`、イシュー #3608 でカード型化）を
+/// 除いた HTML を返す。block 本体の card/icon 個数を数えるテストが、
+/// ページャの card を block の部品として数えないために使う。
+fn strip_pager(html: String) -> String {
+    let Some(start) = html.find("<nav class=\"prev-next\"") else {
+        return html;
+    };
+    let Some(len) = html[start..].find("</nav>") else {
+        return html;
+    };
+    format!(
+        "{}{}",
+        &html[..start],
+        &html[start + len + "</nav>".len()..]
+    )
+}
+
 /// 実サイトビルドの生成物ディレクトリを返す（読み取り専用）。
 ///
 /// 従来は本ファイル内でテストごとに `build_site` を再実行していた
@@ -650,8 +667,10 @@ fn signup_05_page_wires_demo_class_and_css_hooks() {
 #[test]
 fn signup_05_composes_expected_parts() {
     let out = build_real_site();
-    let html = std::fs::read_to_string(out.join("blocks/signup-05/index.html"))
-        .expect("blocks/signup-05/index.html should be generated");
+    let html = strip_pager(
+        std::fs::read_to_string(out.join("blocks/signup-05/index.html"))
+            .expect("blocks/signup-05/index.html should be generated"),
+    );
     for needle in [
         "data-part=\"group\"",
         "type=\"email\"",
@@ -1526,8 +1545,10 @@ fn bento_staggered_page_wires_demo_class_and_css_hooks() {
 #[test]
 fn bento_staggered_composes_expected_parts() {
     let out = build_real_site();
-    let html = std::fs::read_to_string(out.join("blocks/bento-staggered/index.html"))
-        .expect("blocks/bento-staggered/index.html should be generated");
+    let html = strip_pager(
+        std::fs::read_to_string(out.join("blocks/bento-staggered/index.html"))
+            .expect("blocks/bento-staggered/index.html should be generated"),
+    );
     assert_eq!(
         html.matches("data-scope=\"card\" data-part=\"root\"")
             .count(),
@@ -1607,8 +1628,10 @@ fn feature_expand_page_wires_demo_class_and_css_hooks() {
 #[test]
 fn feature_expand_composes_expected_parts() {
     let out = build_real_site();
-    let html = std::fs::read_to_string(out.join("blocks/feature-expand/index.html"))
-        .expect("blocks/feature-expand/index.html should be generated");
+    let html = strip_pager(
+        std::fs::read_to_string(out.join("blocks/feature-expand/index.html"))
+            .expect("blocks/feature-expand/index.html should be generated"),
+    );
     assert_eq!(
         html.matches("data-scope=\"card\" data-part=\"root\"")
             .count(),
@@ -3886,8 +3909,10 @@ fn bento_three_column_tall_page_wires_demo_class_and_css_hooks() {
 #[test]
 fn bento_three_column_tall_composes_expected_parts() {
     let out = build_real_site();
-    let html = std::fs::read_to_string(out.join("blocks/bento-three-column-tall/index.html"))
-        .expect("blocks/bento-three-column-tall/index.html should be generated");
+    let html = strip_pager(
+        std::fs::read_to_string(out.join("blocks/bento-three-column-tall/index.html"))
+            .expect("blocks/bento-three-column-tall/index.html should be generated"),
+    );
     for scope in [
         "data-scope=\"badge\"",
         "data-scope=\"heading\"",
@@ -4578,8 +4603,10 @@ fn careers_split_photo_list_composes_expected_parts() {
 #[test]
 fn bento_two_column_composes_expected_parts() {
     let out = build_real_site();
-    let html = std::fs::read_to_string(out.join("blocks/bento-two-column/index.html"))
-        .expect("blocks/bento-two-column/index.html should be generated");
+    let html = strip_pager(
+        std::fs::read_to_string(out.join("blocks/bento-two-column/index.html"))
+            .expect("blocks/bento-two-column/index.html should be generated"),
+    );
     for scope in [
         "data-scope=\"badge\"",
         "data-scope=\"heading\"",
