@@ -1778,7 +1778,7 @@ fn push_typography_rule(
 /// | タグ | 部品 / variant | 備考 |
 /// |---|---|---|
 /// | `h1` | [`fandhe_frontend_pre_styled_ui::heading`] base + `HeadingSize::Xl3` | |
-/// | `h2` | 同 base + `Xl2` | `border-top`/`padding-top` は docs 固有 |
+/// | `h2` | 同 base + `Xl2` | `border-top`/`padding-top` は docs 固有（`border-top` の色・太さは [`fandhe_frontend_pre_styled_ui::separator`] と同じ `--fandhe-color-border`・1px・solid、イシュー #3622） |
 /// | `h3` | 同 base + `Xl` | |
 /// | `h4` | 同 base + `Lg` | 現行 STRUCTURAL_CSS 未対応だった新規スタイル |
 /// | `h5` | 同 base + `Md` | 同上 |
@@ -1790,7 +1790,8 @@ fn push_typography_rule(
 /// | `blockquote` | [`fandhe_frontend_pre_styled_ui::blockquote`] root base + `Subtle` variant | `--fandhe-palette-muted` 系カスタムプロパティは本文脈で常に accent 固定のため `var(--fandhe-color-accent-muted)` 系トークンへ直接解決する（docs 側の意図的な単純化。palette 切り替え UI を持たない）。イシュー #1431 で Subtle variant の背景・角丸を廃したため、ミラー側も背景・角丸を持たない |
 /// | `code`（インライン） | [`fandhe_frontend_pre_styled_ui::code`] base | `pre code` のリセットと `pre` 自体のブロック装飾は docs 固有 |
 /// | `em` | [`fandhe_frontend_pre_styled_ui::em`] | |
-/// | `table`/`th`/`td`/`strong` | 対応部品なし | 現行トークンベーススタイル・ブラウザ既定を維持（対象外、PR 本文参照） |
+/// | `table`/`th`/`td` | [`fandhe_frontend_pre_styled_ui::table`] Outline variant | 縦罫線なし・行罫線・ヘッダー背景/下罫線・外枠/角丸（`radius-lg`）をミラー。padding は Sm、font-size は Md の値（docs 側で custom property を解決した値）。横スクロール機構は docs 固有（イシュー #3622） |
+/// | `strong` | 対応部品なし | ブラウザ既定を維持 |
 ///
 /// `kbd` は [`crate::markdown`] が出力しないため対象外（死に CSS を追加
 /// しない。将来 `kbd` 出力構文を導入する際に本方式で追加する）。
@@ -2080,9 +2081,8 @@ fn typography_css() -> Result<String, SiteThemeError> {
             decl("position", "relative"),
             decl("margin", "0 0 1.05rem"),
             decl("max-width", "100%"),
-            decl("font-size", "0.925em"),
             decl("border", "1px solid var(--fandhe-color-border)"),
-            decl("border-radius", "0.5rem"),
+            decl("border-radius", "var(--fandhe-radius-lg)"),
             // Firefox 向け: 細身の常時可視スクロールバー。
             decl("scrollbar-width", "thin"),
             decl(
@@ -2129,46 +2129,53 @@ fn typography_css() -> Result<String, SiteThemeError> {
             decl("border-radius", "0.5rem"),
         ],
     )?;
-    // `table` 自身の `border`（外枠フレーム）と二重線にならないよう、
-    // セル側は内部グリッド線（右辺・下辺のみ）だけを持たせる。`table` は
-    // `display: block` のままで `border-collapse: collapse` が効かない
-    // ため、外周に接する辺（上辺・左辺は常に、右端列の右辺・最終行の
-    // 下辺）はセル側で明示的に打ち消し、外枠は `table` の `border` のみが
-    // 担う（Bugbot 指摘、イシュー #949 追補）。
+    // 表のセル（`table` recipe〔Outline variant、イシュー #3622〕の値ミラー）。
+    // recipe は縦罫線を持たず行罫線のみで、`--fandhe-table-*` custom property を
+    // 経由するため docs 側は解決後の値を直接書く（blockquote・link と同じ単純化）。
+    // padding は高密度なコード表向けに Sm、font-size は Md の値を採る。
+    // 縦グリッド（`border-width: 0 1px 1px 0`）と `tr > :last-child` の右辺打ち消しは
+    // recipe に縦罫線が無いため廃止した。`table` は `display: block` で
+    // `border-collapse` が効かないため、最終 body 行の下辺だけはセル側で打ち消し、
+    // 外枠との二重線を避ける（recipe の `--fandhe-table-last-row-border: none` 相当）。
     push_typography_rule(
         &mut out,
         ".docs-content th,\n.docs-content td",
         &[
-            decl("border-width", "0 1px 1px 0"),
-            decl("border-style", "solid"),
-            decl("border-color", "var(--fandhe-color-border)"),
-            decl("padding", "0.45rem 0.75rem"),
+            decl(
+                "border-bottom",
+                "1px solid var(--fandhe-color-border-muted)",
+            ),
+            decl("padding", "var(--fandhe-space-2) var(--fandhe-space-3)"),
+            decl("font-size", "var(--fandhe-font-font-size-sm)"),
+            decl("font-variant-numeric", "tabular-nums"),
             decl("text-align", "left"),
         ],
     )?;
-    push_typography_rule(
-        &mut out,
-        ".docs-content tr > :last-child",
-        &[decl("border-right", "0")],
-    )?;
-    // `tbody` へスコープを限定する（Bugbot 指摘、イシュー #949 追補）。
-    // docs のテーブルは常に `thead` + `tbody` を出力するため、
-    // 無スコープの `tr:last-child` は `thead` 内の唯一の `tr`（＝ヘッダー
-    // 行）にも一致してしまい、`thead`/`tbody` 境界線（ヘッダー行下部の
-    // ボーダー）まで消してしまう。「最終 body 行のみ下辺を打ち消す」
-    // という意図を保つため `tbody` 配下に限定する。
+    // `tbody` へスコープを限定する（thead 内の唯一の `tr` に一致してヘッダー下の
+    // 罫線まで消さないため、Bugbot 指摘、イシュー #949 追補）。
     push_typography_rule(
         &mut out,
         ".docs-content tbody tr:last-child > *",
         &[decl("border-bottom", "0")],
     )?;
+    // ヘッダー行（recipe Outline の header-bg / font-weight-medium / fg）。
+    // ヘッダー下だけ 1 段強い罫線にする。
     push_typography_rule(
         &mut out,
         ".docs-content th",
         &[
             decl("background", "var(--fandhe-color-bg-subtle)"),
-            decl("font-weight", "600"),
+            decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+            decl("color", "var(--fandhe-color-fg)"),
+            decl("border-bottom", "1px solid var(--fandhe-color-border)"),
         ],
+    )?;
+    // 引用内の末尾ブロックの下余白は `padding-block` と二重になり上下非対称に
+    // なるため打ち消す（docs 固有、イシュー #3622）。
+    push_typography_rule(
+        &mut out,
+        ".docs-content blockquote > :last-child",
+        &[decl("margin-bottom", "0")],
     )?;
 
     Ok(out)
@@ -3404,7 +3411,7 @@ mod tests {
         assert!(typography.contains(".docs-content table::-webkit-scrollbar-thumb {"));
         assert!(typography.contains(".docs-content table {\n  display: block;"));
         assert!(typography.contains(
-            "  border: 1px solid var(--fandhe-color-border);\n  border-radius: 0.5rem;\n  scrollbar-width: thin;"
+            "  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  scrollbar-width: thin;"
         ));
 
         // 端フェード影（イシュー #1079）。longhand 5 宣言が揃っていること、

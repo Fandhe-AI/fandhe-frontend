@@ -57,6 +57,8 @@
 
 Markdown 本文の表・引用・注記（#3622）には手本 block がなく、既存の `admonition` 描画と `fd-table` recipe の整合で行う。
 
+イシュー #3622 の判断: GFM alert の注記は静的な補足のため、割り込み通知（`role="alert"`）の `alert` ではなく role を持たない `callout`（Soft）で描画する。CSS は `admonition.css` の分離を維持し、`SITE_RECIPES` には callout を加えない（§4 の個別規定を §4.1 より優先）。表は `table` recipe の Outline variant を解決済みの値でミラーし、縦罫線を廃止した（padding は Sm、font-size は Md の値）。
+
 ### 3.1 実査記録（2026-10-03 実施）
 
 ローカルで `docs-site` をビルドし静的サーバで配信して、手本 block の `/blocks/<id>/` を 1440px・light で撮影した（撮影はローカル保存でリポジトリには含まれない）。主な観察は次のとおり。

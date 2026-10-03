@@ -66,17 +66,17 @@
 //! 適用されるため、契約ドリフトの対象にならない）。
 //!
 //! 同様に `markdown.rs` が admonition（`> [!NOTE]` 等）から生成する
-//! `fd-alert--status-*` class はサイト骨格 CSS の契約対象外（サイト骨格 CSS
+//! `fd-callout--*` class はサイト骨格 CSS の契約対象外（サイト骨格 CSS
 //! は変更しない不変条件、イシュー #715）。代わりに `crate::admonition::stylesheet()`
 //! が生成する `assets/admonition.css` 側が契約を持つため、
 //! `admonition_markdown_output_classes_are_covered_by_generated_admonition_css`
 //! が両者の乖離を検知する。層 1 (c) 方向の判定（[`classes_outside_contract`]）
-//! は `docs-` 接頭辞トークンのみを対象にすることで、`language-*`/`fd-alert--*`
+//! は `docs-` 接頭辞トークンのみを対象にすることで、`language-*`/`fd-callout--*`
 //! のような別契約管轄のクラスを誤って層 1 の違反として扱わない。
 //!
 //! 同様に `crate::highlight`（イシュー #1078）がフェンスコードブロック本文
 //! （Rust/TOML/HTML）へ挿入する `token-*` class（`docs-` 接頭辞なし）も
-//! `language-*`/`fd-alert--*` と同じ理由で層 1 の契約対象外である。
+//! `language-*`/`fd-callout--*` と同じ理由で層 1 の契約対象外である。
 //! `token-*` は生成 CSS 側（`crate::site_theme::highlight_css`）に恒常的な
 //! 固定セレクタ集合を持つため（`crate::highlight::TokenKind::ALL` を回した
 //! 網羅性は `crates/docs-site/tests/highlight.rs` が独立に検証する）、
@@ -315,7 +315,7 @@ fn extract_css_class_selectors_ignores_decimal_numbers() {
 }
 
 /// イシュー #715 の乖離検知テスト（モジュール doc 冒頭の追記参照）:
-/// `markdown.rs` の admonition レンダリングが生成する全 `fd-alert--status-*`
+/// `markdown.rs` の admonition レンダリングが生成する全 `fd-callout--*`
 /// class が `crate::admonition::stylesheet()`（`assets/admonition.css` の
 /// 実体）にセレクタとして存在することを固定する。`site/assets/site.css` 側は
 /// 対象外（分離 CSS 方式のため、`assert_all_classes_covered` は使わない）。
@@ -1076,7 +1076,7 @@ fn rendered_html_has_no_class_outside_the_contract() {
         let non_docs_tokens: HashSet<String> = extract_class_tokens(&html)
             .into_iter()
             // pre-styled-ui の recipe class（`fd-*`）は契約対象外（ヘッダー操作部が
-            // button/badge/kbd/icon/link を内包する、イシュー #3606。`fd-alert--*`
+            // button/badge/kbd/icon/link を内包する、イシュー #3606。`fd-callout--*`
             // と同じ扱い）。
             .filter(|t| !t.starts_with("docs-") && !t.starts_with("fd-"))
             .collect();
