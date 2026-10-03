@@ -36,8 +36,9 @@
 //!
 //! pre-styled-ui の root は呼び出し側の `class` を破棄するため、`docs-*` class
 //! は常にラッパー要素（`ul` / `li` / `a`）へ付ける。カード内は
-//! `data-scope="card"` 配下なので TOC・検索テキストから除外される
-//! （[`crate::layout`] の既存規則）。API のグループ見出し `h2` は
+//! `data-scope="card"` 配下なので TOC からは除外されるが、検索テキストには
+//! `search_index` が `li.docs-index-card` を特例扱いして含める（手書き索引の
+//! 置換で検索可能性を失わない契約）。API のグループ見出し `h2` は
 //! `data-scope` の外に置き、TOC・検索に載せる。
 //!
 //! # セキュリティ上の不変条件

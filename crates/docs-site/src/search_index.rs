@@ -278,6 +278,16 @@ fn collect_text_into(node: &Node, out: &mut String, exclude_code_blocks: bool) {
             attrs,
             children,
         } => {
+            // セクション索引カード（`section_index` の `li.docs-index-card`）は
+            // 部品 root（`data-scope="card"`）の内側にタイトル・説明文を持つが、
+            // 手書き索引の置換先として検索対象に含める契約（#3616）のため、
+            // この部分木に限り `data-scope` 除外を適用せず全文を連結する。
+            if is_index_card(tag, attrs) {
+                out.push(' ');
+                collect_all_text(node, out);
+                out.push(' ');
+                return;
+            }
             // headless-ui anatomy ルート（`data-scope` 属性）の部分木は
             // `layout::inject_heading_anchors` と同一基準で丸ごと除外する。
             if attrs.iter().any(|(name, _)| name == "data-scope") {
@@ -306,6 +316,30 @@ fn collect_text_into(node: &Node, out: &mut String, exclude_code_blocks: bool) {
         // 索引テキストへ生 HTML 断片を取り込まない（docs-site は raw_html() を
         // 使わない方針だが防御的に実装する。モジュール doc のセキュリティ
         // 不変条件参照）。
+        Node::RawHtml(_) => {}
+    }
+}
+
+/// 索引カードのラッパー（`li.docs-index-card`）かどうか。
+fn is_index_card(tag: &str, attrs: &[(String, String)]) -> bool {
+    tag == "li"
+        && attrs.iter().any(|(name, value)| {
+            name == "class" && value.split_whitespace().any(|c| c == "docs-index-card")
+        })
+}
+
+/// `data-scope` 除外を行わず部分木のテキストを連結する（索引カード専用）。
+/// `RawHtml` は [`collect_text_into`] と同じく取り込まない。
+fn collect_all_text(node: &Node, out: &mut String) {
+    match node {
+        Node::Text(s) => out.push_str(s),
+        Node::Element { children, .. } => {
+            out.push(' ');
+            for child in children {
+                collect_all_text(child, out);
+            }
+            out.push(' ');
+        }
         Node::RawHtml(_) => {}
     }
 }

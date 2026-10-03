@@ -194,6 +194,33 @@ fn search_index_keeps_the_three_section_tops() {
     }
 }
 
+#[test]
+fn search_index_keeps_card_titles_and_descriptions() {
+    use fandhe_frontend_docs_site::section_index::{EXAMPLES, GUIDES};
+    let cards = |file: &str, cs: &[fandhe_frontend_docs_site::section_index::IndexCard]| {
+        let json = read_out(&format!("assets/search-index/{file}.json"));
+        for c in cs {
+            assert!(
+                json.contains(c.title),
+                "{file}: {} title not indexed",
+                c.path
+            );
+            assert!(
+                json.contains(c.description),
+                "{file}: {} description not indexed",
+                c.path
+            );
+        }
+    };
+    cards("guides", GUIDES);
+    cards("examples", EXAMPLES);
+    let flat: Vec<_> = API_GROUPS
+        .iter()
+        .flat_map(|g| g.cards.iter().copied())
+        .collect();
+    cards("api-reference", &flat);
+}
+
 fn class_tokens(html: &str) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     for chunk in html.split("class=\"").skip(1) {
