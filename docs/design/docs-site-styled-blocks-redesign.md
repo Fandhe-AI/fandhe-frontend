@@ -89,7 +89,7 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 
 - 使う recipe だけを `site.css` へ積む（#3599）。全 recipe の一括積みは禁止する（サイズと契約テストの肥大を避ける）。
 - 供給経路は `crates/docs-site/src/site_theme.rs` の `stylesheet()` へ必要な部品の `*_css()` を追加する形に一本化する。`pre-styled-ui.css` のような別ファイルは新設しない（`admonition.css` の既存分離は現状維持）。
-- 追加した recipe の class と docs 側ラッパーの `docs-*` class は、`tests/site_css_contract.rs` の `STRUCTURE_CLASS_CONTRACT` へ追加して双方向に突合する。契約表の削除・緩和はしない。
+- `STRUCTURE_CLASS_CONTRACT`（`tests/site_css_contract.rs`）は `layout.rs`・`nav.rs` が出す `docs-*` 骨格 class 専用で、登録 class すべてがフルページ固定フィクスチャに現れることを要求し、`fd-*` recipe class は対象外と明記している。したがって同表へ追加してよいのは docs 側ラッパーの `docs-*` 骨格 class（例: `docs-landing`）に限る。recipe class は同表へ入れず、「使う recipe の class が `site.css` に供給されている」ことを確認する別契約（供給確認テスト。担当は #3599）として定義する。契約表の削除・緩和はしない。
 - ダーク値は 3 ブロック（既定 / `prefers-color-scheme: dark` / `:root[data-theme="dark"]`）で一致させる。
 - `--fandhe-*` トークン一本化（`--docs-*` 全廃、`site_typography_contract.rs`）を維持する。
 - root の `class` 破棄は、ラッパー要素に `docs-*` を付ける形で統一して回避する。
@@ -109,6 +109,7 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 
 - 既定案: トップはサイドバー・右目次を出さない全幅ランディングとし、ヘッダーとフッターのみ共通にする。本文用の 3 カラム骨格はトップでは使わない。
 - 実現方式は #3598 の汎用フック（`page.path` 照会による生成節差し込み）の上に載せる。`layout.rs` に landing 用ラッパー分岐を足す形を第一案とし、追加 class（例: `docs-landing`）は `docs-site-three-column-redesign.md` §3.1 の既存 class 契約を変えない範囲の純追加とする。DOM 順序不変条件（SkipNav が最初、スキップ先が本文直前）を維持する。
+- 配置順: `build.rs` は既定で `[rewritten_body, generated_content]` の順に組むため、そのままでは既存の紹介文がヒーローより先に出る。トップページ（`page.path` がトップのとき）に限り生成節を本文より先に置く順序の入れ替えを #3598 のフックで行い、ヒーローを最上段に保つ（他ページの順序は変えない）。
 - `site/index.md` の本文は残す。検索インデックスは `search_index::page_entry` が `[rewritten_body, generated_content]` から作るため、本文を残せばヒーロー等の生成節と併せて索引化され、linkcheck への影響も生じない。
 - 縦順序と分割境界は次のとおり。375px では全セクションを単列化する。
 
