@@ -308,7 +308,7 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 ## 10. セキュリティ不変条件
 
 - A03 インジェクション / XSS: 既定エスケープを弱めない。`raw_html()` の新規使用と HTML 文字列の直接組み立てを禁止する。コピー機構は `textContent` を使う。
-- A05 設定ミス: CSP を緩めない。インライン `<script>` はテーマブートストラップ以外へ増やさず、外部 CDN・フォント・画像を使わない。
+- A05 設定ミス: CSP を緩めない。インライン `<script>` はテーマブートストラップ以外へ増やさず、外部 CDN・フォント・画像を使わない。CSP の導入方針は `docs-site-csp-policy.md`。導入が確定した場合は本行を更新する。
 - A06 脆弱な依存: docs-site の依存閉包を変えない。
 - A08 整合性: `site_css_contract` / `no_js_contract` / `site_typography_contract` を弱めない。
 - ruleset・branch protection の変更は本ツリーの範囲外。`docs-site.yml` の変更で必須チェックの変更が要る場合は、実行せず報告事項とする。
