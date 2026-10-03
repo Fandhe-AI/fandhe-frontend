@@ -1882,7 +1882,7 @@ fn nav_drawer_is_hidden_until_toggled_and_scrolls_inside() {
     assert!(vh < dvh, "dvh must follow the vh fallback");
     let checked = rule_body(
         &css,
-        "\n.docs-nav-drawer-toggle:checked ~ .docs-nav-drawer {",
+        "\n.docs-header .docs-nav-drawer-toggle:checked ~ nav.docs-nav-drawer {",
     );
     assert!(checked.contains("display: block;"));
     // 旧サイドバー Menu の規則は残さない。
@@ -1905,16 +1905,18 @@ fn nav_drawer_is_shown_on_hover_none_devices_at_desktop_widths() {
     let desktop = &css[desktop_start..css.find("@media (min-width: 1200px) {").unwrap()];
     assert!(desktop
         .contains(".docs-nav-drawer-toggle,\n.docs-nav-drawer-toggle-label {\ndisplay: none;"));
-    assert!(
-        desktop.contains(".docs-nav-drawer-toggle:checked ~ .docs-nav-drawer {\ndisplay: none;")
-    );
+    assert!(desktop.contains(
+        ".docs-header .docs-nav-drawer-toggle:checked ~ nav.docs-nav-drawer {\ndisplay: none;"
+    ));
     assert!(desktop.contains(".docs-sidebar {\ndisplay: block;"));
     let hover = &css[hover_start..];
     let hover = &hover[..hover
         .find("@media (hover: none) and (min-width: 768px) and (max-width")
         .expect("hover block closes")];
     assert!(hover.contains(".docs-nav-drawer-toggle-label {\ndisplay: inline-flex;"));
-    assert!(hover.contains(".docs-nav-drawer-toggle:checked ~ .docs-nav-drawer {\ndisplay: block;"));
+    assert!(hover.contains(
+        ".docs-header .docs-nav-drawer-toggle:checked ~ nav.docs-nav-drawer {\ndisplay: block;"
+    ));
     assert!(hover.contains(".docs-header-nav {\ndisplay: none;"));
     // order で視覚順と Tab 順を乖離させない。
     assert_eq!(hover.matches("\norder:").count(), 0);

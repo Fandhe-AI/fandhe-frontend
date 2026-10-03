@@ -409,7 +409,7 @@ fn structural_css_declares_js_independent_toggle_and_dropdown_paths() {
         .expect("dist/assets/site.css should be generated");
     let css = css.as_str();
     assert!(
-        css.contains(".docs-nav-drawer-toggle:checked ~ .docs-nav-drawer"),
+        css.contains(".docs-header .docs-nav-drawer-toggle:checked ~ nav.docs-nav-drawer"),
         "structural CSS should keep the JS-free checkbox-driven nav drawer path (イシュー #3674)"
     );
     assert!(

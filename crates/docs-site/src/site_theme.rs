@@ -1334,7 +1334,7 @@ body {\n\
   font-size: var(--fandhe-font-font-size-sm);\n\
 }\n\
 \n\
-.docs-nav-drawer-toggle:checked ~ .docs-nav-drawer {\n\
+.docs-header .docs-nav-drawer-toggle:checked ~ nav.docs-nav-drawer {\n\
   display: block;\n\
 }\n\
 \n\
@@ -1892,7 +1892,7 @@ nav.prev-next .next .docs-pager-meta {\n\
     display: none;\n\
   }\n\
 \n\
-  .docs-nav-drawer-toggle:checked ~ .docs-nav-drawer {\n\
+  .docs-header .docs-nav-drawer-toggle:checked ~ nav.docs-nav-drawer {\n\
     display: none;\n\
   }\n\
 \n\
@@ -2220,7 +2220,7 @@ nav.prev-next .next .docs-pager-meta {\n\
     margin-left: 0.5rem;\n\
   }\n\
 \n\
-  .docs-nav-drawer-toggle:checked ~ .docs-nav-drawer {\n\
+  .docs-header .docs-nav-drawer-toggle:checked ~ nav.docs-nav-drawer {\n\
     display: block;\n\
   }\n\
 \n\
@@ -3446,7 +3446,7 @@ mod tests {
         // 存在しないことは変わらず固定する）。
         let sheet = stylesheet().expect("site theme stylesheet should assemble");
         let css = sheet.as_css();
-        assert!(css.contains(".docs-nav-drawer-toggle:checked ~ .docs-nav-drawer"));
+        assert!(css.contains(".docs-header .docs-nav-drawer-toggle:checked ~ nav.docs-nav-drawer"));
         assert!(!css.contains("sidebar:focus-within"));
         assert!(!css.contains("nav.sidebar:focus-within"));
         // セレクタ行（`{` で終わる行）のみを対象にする。コメント中の
