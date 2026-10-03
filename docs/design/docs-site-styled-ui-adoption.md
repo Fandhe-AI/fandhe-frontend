@@ -97,6 +97,7 @@ styled ラッパー（`crates/pre-styled-ui/src/link_overlay.rs`）を新設し�
 
 ### 3.3 注記ブロック（`alert` 部品）
 
+**更新（イシュー #3622）**: 注記は静的な補足で live region（`role="alert"`）は強すぎるため、描画部品を `alert` から `callout` へ変更した（以下は #715 時点の記録）。
 **導入済み（イシュー #715）**。当初（イシュー #694 時点）は `markdown.rs`
 が admonition（注記）構文を持たず、`> ...` はそのまま素の `blockquote` と
 して出力されるのみだった。`alert` 部品を適用するには Markdown 側に新しい
