@@ -302,16 +302,6 @@ pub const SITE_JS: &str = "\
   // ページ末尾到達の判定余裕（サブピクセル誤差吸収）。
   var BOTTOM_SLACK_PX = 2;
 
-  function lastInDocumentOrder(list) {
-    var found = null;
-    targets.forEach(function (target) {
-      if (list.indexOf(target) !== -1) {
-        found = target;
-      }
-    });
-    return found;
-  }
-
   function firstVisibleInDocumentOrder() {
     var found = null;
     targets.forEach(function (target) {
@@ -326,34 +316,47 @@ pub const SITE_JS: &str = "\
   }
 
   // 読み位置線を過ぎた見出しのうち文書順で最後のものを返す。
-  // 評価は update() 経由のみ（IntersectionObserver 通知と rAF 間引きの
-  // scroll 時）に限る。
+  // 見出しの top は文書順に単調増加するため二分探索し、スクロールごとの
+  // getBoundingClientRect() 呼び出しを O(log n) に抑える。評価は update()
+  // 経由のみ（IntersectionObserver 通知と rAF 間引きの scroll 時）。
   function lastPassedTarget() {
-    var found = null;
-    targets.forEach(function (target) {
-      var rect = target.getBoundingClientRect();
+    var lo = 0;
+    var hi = targets.length - 1;
+    var found = -1;
+    while (Math.sign(hi - lo) !== -1) {
+      var mid = Math.floor((lo + hi) / 2);
+      var rect = targets[mid].getBoundingClientRect();
       if (Math.sign(rect.top - READING_LINE_PX) !== 1) {
-        found = target;
+        found = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
       }
-    });
-    return found;
+    }
+    return found === -1 ? null : targets[found];
   }
 
+  // スクロール可能なページで末尾に到達したか。ビューポートに収まる短い
+  // ページは常に「残り 0」になるため、スクロール可能量が余裕を超える場合
+  // に限って末尾と見なす（初回描画で読み位置線上の見出しを潰さない）。
   function atPageBottom() {
     var doc = document.documentElement;
-    var remaining = doc.scrollHeight - window.innerHeight - window.scrollY;
+    var scrollable = doc.scrollHeight - window.innerHeight;
+    if (Math.sign(scrollable - BOTTOM_SLACK_PX) !== 1) {
+      return false;
+    }
+    var remaining = scrollable - window.scrollY;
     return Math.sign(remaining - BOTTOM_SLACK_PX) !== 1;
   }
 
-  // 判定順: (1) ページ末尾なら帯内の最後の見出し（末尾の短い節は読み位置線
-  // まで上がりきらないため）、(2) 読み位置線を過ぎた最後の見出し、
-  // (3) 先頭付近は帯内の最初の見出し。
+  // 判定順: (1) スクロール可能なページの末尾なら判定帯に依存せず文書順で
+  // 最後の見出し（末尾の短い節は帯・読み位置線まで上がりきらないため）、
+  // (2) 読み位置線を過ぎた最後の見出し、(3) 先頭付近は帯内の最初の見出し。
   function update() {
     var current = null;
     if (atPageBottom()) {
-      current = lastInDocumentOrder(visible);
-    }
-    if (!current) {
+      current = targets[targets.length - 1];
+    } else {
       current = lastPassedTarget();
     }
     if (!current) {
