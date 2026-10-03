@@ -90,9 +90,12 @@ pub const INLINE_THEME_BOOTSTRAP: &str = "try{var t=localStorage.getItem(`fandhe
 ///
 /// 責務:
 ///
-/// 1. `.docs-theme-toggle` ボタンを取得する（無ければ即 return。
-///    docs-site 以外のページ・将来の骨格変更で要素が消えても例外を
-///    投げない防御的実装）。
+/// 1. `.docs-theme-toggle`（ラッパー span、#3606）を取得し、内側の
+///    `button` と `.docs-theme-toggle-label` も取得する（いずれか無ければ
+///    即 return し `hidden` のまま残す。docs-site 以外のページ・将来の骨格
+///    変更で要素が消えても例外を投げない防御的実装）。ラベル書き換えは
+///    `.docs-theme-toggle-label` の `textContent` のみ（ボタン全体を書き換えると
+///    アイコン SVG が消えるため）。
 /// 2. 実効テーマを解決する: `<html data-theme>` 属性値
 ///    （`dark`/`light` のみ採用） → 無ければ
 ///    `matchMedia("(prefers-color-scheme: dark)")`。
@@ -177,6 +180,11 @@ pub const SITE_JS: &str = "\
   if (!toggle) {
     return;
   }
+  var control = toggle.querySelector(`button`);
+  var label = toggle.querySelector(`.docs-theme-toggle-label`);
+  if (!control || !label) {
+    return;
+  }
 
   function effectiveTheme() {
     var attr = document.documentElement.getAttribute(`data-theme`);
@@ -191,8 +199,8 @@ pub const SITE_JS: &str = "\
   }
 
   function applyLabel(theme) {
-    toggle.setAttribute(`aria-pressed`, theme === `dark` ? `true` : `false`);
-    toggle.textContent = theme === `dark` ? `Light` : `Dark`;
+    control.setAttribute(`aria-pressed`, theme === `dark` ? `true` : `false`);
+    label.textContent = theme === `dark` ? `Light` : `Dark`;
   }
 
   function storeTheme(theme) {
@@ -206,7 +214,7 @@ pub const SITE_JS: &str = "\
 
   function init() {
     applyLabel(effectiveTheme());
-    toggle.addEventListener(`click`, function () {
+    control.addEventListener(`click`, function () {
       var next = effectiveTheme() === `dark` ? `light` : `dark`;
       storeTheme(next);
       document.documentElement.setAttribute(`data-theme`, next);
@@ -906,6 +914,22 @@ mod tests {
     fn site_js_swallows_localstorage_exceptions() {
         assert!(SITE_JS.contains("try {"));
         assert!(SITE_JS.contains("catch"));
+    }
+
+    /// テーマトグルのラベル書き換えは `.docs-theme-toggle-label` のみを対象とし
+    /// （ボタン全体の `textContent` を書き換えるとアイコン SVG が消える、#3606）、
+    /// 内側 `button` の取得が click 配線より前にあることを固定する。
+    #[test]
+    fn site_js_theme_toggle_rewrites_only_the_label_span() {
+        assert!(SITE_JS.contains("label.textContent = theme === `dark`"));
+        assert!(!SITE_JS.contains("toggle.textContent"));
+        let control_pos = SITE_JS
+            .find("toggle.querySelector(`button`)")
+            .expect("SITE_JS should look up the inner button");
+        let listener_pos = SITE_JS
+            .find("control.addEventListener(`click`")
+            .expect("SITE_JS should wire click on the inner button");
+        assert!(control_pos < listener_pos);
     }
 
     /// [`SITE_JS`] は `hidden` の解除をイベント配線完了後にのみ行う
