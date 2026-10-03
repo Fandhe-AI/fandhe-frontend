@@ -89,7 +89,7 @@
 //! ノード木 API（[`fandhe_frontend_core::el`]/[`fandhe_frontend_core::text`]
 //! と headless-ui のパート関数）のみで組み立てる。
 
-use fandhe_frontend_core::{code, div, p, pre, text, Node};
+use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::angle_slider::AngleSliderProps;
 use hui::checkbox::{CheckboxProps, CheckedState};
@@ -352,7 +352,7 @@ fn ex_checkbox_custom_css() -> Node {
         "利用者が data-scope / data-part / data-state / data-focus-visible / data-disabled 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             markup,
-            pre(vec![], vec![code(vec![], vec![text(CHECKBOX_CUSTOM_CSS_SNIPPET)])]),
+            crate::code_copy::css_snippet_block(CHECKBOX_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -546,13 +546,7 @@ fn ex_checkbox_group_custom_css() -> Node {
         "利用者が data-scope / data-part / data-state / data-invalid / data-disabled / data-orientation 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             markup,
-            pre(
-                vec![],
-                vec![code(
-                    vec![],
-                    vec![text(CHECKBOX_GROUP_CUSTOM_CSS_SNIPPET)],
-                )],
-            ),
+            crate::code_copy::css_snippet_block(CHECKBOX_GROUP_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -750,10 +744,7 @@ fn ex_color_picker_custom_css() -> Node {
         "利用者が data-scope / data-part / data-state / data-disabled / data-invalid 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             markup,
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(COLOR_PICKER_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(COLOR_PICKER_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -965,7 +956,7 @@ fn ex_combobox_custom_css() -> Node {
         "利用者が data-scope / data-part / data-state / data-invalid / data-highlighted 属性セレクタで自前 CSS を当てる最小例です（本 Demo には適用されません）。",
         vec![
             markup,
-            pre(vec![], vec![code(vec![], vec![text(COMBOBOX_CUSTOM_CSS_SNIPPET)])]),
+            crate::code_copy::css_snippet_block(COMBOBOX_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -1233,7 +1224,7 @@ fn ex_command_custom_css() -> Node {
         "利用者が data-scope / data-part / data-selected / data-disabled / data-empty / hidden 属性セレクタで自前 CSS を当てる最小例です（本 Demo には適用されません）。",
         vec![
             markup,
-            pre(vec![], vec![code(vec![], vec![text(COMMAND_CUSTOM_CSS_SNIPPET)])]),
+            crate::code_copy::css_snippet_block(COMMAND_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -1402,7 +1393,7 @@ fn ex_editable_custom_css() -> Node {
         "利用者が data-scope / data-part / data-state / data-invalid / data-disabled / data-placeholder-shown 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             markup,
-            pre(vec![], vec![code(vec![], vec![text(EDITABLE_CUSTOM_CSS_SNIPPET)])]),
+            crate::code_copy::css_snippet_block(EDITABLE_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -1617,7 +1608,7 @@ fn ex_field_custom_css() -> Node {
         "利用者が data-scope / data-part / data-invalid / data-disabled / data-required 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             markup,
-            pre(vec![], vec![code(vec![], vec![text(FIELD_CUSTOM_CSS_SNIPPET)])]),
+            crate::code_copy::css_snippet_block(FIELD_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -1844,10 +1835,7 @@ fn ex_fieldset_custom_css() -> Node {
         "利用者が data-scope / data-part / data-disabled / data-invalid 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             markup,
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(FIELDSET_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(FIELDSET_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -2390,10 +2378,7 @@ fn ex_input_group_custom_css() -> Node {
         "利用者が data-scope / data-part / data-align / data-invalid 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             markup,
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(INPUT_GROUP_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(INPUT_GROUP_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -2602,10 +2587,7 @@ fn ex_listbox_custom_css() -> Node {
         "利用者が data-scope / data-part / data-state / data-selected / data-orientation / data-disabled 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             markup,
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(LISTBOX_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(LISTBOX_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
