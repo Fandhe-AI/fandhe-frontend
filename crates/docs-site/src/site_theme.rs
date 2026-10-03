@@ -2221,6 +2221,67 @@ pub fn stylesheet_without_recipes() -> Result<StyleSheet, SiteThemeError> {
     assemble(false)
 }
 
+/// 部品ページ API 表（`table[data-docs-api-table]`）の追加 CSS（イシュー #3621）。
+///
+/// [`crate::component_page`] が出す Arguments / Data Attributes / CSS Variables
+/// 表だけを `data-*` 属性で狙い撃ちする（`docs-*` class 契約には触れない）。
+/// 広幅は既存の `.docs-content table` のまま、行見出しの背景を本文セル並みに
+/// 戻し上端揃えにするだけ。767.98px 以下は DOM を変えず CSS だけで縦積み
+/// （param-list 風）へ切り替え、各セルの `data-label`（コンパイル時定数）を
+/// `::before` で見出しとして出す。`thead` は `display: none` で視覚的に隠すが、
+/// 縦積み時の列関係は `data-label` が担う。セレクタは `.docs-content table` より
+/// 高詳細度で後置し、ヘッダー用の最初の 767.98px ブロックとは別ブロックにする
+/// （`narrow_header_moves_search_to_full_width_second_row` が中身を固定）。
+/// 新しい色トークンは作らず既存トークンのみ参照する。
+const API_TABLE_CSS: &str = "\
+.docs-content table[data-docs-api-table] td,\n\
+.docs-content table[data-docs-api-table] tbody th {\n\
+  vertical-align: top;\n\
+}\n\
+.docs-content table[data-docs-api-table] tbody th {\n\
+  background: transparent;\n\
+}\n\
+.docs-content table[data-docs-api-table] [data-docs-api-placeholder] {\n\
+  color: var(--fandhe-color-fg-muted);\n\
+}\n\
+@media (max-width: 767.98px) {\n\
+  .docs-content table[data-docs-api-table] {\n\
+    background-image: none;\n\
+  }\n\
+  .docs-content table[data-docs-api-table] thead {\n\
+    display: none;\n\
+  }\n\
+  .docs-content table[data-docs-api-table] tbody,\n\
+  .docs-content table[data-docs-api-table] tbody tr,\n\
+  .docs-content table[data-docs-api-table] tbody th,\n\
+  .docs-content table[data-docs-api-table] tbody td {\n\
+    display: block;\n\
+  }\n\
+  .docs-content table[data-docs-api-table] tbody tr {\n\
+    padding: 0.6rem 0.75rem;\n\
+    border-bottom: 1px solid var(--fandhe-color-border);\n\
+  }\n\
+  .docs-content table[data-docs-api-table] tbody tr:last-child {\n\
+    border-bottom: 0;\n\
+  }\n\
+  .docs-content table[data-docs-api-table] tbody tr > th,\n\
+  .docs-content table[data-docs-api-table] tbody tr > td {\n\
+    border: 0;\n\
+    padding: 0.15rem 0;\n\
+  }\n\
+  .docs-content table[data-docs-api-table] tbody tr > td::before {\n\
+    content: attr(data-label);\n\
+    display: block;\n\
+    font-size: 0.8em;\n\
+    color: var(--fandhe-color-fg-muted);\n\
+  }\n\
+  .docs-content table[data-docs-api-table] code {\n\
+    overflow-wrap: anywhere;\n\
+    word-break: break-word;\n\
+  }\n\
+}\n\
+";
+
 fn assemble(with_recipes: bool) -> Result<StyleSheet, SiteThemeError> {
     let theme = docs_theme()?;
     let mut sheet = StyleSheet::new();
@@ -2235,6 +2296,7 @@ fn assemble(with_recipes: bool) -> Result<StyleSheet, SiteThemeError> {
     sheet.push_css(crate::landing::CSS)?;
     sheet.push_css(&typography_css()?)?;
     sheet.push_css(&highlight_css()?)?;
+    sheet.push_css(API_TABLE_CSS)?;
     Ok(sheet)
 }
 

@@ -710,38 +710,118 @@ fn api_reference_section(
     Some(el("section", vec![], children))
 }
 
+/// API 表（3 種）の識別に使う `table` 要素の属性名（イシュー #3621）。
+///
+/// `docs-*` class ではなく `data-*` 属性を CSS フックにするのは、
+/// `tests/site_css_contract.rs` の class 契約（全部品ページの `docs-*` class を
+/// 契約表で固定）へ手を入れずに、`site_theme::API_TABLE_CSS` から表を
+/// 狙い撃ちするため。値はコンパイル時定数のみで外部入力は入らない。
+/// pre-styled-ui の recipe 部品を使わないのは、`data-scope` 部分木が検索索引から
+/// 除外されること、Primitives ページが recipe CSS を読まないことによる。
+pub const API_TABLE_ATTR: &str = "data-docs-api-table";
+/// Arguments 表の [`API_TABLE_ATTR`] 値。
+pub const API_TABLE_ARGUMENTS: &str = "arguments";
+/// Data Attributes 表の [`API_TABLE_ATTR`] 値。
+pub const API_TABLE_DATA_ATTRIBUTES: &str = "data-attributes";
+/// CSS Variables 表の [`API_TABLE_ATTR`] 値。
+pub const API_TABLE_CSS_VARIABLES: &str = "css-variables";
+/// 空値のプレースホルダ `span` に付ける属性名（見た目を弱める CSS フック）。
+pub const API_PLACEHOLDER_ATTR: &str = "data-docs-api-placeholder";
+/// 既定値が空のセルに出す記号。
+pub const EMPTY_DEFAULT_MARK: &str = "\u{2014}";
+/// 観測値が空文字（属性はあるが値が空）のときに出す表記。
+pub const EMPTY_VALUE_MARK: &str = "（値なし）";
+
+const COL_NAME: &str = "Name";
+const COL_TYPE: &str = "Type";
+const COL_DEFAULT: &str = "Default";
+const COL_DESCRIPTION: &str = "Description";
+const COL_PART: &str = "Part";
+const COL_ATTRIBUTE: &str = "Attribute";
+const COL_OBSERVED: &str = "Observed Values";
+const COL_VARIABLE: &str = "Variable";
+
+/// 空値プレースホルダ。値が無いことを示し、空欄との区別を付ける。
+fn placeholder(mark: &str) -> Node {
+    el(
+        "span",
+        vec![(API_PLACEHOLDER_ATTR, "")],
+        vec![text(mark.to_string())],
+    )
+}
+
+/// バッククォートを含めばインラインコード変換、含まなければ全体を `code` にする。
+/// 文字列は常に `text()` 経由で既定エスケープされる（REQ-1）。
+fn code_or_inline(s: &str) -> Vec<Node> {
+    if s.contains('`') {
+        crate::markdown::inline_code_nodes(s)
+    } else {
+        vec![code(vec![], vec![text(s.to_string())])]
+    }
+}
+
+/// Default 列のセル内容。空・`-`・`—` はプレースホルダ、非 ASCII を含む
+/// 散文（例: `(必須)`）は `code` にせず、それ以外は `code`。
+fn default_cell_nodes(s: &str) -> Vec<Node> {
+    let t = s.trim();
+    if t.is_empty() || t == "-" || t == EMPTY_DEFAULT_MARK {
+        return vec![placeholder(EMPTY_DEFAULT_MARK)];
+    }
+    if t.contains('`') || !t.is_ascii() {
+        return crate::markdown::inline_code_nodes(s);
+    }
+    code_or_inline(s)
+}
+
+/// 列見出し行。`data-label` と同じ定数から生成して二重管理を避ける。
+fn header_row(cols: &[&str]) -> Node {
+    tr(
+        vec![],
+        cols.iter()
+            .map(|c| th(vec![], vec![text(c.to_string())]))
+            .collect(),
+    )
+}
+
+/// 狭幅の縦積み表示用に `data-label` を持つ本文セル。
+fn labeled_td(label: &'static str, children: Vec<Node>) -> Node {
+    td(vec![("data-label", label)], children)
+}
+
+fn api_table(kind: &'static str, header: Node, body_rows: Vec<Node>) -> Node {
+    table(
+        vec![(API_TABLE_ATTR, kind)],
+        vec![thead(vec![], vec![header]), tbody(vec![], body_rows)],
+    )
+}
+
 /// 引数表（`Arguments`）。空なら `None`。
 fn arguments_table(rows: &[ArgRow]) -> Option<Node> {
     if rows.is_empty() {
         return None;
     }
-    let header = tr(
-        vec![],
-        vec![
-            th(vec![], vec![text("Name")]),
-            th(vec![], vec![text("Type")]),
-            th(vec![], vec![text("Default")]),
-            th(vec![], vec![text("Description")]),
-        ],
-    );
+    let header = header_row(&[COL_NAME, COL_TYPE, COL_DEFAULT, COL_DESCRIPTION]);
     let body_rows = rows
         .iter()
         .map(|row| {
             tr(
                 vec![],
                 vec![
-                    td(vec![], crate::markdown::inline_code_nodes(row.name)),
-                    td(vec![], crate::markdown::inline_code_nodes(row.kind)),
-                    td(vec![], crate::markdown::inline_code_nodes(row.default)),
-                    td(vec![], crate::markdown::inline_code_nodes(row.description)),
+                    th(
+                        vec![("scope", "row"), ("data-label", COL_NAME)],
+                        code_or_inline(row.name),
+                    ),
+                    labeled_td(COL_TYPE, code_or_inline(row.kind)),
+                    labeled_td(COL_DEFAULT, default_cell_nodes(row.default)),
+                    labeled_td(
+                        COL_DESCRIPTION,
+                        crate::markdown::inline_code_nodes(row.description),
+                    ),
                 ],
             )
         })
         .collect();
-    Some(table(
-        vec![],
-        vec![thead(vec![], vec![header]), tbody(vec![], body_rows)],
-    ))
+    Some(api_table(API_TABLE_ARGUMENTS, header, body_rows))
 }
 
 /// `data-*` 属性表（`Data Attributes`）。空なら `None`。
@@ -749,31 +829,35 @@ fn data_attrs_table(rows: &[DataAttrRow]) -> Option<Node> {
     if rows.is_empty() {
         return None;
     }
-    let header = tr(
-        vec![],
-        vec![
-            th(vec![], vec![text("Part")]),
-            th(vec![], vec![text("Attribute")]),
-            th(vec![], vec![text("Observed Values")]),
-        ],
-    );
+    let header = header_row(&[COL_PART, COL_ATTRIBUTE, COL_OBSERVED]);
     let body_rows = rows
         .iter()
         .map(|row| {
+            let mut values: Vec<Node> = Vec::new();
+            for (i, v) in row.values.iter().enumerate() {
+                if i > 0 {
+                    values.push(text(", "));
+                }
+                if v.is_empty() {
+                    values.push(placeholder(EMPTY_VALUE_MARK));
+                } else {
+                    values.push(code(vec![], vec![text(v.clone())]));
+                }
+            }
             tr(
                 vec![],
                 vec![
-                    td(vec![], vec![text(row.part.clone())]),
-                    td(vec![], vec![text(row.attr.clone())]),
-                    td(vec![], vec![text(row.values.clone())]),
+                    labeled_td(COL_PART, vec![code(vec![], vec![text(row.part.clone())])]),
+                    labeled_td(
+                        COL_ATTRIBUTE,
+                        vec![code(vec![], vec![text(row.attr.clone())])],
+                    ),
+                    labeled_td(COL_OBSERVED, values),
                 ],
             )
         })
         .collect();
-    Some(table(
-        vec![],
-        vec![thead(vec![], vec![header]), tbody(vec![], body_rows)],
-    ))
+    Some(api_table(API_TABLE_DATA_ATTRIBUTES, header, body_rows))
 }
 
 /// CSS 変数表（`CSS Variables`）。空なら `None`。
@@ -781,29 +865,28 @@ fn css_vars_table(rows: &[CssVarRow]) -> Option<Node> {
     if rows.is_empty() {
         return None;
     }
-    let header = tr(
-        vec![],
-        vec![
-            th(vec![], vec![text("Variable")]),
-            th(vec![], vec![text("Default")]),
-        ],
-    );
+    let header = header_row(&[COL_VARIABLE, COL_DEFAULT]);
     let body_rows = rows
         .iter()
         .map(|row| {
+            let default = if row.default.trim().is_empty() {
+                vec![placeholder(EMPTY_DEFAULT_MARK)]
+            } else {
+                vec![code(vec![], vec![text(row.default.clone())])]
+            };
             tr(
                 vec![],
                 vec![
-                    td(vec![], vec![text(row.name.clone())]),
-                    td(vec![], vec![text(row.default.clone())]),
+                    labeled_td(
+                        COL_VARIABLE,
+                        vec![code(vec![], vec![text(row.name.clone())])],
+                    ),
+                    labeled_td(COL_DEFAULT, default),
                 ],
             )
         })
         .collect();
-    Some(table(
-        vec![],
-        vec![thead(vec![], vec![header]), tbody(vec![], body_rows)],
-    ))
+    Some(api_table(API_TABLE_CSS_VARIABLES, header, body_rows))
 }
 
 /// `Examples` 節。空なら `None`。
@@ -1013,8 +1096,8 @@ fn walk_anatomy_parts(
 struct DataAttrRow {
     part: String,
     attr: String,
-    /// 観測値をカンマ区切りで連結した文字列（決定性のため昇順ソート済み）。
-    values: String,
+    /// 観測値（決定性のため昇順ソート済み）。空文字は「属性はあるが値が空」。
+    values: Vec<String>,
 }
 
 /// `demo` を走査し、`scope` の各パーツの `data-*`（`data-scope`/`data-part`
@@ -1027,7 +1110,7 @@ fn collect_data_attrs_from_tree(demo: &Node, scope: &str) -> Vec<DataAttrRow> {
         .map(|((part, attr), values)| DataAttrRow {
             part,
             attr,
-            values: values.into_iter().collect::<Vec<_>>().join(", "),
+            values: values.into_iter().collect(),
         })
         .collect()
 }
@@ -1401,7 +1484,7 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].part, "item-trigger");
         assert_eq!(rows[0].attr, "data-state");
-        assert_eq!(rows[0].values, "closed, open");
+        assert_eq!(rows[0].values, vec!["closed", "open"]);
     }
 
     #[test]
