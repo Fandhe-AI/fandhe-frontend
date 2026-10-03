@@ -236,8 +236,24 @@ pub fn group_anchor_id(title: &str) -> String {
     crate::layout::slugify(title)
 }
 
-/// ヘッダー popup のグループ見出しリンク先（索引ページ内の該当カテゴリ位置）。
+/// ヘッダー popup のグループ見出しリンク先。
+///
+/// 通常は索引ページ内の該当カテゴリ位置（`#<slug>`）を返す。グループ見出しの
+/// アンカーは索引ページ生成処理が付与するため、`index_path` がグループ配下の
+/// ページを指す構成（アンカーを持つ索引ページがない構成）では存在しない
+/// アンカーへのリンクになる。その場合はアンカーを付けず、グループ先頭ページへ
+/// リンクして有効な遷移先を保つ（グループが空ならセクショントップへ戻す）。
 pub fn group_href(nav: &Nav, section: &Section, group: &Group) -> String {
+    let index_in_group = section
+        .groups
+        .iter()
+        .any(|g| g.pages.iter().any(|p| p.path == section.index_path));
+    if index_in_group {
+        return match group.pages.first() {
+            Some(p) => href(nav, &p.path),
+            None => href(nav, &section.index_path),
+        };
+    }
     format!(
         "{}#{}",
         href(nav, &section.index_path),
@@ -2178,7 +2194,10 @@ path = "/no-index-in-pages/index/"
         assert!(html.contains(r#"href="/components/pre-styled-ui/#forms""#));
         assert!(html.contains(r#"href="/components/pre-styled-ui/#layout""#));
         assert!(html.contains("Direct"));
-        assert!(html.contains(r#"href="/no-index-in-pages/index/#group""#));
+        // index_path がグループ配下ページを指す構成ではアンカーを付けず、
+        // グループ先頭ページへ直接リンクする（存在しないアンカーを作らない）。
+        assert!(html.contains(r#"href="/no-index-in-pages/index/""#));
+        assert!(!html.contains("/no-index-in-pages/index/#group"));
         assert_eq!(html.matches("すべて見る").count(), 0);
 
         // いずれの `ul.docs-header-dropdown` も空にならない。
