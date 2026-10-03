@@ -14,12 +14,13 @@ use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::alert::Severity;
 use fandhe_frontend_wireframe_ui::{alert, icon, Size};
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// `/wireframes/alert/` レジストリエントリ。
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/alert/",
     title: "Alert",
+    category: WireframeCategory::OverlayFeedback,
     args: &[
         ArgRow {
             name: "severity",

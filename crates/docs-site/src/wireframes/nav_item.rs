@@ -9,12 +9,13 @@
 use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::{icon, nav_item, Active, Orientation, Size};
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// `/wireframes/nav-item/` レジストリエントリ。
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/nav-item/",
     title: "Nav item",
+    category: WireframeCategory::Navigation,
     args: &[
         ArgRow {
             name: "label",

@@ -12,12 +12,13 @@
 use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::{spinner, Size};
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// `/wireframes/spinner/` レジストリエントリ。
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/spinner/",
     title: "Spinner",
+    category: WireframeCategory::OverlayFeedback,
     args: &[ArgRow {
         name: "size",
         kind: "Size",

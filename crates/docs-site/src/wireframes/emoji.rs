@@ -10,12 +10,13 @@
 use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::{emoji, Size};
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// `/wireframes/emoji/` レジストリエントリ。
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/emoji/",
     title: "Emoji",
+    category: WireframeCategory::DataDisplay,
     args: &[
         ArgRow {
             name: "glyph",

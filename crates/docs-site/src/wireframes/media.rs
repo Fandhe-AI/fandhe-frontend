@@ -13,12 +13,13 @@
 use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::{grid, icon, media, Size};
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// `/wireframes/media/` レジストリエントリ。
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/media/",
     title: "Media",
+    category: WireframeCategory::Media,
     args: &[
         ArgRow {
             name: "content",

@@ -179,12 +179,24 @@ Guides・API Reference・Examples の 3 セクショントップは、汎用生�
 - カード内の説明文は検索インデックスに載せない。li の class を `docs-index-card` にせず `search_index` の特例を効かせないためで、部品ページが個別に索引化済みであること、123 枚分が 1 ページ 4000 バイトの切り詰めで凡例を押し出すことを避けるのが理由。
 - 原稿で置き換える範囲は「リンク集だけを生成へ移し、リード・NOTE・凡例（掲示の読み方）・関連 API は原稿に残す」。Placement はどちらも `BeforeFirstH2`（グリッドは凡例または関連 API の直前）。
 
+## 5.3 Blocks・Wireframes 索引のカテゴリ別カード（#3618）
+
+`/blocks/`・`/wireframes/` の索引も、汎用生成節フック（#3598）で差し込むカテゴリ別カードにする。確定事項は次のとおり。
+
+- 生成は `crates/docs-site/src/category_index.rs`（`render_blocks` / `render_wireframes`）。`/blocks/` は従来 `blocks::insert_generated_sections` の `INDEX_PATH` 分岐（`index_generated_sections`）が作っていたが、残すと生成節が二重になるためこの分岐ごと撤去し、フックへ一本化した。走査対象は旧関数と同じ `BlockSection::ALL` × `BlockCategory::ALL` × `all_blocks()`（空の区分・カテゴリは省略、カテゴリ内は `path` の辞書順）。`all_blocks()` と `Block` 型は変えない。Placement は `/blocks/` が `Append`（原稿に h2 が無く、旧来の「末尾追加」と同じ結果）、`/wireframes/` が `BeforeFirstH2`（「ページ構成」の前にグリッドを置く）。
+- 構造は区分ごとに `div.docs-category-section > (div.docs-category-section-head > h2 + 合計件数 badge) + ul.docs-category-grid > li.docs-category-card`。カードはカテゴリ名（h3）とカテゴリ件数 badge、その下に全 block・部品へのリンクのリスト。件数 badge は Themes/Primitives 索引・サイドバーのグループ件数と同じ props（Subtle / Neutral / Sm、「N 件」）にそろえた。件数はすべてレジストリから算出する。
+- カード内のリストは折りたたまず全件を載せる（`details` を使わない）。全リンクが初期表示で見えてキーボードで到達でき、無 JS 契約にも影響しない。最大 30 件のカードは縦に長くなるため、グリッドを `align-items: start` にして他カードを引き伸ばさない。カードは複数リンクを持つので、#3617 の全面リンク（`::after` 伸張）は使わない。
+- li の class は `docs-index-card` にしない（`search_index` の特例を効かせない）。このためカテゴリ名と block・部品名は TOC と索引ページの検索テキストから外れるが、各ページが個別に索引化済みで、右目次は約 70 見出しから区分見出しだけに縮む。区分 h2 は `data-scope` の外に置くので TOC と検索に残る。
+- CSS は専用ファイル `assets/category-index.css`（class 接頭辞 `docs-category-*`）として `PAGE_STYLESHEETS` へ登録し、2 ページにだけ `<link>` する。`component-index.css` は再利用しない。最小トラック幅は 13rem（#3617 と同じ）。
+- Wireframes のカテゴリ源は `crates/docs-site/src/wireframes/category.rs` の `WireframeCategory`（Layout / Text / Forms / Navigation / Overlay & Feedback / Data Display / Media の 7 種）。`wireframe-ui-architecture.md` §8 の Phase 表を基に Forms A/B を統合した。`Wireframe` 構造体の必須フィールドとして持たせ、付け忘れはコンパイルエラーになる（`Block::category` と同方式）。別台帳は持たない。カードは名前のみで説明文は付けない。`site/nav.toml` の Wireframes はフラットのまま。
+- `site/wireframes.md` の手書き「掲載済み」リンク集（49 件）は撤去し、レジストリ生成へ一本化した。契約は `tests/category_index_nav.rs` が固定する。
+
 ## 6. トップページのレイアウト方針
 
 - 既定案: トップはサイドバー・右目次を出さない全幅ランディングとし、ヘッダーとフッターのみ共通にする。本文用の 3 カラム骨格はトップでは使わない。
 - 実現方式は #3598 の汎用フック（`page.path` 照会による生成節差し込み）の上に載せる。`layout.rs` に landing 用ラッパー分岐を足す形を第一案とし、追加 class（例: `docs-landing`）は `docs-site-three-column-redesign.md` §3.1 の既存 class 契約を変えない範囲の純追加とする。DOM 順序不変条件（SkipNav が最初、スキップ先が本文直前）を維持する。
 - 配置順: `build.rs` は既定で `[rewritten_body, generated_content]` の順に組むため、そのままでは既存の紹介文がヒーローより先に出る。トップページ（`page.path` がトップのとき）に限り生成節を本文より先に置く順序の入れ替えを #3598 のフックで行い、ヒーローを最上段に保つ（他ページの順序は変えない）。
-- 汎用フックの API（#3598、`crates/docs-site/src/page_sections.rs`）: ページパスを鍵とする登録表 `PAGE_SECTIONS` から生成関数を引き、`render_markdown` → blocks → wireframes の直後に差し込む。挿入位置は `Placement::Prepend`（本文先頭。トップのヒーロー用）・`BeforeFirstH2`（最初の h2 の直前。h2 が無ければ末尾）・`Append`（本文末尾）の 3 種で、見出し置換は見出し文言との文字列結合で黙って壊れるため採用しない。追加 CSS は `PAGE_STYLESHEETS` へ登録し、使われたページにだけ `<link>` を配線する。生成節は検索インデックスへ自動的に載る（`data-scope` 配下の見出し・テキストは既存規則どおり除外されるため、検索対象にしたい文は `docs-*` ラッパー側に置く）。生成節の見出しへ固定 id を付けず、非見出し要素の id が `RESERVED_LAYOUT_IDS` と衝突する登録はビルド時に拒否する。登録は nav の実在ページに限り、block・wireframe・部品ページの既存経路とは重ねられない（`/blocks/` 索引だけは既存節の後に適用する形で許可する。#3618 はこのフックと `blocks::index_generated_sections` の改修のどちらでも実装できるが、§9.3 のとおり `all_blocks()` は変えない）。
+- 汎用フックの API（#3598、`crates/docs-site/src/page_sections.rs`）: ページパスを鍵とする登録表 `PAGE_SECTIONS` から生成関数を引き、`render_markdown` → blocks → wireframes の直後に差し込む。挿入位置は `Placement::Prepend`（本文先頭。トップのヒーロー用）・`BeforeFirstH2`（最初の h2 の直前。h2 が無ければ末尾）・`Append`（本文末尾）の 3 種で、見出し置換は見出し文言との文字列結合で黙って壊れるため採用しない。追加 CSS は `PAGE_STYLESHEETS` へ登録し、使われたページにだけ `<link>` を配線する。生成節は検索インデックスへ自動的に載る（`data-scope` 配下の見出し・テキストは既存規則どおり除外されるため、検索対象にしたい文は `docs-*` ラッパー側に置く）。生成節の見出しへ固定 id を付けず、非見出し要素の id が `RESERVED_LAYOUT_IDS` と衝突する登録はビルド時に拒否する。登録は nav の実在ページに限り、block・wireframe・部品ページの既存経路とは重ねられない（#3618 で `/blocks/` 索引の生成も本フックへ移し、旧 `blocks::index_generated_sections` は撤去した。§9.3 のとおり `all_blocks()` は変えない）。
 - `site/index.md` の本文は残す。検索インデックスは `search_index::page_entry` が `[rewritten_body, generated_content]` から作るため、本文を残せばヒーロー等の生成節と併せて索引化され、linkcheck への影響も生じない。
 - 縦順序と分割境界は次のとおり。375px では全セクションを単列化する。
 
@@ -246,7 +258,7 @@ baseline はローカル保存の `_/site-redesign/baseline/`（home 1440 / home
 
 ### 9.3 `docs-site-blocks-section.md`
 
-Blocks セクション自体（索引のレジストリ生成、カテゴリ階層、サイドバー、`blocks_code_drift`、`blocks_nav.rs` / `blocks_categories.rs` / `blocks_contract.rs`）には触れない。#3618 は索引の見た目のみを変え、生成元の `all_blocks()` は変えない。本番ページから `demo()` を呼ばない方針は、block を利用者向けの合成例として扱う同文書の位置づけと衝突しない。トリガーの該当はない。
+Blocks セクション自体（索引のレジストリ生成、カテゴリ階層、サイドバー、`blocks_code_drift`、`blocks_nav.rs` / `blocks_categories.rs` / `blocks_contract.rs`）には触れない。#3618 は索引の見た目のみを変え、生成元の `all_blocks()` は変えない（索引の生成関数は `blocks::index_generated_sections` から `category_index::render_blocks` へ移った）。本番ページから `demo()` を呼ばない方針は、block を利用者向けの合成例として扱う同文書の位置づけと衝突しない。トリガーの該当はない。
 
 ### 9.4 `docs/policy/intentional-non-adoption.md` の評価軸
 

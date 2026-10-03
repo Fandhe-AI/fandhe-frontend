@@ -618,6 +618,11 @@ text-split-reveal → Marketing/Hero（`text_split_reveal` はモジュール do
 で済んだ。索引化のために新設したのは `index_generated_sections` 関数と
 `INDEX_PATH` 定数のみであり、当初想定した専用の分岐追加は不要だった。
 
+> #3618 追記: 索引の生成場所は `blocks::index_generated_sections` から
+> `crate::category_index::render_blocks`（汎用生成節フック経由）へ移り、
+> 表示は区分ごとのカテゴリ別カードになった。走査元の `all_blocks()` は不変。
+> 詳細は `docs/design/docs-site-styled-blocks-redesign.md` §5.3。
+
 ### テスト
 
 - `crates/docs-site/src/blocks/mod.rs` の `insert_generated_sections_is_noop_for_non_block_pages`

@@ -390,7 +390,7 @@ Phase 1〜8（#2608〜#2665）の着手前に本イシューで固定する。�
 
 ### 12.2 レジストリ契約（Phase 1〜8 が複製する契約）
 
-`Wireframe { path, title, args, demo }` 1 件 = 1 部品ページ。Phase 1〜8 の
+`Wireframe { path, title, category, args, demo }` 1 件 = 1 部品ページ。Phase 1〜8 の
 各部品イシューが触る箇所は以下の定型である。
 
 - `site/nav.toml` の Wireframes セクションへ `[[section.page]]` を 1 ブロック追記
@@ -401,8 +401,8 @@ Phase 1〜8（#2608〜#2665）の着手前に本イシューで固定する。�
 - `.github/workflows/docs-site.yml` の `verify: dist sanity check` へ
   `test -f` を 1 行追加（最初の 1 件は `assets/wireframes.css` の
   `test -f` も併せて追加する）
-- `site/wireframes.md` の「掲載予定」冒頭に「掲載済み」節を新設し
-  （最初の部品イシューのみ）、以降はリンクを 1 行追加
+- `site/wireframes.md` への追記は不要（索引はレジストリから生成する。
+  `WIREFRAME` 定数の `category`〔`WireframeCategory`〕で分類先を選ぶ、#3618）
 
 ### 12.3 セキュリティ不変条件
 

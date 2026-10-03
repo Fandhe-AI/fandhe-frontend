@@ -10,12 +10,13 @@
 use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::{avatar, icon, Size};
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// `/wireframes/avatar/` レジストリエントリ。
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/avatar/",
     title: "Avatar",
+    category: WireframeCategory::DataDisplay,
     args: &[
         ArgRow {
             name: "content",

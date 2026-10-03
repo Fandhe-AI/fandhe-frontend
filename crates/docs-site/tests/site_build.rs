@@ -304,10 +304,10 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // Primitives ページ専用の recipe 抜き `site-primitives.css`（イシュー
     // #3599 のレビュー指摘）が加わり 1 件増えた（favicon との合算で 17 + セクション数）。イシュー #3616 で索引カード専用
     // `section-index.css` が加わり 18 + セクション数になった。イシュー #3617 で
-    // Themes・Primitives 索引専用 `component-index.css` が加わり 19 + セクション数になった。
+    // Themes・Primitives 索引専用 `component-index.css` が加わり 19 + セクション数になった。イシュー #3618 で Blocks・Wireframes 索引専用 `category-index.css` が加わり 20 + セクション数になった。
     assert_eq!(
         report.assets.len(),
-        19 + nav.sections.len(),
+        20 + nav.sections.len(),
         "{:?}",
         report.assets
     );
@@ -732,6 +732,8 @@ fn binary_exits_nonzero_with_link_check_report_for_broken_fixture() {
         ("Examples", "/examples/", "e"),
         ("Primitives", "/primitives/", "p"),
         ("Themes", "/themes/", "t"),
+        ("Blocks", "/blocks/", "b"),
+        ("Wireframes", "/wireframes/", "w"),
         ("Home", "/", "h"),
         ("Start", "/getting-started/quickstart/", "q"),
     ] {

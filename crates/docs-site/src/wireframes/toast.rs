@@ -9,12 +9,13 @@
 use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::{icon, toast, Size};
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// `/wireframes/toast/` レジストリエントリ。
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/toast/",
     title: "Toast",
+    category: WireframeCategory::OverlayFeedback,
     args: &[
         ArgRow {
             name: "message",

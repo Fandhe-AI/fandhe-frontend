@@ -10,12 +10,13 @@
 use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::{paragraph, Bold, Size};
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// `/wireframes/paragraph/` レジストリエントリ。
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/paragraph/",
     title: "Paragraph",
+    category: WireframeCategory::Text,
     args: &[
         ArgRow {
             name: "content",

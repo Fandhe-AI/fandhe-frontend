@@ -9,7 +9,7 @@
 use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::{calendar, Size};
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// 2026 年 9 月相当の 5 週（2026-09-01 は火曜のため、日曜始まりの先頭行は
 /// `None` が 2 個続く）。
@@ -91,6 +91,7 @@ const SIX_WEEK_MONTH: [[Option<u32>; 7]; 6] = [
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/calendar/",
     title: "Calendar",
+    category: WireframeCategory::Forms,
     args: &[
         ArgRow {
             name: "month_label",

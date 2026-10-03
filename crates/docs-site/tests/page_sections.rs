@@ -123,10 +123,12 @@ fn production_registry_matches_the_expected_table() {
         got,
         [
             ("/api/", Placement::BeforeFirstH2, PageLayout::Docs),
+            ("/blocks/", Placement::Append, PageLayout::Docs),
             ("/examples/", Placement::BeforeFirstH2, PageLayout::Docs),
             ("/guides/", Placement::Append, PageLayout::Docs),
             ("/primitives/", Placement::BeforeFirstH2, PageLayout::Docs),
             ("/themes/", Placement::BeforeFirstH2, PageLayout::Docs),
+            ("/wireframes/", Placement::BeforeFirstH2, PageLayout::Docs),
             ("/", Placement::Prepend, PageLayout::Landing),
         ],
         "本番登録表の期待表（登録を増やすときは本表へ明示的に追加する）"
@@ -192,27 +194,36 @@ fn registered_page_alone_changes_in_built_output() {
     let _ = std::fs::remove_dir_all(&hook_out);
 }
 
-/// AC3 補強: `/blocks/` 索引では既存の索引節が残り、フックの節がその直前に入る。
+/// `/blocks/` 索引の生成は汎用フックが単独で担う（#3618）。フック適用前の
+/// ノード列にはカテゴリグリッドがなく、本番 `REGISTRY` で挿入するとちょうど 1 回入る。
 #[test]
-fn blocks_index_keeps_existing_sections_and_hook_comes_first() {
+fn blocks_index_grid_comes_only_from_the_production_hook() {
+    use fandhe_frontend_core::render;
     let nav = real_nav();
     let page = nav
         .all_pages()
         .find(|p| p.path == blocks::INDEX_PATH)
         .expect("blocks index page");
     let existing = pre_hook_blocks(&nav, page);
-    let reg = registry_for(blocks::INDEX_PATH, Placement::BeforeFirstH2);
-    assert_eq!(validate(&reg, &nav), Ok(()));
-    let out =
-        insert_generated_sections_with(&reg, &page.path, &nav.site.base_path, existing.clone());
-    let at = existing
-        .iter()
-        .position(|n| matches!(n, Node::Element { tag, .. } if *tag == "h2"))
-        .expect("h2 in blocks index");
-    assert_eq!(out.len(), existing.len() + 1);
-    assert_eq!(out[..at], existing[..at]);
-    assert_eq!(out[at], marker("")[0]);
-    assert_eq!(out[at + 1..], existing[at..]);
+    let before: String = existing.iter().map(render).collect();
+    assert!(!before.contains("docs-category-"));
+    let out = insert_generated_sections_with(
+        &REGISTRY,
+        &page.path,
+        &nav.site.base_path,
+        existing.clone(),
+    );
+    let after: String = out.iter().map(render).collect();
+    assert_eq!(
+        after.matches("class=\"docs-category-grid\"").count(),
+        blocks::BlockSection::ALL
+            .iter()
+            .filter(|s| blocks::all_blocks()
+                .iter()
+                .any(|b| b.category.section() == **s))
+            .count()
+    );
+    assert_eq!(out[..existing.len()], existing[..]);
 }
 
 #[test]

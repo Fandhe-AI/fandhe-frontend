@@ -184,6 +184,7 @@ fn insert_generated_sections_with_escapes_script_in_arg_table() {
     let wireframe = wireframes::Wireframe {
         path: "/wireframes/xss-fixture/",
         title: "XSS Fixture",
+        category: wireframes::WireframeCategory::Layout,
         args: &[wireframes::ArgRow {
             name: "label",
             kind: "&str",

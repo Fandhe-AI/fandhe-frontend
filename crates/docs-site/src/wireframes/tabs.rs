@@ -9,12 +9,13 @@
 use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::{tabs, Orientation, Size};
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// `/wireframes/tabs/` レジストリエントリ。
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/tabs/",
     title: "Tabs",
+    category: WireframeCategory::Navigation,
     args: &[
         ArgRow {
             name: "items",

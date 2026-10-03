@@ -10,12 +10,13 @@ use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::map::MapZoom;
 use fandhe_frontend_wireframe_ui::{icon, map, Size};
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// `/wireframes/map/` レジストリエントリ。
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/map/",
     title: "Map",
+    category: WireframeCategory::Media,
     args: &[
         ArgRow {
             name: "zoom",

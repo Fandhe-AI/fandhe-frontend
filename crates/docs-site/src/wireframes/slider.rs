@@ -9,12 +9,13 @@
 use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::{slider, Active, Disabled, Orientation, Size};
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// `/wireframes/slider/` レジストリエントリ。
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/slider/",
     title: "Slider",
+    category: WireframeCategory::Forms,
     args: &[
         ArgRow {
             name: "value",

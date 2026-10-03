@@ -10,12 +10,13 @@
 use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::{annotation, Primary, Size};
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// `/wireframes/annotation/` レジストリエントリ。
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/annotation/",
     title: "Annotation",
+    category: WireframeCategory::Text,
     args: &[
         ArgRow {
             name: "title",

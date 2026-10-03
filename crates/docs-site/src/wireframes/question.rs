@@ -13,12 +13,13 @@
 use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::{icon, question, select, switch, Active, Disabled, Size};
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// `/wireframes/question/` レジストリエントリ。
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/question/",
     title: "Question",
+    category: WireframeCategory::Forms,
     args: &[
         ArgRow {
             name: "label",

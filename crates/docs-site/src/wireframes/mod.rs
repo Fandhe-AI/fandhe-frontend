@@ -62,6 +62,7 @@ mod breadcrumbs;
 mod button;
 mod calendar;
 mod card_basic;
+mod category;
 mod chart;
 mod checkbox;
 mod counter;
@@ -103,6 +104,8 @@ mod textarea;
 mod toast;
 mod tooltip;
 
+pub use category::WireframeCategory;
+
 use fandhe_frontend_core::{div, h2, p, table, tbody, td, text, th, thead, tr, Node};
 use fandhe_frontend_pre_styled_ui::{StyleSheet, StylesheetError};
 
@@ -140,6 +143,8 @@ pub struct Wireframe {
     pub path: &'static str,
     /// 部品名（現状は未使用。将来利用に備え保持する）。
     pub title: &'static str,
+    /// 索引（`/wireframes/`）のカテゴリ分類（イシュー #3618）。付け忘れはコンパイルエラー。
+    pub category: WireframeCategory,
     /// 引数表（`## 引数表`）の行一覧。0 行なら「引数はありません」を表示する。
     pub args: &'static [ArgRow],
     /// Demo 本体を組み立てる純関数。呼び出しごとに決定的な `Node` を返す。
@@ -423,6 +428,7 @@ mod tests {
         Wireframe {
             path: "/wireframes/sample/",
             title: "Sample",
+            category: WireframeCategory::Layout,
             args: &[ArgRow {
                 name: "label",
                 kind: "&str",
@@ -482,6 +488,7 @@ mod tests {
         let registry = [Wireframe {
             path: "/wireframes/sample/",
             title: "Sample",
+            category: WireframeCategory::Layout,
             args: &[ArgRow {
                 name: "`name`",
                 kind: "&str",

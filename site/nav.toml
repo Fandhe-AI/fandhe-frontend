@@ -1219,7 +1219,7 @@ path = "/blocks/"
 # グループとして列挙する（グループ順序は `BlockCategory::ALL` 順）。
 # グループ内のページ順序は宣言順ではなく `path` 昇順とする（並列 PR による
 # `crate::blocks::BLOCKS` への追記順は安定しないため。索引ページ本文
-# 〔`index_generated_sections`、イシュー #2733〕と同じ判断）。
+# 〔`category_index::render_blocks`、イシュー #2733/#3618〕と同じ判断）。
 # ドリフト検知は `crates/docs-site/tests/blocks_nav.rs` の
 # `blocks_section_groups_match_registry_category_order` /
 # `blocks_group_pages_match_registry_category_assignments` が担う。

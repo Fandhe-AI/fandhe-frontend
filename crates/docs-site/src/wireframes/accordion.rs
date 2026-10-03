@@ -9,12 +9,13 @@
 use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::{accordion, paragraph, Bold, Size};
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// `/wireframes/accordion/` レジストリエントリ。
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/accordion/",
     title: "Accordion",
+    category: WireframeCategory::Navigation,
     args: &[
         ArgRow {
             name: "items",

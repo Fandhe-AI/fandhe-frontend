@@ -520,8 +520,8 @@ pub fn build_site_with(
         let markdown_blocks =
             wireframes::insert_generated_sections(&page.path, &nav.site.base_path, markdown_blocks);
         // 汎用生成節（イシュー #3598）。登録表に無いページでは no-op。blocks /
-        // wireframes の挿入後に適用するため、登録可能パスは `/blocks/` 索引を
-        // 除き既存経路と重ならない（`page_sections::validate`）。
+        // wireframes の挿入後に適用するため、登録可能パスは既存の
+        // 生成経路（block・wireframe・部品ページ）と重ならない（`page_sections::validate`）。
         let markdown_blocks = page_sections::insert_generated_sections_with(
             registry,
             &page.path,

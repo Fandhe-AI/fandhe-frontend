@@ -12,12 +12,13 @@ use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::tooltip::TooltipSide;
 use fandhe_frontend_wireframe_ui::{button, stack, tooltip, Disabled, Orientation, Primary, Size};
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// `/wireframes/tooltip/` レジストリエントリ。
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/tooltip/",
     title: "Tooltip",
+    category: WireframeCategory::OverlayFeedback,
     args: &[
         ArgRow {
             name: "label",

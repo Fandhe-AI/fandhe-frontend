@@ -3,7 +3,7 @@
 //! # 役割・呼び出し文脈
 //!
 //! [`super::Block`] は本モジュールの [`BlockCategory`] を必須フィールドと
-//! して持ち、[`super::index_generated_sections`]（`/blocks/` 索引ページの
+//! して持ち、[`crate::category_index::render_blocks`]（`/blocks/` 索引ページの
 //! 生成）が「区分 → カテゴリ」の階層見出しを組み立てる際の唯一の分類源に
 //! 使う。親トラッキング #2730（目的別パーツ拡充ツリー、新規約 300 block）
 //! で追加される block はすべて本モジュールの [`BlockCategory`] のいずれか
