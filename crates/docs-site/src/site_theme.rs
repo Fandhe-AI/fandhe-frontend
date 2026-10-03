@@ -65,15 +65,23 @@
 //!       span.docs-theme-toggle    … テーマトグルのラッパー（既定 `hidden`。内側に
 //!         ghost の pre-styled-ui button と span.docs-theme-toggle-label。可視化・
 //!         イベント配線は `assets/site.js`（`crate::script`）のみが行う）
+//!     input.docs-nav-drawer-toggle（sr-only）… ナビ drawer の開閉状態を保持する
+//!       チェックボックス（`:checked` が唯一の情報源。`header-inner` の末尾、drawer の前の
+//!       兄弟、イシュー #3674）
+//!     label.docs-nav-drawer-toggle-label > span.docs-nav-drawer-toggle-text … ハンバーガー
+//!       （768px 以上では `(hover: none)` 端末のみ表示）
+//!     nav.docs-nav-drawer … `nav::nav_drawer()` の実出力（headless nav_list）
+//!       ul.docs-nav-drawer-sections > li.docs-nav-drawer-section
+//!         a.docs-nav-drawer-section-link … セクション索引へのリンク
+//!         details.docs-nav-drawer-details > summary.docs-nav-drawer-summary
+//!           （span.docs-nav-drawer-summary-text）+ div.docs-nav-drawer-body
+//!           （現在セクションはサイドバー形式、他は ul.docs-nav-drawer-list）
 //!   div.docs-container            … 3 カラムのグリッドコンテナ（header の下、
 //!     イシュー #907・`docs/design/docs-site-three-column-redesign.md` §3.1）。
 //!     見出しの無いページでは `docs-container--no-toc` 修飾 class が付く
 //!     （`crate::layout::docs_page_with_assets` 参照）
-//!       aside.docs-sidebar        … 左ナビカラムのラッパー
-//!         input.docs-sidebar-toggle（先頭・sr-only）… `< 768px` の折りたたみ
-//!           開閉状態を保持するチェックボックス（`:checked` が唯一の情報源）
-//!         label.docs-sidebar-toggle-label … 上記チェックボックスの可視トリガー
-//!           （`min-width: 768px` では非表示）
+//!       aside.docs-sidebar        … 左ナビカラムのラッパー（768px 未満は非表示。
+//!         代わりにヘッダー末尾のナビ drawer が全セクションへの手段、イシュー #3674）
 //!         nav.sidebar              … `nav::sidebar()` の実出力（headless nav_list）
 //!           a[aria-current="page"] … 現在ページのリンク
 //!           details.docs-nav-group（`[[section.group]]` ごと、イシュー #940）
@@ -371,8 +379,8 @@ body {\n\
  * ---- ヘッダーナビ（セクション別ドロップダウン、イシュー #908） ----\n\
  *\n\
  * 基底（768px 未満）では非表示（`min-width: 768px` の @media ブロックで表示に\n\
- * 切り替える）。モバイルは既存のサイドバー折りたたみトグルがナビ手段を\n\
- * 提供する（`.docs-sidebar-toggle-label` 参照）。ドロップダウンの開閉は JS を\n\
+ * 切り替える）。モバイルはナビ drawer（`.docs-nav-drawer`、#3674）がナビ手段を\n\
+ * 提供する。ドロップダウンの開閉は JS を\n\
  * 使わず `:hover`/`:focus-within` のみで行う（`crate::nav::header_nav` の\n\
  * rustdoc「イシュータイトルとの差分」参照）。\n\
  */\n\
@@ -1039,105 +1047,9 @@ body {\n\
   border-right: none;\n\
   border-bottom: 1px solid var(--fandhe-color-border);\n\
   font-size: var(--fandhe-font-font-size-sm);\n\
-}\n\
-\n\
-/*\n\
- * 折りたたみ対象は `nav.sidebar`（`aside.docs-sidebar` ではなく）。基底\n\
- * （768px 未満）は `max-height: 0` + `visibility: hidden` で畳む（JS 不要、`layout.rs`\n\
- * モジュール doc 参照）。開閉状態の唯一の情報源はチェックボックスの\n\
- * `:checked` とする（focus-within 系疑似クラスを OR で加えない）。フォーカスが\n\
- * ナビ内に残ったままチェックを外しても閉じられなくなる回帰があったため\n\
- * （Bugbot 指摘 #916 是正）。チェックボックス自体は sr-only パターンで\n\
- * 視覚的に隠すのみで DOM から除去しないため（`.docs-sidebar-toggle`\n\
- * 参照）、チェックボックス自体を Space キーで開閉できる。閉じている間は\n\
- * `visibility: hidden` でリンクがタブ順から外れ、見えない要素へフォーカスが\n\
- * 当たらない（イシュー #3602。従来は 1 行分だけ中途半端に切り取っていた）。\n\
- */\n\
-.docs-sidebar nav.sidebar {\n\
-  max-height: 0;\n\
-  overflow: hidden;\n\
-  visibility: hidden;\n\
-}\n\
-\n\
-.docs-sidebar-toggle:checked ~ nav.sidebar {\n\
-  max-height: none;\n\
-  overflow: visible;\n\
-  visibility: visible;\n\
-}\n\
-\n\
-/*\n\
- * `.docs-sidebar-toggle`（input 要素（type=\"checkbox\"））は sr-only パターンで\n\
- * 視覚的に隠すのみで DOM からは除去しない（Tab フォーカス・Enter/Space\n\
- * 操作の対象から外さない。`display: none`/`visibility: hidden` にしない\n\
- * 理由）。`min-width: 768px`（折りたたみ自体を行わない帯域）では\n\
- * `display: none` に切り替える（下記 `@media` ブロック。この帯域では\n\
- * サイドバーが常時全展開のためチェックボックスの状態自体が意味を持たなく\n\
- * なり、キーボードユーザーが無意味なコントロールへ無駄にフォーカスを\n\
- * 奪われる回帰を避ける、Bugbot 指摘 #916 是正）。\n\
- */\n\
-.docs-sidebar-toggle {\n\
-  position: absolute;\n\
-  width: 1px;\n\
-  height: 1px;\n\
-  padding: 0;\n\
-  margin: -1px;\n\
-  overflow: hidden;\n\
-  clip: rect(0, 0, 0, 0);\n\
-  white-space: nowrap;\n\
-  border: 0;\n\
-}\n\
-\n\
-/*\n\
- * `.docs-sidebar-toggle-label` はチェックボックスの可視トリガー。基底\n\
- * （768px 未満、折りたたみが有効な帯域）でのみ表示し、`min-width: 768px`\n\
- * （折りたたみ自体を行わない帯域、下記 `@media` ブロック）では非表示にする。\n\
- */\n\
-.docs-sidebar-toggle-label {\n\
-  display: block;\n\
-  cursor: pointer;\n\
-  padding: 0.4rem 0.6rem;\n\
-  margin: -0.4rem -0.6rem 0.4rem;\n\
-  border-radius: 0.4rem;\n\
-  font-size: 0.8rem;\n\
-  font-weight: var(--fandhe-font-font-weight-semibold);\n\
-  color: var(--fandhe-color-accent);\n\
-}\n\
-\n\
-.docs-sidebar-toggle-label:hover {\n\
-  background: var(--fandhe-color-bg-subtle);\n\
-}\n\
-\n\
-/* Menu トグルのボタン風外形・三本線・開状態・フォーカスリング（イシュー #3611）。\n\
- * 開閉状態の情報源は `:checked` のみ（focus-within は使わない）。 */\n\
-.docs-sidebar-toggle-label {\n\
-  display: flex;\n\
-  align-items: center;\n\
-  gap: 0.5rem;\n\
-  border: 1px solid var(--fandhe-color-border);\n\
-}\n\
-\n\
-.docs-sidebar-toggle-label::before {\n\
-  content: \"\";\n\
-  flex: none;\n\
-  width: 1rem;\n\
-  height: 0.75rem;\n\
-  background: linear-gradient(currentColor, currentColor) top / 100% 2px no-repeat,\n\
-    linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat,\n\
-    linear-gradient(currentColor, currentColor) bottom / 100% 2px no-repeat;\n\
-}\n\
-\n\
-.docs-sidebar-toggle:checked + .docs-sidebar-toggle-label {\n\
-  background: var(--fandhe-color-docs-accent-bg);\n\
-  border-color: var(--fandhe-color-accent);\n\
-}\n\
-\n\
-.docs-sidebar-toggle:checked + .docs-sidebar-toggle-label::before {\n\
-  background: linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat;\n\
-}\n\
-\n\
-.docs-sidebar-toggle:focus-visible + .docs-sidebar-toggle-label {\n\
-  outline: 2px solid var(--fandhe-color-accent);\n\
-  outline-offset: 2px;\n\
+  /* 768px 未満はヘッダーのナビ drawer が全セクションへの手段になるため、aside は出さない\n\
+   * （旧 Menu トグルの置き換え、イシュー #3674）。`min-width: 768px` で block へ戻す。 */\n\
+  display: none;\n\
 }\n\
 \n\
 .docs-sidebar nav.sidebar {\n\
@@ -1313,6 +1225,301 @@ body {\n\
   display: flex;\n\
   flex-direction: column;\n\
   gap: 0.05rem;\n\
+}\n\
+\n\
+/*\n\
+ * ---- ナビ drawer（全セクションへ移れるハンバーガーメニュー、イシュー #3674） ----\n\
+ *\n\
+ * `crate::nav::nav_drawer()` と `crate::layout` が `div.docs-header-inner` の末尾へ\n\
+ * 出す `input.docs-nav-drawer-toggle` → `label` → `nav.docs-nav-drawer`。開閉状態の\n\
+ * 唯一の情報源は checkbox の `:checked`（JS 不要。`:focus-within` は使わない）。\n\
+ * 旧サイドバーの Menu トグル（#3602/#3611）はこれに置き換えた。drawer は\n\
+ * ヘッダー直下へ重なるパネルで、内容が収まらないときは drawer 内だけが縦スクロール\n\
+ * し（`overscroll-behavior: contain` で背景へ連鎖させない）、`dvh` 未対応の\n\
+ * ブラウザは直前の `vh` 宣言へフォールバックする。表示するのは 768px 未満と、\n\
+ * 768px 以上の `(hover: none)` 端末（下記の専用 `@media`）。\n\
+ * `.docs-header-inner` は drawer の配置基準（`position: relative`）になる。\n\
+ */\n\
+.docs-header-inner {\n\
+  position: relative;\n\
+}\n\
+\n\
+.docs-nav-drawer-toggle {\n\
+  position: absolute;\n\
+  width: 1px;\n\
+  height: 1px;\n\
+  padding: 0;\n\
+  margin: -1px;\n\
+  overflow: hidden;\n\
+  clip: rect(0, 0, 0, 0);\n\
+  white-space: nowrap;\n\
+  border: 0;\n\
+}\n\
+\n\
+.docs-nav-drawer-toggle-label {\n\
+  display: inline-flex;\n\
+  align-items: center;\n\
+  justify-content: center;\n\
+  flex: none;\n\
+  width: 2.5rem;\n\
+  height: 2.5rem;\n\
+  border: 1px solid var(--fandhe-color-border);\n\
+  border-radius: 0.4rem;\n\
+  cursor: pointer;\n\
+  color: var(--fandhe-color-fg);\n\
+}\n\
+\n\
+.docs-nav-drawer-toggle-label:hover {\n\
+  background: var(--fandhe-color-bg-subtle);\n\
+}\n\
+\n\
+.docs-nav-drawer-toggle-label::before {\n\
+  content: \"\";\n\
+  flex: none;\n\
+  width: 1.1rem;\n\
+  height: 0.8rem;\n\
+  background: linear-gradient(currentColor, currentColor) top / 100% 2px no-repeat,\n\
+    linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat,\n\
+    linear-gradient(currentColor, currentColor) bottom / 100% 2px no-repeat;\n\
+}\n\
+\n\
+.docs-nav-drawer-toggle:checked + .docs-nav-drawer-toggle-label {\n\
+  background: var(--fandhe-color-docs-accent-bg);\n\
+  border-color: var(--fandhe-color-accent);\n\
+}\n\
+\n\
+.docs-nav-drawer-toggle:checked + .docs-nav-drawer-toggle-label::before {\n\
+  background: linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat;\n\
+}\n\
+\n\
+.docs-nav-drawer-toggle:focus-visible + .docs-nav-drawer-toggle-label {\n\
+  outline: 2px solid var(--fandhe-color-accent);\n\
+  outline-offset: 2px;\n\
+}\n\
+\n\
+/* 可視文字は出さず、ラベルのアクセシブル名（\"Menu\"）としてだけ残す。 */\n\
+.docs-nav-drawer-toggle-text,\n\
+.docs-nav-drawer-summary-text {\n\
+  position: absolute;\n\
+  width: 1px;\n\
+  height: 1px;\n\
+  overflow: hidden;\n\
+  clip: rect(0 0 0 0);\n\
+  white-space: nowrap;\n\
+}\n\
+\n\
+.docs-header nav.docs-nav-drawer {\n\
+  display: none;\n\
+  position: absolute;\n\
+  top: 100%;\n\
+  left: 0;\n\
+  right: 0;\n\
+  z-index: 20;\n\
+  max-height: calc(100vh - var(--fandhe-space-docs-header-height-stacked));\n\
+  max-height: calc(100dvh - var(--fandhe-space-docs-header-height-stacked));\n\
+  overflow-y: auto;\n\
+  overscroll-behavior: contain;\n\
+  padding: 0.25rem 1.5rem 1rem;\n\
+  background: var(--fandhe-color-bg);\n\
+  border-bottom: 1px solid var(--fandhe-color-border);\n\
+  box-shadow: var(--fandhe-shadow-md);\n\
+  font-size: var(--fandhe-font-font-size-sm);\n\
+}\n\
+\n\
+.docs-nav-drawer-toggle:checked ~ .docs-nav-drawer {\n\
+  display: block;\n\
+}\n\
+\n\
+/* nav_list recipe（`[data-scope][data-part]`、0,2,0）に勝つため、\n\
+ * `.docs-header nav.docs-nav-drawer` を前置して詳細度を確定する。 */\n\
+.docs-header nav.docs-nav-drawer ul {\n\
+  list-style: none;\n\
+  margin: 0;\n\
+  padding: 0;\n\
+  display: flex;\n\
+  flex-direction: column;\n\
+  gap: 0.05rem;\n\
+}\n\
+\n\
+.docs-header nav.docs-nav-drawer li {\n\
+  margin: 0;\n\
+}\n\
+\n\
+.docs-header nav.docs-nav-drawer .docs-nav-drawer-sections {\n\
+  gap: 0;\n\
+}\n\
+\n\
+.docs-header nav.docs-nav-drawer .docs-nav-drawer-section {\n\
+  position: relative;\n\
+  border-bottom: 1px solid var(--fandhe-color-border);\n\
+}\n\
+\n\
+.docs-header nav.docs-nav-drawer .docs-nav-drawer-section:last-child {\n\
+  border-bottom: none;\n\
+}\n\
+\n\
+/* セクション索引へのリンク。summary の外に置き、右端の開閉ボタン分だけ空ける。\n\
+ * リンクの色の切替は即時（#3603 と同じ理由で transition なし）。 */\n\
+.docs-header nav.docs-nav-drawer a.docs-nav-drawer-section-link {\n\
+  display: block;\n\
+  min-height: 2.75rem;\n\
+  box-sizing: border-box;\n\
+  padding: 0.75rem 3.25rem 0.75rem 0.5rem;\n\
+  color: var(--fandhe-color-fg);\n\
+  font-weight: var(--fandhe-font-font-weight-medium);\n\
+  text-decoration: none;\n\
+  transition: none;\n\
+}\n\
+\n\
+.docs-header nav.docs-nav-drawer a.docs-nav-drawer-section-link[aria-current=\"true\"] {\n\
+  color: var(--fandhe-color-accent);\n\
+  font-weight: var(--fandhe-font-font-weight-semibold);\n\
+}\n\
+\n\
+.docs-header nav.docs-nav-drawer a:focus-visible,\n\
+.docs-header nav.docs-nav-drawer summary:focus-visible {\n\
+  outline: 2px solid var(--fandhe-color-accent);\n\
+  outline-offset: -2px;\n\
+}\n\
+\n\
+/* 開閉専用の summary。行の右端へ重ね、タップ領域は 44px 以上にする。 */\n\
+.docs-header nav.docs-nav-drawer .docs-nav-drawer-summary {\n\
+  position: absolute;\n\
+  top: 0;\n\
+  right: 0;\n\
+  display: flex;\n\
+  align-items: center;\n\
+  justify-content: center;\n\
+  width: 3rem;\n\
+  height: 2.75rem;\n\
+  cursor: pointer;\n\
+  list-style: none;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+}\n\
+\n\
+.docs-nav-drawer-summary::marker,\n\
+.docs-nav-drawer-summary::-webkit-details-marker {\n\
+  display: none;\n\
+}\n\
+\n\
+.docs-nav-drawer-summary::before {\n\
+  content: \"\";\n\
+  width: 0.45rem;\n\
+  height: 0.45rem;\n\
+  border-right: 2px solid currentColor;\n\
+  border-bottom: 2px solid currentColor;\n\
+  transform: rotate(-45deg);\n\
+}\n\
+\n\
+.docs-nav-drawer-details[open] > .docs-nav-drawer-summary::before {\n\
+  transform: rotate(45deg);\n\
+}\n\
+\n\
+.docs-nav-drawer-body {\n\
+  padding: 0 0 0.5rem 0.5rem;\n\
+}\n\
+\n\
+/* 現在でないセクションの見出し一覧（popup 形式）。 */\n\
+.docs-header nav.docs-nav-drawer .docs-nav-drawer-list {\n\
+  margin: 0;\n\
+}\n\
+\n\
+.docs-header nav.docs-nav-drawer .docs-nav-drawer-body a {\n\
+  display: block;\n\
+  padding: 0.55rem 0.5rem;\n\
+  border-left: 2px solid transparent;\n\
+  border-radius: 0.4rem;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+  text-decoration: none;\n\
+  transition: none;\n\
+}\n\
+\n\
+.docs-header nav.docs-nav-drawer .docs-nav-drawer-body a:hover:hover:hover:hover:not([aria-current=\"page\"]) {\n\
+  color: var(--fandhe-color-fg);\n\
+  background: var(--fandhe-color-bg-subtle);\n\
+}\n\
+\n\
+.docs-header nav.docs-nav-drawer .docs-nav-drawer-body a[aria-current=\"true\"] {\n\
+  color: var(--fandhe-color-fg);\n\
+}\n\
+\n\
+.docs-header nav.docs-nav-drawer .docs-nav-drawer-body a[aria-current=\"page\"] {\n\
+  background: var(--fandhe-color-docs-accent-bg);\n\
+  color: var(--fandhe-color-fg);\n\
+  border-left-color: var(--fandhe-color-accent);\n\
+  font-weight: var(--fandhe-font-font-weight-semibold);\n\
+}\n\
+\n\
+/* 現在セクションのサイドバー形式（カテゴリ details）。`.docs-sidebar nav.sidebar`\n\
+ * 配下の同名規則と同等の見た目を drawer 側で持つ（aside 内ではないため）。 */\n\
+.docs-header nav.docs-nav-drawer details.docs-nav-group {\n\
+  margin: 0.2rem 0;\n\
+  border-top: 1px solid var(--fandhe-color-border);\n\
+  padding-top: 0.2rem;\n\
+}\n\
+\n\
+.docs-header nav.docs-nav-drawer .docs-nav-group-summary {\n\
+  cursor: pointer;\n\
+  list-style: none;\n\
+  display: flex;\n\
+  align-items: center;\n\
+  gap: 0.5rem;\n\
+  justify-content: space-between;\n\
+  min-height: 2.5rem;\n\
+  padding: 0.32rem 0.5rem;\n\
+  border-radius: 0.4rem;\n\
+  font-weight: var(--fandhe-font-font-weight-medium);\n\
+  color: var(--fandhe-color-fg-muted);\n\
+}\n\
+\n\
+.docs-header nav.docs-nav-drawer details.docs-nav-group[open] > .docs-nav-group-summary {\n\
+  color: var(--fandhe-color-fg);\n\
+}\n\
+\n\
+.docs-header nav.docs-nav-drawer .docs-nav-group-summary::before {\n\
+  content: \"\";\n\
+  order: -1;\n\
+  flex: none;\n\
+  width: 0.4rem;\n\
+  height: 0.4rem;\n\
+  border-right: 2px solid currentColor;\n\
+  border-bottom: 2px solid currentColor;\n\
+  transform: rotate(-45deg);\n\
+}\n\
+\n\
+.docs-header nav.docs-nav-drawer details.docs-nav-group[open] > .docs-nav-group-summary::before {\n\
+  transform: rotate(45deg);\n\
+}\n\
+\n\
+.docs-header nav.docs-nav-drawer .docs-nav-group-summary::marker,\n\
+.docs-header nav.docs-nav-drawer .docs-nav-group-summary::-webkit-details-marker {\n\
+  display: none;\n\
+}\n\
+\n\
+.docs-header nav.docs-nav-drawer .docs-nav-group-title {\n\
+  flex: 1 1 auto;\n\
+  min-width: 0;\n\
+  overflow-wrap: anywhere;\n\
+}\n\
+\n\
+.docs-header nav.docs-nav-drawer .docs-nav-group-count [data-scope=\"badge\"] {\n\
+  display: inline-flex;\n\
+  align-items: center;\n\
+  justify-content: center;\n\
+  min-width: 1.4rem;\n\
+  padding: 0.05rem 0.4rem;\n\
+  border-radius: 999px;\n\
+  font-size: 0.7rem;\n\
+  font-weight: var(--fandhe-font-font-weight-medium);\n\
+  font-variant-numeric: tabular-nums;\n\
+  background: var(--fandhe-color-bg-subtle);\n\
+  color: var(--fandhe-color-fg-muted);\n\
+}\n\
+\n\
+.docs-header nav.docs-nav-drawer .docs-nav-group-list {\n\
+  margin: 0.1rem 0 0.2rem 0.75rem;\n\
+  padding-inline-start: 0.4rem;\n\
+  border-inline-start: 1px solid var(--fandhe-color-border);\n\
 }\n\
 \n\
 /* ---- 本文カラム ---- */\n\
@@ -1653,6 +1860,7 @@ nav.prev-next .next .docs-pager-meta {\n\
   }\n\
 \n\
   .docs-sidebar {\n\
+    display: block;\n\
     /*\n\
      * `.docs-header` が sticky top: 0 で常時可視のため、`.docs-sidebar` は\n\
      * ヘッダー分オフセットして常時可視のヘッダー直下に張り付く。\n\
@@ -1668,22 +1876,15 @@ nav.prev-next .next .docs-pager-meta {\n\
     border-bottom: none;\n\
   }\n\
 \n\
-  /* `min-width: 768px` では折りたたみ自体を行わないため、`nav.sidebar` の\n\
-   * 折りたたみ制約とタッチ用トグルの可視トリガーの双方を解除する。 */\n\
-  .docs-sidebar nav.sidebar {\n\
-    max-height: none;\n\
-    overflow: visible;\n\
-    visibility: visible;\n\
-  }\n\
-\n\
-  /* この帯域ではサイドバーが常時全展開のためチェックボックス自体を DOM\n\
-   * 上から視覚的に取り除くだけでなく操作対象からも外す（Bugbot 指摘 #916\n\
-   * 是正、上記 `.docs-sidebar-toggle` doc コメント参照）。 */\n\
-  .docs-sidebar-toggle {\n\
+  /* この帯域ではヘッダーナビが表示され、ナビ drawer（ハンバーガー）は不要になる。\n\
+   * 狭幅で開いたまま幅を広げたときに drawer が残らないよう、開状態も非表示にする。\n\
+   * `(hover: none)` 端末は後ろの専用ブロックが再表示する（イシュー #3674）。 */\n\
+  .docs-nav-drawer-toggle,\n\
+  .docs-nav-drawer-toggle-label {\n\
     display: none;\n\
   }\n\
 \n\
-  .docs-sidebar-toggle-label {\n\
+  .docs-nav-drawer-toggle:checked ~ .docs-nav-drawer {\n\
     display: none;\n\
   }\n\
 \n\
@@ -1692,7 +1893,7 @@ nav.prev-next .next .docs-pager-meta {\n\
   }\n\
 \n\
   /* `.docs-header-nav`（セクション別ドロップダウン、イシュー #908）は\n\
-   * この帯域から表示に切り替える。モバイルはサイドバー折りたたみトグルが\n\
+   * この帯域から表示に切り替える。モバイルはナビ drawer（#3674）が\n\
    * ナビ手段を提供するため基底では非表示のまま。配置は fandhe-backend\n\
    * `.docs-header-nav { margin-left: 1.25rem; min-width: 0; }` と同値\n\
    * （イシュー #1110 の続き）: brand 直後の左寄せとし、旧設計の\n\
@@ -1980,6 +2181,51 @@ nav.prev-next .next .docs-pager-meta {\n\
   .docs-content h2,\n\
   .docs-content h3 {\n\
     scroll-margin-top: 1rem;\n\
+  }\n\
+}\n\
+\n\
+/*\n\
+ * ---- `(hover: none)` かつ `768px 以上`: タッチ端末はナビ drawer を使う（イシュー #3674） ----\n\
+ *\n\
+ * ヘッダーナビの popup は `:hover`/`:focus-within` で開くが、トリガーは索引ページへの\n\
+ * `a[href]` で、タッチではタップすると遷移してしまい popup を安定して開けない。\n\
+ * drawer は popup の上位集合（全セクション + 現在セクションの個別ページ）なので、\n\
+ * 主入力が hover できない端末ではヘッダーナビを隠してハンバーガーへ一本化する。\n\
+ * 条件は `any-hover` ではなく `hover`（主入力）: マウスが主入力の 2-in-1 端末は popup のまま。\n\
+ * 全帯域・`min-width: 768px` ブロックより後ろに置き、同じ詳細度のまま上書きする。\n\
+ * 1200〜1439px の 1 段ヘッダーへハンバーガーを足してもはみ出さないよう、ナビごと隠す。\n\
+ */\n\
+@media (hover: none) and (min-width: 768px) {\n\
+  .docs-nav-drawer-toggle {\n\
+    display: inline-block;\n\
+  }\n\
+\n\
+  .docs-nav-drawer-toggle-label {\n\
+    display: inline-flex;\n\
+    margin-left: 0.5rem;\n\
+  }\n\
+\n\
+  .docs-nav-drawer-toggle:checked ~ .docs-nav-drawer {\n\
+    display: block;\n\
+  }\n\
+\n\
+  .docs-header-nav {\n\
+    display: none;\n\
+  }\n\
+}\n\
+\n\
+/* ナビの 2 段目が消えるので、2 段帯域のヘッダー最小高さを 1 段分へ戻す。 */\n\
+@media (hover: none) and (min-width: 768px) and (max-width: 1199.98px) {\n\
+  .docs-header {\n\
+    min-height: var(--fandhe-space-docs-header-height);\n\
+  }\n\
+}\n\
+\n\
+/* 1200px 以上のヘッダーは sticky・1 段で高さが固定なので、drawer の最大高さも 1 段分を引く。 */\n\
+@media (hover: none) and (min-width: 1200px) {\n\
+  .docs-header nav.docs-nav-drawer {\n\
+    max-height: calc(100vh - var(--fandhe-space-docs-header-height));\n\
+    max-height: calc(100dvh - var(--fandhe-space-docs-header-height));\n\
   }\n\
 }\n\
 \n\
@@ -2920,8 +3166,9 @@ mod tests {
             ".docs-theme-toggle",
             ".docs-container",
             ".docs-sidebar",
-            ".docs-sidebar-toggle",
-            ".docs-sidebar-toggle-label",
+            ".docs-nav-drawer-toggle",
+            ".docs-nav-drawer-toggle-label",
+            ".docs-nav-drawer",
             ".docs-main",
             ".docs-content",
             ".docs-toc",
@@ -3169,7 +3416,7 @@ mod tests {
 
     #[test]
     fn stylesheet_sidebar_open_state_has_no_focus_within_fallback() {
-        // Bugbot 指摘（PR #916）是正の回帰テスト: `.docs-sidebar-toggle:checked`
+        // Bugbot 指摘（PR #916）是正の回帰テスト: `.docs-nav-drawer-toggle:checked`
         // のみが折りたたみナビの開状態の情報源であり、`:focus-within` を OR で
         // 加えていないことを固定する。チェックを外してもフォーカスがナビ内に
         // 残っている限り閉じられなくなる回帰を防ぐ。
@@ -3184,7 +3431,7 @@ mod tests {
         // 存在しないことは変わらず固定する）。
         let sheet = stylesheet().expect("site theme stylesheet should assemble");
         let css = sheet.as_css();
-        assert!(css.contains(".docs-sidebar-toggle:checked ~ nav.sidebar"));
+        assert!(css.contains(".docs-nav-drawer-toggle:checked ~ .docs-nav-drawer"));
         assert!(!css.contains("sidebar:focus-within"));
         assert!(!css.contains("nav.sidebar:focus-within"));
         // セレクタ行（`{` で終わる行）のみを対象にする。コメント中の
@@ -3208,7 +3455,7 @@ mod tests {
     }
 
     #[test]
-    fn stylesheet_hides_sidebar_toggle_checkbox_at_desktop_breakpoint() {
+    fn stylesheet_hides_nav_drawer_toggle_checkbox_at_desktop_breakpoint() {
         // Bugbot 指摘（PR #916）是正の回帰テスト: `min-width: 768px`（折りたたみ
         // を行わない帯域）では可視ラベルだけでなくチェックボックス本体も
         // `display: none` にし、キーボードユーザーが無意味なコントロールへ
@@ -3227,8 +3474,7 @@ mod tests {
             Some(idx) => &after_768[..idx],
             None => after_768,
         };
-        assert!(block_768.contains(".docs-sidebar-toggle {"));
-        assert!(block_768.contains(".docs-sidebar-toggle-label {"));
+        assert!(block_768.contains(".docs-nav-drawer-toggle,\n.docs-nav-drawer-toggle-label {"));
     }
 
     #[test]
@@ -3661,11 +3907,12 @@ mod tests {
         // 無しの実出力に合わせる。
         assert!(before_768.contains(".docs-container {\ndisplay: block;\n"));
         assert!(before_768.contains(".docs-toc-aside {\ndisplay: none;\n}"));
-        assert!(before_768.contains(".docs-sidebar-toggle-label {\ndisplay: block;\n"));
-        // イシュー #3602: 折りたたみ時は中途半端に切り取らず完全に隠す。
-        assert!(before_768.contains(
-            ".docs-sidebar nav.sidebar {\nmax-height: 0;\noverflow: hidden;\nvisibility: hidden;\n}"
-        ));
+        assert!(before_768.contains(".docs-nav-drawer-toggle-label {\ndisplay: inline-flex;\n"));
+        // イシュー #3674: 768px 未満の aside は出さず、ナビ drawer が代わりを担う。
+        assert!(before_768.contains("display: none;\n}\n\n.docs-sidebar nav.sidebar {"));
+        assert!(!before_768.contains(".docs-sidebar nav.sidebar {\nmax-height: 0;"));
+        assert!(before_768
+            .contains(".docs-header nav.docs-nav-drawer {\ndisplay: none;\nposition: absolute;"));
         assert!(before_768.contains(".docs-header-nav {\ndisplay: none;\n}"));
         assert!(before_768.contains("nav.prev-next {\ndisplay: flex;\n/* 基底（768px 未満）は縦積み。`min-width: 768px` で横並びに切り替える。 */\nflex-direction: column;"));
     }

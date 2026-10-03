@@ -8,10 +8,10 @@
 //!
 //! 骨格は `docs/design/docs-site-three-column-redesign.md` §3.1 の DOM/class
 //! 契約に従い、`div.docs-container` 配下に `aside.docs-sidebar`（左ナビ。
-//! `<input type="checkbox" class="docs-sidebar-toggle">` + `<label>` の
-//! チェックボックスハックを先頭に含み、`< 768px` での折りたたみをタッチ
-//! 操作でも開閉できるようにする。JS 不要、`nav_list` 本体の markup は
-//! 変更しない）・`main.docs-main`（中央コンテンツ、`article.docs-content`
+//! `nav_list` 本体の markup は変更しない。`< 768px` では非表示で、代わりに
+//! ヘッダー末尾の checkbox hack（`input.docs-nav-drawer-toggle` + `label` +
+//! `nav.docs-nav-drawer`、全セクションへ移れるナビ drawer、イシュー #3674、
+//! JS 不要）が担う）・`main.docs-main`（中央コンテンツ、`article.docs-content`
 //! を内包）・見出しが存在するページのみ第 3 子として出現する
 //! `aside.docs-toc-aside`（右目次、内側に `nav.docs-toc` をそのまま配置。
 //! `nav.docs-toc` は `h2.docs-toc-title`（"On this page"）を先頭に持ち、
@@ -397,10 +397,10 @@ pub const SEARCH_RESULTS_ID: &str = "docs-search-results";
 /// 検索ボタンの `aria-controls` と `SITE_JS` が参照する単一実装点。
 pub const SEARCH_DIALOG_ID: &str = "docs-search-dialog";
 
-/// サイドバー折りたたみチェックボックスハック（`input[type=checkbox]`）に
-/// 付与する `id`。直後の `label.docs-sidebar-toggle-label` の `for` 属性が
-/// 参照する単一実装点。
-pub const SIDEBAR_TOGGLE_ID: &str = "docs-sidebar-toggle";
+/// ナビ drawer の開閉チェックボックスハック（`input[type=checkbox]`、イシュー #3674）に
+/// 付与する `id`。直後の `label.docs-nav-drawer-toggle-label` の `for` 属性が
+/// 参照する単一実装点。旧サイドバー Menu トグル（`docs-sidebar-toggle`）の後継。
+pub const NAV_DRAWER_TOGGLE_ID: &str = "docs-nav-drawer-toggle";
 
 /// レイアウトが固定 `id` として出力する要素の `id` 一覧。
 ///
@@ -408,7 +408,7 @@ pub const SIDEBAR_TOGGLE_ID: &str = "docs-sidebar-toggle";
 /// この全件を予約するための single source of truth（セキュリティ監査の
 /// Low 指摘、イシュー #950 の再発防止）。[`TOC_HEADING_ID`] のみを予約する
 /// 実装だったため、`site/**.md` の見出しテキストが偶然
-/// [`SEARCH_INPUT_ID`]・[`SEARCH_RESULTS_ID`]・[`SIDEBAR_TOGGLE_ID`] へ
+/// [`SEARCH_INPUT_ID`]・[`SEARCH_RESULTS_ID`]・[`NAV_DRAWER_TOGGLE_ID`] へ
 /// slug 化されると同一 HTML 文書内で `id` が重複し、`label[for]`・
 /// `aria-controls` の関連付けが壊れる（スクリーンリーダー利用者への
 /// 参照先が不定になるアクセシビリティ回帰）。新しい固定 `id` を
@@ -427,7 +427,7 @@ pub const RESERVED_LAYOUT_IDS: &[&str] = &[
     SEARCH_INPUT_ID,
     SEARCH_RESULTS_ID,
     SEARCH_DIALOG_ID,
-    SIDEBAR_TOGGLE_ID,
+    NAV_DRAWER_TOGGLE_ID,
     ps_skip_nav::DEFAULT_ID,
 ];
 
@@ -474,7 +474,7 @@ pub fn with_heading_anchors(body: Node) -> (Node, Vec<TocEntry>) {
     //
     // 予約対象は右目次見出しだけでなく [`RESERVED_LAYOUT_IDS`]（レイアウトが
     // 出力する固定 id 全件）へ拡張済み（セキュリティ監査の Low 指摘）。
-    // `docs-search-input`/`docs-search-results`/`docs-sidebar-toggle` は
+    // `docs-search-input`/`docs-search-results`/`docs-nav-drawer-toggle` は
     // それぞれ `label[for]`・`aria-controls` の関連付け先であり、
     // 本文見出しの slug と衝突して重複 id が発生すると、その関連付けが
     // 壊れてスクリーンリーダー利用者へ参照先が不定に伝わる（HTML 仕様上も
@@ -874,6 +874,7 @@ pub fn docs_page_with_assets(
         body,
         extra_stylesheets,
         header_nav,
+        None,
         footer,
         PageLayout::Docs,
     )
@@ -899,9 +900,15 @@ pub enum PageLayout {
 /// [`docs_page_with_assets`] の骨格種別指定版。`layout` が
 /// [`PageLayout::Landing`] のとき、右目次（`aside.docs-toc-aside`）と折りたたみ
 /// 目次（`nav.docs-toc-inline`）を出力せず、コンテナ class を
-/// `docs-container docs-landing` にする。`aside.docs-sidebar` は DOM に残す:
-/// 768px 未満ではヘッダーナビが非表示で、サイドバーの Menu トグルが唯一の
-/// ナビゲーション手段のため。広幅での非表示は CSS（`crate::landing::CSS`）が担う。
+/// `docs-container docs-landing` にする。`aside.docs-sidebar` は DOM に残す
+/// （広幅での非表示は CSS〔`crate::landing::CSS`〕が担い、768px 未満ではナビ drawer が
+/// 全セクションへの手段になる）。
+///
+/// `nav_drawer`（イシュー #3674、`crate::nav::nav_drawer()` の戻り値）が `Some` の場合、
+/// `div.docs-header-inner` の**末尾**（`div.docs-header-actions` の後ろ）へ
+/// `input.docs-nav-drawer-toggle` → `label` → drawer の順で置く。checkbox が drawer の
+/// 前にある兄弟でなければ `:checked ~` で開閉できないための配置で、brand が第 1 子・
+/// DOM 順 = 視覚順 = Tab 順の契約（#3659）も保つ。`None` ならこの 3 要素は出ない。
 // 公開 API 互換のため引数を構造体化せず、骨格の各スロットを個別引数で受ける（呼び出し元は
 // `docs_page_with_assets` 等の薄いラッパーに限られる）。
 #[allow(clippy::too_many_arguments)]
@@ -912,6 +919,7 @@ pub fn docs_page_with_layout(
     body: Node,
     extra_stylesheets: &[&str],
     header_nav: Option<Node>,
+    nav_drawer: Option<Node>,
     footer: Option<Node>,
     layout: PageLayout,
 ) -> Node {
@@ -1078,6 +1086,36 @@ pub fn docs_page_with_layout(
             theme_toggle(),
         ],
     ));
+    // ナビ drawer 一式（イシュー #3674）。checkbox（sr-only）は drawer より前の兄弟に
+    // 置く必要があり（`:checked ~ .docs-nav-drawer`）、開閉状態の唯一の情報源にする。
+    // `autocomplete="off"` は戻る・進むで checked が復元され drawer が開いたまま
+    // 表示されるのを防ぐ。`role`/`aria-expanded`/`aria-haspopup` は付けない
+    // （checkbox のネイティブ状態が支援技術へ伝わる。`crate::nav::header_nav` rustdoc と同じ判断）。
+    if let Some(drawer) = nav_drawer {
+        header_children.push(el(
+            "input",
+            vec![
+                ("type", "checkbox"),
+                ("id", NAV_DRAWER_TOGGLE_ID),
+                ("class", "docs-nav-drawer-toggle"),
+                ("autocomplete", "off"),
+            ],
+            vec![],
+        ));
+        header_children.push(el(
+            "label",
+            vec![
+                ("for", NAV_DRAWER_TOGGLE_ID),
+                ("class", "docs-nav-drawer-toggle-label"),
+            ],
+            vec![el(
+                "span",
+                vec![("class", "docs-nav-drawer-toggle-text")],
+                vec![text("Menu".to_string())],
+            )],
+        ));
+        header_children.push(drawer);
+    }
     // ヘッダー内側の計測枠（イシュー #949）。`.docs-header` 自体は罫線
     // （`border-bottom`）を全幅に伸ばすため padding を持たず、子要素は
     // すべてこの `div.docs-header-inner` の内側に置く。`.docs-container`
@@ -1100,47 +1138,13 @@ pub fn docs_page_with_layout(
         vec![text("Skip to content")],
     );
 
-    // `< 768px` の左ナビ折りたたみをタッチ操作でも開閉できるようにする
-    // チェックボックスハック（設計文書 §3.2 の「マウス操作ユーザー向けの
-    // 明示的な開閉トリガー」を採用、JS 不要）。開閉状態の唯一の情報源は
-    // このチェックボックスの `:checked`（`crate::site_theme::STRUCTURAL_CSS`
-    // 参照）とし、`:focus-within` は開状態の判定に加えない（キーボード
-    // 操作でチェックを外してもフォーカスがナビ内に残っている限り閉じられ
-    // ない回帰を避けるため、Bugbot 指摘 #916 是正）。チェックボックス自体は
-    // Tab フォーカス・Space 操作の対象として DOM 上に残り続けるため、
-    // クリップされたリンクへも Tab で到達しトグルを Space で開閉できる
-    // （sr-only パターン、`display: none`/`visibility: hidden` にしない
-    // 理由）。`nav_list`（`sidebar` 引数）自体の markup は変更しない
-    // （設計文書 §3.4 の不変条件）。
-    let sidebar_toggle_id = SIDEBAR_TOGGLE_ID;
-    let sidebar_toggle = el(
-        "input",
-        vec![
-            ("type", "checkbox"),
-            ("id", sidebar_toggle_id),
-            ("class", "docs-sidebar-toggle"),
-        ],
-        vec![],
-    );
-    let sidebar_toggle_label = el(
-        "label",
-        vec![
-            ("for", sidebar_toggle_id),
-            ("class", "docs-sidebar-toggle-label"),
-        ],
-        vec![text("Menu".to_string())],
-    );
-
     // `div.docs-container` の子は「左ナビ / 中央コンテンツ / 右目次」の
     // 3 カラム順（設計文書 §3.1）。右目次カラムは見出しが 1 つも無いページ
     // では出力しない（`aside.docs-toc-aside` 自体を省略する。§3.3 の方針。
     // `nav.docs-toc` 単体で空 `nav` を出さない [`toc_nav`] の既存契約と揃える）。
     let has_toc = toc.is_some();
     let mut container_children = vec![
-        aside(
-            vec![("class", "docs-sidebar")],
-            vec![sidebar_toggle, sidebar_toggle_label, sidebar],
-        ),
+        aside(vec![("class", "docs-sidebar")], vec![sidebar]),
         main_tag(vec![("class", "docs-main")], main_children),
     ];
     if let Some(toc_node) = toc {

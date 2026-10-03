@@ -10,7 +10,9 @@ use std::collections::BTreeSet;
 
 use fandhe_frontend_core::render;
 use fandhe_frontend_docs_site::layout::RESERVED_LAYOUT_IDS;
-use fandhe_frontend_docs_site::nav::{group_anchor_id, header_nav, parse_nav, sidebar, Nav};
+use fandhe_frontend_docs_site::nav::{
+    group_anchor_id, header_nav, nav_drawer, parse_nav, sidebar, Nav,
+};
 
 #[path = "support/shared_site.rs"]
 mod shared_site;
@@ -146,4 +148,111 @@ fn built_site_popup_counts_and_anchors_resolve() {
             assert!(ids.contains(&id), "{rel}: missing id {id}");
         }
     }
+}
+
+/// ナビ drawer の `section_idx` 番目のセクション本体（`div.docs-nav-drawer-body`）内の
+/// `a` のテキスト。`class="docs-nav-drawer-section"`（閉じ引用符つき）で `li` を分割する
+/// ため `-link` 付きの class とは混ざらない。
+fn drawer_body_items(drawer_html: &str, section_idx: usize) -> Vec<String> {
+    let seg = drawer_html
+        .split("class=\"docs-nav-drawer-section\"")
+        .nth(section_idx + 1)
+        .expect("drawer section should exist");
+    let body = seg
+        .find("docs-nav-drawer-body")
+        .expect("drawer body should exist");
+    anchor_texts(&seg[body..])
+}
+
+/// drawer は popup（他セクション）とサイドバー（現在セクション）と同じ見出し一覧を出す
+/// （イシュー #3674。どちらも `Section::headings` が唯一の情報源）。
+#[test]
+fn drawer_matches_popup_for_other_sections_and_sidebar_for_current_section() {
+    let nav = load_nav();
+    for (cur_idx, current_section) in nav.sections.iter().enumerate() {
+        let mut currents = vec![current_section.all_pages().next().unwrap().path.clone()];
+        if let Some(g) = current_section.groups.first() {
+            currents.push(g.pages[0].path.clone());
+        }
+        for current in currents {
+            let drawer = render(&nav_drawer(&nav, &current));
+            let header = render(&header_nav(&nav, &current));
+            for idx in 0..nav.sections.len() {
+                let items = drawer_body_items(&drawer, idx);
+                if idx == cur_idx {
+                    let side = anchor_texts(&render(&sidebar(&nav, &current)));
+                    assert_eq!(
+                        items, side,
+                        "current section {:?} at {current}",
+                        nav.sections[idx].title
+                    );
+                } else {
+                    let popup = popup_items(&header, idx);
+                    assert_eq!(
+                        items, popup,
+                        "section {:?} at {current}",
+                        nav.sections[idx].title
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// 受け入れ条件: Themes の Button ページで、drawer から全 8 セクションの索引と
+/// 現在セクションの個別ページ（Button）へ移れる。
+#[test]
+fn built_site_drawer_reaches_every_section_and_current_section_pages() {
+    let nav = load_nav();
+    let html = read_page("themes/button/index.html");
+    let base = &nav.site.base_path;
+    let start = html.find("class=\"docs-nav-drawer\"").expect("drawer");
+    let end = start + html[start..].find("</nav>").unwrap();
+    let drawer = &html[start..end];
+    for section in &nav.sections {
+        let href = format!("href=\"{base}{}\"", section.index_path);
+        assert!(drawer.contains(&href), "drawer lacks section link {href}");
+    }
+    assert!(drawer.contains(&format!("href=\"{base}/themes/button/\"")));
+}
+
+/// 実サイトの全 HTML（404 を含む）で、レイアウト固定 `id`（`RESERVED_LAYOUT_IDS`）が
+/// 1 ページに高々 1 回しか現れず、ナビ drawer を含むヘッダー内の `id` が一意
+/// （イシュー #3674 受け入れ条件）。本文内の `id` 重複（例: `primitives/date-picker/` の
+/// デモ。drawer と無関係な既存事象）はこのテストの対象外。
+#[test]
+fn built_site_layout_ids_and_header_ids_are_unique_on_every_page() {
+    let out = shared_site::real_site().out_dir.as_path();
+    let mut stack = vec![out.to_path_buf()];
+    let mut checked = 0usize;
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.extension().is_some_and(|e| e == "html") {
+                let html = std::fs::read_to_string(&path).unwrap();
+                let ids = ids_in(&html);
+                for reserved in RESERVED_LAYOUT_IDS {
+                    let n = ids.iter().filter(|i| i.as_str() == *reserved).count();
+                    assert!(n <= 1, "{path:?}: reserved id {reserved} appears {n} times");
+                }
+                // リダイレクト案内ページはクロームを持たない（`no_js_contract.rs` 参照）。
+                let Some(start) = html.find("<header") else {
+                    continue;
+                };
+                let end = start + html[start..].find("</header>").expect("header end");
+                let header_ids = ids_in(&html[start..end]);
+                let uniq: BTreeSet<_> = header_ids.iter().collect();
+                assert_eq!(
+                    uniq.len(),
+                    header_ids.len(),
+                    "duplicate header ids in {path:?}"
+                );
+                checked += 1;
+            }
+        }
+    }
+    assert!(checked > 100);
+    assert!(out.join("404.html").exists());
 }

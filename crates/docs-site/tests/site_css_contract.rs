@@ -89,7 +89,9 @@ use fandhe_frontend_core::{div, h2, h3, li, p, render, text, ul, Node};
 use fandhe_frontend_docs_site::layout::{
     docs_page, docs_page_with_assets, docs_page_with_layout, PageLayout,
 };
-use fandhe_frontend_docs_site::nav::{header_nav, parse_nav, prev_next_nav, sidebar, Nav};
+use fandhe_frontend_docs_site::nav::{
+    header_nav, nav_drawer, parse_nav, prev_next_nav, sidebar, Nav,
+};
 use fandhe_frontend_docs_site::site_theme;
 
 /// サイト骨格 CSS 全量を取得する（イシュー #905: 静的ファイル読込から
@@ -476,10 +478,20 @@ const STRUCTURE_CLASS_CONTRACT: &[(&str, &str)] = &[
     ("docs-container", "3 カラム grid コンテナ div"),
     ("docs-sidebar", "左カラム aside"),
     (
-        "docs-sidebar-toggle",
-        "input[type=checkbox]（aside.docs-sidebar 先頭）",
+        "docs-nav-drawer-toggle",
+        "input[type=checkbox]（header-inner 末尾、ナビ drawer の開閉状態、イシュー #3674）",
     ),
-    ("docs-sidebar-toggle-label", "上記の可視ラベル label"),
+    ("docs-nav-drawer-toggle-label", "上記の可視ラベル label"),
+    ("docs-nav-drawer-toggle-text", "ラベルのアクセシブル名 span（視覚上は clip）"),
+    ("docs-nav-drawer", "全セクションへ移れるナビ drawer nav"),
+    ("docs-nav-drawer-sections", "セクション列の ul"),
+    ("docs-nav-drawer-section", "セクションごとの li"),
+    ("docs-nav-drawer-section-link", "セクション索引へのリンク a"),
+    ("docs-nav-drawer-details", "セクションごとの details"),
+    ("docs-nav-drawer-summary", "開閉専用の summary"),
+    ("docs-nav-drawer-summary-text", "summary のアクセシブル名 span（視覚上は clip）"),
+    ("docs-nav-drawer-body", "details の本体 div"),
+    ("docs-nav-drawer-list", "現在でないセクションの見出し一覧 ul"),
     ("docs-main", "中央カラム main"),
     ("docs-content", "本文 article"),
     ("docs-header-nav", "ヘッダードロップダウン群のコンテナ nav"),
@@ -637,6 +649,7 @@ fn full_page_html(with_headings: bool) -> String {
     let nav = fixture_nav();
     let sidebar_node = sidebar(&nav, "/quickstart/");
     let header_nav_node = header_nav(&nav, "/quickstart/");
+    let drawer_node = nav_drawer(&nav, "/quickstart/");
     let prev_next_node = prev_next_nav(&nav, "/quickstart/");
 
     let mut body_children: Vec<Node> = if with_headings {
@@ -652,14 +665,16 @@ fn full_page_html(with_headings: bool) -> String {
     body_children.push(prev_next_node);
     let body = div(vec![], body_children);
 
-    let node = docs_page_with_assets(
+    let node = docs_page_with_layout(
         "タイトル",
         "",
         sidebar_node,
         body,
         &[],
         Some(header_nav_node),
+        Some(drawer_node),
         None,
+        PageLayout::Docs,
     );
     render(&node)
 }
@@ -720,19 +735,22 @@ fn full_page_html_with_groups() -> String {
     let nav = fixture_nav_with_groups();
     let sidebar_node = sidebar(&nav, "/components/button/");
     let header_nav_node = header_nav(&nav, "/components/button/");
+    let drawer_node = nav_drawer(&nav, "/components/button/");
     let prev_next_node = prev_next_nav(&nav, "/components/button/");
     let body = div(
         vec![],
         vec![p(vec![], vec![text("本文です。")]), prev_next_node],
     );
-    let node = docs_page_with_assets(
+    let node = docs_page_with_layout(
         "タイトル",
         "",
         sidebar_node,
         body,
         &[],
         Some(header_nav_node),
+        Some(drawer_node),
         None,
+        PageLayout::Docs,
     );
     render(&node)
 }
@@ -1653,6 +1671,7 @@ fn landing_page_html() -> String {
         body,
         &[],
         Some(header_nav(&nav, "/quickstart/")),
+        Some(nav_drawer(&nav, "/quickstart/")),
         None,
         PageLayout::Landing,
     );
@@ -1817,16 +1836,58 @@ fn docs_content_contains_long_runs_and_absolute_table_descendants() {
     assert!(table.contains("overflow-x: auto;"));
 }
 
-/// 折りたたみ時のサイドバーは中途半端に切り取らず完全に隠し、タブ順からも
-/// 外す。768px 以上では常に表示へ戻す（イシュー #3602）。
+/// ナビ drawer（イシュー #3674）の CSS 契約。閉じている間は非表示（タブ順にも入らない）、
+/// `:checked` で表示、内容が収まらないときは drawer の中だけがスクロールする
+/// （`vh` の後ろに `dvh`、`overscroll-behavior: contain`）。768px 未満のサイドバー
+/// （旧 Menu）は非表示で、768px 以上で表示へ戻る。
 #[test]
-fn collapsed_sidebar_hides_nav_until_toggled() {
+fn nav_drawer_is_hidden_until_toggled_and_scrolls_inside() {
     let css = site_css();
-    let base = rule_body(&css, "\n.docs-sidebar nav.sidebar {\nmax-height: 0;");
-    assert!(base.contains("visibility: hidden;"));
-    let checked = rule_body(&css, "\n.docs-sidebar-toggle:checked ~ nav.sidebar {");
-    assert!(checked.contains("visibility: visible;"));
-    assert!(css.contains("max-height: none;\noverflow: visible;\nvisibility: visible;"));
+    let base = rule_body(&css, "\n.docs-header nav.docs-nav-drawer {");
+    assert!(base.contains("display: none;"));
+    assert!(base.contains("overflow-y: auto;"));
+    assert!(base.contains("overscroll-behavior: contain;"));
+    let vh = base.find("max-height: calc(100vh - ").expect("vh fallback");
+    let dvh = base.find("max-height: calc(100dvh - ").expect("dvh");
+    assert!(vh < dvh, "dvh must follow the vh fallback");
+    let checked = rule_body(
+        &css,
+        "\n.docs-nav-drawer-toggle:checked ~ .docs-nav-drawer {",
+    );
+    assert!(checked.contains("display: block;"));
+    // 旧サイドバー Menu の規則は残さない。
+    assert!(!css.contains("docs-sidebar-toggle"));
+    assert!(!css.contains(":checked ~ nav.sidebar"));
+    let sidebar = rule_body(&css, "\n.docs-sidebar {");
+    assert!(sidebar.contains("display: none;"));
+}
+
+/// 768px 以上: 非タッチは drawer を隠し、`(hover: none)` 端末はハンバーガーを再表示して
+/// ヘッダーナビを隠す。`(hover: none)` ブロックは `min-width: 768px` ブロックより後ろ。
+#[test]
+fn nav_drawer_is_shown_on_hover_none_devices_at_desktop_widths() {
+    let css = site_css();
+    let hover_start = css
+        .find("@media (hover: none) and (min-width: 768px) {")
+        .expect("hover: none block");
+    let desktop_start = css.find("@media (min-width: 768px) {").expect("768 block");
+    assert!(desktop_start < hover_start);
+    let desktop = &css[desktop_start..css.find("@media (min-width: 1200px) {").unwrap()];
+    assert!(desktop
+        .contains(".docs-nav-drawer-toggle,\n.docs-nav-drawer-toggle-label {\ndisplay: none;"));
+    assert!(
+        desktop.contains(".docs-nav-drawer-toggle:checked ~ .docs-nav-drawer {\ndisplay: none;")
+    );
+    assert!(desktop.contains(".docs-sidebar {\ndisplay: block;"));
+    let hover = &css[hover_start..];
+    let hover = &hover[..hover
+        .find("@media (hover: none) and (min-width: 768px) and (max-width")
+        .expect("hover block closes")];
+    assert!(hover.contains(".docs-nav-drawer-toggle-label {\ndisplay: inline-flex;"));
+    assert!(hover.contains(".docs-nav-drawer-toggle:checked ~ .docs-nav-drawer {\ndisplay: block;"));
+    assert!(hover.contains(".docs-header-nav {\ndisplay: none;"));
+    // order で視覚順と Tab 順を乖離させない。
+    assert_eq!(hover.matches("\norder:").count(), 0);
 }
 
 // ---------------------------------------------------------------------

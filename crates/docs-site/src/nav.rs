@@ -1041,36 +1041,43 @@ pub fn sidebar(nav: &Nav, current_path: &str) -> Node {
     let mut section_nodes: Vec<Node> = Vec::new();
     for section in scoped {
         section_nodes.push(heading(vec![], vec![text(section.title.clone())]));
-
-        // 見出し一覧は `Section::headings`（popup と共有の唯一の情報源）から取る。
-        // 直下ページが 0 件のときは `ul` を出さない。
-        let mut items: Vec<Node> = Vec::new();
-        for heading_item in section.headings() {
-            match heading_item {
-                SectionHeading::Page(page) => {
-                    let link_href = href(nav, &page.path);
-                    let is_current = page.path == current_path;
-                    let a = nav_link(
-                        &link_href,
-                        is_current,
-                        vec![],
-                        vec![text(page.title.clone())],
-                    );
-                    items.push(item(vec![], vec![a]));
-                }
-                SectionHeading::Group(group) => {
-                    if !items.is_empty() {
-                        section_nodes.push(list(vec![], std::mem::take(&mut items)));
-                    }
-                    section_nodes.push(group_node(nav, group, current_path));
-                }
-            }
-        }
-        if !items.is_empty() {
-            section_nodes.push(list(vec![], items));
-        }
+        section_nodes.extend(section_sidebar_nodes(nav, section, current_path));
     }
     nav_list_root("Documentation", vec![("class", "sidebar")], section_nodes)
+}
+
+/// セクション 1 件分のサイドバー本体（見出し `h2` を除く、直下ページ `ul` と
+/// グループ `<details>` の列）を作る。[`sidebar`] と [`nav_drawer`]（現在セクション側）
+/// が共有する唯一の経路で、`Section::headings` を情報源にする（イシュー #3674）。
+fn section_sidebar_nodes(nav: &Nav, section: &Section, current_path: &str) -> Vec<Node> {
+    let mut nodes: Vec<Node> = Vec::new();
+    // 直下ページが 0 件のときは `ul` を出さない。
+    let mut items: Vec<Node> = Vec::new();
+    for heading_item in section.headings() {
+        match heading_item {
+            SectionHeading::Page(page) => {
+                let link_href = href(nav, &page.path);
+                let is_current = page.path == current_path;
+                let a = nav_link(
+                    &link_href,
+                    is_current,
+                    vec![],
+                    vec![text(page.title.clone())],
+                );
+                items.push(item(vec![], vec![a]));
+            }
+            SectionHeading::Group(group) => {
+                if !items.is_empty() {
+                    nodes.push(list(vec![], std::mem::take(&mut items)));
+                }
+                nodes.push(group_node(nav, group, current_path));
+            }
+        }
+    }
+    if !items.is_empty() {
+        nodes.push(list(vec![], items));
+    }
+    nodes
 }
 
 /// [`sidebar`] からグループ 1 件（`[[section.group]]`）を `<details>` へ
@@ -1122,6 +1129,50 @@ fn group_node(nav: &Nav, group: &Group, current_path: &str) -> Node {
         attrs.push(("open", ""));
     }
     el("details", attrs, vec![summary, group_list])
+}
+
+/// セクション 1 件の見出し一覧（直下ページのリンクと、グループ見出しの索引アンカー
+/// リンク）を `li` の列として作る。[`header_nav`] のドロップダウンと [`nav_drawer`]
+/// （現在でないセクション側）が共有する唯一の経路で、グループ配下の個別ページは出さない
+/// （イシュー #3670 / #3674）。
+fn section_heading_items(nav: &Nav, section: &Section, current_path: &str) -> Vec<Node> {
+    let mut dropdown_items: Vec<Node> = Vec::new();
+    for heading_item in section.headings() {
+        match heading_item {
+            SectionHeading::Page(page) => {
+                let link_href = href(nav, &page.path);
+                let is_current = page.path == current_path;
+                let a = nav_link(
+                    &link_href,
+                    is_current,
+                    vec![],
+                    vec![text(page.title.clone())],
+                );
+                dropdown_items.push(item(vec![], vec![a]));
+            }
+            SectionHeading::Group(group) => {
+                // headless の `nav_link` は呼び出し側の `aria-current` を捨てる
+                // ため、所属表示（"true"）を付けるグループ見出しは `el` で組む。
+                let group_link = group_href(nav, section, group);
+                let mut attrs: Vec<(&str, &str)> = vec![("href", &group_link)];
+                if group_link == href(nav, current_path) {
+                    // `index_path` がグループ配下を指す構成では、リンク先が
+                    // 現在ページそのものになる。ページ完全一致の意味軸
+                    // （`"page"`）を保ち、所属のみの `"true"` と区別する。
+                    attrs.push(("aria-current", "page"));
+                    attrs.push(("data-current", ""));
+                } else if group.pages.iter().any(|p| p.path == current_path) {
+                    attrs.push(("aria-current", "true"));
+                    attrs.push(("data-current", ""));
+                }
+                dropdown_items.push(item(
+                    vec![],
+                    vec![el("a", attrs, vec![text(group.title.clone())])],
+                ));
+            }
+        }
+    }
+    dropdown_items
 }
 
 /// ヘッダーのセクション別ドロップダウンメニュー [`Node`] を生成する
@@ -1201,42 +1252,7 @@ pub fn header_nav(nav: &Nav, current_path: &str) -> Node {
         // 直下ページはリンク、グループは索引ページ内の該当カテゴリへのアンカー
         // リンクにし、グループ配下の個別ページは出さない（選択は遷移先の
         // サイドバーに任せる）。長い一覧は CSS の max-height/overflow で操作可能に保つ。
-        let mut dropdown_items: Vec<Node> = Vec::new();
-        for heading_item in section.headings() {
-            match heading_item {
-                SectionHeading::Page(page) => {
-                    let link_href = href(nav, &page.path);
-                    let is_current = page.path == current_path;
-                    let a = nav_link(
-                        &link_href,
-                        is_current,
-                        vec![],
-                        vec![text(page.title.clone())],
-                    );
-                    dropdown_items.push(item(vec![], vec![a]));
-                }
-                SectionHeading::Group(group) => {
-                    // headless の `nav_link` は呼び出し側の `aria-current` を捨てる
-                    // ため、所属表示（"true"）を付けるグループ見出しは `el` で組む。
-                    let group_link = group_href(nav, section, group);
-                    let mut attrs: Vec<(&str, &str)> = vec![("href", &group_link)];
-                    if group_link == href(nav, current_path) {
-                        // `index_path` がグループ配下を指す構成では、リンク先が
-                        // 現在ページそのものになる。ページ完全一致の意味軸
-                        // （`"page"`）を保ち、所属のみの `"true"` と区別する。
-                        attrs.push(("aria-current", "page"));
-                        attrs.push(("data-current", ""));
-                    } else if group.pages.iter().any(|p| p.path == current_path) {
-                        attrs.push(("aria-current", "true"));
-                        attrs.push(("data-current", ""));
-                    }
-                    dropdown_items.push(item(
-                        vec![],
-                        vec![el("a", attrs, vec![text(group.title.clone())])],
-                    ));
-                }
-            }
-        }
+        let dropdown_items = section_heading_items(nav, section, current_path);
 
         // トリガーを `<a href>` 化し、セクショントップページ
         // （`section.index_path`）への遷移リンクにする（イシュー #1012）。
@@ -1266,6 +1282,95 @@ pub fn header_nav(nav: &Nav, current_path: &str) -> Node {
         "Site sections",
         vec![("class", "docs-header-nav")],
         vec![menu],
+    )
+}
+
+/// 全セクションへ移れるナビ drawer [`Node`] を生成する（イシュー #3674）。
+///
+/// 768px 未満（ヘッダーナビが非表示）と、768px 以上の `(hover: none)` 端末
+/// （`:hover` の popup が安定しない）で、ヘッダーのハンバーガー
+/// （`crate::layout` の checkbox hack）から開く。`crate::build::build_site` と
+/// `crate::not_found` が [`header_nav`] とは別 Node として
+/// `crate::layout::docs_page_with_layout` へ渡す（`header_nav` の項目件数を数える
+/// 検証へ drawer のリンクが混ざらないよう分離している）。
+///
+/// # DOM 構造
+///
+/// ```text
+/// nav.docs-nav-drawer[aria-label="Site navigation"]   … headless nav_list root
+///   ul.docs-nav-drawer-sections
+///     li.docs-nav-drawer-section（セクションごと、宣言順）
+///       a.docs-nav-drawer-section-link[href=base_path+index_path]（現在セクションのみ aria-current="true"）
+///       details.docs-nav-drawer-details[open は現在セクションのみ]
+///         summary.docs-nav-drawer-summary > span.docs-nav-drawer-summary-text（視覚上隠す）
+///         div.docs-nav-drawer-body
+///           現在セクション … [`sidebar`] と同じ本体（直下ページ + グループ `details`）
+///           他セクション   … ul.docs-nav-drawer-list（[`header_nav`] と同じ見出し一覧）
+/// ```
+///
+/// - セクション索引へのリンクを `summary` の外に置き、「ハンバーガー → セクション
+///   リンク」の 2 タップで全セクションへ移れるようにする。`summary` は開閉専用で
+///   リンクを含めない（[`sidebar`] の #940 判断と同じ）。
+/// - 現在セクションにはサイドバー形式（個別ページまで）だけを出し、popup 形式との
+///   二重掲載はしない。どちらも [`Section::headings`] を唯一の情報源にする。
+/// - `role`/`aria-expanded`/`aria-haspopup` は付けない（[`header_nav`] と同じ理由）。
+///   開閉状態は checkbox のネイティブなチェック状態が支援技術へ伝わる。
+/// - 要素に `id` を一切付けない（固定 `id` は `crate::layout` の toggle のみ）。
+///
+/// タイトル・href はすべて headless 層と [`fandhe_frontend_core::el`]/`text` を経由し、
+/// 既定エスケープ（REQ-1）を通る。`raw_html()` と HTML 文字列の直接組み立ては使わない。
+/// href は [`parse_nav`] で検証済みの `index_path` / `page.path` と [`group_href`] だけから作る。
+pub fn nav_drawer(nav: &Nav, current_path: &str) -> Node {
+    let mut rows: Vec<Node> = Vec::new();
+    for section in &nav.sections {
+        let is_current_section = section.all_pages().any(|p| p.path == current_path);
+        let section_href = href(nav, &section.index_path);
+        let mut link_attrs: Vec<(&str, &str)> = vec![
+            ("href", &section_href),
+            ("class", "docs-nav-drawer-section-link"),
+        ];
+        if is_current_section {
+            link_attrs.push(("aria-current", "true"));
+            link_attrs.push(("data-current", ""));
+        }
+        let section_link = el("a", link_attrs, vec![text(section.title.clone())]);
+
+        let body_children = if is_current_section {
+            section_sidebar_nodes(nav, section, current_path)
+        } else {
+            vec![list(
+                vec![("class", "docs-nav-drawer-list")],
+                section_heading_items(nav, section, current_path),
+            )]
+        };
+        let body = el(
+            "div",
+            vec![("class", "docs-nav-drawer-body")],
+            body_children,
+        );
+        let summary = el(
+            "summary",
+            vec![("class", "docs-nav-drawer-summary")],
+            vec![el(
+                "span",
+                vec![("class", "docs-nav-drawer-summary-text")],
+                vec![text(format!("Pages in {}", section.title))],
+            )],
+        );
+        let mut details_attrs = vec![("class", "docs-nav-drawer-details")];
+        if is_current_section {
+            details_attrs.push(("open", ""));
+        }
+        let details = el("details", details_attrs, vec![summary, body]);
+        rows.push(item(
+            vec![("class", "docs-nav-drawer-section")],
+            vec![section_link, details],
+        ));
+    }
+    nav_list_root(
+        "Site navigation",
+        vec![("class", "docs-nav-drawer")],
+        vec![list(vec![("class", "docs-nav-drawer-sections")], rows)],
     )
 }
 
@@ -2334,6 +2439,131 @@ path = "/p1/"
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
         assert!(html.contains("Quote&quot;Title"));
+    }
+
+    // ---- ナビ drawer（イシュー #3674） ----
+
+    const DRAWER_NAV: &str = r#"
+[site]
+title = "Docs"
+base_path = "/base"
+
+[[section]]
+title = "Guides"
+index_path = "/guides/"
+
+[[section.page]]
+title = "Guides Index"
+source = "g.md"
+path = "/guides/"
+
+[[section]]
+title = "Themes"
+index_path = "/themes/"
+
+[[section.page]]
+title = "Themes Index"
+source = "t.md"
+path = "/themes/"
+
+[[section.group]]
+title = "Forms"
+
+[[section.group.page]]
+title = "Button"
+source = "b.md"
+path = "/themes/button/"
+"#;
+
+    #[test]
+    fn nav_drawer_lists_every_section_in_declaration_order_with_index_hrefs() {
+        let nav = parse_nav(DRAWER_NAV).unwrap();
+        let html = render(&nav_drawer(&nav, "/guides/"));
+        let guides = html.find(r#"href="/base/guides/""#).expect("guides link");
+        let themes = html.find(r#"href="/base/themes/""#).expect("themes link");
+        assert!(guides < themes);
+        assert_eq!(html.matches("docs-nav-drawer-section-link").count(), 2);
+        assert!(html.contains(r#"aria-label="Site navigation""#));
+    }
+
+    #[test]
+    fn nav_drawer_opens_and_marks_only_the_current_section() {
+        let nav = parse_nav(DRAWER_NAV).unwrap();
+        let html = render(&nav_drawer(&nav, "/themes/button/"));
+        // 現在セクションの details 1 件 + 現在ページを含むグループ 1 件のみ open。
+        assert_eq!(html.matches(r#" open="""#).count(), 2);
+        // 現在セクションのリンクだけが所属を示す（"true"）。
+        assert_eq!(html.matches(r#"aria-current="true""#).count(), 1);
+        let themes_link = html.find(r#"href="/base/themes/""#).unwrap();
+        let current = html.find(r#"aria-current="true""#).unwrap();
+        assert!(current.abs_diff(themes_link) < 120);
+    }
+
+    #[test]
+    fn nav_drawer_current_section_is_sidebar_form_and_others_are_heading_lists() {
+        let nav = parse_nav(DRAWER_NAV).unwrap();
+        let html = render(&nav_drawer(&nav, "/themes/button/"));
+        // 現在セクション: グループ details と配下ページ、現在ページの aria-current。
+        assert!(html.contains(r#"href="/base/themes/button/""#));
+        assert!(html.contains(r#"aria-current="page""#));
+        assert!(html.contains("docs-nav-group-summary"));
+        // 現在でないセクション: 見出し一覧（popup 形式）のみ。
+        assert_eq!(html.matches("docs-nav-drawer-list").count(), 1);
+        assert_eq!(html.matches(r#"aria-current="true""#).count(), 1);
+    }
+
+    #[test]
+    fn nav_drawer_other_section_groups_are_anchor_links_without_group_pages() {
+        let nav = parse_nav(DRAWER_NAV).unwrap();
+        let html = render(&nav_drawer(&nav, "/guides/"));
+        assert!(html.contains(r#"href="/base/themes/#forms""#));
+        assert!(!html.contains(r#"href="/base/themes/button/""#));
+    }
+
+    #[test]
+    fn nav_drawer_unregistered_path_closes_every_section() {
+        let nav = parse_nav(DRAWER_NAV).unwrap();
+        let html = render(&nav_drawer(&nav, "/404.html"));
+        assert!(!html.contains(r#" open="""#));
+        assert!(!html.contains("aria-current"));
+        assert_eq!(html.matches("docs-nav-drawer-list").count(), 2);
+    }
+
+    #[test]
+    fn nav_drawer_has_no_role_dynamic_aria_or_ids() {
+        let nav = parse_nav(DRAWER_NAV).unwrap();
+        for path in ["/guides/", "/themes/button/", "/404.html"] {
+            let html = render(&nav_drawer(&nav, path));
+            for forbidden in ["role=", "aria-expanded", "aria-haspopup", " id="] {
+                assert!(!html.contains(forbidden), "{path}: found {forbidden}");
+            }
+        }
+    }
+
+    #[test]
+    fn nav_drawer_escapes_section_and_page_titles() {
+        let input = r#"
+[site]
+title = "Docs"
+base_path = ""
+
+[[section]]
+title = "<script>alert(1)</script>\"S"
+index_path = "/p1/"
+
+[[section.page]]
+title = "Quote\"Title"
+source = "p1.md"
+path = "/p1/"
+"#;
+        let nav = parse_nav(input).unwrap();
+        for path in ["/p1/", "/other/"] {
+            let html = render(&nav_drawer(&nav, path));
+            assert!(!html.contains("<script>"));
+            assert!(html.contains("&lt;script&gt;"));
+            assert!(html.contains("Quote&quot;Title"));
+            assert!(!html.contains("javascript:"));
+        }
     }
 
     // ---- `[[section]].index_path` 必須項目（イシュー #1010） ----

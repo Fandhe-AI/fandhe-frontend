@@ -129,14 +129,17 @@ pub fn body(nav: &Nav) -> Node {
 /// フォールバック（全セクション描画）を使う。
 #[must_use]
 pub fn page(nav: &Nav) -> Node {
-    layout::docs_page_with_assets(
+    // 未登録パスなので drawer は全セクション閉・`aria-current` なし（#3674）。
+    layout::docs_page_with_layout(
         PAGE_TITLE,
         &nav.site.base_path,
         nav::sidebar(nav, OUTPUT_PATH),
         body(nav),
         &[],
         Some(nav::header_nav(nav, OUTPUT_PATH)),
+        Some(nav::nav_drawer(nav, OUTPUT_PATH)),
         Some(crate::site_footer::site_footer(nav)),
+        layout::PageLayout::Docs,
     )
 }
 
