@@ -1543,6 +1543,109 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
     scroll-margin-top: 1rem;\n\
   }\n\
 }\n\
+\n\
+/*\n\
+ * サイトフッター（イシュー #3609、`crate::site_footer`）。\n\
+ * body 直下で `.docs-container` の外側の兄弟なので、sticky のサイドバー・右目次\n\
+ * （包含ブロックは `.docs-container`）とは構造上重ならない。Primitives ページは\n\
+ * heading / link / separator / text の recipe を持たない `site-primitives.css` を読むため、\n\
+ * recipe と同じ値の代替規則を `.docs-footer` 前置（詳細度 0,2,0 以上）で再現する。\n\
+ */\n\
+.docs-footer {\n\
+  margin-block-start: var(--fandhe-space-8, 2rem);\n\
+  border-top: 1px solid var(--fandhe-color-border);\n\
+}\n\
+\n\
+.docs-footer .docs-footer-inner {\n\
+  max-width: var(--fandhe-space-docs-container-width);\n\
+  margin: 0 auto;\n\
+  padding: var(--fandhe-space-6, 1.5rem) var(--fandhe-space-docs-gutter);\n\
+}\n\
+\n\
+.docs-footer .docs-footer-nav {\n\
+  min-width: 0;\n\
+}\n\
+\n\
+.docs-footer .docs-footer-columns {\n\
+  display: grid;\n\
+  grid-template-columns: repeat(2, minmax(0, 1fr));\n\
+  gap: var(--fandhe-space-6, 1.5rem) var(--fandhe-space-4, 1rem);\n\
+}\n\
+\n\
+.docs-footer .docs-footer-group {\n\
+  min-width: 0;\n\
+}\n\
+\n\
+.docs-footer .docs-footer-list,\n\
+.docs-footer .docs-footer-external {\n\
+  list-style: none;\n\
+  margin: 0;\n\
+  padding: 0;\n\
+}\n\
+\n\
+.docs-footer .docs-footer-list li,\n\
+.docs-footer .docs-footer-external li {\n\
+  margin: 0;\n\
+  padding: 0;\n\
+}\n\
+\n\
+.docs-footer h2 {\n\
+  margin: 0 0 var(--fandhe-space-2, 0.5rem);\n\
+  font-size: 0.875rem;\n\
+  font-weight: 600;\n\
+  line-height: 1.3;\n\
+}\n\
+\n\
+.docs-footer a {\n\
+  display: inline-block;\n\
+  padding-block: 0.125rem;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+  text-decoration: none;\n\
+  overflow-wrap: anywhere;\n\
+}\n\
+\n\
+.docs-footer a:hover {\n\
+  color: var(--fandhe-color-fg);\n\
+  text-decoration: underline;\n\
+}\n\
+\n\
+.docs-footer hr {\n\
+  height: 0;\n\
+  margin: var(--fandhe-space-6, 1.5rem) 0 var(--fandhe-space-4, 1rem);\n\
+  border: 0;\n\
+  border-top: 1px solid var(--fandhe-color-border);\n\
+}\n\
+\n\
+.docs-footer p {\n\
+  margin: 0;\n\
+  font-size: 0.875rem;\n\
+  line-height: 1.5;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+}\n\
+\n\
+.docs-footer .docs-footer-bottom {\n\
+  display: flex;\n\
+  flex-direction: column;\n\
+  gap: var(--fandhe-space-3, 0.75rem);\n\
+}\n\
+\n\
+.docs-footer .docs-footer-external {\n\
+  display: flex;\n\
+  flex-wrap: wrap;\n\
+  gap: var(--fandhe-space-4, 1rem);\n\
+}\n\
+\n\
+@media (min-width: 768px) {\n\
+  .docs-footer .docs-footer-columns {\n\
+    grid-template-columns: repeat(4, minmax(0, 1fr));\n\
+  }\n\
+\n\
+  .docs-footer .docs-footer-bottom {\n\
+    flex-direction: row;\n\
+    justify-content: space-between;\n\
+    align-items: flex-start;\n\
+  }\n\
+}\n\
 ";
 
 /// [`typography_css`] が組み立てる 1 セレクタ分の規則を `out` へ追記する

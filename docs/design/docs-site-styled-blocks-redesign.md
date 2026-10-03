@@ -214,6 +214,14 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
   - 説明文（`text`）は front matter が未対応のため見送る。
   - Primitives ページは breadcrumb recipe を含まない `site-primitives.css` を読むため、`STRUCTURAL_CSS` に同値の代替規則を置く（`.docs-content` 前置で詳細度を確保）。
   - `< 1200px` では本文冒頭の折りたたみ目次がパンくずより上に出る（DOM 順序の契約を変えないため許容）。
+- （確定済み・#3609）サイトフッターは `crates/docs-site/src/site_footer.rs` が組み立て、`layout::docs_page_with_assets` の `footer` 引数で `<body>` の最後の子（`div.docs-container` の直後）へ置く。
+  - 本文 `Node` へ足さない理由: `<footer>` は `main` / `article` 等の子孫だと暗黙の `contentinfo` を失い、TOC・検索インデックスにも混入するため。sticky のサイドバー・右目次の包含ブロックは `.docs-container` なので、外側の兄弟であるフッターとは構造上重ならない。Blocks デモ内の `<footer>` は `main` の内側で `contentinfo` にならず、ページあたり 1 つに保たれる。`role` は明示しない。
+  - 列は `nav.sections` の宣言順に 1 セクション 1 列。先頭は索引ページ、続けてセクション直下ページを宣言順に並べ、1 列 5 件（`FOOTER_LINKS_PER_SECTION`）で打ち切る。グループ配下は含めない。`nav.toml` に代表ページ指定は設けない。
+  - 下段に著作権表記・ライセンス（MIT OR Apache-2.0、`LICENSE-*` へのリンク）・GitHub・crates.io を置く。外部リンクはすべて `external: true`。
+  - `icon` は使わない。実在ブランドのロゴを模した SVG を持ち込まないため。
+  - リダイレクト案内ページは `docs_page_with_assets` を通らないため対象外。
+  - CSS は `STRUCTURAL_CSS` 末尾に追加し、Primitives ページ向けに recipe と同値の代替規則を `.docs-footer` 前置で置く。新しい色トークンは追加していない。
+  - `no_js_contract` の静的アンカー表に `docs-footer` を追加した。
 
 ## 11.1 確定事項（#3619 部品ページの Demo）
 

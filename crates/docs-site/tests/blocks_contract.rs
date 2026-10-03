@@ -3016,6 +3016,13 @@ fn banner_announcement_pill_composes_expected_parts() {
     let out = build_real_site();
     let html = std::fs::read_to_string(out.join("blocks/banner-announcement-pill/index.html"))
         .expect("blocks/banner-announcement-pill/index.html should be generated");
+    // 全ページ共通のサイトフッター（イシュー #3609）にも link root があるため、
+    // 本文（フッターより前）だけを数える。
+    let html = html
+        .split("<footer class=\"docs-footer\"")
+        .next()
+        .expect("split always yields a first part")
+        .to_string();
 
     let link_root_count = html
         .matches(r#"data-scope="link" data-part="root""#)

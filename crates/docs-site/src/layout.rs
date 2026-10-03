@@ -80,7 +80,7 @@ use crate::search_index;
 /// 単一実装点）。`site/nav.toml` の `[site]` スキーマは拡張しない
 /// （nav スキーマの変更は #939 の管轄。ブランド文字列 `"fandhe-frontend"`
 /// が既に本モジュールへハードコードされている先例に倣う）。
-const REPOSITORY_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+pub(crate) const REPOSITORY_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 /// 目次に載せる見出しレベルの上限（イシュー #950）。`h2` を第 1 段
 /// （`TOC_MAX_LEVEL - 1`）、`h3` を第 2 段（`TOC_MAX_LEVEL`）とし、
@@ -509,7 +509,7 @@ pub fn asset_href(base_path: &str, relative: &str) -> String {
 /// （`fandhe_frontend_server::ssg::generate_pages()`）の契約であり、本関数は
 /// 文書 `Node` を返すのみで DOCTYPE 文字列を出力しない。
 pub fn docs_page(title: &str, base_path: &str, sidebar: Node, body: Node) -> Node {
-    docs_page_with_assets(title, base_path, sidebar, body, &[], None)
+    docs_page_with_assets(title, base_path, sidebar, body, &[], None, None)
 }
 
 /// [`docs_page`] の拡張版。`extra_stylesheets`（`assets/` 起点の相対パス列）を
@@ -532,6 +532,15 @@ pub fn docs_page(title: &str, base_path: &str, sidebar: Node, body: Node) -> Nod
 /// 左端に揃える計測枠）の第 2 子として `crate::nav::header_nav()` が生成する
 /// セクション別ドロップダウンメニューを埋め込む。`None` の場合はブランド
 /// リンクのみの従来ヘッダーのまま（[`docs_page`] 経由の呼び出しはこちら）。
+///
+/// `footer`（イシュー #3609、`crate::site_footer::site_footer()` の戻り値）が
+/// `Some` の場合、`<body>` の最後の子（`div.docs-container` の直後）として
+/// 出力する。`<footer>` は `main`/`article`/`aside`/`nav`/`section` の子孫に
+/// 置くと暗黙ロール `contentinfo` を失い、本文 `Node` へ追記すると TOC・検索
+/// インデックスにも混入するため、ヘッダーと同じクロームとして本関数が
+/// `body` 直下へ置く。sticky のサイドバー・右目次は包含ブロックである
+/// `.docs-container` の内側に限られるので、外の兄弟であるフッターとは構造上
+/// 重ならない。`None` なら従来出力とバイト一致する。
 pub fn docs_page_with_assets(
     title: &str,
     base_path: &str,
@@ -539,6 +548,7 @@ pub fn docs_page_with_assets(
     body: Node,
     extra_stylesheets: &[&str],
     header_nav: Option<Node>,
+    footer: Option<Node>,
 ) -> Node {
     let (annotated_body, toc_entries) = with_heading_anchors(body);
     let toc = toc_nav(&toc_entries);
@@ -862,15 +872,15 @@ pub fn docs_page_with_assets(
         "docs-container docs-container--no-toc"
     };
 
-    let body_node = el(
-        "body",
-        vec![],
-        vec![
-            skip_nav_link,
-            header_node,
-            div(vec![("class", container_class)], container_children),
-        ],
-    );
+    let mut body_children = vec![
+        skip_nav_link,
+        header_node,
+        div(vec![("class", container_class)], container_children),
+    ];
+    if let Some(footer_node) = footer {
+        body_children.push(footer_node);
+    }
+    let body_node = el("body", vec![], body_children);
 
     el("html", vec![("lang", "ja")], vec![head, body_node])
 }

@@ -294,6 +294,7 @@ fn sidebar_and_header_and_prev_next_navigation_uses_static_anchor_hrefs() {
             ("docs-sidebar", "sidebar"),
             ("docs-header-nav", "header nav"),
             ("prev-next", "prev/next"),
+            ("docs-footer", "footer"),
         ] {
             if let Some(start) = html.find(&format!("class=\"{block_class}")) {
                 // ブロック開始位置から後方の粗い範囲（4000 バイト）を見て、

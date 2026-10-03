@@ -295,6 +295,7 @@ fn header_nav_html_class_tokens_are_covered_by_site_css() {
         fixture_body(),
         &[],
         Some(header_nav(&nav, "/quickstart/")),
+        None,
     );
     let html = render(&node);
     assert_all_classes_covered(
@@ -592,6 +593,7 @@ fn full_page_html(with_headings: bool) -> String {
         body,
         &[],
         Some(header_nav_node),
+        None,
     );
     render(&node)
 }
@@ -664,6 +666,7 @@ fn full_page_html_with_groups() -> String {
         body,
         &[],
         Some(header_nav_node),
+        None,
     );
     render(&node)
 }
@@ -1658,6 +1661,91 @@ fn page_breadcrumb_fallback_rules_exist_in_both_stylesheets() {
         for expected in ["display: flex;", "list-style: none;", "padding: 0;"] {
             assert!(block.contains(expected), "{expected} が無い: {block}");
         }
+    }
+}
+
+/// サイトフッター関連 class（イシュー #3609、`crate::site_footer`）。`build_site` が
+/// `docs_page_with_assets` の `footer` 引数で差し込むためフルページのフィクスチャ
+/// （`footer: None`）には現れず、`PAGE_HEADING_CLASSES` と同様に層 1 本体とは別枠で固定する。
+const SITE_FOOTER_CLASSES: &[&str] = &[
+    "docs-footer",
+    "docs-footer-inner",
+    "docs-footer-nav",
+    "docs-footer-columns",
+    "docs-footer-group",
+    "docs-footer-list",
+    "docs-footer-bottom",
+    "docs-footer-external",
+];
+
+#[test]
+fn site_footer_classes_match_module_constants_and_have_css_selectors() {
+    use fandhe_frontend_docs_site::site_footer as sf;
+    assert_eq!(
+        SITE_FOOTER_CLASSES,
+        [
+            sf::FOOTER_CLASS,
+            sf::FOOTER_INNER_CLASS,
+            sf::FOOTER_NAV_CLASS,
+            sf::FOOTER_COLUMNS_CLASS,
+            sf::FOOTER_GROUP_CLASS,
+            sf::FOOTER_LIST_CLASS,
+            sf::FOOTER_BOTTOM_CLASS,
+            sf::FOOTER_EXTERNAL_CLASS,
+        ]
+    );
+    let css_tokens = extract_css_class_selectors(&site_css());
+    for class in SITE_FOOTER_CLASSES {
+        assert!(css_tokens.contains(*class), "{class} が site.css に無い");
+    }
+    for html in [full_page_html(true), full_page_html(false)] {
+        let tokens = extract_class_tokens(&html);
+        for class in SITE_FOOTER_CLASSES {
+            assert!(!tokens.contains(*class), "{class} がフィクスチャに出現した");
+        }
+    }
+}
+
+/// フッター単体の出力に現れる class（`docs-*` と recipe の `fd-*`）がすべて
+/// `site.css` のセレクタに存在すること（層 2 型。CSS 未供給の class を出さない）。
+#[test]
+fn site_footer_output_classes_are_all_styled_in_site_css() {
+    let html = render(&fandhe_frontend_docs_site::site_footer::site_footer(
+        &fixture_nav(),
+    ));
+    let css_tokens = extract_css_class_selectors(&site_css());
+    for token in extract_class_tokens(&html) {
+        if token.starts_with("docs-") || token.starts_with("fd-") {
+            assert!(
+                css_tokens.contains(token.as_str()),
+                "{token} が site.css に無い"
+            );
+        }
+    }
+}
+
+/// Primitives ページは recipe を持たない `site-primitives.css` を読むため、
+/// フッターの代替規則が両方の CSS にあることを固定する。
+#[test]
+fn site_footer_fallback_rules_exist_in_both_stylesheets() {
+    let with = site_css();
+    let without = site_theme::stylesheet_without_recipes()
+        .expect("site theme stylesheet without recipes should assemble")
+        .as_css()
+        .to_string();
+    for css in [&with, &without] {
+        let start = css
+            .find(".docs-footer .docs-footer-list,")
+            .expect("フッターのリスト代替規則が無い");
+        let block = &css[start..];
+        let block = &block[..block.find('}').unwrap()];
+        for expected in ["list-style: none;", "padding: 0;"] {
+            assert!(block.contains(expected), "{expected} が無い: {block}");
+        }
+        assert!(
+            css.contains(".docs-footer a {"),
+            "フッターのリンク規則が無い"
+        );
     }
 }
 
