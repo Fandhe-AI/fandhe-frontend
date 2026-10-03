@@ -136,6 +136,7 @@ pub fn page(nav: &Nav) -> Node {
         body(nav),
         &[],
         Some(nav::header_nav(nav, OUTPUT_PATH)),
+        Some(crate::site_footer::site_footer(nav)),
     )
 }
 

@@ -125,6 +125,8 @@ fn production_registry_matches_the_expected_table() {
             ("/api/", Placement::BeforeFirstH2, PageLayout::Docs),
             ("/examples/", Placement::BeforeFirstH2, PageLayout::Docs),
             ("/guides/", Placement::Append, PageLayout::Docs),
+            ("/primitives/", Placement::BeforeFirstH2, PageLayout::Docs),
+            ("/themes/", Placement::BeforeFirstH2, PageLayout::Docs),
             ("/", Placement::Prepend, PageLayout::Landing),
         ],
         "本番登録表の期待表（登録を増やすときは本表へ明示的に追加する）"
