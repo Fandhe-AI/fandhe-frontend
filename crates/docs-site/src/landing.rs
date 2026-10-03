@@ -623,7 +623,7 @@ pub const CSS: &str = "\
 }\n\
 \n\
 .docs-landing .docs-landing-card > [data-scope=\"card\"],\n\
-.docs-landing .docs-landing-stat > [data-scope=\"stat\"] {\n\
+.docs-landing .docs-landing-stat > dl {\n\
   height: 100%;\n\
   border: 1px solid var(--fandhe-color-border);\n\
   border-radius: var(--fandhe-radius-sm);\n\
@@ -631,7 +631,7 @@ pub const CSS: &str = "\
   transition: border-color 0.15s ease;\n\
 }\n\
 \n\
-.docs-landing .docs-landing-stat > [data-scope=\"stat\"] {\n\
+.docs-landing .docs-landing-stat > dl {\n\
   padding: 1rem;\n\
 }\n\
 \n\
