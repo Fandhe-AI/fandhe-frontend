@@ -76,6 +76,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::nav_list::root a
 use fandhe_frontend_pre_styled_ui::nav_list::{heading, item, link as nav_link, list};
 // 前後ページャ（イシュー #756）: 同じ理由で LinkOverlay も headless
 // `root`（class 温存のため）+ styled 層再エクスポートの `overlay` を使う。
+use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps, CardVariant};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::link_overlay::root as link_overlay_root;
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
@@ -936,7 +937,7 @@ fn href(nav: &Nav, path: &str) -> String {
 ///   ul                                        … 直下ページ（section.pages が非空のときのみ）
 ///     li > a[href]（現在ページのみ aria-current="page" + data-current）
 ///   details.docs-nav-group[open?]             … グループ 1 件 = details 1 件（宣言順）
-///     summary.docs-nav-group-summary          … グループ見出し（プレーンテキスト）
+///     summary.docs-nav-group-summary          … グループ見出し（span.docs-nav-group-title + span.docs-nav-group-count > badge、#3611）
 ///     ul.docs-nav-group-list                  … nav_list list を再利用
 ///       li > a[href]
 /// ```
@@ -955,7 +956,7 @@ fn href(nav: &Nav, path: &str) -> String {
 ///   （nav_list anatomy）を再利用する。基底 CSS（list-style 除去・
 ///   `aria-current` の accent 色）をそのまま継承させ、`aria-current`
 ///   付与ロジックを二重実装しないため。
-/// - `<summary>` の中身はプレーンテキストのみ（`h3` を入れない）。
+/// - `<summary>` の中身は phrasing の span（タイトルと件数 badge）のみで、見出し要素・リンク・ボタンを入れない。
 ///   `<summary>` は既にディスクロージャウィジェットとしてラベルを読み
 ///   上げるため、見出し要素を追加するとスクリーンリーダー実装間で挙動が
 ///   割れる。これは [`header_nav`] が `docs-header-trigger` へ
@@ -1029,10 +1030,29 @@ fn group_node(nav: &Nav, group: &Group, current_path: &str) -> Node {
         );
         items.push(item(vec![], vec![a]));
     }
+    // summary は見出し要素・リンク・ボタンを含めず phrasing の span のみで構成する
+    // （開閉操作を summary に一本化する無 JS 契約）。件数 badge の見た目は
+    // Primitives ページ（recipe 抜き CSS）でも崩れないよう docs 側 CSS で完結させる
+    // （イシュー #3611）。件数は数値文字列を `text()` 経由で渡し既定エスケープを保つ。
+    let count = badge(
+        &BadgeProps {
+            size: Size::Sm,
+            ..BadgeProps::default()
+        },
+        vec![],
+        vec![text(group.pages.len().to_string())],
+    );
     let summary = el(
         "summary",
         vec![("class", "docs-nav-group-summary")],
-        vec![text(group.title.clone())],
+        vec![
+            el(
+                "span",
+                vec![("class", "docs-nav-group-title")],
+                vec![text(group.title.clone())],
+            ),
+            el("span", vec![("class", "docs-nav-group-count")], vec![count]),
+        ],
     );
     let group_list = list(vec![("class", "docs-nav-group-list")], items);
     let mut attrs = vec![("class", "docs-nav-group")];

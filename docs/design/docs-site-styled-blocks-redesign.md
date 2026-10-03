@@ -262,6 +262,14 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 - Anatomy は `h2` と `pre > code` の隣接・字下げ本文の形式を変えず（テストのパーサが依存）、`section` の class と CSS だけで枠と同じ体裁にする。
 - Blocks（`.blocks-demo`）は DOM・class を変えず、CSS の値のみトークン化して共通の枠にそろえる。
 
+## 11.2 確定事項（#3611 サイドバー）
+
+- 開閉は既存の `details` / `summary` を維持する。初期状態は現在ページを含むグループのみ open（他は閉じる）。Blocks は 65 グループ（イシュー本文の 67 は実数と異なる）。
+- 開閉の三角は CSS 疑似要素で描く。icon 部品を使わない意図的な逸脱（DOM 不変・recipe 不要・`push_css` の `<` 禁止のため data URI を使えない）。
+- 件数 badge はグループ単位のみ（h2 には付けない）。Primitives ページは recipe 抜き CSS のため、見た目は docs 側 CSS で完結させる。
+- 選択中項目の文字色を accent から fg へ変更（ライトモードの AA 未達の解消。トークン不変、`transition: none` は維持）。
+- Menu トグルは markup を変えず CSS のみでボタン風外形・三本線・開状態・フォーカスリングを整える。
+
 ## 12. 関連文書
 
 - `docs/design/docs-site-three-column-redesign.md`: 骨格・CSS 供給・契約テスト・再評価トリガーの統治文書
