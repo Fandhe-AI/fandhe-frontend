@@ -494,7 +494,7 @@ pub const CSS: &str = "\
   color: var(--fandhe-color-fg);\n\
 }\n\
 \n\
-.docs-features-grid {\n\
+.docs-landing .docs-features-grid {\n\
   list-style: none;\n\
   margin: 0;\n\
   padding: 0;\n\
@@ -504,18 +504,18 @@ pub const CSS: &str = "\
 }\n\
 \n\
 @media (min-width: 768px) {\n\
-  .docs-features-grid {\n\
+  .docs-landing .docs-features-grid {\n\
     grid-template-columns: repeat(2, minmax(0, 1fr));\n\
   }\n\
 }\n\
 \n\
 @media (min-width: 1024px) {\n\
-  .docs-features-grid {\n\
+  .docs-landing .docs-features-grid {\n\
     grid-template-columns: repeat(3, minmax(0, 1fr));\n\
   }\n\
 }\n\
 \n\
-.docs-feature {\n\
+.docs-landing .docs-feature {\n\
   min-width: 0;\n\
   margin: 0;\n\
 }\n\
@@ -533,6 +533,12 @@ pub const CSS: &str = "\
 \n\
 .docs-feature [data-scope=\"heading\"] {\n\
   margin: 0;\n\
+}\n\
+\n\
+/* `.docs-content p`（typography_css）の段落サイズ・下余白に負けないよう 2 クラスで上書きする。 */\n\
+.docs-landing .docs-feature [data-scope=\"text\"] {\n\
+  margin: 0;\n\
+  font-size: var(--fandhe-font-font-size-sm);\n\
 }\n\
 \n\
 .docs-feature [data-scope=\"link\"] {\n\

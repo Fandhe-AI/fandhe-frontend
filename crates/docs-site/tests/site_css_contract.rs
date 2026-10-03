@@ -1576,11 +1576,11 @@ fn landing_feature_grid_is_one_two_three_columns_by_breakpoint() {
     let base = css.find(".docs-features-grid {").expect("grid base rule");
     assert!(css[base..].contains("grid-template-columns: minmax(0, 1fr);"));
     let md = css
-        .find("@media (min-width: 768px) {\n.docs-features-grid")
+        .find("@media (min-width: 768px) {\n.docs-landing .docs-features-grid")
         .expect("768px rule");
     assert!(css[md..].contains("repeat(2, minmax(0, 1fr))"));
     let lg = css
-        .find("@media (min-width: 1024px) {\n.docs-features-grid")
+        .find("@media (min-width: 1024px) {\n.docs-landing .docs-features-grid")
         .expect("1024px rule");
     assert!(css[lg..].contains("repeat(3, minmax(0, 1fr))"));
 }
