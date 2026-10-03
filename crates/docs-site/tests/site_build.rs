@@ -110,15 +110,15 @@ fn build_site_wires_admonition_css_only_to_pages_using_it() {
 
     let index_html = std::fs::read_to_string(out.0.join("index.html")).unwrap();
     assert!(index_html.contains(r#"href="/fixture-base/assets/admonition.css""#));
-    assert!(index_html.contains(r#"data-scope="alert""#));
+    assert!(index_html.contains(r#"data-scope="callout""#));
 
     let quickstart_html =
         std::fs::read_to_string(out.0.join("guide/quickstart/index.html")).unwrap();
     assert!(!quickstart_html.contains("admonition.css"));
-    assert!(!quickstart_html.contains(r#"data-scope="alert""#));
+    assert!(!quickstart_html.contains(r#"data-scope="callout""#));
 
     let admonition_css = std::fs::read_to_string(out.0.join("assets/admonition.css")).unwrap();
-    assert!(admonition_css.contains(".fd-alert--status-info"));
+    assert!(admonition_css.contains(".fd-callout--color-palette-info"));
     // イシュー #732: 実サイトビルドが書き出す admonition.css にダーク
     // モード配色条件が含まれること。
     assert!(admonition_css.contains("prefers-color-scheme: dark"));
@@ -482,6 +482,13 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
                 r#"href="/fandhe-frontend/getting-started/quickstart/""#,
                 r#"data-docs-hero-cta="primary""#,
                 r#"data-docs-hero-cta="secondary""#,
+                r#"class="docs-features""#,
+                r#"class="docs-features-grid""#,
+                r#"href="/fandhe-frontend/api/component-api/""#,
+                r#"href="/fandhe-frontend/api/interactive-api/""#,
+                r#"href="/fandhe-frontend/guides/deployment/""#,
+                r#"href="/fandhe-frontend/guides/embedding-guide/""#,
+                r#"href="/fandhe-frontend/examples/""#,
                 r#"class="docs-landing-cards""#,
                 r#"class="docs-landing-stats""#,
                 r#"href="/fandhe-frontend/guides/""#,

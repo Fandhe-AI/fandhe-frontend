@@ -329,16 +329,16 @@ fn collect_text_into(node: &Node, out: &mut String, exclude_code_blocks: bool) {
     }
 }
 
-/// 索引カードのラッパー（`li.docs-index-card`、およびトップページの入口カード
-/// `li.docs-landing-card`、#3614）かどうか。後者は旧 `site/index.md` の本文から
-/// 移した見出し・説明文を持つため、検索対象に残す。
+/// 索引カードのラッパー（`li.docs-index-card`）、トップページの入口カード
+/// （`li.docs-landing-card`、#3614。旧 `site/index.md` の本文から移した見出し・説明文を持つ）、
+/// または特徴カード（`li.docs-feature`、#3613）かどうか。
 fn is_index_card(tag: &str, attrs: &[(String, String)]) -> bool {
     tag == "li"
         && attrs.iter().any(|(name, value)| {
             name == "class"
-                && value
-                    .split_whitespace()
-                    .any(|c| c == "docs-index-card" || c == "docs-landing-card")
+                && value.split_whitespace().any(|c| {
+                    c == "docs-index-card" || c == "docs-landing-card" || c == "docs-feature"
+                })
         })
 }
 
@@ -993,5 +993,22 @@ mod tests {
         );
         let entry = page_entry("/blocks/pricing-comparison-table/", "Page", &body, true);
         assert!(!entry.text.contains("pricing_comparison_table"));
+    }
+
+    /// トップページの特徴カード（`li.docs-feature`、#3613）は `data-scope` を
+    /// 持つ部品 root を内包しても検索対象に残る。
+    #[test]
+    fn page_entry_keeps_landing_feature_card_text() {
+        let body = el(
+            "li",
+            vec![("class", "docs-feature")],
+            vec![el(
+                "div",
+                vec![("data-scope", "card")],
+                vec![text("raw_html() 明示オプトイン".to_string())],
+            )],
+        );
+        let entry = page_entry("/", "Home", &body, false);
+        assert!(entry.text.contains("raw_html()"));
     }
 }

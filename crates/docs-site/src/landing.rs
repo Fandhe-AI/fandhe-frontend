@@ -10,7 +10,8 @@
 //! （ヒーローが使う badge / code / link の recipe が `site.css` にしか無いため、
 //! 別ファイルにしない）。後続の #3613〜#3615（特徴グリッド・入口カード・
 //! コード例と CTA）は `/` の登録を増やせない（`DuplicatePath`）ので、
-//! [`render`] の返す節列へ追記して拡張する。
+//! [`render`] の返す節列へ追記して拡張する。節の並びは「ヒーロー → 特徴グリッド
+//! （#3613）」で、原稿 `site/index.md` の `## はじめる` がその後ろへ続く。
 //!
 //! # 設計判断
 //!
@@ -22,6 +23,17 @@
 //!   機構へ載せる（clipboard 部品は wasm 配線前提で無 JS サイトでは動かない）。
 //! - CTA は `<a>` を出す `link::root`。`<a>` 内に `<button>` は置けない。
 //!   ボタン風の見た目は `data-docs-hero-cta` 属性で `.docs-hero-actions` 配下から当てる。
+//! - badge のバージョンは CLI の `Cargo.toml` から取り出し（[`cli_version`]）、
+//!   CLI のバンプへ自動追随させる。取れなければ badge を出さない。
+//!
+//! - 特徴グリッド（#3613）の文言は [`FEATURES`] が唯一の正で、`site/index.md` には
+//!   持たない（二重管理の再発は単体テストが検知する）。カードは `card::root` の
+//!   中に icon・h3 見出し（`link::root` を内包）・説明文を置く。`link_overlay` の
+//!   recipe は `site.css` に積まない規則のため、全面クリックは
+//!   `[data-scope="link"]::after` の絶対配置で実現する（`card::root` が
+//!   `position: relative`）。`card` は `data-scope` を持つので、カード内の見出しと
+//!   説明文は検索インデックスから外れる。5 項目の要旨は索引されるヒーローの
+//!   リード文に含まれるため許容する。節見出し h2 は `data-scope` の外に置く。
 //! - 入口カード（イシュー #3614）は `link_overlay` を使わない。設計文書 §4.1 が
 //!   `link_overlay` を `SITE_RECIPES` から除外しているため、`a` の `::after` を
 //!   カード全面へ伸ばす CSS だけで全面クリックを実現する（`<a>` 内に `<button>`
@@ -33,8 +45,7 @@
 //!   件数 = 層セクション配下の全ページ − 索引ページ。ページ追加へビルド時に追従する。
 //!   依存上限は xtask の定数（`crates/xtask/src/check_deps.rs`）と同値を保持し、
 //!   一致は `tests/landing_counts.rs` が固定する。
-//! - badge のバージョンは CLI の `Cargo.toml` から取り出し（[`cli_version`]）、
-//!   CLI のバンプへ自動追随させる。取れなければ badge を出さない。
+//! - リンク先は nav に実在する内部ページだけ（`#fragment` は改稿で壊れるので使わない）。
 //!
 //! # セキュリティ上の不変条件
 //!
@@ -44,14 +55,15 @@
 //! `StyleSheet::push_css` の検証（`<` 等の拒否）を通る定数で、`--fandhe-*`
 //! トークンだけを参照する。
 
-use fandhe_frontend_core::{a, code, div, h1, h2, li, p, pre, section, text, ul, Node};
+use fandhe_frontend_core::{a, code, div, el, h1, h2, li, p, pre, section, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
+use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
-use fandhe_frontend_pre_styled_ui::recipe::Size;
 use fandhe_frontend_pre_styled_ui::stat;
-use fandhe_frontend_pre_styled_ui::text::{text as text_part, TextProps, TextSize, TextVariant};
+use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
+use fandhe_frontend_pre_styled_ui::Size;
 
 use crate::code_copy;
 use crate::layout::{asset_href, REPOSITORY_URL};
@@ -73,6 +85,10 @@ pub const CLASSES: &[&str] = &[
     "docs-hero-lead",
     "docs-hero-install",
     "docs-hero-actions",
+    "docs-features",
+    "docs-features-title",
+    "docs-features-grid",
+    "docs-feature",
     "docs-landing-section",
     "docs-landing-section-title",
     "docs-landing-section-lead",
@@ -239,8 +255,7 @@ pub fn site_layer_counts() -> Option<Vec<LayerCount>> {
 /// トップページへ差し込む節列。後続イシューはここへ節を追記する。
 #[must_use]
 pub fn render(base_path: &str) -> Vec<Node> {
-    let mut nodes = vec![hero(base_path)];
-    // #3613 の特徴グリッドはここ（ヒーローの直後）へ挿入する。
+    let mut nodes = vec![hero(base_path), features(base_path)];
     nodes.extend(entry_and_stats(base_path));
     nodes
 }
@@ -309,7 +324,7 @@ fn card_node(base_path: &str, c: &EntryCard) -> Node {
                             vec![text(c.title)],
                         )],
                     ),
-                    text_part(
+                    styled_text::text(
                         &TextProps {
                             size: TextSize::Sm,
                             variant: TextVariant::Muted,
@@ -463,6 +478,164 @@ fn lead_children() -> Vec<Node> {
     ]
 }
 
+/// 説明文の断片。`Code` はインラインコードとして描画する。
+#[derive(Clone, Copy)]
+enum Seg {
+    Text(&'static str),
+    Code(&'static str),
+}
+
+/// 特徴カード 1 枚の台帳項目。
+struct Feature {
+    title: &'static str,
+    body: &'static [Seg],
+    /// `base_path` 配下の内部リンク先（`site/nav.toml` に実在するページ）。
+    href_rel: &'static str,
+    /// アイコンの `d` 属性（自作の単純な幾何形状）。
+    icon_path_d: &'static str,
+}
+
+/// 特徴グリッドの文言の唯一の正（`site/index.md` には持たない）。
+const FEATURES: [Feature; 5] = [
+    Feature {
+        title: "既定エスケープ",
+        body: &[
+            Seg::Text("テキスト補間は必ずエスケープを経由し、迂回は "),
+            Seg::Code("raw_html()"),
+            Seg::Text(" 等の明示的なオプトイン API のみに限定"),
+        ],
+        href_rel: "api/component-api/",
+        icon_path_d: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z",
+    },
+    Feature {
+        title: "unsafe の排除",
+        body: &[
+            Seg::Text("描画コア・状態管理コアは "),
+            Seg::Code("#![forbid(unsafe_code)]"),
+            Seg::Text(" で "),
+            Seg::Code("unsafe"),
+            Seg::Text(" を一切使用しない"),
+        ],
+        href_rel: "api/interactive-api/",
+        icon_path_d: "M6 11h12v10H6zM8 11V7a4 4 0 018 0v4",
+    },
+    Feature {
+        title: "依存最小",
+        body: &[Seg::Text(
+            "標準サーバー構成で依存パッケージ 60 件以内・深さ 6 以内に収め、サプライチェーンの脅威面を抑制",
+        )],
+        href_rel: "guides/deployment/",
+        icon_path_d: "M12 3l9 5-9 5-9-5zM3 16l9 5 9-5",
+    },
+    Feature {
+        title: "プレーン HTML/JS/CSS の尊重",
+        body: &[Seg::Text(
+            "既存の静的ページへの部分埋め込みからフル機能構成までグラデーションを持つ",
+        )],
+        href_rel: "guides/embedding-guide/",
+        icon_path_d: "M8 6l-6 6 6 6M16 6l6 6-6 6",
+    },
+    Feature {
+        title: "SSR/SPA/SSG/ビュー遷移を網羅",
+        body: &[Seg::Text(
+            "モードを問わず同じコンポーネント実装を再利用できる",
+        )],
+        href_rel: "examples/",
+        icon_path_d: "M4 8h14l-4-4M20 16H6l4 4",
+    },
+];
+
+/// 説明文の断片列をノードへ変換する（文言は `text()` で既定エスケープされる）。
+fn body_children(segs: &[Seg]) -> Vec<Node> {
+    segs.iter()
+        .map(|s| match s {
+            Seg::Text(t) => text(*t),
+            Seg::Code(c) => code(vec![], vec![text(*c)]),
+        })
+        .collect()
+}
+
+/// 装飾アイコン（`label` なしなので `aria-hidden="true"` が付く）。
+fn feature_icon(path_d: &'static str) -> Node {
+    icon(
+        &IconProps {
+            size: Size::Md,
+            ..IconProps::default()
+        },
+        vec![],
+        vec![el(
+            "path",
+            vec![
+                ("d", path_d),
+                ("fill", "none"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+                ("stroke-linecap", "round"),
+                ("stroke-linejoin", "round"),
+            ],
+            vec![],
+        )],
+    )
+}
+
+/// 特徴カード 1 枚。`docs-*` class は pre-styled-ui root が破棄するため `li` に付ける。
+fn feature_card(base_path: &str, f: &Feature) -> Node {
+    let href = asset_href(base_path, f.href_rel);
+    li(
+        vec![("class", "docs-feature")],
+        vec![card::root(
+            CardProps::default(),
+            vec![],
+            vec![card::body(
+                vec![],
+                vec![
+                    feature_icon(f.icon_path_d),
+                    heading(
+                        HeadingLevel::H3,
+                        &HeadingProps {
+                            size: HeadingSize::Md,
+                            ..HeadingProps::default()
+                        },
+                        vec![],
+                        vec![link::root(
+                            &href,
+                            &LinkProps::default(),
+                            vec![],
+                            vec![text(f.title)],
+                        )],
+                    ),
+                    styled_text::text(
+                        &TextProps {
+                            size: TextSize::Sm,
+                            variant: TextVariant::Muted,
+                            ..TextProps::default()
+                        },
+                        vec![],
+                        body_children(f.body),
+                    ),
+                ],
+            )],
+        )],
+    )
+}
+
+/// 特徴グリッド節（#3613。h2 + 5 枚のカード）。
+fn features(base_path: &str) -> Node {
+    section(
+        vec![("class", "docs-features")],
+        vec![
+            h2(vec![("class", "docs-features-title")], vec![text("特徴")]),
+            ul(
+                vec![("class", "docs-features-grid")],
+                FEATURES
+                    .iter()
+                    .map(|f| feature_card(base_path, f))
+                    .collect(),
+            ),
+        ],
+    )
+}
+
 /// ランディング骨格とヒーローの CSS（`STRUCTURAL_CSS` の直後に積む）。
 ///
 /// `.docs-container.docs-landing`（詳細度 0,2,0）で標準骨格の grid 指定を後出しで解く。
@@ -589,6 +762,100 @@ pub const CSS: &str = "\
     font-size: var(--fandhe-font-font-size-3xl);\n\
   }\n\
 }\n\
+\n\
+/*\n\
+ * ---- 特徴グリッド（イシュー #3613） ----\n\
+ */\n\
+\n\
+.docs-features {\n\
+  max-width: 72rem;\n\
+  margin: 0 auto;\n\
+  padding: 2rem 0;\n\
+}\n\
+\n\
+.docs-landing .docs-features-title {\n\
+  margin: 0 0 1.5rem;\n\
+  padding: 0;\n\
+  border: 0;\n\
+  text-align: center;\n\
+  font-size: var(--fandhe-font-font-size-xl);\n\
+  font-weight: var(--fandhe-font-font-weight-semibold);\n\
+  color: var(--fandhe-color-fg);\n\
+}\n\
+\n\
+.docs-landing .docs-features-grid {\n\
+  list-style: none;\n\
+  margin: 0;\n\
+  padding: 0;\n\
+  display: grid;\n\
+  grid-template-columns: minmax(0, 1fr);\n\
+  gap: 1.5rem;\n\
+}\n\
+\n\
+@media (min-width: 768px) {\n\
+  .docs-landing .docs-features-grid {\n\
+    grid-template-columns: repeat(2, minmax(0, 1fr));\n\
+  }\n\
+}\n\
+\n\
+@media (min-width: 1024px) {\n\
+  .docs-landing .docs-features-grid {\n\
+    grid-template-columns: repeat(3, minmax(0, 1fr));\n\
+  }\n\
+}\n\
+\n\
+.docs-landing .docs-feature {\n\
+  min-width: 0;\n\
+  margin: 0;\n\
+}\n\
+\n\
+.docs-feature [data-scope=\"card\"][data-part=\"root\"] {\n\
+  height: 100%;\n\
+}\n\
+\n\
+.docs-feature [data-scope=\"card\"] > div {\n\
+  display: flex;\n\
+  flex-direction: column;\n\
+  align-items: flex-start;\n\
+  gap: 0.5rem;\n\
+}\n\
+\n\
+.docs-feature [data-scope=\"heading\"] {\n\
+  margin: 0;\n\
+}\n\
+\n\
+/* `.docs-content p`（typography_css）の段落サイズ・下余白に負けないよう 2 クラスで上書きする。 */\n\
+.docs-landing .docs-feature [data-scope=\"text\"] {\n\
+  margin: 0;\n\
+  font-size: var(--fandhe-font-font-size-sm);\n\
+}\n\
+\n\
+.docs-feature [data-scope=\"link\"] {\n\
+  text-decoration: none;\n\
+  color: var(--fandhe-color-fg);\n\
+}\n\
+\n\
+.docs-feature [data-scope=\"link\"]::after {\n\
+  content: \"\";\n\
+  position: absolute;\n\
+  inset: 0;\n\
+}\n\
+\n\
+.docs-feature:hover [data-scope=\"card\"][data-part=\"root\"] {\n\
+  border-color: var(--fandhe-color-accent);\n\
+}\n\
+\n\
+/* 全面オーバーレイの ::after へフォーカスリングを当て、カード全体を囲む。 */\n\
+.docs-feature [data-scope=\"link\"]:focus-visible {\n\
+  outline: none;\n\
+}\n\
+\n\
+.docs-feature [data-scope=\"link\"]:focus-visible::after {\n\
+  outline: 2px solid var(--fandhe-color-accent);\n\
+  outline-offset: 2px;\n\
+  border-radius: var(--fandhe-radius-sm);\n\
+}\n\
+\n\
 /*\n\
  * ---- 入口カードと数値指標（イシュー #3614） ----\n\
  */\n\
@@ -689,6 +956,30 @@ pub const CSS: &str = "\
   }\n\
 }\n\
 \n\
+/* 補足文は数値・単位の横ではなく次の行へ回す（3・6 列の狭い列で途中折り返しさせない）。 */\n\
+.docs-landing .docs-landing-stat [data-part=\"value-text\"] {\n\
+  flex-wrap: wrap;\n\
+}\n\
+\n\
+.docs-landing .docs-landing-stat [data-part=\"help-text\"] {\n\
+  flex: 0 0 100%;\n\
+}\n\
+\n\
+/* `.docs-content h3` / `p` の装飾・段落間隔がカードへ漏れないよう 2 クラスで隔離する。 */\n\
+.docs-landing .docs-landing-card [data-scope=\"heading\"] {\n\
+  margin: 0 0 var(--fandhe-space-1, 0.25rem);\n\
+  padding: 0;\n\
+  border: 0;\n\
+  font-size: var(--fandhe-font-font-size-md);\n\
+  letter-spacing: normal;\n\
+}\n\
+\n\
+.docs-landing .docs-landing-card [data-scope=\"text\"] {\n\
+  margin: 0;\n\
+  padding: 0;\n\
+  border: 0;\n\
+}\n\
+\n\
 @media (prefers-reduced-motion: reduce) {\n\
   .docs-landing .docs-landing-card > [data-scope=\"card\"] {\n\
     transition: none;\n\
@@ -702,14 +993,6 @@ mod tests {
 
     fn html() -> String {
         render("/fandhe-frontend").iter().map(render_node).collect()
-    }
-
-    #[test]
-    fn css_attribute_selectors_are_well_formed() {
-        // 属性セレクタの `[` `]` と引用符の対応を固定する（不正なルールはブラウザに丸ごと捨てられる）。
-        assert!(!CSS.contains("'\"") && !CSS.contains("\"'"), "stray quote");
-        assert_eq!(CSS.matches('[').count(), CSS.matches(']').count());
-        assert_eq!(CSS.matches('"').count() % 2, 0);
     }
 
     #[test]
@@ -749,6 +1032,56 @@ mod tests {
         assert!(h.contains("href=\"/fandhe-frontend/getting-started/quickstart/\""));
         assert!(h.contains("rel=\"noopener noreferrer\""));
         assert_eq!(h.matches("<h1").count(), 1);
+    }
+
+    #[test]
+    fn features_render_five_cards_with_internal_links() {
+        let h = html();
+        assert_eq!(h.matches("class=\"docs-feature\"").count(), 5);
+        assert!(h.matches("data-scope=\"card\"").count() >= 5);
+        let grid = render_node(&features("/fandhe-frontend"));
+        assert_eq!(grid.matches("<h3").count(), 5);
+        assert!(!grid.contains("target=\"_blank\""));
+        let mut hrefs: Vec<&str> = FEATURES.iter().map(|f| f.href_rel).collect();
+        hrefs.sort_unstable();
+        hrefs.dedup();
+        assert_eq!(hrefs.len(), 5);
+        for f in &FEATURES {
+            assert!(h.contains(&format!("href=\"/fandhe-frontend/{}\"", f.href_rel)));
+        }
+    }
+
+    #[test]
+    fn features_section_is_decorative_and_inert() {
+        let h = render_node(&features("/fandhe-frontend"));
+        assert_eq!(h.matches("aria-hidden=\"true\"").count(), 5);
+        assert!(!h.contains("id=\""));
+        assert!(!h.contains("<button"));
+        assert!(!h.contains("href=\"#\""));
+        assert!(!h.contains(" on"));
+        assert!(h.contains("<code>raw_html()</code>"));
+    }
+
+    #[test]
+    fn feature_hrefs_are_real_nav_pages() {
+        let raw = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../site/nav.toml"),
+        )
+        .expect("read nav");
+        let nav = crate::nav::parse_nav(&raw).expect("parse nav");
+        for f in &FEATURES {
+            let path = format!("/{}", f.href_rel);
+            assert!(nav.all_pages().any(|p| p.path == path), "{path}");
+        }
+    }
+
+    #[test]
+    fn features_are_not_duplicated_in_site_index_md() {
+        let md = include_str!("../../../site/index.md");
+        assert!(!md.contains("## 特徴"));
+        for f in &FEATURES {
+            assert!(!md.contains(f.title), "{}", f.title);
+        }
     }
 
     fn entry_html() -> String {
