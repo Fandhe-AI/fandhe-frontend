@@ -217,6 +217,12 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 
 - （確定済み）トップの landing 用分岐は §6 の第一案（`layout.rs` に landing 用ラッパー分岐）を採用する。#3598 のフックは `docs-landing` class・CSS を持ち込まず（登録ページが無い状態で class を足すと `site_css_contract.rs` の双方向突合に違反するため）、実装は #3612 がフックの `Prepend` の上に載せる。H1 とリード文の扱いも #3612 が決める。
 - 指標（`stats-row`）に載せる数値の算出元は #3614 で確定する。
+- （確定済み・#3607）ページ見出しは `crates/docs-site/src/page_header.rs` が `build.rs` のページループで、生成節の挿入後に本文先頭へ置く。
+  - Markdown 由来の h1 は pre-styled-ui の `heading` へ置き換えず、パンくずの後ろへ移設する（`header.docs-page-heading`）。`heading` は `data-scope` を持つため、検索インデックスから h1 の文言が落ちるのと、「文書の h1 = `data-scope` の外の `<h1>`」という判定が崩れるのを避ける。Themes・Blocks のデモ内の h1 は `data-scope="heading"` 付きで、文書の見出し構造には数えない。
+  - パンくずは `Nav` から作る（セクション / グループ（非リンクの `span`） / ページ）。セクション索引ページは自分自身へ戻るリンクを作らず、セクション名のみを現在項目にする。トップ `/` は対象外（#3612）。区切りは `breadcrumb::separator`（`aria-hidden`）。
+  - 説明文（`text`）は front matter が未対応のため見送る。
+  - Primitives ページは breadcrumb recipe を含まない `site-primitives.css` を読むため、`STRUCTURAL_CSS` に同値の代替規則を置く（`.docs-content` 前置で詳細度を確保）。
+  - `< 1200px` では本文冒頭の折りたたみ目次がパンくずより上に出る（DOM 順序の契約を変えないため許容）。
 
 ## 12. 関連文書
 
