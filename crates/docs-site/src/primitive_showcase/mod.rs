@@ -99,7 +99,9 @@ const DEMO_NOTE: &str =
 const LAYOUT_CSS: &str = "\
 .primitives-showcase {\n  display: block;\n}\n\
 .primitives-demo-note {\n  font-size: 0.875rem;\n  color: var(--fandhe-color-fg-muted);\n  margin: 0 0 0.75rem;\n}\n\
-.primitives-demo-frame {\n  border: 1px dashed var(--fandhe-color-border);\n  border-radius: 0.5rem;\n  padding: 1rem;\n  margin: 0 0 1.5rem;\n  background: var(--fandhe-color-bg-subtle);\n  overflow-x: auto;\n}\n\
+.primitives-demo-frame {\n  box-sizing: border-box;\n  min-width: 0;\n  max-width: 100%;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  padding: var(--fandhe-space-6);\n  margin: 0 0 1.5rem;\n  background: var(--fandhe-color-bg-subtle);\n  overflow-x: auto;\n}\n\
+.primitives-showcase section.primitives-demo-anatomy pre {\n  box-sizing: border-box;\n  max-width: 100%;\n  overflow-x: auto;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  background: var(--fandhe-color-bg-subtle);\n  padding: var(--fandhe-space-6);\n  line-height: 1.7;\n}\n\
+@media (max-width: 767.98px) {\n  .primitives-demo-frame, .primitives-showcase section.primitives-demo-anatomy pre {\n    padding: var(--fandhe-space-4);\n  }\n}\n\
 .primitives-demo-questionnaire-thanks {\n  padding: 0.5rem 0;\n}\n";
 
 /// Demo 1 件分の共通ラッパ。`title` は部品名（`h2`）、`body` はデモ本体

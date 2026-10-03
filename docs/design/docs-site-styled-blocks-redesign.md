@@ -50,7 +50,7 @@
 | トップ: 入口と指標 | `cta-feature-links` / `stats-row` | card / stat / heading / button / separator | 手本の画像 4 件（`stats-row`）: 外部画像・ダミー素材は持ち込まない | 指標はビルド時に算出可能な値（部品数等）のみ。捏造値は置かない | #3614 | `cta-feature-links-1440-light.png` / `stats-row-1440-light.png` |
 | トップ: コード例と CTA | `code-block-header` / `cta-centered` | button / code / badge / card / heading / text | 手本の複数ボタン（9 件）: CTA は 1〜2 件に絞る | コード例は `site/` の実在サンプルから引く | #3615 | `code-block-header-1440-light.png` / `cta-centered-1440-light.png` |
 | セクション索引 | `feature-image-cards` / `grid-list-action-tiles` / `grid-list-compact-tiles` | card / badge / heading / text / link（全面リンク） | 画像（7 件）・avatar・menu（compact-tiles が含む）: 持ち込まない | 画像の代わりに icon と badge。カテゴリ見出し単位のグリッド | #3616〜#3618 | `feature-image-cards-1440-light.png` / `grid-list-action-tiles-1440-light.png` / `grid-list-compact-tiles-1440-light.png` |
-| 部品ページの Demo | `example-preview-toolbar` | card / code | tabs・select・状態を持つ button: JS 範囲外 | プレビュー枠の外形（card）とコード表示の見出し帯だけを取り込む | #3619 | `example-preview-toolbar-1440-light.png` |
+| 部品ページの Demo | `example-preview-toolbar` | card / code | tabs・select・状態を持つ button: JS 範囲外 | プレビュー枠の外形（card 相当を素の `div` で再現。理由は §11.1）とコード表示の見出し帯だけを取り込む | #3619 | `example-preview-toolbar-1440-light.png` |
 | コードブロック | `code-block-header` | badge / button / code | button の既定表示: 既定 `hidden`、配線後に表示 | 言語ラベル + コピー。クリップボード不可なら `hidden` のまま | #3620 | `code-block-header-1440-light.png` |
 | API 表 | `api-reference-props-table` / `api-reference-param-list` | table / code / badge / heading / text / separator | なし | 表は広幅、param-list は狭幅の縦リスト。横はみ出しを起こさない | #3621 | `api-reference-props-table-1440-light.png` / `api-reference-param-list-1440-light.png` |
 | 404 | `error-page-popular-links` | empty_state / list / link / icon / heading | 手本の外部リンク 3 件 | 人気リンクは `Nav` 由来の内部リンク | #3623 | `error-page-popular-links-1440-light.png` |
@@ -214,6 +214,15 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
   - 説明文（`text`）は front matter が未対応のため見送る。
   - Primitives ページは breadcrumb recipe を含まない `site-primitives.css` を読むため、`STRUCTURAL_CSS` に同値の代替規則を置く（`.docs-content` 前置で詳細度を確保）。
   - `< 1200px` では本文冒頭の折りたたみ目次がパンくずより上に出る（DOM 順序の契約を変えないため許容）。
+
+## 11.1 確定事項（#3619 部品ページの Demo）
+
+- 枠は `card::root` ではなく素の `div` で外形（枠線・角丸・背景）を再現する。`data-scope="card"` を持つと、(a) Anatomy の scope 解決が最外の `data-scope` へフォールバックして枠を誤検出する、(b) 検索インデックスが `data-scope` 配下を丸ごと除外して説明文まで消える、(c) Primitives は recipe 抜きの CSS を読むため見た目が出ない、の 3 点が起きる。§3 の「card」はこの意味での外形のみを指す。
+- class 名は層ごとの接頭辞にする。Themes は `showcase-preview` / `showcase-axis` / `showcase-axis-label` / `showcase-anatomy`（`showcase::SHOWCASE_LAYOUT_CSS`）、Primitives は `primitives-demo-frame`（既存）/ `primitives-demo-anatomy`（`primitive_showcase::LAYOUT_CSS`）。`docs-*` は layout・nav の骨格用で、`STRUCTURE_CLASS_CONTRACT` の全ページ出現契約があるため Demo 内には置かない。`showcase-row` を部分文字列に含む class は作らない（dialog の契約テストが部分一致で判定する）。
+- Themes の枠は `component_page::demo_section` の 1 箇所で差し込む。先頭 `section` の先頭から続く `p`（説明文）を枠の外に残し、残りを `div.showcase-preview` で包む。想定外の形は無加工で返す。
+- 軸ラベルは `showcase::axis_row` / `axis_stack` で付ける（`span`、見出しにしない）。variant / size / palette / state / shape / orientation / curve 等の軸束縛と、button・table・bar-chart の各行が対象。ラベルは `data-scope` の外にあるため短い英語の語に限り、検索インデックスへ入る点は許容する。
+- Anatomy は `h2` と `pre > code` の隣接・字下げ本文の形式を変えず（テストのパーサが依存）、`section` の class と CSS だけで枠と同じ体裁にする。
+- Blocks（`.blocks-demo`）は DOM・class を変えず、CSS の値のみトークン化して共通の枠にそろえる。
 
 ## 12. 関連文書
 
