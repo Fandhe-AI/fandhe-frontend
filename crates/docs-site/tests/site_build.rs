@@ -302,10 +302,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // ファイルへ分割され、15 → 15 + セクション数になった。イシュー #3604 で favicon（`assets/favicon.svg`）が全ビルド無条件で加わり 16 + セクション数になった（件数は nav.toml
     // から導出し、セクション追加時に本テストの手修正を要しない）。
     // Primitives ページ専用の recipe 抜き `site-primitives.css`（イシュー
-    // #3599 のレビュー指摘）が加わり 1 件増えた（favicon との合算で 17 + セクション数）。
+    // #3599 のレビュー指摘）が加わり 1 件増えた（favicon との合算で 17 + セクション数）。イシュー #3616 で索引カード専用
+    // `section-index.css` が加わり 18 + セクション数になった。
     assert_eq!(
         report.assets.len(),
-        17 + nav.sections.len(),
+        18 + nav.sections.len(),
         "{:?}",
         report.assets
     );
@@ -692,36 +693,15 @@ fn docs_site_bin() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_docs-site"))
 }
 
+/// バイナリは本番の生成節登録表（`/guides/`・`/api/`・`/examples/`、#3616）を
+/// 使うため、登録ページを nav に持たない fixture はビルドできない（fail-closed）。
+/// 成功経路は実リポジトリで検証する。
 #[test]
-fn binary_exits_zero_and_reports_written_counts_for_ok_fixture() {
+fn binary_exits_zero_and_reports_written_counts_for_real_site() {
     let out = TempDir::new("bin-ok");
-    // バイナリは本番登録表を使うため、`/` にはトップのランディング（クイック
-    // スタートへの CTA）が載る。フィクスチャ `site-ok` は `/` を持つが
-    // `/getting-started/quickstart/` を持たないので、CTA の遷移先だけを足した
-    // 作業コピーをビルドする（アサーションは緩めない）。
-    let root = TempDir::new("bin-ok-root");
-    let src = fixture_root("site-ok").join("site");
-    std::fs::create_dir_all(root.0.join("site/guide")).expect("mkdir guide");
-    std::fs::create_dir_all(root.0.join("site/getting-started")).expect("mkdir gs");
-    std::fs::copy(src.join("index.md"), root.0.join("site/index.md")).expect("copy index");
-    std::fs::copy(
-        src.join("guide/quickstart.md"),
-        root.0.join("site/guide/quickstart.md"),
-    )
-    .expect("copy quickstart");
-    std::fs::write(
-        root.0.join("site/getting-started/quickstart.md"),
-        "## Start\n\nlanding CTA target\n",
-    )
-    .expect("write cta target");
-    let mut nav = std::fs::read_to_string(src.join("nav.toml")).expect("read nav");
-    nav.push_str(
-        "\n[[section.page]]\ntitle = \"Start\"\nsource = \"site/getting-started/quickstart.md\"\npath = \"/getting-started/quickstart/\"\n",
-    );
-    std::fs::write(root.0.join("site/nav.toml"), nav).expect("write nav");
     let output = Command::new(docs_site_bin())
         .arg("--root")
-        .arg(&root.0)
+        .arg(shared_site::repo_root())
         .arg("--out")
         .arg(&out.0)
         .output()
@@ -735,16 +715,38 @@ fn binary_exits_zero_and_reports_written_counts_for_ok_fixture() {
     );
     assert!(out.0.join("index.html").exists());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("wrote 3 page(s)"));
+    assert!(stdout.contains("wrote "));
 }
 
+/// 本番登録表が要求する 3 ページを持つ一時サイトで、リンク切れを検知する。
 #[test]
 fn binary_exits_nonzero_with_link_check_report_for_broken_fixture() {
     let temp = TempDir::new("bin-broken");
+    let root = temp.0.join("root");
+    std::fs::create_dir_all(root.join("site")).expect("mkdir site");
+    let mut nav = String::from("[site]\ntitle = \"Broken\"\nbase_path = \"\"\n");
+    for (title, path, file) in [
+        ("Guides", "/guides/", "g"),
+        ("API Reference", "/api/", "a"),
+        ("Examples", "/examples/", "e"),
+        ("Home", "/", "h"),
+        ("Start", "/getting-started/quickstart/", "q"),
+    ] {
+        nav.push_str(&format!(
+            "\n[[section]]\ntitle = \"{title}\"\nindex_path = \"{path}\"\n\n[[section.page]]\ntitle = \"{title}\"\nsource = \"site/{file}.md\"\npath = \"{path}\"\n"
+        ));
+        let body = if file == "g" {
+            "# Broken\n\nThis links to a [page that does not exist](./missing.md).\n"
+        } else {
+            "# Ok\n\nBody.\n"
+        };
+        std::fs::write(root.join(format!("site/{file}.md")), body).expect("write md");
+    }
+    std::fs::write(root.join("site/nav.toml"), nav).expect("write nav");
     let out_dir = temp.0.join("dist");
     let output = Command::new(docs_site_bin())
         .arg("--root")
-        .arg(fixture_root("site-broken-link"))
+        .arg(&root)
         .arg("--out")
         .arg(&out_dir)
         .output()
@@ -752,7 +754,7 @@ fn binary_exits_nonzero_with_link_check_report_for_broken_fixture() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("link check failed"));
+    assert!(stderr.contains("link check failed"), "{stderr}");
     assert!(stderr.contains("missing.md"));
     assert!(!out_dir.exists());
 }
