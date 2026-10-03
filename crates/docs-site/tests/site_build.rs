@@ -480,6 +480,15 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
                 r#"href="/fandhe-frontend/getting-started/quickstart/""#,
                 r#"data-docs-hero-cta="primary""#,
                 r#"data-docs-hero-cta="secondary""#,
+                r#"class="docs-landing-cards""#,
+                r#"class="docs-landing-stats""#,
+                r#"href="/fandhe-frontend/guides/""#,
+                r#"href="/fandhe-frontend/api/""#,
+                r#"href="/fandhe-frontend/primitives/""#,
+                r#"href="/fandhe-frontend/themes/""#,
+                r#"href="/fandhe-frontend/blocks/""#,
+                r#"href="/fandhe-frontend/wireframes/""#,
+                r#"data-scope="stat""#,
             ] {
                 assert!(
                     html.contains(needle),
@@ -695,33 +704,15 @@ fn docs_site_bin() -> PathBuf {
 #[test]
 fn binary_exits_zero_and_reports_written_counts_for_ok_fixture() {
     let out = TempDir::new("bin-ok");
-    // バイナリは本番登録表を使うため、`/` にはトップのランディング（クイック
-    // スタートへの CTA）が載る。フィクスチャ `site-ok` は `/` を持つが
-    // `/getting-started/quickstart/` を持たないので、CTA の遷移先だけを足した
-    // 作業コピーをビルドする（アサーションは緩めない）。
-    let root = TempDir::new("bin-ok-root");
-    let src = fixture_root("site-ok").join("site");
-    std::fs::create_dir_all(root.0.join("site/guide")).expect("mkdir guide");
-    std::fs::create_dir_all(root.0.join("site/getting-started")).expect("mkdir gs");
-    std::fs::copy(src.join("index.md"), root.0.join("site/index.md")).expect("copy index");
-    std::fs::copy(
-        src.join("guide/quickstart.md"),
-        root.0.join("site/guide/quickstart.md"),
-    )
-    .expect("copy quickstart");
-    std::fs::write(
-        root.0.join("site/getting-started/quickstart.md"),
-        "## Start\n\nlanding CTA target\n",
-    )
-    .expect("write cta target");
-    let mut nav = std::fs::read_to_string(src.join("nav.toml")).expect("read nav");
-    nav.push_str(
-        "\n[[section.page]]\ntitle = \"Start\"\nsource = \"site/getting-started/quickstart.md\"\npath = \"/getting-started/quickstart/\"\n",
-    );
-    std::fs::write(root.0.join("site/nav.toml"), nav).expect("write nav");
+    // バイナリは本番登録表を使うため、`/` のランディングが Primitives / Themes /
+    // Blocks / Wireframes の索引へ入口カードでリンクする。これらの索引は
+    // レジストリから全部品へのリンクを生成するので、最小フィクスチャでは
+    // リンク検証を満たせない。実リポジトリを root にし、書き出し件数は
+    // 共有ビルドの結果と一致することで固定する（アサーションは緩めない）。
+    let root = shared_site::repo_root();
     let output = Command::new(docs_site_bin())
         .arg("--root")
-        .arg(&root.0)
+        .arg(&root)
         .arg("--out")
         .arg(&out.0)
         .output()
@@ -735,7 +726,8 @@ fn binary_exits_zero_and_reports_written_counts_for_ok_fixture() {
     );
     assert!(out.0.join("index.html").exists());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("wrote 3 page(s)"));
+    let expected = shared_site::real_site().report.written.len();
+    assert!(stdout.contains(&format!("wrote {expected} page(s)")));
 }
 
 #[test]
