@@ -1493,7 +1493,7 @@ fn header_menu_overrides_nav_list_column_direction() {
     assert!(rule_body(&css, "\n.docs-brand {").contains("white-space: nowrap;"));
 }
 
-/// 768px 以上 1280px 未満では全トリガーが 1 段に収まらないため、ナビを
+/// 768px 以上 1200px 未満（イシュー #3673 で 1280px から変更）では全トリガーが 1 段に収まらないため、ナビを
 /// 2 段目へ折り返し、ヘッダーを内容に合わせて伸ばす。実高さは CSS で
 /// 取得できないため、この帯域ではヘッダーを sticky にせず、サイドバー・
 /// 右目次・見出しアンカーのオフセットをヘッダー高さから切り離す。どれかが
@@ -1501,7 +1501,7 @@ fn header_menu_overrides_nav_list_column_direction() {
 #[test]
 fn mid_width_header_stacks_nav_on_second_row_inside_header() {
     let css = site_css();
-    let marker = "@media (min-width: 768px) and (max-width: 1279.98px) {";
+    let marker = "@media (min-width: 768px) and (max-width: 1199.98px) {";
     let start = css
         .find(marker)
         .unwrap_or_else(|| panic!("mid-width header media block missing: {marker}"));
@@ -1515,7 +1515,7 @@ fn mid_width_header_stacks_nav_on_second_row_inside_header() {
         // トリガーが 1 行に収まらない場合もメニューを折り返して画面右端を越えない。
         ".docs-header nav.docs-header-nav .docs-header-menu {\nflex-wrap: wrap;",
         ".docs-header-nav {\norder: 1;\nflex-basis: 100%;",
-        ".docs-sidebar,\n.docs-toc-aside {\ntop: 0;\nmax-height: 100vh;",
+        ".docs-sidebar {\ntop: 0;\nmax-height: 100vh;",
         ".docs-content h2,\n.docs-content h3 {\nscroll-margin-top: 1rem;",
     ] {
         assert!(
@@ -1530,6 +1530,42 @@ fn mid_width_header_stacks_nav_on_second_row_inside_header() {
     assert!(!block.contains("scroll-margin-top: calc(var(--fandhe-space-docs-header-height"));
     // 2 段ヘッダー高さのトークンが定義されている（未定義の var() は高さ 0 扱いになる）。
     assert!(css.contains("--fandhe-space-docs-header-height-stacked: 5.75rem;"));
+}
+
+/// 1200px 以上は 1 段ヘッダー。ナビは縮む側、アクション群は縮めない側とし、
+/// 1200px 以上 1440px 未満ではアクション群を clip でアイコンのみにして
+/// 末尾のセクションが操作部の下へ潜らないようにする（イシュー #3673）。
+/// アクセシブル名は GitHub の文字列と `aria-label` が保つため clip 対象は可視ラベルのみ。
+#[test]
+fn one_row_header_compacts_actions_between_1200_and_1440() {
+    let css = site_css();
+    let block_1200 = css.split("@media (min-width: 1200px) {").nth(1).unwrap();
+    assert!(block_1200.contains(".docs-header-nav {\nflex: 0 1 auto;"));
+    assert!(block_1200.contains(".docs-header-actions {\nflex: none;"));
+
+    let marker = "@media (max-width: 1439.98px) and (min-width: 1200px) {";
+    let start = css
+        .find(marker)
+        .unwrap_or_else(|| panic!("compact header media block missing: {marker}"));
+    let block = &css[start..];
+    let block = &block[..block.find("\n}\n}\n").expect("compact block should close")];
+    for sel in [
+        ".docs-github-label,",
+        ".docs-theme-toggle-label,",
+        ".docs-search-trigger-label,",
+        ".docs-search-trigger-key {",
+    ] {
+        assert!(
+            block.contains(sel),
+            "compact block lacks clip target `{sel}`"
+        );
+    }
+    assert!(block.contains("clip: rect(0 0 0 0);"));
+    // 隠すのではなく詰める: nav を display:none / overflow:hidden で切らない。
+    assert!(!block.contains("display: none"));
+    assert!(
+        css.contains("@media (min-width: 1440px) {\n.docs-header-actions {\npadding-left: 1.5rem;")
+    );
 }
 
 /// 狭いスマホ幅でヘッダーアクション群が縮められず横スクロールを生まない。

@@ -234,9 +234,10 @@ fn docs_theme() -> Result<Theme, ThemeError> {
     theme.push_space("docs-sidebar-width", "16rem")?;
     theme.push_space("docs-max-content-width", "46rem")?;
     theme.push_space("docs-header-height", "3.25rem")?;
-    // `768px 以上 1280px 未満` でヘッダーを 2 段（1 段目: ブランド + アクション、
+    // `768px 以上 1200px 未満` でヘッダーを 2 段（1 段目: ブランド + アクション、
     // 2 段目: ヘッダーナビ）にするときの高さ。全セクションのトリガーを
-    // 1 段に並べるには約 1240px 必要で、この帯域では収まらないため
+    // 1 段に並べるには、アクションを詰めても約 1140px 必要で、実測余裕を含めた
+    // 境界 1200px 未満では収まらないため
     // （STRUCTURAL_CSS 末尾の 2 段ヘッダー `@media` ブロック参照）。
     // 内容が折り返すとさらに伸びるため最小高さとして使う。
     theme.push_space("docs-header-height-stacked", "5.75rem")?;
@@ -1729,6 +1730,17 @@ nav.prev-next .next .docs-pager-meta {\n\
       var(--fandhe-space-docs-toc-width);\n\
   }\n\
 \n\
+  /* 1 段ヘッダー（イシュー #3673）: ナビは内容幅を基準に、足りなければ縮む\n\
+   * 側に回し、アクション群は縮めない。トリガーは nowrap のため、収まらない\n\
+   * 幅は隠さず切らず、この 1200px 境界で 2 段へ倒す（下の 2 段ブロック）。 */\n\
+  .docs-header-nav {\n\
+    flex: 0 1 auto;\n\
+  }\n\
+\n\
+  .docs-header-actions {\n\
+    flex: none;\n\
+  }\n\
+\n\
   .docs-container.docs-container--no-toc {\n\
     grid-template-columns: var(--fandhe-space-docs-sidebar-width) minmax(0, 1fr);\n\
   }\n\
@@ -1765,10 +1777,13 @@ nav.prev-next .next .docs-pager-meta {\n\
 }\n\
 \n\
 /*\n\
- * ---- `768px 以上 1280px 未満`: 2 段ヘッダー ----\n\
+ * ---- `768px 以上 1200px 未満`: 2 段ヘッダー（イシュー #3673） ----\n\
  *\n\
- * ブランド・全セクションのトリガー・アクション群を 1 段に並べるには約\n\
- * 1240px 必要で、この帯域では収まらない。ナビを 2 段目（`order: 1` +\n\
+ * ブランド・全セクションのトリガー・アクション群を 1 段に並べるには、\n\
+ * アクション群をアイコンのみへ詰めても実測で約 1140px 必要で、境界 1200px\n\
+ * 未満では収まらない（フォント差の余裕を含め 1200px を境界とする。\n\
+ * 3 カラムになる 1200px と一致するため、旧 1200〜1280px の重なり帯域は消えた）。\n\
+ * ナビを 2 段目（`order: 1` +\n\
  * `flex-basis: 100%`）へ折り返し、ヘッダー高さを最小\n\
  * `--fandhe-space-docs-header-height-stacked` から内容に合わせて伸ばす。\n\
  * ヘッダーの実高さは折り返し行数で変わり CSS だけでは取得できないため、\n\
@@ -1776,7 +1791,7 @@ nav.prev-next .next .docs-pager-meta {\n\
  * 見出しアンカーのオフセットをヘッダー高さに依存しない値にする。\n\
  * 上記の通常規則より後ろに置くことで同じ詳細度のまま上書きする。\n\
  */\n\
-@media (min-width: 768px) and (max-width: 1279.98px) {\n\
+@media (min-width: 768px) and (max-width: 1199.98px) {\n\
   /* 高さは固定せず最小値とする。フォント差などで 2 段目のトリガーが\n\
    * 1 行に収まらないときはメニュー自体を折り返し、ヘッダーがその分だけ\n\
    * 伸びて下の要素を押し下げる（ナビが画面右端やヘッダー外へ出ない）。 */\n\
@@ -1812,10 +1827,9 @@ nav.prev-next .next .docs-pager-meta {\n\
   }\n\
 \n\
   /* ヘッダーが sticky でないため、sticky カラムはビューポート上端へ\n\
-   * 張り付ける。`.docs-toc-aside` は 1200px 以上でのみ表示（上記 1200px\n\
-   * ブロック）だが、1200〜1280px の重なり帯域のため併記する。 */\n\
-  .docs-sidebar,\n\
-  .docs-toc-aside {\n\
+   * 張り付ける。右目次は 1200px 以上でのみ表示されるため、この帯域には\n\
+   * 含まれない。 */\n\
+  .docs-sidebar {\n\
     top: 0;\n\
     max-height: 100vh;\n\
   }\n\
@@ -1827,9 +1841,46 @@ nav.prev-next .next .docs-pager-meta {\n\
 }\n\
 \n\
 /*\n\
- * ---- `1280px 以上`: ナビと検索欄の間隔確保（イシュー #3659） ----\n\
+ * ---- `1200px 以上 1440px 未満`: アクション群を詰めた 1 段ヘッダー（イシュー #3673） ----\n\
+ *\n\
+ * 実測ではラベル付きの操作部（検索 + GitHub + テーマ）が約 290px あり、1280px で\n\
+ * 末尾のセクションが操作部の下へ潜った。この帯域では GitHub・テーマの可視ラベルと\n\
+ * 検索ボタンの文言・kbd を clip でアイコンのみにし（アクセシブル名は GitHub の\n\
+ * 文字列、`aria-label` が保つ）、トリガーの左右余白とメニューの gap を詰める。\n\
+ * clip 規則は 767.98px 以下のブロックと同一の宣言を持つ。\n\
+ * `(max-width)` を先に書くのは、`@media (min-width: 1200px)` で始まる文字列を\n\
+ * 3 カラム用ブロックだけに予約するため（既存テストが先頭一致で分割する）。\n\
  */\n\
-@media (min-width: 1280px) {\n\
+@media (max-width: 1439.98px) and (min-width: 1200px) {\n\
+  .docs-header-trigger {\n\
+    padding: 0.3rem 0.5rem;\n\
+  }\n\
+\n\
+  .docs-header nav.docs-header-nav .docs-header-menu {\n\
+    gap: 0.15rem;\n\
+  }\n\
+\n\
+  .docs-header-actions {\n\
+    gap: 0.5rem;\n\
+  }\n\
+\n\
+  .docs-github-label,\n\
+  .docs-theme-toggle-label,\n\
+  .docs-search-trigger-label,\n\
+  .docs-search-trigger-key {\n\
+    position: absolute;\n\
+    width: 1px;\n\
+    height: 1px;\n\
+    overflow: hidden;\n\
+    clip: rect(0 0 0 0);\n\
+    white-space: nowrap;\n\
+  }\n\
+}\n\
+\n\
+/*\n\
+ * ---- `1440px 以上`: ナビと操作部の間隔確保（イシュー #3659/#3673） ----\n\
+ */\n\
+@media (min-width: 1440px) {\n\
   .docs-header-actions {\n\
     padding-left: 1.5rem;\n\
   }\n\
@@ -1851,7 +1902,7 @@ nav.prev-next .next .docs-pager-meta {\n\
  * `.docs-header-inner` の flex item へ繰り上げる。JS 無効時は\n\
  * `.docs-search[hidden]` が非表示のため 2 段目は存在せず、`min-height` は\n\
  * 1 段分にとどめる（空の 2 段目を残さない）。実高さは折り返しで変わるため\n\
- * 768〜1279px 帯と同様に static へ戻し、見出しアンカーのオフセットを\n\
+ * 768〜1199px 帯と同様に static へ戻し、見出しアンカーのオフセットを\n\
  * ヘッダー高さに依存させない。\n\
  */\n\
 @media (max-width: 767.98px) {\n\
