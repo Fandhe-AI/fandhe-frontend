@@ -524,6 +524,9 @@ pub fn build_site_with(
             &nav.site.base_path,
             markdown_blocks,
         );
+        // 本文先頭のパンくず付きページ見出し（イシュー #3607）。生成節の挿入が
+        // すべて済んだ後に適用し、見出し部が常に本文の最初の子になるようにする。
+        let markdown_blocks = crate::page_header::wrap_page_heading(&nav, page, markdown_blocks);
         let raw_body = div(vec![], markdown_blocks);
         let rewritten_body = linkcheck::rewrite_md_links(
             raw_body,
