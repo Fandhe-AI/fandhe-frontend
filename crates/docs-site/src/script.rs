@@ -370,9 +370,10 @@ pub const SITE_JS: &str = "\
   }
 
   // 末尾到達は帯内集合が変わらずに起こり得るため、rAF で間引いた passive
-  // scroll で update() を再評価する。
+  // scroll で update() を再評価する。atPageBottom() は window.innerHeight に
+  // 依存するため、画面サイズ変更（resize）でも同じ経路で再判定する。
   var scrollQueued = false;
-  window.addEventListener(`scroll`, function () {
+  function queueUpdate() {
     if (scrollQueued) {
       return;
     }
@@ -381,7 +382,9 @@ pub const SITE_JS: &str = "\
       scrollQueued = false;
       update();
     });
-  }, { passive: true });
+  }
+  window.addEventListener(`scroll`, queueUpdate, { passive: true });
+  window.addEventListener(`resize`, queueUpdate, { passive: true });
 
   var observer = new IntersectionObserver(function (entries) {
     entries.forEach(function (entry) {
@@ -1030,6 +1033,7 @@ mod tests {
             "READING_LINE_PX",
             "lastPassedTarget",
             "passive",
+            "`resize`",
         ] {
             assert!(SITE_JS.contains(needle), "SITE_JS should wire {needle}");
         }
