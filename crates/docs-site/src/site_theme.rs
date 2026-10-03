@@ -705,6 +705,11 @@ body {\n\
   right: 0;\n\
 }\n\
 \n\
+/*\n\
+ * nav_list recipe の `color, background` transition は、テーマ切替の直後に\n\
+ * 途中の色（light 値）を描画してダークの AA を割って見せるため、ページの他要素と\n\
+ * 同じく即時に切り替える（イシュー #3603）。\n\
+ */\n\
 .docs-header nav.docs-header-nav .docs-header-dropdown a {\n\
   display: block;\n\
   padding: 0.32rem 0.5rem;\n\
@@ -712,6 +717,7 @@ body {\n\
   color: var(--fandhe-color-fg-muted);\n\
   text-decoration: none;\n\
   font-size: 0.85rem;\n\
+  transition: none;\n\
 }\n\
 \n\
 .docs-header nav.docs-header-nav .docs-header-dropdown a:hover:hover:hover:not([aria-current=\"page\"]) {\n\
@@ -859,12 +865,18 @@ body {\n\
   margin: 0;\n\
 }\n\
 \n\
+/*\n\
+ * nav_list recipe の `color, background` transition は、テーマ切替の直後に\n\
+ * 途中の色（light 値）を描画してダークの AA を割って見せるため、ページの他要素と\n\
+ * 同じく即時に切り替える（イシュー #3603）。\n\
+ */\n\
 .docs-sidebar nav.sidebar a {\n\
   padding: 0.32rem 0.5rem;\n\
   border-radius: 0.4rem;\n\
   color: var(--fandhe-color-fg-muted);\n\
   font-size: var(--fandhe-font-font-size-sm);\n\
   border-left: 2px solid transparent;\n\
+  transition: none;\n\
 }\n\
 \n\
 /*\n\
@@ -2163,6 +2175,27 @@ mod tests {
         let sheet = stylesheet().expect("site theme stylesheet should assemble");
         let css = sheet.as_css();
         assert!(css.contains(".docs-header-trigger:focus-visible"));
+    }
+
+    #[test]
+    fn stylesheet_disables_nav_list_link_transition_in_sidebar_and_header_dropdown() {
+        // テーマ切替直後に途中の light 値が描画され AA を割る回帰
+        // （イシュー #3603）を防ぐ。nav_list recipe の transition より後ろで
+        // `transition: none` を宣言していることを固定する。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        let recipe = css
+            .find("transition-property: color, background;")
+            .expect("nav_list recipe transition should exist");
+        for selector in [
+            ".docs-sidebar nav.sidebar a {",
+            ".docs-header nav.docs-header-nav .docs-header-dropdown a {",
+        ] {
+            let start = css.find(selector).expect("selector should exist");
+            assert!(start > recipe, "{selector} must follow the recipe");
+            let body = &css[start..start + css[start..].find('}').unwrap()];
+            assert!(body.contains("transition: none;"), "{selector}");
+        }
     }
 
     #[test]

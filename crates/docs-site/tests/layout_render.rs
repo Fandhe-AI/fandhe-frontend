@@ -1197,3 +1197,23 @@ fn docs_page_output_contains_no_form_element() {
     let html = render(&docs_page("タイトル", "", sample_sidebar(), body));
     assert!(!html.contains("<form"));
 }
+
+/// イシュー #3604: 全本体ページの `<head>` が `base_path` 付きの SVG favicon
+/// link を持つ（無いとブラウザが `/favicon.ico` を取りに行き 404 になる）。
+#[test]
+fn head_carries_base_path_aware_svg_favicon_link() {
+    let body = p(vec![], vec![text("本文")]);
+    let cases = [
+        ("/fandhe-frontend", "/fandhe-frontend/assets/favicon.svg"),
+        ("/fandhe-frontend/", "/fandhe-frontend/assets/favicon.svg"),
+        ("", "/assets/favicon.svg"),
+    ];
+    for (base, href) in cases {
+        let html = render(&docs_page("T", base, sample_sidebar(), body.clone()));
+        let link = format!(r#"<link rel="icon" type="image/svg+xml" href="{href}">"#);
+        let at = html
+            .find(&link)
+            .unwrap_or_else(|| panic!("{link} missing in {html}"));
+        assert!(at < html.find("</head>").unwrap());
+    }
+}

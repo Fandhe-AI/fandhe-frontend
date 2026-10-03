@@ -566,6 +566,17 @@ pub fn docs_page_with_assets(
             vec![],
         ),
         el("title", vec![], vec![text(title.to_string())]),
+        // SVG favicon（イシュー #3604）。無指定だとブラウザが `base_path` 外の
+        // `/favicon.ico` を取りに行き 404 になるため、`base_path` 付きで明示する。
+        el(
+            "link",
+            vec![
+                ("rel", "icon"),
+                ("type", "image/svg+xml"),
+                ("href", &asset_href(base_path, crate::favicon::REL_PATH)),
+            ],
+            vec![],
+        ),
     ];
     // FOUC 抑止のインラインスニペット（イシュー #951）。全 `<link
     // rel="stylesheet">` より前に同期実行させ、保存済みテーマがあれば

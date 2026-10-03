@@ -400,6 +400,10 @@ fn redirect_pages_contain_no_script_and_a_static_fallback_link() {
             "{file:?}: redirect pages must not link any stylesheet (no chrome)"
         );
         assert!(
+            !html.contains(r#"rel="icon""#),
+            "{file:?}: redirect pages must not carry favicon link (no chrome)"
+        );
+        assert!(
             !html.contains("class="),
             "{file:?}: redirect pages must not carry any `class` attribute (no chrome)"
         );

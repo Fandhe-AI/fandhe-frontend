@@ -28,6 +28,9 @@
 //!   （`crates/core/src/tags.rs` のショートカット関数）のみを用いる
 //! - Markdown 中に生の HTML タグ（例: `<div>` `<script>`）が現れても構文として
 //!   解釈せず、テキストとしてそのままエスケープ経路へ渡す（HTML ブロック非対応）
+//! - 部品ページの生成文（台帳文字列）向けに、バッククォートのみを `code` へ
+//!   変換する限定入口 [`inline_code_nodes`] を持つ（イシュー #3601）。
+//!   `try_inline_code` を共有するため上記契約と探索上限がそのまま及ぶ
 //! - 外部入力（信頼できない Markdown）を将来受け取る可能性を見越し、本モジュール
 //!   の入力は常に「信頼できない入力」として扱う（`docs/` 配下はリポジトリ管理下だが
 //!   脅威モデル上の扱いは緩めない）
@@ -200,6 +203,39 @@ fn parse_inline(s: &str, depth: usize, in_link: bool) -> Vec<Node> {
     nodes
 }
 
+/// バッククォートのインラインコードスパンだけを `code` 要素へ変換する限定変換
+/// （イシュー #3601）。
+///
+/// 部品ページの生成文（`component_page` / `showcase::section` / motion デモ /
+/// `wireframes` の台帳文字列）から呼ばれ、閉じたバッククォートの範囲を
+/// `code` 要素へ、それ以外を [`text`] ノードへ変換する。[`parse_inline`] と
+/// 異なり強調・リンクは解釈しない（台帳文字列の `*` や `[` を意図せず
+/// 構文化しないため）。閉じのないバッククォートはリテラルのまま残す。
+///
+/// 安全性契約（REQ-1）: 出力は [`text`] ノードと属性なしの `code` 要素のみで、
+/// `raw_html()` は使わない。走査は [`try_inline_code`] と同じ
+/// [`MAX_INLINE_SCAN_WINDOW`] 上限に従う。
+pub fn inline_code_nodes(s: &str) -> Vec<Node> {
+    let chars: Vec<char> = s.chars().collect();
+    let mut nodes: Vec<Node> = Vec::new();
+    let mut literal = String::new();
+    let mut i = 0usize;
+    while i < chars.len() {
+        if chars[i] == '`' {
+            if let Some((mut parsed, next)) = try_inline_code(&chars, i) {
+                flush_literal_keep(&mut literal, &mut nodes);
+                nodes.append(&mut parsed);
+                i = next;
+                continue;
+            }
+        }
+        literal.push(chars[i]);
+        i += 1;
+    }
+    flush_literal_keep(&mut literal, &mut nodes);
+    nodes
+}
+
 /// 蓄積中のリテラル文字列を 1 つの [`text`] ノードとして `nodes` へ確定する。
 ///
 /// ソフト改行センチネル（`'\n'`、モジュール doc「ソフト改行の扱い」参照）は
@@ -209,6 +245,18 @@ fn flush_literal(literal: &mut String, nodes: &mut Vec<Node>) {
     if literal.contains('\n') {
         literal.retain(|c| c != '\n');
     }
+    if !literal.is_empty() {
+        nodes.push(text(literal.as_str()));
+    }
+    literal.clear();
+}
+
+/// [`flush_literal`] の改行保持版。限定変換 [`inline_code_nodes`] 専用。
+///
+/// 限定変換の入力は Markdown 解析を経ない通常文字列で、`'\n'` はソフト改行
+/// センチネルではなく入力本来の文字である。除去すると語が連結される
+/// （例: `first\nsecond` が `firstsecond` になる）ため、そのまま保持する。
+fn flush_literal_keep(literal: &mut String, nodes: &mut Vec<Node>) {
     if !literal.is_empty() {
         nodes.push(text(literal.as_str()));
     }
@@ -1405,6 +1453,68 @@ fn parse_paragraph(lines: &[&str], start: usize) -> (Node, usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 限定変換の出力ノード列を span でラップして HTML 文字列にする補助。
+    fn icn_html(s: &str) -> String {
+        fandhe_frontend_core::render(&el("span", vec![], inline_code_nodes(s)))
+    }
+
+    /// 閉じたバッククォートだけが `code` になり、閉じなしはリテラルのまま残る
+    /// （イシュー #3601）。
+    #[test]
+    fn inline_code_nodes_converts_only_closed_spans() {
+        assert_eq!(icn_html("a `b` c"), "<span>a <code>b</code> c</span>");
+        assert_eq!(icn_html("a `b c"), "<span>a `b c</span>");
+        assert_eq!(icn_html("``a`b``"), "<span><code>a`b</code></span>");
+        assert_eq!(
+            icn_html("`x` and `y`"),
+            "<span><code>x</code> and <code>y</code></span>"
+        );
+        assert_eq!(icn_html("`x`"), "<span><code>x</code></span>");
+        assert_eq!(icn_html(""), "<span></span>");
+        assert_eq!(inline_code_nodes("").len(), 0);
+        assert_eq!(inline_code_nodes("plain").len(), 1);
+    }
+
+    /// 通常テキスト中の改行は限定変換で除去されず保持される（ソフト改行
+    /// センチネル除去は Markdown 解析経路専用）。
+    #[test]
+    fn inline_code_nodes_preserves_plain_newlines() {
+        assert_eq!(icn_html("first\nsecond"), "<span>first\nsecond</span>");
+        assert_eq!(
+            icn_html("a\nb `c` d\ne"),
+            "<span>a\nb <code>c</code> d\ne</span>"
+        );
+    }
+
+    /// 強調・リンクは解釈しない限定変換であること。
+    #[test]
+    fn inline_code_nodes_does_not_parse_other_markdown() {
+        let html = icn_html("*em* **s** [x](https://e.x)");
+        assert_eq!(html, "<span>*em* **s** [x](https://e.x)</span>");
+    }
+
+    /// コード内の HTML・属性 breakout 文字は既定エスケープされる（REQ-1）。
+    #[test]
+    fn inline_code_nodes_escapes_payloads() {
+        let html = icn_html("`<script>alert(1)</script>`");
+        assert!(html.contains("<code>&lt;script&gt;alert(1)&lt;/script&gt;</code>"));
+        assert!(!html.contains("<script>"));
+        let html = icn_html("`\" onmouseover=\"x` `' onfocus='x`");
+        assert!(!html.contains("\" onmouseover"));
+        assert!(!html.contains("' onfocus"));
+        assert_eq!(html.matches("<code>").count(), 2);
+        assert!(!html.contains("<code "));
+    }
+
+    /// 長大入力でもパニックせず完了する（A04）。
+    #[test]
+    fn inline_code_nodes_handles_long_input() {
+        let s = format!("`{}", "a".repeat(100_000));
+        assert!(!inline_code_nodes(&s).is_empty());
+        let s = "`".repeat(100_000);
+        assert!(!inline_code_nodes(&s).is_empty());
+    }
 
     /// 文字種の組ごとの空白要否（イシュー #3600）。
     #[test]

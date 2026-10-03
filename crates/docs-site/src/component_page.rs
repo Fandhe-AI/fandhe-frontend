@@ -561,7 +561,7 @@ fn features_section(spec: &ComponentPageSpec) -> Option<Node> {
     let items = spec
         .features
         .iter()
-        .map(|feature| li(vec![], vec![text(*feature)]))
+        .map(|feature| li(vec![], crate::markdown::inline_code_nodes(feature)))
         .collect();
     Some(el(
         "section",
@@ -654,10 +654,10 @@ fn arguments_table(rows: &[ArgRow]) -> Option<Node> {
             tr(
                 vec![],
                 vec![
-                    td(vec![], vec![text(row.name)]),
-                    td(vec![], vec![text(row.kind)]),
-                    td(vec![], vec![text(row.default)]),
-                    td(vec![], vec![text(row.description)]),
+                    td(vec![], crate::markdown::inline_code_nodes(row.name)),
+                    td(vec![], crate::markdown::inline_code_nodes(row.kind)),
+                    td(vec![], crate::markdown::inline_code_nodes(row.default)),
+                    td(vec![], crate::markdown::inline_code_nodes(row.description)),
                 ],
             )
         })
@@ -737,8 +737,14 @@ fn examples_section(spec: &ComponentPageSpec) -> Option<Node> {
     }
     let mut children = vec![h2(vec![], vec![text("Examples")])];
     for example in spec.examples {
-        children.push(h3(vec![], vec![text(example.title)]));
-        children.push(p(vec![], vec![text(example.description)]));
+        children.push(h3(
+            vec![],
+            crate::markdown::inline_code_nodes(example.title),
+        ));
+        children.push(p(
+            vec![],
+            crate::markdown::inline_code_nodes(example.description),
+        ));
         children.push((example.render)());
     }
     Some(el("section", vec![], children))
@@ -766,8 +772,8 @@ fn accessibility_section(spec: &ComponentPageSpec) -> Option<Node> {
                 tr(
                     vec![],
                     vec![
-                        td(vec![], vec![text(row.key)]),
-                        td(vec![], vec![text(row.description)]),
+                        td(vec![], crate::markdown::inline_code_nodes(row.key)),
+                        td(vec![], crate::markdown::inline_code_nodes(row.description)),
                     ],
                 )
             })
@@ -793,8 +799,8 @@ fn accessibility_section(spec: &ComponentPageSpec) -> Option<Node> {
                 tr(
                     vec![],
                     vec![
-                        td(vec![], vec![text(row.attribute)]),
-                        td(vec![], vec![text(row.description)]),
+                        td(vec![], crate::markdown::inline_code_nodes(row.attribute)),
+                        td(vec![], crate::markdown::inline_code_nodes(row.description)),
                     ],
                 )
             })
