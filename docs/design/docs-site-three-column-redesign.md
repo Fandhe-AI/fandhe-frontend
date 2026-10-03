@@ -661,8 +661,16 @@ Issue・PR に明記する）に準拠すること。
    `crates/docs-site/tests/primitives_catalog.rs` の fail-closed 台帳テストと
    `crates/docs-site/tests/site_nav.rs` のページ数期待値）。
 
+   - 適用記録（トリガー 3）: #3588 ツリーの刷新は骨格の再リデザインに
+     当たるが、3 カラム DOM 骨格・既存 class 名・生成 CSS 一本の供給方式は
+     不変で、契約表は追加のみとする判定を
+     `docs/design/docs-site-styled-blocks-redesign.md` §9.1 に記録した。
+
 ## 11. 関連文書
 
+- `docs/design/docs-site-styled-blocks-redesign.md`: #3588 ツリー（Blocks を
+  手本とした部品合成によるサイト刷新）の設計方針。§10 トリガー 3 の
+  適用判定を含む。
 - `docs/design/docs-site-styled-ui-adoption.md`: §3.4 の再評価
   （イシュー #904）・§5 再評価トリガー 3・4 の消化記録。本文書の
   前提となる統治判断。
