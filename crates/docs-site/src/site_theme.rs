@@ -1984,6 +1984,20 @@ pub const SITE_RECIPES: &[SiteRecipe] = &[
     },
 ];
 
+/// Primitives デモ枠（`primitives-demo-frame`）の内側を除外する `@scope` で
+/// recipe CSS を包む（イシュー #3599 のレビュー指摘）。
+///
+/// 役割: `site.css` は Primitives ページにも読み込まれるが、そこの headless-ui
+/// デモは「スタイルを持たない層」の契約（`primitive_showcase` モジュール doc）
+/// により styled recipe の装飾を受けてはならない。recipe は `[data-scope=...]`
+/// 属性セレクタで headless と同じ markup を対象にするため、セレクタ側では
+/// 区別できない。`@scope (:root) to (.primitives-demo-frame)` は詳細度を加えず
+/// （スコープルートは `:where(:scope)` 相当）、枠内の子孫だけを適用範囲から
+/// 外す。入力 CSS の行構成は変えず、前後に包みの行を足すのみ。
+fn scope_recipe_css(css: &str) -> String {
+    format!("@scope (:root) to (.primitives-demo-frame) {{\n{css}\n}}\n")
+}
+
 /// サイト骨格が参照する CSS 全量を組み立てる。
 ///
 /// 内訳: テーマトークン（`docs_theme`、`Theme::default` + docs 固有拡張）
@@ -2012,7 +2026,7 @@ pub fn stylesheet() -> Result<StyleSheet, SiteThemeError> {
     sheet.push_theme(&theme);
     sheet.push_css(&fandhe_frontend_pre_styled_ui::nav_list::stylesheet())?;
     for recipe in SITE_RECIPES {
-        sheet.push_css(&(recipe.css)())?;
+        sheet.push_css(&scope_recipe_css(&(recipe.css)()))?;
     }
     sheet.push_css(STRUCTURAL_CSS)?;
     sheet.push_css(&typography_css()?)?;

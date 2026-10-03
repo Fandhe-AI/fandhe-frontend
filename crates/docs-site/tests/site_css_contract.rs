@@ -1561,6 +1561,28 @@ fn site_css_never_supplies_forbidden_scopes_or_bulk_showcase_css() {
     );
 }
 
+/// Primitives ページは `site.css` を読み込むが、headless-ui デモ（`primitives-demo-frame`
+/// 内）は styled recipe の装飾を受けてはならない（「スタイルを持たない層」契約）。
+/// 全 recipe が `@scope (:root) to (.primitives-demo-frame)` で包まれていることを固定する。
+#[test]
+fn site_recipes_are_scoped_out_of_primitives_demo_frame() {
+    let css = site_css();
+    let open = "@scope (:root) to (.primitives-demo-frame) {\n";
+    for r in site_theme::SITE_RECIPES {
+        let wrapped = format!("{open}{}\n}}\n", (r.css)());
+        assert!(
+            css.contains(&wrapped),
+            "recipe {} が Primitives デモ枠を除外する @scope で包まれていない",
+            r.name
+        );
+    }
+    assert_eq!(
+        css.matches(open).count(),
+        site_theme::SITE_RECIPES.len(),
+        "@scope 包みの件数が recipe 件数と一致しない"
+    );
+}
+
 /// `site.css` から recipe 全文とコメントを除いた残り（docs 側の規則）の
 /// セレクタ行（`{` で終わる行）を返す。
 fn docs_side_selector_lines() -> Vec<String> {
