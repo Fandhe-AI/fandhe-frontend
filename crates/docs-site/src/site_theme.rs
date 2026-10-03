@@ -578,11 +578,7 @@ body {\n\
   border-bottom: 1px solid var(--fandhe-color-border);\n\
 }\n\
 \n\
-/* ラベルもなくボタンも hidden（無 JS 等）のときは空の帯を残さない。 */\n\
-.docs-code-header:not(:has(.docs-code-lang)):has(> .docs-code-copy[hidden]) {\n\
-  display: none;\n\
-}\n\
-\n\
+/* 帯は常に flow へ置く（ボタンの hidden 解除で pre が押し下がる読み込み時のずれを避ける）。 */\n\
 .docs-code-lang {\n\
   font-size: 0.75rem;\n\
   font-weight: 500;\n\

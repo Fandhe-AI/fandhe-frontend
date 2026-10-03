@@ -13,10 +13,23 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use fandhe_frontend_core::render;
+use fandhe_frontend_docs_site::code_copy::{
+    CODE_BLOCK_CLASS, CODE_HEADER_CLASS, CODE_LANG_CLASS, COPY_BUTTON_CLASS, COPY_STATUS_CLASS,
+};
 use fandhe_frontend_docs_site::component_page::{
     render_component_page, ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow, Layer,
 };
 use fandhe_frontend_docs_site::{component_page, primitive_specs, primitives_catalog};
+
+/// Examples の CSS スニペットが出してよいコードブロック系 class の明示一覧（#3620）。
+/// 前方一致では許可せず、追加した class だけを契約として固定する。
+const ALLOWED_CODE_CLASSES: [&str; 5] = [
+    CODE_BLOCK_CLASS,
+    CODE_HEADER_CLASS,
+    CODE_LANG_CLASS,
+    COPY_BUTTON_CLASS,
+    COPY_STATUS_CLASS,
+];
 
 /// `CARGO_MANIFEST_DIR`（`crates/docs-site`）から repo_root を解決する
 /// （`tests/primitives_catalog.rs` 等と同じ規約）。
@@ -261,7 +274,7 @@ fn navigation_examples_introduce_no_foreign_classes() {
                     token == "primitives-showcase"
                         || token.starts_with("primitives-demo-")
                         // Examples の CSS スニペットのヘッダー（#3620）
-                        || token.starts_with("docs-code-")
+                        || ALLOWED_CODE_CLASSES.contains(&token)
                         || token == "language-css",
                     "{path}: unexpected class token {token:?} (html={html})"
                 );

@@ -1826,5 +1826,6 @@ fn code_block_wrapper_owns_border_and_header_rules_outrank_typography_pre() {
     assert!(css.contains(".docs-content .docs-code-block pre {"));
     assert!(css.contains(".docs-code-header {"));
     assert!(css.contains(".docs-code-lang {"));
-    assert!(css.contains(".docs-code-header:not(:has(.docs-code-lang))"));
+    // 帯を :has() で隠すと hidden 解除時にレイアウトがずれるため、隠す規則は持たない。
+    assert!(!css.contains(".docs-code-header:not(:has("));
 }
