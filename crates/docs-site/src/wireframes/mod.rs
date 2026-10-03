@@ -333,10 +333,10 @@ pub fn insert_generated_sections_with(
                 tr(
                     vec![],
                     vec![
-                        td(vec![], vec![text(row.name)]),
-                        td(vec![], vec![text(row.kind)]),
-                        td(vec![], vec![text(row.default)]),
-                        td(vec![], vec![text(row.description)]),
+                        td(vec![], crate::markdown::inline_code_nodes(row.name)),
+                        td(vec![], crate::markdown::inline_code_nodes(row.kind)),
+                        td(vec![], crate::markdown::inline_code_nodes(row.default)),
+                        td(vec![], crate::markdown::inline_code_nodes(row.description)),
                     ],
                 )
             })
@@ -473,6 +473,28 @@ mod tests {
         // XSS 回帰: description に含めた <script> がエスケープされること。
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(html.contains("&lt;script&gt;"));
+    }
+
+    /// 引数表の description 内のバッククォートが `code` 要素になり、中身は
+    /// 既定エスケープされること（イシュー #3601、REQ-1）。
+    #[test]
+    fn args_table_renders_inline_code_with_escaping() {
+        let registry = [Wireframe {
+            path: "/wireframes/sample/",
+            title: "Sample",
+            args: &[ArgRow {
+                name: "`name`",
+                kind: "&str",
+                default: "-",
+                description: "`<script>alert(1)</script>` を渡す",
+            }],
+            demo: || div(vec![], vec![text("demo body")]),
+        }];
+        let result = insert_generated_sections_with(&registry, "/wireframes/sample/", "/b", vec![]);
+        let html = render(&div(vec![], result));
+        assert!(html.contains("<code>name</code>"));
+        assert!(html.contains("<code>&lt;script&gt;alert(1)&lt;/script&gt;</code>"));
+        assert!(!html.contains("<script>"));
     }
 
     #[test]

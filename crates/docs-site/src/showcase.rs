@@ -1297,7 +1297,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
 fn section(heading: &str, description: &str, demos: Vec<Node>) -> Node {
     let mut children = vec![
         el("h2", vec![], vec![text(heading)]),
-        el("p", vec![], vec![text(description)]),
+        el("p", vec![], crate::markdown::inline_code_nodes(description)),
     ];
     children.extend(demos);
     el("section", vec![], children)
@@ -2437,10 +2437,10 @@ fn scroll_reveal_demo() -> Node {
             ),
             p(
                 vec![],
-                vec![text(
+                crate::markdown::inline_code_nodes(
                     "対応ブラウザ（`animation-timeline: view()` サポート）ではスクロールに応じて各行がフェードインします。\
                      非対応ブラウザでは `@supports` ブロックごと無視されるため、常に通常表示のまま安全に劣化します（JS 不要）。",
-                )],
+                ),
             ),
             div(
                 vec![("class", "showcase-scroll-reveal-list")],
@@ -2484,10 +2484,10 @@ fn stagger_demo() -> Node {
             el("h3", vec![], vec![text("Demo: stagger（JS 不要）")]),
             p(
                 vec![],
-                vec![text(
+                crate::markdown::inline_code_nodes(
                     "ページ読み込み時に上から順番に遅延フェードインします（JS 不要、CSS `animation-delay` の\
                      順送り計算のみ）。`prefers-reduced-motion: reduce` では遅延・アニメーションとも消えます。",
-                )],
+                ),
             ),
             div(vec![("class", "showcase-stagger-list")], items),
         ],
@@ -2515,10 +2515,10 @@ fn parallax_demo() -> Node {
             ),
             p(
                 vec![],
-                vec![text(
+                crate::markdown::inline_code_nodes(
                     "対応ブラウザではスクロールに応じて行が上方向へ視差移動します。\
                      非対応ブラウザでは `@supports` ブロックごと無視され、常に静止したまま安全に劣化します（JS 不要）。",
-                )],
+                ),
             ),
             div(
                 vec![("class", "showcase-scroll-reveal-list")],
@@ -2554,10 +2554,10 @@ fn sticky_progress_demo() -> Node {
             ),
             p(
                 vec![],
-                vec![text(
+                crate::markdown::inline_code_nodes(
                     "対応ブラウザではビューポートに完全に収まっている間、行が強調表示（不透明度・拡大率）へ変化します。\
                      非対応ブラウザでは `@supports` ブロックごと無視され、常に通常表示のまま安全に劣化します（JS 不要）。",
-                )],
+                ),
             ),
             div(
                 vec![("class", "showcase-scroll-reveal-list")],
