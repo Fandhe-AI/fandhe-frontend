@@ -638,6 +638,10 @@ Issue・PR に明記する）に準拠すること。
    「無 JS」制約が崩れるため、`menu` 部品適用可否を再評価する）。
 3. サイト骨格（3 カラムレイアウト・生成 CSS 供給方式）の再リデザインを
    行うとき（§4 の CSS 供給方式・§5 の契約テスト方針の前提が変わる）。
+   - 適用記録: #3588 ツリーの刷新は骨格の再リデザインに
+     当たるが、3 カラム DOM 骨格・既存 class 名・生成 CSS 一本の供給方式は
+     不変で、契約表は追加のみとする判定を
+     `docs/design/docs-site-styled-blocks-redesign.md` §9.1 に記録した。
 4. `crates/docs-site/tests/site_css_contract.rs` /
    `crates/docs-site/tests/site_typography_contract.rs` の contract 表
    （`STRUCTURE_CLASS_CONTRACT` 等）を弱体化・削除する提案が出たとき
@@ -660,11 +664,6 @@ Issue・PR に明記する）に準拠すること。
    `docs/design/docs-site-primitives-themes-split.md` §2/§3/§6。検出は
    `crates/docs-site/tests/primitives_catalog.rs` の fail-closed 台帳テストと
    `crates/docs-site/tests/site_nav.rs` のページ数期待値）。
-
-   - 適用記録（トリガー 3）: #3588 ツリーの刷新は骨格の再リデザインに
-     当たるが、3 カラム DOM 骨格・既存 class 名・生成 CSS 一本の供給方式は
-     不変で、契約表は追加のみとする判定を
-     `docs/design/docs-site-styled-blocks-redesign.md` §9.1 に記録した。
 
 ## 11. 関連文書
 
