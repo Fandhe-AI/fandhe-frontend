@@ -123,6 +123,17 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 - ボタンの可視ラベル（Copy / Copied / Failed）は SSG では出さず、JS が `textContent` で入れる（検索インデックスへ共通語を混入させないため）。
 - Phase 3（ヒーロー、#3612）・Phase 5（コードブロックヘッダー、#3620）は、この `div.docs-code-block` ラッパーと JS の契約（ラッパー内の `pre`・ボタン・ステータス）を再利用する。
 
+## 5.1 セクション索引のカードグリッド（#3616）
+
+Guides・API Reference・Examples の 3 セクショントップは、汎用生成節フック（#3598）で差し込むカードグリッドにする。確定事項は次のとおり。
+
+- 説明文の正は `crates/docs-site/src/section_index.rs` の定数台帳（`GUIDES` / `API_GROUPS` / `EXAMPLES`）とする。イシューが挙げた「原稿の最初の段落」「`nav.toml` の `description`」はいずれも `PageSection::render` のシグネチャ変更（原稿・`Nav` の受け渡し）を要し、同フックを使う兄弟イシューとの stale base 衝突リスクが高いため採らない。台帳と `site/nav.toml` の一致は `tests/section_index_nav.rs` が fail-closed で固定する。説明文の正を `nav.toml` へ一本化する案は後続課題。
+- 構造は `ul.docs-index-grid > li.docs-index-card > card::root > card::body(heading > a.docs-index-card-link + text)`。全面リンクは `a::after { position: absolute; inset: 0 }` の伸張リンクで組み、`link_overlay` は使わない（`SITE_RECIPES` から除外済み）。リンク名はタイトルのみ。
+- 専用 CSS は `assets/section-index.css`（`PAGE_STYLESHEETS` へ登録、3 ページにだけ `<link>`）。`site.css` へは積まない。新しい色トークンは作らず、`.docs-content` を前置して typography ミラーに詳細度で勝つ。他の索引（Themes 等）も再利用してよい。
+- Placement は `/guides/` が `Append`（h2 節を全撤去）、`/api/` と `/examples/` が `BeforeFirstH2`。API はクレート別 6 グループ（グループ見出し h2 は TOC・検索に載せ、カードは h3）。
+- `/examples/` の本文（`docs/guides/examples.md`）の比較表・読む順はリンク箇条書きの二重管理ではなく実質的な内容のため変更しない。
+- 本番登録表が実 nav 前提になるため、fixture ビルドは `page_sections::EMPTY_REGISTRY` + `build_site_with` で行う（`validate` の `UnknownPage` 検査は緩めない）。バイナリ経由のテストは実リポジトリ、または登録 3 ページを持つ一時サイトで行う。
+
 ## 6. トップページのレイアウト方針
 
 - 既定案: トップはサイドバー・右目次を出さない全幅ランディングとし、ヘッダーとフッターのみ共通にする。本文用の 3 カラム骨格はトップでは使わない。
