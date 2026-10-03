@@ -75,6 +75,16 @@
 //! CSS 本体の組み立ては他の生成 CSS と同じく書き出しより前に完了させる
 //! （fail-closed）。
 //!
+//! # 汎用生成節フック（[`crate::page_sections`]、イシュー #3598）
+//!
+//! 任意ページへ Rust 生成節を差し込む第 5 の経路。ステップ 2 で
+//! [`blocks`]/[`wireframes`] の挿入の直後に
+//! [`page_sections::insert_generated_sections_with`] を呼ぶ（登録表が空の間は
+//! 全ページ no-op で出力は変わらない）。登録表の整合は nav 検証直後に
+//! [`page_sections::validate`] が書き出し前に検証し、使われた追加 CSS だけを
+//! href 登録・書き出しする。本番は [`build_site`]、合成登録表を使うテストは
+//! [`build_site_with`] を使う。
+//!
 //! # admonition 構文（[`crate::markdown`]）が使う CSS（イシュー #715）
 //!
 //! `> [!NOTE]` 等の admonition マーカーは [`markdown::render_markdown`](crate::markdown::render_markdown) が
@@ -149,6 +159,7 @@ use crate::layout;
 use crate::linkcheck::{self, BrokenLink};
 use crate::markdown::render_markdown;
 use crate::nav::{self, NavError};
+use crate::page_sections::{self, PageSectionError, Registry};
 use crate::primitive_showcase;
 use crate::redirect::{self, RedirectError};
 use crate::script;
@@ -170,7 +181,7 @@ use crate::wireframes;
 /// ヘルパの画像 5 種、イシュー #2737）
 /// （イシュー #1562）はいずれも `assets/<basename>` の形をしており、
 /// `site/assets/` 直下との名前衝突は basename の一致だけで判定できる。
-const RESERVED_ASSET_NAMES: &[&str] = &[
+pub(crate) const RESERVED_ASSET_NAMES: &[&str] = &[
     "site.css",
     "skip-nav.css",
     "pre-styled-ui.css",
@@ -253,6 +264,9 @@ pub enum BuildError {
     /// （`to` 実在確認・`from` 衝突検証）のいずれかが失敗した（イシュー #1016。
     /// `ssg::generate_pages` より前に検知し `out_dir` を汚さない fail-closed）。
     Redirect(RedirectError),
+    /// 汎用生成節の登録表（[`page_sections`]）の整合検証に失敗した
+    /// （イシュー #3598。書き出し前に検知し `out_dir` を汚さない fail-closed）。
+    PageSection(PageSectionError),
 }
 
 impl fmt::Display for BuildError {
@@ -297,6 +311,9 @@ impl fmt::Display for BuildError {
             BuildError::Redirect(e) => {
                 write!(f, "{e}")
             }
+            BuildError::PageSection(e) => {
+                write!(f, "invalid page section registry: {e}")
+            }
         }
     }
 }
@@ -333,6 +350,12 @@ impl From<SearchIndexError> for BuildError {
     }
 }
 
+impl From<PageSectionError> for BuildError {
+    fn from(e: PageSectionError) -> Self {
+        BuildError::PageSection(e)
+    }
+}
+
 impl From<RedirectError> for BuildError {
     fn from(e: RedirectError) -> Self {
         BuildError::Redirect(e)
@@ -347,6 +370,23 @@ impl From<RedirectError> for BuildError {
 /// [`BuildError`] の各種別を参照。リンク切れが 1 件でもあれば
 /// [`BuildError::LinkCheck`] を返し、`out_dir` には一切書き出さない。
 pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, BuildError> {
+    build_site_with(repo_root, out_dir, &page_sections::REGISTRY)
+}
+
+/// [`build_site`] の本体。汎用生成節の登録表（[`page_sections::Registry`]）を
+/// 引数で受け取る（イシュー #3598）。本番は必ず [`build_site`]（本番登録表
+/// [`page_sections::REGISTRY`]）を使う。本関数は合成エントリを使う E2E テスト
+/// （`tests/page_sections.rs`）のための入口であり、登録表の整合は nav 検証の
+/// 直後に [`page_sections::validate`] が書き出し前に検証する。
+///
+/// # Errors
+///
+/// [`build_site`] と同じ。加えて登録表の不整合は [`BuildError::PageSection`]。
+pub fn build_site_with(
+    repo_root: &Path,
+    out_dir: &Path,
+    registry: &Registry,
+) -> Result<BuildReport, BuildError> {
     let nav_path = repo_root.join("site/nav.toml");
     let nav_input = fs::read_to_string(&nav_path).map_err(|source| BuildError::Io {
         path: PathBuf::from("site/nav.toml"),
@@ -354,6 +394,7 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
     })?;
     let nav = nav::parse_nav(&nav_input)?;
     nav::validate_sources(&nav, repo_root)?;
+    page_sections::validate(registry, &nav)?;
 
     // 旧 URL 互換のリダイレクト宣言（イシュー #1016）。`site/redirects.toml`
     // が存在しない場合は `site/assets/` と同じ「不在＝0 件」を許容する
@@ -422,6 +463,9 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
     // （`crate::wireframes` モジュール doc「CSS の置き場」節参照）ため
     // `has_showcase_page` は立てない。
     let mut has_wireframes_page = false;
+    // 汎用生成節（イシュー #3598）が配線した追加 CSS（`rel_path` 重複なし・
+    // 出現順）。使われた CSS だけを href 登録・書き出しする。
+    let mut used_page_stylesheets: Vec<&page_sections::PageStylesheet> = Vec::new();
     // 検索インデックス（イシュー #957 / #3173）用に収集するページエントリを
     // `nav.sections` と同じ順序・同じ件数のバケットへ振り分ける。各バケット
     // 内は `nav.all_pages()` の宣言順（= サイドバー順）で積まれ、マニフェスト
@@ -463,6 +507,15 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
         // 方式」節参照。
         let markdown_blocks =
             wireframes::insert_generated_sections(&page.path, &nav.site.base_path, markdown_blocks);
+        // 汎用生成節（イシュー #3598）。登録表に無いページでは no-op。blocks /
+        // wireframes の挿入後に適用するため、登録可能パスは `/blocks/` 索引を
+        // 除き既存経路と重ならない（`page_sections::validate`）。
+        let markdown_blocks = page_sections::insert_generated_sections_with(
+            registry,
+            &page.path,
+            &nav.site.base_path,
+            markdown_blocks,
+        );
         let raw_body = div(vec![], markdown_blocks);
         let rewritten_body = linkcheck::rewrite_md_links(
             raw_body,
@@ -535,6 +588,16 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
             has_wireframes_page = true;
             extra_stylesheets.push(wireframes::STYLESHEET_REL_PATH);
         }
+        // 汎用生成節の追加 CSS（イシュー #3598）。
+        for sheet in page_sections::stylesheets_for_path_in(registry, &page.path) {
+            extra_stylesheets.push(sheet.rel_path);
+            if !used_page_stylesheets
+                .iter()
+                .any(|s| s.rel_path == sheet.rel_path)
+            {
+                used_page_stylesheets.push(sheet);
+            }
+        }
 
         let mut body_children = vec![rewritten_body];
         if let Some(generated_body) = generated {
@@ -584,7 +647,12 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
         pages.push((page.path.clone(), document));
     }
 
-    let mut asset_hrefs = collect_asset_hrefs(repo_root, &nav.site.base_path)?;
+    let extra_reserved: Vec<&str> = registry
+        .stylesheets
+        .iter()
+        .filter_map(|s| s.rel_path.strip_prefix("assets/"))
+        .collect();
+    let mut asset_hrefs = collect_asset_hrefs(repo_root, &nav.site.base_path, &extra_reserved)?;
 
     // showcase / admonition の専用 CSS はいずれもビルド時生成のため
     // site/assets/ には存在しない。linkcheck が追加 <link> の href を
@@ -651,6 +719,14 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
     } else {
         None
     };
+    // 汎用生成節の追加 CSS（イシュー #3598）。使われたものだけ href 登録し、
+    // linkcheck・書き出しより前に組み立てる（fail-closed）。
+    let mut page_section_sheets: Vec<(&str, fandhe_frontend_pre_styled_ui::StyleSheet)> =
+        Vec::new();
+    for sheet in &used_page_stylesheets {
+        asset_hrefs.push(layout::asset_href(&nav.site.base_path, sheet.rel_path));
+        page_section_sheets.push((sheet.rel_path, (sheet.build)()?));
+    }
     let admonition_sheet = if has_admonition {
         asset_hrefs.push(layout::asset_href(
             &nav.site.base_path,
@@ -701,7 +777,7 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
     // 上書きする）。
     let redirects_written = ssg::generate_pages(&redirect_pages, out_dir)?;
     let written = ssg::generate_pages(&pages, out_dir)?;
-    let mut assets = copy_assets(repo_root, out_dir)?;
+    let mut assets = copy_assets(repo_root, out_dir, &extra_reserved)?;
 
     // ビルド時生成アセット（CSS 5 種・JS 1 種・検索インデックス JSON
     // 〔マニフェスト + セクション数分〕）を
@@ -740,6 +816,9 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
             format!("/{}", wireframes::STYLESHEET_REL_PATH),
             sheet.as_css().to_string(),
         ));
+    }
+    for (rel_path, sheet) in &page_section_sheets {
+        generated_assets.push((format!("/{rel_path}"), sheet.as_css().to_string()));
     }
     if let Some(sheet) = admonition_sheet {
         generated_assets.push((
@@ -793,10 +872,14 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
 /// 再利用しないのは、linkcheck を書き出しより前に完了させる本モジュールの
 /// 処理順（モジュール冒頭の設計）上、コピーの副作用（`out_dir` への書き込み）
 /// より前に href 集合だけを先に必要とするため。
-fn collect_asset_hrefs(repo_root: &Path, base_path: &str) -> Result<Vec<String>, BuildError> {
+fn collect_asset_hrefs(
+    repo_root: &Path,
+    base_path: &str,
+    extra_reserved: &[&str],
+) -> Result<Vec<String>, BuildError> {
     let assets_dir = repo_root.join("site/assets");
     let mut hrefs = Vec::new();
-    for entry in list_regular_files(&assets_dir)? {
+    for entry in list_regular_files(&assets_dir, extra_reserved)? {
         let file_name = entry
             .file_name()
             .and_then(|n| n.to_str())
@@ -825,7 +908,7 @@ fn collect_asset_hrefs(repo_root: &Path, base_path: &str) -> Result<Vec<String>,
 /// 検証。呼び出し元は [`collect_asset_hrefs`]/[`copy_assets`] の双方で
 /// 本関数を経由するため、書き出しより前（`collect_asset_hrefs` の呼び出し
 /// 時点）に検知が完了する）。
-fn list_regular_files(dir: &Path) -> Result<Vec<PathBuf>, BuildError> {
+fn list_regular_files(dir: &Path, extra_reserved: &[&str]) -> Result<Vec<PathBuf>, BuildError> {
     let read_dir = match fs::read_dir(dir) {
         Ok(read_dir) => read_dir,
         Err(source) if source.kind() == std::io::ErrorKind::NotFound => {
@@ -858,7 +941,7 @@ fn list_regular_files(dir: &Path) -> Result<Vec<PathBuf>, BuildError> {
         if file_type.is_file() {
             let path = entry.path();
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                if RESERVED_ASSET_NAMES.contains(&name) {
+                if RESERVED_ASSET_NAMES.contains(&name) || extra_reserved.contains(&name) {
                     return Err(BuildError::ReservedAssetName(path));
                 }
             }
@@ -872,7 +955,11 @@ fn list_regular_files(dir: &Path) -> Result<Vec<PathBuf>, BuildError> {
 }
 
 /// `repo_root/site/assets/` 配下の通常ファイルを `out_dir/assets/` へコピーする。
-fn copy_assets(repo_root: &Path, out_dir: &Path) -> Result<Vec<PathBuf>, BuildError> {
+fn copy_assets(
+    repo_root: &Path,
+    out_dir: &Path,
+    extra_reserved: &[&str],
+) -> Result<Vec<PathBuf>, BuildError> {
     let assets_dir = repo_root.join("site/assets");
     let out_assets_dir = out_dir.join("assets");
     fs::create_dir_all(&out_assets_dir).map_err(|source| BuildError::Io {
@@ -881,7 +968,7 @@ fn copy_assets(repo_root: &Path, out_dir: &Path) -> Result<Vec<PathBuf>, BuildEr
     })?;
 
     let mut copied = Vec::new();
-    for src in list_regular_files(&assets_dir)? {
+    for src in list_regular_files(&assets_dir, extra_reserved)? {
         let file_name = src.file_name().unwrap_or_default();
         let dest = out_assets_dir.join(file_name);
         fs::copy(&src, &dest).map_err(|source| BuildError::Io {
