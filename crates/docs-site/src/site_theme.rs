@@ -44,8 +44,11 @@
 //!       div.docs-search            … 検索ブロック（既定 `hidden`、イシュー #958）
 //!         label.docs-search-label（`for="docs-search-input"`、視覚上のみ
 //!           clip で隠す。fandhe-backend とのデザイン統一のため追加）
-//!         input.docs-search-input（`id="docs-search-input"`） … `data-search-index`
-//!           でインデックス JSON を参照
+//!         div[data-scope="input-group"]（pre-styled-ui `input_group`、#3606）
+//!           input.docs-search-input（`id="docs-search-input"`、素の input）
+//!             … `data-search-index` でインデックス JSON を参照。前後の addon に
+//!             虫眼鏡 icon と `kbd` の「/」を置く
+//!           （label と結果一覧は group の外側の兄弟）
 //!         ul.docs-search-results（`#docs-search-results`、既定 `hidden`）
 //!           li.docs-search-result（JS 実行時生成。`role="option"`）
 //!             a（クリック可能なヒットターゲット本体。行のクロム
@@ -55,8 +58,10 @@
 //!               span.docs-search-result-title
 //!               span.docs-search-result-section（見出し一致時のみ）
 //!           li.docs-search-empty（JS 実行時生成。0 件 or fetch 失敗時）
-//!       a.docs-github-link        … GitHub リポジトリへの外部リンク
-//!       button.docs-theme-toggle  … テーマトグル（既定 `hidden`。可視化・
+//!       span.docs-github-link     … GitHub リンクのラッパー（内側に pre-styled-ui の
+//!         link、#3606）
+//!       span.docs-theme-toggle    … テーマトグルのラッパー（既定 `hidden`。内側に
+//!         ghost の pre-styled-ui button と span.docs-theme-toggle-label。可視化・
 //!         イベント配線は `assets/site.js`（`crate::script`）のみが行う）
 //!   div.docs-container            … 3 カラムのグリッドコンテナ（header の下、
 //!     イシュー #907・`docs/design/docs-site-three-column-redesign.md` §3.1）。
@@ -319,16 +324,42 @@ body {\n\
 /*\n\
  * ブランド。fandhe-backend `.docs-header a.docs-brand` と同値（イシュー\n\
  * #1110 の続き。backend は brand に padding を持たない）。旧 #949 の\n\
- * サイドバー左端揃え用 padding（0.32rem 0.5rem 0.32rem calc(0.5rem + 2px)）\n\
- * は全幅バー化に伴い廃止した。\n\
+ * サイドバー左端揃え用 padding は全幅バー化に伴い廃止した。#3606 で\n\
+ * favicon と同じロゴ（`.docs-brand-mark`）を前置するため inline-flex にした。\n\
  */\n\
 .docs-brand {\n\
+  display: inline-flex;\n\
+  align-items: center;\n\
+  gap: 0.5rem;\n\
   font-weight: 600;\n\
   font-size: 0.95rem;\n\
   letter-spacing: -0.01em;\n\
   color: var(--fandhe-color-fg);\n\
   text-decoration: none;\n\
   /* 幅が詰まってもハイフン位置で折り返してヘッダー高さを超えないようにする。 */\n\
+  white-space: nowrap;\n\
+}\n\
+\n\
+/* ロゴ。装飾（ラッパーが aria-hidden）で、内側 svg は寸法をラッパーへ従わせる。 */\n\
+.docs-brand-mark {\n\
+  display: inline-flex;\n\
+  flex: none;\n\
+  width: 1.5rem;\n\
+  height: 1.5rem;\n\
+}\n\
+\n\
+.docs-brand-mark > svg {\n\
+  display: block;\n\
+  width: 100%;\n\
+  height: 100%;\n\
+}\n\
+\n\
+/* バージョン badge（pre-styled-ui の badge を内包、#3606）。brand リンクの外に置く。 */\n\
+.docs-brand-version {\n\
+  display: inline-flex;\n\
+  align-items: center;\n\
+  flex: none;\n\
+  margin-left: 0.5rem;\n\
   white-space: nowrap;\n\
 }\n\
 \n\
@@ -383,11 +414,13 @@ body {\n\
   /* padding は fandhe-backend `.docs-header-trigger` と同値（イシュー\n\
    * #1110 の続き、旧 0.4rem 0.6rem）。 */\n\
   padding: 0.3rem 0.65rem;\n\
-  border-radius: 0.4rem;\n\
+  /* tab_nav 風（#3606）: 下線で現在地を示すため角丸と背景は持たない。 */\n\
+  border-bottom: 2px solid transparent;\n\
+  border-radius: 0;\n\
   font: inherit;\n\
   font-size: 0.85rem;\n\
   font-weight: 500;\n\
-  color: var(--fandhe-color-fg);\n\
+  color: var(--fandhe-color-fg-muted);\n\
   text-decoration: none;\n\
   /* 幅が詰まったときに「Getting Started」等がラベル内で折り返して\n\
    * ヘッダー高さを超えないようにする。 */\n\
@@ -395,7 +428,7 @@ body {\n\
 }\n\
 \n\
 .docs-header-trigger:hover {\n\
-  background: var(--fandhe-color-bg-subtle);\n\
+  color: var(--fandhe-color-fg);\n\
 }\n\
 \n\
 .docs-header-trigger:focus-visible {\n\
@@ -404,14 +437,17 @@ body {\n\
 }\n\
 \n\
 /*\n\
- * 現在セクションの表現（イシュー #1012）。ドロップダウン内リンクの\n\
- * `a[aria-current=\"page\"]`（ページ完全一致）とは軸が異なる\n\
- * `[aria-current=\"true\"]` を使うため、同一トークン\n\
- * `--fandhe-color-docs-accent-bg` を再利用しても意味は衝突しない。\n\
+ * 現在セクションの表現（イシュー #1012、#3606 で tab_nav 風へ変更）。\n\
+ * ドロップダウン内リンクの `a[aria-current=\"page\"]`（ページ完全一致）とは\n\
+ * 軸が異なる `[aria-current=\"true\"]` を使う。tab_nav の current 表現\n\
+ * （前景色 + accent 下線 + medium ウェイト）に合わせ、新しい色トークンは\n\
+ * 足さない。DOM と `aria-current` の値は変えない。\n\
  */\n\
 .docs-header-trigger[aria-current=\"true\"] {\n\
-  color: var(--fandhe-color-accent);\n\
-  background: var(--fandhe-color-docs-accent-bg);\n\
+  color: var(--fandhe-color-fg);\n\
+  background: transparent;\n\
+  border-bottom-color: var(--fandhe-color-accent);\n\
+  font-weight: var(--fandhe-font-font-weight-medium);\n\
 }\n\
 \n\
 /*\n\
@@ -445,47 +481,45 @@ body {\n\
  * （配色非統一は既決事項、コミット de83bc2）。\n\
  */\n\
 .docs-github-link {\n\
+  display: inline-flex;\n\
+  align-items: center;\n\
+}\n\
+\n\
+/* 内側は pre-styled-ui の link（呼び出し側 class を持てないため、`.docs-*` 前置の\n\
+ * 詳細度で recipe の色・装飾を上書きする。#3606）。 */\n\
+.docs-github-link [data-scope=\"link\"][data-part=\"root\"] {\n\
+  display: inline-flex;\n\
+  align-items: center;\n\
+  gap: 0.4rem;\n\
   font-size: 0.85rem;\n\
   font-weight: 500;\n\
   color: var(--fandhe-color-fg-muted);\n\
   text-decoration: none;\n\
 }\n\
 \n\
-.docs-github-link:hover {\n\
+.docs-github-link [data-scope=\"link\"][data-part=\"root\"]:hover {\n\
   color: var(--fandhe-color-fg);\n\
 }\n\
 \n\
-.docs-github-link:focus-visible {\n\
+.docs-github-link [data-scope=\"link\"][data-part=\"root\"]:focus-visible {\n\
   outline: 2px solid var(--fandhe-color-accent);\n\
   outline-offset: 2px;\n\
 }\n\
 \n\
 /*\n\
- * テーマトグルはボタン風の枠付き（fandhe-backend `.docs-theme-toggle` と\n\
- * 同値、イシュー #1110 の続き。旧: 枠なし・hover 背景のみ）。色は既存\n\
- * fandhe トークンのまま（配色非統一は既決事項、コミット de83bc2）。\n\
+ * テーマトグルのラッパー（#3606）。見た目は内側の pre-styled-ui button\n\
+ * （ghost）が担うため、ラッパー自身は枠・背景・padding を持たない。\n\
+ * 可視ラベルは `.docs-theme-toggle-label` で、`site.js` がその textContent\n\
+ * だけを書き換える。\n\
  */\n\
 .docs-theme-toggle {\n\
-  display: block;\n\
-  font: inherit;\n\
+  display: inline-flex;\n\
+  align-items: center;\n\
+}\n\
+\n\
+.docs-theme-toggle-label {\n\
   font-size: 0.85rem;\n\
   font-weight: 500;\n\
-  color: var(--fandhe-color-fg-muted);\n\
-  background: var(--fandhe-color-bg-subtle);\n\
-  border: 1px solid var(--fandhe-color-border);\n\
-  border-radius: 0.4rem;\n\
-  padding: 0.3rem 0.65rem;\n\
-  cursor: pointer;\n\
-}\n\
-\n\
-.docs-theme-toggle:hover {\n\
-  color: var(--fandhe-color-fg);\n\
-  border-color: var(--fandhe-color-accent);\n\
-}\n\
-\n\
-.docs-theme-toggle:focus-visible {\n\
-  outline: 2px solid var(--fandhe-color-accent);\n\
-  outline-offset: 2px;\n\
 }\n\
 \n\
 /*\n\
@@ -647,28 +681,45 @@ body {\n\
 }\n\
 \n\
 /*\n\
- * 検索入力は fandhe-backend `.docs-search-input` の寸法（width 12rem・\n\
- * padding 0.3rem 0.65rem・radius 0.4rem・subtle 背景）へ統一（イシュー\n\
- * #1110 の続き。旧: width 100% + max-width 9rem・padding 0.35rem 0.6rem・\n\
- * radius var(--fandhe-radius-sm)・bg 背景）。`min-width: 0` は狭幅帯域で\n\
- * flex 縮小を許すために残す。font-size は既存トークン（0.85rem 相当）の\n\
- * まま。\n\
+ * 検索入力。枠・背景・虫眼鏡・kbd は外側の pre-styled-ui `input_group`\n\
+ * （#3606）が担い、入力欄自身は group 内で伸縮する無枠のコントロールにする\n\
+ * （input_group の内側リセットは `field` の input だけが対象で、素の input\n\
+ * には効かないため下の `.docs-search [data-scope=\"input-group\"] > ...` で落とす）。\n\
+ * `min-width: 0` は狭幅帯域で flex 縮小を許すために残す。\n\
  */\n\
 .docs-search-input {\n\
+  flex: 1 1 0%;\n\
   width: 12rem;\n\
   min-width: 0;\n\
   font: inherit;\n\
   font-size: var(--fandhe-font-font-size-sm);\n\
-  padding: 0.3rem 0.65rem;\n\
-  border: 1px solid var(--fandhe-color-border);\n\
-  border-radius: 0.4rem;\n\
-  background: var(--fandhe-color-bg-subtle);\n\
+  padding: 0.3rem 0.25rem;\n\
+  border: 0;\n\
+  background: transparent;\n\
   color: var(--fandhe-color-fg);\n\
 }\n\
 \n\
 .docs-search-input:focus-visible {\n\
   outline: 2px solid var(--fandhe-color-accent);\n\
   outline-offset: 2px;\n\
+}\n\
+\n\
+/* group 自体の縮小を許し、入力欄の枠・outline は group 外周のリング\n\
+ * （input_group recipe の root `:focus-within`）へ任せる。 */\n\
+.docs-search [data-scope=\"input-group\"][data-part=\"root\"] {\n\
+  min-width: 0;\n\
+  flex-wrap: nowrap;\n\
+}\n\
+\n\
+.docs-search [data-scope=\"input-group\"] > .docs-search-input {\n\
+  border: 0;\n\
+  border-radius: 0;\n\
+  background: transparent;\n\
+  box-shadow: none;\n\
+}\n\
+\n\
+.docs-search [data-scope=\"input-group\"] > .docs-search-input:focus-visible {\n\
+  outline: none;\n\
 }\n\
 \n\
 /*\n\
@@ -1589,6 +1640,10 @@ nav.prev-next .next .docs-pager-meta {\n\
     width: 100%;\n\
   }\n\
 \n\
+  .docs-search [data-scope=\"input-group\"][data-part=\"root\"] {\n\
+    width: 100%;\n\
+  }\n\
+\n\
   .docs-search-results {\n\
     left: 0;\n\
     right: 0;\n\
@@ -2231,6 +2286,10 @@ pub const SITE_RECIPES: &[SiteRecipe] = &[
     },
 ];
 
+/// ヘッダー（`layout::header`）が使う recipe 名。Primitives 用 CSS にも
+/// `.docs-header` へ `@scope` した形でだけ積む（[`stylesheet_without_recipes`]）。
+pub const HEADER_RECIPE_NAMES: &[&str] = &["button", "badge", "input_group", "kbd", "icon", "link"];
+
 /// Primitives ページ専用の recipe 抜きサイト CSS の出力先（`out_dir` 起点の相対パス）。
 ///
 /// 役割: Primitives ページの headless-ui デモは「スタイルを持たない層」の契約
@@ -2286,6 +2345,19 @@ fn assemble(with_recipes: bool) -> Result<StyleSheet, SiteThemeError> {
     if with_recipes {
         for recipe in SITE_RECIPES {
             sheet.push_css(&(recipe.css)())?;
+        }
+    } else {
+        // Primitives ページでもヘッダー（全ページ共通出力）の部品は recipe を要する
+        // ため、ヘッダー内だけに `@scope` で閉じ込めて積む。本文の headless デモには
+        // 届かない（イシュー #3606）。
+        for recipe in SITE_RECIPES
+            .iter()
+            .filter(|r| HEADER_RECIPE_NAMES.contains(&r.name))
+        {
+            sheet.push_css(&format!(
+                "@scope (.docs-header) {{\n{}\n}}\n",
+                (recipe.css)()
+            ))?;
         }
     }
     sheet.push_css(STRUCTURAL_CSS)?;
@@ -2797,6 +2869,16 @@ mod tests {
         assert!(primitives.contains(".docs-pager-link [data-scope=\"card\"][data-part=\"root\"] {"));
         assert!(primitives
             .contains(".docs-pager-link [data-scope=\"icon\"] {\nwidth: 1rem;\nheight: 1rem;"));
+    }
+
+    #[test]
+    fn primitives_stylesheet_carries_header_recipes_only_inside_header_scope() {
+        let primitives = stylesheet_without_recipes().unwrap().as_css().to_string();
+        assert!(primitives.contains("@scope (.docs-header) {"));
+        // 本文の headless デモへ届く素の recipe（field 等）は積まない。
+        assert!(!primitives.contains("[data-scope=\"stat\"]"));
+        // ヘッダーのアイコン寸法（300x150 フォールバックの回避）は recipe が担う。
+        assert!(primitives.contains("[data-scope=\"icon\"]"));
     }
 
     #[test]

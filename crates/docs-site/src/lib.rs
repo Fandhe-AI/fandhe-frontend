@@ -140,6 +140,7 @@ pub mod search_index;
 pub mod section_index;
 pub mod showcase;
 pub mod site_theme;
+pub mod site_version;
 pub mod skip_nav;
 #[cfg(test)]
 mod test_scratch;
