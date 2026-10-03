@@ -2611,6 +2611,8 @@ fn game_ui_modal_composes_expected_parts() {
     let out = build_real_site();
     let html = std::fs::read_to_string(out.join("blocks/game-ui-modal/index.html"))
         .expect("blocks/game-ui-modal/index.html should be generated");
+    // ヘッダー操作部（pre-styled-ui の button）を数えないよう block 領域に絞る（#3606）。
+    let html = without_site_header(&html);
     for needle in [
         "data-scope=\"dialog\" data-part=\"backdrop\"",
         "data-scope=\"dialog\" data-part=\"positioner\"",
@@ -3016,6 +3018,8 @@ fn banner_announcement_pill_composes_expected_parts() {
     let out = build_real_site();
     let html = std::fs::read_to_string(out.join("blocks/banner-announcement-pill/index.html"))
         .expect("blocks/banner-announcement-pill/index.html should be generated");
+    // ヘッダー操作部（GitHub の pre-styled-ui link）を数えないよう block 領域に絞る（#3606）。
+    let html = without_site_header(&html);
 
     let link_root_count = html
         .matches(r#"data-scope="link" data-part="root""#)
@@ -9795,4 +9799,12 @@ fn app_shell_three_column_composes_expected_parts() {
             "app-shell-three-column demo should never contain {absent}"
         );
     }
+}
+
+/// サイトヘッダー（`</header>` まで）を除いた HTML を返す。ヘッダー操作部は
+/// pre-styled-ui の部品（button/link/badge 等）を含むため、block の部品数を
+/// ページ全体で厳密に数える検証はこの関数で block 側の領域に絞る（イシュー
+/// #3606。期待値は変えず、数える範囲だけを絞る）。
+fn without_site_header(html: &str) -> &str {
+    html.split_once("</header>").map_or(html, |(_, rest)| rest)
 }

@@ -69,9 +69,12 @@
 use std::collections::HashSet;
 
 use fandhe_frontend_core::{
-    a, article, aside, button, div, el, h2, header, li, main_tag, nav, text, ul, Node,
+    a, article, aside, div, el, h2, header, li, main_tag, nav, text, ul, Node,
 };
-use fandhe_frontend_pre_styled_ui::skip_nav as ps_skip_nav;
+use fandhe_frontend_pre_styled_ui::{
+    badge as ps_badge, button as ps_button, icon as ps_icon, input_group as ps_input_group,
+    kbd as ps_kbd, link as ps_link, skip_nav as ps_skip_nav, Size,
+};
 
 use crate::script;
 use crate::search_index;
@@ -81,6 +84,223 @@ use crate::search_index;
 /// （nav スキーマの変更は #939 の管轄。ブランド文字列 `"fandhe-frontend"`
 /// が既に本モジュールへハードコードされている先例に倣う）。
 const REPOSITORY_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+
+/// pre-styled-ui のアイコン用に `path` 1 本の SVG 子ノードを作る。
+fn icon_path(d: &'static str) -> Node {
+    el("path", vec![("d", d)], vec![])
+}
+
+/// ブランドリンク（`a.docs-brand`、#908/#3606）。favicon と同じ図案
+/// （[`crate::favicon::mark_node`]）を `span[aria-hidden]` で包んで置く。
+/// `mark_node` 自身が `role="img" aria-label` を持つため、可視テキストと
+/// 二重に読み上げさせないようラッパーで隠す（favicon.rs の想定どおりの使い方）。
+/// `a.docs-brand` が `header-inner` の第 1 子である順序契約は呼び出し側が守る。
+fn brand(root_href: &str) -> Node {
+    a(
+        vec![("href", root_href), ("class", "docs-brand")],
+        vec![
+            el(
+                "span",
+                vec![("class", "docs-brand-mark"), ("aria-hidden", "true")],
+                vec![crate::favicon::mark_node()],
+            ),
+            text("fandhe-frontend"),
+        ],
+    )
+}
+
+/// ブランド横のバージョン badge（#3606）。表示は `core v{version}`
+/// （`fandhe-frontend-core` の版数、選定理由は
+/// `docs/design/docs-site-styled-blocks-redesign.md` §3.2）。版数の取得に失敗した
+/// 場合は `None`（badge を出さない fail-closed、[`crate::site_version`] 参照）。
+/// `a.docs-brand` の内側に入れない（リンクの名前に版数を混ぜないため）。
+fn brand_version() -> Option<Node> {
+    let version = crate::site_version::core_version()?;
+    let label = format!("core v{version}");
+    Some(el(
+        "span",
+        vec![("class", "docs-brand-version")],
+        vec![ps_badge::badge(
+            &ps_badge::BadgeProps {
+                size: Size::Sm,
+                ..ps_badge::BadgeProps::default()
+            },
+            vec![],
+            vec![text(&label)],
+        )],
+    ))
+}
+
+/// 検索ブロック（イシュー #958/#3606）。既定 `hidden`、`<form>` で包まない
+/// （JS 無効時に Enter で送信させないため、モジュール doc 参照）。
+///
+/// 見た目の枠は pre-styled-ui の `input_group`（前側に虫眼鏡、後ろ側に `kbd` の
+/// 「/」）が担う。入力欄は素の `input.docs-search-input` のまま
+/// （pre-styled の `input` は呼び出し側 class を捨てるため使わない。class・id・
+/// role・aria 属性・`data-search-index` は `crate::script::SITE_JS` の契約）。
+/// `label` と結果一覧 `ul` は group の外側の兄弟に置く（group は `flex-wrap` の
+/// ため、中に入れると折り返して行が増える）。
+fn search_block(search_index_href: &str) -> Node {
+    let group_props = ps_input_group::InputGroupProps {
+        disabled: false,
+        invalid: false,
+    };
+    div(
+        vec![("class", "docs-search"), ("hidden", "")],
+        vec![
+            // 視覚上は clip 手法で隠すラベル（`.docs-search-label`）。下の `input`
+            // が `aria-label` を持つためアクセシブル名には使われず、`for`/`id`
+            // 対応の器として機能する（fandhe-backend の docs サイトと同型）。
+            el(
+                "label",
+                vec![("class", "docs-search-label"), ("for", SEARCH_INPUT_ID)],
+                vec![text("Search")],
+            ),
+            ps_input_group::root(
+                &group_props,
+                vec![],
+                vec![
+                    ps_input_group::addon(
+                        ps_input_group::InputGroupAlign::InlineStart,
+                        &group_props,
+                        vec![],
+                        vec![ps_icon::icon(
+                            &ps_icon::IconProps {
+                                size: Size::Sm,
+                                ..ps_icon::IconProps::default()
+                            },
+                            vec![],
+                            vec![icon_path(SEARCH_ICON_PATH)],
+                        )],
+                    ),
+                    el(
+                        "input",
+                        vec![
+                            ("type", "search"),
+                            ("id", SEARCH_INPUT_ID),
+                            ("class", "docs-search-input"),
+                            ("placeholder", "ドキュメントを検索"),
+                            ("aria-label", "ドキュメント内検索"),
+                            ("role", "combobox"),
+                            ("aria-expanded", "false"),
+                            ("aria-controls", SEARCH_RESULTS_ID),
+                            ("aria-autocomplete", "list"),
+                            ("aria-keyshortcuts", "/"),
+                            ("autocomplete", "off"),
+                            ("data-search-index", search_index_href),
+                        ],
+                        vec![],
+                    ),
+                    // ショートカットの目印。操作は `SITE_JS` の `/` キー処理が担い、
+                    // 支援技術へは input の `aria-keyshortcuts` で伝えるため装飾扱い。
+                    ps_input_group::addon(
+                        ps_input_group::InputGroupAlign::InlineEnd,
+                        &group_props,
+                        vec![("aria-hidden", "true")],
+                        vec![ps_kbd::kbd(
+                            &ps_kbd::KbdProps {
+                                size: Size::Sm,
+                                ..ps_kbd::KbdProps::default()
+                            },
+                            vec![],
+                            vec![text("/")],
+                        )],
+                    ),
+                ],
+            ),
+            ul(
+                vec![
+                    ("id", SEARCH_RESULTS_ID),
+                    ("class", "docs-search-results"),
+                    ("role", "listbox"),
+                    ("aria-label", "Search results"),
+                    ("hidden", ""),
+                ],
+                vec![],
+            ),
+        ],
+    )
+}
+
+/// GitHub リンク（#951/#3606）。`span.docs-github-link` を中立なラッパーとして
+/// 残し（class 契約の維持）、内側に pre-styled-ui の `link` を置く。
+/// `external: true` が `target="_blank"` と `rel="noopener noreferrer"` を一緒に
+/// 付ける（OWASP A05: tabnabbing 対策。attrs で重ねて渡すと重複するため渡さない）。
+fn github_link() -> Node {
+    el(
+        "span",
+        vec![("class", "docs-github-link")],
+        vec![ps_link::root(
+            REPOSITORY_URL,
+            &ps_link::LinkProps {
+                external: true,
+                ..ps_link::LinkProps::default()
+            },
+            vec![],
+            vec![
+                ps_icon::icon(
+                    &ps_icon::IconProps {
+                        size: Size::Sm,
+                        view_box: "0 0 16 16",
+                        ..ps_icon::IconProps::default()
+                    },
+                    vec![],
+                    vec![icon_path(GITHUB_ICON_PATH)],
+                ),
+                text("GitHub"),
+            ],
+        )],
+    )
+}
+
+/// テーマトグル（#951/#3606）。ラッパー `span.docs-theme-toggle` が既定 `hidden`
+/// を持ち（JS 無効時・`site.js` 読み込み失敗時は `STRUCTURAL_CSS` の
+/// `.docs-theme-toggle[hidden]` が非表示を担保し、`prefers-color-scheme` 追従へ
+/// 退避する）、内側に ghost variant の pre-styled-ui `button` を置く。可視化・
+/// イベント配線は `crate::script::SITE_JS` のみが行い、可視ラベルは
+/// `span.docs-theme-toggle-label` の `textContent` だけを書き換える
+/// （ボタン全体を書き換えるとアイコンが消えるため）。
+fn theme_toggle() -> Node {
+    el(
+        "span",
+        vec![("class", "docs-theme-toggle"), ("hidden", "")],
+        vec![ps_button::button(
+            &ps_button::ButtonProps {
+                variant: ps_button::ButtonVariant::Ghost,
+                size: Size::Sm,
+                ..ps_button::ButtonProps::default()
+            },
+            vec![
+                ("aria-label", "Toggle color theme"),
+                ("aria-pressed", "false"),
+            ],
+            vec![
+                ps_icon::icon(
+                    &ps_icon::IconProps {
+                        size: Size::Sm,
+                        ..ps_icon::IconProps::default()
+                    },
+                    vec![],
+                    vec![icon_path(CONTRAST_ICON_PATH)],
+                ),
+                el(
+                    "span",
+                    vec![("class", "docs-theme-toggle-label")],
+                    vec![text("Theme")],
+                ),
+            ],
+        )],
+    )
+}
+
+/// 虫眼鏡アイコン（24 viewBox・塗り）。自前 path で外部アセットを持ち込まない。
+const SEARCH_ICON_PATH: &str = "M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z";
+
+/// GitHub マーク（16 viewBox・塗り）。
+const GITHUB_ICON_PATH: &str = "M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z";
+
+/// 明暗コントラスト図形（24 viewBox・塗り）。
+const CONTRAST_ICON_PATH: &str = "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18V4c4.41 0 8 3.59 8 8s-3.59 8-8 8z";
 
 /// 目次に載せる見出しレベルの上限（イシュー #950）。`h2` を第 1 段
 /// （`TOC_MAX_LEVEL - 1`）、`h3` を第 2 段（`TOC_MAX_LEVEL`）とし、
@@ -677,108 +897,24 @@ pub fn docs_page_with_assets(
     // 本文を HTML へ埋め込まない、`crate::search_index` モジュール doc 参照）。
     let search_index_href = asset_href(base_path, search_index::REL_PATH);
 
-    let mut header_children = vec![a(
-        vec![("href", &root_href), ("class", "docs-brand")],
-        vec![text("fandhe-frontend")],
-    )];
+    let mut header_children = vec![brand(&root_href)];
+    if let Some(version) = brand_version() {
+        header_children.push(version);
+    }
     if let Some(nav_node) = header_nav {
         header_children.push(nav_node);
     }
-    // ヘッダー右側のアクション群（GitHub リンク・テーマトグル、イシュー
-    // #951）。`header_nav` の有無に関わらず無条件で第 3 子（or 第 2 子）と
-    // して出力する（層 1 契約「見出しあり/なし両方のフィクスチャで出現する
-    // こと」と同様、`docs_page`/`docs_page_with_assets` いずれの経路でも
-    // 出現させるため条件分岐を作らない。`crate::site_theme::STRUCTURAL_CSS`
-    // 参照）。
+    // ヘッダー右側のアクション群（検索・GitHub リンク・テーマトグル、イシュー
+    // #951/#958/#3606）。`header_nav` の有無に関わらず無条件で出力する
+    // （層 1 契約「見出しあり/なし両方のフィクスチャで出現すること」と同様、
+    // `docs_page`/`docs_page_with_assets` いずれの経路でも出現させるため
+    // 条件分岐を作らない。`crate::site_theme::STRUCTURAL_CSS` 参照）。
     header_children.push(div(
         vec![("class", "docs-header-actions")],
         vec![
-            // 検索ブロック（イシュー #958）。既定 `hidden`、`<form>` で包まない
-            // （JS 無効時に Enter で送信させないため、モジュール doc 参照）。
-            // `input` は `role="combobox"`/`aria-controls`/`aria-expanded`/
-            // `aria-autocomplete` で `ul#docs-search-results` と結合する
-            // （WAI-ARIA combobox パターン。開閉・選択状態の更新は
-            // `crate::script::SITE_JS` のみが行う）。
-            div(
-                vec![("class", "docs-search"), ("hidden", "")],
-                vec![
-                    // 視覚上は clip 手法で隠すラベル（`crate::site_theme::
-                    // STRUCTURAL_CSS` の `.docs-search-label` 参照）。fandhe-backend
-                    // の docs サイトとデザインを統一するため、`for`/`id` 対応を
-                    // 持つ label 要素を追加した（backend `layout.rs` の
-                    // `label.docs-search-label` と同型）。`id` は本ラベルの
-                    // `for` 属性からのみ参照され、`crate::script::SITE_JS` は
-                    // 引き続き `class="docs-search-input"` で要素を取得する
-                    // （id 追加は既存の class セレクタ経路に影響しない）。
-                    //
-                    // ラベル文言は backend と同一の `"Search"` とする。下の
-                    // `input` が `aria-label` を持つため、アクセシブル名の計算
-                    // 順序上このラベルのテキストが読み上げられることはなく
-                    // （`aria-label` が `<label>` より優先される）、実効的には
-                    // `for`/`id` による関連付けの器として機能する。placeholder
-                    // と同一文言を重複させても利用者には届かないため、backend
-                    // との一致を優先した。
-                    el(
-                        "label",
-                        vec![("class", "docs-search-label"), ("for", SEARCH_INPUT_ID)],
-                        vec![text("Search")],
-                    ),
-                    el(
-                        "input",
-                        vec![
-                            ("type", "search"),
-                            ("id", SEARCH_INPUT_ID),
-                            ("class", "docs-search-input"),
-                            ("placeholder", "ドキュメントを検索"),
-                            ("aria-label", "ドキュメント内検索"),
-                            ("role", "combobox"),
-                            ("aria-expanded", "false"),
-                            ("aria-controls", SEARCH_RESULTS_ID),
-                            ("aria-autocomplete", "list"),
-                            ("autocomplete", "off"),
-                            ("data-search-index", &search_index_href),
-                        ],
-                        vec![],
-                    ),
-                    ul(
-                        vec![
-                            ("id", SEARCH_RESULTS_ID),
-                            ("class", "docs-search-results"),
-                            ("role", "listbox"),
-                            ("aria-label", "Search results"),
-                            ("hidden", ""),
-                        ],
-                        vec![],
-                    ),
-                ],
-            ),
-            // `target="_blank"` + `rel="noopener noreferrer"`（OWASP A05:
-            // tabnabbing 対策。開いた先から `window.opener` を操作される
-            // 経路と Referer 漏えいを防ぐ）。
-            a(
-                vec![
-                    ("href", REPOSITORY_URL),
-                    ("class", "docs-github-link"),
-                    ("target", "_blank"),
-                    ("rel", "noopener noreferrer"),
-                ],
-                vec![text("GitHub")],
-            ),
-            // 既定 `hidden`（JS 無効時・`site.js` の読み込み失敗時は
-            // `crate::site_theme::STRUCTURAL_CSS` の `.docs-theme-toggle[hidden]`
-            // が非表示を担保し、`prefers-color-scheme` 追従へ退避する）。
-            // 可視化・イベント配線は `crate::script::SITE_JS` のみが行う
-            // （`crate::script` モジュール doc 手順 5 参照）。
-            button(
-                vec![
-                    ("type", "button"),
-                    ("class", "docs-theme-toggle"),
-                    ("hidden", ""),
-                    ("aria-label", "Toggle color theme"),
-                    ("aria-pressed", "false"),
-                ],
-                vec![text("Theme")],
-            ),
+            search_block(&search_index_href),
+            github_link(),
+            theme_toggle(),
         ],
     ));
     // ヘッダー内側の計測枠（イシュー #949）。`.docs-header` 自体は罫線

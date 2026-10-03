@@ -448,6 +448,14 @@ const STRUCTURE_CLASS_CONTRACT: &[(&str, &str)] = &[
         "header 内側の計測枠 div（grid と同一 max-width、イシュー #949）",
     ),
     ("docs-brand", "header 第 1 子のブランドリンク a"),
+    (
+        "docs-brand-mark",
+        "ブランドのロゴ span（aria-hidden、favicon と同図案の svg を内包、イシュー #3606）",
+    ),
+    (
+        "docs-brand-version",
+        "ブランド直後のバージョン badge ラッパー span（core の版数、イシュー #3606）",
+    ),
     ("docs-container", "3 カラム grid コンテナ div"),
     ("docs-sidebar", "左カラム aside"),
     (
@@ -479,7 +487,7 @@ const STRUCTURE_CLASS_CONTRACT: &[(&str, &str)] = &[
     ),
     (
         "docs-search-input",
-        "検索入力 input[type=search]（data-search-index を持つ、イシュー #958）",
+        "検索入力 input[type=search]（input_group 内の素の input、data-search-index を持つ、イシュー #958/#3606）",
     ),
     (
         "docs-search-results",
@@ -487,11 +495,15 @@ const STRUCTURE_CLASS_CONTRACT: &[(&str, &str)] = &[
     ),
     (
         "docs-github-link",
-        "GitHub リポジトリへの外部リンク a（イシュー #951）",
+        "GitHub リンクのラッパー span（内側に pre-styled-ui の link、イシュー #951/#3606）",
     ),
     (
         "docs-theme-toggle",
-        "テーマトグル button[type=button]（既定 hidden、イシュー #951）",
+        "テーマトグルのラッパー span（既定 hidden、内側に ghost の pre-styled-ui button、イシュー #951/#3606）",
+    ),
+    (
+        "docs-theme-toggle-label",
+        "テーマトグルの可視ラベル span（site.js がこの textContent だけを書き換える、イシュー #3606）",
     ),
 ];
 
@@ -1030,7 +1042,10 @@ fn rendered_html_has_no_class_outside_the_contract() {
 
         let non_docs_tokens: HashSet<String> = extract_class_tokens(&html)
             .into_iter()
-            .filter(|t| !t.starts_with("docs-"))
+            // pre-styled-ui の recipe class（`fd-*`）は契約対象外（ヘッダー操作部が
+            // button/badge/kbd/icon/link を内包する、イシュー #3606。`fd-alert--*`
+            // と同じ扱い）。
+            .filter(|t| !t.starts_with("docs-") && !t.starts_with("fd-"))
             .collect();
         assert_eq!(
             non_docs_tokens, expected_non_docs,
@@ -1052,7 +1067,7 @@ fn rendered_html_has_no_class_outside_the_contract() {
     );
     let non_docs_tokens_with_groups: HashSet<String> = extract_class_tokens(&html_with_groups)
         .into_iter()
-        .filter(|t| !t.starts_with("docs-"))
+        .filter(|t| !t.starts_with("docs-") && !t.starts_with("fd-"))
         .collect();
     assert_eq!(
         non_docs_tokens_with_groups, expected_non_docs,
@@ -1762,4 +1777,20 @@ fn code_copy_pre_padding_selector_outranks_typography_pre_padding() {
     // ボタンがコード先頭行へ重なるため、より高い詳細度のセレクタで固定する。
     let css = site_css();
     assert!(css.contains(".docs-content .docs-code-block pre {"));
+}
+/// イシュー #3606: pre-styled-ui の呼び出し側 class 破棄を `.docs-*` 前置の
+/// 詳細度で補う規則（link の配色・input_group 内の素の input のリセット）が
+/// 生成 `site.css` に存在することを固定する。
+#[test]
+fn header_actions_recipe_overrides_are_present_in_site_css() {
+    let css = site_css();
+    for selector in [
+        ".docs-github-link [data-scope=\"link\"] {",
+        ".docs-search [data-scope=\"input-group\"] > .docs-search-input {",
+        ".docs-brand-mark > svg {",
+        ".docs-theme-toggle-label {",
+        ".docs-header-trigger[aria-current=\"true\"] {",
+    ] {
+        assert!(css.contains(selector), "site.css lacks `{selector}`");
+    }
 }

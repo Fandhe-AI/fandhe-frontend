@@ -181,7 +181,12 @@ fn non_showcase_pages_do_not_reference_showcase_css() {
     let index_page_rel = showcase::PAGE_PATH.trim_start_matches('/');
     let component_index_html = read_component_page(out, index_page_rel);
     assert!(!component_index_html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#));
-    assert!(!component_index_html.contains(r#"data-scope="button""#));
+    // ヘッダー操作部（テーマトグルの pre-styled-ui button、イシュー #3606）は
+    // 部品ショーケースではないため、`</header>` 以降の本文だけを検査する。
+    let component_index_body = component_index_html
+        .split_once("</header>")
+        .map_or(component_index_html.as_str(), |(_, rest)| rest);
+    assert!(!component_index_body.contains(r#"data-scope="button""#));
     assert!(!component_index_html.contains(r#"class="pre-styled-showcase""#));
 
     // イシュー #1022: `/primitives/<kebab>/` は headless-ui の Demo を持つが、
