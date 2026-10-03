@@ -16,12 +16,13 @@ use fandhe_frontend_wireframe_ui::{
     button, modal, paragraph, text as wireframe_text, Bold, Disabled, Primary, Size,
 };
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// `/wireframes/modal/` レジストリエントリ。
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/modal/",
     title: "Modal",
+    category: WireframeCategory::OverlayFeedback,
     args: &[
         ArgRow {
             name: "title",

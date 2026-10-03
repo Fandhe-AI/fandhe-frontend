@@ -10,12 +10,13 @@ use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::menu::{menu, MenuItem};
 use fandhe_frontend_wireframe_ui::Size;
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// `/wireframes/menu/` レジストリエントリ。
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/menu/",
     title: "Menu",
+    category: WireframeCategory::Navigation,
     args: &[
         ArgRow {
             name: "items",

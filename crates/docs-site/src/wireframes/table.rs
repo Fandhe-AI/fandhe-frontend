@@ -9,7 +9,7 @@
 use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::{table, Size};
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 const HEADERS: [&str; 3] = ["Name", "Role", "Status"];
 
@@ -25,6 +25,7 @@ const RAGGED_ROWS: [&[&str]; 2] = [&["Alice", "Engineer"], &["Bob"]];
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/table/",
     title: "Table",
+    category: WireframeCategory::Media,
     args: &[
         ArgRow {
             name: "headers",

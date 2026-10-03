@@ -9,12 +9,13 @@
 use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::{breadcrumbs, Size};
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// `/wireframes/breadcrumbs/` レジストリエントリ。
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/breadcrumbs/",
     title: "Breadcrumbs",
+    category: WireframeCategory::Navigation,
     args: &[
         ArgRow {
             name: "items",

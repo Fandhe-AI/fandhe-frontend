@@ -10,12 +10,13 @@
 use fandhe_frontend_core::{div, p, span, text, Node};
 use fandhe_frontend_wireframe_ui::{icon, tag, Primary, Size};
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// `/wireframes/tag/` レジストリエントリ。
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/tag/",
     title: "Tag",
+    category: WireframeCategory::Text,
     args: &[
         ArgRow {
             name: "label",

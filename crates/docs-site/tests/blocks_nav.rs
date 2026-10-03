@@ -93,7 +93,7 @@ fn blocks_section_groups_match_registry_category_order() {
 /// Primitives（`primitives_group_pages_match_catalog_entries_exactly`）は
 /// 台帳の宣言順で比較するが、Blocks は並列 PR による `all_blocks()` への追記順が
 /// 不安定なため `path` 昇順で比較する（`/blocks/` 索引ページ本文の
-/// `index_generated_sections` と同じ判断、イシュー #2733/#2735）。
+/// `category_index::render_blocks` と同じ判断、イシュー #2733/#2735）。
 #[test]
 fn blocks_group_pages_match_registry_category_assignments() {
     let nav = load_nav();

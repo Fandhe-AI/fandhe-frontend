@@ -17,12 +17,13 @@
 use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_wireframe_ui::{text as wire_text, Bold, Size};
 
-use super::{ArgRow, Wireframe};
+use super::{ArgRow, Wireframe, WireframeCategory};
 
 /// `/wireframes/text/` レジストリエントリ。
 pub const WIREFRAME: Wireframe = Wireframe {
     path: "/wireframes/text/",
     title: "Text",
+    category: WireframeCategory::Text,
     args: &[
         ArgRow {
             name: "content",

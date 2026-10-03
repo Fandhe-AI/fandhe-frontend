@@ -67,6 +67,7 @@ use fandhe_frontend_pre_styled_ui::{StyleSheet, StylesheetError};
 
 use crate::blocks;
 use crate::build::RESERVED_ASSET_NAMES;
+use crate::category_index;
 use crate::component_index;
 use crate::component_page;
 use crate::landing;
@@ -133,6 +134,13 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
         layout: PageLayout::Docs,
     },
     PageSection {
+        path: blocks::INDEX_PATH,
+        placement: Placement::Append,
+        render: category_index::render_blocks,
+        stylesheets: &[category_index::STYLESHEET_REL_PATH],
+        layout: PageLayout::Docs,
+    },
+    PageSection {
         path: "/examples/",
         placement: Placement::BeforeFirstH2,
         render: section_index::render_examples,
@@ -161,6 +169,13 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
         layout: PageLayout::Docs,
     },
     PageSection {
+        path: "/wireframes/",
+        placement: Placement::BeforeFirstH2,
+        render: category_index::render_wireframes,
+        stylesheets: &[category_index::STYLESHEET_REL_PATH],
+        layout: PageLayout::Docs,
+    },
+    PageSection {
         path: landing::PATH,
         placement: Placement::Prepend,
         render: landing::render,
@@ -178,6 +193,10 @@ pub const PAGE_STYLESHEETS: &[PageStylesheet] = &[
     PageStylesheet {
         rel_path: component_index::STYLESHEET_REL_PATH,
         build: component_index::stylesheet,
+    },
+    PageStylesheet {
+        rel_path: category_index::STYLESHEET_REL_PATH,
+        build: category_index::stylesheet,
     },
 ];
 
@@ -489,10 +508,12 @@ mod tests {
             paths,
             [
                 "/api/",
+                "/blocks/",
                 "/examples/",
                 "/guides/",
                 "/primitives/",
                 "/themes/",
+                "/wireframes/",
                 "/"
             ]
         );
