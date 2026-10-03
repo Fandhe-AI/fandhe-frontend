@@ -1591,6 +1591,8 @@ fn landing_classes_match_module_constant_and_have_css_selectors() {
 
 #[test]
 fn landing_feature_grid_is_one_two_three_columns_by_breakpoint() {
+    // landing::CSS は `\n\` 行継続で組むため、ソース上のインデントは
+    // 生成 CSS では除去される（@media 内も行頭から始まる）。
     let css = site_css();
     let base = css.find(".docs-features-grid {").expect("grid base rule");
     assert!(css[base..].contains("grid-template-columns: minmax(0, 1fr);"));
@@ -1602,6 +1604,15 @@ fn landing_feature_grid_is_one_two_three_columns_by_breakpoint() {
         .find("@media (min-width: 1024px) {\n.docs-landing .docs-features-grid")
         .expect("1024px rule");
     assert!(css[lg..].contains("repeat(3, minmax(0, 1fr))"));
+}
+
+#[test]
+fn landing_feature_card_height_targets_root_part_only() {
+    let css = site_css();
+    assert!(
+        css.contains(".docs-feature [data-scope=\"card\"][data-part=\"root\"] {\nheight: 100%;")
+    );
+    assert!(!css.contains(".docs-feature [data-scope=\"card\"] {\nheight: 100%;"));
 }
 
 #[test]

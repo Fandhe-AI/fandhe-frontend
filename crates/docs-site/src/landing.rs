@@ -520,7 +520,7 @@ pub const CSS: &str = "\
   margin: 0;\n\
 }\n\
 \n\
-.docs-feature [data-scope=\"card\"] {\n\
+.docs-feature [data-scope=\"card\"][data-part=\"root\"] {\n\
   height: 100%;\n\
 }\n\
 \n\
@@ -552,7 +552,7 @@ pub const CSS: &str = "\
   inset: 0;\n\
 }\n\
 \n\
-.docs-feature:hover [data-scope=\"card\"] {\n\
+.docs-feature:hover [data-scope=\"card\"][data-part=\"root\"] {\n\
   border-color: var(--fandhe-color-accent);\n\
 }\n\
 \n\
