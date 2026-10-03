@@ -1417,9 +1417,10 @@ fn header_menu_overrides_nav_list_column_direction() {
 }
 
 /// 768px 以上 1280px 未満では全トリガーが 1 段に収まらないため、ナビを
-/// 2 段目へ折り返し、ヘッダー高さとそれを前提にする sticky オフセットを
-/// 同じトークンへ伸ばす。どれかが欠けるとナビがヘッダー外へはみ出すか、
-/// サイドバー・右目次がヘッダーの下へ潜る。
+/// 2 段目へ折り返し、ヘッダーを内容に合わせて伸ばす。実高さは CSS で
+/// 取得できないため、この帯域ではヘッダーを sticky にせず、サイドバー・
+/// 右目次・見出しアンカーのオフセットをヘッダー高さから切り離す。どれかが
+/// 欠けるとナビがヘッダー外へはみ出すか、sticky カラムがヘッダーの下へ潜る。
 #[test]
 fn mid_width_header_stacks_nav_on_second_row_inside_header() {
     let css = site_css();
@@ -1431,13 +1432,14 @@ fn mid_width_header_stacks_nav_on_second_row_inside_header() {
     let block = &block[..block.find("\n}\n}\n").expect("media block should close")];
 
     for expected in [
-        ".docs-header {\nheight: auto;\nmin-height: var(--fandhe-space-docs-header-height-stacked);",
+        // 実高さが折り返し行数で変わるため sticky にせず、オフセットを高さに依存させない。
+        ".docs-header {\nposition: static;\nheight: auto;\nmin-height: var(--fandhe-space-docs-header-height-stacked);",
         ".docs-header-inner {\nflex-wrap: wrap;",
         // トリガーが 1 行に収まらない場合もメニューを折り返して画面右端を越えない。
         ".docs-header nav.docs-header-nav .docs-header-menu {\nflex-wrap: wrap;",
         ".docs-header-nav {\norder: 1;\nflex-basis: 100%;",
-        ".docs-sidebar,\n.docs-toc-aside {\ntop: var(--fandhe-space-docs-header-height-stacked);\nmax-height: calc(100vh - var(--fandhe-space-docs-header-height-stacked));",
-        "scroll-margin-top: calc(var(--fandhe-space-docs-header-height-stacked) + 1rem);",
+        ".docs-sidebar,\n.docs-toc-aside {\ntop: 0;\nmax-height: 100vh;",
+        ".docs-content h2,\n.docs-content h3 {\nscroll-margin-top: 1rem;",
     ] {
         assert!(
             block.contains(expected),
@@ -1446,6 +1448,9 @@ fn mid_width_header_stacks_nav_on_second_row_inside_header() {
     }
     // ナビを内包できない固定高さ・絶対配置へ戻していないこと。
     assert!(!block.contains("position: absolute"));
+    // sticky オフセットを固定の 2 段高さへ結び付けない（折り返し時にヘッダーの下へ潜る）。
+    assert!(!block.contains("top: var(--fandhe-space-docs-header-height"));
+    assert!(!block.contains("scroll-margin-top: calc(var(--fandhe-space-docs-header-height"));
     // 2 段ヘッダー高さのトークンが定義されている（未定義の var() は高さ 0 扱いになる）。
     assert!(css.contains("--fandhe-space-docs-header-height-stacked: 5.75rem;"));
 }

@@ -229,6 +229,7 @@ fn docs_theme() -> Result<Theme, ThemeError> {
     // 2 段目: ヘッダーナビ）にするときの高さ。全セクションのトリガーを
     // 1 段に並べるには約 1240px 必要で、この帯域では収まらないため
     // （STRUCTURAL_CSS 末尾の 2 段ヘッダー `@media` ブロック参照）。
+    // 内容が折り返すとさらに伸びるため最小高さとして使う。
     theme.push_space("docs-header-height-stacked", "5.75rem")?;
     // 右目次カラム（`aside.docs-toc-aside`）の列幅。3 カラム表示になる
     // `min-width: 1200px` 以上でのみ参照される（イシュー #907）。sticky 追従・
@@ -1301,8 +1302,10 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
  * ブランド・全セクションのトリガー・アクション群を 1 段に並べるには約\n\
  * 1240px 必要で、この帯域では収まらない。ナビを 2 段目（`order: 1` +\n\
  * `flex-basis: 100%`）へ折り返し、ヘッダー高さを最小\n\
- * `--fandhe-space-docs-header-height-stacked` へ伸ばす。sticky のサイドバーと\n\
- * 右目次・見出しアンカーのオフセットも同じトークンへ揃え、ヘッダーの下へ潜らせない。\n\
+ * `--fandhe-space-docs-header-height-stacked` から内容に合わせて伸ばす。\n\
+ * ヘッダーの実高さは折り返し行数で変わり CSS だけでは取得できないため、\n\
+ * この帯域ではヘッダーを sticky にせず通常フローへ戻し、サイドバー・右目次・\n\
+ * 見出しアンカーのオフセットをヘッダー高さに依存しない値にする。\n\
  * 上記の通常規則より後ろに置くことで同じ詳細度のまま上書きする。\n\
  */\n\
 @media (min-width: 768px) and (max-width: 1279.98px) {\n\
@@ -1310,6 +1313,7 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
    * 1 行に収まらないときはメニュー自体を折り返し、ヘッダーがその分だけ\n\
    * 伸びて下の要素を押し下げる（ナビが画面右端やヘッダー外へ出ない）。 */\n\
   .docs-header {\n\
+    position: static;\n\
     height: auto;\n\
     min-height: var(--fandhe-space-docs-header-height-stacked);\n\
   }\n\
@@ -1339,17 +1343,18 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
     padding: 0.3rem 0.5rem;\n\
   }\n\
 \n\
-  /* `.docs-toc-aside` は 1200px 以上でのみ表示（上記 1200px ブロック）。\n\
-   * 1200〜1280px の重なり帯域でもヘッダー直下へ張り付けるため併記する。 */\n\
+  /* ヘッダーが sticky でないため、sticky カラムはビューポート上端へ\n\
+   * 張り付ける。`.docs-toc-aside` は 1200px 以上でのみ表示（上記 1200px\n\
+   * ブロック）だが、1200〜1280px の重なり帯域のため併記する。 */\n\
   .docs-sidebar,\n\
   .docs-toc-aside {\n\
-    top: var(--fandhe-space-docs-header-height-stacked);\n\
-    max-height: calc(100vh - var(--fandhe-space-docs-header-height-stacked));\n\
+    top: 0;\n\
+    max-height: 100vh;\n\
   }\n\
 \n\
   .docs-content h2,\n\
   .docs-content h3 {\n\
-    scroll-margin-top: calc(var(--fandhe-space-docs-header-height-stacked) + 1rem);\n\
+    scroll-margin-top: 1rem;\n\
   }\n\
 }\n\
 ";
