@@ -678,9 +678,8 @@ weight = "1"
 /// `header_nav()` はイシュー #1012（Rule A）以降、ドロップダウンへ
 /// グループ配下ページを列挙しない（直下ページのみ）ため、グループ配下
 /// ページのタイトル（`Quote\"Title`）は `header_nav` の出力に現れない
-/// （サイドバー側のみが列挙する）。この入力ではセクションに直下ページが
-/// 無く `index_path` がグループ配下ページを指すため、`header_nav` 側は
-/// 「すべて見る」固定文言のみを出す。セクションタイトルの既定エスケープ
+/// （サイドバー側のみが列挙する）。#3670 以降は `header_nav` がグループ見出し
+/// （`Forms`）のアンカーリンクを出す。セクションタイトルの既定エスケープ
 /// （XSS 回帰の本体）は両関数とも変わらず固定する。
 #[test]
 fn sidebar_and_header_nav_escape_group_page_titles() {
@@ -711,6 +710,9 @@ path = "/button/"
     let header_html = render(&header_nav(&nav, "/button/"));
     assert!(!header_html.contains("<script>"));
     assert!(header_html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
-    // グループ配下ページのみのセクションなので「すべて見る」導線になる。
-    assert!(header_html.contains("すべて見る"));
+    // グループ配下ページのみのセクションでは、グループ見出しが索引内アンカー
+    // リンクになる（#3670。「すべて見る」は出さない）。配下ページ名は出ない。
+    assert!(header_html.contains(r#"href="/button/#forms""#));
+    assert!(!header_html.contains("すべて見る"));
+    assert!(!header_html.contains("Quote"));
 }

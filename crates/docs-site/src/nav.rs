@@ -205,6 +205,46 @@ impl Section {
     }
 }
 
+/// セクションの「見出し一覧」1 項目（#3670）。サイドバーとヘッダー popup が
+/// 共有する唯一の情報源で、[`Section::headings`] が返す。
+#[derive(Debug, Clone, Copy)]
+pub enum SectionHeading<'a> {
+    /// セクション直下ページ（リンク 1 件）。
+    Page(&'a Page),
+    /// グループ見出し（サイドバーでは `<details>`、popup では索引内アンカーへのリンク）。
+    Group(&'a Group),
+}
+
+impl Section {
+    /// 「直下ページ（宣言順）→ グループ（宣言順）」の見出し一覧を返す。
+    /// 順序は [`Section::all_pages`] と同じ契約。[`sidebar`] と [`header_nav`] は
+    /// 見出しをこの関数以外で数えない（両者の項目集合・順序・表記の一致を構造で保証する）。
+    pub fn headings(&self) -> impl Iterator<Item = SectionHeading<'_>> {
+        self.pages
+            .iter()
+            .map(SectionHeading::Page)
+            .chain(self.groups.iter().map(SectionHeading::Group))
+    }
+}
+
+/// グループ名からアンカー id を決定的に作る。見出し自動採番（`layout` の
+/// `with_heading_anchors`）と同じ `slugify` に委譲するため、Themes / Primitives の
+/// 既存 id と byte 単位で一致する。サイドバー・popup・索引ページが共有する。
+/// 索引ページに同 slug の先行見出しがあると `-2` が付いてずれるが、その場合は
+/// リンク検証が失敗する（fail-closed）。
+pub fn group_anchor_id(title: &str) -> String {
+    crate::layout::slugify(title)
+}
+
+/// ヘッダー popup のグループ見出しリンク先（索引ページ内の該当カテゴリ位置）。
+pub fn group_href(nav: &Nav, section: &Section, group: &Group) -> String {
+    format!(
+        "{}#{}",
+        href(nav, &section.index_path),
+        group_anchor_id(&group.title)
+    )
+}
+
 /// `[[section.page]]` 1 件分。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Page {
@@ -986,28 +1026,32 @@ pub fn sidebar(nav: &Nav, current_path: &str) -> Node {
     for section in scoped {
         section_nodes.push(heading(vec![], vec![text(section.title.clone())]));
 
-        // 直下ページ（`section.pages`）が非空のときのみ `ul` を出力する。
-        // フラット列挙用の `section.all_pages()` はここでは使わない（グループ
-        // 見出しを挟んだ階層描画には直下ページとグループを個別に扱う必要が
-        // あるため。順序契約自体は `all_pages()` と同一に保つ）。
-        if !section.pages.is_empty() {
-            let mut items: Vec<Node> = Vec::new();
-            for page in &section.pages {
-                let link_href = href(nav, &page.path);
-                let is_current = page.path == current_path;
-                let a = nav_link(
-                    &link_href,
-                    is_current,
-                    vec![],
-                    vec![text(page.title.clone())],
-                );
-                items.push(item(vec![], vec![a]));
+        // 見出し一覧は `Section::headings`（popup と共有の唯一の情報源）から取る。
+        // 直下ページが 0 件のときは `ul` を出さない。
+        let mut items: Vec<Node> = Vec::new();
+        for heading_item in section.headings() {
+            match heading_item {
+                SectionHeading::Page(page) => {
+                    let link_href = href(nav, &page.path);
+                    let is_current = page.path == current_path;
+                    let a = nav_link(
+                        &link_href,
+                        is_current,
+                        vec![],
+                        vec![text(page.title.clone())],
+                    );
+                    items.push(item(vec![], vec![a]));
+                }
+                SectionHeading::Group(group) => {
+                    if !items.is_empty() {
+                        section_nodes.push(list(vec![], std::mem::take(&mut items)));
+                    }
+                    section_nodes.push(group_node(nav, group, current_path));
+                }
             }
-            section_nodes.push(list(vec![], items));
         }
-
-        for group in &section.groups {
-            section_nodes.push(group_node(nav, group, current_path));
+        if !items.is_empty() {
+            section_nodes.push(list(vec![], items));
         }
     }
     nav_list_root("Documentation", vec![("class", "sidebar")], section_nodes)
@@ -1108,8 +1152,9 @@ fn group_node(nav: &Nav, group: &Group, current_path: &str) -> Node {
 ///       a.docs-header-trigger[href=base_path+index_path]（el 直接。
 ///         現在セクションのみ aria-current="true" + data-current）
 ///       ul.docs-header-dropdown                    … nav_list list（再利用）
-///         li > a[href]（直下ページのみ。現在ページのみ
-///           aria-current="page" + data-current）
+///         li > a[href]（直下ページ: 現在ページのみ aria-current="page" + data-current）
+///         li > a[href=索引#グループ id]（グループ見出し。現在ページを含むグループのみ
+///           aria-current="true" + data-current。配下ページは出さない、#3670）
 /// ```
 ///
 /// セクションが単一ページのみでも一律ドロップダウン構造にする
@@ -1117,7 +1162,7 @@ fn group_node(nav: &Nav, group: &Group, current_path: &str) -> Node {
 ///
 /// `aria-current` は 2 つの意味軸を衝突させない: `"page"` はドロップ
 /// ダウン内の現在ページ 1 件との完全一致、`"true"` はトリガー側の現在
-/// セクション所属を表す（同一マークアップ内で `page`/`true` が同時に
+/// セクション所属とグループ見出しの所属を表す（同一マークアップ内で `page`/`true` が同時に
 /// 出ても意味が異なるため矛盾しない）。
 ///
 /// タイトル・href はすべて headless 層 → [`fandhe_frontend_core::render`]
@@ -1136,46 +1181,39 @@ pub fn header_nav(nav: &Nav, current_path: &str) -> Node {
         // スコープ判定側の用途に譲り、ここでは使わない）。
         let is_current_section = section.all_pages().any(|p| p.path == current_path);
 
+        // ドロップダウンはサイドバーと同じ見出し一覧（`Section::headings`、#3670）。
+        // 直下ページはリンク、グループは索引ページ内の該当カテゴリへのアンカー
+        // リンクにし、グループ配下の個別ページは出さない（選択は遷移先の
+        // サイドバーに任せる）。長い一覧は CSS の max-height/overflow で操作可能に保つ。
         let mut dropdown_items: Vec<Node> = Vec::new();
-        // ドロップダウン項目はセクション直下ページのみを列挙する（Rule A、
-        // イシュー #1012）。`section.all_pages()`（グループ配下まで平坦化
-        // する走査、イシュー #939）を使うと、Components セクションのように
-        // グループ配下ページが 100 件超あるセクションでドロップダウンが
-        // ビューポート外へはみ出し実質操作不能になる（実測: 108 項目 /
-        // 16KB。`.docs-header-dropdown` に `max-height`/`overflow` を持た
-        // ない）。トリガー自体が本イシューでセクショントップページへの
-        // 遷移リンクになったため、グループ配下ページの一覧はサイドバー
-        // （#1013 でセクションスコープに限定される）に委ねる。
-        for page in &section.pages {
-            let link_href = href(nav, &page.path);
-            let is_current = page.path == current_path;
-            let a = nav_link(
-                &link_href,
-                is_current,
-                vec![],
-                vec![text(page.title.clone())],
-            );
-            dropdown_items.push(item(vec![], vec![a]));
-        }
-        // 直下ページの中にセクション索引ページ（`index_path` と同一 path）
-        // が無く、かつグループが存在する場合のみ「すべて見る」項目を追加
-        // する。索引ページが直下ページに既に含まれる場合は同一リンクの
-        // 重複を避ける（Rule A の重複回避条件）。
-        let index_already_listed = section.pages.iter().any(|p| p.path == section.index_path);
-        if !section.groups.is_empty() && !index_already_listed {
-            // 「すべて見る」リンクの href はトリガーと同一（`section.index_path`）
-            // のため、現在ページがこの index_path と完全一致する場合は
-            // ページ完全一致用の `aria-current="page"` を付与する（Rule A・
-            // デュアル軸ルール、イシュー #1012。current_path がグループ配下
-            // にのみ存在するケースを想定していなかった Bugbot 指摘の修正）。
-            let is_index_current = current_path == section.index_path;
-            let all_link = nav_link(
-                &trigger_href,
-                is_index_current,
-                vec![],
-                vec![text("すべて見る")],
-            );
-            dropdown_items.push(item(vec![], vec![all_link]));
+        for heading_item in section.headings() {
+            match heading_item {
+                SectionHeading::Page(page) => {
+                    let link_href = href(nav, &page.path);
+                    let is_current = page.path == current_path;
+                    let a = nav_link(
+                        &link_href,
+                        is_current,
+                        vec![],
+                        vec![text(page.title.clone())],
+                    );
+                    dropdown_items.push(item(vec![], vec![a]));
+                }
+                SectionHeading::Group(group) => {
+                    // headless の `nav_link` は呼び出し側の `aria-current` を捨てる
+                    // ため、所属表示（"true"）を付けるグループ見出しは `el` で組む。
+                    let group_link = group_href(nav, section, group);
+                    let mut attrs: Vec<(&str, &str)> = vec![("href", &group_link)];
+                    if group.pages.iter().any(|p| p.path == current_path) {
+                        attrs.push(("aria-current", "true"));
+                        attrs.push(("data-current", ""));
+                    }
+                    dropdown_items.push(item(
+                        vec![],
+                        vec![el("a", attrs, vec![text(group.title.clone())])],
+                    ));
+                }
+            }
         }
 
         // トリガーを `<a href>` 化し、セクショントップページ
@@ -2075,13 +2113,11 @@ path = "/p1/"
         assert!(!reference_trigger_slice.contains(r#"aria-current="true""#));
     }
 
-    /// ドロップダウン項目はグループ配下ページを一切含まず、直下ページの
-    /// みを列挙する（Rule A、イシュー #1012）。直下ページに `index_path`
-    /// と同一 path が無い場合のみ「すべて見る」項目が追加され、その href
-    /// はトリガーと同一（`index_path`）になる。直下ページに `index_path`
-    /// と同一 path がある場合は重複を避けるため追加されない。
+    /// ドロップダウンは「直下ページ + グループ見出し」だけで、グループ配下
+    /// ページは出さない（#3670）。グループ見出しの href は索引ページ内の
+    /// アンカー（`index_path#group_anchor_id`）で、「すべて見る」は出さない。
     #[test]
-    fn header_nav_dropdown_lists_only_direct_pages_and_adds_index_link_for_grouped_section() {
+    fn header_nav_dropdown_lists_direct_pages_and_group_headings_without_group_pages() {
         let grouped = r#"
 [site]
 title = "Docs"
@@ -2104,6 +2140,14 @@ title = "Button"
 source = "components/button.md"
 path = "/components/button/"
 
+[[section.group]]
+title = "Layout"
+
+[[section.group.page]]
+title = "Stack"
+source = "components/stack.md"
+path = "/components/stack/"
+
 [[section]]
 title = "NoIndexInPages"
 index_path = "/no-index-in-pages/index/"
@@ -2124,37 +2168,58 @@ path = "/no-index-in-pages/index/"
         let nav = parse_nav(grouped).unwrap();
         let html = render(&header_nav(&nav, "/components/pre-styled-ui/"));
 
-        // グループ配下ページ（Button）はドロップダウンに出ない（否定的断定）。
+        // グループ配下ページ（Button / Stack）は出ない（否定的断定）。
         assert!(!html.contains("Button"));
+        assert!(!html.contains("Stack"));
         assert!(!html.contains(r#"href="/components/button/""#));
 
-        // Components: 直下ページに index_path と同一 path があるため
-        // 「すべて見る」は追加されず、ドロップダウンは 1 件のみ。
-        // NoIndexInPages: 直下ページに index_path と同一 path が無いため
-        // 「すべて見る」が追加され、href はトリガーと同一（index_path）。
-        // 全体で「すべて見る」がちょうど 1 件（NoIndexInPages 分のみ）である
-        // ことで両セクションの挙動差を機械固定する。
+        // 直下ページ + グループ見出し（アンカーリンク）。
         assert!(html.contains("コンポーネント索引"));
+        assert!(html.contains(r#"href="/components/pre-styled-ui/#forms""#));
+        assert!(html.contains(r#"href="/components/pre-styled-ui/#layout""#));
         assert!(html.contains("Direct"));
-        assert_eq!(html.matches("すべて見る").count(), 1);
-        assert!(html.contains(r#"href="/no-index-in-pages/index/""#));
+        assert!(html.contains(r#"href="/no-index-in-pages/index/#group""#));
+        assert_eq!(html.matches("すべて見る").count(), 0);
 
         // いずれの `ul.docs-header-dropdown` も空にならない。
         assert!(!html.contains(r#"class="docs-header-dropdown"></ul>"#));
     }
 
-    /// `index_path` が直下ページには存在せずグループ配下ページとしてのみ
-    /// 存在するセクションで、現在ページがその `index_path` と完全一致する
-    /// 場合、「すべて見る」リンク（href はトリガーと同一）にページ完全一致用
-    /// の `aria-current="page"` が付与されることを確認する（Bugbot 指摘の
-    /// 修正、イシュー #1012）。修正前は `nav_link` へ常に `false` を渡して
-    /// おり、このケースで `aria-current` が一切付与されなかった。
+    /// 現在ページがグループ配下のとき、そのグループ見出しにだけ所属表示
+    /// `aria-current="true"` が付く。索引（直下ページ）が現在のときは
+    /// 索引リンクに `"page"` が付き、グループ見出しには付かない。
     #[test]
-    fn header_nav_see_all_link_marks_current_when_index_path_is_current_page() {
-        let grouped = r#"
+    fn header_nav_marks_only_the_group_containing_current_page() {
+        let nav = parse_nav(
+            r#"
 [site]
 title = "Docs"
 base_path = ""
+
+[[section]]
+title = "Components"
+index_path = "/components/pre-styled-ui/"
+
+[[section.page]]
+title = "コンポーネント索引"
+source = "components-pre-styled-ui.md"
+path = "/components/pre-styled-ui/"
+
+[[section.group]]
+title = "Forms"
+
+[[section.group.page]]
+title = "Button"
+source = "components/button.md"
+path = "/components/button/"
+
+[[section.group]]
+title = "Layout"
+
+[[section.group.page]]
+title = "Stack"
+source = "components/stack.md"
+path = "/components/stack/"
 
 [[section]]
 title = "NoIndexInPages"
@@ -2172,18 +2237,55 @@ title = "Group"
 title = "GroupPage"
 source = "no-index/group-page.md"
 path = "/no-index-in-pages/index/"
-"#;
-        let nav = parse_nav(grouped).unwrap();
-        let html = render(&header_nav(&nav, "/no-index-in-pages/index/"));
+"#,
+        )
+        .unwrap();
 
-        // 「すべて見る」リンク自体に aria-current="page" + data-current が付く。
-        let all_link_href_marker = r#"href="/no-index-in-pages/index/" aria-current="page""#;
-        assert!(html.contains(all_link_href_marker));
-        assert!(html.contains("data-current"));
-        // トリガーのセクション所属用 aria-current="true" とページ完全一致用
-        // aria-current="page" は 1 件ずつ、意味の軸を衝突させずに共存する。
-        assert_eq!(html.matches(r#"aria-current="true""#).count(), 1);
+        let html = render(&header_nav(&nav, "/components/button/"));
+        // トリガー（Components）+ Forms 見出しの 2 件。Layout・page は 0 件。
+        assert_eq!(html.matches(r#"aria-current="true""#).count(), 2);
+        assert_eq!(html.matches(r#"aria-current="page""#).count(), 0);
+        assert!(html.contains(r#"href="/components/pre-styled-ui/#forms" aria-current="true""#));
+        assert!(!html.contains(r#"href="/components/pre-styled-ui/#layout" aria-current"#));
+
+        let html = render(&header_nav(&nav, "/components/pre-styled-ui/"));
         assert_eq!(html.matches(r#"aria-current="page""#).count(), 1);
+        // トリガーのみ（グループ見出しには付かない）。
+        assert_eq!(html.matches(r#"aria-current="true""#).count(), 1);
+    }
+
+    /// グループ名の XSS 文字列はエスケープされ、href の fragment は slug 化
+    /// されて `<`・`"`・`javascript:` を含まない。
+    #[test]
+    fn header_nav_group_heading_escapes_title_and_slugs_fragment() {
+        let input = r#"
+[site]
+title = "Docs"
+base_path = ""
+
+[[section]]
+title = "S"
+index_path = "/s/"
+
+[[section.page]]
+title = "Index"
+source = "s.md"
+path = "/s/"
+
+[[section.group]]
+title = "<script>alert(1)</script>\"x"
+
+[[section.group.page]]
+title = "P"
+source = "p.md"
+path = "/p/"
+"#;
+        let nav = parse_nav(input).unwrap();
+        let html = render(&header_nav(&nav, "/s/"));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;"));
+        assert!(html.contains(r#"href="/s/#script-alert-1-script-x""#));
+        assert!(!html.contains("javascript:"));
     }
 
     #[test]

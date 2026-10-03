@@ -165,7 +165,15 @@ fn category_node(
         vec![
             div(
                 vec![("class", "docs-catalog-category-head")],
-                vec![h2(vec![], vec![text(category_title)]), count],
+                vec![
+                    // 明示 id（値は自動採番と同じ slug）。ヘッダー popup・サイドバーと
+                    // `nav::group_anchor_id` を共有し、自動採番への暗黙依存を避ける（#3670）。
+                    h2(
+                        vec![("id", crate::nav::group_anchor_id(category_title).as_str())],
+                        vec![text(category_title)],
+                    ),
+                    count,
+                ],
             ),
             ul(
                 vec![("class", "docs-catalog-grid")],
@@ -333,7 +341,10 @@ mod tests {
         assert!(!html.contains("<i>"));
         assert!(html.contains("&lt;i&gt;&amp;"));
         assert!(html.contains("1 件"));
-        assert!(!html.contains(" id=\"") && !html.contains("<script"));
+        // id はカテゴリ名の slug（`nav::group_anchor_id`）の 1 件だけ（#3670）。
+        assert_eq!(html.matches(" id=\"").count(), 1);
+        assert!(html.contains(" id=\"i\""));
+        assert!(!html.contains("<script"));
     }
 
     #[test]
