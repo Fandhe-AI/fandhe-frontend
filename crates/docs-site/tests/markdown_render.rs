@@ -314,21 +314,21 @@ fn blockquote_nesting_beyond_max_depth_falls_back_to_paragraph() {
 // ---------------------------------------------------------------------
 
 #[test]
-fn admonition_note_renders_as_alert_with_title_and_description() {
+fn admonition_note_renders_as_callout_with_label_and_body() {
     assert_eq!(
         render_all("> [!NOTE]\n> Something needs attention."),
         concat!(
-            r#"<div data-scope="alert" data-part="root" role="alert" class="fd-alert--status-info fd-alert--variant-subtle fd-alert--size-md">"#,
-            r#"<span data-scope="alert" data-part="indicator" aria-hidden="true">"#,
+            r#"<div data-scope="callout" data-part="root" class="fd-callout--size-md fd-callout--variant-soft fd-callout--color-palette-info">"#,
+            r#"<span data-scope="callout" data-part="icon" aria-hidden="true">"#,
             r#"<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" focusable="false">"#,
             r#"<circle cx="8" cy="8" r="6.5" stroke-width="1.5"></circle>"#,
             r#"<circle cx="8" cy="5" r="0.9" fill="currentColor" stroke="none"></circle>"#,
             r#"<rect x="7.25" y="7" width="1.5" height="5" rx="0.5" fill="currentColor" stroke="none"></rect>"#,
             "</svg>",
             "</span>",
-            r#"<div data-scope="alert" data-part="content">"#,
-            r#"<div data-scope="alert" data-part="title">Note</div>"#,
-            r#"<div data-scope="alert" data-part="description"><p>Something needs attention.</p></div>"#,
+            r#"<div data-scope="callout" data-part="text">"#,
+            "<p><strong>Note</strong></p>",
+            "<p>Something needs attention.</p>",
             "</div>",
             "</div>",
         )
@@ -336,31 +336,31 @@ fn admonition_note_renders_as_alert_with_title_and_description() {
 }
 
 #[test]
-fn admonition_marker_variants_map_to_expected_status_and_title() {
+fn admonition_marker_variants_map_to_expected_palette_and_label() {
     for (marker, expected_class, expected_title) in [
         (
             "[!NOTE]",
-            "fd-alert--status-info fd-alert--variant-subtle fd-alert--size-md",
+            "fd-callout--size-md fd-callout--variant-soft fd-callout--color-palette-info",
             "Note",
         ),
         (
             "[!TIP]",
-            "fd-alert--status-success fd-alert--variant-subtle fd-alert--size-md",
+            "fd-callout--size-md fd-callout--variant-soft fd-callout--color-palette-success",
             "Tip",
         ),
         (
             "[!IMPORTANT]",
-            "fd-alert--status-warning fd-alert--variant-subtle fd-alert--size-md",
+            "fd-callout--size-md fd-callout--variant-soft fd-callout--color-palette-warning",
             "Important",
         ),
         (
             "[!WARNING]",
-            "fd-alert--status-warning fd-alert--variant-subtle fd-alert--size-md",
+            "fd-callout--size-md fd-callout--variant-soft fd-callout--color-palette-warning",
             "Warning",
         ),
         (
             "[!CAUTION]",
-            "fd-alert--status-error fd-alert--variant-subtle fd-alert--size-md",
+            "fd-callout--size-md fd-callout--variant-soft fd-callout--color-palette-danger",
             "Caution",
         ),
     ] {
@@ -370,35 +370,33 @@ fn admonition_marker_variants_map_to_expected_status_and_title() {
             "marker={marker} -> {output}"
         );
         assert!(
-            output.contains(&format!(
-                r#"<div data-scope="alert" data-part="title">{expected_title}</div>"#
-            )),
+            output.contains(&format!("<p><strong>{expected_title}</strong></p>")),
             "marker={marker} -> {output}"
         );
     }
 }
 
 #[test]
-fn admonition_without_body_omits_description() {
+fn admonition_without_body_has_label_only() {
     let output = render_all("> [!NOTE]");
     assert_eq!(
         output,
         concat!(
-            r#"<div data-scope="alert" data-part="root" role="alert" class="fd-alert--status-info fd-alert--variant-subtle fd-alert--size-md">"#,
-            r#"<span data-scope="alert" data-part="indicator" aria-hidden="true">"#,
+            r#"<div data-scope="callout" data-part="root" class="fd-callout--size-md fd-callout--variant-soft fd-callout--color-palette-info">"#,
+            r#"<span data-scope="callout" data-part="icon" aria-hidden="true">"#,
             r#"<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" focusable="false">"#,
             r#"<circle cx="8" cy="8" r="6.5" stroke-width="1.5"></circle>"#,
             r#"<circle cx="8" cy="5" r="0.9" fill="currentColor" stroke="none"></circle>"#,
             r#"<rect x="7.25" y="7" width="1.5" height="5" rx="0.5" fill="currentColor" stroke="none"></rect>"#,
             "</svg>",
             "</span>",
-            r#"<div data-scope="alert" data-part="content">"#,
-            r#"<div data-scope="alert" data-part="title">Note</div>"#,
+            r#"<div data-scope="callout" data-part="text">"#,
+            "<p><strong>Note</strong></p>",
             "</div>",
             "</div>",
         )
     );
-    assert!(!output.contains("data-part=\"description\""));
+    assert!(!output.contains("role="));
 }
 
 #[test]
@@ -432,6 +430,23 @@ fn admonition_body_supports_inline_and_md_link_syntax() {
     assert!(output.contains("<strong>details</strong>"));
 }
 
+/// イシュー #3622: 注記は静的な補足であり live region（`role="alert"`）に
+/// してはならない。5 種すべてで role 属性が出ないことを固定する。
+#[test]
+fn admonition_has_no_role_attribute_for_any_kind() {
+    for marker in [
+        "[!NOTE]",
+        "[!TIP]",
+        "[!IMPORTANT]",
+        "[!WARNING]",
+        "[!CAUTION]",
+    ] {
+        let output = render_all(&format!("> {marker}\n> body"));
+        assert!(!output.contains("role="), "marker={marker} -> {output}");
+        assert!(!output.contains("aria-live"), "marker={marker} -> {output}");
+    }
+}
+
 #[test]
 fn xss_payload_in_admonition_body_is_escaped() {
     let output = render_all("> [!NOTE]\n> <script>alert(1)</script>");
@@ -441,7 +456,7 @@ fn xss_payload_in_admonition_body_is_escaped() {
 
 #[test]
 fn admonition_indicator_svg_differs_per_kind_even_when_status_is_shared() {
-    // IMPORTANT と WARNING は同一 AlertStatus::Warning（`fd-alert--status-warning`）
+    // IMPORTANT と WARNING は同一 ColorPalette::Warning（`fd-callout--color-palette-warning`）
     // を共有するため、配色だけでは区別できない。indicator の SVG 形状が
     // kind ごとに異なることを確認する（イシュー #732、markdown.rs
     // admonition_indicator の doc コメント参照）。
@@ -455,7 +470,7 @@ fn admonition_indicator_svg_differs_per_kind_even_when_status_is_shared() {
     ] {
         let output = render_all(&format!("> {marker}\n> body"));
         assert!(
-            output.contains(r#"data-part="indicator" aria-hidden="true"><svg"#),
+            output.contains(r#"data-part="icon" aria-hidden="true"><svg"#),
             "marker={marker} -> {output}"
         );
         let start = output.find("<svg").expect("svg present");
@@ -503,7 +518,7 @@ fn admonition_nesting_beyond_max_depth_falls_back_to_plain_blockquote() {
         17,
         "MAX_DEPTH 打ち切り時も blockquote ネストが継続すること: {output}"
     );
-    assert!(!output.contains("data-scope=\"alert\""));
+    assert!(!output.contains("data-scope=\"callout\""));
 }
 
 // ---------------------------------------------------------------------

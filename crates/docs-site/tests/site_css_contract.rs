@@ -66,17 +66,17 @@
 //! 適用されるため、契約ドリフトの対象にならない）。
 //!
 //! 同様に `markdown.rs` が admonition（`> [!NOTE]` 等）から生成する
-//! `fd-alert--status-*` class はサイト骨格 CSS の契約対象外（サイト骨格 CSS
+//! `fd-callout--*` class はサイト骨格 CSS の契約対象外（サイト骨格 CSS
 //! は変更しない不変条件、イシュー #715）。代わりに `crate::admonition::stylesheet()`
 //! が生成する `assets/admonition.css` 側が契約を持つため、
 //! `admonition_markdown_output_classes_are_covered_by_generated_admonition_css`
 //! が両者の乖離を検知する。層 1 (c) 方向の判定（[`classes_outside_contract`]）
-//! は `docs-` 接頭辞トークンのみを対象にすることで、`language-*`/`fd-alert--*`
+//! は `docs-` 接頭辞トークンのみを対象にすることで、`language-*`/`fd-callout--*`
 //! のような別契約管轄のクラスを誤って層 1 の違反として扱わない。
 //!
 //! 同様に `crate::highlight`（イシュー #1078）がフェンスコードブロック本文
 //! （Rust/TOML/HTML）へ挿入する `token-*` class（`docs-` 接頭辞なし）も
-//! `language-*`/`fd-alert--*` と同じ理由で層 1 の契約対象外である。
+//! `language-*`/`fd-callout--*` と同じ理由で層 1 の契約対象外である。
 //! `token-*` は生成 CSS 側（`crate::site_theme::highlight_css`）に恒常的な
 //! 固定セレクタ集合を持つため（`crate::highlight::TokenKind::ALL` を回した
 //! 網羅性は `crates/docs-site/tests/highlight.rs` が独立に検証する）、
@@ -316,7 +316,7 @@ fn extract_css_class_selectors_ignores_decimal_numbers() {
 }
 
 /// イシュー #715 の乖離検知テスト（モジュール doc 冒頭の追記参照）:
-/// `markdown.rs` の admonition レンダリングが生成する全 `fd-alert--status-*`
+/// `markdown.rs` の admonition レンダリングが生成する全 `fd-callout--*`
 /// class が `crate::admonition::stylesheet()`（`assets/admonition.css` の
 /// 実体）にセレクタとして存在することを固定する。`site/assets/site.css` 側は
 /// 対象外（分離 CSS 方式のため、`assert_all_classes_covered` は使わない）。
@@ -568,6 +568,8 @@ const NAV_GROUP_ONLY_CLASSES: &[&str] = &[
     "docs-nav-group",
     "docs-nav-group-summary",
     "docs-nav-group-list",
+    "docs-nav-group-title",
+    "docs-nav-group-count",
 ];
 
 /// 検索結果（イシュー #958）のうち `crate::script::SITE_JS` が実行時に
@@ -1079,7 +1081,7 @@ fn rendered_html_has_no_class_outside_the_contract() {
         let non_docs_tokens: HashSet<String> = extract_class_tokens(&html)
             .into_iter()
             // pre-styled-ui の recipe class（`fd-*`）は契約対象外（ヘッダー操作部が
-            // button/badge/kbd/icon/link を内包する、イシュー #3606。`fd-alert--*`
+            // button/badge/kbd/icon/link を内包する、イシュー #3606。`fd-callout--*`
             // と同じ扱い）。
             .filter(|t| !t.starts_with("docs-") && !t.starts_with("fd-"))
             .collect();
@@ -1555,6 +1557,10 @@ const LANDING_CLASSES: &[&str] = &[
     "docs-hero-lead",
     "docs-hero-install",
     "docs-hero-actions",
+    "docs-features",
+    "docs-features-title",
+    "docs-features-grid",
+    "docs-feature",
 ];
 
 /// `/quickstart/` を現在ページとするランディング骨格のフィクスチャ HTML。
@@ -1583,6 +1589,32 @@ fn landing_classes_match_module_constant_and_have_css_selectors() {
     for class in LANDING_CLASSES {
         assert!(css_tokens.contains(*class), "{class} が site.css に無い");
     }
+}
+
+#[test]
+fn landing_feature_grid_is_one_two_three_columns_by_breakpoint() {
+    // landing::CSS は `\n\` 行継続で組むため、ソース上のインデントは
+    // 生成 CSS では除去される（@media 内も行頭から始まる）。
+    let css = site_css();
+    let base = css.find(".docs-features-grid {").expect("grid base rule");
+    assert!(css[base..].contains("grid-template-columns: minmax(0, 1fr);"));
+    let md = css
+        .find("@media (min-width: 768px) {\n.docs-landing .docs-features-grid")
+        .expect("768px rule");
+    assert!(css[md..].contains("repeat(2, minmax(0, 1fr))"));
+    let lg = css
+        .find("@media (min-width: 1024px) {\n.docs-landing .docs-features-grid")
+        .expect("1024px rule");
+    assert!(css[lg..].contains("repeat(3, minmax(0, 1fr))"));
+}
+
+#[test]
+fn landing_feature_card_height_targets_root_part_only() {
+    let css = site_css();
+    assert!(
+        css.contains(".docs-feature [data-scope=\"card\"][data-part=\"root\"] {\nheight: 100%;")
+    );
+    assert!(!css.contains(".docs-feature [data-scope=\"card\"] {\nheight: 100%;"));
 }
 
 #[test]
@@ -1911,6 +1943,29 @@ fn site_footer_fallback_rules_exist_in_both_stylesheets() {
             css.contains(".docs-footer.docs-footer a {"),
             "フッターのリンク規則が無い"
         );
+    }
+}
+
+/// サイドバーの件数 badge と開閉三角は、recipe 有無の両 CSS で同じ見た目になる
+/// 代替規則を持つ（Primitives ページは recipe 抜き。イシュー #3611）。
+#[test]
+fn sidebar_group_fallback_rules_exist_in_both_stylesheets() {
+    let with = site_css();
+    let without = site_theme::stylesheet_without_recipes()
+        .expect("site theme stylesheet without recipes should assemble")
+        .as_css()
+        .to_string();
+    for css in [&with, &without] {
+        let start = css
+            .find(".docs-sidebar nav.sidebar .docs-nav-group-count [data-scope=\"badge\"] {")
+            .expect("件数 badge の代替規則が無い");
+        let block = &css[start..];
+        let block = &block[..block.find('}').unwrap()];
+        for expected in ["background:", "padding:", "border-radius:"] {
+            assert!(block.contains(expected), "{expected} が無い: {block}");
+        }
+        assert!(css.contains(".docs-sidebar nav.sidebar .docs-nav-group-summary::before {"));
+        assert!(css.contains("details.docs-nav-group[open] > .docs-nav-group-summary::before {"));
     }
 }
 

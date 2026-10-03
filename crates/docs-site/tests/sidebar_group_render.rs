@@ -114,8 +114,12 @@ fn renders_details_summary_for_each_group_in_declaration_order() {
     let html = render(&sidebar(&nav, "/components/"));
 
     assert!(html.contains(r#"<details class="docs-nav-group">"#));
-    assert!(html.contains(r#"<summary class="docs-nav-group-summary">Forms</summary>"#));
-    assert!(html.contains(r#"<summary class="docs-nav-group-summary">Layout</summary>"#));
+    for title in ["Forms", "Layout"] {
+        let head = format!(
+            r#"<summary class="docs-nav-group-summary"><span class="docs-nav-group-title">{title}</span><span class="docs-nav-group-count">"#
+        );
+        assert!(html.contains(&head), "{title} の summary 構造が不正");
+    }
     assert!(html.contains(r#"class="docs-nav-group-list""#));
 
     // 宣言順（Forms → Layout）を保つ。
@@ -185,7 +189,7 @@ fn only_the_group_containing_current_path_is_open() {
 
     // Layout グループの <details> は open 属性を持たない。
     let layout_start = html
-        .find(r#"<summary class="docs-nav-group-summary">Layout</summary>"#)
+        .find(r#"<span class="docs-nav-group-title">Layout</span>"#)
         .expect("Layout group summary should be present");
     let preceding = &html[..layout_start];
     let layout_details_start = preceding
@@ -368,4 +372,48 @@ fn rendered_sidebar_contains_no_script_or_inline_event_handlers() {
     assert!(html.contains(r#"href="/components/button/""#));
     assert!(html.contains(r#"href="/components/checkbox/""#));
     assert!(html.contains(r#"href="/components/grid/""#));
+}
+
+// ---- 件数 badge・summary 構造（イシュー #3611） ----
+
+/// 各グループの summary に、所属ページ数の badge が付く。
+#[test]
+fn summary_shows_page_count_badge_per_group() {
+    let nav = fixture_nav_with_groups();
+    let html = render(&sidebar(&nav, "/components/"));
+    for (title, count) in [("Forms", 2), ("Layout", 1)] {
+        let start = html
+            .find(&format!(
+                r#"<span class="docs-nav-group-title">{title}</span>"#
+            ))
+            .unwrap_or_else(|| panic!("{title} の title span が無い"));
+        let rest = &html[start..];
+        let end = rest.find("</summary>").expect("summary が閉じていない");
+        let summary = &rest[..end];
+        assert!(summary.contains(r#"data-scope="badge""#), "{summary}");
+        assert!(
+            summary.contains(&format!(">{count}</span></span>")),
+            "{title} の件数 {count} が無い: {summary}"
+        );
+    }
+}
+
+/// summary は phrasing の span のみ。見出し・リンク・ボタンを入れない。
+#[test]
+fn summary_contains_no_heading_or_interactive_element() {
+    let nav = fixture_nav_with_groups();
+    let html = render(&sidebar(&nav, "/components/"));
+    let mut rest = html.as_str();
+    let mut seen = 0;
+    while let Some(i) = rest.find("<summary") {
+        let tail = &rest[i..];
+        let end = tail.find("</summary>").expect("summary が閉じていない");
+        let summary = &tail[..end];
+        for forbidden in ["<h", "<button", "<a ", "<script"] {
+            assert!(!summary.contains(forbidden), "{forbidden} in {summary}");
+        }
+        seen += 1;
+        rest = &tail[end..];
+    }
+    assert_eq!(seen, 2);
 }

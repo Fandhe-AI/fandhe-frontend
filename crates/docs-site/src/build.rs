@@ -88,7 +88,7 @@
 //! # admonition 構文（[`crate::markdown`]）が使う CSS（イシュー #715）
 //!
 //! `> [!NOTE]` 等の admonition マーカーは [`markdown::render_markdown`](crate::markdown::render_markdown) が
-//! `alert` 部品へ描画するが、その専用 CSS（[`admonition::STYLESHEET_REL_PATH`]）
+//! `callout` 部品へ描画するが、その専用 CSS（[`admonition::STYLESHEET_REL_PATH`]）
 //! は showcase と同型に「使われているページだけ」へ配線する。ステップ 2 の
 //! `rewritten_body` を [`admonition::contains_admonition`] で走査し、1 つでも
 //! 含むページには追加 `<link>` を差し込み・linkcheck の既知 href へ登録する。

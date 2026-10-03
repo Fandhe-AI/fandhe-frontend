@@ -359,3 +359,93 @@ fn typography_selectors_never_escape_default_encoding() {
     let docs_css = site_css();
     assert!(!docs_css.contains('<'));
 }
+
+/// `selector {` から最初の `}` までの規則本文を切り出す。
+fn rule_block<'a>(css: &'a str, selector: &str) -> &'a str {
+    let start = css
+        .find(&format!("{selector} {{"))
+        .unwrap_or_else(|| panic!("{selector} 規則が生成 CSS に存在しない"));
+    css[start..]
+        .split('}')
+        .next()
+        .unwrap_or_else(|| panic!("{selector} 規則が閉じていない"))
+}
+
+/// イシュー #3622: 表のセル・ヘッダーが `table` recipe（Outline variant）の
+/// 解決後の値をミラーしていること。`--fandhe-table-*` custom property は docs 側で
+/// 解決後の値を直接書くため、component 側の宣言と docs 側の値を別々に照合する。
+#[test]
+fn table_declarations_mirror_pre_styled_ui_table_recipe() {
+    let docs_css = site_css();
+    let table_css = fandhe_frontend_pre_styled_ui::table::css();
+
+    for (component_prop, docs_prop, value) in [
+        (
+            "--fandhe-table-cell-padding",
+            "padding",
+            "var(--fandhe-space-2) var(--fandhe-space-3)",
+        ),
+        (
+            "--fandhe-table-font-size",
+            "font-size",
+            "var(--fandhe-font-font-size-sm)",
+        ),
+        (
+            "--fandhe-table-row-border",
+            "border-bottom",
+            "1px solid var(--fandhe-color-border-muted)",
+        ),
+        (
+            "--fandhe-table-header-bg",
+            "background",
+            "var(--fandhe-color-bg-subtle)",
+        ),
+    ] {
+        assert_declaration_mirrored(
+            &table_css,
+            component_prop,
+            value,
+            "table recipe (component)",
+        );
+        assert_declaration_mirrored(&docs_css, docs_prop, value, "table (docs mirror)");
+    }
+    for (property, value) in [
+        ("font-weight", "var(--fandhe-font-font-weight-medium)"),
+        ("border-bottom", "1px solid var(--fandhe-color-border)"),
+    ] {
+        assert_declaration_mirrored(&table_css, property, value, "table header (component)");
+    }
+
+    let th = rule_block(&docs_css, ".docs-content th");
+    for needle in [
+        "font-weight: var(--fandhe-font-font-weight-medium);",
+        "border-bottom: 1px solid var(--fandhe-color-border);",
+        "background: var(--fandhe-color-bg-subtle);",
+    ] {
+        assert!(th.contains(needle), "th (docs mirror) に {needle} が無い");
+    }
+
+    // recipe は縦罫線を持たないため、docs 側のセルも縦グリッドを持たない。
+    let cell = rule_block(&docs_css, ".docs-content th,\n.docs-content td");
+    assert!(!cell.contains("border-width"), "セルが縦罫線を持つ: {cell}");
+    assert!(!cell.contains("border-right"), "セルが縦罫線を持つ: {cell}");
+    assert!(!docs_css.contains(".docs-content tr > :last-child"));
+}
+
+/// イシュー #3622: h2 の区切り線が `separator` recipe と同じ色トークンであること。
+#[test]
+fn h2_divider_shares_separator_border_token() {
+    let docs_css = site_css();
+    let separator_css = fandhe_frontend_pre_styled_ui::separator::css();
+    assert_declaration_mirrored(
+        &separator_css,
+        "border-color",
+        "var(--fandhe-color-border)",
+        "separator (component)",
+    );
+    let h2 = rule_block(&docs_css, ".docs-content h2");
+    assert!(
+        h2.contains("border-top: 1px solid var(--fandhe-color-border);"),
+        "h2 の区切り線が separator と同じトークンでない: {h2}"
+    );
+}
