@@ -525,8 +525,8 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"sidebar\"][data-part=\"root\"][data-variant=\"floating\"] {\n  height: auto;\n}\n\
 .pre-styled-showcase [data-scope=\"donut-chart\"][data-part=\"root\"],\n.pre-styled-showcase [data-scope=\"pie-chart\"][data-part=\"root\"] {\n  max-width: 100%;\n}\n\
 .pre-styled-showcase [data-scope=\"donut-chart\"] [data-part=\"chart\"],\n.pre-styled-showcase [data-scope=\"pie-chart\"] [data-part=\"chart\"] {\n  max-width: 100%;\n  height: auto;\n}\n\
-.pre-styled-showcase [data-scope=\"steps\"][data-part=\"root\"],\n.pre-styled-showcase [data-scope=\"navigation-menu\"][data-part=\"root\"] {\n  max-width: 100%;\n  overflow-x: auto;\n}\n\
-@media (max-width: 767.98px) {\n  .pre-styled-showcase [data-scope=\"toast\"][data-part=\"root\"] {\n    width: auto;\n    max-width: 100%;\n    box-sizing: border-box;\n  }\n}\n\
+.pre-styled-showcase [data-scope=\"steps\"][data-part=\"root\"],\n.pre-styled-showcase [data-scope=\"navigation-menu\"][data-part=\"root\"] {\n  max-width: 100%;\n}\n\
+@media (max-width: 767.98px) {\n  .pre-styled-showcase [data-scope=\"steps\"][data-part=\"root\"],\n  .pre-styled-showcase [data-scope=\"navigation-menu\"][data-part=\"root\"] {\n    overflow-x: auto;\n  }\n  .pre-styled-showcase [data-scope=\"toast\"][data-part=\"root\"] {\n    width: auto;\n    max-width: 100%;\n    box-sizing: border-box;\n  }\n}\n\
 .showcase-scroll-reveal-list {\n  display: flex;\n  flex-direction: column;\n  gap: 8rem;\n  margin: 1.5rem 0;\n  max-width: 24rem;\n}\n\
 .showcase-scroll-reveal-item {\n  padding: 0.75rem 1rem;\n  border-radius: var(--fandhe-radius-md);\n  background: var(--fandhe-color-bg-subtle);\n}\n\
 .showcase-stagger-list {\n  display: flex;\n  flex-direction: column;\n  gap: 0.5rem;\n  margin: 1.5rem 0;\n  max-width: 24rem;\n}\n\
