@@ -942,7 +942,10 @@ body {\n\
   z-index: 20;\n\
   /* 寸法は fandhe-backend `.docs-header-dropdown` と同値（イシュー #1110\n\
    * の続き、旧 min-width 12rem / padding 0.35rem）。 */\n\
-  min-width: 14rem;\n\
+  min-width: min(14rem, calc(100vw - 2rem));\n\
+  /* 画面幅を超えないよう上限を掛ける。右寄りのグループは下の\n\
+   * `:nth-last-child(-n+4)` 規則で右揃えにして右端はみ出しを防ぐ（#3671）。 */\n\
+  max-width: min(22rem, calc(100vw - 2rem));\n\
   margin: 0;\n\
   padding: 0.4rem;\n\
   list-style: none;\n\
@@ -956,8 +959,13 @@ body {\n\
   /* 見出し一覧が長い Blocks（65 グループ）等でもビューポート内で操作できるよう\n\
    * 高さを制限してスクロールさせる（#3670）。 */\n\
   max-height: calc(100vh - var(--fandhe-space-docs-header-height) - 1rem);\n\
+  /* モバイル・タブレットではアドレスバー分 `100vh` が表示高さより大きく\n\
+   * なるため、`dvh` 対応ブラウザでは後勝ちで上書きする（#3671）。 */\n\
+  max-height: calc(100dvh - var(--fandhe-space-docs-header-height) - 1rem);\n\
   overflow-y: auto;\n\
   overscroll-behavior: contain;\n\
+  /* スクロールバー出現時に溝を先に確保し、項目の文字が欠けないようにする（#3671）。 */\n\
+  scrollbar-gutter: stable;\n\
 }\n\
 \n\
 .docs-header nav.docs-header-nav .docs-header-group:hover > .docs-header-dropdown,\n\
@@ -966,13 +974,13 @@ body {\n\
 }\n\
 \n\
 /*\n\
- * 最後（最右）のグループのみ右端アンカー（`right: 0`）に切り替える\n\
- * （Bugbot 指摘、イシュー #908 PR #919 レビュー由来）。ヘッダー統一\n\
- * （イシュー #1110 の続き）でナビは brand 直後の左寄せになり右端に接する\n\
- * 可能性は下がったが、狭幅（768px 直上）でセクション数が多い場合は依然\n\
- * 右はみ出しが起こりうるため、防御規則として維持する。\n\
+ * 後ろ 4 グループ（Themes / Blocks / Wireframes / API Reference）を右端\n\
+ * アンカー（`right: 0`）に切り替える（#3671。従来は最後の 1 件のみ）。\n\
+ * CSS からトリガーの x 座標は取れないため、右寄りのグループを右揃えにして\n\
+ * 幅 max-width（22rem）でも画面右端を超えないようにする。左揃えのまま残る\n\
+ * グループの左端は 768px でも約 281px で、+22rem でも画面内に収まる。\n\
  */\n\
-.docs-header nav.docs-header-nav .docs-header-group:last-child > .docs-header-dropdown {\n\
+.docs-header nav.docs-header-nav .docs-header-group:nth-last-child(-n+4) > .docs-header-dropdown {\n\
   left: auto;\n\
   right: 0;\n\
 }\n\
@@ -2044,6 +2052,7 @@ nav.prev-next .next .docs-pager-meta {\n\
    * 引いた値へ上書きする（#3670）。 */\n\
   .docs-header nav.docs-header-nav .docs-header-dropdown {\n\
     max-height: calc(100vh - var(--fandhe-space-docs-header-height-stacked) - 1rem);\n\
+    max-height: calc(100dvh - var(--fandhe-space-docs-header-height-stacked) - 1rem);\n\
   }\n\
 \n\
   /* ヘッダーが sticky でないため、sticky カラムはビューポート上端へ\n\
@@ -3578,6 +3587,15 @@ mod tests {
         let css = sheet.as_css();
         assert!(css
             .contains("max-height: calc(100vh - var(--fandhe-space-docs-header-height) - 1rem);"));
+        let vh = css
+            .find("max-height: calc(100vh - var(--fandhe-space-docs-header-height) - 1rem);")
+            .expect("vh 行");
+        let dvh = css
+            .find("max-height: calc(100dvh - var(--fandhe-space-docs-header-height) - 1rem);")
+            .expect("dvh 行");
+        assert!(vh < dvh, "dvh は vh フォールバックより後ろに置く");
+        assert!(css.contains("scrollbar-gutter: stable;"));
+        assert!(css.contains("max-width: min(22rem, calc(100vw - 2rem));"));
         assert!(css.contains("overflow-y: auto;"));
         assert!(css.contains(
             ".docs-header nav.docs-header-nav .docs-header-dropdown a[aria-current=\"true\"] {"

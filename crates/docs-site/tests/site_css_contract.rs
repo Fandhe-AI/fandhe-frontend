@@ -1511,6 +1511,36 @@ fn header_menu_overrides_nav_list_column_direction() {
     assert!(rule_body(&css, "\n.docs-brand {").contains("white-space: nowrap;"));
 }
 
+/// ヘッダー popup は縦横ともビューポート内に収まる（#3671）。縦は `dvh` 付き
+/// max-height + スクロール、横は max-width と後ろのグループの右揃え。
+#[test]
+fn header_dropdown_fits_viewport_vertically_and_horizontally() {
+    let css = site_css();
+    let body = rule_body(
+        &css,
+        "\n.docs-header nav.docs-header-nav .docs-header-dropdown {",
+    );
+    assert!(body.contains("overflow-y: auto;"));
+    assert!(body.contains("overscroll-behavior: contain;"));
+    assert!(body.contains("max-width: min(22rem, calc(100vw - 2rem));"));
+    assert!(body.contains("scrollbar-gutter: stable;"));
+    let vh = body.find("calc(100vh - ").expect("vh フォールバック");
+    let dvh = body.find("calc(100dvh - ").expect("dvh 行");
+    assert!(vh < dvh, "dvh は vh より後ろ");
+    let right = rule_body(
+        &css,
+        "\n.docs-header nav.docs-header-nav .docs-header-group:nth-last-child(-n+4) > .docs-header-dropdown {",
+    );
+    assert!(right.contains("left: auto;") && right.contains("right: 0;"));
+    assert!(
+        !css.contains(".docs-header-group:last-child > .docs-header-dropdown {"),
+        "右揃えが最後の 1 件へ戻っている"
+    );
+    assert!(css.contains(
+        "max-height: calc(100dvh - var(--fandhe-space-docs-header-height-stacked) - 1rem);"
+    ));
+}
+
 /// 768px 以上 1200px 未満（イシュー #3673 で 1280px から変更）では全トリガーが 1 段に収まらないため、ナビを
 /// 2 段目へ折り返し、ヘッダーを内容に合わせて伸ばす。実高さは CSS で
 /// 取得できないため、この帯域ではヘッダーを sticky にせず、サイドバー・
