@@ -16,7 +16,7 @@
 //!   span.docs-code-copy-status[role=status][aria-live=polite]
 //! ```
 //!
-//! ボタンは既定 `hidden` で、可視化・ラベル（Copy / Copied / Failed）の付与は
+//! ボタンは既定 `hidden` で、可視化・ラベル（Copy / Copied）の付与と、失敗時の再 hidden 化は
 //! `crate::script::SITE_JS` が配線完了後に行う（テーマトグルと同じ契約）。
 //! SSG 時にラベル文字列を出さないのは、検索インデックス
 //! （`crate::search_index`）へ全ページ共通の語が混入するのを避けるため。

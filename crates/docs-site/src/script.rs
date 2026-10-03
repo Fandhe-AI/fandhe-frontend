@@ -761,6 +761,18 @@ pub const SITE_JS: &str = "\
       }, 2000);
     }
 
+    // 例外・Promise 拒否ではボタンを再び hidden にする（設計文書 §5 の契約）。
+    // 失敗の通知はステータス領域（aria-live）にのみ残す。
+    function fail() {
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      button.setAttribute(`data-copy-state`, `failed`);
+      button.setAttribute(`hidden`, ``);
+      status.textContent = `Copy failed`;
+    }
+
     button.setAttribute(`data-copy-state`, `idle`);
     button.textContent = `Copy`;
     button.addEventListener(`click`, function () {
@@ -768,11 +780,9 @@ pub const SITE_JS: &str = "\
       try {
         navigator.clipboard.writeText(text).then(function () {
           setState(`copied`, `Copied`, `Copied to clipboard`);
-        }, function () {
-          setState(`failed`, `Failed`, `Copy failed`);
-        });
+        }, fail);
       } catch (err) {
-        setState(`failed`, `Failed`, `Copy failed`);
+        fail();
       }
     });
 
