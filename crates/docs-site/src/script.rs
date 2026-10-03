@@ -123,11 +123,15 @@ pub const INLINE_THEME_BOOTSTRAP: &str = "try{var t=localStorage.getItem(`fandhe
 ///    `document.getElementById` で対応見出しを引く（`querySelector('#'+id)`
 ///    は使わない。著者由来の id をセレクタとして組み立てるとセレクタ
 ///    インジェクション経路になり得るため、OWASP A03 対策として避ける）。
-/// 8. `IntersectionObserver` で可視見出し集合を維持し、可視集合が空で
-///    なければ文書順で最初の可視見出し、空ならヘッダー下端を過ぎ去った
-///    見出しのうち文書順で最後のものを現在地とし、対応リンクにのみ
-///    `aria-current="location"` を付与する（サイドバーの
-///    `aria-current="page"` とは値を分け、意味の衝突を避ける）。
+/// 8. `IntersectionObserver` で可視見出し集合を維持し、現在地は
+///    `update()` が次の順で決める。(1) スクロール可能なページの末尾なら
+///    文書順で最後の見出し、(2) 各見出しの `scroll-margin-top`（実測）+
+///    余裕を読み位置線とし、それを過ぎた見出しのうち文書順で最後のもの
+///    （`lastPassedTarget`）、(3) いずれも無ければ可視集合の文書順で最初の
+///    見出し。`scroll` / `resize` は rAF で間引いて同じ `update()` を
+///    再評価する。対応リンクにのみ `aria-current="location"` を付与する
+///    （サイドバーの `aria-current="page"` とは値を分け、意味の衝突を
+///    避ける）。
 ///
 /// 9. （イシュー #958、独立した 3 つ目の IIFE）`.docs-search-input`・
 ///    `.docs-search`・`#docs-search-results` のいずれか欠ければ即 return
@@ -291,11 +295,36 @@ pub const SITE_JS: &str = "\
     links[index].setAttribute(`aria-current`, `location`);
   }
 
-  // 可視集合が空でなければ文書順で最初の可視見出しを採用する。
+  // 見出しを「読んでいる」と見なす位置。`#見出し` 直リンク・目次ジャンプで
+  // 止まった見出しは top が各見出しの `scroll-margin-top` に一致する。
+  // この値は幅により異なる（広幅はヘッダー高 + 1rem、狭幅は 1rem）ため、
+  // 固定値だと狭幅で直後の子 h3 まで通過済みと扱われ、ジャンプ先の親 h2
+  // でなく h3 が current になる。そこで見出しごとに実測した
+  // `scroll-margin-top` + 余裕を線とし、取得できない場合のみ
+  // READING_LINE_PX へフォールバックする。親 h2 の直後に短い h3 が続くと
+  // 両者が同時に判定帯へ入り文書順先頭の h2 が current に留まっていた
+  // ため、帯内の先頭ではなくこの線を過ぎた最後の見出しを優先する
+  // （イシュー #3658）。
+  var READING_LINE_PX = HEADER_OFFSET_PX + 32;
+  var READING_SLACK_PX = 4;
+
+  function readingLineFor(target) {
+    var margin = Number.parseFloat(
+      window.getComputedStyle(target).scrollMarginTop,
+    );
+    if (Number.isNaN(margin)) {
+      return READING_LINE_PX;
+    }
+    return margin + READING_SLACK_PX;
+  }
+
+  // ページ末尾到達の判定余裕（サブピクセル誤差吸収）。
+  var BOTTOM_SLACK_PX = 2;
+
   function firstVisibleInDocumentOrder() {
     var found = null;
     targets.forEach(function (target) {
-      if (found) {
+      if (found !== null) {
         return;
       }
       if (visible.indexOf(target) !== -1) {
@@ -305,25 +334,52 @@ pub const SITE_JS: &str = "\
     return found;
   }
 
-  // 可視集合が空のとき（本文が長く見出し同士が離れている場合）の
-  // フォールバック: ヘッダー下端を過ぎ去った見出しのうち文書順で
-  // 最後のものを現在地とする。`getBoundingClientRect` はこの分岐でのみ
-  // 評価し、scroll イベントリスナは張らない（レイアウトスラッシング回避）。
+  // 読み位置線を過ぎた見出しのうち文書順で最後のものを返す。
+  // 見出しの top は文書順に単調増加するため二分探索し、スクロールごとの
+  // getBoundingClientRect() 呼び出しを O(log n) に抑える。評価は update()
+  // 経由のみ（IntersectionObserver 通知と rAF 間引きの scroll 時）。
   function lastPassedTarget() {
-    var found = null;
-    targets.forEach(function (target) {
-      var rect = target.getBoundingClientRect();
-      if (Math.sign(rect.top - HEADER_OFFSET_PX) !== 1) {
-        found = target;
+    var lo = 0;
+    var hi = targets.length - 1;
+    var found = -1;
+    while (Math.sign(hi - lo) !== -1) {
+      var mid = Math.floor((lo + hi) / 2);
+      var rect = targets[mid].getBoundingClientRect();
+      if (Math.sign(rect.top - readingLineFor(targets[mid])) !== 1) {
+        found = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
       }
-    });
-    return found;
+    }
+    return found === -1 ? null : targets[found];
   }
 
+  // スクロール可能なページで末尾に到達したか。ビューポートに収まる短い
+  // ページは常に「残り 0」になるため、スクロール可能量が余裕を超える場合
+  // に限って末尾と見なす（初回描画で読み位置線上の見出しを潰さない）。
+  function atPageBottom() {
+    var doc = document.documentElement;
+    var scrollable = doc.scrollHeight - window.innerHeight;
+    if (Math.sign(scrollable - BOTTOM_SLACK_PX) !== 1) {
+      return false;
+    }
+    var remaining = scrollable - window.scrollY;
+    return Math.sign(remaining - BOTTOM_SLACK_PX) !== 1;
+  }
+
+  // 判定順: (1) スクロール可能なページの末尾なら判定帯に依存せず文書順で
+  // 最後の見出し（末尾の短い節は帯・読み位置線まで上がりきらないため）、
+  // (2) 読み位置線を過ぎた最後の見出し、(3) 先頭付近は帯内の最初の見出し。
   function update() {
-    var current = firstVisibleInDocumentOrder();
-    if (!current) {
+    var current = null;
+    if (atPageBottom()) {
+      current = targets[targets.length - 1];
+    } else {
       current = lastPassedTarget();
+    }
+    if (!current) {
+      current = firstVisibleInDocumentOrder();
     }
     if (current) {
       markCurrent(current);
@@ -331,6 +387,23 @@ pub const SITE_JS: &str = "\
       clearCurrent();
     }
   }
+
+  // 末尾到達は帯内集合が変わらずに起こり得るため、rAF で間引いた passive
+  // scroll で update() を再評価する。atPageBottom() は window.innerHeight に
+  // 依存するため、画面サイズ変更（resize）でも同じ経路で再判定する。
+  var scrollQueued = false;
+  function queueUpdate() {
+    if (scrollQueued) {
+      return;
+    }
+    scrollQueued = true;
+    window.requestAnimationFrame(function () {
+      scrollQueued = false;
+      update();
+    });
+  }
+  window.addEventListener(`scroll`, queueUpdate, { passive: true });
+  window.addEventListener(`resize`, queueUpdate, { passive: true });
 
   var observer = new IntersectionObserver(function (entries) {
     entries.forEach(function (entry) {
@@ -976,6 +1049,10 @@ mod tests {
             ".docs-toc",
             "aria-current",
             "location",
+            "READING_LINE_PX",
+            "lastPassedTarget",
+            "passive",
+            "`resize`",
         ] {
             assert!(SITE_JS.contains(needle), "SITE_JS should wire {needle}");
         }
