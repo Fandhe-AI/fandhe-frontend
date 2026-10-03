@@ -580,6 +580,22 @@ pub const BUTTON_GROUP: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
+/// button-group の split-menu demo のトリガー要素 `id`。
+/// [`split_menu_trigger_css`] の ID セレクタと同一値を共有する（ずれ防止）。
+pub(crate) const SPLIT_MENU_TRIGGER_ID: &str = "button-group-split-menu-trigger";
+
+/// split-menu demo のトリガー用 ID スコープ CSS。
+///
+/// `showcase::stylesheet()` が `assets/pre-styled-ui.css` へ積む（CSP の
+/// `style-src 'self'` のためインライン `<style>` を使わない、#3677）。ID セレクタは
+/// menu recipe の属性セレクタ合成より詳細度が高く、`:hover` も殺さない。
+/// `<`・`&` を含まず `StyleSheet::push_css` の検証を通る。
+pub(crate) fn split_menu_trigger_css() -> String {
+    format!(
+        "#{SPLIT_MENU_TRIGGER_ID} {{ background: var(--fandhe-color-accent); color: var(--fandhe-color-accent-fg); border: none; }} #{SPLIT_MENU_TRIGGER_ID}:hover {{ background: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized)); }}\n"
+    )
+}
+
 /// イシュー #3124（R1239「塗りトリガーの分割ボタン」）: `/themes/button-group/`
 /// の Examples 節に載る合成例。主操作ボタン（塗り）+ アイコンのみの
 /// メニュートリガー（同じ塗り）を `button_group::root` へ並べ、
@@ -597,18 +613,11 @@ fn ex_button_group_split_button() -> Node {
         vec![text("デプロイする")],
     );
     // menu::trigger の既定背景（`var(--fandhe-color-bg)`、menu.rs 参照）は
-    // 塗りではないため、主操作ボタン（`ButtonVariant::Solid`、既定 palette
-    // `Accent`）と同じ塗りに揃える必要がある。インライン `style` 属性の
-    // `background` は（`:hover` を含む）いかなるセレクタ規則よりも常に
-    // 優先されてしまい、menu.rs の hover 規則（`[data-scope="menu"]
-    // [data-part="trigger"]:not([data-disabled]):hover { background:
-    // var(--fandhe-hover-bg); }`）を恒久的に覆い隠して hover 表示が効かなく
-    // なる（codex P2 指摘、PR #3561）。menu トリガー専用の塗り variant を
-    // 新設するほどの再利用性はないため、この合成例限定で一意な `id` を
-    // 付与し、スコープ付き `<style>`（下記 `menu_trigger_style`）で
-    // 既定/`:hover` 双方を ID セレクタ（属性セレクタ合成より詳細度が高く
-    // `@media (hover: hover)` にも依存しない）として定義する。
-    const SPLIT_MENU_TRIGGER_ID: &str = "button-group-split-menu-trigger";
+    // 塗りではないため、主操作ボタンと同じ塗りに揃える。インライン `style` 属性は
+    // `:hover` を含む全セレクタ規則に勝って hover 表示を殺す（PR #3561 codex P2）ため、
+    // 一意な `id` を付与し、ID セレクタの規則を外部 CSS（`split_menu_trigger_css`、
+    // `showcase::stylesheet()` が `assets/pre-styled-ui.css` へ積む）で与える。
+    // CSP `style-src 'self'` のためインライン `<style>` は使わない（#3677）。
     let menu_trigger = menu::trigger(
         OpenState::Closed,
         false,
@@ -618,19 +627,6 @@ fn ex_button_group_split_button() -> Node {
             ("id", SPLIT_MENU_TRIGGER_ID),
         ],
         vec![text("\u{25be}")],
-    );
-    // 上記 `id` のみを対象にした最小スコープ CSS。ID セレクタのため
-    // `:hover` 規則も含めて menu.rs の既定 state 規則より確実に優先される。
-    // `<style>` 子テキストは REQ-1 既定エスケープ（`text()`）を経由するが、
-    // ここでは `>`/`<`/`&` を一切含まないセレクタ・宣言のみのため実体参照化
-    // による破損は起きない（`crates/cli/embedded-examples/wireframe-ui/
-    // src/main.rs` モジュール doc「CSS の出力方式」節と同型の注意点）。
-    let menu_trigger_style = el(
-        "style",
-        vec![],
-        vec![text(format!(
-            "#{SPLIT_MENU_TRIGGER_ID} {{ background: var(--fandhe-color-accent); color: var(--fandhe-color-accent-fg); border: none; }} #{SPLIT_MENU_TRIGGER_ID}:hover {{ background: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized)); }}"
-        ))],
     );
     let menu_content = menu::content(
         OpenState::Closed,
@@ -663,15 +659,12 @@ fn ex_button_group_split_button() -> Node {
     );
     div(
         vec![],
-        vec![
-            menu_trigger_style,
-            button_group::root(
-                Orientation::Horizontal,
-                "デプロイ操作",
-                vec![],
-                vec![primary, split_menu],
-            ),
-        ],
+        vec![button_group::root(
+            Orientation::Horizontal,
+            "デプロイ操作",
+            vec![],
+            vec![primary, split_menu],
+        )],
     )
 }
 

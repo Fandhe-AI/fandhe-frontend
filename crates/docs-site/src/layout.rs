@@ -975,11 +975,8 @@ pub fn docs_page_with_layout(
     if let Some(bootstrap) = script::inline_theme_bootstrap() {
         head_children.push(el("script", vec![], vec![text(bootstrap)]));
     }
-    head_children.push(el(
-        "style",
-        vec![],
-        vec![text("@view-transition { navigation: auto; }")],
-    ));
+    // View Transitions の opt-in は site CSS（`site_theme::VIEW_TRANSITION_CSS`）が
+    // 担う。CSP `style-src 'self'` のためインライン `<style>` は出さない（#3677）。
     head_children.push(el(
         "link",
         vec![
