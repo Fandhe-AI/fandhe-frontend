@@ -264,6 +264,8 @@ live な再評価トリガーは `docs/design/docs-site-three-column-redesign.md
 
 ## 6. 関連文書
 
+- `docs/design/docs-site-styled-blocks-redesign.md`: #3588 ツリー（Blocks を
+  手本とした部品合成によるサイト刷新）の設計方針（イシュー #3596）。
 - `docs/design/docs-site-three-column-redesign.md`: イシュー #904 で
   作成した 3 カラム新レイアウトの設計文書。3.4 の導入転換を受けた
   CSS 供給方式・class 契約・breakpoint・契約テスト作り替え方針・
