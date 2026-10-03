@@ -176,6 +176,19 @@ pub struct Group {
 }
 
 impl Section {
+    /// `path` のページが属するグループを返す（直下ページ・未登録パスは `None`）。
+    ///
+    /// ページ見出しのパンくず（`crate::page_header`、イシュー #3607）が
+    /// 「セクション / グループ / ページ」の中間項目を決めるために使う。
+    /// `groups` を呼び出し側で手繰る二重ループを作らないための唯一の解決経路。
+    pub fn group_for_path(&self, path: &str) -> Option<&Group> {
+        self.groups
+            .iter()
+            .find(|g| g.pages.iter().any(|p| p.path == path))
+    }
+}
+
+impl Section {
     /// このセクション配下の全ページを「直下ページ → グループ（宣言順）→
     /// グループ内ページ（宣言順）」の順で列挙する、本モジュールが定める
     /// **唯一の正規走査経路**。

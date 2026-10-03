@@ -500,6 +500,54 @@ body {\n\
 }\n\
 \n\
 /*\n\
+ * 本文先頭のパンくず付きページ見出し（イシュー #3607、`crate::page_header`）。\n\
+ * Primitives ページは `site-primitives.css`（breadcrumb recipe なし）を読むため、\n\
+ * recipe と同じ値をここで再現する。`.docs-content ol` / `li` / `a`（typography_css、\n\
+ * 後段出力）に順序によらず勝つよう、`.docs-content` を前置して詳細度を上げる。\n\
+ */\n\
+.docs-page-heading {\n\
+  margin-block-end: var(--fandhe-space-4);\n\
+}\n\
+\n\
+.docs-content .docs-page-breadcrumb {\n\
+  margin-block-end: var(--fandhe-space-2);\n\
+  font-size: 0.875rem;\n\
+}\n\
+\n\
+.docs-content .docs-page-breadcrumb ol {\n\
+  display: flex;\n\
+  flex-wrap: wrap;\n\
+  align-items: center;\n\
+  gap: var(--fandhe-space-1-5, 0.375rem);\n\
+  list-style: none;\n\
+  margin: 0;\n\
+  padding: 0;\n\
+  overflow-wrap: break-word;\n\
+}\n\
+\n\
+.docs-content .docs-page-breadcrumb li {\n\
+  min-width: 0;\n\
+  margin: 0;\n\
+  line-height: 1.5;\n\
+}\n\
+\n\
+.docs-content .docs-page-breadcrumb a {\n\
+  color: var(--fandhe-color-fg-muted);\n\
+}\n\
+\n\
+.docs-content .docs-page-breadcrumb a:hover {\n\
+  color: var(--fandhe-color-fg);\n\
+}\n\
+\n\
+.docs-content .docs-page-breadcrumb [aria-current] {\n\
+  color: var(--fandhe-color-fg);\n\
+}\n\
+\n\
+.docs-content .docs-page-breadcrumb li[aria-hidden] {\n\
+  color: var(--fandhe-color-fg-subtle);\n\
+}\n\
+\n\
+/*\n\
  * フェンスコードのコピーボタン（イシュー #3605、`crate::code_copy`）。\n\
  * ボタンは `pre` の外に絶対配置する（`pre` の横スクロールで流さないため）。\n\
  * `hidden` 属性は `crate::script::SITE_JS` が配線完了後にのみ除去する。\n\
