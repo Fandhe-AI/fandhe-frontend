@@ -488,8 +488,9 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   しない）。
 /// - 狭幅の横はみ出し対策（イシュー #3602）: donut-chart / pie-chart
 ///   （`size-xl` が 448px 固定）は root と svg を `max-width: 100%` で
-///   縮め、steps（横向き）と navigation-menu（open 時の list）は root を
-///   横スクロール枠にし、toast は 768px 未満に限り root 幅を `auto` +
+///   縮め、steps（横向き）は root を横スクロール枠にし、navigation-menu は
+///   list を折り返し、open 時の content グリッドは `auto-fit` で 1 列へ
+///   落とし、toast は 768px 未満に限り root 幅を `auto` +
 ///   `max-width: 100%` へ切り替える（1440px の 24rem は不変）。
 const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
@@ -12003,7 +12004,7 @@ fn navigation_menu_section() -> Node {
                             "products",
                             Some("nav-menu-products-content"),
                             Some("nav-menu-products-trigger"),
-                            vec![("style", "display: grid; grid-template-columns: repeat(2, minmax(10rem, 1fr)); gap: var(--fandhe-space-2);")],
+                            vec![("style", "display: grid; grid-template-columns: repeat(auto-fit, minmax(min(10rem, 100%), 1fr)); gap: var(--fandhe-space-2);")],
                             vec![
                                 title_description_link(
                                     "Analytics",

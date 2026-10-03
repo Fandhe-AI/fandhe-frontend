@@ -1482,7 +1482,7 @@ fn narrow_header_moves_search_to_full_width_second_row() {
         ".docs-header-inner {\nflex-wrap: wrap;",
         "column-gap:",
         ".docs-header-actions {\ndisplay: contents;",
-        ".docs-search {\norder: 1;\nflex-basis: 100%;",
+        ".docs-search {\nflex: 1 1 10rem;",
         ".docs-search-input {\nwidth: 100%;",
         ".docs-search-results {\nleft: 0;\nright: 0;\nmin-width: 0;",
         "scroll-margin-top: 1rem;",
@@ -1494,6 +1494,8 @@ fn narrow_header_moves_search_to_full_width_second_row() {
     }
     assert!(!block.contains("position: absolute"));
     assert!(!block.contains("header-height-stacked"));
+    // DOM 順と視覚順を一致させる（order は Tab 順を変えない）。
+    assert!(!block.contains("\norder:"));
 }
 
 /// 本文の長い ASCII 列は折り返し、表内の絶対配置の視覚非表示要素は
