@@ -720,3 +720,21 @@ fn binary_exits_nonzero_for_unknown_argument() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("unknown argument"));
 }
+
+/// 汎用生成節フック（イシュー #3598）が登録したページでは、全 `id` 属性が
+/// 一意であることを固定する（予約レイアウト id との衝突は `page_sections::
+/// validate` がビルド時に拒否する）。本番登録表が空の間は検査対象が無く、
+/// Phase 3/4 が登録を追加した時点で自動的に有効になる。
+#[test]
+fn page_section_registered_pages_have_unique_ids() {
+    let out = shared_site::real_site().out_dir.as_path();
+    for section in fandhe_frontend_docs_site::page_sections::PAGE_SECTIONS {
+        let rel = format!("{}index.html", section.path.trim_start_matches('/'));
+        let html = std::fs::read_to_string(out.join(&rel)).expect("registered page html");
+        let mut seen = std::collections::BTreeSet::new();
+        for chunk in html.split(" id=\"").skip(1) {
+            let id = chunk.split('"').next().unwrap_or_default();
+            assert!(seen.insert(id.to_string()), "duplicate id {id:?} in {rel}");
+        }
+    }
+}
