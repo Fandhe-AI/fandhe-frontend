@@ -316,12 +316,29 @@ fn card_node(base_path: &str, c: &EntryCard) -> Node {
                             ..TextProps::default()
                         },
                         vec![],
-                        vec![text(c.description)],
+                        inline_code_nodes(c.description),
                     ),
                 ],
             )],
         )],
     )
+}
+
+/// 説明文中のバッククォート区間を `code` ノードへ、それ以外を `text` ノードへ変換する。
+/// 旧 Markdown 由来の `` `fw new` `` がリテラルのバッククォートとして出ないようにする。
+/// すべて `text()` 経由のためエスケープは保たれる。
+fn inline_code_nodes(src: &str) -> Vec<Node> {
+    src.split('`')
+        .enumerate()
+        .filter(|(_, seg)| !seg.is_empty())
+        .map(|(i, seg)| {
+            if i % 2 == 1 {
+                code(vec![], vec![text(seg)])
+            } else {
+                text(seg)
+            }
+        })
+        .collect()
 }
 
 /// 数値指標節（部品数 4 件と依存上限 2 件）。
