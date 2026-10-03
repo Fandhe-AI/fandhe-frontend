@@ -41,7 +41,7 @@
 |------|-----------|----------|--------------------|------------------|------|----------|
 | ヘッダー操作部 | `navbar-docs-site`（構造のみ） | button / input_group（field）/ kbd / badge / tab_nav / link / icon | `navigation_menu`・`menu`: 制約 4。ドロップダウンは既存の CSS のみ方式を維持 | ダミーのロゴ・リンクを実ナビ（`header_nav`）へ。検索は既存 `site.js` へ配線 | #3606 | `navbar-docs-site-1440-light.png` |
 | ページ見出し | `docs-layout-page-header`（採用） | breadcrumb / heading / text | 手本内の button・badge・code は不要なら省く | パンくずは `Nav` から生成。説明文は front matter 由来 | #3607 | `docs-layout-page-header-1440-light.png` |
-| 前後ページャ | `docs-layout-prev-next`（採用） | card / icon / text / link | `pagination`: ページ番号送りではない | 既存 `prev_next_nav` の出力順を維持 | #3608 | `docs-layout-prev-next-1440-light.png` |
+| 前後ページャ | `docs-layout-prev-next`（採用） | card / icon / link_overlay（headless、既存）。text は使わず docs 側 `span` | `pagination`: ページ番号送りではない | 既存 `prev_next_nav` の出力順を維持。Primitives ページは recipe を読まないため、カード装飾とアイコン寸法は docs 側 CSS で自己完結させる | #3608 | `docs-layout-prev-next-1440-light.png` |
 | フッター | `footer-link-columns`（採用） | link / separator / heading / text / icon | 手本の外部リンク 19 件: 実在しない宛先は持ち込まない | 列は全セクション（`Nav`）から生成。著作権表記は固定文言 | #3609 | `footer-link-columns-1440-light.png` |
 | 右目次 | `docs-layout-toc` / `docs-layout-toc-progress` | link / heading / text | 進捗の動的表現: スクロールスパイ（既存）以外の JS を足さない | `docs-toc` を共有しない既存規約を維持。進捗は現在位置の強調のみ | #3610 | `docs-layout-toc-1440-light.png` / `docs-layout-toc-progress-1440-light.png` |
 | サイドバー | `docs-layout-sidebar-nav`（nav_list 維持） | nav_list / badge / icon / link | menu / drawer / switch / accordion: 制約 4。手本に含まれるが使わない | 現在ページのセクション限定（既存契約）を維持。dark 修正は #3603 | #3611 | `docs-layout-sidebar-nav-1440-light.png` |
@@ -122,6 +122,17 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 - 構造は `div.docs-code-block > pre + button.docs-code-copy[hidden] + span.docs-code-copy-status[role=status][aria-live=polite]`。状態は `data-copy-state` の `idle` / `copied` / `failed` の 3 値。
 - ボタンの可視ラベル（Copy / Copied / Failed）は SSG では出さず、JS が `textContent` で入れる（検索インデックスへ共通語を混入させないため）。
 - Phase 3（ヒーロー、#3612）・Phase 5（コードブロックヘッダー、#3620）は、この `div.docs-code-block` ラッパーと JS の契約（ラッパー内の `pre`・ボタン・ステータス）を再利用する。
+
+## 5.1 セクション索引のカードグリッド（#3616）
+
+Guides・API Reference・Examples の 3 セクショントップは、汎用生成節フック（#3598）で差し込むカードグリッドにする。確定事項は次のとおり。
+
+- 説明文の正は `crates/docs-site/src/section_index.rs` の定数台帳（`GUIDES` / `API_GROUPS` / `EXAMPLES`）とする。イシューが挙げた「原稿の最初の段落」「`nav.toml` の `description`」はいずれも `PageSection::render` のシグネチャ変更（原稿・`Nav` の受け渡し）を要し、同フックを使う兄弟イシューとの stale base 衝突リスクが高いため採らない。台帳と `site/nav.toml` の一致は `tests/section_index_nav.rs` が fail-closed で固定する。説明文の正を `nav.toml` へ一本化する案は後続課題。
+- 構造は `ul.docs-index-grid > li.docs-index-card > card::root > card::body(heading > a.docs-index-card-link + text)`。全面リンクは `a::after { position: absolute; inset: 0 }` の伸張リンクで組み、`link_overlay` は使わない（`SITE_RECIPES` から除外済み）。リンク名はタイトルのみ。
+- 専用 CSS は `assets/section-index.css`（`PAGE_STYLESHEETS` へ登録、3 ページにだけ `<link>`）。`site.css` へは積まない。新しい色トークンは作らず、`.docs-content` を前置して typography ミラーに詳細度で勝つ。他の索引（Themes 等）も再利用してよい。
+- Placement は `/guides/` が `Append`（h2 節を全撤去）、`/api/` と `/examples/` が `BeforeFirstH2`。API はクレート別 6 グループ（グループ見出し h2 は TOC・検索に載せ、カードは h3）。
+- `/examples/` の本文（`docs/guides/examples.md`）の比較表・読む順はリンク箇条書きの二重管理ではなく実質的な内容のため変更しない。
+- 本番登録表が実 nav 前提になるため、fixture ビルドは `page_sections::EMPTY_REGISTRY` + `build_site_with` で行う（`validate` の `UnknownPage` 検査は緩めない）。バイナリ経由のテストは実リポジトリ、または登録 3 ページを持つ一時サイトで行う。
 
 ## 6. トップページのレイアウト方針
 

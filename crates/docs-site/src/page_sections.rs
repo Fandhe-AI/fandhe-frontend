@@ -71,6 +71,7 @@ use crate::component_page;
 use crate::landing;
 use crate::layout::{PageLayout, RESERVED_LAYOUT_IDS};
 use crate::nav::Nav;
+use crate::section_index;
 use crate::wireframes;
 
 /// 生成節を Markdown 本文のどこへ差し込むか（モジュール doc「挿入位置の規約」）。
@@ -118,19 +119,46 @@ pub struct Registry {
     pub stylesheets: &'static [PageStylesheet],
 }
 
-/// 本番の生成節登録表。トップのヒーロー（イシュー #3612）が 1 件。後続の
-/// #3613〜#3615 は `/` の登録を増やさず [`landing::render`] の返す節列へ追記する
-/// （[`validate`] の `DuplicatePath` 制約）。Phase 4 の索引カードは各索引パスを追加する。
-pub const PAGE_SECTIONS: &[PageSection] = &[PageSection {
-    path: landing::PATH,
-    placement: Placement::Prepend,
-    render: landing::render,
-    stylesheets: &[],
-    layout: PageLayout::Landing,
-}];
+/// 本番の生成節登録表。トップのヒーロー（イシュー #3612）と、セクショントップの
+/// カードグリッド索引（イシュー #3616）。後続の #3613〜#3615 は `/` の登録を
+/// 増やさず [`landing::render`] の返す節列へ追記する（[`validate`] の
+/// `DuplicatePath` 制約）。並びは `path` の昇順。
+pub const PAGE_SECTIONS: &[PageSection] = &[
+    PageSection {
+        path: "/api/",
+        placement: Placement::BeforeFirstH2,
+        render: section_index::render_api,
+        stylesheets: &[section_index::STYLESHEET_REL_PATH],
+        layout: PageLayout::Docs,
+    },
+    PageSection {
+        path: "/examples/",
+        placement: Placement::BeforeFirstH2,
+        render: section_index::render_examples,
+        stylesheets: &[section_index::STYLESHEET_REL_PATH],
+        layout: PageLayout::Docs,
+    },
+    PageSection {
+        path: "/guides/",
+        placement: Placement::Append,
+        render: section_index::render_guides,
+        stylesheets: &[section_index::STYLESHEET_REL_PATH],
+        layout: PageLayout::Docs,
+    },
+    PageSection {
+        path: landing::PATH,
+        placement: Placement::Prepend,
+        render: landing::render,
+        stylesheets: &[],
+        layout: PageLayout::Landing,
+    },
+];
 
-/// 本番の追加 CSS 登録表（基盤導入時点では空）。
-pub const PAGE_STYLESHEETS: &[PageStylesheet] = &[];
+/// 本番の追加 CSS 登録表。
+pub const PAGE_STYLESHEETS: &[PageStylesheet] = &[PageStylesheet {
+    rel_path: section_index::STYLESHEET_REL_PATH,
+    build: section_index::stylesheet,
+}];
 
 /// 本番の登録表。[`crate::build::build_site`] が使う。
 pub const REGISTRY: Registry = Registry {
@@ -428,10 +456,15 @@ mod tests {
     }
 
     #[test]
-    fn production_registry_has_only_landing_hero() {
-        assert!(PAGE_STYLESHEETS.is_empty());
+    fn production_registry_validates_against_real_nav() {
+        let real = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../site/nav.toml"),
+        )
+        .expect("read site nav");
+        let real = crate::nav::parse_nav(&real).expect("parse site nav");
+        assert_eq!(validate(&REGISTRY, &real), Ok(()));
         let paths: Vec<_> = PAGE_SECTIONS.iter().map(|s| s.path).collect();
-        assert_eq!(paths, ["/"]);
+        assert_eq!(paths, ["/api/", "/examples/", "/guides/", "/"]);
         assert_eq!(layout_for_path_in(&REGISTRY, "/"), PageLayout::Landing);
         assert_eq!(layout_for_path_in(&REGISTRY, "/guides/"), PageLayout::Docs);
         assert_eq!(layout_for_path_in(&EMPTY_REGISTRY, "/"), PageLayout::Docs);
