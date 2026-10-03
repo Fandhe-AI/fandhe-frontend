@@ -120,7 +120,15 @@ fn api_table_css_is_present_in_both_stylesheets_with_stacked_narrow_rules() {
             .find(".docs-content table[data-docs-api-table] thead")
             .expect("API 表の縦積み規則が無い");
         let tail = &css[at..];
-        assert!(tail.contains("display: none"), "thead を隠す");
+        let thead_rule = &tail[..tail.find('}').expect("thead 規則の終端")];
+        assert!(
+            !thead_rule.contains("display: none"),
+            "thead は display: none にしない（列見出しを支援技術へ残す）"
+        );
+        assert!(
+            thead_rule.contains("clip: rect(0, 0, 0, 0)"),
+            "thead は visually-hidden で隠す"
+        );
         assert!(tail.contains("content: attr(data-label)"));
     }
 }

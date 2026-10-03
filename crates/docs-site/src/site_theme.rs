@@ -2285,8 +2285,10 @@ pub fn stylesheet_without_recipes() -> Result<StyleSheet, SiteThemeError> {
 /// 広幅は既存の `.docs-content table` のまま、行見出しの背景を本文セル並みに
 /// 戻し上端揃えにするだけ。767.98px 以下は DOM を変えず CSS だけで縦積み
 /// （param-list 風）へ切り替え、各セルの `data-label`（コンパイル時定数）を
-/// `::before` で見出しとして出す。`thead` は `display: none` で視覚的に隠すが、
-/// 縦積み時の列関係は `data-label` が担う。セレクタは `.docs-content table` より
+/// `::before` で見出しとして出す。`thead` は `display: none` にせず visually-hidden
+/// （clip / 絶対配置）で視覚的にだけ隠し、列見出しをアクセシビリティツリーへ残す
+/// （`display: none` は支援技術からも除外され、`::before` の `data-label` だけでは
+/// セルと列見出しの関係を保証できないため）。セレクタは `.docs-content table` より
 /// 高詳細度で後置し、ヘッダー用の最初の 767.98px ブロックとは別ブロックにする
 /// （`narrow_header_moves_search_to_full_width_second_row` が中身を固定）。
 /// 新しい色トークンは作らず既存トークンのみ参照する。
@@ -2306,7 +2308,15 @@ const API_TABLE_CSS: &str = "\
     background-image: none;\n\
   }\n\
   .docs-content table[data-docs-api-table] thead {\n\
-    display: none;\n\
+    position: absolute;\n\
+    width: 1px;\n\
+    height: 1px;\n\
+    margin: -1px;\n\
+    padding: 0;\n\
+    overflow: hidden;\n\
+    clip: rect(0, 0, 0, 0);\n\
+    white-space: nowrap;\n\
+    border: 0;\n\
   }\n\
   .docs-content table[data-docs-api-table] tbody,\n\
   .docs-content table[data-docs-api-table] tbody tr,\n\
