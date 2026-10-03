@@ -22,12 +22,29 @@
 
 use fandhe_frontend_docs_site::site_theme;
 
-/// サイト骨格 CSS 全量（typography_css を含む）を取得する。
+/// サイト骨格 CSS（typography_css を含む）から `SITE_RECIPES` の全文を除いた
+/// ものを取得する。
+///
+/// イシュー #3599 で pre-styled-ui recipe（heading/text/list/code/link 等）が
+/// `site.css` へ積まれたため、全量に対して「docs 側ミラー宣言」を照合すると
+/// recipe 側の同一宣言で満たされ、docs のミラーが消えても通る空振りになる。
+/// recipe 全文を除いた haystack に対して照合することで、契約（docs 側に
+/// 実在すること）を従来どおり固定する。
 fn site_css() -> String {
-    site_theme::stylesheet()
+    let mut css = site_theme::stylesheet()
         .expect("site theme stylesheet should assemble")
         .as_css()
-        .to_string()
+        .to_string();
+    for recipe in site_theme::SITE_RECIPES {
+        let body = (recipe.css)();
+        assert!(
+            css.contains(&body),
+            "recipe {} が site.css に無い",
+            recipe.name
+        );
+        css = css.replace(&body, "");
+    }
+    css
 }
 
 /// `"  {property}: {value};"` の形で `haystack` に含まれるかを検証する

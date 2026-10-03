@@ -547,6 +547,14 @@ pub fn docs_page_with_assets(
     // 出ない」といった不整合は構造的に起こらない（`toc_inline` rustdoc 参照）。
     let toc_inline_nav = toc_inline(&toc_entries);
 
+    // Primitives ページ（専用 CSS を配線するページ）は headless-ui デモへ styled
+    // recipe を到達させないため、recipe 抜きの site CSS を読む。
+    let site_css_rel_path =
+        if extra_stylesheets.contains(&crate::primitive_showcase::STYLESHEET_REL_PATH) {
+            crate::site_theme::PRIMITIVES_STYLESHEET_REL_PATH
+        } else {
+            crate::site_theme::STYLESHEET_REL_PATH
+        };
     let mut head_children = vec![
         el("meta", vec![("charset", "utf-8")], vec![]),
         el(
@@ -587,10 +595,7 @@ pub fn docs_page_with_assets(
         "link",
         vec![
             ("rel", "stylesheet"),
-            (
-                "href",
-                &asset_href(base_path, crate::site_theme::STYLESHEET_REL_PATH),
-            ),
+            ("href", &asset_href(base_path, site_css_rel_path)),
         ],
         vec![],
     ));
