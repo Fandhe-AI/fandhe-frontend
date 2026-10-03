@@ -116,6 +116,13 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 
 コピーのボタンは既定 `hidden` で出力し、配線完了後に表示する。`navigator.clipboard` が使えない場合・例外時は `hidden` のままとする。コピー対象は `textContent` で取得し、`innerHTML` へ外部入力を渡さない。インライン `<script>` はテーマブートストラップ以外へ増やさない。`no_js_contract.rs` は弱めず、追加のみ可とする。
 
+確定事項（#3605）:
+
+- 骨格は `crates/docs-site/src/code_copy.rs` の `wrap_code_blocks` が作る。`build.rs` の `render_markdown` 直後（blocks / wireframes の挿入より前）に適用するため、対象は Markdown 由来のフェンスに限られ、Blocks の demo と Anatomy の `pre` は包まない。`markdown::parse_fence` の出力は変えない。
+- 構造は `div.docs-code-block > pre + button.docs-code-copy[hidden] + span.docs-code-copy-status[role=status][aria-live=polite]`。状態は `data-copy-state` の `idle` / `copied` / `failed` の 3 値。
+- ボタンの可視ラベル（Copy / Copied / Failed）は SSG では出さず、JS が `textContent` で入れる（検索インデックスへ共通語を混入させないため）。
+- Phase 3（ヒーロー、#3612）・Phase 5（コードブロックヘッダー、#3620）は、この `div.docs-code-block` ラッパーと JS の契約（ラッパー内の `pre`・ボタン・ステータス）を再利用する。
+
 ## 6. トップページのレイアウト方針
 
 - 既定案: トップはサイドバー・右目次を出さない全幅ランディングとし、ヘッダーとフッターのみ共通にする。本文用の 3 カラム骨格はトップでは使わない。

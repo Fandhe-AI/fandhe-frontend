@@ -499,7 +499,9 @@ pub fn build_site_with(
                 source: source_err,
             })?;
 
-        let markdown_blocks = render_markdown(&markdown_input);
+        // フェンスコードへコピーボタン骨格を付与する（イシュー #3605、`crate::code_copy`）。
+        // Markdown 由来の `pre` のみが対象で、後続の生成節挿入より前に適用する。
+        let markdown_blocks = crate::code_copy::wrap_code_blocks(render_markdown(&markdown_input));
         // Blocks ページ（イシュー #2088）専用の途中挿入。`component_page`
         // の「後方追記」（下の `generated`/`body_children` 節）とは独立した
         // 分岐であり、`crate::blocks::Block::path` に一致しないページでは

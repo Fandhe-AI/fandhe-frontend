@@ -1463,6 +1463,28 @@ fn header_actions_can_shrink_on_narrow_viewports() {
     assert!(actions.contains("min-width: 0;"));
 }
 
+/// コピーボタン関連 class（イシュー #3605、`crate::code_copy`）。Markdown の
+/// フェンスがあるページにだけ出現し、フルページのフィクスチャには現れない
+/// ため、`SEARCH_JS_ONLY_CLASSES` と同様に層 1 本体とは別の契約で固定する。
+const CODE_COPY_CLASSES: &[&str] = &["docs-code-block", "docs-code-copy", "docs-code-copy-status"];
+
+#[test]
+fn code_copy_classes_match_module_constants_and_have_css_selectors() {
+    use fandhe_frontend_docs_site::code_copy;
+    assert_eq!(
+        CODE_COPY_CLASSES,
+        [
+            code_copy::CODE_BLOCK_CLASS,
+            code_copy::COPY_BUTTON_CLASS,
+            code_copy::COPY_STATUS_CLASS
+        ]
+    );
+    let css_tokens = extract_css_class_selectors(&site_css());
+    for class in CODE_COPY_CLASSES {
+        assert!(css_tokens.contains(*class), "{class} が site.css に無い");
+    }
+}
+
 /// 768px 未満では検索を全幅の 2 段目へ置き、検索入力が 70px まで縮んで
 /// placeholder が欠ける不具合を防ぐ（イシュー #3602）。`display: contents` で
 /// DOM を変えずに子を繰り上げる。JS 無効時に空の 2 段目を残さないよう
@@ -1582,6 +1604,16 @@ fn site_recipes_match_expected_table_and_are_fully_supplied() {
 }
 
 #[test]
+fn code_copy_classes_never_appear_in_fixture_html() {
+    for toc in [true, false] {
+        let tokens = extract_class_tokens(&full_page_html(toc));
+        for class in CODE_COPY_CLASSES {
+            assert!(!tokens.contains(*class), "{class} がフィクスチャに出現した");
+        }
+    }
+}
+
+#[test]
 fn site_recipes_are_byte_identical_substrings_of_showcase_css_in_same_order() {
     let showcase = fandhe_frontend_docs_site::showcase::stylesheet()
         .expect("showcase stylesheet should assemble")
@@ -1683,6 +1715,15 @@ fn docs_side_overrides_of_recipe_selectors_are_scoped_under_docs_wrapper() {
 }
 
 #[test]
+fn generated_site_css_hides_code_copy_while_hidden_attribute_is_present() {
+    let css = site_css();
+    let idx = css
+        .find(".docs-code-copy[hidden]")
+        .expect("missing .docs-code-copy[hidden] rule");
+    assert!(css[idx..].contains("display: none"));
+}
+
+#[test]
 fn representative_recipe_markup_is_covered_by_generated_site_css() {
     use fandhe_frontend_pre_styled_ui::{badge, button, card, kbd, separator};
     let css = site_css();
@@ -1713,4 +1754,12 @@ fn representative_recipe_markup_is_covered_by_generated_site_css() {
         assert!(html.contains(&format!(r#"data-scope="{scope}""#)));
         assert!(css.contains(&format!(r#"[data-scope="{scope}"]"#)));
     }
+}
+
+#[test]
+fn code_copy_pre_padding_selector_outranks_typography_pre_padding() {
+    // `.docs-content pre { padding }`（詳細度 0,1,1）に上書きされるとコピー
+    // ボタンがコード先頭行へ重なるため、より高い詳細度のセレクタで固定する。
+    let css = site_css();
+    assert!(css.contains(".docs-content .docs-code-block pre {"));
 }

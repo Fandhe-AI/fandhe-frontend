@@ -499,6 +499,63 @@ body {\n\
 }\n\
 \n\
 /*\n\
+ * フェンスコードのコピーボタン（イシュー #3605、`crate::code_copy`）。\n\
+ * ボタンは `pre` の外に絶対配置する（`pre` の横スクロールで流さないため）。\n\
+ * `hidden` 属性は `crate::script::SITE_JS` が配線完了後にのみ除去する。\n\
+ */\n\
+.docs-code-block {\n\
+  position: relative;\n\
+}\n\
+\n\
+/* `.docs-content pre`（typography_css、後段出力）の padding より詳細度を上げ、\n\
+ * 右余白（ボタン退避領域）が上書きされてコード先頭行に重ならないようにする。 */\n\
+.docs-content .docs-code-block pre {\n\
+  padding-right: 5rem;\n\
+}\n\
+\n\
+.docs-code-copy {\n\
+  position: absolute;\n\
+  top: 0.5rem;\n\
+  right: 0.5rem;\n\
+  font: inherit;\n\
+  font-size: 0.75rem;\n\
+  font-weight: 500;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+  background: var(--fandhe-color-bg-subtle);\n\
+  border: 1px solid var(--fandhe-color-border);\n\
+  border-radius: 0.4rem;\n\
+  padding: 0.2rem 0.5rem;\n\
+  cursor: pointer;\n\
+}\n\
+\n\
+.docs-code-copy:hover,\n\
+.docs-code-copy[data-copy-state=\"copied\"] {\n\
+  color: var(--fandhe-color-fg);\n\
+  border-color: var(--fandhe-color-accent);\n\
+}\n\
+\n\
+.docs-code-copy:focus-visible {\n\
+  outline: 2px solid var(--fandhe-color-accent);\n\
+  outline-offset: 2px;\n\
+}\n\
+\n\
+.docs-code-copy[hidden] {\n\
+  display: none;\n\
+}\n\
+\n\
+.docs-code-copy-status {\n\
+  position: absolute;\n\
+  width: 1px;\n\
+  height: 1px;\n\
+  padding: 0;\n\
+  margin: -1px;\n\
+  overflow: hidden;\n\
+  clip: rect(0, 0, 0, 0);\n\
+  white-space: nowrap;\n\
+  border: 0;\n\
+}\n\
+\n\
+/*\n\
  * ---- 検索 UI（素の JS、イシュー #958） ----\n\
  *\n\
  * `.docs-header-actions` の第 1 子（`crate::layout` 参照）。既定 `hidden` の\n\

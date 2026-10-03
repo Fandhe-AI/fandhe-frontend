@@ -114,6 +114,7 @@
 pub mod admonition;
 pub mod blocks;
 pub mod build;
+pub mod code_copy;
 pub mod component_page;
 pub mod component_page_specs_948;
 pub mod component_specs;

@@ -28,6 +28,8 @@
 //!   として実装し、テーマトグルの早期 return に巻き込まれないようにする
 //!   （テーマトグル・検索のいずれかが無い構成でも残りの機能が動作する
 //!   必要があるため）。
+//!   加えてイシュー #3605 で、フェンスコードのコピーボタン
+//!   （`crate::code_copy` が `hidden` 付きで出力）を配線する 4 つ目の IIFE を持つ。
 //!
 //! # セキュリティ不変条件（REQ-1、`.claude/rules/coding-rust.md`）
 //!
@@ -78,6 +80,13 @@ pub const THEME_STORAGE_KEY: &str = "fandhe-docs-theme";
 pub const INLINE_THEME_BOOTSTRAP: &str = "try{var t=localStorage.getItem(`fandhe-docs-theme`);if(t===`dark`||t===`light`){document.documentElement.setAttribute(`data-theme`,t);}}catch(e){}";
 
 /// [`SCRIPT_REL_PATH`] へ書き出す `assets/site.js` の全量。
+///
+/// 13 以降（イシュー #3605、独立した 4 つ目の IIFE）: `.docs-code-copy` が
+/// 0 件、または `isSecureContext` / `navigator.clipboard.writeText` が使えない
+/// 場合は即 return し、ボタンは `hidden` のまま残す。コピー元は同一
+/// `.docs-code-block` 内 `pre` の `textContent`（`innerHTML` は読まない）。
+/// 状態は `data-copy-state`（`idle`/`copied`/`failed`）、完了通知は
+/// `.docs-code-copy-status`（`aria-live`）へ書く。`hidden` はクリック配線の後に解除する。
 ///
 /// 責務:
 ///
@@ -713,6 +722,86 @@ pub const SITE_JS: &str = "\
     init();
   }
 })();
+
+// フェンスコードのコピーボタン（イシュー #3605、独立した 4 つ目の IIFE）。
+(function () {
+  var buttons = document.querySelectorAll(`.docs-code-copy`);
+  if (buttons.length === 0) {
+    return;
+  }
+  // Clipboard API が使えない環境ではボタンを hidden のまま残す（fail-closed）。
+  if (!window.isSecureContext || !navigator.clipboard || typeof navigator.clipboard.writeText !== `function`) {
+    return;
+  }
+
+  function wire(button) {
+    var block = button.closest(`.docs-code-block`);
+    if (!block) {
+      return;
+    }
+    var pre = block.querySelector(`pre`);
+    var status = block.querySelector(`.docs-code-copy-status`);
+    if (!pre || !status) {
+      return;
+    }
+    var timer = null;
+
+    function setState(state, label, message) {
+      button.setAttribute(`data-copy-state`, state);
+      button.textContent = label;
+      status.textContent = message;
+      if (timer !== null) {
+        clearTimeout(timer);
+      }
+      timer = setTimeout(function () {
+        button.setAttribute(`data-copy-state`, `idle`);
+        button.textContent = `Copy`;
+        status.textContent = ``;
+        timer = null;
+      }, 2000);
+    }
+
+    // 例外・Promise 拒否ではボタンを再び hidden にする（設計文書 §5 の契約）。
+    // 失敗の通知はステータス領域（aria-live）にのみ残す。
+    function fail() {
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      button.setAttribute(`data-copy-state`, `failed`);
+      button.setAttribute(`hidden`, ``);
+      status.textContent = `Copy failed`;
+    }
+
+    button.setAttribute(`data-copy-state`, `idle`);
+    button.textContent = `Copy`;
+    button.addEventListener(`click`, function () {
+      var text = pre.textContent;
+      try {
+        navigator.clipboard.writeText(text).then(function () {
+          setState(`copied`, `Copied`, `Copied to clipboard`);
+        }, fail);
+      } catch (err) {
+        fail();
+      }
+    });
+
+    // 配線がすべて完了した後にのみ可視化する（テーマトグルと同じ契約）。
+    button.removeAttribute(`hidden`);
+  }
+
+  function init() {
+    for (var i = 0; i !== buttons.length; i++) {
+      wire(buttons[i]);
+    }
+  }
+
+  if (document.readyState === `loading`) {
+    document.addEventListener(`DOMContentLoaded`, init);
+  } else {
+    init();
+  }
+})();
 ";
 
 /// `source` が HTML エスケープ対象文字（`< > & " '`）を 1 文字も含まず、
@@ -888,9 +977,38 @@ mod tests {
     fn site_js_scrollspy_is_isolated_from_the_theme_toggle_guard() {
         let iife_terminators = SITE_JS.matches("})();").count();
         assert!(
-            iife_terminators >= 3,
-            "SITE_JS should contain at least three independent IIFEs (found {iife_terminators})"
+            iife_terminators >= 4,
+            "SITE_JS should contain at least four independent IIFEs (found {iife_terminators})"
         );
+    }
+
+    /// コピー IIFE（イシュー #3605）は click 配線の後にのみ `hidden` を除去する。
+    #[test]
+    fn site_js_reveals_copy_button_only_after_listeners_are_wired() {
+        let start = SITE_JS.find("querySelectorAll(`.docs-code-copy`)").unwrap();
+        let slice = &SITE_JS[start..];
+        let listener = slice.find("addEventListener(`click`").unwrap();
+        let reveal = slice.find("removeAttribute(`hidden`)").unwrap();
+        assert!(listener < reveal);
+    }
+
+    #[test]
+    fn site_js_wires_code_copy() {
+        use crate::code_copy::{
+            CODE_BLOCK_CLASS, COPY_BUTTON_CLASS, COPY_STATE_ATTR, COPY_STATUS_CLASS,
+        };
+        for token in [
+            CODE_BLOCK_CLASS,
+            COPY_BUTTON_CLASS,
+            COPY_STATE_ATTR,
+            COPY_STATUS_CLASS,
+            "navigator.clipboard",
+            "writeText",
+            "isSecureContext",
+            "textContent",
+        ] {
+            assert!(SITE_JS.contains(token), "missing {token}");
+        }
     }
 
     /// 検索 IIFE（イシュー #958）のイベント配線がすべて完了した後にのみ
