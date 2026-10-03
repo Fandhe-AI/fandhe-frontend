@@ -1295,6 +1295,8 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(DOCS_MOTION_DEMO_KEYFRAMES_CSS)?;
     sheet.push_css(&docs_motion_demo_recipe().css())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
+    // 部品ページ demo 固有の ID スコープ規則（split-menu のトリガー塗り、#3677）。
+    sheet.push_css(&crate::component_specs_overlay::split_menu_trigger_css())?;
     Ok(sheet)
 }
 

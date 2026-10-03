@@ -978,11 +978,8 @@ pub fn docs_page_with_layout(
         vec![("src", &asset_href(base_path, script::THEME_INIT_REL_PATH))],
         vec![],
     ));
-    head_children.push(el(
-        "style",
-        vec![],
-        vec![text("@view-transition { navigation: auto; }")],
-    ));
+    // View Transitions の opt-in は site CSS（`site_theme::VIEW_TRANSITION_CSS`）が
+    // 担う。CSP `style-src 'self'` のためインライン `<style>` は出さない（#3677）。
     head_children.push(el(
         "link",
         vec![

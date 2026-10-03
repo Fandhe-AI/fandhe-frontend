@@ -3106,6 +3106,14 @@ const API_TABLE_CSS: &str = "\
 }\n\
 ";
 
+/// View Transitions の opt-in 宣言（`@view-transition`）。
+///
+/// 旧実装は全ページの head へインライン `<style>` で出していたが、CSP の
+/// `style-src 'self'` でインライン `<style>` を許可しなくて済むよう、サイト骨格
+/// CSS へ移した（#3677）。`assemble` が recipe の有無に関係なく積むため、
+/// `site.css` と Primitives ページ専用の `site-primitives.css` の両方に入る。
+const VIEW_TRANSITION_CSS: &str = "@view-transition { navigation: auto; }\n";
+
 fn assemble(with_recipes: bool) -> Result<StyleSheet, SiteThemeError> {
     let theme = docs_theme()?;
     let mut sheet = StyleSheet::new();
@@ -3134,12 +3142,29 @@ fn assemble(with_recipes: bool) -> Result<StyleSheet, SiteThemeError> {
     sheet.push_css(&typography_css()?)?;
     sheet.push_css(&highlight_css()?)?;
     sheet.push_css(API_TABLE_CSS)?;
+    sheet.push_css(VIEW_TRANSITION_CSS)?;
     Ok(sheet)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn both_stylesheet_variants_carry_view_transition_opt_in_exactly_once() {
+        for sheet in [
+            stylesheet().expect("site stylesheet"),
+            stylesheet_without_recipes().expect("primitives stylesheet"),
+        ] {
+            assert_eq!(
+                sheet
+                    .as_css()
+                    .matches("@view-transition { navigation: auto; }")
+                    .count(),
+                1
+            );
+        }
+    }
 
     #[test]
     fn stylesheet_contains_theme_tokens_and_dark_mode_blocks() {

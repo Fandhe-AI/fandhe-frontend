@@ -453,6 +453,16 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
         ("api/component-api/index.html", false),
     ];
 
+    // View Transitions の opt-in は site CSS 側（Primitives 用も含む、#3677）。
+    for css in ["assets/site.css", "assets/site-primitives.css"] {
+        let body = std::fs::read_to_string(out.join(css))
+            .unwrap_or_else(|e| panic!("read generated {css}: {e}"));
+        assert!(
+            body.contains("@view-transition { navigation: auto; }"),
+            "{css} should carry the @view-transition opt-in"
+        );
+    }
+
     for (relative, is_showcase) in pages {
         let html = std::fs::read_to_string(out.join(relative))
             .unwrap_or_else(|e| panic!("read generated {relative}: {e}"));
@@ -465,7 +475,6 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
             r#"data-scope="skip-nav""#,
             r#"data-part="link""#,
             r#"data-part="content""#,
-            "@view-transition { navigation: auto; }",
             r#"href="/fandhe-frontend/assets/site.css""#,
             r#"href="/fandhe-frontend/assets/skip-nav.css""#,
             r#"<script src="/fandhe-frontend/assets/theme-init.js"></script>"#,
@@ -479,6 +488,12 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
                 "{relative} should contain {needle:?} (3 カラム骨格・SkipNav・View Transitions・CSS/JS 配線の共通契約)"
             );
         }
+
+        // CSP `style-src 'self'` のためインライン `<style>` は 0 個（#3677）。
+        assert!(
+            !html.contains("<style"),
+            "{relative} must not emit inline <style>"
+        );
 
         // トップだけはランディング骨格（イシュー #3612）。右目次・折りたたみ目次を
         // 出さず、サイドバーは DOM に残す（狭幅の唯一のナビ手段）。他ページは

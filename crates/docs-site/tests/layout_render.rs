@@ -802,34 +802,27 @@ fn docs_page_with_assets_keeps_skip_nav_before_header_when_header_nav_present() 
 
 // ---- View Transitions（イシュー #912 回帰検証） ----
 
-/// `docs_page` が `<head>` へ View Transitions の opt-in 宣言
-/// （`@view-transition { navigation: auto; }`）を無条件で出力することを
-/// 固定する（`crate::layout::docs_page_with_assets` 参照）。この静的テストは
-/// opt-in 宣言の**存在**のみを固定し、遷移が実際に走るかは実ブラウザ確認の
-/// 責務（`docs/reports/docs-site-redesign-regression-report.md` 参照）。
+/// `docs_page` がインライン `<style>` を出さず、site.css の `<link>` を head 内に
+/// 持つことを固定する（CSP `style-src 'self'` 対応、#3677）。`@view-transition`
+/// の opt-in 自体は site.css 側で、`site_theme` の単体テストと `site_build.rs`
+/// が固定する。
 #[test]
-fn docs_page_emits_view_transition_opt_in_style_in_head() {
+fn docs_page_emits_no_inline_style_and_links_site_css_in_head() {
     let body = p(vec![], vec![text("本文です。")]);
     let node = docs_page("タイトル", "", sample_sidebar(), body);
     let html = render(&node);
 
-    assert!(html.contains("<style>@view-transition { navigation: auto; }</style>"));
+    assert!(!html.contains("<style"));
     let head_end = html.find("</head>").expect("head should exist");
-    let style_pos = html
-        .find("@view-transition { navigation: auto; }")
-        .expect("view-transition opt-in style should exist");
-    assert!(
-        style_pos < head_end,
-        "view-transition opt-in style should be inside <head>"
-    );
+    let link_pos = html
+        .find("assets/site.css")
+        .expect("site.css link should exist");
+    assert!(link_pos < head_end, "site.css link should be inside <head>");
 }
 
-/// [`docs_page_emits_view_transition_opt_in_style_in_head`] の対:
-/// `docs_page_with_assets`（ショーケースページ等、`extra_stylesheets`・
-/// `header_nav` を渡す経路）でも同じ opt-in 宣言が出ることを固定する
-/// （配線分岐で opt-in が抜け落ちる回帰の防止）。
+/// 上の対: `docs_page_with_assets` 経路でもインライン `<style>` が出ない。
 #[test]
-fn docs_page_with_assets_emits_view_transition_opt_in_style_in_head() {
+fn docs_page_with_assets_emits_no_inline_style() {
     let nav = parse_nav(sample_nav_toml()).expect("fixture nav.toml should parse");
     let body = p(vec![], vec![text("本文です。")]);
     let node = docs_page_with_assets(
@@ -843,7 +836,7 @@ fn docs_page_with_assets_emits_view_transition_opt_in_style_in_head() {
     );
     let html = render(&node);
 
-    assert!(html.contains("<style>@view-transition { navigation: auto; }</style>"));
+    assert!(!html.contains("<style"));
 }
 
 // ---- SkipNav の href/id 対応・フォーカス順（イシュー #912 回帰検証） ----

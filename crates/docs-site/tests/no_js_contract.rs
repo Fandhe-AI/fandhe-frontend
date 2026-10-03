@@ -225,6 +225,21 @@ fn no_generated_page_uses_inline_event_handler_attributes() {
     }
 }
 
+/// 生成 HTML（リダイレクト案内を除く）にインライン `<style>` 要素が 0 個であること
+/// （CSP `style-src 'self'` 前提、#3677）。エスケープ済みテキストは `&lt;style` の
+/// ため誤検知しない。
+#[test]
+fn no_generated_page_emits_inline_style_elements() {
+    let (_out, files, _redirects) = build_real_site();
+    for file in &files {
+        let html = std::fs::read_to_string(file).unwrap_or_else(|e| panic!("read {file:?}: {e}"));
+        assert!(
+            !html.to_ascii_lowercase().contains("<style"),
+            "{file:?} must not contain an inline <style> element"
+        );
+    }
+}
+
 /// イシュー #3676: 本体ページの `<script>` は外部ファイル 2 本のみで、
 /// インライン `<script>` は 0 個（`script-src 'self'` の CSP 下で実行できるため）。
 /// テーマ初期化は同期（`defer`/`async` なし）・`<head>` 内・最初の stylesheet より前、
