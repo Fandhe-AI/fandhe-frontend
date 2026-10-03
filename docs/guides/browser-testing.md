@@ -158,7 +158,7 @@ Chrome/Chromium と対応する chromedriver がローカルに必要（バー�
 
 `tools/docs-site/visual-regression.sh`（§9）は chromium `--screenshot` による no-JS 配信・固定マトリクスの回帰証跡で、本節は JS 有効・対話可能・任意ページ・ビューポート別のデザインレビュー用と使い分ける。なお §3 の「Playwright は起動不能」は CI 環境の話であり、ローカルの Playwright MCP とは別系統である。
 
-- **起動**: `make docs-preview`（ビルド出力は `_/site-preview/fandhe-frontend/`、配信は `http://127.0.0.1:8765/fandhe-frontend/`）。ポートは `make docs-preview PORT=9000` で変更でき、数字のみ受け付ける。停止は Ctrl-C。`python3` が無い場合は明示エラーで終了する。
+- **起動**: `make docs-preview`（ビルド出力は `_/site-preview/fandhe-frontend/`、配信は `http://127.0.0.1:8765/fandhe-frontend/`）。ポートは `make docs-preview PORT=9000` で変更でき、数字のみ受け付ける。停止は Ctrl-C。`python3` が無い場合は明示エラーで終了する。 なお `http.server` は未知の URL に `404.html` を返さないため、404 ページ（イシュー #3623）は `http://127.0.0.1:8765/fandhe-frontend/404.html` を直接開いて確認する。
 - **HTTP 配信が必須**: 生成 HTML は `base_path = "/fandhe-frontend"` 付きの絶対パスで CSS・JS・検索インデックスを参照するため、`file://` では解決しない。
 - **viewport**: `browser_resize` で 375x812 / 768x1024 / 1440x900 に切り替える。
 - **dark の 2 経路**: OS 追従は `colorScheme: 'dark'` を指定した context（`browser_run_code`）で、手動トグル経路は `browser_evaluate` で `document.documentElement.dataset.theme = 'dark'` を設定して確認する。

@@ -329,15 +329,16 @@ fn collect_text_into(node: &Node, out: &mut String, exclude_code_blocks: bool) {
     }
 }
 
-/// 索引カードのラッパー（`li.docs-index-card`）またはトップページの特徴カード
-/// （`li.docs-feature`、#3613。旧 `site/index.md` の「特徴」節の置換先）かどうか。
+/// 索引カードのラッパー（`li.docs-index-card`）、トップページの入口カード
+/// （`li.docs-landing-card`、#3614。旧 `site/index.md` の本文から移した見出し・説明文を持つ）、
+/// または特徴カード（`li.docs-feature`、#3613）かどうか。
 fn is_index_card(tag: &str, attrs: &[(String, String)]) -> bool {
     tag == "li"
         && attrs.iter().any(|(name, value)| {
             name == "class"
-                && value
-                    .split_whitespace()
-                    .any(|c| c == "docs-index-card" || c == "docs-feature")
+                && value.split_whitespace().any(|c| {
+                    c == "docs-index-card" || c == "docs-landing-card" || c == "docs-feature"
+                })
         })
 }
 
@@ -840,6 +841,19 @@ mod tests {
         let first = render_section_json("/base", &entries);
         let second = render_section_json("/base", &entries);
         assert_eq!(first, second);
+    }
+
+    #[test]
+    fn collect_text_includes_landing_card_subtree() {
+        let node = el(
+            "li",
+            vec![("class", "docs-landing-card")],
+            vec![div(
+                vec![("data-scope", "card")],
+                vec![text("ビュー遷移の入口")],
+            )],
+        );
+        assert!(collect_text(&node, false).contains("ビュー遷移の入口"));
     }
 
     #[test]

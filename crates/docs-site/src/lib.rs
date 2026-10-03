@@ -130,6 +130,7 @@ pub mod layout;
 pub mod linkcheck;
 pub mod markdown;
 pub mod nav;
+pub mod not_found;
 pub mod page_header;
 pub mod page_sections;
 pub mod primitive_showcase;

@@ -1570,6 +1570,15 @@ const LANDING_CLASSES: &[&str] = &[
     "docs-cta-title",
     "docs-cta-lead",
     "docs-cta-actions",
+    "docs-landing-section",
+    "docs-landing-section-title",
+    "docs-landing-section-lead",
+    "docs-landing-cards",
+    "docs-landing-card",
+    "docs-landing-card-link",
+    "docs-landing-stats-section",
+    "docs-landing-stats",
+    "docs-landing-stat",
 ];
 
 /// `/quickstart/` を現在ページとするランディング骨格のフィクスチャ HTML。
@@ -2189,5 +2198,32 @@ fn prev_next_recipe_classes_are_supplied_by_site_recipes() {
             site_theme::SITE_RECIPES.iter().any(|r| r.scope == scope),
             "{class} の scope {scope} が SITE_RECIPES に無い"
         );
+    }
+}
+
+/// 404 ページの class（イシュー #3623、`crate::not_found`）。通常フィクスチャには
+/// 現れないため `CODE_COPY_CLASSES` と同じ別契約で固定する。
+const NOT_FOUND_CLASSES: &[&str] = &["docs-not-found", "docs-not-found-links"];
+
+#[test]
+fn not_found_classes_match_module_constants_and_have_css_selectors() {
+    use fandhe_frontend_docs_site::not_found;
+    assert_eq!(
+        NOT_FOUND_CLASSES,
+        [not_found::NOT_FOUND_CLASS, not_found::NOT_FOUND_LINKS_CLASS]
+    );
+    let css_tokens = extract_css_class_selectors(&site_css());
+    for class in NOT_FOUND_CLASSES {
+        assert!(css_tokens.contains(*class), "{class} が site.css に無い");
+    }
+}
+
+#[test]
+fn not_found_classes_never_appear_in_fixture_html() {
+    for toc in [true, false] {
+        let tokens = extract_class_tokens(&full_page_html(toc));
+        for class in NOT_FOUND_CLASSES {
+            assert!(!tokens.contains(*class), "{class} がフィクスチャに出現した");
+        }
     }
 }

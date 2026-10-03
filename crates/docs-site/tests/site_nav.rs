@@ -545,6 +545,11 @@ fn every_existing_source_renders_without_fence_leakage_and_starts_with_a_heading
         }
         let input = std::fs::read_to_string(&full_path)
             .unwrap_or_else(|e| panic!("failed to read {}: {e}", page.source));
+        // トップページの本文はすべて `landing::render` が生成する（#3612〜#3614 で
+        // 旧 `site/index.md` の節を移した）ため、原稿が空であることを許容する。
+        if page.path == "/" && input.trim().is_empty() {
+            continue;
+        }
         let blocks = render_markdown(&input);
         assert!(
             !blocks.is_empty(),

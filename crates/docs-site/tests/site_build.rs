@@ -86,7 +86,9 @@ fn build_site_generates_all_pages_and_assets_for_ok_fixture() {
     // + search-index.json（マニフェスト）+ search-index/guide.json
     // （`[[section]]` 1 件分のセクションファイル。イシュー #957 / #3173、
     // 同じく全ビルドで無条件に書き出す）。
-    assert_eq!(report.assets.len(), 7);
+    // イシュー #3623 で 404.html が全ビルド無条件で加わり 7 件になった。
+    assert_eq!(report.assets.len(), 8);
+    assert!(out.0.join("404.html").exists());
     assert!(out.0.join("assets/favicon.svg").exists());
     assert!(out.0.join("index.html").exists());
     assert!(out.0.join("guide/quickstart/index.html").exists());
@@ -304,10 +306,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // Primitives ページ専用の recipe 抜き `site-primitives.css`（イシュー
     // #3599 のレビュー指摘）が加わり 1 件増えた（favicon との合算で 17 + セクション数）。イシュー #3616 で索引カード専用
     // `section-index.css` が加わり 18 + セクション数になった。イシュー #3617 で
-    // Themes・Primitives 索引専用 `component-index.css` が加わり 19 + セクション数になった。
+    // Themes・Primitives 索引専用 `component-index.css` が加わり 19 + セクション数に、
+    // イシュー #3623 で 404.html が全ビルド無条件で加わり 20 + セクション数になった。
     assert_eq!(
         report.assets.len(),
-        19 + nav.sections.len(),
+        20 + nav.sections.len(),
         "{:?}",
         report.assets
     );
@@ -495,6 +498,15 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
                 r#"href="/fandhe-frontend/guides/deployment/""#,
                 r#"href="/fandhe-frontend/guides/embedding-guide/""#,
                 r#"href="/fandhe-frontend/examples/""#,
+                r#"class="docs-landing-cards""#,
+                r#"class="docs-landing-stats""#,
+                r#"href="/fandhe-frontend/guides/""#,
+                r#"href="/fandhe-frontend/api/""#,
+                r#"href="/fandhe-frontend/primitives/""#,
+                r#"href="/fandhe-frontend/themes/""#,
+                r#"href="/fandhe-frontend/blocks/""#,
+                r#"href="/fandhe-frontend/wireframes/""#,
+                r#"data-scope="stat""#,
             ] {
                 assert!(
                     html.contains(needle),
@@ -818,5 +830,37 @@ fn page_section_registered_pages_have_unique_ids() {
             let id = chunk.split('"').next().unwrap_or_default();
             assert!(seen.insert(id.to_string()), "duplicate id {id:?} in {rel}");
         }
+    }
+}
+
+/// イシュー #3623: 404.html はルート直下へ `generate_assets` 経由で書かれ、
+/// `generate_pages` 経路（`404/index.html`）・検索インデックスには載らない。
+#[test]
+fn real_site_emits_404_page_outside_pages_and_search_index() {
+    use fandhe_frontend_docs_site::not_found;
+    let shared = shared_site::real_site();
+    let out = shared.out_dir.as_path();
+    let html = std::fs::read_to_string(out.join("404.html")).expect("404.html");
+    assert!(html.starts_with("<!DOCTYPE html>"));
+    assert!(html.contains(&format!("<title>{}", not_found::PAGE_TITLE)));
+    let nav_toml = std::fs::read_to_string(shared_site::repo_root().join("site/nav.toml")).unwrap();
+    let nav = fandhe_frontend_docs_site::nav::parse_nav(&nav_toml).unwrap();
+    for section in &nav.sections {
+        let href = format!("href=\"{}{}\"", nav.site.base_path, section.index_path);
+        assert!(html.contains(&href), "{href}");
+    }
+    assert!(html.contains("class=\"docs-search\" hidden"));
+    assert!(html.contains("data-search-index=\"/fandhe-frontend/assets/search-index.json\""));
+    assert!(!out.join("404").exists());
+    let mut files = vec![out.join("assets/search-index.json")];
+    for e in std::fs::read_dir(out.join("assets/search-index")).unwrap() {
+        files.push(e.unwrap().path());
+    }
+    for f in files {
+        let body = std::fs::read_to_string(&f).unwrap();
+        assert!(
+            !body.contains("/fandhe-frontend/404.html") && !body.contains(not_found::PAGE_TITLE),
+            "{f:?}"
+        );
     }
 }

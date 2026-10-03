@@ -47,7 +47,7 @@
 | サイドバー | `docs-layout-sidebar-nav`（nav_list 維持） | nav_list / badge / icon / link | menu / drawer / switch / accordion: 制約 4。手本に含まれるが使わない | 現在ページのセクション限定（既存契約）を維持。dark 修正は #3603 | #3611 | `docs-layout-sidebar-nav-1440-light.png` |
 | トップ: ヒーロー | `hero-install-command` / `hero-terminal` | badge / heading / text / field / button / code / kbd | `text_reveal`（hero-terminal の演出）: 無 JS 契約下で動作が不定。静的な code 表示にする | インストールコマンドのコピーは #3605 の機構で担う（既定 hidden） | #3612 | `hero-install-command-1440-light.png` / `hero-terminal-1440-light.png` |
 | トップ: 特徴 | `feature-three-column-icons` | card / icon / heading / text / link | 手本の外部リンク 7 件: 内部リンクへ置換 | 3 列、狭幅で 1 列 | #3613 | `feature-three-column-icons-1440-light.png` |
-| トップ: 入口と指標 | `cta-feature-links` / `stats-row` | card / stat / heading / button / separator | 手本の画像 4 件（`stats-row`）: 外部画像・ダミー素材は持ち込まない | 指標はビルド時に算出可能な値（部品数等）のみ。捏造値は置かない | #3614 | `cta-feature-links-1440-light.png` / `stats-row-1440-light.png` |
+| トップ: 入口と指標 | `cta-feature-links` / `stats-row` | card / stat / heading / button / separator | 手本の画像 4 件（`stats-row`）: 外部画像・ダミー素材は持ち込まない | 指標はビルド時に算出可能な値（部品数等）のみ。捏造値は置かない。`link_overlay` は §4.1 のとおり使わず、`a` の `::after` 伸張でカード全面クリックを実現する | #3614 | `cta-feature-links-1440-light.png` / `stats-row-1440-light.png` |
 | トップ: コード例と CTA | `code-block-header` / `cta-centered` | button / code / badge / card / heading / text | 手本の複数ボタン（9 件）: CTA は 1〜2 件に絞る | コード例は `crates/docs-site/snippets/landing_ssr.rs` を表示とコンパイル検証の両方に使う（badge は使わず言語ラベルで代替） | #3615 | `code-block-header-1440-light.png` / `cta-centered-1440-light.png` |
 | セクション索引 | `feature-image-cards` / `grid-list-action-tiles` / `grid-list-compact-tiles` | card / badge / heading / text / link（全面リンク） | 画像（7 件）・avatar・menu（compact-tiles が含む）: 持ち込まない | 画像の代わりに icon と badge。カテゴリ見出し単位のグリッド | #3616〜#3618 | `feature-image-cards-1440-light.png` / `grid-list-action-tiles-1440-light.png` / `grid-list-compact-tiles-1440-light.png` |
 | 部品ページの Demo | `example-preview-toolbar` | card / code | tabs・select・状態を持つ button: JS 範囲外 | プレビュー枠の外形（card 相当を素の `div` で再現。理由は §11.1）とコード表示の見出し帯だけを取り込む | #3619 | `example-preview-toolbar-1440-light.png` |
@@ -279,7 +279,7 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
   - `link_overlay` の recipe は `site.css` に積まない規則のため使わず、`[data-scope="link"]::after` の絶対配置でカード全面をクリック可能にする（`card::root` が `position: relative`）。フォーカスリングも同じ `::after` へ当てる（`:focus-within` セレクタは `site_theme` の契約テストが制限している）。
   - `card` は `data-scope` を持つため、カード内の見出しと説明文は検索インデックスから外れる。5 項目の要旨は索引されるヒーローのリード文に含まれるため許容する。節見出し h2 は `data-scope` の外に置く。
   - 段組みは基底 1 列、768px 以上で 2 列、1024px 以上で 3 列。
-- 指標（`stats-row`）に載せる数値の算出元は #3614 で確定する。
+- 指標（`stats-row`）に載せる数値の算出元は #3614 で確定済み。部品数は `site/nav.toml` を `include_str!` し、`landing::layer_counts` が「層セクション配下の全ページ − 索引ページ」で数える（`PageSection::render` が `Nav` を受け取らないため）。依存上限（60 件・深さ 6）は `crates/xtask/src/check_deps.rs` の定数と同値を `landing.rs` に保持し、`tests/landing_counts.rs` が一致を固定する。
 - （確定済み・#3607）ページ見出しは `crates/docs-site/src/page_header.rs` が `build.rs` のページループで、生成節の挿入後に本文先頭へ置く。
   - Markdown 由来の h1 は pre-styled-ui の `heading` へ置き換えず、パンくずの後ろへ移設する（`header.docs-page-heading`）。`heading` は `data-scope` を持つため、検索インデックスから h1 の文言が落ちるのと、「文書の h1 = `data-scope` の外の `<h1>`」という判定が崩れるのを避ける。Themes・Blocks のデモ内の h1 は `data-scope="heading"` 付きで、文書の見出し構造には数えない。
   - パンくずは `Nav` から作る（セクション / グループ（非リンクの `span`） / ページ）。セクション索引ページは自分自身へ戻るリンクを作らず、セクション名のみを現在項目にする。トップ `/` は対象外（#3612）。区切りは `breadcrumb::separator`（`aria-hidden`）。

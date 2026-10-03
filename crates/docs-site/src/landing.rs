@@ -40,6 +40,17 @@
 //!   `position: relative`）。`card` は `data-scope` を持つので、カード内の見出しと
 //!   説明文は検索インデックスから外れる。5 項目の要旨は索引されるヒーローの
 //!   リード文に含まれるため許容する。節見出し h2 は `data-scope` の外に置く。
+//! - 入口カード（イシュー #3614）は `link_overlay` を使わない。設計文書 §4.1 が
+//!   `link_overlay` を `SITE_RECIPES` から除外しているため、`a` の `::after` を
+//!   カード全面へ伸ばす CSS だけで全面クリックを実現する（`<a>` 内に `<button>`
+//!   を置かない）。カード内の heading / text は `data-scope` を持つが、
+//!   `li.docs-landing-card` は `search_index` が全文を連結する特例（索引カードと同様）
+//!   なので検索対象に残る。stat は検索対象外。節の h2 と導入文は素の要素にして検索対象を残す。
+//! - 部品数の指標は `site/nav.toml` を `include_str!` して [`layer_counts`] で数える
+//!   （[`crate::page_sections::PageSection`] の `render` は `Nav` を受け取らないため）。
+//!   件数 = 層セクション配下の全ページ − 索引ページ。ページ追加へビルド時に追従する。
+//!   依存上限は xtask の定数（`crates/xtask/src/check_deps.rs`）と同値を保持し、
+//!   一致は `tests/landing_counts.rs` が固定する。
 //! - リンク先は nav に実在する内部ページだけ（`#fragment` は改稿で壊れるので使わない）。
 //!
 //! # セキュリティ上の不変条件
@@ -50,18 +61,20 @@
 //! `StyleSheet::push_css` の検証（`<` 等の拒否）を通る定数で、`--fandhe-*`
 //! トークンだけを参照する。
 
-use fandhe_frontend_core::{code, div, el, h1, h2, li, p, pre, section, text, ul, Node};
+use fandhe_frontend_core::{a, code, div, el, h1, h2, li, p, pre, section, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
+use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 use fandhe_frontend_pre_styled_ui::Size;
 
 use crate::code_copy;
 use crate::highlight;
 use crate::layout::{asset_href, REPOSITORY_URL};
+use crate::nav::{parse_nav, Nav};
 
 /// 登録先ページパス（`site/nav.toml` の「はじめに」）。
 pub const PATH: &str = "/";
@@ -92,6 +105,15 @@ pub const CLASSES: &[&str] = &[
     "docs-cta-title",
     "docs-cta-lead",
     "docs-cta-actions",
+    "docs-landing-section",
+    "docs-landing-section-title",
+    "docs-landing-section-lead",
+    "docs-landing-cards",
+    "docs-landing-card",
+    "docs-landing-card-link",
+    "docs-landing-stats-section",
+    "docs-landing-stats",
+    "docs-landing-stat",
 ];
 
 /// CTA の見た目指定に使う属性名（値は `primary` / `secondary`）。
@@ -130,15 +152,171 @@ fn cargo_package_version(toml: &'static str) -> Option<&'static str> {
     None
 }
 
+const SITE_NAV_TOML: &str = include_str!("../../../site/nav.toml");
+
+/// 依存パッケージ数の上限（REQ-3）。正本は `crates/xtask/src/check_deps.rs` の
+/// `MAX_PACKAGES`（docs-site は xtask に依存できないので値を保持し、一致をテストで固定する）。
+pub const DEP_MAX_PACKAGES: usize = 60;
+
+/// 依存の深さの上限（REQ-3）。正本は `crates/xtask/src/check_deps.rs` の `MAX_DEPTH`。
+pub const DEP_MAX_DEPTH: usize = 6;
+
+/// 部品数を数える層の台帳（表示名・セクションの `index_path`）。
+const LAYERS: &[(&str, &str)] = &[
+    ("Primitives", "/primitives/"),
+    ("Themes", "/themes/"),
+    ("Blocks", "/blocks/"),
+    ("Wireframes", "/wireframes/"),
+];
+
+/// 入口カード 1 枚分の台帳エントリ。
+struct EntryCard {
+    title: &'static str,
+    description: &'static str,
+    /// サイト内パス（先頭 `/`、`asset_href` へ渡すときに先頭の `/` を外す）。
+    path: &'static str,
+}
+
+/// 「はじめる」の 3 入口（説明は旧 `site/index.md` から移した）。
+const ENTRY_CARDS: &[EntryCard] = &[
+    EntryCard {
+        title: "Getting Started",
+        description: "`fw new` でのプロジェクト作成からビルド・ブラウザ確認までを最短経路でたどる入門ガイドです。",
+        path: "/getting-started/quickstart/",
+    },
+    EntryCard {
+        title: "Guides",
+        description: "コンポーネントの作成方法・既存ページへの部分埋め込み・ビュー遷移など、目的別の実践ガイド群です。",
+        path: "/guides/",
+    },
+    EntryCard {
+        title: "API Reference",
+        description: "コンポーネント API・ハイドレーション API など、公開 API の仕様リファレンスです。",
+        path: "/api/",
+    },
+];
+
+/// 部品ギャラリー 4 層への入口。
+const GALLERY_CARDS: &[EntryCard] = &[
+    EntryCard {
+        title: "Primitives",
+        description: "anatomy・WAI-ARIA・data 属性だけを持つ headless UI 部品です。",
+        path: "/primitives/",
+    },
+    EntryCard {
+        title: "Themes",
+        description: "Primitives の上に recipe を載せたスタイル済み部品です。",
+        path: "/themes/",
+    },
+    EntryCard {
+        title: "Blocks",
+        description: "既存部品を合成した画面単位の例です。",
+        path: "/blocks/",
+    },
+    EntryCard {
+        title: "Wireframes",
+        description: "ローファイ・モノクロの SSR 専用ワイヤーフレーム部品です。",
+        path: "/wireframes/",
+    },
+];
+
+/// ランディングが出す内部リンクのサイト内パス一覧（ヒーローの CTA 込み）。
+/// 実サイトのリンク検証・テスト fixture の遷移先生成が参照する。
+pub fn internal_link_paths() -> impl Iterator<Item = &'static str> {
+    // ヒーローの CTA（クイックスタート）は入口カードの先頭と同じ遷移先なので重複させない。
+    ENTRY_CARDS
+        .iter()
+        .chain(GALLERY_CARDS.iter())
+        .map(|c| c.path)
+}
+
+/// 層ごとの部品数。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LayerCount {
+    /// 表示名。
+    pub label: &'static str,
+    /// 層セクションの索引パス。
+    pub index_path: &'static str,
+    /// 索引ページを除いたページ数。
+    pub count: usize,
+}
+
+/// `nav` から層ごとの部品数（セクション配下の全ページ − 索引ページ）を数える。
+/// `nav` に存在しない層は結果から外す。
+#[must_use]
+pub fn layer_counts(nav: &Nav) -> Vec<LayerCount> {
+    LAYERS
+        .iter()
+        .filter_map(|(label, index_path)| {
+            let section = nav.sections.iter().find(|s| s.index_path == *index_path)?;
+            let count = section
+                .all_pages()
+                .filter(|pg| pg.path != *index_path)
+                .count();
+            Some(LayerCount {
+                label,
+                index_path,
+                count,
+            })
+        })
+        .collect()
+}
+
+/// 同梱の `site/nav.toml` から数えた層ごとの部品数。パース失敗は `None`。
+#[must_use]
+pub fn site_layer_counts() -> Option<Vec<LayerCount>> {
+    parse_nav(SITE_NAV_TOML).ok().map(|nav| layer_counts(&nav))
+}
+
 /// トップページへ差し込む節列。後続イシューはここへ節を追記する。
 #[must_use]
 pub fn render(base_path: &str) -> Vec<Node> {
-    vec![
-        hero(base_path),
-        features(base_path),
-        code_example(base_path),
-        closing_cta(base_path),
-    ]
+    let mut nodes = vec![hero(base_path), features(base_path)];
+    nodes.extend(entry_and_stats(base_path));
+    nodes.push(code_example(base_path));
+    nodes.push(closing_cta(base_path));
+    nodes
+}
+
+/// 入口カード 2 節と数値指標節。
+fn entry_and_stats(base_path: &str) -> Vec<Node> {
+    let mut out = vec![
+        cards_section(
+            base_path,
+            "はじめる",
+            "目的に応じて、以下の 3 つの入口から進んでください。",
+            ENTRY_CARDS,
+        ),
+        cards_section(
+            base_path,
+            "部品ギャラリー",
+            "3 層の UI 部品とワイヤーフレームを、動くデモ付きで確認できます。",
+            GALLERY_CARDS,
+        ),
+    ];
+    if let Some(counts) = site_layer_counts() {
+        out.push(stats_section(&counts));
+    }
+    out
+}
+
+/// 見出し・導入文・カード列からなる節。h2 と導入文は素の要素で検索対象に残す。
+fn cards_section(base_path: &str, title: &str, lead: &str, cards: &[EntryCard]) -> Node {
+    let items: Vec<Node> = cards.iter().map(|c| card_node(base_path, c)).collect();
+    section(
+        vec![("class", "docs-landing-section")],
+        vec![
+            h2(
+                vec![("class", "docs-landing-section-title")],
+                vec![text(title)],
+            ),
+            p(
+                vec![("class", "docs-landing-section-lead")],
+                vec![text(lead)],
+            ),
+            ul(vec![("class", "docs-landing-cards")], items),
+        ],
+    )
 }
 
 /// トップに表示する最小 SSR コード例の本文（#3615）。
@@ -223,6 +401,114 @@ fn closing_cta(base_path: &str) -> Node {
                 ],
             ),
         ],
+    )
+}
+
+/// 全面クリック可能なカード 1 枚（`a` の `::after` を CSS で伸ばす）。
+fn card_node(base_path: &str, c: &EntryCard) -> Node {
+    let href = asset_href(base_path, c.path.trim_start_matches('/'));
+    li(
+        vec![("class", "docs-landing-card")],
+        vec![card::root(
+            CardProps::default(),
+            vec![],
+            vec![card::body(
+                vec![],
+                vec![
+                    heading(
+                        HeadingLevel::H3,
+                        &HeadingProps {
+                            size: HeadingSize::Md,
+                            ..HeadingProps::default()
+                        },
+                        vec![],
+                        vec![a(
+                            vec![("class", "docs-landing-card-link"), ("href", href.as_str())],
+                            vec![text(c.title)],
+                        )],
+                    ),
+                    styled_text::text(
+                        &TextProps {
+                            size: TextSize::Sm,
+                            variant: TextVariant::Muted,
+                            ..TextProps::default()
+                        },
+                        vec![],
+                        inline_code_nodes(c.description),
+                    ),
+                ],
+            )],
+        )],
+    )
+}
+
+/// 説明文中のバッククォート区間を `code` ノードへ、それ以外を `text` ノードへ変換する。
+/// 旧 Markdown 由来の `` `fw new` `` がリテラルのバッククォートとして出ないようにする。
+/// すべて `text()` 経由のためエスケープは保たれる。
+fn inline_code_nodes(src: &str) -> Vec<Node> {
+    src.split('`')
+        .enumerate()
+        .filter(|(_, seg)| !seg.is_empty())
+        .map(|(i, seg)| {
+            if i % 2 == 1 {
+                code(vec![], vec![text(seg)])
+            } else {
+                text(seg)
+            }
+        })
+        .collect()
+}
+
+/// 数値指標節（部品数 4 件と依存上限 2 件）。
+fn stats_section(counts: &[LayerCount]) -> Node {
+    let mut items: Vec<Node> = counts
+        .iter()
+        .map(|c| {
+            stat_item(
+                &format!("{} の部品数", c.label),
+                &c.count.to_string(),
+                "件",
+                None,
+            )
+        })
+        .collect();
+    items.push(stat_item(
+        "依存パッケージ数の上限",
+        &DEP_MAX_PACKAGES.to_string(),
+        "件",
+        Some("標準サーバー構成"),
+    ));
+    items.push(stat_item(
+        "依存の深さの上限",
+        &DEP_MAX_DEPTH.to_string(),
+        "段",
+        Some("標準サーバー構成"),
+    ));
+    section(
+        vec![("class", "docs-landing-stats-section")],
+        vec![
+            h2(
+                vec![("class", "docs-landing-section-title")],
+                vec![text("数字で見る fandhe-frontend")],
+            ),
+            ul(vec![("class", "docs-landing-stats")], items),
+        ],
+    )
+}
+
+fn stat_item(label: &str, value: &str, unit: &str, help: Option<&str>) -> Node {
+    // dl 直下に置けるのは dt / dd のみなので、単位と補足は dd（value_text）の内側へ入れる。
+    let mut value_children = vec![text(value), stat::value_unit(vec![], vec![text(unit)])];
+    if let Some(h) = help {
+        value_children.push(stat::help_text(vec![], vec![text(h)]));
+    }
+    let children = vec![
+        stat::label(vec![], vec![text(label)]),
+        stat::value_text(vec![], value_children),
+    ];
+    li(
+        vec![("class", "docs-landing-stat")],
+        vec![stat::root(Size::Md, vec![], children)],
     )
 }
 
@@ -680,6 +966,136 @@ pub const CSS: &str = "\
 }\n\
 \n\
 /*\n\
+ * ---- 入口カードと数値指標（イシュー #3614） ----\n\
+ */\n\
+\n\
+.docs-landing .docs-landing-section,\n\
+.docs-landing .docs-landing-stats-section {\n\
+  max-width: 64rem;\n\
+  margin: 0 auto;\n\
+  padding: 1.5rem 0;\n\
+}\n\
+\n\
+.docs-landing .docs-landing-section-title {\n\
+  margin: 0 0 0.5rem;\n\
+  padding: 0;\n\
+  border: 0;\n\
+  font-size: var(--fandhe-font-font-size-xl);\n\
+  font-weight: var(--fandhe-font-font-weight-semibold);\n\
+  color: var(--fandhe-color-fg);\n\
+}\n\
+\n\
+.docs-landing .docs-landing-section-lead {\n\
+  margin: 0 0 1rem;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+}\n\
+\n\
+.docs-landing ul.docs-landing-cards,\n\
+.docs-landing ul.docs-landing-stats {\n\
+  display: grid;\n\
+  gap: 1rem;\n\
+  margin: 0;\n\
+  padding: 0;\n\
+  list-style: none;\n\
+}\n\
+\n\
+.docs-landing ul.docs-landing-cards {\n\
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));\n\
+}\n\
+\n\
+.docs-landing ul.docs-landing-stats {\n\
+  grid-template-columns: repeat(2, minmax(0, 1fr));\n\
+}\n\
+\n\
+.docs-landing .docs-landing-card,\n\
+.docs-landing .docs-landing-stat {\n\
+  position: relative;\n\
+  min-width: 0;\n\
+  margin: 0;\n\
+  overflow-wrap: anywhere;\n\
+}\n\
+\n\
+.docs-landing .docs-landing-card > [data-scope=\"card\"],\n\
+.docs-landing .docs-landing-stat > dl {\n\
+  height: 100%;\n\
+  border: 1px solid var(--fandhe-color-border);\n\
+  border-radius: var(--fandhe-radius-sm);\n\
+  background: var(--fandhe-color-bg);\n\
+  transition: border-color 0.15s ease;\n\
+}\n\
+\n\
+.docs-landing .docs-landing-stat > dl {\n\
+  padding: 1rem;\n\
+}\n\
+\n\
+.docs-landing .docs-landing-card:hover > [data-scope=\"card\"] {\n\
+  border-color: var(--fandhe-color-accent);\n\
+}\n\
+\n\
+.docs-landing .docs-landing-card-link {\n\
+  color: inherit;\n\
+  text-decoration: none;\n\
+}\n\
+\n\
+.docs-landing .docs-landing-card-link::after {\n\
+  content: \"\";\n\
+  position: absolute;\n\
+  inset: 0;\n\
+}\n\
+\n\
+.docs-landing .docs-landing-card-link:focus-visible {\n\
+  outline: none;\n\
+}\n\
+\n\
+.docs-landing .docs-landing-card-link:focus-visible::after {\n\
+  outline: 2px solid var(--fandhe-color-accent);\n\
+  outline-offset: 2px;\n\
+  border-radius: var(--fandhe-radius-sm);\n\
+}\n\
+\n\
+@media (min-width: 640px) {\n\
+  .docs-landing ul.docs-landing-stats {\n\
+    grid-template-columns: repeat(3, minmax(0, 1fr));\n\
+  }\n\
+}\n\
+\n\
+@media (min-width: 1024px) {\n\
+  .docs-landing ul.docs-landing-stats {\n\
+    grid-template-columns: repeat(6, minmax(0, 1fr));\n\
+  }\n\
+}\n\
+\n\
+/* 補足文は数値・単位の横ではなく次の行へ回す（3・6 列の狭い列で途中折り返しさせない）。 */\n\
+.docs-landing .docs-landing-stat [data-part=\"value-text\"] {\n\
+  flex-wrap: wrap;\n\
+}\n\
+\n\
+.docs-landing .docs-landing-stat [data-part=\"help-text\"] {\n\
+  flex: 0 0 100%;\n\
+}\n\
+\n\
+/* `.docs-content h3` / `p` の装飾・段落間隔がカードへ漏れないよう 2 クラスで隔離する。 */\n\
+.docs-landing .docs-landing-card [data-scope=\"heading\"] {\n\
+  margin: 0 0 var(--fandhe-space-1, 0.25rem);\n\
+  padding: 0;\n\
+  border: 0;\n\
+  font-size: var(--fandhe-font-font-size-md);\n\
+  letter-spacing: normal;\n\
+}\n\
+\n\
+.docs-landing .docs-landing-card [data-scope=\"text\"] {\n\
+  margin: 0;\n\
+  padding: 0;\n\
+  border: 0;\n\
+}\n\
+\n\
+@media (prefers-reduced-motion: reduce) {\n\
+  .docs-landing .docs-landing-card > [data-scope=\"card\"] {\n\
+    transition: none;\n\
+  }\n\
+}\n\
+\n\
+/*\n\
  * ---- コード例と締めの CTA（イシュー #3615） ----\n\
  */\n\
 \n\
@@ -780,8 +1196,8 @@ mod tests {
         let h = html();
         assert_eq!(h.matches("class=\"docs-feature\"").count(), 5);
         assert!(h.matches("data-scope=\"card\"").count() >= 5);
-        assert_eq!(h.matches("<h3").count(), 5);
         let grid = render_node(&features("/fandhe-frontend"));
+        assert_eq!(grid.matches("<h3").count(), 5);
         assert!(!grid.contains("target=\"_blank\""));
         let mut hrefs: Vec<&str> = FEATURES.iter().map(|f| f.href_rel).collect();
         hrefs.sort_unstable();
@@ -883,5 +1299,48 @@ mod tests {
         for f in &FEATURES {
             assert!(!md.contains(f.title), "{}", f.title);
         }
+    }
+
+    fn entry_html() -> String {
+        entry_and_stats("/fandhe-frontend")
+            .iter()
+            .map(render_node)
+            .collect()
+    }
+
+    #[test]
+    fn entry_cards_link_with_base_path_and_stats_present() {
+        let h = html();
+        for path in internal_link_paths() {
+            assert!(
+                h.contains(&format!("href=\"/fandhe-frontend{path}\"")),
+                "{path}"
+            );
+        }
+        assert_eq!(h.matches("class=\"docs-landing-stat\"").count(), 6);
+        assert_eq!(h.matches("<h1").count(), 1);
+        assert!(!entry_html().contains(" id=\""));
+    }
+
+    #[test]
+    fn section_headings_live_outside_data_scope() {
+        let h = entry_html();
+        assert!(h.contains("<h2 class=\"docs-landing-section-title\">"));
+    }
+
+    #[test]
+    fn stat_unit_lives_inside_value_dd() {
+        let h = render_node(&stat_item("ラベル", "60", "件", Some("補足")));
+        let dd_end = h.find("</dd>").expect("dd");
+        assert!(h[..dd_end].contains("件"), "{h}");
+        assert!(h[..dd_end].contains("補足"), "{h}");
+        assert!(h.ends_with("</dd></dl></li>"), "{h}");
+    }
+
+    #[test]
+    fn site_counts_cover_all_four_layers() {
+        let counts = site_layer_counts().expect("nav parses");
+        assert_eq!(counts.len(), 4);
+        assert!(counts.iter().all(|c| c.count > 0));
     }
 }
