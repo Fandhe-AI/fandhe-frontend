@@ -1,6 +1,6 @@
 # docs サイト刷新: styled 部品・Blocks を手本とした合成方針（イシュー #3596）
 
-- ステータス: live（#3588 ツリーの設計方針の正。Phase 1〜6 の全イシューは本文書に従う）
+- ステータス: live（#3588 ツリーの設計方針の正。Phase 0〜5 は実装完了〔PR #3626〜#3653〕。Phase 6 の #3624（横断レビュー）と #3625（本文書の更新）で完結する。実装結果と当初方針からの差分は §3.4・§12 を参照）
 - 起票: 2026-10-03（親 #3589 / ルート #3588）
 - 対象: `crates/docs-site/`（GitHub Pages の SSG 出力）
 
@@ -21,6 +21,18 @@
 | 6 | #3595 | 横断レビュー #3624 / 設計文書と CLAUDE.md の更新 #3625 |
 
 依存順は Phase 0 → 1 → 2〜5 → 6 とする。Phase 2〜5 の各イシューは #3598・#3599 に依存する。
+
+実装の対応（Issue → PR）は次のとおり。
+
+| Phase | Issue → PR |
+|-------|-----------|
+| 0 | #3597 → #3626（`make docs-preview`）、#3596 → #3627（本文書） |
+| 1 | #3600 → #3628、#3598 → #3630、#3603 → #3633、#3601 → #3629、#3604 → #3634、#3599 → #3631、#3602 → #3632、#3605 → #3635 |
+| 2 | #3607 → #3636、#3606 → #3642、#3610 → #3645、#3609 → #3644、#3608 → #3638、#3611 → #3649 |
+| 3 | #3612 → #3641、#3613 → #3646、#3614 → #3647、#3615 → #3653 |
+| 4 | #3616 → #3640、#3617 → #3648、#3618 → #3652 |
+| 5 | #3619 → #3639、#3620 → #3637、#3621 → #3643、#3622 → #3650、#3623 → #3651 |
+| 6 | #3624（横断レビュー）、#3625（本文書と `CLAUDE.md` の更新） |
 
 ## 2. 共通制約
 
@@ -87,13 +99,6 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 
 `grid-list-*` は `grid-list-action-tiles`（icon / heading / text のみ）を第一手本とし、`grid-list-compact-tiles`（avatar・menu・画像を含む）は構造のみ参照とする。副次所見として、ローカル配信では `/favicon.ico` が 404 だった（#3604 の対象）。
 
-### 3.1 確定事項（#3610: 右目次と折りたたみ目次）
-
-- 主に CSS で変更する（`toc_nav` / `toc_items` の出力、`class="docs-toc"` の唯一性と anchor 構造は不変。`toc_inline` の summary にのみ装飾 svg を追加する）。
-- 右目次は `ul` の 1px 縦線（rail）に、現在地 `a[aria-current="location"]::before` の 2px アクセント縦棒を重ねる。進捗の段階表現は採用しない。階層インデントは `li` ではなく `a` の padding で表す。
-- 折りたたみ目次の開閉アイコンは素の `svg.docs-toc-inline-icon`（`icon::icon` は使わない。recipe 抜きの `site-primitives.css` で `fd-icon--size-md` が未定義になるため）。`details[open]` で CSS 回転し、`prefers-reduced-motion` では transition を外す。
-- 色トークンは新設せず、スクロールスパイ以外の JS は追加しない。
-
 ### 3.2 ヘッダー操作部の確定事項（#3606）
 
 手本は `navbar-docs-site`（構造のみ参照）。`docs-*` class の契約（HTML への出現・`site.css` のセレクタ・`SITE_JS` のセレクタ・`no_js_contract` のリテラル）は削除も緩和もしない。pre-styled-ui の root 部品は呼び出し側の `class` を捨てるため、`docs-*` class は自前の要素（ラッパーまたは素の要素）に残し、pre-styled-ui 部品はその内側へ置く。
@@ -111,6 +116,40 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 **バージョン badge の crate**: `fandhe-frontend-core` を表示する（文言は `core v{version}`）。理由は、README の導入手順で最初に `cargo add` する入口クレートであること、全 UI 層・server・wasm 系の共通基盤であること、版数が頻繁に上がる pre-styled-ui を「fandhe-frontend」ブランドの横に出すとフレームワーク全体の版と誤読されやすいこと。値は `crate::site_version` が `crates/core/Cargo.toml` を `include_str!` で取り込み、`[package]` テーブルの `version` を解析して得る（手書きしない。`build_site` の `repo_root` に依存しないためテストフィクスチャも壊れない）。解析失敗・許可文字（英数字・`.`・`-`・`+`）以外を含む場合は `None` を返して badge を出さない（fail-closed）。版数が古いまま公開されないよう、`docs-site.yml` の `on.push.paths` に `crates/core/Cargo.toml` を追加した（ジョブ名と必須チェックは変えない）。
 
 **契約テストの範囲絞り込み（§9.3 からの逸脱）**: `tests/blocks_contract.rs` の `game_ui_modal_composes_expected_parts`（`data-scope="button"` が 2 件）と `banner_announcement_pill_composes_expected_parts`（`data-scope="link" data-part="root"` が 4 件）はページ全体の HTML で厳密な件数を数えていたため、ヘッダーに pre-styled-ui 部品を足すと必ず失敗する。期待値は変えず、数える範囲を `</header>` 以降（block 側の領域）へ絞った。同ファイルにはヘッダーの GitHub href を除外するために範囲を絞った先例がある。検証内容は弱めていない。
+
+### 3.3 確定事項（#3610: 右目次と折りたたみ目次）
+
+- 主に CSS で変更する（`toc_nav` / `toc_items` の出力、`class="docs-toc"` の唯一性と anchor 構造は不変。`toc_inline` の summary にのみ装飾 svg を追加する）。
+- 右目次は `ul` の 1px 縦線（rail）に、現在地 `a[aria-current="location"]::before` の 2px アクセント縦棒を重ねる。進捗の段階表現は採用しない。階層インデントは `li` ではなく `a` の padding で表す。
+- 折りたたみ目次の開閉アイコンは素の `svg.docs-toc-inline-icon`（`icon::icon` は使わない。recipe 抜きの `site-primitives.css` で `fd-icon--size-md` が未定義になるため）。`details[open]` で CSS 回転し、`prefers-reduced-motion` では transition を外す。
+- 色トークンは新設せず、スクロールスパイ以外の JS は追加しない。
+
+### 3.4 実装結果と手本・対応表からの逸脱
+
+§3 の対応表（当初の計画）に対し、実装で部品構成を変えた箇所は次のとおり。いずれも「既存部品だけで組む」「`data-scope` を持つ部品は検索インデックスと目次から除外される」といった制約から導いた判断で、決めた節を併記する。
+
+| 対象 | 実装（当初の計画からの差分） | 決めた節 |
+|------|------------------------------|----------|
+| ページ見出し | `heading` / `text` を使わず、Markdown 由来の素の h1 をパンくずの後ろへ移設した。説明文は front matter が未対応のため見送った | §11（#3607） |
+| 前後ページャ | `text` は使わず `span`。構造は `link_overlay` の root/overlay の中に `card`（Outline）。`link_overlay` の recipe CSS は積まない | #3608、`docs-site-styled-ui-adoption.md` §3.2 |
+| フッター | `icon` を使わない（実在ブランドのロゴを模さないため）。列は `nav.sections` から生成 | §11（#3609） |
+| トップ | h1・リード文は素の要素。`link_overlay` は使わず `a` の `::after` でカード全面クリックを実現した | §11（#3612〜#3614） |
+| 部品ページの Demo | `card` を使わず、素の `div` で外形を再現した | §11.1 |
+| API 表 | pre-styled-ui の `table` / `code` / `badge` を使わず、core の table と属性なしの `code` | §11.3 |
+| サイドバー | 開閉の三角は icon ではなく CSS 疑似要素 | §11.2 |
+| 注記 | `alert` ではなく `callout`（Soft）。`SITE_RECIPES` には callout を加えない | §3 末尾（#3622） |
+| 404 | `empty_state` / `heading` / `list` / `link` で組む | §11.5 |
+
+#### 2 種類のバージョン badge
+
+ヘッダーとヒーローは別の crate の版を表示する。矛盾ではなく意図的な使い分けである。
+
+- ヘッダー: `fandhe-frontend-core` の版（`site_version.rs`、`core v{version}`）。フレームワークの入口クレートを示すため（§3.2）。
+- ヒーロー: `fandhe-frontend-cli` の版（`landing.rs` の `CLI_CARGO_TOML`）。直下の `cargo install fandhe-frontend-cli` の導入コマンドと対応させるため（§11）。
+
+#### breakpoint の追加
+
+`landing::CSS` は 640px / 1024px のメディアクエリを持つ（特徴グリッド・入口カード・指標の段組み用。768px も併用）。これは**ランディング内グリッドに限る段組みの追加**で、`docs-site-three-column-redesign.md` §3.2 の骨格 breakpoint（768px / 1200px）の契約は変えていない。
 
 ## 4. CSS 供給方針
 
@@ -130,7 +169,7 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 - Primitives 専用 CSS（例外）: Primitives ページの headless-ui デモは「スタイルを持たない層」の契約により styled recipe の装飾を受けてはならない。recipe は `[data-scope=...]` 属性セレクタで headless と同じ markup を対象にするため、セレクタ側では区別できない。`@scope` で除外する案は、非対応ブラウザで一般ページの recipe まで失われるため採らない。代わりに `site_theme::stylesheet_without_recipes()` が `SITE_RECIPES` を除いた CSS を `assets/site-primitives.css`（`PRIMITIVES_STYLESHEET_REL_PATH`）として出力し、`layout.rs` が Primitives ページ（`primitive_showcase::STYLESHEET_REL_PATH` を追加 CSS に持つページ）だけ `site.css` の代わりにこれを読む。recipe 以外の内容・順序は `site.css` と同一で、他のページ種別は従来どおり単一の `site.css` を読む。
 - docs 側で recipe を上書きする規則は、出現順に頼らず `.docs-*` ラッパー class を前置して詳細度で勝たせる（`pre-styled-ui.css` が後から来ても負けないため）。`tests/site_css_contract.rs` が固定する。
 - `site_typography_contract.rs` の docs 側ミラー照合は、recipe 全文を除いた haystack に対して行う（recipe の同一宣言で満たされる空振りを防ぐ）。
-- サイズ実測: `site.css` は raw 59,636 B → 137,948 B（+78,312 B）、gzip -9 で 14,795 B → 21,499 B（+6,704 B）。
+- サイズ実測（#3599 時点。以後 #3606〜#3622 で `STRUCTURAL_CSS`・`landing::CSS`・`API_TABLE_CSS` が増えているため現在値ではない。再測定は `make docs` の出力にある `assets/site.css` の raw / gzip -9 を使う）: `site.css` は raw 59,636 B → 137,948 B（+78,312 B）、gzip -9 で 14,795 B → 21,499 B（+6,704 B）。
 
 ## 5. JS の範囲
 
@@ -213,7 +252,7 @@ Guides・API Reference・Examples の 3 セクショントップは、汎用生�
 
 - 撮影条件: 幅 375 / 768 / 1440px × light / dark。dark は 2 経路（OS 追従 `colorScheme: 'dark'` = `dark-os`、トグル `data-theme="dark"` = `dark-attr`）で確認する。1 ページあたり 9 枚（light 3 + dark-os 3 + dark-attr 3）を基準とする。
 - 保存先は `_/site-redesign/<issue 番号>/`、命名は `<page>-<幅>-<light|dark-os|dark-attr>.png`。保存先は絶対パスで指定し、repo 直下・worktree には落とさない。
-- 配信は `make docs-preview`（#3597）。未導入の間は `cargo run -p fandhe-frontend-docs-site --locked -- --out <dir>` の出力を、`/fandhe-frontend/` の base path が解決できる配置で静的配信する。
+- 配信は `make docs-preview`（#3597、導入済み）。`_/site-preview/` へ出力して 127.0.0.1 で配信する。手順は `docs/guides/browser-testing.md` §9a を参照。
 - 検査スニペット（`browser_evaluate`）:
   - 横はみ出し: `document.documentElement.scrollWidth === window.innerWidth`（375px では 375）
   - 超過要素の列挙: `[...document.querySelectorAll('*')].filter(e => e.getBoundingClientRect().right > innerWidth)`
@@ -228,15 +267,15 @@ Guides・API Reference・Examples の 3 セクショントップは、汎用生�
 
 baseline はローカル保存の `_/site-redesign/baseline/`（home 1440 / home 390 / home dark 1440 / themes-button 1440 / button 390 / guides 1440 / api 1440 / blocks-index 1440 / block-hero 1440 の 9 枚）である。
 
-| 課題 | 担当 |
-|------|------|
-| トップがランディングになっていない・フッターがない | #3609、#3612〜#3615 |
-| 和文のソフト改行に半角スペースが入る | #3600 |
-| 部品ページ生成文のインラインコード（バッククォート）が描画されない | #3601 |
-| Blocks 索引がリンクの箇条書きのみ | #3618 |
-| dark でサイドバー選択中項目が浮き、非選択項目が低コントラスト | #3603 |
-| 390px で `/themes/button/` が横にはみ出す（scrollWidth 494）、ヘッダー検索欄が欠ける | #3602 |
-| favicon が 404 | #3604 |
+| 課題 | 担当 | 結果 |
+|------|------|------|
+| トップがランディングになっていない・フッターがない | #3609、#3612〜#3615 | 解消（#3609 / PR #3644、#3612〜#3615 / PR #3641・#3646・#3647・#3653） |
+| 和文のソフト改行に半角スペースが入る | #3600 | 解消（PR #3628） |
+| 部品ページ生成文のインラインコード（バッククォート）が描画されない | #3601 | 解消（PR #3629） |
+| Blocks 索引がリンクの箇条書きのみ | #3618 | 解消（PR #3652） |
+| dark でサイドバー選択中項目が浮き、非選択項目が低コントラスト | #3603 | 解消（PR #3633） |
+| 390px で `/themes/button/` が横にはみ出す（scrollWidth 494）、ヘッダー検索欄が欠ける | #3602 | 解消（PR #3632） |
+| favicon が 404 | #3604 | 解消（PR #3634） |
 
 利用者向け本文に残る内部向け文言（「イシュー #NNNN」等）の除去は本ツリーのスコープ外である。
 
@@ -248,11 +287,11 @@ baseline はローカル保存の `_/site-redesign/baseline/`（home 1440 / home
 |---|----------|------|------|
 | 1 | `Theme` トークン名の破壊的変更 | 非該当 | pre-styled-ui を変更しない |
 | 2 | JS ハイドレーションへの方針変更 | 非該当 | コピー機構は検索・テーマトグルと同じプログレッシブエンハンスメントで、無 JS 契約の項目は維持する |
-| 3 | 骨格・CSS 供給方式の再リデザイン | 該当（条件付き） | ヘッダー・見出し・ページャ・フッター・目次・サイドバーの刷新と recipe 積み増しは骨格の再リデザインに当たる。3 カラム DOM 骨格と既存 class 名は不変で純追加のみ、CSS 供給は生成 CSS 一本のまま、のため §4・§5 の前提は崩れない。この確認を本表に記録し、§3.1・§4・§10 への反映は #3625 で行う |
+| 3 | 骨格・CSS 供給方式の再リデザイン | 該当（条件付き） | ヘッダー・見出し・ページャ・フッター・目次・サイドバーの刷新と recipe 積み増しは骨格の再リデザインに当たる。3 カラム DOM 骨格と既存 class 名は不変で純追加のみ、CSS 供給は生成 CSS 一本のまま、のため §4・§5 の前提は崩れない。この確認を本表に記録し、§3.1・§4・§10 への反映は #3625 で反映済み（`docs-site-three-column-redesign.md` §3.1・§4・§10 を参照） |
 | 4 | 契約テスト表の弱体化・削除 | 該当させない | 契約表は追加のみ。既存行の削除・緩和をしない |
 | 5 | `index_path` 必須検証の緩和 | 非該当 | 触れない |
 | 6 | `section_for_path` のフォールバック・`header_nav` の全セクション列挙の変更 | 非該当 | #3606 でも全セクション列挙を維持する |
-| 7 | 層セクションの追加・改称・境界変更 | 非該当 | ページ見出しとフッターは層セクションではない（現行は 4 層構成で、本文中の 2 層の字句は旧い） |
+| 7 | 層セクションの追加・改称・境界変更 | 非該当 | ページ見出しとフッターは層セクションではない（現行は 4 層構成。three-column 文書 §10 のトリガー 7 の字句は #3625 で 4 層へ更新済み） |
 
 ### 9.2 `docs-site-styled-ui-adoption.md`
 
@@ -274,10 +313,12 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 - A08 整合性: `site_css_contract` / `no_js_contract` / `site_typography_contract` を弱めない。
 - ruleset・branch protection の変更は本ツリーの範囲外。`docs-site.yml` の変更で必須チェックの変更が要る場合は、実行せず報告事項とする。
 
-## 11. 未決事項
+## 11. 確定事項（トップ・ページ見出し・フッター）
 
-- （確定済み）トップの landing 用分岐は §6 の第一案（`layout.rs` に landing 用ラッパー分岐）を採用する。#3598 のフックは `docs-landing` class・CSS を持ち込まず（登録ページが無い状態で class を足すと `site_css_contract.rs` の双方向突合に違反するため）、実装は #3612 がフックの `Prepend` の上に載せる。H1 とリード文の扱いも #3612 が決める。
-- （確定済み、#3612）トップのヒーローとランディング骨格の実装判断。実装は `crates/docs-site/src/landing.rs`。
+以下はすべて確定済み（旧題「未決事項」）。
+
+- トップの landing 用分岐は §6 の第一案（`layout.rs` に landing 用ラッパー分岐）を採用する。#3598 のフックは `docs-landing` class・CSS を持ち込まず（登録ページが無い状態で class を足すと `site_css_contract.rs` の双方向突合に違反するため）、実装は #3612 がフックの `Prepend` の上に載せる。H1 とリード文の扱いも #3612 が決める。
+- （#3612）トップのヒーローとランディング骨格の実装判断。実装は `crates/docs-site/src/landing.rs`。
   - 骨格の鍵: `layout::PageLayout { Docs, Landing }` を新設し、`page_sections::PageSection::layout` が登録表からページ単位で宣言する。`page.path == "/"` の直書き判定は、フィクスチャサイトにも `/` があり汎用エンジンの挙動が変わるため採らない。
   - サイドバー: `aside.docs-sidebar` は DOM に残し、768px 以上でだけ CSS で隠す。768px 未満はヘッダーナビが非表示で、サイドバーの Menu トグルが唯一のナビ手段のため。右目次・折りたたみ目次は出さない。DOM 順序（SkipNav・`article.docs-content`）は標準骨格と同一。
   - h1 とリード文: pre-styled-ui の `heading` / `text` は使わず、素の `h1` / `p` に `docs-hero-*` class を付ける。両部品は `data-scope` を持ち、配下は検索インデックスと TOC から除外されるため（§3 対応表の部品リストからの意図的な逸脱）。リード文は旧 `site/index.md` 冒頭段落を移し、原稿側からは削除した（二重に持たない）。
@@ -286,19 +327,19 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
   - CSS: `landing::CSS` を `STRUCTURAL_CSS` の直後に `site.css` へ積む（ヒーローが使う recipe が `site.css` にしか無いため別ファイルにしない）。契約は `site_css_contract.rs` の `LANDING_CLASSES`。
   - テスト: 本番登録表の `/` はサイト専用の内容のため、合成フィクスチャのビルドは `build_site_with(.., &EMPTY_REGISTRY)` を使う（アサーションは緩めない）。バイナリ経由のテストは CTA の遷移先ページを足した作業コピーをビルドする。
   - 後続（#3613〜#3615）: `/` の登録は 1 件しか持てない（`DuplicatePath`）ため、`landing::render` の返す節列へ節を追記して拡張する。
-- （確定済み、#3613）トップの特徴グリッド。実装は `landing::features`、文言の唯一の正は `landing::FEATURES`（旧 `site/index.md` の `## 特徴` は削除し、二重に持たない。再発は `landing` の単体テストが検知する）。
+- （#3613）トップの特徴グリッド。実装は `landing::features`、文言の唯一の正は `landing::FEATURES`（旧 `site/index.md` の `## 特徴` は削除し、二重に持たない。再発は `landing` の単体テストが検知する）。
   - リンク先（内部の nav 実在ページのみ）: 既定エスケープ → `/api/component-api/`、`unsafe` の排除 → `/api/interactive-api/`、依存最小 → `/guides/deployment/`、プレーン HTML/JS/CSS の尊重 → `/guides/embedding-guide/`、SSR/SPA/SSG/ビュー遷移 → `/examples/`。
   - `link_overlay` の recipe は `site.css` に積まない規則のため使わず、`[data-scope="link"]::after` の絶対配置でカード全面をクリック可能にする（`card::root` が `position: relative`）。フォーカスリングも同じ `::after` へ当てる（`:focus-within` セレクタは `site_theme` の契約テストが制限している）。
   - `card` は `data-scope` を持つため、カード内の見出しと説明文は検索インデックスから外れる。5 項目の要旨は索引されるヒーローのリード文に含まれるため許容する。節見出し h2 は `data-scope` の外に置く。
   - 段組みは基底 1 列、768px 以上で 2 列、1024px 以上で 3 列。
-- 指標（`stats-row`）に載せる数値の算出元は #3614 で確定済み。部品数は `site/nav.toml` を `include_str!` し、`landing::layer_counts` が「層セクション配下の全ページ − 索引ページ」で数える（`PageSection::render` が `Nav` を受け取らないため）。依存上限（60 件・深さ 6）は `crates/xtask/src/check_deps.rs` の定数と同値を `landing.rs` に保持し、`tests/landing_counts.rs` が一致を固定する。
-- （確定済み・#3607）ページ見出しは `crates/docs-site/src/page_header.rs` が `build.rs` のページループで、生成節の挿入後に本文先頭へ置く。
+- （#3614）指標（`stats-row`）に載せる数値の算出元。部品数は `site/nav.toml` を `include_str!` し、`landing::layer_counts` が「層セクション配下の全ページ − 索引ページ」で数える（`PageSection::render` が `Nav` を受け取らないため）。依存上限（60 件・深さ 6）は `crates/xtask/src/check_deps.rs` の定数と同値を `landing.rs` に保持し、`tests/landing_counts.rs` が一致を固定する。
+- （#3607）ページ見出しは `crates/docs-site/src/page_header.rs` が `build.rs` のページループで、生成節の挿入後に本文先頭へ置く。
   - Markdown 由来の h1 は pre-styled-ui の `heading` へ置き換えず、パンくずの後ろへ移設する（`header.docs-page-heading`）。`heading` は `data-scope` を持つため、検索インデックスから h1 の文言が落ちるのと、「文書の h1 = `data-scope` の外の `<h1>`」という判定が崩れるのを避ける。Themes・Blocks のデモ内の h1 は `data-scope="heading"` 付きで、文書の見出し構造には数えない。
   - パンくずは `Nav` から作る（セクション / グループ（非リンクの `span`） / ページ）。セクション索引ページは自分自身へ戻るリンクを作らず、セクション名のみを現在項目にする。トップ `/` は対象外（#3612）。区切りは `breadcrumb::separator`（`aria-hidden`）。
   - 説明文（`text`）は front matter が未対応のため見送る。
   - Primitives ページは breadcrumb recipe を含まない `site-primitives.css` を読むため、`STRUCTURAL_CSS` に同値の代替規則を置く（`.docs-content` 前置で詳細度を確保）。
   - `< 1200px` では本文冒頭の折りたたみ目次がパンくずより上に出る（DOM 順序の契約を変えないため許容）。
-- （確定済み・#3609）サイトフッターは `crates/docs-site/src/site_footer.rs` が組み立て、`layout::docs_page_with_assets` の `footer` 引数で `<body>` の最後の子（`div.docs-container` の直後）へ置く。
+- （#3609）サイトフッターは `crates/docs-site/src/site_footer.rs` が組み立て、`layout::docs_page_with_assets` の `footer` 引数で `<body>` の最後の子（`div.docs-container` の直後）へ置く。
   - 本文 `Node` へ足さない理由: `<footer>` は `main` / `article` 等の子孫だと暗黙の `contentinfo` を失い、TOC・検索インデックスにも混入するため。sticky のサイドバー・右目次の包含ブロックは `.docs-container` なので、外側の兄弟であるフッターとは構造上重ならない。Blocks デモ内の `<footer>` は `main` の内側で `contentinfo` にならず、ページあたり 1 つに保たれる。`role` は明示しない。
   - 列は `nav.sections` の宣言順に 1 セクション 1 列。先頭は索引ページ、続けてセクション直下ページを宣言順に並べ、1 列 5 件（`FOOTER_LINKS_PER_SECTION`）で打ち切る。グループ配下は含めない。`nav.toml` に代表ページ指定は設けない。
   - 下段に著作権表記・ライセンス（MIT OR Apache-2.0、`LICENSE-*` へのリンク）・GitHub・crates.io を置く。外部リンクはすべて `external: true`。
@@ -337,10 +378,32 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 - 不採用: `examples/ssr-routing` の `include_str!`（最小でなく、マーカー追加が `examples/` と `embedded-examples` の改変を要する）、`docs/guides` のフェンス抽出（doctest されずコンパイル担保が無い）、`respond_with`（`Loader` が 2 つ要り最小にならない）。引用元の意図は「完全なサンプル」として `/examples/ssr-routing/` へリンクして満たす。
 - CTA は `<a>` 2 件（クイックスタート primary / ガイド一覧 secondary）。節は `render()` の末尾に追記する（`DuplicatePath` 回避）。#3614 より先にマージされた場合は後続側が追記位置の単純衝突を解く。
 
-## 12. 関連文書
+## 11.5 確定事項（#3623 404 ページ）
+
+- 実装は `crates/docs-site/src/not_found.rs`。`empty_state` / `heading` / `list` / `link` で組み、リンクは `Nav` 由来の内部リンクとする。
+- `nav.toml` に登録せず、検索インデックスにも載せない（`nav.all_pages()` ループ内でしか集めないため構造的に除外され、除外述語は持たない。リダイレクト案内ページと同じ構造）。
+- 書き出しは `ssg::generate_assets` で `/404.html`（`generate_pages` は `<path>/index.html` 固定でドット入りパスを拒否するため使えない）。GitHub Pages が未知の URL に対しサイトルート直下の `404.html` を返す。
+- 404 は任意の深さの URL で表示されるため、リンクはすべて `base_path` 付きの絶対パスにする。入力由来の URL を読み取って反射しない。
+
+## 12. 当初方針からの差分
+
+実装で当初方針（§2〜§6）から変わった点を 1 箇所へまとめる。
+
+- JS の機能が 3 → 4 に増えた（コードのコピー、§5）。
+- 生成節の挿入位置が 3 種（`Placement::Prepend` / `BeforeFirstH2` / `Append`）になり、骨格の鍵として `layout::PageLayout::Landing` を新設した（§6、§11）。
+- 説明文の正を `nav.toml` ではなく Rust の台帳に置いた（Guides・API・Examples は `section_index.rs`、Themes・Primitives は `themes_catalog.rs` と `primitives_catalog.rs`。§5.1・§5.2）。
+- `/blocks/` 索引の生成をフックへ一本化し、旧 `blocks::index_generated_sections` を撤去した（§5.3、`docs-site-blocks-section.md` §22）。
+- Primitives 用に `site-primitives.css` の例外を設けた。ヘッダーの部品だけは `@scope (.docs-header)` で閉じ込めて積む（§4.1）。
+- `blocks_contract.rs` の 2 テストの数える範囲を `</header>` 以降へ絞った（期待値は不変、§3.2）。
+- ランディング内グリッドに限る 640px / 1024px の breakpoint を追加した（§3.4。骨格の breakpoint 契約は不変）。
+- §3 の表の部品から外した例は §3.4 の表にまとめた。
+
+## 13. 関連文書
 
 - `docs/design/docs-site-three-column-redesign.md`: 骨格・CSS 供給・契約テスト・再評価トリガーの統治文書
 - `docs/design/docs-site-styled-ui-adoption.md`: styled 部品の適用範囲の履歴
 - `docs/design/docs-site-blocks-section.md`: Blocks セクションの設計記録
 - `docs/policy/intentional-non-adoption.md`: 評価軸と非採用記録
 - `crates/docs-site/src/layout.rs` / `site_theme.rs` / `script.rs` / `build.rs`: 実装の所在
+- `crates/docs-site/src/` の新設モジュール: `page_sections.rs`（生成節フック）/ `landing.rs`（トップ）/ `page_header.rs`（ページ見出しとパンくず）/ `site_footer.rs` / `code_copy.rs` / `not_found.rs` / `section_index.rs` / `component_index.rs` / `category_index.rs` / `themes_catalog.rs` / `site_version.rs` / `favicon.rs`、およびトップのコード例 `crates/docs-site/snippets/landing_ssr.rs`
+- `docs/guides/browser-testing.md` §9a: `make docs-preview` の手順
