@@ -6,6 +6,19 @@
 //! コンテナへ包んでページ全体を組み立てる想定であり、本モジュールはブロック
 //! レベルのノード列を返すところまでを責務とする。
 //!
+//! # ソフト改行の扱い
+//!
+//! 段落・リスト項目の改行位置は、前行末と次行頭の文字種で空白の要否を決める
+//! （CommonMark 拡張 `east_asian_line_breaks` 相当、[`join_soft_breaks`]）。
+//! 全角約物（U+3000–303F・U+30FB・全角記号帯）が一方でも絡む組、または両方が
+//! 和字（かな・漢字・ハングル・全角英数等）の組は空白なし。ASCII 同士と
+//! 「和字と半角英数・記号」の境界は従来どおり半角スペース（原稿が
+//! 「全角と半角の間に半角スペース」の規約で書かれているため）。強調記号 `*` は
+//! 判定上透過、リンクの `[` はリテラル（ASCII 扱い）。空白なしの改行は
+//! センチネル `'\n'` で連結し、テキストからは除去、インラインコードと
+//! リンク URL 内では空白へ戻す。フェンスコードは対象外。検索インデックスは
+//! 描画後のノード木から作るため同じ結果になる。
+//!
 //! # 安全性契約（REQ-1: 既定エスケープ）
 //!
 //! - 出力するテキストはすべて [`fandhe_frontend_core::text`]（`Node::Text`、
@@ -188,11 +201,18 @@ fn parse_inline(s: &str, depth: usize, in_link: bool) -> Vec<Node> {
 }
 
 /// 蓄積中のリテラル文字列を 1 つの [`text`] ノードとして `nodes` へ確定する。
+///
+/// ソフト改行センチネル（`'\n'`、モジュール doc「ソフト改行の扱い」参照）は
+/// ここで取り除く。センチネルは「空白を出さない改行」を表すだけなので、
+/// 出力テキストには残さない。
 fn flush_literal(literal: &mut String, nodes: &mut Vec<Node>) {
+    if literal.contains('\n') {
+        literal.retain(|c| c != '\n');
+    }
     if !literal.is_empty() {
         nodes.push(text(literal.as_str()));
-        literal.clear();
     }
+    literal.clear();
 }
 
 /// `chars[start..]` から、`ch` が過不足なく `run_len` 個連続する箇所を探す。
@@ -326,7 +346,12 @@ fn try_inline_code(chars: &[char], i: usize) -> Option<(Vec<Node>, usize)> {
     };
     let content_start = i + open_len;
     let close_start = find_closing_run(chars, content_start, '`', open_len)?;
-    let content: String = chars[content_start..close_start].iter().collect();
+    // コードスパン内のソフト改行センチネルは従来どおり空白 1 個へ戻す
+    // （コード内の空白を和文判定で消さない）。
+    let content: String = chars[content_start..close_start]
+        .iter()
+        .map(|&c| if c == '\n' { ' ' } else { c })
+        .collect();
     let node = code(vec![], vec![text(content.as_str())]);
     Some((vec![node], close_start + open_len))
 }
@@ -412,7 +437,12 @@ fn try_link(chars: &[char], i: usize, depth: usize) -> Option<(Vec<Node>, usize)
     let close_paren = find_char(chars, url_start, ')')?;
 
     let link_text: String = chars[i + 1..close_bracket].iter().collect();
-    let url: String = chars[url_start..close_paren].iter().collect();
+    // URL 内のソフト改行センチネルは空白へ戻してから検証する（改行を残すと
+    // ブラウザが除去して `java\nscript:` が成立しうるため、現状と同じ値で判定）。
+    let url: String = chars[url_start..close_paren]
+        .iter()
+        .map(|&c| if c == '\n' { ' ' } else { c })
+        .collect();
     let next = close_paren + 1;
 
     let children = parse_inline(&link_text, depth + 1, true);
@@ -1173,7 +1203,7 @@ fn parse_list(lines: &[&str], start: usize, kind: ListKind, depth: usize) -> (No
         .into_iter()
         .zip(items)
         .map(|(texts, nested)| {
-            let joined = texts.join(" ");
+            let joined = join_soft_breaks(&texts);
             let mut children = inline_nodes(&joined);
             children.extend(nested);
             li(vec![], children)
@@ -1266,7 +1296,82 @@ fn parse_table(lines: &[&str], start: usize) -> (Node, usize) {
     (node, i)
 }
 
-/// 段落を解析する。非空行が連続する限り取り込み、改行を半角スペースで
+/// 全角約物（P）か。U+3000–303F、U+30FB、全角記号帯、半角 CJK 約物。
+fn is_cjk_punct(c: char) -> bool {
+    matches!(c as u32,
+        0x3000..=0x303F | 0x30FB
+        | 0xFF01..=0xFF0F | 0xFF1A..=0xFF20 | 0xFF3B..=0xFF40 | 0xFF5B..=0xFF65)
+}
+
+/// 和字（W）か。かな・漢字・ハングル・全角英数・半角カナ等（約物は除く）。
+fn is_cjk_wide(c: char) -> bool {
+    if is_cjk_punct(c) {
+        return false;
+    }
+    matches!(c as u32,
+        0x1100..=0x11FF | 0x2E80..=0x2FDF | 0x3040..=0x30FF | 0x3100..=0x312F
+        | 0x31F0..=0x33FF | 0x3400..=0x4DBF | 0x4E00..=0x9FFF | 0xAC00..=0xD7AF
+        | 0xF900..=0xFAFF | 0xFF10..=0xFF19 | 0xFF21..=0xFF3A | 0xFF41..=0xFF5A
+        | 0xFF66..=0xFF9F | 0x20000..=0x3FFFF)
+}
+
+/// ソフト改行をはさむ 2 文字から、改行位置に空白を出さないかを返す。
+///
+/// 空白なし（真）: どちらかが全角約物、または両方が和字。それ以外
+/// （ASCII 同士・和字と ASCII の境界・`→` `§` 等の記号が絡む組）は偽で、
+/// 従来どおり半角スペースを出す。原稿の「全角と半角の間に半角スペース」
+/// 規約は和字に対するもので、全角約物には適用されないことに基づく。
+fn soft_break_drops_space(prev: char, next: char) -> bool {
+    is_cjk_punct(prev) || is_cjk_punct(next) || (is_cjk_wide(prev) && is_cjk_wide(next))
+}
+
+/// 行末側の判定文字。末尾空白と強調記号 `*` を除いた最後の文字（`*` のみなら `*`）。
+fn boundary_last(line: &str) -> Option<char> {
+    let t = line.trim_end();
+    t.trim_end_matches('*')
+        .chars()
+        .next_back()
+        .or_else(|| t.chars().next_back())
+}
+
+/// 行頭側の判定文字。先頭空白と強調記号 `*` を除いた最初の文字（`*` のみなら `*`）。
+fn boundary_first(line: &str) -> Option<char> {
+    let t = line.trim_start();
+    t.trim_start_matches('*')
+        .chars()
+        .next()
+        .or_else(|| t.chars().next())
+}
+
+/// 段落・リスト項目の複数行を連結する。`parse_paragraph` / `parse_list` から呼ばれ、
+/// 結果は `parse_inline` へ渡る。
+///
+/// 改行位置は [`soft_break_drops_space`] で判定する。空白を出す場合は従来どおり
+/// `' '`、出さない場合はセンチネル `'\n'` で連結する。センチネルは
+/// `parse_inline` 側で、テキストからは除去（`flush_literal`）、インラインコードと
+/// リンク URL 内では空白へ戻す。不変条件: `parse_inline` の入力に `'\n'` が
+/// 現れるのはこのセンチネルだけ（入力は `str::lines()` で行分割済み）。
+/// 呼び出し元の行は ASCII のみなら出力が従来と 1 バイトも変わらない。
+fn join_soft_breaks<S: AsRef<str>>(lines: &[S]) -> String {
+    let mut out = String::new();
+    for (idx, line) in lines.iter().enumerate() {
+        let line = line.as_ref();
+        if idx == 0 {
+            out.push_str(line.trim_end());
+            continue;
+        }
+        let drop = match (boundary_last(&out), boundary_first(line)) {
+            (Some(a), Some(b)) => soft_break_drops_space(a, b),
+            _ => false,
+        };
+        out.push(if drop { '\n' } else { ' ' });
+        out.push_str(line.trim_start().trim_end());
+    }
+    out
+}
+
+/// 段落を解析する。非空行が連続する限り取り込み、ソフト改行を
+/// [`join_soft_breaks`] の規則（和文は空白なし、それ以外は半角スペース）で
 /// 結合して 1 段落の `p` を返す。他ブロック構文の開始行に達したら終了する。
 fn parse_paragraph(lines: &[&str], start: usize) -> (Node, usize) {
     let mut collected: Vec<&str> = Vec::new();
@@ -1293,13 +1398,75 @@ fn parse_paragraph(lines: &[&str], start: usize) -> (Node, usize) {
         let joined = lines.get(start).copied().unwrap_or("");
         return (p(vec![], inline_nodes(joined)), start + 1);
     }
-    let joined = collected.join(" ");
+    let joined = join_soft_breaks(&collected);
     (p(vec![], inline_nodes(&joined)), i)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 文字種の組ごとの空白要否（イシュー #3600）。
+    #[test]
+    fn soft_break_drops_space_by_char_class() {
+        // W-W: ひらがな・カタカナ・漢字・ハングル・全角英数
+        for (a, b) in [
+            ('の', 'セ'),
+            ('ト', '時'),
+            ('代', 'の'),
+            ('가', '나'),
+            ('Ａ', 'の'),
+        ] {
+            assert!(soft_break_drops_space(a, b), "{a}{b}");
+        }
+        // P を含む組
+        for (a, b) in [
+            ('。', 'a'),
+            ('a', '（'),
+            ('。', 'の'),
+            ('の', '、'),
+            ('、', '。'),
+            ('、', '§'),
+            ('・', 'a'),
+        ] {
+            assert!(soft_break_drops_space(a, b), "{a}{b}");
+        }
+        // 空白を出す組
+        for (a, b) in [
+            ('a', 'b'),
+            ('は', '`'),
+            ('`', 'を'),
+            ('製', 'f'),
+            ('f', '製'),
+            ('名', '→'),
+            ('→', '名'),
+            ('§', 'の'),
+            ('[', 'の'),
+        ] {
+            assert!(!soft_break_drops_space(a, b), "{a}{b}");
+        }
+    }
+
+    /// 連結ヘルパーの規則（`*` 透過・`*` のみの行・行末空白・単一行・空）。
+    #[test]
+    fn join_soft_breaks_rules() {
+        assert_eq!(
+            join_soft_breaks(&["line one", "line two"]),
+            "line one line two"
+        );
+        assert_eq!(
+            join_soft_breaks(&["AI 時代の", "セキュリティ"]),
+            "AI 時代の\nセキュリティ"
+        );
+        assert_eq!(join_soft_breaks(&["迂回は", "`raw`"]), "迂回は `raw`");
+        assert_eq!(join_soft_breaks(&["**強調**", "です"]), "**強調**\nです");
+        assert_eq!(join_soft_breaks(&["の", "**強調**"]), "の\n**強調**");
+        assert_eq!(join_soft_breaks(&["a", "**", "b"]), "a ** b");
+        assert_eq!(join_soft_breaks(&["本文  ", "  続き"]), "本文\n続き");
+        assert_eq!(join_soft_breaks(&["あ", "い", "ab", "う"]), "あ\nい ab う");
+        assert_eq!(join_soft_breaks(&["one"]), "one");
+        assert_eq!(join_soft_breaks::<&str>(&[]), "");
+    }
 
     /// [`admonition_kind`] が前後空白を除き完全一致する場合のみマーカーを
     /// 認識し、未知タイプ・小文字・同一行の余分なテキストは `None`

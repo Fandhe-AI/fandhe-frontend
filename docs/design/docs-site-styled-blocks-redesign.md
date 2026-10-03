@@ -110,6 +110,7 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 - 既定案: トップはサイドバー・右目次を出さない全幅ランディングとし、ヘッダーとフッターのみ共通にする。本文用の 3 カラム骨格はトップでは使わない。
 - 実現方式は #3598 の汎用フック（`page.path` 照会による生成節差し込み）の上に載せる。`layout.rs` に landing 用ラッパー分岐を足す形を第一案とし、追加 class（例: `docs-landing`）は `docs-site-three-column-redesign.md` §3.1 の既存 class 契約を変えない範囲の純追加とする。DOM 順序不変条件（SkipNav が最初、スキップ先が本文直前）を維持する。
 - 配置順: `build.rs` は既定で `[rewritten_body, generated_content]` の順に組むため、そのままでは既存の紹介文がヒーローより先に出る。トップページ（`page.path` がトップのとき）に限り生成節を本文より先に置く順序の入れ替えを #3598 のフックで行い、ヒーローを最上段に保つ（他ページの順序は変えない）。
+- 汎用フックの API（#3598、`crates/docs-site/src/page_sections.rs`）: ページパスを鍵とする登録表 `PAGE_SECTIONS` から生成関数を引き、`render_markdown` → blocks → wireframes の直後に差し込む。挿入位置は `Placement::Prepend`（本文先頭。トップのヒーロー用）・`BeforeFirstH2`（最初の h2 の直前。h2 が無ければ末尾）・`Append`（本文末尾）の 3 種で、見出し置換は見出し文言との文字列結合で黙って壊れるため採用しない。追加 CSS は `PAGE_STYLESHEETS` へ登録し、使われたページにだけ `<link>` を配線する。生成節は検索インデックスへ自動的に載る（`data-scope` 配下の見出し・テキストは既存規則どおり除外されるため、検索対象にしたい文は `docs-*` ラッパー側に置く）。生成節の見出しへ固定 id を付けず、非見出し要素の id が `RESERVED_LAYOUT_IDS` と衝突する登録はビルド時に拒否する。登録は nav の実在ページに限り、block・wireframe・部品ページの既存経路とは重ねられない（`/blocks/` 索引だけは既存節の後に適用する形で許可する。#3618 はこのフックと `blocks::index_generated_sections` の改修のどちらでも実装できるが、§9.3 のとおり `all_blocks()` は変えない）。
 - `site/index.md` の本文は残す。検索インデックスは `search_index::page_entry` が `[rewritten_body, generated_content]` から作るため、本文を残せばヒーロー等の生成節と併せて索引化され、linkcheck への影響も生じない。
 - 縦順序と分割境界は次のとおり。375px では全セクションを単列化する。
 
@@ -187,7 +188,7 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 
 ## 11. 未決事項
 
-- トップの landing 用分岐を `layout.rs` に置くか生成節側で全幅化するかの最終形は、#3598 の実装時に確定する（§6 の第一案を既定とする）。
+- （確定済み）トップの landing 用分岐は §6 の第一案（`layout.rs` に landing 用ラッパー分岐）を採用する。#3598 のフックは `docs-landing` class・CSS を持ち込まず（登録ページが無い状態で class を足すと `site_css_contract.rs` の双方向突合に違反するため）、実装は #3612 がフックの `Prepend` の上に載せる。H1 とリード文の扱いも #3612 が決める。
 - 指標（`stats-row`）に載せる数値の算出元は #3614 で確定する。
 
 ## 12. 関連文書
