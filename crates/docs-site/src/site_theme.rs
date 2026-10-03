@@ -83,6 +83,7 @@
 //!             第 1 子、SkipNav ターゲットより前
 //!           details（既定は閉）
 //!             summary.docs-toc-inline-summary … "On this page"（`nav.docs-toc` と文言共有）
+//!               svg.docs-toc-inline-icon … 開閉シェブロン（装飾、イシュー #3610）
 //!             ul
 //!               li.docs-toc-level-2 > a  … href は右目次と同一の `#<id>`
 //!               li.docs-toc-level-3 > a
@@ -582,24 +583,47 @@ body {\n\
 }\n\
 \n\
 /*\n\
- * フェンスコードのコピーボタン（イシュー #3605、`crate::code_copy`）。\n\
- * ボタンは `pre` の外に絶対配置する（`pre` の横スクロールで流さないため）。\n\
+ * フェンスコードのヘッダー帯（言語ラベル + コピーボタン、イシュー #3605/#3620、\n\
+ * `crate::code_copy`）。枠はラッパー側へ持たせ、`pre` の枠・角丸は外す。\n\
  * `hidden` 属性は `crate::script::SITE_JS` が配線完了後にのみ除去する。\n\
  */\n\
-.docs-code-block {\n\
-  position: relative;\n\
+.docs-content .docs-code-block {\n\
+  margin: 0 0 1.05rem;\n\
+  border: 1px solid var(--fandhe-color-border);\n\
+  border-radius: 0.6rem;\n\
+  overflow: hidden;\n\
+  min-width: 0;\n\
+  background: var(--fandhe-color-bg-muted);\n\
 }\n\
 \n\
-/* `.docs-content pre`（typography_css、後段出力）の padding より詳細度を上げ、\n\
- * 右余白（ボタン退避領域）が上書きされてコード先頭行に重ならないようにする。 */\n\
+/* `.docs-content pre`（typography_css、後段出力）より詳細度を上げて枠を外す。 */\n\
 .docs-content .docs-code-block pre {\n\
-  padding-right: 5rem;\n\
+  margin: 0;\n\
+  border: 0;\n\
+  border-radius: 0;\n\
+}\n\
+\n\
+.docs-code-header {\n\
+  display: flex;\n\
+  align-items: center;\n\
+  justify-content: space-between;\n\
+  gap: 0.5rem;\n\
+  min-height: 2.25rem;\n\
+  padding: 0.25rem 0.5rem 0.25rem 1.1rem;\n\
+  background: var(--fandhe-color-bg-subtle);\n\
+  border-bottom: 1px solid var(--fandhe-color-border);\n\
+}\n\
+\n\
+/* 帯は常に flow へ置く（ボタンの hidden 解除で pre が押し下がる読み込み時のずれを避ける）。 */\n\
+.docs-code-lang {\n\
+  font-size: 0.75rem;\n\
+  font-weight: 500;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+  user-select: none;\n\
 }\n\
 \n\
 .docs-code-copy {\n\
-  position: absolute;\n\
-  top: 0.5rem;\n\
-  right: 0.5rem;\n\
+  margin-left: auto;\n\
   font: inherit;\n\
   font-size: 0.75rem;\n\
   font-weight: 500;\n\
@@ -619,7 +643,7 @@ body {\n\
 \n\
 .docs-code-copy:focus-visible {\n\
   outline: 2px solid var(--fandhe-color-accent);\n\
-  outline-offset: 2px;\n\
+  outline-offset: -2px;\n\
 }\n\
 \n\
 .docs-code-copy[hidden] {\n\
@@ -1176,6 +1200,8 @@ body {\n\
   display: flex;\n\
   flex-direction: column;\n\
   gap: 0.2rem;\n\
+  /* 縦線（rail）。現在地バー（下記 `::before`）がこの線に重なる。 */\n\
+  border-left: 1px solid var(--fandhe-color-border);\n\
 }\n\
 \n\
 .docs-toc a {\n\
@@ -1187,8 +1213,8 @@ body {\n\
    * の切り詰め（ellipsis/line-clamp）は行わない（情報欠落を招くため）。\n\
    */\n\
   overflow-wrap: anywhere;\n\
-  padding: 0.12rem 0 0.12rem 0.5rem;\n\
-  border-left: 2px solid transparent;\n\
+  padding: 0.12rem 0 0.12rem 0.75rem;\n\
+  position: relative;\n\
 }\n\
 \n\
 .docs-toc a:hover {\n\
@@ -1206,17 +1232,31 @@ body {\n\
 .docs-toc a[aria-current=\"location\"] {\n\
   color: var(--fandhe-color-accent);\n\
   font-weight: var(--fandhe-font-font-weight-medium);\n\
-  border-left-color: var(--fandhe-color-accent);\n\
+}\n\
+\n\
+/* 現在地インジケータ（イシュー #3610）。rail と重なる 2px の縦棒。 */\n\
+.docs-toc a[aria-current=\"location\"]::before {\n\
+  content: \"\";\n\
+  position: absolute;\n\
+  left: -1px;\n\
+  top: 0;\n\
+  bottom: 0;\n\
+  width: 2px;\n\
+  background: var(--fandhe-color-accent);\n\
 }\n\
 \n\
 .docs-toc-level-2 {\n\
   padding-left: 0;\n\
 }\n\
 \n\
+/* 階層インデントは `a` の padding で表す（`li` に付けると現在地バーが\n\
+ * rail からずれる）。`li` 側は 0 のまま。 */\n\
 .docs-toc-level-3 {\n\
-  /* 1rem から縮小（イシュー #950）。長い `h3` タイトルの折り返し時に\n\
-   * 実効幅を確保し、過大インデントで読みにくくなるのを防ぐ。 */\n\
-  padding-left: 0.5rem;\n\
+  padding-left: 0;\n\
+}\n\
+\n\
+.docs-toc .docs-toc-level-3 > a {\n\
+  padding-left: 1.5rem;\n\
 }\n\
 \n\
 /* ---- 本文冒頭の折りたたみ目次（`nav.docs-toc-inline`。イシュー #1080） ---- */\n\
@@ -1234,14 +1274,48 @@ body {\n\
   margin: 0 auto 1.5rem;\n\
 }\n\
 \n\
+.docs-toc-inline details {\n\
+  border: 1px solid var(--fandhe-color-border);\n\
+  border-radius: 0.4rem;\n\
+  overflow: hidden;\n\
+}\n\
+\n\
 .docs-toc-inline-summary {\n\
+  display: flex;\n\
+  align-items: center;\n\
+  justify-content: space-between;\n\
+  gap: 0.5rem;\n\
+  list-style: none;\n\
   cursor: pointer;\n\
   font-size: 0.8rem;\n\
   font-weight: var(--fandhe-font-font-weight-semibold);\n\
   padding: 0.5rem 0.7rem;\n\
-  border: 1px solid var(--fandhe-color-border);\n\
-  border-radius: 0.4rem;\n\
   color: var(--fandhe-color-fg-muted);\n\
+}\n\
+\n\
+.docs-toc-inline-summary::-webkit-details-marker {\n\
+  display: none;\n\
+}\n\
+\n\
+.docs-toc-inline details[open] > .docs-toc-inline-summary {\n\
+  border-bottom: 1px solid var(--fandhe-color-border);\n\
+}\n\
+\n\
+.docs-toc-inline-icon {\n\
+  width: 1rem;\n\
+  height: 1rem;\n\
+  flex: none;\n\
+  transition: transform 150ms ease;\n\
+}\n\
+\n\
+.docs-toc-inline details[open] .docs-toc-inline-icon {\n\
+  transform: rotate(180deg);\n\
+}\n\
+\n\
+@media (prefers-reduced-motion: reduce) {\n\
+  .docs-toc-inline-icon {\n\
+    transition: none;\n\
+  }\n\
 }\n\
 \n\
 .docs-toc-inline-summary:hover {\n\
@@ -1251,14 +1325,13 @@ body {\n\
 \n\
 .docs-toc-inline-summary:focus-visible {\n\
   outline: 2px solid var(--fandhe-color-accent);\n\
-  outline-offset: 2px;\n\
+  outline-offset: -2px;\n\
 }\n\
 \n\
 .docs-toc-inline ul {\n\
   list-style: none;\n\
-  margin: 0.5rem 0 0;\n\
-  padding: 0.3rem 0.7rem 0.3rem 1rem;\n\
-  border-left: 1px solid var(--fandhe-color-border);\n\
+  margin: 0;\n\
+  padding: 0.5rem 0.7rem;\n\
   display: flex;\n\
   flex-direction: column;\n\
   gap: 0.25rem;\n\
@@ -1270,6 +1343,10 @@ body {\n\
   text-decoration: none;\n\
   overflow-wrap: anywhere;\n\
   padding: 0.1rem 0;\n\
+}\n\
+\n\
+.docs-toc-inline .docs-toc-level-3 > a {\n\
+  padding-left: 1rem;\n\
 }\n\
 \n\
 .docs-toc-inline a:hover {\n\
@@ -1653,6 +1730,109 @@ nav.prev-next .next .docs-pager-meta {\n\
   .docs-content h2,\n\
   .docs-content h3 {\n\
     scroll-margin-top: 1rem;\n\
+  }\n\
+}\n\
+\n\
+/*\n\
+ * サイトフッター（イシュー #3609、`crate::site_footer`）。\n\
+ * body 直下で `.docs-container` の外側の兄弟なので、sticky のサイドバー・右目次\n\
+ * （包含ブロックは `.docs-container`）とは構造上重ならない。Primitives ページは\n\
+ * heading / link / separator / text の recipe を持たない `site-primitives.css` を読むため、\n\
+ * recipe と同じ値の代替規則を `.docs-footer.docs-footer` 前置（詳細度 0,2,1 以上）で再現する。\n\
+ */\n\
+.docs-footer {\n\
+  margin-block-start: var(--fandhe-space-8, 2rem);\n\
+  border-top: 1px solid var(--fandhe-color-border);\n\
+}\n\
+\n\
+.docs-footer .docs-footer-inner {\n\
+  max-width: var(--fandhe-space-docs-container-width);\n\
+  margin: 0 auto;\n\
+  padding: var(--fandhe-space-6, 1.5rem) var(--fandhe-space-docs-gutter);\n\
+}\n\
+\n\
+.docs-footer .docs-footer-nav {\n\
+  min-width: 0;\n\
+}\n\
+\n\
+.docs-footer .docs-footer-columns {\n\
+  display: grid;\n\
+  grid-template-columns: repeat(2, minmax(0, 1fr));\n\
+  gap: var(--fandhe-space-6, 1.5rem) var(--fandhe-space-4, 1rem);\n\
+}\n\
+\n\
+.docs-footer .docs-footer-group {\n\
+  min-width: 0;\n\
+}\n\
+\n\
+.docs-footer .docs-footer-list,\n\
+.docs-footer .docs-footer-external {\n\
+  list-style: none;\n\
+  margin: 0;\n\
+  padding: 0;\n\
+}\n\
+\n\
+.docs-footer .docs-footer-list li,\n\
+.docs-footer .docs-footer-external li {\n\
+  margin: 0;\n\
+  padding: 0;\n\
+}\n\
+\n\
+.docs-footer.docs-footer h2 {\n\
+  margin: 0 0 var(--fandhe-space-2, 0.5rem);\n\
+  font-size: 0.875rem;\n\
+  font-weight: 600;\n\
+  line-height: 1.3;\n\
+}\n\
+\n\
+.docs-footer.docs-footer a {\n\
+  display: inline-block;\n\
+  padding-block: 0.125rem;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+  text-decoration: none;\n\
+  overflow-wrap: anywhere;\n\
+}\n\
+\n\
+.docs-footer.docs-footer a:hover {\n\
+  color: var(--fandhe-color-fg);\n\
+  text-decoration: underline;\n\
+}\n\
+\n\
+.docs-footer.docs-footer hr {\n\
+  height: 0;\n\
+  margin: var(--fandhe-space-6, 1.5rem) 0 var(--fandhe-space-4, 1rem);\n\
+  border: 0;\n\
+  border-top: 1px solid var(--fandhe-color-border);\n\
+}\n\
+\n\
+.docs-footer.docs-footer p {\n\
+  margin: 0;\n\
+  font-size: 0.875rem;\n\
+  line-height: 1.5;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+}\n\
+\n\
+.docs-footer .docs-footer-bottom {\n\
+  display: flex;\n\
+  flex-direction: column;\n\
+  gap: var(--fandhe-space-3, 0.75rem);\n\
+}\n\
+\n\
+.docs-footer .docs-footer-external {\n\
+  display: flex;\n\
+  flex-wrap: wrap;\n\
+  gap: var(--fandhe-space-4, 1rem);\n\
+}\n\
+\n\
+@media (min-width: 768px) {\n\
+  .docs-footer .docs-footer-columns {\n\
+    grid-template-columns: repeat(4, minmax(0, 1fr));\n\
+  }\n\
+\n\
+  .docs-footer .docs-footer-bottom {\n\
+    flex-direction: row;\n\
+    justify-content: space-between;\n\
+    align-items: flex-start;\n\
   }\n\
 }\n\
 ";
@@ -2337,6 +2517,77 @@ pub fn stylesheet_without_recipes() -> Result<StyleSheet, SiteThemeError> {
     assemble(false)
 }
 
+/// 部品ページ API 表（`table[data-docs-api-table]`）の追加 CSS（イシュー #3621）。
+///
+/// [`crate::component_page`] が出す Arguments / Data Attributes / CSS Variables
+/// 表だけを `data-*` 属性で狙い撃ちする（`docs-*` class 契約には触れない）。
+/// 広幅は既存の `.docs-content table` のまま、行見出しの背景を本文セル並みに
+/// 戻し上端揃えにするだけ。767.98px 以下は DOM を変えず CSS だけで縦積み
+/// （param-list 風）へ切り替え、各セルの `data-label`（コンパイル時定数）を
+/// `::before` で見出しとして出す。`thead` は `display: none` にせず visually-hidden
+/// （clip / 絶対配置）で視覚的にだけ隠し、列見出しをアクセシビリティツリーへ残す
+/// （`display: none` は支援技術からも除外され、`::before` の `data-label` だけでは
+/// セルと列見出しの関係を保証できないため）。セレクタは `.docs-content table` より
+/// 高詳細度で後置し、ヘッダー用の最初の 767.98px ブロックとは別ブロックにする
+/// （`narrow_header_moves_search_to_full_width_second_row` が中身を固定）。
+/// 新しい色トークンは作らず既存トークンのみ参照する。
+const API_TABLE_CSS: &str = "\
+.docs-content table[data-docs-api-table] td,\n\
+.docs-content table[data-docs-api-table] tbody th {\n\
+  vertical-align: top;\n\
+}\n\
+.docs-content table[data-docs-api-table] tbody th {\n\
+  background: transparent;\n\
+}\n\
+.docs-content table[data-docs-api-table] [data-docs-api-placeholder] {\n\
+  color: var(--fandhe-color-fg-muted);\n\
+}\n\
+@media (max-width: 767.98px) {\n\
+  .docs-content table[data-docs-api-table] {\n\
+    background-image: none;\n\
+  }\n\
+  .docs-content table[data-docs-api-table] thead {\n\
+    position: absolute;\n\
+    width: 1px;\n\
+    height: 1px;\n\
+    margin: -1px;\n\
+    padding: 0;\n\
+    overflow: hidden;\n\
+    clip: rect(0, 0, 0, 0);\n\
+    white-space: nowrap;\n\
+    border: 0;\n\
+  }\n\
+  .docs-content table[data-docs-api-table] tbody,\n\
+  .docs-content table[data-docs-api-table] tbody tr,\n\
+  .docs-content table[data-docs-api-table] tbody th,\n\
+  .docs-content table[data-docs-api-table] tbody td {\n\
+    display: block;\n\
+  }\n\
+  .docs-content table[data-docs-api-table] tbody tr {\n\
+    padding: 0.6rem 0.75rem;\n\
+    border-bottom: 1px solid var(--fandhe-color-border);\n\
+  }\n\
+  .docs-content table[data-docs-api-table] tbody tr:last-child {\n\
+    border-bottom: 0;\n\
+  }\n\
+  .docs-content table[data-docs-api-table] tbody tr > th,\n\
+  .docs-content table[data-docs-api-table] tbody tr > td {\n\
+    border: 0;\n\
+    padding: 0.15rem 0;\n\
+  }\n\
+  .docs-content table[data-docs-api-table] tbody tr > td::before {\n\
+    content: attr(data-label);\n\
+    display: block;\n\
+    font-size: 0.8em;\n\
+    color: var(--fandhe-color-fg-muted);\n\
+  }\n\
+  .docs-content table[data-docs-api-table] code {\n\
+    overflow-wrap: anywhere;\n\
+    word-break: break-word;\n\
+  }\n\
+}\n\
+";
+
 fn assemble(with_recipes: bool) -> Result<StyleSheet, SiteThemeError> {
     let theme = docs_theme()?;
     let mut sheet = StyleSheet::new();
@@ -2364,6 +2615,7 @@ fn assemble(with_recipes: bool) -> Result<StyleSheet, SiteThemeError> {
     sheet.push_css(crate::landing::CSS)?;
     sheet.push_css(&typography_css()?)?;
     sheet.push_css(&highlight_css()?)?;
+    sheet.push_css(API_TABLE_CSS)?;
     Ok(sheet)
 }
 
@@ -2416,6 +2668,7 @@ mod tests {
             ".docs-toc-aside",
             ".docs-toc-inline",
             ".docs-toc-inline-summary",
+            ".docs-toc-inline-icon",
             "nav.prev-next",
             ".docs-nav-group",
             ".docs-nav-group-summary",
@@ -2778,6 +3031,20 @@ mod tests {
             .nth(1)
             .expect("min-width: 1200px block should exist");
         assert!(block_1200.contains(".docs-toc-inline {\ndisplay: none;\n}"));
+    }
+
+    #[test]
+    fn stylesheet_toc_visuals_cover_rail_indicator_and_disclosure_icon() {
+        // イシュー #3610: 右目次の rail + 現在地バー、折りたたみ目次の
+        // マーカー除去と開状態のシェブロン回転が STRUCTURAL_CSS に存在する。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        assert!(css.contains(".docs-toc a[aria-current=\"location\"]::before {"));
+        assert!(css.contains("border-left: 1px solid var(--fandhe-color-border);"));
+        assert!(css.contains(".docs-toc-inline-summary::-webkit-details-marker {"));
+        assert!(css.contains(
+            ".docs-toc-inline details[open] .docs-toc-inline-icon {\ntransform: rotate(180deg);"
+        ));
     }
 
     #[test]

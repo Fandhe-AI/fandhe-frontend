@@ -325,6 +325,13 @@ fn inline_toc_is_a_details_disclosure_with_anchor_links() {
     assert!(inline_block.contains("<details>"));
     assert!(!inline_block.contains("<details open"));
     assert!(inline_block.contains(r#"class="docs-toc-inline-summary""#));
+    // イシュー #3610: summary 内に装飾 svg アイコン（支援技術へは隠す）。
+    let summary_start = inline_block.find("<summary").expect("summary");
+    let summary_end = inline_block.find("</summary>").expect("summary end");
+    let summary = &inline_block[summary_start..summary_end];
+    assert!(summary.contains(r#"class="docs-toc-inline-icon""#));
+    assert!(summary.contains(r#"aria-hidden="true""#));
+    assert!(summary.contains(r#"focusable="false""#));
 
     let id_marker = r#"<h2 id=""#;
     let start = html.find(id_marker).expect("h2 with injected id");
@@ -694,6 +701,7 @@ fn docs_page_with_assets_places_brand_before_header_nav_inside_header() {
         body,
         &[],
         Some(header_nav(&nav, "/")),
+        None,
     );
     let html = render(&node);
 
@@ -734,6 +742,7 @@ fn docs_page_with_assets_keeps_skip_nav_before_header_when_header_nav_present() 
         body,
         &[],
         Some(header_nav(&nav, "/")),
+        None,
     );
     let html = render(&node);
 
@@ -789,6 +798,7 @@ fn docs_page_with_assets_emits_view_transition_opt_in_style_in_head() {
         body,
         &["assets/pre-styled-ui.css"],
         Some(header_nav(&nav, "/")),
+        None,
     );
     let html = render(&node);
 
@@ -869,6 +879,7 @@ fn docs_page_skip_nav_link_is_first_focusable_element_in_body() {
         body,
         &[],
         Some(header_nav(&nav, "/")),
+        None,
     );
     assert_skip_link_is_first_focusable(&render(&node_with_header_nav));
 }
@@ -1001,6 +1012,7 @@ fn docs_page_header_dom_order_places_actions_after_brand_and_nav() {
         body,
         &[],
         Some(header_nav(&nav, "/")),
+        None,
     );
     let html_with = render(&node_with_header_nav);
     let brand_pos = html_with
@@ -1072,6 +1084,7 @@ fn docs_page_wraps_header_children_in_inner_container() {
         body,
         &[],
         Some(header_nav(&nav, "/")),
+        None,
     );
     let html_with = render(&node_with_header_nav);
     let header_pos = html_with
@@ -1290,6 +1303,43 @@ fn header_search_input_is_inside_input_group_with_slash_hint() {
     assert!(header.contains(r#"data-scope="icon""#));
 }
 
+/// イシュー #3609: `footer` が `Some` のとき `<body>` の最後の子（`div.docs-container`
+/// の直後）へ出力され、`None` では出力されない。`main` の外に置くことで暗黙の
+/// `contentinfo` が成立する。
+#[test]
+fn docs_page_with_assets_places_footer_after_container_as_last_body_child() {
+    let nav = parse_nav(sample_nav_toml()).expect("fixture nav.toml should parse");
+    let footer = fandhe_frontend_core::footer(
+        vec![("class", "docs-footer")],
+        vec![p(vec![], vec![text("フッター")])],
+    );
+    let html = render(&docs_page_with_assets(
+        "タイトル",
+        "",
+        sample_sidebar(),
+        p(vec![], vec![text("本文です。")]),
+        &[],
+        Some(header_nav(&nav, "/")),
+        Some(footer),
+    ));
+    let skip = html.find("Skip to content").expect("skip nav");
+    let header = html.find("<header class=\"docs-header\"").expect("header");
+    let container = html.find("class=\"docs-container").expect("container");
+    let main_end = html.rfind("</main>").expect("main end");
+    let footer_at = html.find("<footer class=\"docs-footer\"").expect("footer");
+    assert!(skip < header && header < container && container < main_end);
+    assert!(main_end < footer_at, "footer は main の外（後ろ）に置く");
+    assert!(html.ends_with("</footer></body></html>"), "{html}");
+
+    let without = render(&docs_page(
+        "タイトル",
+        "",
+        sample_sidebar(),
+        p(vec![], vec![text("本文です。")]),
+    ));
+    assert!(!without.contains("docs-footer"));
+}
+
 /// イシュー #3612: ランディング骨格は右目次・折りたたみ目次を出さず、サイドバー・
 /// SkipNav・本文 article の DOM 順序は標準骨格と同じに保つ。
 #[test]
@@ -1307,6 +1357,7 @@ fn landing_layout_drops_toc_but_keeps_sidebar_and_skip_nav_order() {
         sample_sidebar(),
         body.clone(),
         &[],
+        None,
         None,
         PageLayout::Landing,
     ));
@@ -1328,6 +1379,7 @@ fn landing_layout_drops_toc_but_keeps_sidebar_and_skip_nav_order() {
         body.clone(),
         &[],
         None,
+        None,
         PageLayout::Docs,
     ));
     assert!(docs.contains("docs-toc-aside") && !docs.contains("docs-landing"));
@@ -1339,6 +1391,7 @@ fn landing_layout_drops_toc_but_keeps_sidebar_and_skip_nav_order() {
             sample_sidebar(),
             body,
             &[],
+            None,
             None
         ))
     );

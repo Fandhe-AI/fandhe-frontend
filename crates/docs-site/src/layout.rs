@@ -660,12 +660,17 @@ fn toc_items(entries: &[TocEntry]) -> Option<Vec<Node>> {
 ///   開閉はネイティブ `<details>` の挙動であり JS を要さない
 ///   （`crate::nav::group_node` の `details.docs-nav-group` と同型の
 ///   ディスクロージャパターン、イシュー #940 の先例に揃える）。
+/// - **開閉アイコンは素の `svg`（`icon::icon` を使わない）**: 見出しのある
+///   全ページ（recipe 抜きの `site-primitives.css` を読む Primitives
+///   ページを含む）が本目次を出す。`fd-icon--size-md` は recipe 側にしか
+///   無く未定義になりブラウザ既定サイズで描画されるため、サイズは
+///   `.docs-toc-inline-icon` で与える（イシュー #3610）。
 pub fn toc_inline(entries: &[TocEntry]) -> Option<Node> {
     let items = toc_items(entries)?;
     let summary = el(
         "summary",
         vec![("class", "docs-toc-inline-summary")],
-        vec![text(TOC_HEADING_TEXT.to_string())],
+        vec![text(TOC_HEADING_TEXT.to_string()), toc_inline_icon()],
     );
     let details = el("details", vec![], vec![summary, ul(vec![], items)]);
     Some(nav(
@@ -675,6 +680,32 @@ pub fn toc_inline(entries: &[TocEntry]) -> Option<Node> {
         ],
         vec![details],
     ))
+}
+
+/// 折りたたみ目次の開閉を示す下向きシェブロン（装飾のため `aria-hidden`）。
+/// 開状態の回転は CSS（`details[open]`）が担い、JS を要さない。
+fn toc_inline_icon() -> Node {
+    el(
+        "svg",
+        vec![
+            ("class", "docs-toc-inline-icon"),
+            ("aria-hidden", "true"),
+            ("focusable", "false"),
+            ("viewBox", "0 0 24 24"),
+            ("fill", "none"),
+        ],
+        vec![el(
+            "path",
+            vec![
+                ("d", "M6 9l6 6l6 -6"),
+                ("stroke", "currentColor"),
+                ("stroke-width", "2"),
+                ("stroke-linecap", "round"),
+                ("stroke-linejoin", "round"),
+            ],
+            vec![],
+        )],
+    )
 }
 
 /// `base_path` を考慮したアセット参照パスを生成する（受け入れ条件 3 の
@@ -729,7 +760,7 @@ pub fn asset_href(base_path: &str, relative: &str) -> String {
 /// （`fandhe_frontend_server::ssg::generate_pages()`）の契約であり、本関数は
 /// 文書 `Node` を返すのみで DOCTYPE 文字列を出力しない。
 pub fn docs_page(title: &str, base_path: &str, sidebar: Node, body: Node) -> Node {
-    docs_page_with_assets(title, base_path, sidebar, body, &[], None)
+    docs_page_with_assets(title, base_path, sidebar, body, &[], None, None)
 }
 
 /// [`docs_page`] の拡張版。`extra_stylesheets`（`assets/` 起点の相対パス列）を
@@ -752,6 +783,15 @@ pub fn docs_page(title: &str, base_path: &str, sidebar: Node, body: Node) -> Nod
 /// 左端に揃える計測枠）の第 2 子として `crate::nav::header_nav()` が生成する
 /// セクション別ドロップダウンメニューを埋め込む。`None` の場合はブランド
 /// リンクのみの従来ヘッダーのまま（[`docs_page`] 経由の呼び出しはこちら）。
+///
+/// `footer`（イシュー #3609、`crate::site_footer::site_footer()` の戻り値）が
+/// `Some` の場合、`<body>` の最後の子（`div.docs-container` の直後）として
+/// 出力する。`<footer>` は `main`/`article`/`aside`/`nav`/`section` の子孫に
+/// 置くと暗黙ロール `contentinfo` を失い、本文 `Node` へ追記すると TOC・検索
+/// インデックスにも混入するため、ヘッダーと同じクロームとして本関数が
+/// `body` 直下へ置く。sticky のサイドバー・右目次は包含ブロックである
+/// `.docs-container` の内側に限られるので、外の兄弟であるフッターとは構造上
+/// 重ならない。`None` なら従来出力とバイト一致する。
 pub fn docs_page_with_assets(
     title: &str,
     base_path: &str,
@@ -759,6 +799,7 @@ pub fn docs_page_with_assets(
     body: Node,
     extra_stylesheets: &[&str],
     header_nav: Option<Node>,
+    footer: Option<Node>,
 ) -> Node {
     docs_page_with_layout(
         title,
@@ -767,6 +808,7 @@ pub fn docs_page_with_assets(
         body,
         extra_stylesheets,
         header_nav,
+        footer,
         PageLayout::Docs,
     )
 }
@@ -794,6 +836,9 @@ pub enum PageLayout {
 /// `docs-container docs-landing` にする。`aside.docs-sidebar` は DOM に残す:
 /// 768px 未満ではヘッダーナビが非表示で、サイドバーの Menu トグルが唯一の
 /// ナビゲーション手段のため。広幅での非表示は CSS（`crate::landing::CSS`）が担う。
+// 公開 API 互換のため引数を構造体化せず、骨格の各スロットを個別引数で受ける（呼び出し元は
+// `docs_page_with_assets` 等の薄いラッパーに限られる）。
+#[allow(clippy::too_many_arguments)]
 pub fn docs_page_with_layout(
     title: &str,
     base_path: &str,
@@ -801,6 +846,7 @@ pub fn docs_page_with_layout(
     body: Node,
     extra_stylesheets: &[&str],
     header_nav: Option<Node>,
+    footer: Option<Node>,
     layout: PageLayout,
 ) -> Node {
     let landing = layout == PageLayout::Landing;
@@ -1049,15 +1095,15 @@ pub fn docs_page_with_layout(
         "docs-container docs-container--no-toc"
     };
 
-    let body_node = el(
-        "body",
-        vec![],
-        vec![
-            skip_nav_link,
-            header_node,
-            div(vec![("class", container_class)], container_children),
-        ],
-    );
+    let mut body_children = vec![
+        skip_nav_link,
+        header_node,
+        div(vec![("class", container_class)], container_children),
+    ];
+    if let Some(footer_node) = footer {
+        body_children.push(footer_node);
+    }
+    let body_node = el("body", vec![], body_children);
 
     el("html", vec![("lang", "ja")], vec![head, body_node])
 }

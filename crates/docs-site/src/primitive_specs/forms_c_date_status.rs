@@ -56,7 +56,7 @@
 //! （`tests/primitive_specs_1026.rs::forms_c_examples_do_not_call_pre_styled_ui_component_fns`
 //! が機械確認する）。
 
-use fandhe_frontend_core::{code, div, p, pre, text, Node};
+use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::calendar;
 use hui::clipboard;
@@ -219,10 +219,7 @@ fn ex_calendar_custom_css() -> Node {
         "利用者が data-scope / data-part / data-selected / data-today / data-outside-month / data-disabled 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             markup,
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(CALENDAR_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(CALENDAR_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -530,10 +527,7 @@ fn date_input_custom_css_example() -> Node {
             ),
         ],
     );
-    let snippet = pre(
-        vec![],
-        vec![code(vec![], vec![text(DATE_INPUT_CUSTOM_CSS_SNIPPET)])],
-    );
+    let snippet = crate::code_copy::css_snippet_block(DATE_INPUT_CUSTOM_CSS_SNIPPET);
     div(
         vec![],
         vec![
@@ -810,13 +804,7 @@ fn download_trigger_custom_css_example() -> Node {
         vec![],
         vec![
             markup,
-            pre(
-                vec![],
-                vec![code(
-                    vec![],
-                    vec![text(DOWNLOAD_TRIGGER_CUSTOM_CSS_SNIPPET)],
-                )],
-            ),
+            crate::code_copy::css_snippet_block(DOWNLOAD_TRIGGER_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -952,10 +940,7 @@ fn ex_progress_custom_css() -> Node {
         "利用者が data-scope / data-part / data-state / data-orientation 属性セレクタで自前 CSS を当てます。range の幅は headless が付与しないため、Progress::percent() から呼び出し側が style で渡します。",
         vec![
             markup,
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(PROGRESS_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(PROGRESS_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -1106,10 +1091,7 @@ fn ex_qr_code_custom_css() -> Node {
         "利用者が data-scope / data-part 属性セレクタで自前 CSS を当てます。Overlay を使うため誤り訂正レベルは Q 以上を選びます。",
         vec![
             markup,
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(QR_CODE_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(QR_CODE_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -1336,7 +1318,7 @@ fn toggle_custom_css_example() -> Node {
         "利用者が data-scope / data-part / data-state / data-pressed / data-disabled 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             markup,
-            pre(vec![], vec![code(vec![], vec![text(TOGGLE_CUSTOM_CSS_SNIPPET)])]),
+            crate::code_copy::css_snippet_block(TOGGLE_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -1477,10 +1459,7 @@ fn toggle_group_custom_css_example() -> Node {
         "利用者が data-scope / data-part / data-state / data-orientation / data-disabled 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             markup,
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(TOGGLE_GROUP_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(TOGGLE_GROUP_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
