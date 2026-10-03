@@ -12,9 +12,10 @@
 
 use std::path::{Path, PathBuf};
 
-use fandhe_frontend_docs_site::build::build_site;
+use fandhe_frontend_docs_site::build::{build_site, build_site_with};
 use fandhe_frontend_docs_site::layout;
 use fandhe_frontend_docs_site::nav;
+use fandhe_frontend_docs_site::page_sections::EMPTY_REGISTRY;
 use fandhe_frontend_docs_site::redirect;
 use fandhe_frontend_docs_site::search_index::{self, SearchIndexError};
 
@@ -334,8 +335,10 @@ fn search_index_is_byte_identical_across_two_builds_of_the_fixture_site() {
     let out_a = TempDir::new("determinism-fixture-a");
     let out_b = TempDir::new("determinism-fixture-b");
 
-    build_site(&fixture_root("site-ok"), &out_a.0).expect("site-ok fixture should build");
-    build_site(&fixture_root("site-ok"), &out_b.0).expect("site-ok fixture should build");
+    build_site_with(&fixture_root("site-ok"), &out_a.0, &EMPTY_REGISTRY)
+        .expect("site-ok fixture should build");
+    build_site_with(&fixture_root("site-ok"), &out_b.0, &EMPTY_REGISTRY)
+        .expect("site-ok fixture should build");
 
     assert_eq!(read_index_files(&out_a.0), read_index_files(&out_b.0));
 }
@@ -617,8 +620,12 @@ fn real_site_search_index_still_contains_code_block_keywords_after_highlighting(
 #[test]
 fn real_site_search_index_keeps_words_adjacent_to_highlight_token_spans_contiguous() {
     let out = TempDir::new("code-block-adjacent-words");
-    build_site(&fixture_root("site-highlighted-code"), &out.0)
-        .expect("site-highlighted-code fixture should build cleanly");
+    build_site_with(
+        &fixture_root("site-highlighted-code"),
+        &out.0,
+        &EMPTY_REGISTRY,
+    )
+    .expect("site-highlighted-code fixture should build cleanly");
 
     let pages = read_all_pages(&out.0);
     let page = pages
@@ -728,7 +735,7 @@ fn search_index_json_contains_no_raw_angle_brackets_ampersands_or_control_chars(
     write_escape_fixture(&temp.0);
     let out_dir = temp.0.join("dist");
 
-    build_site(&temp.0, &out_dir).expect("escape fixture should build");
+    build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY).expect("escape fixture should build");
     let files = read_index_files(&out_dir);
     assert_eq!(files.len(), 2, "manifest + 1 section file");
 
@@ -809,7 +816,7 @@ fn page_text_is_truncated_at_a_valid_utf8_char_boundary_within_the_byte_limit() 
     write_truncation_fixture(&temp.0, &long_text);
     let out_dir = temp.0.join("dist");
 
-    build_site(&temp.0, &out_dir).expect("truncation fixture should build");
+    build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY).expect("truncation fixture should build");
     let pages = read_all_pages(&out_dir);
     assert_eq!(pages.len(), 1);
     let text = pages[0].get("text").as_str();
@@ -899,7 +906,7 @@ fn build_site_fails_closed_when_search_index_exceeds_the_byte_limit_without_writ
         write_oversized_fixture(&temp.0, heading_count);
         let out_dir = temp.0.join("dist");
 
-        match build_site(&temp.0, &out_dir) {
+        match build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY) {
             Err(BuildError::SearchIndex(SearchIndexError::TooLarge {
                 section,
                 bytes,

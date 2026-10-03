@@ -83,7 +83,7 @@ use crate::search_index;
 /// 単一実装点）。`site/nav.toml` の `[site]` スキーマは拡張しない
 /// （nav スキーマの変更は #939 の管轄。ブランド文字列 `"fandhe-frontend"`
 /// が既に本モジュールへハードコードされている先例に倣う）。
-const REPOSITORY_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+pub(crate) const REPOSITORY_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 /// pre-styled-ui のアイコン用に `path` 1 本の SVG 子ノードを作る。
 fn icon_path(d: &'static str) -> Node {
@@ -760,12 +760,61 @@ pub fn docs_page_with_assets(
     extra_stylesheets: &[&str],
     header_nav: Option<Node>,
 ) -> Node {
+    docs_page_with_layout(
+        title,
+        base_path,
+        sidebar,
+        body,
+        extra_stylesheets,
+        header_nav,
+        PageLayout::Docs,
+    )
+}
+
+/// ページ骨格の種別（イシュー #3612）。
+///
+/// [`crate::page_sections::PageSection::layout`] が登録表からページ単位で宣言し、
+/// [`crate::build::build_site_with`] が [`docs_page_with_layout`] へ渡す。
+/// `path == "/"` の直書き判定は汎用エンジンの挙動をフィクスチャへ波及させるため
+/// 採らず、登録表を唯一の鍵にする。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PageLayout {
+    /// 左ナビ + 本文 + 右目次の標準ドキュメント骨格。
+    #[default]
+    Docs,
+    /// 全幅ランディング骨格（トップページ）。右目次・折りたたみ目次を出さず、
+    /// 広幅ではサイドバーを CSS で隠す。ヘッダー・SkipNav・本文 article の
+    /// DOM 順序は [`PageLayout::Docs`] と同一に保つ。
+    Landing,
+}
+
+/// [`docs_page_with_assets`] の骨格種別指定版。`layout` が
+/// [`PageLayout::Landing`] のとき、右目次（`aside.docs-toc-aside`）と折りたたみ
+/// 目次（`nav.docs-toc-inline`）を出力せず、コンテナ class を
+/// `docs-container docs-landing` にする。`aside.docs-sidebar` は DOM に残す:
+/// 768px 未満ではヘッダーナビが非表示で、サイドバーの Menu トグルが唯一の
+/// ナビゲーション手段のため。広幅での非表示は CSS（`crate::landing::CSS`）が担う。
+pub fn docs_page_with_layout(
+    title: &str,
+    base_path: &str,
+    sidebar: Node,
+    body: Node,
+    extra_stylesheets: &[&str],
+    header_nav: Option<Node>,
+    layout: PageLayout,
+) -> Node {
+    let landing = layout == PageLayout::Landing;
     let (annotated_body, toc_entries) = with_heading_anchors(body);
     let toc = toc_nav(&toc_entries);
     // 狭幅帯域（`< 1200px`）向けの折りたたみ目次（イシュー #1080）。`toc` と
     // 同じ `toc_items` から導出されるため、「右目次は出るが折りたたみ目次は
     // 出ない」といった不整合は構造的に起こらない（`toc_inline` rustdoc 参照）。
-    let toc_inline_nav = toc_inline(&toc_entries);
+    let toc_inline_nav = if landing {
+        None
+    } else {
+        toc_inline(&toc_entries)
+    };
+    let toc = if landing { None } else { toc };
 
     // Primitives ページ（専用 CSS を配線するページ）は headless-ui デモへ styled
     // recipe を到達させないため、recipe 抜きの site CSS を読む。
@@ -992,7 +1041,9 @@ pub fn docs_page_with_assets(
     // 収縮させ、見出しの無いページで空の右カラムが残ったまま中央カラムが
     // 狭くなる回帰を避ける（`crate::site_theme::STRUCTURAL_CSS` 参照、
     // Bugbot 指摘 #916 是正）。
-    let container_class = if has_toc {
+    let container_class = if landing {
+        "docs-container docs-landing"
+    } else if has_toc {
         "docs-container"
     } else {
         "docs-container docs-container--no-toc"

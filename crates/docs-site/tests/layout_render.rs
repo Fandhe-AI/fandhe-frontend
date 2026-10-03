@@ -9,8 +9,8 @@
 
 use fandhe_frontend_core::{h2, h3, li, p, render, text, ul};
 use fandhe_frontend_docs_site::layout::{
-    asset_href, docs_page, docs_page_with_assets, toc_inline, toc_nav, with_heading_anchors,
-    TocEntry, TOC_HEADING_ID,
+    asset_href, docs_page, docs_page_with_assets, docs_page_with_layout, toc_inline, toc_nav,
+    with_heading_anchors, PageLayout, TocEntry, TOC_HEADING_ID,
 };
 use fandhe_frontend_docs_site::nav::{header_nav, parse_nav};
 use fandhe_frontend_docs_site::script;
@@ -1288,4 +1288,58 @@ fn header_search_input_is_inside_input_group_with_slash_hint() {
     assert!(label < root && root < input && input < kbd && kbd < results);
     assert!(header.contains(r#"aria-keyshortcuts="/""#));
     assert!(header.contains(r#"data-scope="icon""#));
+}
+
+/// イシュー #3612: ランディング骨格は右目次・折りたたみ目次を出さず、サイドバー・
+/// SkipNav・本文 article の DOM 順序は標準骨格と同じに保つ。
+#[test]
+fn landing_layout_drops_toc_but_keeps_sidebar_and_skip_nav_order() {
+    let body = fandhe_frontend_core::div(
+        vec![],
+        vec![
+            h2(vec![], vec![text("見出し")]),
+            p(vec![], vec![text("本文")]),
+        ],
+    );
+    let landing = render(&docs_page_with_layout(
+        "T",
+        "",
+        sample_sidebar(),
+        body.clone(),
+        &[],
+        None,
+        PageLayout::Landing,
+    ));
+    assert!(landing.contains(r#"class="docs-container docs-landing""#));
+    assert!(!landing.contains("docs-toc-aside"));
+    assert!(!landing.contains("docs-toc-inline"));
+    assert!(landing.contains(r#"class="docs-sidebar""#));
+    let skip_link = landing.find(r#"data-part="link""#).expect("skip link");
+    let header = landing.find("<header").expect("header");
+    let target = landing.find(r#"data-part="content""#).expect("skip target");
+    let article = landing.find(r#"class="docs-content""#).expect("article");
+    assert!(skip_link < header && target < article);
+
+    // 標準骨格は従来どおり右目次を持ち、docs_page_with_assets と出力が一致する。
+    let docs = render(&docs_page_with_layout(
+        "T",
+        "",
+        sample_sidebar(),
+        body.clone(),
+        &[],
+        None,
+        PageLayout::Docs,
+    ));
+    assert!(docs.contains("docs-toc-aside") && !docs.contains("docs-landing"));
+    assert_eq!(
+        docs,
+        render(&docs_page_with_assets(
+            "T",
+            "",
+            sample_sidebar(),
+            body,
+            &[],
+            None
+        ))
+    );
 }

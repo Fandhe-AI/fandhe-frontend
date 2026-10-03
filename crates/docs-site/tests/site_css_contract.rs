@@ -86,7 +86,9 @@
 use std::collections::HashSet;
 
 use fandhe_frontend_core::{div, h2, h3, li, p, render, text, ul, Node};
-use fandhe_frontend_docs_site::layout::{docs_page, docs_page_with_assets};
+use fandhe_frontend_docs_site::layout::{
+    docs_page, docs_page_with_assets, docs_page_with_layout, PageLayout,
+};
 use fandhe_frontend_docs_site::nav::{header_nav, parse_nav, prev_next_nav, sidebar, Nav};
 use fandhe_frontend_docs_site::site_theme;
 
@@ -440,6 +442,20 @@ fn docs_page_skip_nav_parts_are_covered_by_generated_skip_nav_css() {
 /// で別枠管理する。
 const STRUCTURE_CLASS_CONTRACT: &[(&str, &str)] = &[
     (
+        "docs-pager-link",
+        "前後ページャのアンカー a（link_overlay の overlay、イシュー #3608）",
+    ),
+    (
+        "docs-pager-meta",
+        "前後ページャのラベル群 span（方向ラベル・ページ名・セクション名の縦積み）",
+    ),
+    ("docs-pager-label", "前後ページャの方向ラベル span（前へ/次へ）"),
+    ("docs-pager-title", "前後ページャの遷移先ページ名 span"),
+    (
+        "docs-pager-section",
+        "前後ページャの遷移先セクション名 span",
+    ),
+    (
         "docs-header",
         "header.docs-header（<body> 直下、SkipNav リンクの次）",
     ),
@@ -529,6 +545,16 @@ const NO_TOC_ONLY_CLASSES: &[&str] = &["docs-container--no-toc"];
 /// スコープでは `docs-` への統一は行わず、現状を明示的に固定するに留める
 /// （out-of-scope-tracking の対象。計画本文 §9 参照）。
 const NON_DOCS_PREFIXED_CLASSES: &[&str] = &["sidebar", "prev-next", "prev", "next"];
+
+/// 前後ページャのカード（pre-styled `card` / `icon`）が出す recipe class
+/// （イシュー #3608）。`docs-` 接頭辞を持たないが、`site.css` に積まれる
+/// `SITE_RECIPES` が供給する。完全一致比較の期待集合へ
+/// [`NON_DOCS_PREFIXED_CLASSES`] と合併して使う（追加のみ・緩和ではない）。
+const PREV_NEXT_RECIPE_CLASSES: &[&str] = &[
+    "fd-card--size-md",
+    "fd-card--variant-outline",
+    "fd-icon--size-sm",
+];
 
 /// [`sidebar`] のカテゴリ階層描画（イシュー #940）が `[[section.group]]`
 /// を持つセクションでのみ出力する class。[`fixture_nav`]（グループ無し）は
@@ -1500,6 +1526,114 @@ fn code_copy_classes_match_module_constants_and_have_css_selectors() {
     }
 }
 
+/// ランディング骨格・ヒーローの class（イシュー #3612、`crate::landing`）。
+/// トップだけに出現し通常フィクスチャには現れないため、`CODE_COPY_CLASSES` と
+/// 同じく層 1 本体とは別の契約で固定する。
+const LANDING_CLASSES: &[&str] = &[
+    "docs-landing",
+    "docs-hero",
+    "docs-hero-meta",
+    "docs-hero-title",
+    "docs-hero-lead",
+    "docs-hero-install",
+    "docs-hero-actions",
+];
+
+/// `/quickstart/` を現在ページとするランディング骨格のフィクスチャ HTML。
+fn landing_page_html() -> String {
+    use fandhe_frontend_docs_site::landing;
+    let nav = fixture_nav();
+    let body = div(vec![], landing::render(""));
+    let node = docs_page_with_layout(
+        "タイトル",
+        "",
+        sidebar(&nav, "/quickstart/"),
+        body,
+        &[],
+        Some(header_nav(&nav, "/quickstart/")),
+        PageLayout::Landing,
+    );
+    render(&node)
+}
+
+#[test]
+fn landing_classes_match_module_constant_and_have_css_selectors() {
+    use fandhe_frontend_docs_site::landing;
+    assert_eq!(LANDING_CLASSES, landing::CLASSES);
+    let css_tokens = extract_css_class_selectors(&site_css());
+    for class in LANDING_CLASSES {
+        assert!(css_tokens.contains(*class), "{class} が site.css に無い");
+    }
+}
+
+#[test]
+fn landing_classes_never_appear_in_fixture_html() {
+    for toc in [true, false] {
+        let tokens = extract_class_tokens(&full_page_html(toc));
+        for class in LANDING_CLASSES {
+            assert!(!tokens.contains(*class), "{class} がフィクスチャに出現した");
+        }
+    }
+}
+
+#[test]
+fn landing_html_emits_every_landing_class_and_nothing_outside_the_contracts() {
+    let html = landing_page_html();
+    let tokens = extract_class_tokens(&html);
+    for class in LANDING_CLASSES {
+        assert!(
+            tokens.contains(*class),
+            "{class} がランディングに出現しない"
+        );
+    }
+    let allowed: HashSet<&str> = STRUCTURE_CLASS_CONTRACT
+        .iter()
+        .map(|(name, _)| *name)
+        .chain(TOC_ONLY_CLASSES.iter().copied())
+        .chain(NO_TOC_ONLY_CLASSES.iter().copied())
+        .chain(NAV_GROUP_ONLY_CLASSES.iter().copied())
+        .chain(SEARCH_JS_ONLY_CLASSES.iter().copied())
+        .chain(CODE_COPY_CLASSES.iter().copied())
+        .chain(LANDING_CLASSES.iter().copied())
+        .collect();
+    let stray: Vec<_> = tokens
+        .iter()
+        .filter(|t| t.starts_with("docs-") && !allowed.contains(t.as_str()))
+        .collect();
+    assert!(stray.is_empty(), "契約外の docs-* class: {stray:?}");
+    // 骨格の差分: 右目次・折りたたみ目次・no-toc 修飾は出さない。
+    for absent in [
+        "docs-toc-aside",
+        "docs-toc-inline",
+        "docs-container--no-toc",
+    ] {
+        assert!(
+            !tokens.contains(absent),
+            "{absent} がランディングに出現した"
+        );
+    }
+}
+
+#[test]
+fn landing_css_hides_sidebar_only_from_768px_and_overrides_grid_after_structural_css() {
+    let css = site_css();
+    let landing_at = css
+        .find(".docs-container.docs-landing {\ndisplay: block;")
+        .expect("landing grid reset rule missing");
+    let structural_at = css
+        .rfind(".docs-container.docs-container--no-toc")
+        .expect("structural no-toc rule missing");
+    assert!(
+        landing_at > structural_at,
+        "ランディングの grid 解除は標準骨格より後に出力されること"
+    );
+    let media_at = css[landing_at..]
+        .find("@media (min-width: 768px) {\n.docs-landing .docs-sidebar {\ndisplay: none;")
+        .expect("768px 以上でのみサイドバーを隠すこと");
+    // 768px 未満（基底）ではサイドバーを隠さない（Menu トグルが唯一のナビ手段）。
+    assert!(!css[landing_at..landing_at + media_at].contains(".docs-landing .docs-sidebar"));
+}
+
 /// 768px 未満では検索を全幅の 2 段目へ置き、検索入力が 70px まで縮んで
 /// placeholder が欠ける不具合を防ぐ（イシュー #3602）。`display: contents` で
 /// DOM を変えずに子を繰り上げる。JS 無効時に空の 2 段目を残さないよう
@@ -1731,9 +1865,28 @@ fn site_recipes_are_unwrapped_and_primitives_css_omits_them() {
         .as_css()
         .to_string();
     let mut stripped = css.clone();
+    let mut base_stripped = base.clone();
     for r in site_theme::SITE_RECIPES {
         let body = (r.css)();
         assert!(css.contains(&body), "recipe {} が site.css に無い", r.name);
+        if site_theme::HEADER_RECIPE_NAMES.contains(&r.name) {
+            // ヘッダー部品の recipe だけは `.docs-header` へ `@scope` した形で積む
+            // （Primitives ページでもヘッダーを成立させるため、イシュー #3606）。
+            let scoped = format!("@scope (.docs-header) {{\n{body}\n}}\n");
+            assert!(
+                base.contains(&scoped),
+                "ヘッダー recipe {} が Primitives 専用 CSS に @scope 付きで無い",
+                r.name
+            );
+            base_stripped = base_stripped.replacen(&scoped, "", 1);
+            assert!(
+                !base_stripped.contains(&body),
+                "recipe {} が @scope 外にも混入している",
+                r.name
+            );
+            stripped = stripped.replacen(&body, "", 1);
+            continue;
+        }
         assert!(
             !base.contains(&body),
             "recipe {} が Primitives 専用 CSS に混入している",
@@ -1743,7 +1896,7 @@ fn site_recipes_are_unwrapped_and_primitives_css_omits_them() {
     }
     assert_eq!(
         stripped.split_whitespace().collect::<String>(),
-        base.split_whitespace().collect::<String>(),
+        base_stripped.split_whitespace().collect::<String>(),
         "site-primitives.css は site.css から recipe を除いたものと一致しなければならない"
     );
 }
@@ -1833,12 +1986,35 @@ fn code_copy_pre_padding_selector_outranks_typography_pre_padding() {
 fn header_actions_recipe_overrides_are_present_in_site_css() {
     let css = site_css();
     for selector in [
-        ".docs-github-link [data-scope=\"link\"] {",
+        ".docs-github-link [data-scope=\"link\"][data-part=\"root\"] {",
         ".docs-search [data-scope=\"input-group\"] > .docs-search-input {",
         ".docs-brand-mark > svg {",
         ".docs-theme-toggle-label {",
         ".docs-header-trigger[aria-current=\"true\"] {",
     ] {
         assert!(css.contains(selector), "site.css lacks `{selector}`");
+    }
+}
+
+/// 前後ページャが出す recipe class（`PREV_NEXT_RECIPE_CLASSES`）は
+/// `site.css` にセレクタとして存在し、その scope が `SITE_RECIPES` に
+/// 含まれる（供給経路が断たれていない）ことを固定する（イシュー #3608）。
+#[test]
+fn prev_next_recipe_classes_are_supplied_by_site_recipes() {
+    let css = site_css();
+    for class in PREV_NEXT_RECIPE_CLASSES {
+        assert!(
+            css.contains(&format!(".{class}")),
+            "{class} が site.css にセレクタとして存在しない"
+        );
+        let scope = class
+            .trim_start_matches("fd-")
+            .split("--")
+            .next()
+            .unwrap_or_default();
+        assert!(
+            site_theme::SITE_RECIPES.iter().any(|r| r.scope == scope),
+            "{class} の scope {scope} が SITE_RECIPES に無い"
+        );
     }
 }
