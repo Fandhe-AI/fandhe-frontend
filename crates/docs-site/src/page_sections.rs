@@ -67,6 +67,7 @@ use fandhe_frontend_pre_styled_ui::{StyleSheet, StylesheetError};
 
 use crate::blocks;
 use crate::build::RESERVED_ASSET_NAMES;
+use crate::component_index;
 use crate::component_page;
 use crate::landing;
 use crate::layout::{PageLayout, RESERVED_LAYOUT_IDS};
@@ -146,6 +147,20 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
         layout: PageLayout::Docs,
     },
     PageSection {
+        path: "/primitives/",
+        placement: Placement::BeforeFirstH2,
+        render: component_index::render_primitives,
+        stylesheets: &[component_index::STYLESHEET_REL_PATH],
+        layout: PageLayout::Docs,
+    },
+    PageSection {
+        path: "/themes/",
+        placement: Placement::BeforeFirstH2,
+        render: component_index::render_themes,
+        stylesheets: &[component_index::STYLESHEET_REL_PATH],
+        layout: PageLayout::Docs,
+    },
+    PageSection {
         path: landing::PATH,
         placement: Placement::Prepend,
         render: landing::render,
@@ -155,10 +170,16 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
 ];
 
 /// 本番の追加 CSS 登録表。
-pub const PAGE_STYLESHEETS: &[PageStylesheet] = &[PageStylesheet {
-    rel_path: section_index::STYLESHEET_REL_PATH,
-    build: section_index::stylesheet,
-}];
+pub const PAGE_STYLESHEETS: &[PageStylesheet] = &[
+    PageStylesheet {
+        rel_path: section_index::STYLESHEET_REL_PATH,
+        build: section_index::stylesheet,
+    },
+    PageStylesheet {
+        rel_path: component_index::STYLESHEET_REL_PATH,
+        build: component_index::stylesheet,
+    },
+];
 
 /// 本番の登録表。[`crate::build::build_site`] が使う。
 pub const REGISTRY: Registry = Registry {
@@ -464,7 +485,17 @@ mod tests {
         let real = crate::nav::parse_nav(&real).expect("parse site nav");
         assert_eq!(validate(&REGISTRY, &real), Ok(()));
         let paths: Vec<_> = PAGE_SECTIONS.iter().map(|s| s.path).collect();
-        assert_eq!(paths, ["/api/", "/examples/", "/guides/", "/"]);
+        assert_eq!(
+            paths,
+            [
+                "/api/",
+                "/examples/",
+                "/guides/",
+                "/primitives/",
+                "/themes/",
+                "/"
+            ]
+        );
         assert_eq!(layout_for_path_in(&REGISTRY, "/"), PageLayout::Landing);
         assert_eq!(layout_for_path_in(&REGISTRY, "/guides/"), PageLayout::Docs);
         assert_eq!(layout_for_path_in(&EMPTY_REGISTRY, "/"), PageLayout::Docs);

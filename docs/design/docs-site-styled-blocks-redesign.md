@@ -170,6 +170,17 @@ Guides・API Reference・Examples の 3 セクショントップは、汎用生�
 - `/examples/` の本文（`docs/guides/examples.md`）の比較表・読む順はリンク箇条書きの二重管理ではなく実質的な内容のため変更しない。
 - 本番登録表が実 nav 前提になるため、fixture ビルドは `page_sections::EMPTY_REGISTRY` + `build_site_with` で行う（`validate` の `UnknownPage` 検査は緩めない）。バイナリ経由のテストは実リポジトリ、または登録 3 ページを持つ一時サイトで行う。
 
+## 5.2 Themes・Primitives 索引のカテゴリ別カードグリッド（#3617）
+
+`/themes/`・`/primitives/` の索引は、汎用生成節フック（#3598）で差し込むカテゴリ別カードグリッドにする。確定事項は次のとおり。
+
+- 台帳は層ごとに持つ。Primitives は既存の `primitives_catalog::PrimitiveEntry` へ `description` を追加し、Themes は Rust 台帳が無かったため `crates/docs-site/src/themes_catalog.rs`（`ThemeEntry` / `ThemeCategory`）を新設した。Themes の台帳と `site/nav.toml` の Themes グループ（題名・順序・path・title）の完全一致、および `site/themes/*.md` との集合一致は `tests/component_index_nav.rs` が固定する。これで手書きリンク集で起きていたドリフト（5 部品の欠落）を機械検知できる。説明文は 1 行・80 文字以内・バッククォートと内部番号なしで、Primitives は構造・ARIA、Themes は見た目の観点で書く。
+- 生成は `crates/docs-site/src/component_index.rs`。`section_index.rs` は #3618 との衝突を避けるため変更せず、CSS も別ファイル `assets/component-index.css`・class 接頭辞 `docs-catalog-*` で自己完結させ、2 ページにだけ `<link>` する。
+- 構造はカテゴリごとに `div.docs-catalog-category > (div.docs-catalog-category-head > h2 + 件数 badge) + ul.docs-catalog-grid > li.docs-catalog-card`。件数 badge は h2 の兄弟に置く（h2 内に入れると TOC の題名と slug が「Typography12」のように汚れる）。件数は台帳から算出する。カードは名前・1 行説明・層 badge（Themes は Subtle/Accent、Primitives は Outline/Neutral）で、画像サムネイルは使わない。
+- 最小トラック幅は 13rem。本文幅が 46rem のため、#3616 の 15rem では 1440px でも 2 列にしかならず、13rem で 375px = 1 列・768px = 2 列・1440px = 3 列になる。`.docs-content` 自体は広げない。
+- カード内の説明文は検索インデックスに載せない。li の class を `docs-index-card` にせず `search_index` の特例を効かせないためで、部品ページが個別に索引化済みであること、123 枚分が 1 ページ 4000 バイトの切り詰めで凡例を押し出すことを避けるのが理由。
+- 原稿で置き換える範囲は「リンク集だけを生成へ移し、リード・NOTE・凡例（掲示の読み方）・関連 API は原稿に残す」。Placement はどちらも `BeforeFirstH2`（グリッドは凡例または関連 API の直前）。
+
 ## 6. トップページのレイアウト方針
 
 - 既定案: トップはサイドバー・右目次を出さない全幅ランディングとし、ヘッダーとフッターのみ共通にする。本文用の 3 カラム骨格はトップでは使わない。
@@ -270,6 +281,14 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
   - 説明文（`text`）は front matter が未対応のため見送る。
   - Primitives ページは breadcrumb recipe を含まない `site-primitives.css` を読むため、`STRUCTURAL_CSS` に同値の代替規則を置く（`.docs-content` 前置で詳細度を確保）。
   - `< 1200px` では本文冒頭の折りたたみ目次がパンくずより上に出る（DOM 順序の契約を変えないため許容）。
+- （確定済み・#3609）サイトフッターは `crates/docs-site/src/site_footer.rs` が組み立て、`layout::docs_page_with_assets` の `footer` 引数で `<body>` の最後の子（`div.docs-container` の直後）へ置く。
+  - 本文 `Node` へ足さない理由: `<footer>` は `main` / `article` 等の子孫だと暗黙の `contentinfo` を失い、TOC・検索インデックスにも混入するため。sticky のサイドバー・右目次の包含ブロックは `.docs-container` なので、外側の兄弟であるフッターとは構造上重ならない。Blocks デモ内の `<footer>` は `main` の内側で `contentinfo` にならず、ページあたり 1 つに保たれる。`role` は明示しない。
+  - 列は `nav.sections` の宣言順に 1 セクション 1 列。先頭は索引ページ、続けてセクション直下ページを宣言順に並べ、1 列 5 件（`FOOTER_LINKS_PER_SECTION`）で打ち切る。グループ配下は含めない。`nav.toml` に代表ページ指定は設けない。
+  - 下段に著作権表記・ライセンス（MIT OR Apache-2.0、`LICENSE-*` へのリンク）・GitHub・crates.io を置く。外部リンクはすべて `external: true`。
+  - `icon` は使わない。実在ブランドのロゴを模した SVG を持ち込まないため。
+  - リダイレクト案内ページは `docs_page_with_assets` を通らないため対象外。
+  - CSS は `STRUCTURAL_CSS` 末尾に追加し、Primitives ページ向けに recipe と同値の代替規則を `.docs-footer` 前置で置く。新しい色トークンは追加していない。
+  - `no_js_contract` の静的アンカー表に `docs-footer` を追加した。
 
 ## 11.1 確定事項（#3619 部品ページの Demo）
 
