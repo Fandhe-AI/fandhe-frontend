@@ -117,6 +117,7 @@ pub mod admonition;
 pub mod blocks;
 pub mod build;
 pub mod code_copy;
+pub mod component_index;
 pub mod component_page;
 pub mod component_page_specs_948;
 pub mod component_specs;
@@ -145,4 +146,5 @@ pub mod site_version;
 pub mod skip_nav;
 #[cfg(test)]
 mod test_scratch;
+pub mod themes_catalog;
 pub mod wireframes;
