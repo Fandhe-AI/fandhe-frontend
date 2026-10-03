@@ -1723,7 +1723,7 @@ fn narrow_header_moves_search_to_full_width_second_row() {
         ".docs-header-inner {\nflex-wrap: wrap;",
         "column-gap:",
         ".docs-header-actions {\ndisplay: contents;",
-        ".docs-search {\norder: 1;\nflex: 1 0 100%;",
+        ".docs-search {\nflex: 1 1 calc(100% - 7rem);\nmin-width: 0;",
         ".docs-search-input {\nwidth: 100%;",
         ".docs-search-results {\nleft: 0;\nright: 0;\nmin-width: 0;",
         "scroll-margin-top: 1rem;",
@@ -1734,8 +1734,8 @@ fn narrow_header_moves_search_to_full_width_second_row() {
         );
     }
     assert!(!block.contains("header-height-stacked"));
-    // イシュー #3659: order は検索を 2 段目へ送る `.docs-search` のみ許可する。
-    assert_eq!(block.matches("\norder:").count(), 1);
+    // イシュー #3659: order で視覚順と Tab 順を乖離させない。
+    assert_eq!(block.matches("\norder:").count(), 0);
     // テーマトグルの可視ラベルは clip で隠し、名前は aria-label が保つ。
     assert!(block.contains(".docs-theme-toggle-label {\nposition: absolute;"));
 }

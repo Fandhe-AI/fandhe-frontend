@@ -1791,10 +1791,11 @@ nav.prev-next .next .docs-pager-meta {\n\
  * ---- `768px 未満`: 検索を全幅の 2 段目へ置く 2 段ヘッダー（イシュー #3602） ----\n\
  *\n\
  * brand・検索・GitHub・テーマトグルを DOM 順のまま 1 つの flex 行へ並べ、\n\
- * 検索は `flex: 1 0 100%`（`flex-basis: 100%`）で必ず単独の全幅行を占め、\n\
- * brand と同じ行には残らない。イシュー #3659: 検索だけ `order: 1` で 2 段目へ\n\
- * 送り、GitHub・テーマトグルを 1 段目に残して 3 段化を避ける（Tab 順は検索が\n\
- * 先になるが、モバイルはタッチ主体でヘッダー内の独立コントロールのため許容）。\n\
+ * 検索は `flex: 1 1 calc(100% - 7rem)` で 2 段目の大半を占め、\n\
+ * brand と同じ行には残らない。イシュー #3659: 2 段目は検索（flex-grow）に\n\
+ * GitHub・テーマトグルを同居させ 3 段化を避ける。`order` は使わず視覚順と\n\
+ * Tab 順を DOM 順に一致させる（検索の basis `100% - 7rem` は brand 行に収まらず\n\
+ * 2 段目へ折り返す一方、アイコン 2 個分の 7rem を残す）。\n\
  * テーマトグルの可視ラベルは clip で隠し aria-label で名前を保つ。DOM は\n\
  * 変えず `.docs-header-actions` を `display: contents` にして子を\n\
  * `.docs-header-inner` の flex item へ繰り上げる。JS 無効時は\n\
@@ -1829,8 +1830,8 @@ nav.prev-next .next .docs-pager-meta {\n\
   }\n\
 \n\
   .docs-search {\n\
-    order: 1;\n\
-    flex: 1 0 100%;\n\
+    flex: 1 1 calc(100% - 7rem);\n\
+    min-width: 0;\n\
   }\n\
 \n\
   .docs-theme-toggle-label {\n\
