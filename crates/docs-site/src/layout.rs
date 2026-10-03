@@ -55,10 +55,11 @@
 //! （`div.docs-search`）を無条件出力する（イシュー #958）。`input.docs-search-input`
 //! の `data-search-index` 属性が [`search_index::REL_PATH`] を [`asset_href`]
 //! 経由で参照し、`crate::script::SITE_JS` の第 3 IIFE が初回フォーカス時に
-//! `fetch()` する唯一の実装点となる（#3672 以降はダイアログを開いた時点で明示的に読む。
-//! 入力欄と結果一覧は `dialog#docs-search-dialog` の中、ヘッダーには検索ボタンのみ）（インデックス JSON 自体は本モジュールが
+//! `fetch()` する唯一の実装点となる（インデックス JSON 自体は本モジュールが
 //! HTML へインライン化しない、`crate::search_index` モジュール doc の
-//! セキュリティ不変条件参照）。検索ブロック・結果一覧は既定 `hidden` とし、
+//! セキュリティ不変条件参照）。#3672 以降は、ダイアログを開いた時点で明示的に
+//! 読む。入力欄と結果一覧は `dialog#docs-search-dialog` の中に置き、ヘッダーには
+//! 検索ボタンのみを置く。検索ブロック・結果一覧は既定 `hidden` とし、
 //! `SITE_JS` が配線完了後にのみ可視化する（`.docs-theme-toggle` と同型の
 //! progressive enhancement 契約、`crate::script` モジュール doc 手順 5 参照）。
 //! `<form>` で包まない（JS 無効時に Enter キーでのフォーム送信を誘発しない

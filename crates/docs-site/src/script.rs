@@ -751,9 +751,7 @@ pub const SITE_JS: &str = "\
     }
     dialog.showModal();
     syncExpanded();
-    if (state === `idle`) {
-      ensureIndexLoaded();
-    } else if (state === `failed`) {
+    if (state === `idle` || state === `failed`) {
       ensureIndexLoaded();
     }
     input.focus();
