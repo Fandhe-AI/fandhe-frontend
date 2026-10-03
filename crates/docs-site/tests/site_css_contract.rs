@@ -1372,3 +1372,93 @@ fn dark_block_token_sets_mismatch_is_detected() {
 
     assert_ne!(media_names, data_theme_names);
 }
+
+// ---- ヘッダーナビのはみ出し回帰（中くらいの幅でナビが縦積みになりヘッダー外へ出た不具合） ----
+
+/// `marker` で始まる単一規則（行頭 `}` で閉じる）を切り出す。
+fn rule_body<'a>(css: &'a str, marker: &str) -> &'a str {
+    let start = css
+        .find(marker)
+        .unwrap_or_else(|| panic!("rule not found in site.css: {marker}"));
+    let after = &css[start..];
+    let end = after
+        .find("\n}\n")
+        .unwrap_or_else(|| panic!("closing brace not found for: {marker}"));
+    &after[..end]
+}
+
+/// `ul.docs-header-menu` は nav_list の `list()` を再利用しており、
+/// `[data-scope="nav-list"][data-part="list"]`（詳細度 0,2,0）の
+/// `flex-direction: column` が同時に当たる。ヘッダーメニュー側の規則が
+/// それより高い詳細度で `flex-direction: row` を宣言していないと、
+/// トリガーが縦に積まれて固定高さのヘッダー外へはみ出し、サイドバーに重なる。
+#[test]
+fn header_menu_overrides_nav_list_column_direction() {
+    let css = site_css();
+    assert!(
+        rule_body(&css, "[data-scope=\"nav-list\"][data-part=\"list\"] {")
+            .contains("flex-direction: column"),
+        "前提: nav_list の list は縦積み規則を持つ"
+    );
+    // 詳細度 0,3,1（class 3 + 要素 1）> 0,2,0。単一 class `.docs-header-menu {` へ戻すと負ける。
+    let menu = rule_body(
+        &css,
+        "\n.docs-header nav.docs-header-nav .docs-header-menu {",
+    );
+    assert!(menu.contains("display: flex;"));
+    assert!(menu.contains("flex-direction: row;"));
+    assert!(
+        !css.contains("\n.docs-header-menu {"),
+        "単一 class の .docs-header-menu 規則は nav-list の column に負ける"
+    );
+    // ラベル内の折り返しでヘッダー高さを超えない。
+    assert!(rule_body(&css, "\n.docs-header-trigger {").contains("white-space: nowrap;"));
+    assert!(rule_body(&css, "\n.docs-brand {").contains("white-space: nowrap;"));
+}
+
+/// 768px 以上 1280px 未満では全トリガーが 1 段に収まらないため、ナビを
+/// 2 段目へ折り返し、ヘッダーを内容に合わせて伸ばす。実高さは CSS で
+/// 取得できないため、この帯域ではヘッダーを sticky にせず、サイドバー・
+/// 右目次・見出しアンカーのオフセットをヘッダー高さから切り離す。どれかが
+/// 欠けるとナビがヘッダー外へはみ出すか、sticky カラムがヘッダーの下へ潜る。
+#[test]
+fn mid_width_header_stacks_nav_on_second_row_inside_header() {
+    let css = site_css();
+    let marker = "@media (min-width: 768px) and (max-width: 1279.98px) {";
+    let start = css
+        .find(marker)
+        .unwrap_or_else(|| panic!("mid-width header media block missing: {marker}"));
+    let block = &css[start..];
+    let block = &block[..block.find("\n}\n}\n").expect("media block should close")];
+
+    for expected in [
+        // 実高さが折り返し行数で変わるため sticky にせず、オフセットを高さに依存させない。
+        ".docs-header {\nposition: static;\nheight: auto;\nmin-height: var(--fandhe-space-docs-header-height-stacked);",
+        ".docs-header-inner {\nflex-wrap: wrap;",
+        // トリガーが 1 行に収まらない場合もメニューを折り返して画面右端を越えない。
+        ".docs-header nav.docs-header-nav .docs-header-menu {\nflex-wrap: wrap;",
+        ".docs-header-nav {\norder: 1;\nflex-basis: 100%;",
+        ".docs-sidebar,\n.docs-toc-aside {\ntop: 0;\nmax-height: 100vh;",
+        ".docs-content h2,\n.docs-content h3 {\nscroll-margin-top: 1rem;",
+    ] {
+        assert!(
+            block.contains(expected),
+            "mid-width header block lacks `{expected}`:\n{block}"
+        );
+    }
+    // ナビを内包できない固定高さ・絶対配置へ戻していないこと。
+    assert!(!block.contains("position: absolute"));
+    // sticky オフセットを固定の 2 段高さへ結び付けない（折り返し時にヘッダーの下へ潜る）。
+    assert!(!block.contains("top: var(--fandhe-space-docs-header-height"));
+    assert!(!block.contains("scroll-margin-top: calc(var(--fandhe-space-docs-header-height"));
+    // 2 段ヘッダー高さのトークンが定義されている（未定義の var() は高さ 0 扱いになる）。
+    assert!(css.contains("--fandhe-space-docs-header-height-stacked: 5.75rem;"));
+}
+
+/// 狭いスマホ幅でヘッダーアクション群が縮められず横スクロールを生まない。
+#[test]
+fn header_actions_can_shrink_on_narrow_viewports() {
+    let css = site_css();
+    let actions = rule_body(&css, "\n.docs-header-actions {");
+    assert!(actions.contains("min-width: 0;"));
+}

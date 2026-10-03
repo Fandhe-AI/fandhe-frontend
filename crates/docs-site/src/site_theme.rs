@@ -225,6 +225,12 @@ fn docs_theme() -> Result<Theme, ThemeError> {
     theme.push_space("docs-sidebar-width", "16rem")?;
     theme.push_space("docs-max-content-width", "46rem")?;
     theme.push_space("docs-header-height", "3.25rem")?;
+    // `768px 以上 1280px 未満` でヘッダーを 2 段（1 段目: ブランド + アクション、
+    // 2 段目: ヘッダーナビ）にするときの高さ。全セクションのトリガーを
+    // 1 段に並べるには約 1240px 必要で、この帯域では収まらないため
+    // （STRUCTURAL_CSS 末尾の 2 段ヘッダー `@media` ブロック参照）。
+    // 内容が折り返すとさらに伸びるため最小高さとして使う。
+    theme.push_space("docs-header-height-stacked", "5.75rem")?;
     // 右目次カラム（`aside.docs-toc-aside`）の列幅。3 カラム表示になる
     // `min-width: 1200px` 以上でのみ参照される（イシュー #907）。sticky 追従・
     // 視覚スタイルの仕上げは #909 スコープのため、ここでは列幅のみ定義する。
@@ -321,6 +327,8 @@ body {\n\
   letter-spacing: -0.01em;\n\
   color: var(--fandhe-color-fg);\n\
   text-decoration: none;\n\
+  /* 幅が詰まってもハイフン位置で折り返してヘッダー高さを超えないようにする。 */\n\
+  white-space: nowrap;\n\
 }\n\
 \n\
 /*\n\
@@ -336,8 +344,16 @@ body {\n\
   display: none;\n\
 }\n\
 \n\
-.docs-header-menu {\n\
+/*\n\
+ * `ul.docs-header-menu` は nav_list の `list()` を再利用しており、\n\
+ * `[data-scope=\"nav-list\"][data-part=\"list\"]`（詳細度 0,2,0、\n\
+ * `flex-direction: column`、イシュー #1805 で追加）が同時に当たる。\n\
+ * 単一 class（0,1,0）では負けてトリガーが縦積みになり、固定高さの\n\
+ * ヘッダー外へはみ出すため、プレフィックス付きセレクタで横並びを確定する。\n\
+ */\n\
+.docs-header nav.docs-header-nav .docs-header-menu {\n\
   display: flex;\n\
+  flex-direction: row;\n\
   list-style: none;\n\
   margin: 0;\n\
   padding: 0;\n\
@@ -372,6 +388,9 @@ body {\n\
   font-weight: 500;\n\
   color: var(--fandhe-color-fg);\n\
   text-decoration: none;\n\
+  /* 幅が詰まったときに「Getting Started」等がラベル内で折り返して\n\
+   * ヘッダー高さを超えないようにする。 */\n\
+  white-space: nowrap;\n\
 }\n\
 \n\
 .docs-header-trigger:hover {\n\
@@ -411,6 +430,11 @@ body {\n\
   align-items: center;\n\
   gap: 0.9rem;\n\
   margin-left: auto;\n\
+  /* 狭いスマホ幅（375px 前後）でアクション群がビューポート右端を越えて\n\
+   * 横スクロールを生まないよう、縮小を許して検索入力を縮める。左余白は\n\
+   * 縮んだ検索入力がブランドに接しないための最小間隔。 */\n\
+  min-width: 0;\n\
+  padding-left: 0.75rem;\n\
 }\n\
 \n\
 /*\n\
@@ -1270,6 +1294,68 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
 .docs-content h2,\n\
 .docs-content h3 {\n\
   scroll-margin-top: calc(var(--fandhe-space-docs-header-height) + 1rem);\n\
+}\n\
+\n\
+/*\n\
+ * ---- `768px 以上 1280px 未満`: 2 段ヘッダー ----\n\
+ *\n\
+ * ブランド・全セクションのトリガー・アクション群を 1 段に並べるには約\n\
+ * 1240px 必要で、この帯域では収まらない。ナビを 2 段目（`order: 1` +\n\
+ * `flex-basis: 100%`）へ折り返し、ヘッダー高さを最小\n\
+ * `--fandhe-space-docs-header-height-stacked` から内容に合わせて伸ばす。\n\
+ * ヘッダーの実高さは折り返し行数で変わり CSS だけでは取得できないため、\n\
+ * この帯域ではヘッダーを sticky にせず通常フローへ戻し、サイドバー・右目次・\n\
+ * 見出しアンカーのオフセットをヘッダー高さに依存しない値にする。\n\
+ * 上記の通常規則より後ろに置くことで同じ詳細度のまま上書きする。\n\
+ */\n\
+@media (min-width: 768px) and (max-width: 1279.98px) {\n\
+  /* 高さは固定せず最小値とする。フォント差などで 2 段目のトリガーが\n\
+   * 1 行に収まらないときはメニュー自体を折り返し、ヘッダーがその分だけ\n\
+   * 伸びて下の要素を押し下げる（ナビが画面右端やヘッダー外へ出ない）。 */\n\
+  .docs-header {\n\
+    position: static;\n\
+    height: auto;\n\
+    min-height: var(--fandhe-space-docs-header-height-stacked);\n\
+  }\n\
+\n\
+  .docs-header-inner {\n\
+    flex-wrap: wrap;\n\
+    align-content: center;\n\
+    row-gap: 0.35rem;\n\
+    height: auto;\n\
+    padding-top: 0.5rem;\n\
+    padding-bottom: 0.5rem;\n\
+  }\n\
+\n\
+  .docs-header-nav {\n\
+    order: 1;\n\
+    flex-basis: 100%;\n\
+    margin-left: 0;\n\
+  }\n\
+\n\
+  .docs-header nav.docs-header-nav .docs-header-menu {\n\
+    flex-wrap: wrap;\n\
+  }\n\
+\n\
+  /* 768px 付近でも 8 セクションが 1 行に収まるよう左右余白を詰める\n\
+   * （既定 0.65rem のままだと 768px で数 px 足りず折り返す）。 */\n\
+  .docs-header-trigger {\n\
+    padding: 0.3rem 0.5rem;\n\
+  }\n\
+\n\
+  /* ヘッダーが sticky でないため、sticky カラムはビューポート上端へ\n\
+   * 張り付ける。`.docs-toc-aside` は 1200px 以上でのみ表示（上記 1200px\n\
+   * ブロック）だが、1200〜1280px の重なり帯域のため併記する。 */\n\
+  .docs-sidebar,\n\
+  .docs-toc-aside {\n\
+    top: 0;\n\
+    max-height: 100vh;\n\
+  }\n\
+\n\
+  .docs-content h2,\n\
+  .docs-content h3 {\n\
+    scroll-margin-top: 1rem;\n\
+  }\n\
 }\n\
 ";
 
@@ -2410,6 +2496,7 @@ mod tests {
             "--fandhe-space-docs-sidebar-width",
             "--fandhe-space-docs-max-content-width",
             "--fandhe-space-docs-header-height",
+            "--fandhe-space-docs-header-height-stacked",
             "--fandhe-space-docs-toc-width",
             "--fandhe-font-font-size-sm",
             "--fandhe-radius-sm",
