@@ -150,7 +150,7 @@ pub const DEMO_CLASS: &str = "blocks-demo";
 /// 実際に生成 HTML へ属性が出力され CSS 側のセレクタと対になっていることは
 /// `crates/docs-site/tests/blocks_contract.rs` が固定する。
 const LAYOUT_CSS: &str = "\
-.blocks-demo {\n  max-width: 100%;\n  overflow-x: auto;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: 0.5rem;\n  padding: 1.5rem;\n  margin: 0 0 1.5rem;\n  background: var(--fandhe-color-bg-subtle);\n}\n";
+.blocks-demo {\n  box-sizing: border-box;\n  min-width: 0;\n  max-width: 100%;\n  overflow-x: auto;\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-lg);\n  padding: var(--fandhe-space-6);\n  margin: 0 0 1.5rem;\n  background: var(--fandhe-color-bg-subtle);\n}\n";
 
 /// block 固有のレイアウト CSS（イシュー #2734）。`&'static str` 定数
 /// （大半の block）と、実行時に文字列を組み立てる関数（`testimonials_stack`/
