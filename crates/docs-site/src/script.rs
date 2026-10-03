@@ -291,11 +291,31 @@ pub const SITE_JS: &str = "\
     links[index].setAttribute(`aria-current`, `location`);
   }
 
-  // 可視集合が空でなければ文書順で最初の可視見出しを採用する。
+  // 見出しを「読んでいる」と見なす位置。ヘッダー下端 + `scroll-margin-top`
+  // （ヘッダー高 + 1rem）に近い値で、`#見出し` 直リンクで止まった見出しも
+  // 通過済みと判定できるよう HEADER_OFFSET_PX より余裕を持たせる。
+  // 親 h2 の直後に短い h3 が続くと、両者が同時に判定帯へ入り文書順先頭の
+  // h2 が current に留まっていたため、帯内の先頭ではなくこの線を過ぎた
+  // 最後の見出しを優先する（イシュー #3658）。
+  var READING_LINE_PX = HEADER_OFFSET_PX + 32;
+
+  // ページ末尾到達の判定余裕（サブピクセル誤差吸収）。
+  var BOTTOM_SLACK_PX = 2;
+
+  function lastInDocumentOrder(list) {
+    var found = null;
+    targets.forEach(function (target) {
+      if (list.indexOf(target) !== -1) {
+        found = target;
+      }
+    });
+    return found;
+  }
+
   function firstVisibleInDocumentOrder() {
     var found = null;
     targets.forEach(function (target) {
-      if (found) {
+      if (found !== null) {
         return;
       }
       if (visible.indexOf(target) !== -1) {
@@ -305,25 +325,39 @@ pub const SITE_JS: &str = "\
     return found;
   }
 
-  // 可視集合が空のとき（本文が長く見出し同士が離れている場合）の
-  // フォールバック: ヘッダー下端を過ぎ去った見出しのうち文書順で
-  // 最後のものを現在地とする。`getBoundingClientRect` はこの分岐でのみ
-  // 評価し、scroll イベントリスナは張らない（レイアウトスラッシング回避）。
+  // 読み位置線を過ぎた見出しのうち文書順で最後のものを返す。
+  // 評価は update() 経由のみ（IntersectionObserver 通知と rAF 間引きの
+  // scroll 時）に限る。
   function lastPassedTarget() {
     var found = null;
     targets.forEach(function (target) {
       var rect = target.getBoundingClientRect();
-      if (Math.sign(rect.top - HEADER_OFFSET_PX) !== 1) {
+      if (Math.sign(rect.top - READING_LINE_PX) !== 1) {
         found = target;
       }
     });
     return found;
   }
 
+  function atPageBottom() {
+    var doc = document.documentElement;
+    var remaining = doc.scrollHeight - window.innerHeight - window.scrollY;
+    return Math.sign(remaining - BOTTOM_SLACK_PX) !== 1;
+  }
+
+  // 判定順: (1) ページ末尾なら帯内の最後の見出し（末尾の短い節は読み位置線
+  // まで上がりきらないため）、(2) 読み位置線を過ぎた最後の見出し、
+  // (3) 先頭付近は帯内の最初の見出し。
   function update() {
-    var current = firstVisibleInDocumentOrder();
+    var current = null;
+    if (atPageBottom()) {
+      current = lastInDocumentOrder(visible);
+    }
     if (!current) {
       current = lastPassedTarget();
+    }
+    if (!current) {
+      current = firstVisibleInDocumentOrder();
     }
     if (current) {
       markCurrent(current);
@@ -331,6 +365,20 @@ pub const SITE_JS: &str = "\
       clearCurrent();
     }
   }
+
+  // 末尾到達は帯内集合が変わらずに起こり得るため、rAF で間引いた passive
+  // scroll で update() を再評価する。
+  var scrollQueued = false;
+  window.addEventListener(`scroll`, function () {
+    if (scrollQueued) {
+      return;
+    }
+    scrollQueued = true;
+    window.requestAnimationFrame(function () {
+      scrollQueued = false;
+      update();
+    });
+  }, { passive: true });
 
   var observer = new IntersectionObserver(function (entries) {
     entries.forEach(function (entry) {
@@ -976,6 +1024,9 @@ mod tests {
             ".docs-toc",
             "aria-current",
             "location",
+            "READING_LINE_PX",
+            "lastPassedTarget",
+            "passive",
         ] {
             assert!(SITE_JS.contains(needle), "SITE_JS should wire {needle}");
         }
