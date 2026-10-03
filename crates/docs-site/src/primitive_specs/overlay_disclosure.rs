@@ -170,7 +170,7 @@
 //! 層）は一切呼ばない（受け入れ条件 3）。ダミー文字列は無害なもの
 //! （`example.com` 等の予約ドメイン、架空の名前）に限る。
 
-use fandhe_frontend_core::{code, div, p, pre, text, Node};
+use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::accordion;
 use hui::collapsible;
@@ -300,7 +300,7 @@ fn ex_accordion_custom_css() -> Node {
         vec![
             fandhe_frontend_core::pre(
                 vec![],
-                vec![fandhe_frontend_core::code(vec![], vec![text(css)])],
+                vec![fandhe_frontend_core::code(vec![("class", "language-css")], vec![text(css)])],
             ),
             wrap_example(
                 "セレクタは data-scope/data-part/data-state/data-disabled/data-orientation のみに依存します。",
@@ -1427,10 +1427,7 @@ fn ex_hover_card_custom_css() -> Node {
         "利用者が data-scope / data-part / data-state / data-side セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             markup,
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(HOVER_CARD_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(HOVER_CARD_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -1791,7 +1788,7 @@ fn ex_toast_custom_css() -> Node {
         "利用者が data-scope / data-part / data-type / data-state / data-placement セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             markup,
-            pre(vec![], vec![code(vec![], vec![text(TOAST_CUSTOM_CSS_SNIPPET)])]),
+            crate::code_copy::css_snippet_block(TOAST_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -1972,10 +1969,7 @@ fn ex_toggle_tip_custom_css() -> Node {
         "利用者が data-scope / data-part / data-state / data-disabled セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             markup,
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(TOGGLE_TIP_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(TOGGLE_TIP_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -2172,10 +2166,7 @@ fn ex_tooltip_custom_css() -> Node {
         "利用者が data-scope / data-part / data-state / data-disabled セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             markup,
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(TOOLTIP_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(TOOLTIP_CUSTOM_CSS_SNIPPET),
         ],
     )
 }

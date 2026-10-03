@@ -85,6 +85,13 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 
 `grid-list-*` は `grid-list-action-tiles`（icon / heading / text のみ）を第一手本とし、`grid-list-compact-tiles`（avatar・menu・画像を含む）は構造のみ参照とする。副次所見として、ローカル配信では `/favicon.ico` が 404 だった（#3604 の対象）。
 
+### 3.1 確定事項（#3610: 右目次と折りたたみ目次）
+
+- 主に CSS で変更する（`toc_nav` / `toc_items` の出力、`class="docs-toc"` の唯一性と anchor 構造は不変。`toc_inline` の summary にのみ装飾 svg を追加する）。
+- 右目次は `ul` の 1px 縦線（rail）に、現在地 `a[aria-current="location"]::before` の 2px アクセント縦棒を重ねる。進捗の段階表現は採用しない。階層インデントは `li` ではなく `a` の padding で表す。
+- 折りたたみ目次の開閉アイコンは素の `svg.docs-toc-inline-icon`（`icon::icon` は使わない。recipe 抜きの `site-primitives.css` で `fd-icon--size-md` が未定義になるため）。`details[open]` で CSS 回転し、`prefers-reduced-motion` では transition を外す。
+- 色トークンは新設せず、スクロールスパイ以外の JS は追加しない。
+
 ### 3.2 ヘッダー操作部の確定事項（#3606）
 
 手本は `navbar-docs-site`（構造のみ参照）。`docs-*` class の契約（HTML への出現・`site.css` のセレクタ・`SITE_JS` のセレクタ・`no_js_contract` のリテラル）は削除も緩和もしない。pre-styled-ui の root 部品は呼び出し側の `class` を捨てるため、`docs-*` class は自前の要素（ラッパーまたは素の要素）に残し、pre-styled-ui 部品はその内側へ置く。
@@ -137,9 +144,18 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 確定事項（#3605）:
 
 - 骨格は `crates/docs-site/src/code_copy.rs` の `wrap_code_blocks` が作る。`build.rs` の `render_markdown` 直後（blocks / wireframes の挿入より前）に適用するため、対象は Markdown 由来のフェンスに限られ、Blocks の demo と Anatomy の `pre` は包まない。`markdown::parse_fence` の出力は変えない。
-- 構造は `div.docs-code-block > pre + button.docs-code-copy[hidden] + span.docs-code-copy-status[role=status][aria-live=polite]`。状態は `data-copy-state` の `idle` / `copied` / `failed` の 3 値。
+- 構造（#3605 時点の履歴。現行は下記「確定事項（#3620）」の構造）は `div.docs-code-block > pre + button.docs-code-copy[hidden] + span.docs-code-copy-status[role=status][aria-live=polite]`。状態は `data-copy-state` の `idle` / `copied` / `failed` の 3 値。
 - ボタンの可視ラベル（Copy / Copied / Failed）は SSG では出さず、JS が `textContent` で入れる（検索インデックスへ共通語を混入させないため）。
 - Phase 3（ヒーロー、#3612）・Phase 5（コードブロックヘッダー、#3620）は、この `div.docs-code-block` ラッパーと JS の契約（ラッパー内の `pre`・ボタン・ステータス）を再利用する。
+
+確定事項（#3620）:
+
+- 構造は `div.docs-code-block > div.docs-code-header[span.docs-code-lang? + button.docs-code-copy] + pre + span.docs-code-copy-status` へ変わった。ボタンはヘッダー内へ移り、`site.js` は `closest('.docs-code-block')` で解決するため変更なし。
+- ラベルは `code` の `language-<token>` class を `code_copy::language_label` の静的対応表（rust / toml / bash / sh / shell / html / css / js / javascript / json / jsonc / text）で引く。無指定・未知の言語はラベル要素を出さない（入力由来の文字列は HTML へ出さない）。ハイライト対応言語とは独立。
+- ヘッダー帯は常に flow へ置く。ラベルなし・ボタン `hidden` の間も帯を残し、JS が `hidden` を外しても `pre` が押し下がらないようにする（`:has()` で隠す方式は読み込み時のレイアウトずれを生むため採らない）。
+- ヘッダー帯の語は `search_index` が部分木ごと除外する（Rust 等の共通語の混入防止）。
+- 部品ページ Examples の `pre` は `wrap_code_blocks_outside_scopes` で包む（`data-scope` の部分木と Anatomy は包まない）。Primitives の CSS スニペットは `code_copy::css_snippet_block` で `language-css` を付ける。
+- 対象外: ファイル名表示（info string の拡張が `parse_fence` の出力契約へ波及する）、ハイライト対応言語の追加。
 
 ## 5.1 セクション索引のカードグリッド（#3616）
 
@@ -272,6 +288,13 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 - 軸ラベルは `showcase::axis_row` / `axis_stack` で付ける（`span`、見出しにしない）。variant / size / palette / state / shape / orientation / curve 等の軸束縛と、button・table・bar-chart の各行が対象。ラベルは `data-scope` の外にあるため短い英語の語に限り、検索インデックスへ入る点は許容する。
 - Anatomy は `h2` と `pre > code` の隣接・字下げ本文の形式を変えず（テストのパーサが依存）、`section` の class と CSS だけで枠と同じ体裁にする。
 - Blocks（`.blocks-demo`）は DOM・class を変えず、CSS の値のみトークン化して共通の枠にそろえる。
+
+## 11.2 確定事項（#3621 部品ページの API 表）
+
+- API 表（Arguments / Data Attributes / CSS Variables）は pre-styled-ui の `table` / `code` / `badge` recipe を使わず、core の `table` / `th` / `td` と属性なしの `code` で組む（§3 の手本からの意図的な逸脱）。`data-scope` 配下が検索インデックスから除外されること、Primitives が recipe 抜きの CSS を読むことが理由で、#3619 の Demo 枠と同じ判断である。
+- CSS フックは `docs-*` class ではなく `table[data-docs-api-table]`（値は `arguments` / `data-attributes` / `css-variables`）と、空値プレースホルダの `span[data-docs-api-placeholder]` にする。`STRUCTURE_CLASS_CONTRACT` に触れないため。
+- 表記: 名前は行見出し（`th scope="row"`）、型・既定値・Part・属性名・観測値は `code`。既定値が空・`-` なら「—」、観測値が空文字なら「（値なし）」を出す（列は消さない）。非 ASCII を含む既定値（`(必須)` 等）は散文として `code` にしない。
+- 狭幅（767.98px 以下）は DOM を変えず CSS だけで縦積みにする。各セルの `data-label`（コンパイル時定数）を `::before` で見出しとして出し、`thead` は隠す。768px 以上は従来の表のまま、はみ出しは表内の横スクロールで逃がす。CSS は `site_theme::API_TABLE_CSS`（Themes / Primitives 両方に含まれる）。
 
 ## 12. 関連文書
 

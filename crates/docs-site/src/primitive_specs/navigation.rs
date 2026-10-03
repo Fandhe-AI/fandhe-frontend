@@ -86,7 +86,7 @@
 //!   エントリを持たない（旧記述「`trigger-item`/`checkbox-item`/…は
 //!   Demo 側未網羅」は両イシューの Demo 拡充で解消済み）。
 
-use fandhe_frontend_core::{button, code, el, p, pre, text, Node};
+use fandhe_frontend_core::{button, el, p, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::action_bar;
 use hui::breadcrumb;
@@ -176,10 +176,7 @@ fn action_bar_custom_css_example() -> Node {
         vec![],
         vec![
             markup,
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(ACTION_BAR_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(ACTION_BAR_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -353,10 +350,7 @@ fn ex_breadcrumb_custom_css() -> Node {
     );
     example_wrap(vec![
         markup,
-        pre(
-            vec![],
-            vec![code(vec![], vec![text(BREADCRUMB_CUSTOM_CSS_SNIPPET)])],
-        ),
+        crate::code_copy::css_snippet_block(BREADCRUMB_CUSTOM_CSS_SNIPPET),
     ])
 }
 
@@ -521,10 +515,7 @@ fn ex_button_group_custom_css() -> Node {
     );
     example_wrap(vec![
         markup,
-        pre(
-            vec![],
-            vec![code(vec![], vec![text(BUTTON_GROUP_CUSTOM_CSS_SNIPPET)])],
-        ),
+        crate::code_copy::css_snippet_block(BUTTON_GROUP_CUSTOM_CSS_SNIPPET),
     ])
 }
 
@@ -690,10 +681,7 @@ fn ex_link_custom_css() -> Node {
     );
     example_wrap(vec![
         markup,
-        pre(
-            vec![],
-            vec![code(vec![], vec![text(LINK_CUSTOM_CSS_SNIPPET)])],
-        ),
+        crate::code_copy::css_snippet_block(LINK_CUSTOM_CSS_SNIPPET),
     ])
 }
 
@@ -901,10 +889,7 @@ fn ex_link_overlay_custom_css() -> Node {
     );
     example_wrap(vec![
         markup,
-        pre(
-            vec![],
-            vec![code(vec![], vec![text(LINK_OVERLAY_CUSTOM_CSS_SNIPPET)])],
-        ),
+        crate::code_copy::css_snippet_block(LINK_OVERLAY_CUSTOM_CSS_SNIPPET),
     ])
 }
 
@@ -1147,10 +1132,7 @@ fn ex_menu_custom_css() -> Node {
     );
     example_wrap(vec![
         markup,
-        pre(
-            vec![],
-            vec![code(vec![], vec![text(MENU_CUSTOM_CSS_SNIPPET)])],
-        ),
+        crate::code_copy::css_snippet_block(MENU_CUSTOM_CSS_SNIPPET),
     ])
 }
 
@@ -1539,10 +1521,7 @@ fn ex_menubar_custom_css() -> Node {
     );
     example_wrap(vec![
         markup,
-        pre(
-            vec![],
-            vec![code(vec![], vec![text(MENUBAR_CUSTOM_CSS_SNIPPET)])],
-        ),
+        crate::code_copy::css_snippet_block(MENUBAR_CUSTOM_CSS_SNIPPET),
     ])
 }
 
@@ -1790,10 +1769,7 @@ fn ex_nav_list_custom_css() -> Node {
     );
     example_wrap(vec![
         markup,
-        pre(
-            vec![],
-            vec![code(vec![], vec![text(NAV_LIST_CUSTOM_CSS_SNIPPET)])],
-        ),
+        crate::code_copy::css_snippet_block(NAV_LIST_CUSTOM_CSS_SNIPPET),
     ])
 }
 
@@ -2288,10 +2264,7 @@ fn ex_tabs_custom_css() -> Node {
     ];
     example_wrap(vec![
         tabs(&props, items),
-        pre(
-            vec![],
-            vec![code(vec![], vec![text(TABS_CUSTOM_CSS_SNIPPET)])],
-        ),
+        crate::code_copy::css_snippet_block(TABS_CUSTOM_CSS_SNIPPET),
     ])
 }
 
