@@ -1869,13 +1869,152 @@ fn highlight_css() -> Result<String, SiteThemeError> {
     Ok(out)
 }
 
+/// `site.css` へ積む pre-styled-ui recipe 1 件（イシュー #3599）。
+///
+/// 役割: 一般ページ（Phase 2〜5 で styled 部品を合成する骨格・トップ・索引・
+/// 本文）が `assets/pre-styled-ui.css`（全部品入り）を link せず `site.css`
+/// だけで描画できるよう、使う部品の CSS だけを列挙する単一の真実源。
+/// [`stylesheet`] と契約テスト（`tests/site_css_contract.rs`）の双方が
+/// [`SITE_RECIPES`] を走査する。`css` は pre-styled-ui の公開関数
+/// （`<部品>::css` / `<部品>::stylesheet`）で、`recipe()` は非公開のため
+/// `StyleSheet::push_recipe` は使えない。
+pub struct SiteRecipe {
+    /// 部品名（pre-styled-ui のモジュール名）。
+    pub name: &'static str,
+    /// 部品の `data-scope` 値（契約テストが `[data-scope="…"]` の存在を検証）。
+    pub scope: &'static str,
+    /// 部品 CSS を返す公開関数。
+    pub css: fn() -> String,
+}
+
+/// `site.css` へ積む recipe 一覧（設計文書 `docs-site-styled-blocks-redesign.md`
+/// §3 対応表から Phase 2〜5 が使う 19 件）。
+///
+/// 順序は `showcase::stylesheet()`（`pre-styled-ui.css`）での出現順の部分列と
+/// 一致させる。部品ページ・Blocks ページでは `pre-styled-ui.css` が `site.css`
+/// の後に読まれ同じルールを再適用するが、ルールはバイト一致（同じ公開関数の
+/// 戻り値）かつ相対順序も同じなので、カスケード結果は変わらない（同値の
+/// 重複を許容する決定）。docs 側でこれらを上書きする規則は、出現順に頼らず
+/// `.docs-*` ラッパー class を前置して詳細度で勝たせること（`pre-styled-ui.css`
+/// が後から来ても負けないため）。`callout` は消費者が対応表に無いため積まない。
+/// `menu` / `navigation_menu` / 状態機械型 `sidebar` / `link_overlay` は積まない。
+pub const SITE_RECIPES: &[SiteRecipe] = &[
+    SiteRecipe {
+        name: "button",
+        scope: "button",
+        css: fandhe_frontend_pre_styled_ui::button::css,
+    },
+    SiteRecipe {
+        name: "badge",
+        scope: "badge",
+        css: fandhe_frontend_pre_styled_ui::badge::css,
+    },
+    SiteRecipe {
+        name: "card",
+        scope: "card",
+        css: fandhe_frontend_pre_styled_ui::card::css,
+    },
+    SiteRecipe {
+        name: "separator",
+        scope: "separator",
+        css: fandhe_frontend_pre_styled_ui::separator::css,
+    },
+    SiteRecipe {
+        name: "field",
+        scope: "field",
+        css: fandhe_frontend_pre_styled_ui::field::css,
+    },
+    SiteRecipe {
+        name: "input",
+        scope: "field",
+        css: fandhe_frontend_pre_styled_ui::input::css,
+    },
+    SiteRecipe {
+        name: "input_group",
+        scope: "input-group",
+        css: fandhe_frontend_pre_styled_ui::input_group::stylesheet,
+    },
+    SiteRecipe {
+        name: "breadcrumb",
+        scope: "breadcrumb",
+        css: fandhe_frontend_pre_styled_ui::breadcrumb::stylesheet,
+    },
+    SiteRecipe {
+        name: "kbd",
+        scope: "kbd",
+        css: fandhe_frontend_pre_styled_ui::kbd::css,
+    },
+    SiteRecipe {
+        name: "code",
+        scope: "code",
+        css: fandhe_frontend_pre_styled_ui::code::css,
+    },
+    SiteRecipe {
+        name: "icon",
+        scope: "icon",
+        css: fandhe_frontend_pre_styled_ui::icon::css,
+    },
+    SiteRecipe {
+        name: "empty_state",
+        scope: "empty-state",
+        css: fandhe_frontend_pre_styled_ui::empty_state::css,
+    },
+    SiteRecipe {
+        name: "heading",
+        scope: "heading",
+        css: fandhe_frontend_pre_styled_ui::heading::css,
+    },
+    SiteRecipe {
+        name: "text",
+        scope: "text",
+        css: fandhe_frontend_pre_styled_ui::text::css,
+    },
+    SiteRecipe {
+        name: "list",
+        scope: "list",
+        css: fandhe_frontend_pre_styled_ui::list::css,
+    },
+    SiteRecipe {
+        name: "table",
+        scope: "table",
+        css: fandhe_frontend_pre_styled_ui::table::css,
+    },
+    SiteRecipe {
+        name: "stat",
+        scope: "stat",
+        css: fandhe_frontend_pre_styled_ui::stat::css,
+    },
+    SiteRecipe {
+        name: "tab_nav",
+        scope: "tab-nav",
+        css: fandhe_frontend_pre_styled_ui::tab_nav::stylesheet,
+    },
+    SiteRecipe {
+        name: "link",
+        scope: "link",
+        css: fandhe_frontend_pre_styled_ui::link::stylesheet,
+    },
+];
+
+/// Primitives ページ専用の recipe 抜きサイト CSS の出力先（`out_dir` 起点の相対パス）。
+///
+/// 役割: Primitives ページの headless-ui デモは「スタイルを持たない層」の契約
+/// （`primitive_showcase` モジュール doc）により styled recipe の装飾を受けては
+/// ならない。recipe は `[data-scope=...]` 属性セレクタで headless と同じ markup を
+/// 対象にするためセレクタ側では区別できない。`@scope` で除外すると非対応
+/// ブラウザで一般ページの recipe まで失われるため、recipe を `@scope` で包まず
+/// 全ブラウザで有効な素の CSS として [`STYLESHEET_REL_PATH`] へ積み、Primitives
+/// ページだけが recipe を含まない本ファイルを読む（`crate::layout` が選択）。
+pub const PRIMITIVES_STYLESHEET_REL_PATH: &str = "assets/site-primitives.css";
+
 /// サイト骨格が参照する CSS 全量を組み立てる。
 ///
 /// 内訳: テーマトークン（`docs_theme`、`Theme::default` + docs 固有拡張）
 /// → [`fandhe_frontend_pre_styled_ui::nav_list::stylesheet`]（styled NavList
 /// のコンポーネント CSS。`nav::sidebar()` の実出力である headless `nav_list`
 /// markup — `data-scope="nav-list" data-part="heading|list|item|link"` —
-/// へそのまま適用される。イシュー #910）→ `STRUCTURAL_CSS`（構造 CSS）
+/// へそのまま適用される。イシュー #910）→ [`SITE_RECIPES`]（使用する styled
+/// 部品 recipe、イシュー #3599）→ `STRUCTURAL_CSS`（構造 CSS）
 /// → `typography_css`（本文タイポグラフィ、イシュー #911）の順で決定的に
 /// 連結する（[`crate::skip_nav::stylesheet`] と同型の組み立て順）。この順序
 /// により、`nav_list` コンポーネント基底（セレクタ詳細度 0,2,0）が先に出力
@@ -1891,10 +2030,29 @@ fn highlight_css() -> Result<String, SiteThemeError> {
 /// ため通常は到達しないが、黙って欠けた CSS を公開しない fail-closed 方針で
 /// 伝播させる。
 pub fn stylesheet() -> Result<StyleSheet, SiteThemeError> {
+    assemble(true)
+}
+
+/// [`stylesheet`] から [`SITE_RECIPES`] を除いた CSS（Primitives ページ専用、
+/// [`PRIMITIVES_STYLESHEET_REL_PATH`]）。recipe 以外の内容・順序は同一。
+///
+/// # Errors
+///
+/// [`stylesheet`] と同じ。
+pub fn stylesheet_without_recipes() -> Result<StyleSheet, SiteThemeError> {
+    assemble(false)
+}
+
+fn assemble(with_recipes: bool) -> Result<StyleSheet, SiteThemeError> {
     let theme = docs_theme()?;
     let mut sheet = StyleSheet::new();
     sheet.push_theme(&theme);
     sheet.push_css(&fandhe_frontend_pre_styled_ui::nav_list::stylesheet())?;
+    if with_recipes {
+        for recipe in SITE_RECIPES {
+            sheet.push_css(&(recipe.css)())?;
+        }
+    }
     sheet.push_css(STRUCTURAL_CSS)?;
     sheet.push_css(&typography_css()?)?;
     sheet.push_css(&highlight_css()?)?;
@@ -2214,9 +2372,15 @@ mod tests {
             .lines()
             .filter(|line| line.contains(":focus-within") && line.trim_end().ends_with('{'))
         {
+            // イシュー #3599: `SITE_RECIPES`（field の inset ラベル等）由来の
+            // `[data-scope=...]` セレクタは部品側の規則でありサイドバー開閉とは
+            // 無関係なため対象外とする（`sidebar` を含む行は上の assert が固定）。
+            let recipe_selector = SITE_RECIPES
+                .iter()
+                .any(|r| line.starts_with(&format!("[data-scope=\"{}\"]", r.scope)));
             assert!(
-                line.contains("docs-header"),
-                ":focus-within が docs-header 系以外のセレクタに出現している: {line}"
+                line.contains("docs-header") || recipe_selector,
+                ":focus-within が docs-header 系・recipe 由来以外のセレクタに出現している: {line}"
             );
         }
     }
@@ -2425,7 +2589,15 @@ mod tests {
     /// のはその許容リストであり、フォールバック無し参照が万一ここに現れても
     /// スキップされないよう名前の完全一致でのみ照合する（allowlist の
     /// なし崩し的拡大を防ぐ）。
-    const FALLBACK_ONLY_TOKENS: &[&str] = &["--fandhe-link-text-decoration"];
+    const FALLBACK_ONLY_TOKENS: &[&str] = &[
+        "--fandhe-link-text-decoration",
+        // イシュー #3599: `SITE_RECIPES` 由来の部品側任意上書きフック
+        // （いずれも `var(--x, fallback)` 形式で、未定義でも既定値で描画される）。
+        "--fandhe-field-label-bg",
+        "--fandhe-separator-height",
+        "--fandhe-separator-thickness",
+        "--fandhe-table-scroll-max-height",
+    ];
 
     /// 生成 CSS 全量から `var(--fandhe-<...>)` 参照を手書き走査で収集する
     /// （`site_css_contract.rs::extract_css_class_selectors` と同じ「実出力の
