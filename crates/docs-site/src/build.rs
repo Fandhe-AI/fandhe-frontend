@@ -1015,6 +1015,12 @@ fn copy_assets(
 mod tests {
     use super::*;
 
+    /// fixture 上のビルド用。本番登録表は実 `site/nav.toml` のページを前提に
+    /// するため、合成 nav の fixture では空の登録表を使う（イシュー #3616）。
+    fn build_fixture(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, BuildError> {
+        build_site_with(repo_root, out_dir, &page_sections::EMPTY_REGISTRY)
+    }
+
     /// テスト専用の一時ディレクトリ。`nav.rs`/`ssg.rs` のテストヘルパーと
     /// 同方針（外部クレート `tempfile` を追加しない、REQ-3）。
     struct TempDir(PathBuf);
@@ -1080,7 +1086,7 @@ path = "/next/"
         write_fixture_site(&temp.0);
         let out_dir = temp.0.join("dist");
 
-        let report = build_site(&temp.0, &out_dir).expect("valid fixture should build");
+        let report = build_fixture(&temp.0, &out_dir).expect("valid fixture should build");
         assert_eq!(report.written.len(), 2);
         // サイト骨格 CSS（`site_theme`、ビルド時生成）+ SkipNav 専用 CSS
         // （イシュー #776、全ビルドで無条件に書き出す。`crate::skip_nav`
@@ -1121,7 +1127,8 @@ path = "/next/"
         .unwrap();
         let out_dir = temp.0.join("dist");
 
-        let err = build_site(&temp.0, &out_dir).expect_err("broken .md link should fail the build");
+        let err =
+            build_fixture(&temp.0, &out_dir).expect_err("broken .md link should fail the build");
         match err {
             BuildError::LinkCheck(broken) => {
                 assert_eq!(broken.len(), 1);
@@ -1143,7 +1150,7 @@ path = "/next/"
         .unwrap();
         let out_dir = temp.0.join("dist");
 
-        let err = build_site(&temp.0, &out_dir).expect_err("broken absolute link should fail");
+        let err = build_fixture(&temp.0, &out_dir).expect_err("broken absolute link should fail");
         assert!(matches!(err, BuildError::LinkCheck(_)));
         assert!(!out_dir.exists());
     }
@@ -1152,7 +1159,7 @@ path = "/next/"
     fn build_site_reports_nav_error_for_missing_nav_toml() {
         let temp = TempDir::new("missing-nav");
         let out_dir = temp.0.join("dist");
-        let err = build_site(&temp.0, &out_dir).expect_err("missing nav.toml should fail");
+        let err = build_fixture(&temp.0, &out_dir).expect_err("missing nav.toml should fail");
         assert!(matches!(err, BuildError::Io { .. }));
     }
 
@@ -1162,7 +1169,7 @@ path = "/next/"
         write_fixture_site(&temp.0);
         fs::create_dir_all(temp.0.join("site/assets/nested")).unwrap();
         let out_dir = temp.0.join("dist");
-        let err = build_site(&temp.0, &out_dir).expect_err("directory under assets should fail");
+        let err = build_fixture(&temp.0, &out_dir).expect_err("directory under assets should fail");
         assert!(matches!(err, BuildError::UnsupportedAssetEntry(_)));
         assert!(!out_dir.exists());
     }
@@ -1177,8 +1184,8 @@ path = "/next/"
         write_fixture_site(&temp.0);
         fs::write(temp.0.join("site/assets/site.css"), "body{}\n").unwrap();
         let out_dir = temp.0.join("dist");
-        let err =
-            build_site(&temp.0, &out_dir).expect_err("reserved asset name should fail the build");
+        let err = build_fixture(&temp.0, &out_dir)
+            .expect_err("reserved asset name should fail the build");
         assert!(matches!(err, BuildError::ReservedAssetName(_)));
         assert!(!out_dir.exists());
     }
@@ -1194,7 +1201,7 @@ path = "/next/"
         let out_dir = temp.0.join("dist");
 
         let report =
-            build_site(&temp.0, &out_dir).expect("missing site/assets/ directory should build");
+            build_fixture(&temp.0, &out_dir).expect("missing site/assets/ directory should build");
         // サイト骨格 CSS + SkipNav 専用 CSS + `assets/site.js` +
         // 検索インデックス（マニフェスト + セクションファイル 1 件）のみ
         // （`site/assets/` 由来のコピーアセットは 0 件）。
@@ -1214,7 +1221,7 @@ path = "/next/"
         write_fixture_site(&temp.0);
         fs::write(temp.0.join("site/assets/site.js"), "console.log(1);\n").unwrap();
         let out_dir = temp.0.join("dist");
-        let err = build_site(&temp.0, &out_dir)
+        let err = build_fixture(&temp.0, &out_dir)
             .expect_err("reserved asset name site.js should fail the build");
         assert!(matches!(err, BuildError::ReservedAssetName(_)));
         assert!(!out_dir.exists());
@@ -1228,7 +1235,7 @@ path = "/next/"
         write_fixture_site(&temp.0);
         fs::write(temp.0.join("site/assets/favicon.svg"), "<svg/>\n").unwrap();
         let out_dir = temp.0.join("dist");
-        let err = build_site(&temp.0, &out_dir)
+        let err = build_fixture(&temp.0, &out_dir)
             .expect_err("reserved asset name favicon.svg should fail the build");
         assert!(matches!(err, BuildError::ReservedAssetName(_)));
         assert!(!out_dir.exists());
@@ -1244,7 +1251,7 @@ path = "/next/"
         write_fixture_site(&temp.0);
         fs::write(temp.0.join("site/assets/wireframes.css"), "body{}\n").unwrap();
         let out_dir = temp.0.join("dist");
-        let err = build_site(&temp.0, &out_dir)
+        let err = build_fixture(&temp.0, &out_dir)
             .expect_err("reserved asset name wireframes.css should fail the build");
         assert!(matches!(err, BuildError::ReservedAssetName(_)));
         assert!(!out_dir.exists());
@@ -1260,7 +1267,7 @@ path = "/next/"
         write_fixture_site(&temp.0);
         fs::write(temp.0.join("site/assets/search-index.json"), "{}\n").unwrap();
         let out_dir = temp.0.join("dist");
-        let err = build_site(&temp.0, &out_dir)
+        let err = build_fixture(&temp.0, &out_dir)
             .expect_err("reserved asset name search-index.json should fail the build");
         assert!(matches!(err, BuildError::ReservedAssetName(_)));
         assert!(!out_dir.exists());

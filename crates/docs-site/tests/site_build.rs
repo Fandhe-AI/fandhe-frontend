@@ -19,7 +19,20 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use fandhe_frontend_docs_site::blocks;
-use fandhe_frontend_docs_site::build::{build_site, BuildError};
+use fandhe_frontend_docs_site::build::BuildError;
+
+/// fixture 上のビルド用。本番登録表は実 `site/nav.toml` のページを前提にするため、
+/// 合成 nav では空の登録表を使う（イシュー #3616）。
+fn build_fixture(
+    repo_root: &Path,
+    out_dir: &Path,
+) -> Result<fandhe_frontend_docs_site::build::BuildReport, BuildError> {
+    fandhe_frontend_docs_site::build::build_site_with(
+        repo_root,
+        out_dir,
+        &fandhe_frontend_docs_site::page_sections::EMPTY_REGISTRY,
+    )
+}
 
 #[path = "support/shared_site.rs"]
 mod shared_site;
@@ -74,7 +87,7 @@ fn fixture_root(name: &str) -> PathBuf {
 fn build_site_generates_all_pages_and_assets_for_ok_fixture() {
     let out = TempDir::new("ok");
     let report =
-        build_site(&fixture_root("site-ok"), &out.0).expect("site-ok fixture should build");
+        build_fixture(&fixture_root("site-ok"), &out.0).expect("site-ok fixture should build");
 
     assert_eq!(report.written.len(), 2);
     // site.css（`site_theme` のビルド時生成、イシュー #905） + admonition.css
@@ -104,7 +117,7 @@ fn build_site_generates_all_pages_and_assets_for_ok_fixture() {
 #[test]
 fn build_site_wires_admonition_css_only_to_pages_using_it() {
     let out = TempDir::new("admonition-wiring");
-    build_site(&fixture_root("site-ok"), &out.0).expect("site-ok fixture should build");
+    build_fixture(&fixture_root("site-ok"), &out.0).expect("site-ok fixture should build");
 
     let index_html = std::fs::read_to_string(out.0.join("index.html")).unwrap();
     assert!(index_html.contains(r#"href="/fixture-base/assets/admonition.css""#));
@@ -125,7 +138,7 @@ fn build_site_wires_admonition_css_only_to_pages_using_it() {
 #[test]
 fn build_site_rewrites_md_links_to_site_paths_for_ok_fixture() {
     let out = TempDir::new("md-rewrite");
-    build_site(&fixture_root("site-ok"), &out.0).expect("site-ok fixture should build");
+    build_fixture(&fixture_root("site-ok"), &out.0).expect("site-ok fixture should build");
 
     let index_html = std::fs::read_to_string(out.0.join("index.html")).unwrap();
     assert!(index_html.contains(r#"href="/fixture-base/guide/quickstart/""#));
@@ -144,7 +157,7 @@ fn build_site_fails_closed_and_writes_nothing_for_broken_link_fixture() {
     // その配下の未作成サブディレクトリを渡す（fail-closed で一切書き出さない
     // ことを「サブディレクトリが作成されないこと」で検証するため）。
     let out_dir = temp.0.join("dist");
-    let err = build_site(&fixture_root("site-broken-link"), &out_dir)
+    let err = build_fixture(&fixture_root("site-broken-link"), &out_dir)
         .expect_err("site-broken-link fixture should fail the build");
 
     match err {
@@ -299,10 +312,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // ファイルへ分割され、15 → 15 + セクション数になった。イシュー #3604 で favicon（`assets/favicon.svg`）が全ビルド無条件で加わり 16 + セクション数になった（件数は nav.toml
     // から導出し、セクション追加時に本テストの手修正を要しない）。
     // Primitives ページ専用の recipe 抜き `site-primitives.css`（イシュー
-    // #3599 のレビュー指摘）が加わり 1 件増えた（favicon との合算で 17 + セクション数）。
+    // #3599 のレビュー指摘）が加わり 1 件増えた（favicon との合算で 17 + セクション数）。イシュー #3616 で索引カード専用
+    // `section-index.css` が加わり 18 + セクション数になった。
     assert_eq!(
         report.assets.len(),
-        17 + nav.sections.len(),
+        18 + nav.sections.len(),
         "{:?}",
         report.assets
     );
@@ -655,12 +669,15 @@ fn docs_site_bin() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_docs-site"))
 }
 
+/// バイナリは本番の生成節登録表（`/guides/`・`/api/`・`/examples/`、#3616）を
+/// 使うため、登録ページを nav に持たない fixture はビルドできない（fail-closed）。
+/// 成功経路は実リポジトリで検証する。
 #[test]
-fn binary_exits_zero_and_reports_written_counts_for_ok_fixture() {
+fn binary_exits_zero_and_reports_written_counts_for_real_site() {
     let out = TempDir::new("bin-ok");
     let output = Command::new(docs_site_bin())
         .arg("--root")
-        .arg(fixture_root("site-ok"))
+        .arg(shared_site::repo_root())
         .arg("--out")
         .arg(&out.0)
         .output()
@@ -674,16 +691,36 @@ fn binary_exits_zero_and_reports_written_counts_for_ok_fixture() {
     );
     assert!(out.0.join("index.html").exists());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("wrote 2 page(s)"));
+    assert!(stdout.contains("wrote "));
 }
 
+/// 本番登録表が要求する 3 ページを持つ一時サイトで、リンク切れを検知する。
 #[test]
 fn binary_exits_nonzero_with_link_check_report_for_broken_fixture() {
     let temp = TempDir::new("bin-broken");
+    let root = temp.0.join("root");
+    std::fs::create_dir_all(root.join("site")).expect("mkdir site");
+    let mut nav = String::from("[site]\ntitle = \"Broken\"\nbase_path = \"\"\n");
+    for (title, path, file) in [
+        ("Guides", "/guides/", "g"),
+        ("API Reference", "/api/", "a"),
+        ("Examples", "/examples/", "e"),
+    ] {
+        nav.push_str(&format!(
+            "\n[[section]]\ntitle = \"{title}\"\nindex_path = \"{path}\"\n\n[[section.page]]\ntitle = \"{title}\"\nsource = \"site/{file}.md\"\npath = \"{path}\"\n"
+        ));
+        let body = if file == "g" {
+            "# Broken\n\nThis links to a [page that does not exist](./missing.md).\n"
+        } else {
+            "# Ok\n\nBody.\n"
+        };
+        std::fs::write(root.join(format!("site/{file}.md")), body).expect("write md");
+    }
+    std::fs::write(root.join("site/nav.toml"), nav).expect("write nav");
     let out_dir = temp.0.join("dist");
     let output = Command::new(docs_site_bin())
         .arg("--root")
-        .arg(fixture_root("site-broken-link"))
+        .arg(&root)
         .arg("--out")
         .arg(&out_dir)
         .output()
@@ -691,7 +728,7 @@ fn binary_exits_nonzero_with_link_check_report_for_broken_fixture() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("link check failed"));
+    assert!(stderr.contains("link check failed"), "{stderr}");
     assert!(stderr.contains("missing.md"));
     assert!(!out_dir.exists());
 }

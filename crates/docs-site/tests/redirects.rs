@@ -12,8 +12,21 @@
 
 use std::path::{Path, PathBuf};
 
-use fandhe_frontend_docs_site::build::{build_site, BuildError};
+use fandhe_frontend_docs_site::build::BuildError;
 use fandhe_frontend_docs_site::redirect::{self, RedirectError};
+
+/// fixture 上のビルド用。本番登録表は実 `site/nav.toml` のページを前提にするため、
+/// 合成 nav では空の登録表を使う（イシュー #3616）。
+fn build_fixture(
+    repo_root: &Path,
+    out_dir: &Path,
+) -> Result<fandhe_frontend_docs_site::build::BuildReport, BuildError> {
+    fandhe_frontend_docs_site::build::build_site_with(
+        repo_root,
+        out_dir,
+        &fandhe_frontend_docs_site::page_sections::EMPTY_REGISTRY,
+    )
+}
 
 /// 統合テストのスクラッチ基点。`CARGO_TARGET_TMPDIR` は cargo が統合テスト
 /// バイナリの**コンパイル時のみ**設定する（Cargo Book）ため `env!` で確定し、
@@ -100,7 +113,7 @@ fn build_fails_closed_when_redirect_target_does_not_exist() {
     );
     let out_dir = temp.0.join("dist");
 
-    let err = build_site(&temp.0, &out_dir)
+    let err = build_fixture(&temp.0, &out_dir)
         .expect_err("redirect targeting a non-existent page should fail the build");
     match err {
         BuildError::Redirect(RedirectError::UnknownTarget { from, to }) => {
@@ -124,7 +137,7 @@ fn build_fails_closed_when_redirect_from_collides_with_an_existing_page() {
     write_redirects_toml(&temp.0, "[[redirect]]\nfrom = \"/next/\"\nto = \"/\"\n");
     let out_dir = temp.0.join("dist");
 
-    let err = build_site(&temp.0, &out_dir)
+    let err = build_fixture(&temp.0, &out_dir)
         .expect_err("redirect colliding with an existing page should fail the build");
     match err {
         BuildError::Redirect(RedirectError::CollidesWithPage(path)) => {
@@ -158,8 +171,8 @@ to = "/next/"
     );
     let out_dir = temp.0.join("dist");
 
-    let err =
-        build_site(&temp.0, &out_dir).expect_err("duplicate redirect `from` should fail the build");
+    let err = build_fixture(&temp.0, &out_dir)
+        .expect_err("duplicate redirect `from` should fail the build");
     assert!(matches!(
         err,
         BuildError::Redirect(RedirectError::DuplicateFrom(ref f)) if f == "/old/"
@@ -176,7 +189,7 @@ fn build_writes_a_redirect_page_with_all_four_required_elements() {
     write_redirects_toml(&temp.0, "[[redirect]]\nfrom = \"/old/\"\nto = \"/next/\"\n");
     let out_dir = temp.0.join("dist");
 
-    let report = build_site(&temp.0, &out_dir).expect("valid redirect manifest should build");
+    let report = build_fixture(&temp.0, &out_dir).expect("valid redirect manifest should build");
     assert_eq!(report.redirects.len(), 1);
     assert_eq!(report.written.len(), 2, "本体ページ数は変わらない");
 
@@ -200,7 +213,7 @@ fn build_reflects_base_path_in_redirect_href_not_the_bare_target() {
     write_redirects_toml(&temp.0, "[[redirect]]\nfrom = \"/old/\"\nto = \"/\"\n");
     let out_dir = temp.0.join("dist");
 
-    build_site(&temp.0, &out_dir).expect("valid redirect manifest should build");
+    build_fixture(&temp.0, &out_dir).expect("valid redirect manifest should build");
     let html = std::fs::read_to_string(out_dir.join("old/index.html")).unwrap();
     assert!(html.contains("/fixture-base/"));
     // 素の `to`（`base_path` 抜き）がどこにも現れないことの回帰防止。
@@ -224,7 +237,7 @@ fn build_succeeds_with_zero_redirects_when_manifest_is_absent() {
     let out_dir = temp.0.join("dist");
 
     let report =
-        build_site(&temp.0, &out_dir).expect("missing site/redirects.toml should still build");
+        build_fixture(&temp.0, &out_dir).expect("missing site/redirects.toml should still build");
     assert!(report.redirects.is_empty());
     assert_eq!(report.written.len(), 2);
 }

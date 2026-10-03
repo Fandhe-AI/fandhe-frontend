@@ -114,9 +114,16 @@ fn pre_hook_blocks(nav: &Nav, page: &fandhe_frontend_docs_site::nav::Page) -> Ve
 }
 
 #[test]
-fn production_registry_is_empty() {
-    assert!(PAGE_SECTIONS.is_empty());
-    assert!(PAGE_STYLESHEETS.is_empty());
+fn production_registry_paths_exist_in_real_nav() {
+    let nav = real_nav();
+    for s in PAGE_SECTIONS {
+        assert!(nav.all_pages().any(|p| p.path == s.path), "{}", s.path);
+    }
+    for s in PAGE_SECTIONS {
+        for rel in s.stylesheets {
+            assert!(PAGE_STYLESHEETS.iter().any(|p| p.rel_path == *rel), "{rel}");
+        }
+    }
 }
 
 /// AC1: 空の登録表では全ページのノード列が変わらず、追加 CSS も配線されない。
