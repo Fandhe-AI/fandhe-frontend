@@ -147,7 +147,7 @@ pub(super) fn attachment_section() -> Node {
 pub(super) fn avatar_section() -> Node {
     // Loaded インスタンス: 実在アセット（`crate::showcase::IMAGE_DEMO_SRC`）を
     // 使い、壊れた画像アイコンを表示しない（イシュー #1659 で是正、
-    // 旧実装は解決できない `https://example.com/avatar.png` を描画していた）。
+    // 旧実装は外部の example.com 画像を描画していた）。
     let loaded = ImageStatus::Loaded;
     let loaded_avatar = avatar::root(
         vec![],
@@ -167,12 +167,9 @@ pub(super) fn avatar_section() -> Node {
     let error_avatar = avatar::root(
         vec![],
         vec![
-            avatar::image(
-                error,
-                "https://example.com/missing-avatar.png",
-                "Priya Das",
-                vec![],
-            ),
+            // SSR では表示切替が status のみで決まるため、Error 例でも src は
+            // 同一オリジンの実在アセットにする（外部リクエスト・404 を出さない）。
+            avatar::image(error, crate::showcase::IMAGE_DEMO_SRC, "Priya Das", vec![]),
             avatar::fallback(error, vec![], vec![text("PD")]),
         ],
     );

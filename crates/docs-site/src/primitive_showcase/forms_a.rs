@@ -1401,7 +1401,7 @@ pub(super) fn image_cropper_section() -> Node {
                     &default_props,
                     vec![],
                     vec![image_cropper::image(
-                        "https://example.com/sample.jpg",
+                        crate::showcase::IMAGE_DEMO_SRC,
                         "Sample photo to crop",
                         vec![],
                     )],
@@ -1439,7 +1439,7 @@ pub(super) fn image_cropper_section() -> Node {
                     },
                     vec![],
                     vec![image_cropper::image(
-                        "https://example.com/sample.jpg",
+                        crate::showcase::IMAGE_DEMO_SRC,
                         "Sample photo to crop",
                         vec![],
                     )],

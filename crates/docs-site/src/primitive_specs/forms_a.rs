@@ -2178,7 +2178,7 @@ fn ex_image_cropper() -> Node {
                 &props,
                 vec![],
                 vec![image_cropper::image(
-                    "https://example.com/portrait.jpg",
+                    crate::showcase::IMAGE_DEMO_SRC,
                     "Portrait photo to crop",
                     vec![],
                 )],
