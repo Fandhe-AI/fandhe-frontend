@@ -1775,12 +1775,27 @@ nav.prev-next .next .docs-pager-meta {\n\
 }\n\
 \n\
 /*\n\
+ * ---- `1280px 以上`: ナビと検索欄の間隔確保（イシュー #3659） ----\n\
+ */\n\
+@media (min-width: 1280px) {\n\
+  .docs-header-actions {\n\
+    padding-left: 1.5rem;\n\
+  }\n\
+\n\
+  .docs-search-input {\n\
+    width: 10.5rem;\n\
+  }\n\
+}\n\
+\n\
+/*\n\
  * ---- `768px 未満`: 検索を全幅の 2 段目へ置く 2 段ヘッダー（イシュー #3602） ----\n\
  *\n\
  * brand・検索・GitHub・テーマトグルを DOM 順のまま 1 つの flex 行へ並べ、\n\
  * 検索は `flex: 1 0 100%`（`flex-basis: 100%`）で必ず単独の全幅行を占め、\n\
- * brand と同じ行には残らない（GitHub・テーマトグルは次段へ回る。`order` は\n\
- * 使わず視覚順と Tab 順を一致させる）。DOM は\n\
+ * brand と同じ行には残らない。イシュー #3659: 検索だけ `order: 1` で 2 段目へ\n\
+ * 送り、GitHub・テーマトグルを 1 段目に残して 3 段化を避ける（Tab 順は検索が\n\
+ * 先になるが、モバイルはタッチ主体でヘッダー内の独立コントロールのため許容）。\n\
+ * テーマトグルの可視ラベルは clip で隠し aria-label で名前を保つ。DOM は\n\
  * 変えず `.docs-header-actions` を `display: contents` にして子を\n\
  * `.docs-header-inner` の flex item へ繰り上げる。JS 無効時は\n\
  * `.docs-search[hidden]` が非表示のため 2 段目は存在せず、`min-height` は\n\
@@ -1798,7 +1813,7 @@ nav.prev-next .next .docs-pager-meta {\n\
   .docs-header-inner {\n\
     flex-wrap: wrap;\n\
     align-content: center;\n\
-    column-gap: 0.9rem;\n\
+    column-gap: 0.5rem;\n\
     row-gap: 0.35rem;\n\
     height: auto;\n\
     padding-top: 0.5rem;\n\
@@ -1814,7 +1829,17 @@ nav.prev-next .next .docs-pager-meta {\n\
   }\n\
 \n\
   .docs-search {\n\
+    order: 1;\n\
     flex: 1 0 100%;\n\
+  }\n\
+\n\
+  .docs-theme-toggle-label {\n\
+    position: absolute;\n\
+    width: 1px;\n\
+    height: 1px;\n\
+    overflow: hidden;\n\
+    clip: rect(0 0 0 0);\n\
+    white-space: nowrap;\n\
   }\n\
 \n\
   .docs-search-input {\n\
