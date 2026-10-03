@@ -1723,6 +1723,54 @@ fn code_copy_classes_never_appear_in_fixture_html() {
     }
 }
 
+/// ページ見出し関連 class（イシュー #3607、`crate::page_header`）。`build_site` が
+/// 差し込むためフルページのフィクスチャには現れず、`CODE_COPY_CLASSES` と同様に
+/// 層 1 本体とは別枠で固定する。
+const PAGE_HEADING_CLASSES: &[&str] = &["docs-page-heading", "docs-page-breadcrumb"];
+
+#[test]
+fn page_heading_classes_match_module_constants_and_have_css_selectors() {
+    use fandhe_frontend_docs_site::page_header;
+    assert_eq!(
+        PAGE_HEADING_CLASSES,
+        [
+            page_header::PAGE_HEADING_CLASS,
+            page_header::PAGE_BREADCRUMB_CLASS
+        ]
+    );
+    let css_tokens = extract_css_class_selectors(&site_css());
+    for class in PAGE_HEADING_CLASSES {
+        assert!(css_tokens.contains(*class), "{class} が site.css に無い");
+    }
+    for html in [full_page_html(true), full_page_html(false)] {
+        let tokens = extract_class_tokens(&html);
+        for class in PAGE_HEADING_CLASSES {
+            assert!(!tokens.contains(*class), "{class} がフィクスチャに出現した");
+        }
+    }
+}
+
+/// Primitives ページは breadcrumb recipe を持たない `site-primitives.css` を読むため、
+/// 番号付きリストに戻らないよう代替規則が両方の CSS にあることを固定する。
+#[test]
+fn page_breadcrumb_fallback_rules_exist_in_both_stylesheets() {
+    let with = site_css();
+    let without = site_theme::stylesheet_without_recipes()
+        .expect("site theme stylesheet without recipes should assemble")
+        .as_css()
+        .to_string();
+    for css in [&with, &without] {
+        let start = css
+            .find(".docs-content .docs-page-breadcrumb ol {")
+            .expect("パンくず ol の代替規則が無い");
+        let block = &css[start..];
+        let block = &block[..block.find('}').unwrap()];
+        for expected in ["display: flex;", "list-style: none;", "padding: 0;"] {
+            assert!(block.contains(expected), "{expected} が無い: {block}");
+        }
+    }
+}
+
 #[test]
 fn site_recipes_are_byte_identical_substrings_of_showcase_css_in_same_order() {
     let showcase = fandhe_frontend_docs_site::showcase::stylesheet()

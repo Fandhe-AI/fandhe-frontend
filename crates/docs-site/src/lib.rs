@@ -86,6 +86,8 @@
 //!   経路には乗せない（詳細は [`wireframes`] モジュール doc 参照）。専用 CSS
 //!   （`assets/wireframes.css`）は `crates/docs-site/tests/wireframes_contract.rs`
 //!   等が固定する
+//! - [`page_header`]: 本文先頭のパンくず付きページ見出し（イシュー #3607）。
+//!   [`build`] が生成節の挿入後に適用し、Markdown 由来の h1 を見出し部へ移す
 //! - [`page_sections`][]: 任意ページへ Rust 生成節を差し込む汎用フック
 //!   （イシュー #3598）。ページパスを鍵とする登録表（基盤導入時点では空）から
 //!   生成関数を引く第 5 の Rust 生成コンテンツ供給元で、[`build`] が
@@ -127,6 +129,7 @@ pub mod layout;
 pub mod linkcheck;
 pub mod markdown;
 pub mod nav;
+pub mod page_header;
 pub mod page_sections;
 pub mod primitive_showcase;
 pub mod primitive_specs;
