@@ -1462,3 +1462,44 @@ fn header_actions_can_shrink_on_narrow_viewports() {
     let actions = rule_body(&css, "\n.docs-header-actions {");
     assert!(actions.contains("min-width: 0;"));
 }
+
+/// コピーボタン関連 class（イシュー #3605、`crate::code_copy`）。Markdown の
+/// フェンスがあるページにだけ出現し、フルページのフィクスチャには現れない
+/// ため、`SEARCH_JS_ONLY_CLASSES` と同様に層 1 本体とは別の契約で固定する。
+const CODE_COPY_CLASSES: &[&str] = &["docs-code-block", "docs-code-copy", "docs-code-copy-status"];
+
+#[test]
+fn code_copy_classes_match_module_constants_and_have_css_selectors() {
+    use fandhe_frontend_docs_site::code_copy;
+    assert_eq!(
+        CODE_COPY_CLASSES,
+        [
+            code_copy::CODE_BLOCK_CLASS,
+            code_copy::COPY_BUTTON_CLASS,
+            code_copy::COPY_STATUS_CLASS
+        ]
+    );
+    let css_tokens = extract_css_class_selectors(&site_css());
+    for class in CODE_COPY_CLASSES {
+        assert!(css_tokens.contains(*class), "{class} が site.css に無い");
+    }
+}
+
+#[test]
+fn code_copy_classes_never_appear_in_fixture_html() {
+    for toc in [true, false] {
+        let tokens = extract_class_tokens(&full_page_html(toc));
+        for class in CODE_COPY_CLASSES {
+            assert!(!tokens.contains(*class), "{class} がフィクスチャに出現した");
+        }
+    }
+}
+
+#[test]
+fn generated_site_css_hides_code_copy_while_hidden_attribute_is_present() {
+    let css = site_css();
+    let idx = css
+        .find(".docs-code-copy[hidden]")
+        .expect("missing .docs-code-copy[hidden] rule");
+    assert!(css[idx..].contains("display: none"));
+}

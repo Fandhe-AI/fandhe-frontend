@@ -425,3 +425,33 @@ fn redirect_pages_contain_no_script_and_a_static_fallback_link() {
         );
     }
 }
+
+/// フェンスコードのコピーボタン（イシュー #3605、`crate::code_copy`）は
+/// 既定 `hidden` で出力され、`site.js` が配線完了後にのみ可視化する契約。
+/// フェンスを含むページが 1 件以上あることも fail-closed で確認する。
+#[test]
+fn code_copy_buttons_default_to_hidden() {
+    let (_out, files, _redirects) = build_real_site();
+    let mut pages_with_fences = 0usize;
+    for file in &files {
+        let html = std::fs::read_to_string(file).unwrap_or_else(|e| panic!("read {file:?}: {e}"));
+        let buttons = html.matches(r#"class="docs-code-copy""#).count();
+        let hidden = html.matches(r#"class="docs-code-copy" hidden"#).count();
+        let wrappers = html.matches(r#"class="docs-code-block""#).count();
+        assert_eq!(
+            buttons, hidden,
+            "{file:?}: every copy button must be hidden"
+        );
+        assert_eq!(
+            buttons, wrappers,
+            "{file:?}: one button per code block wrapper"
+        );
+        if buttons > 0 {
+            pages_with_fences += 1;
+        }
+    }
+    assert!(
+        pages_with_fences > 0,
+        "at least one page must contain a fenced code block (otherwise this contract is vacuous)"
+    );
+}
