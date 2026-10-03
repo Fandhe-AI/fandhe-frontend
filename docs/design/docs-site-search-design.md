@@ -305,7 +305,7 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
 | class | 要素 | 備考 |
 |---|---|---|
 | `docs-search` | `div`（既定 `hidden`） | JS が全配線完了後にのみ `hidden` を外す |
-| `docs-search-input` | `input[type=search]` | `data-search-index` 属性を持つ。`<form>` で包まない（JS 無効時に Enter で submit させないため） |
+| `docs-search-input` | `input[type=search]` | `data-search-index` 属性を持つ。`<form>` で包まない（JS 無効時に Enter で submit させないため）。#3606 以降は pre-styled-ui `input_group` の内側に置く素の input のまま（前側 addon に虫眼鏡、後ろ側 addon に `kbd` の「/」。`aria-keyshortcuts="/"` を持つ）。`label` と結果一覧 `ul` は group の外側の兄弟 |
 | `docs-search-results` | `ul`（`role="listbox"`、既定 `hidden`） | |
 | `docs-search-result` | `li`（`role="option"`） | 子に `a[href]` |
 | `docs-search-result-title` | `span` | ページタイトル |

@@ -92,6 +92,24 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 - 折りたたみ目次の開閉アイコンは素の `svg.docs-toc-inline-icon`（`icon::icon` は使わない。recipe 抜きの `site-primitives.css` で `fd-icon--size-md` が未定義になるため）。`details[open]` で CSS 回転し、`prefers-reduced-motion` では transition を外す。
 - 色トークンは新設せず、スクロールスパイ以外の JS は追加しない。
 
+### 3.2 ヘッダー操作部の確定事項（#3606）
+
+手本は `navbar-docs-site`（構造のみ参照）。`docs-*` class の契約（HTML への出現・`site.css` のセレクタ・`SITE_JS` のセレクタ・`no_js_contract` のリテラル）は削除も緩和もしない。pre-styled-ui の root 部品は呼び出し側の `class` を捨てるため、`docs-*` class は自前の要素（ラッパーまたは素の要素）に残し、pre-styled-ui 部品はその内側へ置く。
+
+| 対象 | DOM（概略） | 備考 |
+|------|-------------|------|
+| ブランド | `a.docs-brand > span.docs-brand-mark[aria-hidden] > svg`（`favicon::mark_node()`）+ テキスト。直後の兄弟に `span.docs-brand-version > badge` | ロゴは favicon と同図案。`mark_node` の `role="img"` を可視テキストと二重に読ませないようラッパーで隠す。badge は brand リンクの外 |
+| 検索 | `div.docs-search[hidden] > label` + `input_group::root > [addon(虫眼鏡), 素の input.docs-search-input, addon(kbd「/」)]` + `ul.docs-search-results` | `input::input` は class を捨てるため使わない。label と ul は group の外（root は `flex-wrap` のため中に入れると行が増える）。`/` の移動は既存 `site.js` が担う |
+| GitHub | `span.docs-github-link > link::root(external: true) > [icon, 「GitHub」]` | `external: true` が `target="_blank"` と `rel="noopener noreferrer"` を一緒に付ける。attrs で重ねると属性が重複する |
+| テーマトグル | `span.docs-theme-toggle[hidden] > button(ghost, sm) > [icon, span.docs-theme-toggle-label]` | 既定 `hidden` の契約は維持。`site.js` はラベル span の `textContent` のみ書き換える（ボタン全体を書き換えるとアイコンが消える） |
+| セクションナビ | DOM は変更しない（素の `nav/ul/li/a` + CSS のドロップダウン） | CSS のみで tab_nav 風（下線 + 前景色 + medium ウェイト）。`data-scope="tab-nav"` は持ち込まない。新しい色トークンは足さない |
+
+新規の `docs-*` class は `docs-brand-mark`・`docs-brand-version`・`docs-theme-toggle-label` の 3 件で、`STRUCTURE_CLASS_CONTRACT` へ追加した。使う recipe（button / badge / input_group / kbd / icon / link）は #3599 の供給済みで、`SITE_RECIPES` への追加は要らない。
+
+**バージョン badge の crate**: `fandhe-frontend-core` を表示する（文言は `core v{version}`）。理由は、README の導入手順で最初に `cargo add` する入口クレートであること、全 UI 層・server・wasm 系の共通基盤であること、版数が頻繁に上がる pre-styled-ui を「fandhe-frontend」ブランドの横に出すとフレームワーク全体の版と誤読されやすいこと。値は `crate::site_version` が `crates/core/Cargo.toml` を `include_str!` で取り込み、`[package]` テーブルの `version` を解析して得る（手書きしない。`build_site` の `repo_root` に依存しないためテストフィクスチャも壊れない）。解析失敗・許可文字（英数字・`.`・`-`・`+`）以外を含む場合は `None` を返して badge を出さない（fail-closed）。版数が古いまま公開されないよう、`docs-site.yml` の `on.push.paths` に `crates/core/Cargo.toml` を追加した（ジョブ名と必須チェックは変えない）。
+
+**契約テストの範囲絞り込み（§9.3 からの逸脱）**: `tests/blocks_contract.rs` の `game_ui_modal_composes_expected_parts`（`data-scope="button"` が 2 件）と `banner_announcement_pill_composes_expected_parts`（`data-scope="link" data-part="root"` が 4 件）はページ全体の HTML で厳密な件数を数えていたため、ヘッダーに pre-styled-ui 部品を足すと必ず失敗する。期待値は変えず、数える範囲を `</header>` 以降（block 側の領域）へ絞った。同ファイルにはヘッダーの GitHub href を除外するために範囲を絞った先例がある。検証内容は弱めていない。
+
 ## 4. CSS 供給方針
 
 - 使う recipe だけを `site.css` へ積む（#3599）。全 recipe の一括積みは禁止する（サイズと契約テストの肥大を避ける）。
