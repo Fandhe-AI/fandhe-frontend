@@ -172,7 +172,8 @@ pub const INLINE_THEME_BOOTSTRAP: &str = "try{var t=localStorage.getItem(`fandhe
 ///     keydown で `dialog.close()`）・背景クリック（押下位置と click 対象がともに
 ///     dialog のときだけ）・結果リンクのクリックで閉じる。`close` イベントが
 ///     結果掃除・入力クリア・`aria-expanded` 同期・ボタンへのフォーカス復帰の
-///     合流点。`input` 上の `ArrowDown`/`ArrowUp` で選択移動（端で停止、
+///     合流点（結果リンクで閉じた場合のみフォーカス復帰を省き、移動先の焦点を
+///     奪わない）。`input` 上の `ArrowDown`/`ArrowUp` で選択移動（端で停止、
 ///     循環しない）、`Enter` で選択項目のアンカーを `click()` する
 ///     （`location.href` への代入はしない）。選択位置は
 ///     `aria-activedescendant`（未選択時は除去）で表す。
@@ -469,6 +470,7 @@ pub const SITE_JS: &str = "\
   var selectedIndex = -1;
   var currentResults = [];
   var downOnBackdrop = false;
+  var skipFocusRestore = false;
 
   function setExpanded(expanded) {
     input.setAttribute(`aria-expanded`, expanded ? `true` : `false`);
@@ -770,6 +772,11 @@ pub const SITE_JS: &str = "\
       clearResults();
       input.value = ``;
       syncExpanded();
+      // 結果リンクで閉じた場合は移動先（#hash の見出し等）の焦点を奪わない。
+      if (skipFocusRestore) {
+        skipFocusRestore = false;
+        return;
+      }
       trigger.focus({ preventScroll: true });
     });
 
@@ -794,6 +801,7 @@ pub const SITE_JS: &str = "\
           return;
         }
         if (node.tagName === `A`) {
+          skipFocusRestore = true;
           dialog.close();
           return;
         }
@@ -1248,6 +1256,8 @@ mod tests {
         // Escape は dialog.close() に集約し、掃除とフォーカス復帰は close ハンドラ側。
         assert!(search.contains("dialog.close();"));
         assert!(search.contains("trigger.focus("));
+        // 結果リンクで閉じた場合はフォーカス復帰を省く。
+        assert!(search.contains("skipFocusRestore = true;"));
         // 背景クリックは押下位置と click の対象がともに dialog のときだけ閉じる。
         assert!(search.contains("downOnBackdrop = event.target === dialog;"));
         assert!(search.contains("event.target === dialog"));
