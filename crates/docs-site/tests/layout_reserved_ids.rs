@@ -7,7 +7,7 @@
 //! レイアウト自身の固定 `id`（`label[for]`/`aria-controls` の関連付け先）と
 //! 衝突しないよう、走査前にそれらを予約する。しかし `TOC_HEADING_ID`
 //! （右目次見出し、イシュー #950）のみを予約する実装だったため、
-//! `docs-search-input`/`docs-search-results`/`docs-sidebar-toggle` の 3 件は
+//! `docs-search-input`/`docs-search-results`/`docs-nav-drawer-toggle`（旧 `docs-sidebar-toggle`）の 3 件は
 //! 予約対象外のまま放置されており、`site/**.md` に「Docs search input」の
 //! ような見出しがあると `id` 重複（HTML 仕様違反、関連付け破壊）が
 //! 発生し得た。`layout::RESERVED_LAYOUT_IDS` は今後この 4 件（および将来
@@ -36,7 +36,8 @@ use std::collections::HashSet;
 
 use fandhe_frontend_core::{h2, p, render, text};
 use fandhe_frontend_docs_site::layout::{
-    docs_page, with_heading_anchors, RESERVED_LAYOUT_IDS, SEARCH_DIALOG_ID, SEARCH_INPUT_ID,
+    docs_page, docs_page_with_layout, with_heading_anchors, PageLayout, RESERVED_LAYOUT_IDS,
+    SEARCH_DIALOG_ID, SEARCH_INPUT_ID,
 };
 use fandhe_frontend_pre_styled_ui::skip_nav::DEFAULT_ID as SKIP_NAV_ID;
 
@@ -45,6 +46,27 @@ fn sample_sidebar() -> fandhe_frontend_core::Node {
         vec![],
         vec![fandhe_frontend_core::li(vec![], vec![text("はじめに")])],
     )
+}
+
+/// ナビ drawer 付きでページを描画する（固定 `id` の `docs-nav-drawer-toggle` は
+/// drawer を渡したときだけ出力されるため、予約一覧との突合はこの経路で行う、イシュー #3674）。
+fn page_with_drawer(body: fandhe_frontend_core::Node) -> String {
+    let drawer = fandhe_frontend_core::el(
+        "nav",
+        vec![("class", "docs-nav-drawer")],
+        vec![text("drawer")],
+    );
+    render(&docs_page_with_layout(
+        "タイトル",
+        "",
+        sample_sidebar(),
+        body,
+        &[],
+        None,
+        Some(drawer),
+        None,
+        PageLayout::Docs,
+    ))
 }
 
 /// html 文字列中の全 `id="..."` 属性値を収集する。属性の直前には必ず
@@ -75,7 +97,7 @@ fn extract_id_attrs(html: &str) -> HashSet<String> {
 #[test]
 fn all_reserved_layout_ids_appear_in_rendered_html_with_headings() {
     let body = fandhe_frontend_core::div(vec![], vec![h2(vec![], vec![text("導入")])]);
-    let html = render(&docs_page("タイトル", "", sample_sidebar(), body));
+    let html = page_with_drawer(body);
 
     for id in RESERVED_LAYOUT_IDS {
         assert!(
@@ -102,7 +124,7 @@ fn all_reserved_layout_ids_appear_in_rendered_html_with_headings() {
 #[test]
 fn rendered_html_without_headings_has_no_id_outside_reserved_layout_ids() {
     let body = p(vec![], vec![text("見出しの無い本文です。")]);
-    let html = render(&docs_page("タイトル", "", sample_sidebar(), body));
+    let html = page_with_drawer(body);
 
     let allowed: HashSet<String> = RESERVED_LAYOUT_IDS.iter().map(|s| s.to_string()).collect();
 

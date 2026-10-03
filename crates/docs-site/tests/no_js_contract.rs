@@ -23,7 +23,7 @@
 //!    のみ唯一の例外として許容する。`try/catch` で `localStorage` 例外を
 //!    握りつぶす自己完結スニペットで、JS 無効環境では単に実行されず既定
 //!    テーマのまま表示されるだけで閲覧・ナビゲーションには影響しない）
-//! 6. CSS 側に JS 非依存の開閉経路（`.docs-sidebar-toggle:checked`・
+//! 6. CSS 側に JS 非依存の開閉経路（`.docs-nav-drawer-toggle:checked ~ .docs-nav-drawer`・
 //!    `.docs-header-group:hover`/`:focus-within`）が存在する
 //!
 //! ことを機械的に検証する。4・6 は `crate::site_theme` の unit test /
@@ -316,6 +316,51 @@ fn sidebar_and_header_and_prev_next_navigation_uses_static_anchor_hrefs() {
     }
 }
 
+/// イシュー #3674: ナビ drawer は JS なしで開閉できる形（checkbox が drawer より前の兄弟）で
+/// 全本体ページに存在し、内部は静的な `<a href>` だけで構成され、動的 ARIA 状態
+/// （`role`/`aria-expanded`/`aria-haspopup`）と `id` を持たない。
+#[test]
+fn nav_drawer_is_js_free_static_and_has_no_dynamic_aria_or_ids() {
+    let (_out, files, _redirects) = build_real_site();
+    let mut checked = 0usize;
+    for file in &files {
+        let html = std::fs::read_to_string(file).unwrap_or_else(|e| panic!("read {file:?}: {e}"));
+        let Some(class_pos) = html.find(r#"class="docs-nav-drawer""#) else {
+            continue;
+        };
+        let nav_start = html[..class_pos].rfind("<nav").expect("drawer nav start");
+        let nav_end = nav_start + html[nav_start..].find("</nav>").expect("drawer nav end");
+        let drawer = &html[nav_start..nav_end];
+
+        let toggle_pos = html
+            .find(r#"id="docs-nav-drawer-toggle""#)
+            .unwrap_or_else(|| panic!("{file:?}: toggle checkbox missing"));
+        assert!(
+            toggle_pos < nav_start,
+            "{file:?}: checkbox must precede the drawer"
+        );
+        assert!(drawer.contains("<a ") && drawer.contains("href=\""));
+        for forbidden in [
+            "role=",
+            "aria-expanded",
+            "aria-haspopup",
+            " id=",
+            "<script",
+            "onclick",
+        ] {
+            assert!(
+                !drawer.contains(forbidden),
+                "{file:?}: drawer must not contain `{forbidden}`"
+            );
+        }
+        checked += 1;
+    }
+    assert!(
+        checked > 0,
+        "at least one page should render the nav drawer"
+    );
+}
+
 /// イシュー #1080: `min-width: 1200px` 未満で右目次カラム
 /// （`aside.docs-toc-aside`）が `display: none` になる代替として、本文冒頭の
 /// 折りたたみ目次（`nav.docs-toc-inline`）が JS 無効でも踏める形で存在する
@@ -364,8 +409,8 @@ fn structural_css_declares_js_independent_toggle_and_dropdown_paths() {
         .expect("dist/assets/site.css should be generated");
     let css = css.as_str();
     assert!(
-        css.contains(".docs-sidebar-toggle:checked ~ nav.sidebar"),
-        "structural CSS should keep the JS-free checkbox-driven sidebar toggle path (イシュー #916)"
+        css.contains(".docs-header .docs-nav-drawer-toggle:checked ~ nav.docs-nav-drawer"),
+        "structural CSS should keep the JS-free checkbox-driven nav drawer path (イシュー #3674)"
     );
     assert!(
         css.contains(".docs-header-group:hover > .docs-header-dropdown")

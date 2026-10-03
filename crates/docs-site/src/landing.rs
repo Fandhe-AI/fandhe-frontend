@@ -743,7 +743,7 @@ fn features(base_path: &str) -> Node {
 ///
 /// `.docs-container.docs-landing`（詳細度 0,2,0）で標準骨格の grid 指定を後出しで解く。
 /// サイドバーは DOM に残し、768px 以上でだけ隠す（768px 未満はヘッダーナビが
-/// 非表示で、サイドバーの Menu トグルが唯一のナビ手段）。
+/// 非表示で、ヘッダーのナビ drawer が全セクションへの手段）。
 pub const CSS: &str = "\
 /*\n\
  * ---- トップのランディング骨格とヒーロー（イシュー #3612、`crate::landing`） ----\n\

@@ -36,6 +36,27 @@ fn docs_page_renders_a_single_complete_document() {
     assert!(html.contains(r#"href="/assets/site.css""#));
 }
 
+/// codex P1（PR #3688）: ナビ drawer を渡さない `docs_page` 系の出力は、768px 未満でも
+/// サイドバーを残すため `data-no-nav-drawer` を container へ付ける。drawer ありでは付けない。
+#[test]
+fn container_marks_missing_nav_drawer_so_sidebar_stays_visible() {
+    let body = p(vec![], vec![text("本文です。")]);
+    let without = render(&docs_page("T", "", sample_sidebar(), body.clone()));
+    assert!(without.contains(r#"class="docs-container docs-container--no-toc" data-no-nav-drawer"#));
+    let with = render(&docs_page_with_layout(
+        "T",
+        "",
+        sample_sidebar(),
+        body,
+        &[],
+        None,
+        Some(ul(vec![], vec![])),
+        None,
+        PageLayout::Docs,
+    ));
+    assert!(!with.contains("data-no-nav-drawer"));
+}
+
 /// イシュー #776: SkipNav の `link` は `<body>` 先頭（`docs-header` より前）、
 /// `content`（スキップ先ターゲット）は `main` 内の本文（`docs-content`）
 /// より前に出力される。専用 CSS（`assets/skip-nav.css`）への `<link>` も
@@ -436,44 +457,65 @@ fn docs_page_emits_three_columns_in_left_nav_center_content_right_toc_order() {
     );
 }
 
-/// イシュー #907（レビュー指摘、commit e01a23d）: `< 768px` の左ナビ折りたたみを
-/// タッチ操作でも開閉できるようにするチェックボックスハック
-/// （`input#docs-sidebar-toggle` + `label[for=docs-sidebar-toggle]`）の
-/// markup・id/for 紐付け・DOM 順を固定する回帰テスト。`site.css` の CSS
-/// 一般兄弟結合子 `.docs-sidebar-toggle:checked ~ nav.sidebar` が機能する
-/// ためには `input` が `label`・`nav`（`sidebar` 引数のルート要素）より
-/// 先に出現する必要があり、markup の並び順が誤って変更された場合に
-/// この回帰テストが検知する。
+/// イシュー #3674: ナビ drawer のチェックボックスハック
+/// （`input#docs-nav-drawer-toggle` + `label[for]` + `nav.docs-nav-drawer`）の
+/// markup・id/for 紐付け・DOM 順を固定する回帰テスト。CSS の一般兄弟結合子
+/// `.docs-nav-drawer-toggle:checked ~ .docs-nav-drawer` が機能するには、`input` が
+/// drawer より前の兄弟（同じ `div.docs-header-inner` の子）である必要がある。
+/// `nav_drawer: None` のときは toggle・label・drawer のいずれも出力しない。
 #[test]
-fn docs_sidebar_toggle_checkbox_and_label_are_wired_before_sidebar_nav() {
+fn nav_drawer_toggle_is_wired_before_drawer_in_header_inner() {
     let body = p(vec![], vec![text("本文です。")]);
-    let node = docs_page("タイトル", "", sample_sidebar(), body);
-    let html = render(&node);
+    let drawer = fandhe_frontend_core::el(
+        "nav",
+        vec![("class", "docs-nav-drawer")],
+        vec![text("ドロワー本文")],
+    );
+    let html = render(&docs_page_with_layout(
+        "タイトル",
+        "",
+        sample_sidebar(),
+        body.clone(),
+        &[],
+        None,
+        Some(drawer),
+        None,
+        PageLayout::Docs,
+    ));
 
     assert!(html.contains(r#"type="checkbox""#));
-    assert!(html.contains(r#"id="docs-sidebar-toggle""#));
-    assert!(html.contains(r#"class="docs-sidebar-toggle""#));
-    assert!(html.contains(r#"for="docs-sidebar-toggle""#));
-    assert!(html.contains(r#"class="docs-sidebar-toggle-label""#));
+    assert!(html.contains(r#"id="docs-nav-drawer-toggle""#));
+    assert!(html.contains(r#"class="docs-nav-drawer-toggle""#));
+    assert!(html.contains(r#"autocomplete="off""#));
+    assert!(html.contains(r#"for="docs-nav-drawer-toggle""#));
+    assert!(html.contains(r#"class="docs-nav-drawer-toggle-label""#));
 
-    let toggle_pos = html
-        .find(r#"id="docs-sidebar-toggle""#)
-        .expect("sidebar toggle checkbox should exist");
-    let label_pos = html
-        .find(r#"for="docs-sidebar-toggle""#)
-        .expect("sidebar toggle label should exist");
-    let sidebar_nav_pos = html
-        .find("はじめに")
-        .expect("sidebar nav content should exist");
+    let toggle_pos = html.find(r#"id="docs-nav-drawer-toggle""#).expect("toggle");
+    let label_pos = html.find(r#"for="docs-nav-drawer-toggle""#).expect("label");
+    let drawer_pos = html.find("ドロワー本文").expect("drawer");
+    let actions_pos = html.find("docs-header-actions").expect("actions");
+    let inner_end = html.find("</header>").expect("header end");
+    assert!(actions_pos < toggle_pos, "toggle follows the actions group");
+    assert!(toggle_pos < label_pos && label_pos < drawer_pos);
+    assert!(drawer_pos < inner_end, "drawer lives inside the header");
 
-    assert!(
-        toggle_pos < label_pos,
-        "checkbox input must precede its label for the CSS general sibling combinator to apply"
-    );
-    assert!(
-        label_pos < sidebar_nav_pos,
-        "label must precede nav.sidebar so `.docs-sidebar-toggle:checked ~ nav.sidebar` matches"
-    );
+    // 旧サイドバー Menu トグルは aside から取り除かれている。
+    assert!(!html.contains("docs-sidebar-toggle"));
+
+    // `None` なら toggle・label は出ず、id も増えない。
+    let plain = render(&docs_page_with_layout(
+        "タイトル",
+        "",
+        sample_sidebar(),
+        body,
+        &[],
+        None,
+        None,
+        None,
+        PageLayout::Docs,
+    ));
+    assert!(!plain.contains("docs-nav-drawer"));
+    assert!(!plain.contains(r#"type="checkbox""#));
 }
 
 #[test]
@@ -1389,6 +1431,7 @@ fn landing_layout_drops_toc_but_keeps_sidebar_and_skip_nav_order() {
         &[],
         None,
         None,
+        None,
         PageLayout::Landing,
     ));
     assert!(landing.contains(r#"class="docs-container docs-landing""#));
@@ -1408,6 +1451,7 @@ fn landing_layout_drops_toc_but_keeps_sidebar_and_skip_nav_order() {
         sample_sidebar(),
         body.clone(),
         &[],
+        None,
         None,
         None,
         PageLayout::Docs,

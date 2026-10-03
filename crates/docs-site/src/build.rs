@@ -661,6 +661,7 @@ pub fn build_site_with(
             body,
             &extra_stylesheets,
             Some(nav::header_nav(&nav, &page.path)),
+            Some(nav::nav_drawer(&nav, &page.path)),
             Some(footer_node.clone()),
             page_sections::layout_for_path_in(registry, &page.path),
         );
