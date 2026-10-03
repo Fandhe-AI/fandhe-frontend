@@ -1561,6 +1561,15 @@ const LANDING_CLASSES: &[&str] = &[
     "docs-features-title",
     "docs-features-grid",
     "docs-feature",
+    "docs-code-example",
+    "docs-code-example-title",
+    "docs-code-example-lead",
+    "docs-code-example-body",
+    "docs-code-example-source",
+    "docs-cta",
+    "docs-cta-title",
+    "docs-cta-lead",
+    "docs-cta-actions",
 ];
 
 /// `/quickstart/` を現在ページとするランディング骨格のフィクスチャ HTML。

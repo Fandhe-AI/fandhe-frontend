@@ -11,7 +11,13 @@
 //! 別ファイルにしない）。後続の #3613〜#3615（特徴グリッド・入口カード・
 //! コード例と CTA）は `/` の登録を増やせない（`DuplicatePath`）ので、
 //! [`render`] の返す節列へ追記して拡張する。節の並びは「ヒーロー → 特徴グリッド
-//! （#3613）」で、原稿 `site/index.md` の `## はじめる` がその後ろへ続く。
+//! （#3613）→ コード例 → 締めの CTA（#3615）」で、原稿 `site/index.md` の
+//! `## はじめる` がその後ろへ続く。
+//!
+//! - コード例（#3615）は `snippets/landing_ssr.rs` を [`SSR_SNIPPET`] として
+//!   `include_str!` し、同じファイルを `tests/landing_snippet.rs` が実コンパイルする。
+//!   CTA は `<a>` の 2 件（クイックスタート / ガイド一覧）で、ボタン風の見た目は
+//!   ヒーローと同じ `data-docs-hero-cta` 属性で当てる。
 //!
 //! # 設計判断
 //!
@@ -54,6 +60,7 @@ use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSi
 use fandhe_frontend_pre_styled_ui::Size;
 
 use crate::code_copy;
+use crate::highlight;
 use crate::layout::{asset_href, REPOSITORY_URL};
 
 /// 登録先ページパス（`site/nav.toml` の「はじめに」）。
@@ -76,6 +83,15 @@ pub const CLASSES: &[&str] = &[
     "docs-features-title",
     "docs-features-grid",
     "docs-feature",
+    "docs-code-example",
+    "docs-code-example-title",
+    "docs-code-example-lead",
+    "docs-code-example-body",
+    "docs-code-example-source",
+    "docs-cta",
+    "docs-cta-title",
+    "docs-cta-lead",
+    "docs-cta-actions",
 ];
 
 /// CTA の見た目指定に使う属性名（値は `primary` / `secondary`）。
@@ -117,7 +133,97 @@ fn cargo_package_version(toml: &'static str) -> Option<&'static str> {
 /// トップページへ差し込む節列。後続イシューはここへ節を追記する。
 #[must_use]
 pub fn render(base_path: &str) -> Vec<Node> {
-    vec![hero(base_path), features(base_path)]
+    vec![
+        hero(base_path),
+        features(base_path),
+        code_example(base_path),
+        closing_cta(base_path),
+    ]
+}
+
+/// トップに表示する最小 SSR コード例の本文（#3615）。
+///
+/// `tests/landing_snippet.rs` が同じファイルを `#[path]` で実コンパイル・実行するため、
+/// 表示と検証は構造上ドリフトしない（API 変更はそのテストのコンパイルエラーで検知される）。
+pub const SSR_SNIPPET: &str = include_str!("../snippets/landing_ssr.rs");
+
+/// コード例節（h2 + 説明 + ハイライト済みコピー付きコード + 完全なサンプルへのリンク）。
+///
+/// 表示文字列は末尾改行だけを落とす（末尾の空行を出さないため。それ以外は不変）。
+/// ハイライトのトークンは最終的にすべて `text()` を通るので既定エスケープを保つ。
+fn code_example(base_path: &str) -> Node {
+    let src = SSR_SNIPPET.trim_end_matches('\n');
+    let children = highlight::highlight_children(src, "rust").unwrap_or_else(|| vec![text(src)]);
+    let sample = asset_href(base_path, "examples/ssr-routing/");
+    section(
+        vec![("class", "docs-code-example")],
+        vec![
+            h2(
+                vec![("class", "docs-code-example-title")],
+                vec![text("最小の SSR")],
+            ),
+            p(
+                vec![("class", "docs-code-example-lead")],
+                vec![text(
+                    "ノード木 API だけで HTML 文書を組み立てます。補間する値は既定でエスケープされます。",
+                )],
+            ),
+            div(
+                vec![("class", "docs-code-example-body")],
+                vec![code_copy::copy_block(pre(
+                    vec![],
+                    vec![code(vec![("class", "language-rust")], children)],
+                ))],
+            ),
+            p(
+                vec![("class", "docs-code-example-source")],
+                vec![link::root(
+                    &sample,
+                    &LinkProps::default(),
+                    vec![],
+                    vec![text("完全なサンプル（ssr-routing）")],
+                )],
+            ),
+        ],
+    )
+}
+
+/// 締めの CTA 節（クイックスタートとガイド一覧の 2 件。`<a>` のみで JS 不要）。
+///
+/// `card` で包まないのは、`data-scope` 配下が検索インデックスから外れるため（ヒーローと同じ判断）。
+fn closing_cta(base_path: &str) -> Node {
+    let quickstart = asset_href(base_path, "getting-started/quickstart/");
+    let guides = asset_href(base_path, "guides/");
+    section(
+        vec![("class", "docs-cta")],
+        vec![
+            h2(
+                vec![("class", "docs-cta-title")],
+                vec![text("はじめましょう")],
+            ),
+            p(
+                vec![("class", "docs-cta-lead")],
+                vec![text("数分で最初のページを描画できます。")],
+            ),
+            div(
+                vec![("class", "docs-cta-actions")],
+                vec![
+                    link::root(
+                        &quickstart,
+                        &LinkProps::default(),
+                        vec![(CTA_ATTR, "primary")],
+                        vec![text("クイックスタート")],
+                    ),
+                    link::root(
+                        &guides,
+                        &LinkProps::default(),
+                        vec![(CTA_ATTR, "secondary")],
+                        vec![text("ガイド一覧")],
+                    ),
+                ],
+            ),
+        ],
+    )
 }
 
 /// ヒーロー節（badge・h1・リード文・インストールコマンド・CTA 2 件）。
@@ -426,14 +532,16 @@ pub const CSS: &str = "\
   user-select: none;\n\
 }\n\
 \n\
-.docs-hero-actions {\n\
+.docs-hero-actions,\n\
+.docs-cta-actions {\n\
   display: flex;\n\
   flex-direction: column;\n\
   gap: 0.75rem;\n\
   align-items: stretch;\n\
 }\n\
 \n\
-.docs-hero-actions [data-scope=\"link\"] {\n\
+.docs-hero-actions [data-scope=\"link\"],\n\
+.docs-cta-actions [data-scope=\"link\"] {\n\
   display: inline-flex;\n\
   align-items: center;\n\
   justify-content: center;\n\
@@ -446,23 +554,27 @@ pub const CSS: &str = "\
   background: var(--fandhe-color-bg);\n\
 }\n\
 \n\
-.docs-hero-actions [data-scope=\"link\"]:hover {\n\
+.docs-hero-actions [data-scope=\"link\"]:hover,\n\
+.docs-cta-actions [data-scope=\"link\"]:hover {\n\
   border-color: var(--fandhe-color-accent);\n\
 }\n\
 \n\
-.docs-hero-actions [data-scope=\"link\"][data-docs-hero-cta=\"primary\"] {\n\
+.docs-hero-actions [data-scope=\"link\"][data-docs-hero-cta=\"primary\"],\n\
+.docs-cta-actions [data-scope=\"link\"][data-docs-hero-cta=\"primary\"] {\n\
   color: var(--fandhe-color-bg);\n\
   background: var(--fandhe-color-accent);\n\
   border-color: var(--fandhe-color-accent);\n\
 }\n\
 \n\
-.docs-hero-actions [data-scope=\"link\"]:focus-visible {\n\
+.docs-hero-actions [data-scope=\"link\"]:focus-visible,\n\
+.docs-cta-actions [data-scope=\"link\"]:focus-visible {\n\
   outline: 2px solid var(--fandhe-color-accent);\n\
   outline-offset: 2px;\n\
 }\n\
 \n\
 @media (min-width: 640px) {\n\
-  .docs-hero-actions {\n\
+  .docs-hero-actions,\n\
+  .docs-cta-actions {\n\
     flex-direction: row;\n\
     justify-content: center;\n\
   }\n\
@@ -565,6 +677,54 @@ pub const CSS: &str = "\
   outline: 2px solid var(--fandhe-color-accent);\n\
   outline-offset: 2px;\n\
   border-radius: var(--fandhe-radius-sm);\n\
+}\n\
+\n\
+/*\n\
+ * ---- コード例と締めの CTA（イシュー #3615） ----\n\
+ */\n\
+\n\
+.docs-landing .docs-code-example,\n\
+.docs-landing .docs-cta {\n\
+  max-width: 52rem;\n\
+  margin: 0 auto;\n\
+  padding: 2rem 0;\n\
+}\n\
+\n\
+.docs-landing .docs-code-example-title,\n\
+.docs-landing .docs-cta-title {\n\
+  margin: 0 0 0.75rem;\n\
+  padding: 0;\n\
+  border: 0;\n\
+  text-align: center;\n\
+  font-size: var(--fandhe-font-font-size-xl);\n\
+  font-weight: var(--fandhe-font-font-weight-semibold);\n\
+  color: var(--fandhe-color-fg);\n\
+}\n\
+\n\
+.docs-landing .docs-code-example-lead,\n\
+.docs-landing .docs-cta-lead {\n\
+  margin: 0 0 1.25rem;\n\
+  text-align: center;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+}\n\
+\n\
+.docs-code-example-body {\n\
+  min-width: 0;\n\
+  text-align: left;\n\
+}\n\
+\n\
+.docs-landing .docs-code-example-source {\n\
+  margin: 0.75rem 0 0;\n\
+  text-align: right;\n\
+}\n\
+\n\
+.docs-landing .docs-cta {\n\
+  margin-bottom: 2rem;\n\
+  padding: 2rem 1rem;\n\
+  text-align: center;\n\
+  background: var(--fandhe-color-bg-muted);\n\
+  border: 1px solid var(--fandhe-color-border);\n\
+  border-radius: var(--fandhe-radius-sm);\n\
 }\n";
 
 #[cfg(test)]
@@ -653,6 +813,66 @@ mod tests {
         for f in &FEATURES {
             let path = format!("/{}", f.href_rel);
             assert!(nav.all_pages().any(|p| p.path == path), "{path}");
+        }
+    }
+
+    #[test]
+    fn code_example_and_cta_close_the_page() {
+        let nodes = render("/fandhe-frontend");
+        let n = nodes.len();
+        let last = render_node(&nodes[n - 1]);
+        let prev = render_node(&nodes[n - 2]);
+        assert!(last.starts_with("<section class=\"docs-cta\""));
+        assert!(prev.starts_with("<section class=\"docs-code-example\""));
+        for needle in [
+            "language-rust",
+            "<span class=\"docs-code-lang\">Rust</span>",
+            "docs-code-copy\" hidden",
+            "hello_page",
+        ] {
+            assert!(prev.contains(needle), "{needle}");
+        }
+        assert_eq!(last.matches(&format!("{CTA_ATTR}=\"primary\"")).count(), 1);
+        assert_eq!(
+            last.matches(&format!("{CTA_ATTR}=\"secondary\"")).count(),
+            1
+        );
+        for h in [&last, &prev] {
+            for bad in [
+                "target=\"_blank\"",
+                "<button type=\"submit",
+                "href=\"#\"",
+                " on",
+                "id=\"",
+            ] {
+                assert!(!h.contains(bad), "{bad}");
+            }
+        }
+        assert!(!last.contains("<button"));
+    }
+
+    #[test]
+    fn cta_and_sample_hrefs_are_real_nav_pages() {
+        let raw = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../site/nav.toml"),
+        )
+        .expect("read nav");
+        let nav = crate::nav::parse_nav(&raw).expect("parse nav");
+        for rel in [
+            "getting-started/quickstart/",
+            "guides/",
+            "examples/ssr-routing/",
+        ] {
+            let path = format!("/{rel}");
+            assert!(nav.all_pages().any(|p| p.path == path), "{path}");
+        }
+    }
+
+    #[test]
+    fn snippet_lines_are_short_and_tab_free() {
+        for line in SSR_SNIPPET.lines() {
+            assert!(line.chars().count() <= 80, "{line}");
+            assert!(!line.contains('\t'));
         }
     }
 
