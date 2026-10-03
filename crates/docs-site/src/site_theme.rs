@@ -2184,6 +2184,7 @@ fn assemble(with_recipes: bool) -> Result<StyleSheet, SiteThemeError> {
         }
     }
     sheet.push_css(STRUCTURAL_CSS)?;
+    sheet.push_css(crate::landing::CSS)?;
     sheet.push_css(&typography_css()?)?;
     sheet.push_css(&highlight_css()?)?;
     Ok(sheet)

@@ -79,8 +79,8 @@
 //!
 //! 任意ページへ Rust 生成節を差し込む第 5 の経路。ステップ 2 で
 //! [`blocks`]/[`wireframes`] の挿入の直後に
-//! [`page_sections::insert_generated_sections_with`] を呼ぶ（登録表が空の間は
-//! 全ページ no-op で出力は変わらない）。登録表の整合は nav 検証直後に
+//! [`page_sections::insert_generated_sections_with`] を呼ぶ（未登録ページは
+//! no-op で出力は変わらない。本番ではトップのヒーローのみ登録、#3612）。登録表の整合は nav 検証直後に
 //! [`page_sections::validate`] が書き出し前に検証し、使われた追加 CSS だけを
 //! href 登録・書き出しする。本番は [`build_site`]、合成登録表を使うテストは
 //! [`build_site_with`] を使う。
@@ -643,13 +643,14 @@ pub fn build_site_with(
         body_children.push(nav::prev_next_nav(&nav, &page.path));
         let body = div(vec![], body_children);
 
-        let document = layout::docs_page_with_assets(
+        let document = layout::docs_page_with_layout(
             &page.title,
             &nav.site.base_path,
             nav::sidebar(&nav, &page.path),
             body,
             &extra_stylesheets,
             Some(nav::header_nav(&nav, &page.path)),
+            page_sections::layout_for_path_in(registry, &page.path),
         );
 
         pages.push((page.path.clone(), document));
@@ -1014,6 +1015,7 @@ fn copy_assets(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::page_sections::EMPTY_REGISTRY;
 
     /// テスト専用の一時ディレクトリ。`nav.rs`/`ssg.rs` のテストヘルパーと
     /// 同方針（外部クレート `tempfile` を追加しない、REQ-3）。
@@ -1080,7 +1082,8 @@ path = "/next/"
         write_fixture_site(&temp.0);
         let out_dir = temp.0.join("dist");
 
-        let report = build_site(&temp.0, &out_dir).expect("valid fixture should build");
+        let report = build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY)
+            .expect("valid fixture should build");
         assert_eq!(report.written.len(), 2);
         // サイト骨格 CSS（`site_theme`、ビルド時生成）+ SkipNav 専用 CSS
         // （イシュー #776、全ビルドで無条件に書き出す。`crate::skip_nav`
@@ -1121,7 +1124,8 @@ path = "/next/"
         .unwrap();
         let out_dir = temp.0.join("dist");
 
-        let err = build_site(&temp.0, &out_dir).expect_err("broken .md link should fail the build");
+        let err = build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY)
+            .expect_err("broken .md link should fail the build");
         match err {
             BuildError::LinkCheck(broken) => {
                 assert_eq!(broken.len(), 1);
@@ -1143,7 +1147,8 @@ path = "/next/"
         .unwrap();
         let out_dir = temp.0.join("dist");
 
-        let err = build_site(&temp.0, &out_dir).expect_err("broken absolute link should fail");
+        let err = build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY)
+            .expect_err("broken absolute link should fail");
         assert!(matches!(err, BuildError::LinkCheck(_)));
         assert!(!out_dir.exists());
     }
@@ -1152,7 +1157,8 @@ path = "/next/"
     fn build_site_reports_nav_error_for_missing_nav_toml() {
         let temp = TempDir::new("missing-nav");
         let out_dir = temp.0.join("dist");
-        let err = build_site(&temp.0, &out_dir).expect_err("missing nav.toml should fail");
+        let err = build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY)
+            .expect_err("missing nav.toml should fail");
         assert!(matches!(err, BuildError::Io { .. }));
     }
 
@@ -1162,7 +1168,8 @@ path = "/next/"
         write_fixture_site(&temp.0);
         fs::create_dir_all(temp.0.join("site/assets/nested")).unwrap();
         let out_dir = temp.0.join("dist");
-        let err = build_site(&temp.0, &out_dir).expect_err("directory under assets should fail");
+        let err = build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY)
+            .expect_err("directory under assets should fail");
         assert!(matches!(err, BuildError::UnsupportedAssetEntry(_)));
         assert!(!out_dir.exists());
     }
@@ -1177,8 +1184,8 @@ path = "/next/"
         write_fixture_site(&temp.0);
         fs::write(temp.0.join("site/assets/site.css"), "body{}\n").unwrap();
         let out_dir = temp.0.join("dist");
-        let err =
-            build_site(&temp.0, &out_dir).expect_err("reserved asset name should fail the build");
+        let err = build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY)
+            .expect_err("reserved asset name should fail the build");
         assert!(matches!(err, BuildError::ReservedAssetName(_)));
         assert!(!out_dir.exists());
     }
@@ -1193,8 +1200,8 @@ path = "/next/"
         fs::remove_dir_all(temp.0.join("site/assets")).unwrap();
         let out_dir = temp.0.join("dist");
 
-        let report =
-            build_site(&temp.0, &out_dir).expect("missing site/assets/ directory should build");
+        let report = build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY)
+            .expect("missing site/assets/ directory should build");
         // サイト骨格 CSS + SkipNav 専用 CSS + `assets/site.js` +
         // 検索インデックス（マニフェスト + セクションファイル 1 件）のみ
         // （`site/assets/` 由来のコピーアセットは 0 件）。
@@ -1214,7 +1221,7 @@ path = "/next/"
         write_fixture_site(&temp.0);
         fs::write(temp.0.join("site/assets/site.js"), "console.log(1);\n").unwrap();
         let out_dir = temp.0.join("dist");
-        let err = build_site(&temp.0, &out_dir)
+        let err = build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY)
             .expect_err("reserved asset name site.js should fail the build");
         assert!(matches!(err, BuildError::ReservedAssetName(_)));
         assert!(!out_dir.exists());
@@ -1228,7 +1235,7 @@ path = "/next/"
         write_fixture_site(&temp.0);
         fs::write(temp.0.join("site/assets/favicon.svg"), "<svg/>\n").unwrap();
         let out_dir = temp.0.join("dist");
-        let err = build_site(&temp.0, &out_dir)
+        let err = build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY)
             .expect_err("reserved asset name favicon.svg should fail the build");
         assert!(matches!(err, BuildError::ReservedAssetName(_)));
         assert!(!out_dir.exists());
@@ -1244,7 +1251,7 @@ path = "/next/"
         write_fixture_site(&temp.0);
         fs::write(temp.0.join("site/assets/wireframes.css"), "body{}\n").unwrap();
         let out_dir = temp.0.join("dist");
-        let err = build_site(&temp.0, &out_dir)
+        let err = build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY)
             .expect_err("reserved asset name wireframes.css should fail the build");
         assert!(matches!(err, BuildError::ReservedAssetName(_)));
         assert!(!out_dir.exists());
@@ -1260,7 +1267,7 @@ path = "/next/"
         write_fixture_site(&temp.0);
         fs::write(temp.0.join("site/assets/search-index.json"), "{}\n").unwrap();
         let out_dir = temp.0.join("dist");
-        let err = build_site(&temp.0, &out_dir)
+        let err = build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY)
             .expect_err("reserved asset name search-index.json should fail the build");
         assert!(matches!(err, BuildError::ReservedAssetName(_)));
         assert!(!out_dir.exists());

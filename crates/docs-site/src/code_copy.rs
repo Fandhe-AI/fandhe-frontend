@@ -46,40 +46,50 @@ pub fn wrap_code_blocks(nodes: Vec<Node>) -> Vec<Node> {
     nodes.into_iter().map(wrap_node).collect()
 }
 
+/// `pre` 1 個をコピーボタン付きラッパー（`div.docs-code-block`）で包む。
+///
+/// [`wrap_code_blocks`] の各 `pre` と、Markdown を経由せず Rust 側で組む
+/// ヒーローのインストールコマンド（`crate::landing`、イシュー #3612）が同じ
+/// 骨格を共有するための単一実装点。`pre` の中身は所有権ごと移すのみ。
+#[must_use]
+pub fn copy_block(pre: Node) -> Node {
+    div(
+        vec![("class", CODE_BLOCK_CLASS)],
+        vec![
+            pre,
+            button(
+                vec![
+                    ("type", "button"),
+                    ("class", COPY_BUTTON_CLASS),
+                    ("hidden", ""),
+                    ("aria-label", "Copy code"),
+                    (COPY_STATE_ATTR, "idle"),
+                ],
+                vec![],
+            ),
+            span(
+                vec![
+                    ("class", COPY_STATUS_CLASS),
+                    ("role", "status"),
+                    ("aria-live", "polite"),
+                ],
+                vec![],
+            ),
+        ],
+    )
+}
+
 fn wrap_node(node: Node) -> Node {
     match node {
         Node::Element {
             tag: "pre",
             attrs,
             children,
-        } => div(
-            vec![("class", CODE_BLOCK_CLASS)],
-            vec![
-                Node::Element {
-                    tag: "pre",
-                    attrs,
-                    children,
-                },
-                button(
-                    vec![
-                        ("type", "button"),
-                        ("class", COPY_BUTTON_CLASS),
-                        ("hidden", ""),
-                        ("aria-label", "Copy code"),
-                        (COPY_STATE_ATTR, "idle"),
-                    ],
-                    vec![],
-                ),
-                span(
-                    vec![
-                        ("class", COPY_STATUS_CLASS),
-                        ("role", "status"),
-                        ("aria-live", "polite"),
-                    ],
-                    vec![],
-                ),
-            ],
-        ),
+        } => copy_block(Node::Element {
+            tag: "pre",
+            attrs,
+            children,
+        }),
         Node::Element {
             tag,
             attrs,
