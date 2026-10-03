@@ -88,7 +88,7 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 ## 4. CSS 供給方針
 
 - 使う recipe だけを `site.css` へ積む（#3599）。全 recipe の一括積みは禁止する（サイズと契約テストの肥大を避ける）。
-- 供給経路は `crates/docs-site/src/site_theme.rs` の `stylesheet()` へ必要な部品の CSS を追加する形に一本化する。部品ごとの公開 API 名は `css()`（例: `button::css()`）と `stylesheet()`（例: `breadcrumb::stylesheet()`）に分かれているため、採用時に各部品の実 API 名を確認し、戻り値の `String` を `StyleSheet::push_css()` に渡す（`nav_list::stylesheet()` の既存配線と同じ形）。`*_css()` という統一名は存在しない。`pre-styled-ui.css` のような別ファイルは新設しない（`admonition.css` の既存分離は現状維持）。
+- 供給経路は `crates/docs-site/src/site_theme.rs` の `stylesheet()` へ必要な部品の CSS を追加する形に一本化する。部品ごとの公開 API 名は `css()`（例: `button::css()`）と `stylesheet()`（例: `breadcrumb::stylesheet()`）に分かれているため、採用時に各部品の実 API 名を確認し、戻り値の `String` を `StyleSheet::push_css()` に渡す（`nav_list::stylesheet()` の既存配線と同じ形）。`*_css()` という統一名は存在しない。`pre-styled-ui.css` のような recipe 専用の別ファイルは新設しない（`admonition.css` の既存分離は現状維持）。唯一の例外は Primitives ページ専用の `site-primitives.css` で、`site.css` から `SITE_RECIPES` だけを除いた同一内容・同順序のファイルである（§4.1 参照）。
 - `STRUCTURE_CLASS_CONTRACT`（`tests/site_css_contract.rs`）は `layout.rs`・`nav.rs` が出す `docs-*` 骨格 class 専用で、登録 class すべてがフルページ固定フィクスチャに現れることを要求し、`fd-*` recipe class は対象外と明記している。したがって同表へ追加してよいのは docs 側ラッパーの `docs-*` 骨格 class（例: `docs-landing`）に限る。recipe class は同表へ入れず、「使う recipe の class が `site.css` に供給されている」ことを確認する別契約（供給確認テスト。担当は #3599）として定義する。契約表の削除・緩和はしない。
 - ダーク値は 3 ブロック（既定 / `prefers-color-scheme: dark` / `:root[data-theme="dark"]`）で一致させる。
 - `--fandhe-*` トークン一本化（`--docs-*` 全廃、`site_typography_contract.rs`）を維持する。
@@ -99,7 +99,8 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 - 供給経路は `site_theme::SITE_RECIPES`（`SiteRecipe { name, scope, css }` の定数配列）に一本化した。`stylesheet()` は `nav_list` の直後、`STRUCTURAL_CSS` の前でこれを走査して `push_css` する（失敗は `?` で伝播する fail-closed）。
 - 供給する 19 件: button / badge / card / separator / field / input / input_group / breadcrumb / kbd / code / icon / empty_state / heading / text / list / table / stat / tab_nav / link。順序は `showcase::stylesheet()` の出現順の部分列と一致させる。
 - `callout` は §3 の対応表に消費者がいないため積まない。消費者が出たイシューで `SITE_RECIPES` と期待表（`tests/site_css_contract.rs` の `EXPECTED_SITE_RECIPE_SCOPES`）へ 1 行ずつ追加する。`menu` / `navigation_menu` / 状態機械型 `sidebar` / `link_overlay` は積まない（テストで固定）。
-- 重複の扱い: 部品ページ・Blocks ページでは `pre-styled-ui.css` が `site.css` の後に読まれ、同じルールを再適用する。両者は同じ公開関数の戻り値なのでバイト一致し、相対順序も同じため、カスケード結果は変わらない。この同値の重複を許容し、テストで固定する（ページ種別ごとに `site.css` を分ける除外案は、キャッシュ共有と単一の `<link>` 契約を崩すため採らない）。
+- 重複の扱い: 部品ページ・Blocks ページでは `pre-styled-ui.css` が `site.css` の後に読まれ、同じルールを再適用する。両者は同じ公開関数の戻り値なのでバイト一致し、相対順序も同じため、カスケード結果は変わらない。この同値の重複を許容し、テストで固定する（一般ページ・部品ページ・Blocks ページでは `site.css` を共有し、ページ種別ごとに分けない。キャッシュ共有と単一の `<link>` 契約を保つため。分離する例外は次項の Primitives のみ）。
+- Primitives 専用 CSS（例外）: Primitives ページの headless-ui デモは「スタイルを持たない層」の契約により styled recipe の装飾を受けてはならない。recipe は `[data-scope=...]` 属性セレクタで headless と同じ markup を対象にするため、セレクタ側では区別できない。`@scope` で除外する案は、非対応ブラウザで一般ページの recipe まで失われるため採らない。代わりに `site_theme::stylesheet_without_recipes()` が `SITE_RECIPES` を除いた CSS を `assets/site-primitives.css`（`PRIMITIVES_STYLESHEET_REL_PATH`）として出力し、`layout.rs` が Primitives ページ（`primitive_showcase::STYLESHEET_REL_PATH` を追加 CSS に持つページ）だけ `site.css` の代わりにこれを読む。recipe 以外の内容・順序は `site.css` と同一で、他のページ種別は従来どおり単一の `site.css` を読む。
 - docs 側で recipe を上書きする規則は、出現順に頼らず `.docs-*` ラッパー class を前置して詳細度で勝たせる（`pre-styled-ui.css` が後から来ても負けないため）。`tests/site_css_contract.rs` が固定する。
 - `site_typography_contract.rs` の docs 側ミラー照合は、recipe 全文を除いた haystack に対して行う（recipe の同一宣言で満たされる空振りを防ぐ）。
 - サイズ実測: `site.css` は raw 59,636 B → 137,948 B（+78,312 B）、gzip -9 で 14,795 B → 21,499 B（+6,704 B）。
