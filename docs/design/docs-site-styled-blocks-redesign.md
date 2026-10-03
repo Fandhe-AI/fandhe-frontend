@@ -94,6 +94,16 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 - `--fandhe-*` トークン一本化（`--docs-*` 全廃、`site_typography_contract.rs`）を維持する。
 - root の `class` 破棄は、ラッパー要素に `docs-*` を付ける形で統一して回避する。
 
+### 4.1 供給 recipe の確定（#3599）
+
+- 供給経路は `site_theme::SITE_RECIPES`（`SiteRecipe { name, scope, css }` の定数配列）に一本化した。`stylesheet()` は `nav_list` の直後、`STRUCTURAL_CSS` の前でこれを走査して `push_css` する（失敗は `?` で伝播する fail-closed）。
+- 供給する 19 件: button / badge / card / separator / field / input / input_group / breadcrumb / kbd / code / icon / empty_state / heading / text / list / table / stat / tab_nav / link。順序は `showcase::stylesheet()` の出現順の部分列と一致させる。
+- `callout` は §3 の対応表に消費者がいないため積まない。消費者が出たイシューで `SITE_RECIPES` と期待表（`tests/site_css_contract.rs` の `EXPECTED_SITE_RECIPE_SCOPES`）へ 1 行ずつ追加する。`menu` / `navigation_menu` / 状態機械型 `sidebar` / `link_overlay` は積まない（テストで固定）。
+- 重複の扱い: 部品ページ・Blocks ページでは `pre-styled-ui.css` が `site.css` の後に読まれ、同じルールを再適用する。両者は同じ公開関数の戻り値なのでバイト一致し、相対順序も同じため、カスケード結果は変わらない。この同値の重複を許容し、テストで固定する（ページ種別ごとに `site.css` を分ける除外案は、キャッシュ共有と単一の `<link>` 契約を崩すため採らない）。
+- docs 側で recipe を上書きする規則は、出現順に頼らず `.docs-*` ラッパー class を前置して詳細度で勝たせる（`pre-styled-ui.css` が後から来ても負けないため）。`tests/site_css_contract.rs` が固定する。
+- `site_typography_contract.rs` の docs 側ミラー照合は、recipe 全文を除いた haystack に対して行う（recipe の同一宣言で満たされる空振りを防ぐ）。
+- サイズ実測: `site.css` は raw 59,636 B → 137,948 B（+78,312 B）、gzip -9 で 14,795 B → 21,499 B（+6,704 B）。
+
 ## 5. JS の範囲
 
 `assets/site.js`（defer 1 本）のみとし、機能は次の 4 つに限る。
