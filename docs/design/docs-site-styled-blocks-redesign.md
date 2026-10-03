@@ -88,7 +88,7 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 ## 4. CSS 供給方針
 
 - 使う recipe だけを `site.css` へ積む（#3599）。全 recipe の一括積みは禁止する（サイズと契約テストの肥大を避ける）。
-- 供給経路は `crates/docs-site/src/site_theme.rs` の `stylesheet()` へ必要な部品の `*_css()` を追加する形に一本化する。`pre-styled-ui.css` のような別ファイルは新設しない（`admonition.css` の既存分離は現状維持）。
+- 供給経路は `crates/docs-site/src/site_theme.rs` の `stylesheet()` へ必要な部品の CSS を追加する形に一本化する。部品ごとの公開 API 名は `css()`（例: `button::css()`）と `stylesheet()`（例: `breadcrumb::stylesheet()`）に分かれているため、採用時に各部品の実 API 名を確認し、戻り値の `String` を `StyleSheet::push_css()` に渡す（`nav_list::stylesheet()` の既存配線と同じ形）。`*_css()` という統一名は存在しない。`pre-styled-ui.css` のような別ファイルは新設しない（`admonition.css` の既存分離は現状維持）。
 - `STRUCTURE_CLASS_CONTRACT`（`tests/site_css_contract.rs`）は `layout.rs`・`nav.rs` が出す `docs-*` 骨格 class 専用で、登録 class すべてがフルページ固定フィクスチャに現れることを要求し、`fd-*` recipe class は対象外と明記している。したがって同表へ追加してよいのは docs 側ラッパーの `docs-*` 骨格 class（例: `docs-landing`）に限る。recipe class は同表へ入れず、「使う recipe の class が `site.css` に供給されている」ことを確認する別契約（供給確認テスト。担当は #3599）として定義する。契約表の削除・緩和はしない。
 - ダーク値は 3 ブロック（既定 / `prefers-color-scheme: dark` / `:root[data-theme="dark"]`）で一致させる。
 - `--fandhe-*` トークン一本化（`--docs-*` 全廃、`site_typography_contract.rs`）を維持する。
