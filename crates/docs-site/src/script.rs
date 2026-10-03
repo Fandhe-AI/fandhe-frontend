@@ -492,6 +492,10 @@ pub const SITE_JS: &str = "\
     updateSelection();
   }
 
+  // 小文字化は索引結合時に 1 回だけ行い（`ensureIndexLoaded` の
+  // `prepareLowerCache`）、打鍵ごとの `toLowerCase()` による全 text
+  // （約 1.9 MB）の再割り当てを避ける（設計 §10-16、イシュー #3171）。
+  // キャッシュ項目は比較専用で DOM へは書き出さない。
   // 加算スコアリング（title +3 / section +2 / text +1、各独立判定）。
   // タイトル一致で早期 return すると見出し一致の加点・ディープリンクが
   // 落ちるため（設計 docs/design/docs-site-search-design.md セクション
@@ -500,28 +504,35 @@ pub const SITE_JS: &str = "\
   // で、title 一致の有無に関わらず独立して求める。
   function scorePage(page, query) {
     var score = 0;
-    var titleLower = page.title.toLowerCase();
-    if (titleLower.indexOf(query) !== -1) {
+    if (page.titleLower.indexOf(query) !== -1) {
       score += 3;
     }
     var matchedSection = null;
-    page.sections.forEach(function (section) {
+    page.sectionsLower.forEach(function (sectionLower, i) {
       if (matchedSection) {
         return;
       }
-      var sectionLower = section.title.toLowerCase();
       if (sectionLower.indexOf(query) !== -1) {
-        matchedSection = section;
+        matchedSection = page.sections[i];
       }
     });
     if (matchedSection) {
       score += 2;
     }
-    var textLower = page.text.toLowerCase();
-    if (textLower.indexOf(query) !== -1) {
+    if (page.textLower.indexOf(query) !== -1) {
       score += 1;
     }
     return { score: score, section: matchedSection };
+  }
+
+  // 検索比較用の小文字化済みコピーを page へ 1 度だけ付与する。
+  // 部分一致・nav 宣言順タイブレークの意味は変えない。
+  function prepareLowerCache(page) {
+    page.titleLower = page.title.toLowerCase();
+    page.sectionsLower = page.sections.map(function (section) {
+      return section.title.toLowerCase();
+    });
+    page.textLower = page.text.toLowerCase();
   }
 
   function runSearch() {
@@ -593,6 +604,7 @@ pub const SITE_JS: &str = "\
           pages.push(page);
         });
       });
+      pages.forEach(prepareLowerCache);
       indexData = { pages: pages };
       state = `ready`;
       runSearch();
@@ -988,6 +1000,29 @@ mod tests {
             body.contains("return { score: score, section: matchedSection }"),
             "scorePage は最終的に加算済み score と独立評価した section を返す必要がある"
         );
+    }
+
+    /// 小文字化は索引結合時に 1 回だけ行い、`scorePage` は打鍵ごとに
+    /// `toLowerCase()` を呼ばない（設計 §10-16、イシュー #3171）。
+    #[test]
+    fn site_js_score_page_uses_precomputed_lowercase_cache() {
+        assert!(SITE_JS.contains("pages.forEach(prepareLowerCache)"));
+        let start = SITE_JS
+            .find("function scorePage(page, query)")
+            .expect("SITE_JS should define scorePage");
+        let slice = &SITE_JS[start..];
+        let end = slice.find("\n  }\n").expect("scorePage closing brace");
+        let body = &slice[..end];
+        assert!(
+            !body.contains("toLowerCase"),
+            "scorePage は毎打鍵で小文字化しない"
+        );
+        for field in ["titleLower", "sectionsLower", "textLower"] {
+            assert!(
+                body.contains(field),
+                "scorePage は {field} を参照する必要がある"
+            );
+        }
     }
 
     /// `clearResults` が DOM の除去に加えて `currentResults`/`selectedIndex`/
