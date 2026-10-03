@@ -3,9 +3,9 @@
 //! # 役割・呼び出し文脈
 //!
 //! [`crate::markdown::render_markdown`] は `> [!NOTE]` 等のマーカーを検出すると
-//! `pre-styled-ui` の [`fandhe_frontend_pre_styled_ui::alert`] 部品で描画する
-//! （`crate::markdown` のモジュール doc 参照）。本モジュールはその alert 部品が
-//! 必要とする CSS（テーマトークン + alert recipe + admonition 専用の配置
+//! `pre-styled-ui` の [`fandhe_frontend_pre_styled_ui::callout`] 部品で描画する
+//! （`crate::markdown` のモジュール doc 参照）。本モジュールはその callout 部品が
+//! 必要とする CSS（テーマトークン + callout recipe + admonition 専用の配置
 //! スタイル）を [`crate::showcase`] と同型の「分離 CSS 方式」で組み立てる。
 //!
 //! サイト骨格スタイル（`crate::site_theme` がビルド時生成する `assets/site.css`、
@@ -18,12 +18,12 @@
 //!
 //! # ダークモード配色（イシュー #732 → #905 で撤去）
 //!
-//! `alert` recipe（[`alert::css`]）のダーク背景は元々
+//! 旧 `alert` recipe（#3622 で callout へ移行、[`callout::css`] 参照）のダーク背景は元々
 //! `--fandhe-color-bg-subtle` のニュートラルグレーで、docs サイト骨格の
 //! 旧 `--docs-*` 青みがかったダークパレットと調和しなかったため、
 //! `.docs-content` スコープに限定した専用の上書き CSS（`DARK_CSS`）を追加
 //! していた。イシュー #905 でサイト骨格 CSS 自体を `--fandhe-*` テーマ
-//! トークンへ一本化した結果、alert recipe とサイト骨格が同一パレットを
+//! トークンへ一本化した結果、callout recipe とサイト骨格が同一パレットを
 //! 共有するようになり、この上書きは構造的に不要になった（撤去済み）。
 //!
 //! # セキュリティ不変条件（REQ-1）
@@ -34,25 +34,28 @@
 
 use fandhe_frontend_core::Node;
 use fandhe_frontend_pre_styled_ui::theme::Theme;
-use fandhe_frontend_pre_styled_ui::{alert, StyleSheet, StylesheetError};
+use fandhe_frontend_pre_styled_ui::{callout, StyleSheet, StylesheetError};
 
 /// admonition 専用 CSS の出力先（`out_dir` 起点の相対パス）。
 /// `crate::build::build_site` が [`stylesheet`] の内容をこのパスへ書き出し、
 /// ページ `<head>` の追加 `<link>`（`docs_page_with_assets`）が参照する。
 pub const STYLESHEET_REL_PATH: &str = "assets/admonition.css";
 
-/// admonition として描画された alert の `.docs-content` 内での配置調整。
-/// alert 部品自体の見た目は recipe（[`alert::css`]）が担い、ここでは
+/// admonition として描画された callout の `.docs-content` 内での配置調整。
+/// callout 部品自体の見た目は recipe（[`callout::css`]）が担い、ここでは
 /// Markdown 本文フロー内での上下マージン・indicator（イシュー #732 で
 /// 追加した種別アイコン）の光学的整列のみを補う（`site.css` のクラス名
 /// 契約・カスケードには影響させない、`crate::showcase` と同じ分離方針）。
 const LAYOUT_CSS: &str = "\
-.docs-content [data-scope=\"alert\"][data-part=\"root\"] {\n  margin: 1rem 0;\n}\n\
-.docs-content [data-scope=\"alert\"][data-part=\"indicator\"] {\n  display: inline-flex;\n  margin-top: 0.125rem;\n}\n";
+.docs-content [data-scope=\"callout\"][data-part=\"root\"] {\n  margin: 1rem 0;\n}\n\
+.docs-content [data-scope=\"callout\"][data-part=\"icon\"] {\n  margin-top: 0.125rem;\n}\n\
+.docs-content [data-scope=\"callout\"][data-part=\"text\"] p {\n  font-size: inherit;\n  margin: 0 0 0.5rem;\n}\n\
+.docs-content [data-scope=\"callout\"][data-part=\"text\"] > :last-child {\n  margin-bottom: 0;\n}\n\
+.docs-content [data-scope=\"callout\"][data-part=\"text\"] > p:first-child > strong {\n  font-weight: 600;\n}\n";
 
 /// admonition が参照する CSS 全量を組み立てる。
 ///
-/// 内訳: テーマトークン（`Theme::default`）→ alert recipe CSS（[`alert::css`]）
+/// 内訳: テーマトークン（`Theme::default`）→ callout recipe CSS（[`callout::css`]）
 /// → `LAYOUT_CSS`、の順で決定的に連結する。
 ///
 /// # Errors
@@ -65,12 +68,12 @@ const LAYOUT_CSS: &str = "\
 pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     let mut sheet = StyleSheet::new();
     sheet.push_theme(&Theme::default());
-    sheet.push_css(&alert::css())?;
+    sheet.push_css(&callout::css())?;
     sheet.push_css(LAYOUT_CSS)?;
     Ok(sheet)
 }
 
-/// `node` の木の中に admonition（alert 部品、`data-scope="alert"`）が
+/// `node` の木の中に admonition（callout 部品、`data-scope="callout"`）が
 /// 1 つでも含まれるかどうかを判定する。
 ///
 /// `crate::build::build_site` がページごとにこの結果を見て、admonition を
@@ -84,7 +87,9 @@ pub fn contains_admonition(node: &Node) -> bool {
         Node::Element {
             attrs, children, ..
         } => {
-            attrs.iter().any(|(k, v)| k == "data-scope" && v == "alert")
+            attrs
+                .iter()
+                .any(|(k, v)| k == "data-scope" && v == "callout")
                 || children.iter().any(contains_admonition)
         }
         Node::Text(_) | Node::RawHtml(_) => false,
@@ -95,30 +100,30 @@ pub fn contains_admonition(node: &Node) -> bool {
 mod tests {
     use super::*;
     use fandhe_frontend_core::{div, p, text};
-    use fandhe_frontend_pre_styled_ui::AlertProps;
+    use fandhe_frontend_pre_styled_ui::CalloutProps;
 
     #[test]
-    fn contains_admonition_detects_alert_scope_anywhere_in_tree() {
-        let with_alert = div(
+    fn contains_admonition_detects_callout_scope_anywhere_in_tree() {
+        let with_callout = div(
             vec![],
             vec![
                 p(vec![], vec![text("plain")]),
-                alert::root(&AlertProps::default(), vec![], vec![]),
+                callout::root(&CalloutProps::default(), vec![], vec![]),
             ],
         );
-        assert!(contains_admonition(&with_alert));
+        assert!(contains_admonition(&with_callout));
 
-        let without_alert = div(vec![], vec![p(vec![], vec![text("plain only")])]);
-        assert!(!contains_admonition(&without_alert));
+        let without_callout = div(vec![], vec![p(vec![], vec![text("plain only")])]);
+        assert!(!contains_admonition(&without_callout));
     }
 
     #[test]
-    fn stylesheet_covers_theme_and_alert_recipe_and_layout_css() {
+    fn stylesheet_covers_theme_and_callout_recipe_and_layout_css() {
         let sheet = stylesheet().expect("admonition stylesheet should assemble");
         let css = sheet.as_css();
         assert!(css.contains("--fandhe-color-"));
-        assert!(css.contains(".fd-alert--status-info"));
-        assert!(css.contains(r#".docs-content [data-scope="alert"][data-part="root"]"#));
+        assert!(css.contains(".fd-callout--color-palette-info"));
+        assert!(css.contains(r#".docs-content [data-scope="callout"][data-part="root"]"#));
         assert!(!css.contains('<'));
     }
 
@@ -129,10 +134,10 @@ mod tests {
         // イシュー #905 のトークン一本化により撤去済み（モジュール doc
         // 「ダークモード配色」節参照）。ダーク配色自体は `Theme::default`
         // 由来の `--fandhe-color-bg-subtle`/`--fandhe-color-border` の
-        // ダーク値へ alert recipe が追従する。
+        // ダーク値へ callout recipe が追従する。
         let sheet = stylesheet().expect("admonition stylesheet should assemble");
         let css = sheet.as_css();
-        assert!(css.contains(r#".docs-content [data-scope="alert"][data-part="indicator"]"#));
+        assert!(css.contains(r#".docs-content [data-scope="callout"][data-part="icon"]"#));
         assert!(!css.contains("--docs-"));
         assert!(!css.contains('<'));
     }

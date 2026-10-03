@@ -59,15 +59,18 @@
 //! - 引用（`parse_quote`）の 1 行目が `admonition_kind` の判定する固定
 //!   マーカー（`[!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` /
 //!   `[!CAUTION]`、GFM alerts 準拠）と前後空白を除き完全一致する場合のみ、
-//!   通常の `blockquote` の代わりに `fandhe_frontend_pre_styled_ui::alert`
-//!   部品（イシュー #715）で描画する。同一行に他のテキストがある・未知の
+//!   通常の `blockquote` の代わりに `fandhe_frontend_pre_styled_ui::callout`
+//!   部品（イシュー #715、#3622 で `alert` から変更）で描画する。注記はページ
+//!   表示時から静的に置かれた補足であり、`role="alert"`（暗黙の
+//!   `aria-live="assertive"`）を持つ `alert` は割り込み通知の意味が強すぎる
+//!   ため、role を一切付けない `callout` を使う。同一行に他のテキストがある・未知の
 //!   マーカー・小文字はいずれも不成立とし、素の `blockquote` へ
 //!   フォールバックする（fail-safe。既存ページの出力は 1 バイトも変わらない）。
-//!   マーカー種別から [`AlertStatus`] への対応・本文の描画は
+//!   マーカー種別から [`ColorPalette`] への対応・本文の描画は
 //!   `crate::markdown` 側の固定テーブルのみで決まり、入力由来の文字列を
-//!   `status`・`class` 属性へ流し込むことはない（`AlertStatus` は enum
-//!   固定値、`crates/pre-styled-ui/src/alert.rs` 参照）
-//! - `alert::indicator`（イシュー #732）へ渡す種別ごとのインライン SVG は
+//!   `class` 属性へ流し込むことはない（`ColorPalette` は enum 固定値、
+//!   `crates/pre-styled-ui/src/callout.rs` 参照）
+//! - `callout::icon`（イシュー #732）へ渡す種別ごとのインライン SVG は
 //!   `admonition_indicator` が固定文字列定数（`viewBox`・`d`・`cx` 等の
 //!   属性値も含め `AdmonitionKind` の 5 種を key とする決め打ちテーブル）
 //!   のみを [`fandhe_frontend_core::el`] へ渡して組み立てる。Markdown 本文・
@@ -92,7 +95,7 @@ use fandhe_frontend_core::{
     a, blockquote, code, el, em, h1, h2, h3, h4, h5, h6, li, ol, p, pre, strong, table, tbody, td,
     text, th, thead, tr, ul, Node,
 };
-use fandhe_frontend_pre_styled_ui::{alert, AlertProps, AlertStatus};
+use fandhe_frontend_pre_styled_ui::{callout, CalloutProps, ColorPalette};
 
 /// 引用・ネストリストの再帰的解釈における最大深さ。
 ///
@@ -804,7 +807,7 @@ fn is_quote_line(line: &str) -> bool {
 /// 本文を再帰的に [`render_markdown_at_depth`] へ渡して `blockquote` に格納する。
 ///
 /// 1 行目が [`admonition_kind`] と完全一致する場合は
-/// `blockquote` の代わりに [`admonition_node`]（`alert` 部品）を返す
+/// `blockquote` の代わりに [`admonition_node`]（`callout` 部品）を返す
 /// （モジュール doc の admonition 構文注記参照、イシュー #715）。
 ///
 /// `depth` が [`MAX_DEPTH`] に達した場合は再帰せず、剥がした本文を単一の
@@ -864,57 +867,54 @@ fn admonition_kind(line: &str) -> Option<AdmonitionKind> {
     }
 }
 
-/// [`AdmonitionKind`] を `(AlertStatus, 表示タイトル)` へ写像する固定テーブル
+/// [`AdmonitionKind`] を `(ColorPalette, 表示ラベル)` へ写像する固定テーブル
 /// （`docs/design/docs-site-styled-ui-adoption.md` §3.3 の判断を実装した対応、
-/// イシュー #715 計画 §3.2）。`AlertStatus` は enum 固定値であり、
-/// マーカー文字列自体を属性・class へ流し込むことはない。
-fn admonition_status_and_title(kind: AdmonitionKind) -> (AlertStatus, &'static str) {
+/// イシュー #715 計画 §3.2、#3622 で `AlertStatus` から `ColorPalette` へ変更）。
+/// `ColorPalette` は enum 固定値であり、マーカー文字列自体を属性・class へ
+/// 流し込むことはない。
+fn admonition_palette_and_title(kind: AdmonitionKind) -> (ColorPalette, &'static str) {
     match kind {
-        AdmonitionKind::Note => (AlertStatus::Info, "Note"),
-        AdmonitionKind::Tip => (AlertStatus::Success, "Tip"),
-        AdmonitionKind::Important => (AlertStatus::Warning, "Important"),
-        AdmonitionKind::Warning => (AlertStatus::Warning, "Warning"),
-        AdmonitionKind::Caution => (AlertStatus::Error, "Caution"),
+        AdmonitionKind::Note => (ColorPalette::Info, "Note"),
+        AdmonitionKind::Tip => (ColorPalette::Success, "Tip"),
+        AdmonitionKind::Important => (ColorPalette::Warning, "Important"),
+        AdmonitionKind::Warning => (ColorPalette::Warning, "Warning"),
+        AdmonitionKind::Caution => (ColorPalette::Danger, "Caution"),
     }
 }
 
-/// admonition の `alert` ノード木を組み立てる。
-/// `alert::root(status)` > [`alert::indicator`（種別ごとのインライン
-/// SVG、[`admonition_indicator`]）, `alert::content` > [`alert::title`
-/// （固定ラベル）, `alert::description`（本文ブロック列、空なら省略）]]
-/// という構成（イシュー #715 計画 §3.2、indicator 追加はイシュー #732）。
+/// admonition の `callout` ノード木を組み立てる。
+/// `callout::root(palette)` > [`callout::icon`（種別ごとのインライン SVG、
+/// [`admonition_indicator`]）, `callout::text` > [`p > strong`（固定ラベル）,
+/// 本文ブロック列]]。callout に title パーツが無いため、ラベルは text の
+/// 先頭段落に置く（イシュー #3622。role は付かない）。
 fn admonition_node(kind: AdmonitionKind, body: Vec<Node>) -> Node {
-    let (status, title_label) = admonition_status_and_title(kind);
-    let mut content_children = vec![alert::title(vec![], vec![text(title_label)])];
-    if !body.is_empty() {
-        content_children.push(alert::description(vec![], body));
-    }
-    let props = AlertProps {
-        status,
-        ..AlertProps::default()
+    let (palette, title_label) = admonition_palette_and_title(kind);
+    let mut text_children = vec![p(vec![], vec![strong(vec![], vec![text(title_label)])])];
+    text_children.extend(body);
+    let props = CalloutProps {
+        palette,
+        ..CalloutProps::default()
     };
-    alert::root(
+    callout::root(
         &props,
         vec![],
         vec![
             admonition_indicator(kind),
-            alert::content(vec![], content_children),
+            callout::text(vec![], text_children),
         ],
     )
 }
 
-/// [`AdmonitionKind`] ごとの indicator（`alert::indicator`、装飾用インライン
+/// [`AdmonitionKind`] ごとの icon（`callout::icon`、装飾用インライン
 /// SVG）を組み立てる。
 ///
-/// IMPORTANT と WARNING は同じ [`AlertStatus::Warning`]（`status_declarations`
-/// 参照）を共有し配色では区別できないため、アイコン形状は `kind` を key に
-/// [`admonition_icon_svg`] の固定テーブルで出し分ける（status 由来ではない）。
-/// `aria-hidden="true"` を付け、直前の [`alert::title`] 固定ラベル
+/// IMPORTANT と WARNING は同じ [`ColorPalette::Warning`] を共有し配色では区別できないため、アイコン形状は `kind` を key に
+/// [`admonition_icon_svg`] の固定テーブルで出し分ける（palette 由来ではない）。
+/// `aria-hidden="true"` を付け、直後の固定ラベル
 /// （"Note"/"Tip"/... のテキスト）で種別が既に読み上げられる装飾要素として
-/// 扱う（ARIA セマンティクスは alert 部品側の `role="alert"` のまま変更
-/// しない）。
+/// 扱う。
 fn admonition_indicator(kind: AdmonitionKind) -> Node {
-    alert::indicator(
+    callout::icon(
         vec![("aria-hidden", "true")],
         vec![admonition_icon_svg(kind)],
     )
@@ -922,9 +922,8 @@ fn admonition_indicator(kind: AdmonitionKind) -> Node {
 
 /// `viewBox="0 0 16 16"` の 16x16 インライン SVG を組み立てる共通ヘルパ。
 ///
-/// `fill="none"` + `stroke="currentColor"` を既定とし、`alert::root` が
-/// `status_declarations`（`crates/pre-styled-ui/src/alert.rs`）で設定する
-/// `color: var(--fandhe-palette)` を `currentColor` 経由でそのまま継承する
+/// `fill="none"` + `stroke="currentColor"` を既定とし、`callout::root` の recipe が
+/// 設定する `color` を `currentColor` 経由でそのまま継承する
 /// （light/dark どちらのテーマでも種別色に自動追従し、admonition 側で色を
 /// 個別管理しない）。`shapes` は [`admonition_icon_svg`] の固定テーブルが
 /// 渡す `path`/`circle`/`rect` ノード列のみを受け取る（呼び出し元は enum

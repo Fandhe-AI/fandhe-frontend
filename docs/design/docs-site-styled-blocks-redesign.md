@@ -57,6 +57,8 @@
 
 Markdown 本文の表・引用・注記（#3622）には手本 block がなく、既存の `admonition` 描画と `fd-table` recipe の整合で行う。
 
+イシュー #3622 の判断: GFM alert の注記は静的な補足のため、割り込み通知（`role="alert"`）の `alert` ではなく role を持たない `callout`（Soft）で描画する。CSS は `admonition.css` の分離を維持し、`SITE_RECIPES` には callout を加えない（§4 の個別規定を §4.1 より優先）。表は `table` recipe の Outline variant を解決済みの値でミラーし、縦罫線を廃止した（padding は Sm、font-size は Md の値）。
+
 ### 3.1 実査記録（2026-10-03 実施）
 
 ローカルで `docs-site` をビルドし静的サーバで配信して、手本 block の `/blocks/<id>/` を 1440px・light で撮影した（撮影はローカル保存でリポジトリには含まれない）。主な観察は次のとおり。
@@ -284,6 +286,11 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
   - CSS: `landing::CSS` を `STRUCTURAL_CSS` の直後に `site.css` へ積む（ヒーローが使う recipe が `site.css` にしか無いため別ファイルにしない）。契約は `site_css_contract.rs` の `LANDING_CLASSES`。
   - テスト: 本番登録表の `/` はサイト専用の内容のため、合成フィクスチャのビルドは `build_site_with(.., &EMPTY_REGISTRY)` を使う（アサーションは緩めない）。バイナリ経由のテストは CTA の遷移先ページを足した作業コピーをビルドする。
   - 後続（#3613〜#3615）: `/` の登録は 1 件しか持てない（`DuplicatePath`）ため、`landing::render` の返す節列へ節を追記して拡張する。
+- （確定済み、#3613）トップの特徴グリッド。実装は `landing::features`、文言の唯一の正は `landing::FEATURES`（旧 `site/index.md` の `## 特徴` は削除し、二重に持たない。再発は `landing` の単体テストが検知する）。
+  - リンク先（内部の nav 実在ページのみ）: 既定エスケープ → `/api/component-api/`、`unsafe` の排除 → `/api/interactive-api/`、依存最小 → `/guides/deployment/`、プレーン HTML/JS/CSS の尊重 → `/guides/embedding-guide/`、SSR/SPA/SSG/ビュー遷移 → `/examples/`。
+  - `link_overlay` の recipe は `site.css` に積まない規則のため使わず、`[data-scope="link"]::after` の絶対配置でカード全面をクリック可能にする（`card::root` が `position: relative`）。フォーカスリングも同じ `::after` へ当てる（`:focus-within` セレクタは `site_theme` の契約テストが制限している）。
+  - `card` は `data-scope` を持つため、カード内の見出しと説明文は検索インデックスから外れる。5 項目の要旨は索引されるヒーローのリード文に含まれるため許容する。節見出し h2 は `data-scope` の外に置く。
+  - 段組みは基底 1 列、768px 以上で 2 列、1024px 以上で 3 列。
 - 指標（`stats-row`）に載せる数値の算出元は #3614 で確定する。
 - （確定済み・#3607）ページ見出しは `crates/docs-site/src/page_header.rs` が `build.rs` のページループで、生成節の挿入後に本文先頭へ置く。
   - Markdown 由来の h1 は pre-styled-ui の `heading` へ置き換えず、パンくずの後ろへ移設する（`header.docs-page-heading`）。`heading` は `data-scope` を持つため、検索インデックスから h1 の文言が落ちるのと、「文書の h1 = `data-scope` の外の `<h1>`」という判定が崩れるのを避ける。Themes・Blocks のデモ内の h1 は `data-scope="heading"` 付きで、文書の見出し構造には数えない。
@@ -309,7 +316,15 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 - Anatomy は `h2` と `pre > code` の隣接・字下げ本文の形式を変えず（テストのパーサが依存）、`section` の class と CSS だけで枠と同じ体裁にする。
 - Blocks（`.blocks-demo`）は DOM・class を変えず、CSS の値のみトークン化して共通の枠にそろえる。
 
-## 11.2 確定事項（#3621 部品ページの API 表）
+## 11.2 確定事項（#3611 サイドバー）
+
+- 開閉は既存の `details` / `summary` を維持する。初期状態は現在ページを含むグループのみ open（他は閉じる）。Blocks は 65 グループ（イシュー本文の 67 は実数と異なる）。
+- 開閉の三角は CSS 疑似要素で描く。icon 部品を使わない意図的な逸脱（DOM 不変・recipe 不要・`push_css` の `<` 禁止のため data URI を使えない）。
+- 件数 badge はグループ単位のみ（h2 には付けない）。Primitives ページは recipe 抜き CSS のため、見た目は docs 側 CSS で完結させる。
+- 選択中項目の文字色を accent から fg へ変更（ライトモードの AA 未達の解消。トークン不変、`transition: none` は維持）。
+- Menu トグルは markup を変えず CSS のみでボタン風外形・三本線・開状態・フォーカスリングを整える。
+
+## 11.3 確定事項（#3621 部品ページの API 表）
 
 - API 表（Arguments / Data Attributes / CSS Variables）は pre-styled-ui の `table` / `code` / `badge` recipe を使わず、core の `table` / `th` / `td` と属性なしの `code` で組む（§3 の手本からの意図的な逸脱）。`data-scope` 配下が検索インデックスから除外されること、Primitives が recipe 抜きの CSS を読むことが理由で、#3619 の Demo 枠と同じ判断である。
 - CSS フックは `docs-*` class ではなく `table[data-docs-api-table]`（値は `arguments` / `data-attributes` / `css-variables`）と、空値プレースホルダの `span[data-docs-api-placeholder]` にする。`STRUCTURE_CLASS_CONTRACT` に触れないため。
