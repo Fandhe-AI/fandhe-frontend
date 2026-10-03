@@ -568,6 +568,8 @@ const NAV_GROUP_ONLY_CLASSES: &[&str] = &[
     "docs-nav-group",
     "docs-nav-group-summary",
     "docs-nav-group-list",
+    "docs-nav-group-title",
+    "docs-nav-group-count",
 ];
 
 /// 検索結果（イシュー #958）のうち `crate::script::SITE_JS` が実行時に
@@ -1941,6 +1943,29 @@ fn site_footer_fallback_rules_exist_in_both_stylesheets() {
             css.contains(".docs-footer.docs-footer a {"),
             "フッターのリンク規則が無い"
         );
+    }
+}
+
+/// サイドバーの件数 badge と開閉三角は、recipe 有無の両 CSS で同じ見た目になる
+/// 代替規則を持つ（Primitives ページは recipe 抜き。イシュー #3611）。
+#[test]
+fn sidebar_group_fallback_rules_exist_in_both_stylesheets() {
+    let with = site_css();
+    let without = site_theme::stylesheet_without_recipes()
+        .expect("site theme stylesheet without recipes should assemble")
+        .as_css()
+        .to_string();
+    for css in [&with, &without] {
+        let start = css
+            .find(".docs-sidebar nav.sidebar .docs-nav-group-count [data-scope=\"badge\"] {")
+            .expect("件数 badge の代替規則が無い");
+        let block = &css[start..];
+        let block = &block[..block.find('}').unwrap()];
+        for expected in ["background:", "padding:", "border-radius:"] {
+            assert!(block.contains(expected), "{expected} が無い: {block}");
+        }
+        assert!(css.contains(".docs-sidebar nav.sidebar .docs-nav-group-summary::before {"));
+        assert!(css.contains("details.docs-nav-group[open] > .docs-nav-group-summary::before {"));
     }
 }
 

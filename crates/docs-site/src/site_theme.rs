@@ -1019,6 +1019,39 @@ body {\n\
   background: var(--fandhe-color-bg-subtle);\n\
 }\n\
 \n\
+/* Menu トグルのボタン風外形・三本線・開状態・フォーカスリング（イシュー #3611）。\n\
+ * 開閉状態の情報源は `:checked` のみ（focus-within は使わない）。 */\n\
+.docs-sidebar-toggle-label {\n\
+  display: flex;\n\
+  align-items: center;\n\
+  gap: 0.5rem;\n\
+  border: 1px solid var(--fandhe-color-border);\n\
+}\n\
+\n\
+.docs-sidebar-toggle-label::before {\n\
+  content: \"\";\n\
+  flex: none;\n\
+  width: 1rem;\n\
+  height: 0.75rem;\n\
+  background: linear-gradient(currentColor, currentColor) top / 100% 2px no-repeat,\n\
+    linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat,\n\
+    linear-gradient(currentColor, currentColor) bottom / 100% 2px no-repeat;\n\
+}\n\
+\n\
+.docs-sidebar-toggle:checked + .docs-sidebar-toggle-label {\n\
+  background: var(--fandhe-color-docs-accent-bg);\n\
+  border-color: var(--fandhe-color-accent);\n\
+}\n\
+\n\
+.docs-sidebar-toggle:checked + .docs-sidebar-toggle-label::before {\n\
+  background: linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat;\n\
+}\n\
+\n\
+.docs-sidebar-toggle:focus-visible + .docs-sidebar-toggle-label {\n\
+  outline: 2px solid var(--fandhe-color-accent);\n\
+  outline-offset: 2px;\n\
+}\n\
+\n\
 .docs-sidebar nav.sidebar {\n\
   display: flex;\n\
   flex-direction: column;\n\
@@ -1087,7 +1120,7 @@ body {\n\
 \n\
 .docs-sidebar nav.sidebar a[aria-current=\"page\"] {\n\
   background: var(--fandhe-color-docs-accent-bg);\n\
-  color: var(--fandhe-color-accent);\n\
+  color: var(--fandhe-color-fg);\n\
   border-left-color: var(--fandhe-color-accent);\n\
   font-weight: var(--fandhe-font-font-weight-semibold);\n\
 }\n\
@@ -1112,12 +1145,58 @@ body {\n\
 .docs-sidebar nav.sidebar .docs-nav-group-summary {\n\
   cursor: pointer;\n\
   list-style: none;\n\
+  display: flex;\n\
+  align-items: center;\n\
+  gap: 0.5rem;\n\
+  justify-content: space-between;\n\
   padding: 0.32rem 0.5rem;\n\
   border-radius: 0.4rem;\n\
-  font-weight: var(--fandhe-font-font-weight-semibold);\n\
-  font-size: 0.72rem;\n\
-  letter-spacing: 0.06em;\n\
-  text-transform: uppercase;\n\
+  font-weight: var(--fandhe-font-font-weight-medium);\n\
+  font-size: var(--fandhe-font-font-size-sm);\n\
+  letter-spacing: normal;\n\
+  text-transform: none;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+}\n\
+\n\
+.docs-sidebar nav.sidebar details.docs-nav-group[open] > .docs-nav-group-summary {\n\
+  color: var(--fandhe-color-fg);\n\
+}\n\
+\n\
+/* 開閉の三角（イシュー #3611）。DOM を増やさず疑似要素の border 2 辺を回転して描く。\n\
+ * 即時切替（transition なし）で #3603 の方針とそろえる。 */\n\
+.docs-sidebar nav.sidebar .docs-nav-group-summary::before {\n\
+  content: \"\";\n\
+  order: -1;\n\
+  flex: none;\n\
+  width: 0.4rem;\n\
+  height: 0.4rem;\n\
+  border-right: 2px solid currentColor;\n\
+  border-bottom: 2px solid currentColor;\n\
+  transform: rotate(-45deg);\n\
+}\n\
+\n\
+.docs-sidebar nav.sidebar details.docs-nav-group[open] > .docs-nav-group-summary::before {\n\
+  transform: rotate(45deg);\n\
+}\n\
+\n\
+.docs-sidebar nav.sidebar .docs-nav-group-title {\n\
+  flex: 1 1 auto;\n\
+  min-width: 0;\n\
+  overflow-wrap: anywhere;\n\
+}\n\
+\n\
+/* 件数 badge。Primitives ページは recipe 抜き CSS のため、見た目を docs 側で完結させる。 */\n\
+.docs-sidebar nav.sidebar .docs-nav-group-count [data-scope=\"badge\"] {\n\
+  display: inline-flex;\n\
+  align-items: center;\n\
+  justify-content: center;\n\
+  min-width: 1.4rem;\n\
+  padding: 0.05rem 0.4rem;\n\
+  border-radius: 999px;\n\
+  font-size: 0.7rem;\n\
+  font-weight: var(--fandhe-font-font-weight-medium);\n\
+  font-variant-numeric: tabular-nums;\n\
+  background: var(--fandhe-color-bg-subtle);\n\
   color: var(--fandhe-color-fg-muted);\n\
 }\n\
 \n\
@@ -1139,9 +1218,10 @@ body {\n\
 }\n\
 \n\
 .docs-sidebar nav.sidebar .docs-nav-group-list {\n\
-  margin: 0.1rem 0 0.2rem;\n\
+  margin: 0.1rem 0 0.2rem 0.75rem;\n\
   padding: 0;\n\
-  padding-left: 0.6rem;\n\
+  padding-inline-start: 0.4rem;\n\
+  border-inline-start: 1px solid var(--fandhe-color-border);\n\
   display: flex;\n\
   flex-direction: column;\n\
   gap: 0.05rem;\n\
