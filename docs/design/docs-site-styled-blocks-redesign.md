@@ -407,3 +407,11 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 - `crates/docs-site/src/layout.rs` / `site_theme.rs` / `script.rs` / `build.rs`: 実装の所在
 - `crates/docs-site/src/` の新設モジュール: `page_sections.rs`（生成節フック）/ `landing.rs`（トップ）/ `page_header.rs`（ページ見出しとパンくず）/ `site_footer.rs` / `code_copy.rs` / `not_found.rs` / `section_index.rs` / `component_index.rs` / `category_index.rs` / `themes_catalog.rs` / `site_version.rs` / `favicon.rs`、およびトップのコード例 `crates/docs-site/snippets/landing_ssr.rs`
 - `docs/guides/browser-testing.md` §9a: `make docs-preview` の手順
+
+## 追補: モバイルヘッダーの段構成と一覧グリッドの寄せ（イシュー #3659）
+
+- 768px 未満のヘッダーは、1 段目にブランド・バッジ、2 段目に検索（`flex: 1 1 calc(100% - 7rem)`）・GitHub・テーマトグルを置く 2 段構成とした。テーマトグルの可視ラベルは clip で隠し、`aria-label` で名前を保つ。`order` は使わず、DOM 順・Tab 順・視覚順を一致させる。
+- 1280px 以上は `.docs-header-actions` の左余白を 1.5rem、検索入力幅を 10.5rem として、ナビ最終項目との間隔を確保する。
+- トップの特徴カードは flex の中央寄せ（1 / 2 / 3 列相当）とし、最終段を中央に揃える。入口カード `.docs-landing-cards` は件数固定のため `auto-fit` とする。
+- 索引グリッド（`.docs-index-grid` / `.docs-category-grid`）は件数が可変で、左上起点の読み順とスキャン性を優先するため、最終段の左寄せを仕様として維持する。
+- 実機（Playwright）での段数・間隔の実測は未実施であり、レビュー時に 375 / 390 / 1280 / 1440px で確認する。
