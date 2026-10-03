@@ -97,7 +97,11 @@
 //! fail-closed 処理順）、ステップ 5 の後に書き出す。admonition を含まない
 //! ページ・フィクスチャサイトのビルド結果は 1 バイトも変わらない。
 //!
-//! # 素の JS 単一ファイル（[`crate::script`]、イシュー #951）
+//! # 素の JS 2 ファイル（[`crate::script`]、イシュー #951/#3676）
+//!
+//! 同期読み込みのテーマ初期化 `assets/theme-init.js`（[`script::THEME_INIT_REL_PATH`]、
+//! イシュー #3676）は `site.js` と同じ区分で書き出し、[`script::theme_init_js`] の
+//! 安全性検証は `ssg::generate_pages` より前に行う。
 //!
 //! テーマトグル（ダーク/ライト切替）が使う `assets/site.js` は
 //! [`skip_nav`]/[`site_theme`] と同じ「全ビルド無条件」区分で、ステップ 4
@@ -131,7 +135,7 @@
 //! 全ビルド無条件で書き出す。
 //!
 //! 上記の CSS 5 種（showcase / primitive_showcase / admonition / skip_nav /
-//! site_theme）・JS 1 種（`site.js`）・検索インデックス JSON
+//! site_theme）・JS 2 種（`theme-init.js`・`site.js`）・検索インデックス JSON
 //! （マニフェスト 1 種 + セクション数分）・
 //! showcase ページが実在するときのみ書き出す SVG 1 種
 //! （`showcase::image_demo_svg`、イシュー #1562。Image 節 demo の
@@ -183,6 +187,7 @@ use crate::wireframes;
 /// [`site_theme::STYLESHEET_REL_PATH`]/[`skip_nav::STYLESHEET_REL_PATH`]/
 /// [`showcase::STYLESHEET_REL_PATH`]/[`admonition::STYLESHEET_REL_PATH`]/
 /// [`primitive_showcase::STYLESHEET_REL_PATH`]/[`script::SCRIPT_REL_PATH`]/
+/// [`script::THEME_INIT_REL_PATH`]（イシュー #3676）/
 /// [`search_index::REL_PATH`]/[`showcase::IMAGE_DEMO_ASSET_REL_PATH`]/
 /// [`blocks::STYLESHEET_REL_PATH`]（イシュー #2088）/
 /// [`wireframes::STYLESHEET_REL_PATH`]（イシュー #2607）/
@@ -198,6 +203,7 @@ pub(crate) const RESERVED_ASSET_NAMES: &[&str] = &[
     "primitives-showcase.css",
     "admonition.css",
     "site.js",
+    "theme-init.js",
     "favicon.svg",
     "search-index.json",
     "image-demo.svg",
@@ -278,6 +284,14 @@ pub enum BuildError {
     /// 汎用生成節の登録表（[`page_sections`]）の整合検証に失敗した
     /// （イシュー #3598。書き出し前に検知し `out_dir` を汚さない fail-closed）。
     PageSection(PageSectionError),
+    /// ビルド時生成 JS（[`script::THEME_INIT_JS`]）が
+    /// [`script::is_escape_safe`] の検証に落ちた（イシュー #3676。通常は到達
+    /// しない。`ssg::generate_pages` より前に検知し `out_dir` を汚さない
+    /// fail-closed）。
+    UnsafeGeneratedScript {
+        /// 対象 JS の出力先（`out_dir` 起点の相対パス）。
+        rel_path: &'static str,
+    },
 }
 
 impl fmt::Display for BuildError {
@@ -324,6 +338,9 @@ impl fmt::Display for BuildError {
             }
             BuildError::PageSection(e) => {
                 write!(f, "invalid page section registry: {e}")
+            }
+            BuildError::UnsafeGeneratedScript { rel_path } => {
+                write!(f, "generated script failed the safety check: {rel_path}")
             }
         }
     }
@@ -675,6 +692,12 @@ pub fn build_site_with(
         .filter_map(|s| s.rel_path.strip_prefix("assets/"))
         .collect();
     let mut asset_hrefs = collect_asset_hrefs(repo_root, &nav.site.base_path, &extra_reserved)?;
+    // テーマ初期化 JS（イシュー #3676）。`<script src>` は linkcheck の走査対象外
+    // （`href` のみ）で登録は no-op だが、他アセットと同じ登録経路に揃える。
+    asset_hrefs.push(layout::asset_href(
+        &nav.site.base_path,
+        script::THEME_INIT_REL_PATH,
+    ));
 
     // showcase / admonition の専用 CSS はいずれもビルド時生成のため
     // site/assets/ には存在しない。linkcheck が追加 <link> の href を
@@ -812,6 +835,12 @@ pub fn build_site_with(
     let search_index_files =
         search_index::build_files(&nav.site.base_path, &search_index_sections)?;
 
+    // テーマ初期化 JS（イシュー #3676）の安全性検証も書き出し前に済ませる。
+    // layout は `<script src>` を無条件に出すため、本検証が唯一のゲートになる。
+    let theme_init_js = script::theme_init_js().ok_or(BuildError::UnsafeGeneratedScript {
+        rel_path: script::THEME_INIT_REL_PATH,
+    })?;
+
     // リダイレクトページ（イシュー #1016）を本体ページより先に書き出す。
     // `ssg::generate_pages` の重複検出は 1 回の呼び出し内でしか効かないため、
     // `from`/本体ページの衝突検知は `redirect::validate_against_nav`（上）が
@@ -895,6 +924,10 @@ pub fn build_site_with(
     generated_assets.push((
         format!("/{}", script::SCRIPT_REL_PATH),
         script::site_js().to_string(),
+    ));
+    generated_assets.push((
+        format!("/{}", script::THEME_INIT_REL_PATH),
+        theme_init_js.to_string(),
     ));
     generated_assets.extend(search_index_files);
     if has_showcase_page {
@@ -1119,12 +1152,16 @@ path = "/next/"
         // （`[[section]]` が 1 つ、イシュー #957 / #3173、同じく全ビルド
         // 無条件）の 5 件。showcase/admonition 専用 CSS は本フィクスチャが
         // 使わないため含まれない。
-        assert_eq!(report.assets.len(), 7); // #3623: 404.html 込み
+        assert_eq!(report.assets.len(), 8); // #3623: 404.html、#3676: theme-init.js 込み
         assert!(out_dir.join("index.html").exists());
         assert!(out_dir.join("next/index.html").exists());
         assert!(out_dir.join("assets/site.css").exists());
         assert!(out_dir.join(skip_nav::STYLESHEET_REL_PATH).exists());
         assert!(out_dir.join(script::SCRIPT_REL_PATH).exists());
+        assert_eq!(
+            Some(fs::read_to_string(out_dir.join(script::THEME_INIT_REL_PATH)).unwrap()).as_deref(),
+            script::theme_init_js()
+        );
         assert!(out_dir.join(search_index::REL_PATH).exists());
         assert!(out_dir
             .join(search_index::section_rel_path("guide"))
@@ -1231,7 +1268,7 @@ path = "/next/"
         // サイト骨格 CSS + SkipNav 専用 CSS + `assets/site.js` +
         // 検索インデックス（マニフェスト + セクションファイル 1 件）のみ
         // （`site/assets/` 由来のコピーアセットは 0 件）。
-        assert_eq!(report.assets.len(), 7); // #3623: 404.html 込み
+        assert_eq!(report.assets.len(), 8); // #3623: 404.html、#3676: theme-init.js 込み
         assert!(out_dir.join("assets/site.css").exists());
         assert!(out_dir.join(script::SCRIPT_REL_PATH).exists());
         assert!(out_dir.join(search_index::REL_PATH).exists());
@@ -1241,6 +1278,23 @@ path = "/next/"
     /// （`site.js`）を置くと、静的ファイルの黙った上書き・生成物のすり替わりを
     /// 防ぐため `BuildError::ReservedAssetName` で拒否される（CSS 群と同じ
     /// fail-closed 検証、[`RESERVED_ASSET_NAMES`] 参照）。
+    #[test]
+    fn build_site_rejects_reserved_asset_name_theme_init_js_under_assets() {
+        let temp = TempDir::new("reserved-asset-name-theme-init-js");
+        write_fixture_site(&temp.0);
+        fs::write(
+            temp.0.join("site/assets/theme-init.js"),
+            "console.log(1);\n",
+        )
+        .unwrap();
+        let out_dir = temp.0.join("dist");
+        let err = build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY)
+            .expect_err("reserved asset name theme-init.js should fail the build");
+        assert!(matches!(err, BuildError::ReservedAssetName(_)));
+        assert!(!out_dir.exists());
+    }
+
+    /// イシュー #3676 版の予約名拒否（site.js 側）。
     #[test]
     fn build_site_rejects_reserved_asset_name_site_js_under_assets() {
         let temp = TempDir::new("reserved-asset-name-site-js");

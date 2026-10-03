@@ -18,11 +18,9 @@
 //! 4. 検索ブロック（`div.docs-search`）・テーマトグル（`.docs-theme-toggle`）
 //!    が既定 `hidden`（JS 未実行時に操作できない UI を露出しない
 //!    プログレッシブエンハンスメント契約）
-//! 5. `assets/site.js` は `defer` 付き外部 `<script src>` 1 本のみで読み込まれる
-//!    （`<head>` 先頭の FOUC 抑止インラインブートストラップ `INLINE_THEME_BOOTSTRAP`
-//!    のみ唯一の例外として許容する。`try/catch` で `localStorage` 例外を
-//!    握りつぶす自己完結スニペットで、JS 無効環境では単に実行されず既定
-//!    テーマのまま表示されるだけで閲覧・ナビゲーションには影響しない）
+//! 5. インライン `<script>` は 0 個で、外部 `<script src>` はテーマ初期化
+//!    （`assets/theme-init.js`。同期・`<head>` 内・stylesheet より前、イシュー #3676）
+//!    と `assets/site.js`（`defer`）の 2 本のみ
 //! 6. CSS 側に JS 非依存の開閉経路（`.docs-nav-drawer-toggle:checked ~ .docs-nav-drawer`・
 //!    `.docs-header-group:hover`/`:focus-within`）が存在する
 //!
@@ -60,7 +58,6 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use fandhe_frontend_docs_site::script::INLINE_THEME_BOOTSTRAP;
 use fandhe_frontend_docs_site::{nav, redirect};
 
 #[path = "support/shared_site.rs"]
@@ -228,38 +225,49 @@ fn no_generated_page_uses_inline_event_handler_attributes() {
     }
 }
 
+/// イシュー #3676: 本体ページの `<script>` は外部ファイル 2 本のみで、
+/// インライン `<script>` は 0 個（`script-src 'self'` の CSP 下で実行できるため）。
+/// テーマ初期化は同期（`defer`/`async` なし）・`<head>` 内・最初の stylesheet より前、
+/// `site.js` は `defer`。`<script` の総数と `<script src=` の数を一致させることで、
+/// `<script type=…>` のような属性付きインラインの注入も検知する。
 #[test]
-fn site_js_is_loaded_as_single_deferred_external_script() {
+fn page_scripts_are_two_external_files_with_no_inline_script() {
     let (_out, files, _redirects) = build_real_site();
-    // 唯一許容するインラインスクリプトは `<head>` 先頭の FOUC 抑止
-    // ブートストラップ（`crate::script::INLINE_THEME_BOOTSTRAP`）のみ。
-    // `try/catch` で `localStorage` 例外を握りつぶす自己完結スニペットで
-    // あり、JS 無効環境では単に実行されず既定テーマのまま表示される
-    // （閲覧・ナビゲーションに影響しない）ため no-JS 契約の例外として許す。
-    let allowed_inline = format!("<script>{INLINE_THEME_BOOTSTRAP}</script>");
+    let theme_init = r#"<script src="/fandhe-frontend/assets/theme-init.js"></script>"#;
     for file in &files {
         let html = std::fs::read_to_string(file).unwrap_or_else(|e| panic!("read {file:?}: {e}"));
 
-        // `<script>` 開始タグの出現は許容されたブートストラップの 1 個のみ。
-        let script_tag_count = html.matches("<script>").count();
         assert_eq!(
-            script_tag_count, 1,
-            "{file:?} should contain exactly one inline <script> tag (the allowed FOUC bootstrap, no-JS 契約は他のインラインスクリプトを許容しない)"
+            html.matches("<script>").count(),
+            0,
+            "{file:?} must not contain an inline <script> tag"
         );
+        assert_eq!(
+            html.matches("<script").count(),
+            2,
+            "{file:?} should contain exactly two <script tags (theme-init + site.js)"
+        );
+        assert_eq!(
+            html.matches("<script src=").count(),
+            2,
+            "{file:?} should reference exactly two external <script src> tags, none inline"
+        );
+
+        let init_pos = html
+            .find(theme_init)
+            .unwrap_or_else(|| panic!("{file:?} should load theme-init.js synchronously"));
+        let head_end = html.find("</head>").expect("</head>");
+        let first_css = html
+            .find(r#"<link rel="stylesheet""#)
+            .expect("stylesheet link");
         assert!(
-            html.contains(&allowed_inline),
-            "{file:?}: the sole inline <script> must be the theme bootstrap snippet verbatim"
+            init_pos < first_css && init_pos < head_end,
+            "{file:?}: theme-init.js must precede every stylesheet inside <head> (FOUC 抑止)"
         );
 
         assert!(
             html.contains(r#"src="/fandhe-frontend/assets/site.js" defer="""#),
-            "{file:?} should load assets/site.js via a single deferred external <script src> (site_build.rs の共通契約と同一文字列)"
-        );
-        // <script src> の出現回数はちょうど 1 本であること。
-        let script_src_count = html.matches("<script src=").count();
-        assert_eq!(
-            script_src_count, 1,
-            "{file:?} should reference exactly one external <script src> tag"
+            "{file:?} should load assets/site.js via a deferred external <script src> (site_build.rs の共通契約と同一文字列)"
         );
     }
 }
@@ -427,7 +435,7 @@ fn structural_css_declares_js_independent_toggle_and_dropdown_paths() {
 }
 
 /// イシュー #1016: リダイレクトページは本体ページと異なるクロームなし契約を
-/// 満たす。本体ページの契約（`<script>` 正確に 1 個・`docs-search`/
+/// 満たす。本体ページの契約（`<script>` は外部 2 本のみ・`docs-search`/
 /// `docs-theme-toggle` の `hidden` 既定）を「弱める」のではなく、リダイレクト
 /// ページには**より強い**契約（`<script>` を 1 個も含まない）を課す形で
 /// 分割する（モジュール doc 参照）。

@@ -57,6 +57,7 @@
 ### 案 E: meta 導入 + 外部化（推奨）
 
 - `INLINE_THEME_BOOTSTRAP` を `<head>` 先頭の同期（`defer` なし）外部 `<script src>` へ移す。同期外部 script はパーサをブロックするため、インラインと同様に stylesheet より前に `data-theme` を確定できる想定（要実機検証）
+  - 実装済み（イシュー #3676）: `assets/theme-init.js`（`src/script.rs` の `THEME_INIT_JS`）。Playwright（CPU 4x・キャッシュ無効）で初回 rAF 時点の `data-theme="dark"` を確認
 - `@view-transition { navigation: auto; }` は `site.css` へ移す。render-blocking なので `pagereveal` 前に効く想定（要実機検証）
 - demo の split-menu `<style>` は、スコープ付き規則を既存の showcase 用 CSS アセットへ移すか、`style` 属性で表現できる範囲に直す
 - 長所: ハッシュ機構・自前 sha256 が不要。「インライン script ゼロ」で最も強く、`no_js_contract` の唯一の例外が消えて契約が単純になる

@@ -1,4 +1,4 @@
-//! docs サイトが出力する唯一の JS（イシュー #951）。
+//! docs サイトが出力する外部 JS 2 本（`assets/theme-init.js` と `assets/site.js`、イシュー #951/#3676）。
 //!
 //! # 役割・呼び出し文脈
 //!
@@ -7,9 +7,12 @@
 //! テーマトグル（ダーク/ライト切替）の実装として、初めて docs サイトへ
 //! クライアント側 JS を持ち込む。
 //!
-//! - [`INLINE_THEME_BOOTSTRAP`]: `crate::layout::docs_page_with_assets` が
-//!   `<head>` の先頭付近（スタイルシートより前）へ同期実行の `<script>` として
-//!   埋め込む FOUC 抑止スニペット。`localStorage` に保存済みのテーマがあれば
+//! - [`THEME_INIT_JS`]: `crate::build::build_site` が [`THEME_INIT_REL_PATH`]
+//!   へ書き出し、`crate::layout::docs_page_with_assets` が `<head>` 内・
+//!   全スタイルシートより前の**同期**（`defer`/`async` なし）`<script src>` で
+//!   読む FOUC 抑止スクリプト（イシュー #3676。`script-src 'self'` の CSP 下で
+//!   実行できないインライン `<script>` の外部化。同期 script はパーサを
+//!   ブロックするため初回ペイント前に `data-theme` が確定する）。`localStorage` に保存済みのテーマがあれば
 //!   CSS 適用前に `<html data-theme="...">` を確定させる。
 //! - [`SITE_JS`]: `crate::build::build_site` が [`SCRIPT_REL_PATH`]
 //!   （`out_dir` 起点）へ書き出す本体。`.docs-theme-toggle` ボタンの
@@ -33,15 +36,16 @@
 //!
 //! # セキュリティ不変条件（REQ-1、`.claude/rules/coding-rust.md`）
 //!
-//! `Node::Text`（`fandhe_frontend_core`）は `<script>` の中身であっても
-//! 必ず [`fandhe_frontend_core::escape_html_into`] を経由する。`<script>` の
-//! 中身は HTML パーサが実体参照を復号しない raw text であるため、
-//! エスケープ対象文字（`< > & " '`）を 1 文字でも含む JS ソースを
-//! `text()` 経由で埋め込むと構文が壊れる。[`INLINE_THEME_BOOTSTRAP`] は
+//! #3676 以降、JS はどちらも外部ファイルとして書き出す（`<script>` へ本文を
+//! 埋め込まない）ため、「raw text へ埋め込むと構文が壊れる」という従来の
+//! 理由は消えた。それでも [`is_escape_safe`]（`< > & " '` と `${` の禁止）は
+//! (1) 将来の変数補間の混入を防ぐ構造的防御、(2) 外部 JS 全体へ一律に課す
+//! 基準として残し、`crate::build::build_site` が書き出し前に
+//! [`theme_init_js`] で fail-closed に検証する。[`THEME_INIT_JS`] は
 //! 文字列リテラルにバッククォート（テンプレートリテラル）のみを使い、
 //! `&&` の代わりに `||` を使うことでこれらの文字を一切含まない。
 //! [`is_escape_safe`] がこの性質をコンパイル後にも機械検証し、
-//! [`inline_theme_bootstrap`] は検証に落ちた場合 `None` を返す
+//! [`theme_init_js`] は検証に落ちた場合 `None` を返す
 //! fail-closed のアクセサとする（`raw_html()` は新規に導入しない）。
 //!
 //! `${`（テンプレートリテラル補間）も [`is_escape_safe`] の対象外文字列
@@ -50,9 +54,14 @@
 //! テストで機械的にブロックする構造的な防御である。
 //!
 //! `localStorage` はスクリプトの実行主体（同一オリジンの他スクリプト・
-//! 利用者自身）が改変できる非信頼データのため、[`INLINE_THEME_BOOTSTRAP`]・
+//! 利用者自身）が改変できる非信頼データのため、[`THEME_INIT_JS`]・
 //! [`SITE_JS`] のいずれも読み出した値を `dark`/`light` の allowlist と
 //! 一致した場合のみ `data-theme` へ反映する。
+
+/// [`THEME_INIT_JS`] の出力先（`out_dir` 起点の相対パス）。
+/// `crate::build::build_site` が書き出し、`crate::layout::docs_page_with_assets` が
+/// 同期の `<script src>` で参照する単一実装点。
+pub const THEME_INIT_REL_PATH: &str = "assets/theme-init.js";
 
 /// [`SITE_JS`] の出力先（`out_dir` 起点の相対パス）。
 /// `crate::build::build_site` が本パスへ書き出し、
@@ -60,14 +69,14 @@
 /// 単一実装点。
 pub const SCRIPT_REL_PATH: &str = "assets/site.js";
 
-/// テーマ選択を保存する `localStorage` キー。[`INLINE_THEME_BOOTSTRAP`] と
+/// テーマ選択を保存する `localStorage` キー。[`THEME_INIT_JS`] と
 /// [`SITE_JS`] の双方が同じキーを参照する契約であることを
-/// `script_js_and_inline_bootstrap_share_the_same_storage_key`
+/// `site_js_and_theme_init_share_the_same_storage_key`
 /// （本モジュールの `tests`）が固定する（キー名の二重管理ドリフト検知）。
 pub const THEME_STORAGE_KEY: &str = "fandhe-docs-theme";
 
-/// `<head>` の先頭付近（スタイルシートより前）に同期実行で埋め込む
-/// FOUC 抑止スニペット。`localStorage` から保存済みテーマを読み、
+/// [`THEME_INIT_REL_PATH`] へ書き出し、`<head>` のスタイルシートより前で
+/// 同期読み込みする FOUC 抑止スクリプト（本文は #3676 以前のインライン版と同一）。`localStorage` から保存済みテーマを読み、
 /// `dark`/`light` のいずれかであれば `<html>` の `data-theme` 属性を
 /// CSS 適用前に確定させる。`localStorage` アクセス例外（Safari プライベート
 /// ブラウズ等）は握りつぶし、失敗時は `data-theme` 未設定のまま
@@ -77,7 +86,7 @@ pub const THEME_STORAGE_KEY: &str = "fandhe-docs-theme";
 /// 責務はここまで（属性設定のみ）。ボタンのイベント配線・ラベル更新は
 /// すべて [`SITE_JS`] 側が担う（`site.js` の読み込み失敗時にもこのスニペット
 /// だけは動作し、保存済みテーマの反映は維持される）。
-pub const INLINE_THEME_BOOTSTRAP: &str = "try{var t=localStorage.getItem(`fandhe-docs-theme`);if(t===`dark`||t===`light`){document.documentElement.setAttribute(`data-theme`,t);}}catch(e){}";
+pub const THEME_INIT_JS: &str = "try{var t=localStorage.getItem(`fandhe-docs-theme`);if(t===`dark`||t===`light`){document.documentElement.setAttribute(`data-theme`,t);}}catch(e){}";
 
 /// [`SCRIPT_REL_PATH`] へ書き出す `assets/site.js` の全量。
 ///
@@ -983,17 +992,15 @@ pub fn is_escape_safe(source: &str) -> bool {
         && !source.contains("${")
 }
 
-/// [`INLINE_THEME_BOOTSTRAP`] が [`is_escape_safe`] を満たす場合のみ
+/// [`THEME_INIT_JS`] が [`is_escape_safe`] を満たす場合のみ
 /// `Some` を返す fail-closed のアクセサ。
 ///
-/// `crate::layout::docs_page_with_assets` はこの関数が `None` を返した場合
-/// `<script>` 自体を出力しない（壊れた JS を配信するくらいなら
-/// `prefers-color-scheme` 追従へ退避する。
-/// `fandhe_frontend_pre_styled_ui::StyleSheet` の検証済み CSS のみを
-/// 保持する方針と同型の最終防壁）。
-pub fn inline_theme_bootstrap() -> Option<&'static str> {
-    if is_escape_safe(INLINE_THEME_BOOTSTRAP) {
-        Some(INLINE_THEME_BOOTSTRAP)
+/// `crate::build::build_site` が書き出し前（`ssg::generate_pages` より前）に
+/// 呼び、`None` なら `BuildError::UnsafeGeneratedScript` でビルドを止める
+/// （`out_dir` を汚さず、ファイルを欠いたまま参照するページを出荷しない）。
+pub fn theme_init_js() -> Option<&'static str> {
+    if is_escape_safe(THEME_INIT_JS) {
+        Some(THEME_INIT_JS)
     } else {
         None
     }
@@ -1010,8 +1017,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn inline_theme_bootstrap_is_escape_safe() {
-        assert!(is_escape_safe(INLINE_THEME_BOOTSTRAP));
+    fn theme_init_js_is_escape_safe() {
+        assert!(is_escape_safe(THEME_INIT_JS));
     }
 
     #[test]
@@ -1020,8 +1027,8 @@ mod tests {
     }
 
     #[test]
-    fn inline_theme_bootstrap_accessor_returns_some_for_the_safe_constant() {
-        assert_eq!(inline_theme_bootstrap(), Some(INLINE_THEME_BOOTSTRAP));
+    fn theme_init_js_accessor_returns_some_for_the_safe_constant() {
+        assert_eq!(theme_init_js(), Some(THEME_INIT_JS));
     }
 
     #[test]
@@ -1045,13 +1052,13 @@ mod tests {
         ));
     }
 
-    /// キー名の二重管理ドリフト検知: [`INLINE_THEME_BOOTSTRAP`] と
+    /// キー名の二重管理ドリフト検知: [`THEME_INIT_JS`] と
     /// [`SITE_JS`] の双方が [`THEME_STORAGE_KEY`] と同じ文字列を参照する
     /// ことを固定する（片方だけキー名を変更してリロード後の復元が壊れる
     /// 事故を防ぐ）。
     #[test]
-    fn script_js_and_inline_bootstrap_share_the_same_storage_key() {
-        assert!(INLINE_THEME_BOOTSTRAP.contains(THEME_STORAGE_KEY));
+    fn site_js_and_theme_init_share_the_same_storage_key() {
+        assert!(THEME_INIT_JS.contains(THEME_STORAGE_KEY));
         assert!(SITE_JS.contains(THEME_STORAGE_KEY));
     }
 
@@ -1060,9 +1067,23 @@ mod tests {
     /// スクリプト全体が停止し、ナビゲーション等の既存機能まで壊れる
     /// 回帰を防ぐ回帰テスト。
     #[test]
-    fn inline_theme_bootstrap_swallows_localstorage_exceptions() {
-        assert!(INLINE_THEME_BOOTSTRAP.contains("try{"));
-        assert!(INLINE_THEME_BOOTSTRAP.contains("catch"));
+    fn theme_init_js_swallows_localstorage_exceptions() {
+        assert!(THEME_INIT_JS.contains("try{"));
+        assert!(THEME_INIT_JS.contains("catch"));
+    }
+
+    /// テーマ初期化 JS が DOM への文字列注入 API を使わないことを固定する。
+    #[test]
+    fn theme_init_js_uses_no_html_injection_apis() {
+        for needle in [
+            "innerHTML",
+            "outerHTML",
+            "document.write",
+            "eval(",
+            "insertAdjacentHTML",
+        ] {
+            assert!(!THEME_INIT_JS.contains(needle), "{needle}");
+        }
     }
 
     #[test]

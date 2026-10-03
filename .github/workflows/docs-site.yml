@@ -140,6 +140,8 @@ jobs:
         # 同型の最終確認を行う（無いと /favicon.ico 404 が再発する）。
         # 404.html（イシュー #3623、src/not_found.rs の生成物、GitHub Pages が
         # 未知の URL に返すページ）も同様に存在を確認する。
+        # assets/theme-init.js（イシュー #3676、src/script.rs の生成物。CSP 用に
+        # 外部化した同期のテーマ初期化 JS）も存在を確認する。
         # assets/site.js（イシュー #951、crates/docs-site/src/script.rs による
         # ビルド生成物）も同型の最終確認を行う。assets/search-index.json
         # （イシュー #957、crates/docs-site/src/search_index.rs による
@@ -219,6 +221,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.css"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.js"
+          test -f "${RUNNER_TEMP}/docs-site-dist/assets/theme-init.js"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/favicon.svg"
           test -f "${RUNNER_TEMP}/docs-site-dist/404.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/search-index.json"
