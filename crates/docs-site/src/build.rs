@@ -124,6 +124,9 @@
 //!
 //! # ビルド時生成アセットの書き出し経路（[`fandhe_frontend_server::ssg::generate_assets`]、イシュー #1136）
 //!
+//! 404 ページ（`404.html`、イシュー #3623、[`crate::not_found`]）は全ビルド無条件で、
+//! linkcheck 対象へ含めたうえで `generate_assets` 経由でルート直下へ書く。
+//!
 //! SVG favicon（`assets/favicon.svg`、イシュー #3604、[`crate::favicon`]）も
 //! 全ビルド無条件で書き出す。
 //!
@@ -163,6 +166,7 @@ use crate::layout;
 use crate::linkcheck::{self, BrokenLink};
 use crate::markdown::render_markdown;
 use crate::nav::{self, NavError};
+use crate::not_found;
 use crate::page_sections::{self, PageSectionError, Registry};
 use crate::primitive_showcase;
 use crate::redirect::{self, RedirectError};
@@ -778,6 +782,13 @@ pub fn build_site_with(
     // 走査対象のため、全ビルド無条件で href を登録する。
     asset_hrefs.push(layout::asset_href(&nav.site.base_path, favicon::REL_PATH));
 
+    // 404 ページ（イシュー #3623）。本体ページ列の末尾へ足して linkcheck に通すが、
+    // `generate_pages` へは本体ページ部分（`..body_page_count`）しか渡さない
+    // （`404/index.html` を作らず、`written == nav.all_pages().count()` の恒等契約も保つ）。
+    // 404 は絶対リンクしか出さないため、相対リンクの基準ディレクトリのずれは影響しない。
+    let body_page_count = pages.len();
+    pages.push((not_found::OUTPUT_PATH.to_string(), not_found::page(&nav)));
+
     let mut link_check_broken = linkcheck::check_links(&pages, &nav.site.base_path, &asset_hrefs);
     broken.append(&mut link_check_broken);
 
@@ -803,7 +814,7 @@ pub fn build_site_with(
     // 側へ倒すため、先に書き出す（後続の本体ページ書き出しが同名ファイルを
     // 上書きする）。
     let redirects_written = ssg::generate_pages(&redirect_pages, out_dir)?;
-    let written = ssg::generate_pages(&pages, out_dir)?;
+    let written = ssg::generate_pages(&pages[..body_page_count], out_dir)?;
     let mut assets = copy_assets(repo_root, out_dir, &extra_reserved)?;
 
     // ビルド時生成アセット（CSS 5 種・JS 1 種・検索インデックス JSON
@@ -869,6 +880,12 @@ pub fn build_site_with(
     }
 
     generated_assets.push((format!("/{}", favicon::REL_PATH), favicon::svg()));
+    // 404.html（イシュー #3623）。サイトルート直下で `assets/` 配下の
+    // `copy_assets` 出力とは衝突しないため `RESERVED_ASSET_NAMES` へは足さない。
+    generated_assets.push((
+        not_found::OUTPUT_PATH.to_string(),
+        not_found::document_html(&pages[body_page_count].1),
+    ));
     generated_assets.push((
         format!("/{}", script::SCRIPT_REL_PATH),
         script::site_js().to_string(),
@@ -1096,7 +1113,7 @@ path = "/next/"
         // （`[[section]]` が 1 つ、イシュー #957 / #3173、同じく全ビルド
         // 無条件）の 5 件。showcase/admonition 専用 CSS は本フィクスチャが
         // 使わないため含まれない。
-        assert_eq!(report.assets.len(), 6);
+        assert_eq!(report.assets.len(), 7); // #3623: 404.html 込み
         assert!(out_dir.join("index.html").exists());
         assert!(out_dir.join("next/index.html").exists());
         assert!(out_dir.join("assets/site.css").exists());
@@ -1208,7 +1225,7 @@ path = "/next/"
         // サイト骨格 CSS + SkipNav 専用 CSS + `assets/site.js` +
         // 検索インデックス（マニフェスト + セクションファイル 1 件）のみ
         // （`site/assets/` 由来のコピーアセットは 0 件）。
-        assert_eq!(report.assets.len(), 6);
+        assert_eq!(report.assets.len(), 7); // #3623: 404.html 込み
         assert!(out_dir.join("assets/site.css").exists());
         assert!(out_dir.join(script::SCRIPT_REL_PATH).exists());
         assert!(out_dir.join(search_index::REL_PATH).exists());
