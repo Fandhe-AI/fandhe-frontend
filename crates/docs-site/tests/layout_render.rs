@@ -1223,6 +1223,78 @@ fn head_carries_base_path_aware_svg_favicon_link() {
         assert!(at < html.find("</head>").unwrap());
     }
 }
+/// ヘッダー部分（`<header` から `</header>` まで）だけを切り出す。
+fn header_html(html: &str) -> &str {
+    let start = html.find("<header").expect("header should exist");
+    let end = html[start..]
+        .find("</header>")
+        .expect("header should close")
+        + start;
+    &html[start..end]
+}
+
+/// イシュー #3606: ブランド部の DOM 順（brand < version badge < actions）、
+/// ロゴの `aria-hidden`、badge 文言が `site_version` と一致することを固定する。
+#[test]
+fn header_brand_has_aria_hidden_logo_and_core_version_badge() {
+    let body = p(vec![], vec![text("本文です。")]);
+    let html = render(&docs_page("タイトル", "", sample_sidebar(), body));
+    let header = header_html(&html);
+
+    let brand = header.find(r#"class="docs-brand""#).expect("brand");
+    let mark = header
+        .find(r#"class="docs-brand-mark" aria-hidden="true""#)
+        .expect("brand mark should be aria-hidden");
+    let version = header
+        .find(r#"class="docs-brand-version""#)
+        .expect("version");
+    let actions = header
+        .find(r#"class="docs-header-actions""#)
+        .expect("actions");
+    assert!(brand < mark && mark < version && version < actions);
+    // badge は brand リンクの外（リンク名に版数を混ぜない）。
+    let brand_end = header[brand..].find("</a>").expect("brand a closes") + brand;
+    assert!(version > brand_end);
+
+    let v = fandhe_frontend_docs_site::site_version::core_version().expect("core version");
+    assert!(header.contains(&format!("core v{v}")), "{header}");
+    assert!(header[version..].contains(r#"data-scope="badge""#));
+}
+
+/// イシュー #3606: GitHub リンクは `target`/`rel` をそれぞれちょうど 1 回だけ出す
+/// （pre-styled `link` の `external` が付与。attrs で重ねると重複する）。
+#[test]
+fn header_github_link_has_single_target_and_rel() {
+    let body = p(vec![], vec![text("本文です。")]);
+    let html = render(&docs_page("タイトル", "", sample_sidebar(), body));
+    let header = header_html(&html);
+    assert_eq!(header.matches(r#"target="_blank""#).count(), 1, "{header}");
+    assert_eq!(
+        header.matches(r#"rel="noopener noreferrer""#).count(),
+        1,
+        "{header}"
+    );
+}
+
+/// イシュー #3606: 検索の素の input は `input_group` の内側、label と結果一覧は
+/// group の外側にあり、`aria-keyshortcuts="/"` を持つ。
+#[test]
+fn header_search_input_is_inside_input_group_with_slash_hint() {
+    let body = p(vec![], vec![text("本文です。")]);
+    let html = render(&docs_page("タイトル", "", sample_sidebar(), body));
+    let header = header_html(&html);
+
+    let label = header.find(r#"class="docs-search-label""#).expect("label");
+    let root = header
+        .find(r#"data-scope="input-group" data-part="root""#)
+        .expect("input_group root");
+    let input = header.find(r#"class="docs-search-input""#).expect("input");
+    let kbd = header.find(r#"data-scope="kbd""#).expect("kbd");
+    let results = header.find(r#"id="docs-search-results""#).expect("results");
+    assert!(label < root && root < input && input < kbd && kbd < results);
+    assert!(header.contains(r#"aria-keyshortcuts="/""#));
+    assert!(header.contains(r#"data-scope="icon""#));
+}
 
 /// イシュー #3609: `footer` が `Some` のとき `<body>` の最後の子（`div.docs-container`
 /// の直後）へ出力され、`None` では出力されない。`main` の外に置くことで暗黙の

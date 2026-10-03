@@ -456,3 +456,31 @@ fn code_copy_buttons_default_to_hidden() {
         "at least one page must contain a fenced code block (otherwise this contract is vacuous)"
     );
 }
+/// イシュー #3606: 既定 hidden の契約は維持したまま、トグルのラッパー内に
+/// pre-styled-ui の button、検索ブロック内に input_group と kbd が入っている。
+#[test]
+fn header_actions_embed_pre_styled_parts_inside_hidden_wrappers() {
+    let (_out, files, _redirects) = build_real_site();
+    let file = files.first().expect("at least one page");
+    let html = std::fs::read_to_string(file).unwrap_or_else(|e| panic!("read {file:?}: {e}"));
+
+    let toggle = html
+        .find(r#"class="docs-theme-toggle" hidden"#)
+        .expect("toggle wrapper");
+    let toggle_tail = &html[toggle..];
+    let toggle_end = toggle_tail
+        .find("</header>")
+        .expect("header should close after toggle");
+    assert!(toggle_tail[..toggle_end].contains(r#"data-scope="button""#));
+    assert!(toggle_tail[..toggle_end].contains("docs-theme-toggle-label"));
+
+    let search = html
+        .find(r#"class="docs-search" hidden"#)
+        .expect("search wrapper");
+    let search_tail = &html[search..];
+    let search_end = search_tail
+        .find(r#"class="docs-search-results""#)
+        .expect("results");
+    assert!(search_tail[..search_end].contains(r#"data-scope="input-group""#));
+    assert!(search_tail[..search_end].contains(r#"data-scope="kbd""#));
+}
