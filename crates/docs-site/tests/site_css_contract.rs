@@ -1615,15 +1615,16 @@ fn landing_feature_grid_is_one_two_three_columns_by_breakpoint() {
     // 生成 CSS では除去される（@media 内も行頭から始まる）。
     let css = site_css();
     let base = css.find(".docs-features-grid {").expect("grid base rule");
-    assert!(css[base..].contains("grid-template-columns: minmax(0, 1fr);"));
+    assert!(css[base..].contains("justify-content: center;"));
+    assert!(css[base..].contains("flex: 0 0 100%;"));
     let md = css
-        .find("@media (min-width: 768px) {\n.docs-landing .docs-features-grid")
+        .find("@media (min-width: 768px) {\n.docs-landing .docs-feature {")
         .expect("768px rule");
-    assert!(css[md..].contains("repeat(2, minmax(0, 1fr))"));
+    assert!(css[md..].contains("flex-basis: calc((100% - 1.5rem) / 2);"));
     let lg = css
-        .find("@media (min-width: 1024px) {\n.docs-landing .docs-features-grid")
+        .find("@media (min-width: 1024px) {\n.docs-landing .docs-feature {")
         .expect("1024px rule");
-    assert!(css[lg..].contains("repeat(3, minmax(0, 1fr))"));
+    assert!(css[lg..].contains("flex-basis: calc((100% - 3rem) / 3);"));
 }
 
 #[test]
@@ -1722,7 +1723,7 @@ fn narrow_header_moves_search_to_full_width_second_row() {
         ".docs-header-inner {\nflex-wrap: wrap;",
         "column-gap:",
         ".docs-header-actions {\ndisplay: contents;",
-        ".docs-search {\nflex: 1 0 100%;",
+        ".docs-search {\nflex: 1 1 calc(100% - 7rem);\nmin-width: 0;",
         ".docs-search-input {\nwidth: 100%;",
         ".docs-search-results {\nleft: 0;\nright: 0;\nmin-width: 0;",
         "scroll-margin-top: 1rem;",
@@ -1732,10 +1733,11 @@ fn narrow_header_moves_search_to_full_width_second_row() {
             "narrow header block lacks `{expected}`:\n{block}"
         );
     }
-    assert!(!block.contains("position: absolute"));
     assert!(!block.contains("header-height-stacked"));
-    // DOM 順と視覚順を一致させる（order は Tab 順を変えない）。
-    assert!(!block.contains("\norder:"));
+    // イシュー #3659: order で視覚順と Tab 順を乖離させない。
+    assert_eq!(block.matches("\norder:").count(), 0);
+    // テーマトグルの可視ラベルは clip で隠し、名前は aria-label が保つ。
+    assert!(block.contains(".docs-theme-toggle-label {\nposition: absolute;"));
 }
 
 /// 本文の長い ASCII 列は折り返し、表内の絶対配置の視覚非表示要素は

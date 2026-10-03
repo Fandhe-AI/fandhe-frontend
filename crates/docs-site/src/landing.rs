@@ -896,26 +896,28 @@ pub const CSS: &str = "\
   list-style: none;\n\
   margin: 0;\n\
   padding: 0;\n\
-  display: grid;\n\
-  grid-template-columns: minmax(0, 1fr);\n\
+  display: flex;\n\
+  flex-wrap: wrap;\n\
+  justify-content: center;\n\
   gap: 1.5rem;\n\
 }\n\
 \n\
+.docs-landing .docs-feature {\n\
+  flex: 0 0 100%;\n\
+  min-width: 0;\n\
+  margin: 0;\n\
+}\n\
+\n\
 @media (min-width: 768px) {\n\
-  .docs-landing .docs-features-grid {\n\
-    grid-template-columns: repeat(2, minmax(0, 1fr));\n\
+  .docs-landing .docs-feature {\n\
+    flex-basis: calc((100% - 1.5rem) / 2);\n\
   }\n\
 }\n\
 \n\
 @media (min-width: 1024px) {\n\
-  .docs-landing .docs-features-grid {\n\
-    grid-template-columns: repeat(3, minmax(0, 1fr));\n\
+  .docs-landing .docs-feature {\n\
+    flex-basis: calc((100% - 3rem) / 3);\n\
   }\n\
-}\n\
-\n\
-.docs-landing .docs-feature {\n\
-  min-width: 0;\n\
-  margin: 0;\n\
 }\n\
 \n\
 .docs-feature [data-scope=\"card\"][data-part=\"root\"] {\n\
@@ -1000,7 +1002,7 @@ pub const CSS: &str = "\
 }\n\
 \n\
 .docs-landing ul.docs-landing-cards {\n\
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));\n\
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));\n\
 }\n\
 \n\
 .docs-landing ul.docs-landing-stats {\n\
