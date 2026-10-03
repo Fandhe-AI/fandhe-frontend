@@ -137,9 +137,18 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 確定事項（#3605）:
 
 - 骨格は `crates/docs-site/src/code_copy.rs` の `wrap_code_blocks` が作る。`build.rs` の `render_markdown` 直後（blocks / wireframes の挿入より前）に適用するため、対象は Markdown 由来のフェンスに限られ、Blocks の demo と Anatomy の `pre` は包まない。`markdown::parse_fence` の出力は変えない。
-- 構造は `div.docs-code-block > pre + button.docs-code-copy[hidden] + span.docs-code-copy-status[role=status][aria-live=polite]`。状態は `data-copy-state` の `idle` / `copied` / `failed` の 3 値。
+- 構造（#3605 時点の履歴。現行は下記「確定事項（#3620）」の構造）は `div.docs-code-block > pre + button.docs-code-copy[hidden] + span.docs-code-copy-status[role=status][aria-live=polite]`。状態は `data-copy-state` の `idle` / `copied` / `failed` の 3 値。
 - ボタンの可視ラベル（Copy / Copied / Failed）は SSG では出さず、JS が `textContent` で入れる（検索インデックスへ共通語を混入させないため）。
 - Phase 3（ヒーロー、#3612）・Phase 5（コードブロックヘッダー、#3620）は、この `div.docs-code-block` ラッパーと JS の契約（ラッパー内の `pre`・ボタン・ステータス）を再利用する。
+
+確定事項（#3620）:
+
+- 構造は `div.docs-code-block > div.docs-code-header[span.docs-code-lang? + button.docs-code-copy] + pre + span.docs-code-copy-status` へ変わった。ボタンはヘッダー内へ移り、`site.js` は `closest('.docs-code-block')` で解決するため変更なし。
+- ラベルは `code` の `language-<token>` class を `code_copy::language_label` の静的対応表（rust / toml / bash / sh / shell / html / css / js / javascript / json / jsonc / text）で引く。無指定・未知の言語はラベル要素を出さない（入力由来の文字列は HTML へ出さない）。ハイライト対応言語とは独立。
+- ヘッダー帯は常に flow へ置く。ラベルなし・ボタン `hidden` の間も帯を残し、JS が `hidden` を外しても `pre` が押し下がらないようにする（`:has()` で隠す方式は読み込み時のレイアウトずれを生むため採らない）。
+- ヘッダー帯の語は `search_index` が部分木ごと除外する（Rust 等の共通語の混入防止）。
+- 部品ページ Examples の `pre` は `wrap_code_blocks_outside_scopes` で包む（`data-scope` の部分木と Anatomy は包まない）。Primitives の CSS スニペットは `code_copy::css_snippet_block` で `language-css` を付ける。
+- 対象外: ファイル名表示（info string の拡張が `parse_fence` の出力契約へ波及する）、ハイライト対応言語の追加。
 
 ## 5.1 セクション索引のカードグリッド（#3616）
 

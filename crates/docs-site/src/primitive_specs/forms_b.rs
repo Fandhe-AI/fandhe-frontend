@@ -1013,10 +1013,7 @@ fn ex_number_input_custom_css() -> Node {
         "利用者が data-scope / data-part / data-disabled / data-invalid / data-readonly 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             markup,
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(NUMBER_INPUT_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(NUMBER_INPUT_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -1112,10 +1109,7 @@ fn ex_password_input_custom_css() -> Node {
         autocomplete: PasswordAutocomplete::CurrentPassword,
     };
     let demo = password_input_demo_node(&props, "Password");
-    let snippet = pre(
-        vec![],
-        vec![code(vec![], vec![text(PASSWORD_INPUT_CUSTOM_CSS_SNIPPET)])],
-    );
+    let snippet = crate::code_copy::css_snippet_block(PASSWORD_INPUT_CUSTOM_CSS_SNIPPET);
     wrap_password_example(
         "headless-ui はスタイルレスです。data-scope/data-part/data-state/data-* をセレクタに使い、以下のような CSS を自前で当てられます。",
         vec![demo, snippet],
@@ -1246,10 +1240,7 @@ fn ex_pin_input_custom_css() -> Node {
             pin_input::control(vec![], inputs),
         ],
     );
-    let snippet = pre(
-        vec![],
-        vec![code(vec![], vec![text(PIN_INPUT_CUSTOM_CSS_SNIPPET)])],
-    );
+    let snippet = crate::code_copy::css_snippet_block(PIN_INPUT_CUSTOM_CSS_SNIPPET);
     wrap_password_example(
         "headless-ui はスタイルレスです。data-scope/data-part/data-* をセレクタに使い、以下のような CSS を自前で当てられます。",
         vec![demo, snippet],
@@ -1536,10 +1527,7 @@ fn ex_radio_group_custom_css() -> Node {
             ),
         ],
     );
-    let snippet = pre(
-        vec![],
-        vec![code(vec![], vec![text(RADIO_GROUP_CUSTOM_CSS_SNIPPET)])],
-    );
+    let snippet = crate::code_copy::css_snippet_block(RADIO_GROUP_CUSTOM_CSS_SNIPPET);
     wrap_password_example(
         "headless-ui はスタイルレスです。data-scope/data-part/data-* をセレクタに使い、以下のような CSS を自前で当てられます。",
         vec![demo, snippet],
@@ -1741,10 +1729,7 @@ fn ex_segment_group_custom_css() -> Node {
             ),
         ],
     );
-    let snippet = pre(
-        vec![],
-        vec![code(vec![], vec![text(SEGMENT_GROUP_CUSTOM_CSS_SNIPPET)])],
-    );
+    let snippet = crate::code_copy::css_snippet_block(SEGMENT_GROUP_CUSTOM_CSS_SNIPPET);
     wrap_password_example(
         "headless-ui はスタイルレスです。data-scope/data-part/data-* をセレクタに使い、以下のような CSS を自前で当てられます。",
         vec![demo, snippet],
@@ -1886,7 +1871,7 @@ fn ex_select_custom_css() -> Node {
         "利用者が data-scope / data-part / data-state / data-invalid / data-readonly / data-placeholder-shown / data-highlighted 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             markup,
-            pre(vec![], vec![code(vec![], vec![text(SELECT_CUSTOM_CSS_SNIPPET)])]),
+            crate::code_copy::css_snippet_block(SELECT_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -2019,10 +2004,7 @@ fn ex_signature_pad_custom_css() -> Node {
             ),
         ],
     );
-    let snippet = pre(
-        vec![],
-        vec![code(vec![], vec![text(SIGNATURE_PAD_CUSTOM_CSS_SNIPPET)])],
-    );
+    let snippet = crate::code_copy::css_snippet_block(SIGNATURE_PAD_CUSTOM_CSS_SNIPPET);
     wrap_password_example(
         "headless-ui はスタイルレスです。data-scope/data-part/data-* をセレクタに使い、以下のような CSS を自前で当てられます。",
         vec![demo, snippet],
@@ -2250,7 +2232,7 @@ fn ex_switch_custom_css() -> Node {
         "利用者が data-scope / data-part / data-state / data-focus-visible / data-disabled / data-invalid 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             markup,
-            pre(vec![], vec![code(vec![], vec![text(SWITCH_CUSTOM_CSS_SNIPPET)])]),
+            crate::code_copy::css_snippet_block(SWITCH_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -2321,7 +2303,7 @@ fn ex_tags_input_custom_css() -> Node {
     pre(
         vec![],
         vec![code(
-            vec![],
+            vec![("class", "language-css")],
             vec![text(
                 "[data-scope=\"tags-input\"][data-part=\"control\"] {\n  \
                  display: inline-flex;\n  flex-wrap: wrap;\n  gap: 0.25rem;\n  \
