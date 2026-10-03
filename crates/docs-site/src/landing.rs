@@ -620,8 +620,8 @@ pub const CSS: &str = "\
   overflow-wrap: anywhere;\n\
 }\n\
 \n\
-.docs-landing .docs-landing-card > [data-scope=\"card\"'],\n\
-.docs-landing .docs-landing-stat > [data-scope=\"stat\"'] {\n\
+.docs-landing .docs-landing-card > [data-scope=\"card\"],\n\
+.docs-landing .docs-landing-stat > [data-scope=\"stat\"] {\n\
   height: 100%;\n\
   border: 1px solid var(--fandhe-color-border);\n\
   border-radius: var(--fandhe-radius-sm);\n\
@@ -629,11 +629,11 @@ pub const CSS: &str = "\
   transition: border-color 0.15s ease;\n\
 }\n\
 \n\
-.docs-landing .docs-landing-stat > [data-scope=\"stat\"'] {\n\
+.docs-landing .docs-landing-stat > [data-scope=\"stat\"] {\n\
   padding: 1rem;\n\
 }\n\
 \n\
-.docs-landing .docs-landing-card:hover > [data-scope=\"card\"'] {\n\
+.docs-landing .docs-landing-card:hover > [data-scope=\"card\"] {\n\
   border-color: var(--fandhe-color-accent);\n\
 }\n\
 \n\
@@ -671,7 +671,7 @@ pub const CSS: &str = "\
 }\n\
 \n\
 @media (prefers-reduced-motion: reduce) {\n\
-  .docs-landing .docs-landing-card > [data-scope=\"card\"'] {\n\
+  .docs-landing .docs-landing-card > [data-scope=\"card\"] {\n\
     transition: none;\n\
   }\n\
 }\n";
@@ -683,6 +683,14 @@ mod tests {
 
     fn html() -> String {
         render("/fandhe-frontend").iter().map(render_node).collect()
+    }
+
+    #[test]
+    fn css_attribute_selectors_are_well_formed() {
+        // 属性セレクタの `[` `]` と引用符の対応を固定する（不正なルールはブラウザに丸ごと捨てられる）。
+        assert!(!CSS.contains("'\"") && !CSS.contains("\"'"), "stray quote");
+        assert_eq!(CSS.matches('[').count(), CSS.matches(']').count());
+        assert_eq!(CSS.matches('"').count() % 2, 0);
     }
 
     #[test]
