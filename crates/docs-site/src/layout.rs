@@ -247,7 +247,11 @@ fn github_link() -> Node {
                     vec![],
                     vec![icon_path(GITHUB_ICON_PATH)],
                 ),
-                text("GitHub"),
+                el(
+                    "span",
+                    vec![("class", "docs-github-label")],
+                    vec![text("GitHub")],
+                ),
             ],
         )],
     )

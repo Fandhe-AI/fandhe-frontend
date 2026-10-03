@@ -1796,7 +1796,10 @@ nav.prev-next .next .docs-pager-meta {\n\
  * GitHub・テーマトグルを同居させ 3 段化を避ける。`order` は使わず視覚順と\n\
  * Tab 順を DOM 順に一致させる（検索の basis `100% - 7rem` は brand 行に収まらず\n\
  * 2 段目へ折り返す一方、アイコン 2 個分の 7rem を残す）。\n\
- * テーマトグルの可視ラベルは clip で隠し aria-label で名前を保つ。DOM は\n\
+ * GitHub リンクの可視ラベル（`.docs-github-label`）とテーマトグルの可視ラベルは\n\
+ * clip で隠す（リンクは文字列がアクセシブル名として残り、トグルは aria-label で\n\
+ * 名前を保つ）。アイコンのみになるため 2 段目の GitHub・トグル分 7rem に収まり\n\
+ * 3 段化しない（PR #3666 の Bugbot 指摘）。DOM は\n\
  * 変えず `.docs-header-actions` を `display: contents` にして子を\n\
  * `.docs-header-inner` の flex item へ繰り上げる。JS 無効時は\n\
  * `.docs-search[hidden]` が非表示のため 2 段目は存在せず、`min-height` は\n\
@@ -1834,6 +1837,7 @@ nav.prev-next .next .docs-pager-meta {\n\
     min-width: 0;\n\
   }\n\
 \n\
+  .docs-github-label,\n\
   .docs-theme-toggle-label {\n\
     position: absolute;\n\
     width: 1px;\n\

@@ -515,6 +515,10 @@ const STRUCTURE_CLASS_CONTRACT: &[(&str, &str)] = &[
         "GitHub リンクのラッパー span（内側に pre-styled-ui の link、イシュー #951/#3606）",
     ),
     (
+        "docs-github-label",
+        "GitHub リンクの可視ラベル span（768px 未満では clip で隠し、リンク名は文字列が保つ、PR #3666）",
+    ),
+    (
         "docs-theme-toggle",
         "テーマトグルのラッパー span（既定 hidden、内側に ghost の pre-styled-ui button、イシュー #951/#3606）",
     ),
@@ -1737,7 +1741,7 @@ fn narrow_header_moves_search_to_full_width_second_row() {
     // イシュー #3659: order で視覚順と Tab 順を乖離させない。
     assert_eq!(block.matches("\norder:").count(), 0);
     // テーマトグルの可視ラベルは clip で隠し、名前は aria-label が保つ。
-    assert!(block.contains(".docs-theme-toggle-label {\nposition: absolute;"));
+    assert!(block.contains(".docs-github-label,\n.docs-theme-toggle-label {\nposition: absolute;"));
 }
 
 /// 本文の長い ASCII 列は折り返し、表内の絶対配置の視覚非表示要素は
