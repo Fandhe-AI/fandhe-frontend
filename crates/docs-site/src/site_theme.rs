@@ -2136,6 +2136,12 @@ nav.prev-next .next .docs-pager-meta {\n\
  * ヘッダー高さに依存させない。\n\
  */\n\
 @media (max-width: 767.98px) {\n\
+  /* ナビ drawer を持たないページ（`docs_page`/`docs_page_with_assets` 経由の旧呼び出し）は\n\
+   * 狭幅でもサイドバーを出し、サイト内ナビを失わせない。 */\n\
+  .docs-container[data-no-nav-drawer] .docs-sidebar {\n\
+    display: block;\n\
+  }\n\
+\n\
   .docs-header {\n\
     position: static;\n\
     height: auto;\n\

@@ -1091,6 +1091,7 @@ pub fn docs_page_with_layout(
     // `autocomplete="off"` は戻る・進むで checked が復元され drawer が開いたまま
     // 表示されるのを防ぐ。`role`/`aria-expanded`/`aria-haspopup` は付けない
     // （checkbox のネイティブ状態が支援技術へ伝わる。`crate::nav::header_nav` rustdoc と同じ判断）。
+    let has_nav_drawer = nav_drawer.is_some();
     if let Some(drawer) = nav_drawer {
         header_children.push(el(
             "input",
@@ -1164,11 +1165,18 @@ pub fn docs_page_with_layout(
     } else {
         "docs-container docs-container--no-toc"
     };
+    // ナビ drawer が無いページ（`docs_page`/`docs_page_with_assets` 経由）は、768px 未満でも
+    // サイドバーを表示してサイト内ナビを残す（codex P1 指摘、PR #3688）。既存の class 文字列
+    // 契約を変えないよう、class ではなく `data-no-nav-drawer` 属性で CSS へ伝える。
+    let mut container_attrs = vec![("class", container_class)];
+    if !has_nav_drawer {
+        container_attrs.push(("data-no-nav-drawer", ""));
+    }
 
     let mut body_children = vec![
         skip_nav_link,
         header_node,
-        div(vec![("class", container_class)], container_children),
+        div(container_attrs, container_children),
     ];
     if let Some(footer_node) = footer {
         body_children.push(footer_node);

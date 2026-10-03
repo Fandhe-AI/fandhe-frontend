@@ -36,6 +36,27 @@ fn docs_page_renders_a_single_complete_document() {
     assert!(html.contains(r#"href="/assets/site.css""#));
 }
 
+/// codex P1（PR #3688）: ナビ drawer を渡さない `docs_page` 系の出力は、768px 未満でも
+/// サイドバーを残すため `data-no-nav-drawer` を container へ付ける。drawer ありでは付けない。
+#[test]
+fn container_marks_missing_nav_drawer_so_sidebar_stays_visible() {
+    let body = p(vec![], vec![text("本文です。")]);
+    let without = render(&docs_page("T", "", sample_sidebar(), body.clone()));
+    assert!(without.contains(r#"class="docs-container docs-container--no-toc" data-no-nav-drawer"#));
+    let with = render(&docs_page_with_layout(
+        "T",
+        "",
+        sample_sidebar(),
+        body,
+        &[],
+        None,
+        Some(ul(vec![], vec![])),
+        None,
+        PageLayout::Docs,
+    ));
+    assert!(!with.contains("data-no-nav-drawer"));
+}
+
 /// イシュー #776: SkipNav の `link` は `<body>` 先頭（`docs-header` より前）、
 /// `content`（スキップ先ターゲット）は `main` 内の本文（`docs-content`）
 /// より前に出力される。専用 CSS（`assets/skip-nav.css`）への `<link>` も
