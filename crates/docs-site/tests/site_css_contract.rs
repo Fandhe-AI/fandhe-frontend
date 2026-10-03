@@ -499,6 +499,26 @@ const STRUCTURE_CLASS_CONTRACT: &[(&str, &str)] = &[
         "検索ブロック div（既定 hidden、docs-header-actions 第 1 子、イシュー #958）",
     ),
     (
+        "docs-search-trigger",
+        "検索ボタンのラッパー span（内側に pre-styled-ui の button、イシュー #3672）",
+    ),
+    (
+        "docs-search-trigger-label",
+        "検索ボタンの可視ラベル span（狭幅では clip で隠す、イシュー #3672）",
+    ),
+    (
+        "docs-search-trigger-key",
+        "検索ボタンのショートカット kbd を包む装飾 span（aria-hidden、イシュー #3672）",
+    ),
+    (
+        "docs-search-dialog",
+        "検索ダイアログ dialog#docs-search-dialog（showModal で開く、イシュー #3672）",
+    ),
+    (
+        "docs-search-dialog-panel",
+        "検索ダイアログ内の全面パネル div（背景クリック判定のため dialog は padding 0、イシュー #3672）",
+    ),
+    (
         "docs-search-label",
         "検索入力のラベル label（視覚上のみ clip で隠す。fandhe-backend とのデザイン統一のため追加）",
     ),
@@ -1708,12 +1728,12 @@ fn landing_css_hides_sidebar_only_from_768px_and_overrides_grid_after_structural
     assert!(!css[landing_at..landing_at + media_at].contains(".docs-landing .docs-sidebar"));
 }
 
-/// 768px 未満では検索を全幅の 2 段目へ置き、検索入力が 70px まで縮んで
-/// placeholder が欠ける不具合を防ぐ（イシュー #3602）。`display: contents` で
-/// DOM を変えずに子を繰り上げる。JS 無効時に空の 2 段目を残さないよう
+/// 768px 未満では検索をアイコンのみのボタンにして 1 段に収める（イシュー
+/// #3602/#3672。入力欄はダイアログへ移ったため 70px まで縮む問題自体が消えた）。
+/// `display: contents` で DOM を変えずに子を繰り上げる。JS 無効時に空の 2 段目を残さないよう
 /// `min-height` は 1 段分のトークンにとどめる。
 #[test]
-fn narrow_header_moves_search_to_full_width_second_row() {
+fn narrow_header_collapses_search_to_icon_button_in_one_row() {
     let css = site_css();
     let marker = "@media (max-width: 767.98px) {";
     let start = css
@@ -1727,9 +1747,9 @@ fn narrow_header_moves_search_to_full_width_second_row() {
         ".docs-header-inner {\nflex-wrap: wrap;",
         "column-gap:",
         ".docs-header-actions {\ndisplay: contents;",
-        ".docs-search {\nflex: 1 1 calc(100% - 7rem);\nmin-width: 0;",
-        ".docs-search-input {\nwidth: 100%;",
-        ".docs-search-results {\nleft: 0;\nright: 0;\nmin-width: 0;",
+        ".docs-search:not([hidden]) {\nmargin-left: auto;",
+        ".docs-search:not([hidden]) + .docs-github-link {\nmargin-left: 0;",
+        ".docs-search-dialog {\nmargin-top: 4rem;",
         "scroll-margin-top: 1rem;",
     ] {
         assert!(
@@ -1741,7 +1761,12 @@ fn narrow_header_moves_search_to_full_width_second_row() {
     // イシュー #3659: order で視覚順と Tab 順を乖離させない。
     assert_eq!(block.matches("\norder:").count(), 0);
     // テーマトグルの可視ラベルは clip で隠し、名前は aria-label が保つ。
-    assert!(block.contains(".docs-github-label,\n.docs-theme-toggle-label {\nposition: absolute;"));
+    assert!(block.contains(
+        ".docs-github-label,\n.docs-theme-toggle-label,\n.docs-search-trigger-label,\n.docs-search-trigger-key {\nposition: absolute;"
+    ));
+    // 旧 2 段目の全幅検索・ポップアップ結果一覧の配置は残さない。
+    assert!(!block.contains("calc(100% - 7rem)"));
+    assert!(!block.contains(".docs-search-results"));
 }
 
 /// 本文の長い ASCII 列は折り返し、表内の絶対配置の視覚非表示要素は
@@ -2232,4 +2257,20 @@ fn not_found_classes_never_appear_in_fixture_html() {
             assert!(!tokens.contains(*class), "{class} がフィクスチャに出現した");
         }
     }
+}
+
+/// イシュー #3672: 検索ダイアログの閉状態を誤表示しないため、`display` は
+/// `[open]` にだけ付ける。素の `.docs-search-dialog` ブロックは `display` を
+/// 持たず、`::backdrop` が存在し、結果一覧は絶対配置でない。
+#[test]
+fn search_dialog_display_is_only_declared_on_open_state() {
+    let css = site_css();
+    let base = rule_body(&css, "\n.docs-search-dialog {");
+    assert!(!base.contains("display:"), "{base}");
+    let open = rule_body(&css, "\n.docs-search-dialog[open] {");
+    assert!(open.contains("display: block;"), "{open}");
+    assert!(css.contains(".docs-search-dialog::backdrop {"));
+    let results = rule_body(&css, "\n.docs-search-results {");
+    assert!(results.contains("position: static;"), "{results}");
+    assert!(!results.contains("z-index"), "{results}");
 }

@@ -499,3 +499,44 @@ fn header_actions_embed_pre_styled_parts_inside_hidden_wrappers() {
     assert!(search_tail[..search_end].contains(r#"data-scope="input-group""#));
     assert!(search_tail[..search_end].contains(r#"data-scope="kbd""#));
 }
+
+/// イシュー #3672: 検索ボタンと検索ダイアログは両方とも既定 `hidden` の
+/// `div.docs-search` の内側にあり（無 JS では出ない）、全ページで dialog は
+/// `open` を持たず、ボタンの `aria-haspopup`/`aria-expanded` は SSR に
+/// 静的出力されない（JS が配線完了時に付与する）。
+#[test]
+fn search_trigger_and_dialog_live_inside_hidden_wrapper_without_static_popup_state() {
+    let (_out, files, _redirects) = build_real_site();
+    for file in &files {
+        let html = std::fs::read_to_string(file).unwrap_or_else(|e| panic!("read {file:?}: {e}"));
+        let Some(search) = html.find(r#"class="docs-search" hidden"#) else {
+            continue;
+        };
+        let tail = &html[search..];
+        let trigger = tail
+            .find(r#"class="docs-search-trigger""#)
+            .unwrap_or_else(|| panic!("{file:?}: trigger missing"));
+        let dialog = tail
+            .find("<dialog")
+            .unwrap_or_else(|| panic!("{file:?}: dialog missing"));
+        assert!(
+            tail[trigger..dialog].contains(r#"data-scope="button""#),
+            "{file:?}: trigger should embed a pre-styled button"
+        );
+        assert!(tail[trigger..dialog].contains(r#"data-scope="kbd""#));
+        let dialog_tag_end = tail[dialog..].find('>').expect("dialog tag end");
+        let dialog_tag = &tail[dialog..dialog + dialog_tag_end];
+        assert!(!dialog_tag.contains(" open"), "{file:?}: {dialog_tag}");
+        let results = tail
+            .find(r#"class="docs-search-results""#)
+            .expect("results");
+        assert!(dialog < results);
+        assert!(tail[dialog..results].contains(r#"data-scope="input-group""#));
+        let header_end = html.find("</header>").expect("header end");
+        assert!(
+            !html[..header_end].contains("aria-haspopup"),
+            "{file:?}: aria-haspopup must be JS-only"
+        );
+        assert!(!tail[trigger..dialog].contains("aria-expanded"), "{file:?}");
+    }
+}
