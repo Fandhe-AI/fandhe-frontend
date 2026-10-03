@@ -499,24 +499,51 @@ body {\n\
 }\n\
 \n\
 /*\n\
- * フェンスコードのコピーボタン（イシュー #3605、`crate::code_copy`）。\n\
- * ボタンは `pre` の外に絶対配置する（`pre` の横スクロールで流さないため）。\n\
+ * フェンスコードのヘッダー帯（言語ラベル + コピーボタン、イシュー #3605/#3620、\n\
+ * `crate::code_copy`）。枠はラッパー側へ持たせ、`pre` の枠・角丸は外す。\n\
  * `hidden` 属性は `crate::script::SITE_JS` が配線完了後にのみ除去する。\n\
  */\n\
-.docs-code-block {\n\
-  position: relative;\n\
+.docs-content .docs-code-block {\n\
+  margin: 0 0 1.05rem;\n\
+  border: 1px solid var(--fandhe-color-border);\n\
+  border-radius: 0.6rem;\n\
+  overflow: hidden;\n\
+  min-width: 0;\n\
+  background: var(--fandhe-color-bg-muted);\n\
 }\n\
 \n\
-/* `.docs-content pre`（typography_css、後段出力）の padding より詳細度を上げ、\n\
- * 右余白（ボタン退避領域）が上書きされてコード先頭行に重ならないようにする。 */\n\
+/* `.docs-content pre`（typography_css、後段出力）より詳細度を上げて枠を外す。 */\n\
 .docs-content .docs-code-block pre {\n\
-  padding-right: 5rem;\n\
+  margin: 0;\n\
+  border: 0;\n\
+  border-radius: 0;\n\
+}\n\
+\n\
+.docs-code-header {\n\
+  display: flex;\n\
+  align-items: center;\n\
+  justify-content: space-between;\n\
+  gap: 0.5rem;\n\
+  min-height: 2.25rem;\n\
+  padding: 0.25rem 0.5rem 0.25rem 1.1rem;\n\
+  background: var(--fandhe-color-bg-subtle);\n\
+  border-bottom: 1px solid var(--fandhe-color-border);\n\
+}\n\
+\n\
+/* ラベルもなくボタンも hidden（無 JS 等）のときは空の帯を残さない。 */\n\
+.docs-code-header:not(:has(.docs-code-lang)):has(> .docs-code-copy[hidden]) {\n\
+  display: none;\n\
+}\n\
+\n\
+.docs-code-lang {\n\
+  font-size: 0.75rem;\n\
+  font-weight: 500;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+  user-select: none;\n\
 }\n\
 \n\
 .docs-code-copy {\n\
-  position: absolute;\n\
-  top: 0.5rem;\n\
-  right: 0.5rem;\n\
+  margin-left: auto;\n\
   font: inherit;\n\
   font-size: 0.75rem;\n\
   font-weight: 500;\n\
@@ -536,7 +563,7 @@ body {\n\
 \n\
 .docs-code-copy:focus-visible {\n\
   outline: 2px solid var(--fandhe-color-accent);\n\
-  outline-offset: 2px;\n\
+  outline-offset: -2px;\n\
 }\n\
 \n\
 .docs-code-copy[hidden] {\n\

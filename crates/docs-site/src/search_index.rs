@@ -283,6 +283,15 @@ fn collect_text_into(node: &Node, out: &mut String, exclude_code_blocks: bool) {
             if attrs.iter().any(|(name, _)| name == "data-scope") {
                 return;
             }
+            // コードブロックのヘッダー帯（言語ラベル + コピーボタン、#3620）は
+            // 全ページ共通の語（Rust 等）を索引へ混入させるため部分木ごと除外する。
+            if attrs.iter().any(|(name, v)| {
+                name == "class"
+                    && v.split_whitespace()
+                        .any(|t| t == crate::code_copy::CODE_HEADER_CLASS)
+            }) {
+                return;
+            }
             // Blocks ページ限定でフェンスコードブロック（`crate::markdown::
             // parse_fence` が生成する `pre` 要素、doc コメント参照）本文を
             // 除外する。`pre` の部分木を丸ごと落とすため `code` 単体の判定は

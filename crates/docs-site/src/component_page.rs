@@ -745,7 +745,11 @@ fn examples_section(spec: &ComponentPageSpec) -> Option<Node> {
             vec![],
             crate::markdown::inline_code_nodes(example.description),
         ));
-        children.push((example.render)());
+        // Examples の `pre`（CSS スニペット等）へヘッダーを付ける。部品デモ本体
+        // （`data-scope`）と Anatomy は包まない（#3620）。
+        children.extend(crate::code_copy::wrap_code_blocks_outside_scopes(vec![
+            (example.render)(),
+        ]));
     }
     Some(el("section", vec![], children))
 }

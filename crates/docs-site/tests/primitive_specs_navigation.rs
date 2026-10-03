@@ -258,7 +258,11 @@ fn navigation_examples_introduce_no_foreign_classes() {
         for class_value in extract_class_values(&html) {
             for token in class_value.split_whitespace() {
                 assert!(
-                    token == "primitives-showcase" || token.starts_with("primitives-demo-"),
+                    token == "primitives-showcase"
+                        || token.starts_with("primitives-demo-")
+                        // Examples の CSS スニペットのヘッダー（#3620）
+                        || token.starts_with("docs-code-")
+                        || token == "language-css",
                     "{path}: unexpected class token {token:?} (html={html})"
                 );
             }

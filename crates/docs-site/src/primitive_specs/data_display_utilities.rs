@@ -89,7 +89,7 @@
 //! 層）は一切呼ばない（受け入れ条件 3）。ダミー文字列は無害なもの
 //! （`example.com` 等の予約ドメイン、架空の名前）に限る。
 
-use fandhe_frontend_core::{button, code, div, img, p, pre, table, text, thead, tr, Node};
+use fandhe_frontend_core::{button, div, img, p, table, text, thead, tr, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::attachment::{self, AttachmentRootProps, AttachmentState, AttachmentVariant};
 use hui::avatar::{self, ImageStatus};
@@ -252,10 +252,7 @@ fn ex_attachment_custom_css() -> Node {
         "利用者が data-scope / data-part / data-state / data-disabled 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             demo,
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(ATTACHMENT_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(ATTACHMENT_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -417,10 +414,7 @@ fn ex_avatar_custom_css() -> Node {
         vec![
             loaded_avatar,
             error_avatar,
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(AVATAR_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(AVATAR_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -579,10 +573,7 @@ fn ex_bubble_custom_css() -> Node {
         "data-scope / data-part / data-variant / data-align / data-group-position 属性セレクタで塗り・角丸連結を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             node,
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(BUBBLE_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(BUBBLE_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -883,10 +874,7 @@ fn ex_carousel_custom_css() -> Node {
         "利用者が data-scope / data-part / data-orientation / data-current / data-disabled 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません（root を表示領域〔overflow: hidden〕、item-group をトラックとして分離し、item_group の style=\"--fandhe-carousel-index: N\" を calc() で参照する transform〔水平は translateX、縦方向は translateY〕で現在位置までスライドを移動します）。",
         vec![
             node,
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(CAROUSEL_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(CAROUSEL_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -1206,7 +1194,7 @@ fn ex_item_custom_css() -> Node {
         "data-scope / data-part / data-variant / data-size 属性セレクタで行間の区切り・角丸・境界線を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             node,
-            pre(vec![], vec![code(vec![], vec![text(ITEM_CUSTOM_CSS_SNIPPET)])]),
+            crate::code_copy::css_snippet_block(ITEM_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -1349,13 +1337,7 @@ fn ex_json_tree_view_custom_css() -> Node {
         "json-tree-view スコープ（key/colon/value）と tree-view スコープ（構造部）の両方に data-scope / data-part / data-kind 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             json_tree_view::render_json(&tree, &value),
-            pre(
-                vec![],
-                vec![code(
-                    vec![],
-                    vec![text(JSON_TREE_VIEW_CUSTOM_CSS_SNIPPET)],
-                )],
-            ),
+            crate::code_copy::css_snippet_block(JSON_TREE_VIEW_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -1542,7 +1524,7 @@ fn ex_marker_custom_css() -> Node {
         "利用者が data-scope / data-part / data-variant / data-tone 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。区切り線（divider/label variant）の描画自体は本サンプルの範囲外です。",
         vec![
             demo,
-            pre(vec![], vec![code(vec![], vec![text(MARKER_CUSTOM_CSS_SNIPPET)])]),
+            crate::code_copy::css_snippet_block(MARKER_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -1711,10 +1693,7 @@ fn ex_message_custom_css() -> Node {
         "data-scope / data-part / data-role / data-align 属性セレクタで吹き出しの位置・余白を当てる最小例です。headless-ui 自体はスタイルを持ちません。root（role=\"listitem\"）は message::group（role=\"list\"）でラップし required context を満たします。",
         vec![
             node,
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(MESSAGE_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(MESSAGE_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -1965,10 +1944,7 @@ fn ex_message_scroller_custom_css() -> Node {
         "data-scope / data-part / data-stuck / data-visible 属性セレクタで viewport の高さとスクロール、jump-to-latest の表示切り替えを当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             demo,
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(MESSAGE_SCROLLER_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(MESSAGE_SCROLLER_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -2172,10 +2148,7 @@ fn ex_scroll_area_custom_css() -> Node {
         "利用者が data-scope/data-part 属性セレクタでネイティブスクロールバーを装飾する最小例です（scrollbar/thumb/corner パーツは静的マークアップのため非表示のまま維持します）。headless-ui 自体はスタイルを持ちません。",
         vec![
             demo,
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(SCROLL_AREA_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(SCROLL_AREA_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -2311,10 +2284,7 @@ fn ex_skip_nav_custom_css() -> Node {
                 vec![],
                 vec![text("Content reachable via the styled skip link.")],
             ),
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(SKIP_NAV_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(SKIP_NAV_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -2935,10 +2905,7 @@ fn ex_tree_view_custom_css() -> Node {
         "headless-ui はスタイルを持たないため、data-scope=\"tree-view\"/data-part 属性セレクタで自前 CSS を当てる最小例です。",
         vec![
             ex_tree_view_closed_branch(),
-            pre(
-                vec![],
-                vec![code(vec![], vec![text(TREE_VIEW_CUSTOM_CSS_SNIPPET)])],
-            ),
+            crate::code_copy::css_snippet_block(TREE_VIEW_CUSTOM_CSS_SNIPPET),
         ],
     )
 }
@@ -3093,13 +3060,7 @@ fn ex_visually_hidden_custom_css() -> Node {
         "利用者が data-scope / data-part 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
         vec![
             ex_visually_hidden_icon_button(),
-            pre(
-                vec![],
-                vec![code(
-                    vec![],
-                    vec![text(VISUALLY_HIDDEN_CUSTOM_CSS_SNIPPET)],
-                )],
-            ),
+            crate::code_copy::css_snippet_block(VISUALLY_HIDDEN_CUSTOM_CSS_SNIPPET),
         ],
     )
 }

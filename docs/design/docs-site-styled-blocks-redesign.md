@@ -123,6 +123,15 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 - ボタンの可視ラベル（Copy / Copied / Failed）は SSG では出さず、JS が `textContent` で入れる（検索インデックスへ共通語を混入させないため）。
 - Phase 3（ヒーロー、#3612）・Phase 5（コードブロックヘッダー、#3620）は、この `div.docs-code-block` ラッパーと JS の契約（ラッパー内の `pre`・ボタン・ステータス）を再利用する。
 
+確定事項（#3620）:
+
+- 構造は `div.docs-code-block > div.docs-code-header[span.docs-code-lang? + button.docs-code-copy] + pre + span.docs-code-copy-status` へ変わった。ボタンはヘッダー内へ移り、`site.js` は `closest('.docs-code-block')` で解決するため変更なし。
+- ラベルは `code` の `language-<token>` class を `code_copy::language_label` の静的対応表（rust / toml / bash / sh / shell / html / css / js / javascript / json / jsonc / text）で引く。無指定・未知の言語はラベル要素を出さない（入力由来の文字列は HTML へ出さない）。ハイライト対応言語とは独立。
+- ラベルもなくボタンも `hidden` のヘッダーは CSS（`:has()`）で帯ごと隠す。
+- ヘッダー帯の語は `search_index` が部分木ごと除外する（Rust 等の共通語の混入防止）。
+- 部品ページ Examples の `pre` は `wrap_code_blocks_outside_scopes` で包む（`data-scope` の部分木と Anatomy は包まない）。Primitives の CSS スニペットは `code_copy::css_snippet_block` で `language-css` を付ける。
+- 対象外: ファイル名表示（info string の拡張が `parse_fence` の出力契約へ波及する）、ハイライト対応言語の追加。
+
 ## 6. トップページのレイアウト方針
 
 - 既定案: トップはサイドバー・右目次を出さない全幅ランディングとし、ヘッダーとフッターのみ共通にする。本文用の 3 カラム骨格はトップでは使わない。

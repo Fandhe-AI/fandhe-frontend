@@ -683,7 +683,12 @@ fn classes_outside_contract(html: &str) -> Vec<String> {
         .collect();
     let mut violations: Vec<String> = extract_class_tokens(html)
         .into_iter()
-        .filter(|token| token.starts_with("docs-") && !contract.contains(token.as_str()))
+        .filter(|token| {
+            token.starts_with("docs-")
+                && !contract.contains(token.as_str())
+                // Examples の `pre` はコピー系ヘッダーで包まれる（#3620）
+                && !CODE_COPY_CLASSES.contains(&token.as_str())
+        })
         .collect();
     violations.sort();
     violations
@@ -1466,7 +1471,13 @@ fn header_actions_can_shrink_on_narrow_viewports() {
 /// コピーボタン関連 class（イシュー #3605、`crate::code_copy`）。Markdown の
 /// フェンスがあるページにだけ出現し、フルページのフィクスチャには現れない
 /// ため、`SEARCH_JS_ONLY_CLASSES` と同様に層 1 本体とは別の契約で固定する。
-const CODE_COPY_CLASSES: &[&str] = &["docs-code-block", "docs-code-copy", "docs-code-copy-status"];
+const CODE_COPY_CLASSES: &[&str] = &[
+    "docs-code-block",
+    "docs-code-header",
+    "docs-code-lang",
+    "docs-code-copy",
+    "docs-code-copy-status",
+];
 
 #[test]
 fn code_copy_classes_match_module_constants_and_have_css_selectors() {
@@ -1475,6 +1486,8 @@ fn code_copy_classes_match_module_constants_and_have_css_selectors() {
         CODE_COPY_CLASSES,
         [
             code_copy::CODE_BLOCK_CLASS,
+            code_copy::CODE_HEADER_CLASS,
+            code_copy::CODE_LANG_CLASS,
             code_copy::COPY_BUTTON_CLASS,
             code_copy::COPY_STATUS_CLASS
         ]
@@ -1757,9 +1770,13 @@ fn representative_recipe_markup_is_covered_by_generated_site_css() {
 }
 
 #[test]
-fn code_copy_pre_padding_selector_outranks_typography_pre_padding() {
-    // `.docs-content pre { padding }`（詳細度 0,1,1）に上書きされるとコピー
-    // ボタンがコード先頭行へ重なるため、より高い詳細度のセレクタで固定する。
+fn code_block_wrapper_owns_border_and_header_rules_outrank_typography_pre() {
+    // `.docs-content pre { margin/border }`（詳細度 0,1,1）より高い詳細度で、
+    // 枠をラッパーへ移し `pre` の枠を外す（#3620）。
     let css = site_css();
+    assert!(css.contains(".docs-content .docs-code-block {"));
     assert!(css.contains(".docs-content .docs-code-block pre {"));
+    assert!(css.contains(".docs-code-header {"));
+    assert!(css.contains(".docs-code-lang {"));
+    assert!(css.contains(".docs-code-header:not(:has(.docs-code-lang))"));
 }
