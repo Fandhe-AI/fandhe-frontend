@@ -1219,10 +1219,6 @@ body {\n\
   color: var(--fandhe-color-fg-muted);\n\
 }\n\
 \n\
-.docs-toc-inline-summary::marker {\n\
-  display: none;\n\
-}\n\
-\n\
 .docs-toc-inline-summary::-webkit-details-marker {\n\
   display: none;\n\
 }\n\

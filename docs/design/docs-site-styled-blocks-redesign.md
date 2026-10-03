@@ -87,7 +87,7 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 
 ### 3.1 確定事項（#3610: 右目次と折りたたみ目次）
 
-- markup は不変で CSS のみ変更する（`toc_nav` / `toc_items` の出力、`class="docs-toc"` の唯一性を維持）。
+- 主に CSS で変更する（`toc_nav` / `toc_items` の出力、`class="docs-toc"` の唯一性と anchor 構造は不変。`toc_inline` の summary にのみ装飾 svg を追加する）。
 - 右目次は `ul` の 1px 縦線（rail）に、現在地 `a[aria-current="location"]::before` の 2px アクセント縦棒を重ねる。進捗の段階表現は採用しない。階層インデントは `li` ではなく `a` の padding で表す。
 - 折りたたみ目次の開閉アイコンは素の `svg.docs-toc-inline-icon`（`icon::icon` は使わない。recipe 抜きの `site-primitives.css` で `fd-icon--size-md` が未定義になるため）。`details[open]` で CSS 回転し、`prefers-reduced-motion` では transition を外す。
 - 色トークンは新設せず、スクロールスパイ以外の JS は追加しない。
