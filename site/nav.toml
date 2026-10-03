@@ -3144,14 +3144,13 @@ path = "/blocks/api-reference-props-table/"
 # Wireframes セクション（イシュー #2607 / 設計 docs/design/wireframe-ui-architecture.md §12）。
 # fandhe-frontend-wireframe-ui（blocks.pm 参照のローファイ・モノクロ UI 部品層、
 # Primitives/Themes と独立した第 3 の UI 層）の 49 部品を掲載するセクション。
-# Blocks の直後・API Reference の直前へ配置する。1 部品 = 1 ページ（`[[section.group]]`
-# は使わずフラット構成。Blocks はイシュー #2735 でカテゴリ見出し付き
-# `[[section.group]]` 化されたが、Wireframes は Phase 進行順（#2608〜）で
-# 部品を追記する運用であり、49 部品規模ではまだカテゴリ化の動機がないため
-# 独立してフラット構成のままとする）。本イシューでは索引ページのみを登録し、
-# 個別部品ページは Phase 1〜8（#2608〜）の各部品イシューが `[[section.page]]` を
-# 1 件ずつ追記する。`path` は `docs/design/wireframe-ui-architecture.md` §8 の kebab
-# （`media` 等）と一致させること。
+# Blocks の直後・API Reference の直前へ配置する。1 部品 = 1 ページ。索引ページ
+# `/wireframes/` のみ直下の `[[section.page]]` とし、部品は
+# `WireframeCategory`（`crates/docs-site/src/wireframes/category.rs`）単位の
+# `[[section.group]]` に振り分ける（イシュー #3669）。グループの順と名前は
+# `WireframeCategory::ALL` / `label()` に一致させ、グループ内は path 昇順とする
+# （`tests/wireframes_nav.rs` が固定）。`path` は
+# `docs/design/wireframe-ui-architecture.md` §8 の kebab と一致させること。
 [[section]]
 title = "Wireframes"
 index_path = "/wireframes/"
@@ -3161,260 +3160,272 @@ title = "Wireframes 一覧"
 source = "site/wireframes.md"
 path = "/wireframes/"
 
-[[section.page]]
-title = "Annotation"
-source = "site/wireframes/annotation.md"
-path = "/wireframes/annotation/"
+[[section.group]]
+title = "Layout"
 
-[[section.page]]
-title = "Grid"
-source = "site/wireframes/grid.md"
-path = "/wireframes/grid/"
-
-[[section.page]]
+[[section.group.page]]
 title = "Divider"
 source = "site/wireframes/divider.md"
 path = "/wireframes/divider/"
 
-[[section.page]]
-title = "Stack"
-source = "site/wireframes/stack.md"
-path = "/wireframes/stack/"
-
-[[section.page]]
-title = "Link"
-source = "site/wireframes/link.md"
-path = "/wireframes/link/"
-
-[[section.page]]
-title = "Rich text"
-source = "site/wireframes/rich-text.md"
-path = "/wireframes/rich-text/"
-
-[[section.page]]
-title = "Paragraph"
-source = "site/wireframes/paragraph.md"
-path = "/wireframes/paragraph/"
-
-[[section.page]]
-title = "Button"
-source = "site/wireframes/button.md"
-path = "/wireframes/button/"
-
-[[section.page]]
-title = "Select"
-source = "site/wireframes/select.md"
-path = "/wireframes/select/"
-
-[[section.page]]
-title = "Radio"
-source = "site/wireframes/radio.md"
-path = "/wireframes/radio/"
-
-[[section.page]]
-title = "Switch"
-source = "site/wireframes/switch.md"
-path = "/wireframes/switch/"
-
-[[section.page]]
-title = "Checkbox"
-source = "site/wireframes/checkbox.md"
-path = "/wireframes/checkbox/"
-
-[[section.page]]
-title = "Textarea"
-source = "site/wireframes/textarea.md"
-path = "/wireframes/textarea/"
-
-[[section.page]]
-title = "Slider"
-source = "site/wireframes/slider.md"
-path = "/wireframes/slider/"
-
-[[section.page]]
+[[section.group.page]]
 title = "Frame"
 source = "site/wireframes/frame.md"
 path = "/wireframes/frame/"
 
-[[section.page]]
+[[section.group.page]]
+title = "Grid"
+source = "site/wireframes/grid.md"
+path = "/wireframes/grid/"
+
+[[section.group.page]]
+title = "Stack"
+source = "site/wireframes/stack.md"
+path = "/wireframes/stack/"
+
+[[section.group]]
+title = "Text"
+
+[[section.group.page]]
+title = "Annotation"
+source = "site/wireframes/annotation.md"
+path = "/wireframes/annotation/"
+
+[[section.group.page]]
+title = "Link"
+source = "site/wireframes/link.md"
+path = "/wireframes/link/"
+
+[[section.group.page]]
+title = "Paragraph"
+source = "site/wireframes/paragraph.md"
+path = "/wireframes/paragraph/"
+
+[[section.group.page]]
+title = "Rich text"
+source = "site/wireframes/rich-text.md"
+path = "/wireframes/rich-text/"
+
+[[section.group.page]]
 title = "Tag"
 source = "site/wireframes/tag.md"
 path = "/wireframes/tag/"
 
-[[section.page]]
-title = "Input"
-source = "site/wireframes/input.md"
-path = "/wireframes/input/"
-
-[[section.page]]
-title = "Question"
-source = "site/wireframes/question.md"
-path = "/wireframes/question/"
-
-[[section.page]]
-title = "Ratings"
-source = "site/wireframes/ratings.md"
-path = "/wireframes/ratings/"
-
-[[section.page]]
-title = "Calendar"
-source = "site/wireframes/calendar.md"
-path = "/wireframes/calendar/"
-
-[[section.page]]
-title = "File drop"
-source = "site/wireframes/file-drop.md"
-path = "/wireframes/file-drop/"
-
-[[section.page]]
+[[section.group.page]]
 title = "Text"
 source = "site/wireframes/text.md"
 path = "/wireframes/text/"
 
-[[section.page]]
-title = "Tabs"
-source = "site/wireframes/tabs.md"
-path = "/wireframes/tabs/"
+[[section.group]]
+title = "Forms"
 
-[[section.page]]
+[[section.group.page]]
+title = "Button"
+source = "site/wireframes/button.md"
+path = "/wireframes/button/"
+
+[[section.group.page]]
+title = "Calendar"
+source = "site/wireframes/calendar.md"
+path = "/wireframes/calendar/"
+
+[[section.group.page]]
+title = "Checkbox"
+source = "site/wireframes/checkbox.md"
+path = "/wireframes/checkbox/"
+
+[[section.group.page]]
+title = "File drop"
+source = "site/wireframes/file-drop.md"
+path = "/wireframes/file-drop/"
+
+[[section.group.page]]
+title = "Input"
+source = "site/wireframes/input.md"
+path = "/wireframes/input/"
+
+[[section.group.page]]
+title = "Question"
+source = "site/wireframes/question.md"
+path = "/wireframes/question/"
+
+[[section.group.page]]
+title = "Radio"
+source = "site/wireframes/radio.md"
+path = "/wireframes/radio/"
+
+[[section.group.page]]
+title = "Ratings"
+source = "site/wireframes/ratings.md"
+path = "/wireframes/ratings/"
+
+[[section.group.page]]
+title = "Select"
+source = "site/wireframes/select.md"
+path = "/wireframes/select/"
+
+[[section.group.page]]
+title = "Slider"
+source = "site/wireframes/slider.md"
+path = "/wireframes/slider/"
+
+[[section.group.page]]
 title = "Stepper"
 source = "site/wireframes/stepper.md"
 path = "/wireframes/stepper/"
 
-[[section.page]]
-title = "Nav item"
-source = "site/wireframes/nav-item.md"
-path = "/wireframes/nav-item/"
+[[section.group.page]]
+title = "Switch"
+source = "site/wireframes/switch.md"
+path = "/wireframes/switch/"
 
-[[section.page]]
+[[section.group.page]]
+title = "Textarea"
+source = "site/wireframes/textarea.md"
+path = "/wireframes/textarea/"
+
+[[section.group]]
+title = "Navigation"
+
+[[section.group.page]]
 title = "Accordion"
 source = "site/wireframes/accordion.md"
 path = "/wireframes/accordion/"
 
-[[section.page]]
-title = "Pagination"
-source = "site/wireframes/pagination.md"
-path = "/wireframes/pagination/"
-
-[[section.page]]
-title = "Cursor"
-source = "site/wireframes/cursor.md"
-path = "/wireframes/cursor/"
-
-[[section.page]]
-title = "Menu"
-source = "site/wireframes/menu.md"
-path = "/wireframes/menu/"
-
-[[section.page]]
+[[section.group.page]]
 title = "Breadcrumbs"
 source = "site/wireframes/breadcrumbs.md"
 path = "/wireframes/breadcrumbs/"
 
-[[section.page]]
-title = "Tooltip"
-source = "site/wireframes/tooltip.md"
-path = "/wireframes/tooltip/"
+[[section.group.page]]
+title = "Cursor"
+source = "site/wireframes/cursor.md"
+path = "/wireframes/cursor/"
 
-[[section.page]]
-title = "Toast"
-source = "site/wireframes/toast.md"
-path = "/wireframes/toast/"
+[[section.group.page]]
+title = "Menu"
+source = "site/wireframes/menu.md"
+path = "/wireframes/menu/"
 
-[[section.page]]
+[[section.group.page]]
+title = "Nav item"
+source = "site/wireframes/nav-item.md"
+path = "/wireframes/nav-item/"
+
+[[section.group.page]]
+title = "Pagination"
+source = "site/wireframes/pagination.md"
+path = "/wireframes/pagination/"
+
+[[section.group.page]]
+title = "Tabs"
+source = "site/wireframes/tabs.md"
+path = "/wireframes/tabs/"
+
+[[section.group]]
+title = "Overlay & Feedback"
+
+[[section.group.page]]
 title = "Alert"
 source = "site/wireframes/alert.md"
 path = "/wireframes/alert/"
 
-[[section.page]]
-title = "Progress"
-source = "site/wireframes/progress.md"
-path = "/wireframes/progress/"
-
-[[section.page]]
-title = "Spinner"
-source = "site/wireframes/spinner.md"
-path = "/wireframes/spinner/"
-
-[[section.page]]
+[[section.group.page]]
 title = "Modal"
 source = "site/wireframes/modal.md"
 path = "/wireframes/modal/"
 
-[[section.page]]
+[[section.group.page]]
+title = "Progress"
+source = "site/wireframes/progress.md"
+path = "/wireframes/progress/"
+
+[[section.group.page]]
+title = "Spinner"
+source = "site/wireframes/spinner.md"
+path = "/wireframes/spinner/"
+
+[[section.group.page]]
+title = "Toast"
+source = "site/wireframes/toast.md"
+path = "/wireframes/toast/"
+
+[[section.group.page]]
+title = "Tooltip"
+source = "site/wireframes/tooltip.md"
+path = "/wireframes/tooltip/"
+
+[[section.group]]
+title = "Data Display"
+
+[[section.group.page]]
 title = "Avatar"
 source = "site/wireframes/avatar.md"
 path = "/wireframes/avatar/"
 
-[[section.page]]
-title = "Counter"
-source = "site/wireframes/counter.md"
-path = "/wireframes/counter/"
-
-[[section.page]]
-title = "Emoji"
-source = "site/wireframes/emoji.md"
-path = "/wireframes/emoji/"
-
-[[section.page]]
-title = "Stat"
-source = "site/wireframes/stat.md"
-path = "/wireframes/stat/"
-
-[[section.page]]
-title = "Card basic"
-source = "site/wireframes/card-basic.md"
-path = "/wireframes/card-basic/"
-
-[[section.page]]
-title = "List"
-source = "site/wireframes/list.md"
-path = "/wireframes/list/"
-
-[[section.page]]
-title = "Chart"
-source = "site/wireframes/chart.md"
-path = "/wireframes/chart/"
-
-[[section.page]]
-title = "Image"
-source = "site/wireframes/image.md"
-path = "/wireframes/image/"
-
-[[section.page]]
-title = "Map"
-source = "site/wireframes/map.md"
-path = "/wireframes/map/"
-
-[[section.page]]
-title = "Media"
-source = "site/wireframes/media.md"
-path = "/wireframes/media/"
-
-[[section.page]]
-title = "Table"
-source = "site/wireframes/table.md"
-path = "/wireframes/table/"
-
-[[section.page]]
-title = "Icon"
-source = "site/wireframes/icon.md"
-path = "/wireframes/icon/"
-
-[[section.page]]
+[[section.group.page]]
 title = "Brand"
 source = "site/wireframes/brand.md"
 path = "/wireframes/brand/"
 
-# API Reference セクション（イシュー #955 / 設計 docs/design/docs-site-api-reference-split.md）。
-# - docs/internal/*-implementation-notes.md は本マニフェストへ登録しない。
-#   サイト非出力は「nav 未登録」だけで構造的に担保する（同文書 §3-3 / §4 A05）。
-#   除外リスト・後付けフィルタは設けない。回帰は
-#   crates/docs-site/tests/site_nav.rs の fail-closed テストが検知する。
-# - 部品ごとの詳細（Demo / Anatomy / data-* / Examples）は本セクションではなく
-#   Components セクションの部品ページ（/themes/<kebab>/、イシュー #1017 で
-#   /components/<kebab>/ から移行）が正。
-#   API ページ <-> 部品ページの相互リンクは相対 .md リンクで維持する（同文書 §3-2）。
+[[section.group.page]]
+title = "Card basic"
+source = "site/wireframes/card-basic.md"
+path = "/wireframes/card-basic/"
+
+[[section.group.page]]
+title = "Counter"
+source = "site/wireframes/counter.md"
+path = "/wireframes/counter/"
+
+[[section.group.page]]
+title = "Emoji"
+source = "site/wireframes/emoji.md"
+path = "/wireframes/emoji/"
+
+[[section.group.page]]
+title = "Icon"
+source = "site/wireframes/icon.md"
+path = "/wireframes/icon/"
+
+[[section.group.page]]
+title = "List"
+source = "site/wireframes/list.md"
+path = "/wireframes/list/"
+
+[[section.group.page]]
+title = "Stat"
+source = "site/wireframes/stat.md"
+path = "/wireframes/stat/"
+
+[[section.group]]
+title = "Media"
+
+[[section.group.page]]
+title = "Chart"
+source = "site/wireframes/chart.md"
+path = "/wireframes/chart/"
+
+[[section.group.page]]
+title = "Image"
+source = "site/wireframes/image.md"
+path = "/wireframes/image/"
+
+[[section.group.page]]
+title = "Map"
+source = "site/wireframes/map.md"
+path = "/wireframes/map/"
+
+[[section.group.page]]
+title = "Media"
+source = "site/wireframes/media.md"
+path = "/wireframes/media/"
+
+[[section.group.page]]
+title = "Table"
+source = "site/wireframes/table.md"
+path = "/wireframes/table/"
+
 [[section]]
 title = "API Reference"
 index_path = "/api/"
