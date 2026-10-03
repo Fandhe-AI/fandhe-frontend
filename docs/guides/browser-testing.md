@@ -154,6 +154,18 @@ Chrome/Chromium と対応する chromedriver がローカルに必要（バー�
   - **A09 ログ・監視の不備**: `manifest.tsv` にはユーザー名を含む絶対パス（`$HOME` 等）を残さず、
     出力ディレクトリ相対パスのみを記録する。撮影物・ログは非コミットとし、リポジトリへ残置しない。
 
+## 9a. docs サイトのローカルプレビューと Playwright MCP によるデザインレビュー（イシュー #3597）
+
+`tools/docs-site/visual-regression.sh`（§9）は chromium `--screenshot` による no-JS 配信・固定マトリクスの回帰証跡で、本節は JS 有効・対話可能・任意ページ・ビューポート別のデザインレビュー用と使い分ける。なお §3 の「Playwright は起動不能」は CI 環境の話であり、ローカルの Playwright MCP とは別系統である。
+
+- **起動**: `make docs-preview`（ビルド出力は `_/site-preview/fandhe-frontend/`、配信は `http://127.0.0.1:8765/fandhe-frontend/`）。ポートは `make docs-preview PORT=9000` で変更でき、数字のみ受け付ける。停止は Ctrl-C。`python3` が無い場合は明示エラーで終了する。
+- **HTTP 配信が必須**: 生成 HTML は `base_path = "/fandhe-frontend"` 付きの絶対パスで CSS・JS・検索インデックスを参照するため、`file://` では解決しない。
+- **viewport**: `browser_resize` で 375x812 / 768x1024 / 1440x900 に切り替える。
+- **dark の 2 経路**: OS 追従は `colorScheme: 'dark'` を指定した context（`browser_run_code`）で、手動トグル経路は `browser_evaluate` で `document.documentElement.dataset.theme = 'dark'` を設定して確認する。
+- **撮影**: `browser_take_screenshot` の `filename` には `/path/to/repo/_/site-redesign/<issue 番号>/xxx.png` のように `_/` 配下の絶対パスを渡す（相対パスだとリポジトリ直下へ落ちる）。`_/` は gitignore 済みでコミットしない。
+- **横はみ出し検査**: 375px で `browser_evaluate` により `document.documentElement.scrollWidth === window.innerWidth` を確認する。あわせて `browser_console_messages` と `browser_network_requests` でエラー・404 がないことを確認する。
+- **セキュリティ注記**: 配信は `127.0.0.1` バインドのみ・`_/site-preview` 配下のみで、外部公開しない。python3 標準ライブラリのみを使い新規依存はない。
+
 ## 10. examples のオーバーレイ実演の実測検証（イシュー #1203）
 
 - **位置づけ**: `examples/*/wasm`（例: `examples/interactive-view-transitions/wasm`）
