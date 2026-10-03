@@ -271,6 +271,13 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 - Anatomy は `h2` と `pre > code` の隣接・字下げ本文の形式を変えず（テストのパーサが依存）、`section` の class と CSS だけで枠と同じ体裁にする。
 - Blocks（`.blocks-demo`）は DOM・class を変えず、CSS の値のみトークン化して共通の枠にそろえる。
 
+## 11.2 確定事項（#3621 部品ページの API 表）
+
+- API 表（Arguments / Data Attributes / CSS Variables）は pre-styled-ui の `table` / `code` / `badge` recipe を使わず、core の `table` / `th` / `td` と属性なしの `code` で組む（§3 の手本からの意図的な逸脱）。`data-scope` 配下が検索インデックスから除外されること、Primitives が recipe 抜きの CSS を読むことが理由で、#3619 の Demo 枠と同じ判断である。
+- CSS フックは `docs-*` class ではなく `table[data-docs-api-table]`（値は `arguments` / `data-attributes` / `css-variables`）と、空値プレースホルダの `span[data-docs-api-placeholder]` にする。`STRUCTURE_CLASS_CONTRACT` に触れないため。
+- 表記: 名前は行見出し（`th scope="row"`）、型・既定値・Part・属性名・観測値は `code`。既定値が空・`-` なら「—」、観測値が空文字なら「（値なし）」を出す（列は消さない）。非 ASCII を含む既定値（`(必須)` 等）は散文として `code` にしない。
+- 狭幅（767.98px 以下）は DOM を変えず CSS だけで縦積みにする。各セルの `data-label`（コンパイル時定数）を `::before` で見出しとして出し、`thead` は隠す。768px 以上は従来の表のまま、はみ出しは表内の横スクロールで逃がす。CSS は `site_theme::API_TABLE_CSS`（Themes / Primitives 両方に含まれる）。
+
 ## 12. 関連文書
 
 - `docs/design/docs-site-three-column-redesign.md`: 骨格・CSS 供給・契約テスト・再評価トリガーの統治文書
