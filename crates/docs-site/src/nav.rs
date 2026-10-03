@@ -1220,7 +1220,13 @@ pub fn header_nav(nav: &Nav, current_path: &str) -> Node {
                     // ため、所属表示（"true"）を付けるグループ見出しは `el` で組む。
                     let group_link = group_href(nav, section, group);
                     let mut attrs: Vec<(&str, &str)> = vec![("href", &group_link)];
-                    if group.pages.iter().any(|p| p.path == current_path) {
+                    if group_link == href(nav, current_path) {
+                        // `index_path` がグループ配下を指す構成では、リンク先が
+                        // 現在ページそのものになる。ページ完全一致の意味軸
+                        // （`"page"`）を保ち、所属のみの `"true"` と区別する。
+                        attrs.push(("aria-current", "page"));
+                        attrs.push(("data-current", ""));
+                    } else if group.pages.iter().any(|p| p.path == current_path) {
                         attrs.push(("aria-current", "true"));
                         attrs.push(("data-current", ""));
                     }

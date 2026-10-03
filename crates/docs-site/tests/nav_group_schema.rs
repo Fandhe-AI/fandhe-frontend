@@ -710,9 +710,11 @@ path = "/button/"
     let header_html = render(&header_nav(&nav, "/button/"));
     assert!(!header_html.contains("<script>"));
     assert!(header_html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
-    // グループ配下ページのみのセクションでは、グループ見出しが索引内アンカー
-    // リンクになる（#3670。「すべて見る」は出さない）。配下ページ名は出ない。
-    assert!(header_html.contains(r#"href="/button/#forms""#));
+    // `index_path` がグループ配下ページを指す構成では、アンカーを付けずグループ
+    // 先頭ページへリンクし（#3670）、現在ページ一致なので `aria-current="page"`
+    // が付く。「すべて見る」は出さず、配下ページ名も出ない。
+    assert!(header_html.contains(r#"href="/button/""#));
+    assert!(header_html.contains(r#"aria-current="page""#));
     assert!(!header_html.contains("すべて見る"));
     assert!(!header_html.contains("Quote"));
 }
