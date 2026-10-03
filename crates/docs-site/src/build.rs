@@ -124,6 +124,9 @@
 //!
 //! # ビルド時生成アセットの書き出し経路（[`fandhe_frontend_server::ssg::generate_assets`]、イシュー #1136）
 //!
+//! SVG favicon（`assets/favicon.svg`、イシュー #3604、[`crate::favicon`]）も
+//! 全ビルド無条件で書き出す。
+//!
 //! 上記の CSS 5 種（showcase / primitive_showcase / admonition / skip_nav /
 //! site_theme）・JS 1 種（`site.js`）・検索インデックス JSON
 //! （マニフェスト 1 種 + セクション数分）・
@@ -155,6 +158,7 @@ use fandhe_frontend_pre_styled_ui::StylesheetError;
 use crate::admonition;
 use crate::blocks;
 use crate::component_page::{self, Layer};
+use crate::favicon;
 use crate::layout;
 use crate::linkcheck::{self, BrokenLink};
 use crate::markdown::render_markdown;
@@ -188,6 +192,7 @@ pub(crate) const RESERVED_ASSET_NAMES: &[&str] = &[
     "primitives-showcase.css",
     "admonition.css",
     "site.js",
+    "favicon.svg",
     "search-index.json",
     "image-demo.svg",
     "blocks.css",
@@ -750,6 +755,9 @@ pub fn build_site_with(
         site_theme::STYLESHEET_REL_PATH,
     ));
     let site_theme_sheet = site_theme::stylesheet()?;
+    // SVG favicon（イシュー #3604）。`<link rel="icon" href>` は linkcheck の
+    // 走査対象のため、全ビルド無条件で href を登録する。
+    asset_hrefs.push(layout::asset_href(&nav.site.base_path, favicon::REL_PATH));
 
     let mut link_check_broken = linkcheck::check_links(&pages, &nav.site.base_path, &asset_hrefs);
     broken.append(&mut link_check_broken);
@@ -834,6 +842,7 @@ pub fn build_site_with(
         format!("/{}", site_theme::STYLESHEET_REL_PATH),
         site_theme_sheet.as_css().to_string(),
     ));
+    generated_assets.push((format!("/{}", favicon::REL_PATH), favicon::svg()));
     generated_assets.push((
         format!("/{}", script::SCRIPT_REL_PATH),
         script::site_js().to_string(),
@@ -1059,7 +1068,7 @@ path = "/next/"
         // （`[[section]]` が 1 つ、イシュー #957 / #3173、同じく全ビルド
         // 無条件）の 5 件。showcase/admonition 専用 CSS は本フィクスチャが
         // 使わないため含まれない。
-        assert_eq!(report.assets.len(), 5);
+        assert_eq!(report.assets.len(), 6);
         assert!(out_dir.join("index.html").exists());
         assert!(out_dir.join("next/index.html").exists());
         assert!(out_dir.join("assets/site.css").exists());
@@ -1167,7 +1176,7 @@ path = "/next/"
         // サイト骨格 CSS + SkipNav 専用 CSS + `assets/site.js` +
         // 検索インデックス（マニフェスト + セクションファイル 1 件）のみ
         // （`site/assets/` 由来のコピーアセットは 0 件）。
-        assert_eq!(report.assets.len(), 5);
+        assert_eq!(report.assets.len(), 6);
         assert!(out_dir.join("assets/site.css").exists());
         assert!(out_dir.join(script::SCRIPT_REL_PATH).exists());
         assert!(out_dir.join(search_index::REL_PATH).exists());
@@ -1185,6 +1194,20 @@ path = "/next/"
         let out_dir = temp.0.join("dist");
         let err = build_site(&temp.0, &out_dir)
             .expect_err("reserved asset name site.js should fail the build");
+        assert!(matches!(err, BuildError::ReservedAssetName(_)));
+        assert!(!out_dir.exists());
+    }
+
+    /// イシュー #3604: `site/assets/` にビルド時生成 favicon と同名のファイル
+    /// （`favicon.svg`）を置くと `BuildError::ReservedAssetName` で拒否される。
+    #[test]
+    fn build_site_rejects_reserved_asset_name_favicon_svg_under_assets() {
+        let temp = TempDir::new("reserved-asset-name-favicon-svg");
+        write_fixture_site(&temp.0);
+        fs::write(temp.0.join("site/assets/favicon.svg"), "<svg/>\n").unwrap();
+        let out_dir = temp.0.join("dist");
+        let err = build_site(&temp.0, &out_dir)
+            .expect_err("reserved asset name favicon.svg should fail the build");
         assert!(matches!(err, BuildError::ReservedAssetName(_)));
         assert!(!out_dir.exists());
     }
