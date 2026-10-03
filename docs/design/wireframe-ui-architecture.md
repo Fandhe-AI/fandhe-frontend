@@ -393,7 +393,12 @@ Phase 1〜8（#2608〜#2665）の着手前に本イシューで固定する。�
 `Wireframe { path, title, category, args, demo }` 1 件 = 1 部品ページ。Phase 1〜8 の
 各部品イシューが触る箇所は以下の定型である。
 
-- `site/nav.toml` の Wireframes セクションへ `[[section.page]]` を 1 ブロック追記
+- `site/nav.toml` の Wireframes セクションの、`WIREFRAME` 定数の `category`
+  （`WireframeCategory`）に対応する `[[section.group]]`（`title` は `label()` と一致）へ
+  `[[section.group.page]]` を 1 ブロック追記（グループ内は path 昇順。直下の
+  `[[section.page]]` は索引 `/wireframes/` のみで、部品を置かない。未使用カテゴリの
+  グループは新設し、順序は `WireframeCategory::ALL` に合わせる。固定は
+  `tests/wireframes_nav.rs`、#3669）
 - `site/wireframes/<kebab>.md` を 1 件追加（H1 → 導入 → `## 原案差分メモ`）
 - `crates/docs-site/src/wireframes/<snake>.rs` の `WIREFRAME` 定数を追加し、
   `mod.rs` の `WIREFRAMES` へ 1 行追記

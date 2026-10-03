@@ -8,12 +8,16 @@
 //! fail-closed に検知する。本イシュー時点ではレジストリ・原稿ファイルは
 //! いずれも 0 件のため大半のアサーションは vacuous に通過するが、経路自体は
 //! 実効化されており Phase 1 以降で即座に機能する。
+//!
+//! イシュー #3669 で部品ページを `WireframeCategory` 単位の
+//! `[[section.group]]` へ移したため、グループ名・順序・所属も本ファイルで固定する。
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use fandhe_frontend_docs_site::nav::{parse_nav, Nav};
-use fandhe_frontend_docs_site::wireframes;
+use fandhe_frontend_core::render;
+use fandhe_frontend_docs_site::nav::{parse_nav, sidebar, Nav};
+use fandhe_frontend_docs_site::wireframes::{self, WireframeCategory};
 
 /// `CARGO_MANIFEST_DIR`（`crates/docs-site`）から repo_root を解決する
 /// （`tests/site_nav.rs`/`tests/blocks_nav.rs` と同じ規約）。
@@ -31,8 +35,8 @@ fn load_nav() -> Nav {
 }
 
 /// Wireframes セクションが Blocks の直後・API Reference の直前に存在し、
-/// `index_path`・group 非使用（フラット構成、設計文書 §12 §4.1）が
-/// 期待どおりであること。
+/// `index_path`・索引のみ直下ページ・部品はカテゴリ `[[section.group]]`
+/// （イシュー #3669）が期待どおりであること。
 #[test]
 fn wireframes_section_is_registered_immediately_after_blocks() {
     let nav = load_nav();
@@ -46,9 +50,105 @@ fn wireframes_section_is_registered_immediately_after_blocks() {
 
     let section = &nav.sections[index];
     assert_eq!(section.index_path, "/wireframes/");
+    let direct: Vec<&str> = section.pages.iter().map(|p| p.path.as_str()).collect();
+    assert_eq!(
+        direct,
+        ["/wireframes/"],
+        "only the index page is a direct page"
+    );
     assert!(
-        section.groups.is_empty(),
-        "Wireframes section should use flat [[section.page]] only (no [[section.group]])"
+        !section.groups.is_empty(),
+        "Wireframes section should group part pages by category"
+    );
+}
+
+/// 使用中カテゴリ（`WIREFRAMES` に 1 件以上ある `WireframeCategory`）を
+/// `ALL` の順で返す。
+fn used_categories() -> Vec<WireframeCategory> {
+    WireframeCategory::ALL
+        .iter()
+        .copied()
+        .filter(|c| wireframes::WIREFRAMES.iter().any(|w| w.category == *c))
+        .collect()
+}
+
+/// 全カテゴリが部品を 1 件以上持つこと（空グループを作らない前提の固定）。
+#[test]
+fn wireframes_every_category_has_parts() {
+    assert_eq!(WireframeCategory::ALL.len(), 7);
+    assert_eq!(used_categories().len(), WireframeCategory::ALL.len());
+}
+
+/// グループ名と順序が `WireframeCategory::ALL` / `label()`（索引と同じ分類源）に一致すること。
+#[test]
+fn wireframes_section_groups_match_category_order() {
+    let nav = load_nav();
+    let section = nav
+        .sections
+        .iter()
+        .find(|s| s.title == "Wireframes")
+        .expect("Wireframes section should be registered");
+    let actual: Vec<&str> = section.groups.iter().map(|g| g.title.as_str()).collect();
+    let expected: Vec<&str> = used_categories().iter().map(|c| c.label()).collect();
+    assert_eq!(actual, expected);
+}
+
+/// 各グループの `pages` が対応カテゴリの部品を path 昇順に並べたものと一致すること
+/// （索引の `render_wireframes` と同じ並び）。
+#[test]
+fn wireframes_group_pages_match_registry_category_assignments() {
+    let nav = load_nav();
+    let section = nav
+        .sections
+        .iter()
+        .find(|s| s.title == "Wireframes")
+        .expect("Wireframes section should be registered");
+    let used = used_categories();
+    assert_eq!(section.groups.len(), used.len());
+
+    for (group, category) in section.groups.iter().zip(used.iter()) {
+        let mut items: Vec<&wireframes::Wireframe> = wireframes::WIREFRAMES
+            .iter()
+            .filter(|w| w.category == *category)
+            .collect();
+        items.sort_by_key(|w| w.path);
+        let expected: Vec<(String, String)> = items
+            .iter()
+            .map(|w| {
+                let kebab = w
+                    .path
+                    .trim_start_matches("/wireframes/")
+                    .trim_end_matches('/');
+                (w.path.to_string(), format!("site/wireframes/{kebab}.md"))
+            })
+            .collect();
+        let actual: Vec<(String, String)> = group
+            .pages
+            .iter()
+            .map(|p| (p.path.clone(), p.source.clone()))
+            .collect();
+        assert_eq!(actual, expected, "group `{}` mismatch", group.title);
+    }
+}
+
+/// 実 nav.toml でサイドバーを描画し、現在ページを含むグループだけが開くこと。
+#[test]
+fn wireframes_sidebar_opens_only_the_current_group() {
+    let nav = load_nav();
+    let html = render(&sidebar(&nav, "/wireframes/button/"));
+    assert_eq!(html.matches("<details class=\"docs-nav-group\"").count(), 7);
+    assert_eq!(
+        html.matches("<details class=\"docs-nav-group\" open=\"\"")
+            .count(),
+        1
+    );
+
+    let index_html = render(&sidebar(&nav, "/wireframes/"));
+    assert_eq!(
+        index_html
+            .matches("<details class=\"docs-nav-group\" open=\"\"")
+            .count(),
+        0
     );
 }
 
