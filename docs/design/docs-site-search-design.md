@@ -1154,7 +1154,7 @@ Blocks ページの `text` 以外（`href`/`title`/`sections`）のオーバー�
 #### 採用した設計
 
 - **分割単位は `site/nav.toml` の `[[section]]`**（`Nav::sections` の宣言順。
-  現行 8 セクション）。`crate::build::build_site` はページを
+  現行 8 セクション。#3700 で `[[menu]]` の集約ページ用バケットを加え、総数は `[[section]]` 数 + `[[menu]]` 数、`search_index.rs` の module doc を正とする）。`crate::build::build_site` はページを
   `Nav::section_for_path` で `nav.sections` と同順のバケットへ振り分け、
   `search_index::build_files` がマニフェスト + セクションファイルを返す。
   セクション追加時に `build.rs` / `script.rs` / テストのいずれにも分岐を

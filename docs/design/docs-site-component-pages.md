@@ -405,6 +405,18 @@ NavError」に直接対応）**:
 
 fail-closed 原則（未知キー・未知テーブルを黙って無視しない）を維持する。
 
+### 6a. `[[menu]]`（イシュー #3699、2026-10-04 追記）
+
+複数の `[[section]]` を 1 つのヘッダー項目へ束ねる `[[menu]]` / `[[menu.item]]` を追加した
+（ユーザー要望によるヘッダーの Assets メガメニュー化。ルート #3695）。
+
+- キーは `[[menu]]` が `title` / `index_path` / `source`、`[[menu.item]]` が `section`（既存の
+  `[[section]]` の `index_path` を参照）と `description`（空でない 1 行）。メンバーの宣言順がパネル順になる。
+- エラー写像は既存の `Parse` / `MissingKey` を使い、新バリアントは追加していない（上の
+  「新規バリアントは `EmptyGroup` の 1 つのみ」は #939 当時の記述で、本追記とは矛盾しない）。
+- メニューは `all_pages` / サイドバー / `prev_next` に現れない。`[[menu]]` を宣言しなければ従来と同じ挙動。
+- 詳細は `docs-site-styled-blocks-redesign.md` の「追補: Assets メガメニューとフッター 3 列化」を参照する。
+
 ## 7. 部品ページの雛形（#942 `component_page.rs` の実装仕様）
 
 節順を固定する（Radix / Ark UI 準拠）:

@@ -324,9 +324,13 @@ chromium 制約により本 PR では未取得）は
   `current_path` は `build::build_site` が `Nav::all_pages` から渡す値のみで、
   `parse_nav` の形式検証を通過済みの nav 由来データに限られる（攻撃者制御の
   入力がこの分岐へ到達する経路は存在しない）。
-- **他セクションへの到達性の担保先**: `header_nav`（全セクションのトリガー +
+- **他セクションへの到達性の担保先**: 当初は `header_nav`（全セクションのトリガー +
   直下ページのドロップダウン）・各セクションの `index_path` トップページ・
   `prev_next`・全文検索インデックス（`assets/search-index.json`）。
+  #3701〜#3703（2026-10-04）で、`header_nav`（単独セクションのトリガーと
+  Assets パネルのメンバーカード）・`/assets/` 集約ページ・drawer・フッター・
+  各 `index_path`・`prev_next`・検索インデックスへ改めた（現行は
+  `docs-site-styled-blocks-redesign.md` の「追補: Assets メガメニューとフッター 3 列化」を参照）。
 
 ### 3.5 ヘッダードロップダウン（→ #908）
 
@@ -335,9 +339,11 @@ chromium 制約により本 PR では未取得）は
 | `nav.toml` | ヘッダー markup |
 |---|---|
 | `[site].title` | `a.docs-brand`（ブランドリンク、既存の `header.docs-header` 直下 `a` を rename） |
-| `[[section]]` の `title` | ドロップダウングループのトリガー表示テキスト |
+| `[[section]]` の `title` | ドロップダウングループのトリガー表示テキスト（#3701 以降、`[[menu]]` に属さないセクションのみ。メニューは `[[menu]]` の `title` がトリガーになる） |
 | `[[section.page]]` の `title`/`path` | ドロップダウン内の各項目（`a[href]`） |
 | `[[section]]` の `index_path` | トリガー `a.docs-header-trigger` の `href`（= `base_path` + `index_path`。イシュー #1010 で `[[section]]` の必須キー化、#1012 でトリガーの href として採用） |
+
+> **注記（2026-10-04）**: `[[menu]]` が加わり、ヘッダー markup の写像は上の表から変わった（セクション別ドロップダウンは廃止し、メニューはメガパネルになった）。現行の写像は `docs-site-styled-blocks-redesign.md` の「追補: Assets メガメニューとフッター 3 列化」を参照する。
 
 **意味論整合の評価（3 案比較）**: 親イシュー #899 は「pre-styled-ui
 `menu` 使用」と記載しているが、adoption 文書 §3.1 が記録した意味論
@@ -411,7 +417,7 @@ chromium 制約により本 PR では未取得）は
   `Nav::header_entries` 基準の構成になり、`group_href` は削除済みで
   `Section::headings` はサイドバー専用）。「すべて見る」は廃止した。
 - 変えた理由: Themes の 108 項目のはみ出しは見出し化と `max-height` + 縦スクロール
-  （`.docs-header-dropdown`、#3671）で解消でき、ドロップダウンとサイドバーの中身の
+  （`.docs-header-dropdown`、#3671。旧。#3701 で削除し `.docs-header-mega` が `max-height` を引き継いだ）で解消でき、ドロップダウンとサイドバーの中身の
   食い違い（Primitives・Themes・Blocks は「索引」1 件だけだった）も解消できるため。
 - 変えないもの: 方式比較の結論（案 (b)）、`pre-styled-ui` の `menu` /
   `navigation_menu` を使わないこと、`role` / `aria-expanded` / `aria-haspopup` を
@@ -421,6 +427,22 @@ chromium 制約により本 PR では未取得）は
   768px 以上の `(hover: none)` 端末では全セクションを持つナビ drawer
   （`nav::nav_drawer`、#3674。#3702 でヘッダーと同じ構成になり見出しの `details` は廃止）が代わりの手段になる。
 - 詳細は `docs-site-styled-blocks-redesign.md` 末尾の追補「ヘッダーナビの整理と CSP」を参照する。
+
+#### 再見直し（イシュー #3701〜#3703、ユーザー判断 2026-10-04）
+
+上の「見直し」で確定したセクション別 popup を、ユーザー要望（ルート #3695）により廃止し、
+Primitives / Themes / Blocks / Wireframes / Examples を束ねる Assets メガメニューへ置き換えた。
+経緯の記録として上の記述は残す。
+
+- 内容: `[[menu]]`（`site/nav.toml`）がセクションを 1 つのヘッダー項目へ束ね、トリガーは
+  `/assets/` 集約ページへのリンク、パネルはメンバーのカード（タイトル + 説明）の全幅グリッドとする。
+  フッターは 3 列構成、drawer はヘッダーと同じ構成（見出しの `details` なし）へ改めた。
+- 変えないもの: 方式比較の結論（案 (b)）、`menu` / `navigation_menu` を使わないこと、
+  `role` / `aria-expanded` / `aria-haspopup` / `aria-controls` を付けない判断（無 JS で開閉状態を
+  更新できず、固定値は偽の状態を伝えるため）、CSS のみの開閉。
+- `aria-current` の軸の変更: ヘッダーは `"true"`（所属）だけになり、`"page"` はサイドバーだけに残る。
+- 参照先: `docs-site-styled-blocks-redesign.md` の「追補: Assets メガメニューとフッター 3 列化」（`[[menu]]` スキーマ、並び規則、
+  `/assets/`、帯域表、再評価判定）。
 
 ### 3.6 本文タイポグラフィ（→ #911）
 
@@ -748,6 +770,17 @@ fail-closed 検証である（`site_css()` 関数が `std::fs::read_to_string`
 | #3604 | #3634 | favicon（`favicon.rs`） |
 | #3600 / #3601 / #3602 / #3603 | #3628 / #3629 / #3632 / #3633 | 表示不具合の修正 |
 
+### 9.5 #3695 ツリーでの追加（Issue / PR / 主なファイル）
+
+| Issue | PR | 内容（主なファイル） |
+|---|---|---|
+| #3699 | #3706 | `[[menu]]` スキーマ（`nav.rs`、`site/nav.toml`、`tests/nav_menu_schema.rs`） |
+| #3700 | #3707 | `/assets/` 集約ページ（`menu_index.rs`、`build.rs`、`site/assets.md`、`tests/menu_index_nav.rs`） |
+| #3701 | #3708 | ヘッダーのメガメニュー（`nav.rs::header_nav`、`site_theme.rs`） |
+| #3703 | #3709 | フッターの 3 列化（`site_footer.rs`） |
+| #3702 | #3710 | drawer をヘッダーと同じ構成へ（`nav.rs::nav_drawer`） |
+| #3704 | 本 PR | 設計文書と `CLAUDE.md` の更新 |
+
 ## 10. 刷新後の再評価トリガー
 
 `docs/design/docs-site-styled-ui-adoption.md` §5 から適用範囲統治を
@@ -786,6 +819,10 @@ Issue・PR に明記する）に準拠すること。
    契約を変更する提案が出たとき（`header_nav` の全セクション列挙は §3.4 の
    スコープ限定に対する**他セクション到達性の担保**そのものであり、
    両者は対で成立している。片方だけの変更は到達性を壊す）。
+   現行の契約は「`header_nav` が `Nav::header_entries` の全項目を列挙し、メニューの
+   メンバーセクションへパネル・`/assets/`・drawer・フッターから到達できる」こと
+   （#3701 以降）。**適用記録**: 2026-10-04 に #3701 で該当した（ユーザー判断）。
+   判定は `docs-site-styled-blocks-redesign.md` の「追補: Assets メガメニューとフッター 3 列化」を参照。
 7. **4 層セクション構成**: 第 5 の層セクションを追加する提案、セクション名
    （Primitives / Themes / Blocks / Wireframes）を改称する提案、または
    `/primitives/` ↔ `/themes/` の掲載先境界（headless-ui mod = `/primitives/`、
@@ -796,6 +833,7 @@ Issue・PR に明記する）に準拠すること。
    `crates/docs-site/tests/primitives_catalog.rs` の fail-closed 台帳テスト、
    `crates/docs-site/tests/site_nav.rs` のページ数期待値、
    `crates/docs-site/tests/blocks_nav.rs` / `wireframes_nav.rs` の三方突合）。
+   `[[menu]]` によるヘッダー上の束ね（Assets、#3701）は層セクションの追加に当たらない。
 
 ## 11. 関連文書
 
