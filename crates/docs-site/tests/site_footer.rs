@@ -54,23 +54,36 @@ fn every_page_has_exactly_one_footer_outside_main_at_body_end() {
 }
 
 #[test]
-fn footer_links_every_section_index_and_external_destinations() {
+fn footer_links_each_section_and_menu_index_exactly_once() {
     let nav = nav();
     let html = page_html("/");
     let footer = &html[html.rfind("<footer class=\"docs-footer\"").unwrap()..];
-    for section in &nav.sections {
+    let base = &nav.site.base_path;
+    let indexes = nav
+        .sections
+        .iter()
+        .map(|s| s.index_path.as_str())
+        .chain(nav.menus.iter().map(|m| m.index_path.as_str()));
+    for path in indexes {
         let href = format!(
             "href=\"{}\"",
-            fandhe_frontend_docs_site::layout::asset_href(&nav.site.base_path, &section.index_path)
+            fandhe_frontend_docs_site::layout::asset_href(base, path)
         );
-        assert!(
-            footer.contains(&href),
-            "{} の索引リンクが無い",
-            section.title
+        assert_eq!(
+            footer.matches(&href).count(),
+            1,
+            "{path} の索引リンクは 1 回"
         );
     }
+    let prefix = format!("href=\"{base}/");
+    assert_eq!(
+        footer.matches(&prefix).count(),
+        nav.sections.len() + nav.menus.len(),
+        "直下ページがフッターへ混入している"
+    );
     assert!(footer.contains("Licensed under"));
     assert!(footer.contains("https://crates.io/crates/fandhe-frontend-core"));
+    assert!(footer.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend\""));
 }
 
 #[test]
@@ -95,5 +108,9 @@ fn footer_text_is_not_in_search_index() {
     for f in files {
         let body = std::fs::read_to_string(&f).unwrap_or_else(|e| panic!("{f:?}: {e}"));
         assert!(!body.contains("Licensed under"), "{f:?}");
+        assert!(
+            !body.contains(fandhe_frontend_docs_site::site_footer::FOOTER_TAGLINE),
+            "{f:?}"
+        );
     }
 }
