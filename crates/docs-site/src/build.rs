@@ -735,18 +735,15 @@ pub fn build_site_with(
             has_admonition = true;
             extra_stylesheets.push(admonition::STYLESHEET_REL_PATH);
         }
-        for sheet in registry
-            .stylesheets
+        // 集約ページの CSS は登録表（`registry.stylesheets`）に依存させず、
+        // `menu_index::STYLESHEET` を直接配線する（`EMPTY_REGISTRY` でも CSS が付く）。
+        let sheet = &menu_index::STYLESHEET;
+        extra_stylesheets.push(sheet.rel_path);
+        if !used_page_stylesheets
             .iter()
-            .filter(|s| s.rel_path == menu_index::STYLESHEET_REL_PATH)
+            .any(|s| s.rel_path == sheet.rel_path)
         {
-            extra_stylesheets.push(sheet.rel_path);
-            if !used_page_stylesheets
-                .iter()
-                .any(|s| s.rel_path == sheet.rel_path)
-            {
-                used_page_stylesheets.push(sheet);
-            }
+            used_page_stylesheets.push(sheet);
         }
         let entry = search_index::page_entry(
             &layout::asset_href(&nav.site.base_path, &page.path),

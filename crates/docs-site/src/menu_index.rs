@@ -6,8 +6,9 @@
 //! 束ねる。ヘッダーのトリガーは無 JS の静的アンカーなので、タッチ端末や
 //! スクリーンリーダーで選んだ遷移先となる集約ページが要る。本モジュールは
 //! そのページへ差し込むカード列を作る。[`crate::page_sections::PAGE_SECTIONS`]
-//! に登録され、[`crate::build::build_site_with`] のメニューページ生成ループから
-//! [`crate::page_sections::insert_generated_sections_with`] 経由で呼ばれる。
+//! には登録せず（`page_sections::validate` はメニューパスの登録を拒否する）、
+//! [`crate::build::build_site_with`] のメニューページ生成ループが [`render`] を
+//! 直接呼ぶ。追加 CSS も登録表を介さず [`STYLESHEET`] を直接配線する。
 //!
 //! # カードの正
 //!
@@ -26,10 +27,18 @@ use fandhe_frontend_core::Node;
 use fandhe_frontend_pre_styled_ui::heading::HeadingLevel;
 
 use crate::nav::Nav;
+use crate::page_sections::PageStylesheet;
 use crate::section_index;
 
 /// 集約ページが配線する追加 CSS（セクション索引と共通）。
 pub const STYLESHEET_REL_PATH: &str = section_index::STYLESHEET_REL_PATH;
+
+/// 集約ページが配線する追加 CSS の定義（登録表 `PAGE_STYLESHEETS` を介さず
+/// `build_site_with` が直接使う。実体は [`section_index::stylesheet`]）。
+pub const STYLESHEET: PageStylesheet = PageStylesheet {
+    rel_path: STYLESHEET_REL_PATH,
+    build: section_index::stylesheet,
+};
 
 /// `path` を `index_path` に持つメニューのカードグリッドを返す。
 /// 完全一致のみ（メンバー配下のページでは空）。一致しなければ空の `Vec`。
