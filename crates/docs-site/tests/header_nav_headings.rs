@@ -239,6 +239,10 @@ fn drawer_body_items(drawer_html: &str, section_idx: usize) -> Vec<String> {
         .split("class=\"docs-nav-drawer-section\"")
         .nth(section_idx + 1)
         .expect("drawer section should exist");
+    // 直後にメニュー索引行（`li.docs-nav-drawer-menu`）が続く場合、その手前までを本体とする。
+    let seg = seg
+        .find("docs-nav-drawer-section docs-nav-drawer-menu")
+        .map_or(seg, |end| &seg[..end]);
     let body = seg
         .find("docs-nav-drawer-body")
         .expect("drawer body should exist");
@@ -292,6 +296,11 @@ fn built_site_drawer_reaches_every_section_and_current_section_pages() {
         assert!(drawer.contains(&href), "drawer lacks section link {href}");
     }
     assert!(drawer.contains(&format!("href=\"{base}/themes/button/\"")));
+    // タッチ端末ではヘッダーナビが非表示のため、drawer が Assets 集約ページの入口になる（#3701）。
+    assert!(
+        drawer.contains(&format!("href=\"{base}/assets/\"")),
+        "drawer lacks menu index link"
+    );
 }
 
 /// 実サイトの全 HTML（404 を含む）で、レイアウト固定 `id`（`RESERVED_LAYOUT_IDS`）が

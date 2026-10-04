@@ -1382,6 +1382,11 @@ body {\n\
   font-weight: var(--fandhe-font-font-weight-semibold);\n\
 }\n\
 \n\
+/* メニュー索引（Assets）の行。開閉の summary を持たないため右端の余白を詰める（#3701）。 */\n\
+.docs-header nav.docs-nav-drawer .docs-nav-drawer-menu a.docs-nav-drawer-section-link {\n\
+  padding-right: 0.5rem;\n\
+}\n\
+\n\
 .docs-header nav.docs-nav-drawer a:focus-visible,\n\
 .docs-header nav.docs-nav-drawer summary:focus-visible {\n\
   outline: 2px solid var(--fandhe-color-accent);\n\
@@ -2059,12 +2064,15 @@ nav.prev-next .next .docs-pager-meta {\n\
     padding: 0.3rem 0.5rem;\n\
   }\n\
 \n\
-  /* メガパネルは 2 段ヘッダーの下端から開くため、基底の 1 段ヘッダー前提の\n\
-   * max-height ではビューポート下端を超えて末尾へ届かない。2 段分の最小高さを\n\
-   * 引いた値へ上書きする（#3670）。 */\n\
+  /* メガパネルは 2 段ヘッダーの下端から開く。ヘッダーの実高さは折り返し行数で\n\
+   * 変わり CSS だけでは取得できないため、固定のヘッダー高さを引く式（追加の\n\
+   * 折り返しで末尾が画面外へ出る）は使わず、ヘッダー高さに依存しない割合で\n\
+   * 上限を決める。ヘッダーは sticky でなく通常フローのため、パネルが見えるのは\n\
+   * ページ最上部で、上端はビューポート上端から高々ヘッダー分である。残りは\n\
+   * パネル内でスクロールする（#3701）。 */\n\
   .docs-header nav.docs-header-nav .docs-header-mega {\n\
-    max-height: calc(100vh - var(--fandhe-space-docs-header-height-stacked) - 1rem);\n\
-    max-height: calc(100dvh - var(--fandhe-space-docs-header-height-stacked) - 1rem);\n\
+    max-height: 60vh;\n\
+    max-height: 60dvh;\n\
   }\n\
 \n\
   /* ヘッダーが sticky でないため、sticky カラムはビューポート上端へ\n\

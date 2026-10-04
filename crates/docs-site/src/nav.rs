@@ -1729,6 +1729,15 @@ fn mega_panel(nav: &Nav, menu: &Menu, current_path: &str) -> Node {
 pub fn nav_drawer(nav: &Nav, current_path: &str) -> Node {
     let mut rows: Vec<Node> = Vec::new();
     for section in &nav.sections {
+        // メニュー（Assets）の索引リンクは、最初のメンバーセクションの直前へ 1 回だけ置く。
+        // ヘッダーのナビはタッチ端末で非表示のため、drawer が集約ページへの唯一の入口になる。
+        if let Some(menu) = nav.menus.iter().find(|m| {
+            m.items
+                .first()
+                .is_some_and(|i| i.section == section.index_path)
+        }) {
+            rows.push(menu_index_row(nav, menu, current_path));
+        }
         let is_current_section = section.all_pages().any(|p| p.path == current_path);
         let section_href = href(nav, &section.index_path);
         let mut link_attrs: Vec<(&str, &str)> = vec![
@@ -1777,6 +1786,28 @@ pub fn nav_drawer(nav: &Nav, current_path: &str) -> Node {
         "Site navigation",
         vec![("class", "docs-nav-drawer")],
         vec![list(vec![("class", "docs-nav-drawer-sections")], rows)],
+    )
+}
+
+/// drawer のメニュー索引リンク行（`li.docs-nav-drawer-section` > `a`）を作る。
+/// セクション行と同じ見た目で、集約ページ（例: `/assets/`）へ遷移する（#3701）。
+/// 現在ページがメニュー索引またはメンバー配下のとき `aria-current="true"` を付ける。
+fn menu_index_row(nav: &Nav, menu: &Menu, current_path: &str) -> Node {
+    let menu_href = href(nav, &menu.index_path);
+    let mut attrs: Vec<(&str, &str)> = vec![
+        ("href", &menu_href),
+        ("class", "docs-nav-drawer-section-link"),
+    ];
+    if nav
+        .menu_for_path(current_path)
+        .is_some_and(|m| m.index_path == menu.index_path)
+    {
+        attrs.push(("aria-current", "true"));
+        attrs.push(("data-current", ""));
+    }
+    item(
+        vec![("class", "docs-nav-drawer-section docs-nav-drawer-menu")],
+        vec![el("a", attrs, vec![text(menu.title.clone())])],
     )
 }
 
@@ -2784,6 +2815,20 @@ path = "/themes/button/"
         assert!(guides < themes);
         assert_eq!(html.matches("docs-nav-drawer-section-link").count(), 2);
         assert!(html.contains(r#"aria-label="Site navigation""#));
+    }
+
+    #[test]
+    fn nav_drawer_links_menu_index_once_before_first_member() {
+        let nav = parse_nav(SAMPLE_WITH_MENU).unwrap();
+        let html = render(&nav_drawer(&nav, "/api/"));
+        assert_eq!(html.matches(r#"href="/base/assets/""#).count(), 1);
+        let menu = html.find(r#"href="/base/assets/""#).unwrap();
+        let first_member = html.find(r#"href="/base/beta/""#).unwrap();
+        assert!(menu < first_member);
+        assert_eq!(html.matches("docs-nav-drawer-menu").count(), 1);
+        // メンバー配下ページではメニュー索引も所属表示になる。
+        let html = render(&nav_drawer(&nav, "/beta/"));
+        assert_eq!(html.matches(r#"aria-current="true""#).count(), 2);
     }
 
     #[test]

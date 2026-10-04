@@ -512,6 +512,7 @@ const STRUCTURE_CLASS_CONTRACT: &[(&str, &str)] = &[
     ("docs-nav-drawer-details", "セクションごとの details"),
     ("docs-nav-drawer-summary", "開閉専用の summary"),
     ("docs-nav-drawer-summary-text", "summary のアクセシブル名 span（視覚上は clip）"),
+    ("docs-nav-drawer-menu", "drawer のメニュー索引行（Assets 集約ページへのリンク、#3701）"),
     ("docs-nav-drawer-body", "details の本体 div"),
     ("docs-nav-drawer-list", "現在でないセクションの見出し一覧 ul"),
     ("docs-main", "中央カラム main"),
@@ -1578,10 +1579,8 @@ fn header_mega_panel_fits_viewport() {
     assert!(css.contains(
         "@media (min-width: 1024px) {\n.docs-header nav.docs-header-nav .docs-header-mega-grid {\ngrid-template-columns: repeat(3, minmax(0, 1fr));"
     ));
-    // 2 段帯域ではヘッダー下端が下がるため、max-height も 2 段分を引く。
-    assert!(css.contains(
-        "max-height: calc(100dvh - var(--fandhe-space-docs-header-height-stacked) - 1rem);"
-    ));
+    // 2 段帯域ではヘッダー実高さが不定のため、ヘッダー高さに依存しない割合で上限を決める。
+    assert!(css.contains("max-height: 60vh;\nmax-height: 60dvh;"));
     // セクション別 popup の規則・class は残さない。
     assert!(!css.contains("docs-header-dropdown"));
 }
@@ -1613,7 +1612,7 @@ fn mid_width_header_stacks_nav_on_second_row_inside_header() {
         ".docs-header-nav {\norder: 1;\nflex-basis: 100%;",
         ".docs-sidebar {\ntop: 0;\nmax-height: 100vh;",
         ".docs-content h2,\n.docs-content h3 {\nscroll-margin-top: 1rem;",
-        ".docs-header nav.docs-header-nav .docs-header-mega {\nmax-height: calc(100vh - var(--fandhe-space-docs-header-height-stacked) - 1rem);",
+        ".docs-header nav.docs-header-nav .docs-header-mega {\nmax-height: 60vh;\nmax-height: 60dvh;",
     ] {
         assert!(
             block.contains(expected),
