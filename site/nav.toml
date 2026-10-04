@@ -3484,3 +3484,31 @@ path = "/api/pre-styled-ui-api/"
 title = "pre-styled-ui slot recipe API"
 source = "docs/api/pre-styled-recipe-api.md"
 path = "/api/pre-styled-recipe-api/"
+
+# 複数セクションを 1 つのヘッダー項目へ束ねるメニュー（イシュー #3699）。
+# `[[menu]]` は title / index_path / source、`[[menu.item]]` は section
+# （メンバーセクションの index_path）/ description。宣言順がパネル順。
+[[menu]]
+title = "Assets"
+index_path = "/assets/"
+source = "site/assets.md"
+
+[[menu.item]]
+section = "/primitives/"
+description = "ヘッドレスな UI プリミティブ。構造・アクセシビリティ・状態属性のみを提供します。"
+
+[[menu.item]]
+section = "/themes/"
+description = "スタイル済みの UI 部品とテーマ。そのまま使える見た目を備えています。"
+
+[[menu.item]]
+section = "/blocks/"
+description = "既存部品を合成したページ断片の例。コピーして組み立てに使えます。"
+
+[[menu.item]]
+section = "/wireframes/"
+description = "モノクロのワイヤーフレーム部品。画面構成の素案づくりに使えます。"
+
+[[menu.item]]
+section = "/examples/"
+description = "動作する正本サンプル。SSR・SSG・配布構成の実例を示します。"
