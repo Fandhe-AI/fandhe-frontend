@@ -125,6 +125,7 @@ pub mod component_page_specs_948;
 pub mod component_specs;
 pub(crate) mod component_specs_nav_data;
 pub mod component_specs_overlay;
+pub mod csp;
 pub mod favicon;
 pub mod highlight;
 pub mod landing;

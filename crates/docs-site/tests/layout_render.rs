@@ -35,6 +35,45 @@ fn docs_page_renders_a_single_complete_document() {
     assert!(html.contains(r#"href="/assets/site.css""#));
 }
 
+/// イシュー #3678: meta CSP は charset・viewport の直後、`title` と最初の
+/// `link`/`script` より前にちょうど 1 個出る（Docs・Landing 共通）。タイトルへ
+/// 注入を試みても CSP meta は変わらない。
+#[test]
+fn csp_meta_is_emitted_once_right_after_viewport_for_docs_and_landing() {
+    use fandhe_frontend_docs_site::csp::CONTENT_SECURITY_POLICY;
+    let expected = format!(
+        r#"<meta http-equiv="Content-Security-Policy" content="{}">"#,
+        fandhe_frontend_core::escape_html(CONTENT_SECURITY_POLICY)
+    );
+    let body = p(vec![], vec![text("本文です。")]);
+    let docs = render(&docs_page(
+        r#""><script>x</script>"#,
+        "",
+        sample_sidebar(),
+        body.clone(),
+    ));
+    let landing = render(&docs_page_with_layout(
+        "T",
+        "",
+        sample_sidebar(),
+        body,
+        &[],
+        None,
+        None,
+        None,
+        PageLayout::Landing,
+    ));
+    for html in [docs, landing] {
+        assert_eq!(html.matches(&expected).count(), 1);
+        let viewport = html.find(r#"<meta name="viewport""#).unwrap();
+        let csp = html.find(&expected).unwrap();
+        assert!(viewport < csp);
+        assert!(csp < html.find("<title>").unwrap());
+        assert!(csp < html.find("<link").unwrap());
+        assert!(!html.contains("<script>x"));
+    }
+}
+
 /// codex P1（PR #3688）: ナビ drawer を渡さない `docs_page` 系の出力は、768px 未満でも
 /// サイドバーを残すため `data-no-nav-drawer` を container へ付ける。drawer ありでは付けない。
 #[test]

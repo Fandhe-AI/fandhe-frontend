@@ -454,6 +454,9 @@ pub fn output_path(from: &str) -> String {
 ///   の allowlist・実在検証）が refresh 先の唯一の防壁である**。
 ///   `fandhe_frontend_core` の URL 検証を当てにしない設計判断を doc として
 ///   明示する。
+/// - meta CSP（`crate::csp`、#3678）は**付けない**。本ページは script も
+///   stylesheet も持たない最小ページで、`meta refresh` と組み合わせた CSP は
+///   遷移を阻害し得るため、通常ページ（`crate::layout`）だけが出す。
 fn redirect_document(site_title: &str, to_href: &str) -> Node {
     let head = el(
         "head",
