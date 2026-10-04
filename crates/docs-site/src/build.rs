@@ -1355,7 +1355,20 @@ path = "/next/"
         add_assets_menu(&temp.0);
         fs::write(temp.0.join("site/assets/index.html"), "x\n").unwrap();
         let out_dir = temp.0.join("dist");
-        let err = build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY)
+        // メニューは生成節の登録が必須（`page_sections::validate`）のため最小登録表を渡す。
+        const MENU_SECTIONS: &[crate::page_sections::PageSection] =
+            &[crate::page_sections::PageSection {
+                path: "/assets/",
+                placement: crate::page_sections::Placement::Append,
+                render: |_, _| Vec::new(),
+                stylesheets: &[],
+                layout: crate::layout::PageLayout::Docs,
+            }];
+        let registry = crate::page_sections::Registry {
+            sections: MENU_SECTIONS,
+            stylesheets: &[],
+        };
+        let err = build_site_with(&temp.0, &out_dir, &registry)
             .expect_err("index.html under site/assets should fail the build");
         assert!(matches!(err, BuildError::ReservedAssetName(_)));
         assert!(!out_dir.exists());

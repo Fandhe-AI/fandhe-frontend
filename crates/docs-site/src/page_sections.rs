@@ -245,6 +245,9 @@ pub enum PageSectionError {
         /// 未登録の `rel_path`。
         rel_path: String,
     },
+    /// nav の `[[menu]]` の `index_path` に生成節が登録されていない
+    /// （集約ページにメンバーのカードが出ない）。
+    UnregisteredMenu(String),
     /// `rel_path` が `assets/<basename>.css` 形式でない。
     InvalidStylesheetPath(String),
     /// `rel_path` が重複している。
@@ -265,6 +268,9 @@ impl fmt::Display for PageSectionError {
         match self {
             Self::DuplicatePath(p) => write!(f, "page section registered twice for {p}"),
             Self::UnknownPage(p) => write!(f, "page section path is not a nav page: {p}"),
+            Self::UnregisteredMenu(p) => {
+                write!(f, "nav menu index_path has no page section registered: {p}")
+            }
             Self::ConflictsWithGeneratedPage(p) => write!(
                 f,
                 "page section path overlaps an existing generated-content page: {p}"
@@ -433,6 +439,11 @@ pub fn validate(registry: &Registry, nav: &Nav) -> Result<(), PageSectionError> 
             });
         }
     }
+    for menu in &nav.menus {
+        if !registry.sections.iter().any(|s| s.path == menu.index_path) {
+            return Err(PageSectionError::UnregisteredMenu(menu.index_path.clone()));
+        }
+    }
     Ok(())
 }
 
@@ -552,6 +563,11 @@ mod tests {
         assert_eq!(
             validate(&bad, &nav),
             Err(PageSectionError::UnknownPage("/zz/".into()))
+        );
+        let unregistered = reg(leak(vec![]), &[]);
+        assert_eq!(
+            validate(&unregistered, &nav),
+            Err(PageSectionError::UnregisteredMenu("/m/".into()))
         );
     }
 

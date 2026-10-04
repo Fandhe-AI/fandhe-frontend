@@ -1171,6 +1171,19 @@ fn finalize_menus(
                 format!("menu source `{source}` is not a safe relative path"),
             ));
         }
+        // 原稿の共有を許すと linkcheck の source → path 対応表が後勝ちになり、
+        // 通常ページ宛の相対 `.md` リンクがメニュー集約ページへ向いてしまう。
+        if sections
+            .iter()
+            .flat_map(Section::all_pages)
+            .any(|p| p.source == source)
+            || out.iter().any(|m| m.source == source)
+        {
+            return Err(parse_err(
+                source_line,
+                format!("menu source `{source}` is already used by another page or menu"),
+            ));
+        }
         if mb.items.is_empty() {
             return Err(parse_err(
                 mb.header_line,

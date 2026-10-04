@@ -576,3 +576,15 @@ fn real_nav_declares_assets_menu() {
         assert!(nav.menu_for_path(p).is_none(), "{p}");
     }
 }
+
+/// 異常系: メニュー原稿が通常ページの source と重なると、linkcheck の
+/// source → path 対応表が後勝ちで曖昧になるため拒否する。
+#[test]
+fn menu_source_colliding_with_page_source_is_rejected() {
+    let input = with(&MENU_OK.replace("source = \"m.md\"", "source = \"s1.md\""));
+    assert_parse_err_last(
+        &input,
+        "source = \"s1.md\"",
+        "menu source `s1.md` is already used by another page or menu",
+    );
+}
