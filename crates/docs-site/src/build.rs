@@ -93,7 +93,8 @@
 //! 付けず、検索インデックスは `nav.sections` の後ろのメニュー別バケットへ積む。
 //! `written` はこのページを含む（`nav.all_pages().count() + nav.menus.len()`）。
 //! 出力 `assets/index.html` を静的アセットが上書きしないよう
-//! `RESERVED_ASSET_NAMES` に `index.html` を持つ。
+//! `index_path` が `/assets/` のメニューがあるビルドに限り `index.html` を
+//! `extra_reserved` へ加える（`RESERVED_ASSET_NAMES` へは入れない）。
 //!
 //! # admonition 構文（[`crate::markdown`]）が使う CSS（イシュー #715）
 //!
@@ -224,10 +225,6 @@ pub(crate) const RESERVED_ASSET_NAMES: &[&str] = &[
     "blocks-demo-logo.svg",
     "blocks-demo-screenshot.svg",
     "blocks-demo-background.svg",
-    // メニュー集約ページ `/assets/`（イシュー #3700）の出力 `assets/index.html`。
-    // `copy_assets` は `generate_pages` の後に `fs::copy` で上書きするため、
-    // `site/assets/index.html` があると集約ページが黙って置き換わる。
-    "index.html",
 ];
 
 /// [`build_site`] が成功時に返すビルド結果のサマリ。
@@ -772,11 +769,21 @@ pub fn build_site_with(
         pages.push((page.path.clone(), document));
     }
 
-    let extra_reserved: Vec<&str> = registry
+    let mut extra_reserved: Vec<&str> = registry
         .stylesheets
         .iter()
         .filter_map(|s| s.rel_path.strip_prefix("assets/"))
         .collect();
+    // メニュー集約ページ `/assets/`（イシュー #3700）の出力 `assets/index.html` を
+    // `copy_assets`（`generate_pages` の後の `fs::copy`）が黙って上書きしないよう、
+    // 実際に `assets/index.html` を生成するメニューがある場合に限り予約する。
+    if nav
+        .menus
+        .iter()
+        .any(|m| m.index_path.trim_matches('/') == "assets")
+    {
+        extra_reserved.push("index.html");
+    }
     let mut asset_hrefs = collect_asset_hrefs(repo_root, &nav.site.base_path, &extra_reserved)?;
     // テーマ初期化 JS（イシュー #3676）。`<script src>` は linkcheck の走査対象外
     // （`href` のみ）で登録は no-op だが、他アセットと同じ登録経路に揃える。
@@ -1339,18 +1346,42 @@ path = "/next/"
         assert!(!out_dir.exists());
     }
 
-    /// イシュー #3700: `site/assets/index.html` は出力 `assets/index.html`
-    /// （メニュー集約ページ `/assets/`）を黙って上書きするため拒否される。
+    /// イシュー #3700: `/assets/` メニューがあるサイトでは `site/assets/index.html` が
+    /// 出力 `assets/index.html`（メニュー集約ページ）を黙って上書きするため拒否される。
     #[test]
     fn build_site_rejects_reserved_asset_name_index_html_under_assets() {
         let temp = TempDir::new("reserved-asset-name-index-html");
         write_fixture_site(&temp.0);
+        add_assets_menu(&temp.0);
         fs::write(temp.0.join("site/assets/index.html"), "x\n").unwrap();
         let out_dir = temp.0.join("dist");
         let err = build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY)
             .expect_err("index.html under site/assets should fail the build");
         assert!(matches!(err, BuildError::ReservedAssetName(_)));
         assert!(!out_dir.exists());
+    }
+
+    /// イシュー #3700: `assets/index.html` を生成するメニューが無いサイトでは
+    /// `site/assets/index.html` は通常の静的アセットとして許容される。
+    #[test]
+    fn build_site_allows_index_html_under_assets_without_assets_menu() {
+        let temp = TempDir::new("index-html-without-menu");
+        write_fixture_site(&temp.0);
+        fs::write(temp.0.join("site/assets/index.html"), "x\n").unwrap();
+        let out_dir = temp.0.join("dist");
+        build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY)
+            .expect("index.html is not reserved without an /assets/ menu");
+    }
+
+    /// `write_fixture_site` の nav.toml へ `/assets/` メニューを追記する。
+    fn add_assets_menu(root: &Path) {
+        let nav_path = root.join("site/nav.toml");
+        let mut nav = fs::read_to_string(&nav_path).unwrap();
+        nav.push_str(
+            "\n[[menu]]\ntitle = \"Assets\"\nindex_path = \"/assets/\"\nsource = \"site/assets-menu.md\"\n\n[[menu.item]]\nsection = \"/\"\ndescription = \"d\"\n",
+        );
+        fs::write(&nav_path, nav).unwrap();
+        fs::write(root.join("site/assets-menu.md"), "# Assets\n\nIntro.\n").unwrap();
     }
 
     /// イシュー #905: `site/assets/` ディレクトリ自体が存在しなくても
