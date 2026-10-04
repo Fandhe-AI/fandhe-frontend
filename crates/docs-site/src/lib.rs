@@ -44,8 +44,9 @@
 //!   する単一静的ファイル）を置き換え、`--fandhe-*` テーマトークンへ一本化
 //!   する（イシュー #905）。右カラム目次の独立カラム化と sticky 追従は
 //!   イシュー #909 で追加
-//! - [`script`]: docs サイトが出力する外部 JS 2 本（`assets/theme-init.js`・`assets/site.js`）と、
-//!   `<head>` の FOUC 抑止インラインスニペットの組み立て。テーマトグル
+//! - [`script`]: docs サイトが出力する外部 JS 2 本（`assets/theme-init.js`・`assets/site.js`）の
+//!   生成。`theme-init.js` は `<head>` 先頭で同期読み込みして FOUC を抑止し
+//!   （インライン script は持たない、イシュー #3676）、テーマトグル
 //!   （ダーク/ライト切替）・GitHub リンクの追加に伴い初めて docs サイトへ
 //!   クライアント側 JS を持ち込む（イシュー #951）
 //! - [`search_index`]: ビルド時に `assets/search-index.json`
