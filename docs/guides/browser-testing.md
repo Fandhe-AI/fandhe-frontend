@@ -166,6 +166,30 @@ Chrome/Chromium と対応する chromedriver がローカルに必要（バー�
 - **横はみ出し検査**: 375px で `browser_evaluate` により `document.documentElement.scrollWidth === window.innerWidth` を確認する。あわせて `browser_console_messages` と `browser_network_requests` でエラー・404 がないことを確認する。
 - **セキュリティ注記**: 配信は `127.0.0.1` バインドのみ・`_/site-preview` 配下のみで、外部公開しない。python3 標準ライブラリのみを使い新規依存はない。
 
+## 9b. docs サイトの CSP 違反走査・FOUC・View Transitions 検証（イシュー #3679）
+
+meta CSP（`crates/docs-site/src/csp.rs`）導入後の実機確認手順。§9a の対話レビューとは別に、全ページを機械的に走査する。走査スクリプトはリポジトリへ置かず、本節の手順と要点のコード片を正とする（結果は `docs/reports/docs-site-csp-report.md`）。
+
+- **前提**: Node と `playwright-core`（`bench/csr/node_modules` の lockfile 固定版を `createRequire` で読む。`npm install` は行わない）、フル chromium（`~/Library/Caches/ms-playwright/chromium-<rev>/`）。View Transitions の確認に `chromium_headless_shell` は使わない。
+- **配信**: `make docs-preview` と等価な 2 コマンドを、出力先とポートだけ変えて実行する。`cargo run -p fandhe-frontend-docs-site --locked -- --out <tmp>/fandhe-frontend/` と `python3 -m http.server <空きポート> --bind 127.0.0.1 --directory <tmp>`。`<tmp>` は `mktemp -d` が返す worktree 外のパスにする。
+- **ページ分類**: 出力 HTML を走査し、`http-equiv="refresh"` を含むものをリダイレクト案内、他を本体ページとする。本体ページ数と CSP meta 付きページ数の一致、リダイレクト案内数と `site/redirects.toml` の `[[redirect]]` 件数の一致を確認する。
+- **違反検出器は 3 系統**: (a) `context.addInitScript` で `securitypolicyviolation` を購読、(b) `page.on('console')` で `Content Security Policy` / `Refused to` を含む error・warning を収集、(c) `page.on('requestfailed')` で `csp` 失敗を収集する。あわせて `response` の 400 以上と `pageerror` を記録する。
+- **陽性対照（必須）**: 読み込み済みページへ `page.evaluate` でインライン `<script>` と `https://example.com/x.png` の `<img>` を挿入し、(a)〜(c) が反応することを確認する。反応しない検出器の「0 件」は無意味である。陽性対照の件数は本走査と分けて記録する。
+- **操作走査**: 検索ダイアログの入力（検索インデックスの `fetch` は初回操作で発火し `connect-src` を試す）・テーマトグル・コードのコピー・スクロール・メニュー demo を代表ページで操作し、操作中も検出器で集める。
+- **FOUC**: `colorScheme: 'light'` の context で、一度ページを開いて `localStorage.setItem('fandhe-docs-theme','dark')` し、CDP で `Emulation.setCPUThrottlingRate {rate:4}` と `Network.setCacheDisabled` を設定して再読み込みする。init script の最初の `requestAnimationFrame` 時点で `data-theme` と `body` の背景色を記録する。キー未設定の陰性ケースも取る。
+
+```js
+await ctx.addInitScript(() => {
+  window.__f = {};
+  requestAnimationFrame(() => { window.__f.raf = { attr: document.documentElement.getAttribute('data-theme'), body: getComputedStyle(document.body).backgroundColor }; });
+});
+```
+
+- **View Transitions**: `pagereveal` / `pageswap` で `!!e.viewTransition` を記録し、遷移は `page.goto` ではなく同一オリジンのリンクのクリックで起こす（browser 起点の遷移では起きない）。`document.styleSheets` に `navigation === 'auto'` の `CSSViewTransitionRule` があること（`site.css` と `site-primitives.css`）も確認する。headless で `viewTransition` が null になる場合は `headless: false` で再試行し、それでも null なら規則の存在と違反なしをもって証拠水準とし、その旨を明記する。
+- **リダイレクト案内**: 全件を `goto`（`waitUntil: 'commit'`）後に `waitForURL(移転先)` で確認し、1 件ごとに 30 秒のタイムアウトを必ず付ける（CSP と `meta refresh` の組み合わせでハングした実績がある。§9）。案内ページ自体に CSP meta がないことも確認する。
+- **トラブルシュート**: 単純な `http.server` は並列接続で `ERR_CONNECTION_RESET` を返すことがある（CSP 違反ではない。`failed` の `errorText` が `csp` か否かで区別し、再実行で再現しなければ環境要因とする）。
+- **セキュリティ注記**: 配信は `127.0.0.1` バインドのみ。`npm install` はしない。走査 JSON・ログ・スクリプトは非コミットとし、レポートへ `$HOME` を含む絶対パスを残さない。検証は Chromium のみで、`style-src-attr` 非対応ブラウザでの挙動は確かめていない。
+
 ## 10. examples のオーバーレイ実演の実測検証（イシュー #1203）
 
 - **位置づけ**: `examples/*/wasm`（例: `examples/interactive-view-transitions/wasm`）

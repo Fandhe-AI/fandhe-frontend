@@ -103,6 +103,7 @@ object-src 'none';
 - `object-src 'none'` は明示しない。`default-src 'none'` のフォールバックで同じ効果になる
 - リダイレクト案内ページには付けない（`redirect.rs` の rustdoc 参照）
 - 残余リスク: `style-src-attr` 非対応のブラウザは `style-src 'self'` にフォールバックし `style` 属性を拒否する。
+- 実機検証済み（イシュー #3679）: 本体 614 ページで CSP 違反 0 件・FOUC なし・View Transitions 維持・リダイレクト案内 125 件の遷移維持を Chromium で確認した（検証は Chromium のみ）。詳細は `docs/reports/docs-site-csp-report.md`。
 
 ## 8. 既存契約・テストとの整合（案 E）
 
@@ -118,7 +119,7 @@ object-src 'none';
 1. 外部化（theme bootstrap・view-transition・demo `<style>`）と FOUC / VT 検証
 2. 外部ダミー画像の置換（D）
 3. meta CSP の生成ヘルパと契約テスト（1・2 に依存）
-4. Playwright による全ページの CSP 違反ゼロ確認（3 に依存）
+4. Playwright による全ページの CSP 違反ゼロ確認（3 に依存。イシュー #3679 で実施済み、結果は `docs/reports/docs-site-csp-report.md`）
 
 検証手順の骨子: ローカル配信で全ページの console の CSP violation が 0 件であること。localStorage に `dark` を設定し、CPU スロットリング・キャッシュ無効で再読み込みして初回ペイント時点の `data-theme` を比較すること。同一オリジン遷移で `@view-transition` が有効であること。リダイレクト案内と 404 の動作（ハング再現の有無）。
 
