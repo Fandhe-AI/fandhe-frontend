@@ -185,10 +185,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // イシュー #2732: Blocks セクションは親トラッキング #2730（301 block の
     // 大量追加を予定）により今後 block ごとに本テストを書き換える運用が
     // 破綻するため、Blocks 分のページ数は `blocks::all_blocks()`（唯一の正）から
-    // 導出する。Blocks 以外の合計ページ数は 283 で固定する（イシュー #3290 で
+    // 導出する。Blocks 以外の合計ページ数は 284 で固定する（イシュー #3290 で
     // Examples に vercel-ssg が加わり 280 → 281。イシュー #3291 で Guides に
     // デプロイガイドが加わり 281 → 282。イシュー #3341 で Examples に
-    // vercel-ssr が加わり 282 → 283。nav 登録 =
+    // vercel-ssr が加わり 282 → 283。イシュー #3700 で `/assets/`
+    // 集約ページが加わり 283 → 284。nav 登録 =
     // 生成ページの恒等契約は直後の assert_eq! が別途担保する）。内訳の
     // 増減履歴は `site_nav.rs` と本ファイルのコミット履歴を参照する
     // （逐次カウント記録によるコメント肥大化を避けるため要約した）。
@@ -196,14 +197,14 @@ fn build_site_succeeds_for_the_real_repository_site() {
     let non_blocks_written_count = report.written.len() - expected_blocks_page_count;
     assert_eq!(
         non_blocks_written_count,
-        283,
+        284,
         "実サイトの生成ページ数（Blocks 以外）が期待値と異なる: \
          total={}, blocks={expected_blocks_page_count}, written={:?}",
         report.written.len(),
         report.written
     );
 
-    // 上の 283（Blocks 以外の合計）は「その時点の実測値」であり、Blocks 以外の
+    // 上の 284（Blocks 以外の合計）は「その時点の実測値」であり、Blocks 以外の
     // セクションでページが増減したら更新が要る。恒等契約（nav 登録数 = 生成
     // ページ数）そのものは値に依存しない形でも固定し、片方だけ更新して片方が
     // 形骸化する事故を防ぐ。
@@ -213,8 +214,8 @@ fn build_site_succeeds_for_the_real_repository_site() {
         fandhe_frontend_docs_site::nav::parse_nav(&nav_toml).expect("site/nav.toml should parse");
     assert_eq!(
         report.written.len(),
-        nav.all_pages().count(),
-        "nav 登録ページ数と生成ページ数が一致しない"
+        nav.all_pages().count() + nav.menus.len(),
+        "nav 登録ページ数（+ メニュー集約ページ数）と生成ページ数が一致しない"
     );
 
     // イシュー #1017 で既存 107 部品ページを `/components/<kebab>/` から
@@ -312,10 +313,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // イシュー #3623 で 404.html が全ビルド無条件で加わり 20 + セクション数に、
     // イシュー #3618 で Blocks・Wireframes 索引専用 `category-index.css` が加わり
     // 21 + セクション数に、イシュー #3676 で theme-init.js が全ビルド無条件で加わり
-    // 22 + セクション数になった。
+    // 22 + セクション数になった。イシュー #3700 で
+    // メニュー集約ページ用の検索インデックスファイルが `[[menu]]` 数分加わった
+    // （22 + セクション数 + メニュー数）。
     assert_eq!(
         report.assets.len(),
-        22 + nav.sections.len(),
+        22 + nav.sections.len() + nav.menus.len(),
         "{:?}",
         report.assets
     );
@@ -802,6 +805,13 @@ fn binary_exits_nonzero_with_link_check_report_for_broken_fixture() {
         };
         std::fs::write(root.join(format!("site/{file}.md")), body).expect("write md");
     }
+    // 本番登録表が `/assets/`（メニュー集約ページ、イシュー #3700）を要求するため、
+    // フィクスチャにも最小のメニューを宣言する（無いと登録表検証が先に失敗し、
+    // リンク切れ検知の検証に届かない）。
+    nav.push_str(
+        "\n[[menu]]\ntitle = \"Assets\"\nindex_path = \"/assets/\"\nsource = \"site/m.md\"\n\n[[menu.item]]\nsection = \"/primitives/\"\ndescription = \"d\"\n",
+    );
+    std::fs::write(root.join("site/m.md"), "# Assets\n\nBody.\n").expect("write menu md");
     std::fs::write(root.join("site/nav.toml"), nav).expect("write nav");
     let out_dir = temp.0.join("dist");
     let output = Command::new(docs_site_bin())

@@ -261,7 +261,20 @@ pub const API_GROUPS: &[IndexGroup] = &[
 
 /// カード 1 枚（`li.docs-index-card`）を組む。`level` は見出しレベル。
 fn card_node(base_path: &str, c: &IndexCard, level: HeadingLevel) -> Node {
-    let href = asset_href(base_path, c.path);
+    link_card(base_path, c.path, c.title, c.description, level)
+}
+
+/// 全面リンクのカード 1 枚（`li.docs-index-card`）。メニュー集約ページ
+/// （[`crate::menu_index`]、#3700）も同じ見た目を再利用するための共有点。
+/// 文字列はすべて `text()` 経由で既定エスケープされる。
+pub(crate) fn link_card(
+    base_path: &str,
+    path: &str,
+    title: &str,
+    description: &str,
+    level: HeadingLevel,
+) -> Node {
+    let href = asset_href(base_path, path);
     let title = heading(
         level,
         &HeadingProps {
@@ -271,7 +284,7 @@ fn card_node(base_path: &str, c: &IndexCard, level: HeadingLevel) -> Node {
         vec![],
         vec![a(
             vec![("class", "docs-index-card-link"), ("href", href.as_str())],
-            vec![text(c.title)],
+            vec![text(title)],
         )],
     );
     let desc = text_part(
@@ -281,7 +294,7 @@ fn card_node(base_path: &str, c: &IndexCard, level: HeadingLevel) -> Node {
             ..TextProps::default()
         },
         vec![],
-        vec![text(c.description)],
+        vec![text(description)],
     );
     li(
         vec![("class", "docs-index-card")],
@@ -293,9 +306,13 @@ fn card_node(base_path: &str, c: &IndexCard, level: HeadingLevel) -> Node {
     )
 }
 
+/// カードを並べる `ul.docs-index-grid`。
+pub(crate) fn link_grid(cards: Vec<Node>) -> Node {
+    ul(vec![("class", "docs-index-grid")], cards)
+}
+
 fn grid(base_path: &str, cards: &[IndexCard], level: HeadingLevel) -> Node {
-    ul(
-        vec![("class", "docs-index-grid")],
+    link_grid(
         cards
             .iter()
             .map(|c| card_node(base_path, c, level))

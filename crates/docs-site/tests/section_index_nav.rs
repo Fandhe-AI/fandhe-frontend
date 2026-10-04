@@ -144,10 +144,16 @@ fn stylesheet_is_linked_only_from_the_three_index_pages() {
         }
     }
     walk(out, out, href_part, &mut linked);
-    let expected: BTreeSet<String> = ["guides/index.html", "api/index.html", "examples/index.html"]
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
+    // イシュー #3700: メニュー集約ページ `/assets/` も同じカードを再利用する。
+    let expected: BTreeSet<String> = [
+        "guides/index.html",
+        "api/index.html",
+        "examples/index.html",
+        "assets/index.html",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
     assert_eq!(linked, expected);
     assert!(
         out.join(href_part).is_file(),

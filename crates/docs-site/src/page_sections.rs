@@ -18,6 +18,12 @@
 //! （[`EMPTY_REGISTRY`]）では全ページの出力が変更前と 1 バイトも変わらない
 //! （`tests/page_sections.rs` が固定する）。
 //!
+//! # 登録可能パス（イシュー #3700）
+//!
+//! 登録できるのは nav の実在ページ（`nav.all_pages()`）と、`[[menu]]` の
+//! `index_path`（メニュー集約ページ、[`crate::menu_index`]）。`render` は
+//! `Nav` と登録パスを受け取る。
+//!
 //! # 挿入位置の規約（[`Placement`]）
 //!
 //! - [`Placement::Prepend`]: Markdown 本文の先頭（H1 より前）。トップページが
@@ -72,6 +78,7 @@ use crate::component_index;
 use crate::component_page;
 use crate::landing;
 use crate::layout::{PageLayout, RESERVED_LAYOUT_IDS};
+use crate::menu_index;
 use crate::nav::Nav;
 use crate::section_index;
 use crate::wireframes;
@@ -103,8 +110,9 @@ pub struct PageSection {
     pub path: &'static str,
     /// 差し込み位置。
     pub placement: Placement,
-    /// 生成関数。引数は `nav.site.base_path`（href 生成用）。
-    pub render: fn(base_path: &str) -> Vec<Node>,
+    /// 生成関数。引数は `Nav`（`nav.site.base_path` や `[[menu]]` の参照用）と
+    /// 登録 `path`（イシュー #3700 で `base_path` から変更）。
+    pub render: fn(nav: &Nav, path: &str) -> Vec<Node>,
     /// 配線する追加 CSS（[`Registry::stylesheets`] の `rel_path` を参照）。
     pub stylesheets: &'static [&'static str],
     /// ページ骨格の種別（イシュー #3612）。トップのランディングだけが
@@ -129,56 +137,63 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
     PageSection {
         path: "/api/",
         placement: Placement::BeforeFirstH2,
-        render: section_index::render_api,
+        render: |nav, _| section_index::render_api(&nav.site.base_path),
         stylesheets: &[section_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
     },
     PageSection {
+        path: "/assets/",
+        placement: Placement::Append,
+        render: menu_index::render,
+        stylesheets: &[menu_index::STYLESHEET_REL_PATH],
+        layout: PageLayout::Landing,
+    },
+    PageSection {
         path: blocks::INDEX_PATH,
         placement: Placement::Append,
-        render: category_index::render_blocks,
+        render: |nav, _| category_index::render_blocks(&nav.site.base_path),
         stylesheets: &[category_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
     },
     PageSection {
         path: "/examples/",
         placement: Placement::BeforeFirstH2,
-        render: section_index::render_examples,
+        render: |nav, _| section_index::render_examples(&nav.site.base_path),
         stylesheets: &[section_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
     },
     PageSection {
         path: "/guides/",
         placement: Placement::Append,
-        render: section_index::render_guides,
+        render: |nav, _| section_index::render_guides(&nav.site.base_path),
         stylesheets: &[section_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
     },
     PageSection {
         path: "/primitives/",
         placement: Placement::BeforeFirstH2,
-        render: component_index::render_primitives,
+        render: |nav, _| component_index::render_primitives(&nav.site.base_path),
         stylesheets: &[component_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
     },
     PageSection {
         path: "/themes/",
         placement: Placement::BeforeFirstH2,
-        render: component_index::render_themes,
+        render: |nav, _| component_index::render_themes(&nav.site.base_path),
         stylesheets: &[component_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
     },
     PageSection {
         path: "/wireframes/",
         placement: Placement::BeforeFirstH2,
-        render: category_index::render_wireframes,
+        render: |nav, _| category_index::render_wireframes(&nav.site.base_path),
         stylesheets: &[category_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
     },
     PageSection {
         path: landing::PATH,
         placement: Placement::Prepend,
-        render: landing::render,
+        render: |nav, _| landing::render(&nav.site.base_path),
         stylesheets: &[],
         layout: PageLayout::Landing,
     },
@@ -308,8 +323,8 @@ pub fn stylesheets_for_path_in<'a>(registry: &'a Registry, path: &str) -> Vec<&'
 
 /// 本番登録表 [`REGISTRY`] 用の [`insert_generated_sections_with`]。
 #[must_use]
-pub fn insert_generated_sections(path: &str, base_path: &str, blocks: Vec<Node>) -> Vec<Node> {
-    insert_generated_sections_with(&REGISTRY, path, base_path, blocks)
+pub fn insert_generated_sections(nav: &Nav, path: &str, blocks: Vec<Node>) -> Vec<Node> {
+    insert_generated_sections_with(&REGISTRY, nav, path, blocks)
 }
 
 /// `path` が `registry` に登録されていれば、生成節を [`Placement`] どおりに
@@ -318,14 +333,14 @@ pub fn insert_generated_sections(path: &str, base_path: &str, blocks: Vec<Node>)
 #[must_use]
 pub fn insert_generated_sections_with(
     registry: &Registry,
+    nav: &Nav,
     path: &str,
-    base_path: &str,
     mut blocks: Vec<Node>,
 ) -> Vec<Node> {
     let Some(section) = section_for_path_in(registry, path) else {
         return blocks;
     };
-    let generated = (section.render)(base_path);
+    let generated = (section.render)(nav, path);
     match section.placement {
         Placement::Prepend => {
             let mut out = generated;
@@ -389,7 +404,9 @@ pub fn validate(registry: &Registry, nav: &Nav) -> Result<(), PageSectionError> 
         if registry.sections[..i].iter().any(|s| s.path == path) {
             return Err(PageSectionError::DuplicatePath(path.to_string()));
         }
-        if !nav.all_pages().any(|p| p.path == path) {
+        if !nav.all_pages().any(|p| p.path == path)
+            && !nav.menus.iter().any(|m| m.index_path == path)
+        {
             return Err(PageSectionError::UnknownPage(path.to_string()));
         }
         if blocks::block_for_path(path).is_some()
@@ -408,7 +425,7 @@ pub fn validate(registry: &Registry, nav: &Nav) -> Result<(), PageSectionError> 
                 });
             }
         }
-        let nodes = (section.render)(&nav.site.base_path);
+        let nodes = (section.render)(nav, path);
         if let Some(id) = find_reserved_id(&nodes) {
             return Err(PageSectionError::ReservedId {
                 path: path.to_string(),
@@ -453,11 +470,11 @@ mod tests {
         ]
     }
 
-    fn marker(_: &str) -> Vec<Node> {
+    fn marker(_: &Nav, _: &str) -> Vec<Node> {
         vec![div(vec![("class", "docs-gen")], vec![])]
     }
 
-    fn reserved(_: &str) -> Vec<Node> {
+    fn reserved(_: &Nav, _: &str) -> Vec<Node> {
         vec![div(
             vec![],
             vec![el("span", vec![("id", "docs-search-input")], vec![])],
@@ -508,6 +525,7 @@ mod tests {
             paths,
             [
                 "/api/",
+                "/assets/",
                 "/blocks/",
                 "/examples/",
                 "/guides/",
@@ -523,21 +541,38 @@ mod tests {
     }
 
     #[test]
+    fn validate_accepts_menu_index_path_but_not_other_paths() {
+        let nav = crate::nav::parse_nav(
+            "[site]\ntitle = \"T\"\nbase_path = \"/b\"\n\n[[section]]\ntitle = \"G\"\nindex_path = \"/\"\n\n[[section.page]]\ntitle = \"H\"\nsource = \"site/index.md\"\npath = \"/\"\n\n[[menu]]\ntitle = \"M\"\nindex_path = \"/m/\"\nsource = \"site/m.md\"\n\n[[menu.item]]\nsection = \"/\"\ndescription = \"d\"\n",
+        )
+        .expect("valid nav");
+        let ok = reg(leak(vec![sec("/m/", marker, &[])]), &[]);
+        assert_eq!(validate(&ok, &nav), Ok(()));
+        let bad = reg(leak(vec![sec("/zz/", marker, &[])]), &[]);
+        assert_eq!(
+            validate(&bad, &nav),
+            Err(PageSectionError::UnknownPage("/zz/".into()))
+        );
+    }
+
+    #[test]
     fn unregistered_path_is_noop() {
-        let out = insert_generated_sections_with(&one(Placement::Prepend), "/other/", "", base());
+        let out =
+            insert_generated_sections_with(&one(Placement::Prepend), &nav(), "/other/", base());
         assert_eq!(out, base());
     }
 
     #[test]
     fn placement_prepend_before_h1() {
-        let out = insert_generated_sections_with(&one(Placement::Prepend), "/", "", base());
+        let out = insert_generated_sections_with(&one(Placement::Prepend), &nav(), "/", base());
         assert!(is_gen(&out[0]));
         assert_eq!(out.len(), 5);
     }
 
     #[test]
     fn placement_before_first_h2() {
-        let out = insert_generated_sections_with(&one(Placement::BeforeFirstH2), "/", "", base());
+        let out =
+            insert_generated_sections_with(&one(Placement::BeforeFirstH2), &nav(), "/", base());
         assert!(is_gen(&out[2]));
         assert!(matches!(&out[3], Node::Element { tag, .. } if *tag == "h2"));
     }
@@ -545,13 +580,14 @@ mod tests {
     #[test]
     fn placement_before_first_h2_falls_back_to_end() {
         let blocks = vec![h1(vec![], vec![text("T")])];
-        let out = insert_generated_sections_with(&one(Placement::BeforeFirstH2), "/", "", blocks);
+        let out =
+            insert_generated_sections_with(&one(Placement::BeforeFirstH2), &nav(), "/", blocks);
         assert!(is_gen(out.last().unwrap()));
     }
 
     #[test]
     fn placement_append_at_end() {
-        let out = insert_generated_sections_with(&one(Placement::Append), "/", "", base());
+        let out = insert_generated_sections_with(&one(Placement::Append), &nav(), "/", base());
         assert!(is_gen(out.last().unwrap()));
         assert_eq!(out.len(), 5);
     }
@@ -565,7 +601,7 @@ mod tests {
 
     fn sec(
         path: &'static str,
-        render: fn(&str) -> Vec<Node>,
+        render: fn(&Nav, &str) -> Vec<Node>,
         stylesheets: &'static [&'static str],
     ) -> PageSection {
         PageSection {

@@ -85,6 +85,16 @@
 //! href 登録・書き出しする。本番は [`build_site`]、合成登録表を使うテストは
 //! [`build_site_with`] を使う。
 //!
+//! # メニュー集約ページ（[`crate::menu_index`]、イシュー #3700）
+//!
+//! `nav.all_pages()` のループの後に `nav.menus` を走査し、`[[menu]]` の
+//! `source` 原稿 + [`page_sections`] 登録表（`menu_index::render` のカード）で
+//! `index_path` に 1 ページ生成する。セクションに属さないため `prev_next_nav` は
+//! 付けず、検索インデックスは `nav.sections` の後ろのメニュー別バケットへ積む。
+//! `written` はこのページを含む（`nav.all_pages().count() + nav.menus.len()`）。
+//! 出力 `assets/index.html` を静的アセットが上書きしないよう
+//! `RESERVED_ASSET_NAMES` に `index.html` を持つ。
+//!
 //! # admonition 構文（[`crate::markdown`]）が使う CSS（イシュー #715）
 //!
 //! `> [!NOTE]` 等の admonition マーカーは [`markdown::render_markdown`](crate::markdown::render_markdown) が
@@ -214,6 +224,10 @@ pub(crate) const RESERVED_ASSET_NAMES: &[&str] = &[
     "blocks-demo-logo.svg",
     "blocks-demo-screenshot.svg",
     "blocks-demo-background.svg",
+    // メニュー集約ページ `/assets/`（イシュー #3700）の出力 `assets/index.html`。
+    // `copy_assets` は `generate_pages` の後に `fs::copy` で上書きするため、
+    // `site/assets/index.html` があると集約ページが黙って置き換わる。
+    "index.html",
 ];
 
 /// [`build_site`] が成功時に返すビルド結果のサマリ。
@@ -225,7 +239,8 @@ pub struct BuildReport {
     pub assets: Vec<PathBuf>,
     /// 書き出したリダイレクトページの絶対パス一覧（イシュー #1016）。
     /// `written`（本体ページ）・`assets` のいずれにも含めない独立フィールド。
-    /// `written.len()`/`nav.all_pages().count()` の恒等契約
+    /// `written.len()` と `nav.all_pages().count() + nav.menus.len()`
+    /// （メニュー集約ページ分、イシュー #3700）の恒等契約
     /// （`tests/site_build.rs`）・部品ページ件数固定を変えないための
     /// 意図的な分離であり、`crate::redirect` モジュール doc の
     /// 「除外述語ゼロ」構造そのもの。
@@ -508,6 +523,10 @@ pub fn build_site_with(
             title: section.title.clone(),
             entries: Vec::new(),
         })
+        .chain(nav.menus.iter().map(|menu| search_index::SectionInput {
+            title: menu.title.clone(),
+            entries: Vec::new(),
+        }))
         .collect();
 
     // `nav.all_pages()`（唯一の正規走査経路）でページ生成する。グループ
@@ -545,8 +564,8 @@ pub fn build_site_with(
         // 生成経路（block・wireframe・部品ページ）と重ならない（`page_sections::validate`）。
         let markdown_blocks = page_sections::insert_generated_sections_with(
             registry,
+            &nav,
             &page.path,
-            &nav.site.base_path,
             markdown_blocks,
         );
         // 本文先頭のパンくず付きページ見出し（イシュー #3607）。生成節の挿入が
@@ -683,6 +702,73 @@ pub fn build_site_with(
             page_sections::layout_for_path_in(registry, &page.path),
         );
 
+        pages.push((page.path.clone(), document));
+    }
+
+    // メニュー集約ページ（`/assets/` 等、イシュー #3700）。セクションに属さない
+    // 第 2 種のページで、サイドバーの所属・`prev_next` を持たない。Markdown
+    // 原稿はイントロのみで、カードは `page_sections` 登録表（`menu_index`）が
+    // 差し込む。検索インデックスは `nav.sections` の後ろのメニュー別バケットへ積む。
+    for (menu_idx, menu) in nav.menus.iter().enumerate() {
+        let page = menu.as_page();
+        let source_path = repo_root.join(&page.source);
+        let markdown_input =
+            fs::read_to_string(&source_path).map_err(|source_err| BuildError::Io {
+                path: PathBuf::from(&page.source),
+                source: source_err,
+            })?;
+        let markdown_blocks = crate::code_copy::wrap_code_blocks(render_markdown(&markdown_input));
+        let markdown_blocks = page_sections::insert_generated_sections_with(
+            registry,
+            &nav,
+            &page.path,
+            markdown_blocks,
+        );
+        let markdown_blocks = crate::page_header::wrap_page_heading(&nav, &page, markdown_blocks);
+        let raw_body = div(vec![], markdown_blocks);
+        let rewritten_body = linkcheck::rewrite_md_links(
+            raw_body,
+            &page.source,
+            &nav,
+            &page.path,
+            &source_to_path,
+            &mut broken,
+        );
+        let mut extra_stylesheets: Vec<&str> = Vec::new();
+        if admonition::contains_admonition(&rewritten_body) {
+            has_admonition = true;
+            extra_stylesheets.push(admonition::STYLESHEET_REL_PATH);
+        }
+        for sheet in page_sections::stylesheets_for_path_in(registry, &page.path) {
+            extra_stylesheets.push(sheet.rel_path);
+            if !used_page_stylesheets
+                .iter()
+                .any(|s| s.rel_path == sheet.rel_path)
+            {
+                used_page_stylesheets.push(sheet);
+            }
+        }
+        let entry = search_index::page_entry(
+            &layout::asset_href(&nav.site.base_path, &page.path),
+            &page.title,
+            &rewritten_body,
+            false,
+        );
+        search_index_sections[nav.sections.len() + menu_idx]
+            .entries
+            .push(entry);
+
+        let document = layout::docs_page_with_layout(
+            &page.title,
+            &nav.site.base_path,
+            nav::sidebar(&nav, &page.path),
+            div(vec![], vec![rewritten_body]),
+            &extra_stylesheets,
+            Some(nav::header_nav(&nav, &page.path)),
+            Some(nav::nav_drawer(&nav, &page.path)),
+            Some(footer_node.clone()),
+            page_sections::layout_for_path_in(registry, &page.path),
+        );
         pages.push((page.path.clone(), document));
     }
 
@@ -1249,6 +1335,20 @@ path = "/next/"
         let out_dir = temp.0.join("dist");
         let err = build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY)
             .expect_err("reserved asset name should fail the build");
+        assert!(matches!(err, BuildError::ReservedAssetName(_)));
+        assert!(!out_dir.exists());
+    }
+
+    /// イシュー #3700: `site/assets/index.html` は出力 `assets/index.html`
+    /// （メニュー集約ページ `/assets/`）を黙って上書きするため拒否される。
+    #[test]
+    fn build_site_rejects_reserved_asset_name_index_html_under_assets() {
+        let temp = TempDir::new("reserved-asset-name-index-html");
+        write_fixture_site(&temp.0);
+        fs::write(temp.0.join("site/assets/index.html"), "x\n").unwrap();
+        let out_dir = temp.0.join("dist");
+        let err = build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY)
+            .expect_err("index.html under site/assets should fail the build");
         assert!(matches!(err, BuildError::ReservedAssetName(_)));
         assert!(!out_dir.exists());
     }

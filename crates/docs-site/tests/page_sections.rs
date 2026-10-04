@@ -51,7 +51,7 @@ fn real_nav() -> Nav {
 const TARGET: &str = "/guide/quickstart/";
 const SHEET: &str = "assets/page-sections-test.css";
 
-fn marker(_base: &str) -> Vec<Node> {
+fn marker(_nav: &Nav, _path: &str) -> Vec<Node> {
     vec![div(
         vec![("class", "docs-page-sections-test")],
         vec![p(vec![], vec![text("generated")])],
@@ -123,6 +123,7 @@ fn production_registry_matches_the_expected_table() {
         got,
         [
             ("/api/", Placement::BeforeFirstH2, PageLayout::Docs),
+            ("/assets/", Placement::Append, PageLayout::Landing),
             ("/blocks/", Placement::Append, PageLayout::Docs),
             ("/examples/", Placement::BeforeFirstH2, PageLayout::Docs),
             ("/guides/", Placement::Append, PageLayout::Docs),
@@ -141,14 +142,41 @@ fn production_registry_matches_the_expected_table() {
     assert_eq!(validate(&REGISTRY, &real_nav()), Ok(()));
 }
 
+/// イシュー #3700: 本番登録表は全メニュー集約ページを Landing 骨格・
+/// `menu_index::render` で登録している（登録漏れは Docs 骨格・カード無しへ
+/// 黙って退行するため）。
+#[test]
+fn production_registry_covers_every_menu_index_page() {
+    let nav = real_nav();
+    assert!(!nav.menus.is_empty());
+    for menu in &nav.menus {
+        assert_eq!(
+            fandhe_frontend_docs_site::page_sections::layout_for_path_in(
+                &REGISTRY,
+                &menu.index_path
+            ),
+            PageLayout::Landing,
+            "{}",
+            menu.index_path
+        );
+        let nodes = insert_generated_sections_with(&REGISTRY, &nav, &menu.index_path, Vec::new());
+        let html: String = nodes.iter().map(fandhe_frontend_core::render).collect();
+        assert_eq!(
+            html.matches("docs-index-card-link").count(),
+            menu.items.len(),
+            "{}",
+            menu.index_path
+        );
+    }
+}
+
 /// AC1: 空の登録表では全ページのノード列が変わらず、追加 CSS も配線されない。
 #[test]
 fn empty_registry_is_identity_for_every_real_page() {
     let nav = real_nav();
     for page in nav.all_pages() {
         let before = pre_hook_blocks(&nav, page);
-        let after =
-            insert_generated_sections_with(&EMPTY, &page.path, &nav.site.base_path, before.clone());
+        let after = insert_generated_sections_with(&EMPTY, &nav, &page.path, before.clone());
         assert_eq!(before, after, "page {} changed", page.path);
         assert!(stylesheets_for_path_in(&EMPTY, &page.path).is_empty());
     }
@@ -207,12 +235,7 @@ fn blocks_index_grid_comes_only_from_the_production_hook() {
     let existing = pre_hook_blocks(&nav, page);
     let before: String = existing.iter().map(render).collect();
     assert!(!before.contains("docs-category-"));
-    let out = insert_generated_sections_with(
-        &REGISTRY,
-        &page.path,
-        &nav.site.base_path,
-        existing.clone(),
-    );
+    let out = insert_generated_sections_with(&REGISTRY, &nav, &page.path, existing.clone());
     let after: String = out.iter().map(render).collect();
     assert_eq!(
         after.matches("class=\"docs-category-grid\"").count(),

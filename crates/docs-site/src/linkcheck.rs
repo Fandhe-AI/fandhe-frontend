@@ -80,6 +80,10 @@ pub fn source_to_path_map(nav: &Nav) -> BTreeMap<String, String> {
     for page in nav.all_pages() {
         map.insert(page.source.clone(), page.path.clone());
     }
+    // メニュー集約ページ（イシュー #3700）の原稿も `.md` リンクの解決先にする。
+    for menu in &nav.menus {
+        map.insert(menu.source.clone(), menu.index_path.clone());
+    }
     map
 }
 
