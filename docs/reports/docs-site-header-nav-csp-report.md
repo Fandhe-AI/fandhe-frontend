@@ -2,7 +2,7 @@
 
 > **追記（2026-10-04）**: 本レポートは `1d13a2f01` 時点の実測である。その後、#3701〜#3703 でヘッダーの
 > popup・drawer・フッターを置き換えた（Assets メガメニュー、フッター 3 列化）。現行の構成は
-> `docs/design/docs-site-styled-blocks-redesign.md` の「追補: Assets メガメニューとフッター 3 列化」を参照する。置き換え後の横断レビューは #3705 が行う。
+> `docs/design/docs-site-styled-blocks-redesign.md` の「追補: Assets メガメニューとフッター 3 列化」を参照する。置き換え後の横断レビューは #3705 が行い、結果は `docs/reports/docs-site-assets-menu-report.md` にある。
 > 以下の実測値と判定は当時のまま変更しない。
 
 ## 1. 目的とトレーサビリティ

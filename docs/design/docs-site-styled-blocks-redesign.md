@@ -408,6 +408,7 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 - `crates/docs-site/src/layout.rs` / `site_theme.rs` / `script.rs` / `build.rs`: 実装の所在
 - `crates/docs-site/src/` の新設モジュール: `page_sections.rs`（生成節フック）/ `landing.rs`（トップ）/ `page_header.rs`（ページ見出しとパンくず）/ `site_footer.rs` / `menu_index.rs`（`/assets/` 集約ページのカード、#3700）/ `code_copy.rs` / `not_found.rs` / `section_index.rs` / `component_index.rs` / `category_index.rs` / `themes_catalog.rs` / `site_version.rs` / `favicon.rs`、およびトップのコード例 `crates/docs-site/snippets/landing_ssr.rs`
 - `docs/guides/browser-testing.md` §9a: `make docs-preview` の手順
+- `docs/reports/docs-site-assets-menu-report.md`: Assets メガメニュー化後の Playwright 横断レビュー（#3705。1200〜1439px 帯と 768〜1023px 帯の余白規則が不要であることの実測を含む）
 
 ## 追補: モバイルヘッダーの段構成と一覧グリッドの寄せ（イシュー #3659）
 
