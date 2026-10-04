@@ -51,10 +51,10 @@
 
 | 対象 | 手本 block | 使う部品 | 使わない部品と理由 | 手本から変える点 | 担当 | 実査記録 |
 |------|-----------|----------|--------------------|------------------|------|----------|
-| ヘッダー操作部 | `navbar-docs-site`（構造のみ） | button / input_group（field）/ kbd / badge / tab_nav / link / icon | `navigation_menu`・`menu`: 制約 4。ドロップダウンは既存の CSS のみ方式を維持 | ダミーのロゴ・リンクを実ナビ（`header_nav`）へ。検索は既存 `site.js` へ配線 | #3606 | `navbar-docs-site-1440-light.png` |
+| ヘッダー操作部 | `navbar-docs-site`（構造のみ） | button / input_group（field）/ kbd / badge / tab_nav / link / icon | `navigation_menu`・`menu`: 制約 4。ドロップダウンは既存の CSS のみ方式を維持（#3701 で Assets メガメニューへ置換。CSS のみ方式・ARIA 状態属性の非付与は維持。「追補: Assets メガメニューとフッター 3 列化」参照） | ダミーのロゴ・リンクを実ナビ（`header_nav`）へ。検索は既存 `site.js` へ配線 | #3606 | `navbar-docs-site-1440-light.png` |
 | ページ見出し | `docs-layout-page-header`（採用） | breadcrumb / heading / text | 手本内の button・badge・code は不要なら省く | パンくずは `Nav` から生成。説明文は front matter 由来 | #3607 | `docs-layout-page-header-1440-light.png` |
 | 前後ページャ | `docs-layout-prev-next`（採用） | card / icon / link_overlay（headless、既存）。text は使わず docs 側 `span` | `pagination`: ページ番号送りではない | 既存 `prev_next_nav` の出力順を維持。Primitives ページは recipe を読まないため、カード装飾とアイコン寸法は docs 側 CSS で自己完結させる | #3608 | `docs-layout-prev-next-1440-light.png` |
-| フッター | `footer-link-columns`（採用） | link / separator / heading / text / icon | 手本の外部リンク 19 件: 実在しない宛先は持ち込まない | 列は全セクション（`Nav`）から生成。著作権表記は固定文言 | #3609 | `footer-link-columns-1440-light.png` |
+| フッター | `footer-link-columns`（採用） | link / separator / heading / text / icon | 手本の外部リンク 19 件: 実在しない宛先は持ち込まない | 列は全セクション（`Nav`）から生成。著作権表記は固定文言（#3703 でブランド列 + Docs / Assets / Resources の 3 列へ再編。「追補: Assets メガメニューとフッター 3 列化」参照） | #3609 | `footer-link-columns-1440-light.png` |
 | 右目次 | `docs-layout-toc` / `docs-layout-toc-progress` | link / heading / text | 進捗の動的表現: スクロールスパイ（既存）以外の JS を足さない | `docs-toc` を共有しない既存規約を維持。進捗は現在位置の強調のみ | #3610 | `docs-layout-toc-1440-light.png` / `docs-layout-toc-progress-1440-light.png` |
 | サイドバー | `docs-layout-sidebar-nav`（nav_list 維持） | nav_list / badge / icon / link | menu / drawer / switch / accordion: 制約 4。手本に含まれるが使わない | 現在ページのセクション限定（既存契約）を維持。dark 修正は #3603 | #3611 | `docs-layout-sidebar-nav-1440-light.png` |
 | トップ: ヒーロー | `hero-install-command` / `hero-terminal` | badge / heading / text / field / button / code / kbd | `text_reveal`（hero-terminal の演出）: 無 JS 契約下で動作が不定。静的な code 表示にする | インストールコマンドのコピーは #3605 の機構で担う（既定 hidden） | #3612 | `hero-install-command-1440-light.png` / `hero-terminal-1440-light.png` |
@@ -290,7 +290,7 @@ baseline はローカル保存の `_/site-redesign/baseline/`（home 1440 / home
 | 3 | 骨格・CSS 供給方式の再リデザイン | 該当（条件付き） | ヘッダー・見出し・ページャ・フッター・目次・サイドバーの刷新と recipe 積み増しは骨格の再リデザインに当たる。3 カラム DOM 骨格と既存 class 名は不変で純追加のみ、CSS 供給は生成 CSS 一本のまま、のため §4・§5 の前提は崩れない。この確認を本表に記録し、§3.1・§4・§10 への反映は #3625 で反映済み（`docs-site-three-column-redesign.md` §3.1・§4・§10 を参照） |
 | 4 | 契約テスト表の弱体化・削除 | 該当させない | 契約表は追加のみ。既存行の削除・緩和をしない |
 | 5 | `index_path` 必須検証の緩和 | 非該当 | 触れない |
-| 6 | `section_for_path` のフォールバック・`header_nav` の全セクション列挙の変更 | 非該当 | #3606 でも全セクション列挙を維持する |
+| 6 | `section_for_path` のフォールバック・`header_nav` の全セクション列挙の変更 | 非該当 | #3606 でも全セクション列挙を維持する（#3606 当時の判定。#3701 で `header_nav` の全セクション列挙は変更され該当した。「追補: Assets メガメニューとフッター 3 列化」の再評価判定を参照） |
 | 7 | 層セクションの追加・改称・境界変更 | 非該当 | ページ見出しとフッターは層セクションではない（現行は 4 層構成。three-column 文書 §10 のトリガー 7 の字句は #3625 で 4 層へ更新済み） |
 
 ### 9.2 `docs-site-styled-ui-adoption.md`
@@ -343,6 +343,7 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
   - 本文 `Node` へ足さない理由: `<footer>` は `main` / `article` 等の子孫だと暗黙の `contentinfo` を失い、TOC・検索インデックスにも混入するため。sticky のサイドバー・右目次の包含ブロックは `.docs-container` なので、外側の兄弟であるフッターとは構造上重ならない。Blocks デモ内の `<footer>` は `main` の内側で `contentinfo` にならず、ページあたり 1 つに保たれる。`role` は明示しない。
   - 列は `nav.sections` の宣言順に 1 セクション 1 列。先頭は索引ページ、続けてセクション直下ページを宣言順に並べ、1 列 5 件（`FOOTER_LINKS_PER_SECTION`）で打ち切る。グループ配下は含めない。`nav.toml` に代表ページ指定は設けない。
   - 下段に著作権表記・ライセンス（MIT OR Apache-2.0、`LICENSE-*` へのリンク）・GitHub・crates.io を置く。外部リンクはすべて `external: true`。
+  - 上記の列構成（1 セクション 1 列・`FOOTER_LINKS_PER_SECTION` による 5 件打ち切り）と GitHub・crates.io の下段配置は、#3703 で置き換えた（`FOOTER_LINKS_PER_SECTION` は廃止、GitHub・crates.io は Resources 列へ移動、下段は著作権表記とライセンスのみ）。経緯として上の記述を残す。現行は「追補: Assets メガメニューとフッター 3 列化」を参照
   - `icon` は使わない。実在ブランドのロゴを模した SVG を持ち込まないため。
   - リダイレクト案内ページは `docs_page_with_assets` を通らないため対象外。
   - CSS は `STRUCTURAL_CSS` 末尾に追加し、Primitives ページ向けに recipe と同値の代替規則を `.docs-footer` 前置で置く。新しい色トークンは追加していない。
@@ -405,7 +406,7 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 - `docs/design/docs-site-blocks-section.md`: Blocks セクションの設計記録
 - `docs/policy/intentional-non-adoption.md`: 評価軸と非採用記録
 - `crates/docs-site/src/layout.rs` / `site_theme.rs` / `script.rs` / `build.rs`: 実装の所在
-- `crates/docs-site/src/` の新設モジュール: `page_sections.rs`（生成節フック）/ `landing.rs`（トップ）/ `page_header.rs`（ページ見出しとパンくず）/ `site_footer.rs` / `code_copy.rs` / `not_found.rs` / `section_index.rs` / `component_index.rs` / `category_index.rs` / `themes_catalog.rs` / `site_version.rs` / `favicon.rs`、およびトップのコード例 `crates/docs-site/snippets/landing_ssr.rs`
+- `crates/docs-site/src/` の新設モジュール: `page_sections.rs`（生成節フック）/ `landing.rs`（トップ）/ `page_header.rs`（ページ見出しとパンくず）/ `site_footer.rs` / `menu_index.rs`（`/assets/` 集約ページのカード、#3700）/ `code_copy.rs` / `not_found.rs` / `section_index.rs` / `component_index.rs` / `category_index.rs` / `themes_catalog.rs` / `site_version.rs` / `favicon.rs`、およびトップのコード例 `crates/docs-site/snippets/landing_ssr.rs`
 - `docs/guides/browser-testing.md` §9a: `make docs-preview` の手順
 
 ## 追補: モバイルヘッダーの段構成と一覧グリッドの寄せ（イシュー #3659）
@@ -415,6 +416,7 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 - トップの特徴カードは flex の中央寄せ（1 / 2 / 3 列相当）とし、最終段を中央に揃える。入口カード `.docs-landing-cards` は件数固定のため `auto-fit` とする。
 - 索引グリッド（`.docs-index-grid` / `.docs-category-grid`）は件数が可変で、左上起点の読み順とスキャン性を優先するため、最終段の左寄せを仕様として維持する。
 - 実機（Playwright）での段数・間隔の実測は未実施であり、レビュー時に 375 / 390 / 1280 / 1440px で確認する。
+- 1 段ヘッダーの境界は #3701 で 1200px から 1024px へ下げ、2 段帯域は 768〜1023px に縮小した（下記「ヘッダーの段数と sticky の境界」の表と追補を参照）。以下は #3684 当時の記述である
 - 768〜1200px 未満は static の 2 段ヘッダーにする。2 段分の高さは折り返しで変わり CSS だけでは取得できず、sticky にするとサイドバー・右目次・見出しアンカーのオフセットが崩れるため（#3684）。
 
 ## 追補: ヘッダーナビの整理と CSP（ルート #3667、2026-10-04）
@@ -423,11 +425,15 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 
 ### popup は見出しだけ（#3670、ユーザー判断 2026-10-04）
 
+> **置換（2026-10-04、ユーザー要望・ルート #3695）**: 本節の popup 構成は #3701 で廃止し、Assets メガメニューへ置き換えた。以下は経緯として残す。現行は「追補: Assets メガメニューとフッター 3 列化」を参照する。
+
 - 項目の情報源は `Section::headings`（`nav.rs`）の 1 つで、サイドバーと `header_nav` が共有する。直下ページはリンク、グループ見出しは索引ページ内の該当カテゴリへのアンカーにし、配下ページは出さない。「すべて見る」は廃止した。なおこの popup 構成は #3701・#3702 でメニュー（`[[menu]]`）を束ねるヘッダー構成へ置き換わり、`group_href` は削除済みで、`Section::headings` の利用者はサイドバーのみである
 - `aria-current` は 2 軸のまま（`page` = 現在ページ、`true` = 現在セクション・現在グループ）。`role` / `aria-expanded` / `aria-haspopup` は付けない
 - `docs-site-three-column-redesign.md` §3.5 の「確定（イシュー #1012 / PR #1041）」を見直した判断である。同節の「見直し」を参照する。Wireframes のサイドバーはカテゴリ別グループになった（#3669）
 
 ### popup の max-height と画面端（#3671）
+
+> **置換（2026-10-04、ユーザー要望・ルート #3695）**: `.docs-header-dropdown` 系の class・規則は #3701 で削除した。`max-height`（`vh` を `dvh` で後勝ち上書き）・`overflow-y: auto`・`overscroll-behavior: contain` は `.docs-header-mega` が引き継ぎ、2 段帯域では `60vh` / `60dvh` に上書きする。末尾 4 グループの右寄せは、パネルが全幅になったため不要になった。
 
 - `.docs-header-dropdown` は `max-height: calc(100vh - var(--fandhe-space-docs-header-height) - 1rem)` を基本とし、`dvh` 対応ブラウザでは `100dvh` で上書きする。`overflow-y: auto` で縦スクロールさせる
 - 末尾 4 グループ（`:nth-last-child(-n+4)`）は popup を右端へ寄せ、画面右端で切れないようにする
@@ -450,10 +456,13 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 
 値は `site_theme.rs` の `STRUCTURAL_CSS` の `@media` 群を正とする。`(hover: none)` 端末はナビごと隠して drawer に一本化する（次節）。
 
+> 上の表は #3673 時点の記録である。#3701 で 1 段ヘッダーの境界を 1200px から 1024px へ下げたため、現行の帯域は追補「Assets メガメニューとフッター 3 列化」の「ヘッダーの帯域」表を正とする。
+
 ### 全セクション drawer（#3674）
 
 - 構造は `input#docs-nav-drawer-toggle`（sr-only のチェックボックス）、`label.docs-nav-drawer-toggle-label`、`nav.docs-nav-drawer`（`nav::nav_drawer`）の checkbox hack。表示条件は 768px 未満と、768px 以上の `(hover: none)` 端末である。旧サイドバーの Menu トグルと置き換えた。768px 未満では `aside.docs-sidebar` を非表示にする
 - #3702 で見出しの `details` を廃止し、ヘッダーと同じ構成（`Nav::header_entries` の項目列）にした。単独セクションは索引リンク 1 件、メニューはメニュー索引リンクと `[[menu.item]]` 宣言順のメンバーリンク（タイトル・説明）を出す。`aria-current="true"` は所属のみで `header_nav` と同じ規則。`id` は toggle にしか付けない
+- 768px 未満でのセクション内移動は、drawer → 索引ページ → 各ページの 2 ホップになる（見出し `details` を廃止したため。追補を参照）
 - チェックボックスの `:checked` が唯一の状態で、JS なしで動く。pre-styled-ui の `drawer` / `collapsible` は使わない（閉状態が `hidden` となり、無 JS で開けないため。three-column §3.5 の方式比較と同じ理由）
 
 ### CSP（#3676〜#3679）
@@ -461,3 +470,117 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 - 案 E で導入した。`src/csp.rs` の `CONTENT_SECURITY_POLICY` を meta として全ページ（リダイレクト案内を除く）の `charset` と `viewport` の直後へ出す
 - インライン `<script>` は同期の外部 `assets/theme-init.js` へ、`@view-transition` と split-menu の `<style>` は外部 CSS へ移した。インライン `<script>`・`<style>` は 0 個
 - 唯一緩めた点は `style-src-attr 'unsafe-inline'`。詳細は `docs-site-csp-policy.md`、実機検証の結果は `docs/reports/docs-site-csp-report.md`
+
+## 追補: Assets メガメニューとフッター 3 列化（ルート #3695、2026-10-04）
+
+ユーザー要望（2026-10-04）により、上の追補「ヘッダーナビの整理と CSP」で確定した次の判断を見直した。
+
+- #3670「popup は見出しだけ」と #3671「popup の `max-height` と画面端」
+- `docs-site-three-column-redesign.md` §3.5 の「見直し（#3670 / #3671）」
+
+ユーザー判断の要点は次のとおり。
+
+- Blocks の `header-mega-menu` を手本にする（構造と見た目の参照のみ。Blocks の `demo()` は本番から呼ばない）
+- Primitives / Themes / Blocks / Wireframes / Examples の 5 セクションを、1 つの「Assets」メニューへ束ねる。名前を Assets としたのは、page レベルなど別の素材を後から同じメニューへ足せるようにするため
+- パネル内の並びは Primitives → Themes → Blocks → Wireframes → Examples
+- セクション別 popup は削除する
+- フッターは 3 列構成にする
+
+実装は #3699〜#3703（PR #3706〜#3710）で完了している。値と構造の正は `crates/docs-site/src/` の rustdoc と CSS で、ここには判断だけを記す。置き換えた記述は削除せず、各節の冒頭に置換の注記を付けて経緯として残した。
+
+### `[[menu]]` スキーマ（#3699 / PR #3706）
+
+- `site/nav.toml` に、複数のセクションを 1 つのヘッダー項目へ束ねる `[[menu]]` を追加した。キーは `title` / `index_path` / `source`。メンバーは `[[menu.item]]` で宣言し、キーは `section`（メンバーセクションの `index_path`）と `description`（空でなく改行を含まない 1 行）
+- メンバーの宣言順がパネル内のカード順になる
+- 検証は fail-closed で、既存の `NavError::Parse` / `NavError::MissingKey` で返す（新しいバリアントは作っていない）。主な拒否条件は次のとおり（正は `nav.rs` の `finalize_menus` とパーサ）
+  - 必須キーの欠落、空の `title`、メンバーのないメニュー、空または複数行の `description`
+  - `index_path` が安全なページパスでない、`page.path` や他メニューの `index_path` と衝突する
+  - `source` が安全な相対パスでない、他のページやメニューと `source` を共有する
+  - `section` が既存の `[[section]]` の `index_path` に一致しない、同一メニュー内での重複、複数のメニューへの所属
+  - `[[menu]]` の直後に `[[section.page]]` / `[[section.group]]` が続く、先行する `[[menu]]` のない `[[menu.item]]`
+- `Menu` は `Nav::all_pages` / サイドバー / `prev_next` には現れない（`Menu::as_page` の rustdoc）
+- `[[menu]]` の宣言がなければ挙動は従来と同じ（後方互換）
+
+### ヘッダー項目の並び規則
+
+- `Nav::header_entries` が項目列を返す。メニューに属さないセクションは宣言順に並ぶ。メニューは、メンバーのうち宣言順で最も早いセクションの位置を占める
+- 現行は Getting Started / Guides / Assets / API Reference の 4 項目。`site/nav.toml` の `[[section]]` の宣言順とヘッダーの並びは、メニューがあるため一致しない
+- ヘッダー・drawer・フッターは、この 1 つの走査経路を共有する
+
+### `/assets/` 集約ページ（#3700 / PR #3707）
+
+- 原稿は `site/assets.md`（イントロ文のみ）。メンバーのカード列は `crates/docs-site/src/menu_index.rs` が `nav.toml` の `[[menu.item]]` を唯一の正として生成する
+- 見た目は `section_index` のカード（`docs-index-*`）を再利用し、新しい class は増やしていない
+- `PAGE_SECTIONS` には登録しない。`page_sections::validate` がメニューのパスを拒否し、`build_site_with` が直接呼ぶ
+- レイアウトは `PageLayout::Landing`。パンくずはメニュー名のみ
+- 検索インデックスのバケット数は `[[section]]` 数 + `[[menu]]` 数
+- `site/assets/index.html` は予約名として扱う。静的アセットのコピーが生成ページを上書きしないようにするため（`extra_reserved`）。リダイレクト検証は、メニューの `index_path` を実ページとして扱う
+
+### ヘッダーのメガメニュー（#3701 / PR #3708）
+
+- 単独セクションは `a.docs-header-trigger` だけを持つ。メニューは、トリガー（`/assets/` へのリンク）と `div.docs-header-mega` > `ul.docs-header-mega-grid` > `li.docs-header-mega-cell` > `a.docs-header-mega-card`（`span.docs-header-mega-title` / `span.docs-header-mega-desc`）を持つ
+- パネルの包含ブロックは `div.docs-header-inner` で、DOM は追加していない。ヘッダー下端から全幅で開く
+- 開閉は CSS の `:hover` / `:focus-within` だけで行う。閉じるときだけ `visibility` を 0.25s 遅らせ、斜め移動の途中で閉じないようにする。ナビを `align-self: stretch` にして、トリガーとパネルの間の隙間を埋める
+- カードは 1024px 以上で 3 列、それ未満で 2 列
+- `aria-current` はヘッダーでは `"true"`（所属）と `data-current` だけを使い、`"page"` は使わない（`"page"` はサイドバーだけに残る）。#3670 の 2 軸のうち、ヘッダー側が 1 軸になった
+- `role` / `aria-expanded` / `aria-haspopup` / `aria-controls` / `id` は付けない。Escape キーで閉じる操作は、無 JS のため提供しない
+- `.docs-header-dropdown` 系の class と規則は削除した
+
+### トリガーをリンクにした理由
+
+- 無 JS で、タッチ端末やスクリーンリーダーからもメニューの遷移先（`/assets/`）が得られる
+- `no_js_contract` の静的アンカー契約（トリガーとカードは静的な `<a>`）を保てる
+- 開閉状態を JS で更新できないため、固定値の `aria-expanded` 等を付けると支援技術へ偽の状態を伝えてしまう。ボタンにして JS で開閉を制御する方式は、無 JS 契約に反するため採らない
+
+### drawer（#3702 / PR #3710）
+
+- 見出しの `details` を廃止し、`Nav::header_entries` と同じ構成にした。`group_href` と `section_heading_items` は削除済みで、`Section::headings` を使うのはサイドバーだけになった
+- 結果として、768px 未満でのセクション内の移動は、drawer → 索引ページ → 各ページの 2 ホップになる。1 ホップで移る手段は、現時点では持たない
+- `(hover: none)` 端末では、ヘッダーナビを隠して drawer に一本化する。条件は `any-hover` ではなく `hover`（主入力）で、マウスが主入力の端末はメガパネルのままにする
+
+### フッター 3 列（#3703 / PR #3709）
+
+- 構成は、ブランド列と、Docs / メニュー列（Assets）/ Resources の 3 つのリンク列
+- ブランド列は `p` で組み、リンクにしない。ブランド名を `/` へリンクすると Getting Started の索引と href が重なり、「各索引がちょうど 1 回」の契約とぶつかるため。タグラインは `FOOTER_TAGLINE` の固定文言で、`nav.toml` のスキーマは広げない
+- Docs 列は、メニューに属さないセクションの索引。Assets 列は、先頭に `FOOTER_MENU_OVERVIEW_LABEL`（"Overview"）として `/assets/` を置き、続けて `[[menu.item]]` 順に並べる。Resources 列は GitHub と crates.io（`external: true`）
+- 下段は著作権表記とライセンスだけにする。同じリンクが 2 度出ないようにするため
+- 各列は索引リンクだけで、`FOOTER_LINKS_PER_SECTION` は廃止した
+- CSS は、リンク列が基底で 2 列、768px 以上で 3 列。ブランド列とリンク列は、1024px 以上で `1fr` / `3fr` の横並び
+- `footer.docs-footer` が `<body>` の最後の子であること、`id` / `role` / `aria-current` を出さないこと、ロゴ SVG を持ち込まないことは維持した
+
+### ヘッダーの帯域
+
+`STRUCTURAL_CSS`（`site_theme.rs`）の `@media` を読んで確認した現行の値。#3673 の表を #3701 で作り直したもの。
+
+| 帯域 | 段数 | 位置 | メガパネル | 可視ラベル（GitHub・テーマ・検索） |
+|------|------|------|-----------|--------------------------------|
+| 768px 未満 | 1 段（収まらない幅は折り返し、#3672） | static | ナビを持たず drawer（#3674） | 隠す（アイコンのみ） |
+| 768px 以上 1024px 未満 | 2 段（ナビが 2 段目、最小高さ） | static | 2 列、`60vh` / `60dvh` | あり |
+| 1024px 以上 1200px 未満 | 1 段 | sticky | 3 列 | あり |
+| 1200px 以上 1440px 未満 | 1 段 | sticky | 3 列 | 隠す（clip、`aria-label` が名前を保つ） |
+| 1440px 以上 | 1 段 | sticky | 3 列 | あり（`.docs-header-actions` の左余白 1.5rem） |
+
+- 768px 以上の `(hover: none)` 端末は、ナビごと隠して drawer へ一本化する。1024px 未満では、2 段目が消えるのでヘッダーの最小高さを 1 段分へ戻す
+- 可視ラベルは、1024〜1199px で表示され、1200〜1439px で clip され、1440px 以上で再び表示される。幅に対して単調ではない。1200px の境界を 3 カラム grid の境界と共有した結果で、#3701 で 1 段の境界を 1024px へ下げたときに生じた。CSS は変更せず、観測した事実として記録する
+
+### 変えないもの
+
+- 方式比較の結論（`docs-site-three-column-redesign.md` §3.5 の案 (b)）と、pre-styled-ui の `menu` / `navigation_menu` / `drawer` / `collapsible` を骨格に使わないこと
+- `role` / `aria-expanded` / `aria-haspopup` / `aria-controls` を付けないこと、`RESERVED_LAYOUT_IDS` 以外の `id` を出さないこと
+- 無 JS 契約と CSP 契約（インライン `<script>` / `<style>` は 0 個、`on*` 属性と `javascript:` を使わない、緩めるのは `style-src-attr 'unsafe-inline'` のみ）
+- 既定エスケープ（`nav.toml` 由来の `title` / `description` は `text()` / `el()` を経由し、`raw_html()` は使わない）
+- `pre-styled-ui` と `headless-ui` を変更しないこと。ナビの可視性はアクセス境界ではない（公開サイト）
+
+### 再評価トリガーの判定（three-column §10）
+
+| # | トリガー | 判定 | 根拠 |
+|---|----------|------|------|
+| 1 | `Theme` トークン名の破壊的変更 | 非該当 | pre-styled-ui を変更しない |
+| 2 | JS ハイドレーションへの方針変更 | 非該当 | メガメニューは CSS のみ。JS を足していない |
+| 3 | 骨格・CSS 供給方式の再リデザイン | 非該当 | 3 カラム DOM 骨格と CSS 供給方式は不変。ヘッダー・drawer・フッターの内部構成のみの変更 |
+| 4 | 契約テスト表の弱体化・削除 | 該当させない | 旧 popup 前提の契約は新構成の契約へ置き換えた。不変条件（ARIA・`id`・CSP）の契約は弱めていない |
+| 5 | `index_path` 必須検証の緩和 | 非該当 | `[[section]]` の検証は不変。`[[menu]]` に同等の fail-closed 検証を加えた |
+| 6 | `header_nav` の全セクション列挙の変更 | 該当 | ユーザー判断（2026-10-04）で変更した。メンバーセクションへの到達性は、パネルのカード・`/assets/` 集約ページ・drawer・フッターの Assets 列の 4 経路が担保する |
+| 7 | 層セクションの追加・改称・境界変更 | 非該当 | Assets は `[[menu]]` であって層セクションではない。Examples が属しても 4 層構成の数は変わらない |
+
+トリガー 6 の文言と適用記録は `docs-site-three-column-redesign.md` §10 に反映した。

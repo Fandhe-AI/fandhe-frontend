@@ -160,7 +160,8 @@ Chrome/Chromium と対応する chromedriver がローカルに必要（バー�
 
 - **起動**: `make docs-preview`（ビルド出力は `_/site-preview/fandhe-frontend/`、配信は `http://127.0.0.1:8765/fandhe-frontend/`）。ポートは `make docs-preview PORT=9000` で変更でき、数字のみ受け付ける。停止は Ctrl-C。`python3` が無い場合は明示エラーで終了する。 なお `http.server` は未知の URL に `404.html` を返さないため、404 ページ（イシュー #3623）は `http://127.0.0.1:8765/fandhe-frontend/404.html` を直接開いて確認する。
 - **HTTP 配信が必須**: 生成 HTML は `base_path = "/fandhe-frontend"` 付きの絶対パスで CSS・JS・検索インデックスを参照するため、`file://` では解決しない。
-- **viewport**: `browser_resize` で 375x812 / 768x1024 / 1440x900 に切り替える。
+- **viewport**: `browser_resize` で 375x812 / 768x1024 / 1024x768 / 1440x900 に切り替える（1 段ヘッダーの境界は 1024px）。
+- **ヘッダーの Assets メガパネル**: `:hover` / `:focus-within` で開く（JS なし）ため、`browser_hover` か Tab のフォーカス移動で確認する。`(hover: none)` 端末の drawer は `hasTouch: true` の context で `matchMedia('(hover: none)').matches` を確かめてから見る。
 - **dark の 2 経路**: OS 追従は `colorScheme: 'dark'` を指定した context（`browser_run_code`）で、手動トグル経路は `browser_evaluate` で `document.documentElement.dataset.theme = 'dark'` を設定して確認する。
 - **撮影**: `browser_take_screenshot` の `filename` には `/path/to/repo/_/site-redesign/<issue 番号>/xxx.png` のように `_/` 配下の絶対パスを渡す（相対パスだとリポジトリ直下へ落ちる）。`_/` は gitignore 済みでコミットしない。
 - **横はみ出し検査**: 375px で `browser_evaluate` により `document.documentElement.scrollWidth === window.innerWidth` を確認する。あわせて `browser_console_messages` と `browser_network_requests` でエラー・404 がないことを確認する。
