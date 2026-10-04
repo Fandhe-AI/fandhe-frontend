@@ -1728,15 +1728,16 @@ fn mega_panel(nav: &Nav, menu: &Menu, current_path: &str) -> Node {
 /// href は [`parse_nav`] で検証済みの `index_path` / `page.path` と [`group_href`] だけから作る。
 pub fn nav_drawer(nav: &Nav, current_path: &str) -> Node {
     let mut rows: Vec<Node> = Vec::new();
+    let mut emitted_menus: Vec<&str> = Vec::new();
     for section in &nav.sections {
-        // メニュー（Assets）の索引リンクは、最初のメンバーセクションの直前へ 1 回だけ置く。
+        // メニュー（Assets）の索引リンクは、`Nav::header_entries` と同じ規則で
+        // 最初に現れるメンバーセクション（セクション宣言順）の直前へ 1 回だけ置く。
         // ヘッダーのナビはタッチ端末で非表示のため、drawer が集約ページへの唯一の入口になる。
-        if let Some(menu) = nav.menus.iter().find(|m| {
-            m.items
-                .first()
-                .is_some_and(|i| i.section == section.index_path)
-        }) {
-            rows.push(menu_index_row(nav, menu, current_path));
+        if let Some(menu) = nav.menu_of_section(section) {
+            if !emitted_menus.contains(&menu.index_path.as_str()) {
+                emitted_menus.push(menu.index_path.as_str());
+                rows.push(menu_index_row(nav, menu, current_path));
+            }
         }
         let is_current_section = section.all_pages().any(|p| p.path == current_path);
         let section_href = href(nav, &section.index_path);
@@ -2823,7 +2824,9 @@ path = "/themes/button/"
         let html = render(&nav_drawer(&nav, "/api/"));
         assert_eq!(html.matches(r#"href="/base/assets/""#).count(), 1);
         let menu = html.find(r#"href="/base/assets/""#).unwrap();
-        let first_member = html.find(r#"href="/base/beta/""#).unwrap();
+        // 項目順では Beta が先だが、header_entries と同じくセクション宣言順の
+        // 最初のメンバー（Alpha）の前に置く。
+        let first_member = html.find(r#"href="/base/alpha/""#).unwrap();
         assert!(menu < first_member);
         assert_eq!(html.matches("docs-nav-drawer-menu").count(), 1);
         // メンバー配下ページではメニュー索引も所属表示になる。
