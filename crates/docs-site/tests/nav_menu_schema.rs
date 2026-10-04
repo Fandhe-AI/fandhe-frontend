@@ -504,6 +504,20 @@ fn rejects_menu_item_before_menu() {
 }
 
 #[test]
+fn rejects_detached_menu_item_after_section() {
+    // `[[menu]]` と `[[menu.item]]` の間に `[[section]]` を挟んだ離れた項目は
+    // 以前のメニューへ吸着させず Parse エラーにする。
+    let input = with(&format!(
+        "{MENU_OK}\n[[section]]\ntitle = \"S3\"\nindex_path = \"/s3/\"\n[[menu.item]]\nsection = \"/s1/\"\ndescription = \"d\"\n"
+    ));
+    assert_parse_err_last(
+        &input,
+        "[[menu.item]]",
+        "[[menu.item]] must directly follow a [[menu]] or another [[menu.item]]",
+    );
+}
+
+#[test]
 fn rejects_section_page_directly_after_menu() {
     let input = with(&format!(
         "{MENU_OK}\n[[section.page]]\ntitle = \"X\"\nsource = \"x.md\"\npath = \"/x/\"\n"

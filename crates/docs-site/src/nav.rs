@@ -769,9 +769,24 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
                     section_open = false;
                 }
                 "menu.item" => {
-                    let midx = menus.len().checked_sub(1).ok_or_else(|| {
-                        parse_err(line, "[[menu.item]] appeared before any [[menu]]")
-                    })?;
+                    // 直前のコンテキストが `[[menu]]` / `[[menu.item]]` のときだけ
+                    // 受理する。間に `[[section]]` 等を挟んだ離れた項目が、
+                    // 以前のメニューへ黙って吸着するのを防ぐ（イシュー #3699）。
+                    let midx = match ctx {
+                        Ctx::Menu(i) | Ctx::MenuItem(i, _) => i,
+                        _ if menus.is_empty() => {
+                            return Err(parse_err(
+                                line,
+                                "[[menu.item]] appeared before any [[menu]]",
+                            ))
+                        }
+                        _ => {
+                            return Err(parse_err(
+                                line,
+                                "[[menu.item]] must directly follow a [[menu]] or another [[menu.item]]",
+                            ))
+                        }
+                    };
                     menus[midx].items.push(MenuItemBuilder {
                         header_line: line,
                         section: None,
