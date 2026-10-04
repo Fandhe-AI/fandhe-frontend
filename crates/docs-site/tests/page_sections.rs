@@ -76,6 +76,7 @@ fn registry_for(path: &'static str, placement: Placement) -> Registry {
         render: marker,
         stylesheets: &[SHEET],
         layout: PageLayout::Docs,
+        optional_menu: false,
     }]));
     Registry {
         sections,

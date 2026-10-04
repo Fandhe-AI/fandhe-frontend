@@ -1363,6 +1363,7 @@ path = "/next/"
                 render: |_, _| Vec::new(),
                 stylesheets: &[],
                 layout: crate::layout::PageLayout::Docs,
+                optional_menu: false,
             }];
         let registry = crate::page_sections::Registry {
             sections: MENU_SECTIONS,

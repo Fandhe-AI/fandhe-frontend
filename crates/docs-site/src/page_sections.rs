@@ -118,6 +118,11 @@ pub struct PageSection {
     /// ページ骨格の種別（イシュー #3612）。トップのランディングだけが
     /// [`PageLayout::Landing`]、他は [`PageLayout::Docs`]。
     pub layout: PageLayout,
+    /// `true` なら `nav.toml` の `[[menu]]` の `index_path` に `path` が宣言
+    /// されているときだけ有効な登録として扱う。宣言が無い nav では
+    /// [`validate`] が当該登録を検証せず読み飛ばす（`nav.toml` がページ構成の
+    /// 正であり、本番登録表が特定メニューの存在を強制しない。イシュー #3700）。
+    pub optional_menu: bool,
 }
 
 /// 登録表一式。本番は [`REGISTRY`]、テストは合成エントリで構築する。
@@ -140,6 +145,7 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
         render: |nav, _| section_index::render_api(&nav.site.base_path),
         stylesheets: &[section_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
+        optional_menu: false,
     },
     PageSection {
         path: "/assets/",
@@ -147,6 +153,7 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
         render: menu_index::render,
         stylesheets: &[menu_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Landing,
+        optional_menu: true,
     },
     PageSection {
         path: blocks::INDEX_PATH,
@@ -154,6 +161,7 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
         render: |nav, _| category_index::render_blocks(&nav.site.base_path),
         stylesheets: &[category_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
+        optional_menu: false,
     },
     PageSection {
         path: "/examples/",
@@ -161,6 +169,7 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
         render: |nav, _| section_index::render_examples(&nav.site.base_path),
         stylesheets: &[section_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
+        optional_menu: false,
     },
     PageSection {
         path: "/guides/",
@@ -168,6 +177,7 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
         render: |nav, _| section_index::render_guides(&nav.site.base_path),
         stylesheets: &[section_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
+        optional_menu: false,
     },
     PageSection {
         path: "/primitives/",
@@ -175,6 +185,7 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
         render: |nav, _| component_index::render_primitives(&nav.site.base_path),
         stylesheets: &[component_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
+        optional_menu: false,
     },
     PageSection {
         path: "/themes/",
@@ -182,6 +193,7 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
         render: |nav, _| component_index::render_themes(&nav.site.base_path),
         stylesheets: &[component_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
+        optional_menu: false,
     },
     PageSection {
         path: "/wireframes/",
@@ -189,6 +201,7 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
         render: |nav, _| category_index::render_wireframes(&nav.site.base_path),
         stylesheets: &[category_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
+        optional_menu: false,
     },
     PageSection {
         path: landing::PATH,
@@ -196,6 +209,7 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
         render: |nav, _| landing::render(&nav.site.base_path),
         stylesheets: &[],
         layout: PageLayout::Landing,
+        optional_menu: false,
     },
 ];
 
@@ -410,6 +424,9 @@ pub fn validate(registry: &Registry, nav: &Nav) -> Result<(), PageSectionError> 
         if registry.sections[..i].iter().any(|s| s.path == path) {
             return Err(PageSectionError::DuplicatePath(path.to_string()));
         }
+        if section.optional_menu && !nav.menus.iter().any(|m| m.index_path == path) {
+            continue;
+        }
         if !nav.all_pages().any(|p| p.path == path)
             && !nav.menus.iter().any(|m| m.index_path == path)
         {
@@ -515,6 +532,7 @@ mod tests {
             render: marker,
             stylesheets: &[],
             layout: PageLayout::Docs,
+            optional_menu: false,
         }]));
         reg(s, &[])
     }
@@ -568,6 +586,21 @@ mod tests {
         assert_eq!(
             validate(&unregistered, &nav),
             Err(PageSectionError::UnregisteredMenu("/m/".into()))
+        );
+    }
+
+    #[test]
+    fn optional_menu_section_is_skipped_when_nav_has_no_such_menu() {
+        let mut optional = sec("/m/", marker, &[]);
+        optional.optional_menu = true;
+        let r = reg(leak(vec![optional]), &[]);
+        // メニュー宣言の無い nav でも UnknownPage にならない。
+        assert_eq!(validate(&r, &nav()), Ok(()));
+        // 非 optional の同一登録は従来どおり拒否される。
+        let strict = reg(leak(vec![sec("/m/", marker, &[])]), &[]);
+        assert_eq!(
+            validate(&strict, &nav()),
+            Err(PageSectionError::UnknownPage("/m/".into()))
         );
     }
 
@@ -626,6 +659,7 @@ mod tests {
             render,
             stylesheets,
             layout: PageLayout::Docs,
+            optional_menu: false,
         }
     }
 
