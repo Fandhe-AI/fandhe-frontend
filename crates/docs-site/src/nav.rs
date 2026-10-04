@@ -27,6 +27,15 @@
 //!   カテゴリ。`title` の 1 キーのみ。イシュー #939）
 //! - `[[section.group.page]]` array-of-tables（直前の `[[section.group]]`
 //!   に属する。`title` / `source` / `path` の 3 キー。イシュー #939）
+//! - `[[menu]]` array-of-tables（複数セクションを 1 つのヘッダー項目へ束ねる
+//!   メニュー。`title` / `index_path` / `source` の 3 キー。イシュー #3699。
+//!   メニューはページではなく [`Nav::all_pages`] には含めない。ページ化は
+//!   後続 #3700 の責務）
+//! - `[[menu.item]]` array-of-tables（直前の `[[menu]]` に属するメンバー。
+//!   `section`〔メンバーセクションの `index_path`〕/ `description` の 2 キー。
+//!   宣言順がパネル内の並び順になる）。`[[menu]]` の後に `[[section]]` を
+//!   挟まず `[[section.page]]` 等が現れた場合は直前セクションへ誤吸着
+//!   させず `NavError::Parse` にする
 //! - `key = "value"`（ダブルクォート文字列のみ。エスケープは `\"` `\\`
 //!   `\n` `\t` の 4 種類のみ対応）
 //!
@@ -98,6 +107,45 @@ pub struct Nav {
     pub site: Site,
     /// 宣言順を保持したセクション列。
     pub sections: Vec<Section>,
+    /// 宣言順を保持したメニュー列（`[[menu]]`、イシュー #3699）。
+    /// 宣言がなければ空で、その場合の挙動は従来と完全に同一。
+    pub menus: Vec<Menu>,
+}
+
+/// `[[menu]]` 1 件分。複数セクションを 1 つのヘッダー項目（Assets 等）へ
+/// 束ねる。後続 #3700（集約ページ）・#3701（ヘッダーのメガメニュー）・
+/// #3703（フッター）が共通に参照するモデルで、現時点では描画側は未使用。
+///
+/// `title` / `description` は後続イシューで必ず `text()` / `el()` 経由で
+/// 出力する（既定エスケープを迂回しない）前提。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Menu {
+    /// ヘッダー・集約ページに表示するメニュー名。空でない。
+    pub title: String,
+    /// 集約ページの出力 URL パス。どの `page.path` とも衝突しない。
+    pub index_path: String,
+    /// 集約ページ原稿の repo 相対パス（実在は [`validate_sources`] が検証）。
+    pub source: String,
+    /// 宣言順（＝パネル内の並び順）のメンバー。1 件以上。
+    pub items: Vec<MenuItem>,
+}
+
+/// `[[menu.item]]` 1 件分。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MenuItem {
+    /// メンバーセクションの `index_path`（既存セクションと一致検証済み）。
+    pub section: String,
+    /// カード用の 1 行説明（空でなく改行を含まない）。
+    pub description: String,
+}
+
+/// [`Nav::header_entries`] の要素。ヘッダー等が走査する 1 項目。
+#[derive(Debug, Clone, Copy)]
+pub enum HeaderEntry<'a> {
+    /// メニューに属さない単独セクション。
+    Section(&'a Section),
+    /// 複数セクションを束ねたメニュー。
+    Menu(&'a Menu),
 }
 
 impl Nav {
@@ -125,6 +173,64 @@ impl Nav {
         self.sections
             .iter()
             .find(|s| s.all_pages().any(|p| p.path == path))
+    }
+
+    /// `section` を束ねるメニュー（無ければ `None`）。`index_path` は全体で
+    /// 一意なので文字列比較で同一性を判定する。
+    fn menu_of_section(&self, section: &Section) -> Option<&Menu> {
+        self.menus
+            .iter()
+            .find(|m| m.items.iter().any(|i| i.section == section.index_path))
+    }
+
+    /// ヘッダー等が走査する項目列を返す（イシュー #3699）。
+    ///
+    /// 並び規則: メニューに属さないセクションは宣言順。メニューは、
+    /// メンバーのうち宣言順で最も早いセクションの位置を占める（以降の
+    /// メンバーはスキップ）。現行 `site/nav.toml` では Getting Started /
+    /// Guides / Assets / API Reference の順になる。メニュー宣言が無ければ
+    /// `sections` と同順の [`HeaderEntry::Section`] 列（後方互換）。
+    pub fn header_entries(&self) -> Vec<HeaderEntry<'_>> {
+        let mut out = Vec::with_capacity(self.sections.len());
+        let mut emitted: Vec<&str> = Vec::new();
+        for section in &self.sections {
+            match self.menu_of_section(section) {
+                None => out.push(HeaderEntry::Section(section)),
+                Some(menu) => {
+                    if !emitted.contains(&menu.index_path.as_str()) {
+                        emitted.push(menu.index_path.as_str());
+                        out.push(HeaderEntry::Menu(menu));
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// `path` がメンバーセクション配下のページ、またはメニュー自身の
+    /// `index_path` ならそのメニューを返す。`menu.index_path` は
+    /// `page.path` と衝突しない（パース時検証）ため両分岐は排他。
+    pub fn menu_for_path(&self, path: &str) -> Option<&Menu> {
+        if let Some(menu) = self.menus.iter().find(|m| m.index_path == path) {
+            return Some(menu);
+        }
+        let section = self.section_for_path(path)?;
+        self.menu_of_section(section)
+    }
+
+    /// `menu` のメンバーを `items` の宣言順で `(セクション, 項目)` として返す。
+    /// 検証済みのため通常欠落しないが、解決できない項目は黙って飛ばす
+    /// （`unwrap` / `expect` を使わない）。
+    pub fn menu_members<'a>(
+        &'a self,
+        menu: &'a Menu,
+    ) -> impl Iterator<Item = (&'a Section, &'a MenuItem)> {
+        menu.items.iter().filter_map(move |item| {
+            self.sections
+                .iter()
+                .find(|s| s.index_path == item.section)
+                .map(|s| (s, item))
+        })
     }
 }
 
@@ -396,6 +502,22 @@ struct GroupBuilder {
     pages: Vec<PageBuilder>,
 }
 
+/// パース中に組み立て途上のメニュー（イシュー #3699）。行番号は後段検証の
+/// エラー報告用に保持する。
+struct MenuBuilder {
+    header_line: usize,
+    title: Option<(String, usize)>,
+    index_path: Option<(String, usize)>,
+    source: Option<(String, usize)>,
+    items: Vec<MenuItemBuilder>,
+}
+
+struct MenuItemBuilder {
+    header_line: usize,
+    section: Option<(String, usize)>,
+    description: Option<(String, usize)>,
+}
+
 struct PageBuilder {
     title: Option<String>,
     source: Option<String>,
@@ -421,6 +543,10 @@ enum Ctx {
     /// `[[section.group.page]]` が現れた場合、前セクション末尾の group へ
     /// 誤って吸着することを構造的に防ぐため）。
     GroupPage(usize, usize, usize),
+    /// `[[menu]]`（`menus` の末尾）。
+    Menu(usize),
+    /// `(menu index, item index)`。
+    MenuItem(usize, usize),
 }
 
 fn parse_err(line: usize, message: impl Into<String>) -> NavError {
@@ -600,6 +726,10 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
     let mut site_title: Option<String> = None;
     let mut site_base_path: Option<String> = None;
     let mut sections: Vec<SectionBuilder> = Vec::new();
+    let mut menus: Vec<MenuBuilder> = Vec::new();
+    // `[[menu]]` の後に `[[section]]` を挟まず `[[section.*]]` が現れた場合に
+    // 直前セクションへ黙って吸着する事故を防ぐ（イシュー #3699）。
+    let mut section_open = false;
 
     for (line_no0, raw_line) in input.lines().enumerate() {
         let line = line_no0 + 1;
@@ -625,11 +755,40 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
                         groups: Vec::new(),
                     });
                     ctx = Ctx::Section(sections.len() - 1);
+                    section_open = true;
+                }
+                "menu" => {
+                    menus.push(MenuBuilder {
+                        header_line: line,
+                        title: None,
+                        index_path: None,
+                        source: None,
+                        items: Vec::new(),
+                    });
+                    ctx = Ctx::Menu(menus.len() - 1);
+                    section_open = false;
+                }
+                "menu.item" => {
+                    let midx = menus.len().checked_sub(1).ok_or_else(|| {
+                        parse_err(line, "[[menu.item]] appeared before any [[menu]]")
+                    })?;
+                    menus[midx].items.push(MenuItemBuilder {
+                        header_line: line,
+                        section: None,
+                        description: None,
+                    });
+                    ctx = Ctx::MenuItem(midx, menus[midx].items.len() - 1);
                 }
                 "section.page" => {
                     let sidx = sections.len().checked_sub(1).ok_or_else(|| {
                         parse_err(line, "[[section.page]] appeared before any [[section]]")
                     })?;
+                    if !section_open {
+                        return Err(parse_err(
+                            line,
+                            "[[section.page]] must follow a [[section]] (not directly after [[menu]])",
+                        ));
+                    }
                     sections[sidx].pages.push(PageBuilder {
                         title: None,
                         source: None,
@@ -642,6 +801,12 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
                     let sidx = sections.len().checked_sub(1).ok_or_else(|| {
                         parse_err(line, "[[section.group]] appeared before any [[section]]")
                     })?;
+                    if !section_open {
+                        return Err(parse_err(
+                            line,
+                            "[[section.group]] must follow a [[section]] (not directly after [[menu]])",
+                        ));
+                    }
                     sections[sidx].groups.push(GroupBuilder {
                         title: None,
                         pages: Vec::new(),
@@ -656,6 +821,12 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
                             "[[section.group.page]] appeared before any [[section]]",
                         )
                     })?;
+                    if !section_open {
+                        return Err(parse_err(
+                            line,
+                            "[[section.group.page]] must follow a [[section]] (not directly after [[menu]])",
+                        ));
+                    }
                     // gidx をその場で導出する（`Ctx::Group` の index を
                     // 使い回さない理由は `Ctx::GroupPage` の doc 参照）。
                     let gidx = sections[sidx].groups.len().checked_sub(1).ok_or_else(|| {
@@ -726,6 +897,34 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
                     ))
                 }
             },
+            Ctx::Menu(midx) => match key {
+                "title" => set_once_at(&mut menus[midx].title, value, line, "menu.title")?,
+                "index_path" => {
+                    set_once_at(&mut menus[midx].index_path, value, line, "menu.index_path")?
+                }
+                "source" => set_once_at(&mut menus[midx].source, value, line, "menu.source")?,
+                other => {
+                    return Err(parse_err(
+                        line,
+                        format!("unknown key `{other}` in [[menu]]"),
+                    ))
+                }
+            },
+            Ctx::MenuItem(midx, iidx) => {
+                let item = &mut menus[midx].items[iidx];
+                match key {
+                    "section" => set_once_at(&mut item.section, value, line, "menu.item.section")?,
+                    "description" => {
+                        set_once_at(&mut item.description, value, line, "menu.item.description")?
+                    }
+                    other => {
+                        return Err(parse_err(
+                            line,
+                            format!("unknown key `{other}` in [[menu.item]]"),
+                        ))
+                    }
+                }
+            }
             Ctx::Page(sidx, pidx) => {
                 let page = &mut sections[sidx].pages[pidx];
                 match key {
@@ -861,10 +1060,145 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
         });
     }
 
+    let out_menus = finalize_menus(menus, &out_sections, &seen_paths)?;
+
     Ok(Nav {
         site,
         sections: out_sections,
+        menus: out_menus,
     })
+}
+
+/// 値と行番号を一度だけ保存する（重複キーは `NavError::Parse`）。
+fn set_once_at(
+    slot: &mut Option<(String, usize)>,
+    value: String,
+    line: usize,
+    name: &str,
+) -> Result<(), NavError> {
+    if slot.is_some() {
+        return Err(parse_err(line, format!("duplicate key `{name}`")));
+    }
+    *slot = Some((value, line));
+    Ok(())
+}
+
+/// 必須キーを取り出す。欠落は `header_line` を報告行にする。
+fn require_menu_key(
+    slot: Option<(String, usize)>,
+    header_line: usize,
+    what: &str,
+    key: &str,
+) -> Result<(String, usize), NavError> {
+    slot.ok_or_else(|| {
+        parse_err(
+            header_line,
+            format!("{what} is missing required key `{key}`"),
+        )
+    })
+}
+
+/// [`MenuBuilder`] 群を検証済み [`Menu`] へ確定する（イシュー #3699）。
+/// セクション・`page.path` の確定後に呼ぶことで、メニューを含まない入力の
+/// エラー優先順位を従来から変えない。検証はすべて fail-closed。
+fn finalize_menus(
+    menus: Vec<MenuBuilder>,
+    sections: &[Section],
+    page_paths: &BTreeSet<String>,
+) -> Result<Vec<Menu>, NavError> {
+    let mut out: Vec<Menu> = Vec::with_capacity(menus.len());
+    // (section index_path, 所属メニュー名)。複数メニュー所属の検出用。
+    let mut owner: Vec<(String, String)> = Vec::new();
+    for mb in menus {
+        let (title, title_line) = require_menu_key(mb.title, mb.header_line, "menu", "title")?;
+        let (index_path, index_line) =
+            require_menu_key(mb.index_path, mb.header_line, "menu", "index_path")?;
+        let (source, source_line) = require_menu_key(mb.source, mb.header_line, "menu", "source")?;
+        if title.trim().is_empty() {
+            return Err(parse_err(title_line, "menu title must not be empty"));
+        }
+        if !is_safe_page_path(&index_path) {
+            return Err(parse_err(
+                index_line,
+                format!("menu index_path `{index_path}` is not a safe page path"),
+            ));
+        }
+        if page_paths.contains(&index_path) {
+            return Err(parse_err(
+                index_line,
+                format!("menu index_path `{index_path}` collides with an existing page.path"),
+            ));
+        }
+        if out.iter().any(|m| m.index_path == index_path) {
+            return Err(parse_err(
+                index_line,
+                format!("duplicate menu index_path `{index_path}`"),
+            ));
+        }
+        if validate_source_shape(&source).is_err() {
+            return Err(parse_err(
+                source_line,
+                format!("menu source `{source}` is not a safe relative path"),
+            ));
+        }
+        if mb.items.is_empty() {
+            return Err(parse_err(
+                mb.header_line,
+                format!("menu `{title}` has no items"),
+            ));
+        }
+        let mut items: Vec<MenuItem> = Vec::with_capacity(mb.items.len());
+        for ib in mb.items {
+            let (section, section_line) =
+                require_menu_key(ib.section, ib.header_line, "menu item", "section")?;
+            let (description, desc_line) =
+                require_menu_key(ib.description, ib.header_line, "menu item", "description")?;
+            if description.trim().is_empty() {
+                return Err(parse_err(
+                    desc_line,
+                    "menu item description must not be empty",
+                ));
+            }
+            if description.contains('\n') {
+                return Err(parse_err(
+                    desc_line,
+                    "menu item description must be a single line",
+                ));
+            }
+            if !sections.iter().any(|s| s.index_path == section) {
+                return Err(parse_err(
+                    section_line,
+                    format!(
+                        "menu item section `{section}` does not match any [[section]] index_path"
+                    ),
+                ));
+            }
+            if items.iter().any(|i| i.section == section) {
+                return Err(parse_err(
+                    section_line,
+                    format!("section `{section}` is listed more than once in menu `{title}`"),
+                ));
+            }
+            if let Some((_, other)) = owner.iter().find(|(s, _)| *s == section) {
+                return Err(parse_err(
+                    section_line,
+                    format!("section `{section}` already belongs to menu `{other}`"),
+                ));
+            }
+            owner.push((section.clone(), title.clone()));
+            items.push(MenuItem {
+                section,
+                description,
+            });
+        }
+        out.push(Menu {
+            title,
+            index_path,
+            source,
+            items,
+        });
+    }
+    Ok(out)
 }
 
 /// [`PageBuilder`] を検証済み [`Page`] へ確定する。必須キー欠落・
@@ -916,6 +1250,13 @@ pub fn validate_sources(nav: &Nav, repo_root: &Path) -> Result<(), NavError> {
         let full_path = repo_root.join(&page.source);
         if !full_path.is_file() {
             return Err(NavError::MissingSource(page.source.clone()));
+        }
+    }
+    // メニューはページではない（`all_pages()` に混ぜない）ため別ループで
+    // 集約ページ原稿の実在を確認する（イシュー #3699）。
+    for menu in &nav.menus {
+        if !repo_root.join(&menu.source).is_file() {
+            return Err(NavError::MissingSource(menu.source.clone()));
         }
     }
     Ok(())
