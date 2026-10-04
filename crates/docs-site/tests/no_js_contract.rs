@@ -439,7 +439,8 @@ fn sidebar_and_header_and_prev_next_navigation_uses_static_anchor_hrefs() {
 
 /// イシュー #3674: ナビ drawer は JS なしで開閉できる形（checkbox が drawer より前の兄弟）で
 /// 全本体ページに存在し、内部は静的な `<a href>` だけで構成され、動的 ARIA 状態
-/// （`role`/`aria-expanded`/`aria-haspopup`）と `id` を持たない。
+/// （`role`/`aria-expanded`/`aria-haspopup`/`aria-controls`）と `id` を持たない。
+/// イシュー #3702 で見出しを展開する `details`/`summary` を廃止したため、これらも持たない。
 #[test]
 fn nav_drawer_is_js_free_static_and_has_no_dynamic_aria_or_ids() {
     let (_out, files, _redirects) = build_real_site();
@@ -465,6 +466,9 @@ fn nav_drawer_is_js_free_static_and_has_no_dynamic_aria_or_ids() {
             "role=",
             "aria-expanded",
             "aria-haspopup",
+            "aria-controls",
+            "<details",
+            "<summary",
             " id=",
             "<script",
             "onclick",

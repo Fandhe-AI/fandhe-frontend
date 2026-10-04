@@ -72,10 +72,9 @@
 //!       （768px 以上では `(hover: none)` 端末のみ表示）
 //!     nav.docs-nav-drawer … `nav::nav_drawer()` の実出力（headless nav_list）
 //!       ul.docs-nav-drawer-sections > li.docs-nav-drawer-section
-//!         a.docs-nav-drawer-section-link … セクション索引へのリンク
-//!         details.docs-nav-drawer-details > summary.docs-nav-drawer-summary
-//!           （span.docs-nav-drawer-summary-text）+ div.docs-nav-drawer-body
-//!           （現在セクションはサイドバー形式、他は ul.docs-nav-drawer-list）
+//!         a.docs-nav-drawer-section-link … セクション索引・メニュー見出しへのリンク
+//!         ul.docs-nav-drawer-menu-list > li.docs-nav-drawer-menu-item
+//!           > a.docs-nav-drawer-menu-link（メニュー li のみ。タイトル + 説明、#3702）
 //!   div.docs-container            … 3 カラムのグリッドコンテナ（header の下、
 //!     イシュー #907・`docs/design/docs-site-three-column-redesign.md` §3.1）。
 //!     見出しの無いページでは `docs-container--no-toc` 修飾 class が付く
@@ -1236,7 +1235,7 @@ body {\n\
 }\n\
 \n\
 /*\n\
- * ---- ナビ drawer（全セクションへ移れるハンバーガーメニュー、イシュー #3674） ----\n\
+ * ---- ナビ drawer（ヘッダーと同じ構成のハンバーガーメニュー、イシュー #3674 / #3702） ----\n\
  *\n\
  * `crate::nav::nav_drawer()` と `crate::layout` が `div.docs-header-inner` の末尾へ\n\
  * 出す `input.docs-nav-drawer-toggle` → `label` → `nav.docs-nav-drawer`。開閉状態の\n\
@@ -1308,8 +1307,7 @@ body {\n\
 }\n\
 \n\
 /* 可視文字は出さず、ラベルのアクセシブル名（\"Menu\"）としてだけ残す。 */\n\
-.docs-nav-drawer-toggle-text,\n\
-.docs-nav-drawer-summary-text {\n\
+.docs-nav-drawer-toggle-text {\n\
   position: absolute;\n\
   width: 1px;\n\
   height: 1px;\n\
@@ -1356,7 +1354,6 @@ body {\n\
 }\n\
 \n\
 .docs-header nav.docs-nav-drawer .docs-nav-drawer-section {\n\
-  position: relative;\n\
   border-bottom: 1px solid var(--fandhe-color-border);\n\
 }\n\
 \n\
@@ -1364,13 +1361,13 @@ body {\n\
   border-bottom: none;\n\
 }\n\
 \n\
-/* セクション索引へのリンク。summary の外に置き、右端の開閉ボタン分だけ空ける。\n\
+/* セクション索引・メニュー見出しへのリンク。\n\
  * リンクの色の切替は即時（#3603 と同じ理由で transition なし）。 */\n\
 .docs-header nav.docs-nav-drawer a.docs-nav-drawer-section-link {\n\
   display: block;\n\
   min-height: 2.75rem;\n\
   box-sizing: border-box;\n\
-  padding: 0.75rem 3.25rem 0.75rem 0.5rem;\n\
+  padding: 0.75rem 0.5rem;\n\
   color: var(--fandhe-color-fg);\n\
   font-weight: var(--fandhe-font-font-weight-medium);\n\
   text-decoration: none;\n\
@@ -1382,155 +1379,56 @@ body {\n\
   font-weight: var(--fandhe-font-font-weight-semibold);\n\
 }\n\
 \n\
-/* メニュー索引（Assets）の行。開閉の summary を持たないため右端の余白を詰める（#3701）。 */\n\
-.docs-header nav.docs-nav-drawer .docs-nav-drawer-menu a.docs-nav-drawer-section-link {\n\
-  padding-right: 0.5rem;\n\
-}\n\
-\n\
-.docs-header nav.docs-nav-drawer a:focus-visible,\n\
-.docs-header nav.docs-nav-drawer summary:focus-visible {\n\
+.docs-header nav.docs-nav-drawer a:focus-visible {\n\
   outline: 2px solid var(--fandhe-color-accent);\n\
   outline-offset: -2px;\n\
 }\n\
 \n\
-/* 開閉専用の summary。行の右端へ重ね、タップ領域は 44px 以上にする。 */\n\
-.docs-header nav.docs-nav-drawer .docs-nav-drawer-summary {\n\
-  position: absolute;\n\
-  top: 0;\n\
-  right: 0;\n\
-  display: flex;\n\
-  align-items: center;\n\
-  justify-content: center;\n\
-  width: 3rem;\n\
-  height: 2.75rem;\n\
-  cursor: pointer;\n\
-  list-style: none;\n\
-  color: var(--fandhe-color-fg-muted);\n\
+/* メニュー（Assets）配下のメンバーリンク列（#3702）。メガパネルのカードと同じ情報量で、\n\
+ * 見出しリンクの下へ字下げして縦に並べる。 */\n\
+.docs-header nav.docs-nav-drawer .docs-nav-drawer-menu {\n\
+  padding-bottom: 0.25rem;\n\
 }\n\
 \n\
-.docs-nav-drawer-summary::marker,\n\
-.docs-nav-drawer-summary::-webkit-details-marker {\n\
-  display: none;\n\
+.docs-header nav.docs-nav-drawer .docs-nav-drawer-menu-list {\n\
+  margin: 0 0 0.5rem 0.5rem;\n\
+  padding-inline-start: 0.4rem;\n\
+  border-inline-start: 1px solid var(--fandhe-color-border);\n\
 }\n\
 \n\
-.docs-nav-drawer-summary::before {\n\
-  content: \"\";\n\
-  width: 0.45rem;\n\
-  height: 0.45rem;\n\
-  border-right: 2px solid currentColor;\n\
-  border-bottom: 2px solid currentColor;\n\
-  transform: rotate(-45deg);\n\
+.docs-header nav.docs-nav-drawer .docs-nav-drawer-menu-item + .docs-nav-drawer-menu-item {\n\
+  border-top: 1px solid var(--fandhe-color-border);\n\
 }\n\
 \n\
-.docs-nav-drawer-details[open] > .docs-nav-drawer-summary::before {\n\
-  transform: rotate(45deg);\n\
-}\n\
-\n\
-.docs-nav-drawer-body {\n\
-  padding: 0 0 0.5rem 0.5rem;\n\
-}\n\
-\n\
-/* 現在でないセクションの見出し一覧（popup 形式）。 */\n\
-.docs-header nav.docs-nav-drawer .docs-nav-drawer-list {\n\
-  margin: 0;\n\
-}\n\
-\n\
-.docs-header nav.docs-nav-drawer .docs-nav-drawer-body a {\n\
+.docs-header nav.docs-nav-drawer a.docs-nav-drawer-menu-link {\n\
   display: block;\n\
-  padding: 0.55rem 0.5rem;\n\
-  border-left: 2px solid transparent;\n\
-  border-radius: 0.4rem;\n\
-  color: var(--fandhe-color-fg-muted);\n\
+  min-height: 2.75rem;\n\
+  box-sizing: border-box;\n\
+  padding: 0.5rem 0.5rem;\n\
+  color: var(--fandhe-color-fg);\n\
   text-decoration: none;\n\
   transition: none;\n\
 }\n\
 \n\
-.docs-header nav.docs-nav-drawer .docs-nav-drawer-body a:hover:hover:hover:hover:not([aria-current=\"page\"]) {\n\
-  color: var(--fandhe-color-fg);\n\
+.docs-header nav.docs-nav-drawer a.docs-nav-drawer-menu-link:hover:hover:hover {\n\
   background: var(--fandhe-color-bg-subtle);\n\
 }\n\
 \n\
-.docs-header nav.docs-nav-drawer .docs-nav-drawer-body a[aria-current=\"true\"] {\n\
-  color: var(--fandhe-color-fg);\n\
-}\n\
-\n\
-.docs-header nav.docs-nav-drawer .docs-nav-drawer-body a[aria-current=\"page\"] {\n\
-  background: var(--fandhe-color-docs-accent-bg);\n\
-  color: var(--fandhe-color-fg);\n\
-  border-left-color: var(--fandhe-color-accent);\n\
+.docs-header nav.docs-nav-drawer a.docs-nav-drawer-menu-link[aria-current=\"true\"] {\n\
+  color: var(--fandhe-color-accent);\n\
   font-weight: var(--fandhe-font-font-weight-semibold);\n\
 }\n\
 \n\
-/* 現在セクションのサイドバー形式（カテゴリ details）。`.docs-sidebar nav.sidebar`\n\
- * 配下の同名規則と同等の見た目を drawer 側で持つ（aside 内ではないため）。 */\n\
-.docs-header nav.docs-nav-drawer details.docs-nav-group {\n\
-  margin: 0.2rem 0;\n\
-  border-top: 1px solid var(--fandhe-color-border);\n\
-  padding-top: 0.2rem;\n\
-}\n\
-\n\
-.docs-header nav.docs-nav-drawer .docs-nav-group-summary {\n\
-  cursor: pointer;\n\
-  list-style: none;\n\
-  display: flex;\n\
-  align-items: center;\n\
-  gap: 0.5rem;\n\
-  justify-content: space-between;\n\
-  min-height: 2.5rem;\n\
-  padding: 0.32rem 0.5rem;\n\
-  border-radius: 0.4rem;\n\
+.docs-header nav.docs-nav-drawer .docs-nav-drawer-menu-title {\n\
+  display: block;\n\
   font-weight: var(--fandhe-font-font-weight-medium);\n\
+}\n\
+\n\
+.docs-header nav.docs-nav-drawer .docs-nav-drawer-menu-desc {\n\
+  display: block;\n\
   color: var(--fandhe-color-fg-muted);\n\
-}\n\
-\n\
-.docs-header nav.docs-nav-drawer details.docs-nav-group[open] > .docs-nav-group-summary {\n\
-  color: var(--fandhe-color-fg);\n\
-}\n\
-\n\
-.docs-header nav.docs-nav-drawer .docs-nav-group-summary::before {\n\
-  content: \"\";\n\
-  order: -1;\n\
-  flex: none;\n\
-  width: 0.4rem;\n\
-  height: 0.4rem;\n\
-  border-right: 2px solid currentColor;\n\
-  border-bottom: 2px solid currentColor;\n\
-  transform: rotate(-45deg);\n\
-}\n\
-\n\
-.docs-header nav.docs-nav-drawer details.docs-nav-group[open] > .docs-nav-group-summary::before {\n\
-  transform: rotate(45deg);\n\
-}\n\
-\n\
-.docs-header nav.docs-nav-drawer .docs-nav-group-summary::marker,\n\
-.docs-header nav.docs-nav-drawer .docs-nav-group-summary::-webkit-details-marker {\n\
-  display: none;\n\
-}\n\
-\n\
-.docs-header nav.docs-nav-drawer .docs-nav-group-title {\n\
-  flex: 1 1 auto;\n\
-  min-width: 0;\n\
+  font-size: 0.8rem;\n\
   overflow-wrap: anywhere;\n\
-}\n\
-\n\
-.docs-header nav.docs-nav-drawer .docs-nav-group-count [data-scope=\"badge\"] {\n\
-  display: inline-flex;\n\
-  align-items: center;\n\
-  justify-content: center;\n\
-  min-width: 1.4rem;\n\
-  padding: 0.05rem 0.4rem;\n\
-  border-radius: 999px;\n\
-  font-size: 0.7rem;\n\
-  font-weight: var(--fandhe-font-font-weight-medium);\n\
-  font-variant-numeric: tabular-nums;\n\
-  background: var(--fandhe-color-bg-subtle);\n\
-  color: var(--fandhe-color-fg-muted);\n\
-}\n\
-\n\
-.docs-header nav.docs-nav-drawer .docs-nav-group-list {\n\
-  margin: 0.1rem 0 0.2rem 0.75rem;\n\
-  padding-inline-start: 0.4rem;\n\
-  border-inline-start: 1px solid var(--fandhe-color-border);\n\
 }\n\
 \n\
 /* ---- 本文カラム ---- */\n\
@@ -2224,7 +2122,7 @@ nav.prev-next .next .docs-pager-meta {\n\
  *\n\
  * ヘッダーナビの Assets メガパネルは `:hover`/`:focus-within` で開くが、トリガーは索引ページへの\n\
  * `a[href]` で、タッチではタップすると遷移してしまい popup を安定して開けない。\n\
- * drawer はメガパネルの上位集合（全セクション + 現在セクションの個別ページ）なので、\n\
+ * drawer はヘッダーナビと同じ項目（単独セクション + Assets の 5 層）を持つので、\n\
  * 主入力が hover できない端末ではヘッダーナビを隠してハンバーガーへ一本化する。\n\
  * 条件は `any-hover` ではなく `hover`（主入力）: マウスが主入力の 2-in-1 端末はメガパネルのまま。\n\
  * 全帯域・`min-width: 768px` ブロックより後ろに置き、同じ詳細度のまま上書きする。\n\

@@ -508,13 +508,19 @@ const STRUCTURE_CLASS_CONTRACT: &[(&str, &str)] = &[
     ("docs-nav-drawer", "全セクションへ移れるナビ drawer nav"),
     ("docs-nav-drawer-sections", "セクション列の ul"),
     ("docs-nav-drawer-section", "セクションごとの li"),
-    ("docs-nav-drawer-section-link", "セクション索引へのリンク a"),
-    ("docs-nav-drawer-details", "セクションごとの details"),
-    ("docs-nav-drawer-summary", "開閉専用の summary"),
-    ("docs-nav-drawer-summary-text", "summary のアクセシブル名 span（視覚上は clip）"),
-    ("docs-nav-drawer-menu", "drawer のメニュー索引行（Assets 集約ページへのリンク、#3701）"),
-    ("docs-nav-drawer-body", "details の本体 div"),
-    ("docs-nav-drawer-list", "現在でないセクションの見出し一覧 ul"),
+    (
+        "docs-nav-drawer-section-link",
+        "セクション索引・メニュー見出しへのリンク a",
+    ),
+    (
+        "docs-nav-drawer-menu",
+        "drawer のメニュー（Assets）行 li（見出しリンクとメンバー列を持つ、#3702）",
+    ),
+    ("docs-nav-drawer-menu-list", "メニュー配下のメンバー列 ul"),
+    ("docs-nav-drawer-menu-item", "メンバー 1 件の li"),
+    ("docs-nav-drawer-menu-link", "メンバーセクション索引へのリンク a"),
+    ("docs-nav-drawer-menu-title", "メンバーのタイトル span"),
+    ("docs-nav-drawer-menu-desc", "メンバーの 1 行説明 span"),
     ("docs-main", "中央カラム main"),
     ("docs-content", "本文 article"),
     ("docs-header-nav", "ヘッダーナビのコンテナ nav"),
@@ -1945,6 +1951,15 @@ fn nav_drawer_is_hidden_until_toggled_and_scrolls_inside() {
         "\n.docs-header .docs-nav-drawer-toggle:checked ~ nav.docs-nav-drawer {",
     );
     assert!(checked.contains("display: block;"));
+    // 見出しを展開する details 系（#3702 で廃止）の規則は残さない。
+    for removed in [
+        "docs-nav-drawer-details",
+        "docs-nav-drawer-summary",
+        "docs-nav-drawer-body",
+        "docs-nav-drawer-list",
+    ] {
+        assert!(!css.contains(removed), "{removed} must not remain in CSS");
+    }
     // 旧サイドバー Menu の規則は残さない。
     assert!(!css.contains("docs-sidebar-toggle"));
     assert!(!css.contains(":checked ~ nav.sidebar"));

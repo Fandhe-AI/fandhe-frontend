@@ -1,19 +1,17 @@
 //! ヘッダーの Assets メガパネル（`header_nav`、イシュー #3701）が `site/nav.toml` の
-//! `[[menu]]` と一致すること、ナビ drawer とサイドバーの見出し一覧が一致すること、
-//! グループアンカーの実在・一意性を実サイトで固定する（イシュー #3670 / #3674 / #3701）。
+//! `[[menu]]` と一致すること、ナビ drawer の項目がヘッダーと同じ構成（項目・順序・
+//! 表記・説明・現在位置）であること、グループアンカーの実在・一意性を実サイトで
+//! 固定する（イシュー #3670 / #3674 / #3701 / #3702）。
 //!
-//! drawer とサイドバーは `Section::headings`（唯一の情報源）から見出しを作る。ここでは
-//! 描画結果の HTML から項目列（表記・順序）を取り出して比較し、構造の共有が崩れたら落とす。
-//! セクション別の見出し一覧 popup は #3701 で廃止したため、ヘッダーには出ないことも固定する。
+//! drawer は見出しを展開する `details` を持たず、ヘッダーと同じ `Nav::header_entries` から
+//! 作る。ここでは描画結果の HTML から項目列を取り出して比較し、構成の乖離を落とす。
 //! アンカーの実在はビルド時のリンク検証（`linkcheck`）も fail-closed に守る。
 
 use std::collections::BTreeSet;
 
 use fandhe_frontend_core::render;
 use fandhe_frontend_docs_site::layout::RESERVED_LAYOUT_IDS;
-use fandhe_frontend_docs_site::nav::{
-    group_anchor_id, header_nav, nav_drawer, parse_nav, sidebar, Nav,
-};
+use fandhe_frontend_docs_site::nav::{group_anchor_id, header_nav, nav_drawer, parse_nav, Nav};
 
 #[path = "support/shared_site.rs"]
 mod shared_site;
@@ -22,35 +20,6 @@ fn load_nav() -> Nav {
     let path = shared_site::repo_root().join("site/nav.toml");
     let input = std::fs::read_to_string(path).expect("site/nav.toml should be readable");
     parse_nav(&input).expect("site/nav.toml should parse")
-}
-
-/// `<a ...>text</a>` の text を出現順に集める（描画は既定エスケープ済みなので
-/// エスケープ後の文字列同士で比較できる）。
-fn anchor_texts(html: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut rest = html;
-    while let Some(i) = rest.find("<a ") {
-        rest = &rest[i..];
-        let Some(gt) = rest.find('>') else { break };
-        let Some(end) = rest.find("</a>") else { break };
-        out.push(rest[gt + 1..end].to_string());
-        rest = &rest[end + 4..];
-    }
-    out
-}
-
-/// サイドバーの見出し列: 直下ページ（最初の `<details` より前の `a`）→ グループ名。
-fn sidebar_headings(html: &str) -> Vec<String> {
-    let head_end = html.find("<details").unwrap_or(html.len());
-    let mut out = anchor_texts(&html[..head_end]);
-    let marker = "docs-nav-group-title\">";
-    let mut rest = html;
-    while let Some(i) = rest.find(marker) {
-        rest = &rest[i + marker.len()..];
-        let end = rest.find('<').expect("group title should be closed");
-        out.push(rest[..end].to_string());
-    }
-    out
 }
 
 /// `marker` の直後から次の `<` までのテキストを取り出す。
@@ -99,6 +68,42 @@ fn trigger_titles(header_html: &str) -> Vec<String> {
     out
 }
 
+/// ヘッダー・drawer 共通の項目: `(href, タイトル, 説明, 所属表示 aria-current="true" の有無)`。
+/// ヘッダーのトリガー・メガカード、drawer のセクションリンク・メンバーリンクを
+/// 同じ形へ正規化する（説明を持たない項目は空文字列）。
+fn nav_items(html: &str) -> Vec<(String, String, String, bool)> {
+    let mut out = Vec::new();
+    let mut rest = html;
+    while let Some(i) = rest.find("<a href=\"") {
+        rest = &rest[i + 9..];
+        let href = rest[..rest.find('"').unwrap()].to_string();
+        let tag_end = rest.find('>').unwrap();
+        let tag = &rest[..tag_end];
+        let end = rest.find("</a>").unwrap();
+        let body = &rest[tag_end + 1..end];
+        let current = tag.contains("aria-current=\"true\"");
+        if tag.contains("docs-header-mega-card") {
+            out.push((
+                href,
+                text_after(body, "docs-header-mega-title\">"),
+                text_after(body, "docs-header-mega-desc\">"),
+                current,
+            ));
+        } else if tag.contains("docs-nav-drawer-menu-link") {
+            out.push((
+                href,
+                text_after(body, "docs-nav-drawer-menu-title\">"),
+                text_after(body, "docs-nav-drawer-menu-desc\">"),
+                current,
+            ));
+        } else {
+            out.push((href, body.to_string(), String::new(), current));
+        }
+        rest = &rest[end..];
+    }
+    out
+}
+
 /// 実際の `site/nav.toml` で、ヘッダーのトリガーが 4 項目、Assets のカードが
 /// `[[menu.item]]` の宣言順（Primitives → Themes → Blocks → Wireframes → Examples）に
 /// タイトル・href・説明まで一致する（イシュー #3701）。
@@ -132,27 +137,20 @@ fn mega_panel_cards_match_nav_toml_menu() {
     assert!(!header.contains("docs-header-dropdown"));
 }
 
-/// グループ見出しの索引アンカーは drawer（現在でないセクション側）に出て、
-/// アンカー id は一意で予約 id でない。ヘッダーには出ない（#3701）。
+/// グループ見出しの索引アンカー（`#<slug>`）は索引ページ側だけが持ち、ヘッダーにも
+/// drawer にも出ない（#3701 / #3702）。アンカー id は一意で予約 id でない。
 #[test]
-fn group_heading_hrefs_point_to_index_anchor_and_ids_are_unique() {
+fn group_headings_are_not_linked_from_header_or_drawer_and_ids_are_unique() {
     let nav = load_nav();
-    let other_path = nav.sections[0].index_path.clone();
     for section in &nav.sections {
-        if section.groups.is_empty() || section.index_path == other_path {
-            continue;
-        }
-        let drawer = render(&nav_drawer(&nav, &other_path));
+        let drawer = render(&nav_drawer(&nav, &section.index_path));
         let header = render(&header_nav(&nav, &section.index_path));
         let mut ids = BTreeSet::new();
         for g in &section.groups {
             let id = group_anchor_id(&g.title);
-            let href = format!(
-                "href=\"{}{}#{}\"",
-                nav.site.base_path, section.index_path, id
-            );
-            assert!(drawer.contains(&href), "missing {href}");
-            assert!(!header.contains(&href), "header must not list {href}");
+            let frag = format!("#{id}\"");
+            assert!(!drawer.contains(&frag), "drawer must not link {frag}");
+            assert!(!header.contains(&frag), "header must not link {frag}");
             assert!(ids.insert(id.clone()), "duplicate anchor id {id}");
             assert!(!RESERVED_LAYOUT_IDS.contains(&id.as_str()), "reserved {id}");
         }
@@ -231,60 +229,63 @@ fn built_site_header_has_mega_panel_and_index_anchors_resolve() {
     }
 }
 
-/// ナビ drawer の `section_idx` 番目のセクション本体（`div.docs-nav-drawer-body`）内の
-/// `a` のテキスト。`class="docs-nav-drawer-section"`（閉じ引用符つき）で `li` を分割する
-/// ため `-link` 付きの class とは混ざらない。
-fn drawer_body_items(drawer_html: &str, section_idx: usize) -> Vec<String> {
-    let seg = drawer_html
-        .split("class=\"docs-nav-drawer-section\"")
-        .nth(section_idx + 1)
-        .expect("drawer section should exist");
-    // 直後にメニュー索引行（`li.docs-nav-drawer-menu`）が続く場合、その手前までを本体とする。
-    let seg = seg
-        .find("docs-nav-drawer-section docs-nav-drawer-menu")
-        .map_or(seg, |end| &seg[..end]);
-    let body = seg
-        .find("docs-nav-drawer-body")
-        .expect("drawer body should exist");
-    anchor_texts(&seg[body..])
-}
-
-/// drawer は他セクションでもサイドバーと同じ見出し一覧を出す（イシュー #3674。
-/// どちらも `Section::headings` が唯一の情報源）。ヘッダーの popup は #3701 で廃止した。
+/// drawer の項目（href・タイトル・説明・所属表示）が、ヘッダーのトリガー列とメガカード列
+/// （Assets トリガーの直後）を合わせたものと、順序まで一致する（イシュー #3702）。
+/// 現在位置は、単独セクション・Assets 見出し・メンバー配下・未登録パスの各場合で検証する。
 #[test]
-fn drawer_matches_sidebar_headings_for_every_section() {
+fn drawer_items_match_header_entries_and_menu_members() {
     let nav = load_nav();
-    for (cur_idx, current_section) in nav.sections.iter().enumerate() {
-        let mut currents = vec![current_section.all_pages().next().unwrap().path.clone()];
-        if let Some(g) = current_section.groups.first() {
-            currents.push(g.pages[0].path.clone());
-        }
-        for current in currents {
-            let drawer = render(&nav_drawer(&nav, &current));
-            for (idx, section) in nav.sections.iter().enumerate() {
-                let items = drawer_body_items(&drawer, idx);
-                if idx == cur_idx {
-                    let side = anchor_texts(&render(&sidebar(&nav, &current)));
-                    assert_eq!(
-                        items, side,
-                        "current section {:?} at {current}",
-                        section.title
-                    );
-                } else {
-                    // 他セクションは、そのセクションを現在にしたサイドバーの見出し列と一致する。
-                    let first = section.all_pages().next().unwrap().path.clone();
-                    let side = sidebar_headings(&render(&sidebar(&nav, &first)));
-                    assert_eq!(items, side, "section {:?} at {current}", section.title);
-                }
-            }
+    assert_eq!(nav.menus.len(), 1);
+    let menu = &nav.menus[0];
+    let menu_href = format!("{}{}", nav.site.base_path, menu.index_path);
+    for path in ["/guides/", "/themes/button/", "/assets/", "/no-such-page/"] {
+        let header = render(&header_nav(&nav, path));
+        let drawer = render(&nav_drawer(&nav, path));
+        let header_items = nav_items(&header);
+        let drawer_items = nav_items(&drawer);
+        // ヘッダー側はトリガー → メガカードの順で出る。メニューのカードはトリガーの直後に
+        // 続くため、そのまま連結した列が drawer の見出し + メンバー列と一致する。
+        assert_eq!(drawer_items, header_items, "items differ at {path}");
+        // 構成の期待: Getting Started, Guides, Assets, 5 メンバー, API Reference。
+        let titles: Vec<&str> = drawer_items.iter().map(|i| i.1.as_str()).collect();
+        assert_eq!(
+            titles,
+            [
+                "Getting Started",
+                "Guides",
+                "Assets",
+                "Primitives",
+                "Themes",
+                "Blocks",
+                "Wireframes",
+                "Examples",
+                "API Reference"
+            ],
+            "{path}"
+        );
+        assert!(drawer_items.iter().any(|i| i.0 == menu_href));
+        // 所属表示の集合もヘッダーと一致する（上の完全一致に含まれるが、件数を明示する）。
+        let current: Vec<&str> = drawer_items
+            .iter()
+            .filter(|i| i.3)
+            .map(|i| i.1.as_str())
+            .collect();
+        match path {
+            "/themes/button/" => assert_eq!(current, ["Assets", "Themes"]),
+            "/assets/" => assert_eq!(current, ["Assets"]),
+            "/guides/" => assert_eq!(current, ["Guides"]),
+            _ => assert!(current.is_empty()),
         }
     }
 }
 
-/// 受け入れ条件: Themes の Button ページで、drawer から全 8 セクションの索引と
-/// 現在セクションの個別ページ（Button）へ移れる。
+/// 受け入れ条件: Themes の Button ページで、drawer から全 8 セクションの索引と Assets
+/// 集約ページへ移れ、見出しを展開する `details` を持たず、現在ページ自体へのリンクも
+/// 持たない（セクション内の移動は索引ページ経由の 2 ホップ。索引ページが子ページを全件
+/// リンクすることは `section_index_nav.rs` / `category_index_nav.rs` /
+/// `component_index_nav.rs` が固定するためここでは重複して検証しない）。
 #[test]
-fn built_site_drawer_reaches_every_section_and_current_section_pages() {
+fn built_site_drawer_reaches_every_section_index_and_assets() {
     let nav = load_nav();
     let html = read_page("themes/button/index.html");
     let base = &nav.site.base_path;
@@ -295,11 +296,16 @@ fn built_site_drawer_reaches_every_section_and_current_section_pages() {
         let href = format!("href=\"{base}{}\"", section.index_path);
         assert!(drawer.contains(&href), "drawer lacks section link {href}");
     }
-    assert!(drawer.contains(&format!("href=\"{base}/themes/button/\"")));
     // タッチ端末ではヘッダーナビが非表示のため、drawer が Assets 集約ページの入口になる（#3701）。
     assert!(
         drawer.contains(&format!("href=\"{base}/assets/\"")),
         "drawer lacks menu index link"
+    );
+    assert!(!drawer.contains("<details"), "drawer must not have details");
+    assert!(!drawer.contains("<summary"), "drawer must not have summary");
+    assert!(
+        !drawer.contains(&format!("href=\"{base}/themes/button/\"")),
+        "drawer must not list individual pages"
     );
 }
 
