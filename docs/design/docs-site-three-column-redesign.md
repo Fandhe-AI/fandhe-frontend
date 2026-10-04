@@ -405,9 +405,11 @@ chromium 制約により本 PR では未取得）は
 
 - 項目は `section.pages` のみ + 「すべて見る」ではなく、`Section::headings`
   （`crates/docs-site/src/nav.rs`）が返す**見出しだけの一覧**とする。直下ページは
-  リンク、グループ見出しは索引ページ内の該当カテゴリへのアンカー
-  （`group_href` / `group_anchor_id`）とし、グループ配下ページは出さない。
-  サイドバーと `header_nav` が同じ `Section::headings` を共有する。「すべて見る」は廃止した。
+  リンク、グループ見出しは索引ページ内の該当カテゴリへのアンカーとし、
+  グループ配下ページは出さない。当時はサイドバーと `header_nav` が同じ
+  `Section::headings` を共有した（現在は #3701・#3702 でヘッダーと drawer が
+  `Nav::header_entries` 基準の構成になり、`group_href` は削除済みで
+  `Section::headings` はサイドバー専用）。「すべて見る」は廃止した。
 - 変えた理由: Themes の 108 項目のはみ出しは見出し化と `max-height` + 縦スクロール
   （`.docs-header-dropdown`、#3671）で解消でき、ドロップダウンとサイドバーの中身の
   食い違い（Primitives・Themes・Blocks は「索引」1 件だけだった）も解消できるため。
@@ -417,7 +419,7 @@ chromium 制約により本 PR では未取得）は
   現在グループの見出しは `"true"`）。
 - タッチ端末では `:hover` のドロップダウンが安定しないため、768px 未満と
   768px 以上の `(hover: none)` 端末では全セクションを持つナビ drawer
-  （`nav::nav_drawer`、#3674）が代わりの手段になる。
+  （`nav::nav_drawer`、#3674。#3702 でヘッダーと同じ構成になり見出しの `details` は廃止）が代わりの手段になる。
 - 詳細は `docs-site-styled-blocks-redesign.md` 末尾の追補「ヘッダーナビの整理と CSP」を参照する。
 
 ### 3.6 本文タイポグラフィ（→ #911）

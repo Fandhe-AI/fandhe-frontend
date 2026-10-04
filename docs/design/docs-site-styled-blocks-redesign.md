@@ -423,7 +423,7 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 
 ### popup は見出しだけ（#3670、ユーザー判断 2026-10-04）
 
-- 項目の情報源は `Section::headings`（`nav.rs`）の 1 つで、サイドバーと `header_nav` が共有する。直下ページはリンク、グループ見出しは索引ページ内の該当カテゴリへのアンカー（`group_href` / `group_anchor_id`）にし、配下ページは出さない。「すべて見る」は廃止した
+- 項目の情報源は `Section::headings`（`nav.rs`）の 1 つで、サイドバーと `header_nav` が共有する。直下ページはリンク、グループ見出しは索引ページ内の該当カテゴリへのアンカーにし、配下ページは出さない。「すべて見る」は廃止した。なおこの popup 構成は #3701・#3702 でメニュー（`[[menu]]`）を束ねるヘッダー構成へ置き換わり、`group_href` は削除済みで、`Section::headings` の利用者はサイドバーのみである
 - `aria-current` は 2 軸のまま（`page` = 現在ページ、`true` = 現在セクション・現在グループ）。`role` / `aria-expanded` / `aria-haspopup` は付けない
 - `docs-site-three-column-redesign.md` §3.5 の「確定（イシュー #1012 / PR #1041）」を見直した判断である。同節の「見直し」を参照する。Wireframes のサイドバーはカテゴリ別グループになった（#3669）
 
@@ -453,7 +453,7 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 ### 全セクション drawer（#3674）
 
 - 構造は `input#docs-nav-drawer-toggle`（sr-only のチェックボックス）、`label.docs-nav-drawer-toggle-label`、`nav.docs-nav-drawer`（`nav::nav_drawer`）の checkbox hack。表示条件は 768px 未満と、768px 以上の `(hover: none)` 端末である。旧サイドバーの Menu トグルと置き換えた。768px 未満では `aside.docs-sidebar` を非表示にする
-- セクションごとに索引リンクと `details` を置く。現在セクションだけを `open` にしてサイドバー形式で出し、他のセクションには popup と同じ見出し一覧を出す。`id` は toggle にしか付けない
+- #3702 で見出しの `details` を廃止し、ヘッダーと同じ構成（`Nav::header_entries` の項目列）にした。単独セクションは索引リンク 1 件、メニューはメニュー索引リンクと `[[menu.item]]` 宣言順のメンバーリンク（タイトル・説明）を出す。`aria-current="true"` は所属のみで `header_nav` と同じ規則。`id` は toggle にしか付けない
 - チェックボックスの `:checked` が唯一の状態で、JS なしで動く。pre-styled-ui の `drawer` / `collapsible` は使わない（閉状態が `hidden` となり、無 JS で開けないため。three-column §3.5 の方式比較と同じ理由）
 
 ### CSP（#3676〜#3679）
