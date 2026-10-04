@@ -153,9 +153,10 @@ CSS 供給方式・契約テスト作り替え方針・ドロップダウンの�
       span.docs-brand-version                           … バージョン badge（brand リンクの外の兄弟、#3606）
       nav.docs-header-nav
       div.docs-header-actions
-        div.docs-search[hidden]                         … input_group（検索、#3606）
+        div.docs-search[hidden]                         … span.docs-search-trigger（検索ボタン）+ dialog#docs-search-dialog（入力欄・結果一覧は dialog 内。#3606 の input_group を #3672 で置換）
         span.docs-github-link                           … external リンク
         span.docs-theme-toggle[hidden] > button > span.docs-theme-toggle-label
+      input#docs-nav-drawer-toggle（sr-only）+ label.docs-nav-drawer-toggle-label + nav.docs-nav-drawer  … ナビ drawer（#3674）
   div.docs-container[.docs-container--no-toc][.docs-landing]
     aside.docs-sidebar                                  … Landing でも DOM に残す
     main.docs-main
@@ -395,6 +396,29 @@ chromium 制約により本 PR では未取得）は
 維持する（トラッキング #1035 本文「ユーザー判断（2026-07-26 確認済み）」表の
 1 行目）。上記 3 案比較（案 (b) 採用）の表・推奨判定は削除せず、案 (b) 採用の
 根拠記録として維持する。
+
+#### 見直し（イシュー #3670 / #3671、ユーザー判断 2026-10-04）
+
+上の「確定（イシュー #1012 / PR #1041）」のうち、ドロップダウン項目の決め方を
+見直した。経緯の記録として上の記述は残し、現行は次のとおりとする（ルート #3667 の
+確定方針）。
+
+- 項目は `section.pages` のみ + 「すべて見る」ではなく、`Section::headings`
+  （`crates/docs-site/src/nav.rs`）が返す**見出しだけの一覧**とする。直下ページは
+  リンク、グループ見出しは索引ページ内の該当カテゴリへのアンカー
+  （`group_href` / `group_anchor_id`）とし、グループ配下ページは出さない。
+  サイドバーと `header_nav` が同じ `Section::headings` を共有する。「すべて見る」は廃止した。
+- 変えた理由: Themes の 108 項目のはみ出しは見出し化と `max-height` + 縦スクロール
+  （`.docs-header-dropdown`、#3671）で解消でき、ドロップダウンとサイドバーの中身の
+  食い違い（Primitives・Themes・Blocks は「索引」1 件だけだった）も解消できるため。
+- 変えないもの: 方式比較の結論（案 (b)）、`pre-styled-ui` の `menu` /
+  `navigation_menu` を使わないこと、`role` / `aria-expanded` / `aria-haspopup` を
+  付けないこと、`aria-current` の 2 軸（トリガー = `"true"`、項目 = `"page"`。
+  現在グループの見出しは `"true"`）。
+- タッチ端末では `:hover` のドロップダウンが安定しないため、768px 未満と
+  768px 以上の `(hover: none)` 端末では全セクションを持つナビ drawer
+  （`nav::nav_drawer`、#3674）が代わりの手段になる。
+- 詳細は `docs-site-styled-blocks-redesign.md` 末尾の追補「ヘッダーナビの整理と CSP」を参照する。
 
 ### 3.6 本文タイポグラフィ（→ #911）
 

@@ -1,28 +1,28 @@
 # docs サイトの CSP 導入方針
 
-- ステータス: 案 E を採用し、meta CSP の出力を #3678 で実装済み（採用の決定は #3678 に記録された 2026-10-04 の判断）。§1〜§6 は当初の設計記録、実装結果は §7 末尾の「実装済み」を参照
+- ステータス: 確定・実装済み。ユーザー判断（2026-10-04、ルート #3667 に記録）は 4 点で、①導入する、②案 E（meta + インライン外部化）、③`style-src-attr 'unsafe-inline'` を許容する、④リダイレクト案内ページには付けない。実装は #3676（theme bootstrap の外部化）・#3677（`@view-transition` と split-menu の外部化）・#3678（meta CSP と契約テスト）・#3679（Playwright 実機検証）。§1〜§6 は当初の設計記録、実装結果は §7 末尾の「実装済み」を参照
 - 起票元: #3661（親 #3656 / ルート #3588）
 - 範囲: 公開 docs サイト（`crates/docs-site`）が生成する HTML への Content-Security-Policy の導入可否と方式。コード・CI・ruleset は変更しない
 
 ## 1. 結論
 
-- 導入する方向を推奨する。方式は **案 E（meta 導入 + インライン script / style の外部化）** を優先し、実機検証で FOUC または View Transitions が劣化する場合に限り **案 H（ハッシュ許可）** を部分的に併用する
+- 当初の推奨は「導入する」「案 E を優先し、FOUC または View Transitions が劣化する場合に限り案 H を部分的に併用する」だった。結果は §11 のとおり導入・案 E で確定し、#3679 の実機検証で FOUC・View Transitions とも合格したため、案 H へのフォールバックは使っていない
 - GitHub Pages はレスポンスヘッダを設定できないため、`<meta http-equiv="Content-Security-Policy">` が唯一の手段である。`frame-ancestors` と違反報告は使えず、段階導入（Report-Only）もできない。CSP は二次防御であり、一次防御は既定エスケープ（REQ-1）と `site.js` の危険 API 禁止テストのまま変えない
-- 実装 issue はユーザーの方針確認後に起票する。本文書の §9 は起票候補の列挙にとどまる
+- 実装 issue は #3676 / #3677 / #3678 / #3679 として起票・実施済み（§9）
 
 ## 2. 現状の棚卸し
 
-`crates/docs-site/src/` の現行コードで確認した事実である。行番号は変動するため関数名を主とする。
+当初の棚卸し時点（#3661）の事実を主とし、現状（#3678 / #3679 後）を併記する。行番号は変動するため関数名を主とする。
 
 | 項目 | 現状 |
 |------|------|
-| CSP | 出していない（回帰レポート `docs/reports/docs-site-styled-blocks-redesign-report.md` §9 E） |
+| CSP | 当初は出していなかった（回帰レポート `docs/reports/docs-site-styled-blocks-redesign-report.md` §9 E）。現在は `src/csp.rs` の `CONTENT_SECURITY_POLICY` を meta として全ページへ出す（§7 末尾、イシュー #3678） |
 | インライン `<script>` | 0 個（イシュー #3676 で外部化済み）。外部 script は 2 本で、`<head>` 先頭の同期読み込み `assets/theme-init.js`（`script::theme_init_js`、`data-theme` を stylesheet より前に確定して FOUC を抑止）と、`defer` の `assets/site.js` である。`layout.rs` の `docs_page_with_layout` はインラインのブートストラップを head に入れない |
-| インライン `<style>` | layout の `@view-transition { navigation: auto; }` に加え、demo 側にも存在する（`component_specs_overlay.rs` の split-menu 用スコープ CSS ほか）。生成箇所は実装前に全件再列挙する |
+| インライン `<style>` | 当初は layout の `@view-transition { navigation: auto; }` と、demo 側の split-menu 用スコープ CSS（`component_specs_overlay.rs`）の 2 系統だった。現在は 0 個（イシュー #3677）。`@view-transition` は `site_theme::assemble()` の末尾へ移し `site.css` と `site-primitives.css` の両方に含め、split-menu は `showcase::stylesheet()`（`assets/pre-styled-ui.css`）へ移した。回帰は `no_js_contract.rs` の `no_generated_page_emits_inline_style_elements` |
 | `style` 属性 | 広範に使用。demo が `("style", "...")` を直接渡し、pre-styled-ui の `angle_slider`・`questionnaire`・`recipe::stagger_index_style` は計算値を出す。静的に列挙できない |
 | `site.js` | `innerHTML`・`eval`・`new Function`・`document.write`・`insertAdjacentHTML` を使わない（既存テストで固定）。ネットワークは検索インデックスの同一オリジン `fetch(url)` のみ |
-| 画像・フォント | サイト CSS は `@import`・`@font-face`・`url(` を持たない（`site_theme.rs` のテストで固定）。favicon は同一オリジン。一方、`primitive_showcase`・`primitive_specs`・`showcase.rs`・一部の Blocks（ecommerce の order / checkout など）の demo は外部ダミー画像（`example.com`）を参照する（回帰レポート §9 D） |
-| `<form>` | Blocks の demo に存在。送信しない静的デモのはずで、`form-action 'none'` は成立する見込み（実装時に確認） |
+| 画像・フォント | サイト CSS は `@import`・`@font-face`・`url(` を持たない（`site_theme.rs` のテストで固定）。favicon は同一オリジン。当初の棚卸しでは、`primitive_showcase`・`primitive_specs`・`showcase.rs`・一部の Blocks の demo が外部ダミー画像（`example.com`）を参照するとされていた（回帰レポート §9 D）。現在の `crates/docs-site/src` には外部 URL の `img` の `src` が無く、Blocks のダミー素材は `blocks/dummy_assets.rs` の `role="img"` 付きインライン SVG である。`#3679` の実機検証でも `img-src` の違反は 0 件だった |
+| `<form>` | 当初は Blocks の demo に存在する見込みとされた。現在の `crates/docs-site/src` に `<form>` 要素の生成は無く（`settings_webhook_form.rs` の `"form"` はラジオ項目の値の文字列）、`form-action 'none'` で困る箇所は無い |
 | `iframe` / `object` / `embed` | 生成コードに無い |
 | 出力経路 | 3 経路: 通常ページ（`layout.rs`）、404（`not_found.rs`、layout 経由）、リダイレクト案内（`redirect.rs`、`meta refresh`・script 無し） |
 
@@ -59,7 +59,9 @@
 - `INLINE_THEME_BOOTSTRAP` を `<head>` 先頭の同期（`defer` なし）外部 `<script src>` へ移す。同期外部 script はパーサをブロックするため、インラインと同様に stylesheet より前に `data-theme` を確定できる想定（要実機検証）
   - 実装済み（イシュー #3676）: `assets/theme-init.js`（`src/script.rs` の `THEME_INIT_JS`）。Playwright（CPU 4x・キャッシュ無効）で初回 rAF 時点の `data-theme="dark"` を確認
 - `@view-transition { navigation: auto; }` は `site.css` へ移す。render-blocking なので `pagereveal` 前に効く想定（要実機検証）
+  - 実装済み（イシュー #3677）: `site_theme::assemble()` の末尾に置き、`site.css` と `site-primitives.css` の両方へ含めた。View Transitions の維持は #3679 の実機検証で確認した
 - demo の split-menu `<style>` は、スコープ付き規則を既存の showcase 用 CSS アセットへ移すか、`style` 属性で表現できる範囲に直す
+  - 実装済み（イシュー #3677）: `showcase::stylesheet()`（`assets/pre-styled-ui.css`）へ移した
 - 長所: ハッシュ機構・自前 sha256 が不要。「インライン script ゼロ」で最も強く、`no_js_contract` の唯一の例外が消えて契約が単純になる
 - 短所: 同期スクリプトの往復が 1 回増える。GitHub Pages のキャッシュ（max-age 10 分）の影響を受ける。ビルド出力アセットが増える
 
@@ -71,7 +73,9 @@
 
 導入する。案 E を優先し案 H を代替とする。理由は、依存ゼロ制約を保てること、ハッシュ再計算という保守負債を作らないこと、「インライン script ゼロ」が機械検証しやすいこと。保護範囲は §3 のとおり限定的で、防御の深さを足す位置づけである。
 
-## 7. ディレクティブ案（案 E 前提）
+## 7. ディレクティブ案（案 E 前提・当初案）
+
+以下は当初案である。最終形は本節末尾の「実装済み」と `src/csp.rs` を正とする（`img-src` から `data:` を外し、`object-src` を明示しない点が差分）。
 
 ```
 default-src 'none';
@@ -109,35 +113,39 @@ object-src 'none';
 
 | 区分 | 対象 |
 |------|------|
-| 書き換え | `no_js_contract.rs` の `site_js_is_loaded_as_single_deferred_external_script`（インライン script ゼロ + 同期外部ブートストラップ 1 本）、`layout_render.rs` のブートストラップ逐語一致アサーション、`site_build.rs` の dist sanity（新アセット）、新アセットを追加する場合は `docs-site.yml` の dist チェック |
+| 書き換え | `no_js_contract.rs` の `page_scripts_are_two_external_files_with_no_inline_script`（インライン script ゼロ + 同期外部ブートストラップ `theme-init.js` と `defer` の `site.js` の 2 本。旧名 `site_js_is_loaded_as_single_deferred_external_script` から置換）、`layout_render.rs` のブートストラップ逐語一致アサーション、`site_build.rs` の dist sanity（新アセット）、新アセットを追加する場合は `docs-site.yml` の dist チェック。いずれも #3676 で実施済み |
 | 新設（#3678 実装済み: `no_js_contract.rs::body_pages_carry_exactly_one_csp_meta_before_any_script_or_link`・`layout_render.rs::csp_meta_is_emitted_once_right_after_viewport_for_docs_and_landing`・`csp.rs` 単体テスト） | 全出力 HTML に meta CSP が先頭近傍で 1 個、インライン `<script>` / `<style>` が 0 個、`on*=` 属性 0 個（既存）、ディレクティブが許可リストと一致 |
 | 維持（弱めない） | `site_css_contract` / `site_typography_contract` / XSS 回帰 |
 | 防壁 | 外部ファイルへ書き出す場合も、`is_escape_safe` による fail-closed 検証を書き出し前に維持する |
 
 ## 9. 実装 issue の起票候補（候補のみ、起票はしない）
 
-1. 外部化（theme bootstrap・view-transition・demo `<style>`）と FOUC / VT 検証
-2. 外部ダミー画像の置換（D）
-3. meta CSP の生成ヘルパと契約テスト（1・2 に依存）
-4. Playwright による全ページの CSP 違反ゼロ確認（3 に依存。イシュー #3679 で実施済み、結果は `docs/reports/docs-site-csp-report.md`）
+以下は当初の起票候補と、その実績である。
+
+1. 外部化（theme bootstrap・view-transition・demo `<style>`）と FOUC / VT 検証: #3676（theme bootstrap）/ #3677（view-transition・split-menu）として実施済み
+2. 外部ダミー画像の置換（D）: 独立した issue は立てていない。現状の `crates/docs-site/src` には外部 URL の画像 `src` が無い（§2）
+3. meta CSP の生成ヘルパと契約テスト: #3678 として実施済み
+4. Playwright による全ページの CSP 違反ゼロ確認: #3679 として実施済み、結果は `docs/reports/docs-site-csp-report.md`
 
 検証手順の骨子: ローカル配信で全ページの console の CSP violation が 0 件であること。localStorage に `dark` を設定し、CPU スロットリング・キャッシュ無効で再読み込みして初回ペイント時点の `data-theme` を比較すること。同一オリジン遷移で `@view-transition` が有効であること。リダイレクト案内と 404 の動作（ハング再現の有無）。
 
 ## 10. セキュリティ考慮
 
 - A03: 既定エスケープを弱めない。`raw_html()` の新規使用なし、HTML 文字列の直接組み立てなし
-- A05: meta 方式の限界（§3）と `style-src-attr 'unsafe-inline'` の根拠・残余リスク（§7）を隠さず記載する
+- A05: meta 方式の限界（§3）と `style-src-attr 'unsafe-inline'` の根拠・残余リスク（§7）を隠さず記載する。`style-src-attr` 非対応ブラウザの残余リスクは Chromium だけで検証しており、他ブラウザでの確認は未実施
 - A06: 案 H の自前 sha256 は暗号実装リスクがあり、NIST ベクタ必須。案 E はこの論点を回避できる
 - A08: 案 H の再計算漏れは契約テストで防ぐ
 - ruleset・branch protection の変更は本件の範囲外。実装時に必須チェックへ影響する場合は実行せず報告する
 
-## 11. 要ユーザー判断
+## 11. 判断結果
 
-1. 導入する / しない
-2. 案 E / 案 H の選択
-3. `style-src-attr 'unsafe-inline'` の許容
-4. リダイレクト案内ページへの適用要否
-5. 外部ダミー画像の置換（D）を先行させるか
+ユーザー判断（2026-10-04、ルート #3667 に記録）は次のとおり。
+
+1. 導入する / しない: 導入する
+2. 案 E / 案 H の選択: 案 E
+3. `style-src-attr 'unsafe-inline'` の許容: 許容する
+4. リダイレクト案内ページへの適用要否: 付けない
+5. 外部ダミー画像の置換（D）を先行させるか: 判断の記録は無い。事実として、現状の `crates/docs-site/src` に外部 URL の画像 `src` は残っていない（§2）
 
 ## 12. 再評価トリガー
 
