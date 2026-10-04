@@ -909,6 +909,10 @@ pub enum PageLayout {
 /// `input.docs-nav-drawer-toggle` → `label` → drawer の順で置く。checkbox が drawer の
 /// 前にある兄弟でなければ `:checked ~` で開閉できないための配置で、brand が第 1 子・
 /// DOM 順 = 視覚順 = Tab 順の契約（#3659）も保つ。`None` ならこの 3 要素は出ない。
+///
+/// `<head>` の順序契約: charset → viewport → meta CSP（[`crate::csp`]、#3678）→
+/// title → favicon → theme-init → stylesheet 群 → site.js。CSP は meta より前の
+/// 要素へ効かないため、全 `script`/`link` より前に置く。
 // 公開 API 互換のため引数を構造体化せず、骨格の各スロットを個別引数で受ける（呼び出し元は
 // `docs_page_with_assets` 等の薄いラッパーに限られる）。
 #[allow(clippy::too_many_arguments)]
@@ -951,6 +955,18 @@ pub fn docs_page_with_layout(
             vec![
                 ("name", "viewport"),
                 ("content", "width=device-width, initial-scale=1"),
+            ],
+            vec![],
+        ),
+        // meta CSP（イシュー #3678）。CSP は meta より前にある要素へ効かないため、
+        // `title` と全 `script`/`link` より前に置く。`charset` は先頭 1024 バイト以内
+        // に置く必要があるので先頭のまま残す。値は定数のみで通常の属性 API
+        // （既定エスケープ）を通る。
+        el(
+            "meta",
+            vec![
+                ("http-equiv", "Content-Security-Policy"),
+                ("content", crate::csp::CONTENT_SECURITY_POLICY),
             ],
             vec![],
         ),

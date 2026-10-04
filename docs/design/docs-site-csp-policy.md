@@ -1,6 +1,6 @@
 # docs サイトの CSP 導入方針
 
-- ステータス: 提案（ユーザーの方針確認待ち）。本文書は設計記録であり、実装を含まない
+- ステータス: 案 E を採用し、meta CSP の出力を #3678 で実装済み（採用の決定は #3678 に記録された 2026-10-04 の判断）。§1〜§6 は当初の設計記録、実装結果は §7 末尾の「実装済み」を参照
 - 起票元: #3661（親 #3656 / ルート #3588）
 - 範囲: 公開 docs サイト（`crates/docs-site`）が生成する HTML への Content-Security-Policy の導入可否と方式。コード・CI・ruleset は変更しない
 
@@ -95,12 +95,21 @@ object-src 'none';
 - 案 H を採る場合は `script-src 'self' 'sha256-…'` の形とし、ハッシュはビルド時に生成して契約テストで固定する
 - リダイレクト案内ページは過去に `script-src 'none'` 配信下の `meta refresh` 撮影がハングした実績がある。適用するなら `default-src 'none'` のみの最小 CSP とし、headless chromium で実機確認する
 
+### 実装済み（イシュー #3678）
+
+- 定数の所在: `crates/docs-site/src/csp.rs` の `CONTENT_SECURITY_POLICY`（単一情報源）。`layout::docs_page_with_layout` が charset・viewport の直後、`title` と全 `script`/`link` より前に meta として出す（通常ページ・トップ・404 が同経路）
+- 最終形: `default-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self'; font-src 'none'; connect-src 'self'; base-uri 'none'; form-action 'none'`
+- `img-src` は `'self'` のみに絞った。core の `is_safe_url` が `data:` の `src` を落とすため、出力に `data:` 画像は残らない（実測 0 件、回帰は `no_js_contract.rs` の `generated_output_contains_no_data_uri_images`）。上記案の `data:` は不要になった
+- `object-src 'none'` は明示しない。`default-src 'none'` のフォールバックで同じ効果になる
+- リダイレクト案内ページには付けない（`redirect.rs` の rustdoc 参照）
+- 残余リスク: `style-src-attr` 非対応のブラウザは `style-src 'self'` にフォールバックし `style` 属性を拒否する。
+
 ## 8. 既存契約・テストとの整合（案 E）
 
 | 区分 | 対象 |
 |------|------|
 | 書き換え | `no_js_contract.rs` の `site_js_is_loaded_as_single_deferred_external_script`（インライン script ゼロ + 同期外部ブートストラップ 1 本）、`layout_render.rs` のブートストラップ逐語一致アサーション、`site_build.rs` の dist sanity（新アセット）、新アセットを追加する場合は `docs-site.yml` の dist チェック |
-| 新設 | 全出力 HTML に meta CSP が先頭近傍で 1 個、インライン `<script>` / `<style>` が 0 個、`on*=` 属性 0 個（既存）、ディレクティブが許可リストと一致 |
+| 新設（#3678 実装済み: `no_js_contract.rs::body_pages_carry_exactly_one_csp_meta_before_any_script_or_link`・`layout_render.rs::csp_meta_is_emitted_once_right_after_viewport_for_docs_and_landing`・`csp.rs` 単体テスト） | 全出力 HTML に meta CSP が先頭近傍で 1 個、インライン `<script>` / `<style>` が 0 個、`on*=` 属性 0 個（既存）、ディレクティブが許可リストと一致 |
 | 維持（弱めない） | `site_css_contract` / `site_typography_contract` / XSS 回帰 |
 | 防壁 | 外部ファイルへ書き出す場合も、`is_escape_safe` による fail-closed 検証を書き出し前に維持する |
 

@@ -23,6 +23,10 @@
 //!    と `assets/site.js`（`defer`）の 2 本のみ
 //! 6. CSS 側に JS 非依存の開閉経路（`.docs-nav-drawer-toggle:checked ~ .docs-nav-drawer`・
 //!    `.docs-header-group:hover`/`:focus-within`）が存在する
+//! 7. meta CSP（`csp::CONTENT_SECURITY_POLICY`、イシュー #3678）が全本体ページの
+//!    `<head>` の charset・viewport 直後にちょうど 1 個あり、リダイレクト案内には無い。
+//!    インライン `<script>`・`<style>` が 0 個であること自体は 5 と
+//!    `no_generated_page_emits_inline_style_elements` が担う（複製しない）
 //!
 //! ことを機械的に検証する。4・6 は `crate::site_theme` の unit test /
 //! `tests/site_css_contract.rs` に部分的な既存アサーションがあるが、
@@ -58,7 +62,7 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use fandhe_frontend_docs_site::{nav, redirect};
+use fandhe_frontend_docs_site::{csp, nav, redirect};
 
 #[path = "support/shared_site.rs"]
 mod shared_site;
@@ -237,6 +241,100 @@ fn no_generated_page_emits_inline_style_elements() {
             !html.to_ascii_lowercase().contains("<style"),
             "{file:?} must not contain an inline <style> element"
         );
+    }
+}
+
+/// イシュー #3678: 本体ページ（リダイレクト案内を除く）は meta CSP をちょうど 1 個、
+/// charset・viewport の直後（`title` と最初の `script`/`link` より前）に持つ。
+/// 値は `csp::CONTENT_SECURITY_POLICY` の既定エスケープ済み表現と完全一致する
+/// （`'` は `&#x27;` で出力されるため生の `'` で比較しない）。
+#[test]
+fn body_pages_carry_exactly_one_csp_meta_before_any_script_or_link() {
+    let (_out, files, _redirects) = build_real_site();
+    let expected = format!(
+        r#"<meta http-equiv="Content-Security-Policy" content="{}">"#,
+        fandhe_frontend_core::escape_html(csp::CONTENT_SECURITY_POLICY)
+    );
+    let mut seen_index = false;
+    let mut seen_404 = false;
+    let mut seen_part = false;
+    for file in &files {
+        let html = std::fs::read_to_string(file).unwrap_or_else(|e| panic!("read {file:?}: {e}"));
+        let name = file.to_string_lossy();
+        seen_index |= name.ends_with("/index.html") && !name.contains("/themes/");
+        seen_404 |= name.ends_with("/404.html");
+        seen_part |= name.ends_with("themes/button/index.html");
+
+        assert_eq!(
+            html.to_ascii_lowercase()
+                .matches(r#"http-equiv="content-security-policy""#)
+                .count(),
+            1,
+            "{file:?}: exactly one CSP meta expected"
+        );
+        assert_eq!(
+            html.matches(&expected).count(),
+            1,
+            "{file:?}: CSP meta must equal the constant"
+        );
+        let head = html.find("<head>").expect("<head>");
+        let charset = html.find(r#"<meta charset="utf-8">"#).expect("charset");
+        let viewport = html.find(r#"<meta name="viewport""#).expect("viewport");
+        let csp_pos = html.find(&expected).expect("csp");
+        let title = html.find("<title>").expect("title");
+        let first_script = html.find("<script").expect("script");
+        let first_link = html.find("<link").expect("link");
+        let head_end = html.find("</head>").expect("</head>");
+        assert_eq!(
+            charset,
+            head + "<head>".len(),
+            "{file:?}: charset must be the first head child"
+        );
+        assert!(
+            charset < viewport
+                && viewport < csp_pos
+                && csp_pos < title
+                && csp_pos < first_script
+                && csp_pos < first_link
+                && csp_pos < head_end,
+            "{file:?}: CSP meta must follow charset/viewport and precede title/script/link"
+        );
+    }
+    assert!(
+        seen_index && seen_404 && seen_part,
+        "sweep must cover the top page, 404.html and a component page"
+    );
+}
+
+/// イシュー #3678: CSP `img-src 'self'` の前提として、出力に `data:` 画像・
+/// `url(data:...)` が残っていないこと（本体・リダイレクトの HTML と `assets/*.css`）。
+#[test]
+fn generated_output_contains_no_data_uri_images() {
+    let (out, files, redirects) = build_real_site();
+    let mut targets: Vec<PathBuf> = files.into_iter().chain(redirects).collect();
+    let assets = out.join("assets");
+    for entry in std::fs::read_dir(&assets).unwrap_or_else(|e| panic!("read_dir {assets:?}: {e}")) {
+        let path = entry.expect("dir entry").path();
+        if path.extension().is_some_and(|e| e == "css") {
+            targets.push(path);
+        }
+    }
+    for file in &targets {
+        let text = std::fs::read_to_string(file)
+            .unwrap_or_else(|e| panic!("read {file:?}: {e}"))
+            .to_ascii_lowercase();
+        for needle in [
+            r#"src="data:"#,
+            r#"srcset="data:"#,
+            "url(data:",
+            r#"url("data:"#,
+            "url('data:",
+        ] {
+            assert!(
+                !text.contains(needle),
+                "{file:?} must not contain {needle:?} (img-src 'self')"
+            );
+        }
     }
 }
 
@@ -475,6 +573,15 @@ fn redirect_pages_contain_no_script_and_a_static_fallback_link() {
         assert!(
             !html.contains("class="),
             "{file:?}: redirect pages must not carry any `class` attribute (no chrome)"
+        );
+        let lower = html.to_ascii_lowercase();
+        assert!(
+            !lower.contains("content-security-policy"),
+            "{file:?}: redirect pages must not carry a CSP meta (#3678)"
+        );
+        assert!(
+            !lower.contains("<style"),
+            "{file:?}: redirect pages must not contain an inline <style>"
         );
         assert!(
             html.contains(r#"<meta http-equiv="refresh" content="0; url="#),
