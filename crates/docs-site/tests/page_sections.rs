@@ -76,7 +76,6 @@ fn registry_for(path: &'static str, placement: Placement) -> Registry {
         render: marker,
         stylesheets: &[SHEET],
         layout: PageLayout::Docs,
-        optional_menu: false,
     }]));
     Registry {
         sections,
@@ -124,7 +123,6 @@ fn production_registry_matches_the_expected_table() {
         got,
         [
             ("/api/", Placement::BeforeFirstH2, PageLayout::Docs),
-            ("/assets/", Placement::Append, PageLayout::Landing),
             ("/blocks/", Placement::Append, PageLayout::Docs),
             ("/examples/", Placement::BeforeFirstH2, PageLayout::Docs),
             ("/guides/", Placement::Append, PageLayout::Docs),
@@ -143,28 +141,15 @@ fn production_registry_matches_the_expected_table() {
     assert_eq!(validate(&REGISTRY, &real_nav()), Ok(()));
 }
 
-/// イシュー #3700: 本番登録表は全メニュー集約ページを Landing 骨格・
-/// `menu_index::render` で登録している（登録漏れは Docs 骨格・カード無しへ
-/// 黙って退行するため）。
+/// イシュー #3700: メニュー集約ページは登録表を使わず `nav.menus` から共通生成される
+/// ため、本番登録表は `[[menu]]` の `index_path` を登録しない。
 #[test]
-fn production_registry_covers_every_menu_index_page() {
+fn production_registry_does_not_register_menu_index_pages() {
     let nav = real_nav();
     assert!(!nav.menus.is_empty());
     for menu in &nav.menus {
-        assert_eq!(
-            fandhe_frontend_docs_site::page_sections::layout_for_path_in(
-                &REGISTRY,
-                &menu.index_path
-            ),
-            PageLayout::Landing,
-            "{}",
-            menu.index_path
-        );
-        let nodes = insert_generated_sections_with(&REGISTRY, &nav, &menu.index_path, Vec::new());
-        let html: String = nodes.iter().map(fandhe_frontend_core::render).collect();
-        assert_eq!(
-            html.matches("docs-index-card-link").count(),
-            menu.items.len(),
+        assert!(
+            REGISTRY.sections.iter().all(|s| s.path != menu.index_path),
             "{}",
             menu.index_path
         );

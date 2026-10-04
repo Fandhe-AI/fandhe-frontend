@@ -88,7 +88,7 @@
 //! # メニュー集約ページ（[`crate::menu_index`]、イシュー #3700）
 //!
 //! `nav.all_pages()` のループの後に `nav.menus` を走査し、`[[menu]]` の
-//! `source` 原稿 + [`page_sections`] 登録表（`menu_index::render` のカード）で
+//! `source` 原稿 + `menu_index::render` のカード（登録表を介さず共通生成）で
 //! `index_path` に 1 ページ生成する。セクションに属さないため `prev_next_nav` は
 //! 付けず、検索インデックスは `nav.sections` の後ろのメニュー別バケットへ積む。
 //! `written` はこのページを含む（`nav.all_pages().count() + nav.menus.len()`）。
@@ -180,6 +180,7 @@ use crate::favicon;
 use crate::layout;
 use crate::linkcheck::{self, BrokenLink};
 use crate::markdown::render_markdown;
+use crate::menu_index;
 use crate::nav::{self, NavError};
 use crate::not_found;
 use crate::page_sections::{self, PageSectionError, Registry};
@@ -704,7 +705,7 @@ pub fn build_site_with(
 
     // メニュー集約ページ（`/assets/` 等、イシュー #3700）。セクションに属さない
     // 第 2 種のページで、サイドバーの所属・`prev_next` を持たない。Markdown
-    // 原稿はイントロのみで、カードは `page_sections` 登録表（`menu_index`）が
+    // 原稿はイントロのみで、カードは `menu_index` が登録表を介さず共通に
     // 差し込む。検索インデックスは `nav.sections` の後ろのメニュー別バケットへ積む。
     for (menu_idx, menu) in nav.menus.iter().enumerate() {
         let page = menu.as_page();
@@ -715,12 +716,10 @@ pub fn build_site_with(
                 source: source_err,
             })?;
         let markdown_blocks = crate::code_copy::wrap_code_blocks(render_markdown(&markdown_input));
-        let markdown_blocks = page_sections::insert_generated_sections_with(
-            registry,
-            &nav,
-            &page.path,
-            markdown_blocks,
-        );
+        // メニューのカードは登録表ではなく `nav.menus` から共通に生成する
+        // （新メニューの追加に登録表の編集を要求しない）。
+        let mut markdown_blocks = markdown_blocks;
+        markdown_blocks.extend(menu_index::render(&nav, &page.path));
         let markdown_blocks = crate::page_header::wrap_page_heading(&nav, &page, markdown_blocks);
         let raw_body = div(vec![], markdown_blocks);
         let rewritten_body = linkcheck::rewrite_md_links(
@@ -736,7 +735,11 @@ pub fn build_site_with(
             has_admonition = true;
             extra_stylesheets.push(admonition::STYLESHEET_REL_PATH);
         }
-        for sheet in page_sections::stylesheets_for_path_in(registry, &page.path) {
+        for sheet in registry
+            .stylesheets
+            .iter()
+            .filter(|s| s.rel_path == menu_index::STYLESHEET_REL_PATH)
+        {
             extra_stylesheets.push(sheet.rel_path);
             if !used_page_stylesheets
                 .iter()
@@ -764,7 +767,7 @@ pub fn build_site_with(
             Some(nav::header_nav(&nav, &page.path)),
             Some(nav::nav_drawer(&nav, &page.path)),
             Some(footer_node.clone()),
-            page_sections::layout_for_path_in(registry, &page.path),
+            layout::PageLayout::Landing,
         );
         pages.push((page.path.clone(), document));
     }
@@ -1355,21 +1358,7 @@ path = "/next/"
         add_assets_menu(&temp.0);
         fs::write(temp.0.join("site/assets/index.html"), "x\n").unwrap();
         let out_dir = temp.0.join("dist");
-        // メニューは生成節の登録が必須（`page_sections::validate`）のため最小登録表を渡す。
-        const MENU_SECTIONS: &[crate::page_sections::PageSection] =
-            &[crate::page_sections::PageSection {
-                path: "/assets/",
-                placement: crate::page_sections::Placement::Append,
-                render: |_, _| Vec::new(),
-                stylesheets: &[],
-                layout: crate::layout::PageLayout::Docs,
-                optional_menu: false,
-            }];
-        let registry = crate::page_sections::Registry {
-            sections: MENU_SECTIONS,
-            stylesheets: &[],
-        };
-        let err = build_site_with(&temp.0, &out_dir, &registry)
+        let err = build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY)
             .expect_err("index.html under site/assets should fail the build");
         assert!(matches!(err, BuildError::ReservedAssetName(_)));
         assert!(!out_dir.exists());

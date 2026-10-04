@@ -20,9 +20,10 @@
 //!
 //! # 登録可能パス（イシュー #3700）
 //!
-//! 登録できるのは nav の実在ページ（`nav.all_pages()`）と、`[[menu]]` の
-//! `index_path`（メニュー集約ページ、[`crate::menu_index`]）。`render` は
-//! `Nav` と登録パスを受け取る。
+//! 登録できるのは nav の実在ページ（`nav.all_pages()`）のみ。`render` は
+//! `Nav` と登録パスを受け取る。`[[menu]]` の集約ページ（`/assets/` 等）は
+//! 本登録表を使わず、[`crate::build`] が `nav.menus` から共通に
+//! [`crate::menu_index`] で生成する（メニュー追加に登録表編集は不要）。
 //!
 //! # 挿入位置の規約（[`Placement`]）
 //!
@@ -78,7 +79,6 @@ use crate::component_index;
 use crate::component_page;
 use crate::landing;
 use crate::layout::{PageLayout, RESERVED_LAYOUT_IDS};
-use crate::menu_index;
 use crate::nav::Nav;
 use crate::section_index;
 use crate::wireframes;
@@ -118,11 +118,6 @@ pub struct PageSection {
     /// ページ骨格の種別（イシュー #3612）。トップのランディングだけが
     /// [`PageLayout::Landing`]、他は [`PageLayout::Docs`]。
     pub layout: PageLayout,
-    /// `true` なら `nav.toml` の `[[menu]]` の `index_path` に `path` が宣言
-    /// されているときだけ有効な登録として扱う。宣言が無い nav では
-    /// [`validate`] が当該登録を検証せず読み飛ばす（`nav.toml` がページ構成の
-    /// 正であり、本番登録表が特定メニューの存在を強制しない。イシュー #3700）。
-    pub optional_menu: bool,
 }
 
 /// 登録表一式。本番は [`REGISTRY`]、テストは合成エントリで構築する。
@@ -145,15 +140,6 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
         render: |nav, _| section_index::render_api(&nav.site.base_path),
         stylesheets: &[section_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
-        optional_menu: false,
-    },
-    PageSection {
-        path: "/assets/",
-        placement: Placement::Append,
-        render: menu_index::render,
-        stylesheets: &[menu_index::STYLESHEET_REL_PATH],
-        layout: PageLayout::Landing,
-        optional_menu: true,
     },
     PageSection {
         path: blocks::INDEX_PATH,
@@ -161,7 +147,6 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
         render: |nav, _| category_index::render_blocks(&nav.site.base_path),
         stylesheets: &[category_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
-        optional_menu: false,
     },
     PageSection {
         path: "/examples/",
@@ -169,7 +154,6 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
         render: |nav, _| section_index::render_examples(&nav.site.base_path),
         stylesheets: &[section_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
-        optional_menu: false,
     },
     PageSection {
         path: "/guides/",
@@ -177,7 +161,6 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
         render: |nav, _| section_index::render_guides(&nav.site.base_path),
         stylesheets: &[section_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
-        optional_menu: false,
     },
     PageSection {
         path: "/primitives/",
@@ -185,7 +168,6 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
         render: |nav, _| component_index::render_primitives(&nav.site.base_path),
         stylesheets: &[component_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
-        optional_menu: false,
     },
     PageSection {
         path: "/themes/",
@@ -193,7 +175,6 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
         render: |nav, _| component_index::render_themes(&nav.site.base_path),
         stylesheets: &[component_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
-        optional_menu: false,
     },
     PageSection {
         path: "/wireframes/",
@@ -201,7 +182,6 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
         render: |nav, _| category_index::render_wireframes(&nav.site.base_path),
         stylesheets: &[category_index::STYLESHEET_REL_PATH],
         layout: PageLayout::Docs,
-        optional_menu: false,
     },
     PageSection {
         path: landing::PATH,
@@ -209,7 +189,6 @@ pub const PAGE_SECTIONS: &[PageSection] = &[
         render: |nav, _| landing::render(&nav.site.base_path),
         stylesheets: &[],
         layout: PageLayout::Landing,
-        optional_menu: false,
     },
 ];
 
@@ -259,9 +238,6 @@ pub enum PageSectionError {
         /// 未登録の `rel_path`。
         rel_path: String,
     },
-    /// nav の `[[menu]]` の `index_path` に生成節が登録されていない
-    /// （集約ページにメンバーのカードが出ない）。
-    UnregisteredMenu(String),
     /// `rel_path` が `assets/<basename>.css` 形式でない。
     InvalidStylesheetPath(String),
     /// `rel_path` が重複している。
@@ -282,9 +258,6 @@ impl fmt::Display for PageSectionError {
         match self {
             Self::DuplicatePath(p) => write!(f, "page section registered twice for {p}"),
             Self::UnknownPage(p) => write!(f, "page section path is not a nav page: {p}"),
-            Self::UnregisteredMenu(p) => {
-                write!(f, "nav menu index_path has no page section registered: {p}")
-            }
             Self::ConflictsWithGeneratedPage(p) => write!(
                 f,
                 "page section path overlaps an existing generated-content page: {p}"
@@ -424,12 +397,7 @@ pub fn validate(registry: &Registry, nav: &Nav) -> Result<(), PageSectionError> 
         if registry.sections[..i].iter().any(|s| s.path == path) {
             return Err(PageSectionError::DuplicatePath(path.to_string()));
         }
-        if section.optional_menu && !nav.menus.iter().any(|m| m.index_path == path) {
-            continue;
-        }
-        if !nav.all_pages().any(|p| p.path == path)
-            && !nav.menus.iter().any(|m| m.index_path == path)
-        {
+        if !nav.all_pages().any(|p| p.path == path) {
             return Err(PageSectionError::UnknownPage(path.to_string()));
         }
         if blocks::block_for_path(path).is_some()
@@ -454,11 +422,6 @@ pub fn validate(registry: &Registry, nav: &Nav) -> Result<(), PageSectionError> 
                 path: path.to_string(),
                 id,
             });
-        }
-    }
-    for menu in &nav.menus {
-        if !registry.sections.iter().any(|s| s.path == menu.index_path) {
-            return Err(PageSectionError::UnregisteredMenu(menu.index_path.clone()));
         }
     }
     Ok(())
@@ -532,7 +495,6 @@ mod tests {
             render: marker,
             stylesheets: &[],
             layout: PageLayout::Docs,
-            optional_menu: false,
         }]));
         reg(s, &[])
     }
@@ -554,7 +516,6 @@ mod tests {
             paths,
             [
                 "/api/",
-                "/assets/",
                 "/blocks/",
                 "/examples/",
                 "/guides/",
@@ -570,36 +531,38 @@ mod tests {
     }
 
     #[test]
-    fn validate_accepts_menu_index_path_but_not_other_paths() {
+    fn validate_ignores_menus_and_rejects_menu_index_path_registration() {
         let nav = crate::nav::parse_nav(
-            "[site]\ntitle = \"T\"\nbase_path = \"/b\"\n\n[[section]]\ntitle = \"G\"\nindex_path = \"/\"\n\n[[section.page]]\ntitle = \"H\"\nsource = \"site/index.md\"\npath = \"/\"\n\n[[menu]]\ntitle = \"M\"\nindex_path = \"/m/\"\nsource = \"site/m.md\"\n\n[[menu.item]]\nsection = \"/\"\ndescription = \"d\"\n",
+            "[site]
+title = \"T\"
+base_path = \"/b\"
+
+[[section]]
+title = \"G\"
+index_path = \"/\"
+
+[[section.page]]
+title = \"H\"
+source = \"site/index.md\"
+path = \"/\"
+
+[[menu]]
+title = \"M\"
+index_path = \"/m/\"
+source = \"site/m.md\"
+
+[[menu.item]]
+section = \"/\"
+description = \"d\"
+",
         )
         .expect("valid nav");
-        let ok = reg(leak(vec![sec("/m/", marker, &[])]), &[]);
-        assert_eq!(validate(&ok, &nav), Ok(()));
-        let bad = reg(leak(vec![sec("/zz/", marker, &[])]), &[]);
+        // メニューは登録表なしで検証を通る。
+        assert_eq!(validate(&reg(leak(vec![]), &[]), &nav), Ok(()));
+        // メニュー index_path の登録は nav ページではないので拒否される。
+        let bad = reg(leak(vec![sec("/m/", marker, &[])]), &[]);
         assert_eq!(
             validate(&bad, &nav),
-            Err(PageSectionError::UnknownPage("/zz/".into()))
-        );
-        let unregistered = reg(leak(vec![]), &[]);
-        assert_eq!(
-            validate(&unregistered, &nav),
-            Err(PageSectionError::UnregisteredMenu("/m/".into()))
-        );
-    }
-
-    #[test]
-    fn optional_menu_section_is_skipped_when_nav_has_no_such_menu() {
-        let mut optional = sec("/m/", marker, &[]);
-        optional.optional_menu = true;
-        let r = reg(leak(vec![optional]), &[]);
-        // メニュー宣言の無い nav でも UnknownPage にならない。
-        assert_eq!(validate(&r, &nav()), Ok(()));
-        // 非 optional の同一登録は従来どおり拒否される。
-        let strict = reg(leak(vec![sec("/m/", marker, &[])]), &[]);
-        assert_eq!(
-            validate(&strict, &nav()),
             Err(PageSectionError::UnknownPage("/m/".into()))
         );
     }
@@ -659,7 +622,6 @@ mod tests {
             render,
             stylesheets,
             layout: PageLayout::Docs,
-            optional_menu: false,
         }
     }
 
