@@ -129,7 +129,7 @@ pub fn body(nav: &Nav) -> Node {
 /// フォールバック（全セクション描画）を使う。
 #[must_use]
 pub fn page(nav: &Nav) -> Node {
-    // 未登録パスなので drawer は全セクション閉・`aria-current` なし（#3674）。
+    // 未登録パスなので drawer の項目に `aria-current` は付かない（#3674 / #3702）。
     layout::docs_page_with_layout(
         PAGE_TITLE,
         &nav.site.base_path,
