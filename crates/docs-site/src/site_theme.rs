@@ -2050,7 +2050,7 @@ nav.prev-next .next .docs-pager-meta {\n\
  * `.docs-header-inner` の flex item へ繰り上げる。JS 無効時は\n\
  * `.docs-search[hidden]` が非表示のため 2 段目は存在せず、`min-height` は\n\
  * 1 段分にとどめる（空の 2 段目を残さない）。実高さは折り返しで変わるため\n\
- * 768〜1199px 帯と同様に static へ戻し、見出しアンカーのオフセットを\n\
+ * 768〜1023px 帯と同様に static へ戻し、見出しアンカーのオフセットを\n\
  * ヘッダー高さに依存させない。\n\
  */\n\
 @media (max-width: 767.98px) {\n\
@@ -2126,7 +2126,7 @@ nav.prev-next .next .docs-pager-meta {\n\
  * 主入力が hover できない端末ではヘッダーナビを隠してハンバーガーへ一本化する。\n\
  * 条件は `any-hover` ではなく `hover`（主入力）: マウスが主入力の 2-in-1 端末はメガパネルのまま。\n\
  * 全帯域・`min-width: 768px` ブロックより後ろに置き、同じ詳細度のまま上書きする。\n\
- * 1200〜1439px の 1 段ヘッダーへハンバーガーを足してもはみ出さないよう、ナビごと隠す。\n\
+ * 1024px 以上の 1 段ヘッダーへハンバーガーを足してもはみ出さないよう、ナビごと隠す。\n\
  */\n\
 @media (hover: none) and (min-width: 768px) {\n\
   .docs-nav-drawer-toggle {\n\
