@@ -396,17 +396,24 @@ pub fn parse_redirects(input: &str) -> Result<Redirects, RedirectError> {
 ///
 /// # Errors
 ///
-/// - `to` が `nav.all_pages()` に実在しない → [`RedirectError::UnknownTarget`]
+/// - `to` が `nav.all_pages()` にもメニュー `index_path` にも実在しない → [`RedirectError::UnknownTarget`]
 /// - `from` が `nav.all_pages()` の既存ページ path と衝突する →
 ///   [`RedirectError::CollidesWithPage`]
 pub fn validate_against_nav(redirects: &Redirects, nav: &Nav) -> Result<(), RedirectError> {
     let page_paths: BTreeSet<&str> = nav.all_pages().map(|p| p.path.as_str()).collect();
 
     for redirect in &redirects.entries {
-        if page_paths.contains(redirect.from.as_str()) {
+        // メニュー集約ページ（イシュー #3700）の `index_path` も実ページ扱い。
+        // 同じ出力先へ meta refresh ページが上書きされるのを防ぐ。
+        if page_paths.contains(redirect.from.as_str())
+            || nav.menus.iter().any(|m| m.index_path == redirect.from)
+        {
             return Err(RedirectError::CollidesWithPage(redirect.from.clone()));
         }
-        if !page_paths.contains(redirect.to.as_str()) {
+        // `to` もメニュー集約ページ（`/assets/` 等、イシュー #3700）を実在扱いにする。
+        if !page_paths.contains(redirect.to.as_str())
+            && !nav.menus.iter().any(|m| m.index_path == redirect.to)
+        {
             return Err(RedirectError::UnknownTarget {
                 from: redirect.from.clone(),
                 to: redirect.to.clone(),
@@ -836,6 +843,33 @@ to = "/c/"
             err,
             RedirectError::CollidesWithPage("/components/pre-styled-ui/".to_string())
         );
+    }
+
+    #[test]
+    fn validate_against_nav_rejects_from_colliding_with_menu_index_path() {
+        let toml = format!(
+            "{}\n[[menu]]\ntitle = \"M\"\nindex_path = \"/m/\"\nsource = \"site/m.md\"\n\n[[menu.item]]\nsection = \"/\"\ndescription = \"d\"\n",
+            minimal_nav_toml()
+        );
+        let nav = crate::nav::parse_nav(&toml).expect("fixture nav should parse");
+        let redirects = parse_redirects("[[redirect]]\nfrom = \"/m/\"\nto = \"/\"\n")
+            .expect("valid manifest shape");
+        assert_eq!(
+            validate_against_nav(&redirects, &nav).unwrap_err(),
+            RedirectError::CollidesWithPage("/m/".to_string())
+        );
+    }
+
+    #[test]
+    fn validate_against_nav_accepts_to_pointing_at_menu_index_path() {
+        let toml = format!(
+            "{}\n[[menu]]\ntitle = \"M\"\nindex_path = \"/m/\"\nsource = \"site/m.md\"\n\n[[menu.item]]\nsection = \"/\"\ndescription = \"d\"\n",
+            minimal_nav_toml()
+        );
+        let nav = crate::nav::parse_nav(&toml).expect("fixture nav should parse");
+        let redirects = parse_redirects("[[redirect]]\nfrom = \"/old/\"\nto = \"/m/\"\n")
+            .expect("valid manifest shape");
+        assert!(validate_against_nav(&redirects, &nav).is_ok());
     }
 
     // ---- redirect_page / redirect_document ----

@@ -85,6 +85,17 @@
 //! href 登録・書き出しする。本番は [`build_site`]、合成登録表を使うテストは
 //! [`build_site_with`] を使う。
 //!
+//! # メニュー集約ページ（[`crate::menu_index`]、イシュー #3700）
+//!
+//! `nav.all_pages()` のループの後に `nav.menus` を走査し、`[[menu]]` の
+//! `source` 原稿 + `menu_index::render` のカード（登録表を介さず共通生成）で
+//! `index_path` に 1 ページ生成する。セクションに属さないため `prev_next_nav` は
+//! 付けず、検索インデックスは `nav.sections` の後ろのメニュー別バケットへ積む。
+//! `written` はこのページを含む（`nav.all_pages().count() + nav.menus.len()`）。
+//! 出力 `assets/index.html` を静的アセットが上書きしないよう
+//! `index_path` が `/assets/` のメニューがあるビルドに限り `index.html` を
+//! `extra_reserved` へ加える（`RESERVED_ASSET_NAMES` へは入れない）。
+//!
 //! # admonition 構文（[`crate::markdown`]）が使う CSS（イシュー #715）
 //!
 //! `> [!NOTE]` 等の admonition マーカーは [`markdown::render_markdown`](crate::markdown::render_markdown) が
@@ -169,6 +180,7 @@ use crate::favicon;
 use crate::layout;
 use crate::linkcheck::{self, BrokenLink};
 use crate::markdown::render_markdown;
+use crate::menu_index;
 use crate::nav::{self, NavError};
 use crate::not_found;
 use crate::page_sections::{self, PageSectionError, Registry};
@@ -225,7 +237,8 @@ pub struct BuildReport {
     pub assets: Vec<PathBuf>,
     /// 書き出したリダイレクトページの絶対パス一覧（イシュー #1016）。
     /// `written`（本体ページ）・`assets` のいずれにも含めない独立フィールド。
-    /// `written.len()`/`nav.all_pages().count()` の恒等契約
+    /// `written.len()` と `nav.all_pages().count() + nav.menus.len()`
+    /// （メニュー集約ページ分、イシュー #3700）の恒等契約
     /// （`tests/site_build.rs`）・部品ページ件数固定を変えないための
     /// 意図的な分離であり、`crate::redirect` モジュール doc の
     /// 「除外述語ゼロ」構造そのもの。
@@ -508,6 +521,10 @@ pub fn build_site_with(
             title: section.title.clone(),
             entries: Vec::new(),
         })
+        .chain(nav.menus.iter().map(|menu| search_index::SectionInput {
+            title: menu.title.clone(),
+            entries: Vec::new(),
+        }))
         .collect();
 
     // `nav.all_pages()`（唯一の正規走査経路）でページ生成する。グループ
@@ -545,8 +562,8 @@ pub fn build_site_with(
         // 生成経路（block・wireframe・部品ページ）と重ならない（`page_sections::validate`）。
         let markdown_blocks = page_sections::insert_generated_sections_with(
             registry,
+            &nav,
             &page.path,
-            &nav.site.base_path,
             markdown_blocks,
         );
         // 本文先頭のパンくず付きページ見出し（イシュー #3607）。生成節の挿入が
@@ -686,11 +703,87 @@ pub fn build_site_with(
         pages.push((page.path.clone(), document));
     }
 
-    let extra_reserved: Vec<&str> = registry
+    // メニュー集約ページ（`/assets/` 等、イシュー #3700）。セクションに属さない
+    // 第 2 種のページで、サイドバーの所属・`prev_next` を持たない。Markdown
+    // 原稿はイントロのみで、カードは `menu_index` が登録表を介さず共通に
+    // 差し込む。検索インデックスは `nav.sections` の後ろのメニュー別バケットへ積む。
+    for (menu_idx, menu) in nav.menus.iter().enumerate() {
+        let page = menu.as_page();
+        let source_path = repo_root.join(&page.source);
+        let markdown_input =
+            fs::read_to_string(&source_path).map_err(|source_err| BuildError::Io {
+                path: PathBuf::from(&page.source),
+                source: source_err,
+            })?;
+        let markdown_blocks = crate::code_copy::wrap_code_blocks(render_markdown(&markdown_input));
+        // メニューのカードは登録表ではなく `nav.menus` から共通に生成する
+        // （新メニューの追加に登録表の編集を要求しない）。
+        let mut markdown_blocks = markdown_blocks;
+        markdown_blocks.extend(menu_index::render(&nav, &page.path));
+        let markdown_blocks = crate::page_header::wrap_page_heading(&nav, &page, markdown_blocks);
+        let raw_body = div(vec![], markdown_blocks);
+        let rewritten_body = linkcheck::rewrite_md_links(
+            raw_body,
+            &page.source,
+            &nav,
+            &page.path,
+            &source_to_path,
+            &mut broken,
+        );
+        let mut extra_stylesheets: Vec<&str> = Vec::new();
+        if admonition::contains_admonition(&rewritten_body) {
+            has_admonition = true;
+            extra_stylesheets.push(admonition::STYLESHEET_REL_PATH);
+        }
+        // 集約ページの CSS は登録表（`registry.stylesheets`）に依存させず、
+        // `menu_index::STYLESHEET` を直接配線する（`EMPTY_REGISTRY` でも CSS が付く）。
+        let sheet = &menu_index::STYLESHEET;
+        extra_stylesheets.push(sheet.rel_path);
+        if !used_page_stylesheets
+            .iter()
+            .any(|s| s.rel_path == sheet.rel_path)
+        {
+            used_page_stylesheets.push(sheet);
+        }
+        let entry = search_index::page_entry(
+            &layout::asset_href(&nav.site.base_path, &page.path),
+            &page.title,
+            &rewritten_body,
+            false,
+        );
+        search_index_sections[nav.sections.len() + menu_idx]
+            .entries
+            .push(entry);
+
+        let document = layout::docs_page_with_layout(
+            &page.title,
+            &nav.site.base_path,
+            nav::sidebar(&nav, &page.path),
+            div(vec![], vec![rewritten_body]),
+            &extra_stylesheets,
+            Some(nav::header_nav(&nav, &page.path)),
+            Some(nav::nav_drawer(&nav, &page.path)),
+            Some(footer_node.clone()),
+            layout::PageLayout::Landing,
+        );
+        pages.push((page.path.clone(), document));
+    }
+
+    let mut extra_reserved: Vec<&str> = registry
         .stylesheets
         .iter()
         .filter_map(|s| s.rel_path.strip_prefix("assets/"))
         .collect();
+    // メニュー集約ページ `/assets/`（イシュー #3700）の出力 `assets/index.html` を
+    // `copy_assets`（`generate_pages` の後の `fs::copy`）が黙って上書きしないよう、
+    // 実際に `assets/index.html` を生成するメニューがある場合に限り予約する。
+    if nav
+        .menus
+        .iter()
+        .any(|m| m.index_path.trim_matches('/') == "assets")
+    {
+        extra_reserved.push("index.html");
+    }
     let mut asset_hrefs = collect_asset_hrefs(repo_root, &nav.site.base_path, &extra_reserved)?;
     // テーマ初期化 JS（イシュー #3676）。`<script src>` は linkcheck の走査対象外
     // （`href` のみ）で登録は no-op だが、他アセットと同じ登録経路に揃える。
@@ -1251,6 +1344,44 @@ path = "/next/"
             .expect_err("reserved asset name should fail the build");
         assert!(matches!(err, BuildError::ReservedAssetName(_)));
         assert!(!out_dir.exists());
+    }
+
+    /// イシュー #3700: `/assets/` メニューがあるサイトでは `site/assets/index.html` が
+    /// 出力 `assets/index.html`（メニュー集約ページ）を黙って上書きするため拒否される。
+    #[test]
+    fn build_site_rejects_reserved_asset_name_index_html_under_assets() {
+        let temp = TempDir::new("reserved-asset-name-index-html");
+        write_fixture_site(&temp.0);
+        add_assets_menu(&temp.0);
+        fs::write(temp.0.join("site/assets/index.html"), "x\n").unwrap();
+        let out_dir = temp.0.join("dist");
+        let err = build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY)
+            .expect_err("index.html under site/assets should fail the build");
+        assert!(matches!(err, BuildError::ReservedAssetName(_)));
+        assert!(!out_dir.exists());
+    }
+
+    /// イシュー #3700: `assets/index.html` を生成するメニューが無いサイトでは
+    /// `site/assets/index.html` は通常の静的アセットとして許容される。
+    #[test]
+    fn build_site_allows_index_html_under_assets_without_assets_menu() {
+        let temp = TempDir::new("index-html-without-menu");
+        write_fixture_site(&temp.0);
+        fs::write(temp.0.join("site/assets/index.html"), "x\n").unwrap();
+        let out_dir = temp.0.join("dist");
+        build_site_with(&temp.0, &out_dir, &EMPTY_REGISTRY)
+            .expect("index.html is not reserved without an /assets/ menu");
+    }
+
+    /// `write_fixture_site` の nav.toml へ `/assets/` メニューを追記する。
+    fn add_assets_menu(root: &Path) {
+        let nav_path = root.join("site/nav.toml");
+        let mut nav = fs::read_to_string(&nav_path).unwrap();
+        nav.push_str(
+            "\n[[menu]]\ntitle = \"Assets\"\nindex_path = \"/assets/\"\nsource = \"site/assets-menu.md\"\n\n[[menu.item]]\nsection = \"/\"\ndescription = \"d\"\n",
+        );
+        fs::write(&nav_path, nav).unwrap();
+        fs::write(root.join("site/assets-menu.md"), "# Assets\n\nIntro.\n").unwrap();
     }
 
     /// イシュー #905: `site/assets/` ディレクトリ自体が存在しなくても

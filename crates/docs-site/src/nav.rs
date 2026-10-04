@@ -114,7 +114,8 @@ pub struct Nav {
 
 /// `[[menu]]` 1 件分。複数セクションを 1 つのヘッダー項目（Assets 等）へ
 /// 束ねる。後続 #3700（集約ページ）・#3701（ヘッダーのメガメニュー）・
-/// #3703（フッター）が共通に参照するモデルで、現時点では描画側は未使用。
+/// #3703（フッター）が共通に参照するモデルで、#3700 で集約ページ
+/// （[`crate::menu_index`]）の生成が参照を始めた。
 ///
 /// `title` / `description` は後続イシューで必ず `text()` / `el()` 経由で
 /// 出力する（既定エスケープを迂回しない）前提。
@@ -128,6 +129,20 @@ pub struct Menu {
     pub source: String,
     /// 宣言順（＝パネル内の並び順）のメンバー。1 件以上。
     pub items: Vec<MenuItem>,
+}
+
+impl Menu {
+    /// 集約ページを通常ページと同じ組み立て API（`page_header` / `search_index`
+    /// 等）へ渡すための写像。どのセクションにも属さず、`sidebar` /
+    /// `prev_next` / `all_pages` には現れない（イシュー #3700）。
+    #[must_use]
+    pub fn as_page(&self) -> Page {
+        Page {
+            title: self.title.clone(),
+            source: self.source.clone(),
+            path: self.index_path.clone(),
+        }
+    }
 }
 
 /// `[[menu.item]]` 1 件分。
@@ -1154,6 +1169,19 @@ fn finalize_menus(
             return Err(parse_err(
                 source_line,
                 format!("menu source `{source}` is not a safe relative path"),
+            ));
+        }
+        // 原稿の共有を許すと linkcheck の source → path 対応表が後勝ちになり、
+        // 通常ページ宛の相対 `.md` リンクがメニュー集約ページへ向いてしまう。
+        if sections
+            .iter()
+            .flat_map(Section::all_pages)
+            .any(|p| p.source == source)
+            || out.iter().any(|m| m.source == source)
+        {
+            return Err(parse_err(
+                source_line,
+                format!("menu source `{source}` is already used by another page or menu"),
             ));
         }
         if mb.items.is_empty() {

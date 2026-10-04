@@ -13,7 +13,7 @@
 //!   `layout` の `data-search-index` 属性が指す唯一の入口。
 //! - セクションファイル `assets/search-index/<slug>.json`（[`section_rel_path`]）:
 //!   当該セクション配下のページエントリ（`pages`）。ファイル数は nav.toml の
-//!   `[[section]]` 数と常に一致し、セクション追加時に本モジュール・
+//!   `[[section]]` 数 + `[[menu]]` 数（メニュー集約ページ用バケット、#3700）と常に一致し、セクション追加時に本モジュール・
 //!   `crate::build`・`crate::script` のいずれにも分岐を足す必要がない
 //!   （レジストリ駆動、設計文書 §10-15）。
 //!

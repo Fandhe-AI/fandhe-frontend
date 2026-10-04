@@ -430,6 +430,13 @@ fn real_site_search_index_is_deterministic_covers_all_nav_pages_and_matches_html
     let expected_hrefs: std::collections::BTreeSet<String> = real_nav
         .all_pages()
         .map(|page| layout::asset_href(&real_nav.site.base_path, &page.path))
+        // メニュー集約ページ（イシュー #3700）も 1 エントリ載る。
+        .chain(
+            real_nav
+                .menus
+                .iter()
+                .map(|m| layout::asset_href(&real_nav.site.base_path, &m.index_path)),
+        )
         .collect();
 
     let pages = read_all_pages(out_a_dir);
@@ -986,14 +993,24 @@ fn real_site_search_index_manifest_matches_nav_sections_and_each_file_holds_its_
         .iter()
         .map(|s| s.get("title").as_str())
         .collect();
-    let nav_titles: Vec<&str> = real_nav.sections.iter().map(|s| s.title.as_str()).collect();
+    // メニュー集約ページ用バケット（イシュー #3700）は `[[section]]` の後ろに
+    // `[[menu]]` 宣言順で続く。
+    let nav_titles: Vec<&str> = real_nav
+        .sections
+        .iter()
+        .map(|s| s.title.as_str())
+        .chain(real_nav.menus.iter().map(|m| m.title.as_str()))
+        .collect();
     assert_eq!(
         manifest_titles, nav_titles,
         "manifest sections should equal nav.toml [[section]] titles in declaration order"
     );
 
     let files = read_index_files(out_dir);
-    assert_eq!(files.len(), 1 + real_nav.sections.len());
+    assert_eq!(
+        files.len(),
+        1 + real_nav.sections.len() + real_nav.menus.len()
+    );
     for (section, (relative, json)) in real_nav.sections.iter().zip(files.iter().skip(1)) {
         assert_eq!(
             *relative,
@@ -1036,4 +1053,35 @@ fn page_entry_text_has_no_space_at_japanese_soft_break() {
         entry.text
     );
     assert!(!entry.text.contains("時代の セキュリティ"));
+}
+
+/// イシュー #3700: メニュー集約ページ `/assets/` が検索インデックスへちょうど
+/// 1 エントリ載り、カードの説明文が本文に含まれる（カードは検索可能）。
+#[test]
+fn real_site_search_index_contains_the_menu_index_page_with_card_text() {
+    let shared = shared_site::real_site();
+    let root = shared_site::repo_root();
+    let out_dir = shared.out_dir.as_path();
+    let nav_input =
+        std::fs::read_to_string(root.join("site/nav.toml")).expect("read real site/nav.toml");
+    let real_nav = nav::parse_nav(&nav_input).expect("parse real site/nav.toml");
+    let menu = real_nav.menus.first().expect("Assets menu");
+    let href = layout::asset_href(&real_nav.site.base_path, &menu.index_path);
+
+    let hits: Vec<String> = read_all_pages(out_dir)
+        .iter()
+        .filter(|p| p.get("href").as_str() == href)
+        .map(|p| {
+            assert_eq!(p.get("title").as_str(), menu.title);
+            p.get("text").as_str().to_string()
+        })
+        .collect();
+    assert_eq!(hits.len(), 1, "{href} should appear exactly once");
+    for item in &menu.items {
+        assert!(
+            hits[0].contains(item.description.as_str()),
+            "card description missing from index text: {}",
+            item.description
+        );
+    }
 }

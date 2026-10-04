@@ -132,6 +132,7 @@ pub mod landing;
 pub mod layout;
 pub mod linkcheck;
 pub mod markdown;
+pub mod menu_index;
 pub mod nav;
 pub mod not_found;
 pub mod page_header;

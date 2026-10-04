@@ -45,6 +45,18 @@ pub const BREADCRUMB_ARIA_LABEL: &str = "Breadcrumb";
 /// 所属セクションが無いとき（トップ等）は `None`。セクション索引ページでは
 /// 自分自身へ戻るリンクを作らず、セクション名のみを現在項目にする。
 pub fn breadcrumb_nav(nav: &Nav, current_path: &str) -> Option<Node> {
+    // メニュー集約ページ（イシュー #3700）はセクションに属さないため、
+    // メニュー名だけを現在項目にする。
+    if let Some(menu) = nav.menus.iter().find(|m| m.index_path == current_path) {
+        let items = vec![breadcrumb::item(
+            vec![],
+            vec![breadcrumb::current_link(
+                vec![],
+                vec![text(menu.title.as_str())],
+            )],
+        )];
+        return Some(breadcrumb_root(items));
+    }
     let section = nav.section_for_path(current_path)?;
     let sep = || breadcrumb::separator(vec![], vec![text("/")]);
     let mut items: Vec<Node> = Vec::new();
@@ -84,6 +96,11 @@ pub fn breadcrumb_nav(nav: &Nav, current_path: &str) -> Option<Node> {
             vec![breadcrumb::current_link(vec![], vec![text(title)])],
         ));
     }
+    Some(breadcrumb_root(items))
+}
+
+/// パンくず項目列を nav ランドマークと外側ラッパーで包む。
+fn breadcrumb_root(items: Vec<Node>) -> Node {
     let root = breadcrumb::root(
         Size::Sm,
         BreadcrumbVariant::default(),
@@ -91,7 +108,7 @@ pub fn breadcrumb_nav(nav: &Nav, current_path: &str) -> Option<Node> {
         vec![],
         vec![breadcrumb::list(vec![], items)],
     );
-    Some(div(vec![("class", PAGE_BREADCRUMB_CLASS)], vec![root]))
+    div(vec![("class", PAGE_BREADCRUMB_CLASS)], vec![root])
 }
 
 /// 最上位の最初の `h1` を取り出し、パンくずと合わせた見出し部を先頭へ置く。
@@ -169,6 +186,18 @@ path = "/guides/g/"
             .find(|p| p.path == path)
             .cloned()
             .unwrap()
+    }
+
+    #[test]
+    fn menu_index_page_breadcrumb_is_single_current_item_and_escaped() {
+        let nav = parse_nav(&format!(
+            "{NAV}\n[[menu]]\ntitle = \"As <b>\"\nindex_path = \"/assets/\"\nsource = \"site/assets.md\"\n\n[[menu.item]]\nsection = \"/guides/\"\ndescription = \"d\"\n"
+        ))
+        .unwrap();
+        let html = render(&breadcrumb_nav(&nav, "/assets/").unwrap());
+        assert!(html.contains("aria-current=\"page\""));
+        assert!(html.contains("As &lt;b&gt;"));
+        assert!(!html.contains("<a "));
     }
 
     #[test]

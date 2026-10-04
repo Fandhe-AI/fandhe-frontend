@@ -47,7 +47,7 @@
 //!   `li.docs-landing-card` は `search_index` が全文を連結する特例（索引カードと同様）
 //!   なので検索対象に残る。stat は検索対象外。節の h2 と導入文は素の要素にして検索対象を残す。
 //! - 部品数の指標は `site/nav.toml` を `include_str!` して [`layer_counts`] で数える
-//!   （[`crate::page_sections::PageSection`] の `render` は `Nav` を受け取らないため）。
+//!   （本関数の公開シグネチャが `base_path` のみを受け取るため。登録表側は #3700 で `Nav` を渡す形になったが、本関数は据え置き）。
 //!   件数 = 層セクション配下の全ページ − 索引ページ。ページ追加へビルド時に追従する。
 //!   依存上限は xtask の定数（`crates/xtask/src/check_deps.rs`）と同値を保持し、
 //!   一致は `tests/landing_counts.rs` が固定する。
