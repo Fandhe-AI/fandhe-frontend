@@ -675,11 +675,9 @@ weight = "1"
 /// を必ず経由する。`crate::nav::tests::sidebar_escapes_title_and_attribute_content`
 /// と同型の回帰テスト。
 ///
-/// `header_nav()` はイシュー #1012（Rule A）以降、ドロップダウンへ
-/// グループ配下ページを列挙しない（直下ページのみ）ため、グループ配下
-/// ページのタイトル（`Quote\"Title`）は `header_nav` の出力に現れない
-/// （サイドバー側のみが列挙する）。#3670 以降は `header_nav` がグループ見出し
-/// （`Forms`）のアンカーリンクを出す。セクションタイトルの既定エスケープ
+/// `header_nav()` はイシュー #3701 以降、セクション別の見出し一覧 popup を持たない
+/// ため、グループ見出し（`Forms`）・ページタイトル（`Quote\"Title`）は `header_nav` の
+/// 出力に現れない（サイドバー側のみが列挙する）。セクションタイトルの既定エスケープ
 /// （XSS 回帰の本体）は両関数とも変わらず固定する。
 #[test]
 fn sidebar_and_header_nav_escape_group_page_titles() {
@@ -710,11 +708,12 @@ path = "/button/"
     let header_html = render(&header_nav(&nav, "/button/"));
     assert!(!header_html.contains("<script>"));
     assert!(header_html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
-    // `index_path` がグループ配下ページを指す構成では、アンカーを付けずグループ
-    // 先頭ページへリンクし（#3670）、現在ページ一致なので `aria-current="page"`
-    // が付く。「すべて見る」は出さず、配下ページ名も出ない。
+    // トリガーはセクショントップ（`index_path`）への遷移リンクで、現在セクションなので
+    // 所属表示 `aria-current="true"` が付く（ヘッダーは `"page"` を使わない）。
+    // グループ見出し・配下ページ名は出ない。
     assert!(header_html.contains(r#"href="/button/""#));
-    assert!(header_html.contains(r#"aria-current="page""#));
-    assert!(!header_html.contains("すべて見る"));
+    assert!(header_html.contains(r#"aria-current="true""#));
+    assert!(!header_html.contains(r#"aria-current="page""#));
+    assert!(!header_html.contains("Forms"));
     assert!(!header_html.contains("Quote"));
 }

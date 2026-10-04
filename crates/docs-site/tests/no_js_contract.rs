@@ -11,8 +11,8 @@
 //! 3. サイドバー・ヘッダーナビ・prev/next の各ブロックが、JS なしで踏める
 //!    静的 `<a href>` を少なくとも 1 本持つ（ヘッダーの `.docs-header-trigger`
 //!    はイシュー #1012 でセクショントップページへの遷移リンク `<a href>` へ
-//!    切り替わった。ドロップダウン自体は `:hover`/`:focus-within` により
-//!    CSS のみで開閉する。リンク解決性自体は `build_site` 内蔵の linkcheck
+//!    切り替わった。Assets のメガメニュー（`.docs-header-mega`、イシュー #3701）は
+//!    `:hover`/`:focus-within` により CSS のみで開閉し、カードも静的 `<a href>`。リンク解決性自体は `build_site` 内蔵の linkcheck
 //!    が fail-closed で保証済みであり、ここでは「JS なしで辿れる形が
 //!    存在する」ことのみを固定する）
 //! 4. 検索ブロック（`div.docs-search`）・テーマトグル（`.docs-theme-toggle`）
@@ -22,7 +22,7 @@
 //!    （`assets/theme-init.js`。同期・`<head>` 内・stylesheet より前、イシュー #3676）
 //!    と `assets/site.js`（`defer`）の 2 本のみ
 //! 6. CSS 側に JS 非依存の開閉経路（`.docs-nav-drawer-toggle:checked ~ .docs-nav-drawer`・
-//!    `.docs-header-group:hover`/`:focus-within`）が存在する
+//!    `.docs-header-group:hover`/`:focus-within` → `.docs-header-mega`）が存在する
 //! 7. meta CSP（`csp::CONTENT_SECURITY_POLICY`、イシュー #3678）が全本体ページの
 //!    `<head>` の charset・viewport 直後にちょうど 1 個あり、リダイレクト案内には無い。
 //!    インライン `<script>`・`<style>` が 0 個であること自体は 5 と
@@ -517,8 +517,34 @@ fn inline_toc_provides_a_js_free_heading_navigation_path() {
     );
 }
 
+/// イシュー #3701: Assets メガパネルのカードは JS なしで踏める静的 `<a href>` で、
+/// `<button>`・`on*=`・`role` を持たない。
 #[test]
-fn structural_css_declares_js_independent_toggle_and_dropdown_paths() {
+fn header_mega_panel_cards_are_static_anchors() {
+    let (_out, files, _redirects) = build_real_site();
+    let mut checked = 0usize;
+    for file in &files {
+        let html = std::fs::read_to_string(file).unwrap_or_else(|e| panic!("read {file:?}: {e}"));
+        let Some(start) = html.find("class=\"docs-header-mega\"") else {
+            continue;
+        };
+        let panel = &html[start..start + html[start..].find("</ul>").expect("mega grid end")];
+        assert!(!panel.contains("<button"), "{file:?}");
+        assert!(!panel.contains("role="), "{file:?}");
+        assert!(
+            !panel.contains("onclick=") && !panel.contains("onmouse"),
+            "{file:?}"
+        );
+        let cards = panel.matches("docs-header-mega-card\"").count();
+        assert_eq!(cards, 5, "{file:?}");
+        assert_eq!(panel.matches("<a href=\"").count(), cards, "{file:?}");
+        checked += 1;
+    }
+    assert!(checked > 100, "mega panel should appear on every body page");
+}
+
+#[test]
+fn structural_css_declares_js_independent_toggle_and_mega_panel_paths() {
     // CSS 側の JS 非依存開閉経路（`:checked`・`:hover`/`:focus-within`）が
     // 骨格 CSS から失われていないことを固定する。`site_css_contract.rs` の
     // カスケード契約（宣言順・詳細度）とは異なる観点（経路そのものの存在）
@@ -534,16 +560,20 @@ fn structural_css_declares_js_independent_toggle_and_dropdown_paths() {
         "structural CSS should keep the JS-free checkbox-driven nav drawer path (イシュー #3674)"
     );
     assert!(
-        css.contains(".docs-header-group:hover > .docs-header-dropdown")
-            || css.contains(
-                ".docs-header nav.docs-header-nav .docs-header-group:hover > .docs-header-dropdown"
-            ),
-        "structural CSS should keep the JS-free :hover dropdown path (イシュー #908)"
+        css.contains(
+            ".docs-header nav.docs-header-nav .docs-header-group:hover > .docs-header-mega"
+        ),
+        "structural CSS should keep the JS-free :hover mega panel path (イシュー #908/#3701)"
     );
     assert!(
-        css.contains(".docs-header-group:focus-within > .docs-header-dropdown")
-            || css.contains(".docs-header nav.docs-header-nav .docs-header-group:focus-within > .docs-header-dropdown"),
-        "structural CSS should keep the JS-free :focus-within dropdown path (キーボード操作でも JS なしで開閉できる、イシュー #908)"
+        css.contains(
+            ".docs-header nav.docs-header-nav .docs-header-group:focus-within > .docs-header-mega"
+        ),
+        "structural CSS should keep the JS-free :focus-within mega panel path (キーボード操作でも JS なしで開閉できる、イシュー #908/#3701)"
+    );
+    assert!(
+        !css.contains("docs-header-dropdown"),
+        "the section popup was removed in #3701 and must not remain in site.css"
     );
 }
 

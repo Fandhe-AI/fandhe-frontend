@@ -804,9 +804,11 @@ fn docs_page_with_assets_places_brand_before_header_nav_inside_header() {
         "brand link should precede header nav within the header"
     );
 
-    // セクションタイトル・ページタイトルが両方出力される。
+    // セクションタイトルがトリガーとして出力される。ページタイトル（`Advanced`）は
+    // セクション別 popup の廃止（イシュー #3701）によりヘッダーナビへは出ない。
     assert!(html.contains("Getting Started"));
-    assert!(html.contains("Advanced"));
+    assert!(html.contains("Guides"));
+    assert!(!html.contains("Advanced"));
 }
 
 /// SkipNav リンクは `header_nav` を渡してもなお header より前に残る

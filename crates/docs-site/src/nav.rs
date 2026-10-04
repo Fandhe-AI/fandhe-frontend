@@ -1559,113 +1559,135 @@ fn section_heading_items(nav: &Nav, section: &Section, current_path: &str) -> Ve
     dropdown_items
 }
 
-/// ヘッダーのセクション別ドロップダウンメニュー [`Node`] を生成する
-/// （イシュー #908。トリガーの遷移リンク化・ドロップダウン抑制は
-/// イシュー #1012）。`nav.toml` の `[[section]]` ごとにトリガー
-/// `<a href>`（セクショントップページ `section.index_path` への遷移
-/// リンク）+ ドロップダウン `<ul>`（直下ページ列）をグループ化した
-/// `<nav class="docs-header-nav">` を返す。
+/// ヘッダーのナビ [`Node`] を生成する（イシュー #908 / #1012 / #3701）。
 ///
-/// # イシュータイトルとの差分（`pre-styled-ui menu` を使わない理由）
+/// [`Nav::header_entries`] を走査し、メニューに属さない単独セクションは
+/// トリガー `<a href>`（セクショントップページへの遷移リンク）だけを出す。
+/// `[[menu]]`（現行は Assets）はトリガー（メニュー索引ページ `/assets/` への
+/// リンク）と、直後に全幅のメガメニューパネル（メンバーセクションのカード列）を
+/// 出す。セクション別の見出し一覧 popup は #3701（ユーザー判断 2026-10-04、#3670 の
+/// 見直し）で廃止した。見出し一覧は [`nav_drawer`] とサイドバーが担う。
 ///
-/// イシュータイトルは「pre-styled-ui menu によるドロップダウン」だが、
-/// `docs/design/docs-site-three-column-redesign.md` §3.5 の 3 案比較の結果、
-/// 本関数は素の `nav`/`ul`/`li`/`a` + CSS のみの開閉（`:hover` /
-/// `:focus-within`）を採用する（案 (b)）。理由は 2 点:
+/// # `pre-styled-ui menu` / ARIA 動的状態を使わない理由
 ///
-/// 1. **意味論不整合**: WAI-ARIA `menu` ロールは操作コマンドリスト向けで
-///    あり、文書リンク集ナビ（本関数の用途）へ転用するとスクリーン
-///    リーダー利用者へ「操作可能なメニュー」と誤って伝わる
-///    （`crate::nav` の [`sidebar`] が headless `nav_list`
-///    （`fandhe-frontend-headless-ui`）を採用した理由と同型。
-///    `docs-site-styled-ui-adoption.md` §3.1 参照）。
-/// 2. **無 JS 制約**: pre-styled-ui `menu` の `data-state` 開閉は
-///    wasm-full 配線（hydration）前提であり、JS を持たない docs-site
-///    では動作しない。
-///
-/// # `role`/`aria-expanded`/`aria-haspopup` を付与しない理由
-///
-/// トリガーはドロップダウンの開閉状態を JS で更新する経路を持たない
-/// （CSS の `:hover`/`:focus-within` のみで開閉する）。ARIA の動的状態
-/// 属性を静的な固定値のまま出力すると支援技術に虚偽の状態を伝えること
-/// になるため、`role`/`aria-expanded`/`aria-haspopup` のいずれも付与
-/// しない（`fandhe_frontend_headless_ui::nav_list` が「素の要素の暗黙
-/// ARIA ロールのみを使う」とした判断をそのまま踏襲する）。トリガーが
-/// `<button>` から `<a href>` に変わった後も、`<a>` はリンクとしての
-/// 暗黙ロールを持つのみでありこの判断は変わらない。
+/// 開閉は JS を使わず CSS の `:hover` / `:focus-within` のみで行う
+/// （`docs/design/docs-site-three-column-redesign.md` §3.5 案 (b)）。WAI-ARIA
+/// `menu` ロールは操作コマンド向けで文書リンク集には不適切、かつ pre-styled-ui
+/// `menu` は wasm 配線前提で無 JS の docs-site では動かない。開閉状態を JS で
+/// 更新できないため、`role` / `aria-expanded` / `aria-haspopup` / `aria-controls`
+/// は付与せず（静的な固定値は支援技術へ虚偽の状態を伝える）、要素に `id` も付けない。
+/// トリガーは通常のリンクで、パネルの代わりに遷移できる `/assets/` 集約ページを持つ。
 ///
 /// # DOM 構造
 ///
 /// ```text
 /// nav.docs-header-nav[aria-label="Site sections"]  … headless nav_list root
 ///   ul.docs-header-menu                            … nav_list list
-///     li.docs-header-group（セクションごと）        … nav_list item
-///       a.docs-header-trigger[href=base_path+index_path]（el 直接。
-///         現在セクションのみ aria-current="true" + data-current）
-///       ul.docs-header-dropdown                    … nav_list list（再利用）
-///         li > a[href]（直下ページ: 現在ページのみ aria-current="page" + data-current）
-///         li > a[href=索引#グループ id]（グループ見出し。現在ページを含むグループのみ
-///           aria-current="true" + data-current。配下ページは出さない、#3670）
+///     li.docs-header-group（単独セクション）
+///       a.docs-header-trigger[href=base_path+index_path]
+///         （現在セクションのみ aria-current="true" + data-current）
+///     li.docs-header-group（メニュー）
+///       a.docs-header-trigger[href=base_path+menu.index_path]
+///         （現在ページがメンバー配下かメニュー索引なら aria-current="true" + data-current）
+///       div.docs-header-mega                       … 全幅パネル（包含ブロックは div.docs-header-inner）
+///         ul.docs-header-mega-grid
+///           li.docs-header-mega-cell（`[[menu.item]]` の宣言順）
+///             a.docs-header-mega-card[href=base_path+section.index_path]
+///               （現在ページを含むメンバーのみ aria-current="true" + data-current）
+///               span.docs-header-mega-title / span.docs-header-mega-desc
 /// ```
 ///
-/// セクションが単一ページのみでも一律ドロップダウン構造にする
-/// （決定性・実装単純化を優先。§3.5 が実装時裁量とした点の確定）。
+/// `aria-current` はヘッダーでは所属を表す `"true"` だけを使う（ページ完全一致の
+/// `"page"` は [`nav_drawer`] 側の見出し一覧にのみ残る）。
 ///
-/// `aria-current` は 2 つの意味軸を衝突させない: `"page"` はドロップ
-/// ダウン内の現在ページ 1 件との完全一致、`"true"` はトリガー側の現在
-/// セクション所属とグループ見出しの所属を表す（同一マークアップ内で `page`/`true` が同時に
-/// 出ても意味が異なるため矛盾しない）。
-///
-/// タイトル・href はすべて headless 層 → [`fandhe_frontend_core::render`]
-/// の既定エスケープ（REQ-1）を必ず経由する。HTML 文字列の直接組み立て・
-/// `raw_html()` は使用しない。トリガー href は `section.index_path`
-/// （[`parse_nav`] のパース時点で当該セクション内の実在 `page.path` との
-/// 完全一致が保証される。[`Section::index_path`] の doc コメント参照）を
-/// 経由するため、`validate_page_path` を通過済みの検証済み文字列のみが
-/// href に現れる（新たなパストラバーサル面を作らない）。
+/// タイトル・説明・href はすべて [`fandhe_frontend_core::el`] / `text` の既定
+/// エスケープ（REQ-1）を経由し、`raw_html()` と HTML 文字列の直接組み立ては
+/// 使わない。href は [`parse_nav`] で検証済みの `index_path` と `base_path` だけから作る。
 pub fn header_nav(nav: &Nav, current_path: &str) -> Node {
     let mut groups: Vec<Node> = Vec::new();
-    for section in &nav.sections {
-        let trigger_href = href(nav, &section.index_path);
-        // 現在セクション判定はローカルにループ内で行う（`Nav::section_for_path`
-        // はポインタ同一性比較が必要になり脆いため、#1013 のサイドバー
-        // スコープ判定側の用途に譲り、ここでは使わない）。
-        let is_current_section = section.all_pages().any(|p| p.path == current_path);
-
-        // ドロップダウンはサイドバーと同じ見出し一覧（`Section::headings`、#3670）。
-        // 直下ページはリンク、グループは索引ページ内の該当カテゴリへのアンカー
-        // リンクにし、グループ配下の個別ページは出さない（選択は遷移先の
-        // サイドバーに任せる）。長い一覧は CSS の max-height/overflow で操作可能に保つ。
-        let dropdown_items = section_heading_items(nav, section, current_path);
-
-        // トリガーを `<a href>` 化し、セクショントップページ
-        // （`section.index_path`）への遷移リンクにする（イシュー #1012）。
-        // `<a>` はフォーム送信を行わないため `type="button"` は不要
-        // （旧 `<button type="button">` 時代の A05 対策の削除）。
-        let mut trigger_attrs: Vec<(&str, &str)> =
-            vec![("href", &trigger_href), ("class", "docs-header-trigger")];
-        if is_current_section {
-            // ページ完全一致用の `aria-current="page"`（ドロップダウン内
-            // リンクが使う）とは軸が異なるため `"true"` を使い衝突させない
-            // （関数 rustdoc「`aria-current` は 2 つの意味軸」参照）。
-            trigger_attrs.push(("aria-current", "true"));
-            trigger_attrs.push(("data-current", ""));
+    for entry in nav.header_entries() {
+        match entry {
+            HeaderEntry::Section(section) => {
+                let trigger_href = href(nav, &section.index_path);
+                let is_current = section.all_pages().any(|p| p.path == current_path);
+                let trigger = header_trigger(&trigger_href, is_current, &section.title);
+                groups.push(item(vec![("class", "docs-header-group")], vec![trigger]));
+            }
+            HeaderEntry::Menu(menu) => {
+                let trigger_href = href(nav, &menu.index_path);
+                let is_current = nav
+                    .menu_for_path(current_path)
+                    .is_some_and(|m| m.index_path == menu.index_path);
+                let trigger = header_trigger(&trigger_href, is_current, &menu.title);
+                let panel = mega_panel(nav, menu, current_path);
+                groups.push(item(
+                    vec![("class", "docs-header-group")],
+                    vec![trigger, panel],
+                ));
+            }
         }
-        let trigger = el("a", trigger_attrs, vec![text(section.title.clone())]);
-        let dropdown = list(vec![("class", "docs-header-dropdown")], dropdown_items);
-        groups.push(item(
-            vec![("class", "docs-header-group")],
-            vec![trigger, dropdown],
-        ));
     }
     let menu = list(vec![("class", "docs-header-menu")], groups);
     // サイドバー（`sidebar()`）の `aria-label="Documentation"` と区別できる
-    // ラベルにする（複数 nav ランドマークが存在する文書でスクリーン
-    // リーダー利用者が識別できるようにするため）。
+    // ラベルにする（複数 nav ランドマークの識別用）。
     nav_list_root(
         "Site sections",
         vec![("class", "docs-header-nav")],
         vec![menu],
+    )
+}
+
+/// ヘッダーのトリガーリンク（`a.docs-header-trigger`）を作る。
+/// `is_current` のとき所属表示 `aria-current="true"` + `data-current` を付ける。
+fn header_trigger(trigger_href: &str, is_current: bool, title: &str) -> Node {
+    let mut attrs: Vec<(&str, &str)> =
+        vec![("href", trigger_href), ("class", "docs-header-trigger")];
+    if is_current {
+        attrs.push(("aria-current", "true"));
+        attrs.push(("data-current", ""));
+    }
+    el("a", attrs, vec![text(title.to_string())])
+}
+
+/// Assets 等のメニューのメガメニューパネルを作る（[`header_nav`] から呼ばれる）。
+///
+/// カードは `[[menu.item]]` の宣言順で、メンバーセクションのタイトルと
+/// `description` を表示する。見出し要素は使わず（見出しアウトラインを汚さない）、
+/// headless の `list()` も使わない（`nav_list` anatomy の縦積み規則と grid の衝突回避）。
+fn mega_panel(nav: &Nav, menu: &Menu, current_path: &str) -> Node {
+    let cells: Vec<Node> = nav
+        .menu_members(menu)
+        .map(|(section, menu_item)| {
+            let card_href = href(nav, &section.index_path);
+            let mut attrs: Vec<(&str, &str)> =
+                vec![("href", &card_href), ("class", "docs-header-mega-card")];
+            if section.all_pages().any(|p| p.path == current_path) {
+                attrs.push(("aria-current", "true"));
+                attrs.push(("data-current", ""));
+            }
+            let card = el(
+                "a",
+                attrs,
+                vec![
+                    el(
+                        "span",
+                        vec![("class", "docs-header-mega-title")],
+                        vec![text(section.title.clone())],
+                    ),
+                    el(
+                        "span",
+                        vec![("class", "docs-header-mega-desc")],
+                        vec![text(menu_item.description.clone())],
+                    ),
+                ],
+            );
+            el("li", vec![("class", "docs-header-mega-cell")], vec![card])
+        })
+        .collect();
+    el(
+        "div",
+        vec![("class", "docs-header-mega")],
+        vec![el("ul", vec![("class", "docs-header-mega-grid")], cells)],
     )
 }
 
@@ -2529,300 +2551,194 @@ path = "/p1/"
         assert!(html.contains("&lt;img"));
     }
 
-    // ---- ヘッダードロップダウンメニュー（イシュー #908） ----
+    // ---- ヘッダーナビと Assets メガメニュー（イシュー #908 / #3701） ----
+
+    /// 単独 → メニュー → 単独 の並びになるフィクスチャ。メニュー項目の宣言順は
+    /// セクション宣言順と逆（B → A）にして、カード順が `[[menu.item]]` 順であることを固定する。
+    const SAMPLE_WITH_MENU: &str = r#"
+[site]
+title = "Docs"
+base_path = "/base"
+
+[[section]]
+title = "Guides"
+index_path = "/guides/"
+
+[[section.page]]
+title = "Guides Index"
+source = "g.md"
+path = "/guides/"
+
+[[section.page]]
+title = "Intro"
+source = "gi.md"
+path = "/guides/intro/"
+
+[[section]]
+title = "Alpha"
+index_path = "/alpha/"
+
+[[section.page]]
+title = "Alpha Index"
+source = "a.md"
+path = "/alpha/"
+
+[[section.group]]
+title = "Hidden Group"
+
+[[section.group.page]]
+title = "Alpha Button"
+source = "ab.md"
+path = "/alpha/button/"
+
+[[section]]
+title = "Beta"
+index_path = "/beta/"
+
+[[section.page]]
+title = "Beta Index"
+source = "b.md"
+path = "/beta/"
+
+[[section]]
+title = "Api"
+index_path = "/api/"
+
+[[section.page]]
+title = "Api Index"
+source = "api.md"
+path = "/api/"
+
+[[menu]]
+title = "Assets"
+index_path = "/assets/"
+source = "assets.md"
+
+[[menu.item]]
+section = "/beta/"
+description = "Beta description"
+
+[[menu.item]]
+section = "/alpha/"
+description = "Alpha description"
+"#;
+
+    fn trigger_count_with_current(html: &str) -> usize {
+        html.matches(r#"class="docs-header-trigger" aria-current="true""#)
+            .count()
+    }
 
     #[test]
-    fn header_nav_groups_sections_in_declaration_order_with_correct_hrefs() {
-        let nav = parse_nav(SAMPLE).unwrap();
-        let html = render(&header_nav(&nav, "/guide/getting-started/"));
+    fn header_nav_orders_entries_and_cards_by_declaration() {
+        let nav = parse_nav(SAMPLE_WITH_MENU).unwrap();
+        let html = render(&header_nav(&nav, "/guides/"));
         assert!(html.starts_with("<nav"));
-        assert!(html.contains(r#"class="docs-header-nav""#));
         assert!(html.contains(r#"aria-label="Site sections""#));
-        assert!(html.contains(r#"class="docs-header-menu""#));
-        assert!(html.contains(r#"class="docs-header-group""#));
-        assert!(html.contains(r#"class="docs-header-trigger""#));
-        assert!(html.contains(r#"class="docs-header-dropdown""#));
-
-        // セクションタイトルがトリガーとして宣言順に出力される。
-        let guide_idx = html.find("Guide").unwrap();
-        let reference_idx = html.find("Reference").unwrap();
-        assert!(guide_idx < reference_idx);
-
-        assert!(html.contains(r#"href="/fandhe-frontend/guide/getting-started/""#));
-        assert!(html.contains(r#"href="/fandhe-frontend/reference/api/""#));
-
-        // トリガー自体のリンク先（`section.index_path`、イシュー #1012）。
-        assert!(html.contains(r#"href="/fandhe-frontend/guide/intro/""#));
+        assert_eq!(html.matches("docs-header-trigger").count(), 3);
+        let guides = html.find(r#"href="/base/guides/""#).unwrap();
+        let assets = html.find(r#"href="/base/assets/""#).unwrap();
+        let api = html.rfind(r#"href="/base/api/""#).unwrap();
+        assert!(guides < assets && assets < api);
+        // カードは [[menu.item]] の順（Beta → Alpha）で、href はメンバーの index_path。
+        let beta = html.find(r#"class="docs-header-mega-card""#).unwrap();
+        let beta_href = html.find(r#"href="/base/beta/""#).unwrap();
+        let alpha_href = html.find(r#"href="/base/alpha/""#).unwrap();
+        assert!(beta_href < alpha_href && beta > assets - 200);
+        assert_eq!(html.matches("docs-header-mega-card").count(), 2);
+        assert!(html.contains("Beta description"));
+        assert!(html.contains("Alpha description"));
     }
 
     #[test]
-    fn header_nav_highlights_only_current_page() {
-        let nav = parse_nav(SAMPLE).unwrap();
-        let html = render(&header_nav(&nav, "/guide/getting-started/"));
-        // ページ完全一致用 `aria-current="page"`（ドロップダウン内リンク）と
-        // セクション所属用 `aria-current="true"`（トリガー）は意味の軸が
-        // 異なるため衝突しない。個別に件数を固定する（イシュー #1012）。
-        assert_eq!(html.matches(r#"aria-current="page""#).count(), 1);
-        assert_eq!(html.matches(r#"aria-current="true""#).count(), 1);
-        assert!(html.contains("data-current"));
+    fn header_nav_has_no_popup_or_page_headings() {
+        let nav = parse_nav(SAMPLE_WITH_MENU).unwrap();
+        let html = render(&header_nav(&nav, "/guides/"));
+        assert!(!html.contains("docs-header-dropdown"));
+        for absent in ["Intro", "Hidden Group", "Alpha Button", "Guides Index"] {
+            assert!(!html.contains(absent), "{absent} must not appear");
+        }
+        // 単独セクションの li にはパネルを含まない。
+        assert_eq!(html.matches("docs-header-mega\"").count(), 1);
     }
 
-    /// トリガーは `<a href>`（セクショントップページへの遷移リンク、
-    /// イシュー #1012）のみで、`role`/`aria-expanded`/`aria-haspopup` の
-    /// いずれも含まない（無 JS では状態更新できない ARIA 属性を静的に
-    /// 約束しない、rustdoc 「`role`/`aria-expanded`/`aria-haspopup` を
-    /// 付与しない理由」参照）ことを固定する。
     #[test]
-    fn header_nav_trigger_has_no_menu_role_or_dynamic_aria_state() {
-        let nav = parse_nav(SAMPLE).unwrap();
-        let html = render(&header_nav(&nav, "/guide/getting-started/"));
-        assert!(!html.contains("<button"));
-        assert!(html.contains(r#"class="docs-header-trigger""#));
-        assert!(html.contains(r#"href="/fandhe-frontend/guide/intro/""#));
-        assert!(!html.contains("role="));
-        assert!(!html.contains("aria-expanded"));
-        assert!(!html.contains("aria-haspopup"));
-    }
-
-    /// トリガー href が常に `base_path + section.index_path` を指すことを
-    /// 各セクションについて固定する（イシュー #1012）。
-    #[test]
-    fn header_nav_trigger_links_to_section_index_path() {
-        let nav = parse_nav(SAMPLE).unwrap();
-        let html = render(&header_nav(&nav, "/guide/getting-started/"));
-        assert!(html.contains(r#"href="/fandhe-frontend/guide/intro/""#));
-        assert!(html.contains(r#"href="/fandhe-frontend/reference/api/""#));
-    }
-
-    /// 現在セクションのトリガーにのみ `aria-current="true"` + `data-current`
-    /// が付き、非現在セクションのトリガーには付かないことを固定する
-    /// （イシュー #1012）。
-    #[test]
-    fn header_nav_marks_current_section_trigger_without_page_scope() {
-        let nav = parse_nav(SAMPLE).unwrap();
-        // Guide セクション配下の "/guide/getting-started/" が現在ページ。
-        let html = render(&header_nav(&nav, "/guide/getting-started/"));
-        let guide_trigger = r#"href="/fandhe-frontend/guide/intro/" class="docs-header-trigger" aria-current="true""#;
-        assert!(html.contains(guide_trigger));
-        // Reference セクションのトリガーには aria-current="true" が付かない。
-        let reference_trigger_idx = html
-            .find(r#"href="/fandhe-frontend/reference/api/""#)
-            .unwrap();
-        // 固定バイト幅の範囲演算子（`idx..idx+120`）はマルチバイト文字が
-        // 境界にかかると char 境界不一致でパニックし得るため、
-        // `char_indices` で 120 バイト以内に収まる直近の char 境界を
-        // 探して切り出す安全な実装にする（レビュー指摘）。
-        let rest = &html[reference_trigger_idx..];
-        let safe_end = rest
-            .char_indices()
-            .map(|(byte_idx, _)| byte_idx)
-            .chain(std::iter::once(rest.len()))
-            .take_while(|&byte_idx| byte_idx <= 120)
-            .last()
-            .unwrap_or(0);
-        let reference_trigger_slice = &rest[..safe_end];
-        assert!(!reference_trigger_slice.contains(r#"aria-current="true""#));
-    }
-
-    /// ドロップダウンは「直下ページ + グループ見出し」だけで、グループ配下
-    /// ページは出さない（#3670）。グループ見出しの href は索引ページ内の
-    /// アンカー（`index_path#group_anchor_id`）で、「すべて見る」は出さない。
-    #[test]
-    fn header_nav_dropdown_lists_direct_pages_and_group_headings_without_group_pages() {
-        let grouped = r#"
-[site]
-title = "Docs"
-base_path = ""
-
-[[section]]
-title = "Components"
-index_path = "/components/pre-styled-ui/"
-
-[[section.page]]
-title = "コンポーネント索引"
-source = "components-pre-styled-ui.md"
-path = "/components/pre-styled-ui/"
-
-[[section.group]]
-title = "Forms"
-
-[[section.group.page]]
-title = "Button"
-source = "components/button.md"
-path = "/components/button/"
-
-[[section.group]]
-title = "Layout"
-
-[[section.group.page]]
-title = "Stack"
-source = "components/stack.md"
-path = "/components/stack/"
-
-[[section]]
-title = "NoIndexInPages"
-index_path = "/no-index-in-pages/index/"
-
-[[section.page]]
-title = "Direct"
-source = "no-index/direct.md"
-path = "/no-index-in-pages/direct/"
-
-[[section.group]]
-title = "Group"
-
-[[section.group.page]]
-title = "GroupPage"
-source = "no-index/group-page.md"
-path = "/no-index-in-pages/index/"
-"#;
-        let nav = parse_nav(grouped).unwrap();
-        let html = render(&header_nav(&nav, "/components/pre-styled-ui/"));
-
-        // グループ配下ページ（Button / Stack）は出ない（否定的断定）。
-        assert!(!html.contains("Button"));
-        assert!(!html.contains("Stack"));
-        assert!(!html.contains(r#"href="/components/button/""#));
-
-        // 直下ページ + グループ見出し（アンカーリンク）。
-        assert!(html.contains("コンポーネント索引"));
-        assert!(html.contains(r#"href="/components/pre-styled-ui/#forms""#));
-        assert!(html.contains(r#"href="/components/pre-styled-ui/#layout""#));
-        assert!(html.contains("Direct"));
-        // index_path がグループ配下ページを指す構成ではアンカーを付けず、
-        // グループ先頭ページへ直接リンクする（存在しないアンカーを作らない）。
-        assert!(html.contains(r#"href="/no-index-in-pages/index/""#));
-        assert!(!html.contains("/no-index-in-pages/index/#group"));
-        assert_eq!(html.matches("すべて見る").count(), 0);
-
-        // いずれの `ul.docs-header-dropdown` も空にならない。
-        assert!(!html.contains(r#"class="docs-header-dropdown"></ul>"#));
-    }
-
-    /// 現在ページがグループ配下のとき、そのグループ見出しにだけ所属表示
-    /// `aria-current="true"` が付く。索引（直下ページ）が現在のときは
-    /// 索引リンクに `"page"` が付き、グループ見出しには付かない。
-    #[test]
-    fn header_nav_marks_only_the_group_containing_current_page() {
-        let nav = parse_nav(
-            r#"
-[site]
-title = "Docs"
-base_path = ""
-
-[[section]]
-title = "Components"
-index_path = "/components/pre-styled-ui/"
-
-[[section.page]]
-title = "コンポーネント索引"
-source = "components-pre-styled-ui.md"
-path = "/components/pre-styled-ui/"
-
-[[section.group]]
-title = "Forms"
-
-[[section.group.page]]
-title = "Button"
-source = "components/button.md"
-path = "/components/button/"
-
-[[section.group]]
-title = "Layout"
-
-[[section.group.page]]
-title = "Stack"
-source = "components/stack.md"
-path = "/components/stack/"
-
-[[section]]
-title = "NoIndexInPages"
-index_path = "/no-index-in-pages/index/"
-
-[[section.page]]
-title = "Direct"
-source = "no-index/direct.md"
-path = "/no-index-in-pages/direct/"
-
-[[section.group]]
-title = "Group"
-
-[[section.group.page]]
-title = "GroupPage"
-source = "no-index/group-page.md"
-path = "/no-index-in-pages/index/"
-"#,
-        )
-        .unwrap();
-
-        let html = render(&header_nav(&nav, "/components/button/"));
-        // トリガー（Components）+ Forms 見出しの 2 件。Layout・page は 0 件。
+    fn header_nav_marks_current_for_member_page() {
+        let nav = parse_nav(SAMPLE_WITH_MENU).unwrap();
+        let html = render(&header_nav(&nav, "/alpha/button/"));
         assert_eq!(html.matches(r#"aria-current="true""#).count(), 2);
-        assert_eq!(html.matches(r#"aria-current="page""#).count(), 0);
-        assert!(html.contains(r#"href="/components/pre-styled-ui/#forms" aria-current="true""#));
-        assert!(!html.contains(r#"href="/components/pre-styled-ui/#layout" aria-current"#));
+        assert_eq!(html.matches("data-current").count(), 2);
+        assert!(html
+            .contains(r#"href="/base/assets/" class="docs-header-trigger" aria-current="true""#));
+        assert!(html
+            .contains(r#"href="/base/alpha/" class="docs-header-mega-card" aria-current="true""#));
+        assert!(!html.contains(r#"aria-current="page""#));
+    }
 
-        let html = render(&header_nav(&nav, "/components/pre-styled-ui/"));
-        assert_eq!(html.matches(r#"aria-current="page""#).count(), 1);
-        // トリガーのみ（グループ見出しには付かない）。
+    #[test]
+    fn header_nav_marks_only_trigger_on_menu_index_page() {
+        let nav = parse_nav(SAMPLE_WITH_MENU).unwrap();
+        let html = render(&header_nav(&nav, "/assets/"));
+        assert_eq!(html.matches(r#"aria-current="true""#).count(), 1);
+        assert_eq!(trigger_count_with_current(&html), 1);
+        assert!(!html.contains(r#"aria-current="page""#));
+    }
+
+    #[test]
+    fn header_nav_marks_standalone_section_and_unknown_path() {
+        let nav = parse_nav(SAMPLE_WITH_MENU).unwrap();
+        let html = render(&header_nav(&nav, "/guides/intro/"));
+        assert_eq!(html.matches(r#"aria-current="true""#).count(), 1);
+        assert!(html
+            .contains(r#"href="/base/guides/" class="docs-header-trigger" aria-current="true""#));
+        let html = render(&header_nav(&nav, "/unknown/"));
+        assert_eq!(html.matches("aria-current").count(), 0);
+    }
+
+    #[test]
+    fn header_nav_has_no_role_dynamic_aria_or_id() {
+        let nav = parse_nav(SAMPLE_WITH_MENU).unwrap();
+        let html = render(&header_nav(&nav, "/alpha/button/"));
+        assert!(!html.contains("<button"));
+        for forbidden in [
+            "role=",
+            "aria-expanded",
+            "aria-haspopup",
+            "aria-controls",
+            " id=",
+        ] {
+            assert!(!html.contains(forbidden), "{forbidden} must not appear");
+        }
+    }
+
+    #[test]
+    fn header_nav_without_menus_lists_every_section_trigger_only() {
+        let nav = parse_nav(SAMPLE).unwrap();
+        let html = render(&header_nav(&nav, "/guide/getting-started/"));
+        assert!(!html.contains("docs-header-mega\""));
+        assert!(!html.contains("docs-header-dropdown"));
+        let guide = html.find("Guide").unwrap();
+        let reference = html.find("Reference").unwrap();
+        assert!(guide < reference);
+        assert!(html.contains(r#"href="/fandhe-frontend/guide/intro/""#));
+        assert!(html.contains(r#"href="/fandhe-frontend/reference/api/""#));
         assert_eq!(html.matches(r#"aria-current="true""#).count(), 1);
     }
 
-    /// グループ名の XSS 文字列はエスケープされ、href の fragment は slug 化
-    /// されて `<`・`"`・`javascript:` を含まない。
     #[test]
-    fn header_nav_group_heading_escapes_title_and_slugs_fragment() {
-        let input = r#"
-[site]
-title = "Docs"
-base_path = ""
-
-[[section]]
-title = "S"
-index_path = "/s/"
-
-[[section.page]]
-title = "Index"
-source = "s.md"
-path = "/s/"
-
-[[section.group]]
-title = "<script>alert(1)</script>\"x"
-
-[[section.group.page]]
-title = "P"
-source = "p.md"
-path = "/p/"
-"#;
-        let nav = parse_nav(input).unwrap();
-        let html = render(&header_nav(&nav, "/s/"));
+    fn header_nav_escapes_titles_and_descriptions() {
+        let toml = SAMPLE_WITH_MENU
+            .replace(r#"title = "Guides""#, r#"title = "<script>g</script>""#)
+            .replace(r#"title = "Assets""#, r#"title = "A&B""#)
+            .replace(r#"title = "Beta""#, r#"title = "Be\"ta""#)
+            .replace("Beta description", "<img src=x onerror=1> & more");
+        let nav = parse_nav(&toml).unwrap();
+        let html = render(&header_nav(&nav, "/guides/"));
         assert!(!html.contains("<script>"));
-        assert!(html.contains("&lt;script&gt;"));
-        assert!(html.contains(r#"href="/s/#script-alert-1-script-x""#));
-        assert!(!html.contains("javascript:"));
-    }
-
-    #[test]
-    fn header_nav_escapes_section_and_page_titles() {
-        let input = r#"
-[site]
-title = "Docs"
-base_path = ""
-
-[[section]]
-title = "<script>alert(1)</script>"
-index_path = "/p1/"
-
-[[section.page]]
-title = "Quote\"Title"
-source = "p1.md"
-path = "/p1/"
-"#;
-        let nav = parse_nav(input).unwrap();
-        let html = render(&header_nav(&nav, "/p1/"));
-        assert!(!html.contains("<script>"));
-        assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
-        assert!(html.contains("Quote&quot;Title"));
+        assert!(!html.contains("<img"));
+        assert!(html.contains("&lt;script&gt;g&lt;/script&gt;"));
+        assert!(html.contains("A&amp;B"));
+        assert!(html.contains("Be&quot;ta"));
+        assert!(html.contains("&lt;img src=x onerror=1&gt; &amp; more"));
     }
 
     // ---- ナビ drawer（イシュー #3674） ----
