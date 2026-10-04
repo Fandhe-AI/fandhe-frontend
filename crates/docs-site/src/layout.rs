@@ -47,7 +47,7 @@
 //! 別実装として新規に用意する。docs サイトはハイドレーションを行わない
 //! （`data-hydrate`/`data-bind-*` 束縛点を持たない）が、テーマトグル
 //! （ダーク/ライト切替）・GitHub リンクのため `<head>` に FOUC 抑止の
-//! インラインスニペット（[`crate::script::inline_theme_bootstrap`]）と
+//! 同期の `<script src>`（[`crate::script::THEME_INIT_REL_PATH`]、stylesheet より前）と
 //! `<script src>`（[`crate::script::SCRIPT_REL_PATH`]、`defer`）を含める
 //! （イシュー #951。旧「JS を含めない」宣言はこの変更で終了した）。
 //!
@@ -967,14 +967,17 @@ pub fn docs_page_with_layout(
             vec![],
         ),
     ];
-    // FOUC 抑止のインラインスニペット（イシュー #951）。全 `<link
-    // rel="stylesheet">` より前に同期実行させ、保存済みテーマがあれば
-    // CSS 適用前に `data-theme` を確定させる。`script::inline_theme_bootstrap`
-    // が `None`（エスケープ安全性検証に落ちた）場合は `<script>` 自体を
-    // 出力しない fail-closed（`crate::script` モジュール doc 参照）。
-    if let Some(bootstrap) = script::inline_theme_bootstrap() {
-        head_children.push(el("script", vec![], vec![text(bootstrap)]));
-    }
+    // FOUC 抑止のテーマ初期化（イシュー #951/#3676）。`script-src 'self'` の CSP
+    // 下で実行できないインライン script をやめ、同期（`defer`/`async`/module なし）
+    // の外部 `<script src>` として全 `<link rel="stylesheet">` より前に置く。
+    // 同期 script はパーサをブロックするため初回ペイント前に `data-theme` が
+    // 確定する。本文は持たず URL は `asset_href` 経由の定数のため、安全性検証
+    // （`script::theme_init_js`）は `crate::build::build_site` の書き出し前に行う。
+    head_children.push(el(
+        "script",
+        vec![("src", &asset_href(base_path, script::THEME_INIT_REL_PATH))],
+        vec![],
+    ));
     // View Transitions の opt-in は site CSS（`site_theme::VIEW_TRANSITION_CSS`）が
     // 担う。CSP `style-src 'self'` のためインライン `<style>` は出さない（#3677）。
     head_children.push(el(

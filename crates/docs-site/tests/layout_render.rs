@@ -13,7 +13,6 @@ use fandhe_frontend_docs_site::layout::{
     with_heading_anchors, PageLayout, TocEntry, TOC_HEADING_ID,
 };
 use fandhe_frontend_docs_site::nav::{header_nav, parse_nav};
-use fandhe_frontend_docs_site::script;
 use fandhe_frontend_docs_site::search_index;
 
 fn sample_sidebar() -> fandhe_frontend_core::Node {
@@ -947,31 +946,31 @@ fn xss_payloads_in_title_headings_and_sidebar_are_escaped() {
 
 // ---- テーマトグル・GitHub リンク（イシュー #951） ----
 
-/// 最重要のエスケープ往復検証: `render()` 結果が
-/// `script::INLINE_THEME_BOOTSTRAP` を**逐語で**含む。これが破れる場合
-/// （実体参照化される等）は `<script>` の中身が壊れて構文エラーになる
-/// ことを意味する（`crate::script` モジュール doc の不変条件参照）。
+/// イシュー #3676: テーマ初期化は本文を持たない同期の外部 `<script src>`
+/// （`defer`/`async` なし）として `<head>` 内・全 stylesheet より前に出力され、
+/// インライン `<script>` は出力されない（`base_path` なし・あり双方）。
 #[test]
-fn docs_page_head_contains_inline_theme_bootstrap_verbatim_and_unescaped() {
+fn docs_page_head_loads_theme_init_synchronously_before_stylesheets() {
     let body = p(vec![], vec![text("本文です。")]);
-    let node = docs_page("タイトル", "", sample_sidebar(), body);
-    let html = render(&node);
-
-    assert!(html.contains(script::INLINE_THEME_BOOTSTRAP));
-    // エスケープ痕跡（実体参照化された `<script>` の中身）が残っていない
-    // ことも併せて確認する。
-    assert!(!html.contains("&#x27;"));
-    assert!(!html.contains("&amp;"));
-    assert!(!html.contains("&quot;"));
-
-    let script_start = html
-        .find(script::INLINE_THEME_BOOTSTRAP)
-        .expect("INLINE_THEME_BOOTSTRAP should appear in <head>");
-    let head_end = html.find("</head>").expect("</head> should exist");
-    assert!(
-        script_start < head_end,
-        "インライン script は </head> より前に出力される必要がある"
-    );
+    for (base, expected) in [
+        ("", r#"<script src="/assets/theme-init.js"></script>"#),
+        (
+            "/fandhe-frontend",
+            r#"<script src="/fandhe-frontend/assets/theme-init.js"></script>"#,
+        ),
+    ] {
+        let html = render(&docs_page("タイトル", base, sample_sidebar(), body.clone()));
+        let pos = html
+            .find(expected)
+            .unwrap_or_else(|| panic!("{expected} should appear (base={base:?})"));
+        let first_css = html
+            .find(r#"<link rel="stylesheet""#)
+            .expect("stylesheet link");
+        let head_end = html.find("</head>").expect("</head> should exist");
+        assert!(pos < first_css, "theme-init.js は stylesheet より前");
+        assert!(pos < head_end, "theme-init.js は </head> より前");
+        assert!(!html.contains("<script>"), "インライン script は出力しない");
+    }
 }
 
 /// `<script src="…/assets/site.js" defer>` が `<head>` に出力される

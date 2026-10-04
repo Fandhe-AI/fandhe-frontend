@@ -17,7 +17,7 @@
 | 項目 | 現状 |
 |------|------|
 | CSP | 出していない（回帰レポート `docs/reports/docs-site-styled-blocks-redesign-report.md` §9 E） |
-| インライン `<script>` | 1 個。`layout.rs` の `docs_page_with_layout` が `script::inline_theme_bootstrap()` を head に入れる。文字列は引用符・`<>&` を含まず、`is_escape_safe` が fail-closed で保証するため、ブラウザが見る本文はソース定数とバイト一致する |
+| インライン `<script>` | 0 個（イシュー #3676 で外部化済み）。外部 script は 2 本で、`<head>` 先頭の同期読み込み `assets/theme-init.js`（`script::theme_init_js`、`data-theme` を stylesheet より前に確定して FOUC を抑止）と、`defer` の `assets/site.js` である。`layout.rs` の `docs_page_with_layout` はインラインのブートストラップを head に入れない |
 | インライン `<style>` | layout の `@view-transition { navigation: auto; }` に加え、demo 側にも存在する（`component_specs_overlay.rs` の split-menu 用スコープ CSS ほか）。生成箇所は実装前に全件再列挙する |
 | `style` 属性 | 広範に使用。demo が `("style", "...")` を直接渡し、pre-styled-ui の `angle_slider`・`questionnaire`・`recipe::stagger_index_style` は計算値を出す。静的に列挙できない |
 | `site.js` | `innerHTML`・`eval`・`new Function`・`document.write`・`insertAdjacentHTML` を使わない（既存テストで固定）。ネットワークは検索インデックスの同一オリジン `fetch(url)` のみ |
@@ -57,6 +57,7 @@
 ### 案 E: meta 導入 + 外部化（推奨）
 
 - `INLINE_THEME_BOOTSTRAP` を `<head>` 先頭の同期（`defer` なし）外部 `<script src>` へ移す。同期外部 script はパーサをブロックするため、インラインと同様に stylesheet より前に `data-theme` を確定できる想定（要実機検証）
+  - 実装済み（イシュー #3676）: `assets/theme-init.js`（`src/script.rs` の `THEME_INIT_JS`）。Playwright（CPU 4x・キャッシュ無効）で初回 rAF 時点の `data-theme="dark"` を確認
 - `@view-transition { navigation: auto; }` は `site.css` へ移す。render-blocking なので `pagereveal` 前に効く想定（要実機検証）
 - demo の split-menu `<style>` は、スコープ付き規則を既存の showcase 用 CSS アセットへ移すか、`style` 属性で表現できる範囲に直す
 - 長所: ハッシュ機構・自前 sha256 が不要。「インライン script ゼロ」で最も強く、`no_js_contract` の唯一の例外が消えて契約が単純になる

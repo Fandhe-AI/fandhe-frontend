@@ -87,7 +87,9 @@ fn build_site_generates_all_pages_and_assets_for_ok_fixture() {
     // （`[[section]]` 1 件分のセクションファイル。イシュー #957 / #3173、
     // 同じく全ビルドで無条件に書き出す）。
     // イシュー #3623 で 404.html が全ビルド無条件で加わり 7 件になった。
-    assert_eq!(report.assets.len(), 8);
+    // イシュー #3676 で theme-init.js が全ビルド無条件で加わり 9 件になった。
+    assert_eq!(report.assets.len(), 9);
+    assert!(out.0.join("assets/theme-init.js").exists());
     assert!(out.0.join("404.html").exists());
     assert!(out.0.join("assets/favicon.svg").exists());
     assert!(out.0.join("index.html").exists());
@@ -309,10 +311,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // Themes・Primitives 索引専用 `component-index.css` が加わり 19 + セクション数に、
     // イシュー #3623 で 404.html が全ビルド無条件で加わり 20 + セクション数に、
     // イシュー #3618 で Blocks・Wireframes 索引専用 `category-index.css` が加わり
-    // 21 + セクション数になった。
+    // 21 + セクション数に、イシュー #3676 で theme-init.js が全ビルド無条件で加わり
+    // 22 + セクション数になった。
     assert_eq!(
         report.assets.len(),
-        21 + nav.sections.len(),
+        22 + nav.sections.len(),
         "{:?}",
         report.assets
     );
@@ -348,6 +351,7 @@ fn build_site_succeeds_for_the_real_repository_site() {
         "assets/admonition.css",
         "assets/skip-nav.css",
         "assets/site.js",
+        "assets/theme-init.js",
         "assets/pre-styled-ui.css",
         "assets/search-index.json",
         "assets/search-index/blocks.json",
@@ -473,6 +477,7 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
             r#"data-part="content""#,
             r#"href="/fandhe-frontend/assets/site.css""#,
             r#"href="/fandhe-frontend/assets/skip-nav.css""#,
+            r#"<script src="/fandhe-frontend/assets/theme-init.js"></script>"#,
             r#"src="/fandhe-frontend/assets/site.js" defer="""#,
             r#"class="docs-header-actions""#,
             r#"class="docs-github-link""#,
@@ -561,6 +566,14 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
     let dist_site_js = std::fs::read_to_string(out.join("assets/site.js"))
         .expect("dist/assets/site.js should be generated");
     assert_eq!(dist_site_js, fandhe_frontend_docs_site::script::site_js());
+
+    // イシュー #3676: テーマ初期化 JS も同様にソース定数とバイト一致する。
+    let dist_theme_init = std::fs::read_to_string(out.join("assets/theme-init.js"))
+        .expect("dist/assets/theme-init.js should be generated");
+    assert_eq!(
+        Some(dist_theme_init.as_str()),
+        fandhe_frontend_docs_site::script::theme_init_js()
+    );
 }
 
 /// イシュー #1013: 実サイト生成物でサイドバーが現在セクションへスコープ
