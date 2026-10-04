@@ -138,6 +138,28 @@ index_path = "/advanced/"
 title = "Advanced"
 source = "site/index.md"
 path = "/advanced/"
+
+[[section]]
+title = "Themes"
+index_path = "/themes/"
+
+[[section.page]]
+title = "Themes Index"
+source = "site/index.md"
+path = "/themes/"
+
+[[menu]]
+title = "Assets"
+index_path = "/assets/"
+source = "site/assets.md"
+
+[[menu.item]]
+section = "/advanced/"
+description = "Guides description"
+
+[[menu.item]]
+section = "/themes/"
+description = "Themes description"
 "#;
     parse_nav(toml).expect("fixture nav.toml should parse")
 }
@@ -490,18 +512,27 @@ const STRUCTURE_CLASS_CONTRACT: &[(&str, &str)] = &[
     ("docs-nav-drawer-details", "セクションごとの details"),
     ("docs-nav-drawer-summary", "開閉専用の summary"),
     ("docs-nav-drawer-summary-text", "summary のアクセシブル名 span（視覚上は clip）"),
+    ("docs-nav-drawer-menu", "drawer のメニュー索引行（Assets 集約ページへのリンク、#3701）"),
     ("docs-nav-drawer-body", "details の本体 div"),
     ("docs-nav-drawer-list", "現在でないセクションの見出し一覧 ul"),
     ("docs-main", "中央カラム main"),
     ("docs-content", "本文 article"),
-    ("docs-header-nav", "ヘッダードロップダウン群のコンテナ nav"),
+    ("docs-header-nav", "ヘッダーナビのコンテナ nav"),
     ("docs-header-menu", "同 ul"),
-    ("docs-header-group", "セクションごとの li"),
+    ("docs-header-group", "ヘッダー項目（単独セクションまたはメニュー）の li"),
     (
         "docs-header-trigger",
         "a[href]（セクショントップページへの遷移リンク、イシュー #1012）",
     ),
-    ("docs-header-dropdown", "ドロップダウン ul"),
+    (
+        "docs-header-mega",
+        "Assets メガメニューの全幅パネル div（イシュー #3701）",
+    ),
+    ("docs-header-mega-grid", "メガパネルのカード grid ul"),
+    ("docs-header-mega-cell", "カードごとの li"),
+    ("docs-header-mega-card", "メンバーセクションへのカード a"),
+    ("docs-header-mega-title", "カードのタイトル span"),
+    ("docs-header-mega-desc", "カードの 1 行説明 span"),
     (
         "docs-header-actions",
         "ヘッダー右側のアクション群 div（イシュー #951）",
@@ -1511,45 +1542,58 @@ fn header_menu_overrides_nav_list_column_direction() {
     assert!(rule_body(&css, "\n.docs-brand {").contains("white-space: nowrap;"));
 }
 
-/// ヘッダー popup は縦横ともビューポート内に収まる（#3671）。縦は `dvh` 付き
-/// max-height + スクロール、横は max-width と後ろのグループの右揃え。
+/// Assets メガパネルはヘッダー直下に全幅で開き、縦はビューポート内に収まる（#3701）。
+/// 縦は `dvh` 付き max-height + パネル内スクロール、横は left/right 0 の全幅。列数は
+/// 基底 2 列・1024px 以上 3 列。ホバーの橋渡しとして li とナビがヘッダー高さまで伸びる。
 #[test]
-fn header_dropdown_fits_viewport_vertically_and_horizontally() {
+fn header_mega_panel_fits_viewport() {
     let css = site_css();
     let body = rule_body(
         &css,
-        "\n.docs-header nav.docs-header-nav .docs-header-dropdown {",
+        "\n.docs-header nav.docs-header-nav .docs-header-mega {",
     );
-    assert!(body.contains("overflow-y: auto;"));
-    assert!(body.contains("overscroll-behavior: contain;"));
-    assert!(body.contains("max-width: min(22rem, calc(100vw - 2rem));"));
-    assert!(body.contains("scrollbar-gutter: stable;"));
+    for decl in [
+        "position: absolute;",
+        "top: 100%;",
+        "left: 0;",
+        "right: 0;",
+        "overflow-y: auto;",
+        "overscroll-behavior: contain;",
+        "scrollbar-gutter: stable;",
+    ] {
+        assert!(body.contains(decl), "mega panel lacks `{decl}`");
+    }
     let vh = body.find("calc(100vh - ").expect("vh フォールバック");
     let dvh = body.find("calc(100dvh - ").expect("dvh 行");
     assert!(vh < dvh, "dvh は vh より後ろ");
-    let right = rule_body(
+    // 包含ブロックは div.docs-header-inner。li を position: relative にしない。
+    assert!(!css.contains(".docs-header-group {\nposition: relative;"));
+    assert!(rule_body(&css, "\n.docs-header-group {").contains("display: flex;"));
+    assert!(rule_body(&css, "\n.docs-header-nav {\nalign-self: stretch;").contains("stretch"));
+    // 列数: 基底 2 列、1024px 以上で 3 列。
+    let grid = rule_body(
         &css,
-        "\n.docs-header nav.docs-header-nav .docs-header-group:nth-last-child(-n+4) > .docs-header-dropdown {",
+        "\n.docs-header nav.docs-header-nav .docs-header-mega-grid {",
     );
-    assert!(right.contains("left: auto;") && right.contains("right: 0;"));
-    assert!(
-        !css.contains(".docs-header-group:last-child > .docs-header-dropdown {"),
-        "右揃えが最後の 1 件へ戻っている"
-    );
+    assert!(grid.contains("grid-template-columns: repeat(2, minmax(0, 1fr));"));
     assert!(css.contains(
-        "max-height: calc(100dvh - var(--fandhe-space-docs-header-height-stacked) - 1rem);"
+        "@media (min-width: 1024px) {\n.docs-header nav.docs-header-nav .docs-header-mega-grid {\ngrid-template-columns: repeat(3, minmax(0, 1fr));"
     ));
+    // 2 段帯域ではヘッダー実高さが不定のため、ヘッダー高さに依存しない割合で上限を決める。
+    assert!(css.contains("max-height: 60vh;\nmax-height: 60dvh;"));
+    // セクション別 popup の規則・class は残さない。
+    assert!(!css.contains("docs-header-dropdown"));
 }
 
-/// 768px 以上 1200px 未満（イシュー #3673 で 1280px から変更）では全トリガーが 1 段に収まらないため、ナビを
-/// 2 段目へ折り返し、ヘッダーを内容に合わせて伸ばす。実高さは CSS で
-/// 取得できないため、この帯域ではヘッダーを sticky にせず、サイドバー・
-/// 右目次・見出しアンカーのオフセットをヘッダー高さから切り離す。どれかが
-/// 欠けるとナビがヘッダー外へはみ出すか、sticky カラムがヘッダーの下へ潜る。
+/// 768px 以上 1024px 未満（イシュー #3701 で 1200px 未満から縮小）では、操作部をアイコンのみに
+/// 詰めても 4 項目が操作部と重なる幅があるため、ナビを 2 段目へ折り返し、ヘッダーを内容に合わせて
+/// 伸ばす。実高さは CSS で取得できないため、この帯域ではヘッダーを sticky にせず、サイドバー・
+/// 見出しアンカーのオフセットをヘッダー高さから切り離す。どれかが欠けるとナビがヘッダー外へ
+/// はみ出すか、sticky カラムがヘッダーの下へ潜る。
 #[test]
 fn mid_width_header_stacks_nav_on_second_row_inside_header() {
     let css = site_css();
-    let marker = "@media (min-width: 768px) and (max-width: 1199.98px) {";
+    let marker = "@media (min-width: 768px) and (max-width: 1023.98px) {";
     let start = css
         .find(marker)
         .unwrap_or_else(|| panic!("mid-width header media block missing: {marker}"));
@@ -1560,11 +1604,15 @@ fn mid_width_header_stacks_nav_on_second_row_inside_header() {
         // 実高さが折り返し行数で変わるため sticky にせず、オフセットを高さに依存させない。
         ".docs-header {\nposition: static;\nheight: auto;\nmin-height: var(--fandhe-space-docs-header-height-stacked);",
         ".docs-header-inner {\nflex-wrap: wrap;",
+        // メガパネルへ移る途中でホバーが切れないよう、下端の余白は li の padding へ移す。
+        "padding-bottom: 0;",
+        ".docs-header-group {\nalign-items: flex-start;\npadding-bottom: 0.5rem;",
         // トリガーが 1 行に収まらない場合もメニューを折り返して画面右端を越えない。
         ".docs-header nav.docs-header-nav .docs-header-menu {\nflex-wrap: wrap;",
         ".docs-header-nav {\norder: 1;\nflex-basis: 100%;",
         ".docs-sidebar {\ntop: 0;\nmax-height: 100vh;",
         ".docs-content h2,\n.docs-content h3 {\nscroll-margin-top: 1rem;",
+        ".docs-header nav.docs-header-nav .docs-header-mega {\nmax-height: 60vh;\nmax-height: 60dvh;",
     ] {
         assert!(
             block.contains(expected),
@@ -1580,16 +1628,20 @@ fn mid_width_header_stacks_nav_on_second_row_inside_header() {
     assert!(css.contains("--fandhe-space-docs-header-height-stacked: 5.75rem;"));
 }
 
-/// 1200px 以上は 1 段ヘッダー。ナビは縮む側、アクション群は縮めない側とし、
-/// 1200px 以上 1440px 未満ではアクション群を clip でアイコンのみにして
+/// 1024px 以上は 1 段ヘッダー（#3701 で 1200px から引き下げ）。ナビは縮む側、アクション群は
+/// 縮めない側とし、1200px 以上 1440px 未満ではアクション群を clip でアイコンのみにして
 /// 末尾のセクションが操作部の下へ潜らないようにする（イシュー #3673）。
 /// アクセシブル名は GitHub の文字列と `aria-label` が保つため clip 対象は可視ラベルのみ。
 #[test]
 fn one_row_header_compacts_actions_between_1200_and_1440() {
     let css = site_css();
+    assert!(css.contains(
+        "@media (min-width: 1024px) {\n.docs-header-nav {\nflex: 0 1 auto;\n}\n\n.docs-header-actions {\nflex: none;"
+    ));
+    // 3 カラム帯域（1200px 以上）はナビの flex 規則を持たない（1024px ブロックへ移した）。
     let block_1200 = css.split("@media (min-width: 1200px) {").nth(1).unwrap();
-    assert!(block_1200.contains(".docs-header-nav {\nflex: 0 1 auto;"));
-    assert!(block_1200.contains(".docs-header-actions {\nflex: none;"));
+    let block_1200 = &block_1200[..block_1200.find("\n}\n").unwrap()];
+    assert!(!block_1200.contains(".docs-header-nav {"));
 
     let marker = "@media (max-width: 1439.98px) and (min-width: 1200px) {";
     let start = css
@@ -1875,11 +1927,11 @@ fn nav_drawer_is_hidden_until_toggled_and_scrolls_inside() {
     let css = site_css();
     let base = rule_body(&css, "\n.docs-header nav.docs-nav-drawer {");
     assert!(base.contains("display: none;"));
-    // 折り返しで実高さが変わるヘッダー配下（1200px 未満）では固定値の max-height を持たない。
+    // 折り返しで実高さが変わるヘッダー配下（1024px 未満）では固定値の max-height を持たない。
     assert!(!base.contains("max-height"));
     let sticky_start = css
-        .find("@media (hover: none) and (min-width: 1200px) {")
-        .expect("1200px 以上の hover:none ブロック");
+        .find("@media (hover: none) and (min-width: 1024px) {")
+        .expect("1024px 以上の hover:none ブロック");
     let sticky = &css[sticky_start..];
     let vh = sticky
         .find("max-height: calc(100vh - ")

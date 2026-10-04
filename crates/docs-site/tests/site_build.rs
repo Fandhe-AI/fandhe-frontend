@@ -372,12 +372,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     assert!(out.join("assets/site.css").exists());
     let site_css = std::fs::read_to_string(out.join("assets/site.css"))
         .expect("read generated assets/site.css");
-    assert!(site_css.contains(".docs-header-dropdown"));
+    assert!(site_css.contains(".docs-header-mega"));
+    assert!(!site_css.contains(".docs-header-dropdown"));
 
     // イシュー #1012: ヘッダートリガーがセクショントップページへの遷移
     // リンク（`a[href]`）へ切り替わり、`<button>` が使われなくなったこと・
-    // ドロップダウン（`ul.docs-header-dropdown`）が引き続き出力されること
-    // を実サイトの生成物で固定する。ヘッダーナビブロックだけを切り出して
+    // Assets のメガパネルが出力されること（#3701）を実サイトの生成物で固定する。ヘッダーナビブロックだけを切り出して
     // 判定する（`.docs-theme-toggle` 等は引き続き `<button>` のため、
     // ページ全体での `<button` 不在は主張できない）。
     let header_nav_start = index_html
@@ -390,7 +390,17 @@ fn build_site_succeeds_for_the_real_repository_site() {
     let header_nav_block = &index_html[header_nav_start..header_nav_end];
     assert!(!header_nav_block.contains("<button"));
     assert!(header_nav_block.contains(r#"class="docs-header-trigger""#));
-    assert!(header_nav_block.contains(r#"class="docs-header-dropdown""#));
+    // Assets メガメニュー（#3701）: トリガーは `/assets/` 集約ページへのリンクで、
+    // パネルは Assets のみが持つ。セクション別 popup（`docs-header-dropdown`）は出ない。
+    assert!(header_nav_block.contains(r#"href="/fandhe-frontend/assets/""#));
+    assert!(header_nav_block.contains(r#"class="docs-header-mega""#));
+    assert_eq!(
+        header_nav_block
+            .matches(r#"class="docs-header-mega""#)
+            .count(),
+        1
+    );
+    assert!(!header_nav_block.contains("docs-header-dropdown"));
     // Getting Started セクションのトリガー href（index_path = "/"）。
     assert!(header_nav_block.contains(r#"href="/fandhe-frontend/""#));
 }

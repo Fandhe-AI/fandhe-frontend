@@ -242,10 +242,10 @@ fn docs_theme() -> Result<Theme, ThemeError> {
     theme.push_space("docs-sidebar-width", "16rem")?;
     theme.push_space("docs-max-content-width", "46rem")?;
     theme.push_space("docs-header-height", "3.25rem")?;
-    // `768px 以上 1200px 未満` でヘッダーを 2 段（1 段目: ブランド + アクション、
-    // 2 段目: ヘッダーナビ）にするときの高さ。全セクションのトリガーを
-    // 1 段に並べるには、アクションを詰めても約 1140px 必要で、実測余裕を含めた
-    // 境界 1200px 未満では収まらないため
+    // `768px 以上 1024px 未満` でヘッダーを 2 段（1 段目: ブランド + アクション、
+    // 2 段目: ヘッダーナビ）にするときの高さ。ナビが 4 項目になった #3701 の実測では、
+    // 操作部をアイコンのみへ詰めても 768px で最終トリガーと操作部が 8px 重なり、
+    // ラベル付きでは約 976px 未満で重なるため、境界を 1024px とする
     // （STRUCTURAL_CSS 末尾の 2 段ヘッダー `@media` ブロック参照）。
     // 内容が折り返すとさらに伸びるため最小高さとして使う。
     theme.push_space("docs-header-height-stacked", "5.75rem")?;
@@ -404,18 +404,14 @@ body {\n\
   gap: 0.25rem;\n\
 }\n\
 \n\
-.docs-header-group {\n\
-  position: relative;\n\
-}\n\
-\n\
 /*\n\
  * トリガーは a 要素（href 属性つき、セクショントップページへの遷移\n\
  * リンク、イシュー #1012）。`crate::nav::header_nav` が\n\
  * `data-scope=\"nav-list\"` を持たない要素として直接組み立てるため、\n\
  * `nav_list::stylesheet()` の `[data-scope=\"nav-list\"][data-part=\"link\"]`\n\
  * （詳細度 0,2,0）は適用されない。よってこの class セレクタ（詳細度 0,1,0）\n\
- * だけで確定させてよく、ドロップダウン内リンク（`.docs-header-dropdown a`）\n\
- * が必要とする `.docs-header nav.docs-header-nav` プレフィックスは不要\n\
+ * だけで確定させてよい（メガパネル内は nav_list anatomy を使わないためプレフィックス\n\
+ * も不要）\n\
  * （#908 Bugbot 指摘の再発防止コメント）。旧 button 要素用の\n\
  * `background: none; border: none; cursor: pointer;` リセットは a 要素では\n\
  * 不要（`cursor: pointer` は `a[href]` の既定）なので削除し、a 要素の既定\n\
@@ -898,125 +894,129 @@ body {\n\
 }\n\
 \n\
 /*\n\
- * `.docs-header-dropdown` の開閉状態の唯一の情報源は `:hover`/`:focus-within`\n\
- * （マウス操作・キーボード操作の双方をカバーする。JS を使わないため\n\
- * `aria-expanded` 等の動的属性で開閉状態を表現しない、`header_nav` rustdoc\n\
- * 参照）。\n\
+ * ---- Assets メガメニュー（イシュー #3701、`crate::nav::header_nav` の `mega_panel`） ----\n\
  *\n\
- * `header_nav` は headless `nav_list` anatomy（`nav::sidebar` と同じ\n\
- * `data-scope=\"nav-list\" data-part=\"list|link\"`）を再利用しているため、\n\
- * `nav_list::stylesheet()` の `[data-scope=\"nav-list\"][data-part=\"...\"]`\n\
- * ルール（詳細度 0,2,0・`[data-part][aria-current=\"page\"]` は 0,3,0）が\n\
- * 素の class セレクタ（0,1,0/0,1,1）に競り勝ち、dropdown の padding・\n\
- * リンク色・カレントページの font-weight が適用されない不具合があった\n\
- * （Bugbot 指摘、イシュー #908 PR #919 レビュー）。サイドバーが\n\
- * `.docs-sidebar nav.sidebar ...`（詳細度 0,2,1 以上）で対策済みなのと\n\
- * 同型で、以下 padding/color/font-weight を上書きするセレクタは\n\
- * `.docs-header nav.docs-header-nav .docs-header-dropdown ...`\n\
- * （詳細度 0,3,1 以上、`nav_list` 側の従来最大 0,3,0 を常に上回る）で\n\
- * 固定する。開閉トグル（`display`）・右端アンカー（`left`/`right`）は\n\
- * `nav_list::stylesheet()` 側に競合するプロパティが存在しないため\n\
- * プレフィックス不要のまま据え置く。\n\
+ * セクション別の見出し一覧 popup は廃止し、メガメニューを持つのは Assets だけ。\n\
+ * 開閉の唯一の情報源は `:hover`/`:focus-within`（JS 不使用のため `aria-expanded`\n\
+ * 等の動的属性で状態を表現しない）。パネルはヘッダー直下に全幅で出す。包含ブロックは\n\
+ * `div.docs-header-inner`（drawer の節で `position: relative`）で、`li.docs-header-group`\n\
+ * は static のままにして追加の DOM を足さない。\n\
  *\n\
- * `a:hover` のみ例外的に `:hover` を追加で 2 回繰り返し\n\
- * （`a:hover:hover:hover`、詳細度は (0,4,2) → (0,6,2)）でさらに底上げ\n\
- * する。イシュー #1529 で `nav_list::stylesheet()` の `link` hover が\n\
- * `StateCondition::HoverExcept(\"aria-current\", \"page\")` へ変更され、\n\
- * `[data-scope][data-part]:hover:not([data-disabled]):not([aria-current=\"\n\
- * page\"])`（詳細度 (0,5,0)）が新たな nav_list 側の最大となったため\n\
- * （旧最大 0,3,0 を上回った）。`:hover` の重複指定はマッチ対象を変えず\n\
- * （同一擬似クラスの多重指定は仕様上有効）specificity の b 成分のみを\n\
- * 底上げする。b 成分（6 > 5）だけで確実に上回るため c 成分の大小関係に\n\
- * 依存しない。加えて `:not([aria-current=\"page\"])` を末尾に付与し、\n\
- * 現在ページリンク（下記 `a[aria-current=\"page\"]` が accent で強調する\n\
- * 対象）を本 hover 規則の一致対象から除外する。これを付けないと本規則\n\
- * が現在ページ強調規則に hover 時のみ競り勝ち、現在ページリンクを\n\
- * ホバーすると accent 表示が通常 hover 表示へ戻ってしまう\n\
- * （codex-review P1 / Cursor Bugbot(Medium) 指摘、PR #1805）。\n\
+ * ホバーの橋渡し: `.docs-header-inner` は `align-items: center` のため li だけだとトリガー下端から\n\
+ * ヘッダー下端までの隙間でホバーが切れる。ナビを `align-self: stretch` にして li をヘッダー高さ\n\
+ * いっぱいに伸ばす。さらに、斜めにカードへ向かう動きで一瞬 li の外（ヘッダー上の別の場所）を\n\
+ * 通っても閉じないよう、閉じるときだけ 0.25s 遅らせる（`visibility` の遅延遷移。\n\
+ * アニメーションではなく状態切替の猶予で、開くときは遅延なし）。\n\
+ *\n\
+ * パネル内は headless `nav_list` anatomy を使わない素の ul/li/a で、nav_list 側の\n\
+ * `[data-scope][data-part]` 規則と詳細度で競り合わない。`.docs-header nav.docs-header-nav`\n\
+ * を前置するのは基底の `.docs-header-nav` 等との順序依存を避ける保険。\n\
  */\n\
-.docs-header nav.docs-header-nav .docs-header-dropdown {\n\
+.docs-header-nav {\n\
+  align-self: stretch;\n\
+}\n\
+\n\
+.docs-header nav.docs-header-nav .docs-header-menu {\n\
+  align-items: stretch;\n\
+}\n\
+\n\
+.docs-header-group {\n\
+  display: flex;\n\
+  align-items: center;\n\
+}\n\
+\n\
+.docs-header nav.docs-header-nav .docs-header-mega {\n\
   position: absolute;\n\
   top: 100%;\n\
   left: 0;\n\
-  display: none;\n\
+  right: 0;\n\
+  visibility: hidden;\n\
+  transition: visibility 0s linear 0.25s;\n\
   z-index: 20;\n\
-  /* 寸法は fandhe-backend `.docs-header-dropdown` と同値（イシュー #1110\n\
-   * の続き、旧 min-width 12rem / padding 0.35rem）。 */\n\
-  min-width: min(14rem, calc(100vw - 2rem));\n\
-  /* 画面幅を超えないよう上限を掛ける。右寄りのグループは下の\n\
-   * `:nth-last-child(-n+4)` 規則で右揃えにして右端はみ出しを防ぐ（#3671）。 */\n\
-  max-width: min(22rem, calc(100vw - 2rem));\n\
-  margin: 0;\n\
-  padding: 0.4rem;\n\
-  list-style: none;\n\
-  border: 1px solid var(--fandhe-color-border);\n\
-  border-radius: 0.5rem;\n\
+  padding: 1rem 1.5rem;\n\
   background: var(--fandhe-color-bg);\n\
-  /* 影はライト/ダークで光量が異なるため `--fandhe-shadow-*`（イシュー #606\n\
-   * の DualModeToken、`Theme::default` の `DEFAULT_SHADOWS`）を参照する。\n\
-   * 生 rgba を書くとダーク背景で輪郭が視認できない（イシュー #912 是正）。 */\n\
+  border-bottom: 1px solid var(--fandhe-color-border);\n\
   box-shadow: var(--fandhe-shadow-md);\n\
-  /* 見出し一覧が長い Blocks（65 グループ）等でもビューポート内で操作できるよう\n\
-   * 高さを制限してスクロールさせる（#3670）。 */\n\
+  /* ビューポート内に収め、はみ出す分はパネル内でスクロールさせる。\n\
+   * `dvh` 対応ブラウザでは後勝ちで上書きする。 */\n\
   max-height: calc(100vh - var(--fandhe-space-docs-header-height) - 1rem);\n\
-  /* モバイル・タブレットではアドレスバー分 `100vh` が表示高さより大きく\n\
-   * なるため、`dvh` 対応ブラウザでは後勝ちで上書きする（#3671）。 */\n\
   max-height: calc(100dvh - var(--fandhe-space-docs-header-height) - 1rem);\n\
   overflow-y: auto;\n\
   overscroll-behavior: contain;\n\
-  /* スクロールバー出現時に溝を先に確保し、項目の文字が欠けないようにする（#3671）。 */\n\
   scrollbar-gutter: stable;\n\
 }\n\
 \n\
-.docs-header nav.docs-header-nav .docs-header-group:hover > .docs-header-dropdown,\n\
-.docs-header nav.docs-header-nav .docs-header-group:focus-within > .docs-header-dropdown {\n\
-  display: block;\n\
+.docs-header nav.docs-header-nav .docs-header-group:hover > .docs-header-mega,\n\
+.docs-header nav.docs-header-nav .docs-header-group:focus-within > .docs-header-mega {\n\
+  visibility: visible;\n\
+  transition-delay: 0s;\n\
+}\n\
+\n\
+.docs-header nav.docs-header-nav .docs-header-mega-grid {\n\
+  display: grid;\n\
+  grid-template-columns: repeat(2, minmax(0, 1fr));\n\
+  gap: 0.5rem;\n\
+  max-width: 64rem;\n\
+  margin: 0 auto;\n\
+  padding: 0;\n\
+  list-style: none;\n\
+}\n\
+\n\
+.docs-header nav.docs-header-nav .docs-header-mega-cell {\n\
+  margin: 0;\n\
+  padding: 0;\n\
+  list-style: none;\n\
+}\n\
+\n\
+@media (min-width: 1024px) {\n\
+  .docs-header nav.docs-header-nav .docs-header-mega-grid {\n\
+    grid-template-columns: repeat(3, minmax(0, 1fr));\n\
+  }\n\
 }\n\
 \n\
 /*\n\
- * 後ろ 4 グループ（Themes / Blocks / Wireframes / API Reference）を右端\n\
- * アンカー（`right: 0`）に切り替える（#3671。従来は最後の 1 件のみ）。\n\
- * CSS からトリガーの x 座標は取れないため、右寄りのグループを右揃えにして\n\
- * 幅 max-width（22rem）でも画面右端を超えないようにする。左揃えのまま残る\n\
- * グループの左端は 768px でも約 281px で、+22rem でも画面内に収まる。\n\
+ * カードの `transition: none` は、テーマ切替の直後に途中の色（light 値）を描画して\n\
+ * ダークの AA を割って見せないため（イシュー #3603 と同じ観点）。\n\
  */\n\
-.docs-header nav.docs-header-nav .docs-header-group:nth-last-child(-n+4) > .docs-header-dropdown {\n\
-  left: auto;\n\
-  right: 0;\n\
-}\n\
-\n\
-/*\n\
- * nav_list recipe の `color, background` transition は、テーマ切替の直後に\n\
- * 途中の色（light 値）を描画してダークの AA を割って見せるため、ページの他要素と\n\
- * 同じく即時に切り替える（イシュー #3603）。\n\
- */\n\
-.docs-header nav.docs-header-nav .docs-header-dropdown a {\n\
+.docs-header nav.docs-header-nav .docs-header-mega-card {\n\
   display: block;\n\
-  padding: 0.32rem 0.5rem;\n\
-  border-radius: 0.4rem;\n\
-  color: var(--fandhe-color-fg-muted);\n\
+  height: 100%;\n\
+  box-sizing: border-box;\n\
+  padding: 0.75rem 0.9rem;\n\
+  border: 1px solid var(--fandhe-color-border);\n\
+  border-radius: 0.5rem;\n\
+  color: var(--fandhe-color-fg);\n\
   text-decoration: none;\n\
-  font-size: 0.85rem;\n\
   transition: none;\n\
 }\n\
 \n\
-.docs-header nav.docs-header-nav .docs-header-dropdown a:hover:hover:hover:not([aria-current=\"page\"]) {\n\
-  color: var(--fandhe-color-fg);\n\
+.docs-header nav.docs-header-nav .docs-header-mega-card:hover {\n\
   background: var(--fandhe-color-bg-subtle);\n\
 }\n\
 \n\
-.docs-header nav.docs-header-nav .docs-header-dropdown a[aria-current=\"page\"] {\n\
+.docs-header nav.docs-header-nav .docs-header-mega-card:focus-visible {\n\
+  outline: 2px solid var(--fandhe-color-accent);\n\
+  outline-offset: 2px;\n\
+}\n\
+\n\
+/* 所属表示は `\"true\"`（ヘッダーは `\"page\"` を使わない） */\n\
+.docs-header nav.docs-header-nav .docs-header-mega-card[aria-current=\"true\"] {\n\
+  border-color: var(--fandhe-color-accent);\n\
   background: var(--fandhe-color-docs-accent-bg);\n\
-  color: var(--fandhe-color-accent);\n\
-  font-weight: 600;\n\
 }\n\
 \n\
-/* グループ見出しの現在地表示（所属は \"true\"、完全一致の \"page\" と軸を分ける、#3670） */\n\
-.docs-header nav.docs-header-nav .docs-header-dropdown a[aria-current=\"true\"] {\n\
-  color: var(--fandhe-color-fg);\n\
+.docs-header nav.docs-header-nav .docs-header-mega-title {\n\
+  display: block;\n\
   font-weight: 600;\n\
+  font-size: 0.9rem;\n\
 }\n\
 \n\
+.docs-header nav.docs-header-nav .docs-header-mega-desc {\n\
+  display: block;\n\
+  margin-top: 0.2rem;\n\
+  font-size: 0.8rem;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+}\n\
 /*\n\
  * ---- 3 カラムレイアウト（イシュー #907、mobile-first） ----\n\
  *\n\
@@ -1242,10 +1242,10 @@ body {\n\
  * 出す `input.docs-nav-drawer-toggle` → `label` → `nav.docs-nav-drawer`。開閉状態の\n\
  * 唯一の情報源は checkbox の `:checked`（JS 不要。`:focus-within` は使わない）。\n\
  * 旧サイドバーの Menu トグル（#3602/#3611）はこれに置き換えた。drawer は\n\
- * ヘッダー直下へ重なるパネル。1200px 未満のヘッダーは sticky ではなく折り返しで\n\
+ * ヘッダー直下へ重なるパネル。1024px 未満のヘッダーは sticky ではなく折り返しで\n\
  * 実高さが変わるため、drawer に viewport 基準の max-height は掛けず、長い内容は\n\
  * ページ自体のスクロールで末尾まで辿れる（固定値で差し引くと下端が画面外に出る）。\n\
- * 1200px 以上の `(hover: none)` はヘッダーが sticky・1 段固定なので、専用 `@media`\n\
+ * 1024px 以上の `(hover: none)` はヘッダーが sticky・1 段固定なので、専用 `@media`\n\
  * で drawer 内スクロール（`dvh` は `vh` へフォールバック）にする。表示するのは 768px 未満と、\n\
  * 768px 以上の `(hover: none)` 端末（下記の専用 `@media`）。\n\
  * `.docs-header-inner` は drawer の配置基準（`position: relative`）になる。\n\
@@ -1380,6 +1380,11 @@ body {\n\
 .docs-header nav.docs-nav-drawer a.docs-nav-drawer-section-link[aria-current=\"true\"] {\n\
   color: var(--fandhe-color-accent);\n\
   font-weight: var(--fandhe-font-font-weight-semibold);\n\
+}\n\
+\n\
+/* メニュー索引（Assets）の行。開閉の summary を持たないため右端の余白を詰める（#3701）。 */\n\
+.docs-header nav.docs-nav-drawer .docs-nav-drawer-menu a.docs-nav-drawer-section-link {\n\
+  padding-right: 0.5rem;\n\
 }\n\
 \n\
 .docs-header nav.docs-nav-drawer a:focus-visible,\n\
@@ -1898,7 +1903,7 @@ nav.prev-next .next .docs-pager-meta {\n\
     padding: 2.25rem 2rem 5rem;\n\
   }\n\
 \n\
-  /* `.docs-header-nav`（セクション別ドロップダウン、イシュー #908）は\n\
+  /* `.docs-header-nav`（ヘッダーナビ、イシュー #908 / #3701）は\n\
    * この帯域から表示に切り替える。モバイルはナビ drawer（#3674）が\n\
    * ナビ手段を提供するため基底では非表示のまま。配置は fandhe-backend\n\
    * `.docs-header-nav { margin-left: 1.25rem; min-width: 0; }` と同値\n\
@@ -1927,6 +1932,24 @@ nav.prev-next .next .docs-pager-meta {\n\
 }\n\
 \n\
 /*\n\
+ * ---- `min-width: 1024px`: 1 段ヘッダー（イシュー #3673、#3701 で 1200px から引き下げ） ----\n\
+ *\n\
+ * ナビを 4 項目（Getting Started / Guides / Assets / API Reference）へ減らしたため、\n\
+ * ラベル付きの操作部でも 1024px で 1 段に収まる（実測: 最終トリガー右端 653px・\n\
+ * 操作部左端 709px）。ナビは内容幅を基準に、足りなければ縮む側に回し、アクション群は\n\
+ * 縮めない。トリガーは nowrap のため、収まらない幅は隠さず切らず 1024px 未満で 2 段へ倒す。\n\
+ */\n\
+@media (min-width: 1024px) {\n\
+  .docs-header-nav {\n\
+    flex: 0 1 auto;\n\
+  }\n\
+\n\
+  .docs-header-actions {\n\
+    flex: none;\n\
+  }\n\
+}\n\
+\n\
+/*\n\
  * ---- `min-width: 1200px`: 左ナビ + 中央コンテンツ + 右目次の 3 カラム grid ----\n\
  *\n\
  * `.docs-toc-aside` をこの帯域から表示に切り替える。見出しの無いページ\n\
@@ -1946,17 +1969,6 @@ nav.prev-next .next .docs-pager-meta {\n\
     grid-template-columns:\n\
       var(--fandhe-space-docs-sidebar-width) minmax(0, 1fr)\n\
       var(--fandhe-space-docs-toc-width);\n\
-  }\n\
-\n\
-  /* 1 段ヘッダー（イシュー #3673）: ナビは内容幅を基準に、足りなければ縮む\n\
-   * 側に回し、アクション群は縮めない。トリガーは nowrap のため、収まらない\n\
-   * 幅は隠さず切らず、この 1200px 境界で 2 段へ倒す（下の 2 段ブロック）。 */\n\
-  .docs-header-nav {\n\
-    flex: 0 1 auto;\n\
-  }\n\
-\n\
-  .docs-header-actions {\n\
-    flex: none;\n\
   }\n\
 \n\
   .docs-container.docs-container--no-toc {\n\
@@ -1996,12 +2008,12 @@ nav.prev-next .next .docs-pager-meta {\n\
 }\n\
 \n\
 /*\n\
- * ---- `768px 以上 1200px 未満`: 2 段ヘッダー（イシュー #3673） ----\n\
+ * ---- `768px 以上 1024px 未満`: 2 段ヘッダー（イシュー #3673、#3701 で帯域を縮小） ----\n\
  *\n\
- * ブランド・全セクションのトリガー・アクション群を 1 段に並べるには、\n\
- * アクション群をアイコンのみへ詰めても実測で約 1140px 必要で、境界 1200px\n\
- * 未満では収まらない（フォント差の余裕を含め 1200px を境界とする。\n\
- * 3 カラムになる 1200px と一致するため、旧 1200〜1280px の重なり帯域は消えた）。\n\
+ * ヘッダーナビは #3701 で 4 項目（セクション別 popup は廃止、Assets のみメガメニュー）に\n\
+ * なった。実測では、ラベル付きの操作部で最終トリガー右端 653px・操作部の幅約 315px のため\n\
+ * 976px 未満で重なり、アイコンのみへ詰めても 768px では 8px 重なる（800px で 21px 空く）。\n\
+ * 1 段が確実な 1024px を境界とする（1024〜1199px はラベル付きのまま 56px 空く）。\n\
  * ナビを 2 段目（`order: 1` +\n\
  * `flex-basis: 100%`）へ折り返し、ヘッダー高さを最小\n\
  * `--fandhe-space-docs-header-height-stacked` から内容に合わせて伸ばす。\n\
@@ -2009,8 +2021,10 @@ nav.prev-next .next .docs-pager-meta {\n\
  * この帯域ではヘッダーを sticky にせず通常フローへ戻し、サイドバー・右目次・\n\
  * 見出しアンカーのオフセットをヘッダー高さに依存しない値にする。\n\
  * 上記の通常規則より後ろに置くことで同じ詳細度のまま上書きする。\n\
+ * Assets のメガパネルはヘッダー下端から開くため、2 段目のナビと下端の間の余白は\n\
+ * `li` 側の padding へ移し、トリガーからパネルへ移る途中でホバーが切れないようにする。\n\
  */\n\
-@media (min-width: 768px) and (max-width: 1199.98px) {\n\
+@media (min-width: 768px) and (max-width: 1023.98px) {\n\
   /* 高さは固定せず最小値とする。フォント差などで 2 段目のトリガーが\n\
    * 1 行に収まらないときはメニュー自体を折り返し、ヘッダーがその分だけ\n\
    * 伸びて下の要素を押し下げる（ナビが画面右端やヘッダー外へ出ない）。 */\n\
@@ -2026,6 +2040,11 @@ nav.prev-next .next .docs-pager-meta {\n\
     row-gap: 0.35rem;\n\
     height: auto;\n\
     padding-top: 0.5rem;\n\
+    padding-bottom: 0;\n\
+  }\n\
+\n\
+  .docs-header-group {\n\
+    align-items: flex-start;\n\
     padding-bottom: 0.5rem;\n\
   }\n\
 \n\
@@ -2039,18 +2058,21 @@ nav.prev-next .next .docs-pager-meta {\n\
     flex-wrap: wrap;\n\
   }\n\
 \n\
-  /* 768px 付近でも 8 セクションが 1 行に収まるよう左右余白を詰める\n\
+  /* 768px 付近でも 4 項目が 1 行に収まるよう左右余白を詰める\n\
    * （既定 0.65rem のままだと 768px で数 px 足りず折り返す）。 */\n\
   .docs-header-trigger {\n\
     padding: 0.3rem 0.5rem;\n\
   }\n\
 \n\
-  /* ドロップダウンは 2 段ヘッダーの下端から開くため、基底の 1 段ヘッダー前提の\n\
-   * max-height ではビューポート下端を超えて末尾へ届かない。2 段分の最小高さを\n\
-   * 引いた値へ上書きする（#3670）。 */\n\
-  .docs-header nav.docs-header-nav .docs-header-dropdown {\n\
-    max-height: calc(100vh - var(--fandhe-space-docs-header-height-stacked) - 1rem);\n\
-    max-height: calc(100dvh - var(--fandhe-space-docs-header-height-stacked) - 1rem);\n\
+  /* メガパネルは 2 段ヘッダーの下端から開く。ヘッダーの実高さは折り返し行数で\n\
+   * 変わり CSS だけでは取得できないため、固定のヘッダー高さを引く式（追加の\n\
+   * 折り返しで末尾が画面外へ出る）は使わず、ヘッダー高さに依存しない割合で\n\
+   * 上限を決める。ヘッダーは sticky でなく通常フローのため、パネルが見えるのは\n\
+   * ページ最上部で、上端はビューポート上端から高々ヘッダー分である。残りは\n\
+   * パネル内でスクロールする（#3701）。 */\n\
+  .docs-header nav.docs-header-nav .docs-header-mega {\n\
+    max-height: 60vh;\n\
+    max-height: 60dvh;\n\
   }\n\
 \n\
   /* ヘッダーが sticky でないため、sticky カラムはビューポート上端へ\n\
@@ -2200,11 +2222,11 @@ nav.prev-next .next .docs-pager-meta {\n\
 /*\n\
  * ---- `(hover: none)` かつ `768px 以上`: タッチ端末はナビ drawer を使う（イシュー #3674） ----\n\
  *\n\
- * ヘッダーナビの popup は `:hover`/`:focus-within` で開くが、トリガーは索引ページへの\n\
+ * ヘッダーナビの Assets メガパネルは `:hover`/`:focus-within` で開くが、トリガーは索引ページへの\n\
  * `a[href]` で、タッチではタップすると遷移してしまい popup を安定して開けない。\n\
- * drawer は popup の上位集合（全セクション + 現在セクションの個別ページ）なので、\n\
+ * drawer はメガパネルの上位集合（全セクション + 現在セクションの個別ページ）なので、\n\
  * 主入力が hover できない端末ではヘッダーナビを隠してハンバーガーへ一本化する。\n\
- * 条件は `any-hover` ではなく `hover`（主入力）: マウスが主入力の 2-in-1 端末は popup のまま。\n\
+ * 条件は `any-hover` ではなく `hover`（主入力）: マウスが主入力の 2-in-1 端末はメガパネルのまま。\n\
  * 全帯域・`min-width: 768px` ブロックより後ろに置き、同じ詳細度のまま上書きする。\n\
  * 1200〜1439px の 1 段ヘッダーへハンバーガーを足してもはみ出さないよう、ナビごと隠す。\n\
  */\n\
@@ -2228,14 +2250,14 @@ nav.prev-next .next .docs-pager-meta {\n\
 }\n\
 \n\
 /* ナビの 2 段目が消えるので、2 段帯域のヘッダー最小高さを 1 段分へ戻す。 */\n\
-@media (hover: none) and (min-width: 768px) and (max-width: 1199.98px) {\n\
+@media (hover: none) and (min-width: 768px) and (max-width: 1023.98px) {\n\
   .docs-header {\n\
     min-height: var(--fandhe-space-docs-header-height);\n\
   }\n\
 }\n\
 \n\
-/* 1200px 以上のヘッダーは sticky・1 段で高さが固定なので、drawer の最大高さも 1 段分を引く。 */\n\
-@media (hover: none) and (min-width: 1200px) {\n\
+/* 1024px 以上のヘッダーは sticky・1 段で高さが固定なので、drawer の最大高さも 1 段分を引く。 */\n\
+@media (hover: none) and (min-width: 1024px) {\n\
   .docs-header nav.docs-nav-drawer {\n\
     max-height: calc(100vh - var(--fandhe-space-docs-header-height));\n\
     max-height: calc(100dvh - var(--fandhe-space-docs-header-height));\n\
@@ -3188,7 +3210,9 @@ mod tests {
             ".docs-header-menu",
             ".docs-header-group",
             ".docs-header-trigger",
-            ".docs-header-dropdown",
+            ".docs-header-mega",
+            ".docs-header-mega-grid",
+            ".docs-header-mega-card",
             ".docs-header-actions",
             ".docs-search",
             ".docs-search-label",
@@ -3269,14 +3293,18 @@ mod tests {
     }
 
     #[test]
-    fn stylesheet_header_dropdown_opens_on_hover_and_focus_within() {
-        // ヘッダードロップダウン（イシュー #908）は JS を使わず `:hover`/
-        // `:focus-within` の両方で開く（マウス・キーボード両対応の固定、
-        // `crate::nav::header_nav` rustdoc 参照）。
+    fn stylesheet_header_mega_panel_opens_on_hover_and_focus_within() {
+        // Assets メガパネル（イシュー #3701）は JS を使わず `:hover`/`:focus-within` の
+        // 両方で開く（マウス・キーボード両対応）。旧 `.docs-header-dropdown` は残さない。
         let sheet = stylesheet().expect("site theme stylesheet should assemble");
         let css = sheet.as_css();
-        assert!(css.contains(".docs-header-group:hover > .docs-header-dropdown"));
-        assert!(css.contains(".docs-header-group:focus-within > .docs-header-dropdown"));
+        assert!(css.contains(
+            ".docs-header nav.docs-header-nav .docs-header-group:hover > .docs-header-mega,"
+        ));
+        assert!(css.contains(
+            ".docs-header nav.docs-header-nav .docs-header-group:focus-within > .docs-header-mega {"
+        ));
+        assert!(!css.contains("docs-header-dropdown"));
     }
 
     #[test]
@@ -3287,7 +3315,7 @@ mod tests {
     }
 
     #[test]
-    fn stylesheet_disables_nav_list_link_transition_in_sidebar_and_header_dropdown() {
+    fn stylesheet_disables_nav_list_link_transition_in_sidebar_and_header_mega_card() {
         // テーマ切替直後に途中の light 値が描画され AA を割る回帰
         // （イシュー #3603）を防ぐ。nav_list recipe の transition より後ろで
         // `transition: none` を宣言していることを固定する。
@@ -3298,7 +3326,7 @@ mod tests {
             .expect("nav_list recipe transition should exist");
         for selector in [
             ".docs-sidebar nav.sidebar a {",
-            ".docs-header nav.docs-header-nav .docs-header-dropdown a {",
+            ".docs-header nav.docs-header-nav .docs-header-mega-card {",
         ] {
             let start = css.find(selector).expect("selector should exist");
             assert!(start > recipe, "{selector} must follow the recipe");
@@ -3308,77 +3336,37 @@ mod tests {
     }
 
     #[test]
-    fn stylesheet_header_dropdown_selectors_outrank_nav_list_data_scope_rules() {
-        // Bugbot 指摘（イシュー #908 PR #919 レビュー）是正の回帰テスト:
-        // `header_nav` は headless `nav_list` anatomy を再利用しているため、
-        // `nav_list::stylesheet()` の `[data-scope="nav-list"][data-part="..."]`
-        // 系ルール（詳細度最大 0,3,0、`link`+`aria-current` の組み合わせ）に
-        // 素の class セレクタ（0,1,0/0,1,1）が競り負け、padding・リンク色・
-        // カレントページの font-weight が適用されない不具合があった。
-        // サイドバー（`.docs-sidebar nav.sidebar ...`）と同型に
-        // `.docs-header nav.docs-header-nav .docs-header-dropdown ...`
-        // （詳細度 0,3,1 以上）へ底上げしたことを固定する。
+    fn stylesheet_header_mega_selectors_are_prefixed_and_have_no_weak_duplicates() {
+        // メガパネルは nav_list anatomy を使わない素の ul/li/a だが、基底規則との
+        // 順序依存を避けるため `.docs-header nav.docs-header-nav` を前置する（#3701）。
+        // 前置なしの弱いセレクタが残る二重管理を防ぐ。
         let sheet = stylesheet().expect("site theme stylesheet should assemble");
         let css = sheet.as_css();
         for selector in [
-            ".docs-header nav.docs-header-nav .docs-header-dropdown {",
-            ".docs-header nav.docs-header-nav .docs-header-dropdown a {",
-            ".docs-header nav.docs-header-nav .docs-header-dropdown a:hover:hover:hover:not([aria-current=\"page\"]) {",
-            ".docs-header nav.docs-header-nav .docs-header-dropdown a[aria-current=\"page\"] {",
+            ".docs-header nav.docs-header-nav .docs-header-mega {",
+            ".docs-header nav.docs-header-nav .docs-header-mega-grid {",
+            ".docs-header nav.docs-header-nav .docs-header-mega-card {",
+            ".docs-header nav.docs-header-nav .docs-header-mega-card[aria-current=\"true\"] {",
         ] {
-            assert!(
-                css.contains(selector),
-                "missing high-specificity selector: {selector}"
-            );
+            assert!(css.contains(selector), "missing selector: {selector}");
         }
-        // 弱い（負ける）セレクタが CSS に残っていないことも固定する
-        // （うっかり両方残して二重管理にする回帰を防ぐ）。
-        assert!(!css.contains("\n.docs-header-dropdown {"));
-        assert!(!css.contains("\n.docs-header-dropdown a {"));
-        assert!(!css.contains("\n.docs-header-dropdown a[aria-current=\"page\"] {"));
+        assert!(!css.contains("\n.docs-header-mega {"));
+        assert!(!css.contains("\n.docs-header-mega-card {"));
     }
 
     #[test]
-    fn stylesheet_sidebar_and_header_dropdown_hover_outrank_nav_list_hover_except() {
-        // codex-review P1 指摘（PR #1805、イシュー #1529）の回帰テスト:
-        // `nav_list::stylesheet()` の `link` hover が
-        // `StateCondition::HoverExcept(\"aria-current\", \"page\")` へ変更され、
-        // `[data-scope][data-part]:hover:not([data-disabled]):
-        // not([aria-current=\"page\"])`（詳細度 (0,5,0)）が新たな nav_list 側の
-        // 最大となった。docs-site 固有の sidebar/header dropdown hover は
-        // `:hover` の追加多重指定で詳細度 (0,6,2) へ底上げし、b 成分（6 > 5）
-        // だけで確実に上回ることを固定する。
+    fn stylesheet_sidebar_hover_outranks_nav_list_and_excludes_current_page() {
+        // codex-review P1 / Cursor Bugbot(Medium) 指摘（PR #1805、イシュー #1529）の
+        // 回帰テスト: サイドバーの hover は `:hover` の多重指定で nav_list の
+        // `HoverExcept` 規則（0,5,0）を上回り、`:not([aria-current="page"])` で
+        // 現在ページリンクを対象から除外する。ヘッダーは #3701 で見出し一覧 popup を
+        // 廃止したため対象はサイドバーのみ。
         let sheet = stylesheet().expect("site theme stylesheet should assemble");
         let css = sheet.as_css();
         assert!(css.contains(
             ".docs-sidebar nav.sidebar a:hover:hover:hover:hover:not([aria-current=\"page\"]) {"
         ));
-        assert!(css.contains(
-            ".docs-header nav.docs-header-nav .docs-header-dropdown a:hover:hover:hover:not([aria-current=\"page\"]) {"
-        ));
-        // 弱い（詳細度不足の）旧セレクタが残っていないことも固定する。
         assert!(!css.contains("\n.docs-sidebar nav.sidebar a:hover {"));
-        assert!(!css.contains("\n.docs-header nav.docs-header-nav .docs-header-dropdown a:hover {"));
-    }
-
-    #[test]
-    fn stylesheet_sidebar_and_header_dropdown_hover_excludes_current_page() {
-        // codex-review P1 / Cursor Bugbot(Medium) 指摘（PR #1805、イシュー #1529）
-        // の回帰テスト: 上記テストで固定した高詳細度 hover セレクタ
-        // （`a:hover:hover:hover(:hover)`）が `aria-current="page"` の現在
-        // ページリンクにも一致すると、後続の現在ページ強調規則
-        // （ヘッダー (0,4,2) / サイドバー (0,3,2)）より詳細度で勝ってしまい、
-        // 現在ページリンクをホバーすると accent 表示が通常 hover 表示へ
-        // 戻ってしまう回帰があった。`:not([aria-current="page"])` を追加して
-        // 現在ページリンクを hover 規則の対象から除外したことを固定する。
-        let sheet = stylesheet().expect("site theme stylesheet should assemble");
-        let css = sheet.as_css();
-        assert!(css.contains(
-            ".docs-sidebar nav.sidebar a:hover:hover:hover:hover:not([aria-current=\"page\"]) {"
-        ));
-        assert!(css.contains(
-            ".docs-header nav.docs-header-nav .docs-header-dropdown a:hover:hover:hover:not([aria-current=\"page\"]) {"
-        ));
     }
 
     #[test]
@@ -3609,28 +3597,39 @@ mod tests {
         assert!(css.contains(".docs-toc-inline {"));
     }
 
-    /// ヘッダー popup が長い見出し一覧でも操作できる（max-height + スクロール）こと、
-    /// グループ見出しの所属表示（`aria-current="true"`）と索引カードのアンカー
-    /// 着地位置（scroll-margin-top）が CSS にあることを固定する（#3670）。
     #[test]
-    fn stylesheet_supports_header_popup_headings() {
+    fn stylesheet_header_mega_panel_fits_viewport_and_columns() {
         let sheet = stylesheet().expect("site theme stylesheet should assemble");
         let css = sheet.as_css();
-        assert!(css
-            .contains("max-height: calc(100vh - var(--fandhe-space-docs-header-height) - 1rem);"));
-        let vh = css
+        let start = css
+            .find(".docs-header nav.docs-header-nav .docs-header-mega {")
+            .expect("mega panel rule");
+        let body = &css[start..start + css[start..].find('}').unwrap()];
+        for decl in [
+            "position: absolute;",
+            "top: 100%;",
+            "left: 0;",
+            "right: 0;",
+            "overflow-y: auto;",
+            "overscroll-behavior: contain;",
+            "scrollbar-gutter: stable;",
+        ] {
+            assert!(body.contains(decl), "{decl}");
+        }
+        let vh = body
             .find("max-height: calc(100vh - var(--fandhe-space-docs-header-height) - 1rem);")
             .expect("vh 行");
-        let dvh = css
+        let dvh = body
             .find("max-height: calc(100dvh - var(--fandhe-space-docs-header-height) - 1rem);")
             .expect("dvh 行");
         assert!(vh < dvh, "dvh は vh フォールバックより後ろに置く");
-        assert!(css.contains("scrollbar-gutter: stable;"));
-        assert!(css.contains("max-width: min(22rem, calc(100vw - 2rem));"));
-        assert!(css.contains("overflow-y: auto;"));
-        assert!(css.contains(
-            ".docs-header nav.docs-header-nav .docs-header-dropdown a[aria-current=\"true\"] {"
-        ));
+        // 基底 2 列、1024px 以上で 3 列。
+        assert!(css.contains("grid-template-columns: repeat(2, minmax(0, 1fr));"));
+        let wide = css
+            .find("@media (min-width: 1024px) {\n.docs-header nav.docs-header-nav .docs-header-mega-grid {")
+            .expect("1024px の 3 列ブロック");
+        assert!(css[wide..].contains("grid-template-columns: repeat(3, minmax(0, 1fr));"));
+        // グループ見出し・索引カードのアンカー着地位置（#3670）は維持。
         assert!(css.contains(".docs-content li.docs-category-card,\n.docs-content h2,"));
     }
 
