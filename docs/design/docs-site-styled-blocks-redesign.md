@@ -38,7 +38,7 @@
 
 1. 変更範囲は `crates/docs-site/`・`site/`・`docs/`（`docs/spec/` を除く）・`Makefile`・`.github/workflows/docs-site.yml`・`CLAUDE.md` に閉じる。`crates/pre-styled-ui/`・`crates/headless-ui/` は変更せず、semver バンプを発生させない。不足する部品は新設せず、docs-site 側で既存部品を合成する。
 2. Blocks は手本として参照するのみとする。block の `demo()` は文言・リンクがダミーで固定されているため、本番ページから `blocks::*` を呼ばない。既存 block・`site/blocks/*.md`・`tests/blocks_code_drift.rs` は変更しない（`docs-site-blocks-section.md` の契約を維持）。
-3. 無 JS 契約（`tests/no_js_contract.rs`）を維持する。JS は `assets/site.js`（defer 1 本）のみ。JS 依存 UI は既定 `hidden` とし、配線完了後に表示する。`javascript:` スキームと `on*=` 属性は使わない。
+3. 無 JS 契約（`tests/no_js_contract.rs`）を維持する。JS は外部 2 本のみ（`<head>` 先頭・stylesheet より前の同期 `assets/theme-init.js` が `data-theme` の確定だけを担い、`defer` の `assets/site.js` が本体）。インライン `<script>`・`<style>` は 0 個で、CSP 導入に伴い新規追加を禁止する（追補「ヘッダーナビの整理と CSP」）。JS 依存 UI は既定 `hidden` とし、配線完了後に表示する。`javascript:` スキームと `on*=` 属性は使わない。
 4. `menu` / `navigation_menu` / 状態機械型 `sidebar` を骨格に使わない（`docs-site-three-column-redesign.md` §3.5）。
 5. 既定エスケープを弱めない。`raw_html()` を新規に使わず、HTML 文字列を直接組み立てない。
 6. pre-styled-ui の root は呼び出し側の `class` を破棄する（`drop_class_attr`）。`docs-*` class は必ずラッパー要素に付ける。
@@ -106,7 +106,7 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 | 対象 | DOM（概略） | 備考 |
 |------|-------------|------|
 | ブランド | `a.docs-brand > span.docs-brand-mark[aria-hidden] > svg`（`favicon::mark_node()`）+ テキスト。直後の兄弟に `span.docs-brand-version > badge` | ロゴは favicon と同図案。`mark_node` の `role="img"` を可視テキストと二重に読ませないようラッパーで隠す。badge は brand リンクの外 |
-| 検索 | `div.docs-search[hidden] > label` + `input_group::root > [addon(虫眼鏡), 素の input.docs-search-input, addon(kbd「/」)]` + `ul.docs-search-results` | `input::input` は class を捨てるため使わない。label と ul は group の外（root は `flex-wrap` のため中に入れると行が増える）。`/` の移動は既存 `site.js` が担う |
+| 検索 | 当初: `div.docs-search[hidden] > label` + `input_group::root > [...]` + `ul.docs-search-results`（#3672 で置換）。現行: `div.docs-search[hidden]` の中に `span.docs-search-trigger`（検索ボタン）と `dialog#docs-search-dialog > div.docs-search-dialog-panel` を置き、label・`input_group`・結果一覧はダイアログ内 | `input::input` は class を捨てるため使わない。`/` キーでダイアログを開く配線は `site.js` が担う。構造の正は `site_theme.rs` のモジュール doc ツリーと `layout.rs` の `search_block` |
 | GitHub | `span.docs-github-link > link::root(external: true) > [icon, 「GitHub」]` | `external: true` が `target="_blank"` と `rel="noopener noreferrer"` を一緒に付ける。attrs で重ねると属性が重複する |
 | テーマトグル | `span.docs-theme-toggle[hidden] > button(ghost, sm) > [icon, span.docs-theme-toggle-label]` | 既定 `hidden` の契約は維持。`site.js` はラベル span の `textContent` のみ書き換える（ボタン全体を書き換えるとアイコンが消える） |
 | セクションナビ | DOM は変更しない（素の `nav/ul/li/a` + CSS のドロップダウン） | CSS のみで tab_nav 風（下線 + 前景色 + medium ウェイト）。`data-scope="tab-nav"` は持ち込まない。新しい色トークンは足さない |
@@ -173,14 +173,14 @@ Markdown 本文の表・引用・注記（#3622）には手本 block がなく�
 
 ## 5. JS の範囲
 
-`assets/site.js`（defer 1 本）のみとし、機能は次の 4 つに限る。
+外部 2 本のみとする（同期の `assets/theme-init.js` は `data-theme` の確定だけ、`defer` の `assets/site.js` が本体。インライン `<script>` は 0 個、イシュー #3676）。`site.js` の機能は次の 4 つに限る。
 
-1. 検索
+1. 検索（検索ボタンから開くダイアログ。索引の fetch はダイアログを開いたとき、#3672）
 2. テーマトグル
 3. スクロールスパイ
 4. コードのコピー（ユーザー判断 2026-10-03 で追加、#3605）
 
-コピーのボタンは既定 `hidden` で出力し、配線完了後に表示する。`navigator.clipboard` が使えない場合・例外時は `hidden` のままとする。コピー対象は `textContent` で取得し、`innerHTML` へ外部入力を渡さない。インライン `<script>` はテーマブートストラップ以外へ増やさない。`no_js_contract.rs` は弱めず、追加のみ可とする。
+コピーのボタンは既定 `hidden` で出力し、配線完了後に表示する。`navigator.clipboard` が使えない場合・例外時は `hidden` のままとする。コピー対象は `textContent` で取得し、`innerHTML` へ外部入力を渡さない。インライン `<script>`・`<style>` は増やさない（0 個、`no_js_contract.rs` が固定）。`no_js_contract.rs` は弱めず、追加のみ可とする。
 
 確定事項（#3605）:
 
@@ -308,7 +308,7 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 ## 10. セキュリティ不変条件
 
 - A03 インジェクション / XSS: 既定エスケープを弱めない。`raw_html()` の新規使用と HTML 文字列の直接組み立てを禁止する。コピー機構は `textContent` を使う。
-- A05 設定ミス: CSP を緩めない。インライン `<script>` はテーマブートストラップ以外へ増やさず、外部 CDN・フォント・画像を使わない。CSP の導入方針は `docs-site-csp-policy.md`。導入が確定した場合は本行を更新する。
+- A05 設定ミス: CSP は導入済み（`src/csp.rs` の `CONTENT_SECURITY_POLICY`、meta 方式、案 E）。インライン `<script>`・`<style>` は 0 個で、契約テストが固定している。唯一緩めた点は `style-src-attr 'unsafe-inline'`。外部 CDN・フォント・画像は使わない。詳細は `docs-site-csp-policy.md` §7。
 - A06 脆弱な依存: docs-site の依存閉包を変えない。
 - A08 整合性: `site_css_contract` / `no_js_contract` / `site_typography_contract` を弱めない。
 - ruleset・branch protection の変更は本ツリーの範囲外。`docs-site.yml` の変更で必須チェックの変更が要る場合は、実行せず報告事項とする。
@@ -320,7 +320,7 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 - トップの landing 用分岐は §6 の第一案（`layout.rs` に landing 用ラッパー分岐）を採用する。#3598 のフックは `docs-landing` class・CSS を持ち込まず（登録ページが無い状態で class を足すと `site_css_contract.rs` の双方向突合に違反するため）、実装は #3612 がフックの `Prepend` の上に載せる。H1 とリード文の扱いも #3612 が決める。
 - （#3612）トップのヒーローとランディング骨格の実装判断。実装は `crates/docs-site/src/landing.rs`。
   - 骨格の鍵: `layout::PageLayout { Docs, Landing }` を新設し、`page_sections::PageSection::layout` が登録表からページ単位で宣言する。`page.path == "/"` の直書き判定は、フィクスチャサイトにも `/` があり汎用エンジンの挙動が変わるため採らない。
-  - サイドバー: `aside.docs-sidebar` は DOM に残し、768px 以上でだけ CSS で隠す。768px 未満はヘッダーナビが非表示で、サイドバーの Menu トグルが唯一のナビ手段のため。右目次・折りたたみ目次は出さない。DOM 順序（SkipNav・`article.docs-content`）は標準骨格と同一。
+  - サイドバー: `aside.docs-sidebar` は DOM に残し、768px 以上でだけ CSS で隠す。768px 未満はヘッダーナビが非表示で、当時はサイドバーの Menu トグルが唯一のナビ手段だった（#3674 で廃止し、ヘッダーのナビ drawer へ置換）。右目次・折りたたみ目次は出さない。DOM 順序（SkipNav・`article.docs-content`）は標準骨格と同一。
   - h1 とリード文: pre-styled-ui の `heading` / `text` は使わず、素の `h1` / `p` に `docs-hero-*` class を付ける。両部品は `data-scope` を持ち、配下は検索インデックスと TOC から除外されるため（§3 対応表の部品リストからの意図的な逸脱）。リード文は旧 `site/index.md` 冒頭段落を移し、原稿側からは削除した（二重に持たない）。
   - CTA: `<a>` を出す `link::root` を使い、見た目は `data-docs-hero-cta` 属性で `.docs-hero-actions` 配下から当てる。`clipboard` 部品は wasm 配線前提で使わず、コピーは #3605 の機構へ `code_copy::copy_block` 経由で載せる。
   - badge のバージョン: `crates/cli/Cargo.toml` の `[package]` から `include_str!` で取り出し、CLI のバンプへ自動追随させる。
@@ -363,7 +363,7 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 - 開閉の三角は CSS 疑似要素で描く。icon 部品を使わない意図的な逸脱（DOM 不変・recipe 不要・`push_css` の `<` 禁止のため data URI を使えない）。
 - 件数 badge はグループ単位のみ（h2 には付けない）。Primitives ページは recipe 抜き CSS のため、見た目は docs 側 CSS で完結させる。
 - 選択中項目の文字色を accent から fg へ変更（ライトモードの AA 未達の解消。トークン不変、`transition: none` は維持）。
-- Menu トグルは markup を変えず CSS のみでボタン風外形・三本線・開状態・フォーカスリングを整える。
+- Menu トグルは markup を変えず CSS のみでボタン風外形・三本線・開状態・フォーカスリングを整える（#3674 で廃止・ナビ drawer へ置換）。
 
 ## 11.3 確定事項（#3621 部品ページの API 表）
 
@@ -415,3 +415,49 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 - トップの特徴カードは flex の中央寄せ（1 / 2 / 3 列相当）とし、最終段を中央に揃える。入口カード `.docs-landing-cards` は件数固定のため `auto-fit` とする。
 - 索引グリッド（`.docs-index-grid` / `.docs-category-grid`）は件数が可変で、左上起点の読み順とスキャン性を優先するため、最終段の左寄せを仕様として維持する。
 - 実機（Playwright）での段数・間隔の実測は未実施であり、レビュー時に 375 / 390 / 1280 / 1440px で確認する。
+- 768〜1200px 未満は static の 2 段ヘッダーにする。2 段分の高さは折り返しで変わり CSS だけでは取得できず、sticky にするとサイドバー・右目次・見出しアンカーのオフセットが崩れるため（#3684）。
+
+## 追補: ヘッダーナビの整理と CSP（ルート #3667、2026-10-04）
+
+ルート #3667 の Phase 1（ヘッダーナビ）と Phase 2（CSP）で、docs サイトの構成が次のとおり変わった。値と構造の正は `crates/docs-site/src/` の rustdoc と CSS で、ここには判断だけを記す。
+
+### popup は見出しだけ（#3670、ユーザー判断 2026-10-04）
+
+- 項目の情報源は `Section::headings`（`nav.rs`）の 1 つで、サイドバーと `header_nav` が共有する。直下ページはリンク、グループ見出しは索引ページ内の該当カテゴリへのアンカー（`group_href` / `group_anchor_id`）にし、配下ページは出さない。「すべて見る」は廃止した
+- `aria-current` は 2 軸のまま（`page` = 現在ページ、`true` = 現在セクション・現在グループ）。`role` / `aria-expanded` / `aria-haspopup` は付けない
+- `docs-site-three-column-redesign.md` §3.5 の「確定（イシュー #1012 / PR #1041）」を見直した判断である。同節の「見直し」を参照する。Wireframes のサイドバーはカテゴリ別グループになった（#3669）
+
+### popup の max-height と画面端（#3671）
+
+- `.docs-header-dropdown` は `max-height: calc(100vh - var(--fandhe-space-docs-header-height) - 1rem)` を基本とし、`dvh` 対応ブラウザでは `100dvh` で上書きする。`overflow-y: auto` で縦スクロールさせる
+- 末尾 4 グループ（`:nth-last-child(-n+4)`）は popup を右端へ寄せ、画面右端で切れないようにする
+- 768〜1200px 未満の 2 段帯域では、popup の位置が 1 段帯域と異なる制約がある（#3687 の対象外事項）
+
+### 検索ボタンとダイアログ（#3672）
+
+- ヘッダーには検索ボタンだけを置き、入力欄と結果一覧は `dialog#docs-search-dialog` 内へ移した。`<form>` では包まない。無 JS のとき（`div.docs-search` は既定 `hidden`）と `showModal` 非対応のときは出さない
+- `aria-haspopup="dialog"` / `aria-expanded` は SSR では出さず、`site.js` が付与する。ナビの「role 等を付けない」規約とは別の判断で、ダイアログのトリガーは JS 配線後にだけ有効になるため
+- `/` キーでダイアログを開く。索引の fetch はダイアログを開いたときに行う
+
+### ヘッダーの段数と sticky の境界（#3673）
+
+| 帯域 | 段数 | 位置 | 可視ラベル |
+|------|------|------|-----------|
+| 768px 未満 | 2 段（1 段目: ブランド・バッジ、2 段目: 操作部） | static | GitHub・テーマ・検索ボタンはアイコンのみ |
+| 768px 以上 1200px 未満 | 2 段（ナビが 2 段目） | static | あり |
+| 1200px 以上 1440px 未満 | 1 段 | sticky | GitHub・テーマ・検索ボタンはアイコンのみ（clip、`aria-label` が名前を保つ） |
+| 1440px 以上 | 1 段 | sticky | あり（`.docs-header-actions` の左余白 1.5rem） |
+
+値は `site_theme.rs` の `STRUCTURAL_CSS` の `@media` 群を正とする。`(hover: none)` 端末はナビごと隠して drawer に一本化する（次節）。
+
+### 全セクション drawer（#3674）
+
+- 構造は `input#docs-nav-drawer-toggle`（sr-only のチェックボックス）、`label.docs-nav-drawer-toggle-label`、`nav.docs-nav-drawer`（`nav::nav_drawer`）の checkbox hack。表示条件は 768px 未満と、768px 以上の `(hover: none)` 端末である。旧サイドバーの Menu トグルと置き換えた。768px 未満では `aside.docs-sidebar` を非表示にする
+- セクションごとに索引リンクと `details` を置く。現在セクションだけを `open` にしてサイドバー形式で出し、他のセクションには popup と同じ見出し一覧を出す。`id` は toggle にしか付けない
+- チェックボックスの `:checked` が唯一の状態で、JS なしで動く。pre-styled-ui の `drawer` / `collapsible` は使わない（閉状態が `hidden` となり、無 JS で開けないため。three-column §3.5 の方式比較と同じ理由）
+
+### CSP（#3676〜#3679）
+
+- 案 E で導入した。`src/csp.rs` の `CONTENT_SECURITY_POLICY` を meta として全ページ（リダイレクト案内を除く）の `charset` と `viewport` の直後へ出す
+- インライン `<script>` は同期の外部 `assets/theme-init.js` へ、`@view-transition` と split-menu の `<style>` は外部 CSS へ移した。インライン `<script>`・`<style>` は 0 個
+- 唯一緩めた点は `style-src-attr 'unsafe-inline'`。詳細は `docs-site-csp-policy.md`、実機検証の結果は `docs/reports/docs-site-csp-report.md`

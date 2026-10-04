@@ -354,6 +354,8 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
   組み立てる。**`innerHTML` / `insertAdjacentHTML` / `document.write` /
   `eval` / `new Function` を使わない。**
 
+追記（イシュー #3672）: 入力欄と結果一覧は `dialog#docs-search-dialog` 内へ移り、ヘッダーには検索ボタン（`span.docs-search-trigger`）だけを置く。索引の fetch はダイアログを開いたときに行う。上記の DOM / class 契約は #3672 より前の記述で、現行の構造の正は `crates/docs-site/src/layout.rs` の `search_block` の rustdoc とする。
+
 ### 4-2 base_path の受け渡し
 
 - `SITE_JS` は `&'static str` かつ `${` 禁止のため、インデックス URL
