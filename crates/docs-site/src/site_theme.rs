@@ -2165,7 +2165,7 @@ nav.prev-next .next .docs-pager-meta {\n\
 }\n\
 \n\
 /*\n\
- * サイトフッター（イシュー #3609、`crate::site_footer`）。\n\
+ * サイトフッター（イシュー #3609 / #3703、`crate::site_footer`。ブランド列 + Docs / メニュー / Resources）。\n\
  * body 直下で `.docs-container` の外側の兄弟なので、sticky のサイドバー・右目次\n\
  * （包含ブロックは `.docs-container`）とは構造上重ならない。Primitives ページは\n\
  * heading / link / separator / text の recipe を持たない `site-primitives.css` を読むため、\n\
@@ -2186,6 +2186,29 @@ nav.prev-next .next .docs-pager-meta {\n\
   min-width: 0;\n\
 }\n\
 \n\
+.docs-footer .docs-footer-top {\n\
+  display: grid;\n\
+  grid-template-columns: minmax(0, 1fr);\n\
+  gap: var(--fandhe-space-6, 1.5rem);\n\
+}\n\
+\n\
+.docs-footer .docs-footer-brand {\n\
+  min-width: 0;\n\
+}\n\
+\n\
+.docs-footer.docs-footer .docs-footer-brand-name {\n\
+  margin: 0 0 var(--fandhe-space-2, 0.5rem);\n\
+  font-weight: 600;\n\
+  color: var(--fandhe-color-fg);\n\
+  overflow-wrap: anywhere;\n\
+}\n\
+\n\
+.docs-footer.docs-footer .docs-footer-tagline {\n\
+  font-size: 0.875rem;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+  overflow-wrap: anywhere;\n\
+}\n\
+\n\
 .docs-footer .docs-footer-columns {\n\
   display: grid;\n\
   grid-template-columns: repeat(2, minmax(0, 1fr));\n\
@@ -2196,15 +2219,13 @@ nav.prev-next .next .docs-pager-meta {\n\
   min-width: 0;\n\
 }\n\
 \n\
-.docs-footer .docs-footer-list,\n\
-.docs-footer .docs-footer-external {\n\
+.docs-footer .docs-footer-list {\n\
   list-style: none;\n\
   margin: 0;\n\
   padding: 0;\n\
 }\n\
 \n\
-.docs-footer .docs-footer-list li,\n\
-.docs-footer .docs-footer-external li {\n\
+.docs-footer .docs-footer-list li {\n\
   margin: 0;\n\
   padding: 0;\n\
 }\n\
@@ -2249,21 +2270,21 @@ nav.prev-next .next .docs-pager-meta {\n\
   gap: var(--fandhe-space-3, 0.75rem);\n\
 }\n\
 \n\
-.docs-footer .docs-footer-external {\n\
-  display: flex;\n\
-  flex-wrap: wrap;\n\
-  gap: var(--fandhe-space-4, 1rem);\n\
-}\n\
-\n\
 @media (min-width: 768px) {\n\
   .docs-footer .docs-footer-columns {\n\
-    grid-template-columns: repeat(4, minmax(0, 1fr));\n\
+    grid-template-columns: repeat(3, minmax(0, 1fr));\n\
   }\n\
 \n\
   .docs-footer .docs-footer-bottom {\n\
     flex-direction: row;\n\
     justify-content: space-between;\n\
     align-items: flex-start;\n\
+  }\n\
+}\n\
+\n\
+@media (min-width: 1024px) {\n\
+  .docs-footer .docs-footer-top {\n\
+    grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);\n\
   }\n\
 }\n\
 ";

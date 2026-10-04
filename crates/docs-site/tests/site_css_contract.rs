@@ -2120,12 +2120,15 @@ fn page_breadcrumb_fallback_rules_exist_in_both_stylesheets() {
 const SITE_FOOTER_CLASSES: &[&str] = &[
     "docs-footer",
     "docs-footer-inner",
+    "docs-footer-top",
+    "docs-footer-brand",
+    "docs-footer-brand-name",
+    "docs-footer-tagline",
     "docs-footer-nav",
     "docs-footer-columns",
     "docs-footer-group",
     "docs-footer-list",
     "docs-footer-bottom",
-    "docs-footer-external",
 ];
 
 #[test]
@@ -2136,12 +2139,15 @@ fn site_footer_classes_match_module_constants_and_have_css_selectors() {
         [
             sf::FOOTER_CLASS,
             sf::FOOTER_INNER_CLASS,
+            sf::FOOTER_TOP_CLASS,
+            sf::FOOTER_BRAND_CLASS,
+            sf::FOOTER_BRAND_NAME_CLASS,
+            sf::FOOTER_TAGLINE_CLASS,
             sf::FOOTER_NAV_CLASS,
             sf::FOOTER_COLUMNS_CLASS,
             sf::FOOTER_GROUP_CLASS,
             sf::FOOTER_LIST_CLASS,
             sf::FOOTER_BOTTOM_CLASS,
-            sf::FOOTER_EXTERNAL_CLASS,
         ]
     );
     let css_tokens = extract_css_class_selectors(&site_css());
@@ -2185,7 +2191,7 @@ fn site_footer_fallback_rules_exist_in_both_stylesheets() {
         .to_string();
     for css in [&with, &without] {
         let start = css
-            .find(".docs-footer .docs-footer-list,")
+            .find(".docs-footer .docs-footer-list {")
             .expect("フッターのリスト代替規則が無い");
         let block = &css[start..];
         let block = &block[..block.find('}').unwrap()];
