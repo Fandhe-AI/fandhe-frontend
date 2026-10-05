@@ -78,6 +78,11 @@ title = "デプロイガイド"
 source = "docs/guides/deployment.md"
 path = "/guides/deployment/"
 
+[[section.page]]
+title = "docs サイト生成器の外部リポジトリ利用ガイド"
+source = "docs/guides/docs-site-external-repos.md"
+path = "/guides/docs-site-external-repos/"
+
 [[section]]
 title = "Examples"
 index_path = "/examples/"

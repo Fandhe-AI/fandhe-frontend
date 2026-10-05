@@ -182,10 +182,11 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // イシュー #2732: Blocks セクションは親トラッキング #2730（301 block の
     // 大量追加を予定）により今後 block ごとに本テストを書き換える運用が
     // 破綻するため、Blocks 分のページ数は `blocks::all_blocks()`（唯一の正）から
-    // 導出する。Blocks 以外の合計ページ数は 283 で固定する（イシュー #3290 で
+    // 導出する。Blocks 以外の合計ページ数は 284 で固定する（イシュー #3290 で
     // Examples に vercel-ssg が加わり 280 → 281。イシュー #3291 で Guides に
     // デプロイガイドが加わり 281 → 282。イシュー #3341 で Examples に
-    // vercel-ssr が加わり 282 → 283）。内訳
+    // vercel-ssr が加わり 282 → 283。イシュー #3726 で Guides に外部リポジトリ
+    // 利用ガイドが加わり 283 → 284）。内訳
     // （Getting Started / Guides / Examples / Primitives / Themes /
     // Wireframes / API Reference）の増減履歴はコミット履歴を参照する
     // （逐次カウント記録によるコメント肥大化を避けるため要約した）。
@@ -193,8 +194,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     let non_blocks_page_count = pages.len() - expected_blocks_page_count;
     assert_eq!(
         non_blocks_page_count,
-        283,
-        "expected 283 non-/blocks/ pages, got {non_blocks_page_count} \
+        284,
+        "expected 284 non-/blocks/ pages, got {non_blocks_page_count} \
          (total={}, blocks={expected_blocks_page_count})",
         pages.len()
     );
