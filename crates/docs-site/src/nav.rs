@@ -16,7 +16,7 @@
 //! 黙って無視することはしない）。
 //!
 //! - `#` から始まる行コメント、および文字列値の終端後に続く `# ...`
-//! - `[site]` テーブル（必須の `title` / `base_path` と、任意の `brand` / `repository_url`。
+//! - `[site]` テーブル（必須の `title` / `base_path` と、任意の `brand` / `repository_url` / `brand_mark` / `brand_color`。
 //!   任意キーの設計は `docs/design/docs-site-external-use.md`、#3720）
 //! - `[[section]]` array-of-tables（`title` / `index_path` の 2 キー。
 //!   `index_path` はセクショントップページの出力 URL パスを指す必須項目
@@ -264,6 +264,10 @@ pub struct Site {
     /// リポジトリ URL（任意、#3720）。`https://` のみ許可（[`parse_nav`] が検証）。
     /// ヘッダーの GitHub リンクとフッター Resources 列の GitHub が使う。
     pub repository_url: Option<String>,
+    /// ブランドマークの文字（任意、#3722）。ASCII 英数字ちょうど 1 文字（[`parse_nav`] が検証）。
+    pub brand_mark: Option<String>,
+    /// ブランドマークのタイル色（任意、#3722）。`#` + 16 進 6 桁（[`parse_nav`] が検証）。
+    pub brand_color: Option<String>,
 }
 
 /// `[site].brand` の最大文字数。
@@ -295,12 +299,25 @@ impl Site {
             .unwrap_or(crate::layout::REPOSITORY_URL)
     }
 
+    /// 既定値解決済みのブランドマーク指定（#3722）。解決はここへ集約する。
+    #[must_use]
+    pub fn brand_mark(&self) -> crate::favicon::BrandMark<'_> {
+        crate::favicon::BrandMark {
+            glyph: self.brand_mark.as_deref(),
+            color: self
+                .brand_color
+                .as_deref()
+                .unwrap_or(crate::favicon::DEFAULT_BRAND_COLOR),
+        }
+    }
+
     /// レイアウト（ヘッダー）へ渡す設定値を束ねる。
     #[must_use]
     pub fn chrome(&self) -> crate::layout::SiteChrome<'_> {
         crate::layout::SiteChrome {
             brand: self.header_brand(),
             repository_url: self.resolved_repository_url(),
+            mark: self.brand_mark(),
         }
     }
 }
@@ -330,6 +347,29 @@ fn validate_site_text(
         return Err(parse_err(line, format!("`{key}` must not be blank")));
     }
     Ok(())
+}
+
+/// `[site].brand_mark` の検証（ASCII 英数字ちょうど 1 文字）。値はエラーへ載せない。
+fn validate_site_brand_mark(value: &str, line: usize) -> Result<(), NavError> {
+    match value.as_bytes() {
+        [b] if b.is_ascii_alphanumeric() => Ok(()),
+        _ => Err(parse_err(
+            line,
+            "`site.brand_mark` must be exactly one ASCII letter or digit",
+        )),
+    }
+}
+
+/// `[site].brand_color` の検証（`#` + 16 進 6 桁。3 桁省略形・色名・関数形式は不可）。
+/// 文字境界で panic しないようバイト列で判定する。値はエラーへ載せない。
+fn validate_site_brand_color(value: &str, line: usize) -> Result<(), NavError> {
+    match value.as_bytes() {
+        [b'#', rest @ ..] if rest.len() == 6 && rest.iter().all(u8::is_ascii_hexdigit) => Ok(()),
+        _ => Err(parse_err(
+            line,
+            "`site.brand_color` must be `#` followed by 6 hexadecimal digits",
+        )),
+    }
 }
 
 /// `[site]` の任意 URL キーの検証。`https://` 始まり（小文字完全一致）・全バイトが
@@ -826,6 +866,8 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
     let mut site_base_path: Option<String> = None;
     let mut site_brand: Option<String> = None;
     let mut site_repository_url: Option<String> = None;
+    let mut site_brand_mark: Option<String> = None;
+    let mut site_brand_color: Option<String> = None;
     let mut sections: Vec<SectionBuilder> = Vec::new();
     let mut menus: Vec<MenuBuilder> = Vec::new();
     // `[[menu]]` の後に `[[section]]` を挟まず `[[section.*]]` が現れた場合に
@@ -1006,6 +1048,14 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
                     )?;
                     set_once(&mut site_repository_url, value, line, "site.repository_url")?
                 }
+                "brand_mark" => {
+                    validate_site_brand_mark(&value, line)?;
+                    set_once(&mut site_brand_mark, value, line, "site.brand_mark")?
+                }
+                "brand_color" => {
+                    validate_site_brand_color(&value, line)?;
+                    set_once(&mut site_brand_color, value, line, "site.brand_color")?
+                }
                 other => return Err(parse_err(line, format!("unknown key `{other}` in [site]"))),
             },
             Ctx::Section(sidx) => match key {
@@ -1108,6 +1158,8 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
         })?,
         brand: site_brand,
         repository_url: site_repository_url,
+        brand_mark: site_brand_mark,
+        brand_color: site_brand_color,
     };
     validate_base_path(&site.base_path)?;
 
@@ -3447,6 +3499,75 @@ path = "/components/button/"
                 }
                 other => panic!("expected Parse, got {other:?}"),
             }
+        }
+    }
+
+    // ---- [site].brand_mark / [site].brand_color（#3722） ----
+
+    #[test]
+    fn site_brand_mark_and_color_default_to_none() {
+        let nav = parse_nav(&site_with("")).unwrap();
+        assert_eq!(nav.site.brand_mark, None);
+        assert_eq!(nav.site.brand_color, None);
+        assert_eq!(nav.site.brand_mark(), crate::favicon::BrandMark::default());
+    }
+
+    #[test]
+    fn site_brand_mark_and_color_accept_valid_values_verbatim() {
+        for v in ["a", "Z", "0", "f"] {
+            let nav = parse_nav(&site_with(&format!("brand_mark = \"{v}\"\n"))).unwrap();
+            assert_eq!(nav.site.brand_mark.as_deref(), Some(v));
+        }
+        for v in ["#3182ce", "#FFFFFF", "#AbCdEf", "#000000"] {
+            let nav = parse_nav(&site_with(&format!("brand_color = \"{v}\"\n"))).unwrap();
+            assert_eq!(nav.site.brand_color.as_deref(), Some(v));
+            assert_eq!(nav.site.brand_mark().color, v);
+        }
+    }
+
+    fn assert_site_key_rejected(extra: &str, key: &str) {
+        let err = parse_nav(&site_with(extra)).unwrap_err();
+        match &err {
+            NavError::Parse { line, message } => {
+                assert!(*line > 0, "line must be set: {err}");
+                assert!(message.contains(key), "{message}");
+            }
+            other => panic!("expected Parse, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn site_brand_mark_rejects_invalid_values() {
+        for v in ["", "ab", "あ", "-", " ", "\\n", "<"] {
+            assert_site_key_rejected(&format!("brand_mark = \"{v}\"\n"), "site.brand_mark");
+        }
+    }
+
+    #[test]
+    fn site_brand_color_rejects_invalid_values() {
+        for v in [
+            "",
+            "#fff",
+            "3182ce",
+            "#3182cg",
+            "red",
+            "rgb(0,0,0)",
+            "#3182ce0",
+            " #3182ce",
+            "#3182ce ",
+            "#３１８２ｃ",
+        ] {
+            assert_site_key_rejected(&format!("brand_color = \"{v}\"\n"), "site.brand_color");
+        }
+    }
+
+    #[test]
+    fn site_brand_mark_and_color_reject_duplicates() {
+        for extra in [
+            "brand_mark = \"a\"\nbrand_mark = \"b\"\n",
+            "brand_color = \"#000000\"\nbrand_color = \"#111111\"\n",
+        ] {
+            assert!(parse_nav(&site_with(extra)).is_err());
         }
     }
 
