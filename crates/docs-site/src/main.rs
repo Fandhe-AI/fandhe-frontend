@@ -9,6 +9,7 @@
 //!
 //! 本ファイル自体は引数パースと終了コード変換のみを担う薄いラッパーであり、
 //! ビルドロジック本体は [`fandhe_frontend_docs_site::build::build_site`]
+//! （本番登録表）と `build_site_with`（`--no-page-sections` 時に空の登録表を渡す）
 //! （`src/build.rs`）に置く。`tests/site_build.rs`（E2E テスト、
 //! `env!("CARGO_BIN_EXE_docs-site")` 経由でこのバイナリを起動する）と
 //! `build_site` を直接呼ぶ単体テストの双方から同一のビルドロジックを共有
@@ -18,6 +19,11 @@
 //! - `--out <dir>`（必須）: 出力先ディレクトリ
 //! - `--root <dir>`（任意、既定 `.`）: `<root>/site/nav.toml` を読むリポジトリ
 //!   ルート。フィクスチャルートを渡す E2E テストのために存在する
+//! - `--no-page-sections`（任意）: 本番の生成節登録表（本サイト専用のヒーロー・
+//!   索引カード等）を使わず、空の登録表（`EMPTY_REGISTRY`）でビルドする。
+//!   外部リポジトリの nav 向け（イシュー #3716）。未指定時は従来どおり本番登録表
+//!   で、登録ページを持たない nav は書き出し前に fail-closed で失敗する。
+//!   ショーケース注入の停止は #3717 で扱う
 //!
 //! `--out` 欠落・未知の引数は usage を stderr に出して非 0 終了する
 //! （黙って既定値へフォールバックしない、fail-closed。`security.md` A05）。
@@ -33,13 +39,16 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use fandhe_frontend_docs_site::build::build_site;
+use fandhe_frontend_docs_site::build::{build_site, build_site_with};
+use fandhe_frontend_docs_site::page_sections::EMPTY_REGISTRY;
 
 /// パース済み CLI 引数。
 #[derive(Debug)]
 struct Args {
     root: PathBuf,
     out: PathBuf,
+    /// `true` のとき空の登録表でビルドする（既定 `false` = 本番登録表）。
+    no_page_sections: bool,
 }
 
 /// `std::env::args` を手動パースする（外部クレート非依存、REQ-3）。
@@ -48,10 +57,11 @@ struct Args {
 /// （[`main`]）がそのまま stderr へ出力して非 0 終了する契約。
 fn parse_args<I: Iterator<Item = String>>(mut args: I) -> Result<Args, String> {
     const USAGE: &str =
-        "usage: docs-site --out <dir> [--root <dir>]\n\n  --out <dir>   output directory (required)\n  --root <dir>  repository root containing site/nav.toml (default: \".\")";
+        "usage: docs-site --out <dir> [--root <dir>] [--no-page-sections]\n\n  --out <dir>         output directory (required)\n  --root <dir>        repository root containing site/nav.toml (default: \".\")\n  --no-page-sections  build without the built-in page section registry (for sites other than the fandhe-frontend docs)";
 
     let mut root: Option<PathBuf> = None;
     let mut out: Option<PathBuf> = None;
+    let mut no_page_sections = false;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -67,6 +77,7 @@ fn parse_args<I: Iterator<Item = String>>(mut args: I) -> Result<Args, String> {
                     .ok_or_else(|| format!("--root requires a value\n\n{USAGE}"))?;
                 root = Some(PathBuf::from(value));
             }
+            "--no-page-sections" => no_page_sections = true,
             other => {
                 return Err(format!("unknown argument `{other}`\n\n{USAGE}"));
             }
@@ -77,6 +88,7 @@ fn parse_args<I: Iterator<Item = String>>(mut args: I) -> Result<Args, String> {
     Ok(Args {
         root: root.unwrap_or_else(|| PathBuf::from(".")),
         out,
+        no_page_sections,
     })
 }
 
@@ -90,7 +102,13 @@ fn main() -> ExitCode {
         }
     };
 
-    match build_site(&parsed.root, &parsed.out) {
+    // フラグなしは従来どおり `build_site` を呼び、本サイトの経路を一切変えない。
+    let result = if parsed.no_page_sections {
+        build_site_with(&parsed.root, &parsed.out, &EMPTY_REGISTRY)
+    } else {
+        build_site(&parsed.root, &parsed.out)
+    };
+    match result {
         Ok(report) => {
             println!(
                 "fandhe-frontend-docs-site: wrote {} page(s), {} redirect(s) and {} asset(s) to {}",
@@ -123,6 +141,38 @@ mod tests {
         let args = parse_args(vec!["--out".to_string(), "dist".to_string()].into_iter()).unwrap();
         assert_eq!(args.out, PathBuf::from("dist"));
         assert_eq!(args.root, PathBuf::from("."));
+        assert!(!args.no_page_sections);
+    }
+
+    #[test]
+    fn parse_args_no_page_sections_does_not_consume_next_value() {
+        let a = |v: &[&str]| parse_args(v.iter().map(|s| s.to_string()));
+        let args = a(&["--no-page-sections", "--out", "dist", "--root", "fixture"]).unwrap();
+        assert!(args.no_page_sections);
+        assert_eq!(args.out, PathBuf::from("dist"));
+        assert_eq!(args.root, PathBuf::from("fixture"));
+        assert!(
+            a(&["--out", "dist", "--no-page-sections"])
+                .unwrap()
+                .no_page_sections
+        );
+    }
+
+    #[test]
+    fn parse_args_rejects_valued_no_page_sections() {
+        let err = parse_args(
+            ["--out", "d", "--no-page-sections=false"]
+                .iter()
+                .map(|s| s.to_string()),
+        )
+        .unwrap_err();
+        assert!(err.contains("unknown argument"));
+    }
+
+    #[test]
+    fn usage_mentions_no_page_sections() {
+        let err = parse_args(std::iter::empty()).unwrap_err();
+        assert!(err.contains("--no-page-sections"));
     }
 
     #[test]
