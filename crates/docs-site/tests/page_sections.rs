@@ -80,6 +80,7 @@ fn registry_for(path: &'static str, placement: Placement) -> Registry {
     Registry {
         sections,
         stylesheets: &SHEETS,
+        showcases: false,
     }
 }
 
@@ -268,6 +269,7 @@ fn build_fails_closed_before_writing_on_invalid_registry() {
         &Registry {
             sections: two,
             stylesheets: &SHEETS,
+            showcases: false,
         },
         "dup",
     );
@@ -276,6 +278,7 @@ fn build_fails_closed_before_writing_on_invalid_registry() {
         &Registry {
             sections: registry_for(TARGET, Placement::Append).sections,
             stylesheets: &[],
+            showcases: false,
         },
         "unknown-sheet",
     );
@@ -288,6 +291,7 @@ fn build_fails_closed_before_writing_on_invalid_registry() {
         &Registry {
             sections: &[],
             stylesheets: reserved,
+            showcases: false,
         },
         "reserved-sheet",
     );

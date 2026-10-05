@@ -551,14 +551,26 @@ pub fn build_site_with(
         // 分岐であり、`crate::blocks::Block::path` に一致しないページでは
         // no-op（`markdown_blocks` をそのまま返す）。`crate::blocks`
         // モジュール doc「ページ組み立て方式」節参照。
-        let markdown_blocks =
-            blocks::insert_generated_sections(&page.path, &nav.site.base_path, markdown_blocks);
+        // `registry.showcases` が false のときは組み込みショーケース（blocks /
+        // wireframes / 部品ページ）の注入を全て止める（#3717）。外部サイトの
+        // 同名パスへ本サイト専用デモを混入させないため。
+        let showcases = registry.showcases;
+        let is_block_page = showcases && blocks::block_for_path(&page.path).is_some();
+        let is_wireframe_page = showcases && wireframes::wireframe_for_path(&page.path).is_some();
+        let markdown_blocks = if showcases {
+            blocks::insert_generated_sections(&page.path, &nav.site.base_path, markdown_blocks)
+        } else {
+            markdown_blocks
+        };
         // Wireframes ページ（イシュー #2607）専用の途中挿入。`blocks` と同型
         // の独立分岐であり、`crate::wireframes::Wireframe::path` に一致しない
         // ページでは no-op。`crate::wireframes` モジュール doc「ページ組み立て
         // 方式」節参照。
-        let markdown_blocks =
-            wireframes::insert_generated_sections(&page.path, &nav.site.base_path, markdown_blocks);
+        let markdown_blocks = if showcases {
+            wireframes::insert_generated_sections(&page.path, &nav.site.base_path, markdown_blocks)
+        } else {
+            markdown_blocks
+        };
         // 汎用生成節（イシュー #3598）。登録表に無いページでは no-op。blocks /
         // wireframes の挿入後に適用するため、登録可能パスは既存の
         // 生成経路（block・wireframe・部品ページ）と重ならない（`page_sections::validate`）。
@@ -594,7 +606,11 @@ pub fn build_site_with(
         // 注記参照）。索引ページ（`showcase::PAGE_PATH`）は #943 で
         // Rust 生成コンテンツを持たなくなったため `None` を返し、
         // `site/themes.md` の Markdown 本文のみで完結する。
-        let generated = component_page::generated_content(&page.path);
+        let generated = if showcases {
+            component_page::generated_content(&page.path)
+        } else {
+            None
+        };
         let mut extra_stylesheets: Vec<&str> = Vec::new();
         if generated.is_some() {
             // 層で配線する専用 CSS を切り替える（イシュー #1022）。Primitives
@@ -621,7 +637,7 @@ pub fn build_site_with(
         // レジストリを直接照会する（モジュール doc「役割・呼び出し文脈」節
         // 参照。`Layer::from_page_path` の全域判定に Blocks ページを
         // 通さないための構造的な分離）。
-        if blocks::block_for_path(&page.path).is_some() {
+        if is_block_page {
             has_showcase_page = true;
             has_blocks_page = true;
             extra_stylesheets.push(showcase::STYLESHEET_REL_PATH);
@@ -639,7 +655,7 @@ pub fn build_site_with(
         // 同型に `crate::wireframes` のレジストリを直接照会する。Themes 側
         // の `pre-styled-ui.css` は配線しない（`has_showcase_page` を立てない、
         // モジュール doc「CSS の置き場」節参照）。
-        if wireframes::wireframe_for_path(&page.path).is_some() {
+        if is_wireframe_page {
             has_wireframes_page = true;
             extra_stylesheets.push(wireframes::STYLESHEET_REL_PATH);
         }
@@ -669,7 +685,7 @@ pub fn build_site_with(
             &layout::asset_href(&nav.site.base_path, &page.path),
             &page.title,
             &index_body,
-            blocks::block_for_path(&page.path).is_some(),
+            is_block_page,
         );
         // `all_pages()` が返すページは必ずいずれかのセクションに属し、
         // `index_path` はセクション間で一意（`index_path ⊆` 自セクションの

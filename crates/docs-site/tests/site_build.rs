@@ -1000,3 +1000,150 @@ fn real_site_emits_404_page_outside_pages_and_search_index() {
         );
     }
 }
+/// ショーケース対象 4 系統（Themes / Primitives / Blocks / Wireframes）の実在パス。
+/// レジストリ照会で陽性対照を取り、レジストリ変更で腐らないようにする（#3717）。
+fn showcase_paths() -> Vec<String> {
+    use fandhe_frontend_docs_site::{component_page, wireframes};
+    let block = blocks::all_blocks()[0].path.to_string();
+    let wire = wireframes::WIREFRAMES[0].path.to_string();
+    let themes = "/themes/accordion/".to_string();
+    let prims = "/primitives/accordion/".to_string();
+    assert!(component_page::generated_content(&themes).is_some());
+    assert!(component_page::generated_content(&prims).is_some());
+    assert!(blocks::block_for_path(&block).is_some());
+    assert!(wireframes::wireframe_for_path(&wire).is_some());
+    vec![themes, prims, block, wire]
+}
+
+/// `paths` の 4 ページを中間に置いた最小サイトを `root` へ書く。
+fn write_showcase_path_site(root: &Path, paths: &[String]) {
+    std::fs::create_dir_all(root.join("site")).unwrap();
+    let mut nav = String::from(
+        "[site]\ntitle = \"Ext\"\nbase_path = \"\"\n\n[[section]]\ntitle = \"All\"\nindex_path = \"/\"\n\n",
+    );
+    let mut all: Vec<(String, String)> = vec![("Home".into(), "/".into())];
+    for (i, p) in paths.iter().enumerate() {
+        all.push((format!("P{i}"), p.clone()));
+    }
+    all.push(("End".into(), "/end/".into()));
+    for (i, (title, path)) in all.iter().enumerate() {
+        nav.push_str(&format!(
+            "[[section.page]]\ntitle = \"{title}\"\nsource = \"site/p{i}.md\"\npath = \"{path}\"\n\n"
+        ));
+        std::fs::write(
+            root.join(format!("site/p{i}.md")),
+            "# T\n\nbody\n\n## Section\n\n```rust\nlet showcase_marker_ident = 1;\n```\n",
+        )
+        .unwrap();
+    }
+    std::fs::write(root.join("site/nav.toml"), nav).unwrap();
+}
+
+fn page_html(out: &Path, path: &str) -> String {
+    let p = out.join(path.trim_matches('/')).join("index.html");
+    std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("{}: {e}", p.display()))
+}
+
+fn assert_no_showcase_assets(out: &Path) {
+    let tree = read_tree(out);
+    for name in [
+        "pre-styled-ui.css",
+        "primitives-showcase.css",
+        "site-primitives.css",
+        "blocks.css",
+        "wireframes.css",
+        "image-demo.svg",
+    ] {
+        assert!(
+            !tree.keys().any(|k| k == &format!("assets/{name}")),
+            "{name}"
+        );
+    }
+    assert!(
+        !tree.keys().any(|k| k.starts_with("assets/blocks-demo-")),
+        "blocks-demo-*"
+    );
+}
+
+/// `EMPTY_REGISTRY` では対象 4 系統のパスでもショーケースが注入されない（#3717）。
+#[test]
+fn empty_registry_does_not_inject_showcases_on_showcase_paths() {
+    let temp = TempDir::new("showcase-off");
+    let paths = showcase_paths();
+    let neutral: Vec<String> = (1..=4).map(|i| format!("/plain-{i}/")).collect();
+    let (s, n) = (temp.0.join("s"), temp.0.join("n"));
+    write_showcase_path_site(&s, &paths);
+    write_showcase_path_site(&n, &neutral);
+    let (out_s, out_n) = (temp.0.join("out-s"), temp.0.join("out-n"));
+    let rep = build_site_with(&s, &out_s, &EMPTY_REGISTRY).expect("showcase-path build");
+    build_site_with(&n, &out_n, &EMPTY_REGISTRY).expect("neutral build");
+    assert_eq!(rep.written.len(), 6);
+
+    let assets = |out: &Path| -> Vec<String> {
+        read_tree(out)
+            .into_keys()
+            .filter(|k| k.starts_with("assets/"))
+            .collect()
+    };
+    assert_eq!(assets(&out_s), assets(&out_n));
+    assert_no_showcase_assets(&out_s);
+
+    for (p, q) in paths.iter().zip(&neutral) {
+        let (hs, hn) = (page_html(&out_s, p), page_html(&out_n, q));
+        assert_eq!(
+            hs.matches("data-scope=").count(),
+            hn.matches("data-scope=").count()
+        );
+        assert_eq!(
+            hs.matches("rel=\"stylesheet\"").count(),
+            hn.matches("rel=\"stylesheet\"").count()
+        );
+        assert!(hs.contains("assets/site.css"));
+        for needle in [
+            "blocks-demo",
+            "wireframes-demo",
+            "showcase-anatomy",
+            "primitives-demo-anatomy",
+            "pre-styled-ui.css",
+            "primitives-showcase.css",
+            "site-primitives.css",
+            "blocks.css",
+            "wireframes.css",
+        ] {
+            assert!(!hs.contains(needle), "{p}: {needle}");
+        }
+    }
+
+    // Blocks ページのコードブロックが検索インデックスから除外されない（G6）。
+    let idx: String = read_tree(&out_s)
+        .into_iter()
+        .filter(|(k, _)| k.starts_with("assets/search-index"))
+        .map(|(_, v)| String::from_utf8_lossy(&v).into_owned())
+        .collect();
+    assert!(idx.contains("showcase_marker_ident"));
+}
+
+/// `--no-page-sections` でも同様にショーケースが止まり、lib の `EMPTY_REGISTRY` と一致する。
+#[test]
+fn binary_no_page_sections_suppresses_showcases_on_showcase_paths() {
+    let temp = TempDir::new("bin-showcase-off");
+    let site = temp.0.join("s");
+    write_showcase_path_site(&site, &showcase_paths());
+    let (out_bin, out_lib) = (temp.0.join("o-bin"), temp.0.join("o-lib"));
+    let output = Command::new(docs_site_bin())
+        .arg("--no-page-sections")
+        .arg("--out")
+        .arg(&out_bin)
+        .arg("--root")
+        .arg(&site)
+        .output()
+        .expect("spawn docs-site binary");
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_no_showcase_assets(&out_bin);
+    build_site_with(&site, &out_lib, &EMPTY_REGISTRY).expect("lib build");
+    assert_eq!(read_tree(&out_bin), read_tree(&out_lib));
+}
