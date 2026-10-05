@@ -27,6 +27,14 @@
 # 出力契約:
 #   `docs-site-external-use: stage=<fetch|build|generate|inspect> result=<PASS|FAIL>`
 #   を標準出力と GITHUB_STEP_SUMMARY（設定時）へ出す。失敗時は `::error::` に段階名を含める。
+#   submodule 取得のスキップ（#3741）: install 成功時は、cargo が `.gitmodules` の
+#   `update = none`（#3718）を実際に効かせた証跡として
+#     `Skipping git submodule `<submodule の URL>` due to update strategy in .gitmodules`
+#   行がログに出ていることも成功条件にする（無ければ stage=fetch FAIL）。cargo 1.98.1 で
+#   実測した文言で、path ではなく URL が出る。文言は cargo の版依存のため、CI の stable での
+#   最終確認は初回 PR の CI ログで行う。EXTERNAL_USE_WORK_DIR を再利用すると cargo の
+#   checkout が使い回されてスキップ行が出ず偽 FAIL になるので、毎回まっさらな領域を使うこと。
+#   汎用判定のため別 submodule のスキップでも通る（現状の submodule は docs/spec のみ）。
 #   取得とビルドの判別: cargo はソース取得（submodule 処理を含む）を終えてから
 #   `Installing fandhe-frontend-docs-site ` 行を出すため、失敗ログにこの行が無ければ
 #   取得段階、あればビルド段階（crates.io 索引更新・コンパイル）と判定する。
@@ -80,6 +88,13 @@ require_work_dir() {
   esac
 }
 
+# 役割: install ログに、`update = none` による submodule 取得スキップ行があるかを判定する。
+# 呼び出し元: stage_install の成功分岐とテスト（`source` で読み込んで直接呼ぶ）。
+# 固定の ERE で照合し、ログの内容を評価・展開しない。
+log_has_submodule_skip() {
+  grep -Eq '^ *Skipping git submodule .+ due to update strategy in \.gitmodules' "$1"
+}
+
 # 役割: 匿名で取得してビルドする。取得失敗と取得後の失敗（ビルド）を区別する。
 stage_install() {
   local repo_url="${EXTERNAL_USE_REPO_URL:-}"
@@ -130,6 +145,11 @@ stage_install() {
       summary fetch PASS
       summary build FAIL
       annotate_error "build: cargo install succeeded but bin/docs-site is missing"
+      exit 1
+    fi
+    if ! log_has_submodule_skip "${log}"; then
+      summary fetch FAIL
+      annotate_error "fetch: cargo did not skip the git submodule (update = none in .gitmodules ignored, or docs/spec became anonymously fetchable); if EXTERNAL_USE_WORK_DIR was reused, use a fresh directory"
       exit 1
     fi
     summary fetch PASS
@@ -227,10 +247,13 @@ stage_inspect() {
   summary inspect PASS
 }
 
-[ "$#" -eq 1 ] || usage
-case "$1" in
-  install)  require_work_dir; stage_install ;;
-  generate) require_work_dir; stage_generate ;;
-  inspect)  require_work_dir; stage_inspect ;;
-  *) usage ;;
-esac
+# `source` されたとき（テストが判定関数だけを読む場合）はディスパッチしない。
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  [ "$#" -eq 1 ] || usage
+  case "$1" in
+    install)  require_work_dir; stage_install ;;
+    generate) require_work_dir; stage_generate ;;
+    inspect)  require_work_dir; stage_inspect ;;
+    *) usage ;;
+  esac
+fi
