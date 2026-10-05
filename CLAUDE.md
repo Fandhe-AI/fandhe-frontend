@@ -154,8 +154,9 @@ main セッションは**指揮・統合・ユーザー対話に専念**し、�
 | `crates/app/` `crates/server/` | server-builder |
 | `crates/wasm-client/` `crates/wasm-full/` `crates/wasm-thin/` `static/` | wasm-builder |
 | `crates/frontend-animation/` | wasm-builder |
-| `crates/xtask/` `crates/cli/` `.github/` `Dockerfile` `deny.toml` `templates/` | tooling-builder |
-| `docs/`（spec 以外）・CLAUDE.md | docs-writer |
+| `crates/xtask/` `crates/cli/` `crates/docs-site/` `.github/` `Dockerfile` `deny.toml` `templates/` | tooling-builder |
+| `site/nav.toml` `site/redirects.toml` | tooling-builder（`crates/docs-site/tests/` の契約テストと連動するため） |
+| `docs/`（spec 以外）・CLAUDE.md・`site/**/*.md`（docs サイト原稿。`nav.toml` / `redirects.toml` を除く） | docs-writer |
 | `docs/spec/`（読み取り調査） | explorer |
 | テスト実行・失敗分析 | test-runner |
 | レビュー | reviewer / security-auditor |
@@ -179,12 +180,12 @@ main セッションは**指揮・統合・ユーザー対話に専念**し、�
 | implement | core-builder | sonnet | `crates/core/` `crates/interactive/` `crates/animation/` `crates/wireframe-ui/` — 描画・状態管理・アニメーション演算・ワイヤーフレーム UI コア（`forbid(unsafe_code)` 域） |
 | implement | server-builder | sonnet | `crates/app/` `crates/server/` — SSR / SSG / ルーティング |
 | implement | wasm-builder | sonnet | `crates/wasm-client/` `crates/wasm-full/` `crates/wasm-thin/` `crates/frontend-animation/` `static/` — CSR / ハイドレーション / WASM / Web アニメーションアダプタ |
-| implement | tooling-builder | sonnet | `crates/xtask/` / CI / Dockerfile / cargo-deny / 単一バイナリ配布 / AI 自己保守フック |
+| implement | tooling-builder | sonnet | `crates/xtask/` / `crates/docs-site/`（docs サイトジェネレータ）/ `site/nav.toml`・`site/redirects.toml` / CI / Dockerfile / cargo-deny / 単一バイナリ配布 / AI 自己保守フック |
 | testing | test-runner | sonnet | `cargo test` / XSS 回帰 / wasm テストの実行と失敗分析 |
 | quality | reviewer | sonnet | 仕様準拠・アーキテクチャ整合・Rust イディオムのレビュー |
 | quality | security-auditor | sonnet | OWASP・XSS エスケープ保証・`unsafe` 境界・依存監査 |
 | quality | linter | haiku | rustfmt / clippy / frontmatter の機械的チェック |
-| docs | docs-writer | haiku | README / CLAUDE.md / docs/（spec 除く）の更新 |
+| docs | docs-writer | haiku | README / CLAUDE.md / docs/（spec 除く）/ `site/` 原稿 `*.md` の更新 |
 
 ## Rules
 
