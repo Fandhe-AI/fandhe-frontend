@@ -1,6 +1,6 @@
 # docs サイトの外部リポジトリ利用に向けた `[site]` 拡張方針
 
-- ステータス: 設計確定（実装中）。`brand` / `repository_url` は #3720、`brand_mark` / `brand_color` は #3722、`tagline` / `copyright` / `version_badge` / `lang` は #3721 で実装済み。フラグは #3716 / #3717 で実装する
+- ステータス: 設計確定（実装中）。`brand` / `repository_url` は #3720、`brand_mark` / `brand_color` は #3722、`tagline` / `copyright` / `version_badge` / `lang` は #3721 で実装済み。フラグは #3716 / #3717 で実装済み。外部利用の契約テストは #3724 で追加した（§7）
 - 起票元: #3715（親 #3714、ルート #3713）
 - 範囲: `site/nav.toml` の `[site]` への追加キー、CLI フラグ `--no-page-sections`、帰属表記の方針。本文書はコード・CI・ruleset を変更しない
 - 記載の区別: 「決定事項」は #3715 に記載された確定済みの判断（2026-10-05）。「本文書で定めた詳細」は決定事項を実装可能にするために本文書で補った提案で、実装イシューのレビューで確認する。後者をユーザー承認済みとは扱わない
@@ -121,7 +121,11 @@ docs-site を fandhe-frontend 以外のリポジトリから使う需要が出�
 - 切り替える理由: 外部の著作権表記の隣に "Licensed under MIT OR Apache-2.0" を置くと、外部サイトの内容がそのライセンスで提供されていると誤読される。対象を docs-site（生成器）に限定した文言へ変える
 - リンク先（ライセンス本文 2 本と帰属表記のリポジトリ URL）は `repository_url` と独立した定数にし、`repository_url` の既定値と同じ値でも共有しない
 - 実装の分担: `brand` は #3720、`copyright` と切り替え本体は #3721。#3720 だけがマージされた中間状態でも既存のライセンス行が残るので制約は満たされる
-- #3724 の「帰属表記以外に `fandhe-frontend` が出ない」検査のため、帰属表記の DOM 範囲を識別できる形にすることを推奨する（class を足す場合は `STRUCTURE_CLASS_CONTRACT` への追加が要る。採否は #3721）。**#3721 の結論: class・属性は足さない**。フッター class は全件に `site.css` のセレクタを要求する契約（`site_css_contract.rs`）があり、class を足すと `site.css` が変わって未指定時のバイト一致が崩れるため。帰属表記は `div.docs-footer-bottom` の 2 番目の `p` で範囲を特定できる。目印が必要になった場合は、差し替え構成のときだけ `data-*` 属性を出す形で後から足せる（追加的な変更で、未指定時の出力は変わらない）。生成 CSS の `--fandhe-*` 変数名などは表示ではないので、検査範囲は #3724 で決める
+- #3724 の「帰属表記以外に `fandhe-frontend` が出ない」検査のため、帰属表記の DOM 範囲を識別できる形にすることを推奨する（class を足す場合は `STRUCTURE_CLASS_CONTRACT` への追加が要る。採否は #3721）。**#3721 の結論: class・属性は足さない**。フッター class は全件に `site.css` のセレクタを要求する契約（`site_css_contract.rs`）があり、class を足すと `site.css` が変わって未指定時のバイト一致が崩れるため。帰属表記は `div.docs-footer-bottom` の 2 番目の `p` で範囲を特定できる。目印が必要になった場合は、差し替え構成のときだけ `data-*` 属性を出す形で後から足せる（追加的な変更で、未指定時の出力は変わらない）。生成 CSS の `--fandhe-*` 変数名などは表示ではないので、検査範囲は #3724 で次のとおり定めた（#3724 で定めた詳細。ユーザー承認済みではない）。
+  - 対象は全出力ファイル（HTML・CSS・JS・JSON・SVG・リダイレクト案内）と出力の相対パス名。検査語は `fandhe-frontend` と `Fandhe-AI`（ASCII 大文字小文字無視）。
+  - 許容は、クロームを持つ HTML の `div.docs-footer-bottom` の 2 番目の `p`（帰属表記）のみ。
+  - `fandhe` だけを含む内部識別子（`--fandhe-*`・`#fandhe-skip-nav`・localStorage キー `fandhe-docs-theme`）と、CLI の標準出力・標準エラーは対象外。
+  - 帰属表記の外から `fandhe-frontend` を消すのに必要十分なキーは `brand` / `repository_url` / `copyright` / `version_badge` の 4 つ。`tagline` / `lang` / `brand_mark` / `brand_color` は消去には不要。
 - リダイレクト案内ページはサイトクロームを持たないため帰属表記の対象外（現行どおり）
 
 ## 7. 後方互換と検証方針
@@ -129,6 +133,8 @@ docs-site を fandhe-frontend 以外のリポジトリから使う需要が出�
 - 不変条件: キーもフラグも指定しないビルドは、変更前と全ファイルがバイト一致する
 - 各実装 PR の確認手順: 変更前後で `cargo run -p fandhe-frontend-docs-site -- --out <一時ディレクトリ>` を実行し、`diff -r` が空であること。既存の契約テスト（`crates/docs-site/tests/`）は弱めない
 - 各実装イシューで、キーごとの検証テスト（正常値・境界値・拒否値）と、指定時の反映・エスケープのテストを足す
+
+- #3724 で定めた詳細: 外部リポジトリ相当の最小サイトを `crates/docs-site/tests/fixtures/site-external` にチェックインし、`crates/docs-site/tests/external_site_contract.rs` がバイナリ（`--no-page-sections`）経由で生成して、生成ファイル一覧の完全一致・ブランド反映・帰属表記の外の `fandhe-frontend` 不在・予約パス（`/themes/accordion/` と `/primitives/accordion/`）へのショーケース非注入を固定する。#3725 の CI ジョブも同じ fixture を入力にできる
 
 ## 8. セキュリティ不変条件
 

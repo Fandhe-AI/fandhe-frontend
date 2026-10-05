@@ -1,0 +1,39 @@
+[site]
+title = "Acme Docs"
+base_path = "/acme-docs"
+brand = "Acme"
+repository_url = "https://example.com/acme/acme-docs"
+tagline = "Docs for the Acme toolkit"
+copyright = "(c) 2026 Acme Inc."
+version_badge = "v1.2.3"
+lang = "en"
+brand_mark = "A"
+brand_color = "#AB12CD"
+
+[[section]]
+title = "Guide"
+index_path = "/"
+
+[[section.page]]
+title = "Home"
+source = "site/index.md"
+path = "/"
+
+[[section.page]]
+title = "Quickstart"
+source = "site/guide/quickstart.md"
+path = "/guide/quickstart/"
+
+[[section]]
+title = "Reference"
+index_path = "/themes/accordion/"
+
+[[section.page]]
+title = "Accordion theme"
+source = "site/themes/accordion.md"
+path = "/themes/accordion/"
+
+[[section.page]]
+title = "Accordion primitive"
+source = "site/primitives/accordion.md"
+path = "/primitives/accordion/"
