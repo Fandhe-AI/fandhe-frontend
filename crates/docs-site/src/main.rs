@@ -23,7 +23,8 @@
 //!   索引カード等）を使わず、空の登録表（`EMPTY_REGISTRY`）でビルドする。
 //!   外部リポジトリの nav 向け（イシュー #3716）。未指定時は従来どおり本番登録表
 //!   で、登録ページを持たない nav は書き出し前に fail-closed で失敗する。
-//!   ショーケース注入の停止は #3717 で扱う
+//!   部品ページ・Blocks・Wireframes のショーケース注入と専用アセット出力も
+//!   止まる（イシュー #3717）
 //!
 //! `--out` 欠落・未知の引数は usage を stderr に出して非 0 終了する
 //! （黙って既定値へフォールバックしない、fail-closed。`security.md` A05）。
@@ -57,7 +58,7 @@ struct Args {
 /// （[`main`]）がそのまま stderr へ出力して非 0 終了する契約。
 fn parse_args<I: Iterator<Item = String>>(mut args: I) -> Result<Args, String> {
     const USAGE: &str =
-        "usage: docs-site --out <dir> [--root <dir>] [--no-page-sections]\n\n  --out <dir>         output directory (required)\n  --root <dir>        repository root containing site/nav.toml (default: \".\")\n  --no-page-sections  build without the built-in page section registry (for sites other than the fandhe-frontend docs)";
+        "usage: docs-site --out <dir> [--root <dir>] [--no-page-sections]\n\n  --out <dir>         output directory (required)\n  --root <dir>        repository root containing site/nav.toml (default: \".\")\n  --no-page-sections  build without the built-in page section registry and without the built-in showcases (component/blocks/wireframes pages) (for sites other than the fandhe-frontend docs)";
 
     let mut root: Option<PathBuf> = None;
     let mut out: Option<PathBuf> = None;

@@ -15,8 +15,10 @@
 //! の挿入の**直後**に [`insert_generated_sections_with`] を呼ぶ。本番登録表は
 //! トップのヒーロー（#3612、[`crate::landing`]）のみで、Phase 4（索引の
 //! カードグリッド化）が各ページの登録を追加する。空の登録表
-//! （[`EMPTY_REGISTRY`]）では全ページの出力が変更前と 1 バイトも変わらない
-//! （`tests/page_sections.rs` が固定する）。
+//! （[`EMPTY_REGISTRY`]）ではこのフックは恒等で、全ページの出力が変更前と
+//! 1 バイトも変わらない（`tests/page_sections.rs` が固定する）。ビルド全体では
+//! [`EMPTY_REGISTRY`] は [`Registry::showcases`] も `false` にし、部品・Blocks・
+//! Wireframes のショーケース注入も止める（#3717）。
 //!
 //! # 登録可能パス（イシュー #3700）
 //!
@@ -127,6 +129,12 @@ pub struct Registry {
     pub sections: &'static [PageSection],
     /// 追加 CSS の実体。
     pub stylesheets: &'static [PageStylesheet],
+    /// 組み込みショーケース（`/themes/<部品>/`・`/primitives/<部品>/`・`/blocks/<id>/`・
+    /// `/wireframes/<名前>/` の生成節・専用 CSS・デモ用アセット・Blocks ページの
+    /// コード除外）を有効にするか（#3717）。`false` では [`crate::build::build_site_with`]
+    /// がパス一致によるこれらの注入を止め、外部サイトの同名パスへ本サイト専用の
+    /// デモが混入しない。[`validate`] の衝突検査と予約アセット名は本値に影響されない。
+    pub showcases: bool,
 }
 
 /// 本番の生成節登録表。トップのヒーロー（イシュー #3612）と、セクショントップの
@@ -212,15 +220,18 @@ pub const PAGE_STYLESHEETS: &[PageStylesheet] = &[
 pub const REGISTRY: Registry = Registry {
     sections: PAGE_SECTIONS,
     stylesheets: PAGE_STYLESHEETS,
+    showcases: true,
 };
 
 /// 生成節を一切持たない登録表。フィクスチャ（一時ディレクトリで組む合成サイト）
 /// のビルドが、本サイト専用のヒーロー・ランディング骨格・CTA リンクを
 /// 引き込まないために使う（`build_site_with(.., &EMPTY_REGISTRY)`）。外部サイト向けに
-/// CLI の `--no-page-sections` からも使う（イシュー #3716）。
+/// CLI の `--no-page-sections` からも使う（イシュー #3716）。組み込みショーケースの
+/// 注入も止める（イシュー #3717、[`Registry::showcases`]）。
 pub const EMPTY_REGISTRY: Registry = Registry {
     sections: &[],
     stylesheets: &[],
+    showcases: false,
 };
 
 /// [`validate`] の失敗理由。`Display` は登録パス・`rel_path`・id のみを含む。
@@ -486,6 +497,7 @@ mod tests {
         Registry {
             sections,
             stylesheets: sheets,
+            showcases: false,
         }
     }
 
@@ -529,6 +541,8 @@ mod tests {
         assert_eq!(layout_for_path_in(&REGISTRY, "/"), PageLayout::Landing);
         assert_eq!(layout_for_path_in(&REGISTRY, "/guides/"), PageLayout::Docs);
         assert_eq!(layout_for_path_in(&EMPTY_REGISTRY, "/"), PageLayout::Docs);
+        const { assert!(REGISTRY.showcases) };
+        const { assert!(!EMPTY_REGISTRY.showcases) };
     }
 
     #[test]
