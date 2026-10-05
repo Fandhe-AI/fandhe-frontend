@@ -201,7 +201,12 @@ pub fn site_footer(nav: &Nav) -> Node {
     groups.extend(menu_columns);
     // crates.io リンクは fandhe-frontend-core のページなので、`version_badge` を指定した
     // 外部サイトでは出さない（badge と同じ「本家固有の表示」として連動させる）。
-    let mut resources = vec![external_item(nav.site.resolved_repository_url(), "GitHub")];
+    // リンク文言はヘッダーと同じ規則（ホストが github.com なら "GitHub"、他は "Repository"）。
+    let repository_url = nav.site.resolved_repository_url();
+    let mut resources = vec![external_item(
+        repository_url,
+        crate::chrome_text::RepositoryLinkKind::from_url(repository_url).label(),
+    )];
     if nav.site.version_badge.is_none() {
         resources.push(external_item(CRATES_IO_URL, "crates.io"));
     }
@@ -557,5 +562,29 @@ mod tests {
     fn footer_brand_defaults_to_site_title() {
         let html = render(&site_footer(&nav_with_site("")));
         assert!(html.contains(">Site Title<"));
+    }
+
+    #[test]
+    fn resources_repository_label_follows_host() {
+        let gh = render(&site_footer(&nav_with_site(
+            "repository_url = \"https://WWW.GitHub.com/o/r\"\n",
+        )));
+        assert!(gh.contains(">GitHub<"));
+        for url in [
+            "https://gitlab.com/o/r",
+            "https://github.com.evil.example/",
+            "https://evilgithub.com/",
+            "https://github.com@evil.example/",
+        ] {
+            let html = render(&site_footer(&nav_with_site(&format!(
+                "repository_url = \"{url}\"\n"
+            ))));
+            assert!(
+                html.contains(">Repository<") && !html.contains(">GitHub<"),
+                "{url}"
+            );
+        }
+        // 未指定（既定の URL）は従来どおり "GitHub"。
+        assert!(render(&site_footer(&nav_with_site(""))).contains(">GitHub<"));
     }
 }

@@ -427,3 +427,62 @@ fn reserved_paths_render_only_the_fixture_markdown() {
         assert!(!tree.contains_key(asset), "{asset} must not be emitted");
     }
 }
+
+/// 日本語（ひらがな・カタカナ・漢字）を含むか。
+fn has_cjk(s: &str) -> bool {
+    s.chars()
+        .any(|c| ('\u{3040}'..='\u{30ff}').contains(&c) || ('\u{4e00}'..='\u{9fff}').contains(&c))
+}
+
+/// fixture は `lang = "en"`・GitHub 以外の `repository_url`。生成器が出すクローム文言は
+/// 全て英語になり（検索 UI・ページャ・404・リダイレクト案内）、リポジトリリンクは
+/// "Repository" と汎用アイコンになる（`docs/design/docs-site-external-use.md` §4.3）。
+#[test]
+fn en_fixture_emits_english_chrome_and_generic_repository_link() {
+    let (_temp, tree, _stdout) = build_fixture("en-chrome");
+    for rel in CHROME_PAGES {
+        let html = text(&tree, rel);
+        assert!(html.contains("<html lang=\"en\">"), "{rel}");
+        assert!(!has_cjk(&html), "{rel}: CJK text in an English site");
+        assert!(
+            html.contains("aria-label=\"Search documentation\""),
+            "{rel}"
+        );
+        assert!(
+            html.contains("placeholder=\"Search documentation\""),
+            "{rel}"
+        );
+        // ヘッダーとフッター Resources 列の 2 か所が "Repository"、旧固定文言の表記は無い。
+        assert_eq!(html.matches(">Repository<").count(), 2, "{rel}");
+        assert!(!html.contains(">GitHub<"), "{rel}");
+    }
+    let guide = text(&tree, "guide/quickstart/index.html");
+    assert!(guide.contains("aria-label=\"Previous and next pages\""));
+    assert!(guide.contains(">Previous<"));
+    let not_found = text(&tree, "404.html");
+    assert!(not_found.contains("<title>Page not found"));
+    assert!(not_found.contains("Main sections"));
+    let redirect = text(&tree, "docs/quickstart/index.html");
+    assert!(redirect.contains("Moved | Acme Docs"));
+    assert!(redirect.contains("This page has moved."));
+    assert!(!has_cjk(&redirect));
+    // 帰属表記の文言は言語で変えない。
+    let (attribution, _) = attribution_split(&guide);
+    assert!(attribution.contains("Built with "));
+    assert!(attribution.contains("fandhe-frontend docs-site"));
+}
+
+/// `lang` を外す（既定 `ja`）と、同じ fixture で現行の日本語文言になる。
+/// リポジトリリンクの文言は `lang` と無関係にホストだけで決まる。
+#[test]
+fn default_lang_fixture_keeps_japanese_chrome() {
+    let temp = TempDir::new("ja-chrome");
+    let root = copy_fixture_dropping_site_keys(&temp, &["lang"]);
+    let (tree, _stdout) = build_from(&temp, &root);
+    let not_found = text(&tree, "404.html");
+    assert!(not_found.contains("<html lang=\"ja\">"));
+    assert!(not_found.contains("ページが見つかりません"));
+    assert!(not_found.contains("aria-label=\"ドキュメントを検索\""));
+    assert!(text(&tree, "docs/quickstart/index.html").contains("移転しました | Acme Docs"));
+    assert_eq!(not_found.matches(">Repository<").count(), 2);
+}

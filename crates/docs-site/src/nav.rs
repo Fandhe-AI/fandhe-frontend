@@ -419,6 +419,21 @@ fn validate_site_brand_color(value: &str, line: usize) -> Result<(), NavError> {
     }
 }
 
+/// `https://` 始まりの URL からホスト部を取り出す（検証と表示判定で共有する単一実装）。
+///
+/// authority を `https://` の後から最初の `/` `?` `#` までとし、最後の `@`（userinfo）
+/// より後・最初の `:`（ポート）より前をホストとする。`https://` で始まらない入力は空文字。
+/// `crate::chrome_text::RepositoryLinkKind::from_url` がリンク文言の判定に使うため、
+/// 検証（`validate_site_https_url`）とずれないようここ 1 か所に置く。
+pub(crate) fn https_url_host(value: &str) -> &str {
+    let Some(rest) = value.strip_prefix("https://") else {
+        return "";
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let after_userinfo = authority.rsplit('@').next().unwrap_or("");
+    after_userinfo.split(':').next().unwrap_or("")
+}
+
 /// `[site]` の任意 URL キーの検証。`https://` 始まり（小文字完全一致）・全バイトが
 /// 可視 ASCII（空白・制御文字・非 ASCII を拒否）・`max_bytes` 以下・ホスト部が非空。
 /// `javascript:` / `data:` / スキーム相対 URL を許可リスト方式で排除する。
@@ -428,12 +443,12 @@ fn validate_site_https_url(
     max_bytes: usize,
     line: usize,
 ) -> Result<(), NavError> {
-    let Some(rest) = value.strip_prefix("https://") else {
+    if !value.starts_with("https://") {
         return Err(parse_err(
             line,
             format!("`{key}` must start with `https://`"),
         ));
-    };
+    }
     if value.len() > max_bytes {
         return Err(parse_err(
             line,
@@ -446,10 +461,7 @@ fn validate_site_https_url(
             format!("`{key}` must be ASCII without whitespace or control characters"),
         ));
     }
-    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
-    let after_userinfo = authority.rsplit('@').next().unwrap_or("");
-    let host = after_userinfo.split(':').next().unwrap_or("");
-    if host.is_empty() {
+    if https_url_host(value).is_empty() {
         return Err(parse_err(line, format!("`{key}` must have a host")));
     }
     Ok(())
@@ -2098,9 +2110,10 @@ fn chevron_icon(path_d: &'static str) -> Node {
 /// `<a>` 内に収めるため `p` ではなく `span` で組む（phrasing 維持。
 /// Primitives ページは recipe CSS を読まず docs 側 CSS のみで成立させる）。
 fn pager_card(nav: &Nav, page: &Page, side: PagerSide) -> Node {
+    let t = crate::chrome_text::ChromeText::for_lang(nav.site.html_lang());
     let (label, side_class) = match side {
-        PagerSide::Prev => ("前へ", "prev"),
-        PagerSide::Next => ("次へ", "next"),
+        PagerSide::Prev => (t.pager_prev, "prev"),
+        PagerSide::Next => (t.pager_next, "next"),
     };
     let mut meta_children = vec![
         el(
@@ -2168,7 +2181,13 @@ pub fn prev_next_nav(nav: &Nav, current_path: &str) -> Node {
     }
     el(
         "nav",
-        vec![("class", "prev-next"), ("aria-label", "前後のページ")],
+        vec![
+            ("class", "prev-next"),
+            (
+                "aria-label",
+                crate::chrome_text::ChromeText::for_lang(nav.site.html_lang()).pager_aria,
+            ),
+        ],
         children,
     )
 }
@@ -2777,6 +2796,38 @@ path = "/p1/"
         assert!(html.contains("Introduction") && html.contains("API"));
         assert!(html.contains(">Guide<") && html.contains(">Reference<"));
         assert!(html.find("前へ").unwrap() < html.find("次へ").unwrap());
+    }
+
+    #[test]
+    fn prev_next_nav_text_follows_lang() {
+        for (lang, ja) in [("ja", true), ("JA", true), ("ja-JP", true)] {
+            let src = SAMPLE.replacen(
+                "base_path = \"/fandhe-frontend\"",
+                &format!("base_path = \"/fandhe-frontend\"\nlang = \"{lang}\""),
+                1,
+            );
+            let nav = parse_nav(&src).unwrap();
+            let html = render(&prev_next_nav(&nav, "/guide/getting-started/"));
+            assert_eq!(html.contains("前へ"), ja, "{lang}");
+        }
+        for lang in ["en", "en-US", "fr"] {
+            let src = SAMPLE.replacen(
+                "base_path = \"/fandhe-frontend\"",
+                &format!("base_path = \"/fandhe-frontend\"\nlang = \"{lang}\""),
+                1,
+            );
+            let nav = parse_nav(&src).unwrap();
+            let html = render(&prev_next_nav(&nav, "/guide/getting-started/"));
+            assert!(
+                html.contains(r#"aria-label="Previous and next pages""#),
+                "{lang}"
+            );
+            assert!(
+                html.contains(">Previous<") && html.contains(">Next<"),
+                "{lang}"
+            );
+            assert!(!html.contains("前") && !html.contains("次"), "{lang}");
+        }
     }
 
     #[test]
