@@ -19,8 +19,9 @@
 | `crates/wasm-client/` `crates/wasm-full/` `crates/wasm-thin/` | wasm-builder | sonnet |
 | `crates/frontend-animation/`（fandhe-frontend-animation: Web アニメーションアダプタ） | wasm-builder | sonnet |
 | `static/`（埋め込み HTML） | wasm-builder | sonnet |
-| `crates/xtask/` `crates/cli/` `.github/` `Dockerfile` `deny.toml` `Cargo.toml`（workspace） | tooling-builder | sonnet |
-| `docs/`（`docs/spec/` を除く）・README.md・CLAUDE.md | docs-writer | haiku |
+| `crates/xtask/` `crates/cli/` `crates/docs-site/`（docs サイトジェネレータ） `.github/` `Dockerfile` `deny.toml` `Cargo.toml`（workspace） `templates/` | tooling-builder | sonnet |
+| `site/nav.toml` `site/redirects.toml`（`crates/docs-site/tests/` の契約テストと連動） | tooling-builder | sonnet |
+| `docs/`（`docs/spec/` を除く）・README.md・CLAUDE.md・`site/**/*.md`（docs サイト原稿。`nav.toml` / `redirects.toml` を除く） | docs-writer | haiku |
 | テスト実行・失敗分析 | test-runner | sonnet |
 
 ## 検証・レビューの委譲
@@ -36,5 +37,6 @@
 - **`docs/spec/` は編集禁止**（サブモジュール。変更は fandhe-frontend-spec リポジトリで行う）
 - 複数クレートにまたがる変更は、クレート単位に分割して各 builder へ並列委譲する。ただし依存関係（core → server 等）がある場合は依存順に直列化する
 - builder への委譲プロンプトには「対象タスク（TASK-x.x）・変更対象ファイル・厳守事項（既定エスケープ・forbid(unsafe_code) 等）・完了条件（テスト通過）」を含める
+- `site/` の原稿と `nav.toml` を同時に変える変更（ページ追加等）は直列化する。先に tooling-builder が nav 登録と契約テスト期待値を整え、その後 docs-writer が原稿を書く
 - 委譲後の統合確認（workspace 全体の `cargo test`）は test-runner に委譲する
 - main が直接編集してよいのは、1 ファイル数行の軽微な修正・委譲結果の微調整のみ
