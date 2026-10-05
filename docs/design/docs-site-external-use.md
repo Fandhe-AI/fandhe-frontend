@@ -1,6 +1,6 @@
 # docs サイトの外部リポジトリ利用に向けた `[site]` 拡張方針
 
-- ステータス: 設計確定（実装は未着手）。キーは #3720 / #3721 / #3722、フラグは #3716 / #3717 で実装する
+- ステータス: 設計確定。`brand` / `repository_url` は #3720 で実装済み。残りのキーは #3721 / #3722、フラグは #3716 / #3717 で実装する
 - 起票元: #3715（親 #3714、ルート #3713）
 - 範囲: `site/nav.toml` の `[site]` への追加キー、CLI フラグ `--no-page-sections`、帰属表記の方針。本文書はコード・CI・ruleset を変更しない
 - 記載の区別: 「決定事項」は #3715 に記載された確定済みの判断（2026-10-05）。「本文書で定めた詳細」は決定事項を実装可能にするために本文書で補った提案で、実装イシューのレビューで確認する。後者をユーザー承認済みとは扱わない
@@ -94,7 +94,8 @@ docs-site を fandhe-frontend 以外のリポジトリから使う需要が出�
 - `brand_color` と白いグリフのコントラストは検証しない（利用者の責任）
 - 画像ファイルのパスを受け取るキーは設けない（パストラバーサルの入口を作らない）
 - `landing.rs` の `REPOSITORY_URL` 参照と CLI 版数 badge は本番 registry 専用の内容で、`--no-page-sections` では出力されない
-- `docs-site-three-column-redesign.md` の対応表は `[site].title` がヘッダーのブランドに対応すると書くが、実装は固定文字列。#3720 で `brand` を入れるときに表記を合わせる
+- `docs-site-three-column-redesign.md` の対応表は `[site].title` がヘッダーのブランドに対応すると書いていたが、実装は固定文字列だった。#3720 で `brand` を入れ、表記を合わせた
+- #3720 の実装細目: 検証は `parse_nav` の `[site]` アーム内で行い（行番号付きの `NavError::Parse`）、エラーメッセージにはキー名と理由だけを載せ値は載せない。`repository_url` のホスト部は `https://` の後から最初の `/` `?` `#` までを authority とし、最後の `@` より後・最初の `:` より前が空でないことで判定する。ヘッダーへは `layout::SiteChrome`（`docs_page_with_chrome`）経由で渡し、`brand` 指定時もマークの `aria-label` は #3722 まで `fandhe-frontend` のまま。本番 registry のランディング（`landing.rs`）の GitHub リンクは `repository_url` の影響を受けない（外部利用は `--no-page-sections` 前提のため）
 
 ## 5. `--no-page-sections` とショーケース注入
 

@@ -338,7 +338,7 @@ chromium 制約により本 PR では未取得）は
 
 | `nav.toml` | ヘッダー markup |
 |---|---|
-| `[site].title` | `a.docs-brand`（ブランドリンク、既存の `header.docs-header` 直下 `a` を rename） |
+| `[site].brand`（未指定時は固定文字列 `fandhe-frontend`。`[site].title` はフッターのブランド名の既定値とリダイレクト案内の `<title>`、#3720） | `a.docs-brand`（ブランドリンク、既存の `header.docs-header` 直下 `a` を rename） |
 | `[[section]]` の `title` | ドロップダウングループのトリガー表示テキスト（#3701 以降、`[[menu]]` に属さないセクションのみ。メニューは `[[menu]]` の `title` がトリガーになる） |
 | `[[section.page]]` の `title`/`path` | ドロップダウン内の各項目（`a[href]`） |
 | `[[section]]` の `index_path` | トリガー `a.docs-header-trigger` の `href`（= `base_path` + `index_path`。イシュー #1010 で `[[section]]` の必須キー化、#1012 でトリガーの href として採用） |

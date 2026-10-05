@@ -16,7 +16,8 @@
 //! 黙って無視することはしない）。
 //!
 //! - `#` から始まる行コメント、および文字列値の終端後に続く `# ...`
-//! - `[site]` テーブル（`title` / `base_path` の 2 キー）
+//! - `[site]` テーブル（必須の `title` / `base_path` と、任意の `brand` / `repository_url`。
+//!   任意キーの設計は `docs/design/docs-site-external-use.md`、#3720）
 //! - `[[section]]` array-of-tables（`title` / `index_path` の 2 キー。
 //!   `index_path` はセクショントップページの出力 URL パスを指す必須項目
 //!   （イシュー #1010）。ヘッダー href（#1012）・サイドバースコープ判定
@@ -257,6 +258,114 @@ pub struct Site {
     /// GitHub Pages プロジェクトサイト等でルート以外にホストする場合の
     /// ベースパス。`""` または `/` 始まり・`/` 終わりでない文字列。
     pub base_path: String,
+    /// ヘッダー・フッターのブランド名（任意、#3720）。`None` は未指定を表し、既定値の
+    /// 解決は [`Site::header_brand`] / [`Site::footer_brand`] へ集約する。
+    pub brand: Option<String>,
+    /// リポジトリ URL（任意、#3720）。`https://` のみ許可（[`parse_nav`] が検証）。
+    /// ヘッダーの GitHub リンクとフッター Resources 列の GitHub が使う。
+    pub repository_url: Option<String>,
+}
+
+/// `[site].brand` の最大文字数。
+const SITE_BRAND_MAX_CHARS: usize = 64;
+/// `[site].repository_url` の最大バイト数。
+const SITE_REPOSITORY_URL_MAX_BYTES: usize = 2048;
+
+impl Site {
+    /// ヘッダーのブランド名。未指定時は固定の既定値（現行出力とバイト一致させるため、
+    /// フッター側の既定値〔`title`〕とは意図的に供給元が異なる）。
+    #[must_use]
+    pub fn header_brand(&self) -> &str {
+        self.brand
+            .as_deref()
+            .unwrap_or(crate::layout::DEFAULT_BRAND)
+    }
+
+    /// フッターのブランド名。未指定時は `title`。
+    #[must_use]
+    pub fn footer_brand(&self) -> &str {
+        self.brand.as_deref().unwrap_or(&self.title)
+    }
+
+    /// 既定値解決済みのリポジトリ URL。ライセンス本文へのリンクはこの値と無関係。
+    #[must_use]
+    pub fn resolved_repository_url(&self) -> &str {
+        self.repository_url
+            .as_deref()
+            .unwrap_or(crate::layout::REPOSITORY_URL)
+    }
+
+    /// レイアウト（ヘッダー）へ渡す設定値を束ねる。
+    #[must_use]
+    pub fn chrome(&self) -> crate::layout::SiteChrome<'_> {
+        crate::layout::SiteChrome {
+            brand: self.header_brand(),
+            repository_url: self.resolved_repository_url(),
+        }
+    }
+}
+
+/// `[site]` の任意テキストキーの検証（文字数 1〜`max_chars`・制御文字なし・空白のみ不可）。
+/// エラーにはキー名と理由だけを載せ、値は載せない（制御文字を端末へ流さないため）。
+fn validate_site_text(
+    key: &str,
+    value: &str,
+    max_chars: usize,
+    line: usize,
+) -> Result<(), NavError> {
+    let count = value.chars().count();
+    if count == 0 || count > max_chars {
+        return Err(parse_err(
+            line,
+            format!("`{key}` must be 1 to {max_chars} characters"),
+        ));
+    }
+    if value.chars().any(char::is_control) {
+        return Err(parse_err(
+            line,
+            format!("`{key}` must not contain control characters"),
+        ));
+    }
+    if value.trim().is_empty() {
+        return Err(parse_err(line, format!("`{key}` must not be blank")));
+    }
+    Ok(())
+}
+
+/// `[site]` の任意 URL キーの検証。`https://` 始まり（小文字完全一致）・全バイトが
+/// 可視 ASCII（空白・制御文字・非 ASCII を拒否）・`max_bytes` 以下・ホスト部が非空。
+/// `javascript:` / `data:` / スキーム相対 URL を許可リスト方式で排除する。
+fn validate_site_https_url(
+    key: &str,
+    value: &str,
+    max_bytes: usize,
+    line: usize,
+) -> Result<(), NavError> {
+    let Some(rest) = value.strip_prefix("https://") else {
+        return Err(parse_err(
+            line,
+            format!("`{key}` must start with `https://`"),
+        ));
+    };
+    if value.len() > max_bytes {
+        return Err(parse_err(
+            line,
+            format!("`{key}` must be at most {max_bytes} bytes"),
+        ));
+    }
+    if !value.bytes().all(|b| (0x21..=0x7E).contains(&b)) {
+        return Err(parse_err(
+            line,
+            format!("`{key}` must be ASCII without whitespace or control characters"),
+        ));
+    }
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let after_userinfo = authority.rsplit('@').next().unwrap_or("");
+    let host = after_userinfo.split(':').next().unwrap_or("");
+    if host.is_empty() {
+        return Err(parse_err(line, format!("`{key}` must have a host")));
+    }
+    Ok(())
 }
 
 /// `[[section]]` 1 件分。
@@ -715,6 +824,8 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
     let mut ctx = Ctx::None;
     let mut site_title: Option<String> = None;
     let mut site_base_path: Option<String> = None;
+    let mut site_brand: Option<String> = None;
+    let mut site_repository_url: Option<String> = None;
     let mut sections: Vec<SectionBuilder> = Vec::new();
     let mut menus: Vec<MenuBuilder> = Vec::new();
     // `[[menu]]` の後に `[[section]]` を挟まず `[[section.*]]` が現れた場合に
@@ -882,6 +993,19 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
             Ctx::Site => match key {
                 "title" => set_once(&mut site_title, value, line, "site.title")?,
                 "base_path" => set_once(&mut site_base_path, value, line, "site.base_path")?,
+                "brand" => {
+                    validate_site_text("site.brand", &value, SITE_BRAND_MAX_CHARS, line)?;
+                    set_once(&mut site_brand, value, line, "site.brand")?
+                }
+                "repository_url" => {
+                    validate_site_https_url(
+                        "site.repository_url",
+                        &value,
+                        SITE_REPOSITORY_URL_MAX_BYTES,
+                        line,
+                    )?;
+                    set_once(&mut site_repository_url, value, line, "site.repository_url")?
+                }
                 other => return Err(parse_err(line, format!("unknown key `{other}` in [site]"))),
             },
             Ctx::Section(sidx) => match key {
@@ -982,6 +1106,8 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
             context: "site".to_string(),
             key: "base_path".to_string(),
         })?,
+        brand: site_brand,
+        repository_url: site_repository_url,
     };
     validate_base_path(&site.base_path)?;
 
@@ -3214,5 +3340,126 @@ path = "/components/button/"
     fn section_for_path_returns_none_for_unknown_path() {
         let nav = parse_nav(SAMPLE).unwrap();
         assert!(nav.section_for_path("/not-in-nav/").is_none());
+    }
+
+    // ---- [site].brand / [site].repository_url（#3720） ----
+
+    fn site_with(extra: &str) -> String {
+        format!(
+            "[site]\ntitle = \"T\"\nbase_path = \"\"\n{extra}\n[[section]]\ntitle = \"G\"\nindex_path = \"/a/\"\n\n[[section.page]]\ntitle = \"A\"\nsource = \"a.md\"\npath = \"/a/\"\n"
+        )
+    }
+
+    #[test]
+    fn site_brand_and_repository_url_default_to_current_values() {
+        let nav = parse_nav(&site_with("")).unwrap();
+        assert_eq!(nav.site.brand, None);
+        assert_eq!(nav.site.repository_url, None);
+        assert_eq!(nav.site.header_brand(), "fandhe-frontend");
+        assert_eq!(nav.site.footer_brand(), "T");
+        assert_eq!(
+            nav.site.resolved_repository_url(),
+            crate::layout::REPOSITORY_URL
+        );
+    }
+
+    #[test]
+    fn site_brand_and_repository_url_are_used_when_given() {
+        let nav = parse_nav(&site_with(
+            "brand = \" Acme <Docs> \"\nrepository_url = \"https://example.com/acme/docs?a=1#f\"\n",
+        ))
+        .unwrap();
+        assert_eq!(nav.site.header_brand(), " Acme <Docs> ");
+        assert_eq!(nav.site.footer_brand(), " Acme <Docs> ");
+        assert_eq!(
+            nav.site.resolved_repository_url(),
+            "https://example.com/acme/docs?a=1#f"
+        );
+    }
+
+    #[test]
+    fn site_brand_accepts_boundary_and_non_ascii_values() {
+        for v in ["a".to_string(), "あ".repeat(64), "x".repeat(64)] {
+            let nav = parse_nav(&site_with(&format!("brand = \"{v}\"\n"))).unwrap();
+            assert_eq!(nav.site.brand.as_deref(), Some(v.as_str()));
+        }
+    }
+
+    #[test]
+    fn site_brand_rejects_invalid_values_with_line_and_without_value() {
+        for v in ["", "   ", "\\n", "a\\tb", &"x".repeat(65)] {
+            let err = parse_nav(&site_with(&format!("brand = \"{v}\"\n"))).unwrap_err();
+            match &err {
+                NavError::Parse { line, message } => {
+                    assert!(*line > 0, "line must be set: {err}");
+                    assert!(message.contains("site.brand"));
+                }
+                other => panic!("expected Parse, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn site_repository_url_accepts_https_variants() {
+        for v in [
+            "https://example.com".to_string(),
+            "https://example.com/a/b?q=1#f".to_string(),
+            "https://example.com:8443/x".to_string(),
+            "https://example.com/a\\\"b".to_string(),
+            format!(
+                "https://example.com/{}",
+                "a".repeat(2048 - "https://example.com/".len())
+            ),
+        ] {
+            parse_nav(&site_with(&format!("repository_url = \"{v}\"\n")))
+                .unwrap_or_else(|e| panic!("{v:.40} should be accepted: {e}"));
+        }
+    }
+
+    #[test]
+    fn site_repository_url_rejects_invalid_values() {
+        let too_long = format!("https://example.com/{}", "a".repeat(2049));
+        for v in [
+            "http://example.com",
+            "javascript:alert(1)",
+            "data:text/html,x",
+            "//example.com",
+            "HTTPS://example.com",
+            "",
+            "https://",
+            "https:///x",
+            "https://?q",
+            "https://#f",
+            "https://:443/",
+            "https://user@/",
+            "https://exa mple.com",
+            "https://example.com/\\n",
+            "https://例.jp/",
+            too_long.as_str(),
+        ] {
+            let err = parse_nav(&site_with(&format!("repository_url = \"{v}\"\n")))
+                .expect_err(&format!("{v:.40} must be rejected"));
+            match &err {
+                NavError::Parse { line, message } => {
+                    assert!(*line > 0);
+                    assert!(message.contains("site.repository_url"));
+                    assert!(!message.contains("example.com"), "value leaked: {message}");
+                }
+                other => panic!("expected Parse, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn site_brand_and_repository_url_reject_duplicates_and_unknown_keys() {
+        for extra in [
+            "brand = \"a\"\nbrand = \"b\"\n",
+            "repository_url = \"https://a.example\"\nrepository_url = \"https://b.example\"\n",
+        ] {
+            let err = parse_nav(&site_with(extra)).unwrap_err();
+            assert!(err.to_string().contains("duplicate key"), "{err}");
+        }
+        let err = parse_nav(&site_with("attribution = \"x\"\n")).unwrap_err();
+        assert!(err.to_string().contains("unknown key"), "{err}");
     }
 }
