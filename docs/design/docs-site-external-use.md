@@ -1,9 +1,9 @@
 # docs サイトの外部リポジトリ利用に向けた `[site]` 拡張方針
 
-- ステータス: 設計確定（実装中）。`brand` / `repository_url` は #3720、`brand_mark` / `brand_color` は #3722、`tagline` / `copyright` / `version_badge` / `lang` は #3721 で実装済み。フラグは #3716 / #3717 で実装済み。外部利用の契約テストは #3724、外部利用経路の CI 常時実行は #3725 で追加した（§7）。利用者向けの手順書は `docs/guides/docs-site-external-repos.md`（#3726）
+- ステータス: 設計確定（実装中）。2026-10-06 にユーザーが本文書の細目（「本文書で定めた詳細」）を承認した。同日の追補（§4.3: `repository_url` のホスト判定、`lang` によるクローム文言表、`--help`）も同じ承認の範囲で実装済み。`brand` / `repository_url` は #3720、`brand_mark` / `brand_color` は #3722、`tagline` / `copyright` / `version_badge` / `lang` は #3721 で実装済み。フラグは #3716 / #3717 で実装済み。外部利用の契約テストは #3724、外部利用経路の CI 常時実行は #3725 で追加した（§7）。利用者向けの手順書は `docs/guides/docs-site-external-repos.md`（#3726）
 - 起票元: #3715（親 #3714、ルート #3713）
 - 範囲: `site/nav.toml` の `[site]` への追加キー、CLI フラグ `--no-page-sections`、帰属表記の方針。本文書はコード・CI・ruleset を変更しない
-- 記載の区別: 「決定事項」は #3715 に記載された確定済みの判断（2026-10-05）。「本文書で定めた詳細」は決定事項を実装可能にするために本文書で補った提案で、実装イシューのレビューで確認する。後者をユーザー承認済みとは扱わない
+- 記載の区別: 「決定事項」は #3715 に記載された確定済みの判断（2026-10-05）。「本文書で定めた詳細」は決定事項を実装可能にするために本文書で補った細目で、2026-10-06 にユーザーが現行の内容を承認した。細目を変える場合は、あらためてユーザー確認を取る
 
 ## 1. 結論
 
@@ -59,7 +59,7 @@ docs-site を fandhe-frontend 以外のリポジトリから使う需要が出�
 
 ## 4. `[site]` 追加キー
 
-### 4.1 共通ルール（本文書で定めた詳細）
+### 4.1 共通ルール（本文書で定めた詳細。2026-10-06 ユーザー承認済み）
 
 - 8 キーはすべて任意。`title` / `base_path` は従来どおり必須
 - 値はダブルクォート文字列のみ（既存パーサの制約。真偽値は導入しない）
@@ -70,16 +70,16 @@ docs-site を fandhe-frontend 以外のリポジトリから使う需要が出�
 
 ### 4.2 キー表
 
-キー名と未指定時の方針は決定事項。許容値の細目は本文書で定めた詳細。
+キー名と未指定時の方針は決定事項。許容値の細目は本文書で定めた詳細（2026-10-06 ユーザー承認済み）。
 
 | キー | 許容する値 | 未指定時 | 反映先 | 実装 |
 |------|------------|----------|--------|------|
 | `brand` | 1〜64 文字。制御文字なし。空白のみは不可 | ヘッダーは `fandhe-frontend`、フッターのブランド名は `[site].title`、マークの `aria-label` は `fandhe-frontend`（現行の 3 か所をそれぞれ維持） | 指定時はヘッダー `a.docs-brand`・フッター `p.docs-footer-brand-name`・マークの `aria-label` の 3 か所へ同じ値 | #3720（`aria-label` は #3722） |
-| `repository_url` | `https://` 始まりのみ。ASCII。空白・制御文字なし。ホスト部が空でない。2048 バイト以下 | `REPOSITORY_URL` 定数 | ヘッダーの GitHub リンクとフッター Resources 列の GitHub リンク。ライセンスリンクと帰属表記のリンクには影響させない | #3720 |
+| `repository_url` | `https://` 始まりのみ。ASCII。空白・制御文字なし。ホスト部が空でない。2048 バイト以下 | `REPOSITORY_URL` 定数 | ヘッダーのリポジトリリンクとフッター Resources 列のリポジトリリンク（文言とアイコンはホストで決まる。§4.3）。ライセンスリンクと帰属表記のリンクには影響させない | #3720 |
 | `tagline` | 1〜200 文字。制御文字なし。空白のみは不可 | `FOOTER_TAGLINE` | フッター `p.docs-footer-tagline` | #3721 |
 | `copyright` | 1〜200 文字。制御文字なし。空白のみは不可 | `COPYRIGHT_TEXT` | フッター下段 | #3721 |
 | `version_badge` | 0〜32 文字。制御文字なし。空文字は「非表示」を表す唯一の指定 | `core v{version}`（解析失敗時は badge なし、現行どおり） | ヘッダー `span.docs-brand-version`。指定時（空文字を含む）は Resources 列の crates.io リンクも出さない | #3721 |
-| `lang` | BCP 47 の構文サブセット。先頭サブタグは英字 2〜3 文字、後続は英数字 1〜8 文字を `-` 区切り、全体 35 文字以下。IANA レジストリとの照合はしない | `ja` | 通常ページ・404・リダイレクト案内の `<html lang>` | #3721 |
+| `lang` | BCP 47 の構文サブセット。先頭サブタグは英字 2〜3 文字、後続は英数字 1〜8 文字を `-` 区切り、全体 35 文字以下。IANA レジストリとの照合はしない | `ja` | 通常ページ・404・リダイレクト案内の `<html lang>`。先頭サブタグで、生成器が出す固定のクローム文言の言語も選ぶ（§4.3） | #3721 |
 | `brand_mark` | ASCII 英数字ちょうど 1 文字 | 現行の `rect` で描いた "f" | `assets/favicon.svg` とヘッダーのインライン SVG（同じ図案） | #3722 |
 | `brand_color` | `#` + 16 進 6 桁（大文字・小文字可）。3 桁省略形・色名・`rgb()` は不可 | `#3182ce` | マークのタイルの `fill` 属性（`style` 属性は使わない） | #3722 |
 
@@ -90,8 +90,9 @@ docs-site を fandhe-frontend 以外のリポジトリから使う需要が出�
 - 実装状況: `tagline` / `copyright` / `version_badge` / `lang` は #3721 で実装済み（`Site::is_brand_customized` が `brand` / `repository_url` / `tagline` / `copyright` / `version_badge` の指定有無で帰属表記への切り替えを判定する。#3722 は自分のキーをこの判定へ足す）
 - crates.io リンクを `version_badge` に連動させるのは、追加キーを決定事項の 8 個から増やさないため。badge も crates.io リンクも `fandhe-frontend-core` を指しており、badge を差し替える・消す外部サイトでは同じリンクも意味を失う
 - `brand` 未指定時にヘッダーとフッターで供給元が異なるのは現行の挙動で、バイト一致のために維持する。指定時に初めて両者が揃う
-- `lang` が変えるのは属性だけ。検索 UI の日本語文言、"Skip to content"、"On this page"、"Menu"、リダイレクト案内の文言は固定のままで、クローム文言の多言語化は本ツリーの範囲外
-- `repository_url` を GitHub 以外へ向けても、リンクの文言 "GitHub" とアイコンは固定
+- `lang` とクローム文言（2026-10-06 の追補）: 生成器が出す固定のクローム文言（本文以外）は `crate::chrome_text` の言語別の表 1 か所に集約し、`lang` の先頭サブタグ（ASCII 大文字小文字無視）で選ぶ。先頭サブタグが `ja`（未指定の既定 `ja` を含む）なら日本語表で、変更前の出力と 1 バイトも変わらない。それ以外（`en` を含む全て）は英語表を使う。対象は検索ボタン・検索ダイアログと入力の `aria-label`・`placeholder`、前後ページャ（ラベルと `aria-label`）、リダイレクト案内（`<title>` と本文）、404（`<title>`・見出し・説明・セクション見出し）。現行で英語の箇所（"Skip to content"、"On this page"、"Menu"、"Search results"、`assets/site.js` の文言など）は元から英語のため両表で変わらない。JS へ埋める文言は無く、全て `text()` と属性の既定エスケープ経由で出る。対象外: `[site]` のキーで差し替えられる文言（`tagline` / `copyright` の既定値は日本語のまま）と、本番 registry 専用の生成節。利用者が任意の文言を差し込むキーは設けない。帰属表記（"Built with ..."）の文言は言語で変えない
+- `repository_url` とリンクの文言・アイコン（2026-10-06 の追補）: ホスト部（検証と同じ authority 規則: `https://` の後から最初の `/` `?` `#` まで、最後の `@` の後・最初の `:` の前）を ASCII 大文字小文字無視で比べ、`github.com` または `www.github.com` と完全一致するときだけ文言 "GitHub" と GitHub マークにする。それ以外のホストでは文言 "Repository" と、特定サービスを示さない汎用アイコン（自前の単純な SVG）にする。`github.com.evil.example`・`evilgithub.com`・`https://github.com@evil.example/`（userinfo が `github.com` でホストは `evil.example`）は汎用側になる。ヘッダーとフッター Resources 列で同じ規則を使う。`repository_url` 未指定（既定の fandhe-frontend の URL）は変更前と同じ出力
+- `--help`（2026-10-06 の追補）: `--help` と `-h` は usage を標準出力へ出して終了コード 0 で終わる（何も生成しない）。それ以外の未知の引数は従来どおり標準エラーへ usage を出して非 0 で終わる
 - `brand_mark` 指定時のグリフ（#3722 で決定）: 指定時のみ SVG `<text>` で描く（`x=16 y=24 text-anchor=middle font-family=sans-serif font-size=22 font-weight=700 fill=#ffffff`、`dominant-baseline`・`style`・外部フォントは使わない）。未指定時は現行の `rect` 3 本の "f" を維持し、`"f"` の明示指定も `<text>` 側で描く（正規化しない）。`brand_color` のみの指定は "f" のままタイルの `fill` だけを変える。`favicon.rs` の `<text` 禁止テストは既定経路で維持する。既知の制約: (1) 描画はシステムの汎用フォント依存で、小文字や descender のある文字は上下中央が厳密には揃わない。(2) インライン SVG の `<text>` は `a.docs-brand` の DOM `textContent` に 1 文字加わる（ラッパーが `aria-hidden` のためアクセシブルネームと検索インデックスには影響しない）。62 文字ぶんの図形表は量が過大なため採らなかった
 - `brand_color` と白いグリフのコントラストは検証しない（利用者の責任）
 - 画像ファイルのパスを受け取るキーは設けない（パストラバーサルの入口を作らない）
@@ -113,7 +114,7 @@ docs-site を fandhe-frontend 以外のリポジトリから使う需要が出�
 - 決定事項: 外部サイトでブランドを差し替えても、"Built with fandhe-frontend docs-site" の帰属表記と `LICENSE-MIT` / `LICENSE-APACHE` へのリンクを残す。消す・差し替えるキーは設けない。`[site]` の未知キー拒否により、`attribution = ""` のような指定はビルドエラーになる
 - 現状: 下段は `Licensed under MIT OR Apache-2.0` のみで、"Built with" の文言は無い
 
-表示規則（本文書で定めた詳細）。
+表示規則（本文書で定めた詳細。2026-10-06 ユーザー承認済み）。
 
 - 既定構成（`brand` / `copyright` / `repository_url` / `tagline` / `version_badge` / `brand_mark` / `brand_color` の 7 キーがすべて未指定）: 現行の下段をそのまま出す。バイト一致を保つ。`lang` は表示物を差し替えないため判定に含めない
 - ブランド差し替え構成（上記 7 キーのうち 1 つでも指定。`brand_mark` / `brand_color` / `repository_url` / `tagline` / `version_badge` のみの指定も含む）: ライセンス行を `Built with fandhe-frontend docs-site (MIT OR Apache-2.0)` へ切り替える。"fandhe-frontend docs-site" は fandhe-frontend のリポジトリへ、MIT / Apache-2.0 は各ライセンス本文へリンクする
@@ -121,7 +122,7 @@ docs-site を fandhe-frontend 以外のリポジトリから使う需要が出�
 - 切り替える理由: 外部の著作権表記の隣に "Licensed under MIT OR Apache-2.0" を置くと、外部サイトの内容がそのライセンスで提供されていると誤読される。対象を docs-site（生成器）に限定した文言へ変える
 - リンク先（ライセンス本文 2 本と帰属表記のリポジトリ URL）は `repository_url` と独立した定数にし、`repository_url` の既定値と同じ値でも共有しない
 - 実装の分担: `brand` は #3720、`copyright` と切り替え本体は #3721。#3720 だけがマージされた中間状態でも既存のライセンス行が残るので制約は満たされる
-- #3724 の「帰属表記以外に `fandhe-frontend` が出ない」検査のため、帰属表記の DOM 範囲を識別できる形にすることを推奨する（class を足す場合は `STRUCTURE_CLASS_CONTRACT` への追加が要る。採否は #3721）。**#3721 の結論: class・属性は足さない**。フッター class は全件に `site.css` のセレクタを要求する契約（`site_css_contract.rs`）があり、class を足すと `site.css` が変わって未指定時のバイト一致が崩れるため。帰属表記は `div.docs-footer-bottom` の 2 番目の `p` で範囲を特定できる。目印が必要になった場合は、差し替え構成のときだけ `data-*` 属性を出す形で後から足せる（追加的な変更で、未指定時の出力は変わらない）。生成 CSS の `--fandhe-*` 変数名などは表示ではないので、検査範囲は #3724 で次のとおり定めた（#3724 で定めた詳細。ユーザー承認済みではない）。
+- #3724 の「帰属表記以外に `fandhe-frontend` が出ない」検査のため、帰属表記の DOM 範囲を識別できる形にすることを推奨する（class を足す場合は `STRUCTURE_CLASS_CONTRACT` への追加が要る。採否は #3721）。**#3721 の結論: class・属性は足さない**。フッター class は全件に `site.css` のセレクタを要求する契約（`site_css_contract.rs`）があり、class を足すと `site.css` が変わって未指定時のバイト一致が崩れるため。帰属表記は `div.docs-footer-bottom` の 2 番目の `p` で範囲を特定できる。目印が必要になった場合は、差し替え構成のときだけ `data-*` 属性を出す形で後から足せる（追加的な変更で、未指定時の出力は変わらない）。生成 CSS の `--fandhe-*` 変数名などは表示ではないので、検査範囲は #3724 で次のとおり定めた（#3724 で定めた詳細。2026-10-06 ユーザー承認済み）。
   - 対象は全出力ファイル（HTML・CSS・JS・JSON・SVG・リダイレクト案内）と出力の相対パス名。検査語は `fandhe-frontend` と `Fandhe-AI`（ASCII 大文字小文字無視）。
   - 許容は、クロームを持つ HTML の `div.docs-footer-bottom` の 2 番目の `p`（帰属表記）のみ。
   - `fandhe` だけを含む内部識別子（`--fandhe-*`・`#fandhe-skip-nav`・localStorage キー `fandhe-docs-theme`）と、CLI の標準出力・標準エラーは対象外。
@@ -135,7 +136,7 @@ docs-site を fandhe-frontend 以外のリポジトリから使う需要が出�
 - 各実装イシューで、キーごとの検証テスト（正常値・境界値・拒否値）と、指定時の反映・エスケープのテストを足す
 
 - #3724 で定めた詳細: 外部リポジトリ相当の最小サイトを `crates/docs-site/tests/fixtures/site-external` にチェックインし、`crates/docs-site/tests/external_site_contract.rs` がバイナリ（`--no-page-sections`）経由で生成して、生成ファイル一覧の完全一致・ブランド反映・帰属表記の外の `fandhe-frontend` 不在・予約パス（`/themes/accordion/` と `/primitives/accordion/`）へのショーケース非注入を固定する。#3725 の CI ジョブも同じ fixture を入力にできる
-- #3725 で定めた詳細: 外部利用経路（匿名の `cargo install --git` → `docs-site --no-page-sections` で fixture から生成 → 生成物の検査）を、`ci.yml` の `test-docs-site` ジョブの 3 ステップ（本体は `tools/ci/docs-site-external-use-smoke.sh`）として毎回実行する。専用ジョブにしないのは、ruleset への required context 追加（人間による PUT）が前提になるため。対象 rev は PR では head SHA、main push では `github.sha`。取得とビルドは cargo の `Installing` 行の有無で判別し、1 行サマリ `docs-site-external-use: stage=<fetch|build|generate|inspect> result=<PASS|FAIL>` で段階を示す。既知の制約: PR では fixture がマージコミット側・バイナリが head 側になるため base が古いとずれ得ること、fork PR の head SHA の匿名取得は未確認であること。これらはレビューで確認する提案であり、承認済みとは扱わない
+- #3725 で定めた詳細: 外部利用経路（匿名の `cargo install --git` → `docs-site --no-page-sections` で fixture から生成 → 生成物の検査）を、`ci.yml` の `test-docs-site` ジョブの 3 ステップ（本体は `tools/ci/docs-site-external-use-smoke.sh`）として毎回実行する。専用ジョブにしないのは、ruleset への required context 追加（人間による PUT）が前提になるため。対象 rev は PR では head SHA、main push では `github.sha`。取得とビルドは cargo の `Installing` 行の有無で判別し、1 行サマリ `docs-site-external-use: stage=<fetch|build|generate|inspect> result=<PASS|FAIL>` で段階を示す。既知の制約: PR では fixture がマージコミット側・バイナリが head 側になるため base が古いとずれ得ること、fork PR の head SHA の匿名取得は未確認であること。これらの細目は 2026-10-06 にユーザーが承認した（既知の制約そのものは残る）
 
 ## 8. セキュリティ不変条件
 

@@ -22,13 +22,14 @@ cargo install --git https://github.com/Fandhe-AI/fandhe-frontend --rev <commit-s
 コマンドラインは次のとおりです。
 
 ```text
-docs-site --out <dir> [--root <dir>] [--no-page-sections]
+docs-site --out <dir> [--root <dir>] [--no-page-sections] [--help]
 ```
 
 - `--out`（必須）: 出力先ディレクトリ。
 - `--root`: `site/nav.toml` を含むリポジトリルート。既定は `.` です。
 - `--no-page-sections`: fandhe-frontend 本サイト専用の機能を止めます。
-- 未知の引数はエラーになります。
+- `--help`（`-h`）: 使い方を標準出力へ出して、終了コード 0 で終わります（何も生成しません）。
+- それ以外の未知の引数はエラーになり、使い方を標準エラーへ出して非 0 で終わります。
 
 > [!IMPORTANT]
 > fandhe-frontend 以外のサイトでは `--no-page-sections` を必ず付けてください。付けない場合は本サイト専用の生成節の登録表が使われ、登録されていないページを持つ `nav.toml` は、書き出しの前にエラーで失敗します。付けると、Themes・Primitives・Blocks・Wireframes のショーケースの注入と、その専用アセットの出力も止まります。
@@ -131,11 +132,11 @@ printf '# 使い方\n\nここに使い方を書きます。\n' > site/usage.md
 | キー | 許容する値 | 未指定のとき | 反映先 |
 |------|------------|--------------|--------|
 | `brand` | 1〜64 文字。制御文字なし。空白のみは不可 | ヘッダーは `fandhe-frontend`、フッターは `title` | ヘッダーとフッターのブランド名 |
-| `repository_url` | `https://` で始まる ASCII。空白なし。ホストあり。2048 バイト以下 | fandhe-frontend のリポジトリ | ヘッダーとフッターの GitHub リンク |
+| `repository_url` | `https://` で始まる ASCII。空白なし。ホストあり。2048 バイト以下 | fandhe-frontend のリポジトリ | ヘッダーとフッターのリポジトリリンク（文言とアイコンはホストで決まります） |
 | `tagline` | 1〜200 文字。制御文字なし。空白のみは不可 | fandhe-frontend の文言 | フッターのタグライン |
 | `copyright` | `tagline` と同じ | fandhe-frontend の著作権表記 | フッター下段 |
 | `version_badge` | 0〜32 文字。制御文字なし。空文字は非表示。空白のみは不可 | fandhe-frontend-core の版数 | ヘッダーのバッジ |
-| `lang` | BCP 47 の形（`ja`、`en-US`、`zh-Hant-TW` など）。35 文字以下 | `ja` | `<html lang>` |
+| `lang` | BCP 47 の形（`ja`、`en-US`、`zh-Hant-TW` など）。35 文字以下 | `ja` | `<html lang>`。生成器が出す固定のクローム文言の言語も選びます |
 | `brand_mark` | ASCII 英数字ちょうど 1 文字 | 既定の図案 | `assets/favicon.svg` とヘッダーのマーク |
 | `brand_color` | `#` と 16 進 6 桁 | `#3182ce` | マークのタイルの塗り色 |
 
@@ -143,8 +144,8 @@ printf '# 使い方\n\nここに使い方を書きます。\n' > site/usage.md
 
 - `brand` を指定しないと、ヘッダーのブランド名が `fandhe-frontend` のままになります。外部サイトでは必ず指定してください。
 - `version_badge` を指定しないと、fandhe-frontend-core の版数が表示されます。外部サイトでは、空文字（非表示）か自前の文字列を指定してください。
-- `lang` が変えるのは `<html lang>` の属性だけです。検索 UI などのクロームの文言は変わりません。
-- `repository_url` を GitHub 以外へ向けても、リンクの文言 "GitHub" とアイコンは変わりません。
+- `lang` は `<html lang>` の属性に加えて、生成器が出す固定のクローム文言（検索ボタンと検索ダイアログのラベル・プレースホルダ、前後ページのリンク、404 ページ、リダイレクト案内）の言語も選びます。先頭のサブタグが `ja`（大文字小文字は区別しません。未指定の既定も `ja`）なら日本語、それ以外（`en`、`en-US`、`fr` など）は英語です。選べる言語は日本語と英語の 2 つで、文言を自由に差し替えるキーはありません。`tagline` と `copyright` を指定しない場合の既定文言は日本語のままなので、英語のサイトでは両方を指定してください。
+- `repository_url` のホストが `github.com`（`www.github.com` を含む。大文字小文字は区別しません）のときは、リンクの文言が "GitHub" で、GitHub のマークが付きます。それ以外のホスト（GitLab や自前のサーバーなど）では、文言が "Repository" で、特定のサービスを示さない汎用のアイコンになります。ホストは、ユーザー名やポート番号を除いて判定します（`https://github.com@example.com/` のホストは `example.com` です）。
 - `brand_color` と白い文字のコントラストは検証されません。読みやすい色を選んでください。
 - 画像ファイルをロゴに使うキーはありません。
 - ページの `<title>` は、各ページの `title` だけです。サイト名は付きません。
