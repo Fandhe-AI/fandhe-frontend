@@ -1,6 +1,6 @@
 # docs サイトの外部リポジトリ利用に向けた `[site]` 拡張方針
 
-- ステータス: 設計確定（実装中）。`brand` / `repository_url` は #3720、`brand_mark` / `brand_color` は #3722、`tagline` / `copyright` / `version_badge` / `lang` は #3721 で実装済み。フラグは #3716 / #3717 で実装済み。外部利用の契約テストは #3724 で追加した（§7）。利用者向けの手順書は `docs/guides/docs-site-external-repos.md`（#3726）
+- ステータス: 設計確定（実装中）。`brand` / `repository_url` は #3720、`brand_mark` / `brand_color` は #3722、`tagline` / `copyright` / `version_badge` / `lang` は #3721 で実装済み。フラグは #3716 / #3717 で実装済み。外部利用の契約テストは #3724、外部利用経路の CI 常時実行は #3725 で追加した（§7）。利用者向けの手順書は `docs/guides/docs-site-external-repos.md`（#3726）
 - 起票元: #3715（親 #3714、ルート #3713）
 - 範囲: `site/nav.toml` の `[site]` への追加キー、CLI フラグ `--no-page-sections`、帰属表記の方針。本文書はコード・CI・ruleset を変更しない
 - 記載の区別: 「決定事項」は #3715 に記載された確定済みの判断（2026-10-05）。「本文書で定めた詳細」は決定事項を実装可能にするために本文書で補った提案で、実装イシューのレビューで確認する。後者をユーザー承認済みとは扱わない
@@ -135,6 +135,7 @@ docs-site を fandhe-frontend 以外のリポジトリから使う需要が出�
 - 各実装イシューで、キーごとの検証テスト（正常値・境界値・拒否値）と、指定時の反映・エスケープのテストを足す
 
 - #3724 で定めた詳細: 外部リポジトリ相当の最小サイトを `crates/docs-site/tests/fixtures/site-external` にチェックインし、`crates/docs-site/tests/external_site_contract.rs` がバイナリ（`--no-page-sections`）経由で生成して、生成ファイル一覧の完全一致・ブランド反映・帰属表記の外の `fandhe-frontend` 不在・予約パス（`/themes/accordion/` と `/primitives/accordion/`）へのショーケース非注入を固定する。#3725 の CI ジョブも同じ fixture を入力にできる
+- #3725 で定めた詳細: 外部利用経路（匿名の `cargo install --git` → `docs-site --no-page-sections` で fixture から生成 → 生成物の検査）を、`ci.yml` の `test-docs-site` ジョブの 3 ステップ（本体は `tools/ci/docs-site-external-use-smoke.sh`）として毎回実行する。専用ジョブにしないのは、ruleset への required context 追加（人間による PUT）が前提になるため。対象 rev は PR では head SHA、main push では `github.sha`。取得とビルドは cargo の `Installing` 行の有無で判別し、1 行サマリ `docs-site-external-use: stage=<fetch|build|generate|inspect> result=<PASS|FAIL>` で段階を示す。既知の制約: PR では fixture がマージコミット側・バイナリが head 側になるため base が古いとずれ得ること、fork PR の head SHA の匿名取得は未確認であること。これらはレビューで確認する提案であり、承認済みとは扱わない
 
 ## 8. セキュリティ不変条件
 
@@ -163,4 +164,4 @@ docs-site を fandhe-frontend 以外のリポジトリから使う需要が出�
 - `docs/design/docs-site-styled-blocks-redesign.md` / `docs-site-three-column-redesign.md` / `docs-site-csp-policy.md`
 - `crates/docs-site/src/` の `nav.rs` / `layout.rs` / `site_footer.rs` / `favicon.rs` / `site_version.rs` / `page_sections.rs` / `build.rs` / `main.rs`
 - `docs/guides/docs-site-external-repos.md`（利用者向けガイド、#3726）
-- #3713（ルート）/ #3714 / #3716 / #3717 / #3718 / #3720 / #3721 / #3722 / #3724 / #3726
+- #3713（ルート）/ #3714 / #3716 / #3717 / #3718 / #3720 / #3721 / #3722 / #3724 / #3725 / #3726

@@ -569,6 +569,51 @@ jobs:
       - name: fandhe-frontend-docs-site tests
         run: cargo test -p fandhe-frontend-docs-site --locked
 
+      # イシュー #3725: docs-site を外部リポジトリから使う経路（匿名の
+      # `cargo install --git` -> `--no-page-sections` での最小サイト生成 ->
+      # 生成物の検査）を毎回実行する 3 ステップ。本体は
+      # tools/ci/docs-site-external-use-smoke.sh（ローカルでも同じコードを実行できる）。
+      #
+      # 新規ジョブにせず本ジョブのステップとした理由: ジョブを足すと ruleset
+      # `main-protection` への required context 追加（マージ前の手動 PUT）が必要に
+      # なり、未登録 context が PR HEAD に出て autoMerge G0 が辞退する。
+      # test ジョブの Vercel 出力検証（イシュー #3292）と同じ判断である。本ジョブは
+      # 既に required で paths フィルタ・ジョブレベル `if:` を持たないため、PR で
+      # 必ず実行される。これらのステップに `if:`・`continue-on-error:` を付けない
+      # （付けると fail-open になる。契約テスト
+      # crates/xtask/tests/workflow_docs_site_external_use.rs が固定する）。
+      #
+      # 匿名性: スクリプトが `env -i`・隔離 HOME/CARGO_HOME・git 設定の無効化で
+      # 認証情報を渡さない。ジョブに secrets・GITHUB_TOKEN を足さず、checkout は
+      # persist-credentials: false のまま。
+      # 対象 rev: PR は head SHA、main push は github.sha。バイナリは対象 rev から
+      # ビルドされ、fixture はチェックアウト（PR ではマージコミット）のものを使う。
+      #
+      # 既知の制約: (1) base が古いブランチでは fixture とバイナリがずれ得る（検査は
+      # 存在確認と grep に留めている。ずれて落ちたら main を取り込む）。(2) fork PR の
+      # head SHA を base リポジトリ URL から匿名取得できるかは未確認（本リポジトリは
+      # 同一リポジトリのブランチ運用）。(3) テストステップが落ちた場合、後続の本
+      # ステップは実行されない。
+      #
+      # 失敗の段階は 1 行サマリ `docs-site-external-use: stage=<fetch|build|generate|inspect>
+      # result=<PASS|FAIL>` で判別できる（Step Summary にも出る）。
+      - name: "external use: fetch + build (anonymous cargo install --git, issue #3725)"
+        env:
+          EXTERNAL_USE_REPO_URL: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          EXTERNAL_USE_REV: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXTERNAL_USE_WORK_DIR: ${{ runner.temp }}/docs-site-external-use
+        run: tools/ci/docs-site-external-use-smoke.sh install
+
+      - name: "external use: generate (docs-site --no-page-sections)"
+        env:
+          EXTERNAL_USE_WORK_DIR: ${{ runner.temp }}/docs-site-external-use
+        run: tools/ci/docs-site-external-use-smoke.sh generate
+
+      - name: "external use: inspect (dist sanity check)"
+        env:
+          EXTERNAL_USE_WORK_DIR: ${{ runner.temp }}/docs-site-external-use
+        run: tools/ci/docs-site-external-use-smoke.sh inspect
+
   # TASK-10.1a（#106）: fandhe-frontend-dist-server の開発 / 本番モード切り替え
   # （`crates/dist-server/src/assets.rs` の `AssetMode`）を CI で両モードとも検証する。
   #
