@@ -216,7 +216,8 @@ pub const REGISTRY: Registry = Registry {
 
 /// 生成節を一切持たない登録表。フィクスチャ（一時ディレクトリで組む合成サイト）
 /// のビルドが、本サイト専用のヒーロー・ランディング骨格・CTA リンクを
-/// 引き込まないために使う（`build_site_with(.., &EMPTY_REGISTRY)`）。
+/// 引き込まないために使う（`build_site_with(.., &EMPTY_REGISTRY)`）。外部サイト向けに
+/// CLI の `--no-page-sections` からも使う（イシュー #3716）。
 pub const EMPTY_REGISTRY: Registry = Registry {
     sections: &[],
     stylesheets: &[],

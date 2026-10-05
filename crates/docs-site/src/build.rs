@@ -82,7 +82,8 @@
 //! [`page_sections::insert_generated_sections_with`] を呼ぶ（未登録ページは
 //! no-op で出力は変わらない。本番ではトップのヒーローのみ登録、#3612）。登録表の整合は nav 検証直後に
 //! [`page_sections::validate`] が書き出し前に検証し、使われた追加 CSS だけを
-//! href 登録・書き出しする。本番は [`build_site`]、合成登録表を使うテストは
+//! href 登録・書き出しする。本番は [`build_site`]、合成登録表を使うテストと、
+//! バイナリの `--no-page-sections`（`EMPTY_REGISTRY`、#3716）は
 //! [`build_site_with`] を使う。
 //!
 //! # メニュー集約ページ（[`crate::menu_index`]、イシュー #3700）
@@ -417,7 +418,8 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
 /// [`build_site`] の本体。汎用生成節の登録表（[`page_sections::Registry`]）を
 /// 引数で受け取る（イシュー #3598）。本番は必ず [`build_site`]（本番登録表
 /// [`page_sections::REGISTRY`]）を使う。本関数は合成エントリを使う E2E テスト
-/// （`tests/page_sections.rs`）のための入口であり、登録表の整合は nav 検証の
+/// （`tests/page_sections.rs`）と、外部サイト向けにバイナリの
+/// `--no-page-sections` が `EMPTY_REGISTRY` を渡す入口（#3716）であり、登録表の整合は nav 検証の
 /// 直後に [`page_sections::validate`] が書き出し前に検証する。
 ///
 /// # Errors

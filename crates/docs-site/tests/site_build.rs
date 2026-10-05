@@ -15,6 +15,7 @@
 //! docs 編集によるリンク切れを `cargo test` が継続的に検出する
 //! （ドッグフーディング保証）。
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -762,9 +763,9 @@ fn docs_site_bin() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_docs-site"))
 }
 
-/// バイナリは本番の生成節登録表（`/guides/`・`/api/`・`/examples/`、#3616、
+/// バイナリはフラグなしだと本番の生成節登録表（`/guides/`・`/api/`・`/examples/`、#3616、
 /// `/primitives/`・`/themes/`、#3617）を使うため、登録ページを nav に持たない fixture はビルドできない（fail-closed）。
-/// 成功経路は実リポジトリで検証する。
+/// 成功経路は実リポジトリで検証し、fixture の成功経路は `--no-page-sections`（#3716）で検証する。
 #[test]
 fn binary_exits_zero_and_reports_written_counts_for_real_site() {
     let out = TempDir::new("bin-ok");
@@ -785,6 +786,89 @@ fn binary_exits_zero_and_reports_written_counts_for_real_site() {
     assert!(out.0.join("index.html").exists());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("wrote "));
+    // 本番登録表が有効であることの証拠（索引カード用 CSS が出力される）。
+    assert!(out
+        .0
+        .join(fandhe_frontend_docs_site::section_index::STYLESHEET_REL_PATH)
+        .exists());
+    let expected = format!(
+        "wrote {} page(s)",
+        shared_site::real_site().report.written.len()
+    );
+    assert!(stdout.contains(&expected), "stdout={stdout}");
+}
+
+/// 出力ツリーを `相対パス -> バイト列` で読む。
+fn read_tree(root: &Path) -> BTreeMap<String, Vec<u8>> {
+    fn walk(base: &Path, dir: &Path, acc: &mut BTreeMap<String, Vec<u8>>) {
+        for entry in std::fs::read_dir(dir).expect("read_dir") {
+            let path = entry.expect("entry").path();
+            if path.is_dir() {
+                walk(base, &path, acc);
+            } else {
+                let rel = path.strip_prefix(base).expect("prefix");
+                acc.insert(
+                    rel.to_string_lossy().replace('\\', "/"),
+                    std::fs::read(&path).expect("read"),
+                );
+            }
+        }
+    }
+    let mut acc = BTreeMap::new();
+    walk(root, root, &mut acc);
+    acc
+}
+
+/// `--no-page-sections` は `build_site_with(.., &EMPTY_REGISTRY)` と同一の出力になる（#3716）。
+#[test]
+fn binary_no_page_sections_matches_empty_registry_build() {
+    let temp = TempDir::new("bin-no-sections");
+    let out_bin = temp.0.join("dist-bin");
+    let out_lib = temp.0.join("dist-lib");
+    let output = Command::new(docs_site_bin())
+        .arg("--no-page-sections")
+        .arg("--out")
+        .arg(&out_bin)
+        .arg("--root")
+        .arg(fixture_root("site-ok"))
+        .output()
+        .expect("spawn docs-site binary");
+    assert!(
+        output.status.success(),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("wrote 2 page(s)"));
+    assert!(out_bin.join("index.html").exists());
+    assert!(out_bin.join("guide/quickstart/index.html").exists());
+    assert!(!out_bin
+        .join(fandhe_frontend_docs_site::section_index::STYLESHEET_REL_PATH)
+        .exists());
+
+    build_site_with(&fixture_root("site-ok"), &out_lib, &EMPTY_REGISTRY).expect("lib build");
+    assert_eq!(read_tree(&out_bin), read_tree(&out_lib));
+}
+
+/// フラグなしでは登録ページを持たない nav は書き出し前に失敗する（fail-closed 維持）。
+#[test]
+fn binary_without_no_page_sections_rejects_minimal_fixture() {
+    let temp = TempDir::new("bin-sections-required");
+    let out_dir = temp.0.join("dist");
+    let output = Command::new(docs_site_bin())
+        .arg("--out")
+        .arg(&out_dir)
+        .arg("--root")
+        .arg(fixture_root("site-ok"))
+        .output()
+        .expect("spawn docs-site binary");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("invalid page section registry"),
+        "stderr={stderr}"
+    );
+    assert!(!out_dir.exists());
 }
 
 /// 本番登録表が要求するページを持つ一時サイトで、リンク切れを検知する。
