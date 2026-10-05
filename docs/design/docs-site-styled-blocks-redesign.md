@@ -404,6 +404,7 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 - `docs/design/docs-site-three-column-redesign.md`: 骨格・CSS 供給・契約テスト・再評価トリガーの統治文書
 - `docs/design/docs-site-styled-ui-adoption.md`: styled 部品の適用範囲の履歴
 - `docs/design/docs-site-blocks-section.md`: Blocks セクションの設計記録
+- `docs/design/docs-site-external-use.md`: 外部リポジトリ利用に向けた `[site]` 拡張方針と `--no-page-sections`（#3715）
 - `docs/policy/intentional-non-adoption.md`: 評価軸と非採用記録
 - `crates/docs-site/src/layout.rs` / `site_theme.rs` / `script.rs` / `build.rs`: 実装の所在
 - `crates/docs-site/src/` の新設モジュール: `page_sections.rs`（生成節フック）/ `landing.rs`（トップ）/ `page_header.rs`（ページ見出しとパンくず）/ `site_footer.rs` / `menu_index.rs`（`/assets/` 集約ページのカード、#3700）/ `code_copy.rs` / `not_found.rs` / `section_index.rs` / `component_index.rs` / `category_index.rs` / `themes_catalog.rs` / `site_version.rs` / `favicon.rs`、およびトップのコード例 `crates/docs-site/snippets/landing_ssr.rs`
@@ -542,7 +543,7 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 ### フッター 3 列（#3703 / PR #3709）
 
 - 構成は、ブランド列と、Docs / メニュー列（Assets）/ Resources の 3 つのリンク列
-- ブランド列は `p` で組み、リンクにしない。ブランド名を `/` へリンクすると Getting Started の索引と href が重なり、「各索引がちょうど 1 回」の契約とぶつかるため。タグラインは `FOOTER_TAGLINE` の固定文言で、`nav.toml` のスキーマは広げない
+- ブランド列は `p` で組み、リンクにしない。ブランド名を `/` へリンクすると Getting Started の索引と href が重なり、「各索引がちょうど 1 回」の契約とぶつかるため。タグラインは `FOOTER_TAGLINE` の固定文言で、`nav.toml` のスキーマは広げない（この「スキーマは広げない」方針は #3715 で見直した。`[site]` への任意キー追加の設計は `docs/design/docs-site-external-use.md` を正とする）
 - Docs 列は、メニューに属さないセクションの索引。Assets 列は、先頭に `FOOTER_MENU_OVERVIEW_LABEL`（"Overview"）として `/assets/` を置き、続けて `[[menu.item]]` 順に並べる。Resources 列は GitHub と crates.io（`external: true`）
 - 下段は著作権表記とライセンスだけにする。同じリンクが 2 度出ないようにするため
 - 各列は索引リンクだけで、`FOOTER_LINKS_PER_SECTION` は廃止した
@@ -585,3 +586,10 @@ Blocks セクション自体（索引のレジストリ生成、カテゴリ階�
 | 7 | 層セクションの追加・改称・境界変更 | 非該当 | Assets は `[[menu]]` であって層セクションではない。Examples が属しても 4 層構成の数は変わらない |
 
 トリガー 6 の文言と適用記録は `docs-site-three-column-redesign.md` §10 に反映した。
+
+## 追補: 外部リポジトリ利用に向けた `[site]` 非拡張方針の見直し（ルート #3713、2026-10-05）
+
+- 見直した判断: 「`[site]` スキーマは拡張しない」「フッターのタグラインは固定文言で `nav.toml` のスキーマは広げない」を、サイトの同一性を示す表示値に限り任意キーとして拡張する方針へ改めた
+- 正は `docs/design/docs-site-external-use.md`（追加キー 8 個の既定値・検証ルール、`--no-page-sections`、帰属表記の方針）。キー表は本文書へ重複させない
+- 実装イシューは #3716 / #3717（フラグ）、#3720 / #3721 / #3722（キー）
+- 現時点で挙動は変わっていない（設計記録とコメントの更新のみ）

@@ -89,7 +89,8 @@ pub const FOOTER_BOTTOM_CLASS: &str = "docs-footer-bottom";
 /// フッター nav のランドマーク名（他の nav 名と重ならない英語）。
 pub const FOOTER_ARIA_LABEL: &str = "Footer";
 
-/// ブランド列のタグライン（固定文言。`nav.toml` のスキーマは広げない）。
+/// ブランド列のタグライン。現時点では固定文言で、`[site].tagline` 未指定時の
+/// 既定値になる（設計は `docs/design/docs-site-external-use.md`、実装は #3721）。
 pub const FOOTER_TAGLINE: &str =
     "AI 時代のセキュリティリスクを抑える Rust 製フロントエンドフレームワーク";
 /// Docs 列の見出し。

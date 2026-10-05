@@ -82,9 +82,13 @@ use crate::script;
 use crate::search_index;
 
 /// GitHub リポジトリへの絶対 URL（ヘッダーの GitHub リンクが参照する
-/// 単一実装点）。`site/nav.toml` の `[site]` スキーマは拡張しない
-/// （nav スキーマの変更は #939 の管轄。ブランド文字列 `"fandhe-frontend"`
-/// が既に本モジュールへハードコードされている先例に倣う）。
+/// 単一実装点）。現時点では定数で、`site/nav.toml` からは変えられない。
+///
+/// 旧方針「`[site]` スキーマは拡張しない」は #3715 で見直した。外部リポジトリから
+/// docs-site を使えるよう、`[site]` へ任意キー（`brand` / `repository_url` ほか）を
+/// 足す設計を `docs/design/docs-site-external-use.md` に記録している。本定数は
+/// `repository_url` 未指定時の既定値になる（実装は #3720）。ライセンス本文への
+/// リンクと帰属表記は設定で変えない（同文書の帰属表記の節）。
 pub(crate) const REPOSITORY_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 /// pre-styled-ui のアイコン用に `path` 1 本の SVG 子ノードを作る。
