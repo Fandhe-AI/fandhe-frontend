@@ -222,6 +222,23 @@ mod tests {
     }
 
     #[test]
+    fn backslash_urls_are_not_github_even_without_validation() {
+        // 検証を経ない直接呼び出しでも、`\` を `/` と解釈するブラウザの遷移先
+        // （evil.example）と食い違う GitHub 判定をしない。
+        for u in [
+            r"https://evil.example\@github.com/",
+            r"https://evil.example\github.com/",
+            r"https://evil.example\@www.github.com/",
+        ] {
+            assert_eq!(
+                RepositoryLinkKind::from_url(u),
+                RepositoryLinkKind::Generic,
+                "{u}"
+            );
+        }
+    }
+
+    #[test]
     fn labels_follow_kind() {
         assert_eq!(RepositoryLinkKind::GitHub.label(), "GitHub");
         assert_eq!(RepositoryLinkKind::Generic.label(), "Repository");

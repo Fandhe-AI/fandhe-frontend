@@ -421,15 +421,20 @@ fn validate_site_brand_color(value: &str, line: usize) -> Result<(), NavError> {
 
 /// `https://` 始まりの URL からホスト部を取り出す（検証と表示判定で共有する単一実装）。
 ///
-/// authority を `https://` の後から最初の `/` `?` `#` までとし、最後の `@`（userinfo）
+/// authority を `https://` の後から最初の `/` `\` `?` `#` までとし、最後の `@`（userinfo）
 /// より後・最初の `:`（ポート）より前をホストとする。`https://` で始まらない入力は空文字。
 /// `crate::chrome_text::RepositoryLinkKind::from_url` がリンク文言の判定に使うため、
 /// 検証（`validate_site_https_url`）とずれないようここ 1 か所に置く。
+///
+/// `\` を区切りに含めるのは、ブラウザ（WHATWG URL）が `https:` の `\` を `/` として
+/// 解釈するため。含めないと `https://evil.example\@github.com/` のホストを `github.com`
+/// と誤判定し、実際の遷移先（`evil.example`）と表示が食い違う。検証側も `\` を拒否する
+/// （多層防御）が、検証を経ない呼び出しでもこの関数が安全側に倒れるようにしている。
 pub(crate) fn https_url_host(value: &str) -> &str {
     let Some(rest) = value.strip_prefix("https://") else {
         return "";
     };
-    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let authority = rest.split(['/', '\\', '?', '#']).next().unwrap_or("");
     let after_userinfo = authority.rsplit('@').next().unwrap_or("");
     after_userinfo.split(':').next().unwrap_or("")
 }
@@ -459,6 +464,12 @@ fn validate_site_https_url(
         return Err(parse_err(
             line,
             format!("`{key}` must be ASCII without whitespace or control characters"),
+        ));
+    }
+    if value.contains('\\') {
+        return Err(parse_err(
+            line,
+            format!("`{key}` must not contain backslashes"),
         ));
     }
     if https_url_host(value).is_empty() {
@@ -3913,6 +3924,41 @@ path = "/components/button/"
         assert!(err
             .to_string()
             .contains("unknown key `attribution` in [site]"));
+    }
+
+    #[test]
+    fn site_repository_url_rejects_backslashes_after_toml_unescape() {
+        // TOML 側は `\\` で書く。検証はエスケープ解釈後の値（実際の `\`）に対して行う。
+        for v in [
+            r"https://evil.example\\@github.com/",
+            r"https://github.com\\@evil.example/",
+            r"https://example.com/a\\b",
+        ] {
+            let err = parse_with_site(&format!("repository_url = \"{v}\"\n")).unwrap_err();
+            match err {
+                NavError::Parse { message, .. } => {
+                    assert!(message.contains("site.repository_url"), "{v}");
+                    assert!(message.contains("backslash"), "{v}");
+                    assert!(!message.contains("evil.example"), "{v}");
+                }
+                other => panic!("unexpected {other:?}"),
+            }
+        }
+        for ok in ["https://github.com/owner/repo", "https://example.com/a/b"] {
+            assert!(parse_with_site(&format!("repository_url = \"{ok}\"\n")).is_ok());
+        }
+    }
+
+    #[test]
+    fn https_url_host_treats_backslash_as_authority_end() {
+        assert_eq!(
+            https_url_host(r"https://evil.example\@github.com/"),
+            "evil.example"
+        );
+        assert_eq!(
+            https_url_host(r"https://github.com\@evil.example/"),
+            "github.com"
+        );
     }
 
     #[test]
