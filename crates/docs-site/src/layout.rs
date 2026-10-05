@@ -103,6 +103,9 @@ pub struct SiteChrome<'a> {
     pub brand: &'a str,
     /// ヘッダー GitHub リンクの href（`parse_nav` が `https://` を検証済み）。
     pub repository_url: &'a str,
+    /// ブランドマークの文字と色（#3722）。`a.docs-brand` のマークと `assets/favicon.svg`
+    /// は同じ値から同じ関数で作られる。
+    pub mark: crate::favicon::BrandMark<'a>,
 }
 
 impl Default for SiteChrome<'_> {
@@ -110,6 +113,7 @@ impl Default for SiteChrome<'_> {
         Self {
             brand: DEFAULT_BRAND,
             repository_url: REPOSITORY_URL,
+            mark: crate::favicon::BrandMark::default(),
         }
     }
 }
@@ -120,18 +124,18 @@ fn icon_path(d: &'static str) -> Node {
 }
 
 /// ブランドリンク（`a.docs-brand`、#908/#3606）。favicon と同じ図案
-/// （[`crate::favicon::mark_node`]）を `span[aria-hidden]` で包んで置く。
+/// （[`crate::favicon::mark_node_for`]、`aria-label` は `brand_text`）を `span[aria-hidden]` で包んで置く。
 /// `mark_node` 自身が `role="img" aria-label` を持つため、可視テキストと
 /// 二重に読み上げさせないようラッパーで隠す（favicon.rs の想定どおりの使い方）。
 /// `a.docs-brand` が `header-inner` の第 1 子である順序契約は呼び出し側が守る。
-fn brand(root_href: &str, brand_text: &str) -> Node {
+fn brand(root_href: &str, brand_text: &str, mark: &crate::favicon::BrandMark<'_>) -> Node {
     a(
         vec![("href", root_href), ("class", "docs-brand")],
         vec![
             el(
                 "span",
                 vec![("class", "docs-brand-mark"), ("aria-hidden", "true")],
-                vec![crate::favicon::mark_node()],
+                vec![crate::favicon::mark_node_for(brand_text, mark)],
             ),
             text(brand_text),
         ],
@@ -1139,7 +1143,7 @@ pub fn docs_page_with_chrome(
     // 本文を HTML へ埋め込まない、`crate::search_index` モジュール doc 参照）。
     let search_index_href = asset_href(base_path, search_index::REL_PATH);
 
-    let mut header_children = vec![brand(&root_href, chrome.brand)];
+    let mut header_children = vec![brand(&root_href, chrome.brand, &chrome.mark)];
     if let Some(version) = brand_version() {
         header_children.push(version);
     }
