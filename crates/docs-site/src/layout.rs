@@ -100,18 +100,18 @@ fn icon_path(d: &'static str) -> Node {
 }
 
 /// ブランドリンク（`a.docs-brand`、#908/#3606）。favicon と同じ図案
-/// （[`crate::favicon::mark_node`]）を `span[aria-hidden]` で包んで置く。
+/// （[`crate::favicon::mark_node_for`]、`aria-label` は `brand_text`）を `span[aria-hidden]` で包んで置く。
 /// `mark_node` 自身が `role="img" aria-label` を持つため、可視テキストと
 /// 二重に読み上げさせないようラッパーで隠す（favicon.rs の想定どおりの使い方）。
 /// `a.docs-brand` が `header-inner` の第 1 子である順序契約は呼び出し側が守る。
-fn brand(root_href: &str, brand_text: &str) -> Node {
+fn brand(root_href: &str, brand_text: &str, mark: &crate::favicon::BrandMark<'_>) -> Node {
     a(
         vec![("href", root_href), ("class", "docs-brand")],
         vec![
             el(
                 "span",
                 vec![("class", "docs-brand-mark"), ("aria-hidden", "true")],
-                vec![crate::favicon::mark_node()],
+                vec![crate::favicon::mark_node_for(brand_text, mark)],
             ),
             text(brand_text),
         ],
@@ -177,6 +177,9 @@ pub struct SiteChrome<'a> {
     pub lang: &'a str,
     /// ヘッダー badge の出し方。
     pub version_badge: VersionBadge<'a>,
+    /// ブランドマークの文字と色（#3722）。`a.docs-brand` のマークと `assets/favicon.svg`
+    /// は同じ値から同じ関数で作られる。
+    pub mark: crate::favicon::BrandMark<'a>,
 }
 
 impl Default for SiteChrome<'_> {
@@ -186,6 +189,7 @@ impl Default for SiteChrome<'_> {
             repository_url: REPOSITORY_URL,
             lang: DEFAULT_LANG,
             version_badge: VersionBadge::CoreVersion,
+            mark: crate::favicon::BrandMark::default(),
         }
     }
 }
@@ -1169,7 +1173,7 @@ pub fn docs_page_with_chrome(
     // 本文を HTML へ埋め込まない、`crate::search_index` モジュール doc 参照）。
     let search_index_href = asset_href(base_path, search_index::REL_PATH);
 
-    let mut header_children = vec![brand(&root_href, chrome.brand)];
+    let mut header_children = vec![brand(&root_href, chrome.brand, &chrome.mark)];
     if let Some(version) = brand_version(chrome.version_badge) {
         header_children.push(version);
     }

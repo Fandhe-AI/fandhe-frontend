@@ -1544,10 +1544,17 @@ fn docs_page_with_chrome_default_matches_layout_and_custom_is_escaped() {
     let chrome = SiteChrome {
         brand: "Acme <script>",
         repository_url: "https://example.com/a\"b",
+        mark: fandhe_frontend_docs_site::favicon::BrandMark {
+            glyph: Some("A"),
+            color: "#112233",
+        },
         ..SiteChrome::default()
     };
     let html = render(&build(Some(&chrome)));
     assert!(html.contains("Acme &lt;script&gt;</a>"));
+    assert!(html.contains("aria-label=\"Acme &lt;script&gt;\""));
+    assert!(html.contains("fill=\"#112233\""));
+    assert_eq!(html.matches("<text").count(), 1);
     assert!(!html.contains("Acme <script>"));
     let start = html.find("docs-github-link").expect("github link span");
     let span = &html[start..start + 300];

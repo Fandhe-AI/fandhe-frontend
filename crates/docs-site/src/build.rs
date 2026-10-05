@@ -1034,7 +1034,11 @@ pub fn build_site_with(
         ));
     }
 
-    generated_assets.push((format!("/{}", favicon::REL_PATH), favicon::svg()));
+    // ヘッダーのインライン SVG と同じ `site_chrome` から作る（#3722）。
+    generated_assets.push((
+        format!("/{}", favicon::REL_PATH),
+        favicon::svg_for(site_chrome.brand, &site_chrome.mark),
+    ));
     // 404.html（イシュー #3623）。サイトルート直下で `assets/` 配下の
     // `copy_assets` 出力とは衝突しないため `RESERVED_ASSET_NAMES` へは足さない。
     generated_assets.push((

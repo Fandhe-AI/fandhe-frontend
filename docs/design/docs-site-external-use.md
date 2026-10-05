@@ -1,6 +1,6 @@
 # docs サイトの外部リポジトリ利用に向けた `[site]` 拡張方針
 
-- ステータス: 設計確定（実装中）。`brand` / `repository_url` は #3720、`tagline` / `copyright` / `version_badge` / `lang` は #3721 で実装済み。残りのキーは #3722、フラグは #3716 / #3717 で実装する
+- ステータス: 設計確定（実装中）。`brand` / `repository_url` は #3720、`brand_mark` / `brand_color` は #3722、`tagline` / `copyright` / `version_badge` / `lang` は #3721 で実装済み。フラグは #3716 / #3717 で実装する
 - 起票元: #3715（親 #3714、ルート #3713）
 - 範囲: `site/nav.toml` の `[site]` への追加キー、CLI フラグ `--no-page-sections`、帰属表記の方針。本文書はコード・CI・ruleset を変更しない
 - 記載の区別: 「決定事項」は #3715 に記載された確定済みの判断（2026-10-05）。「本文書で定めた詳細」は決定事項を実装可能にするために本文書で補った提案で、実装イシューのレビューで確認する。後者をユーザー承認済みとは扱わない
@@ -92,12 +92,13 @@ docs-site を fandhe-frontend 以外のリポジトリから使う需要が出�
 - `brand` 未指定時にヘッダーとフッターで供給元が異なるのは現行の挙動で、バイト一致のために維持する。指定時に初めて両者が揃う
 - `lang` が変えるのは属性だけ。検索 UI の日本語文言、"Skip to content"、"On this page"、"Menu"、リダイレクト案内の文言は固定のままで、クローム文言の多言語化は本ツリーの範囲外
 - `repository_url` を GitHub 以外へ向けても、リンクの文言 "GitHub" とアイコンは固定
-- `brand_mark` 指定時のグリフの描き方（`<text>` を使うか、文字ごとの図形表を持つか）は #3722 で決める。制約は、外部フォントを読まない、`<style>`・`style` 属性・script を使わない、CSP（`img-src 'self'`）を壊さない、未指定時の SVG は現行とバイト一致。`favicon.rs` の既存テストは `<text` を禁止しているので、緩める場合は指定時の経路に限る
+- `brand_mark` 指定時のグリフ（#3722 で決定）: 指定時のみ SVG `<text>` で描く（`x=16 y=24 text-anchor=middle font-family=sans-serif font-size=22 font-weight=700 fill=#ffffff`、`dominant-baseline`・`style`・外部フォントは使わない）。未指定時は現行の `rect` 3 本の "f" を維持し、`"f"` の明示指定も `<text>` 側で描く（正規化しない）。`brand_color` のみの指定は "f" のままタイルの `fill` だけを変える。`favicon.rs` の `<text` 禁止テストは既定経路で維持する。既知の制約: (1) 描画はシステムの汎用フォント依存で、小文字や descender のある文字は上下中央が厳密には揃わない。(2) インライン SVG の `<text>` は `a.docs-brand` の DOM `textContent` に 1 文字加わる（ラッパーが `aria-hidden` のためアクセシブルネームと検索インデックスには影響しない）。62 文字ぶんの図形表は量が過大なため採らなかった
 - `brand_color` と白いグリフのコントラストは検証しない（利用者の責任）
 - 画像ファイルのパスを受け取るキーは設けない（パストラバーサルの入口を作らない）
 - `landing.rs` の `REPOSITORY_URL` 参照と CLI 版数 badge は本番 registry 専用の内容で、`--no-page-sections` では出力されない
 - `docs-site-three-column-redesign.md` の対応表は `[site].title` がヘッダーのブランドに対応すると書いていたが、実装は固定文字列だった。#3720 で `brand` を入れ、表記を合わせた
-- #3720 の実装細目: 検証は `parse_nav` の `[site]` アーム内で行い（行番号付きの `NavError::Parse`）、エラーメッセージにはキー名と理由だけを載せ値は載せない。`repository_url` のホスト部は `https://` の後から最初の `/` `?` `#` までを authority とし、最後の `@` より後・最初の `:` より前が空でないことで判定する。ヘッダーへは `layout::SiteChrome`（`docs_page_with_chrome`）経由で渡し、`brand` 指定時もマークの `aria-label` は #3722 まで `fandhe-frontend` のまま。本番 registry のランディング（`landing.rs`）の GitHub リンクは `repository_url` の影響を受けない（外部利用は `--no-page-sections` 前提のため）
+- #3720 の実装細目: 検証は `parse_nav` の `[site]` アーム内で行い（行番号付きの `NavError::Parse`）、エラーメッセージにはキー名と理由だけを載せ値は載せない。`repository_url` のホスト部は `https://` の後から最初の `/` `?` `#` までを authority とし、最後の `@` より後・最初の `:` より前が空でないことで判定する。ヘッダーへは `layout::SiteChrome`（`docs_page_with_chrome`）経由で渡し、マークの `aria-label` への `brand` 反映は #3722 で実装した。本番 registry のランディング（`landing.rs`）の GitHub リンクは `repository_url` の影響を受けない（外部利用は `--no-page-sections` 前提のため）
+- #3722 の実装細目: `favicon::BrandMark`（`glyph` / `color`）・`mark_node_for` / `svg_for` を追加し、`SiteChrome.mark` を介してヘッダーのインライン SVG と `assets/favicon.svg` が同じ入力・同じ関数から作られる。マークの `aria-label` は `[site].brand`（未指定は `fandhe-frontend`）。検証は `parse_nav` の `[site]` アーム内（バイト列で判定、エラーに値を載せない）。`csp.rs` は変更しない
 
 ## 5. `--no-page-sections` とショーケース注入
 
