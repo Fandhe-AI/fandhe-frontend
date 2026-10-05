@@ -127,6 +127,7 @@ fn script_violations(script: &str) -> Vec<String> {
         "--rev",
         "--no-page-sections",
         "GIT_TERMINAL_PROMPT=0",
+        "Skipping git submodule",
     ] {
         if !stripped.contains(required) {
             v.push(format!("script must contain `{required}`"));
@@ -169,6 +170,42 @@ fn external_use_script_is_executable() {
         .permissions()
         .mode();
     assert!(mode & 0o111 != 0, "{SCRIPT_REL} に実行ビットが必要");
+}
+
+/// `log_has_submodule_skip` を `source` で読み込んで実行し、終了コードが 0 かを返す。
+/// ログは `CARGO_TARGET_TMPDIR` 配下へ作り、判定後に削除する（イシュー #3741）。
+#[cfg(unix)]
+fn skip_check_passes(case: &str, log: &str) -> bool {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
+    std::fs::create_dir_all(&dir).expect("一時領域を作れること");
+    let path = dir.join(format!("submodule-skip-{case}-{}.log", std::process::id()));
+    std::fs::write(&path, log).expect("ログを書けること");
+    let status = std::process::Command::new("bash")
+        .arg("-c")
+        .arg(r#"source "$1"; log_has_submodule_skip "$2""#)
+        .arg("bash")
+        .arg(workspace_root().join(SCRIPT_REL))
+        .arg(&path)
+        .status()
+        .expect("bash を起動できること");
+    let _ = std::fs::remove_file(&path);
+    status.success()
+}
+
+#[cfg(unix)]
+#[test]
+fn submodule_skip_line_is_required_for_install_success() {
+    // cargo 1.98.1 の実測出力（submodule の path ではなく URL が出る）。
+    let measured = "    Updating git repository `https://github.com/example/repo`\n    \
+Skipping git submodule `https://github.com/Fandhe-AI/fandhe-frontend-spec` due to update strategy in .gitmodules\n  \
+Installing fandhe-frontend-docs-site v0.1.0\n";
+    assert!(skip_check_passes("measured", measured));
+
+    let no_skip = "    Updating git repository `https://github.com/example/repo`\n  Installing fandhe-frontend-docs-site v0.1.0\n";
+    assert!(!skip_check_passes("no-skip", no_skip));
+
+    let truncated = "    Skipping git submodule `https://github.com/example/spec`\n";
+    assert!(!skip_check_passes("truncated", truncated));
 }
 
 #[cfg(test)]
