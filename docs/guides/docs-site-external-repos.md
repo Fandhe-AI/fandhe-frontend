@@ -97,6 +97,28 @@ source = "site/usage.md"
 path = "/usage/"
 ```
 
+この `nav.toml` は `source` で 2 つの原稿を参照するため、ビルドの前に `<root>/site/` へ作成してください。存在しないと、ビルドは書き出しの前に失敗します。最小の原稿は次のとおりです（本文はダミーです）。
+
+```markdown
+# はじめに
+
+my-project のドキュメントへようこそ。
+```
+
+上を `site/index.md` に、次を `site/usage.md` に保存します。
+
+```markdown
+# 使い方
+
+ここに使い方を書きます。
+```
+
+```sh
+mkdir -p site
+printf '# はじめに\n\nmy-project のドキュメントへようこそ。\n' > site/index.md
+printf '# 使い方\n\nここに使い方を書きます。\n' > site/usage.md
+```
+
 ### 任意のファイル
 
 - `site/redirects.toml`: `[[redirect]]` の `from` と `to` で、旧 URL の移転案内ページを作れます。
