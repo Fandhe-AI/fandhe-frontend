@@ -94,30 +94,6 @@ pub(crate) const REPOSITORY_URL: &str = "https://github.com/Fandhe-AI/fandhe-fro
 /// ヘッダーのブランド名の既定値（`[site].brand` 未指定時、#3720）。
 pub(crate) const DEFAULT_BRAND: &str = "fandhe-frontend";
 
-/// `[site]` 由来でヘッダーへ渡す設定値（#3720）。`crate::nav::Site::chrome` が既定値解決済みで
-/// 作り、`docs_page_with_chrome` が受ける。`Default` は fandhe-frontend 自身の値
-/// （未指定時の出力を現行とバイト一致させる）。後続の任意キー追加時の拡張点。
-#[derive(Debug, Clone, Copy)]
-pub struct SiteChrome<'a> {
-    /// `a.docs-brand` の可視テキスト（`text()` 経由でエスケープされる）。
-    pub brand: &'a str,
-    /// ヘッダー GitHub リンクの href（`parse_nav` が `https://` を検証済み）。
-    pub repository_url: &'a str,
-    /// ブランドマークの文字と色（#3722）。`a.docs-brand` のマークと `assets/favicon.svg`
-    /// は同じ値から同じ関数で作られる。
-    pub mark: crate::favicon::BrandMark<'a>,
-}
-
-impl Default for SiteChrome<'_> {
-    fn default() -> Self {
-        Self {
-            brand: DEFAULT_BRAND,
-            repository_url: REPOSITORY_URL,
-            mark: crate::favicon::BrandMark::default(),
-        }
-    }
-}
-
 /// pre-styled-ui のアイコン用に `path` 1 本の SVG 子ノードを作る。
 fn icon_path(d: &'static str) -> Node {
     el("path", vec![("d", d)], vec![])
@@ -142,14 +118,21 @@ fn brand(root_href: &str, brand_text: &str, mark: &crate::favicon::BrandMark<'_>
     )
 }
 
-/// ブランド横のバージョン badge（#3606）。表示は `core v{version}`
-/// （`fandhe-frontend-core` の版数、選定理由は
+/// ブランド横のバージョン badge（#3606）。既定（[`VersionBadge::CoreVersion`]）の表示は
+/// `core v{version}`（`fandhe-frontend-core` の版数、選定理由は
 /// `docs/design/docs-site-styled-blocks-redesign.md` §3.2）。版数の取得に失敗した
 /// 場合は `None`（badge を出さない fail-closed、[`crate::site_version`] 参照）。
+/// `[site].version_badge`（#3721）指定時は [`VersionBadge::Custom`]（任意文字列、
+/// `text()` で既定エスケープ）または [`VersionBadge::Hidden`]（空文字、badge なし）になる。
 /// `a.docs-brand` の内側に入れない（リンクの名前に版数を混ぜないため）。
-fn brand_version() -> Option<Node> {
-    let version = crate::site_version::core_version()?;
-    let label = format!("core v{version}");
+fn brand_version(setting: VersionBadge<'_>) -> Option<Node> {
+    let label = match setting {
+        VersionBadge::CoreVersion => {
+            format!("core v{}", crate::site_version::core_version()?)
+        }
+        VersionBadge::Hidden => return None,
+        VersionBadge::Custom(label) => label.to_string(),
+    };
     Some(el(
         "span",
         vec![("class", "docs-brand-version")],
@@ -162,6 +145,53 @@ fn brand_version() -> Option<Node> {
             vec![text(&label)],
         )],
     ))
+}
+
+/// `<html lang>` の既定値。`[site].lang` 未指定時の値で、`crate::nav::Site::html_lang`
+/// が参照する。
+pub const DEFAULT_LANG: &str = "ja";
+
+/// ヘッダー badge の出し方（`[site].version_badge`、#3721）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum VersionBadge<'a> {
+    /// `core v{version}`（未指定時の既定。従来出力とバイト一致）。
+    #[default]
+    CoreVersion,
+    /// badge を出さない（`version_badge = ""`）。
+    Hidden,
+    /// 呼び出し側が指定した文字列を出す。
+    Custom(&'a str),
+}
+
+/// サイト設定（`[site]` の任意キー）のうちレイアウト側が受け取る分
+/// （`crate::nav::Site::chrome` が既定値解決済みで組み立て、`crate::build` / `crate::not_found`
+/// 経由で `docs_page_with_chrome` が受ける）。`Default` は設定未指定時の出力
+/// （fandhe-frontend 自身の値）を再現する。#3722 のキーはここへ足す。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SiteChrome<'a> {
+    /// `a.docs-brand` の可視テキスト（`text()` 経由でエスケープされる、#3720）。
+    pub brand: &'a str,
+    /// ヘッダー GitHub リンクの href（`parse_nav` が `https://` を検証済み、#3720）。
+    pub repository_url: &'a str,
+    /// `<html lang>` の値（`parse_nav` が BCP 47 形に検証済み）。
+    pub lang: &'a str,
+    /// ヘッダー badge の出し方。
+    pub version_badge: VersionBadge<'a>,
+    /// ブランドマークの文字と色（#3722）。`a.docs-brand` のマークと `assets/favicon.svg`
+    /// は同じ値から同じ関数で作られる。
+    pub mark: crate::favicon::BrandMark<'a>,
+}
+
+impl Default for SiteChrome<'_> {
+    fn default() -> Self {
+        Self {
+            brand: DEFAULT_BRAND,
+            repository_url: REPOSITORY_URL,
+            lang: DEFAULT_LANG,
+            version_badge: VersionBadge::CoreVersion,
+            mark: crate::favicon::BrandMark::default(),
+        }
+    }
 }
 
 /// 検索ブロック（イシュー #958/#3606/#3672）。ヘッダーには検索ボタンだけを置き、
@@ -1144,7 +1174,7 @@ pub fn docs_page_with_chrome(
     let search_index_href = asset_href(base_path, search_index::REL_PATH);
 
     let mut header_children = vec![brand(&root_href, chrome.brand, &chrome.mark)];
-    if let Some(version) = brand_version() {
+    if let Some(version) = brand_version(chrome.version_badge) {
         header_children.push(version);
     }
     if let Some(nav_node) = header_nav {
@@ -1260,5 +1290,5 @@ pub fn docs_page_with_chrome(
     }
     let body_node = el("body", vec![], body_children);
 
-    el("html", vec![("lang", "ja")], vec![head, body_node])
+    el("html", vec![("lang", chrome.lang)], vec![head, body_node])
 }

@@ -1548,6 +1548,7 @@ fn docs_page_with_chrome_default_matches_layout_and_custom_is_escaped() {
             glyph: Some("A"),
             color: "#112233",
         },
+        ..SiteChrome::default()
     };
     let html = render(&build(Some(&chrome)));
     assert!(html.contains("Acme &lt;script&gt;</a>"));

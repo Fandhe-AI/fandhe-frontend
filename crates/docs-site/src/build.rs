@@ -469,7 +469,12 @@ pub fn build_site_with(
         .map(|r| {
             (
                 redirect::output_path(&r.from),
-                redirect::redirect_page(&nav.site.title, &nav.site.base_path, &r.to),
+                redirect::redirect_page(
+                    &nav.site.title,
+                    &nav.site.base_path,
+                    &r.to,
+                    nav.site.html_lang(),
+                ),
             )
         })
         .collect();
@@ -535,6 +540,7 @@ pub fn build_site_with(
     // 全ページ共通のサイトフッター（イシュー #3609）。現在ページに依存しないため
     // ループ前に 1 回だけ組み立て、各ページへ clone して渡す。
     let footer_node = site_footer::site_footer(&nav);
+    // `[site]` の任意キー（lang・version_badge、#3721）。全ページで同一なので 1 回だけ作る。
     let site_chrome = nav.site.chrome();
     for page in nav.all_pages() {
         let source_path = repo_root.join(&page.source);

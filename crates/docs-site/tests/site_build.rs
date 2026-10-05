@@ -1183,10 +1183,16 @@ fn build_site_reflects_brand_and_repository_url_in_header_footer_and_404() {
             2,
             "{page}: header + footer repository links"
         );
-        assert!(!html.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend\""));
+        // 既定 URL は帰属リンク（設定で差し替え不可、設計文書 §6）の 1 件だけが残る。
+        assert_eq!(
+            html.matches("href=\"https://github.com/Fandhe-AI/fandhe-frontend\"")
+                .count(),
+            1,
+            "{page}: only the fixed attribution link keeps the default URL"
+        );
         assert!(html.contains("fandhe-frontend/blob/main/LICENSE-MIT"));
         assert!(html.contains("fandhe-frontend/blob/main/LICENSE-APACHE"));
-        assert!(html.contains("Licensed under"));
+        assert!(html.contains("Built with "), "{page}: attribution line");
     }
 }
 

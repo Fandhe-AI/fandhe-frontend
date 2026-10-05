@@ -16,8 +16,9 @@
 //! 黙って無視することはしない）。
 //!
 //! - `#` から始まる行コメント、および文字列値の終端後に続く `# ...`
-//! - `[site]` テーブル（必須の `title` / `base_path` と、任意の `brand` / `repository_url` / `brand_mark` / `brand_color`。
-//!   任意キーの設計は `docs/design/docs-site-external-use.md`、#3720）
+//! - `[site]` テーブル（必須の `title` / `base_path` と、任意の `brand` / `repository_url` / `brand_mark` / `brand_color`
+//!   〔#3720・#3722〕・`tagline` / `copyright` / `version_badge` / `lang`〔#3721〕。
+//!   任意キーの設計は `docs/design/docs-site-external-use.md`）
 //! - `[[section]]` array-of-tables（`title` / `index_path` の 2 キー。
 //!   `index_path` はセクショントップページの出力 URL パスを指す必須項目
 //!   （イシュー #1010）。ヘッダー href（#1012）・サイドバースコープ判定
@@ -264,12 +265,28 @@ pub struct Site {
     /// リポジトリ URL（任意、#3720）。`https://` のみ許可（[`parse_nav`] が検証）。
     /// ヘッダーの GitHub リンクとフッター Resources 列の GitHub が使う。
     pub repository_url: Option<String>,
+    /// フッターのタグライン（`[site].tagline`、#3721）。未指定なら既定文言。
+    /// 1〜200 文字・制御文字なし・空白のみ不可（`parse_nav` が検証）。
+    pub tagline: Option<String>,
+    /// フッター下段の著作権表記（`[site].copyright`、#3721）。未指定なら既定文言。
+    /// `tagline` と同じ検証規則。
+    pub copyright: Option<String>,
+    /// ヘッダーの badge 文言（`[site].version_badge`、#3721）。`None` は既定の
+    /// `core vX.Y.Z` と crates.io リンク、`Some("")` は badge 非表示、`Some(s)` は `s` を表示。
+    /// `Some` のとき crates.io リンクは出さない。0〜32 文字・制御文字なし・
+    /// 非空の空白のみは不可。
+    pub version_badge: Option<String>,
+    /// `<html lang>`（`[site].lang`、#3721）。未指定なら [`crate::layout::DEFAULT_LANG`]。
+    /// BCP 47 の形（英字 2〜3 文字 + 各 1〜8 文字の英数字サブタグ、全体 35 文字以下）。
+    pub lang: Option<String>,
     /// ブランドマークの文字（任意、#3722）。ASCII 英数字ちょうど 1 文字（[`parse_nav`] が検証）。
     pub brand_mark: Option<String>,
     /// ブランドマークのタイル色（任意、#3722）。`#` + 16 進 6 桁（[`parse_nav`] が検証）。
     pub brand_color: Option<String>,
 }
 
+/// `[site].tagline` / `[site].copyright` の最大文字数（#3721）。
+const SITE_TEXT_MAX_CHARS: usize = 200;
 /// `[site].brand` の最大文字数。
 const SITE_BRAND_MAX_CHARS: usize = 64;
 /// `[site].repository_url` の最大バイト数。
@@ -299,6 +316,29 @@ impl Site {
             .unwrap_or(crate::layout::REPOSITORY_URL)
     }
 
+    /// `<html lang>` に出す値。未指定なら [`crate::layout::DEFAULT_LANG`]。
+    #[must_use]
+    pub fn html_lang(&self) -> &str {
+        self.lang.as_deref().unwrap_or(crate::layout::DEFAULT_LANG)
+    }
+
+    /// ブランド系キーが 1 つでも指定されているか。`true` のときフッター下段は
+    /// ライセンス行ではなく帰属表記（"Built with ..."）になる
+    /// （`docs/design/docs-site-external-use.md` §6。帰属表記を消す手段は作らない）。
+    ///
+    /// 対象は `brand` / `repository_url` / `tagline` / `copyright` / `version_badge` /
+    /// `brand_mark` / `brand_color`。`lang` は表示物を差し替えないので含めない。
+    #[must_use]
+    pub fn is_brand_customized(&self) -> bool {
+        self.brand.is_some()
+            || self.repository_url.is_some()
+            || self.tagline.is_some()
+            || self.copyright.is_some()
+            || self.version_badge.is_some()
+            || self.brand_mark.is_some()
+            || self.brand_color.is_some()
+    }
+
     /// 既定値解決済みのブランドマーク指定（#3722）。解決はここへ集約する。
     #[must_use]
     pub fn brand_mark(&self) -> crate::favicon::BrandMark<'_> {
@@ -311,12 +351,19 @@ impl Site {
         }
     }
 
-    /// レイアウト（ヘッダー）へ渡す設定値を束ねる。
+    /// レイアウトへ渡す設定値（ブランド名・リポジトリ URL・`lang`・badge・マーク）を組み立てる。
     #[must_use]
     pub fn chrome(&self) -> crate::layout::SiteChrome<'_> {
+        use crate::layout::VersionBadge;
         crate::layout::SiteChrome {
             brand: self.header_brand(),
             repository_url: self.resolved_repository_url(),
+            lang: self.html_lang(),
+            version_badge: match self.version_badge.as_deref() {
+                None => VersionBadge::CoreVersion,
+                Some("") => VersionBadge::Hidden,
+                Some(s) => VersionBadge::Custom(s),
+            },
             mark: self.brand_mark(),
         }
     }
@@ -788,6 +835,41 @@ fn validate_base_path(base_path: &str) -> Result<(), NavError> {
     }
 }
 
+/// `[site].version_badge` の検証（#3721）。0〜32 文字・制御文字なし。空文字は
+/// 「badge 非表示」を表す唯一の指定として許可し、非空の空白のみは見えない badge に
+/// なるため拒否する。
+fn validate_site_version_badge(value: &str, line: usize) -> Result<(), NavError> {
+    let invalid = value.chars().count() > 32
+        || value.chars().any(char::is_control)
+        || (!value.is_empty() && value.trim().is_empty());
+    if invalid {
+        return Err(parse_err(
+            line,
+            "site.version_badge must be at most 32 characters, without control characters, and not only whitespace (use \"\" to hide the badge)",
+        ));
+    }
+    Ok(())
+}
+
+/// `[site].lang` の検証（#3721）。BCP 47 の形のサブセット: 全体 35 文字以下の ASCII、
+/// `-` 区切りで先頭は英字 2〜3 文字、後続は各 1〜8 文字の英数字。IANA レジストリとの
+/// 照合はしない。属性値へ記号を持ち込ませないための許可リスト。
+fn validate_site_lang(value: &str, line: usize) -> Result<(), NavError> {
+    let mut parts = value.split('-');
+    let primary_ok = parts
+        .next()
+        .is_some_and(|p| (2..=3).contains(&p.len()) && p.chars().all(|c| c.is_ascii_alphabetic()));
+    let rest_ok =
+        parts.all(|p| (1..=8).contains(&p.len()) && p.chars().all(|c| c.is_ascii_alphanumeric()));
+    if value.len() > 35 || !value.is_ascii() || !primary_ok || !rest_ok {
+        return Err(parse_err(
+            line,
+            "site.lang must be a BCP 47 style tag (e.g. `ja`, `en-US`, `zh-Hant-TW`) of at most 35 ASCII characters",
+        ));
+    }
+    Ok(())
+}
+
 /// `path` が `nav.toml` の `page.path` として安全か（`/` 始まり・`/` 終わり・
 /// セグメントが英数字/`-`/`_` のホワイトリストのみ）を判定する述語。
 ///
@@ -864,6 +946,10 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
     let mut ctx = Ctx::None;
     let mut site_title: Option<String> = None;
     let mut site_base_path: Option<String> = None;
+    let mut site_tagline: Option<String> = None;
+    let mut site_copyright: Option<String> = None;
+    let mut site_version_badge: Option<String> = None;
+    let mut site_lang: Option<String> = None;
     let mut site_brand: Option<String> = None;
     let mut site_repository_url: Option<String> = None;
     let mut site_brand_mark: Option<String> = None;
@@ -1035,6 +1121,22 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
             Ctx::Site => match key {
                 "title" => set_once(&mut site_title, value, line, "site.title")?,
                 "base_path" => set_once(&mut site_base_path, value, line, "site.base_path")?,
+                "tagline" => {
+                    validate_site_text("site.tagline", &value, SITE_TEXT_MAX_CHARS, line)?;
+                    set_once(&mut site_tagline, value, line, "site.tagline")?
+                }
+                "copyright" => {
+                    validate_site_text("site.copyright", &value, SITE_TEXT_MAX_CHARS, line)?;
+                    set_once(&mut site_copyright, value, line, "site.copyright")?
+                }
+                "version_badge" => {
+                    validate_site_version_badge(&value, line)?;
+                    set_once(&mut site_version_badge, value, line, "site.version_badge")?
+                }
+                "lang" => {
+                    validate_site_lang(&value, line)?;
+                    set_once(&mut site_lang, value, line, "site.lang")?
+                }
                 "brand" => {
                     validate_site_text("site.brand", &value, SITE_BRAND_MAX_CHARS, line)?;
                     set_once(&mut site_brand, value, line, "site.brand")?
@@ -1156,6 +1258,10 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
             context: "site".to_string(),
             key: "base_path".to_string(),
         })?,
+        tagline: site_tagline,
+        copyright: site_copyright,
+        version_badge: site_version_badge,
+        lang: site_lang,
         brand: site_brand,
         repository_url: site_repository_url,
         brand_mark: site_brand_mark,
@@ -3582,5 +3688,185 @@ path = "/components/button/"
         }
         let err = parse_nav(&site_with("attribution = \"x\"\n")).unwrap_err();
         assert!(err.to_string().contains("unknown key"), "{err}");
+    }
+
+    // ---- [site] の任意キー（#3721） ----
+
+    /// `[site]` へ `extra`（1 行 1 キー）を足した最小 nav を parse する。
+    fn parse_with_site(extra: &str) -> Result<Nav, NavError> {
+        parse_nav(&format!(
+            "[site]\ntitle = \"T\"\nbase_path = \"\"\n{extra}\n[[section]]\ntitle = \"G\"\nindex_path = \"/\"\n\n[[section.page]]\ntitle = \"H\"\nsource = \"h.md\"\npath = \"/\"\n"
+        ))
+    }
+
+    fn site_parse_line(extra: &str) -> usize {
+        match parse_with_site(extra) {
+            Err(NavError::Parse { line, .. }) => line,
+            other => panic!("expected Parse error for {extra:?}, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn site_optional_keys_default_to_none() {
+        let nav = parse_with_site("").unwrap();
+        assert_eq!(nav.site.tagline, None);
+        assert_eq!(nav.site.copyright, None);
+        assert_eq!(nav.site.version_badge, None);
+        assert_eq!(nav.site.lang, None);
+        assert_eq!(nav.site.html_lang(), "ja");
+        assert!(!nav.site.is_brand_customized());
+        assert_eq!(nav.site.chrome(), crate::layout::SiteChrome::default());
+    }
+
+    #[test]
+    fn site_text_keys_accept_boundaries_and_keep_markup_verbatim() {
+        for key in ["tagline", "copyright"] {
+            for value in ["x".to_string(), "あ".repeat(200), "<b>a</b>".to_string()] {
+                let nav = parse_with_site(&format!("{key} = \"{value}\"\n")).unwrap();
+                let got = if key == "tagline" {
+                    &nav.site.tagline
+                } else {
+                    &nav.site.copyright
+                };
+                assert_eq!(got.as_deref(), Some(value.as_str()));
+            }
+        }
+    }
+
+    #[test]
+    fn site_text_keys_reject_invalid_values_at_the_key_line() {
+        for key in ["tagline", "copyright"] {
+            for value in [
+                String::new(),
+                "x".repeat(201),
+                "   ".to_string(),
+                "a\\nb".to_string(),
+                "a\\tb".to_string(),
+            ] {
+                // 1 行目 `[site]`、2・3 行目が title / base_path、4 行目が対象キー。
+                assert_eq!(
+                    site_parse_line(&format!("{key} = \"{value}\"\n")),
+                    4,
+                    "{key}={value:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn site_version_badge_accepts_empty_and_32_chars_and_rejects_others() {
+        let hidden = parse_with_site("version_badge = \"\"\n").unwrap();
+        assert_eq!(hidden.site.version_badge.as_deref(), Some(""));
+        assert_eq!(
+            hidden.site.chrome().version_badge,
+            crate::layout::VersionBadge::Hidden
+        );
+        assert!(hidden.site.is_brand_customized());
+        let custom = parse_with_site("version_badge = \"v1.2.3\"\n").unwrap();
+        assert_eq!(
+            custom.site.chrome().version_badge,
+            crate::layout::VersionBadge::Custom("v1.2.3")
+        );
+        assert!(parse_with_site(&format!("version_badge = \"{}\"\n", "v".repeat(32))).is_ok());
+        for value in ["v".repeat(33), " ".to_string(), "a\\nb".to_string()] {
+            assert_eq!(
+                site_parse_line(&format!("version_badge = \"{value}\"\n")),
+                4
+            );
+        }
+    }
+
+    #[test]
+    fn site_lang_accepts_bcp47_shaped_values() {
+        for value in [
+            "ja",
+            "en",
+            "en-US",
+            "zh-Hant-TW",
+            "es-419",
+            "fil",
+            "ja-x-abcdefgh-abcdefgh-abcdefgh",
+        ] {
+            let nav = parse_with_site(&format!("lang = \"{value}\"\n")).unwrap();
+            assert_eq!(nav.site.html_lang(), value);
+        }
+        // 35 文字ちょうど（境界）。
+        let max = format!(
+            "en-{}-{}-{}-{}",
+            "a".repeat(8),
+            "b".repeat(8),
+            "c".repeat(8),
+            "ddddd"
+        );
+        assert_eq!(max.len(), 35);
+        assert!(parse_with_site(&format!("lang = \"{max}\"\n")).is_ok());
+    }
+
+    #[test]
+    fn site_lang_rejects_non_bcp47_values() {
+        let too_long = format!(
+            "en-{}-{}-{}-{}",
+            "a".repeat(8),
+            "b".repeat(8),
+            "c".repeat(8),
+            "dddddd"
+        );
+        for value in [
+            "",
+            "j",
+            "japanese",
+            "ja_JP",
+            "ja-",
+            "-ja",
+            "ja--JP",
+            "en-abcdefghi",
+            "ja JP",
+            "日本",
+            "ja\\\"><script>",
+            too_long.as_str(),
+        ] {
+            assert_eq!(
+                site_parse_line(&format!("lang = \"{value}\"\n")),
+                4,
+                "{value:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn site_optional_keys_reject_duplicates() {
+        for key in ["tagline", "copyright", "version_badge", "lang"] {
+            let value = if key == "lang" { "en" } else { "x" };
+            let extra = format!("{key} = \"{value}\"\n{key} = \"{value}\"\n");
+            assert_eq!(site_parse_line(&extra), 5, "{key}");
+        }
+    }
+
+    #[test]
+    fn brand_customization_is_triggered_by_each_display_key_but_not_lang() {
+        for (extra, expected) in [
+            ("tagline = \"x\"\n", true),
+            ("copyright = \"x\"\n", true),
+            ("version_badge = \"v1\"\n", true),
+            ("version_badge = \"\"\n", true),
+            ("lang = \"en\"\n", false),
+        ] {
+            let nav = parse_with_site(extra).unwrap();
+            assert_eq!(nav.site.is_brand_customized(), expected, "{extra}");
+        }
+    }
+
+    #[test]
+    fn site_has_no_key_to_remove_attribution() {
+        let err = parse_with_site("attribution = \"\"\n").unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("unknown key `attribution` in [site]"));
+    }
+
+    #[test]
+    fn site_validation_errors_do_not_echo_the_value() {
+        let err = parse_with_site("lang = \"ja_SECRET\"\n").unwrap_err();
+        assert!(!err.to_string().contains("SECRET"));
     }
 }
