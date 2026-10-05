@@ -9,8 +9,8 @@
 
 use fandhe_frontend_core::{h2, h3, li, p, render, text, ul};
 use fandhe_frontend_docs_site::layout::{
-    asset_href, docs_page, docs_page_with_assets, docs_page_with_layout, toc_inline, toc_nav,
-    with_heading_anchors, PageLayout, TocEntry, TOC_HEADING_ID,
+    asset_href, docs_page, docs_page_with_assets, docs_page_with_chrome, docs_page_with_layout,
+    toc_inline, toc_nav, with_heading_anchors, PageLayout, SiteChrome, TocEntry, TOC_HEADING_ID,
 };
 use fandhe_frontend_docs_site::nav::{header_nav, parse_nav};
 use fandhe_frontend_docs_site::search_index;
@@ -1502,4 +1502,59 @@ fn landing_layout_drops_toc_but_keeps_sidebar_and_skip_nav_order() {
             None
         ))
     );
+}
+
+/// イシュー #3720: 既定 chrome は `docs_page_with_layout` とバイト一致し、
+/// 指定した brand / repository_url はエスケープされてヘッダーへ反映される。
+#[test]
+fn docs_page_with_chrome_default_matches_layout_and_custom_is_escaped() {
+    let build = |chrome: Option<&SiteChrome<'_>>| {
+        let body = p(vec![], vec![text("本文")]);
+        match chrome {
+            None => docs_page_with_layout(
+                "T",
+                "",
+                sample_sidebar(),
+                body,
+                &[],
+                None,
+                None,
+                None,
+                PageLayout::Docs,
+            ),
+            Some(c) => docs_page_with_chrome(
+                c,
+                "T",
+                "",
+                sample_sidebar(),
+                body,
+                &[],
+                None,
+                None,
+                None,
+                PageLayout::Docs,
+            ),
+        }
+    };
+    assert_eq!(
+        render(&build(None)),
+        render(&build(Some(&SiteChrome::default())))
+    );
+
+    let chrome = SiteChrome {
+        brand: "Acme <script>",
+        repository_url: "https://example.com/a\"b",
+        ..SiteChrome::default()
+    };
+    let html = render(&build(Some(&chrome)));
+    assert!(html.contains("Acme &lt;script&gt;</a>"));
+    assert!(!html.contains("Acme <script>"));
+    let start = html.find("docs-github-link").expect("github link span");
+    let span = &html[start..start + 300];
+    assert!(
+        span.contains("href=\"https://example.com/a&quot;b\""),
+        "{span}"
+    );
+    assert!(span.contains("target=\"_blank\"") && span.contains("rel=\"noopener noreferrer\""));
+    assert!(!html.contains("href=\"https://example.com/a\"b\""));
 }

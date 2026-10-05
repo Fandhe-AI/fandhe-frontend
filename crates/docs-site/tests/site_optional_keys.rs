@@ -26,6 +26,7 @@ fn sidebar() -> Node {
 
 fn page(chrome: &SiteChrome<'_>) -> String {
     render(&docs_page_with_chrome(
+        chrome,
         "T",
         "",
         sidebar(),
@@ -35,7 +36,6 @@ fn page(chrome: &SiteChrome<'_>) -> String {
         None,
         None,
         PageLayout::Docs,
-        chrome,
     ))
 }
 

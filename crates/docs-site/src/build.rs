@@ -714,6 +714,7 @@ pub fn build_site_with(
         let body = div(vec![], body_children);
 
         let document = layout::docs_page_with_chrome(
+            &site_chrome,
             &page.title,
             &nav.site.base_path,
             nav::sidebar(&nav, &page.path),
@@ -723,7 +724,6 @@ pub fn build_site_with(
             Some(nav::nav_drawer(&nav, &page.path)),
             Some(footer_node.clone()),
             page_sections::layout_for_path_in(registry, &page.path),
-            &site_chrome,
         );
 
         pages.push((page.path.clone(), document));
@@ -782,6 +782,7 @@ pub fn build_site_with(
             .push(entry);
 
         let document = layout::docs_page_with_chrome(
+            &site_chrome,
             &page.title,
             &nav.site.base_path,
             nav::sidebar(&nav, &page.path),
@@ -791,7 +792,6 @@ pub fn build_site_with(
             Some(nav::nav_drawer(&nav, &page.path)),
             Some(footer_node.clone()),
             layout::PageLayout::Landing,
-            &site_chrome,
         );
         pages.push((page.path.clone(), document));
     }

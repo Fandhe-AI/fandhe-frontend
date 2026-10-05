@@ -82,14 +82,17 @@ use crate::script;
 use crate::search_index;
 
 /// GitHub リポジトリへの絶対 URL（ヘッダーの GitHub リンクが参照する
-/// 単一実装点）。現時点では定数で、`site/nav.toml` からは変えられない。
+/// 単一実装点）。`site/nav.toml` の `[site].repository_url` で上書きできる（#3720）。
 ///
 /// 旧方針「`[site]` スキーマは拡張しない」は #3715 で見直した。外部リポジトリから
 /// docs-site を使えるよう、`[site]` へ任意キー（`brand` / `repository_url` ほか）を
 /// 足す設計を `docs/design/docs-site-external-use.md` に記録している。本定数は
-/// `repository_url` 未指定時の既定値になる（実装は #3720）。ライセンス本文への
+/// `repository_url` 未指定時の既定値になる（実装済み、#3720。指定は [`SiteChrome`] 経由）。ライセンス本文への
 /// リンクと帰属表記は設定で変えない（同文書の帰属表記の節）。
 pub(crate) const REPOSITORY_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+
+/// ヘッダーのブランド名の既定値（`[site].brand` 未指定時、#3720）。
+pub(crate) const DEFAULT_BRAND: &str = "fandhe-frontend";
 
 /// pre-styled-ui のアイコン用に `path` 1 本の SVG 子ノードを作る。
 fn icon_path(d: &'static str) -> Node {
@@ -101,7 +104,7 @@ fn icon_path(d: &'static str) -> Node {
 /// `mark_node` 自身が `role="img" aria-label` を持つため、可視テキストと
 /// 二重に読み上げさせないようラッパーで隠す（favicon.rs の想定どおりの使い方）。
 /// `a.docs-brand` が `header-inner` の第 1 子である順序契約は呼び出し側が守る。
-fn brand(root_href: &str) -> Node {
+fn brand(root_href: &str, brand_text: &str) -> Node {
     a(
         vec![("href", root_href), ("class", "docs-brand")],
         vec![
@@ -110,7 +113,7 @@ fn brand(root_href: &str) -> Node {
                 vec![("class", "docs-brand-mark"), ("aria-hidden", "true")],
                 vec![crate::favicon::mark_node()],
             ),
-            text("fandhe-frontend"),
+            text(brand_text),
         ],
     )
 }
@@ -161,10 +164,15 @@ pub enum VersionBadge<'a> {
 }
 
 /// サイト設定（`[site]` の任意キー）のうちレイアウト側が受け取る分
-/// （`crate::nav::Site::chrome` が組み立て、`crate::build` / `crate::not_found` が渡す）。
-/// `Default` は設定未指定時の出力を再現する。#3720 / #3722 のキーはここへ足す。
+/// （`crate::nav::Site::chrome` が既定値解決済みで組み立て、`crate::build` / `crate::not_found`
+/// 経由で `docs_page_with_chrome` が受ける）。`Default` は設定未指定時の出力
+/// （fandhe-frontend 自身の値）を再現する。#3722 のキーはここへ足す。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SiteChrome<'a> {
+    /// `a.docs-brand` の可視テキスト（`text()` 経由でエスケープされる、#3720）。
+    pub brand: &'a str,
+    /// ヘッダー GitHub リンクの href（`parse_nav` が `https://` を検証済み、#3720）。
+    pub repository_url: &'a str,
     /// `<html lang>` の値（`parse_nav` が BCP 47 形に検証済み）。
     pub lang: &'a str,
     /// ヘッダー badge の出し方。
@@ -174,6 +182,8 @@ pub struct SiteChrome<'a> {
 impl Default for SiteChrome<'_> {
     fn default() -> Self {
         Self {
+            brand: DEFAULT_BRAND,
+            repository_url: REPOSITORY_URL,
             lang: DEFAULT_LANG,
             version_badge: VersionBadge::CoreVersion,
         }
@@ -330,12 +340,12 @@ fn search_block(search_index_href: &str) -> Node {
 /// 残し（class 契約の維持）、内側に pre-styled-ui の `link` を置く。
 /// `external: true` が `target="_blank"` と `rel="noopener noreferrer"` を一緒に
 /// 付ける（OWASP A05: tabnabbing 対策。attrs で重ねて渡すと重複するため渡さない）。
-fn github_link() -> Node {
+fn github_link(repository_url: &str) -> Node {
     el(
         "span",
         vec![("class", "docs-github-link")],
         vec![ps_link::root(
-            REPOSITORY_URL,
+            repository_url,
             &ps_link::LinkProps {
                 external: true,
                 ..ps_link::LinkProps::default()
@@ -975,6 +985,7 @@ pub fn docs_page_with_layout(
     layout: PageLayout,
 ) -> Node {
     docs_page_with_chrome(
+        &SiteChrome::default(),
         title,
         base_path,
         sidebar,
@@ -984,16 +995,15 @@ pub fn docs_page_with_layout(
         nav_drawer,
         footer,
         layout,
-        &SiteChrome::default(),
     )
 }
 
-/// [`docs_page_with_layout`] に `[site]` 由来の設定（[`SiteChrome`]、#3721）を渡す版。
-/// `chrome` が [`SiteChrome::default`] なら [`docs_page_with_layout`] とバイト一致する。
-/// 既存の公開関数のシグネチャを変えないため、設定は本関数だけが受ける。
-// 引数が多い理由は `docs_page_with_layout` と同じ（骨格の各スロットを個別引数で受ける）。
+/// [`docs_page_with_layout`] の `[site]` 設定指定版（#3720）。`chrome` でヘッダーのブランド名と
+/// GitHub リンク先を差し替える。他の引数・出力契約は [`docs_page_with_layout`] と同一
+/// （`SiteChrome::default()` ならバイト一致）。`build_site*` と 404 生成から呼ばれる。
 #[allow(clippy::too_many_arguments)]
 pub fn docs_page_with_chrome(
+    chrome: &SiteChrome<'_>,
     title: &str,
     base_path: &str,
     sidebar: Node,
@@ -1003,7 +1013,6 @@ pub fn docs_page_with_chrome(
     nav_drawer: Option<Node>,
     footer: Option<Node>,
     layout: PageLayout,
-    chrome: &SiteChrome<'_>,
 ) -> Node {
     let landing = layout == PageLayout::Landing;
     let (annotated_body, toc_entries) = with_heading_anchors(body);
@@ -1160,7 +1169,7 @@ pub fn docs_page_with_chrome(
     // 本文を HTML へ埋め込まない、`crate::search_index` モジュール doc 参照）。
     let search_index_href = asset_href(base_path, search_index::REL_PATH);
 
-    let mut header_children = vec![brand(&root_href)];
+    let mut header_children = vec![brand(&root_href, chrome.brand)];
     if let Some(version) = brand_version(chrome.version_badge) {
         header_children.push(version);
     }
@@ -1176,7 +1185,7 @@ pub fn docs_page_with_chrome(
         vec![("class", "docs-header-actions")],
         vec![
             search_block(&search_index_href),
-            github_link(),
+            github_link(chrome.repository_url),
             theme_toggle(),
         ],
     ));
