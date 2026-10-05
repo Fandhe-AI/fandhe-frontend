@@ -27,7 +27,9 @@
 //!   止まる（イシュー #3717）
 //!
 //! - `--help` / `-h`（任意）: usage を **stdout** へ出して exit 0 で終了する
-//!   （正式対応。他の引数と同時に渡しても、先に現れた時点で usage を優先する）
+//!   （正式対応。他の引数と同時に渡しても、先に現れた時点で usage を優先する。
+//!   `--out` / `--root` の値の位置に書いた場合も値として消費せず usage を優先する
+//!   ため、`--help` / `-h` という名前のディレクトリは `./-h` のように指定する）
 //!
 //! `--out` 欠落・未知の引数は usage を stderr に出して非 0 終了する
 //! （黙って既定値へフォールバックしない、fail-closed。`security.md` A05）。
@@ -68,11 +70,17 @@ enum Parsed {
 const USAGE: &str =
     "usage: docs-site --out <dir> [--root <dir>] [--no-page-sections] [--help]\n\n  --out <dir>         output directory (required)\n  --root <dir>        repository root containing site/nav.toml (default: \".\")\n  --no-page-sections  build without the built-in page section registry and without the built-in showcases (component/blocks/wireframes pages) (for sites other than the fandhe-frontend docs)\n  -h, --help          print this usage to stdout and exit 0";
 
+/// `--help` / `-h` かどうか。フラグ位置と、値を取る引数の値位置の両方で使う。
+fn is_help_flag(arg: &str) -> bool {
+    matches!(arg, "--help" | "-h")
+}
+
 /// `std::env::args` を手動パースする（外部クレート非依存、REQ-3）。
 ///
 /// 未知のフラグ・`--out` 欠落は `Err(usage メッセージ)` を返す。呼び出し元
 /// （[`main`]）がそのまま stderr へ出力して非 0 終了する契約。`--help` / `-h`
-/// は `Ok(Parsed::Help)`（stdout・exit 0）。
+/// は `Ok(Parsed::Help)`（stdout・exit 0）。`--out --help` のように値の位置へ
+/// 書かれた場合も、`--help` という出力先でビルドを始めないよう usage を優先する。
 fn parse_args<I: Iterator<Item = String>>(mut args: I) -> Result<Parsed, String> {
     let mut root: Option<PathBuf> = None;
     let mut out: Option<PathBuf> = None;
@@ -84,16 +92,22 @@ fn parse_args<I: Iterator<Item = String>>(mut args: I) -> Result<Parsed, String>
                 let value = args
                     .next()
                     .ok_or_else(|| format!("--out requires a value\n\n{USAGE}"))?;
+                if is_help_flag(&value) {
+                    return Ok(Parsed::Help);
+                }
                 out = Some(PathBuf::from(value));
             }
             "--root" => {
                 let value = args
                     .next()
                     .ok_or_else(|| format!("--root requires a value\n\n{USAGE}"))?;
+                if is_help_flag(&value) {
+                    return Ok(Parsed::Help);
+                }
                 root = Some(PathBuf::from(value));
             }
             "--no-page-sections" => no_page_sections = true,
-            "--help" | "-h" => return Ok(Parsed::Help),
+            flag if is_help_flag(flag) => return Ok(Parsed::Help),
             other => {
                 return Err(format!("unknown argument `{other}`\n\n{USAGE}"));
             }
@@ -171,6 +185,24 @@ mod tests {
         // 他の引数と併用しても usage を優先する。
         let a = super::parse_args(["--out", "d", "--help"].iter().map(|s| s.to_string()));
         assert!(matches!(a, Ok(Parsed::Help)));
+    }
+
+    #[test]
+    fn help_flag_in_value_position_is_not_consumed_as_value() {
+        // `--out --help` を「`--help` という出力先」として実行に進めない。
+        for args in [
+            &["--out", "--help"][..],
+            &["--out", "-h"],
+            &["--root", "--help", "--out", "dist"],
+            &["--root", "-h", "--out", "dist"],
+            &["--out", "dist", "--root", "--help"],
+        ] {
+            let parsed = super::parse_args(args.iter().map(|s| s.to_string()));
+            assert!(matches!(parsed, Ok(Parsed::Help)), "{args:?}");
+        }
+        // 接頭辞が同じだけの値は従来どおり値として受け取る。
+        let args = parse_args(["--out", "./-h"].iter().map(|s| s.to_string())).unwrap();
+        assert_eq!(args.out, PathBuf::from("./-h"));
     }
 
     #[test]

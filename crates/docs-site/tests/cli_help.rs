@@ -36,6 +36,36 @@ fn help_does_not_build_anything() {
 }
 
 #[test]
+fn help_in_value_position_prints_usage_and_builds_nothing() {
+    // `--out --help` は `--help` という出力先でのビルドにせず、usage を優先する。
+    // 相対パスの `--help` / `-h` が作られないことを、作業ディレクトリを隔離して確かめる。
+    let cwd = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("cli-help-value-position");
+    let _ = std::fs::remove_dir_all(&cwd);
+    std::fs::create_dir_all(&cwd).expect("create scratch cwd");
+    for args in [
+        &["--out", "--help"][..],
+        &["--out", "-h"],
+        &["--root", "--help", "--out", "dist"],
+        &["--root", "-h", "--out", "dist"],
+    ] {
+        let o = Command::new(env!("CARGO_BIN_EXE_docs-site"))
+            .args(args)
+            .current_dir(&cwd)
+            .output()
+            .expect("spawn docs-site");
+        assert_eq!(o.status.code(), Some(0), "{args:?}");
+        let stdout = String::from_utf8_lossy(&o.stdout);
+        assert!(stdout.contains("usage: docs-site"), "{args:?}: {stdout}");
+        assert!(o.stderr.is_empty(), "{args:?}: stderr must be empty");
+    }
+    let leftover: Vec<_> = std::fs::read_dir(&cwd)
+        .expect("read scratch cwd")
+        .map(|e| e.expect("dir entry").file_name())
+        .collect();
+    assert!(leftover.is_empty(), "nothing must be written: {leftover:?}");
+}
+
+#[test]
 fn unknown_arguments_still_fail_with_usage_on_stderr() {
     for args in [&["--bogus"][..], &["--helpx"], &["-help"], &["--help=1"]] {
         let o = run(args);
