@@ -42,7 +42,10 @@ use crate::nav::{self, Nav};
 pub const OUTPUT_PATH: &str = "/404.html";
 
 /// ページの `<title>`。
-pub const PAGE_TITLE: &str = "ページが見つかりません";
+///
+/// 日本語（`lang` 未指定の既定）の値。実際の出力は `crate::chrome_text::ChromeText`
+/// の `not_found_title` が `lang` で選ぶ。日本語表の値を直接参照し、二重管理しない。
+pub const PAGE_TITLE: &str = crate::chrome_text::JA.not_found_title;
 
 /// 本文ラッパーの class。
 pub const NOT_FOUND_CLASS: &str = "docs-not-found";
@@ -56,6 +59,7 @@ pub const NOT_FOUND_LINKS_CLASS: &str = "docs-not-found-links";
 /// 対象外となり、`docs-container--no-toc` になる。
 #[must_use]
 pub fn body(nav: &Nav) -> Node {
+    let t = crate::chrome_text::ChromeText::for_lang(nav.site.html_lang());
     let base = nav.site.base_path.as_str();
     let hrefs: Vec<String> = nav
         .sections
@@ -91,16 +95,10 @@ pub fn body(nav: &Nav) -> Node {
                         HeadingLevel::H1,
                         &HeadingProps::default(),
                         vec![],
-                        vec![text(PAGE_TITLE)],
+                        vec![text(t.not_found_title)],
                     )],
                 ),
-                empty_state::description(
-                    vec![],
-                    vec![text(
-                        "お探しのページは移動または削除された可能性があります。\
-                         下のセクション一覧から探すか、JavaScript が有効な環境ではヘッダーの検索をお使いください。",
-                    )],
-                ),
+                empty_state::description(vec![], vec![text(t.not_found_description)]),
             ],
         )],
     );
@@ -116,7 +114,7 @@ pub fn body(nav: &Nav) -> Node {
                         HeadingLevel::H2,
                         &HeadingProps::default(),
                         vec![],
-                        vec![text("主なセクション")],
+                        vec![text(t.not_found_sections)],
                     ),
                     list::root(ListType::Unordered, ListVariant::default(), vec![], items),
                 ],
@@ -132,7 +130,7 @@ pub fn page(nav: &Nav) -> Node {
     // 未登録パスなので drawer の項目に `aria-current` は付かない（#3674 / #3702）。
     layout::docs_page_with_chrome(
         &nav.site.chrome(),
-        PAGE_TITLE,
+        crate::chrome_text::ChromeText::for_lang(nav.site.html_lang()).not_found_title,
         &nav.site.base_path,
         nav::sidebar(nav, OUTPUT_PATH),
         body(nav),
@@ -171,6 +169,37 @@ mod tests {
              [[section.page]]\ntitle = \"G\"\npath = \"/guides/\"\nsource = \"site/guides.md\"\n"
         ))
         .expect("fixture nav")
+    }
+
+    fn nav_with_lang(lang: &str) -> Nav {
+        parse_nav(&format!(
+            "[site]\ntitle = \"T\"\nbase_path = \"\"\nlang = \"{lang}\"\n\n\
+             [[section]]\ntitle = \"Start\"\nindex_path = \"/\"\n\n\
+             [[section.page]]\ntitle = \"Home\"\npath = \"/\"\nsource = \"site/index.md\"\n"
+        ))
+        .expect("fixture nav")
+    }
+
+    #[test]
+    fn text_follows_lang() {
+        // 既定（lang 未指定）は ja。
+        let ja = html(&nav_with("/x"));
+        assert!(ja.contains("<title>ページが見つかりません"));
+        assert!(ja.contains("主なセクション"));
+        for lang in ["JA", "ja-JP"] {
+            assert!(
+                html(&nav_with_lang(lang)).contains("主なセクション"),
+                "{lang}"
+            );
+        }
+        for lang in ["en", "en-US", "fr"] {
+            let en = html(&nav_with_lang(lang));
+            assert!(en.contains("<title>Page not found"), "{lang}");
+            assert!(en.contains("Main sections"), "{lang}");
+            for banned in ["ページ", "検索", "セクション", "前へ", "次へ"] {
+                assert!(!en.contains(banned), "{lang}: {banned}");
+            }
+        }
     }
 
     #[test]

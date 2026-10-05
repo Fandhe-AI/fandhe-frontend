@@ -465,6 +465,8 @@ pub fn output_path(from: &str) -> String {
 ///   stylesheet も持たない最小ページで、`meta refresh` と組み合わせた CSP は
 ///   遷移を阻害し得るため、通常ページ（`crate::layout`）だけが出す。
 fn redirect_document(site_title: &str, to_href: &str, lang: &str) -> Node {
+    // 案内文言は `lang` の先頭サブタグで選ぶ（`crate::chrome_text`）。
+    let t = crate::chrome_text::ChromeText::for_lang(lang);
     let head = el(
         "head",
         vec![],
@@ -491,7 +493,7 @@ fn redirect_document(site_title: &str, to_href: &str, lang: &str) -> Node {
             el(
                 "title",
                 vec![],
-                vec![text(format!("移転しました | {site_title}"))],
+                vec![text(format!("{} | {site_title}", t.redirect_title_prefix))],
             ),
         ],
     );
@@ -503,10 +505,7 @@ fn redirect_document(site_title: &str, to_href: &str, lang: &str) -> Node {
             "p",
             vec![],
             vec![
-                text(
-                    "このページは移動しました。自動的に移動しない場合は次のリンクを開いてください: "
-                        .to_string(),
-                ),
+                text(t.redirect_body.to_string()),
                 el(
                     "a",
                     vec![("href", to_href)],
@@ -937,6 +936,21 @@ to = "/c/"
     fn redirect_page_reflects_lang() {
         let html = render(&redirect_page("Docs", "", "/x/", "en-US"));
         assert!(html.starts_with("<html lang=\"en-US\">"));
+    }
+
+    #[test]
+    fn redirect_page_text_follows_lang_primary_subtag() {
+        let ja = render(&redirect_page("Docs", "", "/x/", "ja"));
+        assert!(ja.contains("<title>移転しました | Docs</title>"));
+        assert!(ja.contains("このページは移動しました。"));
+        let upper = render(&redirect_page("Docs", "", "/x/", "JA"));
+        assert_eq!(ja.replace("lang=\"ja\"", "lang=\"JA\""), upper);
+        for lang in ["en", "en-US", "fr"] {
+            let html = render(&redirect_page("Docs", "", "/x/", lang));
+            assert!(html.contains("<title>Moved | Docs</title>"), "{lang}");
+            assert!(html.contains("This page has moved."), "{lang}");
+            assert!(html.is_ascii(), "{lang}");
+        }
     }
 
     // ---- output_path ----

@@ -78,6 +78,7 @@ use fandhe_frontend_pre_styled_ui::{
     kbd as ps_kbd, link as ps_link, skip_nav as ps_skip_nav, Size,
 };
 
+use crate::chrome_text::{ChromeText, RepositoryLinkKind};
 use crate::script;
 use crate::search_index;
 
@@ -212,7 +213,7 @@ impl Default for SiteChrome<'_> {
 /// 捨てるため使わない。class・id・role・aria 属性・`data-search-index` は
 /// `crate::script::SITE_JS` の契約）。ダイアログは top layer に昇格しても DOM 上は
 /// `.docs-header` 配下に残るため、`@scope (.docs-header)` の recipe が効く。
-fn search_block(search_index_href: &str) -> Node {
+fn search_block(search_index_href: &str, t: &ChromeText) -> Node {
     let group_props = ps_input_group::InputGroupProps {
         disabled: false,
         invalid: false,
@@ -232,7 +233,7 @@ fn search_block(search_index_href: &str) -> Node {
                         ..ps_button::ButtonProps::default()
                     },
                     vec![
-                        ("aria-label", "ドキュメントを検索"),
+                        ("aria-label", t.search_button_aria),
                         ("aria-keyshortcuts", "/"),
                         ("aria-controls", SEARCH_DIALOG_ID),
                     ],
@@ -248,7 +249,7 @@ fn search_block(search_index_href: &str) -> Node {
                         el(
                             "span",
                             vec![("class", "docs-search-trigger-label")],
-                            vec![text("検索")],
+                            vec![text(t.search_button_label)],
                         ),
                         // ショートカットの目印。操作は `SITE_JS` の `/` キー処理、
                         // 支援技術へはボタンの `aria-keyshortcuts` で伝える。
@@ -275,7 +276,7 @@ fn search_block(search_index_href: &str) -> Node {
                 vec![
                     ("id", SEARCH_DIALOG_ID),
                     ("class", "docs-search-dialog"),
-                    ("aria-label", "ドキュメント内検索"),
+                    ("aria-label", t.search_dialog_aria),
                 ],
                 vec![div(
                     vec![("class", "docs-search-dialog-panel")],
@@ -310,8 +311,8 @@ fn search_block(search_index_href: &str) -> Node {
                                         ("type", "search"),
                                         ("id", SEARCH_INPUT_ID),
                                         ("class", "docs-search-input"),
-                                        ("placeholder", "ドキュメントを検索"),
-                                        ("aria-label", "ドキュメント内検索"),
+                                        ("placeholder", t.search_placeholder),
+                                        ("aria-label", t.search_dialog_aria),
                                         ("role", "combobox"),
                                         ("aria-expanded", "false"),
                                         ("aria-controls", SEARCH_RESULTS_ID),
@@ -344,7 +345,12 @@ fn search_block(search_index_href: &str) -> Node {
 /// 残し（class 契約の維持）、内側に pre-styled-ui の `link` を置く。
 /// `external: true` が `target="_blank"` と `rel="noopener noreferrer"` を一緒に
 /// 付ける（OWASP A05: tabnabbing 対策。attrs で重ねて渡すと重複するため渡さない）。
+///
+/// リンク文言とアイコンは `repository_url` のホストで決まる（[`RepositoryLinkKind`]）。
+/// `github.com` なら "GitHub" と GitHub マーク、それ以外は "Repository" と特定サービスを
+/// 示さない汎用アイコン。class 名（`docs-github-link` 等）は CSS 契約のため種別によらず維持する。
 fn github_link(repository_url: &str) -> Node {
+    let kind = RepositoryLinkKind::from_url(repository_url);
     el(
         "span",
         vec![("class", "docs-github-link")],
@@ -363,12 +369,15 @@ fn github_link(repository_url: &str) -> Node {
                         ..ps_icon::IconProps::default()
                     },
                     vec![],
-                    vec![icon_path(GITHUB_ICON_PATH)],
+                    vec![icon_path(match kind {
+                        RepositoryLinkKind::GitHub => GITHUB_ICON_PATH,
+                        RepositoryLinkKind::Generic => REPOSITORY_ICON_PATH,
+                    })],
                 ),
                 el(
                     "span",
                     vec![("class", "docs-github-label")],
-                    vec![text("GitHub")],
+                    vec![text(kind.label())],
                 ),
             ],
         )],
@@ -420,6 +429,10 @@ const SEARCH_ICON_PATH: &str = "M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 
 
 /// GitHub マーク（16 viewBox・塗り）。
 const GITHUB_ICON_PATH: &str = "M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z";
+
+/// 汎用のリポジトリ（フォルダ形）アイコン（16 viewBox・塗り）。GitHub 以外のホストで
+/// 使う。特定サービスのロゴを模さない自前の単純な図形。
+const REPOSITORY_ICON_PATH: &str = "M1.5 3A1.5 1.5 0 0 1 3 1.5h3.1c.4 0 .78.16 1.06.44L8.2 3H13a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 13 14H3a1.5 1.5 0 0 1-1.5-1.5V3z";
 
 /// 明暗コントラスト図形（24 viewBox・塗り）。
 const CONTRAST_ICON_PATH: &str = "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18V4c4.41 0 8 3.59 8 8s-3.59 8-8 8z";
@@ -1188,7 +1201,7 @@ pub fn docs_page_with_chrome(
     header_children.push(div(
         vec![("class", "docs-header-actions")],
         vec![
-            search_block(&search_index_href),
+            search_block(&search_index_href, ChromeText::for_lang(chrome.lang)),
             github_link(chrome.repository_url),
             theme_toggle(),
         ],
@@ -1291,4 +1304,88 @@ pub fn docs_page_with_chrome(
     let body_node = el("body", vec![], body_children);
 
     el("html", vec![("lang", chrome.lang)], vec![head, body_node])
+}
+
+#[cfg(test)]
+mod chrome_text_tests {
+    use super::*;
+    use fandhe_frontend_core::render;
+
+    fn cjk(s: &str) -> bool {
+        s.chars().any(|c| {
+            ('\u{3040}'..='\u{30ff}').contains(&c) || ('\u{4e00}'..='\u{9fff}').contains(&c)
+        })
+    }
+
+    #[test]
+    fn search_block_uses_ja_table_by_default_and_en_otherwise() {
+        let ja = render(&search_block("/i.json", ChromeText::for_lang("ja")));
+        assert!(ja.contains("aria-label=\"ドキュメントを検索\""));
+        assert!(ja.contains(">検索<"));
+        assert!(ja.contains("placeholder=\"ドキュメントを検索\""));
+        assert!(ja.contains("aria-label=\"ドキュメント内検索\""));
+        // 既存の英語箇所はそのまま。
+        assert!(ja.contains(">Search<") && ja.contains("aria-label=\"Search results\""));
+        for lang in ["en", "en-US", "fr"] {
+            let en = render(&search_block("/i.json", ChromeText::for_lang(lang)));
+            assert!(!cjk(&en), "{lang}: {en}");
+            assert!(en.contains("aria-label=\"Search documentation\""), "{lang}");
+            assert!(
+                en.contains("placeholder=\"Search documentation\""),
+                "{lang}"
+            );
+            assert!(
+                en.contains("aria-label=\"Search in documentation\""),
+                "{lang}"
+            );
+        }
+    }
+
+    /// 文言表の値は定数だが、属性・本文へ渡す経路が既定エスケープであることを、
+    /// 敵対的な値を持つ表で固定する（`</script>` や `"` で属性・要素を壊せない）。
+    #[test]
+    fn hostile_table_values_are_escaped_in_attributes_and_text() {
+        let hostile = ChromeText {
+            search_button_aria: "a\"><script>alert(1)</script>",
+            search_button_label: "</script><b>x</b>",
+            search_dialog_aria: "d\" onfocus=\"x",
+            search_placeholder: "p'\"<",
+            ..crate::chrome_text::EN
+        };
+        let html = render(&search_block("/i.json", &hostile));
+        assert!(!html.contains("<script>") && !html.contains("</script>"));
+        assert!(!html.contains("<b>x</b>"));
+        assert!(!html.contains("\" onfocus=\""));
+        assert!(html.contains("&lt;/script&gt;&lt;b&gt;x&lt;/b&gt;"));
+        assert!(html.contains("a&quot;&gt;&lt;script&gt;"));
+    }
+
+    #[test]
+    fn repository_link_follows_host() {
+        let gh = render(&github_link("https://GitHub.com/o/r"));
+        assert!(gh.contains(">GitHub<") && gh.contains(GITHUB_ICON_PATH));
+        let www = render(&github_link("https://www.github.com/o/r"));
+        assert!(www.contains(">GitHub<"));
+        for url in [
+            "https://gitlab.com/o/r",
+            "https://github.com.evil.example/o/r",
+            "https://evilgithub.com/o/r",
+            "https://github.com@evil.example/",
+        ] {
+            let html = render(&github_link(url));
+            assert!(html.contains(">Repository<"), "{url}");
+            assert!(
+                !html.contains("GitHub") && !html.contains(GITHUB_ICON_PATH),
+                "{url}"
+            );
+            assert!(html.contains(REPOSITORY_ICON_PATH), "{url}");
+            assert!(html.contains("rel=\"noopener noreferrer\""), "{url}");
+        }
+    }
+
+    #[test]
+    fn default_repository_url_keeps_github_output() {
+        let html = render(&github_link(REPOSITORY_URL));
+        assert!(html.contains(">GitHub<") && html.contains(GITHUB_ICON_PATH));
+    }
 }
