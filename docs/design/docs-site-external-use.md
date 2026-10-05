@@ -1,6 +1,6 @@
 # docs サイトの外部リポジトリ利用に向けた `[site]` 拡張方針
 
-- ステータス: 設計確定（実装中）。`brand` / `repository_url` は #3720、`brand_mark` / `brand_color` は #3722、`tagline` / `copyright` / `version_badge` / `lang` は #3721 で実装済み。フラグは #3716 / #3717 で実装済み。外部利用の契約テストは #3724 で追加した（§7）
+- ステータス: 設計確定（実装中）。`brand` / `repository_url` は #3720、`brand_mark` / `brand_color` は #3722、`tagline` / `copyright` / `version_badge` / `lang` は #3721 で実装済み。フラグは #3716 / #3717 で実装済み。外部利用の契約テストは #3724 で追加した（§7）。利用者向けの手順書は `docs/guides/docs-site-external-repos.md`（#3726）
 - 起票元: #3715（親 #3714、ルート #3713）
 - 範囲: `site/nav.toml` の `[site]` への追加キー、CLI フラグ `--no-page-sections`、帰属表記の方針。本文書はコード・CI・ruleset を変更しない
 - 記載の区別: 「決定事項」は #3715 に記載された確定済みの判断（2026-10-05）。「本文書で定めた詳細」は決定事項を実装可能にするために本文書で補った提案で、実装イシューのレビューで確認する。後者をユーザー承認済みとは扱わない
@@ -162,4 +162,5 @@ docs-site を fandhe-frontend 以外のリポジトリから使う需要が出�
 
 - `docs/design/docs-site-styled-blocks-redesign.md` / `docs-site-three-column-redesign.md` / `docs-site-csp-policy.md`
 - `crates/docs-site/src/` の `nav.rs` / `layout.rs` / `site_footer.rs` / `favicon.rs` / `site_version.rs` / `page_sections.rs` / `build.rs` / `main.rs`
+- `docs/guides/docs-site-external-repos.md`（利用者向けガイド、#3726）
 - #3713（ルート）/ #3714 / #3716 / #3717 / #3718 / #3720 / #3721 / #3722 / #3724 / #3726

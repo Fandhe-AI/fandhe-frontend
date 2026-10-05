@@ -1514,4 +1514,22 @@ path = "/next/"
         assert!(matches!(err, BuildError::ReservedAssetName(_)));
         assert!(!out_dir.exists());
     }
+
+    /// 外部リポジトリ向け利用ガイド（`docs/guides/docs-site-external-repos.md`、
+    /// イシュー #3726）が [`RESERVED_ASSET_NAMES`] の全件を載せていることを固定する。
+    /// 予約名を増やした側がガイドを更新し忘れると、外部利用者が衝突名を知らされない。
+    #[test]
+    fn external_repos_guide_lists_every_reserved_asset_name() {
+        let guide = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../docs/guides/docs-site-external-repos.md"),
+        )
+        .expect("external repos guide must be readable");
+        for name in RESERVED_ASSET_NAMES {
+            assert!(
+                guide.contains(name),
+                "guide does not list reserved asset name `{name}`"
+            );
+        }
+    }
 }

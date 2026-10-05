@@ -134,6 +134,11 @@ pub const GUIDES: &[IndexCard] = &[
         title: "デプロイガイド",
         description: "SSG と単一実行ファイル配布の使い分け、および Vercel へのデプロイ方法。",
     },
+    IndexCard {
+        path: "/guides/docs-site-external-repos/",
+        title: "docs サイト生成器の外部リポジトリ利用ガイド",
+        description: "docs サイト生成器を別のリポジトリで使い、GitHub Pages へ公開するまでの手順。",
+    },
 ];
 
 /// `/examples/` 配下ページ（nav 宣言順）。説明は `docs/guides/examples.md`
