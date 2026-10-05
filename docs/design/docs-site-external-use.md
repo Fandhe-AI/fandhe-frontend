@@ -66,7 +66,7 @@ docs-site を fandhe-frontend 以外のリポジトリから使う需要が出�
 - 重複キー・未知キーは既存どおり `NavError::Parse`（行番号付き）。新しいエラー種別は作らない。エラーメッセージは英語
 - 検証はエスケープ解釈後の値に対して行う（`\n` / `\t` で制御文字を持ち込めるため）
 - 正規化（trim・大文字小文字変換）はしない。書かれた値をそのまま既定エスケープ経由で出す
-- モデルは「未指定」を区別できる形（`Option`）で保持し、既定値の解決は 1 か所のアクセサにまとめる。`brand` のフッター側フォールバックと帰属表記の切り替え判定に必要なため
+- モデルは「未指定」を区別できる形（`Option`）で保持し、既定値の解決は 1 か所のアクセサにまとめる。`brand` のフッター側フォールバックと、帰属表記の切り替え判定（§6。`lang` 以外の 7 キーのいずれかが指定されたか）に必要なため
 
 ### 4.2 キー表
 
@@ -111,8 +111,8 @@ docs-site を fandhe-frontend 以外のリポジトリから使う需要が出�
 
 表示規則（本文書で定めた詳細）。
 
-- 既定構成（`brand` も `copyright` も未指定）: 現行の下段をそのまま出す。バイト一致を保つ
-- ブランド差し替え構成（`brand` または `copyright` のどちらかを指定）: ライセンス行を `Built with fandhe-frontend docs-site (MIT OR Apache-2.0)` へ切り替える。"fandhe-frontend docs-site" は fandhe-frontend のリポジトリへ、MIT / Apache-2.0 は各ライセンス本文へリンクする
+- 既定構成（`brand` / `copyright` / `repository_url` / `tagline` / `version_badge` / `brand_mark` / `brand_color` の 7 キーがすべて未指定）: 現行の下段をそのまま出す。バイト一致を保つ。`lang` は表示物を差し替えないため判定に含めない
+- ブランド差し替え構成（上記 7 キーのうち 1 つでも指定。`brand_mark` / `brand_color` / `repository_url` / `tagline` / `version_badge` のみの指定も含む）: ライセンス行を `Built with fandhe-frontend docs-site (MIT OR Apache-2.0)` へ切り替える。"fandhe-frontend docs-site" は fandhe-frontend のリポジトリへ、MIT / Apache-2.0 は各ライセンス本文へリンクする
 - どちらの構成でも、2 本のライセンスリンクがちょうど 1 回ずつ出る
 - 切り替える理由: 外部の著作権表記の隣に "Licensed under MIT OR Apache-2.0" を置くと、外部サイトの内容がそのライセンスで提供されていると誤読される。対象を docs-site（生成器）に限定した文言へ変える
 - リンク先（ライセンス本文 2 本と帰属表記のリポジトリ URL）は `repository_url` と独立した定数にし、`repository_url` の既定値と同じ値でも共有しない
