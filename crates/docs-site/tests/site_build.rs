@@ -1147,3 +1147,55 @@ fn binary_no_page_sections_suppresses_showcases_on_showcase_paths() {
     build_site_with(&site, &out_lib, &EMPTY_REGISTRY).expect("lib build");
     assert_eq!(read_tree(&out_bin), read_tree(&out_lib));
 }
+
+/// `site-ok` フィクスチャを一時ディレクトリへ複製し、`[site]` へ `extra` を足した
+/// ミニリポジトリの root を返す（イシュー #3720 の E2E 用）。
+fn site_ok_with_site_keys(temp: &TempDir, extra: &str) -> PathBuf {
+    let root = temp.0.join("repo");
+    let src = fixture_root("site-ok");
+    for rel in ["site/index.md", "site/guide/quickstart.md"] {
+        let dst = root.join(rel);
+        std::fs::create_dir_all(dst.parent().unwrap()).unwrap();
+        std::fs::copy(src.join(rel), dst).unwrap();
+    }
+    let nav = std::fs::read_to_string(src.join("site/nav.toml")).unwrap();
+    let nav = nav.replacen("\n[[section]]", &format!("{extra}\n[[section]]"), 1);
+    std::fs::write(root.join("site/nav.toml"), nav).unwrap();
+    root
+}
+
+#[test]
+fn build_site_reflects_brand_and_repository_url_in_header_footer_and_404() {
+    let temp = TempDir::new("brand");
+    let root = site_ok_with_site_keys(
+        &temp,
+        "brand = \"Acme Docs\"\nrepository_url = \"https://example.com/acme/docs\"\n",
+    );
+    let out = temp.0.join("dist");
+    build_site_with(&root, &out, &EMPTY_REGISTRY).expect("custom site keys should build");
+    for page in ["index.html", "404.html"] {
+        let html = std::fs::read_to_string(out.join(page)).unwrap();
+        assert!(html.contains(">Acme Docs</a>"), "{page}: header brand");
+        assert!(html.contains(">Acme Docs</p>"), "{page}: footer brand");
+        assert_eq!(
+            html.matches("href=\"https://example.com/acme/docs\"")
+                .count(),
+            2,
+            "{page}: header + footer repository links"
+        );
+        assert!(!html.contains("href=\"https://github.com/Fandhe-AI/fandhe-frontend\""));
+        assert!(html.contains("fandhe-frontend/blob/main/LICENSE-MIT"));
+        assert!(html.contains("fandhe-frontend/blob/main/LICENSE-APACHE"));
+        assert!(html.contains("Licensed under"));
+    }
+}
+
+#[test]
+fn build_site_fails_closed_for_non_https_repository_url() {
+    let temp = TempDir::new("badurl");
+    let root = site_ok_with_site_keys(&temp, "repository_url = \"http://example.com\"\n");
+    let out = temp.0.join("dist");
+    let err = build_site_with(&root, &out, &EMPTY_REGISTRY).expect_err("http:// must fail");
+    assert!(matches!(err, BuildError::Nav(_)), "got {err:?}");
+    assert!(!out.exists(), "nothing may be written on nav failure");
+}

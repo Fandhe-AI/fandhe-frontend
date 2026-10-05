@@ -18,7 +18,7 @@
 //!   div.docs-footer-inner                     … .docs-container と同じ計測枠
 //!     div.docs-footer-top                     … ブランド列 + nav のグリッド
 //!       div.docs-footer-brand                 … nav の外（リンク集ではないため）
-//!         p.docs-footer-brand-name            … [site].title（リンクにしない）
+//!         p.docs-footer-brand-name            … [site].brand（未指定時は [site].title。リンクにしない）
 //!         p.docs-footer-tagline               … FOOTER_TAGLINE
 //!       nav.docs-footer-nav[aria-label=Footer]
 //!         div.docs-footer-columns
@@ -49,7 +49,8 @@
 //!
 //! 文言は `text()` を通す。`raw_html()` と HTML 文字列の組み立ては使わない。
 //! 内部 href は `parse_nav` 検証済みのパスを `layout::asset_href` で前置したものだけ、
-//! 外部 URL は文字列リテラル定数だけで、すべて `external: true`
+//! 外部 URL は文字列リテラル定数と、`parse_nav` が `https://` を検証済みの
+//! `[site].repository_url`（Resources 列の GitHub）だけで、すべて `external: true`
 //! （`target="_blank"` + `rel="noopener noreferrer"`）にする。`id`・`role`・`aria-current`
 //! は出さない（`layout::RESERVED_LAYOUT_IDS` と衝突させず、リンク集に操作意味論を与えない）。
 //! ロゴ SVG は持ち込まない。
@@ -60,7 +61,7 @@ use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps};
 use fandhe_frontend_pre_styled_ui::text::{text as ps_text, TextProps, TextSize, TextVariant};
 
-use crate::layout::{asset_href, REPOSITORY_URL};
+use crate::layout::asset_href;
 use crate::nav::{HeaderEntry, Nav};
 
 /// フッター外側の class（`<footer>`）。
@@ -102,7 +103,8 @@ pub const FOOTER_MENU_OVERVIEW_LABEL: &str = "Overview";
 
 /// crates.io の主要クレートページ。
 const CRATES_IO_URL: &str = "https://crates.io/crates/fandhe-frontend-core";
-/// MIT ライセンス本文（リポジトリ直下）。
+/// MIT ライセンス本文（リポジトリ直下）。`[site].repository_url` と独立した定数で、
+/// 既定値と同じホストでも共有しない（設計文書 §6、帰属表記を設定で消せないようにするため）。
 const LICENSE_MIT_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend/blob/main/LICENSE-MIT";
 /// Apache-2.0 ライセンス本文（リポジトリ直下）。
 const LICENSE_APACHE_URL: &str =
@@ -195,7 +197,7 @@ pub fn site_footer(nav: &Nav) -> Node {
     groups.push(column(
         FOOTER_RESOURCES_HEADING,
         vec![
-            external_item(REPOSITORY_URL, "GitHub"),
+            external_item(nav.site.resolved_repository_url(), "GitHub"),
             external_item(CRATES_IO_URL, "crates.io"),
         ],
     ));
@@ -206,7 +208,7 @@ pub fn site_footer(nav: &Nav) -> Node {
             el(
                 "p",
                 vec![("class", FOOTER_BRAND_NAME_CLASS)],
-                vec![text(nav.site.title.as_str())],
+                vec![text(nav.site.footer_brand())],
             ),
             el(
                 "p",
@@ -399,5 +401,44 @@ mod tests {
         let html = render(&site_footer(&nav_with("/fandhe-frontend", true)));
         assert!(html.contains("href=\"/fandhe-frontend/a/\""));
         assert!(html.contains("href=\"/fandhe-frontend/m/\""));
+    }
+
+    fn nav_with_site(extra: &str) -> Nav {
+        let s = format!(
+            "[site]\ntitle = \"Site Title\"\nbase_path = \"\"\n{extra}\n[[section]]\ntitle = \"A\"\nindex_path = \"/a/\"\n\n[[section.page]]\ntitle = \"Idx\"\nsource = \"i.md\"\npath = \"/a/\"\n"
+        );
+        parse_nav(&s).expect("fixture nav parses")
+    }
+
+    #[test]
+    fn brand_and_repository_url_are_reflected_and_escaped() {
+        let html = render(&site_footer(&nav_with_site(
+            "brand = \"Acme <i>\"\nrepository_url = \"https://example.com/a&b\\\"c\"\n",
+        )));
+        assert!(html.contains("Acme &lt;i&gt;"));
+        assert!(!html.contains("<i>") && !html.contains("Site Title"));
+        assert!(html.contains("https://example.com/a&amp;b&quot;c"));
+        // 既定 URL はライセンスリンク（`/blob/main/...`）にのみ残り、GitHub リンクには出ない。
+        let exact = format!("href=\"{}\"", crate::layout::REPOSITORY_URL);
+        assert_eq!(count(&html, &exact), 0);
+    }
+
+    #[test]
+    fn license_links_stay_on_fandhe_frontend_regardless_of_repository_url() {
+        let html = render(&site_footer(&nav_with_site(
+            "repository_url = \"https://example.com/acme/docs\"\n",
+        )));
+        assert_eq!(count(&html, &format!("href=\"{LICENSE_MIT_URL}\"")), 1);
+        assert_eq!(count(&html, &format!("href=\"{LICENSE_APACHE_URL}\"")), 1);
+        assert_eq!(count(&html, &format!("href=\"{CRATES_IO_URL}\"")), 1);
+        assert_eq!(count(&html, "href=\"https://example.com/acme/docs\""), 1);
+        assert_eq!(count(&html, "target=\"_blank\""), 4);
+        assert_eq!(count(&html, "rel=\"noopener noreferrer\""), 4);
+    }
+
+    #[test]
+    fn footer_brand_defaults_to_site_title() {
+        let html = render(&site_footer(&nav_with_site("")));
+        assert!(html.contains(">Site Title<"));
     }
 }

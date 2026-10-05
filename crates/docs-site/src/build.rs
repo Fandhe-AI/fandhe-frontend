@@ -535,6 +535,7 @@ pub fn build_site_with(
     // 全ページ共通のサイトフッター（イシュー #3609）。現在ページに依存しないため
     // ループ前に 1 回だけ組み立て、各ページへ clone して渡す。
     let footer_node = site_footer::site_footer(&nav);
+    let site_chrome = nav.site.chrome();
     for page in nav.all_pages() {
         let source_path = repo_root.join(&page.source);
         let markdown_input =
@@ -706,7 +707,8 @@ pub fn build_site_with(
         body_children.push(nav::prev_next_nav(&nav, &page.path));
         let body = div(vec![], body_children);
 
-        let document = layout::docs_page_with_layout(
+        let document = layout::docs_page_with_chrome(
+            &site_chrome,
             &page.title,
             &nav.site.base_path,
             nav::sidebar(&nav, &page.path),
@@ -773,7 +775,8 @@ pub fn build_site_with(
             .entries
             .push(entry);
 
-        let document = layout::docs_page_with_layout(
+        let document = layout::docs_page_with_chrome(
+            &site_chrome,
             &page.title,
             &nav.site.base_path,
             nav::sidebar(&nav, &page.path),
