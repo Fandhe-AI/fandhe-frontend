@@ -210,7 +210,8 @@ stage_inspect() {
   if [ -s "${site}/index.html" ]; then
     grep -q 'Built with' "${site}/index.html" || { echo "index.html: no 'Built with' attribution" >&2; failed=1; }
     for f in LICENSE-MIT LICENSE-APACHE; do
-      count="$(grep -o "${f}" "${site}/index.html" | wc -l | tr -d ' ')"
+      # 一致 0 件でも grep の exit 1 で set -e/pipefail 中断しないよう || true で吸収する
+      count="$( (grep -o "${f}" "${site}/index.html" || true) | wc -l | tr -d ' ')"
       if [ "${count}" != "1" ]; then
         echo "index.html: ${f} appears ${count} times (expected 1)" >&2
         failed=1

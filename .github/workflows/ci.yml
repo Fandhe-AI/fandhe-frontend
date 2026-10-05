@@ -599,7 +599,7 @@ jobs:
       # result=<PASS|FAIL>` で判別できる（Step Summary にも出る）。
       - name: "external use: fetch + build (anonymous cargo install --git, issue #3725)"
         env:
-          EXTERNAL_USE_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          EXTERNAL_USE_REPO_URL: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}
           EXTERNAL_USE_REV: ${{ github.event.pull_request.head.sha || github.sha }}
           EXTERNAL_USE_WORK_DIR: ${{ runner.temp }}/docs-site-external-use
         run: tools/ci/docs-site-external-use-smoke.sh install
