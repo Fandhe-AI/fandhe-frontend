@@ -26,6 +26,9 @@
 //!   部品ページ・Blocks・Wireframes のショーケース注入と専用アセット出力も
 //!   止まる（イシュー #3717）
 //!
+//! - `--help` / `-h`（任意）: usage を **stdout** へ出して exit 0 で終了する
+//!   （正式対応。他の引数と同時に渡しても、先に現れた時点で usage を優先する）
+//!
 //! `--out` 欠落・未知の引数は usage を stderr に出して非 0 終了する
 //! （黙って既定値へフォールバックしない、fail-closed。`security.md` A05）。
 //!
@@ -52,14 +55,25 @@ struct Args {
     no_page_sections: bool,
 }
 
+/// 引数パースの結果。`--help` / `-h` は構築を行わず usage を返す。
+#[derive(Debug)]
+enum Parsed {
+    /// 通常のビルド実行。
+    Run(Args),
+    /// `--help` / `-h`。呼び出し元が usage を stdout へ出して exit 0 とする。
+    Help,
+}
+
+/// usage 文言（`--help` の stdout 出力と、引数エラー時の stderr 出力で共有する）。
+const USAGE: &str =
+    "usage: docs-site --out <dir> [--root <dir>] [--no-page-sections] [--help]\n\n  --out <dir>         output directory (required)\n  --root <dir>        repository root containing site/nav.toml (default: \".\")\n  --no-page-sections  build without the built-in page section registry and without the built-in showcases (component/blocks/wireframes pages) (for sites other than the fandhe-frontend docs)\n  -h, --help          print this usage to stdout and exit 0";
+
 /// `std::env::args` を手動パースする（外部クレート非依存、REQ-3）。
 ///
 /// 未知のフラグ・`--out` 欠落は `Err(usage メッセージ)` を返す。呼び出し元
-/// （[`main`]）がそのまま stderr へ出力して非 0 終了する契約。
-fn parse_args<I: Iterator<Item = String>>(mut args: I) -> Result<Args, String> {
-    const USAGE: &str =
-        "usage: docs-site --out <dir> [--root <dir>] [--no-page-sections]\n\n  --out <dir>         output directory (required)\n  --root <dir>        repository root containing site/nav.toml (default: \".\")\n  --no-page-sections  build without the built-in page section registry and without the built-in showcases (component/blocks/wireframes pages) (for sites other than the fandhe-frontend docs)";
-
+/// （[`main`]）がそのまま stderr へ出力して非 0 終了する契約。`--help` / `-h`
+/// は `Ok(Parsed::Help)`（stdout・exit 0）。
+fn parse_args<I: Iterator<Item = String>>(mut args: I) -> Result<Parsed, String> {
     let mut root: Option<PathBuf> = None;
     let mut out: Option<PathBuf> = None;
     let mut no_page_sections = false;
@@ -79,6 +93,7 @@ fn parse_args<I: Iterator<Item = String>>(mut args: I) -> Result<Args, String> {
                 root = Some(PathBuf::from(value));
             }
             "--no-page-sections" => no_page_sections = true,
+            "--help" | "-h" => return Ok(Parsed::Help),
             other => {
                 return Err(format!("unknown argument `{other}`\n\n{USAGE}"));
             }
@@ -86,17 +101,22 @@ fn parse_args<I: Iterator<Item = String>>(mut args: I) -> Result<Args, String> {
     }
 
     let out = out.ok_or_else(|| format!("missing required argument --out\n\n{USAGE}"))?;
-    Ok(Args {
+    Ok(Parsed::Run(Args {
         root: root.unwrap_or_else(|| PathBuf::from(".")),
         out,
         no_page_sections,
-    })
+    }))
 }
 
 fn main() -> ExitCode {
     // `args().skip(1)`: 先頭要素（実行ファイルパス）は引数パースの対象外。
     let parsed = match parse_args(std::env::args().skip(1)) {
-        Ok(args) => args,
+        Ok(Parsed::Run(args)) => args,
+        Ok(Parsed::Help) => {
+            // usage は要求された正規の出力なので stdout・成功終了にする。
+            println!("{USAGE}");
+            return ExitCode::SUCCESS;
+        }
         Err(message) => {
             eprintln!("fandhe-frontend-docs-site: {message}");
             return ExitCode::FAILURE;
@@ -130,6 +150,34 @@ fn main() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// テスト用: `super::parse_args` を包み、`Parsed::Run` から `Args` を取り出す
+    /// （`Help` は失敗扱い）。`use super::*` の同名 import を意図的に覆う。
+    fn parse_args<I: Iterator<Item = String>>(args: I) -> Result<Args, String> {
+        match super::parse_args(args)? {
+            Parsed::Run(args) => Ok(args),
+            Parsed::Help => Err("unexpected help".to_string()),
+        }
+    }
+
+    #[test]
+    fn help_flags_return_help_without_error() {
+        for flag in ["--help", "-h"] {
+            assert!(matches!(
+                super::parse_args(std::iter::once(flag.to_string())),
+                Ok(Parsed::Help)
+            ));
+        }
+        // 他の引数と併用しても usage を優先する。
+        let a = super::parse_args(["--out", "d", "--help"].iter().map(|s| s.to_string()));
+        assert!(matches!(a, Ok(Parsed::Help)));
+    }
+
+    #[test]
+    fn usage_mentions_help() {
+        assert!(USAGE.contains("--help"));
+        assert!(USAGE.contains("-h"));
+    }
 
     #[test]
     fn parse_args_requires_out() {
