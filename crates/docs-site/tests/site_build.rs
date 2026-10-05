@@ -186,11 +186,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // イシュー #2732: Blocks セクションは親トラッキング #2730（301 block の
     // 大量追加を予定）により今後 block ごとに本テストを書き換える運用が
     // 破綻するため、Blocks 分のページ数は `blocks::all_blocks()`（唯一の正）から
-    // 導出する。Blocks 以外の合計ページ数は 284 で固定する（イシュー #3290 で
+    // 導出する。Blocks 以外の合計ページ数は 285 で固定する（イシュー #3290 で
     // Examples に vercel-ssg が加わり 280 → 281。イシュー #3291 で Guides に
     // デプロイガイドが加わり 281 → 282。イシュー #3341 で Examples に
     // vercel-ssr が加わり 282 → 283。イシュー #3700 で `/assets/`
-    // 集約ページが加わり 283 → 284。nav 登録 =
+    // 集約ページが加わり 283 → 284。イシュー #3726 で Guides に外部リポジトリ
+    // 利用ガイドが加わり 284 → 285。nav 登録 =
     // 生成ページの恒等契約は直後の assert_eq! が別途担保する）。内訳の
     // 増減履歴は `site_nav.rs` と本ファイルのコミット履歴を参照する
     // （逐次カウント記録によるコメント肥大化を避けるため要約した）。
@@ -198,14 +199,14 @@ fn build_site_succeeds_for_the_real_repository_site() {
     let non_blocks_written_count = report.written.len() - expected_blocks_page_count;
     assert_eq!(
         non_blocks_written_count,
-        284,
+        285,
         "実サイトの生成ページ数（Blocks 以外）が期待値と異なる: \
          total={}, blocks={expected_blocks_page_count}, written={:?}",
         report.written.len(),
         report.written
     );
 
-    // 上の 284（Blocks 以外の合計）は「その時点の実測値」であり、Blocks 以外の
+    // 上の 285（Blocks 以外の合計）は「その時点の実測値」であり、Blocks 以外の
     // セクションでページが増減したら更新が要る。恒等契約（nav 登録数 = 生成
     // ページ数）そのものは値に依存しない形でも固定し、片方だけ更新して片方が
     // 形骸化する事故を防ぐ。

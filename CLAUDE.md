@@ -29,7 +29,7 @@ fandhe-frontend/
 ├── docs/
 │   ├── design/               # 設計文書（アーキテクチャ・参照方針・docs サイト設計・部品規約の決定記録）。参照方針の正は shadcn-reference-adoption-policy（chakra-ui / Radix Themes / shadcn-ui の 3 者を主基準、競合は部品ごと判断、golden 純追加、headless は ark-ui 維持）と motion-reference-adoption-policy。コンポーネント対応表の正は component-coverage-map.md（ark-ui / chakra-ui / Radix UI / shadcn/ui の 4 参照軸）。reference-screenshots/ の命名・再取得手順・出典管理は同ディレクトリの README.md を正とする
 │   ├── api/                  # API 仕様（component-api / hydration-api / hydration-state-format 等）
-│   ├── guides/               # 利用者向けガイド（embedding-guide / npm-asset-build / browser-testing / wasm-full-features / pre-styled-ui-motion-feature〔pre-styled-ui `motion` feature（既定 off）の有効化手順・無効時ゼロコスト保証、#2416〕等）
+│   ├── guides/               # 利用者向けガイド（embedding-guide / npm-asset-build / browser-testing / wasm-full-features / docs-site-external-repos〔docs-site を外部リポジトリから使う手順、#3726〕 / pre-styled-ui-motion-feature〔pre-styled-ui `motion` feature（既定 off）の有効化手順・無効時ゼロコスト保証、#2416〕等）
 │   ├── policy/               # 規約・セキュリティポリシー（unsafe-boundary / dependency-graph-policy / cargo-deny-advisories / intentional-non-adoption 等）
 │   ├── ci/                   # CI・runner 運用の評価と決定記録（hosted-runner-migration / version-bump-publish-order-gap〔§11 新規クレートの CI 組み込み・初回公開チェックリスト〕/ wasm-opt・アロケータ・cargo-semver-checks 等の導入評価 / browser-test-duration-regression-analysis 等）。各評価の結論と再評価トリガーは各文書を正とする
 │   ├── reports/              # 実測・受け入れレポート（perf-browser-report / *-acceptance-report / docs-site-redesign-regression-report 等）
