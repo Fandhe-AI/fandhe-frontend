@@ -464,7 +464,7 @@ pub fn output_path(from: &str) -> String {
 /// - meta CSP（`crate::csp`、#3678）は**付けない**。本ページは script も
 ///   stylesheet も持たない最小ページで、`meta refresh` と組み合わせた CSP は
 ///   遷移を阻害し得るため、通常ページ（`crate::layout`）だけが出す。
-fn redirect_document(site_title: &str, to_href: &str) -> Node {
+fn redirect_document(site_title: &str, to_href: &str, lang: &str) -> Node {
     let head = el(
         "head",
         vec![],
@@ -516,16 +516,18 @@ fn redirect_document(site_title: &str, to_href: &str) -> Node {
         )],
     );
 
-    el("html", vec![("lang", "ja")], vec![head, body])
+    el("html", vec![("lang", lang)], vec![head, body])
 }
 
 /// [`crate::build::build_site`] から呼ぶ公開エントリ。`to`（サイト内絶対
 /// パス）を `base_path` 込みの href へ変換した上で `redirect_document`
 /// を組み立てる。href 変換を呼び出し元へ委ねない（`base_path` 反映漏れの
 /// 事故を単一実装点で防ぐ）。
-pub fn redirect_page(site_title: &str, base_path: &str, to: &str) -> Node {
+///
+/// `lang` は `<html lang>` の値（`[site].lang`、#3721。`parse_nav` が検証済み）。
+pub fn redirect_page(site_title: &str, base_path: &str, to: &str, lang: &str) -> Node {
     let to_href = layout::asset_href(base_path, to);
-    redirect_document(site_title, &to_href)
+    redirect_document(site_title, &to_href, lang)
 }
 
 #[cfg(test)]
@@ -876,7 +878,12 @@ to = "/c/"
 
     #[test]
     fn redirect_page_contains_the_four_required_elements() {
-        let node = redirect_page("Docs", "/fandhe-frontend", "/components/pre-styled-ui/");
+        let node = redirect_page(
+            "Docs",
+            "/fandhe-frontend",
+            "/components/pre-styled-ui/",
+            "ja",
+        );
         let html = render(&node);
         assert!(html.contains(
             r#"<meta http-equiv="refresh" content="0; url=/fandhe-frontend/components/pre-styled-ui/">"#
@@ -892,7 +899,12 @@ to = "/c/"
 
     #[test]
     fn redirect_page_reflects_base_path_in_href() {
-        let node = redirect_page("Docs", "/fandhe-frontend", "/components/pre-styled-ui/");
+        let node = redirect_page(
+            "Docs",
+            "/fandhe-frontend",
+            "/components/pre-styled-ui/",
+            "ja",
+        );
         let html = render(&node);
         assert!(html.contains("/fandhe-frontend/components/pre-styled-ui/"));
         // base_path 込みでない素の to がどこにも現れないこと（asset_href
@@ -902,7 +914,7 @@ to = "/c/"
 
     #[test]
     fn redirect_page_has_no_chrome_elements() {
-        let node = redirect_page("Docs", "", "/x/");
+        let node = redirect_page("Docs", "", "/x/", "ja");
         let html = render(&node);
         assert!(!html.contains("class="));
         assert!(!html.contains("<script"));
@@ -915,10 +927,16 @@ to = "/c/"
     /// 唯一の防壁ではないことの直接証明（モジュール doc 参照）。
     #[test]
     fn redirect_page_escapes_malicious_input_even_if_validation_is_bypassed() {
-        let node = redirect_page("t", "", "/x\"><script>alert(1)</script>/");
+        let node = redirect_page("t", "", "/x\"><script>alert(1)</script>/", "ja");
         let html = render(&node);
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(!html.contains("\"><script>"));
+    }
+
+    #[test]
+    fn redirect_page_reflects_lang() {
+        let html = render(&redirect_page("Docs", "", "/x/", "en-US"));
+        assert!(html.starts_with("<html lang=\"en-US\">"));
     }
 
     // ---- output_path ----

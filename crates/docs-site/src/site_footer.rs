@@ -19,14 +19,14 @@
 //!     div.docs-footer-top                     … ブランド列 + nav のグリッド
 //!       div.docs-footer-brand                 … nav の外（リンク集ではないため）
 //!         p.docs-footer-brand-name            … [site].title（リンクにしない）
-//!         p.docs-footer-tagline               … FOOTER_TAGLINE
+//!         p.docs-footer-tagline               … [site].tagline（未指定は FOOTER_TAGLINE）
 //!       nav.docs-footer-nav[aria-label=Footer]
 //!         div.docs-footer-columns
 //!           div.docs-footer-group             … Docs（メニューに属さないセクション索引）
 //!           div.docs-footer-group × メニュー数  … menu.title（Overview + メンバー索引）
-//!           div.docs-footer-group             … Resources（GitHub / crates.io）
+//!           div.docs-footer-group             … Resources（GitHub / crates.io。version_badge 指定時は GitHub のみ）
 //!     separator(hr)
-//!     div.docs-footer-bottom                  … 著作権・ライセンスのみ
+//!     div.docs-footer-bottom                  … 著作権（[site].copyright）+ ライセンス行または帰属表記
 //! ```
 //!
 //! # 列の生成規則
@@ -89,8 +89,8 @@ pub const FOOTER_BOTTOM_CLASS: &str = "docs-footer-bottom";
 /// フッター nav のランドマーク名（他の nav 名と重ならない英語）。
 pub const FOOTER_ARIA_LABEL: &str = "Footer";
 
-/// ブランド列のタグライン。現時点では固定文言で、`[site].tagline` 未指定時の
-/// 既定値になる（設計は `docs/design/docs-site-external-use.md`、実装は #3721）。
+/// ブランド列のタグラインの既定値（`[site].tagline` 未指定時、#3721。設計は
+/// `docs/design/docs-site-external-use.md`）。
 pub const FOOTER_TAGLINE: &str =
     "AI 時代のセキュリティリスクを抑える Rust 製フロントエンドフレームワーク";
 /// Docs 列の見出し。
@@ -108,7 +108,12 @@ const LICENSE_MIT_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend/blob
 const LICENSE_APACHE_URL: &str =
     "https://github.com/Fandhe-AI/fandhe-frontend/blob/main/LICENSE-APACHE";
 
-/// 著作権表記（`LICENSE-MIT` の著作権行と同じ文言）。
+/// 帰属表記が指す docs-site 本体のリポジトリ URL。`layout::REPOSITORY_URL`（将来
+/// `[site].repository_url` で差し替わる値）とは意図的に共有せず、設定から独立した定数にする
+/// （帰属表記を設定で消せない・書き換えられないための不変条件、設計文書 §6）。
+const ATTRIBUTION_REPOSITORY_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+
+/// 著作権表記の既定値（`[site].copyright` 未指定時。`LICENSE-MIT` の著作権行と同じ文言）。
 const COPYRIGHT_TEXT: &str = "© 2026 Fandhe-AI / fandhe-frontend contributors";
 
 fn external_link(href: &str, label: &str) -> Node {
@@ -192,13 +197,13 @@ pub fn site_footer(nav: &Nav) -> Node {
         groups.push(column(FOOTER_DOCS_HEADING, docs_items));
     }
     groups.extend(menu_columns);
-    groups.push(column(
-        FOOTER_RESOURCES_HEADING,
-        vec![
-            external_item(REPOSITORY_URL, "GitHub"),
-            external_item(CRATES_IO_URL, "crates.io"),
-        ],
-    ));
+    // crates.io リンクは fandhe-frontend-core のページなので、`version_badge` を指定した
+    // 外部サイトでは出さない（badge と同じ「本家固有の表示」として連動させる）。
+    let mut resources = vec![external_item(REPOSITORY_URL, "GitHub")];
+    if nav.site.version_badge.is_none() {
+        resources.push(external_item(CRATES_IO_URL, "crates.io"));
+    }
+    groups.push(column(FOOTER_RESOURCES_HEADING, resources));
 
     let brand = div(
         vec![("class", FOOTER_BRAND_CLASS)],
@@ -211,7 +216,7 @@ pub fn site_footer(nav: &Nav) -> Node {
             el(
                 "p",
                 vec![("class", FOOTER_TAGLINE_CLASS)],
-                vec![text(FOOTER_TAGLINE)],
+                vec![text(nav.site.tagline.as_deref().unwrap_or(FOOTER_TAGLINE))],
             ),
         ],
     );
@@ -221,20 +226,33 @@ pub fn site_footer(nav: &Nav) -> Node {
         variant: TextVariant::Muted,
         ..TextProps::default()
     };
+    // ブランド系キーの指定有無で下段 2 行目だけを切り替える。未指定側のノード列は従来
+    // 出力とバイト一致させるため触らない。指定側でも MIT / Apache-2.0 へのリンクは
+    // 残し、docs-site 本体への帰属を示す（消す・差し替えるキーは作らない）。
+    let license_line = if nav.site.is_brand_customized() {
+        vec![
+            text("Built with "),
+            external_link(ATTRIBUTION_REPOSITORY_URL, "fandhe-frontend docs-site"),
+            text(" ("),
+            external_link(LICENSE_MIT_URL, "MIT"),
+            text(" OR "),
+            external_link(LICENSE_APACHE_URL, "Apache-2.0"),
+            text(")"),
+        ]
+    } else {
+        vec![
+            text("Licensed under "),
+            external_link(LICENSE_MIT_URL, "MIT"),
+            text(" OR "),
+            external_link(LICENSE_APACHE_URL, "Apache-2.0"),
+        ]
+    };
+    let copyright = nav.site.copyright.as_deref().unwrap_or(COPYRIGHT_TEXT);
     let bottom = div(
         vec![("class", FOOTER_BOTTOM_CLASS)],
         vec![
-            ps_text(&small_muted, vec![], vec![text(COPYRIGHT_TEXT)]),
-            ps_text(
-                &small_muted,
-                vec![],
-                vec![
-                    text("Licensed under "),
-                    external_link(LICENSE_MIT_URL, "MIT"),
-                    text(" OR "),
-                    external_link(LICENSE_APACHE_URL, "Apache-2.0"),
-                ],
-            ),
+            ps_text(&small_muted, vec![], vec![text(copyright)]),
+            ps_text(&small_muted, vec![], license_line),
         ],
     );
 
@@ -392,6 +410,102 @@ mod tests {
         let html = render(&site_footer(&nav_with("", true)));
         assert!(!html.contains("<script>") && !html.contains("<b>") && !html.contains("<i>"));
         assert!(html.contains("A &lt;script&gt;"));
+    }
+
+    /// `[site]` へ任意キーを足した nav（#3721）。
+    fn nav_with_site_keys(extra: &str) -> Nav {
+        parse_nav(&format!(
+            "[site]\ntitle = \"S\"\nbase_path = \"\"\n{extra}\n[[section]]\ntitle = \"A\"\nindex_path = \"/a/\"\n\n[[section.page]]\ntitle = \"Idx\"\nsource = \"i.md\"\npath = \"/a/\"\n"
+        ))
+        .expect("fixture nav parses")
+    }
+
+    fn footer_html(extra: &str) -> String {
+        render(&site_footer(&nav_with_site_keys(extra)))
+    }
+
+    #[test]
+    fn defaults_show_license_line_and_crates_io() {
+        let html = footer_html("");
+        assert!(html.contains(FOOTER_TAGLINE));
+        assert!(html.contains(COPYRIGHT_TEXT));
+        assert!(html.contains("Licensed under"));
+        assert!(!html.contains("Built with"));
+        assert!(html.contains("crates.io/crates"));
+        assert_eq!(count(&html, "target=\"_blank\""), 4);
+    }
+
+    #[test]
+    fn tagline_override_replaces_default_and_is_escaped() {
+        let html = footer_html("tagline = \"Hi <script>x</script>\"\n");
+        assert!(html.contains("Hi &lt;script&gt;x&lt;/script&gt;"));
+        assert!(!html.contains("<script>"));
+        assert!(!html.contains(FOOTER_TAGLINE));
+    }
+
+    #[test]
+    fn copyright_override_replaces_default_and_is_escaped() {
+        let html = footer_html("copyright = \"(c) <i>Me</i>\"\n");
+        assert!(html.contains("(c) &lt;i&gt;Me&lt;/i&gt;"));
+        assert!(!html.contains("<i>Me"));
+        assert!(!html.contains(COPYRIGHT_TEXT));
+    }
+
+    #[test]
+    fn version_badge_key_removes_crates_io_link_in_both_forms() {
+        for extra in ["version_badge = \"v1\"\n", "version_badge = \"\"\n"] {
+            let html = footer_html(extra);
+            assert!(!html.contains("crates.io/crates"), "{extra}");
+            assert!(html.contains(">GitHub<"), "{extra}");
+        }
+    }
+
+    #[test]
+    fn customized_footer_switches_to_attribution_and_keeps_license_links() {
+        for extra in [
+            "tagline = \"t\"\n",
+            "copyright = \"c\"\n",
+            "version_badge = \"\"\n",
+        ] {
+            let html = footer_html(extra);
+            assert!(html.contains("Built with "), "{extra}");
+            assert!(!html.contains("Licensed under"), "{extra}");
+            // GitHub リンク（REPOSITORY_URL）と帰属リンクは同じ URL を指す。
+            assert_eq!(
+                count(&html, &format!("href=\"{ATTRIBUTION_REPOSITORY_URL}\"")),
+                2,
+                "{extra}"
+            );
+            assert!(html.contains(">fandhe-frontend docs-site<"), "{extra}");
+            assert_eq!(count(&html, "LICENSE-MIT\""), 1, "{extra}");
+            assert_eq!(count(&html, "LICENSE-APACHE\""), 1, "{extra}");
+            let blank = count(&html, "target=\"_blank\"");
+            assert_eq!(
+                blank,
+                count(&html, "rel=\"noopener noreferrer\""),
+                "{extra}"
+            );
+            // GitHub + 帰属 + MIT + Apache-2.0 に、crates.io が残る構成だけ +1。
+            let expected = if extra.starts_with("version_badge") {
+                4
+            } else {
+                5
+            };
+            assert_eq!(blank, expected, "{extra}");
+        }
+    }
+
+    #[test]
+    fn lang_only_footer_is_identical_to_default() {
+        assert_eq!(footer_html("lang = \"en\"\n"), footer_html(""));
+    }
+
+    #[test]
+    fn customized_footer_still_has_no_ids_or_scripts() {
+        let html = footer_html("tagline = \"t\"\ncopyright = \"c\"\nversion_badge = \"v\"\n");
+        for forbidden in ["id=\"", "<script", "javascript:", "aria-current"] {
+            assert!(!html.contains(forbidden), "{forbidden}");
+        }
     }
 
     #[test]

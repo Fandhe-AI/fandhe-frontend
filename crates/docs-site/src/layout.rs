@@ -115,14 +115,21 @@ fn brand(root_href: &str) -> Node {
     )
 }
 
-/// ブランド横のバージョン badge（#3606）。表示は `core v{version}`
-/// （`fandhe-frontend-core` の版数、選定理由は
+/// ブランド横のバージョン badge（#3606）。既定（[`VersionBadge::CoreVersion`]）の表示は
+/// `core v{version}`（`fandhe-frontend-core` の版数、選定理由は
 /// `docs/design/docs-site-styled-blocks-redesign.md` §3.2）。版数の取得に失敗した
 /// 場合は `None`（badge を出さない fail-closed、[`crate::site_version`] 参照）。
+/// `[site].version_badge`（#3721）指定時は [`VersionBadge::Custom`]（任意文字列、
+/// `text()` で既定エスケープ）または [`VersionBadge::Hidden`]（空文字、badge なし）になる。
 /// `a.docs-brand` の内側に入れない（リンクの名前に版数を混ぜないため）。
-fn brand_version() -> Option<Node> {
-    let version = crate::site_version::core_version()?;
-    let label = format!("core v{version}");
+fn brand_version(setting: VersionBadge<'_>) -> Option<Node> {
+    let label = match setting {
+        VersionBadge::CoreVersion => {
+            format!("core v{}", crate::site_version::core_version()?)
+        }
+        VersionBadge::Hidden => return None,
+        VersionBadge::Custom(label) => label.to_string(),
+    };
     Some(el(
         "span",
         vec![("class", "docs-brand-version")],
@@ -135,6 +142,42 @@ fn brand_version() -> Option<Node> {
             vec![text(&label)],
         )],
     ))
+}
+
+/// `<html lang>` の既定値。`[site].lang` 未指定時の値で、`crate::nav::Site::html_lang`
+/// が参照する。
+pub const DEFAULT_LANG: &str = "ja";
+
+/// ヘッダー badge の出し方（`[site].version_badge`、#3721）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum VersionBadge<'a> {
+    /// `core v{version}`（未指定時の既定。従来出力とバイト一致）。
+    #[default]
+    CoreVersion,
+    /// badge を出さない（`version_badge = ""`）。
+    Hidden,
+    /// 呼び出し側が指定した文字列を出す。
+    Custom(&'a str),
+}
+
+/// サイト設定（`[site]` の任意キー）のうちレイアウト側が受け取る分
+/// （`crate::nav::Site::chrome` が組み立て、`crate::build` / `crate::not_found` が渡す）。
+/// `Default` は設定未指定時の出力を再現する。#3720 / #3722 のキーはここへ足す。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SiteChrome<'a> {
+    /// `<html lang>` の値（`parse_nav` が BCP 47 形に検証済み）。
+    pub lang: &'a str,
+    /// ヘッダー badge の出し方。
+    pub version_badge: VersionBadge<'a>,
+}
+
+impl Default for SiteChrome<'_> {
+    fn default() -> Self {
+        Self {
+            lang: DEFAULT_LANG,
+            version_badge: VersionBadge::CoreVersion,
+        }
+    }
 }
 
 /// 検索ブロック（イシュー #958/#3606/#3672）。ヘッダーには検索ボタンだけを置き、
@@ -931,6 +974,37 @@ pub fn docs_page_with_layout(
     footer: Option<Node>,
     layout: PageLayout,
 ) -> Node {
+    docs_page_with_chrome(
+        title,
+        base_path,
+        sidebar,
+        body,
+        extra_stylesheets,
+        header_nav,
+        nav_drawer,
+        footer,
+        layout,
+        &SiteChrome::default(),
+    )
+}
+
+/// [`docs_page_with_layout`] に `[site]` 由来の設定（[`SiteChrome`]、#3721）を渡す版。
+/// `chrome` が [`SiteChrome::default`] なら [`docs_page_with_layout`] とバイト一致する。
+/// 既存の公開関数のシグネチャを変えないため、設定は本関数だけが受ける。
+// 引数が多い理由は `docs_page_with_layout` と同じ（骨格の各スロットを個別引数で受ける）。
+#[allow(clippy::too_many_arguments)]
+pub fn docs_page_with_chrome(
+    title: &str,
+    base_path: &str,
+    sidebar: Node,
+    body: Node,
+    extra_stylesheets: &[&str],
+    header_nav: Option<Node>,
+    nav_drawer: Option<Node>,
+    footer: Option<Node>,
+    layout: PageLayout,
+    chrome: &SiteChrome<'_>,
+) -> Node {
     let landing = layout == PageLayout::Landing;
     let (annotated_body, toc_entries) = with_heading_anchors(body);
     let toc = toc_nav(&toc_entries);
@@ -1087,7 +1161,7 @@ pub fn docs_page_with_layout(
     let search_index_href = asset_href(base_path, search_index::REL_PATH);
 
     let mut header_children = vec![brand(&root_href)];
-    if let Some(version) = brand_version() {
+    if let Some(version) = brand_version(chrome.version_badge) {
         header_children.push(version);
     }
     if let Some(nav_node) = header_nav {
@@ -1203,5 +1277,5 @@ pub fn docs_page_with_layout(
     }
     let body_node = el("body", vec![], body_children);
 
-    el("html", vec![("lang", "ja")], vec![head, body_node])
+    el("html", vec![("lang", chrome.lang)], vec![head, body_node])
 }
