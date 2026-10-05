@@ -44,8 +44,8 @@ pub const OUTPUT_PATH: &str = "/404.html";
 /// ページの `<title>`。
 ///
 /// 日本語（`lang` 未指定の既定）の値。実際の出力は `crate::chrome_text::ChromeText`
-/// の `not_found_title` が `lang` で選ぶ（日本語表の値と本定数は同じ）。
-pub const PAGE_TITLE: &str = "ページが見つかりません";
+/// の `not_found_title` が `lang` で選ぶ。日本語表の値を直接参照し、二重管理しない。
+pub const PAGE_TITLE: &str = crate::chrome_text::JA.not_found_title;
 
 /// 本文ラッパーの class。
 pub const NOT_FOUND_CLASS: &str = "docs-not-found";
