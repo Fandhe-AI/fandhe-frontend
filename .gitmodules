@@ -1,3 +1,7 @@
+# docs/spec は private リポジトリのため、認証のない環境の cargo install --git が
+# submodule 取得で失敗しないよう update = none にしている（#3718）。
+# 取得手順は README.md「クローンと初期化」を参照。
 [submodule "docs/spec"]
 	path = docs/spec
 	url = https://github.com/Fandhe-AI/fandhe-frontend-spec.git
+	update = none

@@ -87,18 +87,20 @@ https://fandhe-ai.github.io/fandhe-frontend/examples/ を参照してくださ�
 
 ### クローンと初期化
 
-仕様書が `docs/spec/` にサブモジュールとして取り込まれているため、
-クローン時に `--recurse-submodules` を指定してください。
-
 ```bash
-git clone --recurse-submodules git@github.com:Fandhe-AI/fandhe-frontend.git
+git clone git@github.com:Fandhe-AI/fandhe-frontend.git
 cd fandhe-frontend
 ```
 
-既存クローンがある場合は以下で初期化してください。
+ビルド・テスト・CLI 導入に `docs/spec/` は不要です。仕様書は private リポジトリのサブモジュールで、
+匿名の `cargo install --git` が成功するよう `.gitmodules` で `update = none` を指定しています（#3718）。
+このため `--recurse-submodules` や素の `git submodule update --init` は `docs/spec/` をスキップします。
+仕様書を読む場合は、spec リポジトリへのアクセス権を持つ環境で次を実行してください。
 
 ```bash
-git submodule update --init
+git submodule update --init --checkout docs/spec
+# 以後も素の `git submodule update` で更新したい場合は、クローンごとに 1 回だけ設定する
+git config submodule.docs/spec.update checkout
 ```
 
 ### 最短セットアップ
@@ -155,10 +157,12 @@ make docker-dev          # コンテナに入る
 
 仕様書（ブレスト〜PoC〜要件定義〜タスク分解〜ロードマップ）は [Fandhe-AI/fandhe-frontend-spec](https://github.com/Fandhe-AI/fandhe-frontend-spec) で管理し、`docs/spec/` にサブモジュールとして取り込んでいます。
 
+取得手順は「開発環境セットアップ」の「クローンと初期化」を参照してください（`update = none` のため明示的な `--checkout` が必要です）。
+
 ```bash
-git clone --recurse-submodules git@github.com:Fandhe-AI/fandhe-frontend.git
-# 既存クローンの場合
-git submodule update --init
+git submodule update --init --checkout docs/spec
+# pin を進める場合
+git submodule update --remote --checkout docs/spec && git add docs/spec
 ```
 
 | ドキュメント | 内容 |
