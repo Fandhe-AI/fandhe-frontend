@@ -70,3 +70,26 @@ fn every_submodule_has_update_none() {
         );
     }
 }
+
+/// 日次 `update-external` wrapper が `submodule-force-checkout: true` を渡していることを固定する。
+///
+/// `update = none` の submodule は、上流 composite action が `--checkout` 付きで更新しない限り
+/// 成功のまま何も更新しない no-op になる。入力の削除・`false` 化による再発を静的に検知する。
+#[test]
+fn update_external_wrapper_forces_checkout() {
+    if !sections()
+        .values()
+        .any(|kv| kv.get("update").map(String::as_str) == Some("none"))
+    {
+        return;
+    }
+    let path = workspace_root().join(".github/workflows/update-external.yml");
+    let text = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("update-external.yml を読めない: {}: {e}", path.display()));
+    assert!(
+        text.lines()
+            .any(|l| l.trim() == "submodule-force-checkout: true"),
+        "update-external.yml が `submodule-force-checkout: true` を渡していない。\
+         update = none の docs/spec が自動更新されない no-op になる（イシュー #3738）"
+    );
+}
