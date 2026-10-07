@@ -1398,7 +1398,10 @@ name = "fandhe-frontend-wasm-full"
 # 到達していたため、#638 条項の「同一版数も衝突として +1」運用に従い
 # 0.40.4 とする。`fandhe-frontend-animation` の依存 `version` 要求は統合
 # バンプ値 0.17.1 へ追随する。
-version = "0.40.4"
+#
+# イシュー #3751: `Runtime::dispatch_action` / `DispatchOutcome` の新規公開 API
+# 追加のため minor バンプ。
+version = "0.41.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

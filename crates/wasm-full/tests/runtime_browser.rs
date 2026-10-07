@@ -36,7 +36,7 @@
 #![cfg(target_arch = "wasm32")]
 
 use fandhe_frontend_interactive::{AppState, Hydrate};
-use fandhe_frontend_wasm_full::Runtime;
+use fandhe_frontend_wasm_full::{DispatchOutcome, Runtime};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 use web_sys::{Document, Element, Event, EventInit, HtmlInputElement};
@@ -622,4 +622,141 @@ fn add_item_with_script_payload_inserts_as_text_not_script_element() {
         list.text_content().unwrap_or_default().contains(malicious),
         "script 文字列はテキストとして安全に挿入されること"
     );
+}
+
+/// `is_same_node` の Option<Element> 版ヘルパー。
+fn same(a: &Element, b: Option<Element>) -> bool {
+    b.is_some_and(|b| a.is_same_node(Some(&b)))
+}
+
+/// イシュー #3751: `Runtime::dispatch_action` が DOM イベントを経由せず
+/// 束縛点・keyed list を差分更新し、既存要素の参照が保たれること。
+#[wasm_bindgen_test]
+fn dispatch_action_updates_bindings_and_keyed_list_preserving_identity() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let placeholder = create_placeholder(&document, "runtime-dispatch-action-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+    let runtime = Runtime::mount("runtime-dispatch-action-root", AppState::new())
+        .expect("mount must succeed");
+
+    let list = placeholder
+        .query_selector("[data-testid='item-list']")
+        .unwrap()
+        .unwrap();
+    let first_item = list.children().item(0).unwrap();
+    let counter = placeholder
+        .query_selector("[data-testid='counter-value']")
+        .unwrap()
+        .unwrap();
+    let input = placeholder.query_selector("#draft-input").unwrap().unwrap();
+    let before = runtime.component().counter;
+
+    assert_eq!(
+        runtime.dispatch_action("increment", ""),
+        DispatchOutcome::Dispatched
+    );
+    assert_eq!(
+        counter.text_content().unwrap_or_default(),
+        (before + 1).to_string()
+    );
+    assert_eq!(
+        runtime.dispatch_action("set_draft", "hello"),
+        DispatchOutcome::Dispatched
+    );
+    assert_eq!(
+        input.dyn_ref::<HtmlInputElement>().unwrap().value(),
+        "hello"
+    );
+    assert_eq!(
+        runtime.dispatch_action("add_item", ""),
+        DispatchOutcome::Dispatched
+    );
+    assert_eq!(list.children().length(), 2);
+
+    assert!(same(&first_item, list.children().item(0)));
+    assert!(same(
+        &counter,
+        placeholder
+            .query_selector("[data-testid='counter-value']")
+            .unwrap()
+    ));
+    assert!(same(
+        &input,
+        placeholder.query_selector("#draft-input").unwrap()
+    ));
+}
+
+/// イシュー #3751: フォーカス中の入力欄が `dispatch_action` で外れないこと。
+#[wasm_bindgen_test]
+fn dispatch_action_keeps_input_focus() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let placeholder = create_placeholder(&document, "runtime-dispatch-focus-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+    let runtime =
+        Runtime::mount("runtime-dispatch-focus-root", AppState::new()).expect("mount must succeed");
+    let input = placeholder.query_selector("#draft-input").unwrap().unwrap();
+    input
+        .dyn_ref::<HtmlInputElement>()
+        .unwrap()
+        .focus()
+        .unwrap();
+
+    runtime.dispatch_action("increment", "");
+    runtime.dispatch_action("set_draft", "abc");
+
+    assert!(same(&input, document.active_element()));
+    assert!(same(
+        &input,
+        placeholder.query_selector("#draft-input").unwrap()
+    ));
+}
+
+/// イシュー #3751: `component()` の借用保持中（再入相当）は no-op の
+/// `Reentrant` を返し、状態も DOM も変わらないこと。未知 action は
+/// `UnknownAction`。
+#[wasm_bindgen_test]
+fn dispatch_action_reentrant_and_unknown_are_noops() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let placeholder = create_placeholder(&document, "runtime-dispatch-noop-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+    let runtime =
+        Runtime::mount("runtime-dispatch-noop-root", AppState::new()).expect("mount must succeed");
+    let counter = placeholder
+        .query_selector("[data-testid='counter-value']")
+        .unwrap()
+        .unwrap();
+    let before_text = counter.text_content().unwrap_or_default();
+
+    {
+        let guard = runtime.component();
+        assert_eq!(
+            runtime.dispatch_action("increment", ""),
+            DispatchOutcome::Reentrant
+        );
+        assert_eq!(guard.counter.to_string(), before_text);
+    }
+    assert_eq!(counter.text_content().unwrap_or_default(), before_text);
+
+    assert_eq!(
+        runtime.dispatch_action("no_such_action", ""),
+        DispatchOutcome::UnknownAction
+    );
+    assert_eq!(counter.text_content().unwrap_or_default(), before_text);
+}
+
+/// イシュー #3751: `dispatch_action` 経由の payload もテキストとして扱われ、
+/// `script` 要素が生成されないこと（REQ-1）。
+#[wasm_bindgen_test]
+fn dispatch_action_script_payload_is_inserted_as_text() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let placeholder = create_placeholder(&document, "runtime-dispatch-xss-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+    let runtime =
+        Runtime::mount("runtime-dispatch-xss-root", AppState::new()).expect("mount must succeed");
+
+    runtime.dispatch_action("set_draft", "<script>alert(1)</script>");
+    runtime.dispatch_action("add_item", "");
+
+    assert!(placeholder.query_selector("script").unwrap().is_none());
+    assert_eq!(runtime.component().items.len(), 2);
 }
